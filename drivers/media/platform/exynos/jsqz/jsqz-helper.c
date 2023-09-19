@@ -16,7 +16,7 @@
 
 #include <linux/kernel.h>
 #include <linux/iommu.h>
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 #include <linux/exynos_iovmm.h>
 #endif
 
@@ -73,7 +73,7 @@ int jsqz_dma_addr_map(struct device *dev,
     dev_dbg(dev, "%s: using iovmm to get dma address, DMA_TO_DEVICE? %d\n"
         , __func__, dir == DMA_TO_DEVICE);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	int prot = IOMMU_READ;
     if (dir != DMA_TO_DEVICE)
         prot = IOMMU_WRITE;
@@ -122,7 +122,7 @@ void jsqz_dma_addr_unmap(struct device *dev,
     dev_dbg(dev, "%s: umapping dma address %pad\n"
         ,  __func__, &dma_addr);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
     if (plane->dmabuf)
         ion_iovmm_unmap(plane->attachment, dma_addr);
     else

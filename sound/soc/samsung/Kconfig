@@ -281,6 +281,14 @@ config SND_SOC_SAMSUNG_RAINBOW_PRINCE
 	select SND_SOC_SAMSUNG_SLIF
 	select SND_SOC_SAMSUNG_DISPLAYPORT
 
+config SND_SOC_SAMSUNG_EXYNOS9925_TFA
+	tristate "Prince AMP support on exynos9925"
+	select SND_SOC_SAMSUNG_ABOX
+	select SND_SOC_SAMSUNG_VTS
+	select SND_SOC_SAMSUNG_MAILBOX
+	select SND_SOC_SAMSUNG_SLIF
+	select SND_SOC_SAMSUNG_DISPLAYPORT
+
 config SND_SOC_ARNDALE
 	tristate "Audio support for Arndale Board"
 	depends on I2C

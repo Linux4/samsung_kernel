@@ -14,7 +14,7 @@
 /*
  * events
  */
-/** Maximum value for enumerator */
+/* Maximum value for enumerator */
 #define LVM_MAXENUM (0xffff)
 /*
  * This enum type specifies the different events that may trigger a callback.
@@ -55,8 +55,12 @@ enum tfa98xx_blackbox_id {
 int tfa98xx_set_blackbox(int enable);
 int tfa98xx_get_blackbox_data(int dev, int *data);
 int tfa98xx_get_blackbox_data_index(int dev, int index, int reset);
+int tfa98xx_get_blackbox_data_index_channel(int channel,
+	int index, int reset);
 
 int tfa98xx_update_spkt_data(int idx);
+int tfa98xx_update_spkt_data_channel(int channel);
 int tfa98xx_write_sknt_control(int idx, int value);
+int tfa98xx_write_sknt_control_channel(int channel, int value);
 
 #endif /* TFA_SRC_TFA_EXT_H_ */

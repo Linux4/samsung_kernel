@@ -262,24 +262,25 @@ static int is_3aa_video_s_ext_ctrl(struct file *file, void *priv,
 				sizeof(info.CaptureMultiExposureList));
 
 			switch (info.captureIntent) {
-			case AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI:
-			case AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT:
-			case AA_CAPTURE_INTENT_STILL_CAPTURE_EXECUTOR_NIGHT_SHOT:
-			case AA_CAPTURE_INTENT_STILL_CAPTURE_LIGHT_TRAIL_SHOT:
-			case AA_CAPTURE_INTENT_STILL_CAPTURE_ASTRO_SHOT:
-				head->remainIntentCount = 3 + INTENT_RETRY_CNT;
-				break;
-			default:
-				head->remainIntentCount = 1 + INTENT_RETRY_CNT;
-				break;
+				case AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI:
+				case AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT:
+				case AA_CAPTURE_INTENT_STILL_CAPTURE_EXECUTOR_NIGHT_SHOT:
+				case AA_CAPTURE_INTENT_STILL_CAPTURE_LIGHT_TRAIL_SHOT:
+				case AA_CAPTURE_INTENT_STILL_CAPTURE_ASTRO_SHOT:
+				case AA_CAPTURE_INTENT_STILL_CAPTURE_REPEATED_MULTI_FRAME_LIST:
+					head->remainCaptureIntentCount = 3 + CAPTURE_INTENT_RETRY_CNT;
+					break;
+				default:
+					head->remainCaptureIntentCount = 1 + CAPTURE_INTENT_RETRY_CNT;
+					break;
 			}
 			
 			spin_unlock_irqrestore(&head->slock_s_ctrl, flags);
 
 			mginfo("s_ext_ctrl SET_CAPTURE_INTENT_INFO, intent(%d) count(%d) captureEV(%d) captureIso(%d)"
-				"captureAeExtraMode(%d) captureAeMode(%d) remainIntentCount(%d)\n",
+				"captureAeExtraMode(%d) captureAeMode(%d) remainCaptureIntentCount(%d)\n",
 				head, head, info.captureIntent, info.captureCount, info.captureEV, info.captureIso,
-				info.captureAeExtraMode, info.captureAeMode, head->remainIntentCount);
+				info.captureAeExtraMode, info.captureAeMode, head->remainCaptureIntentCount);
 			break;
 		}
 		default:

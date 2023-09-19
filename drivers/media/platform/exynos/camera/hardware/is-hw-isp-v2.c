@@ -1107,12 +1107,12 @@ static void is_hw_isp_handle_start_interrupt(struct is_hw_ip *hw_ip, struct is_h
 								instance, hw_fcount, EVENT_FRAME_START, 0, NULL);
 	} else {
 		atomic_add(1, &hw_ip->count.fs);
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
 
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance]])))
 			msinfo_hw("[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-		is_hardware_frame_start(hw_ip, instance);
+		CALL_HW_IPS(hw_ip, frame_start, hw_ip, instance);
 	}
 }
 
@@ -1153,10 +1153,10 @@ static void is_hw_isp_handle_end_interrupt(struct is_hw_ip *hw_ip, struct is_hw_
 		is_lib_isp_event_notifier(hw_ip, &hw_isp->lib[instance],
 									instance, hw_fcount, EVENT_FRAME_END, 0, NULL);
 	} else {
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 		atomic_add(1, &hw_ip->count.fe);
 
-		is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+		CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 							IS_SHOT_SUCCESS, true);
 
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance]])))
@@ -1490,6 +1490,7 @@ static int is_hw_isp_init(struct is_hw_ip *hw_ip, u32 instance,
 			}
 		}
 	}
+	hw_ip->frame_type = f_type;
 
 	dns_base = __is_hw_isp_get_reg_base(ISP_REG_DNS);
 	mcfp0_base = __is_hw_isp_get_reg_base(ISP_REG_MCFP0);
@@ -1908,9 +1909,9 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame, ulong 
 		}
 
 		if (likely(!test_bit(hw_ip->id, (unsigned long *)&debug_iq))) {
-			_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
 			ret = __is_hw_isp_set_rta_regs(hw_ip, set_id, hw_isp, instance);
-			_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
 			if (ret > 0) {
 				msinfo_hw("set_regs is not called from ddk\n", instance, hw_ip);
 				bypass_iq = true;
@@ -2067,7 +2068,7 @@ static int is_hw_isp_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	if (test_bit(hw_ip->id, &frame->core_flag))
 		output_id = IS_HW_CORE_END;
 
-	return is_hardware_frame_done(hw_ip, frame, -1,
+	return CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 		IS_HW_CORE_END, done_type, false);
 }
 

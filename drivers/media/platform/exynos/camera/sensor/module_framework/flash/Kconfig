@@ -80,3 +80,10 @@ config CAMERA_FLASH_SM5714_OBJ
         default n
         help
           Use to build SM5714 driver.
+
+config CAMERA_FLASH_AW36518_OBJ
+        tristate "Use AW36518"
+	depends on CAMERA_FLASH_SELECT
+        default n
+        help
+          Use to build AW36518 driver.

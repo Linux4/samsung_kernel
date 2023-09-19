@@ -246,6 +246,8 @@ static int is_ischain_paf_tag(struct is_subdev *subdev,
 		goto p_err;
 	}
 
+	node->result = 1;
+
 p_err:
 	return ret;
 }

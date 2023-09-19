@@ -670,6 +670,7 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
 	unsigned int hibernation_crtc_mask = 0;
 	unsigned int disabling_crtc_mask = 0;
+	const struct dpu_freq_hop_ops *fh_ops;
 
 	DPU_ATRACE_BEGIN("exynos_atomic_commit_tail");
 
@@ -747,8 +748,16 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 			continue;
 
 		exynos_crtc = to_exynos_crtc(crtc);
-		if (exynos_crtc->freq_hop)
-			exynos_crtc->freq_hop->set_freq_hop(exynos_crtc, true);
+
+		fh_ops = exynos_crtc->freq_hop;
+		if (!fh_ops)
+			continue;
+
+		if (fh_ops->update_freq_hop)
+			fh_ops->update_freq_hop(exynos_crtc);
+
+		if (fh_ops->set_freq_hop)
+			fh_ops->set_freq_hop(exynos_crtc, true);
 	}
 
 	exynos_atomic_bts_pre_update(dev, old_state);
@@ -772,7 +781,12 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 	exynos_atomic_wait_for_vblanks(dev, old_state);
 	DPU_ATRACE_END("wait_for_vblanks");
 
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
+	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state,
+			new_crtc_state, i) {
+#else
 	for_each_new_crtc_in_state(old_state, crtc, new_crtc_state, i) {
+#endif
 		const struct exynos_drm_crtc_ops *ops;
 		struct exynos_drm_crtc_state *exynos_crtc_state =
 			to_exynos_crtc_state(new_crtc_state);
@@ -798,7 +812,7 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 		if (ops->set_trigger)
 			ops->set_trigger(exynos_crtc, exynos_crtc_state);
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 		if (ops->set_fingerprint_mask)
 			ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 1);
 #endif

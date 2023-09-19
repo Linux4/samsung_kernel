@@ -549,6 +549,24 @@ void dp_get_voltage_and_pre_emphasis_max_reach(u8 *drive_current, u8 *pre_emphas
 	}
 }
 
+u8 dp_get_max_lane_count_from_pin_assignment(struct dp_device *dp)
+{
+	u8 lane_count = 4;
+
+	switch (dp->cal_res.pdic_notify_dp_conf) {
+	case PDIC_NOTIFY_DP_PIN_B:
+	case PDIC_NOTIFY_DP_PIN_D:
+	case PDIC_NOTIFY_DP_PIN_F:
+		dp_info(dp, "support 2 lanes pin_assignment\n");
+		lane_count = 2;
+		break;
+	default:
+		break;
+	}
+
+	return lane_count;
+}
+
 #define ALLOW_RE_PHY_SET
 static int dp_full_link_training(struct dp_device *dp)
 {
@@ -597,7 +615,9 @@ static int dp_full_link_training(struct dp_device *dp)
 	enhanced_frame_cap = val[2] & ENHANCED_FRAME_CAP;
 	tps4_supported = val[3] & TPS4_SUPPORTED;
 
-	dp_info(dp, "DPCD link_rate = %x, lane_cnt = %x, tps3: %d, tps4: %d, enhanced_frame_cap: %d\n",
+	lane_cnt = min_t(u8, lane_cnt, dp_get_max_lane_count_from_pin_assignment(dp));
+
+	dp_info(dp, "link_rate = %x, lane_cnt = %x, tps3: %d, tps4: %d, enhanced_frame_cap: %d\n",
 			link_rate, lane_cnt, tps3_supported, tps4_supported, enhanced_frame_cap);
 
 	if (link_rate == 0 || lane_cnt == 0) {
@@ -3761,6 +3781,43 @@ static int dp_dex_adapter_tweak(struct dp_device *dp, const char *buf, size_t si
 }
 #endif
 
+#ifdef FEATURE_HIGHER_RESOLUTION
+#define HIGHER_RESOLUTION_STR_LEN	32
+#define HIGHER_RESOLUTION_STR_TAG "HigherResolution"
+static int dp_higher_resolution(struct dp_device *dp, const char *buf, size_t size)
+{
+	char str[HIGHER_RESOLUTION_STR_LEN] = {0,};
+	char *p, *tok;
+
+	if (size >= HIGHER_RESOLUTION_STR_LEN)
+		return -EINVAL;
+
+	memcpy(str, buf, size);
+	p = str;
+
+	tok = strsep(&p, ",");
+	if (strncmp(HIGHER_RESOLUTION_STR_TAG, tok, strlen(HIGHER_RESOLUTION_STR_TAG)))
+		return -EINVAL;
+
+	tok = strsep(&p, ",");
+	if (tok == NULL || *tok == 0xa/*LF*/) {
+		dp_info(dp, "Higher resolution - Invalid value\n");
+		return 0;
+	}
+
+	switch (*tok) {
+	case '1':
+		dp->higher_resolution = true;
+		break;
+	default:
+		dp->higher_resolution = false;
+	}
+	dp_info(dp, "%s(%c)\n", __func__, *tok);
+
+	return 0;
+}
+#endif
+
 #ifdef FEATURE_DEX_SUPPORT
 static ssize_t dex_show(struct class *class,
 		struct class_attribute *attr, char *buf)
@@ -3808,6 +3865,11 @@ static ssize_t dex_store(struct class *dev,
 
 #ifdef FEATURE_DEX_ADAPTER_TWEAK
 	if (!dp_dex_adapter_tweak(dp, buf, size))
+		return size;
+#endif
+
+#ifdef FEATURE_HIGHER_RESOLUTION
+	if (!dp_higher_resolution(dp, buf, size))
 		return size;
 #endif
 	if (kstrtouint(buf, 10, &val)) {

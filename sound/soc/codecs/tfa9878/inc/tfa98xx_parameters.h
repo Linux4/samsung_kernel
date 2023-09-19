@@ -272,8 +272,8 @@ enum tfa_header_type {
 	preset_hdr    = HDR('P', 'R'),
 	config_hdr    = HDR('C', 'O'),
 	equalizer_hdr = HDR('E', 'Q'),
-	drc_hdr	      = HDR('D', 'R'),
-	msg_hdr	      = HDR('M', 'G'), /* generic message */
+	drc_hdr       = HDR('D', 'R'),
+	msg_hdr       = HDR('M', 'G'), /* generic message */
 	info_hdr      = HDR('I', 'N')
 };
 
@@ -464,7 +464,7 @@ struct tfa_volume_step_message_info {
 	uint8_t parameter_data[];
 };
 
-/**************************old v2 *****************************************/
+/************************** old v2 **************************/
 
 /*
  * subv 00 volumestep file
@@ -497,7 +497,7 @@ struct tfa_old_volume_step2_file {
 	struct tfa_old_volume_step2 step[];
 };
 
-/******************** end old v2 ************************************/
+/************************** end old v2 **************************/
 
 /*
  * speaker file header
@@ -624,7 +624,7 @@ struct tfa_desc_ptr {
 struct tfa_file_dsc {
 	struct tfa_desc_ptr name;
 	uint32_t size;	/* file data length in bytes */
-	uint8_t data[];/* payload */
+	uint8_t data[];	/* payload */
 };
 
 /*
@@ -635,9 +635,9 @@ struct tfa_device_list {
 	uint8_t bus;			/* bus */
 	uint8_t dev;			/* device */
 	uint8_t func;			/* subfunction or subdevice */
-	uint32_t devid;			 /* device hw fw id */
-	struct tfa_desc_ptr name;		 /* device name */
-	struct tfa_desc_ptr list[];		 /* items list */
+	uint32_t devid;			/* device hw fw id */
+	struct tfa_desc_ptr name;		/* device name */
+	struct tfa_desc_ptr list[];		/* items list */
 };
 
 /*
@@ -658,8 +658,8 @@ struct tfa_profile_list {
 struct tfa_livedata_list {
 	uint32_t length:8;		/* nr of items in the list */
 	uint32_t id:24;			/* profile ID */
-	struct tfa_desc_ptr name;		 /* livedata name */
-	struct tfa_desc_ptr list[];		 /* items list */
+	struct tfa_desc_ptr name;		/* livedata name */
+	struct tfa_desc_ptr list[];		/* items list */
 };
 #define TFA_LIVEDATAID 0x5678
 
@@ -709,7 +709,6 @@ struct tfa_no_init {
 struct tfa_features {
 	uint16_t value[3];	/* features value */
 };
-
 
 /*
  * the container file

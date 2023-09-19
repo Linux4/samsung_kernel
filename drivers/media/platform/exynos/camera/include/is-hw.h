@@ -276,11 +276,11 @@ int csi_hw_s_config_dma_cmn(u32 __iomem *base_reg, u32 vc, u32 actual_vc, u32 hw
 
 void csi_hw_s_mcb_qch(u32 __iomem *base_reg, bool on);
 void csi_hw_s_ebuf_enable(u32 __iomem *base_reg, bool on, u32 ebuf_ch, int mode,
-			u32 num_of_ebuf);
-void csi_hw_s_cfg_ebuf(u32 __iomem *base_reg, u32 ebuf_ch, u32 vc, u32 width,
+			u32 num_of_ebuf, u32 offset_fake_frame_done);
+int csi_hw_s_cfg_ebuf(u32 __iomem *base_reg, u32 ebuf_ch, u32 vc, u32 width,
 		u32 height);
 void csi_hw_g_ebuf_irq_src(u32 __iomem *base_reg, struct csis_irq_src *src, int ebuf_ch,
-			unsigned int num_of_ebuf);
+			unsigned int offset_fake_frame_done);
 void csi_hw_s_ebuf_fake_sign(u32 __iomem *base_reg, u32 ebuf_ch);
 
 bool csi_hw_s_bns_cfg(u32 __iomem *reg, struct is_sensor_cfg *sensor_cfg,
@@ -594,6 +594,7 @@ struct is_hw_ip {
 	bool					is_leader;
 	ulong					state;
 	const struct is_hw_ip_ops		*ops;
+	const struct is_hardware_ops	*hw_ops;
 	u32					debug_index[2];
 	struct hw_debug_info			debug_info[DEBUG_FRAME_COUNT];
 	struct hw_debug_info			debug_ext_info[DEBUG_EXT_MAX];
@@ -618,6 +619,7 @@ struct is_hw_ip {
 	refcount_t			ref_setfile[SENSOR_POSITION_MAX];
 	u32					applied_scenario;
 	u32					lib_mode;
+	u32					frame_type;
 	/* for dump sfr */
 	void					*sfr_dump[REG_SET_MAX];
 	bool					sfr_dump_flag;
@@ -698,13 +700,19 @@ struct is_hw_ip_ops {
 	int (*notify_timeout)(struct is_hw_ip *hw_ip, u32 instance);
 	void (*show_status)(struct is_hw_ip *hw_ip, u32 instance);
 	void (*suspend)(struct is_hw_ip *hw_ip, u32 instance);
+	void (*query)(struct is_hw_ip *ip, u32 instance, u32 type, void *in, void *out);
+};
+
+/* query types */
+enum pablo_query_type {
+	PABLO_QUERY_GET_PCFI,
 };
 
 typedef int (*hw_ip_probe_fn_t)(struct is_hw_ip *hw_ip, struct is_interface *itf,
 	struct is_interface_ischain *itfc, int id, const char *name);
 
-#define CALL_HW_OPS(hw, op, args...)	\
-	(((hw) && (hw)->ops->op) ? ((hw)->ops->op(args)) : 0)
+#define CALL_HW_OPS(hw_ip, op, args...)	\
+	(((hw_ip)->hw_ops && (hw_ip)->hw_ops->op) ? ((hw_ip)->hw_ops->op(args)) : 0)
 
 struct is_hardware_ops {
 	void (*frame_start)(struct is_hw_ip *hw_ip, u32 instance);
@@ -719,6 +727,17 @@ struct is_hardware_ops {
 		enum ShotErrorType done_type);
 	void (*dbg_trace)(struct is_hw_ip *hw_ip, u32 fcount, u32 dbg_pts);
 };
+
+#define CALL_HW_GRP_OPS(grp, op, args...)	\
+	(((grp)->hw_grp_ops && (grp)->hw_grp_ops->op) ? ((grp)->hw_grp_ops->op(args)) : 0)
+
+struct is_hw_group_ops {
+	int (*shot)(struct is_hardware *hw, u32 instance, struct is_group *head,
+			struct is_frame *frame, ulong hw_map);
+	int (*s_param)(struct is_hardware *hw, u32 instance,
+			struct is_group *grp, struct is_frame *frame);
+};
+
 /**
  * struct is_hardware - common HW chain structure
  * @taa0: 3AA0 HW IP structure
@@ -730,10 +749,9 @@ struct is_hardware_ops {
  */
 struct is_hardware {
 	struct is_hw_ip		hw_ip[HW_SLOT_MAX];
-	struct is_framemgr		framemgr[GROUP_ID_MAX];
+	struct is_framemgr		framemgr[DEV_HW_END];
 	atomic_t			rsccount;
 	struct mutex            itf_lock;
-	const struct is_hardware_ops	*ops;
 
 	/* keep last configuration */
 	ulong				logical_hw_map[IS_STREAM_COUNT]; /* logical */
@@ -813,6 +831,9 @@ void is_hw_fill_target_address(u32 hw_id, struct is_frame *dst,	struct is_frame 
 	} while (0);
 void is_hw_chain_probe(void *core_data);
 struct is_mem *is_hw_get_iommu_mem(u32 vid);
+void is_hw_update_prfi(struct is_hardware *hardware, struct is_group *group,
+			struct is_frame *frame);
+
 /*
  * ********************
  * RUNTIME-PM FUNCTIONS

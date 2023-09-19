@@ -337,6 +337,8 @@ static int is_ischain_orb_tag(struct is_subdev *subdev,
 		ret = __orb_dma_in_cfg(device, subdev, frame, out_node, dma,
 				PARAM_ORB_DMA, pmap);
 
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 			if (!cap_node->vid) {
@@ -355,6 +357,8 @@ static int is_ischain_orb_tag(struct is_subdev *subdev,
 				mrerr("__orb_dma_out_cfg is fail(%d)", device, frame, ret);
 				goto p_err;
 			}
+
+			cap_node->result = 1;
 		}
 
 		/* buffer tagging */

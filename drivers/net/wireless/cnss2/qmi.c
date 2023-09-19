@@ -28,6 +28,10 @@
 #define HDS_FILE_NAME			"hds.bin"
 #define CHIP_ID_GF_MASK			0x10
 
+#define CONN_ROAM_FILE_NAME		"wlan-connection-roaming"
+#define INI_EXT			".ini"
+#define INI_FILE_NAME_LEN		100
+
 #define QDSS_TRACE_CONFIG_FILE		"qdss_trace_config"
 #ifdef CONFIG_CNSS2_DEBUG
 #define QDSS_DEBUG_FILE_STR		"debug_"
@@ -659,6 +663,146 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 
 	if (!ret)
 		cnss_bus_add_fw_prefix_name(plat_priv, filename, filename_tmp);
+
+	return ret;
+}
+
+int cnss_wlfw_ini_file_send_sync(struct cnss_plat_data *plat_priv,
+				 enum wlfw_ini_file_type_v01 file_type)
+{
+	struct wlfw_ini_file_download_req_msg_v01 *req;
+	struct wlfw_ini_file_download_resp_msg_v01 *resp;
+	struct qmi_txn txn;
+	int ret = 0;
+	const struct firmware *fw;
+	char filename[INI_FILE_NAME_LEN] = {0};
+	char tmp_filename[INI_FILE_NAME_LEN] = {0};
+	const u8 *temp;
+	unsigned int remaining;
+	bool backup_supported = false;
+
+	cnss_pr_info("INI File %u download\n", file_type);
+
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
+
+	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
+	if (!resp) {
+		kfree(req);
+		return -ENOMEM;
+	}
+
+	switch (file_type) {
+	case WLFW_CONN_ROAM_INI_V01:
+		snprintf(tmp_filename, sizeof(tmp_filename),
+			 CONN_ROAM_FILE_NAME);
+		backup_supported = true;
+		break;
+	default:
+		cnss_pr_err("Invalid file type: %u\n", file_type);
+		ret = -EINVAL;
+		goto err_req_fw;
+	}
+
+	snprintf(filename, sizeof(filename), "%s%s", tmp_filename, INI_EXT);
+	/* Fetch the file */
+	ret = firmware_request_nowarn(&fw, filename, &plat_priv->plat_dev->dev);
+	if (ret) {
+		cnss_pr_err("Failed to get INI file %s (%d), Backup file: %s",
+			    filename, ret,
+			    backup_supported ? "Supported" : "Not Supported");
+
+		if (!backup_supported)
+			goto err_req_fw;
+
+		snprintf(filename, sizeof(filename),
+			 "%s-%s%s", tmp_filename, "backup", INI_EXT);
+
+		ret = firmware_request_nowarn(&fw, filename,
+					      &plat_priv->plat_dev->dev);
+		if (ret) {
+			cnss_pr_err("Failed to get INI file %s (%d)", filename,
+				    ret);
+			goto err_req_fw;
+		}
+	}
+
+	temp = fw->data;
+	remaining = fw->size;
+
+	cnss_pr_dbg("Downloading INI file: %s, size: %u\n", filename,
+		    remaining);
+
+	while (remaining) {
+		req->file_type_valid = 1;
+		req->file_type = file_type;
+		req->total_size_valid = 1;
+		req->total_size = remaining;
+		req->seg_id_valid = 1;
+		req->data_valid = 1;
+		req->end_valid = 1;
+
+		if (remaining > QMI_WLFW_MAX_DATA_SIZE_V01) {
+			req->data_len = QMI_WLFW_MAX_DATA_SIZE_V01;
+		} else {
+			req->data_len = remaining;
+			req->end = 1;
+		}
+
+		memcpy(req->data, temp, req->data_len);
+
+		ret = qmi_txn_init(&plat_priv->qmi_wlfw, &txn,
+				   wlfw_ini_file_download_resp_msg_v01_ei,
+				   resp);
+		if (ret < 0) {
+			cnss_pr_err("Failed to initialize txn for INI file download request, err: %d\n",
+				    ret);
+			goto err;
+		}
+
+		ret = qmi_send_request
+			(&plat_priv->qmi_wlfw, NULL, &txn,
+			 QMI_WLFW_INI_FILE_DOWNLOAD_REQ_V01,
+			 WLFW_INI_FILE_DOWNLOAD_REQ_MSG_V01_MAX_MSG_LEN,
+			 wlfw_ini_file_download_req_msg_v01_ei, req);
+		if (ret < 0) {
+			qmi_txn_cancel(&txn);
+			cnss_pr_err("Failed to send INI File download request, err: %d\n",
+				    ret);
+			goto err;
+		}
+
+		ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
+		if (ret < 0) {
+			cnss_pr_err("Failed to wait for response of INI File download request, err: %d\n",
+				    ret);
+			goto err;
+		}
+
+		if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
+			cnss_pr_err("INI file download request failed, result: %d, err: %d\n",
+				    resp->resp.result, resp->resp.error);
+			ret = -resp->resp.result;
+			goto err;
+		}
+
+		remaining -= req->data_len;
+		temp += req->data_len;
+		req->seg_id++;
+	}
+
+	release_firmware(fw);
+
+	kfree(req);
+	kfree(resp);
+	return 0;
+
+err:
+	release_firmware(fw);
+err_req_fw:
+	kfree(req);
+	kfree(resp);
 
 	return ret;
 }
@@ -1972,6 +2116,74 @@ int cnss_wlfw_qdss_trace_mem_info_send_sync(struct cnss_plat_data *plat_priv)
 	kfree(resp);
 	return 0;
 
+out:
+	kfree(req);
+	kfree(resp);
+	return ret;
+}
+
+int cnss_wlfw_send_host_wfc_call_status(struct cnss_plat_data *plat_priv,
+					struct cnss_wfc_cfg cfg)
+{
+	struct wlfw_wfc_call_status_req_msg_v01 *req;
+	struct wlfw_wfc_call_status_resp_msg_v01 *resp;
+	struct qmi_txn txn;
+	int ret = 0;
+
+	if (!test_bit(CNSS_FW_READY, &plat_priv->driver_state)) {
+		cnss_pr_err("Drop host WFC indication as FW not initialized\n");
+		return -EINVAL;
+	}
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
+
+	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
+	if (!resp) {
+		kfree(req);
+		return -ENOMEM;
+	}
+
+	req->wfc_call_active_valid = 1;
+	req->wfc_call_active = cfg.mode;
+
+	cnss_pr_dbg("CNSS->FW: WFC_CALL_REQ: state: 0x%lx\n",
+		    plat_priv->driver_state);
+
+	ret = qmi_txn_init(&plat_priv->qmi_wlfw, &txn,
+			   wlfw_wfc_call_status_resp_msg_v01_ei, resp);
+	if (ret < 0) {
+		cnss_pr_err("CNSS->FW: WFC_CALL_REQ: QMI Txn Init: Err %d\n",
+			    ret);
+		goto out;
+	}
+
+	cnss_pr_dbg("Send WFC Mode: %d\n", cfg.mode);
+	ret = qmi_send_request(&plat_priv->qmi_wlfw, NULL, &txn,
+			       QMI_WLFW_WFC_CALL_STATUS_REQ_V01,
+			       WLFW_WFC_CALL_STATUS_REQ_MSG_V01_MAX_MSG_LEN,
+			       wlfw_wfc_call_status_req_msg_v01_ei, req);
+	if (ret < 0) {
+		qmi_txn_cancel(&txn);
+		cnss_pr_err("CNSS->FW: WFC_CALL_REQ: QMI Send Err: %d\n",
+			    ret);
+		goto out;
+	}
+
+	ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
+	if (ret < 0) {
+		cnss_pr_err("FW->CNSS: WFC_CALL_RSP: QMI Wait Err: %d\n",
+			    ret);
+		goto out;
+	}
+
+	if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
+		cnss_pr_err("FW->CNSS: WFC_CALL_RSP: Result: %d Err: %d\n",
+			    resp->resp.result, resp->resp.error);
+		ret = -EINVAL;
+		goto out;
+	}
+	ret = 0;
 out:
 	kfree(req);
 	kfree(resp);

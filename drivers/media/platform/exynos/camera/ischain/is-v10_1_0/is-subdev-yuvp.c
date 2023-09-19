@@ -703,6 +703,8 @@ static int is_ischain_yuvp_tag(struct is_subdev *subdev,
 			return ret;
 		}
 
+		out_node->result = 1;
+
 		for (n = 0; n < CAPTURE_NODE_MAX; n++) {
 			cap_node = &frame->shot_ext->node_group.capture[n];
 
@@ -722,6 +724,8 @@ static int is_ischain_yuvp_tag(struct is_subdev *subdev,
 						(dma_type == 1) ? "in" : "out");
 				return ret;
 			}
+
+			cap_node->result = 1;
 		}
 
 #ifdef ENABLE_LVN_DUMMYOUTPUT
@@ -834,13 +838,15 @@ static int is_ischain_yuvp_get(struct is_subdev *subdev,
 			       void *result)
 {
 	struct camera2_node *node;
-	struct is_crop *outcrop;
+	struct is_crop *incrop, *outcrop;
 
 	switch (type) {
 	case PSGT_REGION_NUM:
 		node = &frame->shot_ext->node_group.leader;
+		incrop = (struct is_crop *)node->input.cropRegion;
 		outcrop = (struct is_crop *)node->output.cropRegion;
-		*(int *)result = is_calc_region_num(outcrop->w, subdev);
+
+		*(int *)result = is_calc_region_num(incrop, outcrop, subdev);
 		break;
 	default:
 		break;

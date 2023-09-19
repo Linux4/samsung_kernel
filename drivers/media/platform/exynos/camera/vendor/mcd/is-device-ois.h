@@ -13,6 +13,8 @@
 #ifndef IS_DEVICE_OIS_H
 #define IS_DEVICE_OIS_H
 
+#include "is-interface-sensor.h"
+
 struct is_ois_gpio {
 	char *sda;
 	char *scl;
@@ -127,4 +129,5 @@ void is_ois_init_rear2(struct is_core *core);
 void is_ois_init_factory(struct is_core *core);
 void is_ois_parsing_raw_data(struct is_core *core, uint8_t *buf, long efs_size, long *raw_data_x, long *raw_data_y, long *raw_data_z);
 int is_ois_control_gpio(struct is_core *core, int position, int onoff);
+void is_ois_get_hall_data(struct is_core *core, struct is_ois_hall_data *halldata);
 #endif

@@ -187,7 +187,7 @@ static int is_secure_iris(struct is_device_sensor *device,
 
 	switch (smc_cmd) {
 	case SMC_SECCAM_PREPARE:
-		ret = exynos_smc(SMC_SECCAM_PREPARE, 0, 0, 0);
+		ret = pablo_smc(SMC_SECCAM_PREPARE, 0, 0, 0);
 		if (ret) {
 			merr("[SMC] SMC_SECURE_CAMERA_PREPARE fail(%d)\n", device, ret);
 		} else {
@@ -200,7 +200,7 @@ static int is_secure_iris(struct is_device_sensor *device,
 		if (device->smc_state != IS_SENSOR_SMC_PREPARE)
 			break;
 
-		ret = exynos_smc(SMC_SECCAM_UNPREPARE, 0, 0, 0);
+		ret = pablo_smc(SMC_SECCAM_UNPREPARE, 0, 0, 0);
 		if (ret != 0) {
 			merr("[SMC] SMC_SECURE_CAMERA_UNPREPARE fail(%d)\n", device, ret);
 		} else {
@@ -231,7 +231,7 @@ static int is_secure_face(struct is_core *core,
 			if (IS_ENABLED(SECURE_CAMERA_FACE_SEQ_CHK))
 				ret = 0;
 			else
-				ret = exynos_smc(SMC_SECCAM_PREPARE, 0, 0, 0);
+				ret = pablo_smc(SMC_SECCAM_PREPARE, 0, 0, 0);
 
 			if (ret != 0) {
 				err("[SMC] SMC_SECCAM_PREPARE fail(%d)", ret);
@@ -247,7 +247,7 @@ static int is_secure_face(struct is_core *core,
 			if (IS_ENABLED(SECURE_CAMERA_FACE_SEQ_CHK))
 				ret = 0;
 			else
-				ret = exynos_smc(SMC_SECCAM_UNPREPARE, 0, 0, 0);
+				ret = pablo_smc(SMC_SECCAM_UNPREPARE, 0, 0, 0);
 
 			if (ret != 0) {
 				err("[SMC] SMC_SECCAM_UNPREPARE fail(%d)\n", ret);
@@ -365,7 +365,8 @@ static void is_print_target_dva(struct is_frame *leader_frame, u32 instance)
 #if IS_ENABLED(ENABLE_BYRP_HDR)
 		IS_PRINT_TARGET_DVA(dva_byrp_hdr);
 #endif
-		IS_PRINT_TARGET_DVA(ixcTargetAddress);
+		IS_PRINT_TARGET_DVA(dva_byrp_byr);
+		IS_PRINT_TARGET_DVA(dva_byrp_byr_processed);
 		IS_PRINT_TARGET_DVA(ixpTargetAddress);
 		IS_PRINT_TARGET_DVA(ixtTargetAddress);
 		IS_PRINT_TARGET_DVA(ixgTargetAddress);
@@ -1476,7 +1477,7 @@ static int is_probe(struct platform_device *pdev)
 		if (IS_ENABLED(SECURE_CAMERA_FACE_SEQ_CHK))
 			ret = 0;
 		else
-			ret = exynos_smc(SMC_SECCAM_SETENV, SECURE_CAMERA_CH,
+			ret = pablo_smc(SMC_SECCAM_SETENV, SECURE_CAMERA_CH,
 					SECURE_CAMERA_HEAP_ID, 0);
 
 		if (ret) {
@@ -1496,7 +1497,7 @@ static int is_probe(struct platform_device *pdev)
 		if (IS_ENABLED(SECURE_CAMERA_FACE_SEQ_CHK))
 			ret = 0;
 		else
-			ret = exynos_smc(SMC_SECCAM_INIT, mem_info_addr,
+			ret = pablo_smc(SMC_SECCAM_INIT, mem_info_addr,
 					mem_info_size, 0);
 
 		if (ret) {
@@ -1514,7 +1515,7 @@ static int is_probe(struct platform_device *pdev)
 		if (IS_ENABLED(SECURE_CAMERA_FACE_SEQ_CHK))
 			ret = 0;
 		else
-			ret = exynos_smc(SMC_SECCAM_INIT_NSBUF, mem_info_addr,
+			ret = pablo_smc(SMC_SECCAM_INIT_NSBUF, mem_info_addr,
 					mem_info_size, 0);
 
 		if (ret) {

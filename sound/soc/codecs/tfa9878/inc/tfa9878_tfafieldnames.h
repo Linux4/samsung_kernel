@@ -963,7 +963,7 @@ enum tfa9878_irq {
 };
 
 #define TFA9878_IRQ_NAMETABLE struct tfa_irq_name \
-tfa9878_irq_names[] = {\
+tfa98xx_irq_names[] = {\
 	{0, "STVDDS"},\
 	{1, "STBSTOC"},\
 	{2, "STOTDS"},\
@@ -974,5 +974,18 @@ tfa9878_irq_names[] = {\
 	{7, "STNOCLK"},\
 	{8, "STBODNOK"},\
 	{9, "9"},\
+}
+
+#define TFA9878_IRQ_INFO char *tfa98xx_irq_info[] = {\
+	"Power on reset",\
+	"Overcurrent booster",\
+	"Overtemperature",\
+	"Overcurrent amp",\
+	"Undervoltage",\
+	"Alarm state",\
+	"TDM error",\
+	"Lost clock",\
+	"Brownout VDDD",\
+	"",\
 }
 #endif /* _TFA9878_TFAFIELDNAMES_H */

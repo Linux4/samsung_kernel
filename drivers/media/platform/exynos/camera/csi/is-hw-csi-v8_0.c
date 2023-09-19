@@ -291,6 +291,7 @@ int csi_hw_s_config_dma(u32 __iomem *ctl_reg, u32 __iomem *vc_reg,
 		break;
 	case HW_FORMAT_RAW10:
 	case HW_FORMAT_RAW10_POTF:
+	case HW_FORMAT_RAW10_POTF_PACK:
 		if (hw_format == DMA_INOUT_FORMAT_BAYER_PACKED) {
 			dma_format = CSIS_DMA_FMT_U10BIT_PACK;
 			bitwidth = 10;
@@ -1366,7 +1367,7 @@ void csi_hw_s_mcb_qch(u32 __iomem *base_reg, bool on)
 }
 
 void csi_hw_s_ebuf_enable(u32 __iomem *base_reg, bool on, u32 ebuf_ch, int mode,
-			u32 num_of_ebuf)
+			u32 num_of_ebuf, u32 offset_fake_frame_done)
 {
 	int ebuf_bypass;
 	u32 mask;
@@ -1407,11 +1408,11 @@ void csi_hw_s_ebuf_enable(u32 __iomem *base_reg, bool on, u32 ebuf_ch, int mode,
 			&csi_ebuf_regs[CSIS_EBUF_R_EBUF0_CTRL_EN + (6 * ebuf_ch)],
 			&csi_ebuf_fields[CSIS_EBUF_F_EBUFX_ABORT_AUTO_GEN_FAKE], mode);
 
-		mask |= (BIT(ebuf_ch) | BIT(ebuf_ch + num_of_ebuf));
+		mask |= (BIT(ebuf_ch) | BIT(ebuf_ch + offset_fake_frame_done));
 		is_hw_set_field(base_reg, &csi_ebuf_regs[CSIS_EBUF_R_EBUF_INTR_ENABLE],
 				&csi_ebuf_fields[CSIS_EBUF_F_EBUF_INTR_ENABLE], mask);
 	} else {
-		mask &= ~(BIT(ebuf_ch) | BIT(ebuf_ch + num_of_ebuf));
+		mask &= ~(BIT(ebuf_ch) | BIT(ebuf_ch + offset_fake_frame_done));
 		is_hw_set_field(base_reg, &csi_ebuf_regs[CSIS_EBUF_R_EBUF_INTR_ENABLE],
 				&csi_ebuf_fields[CSIS_EBUF_F_EBUF_INTR_ENABLE], mask);
 
@@ -1429,7 +1430,7 @@ void csi_hw_s_ebuf_enable(u32 __iomem *base_reg, bool on, u32 ebuf_ch, int mode,
 	}
 }
 
-void csi_hw_s_cfg_ebuf(u32 __iomem *base_reg, u32 ebuf_ch, u32 vc, u32 width,
+int csi_hw_s_cfg_ebuf(u32 __iomem *base_reg, u32 ebuf_ch, u32 vc, u32 width,
 		u32 height)
 {
 	u32 offset;
@@ -1444,17 +1445,19 @@ void csi_hw_s_cfg_ebuf(u32 __iomem *base_reg, u32 ebuf_ch, u32 vc, u32 width,
 	is_hw_set_field(base_reg, &csi_ebuf_regs[offset],
 			&csi_ebuf_fields[CSIS_EBUF_F_EBUFX_CHIDX_SIZE_H],
 			width / 8); /* cyles */
+
+	return 0;
 }
 
 void csi_hw_g_ebuf_irq_src(u32 __iomem *base_reg, struct csis_irq_src *src, int ebuf_ch,
-			unsigned int num_of_ebuf)
+			unsigned int offset_fake_frame_done)
 {
 	u32 status;
 
 	status = is_hw_get_field(base_reg,
 				&csi_ebuf_regs[CSIS_EBUF_R_EBUF_INTR_STATUS],
 				&csi_ebuf_fields[CSIS_EBUF_F_EBUF_INTR_STATUS]);
-	status = status & (BIT(ebuf_ch) | BIT(ebuf_ch + num_of_ebuf));
+	status = status & (BIT(ebuf_ch) | BIT(ebuf_ch + offset_fake_frame_done));
 
 	if (status) {
 		is_hw_set_field(base_reg,

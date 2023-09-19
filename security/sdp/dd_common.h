@@ -206,4 +206,6 @@ int dd_sec_crypt_page(struct dd_info *info, dd_crypto_direction_t rw,
 
 void dd_hex_key_dump(const char *tag, uint8_t *data, unsigned int data_len);
 
+extern void fscrypt_dd_trace_inode(const struct inode *inode);
+
 #endif /* SECURITY_SDP_DD_COMMON_H_ */

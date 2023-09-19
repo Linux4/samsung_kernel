@@ -86,10 +86,6 @@ int is_devicemgr_stop(struct is_devicemgr *devicemgr,
 		void *device, enum is_device_type type);
 int is_devicemgr_close(struct is_devicemgr *devicemgr,
 		void *device, enum is_device_type type);
-int is_devicemgr_shot_prepare(struct is_group *group,
-		struct is_frame *frame,
-		u32 fcount,
-		enum is_device_type type);
 int is_devicemgr_shot_callback(struct is_group *group,
 		struct is_frame *frame,
 		u32 fcount,

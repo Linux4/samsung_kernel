@@ -62,6 +62,12 @@ static struct abox_qos abox_qos_cl2 = {
 	.name = "CL2",
 	.requests = LIST_HEAD_INIT(abox_qos_cl2.requests),
 };
+static struct abox_qos abox_qos_fw0 = {
+	.qos_class = ABOX_QOS_FW0,
+	.type = ABOX_PM_QOS_MAX,
+	.name = "CALLIOPE",
+	.requests = LIST_HEAD_INIT(abox_qos_fw0.requests),
+};
 
 static struct abox_qos *abox_qos_array[] = {
 	&abox_qos_aud,
@@ -71,6 +77,7 @@ static struct abox_qos *abox_qos_array[] = {
 	&abox_qos_cl0,
 	&abox_qos_cl1,
 	&abox_qos_cl2,
+	&abox_qos_fw0,
 };
 
 static struct abox_qos *abox_qos_get_qos(enum abox_qos_class qos_class)
@@ -90,6 +97,8 @@ static struct abox_qos *abox_qos_get_qos(enum abox_qos_class qos_class)
 		return &abox_qos_int;
 	case ABOX_QOS_MIF:
 		return &abox_qos_mif;
+	case ABOX_QOS_FW0:
+		return &abox_qos_fw0;
 	default:
 		return NULL;
 	}
@@ -230,13 +239,27 @@ static void abox_qos_apply(struct abox_qos *qos)
 	}
 }
 
+static void abox_qos_record_only(struct abox_qos *qos)
+{
+	int val;
+
+	abox_qos_apply_new(qos);
+	val = abox_qos_target(qos);
+	if (qos->val != val)
+		qos->val = val;
+}
+
 static void abox_qos_work_func(struct work_struct *work)
 {
 	struct abox_qos **p_qos;
 	size_t len = ARRAY_SIZE(abox_qos_array);
 
-	for (p_qos = abox_qos_array; p_qos - abox_qos_array < len; p_qos++)
-		abox_qos_apply(*p_qos);
+	for (p_qos = abox_qos_array; p_qos - abox_qos_array < len; p_qos++) {
+		if ((*p_qos)->qos_class < ABOX_QOS_FW0)
+			abox_qos_apply(*p_qos);
+		else
+			abox_qos_record_only(*p_qos);
+	}
 }
 
 static DECLARE_WORK(abox_qos_work, abox_qos_work_func);
@@ -448,8 +471,8 @@ static ssize_t abox_qos_read_qos(char *buf, size_t size, struct abox_qos *qos)
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS)
 	offset += snprintf(buf + offset, size - offset,
 			"name=%s, requested=%u, value=%u\n",
-			qos->name, qos->val,
-			exynos_pm_qos_request(qos->qos_class));
+			qos->name, qos->val, qos->qos_class < ABOX_QOS_FW0 ?
+			exynos_pm_qos_request(qos->qos_class) : 0);
 #else
 	offset += snprintf(buf + offset, size - offset,
 			"name=%s, requested=%u, value=%u\n",

@@ -534,6 +534,8 @@ static int is_ischain_mcs_tag(struct is_subdev *subdev,
 		ret = __mcsc_in_cfg(device, subdev, frame, out_node,
 				PARAM_MCS_INPUT, pmap);
 
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 			if (!cap_node->vid)
@@ -551,6 +553,8 @@ static int is_ischain_mcs_tag(struct is_subdev *subdev,
 						pindex,
 						pmap,
 						i);
+
+			cap_node->result = 1;
 		}
 
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {

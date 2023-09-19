@@ -542,6 +542,7 @@ int is_get_debug_param(int param_idx)
 
     return debug_param[param_idx];
 }
+EXPORT_SYMBOL_GPL(is_get_debug_param);
 
 int is_set_debug_param(int param_idx, int val)
 {

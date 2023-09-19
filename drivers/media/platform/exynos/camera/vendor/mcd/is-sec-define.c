@@ -65,7 +65,7 @@ int is_sec_get_sysfs_finfo(struct is_rom_info **finfo, int rom_id)
 	if (rom_id < ROM_ID_MAX)
 		*finfo = &sysfs_finfo[rom_id];
 	else
-		*finfo = 0;
+		*finfo = NULL;
 
 	return 0;
 }
@@ -300,7 +300,7 @@ bool is_sec_check_cal_crc32(char *buf, int rom_id)
 
 		checksum = (u32)getCRC((u16 *)&buf8[check_base], check_length, NULL, NULL);
 		if (checksum != *((u32 *)&buf8[checksum_base])) {
-			err("[rom%d/main cal:%d] CRC32 error (0x%08X != 0x%08X), base[0x%X] len[0x%X] checksum[0x%X]",
+			err("[rom%d/dual cal:%d] CRC32 error (0x%08X != 0x%08X), base[0x%X] len[0x%X] checksum[0x%X]",
 				rom_id, i, checksum, *((u32 *)&buf8[checksum_base]), check_base, check_length, checksum_base);
 			crc32_temp = false;
 			crc32_dual_temp = false;

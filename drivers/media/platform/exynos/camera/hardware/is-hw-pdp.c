@@ -220,10 +220,10 @@ static inline void is_pdp_frame_start_inline(struct is_hw_ip *hw_ip)
 		is_hw_pdp_set_pdstat_reg(pdp);
 
 	fcount = atomic_add_return(1, &hw_ip->count.fs);
-	_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_FRAME_START);
+	CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_FRAME_START);
 
 	if (hw_ip->is_leader)
-		is_hardware_frame_start(hw_ip, instance);
+		CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 	else
 		atomic_set(&hw_ip->status.Vvalid, V_VALID);
 
@@ -293,11 +293,11 @@ static inline void is_pdp_frame_end_inline(struct is_hw_ip *hw_ip)
 
 	atomic_add(1, &hw_ip->count.fe);
 
-	_is_hw_frame_dbg_trace(hw_ip, atomic_read(&hw_ip->count.fs),
+	CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, atomic_read(&hw_ip->count.fs),
 				DEBUG_POINT_FRAME_END);
 
 	if (hw_ip->is_leader)
-		is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+		CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 				IS_SHOT_SUCCESS, false);
 	else
 		atomic_set(&hw_ip->status.Vvalid, V_BLANK);
@@ -1955,7 +1955,7 @@ static int is_hw_pdp_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	FIMC_BUG(!frame);
 
 	if (test_bit_variables(hw_ip->id, &frame->core_flag))
-		ret = is_hardware_frame_done(hw_ip, frame, -1,
+		ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 				IS_HW_CORE_END, done_type, false);
 
 	return ret;

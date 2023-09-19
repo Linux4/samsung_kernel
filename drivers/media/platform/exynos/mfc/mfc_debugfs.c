@@ -106,12 +106,13 @@ static int __mfc_info_show(struct seq_file *s, void *unused)
 			else
 				codec_name = ctx->dst_fmt->name;
 
-			seq_printf(s, "  [CTX:%d] %s %s, %s, %s, size: %dx%d@%ldfps(tmu: %dfps, op: %ldfps), crop: %d %d %d %d\n",
+			seq_printf(s, "  [CTX:%d] %s %s, %s, %s, size: %dx%d@%ldfps(src_ts: %ldfps, tmu: %dfps, op: %ldfps), crop: %d %d %d %d\n",
 				ctx->num,
 				ctx->type == MFCINST_DECODER ? "DEC" : "ENC",
 				ctx->is_drm ? "Secure" : "Normal",
 				ctx->src_fmt->name, ctx->dst_fmt->name,
 				ctx->img_width, ctx->img_height,
+				ctx->framerate / 1000,
 				ctx->last_framerate / 1000,
 				ctx->dev->tmu_fps,
 				ctx->operating_framerate,

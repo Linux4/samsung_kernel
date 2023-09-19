@@ -44,7 +44,7 @@ enum feature_support {
 enum tfa98xx_dai_bitmap {
 	TFA98XX_DAI_I2S = 0x01, /**< I2S only */
 	TFA98XX_DAI_TDM = 0x02, /**< TDM, I2S */
-	TFA98XX_DAI_PDM = 0x04, /**< PDM  */
+	TFA98XX_DAI_PDM = 0x04, /**< PDM */
 };
 
 /*
@@ -80,6 +80,9 @@ struct tfa_device_ops {
 	enum tfa98xx_error (*set_osc_powerdown)(struct tfa_device *tfa,
 		int state);
 	enum tfa98xx_error (*update_lpm)(struct tfa_device *tfa, int state);
+	int (*set_bitfield)(struct tfa_device *tfa,
+		uint16_t bitfield, uint16_t value);
+	enum tfa98xx_error (*get_status)(struct tfa_device *tfa);
 };
 
 /*
@@ -106,7 +109,6 @@ enum tfa_state {
 	TFA_STATE_LOW_POWER = 0x100,
 };
 
-#if defined(TFADSP_DSP_BUFFER_POOL)
 enum pool_control {
 	POOL_NOT_SUPPORT,
 	POOL_ALLOC,
@@ -123,23 +125,9 @@ struct tfa98xx_buffer_pool {
 	unsigned char in_use;
 	void *pool;
 };
-#endif /* TFADSP_DSP_BUFFER_POOL */
 
-#if defined(TFA_CHANGE_PCM_FORMAT)
-struct tfa98xx_tdm_format {
-	unsigned short nbck; /* # of bit clock periods on BCK */
-	unsigned short audfs; /* sampling rate from hw_params */
-	unsigned short slln; /* # of bits in a slot - 1 */
-	unsigned short ssize; /* # of bits in a sample - 1 */
-	unsigned short slots; /* # of slots in a frame - 1 */
-	unsigned short srcmap; /* source mapping */
-};
-#endif
-
-#if defined(TFA_BLACKBOX_LOGGING)
 /* MAX_HANDLES * ID_BLACKBOX_MAX */
 #define LOG_BUFFER_SIZE 24
-#endif
 
 /*
  * This is the main tfa device context structure, it will carry all information
@@ -189,70 +177,57 @@ struct tfa_device {
 
 	int dev_count;
 	int dev_tfadsp;
-#if defined(TFA_MIXER_ON_DEVICE)
 	int set_active;
-#endif
-#if defined(TFA_MUTE_CONTROL)
 	int mute_state;
-#endif
-#if defined(TFA_PAUSE_CONTROL)
 	int pause_state;
-#endif
-#if defined(TFA_TDMSPKG_CONTROL)
 	int spkgain;
-#endif
-#if defined(TFA_CHANGE_PCM_FORMAT)
-	struct tfa98xx_tdm_format tdm_config;
-#endif
 	int temp;
 	int spkr_damaged; /* 0: okay, 1: damaged */
 	int is_cold;
 	int is_bypass;
 	int is_calibrating;
 	int is_configured;
+	int mtpex;
 	int reset_mtpex;
 	int stream_state; /* b0: pstream (Rx), b1: cstream (Tx), b2:SaaM */
 	int prev_samstream;
 	int first_after_boot;
 	int active_handle;
 	int active_count;
+	int swprof;
 	int ampgain;
 	int individual_msg;
 	int set_device;
 	int set_config;
-#if defined(TFADSP_DSP_BUFFER_POOL)
 	struct tfa98xx_buffer_pool buf_pool[POOL_MAX_INDEX];
-#endif
-#if defined(TFA_USE_WAITQUEUE_SEQ)
-	wait_queue_head_t waitq_seq;
-#endif
-#if defined(TFA_WAIT_CAL_IN_WORKQUEUE)
 	struct workqueue_struct *tfacal_wq;
 	struct delayed_work wait_cal_work;
-#endif
-#if defined(TFA_LIMIT_CAL_FROM_DTS)
 	int lower_limit_cal;
 	int upper_limit_cal;
-#endif
 	char fw_lib_ver[3];
-#if defined(TFA_BLACKBOX_LOGGING)
 	int blackbox_enable;
 	int unset_log;
 	int log_data[LOG_BUFFER_SIZE];
-#endif
 	int irq_all;
 	int irq_max;
-#if defined(TFA_USE_TFAVVAL_NODE)
 	int vval_active;
 	int vval_result; /* 0: pass, 1: fail */
-#endif
-#if defined(TFA_DISABLE_AUTO_CAL)
 	int disable_auto_cal;
-#endif
-#if defined(TFA_USE_DUMMY_CAL)
 	int dummy_cal;
-#endif
+	int inchannel;
 };
+
+#if defined(TFA_STEREO_NODE)
+/* stereo */
+/* ref. device order in container file */
+/* confirmed by customer on 07/19/2022 v3 */
+#define INDEX_0 0 /* dev 0 - left; top (receiver) */
+#define INDEX_1 1 /* dev 1 - right; bottom (speaker) */
+#else
+/* mono */
+#define INDEX_0 0 /* dev 0 - mono; bottom */
+#define INDEX_1 0 /* dev 0 - mono; bottom */
+#endif /* TFA_STEREO_NODE */
 
 /*
  * The tfa_dev_probe is called before accessing any device accessing functions.
@@ -308,11 +283,6 @@ enum tfa_error tfa_dev_switch_profile(struct tfa_device *tfa,
  *  @return tfa_error enum
  */
 enum tfa_error tfa_dev_stop(struct tfa_device *tfa);
-
-#if defined(TFA_CHANGE_PCM_FORMAT)
-enum tfa_error tfa_dev_config_pcm_format(struct tfa_device *tfa,
-	int ndev, int hw_rate, int sample_size, int slot_size);
-#endif
 
 /*
  * This interface allows a device/type independent fine grained control of
@@ -392,25 +362,24 @@ int tfa_irq_mask(struct tfa_device *tfa);
  * unmask interrupts by enabling them again
  */
 int tfa_irq_unmask(struct tfa_device *tfa);
+/*
+ * initialize interrupt registers
+ */
+void tfa_irq_init(struct tfa_device *tfa);
+/*
+ * report interrupt status
+ */
+int tfa_irq_report(struct tfa_device *tfa);
 
 enum tfa98xx_error tfa_get_fw_api_version(struct tfa_device *tfa,
 	unsigned char *pfw_version);
 enum tfa98xx_error tfa_get_fw_lib_version(struct tfa_device *tfa,
 	unsigned char *plib_version);
 
-#if defined(TFA_RAMPDOWN_BEFORE_MUTE)
 #define RAMPDOWN_MAX 2 /* 5 or higher if usleep_range works */
 enum tfa98xx_error tfa_gain_rampdown(struct tfa_device *tfa,
 	int step, int count);
 enum tfa98xx_error tfa_gain_restore(struct tfa_device *tfa,
 	int step, int count);
-#endif
-
-#if defined(MPLATFORM)
-enum tfa98xx_error ipi_tfadsp_write(struct tfa_device *tfa,
-	int length, const char *buf);
-enum tfa98xx_error ipi_tfadsp_read(struct tfa_device *tfa,
-	int length, unsigned char *bytes);
-#endif
 
 #endif /* __TFA_DEVICE_H__ */

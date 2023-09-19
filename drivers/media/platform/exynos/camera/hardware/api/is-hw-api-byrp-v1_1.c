@@ -568,7 +568,11 @@ int byrp_hw_s_wdma_init(struct is_common_dma *dma, struct byrp_param_set *param_
 	switch (dma->id) {
 	case BYRP_WDMA_BYR:
 		dma_input = &param_set->dma_input;
-		dma_output = &param_set->dma_output_byr;
+		if (param_set->dma_output_byr_processed.cmd)
+			dma_output = &param_set->dma_output_byr_processed;
+		else
+			dma_output = &param_set->dma_output_byr;
+
 		if (strip_enable)
 			width = dma_input->width - param_set->stripe_input.left_margin -
 					param_set->stripe_input.right_margin;

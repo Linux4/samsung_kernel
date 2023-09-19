@@ -32,7 +32,7 @@
 #include <exynos_drm_drv.h>
 #include <exynos_drm_plane.h>
 #include <exynos_drm_tui.h>
-#include <exynos_drm_migov.h>
+#include <exynos_drm_profiler.h>
 #include <exynos_drm_format.h>
 #include <exynos_drm_hibernation.h>
 #include <exynos_drm_partial.h>
@@ -90,14 +90,20 @@ static void exynos_crtc_check_input_bpc(struct drm_crtc *crtc,
 {
 	struct exynos_drm_crtc_state *new_exynos_state =
 						to_exynos_crtc_state(crtc_state);
+	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
 	struct drm_plane *plane;
 	const struct drm_plane_state *plane_state;
 	uint32_t max_bpc = 8; /* initial bpc value */
+	bool atc_enabled = false;
 
 	if (new_exynos_state->wb_type == EXYNOS_WB_SWB) {
 		new_exynos_state->in_bpc = max_bpc;
 		return;
 	}
+
+	exynos_dqe_state(exynos_crtc->dqe, DQE_REG_ATC, &atc_enabled);
+	if (atc_enabled)
+		max_bpc = 10; /* extend to 10 bit for ATC dimming duration */
 
 	drm_atomic_crtc_state_for_each_plane_state(plane, plane_state, crtc_state) {
 		const struct drm_format_info *info;
@@ -260,8 +266,8 @@ static void exynos_drm_crtc_destroy(struct drm_crtc *crtc)
 {
 	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
 
-	if (exynos_crtc->migov)
-		kfree(exynos_crtc->migov);
+	if (exynos_crtc->profiler)
+		kfree(exynos_crtc->profiler);
 
 	exynos_hibernation_destroy(exynos_crtc->hibernation);
 
@@ -1037,7 +1043,7 @@ struct exynos_drm_crtc *exynos_drm_crtc_create(struct drm_device *drm_dev,
 	sched_setscheduler_nocheck(exynos_crtc->thread, SCHED_FIFO, &param);
 
 	exynos_crtc->hibernation = exynos_hibernation_register(exynos_crtc);
-	exynos_crtc->migov = exynos_migov_register(exynos_crtc);
+	exynos_crtc->profiler = exynos_profiler_register(exynos_crtc);
 	exynos_tui_register(&exynos_crtc->base);
 
 	return exynos_crtc;

@@ -255,12 +255,19 @@ static int pablo_camif_ebuf_probe(struct platform_device *pdev,
 		goto err_get_num_of_ebuf;
 	}
 
+	ret = of_property_read_u32(dnode, "fake_done_offset", &camif_ebuf->fake_done_offset);
+	if (ret) {
+		dev_err(dev, "failed to get fake_done_offset property\n");
+		goto err_get_fake_done_offset;
+	}
+
 	mutex_init(&camif_ebuf->lock);
 
 	dev_info(dev, "%s done\n", __func__);
 
 	return 0;
 
+err_get_fake_done_offset:
 err_get_num_of_ebuf:
 err_get_irq:
 	devm_iounmap(dev, camif_ebuf->regs);

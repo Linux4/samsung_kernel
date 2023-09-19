@@ -29,6 +29,7 @@ enum abox_qos_class {
 	ABOX_QOS_CL2 = PM_QOS_CLUSTER2_FREQ_MIN,
 	ABOX_QOS_INT = PM_QOS_DEVICE_THROUGHPUT,
 	ABOX_QOS_MIF = PM_QOS_BUS_THROUGHPUT,
+	ABOX_QOS_FW0 = EXYNOS_PM_QOS_NUM_CLASSES,
 };
 #else
 enum abox_qos_class {
@@ -38,6 +39,7 @@ enum abox_qos_class {
 	ABOX_QOS_CL2,
 	ABOX_QOS_INT,
 	ABOX_QOS_MIF,
+	ABOX_QOS_FW0,
 };
 #endif
 
@@ -247,6 +249,21 @@ static inline int abox_qos_request_mif(struct device *dev, unsigned int id,
 {
 	dev_info(dev, "%s(%#x, %d)\n", __func__, id, val);
 	return abox_qos_request(dev, ABOX_QOS_MIF, id, val, name);
+}
+
+/**
+ * Request firmware internal QoS value.
+ * @param[in]	dev		pointer to struct dev which invokes this API
+ * @param[in]	id		key which is used as unique handle
+ * @param[in]	val		QoS value
+ * @param[in]	name		cookie for logging
+ * @return	error code or 0
+ */
+static inline int abox_qos_request_fw0(struct device *dev, unsigned int id,
+		unsigned int val, const char *name)
+{
+	dev_info(dev, "%s(%#x, %d)\n", __func__, id, val);
+	return abox_qos_request(dev, ABOX_QOS_FW0, id, val, name);
 }
 
 /**

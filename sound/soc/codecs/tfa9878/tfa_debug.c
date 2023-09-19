@@ -196,14 +196,7 @@ char *tfa_cont_bit_name(uint16_t num, unsigned short rev)
 		name = tfa_bf2name(tfa9912_bit_names, num);
 		break;
 	case 0x94:
-#if defined(USE_TFA9894N2)
-		if (((rev >> 8) & 0xff) == 0x2a || ((rev >> 8) & 0xff) == 0x3a)
-			name = tfa_bf2name(tfa9894N2_bit_names, num);
-		else
-			name = tfa_bf2name(tfa9894_bit_names, num);
-#else
 		name = tfa_bf2name(tfa9894_bit_names, num);
-#endif
 		break;
 	default:
 		pr_err("unknown REVID:0x%0x\n", rev);
@@ -265,14 +258,7 @@ char *tfa_cont_ds_name(uint16_t num, unsigned short rev)
 		name = tfa_bf2name(tfa9912_datasheet_names, num);
 		break;
 	case 0x94:
-#if defined(USE_TFA9894N2)
-		if (((rev >> 8) & 0xff) == 0x2a || ((rev >> 8) & 0xff) == 0x3a)
-			name = tfa_bf2name(tfa9894N2_datasheet_names, num);
-		else
-			name = tfa_bf2name(tfa9894_datasheet_names, num);
-#else
 		name = tfa_bf2name(tfa9894_datasheet_names, num);
-#endif
 		break;
 	default:
 		pr_err("unknown REVID:0x%0x\n", rev);
@@ -376,25 +362,10 @@ uint16_t tfa_cont_bf_enum(const char *name, unsigned short rev)
 			bfnum = tfa_name2bf(tfa9912_bit_names, name);
 		break;
 	case 0x94:
-#if defined(USE_TFA9894N2)
-		if (((rev >> 8) & 0xff) == 0x2a
-			|| ((rev >> 8) & 0xff) == 0x3a) {
-			bfnum = tfa_name2bf(tfa9894N2_datasheet_names, name);
-			if (bfnum == 0xffff)
-				/* try long bitname table */
-				bfnum = tfa_name2bf(tfa9894N2_bit_names, name);
-		} else {
-			bfnum = tfa_name2bf(tfa9894_datasheet_names, name);
-			if (bfnum == 0xffff)
-				/* try long bitname table */
-				bfnum = tfa_name2bf(tfa9894_bit_names, name);
-		}
-#else
 		bfnum = tfa_name2bf(tfa9894_datasheet_names, name);
 		if (bfnum == 0xffff)
 			/* try long bitname table */
 			bfnum = tfa_name2bf(tfa9894_bit_names, name);
-#endif
 		break;
 	default:
 		pr_err("unknown REVID:0x%0x\n", rev);
@@ -444,15 +415,9 @@ uint16_t tfa_cont_bf_enum_any(const char *name)
 	bfnum = tfa_name2bf(tfa9912_datasheet_names, name);
 	if (bfnum != 0xffff)
 		return bfnum;
-#if defined(USE_TFA9894N2)
-	bfnum = tfa_name2bf(tfa9894N2_datasheet_names, name);
-	if (bfnum != 0xffff)
-		return bfnum;
-#else
 	bfnum = tfa_name2bf(tfa9894_datasheet_names, name);
 	if (bfnum != 0xffff)
 		return bfnum;
-#endif
 
 	/* and then bitfield names */
 	bfnum = tfa_name2bf(tfa2_bit_names, name);
@@ -485,13 +450,7 @@ uint16_t tfa_cont_bf_enum_any(const char *name)
 	bfnum = tfa_name2bf(tfa9912_bit_names, name);
 	if (bfnum != 0xffff)
 		return bfnum;
-#if defined(USE_TFA9894N2)
-	bfnum = tfa_name2bf(tfa9894N2_bit_names, name);
-	if (bfnum != 0xffff)
-		return bfnum;
-#else
 	bfnum = tfa_name2bf(tfa9894_bit_names, name);
-#endif
 
 	return bfnum;
 }

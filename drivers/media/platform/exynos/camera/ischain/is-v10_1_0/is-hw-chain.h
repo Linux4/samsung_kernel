@@ -211,6 +211,7 @@ enum ext_chain_id {
 	(w & (align) >> 1 ? ALIGN(w, (align)) : ALIGN_DOWN(w, (align)))
 
 int exynos991_is_dump_clk(struct device *dev);
+const struct is_subdev_ops *pablo_get_is_subdev_byrp_ops(void);
 
 #define IS_LLC_CACHE_HINT_SHIFT 4
 

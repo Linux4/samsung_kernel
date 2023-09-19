@@ -56,4 +56,9 @@ int is_vender_test_sensor_get_retention_setting_for_test(u32 sensor_id,
 #endif
 #endif
 
+#ifdef USE_MIPI_PHY_TUNING
+int is_vender_caminfo_cmd_set_mipi_phy(void __user *user_data);
+int is_vender_caminfo_cmd_get_mipi_phy(void __user *user_data);
+#endif
+
 #endif /* IS_VENDER_TEST_SENSOR_H */

@@ -18,8 +18,7 @@
 #define MODULE_BIQUADFILTERBANK 2
 #define BIQUAD_COEFF_SIZE       6
 
-#define TFADSP_ADD_TOTAL_SIZE_TO_BLOB
-#define TFADSP_SET_EXT_TEMP_FROM_DRIVER
+#define TEMP_OFFSET	((1 + 2) * 3)
 
 /* module globals */
 static uint8_t gresp_address; /* in case of setting with option */
@@ -28,7 +27,8 @@ static int float_to_int(uint32_t x)
 {
 	unsigned int e, m;
 
-	e = (0x7f + 31) - ((*(unsigned int *)&x & 0x7f800000) >> 23);
+	e = (unsigned int)((0x7f + 31)
+		- (int)((*(unsigned int *)&x & 0x7f800000) >> 23));
 	m = 0x80000000 | (*(unsigned int *)&x << 8);
 
 	return -(int)((m >> e) & -(e < 32));
@@ -220,7 +220,7 @@ int tfa_cont_get_max_vstep(struct tfa_device *tfa, int prof_idx)
 	return vstep_count;
 }
 
-/**
+/*
  * Get the file contents associated with the device or profile
  * Search within the device tree, if not found, search within the profile
  * tree. There can only be one type of file within profile or device.
@@ -369,14 +369,14 @@ static struct tfa_volume_step_message_info *
 tfa_cont_get_next_msg_info(struct tfa_volume_step_message_info *msg_info)
 {
 	char *p = (char *)msg_info;
-	int msgLen = tfa_cont_get_msg_len(msg_info);
+	int msg_len = tfa_cont_get_msg_len(msg_info);
 	int type = msg_info->message_type;
 
 	p += sizeof(msg_info->message_type) + sizeof(msg_info->message_length);
 	if (type == 3)
-		p += msgLen;
+		p += msg_len;
 	else
-		p += msgLen * 3;
+		p += msg_len * 3;
 
 	return (struct tfa_volume_step_message_info *)p;
 }
@@ -389,23 +389,21 @@ tfa_cont_get_next_reg_from_end_info
 
 	p += sizeof(msg_info->nr_of_messages);
 	return (struct tfa_volume_step_register_info *)p;
-
 }
 
 static struct tfa_volume_step_register_info *
 tfa_cont_get_reg_for_vstep(struct tfa_volume_step_max2_file *vp, int idx)
 {
-	int i, j, nrMessage;
-
+	int i, j, nr_message;
 	struct tfa_volume_step_register_info *reg_info
 		= (struct tfa_volume_step_register_info *)vp->vsteps_bin;
 	struct tfa_volume_step_message_info *msg_info = NULL;
 
 	for (i = 0; i < idx; i++) {
 		msg_info = tfa_cont_get_msg_info_from_reg(reg_info);
-		nrMessage = msg_info->nr_of_messages;
+		nr_message = msg_info->nr_of_messages;
 
-		for (j = 0; j < nrMessage; j++)
+		for (j = 0; j < nr_message; j++)
 			msg_info = tfa_cont_get_next_msg_info(msg_info);
 		reg_info = tfa_cont_get_next_reg_from_end_info(msg_info);
 	}
@@ -716,30 +714,43 @@ enum tfa98xx_error tfa_cont_fw_api_check(struct tfa_device *tfa,
 	char *hdrstr)
 {
 	int i;
-	char itf_ver[3];
 
-	if (tfa->is_probus_device) {
-		itf_ver[0] = tfa->fw_itf_ver[0];
-		itf_ver[1] = tfa->fw_itf_ver[1];
-		itf_ver[2] = tfa->fw_itf_ver[2];
-	} else {
-		itf_ver[0] = (tfa->fw_itf_ver[2]) & 0xff;
-		itf_ver[1] = (tfa->fw_itf_ver[1]) & 0xff;
-		itf_ver[2] = (tfa->fw_itf_ver[0] >> 6) & 0x03;
-	}
-
-	pr_info("%s: Expected FW API ver: %d.%d.%d, Msg File ver: %d.%d.%d\n",
+	pr_info("%s: Expected FW API ver: %d.%d.%d.%d, Msg File ver: %d.%d.%d.%d\n",
 		__func__,
-		itf_ver[0], itf_ver[1], itf_ver[2],
-		hdrstr[4], hdrstr[5], hdrstr[6]);
+		tfa->fw_itf_ver[0], tfa->fw_itf_ver[1],
+		tfa->fw_itf_ver[2], tfa->fw_itf_ver[3],
+		hdrstr[4], hdrstr[5], hdrstr[6], hdrstr[7]);
 
-	for (i = 0; i < 3; i++) {
-		if (itf_ver[i] != hdrstr[i + 4])
+	for (i = 0; i < 4; i++) {
+		/* SB5.0 and greater */
+		if (tfa->fw_itf_ver[1] >= TFA_API_SBFW_10_00_00_SMALL_M)
+			if (i == 2) /* skipped the 3rd field, update field */
+				continue;
+		if (tfa->fw_itf_ver[i] != hdrstr[i + 4])
 			/* +4 to skip "APIV" in msg file */
 			return TFA98XX_ERROR_BAD_PARAMETER;
 	}
 
 	return TFA98XX_ERROR_OK;
+}
+
+static int tfa_cont_is_config_loaded(struct tfa_device *tfa)
+{
+	if (tfa->ext_dsp != 1)
+		return 0; /* unrelated */
+
+	/* check if config is loaded at the first device:
+	 * to write files only once
+	 */
+
+	if (tfa_count_status_flag(tfa, TFA_SET_DEVICE) > 1
+		|| tfa_count_status_flag(tfa, TFA_SET_CONFIG) > 0) {
+		pr_debug("%s: skip secondary device (%d)\n",
+			__func__, tfa->dev_idx);
+		return 1;
+	}
+
+	return 0;
 }
 
 /*
@@ -758,12 +769,11 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 	uint16_t subversion = 0;
 	int kerr;
 	char *data_buf;
-#if defined(TFADSP_SET_EXT_TEMP_FROM_DRIVER)
-	int temp_index;
-#endif
-#if defined(TFA_RECONFIG_WITHOUT_RESET)
+	int channel, temp_index = TEMP_OFFSET;
 	uint8_t org_cmd = 0xff;
-#endif
+
+	if (tfa_cont_is_config_loaded(tfa))
+		return err;
 
 	if (tfa->verbose)
 		tfa_cont_show_header(hdr);
@@ -779,26 +789,23 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 		if (kerr < 0)
 			pr_err("%s: error in readaing subversion\n", __func__);
 
-#if defined(TFA_VOID_APIV_IN_FILE)
-		subversion = 0; /* TEMPORARY */
-#endif
-
 		if ((subversion > 0)
 			&& (((hdr->customer[0]) == 'A')
 			&& ((hdr->customer[1]) == 'P')
 			&& ((hdr->customer[2]) == 'I')
 			&& ((hdr->customer[3]) == 'V'))) {
-			pr_debug("%s: msg/volstep subversion 0x%x, custom %d.%d.%d\n",
+			pr_debug("%s: msg subversion 0x%x, custom v%d.%d.%d.%d\n",
 				__func__, subversion,
 				hdr->customer[4],
 				hdr->customer[5],
-				hdr->customer[6]);
+				hdr->customer[6],
+				hdr->customer[7]);
 
 			if (tfa->fw_itf_ver[0] == 0xff) {
 				err = tfa_get_fw_api_version(tfa,
 					(unsigned char *)&tfa->fw_itf_ver[0]);
 				if (err) {
-					pr_debug("[%s] cannot get FWAPI error = %d\n",
+					pr_debug("[%s] cannot get FW API ver, error = %d\n",
 						__func__, err);
 					return err;
 				}
@@ -810,28 +817,6 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 					tfa->fw_itf_ver[2],
 					tfa->fw_itf_ver[3]);
 			}
-
-			err = tfa_cont_fw_api_check(tfa, hdr->customer);
-			if (err) {
-				tfa_cont_show_header(hdr);
-				pr_err("%s: mismatch in FW API ver\n",
-					__func__);
-				return err;
-			}
-		}
-	}
-
-	if (tfa->ext_dsp == 1) {
-		/* skip if loaded at the first device:
-		 * to write files only once
-		 */
-		if (tfa_count_status_flag(tfa,
-			TFA_SET_DEVICE) > 1
-			|| tfa_count_status_flag(tfa,
-			TFA_SET_CONFIG) > 0) {
-			pr_debug("%s: skip secondary device (%d)\n",
-				__func__, tfa->dev_idx);
-			return err;
 		}
 	}
 
@@ -841,45 +826,34 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 
 		data_buf = (char *)((struct tfa_msg_file *)hdr)->data;
 
-#if defined(TFADSP_SET_EXT_TEMP_FROM_DRIVER)
 		/* write temp stored in driver */
 		/* SetChipTempSelect */
 		if ((data_buf[1] == (0x80 | MODULE_FRAMEWORK))
 			&& data_buf[2] == FW_PAR_ID_SET_CHIP_TEMP_SELECTOR
 			&& tfa->temp != 0xffff) {
 			/* set index by skipping command and two parameters */
-			temp_index = (1 + 2) * 3;
-			pr_info("%s: @%d temp in msg 0x%02x%02x%02x",
-				__func__, temp_index,
-				data_buf[temp_index],
-				data_buf[temp_index + 1],
-				data_buf[temp_index + 2]);
+			pr_info("%s: check temp in msg 0x%02x%02x%02x, @ 0x%02x\n",
+				__func__, data_buf[TEMP_OFFSET],
+				data_buf[TEMP_OFFSET + 1],
+				data_buf[TEMP_OFFSET + 2],
+				temp_index);
 
-			/* primary channel */
-			data_buf[temp_index]
-				= (char)((tfa->temp & 0xff0000) >> 16);
-			data_buf[temp_index + 1]
-				= (char)((tfa->temp & 0x00ff00) >> 8);
-			data_buf[temp_index + 2]
-				= (char)(tfa->temp & 0x0000ff);
+			for (channel = 0; channel < MAX_CHANNELS; channel++) {
+				temp_index = TEMP_OFFSET + channel * 3;
+				data_buf[temp_index]
+					= (char)((tfa->temp & 0xff0000) >> 16);
+				data_buf[temp_index + 1]
+					= (char)((tfa->temp & 0x00ff00) >> 8);
+				data_buf[temp_index + 2]
+					= (char)(tfa->temp & 0x0000ff);
+			}
 
-			/* secondary channel */
-			temp_index += 3;
-			data_buf[temp_index]
-				= (char)((tfa->temp & 0xff0000) >> 16);
-			data_buf[temp_index + 1]
-				= (char)((tfa->temp & 0x00ff00) >> 8);
-			data_buf[temp_index + 2]
-				= (char)(tfa->temp & 0x0000ff);
-
-			pr_info("%s: set temp from driver 0x%02x%02x%02x",
-				__func__, data_buf[temp_index],
-				data_buf[temp_index + 1],
-				data_buf[temp_index + 2]);
+			pr_info("%s: set temp from driver 0x%02x%02x%02x\n",
+				__func__, data_buf[TEMP_OFFSET],
+				data_buf[TEMP_OFFSET + 1],
+				data_buf[TEMP_OFFSET + 2]);
 		}
-#endif /* TFADSP_SET_EXT_TEMP_FROM_DRIVER */
 
-#if defined(TFA_RECONFIG_WITHOUT_RESET)
 		org_cmd = data_buf[2];
 		if ((tfa->is_configured > 0)
 			&& (data_buf[1] == (0x80 | MODULE_SPEAKERBOOST))) {
@@ -896,18 +870,15 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 				pr_info("%s: cmd=0x%02x to 0x%02x (configured)\n",
 					__func__, org_cmd, data_buf[2]);
 		}
-#endif /* TFA_RECONFIG_WITHOUT_RESET */
 
 		err = dsp_msg(tfa, size,
 			(const char *)((struct tfa_msg_file *)hdr)->data);
 
-#if defined(TFA_RECONFIG_WITHOUT_RESET)
 		if (org_cmd != data_buf[2]) {
 			pr_info("%s: cmd=0x%02x to 0x%02x (restored)\n",
 				__func__, data_buf[2], org_cmd);
 			data_buf[2] = org_cmd;
 		}
-#endif /* TFA_RECONFIG_WITHOUT_RESET */
 
 		/* Reset bypass if writing msg files */
 		if (err == TFA98XX_ERROR_OK)
@@ -1149,6 +1120,20 @@ int tfa_cont_get_idx(struct tfa_device *tfa)
 	return i;
 }
 
+int tfa_cont_get_idx_tfadsp(struct tfa_device *tfa, int value)
+{
+	struct tfa_device_list *dev = NULL;
+	int i;
+
+	for (i = 0; i < tfa->cnt->ndev; i++) {
+		dev = tfa_cont_device(tfa->cnt, i);
+		if (dev->dev == value)
+			return i;
+	}
+
+	return TFA_NOT_FOUND;
+}
+
 /*
  * write a bit field
  */
@@ -1164,14 +1149,7 @@ enum tfa98xx_error tfa_run_write_bitfield(struct tfa_device *tfa,
 
 	value = bf.value;
 	bf_uni.field = bf.field;
-#ifdef TFA_DEBUG
-	if (tfa->verbose)
-		pr_debug("bitfield: %s=0x%x (0x%x[%d..%d]=0x%x)\n",
-			tfa_cont_bf_name(bf_uni.field, tfa->rev), value,
-			bf_uni.bf_enum.address, bf_uni.bf_enum.pos,
-			bf_uni.bf_enum.pos + bf_uni.bf_enum.len, value);
-#endif
-	error = tfa_set_bf(tfa, bf_uni.field, value);
+	error = tfa->dev_ops.set_bitfield(tfa, bf_uni.field, value);
 
 	return error;
 }
@@ -1298,21 +1276,6 @@ static enum tfa98xx_error tfa_run_write_filter(struct tfa_device *tfa,
 				MODULE_FRAMEWORK, 4 /* param */,
 				sizeof(data), data);
 	}
-
-#ifdef TFA_DEBUG
-	if (tfa->verbose) {
-		if (bq->aa.index == 13)
-			pr_debug("=%d,%.0f,%.2f\n",
-				bq->in.type, bq->in.cut_off_freq,
-				bq->in.leakage);
-		else if (bq->aa.index >= 10 && bq->aa.index <= 12)
-			pr_debug("=%d,%.0f,%.1f,%.1f\n", bq->aa.type,
-				bq->aa.cut_off_freq, bq->aa.ripple_db,
-				bq->aa.rolloff);
-		else
-			pr_debug("unsupported filter index\n");
-	}
-#endif
 
 	/* Because we can load the same filters multiple times
 	 * For example: When we switch profile we re-write in operating mode.
@@ -1491,12 +1454,17 @@ static void create_dsp_buffer_msg(struct tfa_device *tfa,
 /* write all param files in the devicelist to the target */
 enum tfa98xx_error tfa_cont_write_files(struct tfa_device *tfa)
 {
-	struct tfa_device_list *dev = tfa_cont_device(tfa->cnt, tfa->dev_idx);
+	struct tfa_device_list *dev = NULL;
+	int dev_idx_files = 0;
 	struct tfa_file_dsc *file;
 	enum tfa98xx_error err = TFA98XX_ERROR_OK;
 	char buffer[(MEMTRACK_MAX_WORDS * 3) + 3] = {0};
 	/* every word requires 3 bytes, and 3 is the msg */
 	int i, size = 0;
+
+	dev_idx_files = (tfa->dev_tfadsp == -1)
+		? tfa->dev_idx : tfa->dev_tfadsp;
+	dev = tfa_cont_device(tfa->cnt, dev_idx_files);
 
 	if (!dev)
 		return TFA98XX_ERROR_BAD_PARAMETER;
@@ -1522,16 +1490,8 @@ enum tfa98xx_error tfa_cont_write_files(struct tfa_device *tfa)
 			|| dev->list[i].type == dsc_set_mb_drc
 			|| dev->list[i].type == dsc_set_fw_use_case
 			|| dev->list[i].type == dsc_set_vddp_config) {
-			if (tfa->ext_dsp == 1) {
-				/* skip if loaded at the first device:
-				 * to write cmd only once
-				 */
-				if (tfa_count_status_flag(tfa,
-					TFA_SET_DEVICE) > 1
-					|| tfa_count_status_flag(tfa,
-					TFA_SET_CONFIG) > 0)
-					continue;
-			}
+			if (tfa_cont_is_config_loaded(tfa))
+				continue;
 
 			create_dsp_buffer_msg(tfa, (struct tfa_msg *)
 				(dev->list[i].offset + (char *)tfa->cnt),
@@ -1550,16 +1510,8 @@ enum tfa98xx_error tfa_cont_write_files(struct tfa_device *tfa)
 		}
 
 		if (dev->list[i].type == dsc_cmd) {
-			if (tfa->ext_dsp == 1) {
-				/* skip if loaded at the first device:
-				 * to write cmd only once
-				 */
-				if (tfa_count_status_flag(tfa,
-					TFA_SET_DEVICE) > 1
-					|| tfa_count_status_flag(tfa,
-					TFA_SET_CONFIG) > 0)
-					continue;
-			}
+			if (tfa_cont_is_config_loaded(tfa))
+				continue;
 
 			size = *(uint16_t *)
 				(dev->list[i].offset + (char *)tfa->cnt);
@@ -1600,15 +1552,19 @@ enum tfa98xx_error tfa_cont_write_files_prof(struct tfa_device *tfa,
 	int prof_idx, int vstep_idx)
 {
 	enum tfa98xx_error err = TFA98XX_ERROR_OK;
-	struct tfa_profile_list *prof
-		= tfa_cont_get_dev_prof_list(tfa->cnt,
-			tfa->dev_idx, prof_idx);
+	struct tfa_profile_list *prof = NULL;
+	int dev_idx_files = 0;
 	char buffer[(MEMTRACK_MAX_WORDS * 3) + 3] = {0};
 	/* every word requires 3 bytes, and 3 is the msg */
 	unsigned int i;
 	struct tfa_file_dsc *file;
 	struct tfa_patch_file *patchfile;
 	int size;
+
+	dev_idx_files = (tfa->dev_tfadsp == -1)
+		? tfa->dev_idx : tfa->dev_tfadsp;
+	prof = tfa_cont_get_dev_prof_list(tfa->cnt,
+		dev_idx_files, prof_idx);
 
 	if (!prof)
 		return TFA98XX_ERROR_BAD_PARAMETER;
@@ -1651,16 +1607,8 @@ enum tfa98xx_error tfa_cont_write_files_prof(struct tfa_device *tfa,
 		case dsc_set_mb_drc:
 		case dsc_set_fw_use_case:
 		case dsc_set_vddp_config:
-			if (tfa->ext_dsp == 1) {
-				/* skip if loaded at the first device:
-				 * to write cmd only once
-				 */
-				if (tfa_count_status_flag(tfa,
-					TFA_SET_DEVICE) > 1
-					|| tfa_count_status_flag(tfa,
-					TFA_SET_CONFIG) > 0)
-					break;
-			}
+			if (tfa_cont_is_config_loaded(tfa))
+				break;
 
 			create_dsp_buffer_msg(tfa,
 				(struct tfa_msg *)(prof->list[i].offset
@@ -1681,16 +1629,8 @@ enum tfa98xx_error tfa_cont_write_files_prof(struct tfa_device *tfa,
 				tfa->is_bypass = 0;
 			break;
 		case dsc_cmd: /* to change set-commands per profile */
-			if (tfa->ext_dsp == 1) {
-				/* skip if loaded at the first device:
-				 * to write cmd only once
-				 */
-				if (tfa_count_status_flag(tfa,
-					TFA_SET_DEVICE) > 1
-					|| tfa_count_status_flag(tfa,
-					TFA_SET_CONFIG) > 0)
-					break;
-			}
+			if (tfa_cont_is_config_loaded(tfa))
+				break;
 
 			size = *(uint16_t *)
 				(prof->list[i].offset
@@ -2025,7 +1965,6 @@ static enum tfa98xx_error get_sample_rate_info(struct tfa_device *tfa,
 	int fs_default_profile = 8;	/* default is 48kHz */
 	int fs_next_profile = 8;	/* default is 48kHz */
 
-
 	/* ---------- default settings previous profile ---------- */
 	for (i = 0; i < previous_prof->length; i++) {
 		/* Search for the default section */
@@ -2111,22 +2050,41 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 	int prof_idx, int vstep_idx)
 {
 	enum tfa98xx_error err = TFA98XX_ERROR_OK;
-	struct tfa_profile_list *prof
-		= tfa_cont_get_dev_prof_list(tfa->cnt, tfa->dev_idx, prof_idx);
-	struct tfa_profile_list *previous_prof
-		= tfa_cont_get_dev_prof_list(tfa->cnt,
-			tfa->dev_idx, tfa_dev_get_swprof(tfa));
+	int previous_prof_idx = tfa_dev_get_swprof(tfa);
+	struct tfa_profile_list *prof = NULL;
+	struct tfa_profile_list *previous_prof = NULL;
+	struct tfa_profile_list *prof_tfadsp = NULL;
+	struct tfa_profile_list *previous_prof_tfadsp = NULL;
 	char buffer[(MEMTRACK_MAX_WORDS * 4) + 4] = {0};
 	/* every word requires 3 or 4 bytes, and 3 or 4 is the msg */
 	unsigned int i, k = 0, j = 0;
 	struct tfa_file_dsc *file;
 	int size = 0, fs_previous_profile = 8; /* default fs is 48kHz */
-#if defined(TFA_MUTE_DURING_SWITCHING_PROFILE)
 	int ready, tries = 0;
-#endif
+
+	prof = tfa_cont_get_dev_prof_list(tfa->cnt,
+		tfa->dev_idx, prof_idx);
+	previous_prof = tfa_cont_get_dev_prof_list(tfa->cnt,
+		tfa->dev_idx, previous_prof_idx);
 
 	if (!prof || !previous_prof) {
 		pr_err("Error trying to get the (previous) swprofile\n");
+		err = TFA98XX_ERROR_BAD_PARAMETER;
+		goto tfa_cont_write_profile_error_exit;
+	}
+
+	if (tfa->dev_tfadsp != -1) {
+		prof_tfadsp = tfa_cont_get_dev_prof_list(tfa->cnt,
+			tfa->dev_tfadsp, prof_idx);
+		previous_prof_tfadsp = tfa_cont_get_dev_prof_list(tfa->cnt,
+			tfa->dev_tfadsp, previous_prof_idx);
+	} else {
+		prof_tfadsp = prof;
+		previous_prof_tfadsp = previous_prof;
+	}
+
+	if (!prof_tfadsp || !previous_prof_tfadsp) {
+		pr_err("Error trying to get the (previous) swprofile for tfadsp\n");
 		err = TFA98XX_ERROR_BAD_PARAMETER;
 		goto tfa_cont_write_profile_error_exit;
 	}
@@ -2141,74 +2099,14 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 	/* Get current sample rate before we start switching */
 	fs_previous_profile = TFA_GET_BF(tfa, AUDFS);
 
-	/* only make a power cycle
-	 * when profiles are not in the same group
-	 */
-	if (prof->group == previous_prof->group && prof->group != 0) {
-		if (tfa->verbose)
-			pr_debug("The new profile (%s) is in the same group as the current profile (%s)\n",
-				tfa_cont_get_string(tfa->cnt, &prof->name),
-				tfa_cont_get_string(tfa->cnt,
-					&previous_prof->name));
-	} else {
-#if defined(TFA_MUTE_DURING_SWITCHING_PROFILE)
-		/* mute */
-		/*
-		 * err = tfa_run_mute(tfa);
-		 * if (err) {
-		 *  pr_err("%s: Error in muting device!\n", __func__);
-		 *  goto tfa_cont_write_profile_error_exit;
-		 * }
-		 */
-		/* replace tfa_run_mute() not to activate ramping down */
-		tfa_dev_set_state(tfa, TFA_STATE_MUTE, 0);
-
-		/* clear SBSL to make sure we stay in initCF state */
-		if (tfa->tfa_family == 2)
-			TFA_SET_BF_VOLATILE(tfa, SBSL, 0);
-
-		/* When we switch profile we first power down the subsystem
-		 * This should only be done when we are in operating mode
-		 */
-		if (((tfa->tfa_family == 2)
-			&& (TFA_GET_BF(tfa, MANSTATE) >= 6))
-			|| (tfa->tfa_family != 2)) {
-			err = tfa98xx_powerdown(tfa, 1);
-			if (err) {
-				pr_err("%s: error in power down\n", __func__);
-				goto tfa_cont_write_profile_error_exit;
-			}
-
-			/* Wait until we are in PLL powerdown */
-			do {
-				err = tfa98xx_dsp_system_stable(tfa, &ready);
-				if (!ready)
-					break;
-
-				/* wait 10ms to avoid busload */
-				msleep_interruptible(10);
-				tries++;
-			} while (tries <= 100);
-
-			if (tries > 100) {
-				pr_err("Wait for PLL powerdown timed out!\n");
-				err = TFA98XX_ERROR_STATE_TIMED_OUT;
-				goto tfa_cont_write_profile_error_exit;
-			}
-		} else {
-			pr_debug("No need to go to powerdown now\n");
-		}
-#endif /* TFA_MUTE_DURING_SWITCHING_PROFILE */
-	}
-
 	/* set all bitfield settings */
 	/* First set all default settings */
 	if (tfa->verbose)
 		pr_debug("---------- default settings profile: %s (%d) ----------\n",
 			tfa_cont_get_string(tfa->cnt,
-				&previous_prof->name), tfa_dev_get_swprof(tfa));
+				&previous_prof->name), previous_prof_idx);
 
-	err = show_current_state(tfa);
+	err = tfa_show_current_state(tfa);
 
 	/* Loop profile length */
 	for (i = 0; i < previous_prof->length; i++) {
@@ -2240,12 +2138,12 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 
 	/* set new settings */
 	for (i = 0; i < prof->length; i++) {
-		/* Remember where we currently are with writing items*/
-		j = i;
-
 		/* only to write the values before default section
 		 * when we switch profile
 		 */
+		if (prof->list[i].type == dsc_default)
+			break;
+
 		/* process and write all non-file items */
 		switch (prof->list[i].type) {
 		case dsc_file:
@@ -2263,11 +2161,13 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 		case dsc_set_vddp_config:
 		case dsc_cmd:
 		case dsc_filter:
-		case dsc_default:
-			/* When one of these files are found, we exit */
-			i = prof->length;
+			/* Skip files / commands and continue */
+			/* i = prof->length; */
 			break;
 		default:
+			/* Remember where we currently are with writing items*/
+			j = i;
+
 			err = tfa_cont_write_item(tfa, &prof->list[i]);
 			if (err != TFA98XX_ERROR_OK) {
 				pr_err("%s: Error in writing items!\n",
@@ -2279,29 +2179,34 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 		}
 	}
 
-	if (prof->group != previous_prof->group || prof->group == 0) {
-#if defined(TFA_MUTE_DURING_SWITCHING_PROFILE)
-		if (tfa->tfa_family == 2)
-			TFA_SET_BF_VOLATILE(tfa, MANSCONF, 1);
+	if (tfa_cont_is_standby_profile(tfa, prof_idx)) {
+		pr_info("%s: Keep power down without writing files, in standby profile!\n",
+			__func__);
 
-		/* Leave powerdown state */
-		err = tfa_cf_powerup(tfa);
-		if (err) {
-			pr_err("%s: error in power up\n", __func__);
+		err = tfa98xx_powerdown(tfa, 1);
+		if (err)
+			goto tfa_cont_write_profile_error_exit;
+
+		/* Wait until we are in PLL powerdown */
+		tries = 0;
+		do {
+			err = tfa98xx_dsp_system_stable(tfa, &ready);
+			if (!ready)
+				break;
+
+			/* wait 10ms to avoid busload */
+			msleep_interruptible(10);
+			tries++;
+		} while (tries <= TFA98XX_WAITPOWERUP_NTRIES);
+
+		if (tries > TFA98XX_WAITPOWERUP_NTRIES) {
+			pr_debug("Wait for PLL powerdown timed out!\n");
+			err = TFA98XX_ERROR_STATE_TIMED_OUT;
 			goto tfa_cont_write_profile_error_exit;
 		}
 
-		err = show_current_state(tfa);
-
-		if (tfa->tfa_family == 2) {
-			/* Reset SBSL to 0 (workaround of enbl_powerswitch=0) */
-			TFA_SET_BF_VOLATILE(tfa, SBSL, 0);
-			/* Sending commands to DSP need to make sure RST is 0
-			 * (otherwise we get no response)
-			 */
-			TFA_SET_BF(tfa, RST, 0);
-		}
-#endif /* TFA_MUTE_DURING_SWITCHING_PROFILE */
+		err = tfa_show_current_state(tfa);
+		goto tfa_cont_write_profile_error_exit;
 	}
 
 	/* Check if there are sample rate changes */
@@ -2313,15 +2218,17 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 	}
 
 	/* Write files from previous profile (default section)
-	 * Should only be used for the patch&trap patch (file)
+	 * Should only be used for the patch & trap patch (file)
 	 */
 	if ((tfa->ext_dsp != 0) && (tfa->tfa_family == 2)) {
-		for (i = 0; i < previous_prof->length; i++) {
+		for (i = 0; i < previous_prof_tfadsp->length; i++) {
+			char type;
+
 			/* Search for the default section */
 			if (i == 0) {
-				while (previous_prof->list[i].type
+				while (previous_prof_tfadsp->list[i].type
 					!= dsc_default
-					&& i < previous_prof->length) {
+					&& i < previous_prof_tfadsp->length) {
 					i++;
 				}
 				i++;
@@ -2331,56 +2238,60 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 			 * Only if we found the default section
 			 * try writing the file
 			 */
-			if (i < previous_prof->length) {
-				char type = previous_prof->list[i].type;
+			if (i >= previous_prof_tfadsp->length)
+				break;
 
-				if (type == dsc_file
-					|| type == dsc_patch) {
-					/* Only write this once */
-					if (tfa->verbose && k == 0) {
-						pr_debug("---------- files default profile: %s (%d) ----------\n",
-							tfa_cont_get_string
-							(tfa->cnt,
-							&previous_prof->name),
-							prof_idx);
-						k++;
-					}
-					file = (struct tfa_file_dsc *)
-						(previous_prof->list[i].offset
-						+ (uint8_t *)tfa->cnt);
-					err = tfa_cont_write_file(tfa,
-						file, vstep_idx,
-						TFA_MAX_VSTEP_MSG_MARKER);
-				}
+			type = previous_prof_tfadsp->list[i].type;
+			if (type != dsc_file && type != dsc_patch)
+				continue;
+
+			/* Only write this once */
+			if (tfa->verbose && k == 0) {
+				pr_debug("---------- files default profile: %s (%d) ----------\n",
+					tfa_cont_get_string
+					(tfa->cnt, &previous_prof_tfadsp->name),
+					prof_idx);
+				k++;
 			}
+			file = (struct tfa_file_dsc *)
+				(previous_prof_tfadsp->list[i].offset
+				+ (uint8_t *)tfa->cnt);
+			err = tfa_cont_write_file(tfa,
+				file, vstep_idx,
+				TFA_MAX_VSTEP_MSG_MARKER);
 		}
 
 		if (tfa->verbose)
 			pr_debug("---------- files new profile: %s (%d) ----------\n",
 				tfa_cont_get_string(tfa->cnt,
-				&prof->name), prof_idx);
+				&prof_tfadsp->name), prof_idx);
 	}
+
+	if (tfa->dev_tfadsp != -1)
+		j = 0; /* reset to begin from the head */
 
 	/* write everything
 	 * until end or the default section starts
 	 */
 	/* Start where we currenly left */
-	for (i = j; i < prof->length; i++) {
+	for (i = j; i < prof_tfadsp->length; i++) {
 		/* only to write the values
 		 * before the default section when we switch profile
 		 */
-		if (prof->list[i].type == dsc_default)
+		if (prof_tfadsp->list[i].type == dsc_default)
 			break;
 
-		switch (prof->list[i].type) {
+		switch (prof_tfadsp->list[i].type) {
 		case dsc_file:
 		case dsc_patch:
 			/* For tiberius stereo 1 device does not have a dsp! */
 			if (tfa->ext_dsp == 0)
 				break;
+			if (tfa_cont_is_config_loaded(tfa))
+				break;
 
 			file = (struct tfa_file_dsc *)
-				(prof->list[i].offset
+				(prof_tfadsp->list[i].offset
 				+ (uint8_t *)tfa->cnt);
 			err = tfa_cont_write_file(tfa, file,
 				vstep_idx, TFA_MAX_VSTEP_MSG_MARKER);
@@ -2399,21 +2310,12 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 			/* For tiberius device 1 has no dsp! */
 			if (tfa->ext_dsp == 0)
 				break;
-
-			if (tfa->ext_dsp == 1) {
-				/* skip if loaded at the first device:
-				 * to write cmd only once
-				 */
-				if (tfa_count_status_flag(tfa,
-					TFA_SET_DEVICE) > 1
-					|| tfa_count_status_flag(tfa,
-					TFA_SET_CONFIG) > 0)
-					break;
-			}
+			if (tfa_cont_is_config_loaded(tfa))
+				break;
 
 			create_dsp_buffer_msg(tfa,
 				(struct tfa_msg *)
-				(prof->list[i].offset
+				(prof_tfadsp->list[i].offset
 				+ (char *)tfa->cnt),
 				buffer, &size);
 			err = dsp_msg(tfa, size, buffer);
@@ -2421,7 +2323,7 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 			if (tfa->verbose)
 				pr_debug("command: %s=0x%02x%02x%02x\n",
 					tfa_cont_get_command_string
-					(prof->list[i].type),
+					(prof_tfadsp->list[i].type),
 					(unsigned char)buffer[0],
 					(unsigned char)buffer[1],
 					(unsigned char)buffer[2]);
@@ -2434,28 +2336,19 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 			/* For tiberius device 1 has no dsp! */
 			if (tfa->ext_dsp == 0)
 				break;
-
-			if (tfa->ext_dsp == 1) {
-				/* skip if loaded at the first device:
-				 * to write cmd only once
-				 */
-				if (tfa_count_status_flag(tfa,
-					TFA_SET_DEVICE) > 1
-					|| tfa_count_status_flag(tfa,
-					TFA_SET_CONFIG) > 0)
-					break;
-			}
+			if (tfa_cont_is_config_loaded(tfa))
+				break;
 
 			size = *(uint16_t *)
-				(prof->list[i].offset
+				(prof_tfadsp->list[i].offset
 				+ (char *)tfa->cnt);
 			err = dsp_msg(tfa, size,
-				prof->list[i].offset
+				prof_tfadsp->list[i].offset
 				+ 2 + (char *)tfa->cnt);
 
 			if (tfa->verbose) {
 				const char *cmd_id
-					= prof->list[i].offset
+					= prof_tfadsp->list[i].offset
 					+ 2 + (char *)tfa->cnt;
 				pr_debug("Writing cmd=0x%02x%02x%02x\n",
 					(uint8_t)cmd_id[0],
@@ -2468,10 +2361,11 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 				tfa->is_bypass = 0;
 			break;
 		default:
-			/* This allows us to write bitfield,
-			 * registers or xmem after files
+			/*
+			 * Already have written in non-tfadsp device:
+			 * err = tfa_cont_write_item(tfa,
+			 *		&prof_tfadsp->list[i]);
 			 */
-			err = tfa_cont_write_item(tfa, &prof->list[i]);
 			break;
 		}
 
@@ -2486,27 +2380,7 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 
 	/* put SetRe25C message to indicate all messages are sent */
 	if (tfa->ext_dsp == 1)
-#if defined(TFADSP_CONFIGURE_AT_FIRST_DEVICE)
 		err = tfa_set_calibration_values_once(tfa);
-#else
-	{
-		pr_info("%s: [%d] tfa_set_calibration_values\n",
-			__func__, tfa->dev_idx);
-
-		err = tfa_set_calibration_values(tfa);
-		if (err)
-			pr_err("%s: set calibration values error = %d\n",
-				__func__, err);
-	}
-#endif /* TFADSP_CONFIGURE_AT_FIRST_DEVICE */
-
-	if ((prof->group != previous_prof->group
-		|| prof->group == 0)
-		&& (tfa->tfa_family == 2)) {
-		if (TFA_GET_BF(tfa, REFCKSEL) == 0)
-			/* set SBSL to go to operation mode */
-			TFA_SET_BF_VOLATILE(tfa, SBSL, 1);
-	}
 
 tfa_cont_write_profile_error_exit:
 	return err;
@@ -2613,6 +2487,26 @@ char *tfa_cont_device_name(struct tfa_container *cnt, int dev_idx)
 }
 
 /*
+ * Get the customer name from the container file customer field
+ * note that the input stringbuffer should be sizeof(customer field)+1
+ */
+int tfa_cont_get_customer_name(struct tfa_device *tfa, char *name)
+{
+	unsigned int i;
+	int len = 0;
+
+	for (i = 0; i < sizeof(tfa->cnt->customer); i++) {
+		if (isalnum(tfa->cnt->customer[i])) /* copy char if valid */
+			name[len++] = tfa->cnt->customer[i];
+		if (tfa->cnt->customer[i] == '\0')
+			break;
+	}
+	name[len++] = '\0';
+
+	return len;
+}
+
+/*
  * Get the application name from the container file application field
  * note that the input stringbuffer should be sizeof(application field)+1
  */
@@ -2663,7 +2557,7 @@ int tfa_cont_get_cal_profile(struct tfa_device *tfa)
 	return cal_idx;
 }
 
-/**
+/*
  * Is the profile a tap profile
  */
 int tfa_cont_is_tap_profile(struct tfa_device *tfa, int prof_idx)
@@ -2686,7 +2580,30 @@ int tfa_cont_is_tap_profile(struct tfa_device *tfa, int prof_idx)
 	return 0;
 }
 
-/**
+/*
+ * Is the profile a standby profile
+ */
+int tfa_cont_is_standby_profile(struct tfa_device *tfa, int prof_idx)
+{
+	char prof_name[MAX_CONTROL_NAME] = {0};
+
+	if ((tfa->dev_idx < 0) || (tfa->dev_idx >= tfa->cnt->ndev))
+		return TFA_ERROR;
+
+	strlcpy(prof_name, tfa_cont_profile_name(tfa->cnt,
+		tfa->dev_idx, prof_idx), MAX_CONTROL_NAME);
+	/* Check if next profile is tap profile */
+	if (strnstr(prof_name, ".standby", strlen(prof_name)) != NULL) {
+		pr_debug("Using Standby profile: '%s'\n",
+			tfa_cont_profile_name(tfa->cnt,
+			tfa->dev_idx, prof_idx));
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
  * Is the profile specific to device ?
  * @param dev_idx the index of the device
  * @param prof_idx the index of the profile
@@ -2887,7 +2804,7 @@ int tfa_cont_crc_check_container(struct tfa_container *cont)
 	return crc != cont->crc;
 }
 
-static void get_all_features_from_cnt(struct tfa_device *tfa,
+static void tfa_get_all_features_from_cnt(struct tfa_device *tfa,
 	int *hw_feature_register, int sw_feature_register[2])
 {
 	struct tfa_features *features;
@@ -2917,22 +2834,22 @@ static void get_all_features_from_cnt(struct tfa_device *tfa,
 }
 
 /* wrapper function */
-void get_hw_features_from_cnt(struct tfa_device *tfa,
+void tfa_get_hw_features_from_cnt(struct tfa_device *tfa,
 	int *hw_feature_register)
 {
 	int sw_feature_register[2];
 
-	get_all_features_from_cnt(tfa,
+	tfa_get_all_features_from_cnt(tfa,
 		hw_feature_register, sw_feature_register);
 }
 
 /* wrapper function */
-void get_sw_features_from_cnt(struct tfa_device *tfa,
+void tfa_get_sw_features_from_cnt(struct tfa_device *tfa,
 	int sw_feature_register[2])
 {
 	int hw_feature_register;
 
-	get_all_features_from_cnt(tfa,
+	tfa_get_all_features_from_cnt(tfa,
 		&hw_feature_register, sw_feature_register);
 }
 
@@ -2979,9 +2896,7 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 	static enum tfa_blob_index idx = BLOB_INDEX_REGULAR; /* default */
 	static uint8_t *blob[BLOB_INDEX_MAX] = {NULL, NULL};
 	static uint8_t *blobptr[BLOB_INDEX_MAX] = {NULL, NULL};
-#if defined(TFADSP_DSP_BUFFER_POOL)
 	static int blob_p_index[BLOB_INDEX_MAX] = {-1, -1};
-#endif
 	static int total[BLOB_INDEX_MAX] = {0, 0};
 	int post_len = 0;
 	uint8_t cmd, cc;
@@ -3017,7 +2932,6 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 		pr_debug("%s: transfer blob (index %d)\n",
 			__func__, idx);
 
-#if defined(TFADSP_ADD_TOTAL_SIZE_TO_BLOB)
 		/* add total - specially merged fom legacy */
 		if (tfa->convert_dsp32) {
 			if (total_len <= 0xffff) {
@@ -3029,7 +2943,6 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 			if (total_len <= 0xff)
 				blob[idx][0] = (uint8_t)(total_len & 0xff);
 		}
-#endif
 		/* set last length field to zero */
 		for (i = total_len;
 			i < (total_len + len_word_in_bytes); i++)
@@ -3038,15 +2951,11 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 		total_len += len_word_in_bytes;
 		memcpy(buf, blob[idx], total_len);
 
-#if defined(TFADSP_DSP_BUFFER_POOL)
 		if (blob_p_index[idx] != -1)
 			blob_p_index[idx] = tfa98xx_buffer_pool_access
 				(blob_p_index[idx], 0, &blob[idx], POOL_RETURN);
 		else
 			kfree(blob[idx]);
-#else
-		kfree(blob[idx]);
-#endif /* TFADSP_DSP_BUFFER_POOL */
 		/* set blob to NULL pointer, to free memory */
 		blob[idx] = NULL;
 
@@ -3068,15 +2977,11 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 		pr_debug("%s: flush blob (index %d)\n",
 			__func__, idx);
 
-#if defined(TFADSP_DSP_BUFFER_POOL)
 		if (blob_p_index[idx] != -1)
 			blob_p_index[idx] = tfa98xx_buffer_pool_access
 				(blob_p_index[idx], 0, &blob[idx], POOL_RETURN);
 		else
 			kfree(blob[idx]);
-#else
-		kfree(blob[idx]);
-#endif /* TFADSP_DSP_BUFFER_POOL */
 		/* set blob to NULL pointer, to free memory */
 		blob[idx] = NULL;
 
@@ -3094,7 +2999,6 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 		pr_debug("%s: allocate blob (index %d)\n",
 			__func__, idx);
 
-#if defined(TFADSP_DSP_BUFFER_POOL)
 		/* return if already allocated, to get a new one */
 		if (blob_p_index[idx] != -1)
 			tfa98xx_buffer_pool_access
@@ -3110,11 +3014,6 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 			if (blob[idx] == NULL)
 				return TFA98XX_ERROR_FAIL;
 		}
-#else
-		blob[idx] = kmalloc(tfadsp_max_msg_size, GFP_KERNEL);
-		if (blob[idx] == NULL)
-			return TFA98XX_ERROR_FAIL;
-#endif /* TFADSP_DSP_BUFFER_POOL */
 
 		/* add command ID for multi-msg = 0x008015 */
 		if (tfa->convert_dsp32) {
@@ -3136,11 +3035,6 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 		total[idx] = len_word_in_bytes;
 	}
 
-	/* Accumulate messages to buffer */
-	if (tfa->verbose)
-		pr_debug("%s, id:0x%02x%02x%02x, length:%d\n",
-			__func__, buf[0], buf[1], buf[2], length);
-
 	/* check total message size after concatination */
 	post_len = total[idx] + length + (2 * len_word_in_bytes);
 	if (post_len > tfadsp_max_msg_size) {
@@ -3149,6 +3043,17 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 			tfadsp_max_msg_size, total[idx]);
 		return TFA98XX_ERROR_BUFFER_TOO_SMALL;
 	}
+
+	if (buf == NULL) {
+		pr_err("%s: buf is NULL (index %d)!\n",
+			__func__, idx);
+		return TFA98XX_ERROR_FAIL;
+	}
+
+	/* Accumulate messages to buffer */
+	if (tfa->verbose)
+		pr_debug("%s, id:0x%02x%02x%02x, length:%d\n",
+			__func__, buf[0], buf[1], buf[2], length);
 
 	/* add length field (length in words) to the multi message */
 	if (tfa->convert_dsp32) {
@@ -3188,7 +3093,7 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 		return 1; /* 1 means last message is done! */
 	}
 
-	if (cmd & 0x80) { /* *_GET_* command */
+	if (cmd & 0x80) { /* *_GET_* command except 0xA6 / 0xA7 */
 		pr_debug("%s: found last message - sending: module=%d cmd=%d CC=%d (index %d)\n",
 			__func__, buf[1], cmd, cc, idx);
 		return 1; /* 1 means last message is done! with CC check */

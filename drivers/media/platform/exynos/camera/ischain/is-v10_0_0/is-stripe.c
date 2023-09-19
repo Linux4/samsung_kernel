@@ -16,19 +16,34 @@
 #include "is-config.h"
 #include "is-hw-chain.h"
 
-int is_calc_region_num(int input_width, struct is_subdev *subdev)
+int is_calc_region_num(struct is_crop *incrop, struct is_crop *outcrop, struct is_subdev *subdev)
 {
-	int region_num;
+	int region_num = 0;
+	u32 h_pix_num[MAX_STRIPE_REGION_NUM];
+	struct is_crop in_crop;
+	u32 max_width, crop_region_width;
 
-	if (input_width > subdev->constraints_width)
-		region_num = DIV_ROUND_UP(input_width - STRIPE_MARGIN_WIDTH * 2,
+	INIT_CROP(&in_crop);
+
+	/* For downscaling in 8k recordings, the outcrop widths of MCFP, YUVP and MCSC should be used. */
+	crop_region_width = outcrop ? outcrop->w : incrop->w;
+
+	if (crop_region_width > subdev->constraints_width) {
+		region_num = DIV_ROUND_UP(crop_region_width - STRIPE_MARGIN_WIDTH * 2,
 			rounddown(subdev->constraints_width - STRIPE_MARGIN_WIDTH * 2,
 			STRIPE_MARGIN_WIDTH));
-	else
-		region_num = 0;
+		/* incrop->x value needs for align crop width by 512 */
+		in_crop.x = incrop->x;
+		in_crop.w = crop_region_width;
+		max_width = __is_ischain_g_stripe_start_pos(&in_crop, &in_crop, region_num,
+								h_pix_num);
+		if (subdev->constraints_width < max_width)
+			++region_num;
+	}
 
-	dbg_stripe(3, "[%s] input_width:%d constraints_width:%d region_num:%d\n",
-		subdev->name, input_width, subdev->constraints_width, region_num);
+	dbg_stripe(3, "[%s] in_crop[%d %d %d %d] constraints_width:%d region_num:%d\n",
+		subdev->name, in_crop.x, in_crop.y, in_crop.w, in_crop.h,
+		subdev->constraints_width, region_num);
 
 	return region_num;
 }

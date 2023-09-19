@@ -84,7 +84,7 @@
 #define EXYNOS_RX_DMA			2
 
 /* Baudrate definition*/
-#define MAX_BAUD	4000000
+#define MAX_BAUD	4800000
 #define MIN_BAUD	0
 
 #define DEFAULT_SOURCE_CLK	200000000

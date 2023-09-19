@@ -36,6 +36,7 @@
 #include "is-irq.h"
 #include "is-device-camif-dma.h"
 #include "is-hw-phy.h"
+#include "pablo-kernel-variant.h"
 
 #define IS_CSI_VC_FRO_OUT(csi, vc)	(csi->sensor_cfg->output[vc].type == VC_FRO)
 
@@ -716,14 +717,6 @@ static inline unsigned long csi_s_buf_addr_offset(struct is_device_csi *csi, u32
 					offset = byte_per_line * heigth;
 			}
 		}
-
-#if defined(SDC_HEADER_GEN)
-		if (sensor_cfg->output[vc].extformat == HW_FORMAT_RAW10_SDC) {
-			width = sensor_cfg->output[vc].width;
-			byte_per_line = ALIGN(width * 10 / BITS_PER_BYTE, 16);
-			offset = byte_per_line * 2;
-		}
-#endif
 	}
 
 	return offset;
@@ -906,10 +899,14 @@ static inline void csi_s_config_dma(struct is_device_csi *csi, struct is_vci_con
 				continue;
 
 			/* set from internal subdev setting */
-			if (csi->sensor_cfg->output[vc].type == VC_TAILPDAF)
-				fmt.pixelformat = V4L2_PIX_FMT_SBGGR16;
-			else
+			if (csi->sensor_cfg->output[vc].type == VC_TAILPDAF) {
+				if (CHECK_PACKED_EN(vci_config[vc].extformat))
+					fmt.pixelformat = V4L2_PIX_FMT_SBGGR10P;
+				else
+					fmt.pixelformat = V4L2_PIX_FMT_SBGGR16;
+			} else {
 				fmt.pixelformat = V4L2_PIX_FMT_PRIV_MAGIC;
+			}
 #if defined(CSIWDMA_VC1_FORMAT_WA)
 			if (vc == CSI_VIRTUAL_CH_1 && vc0_pfmt)
 				fmt.pixelformat = vc0_pfmt;
@@ -1298,10 +1295,6 @@ static void csi_err_print(struct is_device_csi *csi)
 				break;
 			case CSIS_ERR_DMA_ABORT_DONE:
 				err_str = GET_STR(CSIS_ERR_DMA_ABORT_DONE);
-
-				if (csi->stat_wdma)
-					is_debug_s2d(true, "[DMA%d][VC%d] CSIS STAT_WDMA error!! %s",
-							csi->stat_wdma_ch, vc, err_str);
 				break;
 			case CSIS_ERR_VRESOL_MISMATCH:
 				err_str = GET_STR(CSIS_ERR_VRESOL_MISMATCH);
@@ -1572,9 +1565,9 @@ static void wq_ebuf_reset(struct work_struct *data)
 
 	mutex_lock(&ebuf->lock);
 	csi_hw_s_ebuf_enable(ebuf->regs, false, otf_ch, EBUF_AUTO_MODE,
-			ebuf->num_of_ebuf);
+			ebuf->num_of_ebuf, ebuf->fake_done_offset);
 	csi_hw_s_ebuf_enable(ebuf->regs, true, otf_ch, EBUF_AUTO_MODE,
-			ebuf->num_of_ebuf);
+			ebuf->num_of_ebuf, ebuf->fake_done_offset);
 	mutex_unlock(&ebuf->lock);
 
 	/* sensor stream on */
@@ -1785,12 +1778,24 @@ static irqreturn_t is_isr_csi(int irq, void *data)
 	int frame_start, frame_end;
 	struct csis_irq_src irq_src;
 	u32 ch, err_flag = 0;
+	ulong err = 0;
 
 	csi = data;
 	memset(&irq_src, 0x0, sizeof(struct csis_irq_src));
 	csi_hw_g_irq_src(csi->base_reg, &irq_src, true);
 
-	csi->state_cnt.err += (irq_src.err_id[CSI_VIRTUAL_CH_0]) ? 1 : 0;
+	if (is_get_debug_param(IS_DEBUG_PARAM_PHY_TUNE) != PABLO_PHY_TUNE_DISABLE) {
+		if (is_get_debug_param(IS_DEBUG_PARAM_PHY_TUNE) == PABLO_PHY_TUNE_DPHY) {
+			err = (irq_src.err_id[CSI_VIRTUAL_CH_0] & (BIT(CSIS_ERR_ECC) | BIT(CSIS_ERR_CRC)));
+		} else {
+			for (ch = CSI_VIRTUAL_CH_0; ch < CSI_VIRTUAL_CH_MAX; ch++)
+				err |= irq_src.err_id[ch];
+		}
+	} else {
+		err = irq_src.err_id[CSI_VIRTUAL_CH_0];
+	}
+
+	csi->state_cnt.err += err ? 1: 0;
 	csi->state_cnt.str += (irq_src.otf_start & BIT(CSI_VIRTUAL_CH_0)) ? 1 : 0;
 	csi->state_cnt.end += (irq_src.otf_end & BIT(CSI_VIRTUAL_CH_0)) ? 1 : 0;
 
@@ -2058,6 +2063,7 @@ static irqreturn_t is_isr_csi_ebuf(int irq, void *data)
 	int ebuf_ch;
 	ulong sensor_abort, fake_frame_done;
 	unsigned int num_of_ebuf = ebuf->num_of_ebuf;
+	unsigned int offset_fake_frame_done = ebuf->fake_done_offset;
 	u32 mask;
 	struct work_struct *work_wq;
 
@@ -2065,27 +2071,27 @@ static irqreturn_t is_isr_csi_ebuf(int irq, void *data)
 	group = &sensor->group_sensor;
 	ebuf_ch = csi_g_otf_ch(group);
 
-	csi_hw_g_ebuf_irq_src(ebuf->regs, &irq_src, ebuf_ch, num_of_ebuf);
+	csi_hw_g_ebuf_irq_src(ebuf->regs, &irq_src, ebuf_ch, offset_fake_frame_done);
 	if (!irq_src.ebuf_status)
 		return IRQ_NONE;
 
-	mask = GENMASK(num_of_ebuf - 1, 0);
+	mask = GENMASK(offset_fake_frame_done - 1, 0);
 	sensor_abort = irq_src.ebuf_status & mask;
-	fake_frame_done = (irq_src.ebuf_status >> num_of_ebuf) & mask;
+	fake_frame_done = (irq_src.ebuf_status >> offset_fake_frame_done) & mask;
 
 	/* sensor abort */
-	ebuf_ch = find_first_bit(&sensor_abort, num_of_ebuf);
+	ebuf_ch = find_first_bit(&sensor_abort, offset_fake_frame_done);
 	while (ebuf_ch < num_of_ebuf) {
 		/* EBUF_MANUAL_MODE only */
-		mcinfo("sensor_abort(EBUF #%d)\n", csi, ebuf_ch);
+		mcinfo("sensor_abort(EBUF #%d, hw=%d, bit=%d)\n", csi, ebuf_ch, num_of_ebuf, offset_fake_frame_done);
 
 		csi_hw_s_ebuf_fake_sign(ebuf->regs, ebuf_ch);
 
-		ebuf_ch = find_next_bit(&sensor_abort, num_of_ebuf, ebuf_ch + 1);
+		ebuf_ch = find_next_bit(&sensor_abort, offset_fake_frame_done, ebuf_ch + 1);
 	}
 
 	/* fake frame done */
-	ebuf_ch = find_first_bit(&fake_frame_done, num_of_ebuf);
+	ebuf_ch = find_first_bit(&fake_frame_done, offset_fake_frame_done);
 	while (ebuf_ch < num_of_ebuf) {
 		mcinfo("fake_frame_done(EBUF #%d)\n", csi, ebuf_ch);
 
@@ -2094,7 +2100,7 @@ static irqreturn_t is_isr_csi_ebuf(int irq, void *data)
 		if (!work_pending(work_wq))
 			csi_wq_func_schedule(csi, work_wq);
 
-		ebuf_ch = find_next_bit(&fake_frame_done, num_of_ebuf, ebuf_ch + 1);
+		ebuf_ch = find_next_bit(&fake_frame_done, offset_fake_frame_done, ebuf_ch + 1);
 	}
 
 	return IRQ_HANDLED;
@@ -3007,7 +3013,7 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 
 			mutex_lock(&ebuf->lock);
 			csi_hw_s_ebuf_enable(ebuf->regs, true, otf_ch, EBUF_AUTO_MODE,
-					ebuf->num_of_ebuf);
+					ebuf->num_of_ebuf, ebuf->fake_done_offset);
 			mutex_unlock(&ebuf->lock);
 
 			/* ebuf support 2 vc */
@@ -3108,7 +3114,7 @@ static int csi_stream_off(struct v4l2_subdev *subdev,
 		if (ebuf) {
 			mutex_lock(&ebuf->lock);
 			csi_hw_s_ebuf_enable(ebuf->regs, false, otf_ch, EBUF_AUTO_MODE,
-					ebuf->num_of_ebuf);
+					ebuf->num_of_ebuf, ebuf->fake_done_offset);
 			mutex_unlock(&ebuf->lock);
 
 			if (flush_work(&csi->wq_ebuf_reset))
@@ -3260,6 +3266,37 @@ p_err:
 	return ret;
 }
 
+void csi_s_image_format(struct is_device_csi *csi, struct v4l2_subdev_format *fmt)
+{
+	csi->image.window.offs_h = 0;
+	csi->image.window.offs_v = 0;
+	csi->image.window.width = fmt->format.width;
+	csi->image.window.height = fmt->format.height;
+	csi->image.window.o_width = fmt->format.width;
+	csi->image.window.o_height = fmt->format.height;
+	csi->image.format.pixelformat = fmt->format.code;
+	csi->image.format.field = fmt->format.field;
+}
+
+void csi_s_sensor_cfg(struct is_device_csi *csi)
+{
+	if (is_get_debug_param(IS_DEBUG_PARAM_PHY_TUNE)) {
+		csi->f_id_dec = false;
+		csi->dma_batch_num = 1;
+	} else {
+		if (csi->sensor_cfg->ex_mode == EX_DUALFPS_960) {
+			csi->f_id_dec = true;
+			csi->dma_batch_num = 960 / 60;
+		} else if (csi->sensor_cfg->ex_mode == EX_DUALFPS_480) {
+			csi->f_id_dec = true;
+			csi->dma_batch_num = 480 / 60;
+		} else {
+			csi->f_id_dec = false;
+			csi->dma_batch_num = 1;
+		}
+	}
+}
+
 static int csi_s_format(struct v4l2_subdev *subdev,
 	struct v4l2_subdev_pad_config *cfg,
 	struct v4l2_subdev_format *fmt)
@@ -3279,14 +3316,7 @@ static int csi_s_format(struct v4l2_subdev *subdev,
 		return -ENODEV;
 	}
 
-	csi->image.window.offs_h = 0;
-	csi->image.window.offs_v = 0;
-	csi->image.window.width = fmt->format.width;
-	csi->image.window.height = fmt->format.height;
-	csi->image.window.o_width = fmt->format.width;
-	csi->image.window.o_height = fmt->format.height;
-	csi->image.format.pixelformat = fmt->format.code;
-	csi->image.format.field = fmt->format.field;
+	csi_s_image_format(csi, fmt);
 
 	device = v4l2_get_subdev_hostdata(subdev);
 	if (!device) {
@@ -3302,21 +3332,7 @@ static int csi_s_format(struct v4l2_subdev *subdev,
 		goto p_err;
 	}
 
-	if (is_get_debug_param(IS_DEBUG_PARAM_PHY_TUNE)) {
-		csi->f_id_dec = false;
-		csi->dma_batch_num = 1;
-	} else {
-		if (sensor_cfg->ex_mode == EX_DUALFPS_960) {
-			csi->f_id_dec = true;
-			csi->dma_batch_num = 960 / 60;
-		} else if (sensor_cfg->ex_mode == EX_DUALFPS_480) {
-			csi->f_id_dec = true;
-			csi->dma_batch_num = 480 / 60;
-		} else {
-			csi->f_id_dec = false;
-			csi->dma_batch_num = 1;
-		}
-	}
+	csi_s_sensor_cfg(csi);
 
 	csi_rst_bufring_cnt(csi);
 
@@ -3341,8 +3357,12 @@ static int csi_s_format(struct v4l2_subdev *subdev,
 		if (!dma_subdev)
 			continue;
 
-		if (test_bit(IS_SUBDEV_INTERNAL_USE, &dma_subdev->state))
-			is_subdev_internal_close((void *)device, IS_DEVICE_SENSOR, dma_subdev);
+
+		if (test_bit(IS_SUBDEV_INTERNAL_USE, &dma_subdev->state)){
+			ret = is_subdev_internal_close((void *)device, IS_DEVICE_SENSOR, dma_subdev);
+			if (ret)
+				mcerr("[VC%d] is_subdev_internal_close is fail(%d)", csi, vc, ret);
+		}
 
 		vci_cfg = &sensor_cfg->output[vc];
 		if (vci_cfg->type == VC_NOTHING)
@@ -3355,34 +3375,27 @@ static int csi_s_format(struct v4l2_subdev *subdev,
 			w += sensor_cfg->dummy_pixel[vc];
 
 		/* VC type dependent value setting */
+
+		bits_per_pixel = 8;
+		buffer_num = SUBDEV_INTERNAL_BUF_MAX;
+
 		switch (vci_cfg->type) {
 		case VC_TAILPDAF:
-			bits_per_pixel = 16;
+			bits_per_pixel = CHECK_PACKED_EN(vci_cfg->extformat) ? 10 : 16;
 			if (device->image.framerate <= 30)
 				buffer_num = 3;
-			else
-				buffer_num = SUBDEV_INTERNAL_BUF_MAX;
-
 			type_name = "VC_TAILPDAF";
 			break;
 		case VC_MIPISTAT:
-			bits_per_pixel = 8;
-			buffer_num = SUBDEV_INTERNAL_BUF_MAX;
 			type_name = "VC_MIPISTAT";
 			break;
 		case VC_EMBEDDED:
-			bits_per_pixel = 8;
-			buffer_num = SUBDEV_INTERNAL_BUF_MAX;
 			type_name = "VC_EMBEDDED";
 			break;
 		case VC_EMBEDDED2:
-			bits_per_pixel = 8;
-			buffer_num = SUBDEV_INTERNAL_BUF_MAX;
 			type_name = "VC_EMBEDDED2";
 			break;
 		case VC_PRIVATE:
-			bits_per_pixel = 8;
-			buffer_num = SUBDEV_INTERNAL_BUF_MAX;
 			type_name = "VC_PRIVATE";
 			break;
 		case VC_FRO:
@@ -3848,7 +3861,7 @@ struct pablo_kunit_csi_func pablo_kunit_csi_test = {
 	.wq_csis_dma_vc[1] = wq_csis_dma_vc1,
 	.wq_csis_dma_vc[2] = wq_csis_dma_vc2,
 	.wq_csis_dma_vc[3] = wq_csis_dma_vc3,
-	.tasklet_csis_line = tasklet_csis_line,
+	PKV_ASSIGN_TASKLET_CALLBACK(csis_line),
 	.csi_hw_cdump_all = csi_hw_cdump_all,
 	.csi_hw_dump_all = csi_hw_dump_all,
 };

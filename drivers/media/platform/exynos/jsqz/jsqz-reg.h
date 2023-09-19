@@ -198,21 +198,23 @@ static inline void jsqz_print_all_regs(struct jsqz_dev *jsqz)
 {
 	int i;
 	void __iomem *base = jsqz->regs;
-	dev_dbg(jsqz->dev, "%s: BEGIN\n", __func__);
+	dev_info(jsqz->dev, "%s: BEGIN\n", __func__);
 	for (i = 0; i < 7; i++)
 	{
-		dev_dbg(jsqz->dev, "%s: 0x%08x : %08x\n", __func__, (i*0x4), readl(base + (i*0x4)));
+		dev_info(jsqz->dev, "%s: 0x%08x : %08x\n", __func__, (i*0x4), readl(base + (i*0x4)));
 	}
 	for (i = 0; i < 7; i++)
 	{
-		dev_dbg(jsqz->dev, "%s: 0x%08x : %08x\n", __func__, (REG_39_SW_RESET + (i*0x4)), readl(base + REG_39_SW_RESET + (i*0x4)));
+		dev_info(jsqz->dev, "%s: 0x%08x : %08x\n", __func__, (REG_39_SW_RESET + (i*0x4)),
+			readl(base + REG_39_SW_RESET + (i*0x4)));
 	}
-	dev_dbg(jsqz->dev, "%s: 0x%08x : %08x\n", __func__, REG_47_ERROR_FLAG, readl(base + REG_47_ERROR_FLAG));
+	dev_info(jsqz->dev, "%s: 0x%08x : %08x\n", __func__, REG_47_ERROR_FLAG, readl(base + REG_47_ERROR_FLAG));
 	for (i = 0; i < 6; i++)
 	{
-		dev_dbg(jsqz->dev, "%s: 0x%08x : %08x\n", __func__, (REG_80_VELOCITY + (i*0x4)), readl(base + REG_80_VELOCITY + (i*0x4)));
+		dev_info(jsqz->dev, "%s: 0x%08x : %08x\n", __func__, (REG_80_VELOCITY + (i*0x4)),
+			readl(base + REG_80_VELOCITY + (i*0x4)));
 	}
-	dev_dbg(jsqz->dev, "%s: END\n", __func__);
+	dev_info(jsqz->dev, "%s: END\n", __func__);
 }
 
 

@@ -59,6 +59,10 @@ struct is_hw_cstat {
 	struct tasklet_struct		end_tasklet;
 	atomic_t			isr_run_count;
 	wait_queue_head_t		isr_wait_queue;
+
+	/* sensor itf */
+	struct is_sensor_interface	*sensor_itf[IS_STREAM_COUNT];
+
 };
 
 #endif

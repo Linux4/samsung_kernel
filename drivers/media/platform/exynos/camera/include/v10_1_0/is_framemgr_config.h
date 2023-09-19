@@ -181,6 +181,8 @@ struct is_frame {
 	u32 dva_rgbp_sf[IS_MAX_PLANES];			/* RGBP SF WDMA */
 	u32 dva_rgbp_yuv[IS_MAX_PLANES];		/* RGBP YUV WDMA*/
 	u32 dva_rgbp_rgb[IS_MAX_PLANES];		/* RGBP RGB WDMA */
+	u32 dva_byrp_byr[IS_MAX_PLANES];		/* BYRP WDMA Before WBG (DNG) */
+	u32 dva_byrp_byr_processed[IS_MAX_PLANES];	/* BYRP WDMA After WBG (Super night)*/
 
 	/* Logical node information */
 	struct is_sub_node	out_node;
@@ -235,6 +237,5 @@ struct is_frame {
 
 	struct is_stripe_info	stripe_info;
 
-	struct pablo_rta_frame_info prfi;
 };
 

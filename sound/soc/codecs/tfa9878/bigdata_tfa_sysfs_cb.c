@@ -34,7 +34,6 @@ enum tfa_bigdata {
 	TFA_BIGDATA_MAX,
 };
 
-#define MAX_CHANNELS 4
 #define RESET 1
 
 static int get_tfa98xx_amp_temperature_max(enum amp_id id)
@@ -47,15 +46,15 @@ static int get_tfa98xx_amp_temperature_max(enum amp_id id)
 		return -EPERM;
 	}
 
-	if (id < 0 || id >=  MAX_CHANNELS) {
+	if (id >=  AMP_ID_MAX) {
 		dev_err(component->dev, "%s: invalid id(%d)\n", __func__, id);
 		return -EINVAL;
 	}
 
 	value = tfa98xx_get_blackbox_data_index(id, TFA_MAX_T, RESET);
 	if (value < 0) {
-		dev_info(component->dev, "fail to get the max temp amp bigdata value\n");
-		return 0;
+		dev_err(component->dev, "%s: invalid value(%d)\n", __func__, value);
+		return -EINVAL;
 	}
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
@@ -73,15 +72,15 @@ static int get_tfa98xx_amp_temperature_keep_max(enum amp_id id)
 		return -EPERM;
 	}
 
-	if (id < 0 || id >=  MAX_CHANNELS) {
+	if (id >=  AMP_ID_MAX) {
 		dev_err(component->dev, "%s: invalid id(%d)\n", __func__, id);
 		return -EINVAL;
 	}
 
 	value = tfa98xx_get_blackbox_data_index(id, TFA_MAX_T_KEEP, RESET);
 	if (value < 0) {
-		dev_info(component->dev, "fail to get the max temp keep amp bigdata value\n");
-		return 0;
+		dev_err(component->dev, "%s: invalid value(%d)\n", __func__, value);
+		return -EINVAL;
 	}
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
@@ -99,15 +98,15 @@ static int get_tfa98xx_amp_temperature_overcount(enum amp_id id)
 		return -EPERM;
 	}
 
-	if (id < 0 || id >=  MAX_CHANNELS) {
+	if (id >=  AMP_ID_MAX) {
 		dev_err(component->dev, "%s: invalid id(%d)\n", __func__, id);
 		return -EINVAL;
 	}
 
 	value = tfa98xx_get_blackbox_data_index(id, TFA_MAX_T_COUNT, RESET);
 	if (value < 0) {
-		dev_info(component->dev, "fail to get the max temp count amp bigdata value\n");
-		return 0;
+		dev_err(component->dev, "%s: invalid value(%d)\n", __func__, value);
+		return -EINVAL;
 	}
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
@@ -125,15 +124,15 @@ static int get_tfa98xx_amp_excursion_max(enum amp_id id)
 		return -EPERM;
 	}
 
-	if (id < 0 || id >=  MAX_CHANNELS) {
+	if (id >=  AMP_ID_MAX) {
 		dev_err(component->dev, "%s: invalid id(%d)\n", __func__, id);
 		return -EINVAL;
 	}
 
 	value = tfa98xx_get_blackbox_data_index(id, TFA_MAX_X, RESET);
 	if (value < 0) {
-		dev_info(component->dev, "fail to get the max excur amp bigdata value\n");
-		return 0;
+		dev_err(component->dev, "%s: invalid value(%d)\n", __func__, value);
+		return -EINVAL;
 	}
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
@@ -151,15 +150,15 @@ static int get_tfa98xx_amp_excursion_overcount(enum amp_id id)
 		return -EPERM;
 	}
 
-	if (id < 0 || id >=  MAX_CHANNELS) {
+	if (id >=  AMP_ID_MAX) {
 		dev_err(component->dev, "%s: invalid id(%d)\n", __func__, id);
 		return -EINVAL;
 	}
 
 	value = tfa98xx_get_blackbox_data_index(id, TFA_MAX_X_COUNT, RESET);
 	if (value < 0) {
-		dev_info(component->dev, "fail to get the max excur count amp bigdata value\n");
-		return 0;
+		dev_err(component->dev, "%s: invalid value(%d)\n", __func__, value);
+		return -EINVAL;
 	}
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
@@ -177,15 +176,15 @@ static int get_tfa98xx_amp_curr_temperature(enum amp_id id)
 		return -EPERM;
 	}
 
-	if (id < 0 || id >=  MAX_CHANNELS) {
+	if (id >=  AMP_ID_MAX) {
 		dev_err(component->dev, "%s: invalid id(%d)\n", __func__, id);
 		return -EINVAL;
 	}
 
 	value = tfa98xx_update_spkt_data(id);
 	if (value < 0) {
-		dev_info(component->dev, "fail to get the current temperature amp bigdata value\n");
-		return 0;
+		dev_err(component->dev, "%s: invalid value(%d)\n", __func__, value);
+		return -EINVAL;
 	}
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
@@ -196,27 +195,27 @@ static int get_tfa98xx_amp_curr_temperature(enum amp_id id)
 static int set_tfa98xx_amp_surface_temperature(enum amp_id id, int temperature)
 {
 	struct snd_soc_component *component = tfa98xx_component;
-	int value = 0;
+	int ret = 0;
 
 	if (!component) {
 		pr_err("%s: component NULL\n", __func__);
 		return -EPERM;
 	}
 
-	if (id < 0 || id >=  MAX_CHANNELS) {
+	dev_info(component->dev, "%s: id %d temperature %d\n", __func__, id, temperature);
+
+	if (id >=  AMP_ID_MAX) {
 		dev_err(component->dev, "%s: invalid id(%d)\n", __func__, id);
 		return -EINVAL;
 	}
 
-	value = tfa98xx_write_sknt_control(id, value);
-	if (value < 0) {
-		dev_info(component->dev, "fail to set the surface temperature\n");
-		return 0;
+	ret = tfa98xx_write_sknt_control(id, temperature);
+	if (ret < 0) {
+		dev_err(component->dev, "%s: invalid ret(%d)\n", __func__, ret);
+		return -EINVAL;
 	}
 
-	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
-
-	return value;
+	return ret;
 }
 
 void register_tfa98xx_bigdata_cb(struct snd_soc_component *component)

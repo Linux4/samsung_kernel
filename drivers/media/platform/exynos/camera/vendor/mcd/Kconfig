@@ -100,6 +100,12 @@ config CAMERA_RSV_V03
         default n
         help
           This camera is rsv_v03.
+config CAMERA_RSW_V11
+        bool "This camera is rsw_v11"
+        depends on CAMERA_VENDER_MCD
+        default n
+        help
+          This camera is rsw_v11.
 config USE_OIS_TAMODE_CONTROL
 	bool "Use ois TAMODE control"
         depends on CAMERA_VENDER_MCD
@@ -112,4 +118,10 @@ config MCU_S5E9925_EVT0
         default n
         help
           Mcu s5e9925 evt0.
+config OIS_HALL_DATA_PROVIDER
+        bool "Ois hall data provider"
+        depends on CAMERA_VENDER_MCD
+        default n
+        help
+          Ois hall data provider.
 

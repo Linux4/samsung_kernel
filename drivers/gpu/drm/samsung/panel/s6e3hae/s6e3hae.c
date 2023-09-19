@@ -2226,9 +2226,9 @@ int show_dsi_err(struct dumpinfo *info)
 #if IS_ENABLED(CONFIG_SEC_ABC)
 	if (dsi_err[0] > 0)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=display@INFO=act_section_panel_main_dsi_error");
+		sec_abc_send_event("MODULE=display@INFO=act_section_dsierr0");
 #else
-		sec_abc_send_event("MODULE=display@WARN=act_section_panel_main_dsi_error");
+		sec_abc_send_event("MODULE=display@WARN=act_section_dsierr0");
 #endif
 #endif
 

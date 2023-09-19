@@ -21,12 +21,17 @@
 #define _COMMON_H_
 
 #include <linux/cdev.h>
+#include <linux/fs.h>
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #include <linux/clk.h>
 #include "nfc_wakelock.h"
 #ifdef CONFIG_SEC_NFC_LOGGER
+#ifdef CONFIG_NFC_NXP_COMBINED
+#include "../nfc_logger/nfc_logger.h"
+#else
 #include "nfc_logger/nfc_logger.h"
+#endif
 #endif
 #endif
 
@@ -256,6 +261,7 @@ struct nfc_dev {
 	struct cold_reset cold_reset;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	struct nfc_wake_lock nfc_wake_lock;
 	struct nfc_wake_lock nfc_clk_wake_lock;
 	bool clk_req_wakelock;
 	bool screen_cfg;

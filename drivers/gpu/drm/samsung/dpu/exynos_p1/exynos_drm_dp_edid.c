@@ -121,15 +121,9 @@ static int edid_read_block(struct dp_device *dp,
 
 	ret = dp_reg_edid_read(&dp->cal_res, (u8)block, EDID_BLOCK_SIZE, buf);
 	if (ret)
-		return ret;
+		dp_edid_dump(dp, buf, EDID_BLOCK_SIZE);
 
-	print_hex_dump(KERN_INFO, "EDID: ", DUMP_PREFIX_OFFSET, 16, 1,
-					buf, 128, false);
-#ifdef CONFIG_SEC_DISPLAYPORT_LOGGER
-	dp_logger_hex_dump(buf, "EDID: ", 128);
-#endif
-
-	return 0;
+	return ret;
 }
 
 static int edid_check_extension_tag(struct dp_device *dp, u8 ext_tag)
@@ -421,6 +415,47 @@ void dp_mode_sort_for_mirror(struct dp_device *dp)
 	dp_debug(dp, "%s\n", __func__);
 	list_sort(dp, &dp->connector.probed_modes, dp_mode_compare_for_mirror);
 }
+
+#ifdef FEATURE_HIGHER_RESOLUTION
+/*
+ * mode comparison
+ * from drm_mode_compare() at drm_modes.c
+ * Returns:
+ * Negative if @lh_a is better than @lh_b, zero if they're equivalent, or
+ * positive if @lh_b is better than @lh_a.
+ */
+int dp_mode_compare_for_higher(void *priv, struct list_head *lh_a, struct list_head *lh_b)
+{
+	struct drm_display_mode *a = list_entry(lh_a, struct drm_display_mode, head);
+	struct drm_display_mode *b = list_entry(lh_b, struct drm_display_mode, head);
+	int diff;
+
+	diff = b->hdisplay * b->vdisplay - a->hdisplay * a->vdisplay;
+	if (diff)
+		return diff;
+
+	diff = drm_mode_vrefresh(b) - drm_mode_vrefresh(a);
+	if (diff)
+		return diff;
+
+	diff = b->clock - a->clock;
+	return diff;
+}
+
+/*
+ * sort for higher mode as priority
+ * 1. higher resolution
+ * 2. higher fps
+ * 3. higher pixel clock
+ */
+
+void dp_mode_sort_for_higher(struct dp_device *dp)
+{
+	dp_debug(dp, "%s\n", __func__);
+	list_sort(dp, &dp->connector.probed_modes, dp_mode_compare_for_higher);
+}
+
+#endif
 
 void dp_mode_set_fail_safe(struct dp_device *dp)
 {
@@ -861,6 +896,8 @@ int edid_update_drm(struct dp_device *dp)
 		return -EINVAL;
 	}
 
+	dp_edid_dump(dp, edid, ret * EDID_BLOCK_SIZE);
+
 	mutex_lock(&dp->connector.dev->mode_config.mutex);
 	dp_mode_clean_up(dp);
 	ret = drm_add_edid_modes(&dp->connector, edid);
@@ -887,7 +924,12 @@ int edid_update_drm(struct dp_device *dp)
 
 		/* need?: drm_mode_sort(&dp->connector.probed_modes); */
 		if (dp_find_prefer_mode(dp, MODE_FILTER_PREFER)) {
-			dp_mode_sort_for_mirror(dp);
+#ifdef FEATURE_HIGHER_RESOLUTION
+			if (dp->higher_resolution == true)
+				dp_mode_sort_for_higher(dp);
+			else
+#endif
+				dp_mode_sort_for_mirror(dp);
 			dp_find_best_mode(dp, MODE_FILTER_PREFER);
 		}
 
@@ -897,10 +939,144 @@ int edid_update_drm(struct dp_device *dp)
 
 		/* audio info */
 		ret = drm_edid_to_sad(edid, &sads);
-		dp_sad_to_audio_info(dp, sads, ret);
+		if (ret > 0) {
+			dp_sad_to_audio_info(dp, sads, ret);
+			kfree(sads);
+		}
 	}
 
 	return ret;
+}
+#endif
+
+#ifdef FEATURE_HF_EEODB_SUPPORT
+/* from drm_edid.c */
+#define CTA_DB_EXTENDED_TAG		7
+#define CTA_EXT_DB_HF_EEODB		0x78
+
+/* CTA-861-H section 7.4 CTA Data BLock Collection */
+struct cea_db {
+	u8 tag_length;
+	u8 data[];
+} __packed;
+
+static int cea_db_tag(const struct cea_db *db)
+{
+	return db->tag_length >> 5;
+}
+
+static int cea_db_payload_len(const void *_db)
+{
+	/* FIXME: Transition to passing struct cea_db * everywhere. */
+	const struct cea_db *db = _db;
+
+	return db->tag_length & 0x1f;
+}
+
+static bool cea_db_is_extended_tag(const struct cea_db *db, int tag)
+{
+	return cea_db_tag(db) == CTA_DB_EXTENDED_TAG &&
+		cea_db_payload_len(db) >= 1 &&
+		db->data[0] == tag;
+}
+
+static bool cea_db_is_hdmi_forum_eeodb(const void *db)
+{
+	return cea_db_is_extended_tag(db, CTA_EXT_DB_HF_EEODB) &&
+		cea_db_payload_len(db) >= 2;
+}
+
+static int cea_db_collection_size(const u8 *cta)
+{
+	u8 d = cta[2];
+
+	if (d < 4 || d > 127)
+		return 0;
+
+	return d - 4;
+}
+
+static int cea_revision(const u8 *cea)
+{
+	/*
+	 * FIXME is this correct for the DispID variant?
+	 * The DispID spec doesn't really specify whether
+	 * this is the revision of the CEA extension or
+	 * the DispID CEA data block. And the only value
+	 * given as an example is 0.
+	 */
+	return cea[1];
+}
+
+static int edid_block_tag(const void *_block)
+{
+	const u8 *block = _block;
+
+	return block[0];
+}
+
+static const void *edid_block_data(const struct edid *edid, int index)
+{
+	BUILD_BUG_ON(sizeof(*edid) != EDID_LENGTH);
+
+	return edid + index;
+}
+
+static const void *edid_extension_block_data(const struct edid *edid, int index)
+{
+	return edid_block_data(edid, index + 1);
+}
+
+static int edid_extension_block_count(const struct edid *edid)
+{
+	return edid->extensions;
+}
+
+static int edid_hfeeodb_extension_block_count(const struct edid *edid)
+{
+	const u8 *cta;
+
+	/* No extensions according to base block, no HF-EEODB. */
+	if (!edid_extension_block_count(edid))
+		return 0;
+
+	/* HF-EEODB is always in the first EDID extension block only */
+	cta = edid_extension_block_data(edid, 0);
+	if (edid_block_tag(cta) != CEA_EXT || cea_revision(cta) < 3)
+		return 0;
+
+	/* Need to have the data block collection, and at least 3 bytes. */
+	if (cea_db_collection_size(cta) < 3)
+		return 0;
+
+	/*
+	 * Sinks that include the HF-EEODB in their E-EDID shall include one and
+	 * only one instance of the HF-EEODB in the E-EDID, occupying bytes 4
+	 * through 6 of Block 1 of the E-EDID.
+	 */
+	if (!cea_db_is_hdmi_forum_eeodb(&cta[4]))
+		return 0;
+
+	return cta[4 + 2];
+}
+
+static int edid_hfeeodb_block_count(const struct edid *edid)
+{
+	int eeodb = edid_hfeeodb_extension_block_count(edid);
+
+	return eeodb ? eeodb + 1 : 0;
+}
+
+/* drm use legacy extension to parse */
+static void edid_hfeeodb_change_extension_count(u8 *edid_buf, int eeodb)
+{
+	u8 *extension = &edid_buf[0x7e];
+	u8 *checksum = &edid_buf[0x7f];
+	u16 count_diff = 0;
+
+	count_diff = (u8)eeodb - *extension;
+	*checksum = (*checksum + (u8)(0x100 - count_diff)) & 0xFF;
+	*extension = eeodb;
 }
 #endif
 
@@ -911,6 +1087,9 @@ int edid_read(struct dp_device *dp)
 	int ret = 0;
 	int retry_num = 5;
 	u8 *edid_buf = dp->rx_edid_data.edid_buf;
+#ifdef FEATURE_HF_EEODB_SUPPORT
+	int eeodb_cnt = 0;
+#endif
 
 EDID_READ_RETRY:
 	block = 0;
@@ -924,6 +1103,7 @@ EDID_READ_RETRY:
 	if (ret) {
 		if (retry_num <= 0) {
 			dp_err(dp, "edid read error\n");
+			dp_edid_dump(dp, edid_buf, EDID_BLOCK_SIZE);
 			return ret;
 		} else {
 			msleep(100);
@@ -934,6 +1114,11 @@ EDID_READ_RETRY:
 
 	block_cnt = edid_buf[EDID_EXTENSION_FLAG] + 1;
 	dp_info(dp, "block_cnt = %d\n", block_cnt);
+
+	if (block_cnt > 4) {
+		dp_info(dp, "valid ext block count %d\n", block_cnt);
+		return 1;
+	}
 
 	while (++block < block_cnt) {
 		u8 *edid_ext = edid_buf + (block * EDID_BLOCK_SIZE);
@@ -946,6 +1131,16 @@ EDID_READ_RETRY:
 			dp_info(dp, "block_cnt:%d/%d, ret: %d\n", block, block_cnt, ret);
 			return block;
 		}
+#ifdef FEATURE_HF_EEODB_SUPPORT
+		if (block == 1) {
+			eeodb_cnt = edid_hfeeodb_block_count((const struct edid *)edid_buf);
+			if (eeodb_cnt > block_cnt && eeodb_cnt <= MAX_EDID_BLOCK) {
+				dp_info(dp, "eeodb block_cnt = %d\n", eeodb_cnt);
+				block_cnt = eeodb_cnt;
+				edid_hfeeodb_change_extension_count(edid_buf, eeodb_cnt - 1);
+			}
+		}
+#endif
 	}
 
 	return block_cnt;

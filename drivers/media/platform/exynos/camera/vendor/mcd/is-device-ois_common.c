@@ -697,6 +697,21 @@ void is_ois_check_cross_talk(struct is_core *core, u16 *hall_data)
 	return;
 }
 
+void is_ois_get_hall_data(struct is_core *core, struct is_ois_hall_data *halldata)
+{
+	struct is_device_ois *ois_device = NULL;
+	struct is_device_sensor *device = NULL;
+
+	ois_device = is_ois_get_device(core);
+	device = &core->sensor[0];
+
+	if (CALL_OISOPS(device->mcu->ois, ois_get_active)) {
+		CALL_OISOPS(device->mcu->ois, ois_get_hall_data, device->subdev_mcu, halldata);
+	}
+
+	return;
+}
+
 void is_ois_check_hall_cal(struct is_core *core, u16 *hall_cal_data)
 {
 	struct is_device_ois *ois_device = NULL;

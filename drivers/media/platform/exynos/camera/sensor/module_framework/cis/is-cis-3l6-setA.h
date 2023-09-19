@@ -344,77 +344,44 @@ const u32 sensor_3l6_setfile_A_1028x772_120fps[] = {
 
 };
 
-const struct sensor_pll_info sensor_3l6_pllinfo_A_4128x3096_30fps = {
-	EXT_CLK_Mhz * 1000 * 1000, /* ext_clk */
-	0x5C, /* vt_pix_clk_div	(0x0301) */
-	0x04, /* vt_sys_clk_div	(0x0303) */
-	0x03, /* pre_pll_clk_div	(0x0305) */
-	0x53, /* pll_multiplier	(0x0307) */
-	0x08, /* op_pix_clk_div	(0x0309) */
-	0x01, /* op_sys_clk_div	(0x030A) */
-	0x04, /* secnd_pre_pll_clk_div	(0x030D) */
-	0x5C, /* secnd_pll_multiplier	(0x030F) */
-	0x0CC1, /* frame_length_lines	(0x0341) */
-	0x1320, /* line_length_pck	(0x0343) */
-
+const struct sensor_pll_info_compact sensor_3l6_pllinfo_A_4128x3096_30fps = {
+	EXT_CLK_Khz * 1000, 		/* ext_clk */
+	1196000000,			/* mipi_datarate = OPSYCK */
+	480000000,			/* pclk = VTPXCK of Clock Information */
+	0x0CC1,				/* frame_length_lines */
+	0x1320,				/* line_length_pck */
 };
 
-const struct sensor_pll_info sensor_3l6_pllinfo_A_4128x2324_30fps = {
-	EXT_CLK_Mhz * 1000 * 1000, /* ext_clk */
-	0x02, /* vt_pix_clk_div	(0x0301) */
-	0x01, /* vt_sys_clk_div	(0x0303) */
-	0x03, /* pre_pll_clk_div	(0x0305) */
-	0x53, /* pll_multiplier	(0x0307) */
-	0x08, /* op_pix_clk_div	(0x0309) */
-	0x01, /* op_sys_clk_div	(0x030A) */
-	0x04, /* secnd_pre_pll_clk_div	(0x030D) */
-	0x5C, /* secnd_pll_multiplier	(0x030F) */
-	0x0CC1, /* frame_length_lines	(0x0341) */
-	0x1320, /* line_length_pck	(0x0343) */
-
+const struct sensor_pll_info_compact sensor_3l6_pllinfo_A_4128x2324_30fps = {
+	EXT_CLK_Khz * 1000, 		/* ext_clk */
+	1196000000,			/* mipi_datarate = OPSYCK */
+	480000000,			/* pclk = VTPXCK of Clock Information */
+	0x0CC1,				/* frame_length_lines */
+	0x1320,				/* line_length_pck */
 };
 
-const struct sensor_pll_info sensor_3l6_pllinfo_A_3408x2556_30fps = {
-	EXT_CLK_Mhz * 1000 * 1000, /* ext_clk */
-	0x02, /* vt_pix_clk_div	(0x0301) */
-	0x01, /* vt_sys_clk_div	(0x0303) */
-	0x03, /* pre_pll_clk_div	(0x0305) */
-	0x53, /* pll_multiplier	(0x0307) */
-	0x08, /* op_pix_clk_div	(0x0309) */
-	0x01, /* op_sys_clk_div	(0x030A) */
-	0x04, /* secnd_pre_pll_clk_div	(0x030D) */
-	0x5C, /* secnd_pll_multiplier	(0x030F) */
-	0x0CC1, /* frame_length_lines	(0x0341) */
-	0x1320, /* line_length_pck	(0x0343) */
+const struct sensor_pll_info_compact sensor_3l6_pllinfo_A_3408x2556_30fps = {
+	EXT_CLK_Khz * 1000, 		/* ext_clk */
+	1196000000,			/* mipi_datarate = OPSYCK */
+	480000000,			/* pclk = VTPXCK of Clock Information */
+	0x0CC1,				/* frame_length_lines */
+	0x1320,				/* line_length_pck */
 };
 
-const struct sensor_pll_info sensor_3l6_pllinfo_A_3408x1916_30fps = {
-	EXT_CLK_Mhz * 1000 * 1000, /* ext_clk */
-	0x02, /* vt_pix_clk_div	(0x0301) */
-	0x01, /* vt_sys_clk_div	(0x0303) */
-	0x03, /* pre_pll_clk_div	(0x0305) */
-	0x53, /* pll_multiplier	(0x0307) */
-	0x08, /* op_pix_clk_div	(0x0309) */
-	0x04, /* op_sys_clk_div	(0x030A) */
-	0x04, /* secnd_pre_pll_clk_div	(0x030D) */
-	0x5C, /* secnd_pll_multiplier	(0x030F) */
-	0x0CC1, /* frame_length_lines	(0x0341) */
-	0x1320, /* line_length_pck	(0x0343) */
-
+const struct sensor_pll_info_compact sensor_3l6_pllinfo_A_3408x1916_30fps = {
+	EXT_CLK_Khz * 1000, 		/* ext_clk */
+	1196000000,			/* mipi_datarate = OPSYCK */
+	480000000,			/* pclk = VTPXCK of Clock Information */
+	0x0CC1,				/* frame_length_lines */
+	0x1320,				/* line_length_pck */
 };
 
-const struct sensor_pll_info sensor_3l6_pllinfo_A_1028x772_120fps = {
-	EXT_CLK_Mhz * 1000 * 1000, /* ext_clk */
-	0x02, /* vt_pix_clk_div	(0x0301) */
-	0x01, /* vt_sys_clk_div	(0x0303) */
-	0x03, /* pre_pll_clk_div	(0x0305) */
-	0x53, /* pll_multiplier	(0x0307) */
-	0x08, /* op_pix_clk_div	(0x0309) */
-	0x04, /* op_sys_clk_div	(0x030A) */
-	0x04, /* secnd_pre_pll_clk_div	(0x030D) */
-	0x5C, /* secnd_pll_multiplier	(0x030F) */
-	0x0330, /* frame_length_lines	(0x0341) */
-	0x1320, /* line_length_pck	(0x0343) */
+const struct sensor_pll_info_compact sensor_3l6_pllinfo_A_1028x772_120fps = {
+	EXT_CLK_Khz * 1000, 		/* ext_clk */
+	1196000000,			/* mipi_datarate = OPSYCK */
+	480000000,			/* pclk = VTPXCK of Clock Information */
+	0x0330,				/* frame_length_lines */
+	0x1320,				/* line_length_pck */
 };
 
 static const u32 *sensor_3l6_setfiles_A[] = {
@@ -433,7 +400,7 @@ static const u32 sensor_3l6_setfile_A_sizes[] = {
 	sizeof(sensor_3l6_setfile_A_1028x772_120fps) / sizeof(sensor_3l6_setfile_A_1028x772_120fps[0]),
 };
 
-static const struct sensor_pll_info *sensor_3l6_pllinfos_A[] = {
+static const struct sensor_pll_info_compact *sensor_3l6_pllinfos_A[] = {
 	&sensor_3l6_pllinfo_A_4128x3096_30fps,
 	&sensor_3l6_pllinfo_A_4128x2324_30fps,
 	&sensor_3l6_pllinfo_A_3408x2556_30fps,

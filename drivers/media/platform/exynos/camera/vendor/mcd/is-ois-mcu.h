@@ -133,8 +133,6 @@ void is_get_common_mcu_info(struct is_common_mcu_info **mcuinfo);
 /*
  * log
  */
-extern int debug_ois_mcu;
-
 #define __mcu_err(fmt, ...)	pr_err(fmt, ##__VA_ARGS__)
 #define __mcu_warning(fmt, ...)	pr_warn(fmt, ##__VA_ARGS__)
 #define __mcu_log(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
@@ -147,11 +145,5 @@ extern int debug_ois_mcu;
 
 #define info_mcu(fmt, args...) \
 	__mcu_log("[@][OIS_MCU]" fmt, ##args)
-
-#define dbg_mcu(level, fmt, args...)			\
-	do {						\
-		if (unlikely(debug_ois_mcu >= level))	\
-			__mcu_log("[@][OIS_MCU]" fmt, ##args);	\
-	} while (0)
 
 #endif

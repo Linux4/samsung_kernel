@@ -2005,6 +2005,9 @@ emstune_set_type_init(struct emstune_set *set, int mode, int level)
 	set->type = 0;
 	set->type |= (1 << level);
 	set->type |= (1 << (BEGIN_OF_MODE_TYPE + mode));
+
+	set->mode = mode;
+	set->level = level;
 }
 
 int emstune_get_set_type(void *_set)

@@ -276,6 +276,34 @@ static int is_key_in_blocklist(const char *key)
 	return 0;
 }
 
+static int is_key_in_once_list(const char *s, const char *key)
+{
+	char blkey[][MAX_ITEM_KEY_LEN] = {
+		"SPCNT", "HLFREQ",
+	};
+
+	int nr_blkey, val_len, i;
+	int ret = 0;
+
+	val_len = get_val_len(s);
+	nr_blkey = ARRAY_SIZE(blkey);
+
+	for (i = 0; i < nr_blkey; i++) {
+		if (!strncmp(key, blkey[i], strlen(key)))
+			ret++;
+	}
+
+	if (!ret)
+		return 0;
+
+	for (i = 0; i < nr_blkey; i++) {
+		if (strnstr(s, blkey[i], val_len))
+			return 1;
+	}
+
+	return 0;
+}
+
 static DEFINE_SPINLOCK(keyorder_lock);
 
 static void set_key_order(const char *key)
@@ -306,6 +334,9 @@ static void set_key_order(const char *key)
 	}
 
 	v = get_item_val(p);
+
+	if (is_key_in_once_list(v, key))
+		goto  unlock_keyorder;
 
 	/* keep previous value */
 	len_prev = get_val_len(v);
@@ -912,6 +943,13 @@ void secdbg_exin_set_epd(const char *str)
 	set_item_val("EPD", "%s", str);
 }
 EXPORT_SYMBOL(secdbg_exin_set_epd);
+
+void secdbg_exin_set_ufs(const char *str)
+{
+	clear_item_val("UFS");
+	set_item_val("UFS", "%s", str);
+}
+EXPORT_SYMBOL(secdbg_exin_set_ufs);
 
 /* OCP total limitation */
 #define MAX_OCP_CNT		(0xFF)

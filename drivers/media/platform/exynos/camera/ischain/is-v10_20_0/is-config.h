@@ -214,8 +214,10 @@
 
 #define HW_TIMEOUT_PANIC_ENABLE
 #ifdef HW_TIMEOUT_PANIC_ENABLE
-#define CHECK_TIMEOUT_PANIC_GROUP(gid)	((gid == GROUP_ID_ISP0) || \
-				(gid == GROUP_ID_LME0))
+
+#define CHECK_TIMEOUT_PANIC_HW(id)	((id == DEV_HW_ISP0) || \
+				(id == DEV_HW_ORB0))
+
 #endif
 #if defined(CONFIG_ARM_EXYNOS_DEVFREQ)
 #define CONFIG_IS_BUS_DEVFREQ
@@ -321,8 +323,6 @@
 #define CONFIG_VOTF_ONESHOT	0	/* oneshot mode is used when using VOTF in PDP input.  */
 #define VOTF_BACK_FIRST_OFF	0	/* This is only for v8.1. next AP don't have to use thie. */
 #define USE_VOTF_AXI_APB
-
-/* #define SDC_HEADER_GEN */
 
 /* BTS */
 /* #define DISABLE_BTS_CALC	*/ /* This is only for v8.1. next AP don't have to use this */

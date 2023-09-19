@@ -78,7 +78,6 @@ extern int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs,
 #ifdef USE_CAMERA_HW_BIG_DATA
 static struct cam_hw_param_collector cam_hwparam_collector;
 static bool mipi_err_check;
-static bool need_update_to_file;
 
 void is_sec_init_err_cnt(struct cam_hw_param *hw_param)
 {
@@ -106,10 +105,9 @@ void is_sec_get_hw_param(struct cam_hw_param **hw_param, u32 position)
 		*hw_param = &cam_hwparam_collector.front_hwparam;
 		break;
 	default:
-		need_update_to_file = false;
-		return;
+		*hw_param = NULL;
+		break;
 	}
-	need_update_to_file = true;
 }
 EXPORT_SYMBOL_GPL(is_sec_get_hw_param);
 

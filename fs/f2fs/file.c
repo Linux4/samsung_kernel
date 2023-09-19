@@ -34,6 +34,10 @@
 
 /* @fs.sec -- 80d73a766b8cf3cd0e32fdfe7adebe4b -- */
 
+#ifdef CONFIG_DDAR
+#include "../crypto/sdp/sdp_crypto.h"
+#endif
+
 #ifdef CONFIG_FSCRYPT_SDP
 #include <linux/fscrypto_sdp_ioctl.h>
 #endif

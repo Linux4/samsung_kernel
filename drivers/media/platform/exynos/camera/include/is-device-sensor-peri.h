@@ -89,6 +89,11 @@ struct freeform_sensor_crop_info {
 	u32	y_start;
 };
 
+struct sensor_shift_info {
+	s32 offsetX;
+	s32 offsetY;
+};
+
 struct is_cis {
 	u32				id; /* connected sensor device */
 	struct v4l2_subdev		*subdev; /* connected module subdevice */

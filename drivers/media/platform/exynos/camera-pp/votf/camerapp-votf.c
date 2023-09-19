@@ -637,7 +637,7 @@ int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cf
 		dest = (cfg->connected_ip << 4) | (cfg->connected_id);
 		offset = get_offset(vinfo, C2SERV_R_TWS_DEST, -1, C2AGENT_R_TWS_DEST, -1);
 
-		if (offset != VOTF_INVALID) {
+		if (offset < VOTF_INVALID) {
 			camerapp_hw_votf_set_dest(votf->votf_addr[idx_ip], offset, dest);
 			votf->votf_cfg[service][idx_ip][id].connected_ip = cfg->connected_ip;
 			votf->votf_cfg[service][idx_ip][id].connected_id = cfg->connected_id;
@@ -681,13 +681,13 @@ int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cf
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_ENABLE, C2SERV_R_TRS_ENABLE, C2AGENT_R_TWS_ENABLE,
 			C2AGENT_R_TRS_ENABLE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_enable(votf->votf_addr[idx_ip], offset, cfg->enable);
 		votf->votf_cfg[service][idx_ip][id].enable = cfg->enable;
 	}
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_LIMIT, C2SERV_R_TRS_LIMIT, C2AGENT_R_TWS_LIMIT, C2AGENT_R_TRS_LIMIT);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_limit(votf->votf_addr[idx_ip], offset, cfg->limit);
 		votf->votf_cfg[service][idx_ip][id].limit = cfg->limit;
 	}
@@ -704,7 +704,7 @@ int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cf
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_LINES_IN_TOKEN, C2SERV_R_TRS_LINES_IN_TOKEN, C2AGENT_R_TWS_TOKEN_SIZE,
 			C2AGENT_R_TRS_TOKEN_SIZE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		votfitf_set_token_size(vinfo, token_size);
 		if (service == TRS)
 			votfitf_set_first_token_size(vinfo, token_size);
@@ -754,23 +754,23 @@ int votfitf_set_service_cfg_m_alone(struct votf_info *vinfo, struct votf_service
 
 	dest = (cfg->connected_ip << 4) | (cfg->connected_id);
 	offset = get_offset(vinfo, C2SERV_R_TWS_DEST, -1, C2AGENT_R_TWS_DEST, -1);
-	if (offset != VOTF_INVALID)
+	if (offset < VOTF_INVALID)
 		camerapp_hw_votf_set_dest(votf->votf_addr[idx_ip], offset, dest);
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_ENABLE, C2SERV_R_TRS_ENABLE,
 			C2AGENT_R_TWS_ENABLE,C2AGENT_R_TRS_ENABLE);
-	if (offset != VOTF_INVALID)
+	if (offset < VOTF_INVALID)
 		camerapp_hw_votf_set_enable(votf->votf_addr[idx_ip], offset, cfg->enable);
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_LIMIT, C2SERV_R_TRS_LIMIT,
 			C2AGENT_R_TWS_LIMIT, C2AGENT_R_TRS_LIMIT);
-	if (offset != VOTF_INVALID)
+	if (offset < VOTF_INVALID)
 		camerapp_hw_votf_set_limit(votf->votf_addr[idx_ip], offset, cfg->limit);
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_LINES_IN_TOKEN,
 			C2SERV_R_TRS_LINES_IN_TOKEN,
 			C2AGENT_R_TWS_TOKEN_SIZE, C2AGENT_R_TRS_TOKEN_SIZE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		votfitf_set_token_size(vinfo, cfg->token_size);
 		/* save token_size in line unit(not calculated token size) */
 		votf->votf_cfg[service][idx_ip][id].token_size = cfg->token_size;
@@ -817,7 +817,7 @@ int votfitf_set_first_token_size(struct votf_info *vinfo, u32 size)
 
 	offset = get_offset(vinfo, -1, C2SERV_R_TRS_LINES_IN_FIRST_TOKEN,
 			-1, C2AGENT_TRS_CROP_FIRST_TOKEN_SIZE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_first_token_size(votf->votf_addr[ip], offset, size);
 		ret = 1;
 	}
@@ -860,7 +860,7 @@ int votfitf_set_token_size(struct votf_info *vinfo, u32 size)
 			C2SERV_R_TRS_LINES_IN_TOKEN, C2AGENT_R_TWS_TOKEN_SIZE,
 			C2AGENT_R_TRS_TOKEN_SIZE);
 
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_token_size(votf->votf_addr[ip], offset, size);
 		ret = 1;
 	}
@@ -903,7 +903,7 @@ int votfitf_set_frame_size(struct votf_info *vinfo, u32 size)
 		return ret;
 
 	offset = get_offset(vinfo, -1, C2SERV_R_TRS_LINES_COUNT, -1, C2AGENT_TRS_FRAME_SIZE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_frame_size(votf->votf_addr[ip], offset, size);
 		ret = 1;
 	}
@@ -971,7 +971,7 @@ int votfitf_set_flush(struct votf_info *vinfo)
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_FLUSH, C2SERV_R_TRS_FLUSH, C2AGENT_R_TWS_FLUSH, -1);
 
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		if (votfitf_get_busy(vinfo))
 			votfdi_warn("busy before flush", votf, vinfo);
 
@@ -1033,7 +1033,7 @@ int votfitf_set_flush_alone(struct votf_info *vinfo)
 	}
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_FLUSH, C2SERV_R_TRS_FLUSH, C2AGENT_R_TWS_FLUSH, -1);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		if (votfitf_get_busy(vinfo))
 			pr_warn("[VOTF] busy before flush\n");
 
@@ -1083,7 +1083,7 @@ int votfitf_set_crop_start(struct votf_info *vinfo, bool start)
 	}
 
 	offset = get_offset(vinfo, -1, -1, -1, C2AGENT_TRS_CROP_TOKENS_START);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_crop_start(votf->votf_addr[ip], offset, start);
 		ret = 1;
 	}
@@ -1122,7 +1122,7 @@ int votfitf_get_crop_start(struct votf_info *vinfo)
 	}
 
 	offset = get_offset(vinfo, -1, -1, -1, C2AGENT_TRS_CROP_TOKENS_START);
-	if (offset != VOTF_INVALID)
+	if (offset < VOTF_INVALID)
 		ret = camerapp_hw_votf_get_crop_start(votf->votf_addr[ip], offset);
 
 	return ret;
@@ -1159,7 +1159,7 @@ int votfitf_set_crop_enable(struct votf_info *vinfo, bool enable)
 	}
 
 	offset = get_offset(vinfo, -1, -1, -1, C2AGENT_TRS_CROP_ENABLE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_crop_enable(votf->votf_addr[ip], offset, enable);
 		ret = 1;
 	}
@@ -1198,7 +1198,7 @@ int votfitf_get_crop_enable(struct votf_info *vinfo)
 	}
 
 	offset = get_offset(vinfo, -1, -1, -1, C2AGENT_TRS_CROP_ENABLE);
-	if (offset != VOTF_INVALID)
+	if (offset < VOTF_INVALID)
 		ret = camerapp_hw_votf_get_crop_enable(votf->votf_addr[ip], offset);
 
 	return ret;
@@ -1242,7 +1242,7 @@ int votfitf_set_trs_lost_cfg(struct votf_info *vinfo, struct votf_lost_cfg *cfg)
 	if (cfg->flush_enable)
 		val |= (0x1 << 1);
 
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_recover_enable(votf->votf_addr[ip], offset, val);
 		ret = 1;
 	}
@@ -1352,7 +1352,7 @@ int votfitf_set_start(struct votf_info *vinfo)
 	}
 
 	offset = get_offset(vinfo, -1, -1, C2AGENT_R_TWS_START, C2AGENT_R_TRS_START);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_start(votf->votf_addr[ip], offset, 0x1);
 		ret = 1;
 	}
@@ -1391,7 +1391,7 @@ int votfitf_set_finish(struct votf_info *vinfo)
 	}
 
 	offset = get_offset(vinfo, -1, -1, C2AGENT_R_TWS_FINISH, C2AGENT_R_TRS_FINISH);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_finish(votf->votf_addr[ip], offset, 0x1);
 		ret = 1;
 	}
@@ -1439,7 +1439,7 @@ int votfitf_set_threshold(struct votf_info *vinfo, bool high, u32 value)
 	}
 
 	offset = get_offset(vinfo, -1, -1, c2a_tws, c2a_trs);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_threshold(votf->votf_addr[ip], offset, value);
 		ret = 1;
 	}
@@ -1487,7 +1487,7 @@ u32 votfitf_get_threshold(struct votf_info *vinfo, bool high)
 	}
 
 	offset = get_offset(vinfo, -1, -1, c2a_tws, c2a_trs);
-	if (offset != VOTF_INVALID)
+	if (offset < VOTF_INVALID)
 		ret = camerapp_hw_votf_get_threshold(votf->votf_addr[ip], offset);
 
 	return ret;
@@ -1524,7 +1524,7 @@ int votfitf_set_read_bytes(struct votf_info *vinfo, u32 bytes)
 	}
 
 	offset = get_offset(vinfo, -1, -1, -1, C2AGENT_R_TRS_READ_BYTES);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_read_bytes(votf->votf_addr[ip], offset, bytes);
 		ret = 1;
 	}
@@ -1563,7 +1563,7 @@ int votfitf_get_fullness(struct votf_info *vinfo)
 	}
 
 	offset = get_offset(vinfo, -1, -1, C2AGENT_R_TWS_FULLNESS, C2AGENT_R_TRS_FULLNESS);
-	if (offset != VOTF_INVALID)
+	if (offset < VOTF_INVALID)
 		ret = camerapp_hw_votf_get_fullness(votf->votf_addr[ip], offset);
 
 	return ret;
@@ -1600,7 +1600,7 @@ u32 votfitf_get_busy(struct votf_info *vinfo)
 	}
 
 	offset = get_offset(vinfo, C2SERV_R_TWS_BUSY, C2SERV_R_TRS_BUSY, C2AGENT_R_TWS_BUSY, C2AGENT_R_TRS_BUSY);
-	if (offset != VOTF_INVALID)
+	if (offset < VOTF_INVALID)
 		ret = camerapp_hw_votf_get_busy(votf->votf_addr[ip], offset);
 
 	return ret;
@@ -1637,7 +1637,7 @@ int votfitf_set_irq_enable(struct votf_info *vinfo, u32 irq)
 	}
 
 	offset = get_offset(vinfo, -1, -1, C2AGENT_R_TWS_IRQ_ENABLE, C2AGENT_R_TRS_IRQ_ENBALE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_irq_enable(votf->votf_addr[ip], offset, irq);
 		ret = 1;
 	}
@@ -1676,7 +1676,7 @@ int votfitf_set_irq_status(struct votf_info *vinfo, u32 irq)
 	}
 
 	offset = get_offset(vinfo, -1, -1, C2AGENT_R_TWS_IRQ_ENABLE, C2AGENT_R_TRS_IRQ_ENBALE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_irq_status(votf->votf_addr[ip], offset, irq);
 		ret = 1;
 	}
@@ -1716,7 +1716,7 @@ int votfitf_set_irq(struct votf_info *vinfo, u32 irq)
 	}
 
 	offset = get_offset(vinfo, -1, -1, C2AGENT_R_TWS_IRQ_ENABLE, C2AGENT_R_TRS_IRQ_ENBALE);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_irq(votf->votf_addr[ip], offset, irq);
 		ret = 1;
 	}
@@ -1756,7 +1756,7 @@ int votfitf_set_irq_clear(struct votf_info *vinfo, u32 irq)
 	}
 
 	offset = get_offset(vinfo, -1, -1, C2AGENT_R_TWS_IRQ_CLEAR, C2AGENT_R_TRS_IRQ_CLEAR);
-	if (offset != VOTF_INVALID) {
+	if (offset < VOTF_INVALID) {
 		camerapp_hw_votf_set_irq_clear(votf->votf_addr[ip], offset, irq);
 		ret = 1;
 	}
@@ -1801,7 +1801,7 @@ void votfitf_disable_service(void)
 						C2AGENT_R_TWS_ENABLE,
 						C2AGENT_R_TRS_ENABLE);
 
-				if (offset != VOTF_INVALID)
+				if (offset < VOTF_INVALID)
 					camerapp_hw_votf_set_enable(
 							votf->votf_addr[ip_idx],
 							offset, 0);

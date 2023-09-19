@@ -21,6 +21,9 @@
 #include "amdgpu.h"
 #include "exynos_gpu_interface.h"
 
+#include "sgpu_profiler_v1.h"
+
+
 static ssize_t dvfs_table_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
@@ -426,7 +429,7 @@ static ssize_t governor_show(struct device *dev,
 	struct devfreq *df = to_devfreq(dev);
 	ssize_t count;
 
-	count = sgpu_governor_current_info_show(df, buf);
+	count = sgpu_governor_current_info_show(df, buf, PAGE_SIZE);
 	count += scnprintf(&buf[count], PAGE_SIZE - count, "\n");
 
 	return count;
@@ -454,7 +457,7 @@ static ssize_t governor_store(struct device *dev,
 	}
 
 	if (!ret) {
-		sgpu_governor_current_info_show(df, str_governor);
+		sgpu_governor_current_info_show(df, str_governor, PAGE_SIZE);
 		dev_info(dev, "governor : %s\n", str_governor);
 		ret = count;
 	}
@@ -528,86 +531,6 @@ static ssize_t current_cu_utilization_show(struct device *dev,
 }
 
 static DEVICE_ATTR_RO(current_cu_utilization);
-
-static ssize_t weight_table_idx_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
-{
-	struct devfreq *df = to_devfreq(dev);
-	struct sgpu_governor_data *data = df->data;
-	ssize_t count = 0;
-	uint32_t i;
-
-	for (i = 0; i < WEIGHT_TABLE_IDX_NUM; i++)
-		count += scnprintf(&buf[count], PAGE_SIZE - count,
-			   "weight_table_idx%d = %d\n",
-				   i, data->weight_table_idx[i]);
-	return count;
-}
-
-static ssize_t weight_table_idx_store(struct device *dev,
-				      struct device_attribute *attr,
-				      const char *buf, size_t count)
-{
-	struct devfreq *df = to_devfreq(dev);
-	struct sgpu_governor_data *data = df->data;
-	uint32_t idx, value;
-	int ret;
-
-	ret = sscanf(buf, "%u", &idx);
-	if (ret != 1 || idx >= WEIGHT_TABLE_IDX_NUM) {
-		dev_warn(dev, "weight idx range : (0 ~ %u)\n",
-			 WEIGHT_TABLE_IDX_NUM);
-		return -EINVAL;
-	}
-
-	buf = strpbrk(buf, " ");
-	buf++;
-
-	ret = sscanf(buf, "%u", &value);
-	if (ret != 1 || value >= WEIGHT_TABLE_MAX_SIZE) {
-		dev_warn(dev, "weight table idx range : (0 ~%u)\n",
-			 WEIGHT_TABLE_MAX_SIZE);
-		return -EINVAL;
-	}
-
-	data->weight_table_idx[idx] = value;
-
-	return count;
-}
-static DEVICE_ATTR_RW(weight_table_idx);
-
-static ssize_t freq_margin_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	struct devfreq *df = to_devfreq(dev);
-	struct sgpu_governor_data *data = df->data;
-	ssize_t count = 0;
-
-	count = scnprintf(buf, PAGE_SIZE, "freq_margin = %d\n",
-			  data->freq_margin);
-
-	return count;
-}
-
-static ssize_t freq_margin_store(struct device *dev,
-				 struct device_attribute *attr,
-				 const char *buf, size_t count)
-{
-	struct devfreq *df = to_devfreq(dev);
-	struct sgpu_governor_data *data = df->data;
-	int freq_margin, ret;
-
-	ret = sscanf(buf, "%d", &freq_margin);
-	if (ret != 1 || freq_margin > 1000 || freq_margin < -1000) {
-		dev_warn(dev,"freq_margin range : (-1000 ~ 1000)\n");
-		return -EINVAL;
-	}
-	data->freq_margin = freq_margin;
-
-	return count;
-
-}
-static DEVICE_ATTR_RW(freq_margin);
 
 static ssize_t job_queue_count_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
@@ -794,22 +717,21 @@ static ssize_t total_kernel_pages_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(total_kernel_pages);
 
-extern int exynos_amigo_get_target_frametime(void);
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+extern int profiler_get_target_frametime(void);
 static ssize_t egp_profile_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
 {
-	//struct drm_device *ddev = dev_get_drvdata(dev->parent);
-	//struct amdgpu_device *adev = ddev->dev_private;
-	struct amigo_interframe_data *dst;
+	struct profiler_interframe_data *dst;
 	ssize_t count = 0;
 	int id = 0;
-	int target_frametime = exynos_amigo_get_target_frametime();
+	int target_frametime = profiler_get_target_frametime();
 
-	while ((dst = exynos_amigo_get_next_frameinfo()) != NULL){
+	while ((dst = profiler_get_next_frameinfo()) != NULL){
 		if (dst->nrq > 0) {
 			ktime_t avg_pre = dst->sum_pre / dst->nrq;
 			ktime_t avg_cpu = dst->sum_cpu / dst->nrq;
-			ktime_t avg_v2s = dst->sum_v2s / dst->nrq;
+			ktime_t avg_swap = dst->sum_swap / dst->nrq;
 			ktime_t avg_gpu = dst->sum_gpu / dst->nrq;
 			ktime_t avg_v2f = dst->sum_v2f / dst->nrq;
 
@@ -820,7 +742,7 @@ static ssize_t egp_profile_show(struct device *dev,
 				, dst->nrq
 				, avg_pre, dst->max_pre
 				, avg_cpu, dst->max_cpu
-				, avg_v2s, dst->max_v2s
+				, avg_swap, dst->max_swap
 				, avg_gpu, dst->max_gpu
 				, avg_v2f, dst->max_v2f
 				, dst->cputime, dst->gputime
@@ -835,6 +757,88 @@ static ssize_t egp_profile_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(egp_profile);
 
+static ssize_t weight_table_idx_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct devfreq *df = to_devfreq(dev);
+	struct sgpu_governor_data *data = df->data;
+	ssize_t count = 0;
+	uint32_t i;
+
+	for (i = 0; i < WEIGHT_TABLE_IDX_NUM; i++)
+		count += scnprintf(&buf[count], PAGE_SIZE - count,
+			   "weight_table_idx%d = %d\n",
+				   i, data->weight_table_idx[i]);
+	return count;
+}
+
+static ssize_t weight_table_idx_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct devfreq *df = to_devfreq(dev);
+	struct sgpu_governor_data *data = df->data;
+	uint32_t idx, value;
+	int ret;
+
+	ret = sscanf(buf, "%u", &idx);
+	if (ret != 1 || idx >= WEIGHT_TABLE_IDX_NUM) {
+		dev_warn(dev, "weight idx range : (0 ~ %u)\n",
+			 WEIGHT_TABLE_IDX_NUM);
+		return -EINVAL;
+	}
+
+	buf = strpbrk(buf, " ");
+	buf++;
+
+	ret = sscanf(buf, "%u", &value);
+	if (ret != 1 || value >= WEIGHT_TABLE_MAX_SIZE) {
+		dev_warn(dev, "weight table idx range : (0 ~%u)\n",
+			 WEIGHT_TABLE_MAX_SIZE);
+		return -EINVAL;
+	}
+
+	data->weight_table_idx[idx] = value;
+
+	return count;
+}
+static DEVICE_ATTR_RW(weight_table_idx);
+
+
+static ssize_t freq_margin_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct devfreq *df = to_devfreq(dev);
+	struct sgpu_governor_data *data = df->data;
+	ssize_t count = 0;
+
+	count = scnprintf(buf, PAGE_SIZE, "freq_margin = %d\n",
+			  data->freq_margin);
+
+	return count;
+}
+
+static ssize_t freq_margin_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct devfreq *df = to_devfreq(dev);
+	struct sgpu_governor_data *data = df->data;
+	int freq_margin, ret;
+
+	ret = sscanf(buf, "%d", &freq_margin);
+	if (ret != 1 || freq_margin > 1000 || freq_margin < -1000) {
+		dev_warn(dev,"freq_margin range : (-1000 ~ 1000)\n");
+		return -EINVAL;
+	}
+	data->freq_margin = freq_margin;
+
+	return count;
+
+}
+static DEVICE_ATTR_RW(freq_margin);
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
+
 static struct attribute *sgpu_devfreq_sysfs_entries[] = {
 	/* just show */
 	&dev_attr_dvfs_table.attr,
@@ -845,7 +849,6 @@ static struct attribute *sgpu_devfreq_sysfs_entries[] = {
 	&dev_attr_job_queue_count.attr,
 	&dev_attr_time_in_state.attr,
 	&dev_attr_total_kernel_pages.attr,
-	&dev_attr_egp_profile.attr,
 	&dev_attr_local_minlock_status.attr,
 	/* show and set */
 	&dev_attr_highspeed.attr,
@@ -859,8 +862,6 @@ static struct attribute *sgpu_devfreq_sysfs_entries[] = {
 	&dev_attr_max_thresholds.attr,
 	&dev_attr_downstay_times.attr,
 	&dev_attr_power_ratio.attr,
-	&dev_attr_weight_table_idx.attr,
-	&dev_attr_freq_margin.attr,
 	&dev_attr_compute_weight.attr,
 	&dev_attr_local_minlock_util.attr,
 	&dev_attr_local_minlock_temp.attr,
@@ -872,12 +873,34 @@ static struct attribute_group sgpu_devfreq_attr_group = {
 	.attrs = sgpu_devfreq_sysfs_entries,
 };
 
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+static struct attribute *sgpu_profiler_sysfs_entries[] = {
+	&dev_attr_egp_profile.attr,
+	&dev_attr_weight_table_idx.attr,
+	&dev_attr_freq_margin.attr,
+	NULL,
+};
+
+static struct attribute_group sgpu_profiler_attr_group = {
+	.name = "profiler",
+	.attrs = sgpu_profiler_sysfs_entries,
+};
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
+
+
+
 int sgpu_create_sysfs_file(struct devfreq *df)
 {
 	int ret = 0;
 	ret = sysfs_create_group(&df->dev.kobj, &sgpu_devfreq_attr_group);
 	if (ret)
 		dev_err(df->dev.parent, "failed create sysfs for governor data\n");
+
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+	ret = sysfs_create_group(&df->dev.kobj, &sgpu_profiler_attr_group);
+	if (ret)
+		dev_err(df->dev.parent, "failed create sysfs for profiler\n");
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
 
 	return ret;
 }

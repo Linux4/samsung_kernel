@@ -103,11 +103,11 @@ static int is_hw_yuvp_handle_interrupt0(u32 id, void *context)
 				YUVP_EVENT_FRAME_START, strip_index, NULL);
 		} else {
 			atomic_add((hw_ip->num_buffers & 0xffff), &hw_ip->count.fs);
-			_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 				msinfo_hw("[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-			is_hardware_frame_start(hw_ip, instance);
+			CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 		}
 	}
 
@@ -116,10 +116,10 @@ static int is_hw_yuvp_handle_interrupt0(u32 id, void *context)
 			is_lib_isp_event_notifier(hw_ip, &hw_yuvp->lib[instance], instance, hw_fcount,
 				YUVP_EVENT_FRAME_END, strip_index, NULL);
 		} else {
-			_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 			atomic_add((hw_ip->num_buffers & 0xffff), &hw_ip->count.fe);
 
-			is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+			CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 					IS_SHOT_SUCCESS, true);
 
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
@@ -504,6 +504,7 @@ static int is_hw_yuvp_init(struct is_hw_ip *hw_ip, u32 instance,
 			}
 		}
 	}
+	hw_ip->frame_type = f_type;
 
 	for (input_id = YUVP_RDMA_Y; input_id < YUVP_DMA_MAX; input_id++) {
 		ret = yuvp_hw_dma_create(&hw_yuvp->rdma[input_id], hw_ip->regs[REG_SETA], input_id);
@@ -1240,9 +1241,9 @@ static int is_hw_yuvp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 				return ret;
 
 			if (likely(!test_bit(hw_ip->id, &debug_iq))) {
-				_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
+				CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
 				ret = __is_hw_yuvp_set_rta_regs_yuvp(hw_ip, set_id, instance);
-				_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
+				CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
 
 				if (ret)
 					mserr_hw("__is_hw_yuvp_set_rta_regs_yuvp is fail",
@@ -1364,7 +1365,7 @@ static int is_hw_yuvp_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame
 	sdbg_hw(4, "%s\n", hw_ip, __func__);
 
 	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, -1,
+		ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 			IS_HW_CORE_END, done_type, false);
 	}
 

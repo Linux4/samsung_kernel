@@ -681,6 +681,8 @@ static int is_ischain_mcfp_tag(struct is_subdev *subdev,
 		ret = __mcfp_stripe_in_cfg(device, subdev, frame, out_node,
 				PARAM_MCFP_STRIPE_INPUT, pmap);
 
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 
@@ -728,6 +730,8 @@ static int is_ischain_mcfp_tag(struct is_subdev *subdev,
 						j < num_planes; j++, p++)
 					targetAddr_k[j] = sframe->kva[p];
 			}
+
+			cap_node->result = 1;
 		}
 
 		ret = is_itf_s_param(device, frame, pmap);
@@ -847,15 +851,17 @@ static int is_ischain_mcfp_get(struct is_subdev *subdev,
 			       void *result)
 {
 	struct camera2_node *node;
-	struct is_crop *outcrop;
+	struct is_crop *incrop, *outcrop;
 
 	msrdbgs(1, "GET type: %d\n", idi, subdev, frame, type);
 
 	switch (type) {
 	case PSGT_REGION_NUM:
 		node = &frame->shot_ext->node_group.leader;
+		incrop = (struct is_crop *)node->input.cropRegion;
 		outcrop = (struct is_crop *)node->output.cropRegion;
-		*(int *)result = is_calc_region_num(outcrop->w, subdev);
+
+		*(int *)result = is_calc_region_num(incrop, outcrop, subdev);
 		break;
 	default:
 		break;

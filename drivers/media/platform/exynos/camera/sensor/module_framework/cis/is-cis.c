@@ -229,6 +229,21 @@ p_err:
 }
 EXPORT_SYMBOL_GPL(sensor_cis_set_registers_addr8);
 
+struct is_cis *sensor_cis_get_cis(struct v4l2_subdev *subdev)
+{
+	struct is_cis *cis;
+
+	WARN_ON(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	WARN_ON(!cis);
+	WARN_ON(!cis->cis_data);
+	WARN_ON(!cis->client);
+
+	return cis;
+}
+EXPORT_SYMBOL_GPL(sensor_cis_get_cis);
+
 int sensor_cis_check_rev_on_init(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -823,6 +838,41 @@ p_err:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(sensor_cis_wait_streamon);
+
+int sensor_cis_update_latest_seamless_state(struct v4l2_subdev *subdev)
+{
+	struct is_cis *cis;
+	struct is_device_sensor_peri *sensor_peri;
+	cis_shared_data *cis_data;
+	int ret = 0;
+
+	FIMC_BUG(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	if (unlikely(!cis)) {
+		err("cis is NULL");
+		return -EINVAL;
+	}
+
+	sensor_peri = container_of(cis, struct is_device_sensor_peri, cis);
+
+	cis_data = cis->cis_data;
+	FIMC_BUG(!cis_data);
+
+	if (cis_data->is_writing_sensor_mode)
+		return ret;
+
+	cis_data->pre_lownoise_mode = cis_data->cur_lownoise_mode;
+	cis_data->pre_12bit_mode = cis_data->cur_12bit_mode;
+	cis_data->pre_remosaic_zoom_ratio = cis_data->cur_remosaic_zoom_ratio;
+
+	dbg_sensor(1, "[%d][%s] pre_ln(%d) pre_12bit(%d), pre_rms(%d)\n",
+		sensor_peri->cis.id, __func__,
+		cis_data->pre_lownoise_mode, cis_data->pre_12bit_mode, cis_data->pre_remosaic_zoom_ratio);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sensor_cis_update_latest_seamless_state);
 
 int sensor_cis_set_initial_exposure(struct v4l2_subdev *subdev)
 {

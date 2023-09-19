@@ -24,7 +24,7 @@
 #include <linux/fscrypt.h>
 
 #ifdef CONFIG_FSCRYPT_SDP
-#include "crypto/sdp/fscrypto_sdp_private.h"
+extern int fscrypt_sdp_d_delete_wrapper(const struct dentry *dentry);
 #endif
 
 #include <linux/uaccess.h>

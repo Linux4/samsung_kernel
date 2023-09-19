@@ -562,3 +562,21 @@ int cnss_bus_get_iova_ipa(struct cnss_plat_data *plat_priv, u64 *addr,
 		return -EINVAL;
 	}
 }
+
+int cnss_bus_set_therm_cdev_state(struct cnss_plat_data *plat_priv,
+                                unsigned long thermal_state,
+                                int tcdev_id)
+{
+    if (!plat_priv)
+        return -ENODEV;
+
+    switch (plat_priv->bus_type) {
+    case CNSS_BUS_PCI:
+        return cnss_pci_set_therm_cdev_state(plat_priv->bus_priv,
+                                            thermal_state,
+                                            tcdev_id);
+    default:
+        cnss_pr_err("Unsupported bus type: %d\n", plat_priv->bus_type);
+        return -EINVAL;
+    }
+}

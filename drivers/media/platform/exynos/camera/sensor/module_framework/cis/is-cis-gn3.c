@@ -90,6 +90,10 @@ static bool sensor_gn3_load_retention;
 static bool sensor_gn3_need_stream_on_retention;
 static bool sensor_gn3_seamless_delay_flag;
 
+static s32 sensor_gn3_crop_shift_offset_x;
+static s32 sensor_gn3_crop_shift_offset_y;
+static bool sensor_gn3_crop_shift_enabled;
+
 #if IS_ENABLED(USE_SELECT_GN3_DUAL_SYNC_PIN)
 static bool sensor_gn3_select_gpio1;
 #endif
@@ -110,104 +114,45 @@ void sensor_gn3_cis_set_mode_group(u32 mode)
 	sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG] = MODE_GROUP_NONE;
 	sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = MODE_GROUP_NONE;
 	sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = MODE_GROUP_NONE;
-	sensor_gn3_mode_groups[SENSOR_GN3_MODE_ABS] = MODE_GROUP_NONE;
+	sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP] = MODE_GROUP_NONE;
 
 	switch (mode) {
-	case SENSOR_GN3_4080X3060_30FPS_CROP_R10 :
 	case SENSOR_GN3_4080X3060_60FPS_R10 :
-	case SENSOR_GN3_4080X3060_60FPS_LN2_R10 :
-	case SENSOR_GN3_4080X3060_60FPS_LN4_R10 :
 		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = SENSOR_GN3_4080X3060_60FPS_LN2_R10;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = SENSOR_GN3_4080X3060_60FPS_LN4_R10;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP] = MODE_GROUP_RMS;
+		sensor_gn3_rms_zoom_mode[SENSOR_GN3_RMS_ZOOM_MODE_X_17] = SENSOR_GN3_4080X3060_30FPS_CROP_R10_BDS;
+		sensor_gn3_rms_zoom_mode[SENSOR_GN3_RMS_ZOOM_MODE_X_20] = SENSOR_GN3_4080X3060_30FPS_CROP_R10;
 		break;
-	case SENSOR_GN3_4080X3060_60FPS_LN2_R12 :
-	case SENSOR_GN3_4080X3060_60FPS_LN4_R12 :
+
 	case SENSOR_GN3_4080X3060_60FPS_R12 :
-	case SENSOR_GN3_4080X3060_30FPS_CROP_R12 :
-	case SENSOR_GN3_4080X3060_60FPS_IDCG_R12 :
 		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = SENSOR_GN3_4080X3060_60FPS_LN2_R12;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = SENSOR_GN3_4080X3060_60FPS_LN4_R12;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG] = SENSOR_GN3_4080X3060_60FPS_IDCG_R12;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP] = MODE_GROUP_RMS;
+		sensor_gn3_rms_zoom_mode[SENSOR_GN3_RMS_ZOOM_MODE_X_17] = SENSOR_GN3_4080X3060_30FPS_CROP_R12_BDS;
+		sensor_gn3_rms_zoom_mode[SENSOR_GN3_RMS_ZOOM_MODE_X_20] = SENSOR_GN3_4080X3060_30FPS_CROP_R12;
 		break;
 	case SENSOR_GN3_4080X2720_60FPS_R10 :
-	case SENSOR_GN3_4080X2720_60FPS_LN2_R10 :
 		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = SENSOR_GN3_4080X2720_60FPS_LN2_R10;
 		break;
-	case SENSOR_GN3_4080X2720_60FPS_LN2_R12 :
+
 	case SENSOR_GN3_4080X2720_60FPS_R12 :
-	case SENSOR_GN3_4080X2720_60FPS_IDCG_R12 :
 		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = SENSOR_GN3_4080X2720_60FPS_LN2_R12;
-		break;
-	case SENSOR_GN3_4080X2296_60FPS_LN2_R10 :
-	case SENSOR_GN3_4080X2296_60FPS_LN4_R10 :
-	case SENSOR_GN3_4080X2296_60FPS_R10 :
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = SENSOR_GN3_4080X2296_60FPS_LN2_R10;
-		break;
-	case SENSOR_GN3_4080X2296_60FPS_IDCG_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_LN4_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_LN2_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_R12 :
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = SENSOR_GN3_4080X2296_60FPS_LN2_R12;
-		break;
-	default:
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = MODE_GROUP_NONE;
-	}
-
-	switch (mode) {
-	case SENSOR_GN3_4080X3060_30FPS_CROP_R10 :
-	case SENSOR_GN3_4080X3060_60FPS_R10 :
-	case SENSOR_GN3_4080X3060_60FPS_LN2_R10 :
-	case SENSOR_GN3_4080X3060_60FPS_LN4_R10 :
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = SENSOR_GN3_4080X3060_60FPS_LN4_R10;
-		break;
-	case SENSOR_GN3_4080X3060_60FPS_LN2_R12 :
-	case SENSOR_GN3_4080X3060_60FPS_LN4_R12 :
-	case SENSOR_GN3_4080X3060_60FPS_R12 :
-	case SENSOR_GN3_4080X3060_30FPS_CROP_R12 :
-	case SENSOR_GN3_4080X3060_60FPS_IDCG_R12 :
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = SENSOR_GN3_4080X3060_60FPS_LN4_R12;
-		break;
-	case SENSOR_GN3_4080X2296_60FPS_LN2_R10 :
-	case SENSOR_GN3_4080X2296_60FPS_LN4_R10 :
-	case SENSOR_GN3_4080X2296_60FPS_R10 :
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = SENSOR_GN3_4080X2296_60FPS_LN4_R10;
-		break;
-	case SENSOR_GN3_4080X2296_60FPS_IDCG_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_LN4_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_LN2_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_R12 :
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = SENSOR_GN3_4080X2296_60FPS_LN4_R12;
-		break;
-	default:
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = MODE_GROUP_NONE;
-	}
-
-	switch (mode) {
-	case SENSOR_GN3_4080X3060_60FPS_LN2_R12 :
-	case SENSOR_GN3_4080X3060_60FPS_LN4_R12 :
-	case SENSOR_GN3_4080X3060_60FPS_R12 :
-	case SENSOR_GN3_4080X3060_30FPS_CROP_R12 :
-	case SENSOR_GN3_4080X3060_60FPS_IDCG_R12 :
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG] = SENSOR_GN3_4080X3060_60FPS_IDCG_R12;
-		break;
-	case SENSOR_GN3_4080X2720_60FPS_LN2_R12 :
-	case SENSOR_GN3_4080X2720_60FPS_R12 :
-	case SENSOR_GN3_4080X2720_60FPS_IDCG_R12 :
 		sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG] = SENSOR_GN3_4080X2720_60FPS_IDCG_R12;
 		break;
-	case SENSOR_GN3_4080X2296_60FPS_IDCG_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_LN4_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_LN2_R12 :
-	case SENSOR_GN3_4080X2296_60FPS_R12 :
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG] = SENSOR_GN3_4080X2296_60FPS_IDCG_R12;
-		break;
-	default:
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG] = MODE_GROUP_NONE;
-	}
 
-	switch (mode) {
-	case SENSOR_GN3_4080X3060_60FPS_R12:
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_ABS] = SENSOR_GN3_4080X3060_30FPS_CROP_R12;
+	case SENSOR_GN3_4080X2296_60FPS_R10 :
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = SENSOR_GN3_4080X2296_60FPS_LN2_R10;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = SENSOR_GN3_4080X2296_60FPS_LN4_R10;
 		break;
-	case SENSOR_GN3_4080X3060_60FPS_R10:
-		sensor_gn3_mode_groups[SENSOR_GN3_MODE_ABS] = SENSOR_GN3_4080X3060_30FPS_CROP_R10;
+	case SENSOR_GN3_4080X2296_60FPS_R12 :
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = SENSOR_GN3_4080X2296_60FPS_LN2_R12;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = SENSOR_GN3_4080X2296_60FPS_LN4_R12;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG] = SENSOR_GN3_4080X2296_60FPS_IDCG_R12;
+		sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP] = MODE_GROUP_RMS;
+		sensor_gn3_rms_zoom_mode[SENSOR_GN3_RMS_ZOOM_MODE_X_17] = SENSOR_GN3_4080X2296_30FPS_CROP_R12_BDS;
+		sensor_gn3_rms_zoom_mode[SENSOR_GN3_RMS_ZOOM_MODE_X_20] = SENSOR_GN3_4080X2296_60FPS_CROP_R12;
 		break;
 	}
 
@@ -215,7 +160,7 @@ void sensor_gn3_cis_set_mode_group(u32 mode)
 															sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG],
 															sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2],
 															sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4],
-															sensor_gn3_mode_groups[SENSOR_GN3_MODE_ABS]);
+															sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP]);
 }
 #endif
 
@@ -502,6 +447,9 @@ int sensor_gn3_cis_init(struct v4l2_subdev *subdev)
 
 	sensor_gn3_first_entrance = true;
 	sensor_gn3_seamless_delay_flag = false;
+	sensor_gn3_crop_shift_offset_x = 0;
+	sensor_gn3_crop_shift_offset_y = 0;
+	sensor_gn3_crop_shift_enabled = false;
 	cis->cis_data->sens_config_index_pre = SENSOR_GN3_MODE_MAX;
 
 	sensor_gn3_cis_select_setfile(subdev);
@@ -523,6 +471,7 @@ int sensor_gn3_cis_init(struct v4l2_subdev *subdev)
 	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
 	cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
 	cis->cis_data->cur_pattern_mode = SENSOR_TEST_PATTERN_MODE_OFF;
+	cis->cis_data->is_writing_sensor_mode = false;
 
 	sensor_gn3_load_retention = false;
 
@@ -534,7 +483,7 @@ int sensor_gn3_cis_init(struct v4l2_subdev *subdev)
 	sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG] = MODE_GROUP_NONE;
 	sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN2] = MODE_GROUP_NONE;
 	sensor_gn3_mode_groups[SENSOR_GN3_MODE_LN4] = MODE_GROUP_NONE;
-	sensor_gn3_mode_groups[SENSOR_GN3_MODE_ABS] = MODE_GROUP_NONE;
+	sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP] = MODE_GROUP_NONE;
 
 	sensor_gn3_cis_data_calculation(sensor_gn3_pllinfos[setfile_index], cis->cis_data);
 
@@ -1245,19 +1194,24 @@ int sensor_gn3_cis_check_cropped_remosaic(cis_shared_data *cis_data,
 	int ret = 0;
 	u32 zoom_ratio = 0;
 
-	if (sensor_gn3_mode_groups[SENSOR_GN3_MODE_ABS] == MODE_GROUP_NONE) {
+	if (sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP] == MODE_GROUP_NONE) {
 		ret = -1;
 		goto EXIT;
 	}
 
 	zoom_ratio = cis_data->cur_remosaic_zoom_ratio;
 
-	if (zoom_ratio != 200) {
+	if (zoom_ratio == SENSOR_GN3_RMS_ZOOM_MODE_NONE || zoom_ratio >= SENSOR_GN3_RMS_ZOOM_MODE_MAX) {
 		ret = -1; //goto default
 		goto EXIT;
 	}
 
-	*next_mode = sensor_gn3_mode_groups[SENSOR_GN3_MODE_ABS];
+	if (sensor_gn3_rms_zoom_mode[zoom_ratio] == SENSOR_GN3_RMS_ZOOM_MODE_NONE) {
+		ret = -1; //goto default
+		goto EXIT;
+	}
+
+	*next_mode = sensor_gn3_rms_zoom_mode[zoom_ratio];
 
 	if (zoom_ratio == cis_data->pre_remosaic_zoom_ratio) {
 		*next_fast_change_idx = cur_fast_change_idx;
@@ -1273,8 +1227,8 @@ int sensor_gn3_cis_check_cropped_remosaic(cis_shared_data *cis_data,
 		err("fast change idx is none!!");
 		ret = -1;
 	} else {
-		//apply ABS_1
-		*next_fast_change_idx = SENSOR_GN3_ABS_1_FAST_CHANGE_IDX;
+		*next_fast_change_idx =
+			sensor_gn3_spec_mode_retention_attr[*next_mode].fast_change_idx;
 		*load_sram_idx = sensor_gn3_spec_mode_retention_attr[*next_mode].load_sram_idx;
 	}
 
@@ -1386,6 +1340,7 @@ int sensor_gn3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 #endif
 #endif
 
+	cis->cis_data->is_writing_sensor_mode = true;
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	if (sensor_gn3_cis_check_aeb(subdev) == 0) {
@@ -1423,6 +1378,8 @@ int sensor_gn3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 			err("sensor_gn3_set_registers fail!!");
 		}
 	}
+
+	sensor_gn3_cis_set_remosaic_crop_shift(subdev, next_mode);
 
 	ret |= is_sensor_write16(cis->client, 0xFCFC, 0x4000);
 	ret |= is_sensor_write16(cis->client, 0x6000, 0x0005);
@@ -1469,6 +1426,7 @@ int sensor_gn3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 
 p_i2c_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+	cis->cis_data->is_writing_sensor_mode = false;
 
 	return ret;
 }
@@ -1509,6 +1467,11 @@ int sensor_gn3_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		goto p_err;
 	}
 
+	cis->cis_data->crop_x = 0;
+	cis->cis_data->crop_y = 0;
+	sensor_gn3_crop_shift_offset_x = 0;
+	sensor_gn3_crop_shift_offset_y = 0;
+	sensor_gn3_crop_shift_enabled = false;
 	sensor_gn3_seamless_delay_count = 0;
 	sensor_gn3_seamless_delay_flag = false;
 
@@ -1935,6 +1898,210 @@ p_err:
 	return ret;
 }
 #endif
+
+void sensor_gn3_cis_set_remosaic_crop_shift_info(struct v4l2_subdev *subdev, s32 offsetX, s32 offsetY)
+{
+	sensor_gn3_crop_shift_offset_x = offsetX;
+	sensor_gn3_crop_shift_offset_y = offsetY;
+
+	sensor_gn3_crop_shift_enabled = true;
+
+	dbg_sensor(1, "[%s] crop_shift_enabled, offset(%d, %d)\n", __func__,
+		offsetX, offsetY);
+}
+
+#define GN3_RMS_CROP_ALIGN (32)
+#define GN3_4X2_W (4)
+#define GN3_4X2_H (2)
+#define GN3_RMS_CROP_MIN_X (16)
+#define GN3_RMS_CROP_MIN_Y (0)
+#define GN3_RMS_CROP_4_3_X (112)
+#define GN3_RMS_CROP_4_3_Y (120)
+#define GN3_RMS_CROP_4_3_X_SIZE (8159)
+#define GN3_RMS_CROP_4_3_Y_SIZE (3135)
+#define GN3_RMS_CROP_4_3_START_X (1000)
+#define GN3_RMS_CROP_4_3_START_Y (750)
+#define GN3_RMS_CROP_4_3_MAX_X (2000)
+#define GN3_RMS_CROP_4_3_MAX_Y (1500)
+
+#define GN3_RMS_CROP_16_9_X (112)
+#define GN3_RMS_CROP_16_9_Y (860)
+#define GN3_RMS_CROP_16_9_X_SIZE (8159)
+#define GN3_RMS_CROP_16_9_Y_SIZE (2367)
+#define GN3_RMS_CROP_16_9_START_X (1000)
+#define GN3_RMS_CROP_16_9_START_Y (563)
+#define GN3_RMS_CROP_16_9_MAX_X (2000)
+#define GN3_RMS_CROP_16_9_MAX_Y (1126)
+
+#define GN3_RMS_CROP_MUL (100000)
+#define GN3_RMS_CROP_SHIFT_SUPPORT_BDS_ON (0)
+
+#define ceil(n, d) ((n)/(d) + ((n)%(d) != 0))
+
+int sensor_gn3_cis_set_remosaic_crop_shift(struct v4l2_subdev *subdev, u32 mode)
+{
+	int ret = 0;
+	struct is_cis *cis = NULL;
+	struct i2c_client *client = NULL;
+	ktime_t st = ktime_get();
+	u32 start_x = 0, start_y = 0;
+	u32 flip_start_x = 0, flip_start_y = 0;
+	u32 image_x_start, image_y_start, image_x_end, image_y_end;
+	u32 x_addr_start, y_addr_start, x_addr_end, y_addr_end;
+	u32 crop_x_offset, crop_y_offset;
+	bool is_bds = false;
+	bool is_4_3_ratio = false;
+
+	WARN_ON(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	WARN_ON(!cis);
+
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		return -EINVAL;
+	}
+
+	if (!sensor_gn3_crop_shift_enabled) {
+		dbg_sensor(1, "[%s] crop_shift_disabled\n", __func__);
+		return 0;
+	}
+
+	switch (mode) {
+#if GN3_RMS_CROP_SHIFT_SUPPORT_BDS_ON
+	case SENSOR_GN3_4080X3060_30FPS_CROP_R10_BDS:
+	case SENSOR_GN3_4080X3060_30FPS_CROP_R12_BDS:
+		is_4_3_ratio = true;
+		fallthrough;
+	case SENSOR_GN3_4080X2296_30FPS_CROP_R12_BDS:
+		is_bds = true;
+		break;
+#endif
+	case SENSOR_GN3_4080X3060_30FPS_CROP_R10:
+	case SENSOR_GN3_4080X3060_30FPS_CROP_R12:
+		is_4_3_ratio = true;
+		fallthrough;
+	case SENSOR_GN3_4080X2296_60FPS_CROP_R12:
+		break;
+	default:
+		cis->cis_data->crop_x = 0;
+		cis->cis_data->crop_y = 0;
+		dbg_sensor(1, "[%s] not RMS mode(%d)\n", __func__, mode);
+		return 0;
+	}
+
+	if (is_4_3_ratio) {
+		start_x = GN3_RMS_CROP_4_3_START_X * GN3_RMS_CROP_MUL + sensor_gn3_crop_shift_offset_x;
+		start_y = GN3_RMS_CROP_4_3_START_Y * GN3_RMS_CROP_MUL + sensor_gn3_crop_shift_offset_y;
+		flip_start_x = GN3_RMS_CROP_4_3_MAX_X * GN3_RMS_CROP_MUL - start_x;
+		flip_start_y = GN3_RMS_CROP_4_3_MAX_Y * GN3_RMS_CROP_MUL - start_y;
+	} else {
+		start_x = GN3_RMS_CROP_16_9_START_X * GN3_RMS_CROP_MUL + sensor_gn3_crop_shift_offset_x;
+		start_y = GN3_RMS_CROP_16_9_START_Y * GN3_RMS_CROP_MUL + sensor_gn3_crop_shift_offset_y;
+		flip_start_x = GN3_RMS_CROP_16_9_MAX_X * GN3_RMS_CROP_MUL - start_x;
+		flip_start_y = GN3_RMS_CROP_16_9_MAX_Y * GN3_RMS_CROP_MUL - start_y;
+	}
+
+	cis->cis_data->crop_x = start_x / GN3_RMS_CROP_MUL;
+	cis->cis_data->crop_y = start_y / GN3_RMS_CROP_MUL;
+
+	if (cis->cis_data->crop_x > GN3_RMS_CROP_4_3_MAX_X
+		|| (is_4_3_ratio && cis->cis_data->crop_y > GN3_RMS_CROP_4_3_MAX_Y)
+		|| (!is_4_3_ratio && cis->cis_data->crop_y > GN3_RMS_CROP_16_9_MAX_Y)) {
+		info("[%s] skip crop shift\n", __func__);
+
+		/* remosaic crop shift center */
+		if (is_4_3_ratio) {
+			cis->cis_data->crop_x = GN3_RMS_CROP_4_3_START_X;
+			cis->cis_data->crop_y = GN3_RMS_CROP_4_3_START_Y;
+		} else {
+			cis->cis_data->crop_x = GN3_RMS_CROP_16_9_START_X;
+			cis->cis_data->crop_y = GN3_RMS_CROP_16_9_START_Y;
+		}
+		return 0;
+	}
+
+	info("[%s] mode(%d), start_xy(%d, %d), is_4_3_ratio(%d), is_bds(%d)\n",
+		__func__, mode, start_x, start_y, is_4_3_ratio, is_bds);
+
+	if (is_4_3_ratio) {
+		image_x_start = GN3_RMS_CROP_4_3_X * GN3_RMS_CROP_MUL + (flip_start_x * GN3_4X2_W);
+		image_x_start /= GN3_RMS_CROP_MUL;
+		image_y_start = GN3_RMS_CROP_4_3_Y * GN3_RMS_CROP_MUL + (flip_start_y * GN3_4X2_H);
+		image_y_start /= GN3_RMS_CROP_MUL;
+		image_x_end = image_x_start + GN3_RMS_CROP_4_3_X_SIZE;
+		image_y_end = image_y_start + GN3_RMS_CROP_4_3_Y_SIZE;
+	} else {
+		image_x_start = GN3_RMS_CROP_16_9_X * GN3_RMS_CROP_MUL + (flip_start_x * GN3_4X2_W)
+			+ GN3_RMS_CROP_MIN_X * GN3_RMS_CROP_MUL;
+		image_x_start /= GN3_RMS_CROP_MUL;
+		image_y_start = GN3_RMS_CROP_16_9_Y * GN3_RMS_CROP_MUL + (flip_start_y * GN3_4X2_H);
+		image_y_start /= GN3_RMS_CROP_MUL;
+		image_x_end = image_x_start + GN3_RMS_CROP_16_9_X_SIZE;
+		image_y_end = image_y_start + GN3_RMS_CROP_16_9_Y_SIZE;
+	}
+
+	x_addr_start = (image_x_start / GN3_RMS_CROP_ALIGN) * GN3_RMS_CROP_ALIGN;
+	y_addr_start = (image_y_start / GN3_RMS_CROP_ALIGN) * GN3_RMS_CROP_ALIGN;
+	x_addr_end = ceil((image_x_end + 1), GN3_RMS_CROP_ALIGN) * GN3_RMS_CROP_ALIGN - 1;
+	y_addr_end = ((image_y_end + 1) / GN3_RMS_CROP_ALIGN) * GN3_RMS_CROP_ALIGN - 1;
+
+	crop_x_offset = (x_addr_end - image_x_end) / 2;
+	crop_y_offset = y_addr_end - image_y_end + 68;
+
+
+	dbg_sensor(1, "[%s] start(%d, %d) -> flip_start(%d, %d)\n", __func__,
+		start_x / GN3_RMS_CROP_MUL, start_y / GN3_RMS_CROP_MUL,
+		flip_start_x / GN3_RMS_CROP_MUL, flip_start_y / GN3_RMS_CROP_MUL);
+	dbg_sensor(1, "[%s] image_start(%d, %d), image_end(%d, %d)\n",
+		__func__, image_x_start, image_y_start,
+		image_x_end, image_y_end);
+	dbg_sensor(1, "[%s] addr_start(%d, %d), addr_end(%d, %d)\n",
+		__func__, x_addr_start, y_addr_start, x_addr_end, y_addr_end);
+
+#define GN3_RMS_CROP_DIRECT_CONTROL (0)
+#if GN3_RMS_CROP_DIRECT_CONTROL
+	ret |= is_sensor_write16(client, 0xFCFC, 0x4000);
+	ret |= is_sensor_write16(client, 0x6000, 0x0005);
+
+	ret |= is_sensor_write16(client, 0x0344, x_addr_start);
+	ret |= is_sensor_write16(client, 0x0346, y_addr_start);
+	ret |= is_sensor_write16(client, 0x0348, x_addr_end);
+	ret |= is_sensor_write16(client, 0x034A, y_addr_end);
+
+	ret |= is_sensor_write16(client, 0x0350, crop_x_offset);
+	ret |= is_sensor_write16(client, 0x0352, crop_y_offset);
+
+	ret |= is_sensor_write16(client, 0x6000, 0x0085);
+#else
+	ret |= is_sensor_write16(client, 0xFCFC, 0x4000);
+	ret |= is_sensor_write16(client, 0x6028, 0x2002);
+	if (is_bds)
+		ret |= is_sensor_write16(client, 0x602A, 0x728A);
+	else
+		ret |= is_sensor_write16(client, 0x602A, 0x5E82);
+
+	ret |= is_sensor_write16(client, 0x6F12, 0x0344);
+	ret |= is_sensor_write16(client, 0x6F12, x_addr_start);
+	ret |= is_sensor_write16(client, 0x6F12, 0x0346);
+	ret |= is_sensor_write16(client, 0x6F12, y_addr_start);
+	ret |= is_sensor_write16(client, 0x6F12, 0x0348);
+	ret |= is_sensor_write16(client, 0x6F12, x_addr_end);
+	ret |= is_sensor_write16(client, 0x6F12, 0x034A);
+	ret |= is_sensor_write16(client, 0x6F12, y_addr_end);
+
+	ret |= is_sensor_write16(client, 0x6F12, 0x0350);
+	ret |= is_sensor_write16(client, 0x6F12, crop_x_offset);
+	ret |= is_sensor_write16(client, 0x6F12, 0x0352);
+	ret |= is_sensor_write16(client, 0x6F12, crop_y_offset);
+#endif
+
+	if (IS_ENABLED(DEBUG_SENSOR_TIME))
+		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
+
+	return ret;
+}
 
 /* TODO: Sensor set size sequence(sensor done, sensor stop, 3AA done in FW case */
 int sensor_gn3_cis_set_size(struct v4l2_subdev *subdev, cis_shared_data *cis_data)
@@ -2695,6 +2862,11 @@ int sensor_gn3_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	int ret = 0;
 	struct is_cis *cis;
 	cis_shared_data *cis_data;
+#if IS_ENABLED(USE_CAMERA_SENSOR_RETENTION)
+	struct is_module_enum *module;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	struct sensor_open_extended *ext_info;
+#endif
 
 	u64 vt_pic_clk_freq_khz = 0;
 	u32 line_length_pck = 0;
@@ -2712,7 +2884,18 @@ int sensor_gn3_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 
 	cis_data = cis->cis_data;
 
-#if (!IS_ENABLED(USE_CAMERA_SENSOR_RETENTION))
+#if IS_ENABLED(USE_CAMERA_SENSOR_RETENTION)
+	sensor_peri = container_of(cis, struct is_device_sensor_peri, cis);
+	module = sensor_peri->module;
+	ext_info = &module->ext;
+	WARN_ON(!ext_info);
+
+	if (ext_info->use_retention_mode != SENSOR_RETENTION_ACTIVATED) {
+		I2C_MUTEX_LOCK(cis->i2c_lock);
+		sensor_gn3_cis_check_aeb(subdev);
+		I2C_MUTEX_UNLOCK(cis->i2c_lock);
+	}
+#else
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	sensor_gn3_cis_check_aeb(subdev);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -3129,9 +3312,9 @@ int sensor_gn3_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_agai
 #if IS_ENABLED(USE_CAMERA_SENSOR_RETENTION)
 	aeb_on = sensor_gn3_spec_mode_attr[mode].aeb_support && (cis_data->cur_hdr_mode == SENSOR_HDR_MODE_2AEB_2VC);
 	if (!aeb_on) {
-		if (cis_data->cur_remosaic_zoom_ratio >= 200
-			&& cis_data->cur_remosaic_zoom_ratio <= 290) {
-			mode = sensor_gn3_mode_groups[SENSOR_GN3_MODE_ABS];
+		if (cis_data->cur_remosaic_zoom_ratio != 0
+			&& sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP] == MODE_GROUP_RMS) {
+			mode = sensor_gn3_rms_zoom_mode[cis_data->cur_remosaic_zoom_ratio];
 		} else if (cis_data->cur_12bit_mode == SENSOR_12BIT_STATE_REAL_12BIT) {
 			mode = sensor_gn3_mode_groups[SENSOR_GN3_MODE_IDCG];
 		} else if (cis_data->cur_lownoise_mode == IS_CIS_LN2) {
@@ -3557,6 +3740,35 @@ p_err:
 	return ret;
 }
 
+int sensor_gn3_cis_get_updated_binning_ratio(struct v4l2_subdev *subdev, u32 *binning_ratio)
+{
+	struct is_cis *cis;
+	cis_shared_data *cis_data;
+	u32 rms_mode, zoom_ratio;
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	if (!cis) {
+		err("cis is NULL");
+		return -EINVAL;
+	}
+
+	cis_data = cis->cis_data;
+
+	if (sensor_gn3_mode_groups[SENSOR_GN3_MODE_RMS_CROP] == MODE_GROUP_NONE)
+		return 0;
+
+	zoom_ratio = cis_data->pre_remosaic_zoom_ratio;
+	rms_mode = sensor_gn3_rms_zoom_mode[zoom_ratio];
+
+	if (rms_mode && sensor_gn3_rms_binning_ratio[rms_mode]) {
+		*binning_ratio = sensor_gn3_rms_binning_ratio[rms_mode];
+		dbg_sensor(1, "[%s] sensor_gn3_rms_binning_ratio[%d] = %d\n",
+				__func__, rms_mode, sensor_gn3_rms_binning_ratio[rms_mode]);
+	}
+
+	return 0;
+}
+
 int sensor_gn3_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_sensor_ctl_t *sensor_ctl)
 {
 	int ret = 0;
@@ -3743,6 +3955,9 @@ static struct is_cis_ops cis_ops_gn3 = {
 	.cis_set_test_pattern = sensor_gn3_cis_set_test_pattern,
 	.cis_update_seamless_mode = sensor_gn3_cis_update_seamless_mode,
 	.cis_wait_seamless_update_delay = sensor_gn3_cis_wait_seamless_update_delay,
+	.cis_get_updated_binning_ratio = sensor_gn3_cis_get_updated_binning_ratio,
+	//.cis_update_latest_seamless_state = sensor_cis_update_latest_seamless_state,
+	.cis_set_remosaic_crop_shift_info = sensor_gn3_cis_set_remosaic_crop_shift_info,
 };
 
 static int cis_gn3_probe(struct i2c_client *client,

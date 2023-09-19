@@ -172,7 +172,7 @@ struct exynos_drm_crtc_ops {
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 	void (*dump_event_log)(struct exynos_drm_crtc *crtc);
 #endif
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	void (*set_fingerprint_mask)(struct exynos_drm_crtc *crtc,
 			struct drm_crtc_state *old_crtc_state, u32 after);
 #endif
@@ -242,7 +242,7 @@ struct exynos_drm_crtc {
 	struct exynos_hibernation	*hibernation;
 	struct task_struct		*thread;
 	struct kthread_worker		worker;
-	struct exynos_migov 		*migov;
+	struct exynos_profiler 		*profiler;
 	struct exynos_partial 		*partial;
 	struct dpu_bts			*bts;
 	struct dpu_freq_hop_ops *freq_hop;

@@ -20,9 +20,7 @@
 
 #include "is-config.h"
 #include "is-vender-caminfo.h"
-#ifdef USE_SENSOR_TEST_SETTING
 #include "is-vender-test-sensor.h"
-#endif
 #include "is-vender-specific.h"
 #include "is-sec-define.h"
 #include "is-device-sensor-peri.h"
@@ -280,6 +278,32 @@ EXIT:
 	return ret;
 }
 
+static int is_vender_caminfo_cmd_perform_cal_reload(void __user *user_data)
+{
+	int ret = 0;
+
+	ret = is_sec_set_force_caldata_dump(true);
+
+	return ret;
+}
+
+static int is_vender_caminfo_cmd_get_ois_hall_data(void __user *user_data)
+{
+	struct is_core *core = NULL;
+	struct is_ois_hall_data halldata;
+
+	core = is_get_is_core();
+
+	is_ois_get_hall_data(core, &halldata);
+
+	if (copy_to_user(user_data, (void *)&halldata, sizeof(struct is_ois_hall_data))) {
+		err("%s : failed to copy data to user", __func__);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -314,6 +338,9 @@ static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigne
 	case CAMINFO_CMD_ID_GET_ROM_DATA_BY_POSITION:
 		ret = is_vender_caminfo_cmd_get_rom_data_by_position(ioctl_cmd.data);
 		break;
+	case CAMINFO_CMD_ID_PERFORM_CAL_RELOAD:
+		ret = is_vender_caminfo_cmd_perform_cal_reload(ioctl_cmd.data);
+		break;
 	case CAMINFO_CMD_ID_SET_EFS_DATA:
 		ret = is_vender_caminfo_set_efs_data(ioctl_cmd.data);
 		break;
@@ -322,6 +349,9 @@ static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigne
 		break;
 	case CAMINFO_CMD_ID_GET_AWB_DATA_ADDR:
 		ret = is_vender_caminfo_cmd_get_awb_data_addr(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_OIS_HALL_DATA:
+		ret = is_vender_caminfo_cmd_get_ois_hall_data(ioctl_cmd.data);
 		break;
 #ifdef USE_SENSOR_TEST_SETTING
 	case CAMINFO_CMD_ID_SET_SENSOR_GLOBAL_TEST:
@@ -344,6 +374,14 @@ static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigne
 		break;
 	case CAMINFO_CMD_ID_ENABLE_SENSOR_TEST:
 		ret = is_vender_test_sensor_cmd_enable_sensor_test(ioctl_cmd.data);
+		break;
+#endif
+#ifdef USE_MIPI_PHY_TUNING
+	case CAMINFO_CMD_ID_SET_MIPI_PHY:
+		ret = is_vender_caminfo_cmd_set_mipi_phy(ioctl_cmd.data);
+		break;
+	case CAMINFO_CMD_ID_GET_MIPI_PHY:
+		ret = is_vender_caminfo_cmd_get_mipi_phy(ioctl_cmd.data);
 		break;
 #endif
 	default:

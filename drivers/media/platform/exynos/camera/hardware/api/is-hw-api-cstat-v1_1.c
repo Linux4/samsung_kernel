@@ -1633,10 +1633,6 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 		in_h = size_cfg->bns.h;
 		max_w = CSTAT_LMEDS0_OUT_MAX_W;
 		max_h = CSTAT_LMEDS0_OUT_MAX_H;
-		dma_out->dma_crop_offset_x = 0;
-		dma_out->dma_crop_offset_y = 0;
-		dma_out->dma_crop_width = in_w;
-		dma_out->dma_crop_height = in_h;
 		break;
 	case CSTAT_W_LMEDS1:
 		lmeds0_out = &p_set->dma_output_lme_ds0;
@@ -1646,10 +1642,6 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 		in_h = lmeds0_out->height;
 		max_w = CSTAT_LMEDS1_OUT_MAX_W;
 		max_h = CSTAT_LMEDS1_OUT_MAX_H;
-		dma_out->dma_crop_offset_x = 0;
-		dma_out->dma_crop_offset_y = 0;
-		dma_out->dma_crop_width = in_w;
-		dma_out->dma_crop_height = in_h;
 		break;
 	case CSTAT_W_FDPIG:
 		dma_out = &p_set->dma_output_fdpig;
@@ -1658,7 +1650,6 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 		in_h = size_cfg->bns.h;
 		max_w = CSTAT_FDPIG_OUT_MAX_W;
 		max_h = CSTAT_FDPIG_OUT_MAX_H;
-		/* User controls incrop */
 		break;
 	case CSTAT_W_CDS0:
 		dma_out = &p_set->dma_output_cds;
@@ -1667,10 +1658,35 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 		in_h = size_cfg->bns.h;
 		max_w = CSTAT_CDS_OUT_MAX_W;
 		max_h = CSTAT_CDS_OUT_MAX_H;
-		/* User controls incrop */
 		break;
 	default:
 		/* Other DMA doesn't have DS or doesn't be controlled by driver. */
+		return 0;
+	}
+
+	/* Update DS input crop */
+	switch (dma_id) {
+	case CSTAT_W_LMEDS0:
+	case CSTAT_W_LMEDS1:
+		/* No crop */
+		dma_out->dma_crop_offset_x = 0;
+		dma_out->dma_crop_offset_y = 0;
+		dma_out->dma_crop_width = in_w;
+		dma_out->dma_crop_height = in_h;
+		break;
+	case CSTAT_W_FDPIG:
+	case CSTAT_W_CDS0:
+		/* User controls crop */
+		if (size_cfg->rms_crop_ratio) {
+			dma_out->dma_crop_offset_x = dma_out->dma_crop_offset_x * size_cfg->rms_crop_ratio / 10;
+			dma_out->dma_crop_offset_y = dma_out->dma_crop_offset_y * size_cfg->rms_crop_ratio / 10;
+			dma_out->dma_crop_width = dma_out->dma_crop_width * size_cfg->rms_crop_ratio / 10;
+			dma_out->dma_crop_height = dma_out->dma_crop_height * size_cfg->rms_crop_ratio / 10;
+		} else {
+			warn_hw("[CSTAT][%s] Invalid rms_crop_ratio(%d)", cstat_dmas[dma_id].name, size_cfg->rms_crop_ratio);
+		}
+		break;
+	default:
 		return 0;
 	}
 
@@ -1683,13 +1699,26 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 	total_w = dma_out->dma_crop_offset_x + dma_out->dma_crop_width;
 	total_h = dma_out->dma_crop_offset_y + dma_out->dma_crop_height;
 	if (total_w > in_w || total_h > in_h) {
-		err_hw("[CSTAT][%s] Invalid incrop %dx%d -> %d,%d %dx%d",
+		if (size_cfg->rms_crop_ratio > 10) {
+			warn_hw("[CSTAT][%s] Invalid incrop %dx%d -> %d,%d %dx%d",
 				cstat_dmas[dma_id].name,
 				in_w, in_h,
 				dma_out->dma_crop_offset_x, dma_out->dma_crop_offset_y,
 				dma_out->dma_crop_width, dma_out->dma_crop_height);
 
-		return -EINVAL;
+			dma_out->dma_crop_offset_x = 0;
+			dma_out->dma_crop_offset_y = 0;
+			dma_out->dma_crop_width = in_w;
+			dma_out->dma_crop_height = in_h;
+		} else {
+			err_hw("[CSTAT][%s] Invalid incrop %dx%d -> %d,%d %dx%d",
+					cstat_dmas[dma_id].name,
+					in_w, in_h,
+					dma_out->dma_crop_offset_x, dma_out->dma_crop_offset_y,
+					dma_out->dma_crop_width, dma_out->dma_crop_height);
+
+			return -EINVAL;
+		}
 	}
 
 	/* Check otcrop boundary */
@@ -2121,23 +2150,39 @@ static void cstat_hw_s_bns_weight(void __iomem *base, u32 fac)
 	CSTAT_SET_R(base, CSTAT_R_BYR_BNS_WEIGHT_Y_8, val);
 }
 
+static void cstat_hw_s_bns_size(struct is_crop *in, u32 *out_w, u32 *out_h,
+				enum cstat_bns_scale_ratio *ratio)
+{
+	enum cstat_bns_scale_ratio i;
+
+	for (i = CSTAT_BNS_X2P0; i >= CSTAT_BNS_X1P0; i--) {
+		*ratio = i;
+		*out_w = CSTAT_GET_BNS_OUT_SIZE(in->w, *ratio);
+		*out_h = CSTAT_GET_BNS_OUT_SIZE(in->h, *ratio);
+
+		if ((*out_w >= CSTAT_CDS_OUT_MAX_W && *out_h >= CSTAT_CDS_OUT_MAX_H) ||
+				*ratio == CSTAT_MIN_BNS_RATIO)
+			break;
+	}
+}
+
+void cstat_hw_g_bns_size(struct is_crop *in, struct is_crop *out)
+{
+	enum cstat_bns_scale_ratio ratio;
+
+	out->x = 0;
+	out->y = 0;
+	cstat_hw_s_bns_size(in, &out->w, &out->h, &ratio);
+}
+
 void cstat_hw_s_bns_cfg(void __iomem *base,
 		struct is_crop *crop,
 		struct cstat_size_cfg *size_cfg)
 {
 	u32 out_w, out_h, bypass, val;
-	int i;
 	enum cstat_bns_scale_ratio ratio;
 
-	for (i = CSTAT_BNS_X2P0; i >= CSTAT_BNS_X1P0; i--) {
-		ratio = i;
-		out_w = CSTAT_GET_BNS_OUT_SIZE(crop->w, ratio);
-		out_h = CSTAT_GET_BNS_OUT_SIZE(crop->h, ratio);
-
-		if ((out_w >= CSTAT_CDS_OUT_MAX_W && out_h >= CSTAT_CDS_OUT_MAX_H) ||
-				ratio == CSTAT_MIN_BNS_RATIO)
-			break;
-	}
+	cstat_hw_s_bns_size(crop, &out_w, &out_h, &ratio);
 
 	dbg_hw(3, "[CSTAT]bns_cfg: %dx%d -> %dx%d (%d)\n",
 			crop->w, crop->h,

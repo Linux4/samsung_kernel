@@ -432,6 +432,16 @@ enum cnss_timeout_type {
 };
 
 #define DUMP_MAX_SEG 20
+
+struct cnss_thermal_cdev {
+   struct list_head tcdev_list;
+   int tcdev_id;
+   unsigned long curr_thermal_state;
+   unsigned long max_thermal_state;
+   struct device_node *dev_node;
+   struct thermal_cooling_device *tcdev;
+};
+
 struct cnss_plat_data {
 	struct platform_device *plat_dev;
 	void *bus_priv;
@@ -465,6 +475,8 @@ struct cnss_plat_data {
 	u8 hds_enabled;
 	unsigned long driver_state;
 	struct list_head event_list;
+	struct list_head cnss_tcdev_list;
+	struct mutex tcdev_lock; /* mutex for cooling devices list access */
 	spinlock_t event_lock; /* spinlock for driver work event handling */
 	struct work_struct event_work;
 	struct workqueue_struct *event_wq;

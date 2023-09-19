@@ -63,6 +63,7 @@ enum is_param {
 	PARAM_BYRP_STRIPE_INPUT,
 	PARAM_BYRP_HDR,
 	PARAM_BYRP_BYR,
+	PARAM_BYRP_BYR_PROCESSED,
 
 	PARAM_RGBP_CONTROL,
 	PARAM_RGBP_OTF_INPUT,
@@ -169,14 +170,15 @@ struct param_sensor_config {
 	u32	calibrated_width;	/* sensor cal size */
 	u32	calibrated_height;
 	u32	early_config_lock;
+	u32	sensor_remosaic_crop_zoom_ratio;
 	u32	freeform_sensor_crop_enable;	/* freeform sensor crop, not center aligned */
 	u32	freeform_sensor_crop_offset_x;
 	u32	freeform_sensor_crop_offset_y;
 	u32	pixel_order;
 	u32	vvalid_time;		/* Actual sensor vvalid time */
 	u32	req_vvalid_time;	/* Required vvalid time for OTF input IPs */
-	u32     hdr_frame_type; /* enum hdr_frame_type, single/long/short/middle */
-	u32	reserved[PARAMETER_MAX_MEMBER-24];
+	u32	hdr_frame_type; /* enum hdr_frame_type, single/long/short/middle */
+	u32	reserved[PARAMETER_MAX_MEMBER-25];
 	u32	err;
 };
 
@@ -428,6 +430,7 @@ struct byrp_param {
 	struct param_stripe_input	stripe_input;
 	struct param_dma_input		hdr;
 	struct param_dma_output		byr;
+	struct param_dma_output		byr_processed;
 };
 
 struct rgbp_param {
@@ -675,9 +678,11 @@ struct byrp_param_set {
 	struct param_stripe_input	stripe_input;
 	struct param_dma_input		dma_input_hdr;
 	struct param_dma_output		dma_output_byr;
+	struct param_dma_output		dma_output_byr_processed;
 	u32				input_dva[IS_MAX_PLANES];
 	u32				input_dva_hdr[IS_MAX_PLANES];
 	u32				output_dva_byr[IS_MAX_PLANES];
+	u32				output_dva_byr_processed[IS_MAX_PLANES];
 
 	u32				instance_id;
 	u32				fcount;
@@ -816,6 +821,7 @@ struct is_byrp_config {
 	u32 post_bpc_bypass;
 	u32 lsc_step_x;
 	u32 lsc_step_y;
+	u32 byrp_bypass;
 
 	u32 magic;
 };
@@ -1009,6 +1015,7 @@ struct pablo_rta_frame_info {
 	u32 sensor_output_bit;
 	u32 sensor_hdr;
 
+
 	struct pablo_point csis_bns_binning;	/* 1000 = 1.0 */
 	struct pablo_point csis_mcb_binning;	/* 1000 = 1.0 */
 
@@ -1062,6 +1069,8 @@ struct pablo_rta_frame_info {
 	u32 yuvp_sharp_enhancer_contents_aware_buffer_available;
 
 	u32 magic;
+	u32 sensor_remosaic_crop_zoom_ratio;
+
 };
 
 #endif /* IS_PARAMS_H */

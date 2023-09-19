@@ -53,9 +53,15 @@
 /* ap/chub status with alive check */
 #define AP_WAKE             (0x1)
 #define AP_SLEEP            (0x2)
+#if IS_ENABLED(CONFIG_SHUB)
+#define AP_PREPARE          (0x3)
+#define AP_COMPLETE         (0x4)
+#define CHUB_PG_IN          (0x5)
+#define CHUB_PG_OUT         (0x6)
+#else
 #define CHUB_PG_IN          (0x3)
 #define CHUB_PG_OUT         (0x4)
-
+#endif
 #define CHUB_REBOOT_REQ            (0xff)
 
 #define READY_TO_GO 99

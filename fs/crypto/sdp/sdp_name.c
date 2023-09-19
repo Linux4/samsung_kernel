@@ -5,6 +5,7 @@
 #include <linux/crypto.h>
 #include <sdp/fs_handler.h>
 #include "../fscrypt_private.h"
+#include <linux/fscrypto_sdp_name.h>
 
 struct fscrypt_sdp_renament {
 	struct inode *dir;

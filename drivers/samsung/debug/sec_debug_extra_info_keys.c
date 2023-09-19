@@ -12,12 +12,14 @@ static char key32[][MAX_ITEM_KEY_LEN] = {
 	"SPCNT", "LEV", "ASB", "PSITE",
 	"DDRID", "RST", "INFO2", "INFO3",
 	"RSTCNT", "HLCPU", "UP", "DOWN",
+	"WDGT",
 };
 
 static char key64[][MAX_ITEM_KEY_LEN] = {
 	"BAT", "FAULT", "EPD", "HLEHLD",
 	"PWR", "PWROFF", "PINT", "PSTAT",
 	"PWROFFS", "PINTS", "PSTATS", "FPMU",
+	"UFS",
 };
 
 static char key256[][MAX_ITEM_KEY_LEN] = {
@@ -25,7 +27,7 @@ static char key256[][MAX_ITEM_KEY_LEN] = {
 	"PC", "LR", "BUG", "ESR", "SMU",
 	"FREQ", "ODR", "AUD", "UNFZ",
 	"WDGC", "HLTYPE", "MOCP", "SOCP",
-	"DCN",
+	"DCN", "EHLD", "LFRQ",
 };
 
 static char key1024[][MAX_ITEM_KEY_LEN] = {
@@ -39,12 +41,12 @@ static char key1024[][MAX_ITEM_KEY_LEN] = {
 static char akeys[][MAX_ITEM_KEY_LEN] = {
 	"ID", "RR", "ODR", "KTIME",
 	"BIN", "DDRID", "RST", "ASB",
-	"BAT", "LEV", "RSTCNT", "WDGC",
+	"BAT", "LEV", "RSTCNT", "WDGC", "WDGT",
 	"FAULT", "BUG", "BUS", "DSSBUS",
-	"FPMU", "PC", "LR", "PANIC",
+	"FPMU", "PC", "LR", "PANIC", "UFS",
 	"SMU", "EPD", "ESR", "UP",
-	"DOWN", "SPCNT", "FREQ", "STACK",
-	"KLG", "UNFZ", "HLTYPE", "HLDATA",
+	"DOWN", "SPCNT", "FREQ", "LFRQ", "STACK",
+	"KLG", "EHLD", "UNFZ", "HLTYPE", "HLDATA",
 	"HLFREQ", "HLEHLD", "HLCPU",
 };
 

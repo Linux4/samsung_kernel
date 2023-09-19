@@ -2432,3 +2432,8 @@ struct is_mem *is_hw_get_iommu_mem(u32 vid)
 
 	return &core->resourcemgr.mem;
 }
+
+void is_hw_update_prfi(struct is_hardware *hardware, struct is_group *group,
+			struct is_frame *frame)
+{
+}

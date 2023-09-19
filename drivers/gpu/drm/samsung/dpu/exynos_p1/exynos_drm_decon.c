@@ -45,7 +45,7 @@
 #include <exynos_drm_decon.h>
 #include <exynos_drm_writeback.h>
 #include <exynos_drm_dp.h>
-#include <exynos_drm_migov.h>
+#include <exynos_drm_profiler.h>
 #include <exynos_drm_freq_hop.h>
 #include <exynos_drm_recovery.h>
 #include <exynos_drm_partial.h>
@@ -62,6 +62,9 @@
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 #include <mcd_drm_decon.h>
 #include <mcd_drm_helper.h>
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
+#include "dpui.h"
+#endif
 #endif
 
 struct decon_device *decon_drvdata[MAX_DECON_CNT];
@@ -144,7 +147,7 @@ void decon_dump_event_log(struct exynos_drm_crtc *exynos_crtc)
 }
 #endif
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 static enum disp_panic_reason mcd_drm_decon_get_disp_panic_reason(struct decon_device *decon)
 {
 	if (decon->recovery.req_mode_id == RECOVERY_MODE_IDX_DSIM)
@@ -159,17 +162,13 @@ static int mcd_drm_decon_snprintf_disp_panic(struct decon_device *decon, char *b
 {
 	int len = 0;
 
-	if (size - len >= 0)
-		len += snprintf_disp_panic_decon_id(buf + len, size - len, decon->id);
-	if (size - len >= 0)
-		len += snprintf_disp_panic_reason(buf + len, size - len,
+	len += snprintf_disp_panic_decon_id(buf + len, size - len, decon->id);
+	len += snprintf_disp_panic_reason(buf + len, size - len,
 			mcd_drm_decon_get_disp_panic_reason(decon));
-	if (size - len >= 0)
-		len += snprintf_disp_panic_recovery_count(buf + len, size - len,
-				decon->recovery.count);
-	if (size - len >= 0)
-		len += snprintf_disp_panic_disp_clock(buf + len, size - len,
-				exynos_devfreq_get_domain_freq(DEVFREQ_DISP));
+	len += snprintf_disp_panic_recovery_count(buf + len, size - len,
+			decon->recovery.count);
+	len += snprintf_disp_panic_disp_clock(buf + len, size - len,
+			exynos_devfreq_get_domain_freq(DEVFREQ_DISP));
 
 	return len;
 }
@@ -206,7 +205,7 @@ static int decon_dpui_notifier_callback(struct notifier_block *self,
 	prev_recovery_cnt = recovery_cnt;
 	return 0;
 }
-#endif /* CONFIG_DISPLAY_USE_INFO */
+#endif /* CONFIG_USDM_PANEL_DPUI */
 
 static bool __is_recovery_supported(struct decon_device *decon)
 {
@@ -799,6 +798,67 @@ decon_seamless_set_mode(struct drm_crtc_state *crtc_state,
 	}
 }
 
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
+static void decon_fingerprint_mask(struct exynos_drm_crtc *crtc,
+			struct drm_crtc_state *old_crtc_state, u32 after)
+{
+	struct drm_atomic_state *state;
+	struct drm_connector *connector;
+	struct drm_connector_state *conn_state;
+	struct drm_encoder *encoder;
+	struct drm_bridge *bridge;
+	struct exynos_panel *ctx;
+	struct decon_device *decon;
+	const struct exynos_panel_funcs *funcs;
+	int i = 0;
+
+	if (!crtc) {
+		pr_info("%s crtc is null.\n", __func__);
+		return;
+	}
+
+	decon = crtc->ctx;
+
+	if (!decon) {
+		pr_info("%s decon is null.\n", __func__);
+		return;
+	}
+
+	if (decon->id != 0)
+		return;
+
+	state = old_crtc_state->state;
+
+	for_each_new_connector_in_state(state, connector, conn_state, i) {
+		encoder = conn_state->best_encoder;
+		if (!encoder) {
+			decon_err(decon, "encoder is null.\n");
+			return;
+		}
+
+		bridge = drm_bridge_chain_get_first_bridge(encoder);
+		if (!bridge) {
+			decon_err(decon, "bridge is null.\n");
+			return;
+		}
+
+		ctx = bridge_to_exynos_panel(bridge);
+		if (!ctx) {
+			decon_err(decon, "ctx is null.\n");
+			return;
+		}
+
+		funcs = ctx->desc->exynos_panel_func;
+		if (!funcs) {
+			decon_err(decon, "funcs is null.\n");
+			return;
+		}
+
+		funcs->set_fingermask_layer(ctx, after);
+	}
+}
+#endif
+
 static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 		struct drm_crtc_state *old_crtc_state)
 {
@@ -884,6 +944,9 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 	} else if (exynos_crtc->crc_state == EXYNOS_DRM_CRC_STOP)
 		decon_reg_set_start_crc(decon->id, 0);
 
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
+	exynos_crtc->ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 0);
+#endif
 	decon_reg_all_win_shadow_update_req(decon->id);
 	reinit_completion(&decon->framestart_done);
 
@@ -892,11 +955,17 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 
 	decon_reg_start(decon->id, &decon->config);
 
-	if (!new_crtc_state->no_vblank)
-		exynos_crtc_handle_event(exynos_crtc);
+	if (!new_crtc_state->no_vblank) {
+		if ((decon->config.mode.op_mode == DECON_VIDEO_MODE) &&
+				(decon->config.out_type & DECON_OUT_DP))
+			decon_reg_wait_update_done_timeout(decon->id,
+				SHADOW_UPDATE_TIMEOUT_US);
 
-	if (exynos_crtc->migov)
-		exynos_migov_update_ems_frame_cnt(exynos_crtc->migov);
+		exynos_crtc_handle_event(exynos_crtc);
+	}
+
+	if (exynos_crtc->profiler)
+		exynos_profiler_update_ems_frame_cnt(exynos_crtc->profiler);
 
 	DPU_EVENT_LOG("ATOMIC_FLUSH", exynos_crtc, 0, NULL);
 
@@ -966,9 +1035,7 @@ static int decon_late_register(struct exynos_drm_crtc *exynos_crtc)
 	debugfs_create_x32("dta_lo_thres", 0664,
 			urgent_dent, &decon->config.urgent.dta_lo_thres);
 
-#if IS_ENABLED(CONFIG_EXYNOS_FREQ_HOP)
 	dpu_freq_hop_debugfs(exynos_crtc);
-#endif
 
 	te_np = of_get_child_by_name(decon->dev->of_node, "te_eint");
 	if (te_np) {
@@ -1511,6 +1578,9 @@ static const struct exynos_drm_crtc_ops decon_crtc_ops = {
 #if defined(CONFIG_EXYNOS_PLL_SLEEP)
 	.pll_sleep_mask = decon_pll_sleep_mask,
 #endif
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
+	.set_fingerprint_mask = decon_fingerprint_mask,
+#endif
 	.recovery = decon_trigger_recovery,
 	.is_recovering = decon_read_recovering,
 	.emergency_off = decon_emergency_off,
@@ -2051,8 +2121,8 @@ static irqreturn_t decon_te_irq_handler(int irq, void *dev_id)
 
 	DPU_EVENT_LOG("TE_INTERRUPT", exynos_crtc, EVENT_FLAG_REPEAT, NULL);
 
-	if (exynos_crtc->migov)
-		exynos_migov_update_vsync_cnt(exynos_crtc->migov);
+	if (exynos_crtc->profiler)
+		exynos_profiler_update_vsync_cnt(exynos_crtc->profiler);
 
 	hibernation = exynos_crtc->hibernation;
 
@@ -2354,7 +2424,7 @@ static int decon_probe(struct platform_device *pdev)
 		decon_reg_stop(decon->id, &decon->config, true, decon->bts.fps);
 #endif
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 	decon->dpui_notif.notifier_call = decon_dpui_notifier_callback;
 	ret = dpui_logging_register(&decon->dpui_notif, DPUI_TYPE_CTRL);
 	if (ret)

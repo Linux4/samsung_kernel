@@ -36,11 +36,7 @@
 #define TFA98XX_FLAG_LP_MODES	        (1 << 7)
 #define TFA98XX_FLAG_TDM_DEVICE         (1 << 8)
 
-#if defined(TFA_NO_SND_FORMAT_CHECK)
-#define TFA98XX_NUM_RATES		14
-#else
 #define TFA98XX_NUM_RATES		9
-#endif
 
 /* DSP init status */
 enum tfa98xx_dsp_init_state {
@@ -57,6 +53,7 @@ enum tfa98xx_dsp_fw_state {
 	TFA98XX_DSP_FW_PENDING,
 	TFA98XX_DSP_FW_FAIL,
 	TFA98XX_DSP_FW_OK,
+	TFA98XX_DSP_FW_RELOADING,
 };
 
 struct tfa98xx_firmware {
@@ -82,11 +79,7 @@ struct tfa98xx {
 	struct regmap *regmap;
 	struct i2c_client *i2c;
 	struct regulator *vdd;
-#if KERNEL_VERSION(4, 18, 0) <= LINUX_VERSION_CODE
 	struct snd_soc_component *component;
-#else
-	struct snd_soc_codec *codec;
-#endif
 	struct workqueue_struct *tfa98xx_wq;
 	struct delayed_work init_work;
 	struct delayed_work monitor_work;
@@ -102,11 +95,6 @@ struct tfa98xx {
 	struct tfa98xx_firmware fw;
 	char *fw_name;
 	int rate;
-#if defined(TFA_CHANGE_PCM_FORMAT)
-	int hw_rate;
-	int sample_size;
-	int slot_size;
-#endif
 	wait_queue_head_t wq;
 	struct device *dev;
 	unsigned int init_count;
@@ -141,9 +129,7 @@ struct tfa98xx {
 	bool set_mtp_cal;
 	uint16_t cal_data;
 	int calibrate_done;
-#if defined(TFA_SET_IPC_PORT_ID)
-	int pid;
-#endif
+	int istatus;
 };
 
 #endif /* __TFA98XX_INC__ */

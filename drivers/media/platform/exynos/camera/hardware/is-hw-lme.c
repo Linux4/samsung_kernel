@@ -31,7 +31,7 @@ IS_TIMER_FUNC(is_hw_frame_start_timer)
 	if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 		msinfo_hw("[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-	is_hardware_frame_start(hw_ip, instance);
+	CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 
 	mod_timer(&hw_ip->lme_frame_end_timer, jiffies + msecs_to_jiffies(0));
 }
@@ -48,7 +48,7 @@ IS_TIMER_FUNC(is_hw_frame_end_timer)
 
 	msdbg_hw(2, "lme frame end timer", instance, hw_ip);
 	atomic_add(hw_ip->num_buffers, &hw_ip->count.fe);
-	is_hardware_frame_done(hw_ip, NULL, -1, 0,
+	CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, 0,
 					IS_SHOT_SUCCESS, true);
 
 	if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
@@ -172,6 +172,7 @@ static int is_hw_lme_init(struct is_hw_ip *hw_ip, u32 instance,
 			return -EINVAL;
 		}
 	}
+	hw_ip->frame_type = f_type;
 #else
 	timer_setup(&hw_ip->lme_frame_start_timer, (void (*)(struct timer_list *))is_hw_frame_start_timer, 0);
 	timer_setup(&hw_ip->lme_frame_end_timer, (void (*)(struct timer_list *))is_hw_frame_end_timer, 0);
@@ -578,7 +579,7 @@ static int is_hw_lme_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	if (test_bit(hw_ip->id, &frame->core_flag))
 		output_id = IS_HW_CORE_END;
 
-	ret = is_hardware_frame_done(hw_ip, frame, -1,
+	ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 			output_id, done_type, false);
 
 	return ret;

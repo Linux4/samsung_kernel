@@ -58,7 +58,12 @@ enum {
 	FLEXBOOT_BIG,		// BIG Core Flex and All Level Freq Change Allow
 	FLEXBOOT_FLEX_ONLY,	// All Core Flex only. max limit
 	FLEXBOOT_ALL,		// All Core Flex and All Level Freq Change Allow
+	FLEXBOOT_B_VECTOR,
 };
+
+#define B_VECTOR_ALL	0xE4
+#define B_VECTOR_MIN	0xE5
+#define B_VECTOR_MAX	0xE6
 
 int flexable_cpu_boot;
 
@@ -1526,6 +1531,27 @@ init_freq_qos(struct exynos_cpufreq_domain *domain, struct cpufreq_policy *polic
 			freq_qos_update_request(&domain->max_qos_req, boot_qos);
 	} else if (flexable_cpu_boot == FLEXBOOT_FLEX_ONLY) {
 		freq_qos_update_request(&domain->max_qos_req, boot_qos);
+	} else if (flexable_cpu_boot == FLEXBOOT_B_VECTOR) {
+		if (!of_property_read_u32(dn, "pm_qos-booting", &val)) {
+			if ((val >> 24) == B_VECTOR_ALL) {
+				val &= 0xFFFFFF;
+				boot_qos = val;
+
+				freq_qos_update_request(&domain->min_qos_req, val);
+				freq_qos_update_request(&domain->max_qos_req, val);
+			} else if ((val >> 24) == B_VECTOR_MIN) {
+				val &= 0xFFFFFF;
+				boot_qos = val;
+
+				freq_qos_update_request(&domain->min_qos_req, val);
+			} else if ((val >> 24) == B_VECTOR_MAX) {
+				val &= 0xFFFFFF;
+				boot_qos = val;
+
+				freq_qos_update_request(&domain->max_qos_req, val);
+			} else
+				pr_info("skip boot cpu[%d] max qos lock cause of b-vector\n", domain->id);
+		}
 	} else {
 		freq_qos_update_request(&domain->min_qos_req, boot_qos);
 		freq_qos_update_request(&domain->max_qos_req, boot_qos);
@@ -1538,7 +1564,14 @@ init_freq_qos(struct exynos_cpufreq_domain *domain, struct cpufreq_policy *polic
 
 	/* booting boost, it is expired after BOOTING_BOOST_TIME */
 	INIT_DELAYED_WORK(&domain->work, freq_qos_release);
+#if defined(CONFIG_SEC_FACTORY)
+	if (flexable_cpu_boot == FLEXBOOT_B_VECTOR)
+		schedule_delayed_work(&domain->work, msecs_to_jiffies(BOOTING_BOOST_TIME));
+	else
+		schedule_delayed_work(&domain->work, msecs_to_jiffies(BOOTING_BOOST_TIME));
+#else
 	schedule_delayed_work(&domain->work, msecs_to_jiffies(BOOTING_BOOST_TIME));
+#endif
 
 	return 0;
 }

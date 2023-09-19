@@ -34,7 +34,7 @@ enum fw_type {
 
 #define FW_VER_LEN 8
 
-#define FW_VERSION 22112500
+#define FW_VERSION 23071400
 unsigned int get_module_rev(struct ssp_data *data)
 {
 	return FW_VERSION;

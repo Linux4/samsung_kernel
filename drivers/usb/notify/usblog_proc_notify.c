@@ -103,6 +103,15 @@ struct extra_buf {
 	int event;
 };
 
+struct usblog_rtc_buf {
+	struct usblog_rtc_time ccic_buf_rt[USBLOG_CCIC_BUFFER_SIZE];
+	struct usblog_rtc_time mode_buf_rt[USBLOG_MODE_BUFFER_SIZE];
+	struct usblog_rtc_time state_buf_rt[USBLOG_STATE_BUFFER_SIZE];
+	struct usblog_rtc_time event_buf_rt[USBLOG_EVENT_BUFFER_SIZE];
+	struct usblog_rtc_time port_buf_rt[USBLOG_PORT_BUFFER_SIZE];
+	struct usblog_rtc_time extra_buf_rt[USBLOG_EXTRA_BUFFER_SIZE];
+};
+
 struct usblog_buf {
 	unsigned long long ccic_count;
 	unsigned long long mode_count;
@@ -141,6 +150,7 @@ struct usblog_root_str {
 	unsigned long usblog_index;
 	struct usblog_buf *usblog_buffer;
 	struct usblog_vm_buf *usblog_vm_buffer;
+	struct usblog_rtc_buf *usblog_rtc_buffer;
 	struct ccic_version ccic_ver;
 	struct ccic_version ccic_bin_ver;
 	spinlock_t usblog_lock;
@@ -1011,6 +1021,7 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 {
 	struct usblog_buf *temp_usblog_buffer;
 	struct usblog_vm_buf *temp_usblog_vm_buffer;
+	struct usblog_rtc_buf *temp_usblog_rt_buffer;
 	struct usblog_rtc_time rt;
 	unsigned long long ts;
 	unsigned long rem_nsec;
@@ -1018,8 +1029,9 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 
 	temp_usblog_buffer = usblog_root.usblog_buffer;
 	temp_usblog_vm_buffer = usblog_root.usblog_vm_buffer;
+	temp_usblog_rt_buffer = usblog_root.usblog_rtc_buffer;
 
-	if (!temp_usblog_buffer || !temp_usblog_vm_buffer)
+	if (!temp_usblog_buffer || !temp_usblog_vm_buffer || !temp_usblog_rt_buffer)
 		goto err;
 
 	usblog_get_rt(&rt);
@@ -1066,8 +1078,11 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	if (temp_usblog_buffer->ccic_count >= USBLOG_CCIC_BUFFER_SIZE) {
 		for (i = temp_usblog_buffer->ccic_index;
 			i < USBLOG_CCIC_BUFFER_SIZE; i++) {
+			rt = temp_usblog_rt_buffer->ccic_buf_rt[i];
 			ts = temp_usblog_buffer->ccic_buffer[i].ts_nsec;
 			rem_nsec = do_div(ts, 1000000000);
+			seq_printf(m, "[%02d-%02d %02d:%02d:%02d] ",
+				rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec);
 			print_ccic_event(m, ts, rem_nsec,
 				temp_usblog_buffer->ccic_buffer[i].cc_type,
 				&temp_usblog_buffer->ccic_buffer[i].noti);
@@ -1075,8 +1090,11 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	}
 
 	for (i = 0; i < temp_usblog_buffer->ccic_index; i++) {
+		rt = temp_usblog_rt_buffer->ccic_buf_rt[i];
 		ts = temp_usblog_buffer->ccic_buffer[i].ts_nsec;
 		rem_nsec = do_div(ts, 1000000000);
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d] ",
+			rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec);
 		print_ccic_event(m, ts, rem_nsec,
 				temp_usblog_buffer->ccic_buffer[i].cc_type,
 				&temp_usblog_buffer->ccic_buffer[i].noti);
@@ -1092,19 +1110,23 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	if (temp_usblog_buffer->mode_count >= USBLOG_MODE_BUFFER_SIZE) {
 		for (i = temp_usblog_buffer->mode_index;
 			i < USBLOG_MODE_BUFFER_SIZE; i++) {
+			rt = temp_usblog_rt_buffer->mode_buf_rt[i];
 			ts = temp_usblog_buffer->mode_buffer[i].ts_nsec;
 			rem_nsec = do_div(ts, 1000000000);
-			seq_printf(m, "[%5lu.%06lu] %s\n", (unsigned long)ts,
-				rem_nsec / 1000,
+			seq_printf(m, "[%02d-%02d %02d:%02d:%02d] [%5lu.%06lu] %s\n",
+				rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+				(unsigned long)ts, rem_nsec / 1000,
 			temp_usblog_buffer->mode_buffer[i].usbmode_str);
 		}
 	}
 
 	for (i = 0; i < temp_usblog_buffer->mode_index; i++) {
+		rt = temp_usblog_rt_buffer->mode_buf_rt[i];
 		ts = temp_usblog_buffer->mode_buffer[i].ts_nsec;
 		rem_nsec = do_div(ts, 1000000000);
-		seq_printf(m, "[%5lu.%06lu] %s\n", (unsigned long)ts,
-			rem_nsec / 1000,
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d] [%5lu.%06lu] %s\n",
+			rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+			(unsigned long)ts, rem_nsec / 1000,
 		temp_usblog_buffer->mode_buffer[i].usbmode_str);
 	}
 
@@ -1118,21 +1140,26 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	if (temp_usblog_buffer->state_count >= USBLOG_STATE_BUFFER_SIZE) {
 		for (i = temp_usblog_buffer->state_index;
 			i < USBLOG_STATE_BUFFER_SIZE; i++) {
+			rt = temp_usblog_rt_buffer->state_buf_rt[i];
 			ts = temp_usblog_buffer->state_buffer[i].ts_nsec;
 			rem_nsec = do_div(ts, 1000000000);
-			seq_printf(m, "[%5lu.%06lu] %s\n", (unsigned long)ts,
-				rem_nsec / 1000,
+			seq_printf(m, "[%02d-%02d %02d:%02d:%02d] [%5lu.%06lu] %s\n",
+				rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+				(unsigned long)ts, rem_nsec / 1000,
 			usbstate_string(temp_usblog_buffer
 						->state_buffer[i].usbstate));
 		}
 	}
 
 	for (i = 0; i < temp_usblog_buffer->state_index; i++) {
+		rt = temp_usblog_rt_buffer->state_buf_rt[i];
 		ts = temp_usblog_buffer->state_buffer[i].ts_nsec;
 		rem_nsec = do_div(ts, 1000000000);
-		seq_printf(m, "[%5lu.%06lu] %s\n", (unsigned long)ts,
-			rem_nsec / 1000,
-		usbstate_string(temp_usblog_buffer->state_buffer[i].usbstate));
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d] [%5lu.%06lu] %s\n",
+			rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+			(unsigned long)ts, rem_nsec / 1000,
+			usbstate_string(temp_usblog_buffer
+						->state_buffer[i].usbstate));
 	}
 
 	seq_printf(m,
@@ -1145,10 +1172,12 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	if (temp_usblog_buffer->event_count >= USBLOG_EVENT_BUFFER_SIZE) {
 		for (i = temp_usblog_buffer->event_index;
 			i < USBLOG_EVENT_BUFFER_SIZE; i++) {
+			rt = temp_usblog_rt_buffer->event_buf_rt[i];
 			ts = temp_usblog_buffer->event_buffer[i].ts_nsec;
 			rem_nsec = do_div(ts, 1000000000);
-			seq_printf(m, "[%5lu.%06lu] %s %s\n", (unsigned long)ts,
-				rem_nsec / 1000,
+			seq_printf(m, "[%02d-%02d %02d:%02d:%02d] [%5lu.%06lu] %s %s\n",
+				rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+				(unsigned long)ts, rem_nsec / 1000,
 			event_string(temp_usblog_buffer->event_buffer[i].event),
 			status_string(temp_usblog_buffer
 				->event_buffer[i].enable));
@@ -1156,10 +1185,12 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	}
 
 	for (i = 0; i < temp_usblog_buffer->event_index; i++) {
+		rt = temp_usblog_rt_buffer->event_buf_rt[i];
 		ts = temp_usblog_buffer->event_buffer[i].ts_nsec;
 		rem_nsec = do_div(ts, 1000000000);
-		seq_printf(m, "[%5lu.%06lu] %s %s\n", (unsigned long)ts,
-			rem_nsec / 1000,
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d] [%5lu.%06lu] %s %s\n",
+			rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+			(unsigned long)ts, rem_nsec / 1000,
 		event_string(temp_usblog_buffer->event_buffer[i].event),
 		status_string(temp_usblog_buffer->event_buffer[i].enable));
 	}
@@ -1174,8 +1205,11 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	if (temp_usblog_buffer->port_count >= USBLOG_PORT_BUFFER_SIZE) {
 		for (i = temp_usblog_buffer->port_index;
 			i < USBLOG_PORT_BUFFER_SIZE; i++) {
+			rt = temp_usblog_rt_buffer->port_buf_rt[i];
 			ts = temp_usblog_buffer->port_buffer[i].ts_nsec;
 			rem_nsec = do_div(ts, 1000000000);
+			seq_printf(m, "[%02d-%02d %02d:%02d:%02d] ",
+				rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec);
 			print_port_string(m, ts, rem_nsec,
 				temp_usblog_buffer->port_buffer[i].type,
 				temp_usblog_buffer->port_buffer[i].param1,
@@ -1185,8 +1219,11 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	}
 
 	for (i = 0; i < temp_usblog_buffer->port_index; i++) {
+		rt = temp_usblog_rt_buffer->port_buf_rt[i];
 		ts = temp_usblog_buffer->port_buffer[i].ts_nsec;
 		rem_nsec = do_div(ts, 1000000000);
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d] ",
+			rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec);
 		print_port_string(m, ts, rem_nsec,
 			temp_usblog_buffer->port_buffer[i].type,
 			temp_usblog_buffer->port_buffer[i].param1,
@@ -1232,20 +1269,24 @@ static int usblog_proc_show(struct seq_file *m, void *v)
 	if (temp_usblog_buffer->extra_count >= USBLOG_EXTRA_BUFFER_SIZE) {
 		for (i = temp_usblog_buffer->extra_index;
 			i < USBLOG_EXTRA_BUFFER_SIZE; i++) {
+			rt = temp_usblog_rt_buffer->extra_buf_rt[i];
 			ts = temp_usblog_buffer->extra_buffer[i].ts_nsec;
 			rem_nsec = do_div(ts, 1000000000);
-			seq_printf(m, "[%5lu.%06lu] %s\n", (unsigned long)ts,
-				rem_nsec / 1000,
+			seq_printf(m, "[%02d-%02d %02d:%02d:%02d] [%5lu.%06lu] %s\n",
+				rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+				(unsigned long)ts, rem_nsec / 1000,
 			extra_string(temp_usblog_buffer
 				->extra_buffer[i].event));
 		}
 	}
 
 	for (i = 0; i < temp_usblog_buffer->extra_index; i++) {
+		rt = temp_usblog_rt_buffer->extra_buf_rt[i];
 		ts = temp_usblog_buffer->extra_buffer[i].ts_nsec;
 		rem_nsec = do_div(ts, 1000000000);
-		seq_printf(m, "[%5lu.%06lu] %s\n", (unsigned long)ts,
-			rem_nsec / 1000,
+		seq_printf(m, "[%02d-%02d %02d:%02d:%02d] [%5lu.%06lu] %s\n",
+			rt.tm_mon, rt.tm_mday, rt.tm_hour, rt.tm_min, rt.tm_sec,
+			(unsigned long)ts, rem_nsec / 1000,
 		extra_string(temp_usblog_buffer->extra_buffer[i].event));
 	}
 err:
@@ -1267,16 +1308,19 @@ static const struct proc_ops usblog_proc_fops = {
 void ccic_store_usblog_notify(int type, uint64_t *param1)
 {
 	struct ccic_buf *ccic_buffer;
+	struct usblog_rtc_time *ccic_rtc;
 	unsigned long long *target_count;
 	unsigned long *target_index;
 
 	target_count = &usblog_root.usblog_buffer->ccic_count;
 	target_index = &usblog_root.usblog_buffer->ccic_index;
 	ccic_buffer = &usblog_root.usblog_buffer->ccic_buffer[*target_index];
+	ccic_rtc = &usblog_root.usblog_rtc_buffer->ccic_buf_rt[*target_index];
 	if (ccic_buffer == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
 		goto err;
 	}
+	usblog_get_rt(ccic_rtc);
 	ccic_buffer->ts_nsec = local_clock();
 	ccic_buffer->cc_type = type;
 	ccic_buffer->noti = *param1;
@@ -1290,6 +1334,7 @@ err:
 void mode_store_usblog_notify(int type, char *param1)
 {
 	struct mode_buf *md_buffer;
+	struct usblog_rtc_time *mode_rtc;
 	unsigned long long *target_count;
 	unsigned long *target_index;
 	char buf[256], buf2[4];
@@ -1299,10 +1344,12 @@ void mode_store_usblog_notify(int type, char *param1)
 	target_count = &usblog_root.usblog_buffer->mode_count;
 	target_index = &usblog_root.usblog_buffer->mode_index;
 	md_buffer = &usblog_root.usblog_buffer->mode_buffer[*target_index];
+	mode_rtc = &usblog_root.usblog_rtc_buffer->mode_buf_rt[*target_index];
 	if (md_buffer == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
 		goto err;
 	}
+	usblog_get_rt(mode_rtc);
 	md_buffer->ts_nsec = local_clock();
 
 	strlcpy(buf, param1, sizeof(buf));
@@ -1346,6 +1393,7 @@ err:
 void state_store_usblog_notify(int type, char *param1)
 {
 	struct state_buf *st_buffer;
+	struct usblog_rtc_time *state_rtc;
 	unsigned long long *target_count;
 	unsigned long *target_index;
 	char buf[256], index, index2, index3;
@@ -1355,10 +1403,12 @@ void state_store_usblog_notify(int type, char *param1)
 	target_count = &usblog_root.usblog_buffer->state_count;
 	target_index = &usblog_root.usblog_buffer->state_index;
 	st_buffer = &usblog_root.usblog_buffer->state_buffer[*target_index];
+	state_rtc = &usblog_root.usblog_rtc_buffer->state_buf_rt[*target_index];
 	if (st_buffer == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
 		goto err;
 	}
+	usblog_get_rt(state_rtc);
 	st_buffer->ts_nsec = local_clock();
 
 	strlcpy(buf, param1, sizeof(buf));
@@ -1528,16 +1578,19 @@ err:
 void event_store_usblog_notify(int type, unsigned long *param1, int *param2)
 {
 	struct event_buf *ev_buffer;
+	struct usblog_rtc_time *event_rtc;
 	unsigned long long *target_count;
 	unsigned long *target_index;
 
 	target_count = &usblog_root.usblog_buffer->event_count;
 	target_index = &usblog_root.usblog_buffer->event_index;
 	ev_buffer = &usblog_root.usblog_buffer->event_buffer[*target_index];
+	event_rtc = &usblog_root.usblog_rtc_buffer->event_buf_rt[*target_index];
 	if (ev_buffer == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
 		goto err;
 	}
+	usblog_get_rt(event_rtc);
 	ev_buffer->ts_nsec = local_clock();
 	ev_buffer->event = *param1;
 	ev_buffer->enable = *param2;
@@ -1551,16 +1604,19 @@ err:
 void port_store_usblog_notify(int type, void *param1, void *param2)
 {
 	struct port_buf *pt_buffer;
+	struct usblog_rtc_time *port_rtc;
 	unsigned long long *target_count;
 	unsigned long *target_index;
 
 	target_count = &usblog_root.usblog_buffer->port_count;
 	target_index = &usblog_root.usblog_buffer->port_index;
 	pt_buffer = &usblog_root.usblog_buffer->port_buffer[*target_index];
+	port_rtc = &usblog_root.usblog_rtc_buffer->port_buf_rt[*target_index];
 	if (pt_buffer == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
 		goto err;
 	}
+	usblog_get_rt(port_rtc);
 	pt_buffer->ts_nsec = local_clock();
 	pt_buffer->type = type;
 	if (type == NOTIFY_PORT_CONNECT) {
@@ -1609,16 +1665,19 @@ err:
 void extra_store_usblog_notify(int type, int *param1)
 {
 	struct extra_buf *ex_buffer;
+	struct usblog_rtc_time *extra_rtc;
 	unsigned long long *target_count;
 	unsigned long *target_index;
 
 	target_count = &usblog_root.usblog_buffer->extra_count;
 	target_index = &usblog_root.usblog_buffer->extra_index;
 	ex_buffer = &usblog_root.usblog_buffer->extra_buffer[*target_index];
+	extra_rtc = &usblog_root.usblog_rtc_buffer->extra_buf_rt[*target_index];
 	if (ex_buffer == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
 		goto err;
 	}
+	usblog_get_rt(extra_rtc);
 	ex_buffer->ts_nsec = local_clock();
 	ex_buffer->event = *param1;
 
@@ -1741,14 +1800,26 @@ int register_usblog_proc(void)
 		ret = -ENOMEM;
 		goto err;
 	}
+
+	usblog_root.usblog_rtc_buffer = vzalloc(sizeof(struct usblog_rtc_buf));
+	if (!usblog_root.usblog_rtc_buffer) {
+		ret = -ENOMEM;
+		goto err1;
+	} else
+		pr_info("usb: %s: usblog_root.usblog_rtc_buffer = %d\n",
+			__func__, sizeof(struct usblog_rtc_buf));
+
 	usblog_root.usblog_vm_buffer
 		= vzalloc(sizeof(struct usblog_vm_buf));
 	if (!usblog_root.usblog_vm_buffer) {
 		ret = -ENOMEM;
-		goto err1;
+		goto err2;
 	}
 	pr_info("%s size=%zu\n", __func__, sizeof(struct usblog_buf));
 	return ret;
+err2:
+	vfree(usblog_root.usblog_rtc_buffer);
+	usblog_root.usblog_rtc_buffer = NULL;
 err1:
 	kfree(usblog_root.usblog_buffer);
 	usblog_root.usblog_buffer = NULL;
@@ -1760,6 +1831,8 @@ EXPORT_SYMBOL(register_usblog_proc);
 
 void unregister_usblog_proc(void)
 {
+	vfree(usblog_root.usblog_rtc_buffer);
+	usblog_root.usblog_rtc_buffer = NULL;
 	vfree(usblog_root.usblog_vm_buffer);
 	usblog_root.usblog_vm_buffer = NULL;
 	kfree(usblog_root.usblog_buffer);

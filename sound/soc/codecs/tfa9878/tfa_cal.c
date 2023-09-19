@@ -174,7 +174,7 @@ static ssize_t update_temp_status(int idx, char *buf)
 static ssize_t rdc_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	int idx = INDEX_0;
+	int idx = tfa_get_dev_idx_from_inchannel(0);
 	int ret;
 
 	ret = update_rdc_status(idx, buf);
@@ -192,7 +192,7 @@ static ssize_t rdc_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	pr_info("%s: dev %d - not allowed to write calibration data\n",
-		__func__, INDEX_0);
+		__func__, tfa_get_dev_idx_from_inchannel(0));
 
 	return size;
 }
@@ -200,7 +200,7 @@ static ssize_t rdc_store(struct device *dev,
 static ssize_t temp_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	int idx = INDEX_0;
+	int idx = tfa_get_dev_idx_from_inchannel(0);
 	int ret;
 
 	ret = update_temp_status(idx, buf);
@@ -218,7 +218,7 @@ static ssize_t temp_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	pr_info("%s: dev %d - not allowed to write temperature in calibration\n",
-		__func__, INDEX_0);
+		__func__, tfa_get_dev_idx_from_inchannel(0));
 
 	return size;
 }
@@ -227,7 +227,7 @@ static ssize_t temp_store(struct device *dev,
 static ssize_t rdc_r_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	int idx = INDEX_1;
+	int idx = tfa_get_dev_idx_from_inchannel(1);
 	int ret;
 
 	ret = update_rdc_status(idx, buf);
@@ -245,7 +245,7 @@ static ssize_t rdc_r_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	pr_info("%s: dev %d - not allowed to write calibration data\n",
-		__func__, INDEX_1);
+		__func__, tfa_get_dev_idx_from_inchannel(1));
 
 	return size;
 }
@@ -253,7 +253,7 @@ static ssize_t rdc_r_store(struct device *dev,
 static ssize_t temp_r_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	int idx = INDEX_1;
+	int idx = tfa_get_dev_idx_from_inchannel(1);
 	int ret;
 
 	ret = update_temp_status(idx, buf);
@@ -271,7 +271,7 @@ static ssize_t temp_r_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	pr_info("%s: dev %d - not allowed to write temperature in calibration\n",
-		__func__, INDEX_1);
+		__func__, tfa_get_dev_idx_from_inchannel(1));
 
 	return size;
 }
@@ -409,4 +409,3 @@ void tfa98xx_cal_exit(struct class *tfa_class)
 	device_destroy(tfa_class, DEV_ID_TFA_CAL);
 	pr_info("exited\n");
 }
-

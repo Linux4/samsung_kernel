@@ -277,6 +277,8 @@ static int is_ischain_lme_tag(struct is_subdev *subdev,
 		ret = __lme_dma_cfg(device, subdev, frame, out_node, dma,
 				PARAM_LME_DMA, pmap);
 
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 			if (!cap_node->vid)
@@ -284,6 +286,8 @@ static int is_ischain_lme_tag(struct is_subdev *subdev,
 
 			ret = __lme_dma_cfg(device, subdev, frame, cap_node,
 					dma, PARAM_LME_DMA, pmap);
+
+			cap_node->result = 1;
 		}
 
 		/* buffer tagging */
