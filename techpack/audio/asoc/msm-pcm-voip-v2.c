@@ -1706,6 +1706,7 @@ int __init msm_pcm_voip_init(void)
 void msm_pcm_voip_exit(void)
 {
 	platform_driver_unregister(&msm_pcm_driver);
+	mutex_destroy(&voip_info.lock);
 }
 
 MODULE_DESCRIPTION("PCM module platform driver");

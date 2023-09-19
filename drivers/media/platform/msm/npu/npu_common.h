@@ -245,7 +245,6 @@ struct npu_device {
 
 struct npu_client {
 	struct npu_device *npu_dev;
-
 	struct mutex list_lock;
 	struct list_head mapped_buffer_list;
 };

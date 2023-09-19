@@ -278,6 +278,9 @@ extern int cnss_get_mem_seg_count(enum cnss_remote_mem_type type, u32 *seg);
 extern int cnss_get_mem_segment_info(enum cnss_remote_mem_type type,
 				     struct cnss_mem_segment segment[],
 				     u32 segment_count);
+extern int cnss_send_buffer_to_afcmem(struct device *dev, char *afcdb,
+				      uint32_t len, uint8_t slotid);
+extern int cnss_reset_afcmem(struct device *dev, uint8_t slotid);
 #ifdef CONFIG_SEC_SS_CNSS2_FEATURE_SYSFS
 extern int cnss_sysfs_get_pm_info(void);
 extern void cnss_sysfs_update_driver_status(int32_t new_status, void *version, void *softap);
