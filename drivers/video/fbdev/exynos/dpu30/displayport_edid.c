@@ -189,6 +189,10 @@ EDID_READ_RETRY:
 
 	block_cnt = edid_buf[EDID_EXTENSION_FLAG] + 1;
 	displayport_dbg("sst%d block_cnt = %d\n", sst_id + 1, block_cnt);
+	if (block_cnt > 4) {
+		displayport_err("valid ext block count %d\n", block_cnt);
+		return 1;
+	}
 
 	while (++block < block_cnt) {
 		u8 *edid_ext = edid_buf + (block * EDID_BLOCK_SIZE);
