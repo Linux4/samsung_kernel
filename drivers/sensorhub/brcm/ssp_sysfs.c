@@ -864,6 +864,31 @@ static ssize_t set_ssp_control(struct device *dev,
 			return size;
 		}
 	}
+	else if (strstr(buf,SSP_SENSOR_CUSTOM_INFO)) {
+		int iRet = 0;
+		char *str = (char *)(buf + strlen(SSP_SENSOR_CUSTOM_INFO));
+		struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+
+		if (msg == NULL) {
+			iRet = -ENOMEM;
+			pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+				__func__);
+			return iRet;
+		}
+		print_hex_dump(KERN_INFO, "SSP:CUSTOM_INFO: ",	\
+			DUMP_PREFIX_NONE, 16, 1, (str), (size - strlen(SSP_SENSOR_CUSTOM_INFO)), true);
+		msg->cmd = MSG2SSP_AP_CUSTOM_INFO;
+		msg->length = size - strlen(SSP_SENSOR_CUSTOM_INFO);
+		msg->options = AP2HUB_WRITE;
+		msg->buffer = str;
+		msg->free_buffer = 0;
+
+		iRet = ssp_spi_async(data, msg);
+		if (iRet != SUCCESS) {
+			pr_err("[SSP]: %s - i2c fail %d\n", __func__, iRet);
+			return size;
+		}
+	}
 
 	return size;
 }

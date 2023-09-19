@@ -677,6 +677,24 @@ static int exynos_set_peripheral(bool enable)
 	return 0;
 }
 
+static int exynos_gadget_speed(void)
+{
+	struct device_node *np = NULL;
+	struct platform_device *pdev = NULL;
+
+	np = exynos_udc_parse_dt();
+	if (np) {
+		pdev = of_find_device_by_node(np);
+		of_node_put(np);
+		if (pdev) {
+			return dwc3_gadget_speed(&pdev->dev);
+		}
+	}
+
+	pr_err("%s: failed to get the platform_device\n", __func__);
+	return 0;
+}
+
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 static int usb_set_chg_current(int state)
 {
@@ -759,6 +777,7 @@ static struct otg_notify dwc_lsi_notify = {
 	.vbus_drive	= otg_accessory_power,
 	.set_host = exynos_set_host,
 	.set_peripheral	= exynos_set_peripheral,
+	.get_gadget_speed = exynos_gadget_speed,
 	.vbus_detect_gpio = -1,
 	.is_host_wakelock = 1,
 	.is_wakelock = 1,

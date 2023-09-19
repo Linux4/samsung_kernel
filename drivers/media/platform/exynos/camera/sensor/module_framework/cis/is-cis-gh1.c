@@ -751,7 +751,7 @@ int sensor_gh1_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 			}
 			xtc_cal_first = false;
 		}
-		if (xtc_skip && mode == SENSOR_GH1_7296X5472_15FPS) {
+		if (xtc_skip && (mode == SENSOR_GH1_7296X5472_15FPS || mode == SENSOR_GH1_7936x4464_15FPS)) {
 			info("[%s] bypass xtc calibration",__func__);
 			/* XTC disable register : \x 2000 42C0 */
 			ret = is_sensor_write16(cis->client, 0x6028, 0x2000);

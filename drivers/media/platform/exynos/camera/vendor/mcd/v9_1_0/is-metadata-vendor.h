@@ -346,6 +346,7 @@ struct camera2_sensor_ctl {
 	uint32_t			sensitivity;
 	int32_t				testPatternData[4];
 	enum sensor_test_pattern_mode	testPatternMode;
+	enum sensor_colorfilterarrangement sensorColorFilter;
 };
 
 struct camera2_sensor_dm {
@@ -649,7 +650,7 @@ struct camera2_stats_dm {
 	uint32_t			histogram[3 * 256];
 	int32_t 			sharpnessMap[2][2][3];
 	uint8_t 			lensShadingCorrectionMap;
-	float				lensShadingMap[4][17][13];	/* 4channel x grid width x grid height */
+	float				lensShadingMap[17 * 13 * 4]; // grid width * grid height * 4 channel
 	enum stats_scene_flicker	sceneFlicker;
 	int32_t 			hotPixelMap[CAMERA2_MAX_AVAILABLE_MODE][2];
 
@@ -807,8 +808,9 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_PORTRAIT_NIGHT   = 142,
 	AA_SCENE_MODE_PORTRAIT_VERY_NIGHT = 143,
 	AA_SCENE_MODE_FHD_AUTO         = 144,
+	AA_SCENE_MODE_AI_HIGHRES       = 146,
 	AA_SCENE_MODE_EXECUTOR_TOOL    = 147,
-    AA_SCENE_MODE_LIGHT_TRAIL      = 148,
+	AA_SCENE_MODE_LIGHT_TRAIL      = 148,
 	AA_SCENE_MODE_ASTRO            = 149,
 };
 
@@ -1131,6 +1133,12 @@ enum aa_transient_capture_action {
 	AA_TRANSIENT_CAPTURE_ACTION_FAST_CAPTURE = 1,
 };
 
+enum aa_night_indicator {
+	AA_NIGHT_INDICATOR_NONE = 0,
+	AA_NIGHT_INDICATOR_ON,
+	AA_NIGHT_INDICATOR_OFF,
+};
+
 struct camera2_video_output_size {
 	uint16_t			width;
 	uint16_t			height;
@@ -1291,7 +1299,9 @@ struct camera2_aa_dm {
 	int32_t				vendor_gfHdrEv[2];
 	uint32_t			ispHwTargetFpsRange[2];
 	uint32_t			vendor_aeDarkBoostGain;
-	uint32_t			vendor_reserved[32];
+	uint32_t			vendor_nightModeSuggest;    // 0(off), 1(on)
+	enum				aa_night_indicator vendor_nightIndicator;
+	uint32_t			vendor_reserved[30];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -1337,6 +1347,7 @@ struct camera2_blacklevel_ctl {
 
 struct camera2_blacklevel_dm {
 	enum blacklevel_lock		lock;
+	float				dynamicBlackLevel[4];  // same order as CFA(Color Filter Arrangement)
 };
 
 /* android.reprocess */
@@ -2016,6 +2027,19 @@ struct camera2_lmeds_udm {
 	uint16_t yDsOutputHeight;
 };
 
+enum camera_flip_mode {
+	CAM_FLIP_MODE_NORMAL = 0,
+	CAM_FLIP_MODE_HORIZONTAL,
+	CAM_FLIP_MODE_VERTICAL,
+	CAM_FLIP_MODE_HORIZONTAL_VERTICAL,
+	CAM_FLIP_MODE_MAX,
+};
+enum camera_external_lens_mask {
+	CAMERA_EXTERNAL_LENS_NONE           = 0,
+	CAMERA_EXTERNAL_LENS_DOF            = 1 << 0, /* bit 0 */
+	CAMERA_EXTERNAL_LENS_ANAMORPHIC     = 1 << 1, /* bit 1 */
+};
+
 struct camera2_object_detect_uctl {
 	uint16_t detected;
 	uint16_t confidence_score;
@@ -2078,7 +2102,10 @@ struct camera2_uctl {
 	enum camera_adaptive_lens_condition adaptiveLensCondition;
 	enum camera_adaptive_lens_mode_state adaptiveLensModeState;
 	struct camera2_object_detect_uctl sunDetectInfoUd;
-	uint32_t			reserved[17];
+	enum camera_flip_mode			sensorFlip;
+	enum camera_external_lens_mask	externalLensType;
+	uint32_t						textDetectionInfo;
+	uint32_t						reserved[14];
 };
 
 struct camera2_udm {
@@ -2231,14 +2258,6 @@ struct hfd_meta {
 	uint32_t		rot[CAMERA2_MAX_FACES];
 	uint32_t		mirror_x[CAMERA2_MAX_FACES];
 	uint32_t		hw_rot_mirror[CAMERA2_MAX_FACES];
-};
-
-enum camera_flip_mode {
-	CAM_FLIP_MODE_NORMAL = 0,
-	CAM_FLIP_MODE_HORIZONTAL,
-	CAM_FLIP_MODE_VERTICAL,
-	CAM_FLIP_MODE_HORIZONTAL_VERTICAL,
-	CAM_FLIP_MODE_MAX,
 };
 
 enum camera_thermal_mode {

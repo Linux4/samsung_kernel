@@ -365,6 +365,8 @@ struct vts_data {
 	void __iomem *baaw_base;
 	void __iomem *sram_base;
 	void __iomem *dmic_if0_base;
+	void __iomem *dmic_ahb0_base;
+	void __iomem *timer0_base;
 #if IS_ENABLED(CONFIG_SOC_EXYNOS9820) || \
 	IS_ENABLED(CONFIG_SOC_EXYNOS9830) || \
 	IS_ENABLED(CONFIG_SOC_EXYNOS2100)

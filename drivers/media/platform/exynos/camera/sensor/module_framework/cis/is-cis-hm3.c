@@ -1495,6 +1495,22 @@ int sensor_hm3_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		cis->cis_data->highres_capture_mode = false;
 	}
 
+	//Remosaic Bypass
+	if (ex_mode == EX_AI_REMOSAIC) {
+		ret |= is_sensor_write16(cis->client, 0x6028, 0x2000);
+		ret |= is_sensor_write16(cis->client, 0x602A, 0xC730);
+		ret |= is_sensor_write16(cis->client, 0x6F12, 0x0100); // off 0000 on 0100
+	} else {
+		ret |= is_sensor_write16(cis->client, 0x6028, 0x2000);
+		ret |= is_sensor_write16(cis->client, 0x602A, 0xC730);
+		ret |= is_sensor_write16(cis->client, 0x6F12, 0x0000); // off 0000 on 0100
+	}
+
+	if (ret < 0) {
+		err("remosaic bypass set fail!!");
+		goto p_err_i2c_unlock;
+	}
+
 	if (sensor_hm3_cis_get_seamless_iDCG_supported(subdev)) {
 		cis->cis_data->pre_12bit_mode = SENSOR_12BIT_STATE_PSEUDO_12BIT;
 		cis->cis_data->cur_12bit_mode = SENSOR_12BIT_STATE_PSEUDO_12BIT;

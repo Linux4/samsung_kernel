@@ -13,11 +13,17 @@
 #include <soc/samsung/exynos-ehld.h>
 #include <linux/hashtable.h>
 #include <soc/samsung/exynos-ehld.h>
+#include <linux/kallsyms.h>
+#include <linux/irq.h>
+#include <linux/irqdesc.h>
+#include "../../pinctrl/samsung/pinctrl-samsung.h"
+#include "../../pinctrl/samsung/pinctrl-exynos.h"
 
 #define PRINT_LINE_MAX	512
 #define TASK_COMM_LEN 16
 #define BUSY_IRQ_SET_HASH_BITS 4
 #define MAX_PR_AUTO 6
+#define GPIO_NAME_LEN 10
 
 #define init_vars(item, domain, start, len, max)				\
 do {										\
@@ -279,6 +285,38 @@ static void secdbg_hardlockup_show_freq(struct hardlockup_info *hl_info)
 	}
 }
 
+static char *secdbg_hardlockup_get_gpio_name(int irq)
+{
+	char symname[KSYM_NAME_LEN];
+	struct irq_desc *desc = irq_to_desc(irq);
+
+	snprintf(symname, KSYM_NAME_LEN, "%ps", desc->handle_irq);
+
+	if (strstr(symname, "exynos_irq_eint0_15")) {
+		struct exynos_weint_data *eintd = irq_desc_get_handler_data(desc);
+		struct samsung_pin_bank *bank;
+		char *gpio_name = NULL;
+
+		if (!eintd)
+			return "None";
+
+		bank = eintd->bank;
+
+		if (!bank)
+			return "None";
+
+		gpio_name = kmalloc(GPIO_NAME_LEN + 1, GFP_NOWAIT | __GFP_NOWARN | __GFP_NORETRY);
+		if (!gpio_name)
+			return "None";
+
+		snprintf(gpio_name, GPIO_NAME_LEN, "%s[%d]", bank->name, eintd->irq);
+
+		return gpio_name;
+	}
+
+	return "None";
+}
+
 static void secdbg_hardlockup_show_info(struct hardlockup_info *hl_info)
 {
 	char buf[PRINT_LINE_MAX];
@@ -293,7 +331,8 @@ static void secdbg_hardlockup_show_info(struct hardlockup_info *hl_info)
 		secdbg_exin_set_hardlockup_type("TASK_%s", hl_info->task_info.task_comm);
 		break;
 	case HL_IRQ_STUCK:
-		offset += scnprintf(buf + offset, PRINT_LINE_MAX - offset, " irq=%d, func=%ps]", hl_info->irq_info.irq, hl_info->irq_info.fn);
+		offset += scnprintf(buf + offset, PRINT_LINE_MAX - offset, " irq=%d, hwirq=%lu, %s, %ps]",
+				hl_info->irq_info.irq, irq_get_irq_data(hl_info->irq_info.irq)->hwirq, secdbg_hardlockup_get_gpio_name(hl_info->irq_info.irq), hl_info->irq_info.fn);
 		secdbg_exin_set_hardlockup_type("IRQ_%d_%ps", hl_info->irq_info.irq, hl_info->irq_info.fn);
 		break;
 	case HL_IDLE_STUCK:
@@ -305,9 +344,10 @@ static void secdbg_hardlockup_show_info(struct hardlockup_info *hl_info)
 		secdbg_exin_set_hardlockup_type("SMC_%s", hl_info->task_info.task_comm);
 		break;
 	case HL_IRQ_STORM:
-		offset += scnprintf(buf + offset, PRINT_LINE_MAX - offset, " irq=%d, func=%ps, avg_period=%lluns]",
-			hl_info->irq_info.irq, hl_info->irq_info.fn, hl_info->irq_info.avg_period);
-		secdbg_exin_set_hardlockup_type("IRQs_%d_%s_%lluns", hl_info->irq_info.irq, hl_info->irq_info.fn, hl_info->irq_info.avg_period);
+		offset += scnprintf(buf + offset, PRINT_LINE_MAX - offset, " irq=%d, hwirq=%lu, %s, %ps, avg_period=%lluns]",
+				hl_info->irq_info.irq, irq_get_irq_data(hl_info->irq_info.irq)->hwirq, secdbg_hardlockup_get_gpio_name(hl_info->irq_info.irq), hl_info->irq_info.fn, hl_info->irq_info.avg_period);
+		secdbg_exin_set_hardlockup_type("IRQs_%d_%s_%lluns",
+				hl_info->irq_info.irq, hl_info->irq_info.fn, hl_info->irq_info.avg_period);
 		break;
 	default:
 		offset += scnprintf(buf + offset, PRINT_LINE_MAX - offset, "]");

@@ -80,6 +80,29 @@ struct vb2_dma_sg_buf {
 
 /* IS memory statistics */
 static struct is_mem_stats stats;
+static atomic_t mem_stats_sz_active = ATOMIC_INIT(0);
+
+static int param_set_mem_stats_active(const char *val, const struct kernel_param *kp)
+{
+	int res;
+
+	if (!kstrtoint(val, 0, &res))
+		atomic_set(&mem_stats_sz_active, res);
+
+	return 0;
+}
+
+static int param_get_mem_stats_active(char *buffer, const struct kernel_param *kp)
+{
+	return sprintf(buffer, "%d\n", atomic_read(&mem_stats_sz_active));
+}
+
+static const struct kernel_param_ops param_ops_mem_stats_active = {
+	.set = param_set_mem_stats_active,
+	.get = param_get_mem_stats_active,
+};
+
+module_param_cb(mem_stats_active, &param_ops_mem_stats_active, NULL, 0644);
 
 static void is_free_work(struct work_struct *w)
 {
@@ -900,6 +923,9 @@ static void is_ion_free(struct is_priv_buf *pbuf)
 	dma_buf_detach(pbuf->dma_buf, pbuf->attachment);
 	dma_buf_put(pbuf->dma_buf);
 
+	dbg_mem(1, "%s: size(%zu)\n", __func__, pbuf->size);
+	atomic_sub(pbuf->size, &mem_stats_sz_active);
+
 	vfree(pbuf);
 }
 
@@ -1137,7 +1163,8 @@ static struct is_priv_buf *is_ion_alloc(void *ctx,
 	}
 	mutex_unlock(&alloc_ctx->lock);
 
-	dbg_mem(1, "ion_alloc: size(%zu), flag(%x)\n", size, flags);
+	dbg_mem(1, "%s: size(%zu), flag(%x)\n", __func__, size, flags);
+	atomic_add(size, &mem_stats_sz_active);
 
 	return buf;
 
