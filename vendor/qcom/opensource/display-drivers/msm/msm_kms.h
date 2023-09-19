@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -46,6 +47,8 @@
 #define MSM_MODE_FLAG_SEAMLESS_POMS_VID			(1<<6)
 /* Request to switch the panel mode to command */
 #define MSM_MODE_FLAG_SEAMLESS_POMS_CMD			(1<<7)
+/* Indicates Field sequential color mode is enabled */
+#define MSM_MODE_FLAG_FSC_MODE				(1<<8)
 
 /* As there are different display controller blocks depending on the
  * snapdragon version, the kms support is split out and the appropriate
@@ -130,6 +133,8 @@ struct msm_kms_funcs {
 			struct drm_atomic_state *state);
 	/* check for continuous splash status */
 	bool (*check_for_splash)(struct msm_kms *kms);
+	/*trigger null flush if stuck in cont splash*/
+	int (*trigger_null_flush)(struct msm_kms *kms);
 	/* topology lm information */
 	int (*get_mixer_count)(const struct msm_kms *kms,
 			const struct drm_display_mode *mode,
@@ -260,6 +265,11 @@ static inline bool msm_is_mode_seamless_dyn_clk(
 {
 	return mode ? (mode->private_flags & MSM_MODE_FLAG_SEAMLESS_DYN_CLK)
 		: false;
+}
+
+static inline bool msm_is_mode_fsc(const struct msm_display_mode *mode)
+{
+	return (mode->private_flags & MSM_MODE_FLAG_FSC_MODE);
 }
 
 static inline bool msm_needs_vblank_pre_modeset(

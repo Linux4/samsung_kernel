@@ -34,7 +34,7 @@ Copyright (C) 2021, Samsung Electronics. All rights reserved.
  * until 2nd brightness event comes from HBM->Normal
  * after finger_mask_updated.
  */
-static bool finger_exit_cnt;
+static int finger_exit_cnt;
 
 static struct dsi_panel_cmd_set *__ss_vrr(struct samsung_display_driver_data *vdd,
 					int *level_key, bool is_hbm, bool is_hmt)
@@ -236,8 +236,11 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsun
 	normal_pcmds->cmds[cmd_idx].ss_txbuf[2] = get_bit(vdd->br_info.common_br.gm2_wrdisbv, 8, 3); /* DBV [10:8] */
 
 	cmd_idx = ss_get_cmd_idx(normal_pcmds, 0x00, 0x53);
-	if (vdd->finger_mask_updated || finger_exit_cnt)
+	if (vdd->finger_mask_updated || finger_exit_cnt > 0) {
+		if (finger_exit_cnt > 0)
+			finger_exit_cnt--;
 		normal_pcmds->cmds[cmd_idx].ss_txbuf[1] = 0x20;
+	}
 	else if (unlikely(vdd->is_factory_mode))
 		normal_pcmds->cmds[cmd_idx].ss_txbuf[1] = 0x20;
 	else if (cur_br_mode == HS_HBM) /* smooth off from HBM*/
@@ -246,11 +249,6 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsun
 		normal_pcmds->cmds[cmd_idx].ss_txbuf[1] = 0x20;
 	else
 		normal_pcmds->cmds[cmd_idx].ss_txbuf[1] = 0x28;
-
-	if (vdd->finger_mask_updated)
-		finger_exit_cnt = 1;
-	else
-		finger_exit_cnt = 0;
 
 	LCD_INFO(vdd, "Normal : bl_level:%d, finger:%d exit_cnt:%d Pstate:%d(2:on),%d\n",
 		vdd->br_info.common_br.bl_level, vdd->finger_mask_updated, finger_exit_cnt,
@@ -296,6 +294,9 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_hbm(struct samsung_d
 		hbm_cmds->cmds[cmd_idx].ss_txbuf[1] = get_bit(vdd->br_info.common_br.gm2_wrdisbv, 8, 3); /* [10:8] */
 		hbm_cmds->cmds[cmd_idx].ss_txbuf[2] = get_bit(vdd->br_info.common_br.gm2_wrdisbv, 0, 8); /* [7:0] */
 	}
+
+	if (vdd->finger_mask_updated)
+		finger_exit_cnt = 3; /* enable smooth dimm after 3rd br try */
 
     *level_key = LEVEL_KEY_NONE;
 	cur_br_mode = HS_HBM;
@@ -730,10 +731,14 @@ static struct dsi_panel_cmd_set *ss_acl_on(struct samsung_display_driver_data *v
 		return NULL;
 	}
 
-	if (vdd->br_info.common_br.bl_level <= MAX_BL_PF_LEVEL)
-		pcmds->cmds[0].ss_txbuf[1] = 0x02;	/* 55h 0x02 ACL 15% */
-	else
+	if (vdd->br_info.common_br.bl_level <= MAX_BL_PF_LEVEL) {
+		if (vdd->br_info.gradual_acl_val > 1)
+			pcmds->cmds[0].ss_txbuf[1] = 0x02;	/* 0x02 : ACL 15% */
+		else
+			pcmds->cmds[0].ss_txbuf[1] = 0x01;	/* 0x01 : ACL 8%, D.Lab Request(22.02.15) */
+	} else {
 		LCD_INFO(vdd, "not normal bl_level for acl :%d\n");
+	}
 
 	LCD_DEBUG(vdd, "acl per: 0x%x\n", pcmds->cmds[0].ss_txbuf[1]);
 

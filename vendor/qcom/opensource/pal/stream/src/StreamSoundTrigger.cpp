@@ -25,6 +25,38 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define LOG_TAG "PAL: StreamSoundTrigger"
@@ -72,6 +104,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     model_id_ = 0;
     sm_config_ = nullptr;
     rec_config_ = nullptr;
+    recognition_mode_ = 0;
     paused_ = false;
     device_opened_ = false;
     pending_stop_ = false;
@@ -89,6 +122,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     second_stage_processing_ = false;
     gsl_engine_model_ = nullptr;
     gsl_conf_levels_ = nullptr;
+    gsl_engine_ = nullptr;
+    sm_info_ = nullptr;
+    sm_cfg_ = nullptr;
     mDevices.clear();
     mPalDevice.clear();
 
@@ -107,9 +143,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     // TODO: handle modifiers later
     mNoOfModifiers = 0;
     mModifiers = (struct modifier_kv *) (nullptr);
-
-    charging_state_ = rm->GetChargingState();
-    PAL_DBG(LOG_TAG, "Charging State %d", charging_state_);
 
     // get sound trigger platform info
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
@@ -150,8 +183,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         throw std::runtime_error(err);
     }
 
-    rm->registerStream(this);
-
     // Create internal states
     st_idle_ = new StIdle(*this);
     st_loaded_ = new StLoaded(*this);
@@ -168,9 +199,17 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     AddState(st_ssr_);
 
     // Set initial state
-    cur_state_ = st_idle_;
-    prev_state_ = nullptr;
-    state_for_restore_ = ST_STATE_NONE;
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        cur_state_ = st_ssr_;
+        prev_state_ = nullptr;
+        state_for_restore_ = ST_STATE_IDLE;
+    } else {
+        cur_state_ = st_idle_;
+        prev_state_ = nullptr;
+        state_for_restore_ = ST_STATE_NONE;
+    }
+
+    rm->registerStream(this);
 
     // Print the concurrency feature flags supported
     PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
@@ -182,13 +221,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         &disable_concurrency_count);
 
     // check if lpi should be used
-    if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) &&
-        !(rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) && enable_concurrency_count) &&
-        !(rm->IsTransitToNonLPIOnChargingSupported() && charging_state_)) {
-        use_lpi_ = true;
-    } else {
-        use_lpi_ = false;
-    }
+    use_lpi_ = rm->getLPIUsage();
 
     /*
      * When voice/voip/record is active and concurrency is not
@@ -208,7 +241,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
 }
 
 StreamSoundTrigger::~StreamSoundTrigger() {
-    std::lock_guard<std::mutex> lck(mStreamMutex);
+    mStreamMutex.lock();
     {
         std::lock_guard<std::mutex> lck(timer_mutex_);
         exit_timer_thread_ = true;
@@ -223,29 +256,20 @@ StreamSoundTrigger::~StreamSoundTrigger() {
 
     st_states_.clear();
     engines_.clear();
+    mStreamMutex.unlock();
 
     rm->deregisterStream(this);
-    if (mStreamAttr) {
+    if (mStreamAttr)
         free(mStreamAttr);
-    }
-    if (gsl_engine_model_) {
+
+    if (gsl_engine_model_)
         free(gsl_engine_model_);
-    }
-    if (gsl_conf_levels_) {
+
+    if (gsl_conf_levels_)
         free(gsl_conf_levels_);
-    }
-    mDevices.clear();
-    PAL_DBG(LOG_TAG, "Exit");
-}
 
-int32_t StreamSoundTrigger::close() {
-    int32_t status = 0;
-
-    PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
-
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-    std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
-    status = cur_state_->ProcessEvent(ev_cfg);
+    if (mVolumeData)
+        free(mVolumeData);
 
     if (sm_config_) {
         free(sm_config_);
@@ -271,23 +295,47 @@ int32_t StreamSoundTrigger::close() {
         st_conf_levels_v2_ = nullptr;
     }
 
+    mDevices.clear();
+    PAL_DBG(LOG_TAG, "Exit");
+}
+
+int32_t StreamSoundTrigger::close() {
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
+
+    if (sm_config_) {
+        free(sm_config_);
+        sm_config_ = nullptr;
+    }
+
+    currentState = STREAM_IDLE;
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
 int32_t StreamSoundTrigger::start() {
     int32_t status = 0;
+    stream_state_t prev_state;
 
     PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    // cache current state after mutex locked
+    prev_state = currentState;
+    currentState = STREAM_STARTED;
+
     rejection_notified_ = false;
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStartRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
-    if (!status) {
-        currentState = STREAM_STARTED;
-    }
+    // restore cached state if start fails
+    if (status)
+        currentState = prev_state;
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -299,12 +347,11 @@ int32_t StreamSoundTrigger::stop() {
     PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    currentState = STREAM_STOPPED;
+
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStopRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
-    if (!status) {
-        currentState = STREAM_STOPPED;
-    }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -323,6 +370,10 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
         PAL_DBG(LOG_TAG, "lab data stored in: lab_reading_%d.bin",
             lab_cnt);
         lab_cnt++;
+    }
+    if (cur_state_ == st_buffering_ && !this->force_nlpi_vote) {
+        rm->voteSleepMonitor(this, true, true);
+        this->force_nlpi_vote = true;
     }
 
     std::shared_ptr<StEventConfig> ev_cfg(
@@ -348,12 +399,21 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
 
 int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
     int32_t status = 0;
+    int32_t ret = 0;
+    struct pal_stream_attributes *sAttr = nullptr;
+    pal_param_payload *pal_payload = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter, get parameter %u", param_id);
-    if (gsl_engine_) {
-        status = gsl_engine_->GetParameters(param_id, payload);
+    if (param_id == PAL_PARAM_ID_STREAM_ATTRIBUTES) {
+        pal_payload = (pal_param_payload *)(*payload);
+        if (pal_payload->payload_size != sizeof(struct pal_stream_attributes)) {
+            PAL_ERR(LOG_TAG, "Invalid payload size %u", pal_payload->payload_size);
+            return -EINVAL;
+        }
+        sAttr = (struct pal_stream_attributes *)(pal_payload->payload);
+        status = getStreamAttributes(sAttr);
         if (status)
-            PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
+            PAL_ERR(LOG_TAG, "Failed to get stream attributes");
     } else if (param_id == PAL_PARAM_ID_WAKEUP_MODULE_VERSION) {
         std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
 
@@ -364,6 +424,11 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         }
 
         sm_cfg_ = sm_cfg_list[0];
+        if (!sm_cfg_) {
+            PAL_ERR(LOG_TAG, "Failed to get sound model config");
+            return -EINVAL;
+        }
+
         if (!mDevices.size()) {
             struct pal_device* dattr = new (struct pal_device);
             std::shared_ptr<Device> dev = nullptr;
@@ -408,27 +473,32 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
             status = -ENOMEM;
-            goto exit;
+            goto release;
         }
 
         status = gsl_engine_->GetParameters(param_id, payload);
         if (status)
-            PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
+            PAL_ERR(LOG_TAG, "Failed to get parameters from engine %d", status);
 
+release:
         rm->resetStreamInstanceID(this, mInstanceID);
+        if (mDevices.size() > 0) {
+            ret = mDevices[0]->close();
+            device_opened_ = false;
+            if (0 != ret) {
+                PAL_ERR(LOG_TAG, "Device close failed, status %d", ret);
+                status = ret;
+            }
+        }
+    } else if (gsl_engine_) {
+        status = gsl_engine_->GetParameters(param_id, payload);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to get parameters from engine, status %d", status);
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
     }
 
-exit:
-    if (mDevices.size() > 0) {
-        status = mDevices[0]->close();
-        device_opened_ = false;
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
-        }
-    }
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
@@ -450,6 +520,8 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
             std::shared_ptr<StEventConfig> ev_cfg(
                 new StLoadEventConfig((void *)param_payload->payload));
             status = cur_state_->ProcessEvent(ev_cfg);
+            if (!status)
+                currentState = STREAM_OPENED;
             break;
         }
         case PAL_PARAM_ID_RECOGNITION_CONFIG: {
@@ -465,11 +537,16 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
         case PAL_PARAM_ID_STOP_BUFFERING: {
             /*
             * Currently spf needs graph stop and start for next detection.
-            * Handle this event similar to STOP_RECOGNITION.
+            * Handle this event similar to STOP_RECOGNITION
+            * and when the stream state is in buffering.
             */
-            std::shared_ptr<StEventConfig> ev_cfg(
-                new StStopRecognitionEventConfig(false));
-            status = cur_state_->ProcessEvent(ev_cfg);
+            if (GetCurrentStateId() == ST_STATE_BUFFERING) {
+                std::shared_ptr<StEventConfig> ev_cfg(
+                    new StStopRecognitionEventConfig(false));
+                status = cur_state_->ProcessEvent(ev_cfg);
+            } else {
+                PAL_INFO(LOG_TAG, "Stream not in buffering state, ignore");
+            }
             if (st_info_->GetEnableDebugDumps()) {
                 ST_DBG_FILE_CLOSE(lab_fd_);
                 lab_fd_ = nullptr;
@@ -491,9 +568,8 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
     int32_t status = 0;
     uint64_t transit_duration = 0;
 
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
     if (!active) {
+        mStreamMutex.lock();
         transit_start_time_ = std::chrono::steady_clock::now();
         common_cp_update_disable_ = true;
     }
@@ -516,6 +592,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
             PAL_INFO(LOG_TAG, "LPI->NLPI switch takes %llums",
                 (long long)transit_duration);
         }
+        mStreamMutex.unlock();
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -527,8 +604,6 @@ int32_t StreamSoundTrigger::EnableLPI(bool is_enable) {
     std::lock_guard<std::mutex> lck(mStreamMutex);
     if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
         PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
-    } else if (rm->IsTransitToNonLPIOnChargingSupported() && charging_state_) {
-        PAL_DBG(LOG_TAG, "Ignore lpi update in car mode");
     } else {
         use_lpi_ = is_enable;
     }
@@ -612,41 +687,6 @@ int32_t StreamSoundTrigger::ConnectDevice(pal_device_id_t device_id) {
     mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
-    return status;
-}
-
-int32_t StreamSoundTrigger::HandleChargingStateUpdate(bool state, bool active) {
-    int32_t status = 0;
-    int32_t enable_concurrency_count = 0;
-    int32_t disable_concurrency_count = 0;
-
-    PAL_DBG(LOG_TAG, "Enter, state %d", state);
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-    charging_state_ = state;
-    if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
-        PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
-    } else {
-        // check concurrency count from rm
-        rm->GetSoundTriggerConcurrencyCount(PAL_STREAM_VOICE_UI,
-            &enable_concurrency_count, &disable_concurrency_count);
-
-        // no need to update use_lpi_ if there's concurrency enabled
-        if (rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) &&
-            enable_concurrency_count) {
-            PAL_DBG(LOG_TAG, "Ignore lpi update when concurrency enabled");
-        } else {
-            use_lpi_ = !state;
-        }
-    }
-
-    std::shared_ptr<StEventConfig> ev_cfg(
-        new StChargingStateEventConfig(state, active));
-    status = cur_state_->ProcessEvent(ev_cfg);
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to update charging state");
-    }
-
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -1117,6 +1157,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              common_sm->data_size,
                              (uint8_t *)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
+            recognition_mode_ = phrase_sm->phrases[0].recognition_mode;
         } else {
             ar_mem_cpy(sm_config_, sizeof(*common_sm),
                              common_sm, sizeof(*common_sm));
@@ -1124,10 +1165,16 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              common_sm->data_size,
                              (uint8_t *)common_sm + common_sm->data_offset,
                              common_sm->data_size);
+            recognition_mode_ = PAL_RECOGNITION_MODE_VOICE_TRIGGER;
         }
     }
     GetUUID(&uuid, sound_model);
     this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+    if (!this->sm_cfg_) {
+        PAL_ERR(LOG_TAG, "Failed to get sound model config");
+        status = -EINVAL;
+        goto exit;
+    }
 
     /* Update stream attributes as per sound model config */
     updateStreamAttributes();
@@ -1370,6 +1417,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
     int32_t sm_size = 0;
     struct pal_st_phrase_sound_model *phrase_sm = nullptr;
     struct pal_st_sound_model *common_sm = nullptr;
+    class SoundTriggerUUID uuid;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1440,6 +1488,12 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                          (uint8_t *)common_sm + common_sm->data_offset,
                          common_sm->data_size);
         }
+    }
+    GetUUID(&uuid, sound_model);
+    this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+    if (!this->sm_cfg_) {
+        PAL_ERR(LOG_TAG, "Failed to get sound model config");
+        status = -EINVAL;
     }
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -1592,10 +1646,6 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
             }
         }
     } else {
-        // get history buffer duration from sound trigger platform xml
-        hist_buf_duration_ = sm_cfg_->GetKwDuration();
-        pre_roll_duration_ = 0;
-
         if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
             status = FillConfLevels(config, &conf_levels, &num_conf_levels);
             if (status) {
@@ -1609,8 +1659,14 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     PAL_DBG(LOG_TAG, "history buf len = %d, preroll len = %d, read delay = %d",
         hist_buf_duration_, pre_roll_duration_, client_capture_read_delay);
 
-    status = gsl_engine_->UpdateBufConfig(this, hist_buf_duration_,
-                                                pre_roll_duration_);
+    if (!hist_buf_duration_) {
+        status = gsl_engine_->UpdateBufConfig(this,
+            sm_cfg_->GetKwDuration(), pre_roll_duration_);
+    } else {
+        status = gsl_engine_->UpdateBufConfig(this,
+            hist_buf_duration_, pre_roll_duration_);
+    }
+
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to update buf config, status %d", status);
         goto error_exit;
@@ -1675,7 +1731,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         if (num_conf_levels > 0) {
             gsl_engine_->UpdateConfLevels(this, config,
                                       conf_levels, num_conf_levels);
- 
+
             gsl_conf_levels_ = (uint8_t *)realloc(gsl_conf_levels_, num_conf_levels);
             if (!gsl_conf_levels_) {
                 PAL_ERR(LOG_TAG, "Failed to allocate gsl conf levels memory");
@@ -1685,7 +1741,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
          }
         ar_mem_cpy(gsl_conf_levels_, num_conf_levels, conf_levels, num_conf_levels);
         gsl_conf_levels_size_ = num_conf_levels;
-     }
+    }
 
     // Update capture requested flag to gsl engine
     if (!config->capture_requested && engines_.size() == 1)
@@ -1846,7 +1902,7 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
          * this case notifyClient is not called, so we need to unlock stream
          * mutex at end of SetEngineDetectionState, that's why we don't need
          * to unlock stream mutex here.
-         * If mutex is locked back here, mark mutex_unlocked_after_cb_ as true
+         * If mutex is not locked here, mark mutex_unlocked_after_cb_ as true
          * so that we can avoid double unlock in SetEngineDetectionState.
          */
         if (!lock_status)
@@ -2183,6 +2239,10 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         kw_indices = (struct st_keyword_indices_info *)opaque_data;
         kw_indices->version = 0x1;
         reader_->getIndices(&start_index, &end_index);
+        // adjust reader offset if lab requested and history buffer not set
+        if (rec_config_->capture_requested && !hist_buf_duration_)
+            reader_->advanceReadOffset(end_index);
+
         kw_indices->start_index = start_index;
         kw_indices->end_index = end_index;
         opaque_data += sizeof(struct st_keyword_indices_info);
@@ -2967,6 +3027,51 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
         err_exit:
             break;
         }
+        case ST_EV_UNLOAD_SOUND_MODEL: {
+            if (st_stream_.mInstanceID == 0) {
+                PAL_DBG(LOG_TAG, "No model is loaded, ignore unload");
+                break;
+            }
+
+            if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
+                status = st_stream_.mDevices[0]->close();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to close device, status %d",
+                        status);
+                }
+            }
+
+            st_stream_.mDevices.clear();
+
+            for (auto& eng: st_stream_.engines_) {
+                PAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Unload engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+                free(eng->sm_data_);
+            }
+            if(st_stream_.gsl_engine_)
+                st_stream_.gsl_engine_->ResetBufferReaders(st_stream_.reader_list_);
+            if (st_stream_.reader_) {
+                delete st_stream_.reader_;
+                st_stream_.reader_ = nullptr;
+            }
+            st_stream_.engines_.clear();
+            if(st_stream_.gsl_engine_)
+                st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
+            st_stream_.reader_list_.clear();
+            if (st_stream_.sm_info_) {
+                delete st_stream_.sm_info_;
+                st_stream_.sm_info_ = nullptr;
+            }
+
+            st_stream_.rm->resetStreamInstanceID(
+                &st_stream_,
+                st_stream_.mInstanceID);
+            break;
+        }
         case ST_EV_PAUSE: {
             st_stream_.paused_ = true;
             break;
@@ -3025,8 +3130,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             delete pal_dev;
             break;
         }
-        case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE: {
+        case ST_EV_CONCURRENT_STREAM: {
             // Avoid handling concurrency before sound model loaded
             if (!st_stream_.sm_config_)
                 break;
@@ -3036,10 +3140,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
                 StConcurrentStreamEventConfigData *data =
                     (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
-                active = data->is_active_;
-            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
-                StChargingStateEventConfigData *data =
-                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
@@ -3091,13 +3191,15 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                         goto err_concurrent;
                     }
 
-                    status = st_stream_.gsl_engine_->UpdateConfLevels(&st_stream_,
-                        st_stream_.rec_config_, st_stream_.gsl_conf_levels_,
-                        st_stream_.gsl_conf_levels_size_);
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG, "Failed to update conf levels, status %d",
-                            status);
-                        goto err_unload;
+                    if (st_stream_.rec_config_) {
+                        status = st_stream_.gsl_engine_->UpdateConfLevels(&st_stream_,
+                            st_stream_.rec_config_, st_stream_.gsl_conf_levels_,
+                            st_stream_.gsl_conf_levels_size_);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "Failed to update conf levels, status %d",
+                                status);
+                            goto err_unload;
+                        }
                     }
 
                     TransitTo(ST_STATE_LOADED);
@@ -3187,7 +3289,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 &st_stream_,
                 st_stream_.mInstanceID);
             st_stream_.notification_state_ = ENGINE_IDLE;
-
             TransitTo(ST_STATE_IDLE);
             break;
         }
@@ -3454,18 +3555,13 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             delete pal_dev;
             break;
         }
-        case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE: {
+        case ST_EV_CONCURRENT_STREAM: {
             std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
             bool active = false;
 
             if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
                 StConcurrentStreamEventConfigData *data =
                     (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
-                active = data->is_active_;
-            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
-                StChargingStateEventConfigData *data =
-                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
@@ -3772,18 +3868,13 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             delete pal_dev;
             break;
         }
-        case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE: {
+        case ST_EV_CONCURRENT_STREAM: {
             std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
             bool active = false;
 
             if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
                 StConcurrentStreamEventConfigData *data =
                     (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
-                active = data->is_active_;
-            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
-                StChargingStateEventConfigData *data =
-                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
@@ -3966,7 +4057,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             break;
         }
         case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
@@ -4067,6 +4157,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
              * Can happen if client requests next recognition without any config
              * change with/without reading buffers after sending detection event.
              */
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             StStartRecognitionEventConfigData *data =
                 (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
             PAL_DBG(LOG_TAG, "StBuffering: start recognition, is restart %d",
@@ -4098,6 +4192,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
              * event, but requests next recognition with config change.
              * Get to loaded state as START event will start the recognition.
              */
+             if (st_stream_.force_nlpi_vote) {
+                 rm->voteSleepMonitor(&st_stream_, false, true);
+                 st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4145,6 +4243,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION:  {
             // Possible with deffered stop if client doesn't start next recognition.
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4243,6 +4345,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                         TransitTo(ST_STATE_LOADED);
                     }
                 }
+                rm->releaseWakeLock();
                 break;
             }
             if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
@@ -4269,10 +4372,13 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             }
             break;
         }
-        case ST_EV_CHARGING_STATE:
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4367,6 +4473,23 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
                 PAL_ERR(LOG_TAG, "sound model config is NULL");
                 break;
             }
+            PAL_INFO(LOG_TAG, "stream state for restore %d", st_stream_.state_for_restore_);
+            /*
+             * For concurrent stream handling, ST state transition
+             * occurs from loaded/active to idle and then back to loaded/active.
+             * While transitioning back to loaded/active, in case of any failures
+             * because of ongoing SSR or other failures restore state remains in idle
+             * and sm cfg will be non NULL in this scenario.
+             * In this case, reset the state_for_restore based on actual stream state
+             * for recovery to happen properly after SSR.
+             */
+            if (st_stream_.state_for_restore_ == ST_STATE_IDLE) {
+                if (st_stream_.currentState == STREAM_STARTED)
+                    st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+                else if (st_stream_.currentState == STREAM_OPENED ||
+                         st_stream_.currentState == STREAM_STOPPED)
+                    st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            }
             if (st_stream_.state_for_restore_ == ST_STATE_LOADED ||
                 st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
                 std::shared_ptr<StEventConfig> ev_cfg1(
@@ -4377,16 +4500,18 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
                         status);
                     break;
                 }
+                if (st_stream_.rec_config_) {
+                    status = st_stream_.SendRecognitionConfig(
+                             st_stream_.rec_config_);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,
+                        "Failed to send recognition config, status %d", status);
+                        break;
+                    }
+                }
             }
 
             if (st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
-                status = st_stream_.SendRecognitionConfig(
-                    st_stream_.rec_config_);
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG,
-                        "Failed to send recognition config, status %d", status);
-                    break;
-                }
                 std::shared_ptr<StEventConfig> ev_cfg2(
                     new StStartRecognitionEventConfig(false));
                 status = st_stream_.ProcessInternalEvent(ev_cfg2);
@@ -4470,6 +4595,14 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
             } else {
                 st_stream_.state_for_restore_ = ST_STATE_LOADED;
             }
+            break;
+        }
+        case ST_EV_PAUSE: {
+            st_stream_.paused_ = true;
+            break;
+        }
+        case ST_EV_RESUME: {
+            st_stream_.paused_ = false;
             break;
         }
         case ST_EV_READ_BUFFER:

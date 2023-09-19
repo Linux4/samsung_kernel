@@ -632,15 +632,7 @@ _dhd_pno_set(dhd_pub_t *dhd, const dhd_pno_params_t *pno_params, dhd_pno_mode_t 
 		}
 	} else
 #endif /* GSCAN_SUPPORT */
-	{
-		if (pfn_param.scan_freq < htod32(PNO_SCAN_MIN_FW_SEC) ||
-			pfn_param.scan_freq > htod32(PNO_SCAN_MAX_FW_SEC)) {
-			DHD_ERROR(("%s pno freq(%d sec) is not valid \n",
-				__FUNCTION__, PNO_SCAN_MIN_FW_SEC));
-			err = BCME_BADARG;
-			goto exit;
-		}
-	}
+
 #if !defined(WL_USE_RANDOMIZED_SCAN)
 	err = dhd_set_rand_mac_oui(dhd);
 	/* Ignore if chip doesnt support the feature */

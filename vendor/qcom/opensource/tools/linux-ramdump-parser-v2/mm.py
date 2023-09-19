@@ -455,7 +455,11 @@ def section_size_init(mm):
     if ramdump.arm64:
         if ramdump.kernel_version >= (5, 10, 19):
             """ Modified by upstream """
-            if ramdump.is_config_defined('CONFIG_ARM64_4K_PAGES') \
+            if (ramdump.is_config_defined('CONFIG_ARM64_4K_PAGES') \
+                or ramdump.is_config_defined('CONFIG_ARM64_16K_PAGES')) \
+                and not ramdump.is_config_defined('CONFIG_MEMORY_HOTPLUG'):
+                SECTION_SIZE_BITS = 30
+            elif ramdump.is_config_defined('CONFIG_ARM64_4K_PAGES') \
                 or ramdump.is_config_defined('CONFIG_ARM64_16K_PAGES'):
                 SECTION_SIZE_BITS = 27
             else:

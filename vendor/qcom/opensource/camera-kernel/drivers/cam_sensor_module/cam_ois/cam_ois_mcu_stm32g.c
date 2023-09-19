@@ -289,10 +289,16 @@ uint8_t sysboot_checksum(uint8_t *src, uint32_t len)
 static int sysboot_i2c_wait_ack(struct cam_ois_ctrl_t *o_ctrl, unsigned long timeout)
 {
 	int ret = 0;
-	uint32_t retry = 3;
 	unsigned char resp = 0;
+	int temp = 0;
 
-	while(retry--)
+	// Guard code to make sure timeout value is not too large
+        if (timeout > BOOT_I2C_WAIT_MAX_RESP_TMOUT)
+        {
+            timeout = BOOT_I2C_WAIT_MAX_RESP_TMOUT;
+        }
+
+        while(1)
 	{
 		ret = i2c_master_recv(o_ctrl->io_master_info.client, &resp, 1);
 		if(ret >= 0)
@@ -308,13 +314,16 @@ static int sysboot_i2c_wait_ack(struct cam_ois_ctrl_t *o_ctrl, unsigned long tim
 		}
 		else
 		{
-			CAM_ERR(CAM_OIS, "[mcu] failed resp is 0x%x ,ret is %d	", resp, ret);
-			if (time_after(jiffies, timeout))
+			CAM_ERR(CAM_OIS, "[mcu] failed resp is 0x%x ,ret is %d", resp, ret);
+			usleep_range(10000,11000);
+			temp = temp + 10;
+			if (temp > timeout)
 			{
+				CAM_ERR(CAM_OIS, "[mcu] timeout ,ret is %d temp %d timeout %d", ret, temp, timeout);
 				ret = -ETIMEDOUT;
 				break;
 			}
-			usleep_range(BOOT_I2C_INTER_PKT_BACK_INTVL * 1000, BOOT_I2C_INTER_PKT_BACK_INTVL * 1000 + 1000);
+			//usleep_range(BOOT_I2C_INTER_PKT_BACK_INTVL * 1000, BOOT_I2C_INTER_PKT_BACK_INTVL * 1000 + 1000);
 		}
 	}
 	return -1;
@@ -777,6 +786,7 @@ int sysboot_i2c_erase(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, size_t le
 			ret = i2c_master_send(o_ctrl->io_master_info.client, xmit, xmit_bytes);
 			if (ret < 0)
 			{
+				CAM_ERR(CAM_OIS, "Error ret %d",ret);
 				msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 				continue;
 			}
@@ -785,6 +795,7 @@ int sysboot_i2c_erase(struct cam_ois_ctrl_t *o_ctrl, uint32_t address, size_t le
 			ret = sysboot_i2c_wait_ack(o_ctrl, BOOT_I2C_PAGE_ERASE_TMOUT(erase.count + 1));
 			if (ret < 0)
 			{
+				CAM_ERR(CAM_OIS, "Error ret %d timeout %d", ret,BOOT_I2C_PAGE_ERASE_TMOUT(erase.count + 1));
 				msleep(BOOT_I2C_SYNC_RETRY_INTVL);
 				continue;
 			}
@@ -1653,7 +1664,7 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 	int rc = 0, retries = 0;
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	struct cam_hw_param *hw_param = NULL;
-	uint32_t *hw_cam_position = NULL;
+	uint32_t hw_cam_position;
 #endif
 
 	CAM_INFO(CAM_OIS, "E");
@@ -1671,8 +1682,8 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 				if (rc < 0) {
 					msm_is_sec_get_sensor_position(&hw_cam_position);
-					if (hw_cam_position != NULL) {
-						switch (*hw_cam_position) {
+					{
+						switch (hw_cam_position) {
 						case CAMERA_0:
 							if (!msm_is_sec_get_rear_hw_param(&hw_param)) {
 								if (hw_param != NULL) {
@@ -1697,6 +1708,7 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 						case CAMERA_11:
+						case CAMERA_13:
 							if (!msm_is_sec_get_front3_hw_param(&hw_param)) {
 								if (hw_param != NULL) {
 									CAM_ERR(CAM_UTIL, "[HWB][F3][OIS] Err\n");
@@ -1707,6 +1719,7 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 							break;
 #else
 						case CAMERA_11:
+						case CAMERA_13:
 							if (!msm_is_sec_get_front2_hw_param(&hw_param)) {
 								if (hw_param != NULL) {
 									CAM_ERR(CAM_UTIL, "[HWB][F2][OIS] Err\n");
@@ -1742,10 +1755,24 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 							break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+						case CAMERA_6:
+							if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+								if (hw_param != NULL) {
+									CAM_ERR(CAM_UTIL, "[HWB][R4][OIS] Err\n");
+									hw_param->i2c_ois_err_cnt++;
+									hw_param->need_update_to_file = TRUE;
+								}
+							}
+							break;
+#endif
 						default:
-							CAM_DBG(CAM_UTIL, "[NON][OIS][%d] Unsupport\n", *hw_cam_position);
+							CAM_DBG(CAM_UTIL, "[NON][OIS][%d] Unsupport\n", hw_cam_position);
 							break;
 						}
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
+						msm_is_sec_get_rfinfo(hw_param);
+#endif
 					}
 				}
 #endif
@@ -2616,7 +2643,7 @@ int cam_ois_gyro_sensor_calibration(struct cam_ois_ctrl_t *o_ctrl,
 	int rc = 0, result = 0;
 	uint32_t RcvData = 0;
 	int xgzero_val = 0, ygzero_val = 0, zgzero_val = 0;
-	int retries = 30;
+	int retries = 40;
 	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
 	uint32_t rcvStatus = 0x23;
 
@@ -2626,28 +2653,19 @@ int cam_ois_gyro_sensor_calibration(struct cam_ois_ctrl_t *o_ctrl,
 	if (!o_ctrl)
 		return 0;
 
-	do
-	{
-		rc = cam_ois_i2c_read(o_ctrl, OISSTS, &RcvData,
-			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE); /* OISSTS Read */
-		if (rc < 0)
-			CAM_ERR(CAM_OIS, "i2c read fail %d", rc);
-		if (--retries < 0){
-		    CAM_ERR(CAM_OIS, "OISSTS Read failed  %d", RcvData);
-			rc = -1;
-			break;
-		}
-		usleep_range(20000, 21000);
-	} while(RcvData != 1);
+	if (cam_ois_wait_idle(o_ctrl, 2) < 0) {
+		CAM_ERR(CAM_OIS, "wait ois idle status failed");
+		return 0;
+	}
 
 	/* Gyro Calibration Start */
 	/* GCCTRL GSCEN set */
-	cam_ois_i2c_write(o_ctrl, GCCTRL, 0x01,
+	rc = cam_ois_i2c_write(o_ctrl, GCCTRL, 0x01,
 		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE); /* GCCTRL register(0x0014) 1Byte Send */
 	if (rc < 0)
 		CAM_ERR(CAM_OIS, "i2c write fail %d", rc);
+
 	/* Check Gyro Calibration Sequence End */
-	retries = 40;
 	do
 	{
 		rc = cam_ois_i2c_read(o_ctrl, GCCTRL, &RcvData,
@@ -3408,11 +3426,6 @@ int cam_ois_set_ois_mode(struct cam_ois_ctrl_t *o_ctrl, uint16_t mode)
 	if (!o_ctrl)
 		return 0;
 
-	if (mode == o_ctrl->ois_mode) {
-		CAM_INFO(CAM_OIS, "set ois mode %d skip (cur = %d)", mode, o_ctrl->ois_mode);
-		return 0;
-	}
-
 	if (o_ctrl->ois_mode == 0x16) {
 		CAM_INFO(CAM_OIS, "SensorHub Reset, Skip mode %u setting", mode);
 		return 0;
@@ -3787,12 +3800,20 @@ int cam_ois_read_hall_position(struct cam_ois_ctrl_t *o_ctrl,
 		CAM_ERR(CAM_OIS, "Failed set hall read control bit(FWINFO_CTRL)");
 
 	for (j = 0; j < (CUR_MODULE_NUM * 2); j++) {
-		cnt = scnprintf(buf + offset, 256, "%u,", targetPosition[j]);
-		offset += cnt;
+		if (offset < 256) {
+			cnt = scnprintf(buf + offset, (256 - offset), "%u,", targetPosition[j]);
+			offset += cnt;
+		}
 	}
 	for (j = 0; j < (CUR_MODULE_NUM * 2); j++) {
-		cnt = scnprintf(buf + offset, 256, "%u,", hallPosition[j]);
-		offset += cnt;
+		if (offset < 256) {
+			cnt = scnprintf(buf + offset, (256 - offset), "%u,", hallPosition[j]);
+			offset += cnt;
+		}
+	}
+
+	if (offset > 256) {
+		offset = 256;
 	}
 	buf[offset - 1] = '\0';
 	CAM_INFO(CAM_OIS, "result - target[M1,..,Mn], current[M1,..,Mn] = %s", buf);

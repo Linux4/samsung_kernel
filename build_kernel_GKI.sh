@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 #1. target config
 BUILD_TARGET=gts8pwifi_eur_open
 export MODEL=$(echo $BUILD_TARGET | cut -d'_' -f1)
@@ -12,7 +11,6 @@ export TARGET_BUILD_VARIANT=user
 		
 #2. sm8450 common config
 CHIPSET_NAME=waipio
-
 export ANDROID_BUILD_TOP=$(pwd)
 export TARGET_PRODUCT=gki
 export TARGET_BOARD_PLATFORM=gki

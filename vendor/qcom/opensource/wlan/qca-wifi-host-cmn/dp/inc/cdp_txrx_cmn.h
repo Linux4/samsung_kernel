@@ -253,8 +253,7 @@ cdp_pdev_attach_target(ol_txrx_soc_handle soc, uint8_t pdev_id)
 }
 
 static inline QDF_STATUS cdp_pdev_attach
-	(ol_txrx_soc_handle soc, HTC_HANDLE htc_pdev, qdf_device_t osdev,
-	 uint8_t pdev_id)
+	(ol_txrx_soc_handle soc, struct cdp_pdev_attach_params *params)
 {
 	if (!soc || !soc->ops) {
 		dp_cdp_debug("Invalid Instance:");
@@ -266,8 +265,7 @@ static inline QDF_STATUS cdp_pdev_attach
 	    !soc->ops->cmn_drv_ops->txrx_pdev_attach)
 		return QDF_STATUS_E_FAILURE;
 
-	return soc->ops->cmn_drv_ops->txrx_pdev_attach(soc, htc_pdev, osdev,
-						       pdev_id);
+	return soc->ops->cmn_drv_ops->txrx_pdev_attach(soc, params);
 }
 
 /**
@@ -1956,6 +1954,29 @@ cdp_txrx_set_pdev_status_down(ol_txrx_soc_handle soc,
 
 	return soc->ops->cmn_drv_ops->set_pdev_status_down(soc, pdev_id,
 						    is_pdev_down);
+}
+
+/**
+ * cdp_set_tx_pause() - Pause or resume tx path
+ * @soc_hdl: Datapath soc handle
+ * @flag: set or clear is_tx_pause
+ *
+ * Return: None.
+ */
+static inline
+void cdp_set_tx_pause(ol_txrx_soc_handle soc, bool flag)
+{
+	if (!soc || !soc->ops) {
+		dp_cdp_debug("Invalid Instance:");
+		QDF_BUG(0);
+		return;
+	}
+
+	if (!soc->ops->cmn_drv_ops ||
+				!soc->ops->cmn_drv_ops->set_tx_pause)
+		return;
+
+	soc->ops->cmn_drv_ops->set_tx_pause(soc, flag);
 }
 
 /**

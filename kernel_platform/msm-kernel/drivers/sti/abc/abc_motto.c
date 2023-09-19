@@ -105,7 +105,7 @@ void motto_send_device_info(char *module_str, char *event_type)
 	enum motto_event_module module = motto_event_to_idx(module_str, event_type);
 
 	if (module > MOTTO_MODULE_NONE) {
-		ABC_PRINT("%s : %s\n", __func__, event_type);
+		ABC_PRINT("%s\n", event_type);
 		motto_update_event(module);
 
 		motto_send_uevent();
@@ -182,7 +182,7 @@ void motto_send_bootcheck_info(int boot_time)
 	struct abc_info *pinfo;
 	struct abc_motto_data *cmotto;
 
-	ABC_PRINT("%s : %d\n", __func__, boot_time);
+	ABC_PRINT("%d\n", boot_time);
 	pinfo = dev_get_drvdata(sec_abc);
 	cmotto = pinfo->pdata->motto_data;
 	cmotto->boot_time = (boot_time >= 0xFF) ? 0xFF : (u32)boot_time;

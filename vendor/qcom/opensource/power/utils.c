@@ -230,7 +230,7 @@ void interaction(int duration, int num_args, int opt_list[])
 
 int interaction_with_handle(int lock_handle, int duration, int num_args, int opt_list[])
 {
-    if (duration < 0 || num_args < 1 || opt_list[0] == NULL)
+    if (duration < 0 || num_args < 1 || opt_list == NULL)
         return 0;
 
     if (qcopt_handle) {

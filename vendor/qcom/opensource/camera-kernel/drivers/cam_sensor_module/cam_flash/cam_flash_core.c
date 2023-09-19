@@ -2178,8 +2178,7 @@ void cam_flash_shutdown(struct cam_flash_ctrl *fctrl)
 	s2mpb02_led_en(S2MPB02_TORCH_LED_1, 0, S2MPB02_LED_TURN_WAY_I2C);/* torch, off */
 #elif defined(CONFIG_LEDS_KTD2692)
 	ktd2692_led_mode_ctrl(KTD2692_DISABLES_TORCH_FLASH_MODE, 0);
-#endif
-#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+#elif defined(CONFIG_SAMSUNG_PMIC_FLASH)
 	cam_torch_off(fctrl);
 #endif
 	if (fctrl->flash_state == CAM_FLASH_STATE_INIT)
@@ -2232,7 +2231,7 @@ int cam_flash_apply_request(struct cam_req_mgr_apply_request *apply)
 	return rc;
 }
 
-#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+#if (!IS_REACHABLE(CONFIG_LEDS_S2MPB02)) && defined(CONFIG_SAMSUNG_PMIC_FLASH)
 ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
         int i = 0;

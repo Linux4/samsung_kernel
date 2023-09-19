@@ -317,6 +317,9 @@ int32_t cam_check_sensor_type(uint16_t sensor_id);
 void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl);
 void cam_mipi_update_info(struct cam_sensor_ctrl_t *s_ctrl);
 void cam_mipi_get_clock_string(struct cam_sensor_ctrl_t *s_ctrl);
+#if defined(CONFIG_CAMERA_RF_MIPI)
+void get_rf_info(struct cam_cp_noti_info *rf_info);
+#endif
 #endif
 
 #endif /* CAM_SENSOR_MIPI_H */

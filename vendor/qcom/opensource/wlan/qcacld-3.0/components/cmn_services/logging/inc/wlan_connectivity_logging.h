@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,9 +24,8 @@
 #ifndef _WLAN_CONNECTIVITY_LOGGING_H_
 #define _WLAN_CONNECTIVITY_LOGGING_H_
 
-#include <wlan_cm_api.h>
-#include "wlan_cm_roam_api.h"
 #include "wlan_logging_sock_svc.h"
+#include "wlan_cm_roam_public_struct.h"
 
 #define WLAN_MAX_LOGGING_FREQ 90
 
@@ -38,6 +37,8 @@
  * @WLAN_AUTH_RESP: Authentication response frame
  * @WLAN_ASSOC_REQ: Association request frame
  * @WLAN_ASSOC_RESP: Association response frame
+ * @WLAN_REASSOC_REQ: Reassociation request frame
+ * @WLAN_REASSOC_RSP: Reassociation response frame
  * @WLAN_DEAUTH_RX: Deauthentication frame received
  * @WLAN_DEAUTH_TX: Deauthentication frame sent
  * @WLAN_DISASSOC_RX: Disassociation frame received
@@ -79,6 +80,8 @@ enum wlan_main_tag {
 	WLAN_AUTH_RESP,
 	WLAN_ASSOC_REQ,
 	WLAN_ASSOC_RSP,
+	WLAN_REASSOC_REQ,
+	WLAN_REASSOC_RSP,
 	WLAN_DEAUTH_RX,
 	WLAN_DEAUTH_TX,
 	WLAN_DISASSOC_RX,
@@ -141,12 +144,14 @@ struct wlan_roam_candidate_info {
  * struct wlan_roam_scan_info  - Roam scan related information
  * @cand_ap_count: Roam candidate AP count
  * @num_scanned_frequencies: Number of scanned frequencies
+ * @is_btcoex_active: Is bluetooth coex active
  * @scan_freq: Array of scanned frequencies value in MHz
  */
 struct wlan_roam_scan_info {
 	uint8_t cand_ap_count;
 	uint16_t num_scanned_freq;
-	qdf_freq_t scan_freq[WLAN_MAX_LOGGING_FREQ];
+	bool is_btcoex_active;
+	qdf_freq_t scan_freq[NUM_CHANNELS];
 };
 
 /**
@@ -242,8 +247,10 @@ struct wlan_roam_btm_info {
  * values:
  * 1 - SAE commit frame
  * 2 - SAE confirm frame
+ * @assoc_id: Association ID received in association response frame as
+ * defined in IEEE Std 802.11-2020 Figure 9-91-AID field format.
  * @frame_status_code: Frame status code as defined in IEEE Std
- * 802.11‐2020 Table 9-50—Status codes.
+ * 802.11 2020 Table 9-50—Status codes.
  * @seq_num: Frame sequence number
  * @rssi: Peer RSSI in dBm
  * @is_retry_frame: is frame retried
@@ -255,6 +262,7 @@ struct wlan_packet_info {
 	uint8_t auth_algo;
 	uint8_t auth_seq_num;
 	uint8_t auth_type;
+	uint16_t assoc_id;
 	uint16_t frame_status_code;
 	uint16_t seq_num;
 	int32_t rssi;
@@ -307,6 +315,7 @@ struct wlan_connect_info {
  * buffer
  * @timestamp_us: Timestamp(time of the day) in microseconds
  * @fw_timestamp_us: timestamp at which roam scan was triggered
+ * @ktime_us: kernel timestamp (time of the day) in microseconds
  * @vdev_id: VDEV id
  * @log_subtype: Tag of the log
  * @bssid: AP bssid
@@ -323,6 +332,7 @@ struct wlan_connect_info {
 struct wlan_log_record {
 	uint64_t timestamp_us;
 	uint64_t fw_timestamp_us;
+	uint64_t ktime_us;
 	uint8_t vdev_id;
 	uint32_t log_subtype;
 	struct qdf_mac_addr bssid;
@@ -354,6 +364,7 @@ struct wlan_cl_osif_cbks {
 /**
  * struct wlan_connectivity_log_buf_data  - Master structure to hold the
  * pointers to the ring buffers.
+ * @psoc: Global psoc pointer
  * @osif_cbks: OSIF callbacks
  * @osif_cb_context: Pointer to the context to be passed to OSIF
  * callback
@@ -370,6 +381,7 @@ struct wlan_cl_osif_cbks {
  * @is_active: If the global buffer is initialized or not
  */
 struct wlan_connectivity_log_buf_data {
+	struct wlan_objmgr_psoc *psoc;
 	struct wlan_cl_osif_cbks osif_cbks;
 	void *osif_cb_context;
 	uint64_t first_record_timestamp_in_last_sec;
@@ -396,16 +408,68 @@ struct wlan_connectivity_log_buf_data {
 #define logging_err(params...) QDF_TRACE_ERROR(QDF_MODULE_ID_QDF, ## params)
 #define logging_info(params...) QDF_TRACE_INFO(QDF_MODULE_ID_QDF, ## params)
 
+#if defined(WLAN_FEATURE_CONNECTIVITY_LOGGING) && \
+		defined(WLAN_FEATURE_ROAM_OFFLOAD)
+/**
+ * wlan_print_cached_sae_auth_logs() - Enqueue SAE authentication frame logs
+ * @bssid:  BSSID
+ * @vdev_id: Vdev id
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_print_cached_sae_auth_logs(struct qdf_mac_addr *bssid,
+					   uint8_t vdev_id);
+
+/**
+ * wlan_is_log_record_present_for_bssid() - Check if there is existing log
+ * record for the given bssid
+ * @bssid: BSSID
+ * @vdev_id: vdev id
+ *
+ * Return: true if record is present else false
+ */
+bool wlan_is_log_record_present_for_bssid(struct qdf_mac_addr *bssid,
+					  uint8_t vdev_id);
+
+/**
+ * wlan_clear_sae_auth_logs_cache() - Clear the cached auth related logs
+ * @vdev_id: vdev id
+ *
+ * Return: None
+ */
+void wlan_clear_sae_auth_logs_cache(uint8_t vdev_id);
+#else
+static inline
+QDF_STATUS wlan_print_cached_sae_auth_logs(struct qdf_mac_addr *bssid,
+					   uint8_t vdev_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+bool wlan_is_log_record_present_for_bssid(struct qdf_mac_addr *bssid,
+					  uint8_t vdev_id)
+{
+	return false;
+}
+
+static inline
+void wlan_clear_sae_auth_logs_cache(uint8_t vdev_id)
+{}
+#endif
+
 #ifdef WLAN_FEATURE_CONNECTIVITY_LOGGING
 /**
  * wlan_connectivity_logging_start()  - Initialize the connectivity/roaming
  * logging buffer
+ * @psoc: Global psoc pointer
  * @osif_cbks: OSIF callbacks
  * @osif_cbk_context: OSIF callback context argument
  *
  * Return: None
  */
-void wlan_connectivity_logging_start(struct wlan_cl_osif_cbks *osif_cbks,
+void wlan_connectivity_logging_start(struct wlan_objmgr_psoc *psoc,
+				     struct wlan_cl_osif_cbks *osif_cbks,
 				     void *osif_cb_context);
 
 /**
@@ -457,11 +521,12 @@ wlan_connectivity_mgmt_event(struct wlan_frame_hdr *mac_hdr,
 			     enum qdf_dp_tx_rx_status tx_status,
 			     int8_t peer_rssi,
 			     uint8_t auth_algo, uint8_t auth_type,
-			     uint8_t auth_seq,
+			     uint8_t auth_seq, uint16_t aid,
 			     enum wlan_main_tag tag);
 #else
 static inline
-void wlan_connectivity_logging_start(struct wlan_cl_osif_cbks *osif_cbks,
+void wlan_connectivity_logging_start(struct wlan_objmgr_psoc *psoc,
+				     struct wlan_cl_osif_cbks *osif_cbks,
 				     void *osif_cb_context)
 {}
 
@@ -485,7 +550,7 @@ wlan_connectivity_mgmt_event(struct wlan_frame_hdr *mac_hdr,
 			     enum qdf_dp_tx_rx_status tx_status,
 			     int8_t peer_rssi,
 			     uint8_t auth_algo, uint8_t auth_type,
-			     uint8_t auth_seq,
+			     uint8_t auth_seq, uint16_t aid,
 			     enum wlan_main_tag tag)
 {}
 #endif

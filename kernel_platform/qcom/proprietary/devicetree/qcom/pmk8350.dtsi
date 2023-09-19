@@ -27,7 +27,7 @@
 			qcom,store-hard-reset-reason;
 		};
 
-		pon_hlos@1300 {
+		pmk8350_pon: pon_hlos@1300 {
 			compatible = "qcom,qpnp-power-on";
 			reg = <0x1300>;
 			interrupts = <0x0 0x13 0x7 IRQ_TYPE_EDGE_BOTH>,
@@ -187,6 +187,13 @@
 			#thermal-sensor-cells = <1>;
 		};
 
+		pmk8350_sdam_1: sdam@7000 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x7000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+		};
+
 		pmk8350_sdam_2: sdam@7100 {
 			compatible = "qcom,spmi-sdam";
 			reg = <0x7100>;
@@ -222,6 +229,49 @@
 		pmk8350_sdam_22: sdam@8500 {
 			compatible = "qcom,spmi-sdam";
 			reg = <0x8500>;
+		};
+
+		pmk8350_sdam_23: sdam@8600 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x8600>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+		};
+
+		pmk8350_sdam_40: sdam@9700 {
+			compatible = "qcom,spmi-sdam";
+			reg = <0x9700>;
+
+			cam_phy0_nvmem: cam_phy0_nvmem@90 {
+				reg = <0x90 0x4>;
+				bits = <0 32>;
+			};
+
+			cam_phy1_nvmem: cam_phy1_nvmem@94 {
+				reg = <0x94 0x4>;
+				bits = <0 32>;
+			};
+
+			cam_phy2_nvmem: cam_phy2_nvmem@98 {
+				reg = <0x98 0x4>;
+				bits = <0 32>;
+			};
+
+			cam_phy3_nvmem: cam_phy3_nvmem@9c {
+				reg = <0x9C 0x4>;
+				bits = <0 32>;
+			};
+
+			cam_phy4_nvmem: cam_phy4_nvmem@a0 {
+				reg = <0xA0 0x4>;
+				bits = <0 32>;
+			};
+
+			cam_phy5_nvmem: cam_phy5_nvmem@a4 {
+				reg = <0xA4 0x4>;
+				bits = <0 32>;
+			};
+
 		};
 
 		pmk8350_sdam_41: sdam@9800 {

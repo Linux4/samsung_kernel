@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -444,11 +445,12 @@ static int msm_gem_get_iova_locked(struct drm_gem_object *obj,
 		if ((dev && obj->import_attach) &&
 				((dev != obj->import_attach->dev) ||
 				msm_obj->obj_dirty)) {
+
 			if (of_device_is_compatible(dev->of_node, "qcom,smmu_sde_unsec") &&
 				of_device_is_compatible(obj->import_attach->dev->of_node,
 				"qcom,smmu_sde_sec")) {
 				SDE_EVT32(obj->import_attach->dev, dev, msm_obj->sgt,
-						 msm_obj->obj_dirty, obj, obj->import_attach->dmabuf);
+						 msm_obj->obj_dirty);
 				DRM_ERROR("gem obj found mapped to %s, now requesting map on %s",
 					dev_name(obj->import_attach->dev), dev_name(dev));
 				return -EINVAL;
@@ -701,7 +703,7 @@ int msm_gem_dumb_create(struct drm_file *file, struct drm_device *dev,
 	args->pitch = align_pitch(args->width, args->bpp);
 	args->size  = PAGE_ALIGN(args->pitch * args->height);
 	return msm_gem_new_handle(dev, file, args->size,
-			MSM_BO_SCANOUT | MSM_BO_WC, &args->handle, "dumb");
+			MSM_BO_SCANOUT | MSM_BO_CACHED, &args->handle, "dumb");
 }
 
 int msm_gem_dumb_map_offset(struct drm_file *file, struct drm_device *dev,

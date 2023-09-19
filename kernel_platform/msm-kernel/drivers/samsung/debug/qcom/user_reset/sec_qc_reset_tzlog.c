@@ -112,8 +112,8 @@ static int sec_qc_reset_tzlog_proc_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&reset_tzlog->lock);
 
-	if (reset_tzlog->ref) {
-		reset_tzlog->ref++;
+	if (reset_tzlog->ref_cnt) {
+		reset_tzlog->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -129,7 +129,7 @@ static int sec_qc_reset_tzlog_proc_open(struct inode *inode, struct file *file)
 		goto err_buf;
 	}
 
-	reset_tzlog->ref++;
+	reset_tzlog->ref_cnt++;
 
 	mutex_unlock(&reset_tzlog->lock);
 
@@ -148,6 +148,9 @@ static ssize_t sec_qc_reset_tzlog_proc_read(struct file *file,
 {
 	struct qc_user_reset_proc *reset_tzlog = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
+
+	if (pos < 0 || pos > reset_tzlog->len)
+		return 0;
 
 	nbytes = min_t(size_t, nbytes, reset_tzlog->len - pos);
 	if (copy_to_user(buf, &reset_tzlog->buf[pos], nbytes))
@@ -173,8 +176,8 @@ static int sec_qc_reset_tzlog_proc_release(struct inode *inode,
 
 	mutex_lock(&reset_tzlog->lock);
 
-	reset_tzlog->ref--;
-	if (reset_tzlog->ref)
+	reset_tzlog->ref_cnt--;
+	if (reset_tzlog->ref_cnt)
 		goto still_used;
 
 	reset_tzlog->len = 0;

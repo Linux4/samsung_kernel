@@ -170,8 +170,10 @@ static __always_inline bool __mutex_trylock_fast(struct mutex *lock)
 	unsigned long curr = (unsigned long)current;
 	unsigned long zero = 0UL;
 
-	if (atomic_long_try_cmpxchg_acquire(&lock->owner, &zero, curr))
+	if (atomic_long_try_cmpxchg_acquire(&lock->owner, &zero, curr)) {
+		trace_android_vh_record_mutex_lock_starttime(current, jiffies);
 		return true;
+	}
 
 	return false;
 }
@@ -748,6 +750,7 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
  */
 void __sched mutex_unlock(struct mutex *lock)
 {
+	trace_android_vh_record_mutex_lock_starttime(current, 0);
 #ifndef CONFIG_DEBUG_LOCK_ALLOC
 	if (__mutex_unlock_fast(lock))
 		return;
@@ -943,7 +946,6 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		    struct ww_acquire_ctx *ww_ctx, const bool use_ww_ctx)
 {
 	struct mutex_waiter waiter;
-	bool first = false;
 	struct ww_mutex *ww;
 	int ret;
 
@@ -979,6 +981,7 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		lock_acquired(&lock->dep_map, ip);
 		if (ww_ctx)
 			ww_mutex_set_context_fastpath(ww, ww_ctx);
+		trace_android_vh_record_mutex_lock_starttime(current, jiffies);
 		preempt_enable();
 		return 0;
 	}
@@ -1023,6 +1026,8 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	trace_android_vh_mutex_wait_start(lock);
 	set_current_state(state);
 	for (;;) {
+		bool first;
+
 		/*
 		 * Once we hold wait_lock, we're serialized against
 		 * mutex_unlock() handing the lock off to us, do a trylock
@@ -1051,15 +1056,9 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		spin_unlock(&lock->wait_lock);
 		schedule_preempt_disabled();
 
-		/*
-		 * ww_mutex needs to always recheck its position since its waiter
-		 * list is not FIFO ordered.
-		 */
-		if (ww_ctx || !first) {
-			first = __mutex_waiter_is_first(lock, &waiter);
-			if (first)
-				__mutex_set_flag(lock, MUTEX_FLAG_HANDOFF);
-		}
+		first = __mutex_waiter_is_first(lock, &waiter);
+		if (first)
+			__mutex_set_flag(lock, MUTEX_FLAG_HANDOFF);
 
 		set_current_state(state);
 		/*
@@ -1101,6 +1100,7 @@ skip_wait:
 
 	spin_unlock(&lock->wait_lock);
 	preempt_enable();
+	trace_android_vh_record_mutex_lock_starttime(current, jiffies);
 	return 0;
 
 err:
@@ -1298,6 +1298,7 @@ static noinline void __sched __mutex_unlock_slowpath(struct mutex *lock, unsigne
 	spin_unlock(&lock->wait_lock);
 
 	wake_up_q(&wake_q);
+	trace_android_vh_mutex_unlock_slowpath_end(lock, next);
 }
 
 #ifndef CONFIG_DEBUG_LOCK_ALLOC
@@ -1436,8 +1437,10 @@ int __sched mutex_trylock(struct mutex *lock)
 #endif
 
 	locked = __mutex_trylock(lock);
-	if (locked)
+	if (locked) {
+		trace_android_vh_record_mutex_lock_starttime(current, jiffies);
 		mutex_acquire(&lock->dep_map, 0, 1, _RET_IP_);
+	}
 
 	return locked;
 }

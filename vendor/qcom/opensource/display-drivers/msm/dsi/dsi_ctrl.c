@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -64,6 +65,7 @@ static const enum dsi_ctrl_version dsi_ctrl_v2_3 = DSI_CTRL_VERSION_2_3;
 static const enum dsi_ctrl_version dsi_ctrl_v2_4 = DSI_CTRL_VERSION_2_4;
 static const enum dsi_ctrl_version dsi_ctrl_v2_5 = DSI_CTRL_VERSION_2_5;
 static const enum dsi_ctrl_version dsi_ctrl_v2_6 = DSI_CTRL_VERSION_2_6;
+static const enum dsi_ctrl_version dsi_ctrl_v2_7 = DSI_CTRL_VERSION_2_7;
 
 static const struct of_device_id msm_dsi_of_match[] = {
 	{
@@ -85,6 +87,10 @@ static const struct of_device_id msm_dsi_of_match[] = {
 	{
 		.compatible = "qcom,dsi-ctrl-hw-v2.6",
 		.data = &dsi_ctrl_v2_6,
+	},
+	{
+		.compatible = "qcom,dsi-ctrl-hw-v2.7",
+		.data = &dsi_ctrl_v2_7,
 	},
 	{}
 };
@@ -386,8 +392,14 @@ static void dsi_ctrl_dma_cmd_wait_for_done(struct dsi_ctrl *dsi_ctrl)
 	if (ret == 0 && !atomic_read(&dsi_ctrl->dma_irq_trig)) {
 		status = dsi_hw_ops.get_interrupt_status(&dsi_ctrl->hw);
 		if (status & mask) {
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#if 0//IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 			struct samsung_display_driver_data *vdd = ss_get_vdd(dsi_ctrl->cell_index);
+
+			DSI_CTRL_WARN(dsi_ctrl,
+					"dma_tx done but irq not triggered\n");
+			// case 05372641
+			if (!dsi_ctrl->esd_check_underway && !vdd->panel_dead)
+				SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
 #endif
 			status |= (DSI_CMD_MODE_DMA_DONE | DSI_BTA_DONE);
 			dsi_hw_ops.clear_interrupt_status(&dsi_ctrl->hw,
@@ -395,10 +407,6 @@ static void dsi_ctrl_dma_cmd_wait_for_done(struct dsi_ctrl *dsi_ctrl)
 			SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_CASE1);
 			DSI_CTRL_WARN(dsi_ctrl,
 					"dma_tx done but irq not triggered\n");
-
-			// case 05372641
-			if (!dsi_ctrl->esd_check_underway && !vdd->panel_dead)
-				SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
 		} else {
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 			struct samsung_display_driver_data *vdd = ss_get_vdd(dsi_ctrl->cell_index);
@@ -458,8 +466,10 @@ static void dsi_ctrl_clear_dma_status(struct dsi_ctrl *dsi_ctrl)
 static void dsi_ctrl_post_cmd_transfer(struct dsi_ctrl *dsi_ctrl)
 {
 	int rc = 0;
+	struct dsi_ctrl_hw_ops dsi_hw_ops = dsi_ctrl->hw.ops;
 	struct dsi_clk_ctrl_info clk_info;
 	u32 mask = BIT(DSI_FIFO_OVERFLOW);
+	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY, dsi_ctrl->cell_index);
 
 	mutex_lock(&dsi_ctrl->ctrl_lock);
 
@@ -469,21 +479,25 @@ static void dsi_ctrl_post_cmd_transfer(struct dsi_ctrl *dsi_ctrl)
 	if ((dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_BROADCAST) &&
 			!(dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_BROADCAST_MASTER)) {
 		dsi_ctrl_clear_dma_status(dsi_ctrl);
-	} else {
+	} else if (!(dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_READ)) {
+		/* Wait for read command transfer to complete is done in dsi_message_rx. */
 		dsi_ctrl_dma_cmd_wait_for_done(dsi_ctrl);
 	}
+
+	if (dsi_ctrl->hw.reset_trig_ctrl)
+		dsi_hw_ops.reset_trig_ctrl(&dsi_ctrl->hw,
+				&dsi_ctrl->host_config.common_config);
 
 	/* Command engine disable, unmask overflow, remove vote on clocks and gdsc */
 	rc = dsi_ctrl_set_cmd_engine_state(dsi_ctrl, DSI_CTRL_ENGINE_OFF, false);
 	if (rc)
 		DSI_CTRL_ERR(dsi_ctrl, "failed to disable command engine\n");
 
-	if (dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_READ)
-		mask |= BIT(DSI_FIFO_UNDERFLOW);
-
-	dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, false);
+	if (!(dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_READ))
+		dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, false);
 
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
+	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT, dsi_ctrl->cell_index);
 
 	clk_info.client = DSI_CLK_REQ_DSI_CLIENT;
 	clk_info.clk_type = DSI_ALL_CLKS;
@@ -733,6 +747,7 @@ static int dsi_ctrl_init_regmap(struct platform_device *pdev,
 	case DSI_CTRL_VERSION_2_4:
 	case DSI_CTRL_VERSION_2_5:
 	case DSI_CTRL_VERSION_2_6:
+	case DSI_CTRL_VERSION_2_7:
 		ptr = msm_ioremap(pdev, "disp_cc_base", ctrl->name);
 		if (IS_ERR(ptr)) {
 			DSI_CTRL_ERR(ctrl, "disp_cc base address not found for\n");
@@ -1045,6 +1060,9 @@ int dsi_ctrl_pixel_format_to_bpp(enum dsi_pixel_format dst_format)
 	case DSI_PIXEL_FORMAT_RGB888:
 		bpp = 24;
 		break;
+	case DSI_PIXEL_FORMAT_RGB101010:
+		bpp = 30;
+		break;
 	default:
 		bpp = 24;
 		break;
@@ -1095,6 +1113,10 @@ static int dsi_ctrl_update_link_freqs(struct dsi_ctrl *dsi_ctrl,
 		}
 	} else if (config->panel_mode == DSI_OP_CMD_MODE) {
 		/* Calculate the bit rate needed to match dsi transfer time */
+		if (host_cfg->phy_type == DSI_PHY_TYPE_CPHY) {
+			min_dsi_clk_hz *= bits_per_symbol;
+			do_div(min_dsi_clk_hz, num_of_symbols);
+		}
 		bit_rate = min_dsi_clk_hz * frame_time_us;
 		do_div(bit_rate, dsi_transfer_time_us);
 		bit_rate = bit_rate * num_of_lanes;
@@ -1414,13 +1436,13 @@ static void dsi_kickoff_msg_tx(struct dsi_ctrl *dsi_ctrl,
 	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, flags,
 		msg->flags);
 
-	if (dsi_ctrl->hw.reset_trig_ctrl)
-		dsi_hw_ops.reset_trig_ctrl(&dsi_ctrl->hw,
-				&dsi_ctrl->host_config.common_config);
-
 	if (dsi_hw_ops.splitlink_cmd_setup && split_link->enabled)
 		dsi_hw_ops.splitlink_cmd_setup(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config, flags);
+
+	if (dsi_hw_ops.init_cmddma_trig_ctrl)
+		dsi_hw_ops.init_cmddma_trig_ctrl(&dsi_ctrl->hw,
+				&dsi_ctrl->host_config.common_config);
 
 	/*
 	 * Always enable DMA scheduling for video mode panel.
@@ -1596,7 +1618,7 @@ static int dsi_message_tx(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd_de
 		goto error;
 	}
 
-	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, *flags);
+	SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_FUNC_ENTRY, *flags, dsi_ctrl->cmd_len);
 
 	if (*flags & DSI_CTRL_CMD_NON_EMBEDDED_MODE) {
 		cmd_mem.offset = dsi_ctrl->cmd_buffer_iova;
@@ -1999,16 +2021,18 @@ static int dsi_disable_ulps(struct dsi_ctrl *dsi_ctrl)
 	return rc;
 }
 
-static void dsi_ctrl_enable_error_interrupts(struct dsi_ctrl *dsi_ctrl)
+void dsi_ctrl_toggle_error_interrupt_status(struct dsi_ctrl *dsi_ctrl, bool enable)
 {
-	if (dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE &&
-			!dsi_ctrl->host_config.u.video_engine.bllp_lp11_en &&
-			!dsi_ctrl->host_config.u.video_engine.eof_bllp_lp11_en)
-		dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw,
-				0xFF00A0);
-	else
-		dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw,
-				0xFF00E0);
+	if (!enable) {
+		dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw, 0);
+	} else {
+		if (dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE &&
+				!dsi_ctrl->host_config.u.video_engine.bllp_lp11_en &&
+				!dsi_ctrl->host_config.u.video_engine.eof_bllp_lp11_en)
+			dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw,	0xFF00A0);
+		else
+			dsi_ctrl->hw.ops.enable_error_interrupts(&dsi_ctrl->hw, 0xFF00E0);
+	}
 }
 
 static int dsi_ctrl_drv_state_init(struct dsi_ctrl *dsi_ctrl)
@@ -2695,7 +2719,7 @@ int dsi_ctrl_setup(struct dsi_ctrl *dsi_ctrl)
 				    &dsi_ctrl->host_config.common_config);
 
 	dsi_ctrl->hw.ops.enable_status_interrupts(&dsi_ctrl->hw, 0x0);
-	dsi_ctrl_enable_error_interrupts(dsi_ctrl);
+	dsi_ctrl_toggle_error_interrupt_status(dsi_ctrl, true);
 
 	dsi_ctrl->hw.ops.ctrl_en(&dsi_ctrl->hw, true);
 
@@ -3188,6 +3212,8 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 		return -EINVAL;
 	}
 
+	mutex_lock(&dsi_ctrl->ctrl_lock);
+
 	if (dsi_ctrl->hw.ops.host_setup)
 		dsi_ctrl->hw.ops.host_setup(&dsi_ctrl->hw,
 				&dsi_ctrl->host_config.common_config);
@@ -3205,8 +3231,11 @@ int dsi_ctrl_host_timing_update(struct dsi_ctrl *dsi_ctrl)
 				0x0, NULL);
 	} else {
 		DSI_CTRL_ERR(dsi_ctrl, "invalid panel mode for resolution switch\n");
+		mutex_unlock(&dsi_ctrl->ctrl_lock);
 		return -EINVAL;
 	}
+
+	mutex_unlock(&dsi_ctrl->ctrl_lock);
 
 	return 0;
 }
@@ -3226,6 +3255,7 @@ int dsi_ctrl_update_host_state(struct dsi_ctrl *dsi_ctrl,
 {
 	int rc = 0;
 	u32 state = enable ? 0x1 : 0x0;
+	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
 
 	if (!dsi_ctrl)
 		return rc;
@@ -3240,6 +3270,7 @@ int dsi_ctrl_update_host_state(struct dsi_ctrl *dsi_ctrl,
 
 	dsi_ctrl_update_state(dsi_ctrl, op, state);
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
+	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 	return rc;
 }
 
@@ -3259,6 +3290,7 @@ int dsi_ctrl_update_host_state(struct dsi_ctrl *dsi_ctrl,
 int dsi_ctrl_host_init(struct dsi_ctrl *dsi_ctrl, bool skip_op)
 {
 	int rc = 0;
+	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
 
 	if (!dsi_ctrl) {
 		DSI_CTRL_ERR(dsi_ctrl, "Invalid params\n");
@@ -3304,13 +3336,14 @@ int dsi_ctrl_host_init(struct dsi_ctrl *dsi_ctrl, bool skip_op)
 	}
 
 	dsi_ctrl->hw.ops.enable_status_interrupts(&dsi_ctrl->hw, 0x0);
-	dsi_ctrl_enable_error_interrupts(dsi_ctrl);
+	dsi_ctrl_toggle_error_interrupt_status(dsi_ctrl, true);
 
 	DSI_CTRL_DEBUG(dsi_ctrl, "Host initialization complete, skip op: %d\n",
 			skip_op);
 	dsi_ctrl_update_state(dsi_ctrl, DSI_CTRL_OP_HOST_INIT, 0x1);
 error:
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
+	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 	return rc;
 }
 
@@ -3357,12 +3390,14 @@ int dsi_ctrl_soft_reset(struct dsi_ctrl *dsi_ctrl)
 {
 	if (!dsi_ctrl)
 		return -EINVAL;
+	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
 
 	mutex_lock(&dsi_ctrl->ctrl_lock);
 	dsi_ctrl->hw.ops.soft_reset(&dsi_ctrl->hw);
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
 
 	DSI_CTRL_DEBUG(dsi_ctrl, "Soft reset complete\n");
+	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 	return 0;
 }
 
@@ -3590,10 +3625,8 @@ int dsi_ctrl_transfer_prepare(struct dsi_ctrl *dsi_ctrl, u32 flags)
 
 	mutex_lock(&dsi_ctrl->ctrl_lock);
 
-	if (flags & DSI_CTRL_CMD_READ)
-		mask |= BIT(DSI_FIFO_UNDERFLOW);
-
-	dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, true);
+	if (!(flags & DSI_CTRL_CMD_READ))
+		dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, true);
 
 	rc = dsi_ctrl_set_cmd_engine_state(dsi_ctrl, DSI_CTRL_ENGINE_ON, false);
 	if (rc) {
@@ -3603,6 +3636,7 @@ int dsi_ctrl_transfer_prepare(struct dsi_ctrl *dsi_ctrl, u32 flags)
 	}
 
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
+	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT, dsi_ctrl->cell_index);
 
 	return rc;
 
@@ -3637,6 +3671,7 @@ int dsi_ctrl_cmd_transfer(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd)
 		DSI_CTRL_ERR(dsi_ctrl, "Invalid params\n");
 		return -EINVAL;
 	}
+	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY, dsi_ctrl->cell_index);
 
 	mutex_lock(&dsi_ctrl->ctrl_lock);
 
@@ -3655,6 +3690,7 @@ int dsi_ctrl_cmd_transfer(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd)
 	dsi_ctrl_update_state(dsi_ctrl, DSI_CTRL_OP_CMD_TX, 0x0);
 
 	mutex_unlock(&dsi_ctrl->ctrl_lock);
+	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT, dsi_ctrl->cell_index);
 	return rc;
 }
 
@@ -3688,6 +3724,7 @@ void dsi_ctrl_transfer_unprepare(struct dsi_ctrl *dsi_ctrl, u32 flags)
 		dsi_ctrl->post_tx_queued = false;
 		dsi_ctrl_post_cmd_transfer(dsi_ctrl);
 	}
+	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT, dsi_ctrl->cell_index);
 }
 
 /**

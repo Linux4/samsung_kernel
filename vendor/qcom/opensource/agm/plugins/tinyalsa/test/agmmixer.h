@@ -63,7 +63,8 @@ struct group_config {
 int convert_char_to_hex(char *char_num);
 int set_agm_device_media_config(struct mixer *mixer, unsigned int channels,
                                 unsigned int rate, unsigned int bits, char *intf_name);
-int set_agm_group_device_config(struct mixer *mixer, unsigned int device, struct group_config *config, char *intf_name);
+int set_agm_group_device_config(struct mixer *mixer, char *intf_name, struct group_config *config);
+int set_agm_group_mux_config(struct mixer *mixer, unsigned int device, struct group_config *config, char *intf_name);
 int connect_play_pcm_to_cap_pcm(struct mixer *mixer, unsigned int p_device, unsigned int c_device);
 int set_agm_audio_intf_metadata(struct mixer *mixer, char *intf_name, unsigned int dkv, enum usecase_type, int rate, int bitwidth, uint32_t val);
 int set_agm_stream_metadata_type(struct mixer *mixer, int device, char *val, enum stream_type stype);

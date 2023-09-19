@@ -443,28 +443,60 @@ static int stm32_dev_regulator(struct stm32_dev *device_data, int onoff)
 
 static void stm32_enable_irq(struct stm32_dev *stm32, int enable)
 {
-	static int depth;
+	struct irq_desc *desc = irq_to_desc(stm32->dev_irq);
 
 	if (enable != INT_ENABLE && enable != INT_DISABLE_NOSYNC && enable != INT_DISABLE_SYNC)
 		return;
 
 	mutex_lock(&stm32->irq_lock);
 	if (enable == INT_ENABLE) {
-		if (depth) {
-			--depth;
+		while (desc->depth > 0)
 			enable_irq(stm32->dev_irq);
-			input_info(true, &stm32->client->dev, "%s: enable irq\n", __func__);
-		}
+		input_info(true, &stm32->client->dev, "%s: enable dev irq\n", __func__);
+	} else if (enable == INT_DISABLE_NOSYNC) {
+		disable_irq_nosync(stm32->dev_irq);
+		input_info(true, &stm32->client->dev, "%s: disable dev irq nosync\n", __func__);
 	} else {
-		if (!depth) {
-			++depth;
-			if (enable == INT_DISABLE_NOSYNC)
-				disable_irq_nosync(stm32->dev_irq);
-			else
-				disable_irq(stm32->dev_irq);
-			input_info(true, &stm32->client->dev, "%s: disable irq %ssync\n",
-				__func__, enable == INT_DISABLE_NOSYNC ? "no" : "");
-		}
+		disable_irq(stm32->dev_irq);
+		input_info(true, &stm32->client->dev, "%s: disable dev irq\n", __func__);
+	}
+	mutex_unlock(&stm32->irq_lock);
+}
+
+static void stm32_enable_conn_irq(struct stm32_dev *stm32, int enable)
+{
+	struct irq_desc *desc = irq_to_desc(stm32->conn_irq);
+	if (enable != INT_ENABLE && enable != INT_DISABLE_NOSYNC && enable != INT_DISABLE_SYNC)
+		return;
+
+	mutex_lock(&stm32->irq_lock);
+	if (enable == INT_ENABLE) {
+		while (desc->depth > 0)
+			enable_irq(stm32->conn_irq);
+		input_info(true, &stm32->client->dev, "%s: enable conn irq\n", __func__);
+	} else if (enable == INT_DISABLE_NOSYNC) {
+		disable_irq_nosync(stm32->conn_irq);
+		input_info(true, &stm32->client->dev, "%s: disable coon irq nosync\n", __func__);
+	} else {
+		disable_irq(stm32->conn_irq);
+		input_info(true, &stm32->client->dev, "%s: disable conn irq\n", __func__);
+	}
+	mutex_unlock(&stm32->irq_lock);
+}
+
+static void stm32_enable_conn_wake_irq(struct stm32_dev *stm32, bool enable)
+{
+	struct irq_desc *desc = irq_to_desc(stm32->conn_irq);
+
+	mutex_lock(&stm32->irq_lock);
+	if (enable) {
+		while (desc->wake_depth < 1)
+			enable_irq_wake(stm32->conn_irq);
+		input_info(true, &stm32->client->dev, "%s: enable conn wake irq\n", __func__);
+	} else {
+		while (desc->wake_depth > 0)
+			disable_irq_wake(stm32->conn_irq);
+		input_info(true, &stm32->client->dev, "%s: disable conn wake irq\n", __func__);
 	}
 	mutex_unlock(&stm32->irq_lock);
 }
@@ -1276,12 +1308,13 @@ static int stm32_keyboard_notify_call(struct notifier_block *n, unsigned long da
 
 	switch (data) {
 	case NOTIFIER_WACOM_KEYBOARDCOVER_FLIP_OPEN:
+		stm32_enable_irq(stm32, INT_ENABLE);
+		stm32_enable_conn_irq(stm32, INT_ENABLE);
+		stm32_enable_conn_wake_irq(stm32, true);
 		stm32_reset_control(stm32, 1);
 		stm32_delay(350);
-		stm32_enable_irq(stm32, INT_ENABLE);
-		enable_irq_wake(stm32->conn_irq);
-		enable_irq(stm32->conn_irq);
 		stm32->connect_state = gpio_get_value(stm32->dtdata->gpio_conn);
+		stm32->enabled = true;
 
 		if (!stm32->connect_state) {
 			stm32_send_conn_noti(stm32);
@@ -1289,12 +1322,16 @@ static int stm32_keyboard_notify_call(struct notifier_block *n, unsigned long da
 		}
 		break;
 	case NOTIFIER_WACOM_KEYBOARDCOVER_FLIP_CLOSE:
+		cancel_delayed_work_sync(&stm32->check_conn_work);
+		cancel_delayed_work_sync(&stm32->check_init_work);
+		cancel_delayed_work_sync(&stm32->check_ic_work);
 		stm32_enable_irq(stm32, INT_DISABLE_NOSYNC);
-		disable_irq(stm32->conn_irq);
-		disable_irq_wake(stm32->conn_irq);
+		stm32_enable_conn_irq(stm32, INT_DISABLE_NOSYNC);
+		stm32_enable_conn_wake_irq(stm32, false);
 		pogo_notifier_notify(stm32, POGO_NOTIFIER_ID_RESET, 0, 0);
 		stm32_reset_control(stm32, 0);
 		stm32_dev_regulator(stm32, 0);
+		stm32->enabled = false;
 		break;
 	default:
 		break;
@@ -1804,6 +1841,35 @@ static ssize_t pogo_get_tc_crc(struct device *dev,
 	return snprintf(buf, sizeof(buff), "%s", buff);
 }
 
+static ssize_t pogo_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct stm32_dev *stm32 = dev_get_drvdata(dev);
+
+	input_info(true, dev, "%s: %d\n", __func__, stm32->pogo_enable);
+
+	return snprintf(buf, 5, "%d\n", stm32->pogo_enable);
+}
+
+static ssize_t pogo_enable_store(struct device *dev,
+		struct device_attribute *attr, const char *buf,
+		size_t size)
+{
+	struct stm32_dev *stm32 = dev_get_drvdata(dev);
+	int ret, param;
+
+	ret = kstrtoint(buf, 10, &param);
+	if (ret)
+		return ret;
+
+	stm32->pogo_enable = !!param;
+
+	gpio_direction_output(stm32->dtdata->mcu_nrst, stm32->pogo_enable);
+	stm32_delay(3);
+
+	return size;
+}
+
 static int stm32_tc_fw_update(struct stm32_dev *stm32)
 {
 	int ret;
@@ -1969,6 +2035,43 @@ static ssize_t get_mcu_fw_ver(struct device *dev,
 		return snprintf(buf, 3, "NG");
 }
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+static ssize_t enabled_show(struct device *dev, struct device_attribute *attr,
+					char *buf)
+{
+	struct stm32_dev *stm32 = dev_get_drvdata(dev);
+
+	input_info(true, &stm32->client->dev, "%s: %d\n", __func__, stm32->enabled);
+
+	return snprintf(buf, 2, "%d", stm32->enabled);
+}
+
+static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct stm32_dev *stm32 = dev_get_drvdata(dev);
+	int buff[2];
+	int ret;
+
+	ret = sscanf(buf, "%d,%d", &buff[0], &buff[1]);
+	if (ret != 2) {
+		input_err(true, &stm32->client->dev,
+				"%s: failed read params [%d]\n", __func__, ret);
+		return -EINVAL;
+	}
+
+	input_info(true, &stm32->client->dev, "%s: %d %d\n", __func__, buff[0], buff[1]);
+
+	if (buff[0] == DISPLAY_STATE_ON || buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND) {
+		stm32_enable_irq(stm32, INT_ENABLE);
+		stm32_enable_conn_irq(stm32, INT_ENABLE);
+		stm32_enable_conn_wake_irq(stm32, true);
+	}
+
+	return count;
+}
+#endif
+
 static DEVICE_ATTR(keyboard_connected, 0644, keyboard_connected_show, keyboard_connected_store);
 static DEVICE_ATTR(hw_reset, 0444, hw_reset_show, NULL);
 static DEVICE_ATTR(get_fw_ver_bin, 0444, pogo_get_fw_ver_bin, NULL);
@@ -1985,7 +2088,11 @@ static DEVICE_ATTR(read_cmd, 0200, NULL, pogo_i2c_read);
 static DEVICE_ATTR(get_tc_fw_ver_bin, 0444, pogo_get_tc_fw_ver_bin, NULL);
 static DEVICE_ATTR(get_tc_fw_ver_ic, 0444, pogo_get_tc_fw_ver_ic, NULL);
 static DEVICE_ATTR(get_tc_crc, 0444, pogo_get_tc_crc, NULL);
+static DEVICE_ATTR(block_pogo_keyboard, 0644, pogo_enable_show, pogo_enable_store);
 static DEVICE_ATTR(get_mcu_fw_ver, 0444, get_mcu_fw_ver, NULL);
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
+#endif
 
 
 static struct attribute *key_attributes[] = {
@@ -2005,7 +2112,11 @@ static struct attribute *key_attributes[] = {
 	&dev_attr_get_tc_fw_ver_bin.attr,
 	&dev_attr_get_tc_fw_ver_ic.attr,
 	&dev_attr_get_tc_crc.attr,
+	&dev_attr_block_pogo_keyboard.attr,
 	&dev_attr_get_mcu_fw_ver.attr,
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+	&dev_attr_enabled.attr,
+#endif
 	NULL,
 };
 
@@ -2177,6 +2288,7 @@ static int stm32_dev_probe(struct i2c_client *client,
 		INIT_DELAYED_WORK(&device_data->bus_voting_work, stm32_bus_voting_work);
 	
 #endif
+	device_data->pogo_enable = true;
 
 	BLOCKING_INIT_NOTIFIER_HEAD(&pogo_notifier.pogo_notifier_call_chain);
 
@@ -2202,7 +2314,7 @@ static int stm32_dev_probe(struct i2c_client *client,
 		goto interrupt_err;
 	}
 
-	enable_irq_wake(device_data->conn_irq);
+	stm32_enable_conn_wake_irq(device_data, true);
 	stm32_enable_irq(device_data, INT_DISABLE_NOSYNC);
 
 	device_data->sec_pogo = sec_device_create(device_data, "sec_keypad");

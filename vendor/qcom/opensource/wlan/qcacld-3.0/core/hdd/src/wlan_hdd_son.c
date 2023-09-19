@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -59,6 +60,138 @@ static uint32_t hdd_son_is_acs_in_progress(struct wlan_objmgr_vdev *vdev)
 	in_progress = qdf_atomic_read(&adapter->session.ap.acs_in_progress);
 
 	return in_progress;
+}
+
+/**
+ * hdd_son_chan_width_to_chan_width() - translate son chan width
+ *                                      to mac chan width
+ * @son_chwidth: son chan width
+ *
+ * Return: mac chan width
+ */
+static enum eSirMacHTChannelWidth hdd_son_chan_width_to_chan_width(
+				enum ieee80211_cwm_width son_chwidth)
+{
+	enum eSirMacHTChannelWidth chwidth;
+
+	switch (son_chwidth) {
+	case IEEE80211_CWM_WIDTH20:
+		chwidth = eHT_CHANNEL_WIDTH_20MHZ;
+		break;
+	case IEEE80211_CWM_WIDTH40:
+		chwidth = eHT_CHANNEL_WIDTH_40MHZ;
+		break;
+	case IEEE80211_CWM_WIDTH80:
+		chwidth = eHT_CHANNEL_WIDTH_80MHZ;
+		break;
+	case IEEE80211_CWM_WIDTH160:
+		chwidth = eHT_CHANNEL_WIDTH_160MHZ;
+		break;
+	case IEEE80211_CWM_WIDTH80_80:
+		chwidth = eHT_CHANNEL_WIDTH_80P80MHZ;
+		break;
+	default:
+		chwidth = eHT_MAX_CHANNEL_WIDTH;
+	}
+
+	return chwidth;
+}
+
+/**
+ * hdd_son_set_chwidth() - set son chan width
+ * @vdev: vdev
+ * @son_chwidth: son chan width
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+static int hdd_son_set_chwidth(struct wlan_objmgr_vdev *vdev,
+			       enum ieee80211_cwm_width son_chwidth)
+{
+	enum eSirMacHTChannelWidth chwidth;
+	struct hdd_adapter *adapter;
+
+	if (!vdev) {
+		hdd_err("null vdev");
+		return -EINVAL;
+	}
+	adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	if (!adapter) {
+		hdd_err("null adapter");
+		return -EINVAL;
+	}
+
+	chwidth = hdd_son_chan_width_to_chan_width(son_chwidth);
+
+	return hdd_set_mac_chan_width(adapter, chwidth);
+}
+
+/**
+ * hdd_chan_width_to_son_chwidth() - translate mac chan width
+ *                                   to son chan width
+ * @chwidth: mac chan width
+ *
+ * Return: son chan width
+ */
+static enum ieee80211_cwm_width hdd_chan_width_to_son_chwidth(
+				enum eSirMacHTChannelWidth chwidth)
+{
+	enum ieee80211_cwm_width son_chwidth;
+
+	switch (chwidth) {
+	case eHT_CHANNEL_WIDTH_20MHZ:
+		son_chwidth = IEEE80211_CWM_WIDTH20;
+		break;
+	case eHT_CHANNEL_WIDTH_40MHZ:
+		son_chwidth = IEEE80211_CWM_WIDTH40;
+		break;
+	case eHT_CHANNEL_WIDTH_80MHZ:
+		son_chwidth = IEEE80211_CWM_WIDTH80;
+		break;
+	case eHT_CHANNEL_WIDTH_160MHZ:
+		son_chwidth = IEEE80211_CWM_WIDTH160;
+		break;
+	case eHT_CHANNEL_WIDTH_80P80MHZ:
+		son_chwidth = IEEE80211_CWM_WIDTH80_80;
+		break;
+	default:
+		son_chwidth = IEEE80211_CWM_WIDTHINVALID;
+	}
+
+	return son_chwidth;
+}
+
+/**
+ * hdd_son_get_chwidth() - get chan width
+ * @vdev: vdev
+ *
+ * Return: son chan width
+ */
+static enum ieee80211_cwm_width hdd_son_get_chwidth(
+						struct wlan_objmgr_vdev *vdev)
+{
+	enum eSirMacHTChannelWidth chwidth;
+	struct hdd_adapter *adapter;
+	enum ieee80211_cwm_width son_chwidth = IEEE80211_CWM_WIDTHINVALID;
+
+	if (!vdev) {
+		hdd_err("null vdev");
+		return son_chwidth;
+	}
+	adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	if (!adapter) {
+		hdd_err("null adapter");
+		return son_chwidth;
+	}
+
+	chwidth = wma_cli_get_command(adapter->vdev_id, WMI_VDEV_PARAM_CHWIDTH,
+				      VDEV_CMD);
+
+	if (chwidth < 0) {
+		hdd_err("Failed to get chwidth");
+		return son_chwidth;
+	}
+
+	return hdd_chan_width_to_son_chwidth(chwidth);
 }
 
 /**
@@ -862,9 +995,250 @@ static enum ieee80211_phymode hdd_son_get_phymode(struct wlan_objmgr_vdev *vdev)
 		hdd_err("null hdd ctx");
 		return IEEE80211_MODE_AUTO;
 	}
+
 	phymode = sme_get_phy_mode(hdd_ctx->mac_handle);
 
 	return hdd_phymode_chwidth_freq_to_son_phymode(phymode, chwidth, freq);
+}
+
+/**
+ * hdd_son_set_acl_policy() - set son acl policy
+ * @vdev: vdev
+ * @son_acl_policy: enum ieee80211_acl_cmd
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS hdd_son_set_acl_policy(struct wlan_objmgr_vdev *vdev,
+					 ieee80211_acl_cmd son_acl_policy)
+{
+	struct hdd_adapter *adapter;
+	QDF_STATUS status = QDF_STATUS_E_INVAL;
+
+	if (!vdev) {
+		hdd_err("null vdev");
+		return status;
+	}
+	adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	if (!adapter) {
+		hdd_err("null adapter");
+		return status;
+	}
+
+	switch (son_acl_policy) {
+	case IEEE80211_MACCMD_POLICY_OPEN:
+		status = wlansap_set_acl_mode(WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+					      eSAP_ALLOW_ALL);
+		break;
+	case IEEE80211_MACCMD_POLICY_ALLOW:
+		status = wlansap_set_acl_mode(WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+					      eSAP_DENY_UNLESS_ACCEPTED);
+		break;
+	case IEEE80211_MACCMD_POLICY_DENY:
+		status = wlansap_set_acl_mode(WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+					      eSAP_ACCEPT_UNLESS_DENIED);
+		break;
+	case IEEE80211_MACCMD_FLUSH:
+	case IEEE80211_MACCMD_DETACH:
+		status = wlansap_clear_acl(WLAN_HDD_GET_SAP_CTX_PTR(adapter));
+		break;
+	default:
+		hdd_err("invalid son acl policy %d", son_acl_policy);
+		break;
+	}
+
+	return status;
+}
+
+/**
+ * hdd_acl_policy_to_son_acl_policy() - convert acl policy to son acl policy
+ * @acl_policy: acl policy
+ *
+ * Return: son acl policy. enum ieee80211_acl_cmd
+ */
+static ieee80211_acl_cmd hdd_acl_policy_to_son_acl_policy(
+						eSapMacAddrACL acl_policy)
+{
+	ieee80211_acl_cmd son_acl_policy = IEEE80211_MACCMD_DETACH;
+
+	switch (acl_policy) {
+	case eSAP_ACCEPT_UNLESS_DENIED:
+		son_acl_policy = IEEE80211_MACCMD_POLICY_DENY;
+		break;
+	case eSAP_DENY_UNLESS_ACCEPTED:
+		son_acl_policy = IEEE80211_MACCMD_POLICY_ALLOW;
+		break;
+	case eSAP_ALLOW_ALL:
+		son_acl_policy = IEEE80211_MACCMD_POLICY_OPEN;
+		break;
+	default:
+		hdd_err("invalid acl policy %d", acl_policy);
+		break;
+	}
+
+	return son_acl_policy;
+}
+
+/**
+ * hdd_son_get_acl_policy() - get son acl policy
+ * @vdev: vdev
+ *
+ * Return: son acl policy. enum ieee80211_acl_cmd
+ */
+static ieee80211_acl_cmd hdd_son_get_acl_policy(struct wlan_objmgr_vdev *vdev)
+{
+	eSapMacAddrACL acl_policy;
+	struct hdd_adapter *adapter;
+	ieee80211_acl_cmd son_acl_policy = IEEE80211_MACCMD_DETACH;
+
+	if (!vdev) {
+		hdd_err("null vdev");
+		return son_acl_policy;
+	}
+	adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	if (!adapter) {
+		hdd_err("null adapter");
+		return son_acl_policy;
+	}
+
+	wlansap_get_acl_mode(WLAN_HDD_GET_SAP_CTX_PTR(adapter), &acl_policy);
+
+	son_acl_policy = hdd_acl_policy_to_son_acl_policy(acl_policy);
+
+	return son_acl_policy;
+}
+
+/**
+ * hdd_son_add_acl_mac() - add mac to access control list(ACL)
+ * @vdev: vdev
+ * @acl_mac: mac address to add
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+static int hdd_son_add_acl_mac(struct wlan_objmgr_vdev *vdev,
+			       struct qdf_mac_addr *acl_mac)
+{
+	eSapACLType list_type;
+	QDF_STATUS qdf_status;
+	eSapMacAddrACL acl_policy;
+	struct hdd_adapter *adapter;
+
+	if (!vdev) {
+		hdd_err("null vdev");
+		return -EINVAL;
+	}
+	if (!acl_mac) {
+		hdd_err("null acl_mac");
+		return -EINVAL;
+	}
+	adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	if (!adapter) {
+		hdd_err("null adapter");
+		return -EINVAL;
+	}
+
+	wlansap_get_acl_mode(WLAN_HDD_GET_SAP_CTX_PTR(adapter), &acl_policy);
+
+	if (acl_policy == eSAP_ACCEPT_UNLESS_DENIED) {
+		list_type = eSAP_BLACK_LIST;
+	} else if (acl_policy == eSAP_DENY_UNLESS_ACCEPTED) {
+		list_type = eSAP_WHITE_LIST;
+	} else {
+		hdd_err("Invalid ACL policy %d.", acl_policy);
+		return -EINVAL;
+	}
+	qdf_status = wlansap_modify_acl(WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+					acl_mac->bytes, list_type,
+					ADD_STA_TO_ACL);
+	if (QDF_IS_STATUS_ERROR(qdf_status)) {
+		hdd_err("Modify ACL failed");
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/**
+ * hdd_son_del_acl_mac() - delete mac from acl
+ * @vdev: vdev
+ * @acl_mac: mac to remove
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+static int hdd_son_del_acl_mac(struct wlan_objmgr_vdev *vdev,
+			       struct qdf_mac_addr *acl_mac)
+{
+	eSapACLType list_type;
+	QDF_STATUS qdf_status;
+	eSapMacAddrACL acl_policy;
+	struct hdd_adapter *adapter;
+	struct sap_context *sap_ctx;
+
+	if (!vdev) {
+		hdd_err("null vdev");
+		return -EINVAL;
+	}
+	if (!acl_mac) {
+		hdd_err("null acl_mac");
+		return -EINVAL;
+	}
+	adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	if (!adapter) {
+		hdd_err("null adapter");
+		return -EINVAL;
+	}
+
+	sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter);
+	if (!sap_ctx) {
+		hdd_err("null sap ctx");
+		return -EINVAL;
+	}
+
+	wlansap_get_acl_mode(sap_ctx, &acl_policy);
+
+	if (acl_policy == eSAP_ACCEPT_UNLESS_DENIED) {
+		list_type = eSAP_BLACK_LIST;
+	} else if (acl_policy == eSAP_DENY_UNLESS_ACCEPTED) {
+		list_type = eSAP_WHITE_LIST;
+	} else {
+		hdd_err("Invalid ACL policy %d.", acl_policy);
+		return -EINVAL;
+	}
+	qdf_status = wlansap_modify_acl(sap_ctx, acl_mac->bytes, list_type,
+					DELETE_STA_FROM_ACL);
+	if (QDF_IS_STATUS_ERROR(qdf_status)) {
+		hdd_err("Modify ACL failed");
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/**
+ * hdd_son_kickout_mac() - kickout sta with given mac
+ * @vdev: vdev
+ * @acl_mac: sta mac to kickout
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+static int hdd_son_kickout_mac(struct wlan_objmgr_vdev *vdev,
+			       struct qdf_mac_addr *mac)
+{
+	struct hdd_adapter *adapter;
+
+	if (!vdev) {
+		hdd_err("null vdev");
+		return -EINVAL;
+	}
+	adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	if (!adapter) {
+		hdd_err("null adapter");
+		return -EINVAL;
+	}
+
+	if (mac)
+		return wlan_hdd_del_station(adapter, mac->bytes);
+	else
+		return wlan_hdd_del_station(adapter, NULL);
 }
 
 static uint8_t hdd_son_get_rx_nss(struct wlan_objmgr_vdev *vdev)
@@ -881,6 +1255,140 @@ static uint8_t hdd_son_get_rx_nss(struct wlan_objmgr_vdev *vdev)
 	return rx_nss;
 }
 
+static void hdd_son_deauth_sta(struct wlan_objmgr_vdev *vdev,
+			       uint8_t *peer_mac,
+			       bool ignore_frame)
+{
+	struct hdd_adapter *adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	struct csr_del_sta_params param;
+
+	if (!adapter) {
+		hdd_err("null adapter");
+		return;
+	}
+
+	qdf_mem_copy(param.peerMacAddr.bytes, peer_mac, QDF_MAC_ADDR_SIZE);
+	param.subtype = SIR_MAC_MGMT_DEAUTH;
+	param.reason_code = ignore_frame ? REASON_HOST_TRIGGERED_SILENT_DEAUTH
+					 : REASON_UNSPEC_FAILURE;
+	hdd_debug("Peer - "QDF_MAC_ADDR_FMT" Ignore Frame - %u",
+		  QDF_FULL_MAC_REF(peer_mac), ignore_frame);
+
+	if (hdd_softap_sta_deauth(adapter, &param) != QDF_STATUS_SUCCESS)
+		hdd_err("Error in deauthenticating peer");
+}
+
+static void hdd_son_modify_acl(struct wlan_objmgr_vdev *vdev,
+			       uint8_t *peer_mac,
+			       bool allow_auth)
+{
+	QDF_STATUS status;
+	struct hdd_adapter *adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+
+	if (!adapter) {
+		hdd_err("null adapter");
+		return;
+	}
+	hdd_debug("Peer - " QDF_MAC_ADDR_FMT " Allow Auth - %u",
+		  QDF_MAC_ADDR_REF(peer_mac), allow_auth);
+	if (allow_auth) {
+		status = wlansap_modify_acl(WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+					    peer_mac,
+					    eSAP_BLACK_LIST,
+					    DELETE_STA_FROM_ACL);
+		status = wlansap_modify_acl(WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+					    peer_mac,
+					    eSAP_WHITE_LIST,
+					    ADD_STA_TO_ACL);
+	} else {
+		status = wlansap_modify_acl(WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+					    peer_mac,
+					    eSAP_WHITE_LIST,
+					    DELETE_STA_FROM_ACL);
+		status = wlansap_modify_acl(WLAN_HDD_GET_SAP_CTX_PTR(adapter),
+					    peer_mac,
+					    eSAP_BLACK_LIST,
+					    ADD_STA_TO_ACL);
+	}
+}
+
+static int hdd_son_send_cfg_event(struct wlan_objmgr_vdev *vdev,
+				  uint32_t event_id,
+				  uint32_t event_len,
+				  const uint8_t *event_buf)
+{
+	struct hdd_adapter *adapter;
+	uint32_t len;
+	uint32_t idx;
+	struct sk_buff *skb;
+
+	if (!event_buf) {
+		hdd_err("invalid event buf");
+		return -EINVAL;
+	}
+
+	adapter = wlan_hdd_get_adapter_from_objmgr(vdev);
+	if (!adapter) {
+		hdd_err("null adapter");
+		return -EINVAL;
+	}
+
+	len = nla_total_size(sizeof(event_id)) +
+			nla_total_size(event_len) +
+			NLMSG_HDRLEN;
+	idx = QCA_NL80211_VENDOR_SUBCMD_GET_WIFI_CONFIGURATION_INDEX;
+	skb = cfg80211_vendor_event_alloc(adapter->hdd_ctx->wiphy,
+					  &adapter->wdev,
+					  len,
+					  idx,
+					  GFP_KERNEL);
+	if (!skb) {
+		hdd_err("failed to alloc cfg80211 vendor event");
+		return -EINVAL;
+	}
+
+	if (nla_put_u32(skb,
+			QCA_WLAN_VENDOR_ATTR_CONFIG_GENERIC_COMMAND,
+			event_id)) {
+		hdd_err("failed to put attr config generic command");
+		kfree_skb(skb);
+		return -EINVAL;
+	}
+
+	if (nla_put(skb,
+		    QCA_WLAN_VENDOR_ATTR_CONFIG_GENERIC_DATA,
+		    event_len,
+		    event_buf)) {
+		hdd_err("failed to put attr config generic data");
+		kfree_skb(skb);
+		return -EINVAL;
+	}
+
+	cfg80211_vendor_event(skb, GFP_KERNEL);
+
+	return 0;
+}
+
+static int hdd_son_deliver_opmode(struct wlan_objmgr_vdev *vdev,
+				  uint32_t event_len,
+				  const uint8_t *event_buf)
+{
+	return hdd_son_send_cfg_event(vdev,
+				      QCA_NL80211_VENDOR_SUBCMD_OPMODE_UPDATE,
+				      event_len,
+				      event_buf);
+}
+
+static int hdd_son_deliver_smps(struct wlan_objmgr_vdev *vdev,
+				uint32_t event_len,
+				const uint8_t *event_buf)
+{
+	return hdd_son_send_cfg_event(vdev,
+				      QCA_NL80211_VENDOR_SUBCMD_SMPS_UPDATE,
+				      event_len,
+				      event_buf);
+}
+
 void hdd_son_register_callbacks(struct hdd_context *hdd_ctx)
 {
 	struct son_callbacks cb_obj = {0};
@@ -891,12 +1399,26 @@ void hdd_son_register_callbacks(struct hdd_context *hdd_ctx)
 	cb_obj.os_if_set_bandwidth = hdd_son_set_bandwidth;
 	cb_obj.os_if_get_bandwidth = hdd_son_get_bandwidth;
 	cb_obj.os_if_set_chan = hdd_son_set_chan;
+	cb_obj.os_if_set_acl_policy = hdd_son_set_acl_policy;
+	cb_obj.os_if_get_acl_policy = hdd_son_get_acl_policy;
+	cb_obj.os_if_add_acl_mac = hdd_son_add_acl_mac;
+	cb_obj.os_if_del_acl_mac = hdd_son_del_acl_mac;
+	cb_obj.os_if_kickout_mac = hdd_son_kickout_mac;
 	cb_obj.os_if_set_country_code = hdd_son_set_country;
 	cb_obj.os_if_set_candidate_freq = hdd_son_set_candidate_freq;
 	cb_obj.os_if_get_candidate_freq = hdd_son_get_candidate_freq;
 	cb_obj.os_if_set_phymode = hdd_son_set_phymode;
 	cb_obj.os_if_get_phymode = hdd_son_get_phymode;
 	cb_obj.os_if_get_rx_nss = hdd_son_get_rx_nss;
+	cb_obj.os_if_set_chwidth = hdd_son_set_chwidth;
+	cb_obj.os_if_get_chwidth = hdd_son_get_chwidth;
+	cb_obj.os_if_deauth_sta = hdd_son_deauth_sta;
+	cb_obj.os_if_modify_acl = hdd_son_modify_acl;
 
 	os_if_son_register_hdd_callbacks(hdd_ctx->psoc, &cb_obj);
+
+	ucfg_son_register_deliver_opmode_cb(hdd_ctx->psoc,
+					    hdd_son_deliver_opmode);
+	ucfg_son_register_deliver_smps_cb(hdd_ctx->psoc,
+					  hdd_son_deliver_smps);
 }

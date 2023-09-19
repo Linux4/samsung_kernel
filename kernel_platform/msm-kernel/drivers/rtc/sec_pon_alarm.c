@@ -98,6 +98,7 @@ static void pon_alarm_set(struct rtc_wkalrm *alarm)
 	memcpy(&pon_alarm.val, alarm, sizeof(struct rtc_wkalrm));
 	pon_alarm_normalize(&pon_alarm.val);
 
+	pr_info("%s: reserve pmic alarm\n", __func__);
 	pmic_rtc_setalarm(&pon_alarm.val);
 
 	secs_pwron = rtc_tm_to_time64(&pon_alarm.val.time);
@@ -339,6 +340,8 @@ static int __init pon_alarm_init(void)
 	rtc_time64_to_tm((time64_t)rtcalarm, &pon_alarm.val.time);
 
 	if (pon_alarm.lpm_mode && pon_alarm.val.enabled) {
+		pr_info("%s: reserve pmic alarm\n", __func__);
+		pmic_rtc_setalarm(&pon_alarm.val);
 		pon_alarm.ws = wakeup_source_register(pon_alarm.dev, "PON_ALARM");
 
 		alarm_init(&pon_alarm.check_poll, ALARM_REALTIME, pon_alarm_check_callback);

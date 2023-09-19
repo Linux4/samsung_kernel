@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -85,14 +86,13 @@ public:
             bool hd_voice;
             struct pal_volume_data *pal_vol_data;
             pal_device_mute_t device_mute;
+#ifndef SEC_AUDIO_CALL_HAC
+            bool hac;
+#endif
     };
     struct voice_t {
             voice_session_t session[MAX_VOICE_SESSIONS];
-            bool mic_mute;
-            bool use_device_mute;
-            float volume;
             bool in_call;
-            uint32_t volume_steps;
     };
     voice_t voice_;
     audio_mode_t mode_;
@@ -102,12 +102,17 @@ public:
     void VoiceGetParameters(struct str_parms *query, struct str_parms *reply);
     int RouteStream(const std::set<audio_devices_t>&);
     bool is_valid_call_state(int call_state);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    bool get_voice_call_state(audio_mode_t *mode);
+#endif
     bool is_valid_vsid(uint32_t vsid);
     int max_voice_sessions_;
+    std::mutex voice_mutex_;
     int SetMode(const audio_mode_t mode);
     int VoiceStart(voice_session_t *session);
     int VoiceStop(voice_session_t *session);
     int VoiceSetDevice(voice_session_t *session);
+    int SetDeviceMute(voice_session_t *session);
     int UpdateCallState(uint32_t vsid, int call_state);
     int UpdateCalls(voice_session_t *pSession);
     int SetMicMute(bool mute);
@@ -116,11 +121,17 @@ public:
                              std::set<audio_devices_t>& tx_devs);
     bool IsCallActive(voice_session_t *pSession);
     bool IsAnyCallActive();
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    void updateVoiceMetadataForBT(bool call_active);
+#endif
     int StopCall();
     AudioVoice();
     ~AudioVoice();
-    pal_device_id_t pal_voice_tx_device_id_;
-    pal_device_id_t pal_voice_rx_device_id_;
+    pal_device_id_t pal_voice_tx_device_id_ = PAL_DEVICE_NONE;
+    pal_device_id_t pal_voice_rx_device_id_ = PAL_DEVICE_NONE;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    std::shared_ptr<StreamInPrimary> stream_in_primary_;
+#endif
 #ifdef SEC_AUDIO_CALL
     std::shared_ptr<SecAudioVoice> SecVoiceInit();
     std::shared_ptr<SecAudioVoice> sec_voice_;

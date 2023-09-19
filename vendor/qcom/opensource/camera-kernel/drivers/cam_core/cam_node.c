@@ -113,8 +113,8 @@ static int __cam_node_handle_acquire_dev(struct cam_node *node,
 		goto free_ctx;
 	}
 
-	CAM_DBG(CAM_CORE, "[%s] Acquire ctx_id %d",
-		node->name, ctx->ctx_id);
+	CAM_DBG(CAM_CORE, "[%s] Acquire ctx_id %d dev_hdl %d",
+		node->name, ctx->ctx_id, acquire->dev_handle);
 
 	return 0;
 free_ctx:

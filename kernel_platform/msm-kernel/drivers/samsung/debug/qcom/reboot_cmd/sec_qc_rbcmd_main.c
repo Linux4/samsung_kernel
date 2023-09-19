@@ -131,7 +131,7 @@ static int __rbcmd_parse_dt(struct builder *bd)
 			ARRAY_SIZE(__qc_rbcmd_dt_builder));
 }
 
-static int __rbcmd_probe_epilog(struct builder *bd)
+static int __rbcmd_set_drvdata(struct builder *bd)
 {
 	struct qc_rbcmd_drvdata *drvdata =
 			container_of(bd, struct qc_rbcmd_drvdata, bd);
@@ -157,6 +157,15 @@ static int __rbcmd_probe(struct platform_device *pdev,
 	return sec_director_probe_dev(&drvdata->bd, builder, n);
 }
 
+static int __rbcmd_probe_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct qc_rbcmd_drvdata *drvdata = platform_get_drvdata(pdev);
+
+	return sec_director_probe_dev_threaded(&drvdata->bd, builder, n,
+			"qc_rbcmd");
+}
+
 static int __rbcmd_remove(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
@@ -167,63 +176,53 @@ static int __rbcmd_remove(struct platform_device *pdev,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static int __rbcmd_mock_parse_dt(struct builder *bd)
+static int __rbcmd_remove_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
 {
-	struct qc_rbcmd_drvdata *drvdata =
-			container_of(bd, struct qc_rbcmd_drvdata, bd);
+	struct qc_rbcmd_drvdata *drvdata = platform_get_drvdata(pdev);
+	struct director_threaded *drct = drvdata->bd.drct;
 
-	drvdata->use_on_reboot = false;
-	drvdata->use_on_restart = true;
+	sec_director_destruct_dev_threaded(drct);
 
 	return 0;
 }
 
-static const struct dev_builder __qc_rbcmd_mock_dev_builder[] = {
-	DEVICE_BUILDER(__rbcmd_mock_parse_dt, NULL),
-	DEVICE_BUILDER(sec_qc_rbcmd_init_on_reboot,
-		       sec_qc_rbcmd_exit_on_reboot),
-	DEVICE_BUILDER(sec_qc_rbcmd_init_on_restart,
-		       sec_qc_rbcmd_exit_on_restart),
-	DEVICE_BUILDER(sec_qc_rbcmd_register_panic_handle,
-		       sec_qc_rbcmd_unregister_panic_handle),
-	DEVICE_BUILDER(__rbcmd_probe_epilog, NULL),
-};
-
-int kunit_qc_rbcmd_mock_probe(struct platform_device *pdev)
-{
-	return __rbcmd_probe(pdev, __qc_rbcmd_mock_dev_builder,
-			ARRAY_SIZE(__qc_rbcmd_mock_dev_builder));
-}
-
-int kunit_qc_rbcmd_mock_remove(struct platform_device *pdev)
-{
-	return __rbcmd_remove(pdev, __qc_rbcmd_mock_dev_builder,
-			ARRAY_SIZE(__qc_rbcmd_mock_dev_builder));
-}
-#endif
-
 static const struct dev_builder __qc_rbcmd_dev_builder[] = {
 	DEVICE_BUILDER(__rbcmd_parse_dt, NULL),
+	DEVICE_BUILDER(__qc_rbcmd_register_panic_handle,
+		       __qc_rbcmd_unregister_panic_handle),
+	DEVICE_BUILDER(__rbcmd_set_drvdata, NULL),
+};
+
+static const struct dev_builder __qc_rbcmd_dev_builder_threaded[] = {
 	DEVICE_BUILDER(__qc_rbcmd_init_on_reboot,
 		       __qc_rbcmd_exit_on_reboot),
 	DEVICE_BUILDER(__qc_rbcmd_init_on_restart,
 		       __qc_rbcmd_exit_on_restart),
-	DEVICE_BUILDER(__qc_rbcmd_register_panic_handle,
-		       __qc_rbcmd_unregister_panic_handle),
-	DEVICE_BUILDER(__rbcmd_probe_epilog, NULL),
 };
 
 static int sec_qc_rbcmd_probe(struct platform_device *pdev)
 {
-	return __rbcmd_probe(pdev, __qc_rbcmd_dev_builder,
+	int err;
+
+	err = __rbcmd_probe(pdev, __qc_rbcmd_dev_builder,
 			ARRAY_SIZE(__qc_rbcmd_dev_builder));
+	if (err)
+		return err;
+
+	return __rbcmd_probe_threaded(pdev, __qc_rbcmd_dev_builder_threaded,
+			ARRAY_SIZE(__qc_rbcmd_dev_builder_threaded));
 }
 
 static int sec_qc_rbcmd_remove(struct platform_device *pdev)
 {
-	return __rbcmd_remove(pdev, __qc_rbcmd_dev_builder,
+	__rbcmd_remove_threaded(pdev, __qc_rbcmd_dev_builder_threaded,
+			ARRAY_SIZE(__qc_rbcmd_dev_builder_threaded));
+
+	__rbcmd_remove(pdev, __qc_rbcmd_dev_builder,
 			ARRAY_SIZE(__qc_rbcmd_dev_builder));
+
+	return 0;
 }
 
 static const struct of_device_id sec_qc_rbcmd_match_table[] = {
@@ -245,11 +244,7 @@ static __init int sec_qc_rbcmd_init(void)
 {
 	return platform_driver_register(&sec_qc_rbcmd_driver);
 }
-#if IS_BUILTIN(CONFIG_SEC_QC_RBCMD)
-arch_initcall_sync(sec_qc_rbcmd_init);
-#else
-module_init(sec_qc_rbcmd_init);
-#endif
+arch_initcall(sec_qc_rbcmd_init);
 
 static __exit void sec_qc_rbcmd_exit(void)
 {

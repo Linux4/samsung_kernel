@@ -27,6 +27,9 @@ struct ufs_sec_wb_info ufs_wb;
 
 #if IS_ENABLED(CONFIG_SCSI_UFS_QCOM)
 static struct ufs_sec_cmd_log_info ufs_cmd_log;
+#if IS_ENABLED(CONFIG_UFS_DATA_LOG)
+static struct ufs_sec_data_log_info ufs_data_log;
+#endif
 #endif
 
 #define set_wb_state(wb, s) \
@@ -181,6 +184,164 @@ static void ufs_sec_cmd_log_init(void)
 		if (ufs_cmd_log.entries)
 			pr_info("SEC UFS cmd logging is initialized.\n");
 	}
+}
+#endif
+
+#if IS_ENABLED(CONFIG_SCSI_UFS_QCOM) && IS_ENABLED(CONFIG_UFS_DATA_LOG)
+static void ufs_sec_store_magic_word(struct scsi_cmnd *cmd,
+		                unsigned int dump_index)
+{
+	struct ufs_sec_data_log_entry *entry = ufs_data_log.entries;
+	unsigned long magicword = UFS_SEC_MAGIC_WORD;
+	struct scatterlist *sg;
+	void *virt_sg_addr;
+	int sg_segments;
+	int i;
+
+	sg_segments = scsi_sg_count(cmd);
+	scsi_for_each_sg(cmd, sg, sg_segments, i) {
+		/*
+		 * Write magicword each memory location pointed by SG element
+		 */
+		virt_sg_addr = sg_virt(sg);
+		entry[dump_index].virt_addr = virt_sg_addr;
+		memcpy(virt_sg_addr, &magicword, UFS_SEC_DATA_BUF_SIZE);
+		trace_printk("dma mapped addr 0x%llx length 0x%x\n",
+				(unsigned long long)sg->dma_address, sg_dma_len(sg));
+	}
+}
+
+static void ufs_sec_check_magic_word(struct scsi_cmnd *cmd, int sg_segments,
+		unsigned int dump_index, int tag_index)
+{
+	struct ufs_hba *hba = ufs_vdi.hba;
+	int issued_pos = ufs_data_log.issued_pos;
+	struct ufs_sec_data_log_entry *entry = ufs_data_log.entries;
+	struct ufs_sec_data_log_entry *issued_entry = NULL;
+	struct scatterlist *sg;
+	unsigned long *magicword_rb = NULL;
+	int match_cnt = 0;
+	int i = 0;
+
+	if (ufs_data_log.issued_entries)
+		issued_entry = &ufs_data_log.issued_entries[issued_pos];
+
+	scsi_for_each_sg(cmd, sg, sg_segments, i) {
+		trace_printk("dma unmapped addr 0x%llx length 0x%x\n",
+				(unsigned long long)sg->dma_address, sg_dma_len(sg));
+		/*
+		 * Attempt to check the magic word of SG element.
+		 * The magic word should have been overwritten in read case.
+		 * If it remains, it means that read buffer isn't updated properly
+		 * by MMU or DMA wrong operation.
+		 */
+		magicword_rb = (unsigned long *)sg_virt(sg);
+		if (*magicword_rb == UFS_SEC_MAGIC_WORD) {
+			printk(KERN_ALERT "tag%d:sg[%d]:%pK: page_link=%lx, "
+					"offset=%d, length=%d\n",
+					tag_index, i, sg, sg->page_link,
+					sg->offset, sg->length);
+			if (issued_entry && match_cnt == 0) {
+				memcpy(issued_entry, &entry[dump_index], sizeof(struct ufs_sec_data_log_entry));
+				ufs_data_log.issued_pos = (++ufs_data_log.issued_pos % UFS_SEC_DATA_LOGGING_ERR_MAX);
+			}
+			ufs_data_log.magicword_match_cnt[issued_pos] = ++match_cnt;
+			/*
+			 * Add BUG() - QCT requested - to detect issue earlier,
+			 * it should be removed before release to USER.
+			 * add eh_flags checking (UFSHCD_EH_IN_PROGRESS) before BUG()
+			 */
+			if (!hba->eh_flags)
+				BUG();
+		}
+	}
+}
+
+static inline bool ufs_sec_is_valid_read_cmd(struct scsi_cmnd *cmd)
+{
+	return ((cmd->request) &&
+		(rq_data_dir(cmd->request) == READ));
+}
+
+static void ufs_sec_start_data_log(struct scsi_cmnd *cmd)
+{
+	struct ufs_sec_data_log_entry *entry = NULL;
+	unsigned int dump_index;
+	int id;
+
+	if (!ufs_data_log.entries)
+		return;
+
+	if (!ufs_sec_is_valid_read_cmd(cmd))
+		return;
+
+	entry = ufs_data_log.entries;
+
+	for (id = 0; id < UFS_SEC_DATA_LOGGING_MAX; id++) {
+		dump_index = (ufs_data_log.pos++) % UFS_SEC_DATA_LOGGING_MAX;
+		if (entry[dump_index].state != UFS_SEC_DATA_STATE_SENT)
+			break;
+	}
+
+	ufs_data_log.queuing_req[cmd->request->tag] = dump_index;
+	entry[dump_index].state = UFS_SEC_DATA_STATE_SENT;
+	entry[dump_index].start_time = ktime_get();
+	entry[dump_index].end_time = ktime_set(0, 0);
+	entry[dump_index].sector = cmd->request->__sector;
+	ufs_sec_store_magic_word(cmd, dump_index);
+}
+
+static void ufs_sec_end_data_log(struct scsi_cmnd *cmd, int tag_index)
+{
+	struct ufs_sec_data_log_entry *entry = NULL;
+	unsigned int dump_index;
+	int sg_segments;
+
+	if (!ufs_data_log.entries)
+		return;
+
+	if (!ufs_sec_is_valid_read_cmd(cmd))
+		return;
+
+	/* data logging is not setup for the cmd->request->tag */
+	if (ufs_data_log.queuing_req[cmd->request->tag] < 0)
+		return;
+
+	entry = ufs_data_log.entries;
+
+	dump_index = ufs_data_log.queuing_req[cmd->request->tag];
+	ufs_data_log.queuing_req[cmd->request->tag] = -1;
+	entry[dump_index].end_time = ktime_get();
+	sg_segments = scsi_sg_count(cmd);
+	entry[dump_index].segments_cnt = sg_segments;
+	ufs_sec_check_magic_word(cmd, sg_segments, dump_index, tag_index);
+
+	entry[dump_index].state = UFS_SEC_DATA_STATE_CMPL;
+}
+
+static void ufs_sec_data_log_init(void)
+{
+	int i = 0;
+
+	if (!ufs_data_log.entries) {
+		ufs_data_log.entries = kcalloc(UFS_SEC_DATA_LOGGING_MAX,
+				sizeof(struct ufs_sec_data_log_entry),
+				GFP_KERNEL);
+		ufs_data_log.issued_entries = kcalloc(UFS_SEC_DATA_LOGGING_ERR_MAX,
+				sizeof(struct ufs_sec_data_log_entry),
+				GFP_KERNEL);
+		if (ufs_data_log.entries)
+			pr_info("SEC UFS data logging is initialized.\n");
+	}
+
+	ufs_data_log.pos = 0;
+	ufs_data_log.issued_pos = 0;
+
+	for (i = 0; i < UFS_SEC_DATA_LOGGING_ERR_MAX; i++)
+		ufs_data_log.magicword_match_cnt[i] = 0;
+
+	for (i = 0; i < UFS_SEC_CMDQ_DEPTH_MAX; i++)
+		ufs_data_log.queuing_req[i] = -1;
 }
 #endif
 
@@ -874,6 +1035,9 @@ void ufs_set_sec_features(struct ufs_hba *hba)
 
 #if IS_ENABLED(CONFIG_SCSI_UFS_QCOM)
 	ufs_sec_cmd_log_init();
+#if IS_ENABLED(CONFIG_UFS_DATA_LOG)
+	ufs_sec_data_log_init();
+#endif
 #endif
 
 	ufs_sec_wb_probe(hba, desc_buf);
@@ -917,11 +1081,7 @@ void ufs_sec_check_hwrst_cnt(void)
 	SEC_UFS_ERR_COUNT_INC(op_cnt->op_err, UINT_MAX);
 #if IS_ENABLED(CONFIG_SEC_ABC)
 	if ((op_cnt->HW_RESET_count % 10) == 0)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=storage@INFO=ufs_hwreset_err");
-#else
 		sec_abc_send_event("MODULE=storage@WARN=ufs_hwreset_err");
-#endif
 #endif
 }
 
@@ -1281,11 +1441,7 @@ static void ufs_sec_sense_err_check(struct ufshcd_lrb *lrbp, struct ufs_sec_cmd_
 		sense_err->scsi_medium_err++;
 		ufs_sec_check_medium_error_region(ufs_cmd);
 #if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=storage@INFO=ufs_medium_err");
-#else
 		sec_abc_send_event("MODULE=storage@WARN=ufs_medium_err");
-#endif
 #endif
 		if (secdbgMode)
 			panic("ufs medium error\n");
@@ -1359,6 +1515,9 @@ static void sec_android_vh_ufs_send_command(void *data, struct ufs_hba *hba, str
 
 	if (is_scsi_cmd) {
 #if IS_ENABLED(CONFIG_SCSI_UFS_QCOM)
+#if IS_ENABLED(CONFIG_UFS_DATA_LOG)
+		ufs_sec_start_data_log(lrbp->cmd);
+#endif
 		ufs_sec_cmd_log(hba, lrbp, "send", &ufs_cmd);
 #endif
 		if (ufs_sec_is_wb_allowed() && (ufs_cmd.opcode == WRITE_10)) {
@@ -1388,6 +1547,9 @@ static void sec_android_vh_ufs_compl_command(void *data, struct ufs_hba *hba, st
 
 	if (is_scsi_cmd) {
 #if IS_ENABLED(CONFIG_SCSI_UFS_QCOM)
+#if IS_ENABLED(CONFIG_UFS_DATA_LOG)
+		ufs_sec_end_data_log(lrbp->cmd, lrbp->task_tag);
+#endif
 		ufs_sec_cmd_log(hba, lrbp, "complete", &ufs_cmd);
 #endif
 		ufs_sec_sense_err_check(lrbp, &ufs_cmd);

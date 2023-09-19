@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -72,6 +73,13 @@ extern "C" {
  */
 #define DRM_FORMAT_MOD_QCOM_ALPHA_SWAP	fourcc_mod_code(QCOM, 0x10)
 
+/*
+ * @DRM_FORMAT_MOD_QCOM_FSC_TILE:	Refers to a tile variant of the
+ *					planar format. Implementation may be
+ *					platform and base-format specific.
+ */
+#define DRM_FORMAT_MOD_QCOM_FSC_TILE       fourcc_mod_code(QCOM, 0x20)
+
 /**
  * Blend operations for "blend_op" property
  *
@@ -98,6 +106,17 @@ extern "C" {
 #define SDE_DRM_BLEND_OP_COVERAGE       3
 #define SDE_DRM_BLEND_OP_MAX            4
 #define SDE_DRM_BLEND_OP_SKIP           5
+
+/**
+ * Sys Cache types for "syscache_type" property
+ *
+ * @SDE_SYSCACHE_LLCC_DISP:	Syscache type is default, LLCC_DISP.
+ * @SDE_SYSCACHE_LLCC_EVA_LEFT:	Syscache type is eva left, LLCC_EVALFT.
+ * @SDE_SYSCACHE_LLCC_EVA_RIGHT:Syscache type is eva right, LLCC_EVARGHT.
+ */
+#define SDE_SYSCACHE_LLCC_DISP		0
+#define SDE_SYSCACHE_LLCC_EVA_LEFT	1
+#define SDE_SYSCACHE_LLCC_EVA_RIGHT	2
 
 /**
  * Bit masks for "src_config" property
@@ -814,6 +833,7 @@ struct drm_msm_noise_layer_cfg {
 #define DRM_EVENT_MMRM_CB 0X8000000B
 #define DRM_EVENT_FRAME_DATA 0x8000000C
 #define DRM_EVENT_DIMMING_BL 0X8000000D
+#define DRM_EVENT_VM_RELEASE 0X8000000E
 
 #ifndef DRM_MODE_FLAG_VID_MODE_PANEL
 #define DRM_MODE_FLAG_VID_MODE_PANEL        0x01

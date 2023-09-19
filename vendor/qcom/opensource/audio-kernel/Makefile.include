@@ -17,3 +17,21 @@ ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8 gts8p gts8u gts8wifi gts8pw
     $(shell rm -fr $(AUDIO_ROOT)/config/waipioautoconf.h)
     $(shell cp $(AUDIO_ROOT)/config/waipioautoconf_gts8.h $(AUDIO_ROOT)/config/waipioautoconf.h)
 endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),q4q v4q))
+    $(info "change wapio config to waipio_q4")
+    $(shell rm -fr $(AUDIO_ROOT)/config/waipioauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/waipioauto_q4.conf $(AUDIO_ROOT)/config/waipioauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/waipioautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/waipioautoconf_q4.h $(AUDIO_ROOT)/config/waipioautoconf.h)
+endif
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),b4q e4q))
+    $(info "change wapio config to waipio_b4")
+    $(shell rm -fr $(AUDIO_ROOT)/config/waipioauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/waipioauto_b4.conf $(AUDIO_ROOT)/config/waipioauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/waipioautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/waipioautoconf_b4.h $(AUDIO_ROOT)/config/waipioautoconf.h)
+endif
+
+

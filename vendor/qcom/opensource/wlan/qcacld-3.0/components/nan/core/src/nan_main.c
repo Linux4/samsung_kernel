@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -564,11 +564,13 @@ static QDF_STATUS nan_handle_confirm(struct nan_datapath_confirm_event *confirm)
 	peer = wlan_objmgr_get_peer_by_mac(psoc,
 					   confirm->peer_ndi_mac_addr.bytes,
 					   WLAN_NAN_ID);
-	if (!peer) {
+	if (!peer && confirm->rsp_code == NAN_DATAPATH_RESPONSE_ACCEPT) {
 		nan_debug("Drop NDP confirm as peer isn't available");
 		return QDF_STATUS_E_NULL_VALUE;
 	}
-	wlan_objmgr_peer_release_ref(peer, WLAN_NAN_ID);
+
+	if (peer)
+		wlan_objmgr_peer_release_ref(peer, WLAN_NAN_ID);
 
 	psoc_nan_obj = nan_get_psoc_priv_obj(psoc);
 	if (!psoc_nan_obj) {
@@ -1114,7 +1116,8 @@ bool nan_is_enable_allowed(struct wlan_objmgr_psoc *psoc, uint32_t nan_ch_freq)
 	return (NAN_DISC_DISABLED == nan_get_discovery_state(psoc) &&
 		ucfg_is_nan_conc_control_supported(psoc) &&
 		policy_mgr_allow_concurrency(psoc, PM_NAN_DISC_MODE,
-					     nan_ch_freq, HW_MODE_20_MHZ));
+					     nan_ch_freq, HW_MODE_20_MHZ,
+					     0));
 }
 
 bool nan_is_disc_active(struct wlan_objmgr_psoc *psoc)

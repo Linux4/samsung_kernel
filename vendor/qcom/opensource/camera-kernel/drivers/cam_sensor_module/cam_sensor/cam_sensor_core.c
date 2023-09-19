@@ -71,6 +71,10 @@ int32_t cam_check_stream_on(
 		case SENSOR_ID_S5K3K1:
 		case SENSOR_ID_S5KHM3:
 		case SENSOR_ID_S5KGN3:
+		case SENSOR_ID_IMX258:
+		case FRONT_SENSOR_ID_IMX471:
+		case SENSOR_ID_S5K2LD:
+		case SENSOR_ID_S5K3J1:
 			ret = 1;
  			break;
 		default:
@@ -240,7 +244,7 @@ int cam_sensor_retention_calc_checksum(struct cam_sensor_ctrl_t *s_ctrl)
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] cam_sensor_retention_calc_checksum");
 	for (read_cnt = 0; read_cnt < SENSOR_RETENTION_READ_RETRY_CNT; read_cnt++) {
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 		usleep_range(15000, 15100);
 
 		// 2. Check result for retention mode - read addr: 0x010E
@@ -259,9 +263,15 @@ int cam_sensor_retention_calc_checksum(struct cam_sensor_ctrl_t *s_ctrl)
 
 #endif
 
+#if defined(CONFIG_SEC_B4Q_PROJECT)
+		// 2. Check result for checksum test - read addr: 0x100E
+		camera_io_dev_read(&s_ctrl->io_master_info, 0x100E, &read_value,
+			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD);
+#else
 		// 2. Check result for checksum test - read addr: 0x19C2
 		camera_io_dev_read(&s_ctrl->io_master_info, 0x19C2, &read_value,
 			CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD);
+#endif
 
 		if (read_value == 0x0100) {
 			CAM_INFO(CAM_SENSOR, "[RET_DBG] Pass checksum test");
@@ -271,6 +281,7 @@ int cam_sensor_retention_calc_checksum(struct cam_sensor_ctrl_t *s_ctrl)
 			CAM_ERR(CAM_SENSOR, "[RET_DBG] Fail checksum test (read_value = 0x%x, retry cnt : %d)", read_value, read_cnt);
 		}
 	}
+
 
 	if ((read_cnt == SENSOR_RETENTION_READ_RETRY_CNT) && (read_value != 0x0100)) {
 		CAM_ERR(CAM_SENSOR, "[RET_DBG] Fail checksum test! 0x%x", read_value);
@@ -325,7 +336,7 @@ int cam_sensor_write_retention_setting(
 	return rc;
 }
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)|| defined(CONFIG_SEC_B4Q_PROJECT)
 void cam_sensor_write_prepare_retention(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
@@ -362,7 +373,6 @@ int cam_sensor_wait_retention_mode(struct cam_sensor_ctrl_t *s_ctrl)
 
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] cam_sensor_wait_retention_mode");
 	for (read_cnt = 0; read_cnt < SENSOR_RETENTION_READ_RETRY_CNT; read_cnt++) {
-
 		usleep_range(2000, 2100);
 
 		// 1. Check result for retention mode wait - read addr: 0x19C4
@@ -417,6 +427,10 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] stream on");
+
+#if defined(CONFIG_SEC_B4Q_PROJECT)
+		cam_sensor_write_prepare_retention(s_ctrl);
+#endif
 		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
 			stream_on_settings, ARRAY_SIZE(stream_on_settings));
 		if (rc < 0) {
@@ -440,7 +454,7 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 		cam_sensor_wait_stream_off(s_ctrl);
 #endif
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 		rc = cam_sensor_wait_retention_mode(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
@@ -474,7 +488,7 @@ void cam_sensor_write_enable_crc(struct cam_sensor_ctrl_t *s_ctrl)
 	if(sensor_id != RETENTION_SENSOR_ID)
 		return;
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on for seamless mode change");
 	cam_sensor_write_prepare_retention(s_ctrl);
 
@@ -497,6 +511,146 @@ void cam_sensor_write_enable_crc(struct cam_sensor_ctrl_t *s_ctrl)
 
 #endif
 
+#if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
+int cam_sensor_apply_hyperlapse_settings(
+	struct cam_sensor_ctrl_t *s_ctrl)
+{
+	int rc = 0;
+	struct cam_sensor_i2c_reg_setting reg_fllsetting;
+		struct cam_sensor_i2c_reg_setting reg_streamoffsetting;
+		struct cam_sensor_i2c_reg_setting reg_streamonsetting;
+		int size = 0;
+#if defined(CONFIG_SEC_Q4Q_PROJECT)
+	struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
+		{0x0104, 0x0101, 0, 0},
+		{0x0702, 0x0000, 0, 0},
+		{0x0704, 0x0000, 0, 0},
+		{0x0340, 0x2DA8, 0, 0},
+		{0x0202, 0x0D11, 0, 0},
+		{0x0204, 0x0063, 0, 0},
+		{0x020E, 0x0100, 0, 0},
+		{0x0104, 0x0001, 0, 0},
+	};
+
+	struct cam_sensor_i2c_reg_array i2c_streamoff_reg_array[] = {
+		{0x0B32, 0x0000, 0, 0},
+		{0x0E00, 0x0003, 0, 0},
+		{0x0100, 0x0003, 0, 0},
+	};
+
+	struct cam_sensor_i2c_reg_array i2c_streamon_reg_array[] = {
+		{0x0B32, 0x0000, 0, 0},
+		{0x0100, 0x0103, 0, 0},
+	};
+
+	if (s_ctrl->sensordata->slave_info.sensor_id != SENSOR_ID_S5KGN3)
+	{
+		return rc;
+	}
+#elif defined(CONFIG_SEC_B4Q_PROJECT)
+	struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
+		{0x0104, 0x0101, 0, 0},
+		{0x0702, 0x0000, 0, 0},
+		{0x0704, 0x0000, 0, 0},
+		{0x0340, 0x2F8E, 0, 0},
+		{0x0202, 0x0D11, 0, 0},
+		{0x0204, 0x0063, 0, 0},
+		{0x020E, 0x0100, 0, 0},
+		{0x0104, 0x0001, 0, 0},
+	};
+
+	struct cam_sensor_i2c_reg_array i2c_streamoff_reg_array[] = {
+		{0x0E0A, 0x0000, 0, 0},
+		{0x0100, 0x0000, 0, 0},
+	};
+
+	struct cam_sensor_i2c_reg_array i2c_streamon_reg_array[] = {
+		{0x0100, 0x0100, 0, 0},
+	};
+
+	if (s_ctrl->sensordata->slave_info.sensor_id != SENSOR_ID_S5K2LD)
+	{
+		return rc;
+	}
+#endif
+
+#if defined(CONFIG_SEC_Q4Q_PROJECT) || defined(CONFIG_SEC_B4Q_PROJECT)
+	// SHOOTING_MODE_HYPER_MOTION = 16, SHOOTING_MODE_NIGHT = 8, SHOOTING_MODE_SUPER_NIGHT = 31
+	if ((s_ctrl->shooting_mode == 16) || (s_ctrl->shooting_mode == 8) || (s_ctrl->shooting_mode == 31))
+	{
+		size = ARRAY_SIZE(i2c_fll_reg_array);
+		CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] write register settings :: StreamOff -> FLL -> StreamOn");
+
+		reg_fllsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
+		if (reg_fllsetting.reg_setting != NULL) {
+			reg_fllsetting.size = size;
+			reg_fllsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+			reg_fllsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+			reg_fllsetting.delay = 0;
+			memcpy(reg_fllsetting.reg_setting, &i2c_fll_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
+			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] fll size = %d", size);
+		}
+
+		size = ARRAY_SIZE(i2c_streamoff_reg_array);
+		reg_streamoffsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
+		if (reg_streamoffsetting.reg_setting != NULL) {
+			reg_streamoffsetting.size = size;
+			reg_streamoffsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+			reg_streamoffsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+			reg_streamoffsetting.delay = 0;
+			memcpy(reg_streamoffsetting.reg_setting, &i2c_streamoff_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
+			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] streamoff size = %d", size);
+		}
+
+		size = ARRAY_SIZE(i2c_streamon_reg_array);
+		reg_streamonsetting.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
+		if (reg_streamonsetting.reg_setting != NULL) {
+			reg_streamonsetting.size = size;
+			reg_streamonsetting.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+			reg_streamonsetting.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+			reg_streamonsetting.delay = 0;
+			memcpy(reg_streamonsetting.reg_setting, &i2c_streamon_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
+			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] stream on size = %d", size);
+		}
+		
+		rc = cam_sensor_wait_stream_on(s_ctrl, 20);
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] failed wait stream_on 1");
+
+		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_streamoffsetting);
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] Failed to write streamoff settings %d", rc);
+
+		rc = cam_sensor_wait_stream_off(s_ctrl);
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] failed wait stream_off 2");
+
+		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_fllsetting);
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] Failed to write fll settings %d", rc);
+
+		rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_streamonsetting);
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] Failed to write streamon settings %d", rc);
+
+		if (reg_fllsetting.reg_setting) {
+			kfree(reg_fllsetting.reg_setting);
+			reg_fllsetting.reg_setting = NULL;
+		}
+		if (reg_streamoffsetting.reg_setting) {
+			kfree(reg_streamoffsetting.reg_setting);
+			reg_streamoffsetting.reg_setting = NULL;
+		}
+		if (reg_streamonsetting.reg_setting) {
+			kfree(reg_streamonsetting.reg_setting);
+			reg_streamonsetting.reg_setting = NULL;
+		}
+	}
+#endif
+	return rc;
+}
+#endif
+
 #if 1
 int cam_sensor_pre_apply_settings(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -505,6 +659,9 @@ int cam_sensor_pre_apply_settings(
 	int rc = 0;
 	switch (opcode) {
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF: {
+#if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
+		cam_sensor_apply_hyperlapse_settings(s_ctrl);
+#endif
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
 			rc = cam_sensor_wait_stream_on(s_ctrl, 20);
 #endif
@@ -515,7 +672,7 @@ int cam_sensor_pre_apply_settings(
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON: {
 #if defined(CONFIG_SENSOR_RETENTION)
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 			cam_sensor_write_prepare_retention(s_ctrl);
 #endif
 #endif
@@ -545,7 +702,7 @@ int cam_sensor_post_apply_settings(
 			cam_sensor_wait_stream_off(s_ctrl);
 #endif
 #if defined(CONFIG_SENSOR_RETENTION)
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 			rc = cam_sensor_wait_retention_mode(s_ctrl);
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
@@ -714,6 +871,14 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		rc = -EINVAL;
 		goto end;
 	}
+
+#if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
+	if((csl_packet->header.op_code & 0xFFFFFF) == CAM_SENSOR_PACKET_OPCODE_SENSOR_SHOOTINGMODE) {
+		CAM_DBG(CAM_SENSOR, "[ASTRO_DBG] Shooting_Mode : %d", csl_packet->header.request_id);
+		s_ctrl->shooting_mode = csl_packet->header.request_id;
+		goto end;
+	}
+#endif
 
 	if ((csl_packet->header.op_code & 0xFFFFFF) !=
 		CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG &&
@@ -1305,8 +1470,9 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_INFO(CAM_SENSOR,"STREAM OFF and RETENTION state check before Powerdown to keep sensor in right state");
 // Stream OFF start
 #if defined(CONFIG_CAMERA_AEB_OFF_CONTROL)
-		if ((AEB_SENSOR_ID != 0) &&
-			(s_ctrl->sensordata->slave_info.sensor_id == AEB_SENSOR_ID)) {
+    if ((AEB_SENSOR_ID != 0) &&
+        (s_ctrl->sensordata->slave_info.sensor_id == AEB_SENSOR_ID) &&
+        (sensor_retention_mode != RETENTION_ON)) {
 			uint32_t aeb_is_on = 0;
 			cam_sensor_check_aeb_status(s_ctrl, &aeb_is_on);
 			if (aeb_is_on) {
@@ -1338,11 +1504,11 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 #if defined(CONFIG_SENSOR_RETENTION)
-	if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID &&
-		check_stream_on == 0) {
-		CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum start!");
+    if ((s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) &&
+        (check_stream_on == 0) && (sensor_retention_mode != RETENTION_ON)) {
+        CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum start!");
 
-#if defined(CONFIG_SEC_B0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_B4Q_PROJECT)
 		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
 			stream_on_settings, ARRAY_SIZE(stream_on_settings));
 		if (rc < 0)
@@ -1364,7 +1530,7 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 #endif
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum end!");
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 		rc = cam_sensor_wait_retention_mode(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
@@ -1643,6 +1809,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 				case CAMERA_11:
+				case CAMERA_13:
 					if (!msm_is_sec_get_front3_hw_param(&hw_param)) {
 						if (hw_param != NULL) {
 							CAM_ERR(CAM_UTIL, "[HWB][F3][I2C] Err\n");
@@ -1653,6 +1820,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 					break;
 #else
 				case CAMERA_11:
+				case CAMERA_13:
 					if (!msm_is_sec_get_front2_hw_param(&hw_param)) {
 						if (hw_param != NULL) {
 							CAM_ERR(CAM_UTIL, "[HWB][F2][I2C] Err\n");
@@ -1688,10 +1856,24 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 					break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+				case CAMERA_6:
+					if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+						if (hw_param != NULL) {
+							CAM_ERR(CAM_UTIL, "[HWB][R4][I2C] Err\n");
+							hw_param->i2c_sensor_err_cnt++;
+							hw_param->need_update_to_file = TRUE;
+						}
+					}
+					break;
+#endif
 				default:
 					CAM_DBG(CAM_UTIL, "[NON][I2C][%d] Unsupport\n", s_ctrl->id);
 					break;
 				}
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
+				msm_is_sec_get_rfinfo(hw_param);
+#endif
 			}
 		}
 #endif
@@ -1867,7 +2049,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			check_stream_on == 0) {
 			CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum start!");
 
-#if defined(CONFIG_SEC_B0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_B4Q_PROJECT)
 			rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
 				stream_on_settings, ARRAY_SIZE(stream_on_settings));
 			if (rc < 0)
@@ -1889,7 +2071,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #endif
 			CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum end!");
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 			rc = cam_sensor_wait_retention_mode(s_ctrl);
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
@@ -2431,6 +2613,20 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 				break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+			case CAMERA_4:
+				if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+					if (hw_param != NULL) {
+						CAM_DBG(CAM_UTIL, "[R4][INIT] Init\n");
+						hw_param->i2c_chk = FALSE;
+						hw_param->mipi_chk = FALSE;
+						hw_param->need_update_to_file = FALSE;
+						hw_param->comp_chk = FALSE;
+					}
+				}
+				break;
+#endif
+
 			default:
 				CAM_DBG(CAM_UTIL, "[NON][INIT][%d] Unsupport\n", s_ctrl->id);
 				break;
@@ -2456,17 +2652,23 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 	}
 
-#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT))
+#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT))
 	if (soc_info->index == SEC_WIDE_SENSOR)
 		cam_sensor_set_regulator_mode(soc_info, REGULATOR_MODE_FAST);
 #endif
 
 	rc = cam_sensor_core_power_up(power_info, soc_info);
 	if (rc < 0) {
-		CAM_ERR(CAM_SENSOR, "core power up failed:%d", rc);
-#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT))
+		CAM_ERR(CAM_SENSOR, "core power up failed:%d for index %d", rc, soc_info->index);
+#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT))
 		if (soc_info->index == SEC_WIDE_SENSOR)
 			cam_sensor_set_regulator_mode(soc_info, REGULATOR_MODE_NORMAL);
+#endif
+#if defined(CONFIG_SEC_Q4Q_PROJECT) 
+		/* Q4 SMD test ONCE issue(P220520-02953) - Front camera probe not called because power up failed 
+		 * Do not return failure for Cover front cameras.
+		 */
+		if (soc_info->index != SEC_FRONT_TOP_SENSOR && soc_info->index != SEC_FRONT_TOP_FULL_SENSOR)
 #endif
 		return rc;
 	}
@@ -2608,6 +2810,23 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 				break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+			case CAMERA_4:
+				if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+					if (hw_param != NULL) {
+						hw_param->i2c_chk = FALSE;
+						hw_param->mipi_chk = FALSE;
+						hw_param->comp_chk = FALSE;
+
+						if (hw_param->need_update_to_file) {
+							CAM_DBG(CAM_UTIL, "[R4][DEINIT] Update\n");
+							msm_is_sec_copy_err_cnt_to_file();
+						}
+						hw_param->need_update_to_file = FALSE;
+					}
+				}
+				break;
+#endif
 			default:
 				CAM_DBG(CAM_UTIL, "[NON][DEINIT][%d] Unsupport\n", s_ctrl->id);
 				break;
@@ -2626,7 +2845,7 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 
 	rc = cam_sensor_util_power_down(power_info, soc_info);
 
-#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT))
+#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT))
 	if (soc_info->index == SEC_WIDE_SENSOR)
 		cam_sensor_set_regulator_mode(soc_info, REGULATOR_MODE_NORMAL);
 #endif
@@ -3088,9 +3307,9 @@ int msm_is_sec_file_exist(char *filename, hw_params_check_type chktype)
 	return ret;
 }
 
-int msm_is_sec_get_sensor_position(uint32_t **cam_position)
+int msm_is_sec_get_sensor_position(uint32_t *cam_position)
 {
-	*cam_position = &sec_sensor_position;
+	*cam_position = sec_sensor_position;
 	return 0;
 }
 
@@ -3141,5 +3360,73 @@ int msm_is_sec_get_rear3_hw_param(struct cam_hw_param **hw_param)
 	*hw_param = &cam_hwparam_collector.rear3_hwparam;
 	return 0;
 }
+
+int msm_is_sec_get_rear4_hw_param(struct cam_hw_param **hw_param)
+{
+	*hw_param = &cam_hwparam_collector.rear4_hwparam;
+	return 0;
+}
+
+int msm_is_sec_get_hw_param(uint32_t camera_id, struct cam_hw_param **hw_param)
+{
+	int ret = 0;
+	switch(camera_id){
+		case CAMERA_0:
+			msm_is_sec_get_rear_hw_param(hw_param);
+			break;
+		case CAMERA_1:
+		case CAMERA_12:
+			msm_is_sec_get_front_hw_param(hw_param);
+			break;
+#if defined(CONFIG_SAMSUNG_FRONT_TOP)
+#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
+		case CAMERA_11:
+		case CAMERA_13:
+			msm_is_sec_get_front3_hw_param(hw_param);
+			break;
+#else
+		case CAMERA_11:
+		case CAMERA_13:
+			msm_is_sec_get_front2_hw_param(hw_param);
+			break;
+#endif
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+		case CAMERA_2:
+			msm_is_sec_get_rear2_hw_param(hw_param);
+			break;
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+		case CAMERA_3:
+			msm_is_sec_get_rear3_hw_param(hw_param);
+			break;
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+		case CAMERA_6:
+			msm_is_sec_get_rear4_hw_param(hw_param);
+			break;
+#endif
+		default:
+			CAM_ERR(CAM_UTIL, "[HWB][MIPI][%d] Unsupport\n", camera_id);
+			ret = -1;
+			break;
+	}
+	return ret;
+}
+
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
+void msm_is_sec_get_rfinfo(struct cam_hw_param *hw_param)
+{
+	struct cam_cp_noti_info rf_info;
+
+	get_rf_info(&rf_info);
+	CAM_DBG(CAM_UTIL,
+		"[RF_MIPI_DBG] rat : %d, band : %d, channel : %d",
+		rf_info.rat, rf_info.band, rf_info.channel);
+	hw_param->rf_rat = rf_info.rat;
+	hw_param->rf_band = rf_info.band;
+	hw_param->rf_channel = rf_info.channel;
+}
+#endif
 #endif
 

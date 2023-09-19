@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define DEBUG
@@ -37,7 +38,8 @@
 #define MINOR_NUM_IPC 1
 #define QBT_INPUT_DEV_NAME "qbt_key_input"
 #define QBT_INPUT_DEV_VERSION 0x0100
-#define QBT_TOUCH_FD_VERSION 2
+#define QBT_TOUCH_FD_VERSION_2 2
+#define QBT_TOUCH_FD_VERSION_3 3
 
 struct finger_detect_gpio {
 	int gpio;
@@ -70,7 +72,7 @@ struct touch_event {
 };
 
 struct finger_detect_touch {
-	struct qbt_touch_config_v2 config;
+	struct qbt_touch_config_v3 config;
 	struct work_struct work;
 	struct touch_event current_events[MT_MAX_FINGERS];
 	struct touch_event last_events[MT_MAX_FINGERS];
@@ -181,12 +183,18 @@ static void qbt_touch_report_event(struct input_handle *handle,
 {
 	struct qbt_drvdata *drvdata = handle->handler->private;
 	struct finger_detect_touch *fd_touch = &drvdata->fd_touch;
-	struct touch_event *event =
-		&fd_touch->current_events[fd_touch->current_slot];
+	struct touch_event *event = NULL;
 	static bool report_event = true;
 
 	if (type != EV_SYN && type != EV_ABS)
 		return;
+
+	if (fd_touch->current_slot >= MT_MAX_FINGERS) {
+		pr_warn("Touch event current slot: %d received out of bound\n",
+			fd_touch->current_slot);
+		return;
+	}
+	event = &fd_touch->current_events[fd_touch->current_slot];
 
 	switch (code) {
 	case ABS_MT_SLOT:
@@ -216,13 +224,16 @@ static void qbt_touch_report_event(struct input_handle *handle,
 	}
 
 	if (report_event) {
-		if (!fd_touch->config.touch_fd_enable ||
-				!drvdata->fd_gpio.irq_enabled)
+		if ((!fd_touch->config.touch_fd_enable) &&
+				(!fd_touch->config.intr2_enable &&
+				!drvdata->fd_gpio.irq_enabled)) {
+			pr_debug("Received touch event but not scheduling\n");
 			memcpy(fd_touch->last_events,
 					fd_touch->current_events,
 					MT_MAX_FINGERS * sizeof(
 					struct touch_event));
-		else {
+		} else {
+			pr_debug("Received touch event scheduling\n");
 			pm_stay_awake(drvdata->dev);
 			schedule_work(&drvdata->fd_touch.work);
 		}
@@ -246,7 +257,7 @@ static struct input_handler qbt_touch_handler = {
 };
 
 static bool qbt_touch_filter_aoi_region(struct touch_event *event,
-		struct qbt_touch_config_v2 *config)
+		struct qbt_touch_config_v3 *config)
 {
 	if (event->X < config->left ||
 			event->X > config->right ||
@@ -264,7 +275,7 @@ static bool qbt_touch_filter_by_radius(
 		int slot)
 {
 	unsigned int del_X = 0, del_Y = 0;
-	struct qbt_touch_config_v2 *config = &drvdata->fd_touch.config;
+	struct qbt_touch_config_v3 *config = &drvdata->fd_touch.config;
 
 	drvdata->fd_touch.delta_X[slot] +=
 			current_event->X - last_event->X;
@@ -286,7 +297,7 @@ static bool qbt_touch_filter_by_radius(
 static void qbt_touch_work_func(struct work_struct *work)
 {
 	struct qbt_drvdata *drvdata = NULL;
-	struct qbt_touch_config_v2 *config;
+	struct qbt_touch_config_v3 *config = NULL;
 	struct finger_detect_touch *fd_touch = NULL;
 	struct touch_event current_event, last_event;
 	struct fd_event finger_event;
@@ -354,14 +365,16 @@ static void qbt_touch_work_func(struct work_struct *work)
 					intr2_state = true;
 					break;
 				}
-			pr_debug("Setting INTR2 GPIO to %d\n", intr2_state);
-			if (gpio_is_valid(drvdata->intr2_gpio))
-				__gpio_set_value(drvdata->intr2_gpio, intr2_state);
-			else
-				pr_debug("INTR2 GPIO not available\n");
+			if (config->intr2_enable) {
+				pr_debug("Setting INTR2 GPIO to %d\n", intr2_state);
+				if (gpio_is_valid(drvdata->intr2_gpio))
+					__gpio_set_value(drvdata->intr2_gpio, intr2_state);
+				else
+					pr_debug("INTR2 GPIO not available\n");
+			}
 		}
-
-		qbt_fd_report_event(drvdata, &finger_event);
+		if (config->touch_fd_enable)
+			qbt_fd_report_event(drvdata, &finger_event);
 	}
 	pm_relax(drvdata->dev);
 }
@@ -594,7 +607,7 @@ static long qbt_ioctl(
 	{
 		struct qbt_touch_fd_version version;
 
-		version.version = QBT_TOUCH_FD_VERSION;
+		version.version = QBT_TOUCH_FD_VERSION_3;
 		rc = copy_to_user((void __user *)priv_arg,
 				&version, sizeof(version));
 
@@ -607,6 +620,7 @@ static long qbt_ioctl(
 		break;
 	}
 	case QBT_CONFIGURE_TOUCH_FD_V2:
+	case QBT_CONFIGURE_TOUCH_FD_V3:
 	{
 		if (copy_from_user(&drvdata->fd_touch.config.version,
 				priv_arg,
@@ -617,18 +631,34 @@ static long qbt_ioctl(
 			goto end;
 		}
 		if (drvdata->fd_touch.config.version.version
-				!= QBT_TOUCH_FD_VERSION) {
+				!= QBT_TOUCH_FD_VERSION_2 &&
+				drvdata->fd_touch.config.version.version
+				!= QBT_TOUCH_FD_VERSION_3) {
 			rc = -EINVAL;
 			pr_err("unsupported version %d\n",
 					drvdata->fd_touch.config.version);
 			goto end;
 		}
-		if (copy_from_user(&drvdata->fd_touch.config,
-				priv_arg,
-				sizeof(drvdata->fd_touch.config)) != 0) {
-			rc = -EFAULT;
-			pr_err("failed copy from user space %d\n", rc);
-			goto end;
+		if (drvdata->fd_touch.config.version.version
+				== QBT_TOUCH_FD_VERSION_2) {
+			if (copy_from_user(&drvdata->fd_touch.config,
+					priv_arg,
+					sizeof(drvdata->fd_touch.config)-sizeof(
+					drvdata->fd_touch.config.intr2_enable)) != 0) {
+				rc = -EFAULT;
+				pr_err("failed copy from user space %d\n", rc);
+				goto end;
+			}
+			drvdata->fd_touch.config.intr2_enable =
+				drvdata->fd_touch.config.touch_fd_enable;
+		} else {
+			if (copy_from_user(&drvdata->fd_touch.config,
+					priv_arg,
+					sizeof(drvdata->fd_touch.config)) != 0) {
+				rc = -EFAULT;
+				pr_err("failed copy from user space %d\n", rc);
+				goto end;
+			}
 		}
 		pr_debug("Touch FD enable: %d\n",
 			drvdata->fd_touch.config.touch_fd_enable);
@@ -642,6 +672,8 @@ static long qbt_ioctl(
 		pr_debug("rad_x: %d rad_y: %d\n",
 			drvdata->fd_touch.config.rad_x,
 			drvdata->fd_touch.config.rad_y);
+		pr_debug("INTR2 enable: %d\n",
+			drvdata->fd_touch.config.intr2_enable);
 		break;
 	}
 	case QBT_INTR2_TEST:
@@ -785,7 +817,7 @@ static ssize_t qbt_read(struct file *filp, char __user *ubuf,
 		pr_err("Invalid minor number\n");
 	}
 	if (num_bytes != 0)
-		pr_warn("Could not copy %d bytes\n");
+		pr_warn("Could not copy %d bytes\n", num_bytes);
 	return num_bytes;
 }
 
@@ -1252,6 +1284,7 @@ static int qbt_read_device_tree(struct platform_device *pdev,
 	drvdata->is_wuhb_connected = 1;
 	drvdata->fd_gpio.gpio = gpio;
 	drvdata->fd_gpio.active_low = flags & OF_GPIO_ACTIVE_LOW;
+	pr_debug("is_wuhb_connected=%d\n", drvdata->is_wuhb_connected);
 
 end:
 	return rc;

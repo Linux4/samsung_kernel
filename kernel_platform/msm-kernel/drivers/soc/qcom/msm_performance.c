@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -29,6 +30,8 @@
 
 #include <linux/scmi_protocol.h>
 #include <linux/scmi_plh.h>
+#include <linux/scmi_gplaf.h>
+#include <linux/scmi_shared_rail.h>
 #include <trace/events/power.h>
 
 #define POLL_INT 25
@@ -39,6 +42,19 @@
 #define CYC_EV 0x11 /* 1st event*/
 #define INIT "Init"
 #define CPU_CYCLE_THRESHOLD 650000
+
+#define CPUCP_MIN_LOG_LEVEL			0
+#define CPUCP_MAX_LOG_LEVEL			0xF
+
+#define GPLAF_SP_ADDR			0x17D09A00 //Start of gplaf shared mem region
+#define GPLAF_SP_SIZE			0x200
+#define GPLAF_ELEM_SIZE         (GPLAF_SP_SIZE/8)
+#define MAX_GFX_STR_ELEMENTS    5
+#define FAILED					-1
+#define RETRY					-2
+
+static int gplaf_notif;
+uint32_t gfx_data[GPLAF_ELEM_SIZE] = {0};
 
 static DEFINE_PER_CPU(bool, cpu_is_hp);
 static DEFINE_MUTEX(perfevent_lock);
@@ -96,6 +112,61 @@ static ssize_t get_splh_log_level(struct kobject *kobj,
 static ssize_t set_splh_log_level(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf,
 	size_t count);
+static ssize_t get_lplh_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_lplh_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_lplh_sample_ms(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_lplh_sample_ms(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_lplh_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_lplh_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_gplaf_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_gplaf_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_gplaf_data(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_gplaf_data(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_gplaf_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_gplaf_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_gplaf_health(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_gplaf_health(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_dplh_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_dplh_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_dplh_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_dplh_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_l3_boost(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_l3_boost(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
+static ssize_t get_silver_core_boost(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t set_silver_core_boost(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count);
 
 static struct kobj_attribute cpu_min_freq_attr =
 	__ATTR(cpu_min_freq, 0644, get_cpu_min_freq, set_cpu_min_freq);
@@ -114,6 +185,28 @@ static struct kobj_attribute splh_sample_ms_attr =
 	__ATTR(splh_sample_ms, 0644, get_splh_sample_ms, set_splh_sample_ms);
 static struct kobj_attribute splh_log_level_attr =
 	__ATTR(splh_log_level, 0644, get_splh_log_level, set_splh_log_level);
+static struct kobj_attribute lplh_notif_attr =
+	__ATTR(lplh_notif, 0644, get_lplh_notif, set_lplh_notif);
+static struct kobj_attribute lplh_sample_ms_attr =
+	__ATTR(lplh_sample_ms, 0644, get_lplh_sample_ms, set_lplh_sample_ms);
+static struct kobj_attribute lplh_log_level_attr =
+	__ATTR(lplh_log_level, 0644, get_lplh_log_level, set_lplh_log_level);
+static struct kobj_attribute gplaf_notif_attr =
+	__ATTR(gplaf_notify, 0644, get_gplaf_notif, set_gplaf_notif);
+static struct kobj_attribute gplaf_data_node_attr =
+	__ATTR(gplaf_data_node, 0644, get_gplaf_data, set_gplaf_data);
+static struct kobj_attribute gplaf_log_level_attr =
+	__ATTR(gplaf_log_level, 0644, get_gplaf_log_level, set_gplaf_log_level);
+static struct kobj_attribute gplaf_health_attr =
+	__ATTR(gplaf_health, 0644, get_gplaf_health, set_gplaf_health);
+static struct kobj_attribute dplh_notif_attr =
+	__ATTR(dplh_notif, 0644, get_dplh_notif, set_dplh_notif);
+static struct kobj_attribute dplh_log_level_attr =
+	__ATTR(dplh_log_level, 0644, get_dplh_log_level, set_dplh_log_level);
+static struct kobj_attribute l3_boost_attr =
+	__ATTR(l3_boost, 0644, get_l3_boost, set_l3_boost);
+static struct kobj_attribute silver_core_boost_attr =
+	__ATTR(silver_core_boost, 0644, get_silver_core_boost, set_silver_core_boost);
 
 static struct attribute *param_attrs[] = {
 	&cpu_min_freq_attr.attr,
@@ -124,6 +217,17 @@ static struct attribute *param_attrs[] = {
 	&splh_notif_attr.attr,
 	&splh_sample_ms_attr.attr,
 	&splh_log_level_attr.attr,
+	&lplh_notif_attr.attr,
+	&lplh_sample_ms_attr.attr,
+	&lplh_log_level_attr.attr,
+	&gplaf_notif_attr.attr,
+	&gplaf_data_node_attr.attr,
+	&gplaf_log_level_attr.attr,
+	&gplaf_health_attr.attr,
+	&dplh_notif_attr.attr,
+	&dplh_log_level_attr.attr,
+	&l3_boost_attr.attr,
+	&silver_core_boost_attr.attr,
 	NULL,
 };
 
@@ -165,6 +269,8 @@ static cpumask_var_t limit_mask_min;
 static cpumask_var_t limit_mask_max;
 
 static DECLARE_COMPLETION(gfx_evt_arrival);
+static void gfx_data_notify_cpucp(struct work_struct *dummy);
+static DECLARE_WORK(gfx_notify_work, gfx_data_notify_cpucp);
 
 struct gpu_data {
 	pid_t pid;
@@ -208,6 +314,94 @@ static unsigned int curr_cap[CLUSTER_MAX];
 static atomic_t game_status_pid;
 static bool ready_for_freq_updates;
 
+static void __iomem *dest;
+typedef uint32_t atomic_flag_t;
+
+static int msm_perf_atomic_buf_write(void __iomem *dest, uint64_t *src, size_t sz)
+{
+	void __iomem *first_shared_mem_word_addr;
+	uint32_t i, j;
+	uintptr_t lmt = sz;
+	uint32_t flag = 0;
+	uint32_t val = 0;
+
+	if (!dest || !src) {
+		pr_err("msm_perf: src or dest pointer is null\n");
+		return FAILED;
+	}
+
+	first_shared_mem_word_addr =
+		(dest) + 4; // First word is for atomic var
+
+	// Increment flag
+	flag = readl_relaxed(dest);
+	flag += 1;
+	writel_relaxed(flag, dest);
+
+	// Update shared memory region
+	for (i = 0, j = 0; j <= lmt && j < GPLAF_ELEM_SIZE; i += 4, j++) {
+		val = (uint32_t)((src[j] & 0xFFFFFFFF00000000) >> 32);
+		writel_relaxed(val, first_shared_mem_word_addr + i);
+		i += 4;
+		val = (uint32_t)(src[j] & 0xFFFFFFFF);
+		writel_relaxed(val, first_shared_mem_word_addr + i);
+	}
+
+	// Increment flag
+	// We don't perform a read here since no other entity
+	// will change the flag value (only one producer)
+	// Second increment ensure write complete. On read
+	// we check even value for flag before start.
+	flag += 1;
+	writel_relaxed(flag, dest);
+
+	return 0; // Success
+}
+
+#ifdef ENABLE_ATOMIC_READ
+static int msm_perf_atomic_try_buf_read(char *dest, void __iomem *src, size_t sz)
+{
+	uint32_t flag_val_1, flag_val_2;
+	void __iomem *first_shared_mem_word_addr;
+	//uintptr_t lmt = ((sz + 3) & (-4));
+	uintptr_t lmt = sz;
+	uint32_t i, j;
+	uint32_t *addr;
+
+	if (!dest || !src) {
+		pr_err("msm_perf: src or dest pointer is null\n");
+		return FAILED;
+	}
+	first_shared_mem_word_addr =
+		(src) + 4; // First word is for atomic var
+
+	// Store flag_val for later use
+	flag_val_1 = readl_relaxed(src);
+
+	// If flag_val is odd, retry later
+	if (flag_val_1 % 2)
+		return RETRY;
+
+	// Read shared memory region
+	//for (i = 0; i < lmt; i += 4)
+	for (i = 0, j = 0; j <= lmt && j < GPLAF_ELEM_SIZE; i += 4, j++) {
+		addr = (uint32_t *)(dest + i);
+		*addr = readl_relaxed(first_shared_mem_word_addr + i);
+		i += 4;
+		addr = (uint32_t *)(dest + i);
+		*addr = readl_relaxed(first_shared_mem_word_addr + i);
+	}
+
+	// Check if flag is even again before proceeding
+	// Also check if flag_val changed since the first read
+	flag_val_2 = readl_relaxed(src);
+	if ((flag_val_2 % 2) || (flag_val_2 != flag_val_1))	{
+		return FAILED; // Update was in progress; retry again
+	} else
+		return 0; // Consumption from shared memory success, caller can use that value
+}
+#endif
+
 static int freq_qos_request_init(void)
 {
 	unsigned int cpu;
@@ -235,7 +429,7 @@ static int freq_qos_request_init(void)
 			goto cleanup;
 		}
 
-		per_cpu(msm_perf_cpu_stats, cpu).max = UINT_MAX;
+		per_cpu(msm_perf_cpu_stats, cpu).max = FREQ_QOS_MAX_DEFAULT_VALUE;
 		req = &per_cpu(qos_req_max, cpu);
 		ret = freq_qos_add_request(&policy->constraints, req,
 			FREQ_QOS_MAX, FREQ_QOS_MAX_DEFAULT_VALUE);
@@ -262,7 +456,7 @@ cleanup:
 			freq_qos_remove_request(req);
 
 		per_cpu(msm_perf_cpu_stats, cpu).min = 0;
-		per_cpu(msm_perf_cpu_stats, cpu).max = UINT_MAX;
+		per_cpu(msm_perf_cpu_stats, cpu).max = FREQ_QOS_MAX_DEFAULT_VALUE;
 	}
 	return ret;
 }
@@ -301,13 +495,15 @@ static ssize_t set_cpu_min_freq(struct kobject *kobj,
 	for (i = 0; i < ntokens; i += 2) {
 		if (sscanf(cp, "%u:%u", &cpu, &val) != 2)
 			return -EINVAL;
-		if (cpu > (num_present_cpus() - 1))
-			return -EINVAL;
+		if (cpu >= nr_cpu_ids)
+			break;
 
-		i_cpu_stats = &per_cpu(msm_perf_cpu_stats, cpu);
+		if (cpu_possible(cpu)) {
+			i_cpu_stats = &per_cpu(msm_perf_cpu_stats, cpu);
 
-		i_cpu_stats->min = val;
-		cpumask_set_cpu(cpu, limit_mask_min);
+			i_cpu_stats->min = val;
+			cpumask_set_cpu(cpu, limit_mask_min);
+		}
 
 		cp = strnchr(cp, strlen(cp), ' ');
 		cp++;
@@ -388,13 +584,16 @@ static ssize_t set_cpu_max_freq(struct kobject *kobj,
 	for (i = 0; i < ntokens; i += 2) {
 		if (sscanf(cp, "%u:%u", &cpu, &val) != 2)
 			return -EINVAL;
-		if (cpu > (num_present_cpus() - 1))
-			return -EINVAL;
+		if (cpu >= nr_cpu_ids)
+			break;
 
-		i_cpu_stats = &per_cpu(msm_perf_cpu_stats, cpu);
+		if (cpu_possible(cpu)) {
+			i_cpu_stats = &per_cpu(msm_perf_cpu_stats, cpu);
 
-		i_cpu_stats->max = val;
-		cpumask_set_cpu(cpu, limit_mask_max);
+			i_cpu_stats->max = min_t(uint, val,
+				(unsigned int)FREQ_QOS_MAX_DEFAULT_VALUE);
+			cpumask_set_cpu(cpu, limit_mask_max);
+		}
 
 		cp = strnchr(cp, strlen(cp), ' ');
 		cp++;
@@ -461,6 +660,9 @@ static ssize_t show_perf_gfx_evts(struct kobject *kobj,
 	unsigned long flags;
 	ssize_t retval = 0;
 	int idx = 0, size, act_idx, ret = -1;
+
+	if (gplaf_notif > 0)
+		return 0;
 
 	ret = wait_for_completion_interruptible(&gfx_evt_arrival);
 	if (ret)
@@ -881,6 +1083,213 @@ static ssize_t set_core_ctl_register(struct kobject *kobj,
 	return count;
 }
 
+
+/*******************************gPLAF Segment************************************/
+static int gplaf_data, gplaf_log_level, gplaf_notify, gplaf_health;
+static struct scmi_protocol_handle *gplaf_handle;
+static const struct scmi_gplaf_vendor_ops *gplaf_ops;
+
+int cpucp_gplaf_init(struct scmi_device *sdev)
+{
+	int ret = 0;
+
+	if (!sdev || !sdev->handle)
+		return -EINVAL;
+
+	gplaf_ops = sdev->handle->devm_get_protocol(sdev, SCMI_PROTOCOL_GPLAF, &gplaf_handle);
+
+	if (IS_ERR(gplaf_ops))
+		return PTR_ERR(gplaf_ops);
+	if (!gplaf_handle)
+		return -EINVAL;
+	return ret;
+}
+EXPORT_SYMBOL(cpucp_gplaf_init);
+
+
+static void hw_gplaf_pass_data(int data)
+{
+	int ret;
+
+	/* received event notification here */
+	if (!gplaf_handle || !gplaf_ops) {
+		pr_err("msm_perf: gplaf_handle or gplaf_ops null\n");
+		return;
+	}
+
+	ret = gplaf_ops->pass_gplaf_data(gplaf_handle, data);
+
+	if (ret < 0) {
+		pr_err("msm_perf: hw gplaf pass data failed, ret=%d\n", ret);
+		return;
+	}
+}
+
+static ssize_t get_gplaf_data(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", gplaf_data);
+}
+
+static ssize_t set_gplaf_data(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &gplaf_data);
+	if (ret < 0) {
+		pr_err("msm_perf:reading gplaf data failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	hw_gplaf_pass_data(gplaf_data);
+
+	return count;
+}
+
+static void hw_gplaf_notify(int notif)
+{
+	int ret;
+
+	/* received event notification here */
+	if (!gplaf_handle || !gplaf_ops) {
+		pr_err("msm_perf: gplaf_handle or gplaf_ops null\n");
+		return;
+	}
+	if (notif > 0) {
+		ret = gplaf_ops->start_gplaf(gplaf_handle, notif);
+		//gplaf_notif = 1;
+	} else {
+		ret = gplaf_ops->stop_gplaf(gplaf_handle);
+		//gplaf_notif = 0;
+	}
+
+	if (ret < 0) {
+		pr_err("msm_perf: hw gplaf start or stop failed, ret=%d\n", ret);
+		return;
+	}
+}
+
+static ssize_t get_gplaf_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", gplaf_notify);
+}
+
+static ssize_t set_gplaf_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &gplaf_notify);
+	if (ret < 0) {
+		pr_err("msm_perf: starting gplaf failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	hw_gplaf_notify(gplaf_notify);
+
+	return count;
+}
+
+static void hw_gplaf_health_update(int health)
+{
+	int ret;
+
+	/* received event notification here */
+	if (!gplaf_handle || !gplaf_ops) {
+		pr_err("msm_perf: gplaf_handle or gplaf_ops null\n");
+		return;
+	}
+	ret = gplaf_ops->update_gplaf_health(gplaf_handle, health);
+
+	if (ret < 0) {
+		pr_err("msm_perf: hw gplaf update health failed, ret=%d\n", ret);
+		return;
+	}
+}
+
+static ssize_t get_gplaf_health(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", gplaf_health);
+}
+
+static ssize_t set_gplaf_health(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret;
+
+	ret = sscanf(buf, "%du", &gplaf_health);
+	if (ret < 0) {
+		pr_err("msm_perf: starting gplaf failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	hw_gplaf_health_update(gplaf_health);
+
+	return count;
+}
+
+static void frame_notify_cpucp(struct work_struct *dummy)
+{
+	int ret;
+
+	if (!gplaf_handle || !gplaf_ops) {
+		pr_err("msm_perf: hw gplaf not supported\n");
+		return;
+	}
+
+	ret = gplaf_ops->send_frame_retire_event(gplaf_handle);
+}
+
+void frame_retire_notify(void)
+{
+	static DECLARE_WORK(frame_notify_work, frame_notify_cpucp);
+
+	if (gplaf_notif > 0)
+		schedule_work(&frame_notify_work);
+}
+EXPORT_SYMBOL(frame_retire_notify);
+
+
+static void gfx_data_notify_cpucp(struct work_struct *dummy)
+{
+	struct queue_indicies updated_pos;
+	unsigned long flags;
+	int idx = 0, size, act_idx, j = 0, ret = 0;
+	uint64_t gfx_data[GPLAF_ELEM_SIZE] = {0};
+
+	if (!gplaf_handle || !gplaf_ops) {
+		pr_err("msm_perf: hw gplaf not supported\n");
+		return;
+	}
+
+	spin_lock_irqsave(&gfx_circ_buff_lock, flags);
+	updated_pos.head = curr_pos.head;
+	updated_pos.tail = curr_pos.tail;
+	size = CIRC_CNT(updated_pos.head, updated_pos.tail, QUEUE_POOL_SIZE);
+	curr_pos.tail = (curr_pos.tail + size) % QUEUE_POOL_SIZE;
+	spin_unlock_irqrestore(&gfx_circ_buff_lock, flags);
+
+	for (idx = 0; idx < size && j < GPLAF_ELEM_SIZE - MAX_GFX_STR_ELEMENTS - 1; idx++) {
+		act_idx = (updated_pos.tail + idx) % QUEUE_POOL_SIZE;
+
+		gfx_data[++j] = gpu_circ_buff[act_idx].pid;
+		gfx_data[++j] = gpu_circ_buff[act_idx].ctx_id;
+		gfx_data[++j] = gpu_circ_buff[act_idx].timestamp;
+		gfx_data[++j] = gpu_circ_buff[act_idx].evt_typ;
+		gfx_data[++j] = ktime_to_us(gpu_circ_buff[act_idx].arrive_ts);
+	}
+	gfx_data[0] = idx;
+	msm_perf_atomic_buf_write(dest, gfx_data, j);
+
+	ret = gplaf_ops->send_gfx_data_notify(gplaf_handle);
+}
+
 void  msm_perf_events_update(enum evt_update_t update_typ,
 			enum gfx_evt_t evt_typ, pid_t pid,
 			uint32_t ctx_id, uint32_t timestamp, bool end_of_frame)
@@ -905,8 +1314,12 @@ void  msm_perf_events_update(enum evt_update_t update_typ,
 	gpu_circ_buff[idx].evt_typ = evt_typ;
 	gpu_circ_buff[idx].arrive_ts = ktime_get();
 
-	if (evt_typ == MSM_PERF_QUEUE || evt_typ == MSM_PERF_RETIRED)
-		complete(&gfx_evt_arrival);
+	if (evt_typ == MSM_PERF_QUEUE || evt_typ == MSM_PERF_RETIRED) {
+		if (gplaf_notif > 0)
+			schedule_work(&gfx_notify_work);
+		else
+			complete(&gfx_evt_arrival);
+	}
 }
 EXPORT_SYMBOL(msm_perf_events_update);
 
@@ -926,7 +1339,49 @@ static ssize_t get_game_start_pid(struct kobject *kobj,
 	return scnprintf(buf, PAGE_SIZE, "%ld\n", usr_val);
 }
 
+static ssize_t get_gplaf_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", gplaf_log_level);
+}
+
+static ssize_t set_gplaf_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret, log_val_backup;
+
+	if (!gplaf_handle || !gplaf_ops) {
+		pr_err("msm_perf: gplaf scmi handle or vendor ops null\n");
+		return -EINVAL;
+	}
+
+	log_val_backup = gplaf_log_level;
+
+	ret = sscanf(buf, "%du", &gplaf_log_level);
+
+	if (ret < 0) {
+		pr_err("msm_perf: getting new gplaf_log_level failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	gplaf_log_level = clamp(gplaf_log_level, CPUCP_MIN_LOG_LEVEL, CPUCP_MAX_LOG_LEVEL);
+	ret = gplaf_ops->set_gplaf_log_level(gplaf_handle, gplaf_log_level);
+	if (ret < 0) {
+		gplaf_log_level = log_val_backup;
+		pr_err("msm_perf: setting new gplaf_log_level failed, ret=%d\n", ret);
+		return ret;
+	}
+	return count;
+}
+
 /*******************************GFX Call************************************/
+
+#define PLH_FPS_MAX_CNT			8
+#define PLH_IPC_FREQ_VTBL_MAX_CNT		5 /* ipc freq pair */
+#define PLH_INIT_IPC_FREQ_TBL_PARAMS	\
+			(2 + PLH_FPS_MAX_CNT * (1 + (2 * PLH_IPC_FREQ_VTBL_MAX_CNT)))
+
 static struct scmi_protocol_handle *plh_handle;
 static const struct scmi_plh_vendor_ops *plh_ops;
 int cpucp_plh_init(struct scmi_device *sdev)
@@ -938,23 +1393,18 @@ int cpucp_plh_init(struct scmi_device *sdev)
 
 	plh_ops = sdev->handle->devm_get_protocol(sdev, SCMI_PROTOCOL_PLH, &plh_handle);
 
-	if (!plh_ops)
-		return -EINVAL;
+	if (IS_ERR(plh_ops))
+		return PTR_ERR(plh_ops);
 
 	return ret;
 }
 EXPORT_SYMBOL(cpucp_plh_init);
 
-static int splh_notif, splh_init_done, splh_sample_ms, splh_log_level;
+static int splh_notif, splh_init_done, splh_sample_ms, splh_log_level,
+			dplh_init_done;
 
 #define SPLH_MIN_SAMPLE_MS			1
 #define SPLH_MAX_SAMPLE_MS			30
-#define SPLH_MIN_LOG_LEVEL			0
-#define SPLH_MAX_LOG_LEVEL			0xF
-#define SPLH_FPS_MAX_CNT			8
-#define SPLH_IPC_FREQ_VTBL_MAX_CNT		5 /* ipc freq pair */
-#define SPLH_INIT_IPC_FREQ_TBL_PARAMS	\
-			(2 + SPLH_FPS_MAX_CNT * (1 + (2 * SPLH_IPC_FREQ_VTBL_MAX_CNT)))
 
 static ssize_t get_splh_sample_ms(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -983,7 +1433,7 @@ static ssize_t set_splh_sample_ms(struct kobject *kobj,
 	}
 
 	splh_sample_ms = clamp(splh_sample_ms, SPLH_MIN_SAMPLE_MS, SPLH_MAX_SAMPLE_MS);
-	ret = plh_ops->set_splh_sample_ms(plh_handle, splh_sample_ms);
+	ret = plh_ops->set_plh_sample_ms(plh_handle, splh_sample_ms, PERF_LOCK_SCROLL);
 	if (ret < 0) {
 		splh_sample_ms = ms_val_backup;
 		pr_err("msm_perf: setting new splh_sample_ms failed, ret=%d\n", ret);
@@ -1018,8 +1468,8 @@ static ssize_t set_splh_log_level(struct kobject *kobj,
 		return ret;
 	}
 
-	splh_log_level = clamp(splh_log_level, SPLH_MIN_LOG_LEVEL, SPLH_MAX_LOG_LEVEL);
-	ret = plh_ops->set_splh_log_level(plh_handle, splh_log_level);
+	splh_log_level = clamp(splh_log_level, CPUCP_MIN_LOG_LEVEL, CPUCP_MAX_LOG_LEVEL);
+	ret = plh_ops->set_plh_log_level(plh_handle, splh_log_level, PERF_LOCK_SCROLL);
 	if (ret < 0) {
 		splh_log_level = log_val_backup;
 		pr_err("msm_perf: setting new splh_log_level failed, ret=%d\n", ret);
@@ -1028,10 +1478,10 @@ static ssize_t set_splh_log_level(struct kobject *kobj,
 	return count;
 }
 
-static int init_splh_notif(const char *buf)
+static int init_plh_notif(const char *buf, int feature_id)
 {
 	int i, j, ret;
-	u16 tmp[SPLH_INIT_IPC_FREQ_TBL_PARAMS];
+	u16 tmp[PLH_INIT_IPC_FREQ_TBL_PARAMS];
 	u16 *ptmp = tmp, ntokens, nfps, n_ipc_freq_pair, tmp_valid_len = 0;
 	const char *cp, *cp1;
 
@@ -1047,7 +1497,7 @@ static int init_splh_notif(const char *buf)
 	/* format of cmd nfps, n_ipc_freq_pair, <fps0, <ipc0, freq0>,...>,... */
 	cp = buf;
 	if (sscanf(cp, INIT ":%hu", &nfps)) {
-		if ((nfps != ntokens-1) || (nfps == 0) || (nfps > SPLH_FPS_MAX_CNT))
+		if ((nfps != ntokens-1) || (nfps == 0) || (nfps > PLH_FPS_MAX_CNT))
 			return -EINVAL;
 
 		cp = strnchr(cp, strlen(cp), ':');	/* skip INIT */
@@ -1068,7 +1518,7 @@ static int init_splh_notif(const char *buf)
 			return -EINVAL;
 
 		n_ipc_freq_pair = ntokens / (2 * nfps); /* ipc_freq pair values for each FPS */
-		if ((n_ipc_freq_pair == 0) || (n_ipc_freq_pair > SPLH_IPC_FREQ_VTBL_MAX_CNT))
+		if ((n_ipc_freq_pair == 0) || (n_ipc_freq_pair > PLH_IPC_FREQ_VTBL_MAX_CNT))
 			return -EINVAL;
 
 		*ptmp++ = n_ipc_freq_pair; /* n_ipc_freq_pair is second cmd param */
@@ -1111,14 +1561,17 @@ static int init_splh_notif(const char *buf)
 		return -EINVAL;
 	}
 
-	ret = plh_ops->init_splh_ipc_freq_tbl(plh_handle, tmp, tmp_valid_len);
+	ret = plh_ops->init_plh_ipc_freq_tbl(plh_handle, tmp, tmp_valid_len, feature_id);
 	if (ret < 0)
 		return -EINVAL;
 
 	pr_info("msm_perf: nfps=%hu n_ipc_freq_pair=%hu last_freq_val=%hu len=%hu\n",
 		nfps, n_ipc_freq_pair, *--ptmp, tmp_valid_len);
 
-	splh_init_done = 1;
+	if (feature_id == PERF_LOCK_SCROLL)
+		splh_init_done = 1;
+	else if (feature_id == PERF_LOCK_DRAG)
+		dplh_init_done = 1;
 	return 0;
 }
 static void activate_splh_notif(void)
@@ -1132,9 +1585,10 @@ static void activate_splh_notif(void)
 	}
 
 	if (splh_notif)
-		ret = plh_ops->start_splh(plh_handle, splh_notif); /* splh_notif is fps */
+		ret = plh_ops->start_plh(plh_handle,
+			splh_notif, PERF_LOCK_SCROLL); /* splh_notif is fps */
 	else
-		ret = plh_ops->stop_splh(plh_handle);
+		ret = plh_ops->stop_plh(plh_handle, PERF_LOCK_SCROLL);
 
 	if (ret < 0) {
 		pr_err("msm_perf: splh start or stop failed, ret=%d\n", ret);
@@ -1156,7 +1610,7 @@ static ssize_t set_splh_notif(struct kobject *kobj,
 
 	if (strnstr(buf, INIT, sizeof(INIT)) != NULL) {
 		splh_init_done = 0;
-		ret = init_splh_notif(buf);
+		ret = init_plh_notif(buf, PERF_LOCK_SCROLL);
 		if (ret < 0)
 			pr_err("msm_perf: splh ipc freq tbl init failed, ret=%d\n", ret);
 
@@ -1174,6 +1628,420 @@ static ssize_t set_splh_notif(struct kobject *kobj,
 
 	activate_splh_notif();
 
+	return count;
+}
+
+#define LPLH_MIN_SAMPLE_MS			1
+#define LPLH_MAX_SAMPLE_MS			30
+#define LPLH_CLUSTER_MAX_CNT		4
+#define LPLH_IPC_FREQ_VTBL_MAX_CNT		5 /* ipc freq pair */
+#define LPLH_INIT_IPC_FREQ_TBL_PARAMS	\
+			(1 + LPLH_CLUSTER_MAX_CNT * (2 + (2 * LPLH_IPC_FREQ_VTBL_MAX_CNT)))
+
+static int lplh_notif, lplh_init_done, lplh_sample_ms, lplh_log_level;
+
+static ssize_t get_lplh_sample_ms(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", lplh_sample_ms);
+}
+
+static ssize_t set_lplh_sample_ms(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret, ms_val_backup;
+
+	if (!plh_handle || !plh_ops) {
+		pr_err("msm_perf: plh scmi handle or vendor ops null\n");
+		return -EINVAL;
+	}
+
+	ms_val_backup = lplh_sample_ms;
+
+	ret = sscanf(buf, "%du", &lplh_sample_ms);
+
+	if (ret < 0) {
+		pr_err("msm_perf: getting new lplh_sample_ms failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	lplh_sample_ms = clamp(lplh_sample_ms, LPLH_MIN_SAMPLE_MS, LPLH_MAX_SAMPLE_MS);
+	ret = plh_ops->set_plh_sample_ms(plh_handle, lplh_sample_ms, PERF_LOCK_LAUNCH);
+	if (ret < 0) {
+		lplh_sample_ms = ms_val_backup;
+		pr_err("msm_perf: setting new lplh_sample_ms failed, ret=%d\n", ret);
+		return ret;
+	}
+	return count;
+}
+
+static ssize_t get_lplh_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", lplh_log_level);
+}
+
+static ssize_t set_lplh_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret, log_val_backup;
+
+	if (!plh_handle || !plh_ops) {
+		pr_err("msm_perf: plh scmi handle or vendor ops null\n");
+		return -EINVAL;
+	}
+
+	log_val_backup = lplh_log_level;
+
+	ret = sscanf(buf, "%du", &lplh_log_level);
+
+	if (ret < 0) {
+		pr_err("msm_perf: getting new lplh_log_level failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	lplh_log_level = clamp(lplh_log_level, CPUCP_MIN_LOG_LEVEL, CPUCP_MAX_LOG_LEVEL);
+	ret = plh_ops->set_plh_log_level(plh_handle, lplh_log_level, PERF_LOCK_LAUNCH);
+	if (ret < 0) {
+		lplh_log_level = log_val_backup;
+		pr_err("msm_perf: setting new lplh_log_level failed, ret=%d\n", ret);
+		return ret;
+	}
+	return count;
+}
+
+static int init_lplh_notif(const char *buf)
+{
+	u16 tmp[LPLH_INIT_IPC_FREQ_TBL_PARAMS];
+	char *token;
+	int i, j, ret;
+	u16 *ptmp = tmp, total_tokens = 0, nTokens = 0, nClusters = 0, clusterId, nValues, value;
+	const char *cp, *cp1;
+
+	/* buf contains the init info from user */
+	if (buf == NULL || !plh_handle || !plh_ops)
+		return -EINVAL;
+	cp = buf;
+	if (sscanf(cp, INIT ":%hu", &nClusters)) {
+		if (!nClusters)
+			return -EINVAL;
+
+		*ptmp++ = nClusters;
+		total_tokens++;
+		while ((cp = strpbrk(cp + 1, ":")))
+			nTokens++;
+
+		if (!nTokens || (nTokens - 1 != nClusters))
+			return -EINVAL;
+
+		cp = buf;
+		cp = strnchr(cp, strlen(cp), ':');	/* skip INIT */
+		cp++;
+		cp = strnchr(cp, strlen(cp), ':');	/* skip nClusters */
+		cp++;
+		if (!cp || !strlen(cp))
+			return -EINVAL;
+
+		for (i = 0; i < nClusters; i++) {
+			clusterId = 0;
+			if (!cp || strlen(cp) == 0)
+				return -EINVAL;
+
+			if (sscanf(cp, "%hu,", &clusterId)) {
+				*ptmp++ = clusterId;
+				total_tokens++;
+				cp = strnchr(cp, strlen(cp), ',');
+				if (!cp)
+					return -EINVAL;
+
+				token = strsep((char **)&cp, ":");
+				if (!token || strlen(token) == 0)
+					return -EINVAL;
+
+				nValues = 1;
+				cp1 = token;
+				while ((cp1 = strpbrk(cp1 + 1, ",")))
+					nValues++;
+
+				if (nValues % 2 != 0)
+					return -EINVAL;
+
+				*ptmp++ = nValues/2;
+				total_tokens++;
+				for (j = 0; j < nValues / 2; j++) {
+					value = 0;
+					if (!token || sscanf(token, ",%hu", &value) != 1)
+						return -EINVAL;
+
+					*ptmp++ = value;
+					total_tokens++;
+					token++;
+					if (!token || strlen(token) == 0)
+						return -EINVAL;
+
+					token = strnchr(token, strlen(token), ',');
+					if (!token || sscanf(token, ",%hu", &value) != 1)
+						return -EINVAL;
+
+					*ptmp++ = value;
+					total_tokens++;
+					token++;
+					token = strnchr(token, strlen(token), ',');
+				}
+			} else {
+				return -EINVAL;
+			}
+		}
+	} else {
+		return -EINVAL;
+	}
+	ret = plh_ops->init_plh_ipc_freq_tbl(plh_handle, tmp, total_tokens, PERF_LOCK_LAUNCH);
+	if (ret < 0)
+		return -EINVAL;
+
+	pr_info("msm_perf: lplh: nClusters=%hu last_freq_val=%hu len=%hu\n",
+			nClusters, *--ptmp, total_tokens);
+
+	lplh_init_done = 1;
+	return 0;
+}
+
+static void activate_lplh_notif(void)
+{
+	int ret;
+
+	/* received event notification here */
+	if (!plh_handle || !plh_ops) {
+		pr_err("msm_perf: lplh not supported\n");
+		return;
+	}
+
+	if (lplh_notif)
+		ret = plh_ops->start_plh(plh_handle,
+				lplh_notif, PERF_LOCK_LAUNCH); /* lplh_notif is duration */
+	else
+		ret = plh_ops->stop_plh(plh_handle, PERF_LOCK_LAUNCH);
+
+	if (ret < 0) {
+		pr_err("msm_perf: lplh start or stop failed, ret=%d\n", ret);
+		return;
+	}
+}
+
+static ssize_t get_lplh_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", lplh_notif);
+}
+
+static ssize_t set_lplh_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret;
+
+	if (strnstr(buf, INIT, sizeof(INIT)) != NULL) {
+		lplh_init_done = 0;
+		ret = init_lplh_notif(buf);
+		if (ret < 0)
+			pr_err("msm_perf: lplh ipc freq tbl init failed, ret=%d\n", ret);
+
+		return count;
+	}
+
+	if (!lplh_init_done) {
+		pr_err("msm_perf: lplh ipc freq tbl not initialized\n");
+		return -EINVAL;
+	}
+
+	ret = sscanf(buf, "%du", &lplh_notif);
+	if (ret < 0)
+		return ret;
+
+	activate_lplh_notif();
+
+	return count;
+}
+
+/*********** dplh(Drag Perf Lock hardening) code start from here ***********/
+
+static int dplh_notif, dplh_log_level;
+
+
+static ssize_t get_dplh_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", dplh_log_level);
+}
+
+static ssize_t set_dplh_log_level(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret, log_val_backup;
+
+	if (!plh_handle || !plh_ops) {
+		pr_err("msm_perf: plh scmi handle or vendor ops null\n");
+		return -EINVAL;
+	}
+
+	log_val_backup = dplh_log_level;
+
+	ret = sscanf(buf, "%du", &dplh_log_level);
+
+	if (ret < 0) {
+		pr_err("msm_perf: getting new dplh_log_level failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	dplh_log_level = clamp(dplh_log_level, CPUCP_MIN_LOG_LEVEL, CPUCP_MAX_LOG_LEVEL);
+	ret = plh_ops->set_plh_log_level(plh_handle, dplh_log_level, PERF_LOCK_DRAG);
+	if (ret < 0) {
+		dplh_log_level = log_val_backup;
+		pr_err("msm_perf: setting new dplh_log_level failed, ret=%d\n", ret);
+		return ret;
+	}
+	return count;
+}
+
+static void activate_dplh_notif(void)
+{
+	int ret;
+
+	/* received event notification here */
+	if (!plh_handle || !plh_ops) {
+		pr_err("msm_perf: dplh not supported\n");
+		return;
+	}
+
+	if (dplh_notif)
+		ret = plh_ops->start_plh(plh_handle,
+				dplh_notif, PERF_LOCK_DRAG); /* dplh_notif is fps */
+	else
+		ret = plh_ops->stop_plh(plh_handle, PERF_LOCK_DRAG);
+
+	if (ret < 0) {
+		pr_err("msm_perf: dplh start or stop failed, ret=%d\n", ret);
+		return;
+	}
+}
+
+static ssize_t get_dplh_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", dplh_notif);
+}
+
+static ssize_t set_dplh_notif(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret;
+
+	if (strnstr(buf, INIT, sizeof(INIT)) != NULL) {
+		dplh_init_done = 0;
+		ret = init_plh_notif(buf, PERF_LOCK_DRAG);
+		if (ret < 0)
+			pr_err("msm_perf: dplh ipc freq tbl init failed, ret=%d\n", ret);
+
+		return count;
+	}
+
+	if (!dplh_init_done) {
+		pr_err("msm_perf: dplh ipc freq tbl not initialized\n");
+		return -EINVAL;
+	}
+
+	ret = sscanf(buf, "%du", &dplh_notif);
+	if (ret < 0)
+		return ret;
+
+	activate_dplh_notif();
+
+	return count;
+}
+
+static struct scmi_protocol_handle *shared_rail_handle;
+static const struct scmi_shared_rail_vendor_ops *shared_rail_ops;
+int cpucp_scmi_shared_rail_boost_init(struct scmi_device *sdev)
+{
+	int ret = 0;
+
+	shared_rail_ops = sdev->handle->devm_get_protocol(sdev,
+				SCMI_PROTOCOL_SHARED_RAIL, &shared_rail_handle);
+	if (IS_ERR(shared_rail_ops))
+		return PTR_ERR(shared_rail_ops);
+
+	return ret;
+}
+EXPORT_SYMBOL(cpucp_scmi_shared_rail_boost_init);
+
+static int l3_data;
+static ssize_t get_l3_boost(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", l3_data);
+}
+
+static ssize_t set_l3_boost(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int ret, data_backup;
+
+	if (!shared_rail_handle || !shared_rail_ops) {
+		pr_err("shared_rail scmi handle or vendor ops null\n");
+		return -EINVAL;
+	}
+
+	data_backup = l3_data;
+	ret = sscanf(buf, "%du", &l3_data);
+	if (ret < 0) {
+		pr_err("shared_rail getting new data, ret=%d\n", ret);
+		return ret;
+	}
+
+	ret = shared_rail_ops->set_shared_rail_boost(shared_rail_handle, l3_data, L3_BOOST);
+	if (ret < 0) {
+		l3_data = data_backup;
+		pr_err("shared_rail setting new data failed, ret=%d\n", ret);
+		return ret;
+	}
+	return count;
+}
+
+static int silver_core_data;
+static ssize_t get_silver_core_boost(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", silver_core_data);
+}
+
+static ssize_t set_silver_core_boost(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int ret, data_backup;
+
+	if (!shared_rail_handle || !shared_rail_ops) {
+		pr_err("shared_rail scmi handle or vendor ops null\n");
+		return -EINVAL;
+	}
+
+	data_backup = silver_core_data;
+	ret = sscanf(buf, "%du", &silver_core_data);
+	if (ret < 0) {
+		pr_err("shared_rail getting new data, ret=%d\n", ret);
+		return ret;
+	}
+
+	ret = shared_rail_ops->set_shared_rail_boost(shared_rail_handle,
+						silver_core_data, SILVER_CORE_BOOST);
+	if (ret < 0) {
+		silver_core_data = data_backup;
+		pr_err("shared_rail setting new data failed, ret=%d\n", ret);
+		return ret;
+	}
 	return count;
 }
 
@@ -1214,6 +2082,7 @@ static int __init msm_performance_init(void)
 	init_notify_group();
 	init_pmu_counter();
 
+	dest = ioremap(GPLAF_SP_ADDR, GPLAF_SP_SIZE);
 	return 0;
 }
 MODULE_LICENSE("GPL v2");

@@ -43,8 +43,11 @@ static int __qc_lpm_log_store(struct qc_debug_drvdata *drvdata)
 	bool valid;
 
 	s_log_buf = sec_log_buf_get_header();
-	if (IS_ERR(s_log_buf))
-		return -EPROBE_DEFER;
+	if (IS_ERR(s_log_buf)) {
+		dev_warn(dev, "sec_log_buf is not available. (%ld)\n",
+				PTR_ERR(s_log_buf));
+		return 0;
+	}
 
 	s_log_buf_sz = sec_log_buf_get_buf_size();
 	if (s_log_buf_sz <= 0) {

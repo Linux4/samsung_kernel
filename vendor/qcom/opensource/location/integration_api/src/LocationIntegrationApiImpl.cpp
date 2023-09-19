@@ -146,42 +146,60 @@ public:
 /******************************************************************************
 LocIpcQrtrWatcher override
 ******************************************************************************/
-class IpcQrtrWatcher : public LocIpcQrtrWatcher {
+class HalDaemonQrtrWatcher : public LocIpcQrtrWatcher {
     const weak_ptr<IpcListener> mIpcListener;
     const weak_ptr<LocIpcSender> mIpcSender;
     LocIpcQrtrWatcher::ServiceStatus mKnownStatus;
     LocationApiPbMsgConv mPbufMsgConv;
+    MsgTask& mMsgTask;
+
 public:
-    inline IpcQrtrWatcher(shared_ptr<IpcListener>& listener, shared_ptr<LocIpcSender>& sender,
-            LocationApiPbMsgConv& pbMsgConv) :
+    inline HalDaemonQrtrWatcher(shared_ptr<IpcListener>& listener, shared_ptr<LocIpcSender>& sender,
+                          LocationApiPbMsgConv& pbMsgConv, MsgTask& msgTask) :
             LocIpcQrtrWatcher({LOCATION_CLIENT_API_QSOCKET_HALDAEMON_SERVICE_ID}),
             mIpcListener(listener), mIpcSender(sender), mPbufMsgConv(pbMsgConv),
-            mKnownStatus(LocIpcQrtrWatcher::ServiceStatus::DOWN) {
+            mMsgTask(msgTask), mKnownStatus(LocIpcQrtrWatcher::ServiceStatus::DOWN) {
     }
     inline virtual void onServiceStatusChange(int serviceId, int instanceId,
             LocIpcQrtrWatcher::ServiceStatus status, const LocIpcSender& refSender) {
-        if (LOCATION_CLIENT_API_QSOCKET_HALDAEMON_SERVICE_ID == serviceId &&
-            LOCATION_CLIENT_API_QSOCKET_HALDAEMON_INSTANCE_ID == instanceId) {
-            if (mKnownStatus != status) {
-                mKnownStatus = status;
-                if (LocIpcQrtrWatcher::ServiceStatus::UP == status) {
-                    LOC_LOGv("case LocIpcQrtrWatcher::ServiceStatus::UP");
-                    auto sender = mIpcSender.lock();
-                    if (nullptr != sender) {
-                        sender->copyDestAddrFrom(refSender);
-                    }
-                    auto listener = mIpcListener.lock();
-                    if (nullptr != listener) {
-                        LocAPIHalReadyIndMsg msg(SERVICE_NAME, &mPbufMsgConv);
-                        string pbStr;
-                        if (msg.serializeToProtobuf(pbStr)) {
-                            listener->onReceive(pbStr.c_str(), pbStr.size(), nullptr);
-                        } else {
-                            LOC_LOGe("LocAPIHalReadyIndMsg serializeToProtobuf failed");
+
+        struct onHalServiceStatusChangeHandler : public LocMsg {
+            onHalServiceStatusChangeHandler(HalDaemonQrtrWatcher& watcher,
+                                            LocIpcQrtrWatcher::ServiceStatus status,
+                                            const LocIpcSender& refSender) :
+                mWatcher(watcher), mStatus(status), mRefSender(refSender) {}
+
+            virtual ~onHalServiceStatusChangeHandler() {}
+            void proc() const {
+                if (LocIpcQrtrWatcher::ServiceStatus::UP == mStatus) {
+                    LOC_LOGi("LocIpcQrtrWatcher:: HAL Daemon ServiceStatus::UP");
+                    auto sender = mWatcher.mIpcSender.lock();
+                    if (nullptr != sender && sender->copyDestAddrFrom(mRefSender)) {
+                        sleep(2);
+                        auto listener = mWatcher.mIpcListener.lock();
+                        if (nullptr != listener) {
+                            LocAPIHalReadyIndMsg msg(SERVICE_NAME, &mWatcher.mPbufMsgConv);
+                            string pbStr;
+                            if (msg.serializeToProtobuf(pbStr)) {
+                                listener->onReceive(pbStr.c_str(), pbStr.size(), nullptr);
+                            } else {
+                                LOC_LOGe("LocAPIHalReadyIndMsg serializeToProtobuf failed");
+                            }
                         }
                     }
                 }
+                mWatcher.mKnownStatus = mStatus;
             }
+
+            HalDaemonQrtrWatcher& mWatcher;
+            LocIpcQrtrWatcher::ServiceStatus mStatus;
+            const LocIpcSender& mRefSender;
+        };
+
+        if (LOCATION_CLIENT_API_QSOCKET_HALDAEMON_SERVICE_ID == serviceId &&
+            LOCATION_CLIENT_API_QSOCKET_HALDAEMON_INSTANCE_ID == instanceId) {
+            mMsgTask.sendMsg(new (nothrow)
+                     onHalServiceStatusChangeHandler(*this, status, refSender));
         }
     }
 };
@@ -235,7 +253,7 @@ LocationIntegrationApiImpl::LocationIntegrationApiImpl(LocIntegrationCbs& integr
     shared_ptr<IpcListener> listener(make_shared<IpcListener>(*this, mMsgTask, SockNode::Eap));
     unique_ptr<LocIpcRecver> recver = LocIpc::getLocIpcQrtrRecver(listener,
             sock.getId1(), sock.getId2(),
-            make_shared<IpcQrtrWatcher>(listener, mIpcSender, mPbufMsgConv));
+            make_shared<HalDaemonQrtrWatcher>(listener, mIpcSender, mPbufMsgConv, *mMsgTask));
 #else
     SockNodeLocal sock(LOCATION_INTEGRATION_API, pid, 0);
     size_t pathNameLength = strlcpy(mSocketName, sock.getNodePathname().c_str(),

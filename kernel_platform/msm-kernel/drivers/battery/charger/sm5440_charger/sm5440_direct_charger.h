@@ -46,7 +46,7 @@ enum sm_dc_work_delay_type {
 	DELAY_WPC_UPDATE            = 1000,
 	DELAY_ADC_UPDATE            = 1100,
 	DELAY_RETRY                 = 2000,
-	DELAY_CHG_LOOP              = 7500,
+	DELAY_CHG_LOOP              = 2500,
 };
 
 enum sm_dc_power_supply_type {
@@ -81,6 +81,7 @@ enum sm_dc_err_index {
 	SM_DC_ERR_CFLY_SHORT        = (0x1 << 8),
 	SM_DC_ERR_REVBLK            = (0x1 << 9),
 	SM_DC_ERR_STUP_FAIL         = (0x1 << 10),
+	SM_DC_ERR_VBUSUVLO          = (0x1 << 14),
 	SM_DC_ERR_VBUSOVP           = (0x1 << 15),
 	SM_DC_ERR_INVAL_VBAT        = (0x1 << 16),
 	SM_DC_ERR_SEND_PD_MSG       = (0x1 << 17),
@@ -186,10 +187,7 @@ struct sm_dc_info {
 		u32 ta_min_voltage;
 		u32 dc_min_vbat;
 		u32 dc_vbus_ovp_th;
-		u32 pps_lr;
-		u32 rpara;
-		u32 rsns;
-		u32 rpcm;
+		u32 r_ttl;
 		u32 topoff_current;
 		bool need_to_sw_ocp;
 		bool support_pd_remain;

@@ -174,6 +174,7 @@ static const struct vadc_prescale_ratio adc5_prescale_ratios[] = {
 	{.num = 640, .den = 4100},	/* ICHG_SMB_new */
 	{.num = 1000, .den = 305185},	/* ICHG_FB */
 	{.num = 1000, .den = 610370},	/* ICHG_FB_2X */
+	{.num = 1000, .den = 762963},	/* ICHG_FB_2p5X */
 };
 
 static int adc5_read(struct adc5_chip *adc, u16 offset, u8 *data, int len)
@@ -925,6 +926,7 @@ static const struct adc5_data adc5_data_pmic5_lite = {
 	/* On PMI632, IBAT LSB = 5A/32767 */
 	.full_scale_code_cur = 5000,
 	.adc_chans = adc5_chans_pmic,
+	.info = &adc5_info,
 	.decimation = (unsigned int []) {250, 420, 840},
 	.hw_settle_1 = (unsigned int []) {15, 100, 200, 300, 400, 500, 600, 700,
 					800, 900, 1, 2, 4, 6, 8, 10},

@@ -142,7 +142,6 @@
 				6000000 5500000 5000000 4500000 4000000 3500000
 				3000000 2500000 2000000 1500000 1000000 500000>;
 	qcom,wireless-fw-name = "idt9415.bin";
-	qcom,shutdown-voltage = <3100>;
 };
 
 &qupv3_se9_i2c {
@@ -278,6 +277,86 @@
 		port {
 			usb_port0_connector: endpoint {
 				remote-endpoint = <&usb_port0>;
+			};
+		};
+	};
+};
+
+&thermal_zones {
+	mmw_pa2 {
+		trips {
+			qtm_config0: qtm-config0 {
+				temperature = <59500>;
+				hysteresis = <3000>;
+				type = "passive";
+			};
+
+			qtm_config1: qtm-config1 {
+				temperature = <63500>;
+				hysteresis = <3000>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			mmw2_cdev0 {
+				trip = <&qtm_config0>;
+				cooling-device = <&mmw1_dsc 1 1>;
+			};
+
+			mmw2_cdev1 {
+				trip = <&qtm_config1>;
+				cooling-device = <&mmw1_dsc 3 3>;
+			};
+		};
+	};
+
+	skin-msm-therm {
+		trips {
+			skin_config0: skin-config0 {
+				temperature = <49800>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+
+			skin_config1: skin-config1 {
+				temperature = <50800>;
+				hysteresis = <0500>;
+				type = "passive";
+			};
+
+			skin_config2: skin-config2 {
+				temperature = <65000>;
+				hysteresis = <2000>;
+				type = "passive";
+			};
+
+			skin_config3: skin-config3 {
+				temperature = <85000>;
+				hysteresis = <2000>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			nr_scg_cdev0 {
+				trip = <&skin_config0>;
+				cooling-device = <&modem_nr_scg_dsc 2 2>;
+			};
+
+			nr_scg_cdev1 {
+				trip = <&skin_config1>;
+				cooling-device = <&modem_nr_scg_dsc 3 3>;
+			};
+
+			nr_scg_cdev2 {
+				trip = <&skin_config2>;
+				cooling-device = <&modem_nr_scg_dsc 10 10>;
+			};
+
+			nr_cdev3 {
+				trip = <&skin_config3>;
+				cooling-device = <&modem_nr_dsc 255 255>;
 			};
 		};
 	};

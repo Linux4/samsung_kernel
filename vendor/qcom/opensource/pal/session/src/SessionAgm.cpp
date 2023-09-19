@@ -64,7 +64,7 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
         goto done;
     }
 
-    PAL_INFO(LOG_TAG, "event_callback session id %d event id %d", session_id, event_params->event_id);
+    PAL_VERBOSE(LOG_TAG, "event_callback session id %d event id %d", session_id, event_params->event_id);
     sessAgm->streamHandle->getStreamAttributes(&sAttr);
 
     if (event_params->event_id == AGM_EVENT_READ_DONE ||

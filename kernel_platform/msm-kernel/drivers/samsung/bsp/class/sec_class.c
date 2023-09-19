@@ -73,7 +73,7 @@ static int __init sec_class_create(void)
 
 	return 0;
 }
-arch_initcall(sec_class_create);
+core_initcall(sec_class_create);
 
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_DESCRIPTION("sec-class");

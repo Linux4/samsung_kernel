@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _ADRENO_A6XX_H_
@@ -82,6 +83,8 @@ struct adreno_a6xx_core {
 	u32 highest_bank_bit;
 	/** @ctxt_record_size: Size of the preemption record in bytes */
 	u64 ctxt_record_size;
+	/** @gmu_hub_clk_freq: Gmu hub interface clock frequency */
+	u64 gmu_hub_clk_freq;
 };
 
 #define SPTPRAC_POWERON_CTRL_MASK	0x00778000
@@ -162,7 +165,10 @@ struct a6xx_cp_smmu_info {
 		(ilog2(KGSL_RB_DWORDS >> 1) & 0x3F))
 
 /* Size of the CP_INIT pm4 stream in dwords */
-#define A6XX_CP_INIT_DWORDS 12
+#define A6XX_CP_INIT_DWORDS 11
+
+/* Size of the perf counter enable pm4 stream in dwords */
+#define A6XX_PERF_COUNTER_ENABLE_DWORDS 3
 
 #define A6XX_INT_MASK \
 	((1 << A6XX_INT_CP_AHB_ERROR) |			\
@@ -183,7 +189,6 @@ struct a6xx_cp_smmu_info {
 #define A6XX_HWSCHED_INT_MASK \
 	((1 << A6XX_INT_CP_AHB_ERROR) |			\
 	 (1 << A6XX_INT_ATB_ASYNCFIFO_OVERFLOW) |	\
-	 (1 << A6XX_INT_RBBM_GPC_ERROR) |		\
 	 (1 << A6XX_INT_RBBM_ATB_BUS_OVERFLOW) |	\
 	 (1 << A6XX_INT_UCHE_OOB_ACCESS) |		\
 	 (1 << A6XX_INT_UCHE_TRAP_INTR) |		\
@@ -218,18 +223,6 @@ static inline bool a6xx_is_smmu_stalled(struct kgsl_device *device)
 
 	return val & BIT(24);
 }
-
-/**
- * a6xx_cx_regulator_disable_wait - Disable a cx regulator and wait for it
- * @reg: A &struct regulator handle
- * @device: kgsl device struct
- * @timeout: Time to wait (in milliseconds)
- *
- * Disable the regulator and wait @timeout milliseconds for it to enter the
- * disabled state.
- */
-void a6xx_cx_regulator_disable_wait(struct regulator *reg,
-				struct kgsl_device *device, u32 timeout);
 
 /* Preemption functions */
 void a6xx_preemption_trigger(struct adreno_device *adreno_dev, bool atomic);
@@ -274,6 +267,7 @@ void a6xx_crashdump_init(struct adreno_device *adreno_dev);
 int a6xx_gmu_sptprac_enable(struct adreno_device *adreno_dev);
 void a6xx_gmu_sptprac_disable(struct adreno_device *adreno_dev);
 bool a6xx_gmu_sptprac_is_on(struct adreno_device *adreno_dev);
+bool a619_holi_gx_is_on(struct adreno_device *adreno_dev);
 
 /**
  * a6xx_read_alwayson - Read the current always on clock value
@@ -358,6 +352,19 @@ void a6xx_spin_idle_debug(struct adreno_device *adreno_dev,
 	const char *str);
 
 /**
+ * a6xx_counter_enable - Configure a performance counter for a countable
+ * @adreno_dev -  Adreno device to configure
+ * @group - Desired performance counter group
+ * @counter - Desired performance counter in the group
+ * @countable - Desired countable
+ *
+ * Physically set up a counter within a group with the desired countable
+ * Return 0 on success else error code
+ */
+int a6xx_counter_enable(struct adreno_device *adreno_dev,
+		const struct adreno_perfcount_group *group,
+		unsigned int counter, unsigned int countable);
+/**
  * a6xx_perfcounter_update - Update the IFPC perfcounter list
  * @adreno_dev: An Adreno GPU handle
  * @reg: Perfcounter reg struct to add/remove to the list
@@ -380,6 +387,7 @@ int a6xx_ringbuffer_init(struct adreno_device *adreno_dev);
 extern const struct adreno_perfcounters adreno_a630_perfcounters;
 extern const struct adreno_perfcounters adreno_a6xx_perfcounters;
 extern const struct adreno_perfcounters adreno_a6xx_legacy_perfcounters;
+extern const struct adreno_perfcounters adreno_a6xx_hwsched_perfcounters;
 
 /**
  * a6xx_rdpm_mx_freq_update - Update the mx frequency
@@ -455,4 +463,12 @@ to_a6xx_gpudev(const struct adreno_gpudev *gpudev)
  * Reset the preemption records at the time of hard reset
  */
 void a6xx_reset_preempt_records(struct adreno_device *adreno_dev);
+
+/**
+ * a6xx_irq_pending - Check if there is any gpu irq pending
+ * @adreno_dev: Handle to the adreno device
+ *
+ * Return true if there is any gpu irq pending
+ */
+bool a6xx_irq_pending(struct adreno_device *adreno_dev);
 #endif

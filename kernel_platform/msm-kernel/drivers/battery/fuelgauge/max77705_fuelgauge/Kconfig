@@ -29,14 +29,30 @@ config EN_OOPS
 	  MAXIM fuel-gauge only support this option.
 	  some battery data values should be defined.
 
+config ID_USING_BAT_SUBBAT
+	bool "battery id using sub bat"
+	default n
+	depends on DUAL_BATTERY
+	help
+	  Say Y here to enable
+	  This is to calculate bat_id using main_bat_id & sub_bat_id.
+
 config FUELGAUGE_MAX77705_TEST
-	bool "KUnit test for max77705_fuelgauge_test"
+	tristate "KUnit test for max77705_fuelgauge_test"
 	depends on SEC_KUNIT
 	help
 	  Say Y here to enable
 	  support to kunit test.
 	  for kunitest
 	  for max77705_fuelgauge_test
+
+config UI_SOC_PROLONGING
+	bool "Ui Soc 100% Prolonging"
+	default n
+	help
+	  Say Y here to enable
+	  Support for UI Soc prolonging.
+	  This is to enable UI Soc prolonging concept.
 
 endmenu
 

@@ -1,4 +1,5 @@
 # Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -52,10 +53,14 @@ def is_ramdump_file(val, minidump):
     if not minidump:
         ddr = re.compile(r'(DDR|EBI)[0-9_CS]+[.]BIN', re.IGNORECASE)
         imem = re.compile(r'.*IMEM.BIN', re.IGNORECASE)
-        if ddr.match(val) or imem.match(val):
+        if ddr.match(val) or imem.match(val) and not ("md_" in val):
             return True
     else:
-        if val == 'MD_SMEMINFO.BIN' or val == 'MD_SHRDIMEM.BIN':
+        if val == 'MD_SMEMINFO.BIN' or val == 'MD_SHRDIMEM.BIN' or val == 'md_SMEMINFO.BIN' or val == 'md_SHRDIMEM.BIN':
+            return True
+        if 'md_vm_3_vcpu' in val:
+            return True
+        if 'md_TZ_IMEM' in val:
             return True
     return False
 
@@ -572,6 +577,41 @@ class RamDump():
 
         return 0
 
+    def get_kimage_vaddr(self):
+        kimage_vaddr = None
+        if self.get_kernel_version() > (4, 20, 0):
+            va_bits = 39
+            modules_vsize = 0x08000000
+            bpf_jit_vsize = 0x08000000
+            self.page_end = (0xffffffffffffffff << (
+                        va_bits - 1)) & 0xffffffffffffffff
+            if self.address_of("kasan_init") is None:
+                self.kasan_shadow_size = 0
+            else:
+                self.kasan_shadow_size = 1 << (va_bits - 3)
+            kimage_vaddr = self.page_end + modules_vsize + bpf_jit_vsize
+
+            # new since v5.11: https://lore.kernel.org/all/20201008153602.9467-3-ardb@kernel.org/
+            # The KASAN shadow region is reconfigured so that it ends at the start of
+            # the vmalloc region, and grows downwards. That way, the arrangement of
+            # the vmalloc space (which contains kernel mappings, modules, BPF region,
+            # the vmemmap array etc) is identical between non-KASAN and KASAN builds,
+            # which aids debugging.
+
+            if self.get_kernel_version() < (5, 11, 0):
+                kimage_vaddr = kimage_vaddr + self.kasan_shadow_size
+        else:
+            va_bits = 39
+            modules_vsize = 0x08000000
+            self.va_start = (0xffffffffffffffff << va_bits) & 0xffffffffffffffff
+            if self.address_of("kasan_init") is None:
+                self.kasan_shadow_size = 0
+            else:
+                self.kasan_shadow_size = 1 << (va_bits - 3)
+            kimage_vaddr = self.va_start + self.kasan_shadow_size + \
+                           modules_vsize
+        return kimage_vaddr
+
     def __init__(self, options, nm_path, gdb_path, objdump_path,gdb_ndk_path):
         self.ebi_files = []
         self.ebi_files_minidump = []
@@ -601,6 +641,7 @@ class RamDump():
         self.ndk_compatible = False
         self.lookup_table = []
         self.ko_file_names = []
+        self.kimage_vaddr_va = None
 
         if gdb_ndk_path:
             self.gdbmi = gdbmi.GdbMI(self.gdb_ndk_path, self.vmlinux,
@@ -766,34 +807,11 @@ class RamDump():
                 '[!!!] Page offset was set to {0:x}'.format(page_offset))
             self.page_offset = options.page_offset
         self.setup_symbol_tables()
-
-        if self.get_kernel_version() > (4, 20, 0):
-            va_bits = 39
-            modules_vsize = 0x08000000
-            bpf_jit_vsize = 0x08000000
-            self.page_end = (0xffffffffffffffff << (va_bits - 1)) & 0xffffffffffffffff
-            if self.address_of("kasan_init") is None:
-                self.kasan_shadow_size = 0
-            else:
-                self.kasan_shadow_size = 1 << (va_bits - 3)
-
-            self.kimage_vaddr = self.page_end + self.kasan_shadow_size + modules_vsize + \
-                                bpf_jit_vsize
-        else:
-            va_bits = 39
-            modules_vsize = 0x08000000
-            self.va_start = (0xffffffffffffffff << va_bits) & 0xffffffffffffffff
-            if self.address_of("kasan_init") is None:
-                self.kasan_shadow_size = 0
-            else:
-                self.kasan_shadow_size = 1 << (va_bits - 3)
-
-            self.kimage_vaddr = self.va_start + self.kasan_shadow_size + \
-                                modules_vsize
-
+        kimage_vaddr = self.get_kimage_vaddr()
         print_out_str("Kernel version vmlinux: {0}".format(self.kernel_version))
         self.field_offset("struct trace_entry", "preempt_count")
-        self.kimage_vaddr = self.kimage_vaddr + self.get_kaslr_offset()
+        print_out_str("kimage_vaddr is" ": {:x}".format(kimage_vaddr))
+        self.kimage_vaddr = kimage_vaddr + self.get_kaslr_offset()
         self.modules_end = self.page_offset
         if self.arm64:
             self.kimage_voffset = self.address_of("kimage_voffset")
@@ -850,7 +868,10 @@ class RamDump():
             self.mmu = Armv8MMU(self)
         elif pg_dir_size == 0x4000:
             print_out_str('Using non-LPAE MMU')
-            self.mmu = Armv7MMU(self)
+            if self.minidump:
+                self.mmu = None
+            else:
+                self.mmu = Armv7MMU(self)
         elif pg_dir_size == 0x5000:
             print_out_str('Using LPAE MMU')
             text_offset = 0x8000
@@ -936,6 +957,10 @@ class RamDump():
             print_out_str('Do you have write/read permissions on the path?')
             sys.exit(1)
         return f
+
+    def chmod(self, file_name, mode):
+        file_path = os.path.join(self.outdir, file_name)
+        return os.chmod(file_path, mode)
 
     def remove_file(self, file_name):
         file_path = os.path.join(self.outdir, file_name)
@@ -1109,27 +1134,42 @@ class RamDump():
         return False
 
     def print_socinfo(self):
-        try:
-            if self.read_pointer('socinfo') is None:
-              return None
-            content_socinfo = hex(self.read_pointer('socinfo'))
-            content_socinfo = content_socinfo.strip('L')
+        if self.kernel_version < (5, 4, 0):
+            try:
+                if self.read_pointer('socinfo') is None:
+                  return None
+                content_socinfo = hex(self.read_pointer('socinfo'))
+                content_socinfo = content_socinfo.strip('L')
 
-            sernum_offset = self.field_offset('struct socinfo_v10', 'serial_number')
-            if sernum_offset is None:
-                sernum_offset = self.field_offset('struct socinfo_v0_10', 'serial_number')
+                sernum_offset = self.field_offset('struct socinfo_v10', 'serial_number')
                 if sernum_offset is None:
-                    print_out_str("No serial number information available")
-                    return False
-            addr_of_sernum = hex(int(content_socinfo, 16) + sernum_offset)
-            addr_of_sernum = addr_of_sernum.strip('L')
-            serial_number = self.read_u32(int(addr_of_sernum, 16))
-            if serial_number is not None:
-                print_out_str('Serial number %s' % hex(serial_number))
-                return True
-        except:
-            pass
-        return False
+                    sernum_offset = self.field_offset('struct socinfo_v0_10', 'serial_number')
+                    if sernum_offset is None:
+                        print_out_str("No serial number information available")
+                        return False
+                addr_of_sernum = hex(int(content_socinfo, 16) + sernum_offset)
+                addr_of_sernum = addr_of_sernum.strip('L')
+                serial_number = self.read_u32(int(addr_of_sernum, 16))
+                if serial_number is not None:
+                    print_out_str('Serial number %s' % hex(serial_number))
+                    return True
+            except:
+                pass
+            return False
+        else:
+            socinfo = self.address_of('socinfo')
+            if socinfo is None:
+                return None
+            socinfo = self.read_pointer(socinfo)
+            if socinfo is None:
+                return None
+            ver = int(self.read_structure_field(socinfo, 'struct socinfo', 'ver') or 0)
+            chip_ver_major = (ver & 0xFFFF0000) >> 16
+            chip_ver_minor = (ver & 0x0000FFFF)
+            print_out_str("Chip Version: v{0}.{1}".format(chip_ver_major, chip_ver_minor))
+            serial_num = int(self.read_structure_field(socinfo, 'struct socinfo', 'serial_num') or 0)
+            print_out_str("Chip Serial Number 0x{0:x}".format(serial_num))
+            return True
 
     def auto_parse(self, file_path, minidump):
         for cls in sorted(AutoDumpInfo.__subclasses__(),
@@ -1388,7 +1428,7 @@ class RamDump():
             t32_sh.write('#!/bin/sh\n\n')
             t32_sh.write('{0} -c {1}/t32_config.t32, {1}/t32_startup_script.cmm &\n'.format(t32_binary, out_path))
             t32_sh.close()
-            os.chmod(launch_file, stat.S_IRWXU)
+            self.chmod(launch_file, stat.S_IRWXU)
 
         print_out_str(
             '--- Created a T32 Simulator launcher (run {})'.format(launch_file))
@@ -1418,9 +1458,26 @@ class RamDump():
             if self.kaslr_addr is None:
                 print_out_str('!!!! Kaslr addr is not provided.')
             else:
+                if self.minidump:
+                    for a in self.ebi_files:
+                        if "md_SHRDIMEM" in a[3]:
+                            self.kaslr_addr = a[1] + 0x6d0
+                            break
                 kaslr_magic = self.read_u32(self.kaslr_addr, False)
                 if kaslr_magic != 0xdead4ead:
                     print_out_str('!!!! Kaslr magic does not match.')
+                    self.kimage_vaddr_va = self.address_of('kimage_vaddr')
+                    try:
+                        kimage_vaddr = self.get_kimage_vaddr()
+                        kimage_vaddr_phy = self.phys_offset + self.kimage_vaddr_va - kimage_vaddr
+                        kimage_va_temp = self.read_physical(kimage_vaddr_phy, 8)
+                        kimage_va = struct.unpack('<Q', kimage_va_temp)
+                        kimage_va = int(kimage_va[0])
+                        self.kaslr_offset = kimage_va - kimage_vaddr
+                        print_out_str("kaslr_offset = %x" % self.kaslr_offset)
+                        return self.kaslr_offset
+                    except:
+                        return self.kaslr_offset
                 else:
                     self.kaslr_offset = self.read_u64(self.kaslr_addr + 4, False)
                     print_out_str("The kaslr_offset extracted is: " + str(hex(self.kaslr_offset)))
@@ -1644,9 +1701,12 @@ class RamDump():
 
         if self.kernel_version > (4, 9, 0):
             module_core_offset = self.field_offset('struct module', 'core_layout.base')
-            sect_name_offset = self.field_offset('struct module_sect_attr', 'battr') + self.field_offset('struct bin_attribute', 'attr') + self.field_offset('struct attribute', 'name')
         else:
             module_core_offset = self.field_offset('struct module', 'module_core')
+
+        if self.field_offset('struct module_sect_attr', 'battr') is not None:
+            sect_name_offset = self.field_offset('struct module_sect_attr', 'battr') + self.field_offset('struct bin_attribute', 'attr') + self.field_offset('struct attribute', 'name')
+        else:
             sect_name_offset = self.field_offset('struct module_sect_attr', 'name')
 
         kallsyms_offset = self.field_offset('struct module', 'kallsyms')

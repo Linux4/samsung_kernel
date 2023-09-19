@@ -280,9 +280,13 @@ static int fscrypt_new_context(union fscrypt_context *ctx_u,
 		memcpy(ctx->nonce, nonce, FSCRYPT_FILE_NONCE_SIZE);
 
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+		BUILD_BUG_ON((sizeof(*ctx) - sizeof(ctx->knox_flags))
+				!= offsetof(struct fscrypt_context_v1, knox_flags));
 		ctx->knox_flags = 0;
-#endif
+		return offsetof(struct fscrypt_context_v1, knox_flags);
+#else
 		return sizeof(*ctx);
+#endif
 	}
 	case FSCRYPT_POLICY_V2: {
 		const struct fscrypt_policy_v2 *policy = &policy_u->v2;
@@ -300,9 +304,13 @@ static int fscrypt_new_context(union fscrypt_context *ctx_u,
 		memcpy(ctx->nonce, nonce, FSCRYPT_FILE_NONCE_SIZE);
 
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+		BUILD_BUG_ON((sizeof(*ctx) - sizeof(ctx->knox_flags))
+				!= offsetof(struct fscrypt_context_v2, knox_flags));
 		ctx->knox_flags = 0;
-#endif
+		return offsetof(struct fscrypt_context_v2, knox_flags);
+#else
 		return sizeof(*ctx);
+#endif
 	}
 	}
 	BUG();
@@ -390,6 +398,25 @@ static int fscrypt_get_policy(struct inode *inode, union fscrypt_policy *policy)
 	ret = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (ret < 0)
 		return (ret == -ERANGE) ? -EINVAL : ret;
+
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			ret = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (ret == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			ret = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
 
 	return fscrypt_policy_from_context(policy, &ctx, ret);
 }
@@ -567,6 +594,26 @@ int fscrypt_ioctl_get_nonce(struct file *filp, void __user *arg)
 	ret = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (ret < 0)
 		return ret;
+
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			ret = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (ret == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			ret = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
+
 	if (!fscrypt_context_is_valid(&ctx, ret))
 		return -EINVAL;
 	if (copy_to_user(arg, fscrypt_context_nonce(&ctx),
@@ -710,12 +757,26 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
 	if (fscrypt_has_dar_info(inode)) {
 		int res = 0;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 #ifdef CONFIG_DDAR
-		if (ci->ci_dd_info) {
+		if (ext_ci->ci_dd_info) {
 			res = fscrypt_set_knox_ddar_flags(&ctx, ci);
 			if (res) {
 				dd_error("failed to set knox ddar flag\n");
 				return res;
+			}
+
+			switch (ctx.version) {
+			case FSCRYPT_CONTEXT_V1: {
+				if (ctx.v1.knox_flags != 0)
+					ctxsize = sizeof(ctx.v1);
+				break;
+			}
+			case FSCRYPT_CONTEXT_V2: {
+				if (ctx.v2.knox_flags != 0)
+					ctxsize = sizeof(ctx.v2);
+				break;
+			}
 			}
 
 			res = inode->i_sb->s_cop->set_context(inode, &ctx, ctxsize, fs_data);
@@ -724,12 +785,12 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 				return res;
 			}
 
-			res = dd_write_crypt_context(inode, &ci->ci_dd_info->crypt_context, fs_data);
-			dd_verbose("%s - ino : %ld, policy.flag:%x, res : %d", __func__, inode->i_ino, ci->ci_dd_info->policy.flags, res);
+			res = dd_write_crypt_context(inode, &ext_ci->ci_dd_info->crypt_context, fs_data);
+			dd_verbose("%s - ino : %ld, policy.flag:%x, res : %d", __func__, inode->i_ino, ext_ci->ci_dd_info->policy.flags, res);
 		}
 #endif
 #ifdef CONFIG_FSCRYPT_SDP
-		if (ci->ci_sdp_info) {
+		if (ext_ci->ci_sdp_info) {
 			struct fscrypt_sdp_context sdp_ctx;
 			res = fscrypt_set_knox_sdp_flags(&ctx, ci);
 			if (res) {
@@ -738,18 +799,31 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 				return res;
 			}
 
+			switch (ctx.version) {
+			case FSCRYPT_CONTEXT_V1: {
+				if (ctx.v1.knox_flags != 0)
+					ctxsize = sizeof(ctx.v1);
+				break;
+			}
+			case FSCRYPT_CONTEXT_V2: {
+				if (ctx.v2.knox_flags != 0)
+					ctxsize = sizeof(ctx.v2);
+				break;
+			}
+			}
+
 			res = inode->i_sb->s_cop->set_context(inode, &ctx, ctxsize, fs_data);
 			if (res) {
 				printk("failed to set context (%ld)\n", inode->i_ino);
 				return res;
 			}
 
-			sdp_ctx.engine_id = ci->ci_sdp_info->engine_id;
-			sdp_ctx.sdp_dek_type = ci->ci_sdp_info->sdp_dek.type;
-			sdp_ctx.sdp_dek_len = ci->ci_sdp_info->sdp_dek.len;
-			memcpy(sdp_ctx.sdp_dek_buf, ci->ci_sdp_info->sdp_dek.buf, DEK_MAXLEN); //Full copy without memset
+			sdp_ctx.engine_id = ext_ci->ci_sdp_info->engine_id;
+			sdp_ctx.sdp_dek_type = ext_ci->ci_sdp_info->sdp_dek.type;
+			sdp_ctx.sdp_dek_len = ext_ci->ci_sdp_info->sdp_dek.len;
+			memcpy(sdp_ctx.sdp_dek_buf, ext_ci->ci_sdp_info->sdp_dek.buf, DEK_MAXLEN); //Full copy without memset
 	//		memset(sdp_ctx.sdp_en_buf, 0, MAX_EN_BUF_LEN); // Keep it as dummy
-			memcpy(sdp_ctx.sdp_en_buf, ci->ci_sdp_info->sdp_en_buf, MAX_EN_BUF_LEN);
+			memcpy(sdp_ctx.sdp_en_buf, ext_ci->ci_sdp_info->sdp_en_buf, MAX_EN_BUF_LEN);
 
 			/* Update SDP Context */
 			res = fscrypt_sdp_set_context_nolock(inode, &sdp_ctx, sizeof(sdp_ctx), fs_data);

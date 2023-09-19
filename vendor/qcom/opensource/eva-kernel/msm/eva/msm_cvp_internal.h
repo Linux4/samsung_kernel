@@ -304,6 +304,7 @@ struct inst_snapshot {
 };
 
 struct cvp_noc_log {
+	u32 used;
 	u32 err_ctrl_swid_low;
 	u32 err_ctrl_swid_high;
 	u32 err_ctrl_mainctl_low;
@@ -398,7 +399,10 @@ struct msm_cvp_inst {
 	struct msm_cvp_capability capability;
 	struct kref kref;
 	struct cvp_session_prop prop;
-	u32 cur_cmd_type;
+	/* error_code will be cleared after being returned to user mode */
+	u32 error_code;
+	/* prev_error_code saves value of error_code before it's cleared */
+	u32 prev_error_code;
 	struct synx_session synx_session_id;
 	struct cvp_fence_queue fence_cmd_queue;
 };

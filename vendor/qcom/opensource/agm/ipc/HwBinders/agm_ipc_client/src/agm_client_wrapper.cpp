@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -25,6 +26,39 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *
+ *     * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #define LOG_TAG "agm_client_wrapper"
 
@@ -44,6 +78,7 @@ using vendor::qti::hardware::AGMIPC::V1_0::IAGM;
 using vendor::qti::hardware::AGMIPC::V1_0::IAGMCallback;
 using vendor::qti::hardware::AGMIPC::V1_0::implementation::AGMCallback;
 using vendor::qti::hardware::AGMIPC::V1_0::MmapBufInfo;
+using vendor::qti::hardware::AGMIPC::V1_0::AgmDumpInfo;
 using android::hardware::defaultPassthroughServiceImplementation;
 using android::hardware::configureRpcThreadpool;
 using android::hardware::joinRpcThreadpool;
@@ -122,8 +157,7 @@ int agm_aif_set_media_config(uint32_t audio_intf,
     ALOGV("%s called audio_intf = %d \n", __func__, audio_intf);
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
-        hidl_vec<AgmMediaConfig> media_config_hidl;
-        media_config_hidl.resize(sizeof(struct agm_media_config));
+        hidl_vec<AgmMediaConfig> media_config_hidl(1);
         media_config_hidl.data()->rate = media_config->rate;
         media_config_hidl.data()->channels = media_config->channels;
         media_config_hidl.data()->format = (::vendor::qti::hardware::AGMIPC::V1_0::AgmMediaFormat) media_config->format;
@@ -141,21 +175,18 @@ int agm_session_set_config(uint64_t handle,
     ALOGV("%s called with handle = %llx \n", __func__, (unsigned long long)handle);
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
-        hidl_vec<AgmSessionConfig> session_config_hidl;
-        session_config_hidl.resize(sizeof(struct agm_session_config));
+        hidl_vec<AgmSessionConfig> session_config_hidl(1);
         memcpy(session_config_hidl.data(),
                session_config,
                sizeof(struct agm_session_config));
 
-        hidl_vec<AgmMediaConfig> media_config_hidl;
-        media_config_hidl.resize(sizeof(struct agm_media_config));
+        hidl_vec<AgmMediaConfig> media_config_hidl(1);
         media_config_hidl.data()->rate = media_config->rate;
         media_config_hidl.data()->channels = media_config->channels;
         media_config_hidl.data()->format = (::vendor::qti::hardware::AGMIPC::V1_0::AgmMediaFormat) media_config->format;
         media_config_hidl.data()->data_format = media_config->data_format;
 
-        hidl_vec<AgmBufferConfig> buffer_config_hidl;
-        buffer_config_hidl.resize(sizeof(struct agm_buffer_config));
+        hidl_vec<AgmBufferConfig> buffer_config_hidl(1);
         buffer_config_hidl.data()->count = buffer_config->count;
         buffer_config_hidl.data()->size = buffer_config->size;
         ALOGV("%s : Exit", __func__);
@@ -277,6 +308,16 @@ int agm_session_flush(uint64_t handle){
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
         return agm_client->ipc_agm_session_flush(handle);
+    }
+    return -EINVAL;
+}
+
+int agm_sessionid_flush(uint32_t session_id)
+{
+    ALOGV("%s called with session id = %d", __func__, session_id);
+    if (!agm_server_died) {
+        android::sp<IAGM> agm_client = get_agm_server();
+        return agm_client->ipc_agm_sessionid_flush(session_id);
     }
     return -EINVAL;
 }
@@ -564,19 +605,14 @@ int agm_set_params_with_tag(uint32_t session_id, uint32_t aif_id,
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
 
-        hidl_vec<AgmTagConfig> tag_cfg_hidl;
-        tag_cfg_hidl.resize(sizeof(struct agm_tag_config) +
-                             (tag_config->num_tkvs)*sizeof(agm_key_value));
+        hidl_vec<AgmTagConfig> tag_cfg_hidl(1);
         tag_cfg_hidl.data()->tag = tag_config->tag;
         tag_cfg_hidl.data()->num_tkvs = tag_config->num_tkvs;
-        AgmKeyValue * ptr = NULL;
-        for (int i=0 ; i < tag_cfg_hidl.data()->num_tkvs ; i++ ) {
-             ptr = (AgmKeyValue *)(tag_cfg_hidl.data()
-                                  + sizeof(struct agm_tag_config)
-                                  + (sizeof(AgmKeyValue) * i));
-             ptr->key = tag_config->kv[i].key;
-             ptr->value = tag_config->kv[i].value;
-    }
+        tag_cfg_hidl.data()->kv.resize(tag_config->num_tkvs);
+        for (int i = 0 ; i < tag_cfg_hidl.data()->num_tkvs ; i++ ) {
+             tag_cfg_hidl.data()->kv[i].key = tag_config->kv[i].key;
+             tag_cfg_hidl.data()->kv[i].value = tag_config->kv[i].value;
+        }
         return agm_client->ipc_agm_set_params_with_tag(session_id,
                                                          aif_id, tag_cfg_hidl);
     }
@@ -607,10 +643,7 @@ int agm_session_register_for_events(uint32_t session_id,
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
 
-        hidl_vec<AgmEventRegCfg> evt_reg_cfg_hidl;
-        size_t size_local = sizeof(struct agm_event_reg_cfg) +
-                      (evt_reg_cfg->event_config_payload_size);
-        evt_reg_cfg_hidl.resize(size_local);
+        hidl_vec<AgmEventRegCfg> evt_reg_cfg_hidl(1);
 
         evt_reg_cfg_hidl.data()->module_instance_id = evt_reg_cfg->module_instance_id;
         evt_reg_cfg_hidl.data()->event_id = evt_reg_cfg->event_id;
@@ -633,17 +666,12 @@ int agm_session_aif_set_cal(uint32_t session_id ,uint32_t aif_id ,
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
 
-        hidl_vec<AgmCalConfig> cal_cfg_hidl;
-        cal_cfg_hidl.resize(sizeof(AgmCalConfig) +
-                            (cal_config->num_ckvs)*sizeof(AgmKeyValue));
+        hidl_vec<AgmCalConfig> cal_cfg_hidl(1);
         cal_cfg_hidl.data()->num_ckvs = cal_config->num_ckvs;
-        AgmKeyValue * ptr = NULL;
-        for (int i=0 ; i < cal_cfg_hidl.data()->num_ckvs ; i++ ) {
-            ptr = (AgmKeyValue *) (cal_cfg_hidl.data() +
-                                   sizeof(struct agm_cal_config) +
-                                   (sizeof(AgmKeyValue)*i));
-            ptr->key = cal_config->kv[i].key;
-            ptr->value = cal_config->kv[i].value;
+        cal_cfg_hidl.data()->kv.resize(cal_config->num_ckvs);
+        for (int i = 0; i < cal_cfg_hidl.data()->num_ckvs; i++) {
+            cal_cfg_hidl.data()->kv[i].key = cal_config->kv[i].key;
+            cal_cfg_hidl.data()->kv[i].value = cal_config->kv[i].value;
         }
         return agm_client->ipc_agm_session_aif_set_cal(session_id, aif_id,
                                                                   cal_cfg_hidl);
@@ -828,34 +856,29 @@ int agm_session_set_non_tunnel_mode_config(uint64_t handle,
 
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
-        hidl_vec<AgmSessionConfig> session_config_hidl;
-        session_config_hidl.resize(sizeof(struct agm_session_config));
+        hidl_vec<AgmSessionConfig> session_config_hidl(1);
         memcpy(session_config_hidl.data(),
                session_config,
                sizeof(struct agm_session_config));
 
-        hidl_vec<AgmMediaConfig> in_media_config_hidl, out_media_config_hidl;
-        in_media_config_hidl.resize(sizeof(struct agm_media_config));
+        hidl_vec<AgmMediaConfig> in_media_config_hidl(1), out_media_config_hidl(1);
         in_media_config_hidl.data()->rate = in_media_config->rate;
         in_media_config_hidl.data()->channels = in_media_config->channels;
         in_media_config_hidl.data()->format =
                        (::vendor::qti::hardware::AGMIPC::V1_0::AgmMediaFormat) in_media_config->format;
         in_media_config_hidl.data()->data_format = in_media_config->data_format;
 
-        out_media_config_hidl.resize(sizeof(struct agm_media_config));
         out_media_config_hidl.data()->rate = out_media_config->rate;
         out_media_config_hidl.data()->channels = out_media_config->channels;
         out_media_config_hidl.data()->format =
                        (::vendor::qti::hardware::AGMIPC::V1_0::AgmMediaFormat) out_media_config->format;
         out_media_config_hidl.data()->data_format = out_media_config->data_format;
 
-        hidl_vec<AgmBufferConfig> in_buffer_config_hidl, out_buffer_config_hidl;
-        in_buffer_config_hidl.resize(sizeof(struct agm_buffer_config));
+        hidl_vec<AgmBufferConfig> in_buffer_config_hidl(1), out_buffer_config_hidl(1);
         in_buffer_config_hidl.data()->count = in_buffer_config->count;
         in_buffer_config_hidl.data()->size = in_buffer_config->size;
         in_buffer_config_hidl.data()->max_metadata_size = in_buffer_config->max_metadata_size;
 
-        out_buffer_config_hidl.resize(sizeof(struct agm_buffer_config));
         out_buffer_config_hidl.data()->count = out_buffer_config->count;
         out_buffer_config_hidl.data()->size = out_buffer_config->size;
         out_buffer_config_hidl.data()->max_metadata_size = out_buffer_config->max_metadata_size;
@@ -879,7 +902,7 @@ int agm_session_write_with_metadata(uint64_t handle, struct agm_buff *buf, size_
     if (!agm_server_died) {
         ALOGV("%s:%d hndl %p",__func__, __LINE__, handle);
         android::sp<IAGM> agm_client = get_agm_server();
-        hidl_vec<AgmBuff> buf_hidl;
+        hidl_vec<AgmBuff> buf_hidl(1);
         native_handle_t *allocHidlHandle = nullptr;
         allocHidlHandle = native_handle_create(1, 1);
         if (!allocHidlHandle) {
@@ -889,7 +912,6 @@ int agm_session_write_with_metadata(uint64_t handle, struct agm_buff *buf, size_
         }
         allocHidlHandle->data[0] = buf->alloc_info.alloc_handle;
         allocHidlHandle->data[1] = buf->alloc_info.alloc_handle;
-        buf_hidl.resize(sizeof(struct agm_buff));
         AgmBuff *agmBuff = buf_hidl.data();
         agmBuff->size = buf->size;
         agmBuff->buffer.resize(buf->size);
@@ -921,6 +943,8 @@ int agm_session_write_with_metadata(uint64_t handle, struct agm_buff *buf, size_
         if (!status.isOk()) {
             ALOGE("%s: HIDL call failed. ret=%d\n", __func__, ret);
         }
+        if (allocHidlHandle)
+            native_handle_delete(allocHidlHandle);
     }
 done:
     return ret;
@@ -946,8 +970,7 @@ int agm_session_read_with_metadata(uint64_t handle, struct agm_buff  *buf, uint3
         allocHidlHandle->data[0] = buf->alloc_info.alloc_handle;
         allocHidlHandle->data[1] = buf->alloc_info.alloc_handle;
 
-        hidl_vec<AgmBuff> buf_hidl;
-        buf_hidl.resize(sizeof(struct agm_buff));
+        hidl_vec<AgmBuff> buf_hidl(1);
         AgmBuff *agmBuff = buf_hidl.data();
         agmBuff->size = buf->size;
         agmBuff->metadata_size = buf->metadata_size;
@@ -985,6 +1008,8 @@ int agm_session_read_with_metadata(uint64_t handle, struct agm_buff  *buf, uint3
         if (!status.isOk()) {
             ALOGE("%s: HIDL call failed. ret=%d\n", __func__, ret);
         }
+        if (allocHidlHandle)
+            native_handle_delete(allocHidlHandle);
     }
 done:
     return ret;
@@ -996,8 +1021,7 @@ int agm_aif_group_set_media_config(uint32_t group_id,
     ALOGV("%s called, group_id = %d \n", __func__, group_id);
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
-        hidl_vec<AgmGroupMediaConfig> media_config_hidl;
-        media_config_hidl.resize(sizeof(struct agm_group_media_config));
+        hidl_vec<AgmGroupMediaConfig> media_config_hidl(1);
         media_config_hidl.data()->rate = media_config->config.rate;
         media_config_hidl.data()->channels = media_config->config.channels;
         media_config_hidl.data()->format = (::vendor::qti::hardware::AGMIPC::V1_0::AgmMediaFormat) media_config->config.format;
@@ -1049,8 +1073,7 @@ int agm_session_write_datapath_params(uint32_t session_id, struct agm_buff *buf)
 
     if (!agm_server_died) {
         android::sp<IAGM> agm_client = get_agm_server();
-        hidl_vec<AgmBuff> buf_hidl;
-        buf_hidl.resize(sizeof(struct agm_buff));
+        hidl_vec<AgmBuff> buf_hidl(1);
         AgmBuff *agmBuff = buf_hidl.data();
         agmBuff->size = buf->size;
         agmBuff->buffer.resize(buf->size);
@@ -1067,4 +1090,18 @@ int agm_session_write_datapath_params(uint32_t session_id, struct agm_buff *buf)
                                             session_id, buf_hidl);
     }
     return -EINVAL;
+}
+
+int agm_dump(struct agm_dump_info *dump_info) {
+    if (agm_server_died) {
+        ALOGE("%s: Cannot perform dump, AGM service has died", __func__);
+        return -EINVAL;
+    }
+    android::sp<IAGM> agm_client = get_agm_server();
+    hidl_vec<AgmDumpInfo> dump_info_hidl;
+    dump_info_hidl.resize(1);
+    memcpy(dump_info_hidl.data(),
+            dump_info,
+            sizeof(struct agm_dump_info));
+    return agm_client->ipc_agm_dump(dump_info_hidl);
 }

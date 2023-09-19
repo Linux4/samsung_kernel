@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -39,6 +40,7 @@
  * @DSI_PIXEL_FORMAT_RGB111:
  * @DSI_PIXEL_FORMAT_RGB332:
  * @DSI_PIXEL_FORMAT_RGB444:
+ * @DSI_PIXEL_FORMAT_RGB101010:
  * @DSI_PIXEL_FORMAT_MAX:
  */
 enum dsi_pixel_format {
@@ -49,6 +51,7 @@ enum dsi_pixel_format {
 	DSI_PIXEL_FORMAT_RGB111,
 	DSI_PIXEL_FORMAT_RGB332,
 	DSI_PIXEL_FORMAT_RGB444,
+	DSI_PIXEL_FORMAT_RGB101010,
 	DSI_PIXEL_FORMAT_MAX
 };
 
@@ -426,6 +429,7 @@ struct dsi_panel_cmd_set {
  * @mdp_transfer_time_us:   Specifies the mdp transfer time for command mode
  *                    panels in microseconds.
  * @dsi_transfer_time_us:   Specifies dsi transfer time for command mode.
+ * @fsc_mode:         Panel FSC (Field sequential coloring) Mode status.
  * @dsc_enabled:      DSC compression enabled.
  * @vdc_enabled:      VDC compression enabled.
  * @dsc:              DSC compression configuration.
@@ -453,6 +457,7 @@ struct dsi_mode_info {
 	u64 min_dsi_clk_hz;
 	u32 mdp_transfer_time_us;
 	u32 dsi_transfer_time_us;
+	bool fsc_mode;
 	bool dsc_enabled;
 	bool vdc_enabled;
 	struct msm_display_dsc_info *dsc;
@@ -804,25 +809,10 @@ static inline int dsi_pixel_format_to_bpp(enum dsi_pixel_format fmt)
 		return 8;
 	case DSI_PIXEL_FORMAT_RGB444:
 		return 12;
+	case DSI_PIXEL_FORMAT_RGB101010:
+		return 30;
 	}
 	return 24;
-}
-
-/* return number of DSI data lanes */
-static inline int dsi_get_num_of_data_lanes(enum dsi_data_lanes dlanes)
-{
-	int num_of_lanes = 0;
-
-	if (dlanes & DSI_DATA_LANE_0)
-		num_of_lanes++;
-	if (dlanes & DSI_DATA_LANE_1)
-		num_of_lanes++;
-	if (dlanes & DSI_DATA_LANE_2)
-		num_of_lanes++;
-	if (dlanes & DSI_DATA_LANE_3)
-		num_of_lanes++;
-
-	return num_of_lanes;
 }
 
 static inline u64 dsi_h_active_dce(struct dsi_mode_info *mode)

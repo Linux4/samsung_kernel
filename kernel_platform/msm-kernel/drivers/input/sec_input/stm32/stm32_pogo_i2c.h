@@ -29,8 +29,8 @@
 #endif
 
 #if IS_ENABLED(CONFIG_MUIC_SUPPORT_KEYBOARDDOCK)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 
 #if IS_ENABLED(CONFIG_OF)
@@ -108,11 +108,11 @@
 /* Target specific definitions
  */
 
-typedef struct
+struct stm32_erase_param_type
 {
     u32 page;
     u32 count;
-} stm32_erase_param_type;
+};
 
 #define STM32_BOOT_I2C_STARTUP_DELAY          (50) /* msecs */
 
@@ -201,19 +201,19 @@ enum stm32_bus_vote {
 
 /* Memory map specific */
 
-typedef struct
+struct stm32_page_type
 {
 	u32 size;
 	u32 count;
-} stm32_page_type;
+};
 
-typedef struct
+struct stm32_map_type
 {
 	u32 flashbase;  /* flash memory starting address */
 	u32 sysboot;    /* system memory starting address */
 	u32 optionbyte; /* option byte starting address */
-	stm32_page_type *pages;
-} stm32_map_type;
+	struct stm32_page_type *pages;
+};
 
 /* ERROR definitions -------------------------------------------------------- */
 
@@ -377,9 +377,11 @@ struct stm32_dev {
 	u32					reset_count;
 
 	volatile bool				hall_closed;
+	volatile bool				enabled;
 	int					debug_flag;
 	bool					hall_flag;
 	struct completion			i2c_done;
+	bool					pogo_enable;
 	bool					firm_state;
 #if IS_ENABLED(CONFIG_QCOM_BUS_SCALING)
 	u32					stm32_bus_perf_client;

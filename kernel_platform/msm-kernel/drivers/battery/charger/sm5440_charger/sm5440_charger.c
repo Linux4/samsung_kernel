@@ -24,7 +24,7 @@
 #endif
 #include "sm5440_charger.h"
 
-#define SM5440_DC_VERSION  "UK1"
+#define SM5440_DC_VERSION  "WE2"
 
 static int sm5440_read_reg(struct sm5440_charger *sm5440, u8 reg, u8 *dest)
 {
@@ -133,7 +133,12 @@ static u32 sm5440_get_ibuslim(struct sm5440_charger *sm5440)
 
 static int sm5440_set_vbatreg(struct sm5440_charger *sm5440, u32 vbatreg)
 {
-	u8 reg = ((vbatreg - 3800) * 10) / 125;
+	u8 reg;
+
+	if (vbatreg < 3800)
+		reg = 0;
+	else
+		reg = ((vbatreg - 3800) * 10) / 125;
 
 	return sm5440_update_reg(sm5440, SM5440_REG_VBATCNTL, reg, 0x3F, 0);
 }
@@ -197,6 +202,25 @@ static struct sm_dc_info *select_sm_dc_info(struct sm5440_charger *sm5440)
 		p_dc = sm5440->wpc_dc;
 
 	return p_dc;
+}
+
+static int sm5440_get_vnow(struct sm5440_charger *sm5440)
+{
+	union power_supply_propval value = {0, };
+	int ret;
+
+	if (sm5440->pdata->en_vbatreg)
+		return 0;
+
+	value.intval = SEC_BATTERY_VOLTAGE_MV;
+	ret = psy_do_property(sm5440->pdata->battery.fuelgauge_name, get,
+			POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
+	if (ret < 0) {
+		dev_err(sm5440->dev, "%s: cannot get vnow from fg\n", __func__);
+		return -EINVAL;
+	}
+
+	return value.intval;
 }
 
 static int sm5440_convert_adc(struct sm5440_charger *sm5440, u8 index)
@@ -354,7 +378,7 @@ static int sm5440_set_ENHIZ(struct sm5440_charger *sm5440, bool vbus, bool chg_e
 
 static int sm5440_reverse_boost_enable(struct sm5440_charger *sm5440, bool enable)
 {
-	u8 i, reg;
+	u8 i, st[5];
 
 	pr_info("%s: %d\n", __func__, enable);
 
@@ -363,9 +387,10 @@ static int sm5440_reverse_boost_enable(struct sm5440_charger *sm5440, bool enabl
 		sm5440_set_op_mode(sm5440, OP_MODE_REV_BOOST);
 		for (i = 0; i < 10; ++i) {
 			msleep(20);
-			sm5440_read_reg(sm5440, SM5440_REG_STATUS4, &reg);
-			pr_info("%s: read SM5440_REG_STATUS4=0x%x i=%d\n", __func__, reg, i);
-			if (reg & (0x1 << 6))
+			sm5440_bulk_read(sm5440, SM5440_REG_STATUS1, 4, st);
+			dev_info(sm5440->dev, "%s: status 0x%x:0x%x:0x%x:0x%x\n", __func__,
+					st[0], st[1], st[2], st[3]);
+			if (st[3] & SM5440_INT4_RVSBSTRDY && !(st[2] & SM5440_INT3_STUP_FAIL))
 				break;
 		}
 
@@ -380,6 +405,7 @@ static int sm5440_reverse_boost_enable(struct sm5440_charger *sm5440, bool enabl
 	} else if (!enable) {
 		sm5440_set_op_mode(sm5440, OP_MODE_CHG_OFF);
 		sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_OFF);
+		msleep(50);
 		sm5440->rev_boost = enable;
 		dev_info(sm5440->dev, "%s: OFF\n", __func__);
 	}
@@ -400,23 +426,19 @@ static bool sm5440_check_charging_enable(struct sm5440_charger *sm5440)
 
 static int get_apdo_max_power(struct sm5440_charger *sm5440, struct sm_dc_power_source_info *ta)
 {
-	int ret, cnt;
+	int ret;
+	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 
 	ta->pdo_pos = 0;        /* set '0' else return error */
 	ta->v_max = 10000;      /* request voltage level */
 	ta->c_max = 0;
 	ta->p_max = 0;
 
-	for (cnt = 0; cnt < 3; ++cnt) {
-		ret = sec_pd_get_apdo_max_power(&ta->pdo_pos, &ta->v_max, &ta->c_max, &ta->p_max);
-		if (ret < 0)
-			dev_err(sm5440->dev, "%s: error:sec_pd_get_apdo_max_power, RETRY=%d\n", __func__, cnt);
-		else
-			break;
-	}
-
-	if (cnt == 3)
+	ret = sec_pd_get_apdo_max_power(&ta->pdo_pos, &ta->v_max, &ta->c_max, &ta->p_max);
+	if (ret < 0) {
 		dev_err(sm5440->dev, "%s: fail to get apdo_max_power(ret=%d)\n", __func__, ret);
+		sm_dc_report_error_status(sm_dc, SM_DC_ERR_SEND_PD_MSG);
+	}
 
 	dev_info(sm5440->dev, "%s: pdo_pos:%d, max_vol:%dmV, max_cur:%dmA, max_pwr:%dmW\n",
 			__func__, ta->pdo_pos, ta->v_max, ta->c_max, ta->p_max);
@@ -430,7 +452,6 @@ static void sm5440_init_reg_param(struct sm5440_charger *sm5440)
 	sm5440_set_freq(sm5440, sm5440->pdata->freq);
 
 	sm5440_write_reg(sm5440, SM5440_REG_CNTL2, 0xF2);               /* disable IBUSOCP,IBATOCP,THEM */
-	sm5440_write_reg(sm5440, SM5440_REG_CNTL3, 0xB8);               /* disable CHGTMR */
 	sm5440_write_reg(sm5440, SM5440_REG_CNTL4, 0xFF);               /* used DEB:8ms */
 	sm5440_write_reg(sm5440, SM5440_REG_CNTL6, 0x09);               /* forced PWM mode, disable ENHIZ */
 	sm5440_update_reg(sm5440, SM5440_REG_VBUSCNTL, 0x7, 0x7, 0);    /* VBUS_OVP_TH=11V */
@@ -439,6 +460,7 @@ static void sm5440_init_reg_param(struct sm5440_charger *sm5440)
 	sm5440_update_reg(sm5440, SM5440_REG_ADCCNTL1, 1, 0x1, 3);      /* ADC average sample = 32 */
 	sm5440_write_reg(sm5440, SM5440_REG_ADCCNTL2, 0xDF);            /* ADC channel setting */
 	sm5440_write_reg(sm5440, SM5440_REG_THEMCNTL1, 0x0C);           /* Thermal Regulation threshold = 120'C */
+	sm5440_write_reg(sm5440, SM5440_REG_CNTL3, 0xB8);               /* disable CHGTMR, enable VBATREG */
 }
 
 static int sm5440_start_charging(struct sm5440_charger *sm5440)
@@ -768,6 +790,12 @@ static int sm5440_chg_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_OCP:
 			val->intval = sm5440_get_reverse_boost_ocp(sm5440);
 			break;
+		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VBUS:
+			val->intval = sm5440_convert_adc(sm5440, SM5440_ADC_VBUS);
+			break;
+		case POWER_SUPPLY_EXT_PROP_DC_OP_MODE:
+			val->intval = sm5440_get_op_mode(sm5440);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -783,8 +811,7 @@ static int psy_chg_set_online(struct sm5440_charger *sm5440, int online)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 	int ret = 0;
-	u8 vbus_pok = 0x0;
-	u8 reg = 0x0;
+	u8 vbus_pok = 0x0, reg = 0x0, op_mode = 0x0;
 	bool en_opmode = 0;
 
 	dev_info(sm5440->dev, "%s: online=%d\n", __func__, online);
@@ -800,7 +827,8 @@ static int psy_chg_set_online(struct sm5440_charger *sm5440, int online)
 	vbus_pok = (reg >> 5) & 0x1;
 
 	sm5440->vbus_in = vbus_pok;
-	en_opmode = sm5440_check_charging_enable(sm5440) || sm5440->rev_boost;
+	op_mode = sm5440_get_op_mode(sm5440);
+	en_opmode = op_mode < 1 ? 0 : 1;
 	sm5440_set_ENHIZ(sm5440, sm5440->vbus_in, en_opmode);
 
 	sm5440->ps_type = SM_DC_POWER_SUPPLY_PD;
@@ -941,6 +969,20 @@ static int sm5440_chg_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VOLTAGE:
 			ret = sm5440_reverse_boost_enable(sm5440, val->intval);
 			break;
+
+		case POWER_SUPPLY_EXT_PROP_ADC_MODE:
+			if (val->intval)
+				sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_CONTINUOUS);
+			else
+				sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_OFF);
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_DC_OP_MODE:
+			if (val->intval == 1)
+				sm5440_set_op_mode(sm5440, OP_MODE_REV_BOOST);
+			else if (val->intval == 0)
+				sm5440_set_op_mode(sm5440, OP_MODE_CHG_OFF);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -1070,18 +1112,31 @@ static int sm5440_set_charging_enable(struct i2c_client *i2c, bool enable)
 static int sm5440_dc_set_charging_config(struct i2c_client *i2c, u32 cv_gl, u32 ci_gl, u32 cc_gl)
 {
 	struct sm5440_charger *sm5440 = i2c_get_clientdata(i2c);
-	u32 vbatreg, ibuslim;
+	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
+	u32 vbatreg, ibuslim, freq;
 
-	vbatreg = cv_gl + SM5440_CV_OFFSET;
+	if (sm5440->pdata->en_vbatreg)
+		vbatreg = cv_gl;
+	else
+		vbatreg = cv_gl + SM5440_CV_OFFSET;
 	if (ci_gl <= SM5440_TA_MIN_CURRENT)
 		ibuslim = ci_gl + SM5440_CI_OFFSET * 2;
 	else
 		ibuslim = ci_gl + SM5440_CI_OFFSET;
 
+	if (ci_gl <= SM5440_SIOP_LEV1)
+		freq = sm5440->pdata->freq_siop[0];
+	else if (ci_gl <= SM5440_SIOP_LEV2)
+		freq = sm5440->pdata->freq_siop[1];
+	else
+		freq = sm5440->pdata->freq;
+
 	sm5440_set_ibuslim(sm5440, ibuslim);
 	sm5440_set_vbatreg(sm5440, vbatreg);
+	sm5440_set_freq(sm5440, freq);
 
-	dev_info(sm5440->dev, "%s: vbat_reg=%dmV, ibus_lim=%dmA\n", __func__, vbatreg, ibuslim);
+	pr_info("%s %s: vbat_reg=%dmV, ibus_lim=%dmA, freq=%dkHz\n", sm_dc->name,
+		__func__, vbatreg, ibuslim, freq);
 
 	return 0;
 }
@@ -1101,11 +1156,19 @@ static u32 sm5440_get_dc_error_status(struct i2c_client *i2c)
 		if (op_mode == 0x0) {
 			sm5440_bulk_read(sm5440, SM5440_REG_INT1, 4, st);
 			dev_info(sm5440->dev, "%s: int 0x%x:0x%x:0x%x:0x%x\n", __func__, st[0], st[1], st[2], st[3]);
-			dev_err(sm5440->dev, "%s: disabled chg, but not detect error\n", __func__);
-			err = SM_DC_ERR_UNKNOWN;
+			if (st[2] & SM5440_INT3_VBUSUVLO) {
+				dev_err(sm5440->dev, "%s: disabled chg, vbus uvlo detect\n", __func__);
+				err = SM_DC_ERR_VBUSUVLO;
+			} else {
+				dev_err(sm5440->dev, "%s: disabled chg, check the status\n", __func__);
+				err = SM_DC_ERR_UNKNOWN;
+			}
 		} else if (st[2] & SM5440_INT3_VBUSUVLO) {
 			dev_err(sm5440->dev, "%s: vbus uvlo detect, try to retry\n", __func__);
 			err = SM_DC_ERR_RETRY;
+		} else if (sm5440_get_vnow(sm5440) < 0) {
+			dev_err(sm5440->dev, "%s: abnormal vnow\n", __func__);
+			err = SM_DC_ERR_INVAL_VBAT;
 		}
 	}
 	return err;
@@ -1115,13 +1178,18 @@ static int sm5440_get_dc_loop_status(struct i2c_client *i2c)
 {
 	struct sm5440_charger *sm5440 = i2c_get_clientdata(i2c);
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
-	int loop_status = LOOP_INACTIVE;
+	int loop_status = LOOP_INACTIVE, vnow = 0;
 	u8 reg = 0x0;
 
 	sm5440_read_reg(sm5440, SM5440_REG_STATUS2, &reg);
 	dev_info(sm5440->dev, "%s = 0x%x\n", __func__, reg);
 
-	if (reg & (0x1 << 3)) {         /* check VBATREG */
+	vnow = sm5440_get_vnow(sm5440);
+	if (vnow > 0)
+		pr_info("%s %s: vnow=%dmV, target_vbat=%dmV\n", sm_dc->name,
+			__func__, vnow, sm_dc->target_vbat);
+
+	if (reg & (0x1 << 3) || (sm_dc->target_vbat <= vnow)) { /* check VBATREG */
 		loop_status = LOOP_VBATREG;
 	} else if (reg & (0x1 << 7)) {  /* check IBUSLIM */
 		if (reg & (0x1 << 1))     /* check THEM_REG */
@@ -1130,7 +1198,7 @@ static int sm5440_get_dc_loop_status(struct i2c_client *i2c)
 			loop_status = LOOP_IBUSLIM;
 	}
 
-	pr_info("%s loop_status=0x%x\n", sm_dc->name, loop_status);
+	pr_info("%s %s: loop_status=0x%x\n", sm_dc->name, __func__, loop_status);
 
 	return loop_status;
 }
@@ -1328,16 +1396,25 @@ static int sm5440_irq_init(struct sm5440_charger *sm5440)
 
 static int sm5440_hw_init_config(struct sm5440_charger *sm5440)
 {
-	int ret;
+	int ret, i;
 	u8 reg;
 
 	/* check to valid I2C transfer & register control */
-	ret = sm5440_read_reg(sm5440, SM5440_REG_DEVICEID, &reg);
-	if (ret < 0 || (reg & 0xF) != 0x1) {
-		dev_err(sm5440->dev, "%s: device not found on this channel (reg=0x%x)\n",
-				__func__, reg);
+	for (i = 0; i < 3; ++i) {
+		ret = sm5440_read_reg(sm5440, SM5440_REG_DEVICEID, &reg);
+		if (ret < 0 || (reg & 0xF) != 0x1) {
+			dev_err(sm5440->dev, "%s: verify DEVICEID again (reg=0x%x, retry=%d)\n", __func__, reg, i);
+			usleep_range(1000, 2000);
+		} else {
+			break;
+		}
+	}
+
+	if (i == 3) {
+		dev_err(sm5440->dev, "%s: device not found on this channel (reg=0x%x)\n", __func__, reg);
 		return -ENODEV;
 	}
+
 	sm5440->pdata->rev_id = (reg >> 4) & 0xf;
 
 	sm5440_init_reg_param(sm5440);
@@ -1379,6 +1456,36 @@ static int sm5440_charger_parse_dt(struct device *dev,
 	dev_info(dev, "parse_dt: irq_gpio=%d\n, freq=%d, freq_byp=%d\n",
 		pdata->irq_gpio, pdata->freq, pdata->freq_byp);
 
+	ret = of_property_read_u32(np_sm5440, "sm5440,r_ttl", &pdata->r_ttl);
+	if (ret) {
+		dev_info(dev, "%s: sm5440,r_ttl is Empty\n", __func__);
+		pdata->r_ttl = 290000;
+	}
+	dev_info(dev, "parse_dt: r_ttl=%d\n", pdata->r_ttl);
+
+	ret = of_property_read_u32_array(np_sm5440, "sm5440,freq_siop", pdata->freq_siop, 2);
+	if (ret) {
+		dev_info(dev, "%s: sm5440,freq_siop is Empty\n", __func__);
+		pdata->freq_siop[0] = 450;
+		pdata->freq_siop[1] = 650;
+	}
+	dev_info(dev, "parse_dt: freq_siop=%dkHz, %dkHz\n",
+		pdata->freq_siop[0], pdata->freq_siop[1]);
+
+	ret = of_property_read_u32(np_sm5440, "sm5440,topoff", &pdata->topoff);
+	if (ret) {
+		dev_info(dev, "%s: sm5440,topoff is Empty\n", __func__);
+		pdata->topoff = 900;
+	}
+	dev_info(dev, "parse_dt: topoff=%d\n", pdata->topoff);
+
+	ret = of_property_read_u32(np_sm5440, "sm5440,en_vbatreg", &pdata->en_vbatreg);
+	if (ret) {
+		dev_info(dev, "%s: sm5440,en_vbatreg is Empty\n", __func__);
+		pdata->en_vbatreg = 1;
+	}
+	dev_info(dev, "parse_dt: en_vbatreg=%d\n", pdata->en_vbatreg);
+
 	/* Parse: battery node */
 	np_battery = of_find_node_by_name(NULL, "battery");
 	if (!np_battery) {
@@ -1397,17 +1504,18 @@ static int sm5440_charger_parse_dt(struct device *dev,
 		dev_info(dev, "%s: battery,charger_name is Empty\n", __func__);
 		pdata->battery.sec_dc_name = "sec-direct-charger";
 	}
-	ret = of_property_read_u32(np_battery, "battery,max_charging_charge_power",
-			&pdata->battery.max_charging_charge_power);
+
+	ret = of_property_read_string(np_battery, "battery,fuelgauge_name",
+		(char const **)&pdata->battery.fuelgauge_name);
 	if (ret) {
-		dev_info(dev, "%s: battery,max_charging_charge_power is Empty\n", __func__);
-		pdata->battery.max_charging_charge_power = 25000;
+		dev_info(dev, "%s: battery,fuelgauge_name is Empty\n", __func__);
+		pdata->battery.fuelgauge_name = "sec-fuelgauge";
 	}
 
-	dev_info(dev, "parse_dt: float_v=%d, sec_dc_name=%s, max_charging_charge_power=%d\n",
-			pdata->battery.chg_float_voltage,
-			pdata->battery.sec_dc_name,
-			pdata->battery.max_charging_charge_power);
+	dev_info(dev, "parse_dt: float_v=%d, sec_dc_name=%s, fuelgauge_name=%s\n",
+		pdata->battery.chg_float_voltage,
+		pdata->battery.sec_dc_name,
+		pdata->battery.fuelgauge_name);
 
 	return 0;
 }
@@ -1648,14 +1756,8 @@ static int sm5440_charger_probe(struct i2c_client *i2c,
 	pps_dc->config.ta_min_voltage = 8200;
 	pps_dc->config.dc_min_vbat = SM5440_VBAT_MIN;
 	pps_dc->config.dc_vbus_ovp_th = 11000;
-	if (pdata->battery.max_charging_charge_power >= 45000)
-		pps_dc->config.pps_lr = 30000; /* for support 45W apdo */
-	else
-		pps_dc->config.pps_lr = 340000; /* for support 25W apdo */
-	pps_dc->config.rpara = 150000;
-	pps_dc->config.rsns = 0;
-	pps_dc->config.rpcm = 55000;
-	pps_dc->config.topoff_current = 900;
+	pps_dc->config.r_ttl = pdata->r_ttl;
+	pps_dc->config.topoff_current = pdata->topoff;
 	pps_dc->config.need_to_sw_ocp = 1;           /* SM5440 can't used HW_OCP, please keep it. */
 	pps_dc->config.support_pd_remain = 1;        /* if pdic can't support PPS remaining, plz activate it. */
 	pps_dc->config.chg_float_voltage = pdata->battery.chg_float_voltage;
@@ -1680,19 +1782,20 @@ static int sm5440_charger_probe(struct i2c_client *i2c,
 	sm5440->chg_ws = wakeup_source_register(&i2c->dev, "sm5440-charger");
 	i2c_set_clientdata(i2c, sm5440);
 
+	INIT_DELAYED_WORK(&sm5440->adc_work, sm5440_adc_work);
+	INIT_DELAYED_WORK(&sm5440->ocp_check_work, sm5440_ocp_check_work);
+
 	ret = sm5440_hw_init_config(sm5440);
 	if (ret < 0) {
 		dev_err(sm5440->dev, "%s: fail to init config(ret=%d)\n", __func__, ret);
 		goto err_devmem;
 	}
-	INIT_DELAYED_WORK(&sm5440->adc_work, sm5440_adc_work);
-	INIT_DELAYED_WORK(&sm5440->ocp_check_work, sm5440_ocp_check_work);
 
 	psy_cfg.drv_data = sm5440;
 	psy_cfg.supplied_to = sm5440_supplied_to;
-	psy_cfg.num_supplicants = ARRAY_SIZE(sm5440_supplied_to),
-		sm5440->psy_chg = power_supply_register(sm5440->dev,
-				&sm5440_charger_power_supply_desc, &psy_cfg);
+	psy_cfg.num_supplicants = ARRAY_SIZE(sm5440_supplied_to);
+	sm5440->psy_chg = power_supply_register(sm5440->dev,
+			&sm5440_charger_power_supply_desc, &psy_cfg);
 	if (IS_ERR(sm5440->psy_chg)) {
 		dev_err(sm5440->dev, "%s: fail to register psy_chg\n", __func__);
 		ret = PTR_ERR(sm5440->psy_chg);
@@ -1844,6 +1947,6 @@ static void __exit sm5440_i2c_exit(void)
 module_exit(sm5440_i2c_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("SiliconMitus <sungdae.choi@siliconmitus.com>");
+MODULE_AUTHOR("SiliconMitus <hwangjoo.jang@SiliconMitus.com>");
 MODULE_DESCRIPTION("Charger driver for SM5440");
 MODULE_VERSION(SM5440_DC_VERSION);

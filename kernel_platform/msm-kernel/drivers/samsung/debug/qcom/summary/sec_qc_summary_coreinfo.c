@@ -21,6 +21,7 @@
 
 #include "sec_qc_summary.h"
 #include "sec_qc_summary_coreinfo.h"
+#include "sec_qc_summary_external.h"
 
 static char *summary_coreinfo_data;
 static int32_t summary_coreinfo_size;
@@ -95,7 +96,12 @@ static void __summary_coreinfo_init_dbg_apps(
 	pr_info("coreinfo_data=0x%llx\n", dbg_apss->coreinfo.coreinfo_data);
 }
 
-static void __summary_coreinfo_append_data(void)
+
+#define QC_SUMMARY_COREINFO_KALLSYMS(__drvdata, __name) \
+		sec_qc_summary_coreinfo_append_str("SYMBOL(%s)=0x%llx\n", #__name, \
+				__qc_summary_kallsyms_lookup_name(__drvdata, #__name))
+
+static void __summary_coreinfo_append_data(struct qc_summary_drvdata *drvdata)
 {
 	QC_SUMMARY_COREINFO_SYMBOL(runqueues);
 	QC_SUMMARY_COREINFO_STRUCT_SIZE(rq);
@@ -103,7 +109,12 @@ static void __summary_coreinfo_append_data(void)
 	QC_SUMMARY_COREINFO_OFFSET(rq, nr_running);
 
 	QC_SUMMARY_COREINFO_OFFSET(task_struct, prio);
+	QC_SUMMARY_COREINFO_OFFSET(task_struct, mm);
+	QC_SUMMARY_COREINFO_OFFSET(task_struct, cred);
+	QC_SUMMARY_COREINFO_OFFSET(cred, uid);
 
+	QC_SUMMARY_COREINFO_KALLSYMS(drvdata, __sched_text_start);
+	QC_SUMMARY_COREINFO_KALLSYMS(drvdata, __sched_text_end);
 	/* TODO: kernel/time/timekeeping.c
 	 * static struct {
 	 *	seqcount_t		seq;
@@ -117,11 +128,6 @@ static void __summary_coreinfo_append_data(void)
 
 	QC_SUMMARY_COREINFO_OFFSET(timekeeper, xtime_sec);
 }
-
-#define QC_SUMMARY_COREINFO_KALLSYMS(__drvdata, __name) \
-		sec_qc_summary_coreinfo_append_str("SYMBOL(%s)=0x%llx\n", #__name, \
-				__qc_summary_kallsyms_lookup_name(__drvdata, #__name))
-
 /* TODO: 'struct mod_tree_root' is not exposed to the out of 'module.c' file.
  * This can be modified according to the version of linux kernel.
  */
@@ -134,7 +140,12 @@ struct mod_tree_root {
 static void __summary_coreinfo_append_module_data(
 		struct qc_summary_drvdata *drvdata)
 {
+#if IS_BUILTIN(CONFIG_SEC_QC_SUMMARY)
+	sec_qc_summary_coreinfo_append_str("SYMBOL(%s)=0x%llx\n",
+			"mod_tree", (unsigned long long)sec_qc_summary_mod_tree);
+#else
 	QC_SUMMARY_COREINFO_KALLSYMS(drvdata, mod_tree);
+#endif
 
 	QC_SUMMARY_COREINFO_OFFSET(mod_tree_root, root);
 	QC_SUMMARY_COREINFO_OFFSET(mod_tree_root, addr_min);
@@ -174,7 +185,7 @@ int __qc_summary_coreinfo_init(struct builder *bd)
 		goto err_coreinfo_alloc_failed;
 
 	__summary_coreinfo_init_dbg_apps(dbg_apss);
-	__summary_coreinfo_append_data();
+	__summary_coreinfo_append_data(drvdata);
 	__summary_coreinfo_append_module_data(drvdata);
 
 	return 0;

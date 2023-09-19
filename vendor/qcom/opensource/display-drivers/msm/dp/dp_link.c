@@ -910,7 +910,7 @@ static void dp_link_parse_sink_status_field(struct dp_link_private *link)
 		DP_ERR("DP link status read failed\n");
 #if defined(CONFIG_SECDP)
 	else
-		DP_INFO("[202h-207h] %02x,%02x,%02x,%02x,%02x,%02x\n",
+		DP_INFO("[202h-207h] %02x-%02x-%02x-%02x-%02x-%02x\n",
 			link->link_status[0], link->link_status[1], link->link_status[2],
 			link->link_status[3], link->link_status[4], link->link_status[5]);
 #endif
@@ -1288,9 +1288,11 @@ void secdp_clear_link_status_cnt(struct dp_link *dp_link)
 	dp_link->status_update_cnt = 0;
 }
 
-void secdp_reset_link_status(struct dp_link *dp_link)
+/** refer to dp_link_parse_sink_status_field() */
+void secdp_read_link_status(struct dp_link *dp_link)
 {
 	struct dp_link_private *link;
+	int len = 0;
 
 	if (!dp_link) {
 		DP_ERR("invalid input\n");
@@ -1305,18 +1307,16 @@ void secdp_reset_link_status(struct dp_link *dp_link)
 
 	DP_ENTER("\n");
 
-	if (!(get_link_status(link->link_status, DP_SINK_STATUS) &
-			DP_RECEIVE_PORT_0_STATUS)) {
-		DP_ERR("[205h] port0: out of sync, reset!\n");
-		link->link_status[DP_SINK_STATUS - DP_LANE0_1_STATUS] |= DP_RECEIVE_PORT_0_STATUS;
+	len = drm_dp_dpcd_read_link_status(link->aux->drm_aux,
+		link->link_status);
+	if (len < DP_LINK_STATUS_SIZE) {
+		DP_ERR("DP link status read failed %d\n", len);
+		goto exit;
 	}
 
-	if (!(get_link_status(link->link_status, DP_LANE_ALIGN_STATUS_UPDATED) &
-			DP_INTERLANE_ALIGN_DONE)) {
-		DP_ERR("[204h] interlane_align_done is zero, reset!\n");
-		link->link_status[DP_LANE_ALIGN_STATUS_UPDATED - DP_LANE0_1_STATUS] |= DP_INTERLANE_ALIGN_DONE;
-	}
-
+	DP_INFO("[202h-207h] %02x-%02x-%02x-%02x-%02x-%02x\n",
+		link->link_status[0], link->link_status[1], link->link_status[2],
+		link->link_status[3], link->link_status[4], link->link_status[5]);
 exit:
 	return;
 }
@@ -1347,18 +1347,6 @@ bool secdp_check_link_stable(struct dp_link *dp_link)
 		goto exit;
 	}
 
-	if (!(get_link_status(link->link_status, DP_SINK_STATUS) &
-			DP_RECEIVE_PORT_0_STATUS)) {
-		DP_ERR("[205h] port0: out of sync!\n");
-		goto exit;
-	}
-/*
- *	if (!(get_link_status(link->link_status, DP_LANE_ALIGN_STATUS_UPDATED) &
- *			DP_LINK_STATUS_UPDATED)) {
- *		DP_ERR("[204h] link_status_updated is zero!\n");
- *		goto exit;
- *	}
- */
 	if (!(get_link_status(link->link_status, DP_LANE_ALIGN_STATUS_UPDATED) &
 			DP_INTERLANE_ALIGN_DONE)) {
 		DP_ERR("[204h] interlane_align_done is zero!\n");
@@ -1405,7 +1393,9 @@ static int dp_link_process_request(struct dp_link *dp_link)
 #if defined(CONFIG_SECDP)
 	if (secdp_get_power_status() && !secdp_check_link_stable(dp_link)) {
 		dp_link->status_update_cnt++;
-		DP_INFO("status_update_cnt %d\n", dp_link->status_update_cnt);
+		DP_INFO("[link_request] status_update_cnt %d\n",
+			dp_link->status_update_cnt);
+		secdp_link_backoff_start();
 	}
 #endif
 	if (dp_link_is_test_edid_read(link)) {

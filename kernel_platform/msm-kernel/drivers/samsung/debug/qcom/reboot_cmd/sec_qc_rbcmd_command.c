@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2020 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2020-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -496,6 +496,9 @@ static int __rbcmd_add_for_each(enum sec_rbcmd_stage s,
 
 err_add_cmd:
 	__rbcmd_del_for_each(s, qrc, last_failed);
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
 	return err;
 }
 
@@ -523,7 +526,9 @@ static int __rbcmd_set_default(
 	default_cmd->func = sec_qc_rbcmd_default_reason;
 
 	err = sec_rbcmd_set_default_cmd(s, default_cmd);
-	if (err)
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+	else if (err)
 		return err;
 
 	stage->default_cmd = default_cmd;

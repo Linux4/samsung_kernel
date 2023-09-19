@@ -6,11 +6,10 @@ library_includedir = $(includedir)
 
 AM_CFLAGS := -Wno-unused-parameter
 if !BUILDSYSTEM_OPENWRT
-AM_CFLAGS += -I $(top_srcdir)/include -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/agm/
-AM_CFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat
+AM_CFLAGS += -I $(top_srcdir)/include @AGM_CFLAGS@
+AM_CFLAGS += @GLIB_CFLAGS@ -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat
 AM_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\) -DLINUX_ENABLED
-AM_CFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/sndparser/
-AM_CFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/
+AM_CFLAGS += @SNDPARSER_CFLAGS@
 AM_CFLAGS += -Wno-unused-parameter
 AM_CFLAGS += -DDYNAMIC_LOG_ENABLED
 

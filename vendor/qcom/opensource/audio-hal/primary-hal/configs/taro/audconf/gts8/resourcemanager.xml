@@ -1173,8 +1173,32 @@
                 </custom-config>
             </usecase>
             <usecase>
+                <name>PAL_STREAM_LOW_LATENCY</name>
+                <priority>4</priority>
+                <custom-config key="speaker_and_usb_headphones">
+                    <snd_device_name>speaker-and-usb-headphones</snd_device_name>
+                </custom-config>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
                 <priority>4</priority>
+                <custom-config key="speaker_and_usb_headphones">
+                    <snd_device_name>speaker-and-usb-headphones</snd_device_name>
+                </custom-config>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <priority>4</priority>
+                <custom-config key="speaker_and_usb_headphones">
+                    <snd_device_name>speaker-and-usb-headphones</snd_device_name>
+                </custom-config>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
+                <priority>4</priority>
+                <custom-config key="speaker_and_usb_headphones">
+                    <snd_device_name>speaker-and-usb-headphones</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
@@ -1330,6 +1354,8 @@
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
                         <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                        <disabled_stream>PAL_STREAM_COMPRESSED</disabled_stream>
+                        <disabled_stream>PAL_STREAM_DEEP_BUFFER</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/devfreq.h>
@@ -85,47 +86,14 @@ static const struct device_attribute *gpubw_attr_list[] = {
 	NULL
 };
 
-static int devfreq_gpubw_get_target(struct devfreq *df,
-				unsigned long *freq)
+static u32 generate_hint(struct devfreq_msm_adreno_tz_data *priv, int buslevel,
+		unsigned long freq, unsigned long minfreq)
 {
-
-	struct devfreq_msm_adreno_tz_data *priv = df->data;
-	struct msm_busmon_extended_profile *bus_profile = container_of(
-					(df->profile),
-					struct msm_busmon_extended_profile,
-					profile);
-	struct devfreq_dev_status *stats = &df->last_status;
-	struct xstats b;
-	int result;
 	int act_level;
 	int norm_max_cycles;
 	int norm_cycles;
 	int wait_active_percent;
 	int gpu_percent;
-	/*
-	 * Normalized AB should at max usage be the gpu_bimc frequency in MHz.
-	 * Start with a reasonable value and let the system push it up to max.
-	 */
-	static int norm_ab_max = 300;
-	int norm_ab;
-	unsigned long ab_mbytes = 0;
-
-	if (priv == NULL)
-		return 0;
-
-	stats->private_data = &b;
-
-	result = devfreq_update_stats(df);
-
-	*freq = stats->current_frequency;
-
-	priv->bus.total_time += stats->total_time;
-	priv->bus.gpu_time += stats->busy_time;
-	priv->bus.ram_time += b.ram_time;
-	priv->bus.ram_wait += b.ram_wait;
-
-	if (priv->bus.total_time < bus_profile->sampling_ms)
-		return result;
 
 	norm_max_cycles = (unsigned int)(priv->bus.ram_time) /
 			(unsigned int) priv->bus.total_time;
@@ -144,21 +112,76 @@ static int devfreq_gpubw_get_target(struct devfreq *df,
 	 */
 	if (norm_max_cycles > priv->bus.max && priv->bus.floating) {
 		_update_cutoff(priv, norm_max_cycles);
-		bus_profile->flag = DEVFREQ_FLAG_FAST_HINT;
-	} else {
-		/* GPU votes for IB not AB so don't under vote the system */
-		norm_cycles = (100 * norm_cycles) / TARGET;
-		act_level = b.buslevel;
-		act_level = (act_level < 0) ? 0 : act_level;
-		act_level = (act_level >= priv->bus.num) ?
-		(priv->bus.num - 1) : act_level;
-		if ((norm_cycles > priv->bus.up[act_level] ||
-				wait_active_percent > WAIT_THRESHOLD) &&
-			  gpu_percent > CAP)
-			bus_profile->flag = DEVFREQ_FLAG_FAST_HINT;
-		else if (norm_cycles < priv->bus.down[act_level] && b.buslevel)
-			bus_profile->flag = DEVFREQ_FLAG_SLOW_HINT;
+		return BUSMON_FLAG_FAST_HINT;
 	}
+
+	/* Increase BW vote to avoid starving GPU for BW if required */
+	if (priv->fast_bus_hint && minfreq == freq) {
+		if (wait_active_percent > 95)
+			return BUSMON_FLAG_SUPER_FAST_HINT;
+
+		if (wait_active_percent > 80)
+			return BUSMON_FLAG_FAST_HINT;
+	}
+
+	/* GPU votes for IB not AB so don't under vote the system */
+	norm_cycles = (100 * norm_cycles) / TARGET;
+	act_level = max_t(int, buslevel, 0);
+	act_level = min_t(int, act_level, priv->bus.num - 1);
+
+	if ((norm_cycles > priv->bus.up[act_level] ||
+			wait_active_percent > WAIT_THRESHOLD) &&
+			gpu_percent > CAP)
+		return BUSMON_FLAG_FAST_HINT;
+
+	if (norm_cycles < priv->bus.down[act_level] && buslevel)
+		return BUSMON_FLAG_SLOW_HINT;
+
+	return 0;
+}
+
+static int devfreq_gpubw_get_target(struct devfreq *df,
+				unsigned long *freq)
+{
+
+	struct devfreq_msm_adreno_tz_data *priv = df->data;
+	struct msm_busmon_extended_profile *bus_profile = container_of(
+					(df->profile),
+					struct msm_busmon_extended_profile,
+					profile);
+	struct devfreq_dev_status *stats = &df->last_status;
+	struct xstats b;
+	int result;
+	int norm_ab;
+	unsigned long ab_mbytes = 0;
+	/*
+	 * Normalized AB should at max usage be the gpu_bimc frequency in MHz.
+	 * Start with a reasonable value and let the system push it up to max.
+	 */
+	static int norm_ab_max = 300;
+
+	if (priv == NULL)
+		return 0;
+
+	stats->private_data = &b;
+
+	result = devfreq_update_stats(df);
+	/* Return if devfreq is not enabled */
+	if (result)
+		return result;
+
+	*freq = stats->current_frequency;
+
+	priv->bus.total_time += stats->total_time;
+	priv->bus.gpu_time += stats->busy_time;
+	priv->bus.ram_time += b.ram_time;
+	priv->bus.ram_wait += b.ram_wait;
+
+	if (priv->bus.total_time < bus_profile->sampling_ms)
+		return result;
+
+	bus_profile->flag = generate_hint(priv, b.buslevel, *freq,
+			b.gpu_minfreq);
 
 	/* Calculate the AB vote based on bus width if defined */
 	if (priv->bus.width) {

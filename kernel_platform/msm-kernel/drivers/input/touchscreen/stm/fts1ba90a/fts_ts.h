@@ -38,7 +38,7 @@
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 #include <linux/pm_runtime.h>
 #include <linux/atomic.h>
-#include "../sec_secure_touch.h"
+#include "../../../sec_input/sec_secure_touch.h"
 #endif
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
@@ -635,6 +635,8 @@ struct fts_ts_info {
 	int wakeful_edge_side;
 	struct completion resume_done;
 	struct wakeup_source *wakelock;
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 
 	unsigned int noise_count;		/* noise mode count */
 
@@ -675,6 +677,7 @@ struct fts_ts_info {
 	bool rawdata_read_lock;
 	volatile bool reset_is_on_going;
 	volatile bool shutdown_is_on_going;
+	atomic_t fw_update_is_running;
 
 	unsigned int scrub_id;
 	unsigned int scrub_x;
@@ -743,6 +746,8 @@ struct fts_ts_info {
 	bool fix_active_mode;
 	bool touch_aging_mode;
 
+	int lpmode_change_delay;
+
 	int rawcap_max;
 	int rawcap_max_tx;
 	int rawcap_max_rx;
@@ -766,7 +771,7 @@ struct fts_ts_info {
 	int (*fts_read_reg)(struct fts_ts_info *info, u8 *reg, int cnum, u8 *buf, int num);
 	int (*fts_systemreset)(struct fts_ts_info *info, unsigned int msec);
 	int (*fts_wait_for_ready)(struct fts_ts_info *info);
-	void (*fts_command)(struct fts_ts_info *info, u8 cmd, bool checkEcho);
+	int (*fts_command)(struct fts_ts_info *info, u8 cmd, bool checkEcho);
 	int (*fts_get_version_info)(struct fts_ts_info *info);
 	int (*fts_get_sysinfo_data)(struct fts_ts_info *info, u8 sysinfo_addr, u8 read_cnt, u8 *data);
 
@@ -787,6 +792,7 @@ int fts_set_scanmode(struct fts_ts_info *info, u8 scan_mode);
 int fts_osc_trim_recovery(struct fts_ts_info *info);
 int fts_get_miscal_data(struct fts_ts_info *info, short *min, short *max);
 void fts_set_grip_data_to_ic(struct fts_ts_info *info, u8 flag);
+int fts_get_hf_data(struct fts_ts_info *info);
 
 #ifdef TCLM_CONCEPT
 int fts_tclm_data_read(struct i2c_client *client, int address);

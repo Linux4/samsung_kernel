@@ -2217,7 +2217,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 						rc);
 
 					soc_info->rgltr[vreg_idx] = NULL;
+#if !defined(CONFIG_SEC_Q4Q_PROJECT)
 					goto power_up_failed;
+#endif
 				}
 
 				rc =  cam_soc_util_regulator_enable(
@@ -2231,7 +2233,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					CAM_ERR(CAM_SENSOR,
 						"Reg Enable failed for %s",
 						soc_info->rgltr_name[vreg_idx]);
+#if !defined(CONFIG_SEC_Q4Q_PROJECT)
 					goto power_up_failed;
+#endif
 				}
 				power_setting->data[0] =
 						soc_info->rgltr[vreg_idx];
@@ -2246,7 +2250,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
 					"Error in handling VREG GPIO");
+#if !defined(CONFIG_SEC_Q4Q_PROJECT)
 				goto power_up_failed;
+#endif
 			}
 			break;
 		default:

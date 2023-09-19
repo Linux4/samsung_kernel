@@ -71,12 +71,7 @@ StreamSensorPCMData::StreamSensorPCMData(const struct pal_stream_attributes *sat
                                         &disable_concurrency_count);
 
     /* check if lpi should be used */
-    if (rm->IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA) &&
-        !(rm->isNLPISwitchSupported(PAL_STREAM_SENSOR_PCM_DATA) &&
-        enable_concurrency_count))
-        use_lpi_ = true;
-    else
-        use_lpi_ = false;
+    use_lpi_ = rm->getLPIUsage();
 
     /*
      * When voice/voip/record is active and concurrency is not
@@ -467,7 +462,7 @@ std::shared_ptr<Device> StreamSensorPCMData::GetPalDevice(pal_device_id_t dev_id
 {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<Device> device = nullptr;
-    struct pal_device dev;
+    struct pal_device dev = {};
 
     PAL_DBG(LOG_TAG, "Enter");
     if (use_rm_profile) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "dp_catalog.h"
@@ -72,6 +73,14 @@ static u8 const dp_pre_emp_hbr_rbr[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS] = {
 	{0x00, 0x0E, 0x15, 0xFF}, /* pe1, 3.5 db */
 	{0x00, 0x0E, 0xFF, 0xFF}, /* pe2, 6.0 db */
 	{0x03, 0xFF, 0xFF, 0xFF}  /* pe3, 9.5 db */
+};
+
+/* Using Kailua PHY HPG settings based on HW team recommendations */
+static u8 const dp_pre_emp_hbr_rbr_v600[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS] = {
+	{0x00, 0x0D, 0x14, 0x1A}, /* pe0, 0 db */
+	{0x00, 0x0E, 0x15, 0xFF}, /* pe1, 3.5 db */
+	{0x00, 0x0E, 0xFF, 0xFF}, /* pe2, 6.0 db */
+	{0x02, 0xFF, 0xFF, 0xFF}  /* pe3, 9.5 db */
 };
 
 static u8 const dp_swing_hbr_rbr[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS] = {
@@ -180,7 +189,7 @@ static void dp_catalog_aux_setup_v420(struct dp_catalog_aux *aux,
 	struct dp_catalog_private_v420 *catalog;
 	struct dp_io_data *io_data;
 	int i = 0;
-
+	u32 phy_version;
 	if (!aux || !cfg) {
 		DP_ERR("invalid input\n");
 		return;
@@ -194,10 +203,18 @@ static void dp_catalog_aux_setup_v420(struct dp_catalog_aux *aux,
 	dp_write(DP_PHY_PD_CTL, 0x67);
 	wmb(); /* make sure PD programming happened */
 
-	/* Turn on BIAS current for PHY/PLL */
-	io_data = catalog->io->dp_pll;
-	dp_write(QSERDES_COM_BIAS_EN_CLKBUFLR_EN, 0x17);
-	wmb(); /* make sure BIAS programming happened */
+	phy_version = dp_catalog_get_dp_phy_version(catalog->dpc);
+	if (phy_version >= 0x60000000) {
+		/* Turn on BIAS current for PHY/PLL */
+		io_data = catalog->io->dp_pll;
+		dp_write(QSERDES_COM_BIAS_EN_CLKBUFLR_EN_V600, 0x17);
+		wmb(); /* make sure BIAS programming happened */
+	} else {
+		/* Turn on BIAS current for PHY/PLL */
+		io_data = catalog->io->dp_pll;
+		dp_write(QSERDES_COM_BIAS_EN_CLKBUFLR_EN, 0x17);
+		wmb(); /* make sure BIAS programming happened */
+	}
 
 	io_data = catalog->io->dp_phy;
 	/* DP AUX CFG register programming */
@@ -217,16 +234,19 @@ static void dp_catalog_aux_clear_hw_int_v420(struct dp_catalog_aux *aux)
 	struct dp_catalog_private_v420 *catalog;
 	struct dp_io_data *io_data;
 	u32 data = 0;
-
+	u32 phy_version;
 	if (!aux) {
 		DP_ERR("invalid input\n");
 		return;
 	}
 
 	catalog = dp_catalog_get_priv_v420(aux);
+	phy_version = dp_catalog_get_dp_phy_version(catalog->dpc);
 	io_data = catalog->io->dp_phy;
-
-	data = dp_read(DP_PHY_AUX_INTERRUPT_STATUS_V420);
+	if (phy_version >= 0x60000000)
+		data = dp_read(DP_PHY_AUX_INTERRUPT_STATUS_V600);
+	else
+		data = dp_read(DP_PHY_AUX_INTERRUPT_STATUS_V420);
 
 	dp_write(DP_PHY_AUX_INTERRUPT_CLEAR_V420, 0x1f);
 	wmb(); /* make sure 0x1f is written before next write */
@@ -376,7 +396,7 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 	struct dp_catalog_private_v420 *catalog;
 	struct dp_io_data *io_data;
 	u8 value0, value1;
-	u32 version;
+	u32 version, phy_version;
 
 	if (!ctrl || !((v_level < MAX_VOLTAGE_LEVELS)
 		&& (p_level < MAX_PRE_EMP_LEVELS))) {
@@ -391,6 +411,7 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 	io_data = catalog->io->dp_ahb;
 	version = dp_read(DP_HW_VERSION);
 	DP_DEBUG("version: 0x%x\n", version);
+	phy_version = dp_catalog_get_dp_phy_version(catalog->dpc);
 
 #if !defined(CONFIG_SECDP)
 	/*
@@ -400,6 +421,9 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 		if (high) {
 			value0 = dp_swing_hbr2_hbr3[v_level][p_level];
 			value1 = dp_pre_emp_hbr2_hbr3[v_level][p_level];
+		} else if (phy_version >= 0x60000000) {
+			value0 = dp_swing_hbr_rbr[v_level][p_level];
+			value1 = dp_pre_emp_hbr_rbr_v600[v_level][p_level];
 		} else {
 			value0 = dp_swing_hbr_rbr[v_level][p_level];
 			value1 = dp_pre_emp_hbr_rbr[v_level][p_level];
@@ -416,14 +440,14 @@ static void dp_catalog_ctrl_update_vx_px_v420(struct dp_catalog_ctrl *ctrl,
 	if (secdp_self_test_status(ST_VOLTAGE_TUN) >= 0) {
 		u8 val = secdp_self_test_get_arg(ST_VOLTAGE_TUN)[v_level*4 + p_level];
 
-		DP_INFO("value0 : 0x%02x => 0x%02x\n", value0, val);
+		DP_INFO("[vx] value0: 0x%02x => 0x%02x\n", value0, val);
 		value0 = val;
 	}
 
 	if (secdp_self_test_status(ST_PREEM_TUN) >= 0) {
 		u8 val = secdp_self_test_get_arg(ST_PREEM_TUN)[v_level*4 + p_level];
 
-		DP_INFO("value0 : 0x%02x => 0x%02x\n", value1, val);
+		DP_INFO("[px] value0: 0x%02x => 0x%02x\n", value1, val);
 		value1 = val;
 	}
 #endif

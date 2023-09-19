@@ -39,8 +39,6 @@ static int fts_start_device(struct fts_ts_info *info);
 static void fts_reset(struct fts_ts_info *info, unsigned int ms);
 static void fts_reset_work(struct work_struct *work);
 static void fts_read_info_work(struct work_struct *work);
-int fts_get_hf_data(struct fts_ts_info *info);
-
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUMP_MODE)
 static void tsp_dump(struct device *dev);
 static void dump_tsp_rawdata(struct work_struct *work);
@@ -307,7 +305,7 @@ int fts_write_reg(struct fts_ts_info *info,
 		if (info->debug_string & FTS_DEBUG_SEND_UEVENT)
 			sec_cmd_send_event_to_user(&info->sec, NULL, "RESULT=I2C");
 #ifdef USE_POR_AFTER_I2C_RETRY
-		if (info->probe_done && !info->reset_is_on_going)
+		if (info->probe_done && !info->reset_is_on_going && !atomic_read(&info->fw_update_is_running))
 			schedule_delayed_work(&info->reset_work, msecs_to_jiffies(10));
 #endif
 	}
@@ -395,7 +393,7 @@ int fts_read_reg(struct fts_ts_info *info, u8 *reg, int cnum,
 		if (info->debug_string & FTS_DEBUG_SEND_UEVENT)
 			sec_cmd_send_event_to_user(&info->sec, NULL, "RESULT=I2C");
 #ifdef USE_POR_AFTER_I2C_RETRY
-		if (info->probe_done && !info->reset_is_on_going)
+		if (info->probe_done && !info->reset_is_on_going && !atomic_read(&info->fw_update_is_running))
 			schedule_delayed_work(&info->reset_work, msecs_to_jiffies(10));
 #endif
 	}
@@ -590,7 +588,7 @@ int fts_set_press_property(struct fts_ts_info *info)
 	return ret;
 }
 
-void fts_command(struct fts_ts_info *info, u8 cmd, bool checkEcho)
+int fts_command(struct fts_ts_info *info, u8 cmd, bool checkEcho)
 {
 	u8 regAdd = cmd;
 	int ret = 0;
@@ -607,6 +605,8 @@ void fts_command(struct fts_ts_info *info, u8 cmd, bool checkEcho)
 				"%s: failed to write cmd, ret = %d\n", __func__, ret);
 
 	fts_interrupt_set(info, INT_ENABLE);
+
+	return ret;
 }
 
 int fts_set_scanmode(struct fts_ts_info *info, u8 scan_mode)
@@ -638,11 +638,11 @@ int fts_set_scanmode(struct fts_ts_info *info, u8 scan_mode)
 	regAdd[0] = 0xA0;
 	regAdd[1] = 0x00;
 	regAdd[2] = scan_mode;
-	rc = fts_fw_wait_for_echo_event(info, &regAdd[0], 3, 0);
+	rc = fts_write_reg(info, regAdd, 3);
 	if (rc < 0)
 		input_err(true, &info->client->dev,
 				"%s: failed to set scan mode, ret = %d\n", __func__, rc);
-
+	sec_delay(50);
 	fts_interrupt_set(info, INT_ENABLE);
 	input_info(true, &info->client->dev, "%s: 0x%02X, vs:0x%02X\n",
 			__func__, scan_mode, info->vsync_scan);
@@ -652,16 +652,47 @@ int fts_set_scanmode(struct fts_ts_info *info, u8 scan_mode)
 
 int fts_set_opmode(struct fts_ts_info *info, u8 mode)
 {
-	int ret;
+	int ret, retrycnt = 0;
 	u8 regAdd[2] = {FTS_CMD_SET_GET_OPMODE, mode};
+	u8 para = 0;
 
-	fts_interrupt_set(info, INT_DISABLE);
+	if (info->lpmode_change_delay) {
+retry_pmode:
+		ret = fts_write_reg(info, &regAdd[0], 2);
+		if (ret < 0) {
+			input_err(true, &info->client->dev,
+					"%s: Failed to set mode: %d\n", __func__, mode);
+			return ret;
+		}
 
-	ret = fts_fw_wait_for_echo_event(info, &regAdd[0], 2, 0);
-	if (ret < 0) {
-		input_err(true, &info->client->dev,
-				"%s: Failed to set mode: %d\n", __func__, mode);
-		goto out;
+		sec_delay(info->lpmode_change_delay);
+
+		ret = fts_read_reg(info, &regAdd[0], 1, &para, 1);
+		if (ret < 0) {
+			input_err(true, &info->client->dev, "%s: read power mode failed!\n", __func__);
+			retrycnt++;
+			if (retrycnt < 10)
+				goto retry_pmode;
+		}
+
+		input_info(true, &info->client->dev, "%s: write(%d) read(%d) retry %d\n",
+				__func__, mode, para, retrycnt);
+		if (mode != para) {
+			retrycnt++;
+			if (retrycnt < 10)
+				goto retry_pmode;
+		}
+	} else {
+		/* wait echo for mode change when lpmode_change_delay set as 0 */
+		fts_interrupt_set(info, INT_DISABLE);
+
+		ret = fts_fw_wait_for_echo_event(info, &regAdd[0], 2, 0);
+		if (ret < 0)
+			input_err(true, &info->client->dev,
+					"%s: Failed to set mode: %d\n", __func__, mode);
+
+		fts_interrupt_set(info, INT_ENABLE);
+
 	}
 
 	if (info->lowpower_flag & FTS_MODE_DOUBLETAP_WAKEUP) {
@@ -672,8 +703,6 @@ int fts_set_opmode(struct fts_ts_info *info, u8 mode)
 			input_err(true, &info->client->dev, "%s: Failed to send aot\n", __func__);
 	}
 
-out:
-	fts_interrupt_set(info, INT_ENABLE);
 	return ret;
 }
 
@@ -2153,6 +2182,32 @@ out:
 }
 #endif
 
+static void fts_handler_wait_resume_work(struct work_struct *work)
+{
+	struct fts_ts_info *info = container_of(work, struct fts_ts_info, irq_work);
+	struct irq_desc *desc = irq_to_desc(info->irq);
+	int ret;
+
+	ret = wait_for_completion_interruptible_timeout(&info->resume_done,
+			msecs_to_jiffies(3 * MSEC_PER_SEC));
+	if (ret == 0) {
+		input_err(true, &info->client->dev, "%s: LPM: pm resume is not handled\n", __func__);
+		goto out;
+	}
+	if (ret < 0) {
+		input_err(true, &info->client->dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
+		goto out;
+	}
+
+	if (desc && desc->action && desc->action->thread_fn) {
+		input_info(true, &info->client->dev, "%s: run irq thread\n", __func__);
+		desc->action->thread_fn(info->irq, desc->action->dev_id);
+	}
+out:
+	fts_interrupt_set(info, true);
+}
+
+
 /**
  * fts_interrupt_handler()
  *
@@ -2179,23 +2234,18 @@ static irqreturn_t fts_interrupt_handler(int irq, void *handle)
 
 	/* in LPM, waiting blsp block resume */
 	if (info->fts_power_state == FTS_POWER_STATE_LOWPOWER) {
-		input_dbg(true, &info->client->dev, "%s: run LPM interrupt handler\n", __func__);
-
 		__pm_wakeup_event(info->wakelock, 3 * MSEC_PER_SEC);
-		/* waiting for blsp block resuming, if not occurs i2c error */
-		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(3 * MSEC_PER_SEC));
-		if (ret == 0) {
-			input_err(true, &info->client->dev, "%s: LPM: pm resume is not handled\n", __func__);
-			return IRQ_NONE;
+		if (!info->resume_done.done) {
+			if (!IS_ERR_OR_NULL(info->irq_workqueue)) {
+				input_info(true, &info->client->dev,
+						"%s: disable irq and queue waiting work\n", __func__);
+				disable_irq_nosync(info->irq);
+				queue_work(info->irq_workqueue, &info->irq_work);
+			} else {
+				input_info(true, &info->client->dev, "%s: irq_workqueue not exist\n", __func__);
+			}
+			return IRQ_HANDLED;
 		}
-
-		if (ret < 0) {
-			input_err(true, &info->client->dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
-			return IRQ_NONE;
-		}
-
-		input_info(true, &info->client->dev, "%s: run LPM interrupt handler, %d\n", __func__, ret);
-		/* run lpm interrupt handler */
 	}
 
 	mutex_lock(&info->eventlock);
@@ -2215,6 +2265,15 @@ int fts_irq_enable(struct fts_ts_info *info,
 	if (enable) {
 		if (info->irq_enabled)
 			return retval;
+
+		info->irq_workqueue = create_singlethread_workqueue("fts_irq_wq");
+		if (!IS_ERR_OR_NULL(info->irq_workqueue)) {
+			INIT_WORK(&info->irq_work, fts_handler_wait_resume_work);
+			input_info(true, &info->client->dev, "%s: set fts_handler_wait_resume_work\n", __func__);
+		} else {
+			input_err(true, &info->client->dev, "%s: failed to create irq_workqueue, err: %ld\n",
+					__func__, PTR_ERR(info->irq_workqueue));
+		}
 
 		retval = request_threaded_irq(info->irq, NULL,
 				fts_interrupt_handler, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
@@ -2236,6 +2295,21 @@ int fts_irq_enable(struct fts_ts_info *info,
 	}
 
 	return retval;
+}
+
+static void fts_parse_dt(struct device *dev, struct fts_ts_info *info)
+{
+	struct device_node *np = dev->of_node;
+
+	if (!np) {
+		input_err(true, dev, "%s: of_node is not exist\n", __func__);
+		return;
+	}
+
+	if (of_property_read_u32(np, "stm,lpmode_change_delay", &info->lpmode_change_delay))
+		info->lpmode_change_delay = 5;
+
+	input_info(true, dev, "%s: lpmode_change_delay:%d\n", __func__, info->lpmode_change_delay);
 }
 
 static int fts_setup_drv_data(struct i2c_client *client)
@@ -2291,6 +2365,8 @@ static int fts_setup_drv_data(struct i2c_client *client)
 	if (!info)
 		return -ENOMEM;
 
+	fts_parse_dt(&client->dev, info);
+
 	client->irq = gpio_to_irq(pdata->irq_gpio);
 
 	info->client = client;
@@ -2343,6 +2419,11 @@ static int fts_input_notify_call(struct notifier_block *n, unsigned long data, v
 	struct fts_ts_info *info = container_of(n, struct fts_ts_info, fts_input_nb);
 	int ret = 0;
 	u8 regAdd[3] = { FTS_CMD_SET_FUNCTION_ONOFF, FTS_FUNCTION_SET_HOVER_DETECTION, 0 };
+	
+	if (atomic_read(&info->fw_update_is_running)) {
+		input_info(true, &info->client->dev, "%s: skip, because fw update is running\n", __func__);
+		return ret;
+	}
 
 	switch (data) {
 	case NOTIFIER_WACOM_PEN_HOVER_IN:
@@ -2489,6 +2570,9 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	}
 
 	fts_secure_touch_init(info);
+	
+	sec_secure_touch_register(info, 1, &info->board->input_dev->dev.kobj);
+	
 #endif
 
 	device_init_wakeup(&client->dev, true);
@@ -2521,6 +2605,7 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	input_info(true, &info->client->dev, "%s: done\n", __func__);
 	input_log_fix();
 
+	sec_cmd_send_event_to_user(&info->sec, NULL, "RESULT=PROBE_DONE");
 	return 0;
 
 err_sysfs:
@@ -2575,7 +2660,6 @@ static int fts_remove(struct i2c_client *client)
 	cancel_delayed_work_sync(&info->work_print_info);
 	cancel_delayed_work_sync(&info->work_read_info);
 	cancel_delayed_work_sync(&info->reset_work);
-	cancel_delayed_work_sync(&info->work_print_info);
 
 	wakeup_source_unregister(info->wakelock);
 
@@ -3045,8 +3129,8 @@ out:
 
 static int fts_start_device(struct fts_ts_info *info)
 {
-	input_info(true, &info->client->dev, "%s%s\n",
-			__func__, info->fts_power_state ? ": exit low power mode" : "");
+	input_info(true, &info->client->dev, "%s%s\n", __func__,
+			info->fts_power_state == FTS_POWER_STATE_LOWPOWER ? ": exit low power mode" : "");
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	fts_secure_touch_stop(info, 1);
@@ -3088,10 +3172,9 @@ static int fts_start_device(struct fts_ts_info *info)
 	info->fts_write_to_sponge(info, FTS_CMD_SPONGE_OFFSET_MODE,
 			&info->lowpower_flag, sizeof(info->lowpower_flag));
 
+	fts_charger_mode(info);
 out:
 	mutex_unlock(&info->device_mutex);
-
-	fts_charger_mode(info);
 
 	return 0;
 }

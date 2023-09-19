@@ -1,4 +1,5 @@
 # Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -571,6 +572,33 @@ sysdbg_cpu64_cntv_el10_ctxt_regs_type_v2_0 = ''.join([
     'Q',    
 ])
 
+sysdbg_cpu64_cntp_el10_register_names_v2_0 = [
+    ('cntp_ctl_el0', 'cntp_ctl_el0', False),
+    ('cntp_cval_el0', 'cntp_cval_el0', False),
+    ('cntp_tval_el0', 'cntp_tval_el0', False),
+]
+
+sysdbg_cpu64_cntp_el10_ctxt_regs_type_v2_0 = ''.join([
+    'Q',
+    'Q',
+    'Q',
+])
+
+sysdbg_cpu64_cnt_el2_register_names_v2_0 = [
+    ('cnthctl_el2', 'cnthctl_el2', False),
+    ('cnthp_ctl_el2', 'cnthp_ctl_el2', False),
+    ('cnthp_cval_el2', 'cnthp_cval_el2', False),
+    ('cnthp_tval_el2', 'cnthp_tval_el2', False),
+]
+
+sysdbg_cpu64_cnt_el2_ctxt_regs_type_v2_0 = ''.join([
+    'Q',
+    'Q',
+    'Q',
+    'Q',
+])
+
+
 sysdbg_neon128_register_names_v1_4 = [
     ('q0-lower', 'v0-lower', False),
     ('q0-upper', 'v0-upper', False),
@@ -869,6 +897,13 @@ cpu_per_regiter_format['cntkctl_el1'] = 'Data.Set SPR:0x30E10 %Quad '
 cpu_per_regiter_format['cntv_ctl_el0'] = 'Data.Set SPR:0x33E31 %Quad '
 cpu_per_regiter_format['cntv_cval_el0'] = 'Data.Set SPR:0x33E32 %Quad '
 cpu_per_regiter_format['cntv_tval_el0'] = 'Data.Set SPR:0x33E30 %Quad '
+cpu_per_regiter_format['cntp_ctl_el0'] = 'Data.Set SPR:0x33E21 %Quad '
+cpu_per_regiter_format['cntp_cval_el0'] = 'Data.Set SPR:0x33E22 %Quad '
+cpu_per_regiter_format['cntp_tval_el0'] = 'Data.Set SPR:0x33E20 %Quad '
+cpu_per_regiter_format['cnthctl_el2'] = 'Data.Set SPR:0x34E10 %Quad '
+cpu_per_regiter_format['cnthp_ctl_el2'] = 'Data.Set SPR:0x34E21 %Quad '
+cpu_per_regiter_format['cnthp_cval_el2'] = 'Data.Set SPR:0x34E22 %Quad '
+cpu_per_regiter_format['cnthp_tval_el2'] = 'Data.Set SPR:0x34E20 %Quad '
 
 
 cpu_name = (
@@ -885,6 +920,8 @@ msm_dump_regset_ids.append('MSM_DUMP_REGSET_IDS_AARCH64_SYSREGS_EL0')
 msm_dump_regset_ids.append('MSM_DUMP_REGSET_IDS_AARCH64_EL1')
 msm_dump_regset_ids.append('MSM_DUMP_REGSET_IDS_AARCH64_VM_EL2')
 msm_dump_regset_ids.append('MSM_DUMP_REGSET_IDS_AARCH64_CNTV_EL10')
+msm_dump_regset_ids.append('MSM_DUMP_REGSET_IDS_AARCH64_CNTP_EL10')
+msm_dump_regset_ids.append('MSM_DUMP_REGSET_IDS_AARCH64_CNT_EL2')
 
 sysdbg_cpu64_register_names = {}
 sysdbg_cpu64_ctxt_regs_type = {}
@@ -924,6 +961,13 @@ sysdbg_cpu64_ctxt_regs_typev20['MSM_DUMP_REGSET_IDS_AARCH64_VM_EL2'] = sysdbg_cp
 
 sysdbg_cpu64_register_namesv20['MSM_DUMP_REGSET_IDS_AARCH64_CNTV_EL10'] = sysdbg_cpu64_cntv_el10_register_names_v2_0
 sysdbg_cpu64_ctxt_regs_typev20['MSM_DUMP_REGSET_IDS_AARCH64_CNTV_EL10'] = sysdbg_cpu64_cntv_el10_ctxt_regs_type_v2_0
+
+sysdbg_cpu64_register_namesv20['MSM_DUMP_REGSET_IDS_AARCH64_CNTP_EL10'] = sysdbg_cpu64_cntp_el10_register_names_v2_0
+sysdbg_cpu64_ctxt_regs_typev20['MSM_DUMP_REGSET_IDS_AARCH64_CNTP_EL10'] = sysdbg_cpu64_cntp_el10_ctxt_regs_type_v2_0
+
+sysdbg_cpu64_register_namesv20['MSM_DUMP_REGSET_IDS_AARCH64_CNT_EL2'] = sysdbg_cpu64_cnt_el2_register_names_v2_0
+sysdbg_cpu64_ctxt_regs_typev20['MSM_DUMP_REGSET_IDS_AARCH64_CNT_EL2'] = sysdbg_cpu64_cnt_el2_ctxt_regs_type_v2_0
+
 
 sysdbg_cpu64_register_namesv20['MSM_DUMP_REGSET_IDS_AARCH64_NEON'] = sysdbg_neon128_register_names_v2_0
 sysdbg_cpu64_ctxt_regs_typev20['MSM_DUMP_REGSET_IDS_AARCH64_NEON'] = sysdbg_neon128_register_type_v2_0
@@ -1076,34 +1120,37 @@ class TZCpuCtx_v2():
             if re.match('(.*)reserved(.*)', reg_name):
                 continue
             if print_pc:
-                a = ramdump.unwind_lookup(self.regs[reg_name])
-                if a is not None:
-                    symname, offset = ramdump.unwind_lookup(
-                        self.regs[reg_name])
-                    pc_string = '[{0}+0x{1:x}]'.format(symname, offset)
-                else:
-                    pc_string = None
+                pc_string = None
+                if reg_name in self.regs:
+                    a = ramdump.unwind_lookup(self.regs[reg_name])
+                    if a is not None:
+                        symname, offset = ramdump.unwind_lookup(
+                            self.regs[reg_name])
+                        pc_string = '[{0}+0x{1:x}]'.format(symname, offset)
+                    else:
+                        pc_string = None
             else:
                 pc_string = None
-            if pc_string is not None:
-                print_out_str('   {0:8} = 0x{1:016x} {2}'.format(
-                              reg_name, self.regs[reg_name], pc_string))
-            else:
-                print_out_str('   {0:8} = 0x{1:016x}'.format(
-                              reg_name, self.regs[reg_name]))
-            if t32_name is not None:
-                if reg_name.startswith('cpu_state_') or reg_name.startswith('pstate') :
-                    continue
-                if t32_name in cpu_per_regiter_format.keys():
-                    outfile.write(
-                        '{0} 0x{1:x}\n'.format(cpu_per_regiter_format[t32_name], self.regs[reg_name]))
-                    if 'sctlr_el1' in t32_name and ramdump.hlos_sctlr_el1 is None:
-                        ramdump.hlos_sctlr_el1 = self.regs[reg_name]
-                    if 'tcr_el1' in t32_name and ramdump.hlos_tcr_el1 is None:
-                        ramdump.hlos_tcr_el1 = self.regs[reg_name]
+            if reg_name in self.regs:
+                if pc_string is not None:
+                    print_out_str('   {0:8} = 0x{1:016x} {2}'.format(
+                                  reg_name, self.regs[reg_name], pc_string))
                 else:
-                    outfile.write(
-                        'r.s {0} 0x{1:x}\n'.format(t32_name, self.regs[reg_name]))
+                    print_out_str('   {0:8} = 0x{1:016x}'.format(
+                                  reg_name, self.regs[reg_name]))
+                if t32_name is not None:
+                    if reg_name.startswith('cpu_state_') or reg_name.startswith('pstate') :
+                        continue
+                    if t32_name in cpu_per_regiter_format.keys():
+                        outfile.write(
+                            '{0} 0x{1:x}\n'.format(cpu_per_regiter_format[t32_name], self.regs[reg_name]))
+                        if 'sctlr_el1' in t32_name and ramdump.hlos_sctlr_el1 is None:
+                            ramdump.hlos_sctlr_el1 = self.regs[reg_name]
+                        if 'tcr_el1' in t32_name and ramdump.hlos_tcr_el1 is None:
+                            ramdump.hlos_tcr_el1 = self.regs[reg_name]
+                    else:
+                        outfile.write(
+                            'r.s {0} 0x{1:x}\n'.format(t32_name, self.regs[reg_name]))
 
 
 class TZRegDump_v2():
@@ -1487,8 +1534,8 @@ def get_wdog_timing(ramdump):
                 next_event = ns_to_sec(next_event)
                 print_out_str(
                     "CPU{0} tick_device next_event: {1:.6f}".format(i, next_event))
-    epoch_ns = ramdump.read_word('cd.read_data[0].epoch_ns')
-    epoch_cyc = ramdump.read_word('cd.read_data[0].epoch_cyc')
+    epoch_ns = ramdump.read_u64('cd.read_data[0].epoch_ns')
+    epoch_cyc = ramdump.read_u64('cd.read_data[0].epoch_cyc')
     print_out_str('epoch_ns: {0}ns  epoch_cyc: {1}'.format(epoch_ns,epoch_cyc))
     if (ramdump.kernel_version >= (4, 14)):
         ping_start_time_offset = ramdump.field_offset(

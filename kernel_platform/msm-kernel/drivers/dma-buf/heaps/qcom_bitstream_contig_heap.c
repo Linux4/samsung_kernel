@@ -9,11 +9,13 @@
 #include <linux/dma-heap.h>
 #include <linux/err.h>
 #include <linux/errno.h>
+#include <linux/moduleparam.h>
 
 #include <linux/mem-buf.h>
 #include <soc/qcom/secure_buffer.h>
 #include "qcom_bitstream_contig_heap.h"
 
+static bool enable_bitstream_contig_heap = true;
 static struct dma_heap *display_heap;
 
 static struct dma_buf *bitstream_contig_heap_allocate(struct dma_heap *heap,
@@ -61,6 +63,9 @@ int qcom_add_bitstream_contig_heap(char *name)
 	struct dma_heap_export_info exp_info;
 	struct dma_heap *heap;
 
+	if (!enable_bitstream_contig_heap)
+		return 0;
+
 	display_heap = dma_heap_find("qcom,display");
 	if (!display_heap) {
 		pr_err("%s: qcom,display heap doesn't exist, can't create %s heap\n",
@@ -80,3 +85,5 @@ int qcom_add_bitstream_contig_heap(char *name)
 
 	return 0;
 }
+
+module_param(enable_bitstream_contig_heap, bool, S_IRUGO);

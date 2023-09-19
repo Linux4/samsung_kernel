@@ -25,6 +25,7 @@
 #endif
 
 char bootc_offset_module[BOOTC_OFFSET_DATA_CNT][BOOTC_OFFSET_STR_MAX] = {"fsck"};
+EXPORT_SYMBOL_KUNIT(bootc_offset_module);
 
 __visible_for_testing
 int abc_hub_bootc_get_total_offset(struct sub_bootc_pdata *bootc_pdata)
@@ -37,6 +38,7 @@ int abc_hub_bootc_get_total_offset(struct sub_bootc_pdata *bootc_pdata)
 
 	return total_offset;
 }
+EXPORT_SYMBOL_KUNIT(abc_hub_bootc_get_total_offset);
 
 static void abc_hub_bootc_work_func(struct work_struct *work)
 {
@@ -46,21 +48,18 @@ static void abc_hub_bootc_work_func(struct work_struct *work)
 	bootc_pdata->time_spec_offset = abc_hub_bootc_get_total_offset(bootc_pdata);
 	fixed_time_spec = bootc_pdata->time_spec + bootc_pdata->time_spec_offset;
 
-	pr_info("%s: bootc_time : %d, time_spec : %d(%d + %d))\n",
-		__func__, bootc_pdata->bootc_time, fixed_time_spec,
+	ABC_PRINT("bootc_time : %d, time_spec : %d(%d + %d))",
+		bootc_pdata->bootc_time, fixed_time_spec,
 		bootc_pdata->time_spec, bootc_pdata->time_spec_offset);
 
 	if (bootc_pdata->bootc_time < 0) {
-		pr_err("%s: boot_time_parse fail(%d)\n", __func__, bootc_pdata->bootc_time);
+		ABC_PRINT("boot_time_parse fail(%d)", bootc_pdata->bootc_time);
 	} else {
 #if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
 		motto_send_bootcheck_info(bootc_pdata->bootc_time / MSEC_PER_SEC);
 #endif
 		if (bootc_pdata->bootc_time > fixed_time_spec) {
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-			abc_hub_test_get_uevent_str("booting time is spec out.\n");
-#endif
-			pr_info("%s: booting time is spec out\n", __func__);
+			ABC_PRINT_KUNIT("booting time is spec out");
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 			abc_hub_send_event("MODULE=bootc@INFO=boot_time_fail");
 #else
@@ -80,22 +79,22 @@ int parse_bootc_data(struct device *dev,
 
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 	if (of_property_read_u32(bootc_np, "bootc,time_spec_fac", &pdata->bootc_pdata.time_spec)) {
-		dev_err(dev, "Failed to get bootc,time_spec_fac: node not exist\n");
+		dev_err(dev, "Failed to get bootc,time_spec_fac: node not exist");
 		return -EINVAL;
 	}
-	pr_info("%s: time_spec(factory binary) - %d\n", __func__, pdata->bootc_pdata.time_spec);
+	ABC_PRINT("time_spec(factory binary) - %d", pdata->bootc_pdata.time_spec);
 #elif IS_ENABLED(CONFIG_SEC_ABC_HUB_BOOTC_ENG)
 	if (of_property_read_u32(bootc_np, "bootc,time_spec_eng", &pdata->bootc_pdata.time_spec)) {
-		dev_err(dev, "Failed to get bootc,time_spec_eng: node not exist\n");
+		dev_err(dev, "Failed to get bootc,time_spec_eng: node not exist");
 		return -EINVAL;
 	}
-	pr_info("%s: time_spec(user binary eng build) - %d\n", __func__, pdata->bootc_pdata.time_spec);
+	ABC_PRINT("time_spec(user binary eng build) - %d", pdata->bootc_pdata.time_spec);
 #else
 	if (of_property_read_u32(bootc_np, "bootc,time_spec_user", &pdata->bootc_pdata.time_spec)) {
-		dev_err(dev, "Failed to get bootc,time_spec_user: node not exist\n");
+		dev_err(dev, "Failed to get bootc,time_spec_user: node not exist");
 		return -EINVAL;
 	}
-	pr_info("%s: time_spec(user binary user build) - %d\n", __func__, pdata->bootc_pdata.time_spec);
+	ABC_PRINT("time_spec(user binary user build) - %d", pdata->bootc_pdata.time_spec);
 #endif
 
 	return 0;
@@ -104,37 +103,48 @@ int parse_bootc_data(struct device *dev,
 void abc_hub_bootc_enable(struct device *dev, int enable)
 {
 	/* common sequence */
-	struct abc_hub_info *pinfo = dev_get_drvdata(dev);
 
-	pinfo->pdata->bootc_pdata.enabled = enable;
+
+	abc_hub_pinfo->pdata->bootc_pdata.enabled = enable;
 
 	/* custom sequence */
-	pr_info("%s: enable(%d)\n", __func__, enable);
+	ABC_PRINT("enable(%d)", enable);
 	if (enable == ABC_HUB_ENABLED)
-		queue_delayed_work(pinfo->pdata->bootc_pdata.workqueue,
-				   &pinfo->pdata->bootc_pdata.bootc_work, msecs_to_jiffies(2000));
+		queue_delayed_work(abc_hub_pinfo->pdata->bootc_pdata.workqueue,
+				   &abc_hub_pinfo->pdata->bootc_pdata.bootc_work, msecs_to_jiffies(2000));
 }
 
-int abc_hub_bootc_init(struct device *dev)
+int abc_hub_bootc_init_work(void)
 {
-	struct abc_hub_info *pinfo = dev_get_drvdata(dev);
-	int i;
 
-	for (i = 0; i < BOOTC_OFFSET_DATA_CNT; i++) {
-		strcpy(pinfo->pdata->bootc_pdata.offset_data[i].module, bootc_offset_module[i]);
-		pinfo->pdata->bootc_pdata.offset_data[i].offset = 0;
-	}
-	pinfo->pdata->bootc_pdata.bootc_time = -1;
+	INIT_DELAYED_WORK(&abc_hub_pinfo->pdata->bootc_pdata.bootc_work, abc_hub_bootc_work_func);
+	abc_hub_pinfo->pdata->bootc_pdata.workqueue = create_singlethread_workqueue("bootc_wq");
 
-	INIT_DELAYED_WORK(&pinfo->pdata->bootc_pdata.bootc_work, abc_hub_bootc_work_func);
-
-	pinfo->pdata->bootc_pdata.workqueue = create_singlethread_workqueue("bootc_wq");
-	if (!pinfo->pdata->bootc_pdata.workqueue) {
-		pr_err("%s: fail\n", __func__);
+	if (!abc_hub_pinfo->pdata->bootc_pdata.workqueue) {
+		ABC_PRINT("fail");
 		return -1;
 	}
 
-	pr_info("%s: success\n", __func__);
+	return 0;
+
+}
+EXPORT_SYMBOL_KUNIT(abc_hub_bootc_init_work);
+
+int abc_hub_bootc_init(struct device *dev)
+{
+
+	int i;
+
+	for (i = 0; i < BOOTC_OFFSET_DATA_CNT; i++) {
+		strcpy(abc_hub_pinfo->pdata->bootc_pdata.offset_data[i].module, bootc_offset_module[i]);
+		abc_hub_pinfo->pdata->bootc_pdata.offset_data[i].offset = 0;
+	}
+	abc_hub_pinfo->pdata->bootc_pdata.bootc_time = -1;
+
+	if (abc_hub_bootc_init_work())
+		return -1;
+
+	ABC_PRINT("success");
 	return 0;
 }
 

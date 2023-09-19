@@ -12,6 +12,7 @@
 #include <linux/errno.h>
 #include <linux/jiffies.h>
 #include <linux/debugfs.h>
+#include <linux/proc_fs.h>
 #include <linux/io.h>
 #include <linux/idr.h>
 #include <linux/string.h>
@@ -32,6 +33,7 @@
 #define MAX_MINIDUMP_BUFFERS CONFIG_IPC_LOG_MINIDUMP_BUFFERS
 /*16th bit is used for minidump feature*/
 #define FEATURE_MASK 0x10000
+#define FEATURE_PROC 0x01000
 
 static int minidump_buf_cnt;
 static LIST_HEAD(ipc_log_context_list);
@@ -360,6 +362,7 @@ static void __ipc_log_write(void *ctxt, struct encode_context *ectxt)
 	spin_unlock(&ilctxt->context_lock_lhb1);
 	read_unlock_irqrestore(&context_list_lock_lha1, flags);
 }
+
 void ipc_log_write(void *ctxt, struct encode_context *ectxt)
 {
 	if (!sec_debug_is_enabled())
@@ -910,7 +913,10 @@ static void *__ipc_log_context_create(int max_num_pages,
 	ctxt->header_size = sizeof(struct ipc_log_page_header);
 	kref_init(&ctxt->refcount);
 	ctxt->destroyed = false;
-	create_ctx_debugfs(ctxt, mod_name);
+	if (feature_version & FEATURE_PROC)
+		create_ctx_procfs(ctxt, mod_name);
+	else
+		create_ctx_debugfs(ctxt, mod_name);
 
 	/* set magic last to signal context init is complete */
 	ctxt->magic = IPC_LOG_CONTEXT_MAGIC_NUM;
@@ -941,7 +947,7 @@ void *ipc_log_context_create(int max_num_pages,
 
 	if (sec_debug_is_enabled() || !debug_level_dummy_ctx)
 		return __ipc_log_context_create(max_num_pages, mod_name, feature_version);
-	
+
 	return debug_level_dummy_ctx;
 
 }
@@ -961,6 +967,7 @@ void ipc_log_context_free(struct kref *kref)
 
 	kfree(ilctxt);
 }
+EXPORT_SYMBOL(ipc_log_context_free);
 
 /*
  * Destroy debug log context
@@ -975,6 +982,11 @@ static int __ipc_log_context_destroy(void *ctxt)
 
 	if (!ilctxt)
 		return 0;
+
+	if (ilctxt->proc_dent) {
+		proc_remove(ilctxt->proc_dent);
+		ilctxt->proc_dent = NULL;
+	}
 
 	debugfs_remove_recursive(ilctxt->dent);
 
@@ -1028,7 +1040,7 @@ static int __init net_ipc_log_init(void)
 
 	if (!log_ctx)
 		log_ctx = ipc_log_context_create(LOG_CTX_PAGE_CNT,
-							"net_log", 0);
+							"net_log", FEATURE_PROC);
 	if (!buf)
 		buf = kmalloc(MAX_LINE_SIZE, GFP_KERNEL);
 

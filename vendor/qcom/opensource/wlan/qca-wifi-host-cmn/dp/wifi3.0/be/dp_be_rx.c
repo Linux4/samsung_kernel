@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,7 +21,6 @@
 #include "hal_hw_headers.h"
 #include "dp_types.h"
 #include "dp_rx.h"
-#include "dp_tx.h"
 #include "dp_be_rx.h"
 #include "dp_peer.h"
 #include "hal_rx.h"
@@ -57,6 +57,49 @@ dp_rx_wds_learn(struct dp_soc *soc,
 				msdu_metadata);
 }
 #else
+#ifdef QCA_SUPPORT_WDS_EXTENDED
+/**
+ * dp_wds_ext_peer_learn_be() - function to send event to control
+ * path on receiving 1st 4-address frame from backhaul.
+ * @soc: DP soc
+ * @ta_peer: WDS repeater peer
+ * @rx_tlv_hdr  : start address of rx tlvs
+ *
+ * Return: void
+ */
+static inline void dp_wds_ext_peer_learn_be(struct dp_soc *soc,
+					    struct dp_peer *ta_peer,
+					    uint8_t *rx_tlv_hdr)
+{
+	uint8_t wds_ext_src_mac[QDF_MAC_ADDR_SIZE];
+
+	/* instead of checking addr4 is valid or not in per packet path
+	 * check for init bit, which will be set on reception of
+	 * first addr4 valid packet.
+	 */
+	if (!ta_peer->vdev->wds_ext_enabled ||
+	    qdf_atomic_test_bit(WDS_EXT_PEER_INIT_BIT, &ta_peer->wds_ext.init))
+		return;
+
+	if (hal_rx_get_mpdu_mac_ad4_valid(soc->hal_soc, rx_tlv_hdr)) {
+		qdf_atomic_test_and_set_bit(WDS_EXT_PEER_INIT_BIT,
+					    &ta_peer->wds_ext.init);
+		qdf_mem_copy(wds_ext_src_mac, &ta_peer->mac_addr.raw[0],
+			     QDF_MAC_ADDR_SIZE);
+		soc->cdp_soc.ol_ops->rx_wds_ext_peer_learn(
+						soc->ctrl_psoc,
+						ta_peer->peer_id,
+						ta_peer->vdev->vdev_id,
+						wds_ext_src_mac);
+	}
+}
+#else
+static inline void dp_wds_ext_peer_learn_be(struct dp_soc *soc,
+					    struct dp_peer *ta_peer,
+					    uint8_t *rx_tlv_hdr)
+{
+}
+#endif
 static void
 dp_rx_wds_learn(struct dp_soc *soc,
 		struct dp_vdev *vdev,
@@ -65,6 +108,7 @@ dp_rx_wds_learn(struct dp_soc *soc,
 		qdf_nbuf_t nbuf,
 		struct hal_rx_msdu_metadata msdu_metadata)
 {
+	dp_wds_ext_peer_learn_be(soc, ta_peer, rx_tlv_hdr);
 }
 #endif
 
@@ -108,6 +152,7 @@ uint32_t dp_rx_process_be(struct dp_intr *int_ctx,
 	uint32_t rx_bufs_reaped[MAX_PDEV_CNT];
 	uint8_t mac_id = 0;
 	struct dp_pdev *rx_pdev;
+	bool enh_flag;
 	struct dp_srng *dp_rxdma_srng;
 	struct rx_desc_pool *rx_desc_pool;
 	struct dp_soc *soc = int_ctx->soc;
@@ -132,6 +177,7 @@ uint32_t dp_rx_process_be(struct dp_intr *int_ctx,
 	uint8_t pkt_capture_offload = 0;
 	struct dp_srng *rx_ring = &soc->reo_dest_ring[reo_ring_num];
 	int max_reap_limit, ring_near_full;
+	struct dp_soc *replenish_soc;
 
 	DP_HIST_INIT();
 
@@ -375,11 +421,11 @@ more_data:
 		if (qdf_likely(mpdu_desc_info.mpdu_flags &
 			       HAL_MPDU_F_QOS_CONTROL_VALID))
 			qdf_nbuf_set_tid_val(rx_desc->nbuf, mpdu_desc_info.tid);
-#ifdef CONFIG_LITHIUM
-		qdf_nbuf_set_rx_reo_dest_ind(
+
+		/* set sw exception */
+		qdf_nbuf_set_rx_reo_dest_ind_or_sw_excpt(
 				rx_desc->nbuf,
-				HAL_RX_REO_MSDU_REO_DST_IND_GET(ring_desc));
-#endif
+				hal_rx_sw_exception_get_be(ring_desc));
 
 		QDF_NBUF_CB_RX_PKT_LEN(rx_desc->nbuf) = msdu_desc_info.msdu_len;
 
@@ -424,6 +470,7 @@ more_data:
 done:
 	dp_rx_srng_access_end(int_ctx, soc, hal_ring_hdl);
 
+	replenish_soc = dp_rx_replensih_soc_get(soc, reo_ring_num);
 	for (mac_id = 0; mac_id < MAX_PDEV_CNT; mac_id++) {
 		/*
 		 * continue with next mac_id if no pkts were reaped
@@ -432,11 +479,11 @@ done:
 		if (!rx_bufs_reaped[mac_id])
 			continue;
 
-		dp_rxdma_srng = &soc->rx_refill_buf_ring[mac_id];
+		dp_rxdma_srng = &replenish_soc->rx_refill_buf_ring[mac_id];
 
-		rx_desc_pool = &soc->rx_desc_buf[mac_id];
+		rx_desc_pool = &replenish_soc->rx_desc_buf[mac_id];
 
-		dp_rx_buffers_replenish(soc, mac_id, dp_rxdma_srng,
+		dp_rx_buffers_replenish(replenish_soc, mac_id, dp_rxdma_srng,
 					rx_desc_pool, rx_bufs_reaped[mac_id],
 					&head[mac_id], &tail[mac_id]);
 	}
@@ -529,8 +576,11 @@ done:
 		DP_RX_TID_SAVE(nbuf, tid);
 		if (qdf_unlikely(rx_pdev->delay_stats_flag) ||
 		    qdf_unlikely(wlan_cfg_is_peer_ext_stats_enabled(
-				 soc->wlan_cfg_ctx)))
+				 soc->wlan_cfg_ctx)) ||
+		    dp_rx_pkt_tracepoints_enabled())
 			qdf_nbuf_set_timestamp(nbuf);
+
+		enh_flag = rx_pdev->enhanced_stats_en;
 
 		tid_stats =
 		&rx_pdev->stats.tid_stats.tid_rx_stats[reo_ring_num][tid];
@@ -637,6 +687,7 @@ done:
 
 		if (!dp_wds_rx_policy_check(rx_tlv_hdr, vdev, peer)) {
 			dp_rx_err("%pK: Policy Check Drop pkt", soc);
+			DP_STATS_INC(peer, rx.policy_check_drop, 1);
 			tid_stats->fail_cnt[POLICY_CHECK_DROP]++;
 			/* Drop & free packet */
 			qdf_nbuf_free(nbuf);
@@ -666,9 +717,8 @@ done:
 					qdf_nbuf_is_ipv4_wapi_pkt(nbuf);
 
 			if (!is_eapol) {
-				DP_STATS_INC(soc,
-					     rx.err.peer_unauth_rx_pkt_drop,
-					     1);
+				DP_STATS_INC(peer,
+					     rx.peer_unauth_rx_pkt_drop, 1);
 				qdf_nbuf_free(nbuf);
 				nbuf = next;
 				continue;
@@ -725,12 +775,15 @@ done:
 
 		dp_rx_fill_gro_info(soc, rx_tlv_hdr, nbuf, &rx_ol_pkt_cnt);
 
+		dp_rx_mark_first_packet_after_wow_wakeup(vdev->pdev, rx_tlv_hdr,
+							 nbuf);
+
 		dp_rx_update_stats(soc, nbuf);
 		DP_RX_LIST_APPEND(deliver_list_head,
 				  deliver_list_tail,
 				  nbuf);
-		DP_STATS_INC_PKT(peer, rx.to_stack, 1,
-				 QDF_NBUF_CB_RX_PKT_LEN(nbuf));
+		DP_PEER_TO_STACK_INCC_PKT(peer, 1, QDF_NBUF_CB_RX_PKT_LEN(nbuf),
+					  enh_flag);
 		if (qdf_unlikely(peer->in_twt))
 			DP_STATS_INC_PKT(peer, rx.to_stack_twt, 1,
 					 QDF_NBUF_CB_RX_PKT_LEN(nbuf));
@@ -770,7 +823,7 @@ done:
 	 *
 	 * One more loop will move the state to normal processing and yield
 	 */
-	if (ring_near_full)
+	if (ring_near_full && quota)
 		goto more_data;
 
 	if (dp_rx_enable_eol_data_check(soc) && rx_bufs_used) {
@@ -822,45 +875,47 @@ dp_rx_desc_pool_init_be_cc(struct dp_soc *soc,
 			   struct rx_desc_pool *rx_desc_pool,
 			   uint32_t pool_id)
 {
+	struct dp_hw_cookie_conversion_t *cc_ctx;
 	struct dp_soc_be *be_soc;
 	union dp_rx_desc_list_elem_t *rx_desc_elem;
 	struct dp_spt_page_desc *page_desc;
-	struct dp_spt_page_desc_list *page_desc_list;
+	uint32_t ppt_idx = 0;
+	uint32_t avail_entry_index = 0;
 
-	be_soc = dp_get_be_soc_from_dp_soc(soc);
-	page_desc_list = &be_soc->rx_spt_page_desc[pool_id];
-
-	/* allocate SPT pages from page desc pool */
-	page_desc_list->num_spt_pages =
-		dp_cc_spt_page_desc_alloc(be_soc,
-					  &page_desc_list->spt_page_list_head,
-					  &page_desc_list->spt_page_list_tail,
-					  rx_desc_pool->pool_size);
-
-	if (!page_desc_list->num_spt_pages) {
-		dp_err("fail to allocate cookie conversion spt pages");
+	if (!rx_desc_pool->pool_size) {
+		dp_err("desc_num 0 !!");
 		return QDF_STATUS_E_FAILURE;
 	}
 
-	/* put each RX Desc VA to SPT pages and get corresponding ID */
-	page_desc = page_desc_list->spt_page_list_head;
+	be_soc = dp_get_be_soc_from_dp_soc(soc);
+	cc_ctx  = &be_soc->rx_cc_ctx[pool_id];
+
+	page_desc = &cc_ctx->page_desc_base[0];
 	rx_desc_elem = rx_desc_pool->freelist;
 	while (rx_desc_elem) {
-		DP_CC_SPT_PAGE_UPDATE_VA(page_desc->page_v_addr,
-					 page_desc->avail_entry_index,
-					 &rx_desc_elem->rx_desc);
+		if (avail_entry_index == 0) {
+			if (ppt_idx >= cc_ctx->total_page_num) {
+				dp_alert("insufficient secondary page tables");
+				qdf_assert_always(0);
+			}
+			page_desc = &cc_ctx->page_desc_base[ppt_idx++];
+		}
 
+		/* put each RX Desc VA to SPT pages and
+		 * get corresponding ID
+		 */
+		DP_CC_SPT_PAGE_UPDATE_VA(page_desc->page_v_addr,
+					 avail_entry_index,
+					 &rx_desc_elem->rx_desc);
 		rx_desc_elem->rx_desc.cookie =
 			dp_cc_desc_id_generate(page_desc->ppt_index,
-					       page_desc->avail_entry_index);
+					       avail_entry_index);
 		rx_desc_elem->rx_desc.pool_id = pool_id;
 		rx_desc_elem->rx_desc.in_use = 0;
 		rx_desc_elem = rx_desc_elem->next;
 
-		page_desc->avail_entry_index++;
-		if (page_desc->avail_entry_index >=
-				DP_CC_SPT_PAGE_MAX_ENTRIES)
-			page_desc = page_desc->next;
+		avail_entry_index = (avail_entry_index + 1) &
+					DP_CC_SPT_PAGE_MAX_ENTRIES_MASK;
 	}
 
 	return QDF_STATUS_SUCCESS;
@@ -871,29 +926,22 @@ dp_rx_desc_pool_init_be_cc(struct dp_soc *soc,
 			   struct rx_desc_pool *rx_desc_pool,
 			   uint32_t pool_id)
 {
+	struct dp_hw_cookie_conversion_t *cc_ctx;
 	struct dp_soc_be *be_soc;
 	struct dp_spt_page_desc *page_desc;
-	struct dp_spt_page_desc_list *page_desc_list;
-	int i;
+	uint32_t ppt_idx = 0;
+	uint32_t avail_entry_index = 0;
+	int i = 0;
 
-	be_soc = dp_get_be_soc_from_dp_soc(soc);
-	page_desc_list = &be_soc->rx_spt_page_desc[pool_id];
-
-	/* allocate SPT pages from page desc pool */
-	page_desc_list->num_spt_pages =
-			dp_cc_spt_page_desc_alloc(
-					be_soc,
-					&page_desc_list->spt_page_list_head,
-					&page_desc_list->spt_page_list_tail,
-					rx_desc_pool->pool_size);
-
-	if (!page_desc_list->num_spt_pages) {
-		dp_err("fail to allocate cookie conversion spt pages");
+	if (!rx_desc_pool->pool_size) {
+		dp_err("desc_num 0 !!");
 		return QDF_STATUS_E_FAILURE;
 	}
 
-	/* put each RX Desc VA to SPT pages and get corresponding ID */
-	page_desc = page_desc_list->spt_page_list_head;
+	be_soc = dp_get_be_soc_from_dp_soc(soc);
+	cc_ctx  = &be_soc->rx_cc_ctx[pool_id];
+
+	page_desc = &cc_ctx->page_desc_base[0];
 	for (i = 0; i <= rx_desc_pool->pool_size - 1; i++) {
 		if (i == rx_desc_pool->pool_size - 1)
 			rx_desc_pool->array[i].next = NULL;
@@ -901,23 +949,29 @@ dp_rx_desc_pool_init_be_cc(struct dp_soc *soc,
 			rx_desc_pool->array[i].next =
 				&rx_desc_pool->array[i + 1];
 
-		DP_CC_SPT_PAGE_UPDATE_VA(page_desc->page_v_addr,
-					 page_desc->avail_entry_index,
-					 &rx_desc_pool->array[i].rx_desc);
+		if (avail_entry_index == 0) {
+			if (ppt_idx >= cc_ctx->total_page_num) {
+				dp_alert("insufficient secondary page tables");
+				qdf_assert_always(0);
+			}
+			page_desc = &cc_ctx->page_desc_base[ppt_idx++];
+		}
 
+		/* put each RX Desc VA to SPT pages and
+		 * get corresponding ID
+		 */
+		DP_CC_SPT_PAGE_UPDATE_VA(page_desc->page_v_addr,
+					 avail_entry_index,
+					 &rx_desc_pool->array[i].rx_desc);
 		rx_desc_pool->array[i].rx_desc.cookie =
 			dp_cc_desc_id_generate(page_desc->ppt_index,
-					       page_desc->avail_entry_index);
-
+					       avail_entry_index);
 		rx_desc_pool->array[i].rx_desc.pool_id = pool_id;
 		rx_desc_pool->array[i].rx_desc.in_use = 0;
 
-		page_desc->avail_entry_index++;
-		if (page_desc->avail_entry_index >=
-				DP_CC_SPT_PAGE_MAX_ENTRIES)
-			page_desc = page_desc->next;
+		avail_entry_index = (avail_entry_index + 1) &
+					DP_CC_SPT_PAGE_MAX_ENTRIES_MASK;
 	}
-
 	return QDF_STATUS_SUCCESS;
 }
 #endif
@@ -927,32 +981,18 @@ dp_rx_desc_pool_deinit_be_cc(struct dp_soc *soc,
 			     struct rx_desc_pool *rx_desc_pool,
 			     uint32_t pool_id)
 {
-	struct dp_soc_be *be_soc;
 	struct dp_spt_page_desc *page_desc;
-	struct dp_spt_page_desc_list *page_desc_list;
+	struct dp_soc_be *be_soc;
+	int i = 0;
+	struct dp_hw_cookie_conversion_t *cc_ctx;
 
 	be_soc = dp_get_be_soc_from_dp_soc(soc);
-	page_desc_list = &be_soc->rx_spt_page_desc[pool_id];
+	cc_ctx  = &be_soc->rx_cc_ctx[pool_id];
 
-	if (!page_desc_list->num_spt_pages) {
-		dp_warn("page_desc_list is empty for pool_id %d", pool_id);
-		return;
-	}
-
-	/* cleanup for each page */
-	page_desc = page_desc_list->spt_page_list_head;
-	while (page_desc) {
-		page_desc->avail_entry_index = 0;
+	for (i = 0; i < cc_ctx->total_page_num; i++) {
+		page_desc = &cc_ctx->page_desc_base[i];
 		qdf_mem_zero(page_desc->page_v_addr, qdf_page_size);
-		page_desc = page_desc->next;
 	}
-
-	/* free pages desc back to pool */
-	dp_cc_spt_page_desc_free(be_soc,
-				 &page_desc_list->spt_page_list_head,
-				 &page_desc_list->spt_page_list_tail,
-				 page_desc_list->num_spt_pages);
-	page_desc_list->num_spt_pages = 0;
 }
 
 QDF_STATUS dp_rx_desc_pool_init_be(struct dp_soc *soc,
@@ -969,7 +1009,8 @@ QDF_STATUS dp_rx_desc_pool_init_be(struct dp_soc *soc,
 						    pool_id);
 	} else {
 		dp_info("non_rx_desc_buf_pool init");
-		status = dp_rx_desc_pool_init_generic(soc, rx_desc_pool, pool_id);
+		status = dp_rx_desc_pool_init_generic(soc, rx_desc_pool,
+						      pool_id);
 	}
 
 	return status;
@@ -1057,16 +1098,127 @@ uint32_t dp_rx_nf_process(struct dp_intr *int_ctx,
 #endif
 
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
-#if defined(QCA_WIFI_WCN7850) || !defined(INTRA_BSS_FW_OFFLOAD)
-bool dp_rx_intrabss_fwd_be(struct dp_soc *soc, struct dp_peer *ta_peer,
-			   uint8_t *rx_tlv_hdr, qdf_nbuf_t nbuf,
-			   struct hal_rx_msdu_metadata msdu_metadata)
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * dp_rx_intrabss_fwd_mlo_allow() - check if MLO forwarding is allowed
+ * @ta_peer: transmitter peer handle
+ * @da_peer: destination peer handle
+ *
+ * Return: true - MLO forwarding case, false: not
+ */
+static inline bool
+dp_rx_intrabss_fwd_mlo_allow(struct dp_peer *ta_peer,
+			     struct dp_peer *da_peer)
 {
-	/* Hamilton V1 uses Lithium path */
-	return dp_rx_intrabss_fwd(soc, ta_peer, rx_tlv_hdr, nbuf,
-				  msdu_metadata);
+	/* one of TA/DA peer should belong to MLO connection peer,
+	 * only MLD peer type is as expected
+	 */
+	if (!IS_MLO_DP_MLD_PEER(ta_peer) &&
+	    !IS_MLO_DP_MLD_PEER(da_peer))
+		return false;
+
+	/* TA peer and DA peer's vdev should be partner MLO vdevs */
+	if (dp_peer_find_mac_addr_cmp(&ta_peer->vdev->mld_mac_addr,
+				      &da_peer->vdev->mld_mac_addr))
+		return false;
+
+	return true;
 }
 #else
+static inline bool
+dp_rx_intrabss_fwd_mlo_allow(struct dp_peer *ta_peer,
+			     struct dp_peer *da_peer)
+{
+	return false;
+}
+#endif
+
+#ifdef INTRA_BSS_FWD_OFFLOAD
+/**
+ * dp_rx_intrabss_ucast_check_be() - Check if intrabss is allowed
+				     for unicast frame
+ * @soc: SOC hanlde
+ * @nbuf: RX packet buffer
+ * @ta_peer: transmitter DP peer handle
+ * @msdu_metadata: MSDU meta data info
+ * @p_tx_vdev_id: get vdev id for Intra-BSS TX
+ *
+ * Return: true - intrabss allowed
+	   false - not allow
+ */
+static bool
+dp_rx_intrabss_ucast_check_be(struct dp_soc *soc, qdf_nbuf_t nbuf,
+			      struct dp_peer *ta_peer,
+			      struct hal_rx_msdu_metadata *msdu_metadata,
+			      uint8_t *p_tx_vdev_id)
+{
+	uint16_t da_peer_id;
+	struct dp_peer *da_peer;
+
+	if (!qdf_nbuf_is_intra_bss(nbuf))
+		return false;
+
+	da_peer_id = dp_rx_peer_metadata_peer_id_get_be(
+						soc,
+						msdu_metadata->da_idx);
+	da_peer = dp_peer_get_ref_by_id(soc, da_peer_id, DP_MOD_ID_RX);
+	if (!da_peer)
+		return false;
+	*p_tx_vdev_id = da_peer->vdev->vdev_id;
+	dp_peer_unref_delete(da_peer, DP_MOD_ID_RX);
+
+	return true;
+}
+#else
+static bool
+dp_rx_intrabss_ucast_check_be(struct dp_soc *soc, qdf_nbuf_t nbuf,
+			      struct dp_peer *ta_peer,
+			      struct hal_rx_msdu_metadata *msdu_metadata,
+			      uint8_t *p_tx_vdev_id)
+{
+	uint16_t da_peer_id;
+	struct dp_peer *da_peer;
+	bool ret = false;
+
+	if (!qdf_nbuf_is_da_valid(nbuf) || qdf_nbuf_is_da_mcbc(nbuf))
+		return false;
+
+	da_peer_id = dp_rx_peer_metadata_peer_id_get_be(
+						soc,
+						msdu_metadata->da_idx);
+	da_peer = dp_peer_get_ref_by_id(soc, da_peer_id,
+					DP_MOD_ID_RX);
+	if (!da_peer)
+		return false;
+
+	*p_tx_vdev_id = da_peer->vdev->vdev_id;
+	/* If the source or destination peer in the isolation
+	 * list then dont forward instead push to bridge stack.
+	 */
+	if (dp_get_peer_isolation(ta_peer) ||
+	    dp_get_peer_isolation(da_peer))
+		goto rel_da_peer;
+
+	if (da_peer->bss_peer || da_peer == ta_peer)
+		goto rel_da_peer;
+
+	/* Same vdev, support Inra-BSS */
+	if (da_peer->vdev == ta_peer->vdev) {
+		ret = true;
+		goto rel_da_peer;
+	}
+
+	/* MLO specific Intra-BSS check */
+	if (dp_rx_intrabss_fwd_mlo_allow(ta_peer, da_peer)) {
+		ret = true;
+		goto rel_da_peer;
+	}
+
+rel_da_peer:
+	dp_peer_unref_delete(da_peer, DP_MOD_ID_RX);
+	return ret;
+}
+#endif
 /*
  * dp_rx_intrabss_fwd_be() - API for intrabss fwd. For EAPOL
  *  pkt with DA not equal to vdev mac addr, fwd is not allowed.
@@ -1082,8 +1234,7 @@ bool dp_rx_intrabss_fwd_be(struct dp_soc *soc, struct dp_peer *ta_peer,
 			   uint8_t *rx_tlv_hdr, qdf_nbuf_t nbuf,
 			   struct hal_rx_msdu_metadata msdu_metadata)
 {
-	uint16_t len;
-	qdf_nbuf_t nbuf_copy;
+	uint8_t tx_vdev_id;
 	uint8_t tid = qdf_nbuf_get_tid_val(nbuf);
 	uint8_t ring_id = QDF_NBUF_CB_RX_CTX_ID(nbuf);
 	struct cdp_tid_rx_stats *tid_stats = &ta_peer->vdev->pdev->stats.
@@ -1097,80 +1248,15 @@ bool dp_rx_intrabss_fwd_be(struct dp_soc *soc, struct dp_peer *ta_peer,
 	 * like igmpsnoop decide whether to forward or not with
 	 * Mcast enhancement.
 	 */
-	if (qdf_nbuf_is_da_mcbc(nbuf) && !ta_peer->bss_peer) {
-		if (dp_rx_intrabss_eapol_drop_check(soc, ta_peer, rx_tlv_hdr,
-						    nbuf))
-			return true;
+	if (qdf_nbuf_is_da_mcbc(nbuf) && !ta_peer->bss_peer)
+		return dp_rx_intrabss_mcbc_fwd(soc, ta_peer, rx_tlv_hdr,
+					       nbuf, tid_stats);
 
-		if (!dp_rx_check_ndi_mdns_fwding(ta_peer, nbuf))
-			return false;
+	if (dp_rx_intrabss_ucast_check_be(soc, nbuf, ta_peer,
+					  &msdu_metadata, &tx_vdev_id))
+		return dp_rx_intrabss_ucast_fwd(soc, ta_peer, tx_vdev_id,
+						rx_tlv_hdr, nbuf, tid_stats);
 
-		/* If the source peer in the isolation list
-		 * then dont forward instead push to bridge stack
-		 */
-		if (dp_get_peer_isolation(ta_peer))
-			return false;
-
-		nbuf_copy = qdf_nbuf_copy(nbuf);
-		if (!nbuf_copy)
-			return false;
-
-		len = QDF_NBUF_CB_RX_PKT_LEN(nbuf);
-		if (dp_tx_send((struct cdp_soc_t *)soc,
-			       ta_peer->vdev->vdev_id, nbuf_copy)) {
-			DP_STATS_INC_PKT(ta_peer, rx.intra_bss.fail, 1, len);
-			tid_stats->fail_cnt[INTRABSS_DROP]++;
-			qdf_nbuf_free(nbuf_copy);
-		} else {
-			DP_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1, len);
-			tid_stats->intrabss_cnt++;
-		}
-		return false;
-	}
-
-	if (qdf_nbuf_is_intra_bss(nbuf)) {
-		if (dp_rx_intrabss_eapol_drop_check(soc, ta_peer, rx_tlv_hdr,
-						    nbuf))
-			return true;
-
-		len = QDF_NBUF_CB_RX_PKT_LEN(nbuf);
-
-		/* linearize the nbuf just before we send to
-		 * dp_tx_send()
-		 */
-		if (qdf_unlikely(qdf_nbuf_is_frag(nbuf))) {
-			if (qdf_nbuf_linearize(nbuf) == -ENOMEM)
-				return false;
-
-			nbuf = qdf_nbuf_unshare(nbuf);
-			if (!nbuf) {
-				DP_STATS_INC_PKT(ta_peer,
-						 rx.intra_bss.fail, 1, len);
-				/* return true even though the pkt is
-				 * not forwarded. Basically skb_unshare
-				 * failed and we want to continue with
-				 * next nbuf.
-				 */
-				tid_stats->fail_cnt[INTRABSS_DROP]++;
-				return true;
-			}
-		}
-
-		if (!dp_tx_send((struct cdp_soc_t *)soc,
-				ta_peer->vdev->vdev_id, nbuf)) {
-			DP_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1,
-					 len);
-		} else {
-			DP_STATS_INC_PKT(ta_peer, rx.intra_bss.fail, 1,
-					 len);
-			tid_stats->fail_cnt[INTRABSS_DROP]++;
-			return false;
-		}
-
-		return true;
-	}
 	return false;
 }
 #endif
-#endif
-

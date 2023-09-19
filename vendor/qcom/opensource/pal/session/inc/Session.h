@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -62,6 +63,11 @@ typedef enum {
     SESSION_STOPPED,
 }sessionState;
 
+typedef enum {
+    PM_QOS_VOTE_DISABLE = 0,
+    PM_QOS_VOTE_ENABLE  = 1
+} pmQosVote;
+
 #define EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE 0x0800103F
 
 class Stream;
@@ -80,7 +86,6 @@ protected:
     size_t customPayloadSize;
     int updateCustomPayload(void *payload, size_t size);
     int freeCustomPayload(uint8_t **payload, size_t *payloadSize);
-    int freeCustomPayload();
     uint32_t eventId;
     void *eventPayload;
     size_t eventPayloadSize;
@@ -90,6 +95,7 @@ protected:
     static std::vector<int> pcmDevEcTxIds;
     static int extECRefCnt;
     static std::mutex extECMutex;
+    bool frontEndIdAllocated = false;
 public:
     bool isPauseRegistrationDone;
     virtual ~Session();
@@ -101,6 +107,9 @@ public:
             struct pal_device &dAttr, const std::vector<int> &pcmDevIds);
     int configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal_stream_attributes &sAttr,
             struct pal_device &dAttr, const std::vector<int> &pcmDevIds, const char* intf);
+    void setPmQosMixerCtl(pmQosVote vote);
+    int getCustomPayload(uint8_t **payload, size_t *payloadSize);
+    int freeCustomPayload();
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
@@ -143,11 +152,13 @@ public:
     virtual int createMmapBuffer(Stream *s __unused, int32_t min_size_frames __unused,
                                    struct pal_mmap_buffer *info __unused) {return -EINVAL;}
     virtual int GetMmapPosition(Stream *s __unused, struct pal_mmap_position *position __unused) {return -EINVAL;}
+    virtual int ResetMmapBuffer(Stream *s __unused) {return -EINVAL;}
     virtual int openGraph(Stream *s __unused) { return 0; }
     virtual int getTagsWithModuleInfo(Stream *s __unused, size_t *size __unused,
                                       uint8_t *payload __unused) {return -EINVAL;}
     virtual int checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
                                  Stream *s, bool is_enable);
+    virtual void AdmRoutingChange(Stream *s __unused) {  };
 };
 
 #endif //SESSION_H

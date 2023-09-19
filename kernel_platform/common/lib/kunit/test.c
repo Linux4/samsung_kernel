@@ -230,6 +230,12 @@ EXPORT_SYMBOL_GPL(kunit_do_assertion);
 
 void kunit_init_test(struct kunit *test, const char *name, char *log)
 {
+#if !IS_ENABLED(CONFIG_UML)
+	struct global_mock *g_mock = &test->test_global_mock;
+
+	g_mock->is_initialized = false;
+#endif
+
 	spin_lock_init(&test->lock);
 	INIT_LIST_HEAD(&test->resources);
 	INIT_LIST_HEAD(&test->post_conditions);
@@ -279,7 +285,11 @@ static void kunit_case_internal_cleanup(struct kunit *test)
 	struct test_initcall *initcall;
 
 	list_for_each_entry(initcall, &test_global_context.initcalls, node) {
+#if IS_ENABLED(CONFIG_UML)
 		initcall->exit(initcall);
+#else
+		initcall->exit(initcall, test);
+#endif /* CONFIG_UML */
 	}
 	kunit_cleanup(test);
 }

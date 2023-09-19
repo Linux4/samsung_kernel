@@ -30,12 +30,12 @@
  * Daemon ready test.
  * Expected: Function should return whether daemon is ready.
  */
-static void security_dsms_daemon_ready_success_test(struct test *test)
+static void security_dsms_daemon_ready_success_test(struct kunit *test)
 {
 	int ready;
 
 	ready = atomic_read(&daemon_ready);
-	EXPECT_EQ(test, dsms_daemon_ready(), ready);
+	KUNIT_EXPECT_EQ(test, dsms_daemon_ready(), ready);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -47,9 +47,9 @@ static void security_dsms_daemon_ready_success_test(struct test *test)
  * Check if a message can be sent.
  * Expected: Function should return 0.
  */
-static void security_dsms_send_netlink_message_success_test(struct test *test)
+static void security_dsms_send_netlink_message_success_test(struct kunit *test)
 {
-	EXPECT_EQ(test, dsms_send_netlink_message("KNIT", "kunit test", 0), 0);
+	KUNIT_EXPECT_EQ(test, dsms_send_netlink_message("KNIT", "kunit test", 0), 0);
 }
 
 /* Function dsms_send_netlink_message has error cases that are
@@ -64,14 +64,14 @@ static void security_dsms_send_netlink_message_success_test(struct test *test)
 /* Module definition                                                         */
 /* ------------------------------------------------------------------------- */
 
-static struct test_case security_dsms_netlink_test_cases[] = {
-	TEST_CASE(security_dsms_daemon_ready_success_test),
-	TEST_CASE(security_dsms_send_netlink_message_success_test),
+static struct kunit_case security_dsms_netlink_test_cases[] = {
+	KUNIT_CASE(security_dsms_daemon_ready_success_test),
+	KUNIT_CASE(security_dsms_send_netlink_message_success_test),
 	{},
 };
 
-static struct test_module security_dsms_netlink_module = {
+static struct kunit_suite security_dsms_netlink_module = {
 	.name = "security-dsms-netlink",
 	.test_cases = security_dsms_netlink_test_cases,
 };
-module_test(security_dsms_netlink_module);
+kunit_test_suites(&security_dsms_netlink_module);
