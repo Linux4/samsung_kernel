@@ -510,7 +510,8 @@ static int ss_mafpc_debug(struct samsung_display_driver_data *vdd)
 static int update_mafpc_scale_FAC(struct samsung_display_driver_data *vdd,
 				char *val, struct ss_cmd_desc *cmd)
 {
-	int bl_lv = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int bl_lvl = state->bl_level;
 	int idx;
 	int i = -1;
 	int ret;
@@ -539,9 +540,9 @@ static int update_mafpc_scale_FAC(struct samsung_display_driver_data *vdd,
 		goto err_skip;
 	}
 
-	if (bl_lv >= MAX_MAFPC_BL_SCALE)
-		bl_lv = MAX_MAFPC_BL_SCALE - 1;
-	idx = brightness_scale_idx[bl_lv];
+	if (bl_lvl >= MAX_MAFPC_BL_SCALE)
+		bl_lvl = MAX_MAFPC_BL_SCALE - 1;
+	idx = brightness_scale_idx[bl_lvl];
 	memcpy(&cmd->txbuf[i], brightness_scale_table[idx], MAFPC_BRIGHTNESS_SCALE_CMD);
 
 	LCD_INFO(vdd, "idx: %d, cmd: %x %x %x\n", idx,

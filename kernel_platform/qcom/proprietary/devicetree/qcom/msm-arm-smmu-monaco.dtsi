@@ -4,23 +4,23 @@
 &soc {
 	kgsl_smmu: kgsl-smmu@0x59a0000 {
 		status = "okay";
-		compatible = "qcom,qsmmu-v500";
+		compatible = "qcom,qsmmu-v500", "qcom,adreno-smmu";
 		reg = <0x59a0000 0x10000>,
 			<0x59da000 0x20>;
 		reg-names = "base", "tcu-base";
 		#iommu-cells = <2>;
 		qcom,skip-init;
 		qcom,use-3-lvl-tables;
+		qcom,num-context-banks-override = <0x05>;
+		qcom,num-smr-override = <0x04>;
 		#global-interrupts = <1>;
 		qcom,regulator-names = "vdd";
 		vdd-supply = <&gpu_cx_gdsc>;
 		clocks = <&gcc GCC_GPU_MEMNOC_GFX_CLK>,
 			<&gcc GCC_GPU_SNOC_DVM_GFX_CLK>,
-			<&gpucc GPU_CC_AHB_CLK>,
 			<&gpucc GPU_CC_HLOS1_VOTE_GPU_SMMU_CLK>;
 			clock-names = "gcc_gpu_memnoc_gfx",
 				"gcc_gpu_snoc_dvm_gfx",
-				"gpu_cc_ahb",
 				"gpu_cc_hlos1_vote_gpu_smmu_clk";
 		#size-cells = <1>;
 		#address-cells = <1>;
@@ -59,6 +59,9 @@
 				#iommu-cells = <2>;
 				qcom,skip-init;
 				qcom,use-3-lvl-tables;
+				qcom,num-context-banks-override = <0x32>;
+				qcom,num-smr-override = <0x28>;
+				qcom,handoff-smrs = <0x420 0x2>;
 				#global-interrupts = <1>;
 				#size-cells = <1>;
 				#address-cells = <1>;
@@ -129,7 +132,11 @@
 					<GIC_SPI 149 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH>;
 
+				interconnects = <&bimc MASTER_AMPSS_M0
+						 &config_noc SLAVE_TCU>;
+
 				qcom,active-only;
+
 				qcom,actlr =
 					/* For rt TBU +3 deep PF */
 					<0x400 0x3ff 0x103>,
@@ -142,6 +149,10 @@
 						<0xc7f2200 0x8>;
 					reg-names = "base", "status-reg";
 					qcom,stream-id-range = <0x0 0x400>;
+					interconnects = <&bimc MASTER_AMPSS_M0
+							 &config_noc SLAVE_IMEM_CFG>,
+							 <&bimc MASTER_AMPSS_M0
+							 &config_noc SLAVE_TCU>;
 					qcom,active-only;
 					qcom,iova-width = <36>;
 				};
@@ -154,6 +165,10 @@
 					qcom,stream-id-range = <0x400 0x400>;
 					qcom,regulator-names = "vdd";
 					vdd-supply = <&hlos1_vote_mm_snoc_mmu_tbu_rt_gdsc>;
+					interconnects = <&mmrt_virt MASTER_MDP_PORT0
+							 &mmrt_virt SLAVE_SNOC_BIMC_RT>,
+							 <&bimc MASTER_AMPSS_M0
+							 &config_noc SLAVE_TCU>;
 					qcom,active-only;
 					qcom,iova-width = <36>;
 				};
@@ -166,6 +181,10 @@
 					qcom,stream-id-range = <0x800 0x400>;
 					qcom,regulator-names = "vdd";
 					vdd-supply = <&hlos1_vote_mm_snoc_mmu_tbu_nrt_gdsc>;
+					interconnects = <&mmnrt_virt MASTER_CAMNOC_SF
+							 &mmnrt_virt SLAVE_SNOC_BIMC_NRT>,
+							 <&bimc MASTER_AMPSS_M0
+							 &config_noc SLAVE_TCU>;
 					qcom,active-only;
 					qcom,iova-width = <36>;
 				};

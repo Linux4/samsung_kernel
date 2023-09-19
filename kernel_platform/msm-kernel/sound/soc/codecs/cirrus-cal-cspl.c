@@ -66,6 +66,13 @@ static unsigned int cirrus_cal_vpk_to_mv(unsigned int vpk)
 	return (vpk * CIRRUS_CAL_VFS_MV) >> 19;
 }
 
+static int32_t cirrus_cal_sign_extend(uint32_t in)
+{
+		uint8_t shift = 8;
+
+		return (int32_t)(in << shift) >> shift;
+}
+
 int cirrus_cal_logger_get_variable(struct cirrus_amp *amp, unsigned int id,
 				   unsigned int *result)
 {
@@ -642,6 +649,8 @@ int cirrus_cal_cspl_read_temp(struct cirrus_amp *amp)
 			cirrus_cal_logger_get_variable(amp,
 				CIRRUS_CAL_RTLOG_ID_TEMP,
 				&reg);
+
+		reg = cirrus_cal_sign_extend(reg);
 		dev_info(amp_group->cal_dev,
 			"Read temp: %d.%04d degrees C\n",
 			reg >> CIRRUS_CAL_RTLOG_RADIX_TEMP,

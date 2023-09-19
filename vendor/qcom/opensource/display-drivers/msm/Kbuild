@@ -263,12 +263,30 @@ ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/DM1_S6E3FAC_AMB606AW01/DM1_S6E
 
 msm_drm-$(CONFIG_PANEL_DM1_S6E3FAC_AMB606AW01_FHD) += samsung/DM1_S6E3FAC_AMB606AW01/DM1_S6E3FAC_AMB606AW01_panel.o
 
+include $(DISPLAY_ROOT)/msm/samsung/DM1_LX83118_CM002/DM1_LX83118_CM002.conf
+ccflags-y += -include $(DISPLAY_ROOT)/msm/samsung/DM1_LX83118_CM002/DM1_LX83118_CM002.h
+
+XXD := /usr/bin/xxd
+SED := /bin/sed
+
+#Translate .dat file to .h to cover the case which can not use request_firmware(Recovery Mode)
+CLEAR_TMP := $(shell rm -f DM1_LX83118_CM002_PDF_DATA)
+COPY_TO_HERE := $(shell cp -vf $(DISPLAY_ROOT)/msm/samsung/panel_data_file/DM1_LX83118_CM002.dat DM1_LX83118_CM002_PDF_DATA)
+DATA_TO_HEX := $(shell $(XXD) -i DM1_LX83118_CM002_PDF_DATA > $(DISPLAY_ROOT)/msm/samsung/DM1_LX83118_CM002/DM1_LX83118_CM002_PDF.h)
+ADD_NULL_CHR := $(shell $(SED) -i -e 's/\([0-9a-f]\)$$/\0, 0x00/' $(DISPLAY_ROOT)/msm/samsung/DM1_LX83118_CM002/DM1_LX83118_CM002_PDF.h)
+
+msm_drm-$(CONFIG_PANEL_DM1_LX83118_CM002_FHD) += samsung/DM1_LX83118_CM002/DM1_LX83118_CM002_panel.o
+
 include $(DISPLAY_ROOT)/msm/samsung/S6E3FAC_AMB606AW01/display_S6E3FAC_AMB606AW01.conf
 ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/S6E3FAC_AMB606AW01/display_S6E3FAC_AMB606AW01.h
 
 msm_drm-$(CONFIG_PANEL_S6E3FAC_AMB606AW01_FHD) += samsung/S6E3FAC_AMB606AW01/ss_dsi_panel_S6E3FAC_AMB606AW01.o
 include $(DISPLAY_ROOT)/msm/samsung/panel_common.conf
 ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/panel_common_conf.h
+
+ifeq ($(TARGET_BUILD_VARIANT), eng)
+ccflags-y += -DCONFIG_OPCODE_PARSER=1
+endif
 
 msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/ss_dsi_panel_sysfs.o \
 	samsung/ss_dsi_panel_debug.o \
@@ -309,8 +327,10 @@ subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
 
 msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/SELF_DISPLAY/self_display_FAC.o \
                                     samsung/SELF_DISPLAY/self_display_HAE.o \
-                                    samsung/SELF_DISPLAY/self_display_XA2.o
-
+                                    samsung/SELF_DISPLAY/self_display_UM1.o \
+                                    samsung/SELF_DISPLAY/self_display_XA2.o \
+                                    samsung/SELF_DISPLAY/self_display_LX83118.o \
+                                    samsung/SELF_DISPLAY/self_display_ANA38407.o
 
 msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/MAFPC/ss_dsi_mafpc_FAC.o \
                                      samsung/MAFPC/ss_dsi_mafpc_HAE.o \

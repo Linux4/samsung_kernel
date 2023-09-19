@@ -23,10 +23,16 @@
 #include <linux/soc/qcom/smem.h>
 #include <soc/qcom/soc_sleep_stats.h>
 #include <clocksource/arm_arch_timer.h>
+#include <soc/qcom/boot_stats.h>
 #if IS_ENABLED(CONFIG_SEC_PM_LOG)
 #include <linux/sec_pm_log.h>
 #endif
-
+#ifdef CONFIG_SEC_FACTORY
+#include <linux/time.h>
+#include <linux/ktime.h>
+#include <linux/time64.h>
+#include "../../adsp_factory/adsp.h"
+#endif
 #if IS_ENABLED(CONFIG_SEC_PM)
 #include <trace/events/power.h>
 
@@ -143,6 +149,12 @@ static bool ddr_freq_update;
 
 #define MAX_COUNT 7
 
+#ifdef CONFIG_SEC_FACTORY
+#define MAX_DSP_ENTRY 2
+#else
+#define MAX_DSP_ENTRY 1
+#endif
+
 struct _dsp_entry {
 	char name[4];
 	uint64_t entry_sec;
@@ -150,10 +162,62 @@ struct _dsp_entry {
 	uint64_t prev_exit_sec;
 	uint64_t prev_exit_msec;
 	uint64_t error_count;
+#ifdef CONFIG_SEC_FACTORY
+	u32 prev_count;
+	struct timespec64 sleep_enter_kts;
+#endif
 	int (*ssr)(void);
-} DSP_ENTRY[1];		// 0 : CDSP, 1 : SLPI - slpi is disabled for the time being.
+} DSP_ENTRY[MAX_DSP_ENTRY];	// 0 : CDSP, 1 : ADSP - adsp is disabled for the time being.
 
 static DECLARE_WORK(dsp_ssr, cdsp_restart);
+#endif
+
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+static struct stats_prv_data *gdata;
+static u64 deep_sleep_last_exited_time;
+
+uint64_t get_aosd_sleep_exit_time(void)
+{
+	int i;
+	uint32_t offset;
+	u64 last_exited_at;
+	u32 count;
+	static u32 saved_deep_sleep_count;
+	u32 s_type = 0;
+	char stat_type[5] = {0};
+	struct stats_prv_data *drv = gdata;
+	void __iomem *reg;
+
+	for (i = 0; i < drv->config->num_records; i++) {
+		offset = STAT_TYPE_ADDR + (i * sizeof(struct sleep_stats));
+
+		if (drv[i].config->appended_stats_avail)
+			offset += i * sizeof(struct appended_stats);
+
+		reg = drv[i].reg + offset;
+
+		s_type = readl_relaxed(reg);
+		memcpy(stat_type, &s_type, sizeof(u32));
+		strim(stat_type);
+
+		if (!memcmp((const void *)stat_type, (const void *)"aosd", 4)) {
+			count = readl_relaxed(reg + COUNT_ADDR);
+
+			if (saved_deep_sleep_count == count)
+				deep_sleep_last_exited_time = 0;
+			else {
+				saved_deep_sleep_count = count;
+				last_exited_at = readq_relaxed(reg + LAST_EXITED_AT_ADDR);
+				deep_sleep_last_exited_time = last_exited_at;
+			}
+			break;
+
+		}
+	}
+
+	return deep_sleep_last_exited_time;
+}
+EXPORT_SYMBOL(get_aosd_sleep_exit_time);
 #endif
 
 static void print_sleep_stats(struct seq_file *s, struct sleep_stats *stat)
@@ -197,10 +261,7 @@ static int soc_sleep_stats_show(struct seq_file *s, void *d)
 	void __iomem *reg = prv_data->reg;
 	struct sleep_stats stat;
 
-	stat.count = readl_relaxed(reg + COUNT_ADDR);
-	stat.last_entered_at = readq(reg + LAST_ENTERED_AT_ADDR);
-	stat.last_exited_at = readq(reg + LAST_EXITED_AT_ADDR);
-	stat.accumulated = readq(reg + ACCUMULATED_ADDR);
+	memcpy_fromio(&stat, reg, sizeof(struct sleep_stats));
 
 	print_sleep_stats(s, &stat);
 
@@ -221,10 +282,13 @@ static void  print_ddr_stats(struct seq_file *s, int *count,
 {
 
 	u32 cp_idx = 0;
-	u32 name, duration = 0;
+	u32 name;
+	u64 duration = 0;
 
-	if (accumulated_duration)
-		duration = (data->duration * 100) / accumulated_duration;
+	if (accumulated_duration) {
+		duration = data->duration * 100;
+		do_div(duration, accumulated_duration);
+	}
 
 	name = (data->name >> 8) & 0xFF;
 	if (name == 0x0) {
@@ -260,9 +324,7 @@ static void ddr_stats_fill_data(void __iomem *reg, u32 entry_count,
 	int i;
 
 	for (i = 0; i < entry_count; i++) {
-		data[i].count = readl_relaxed(reg + DDR_STATS_COUNT_ADDR);
-		data[i].name = readl_relaxed(reg + DDR_STATS_NAME_ADDR);
-		data[i].duration = readq_relaxed(reg + DDR_STATS_DURATION_ADDR);
+		memcpy_fromio(&data[i], reg, sizeof(*data));
 		*accumulated_duration += data[i].duration;
 		reg += sizeof(struct stats_entry);
 	}
@@ -290,13 +352,11 @@ static int ddr_stats_show(struct seq_file *s, void *d)
 	accumulated_duration = 0;
 	reg += sizeof(struct stats_entry) * 0x4;
 	for (i = DDR_STATS_NUM_MODES_ADDR; i < entry_count; i++) {
-		data[i].count = readl_relaxed(reg + DDR_STATS_COUNT_ADDR);
+		memcpy_fromio(&data[i], reg, sizeof(*data));
 		if (ddr_stats_is_freq_overtime(&data[i])) {
 			seq_puts(s, "ddr_stats: Freq update failed.\n");
 			return 0;
 		}
-		data[i].name = readl_relaxed(reg + DDR_STATS_NAME_ADDR);
-		data[i].duration = readq_relaxed(reg + DDR_STATS_DURATION_ADDR);
 		accumulated_duration += data[i].duration;
 		reg += sizeof(struct stats_entry);
 	}
@@ -680,6 +740,36 @@ static void sec_sleep_stats_show(const char *annotation)
 				dsp_entry->prev_exit_msec = duration_msec;
 			}
 		}
+#ifdef CONFIG_SEC_FACTORY
+		dsp_entry = (!strcmp(subsystem->name, "adsp")) ? &DSP_ENTRY[1] : NULL;
+		if (dsp_entry != NULL && !sns_check_ignore_crash()) {
+			if (!is_exit) {
+				// entry
+				dsp_entry->sleep_enter_kts =
+					ktime_to_timespec64(ktime_get_boottime());
+				dsp_entry->prev_count = stat->count;
+			} else {
+				//exit
+				struct timespec64 curr_kts =
+					ktime_to_timespec64(ktime_get_boottime());
+				time64_t diff_kts =
+					curr_kts.tv_sec - dsp_entry->sleep_enter_kts.tv_sec;
+				if (diff_kts > 10) {  // sleep more than 10s
+					u32 diff_count = stat->count - dsp_entry->prev_count;
+					int64_t wakeup_rate = 0;
+					// more than about 200 wakeups in a sec.
+					wakeup_rate = diff_count / diff_kts;
+					if (wakeup_rate > 200) {
+						dsp_entry->error_count = MAX_COUNT + 1;
+						pr_err("%s frequent wakeup, %u, %u\n",
+							dsp_entry->name,
+							(u32)diff_kts,
+							(u32)wakeup_rate);
+					}
+				}
+			}
+		}
+#endif
 #endif
 		buf_ptr += sprintf(buf_ptr, "%s(%d, %u.%u), ",
 						   subsystem->name,
@@ -704,7 +794,7 @@ static void sec_sleep_stats_show(const char *annotation)
 	pr_info("%s", buf);
 
 #if defined(DSP_SLEEP_DEBUG_ON)
-	// 0 : CDSP, 1 : SLPI
+	// 0 : CDSP, 1 : ADSP
 	for (i = 0; i < sizeof(DSP_ENTRY) / sizeof(struct _dsp_entry); i++) {
 		dsp_entry = &DSP_ENTRY[i];
 		if(dsp_entry->error_count > MAX_COUNT) {
@@ -878,6 +968,10 @@ skip_ddr_stats:
 	platform_set_drvdata(pdev, root);
 #endif
 
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+	gdata = prv_data;
+#endif
+
 #if IS_ENABLED(CONFIG_SEC_PM)
 	global_reg_base = reg_base;
 	global_prv_data = prv_data;
@@ -886,6 +980,9 @@ skip_ddr_stats:
 
 #if defined(DSP_SLEEP_DEBUG_ON)
 	strncpy(DSP_ENTRY[0].name, "cdsp", 4);
+#if 0
+	strncpy(DSP_ENTRY[1].name, "adsp", 4);
+#endif
 #endif
 
 	return 0;

@@ -147,6 +147,7 @@ struct max77705_usbc_platform_data {
 	struct work_struct op_wait_work;
 	struct work_struct op_send_work;
 	struct work_struct cc_open_req_work;
+	struct work_struct dp_configure_work;
 #ifdef MAX77705_SYS_FW_UPDATE
 	struct work_struct fw_update_work;
 #endif
@@ -184,6 +185,7 @@ struct max77705_usbc_platform_data {
 	int is_samsung_accessory_enter_mode;
 	int send_enter_mode_req;
 	u8 sbu[2];
+	u8 cc[2];
 	struct completion ccic_sysfs_completion;
 	struct completion psrdy_wait;
 	struct max77705_muic_data *muic_data;
@@ -268,6 +270,8 @@ struct max77705_usbc_platform_data {
 	bool rid_check;
 	int lapse_idx;
 	u64 time_lapse[MAX_NVCN_CNT];
+
+	int wait_entermode;
 };
 
 /* Function Status from s2mm005 definition */

@@ -295,6 +295,20 @@ cm_start_roam_invoke(struct wlan_objmgr_psoc *psoc,
 		     enum wlan_cm_source source);
 #endif
 
+/**
+ * cm_update_tried_candidate_freq_list() - on connection failure update
+ * tried_candidate_freq_list structure present in struct rso_config
+ * @psoc: psoc pointer
+ * @vdev: vdev pointer
+ * @connect_rsp: connect resp from VDEV mgr
+ *
+ * Return: void
+ */
+void
+cm_update_tried_candidate_freq_list(struct wlan_objmgr_psoc *psoc,
+				    struct wlan_objmgr_vdev *vdev,
+				    struct wlan_cm_connect_resp *connect_rsp);
+
 #ifdef FEATURE_WLAN_ESE
 /**
  * cm_create_roam_scan_channel_list() - create roam scan channel list

@@ -942,6 +942,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         </interface>
     </hal>
     <!-- SERVICETRACKER HAL service -->
+    <!--
     <hal format="hidl" optional="true">
         <name>vendor.qti.hardware.servicetracker</name>
         <transport>hwbinder</transport>
@@ -951,6 +952,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <instance>default</instance>
         </interface>
     </hal>
+    -->
     <!-- AON and PostProc service not needed for SAMSUNG_CAMERA -->
     <!-- Camera PostProcessing service -->
     <!--hal format="hidl" optional="true">

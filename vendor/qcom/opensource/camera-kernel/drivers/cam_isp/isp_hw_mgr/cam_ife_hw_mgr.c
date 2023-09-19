@@ -8557,6 +8557,18 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 				sizeof(struct cam_ife_csid_mode_switch_update_args));
 			if (rc)
 				CAM_ERR(CAM_ISP, "Dynamic switch update failed");
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING_REC)
+			if (rc == 0 && 
+				(g_ife_hw_mgr.debug_cfg.csid_dbg_fps == CAM_ISP_CSID_SOF_TIMING_REC_DEBUG_MASK)) {
+				uint32_t sof_irq_en = 1;
+				rc = hw_intf->hw_ops.process_cmd(
+					hw_intf->hw_priv,
+					CAM_IFE_CSID_SOF_IRQ_DEBUG_FOR_MODESWITCH,
+					&sof_irq_en,
+					sizeof(uint32_t));
+			}
+#endif
 		}
 	}
 

@@ -1247,6 +1247,8 @@ struct dp_soc_stats {
 			uint32_t rx_flush_count;
 			/* Rx invalid tid count */
 			uint32_t rx_invalid_tid_err;
+			/* decrypt error drop */
+			uint32_t decrypt_err_drop;
 		} err;
 
 		/* packet count per core - per ring */
@@ -3473,6 +3475,8 @@ struct dp_vdev {
 	/* per vdev nbuf queue for traffic end indication packets */
 	qdf_nbuf_queue_t end_ind_pkt_q;
 #endif
+	/* QDF VDEV operating mode  */
+	enum QDF_OPMODE qdf_opmode;
 };
 
 enum {

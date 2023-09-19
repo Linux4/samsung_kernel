@@ -400,8 +400,17 @@ static void cflm_update_current_freq(void)
 		cpufreq_cpu_put(policy);
 	}
 
-	pr_info("%s: current freq: s(%d ~ %d), g(%d ~ %d), p(%d ~ %d)\n",
-			__func__, s_min, s_max, g_min, g_max, p_min, p_max);
+	if (param.aboost_enabled) {
+		unsigned int a_low = 0, a_high = 0;
+
+		cpufreq_walt_get_adaptive_freq(param.s_first, &a_low, &a_high);
+		pr_info("%s: s((%d, %d) ~ %d), g(%d ~ %d), p(%d ~ %d)\n",
+				__func__, a_low, a_high, s_max, g_min, g_max, p_min, p_max);
+
+	} else {
+		pr_info("%s: s(%d ~ %d), g(%d ~ %d), p(%d ~ %d)\n",
+				__func__, s_min, s_max, g_min, g_max, p_min, p_max);
+	}
 
 	/* sched boost condition */
 	if ((param.sched_boost_type) && (p_min > 748800))	/* TEMP: hard coding */
@@ -463,7 +472,7 @@ static unsigned int cflm_get_vol_matched_freq(unsigned int in_freq)
 	int i;
 	unsigned int out_freq = in_freq;
 
-	if (param.vbf_offset > cflm_vbf.count) {
+	if (param.vbf_offset > cflm_vbf.count || param.vbf_offset < 0) {
 		pr_err("%s: bad condition(off(%d), cnt(%d))",
 			__func__, param.vbf_offset, cflm_vbf.count);
 		return out_freq;
@@ -509,7 +518,6 @@ static int cflm_adaptive_boost(int first_cpu, int min)
 {
 	struct cpufreq_policy *policy;
 	int cpu = 0;
-	unsigned int aboost_low = 0;
 	int ret = 0;
 
 	if (!param.aboost_enabled)
@@ -527,10 +535,14 @@ static int cflm_adaptive_boost(int first_cpu, int min)
 	}
 
 	/* now only for silver */
-	aboost_low = param.aboost_silver_low;
 	for_each_cpu(cpu, policy->related_cpus) {
-		ret = cpufreq_walt_set_adaptive_freq(cpu, aboost_low, min);
-		pr_debug("%s: aboost: cpu%d: %d, %d\n", __func__, cpu, aboost_low, min);
+		if (min > 0) {
+			pr_debug("%s: set aboost: cpu%d: %d, %d\n", __func__, cpu, param.aboost_silver_low, min);
+			ret = cpufreq_walt_set_adaptive_freq(cpu, param.aboost_silver_low, min);
+		} else {
+			pr_debug("%s: clear aboost: cpu%d\n", __func__, cpu);
+			ret = cpufreq_walt_reset_adaptive_freq(cpu);
+		}
 	}
 
 	cpufreq_cpu_put(policy);
@@ -891,11 +903,13 @@ static ssize_t limit_stat_show(struct kobject *kobj,
 	return len;
 }
 
-static ssize_t vbf_table_show(struct kobject *kobj,
+static ssize_t vtable_show(struct kobject *kobj,
 			struct kobj_attribute *attr, char *buf)
 {
 	ssize_t len = 0;
 	int i = 0;
+	struct cpufreq_policy *policy = cpufreq_cpu_get(param.g_first);
+	unsigned int virt_clk = 0;
 
 	if (!cflm_vbf.count)
 		return len;
@@ -906,12 +920,42 @@ static ssize_t vbf_table_show(struct kobject *kobj,
 		return len;
 	}
 
-	for (i = param.vbf_offset; i < cflm_vbf.count; i++) {
-		len += snprintf(buf + len, MAX_BUF_SIZE, "%u - %u\n",
-			cflm_vbf.table[PRIME_CPU][i], cflm_vbf.table[GOLD_CPU][i - param.vbf_offset]);
+	len += snprintf(buf + len, MAX_BUF_SIZE, "====================max=======================min============\n");
+	len += snprintf(buf + len, MAX_BUF_SIZE, "  virt   |  prime   gold    silver |  prime   gold    silver\n");
+	for (i = 0; i < param.freq_count; i++) {
+		virt_clk = param.unified_cpuftbl[i];
+
+		if (virt_clk > param.ltl_max_freq) {
+			len += snprintf(buf + len, MAX_BUF_SIZE, " %7u | %7u %7u %7u | %7u %7u %7u \n",
+				virt_clk,
+
+				/* max = limit */
+				virt_clk,
+				cflm_get_vol_matched_freq(virt_clk),
+				cflm_get_silver_limit(virt_clk),
+
+				/* min = boost */
+				virt_clk,
+				cpufreq_driver_resolve_freq(policy, virt_clk),
+				cflm_get_silver_boost(virt_clk));
+		} else {
+			len += snprintf(buf + len, MAX_BUF_SIZE, " %7u | %7u %7u %7u | %7u %7u %7u \n",
+				virt_clk,
+
+				/* max = limit */
+				param.p_fmin,
+				param.g_fmin,
+				cflm_get_silver_limit(virt_clk),
+
+				/* min = boost */
+				0,
+				0,
+				cflm_get_silver_boost(virt_clk));
+		}
 	}
-	len--;
-	len += snprintf(buf + len, MAX_BUF_SIZE, "\n");
+	len += snprintf(buf + len, MAX_BUF_SIZE, "=============================================================\n");
+
+	cpufreq_cpu_put(policy);
 
 	pr_info("%s: %s\n", __func__, buf);
 
@@ -963,12 +1007,12 @@ static struct kobj_attribute limit_stat = {
 	.show	= limit_stat_show,
 };
 
-static struct kobj_attribute vbf_table = {
+static struct kobj_attribute vtable = {
 	.attr	= {
-		.name = "vbf_table",
+		.name = "vtable",
 		.mode = 0444
 	},
-	.show	= vbf_table_show,
+	.show	= vtable_show,
 	.store	= NULL,
 };
 
@@ -1084,7 +1128,7 @@ static struct attribute *cflm_attributes[] = {
 	&over_limit.attr,
 	&limit_stat.attr,
 	&cflm_info.attr,
-	&vbf_table.attr,
+	&vtable.attr,
 	&sched_boost_type_attr.attr,
 	&vol_based_clk_attr.attr,
 	&vbf_offset_attr.attr,

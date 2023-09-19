@@ -1484,33 +1484,11 @@ lim_enc_type_matched(struct mac_context *mac_ctx,
 	return false;
 }
 
-/**
- * lim_detect_change_in_ap_capabilities()
- *
- ***FUNCTION:
- * This function is called while SCH is processing
- * received Beacon from AP on STA to detect any
- * change in AP's capabilities. If there any change
- * is detected, Roaming is informed of such change
- * so that it can trigger reassociation.
- *
- ***LOGIC:
- *
- ***ASSUMPTIONS:
- *
- ***NOTE:
- * Notification is enabled for STA product only since
- * it is not a requirement on BP side.
- *
- * @param  mac      Pointer to Global MAC structure
- * @param  pBeacon   Pointer to parsed Beacon structure
- * @return None
- */
-
 void
 lim_detect_change_in_ap_capabilities(struct mac_context *mac,
 				     tpSirProbeRespBeacon pBeacon,
-				     struct pe_session *pe_session)
+				     struct pe_session *pe_session,
+				     bool is_bcn)
 {
 	uint8_t len;
 	uint32_t new_chan_freq;
@@ -1536,16 +1514,17 @@ lim_detect_change_in_ap_capabilities(struct mac_context *mac,
 		(new_chan_freq != 0)) ||
 	      (false == security_caps_matched)
 	     ))) {
-		if (false == pe_session->fWaitForProbeRsp) {
+		if (!pe_session->fWaitForProbeRsp || is_bcn) {
 			/* If Beacon capabilities is not matching with the current capability,
 			 * then send unicast probe request to AP and take decision after
 			 * receiving probe response */
-			if (true == pe_session->fIgnoreCapsChange) {
-				pe_debug("Ignoring the Capability change as it is false alarm");
+			if (pe_session->fIgnoreCapsChange) {
+				pe_debug_rl("Ignore the Capability change as probe rsp Capability matched");
 				return;
 			}
 			pe_session->fWaitForProbeRsp = true;
-			pe_warn("AP capabilities are not matching, sending directed probe request");
+			pe_info(QDF_MAC_ADDR_FMT ": capabilities are not matching, sending directed probe request",
+				QDF_MAC_ADDR_REF(pe_session->bssId));
 			status =
 				lim_send_probe_req_mgmt_frame(
 					mac, &pe_session->ssId,
@@ -1569,8 +1548,9 @@ lim_detect_change_in_ap_capabilities(struct mac_context *mac,
 		      pBeacon->ssId.length + 1;
 
 		if (new_chan_freq != pe_session->curr_op_freq) {
-			pe_err("Channel freq Change from %d --> %d Ignoring beacon!",
-			       pe_session->curr_op_freq, new_chan_freq);
+			pe_info(QDF_MAC_ADDR_FMT ": Channel freq Change from %d --> %d Ignoring beacon!",
+				QDF_MAC_ADDR_REF(pe_session->bssId),
+				pe_session->curr_op_freq, new_chan_freq);
 			return;
 		}
 
@@ -1586,29 +1566,29 @@ lim_detect_change_in_ap_capabilities(struct mac_context *mac,
 		 */
 		else if ((SIR_MAC_GET_PRIVACY(ap_cap) == 0) &&
 			 (pBeacon->rsnPresent || pBeacon->wpaPresent)) {
-			pe_err("BSS Caps (Privacy) bit 0 in beacon, but WPA or RSN IE present, Ignore Beacon!");
+			pe_info_rl(QDF_MAC_ADDR_FMT ": BSS Caps (Privacy) bit 0 in beacon, but WPA or RSN IE present, Ignore Beacon!",
+				   QDF_MAC_ADDR_REF(pe_session->bssId));
 			return;
 		}
 
 		pe_session->fIgnoreCapsChange = false;
 		pe_session->fWaitForProbeRsp = false;
 		pe_session->limSentCapsChangeNtf = true;
-		pe_err("Disconnect as cap mismatch!");
+		pe_info(QDF_MAC_ADDR_FMT ": initiate Disconnect due to cap mismatch!",
+			QDF_MAC_ADDR_REF(pe_session->bssId));
 		lim_send_deauth_mgmt_frame(mac, REASON_UNSPEC_FAILURE,
 					   pe_session->bssId, pe_session,
 					   false);
 		lim_tear_down_link_with_ap(mac, pe_session->peSessionId,
 					   REASON_UNSPEC_FAILURE,
 					   eLIM_HOST_DISASSOC);
-	} else if (true == pe_session->fWaitForProbeRsp) {
+	} else if (pe_session->fWaitForProbeRsp) {
 		/* Only for probe response frames and matching capabilities the control
 		 * will come here. If beacon is with broadcast ssid then fWaitForProbeRsp
 		 * will be false, the control will not come here*/
 
-		pe_debug("capabilities in probe response are"
-				       "matching with the current setting,"
-				       "Ignoring subsequent capability"
-				       "mismatch");
+		pe_debug(QDF_MAC_ADDR_FMT ": capabilities in probe rsp are matching, so ignoring capability mismatch",
+			 QDF_MAC_ADDR_REF(pe_session->bssId));
 		pe_session->fIgnoreCapsChange = true;
 		pe_session->fWaitForProbeRsp = false;
 	}

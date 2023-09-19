@@ -528,10 +528,14 @@ static void sde_encoder_phys_vid_vblank_irq(void *arg, int irq_idx)
 	if (vdd) {
 		if (atomic_add_unless(&vdd->ss_vsync_cnt, -1, 0) &&
 			(atomic_read(&vdd->ss_vsync_cnt) == 0)) {
-			wake_up_all(&vdd->ss_vync_wq);
+			wake_up_all(&vdd->ss_vsync_wq);
 			pr_info("sde_encoder_phys_vid_vblank_irq  ss_vsync_cnt: %d\n", atomic_read(&vdd->ss_vsync_cnt));
 		}
 		vdd->vblank_irq_time = ktime_to_us(ktime_get());
+
+		/* To check whether last finger mask frame kickoff is started */
+		if (vdd->support_optical_fingerprint)
+			vdd->panel_hbm_exit_frame_wait = false;
 
 		ss_print_vsync(vdd);
 	}
@@ -1228,7 +1232,7 @@ static void sde_encoder_phys_vid_disable(struct sde_encoder_phys *phys_enc)
 	 * Timing generator & dsi clock should be enabled to use vsync irq.
 	 */
 	if (vdd)
-		wait_event_timeout(vdd->ss_vync_wq,
+		wait_event_timeout(vdd->ss_vsync_wq,
 			atomic_read(&vdd->ss_vsync_cnt) == 0, msecs_to_jiffies(500));
 #endif
 

@@ -209,8 +209,13 @@ public:
     int GetPalDeviceIds(
             const std::set<audio_devices_t>& hal_device_id,
             pal_device_id_t* pal_device_id);
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    int usb_card_id_ = -1;
+    int usb_dev_num_ = -1;
+#else
     int usb_card_id_;
     int usb_dev_num_;
+#endif
     int dp_controller;
     int dp_stream;
     int num_va_sessions_ = 0;
@@ -299,7 +304,11 @@ protected:
     std::mutex out_list_mutex;
     std::mutex in_list_mutex;
     std::mutex patch_map_mutex;
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    static btsco_lc3_cfg_t btsco_lc3_cfg;
+#else
     btsco_lc3_cfg_t btsco_lc3_cfg;
+#endif
     bool bt_lc3_speech_enabled;
     void *offload_effects_lib_;
 #ifdef SEC_AUDIO_OFFLOAD

@@ -28,6 +28,9 @@
 #
 #
 on post-fs-data
+# DSP bigdata
+    chown system audio /sys/class/audio/dsp/srcnt
+    
 # Cirrus Amp Calibration
     chown system audio /sys/class/cirrus/cirrus_cal/status
     chown system audio /sys/class/cirrus/cirrus_cal/rdc

@@ -75,7 +75,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/wireless/s2miw04/s2miw04_charger.dm1q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1788/android/kernel_platform/kmodule/battery/stable/dm/wireless/s2miw04/s2miw04_charger.dm1q.dtsi */
 #include <dt-bindings/battery/sec-battery.h>
 
 &pm8550ve_f_gpios {
@@ -157,16 +157,19 @@
 
 		iec_data {
 			reg_56 = <0x32>;
-			reg_57 = <0x4A>;
-			reg_5B = <0x60>;
+			reg_57 = <0x1E>;
+			reg_5B = <0x1E>;
 			reg_84 = <0x5A>;
 			reg_85 = <0x1B>;
-			reg_86 = <0x4A>;
+			reg_86 = <0x09>;
 			reg_87 = <0x0C>;
 			reg_88 = <0xA6>;
-			reg_89 = <0x32>;
-			reg_8A = <0x73>;
+			reg_89 = <0x3C>;
+			reg_8A = <0x78>;
 			reg_8B = <0x5F>;
+			reg_800 = <0x28>;
+			reg_801 = <0x46>;
+			reg_802 = <0x8C>;
 		};
 	};
 };

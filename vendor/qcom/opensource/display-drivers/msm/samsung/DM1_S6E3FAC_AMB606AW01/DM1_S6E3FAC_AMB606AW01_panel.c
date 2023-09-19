@@ -1471,10 +1471,11 @@ static void update_glut_map(struct samsung_display_driver_data *vdd)
 static int update_glut_enable(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	int cur_rr = vdd->vrr.cur_refresh_rate;
-	bool cur_hs = vdd->vrr.cur_sot_hs_mode;
-	bool cur_phs = vdd->vrr.cur_phs_mode;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	bool cur_hs = state->sot_hs;
+	bool cur_phs = state->sot_phs;
+	int bl_lvl = state->bl_level;
 	enum VRR_CMD_RR cur_md_base = ss_get_vrr_mode_base(vdd, cur_rr, cur_hs, cur_phs);
 	int i = -1;
 	bool glut_enable = true;
@@ -1514,10 +1515,11 @@ err_skip:
 static int update_glut(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	int cur_rr = vdd->vrr.cur_refresh_rate;
-	bool cur_hs = vdd->vrr.cur_sot_hs_mode;
-	bool cur_phs = vdd->vrr.cur_phs_mode;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	bool cur_hs = state->sot_hs;
+	bool cur_phs = state->sot_phs;
+	int bl_lvl = state->bl_level;
 	enum VRR_CMD_RR cur_md_base = ss_get_vrr_mode_base(vdd, cur_rr, cur_hs, cur_phs);
 	struct cmd_legoop_map *glut_map;
 	int i = -1, j;
@@ -1573,11 +1575,12 @@ err_skip:
 static int update_aor_DM1_S6E3FAC_AMB606AW01(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	struct vrr_info *vrr = &vdd->vrr;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
-	int cur_rr = vrr->cur_refresh_rate;
-	int cur_hs = vrr->cur_sot_hs_mode;
-	int cur_phs = vrr->cur_phs_mode;
+
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	bool cur_hs = state->sot_hs;
+	bool cur_phs = state->sot_phs;
+	int bl_lvl = state->bl_level;
 	enum VRR_CMD_RR cur_md_base = ss_get_vrr_mode_base(vdd, cur_rr, cur_hs, cur_phs);
 	struct cmd_legoop_map *manual_aor_map = NULL;
 	int i = -1;

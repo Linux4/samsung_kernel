@@ -705,6 +705,65 @@ static const struct file_operations mafpc_fops = {
 	.write = ss_mafpc_write_from_user,
 };
 
+/*
+ * W B0 00 09 87
+ * W 87 XX XX XX	// Scale Factor
+ * UPDATE MAFPC_SCALE // by bl_level
+ * ss_mafpc_brightness_scale_XA2
+ * TX_MAFPC_BRIGHTNESS_SCALE
+ * samsung,mafpc_brightness_scale_revA
+ * brightness_scale_table is updated from user space..
+ * this should be done by each panel driver...
+ */
+static int update_mafpc_scale_XA2(struct samsung_display_driver_data *vdd,
+				char *val, struct ss_cmd_desc *cmd)
+{
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int bl_lvl = state->bl_level;
+	int idx;
+	int i = -1;
+	int ret;
+
+	cmd->skip_by_cond = false;
+
+	if (!vdd->mafpc.en) {
+		LCD_INFO(vdd, "mAFPC is not enabled\n");
+		ret = -EPERM;
+		goto err_skip;
+	}
+
+	if (!vdd->mafpc.is_br_table_updated) {
+		LCD_ERR(vdd, "Brightness Table for mAFPC is not updated yet\n");
+		ret = -EPERM;
+		goto err_skip;
+	}
+
+
+	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len)
+		;
+
+	if (i + MAFPC_BRIGHTNESS_SCALE_CMD > cmd->tx_len) {
+		LCD_ERR(vdd, "fail to find proper 0xXX position(%d, %d)\n",
+				i, cmd->tx_len);
+		ret = -EINVAL;
+		goto err_skip;
+	}
+
+	if (bl_lvl >= MAX_MAFPC_BL_SCALE)
+		bl_lvl = MAX_MAFPC_BL_SCALE - 1;
+	idx = brightness_scale_idx[bl_lvl];
+	memcpy(&cmd->txbuf[i], brightness_scale_table[idx], MAFPC_BRIGHTNESS_SCALE_CMD);
+
+	LCD_INFO(vdd, "idx: %d, cmd: %x %x %x\n", idx,
+			cmd->txbuf[i], cmd->txbuf[i + 1], cmd->txbuf[i + 2]);
+
+	return 0;
+
+err_skip:
+	cmd->skip_by_cond = true;
+	return ret;
+}
+
 #define DEV_NAME_SIZE 24
 int ss_mafpc_init_XA2(struct samsung_display_driver_data *vdd)
 {
@@ -763,6 +822,8 @@ int ss_mafpc_init_XA2(struct samsung_display_driver_data *vdd)
 		vdd->mafpc.is_support = false;
 		return -ENODEV;
 	}
+
+	register_op_sym_cb(vdd, "MAFPC", update_mafpc_scale_XA2, true);
 
 	LCD_INFO(vdd, "Success to register mafpc device..(%d)\n", ret);
 

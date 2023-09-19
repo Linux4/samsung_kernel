@@ -1265,6 +1265,16 @@ void lim_process_mlm_set_keys_cnf(struct mac_context *mac, uint32_t *msg_buf)
 				     pe_session, pe_session->smeSessionId);
 } /*** end lim_process_mlm_set_keys_cnf() ***/
 
+void lim_update_lost_link_rssi(struct mac_context *mac, uint32_t rssi)
+{
+	if (!mac) {
+		pe_debug("mac is null");
+		return;
+	}
+
+	mac->lim.bss_rssi = rssi;
+}
+
 void lim_join_result_callback(struct mac_context *mac,
 			      uint8_t vdev_id)
 {

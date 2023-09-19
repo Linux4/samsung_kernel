@@ -5398,6 +5398,9 @@ uint32_t lim_get_num_pwr_levels(bool is_psd,
 		case CH_WIDTH_160MHZ:
 			num_pwr_levels = 8;
 			break;
+		case CH_WIDTH_320MHZ:
+			num_pwr_levels = 16;
+			break;
 		default:
 			pe_err("Invalid channel width");
 			return 0;
@@ -5415,6 +5418,9 @@ uint32_t lim_get_num_pwr_levels(bool is_psd,
 			break;
 		case CH_WIDTH_160MHZ:
 			num_pwr_levels = 4;
+			break;
+		case CH_WIDTH_320MHZ:
+			num_pwr_levels = 5;
 			break;
 		default:
 			pe_err("Invalid channel width");

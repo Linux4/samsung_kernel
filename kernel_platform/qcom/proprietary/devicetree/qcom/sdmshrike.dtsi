@@ -24,9 +24,11 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 	memory { device_type = "memory"; reg = <0 0 0 0>; };
+	ddr-regions { };
 
 	aliases {
 		ufshc1 = &ufshc_mem; /* Embedded UFS slot */
+		mmc1 = &sdhc_2; /* SDC2 SD Card slot */
 		serial0 = &qupv3_se12_2uart;
 		spi22 = &qupv3_se22_spi;
 		i2c7 = &qupv3_se20_i2c;
@@ -333,7 +335,9 @@
 		};
 	};
 
-	chosen {};
+	chosen {
+		bootargs = "kpti=0 ssbd=force-off qcom_dma_heaps.enable_bitstream_contig_heap=y";
+	};
 
 	firmware: firmware {
 		android {
@@ -399,11 +403,6 @@
 			reg = <0x0 0x8b700000 0x0 0x500000>;
 		};
 
-		pil_wlan_fw_mem: pil_wlan_fw_region@8bc00000 {
-			no-map;
-			reg = <0x0 0x8bc00000 0x0 0x180000>;
-		};
-
 		pil_npu_mem: pil_npu_region@8bd80000 {
 			no-map;
 			reg = <0x0 0x8bd80000 0x0 0x80000>;
@@ -414,7 +413,7 @@
 			reg = <0x0 0x8be00000 0x0 0x1a00000>;
 		};
 
-		pil_modem_mem: modem_region@8d800000 {
+		rproc_modem_mem: rproc_modem_region@8d800000 {
 			no-map;
 			reg = <0x0 0x8d800000 0x0 0x9600000>;
 		};
@@ -456,21 +455,14 @@
 
 		qseecom_mem: qseecom_region {
 			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x1400000>;
+			no-map;
+			reg = <0x0 0x9e400000 0x0 0x1400000>;
 		};
 
 
 		cont_splash_memory: splash_region {
 			reg = <0x0 0x9c000000 0x0 0x02400000>;
 			label = "cont_splash_region";
-		};
-
-		disp_rdump_memory: disp_rdump_region@9c000000 {
-			reg = <0x0 0x9c000000 0x0 0x02400000>;
-			label = "disp_rdump_region";
 		};
 
 		adsp_mem: adsp_region {
@@ -1083,6 +1075,12 @@
 		#power-domain-cells = <1>;
 	};
 
+	aop-set-ddr-freq {
+		compatible = "qcom,aop-set-ddr-freq";
+		mboxes = <&qmp_aop 0>;
+		mbox-names = "aop";
+	};
+
 	qmp_aop: qcom,qmp-aop@c300000 {
 		compatible = "qcom,qmp-mbox";
 		qcom,qmp = <&aoss_qmp>;
@@ -1164,6 +1162,26 @@
 		};
 
 		cdsp_smp2p_in: slave-kernel {
+			qcom,entry-name = "slave-kernel";
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
+	qcom,smp2p-modem {
+		compatible = "qcom,smp2p";
+		qcom,smem = <435>, <428>;
+		interrupts = <GIC_SPI 451 IRQ_TYPE_EDGE_RISING>;
+		qcom,ipc = <&apcs 0 14>;
+		qcom,local-pid = <0>;
+		qcom,remote-pid = <1>;
+
+		modem_smp2p_out: master-kernel {
+			qcom,entry-name = "master-kernel";
+			#qcom,smem-state-cells = <1>;
+		};
+
+		modem_smp2p_in: slave-kernel {
 			qcom,entry-name = "slave-kernel";
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -1387,7 +1405,8 @@
 						<  672000  768000 >,
 						<  864000  960000 >,
 						< 1171200 1228800 >,
-						< 1267200 1344000 >;
+						< 1267200 1344000 >,
+						< 1766400 1651200 >;
 				qcom,sampling-enabled;
 			};
 
@@ -1400,7 +1419,8 @@
 						<  768000  768000 >,
 						<  960000  960000 >,
 						< 1248000 1228800 >,
-						< 1593600 1344000 >;
+						< 1593600 1344000 >,
+						< 2841600 1651200 >;
 				qcom,sampling-enabled;
 			};
 		};
@@ -1447,7 +1467,7 @@
 		memory-region = <&rproc_adsp_mem>;
 
 		/* Inputs from ssc */
-		interrupts-extended = <&pdc 6 IRQ_TYPE_EDGE_RISING>,
+		interrupts-extended = <&intc GIC_SPI 162 IRQ_TYPE_LEVEL_HIGH>,
 					<&adsp_smp2p_in 0 0>,
 					<&adsp_smp2p_in 2 0>,
 					<&adsp_smp2p_in 1 0>,
@@ -1571,6 +1591,136 @@
 		};
 	};
 
+	modem_pas: remoteproc-modem@4080000 {
+		compatible = "qcom,sdmshrike-mpss-pas";
+		reg = <0x4080000 0x00100>;
+		status = "disabled";
+		cx-supply = <&VDD_CX_LEVEL>;
+		cx-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 100000>;
+		mx-supply = <&VDD_MX_LEVEL>;
+		mx-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 100000>;
+		reg-names = "cx", "mx";
+
+		clocks = <&rpmhcc RPMH_CXO_CLK>;
+		clock-names = "xo";
+
+		qcom,qmp = <&aoss_qmp>;
+
+		interconnects = <&aggre2_noc MASTER_CRYPTO &mc_virt SLAVE_EBI1>;
+		interconnect-names = "crypto_ddr";
+
+		memory-region = <&rproc_modem_mem>;
+
+		/* Inputs from mss */
+		interrupts-extended = <&intc GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>,
+					<&modem_smp2p_in 0 0>,
+					<&modem_smp2p_in 2 0>,
+					<&modem_smp2p_in 1 0>,
+					<&modem_smp2p_in 3 0>,
+					<&modem_smp2p_in 7 0>;
+
+		interrupt-names = "wdog",
+				"fatal",
+				"handover",
+				"ready",
+				"stop-ack",
+				"shutdown-ack";
+
+		/* Outputs to mss */
+		qcom,smem-states = <&modem_smp2p_out 0>;
+		qcom,smem-state-names = "stop";
+
+		glink_edge_modem: glink-edge {
+			qcom,remote-pid = <1>;
+			transport = "smem";
+			mboxes = <&apss_shared 12>;
+			mbox-names = "mpss_smem";
+			interrupts = <GIC_SPI 449 IRQ_TYPE_EDGE_RISING>;
+
+			label = "modem";
+			qcom,glink-label = "mpss";
+
+			qcom,modem_qrtr {
+				qcom,glink-channels = "IPCRTR";
+				qcom,low-latency;
+				qcom,intents = <0x800  5
+						0x2000 3
+						0x4400 2>;
+			};
+
+			qcom,msm_fastrpc_rpmsg {
+				compatible = "qcom,msm-fastrpc-rpmsg";
+				qcom,glink-channels = "fastrpcglink-apps-dsp";
+				qcom,intents = <0x64 64>;
+			};
+
+			qcom,modem_glink_ssr {
+				qcom,glink-channels = "glink_ssr";
+			};
+		};
+	};
+
+	sdhc2_opp_table: sdhc2-opp-table {
+		compatible = "operating-points-v2";
+
+		opp-100000000 {
+			opp-hz = /bits/ 64 <100000000>;
+			opp-peak-kBps = <1600000 280000>;
+			opp-avg-kBps = <50000 0>;
+		};
+
+		opp-202000000 {
+			opp-hz = /bits/ 64 <202000000>;
+			opp-peak-kBps = <5600000 1500000>;
+			opp-avg-kBps = <104000 0>;
+		};
+	};
+
+	sdhc_2: sdhci@8804000 {
+		compatible = "qcom,sdhci-msm-v5";
+		reg = <0x8804000 0x1000>;
+		reg-names = "hc_mem";
+
+		interrupts = <GIC_SPI 204 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 222 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "hc_irq", "pwr_irq";
+
+		clocks = <&gcc GCC_SDCC2_AHB_CLK>,
+			<&gcc GCC_SDCC2_APPS_CLK>;
+		clock-names = "iface", "core";
+
+		bus-width = <4>;
+		qcom,restore-after-cx-collapse;
+
+
+		iommus = <&apps_smmu 0x06A0 0x0>;
+		qcom,iommu-dma = "fastmap";
+		dma-coherent;
+
+		interconnects = <&aggre2_noc MASTER_SDCC_2 &mc_virt SLAVE_EBI1>,
+			<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_SDCC_2>;
+		interconnect-names = "sdhc-ddr","cpu-sdhc";
+		operating-points-v2 = <&sdhc2_opp_table>;
+
+
+		/* DLL HSR settings. Refer go/hsr - <Target> DLL settings */
+		qcom,dll-hsr-list = <0x0007642c 0x0 0x10 0x2C010800 0x80040868>;
+
+		qcom,devfreq,freq-table = <50000000 200000000>;
+
+		status = "disabled";
+
+		qos0 {
+			mask = <0x0f>;
+			vote = <70>;
+		};
+
+		qos1 {
+			mask = <0xf0>;
+			vote = <70>;
+		};
+	};
+
 	ufsphy_mem: ufsphy_mem@1d87000 {
 		reg = <0x1d87000 0xe00>; /* PHY regs */
 		reg-names = "phy_mem";
@@ -1593,7 +1743,7 @@
 		compatible = "qcom,ufshc";
 		reg = <0x1d84000 0x3000>,
 			  <0x1d90000 0x8000>;
-		reg-names = "ufs_mem", "ice";
+		reg-names = "ufs_mem", "ufs_ice";
 		interrupts = <GIC_SPI 265 IRQ_TYPE_LEVEL_HIGH>;
 		phys = <&ufsphy_mem>;
 		phy-names = "ufsphy";
@@ -1700,7 +1850,7 @@
 		reset-names = "rst";
 
 		iommus = <&apps_smmu 0x300 0x0>;
-		qcom,iommu-dma = "bypass";
+		qcom,iommu-dma = "fastmap";
 		dma-coherent;
 
 		status = "disabled";
@@ -1719,6 +1869,7 @@
 
 	qtee_shmbridge {
 		compatible = "qcom,tee-shared-memory-bridge";
+		qcom,disable-shmbridge-support;
 	};
 
 	qcom_qseecom: qseecom@87900000 {
@@ -1736,6 +1887,49 @@
 		qcom,appsbl-qseecom-support;
 		qcom,commonlib64-loaded-by-uefi;
 		qcom,qsee-reentrancy-support = <2>;
+	};
+
+	qcom_cedev: qcedev@1de0000 {
+		compatible = "qcom,qcedev";
+		reg = <0x1de0000 0x20000>,
+			<0x1dc4000 0x28000>;
+		reg-names = "crypto-base","crypto-bam-base";
+		interrupts = <GIC_SPI 272 IRQ_TYPE_LEVEL_HIGH>;
+		qcom,bam-pipe-pair = <2>;
+		qcom,ce-hw-instance = <0>;
+		qcom,ce-device = <0>;
+		qcom,ce-hw-shared;
+		qcom,bam-ee = <0>;
+		qcom,smmu-s1-enable;
+		qcom,no-clock-support;
+		interconnect-names = "data_path";
+		interconnects = <&aggre2_noc MASTER_CRYPTO &mc_virt SLAVE_EBI1>;
+		iommus = <&apps_smmu 0x0512 0x0000>,
+			<&apps_smmu 0x051C 0x0005>,
+			<&apps_smmu 0x051D 0x0005>,
+			<&apps_smmu 0x051F 0x0000>;
+		qcom,iommu-dma = "atomic";
+		dma-coherent;
+
+		qcom_cedev_ns_cb {
+			compatible = "qcom,qcedev,context-bank";
+			label = "ns_context";
+			iommus = <&apps_smmu 0x0504 0x0013>,
+				<&apps_smmu 0x0508 0x0001>,
+				<&apps_smmu 0x0514 0x0013>,
+				<&apps_smmu 0x0518 0x0005>;
+			dma-coherent;
+		};
+
+		qcom_cedev_s_cb {
+			compatible = "qcom,qcedev,context-bank";
+			label = "secure_context";
+			iommus = <&apps_smmu 0x0513 0x0000>,
+				<&apps_smmu 0x051E 0x0000>;
+			qcom,iommu-vmid = <0x9>;
+			qcom,secure-context-bank;
+			dma-coherent;
+		};
 	};
 
 	qcom_rng: qrng@793000 {
@@ -1906,6 +2100,8 @@
 			dma-coherent;
 		};
 	};
+
+	msm_gpu: qcom,kgsl-3d0@2c00000 { };
 };
 
 &firmware {
@@ -1923,6 +2119,7 @@
 #include "msm-arm-smmu-sdmshrike.dtsi"
 #include "sdmshrike-debug.dtsi"
 #include "sa8195-usb.dtsi"
+#include "sm8150-npu.dtsi"
 
 &slpi_tlmm {
 	status = "ok";

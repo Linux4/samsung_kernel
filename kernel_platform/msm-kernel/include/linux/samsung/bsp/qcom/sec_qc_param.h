@@ -34,7 +34,8 @@ enum sec_qc_param_index {
 	param_index_VrrStatus,
 	param_index_pd_hv_disable,
 	param_vib_le_est,
-	param_index_max_sec_param_data,
+	/* */
+	param_num_of_param_index,
 };
 
 #if IS_ENABLED(CONFIG_SEC_QC_PARAM)

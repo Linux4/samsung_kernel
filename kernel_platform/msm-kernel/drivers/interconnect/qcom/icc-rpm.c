@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2020 Linaro Ltd
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  */
 
@@ -9,6 +9,7 @@
 #include <linux/clk.h>
 #include <linux/interconnect-provider.h>
 #include <linux/module.h>
+#include <dt-bindings/interconnect/qcom,icc.h>
 
 #include "icc-rpm.h"
 #include "qnoc-qos.h"
@@ -26,6 +27,21 @@ static int qcom_icc_rpm_smd_send_msg(int ctx, int rsc_type, int rpm_id, u64 val)
 
 	return ret;
 }
+
+/**
+ * qcom_icc_get_bw_stub - initializes the bw values to zero
+ * @node: icc node to operate on
+ * @avg_bw: initial bw to sum aggregate
+ * @peak_bw: initial bw to max aggregate
+ */
+int qcom_icc_get_bw_stub(struct icc_node *node, u32 *avg, u32 *peak)
+{
+	*avg = 0;
+	*peak = 0;
+
+	return 0;
+}
+EXPORT_SYMBOL(qcom_icc_get_bw_stub);
 
 /**
  * qcom_icc_rpm_pre_aggregate - cleans up stale values from prior icc_set
@@ -62,10 +78,10 @@ int qcom_icc_rpm_aggregate(struct icc_node *node, u32 tag, u32 avg_bw,
 
 	qn = node->data;
 
-	if (!tag)
-		tag = BIT(RPM_SLEEP_CXT) | BIT(RPM_ACTIVE_CXT);
-	else
+	if (tag && !(tag & QCOM_ICC_TAG_SLEEP))
 		tag = BIT(RPM_ACTIVE_CXT);
+	else
+		tag = BIT(RPM_SLEEP_CXT) | BIT(RPM_ACTIVE_CXT);
 
 	for (i = 0; i < RPM_NUM_CXT; i++) {
 		if (tag & BIT(i)) {

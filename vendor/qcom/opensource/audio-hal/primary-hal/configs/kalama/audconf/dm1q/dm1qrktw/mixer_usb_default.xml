@@ -31,7 +31,7 @@
 
     <!-- Play Scenario  -->
     <path name="usb-headphones-gain">
-        <ctl name="Headset Playback Volume" value="118 118" />
+        <ctl name="Headset Playback Volume" value="113 113" />
     </path>
 
     <path name="speaker-and-usb-headphones-gain">
@@ -39,7 +39,7 @@
     </path>
 
     <path name="fm-usb-headphones-gain">
-        <ctl name="Headset Playback Volume" value="118 118" />
+        <ctl name="Headset Playback Volume" value="113 113" />
     </path>
 
     <path name="aas-usb-headset-gain">

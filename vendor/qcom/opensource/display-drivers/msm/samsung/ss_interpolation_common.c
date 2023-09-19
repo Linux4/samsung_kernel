@@ -262,13 +262,13 @@ static void update_hbm_interpolation(struct samsung_display_driver_data *vdd,
 	if (vdd->panel_func.gen_hbm_interpolation_gamma)
 		vdd->panel_func.gen_hbm_interpolation_gamma(vdd, br_tbl, hbm_table, hbm_table_size);
 	else
-		LCD_ERR(vdd,   "No gen_hbm_interpolation_gamma !!\n");
+		LCD_ERR(vdd, "No gen_hbm_interpolation_gamma\n");
 
 	/* 3st */
 	if (vdd->panel_func.gen_hbm_interpolation_irc)
 		vdd->panel_func.gen_hbm_interpolation_irc(vdd, br_tbl, hbm_table, hbm_table_size);
 	else
-		LCD_ERR(vdd,   "No gen_hbm_interpolation_irc !!\n");
+		LCD_ERR(vdd, "No gen_hbm_interpolation_irc\n");
 
 	/* 4st */
 	update_hbm_candela_map_table(vdd, br_tbl);
@@ -535,7 +535,7 @@ int gen_normal_interpolation_aor_gamma_legacy(struct samsung_display_driver_data
 		normal_itp = &br_tbl->table_itp.normal;
 
 	if (!vdd->panel_func.get_gamma_V_size) {
-		LCD_ERR(vdd,   "error: no get_gamma_V_size\n");
+		LCD_ERR(vdd, "no get_gamma_V_size\n");
 		return -ENODEV;
 	}
 	gamma_V_size = vdd->panel_func.get_gamma_V_size();
@@ -725,7 +725,7 @@ static int gen_normal_interpolation_aor_gamma(struct samsung_display_driver_data
 		normal_itp = &br_tbl->table_itp.normal;
 
 	if (!vdd->panel_func.get_gamma_V_size) {
-		LCD_ERR(vdd,   "error: no get_gamma_V_size\n");
+		LCD_ERR(vdd, "no get_gamma_V_size\n");
 		return -ENODEV;
 	}
 	gamma_V_size = vdd->panel_func.get_gamma_V_size();
@@ -736,7 +736,7 @@ static int gen_normal_interpolation_aor_gamma(struct samsung_display_driver_data
 	itp_gammaV = kzalloc(gamma_V_size * sizeof(int), GFP_KERNEL);
 
 	if (!max_gammaV || !min_gammaV || !itp_gammaV) {
-		LCD_ERR(vdd,   "fail to alloc gammaV memory\n");
+		LCD_ERR(vdd, "fail to alloc gammaV memory\n");
 		kfree(max_gammaV);
 		kfree(min_gammaV);
 		kfree(itp_gammaV);
@@ -996,7 +996,7 @@ static void update_normal_interpolation(struct samsung_display_driver_data *vdd,
 	if (vdd->panel_func.gen_normal_interpolation_irc)
 		vdd->panel_func.gen_normal_interpolation_irc(vdd, br_tbl, normal_table, normal_table_size);
 	else
-		LCD_ERR(vdd,   "No gen_normal_interpolation_irc !!\n");
+		LCD_ERR(vdd, "No gen_normal_interpolation_irc\n");
 
 	/* 5st */
 	update_candela_map_table(vdd, br_tbl);
@@ -1190,7 +1190,7 @@ int ss_gamma_itp_based_fps(struct samsung_display_driver_data *vdd,
 		gammaV_itp = kzalloc(gamma_V_size * sizeof(int), GFP_KERNEL);
 
 	if (unlikely(!gammaV_start || !gammaV_end || !gammaV_itp)) {
-		LCD_ERR(vdd,   "fail to alloc gammaV memory\n");
+		LCD_ERR(vdd, "fail to alloc gammaV memory\n");
 		return -ENOMEM;
 	}
 
@@ -1233,7 +1233,7 @@ int br_interpolation_generate_event(struct samsung_display_driver_data *vdd,
 	/* select brightness table for current refresh rate mode */
 	br_tbl = ss_get_cur_br_tbl(vdd);
 	if (!br_tbl) {
-		LCD_ERR(vdd,   "br tble is null!\n");
+		LCD_ERR(vdd, "br tble is null\n");
 		return -ENODEV;
 	}
 
@@ -1632,7 +1632,7 @@ static void debug_normal_interpolation(struct samsung_display_driver_data *vdd,
 			for (data_cnt = 0; data_cnt < aor_size; data_cnt++)
 				snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "%02x ", normal_itp->br_aor_table[column].aor_hex_string[data_cnt]);
 		} else
-			LCD_ERR(vdd,   "aor_table is null.. %d", column);
+			LCD_ERR(vdd, "aor_table is null(%d)\n", column);
 
 		snprintf(buf + strlen(buf), FLASH_GAMMA_DBG_BUF_SIZE - strlen(buf), "| ");
 

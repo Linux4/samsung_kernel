@@ -2156,7 +2156,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 #else
 		if (!secdp_get_hpd_status() || !secdp_get_cable_status()) {
 			DP_INFO("hpd_low or cable_lost\n");
-			rc = -EIO;
+			rc = -ETIMEDOUT;
 			goto end;
 		}
 #endif
@@ -2165,7 +2165,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 
 #if defined(CONFIG_SECDP)
 		if (rc < 0) {
-			rc = -EIO;
+			rc = -ETIMEDOUT;
 			goto end;
 		}
 #endif

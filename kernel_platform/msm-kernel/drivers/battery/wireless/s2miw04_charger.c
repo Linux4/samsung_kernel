@@ -619,6 +619,11 @@ static void mfc_set_vout(struct mfc_charger_data *charger, int vout)
 {
 	u8 data[2] = {0,};
 
+	if (charger->wc_ldo_status == MFC_LDO_OFF) {
+		pr_info("%s: vout updated becauseof wc ldo\n", __func__);
+		vout = MFC_VOUT_5V;
+	}
+
 	if (vout >= MFC_VOUT_11V)
 		mfc_reg_write(charger->client, MFC_ACTIVE_LOAD_CONTROL_REG, 0x01);
 
@@ -2769,6 +2774,9 @@ static int mfc_s2miw04_chg_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY_ALERT_MIN:
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_EMPTY:
+		val->intval = charger->wc_ldo_status;
+		break;
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_EXT_PROP_MAX:
 		switch (ext_psp) {
 		case POWER_SUPPLY_EXT_PROP_WIRELESS_OP_FREQ:
@@ -3277,8 +3285,9 @@ static void mfc_check_rx_power_work(struct work_struct *work)
 
 	pr_info("%s %d\n", __func__, charger->check_rx_power);
 	if (charger->check_rx_power) {
-		pr_info("%s: EPT Unknown for re-auth\n", __func__);
-		mfc_send_ept_unknown(charger);
+		pr_info("%s: set 7.5W\n", __func__);
+		mfc_reset_rx_power(charger, TX_RX_POWER_7_5W);
+		charger->current_rx_power = TX_RX_POWER_7_5W;
 	}
 	__pm_relax(charger->wpc_check_rx_power_ws);
 }
@@ -3474,14 +3483,16 @@ static int mfc_s2miw04_chg_set_property(struct power_supply *psy,
 	{
 		int vout = 0, vrect = 0;
 		u8 is_vout_on = 0;
+		bool error = false;
 
-		mfc_reg_read(charger->client, MFC_STATUS_L_REG, &is_vout_on);
+		if (mfc_reg_read(charger->client, MFC_STATUS_L_REG, &is_vout_on) < 0)
+			error = true;
 		is_vout_on = is_vout_on >> 7;
 		vout = mfc_get_adc(charger, MFC_ADC_VOUT);
 		vrect = mfc_get_adc(charger, MFC_ADC_VRECT);
-		pr_info("%s: SET MFC LDO (%s), Current VOUT STAT (%d), RX_VOUT = %dmV, RX_VRECT = %dmV\n",
-				__func__, (val->intval == MFC_LDO_ON ? "ON" : "OFF"), is_vout_on, vout, vrect);
-		if ((val->intval == MFC_LDO_ON) && !is_vout_on) { /* LDO ON */
+		pr_info("%s: SET MFC LDO (%s), Current VOUT STAT (%d), RX_VOUT = %dmV, RX_VRECT = %dmV, error(%d)\n",
+				__func__, (val->intval == MFC_LDO_ON ? "ON" : "OFF"), is_vout_on, vout, vrect, error);
+		if ((val->intval == MFC_LDO_ON) && (!is_vout_on || error)) { /* LDO ON */
 			pr_info("%s: MFC LDO ON toggle ------------ cable_work\n", __func__);
 			for (i = 0; i < 2; i++) {
 				mfc_reg_read(charger->client, MFC_STATUS_L_REG, &is_vout_on);
@@ -3506,7 +3517,7 @@ static int mfc_s2miw04_chg_set_property(struct power_supply *psy,
 			}
 			charger->wc_ldo_status = MFC_LDO_ON;
 			mfc_recover_vout(charger);
-		} else if ((val->intval == MFC_LDO_OFF) && is_vout_on) { /* LDO OFF */
+		} else if ((val->intval == MFC_LDO_OFF) && (is_vout_on || error)) { /* LDO OFF */
 			mfc_set_vout(charger, MFC_VOUT_5V);
 			msleep(300);
 			pr_info("%s: MFC LDO OFF toggle ------------ cable_work\n", __func__);
@@ -3799,6 +3810,8 @@ static int mfc_s2miw04_chg_set_property(struct power_supply *psy,
 				val->intval == WIRELESS_VOUT_10V_STEP) {
 				pr_info("%s: vout (%d)\n", __func__, val->intval);
 				mfc_set_afc_vout_control(charger, val->intval);
+			} else if (val->intval == WIRELESS_VOUT_FORCE_9V) {
+				mfc_set_vout(charger, MFC_VOUT_9V);
 			} else {
 				pr_info("%s: Unknown Command(%d)\n", __func__, val->intval);
 			}
@@ -4889,15 +4902,18 @@ static void mfc_set_iec_params(struct i2c_client *client, struct mfc_iec_data da
 	/* need to set before set MFC_MST_MODE_SEL_REG */
 	mfc_reg_write(client, WPCTx_E_FOD_INIT_FREQ, data.reg_84); /* E-FOD Enable */
 	mfc_reg_write(client, WPCTx_E_FOD_INIT_DUTY, data.reg_85);
-	mfc_reg_write(client, WPCTx_E_FOD_WATCH_FREQ, data.reg_86);
+	mfc_reg_write(client, WPCTx_E_FOD_DELAY, data.reg_86);
 	mfc_reg_write(client, WPCTx_E_FOD_2Q_DESIGNED, data.reg_87);
-	mfc_reg_write(client, WPCTx_E_FOD_Q_THRESHOLD, data.reg_88);
+	mfc_reg_write(client, WPCTx_E_FOD_Q_THRESHOLD_NORMAL, data.reg_88);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_THRESHOLD_DUTY_INIT, data.reg_89);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_THRESHOLD_DUTY, data.reg_8A);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_CHECK_FREQ, data.reg_8B);
-	mfc_reg_write(client, WPCTx_E_FOD_MAX_Q, data.reg_5B);
-	mfc_reg_write(client, WPCTx_E_FOD_CRADLE_CURRENT, data.reg_56);
-	mfc_reg_write(client, WPCTx_E_FOD_CRADLE_FREQ, data.reg_57);
+	mfc_reg_write(client, WPCTx_E_FOD_NU_PEAKING_DELAY, data.reg_5B);
+	mfc_reg_write(client, WPCTx_E_FOD_MIN_CURRENT_HIGH_F, data.reg_56);
+	mfc_reg_write(client, WPCTx_E_FOD_POWER_LIMIT, data.reg_57);
+	mfc_reg_write(client, WPCTX_E_FOD_Q_LIMIT, data.reg_800);
+	mfc_reg_write(client, WPCTX_E_FOD_I1_LIMIT, data.reg_801);
+	mfc_reg_write(client, WPCTX_E_FOD_I2_LIMIT, data.reg_802);
 }
 
 /* mfc_mst_routine : MST dedicated codes */
@@ -5524,13 +5540,33 @@ static void mfc_chg_parse_iec_data(struct device_node *np,
 	else
 		pdata->iec_params.reg_8B = temp;
 
+	ret = of_property_read_u32(np, "reg_800", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_800 = temp;
+
+	ret = of_property_read_u32(np, "reg_801", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_801 = temp;
+
+	ret = of_property_read_u32(np, "reg_802", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_802 = temp;
+
 	pr_info("%s: reg_56=0x%x, reg_57=0x%x, reg_5B=0x%x,"
 		" reg_84=0x%x, reg_85=0x%x, reg_86=0x%x, reg_87=0x%x,"
-		" reg_88=0x%x, reg_89=0x%x, reg_8A=0x%x, reg_8B=0x%x\n",
+		" reg_88=0x%x, reg_89=0x%x, reg_8A=0x%x, reg_8B=0x%x,"
+		" reg_800=0x%x, reg_801=0x%x, reg_802=0x%x\n",
 		__func__, pdata->iec_params.reg_56, pdata->iec_params.reg_57,
 		pdata->iec_params.reg_5B, pdata->iec_params.reg_84, pdata->iec_params.reg_85,
 		pdata->iec_params.reg_86, pdata->iec_params.reg_87, pdata->iec_params.reg_88,
-		pdata->iec_params.reg_89, pdata->iec_params.reg_8A, pdata->iec_params.reg_8B);
+		pdata->iec_params.reg_89, pdata->iec_params.reg_8A, pdata->iec_params.reg_8B,
+		pdata->iec_params.reg_800, pdata->iec_params.reg_801, pdata->iec_params.reg_802);
 }
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)

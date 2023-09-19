@@ -198,6 +198,7 @@ struct smb_irq_info {
 	struct smb_irq_data		*irq_data;
 	int				irq;
 	bool				enabled;
+	bool				is_requested;
 };
 
 static const unsigned int smblite_lib_extcon_cable[] = {
@@ -284,6 +285,7 @@ struct smb_charger {
 	struct class            qcom_class;
 	struct smblite_remote_bms	remote_bms;
 	struct nvmem_cell       *debug_mask_nvmem;
+	struct nvmem_cell	*soc_nvmem;
 	int			*debug_mask;
 	enum smb_mode		mode;
 	u8			subtype;
@@ -536,5 +538,6 @@ int smblite_lib_set_fcc(struct smb_chg_param *param, int val_u, u8 *val_raw);
 int smblite_lib_set_concurrent_config(struct smb_charger *chg, bool enable);
 bool is_concurrent_mode_supported(struct smb_charger *chg);
 void smblite_lib_hvdcp_detect_enable(struct smb_charger *chg, bool enable);
+int smblite_lib_rerun_apsd_if_required(struct smb_charger *chg);
 
 #endif /* __SMBLITE_LIB_H */

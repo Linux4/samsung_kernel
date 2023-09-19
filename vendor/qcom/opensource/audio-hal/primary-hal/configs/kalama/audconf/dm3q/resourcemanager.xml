@@ -524,6 +524,9 @@
                 <custom-config key="voip_tv">
                     <snd_device_name>voip-comm-tv-speaker-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="voip_smonitor">
+                    <snd_device_name>voip-smonitor-speaker-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="wifi_call">
                     <snd_device_name>wifi-call-speaker-mic</snd_device_name>
                 </custom-config>
@@ -594,6 +597,9 @@
             </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
+                <id>PAL_DEVICE_OUT_AUX_DIGITAL</id>
+                <id>PAL_DEVICE_OUT_HDMI</id>
+                <id>PAL_DEVICE_OUT_AUX_DIGITAL_1</id>
             </ec_rx_device>
         </in-device>
         <in-device>
@@ -1249,7 +1255,7 @@
            <usecase>
                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
                <priority>3</priority>
-           </usecase>        
+           </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
@@ -1458,6 +1464,8 @@
             <back_end_name>DISPLAY_PORT-RX</back_end_name>
             <max_channels>32</max_channels>
             <channels>2</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>24</bit_width>
             <snd_device_name>display-port</snd_device_name>
             <fractional_sr>1</fractional_sr>
             <usecase>
@@ -1495,6 +1503,8 @@
             <max_channels>32</max_channels>
             <channels>2</channels>
             <fractional_sr>1</fractional_sr>
+            <samplerate>48000</samplerate>
+            <bit_width>24</bit_width>
             <snd_device_name>display-port</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>

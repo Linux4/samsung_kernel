@@ -538,6 +538,17 @@ static void max77705_check_cnfg12_reg(struct max77705_charger_data *charger)
 		}
 	}
 }
+static void max77705_force_change_charge_path(struct max77705_charger_data *charger)
+{
+	u8 cnfg12 = (1 << CHG_CNFG_12_CHGINSEL_SHIFT);
+
+	max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+			    cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
+	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
+	pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
+
+	max77705_check_cnfg12_reg(charger);
+}
 
 static void max77705_change_charge_path(struct max77705_charger_data *charger,
 					int path)
@@ -1818,7 +1829,10 @@ static int max77705_chg_set_property(struct power_supply *psy,
 			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHGINSEL:
-			max77705_change_charge_path(charger, charger->cable_type);
+			if (val->intval == WL_TO_W)
+				max77705_force_change_charge_path(charger);
+			else
+				max77705_change_charge_path(charger, charger->cable_type);
 			break;
 		case POWER_SUPPLY_EXT_PROP_PAD_VOLT_CTRL:
 			break;
@@ -1886,7 +1900,7 @@ static int max77705_chg_set_property(struct power_supply *psy,
 			charger->charging_current = val->intval;
 			__pm_stay_awake(charger->wc_chg_current_ws);
 			queue_delayed_work(charger->wqueue, &charger->wc_chg_current_work,
-				msecs_to_jiffies(3000));
+				msecs_to_jiffies(0));
 			break;
 		case POWER_SUPPLY_EXT_PROP_SPSN_TEST:
 			break;
