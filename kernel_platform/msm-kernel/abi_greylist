@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+#
+# ** all symbols should be separated by new line **
+#
+COMMON_LIST="""
+"""
+b0q_usa_singlew="""
+${COMMON_LIST}
+"""
+
+
+
