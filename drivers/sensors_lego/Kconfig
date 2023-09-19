@@ -107,3 +107,15 @@ config SENSORS_DUMP_DATA
 	help
 	  Enable grip dump log data
 	  This option activates log output of grip error data using sensordump_notifier.
+
+config SENSORS_GRIP_FAILURE_DEBUG
+	bool "Grip failure debug"
+	help
+	  Say Y here, Enable Grip failure debug flag.
+
+config SENSORS_GRIP_SCANOFF
+	bool "Grip sensor low power sleep mode"
+	default n
+	help
+	  Scan off for low current consumption of the unused grip sensor.
+	  This option is for DM USA&CAN models, user binary.

@@ -473,14 +473,14 @@ int is_vender_vidioc_s_ctrl(struct is_video_ctx *vctx, struct v4l2_control *ctrl
 		head->intent_ctl.captureIntent = captureIntent;
 		head->intent_ctl.vendor_captureCount = captureCount;
 		if (captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI)
-			head->remainIntentCount = 2 + INTENT_RETRY_CNT;
+			head->remainCaptureIntentCount = 2 + CAPTURE_INTENT_RETRY_CNT;
 		else
-			head->remainIntentCount = 0 + INTENT_RETRY_CNT;
+			head->remainCaptureIntentCount = 0 + CAPTURE_INTENT_RETRY_CNT;
 
 		spin_unlock_irqrestore(&head->slock_s_ctrl, flags);
 
-		mvinfo("s_ctrl intent(%d) count(%d) remainIntentCount(%d)\n",
-			device, video, captureIntent, captureCount, head->remainIntentCount);
+		mvinfo("s_ctrl intent(%d) count(%d) remainCaptureIntentCount(%d)\n",
+			device, video, captureIntent, captureCount, head->remainCaptureIntentCount);
 		break;
 	default:
 		mverr("unsupported ioctl(0x%X)", vctx, video, ctrl->id);
@@ -538,6 +538,11 @@ int is_vender_s_ctrl(struct is_vender *vender)
 }
 
 int is_vender_remove_dump_fw_file(void)
+{
+	return 0;
+}
+
+bool is_vendor_check_remosaic_mode_change(struct is_frame *frame)
 {
 	return 0;
 }

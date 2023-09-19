@@ -219,6 +219,7 @@ void mcfp_hw_dump(void __iomem *base)
 
 	is_hw_dump_regs(base, mcfp_regs, MCFP_REG_CNT);
 }
+KUNIT_EXPORT_SYMBOL(mcfp_hw_dump);
 
 void mcfp_hw_dma_dump(struct is_common_dma *dma)
 {
@@ -268,6 +269,9 @@ int mcfp_hw_s_rdma_init(struct is_common_dma *dma, struct param_dma_input *dma_i
 		width = frame_width;
 		height = frame_height;
 		full_dma_width = full_frame_width;
+		if (strip_enable)
+			strip_offset_in_byte = is_hw_dma_get_img_stride(memory_bitwidth, pixelsize, hwformat,
+					strip_start_pos, 16, true);
 		break;
 	case MCFP_RDMA_GEOMATCH_MV:
 	case MCFP_RDMA_MIXER_MV:
@@ -394,6 +398,7 @@ int mcfp_hw_s_rdma_init(struct is_common_dma *dma, struct param_dma_input *dma_i
 
 	return ret;
 }
+KUNIT_EXPORT_SYMBOL(mcfp_hw_s_rdma_init);
 
 int mcfp_hw_s_wdma_init(struct is_common_dma *dma, struct param_dma_output *dma_output,
 	struct param_stripe_input *stripe_input,
@@ -630,6 +635,7 @@ int mcfp_hw_rdma_create(struct is_common_dma *dma, void __iomem *base, u32 input
 
 	return ret;
 }
+KUNIT_EXPORT_SYMBOL(mcfp_hw_rdma_create);
 
 int mcfp_hw_wdma_create(struct is_common_dma *dma, void __iomem *base, u32 input_id)
 {
@@ -682,14 +688,14 @@ int mcfp_hw_s_rdma_addr(struct is_common_dma *dma, u32 *addr, u32 plane,
 	case MCFP_RDMA_PREV_IN0_Y:
 	case MCFP_RDMA_PREV_IN1_Y:
 		for (i = 0; i < num_buffers; i++)
-			address[i] = (dma_addr_t)*(addr + (2 * i));
+			address[i] = (dma_addr_t)*(addr + (2 * i)) + strip_offset;
 		ret = CALL_DMA_OPS(dma, dma_set_img_addr, address, plane, buf_idx, num_buffers);
 		break;
 	case MCFP_RDMA_CUR_IN_UV:
 	case MCFP_RDMA_PREV_IN0_UV:
 	case MCFP_RDMA_PREV_IN1_UV:
 		for (i = 0; i < num_buffers; i++)
-			address[i] = (dma_addr_t)*(addr + (2 * i + 1));
+			address[i] = (dma_addr_t)*(addr + (2 * i + 1)) + strip_offset;
 		ret = CALL_DMA_OPS(dma, dma_set_img_addr, address, plane, buf_idx, num_buffers);
 		break;
 	case MCFP_RDMA_GEOMATCH_MV:
@@ -728,6 +734,7 @@ int mcfp_hw_s_rdma_addr(struct is_common_dma *dma, u32 *addr, u32 plane,
 
 	return ret;
 }
+KUNIT_EXPORT_SYMBOL(mcfp_hw_s_rdma_addr);
 
 int mcfp_hw_s_wdma_addr(struct is_common_dma *dma, u32 *addr, u32 plane,
 	u32 num_buffers, int buf_idx, u32 comp_sbwc_en, u32 payload_size, u32 strip_offset,

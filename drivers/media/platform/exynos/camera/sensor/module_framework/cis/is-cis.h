@@ -77,6 +77,8 @@ struct sensor_common_mode_attr {
 
 int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const u32 size);
 int sensor_cis_set_registers_addr8(struct v4l2_subdev *subdev, const u32 *regs, const u32 size);
+struct is_cis *sensor_cis_get_cis(struct v4l2_subdev *subdev);
+
 int sensor_cis_check_rev_on_init(struct v4l2_subdev *subdev);
 int sensor_cis_check_rev(struct is_cis *cis);
 
@@ -99,6 +101,7 @@ int sensor_cis_wait_streamoff(struct v4l2_subdev *subdev);
 int sensor_cis_wait_streamoff_mipi_end(struct v4l2_subdev *subdev);
 int sensor_cis_wait_streamon(struct v4l2_subdev *subdev);
 
+int sensor_cis_update_latest_seamless_state(struct v4l2_subdev *subdev);
 int sensor_cis_set_initial_exposure(struct v4l2_subdev *subdev);
 int sensor_cis_active_test(struct v4l2_subdev *subdev);
 int sensor_cis_get_bayer_order(struct v4l2_subdev *subdev, u32 *bayer_order);

@@ -1257,6 +1257,25 @@ int is_sensor_dm_tag(struct is_device_sensor *device,
 	return ret;
 }
 
+struct is_sensor_interface *is_sensor_get_sensor_interface(struct is_device_sensor *device)
+{
+	struct is_module_enum *module;
+	struct is_device_sensor_peri *sensor_peri;
+
+	if (is_sensor_g_module(device, &module)) {
+		merr("failed to get sensor module", device);
+		return NULL;
+	}
+
+	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+	if (!sensor_peri) {
+		merr("failed to get sensor_peri", device);
+		return NULL;
+	}
+
+	return &sensor_peri->sensor_interface;
+}
+
 static int is_sensor_notify_by_fstr(struct is_device_sensor *device, void *arg,
 	unsigned int notification)
 {
@@ -1909,7 +1928,9 @@ int is_sensor_open(struct is_device_sensor *device,
 	device->ex_mode = 0;
 	device->ex_mode_extra = 0;
 	device->ex_mode_format = 0;
-	device->seamless_state = 0L;
+	device->aeb_state = 0L;
+	device->rms_crop_state = BIT(IS_SENSOR_RMS_CROP_OFF);
+
 	for (i = 0; i < IS_EXP_BACKUP_COUNT; i++) {
 		device->exposure_value[i] = 0;
 		device->exposure_fcount[i] = 0;
@@ -2740,23 +2761,17 @@ p_err:
 int is_sensor_s_ext_ctrls(struct is_device_sensor *device,
 	struct v4l2_ext_controls *ctrls)
 {
-	int ret = 0;
-	struct v4l2_subdev *subdev_module;
+	int ret;
+	struct v4l2_subdev *subdev_module = device->subdev_module;
 
-	WARN_ON(!device);
-	WARN_ON(!device->subdev_module);
-	WARN_ON(!device->subdev_csi);
-	WARN_ON(!ctrls);
-
-	subdev_module = device->subdev_module;
+	FIMC_BUG(!subdev_module);
 
 	ret = v4l2_subdev_call(subdev_module, core, ioctl, SENSOR_IOCTL_MOD_S_EXT_CTRL, ctrls);
 	if (ret) {
 		err("s_ext_ctrls is fail(%d)", ret);
-		goto p_err;
+		return ret;
 	}
 
-p_err:
 	return ret;
 }
 KUNIT_EXPORT_SYMBOL(is_sensor_s_ext_ctrls);
@@ -3161,6 +3176,22 @@ int is_sensor_g_bratio(struct is_device_sensor *device)
 
 p_err:
 	return device->cfg->binning;
+}
+
+int is_sensor_g_updated_bratio(struct is_device_sensor *device)
+{
+	struct v4l2_control ctrl;
+	int ret;
+
+	FIMC_BUG(!device);
+
+	ctrl.id = V4L2_CID_SENSOR_GET_UPDATED_BINNING_RATIO;
+	ctrl.value = device->cfg->binning;
+	ret = v4l2_subdev_call(device->subdev_module, core, ioctl, SENSOR_IOCTL_MOD_G_CTRL, &ctrl);
+	if (ret)
+		err("g_ctrl is fail(%d)", ret);
+
+	return ctrl.value;
 }
 
 int is_sensor_g_position(struct is_device_sensor *device)
@@ -3789,7 +3820,8 @@ already_stopped:
 	device->ex_mode = 0;
 	device->ex_mode_extra = 0;
 	device->ex_mode_format = 0;
-	device->seamless_state = 0L;
+	device->aeb_state = 0L;
+	device->rms_crop_state = BIT(IS_SENSOR_RMS_CROP_OFF);
 
 	return ret;
 }

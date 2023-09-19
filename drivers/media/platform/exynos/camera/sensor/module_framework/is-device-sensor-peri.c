@@ -838,6 +838,9 @@ int is_sensor_peri_notify_vsync(struct v4l2_subdev *subdev, void *arg)
 
 	cis->cis_data->sen_vsync_count = vsync_count;
 
+	if (cis->use_seamless_mode)
+		CALL_CISOPS(&sensor_peri->cis, cis_update_latest_seamless_state, sensor_peri->subdev_cis);
+
 	if (sensor_peri->sensor_task != NULL
 		|| sensor_peri->use_sensor_work) {
 		/* run sensor setting thread */

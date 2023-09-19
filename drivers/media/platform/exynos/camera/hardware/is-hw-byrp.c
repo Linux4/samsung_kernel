@@ -112,12 +112,12 @@ static int is_hw_byrp_handle_interrupt(u32 id, void *context)
 					strip_index, NULL);
 		} else {
 			atomic_add((hw_ip->num_buffers & 0xffff), &hw_ip->count.fs);
-			_is_hw_frame_dbg_trace(hw_ip, hw_fcount,
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount,
 					DEBUG_POINT_FRAME_START);
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 				msdbg_hw(2, "[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-			is_hardware_frame_start(hw_ip, instance);
+			CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 		}
 
 		/* byrp_hw_dump(hw_ip->regs[REG_SETA]); */
@@ -131,11 +131,11 @@ static int is_hw_byrp_handle_interrupt(u32 id, void *context)
 					instance, hw_fcount, BYRP_EVENT_FRAME_END,
 					strip_index, NULL);
 		} else {
-			_is_hw_frame_dbg_trace(hw_ip, hw_fcount,
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount,
 					DEBUG_POINT_FRAME_END);
 			atomic_add((hw_ip->num_buffers & 0xffff), &hw_ip->count.fe);
 
-			is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+			CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 					IS_SHOT_SUCCESS, true);
 
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
@@ -491,6 +491,7 @@ static int is_hw_byrp_init(struct is_hw_ip *hw_ip, u32 instance,
 			}
 		}
 	}
+	hw_ip->frame_type = f_type;
 
 	for (input_id = BYRP_RDMA_IMG; input_id < BYRP_RDMA_MAX; input_id++) {
 		ret = byrp_hw_rdma_create(&hw_byrp->rdma[input_id], hw_ip->regs[REG_SETA], input_id);
@@ -855,6 +856,7 @@ static int __is_hw_byrp_set_rdma(struct is_hw_ip *hw_ip, struct is_hw_byrp *hw_b
 static int __is_hw_byrp_set_wdma(struct is_hw_ip *hw_ip, struct is_hw_byrp *hw_byrp,
 	struct byrp_param_set *param_set, u32 instance, u32 id, u32 set_id)
 {
+	struct param_dma_output *dma_output = NULL;
 	u32 *output_dva = NULL;
 	u32 cmd;
 	u32 comp_sbwc_en, payload_size;
@@ -877,9 +879,20 @@ static int __is_hw_byrp_set_wdma(struct is_hw_ip *hw_ip, struct is_hw_byrp *hw_b
 
 	switch (id) {
 	case BYRP_WDMA_BYR:
-		output_dva = param_set->output_dva_byr;
-		cmd = param_set->dma_output_byr.cmd;
+		if (param_set->dma_output_byr.cmd && param_set->dma_output_byr_processed.cmd) {
+			merr_hw("wrong control about byrp wdma mux (both enable)", instance);
+			return -EINVAL;
+		} else if (param_set->dma_output_byr_processed.cmd) {
+			output_dva = param_set->output_dva_byr_processed;
+			dma_output =  &param_set->dma_output_byr_processed;
+			cmd = param_set->dma_output_byr_processed.cmd;
+		} else {
+			output_dva = param_set->output_dva_byr;
+			dma_output =  &param_set->dma_output_byr;
+			cmd = param_set->dma_output_byr.cmd;
+		}
 		break;
+
 	default:
 		merr_hw("invalid ID (%d)", instance,  id);
 		return -EINVAL;
@@ -905,7 +918,7 @@ static int __is_hw_byrp_set_wdma(struct is_hw_ip *hw_ip, struct is_hw_byrp *hw_b
 		dma_crop_cfg.w = param_set->dma_input.width;
 		dma_crop_cfg.h = param_set->dma_input.height;
 
-		byrp_hw_g_wdma_offset(instance, id, &param_set->dma_output_byr, &param_set->stripe_input,
+		byrp_hw_g_wdma_offset(instance, id, dma_output, &param_set->stripe_input,
 					&dma_crop_cfg, &image_addr_offset, &header_addr_offset);
 
 		ret = byrp_hw_s_wdma_addr(&hw_byrp->wdma[id], output_dva, 0,
@@ -998,6 +1011,10 @@ static void __is_hw_byrp_update_param(struct is_hw_ip *hw_ip, struct is_param_re
 		memcpy(&param_set->dma_output_byr, &param->byr,
 				sizeof(struct param_dma_output));
 
+	if (test_bit(PARAM_BYRP_BYR_PROCESSED, pmap))
+		memcpy(&param_set->dma_output_byr_processed, &param->byr_processed,
+				sizeof(struct param_dma_output));
+
 	if (test_bit(PARAM_BYRP_STRIPE_INPUT, pmap))
 		memcpy(&param_set->stripe_input, &param->stripe_input,
 				sizeof(struct param_stripe_input));
@@ -1083,7 +1100,7 @@ static void is_hw_byrp_s_size_regs(struct is_hw_ip *hw_ip, struct byrp_param_set
 {
 	struct is_hw_byrp *hw;
 	void __iomem *base;
-	u32 dng_en = 0;
+	bool use_bcrop_rgb = false;
 	struct byrp_grid_cfg grid_cfg;
 	struct is_byrp_config *cfg;
 	u32 strip_enable, start_pos_x, start_pos_y;
@@ -1096,9 +1113,10 @@ static void is_hw_byrp_s_size_regs(struct is_hw_ip *hw_ip, struct byrp_param_set
 	hw = (struct is_hw_byrp *)hw_ip->priv_info;
 	base = hw_ip->regs[REG_SETA];
 	cfg = &hw->config;
-	dng_en = param_set->dma_output_byr.cmd;
+	if (param_set->dma_output_byr.cmd || param_set->dma_output_byr_processed.cmd)
+		use_bcrop_rgb = true;
 
-	if (dng_en) {
+	if (use_bcrop_rgb) {
 		/* In DNG scenario, use BcropRgb in the end of chain */
 		dma_crop_cfg->x = 0;
 		dma_crop_cfg->y = 0;
@@ -1134,7 +1152,7 @@ static void is_hw_byrp_s_size_regs(struct is_hw_ip *hw_ip, struct byrp_param_set
 	msdbg_hw(2, "[HW][%s] rdma crop (%d %d, %dx%d), bcrop(%s, %d %d, %dx%d)\n",
 		instance, hw_ip, __func__,
 		dma_crop_cfg->x, dma_crop_cfg->y, dma_crop_cfg->w, dma_crop_cfg->h,
-		dng_en ? "BCROP_RGB" : "BCROP_BYR",
+		use_bcrop_rgb ? "BCROP_RGB" : "BCROP_BYR",
 		bcrop_cfg->x, bcrop_cfg->y, bcrop_cfg->w, bcrop_cfg->h);
 
 	/* GRID configuration for CGRAS */
@@ -1169,7 +1187,7 @@ static void is_hw_byrp_s_size_regs(struct is_hw_ip *hw_ip, struct byrp_param_set
 	/* Total_crop = unbinned(Stripe_start_position + BYRP_bcrop) + unbinned(sensor_crop) */
 	start_pos_x = (strip_enable) ? param_set->stripe_input.start_pos_x : 0;
 
-	if (dng_en) { /* No crop */
+	if (use_bcrop_rgb) { /* No crop */
 		byrp_crop_offset_x = 0;
 		byrp_crop_offset_y = 0;
 	} else { /* DMA crop + Bayer crop */
@@ -1223,7 +1241,7 @@ static int __is_hw_byrp_set_size_regs(struct is_hw_ip *hw_ip, struct byrp_param_
 	struct is_param_region *param_region;
 	unsigned long flag;
 	int ret = 0;
-	bool dng_en;
+	bool use_bcrop_rgb = false;
 	bool hdr_en;
 	u32 strip_enable;
 	u32 rdma_width, rdma_height;
@@ -1251,7 +1269,8 @@ static int __is_hw_byrp_set_size_regs(struct is_hw_ip *hw_ip, struct byrp_param_
 	rdma_height = param_set->dma_input.height;
 
 	/* Bayer crop, belows are configured for detail cropping */
-	dng_en = param_set->dma_output_byr.cmd;
+	if (param_set->dma_output_byr.cmd || param_set->dma_output_byr_processed.cmd)
+		use_bcrop_rgb = true;
 	hdr_en = param_set->dma_input_hdr.cmd;
 	bcrop_x = bcrop_cfg->x;
 	bcrop_y = bcrop_cfg->y;
@@ -1269,7 +1288,7 @@ static int __is_hw_byrp_set_size_regs(struct is_hw_ip *hw_ip, struct byrp_param_
 
 	spin_lock_irqsave(&byrp_out_slock, flag);
 
-	if (dng_en) {
+	if (use_bcrop_rgb) {
 		pipe_w = rdma_width;
 		pipe_h = rdma_height;
 		byrp_hw_s_sdc_size(hw_ip->regs[REG_SETA], set_id, rdma_width, rdma_height);
@@ -1392,12 +1411,19 @@ static int is_hw_byrp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			param_set->input_dva_hdr,
 			dma_frame->dva_byrp_hdr);
 
-	cmd_output = is_hardware_dma_cfg_32bit("byrp_wdma", hw_ip,
+	cmd_output = is_hardware_dma_cfg_32bit("byrp_wdma_before_wbg", hw_ip,
 			frame, cur_idx, frame->num_buffers,
 			&param_set->dma_output_byr.cmd,
 			param_set->dma_output_byr.plane,
 			param_set->output_dva_byr,
-			dma_frame->ixcTargetAddress);
+			dma_frame->dva_byrp_byr);
+
+	cmd_output = is_hardware_dma_cfg_32bit("byrp_wdma_after_wbg", hw_ip,
+			frame, cur_idx, frame->num_buffers,
+			&param_set->dma_output_byr_processed.cmd,
+			param_set->dma_output_byr_processed.plane,
+			param_set->output_dva_byr_processed,
+			dma_frame->dva_byrp_byr_processed);
 
 	param_set->instance_id = instance;
 	param_set->fcount = fcount;
@@ -1457,9 +1483,9 @@ static int is_hw_byrp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 				return ret;
 
 			if (likely(!test_bit(hw_ip->id, &debug_iq))) {
-				_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
+				CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
 				ret = __is_hw_byrp_set_rta_regs(hw_ip, set_id, instance);
-				_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
+				CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
 				if (ret)
 					mserr_hw("__is_hw_byrp_set_rta_regs is fail", instance, hw_ip);
 				else
@@ -1590,7 +1616,7 @@ static int is_hw_byrp_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame
 
 	output_id = IS_HW_CORE_END;
 	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, -1,
+		ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 			output_id, done_type, false);
 	}
 
@@ -1880,6 +1906,67 @@ static int is_hw_byrp_notify_timeout(struct is_hw_ip *hw_ip, u32 instance)
 	return ret;
 }
 
+
+static void byrp_hw_g_prfi(struct is_hw_ip *hw_ip, struct is_frame *frame,
+				struct pablo_rta_frame_info *prfi)
+{
+	u32 instance = atomic_read(&hw_ip->instance);
+	u32 i;
+	struct camera2_node *node;
+	struct is_fmt *fmt;
+	struct byrp_param	*byrp_p;
+	struct is_param_region	*parameter;
+
+
+	parameter = (struct is_param_region	*)frame->shot->ctl.vendor_entry.parameter;
+	byrp_p = &parameter->byrp;
+
+	prfi->byrp_zsl_type = 0;
+	prfi->byrp_zsl_bit = 0;
+
+	if (!IS_ENABLED(LOGICAL_VIDEO_NODE))
+		return;
+
+
+	for (i = 0; i < CAPTURE_NODE_MAX; i++) {
+		node = &frame->shot_ext->node_group.capture[i];
+		if (node->vid == IS_LVN_BYRP_BYR || node->vid == IS_LVN_BYRP_BYR_PROCESSED) {
+			if (!node->request)
+				break;
+
+			fmt = is_find_format(node->pixelformat, node->flags);
+			if (!fmt)
+				break;
+
+			if (fmt->hw_format == DMA_INOUT_FORMAT_BAYER) {
+				prfi->byrp_zsl_type = 1;
+				prfi->byrp_zsl_bit = fmt->bitsperpixel[0];
+			} else if (fmt->hw_format == DMA_INOUT_FORMAT_BAYER_PACKED) {
+				prfi->byrp_zsl_type = 2;
+				prfi->byrp_zsl_bit = -13;
+			}
+
+			break;
+		}
+	}
+	prfi->magic = 0x5F4D5246;
+
+	msdbg_hw(2, "[F%d] %s Done\n",
+			instance, hw_ip, frame->fcount, __func__);
+}
+
+static void pablo_hw_byrp_query(struct is_hw_ip *ip, u32 instance, u32 type, void *in, void *out)
+{
+	switch (type) {
+	case PABLO_QUERY_GET_PCFI:
+		byrp_hw_g_prfi(ip, (struct is_frame *)in, (struct pablo_rta_frame_info *)out);
+		break;
+	default:
+		break;
+	}
+}
+
+
 const struct is_hw_ip_ops is_hw_byrp_ops = {
 	.open			= is_hw_byrp_open,
 	.init			= is_hw_byrp_init,
@@ -1900,6 +1987,7 @@ const struct is_hw_ip_ops is_hw_byrp_ops = {
 	.dump_regs		= is_hw_byrp_dump_regs,
 	.set_config		= is_hw_byrp_set_config,
 	.notify_timeout		= is_hw_byrp_notify_timeout,
+	.query			= pablo_hw_byrp_query,
 };
 
 int is_hw_byrp_probe(struct is_hw_ip *hw_ip, struct is_interface *itf,

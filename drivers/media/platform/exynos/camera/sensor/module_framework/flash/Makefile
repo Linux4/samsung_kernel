@@ -8,8 +8,9 @@ obj-$(CONFIG_CAMERA_FLASH_KTD2692_OBJ) += is-flash-ktd2692.o
 obj-$(CONFIG_CAMERA_FLASH_S2MU107_OBJ) += is-flash-s2mu107.o
 obj-$(CONFIG_CAMERA_FLASH_S2MF301_OBJ) += is-flash-s2mf301.o
 obj-$(CONFIG_CAMERA_FLASH_SM5714_OBJ) += is-flash-sm5714.o
+obj-$(CONFIG_CAMERA_FLASH_AW36518_OBJ) += is-flash-aw36518.o
 obj-$(CONFIG_CAMERA_FLASH_I2C_OBJ) += is-helper-flash-i2c.o \
-				      is-flash-i2c.o
+						is-flash-i2c.o
 
 EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera
 EXTRA_CFLAGS += -I$(srctree)/drivers/media/platform/exynos/camera/include

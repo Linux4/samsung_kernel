@@ -386,6 +386,7 @@
 		reg = <0x0 0x170B1000 0x1000>;
 		interrupts = <0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
 		num_of_ebuf = <4>;
+		fake_done_offset = <4>;
 	};
 
 	sysreg_isppre_reset: system-controller@17020500 {

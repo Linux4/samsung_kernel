@@ -307,6 +307,8 @@ skip_check_format:
 		goto p_err;
 	}
 
+	node->result = 1;
+
 p_err:
 	return ret;
 }

@@ -25,6 +25,9 @@
 #include "f2fs.h"
 #include "node.h"
 #include "segment.h"
+#ifdef CONFIG_DDAR
+#include "../crypto/sdp/sdp_crypto.h"
+#endif
 #include <trace/events/f2fs.h>
 #include <trace/events/android_fs.h>
 #include <asm/div64.h>

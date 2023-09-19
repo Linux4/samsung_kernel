@@ -180,12 +180,12 @@ static int is_hw_lme_handle_interrupt(u32 id, void *context)
 					strip_index, NULL);
 		} else {
 			atomic_add(1, &hw_ip->count.fs);
-			_is_hw_frame_dbg_trace(hw_ip, hw_fcount,
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount,
 					DEBUG_POINT_FRAME_START);
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 				dbg_lme(4, "[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-			is_hardware_frame_start(hw_ip, instance);
+			CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 		}
 	}
 
@@ -201,11 +201,11 @@ static int is_hw_lme_handle_interrupt(u32 id, void *context)
 					strip_index, NULL);
 #endif
 		} else {
-			_is_hw_frame_dbg_trace(hw_ip, hw_fcount,
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount,
 					DEBUG_POINT_FRAME_END);
 			atomic_add(hw_ip->num_buffers, &hw_ip->count.fe);
 
-			is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+			CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 					IS_SHOT_SUCCESS, true);
 
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
@@ -530,6 +530,7 @@ static int is_hw_lme_init(struct is_hw_ip *hw_ip, u32 instance,
 			}
 		}
 	}
+	hw_ip->frame_type = f_type;
 
 	if (hw_ip->lib_mode == LME_USE_ONLY_DDK) {
 		set_bit(HW_INIT, &hw_ip->state);
@@ -537,11 +538,24 @@ static int is_hw_lme_init(struct is_hw_ip *hw_ip, u32 instance,
 	}
 
 	if (IS_ENABLED(CONFIG_LME_MBMV_INTERNAL_BUFFER)) {
-		subdev_lme = group->subdev[ENTRY_LME_MBMV];
-		is_hardware_alloc_internal_buffer(device, subdev_lme,
-			device->group_lme.leader.vid,
+		subdev_lme = &hw_lme->subdev[instance];
+		ret =  is_subdev_probe(subdev_lme, instance, ENTRY_LME_MBMV,
+			"LME_MBMV", NULL);
+		if (ret) {
+			mserr_hw("[%s] failed to is_subdev_probe. ret %d", instance, hw_ip,
+				subdev_lme->name, ret);
+			return -EINVAL;
+		}
+
+		ret = is_hardware_alloc_internal_buffer(device, subdev_lme,
+			IS_VIDEO_LME0_NUM,
 			LME_IMAGE_MAX_WIDTH / 16, LME_IMAGE_MAX_HEIGHT / 16,
 			DMA_INOUT_BIT_WIDTH_16BIT, LME_TNR_MODE_MIN_BUFFER_NUM, "LME_MBMV");
+		if (ret) {
+			mserr_hw("[%s] failed to is_hardware_alloc_internal_buffer. ret %d",
+				instance, hw_ip, subdev_lme->name, ret);
+			return -EINVAL;
+		}
 	}
 
 	set_bit(HW_INIT, &hw_ip->state);
@@ -576,7 +590,7 @@ static int is_hw_lme_deinit(struct is_hw_ip *hw_ip, u32 instance)
 	}
 
 	if (IS_ENABLED(CONFIG_LME_MBMV_INTERNAL_BUFFER)) {
-		subdev_lme = hw_ip->group[instance]->subdev[ENTRY_LME_MBMV];
+		subdev_lme = &hw_lme->subdev[instance];
 		is_hardware_free_internal_buffer(device, subdev_lme);
 	}
 
@@ -928,6 +942,70 @@ static int __is_hw_lme_update_block_reg(struct is_hw_ip *hw_ip,
 	return ret;
 }
 
+static void __is_hw_lme_update_param_internal_buf(struct is_hw_ip *hw_ip, struct is_frame *frame,
+						u32 instance, struct lme_param_set *param_set)
+{
+	struct is_framemgr *internal_framemgr = NULL;
+	struct is_frame *internal_frame = NULL;
+	struct is_subdev *subdev_lme;
+	struct is_sub_frame *sframe;
+	struct is_hw_lme *hw_lme;
+	u32 cap_node_num = 0;
+	int i, buffer_idx;
+
+	hw_lme = (struct is_hw_lme *)hw_ip->priv_info;
+	subdev_lme = &hw_lme->subdev[instance];
+	internal_framemgr = GET_SUBDEV_I_FRAMEMGR(subdev_lme);
+
+	if (!internal_framemgr) {
+		mserr_hw("internal framemgr is NULL", instance, hw_ip);
+		return;
+	}
+
+	for (buffer_idx = 0; buffer_idx < LME_TNR_MODE_MIN_BUFFER_NUM; buffer_idx++) {
+		internal_frame = &internal_framemgr->frames[buffer_idx];
+		if (!internal_frame) {
+			mserr_hw("internal frame is NULL", instance, hw_ip);
+			return;
+		}
+		cap_node_num = is_subdev_internal_get_cap_node_num(subdev_lme);
+		for (i = 0; i < cap_node_num; i++) {
+			sframe = &internal_frame->cap_node.sframe[i];
+
+			if (sframe->id == IS_LVN_LME_MBMV0) {
+				is_hardware_dma_cfg_32bit("lme_mbmv0", hw_ip,
+					frame, frame->cur_buf_index,
+					frame->num_buffers,
+					&param_set->dma.cur_input_cmd,
+					param_set->dma.input_plane,
+					hw_lme->mbmv0_dva,
+					(u32 *)&sframe->dva[0]);
+				dbg_lme(4,
+					"[MBMV0]cmd:%d,dva[0]:0x%llx,frame_dva[0]:0x%llx\n",
+					param_set->dma.cur_input_cmd,
+					hw_lme->mbmv0_dva[0], sframe->dva[0]);
+			} else if (sframe->id == IS_LVN_LME_MBMV1 &&
+				hw_lme->lme_mode == LME_MODE_TNR) {
+				is_hardware_dma_cfg_32bit("lme_mbmv1",
+					hw_ip, frame,
+					frame->cur_buf_index,
+					frame->num_buffers,
+					&param_set->dma.cur_input_cmd,
+					param_set->dma.input_plane,
+					hw_lme->mbmv1_dva,
+					(u32 *)&sframe->dva[0]);
+				dbg_lme(4,
+					"[MBMV1]cmd:%d,dva[0]:0x%llx,frame_dva[0]:0x%llx\n",
+					param_set->dma.cur_input_cmd,
+					hw_lme->mbmv1_dva[0],
+					sframe->dva[0]);
+			} else {
+				mserr_hw("vid(%d) is invalid", instance, hw_ip, sframe->id);
+			}
+		}
+	}
+}
+
 static void __is_hw_lme_update_param(struct is_hw_ip *hw_ip, struct is_param_region *p_region,
 					struct lme_param_set *param_set, IS_DECLARE_PMAP(pmap),
 					u32 instance)
@@ -1177,6 +1255,10 @@ static int is_hw_lme_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	/* Only support TNR mode (video mode) */
 	hw_lme->lme_mode = LME_MODE_TNR;
 
+#if IS_ENABLED(CONFIG_LME_MBMV_INTERNAL_BUFFER)
+	__is_hw_lme_update_param_internal_buf(hw_ip, frame, instance, param_set);
+#endif
+
 	cmd_cur_input = is_hardware_dma_cfg("lme_cur", hw_ip,
 				frame, cur_idx, frame->num_buffers,
 				&param_set->dma.cur_input_cmd,
@@ -1213,29 +1295,6 @@ static int is_hw_lme_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	dbg_lme(4, "[HW][%s][PREV_IN] cmd: %d, input_dva: 0x%x, lemdsTargetAddress[0]: 0x%x\n",
 		__func__, param_set->dma.prev_input_cmd,
 		param_set->prev_input_dva[0], frame->lmesTargetAddress[0]);
-
-#if IS_ENABLED(CONFIG_LME_MBMV_INTERNAL_BUFFER)
-	is_hardware_dma_cfg_32bit("lme_mbmv0", hw_ip,
-			frame, cur_idx, frame->num_buffers,
-			&param_set->dma.cur_input_cmd,
-			param_set->dma.input_plane,
-			hw_lme->mbmv0_dva,
-			frame->lmembmv0TargetAddress);
-	dbg_lme(4, "[HW][%s][MBMV0_IN_OUT] cmd: %d, mbmv0_dva[0]: 0x%x, lmembmv0TargetAddress[0]: 0x%x\n", __func__,
-		param_set->dma.cur_input_cmd, hw_lme->mbmv0_dva[0], frame->lmembmv0TargetAddress[0]);
-
-	if (hw_lme->lme_mode == LME_MODE_TNR) {
-		is_hardware_dma_cfg_32bit("lme_mbmv1", hw_ip,
-				frame, cur_idx, frame->num_buffers,
-				&param_set->dma.cur_input_cmd,
-				param_set->dma.input_plane,
-				hw_lme->mbmv1_dva,
-				frame->lmembmv1TargetAddress);
-
-		dbg_lme(4, "[HW][%s][MBMV1_IN_OUT] cmd: %d, mbmv1_dva[0]: 0x%x, lmembmv1TargetAddress[0]: 0x%x\n",
-			__func__, param_set->dma.cur_input_cmd, hw_lme->mbmv1_dva[0], frame->lmembmv1TargetAddress[0]);
-	}
-#endif
 
 	cmd_output = is_hardware_dma_cfg_32bit("lme_pure", hw_ip,
 			frame, cur_idx, frame->num_buffers,
@@ -1338,7 +1397,7 @@ config:
 			return ret;
 
 		if (likely(!test_bit(hw_ip->id, &debug_iq))) {
-			_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
 			ret = __is_hw_lme_set_rta_regs(hw_ip, set_id, instance);
 			if (ret) {
 				mserr_hw("__is_hw_lme_set_rta_regs is fail", instance, hw_ip);
@@ -1470,7 +1529,7 @@ static int is_hw_lme_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame,
 
 	output_id = IS_HW_CORE_END;
 	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, -1,
+		ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 			output_id, done_type, false);
 	}
 

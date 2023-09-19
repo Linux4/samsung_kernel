@@ -180,7 +180,7 @@ struct panel_adapter_funcs {
 	int (*dpu_event_log_print)(void *ctx);
 	int (*emergency_off)(void *ctx);
 #if defined(CONFIG_PANEL_FREQ_HOP)
-	int (*set_freq_hop)(void *ctx, struct freq_hop_elem *elem);
+	int (*set_freq_hop)(void *ctx, struct freq_hop_param *param);
 #endif
 };
 
@@ -487,7 +487,7 @@ struct panel_device {
 	struct panel_adapter adapter;
 
 	const char *of_node_name;
-	struct device_node *ddi_node;
+	struct device_node *ap_vendor_setting_node;
 	struct device_node *power_ctrl_node;
 #if defined(CONFIG_PANEL_FREQ_HOP)
 	struct device_node *freq_hop_node;
@@ -610,6 +610,9 @@ int panel_ecc_test(struct panel_device *panel);
 #endif
 int panel_decoder_test(struct panel_device *panel, u8 *buf, int len);
 bool check_panel_decoder_test_exists(struct panel_device *panel);
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+int panel_vcom_trim_test(struct panel_device *panel, u8 *buf, int len);
+#endif
 int panel_ddi_init(struct panel_device *panel);
 
 #ifdef CONFIG_SUPPORT_DIM_FLASH

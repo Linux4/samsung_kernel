@@ -594,3 +594,11 @@ config NET_FAILOVER
 	  datapath when the VF is unplugged.
 
 endif # NETDEVICES
+
+config R11S_WIRELESS
+    default n
+    bool "R11S Dependant Driver"
+
+config R0S_WIRELESS
+    default n
+    bool "R0S Dependant Driver"

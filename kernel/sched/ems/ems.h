@@ -11,7 +11,11 @@
  * GNU General Public License for more details.
  */
 
+
 #include <linux/ems.h>
+// #include <linux/cpufreq.h>
+
+// #include "../../cgroup/cgroup-internal.h"
 
 enum task_cgroup {
 	CGROUP_ROOT,
@@ -131,6 +135,7 @@ extern void ems_replace_next_task_fair(struct rq *rq, struct task_struct **p_ptr
 				       struct sched_entity **se_ptr, bool *repick,
 				       bool simple, struct task_struct *prev);
 extern void ems_cpu_cgroup_can_attach(struct cgroup_taskset *tset, int can_attach);
+
 extern int ems_load_balance(struct rq *rq);
 extern void ems_post_init_entity_util_avg(struct sched_entity *se);
 extern int ems_find_new_ilb(struct cpumask *nohz_idle_cpus_mask);
@@ -468,7 +473,8 @@ struct emstune_ntu {
 
 struct emstune_set {
 	int					type;
-
+	int					mode;
+	int					level;
 	struct emstune_specific_energy_table	specific_energy_table;
 	struct emstune_sched_policy		sched_policy;
 	struct emstune_active_weight		active_weight;

@@ -79,6 +79,8 @@ struct is_group {
 	u32				id;		/* physical group id */
 	u32				slot;		/* physical group slot */
 
+	const struct is_hw_group_ops	*hw_grp_ops;
+
 	struct is_hw_ip			*hw_ip;
 	struct is_group			*next;
 	struct is_group			*prev;
@@ -144,6 +146,7 @@ struct is_group {
 #endif
 	u32				aeflashMode; /* Flash Mode Control */
 	u32				remainIntentCount;
+	u32				remainCaptureIntentCount;
 	u32				remainFlashCtlCount;
 	u32				junction_vid;
 	struct mutex			mlock_votf;
@@ -256,7 +259,7 @@ void is_group_subdev_cancel(struct is_group *group,
 		enum is_device_type device_type,
 		enum is_frame_state frame_state,
 		bool flush);
-
+void is_group_subdev_check(struct is_group *group, u32 *vc0_dma);
 int is_group_change_chain(struct is_groupmgr *groupmgr, struct is_group *group, u32 next_id);
 
 /* get head group's subdev framemgr */

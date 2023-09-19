@@ -25,21 +25,11 @@ static int __init tfa98xx_sysfs_init(void)
 	if (!g_tfa_class)
 		return -EFAULT;
 
-#if defined(TFA_USE_TFACAL_NODE)
 	ret = tfa98xx_cal_init(g_tfa_class);
-#endif /* TFA_USE_TFACAL_NODE */
 
-#if defined(TFA_USE_TFALOG_NODE)
-	ret = tfa98xx_log_init(g_tfa_class);
-#endif /* TFA_USE_TFALOG_NODE */
-
-#if defined(TFA_USE_TFAVVAL_NODE)
 	ret = tfa98xx_vval_init(g_tfa_class);
-#endif /* TFA_USE_TFAVVAL_NODE */
 
-#if defined(TFA_USE_TFASTC_NODE)
 	ret = tfa98xx_stc_init(g_tfa_class);
-#endif /* TFA_USE_TFASTC_NODE */
 
 	return ret;
 }
@@ -47,21 +37,11 @@ module_init(tfa98xx_sysfs_init);
 
 static void __exit tfa98xx_sysfs_exit(void)
 {
-#if defined(TFA_USE_TFACAL_NODE)
 	tfa98xx_cal_exit(g_tfa_class);
-#endif /* TFA_USE_TFACAL_NODE */
 
-#if defined(TFA_USE_TFALOG_NODE)
-	tfa98xx_log_exit(g_tfa_class);
-#endif /* TFA_USE_TFALOG_NODE */
-
-#if defined(TFA_USE_TFAVVAL_NODE)
 	tfa98xx_vval_exit(g_tfa_class);
-#endif /* TFA_USE_TFAVVAL_NODE */
 
-#if defined(TFA_USE_TFASTC_NODE)
 	tfa98xx_stc_exit(g_tfa_class);
-#endif /* TFA_USE_TFASTC_NODE */
 
 	class_destroy(g_tfa_class);
 	pr_info("exited\n");
@@ -70,4 +50,3 @@ module_exit(tfa98xx_sysfs_exit);
 
 MODULE_DESCRIPTION("ASoC TFA98XX sysfs node driver");
 MODULE_LICENSE("GPL");
-

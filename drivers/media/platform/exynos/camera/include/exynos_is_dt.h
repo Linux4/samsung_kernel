@@ -149,6 +149,9 @@
 #define CSI_MODE_VC_DT		3
 
 /* CSIS Data Type */
+#define PACKED_BIT		(10)
+#define PACKED_EN(x)		((x) | 1 << PACKED_BIT)
+#define CHECK_PACKED_EN(x)	(((x) >> PACKED_BIT) & 1)
 #define POTF_EN_BIT		(9)
 #define POTF_EN(x)		((x) | 1 << POTF_EN_BIT)
 #define CHECK_POTF_EN(x)	(((x) >> POTF_EN_BIT) & 1)
@@ -179,6 +182,7 @@
 #define HW_FORMAT_RAW10_DA	DECOMP_ADVANC(HW_FORMAT_RAW10) /* 10 -> 14 */
 #define HW_FORMAT_RAW10_SDC	SDC_EN(HW_FORMAT_RAW10) /* = SBI */
 #define HW_FORMAT_RAW10_POTF	POTF_EN(HW_FORMAT_RAW10)
+#define HW_FORMAT_RAW10_POTF_PACK	PACKED_EN(HW_FORMAT_RAW10_POTF)
 #define HW_FORMAT_RAW12		0x2C
 #define HW_FORMAT_RAW12_POTF	POTF_EN(HW_FORMAT_RAW12)
 #define HW_FORMAT_RAW14		0x2D
@@ -190,7 +194,7 @@
 #define HW_FORMAT_UNKNOWN	0x0
 
 #define HW_FORMAT_MASK		0x3F
-#define HW_EXT_FORMAT_MASK	0x3FF
+#define HW_EXT_FORMAT_MASK	0xFFF
 
 /* PHY setting param */
 #define IDX_FIX_VAL	0
@@ -199,7 +203,8 @@
 #define IDX_SKW_CAL	3 /* skew_cal_en */
 #define IDX_SKW_DLY	4 /* skew_delay_sel */
 #define IDX_BIA_VAL	5 /* bias */
-#define IDX_MAX_VAL	6
+#define IDX_CLK_VAL	6 /* clock lane */
+#define IDX_MAX_VAL	7
 
 /* PD MODE */
 #define PD_MSPD			0

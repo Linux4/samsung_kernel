@@ -214,6 +214,5 @@ struct is_frame {
 
 	struct is_stripe_info	stripe_info;
 
-	struct pablo_rta_frame_info prfi;
 };
 

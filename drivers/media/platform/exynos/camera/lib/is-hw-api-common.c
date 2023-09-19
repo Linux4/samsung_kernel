@@ -100,6 +100,7 @@ u32 is_hw_get_field_value(u32 reg_value, const struct is_field *field)
 
 	return field_value;
 }
+EXPORT_SYMBOL_GPL(is_hw_get_field_value);
 
 u32 is_hw_set_field_value(u32 reg_value, const struct is_field *field, u32 val)
 {

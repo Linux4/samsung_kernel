@@ -42,6 +42,9 @@
 
 #ifdef CONFIG_DRM_SGPU_EXYNOS
 #include "exynos_gpu_interface.h"
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+#include "sgpu_profiler_v1.h"
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
 #endif /* CONFIG_DRM_SGPU_EXYNOS */
 
 static int amdgpu_cs_user_fence_chunk(struct amdgpu_cs_parser *p,
@@ -998,14 +1001,14 @@ static int amdgpu_cs_user_time(struct amdgpu_device *adev,
 			continue;
 
 		job->end_of_frame = true;
-		if (!sgpu_amigo_user_time)
-			sgpu_amigo_user_time = 1;
-
-#ifdef CONFIG_DRM_SGPU_EXYNOS
-		exynos_amigo_interframe_sw_update(chunk_time->start,
+		if (!sgpu_profiler_user_time)
+			sgpu_profiler_user_time = 1;
+#if IS_ENABLED(CONFIG_DRM_SGPU_DVFS) && IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+		profiler_wakeup();
+		profiler_interframe_sw_update(chunk_time->start,
 						  chunk_time->end,
 						  chunk_time->total);
-#endif /* CONFIG_DRM_SGPU_EXYNOS */
+#endif /* CONFIG_DRM_SGPU_EXYNOS && CONFIG_EXYNOS_GPU_PROFILER */
 
 		/* first data is valid */
 		return r;

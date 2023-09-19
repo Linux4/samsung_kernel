@@ -1040,7 +1040,6 @@ static int sgpu_instance_data_create(struct amdgpu_fpriv *fpriv, uint32_t *handl
 	mutex_lock(&fpriv->instance_data_handles_lock);
 	// Start from 1: treat id 0 as an invalid id
 	r = idr_alloc(&fpriv->instance_data_handles, instance_data, 1, 0, GFP_KERNEL);
-	mutex_unlock(&fpriv->instance_data_handles_lock);
 
 	if (r < 0)
 		goto error_free;
@@ -1055,14 +1054,14 @@ static int sgpu_instance_data_create(struct amdgpu_fpriv *fpriv, uint32_t *handl
 		goto error_idr_remove;
 
 	*handle = id;
+	mutex_unlock(&fpriv->instance_data_handles_lock);
 	return 0;
 
 error_idr_remove:
-	mutex_lock(&fpriv->instance_data_handles_lock);
 	idr_remove(&fpriv->instance_data_handles, id);
-	mutex_unlock(&fpriv->instance_data_handles_lock);
 
 error_free:
+	mutex_unlock(&fpriv->instance_data_handles_lock);
 	kfree(instance_data);
 	return r;
 }
@@ -1093,11 +1092,11 @@ static int sgpu_instance_data_destroy(struct amdgpu_fpriv *fpriv, uint32_t handl
 
 	mutex_lock(&fpriv->instance_data_handles_lock);
 	instance_data = idr_remove(&fpriv->instance_data_handles, handle);
-	mutex_unlock(&fpriv->instance_data_handles_lock);
 
 	if (instance_data)
 		kref_put(&instance_data->ref, sgpu_instance_data_free);
 
+	mutex_unlock(&fpriv->instance_data_handles_lock);
 	return 0;
 }
 

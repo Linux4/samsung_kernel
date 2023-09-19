@@ -576,8 +576,13 @@ ssize_t s2mpb02_store(struct device *dev,
 	}
 
 	mutex_unlock(&global_led_datas[S2MPB02_TORCH_LED_1]->lock);
-	pr_info("[LED]%s, gpio state flash:%d, torch:%d", __func__, gpio_get_value(flash1_gpio),
-			gpio_get_value(torch1_gpio));
+
+	if (!gpio_is_valid(flash1_gpio))
+		pr_info("[LED]%s, gpio state torch:%d", __func__, gpio_get_value(torch1_gpio));
+	else
+		pr_info("[LED]%s, gpio state flash:%d, torch:%d", __func__,
+			gpio_get_value(flash1_gpio), gpio_get_value(torch1_gpio));
+
 	return count;
 }
 

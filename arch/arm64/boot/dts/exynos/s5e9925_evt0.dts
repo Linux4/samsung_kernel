@@ -6209,17 +6209,17 @@
 	};
 
 	arm-klein-pmu {
-		compatible = "arm,armv8-pmuv3";
+		compatible = "arm,cortex-a510-pmu";
 		interrupts = <0x01 0x07 0xff04 0xffffffff>;
 	};
 
 	arm-matterhorn-pmu {
-		compatible = "arm,armv8-pmuv3";
+		compatible = "arm,cortex-a710-pmu";
 		interrupts = <0x01 0x07 0xff04 0xffffffff>;
 	};
 
 	arm-montblanc-pmu {
-		compatible = "arm,armv8-pmuv3";
+		compatible = "arm,cortex-x2-pmu";
 		interrupts = <0x01 0x07 0xff04 0xffffffff>;
 	};
 
@@ -12637,6 +12637,83 @@
 
 	set@0301 {
 		phandle = <0x14e>;
+
+		freqboost {
+			top-app = <0x00 0x00 0x00>;
+		};
+
+		frt {
+			active-ratio = <0x19 0x64 0x64>;
+		};
+
+		ontime {
+			top-app = <0x01>;
+			foreground = <0x01>;
+			midground = <0x01>;
+
+			domain0 {
+				cpus = "0-3";
+				lower-boundary = <0x00>;
+				upper-boundary = <0x1f>;
+			};
+
+			domain1 {
+				cpus = "4-6";
+				lower-boundary = <0x08>;
+				upper-boundary = <0x42>;
+			};
+
+			domain2 {
+				cpus = "7";
+				lower-boundary = <0x2b>;
+				upper-boundary = <0x64>;
+			};
+		};
+
+		ecs {
+
+			domain0 {
+				busy-threshold-ratio = <0x32>;
+			};
+
+			domain1 {
+				busy-threshold-ratio = <0x32>;
+			};
+		};
+
+		cpus_binding {
+		};
+
+		prefer_cpu {
+			top-app = "4-7";
+		};
+
+		stt {
+			boost-step = <0x05>;
+			htask-cnt = <0x02>;
+			top-app = <0x01>;
+			foreground = <0x01>;
+			midground = <0x01>;
+		};
+
+		fclamp {
+			max-freq = <0x119400 0x00 0x00>;
+			max-target-period = <0x04 0x00 0x00>;
+			max-target-ratio = <0x50 0x00 0x00>;
+
+			monitor-group {
+				top-app = <0x01>;
+				foreground = <0x01>;
+			};
+		};
+
+		cpufreq_gov {
+			up-rate-limit-ms = <0x10 0x10 0x10>;
+			up-rate-limit-freq = <0x119400 0x232800 0x203a00>;
+			pelt-margin = <0x06 0x06 0x06>;
+			pelt-margin-freq = <0x119400 0x232800 0x203a00>;
+			dis-buck-share = <0x01 0x01 0x01>;
+		};
 	};
 
 	set@0302 {

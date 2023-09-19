@@ -9,6 +9,7 @@
 #include <linux/pagemap.h>
 
 #include "../fscrypt_private.h"
+#include "sdp_crypto.h"
 
 extern int dek_is_locked(int engine_id);
 

@@ -172,7 +172,7 @@ struct pablo_kunit_csi_func {
 	void (*csi_s_multibuf_addr)(struct is_device_csi *csi,
 		struct is_frame *frame, u32 index, u32 vc);
 	void (*wq_csis_dma_vc[4])(struct work_struct *data);
-	void (*tasklet_csis_line)(struct task_struct *t);
+	void (*tasklet_csis_line)(struct tasklet_struct *t);
 	void (*csi_hw_cdump_all)(struct is_device_csi *csi);
 	void (*csi_hw_dump_all)(struct is_device_csi *csi);
 };

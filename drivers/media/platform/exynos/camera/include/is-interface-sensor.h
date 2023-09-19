@@ -332,6 +332,7 @@ typedef struct {
 	bool dual_slave;
 	bool lte_multi_capture_mode;
 	bool highres_capture_mode;
+	bool is_writing_sensor_mode;
 
 	/* set hdr mode */
 	u32 cur_hdr_mode;
@@ -451,6 +452,9 @@ struct is_cis_ops {
 	int (*cis_wait_seamless_update_delay)(struct v4l2_subdev *subdev);
 	int (*cis_set_test_pattern)(struct v4l2_subdev *subdev, camera2_sensor_ctl_t *sensor_ctl);
 	int (*cis_update_seamless_mode)(struct v4l2_subdev *subdev);
+	int (*cis_get_updated_binning_ratio)(struct v4l2_subdev *subdev, u32 *binning_ratio);
+	int (*cis_update_latest_seamless_state)(struct v4l2_subdev *subdev);
+	void (*cis_set_remosaic_crop_shift_info)(struct v4l2_subdev *subdev, s32 offsetX, s32 offsetY);
 };
 
 struct is_sensor_ctl
@@ -706,6 +710,26 @@ struct is_long_term_expo_mode {
 	u32 frame_interval;
 };
 
+#if defined(CONFIG_OIS_HALL_DATA_PROVIDER)
+#define NUM_OF_HALLDATA_AT_ONCE 24
+struct is_ois_hall_data {
+	uint64_t timeStamp;
+	int16_t validData;
+	int16_t xAngVelWide[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t yAngVelWide[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t xAngVelTele[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t yAngVelTele[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t xAngVelTele2[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t yAngVelTele2[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t zAngVel[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t xAngleWide[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t yAngleWide[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t xAngleTele[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t yAngleTele[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t xAngleTele2[NUM_OF_HALLDATA_AT_ONCE];
+	int16_t yAngleTele2[NUM_OF_HALLDATA_AT_ONCE];
+};
+#elif defined(USE_OIS_HALL_DATA_FOR_VDIS)
 struct is_ois_hall_data {
 	u64 readTimeStamp;
 #ifdef CONFIG_CAMERA_USE_INTERNAL_MCU
@@ -722,6 +746,7 @@ struct is_ois_hall_data {
 	uint32_t index;
 #endif
 };
+#endif
 
 /* OIS */
 struct is_ois_ops {
@@ -780,7 +805,7 @@ struct is_ois_ops {
 	int (*ois_check_cross_talk)(struct v4l2_subdev *subdev, u16 *hall_data);
 	int (*ois_check_hall_cal)(struct v4l2_subdev *subdev, u16 *hall_cal_data);
 	void (*ois_check_valid)(struct v4l2_subdev *subdev, u8 *value);
-#ifdef USE_OIS_HALL_DATA_FOR_VDIS
+#if defined(USE_OIS_HALL_DATA_FOR_VDIS) || defined(CONFIG_OIS_HALL_DATA_PROVIDER)
 	int (*ois_get_hall_data)(struct v4l2_subdev *subdev, struct is_ois_hall_data *halldata);
 #endif
 	bool(*ois_get_active)(void);
@@ -1034,7 +1059,7 @@ struct is_cis_ext2_interface_ops {
 				bool lte_multi_capture_mode);
 	int (*get_delayed_preflash_time)(struct is_sensor_interface *itf, u32 *delayedTime);
 	int (*set_hdr_mode)(struct is_sensor_interface *itf, u32 mode);
-	u32 (*set_cropped_remosaic)(struct is_sensor_interface *itf,
+	u32 (*set_remosaic_zoom_ratio)(struct is_sensor_interface *itf,
 						u32 zoom_ratio);
 	int (*get_sensor_min_frame_duration)(struct is_sensor_interface *itf,
 				u32 *min_frame_duration);
@@ -1329,5 +1354,5 @@ int set_af_window_position(struct is_sensor_interface *itf,
 int get_status(struct is_sensor_interface *itf, u32 *status,
 					u32 *temperature_valid, int *temperature,
 					u32 *voltage_valid, int *voltage);
-
+u32 get_remosaic_zoom_ratio(struct is_sensor_interface *itf, u32 *zoom_ratio);
 #endif

@@ -109,12 +109,12 @@ static int is_hw_rgbp_handle_interrupt0(u32 id, void *context)
 					strip_index, NULL);
 		} else {
 			atomic_add((hw_ip->num_buffers & 0xffff), &hw_ip->count.fs);
-			_is_hw_frame_dbg_trace(hw_ip, hw_fcount,
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount,
 					DEBUG_POINT_FRAME_START);
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 				msdbg_hw(2, "[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-			is_hardware_frame_start(hw_ip, instance);
+			CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 		}
 	}
 
@@ -124,11 +124,11 @@ static int is_hw_rgbp_handle_interrupt0(u32 id, void *context)
 					instance, hw_fcount, EVENT_FRAME_END,
 					strip_index, NULL);
 		} else {
-			_is_hw_frame_dbg_trace(hw_ip, hw_fcount,
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount,
 					DEBUG_POINT_FRAME_END);
 			atomic_add((hw_ip->num_buffers & 0xffff), &hw_ip->count.fe);
 
-			is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+			CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 					IS_SHOT_SUCCESS, true);
 
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
@@ -533,6 +533,7 @@ static int is_hw_rgbp_init(struct is_hw_ip *hw_ip, u32 instance,
 			}
 		}
 	}
+	hw_ip->frame_type = f_type;
 
 	/* set RDMA */
 	for (idx = RGBP_RDMA_CL; idx < RGBP_RDMA_MAX; idx++) {
@@ -1410,9 +1411,9 @@ static int is_hw_rgbp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 				return ret;
 
 			if (likely(!test_bit(hw_ip->id, &debug_iq))) {
-				_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
+				CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
 				ret = __is_hw_rgbp_set_rta_regs(hw_ip, set_id, instance);
-				_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
+				CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
 				if (ret)
 					msinfo_hw("set_regs is not called from ddk\n", instance, hw_ip);
 				else
@@ -1517,7 +1518,7 @@ static int is_hw_rgbp_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame
 
 	output_id = IS_HW_CORE_END;
 	if (test_bit(hw_ip->id, &frame->core_flag)) {
-		ret = is_hardware_frame_done(hw_ip, frame, -1,
+		ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 			output_id, done_type, false);
 	}
 

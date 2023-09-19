@@ -58,6 +58,8 @@ static int is_sensor_vc_tag(struct is_subdev *subdev,
 		if (ret) {
 			mswarn("%d frame is drop", device, subdev, ldr_frame->fcount);
 			node->request = 0;
+		} else {
+			node->result = 1;
 		}
 
 		if (!test_and_set_bit(IS_SUBDEV_RUN, &subdev->state))

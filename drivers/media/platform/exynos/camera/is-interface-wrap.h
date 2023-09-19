@@ -19,7 +19,7 @@
 
 int is_itf_s_param_wrap(struct is_device_ischain *device,
 		IS_DECLARE_PMAP(pmap));
-int is_itf_a_param_wrap(struct is_device_ischain *device, u64 group);
+int is_itf_chg_setfile_wrap(struct is_device_ischain *device, u64 group);
 int is_itf_f_param_wrap(struct is_device_ischain *device, u64 group);
 int is_itf_enum_wrap(struct is_device_ischain *device);
 void is_itf_storefirm_wrap(struct is_device_ischain *device);

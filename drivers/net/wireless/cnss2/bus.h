@@ -64,4 +64,7 @@ int cnss_bus_debug_reg_write(struct cnss_plat_data *plat_priv, u32 offset,
 int cnss_bus_get_iova(struct cnss_plat_data *plat_priv, u64 *addr, u64 *size);
 int cnss_bus_get_iova_ipa(struct cnss_plat_data *plat_priv, u64 *addr,
 			  u64 *size);
+int cnss_bus_set_therm_cdev_state(struct cnss_plat_data *plat_priv,
+                 unsigned long thermal_state,
+                 int tcdev_id);
 #endif /* _CNSS_BUS_H */

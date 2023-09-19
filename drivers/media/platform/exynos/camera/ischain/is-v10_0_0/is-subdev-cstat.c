@@ -420,6 +420,7 @@ static int is_ischain_cstat_tag(struct is_subdev *subdev,
 				frame->fcount, ret);
 		return ret;
 	}
+	node->result = 1;
 
 	/* DMA out cfg */
 	for (cap_i = 0; cap_i < CAPTURE_NODE_MAX; cap_i++) {
@@ -450,6 +451,7 @@ static int is_ischain_cstat_tag(struct is_subdev *subdev,
 		for (d_p = 0, s_p = num_plane * frame->cur_shot_idx;
 				d_p < num_plane; d_p++, s_p++)
 			dva[d_p] = sframe->dva[s_p];
+		node->result = 1;
 	}
 
 	frame->cstat_ctx++;

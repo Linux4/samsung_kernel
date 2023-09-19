@@ -78,4 +78,5 @@ obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS8825_SOUND) += exynos8825_sound.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS8825_AUDIO) += exynos8825_audio.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS8825_RT5665) += exynos8825_rt5665.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_RAINBOW_PRINCE) += rainbow_prince.o
+obj-$(CONFIG_SND_SOC_SAMSUNG_EXYNOS9925_TFA) += exynos9925_tfa.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_AUDIO) += sec_audio_sysfs.o sec_audio_debug.o

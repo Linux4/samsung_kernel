@@ -1002,18 +1002,15 @@ static int is_ischain_byrp_get(struct is_subdev *subdev,
 {
 	struct is_crop *incrop;
 	struct camera2_node *node;
-	int dma_crop_x, dma_crop_w;
 
 	msrdbgs(1, "GET type: %d\n", idi, subdev, frame, type);
 
 	switch (type) {
 	case PSGT_REGION_NUM:
-		/* Use DMA crop size for BYRP input */
 		node = &frame->shot_ext->node_group.leader;
 		incrop = (struct is_crop *)node->input.cropRegion;
-		dma_crop_x = round_down(incrop->x, 512);
-		dma_crop_w = ALIGN(incrop->w + incrop->x - dma_crop_x, 512);
-		*(int *)result = is_calc_region_num(dma_crop_w, subdev);
+
+		*(int *)result = is_calc_region_num(incrop, NULL, subdev);
 		break;
 	default:
 		break;

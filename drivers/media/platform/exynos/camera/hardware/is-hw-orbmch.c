@@ -300,11 +300,11 @@ static void is_hw_orbmch_handle_start_interrupt(struct is_hw_ip *hw_ip, struct i
 								instance, hw_fcount, EVENT_ORBMCH_FRAME_START, 0, NULL);
 	} else {
 		atomic_add(1, &hw_ip->count.fs);
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance]])))
 			msinfo_hw("[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-		is_hardware_frame_start(hw_ip, instance);
+		CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 	}
 }
 
@@ -326,10 +326,10 @@ static void is_hw_orbmch_handle_end_interrupt(struct is_hw_ip *hw_ip, struct is_
 		is_lib_isp_event_notifier(hw_ip, &hw_orbmch->lib[instance],
 					instance, hw_fcount, EVENT_ORBMCH_FRAME_END, 0, NULL);
 	} else {
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 		atomic_add(hw_ip->num_buffers, &hw_ip->count.fe);
 
-		is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END, IS_SHOT_SUCCESS, true);
+		CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END, IS_SHOT_SUCCESS, true);
 
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance]])))
 			msinfo_hw("[F:%d]F.E\n", instance, hw_ip, hw_fcount);
@@ -570,6 +570,7 @@ static int is_hw_orbmch_init(struct is_hw_ip *hw_ip, u32 instance,
 			}
 		}
 	}
+	hw_ip->frame_type = f_type;
 
 	device = group->device;
 	if (!device) {
@@ -908,9 +909,9 @@ config:
 		if (ret)
 			return ret;
 
-		_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_E);
 		ret = __is_hw_orbmch_set_rta_regs(hw_ip, instance, set_id);
-		_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_RTA_REGS_X);
 		if (ret > 0) {
 			msinfo_hw("set_regs is not called from ddk\n", instance, hw_ip);
 			__is_hw_orbmch_bypass_iq_module(hw_ip, param_set, instance, set_id);
@@ -1006,7 +1007,7 @@ static int is_hw_orbmch_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *fra
 {
 	msdbg_hw(2, "[HW][%s] is called\n", instance, hw_ip, __func__);
 
-	return is_hardware_frame_done(hw_ip, frame, -1, IS_HW_CORE_END, done_type, false);
+	return CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1, IS_HW_CORE_END, done_type, false);
 }
 
 static int is_hw_orbmch_load_setfile(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)

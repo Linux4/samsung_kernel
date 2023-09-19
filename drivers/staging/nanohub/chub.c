@@ -33,6 +33,10 @@
 #include "ssp.h"
 #endif
 
+#if IS_ENABLED(CONFIG_SHUB)
+#include "chub_shub.h"
+#endif
+
 void contexthub_check_time(void)
 {
 	struct rtc_device *chub_rtc = rtc_class_open(CONFIG_RTC_SYSTOHC_DEVICE);
@@ -195,7 +199,7 @@ static int contexthub_dt_init(struct platform_device *pdev,
 	nanohub_dev_debug(dev, "%s: chub irq mailbox %d\n", __func__, chub->irq_mailbox);
 
 	/* request irq handler */
-#if defined(CONFIG_SENSORS_SSP)
+#if IS_ENABLED(CONFIG_SENSORS_SSP) || IS_ENABLED(CONFIG_SHUB)
 	ret = devm_request_threaded_irq(dev, chub->irq_mailbox, NULL, contexthub_irq_handler,
 			       IRQF_ONESHOT, dev_name(dev), chub);
 #else
@@ -375,6 +379,9 @@ static int contexthub_itmon_notifier(struct notifier_block *nb,
 		nanohub_dev_info(data->dev, "%s: chub(%s) itmon detected: action:%d!!\n",
 			__func__, itmon_data->master, action);
 		if (atomic_read(&data->chub_status) == CHUB_ST_RUN) {
+#if IS_ENABLED(CONFIG_SHUB)
+			contexthub_notifier_call(data, CHUB_FW_ST_OFF);
+#endif
 			atomic_set(&data->chub_status, CHUB_ST_ITMON);
 			chub_dbg_dump_hw(data, CHUB_ERR_ITMON);
 #if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
@@ -386,9 +393,17 @@ static int contexthub_itmon_notifier(struct notifier_block *nb,
 			contexthub_shutdown(data);
 			contexthub_handle_debug(data, CHUB_ERR_ITMON);
 		}
+#if IS_ENABLED(CONFIG_SHUB_DEBUG)
 		return NOTIFY_OK;
+#else
+		return ITMON_SKIP_MASK;
+#endif
 	}
+#if IS_ENABLED(CONFIG_SHUB_DEBUG)
 	return NOTIFY_DONE;
+#else
+	return NOTIFY_OK;
+#endif
 }
 #endif
 
@@ -755,6 +770,10 @@ static int contexthub_ipc_probe(struct platform_device *pdev)
 
 	nanohub_dev_info(&pdev->dev, "Probe done. sensor_drv:%s\n", chub->data ? "on" : "off");
 
+#if IS_ENABLED(CONFIG_SHUB)
+	set_contexthub_info(chub);
+#endif
+
 	return 0;
 }
 
@@ -769,6 +788,28 @@ static int contexthub_ipc_remove(struct platform_device *pdev)
 #endif
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_SHUB)
+static int contexthub_alive(struct contexthub_ipc_info *ipc)
+{
+	int cnt = 10;
+
+	atomic_set(&ipc->chub_alive_lock.flag, 0);
+
+	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, AP_COMPLETE);
+	ipc_hw_gen_interrupt(ipc->mailbox, ipc->chub_ipc->opp_mb_id, IRQ_NUM_CHUB_ALIVE);
+
+	while (cnt--) {
+		if (atomic_read(&ipc->chub_alive_lock.flag)) {
+			nanohub_dev_info(ipc->dev, "chub is alive\n");
+			return 0;
+		}
+		mdelay(1);
+	}
+	nanohub_dev_info(ipc->dev, "chub is not alive\n");
+	return -1;
+}
+#endif
 
 static int contexthub_alive_noirq(struct contexthub_ipc_info *ipc)
 {
@@ -787,7 +828,11 @@ static int contexthub_alive_noirq(struct contexthub_ipc_info *ipc)
 	irq_num = IRQ_NUM_CHUB_ALIVE + start_index;
 	base = cipc->user_info[CIPC_USER_CHUB2AP].mb_base;
 
+#if IS_ENABLED(CONFIG_SHUB)
+	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, AP_WAKE);
+#else
 	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, CHUB_PG_OUT);
+#endif
 	ipc_hw_gen_interrupt(ipc->mailbox, ipc->chub_ipc->opp_mb_id, IRQ_NUM_CHUB_ALIVE);
 
 	atomic_set(&ipc->chub_alive_lock.flag, 0);
@@ -828,7 +873,12 @@ static int contexthub_suspend_noirq(struct device *dev)
 
 	enable_irq_wake(ipc->irq_mailbox);
 
+#if IS_ENABLED(CONFIG_SHUB)
+	nanohub_dev_info(dev, "%s: send ap sleep\n", __func__);
+	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, AP_SLEEP);
+#else
 	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, CHUB_PG_IN);
+#endif
 	ipc_hw_gen_interrupt(ipc->mailbox, ipc->chub_ipc->opp_mb_id, IRQ_NUM_CHUB_ALIVE);
 
 	return 0;
@@ -861,10 +911,12 @@ static int contexthub_suspend(struct device *dev)
 		chub_wait_event(&chub->log_lock, 100);
 	}
 
+#if !IS_ENABLED(CONFIG_SHUB)
 	nanohub_dev_info(dev, "%s: send ap sleep\n", __func__);
 	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, AP_SLEEP);
 	ipc_hw_gen_interrupt(chub->mailbox, chub->chub_ipc->opp_mb_id, IRQ_NUM_CHUB_ALIVE);
 	nanohub_dev_info(dev, "%s: out\n", __func__);
+#endif
 
 	return 0;
 }
@@ -885,8 +937,10 @@ static int contexthub_resume(struct device *dev)
 #endif
 #endif
 
+#if !IS_ENABLED(CONFIG_SHUB)
 	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, AP_WAKE);
 	ipc_hw_gen_interrupt(chub->mailbox, chub->chub_ipc->opp_mb_id, IRQ_NUM_CHUB_ALIVE);
+#endif
 	atomic_set(&chub->chub_sleep, 0);
 
 #ifdef CONFIG_SENSORS_SSP
@@ -898,7 +952,38 @@ static int contexthub_resume(struct device *dev)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_SHUB)
+static int contexthub_prepare(struct device *dev)
+{
+	struct contexthub_ipc_info *chub = dev_get_drvdata(dev);
+
+	if (atomic_read(&chub->chub_status) != CHUB_ST_RUN)
+		return 0;
+
+	nanohub_dev_info(dev, "%s\n", __func__);
+	ipc_write_hw_value(IPC_VAL_HW_AP_STATUS, AP_PREPARE);
+	ipc_hw_gen_interrupt(chub->mailbox, chub->chub_ipc->opp_mb_id, IRQ_NUM_CHUB_ALIVE);
+
+	return 0;
+}
+
+static void contexthub_complete(struct device *dev)
+{
+	struct contexthub_ipc_info *chub = dev_get_drvdata(dev);
+
+	if (atomic_read(&chub->chub_status) != CHUB_ST_RUN)
+		return;
+
+	nanohub_dev_info(dev, "%s\n", __func__);
+	contexthub_alive(chub);
+}
+#endif
+
 static const struct dev_pm_ops contexthub_pm_ops = {
+#if IS_ENABLED(CONFIG_SHUB)
+	.prepare = contexthub_prepare,
+	.complete = contexthub_complete,
+#endif
 	.suspend = contexthub_suspend,
 	.suspend_noirq = contexthub_suspend_noirq,
 	.resume = contexthub_resume,

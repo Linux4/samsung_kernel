@@ -4,3 +4,5 @@
 [abi_symbol_list]
   _trace_android_vh_record_pcpu_rwsem_starttime
   wait_on_page_bit
+ # required by drivers/samsung/pm/sec_pm_debug.ko
+  pm_get_active_wakeup_sources

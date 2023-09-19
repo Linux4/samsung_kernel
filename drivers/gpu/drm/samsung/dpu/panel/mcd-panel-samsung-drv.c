@@ -36,8 +36,10 @@
 #include "../exynos_drm_dqe.h"
 #include "panel-samsung-drv.h"
 #include "mcd-panel-samsung-helper.h"
+#include "panel.h"
 #include "panel_drv.h"
-#if defined(CONFIG_PANEL_FREQ_HOP)
+
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
 #endif
 
@@ -205,7 +207,7 @@ static void exynos_panel_connector_print_state(struct drm_printer *p,
 		   desc->max_avg_luminance);
 	drm_printf(p, "\thdr_formats: 0x%x\n", desc->hdr_formats);
 	drm_printf(p, "\tadjusted_fps: %d\n", exynos_conn_state->adjusted_fps);
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	drm_printf(p, "\tfingerprint_mask_req: 0x%x\n", exynos_conn_state->fingerprint_mask);
 #endif
 }
@@ -256,6 +258,7 @@ int exynos_drm_cmdset_cleanup(struct exynos_panel *ctx)
 		ctx->msg[i].tx_buf = NULL;
 		ctx->msg[i].type = 0;
 		ctx->msg[i].tx_len = 0;
+		ctx->msg[i].flags = 0;
 	}
 	ctx->cmdset_msg_total = 0;
 	ctx->cmdset_payload_total = 0;
@@ -288,7 +291,7 @@ exynos_panel_connector_set_property(struct exynos_drm_connector *exynos_conn,
 			struct exynos_drm_connector_state *exynos_conn_state,
 			struct drm_property *property, uint64_t val)
 {
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	struct exynos_panel *ctx = exynos_connector_to_panel(exynos_conn);
 	const struct exynos_drm_connector_properties *p =
 		exynos_drm_connector_get_properties(&ctx->exynos_connector);
@@ -318,7 +321,7 @@ exynos_panel_connector_get_property(struct exynos_drm_connector *exynos_conn,
 		*val = ctx->desc->hdr_formats;
 	else if (property == p->adjusted_fps)
 		*val = exynos_conn_state->adjusted_fps;
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	else if (property == p->fingerprint_mask)
 		*val = ctx->fingerprint_mask;
 #endif
@@ -578,7 +581,7 @@ static int exynos_panel_attach_properties(struct exynos_panel *ctx)
 	drm_object_attach_property(obj, p->max_avg_luminance, 0);
 	drm_object_attach_property(obj, p->hdr_formats, 0);
 	drm_object_attach_property(obj, p->adjusted_fps, 0);
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	drm_object_attach_property(obj, p->fingerprint_mask, 0);
 #endif
 
@@ -851,7 +854,7 @@ static void exynos_panel_parse_vendor_pps(struct exynos_panel *ctx)
 			return;
 		}
 
-		np = ctx->mcd_panel_dev->ddi_node;
+		np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 		if (!np) {
 			panel_err(ctx, "mcd_panel ddi-node is null\n");
 			return;
@@ -879,7 +882,7 @@ static void exynos_panel_parse_vfp_detail(struct exynos_panel *ctx)
 		return;
 	}
 
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		panel_err(ctx, "mcd_panel ddi-node is null\n");
 		return;
@@ -1234,7 +1237,7 @@ static void mcd_drm_request_set_clock(struct exynos_panel *ctx, void *arg)
 		panel_err(ctx, "mcd_panel req_set_clock failed(ret:%d)\n", ret);
 }
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 static int mcd_drm_panel_set_fingermask_layer(struct exynos_panel *ctx, u32 after)
 {
 	struct mask_layer_data data;
@@ -1247,8 +1250,17 @@ static int mcd_drm_panel_set_fingermask_layer(struct exynos_panel *ctx, u32 afte
 	if (ctx->fingerprint_mask == exynos_state->fingerprint_mask)
 		return 0;
 
-	data.trigger_time = after;
-	data.req_mask_layer = exynos_state->fingerprint_mask;
+	if (exynos_state->fingerprint_mask) {
+		if (!after)
+			data.req = MASK_LAYER_ON_BEFORE;
+		else
+			data.req = MASK_LAYER_ON_AFTER;
+	} else {
+		if (!after)
+			data.req = MASK_LAYER_OFF_BEFORE;
+		else
+			data.req = MASK_LAYER_OFF_AFTER;
+	}
 
 	ret = call_mcd_panel_func(ctx->mcd_panel_dev, set_mask_layer, &data);
 
@@ -1256,13 +1268,13 @@ static int mcd_drm_panel_set_fingermask_layer(struct exynos_panel *ctx, u32 afte
 		ctx->fingerprint_mask = exynos_state->fingerprint_mask;
 
 	if (ret < 0) {
-		panel_err(ctx, "mcd_panel set_mask_layer failed(ret:%d)\n", ret);
+		dev_err(ctx->dev, "%s: mcd_panel set_mask_layer failed %d", __func__, ret);
 		return -EINVAL;
 	}
 
-	panel_info(ctx, "(%s)(%s)\n",
-			data.trigger_time ? "after" : "before",
-			data.req_mask_layer ? "enable" : "disable");
+	dev_info(ctx->dev, "%s (%s)(%s)\n", __func__,
+			after ? "after" : "before",
+			exynos_state->fingerprint_mask ? "enable" : "disable");
 
 	return ret;
 }
@@ -2230,11 +2242,11 @@ __visible_for_testing int mcd_drm_emergency_off(void *_ctx)
 	return 0;
 }
 
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 static int mcd_drm_panel_set_osc(struct exynos_panel *ctx, u32 frequency)
 {
-	struct panel_clock_info info;
 	int ret;
+	struct panel_clock_info info;
 
 	if (!ctx) {
 		pr_err("FREQ_HOP: ERR:%s: invalid param\n", __func__);
@@ -2256,8 +2268,8 @@ static int mcd_drm_panel_set_osc(struct exynos_panel *ctx, u32 frequency)
 
 static int mcd_drm_panel_set_ffc(struct exynos_panel *ctx, u32 frequency)
 {
-	struct panel_clock_info info;
 	int ret;
+	struct panel_clock_info info;
 
 	if (!ctx) {
 		pr_err("FREQ_HOP: ERR:%s: invalid param\n", __func__);
@@ -2278,7 +2290,7 @@ static int mcd_drm_panel_set_ffc(struct exynos_panel *ctx, u32 frequency)
 }
 
 __visible_for_testing int mcd_drm_set_freq_hop(void *_ctx,
-		struct freq_hop_elem *elem)
+		struct freq_hop_param *param)
 {
 	struct mipi_dsi_device *dsi;
 	struct dsim_device *dsim;
@@ -2297,24 +2309,24 @@ __visible_for_testing int mcd_drm_set_freq_hop(void *_ctx,
 	}
 
 	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
-	ret = mcd_dsim_update_dsi_freq(dsim, elem->dsi_freq);
+	ret = mcd_dsim_update_dsi_freq(dsim, param->dsi_freq);
 	if (ret < 0) {
 		pr_err("%s: failed to update dsi_freq(%d)\n",
-				__func__, elem->dsi_freq);
+				__func__, param->dsi_freq);
 		return ret;
 	}
 
-	ret = mcd_drm_panel_set_ffc(ctx, elem->dsi_freq);
+	ret = mcd_drm_panel_set_ffc(ctx, param->dsi_freq);
 	if (ret < 0) {
 		pr_err("%s: failed to set ffc(%d)\n",
-				__func__, elem->dsi_freq);
+				__func__, param->dsi_freq);
 		return ret;
 	}
 
-	ret = mcd_drm_panel_set_osc(ctx, elem->osc_freq);
+	ret = mcd_drm_panel_set_osc(ctx, param->osc_freq);
 	if (ret < 0) {
-		pr_err("%s: failed to set ffc(%d)\n",
-				__func__, elem->dsi_freq);
+		pr_err("%s: failed to set osc(%d)\n",
+				__func__, param->osc_freq);
 		return ret;
 	}
 
@@ -2342,7 +2354,7 @@ struct panel_adapter_funcs mcd_panel_adapter_funcs = {
 	.dpu_event_log_print = mcd_drm_dpu_event_log_print,
 	.set_commit_retry = mcd_drm_set_commit_retry,
 	.emergency_off = mcd_drm_emergency_off,
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 	.set_freq_hop = mcd_drm_set_freq_hop,
 #endif
 };
@@ -2359,7 +2371,7 @@ static const struct exynos_panel_funcs mcd_exynos_panel_funcs = {
 	.set_lp_mode = exynos_panel_set_lp_mode,
 	.mode_set = mcd_drm_panel_mode_set,
 	.req_set_clock = mcd_drm_request_set_clock,
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	.set_fingermask_layer = mcd_drm_panel_set_fingermask_layer,
 #endif
 };
@@ -2506,13 +2518,17 @@ int mcd_drm_panel_get_size_mm(struct exynos_panel *ctx,
 	/* TODO: get width_mm, height_mm from mcd-panel */
 
 	/* temporary get width_mm, height_mm directly */
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		panel_err(ctx, "mcd_panel ddi-node is null\n");
 		return -EINVAL;
 	}
 
+#if IS_ENABLED(CONFIG_USDM_PANEL)
+	of_property_read_u32_array(np, "SLSI,size", size_mm, 2);
+#else
 	of_property_read_u32_array(np, "size", size_mm, 2);
+#endif
 
 	*width_mm = size_mm[0];
 	*height_mm = size_mm[1];
@@ -2529,7 +2545,7 @@ bool mcd_drm_panel_get_lp11_reset(struct exynos_panel *ctx)
 	if (!ctx || !ctx->dev || !ctx->mcd_panel_dev)
 		return -ENODEV;
 
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		panel_err(ctx, "mcd_panel ddi-node is null\n");
 		return -EINVAL;
@@ -2754,7 +2770,12 @@ static struct mipi_dsi_driver exynos_panel_driver = {
 };
 module_mipi_dsi_driver(exynos_panel_driver);
 
+#if IS_ENABLED(CONFIG_USDM_PANEL_S6E3FC3) ||\
+	IS_ENABLED(CONFIG_USDM_PANEL_S6E3FC5)
+MODULE_SOFTDEP("pre: mcd-panel mcd-panel-s6e3fc3_r11s mcd-panel-s6e3fc5_r11s");
+#else
 MODULE_SOFTDEP("pre: mcd-panel");
+#endif
 
 MODULE_AUTHOR("Jiun Yu <jiun.yu@samsung.com>");
 MODULE_DESCRIPTION("MIPI-DSI based Samsung common panel driver");

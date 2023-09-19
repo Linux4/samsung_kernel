@@ -102,6 +102,7 @@ struct is_hw_lme {
 	u32				corex_set_id;
 
 	struct tasklet_struct		end_tasklet;
+	struct is_subdev		subdev[IS_STREAM_COUNT];
 };
 
 int is_hw_lme_probe(struct is_hw_ip *hw_ip, struct is_interface *itf,

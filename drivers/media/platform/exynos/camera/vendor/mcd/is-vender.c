@@ -87,7 +87,6 @@ extern int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs,
 #ifdef USE_CAMERA_HW_BIG_DATA
 static struct cam_hw_param_collector cam_hwparam_collector;
 static bool mipi_err_check;
-static bool need_update_to_file;
 
 void is_sec_init_err_cnt(struct cam_hw_param *hw_param)
 {
@@ -129,10 +128,9 @@ void is_sec_get_hw_param(struct cam_hw_param **hw_param, u32 position)
 		break;
 #endif
 	default:
-		need_update_to_file = false;
-		return;
+		*hw_param = NULL;
+		break;
 	}
-	need_update_to_file = true;
 }
 EXPORT_SYMBOL_GPL(is_sec_get_hw_param);
 
@@ -1778,6 +1776,14 @@ static int is_ischain_loadcalb(struct is_core *core,
 			memset((void *)(cal_ptr + finfo->rom_header_cal_data_start_addr),
 				0xFF,
 				cal_size - finfo->rom_header_cal_data_start_addr);
+
+#ifdef USE_CAMERA_CHECK_EEPROM_STATUS
+			if (test_bit(IS_ROM_STATE_FINAL_MODULE, &finfo->rom_state)) {
+				clear_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state);
+				err("Camera %d: CRC32 error. make camera fail for final module!!", rom_id);
+				ret = -EIO;
+			}
+#endif
 		} else {
 			err("Camera %d: CRC32 error for all section.", rom_id);
 			memset((void *)(cal_ptr), 0xFF, cal_size);
@@ -2231,14 +2237,13 @@ int is_vender_vidioc_s_ctrl(struct is_video_ctx *vctx, struct v4l2_control *ctrl
 		head->intent_ctl.captureIntent = captureIntent;
 		head->intent_ctl.vendor_captureCount = captureCount;
 
-		if (captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI) {
-			head->remainIntentCount = 3 + INTENT_RETRY_CNT;
-		} else {
-			head->remainIntentCount = 1 + INTENT_RETRY_CNT;
-		}
+		if (captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI)
+			head->remainCaptureIntentCount = 3 + CAPTURE_INTENT_RETRY_CNT;
+		else
+			head->remainCaptureIntentCount = 1 + CAPTURE_INTENT_RETRY_CNT;
 
-		mvinfo("[VENDER] s_ctrl intent(%d) count(%d) remainIntentCount(%d)\n",
-			device, video, captureIntent, captureCount, head->remainIntentCount);
+		mvinfo("[VENDER] s_ctrl intent(%d) count(%d) remainCaptureIntentCount(%d)\n",
+			device, video, captureIntent, captureCount, head->remainCaptureIntentCount);
 		break;
 	case V4L2_CID_IS_CAPTURE_EXPOSURETIME:
 		ctrl->id = VENDER_S_CTRL;
@@ -2247,9 +2252,10 @@ int is_vender_vidioc_s_ctrl(struct is_video_ctx *vctx, struct v4l2_control *ctrl
 		break;
 	case V4L2_CID_IS_TRANSIENT_ACTION:
 		ctrl->id = VENDER_S_CTRL;
-
+		head->intent_ctl.vendor_transientAction = ctrl->value;
+		head->remainIntentCount = INTENT_RETRY_CNT;
 		mvinfo("[VENDOR] transient action(%d)\n", device, video, ctrl->value);
-		if (ctrl->value == ACTION_ZOOMING)
+		if (ctrl->value == AA_TRANSIENT_ACTION_ZOOMING)
 			specific->zoom_running = true;
 		else
 			specific->zoom_running = false;

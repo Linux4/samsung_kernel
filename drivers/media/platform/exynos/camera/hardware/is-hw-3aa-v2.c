@@ -236,13 +236,13 @@ static inline void __is_hw_3aa_frame_start(struct is_hw_ip *hw_ip, u32 instance,
 		is_lib_isp_event_notifier(hw_ip, &hw->lib[instance], instance,
 				fcount, EVENT_FRAME_START, /* strip_index */ 0, NULL);
 	} else {
-		_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_FRAME_START);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_FRAME_START);
 		atomic_add(1, &hw_ip->count.fs);
 
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance]])))
 			msinfo_hw("[F%d]F.S\n", instance, hw_ip, fcount);
 
-		is_hardware_frame_start(hw_ip, instance);
+		CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 	}
 
 	msdbg_hw(1, "[F%d][X] F.S\n", instance, hw_ip, fcount);
@@ -277,13 +277,13 @@ static inline void __is_hw_3aa_frame_end(struct is_hw_ip *hw_ip, u32 instance)
 			mswarn_hw("[F%d] skip end_tasklet\n", instance, hw_ip, fcount);
 		}
 	} else {
-		_is_hw_frame_dbg_trace(hw_ip, fcount, DEBUG_POINT_FRAME_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, fcount, DEBUG_POINT_FRAME_END);
 		atomic_add(1, &hw_ip->count.fe);
 
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 			msinfo_hw("[F%d]F.E\n", instance, hw_ip, fcount);
 
-		is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+		CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 				IS_SHOT_SUCCESS, true);
 
 		if (atomic_read(&hw_ip->count.fs) < atomic_read(&hw_ip->count.fe))
@@ -437,7 +437,7 @@ static int is_hw_3aa_isr(u32 id, void *data)
 						fc = 0;
 					}
 					msdbg_hw(1, "[F%d][E] C.L\n", instance, hw_ip, fcount);
-					is_hardware_config_lock(hw_ip, instance, fcount);
+					CALL_HW_OPS(hw_ip, config_lock, hw_ip, instance, fcount);
 					msdbg_hw(1, "[F%d][X] C.L\n", instance, hw_ip, fcount);
 					cl = 0;
 				}
@@ -828,6 +828,7 @@ static int is_hw_3aa_init(struct is_hw_ip *hw_ip, u32 instance,
 		}
 	}
 
+	hw_ip->frame_type = f_type;
 	group->hw_ip = hw_ip;
 	msinfo_hw("[%s] Binding\n", instance, hw_ip, group_id_name[group->id]);
 
@@ -2014,9 +2015,9 @@ static int is_hw_3aa_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		if (ret)
 			return ret;
 		if (likely(!test_bit(hw_ip->id, (unsigned long *)&debug_iq))) {
-			_is_hw_frame_dbg_trace(hw_ip, frame->fcount, DEBUG_POINT_RTA_REGS_E);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, frame->fcount, DEBUG_POINT_RTA_REGS_E);
 			__is_hw_3aa_s_iq_regs(hw_ip, hw);
-			_is_hw_frame_dbg_trace(hw_ip, frame->fcount, DEBUG_POINT_RTA_REGS_X);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, frame->fcount, DEBUG_POINT_RTA_REGS_X);
 		} else {
 			msdbg_hw(1, "bypass s_iq_regs\n", instance, hw_ip);
 			bypass_iq = true;
@@ -2149,7 +2150,7 @@ static int is_hw_3aa_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame,
 {
 	msdbg_hw(2, "[%s] is called\n", instance, hw_ip, __func__);
 
-	return is_hardware_frame_done(hw_ip, frame, -1,
+	return CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 			IS_HW_CORE_END, done_type, false);
 }
 

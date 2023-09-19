@@ -3,7 +3,9 @@
  *
  */
 #include <linux/uaccess.h>
+#include <linux/fscrypto_sdp_ioctl.h>
 #include "../fscrypt_private.h"
+#include "sdp_crypto.h"
 
 int fscrypt_sdp_ioctl_get_sdp_info(struct inode *inode, unsigned long arg)
 {

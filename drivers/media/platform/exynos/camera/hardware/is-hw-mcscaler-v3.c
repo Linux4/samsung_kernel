@@ -113,12 +113,12 @@ static int is_hw_mcsc_handle_interrupt(u32 id, void *context)
 	if (is_scaler_intr_occurred0(status, INTR_FRAME_START)) {
 		atomic_add(1, &hw_ip->count.fs);
 
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
 
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 			msinfo_hw("[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-		is_hardware_frame_start(hw_ip, instance);
+		CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 
 		/* for set shadow register write start */
 		head = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, hw_ip->group[instance]);
@@ -1568,9 +1568,9 @@ void is_hw_mcsc_frame_done(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	if (done_type != IS_SHOT_SUCCESS)
 		flag_get_meta = false;
 
-	is_hardware_frame_done(hw_ip, frame, -1, output_id, done_type, flag_get_meta);
+	CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1, output_id, done_type, flag_get_meta);
 
-	_is_hw_frame_dbg_trace(hw_ip, hw_frame->fcount, DEBUG_POINT_FRAME_END);
+	CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_frame->fcount, DEBUG_POINT_FRAME_END);
 
 	index = hw_ip->debug_index[1];
 	dbg_isr_hw("[F:%d][S-E] %05llu us\n", hw_ip, atomic_read(&hw_ip->fcount),

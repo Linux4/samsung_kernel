@@ -85,7 +85,7 @@ int lme_hw_s_reset(void __iomem *base)
 	}
 
 	/* Set non-secure master for LME DMAs with SMC_CALL */
-	ret = exynos_smc(SMC_CMD_PREAPRE_PD_ONOFF, 0x1, 0x17610204, 0x2); /* D_TZPC_LME */
+	ret = pablo_smc(SMC_CMD_PREAPRE_PD_ONOFF, 0x1, 0x17610204, 0x2); /* D_TZPC_LME */
 	if (ret)
 		err("[SMC] SMC_CMD_PREPARE_PD_ONOFF fail: %d", ret);
 

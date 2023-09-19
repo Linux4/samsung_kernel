@@ -50,7 +50,7 @@
 #include <exynos_drm_connector.h>
 #include <exynos_drm_dsim.h>
 #include <exynos_drm_decon.h>
-#include <exynos_drm_migov.h>
+#include <exynos_drm_profiler.h>
 #include <exynos_drm_freq_hop.h>
 #include <regs-dsim.h>
 
@@ -214,6 +214,8 @@ void dsim_exit_ulps(struct dsim_device *dsim)
 #endif
 	dsim_phy_power_on(dsim);
 
+	dpu_init_freq_hop(dsim);
+
 	dsim_reg_init(dsim->id, &dsim->config, &dsim->clk_param, false);
 	dsim_reg_exit_ulps_and_start(dsim->id, 0, 0x1F);
 
@@ -257,6 +259,8 @@ static void dsim_enable_locked(struct drm_encoder *encoder)
 #endif
 
 	dsim_phy_power_on(dsim);
+
+	dpu_init_freq_hop(dsim);
 
 	dsim_reg_init(dsim->id, &dsim->config, &dsim->clk_param, true);
 	dsim_reg_start(dsim->id);
@@ -402,70 +406,71 @@ static void dsim_modes_release(struct dsim_pll_params *pll_params)
 	kfree(pll_params);
 }
 
-static const struct dsim_pll_param *
-dsim_get_clock_mode(const struct dsim_device *dsim,
-		    const struct drm_display_mode *mode)
+int dsim_get_clock_mode(const struct dsim_device *dsim,
+			const struct drm_display_mode *mode)
 {
-	int i;
 	const struct dsim_pll_params *pll_params = dsim->pll_params;
 	const size_t mlen = strnlen(mode->name, DRM_DISPLAY_MODE_LEN);
-	const struct dsim_pll_param *ret = NULL;
 	size_t plen;
+	int i;
 
 	for (i = 0; i < pll_params->num_modes; i++) {
 		const struct dsim_pll_param *p = pll_params->params[i];
 
 		plen = strnlen(p->name, DRM_DISPLAY_MODE_LEN);
 
-		if (!strncmp(mode->name, p->name, plen)) {
-			ret = p;
-			/*
-			 * if it's not exact match, continue looking for exact
-			 * match, use this as a fallback
-			 */
-			if (plen == mlen)
-				break;
-		}
+		if (!strncmp(mode->name, p->name, max(mlen, plen)))
+			return i;
 	}
 
-	return ret;
+	dsim_warn(dsim, "%s: failed to find clock mode(%s)\n", __func__, mode->name);
+
+	return -ENOENT;
 }
 
 static int dsim_set_clock_mode(struct dsim_device *dsim,
 			       const struct drm_display_mode *mode)
 {
-	const struct dsim_pll_param *p = dsim_get_clock_mode(dsim, mode);
+	struct dsim_pll_params *pll_params = dsim->pll_params;
+	const struct dsim_pll_param *p;
+	struct stdphy_pms *dphy_pms;
+	struct dsim_clks *clk_param;
 
-	if (!p)
+	pll_params->curr_idx = dsim_get_clock_mode(dsim, mode);
+
+	if (pll_params->curr_idx < 0)
 		return -ENOENT;
 
-	dsim->config.dphy_pms.p = p->p;
-	dsim->config.dphy_pms.m = p->m;
-	dsim->config.dphy_pms.s = p->s;
-	dsim->config.dphy_pms.k = p->k;
+	p = pll_params->params[pll_params->curr_idx];
 
-	dsim->config.dphy_pms.mfr = p->mfr;
-	dsim->config.dphy_pms.mrr = p->mrr;
-	dsim->config.dphy_pms.sel_pf = p->sel_pf;
-	dsim->config.dphy_pms.icp = p->icp;
-	dsim->config.dphy_pms.afc_enb = p->afc_enb;
-	dsim->config.dphy_pms.extafc = p->extafc;
-	dsim->config.dphy_pms.feed_en = p->feed_en;
-	dsim->config.dphy_pms.fsel = p->fsel;
-	dsim->config.dphy_pms.fout_mask = p->fout_mask;
-	dsim->config.dphy_pms.rsel = p->rsel;
-	dsim->config.dphy_pms.dither_en = p->dither_en;
+	dphy_pms = &dsim->config.dphy_pms;
+	dphy_pms->p = p->p;
+	dphy_pms->m = p->m;
+	dphy_pms->s = p->s;
+	dphy_pms->k = p->k;
 
-	dsim->clk_param.hs_clk = p->pll_freq;
-	dsim->clk_param.esc_clk = p->esc_freq;
+	dphy_pms->mfr = p->mfr;
+	dphy_pms->mrr = p->mrr;
+	dphy_pms->sel_pf = p->sel_pf;
+	dphy_pms->icp = p->icp;
+	dphy_pms->afc_enb = p->afc_enb;
+	dphy_pms->extafc = p->extafc;
+	dphy_pms->feed_en = p->feed_en;
+	dphy_pms->fsel = p->fsel;
+	dphy_pms->fout_mask = p->fout_mask;
+	dphy_pms->rsel = p->rsel;
+	dphy_pms->dither_en = p->dither_en;
+
+	clk_param = &dsim->clk_param;
+	clk_param->hs_clk = p->pll_freq;
+	clk_param->esc_clk = p->esc_freq;
 
 	dsim_debug(dsim, "found proper pll parameter\n");
 	dsim_debug(dsim, "\t%s(p:0x%x,m:0x%x,s:0x%x,k:0x%x)\n", p->name,
-		 dsim->config.dphy_pms.p, dsim->config.dphy_pms.m,
-		 dsim->config.dphy_pms.s, dsim->config.dphy_pms.k);
+		 dphy_pms->p, dphy_pms->m, dphy_pms->s, dphy_pms->k);
 
-	dsim_debug(dsim, "\t%s(hs:%d,esc:%d)\n", p->name, dsim->clk_param.hs_clk,
-		 dsim->clk_param.esc_clk);
+	dsim_debug(dsim, "\t%s(hs:%d,esc:%d)\n", p->name, clk_param->hs_clk,
+			clk_param->esc_clk);
 
 	dsim->config.cmd_underrun_cnt = p->cmd_underrun_cnt;
 
@@ -706,7 +711,7 @@ static enum drm_mode_status dsim_mode_valid(struct drm_encoder *encoder,
 {
 	struct dsim_device *dsim = encoder_to_dsim(encoder);
 
-	if (!dsim_get_clock_mode(dsim, mode))
+	if (dsim_get_clock_mode(dsim, mode) < 0)
 		return MODE_NOMODE;
 
 	return MODE_OK;
@@ -991,8 +996,8 @@ static irqreturn_t dsim_irq_handler(int irq, void *dev_id)
 			drm_crtc_handle_vblank(&exynos_crtc->base);
 			DPU_EVENT_LOG("SIGNAL_CRTC_OUT_FENCE", exynos_crtc,
 				EVENT_FLAG_REPEAT | EVENT_FLAG_FENCE, NULL);
-			if (exynos_crtc->migov)
-				exynos_migov_update_vsync_cnt(exynos_crtc->migov);
+			if (exynos_crtc->profiler)
+				exynos_profiler_update_vsync_cnt(exynos_crtc->profiler);
 		}
 	}
 
@@ -1523,7 +1528,7 @@ static ssize_t dsim_fcmd_write_sysfs_store(struct device *dev,
 	}
 
 	if (xfer_sz > FCMD_DATA_MAX_SIZE) {
-		dsim_err(dsim, "fcmd transfer size error(%d, %d)\n", size, xfer_sz);
+		dsim_err(dsim, "fcmd transfer size error(%lu, %d)\n", size, xfer_sz);
 		return -1;
 	}
 
@@ -1546,7 +1551,7 @@ static ssize_t dsim_fcmd_write_sysfs_store(struct device *dev,
 			fcmd_data[i] = i % 256;
 	}
 
-	dsim_info(dsim, "input size=%d, xfer size=%d, xfer unit=%d, fcmd_buf_addr=0x%lx\n",
+	dsim_info(dsim, "input size=%lu, xfer size=%d, xfer unit=%d, fcmd_buf_addr=0x%llx\n",
 			size, xfer_sz, xfer_unit, dsim->fcmd_buf_data.dma_addr);
 
 	ret = dsim_write_data_fcmd(dsim, id, dsim->fcmd_buf_data.dma_addr,
@@ -2383,10 +2388,7 @@ static int dsim_probe(struct platform_device *pdev)
 			phy_init(dsim->res.phy_ex);
 	}
 
-#if IS_ENABLED(CONFIG_EXYNOS_FREQ_HOP)
-	if (!dsim->id)
-		dpu_init_freq_hop(dsim);
-#endif
+	dsim->freq_hop = dpu_register_freq_hop(dsim);
 
 #if defined(CONFIG_EXYNOS_DMA_DSIMFC)
 	if (!dsim->id) {

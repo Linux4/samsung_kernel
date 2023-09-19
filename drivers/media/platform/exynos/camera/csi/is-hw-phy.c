@@ -45,18 +45,16 @@ static int get_skew_delay_sel(u32 *cfg, u32 mode)
 	if (mode != 0x000D)
 		return 0; /* NOT USED */
 
-	if (cfg[PPI_SPEED] >= PHY_REF_SPEED) {
-		if (cfg[PPI_SPEED] >= 4000 && cfg[PPI_SPEED] <= 6500)
-			skew_delay_sel = 0;
-		else if (cfg[PPI_SPEED] >= 3000 && cfg[PPI_SPEED] < 4000)
-			skew_delay_sel = 1;
-		else if (cfg[PPI_SPEED] >= 2000 && cfg[PPI_SPEED] < 3000)
-			skew_delay_sel = 2;
-		else if (cfg[PPI_SPEED] >= 1500 && cfg[PPI_SPEED] < 2000)
-			skew_delay_sel = 3;
-		else
-			skew_delay_sel = 0;
-	}
+	if (cfg[PPI_SPEED] >= 4000 && cfg[PPI_SPEED] <= 6500)
+		skew_delay_sel = 0;
+	else if (cfg[PPI_SPEED] >= 3000 && cfg[PPI_SPEED] < 4000)
+		skew_delay_sel = 1;
+	else if (cfg[PPI_SPEED] >= 2000 && cfg[PPI_SPEED] < 3000)
+		skew_delay_sel = 2;
+	else if (cfg[PPI_SPEED] < 2000)
+		skew_delay_sel = 3;
+	else
+		skew_delay_sel = 0;
 
 	return skew_delay_sel;
 }

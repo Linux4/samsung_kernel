@@ -51,6 +51,7 @@ void phy_exynos_eusb_tune(struct exynos_usbphy_info *info)
 			continue;
 		}
 		para_name = info->tune_param[cnt].name;
+		pr_info("%s: %s = 0x%x\n", __func__, para_name, val);
 		if (!strcmp(para_name, "tx_fsls_slew_rate")) {
 			((EUSBPHY_REG_TXTUNE_p) (&phy_cfg_tx))->b.fsls_slew_rate = val;
 		} else if (!strcmp(para_name, "tx_fsls_vref_tune")) {

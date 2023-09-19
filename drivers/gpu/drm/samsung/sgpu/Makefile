@@ -240,12 +240,23 @@ sgpu-$(CONFIG_DRM_SGPU_BPMD) += \
 sgpu-$(CONFIG_PM_DEVFREQ) += \
 	sgpu_utilization.o sgpu_governor.o sgpu_user_interface.o sgpu_devfreq.o
 
+sgpu-$(CONFIG_DRM_SGPU_DVFS) += \
+        sgpu_utilization.o sgpu_governor.o sgpu_user_interface.o sgpu_devfreq.o
+
+
 # add Vangogh lite hw counter
 sgpu-y += \
 	vangogh_lite_hw_counter.o
 
 # add Exynos Amigo api
 sgpu-$(CONFIG_DRM_SGPU_EXYNOS) += exynos_gpu_interface.o
+sgpu-$(CONFIG_DRM_SGPU_DVFS) += exynos_gpu_interface.o
+
+# add GPU Profiler api
+ifeq ($(CONFIG_EXYNOS_GPU_PROFILER), m)
+	sgpu-$(CONFIG_DRM_SGPU_DVFS) += sgpu_profiler_v1.o
+        sgpu-$(CONFIG_DRM_SGPU_DVFS) += sgpu_profiler_external_v1.o
+endif
 
 # add SGPU Debug messages
 sgpu-y += sgpu_dmsg.o

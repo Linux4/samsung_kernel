@@ -7,6 +7,7 @@
 
 #include <linux/bio.h>
 #include "fscrypt_private.h"
+#include "sdp/sdp_crypto.h"
 
 extern int dd_submit_bio(struct dd_info *info, struct bio *bio);
 
@@ -80,6 +81,7 @@ int update_encryption_context_with_dd_policy(
 				ret = -EINVAL;
 			} else {
 				struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+
 				ext_ci->ci_dd_info = alloc_dd_info(inode, policy, &crypt_context);
 				if (IS_ERR(ext_ci->ci_dd_info)) {
 					dd_error("failed to alloc dd info:%ld\n", inode->i_ino);
@@ -110,6 +112,7 @@ int fscrypt_dd_has_policy(const struct inode *inode)
 	ci = inode->i_crypt_info;
 	if (ci) {
 		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+
 		if (ext_ci->ci_dd_info) {
 			if (dd_policy_encrypted(ext_ci->ci_dd_info->policy.flags))
 				return 1;
@@ -132,6 +135,7 @@ int fscrypt_dd_encrypted_inode(const struct inode *inode)
 
 	if (ci) {
 		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+
 		if (ext_ci->ci_dd_info) {
 			if (dd_policy_encrypted(ext_ci->ci_dd_info->policy.flags))
 				return 1;
@@ -155,6 +159,7 @@ int fscrypt_dd_is_traced_inode(const struct inode *inode)
 
 	if (ci) {
 		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+
 		if (ext_ci->ci_dd_info) {
 			if (dd_policy_trace_file(ext_ci->ci_dd_info->policy.flags))
 				return 1;
@@ -174,6 +179,7 @@ void fscrypt_dd_trace_inode(const struct inode *inode)
 	ci = inode->i_crypt_info;
 	if (ci) {
 		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+
 		if (ext_ci->ci_dd_info) {
 			dd_info("update dd trace policy ino:%ld\n", inode->i_ino);
 			ext_ci->ci_dd_info->policy.flags |= DD_POLICY_TRACE_FILE;
@@ -264,6 +270,7 @@ void *dd_get_info(const struct inode *inode)
 int fscrypt_dd_decrypt_page(struct inode *inode, struct page *page)
 {
 	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(inode->i_crypt_info);
+
 	return dd_page_crypto(ext_ci->ci_dd_info, DD_DECRYPT, page, page);
 }
 

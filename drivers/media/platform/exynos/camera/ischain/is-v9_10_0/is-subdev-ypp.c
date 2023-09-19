@@ -959,6 +959,8 @@ static int is_ischain_ypp_tag(struct is_subdev *subdev,
 		ret = __ypp_dma_in_cfg(device, lvn_frame, out_node,
 				&frame->stripe_info, PARAM_YPP_DMA_INPUT, pmap);
 
+		out_node->result = 1;
+
 		for (n = 0; n < CAPTURE_NODE_MAX; n++) {
 			cap_node = &frame->shot_ext->node_group.capture[n];
 			if (is_group_votf_input) {
@@ -981,6 +983,8 @@ static int is_ischain_ypp_tag(struct is_subdev *subdev,
 				ret = __ypp_dma_in_cfg(device, lvn_frame,
 						cap_node, &frame->stripe_info,
 						pmap, &indexes);
+
+			cap_node->result = 1;
 		}
 
 #ifdef ENABLE_LVN_DUMMYOUTPUT

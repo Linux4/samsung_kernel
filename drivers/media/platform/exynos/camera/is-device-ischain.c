@@ -430,14 +430,16 @@ void * is_itf_g_param(struct is_device_ischain *device,
 	return (void *)dst_param;
 }
 
-int is_itf_a_param(struct is_device_ischain *device,
-	u64 group)
+int is_itf_chg_setfile(struct is_device_ischain *device)
 {
 	int ret = 0;
+	u64 group = 0;
 
 	FIMC_BUG(!device);
 
-	ret = is_itf_a_param_wrap(device, group);
+	group = is_itf_g_logical_group_id(device);
+
+	ret = is_itf_chg_setfile_wrap(device, group);
 
 	return ret;
 }
@@ -1567,41 +1569,6 @@ int is_ischain_buf_tag_64bit(struct is_device_ischain *device,
 
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 
-	return ret;
-}
-
-static int is_ischain_chg_setfile(struct is_device_ischain *device)
-{
-	int ret = 0;
-	u64 group = 0;
-
-	FIMC_BUG(!device);
-
-	group = is_itf_g_logical_group_id(device);
-
-	ret = is_itf_process_stop(device, group);
-	if (ret) {
-		merr("is_itf_process_stop fail", device);
-		goto p_err;
-	}
-
-	ret = is_itf_a_param(device, group);
-	if (ret) {
-		merr("is_itf_a_param is fail", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	ret = is_itf_process_start(device, group);
-	if (ret) {
-		merr("is_itf_process_start fail", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-p_err:
-	minfo("[ISC:D] %s(%d):%d\n", device, __func__,
-		device->setfile & IS_SETFILE_MASK, ret);
 	return ret;
 }
 
@@ -3460,14 +3427,14 @@ static void is_ischain_update_setfile(struct is_device_ischain *device,
 
 	/* setfile update will do at below conditions.
 	 * 1. Preview & leader group shot.
-	 * 2. Reprocessing & First group that attempt to shot.
+	 * 2. Reprocessing & any first group that attempts to shot
+	 *    with changed setfile even though the frame has same fcount.
 	 */
 	if (!test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
 		if (group->id == get_ischain_leader_group(device)->id)
 			update_condition = true;
 	} else {
-		if (frame->fcount != device->apply_setfile_fcount)
-			update_condition = true;
+		update_condition = true;
 	}
 
 	if ((frame->shot_ext->setfile != device->setfile) && update_condition) {
@@ -3479,9 +3446,9 @@ static void is_ischain_update_setfile(struct is_device_ischain *device,
 			setfile_save, device->setfile & IS_SETFILE_MASK);
 
 		if (test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
-			ret = is_ischain_chg_setfile(device);
+			ret = is_itf_chg_setfile(device);
 			if (ret) {
-				merr("is_ischain_chg_setfile is fail", device);
+				merr("is_itf_chg_setfile is fail", device);
 				device->setfile = setfile_save;
 			}
 		}
@@ -3748,9 +3715,10 @@ static void is_ischain_update_otf_data(struct is_device_ischain *device,
 	spin_lock_irqsave(&group->slock_s_ctrl, flags);
 
 	captureIntent = group->intent_ctl.captureIntent;
-	if (captureIntent != AA_CAPTURE_INTENT_CUSTOM) {
 #if defined(CONFIG_CAMERA_VENDER_MCD) || defined(CONFIG_CAMERA_VENDER_MCD_V2)
-		if (group->remainIntentCount > 0) {
+	/* Capture scenario */
+	if (captureIntent != AA_CAPTURE_INTENT_CUSTOM) {
+		if (group->remainCaptureIntentCount > 0) {
 			frame->shot->ctl.aa.captureIntent = captureIntent;
 			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
 			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
@@ -3779,7 +3747,7 @@ static void is_ischain_update_otf_data(struct is_device_ischain *device,
 					&(group->intent_ctl.vendor_multiFrameExposureList),
 					sizeof(group->intent_ctl.vendor_multiFrameExposureList));
 			}
-			group->remainIntentCount--;
+			group->remainCaptureIntentCount--;
 		} else {
 			group->intent_ctl.captureIntent = AA_CAPTURE_INTENT_CUSTOM;
 			group->intent_ctl.vendor_captureCount = 0;
@@ -3797,12 +3765,32 @@ static void is_ischain_update_otf_data(struct is_device_ischain *device,
 			group->intent_ctl.aeMode = 0;
 		}
 
-		minfo("frame count(%d), intent(%d), count(%d) captureExposureTime(%d) remainIntentCount(%d)\n",
+		minfo("frame count(%d), intent(%d), count(%d) captureExposureTime(%d) remainCaptureIntentCount(%d)\n",
 			device, frame->fcount,
 			frame->shot->ctl.aa.captureIntent, frame->shot->ctl.aa.vendor_captureCount,
-			frame->shot->ctl.aa.vendor_captureExposureTime, group->remainIntentCount);
-#endif
+			frame->shot->ctl.aa.vendor_captureExposureTime, group->remainCaptureIntentCount);
 	}
+
+	/* General scenario except for capture */
+	if (group->remainIntentCount > 0) {
+		if (group->intent_ctl.vendor_transientAction != AA_TRANSIENT_ACTION_INVALID) {
+			frame->shot->ctl.aa.vendor_transientAction = group->intent_ctl.vendor_transientAction;
+			info("frame count(%d), vendor_transientAction(%d), remainIntentCount(%d)\n",
+				frame->fcount, frame->shot->ctl.aa.vendor_transientAction,  group->remainIntentCount);
+		}
+
+		if (group->intent_ctl.vendor_remosaicCropZoomRatio != AA_REMOSAIC_CROP_ZOOM_RATIO_INVALID){
+			frame->shot->ctl.aa.vendor_remosaicCropZoomRatio = group->intent_ctl.vendor_remosaicCropZoomRatio;
+			info("frame count(%d), vendor_remosaicCropZoomRatio(%d), remainIntentCount(%d)\n",
+				frame->fcount, frame->shot->ctl.aa.vendor_remosaicCropZoomRatio, group->remainIntentCount);
+		}
+
+		group->remainIntentCount--;
+	} else {
+		group->intent_ctl.vendor_transientAction = AA_TRANSIENT_ACTION_INVALID;
+		group->intent_ctl.vendor_remosaicCropZoomRatio = AA_REMOSAIC_CROP_ZOOM_RATIO_INVALID;
+	}
+#endif
 
 	if (group->remainFlashCtlCount) {
 		frame->shot->uctl.flashMode = group->flash_ctl;

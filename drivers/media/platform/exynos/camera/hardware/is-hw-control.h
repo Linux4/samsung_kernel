@@ -146,13 +146,6 @@ int is_hardware_probe(struct is_hardware *hardware,
 	struct platform_device *pdev);
 int is_hardware_set_param(struct is_hardware *hardware, u32 instance,
 	struct is_region *region, IS_DECLARE_PMAP(pmap), ulong hw_map);
-int is_hardware_shot(struct is_hardware *hardware, u32 instance,
-	struct is_group *group, struct is_frame *frame,
-	struct is_framemgr *framemgr, ulong hw_map, u32 framenum);
-int is_hardware_grp_shot(struct is_hardware *hardware, u32 instance,
-	struct is_group *group, struct is_frame *frame, ulong hw_map);
-int is_hardware_config_lock(struct is_hw_ip *hw_ip, u32 instance, u32 framenum);
-void is_hardware_frame_start(struct is_hw_ip *hw_ip, u32 instance);
 int is_hardware_sensor_start(struct is_hardware *hardware, u32 instance,
 	ulong hw_map, struct is_group *group);
 int is_hardware_sensor_stop(struct is_hardware *hardware, u32 instance,
@@ -166,8 +159,6 @@ int is_hardware_open(struct is_hardware *hardware, u32 hw_id,
 int is_hardware_close(struct is_hardware *hardware, u32 hw_id, u32 instance);
 int is_hardware_change_chain(struct is_hardware *hardware, struct is_group *group,
 	u32 instance, u32 next_id);
-int is_hardware_frame_done(struct is_hw_ip *hw_ip, struct is_frame *frame,
-	int wq_id, u32 output_id, enum ShotErrorType done_type, bool get_meta);
 int is_hardware_load_setfile(struct is_hardware *hardware, ulong addr,
 	u32 instance, ulong hw_map);
 int is_hardware_apply_setfile(struct is_hardware *hardware, u32 instance,
@@ -209,4 +200,33 @@ int is_hardware_free_internal_buffer(struct is_device_ischain *device,
 int is_hardware_alloc_internal_buffer(struct is_device_ischain *device, struct is_subdev *subdev,
 	int vid, u32 width, u32 height, u32 bitsperpixel, u32 num_buffers, const char *name);
 int clear_gather_crc_status(u32 instance, struct is_hw_ip *hw_ip);
+
+/* common */
+void is_set_hw_count(struct is_hardware *hardware, struct is_group *head,
+	u32 instance, u32 fcount, u32 num_buffers, ulong hw_map);
+void is_hardware_fill_frame_info(u32 instance,
+	struct is_frame *hw_frame,
+	struct is_frame *frame,
+	struct is_group *group,
+	struct is_hardware *hardware,
+	bool reset);
+int is_hardware_shot_done(struct is_hw_ip *hw_ip, struct is_frame *frame,
+	struct is_framemgr *framemgr, enum ShotErrorType done_type);
+
+int is_hardware_frame_ndone(struct is_hw_ip *ldr_hw_ip,
+       struct is_frame *frame, u32 instance,
+       enum ShotErrorType done_type);
+
+void is_hardware_flush_frame(struct is_hw_ip *hw_ip,
+	enum is_frame_state state,
+	enum ShotErrorType done_type);
+
+
+/* m2m */
+const struct is_hardware_ops *is_hw_get_m2m_ops(void);
+const struct is_hw_group_ops *is_hw_get_m2m_group_ops(void);
+
+/* otf */
+const struct is_hw_group_ops *is_hw_get_otf_group_ops(void);
+
 #endif

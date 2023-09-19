@@ -98,6 +98,7 @@
 #define QMI_WLFW_WFC_CALL_STATUS_REQ_V01 0x0049
 #define QMI_WLFW_DEVICE_INFO_RESP_V01 0x004C
 #define QMI_WLFW_MSA_READY_RESP_V01 0x002E
+#define QMI_WLFW_INI_FILE_DOWNLOAD_REQ_V01 0x0056
 #define QMI_WLFW_QDSS_TRACE_FREE_IND_V01 0x0046
 #define QMI_WLFW_QDSS_MEM_READY_IND_V01 0x0052
 
@@ -256,6 +257,13 @@ enum cnss_feature_v01 {
 	CNSS_WLAN_EN_SUPPORT_V01 = 2,
 	CNSS_MAX_FEATURE_V01 = 64,
 	CNSS_FEATURE_MAX_VAL_V01 = INT_MAX,
+};
+
+enum wlfw_ini_file_type_v01 {
+        WLFW_INI_FILE_TYPE_MIN_VAL_V01 = INT_MIN,
+        WLFW_INI_CFG_FILE_V01 = 0,
+        WLFW_CONN_ROAM_INI_V01 = 1,
+        WLFW_INI_FILE_TYPE_MAX_VAL_V01 = INT_MAX,
 };
 
 #define QMI_WLFW_CE_ATTR_FLAGS_V01 ((u32)0x00)
@@ -1297,5 +1305,28 @@ struct wlfw_subsys_restart_level_resp_msg_v01 {
 
 #define WLFW_SUBSYS_RESTART_LEVEL_RESP_MSG_V01_MAX_MSG_LEN 7
 extern struct qmi_elem_info wlfw_subsys_restart_level_resp_msg_v01_ei[];
+struct wlfw_ini_file_download_req_msg_v01 {
+        u8 file_type_valid;
+        enum wlfw_ini_file_type_v01 file_type;
+        u8 total_size_valid;
+        u32 total_size;
+        u8 seg_id_valid;
+        u32 seg_id;
+        u8 data_valid;
+        u32 data_len;
+        u8 data[QMI_WLFW_MAX_DATA_SIZE_V01];
+        u8 end_valid;
+        u8 end;
+};
+
+#define WLFW_INI_FILE_DOWNLOAD_REQ_MSG_V01_MAX_MSG_LEN 6174
+extern struct qmi_elem_info wlfw_ini_file_download_req_msg_v01_ei[];
+
+struct wlfw_ini_file_download_resp_msg_v01 {
+        struct qmi_response_type_v01 resp;
+};
+
+#define WLFW_INI_FILE_DOWNLOAD_RESP_MSG_V01_MAX_MSG_LEN 7
+extern struct qmi_elem_info wlfw_ini_file_download_resp_msg_v01_ei[];
 
 #endif

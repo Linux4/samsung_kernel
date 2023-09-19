@@ -315,6 +315,8 @@ void is_deinit_dbuf_q(struct is_dbuf_q *dbuf_q);
 void is_q_dbuf_q(struct is_dbuf_q *dbuf_q, struct is_sub_dma_buf *sdbuf, u32 qcnt);
 void is_dq_dbuf_q(struct is_dbuf_q *dbuf_q, u32 dma_id, enum dma_data_direction dir);
 
+u32 is_get_shot_timeout(void);
+
 #if IS_ENABLED(CONFIG_PABLO_KUNIT_TEST)
 int pablo_kunit_resourcemgr_init_dynamic_mem(struct is_resourcemgr *resourcemgr);
 int pablo_kunit_resourcemgr_deinit_dynamic_mem(struct is_resourcemgr *resourcemgr);

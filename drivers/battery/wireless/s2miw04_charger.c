@@ -2134,15 +2134,15 @@ static void mfc_wpc_fw_update_work(struct work_struct *work)
 			charger->pdata->otp_firmware_ver = mfc_get_firmware_version(charger, MFC_RX_FIRMWARE);
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 			if (charger->wireless_fw_mode_param == SEC_WIRELESS_RX_SPU_MODE &&
-				charger->pdata->otp_firmware_ver > MFC_FW_BIN_VERSION) {
+				charger->pdata->otp_firmware_ver > charger->pdata->fw_ver) {
 				pr_info("%s: current version (0x%x) is higher than BIN_VERSION by SPU(0x%x)\n",
-					__func__, charger->pdata->otp_firmware_ver, MFC_FW_BIN_VERSION);
+					__func__, charger->pdata->otp_firmware_ver, charger->pdata->fw_ver);
 				break;
 			}
 #endif
-			if (charger->pdata->otp_firmware_ver == MFC_FW_BIN_VERSION) {
+			if (charger->pdata->otp_firmware_ver == charger->pdata->fw_ver) {
 				pr_info("%s: current version (0x%x) is same to BIN_VERSION (0x%x)\n",
-					__func__, charger->pdata->otp_firmware_ver, MFC_FW_BIN_VERSION);
+					__func__, charger->pdata->otp_firmware_ver, charger->pdata->fw_ver);
 				break;
 			}
 		}
@@ -2670,7 +2670,7 @@ static int mfc_s2miw04_chg_get_property(struct power_supply *psy,
 			val->intval = charger->chip_id;
 		} else if (val->intval == SEC_WIRELESS_OTP_FIRM_VER_BIN) {
 			/* update latest kernl f/w version */
-			val->intval = MFC_FW_BIN_VERSION;
+			val->intval = charger->pdata->fw_ver;
 		} else if (val->intval == SEC_WIRELESS_OTP_FIRM_VER) {
 			val->intval = mfc_get_firmware_version(charger, MFC_RX_FIRMWARE);
 			pr_info("%s: check f/w revision (0x%x)\n", __func__, val->intval);
@@ -2786,8 +2786,8 @@ static int mfc_s2miw04_chg_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_WIRELESS_CHECK_FW_VER:
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 			pr_info("%s: fw_ver (param:0x%04X, build:0x%04X)\n",
-				__func__, charger->wireless_fw_ver_param, MFC_FW_BIN_VERSION);
-			if (charger->wireless_fw_ver_param == MFC_FW_BIN_VERSION)
+				__func__, charger->wireless_fw_ver_param, charger->pdata->fw_ver);
+			if (charger->wireless_fw_ver_param == charger->pdata->fw_ver)
 				val->intval = 1;
 			else
 				val->intval = 0;
@@ -4719,15 +4719,18 @@ static void mfc_set_iec_params(struct i2c_client *client, struct mfc_iec_data da
 	/* need to set before set MFC_MST_MODE_SEL_REG */
 	mfc_reg_write(client, WPCTx_E_FOD_INIT_FREQ, data.reg_84); /* E-FOD Enable */
 	mfc_reg_write(client, WPCTx_E_FOD_INIT_DUTY, data.reg_85);
-	mfc_reg_write(client, WPCTx_E_FOD_WATCH_FREQ, data.reg_86);
+	mfc_reg_write(client, WPCTx_E_FOD_DELAY, data.reg_86);
 	mfc_reg_write(client, WPCTx_E_FOD_2Q_DESIGNED, data.reg_87);
-	mfc_reg_write(client, WPCTx_E_FOD_Q_THRESHOLD, data.reg_88);
+	mfc_reg_write(client, WPCTx_E_FOD_Q_THRESHOLD_NORMAL, data.reg_88);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_THRESHOLD_DUTY_INIT, data.reg_89);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_THRESHOLD_DUTY, data.reg_8A);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_CHECK_FREQ, data.reg_8B);
-	mfc_reg_write(client, WPCTx_E_FOD_MAX_Q, data.reg_5B);
-	mfc_reg_write(client, WPCTx_E_FOD_CRADLE_CURRENT, data.reg_56);
-	mfc_reg_write(client, WPCTx_E_FOD_CRADLE_FREQ, data.reg_57);
+	mfc_reg_write(client, WPCTx_E_FOD_NU_PEAKING_DELAY, data.reg_5B);
+	mfc_reg_write(client, WPCTx_E_FOD_MIN_CURRENT_HIGH_F, data.reg_56);
+	mfc_reg_write(client, WPCTx_E_FOD_POWER_LIMIT, data.reg_57);
+	mfc_reg_write(client, WPCTX_E_FOD_Q_LIMIT, data.reg_800);
+	mfc_reg_write(client, WPCTX_E_FOD_I1_LIMIT, data.reg_801);
+	mfc_reg_write(client, WPCTX_E_FOD_I2_LIMIT, data.reg_802);
 }
 
 /* mfc_mst_routine : MST dedicated codes */
@@ -5307,13 +5310,33 @@ static void mfc_chg_parse_iec_data(struct device_node *np,
 	else
 		pdata->iec_params.reg_8B = temp;
 
+	ret = of_property_read_u32(np, "reg_800", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_800 = temp;
+
+	ret = of_property_read_u32(np, "reg_801", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_801 = temp;
+
+	ret = of_property_read_u32(np, "reg_802", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_802 = temp;
+
 	pr_info("%s: reg_56=0x%x, reg_57=0x%x, reg_5B=0x%x,"
 		" reg_84=0x%x, reg_85=0x%x, reg_86=0x%x, reg_87=0x%x,"
-		" reg_88=0x%x, reg_89=0x%x, reg_8A=0x%x, reg_8B=0x%x\n",
+		" reg_88=0x%x, reg_89=0x%x, reg_8A=0x%x, reg_8B=0x%x,"
+		" reg_800=0x%x, reg_801=0x%x, reg_802=0x%x\n",
 		__func__, pdata->iec_params.reg_56, pdata->iec_params.reg_57,
 		pdata->iec_params.reg_5B, pdata->iec_params.reg_84, pdata->iec_params.reg_85,
 		pdata->iec_params.reg_86, pdata->iec_params.reg_87, pdata->iec_params.reg_88,
-		pdata->iec_params.reg_89, pdata->iec_params.reg_8A, pdata->iec_params.reg_8B);
+		pdata->iec_params.reg_89, pdata->iec_params.reg_8A, pdata->iec_params.reg_8B,
+		pdata->iec_params.reg_800, pdata->iec_params.reg_801, pdata->iec_params.reg_802);
 }
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)
@@ -5551,6 +5574,12 @@ static int mfc_chg_parse_dt(struct device *dev,
 		pr_info("%s: mis_align_guide, vout:%d, offset:%d\n", __func__,
 			pdata->mis_align_target_vout, pdata->mis_align_offset);
 	}
+
+	ret = of_property_read_u32(np, "battery,fw_ver",
+						&pdata->fw_ver);
+	if (ret < 0)
+		pdata->fw_ver = MFC_FW_BIN_VERSION;
+	pr_info("%s: fw_ver(0x%x)\n", __func__, pdata->fw_ver);
 
 	mfc_chg_parse_fod_data(np, pdata);
 	np = dev->of_node;

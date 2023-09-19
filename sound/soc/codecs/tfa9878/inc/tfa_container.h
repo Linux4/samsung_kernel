@@ -75,6 +75,14 @@ void tfa_cont_set_resp(uint8_t resp_addr);
 int tfa_cont_get_idx(struct tfa_device *tfa);
 
 /*
+ * Get the index for device tfadsp (address 0).
+ * @param tfa the device struct pointer
+ * @param value the address of device tfadsp
+ * @return the device index
+ */
+int tfa_cont_get_idx_tfadsp(struct tfa_device *tfa, int value);
+
+/*
  * Write reg and bitfield items in the devicelist to the target.
  * @param tfa the device struct pointer
  * @return Tfa98xx_Error
@@ -131,6 +139,14 @@ unsigned int tfa98xx_get_cnt_bitfield(struct tfa_device *tfa,
 char *tfa_cont_device_name(struct tfa_container *cnt, int dev_idx);
 
 /*
+ * Get the customer name from the container file customer field
+ * @param tfa the device struct pointer
+ * @param name the input stringbuffer with size: sizeof(customer field)+1
+ * @return actual string length
+ */
+int tfa_cont_get_customer_name(struct tfa_device *tfa, char *name);
+
+/*
  * Get the application name from the container file application field
  * @param tfa the device struct pointer
  * @param name the input stringbuffer with size: sizeof(application field)+1
@@ -152,6 +168,14 @@ int tfa_cont_get_cal_profile(struct tfa_device *tfa);
  * @return 1 if the profile is a tap profile or 0 if not
  */
 int tfa_cont_is_tap_profile(struct tfa_device *tfa, int prof_idx);
+
+/*
+ * Is the profile a standby profile ?
+ * @param tfa the device struct pointer
+ * @param prof_idx the index of the profile
+ * @return 1 if the profile is a standby profile or 0 if not
+ */
+int tfa_cont_is_standby_profile(struct tfa_device *tfa, int prof_idx);
 
 /*
  * Is the profile specific to device ?
@@ -361,7 +385,7 @@ enum tfa98xx_error tfa_run_read_bitfield(struct tfa_device *tfa,
  * @param tfa the device struct pointer
  * @param hw_feature_register pointer to where hw features are stored
  */
-void get_hw_features_from_cnt(struct tfa_device *tfa,
+void tfa_get_hw_features_from_cnt(struct tfa_device *tfa,
 	int *hw_feature_register);
 
 /*
@@ -369,7 +393,7 @@ void get_hw_features_from_cnt(struct tfa_device *tfa,
  * @param tfa the device struct pointer
  * @param sw_feature_register pointer to where sw features are stored
  */
-void get_sw_features_from_cnt(struct tfa_device *tfa,
+void tfa_get_sw_features_from_cnt(struct tfa_device *tfa,
 	int sw_feature_register[2]);
 
 /*

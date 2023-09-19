@@ -65,8 +65,6 @@ static int tusb2e11_gpio_ctrl(struct tusb2e11_ddata *ddata, int value)
 	if (gpio_is_valid(pdata->gpio_eusb_ctrl_sel)) {
 		gpio_set_value_cansleep(pdata->gpio_eusb_ctrl_sel, value);
 		ddata->ctrl_sel_status = value;
-		if (!!value)
-			mdelay(3);
 
 		if (value != gpio_get_value(pdata->gpio_eusb_ctrl_sel))
 			ret = -EAGAIN;
@@ -94,6 +92,8 @@ static int tusb2e11_power(void *_data, bool en)
 	}
 
 	if (en) {
+		mdelay(3);
+		
 		ret = tusb2e11_read_reg(ddata,
 			TUSB2E11_REV_ID_REG, &rev_id, 1);
 		if (ret < 0)

@@ -22,7 +22,10 @@
 #ifdef CONFIG_DRM_SGPU_EXYNOS
 #include <soc/samsung/cal-if.h>
 #include <soc/samsung/tmu.h>
+
 #include "exynos_gpu_interface.h"
+#include "sgpu_profiler_v1.h"
+
 #endif /* CONFIG_DRM_SGPU_EXYNOS */
 
 static int sgpu_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
@@ -178,6 +181,9 @@ static void sgpu_devfreq_exit(struct device *dev)
 
 #ifdef CONFIG_DRM_SGPU_EXYNOS
 	exynos_interface_deinit(adev->devfreq);
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+	sgpu_profiler_deinit();	
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
 #endif /* CONFIG_DRM_SGPU_EXYNOS */
 	sgpu_unregister_pm_qos(adev->devfreq);
 	sgpu_governor_deinit(adev->devfreq);
@@ -226,6 +232,10 @@ int sgpu_devfreq_init(struct amdgpu_device *adev)
 		dev_err(adev->dev, "Unable to create sysfs node %d\n", ret);
 		goto err_sysfs;
 	}
+
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+	sgpu_profiler_init(adev);
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
 
 #ifdef CONFIG_DRM_SGPU_EXYNOS
 	ret = exynos_interface_init(adev->devfreq);

@@ -118,6 +118,8 @@ static struct v4l2_queryctrl *__mfc_enc_get_ctrl(int id)
 static int __mfc_enc_check_ctrl_val(struct mfc_ctx *ctx, struct v4l2_control *ctrl)
 {
 	struct v4l2_queryctrl *c;
+	struct mfc_enc *enc = ctx->enc_priv;
+	struct mfc_enc_params *p = &enc->params;
 
 	c = __mfc_enc_get_ctrl(ctrl->id);
 	if (!c) {
@@ -125,18 +127,30 @@ static int __mfc_enc_check_ctrl_val(struct mfc_ctx *ctx, struct v4l2_control *ct
 		return -EINVAL;
 	}
 
-	if (ctrl->id == V4L2_CID_MPEG_VIDEO_GOP_SIZE
-	    && ctrl->value > c->maximum) {
+	if ((ctrl->id == V4L2_CID_MPEG_VIDEO_GOP_SIZE) && (ctrl->value > c->maximum)) {
 		mfc_ctx_info("GOP_SIZE is changed to max(%d -> %d)\n",
                                 ctrl->value, c->maximum);
 		ctrl->value = c->maximum;
 	}
 
 	if (ctrl->id == V4L2_CID_MPEG_VIDEO_H264_HIERARCHICAL_CODING_LAYER) {
-		if ((ctrl->value & ~(1 << 16)) < c->minimum || (ctrl->value & ~(1 << 16)) > c->maximum
-		    || (c->step != 0 && (ctrl->value & ~(1 << 16)) % c->step != 0)) {
-			mfc_ctx_err("[CTRLS][HIERARCHICAL] Invalid control value for %#x (%#x)\n",
-					ctrl->id, ctrl->value);
+		if ((ctrl->value & ~(1 << 16)) < c->minimum
+				|| (ctrl->value & ~(1 << 16)) > c->maximum
+				|| (c->step != 0 && (ctrl->value & ~(1 << 16)) % c->step != 0)) {
+			mfc_ctx_err("[CTRLS][%s] Invalid control id: %#x, value: %d (%#x)\n",
+					c->name, ctrl->id, ctrl->value, ctrl->value);
+			return -ERANGE;
+		} else {
+			return 0;
+		}
+	}
+
+	if (ctrl->id == V4L2_CID_MPEG_MFC_H264_BASE_PRIORITY) {
+		if (ctrl->value < c->minimum
+				|| (ctrl->value + p->num_hier_max_layer - 1) > c->maximum
+				|| (c->step != 0 && (ctrl->value & ~(1 << 16)) % c->step != 0)) {
+			mfc_ctx_err("[CTRLS][%s] Invalid control id: %#x, value: %d (%#x)\n",
+					c->name, ctrl->id, ctrl->value, ctrl->value);
 			return -ERANGE;
 		} else {
 			return 0;
@@ -145,10 +159,13 @@ static int __mfc_enc_check_ctrl_val(struct mfc_ctx *ctx, struct v4l2_control *ct
 
 	if (ctrl->value < c->minimum || ctrl->value > c->maximum
 	    || (c->step != 0 && ctrl->value % c->step != 0)) {
-		mfc_ctx_err("[CTRLS] Invalid control value for %#x (%#x)\n",
-				ctrl->id, ctrl->value);
+		mfc_ctx_err("[CTRLS][%s] id: %#x, invalid value (%d)\n",
+				c->name, ctrl->id, ctrl->value);
 		return -ERANGE;
 	}
+
+	mfc_debug(5, "[CTRLS][%s] id: %#x, value: %d (%#x)\n",
+			c->name, ctrl->id, ctrl->value, ctrl->value);
 
 	return 0;
 }
@@ -2102,9 +2119,6 @@ static int __mfc_enc_set_ctrl_val(struct mfc_ctx *ctx, struct v4l2_control *ctrl
 	int ret = 0;
 	int found = 0;
 
-	mfc_debug(5, "[CTRLS] id: %#x, value: %d (%#x)\n",
-			ctrl->id, ctrl->value, ctrl->value);
-
 	/* update parameter value */
 	ret = __mfc_enc_set_param(ctx, ctrl);
 	if (ret)
@@ -2290,6 +2304,8 @@ static int mfc_enc_s_ext_ctrls(struct file *file, void *priv,
 	int i;
 	int ret = 0;
 
+	mfc_debug_enter();
+
 	if (f->which != V4L2_CTRL_CLASS_MPEG)
 		return -EINVAL;
 
@@ -2310,10 +2326,9 @@ static int mfc_enc_s_ext_ctrls(struct file *file, void *priv,
 			f->error_idx = i;
 			break;
 		}
-
-		mfc_debug(5, "[CTRLS][%d] id: %#x, value: %d\n",
-				i, ext_ctrl->id, ext_ctrl->value);
 	}
+
+	mfc_debug_leave();
 
 	return ret;
 }
@@ -2326,6 +2341,8 @@ static int mfc_enc_try_ext_ctrls(struct file *file, void *priv,
 	struct v4l2_control ctrl;
 	int i;
 	int ret = 0;
+
+	mfc_debug_enter();
 
 	if (f->which != V4L2_CTRL_CLASS_MPEG)
 		return -EINVAL;
@@ -2341,9 +2358,9 @@ static int mfc_enc_try_ext_ctrls(struct file *file, void *priv,
 			f->error_idx = i;
 			break;
 		}
-
-		mfc_debug(2, "[%d] id: 0x%08x, value: %d\n", i, ext_ctrl->id, ext_ctrl->value);
 	}
+
+	mfc_debug_leave();
 
 	return ret;
 }

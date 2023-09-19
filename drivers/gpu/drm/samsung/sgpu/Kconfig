@@ -31,6 +31,14 @@ config DRM_SGPU_EXYNOS
 	help
 	  This option is for SGPU in Eynos.
 
+config DRM_SGPU_DVFS
+        bool "Enable DVFS related code"
+        depends on DRM_SGPU
+        depends on PM_DEVFREQ
+        default n
+        help
+          This option is for DVFS framework in SGPU
+
 config DRM_AMDGPU_SI
 	bool "Enable amdgpu support for SI parts"
 	depends on DRM_SGPU

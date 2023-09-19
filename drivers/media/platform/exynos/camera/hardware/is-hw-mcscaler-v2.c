@@ -104,12 +104,12 @@ static int is_hw_mcsc_handle_interrupt(u32 id, void *context)
 	if (status & (1 << INTR_MC_SCALER_FRAME_START)) {
 		atomic_add(1, &hw_ip->count.fs);
 
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 			msinfo_hw("[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
 		if (param->input.dma_cmd == DMA_INPUT_COMMAND_ENABLE) {
-			is_hardware_frame_start(hw_ip, instance);
+			CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 		} else {
 			clear_bit(HW_CONFIG, &hw_ip->state);
 			atomic_set(&hw_ip->status.Vvalid, V_VALID);
@@ -1310,7 +1310,7 @@ void is_hw_mcsc_frame_done(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			continue;
 
 		if (test_bit(out_f_id, &hw_frame->out_flag)) {
-			ret = is_hardware_frame_done(hw_ip, frame,
+			ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame,
 					wq_id, out_f_id, done_type, flag_get_meta);
 			clear_bit(out_id, &mcsc_out_st);
 			flag_get_meta = false;
@@ -1318,7 +1318,7 @@ void is_hw_mcsc_frame_done(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		}
 	}
 
-	_is_hw_frame_dbg_trace(hw_ip, hw_frame->fcount, DEBUG_POINT_FRAME_END);
+	CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_frame->fcount, DEBUG_POINT_FRAME_END);
 
 	index = hw_ip->debug_index[1];
 	dbg_isr_hw("[F:%d][S-E] %05llu us\n", hw_ip, atomic_read(&hw_ip->fcount),
@@ -1329,7 +1329,7 @@ void is_hw_mcsc_frame_done(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		atomic_inc(&hw_ip->count.dma);
 
 	if (flag_get_meta && done_type == IS_SHOT_SUCCESS)
-		is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+		CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 				IS_SHOT_SUCCESS, flag_get_meta);
 
 	return;
@@ -1343,7 +1343,7 @@ static int is_hw_mcsc_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame
 	is_hw_mcsc_frame_done(hw_ip, frame, done_type);
 
 	if (test_bit_variables(hw_ip->id, &frame->core_flag))
-		ret = is_hardware_frame_done(hw_ip, frame, -1, IS_HW_CORE_END,
+		ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1, IS_HW_CORE_END,
 				done_type, false);
 
 	return ret;

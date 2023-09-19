@@ -1096,6 +1096,13 @@ static int pca9481_softreset(struct pca9481_charger *pca9481)
 
 	/* Set the initial register value */
 
+	/* Set VIN_CURRENT_OCP_21_11 to 1000mA */
+	val = PCA9481_BIT_VIN_CURRENT_OCP_21_11;
+	ret = pca9481_update_reg(pca9481, PCA9481_REG_CHARGING_CNTL_0,
+							PCA9481_BIT_VIN_CURRENT_OCP_21_11, val);
+	if (ret < 0)
+		goto error;
+
 	/* Set Reverse Current Detection */
 	val = PCA9481_BIT_RCP_EN;
 	ret = pca9481_update_reg(pca9481, PCA9481_REG_RCP_CNTL,
@@ -1227,8 +1234,10 @@ static int pca9481_check_error(struct pca9481_charger *pca9481)
 		u8 val[REG_BUFFER_MAX];
 		u8 deg_val[10]; /* Dump for control register */
 
-		ret = pca9481_bulk_read_reg(pca9481, PCA9481_REG_DEVICE_0_STS | PCA9481_REG_BIT_AI,
+		rt = pca9481_bulk_read_reg(pca9481, PCA9481_REG_DEVICE_0_STS | PCA9481_REG_BIT_AI,
 								&val[REG_DEVICE_0], REG_BUFFER_MAX);
+		if (rt < 0)
+			goto error;
 		pr_err("%s: Error reg[0x0F]=0x%x,[0x10]=0x%x,[0x11]=0x%x,[0x12]=0x%x,[0x13]=0x%x,[0x14]=0x%x,[0x15]=0x%x\n",
 				__func__, val[0], val[1], val[2], val[3], val[4], val[5], val[6]);
 
@@ -1319,6 +1328,14 @@ static int pca9481_check_error(struct pca9481_charger *pca9481)
 			pr_err("%s: Power state error\n", __func__);	/* Power State error */
 			ret = -EAGAIN;	/* retry */
 		}
+
+		/* Read all interrupt registers for debugging */
+		rt = regmap_bulk_read(pca9481->regmap, PCA9481_REG_INT_DEVICE_0 | PCA9481_REG_BIT_AI,
+								&val[REG_DEVICE_0], REG_BUFFER_MAX);
+		if (rt < 0)
+			goto error;
+		pr_err("%s: interrupt reg[0x01]=0x%x,[0x02]=0x%x,[0x03]=0x%x,[0x04]=0x%x,[0x05]=0x%x,[0x06]=0x%x,[0x07]=0x%x\n",
+				__func__, val[0], val[1], val[2], val[3], val[4], val[5], val[6]);
 
 		/* Read all control registers for debugging */
 		/* Read device, auto restart, and rcp control registers for debugging */
@@ -4219,6 +4236,7 @@ static int pca9481_start_direct_charging(struct pca9481_charger *pca9481)
 {
 	int ret;
 	unsigned int val;
+	u8 reg_val[REG_BUFFER_MAX];
 #if !IS_ENABLED(CONFIG_BATTERY_SAMSUNG) /* temp disable wc dc charging */
 	struct power_supply *psy;
 	union power_supply_propval pro_val;
@@ -4253,6 +4271,13 @@ static int pca9481_start_direct_charging(struct pca9481_charger *pca9481)
 		return ret;
 	pr_info("%s: sw_freq=%dkHz\n", __func__, pca9481->pdata->fsw_cfg);
 
+	/* Set VIN_CURRENT_OCP_21_11 to 1000mA */
+	val = PCA9481_BIT_VIN_CURRENT_OCP_21_11;
+	ret = pca9481_update_reg(pca9481, PCA9481_REG_CHARGING_CNTL_0,
+							PCA9481_BIT_VIN_CURRENT_OCP_21_11, val);
+	if (ret < 0)
+		return ret;
+
 	/* Set EN_CFG to active high - Disable PCA9481 */
 	val =  PCA9481_EN_ACTIVE_H;
 	ret = pca9481_update_reg(pca9481, PCA9481_REG_DEVICE_CNTL_2,
@@ -4275,6 +4300,14 @@ static int pca9481_start_direct_charging(struct pca9481_charger *pca9481)
 
 	/* wake lock */
 	__pm_stay_awake(pca9481->monitor_wake_lock);
+
+	/* Clear all interrupt registers before starting DC for debugging */
+	ret = regmap_bulk_read(pca9481->regmap, PCA9481_REG_INT_DEVICE_0 | PCA9481_REG_BIT_AI,
+							&reg_val[REG_DEVICE_0], REG_BUFFER_MAX);
+	if (ret < 0)
+		return ret;
+	pr_info("%s: reg[0x01]=0x%x,[0x02]=0x%x,[0x03]=0x%x,[0x04]=0x%x,[0x05]=0x%x,[0x06]=0x%x,[0x07]=0x%x\n",
+			__func__, reg_val[0], reg_val[1], reg_val[2], reg_val[3], reg_val[4], reg_val[5], reg_val[6]);
 
 	/* Preset charging configuration and TA condition */
 	ret = pca9481_preset_dcmode(pca9481);
@@ -4679,6 +4712,13 @@ static int pca9481_hw_init(struct pca9481_charger *pca9481)
 	/* Set Switching Frequency - kHz unit */
 	val = PCA9481_FSW_CFG(pca9481->pdata->fsw_cfg);
 	ret = pca9481_write_reg(pca9481, PCA9481_REG_SC_CNTL_0, val);
+	if (ret < 0)
+		return ret;
+
+	/* Set VIN_CURRENT_OCP_21_11 to 1000mA */
+	val = PCA9481_BIT_VIN_CURRENT_OCP_21_11;
+	ret = pca9481_update_reg(pca9481, PCA9481_REG_CHARGING_CNTL_0,
+							PCA9481_BIT_VIN_CURRENT_OCP_21_11, val);
 	if (ret < 0)
 		return ret;
 
@@ -6208,4 +6248,4 @@ module_i2c_driver(pca9481_driver);
 
 MODULE_DESCRIPTION("PCA9481 charger driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.10S");
+MODULE_VERSION("1.0.10.1S");

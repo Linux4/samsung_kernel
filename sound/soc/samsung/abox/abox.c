@@ -747,25 +747,10 @@ bool abox_is_on(void)
 }
 EXPORT_SYMBOL(abox_is_on);
 
-static int abox_correct_pll_rate(struct device *dev,
-		long long src_rate, int diff_ppb)
-{
-	const int unit_ppb = 1000000000;
-	long long correction;
-
-	correction = src_rate * (diff_ppb + unit_ppb);
-	do_div(correction, unit_ppb);
-	abox_dbg(dev, "correct AUD_PLL %dppb: %lldHz -> %lldHz\n",
-			diff_ppb, src_rate, correction);
-
-	return (unsigned long)correction;
-}
-
 int abox_register_bclk_usage(struct device *dev, struct abox_data *data,
 		enum abox_dai dai_id, unsigned int rate, unsigned int channels,
 		unsigned int width)
 {
-	static int correction;
 	unsigned long target_pll, audif_rate;
 	int id = dai_id - ABOX_UAIF0;
 	int ret = 0;
@@ -786,27 +771,8 @@ int abox_register_bclk_usage(struct device *dev, struct abox_data *data,
 	target_pll = ((rate % 44100) == 0) ? AUD_PLL_RATE_HZ_FOR_44100 :
 			AUD_PLL_RATE_HZ_FOR_48000;
 
-	if (data->clk_diff_ppb) {
-		/* run only when correction value is changed */
-		if (correction != data->clk_diff_ppb) {
-			target_pll = abox_correct_pll_rate(dev, target_pll,
-					data->clk_diff_ppb);
-			correction = data->clk_diff_ppb;
-		} else {
-			target_pll = clk_get_rate(data->clk_pll);
-		}
-	}
-
-	if (abs(target_pll - clk_get_rate(data->clk_pll)) >
-			(target_pll / 100000)) {
-		abox_info(dev, "Set AUD_PLL rate: %lu -> %lu\n",
-			clk_get_rate(data->clk_pll), target_pll);
-		ret = clk_set_rate(data->clk_pll, target_pll);
-		if (ret < 0) {
-			abox_err(dev, "AUD_PLL set error=%d\n", ret);
-			return ret;
-		}
-	}
+	abox_info(dev, "current pll_aud: %lu(target: %lu)\n",
+		clk_get_rate(data->clk_pll), target_pll);
 
 	if (data->uaif_max_div <= 16) {
 		/*LSI codec uses 24.576Mhz*/
@@ -2278,6 +2244,9 @@ static void abox_system_ipc_handler(struct device *dev,
 			break;
 		}
 		break;
+	case ABOX_RECORD_GEAR:
+		abox_qos_request_fw0(dev, system_msg->param2, system_msg->param1, "");
+		break;
 	case ABOX_REPORT_LOG:
 		area = abox_addr_to_kernel_addr(data, system_msg->param2);
 		ret = abox_log_register_buffer(dev, system_msg->param1, area);
@@ -2407,9 +2376,6 @@ static void abox_system_ipc_handler(struct device *dev,
 		abox_failsafe_report(dev, true);
 		break;
 	}
-	case ABOX_REPORT_CLK_DIFF_PPB:
-		data->clk_diff_ppb = system_msg->param1;
-		break;
 	default:
 		abox_warn(dev, "Redundant system message: %d(%d, %d, %d)\n",
 				system_msg->msgtype, system_msg->param1,

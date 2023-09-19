@@ -1916,23 +1916,39 @@ static void cstat_hw_s_bns_weight(void __iomem *base, u32 fac)
 	CSTAT_SET_R(base, CSTAT_R_BYR_BNS_WEIGHT_Y_8, val);
 }
 
+static void cstat_hw_s_bns_size(struct is_crop *in, u32 *out_w, u32 *out_h,
+				enum cstat_bns_scale_ratio *ratio)
+{
+	enum cstat_bns_scale_ratio i;
+
+	for (i = CSTAT_BNS_X2P0; i >= CSTAT_BNS_X1P0; i--) {
+		*ratio = i;
+		*out_w = CSTAT_GET_BNS_OUT_SIZE(in->w, *ratio);
+		*out_h = CSTAT_GET_BNS_OUT_SIZE(in->h, *ratio);
+
+		if ((*out_w >= CSTAT_LMEDS_OUT_MAX_W && *out_h >= CSTAT_LMEDS_OUT_MAX_H) ||
+				*ratio == CSTAT_MIN_BNS_RATIO)
+			break;
+	}
+}
+
+void cstat_hw_g_bns_size(struct is_crop *in, struct is_crop *out)
+{
+	enum cstat_bns_scale_ratio ratio;
+
+	out->x = 0;
+	out->y = 0;
+	cstat_hw_s_bns_size(in, &out->w, &out->h, &ratio);
+}
+
 void cstat_hw_s_bns_cfg(void __iomem *base,
 		struct is_crop *crop,
 		struct cstat_size_cfg *size_cfg)
 {
 	u32 out_w, out_h, bypass, val;
-	int i;
 	enum cstat_bns_scale_ratio ratio;
 
-	for (i = CSTAT_BNS_X2P0; i >= CSTAT_BNS_X1P0; i--) {
-		ratio = i;
-		out_w = CSTAT_GET_BNS_OUT_SIZE(crop->w, ratio);
-		out_h = CSTAT_GET_BNS_OUT_SIZE(crop->h, ratio);
-
-		if ((out_w >= CSTAT_LMEDS_OUT_MAX_W && out_h >= CSTAT_LMEDS_OUT_MAX_H) ||
-				ratio == CSTAT_MIN_BNS_RATIO)
-			break;
-	}
+	cstat_hw_s_bns_size(crop, &out_w, &out_h, &ratio);
 
 	dbg_hw(3, "[CSTAT]bns_cfg: %dx%d -> %dx%d (%d)\n",
 			crop->w, crop->h,

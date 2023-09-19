@@ -34,6 +34,7 @@ enum dsim_state {
 };
 
 struct dsim_pll_params {
+	int curr_idx;
 	unsigned int num_modes;
 	struct dsim_pll_param **params;
 };
@@ -65,14 +66,8 @@ struct dsim_burst_cmd {
 	u32 pl_count;
 	u32 line_count;
 };
-struct dsim_freq_hop {
-	bool enabled;
-	u32 target_m; /* will be applied to DPHY */
-	u32 target_k; /* will be applied to DPHY */
-	u32 request_m; /* user requested m value */
-	u32 request_k; /* user requested m value */
-};
 
+struct dsim_freq_hop;
 struct dsim_device {
 	struct drm_encoder encoder;
 	struct mipi_dsi_host dsi_host;
@@ -89,7 +84,6 @@ struct dsim_device {
 	int id;
 	spinlock_t slock;
 	struct mutex cmd_lock;
-	struct mutex freq_hop_lock;
 	struct completion ph_wr_comp;
 	struct completion rd_comp;
 	struct timer_list cmd_timer;
@@ -104,7 +98,7 @@ struct dsim_device {
 	struct dsim_reg_config config;
 	struct dsim_clks clk_param;
 
-	struct dsim_freq_hop freq_hop;
+	struct dsim_freq_hop *freq_hop;
 	int idle_ip_index;
 	struct dsim_fb_handover fb_handover;
 

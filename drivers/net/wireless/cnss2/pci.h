@@ -268,4 +268,7 @@ void cnss_pci_force_save_dump(struct cnss_pci_data *pci_priv);
 void exynos_pm_qos_init(void);
 void exynos_pm_qos_exit(void);
 #endif
+int cnss_pci_set_therm_cdev_state(struct cnss_pci_data *pci_priv,
+                 unsigned long thermal_state,
+                 int tcdev_id);
 #endif /* _CNSS_PCI_H */

@@ -31,6 +31,7 @@
 
 #ifdef CONFIG_DRM_SGPU_EXYNOS
 #include "exynos_gpu_interface.h"
+#include "sgpu_profiler_v1.h"
 #include <soc/samsung/debug-snapshot.h>
 #endif /* CONFIG_DRM_SGPU_EXYNOS */
 
@@ -374,15 +375,15 @@ static void amdgpu_job_free_cb(struct drm_sched_job *s_job)
 		}
 	}
 
-	if (sgpu_amigo_user_time &&
+	if (sgpu_profiler_user_time &&
 	    ring->funcs->type == AMDGPU_RING_TYPE_GFX) {
 		scheduled = s_job->s_fence->scheduled.timestamp;
 		finished = s_job->s_fence->finished.timestamp;
 
-#ifdef CONFIG_DRM_SGPU_EXYNOS
-		exynos_amigo_interframe_hw_update(scheduled, finished,
+#if IS_ENABLED(CONFIG_DRM_SGPU_DVFS) && IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+		profiler_interframe_hw_update(scheduled, finished,
 						  job->end_of_frame);
-#endif /* CONFIG_DRM_SGPU_EXYNOS */
+#endif /* CONFIG_DRM_SGPU_DVFS && CONFIG_EXYNOS_GPU_PROFILER */
 	}
 
 

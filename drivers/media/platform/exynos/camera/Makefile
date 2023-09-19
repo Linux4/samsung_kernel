@@ -98,39 +98,17 @@ obj-$(CONFIG_VIDEO_EXYNOS_PABLO_ISP) += fimc-is.o
 obj-$(CONFIG_VIDEO_EXYNOS_PABLO_ISP) += sensor/
 obj-$(CONFIG_VIDEO_EXYNOS_PABLO_ISP) += ischain/
 
-ifeq ($(CONFIG_PABLO_KUNIT_TEST),m)
-pablo-kunit-test-objs := testing/pablo-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-subdev-ctrl-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-core-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-device-csi-v4-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-device-sensor-v2-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-video-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-interface-ischain-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-time-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-interface-library-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-interface-sensor-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-hw-api-mcscaler-v10_0-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-hw-api-rgbp-v1_0-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-hw-api-pdp-v4_0-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-hw-api-byrp-v1_0-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-hw-api-yuvp-v1_0-kunit-test.o
-pablo-kunit-test-objs += testing/pablo-hw-api-cstat-v1_0-kunit-test.o
-pablo-kunit-test-$(CONFIG_DRCP_V1_0) += testing/pablo-hw-api-drcp-v1_0-kunit-test.o
-
-pablo-kunit-test-$(CONFIG_VIDEO_EXYNOS_PABLO_ISP) += testing/pablo-hw-api-common-dma-kunit-test.o
-
-pablo-kunit-test-$(CONFIG_PABLO_OBTE_SUPPORT) += testing/pablo-lib-pablo-obte-kunit-test.o
-
-pablo-kunit-test-$(CONFIG_CSIS_V8_0) += testing/pablo-hw-csi-v8_0-kunit-test.o
-
-obj-$(CONFIG_PABLO_KUNIT_TEST) += pablo-kunit-test.o
-endif
+pablo-smc-objs := lib/pablo-smc.o
+obj-$(CONFIG_VIDEO_EXYNOS_PABLO_ISP) += pablo-smc.o
 
 obj-$(CONFIG_VIDEO_EXYNOS_PABLO_ISP) += vendor/
 
+obj-$(CONFIG_PABLO_KUNIT_TEST) += testing/kunit/
+
 # hardware
 fimc-is-$(CONFIG_VIDEO_EXYNOS_PABLO_ISP) += hardware/is-hw-control.o \
-		hardware/is-hw-dm.o
+					hardware/is-hw-control-m2m.o \
+					hardware/is-hw-dm.o
 
 fimc-is-$(CONFIG_PABLO_V8_1_0) += hardware/is-hw-3aa.o \
 		hardware/is-hw-isp.o \

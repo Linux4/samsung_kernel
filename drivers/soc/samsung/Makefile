@@ -114,10 +114,7 @@ obj-$(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)       += secmem.o
 obj-$(CONFIG_EXYNOS_HDCP2)  += exynos-hdcp/
 
 # Multi IP Governor
-obj-$(CONFIG_EXYNOS_MIGOV)		+= exynos-migov.o
-obj-$(CONFIG_EXYNOS_GPU_PROFILER)	+= exynos-gpu-profiler.o
-obj-$(CONFIG_EXYNOS_CPU_PROFILER)	+= exynos-cpu-profiler.o
-obj-$(CONFIG_EXYNOS_MIF_PROFILER)	+= exynos-mif-profiler.o
+obj-$(CONFIG_EXYNOS_MAIN_PROFILER)		+= profiler/
 
 # Exynos WoW
 obj-$(CONFIG_EXYNOS_WOW)       += exynos-wow.o

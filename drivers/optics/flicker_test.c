@@ -154,7 +154,7 @@ void als_eol_set_env(bool torch, int intensity)
 	int err;
 	err = __als_eol_init_alloc();
 	if (err < 0)
-		printk(KERN_ERR "%s - test init fail");
+		printk(KERN_ERR "%s - test init fail", __func__);
 
 #if IS_ENABLED(CONFIG_LEDS_S2MPB02)
 	if (torch) {
@@ -180,6 +180,11 @@ void als_eol_set_env(bool torch, int intensity)
 
 	printk(KERN_INFO "%s - gpio:%d intensity:%d(%d) led_mode:%d",
 			__func__, env.gpio_led, intensity, env.led_curr, env.led_mode);
+#elif IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	env.gpio_led = gpio_flash;
+	env.led_curr = (intensity);
+	printk(KERN_INFO "%s - gpio:%d intensity:%d(%d)",
+			__func__, env.gpio_led, intensity, env.led_curr);
 #else
 	printk(KERN_INFO "%s - env not set");
 #endif
@@ -193,7 +198,7 @@ EXPORT_SYMBOL(als_eol_set_env);
  * Return result_data
  * MUST call als_eol_update* functions to notify the sensor output!!
  */
-struct result_data* als_eol_mode()
+struct result_data* als_eol_mode(void)
 {
 	int ret;
 	ktime_t wait_time = TEST_WAIT_TIME * NSEC_PER_SEC;
@@ -207,7 +212,7 @@ struct result_data* als_eol_mode()
 	if (ret < 0)
 		return ERR_PTR(ret);
 
-	printk(KERN_INFO "%s - flickering started, fail safe timer %ld", __func__, wait_time);
+	printk(KERN_INFO "%s - flickering started, fail safe timer %lld", __func__, wait_time);
 	hrtimer_start(&data->force_stop_timer, wait_time, HRTIMER_MODE_REL);
 
 	/* lock will be released in
@@ -253,7 +258,7 @@ err:
 EXPORT_SYMBOL(als_eol_mode);
 
 
-int __als_eol_init_alloc()
+int __als_eol_init_alloc(void)
 {
 	if (data == NULL) {
 		data = (struct test_data*)kzalloc(sizeof(struct test_data), GFP_KERNEL);
@@ -283,10 +288,15 @@ void __als_set_led_mode(int current_index)
 #elif IS_ENABLED(CONFIG_LEDS_SM5714)
 	/* 50~225mA, 25mA step */
 	sm5714_fled_torch_gpio(current_index);
+#elif IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	if (current_index)
+		aw36518_enable_flicker(current_index, true);
+	else
+		aw36518_enable_flicker(0, false);
 #endif
 }
 
-int __als_flickering_start()
+int __als_flickering_start(void)
 {
 	int pulse_duty, ret;
 #if !IS_ENABLED(CONFIG_LEDS_KTD2692)
@@ -303,7 +313,6 @@ int __als_flickering_start()
 #endif
 	__als_set_led_mode(env.led_curr);
 
-
 	if (g_Hz != -1) {
 		pulse_duty= (1000000/g_Hz)/2;
 		data->pulse_duty[0] = pulse_duty * NSEC_PER_USEC;
@@ -311,7 +320,7 @@ int __als_flickering_start()
 		data->pulse_duty[2] = pulse_duty * NSEC_PER_USEC;
 		printk(KERN_INFO "%s - cur pulse_duty %d g_Hz %d", __func__, pulse_duty, g_Hz);
 	}
-	printk(KERN_INFO "%s - duty %d %d", __func__, data->pulse_duty[1], data->pulse_duty[2]);
+	printk(KERN_INFO "%s - duty %lld %lld", __func__, data->pulse_duty[1], data->pulse_duty[2]);
 
 	printk(KERN_INFO"%s - eol_loop start", __func__);
 
@@ -323,7 +332,7 @@ int __als_flickering_start()
 
 void led_work_func(struct work_struct *work)
 {
-#if IS_ENABLED(CONFIG_LEDS_S2MPB02) || IS_ENABLED(CONFIG_LEDS_SM5714)
+#if IS_ENABLED(CONFIG_LEDS_S2MPB02) || IS_ENABLED(CONFIG_LEDS_SM5714) || IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
 	gpio_direction_output(env.gpio_led, env.led_state);
 #elif IS_ENABLED(CONFIG_LEDS_KTD2692)
 	ktd2692_led_mode_ctrl(env.led_mode, env.led_state * env.led_curr);
@@ -365,7 +374,7 @@ int als_eol_parse_dt(void)
 		printk(KERN_ERR "Can't find led node");
 		return -ENODEV;
 	}
-#if IS_ENABLED(CONFIG_LEDS_S2MPB02) || IS_ENABLED(CONFIG_LEDS_SM5714)
+#if IS_ENABLED(CONFIG_LEDS_S2MPB02) || IS_ENABLED(CONFIG_LEDS_SM5714) || IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
 	gpio_torch = of_get_named_gpio(np, "torch-gpio", 0);
 	gpio_flash = of_get_named_gpio(np, "flash-gpio", 0);
 #endif
