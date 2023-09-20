@@ -1,0 +1,55 @@
+ /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+	i2c_9: i2c@13940000 { /* gpf1-3 gpf1-2 */
+		status = "disabled";
+	};
+	i2c_10: i2c@13950000 { /* gpf1-1 gpf1-0 */
+		status = "disabled";
+	};
+
+	spi_2: spi@13930000 {
+		num-cs = <1>;
+		status = "ok";
+
+		dma-mode;
+		dmas = <&pdma0 13
+			&pdma0 12>;
+		dma-names = "tx", "rx";
+
+		swap-mode;
+		spi-clkoff-time = <100>;
+
+		isdbt@0 {
+			compatible = "isdbt_spi_comp";
+			reg = <0>;
+			//spi-max-frequency = <24000000>;
+			spi-max-frequency = <9600000>;
+			controller-data {
+				cs-gpio = <&gpf1 1 0>;
+			samsung,spi-feedback-delay = <0>;
+			};
+		};
+	};
+	
+	isdbt_data {
+		 compatible = "isdbt_pdata";
+		 isdbt_spi_clk = <&gpf1 0 0>;
+		 isdbt_spi_cs = <&gpf1 1 0>;
+		 isdbt_spi_miso = <&gpf1 2 0>;
+		 isdbt_spi_mosi = <&gpf1 3 0>;
+		 isdbt_pwr_en = <&gpq0 1 0>;
+		 isdbt_rst = <&gpd1 3 0>;
+		 isdbt_irq = <&gpa1 1 0>;
+	};
+};

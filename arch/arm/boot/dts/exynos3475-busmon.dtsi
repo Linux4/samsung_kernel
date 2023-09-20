@@ -1,0 +1,410 @@
+/*
+ * SAMSUNG EXYNOS3475 SoC device tree source
+ *
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS3475 SoC device nodes are listed in this file.
+ * EXYNOS3475 based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	BUSMON_NRT_GROUP1@10510100 {
+		/* NRT - Group1 */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x10510100 0x100>;
+		interrupts  = <0 380 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 8>;
+		sub-bits = <9 10>;
+		target-bits = <11 12>;
+		init-bits = <13 15>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 15>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 31>;
+		errlog4-bits = <0 3>;
+		errlog5-bits = <0 10>;
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axprot-bits = <4 6>;
+		errlog5-axqos-bits = <7 10>;
+
+		/* init, target, subrage detail description */
+		init-num = <8>;
+		target-num = <4>;
+		sub-num = <4>;
+		sub-array = <12>;
+		init-desc =	"FSYS",
+				"G3D",
+				"IMEM",
+				"MFC_MSCL",
+				"SRV_MIF_D_NRT";
+		target-desc =	"BUS_D_0",
+				"BUS_D_2",
+				"DREX_NRT",
+				"SRV_MIF_D_NRT";
+		sub-index = <0 4 5 6 7 8 32 40 64 72 104 140>;
+		sub-addr  = <0 0x3000000 0x4000000 0x8000000 0x10000000 0x0 0x0 0x0 0x0 0x0 0x0 0x10510000>;
+
+		timeout {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			timeout_dispaud@0x14890104 {
+				nickname = "dispaud-busmonitor-timeout-path";
+				reg = <0x14890104 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <1>;
+				pd-name = "pd-dispaud";
+			};
+			timeout_fsys@0x13720104 {
+				nickname = "fsys-busmonitor-timeout-path";
+				reg = <0x13720104 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <0>;
+			};
+			timeout_mfc_mscl@0x12CA_0104 {
+				nickname = "mfc_mscl-busmonitor-timeout-path";
+				reg = <0x12CA0104 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <1>;
+				pd-name = "pd-mfcmscl";
+			};
+			timeout_g3d@0x1145_0104 {
+				nickname = "g3d-busmonitor-timeout-path";
+				reg = <0x11450104 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <1>;
+				pd-name = "pd-g3d";
+			};
+			timeout_isp@0x144F_0108 {
+				nickname = "isp-busmonitor-timeout-path";
+				reg = <0x144f0108 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <1>;
+				pd-name = "pd-isp";
+			};
+			timeout_mif@0x1045_0100 {
+				nickname = "mif-busmonitor-timeout-path";
+				reg = <0x10450100 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <0>;
+			};
+			timeout_peri@0x139D_0100 {
+				nickname = "peri-busmonitor-timeout-path";
+				reg = <0x139D0104 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <0>;
+			};
+			timeout_bus0_data@0x11820104 {
+				nickname = "bus0-data-busmonitor-timeout-path";
+				reg = <0x11820104 0x100>;
+				enabled = <1>;
+				enable-bit = <3>;
+				runtime-pm = <0>;
+			};
+			timeout_bus0_peri@0x11820104 {
+				nickname = "bus0-peri-busmonitor-timeout-path";
+				reg = <0x11820104 0x100>;
+				enabled = <1>;
+				enable-bit = <2>;
+				runtime-pm = <0>;
+			};
+			timeout_bus0_cmu0@0x11820104 {
+				nickname = "bus0-cmu-busmonitor-timeout-path";
+				reg = <0x11820104 0x100>;
+				enabled = <1>;
+				enable-bit = <1>;
+				runtime-pm = <0>;
+			};
+			timeout_bus0_pmu0@0x11820104 {
+				nickname = "bus0-pmu-busmonitor-timeout-path";
+				reg = <0x11820104 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <0>;
+			};
+			timeout_bus2_data@0x13020104 {
+				nickname = "bus2-data-busmonitor-timeout-path";
+				reg = <0x13020104 0x100>;
+				enabled = <1>;
+				enable-bit = <3>;
+				runtime-pm = <0>;
+			};
+			timeout_bus2_peri@0x13020104 {
+				nickname = "bus2-peri-busmonitor-timeout-path";
+				reg = <0x13020104 0x100>;
+				enabled = <1>;
+				enable-bit = <2>;
+				runtime-pm = <0>;
+			};
+			timeout_bus2_cmu0@0x13020104 {
+				nickname = "bus2-cmu-busmonitor-timeout-path";
+				reg = <0x13020104 0x100>;
+				enabled = <1>;
+				enable-bit = <1>;
+				runtime-pm = <0>;
+			};
+			timeout_bus2_pmu0@0x13020104 {
+				nickname = "bus2-pmu-busmonitor-timeout-path";
+				reg = <0x13020104 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+				runtime-pm = <0>;
+			};
+		};
+	};
+
+	BUSMON_RT_GROUP2@10500400 {
+		/* RT */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x10500400 0x100>;
+		interrupts  = <0 381 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 8>;
+		sub-bits = <0 0>;
+		target-bits = <9 9>;
+		init-bits = <10 11>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 20>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 31>;
+		errlog4-bits = <0 3>;
+		errlog5-bits = <0 10>;
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axprot-bits = <4 6>;
+		errlog5-axqos-bits = <7 10>;
+
+		/* init, target, subrage detail description */
+		init-num = <4>;
+		target-num = <2>;
+		sub-num = <1>;
+		sub-array = <3>;
+		init-desc =	"DISP_AUD",
+				"ISP_RT",
+				"SRV_MIF_D_RT";
+		target-desc =	"MIF_D_RT",
+				"SRV_MIF_D_1";
+		sub-index = <0 8 18>;
+		sub-addr  = <0 0 0x10500000>;
+	};
+
+	BUSMON_PERI_GROUP3@10520000 {
+		/* PERI */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x10520000 0x100>;
+		interrupts  = <0 382 0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 7>;
+		sub-bits = <8 9>;
+		target-bits = <10 14>;
+		init-bits = <15 16>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 17>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 25>;
+		errlog4-bits = <0 0>;
+		errlog5-bits = <0 9>;
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axprot-bits = <4 6>;
+		errlog5-axuser-bits = <7 9>;
+
+		/* init, target, subrage detail description */
+		init-num = <4>;
+		target-num = <32>;
+		sub-num = <4>;
+		sub-array = <62>;
+		init-desc =	"BUS_P_0",
+				"BUS_P_2",
+				"MIF_CP",
+				"MIF_CPU";
+		target-desc =	"FSYS0",
+				"FSYS1",
+				"FSYS2",
+				"FSYS3",
+				"BUS0_AHB",
+				"BUS1_AHB",
+				"CPU",
+				"DISP_AUD",
+				"G3D",
+				"IMEM0",
+				"IMEM1",
+				"ISP",
+				"MFC_MSCL",
+				"MIF0",
+				"MIF2",
+				"PERI",
+				"SRV_BUS0",
+				"SRV_BUS2",
+				"SRV_MIF";
+		sub-index = <40 41 188 189 272 276 280 284 285 256 257 260 264 268 269 288 289 292 293 294
+				295 300 301 304 305 308 309 312 316 317 320 324 328 400 404 408 412 413 384 385
+				388 392 396 397 416 417 420 421 422 423 428 429 432 433 436 437 440 444 445 448
+				452 456>;
+		sub-addr  = <0x2000000 0x0 0x10000000 0x13800000 0x11800000 0x13000000 0x10900000 0x148a0000
+				0x14800000 0x0 0x4000000 0x13500000 0x13600000 0x13760000 0x13700000 0x11430000
+				0x11400000 0x10c40000 0x10c00000 0x2000000 0x0 0x144c0000 0x14400000 0x12cd0000
+				0x12c00000 0x10400000 0x16000000 0x10500000 0x10000000 0x13800000 0x118f0000
+				0x130f0000 0x10520000 0x11800000 0x13000000 0x10900000 0x148a0000 0x14800000
+				0x0 0x4000000 0x13500000 0x13600000 0x13760000 0x13700000 0x11430000 0x11400000
+				0x10c40000 0x10c00000 0x2000000 0x0 0x144c0000 0x14400000 0x12cd0000 0x12c00000
+				0x10400000 0x16000000 0x10500000 0x10000000 0x13800000 0x118f0000 0x130f0000
+				0x10520000>;
+	};
+
+	BUSMON_BUS0_GROUP4@118F0000 {
+		/* BUS0 */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x118F0000 0x100>;
+		interrupts  = <0 94 0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 7>;
+		sub-bits = <8 9>;
+		target-bits = <10 14>;
+		init-bits = <15 16>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 17>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 25>;
+		errlog4-bits = <0 0>;
+		errlog5-bits = <0 9>;
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axprot-bits = <4 6>;
+		errlog5-axuser-bits = <7 9>;
+
+		/* init, target, subrage detail description */
+		init-num = <4>;
+		target-num = <32>;
+		sub-num = <4>;
+		sub-array = <62>;
+		sub-index = <320 321 608 609 384 416 448 480 481 256 257 288 320 352 353 512 513 544 545 546
+				547 608 609 640 641 672 673 704 736 737 768 800 832 512 544 576 608 609 384 385
+				416 448 480 481 640 641 672 673 674 675 736 737 768 769 800 801 832 864 865 896
+				928 960>;
+		sub-addr = <0x2000000 0x0 0x10000000 0x13800000 0x11800000 0x13000000 0x10900000 0x148a0000
+				0x14800000 0x0 0x4000000 0x13500000 0x13600000 0x13760000 0x13700000 0x11430000
+				0x11400000 0x10c40000 0x10c00000 0x2000000 0x0 0x144c0000 0x14400000 0x12cd0000
+				0x12c00000 0x10400000 0x16000000 0x10500000 0x10000000 0x13800000 0x118f0000
+				0x130f0000 0x10520000 0x11800000 0x13000000 0x10900000 0x148a0000 0x14800000
+				0x0 0x4000000 0x13500000 0x13600000 0x13760000 0x13700000 0x11430000 0x11400000
+				0x10c40000 0x10c00000 0x2000000 0x0 0x144c0000 0x14400000 0x12cd0000 0x12c00000
+				0x10400000 0x16000000 0x10500000 0x10000000 0x13800000 0x118f0000 0x130f0000
+				0x10520000>;
+	};
+
+	BUSMON_BUS2_GROUP5@130F0000 {
+		/* BUS0 */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x130F0000 0x100>;
+		interrupts  = <0 95 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 7>;
+		sub-bits = <8 9>;
+		target-bits = <10 14>;
+		init-bits = <15 16>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 17>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 25>;
+		errlog4-bits = <0 0>;
+		errlog5-bits = <0 9>;
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axprot-bits = <4 6>;
+		errlog5-axuser-bits = <7 9>;
+
+		/* init, target, subrage detail description */
+		init-num = <4>;
+		target-num = <32>;
+		sub-num = <4>;
+		sub-array = <62>;
+		sub-index = <100 101 278 279 296 306 316 326 327 256 257 266 276 286 287 336 337 346 347 348
+				349 366 367 376 377 386 387 396 406 407 416 426 436 424 434 444 454 455 384 385
+				394 404 414 415 464 465 474 475 476 477 494 495 504 505 514 515 524 534 535 544
+				554 564>;
+		sub-addr = <0x2000000 0x0 0x10000000 0x13800000 0x11800000 0x13000000 0x10900000 0x148a0000
+				0x14800000 0x0 0x4000000 0x13500000 0x13600000 0x13760000 0x13700000 0x11430000
+				0x11400000 0x10c40000 0x10c00000 0x2000000 0x0 0x144c0000 0x14400000 0x12cd0000
+				0x12c00000 0x10400000 0x16000000 0x10500000 0x10000000 0x13800000 0x118f0000
+				0x130f0000 0x10520000 0x11800000 0x13000000 0x10900000 0x148a0000 0x14800000
+				0x0 0x4000000 0x13500000 0x13600000 0x13760000 0x13700000 0x11430000 0x11400000
+				0x10c40000 0x10c00000 0x2000000 0x0 0x144c0000 0x14400000 0x12cd0000 0x12c00000
+				0x10400000 0x16000000 0x10500000 0x10000000 0x13800000 0x118f0000 0x130f0000
+				0x10520000>;
+	};
+};

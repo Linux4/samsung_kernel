@@ -1,0 +1,186 @@
+/*
+ * SAMSUNG EXYNOS3475 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos3475-xcover3ve_common.dtsi"
+#include "modem-ss308ap-pdata.dtsi"
+#include "exynos3475-xcover3velte_battery.dtsi"
+#include "exynos3475-xcover3velte_eur_open_gpio_01.dtsi"
+
+/ {
+	model = "Samsung UNIVERSAL3475 board based on EXYNOS3475";
+	model_info-chip = <3475>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <2>;
+	model_info-hw_rev_end = <255>;
+	compatible = "samsung,UNIVERSAL3475", "samsung,exynos3475";
+
+	hsi2c@13870000 {
+		status = "okay";
+		s2mu005@3d {
+			compatible = "samsung,s2mu005mfd";
+			reg = <0x3d>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&if_pmic_irq>;
+			s2mu005,irq-gpio = <&gpa0 2 0>;
+			s2mu005,wakeup;
+
+			leds {
+				flash-gpio = <&gpd2 3 0>;
+				torch-gpio = <&gpd0 7 0>;
+
+				flash_current = <1000>;
+				preflash_current = <175>;
+				movie_current = <175>;
+				torch_current = <75>;
+				factory_current = <250>;
+
+				status = "okay";
+				s2mu005-leds1 {
+					ledname = "leds-sec1";
+					id = <0>;
+					timeout = <15>;
+				};
+
+				s2mu005-leds2 {
+					ledname = "leds-sec2";
+					id = <1>;
+					timeout = <15>;
+				};
+			};
+
+			muic {
+				status = "okay";
+				muic,uart_addr = "139c0000.pinctrl";
+				muic,uart_rxd = "gpb1-0";
+				muic,uart_txd = "gpb1-1";
+				muic,undefined_range;
+			};
+		};
+	};
+
+	hsi2c@104C0000 {
+		s2mpu04_pmic@66 {
+			regulators {
+				ldo23_reg: LDO23 {
+					regulator-name = "vdd_ldo23";
+					regulator-min-microvolt = <1800000>;
+					regulator-max-microvolt = <1800000>;
+					regulator-always-on;
+					regulator-initial-mode = <3>;
+				};
+			};
+		};
+	};
+
+	bluetooth {
+		compatible = "broadcom,bcm43xx";
+		gpios = <&gpd2 0 1	/*BT_EN*/
+				&gpd2 1 1	/*BT_WAKE*/
+				&gpa1 6 0xF	/*BT_HOST_WAKE*/ >;
+		pinctrl-names = "default";
+		pinctrl-0=<&bt_hostwake &bt_btwake &bt_reg_on>;
+		status = "okay";
+	};
+
+	i2c@13830000 {
+		status = "okay";
+		samsung,i2c-max-bus-freq = <300000>;
+		sec-nfc@27 {
+			compatible = "sec-nfc";
+			reg = <0x27>;
+			interrupts = <1 0 0>;
+			interrupt-parent = <&gpa1>;
+			sec-nfc,firm-gpio = <&gpd1 3 0>;
+			sec-nfc,irq-gpio = <&gpa1 1 0>;
+			clkctrl-reg = <0x10466008>;
+			sec-nfc,nfc_clkreq = <&gpc2 3 0x2>;
+			sec-nfc,nfc_pd = <&gpc2 2 0x2>;
+			sec-nfc,i2c_1p8 = "vdd_ldo23";
+			pinctrl-names = "default";
+			pinctrl-0 = <&nfc_n5_en &nfc_n5_clk_req &nfc_clk &nfc_n5_firm>;
+		};
+	};
+
+	pinctrl@139B0000 {
+		acc_int: acc_int {
+			samsung,pins = "gpa1-0";
+			samsung,pins-function = <0x0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		prox_int: prox_int {
+			samsung,pins = "gpa1-7";
+			samsung,pins-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		grip_int: grip_int {
+			samsung,pins = "gpa0-4";
+			samsung,pins-function = <0xf>;
+			samsung,pin-pud = <0x0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	i2c@13850000 {
+		status = "okay";
+
+		k2hh-i2c@1D {
+			compatible = "k2hh-i2c";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <0 0 0>;
+			k2hh,irq_gpio = <&gpa1 0 0>;
+			k2hh,vio-supply = <&ldo23_reg>;
+			k2hh,axis_map_x = <0>;
+			k2hh,axis_map_y = <1>;
+			k2hh,axis_map_z = <2>;
+			k2hh,negate_x = <1>;
+			k2hh,negate_y = <1>;
+			k2hh,negate_z = <1>;
+			k2hh,poll_interval = <100>;
+			k2hh,min_interval = <2>;
+		};
+
+		gp2a-i2c@44{
+			compatible = "gp2a-i2c";
+			reg = <0x44>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int>;
+			interrupt-parent = <&gpa1>;
+			interrupts = <7 0 0>;
+			gp2a,irq-gpio = <&gpa1 7 0>;
+			gp2a,gpio_sensors_ldo_en = <&gpc1 2 0x1>; /*SENSOR LDO EN*/
+			gp2a-pls-supply  = <&ldo25_reg>;
+			gp2a-vio-supply  = <&ldo23_reg>;
+		};
+
+		ak09916c-i2c@0C {
+			compatible = "ak09916c-i2c";
+			reg = <0x0c>;
+			ak09916c-i2c,chip_pos = <1>;
+		};
+		
+		sx9310-i2c@28 {
+			compatible = "sx9310-i2c";
+			reg = <0x28>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int>;
+			interrupts = <4 0 0>;
+			interrupt-parent = <&gpa0>;
+			sx9310-i2c,nirq-gpio = <&gpa0 4 0>;
+		};
+	};
+};
