@@ -1,0 +1,9 @@
+# Galaxy presubmit whitelist
+# This symbol should be merged to abi_gki_aarch64_galaxy
+# Plase add module name, like as "# required by sound/soc/codecs/snd-soc-wm-adsp.ko"
+[abi_symbol_list]
+snd_soc_component_enable_pin
+snd_soc_component_get_pin_status
+of_find_all_nodes
+__traceiter_android_rvh_ufs_complete_init
+__tracepoint_android_rvh_ufs_complete_init

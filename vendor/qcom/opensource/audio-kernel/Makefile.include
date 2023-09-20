@@ -1,0 +1,12 @@
+
+# Swap configs for samsung board
+$(info "Targe project name is $(PROJECT_NAME)")
+
+ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),dm1q dm2q dm3q))
+    $(info "overwrite kalama as kalama_diamond config")
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell cp $(AUDIO_ROOT)/config/kalama_diamond.conf $(AUDIO_ROOT)/config/kalamaauto.conf)
+    $(shell rm -fr $(AUDIO_ROOT)/config/kalamaautoconf.h)
+    $(shell cp $(AUDIO_ROOT)/config/kalamaautoconf_diamond.h $(AUDIO_ROOT)/config/kalamaautoconf.h)
+endif
+
