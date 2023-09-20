@@ -33,9 +33,6 @@
 #define SE_I2C_SCL_COUNTERS		(0x278)
 #define SE_GENI_M_GP_LENGTH		(0x910)
 
-#define SE_I2C_ERR  (M_CMD_OVERRUN_EN | M_ILLEGAL_CMD_EN | M_CMD_FAILURE_EN |\
-			M_GP_IRQ_1_EN | M_GP_IRQ_3_EN | M_GP_IRQ_4_EN)
-#define SE_I2C_ABORT (1U << 1)
 /* M_CMD OP codes for I2C */
 #define I2C_WRITE		(0x1)
 #define I2C_READ		(0x2)
@@ -70,6 +67,7 @@
 #define I2C_ADDR_NACK		11
 #define I2C_DATA_NACK		12
 #define GENI_M_CMD_FAILURE	13
+#define GENI_M_CANCEL_DONE	14
 
 #define GENI_HW_PARAM			0x50
 
@@ -142,6 +140,7 @@ struct geni_i2c_dev {
 	u32 xfer_timeout;
 	struct i2c_adapter adap;
 	struct completion xfer;
+	struct completion m_cancel_cmd;
 	struct i2c_msg *cur;
 	struct geni_se i2c_rsc;
 	struct clk *m_ahb_clk;
@@ -219,6 +218,7 @@ static struct geni_i2c_err_log gi2c_log[] = {
 	[GENI_TIMEOUT] = {-ETIMEDOUT, "I2C TXN timed out"},
 	[GENI_SPURIOUS_IRQ] = {-EINVAL, "Received unexpected interrupt"},
 	[GENI_M_CMD_FAILURE] = {-EINVAL, "Master command failure"},
+	[GENI_M_CANCEL_DONE] = {-EINVAL, "Master cancel done"},
 };
 
 struct geni_i2c_clk_fld {
@@ -409,7 +409,7 @@ static void do_reg68_war_for_rtl_se(struct geni_i2c_dev *gi2c)
 
 /**
  * geni_i2c_stop_with_cancel(): stops GENI SE with cancel command.
- * @gi2c:	I2C dev handle
+ * @gi2c: I2C dev handle
  *
  * This is a generic function to stop serial engine, to be called as required.
  *
@@ -419,9 +419,9 @@ static int geni_i2c_stop_with_cancel(struct geni_i2c_dev *gi2c)
 {
 	int timeout = 0;
 
-	reinit_completion(&gi2c->xfer);
+	reinit_completion(&gi2c->m_cancel_cmd);;
 	geni_se_cancel_m_cmd(&gi2c->i2c_rsc);
-	timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
+	timeout = wait_for_completion_timeout(&gi2c->m_cancel_cmd, HZ);
 	if (!timeout) {
 		I2C_LOG_DBG(gi2c->ipcl, true, gi2c->dev,
 				"%s:Cancel failed\n", __func__);
@@ -556,24 +556,13 @@ static int do_pending_cancel(struct geni_i2c_dev *gi2c)
 	if (gi2c->se_mode == GSI_ONLY) {
 		dmaengine_terminate_all(gi2c->tx_c);
 		gi2c->cfg_sent = 0;
-	} else {
-		reinit_completion(&gi2c->xfer);
-		geni_se_cancel_m_cmd(&gi2c->i2c_rsc);
-		timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
-		if (!timeout) {
-			I2C_LOG_DBG(gi2c->ipcl, true, gi2c->dev,
-				"%s:Pending Cancel failed\n", __func__);
-			reinit_completion(&gi2c->xfer);
-			geni_se_abort_m_cmd(&gi2c->i2c_rsc);
-			timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
-			if (!timeout)
-				I2C_LOG_DBG(gi2c->ipcl, true, gi2c->dev,
-					"%s:Abort failed\n", __func__);
-		}
+	} else if (geni_i2c_stop_with_cancel(gi2c)) {
+		I2C_LOG_DBG(gi2c->ipcl, false, gi2c->dev,
+			    "%s: geni_i2c_stop_with_cancel failed\n", __func__);
+
 	}
 	gi2c->prev_cancel_pending = false;
-	I2C_LOG_DBG(gi2c->ipcl, true, gi2c->dev,
-		"%s: Pending Cancel done\n", __func__);
+	I2C_LOG_DBG(gi2c->ipcl, false, gi2c->dev, "%s: Pending Cancel done\n", __func__);
 	return timeout;
 }
 
@@ -636,6 +625,8 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 {
 	struct geni_i2c_dev *gi2c = dev;
 	int i, j;
+	bool is_clear_watermark = false;
+	bool m_cancel_done = false;
 	u32 m_stat = readl_relaxed(gi2c->base + SE_GENI_M_IRQ_STATUS);
 	u32 rx_st = readl_relaxed(gi2c->base + SE_GENI_RX_FIFO_STATUS);
 	u32 dm_tx_st = readl_relaxed(gi2c->base + SE_DMA_TX_IRQ_STAT);
@@ -650,6 +641,7 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 		I2C_LOG_ERR(gi2c->ipcl, false, gi2c->dev, "Spurious irq\n");
 		geni_i2c_err(gi2c, GENI_SPURIOUS_IRQ);
 		gi2c->cmd_done = true;
+		is_clear_watermark = true;
 		goto irqret;
 	}
 
@@ -679,8 +671,13 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 			geni_i2c_err(gi2c, GENI_ABORT_DONE);
 		if (m_stat & M_CMD_FAILURE_EN)
 			geni_i2c_err(gi2c, GENI_M_CMD_FAILURE);
+		if (m_stat & M_CMD_CANCEL_EN) {
+			geni_i2c_err(gi2c, GENI_M_CANCEL_DONE);
+			m_cancel_done = true;
+		}
 
 		gi2c->cmd_done = true;
+		is_clear_watermark = true;
 		goto irqret;
 	}
 
@@ -722,9 +719,12 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 				break;
 			}
 		}
+	} else {
+		I2C_LOG_DBG(gi2c->ipcl, false, gi2c->dev,
+			    "%s: m_irq_status:0x%x cur->flags:%d\n", __func__, m_stat, cur->flags);
 	}
 irqret:
-	if (!dma && gi2c->err)
+	if (!dma && is_clear_watermark)
 		writel_relaxed(0, (gi2c->base + SE_GENI_TX_WATERMARK_REG));
 
 	if (m_stat)
@@ -743,15 +743,17 @@ irqret:
 
 		if ((dm_tx_st & TX_DMA_DONE) || (dm_rx_st & RX_DMA_DONE))
 			gi2c->cmd_done = true;
-	}
-
-	else if (m_stat & M_CMD_DONE_EN)
+		} else if (m_stat & M_CMD_DONE_EN) {
 		gi2c->cmd_done = true;
+		}
 
 	if (gi2c->cmd_done) {
 		gi2c->cmd_done = false;
 		complete(&gi2c->xfer);
 	}
+
+	if (m_cancel_done)
+		complete(&gi2c->m_cancel_cmd);
 
 	return IRQ_HANDLED;
 }
@@ -846,6 +848,11 @@ static void gi2c_gsi_rx_cb(void *ptr)
 	}
 
 	gi2c = rx_cb->userdata;
+	if (!gi2c->cur) {
+		geni_i2c_err(gi2c, GENI_SPURIOUS_IRQ);
+		complete(&gi2c->xfer);
+		return;
+	}
 
 	if (gi2c->cur->flags & I2C_M_RD) {
 		gi2c_gsi_cb_err(rx_cb, "RX");
@@ -1089,6 +1096,12 @@ static int geni_i2c_lock_bus(struct geni_i2c_dev *gi2c)
 	reinit_completion(&gi2c->xfer);
 	/* Issue TX */
 	tx_cookie = dmaengine_submit(gi2c->tx_desc);
+	if (dma_submit_error(tx_cookie)) {
+		pr_err("%s: dmaengine_submit failed (%d)\n", __func__, tx_cookie);
+		gi2c->err = -EINVAL;
+		goto geni_i2c_err_lock_bus;
+	}
+
 	dma_async_issue_pending(gi2c->tx_c);
 
 	timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
@@ -1134,6 +1147,12 @@ static void geni_i2c_unlock_bus(struct geni_i2c_dev *gi2c)
 	reinit_completion(&gi2c->xfer);
 	/* Issue TX */
 	tx_cookie = dmaengine_submit(gi2c->tx_desc);
+	if (dma_submit_error(tx_cookie)) {
+		pr_err("%s: dmaengine_submit failed (%d)\n", __func__, tx_cookie);
+		gi2c->err = -EINVAL;
+		goto geni_i2c_err_unlock_bus;
+	}
+
 	dma_async_issue_pending(gi2c->tx_c);
 
 	timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
@@ -1269,6 +1288,12 @@ static int geni_i2c_gsi_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 
 			/* Issue RX */
 			rx_cookie = dmaengine_submit(gi2c->rx_desc);
+			if (dma_submit_error(rx_cookie)) {
+				pr_err("%s: dmaengine_submit failed (%d)\n", __func__, rx_cookie);
+				gi2c->err = -EINVAL;
+				goto geni_i2c_err_prep_sg;
+			}
+
 			dma_async_issue_pending(gi2c->rx_c);
 		} else {
 			I2C_LOG_DBG(gi2c->ipcl, false, gi2c->dev,
@@ -1311,6 +1336,12 @@ static int geni_i2c_gsi_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 
 		/* Issue TX */
 		tx_cookie = dmaengine_submit(gi2c->tx_desc);
+		if (dma_submit_error(tx_cookie)) {
+			pr_err("%s: dmaengine_submit failed (%d)\n", __func__, tx_cookie);
+			gi2c->err = -EINVAL;
+			goto geni_i2c_err_prep_sg;
+		}
+
 		dma_async_issue_pending(gi2c->tx_c);
 
 		timeout = wait_for_completion_timeout(&gi2c->xfer,
@@ -1585,7 +1616,12 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 						gi2c->xfer_timeout);
 		if (!timeout) {
 			u32 geni_ios = 0;
+			u32 m_stat = readl_relaxed(gi2c->base + SE_GENI_M_IRQ_STATUS);
 
+			/* clearing tx water mark and m_irq_status during delayed irq */
+			writel_relaxed(0, (gi2c->base + SE_GENI_TX_WATERMARK_REG));
+			if (m_stat)
+				writel_relaxed(m_stat, gi2c->base + SE_GENI_M_IRQ_CLEAR);
 			I2C_LOG_ERR(gi2c->ipcl, true, gi2c->dev,
 				"I2C xfer timeout: %d\n", gi2c->xfer_timeout);
 			geni_i2c_err(gi2c, GENI_TIMEOUT);
@@ -1632,14 +1668,7 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 					do_reg68_war_for_rtl_se(gi2c);
 				}
 			}
-			reinit_completion(&gi2c->xfer);
-			geni_se_cancel_m_cmd(&gi2c->i2c_rsc);
-			timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
-			if (!timeout) {
-				I2C_LOG_ERR(gi2c->ipcl, true, gi2c->dev,
-					"Abort\n");
-				geni_se_abort_m_cmd(&gi2c->i2c_rsc);
-			}
+			geni_i2c_stop_with_cancel(gi2c);
 		}
 		gi2c->cur_wr = 0;
 		gi2c->cur_rd = 0;
@@ -1887,6 +1916,7 @@ static int geni_i2c_probe(struct platform_device *pdev)
 
 	gi2c->adap.algo = &geni_i2c_algo;
 	init_completion(&gi2c->xfer);
+	init_completion(&gi2c->m_cancel_cmd);
 	platform_set_drvdata(pdev, gi2c);
 	i2c_set_adapdata(&gi2c->adap, gi2c);
 	gi2c->adap.dev.parent = gi2c->dev;
@@ -2145,6 +2175,9 @@ skip_bw_vote:
 			dev_err(gi2c->dev, "I2C prepare failed: %d\n", ret);
 			return ret;
 		}
+
+		geni_write_reg(0x7f, gi2c->base, GENI_OUTPUT_CTRL);
+		udelay(10);
 
 		if (gi2c->se_mode == FIFO_SE_DMA)
 			enable_irq(gi2c->irq);

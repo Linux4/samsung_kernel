@@ -786,6 +786,9 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 			}
 #endif
 			typec_manager.pd_con_state = 1;
+#ifdef CONFIG_USB_LPM_CHARGING_SYNC
+			set_lpm_charging_type_done(get_otg_notify(), 1);
+#endif
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 			store_usblog_notify(NOTIFY_MANAGER, (void *)&p_noti, NULL);
 #endif
@@ -817,6 +820,9 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 				}
 				manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_BATT,
 					PDIC_NOTIFY_ID_USB, 0, 0, PD_NONE_TYPE);
+#ifdef CONFIG_USB_LPM_CHARGING_SYNC
+				set_lpm_charging_type_done(get_otg_notify(), 1);
+#endif
 			}
 		break;
 	case PDIC_NOTIFY_ID_RID:
@@ -956,6 +962,38 @@ static void manager_handle_second_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 #endif
 }
 
+#ifdef CONFIG_USB_LPM_CHARGING_SYNC
+int check_lpm_charging_type_confirm(uint64_t cable_type)
+{
+	switch (cable_type) {
+	case ATTACHED_DEV_USB_MUIC:
+	case ATTACHED_DEV_CDP_MUIC:
+	case ATTACHED_DEV_TA_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_TA_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_TA_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_ANY_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_USB_MUIC:
+	case ATTACHED_DEV_UNOFFICIAL_ID_CDP_MUIC:
+	case ATTACHED_DEV_UNDEFINED_CHARGING_MUIC:
+	case ATTACHED_DEV_TYPE1_CHG_MUIC:
+	case ATTACHED_DEV_TYPE2_CHG_MUIC:
+	case ATTACHED_DEV_TYPE3_MUIC:
+	case ATTACHED_DEV_TYPE3_MUIC_TA:
+	case ATTACHED_DEV_TYPE3_ADAPTER_MUIC:
+	case ATTACHED_DEV_TYPE3_CHARGER_MUIC:
+	case ATTACHED_DEV_UNSUPPORTED_ID_MUIC:
+	case ATTACHED_DEV_UNSUPPORTED_ID_VB_MUIC:
+	case ATTACHED_DEV_UNDEFINED_RANGE_MUIC:
+	case ATTACHED_DEV_TIMEOUT_OPEN_MUIC:
+		return 0;
+	default:
+		return 1;
+	}
+}
+#endif
+
 static void manager_handle_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 {
 	typec_manager.muic.attach_state = muic_evt.attach;
@@ -968,6 +1006,13 @@ static void manager_handle_muic(PD_NOTI_ATTACH_TYPEDEF muic_evt)
 
 	if (!muic_evt.attach)
 		typec_manager.classified_cable_type = MANAGER_NOTIFY_MUIC_NONE;
+
+#ifdef CONFIG_USB_LPM_CHARGING_SYNC
+	if (muic_evt.attach) {
+		if (check_lpm_charging_type_confirm(muic_evt.cable_type))
+			set_lpm_charging_type_done(get_otg_notify(), 1);
+	}
+#endif
 
 	switch (muic_evt.cable_type) {
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:

@@ -858,6 +858,12 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	msg_buf[1] = new_value;
 	msg_buf[2] = data->pre_panel_state[display_idx];
 
+	if (!data->light_factory_is_ready) {
+		pr_info("[SSC_FAC] %s: Factory daemon is not ready.\n",
+			__func__);
+		return size;
+	}
+
 	if (new_value == 1) {
 #if IS_ENABLED(CONFIG_SUPPORT_DDI_COPR_FOR_LIGHT_SENSOR)
 		schedule_delayed_work(&data->light_copr_debug_work,

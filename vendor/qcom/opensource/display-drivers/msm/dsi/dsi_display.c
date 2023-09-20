@@ -6167,6 +6167,7 @@ static const struct component_ops dsi_display_comp_ops = {
 static int dsi_display_suspend(struct device *dev)
 {
 	struct dsi_display *display = dev_get_drvdata(dev);
+	struct samsung_display_driver_data *vdd = NULL;
 	int is_core_clk_on;
 
 	if (!display) {
@@ -6174,17 +6175,30 @@ static int dsi_display_suspend(struct device *dev)
 		return 0;
 	}
 
+	if (!display->panel) {
+		DSI_DEBUG("No panel\n", __func__);
+		return 0;
+	}
+
+	vdd = display->panel->panel_private;
+	if (IS_ERR_OR_NULL(vdd)) {
+		DSI_ERR("%s: fail to get vdd\n", __func__);
+		return 0;
+	}
+
+	/*
+	 * Flush sde_normal_clk_work does not mean clock is off.
+	 * This function should be called before msm_pm_suspend -> sde_kms_pm_suspend.
+	 * sde_kms_pm_suspend can gaurantee all the SDE resource off.
+	 */
+	flush_delayed_work(&vdd->sde_normal_clk_work);
+
+	LCD_INFO(vdd, "dsi_display_suspend\n");
+
 	is_core_clk_on = dsi_display_is_core_clk_on(display->dsi_clk_handle);
 
-	if (is_core_clk_on == 1) {
+	if (is_core_clk_on == 1)
 		DSI_ERR("SDE: %s: display core clock is on in suspend\n", __func__);
-#if IS_ENABLED(CONFIG_PANEL_Q5_S6E3XA2_AMF756BQ03_QXGA) || IS_ENABLED(CONFIG_PANEL_DM1_S6E3FAC_AMB606AW01_FHD) || IS_ENABLED(CONFIG_PANEL_DM2_S6E3FAC_AMB655AY01_FHD) || IS_ENABLED(CONFIG_PANEL_DM3_S6E3HAE_AMB681AZ01_WQHD)
-		/* call panic for Q5 and DM projects.
-		 * TBR: remove this code after find out root-cause. (case 06517725)
-		 */
-		BUG_ON(1);
-#endif
-	}
 	
 	return 0;
 }

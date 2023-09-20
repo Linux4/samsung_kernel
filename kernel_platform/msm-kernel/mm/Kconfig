@@ -863,7 +863,7 @@ config FAULT_AROUND_BYTES
 config DIRECT_RECLAIM_FILE_PAGES_ONLY
 	bool "Reclaim file pages only on direct reclaim path"
 	depends on SWAP
-	default n
+	default y
 
 config GUP_TEST
 	bool "Enable infrastructure for get_user_pages()-related unit tests"

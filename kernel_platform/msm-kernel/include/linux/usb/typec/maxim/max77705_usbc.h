@@ -185,6 +185,7 @@ struct max77705_usbc_platform_data {
 	int is_samsung_accessory_enter_mode;
 	int send_enter_mode_req;
 	u8 sbu[2];
+	u8 cc[2];
 	struct completion ccic_sysfs_completion;
 	struct completion psrdy_wait;
 	struct max77705_muic_data *muic_data;

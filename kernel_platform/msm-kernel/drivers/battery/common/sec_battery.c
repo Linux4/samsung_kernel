@@ -6369,11 +6369,12 @@ static int sec_bat_get_property(struct power_supply *psy,
 #endif
 			break;
 		case POWER_SUPPLY_EXT_PROP_FPDO_DC_THERMAL_CHECK:
-			pr_info("%s:  FPDO_DC_THERMAL_CHECK Tbat(%d), chg_limit(%d), lrp_limit(%d), siop(%d), tz(%d)\n",
+			pr_info("%s:  FPDO_DC, Tbat(%d), chg_limit(%d), lrp_limit(%d), siop(%d), tz(%d), pdo(%d)\n",
 				__func__, battery->temperature, battery->chg_limit, battery->lrp_limit,
-				battery->siop_level, battery->thermal_zone);
+				battery->siop_level, battery->thermal_zone, battery->sink_status.current_pdo_num);
 			if (battery->chg_limit || battery->lrp_limit || battery->siop_level < 80 ||
 					battery->thermal_zone != BAT_THERMAL_NORMAL ||
+					battery->sink_status.current_pdo_num < 2 ||
 					battery->temperature <= battery->pdata->wire_cool1_normal_thresh ||
 					battery->temperature >= battery->pdata->wire_normal_warm_thresh)
 				val->intval = 1;
@@ -7485,6 +7486,14 @@ static int usb_typec_handle_id_power_status(struct sec_battery_info *battery,
 			battery->is_fpdo_dc = true;
 			*cable_type = SEC_BATTERY_CABLE_FPDO_DC;
 			pdata_fpdo_max_power = battery->pdata->fpdo_dc_charge_power;
+
+			pr_info("%s: FPDO_DC, refresh charging source.\n", __func__);
+			psy_do_property(battery->pdata->charger_name, set,
+					POWER_SUPPLY_EXT_PROP_REFRESH_CHARGING_SOURCE, value);
+#if defined(CONFIG_STEP_CHARGING)
+			sec_bat_check_step_charging(battery);
+#endif
+
 		}
 
 		if (bPrintPDlog)

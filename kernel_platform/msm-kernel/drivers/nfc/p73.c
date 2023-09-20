@@ -185,8 +185,10 @@ struct p61_dev {
 	struct pinctrl_state *pinctrl_state[P61_PIN_CTRL_MAX];
 	struct platform_device *spi_pdev;
 	struct nfc_wake_lock ese_lock;
-	int pid;
-	char task_comm[TASK_COMM_LEN];
+	int open_pid;
+	int release_pid;
+	char open_task_name[TASK_COMM_LEN];
+	char release_task_name[TASK_COMM_LEN];
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	struct delayed_work spi_release_work;
 	struct nfc_wake_lock spi_release_wakelock;
@@ -287,7 +289,7 @@ static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes)
 }
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-static void p61_get_status(struct p61_dev *p61_dev)
+static void p61_get_task_info(struct p61_dev *p61_dev, char *task_name, int *pid)
 {
 	struct task_struct *task;
 
@@ -295,14 +297,21 @@ static void p61_get_status(struct p61_dev *p61_dev)
 		return;
 
 	rcu_read_lock();
-	p61_dev->pid = task_pid_nr(current);
-	task = pid_task(find_vpid(p61_dev->pid), PIDTYPE_PID);
-	memset(p61_dev->task_comm, 0, TASK_COMM_LEN);
+	*pid = task_pid_nr(current);
+	task = pid_task(find_vpid(*pid), PIDTYPE_PID);
 	if (task) {
-		memcpy(p61_dev->task_comm, task->comm, TASK_COMM_LEN);
-		p61_dev->task_comm[TASK_COMM_LEN - 1] = '\0';
+		memcpy(task_name, task->comm, TASK_COMM_LEN);
+		task_name[TASK_COMM_LEN - 1] = '\0';
 	}
 	rcu_read_unlock();
+}
+
+static void p61_init_task_info(struct p61_dev *p61_dev)
+{
+	p61_dev->open_pid = 0;
+	p61_dev->release_pid = 0;
+	memset(p61_dev->open_task_name, 0, TASK_COMM_LEN);
+	memset(p61_dev->release_task_name, 0, TASK_COMM_LEN);
 }
 
 void p61_print_status(const char *func_name)
@@ -312,9 +321,12 @@ void p61_print_status(const char *func_name)
 	if (!p61_dev)
 		return;
 
-	NFC_LOG_INFO("%s: p61 state=%d pid=%d task=%s\n",
+	NFC_LOG_INFO("%s: state=%d o_pid=%d rel_pid=%d o_task=%s rel_task=%s\n",
 			func_name, p61_dev->ese_spi_transition_state,
-			p61_dev->pid, p61_dev->task_comm);
+			p61_dev->open_pid,
+			p61_dev->release_pid,
+			p61_dev->open_task_name,
+			p61_dev->release_task_name);
 }
 
 static void p61_pinctrl_select(struct p61_dev *p61_dev, enum p61_pin_ctrl stat)
@@ -384,7 +396,7 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 #endif
 	mutex_unlock(&open_close_mutex);
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-	p61_get_status(p61_dev);
+	p61_get_task_info(p61_dev, p61_dev->release_task_name, &p61_dev->release_pid);
 	p61_print_status(__func__);
 #endif
 	NFC_LOG_INFO("Exit %s: ESE driver release\n", __func__);
@@ -589,6 +601,8 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 	p61_dev->ese_spi_transition_state = ESE_SPI_BUSY;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	/* for checking previous open/close tasks */
+	p61_print_status("p61_dev_open pre");
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	cancel_delayed_work_sync(&p61_dev->spi_release_work);
 #endif
@@ -600,7 +614,8 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 #endif
 	mutex_unlock(&open_close_mutex);
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-	p61_get_status(p61_dev);
+	p61_init_task_info(p61_dev);
+	p61_get_task_info(p61_dev, p61_dev->open_task_name, &p61_dev->open_pid);
 	p61_print_status(__func__);
 #endif
 	return 0;

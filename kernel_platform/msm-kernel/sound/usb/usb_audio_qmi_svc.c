@@ -1492,19 +1492,21 @@ static int enable_audio_stream(struct snd_usb_substream *subs,
 
 	ret = uaudio_snd_usb_pcm_change_state(subs, UAC3_PD_STATE_D0);
 	if (ret < 0)
-		return ret;
+		goto exit;
 
 	fmt = find_format_and_si(&subs->fmt_list, pcm_format, cur_rate,
 			channels, datainterval, subs);
 	if (!fmt) {
 		dev_err(&subs->dev->dev, "cannot find format: format = %#x, rate = %d, channels = %d\n",
 			   pcm_format, cur_rate, channels);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto exit;
 	}
 
 	if (atomic_read(&chip->shutdown)) {
 		uaudio_err("chip already shutdown\n");
-		return -ENODEV;
+		ret = -ENODEV;
+		goto exit;
 	} else {
 		if (subs->data_endpoint)
 			close_endpoints(chip, subs);
@@ -1513,7 +1515,8 @@ static int enable_audio_stream(struct snd_usb_substream *subs,
 				&params, false);
 		if (!subs->data_endpoint) {
 			uaudio_err("failed to open data endpoint\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			goto exit;
 		}
 
 		if (fmt->sync_ep) {
@@ -1521,7 +1524,8 @@ static int enable_audio_stream(struct snd_usb_substream *subs,
 					fmt, &params, true);
 			if (!subs->sync_endpoint) {
 				uaudio_err("failed to open sync endpoint\n");
-				return -EINVAL;
+				ret = -EINVAL;
+				goto exit;
 			}
 
 			subs->data_endpoint->sync_source = subs->sync_endpoint;
@@ -1535,7 +1539,7 @@ static int enable_audio_stream(struct snd_usb_substream *subs,
 		if (ret < 0) {
 			uaudio_err("%d:%d: usb_set_interface failed (%d)\n",
 					fmt->iface, fmt->altsetting, ret);
-			return ret;
+			goto exit;
 		}
 
 		uaudio_info("selected %s iface:%d altsetting:%d datainterval:%dus\n",
@@ -1547,6 +1551,7 @@ static int enable_audio_stream(struct snd_usb_substream *subs,
 				 BUS_INTERVAL_FULL_SPEED));
 	}
 
+exit:
 	snd_usb_autosuspend(chip);
 	return ret;
 }

@@ -58,6 +58,9 @@ static DEFINE_MUTEX(zram_index_mutex);
 static int zram_major;
 static const char *default_compressor = "lzo-rle";
 
+static bool is_lzorle;
+static unsigned char lzo_marker[4] = {0x11, 0x00, 0x00};
+
 /* Module params (documentation at end) */
 static unsigned int num_devices = 1;
 /*
@@ -1154,6 +1157,90 @@ static void mark_end_of_page(struct zwbs *zwbs)
 	}
 }
 
+struct hex_dump_pages {
+	struct page **pages;
+	int nr_pages;
+	unsigned int idx;
+};
+
+static void print_hex_dump_pages(struct page **src_page, int nr_pages,
+				int cur_idx)
+{
+	void *src;
+
+	if (cur_idx < 0 || cur_idx > NR_ZWBS - 1)
+		return;
+
+	if (nr_pages == NR_ZWBS && cur_idx != 0) {
+		pr_err("Previous page\n");
+		src = kmap_atomic(src_page[cur_idx - 1]);
+		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1,
+				src, PAGE_SIZE, 1);
+		kunmap_atomic(src);
+	}
+
+	pr_err("This page\n");
+	src = kmap_atomic(src_page[cur_idx]);
+	print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, src,
+			PAGE_SIZE, 1);
+	kunmap_atomic(src);
+
+	if (nr_pages == NR_ZWBS && cur_idx != NR_ZWBS - 1) {
+		pr_err("Next page\n");
+		src = kmap_atomic(src_page[cur_idx + 1]);
+		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1,
+				src, PAGE_SIZE, 1);
+		kunmap_atomic(src);
+	}
+}
+
+static void check_marker(void *addr, int size, struct hex_dump_pages *hdp)
+{
+	if (!is_lzorle)
+		return;
+
+	if (size == PAGE_SIZE)
+		return;
+
+	if (!memcmp(addr + size - 3, lzo_marker, 3))
+		return;
+
+	pr_err("%ps marker error, addr=0x%px len=%u\n", _RET_IP_, addr, size);
+	if (hdp)
+		print_hex_dump_pages(hdp->pages, hdp->nr_pages, hdp->idx);
+	else
+		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, addr,
+				size, 1);
+	BUG();
+}
+
+static void handle_decomp_fail(char *comp, int err, u32 index, void *src,
+			       unsigned int size, struct hex_dump_pages *hdp)
+{
+	bool is_marker_err = false;
+
+	pr_err("%ps %s Decompression failed! err=%d %s=%u src=0x%px len=%u\n",
+			_RET_IP_, comp, err, hdp ? "offset" : "index", index,
+			src, size);
+	if (is_lzorle && size != PAGE_SIZE) {
+		if (memcmp(src + size - 3, lzo_marker, 3)) {
+			pr_err("%s marker error\n", __func__);
+			is_marker_err = true;
+		}
+	}
+
+	if (hdp)
+		print_hex_dump_pages(hdp->pages, hdp->nr_pages, hdp->idx);
+	else
+		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, src,
+				size, 1);
+
+	if (is_marker_err)
+		BUG();
+	else
+		panic("zram decomp failed");
+}
+
 static int zram_writeback_fill_page(struct zram *zram, u32 index,
 				struct zwbs **zwbs, int idx, bool ppr)
 {
@@ -1219,6 +1306,7 @@ static int zram_writeback_fill_page(struct zram *zram, u32 index,
 		memcpy(dst, src, size);
 	}
 	kunmap_atomic(dst);
+	check_marker(src, size, NULL);
 	zs_unmap_object(zram->mem_pool, handle);
 	zram_slot_unlock(zram, index);
 
@@ -2061,6 +2149,7 @@ static void zram_handle_remain(struct zram *zram, struct page **pages,
 	int header_sz = sizeof(struct zram_wb_header);
 	u32 index;
 	u8 *mem, *dst;
+	struct hex_dump_pages hdp;
 
 	while (idx < nr_pages) {
 		mem = kmap_atomic(pages[idx]);
@@ -2109,6 +2198,10 @@ static void zram_handle_remain(struct zram *zram, struct page **pages,
 
 		dst = zs_map_object(zram->mem_pool, handle, ZS_MM_WO);
 		copy_to_buf(dst, pages, idx, offset + header_sz, size);
+		hdp.pages = pages;
+		hdp.nr_pages = nr_pages;
+		hdp.idx = idx;
+		check_marker(dst, size, &hdp);
 		zs_unmap_object(zram->mem_pool, handle);
 
 		atomic64_add(size, &zram->stats.compr_data_size);
@@ -2156,7 +2249,7 @@ static void zram_handle_comp_page(struct work_struct *work)
 	int header_sz = sizeof(struct zram_wb_header);
 	int ret = 0;
 	u32 index;
-	u8 *src, *dst;
+	u8 *src, *dst, *src_decomp;
 	bool spanned;
 
 	if (zw->ppr) {
@@ -2164,15 +2257,23 @@ static void zram_handle_comp_page(struct work_struct *work)
 		blk_idx &= ZWBS_ALIGN_MASK;
 	}
 
-	if (!dst_page)
-		goto out;
-
 	src = kmap_atomic(src_page[page_idx]);
 	zhdr = (struct zram_wb_header *)(src + offset);
 	index = zhdr->index;
 	if (size == 0)
 		size = PAGE_SIZE;
-	BUG_ON(zhdr->size != size);
+	if (zhdr->size != size) {
+		pr_err("%s %s zhdr error, size should be %u but was %u src=0x%px offset=%u\n",
+			__func__, zram->compressor, size, zhdr->size, src,
+			offset);
+		print_hex_dump_pages(src_page, zw->nr_pages, page_idx);
+		BUG();
+	}
+
+	if (!dst_page) {
+		kunmap_atomic(src);
+		goto out;
+	}
 
 	dst = kmap_atomic(dst_page);
 	zstrm = zcomp_stream_get(zram->comp);
@@ -2185,17 +2286,21 @@ static void zram_handle_comp_page(struct work_struct *work)
 		}
 		src = zstrm->tmpbuf;
 		copy_to_buf(src, src_page, page_idx, offset + header_sz, size);
-		offset = header_sz = 0;
+		src_decomp = src;
+	} else {
+		src_decomp = src + offset + header_sz;
 	}
-	ret = zcomp_decompress(zstrm, src + offset + header_sz, size, dst);
+	ret = zcomp_decompress(zstrm, src_decomp, size, dst);
 out_huge:
 	zcomp_stream_put(zram->comp);
 	if (ret) {
-		pr_err("%s Decompression failed! err=%d offset=%u size=%u addr=%p\n",
-			__func__, ret, offset, size, src);
-		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1,
-				src, PAGE_SIZE, 1);
-		BUG_ON(ret);
+		struct hex_dump_pages hdp;
+
+		hdp.pages = src_page;
+		hdp.nr_pages = zw->nr_pages;
+		hdp.idx = page_idx;
+		handle_decomp_fail(zram->compressor, ret, offset + header_sz,
+				   src_decomp, size, &hdp);
 	}
 	kunmap_atomic(dst);
 	if (!spanned)
@@ -2227,7 +2332,7 @@ static void zram_comp_page_end_io(struct bio *bio)
 	int errno = blk_status_to_errno(bio->bi_status);
 
 	if (errno)
-		pr_info("%s errno %d\n", __func__, errno);
+		pr_err("%s submit_bio errno %d\n", __func__, errno);
 	INIT_WORK(&zw->work, zram_handle_comp_page);
 	schedule_work(&zw->work);
 }
@@ -2849,12 +2954,9 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 	}
 
 	/* Should NEVER happen. BUG() if it does. */
-	if (unlikely(ret)) {
-		pr_err("%s Decompression failed! err=%d, page=%u, len=%u, vaddr=0x%px\n",
-		       zram->compressor, ret, index, size, src);
-		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, src, size, 1);
-		BUG();
-	}
+	if (unlikely(ret))
+		handle_decomp_fail(zram->compressor, ret, index, src, size,
+				   NULL);
 
 	zs_unmap_object(zram->mem_pool, handle);
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
@@ -3355,6 +3457,9 @@ static ssize_t disksize_store(struct device *dev,
 		err = PTR_ERR(comp);
 		goto out_free_meta;
 	}
+
+	if (!strncmp(zram->compressor, "lzo-rle", 7))
+		is_lzorle = true;
 
 	zram->comp = comp;
 	zram->disksize = disksize;

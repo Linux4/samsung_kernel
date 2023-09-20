@@ -283,6 +283,8 @@ struct dsi_panel {
 	struct dsi_parser_utils self_display_utils;
 	struct device_node *mafpc_of_node;
 	struct dsi_parser_utils mafpc_utils;
+	struct device_node *fw_update_of_node;
+	struct dsi_parser_utils fw_update_utils;
 	struct device_node *test_mode_of_node;
 	struct dsi_parser_utils test_mode_utils;
 #endif

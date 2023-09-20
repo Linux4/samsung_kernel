@@ -568,6 +568,15 @@ void DM1_LX83118_CM002_FHD_init(struct samsung_display_driver_data *vdd)
 	vdd->h_buf = DM1_LX83118_CM002_PDF_DATA;
 	vdd->h_size = sizeof(DM1_LX83118_CM002_PDF_DATA);
 
+	/* Get f_buf from header file data to cover recovery mode
+	 * Below code should be called before any PDF parsing code such as update_glut_map
+	 */
+	if (!vdd->file_loading && vdd->h_buf) {
+		LCD_INFO(vdd, "Get f_buf from header file data(%llu)\n", vdd->h_size);
+		vdd->f_buf = vdd->h_buf;
+		vdd->f_size = vdd->h_size;
+	}
+
 	vdd->debug_data->print_cmds = true;
 	LCD_INFO(vdd, "--\n");
 }

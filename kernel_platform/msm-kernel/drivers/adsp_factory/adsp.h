@@ -306,4 +306,6 @@ void dhall_cal_work_func(struct work_struct *work);
 #endif
 void pressure_factory_init_work(struct adsp_data *data);
 void pressure_cal_work_func(struct work_struct *work);
+
+bool sns_check_ignore_crash(void);
 #endif /* __ADSP_SENSOR_H__ */

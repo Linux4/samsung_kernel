@@ -66,7 +66,7 @@ static ssize_t type_check_show(struct device *dev,
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
 
-	pr_info("%s\n", sensor_status[drvdata->sensortype + 2]);
+	pr_info("%s\n", drvdata->sensortype > 0 ? drvdata->chipid : sensor_status[drvdata->sensortype + 2]);
 	return snprintf(buf, PAGE_SIZE, "%d\n", drvdata->sensortype);
 }
 
@@ -1065,7 +1065,7 @@ static void qbt2000_work_func_debug(struct work_struct *work)
 	pr_info("ldo:%d,ipc:%d,wuhb:%d,tz:%d,type:%s,int:%d,%d,rst:%d\n",
 		drvdata->enabled_ldo, drvdata->enabled_ipc,
 		drvdata->enabled_wuhb, drvdata->tz_mode,
-		sensor_status[drvdata->sensortype + 2],
+		drvdata->sensortype > 0 ? drvdata->chipid : sensor_status[drvdata->sensortype + 2],
 		drvdata->cbge_count, drvdata->wuhb_count,
 		drvdata->reset_count);
 }
@@ -1164,7 +1164,7 @@ static int qbt2000_probe(struct platform_device *pdev)
 	}
 
 	drvdata->clk_setting->spi_speed = SPI_CLOCK_MAX;
-	drvdata->sensortype = SENSOR_QBT2000;
+	drvdata->sensortype = 7;
 	drvdata->cbge_count = 0;
 	drvdata->wuhb_count = 0;
 	drvdata->reset_count = 0;

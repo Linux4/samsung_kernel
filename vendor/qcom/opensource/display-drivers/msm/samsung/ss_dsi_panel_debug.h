@@ -48,6 +48,14 @@ struct samsung_display_driver_data;
 
 #define DEBUG_DISPLAY_CMD_SIZE 2
 
+enum FW_UP_OP {
+	FW_UP_TRY,
+	FW_UP_FAIL,
+	FW_UP_PASS,
+	FW_UP_MAX,
+};
+
+
 enum mdss_samsung_xlog_flag {
 	SS_XLOG_DEFAULT,
 	SS_XLOG_BIGDATA,
@@ -125,6 +133,8 @@ void ss_smmu_debug_log(void);
 void ss_image_logging_update(uint32_t plane_addr, int width, int height, int src_format);
 
 void ss_inc_ftout_debug(const char *name);
+int ss_write_fw_up_debug_partition(enum FW_UP_OP op, uint32_t addr);
+u32 ss_read_fw_up_debug_partition(void);
 
 #if 0 // tmp, comment in until SS bsp team bringup sec debug feature...
 extern bool read_debug_partition(enum debug_partition_index index, void *value);

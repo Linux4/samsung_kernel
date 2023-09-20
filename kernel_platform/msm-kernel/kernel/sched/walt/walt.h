@@ -90,11 +90,41 @@ struct load_subtractions {
 	u64			new_subs;
 };
 
+#define NR_HIST_ENTRIES	32
+
+enum walt_lock_read_event {
+	EVENT_WALT_RQ_CLOCK,
+	EVENT_FIXUP_CUMULATIVE,
+	EVENT_MIGRATE_BUSY_TIME,
+	EVENT_UPDATE_TASK_RQ,
+	EVENT_RVH_ENQUEUE_TASK,
+	EVENT_RVH_DEQUEUE_TASK,
+	EVENT_RVH_TICK_ENTRY,
+	EVENT_WALT_DO_SCHED_YIELD
+};
+
 struct walt_update_history {
-	u32			latest_clock_update_cpu;
-	u64			prev_latest_clock;
-	u64			latest_clock_update_ts;
+	u32 		latest_clock_update_cpu;
+	u64 		prev_latest_clock;
+	u64 		latest_clock_update_ts;
 	void		*latest_clock_update_caller[2];
+};
+
+struct walt_rq_lock_history {
+	u64					latest_rq_lock_val;
+	u64 				latest_read_ts;
+	struct task_struct 	*last_read_task;
+	void				*latest_read_caller[2];
+	u32 				latest_read_cpu;
+	enum walt_lock_read_event	event;
+};
+
+struct walt_debug_struct {
+	u32 update_hist_idx;
+	struct walt_update_history update_hist_array[NR_HIST_ENTRIES];
+	
+	u32 read_lock_hist_idx;
+	struct walt_rq_lock_history rq_lock_hist_array[NR_HIST_ENTRIES];
 };
 
 struct walt_rq {
@@ -135,8 +165,7 @@ struct walt_rq {
 	int                     num_mvp_tasks;
 	u64			latest_clock;
 	u32			enqueue_counter;
-	u32	hist_idx;
-	struct walt_update_history *hist_array;
+	struct walt_debug_struct *walt_debug;
 };
 
 struct walt_sched_cluster {

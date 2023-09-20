@@ -1030,6 +1030,12 @@ QDF_STATUS cm_connect_start_ind(struct wlan_objmgr_vdev *vdev,
 		rso_cfg->orig_sec_info.mcastcipherset =
 					req->crypto.group_cipher;
 		rso_cfg->orig_sec_info.key_mgmt = req->crypto.akm_suites;
+		/*
+		 * reset the roam channel list entries present in the rso
+		 * config which gets stored during connect resp failure in
+		 * wlan_cm_send_connect_rsp
+		 */
+		rso_cfg->tried_candidate_freq_list.num_chan = 0;
 	}
 
 	if (wlan_get_vendor_ie_ptr_from_oui(HS20_OUI_TYPE,
@@ -1212,6 +1218,24 @@ QDF_STATUS wlan_cm_send_connect_rsp(struct scheduler_msg *msg)
 			wlan_objmgr_peer_release_ref(peer, WLAN_MLME_CM_ID);
 		}
 	}
+
+	/*
+	 * Host creates a ROAM_SCAN_CHAN list with BSSID entries present
+	 * in the scan database. If the connection to an AP fails due to
+	 * Auth/Join/Assoc timeout, Host removes the AP entry from the
+	 * Scan database, assuming it’s not reachable (to avoid
+	 * reconnecting to the AP as it's not responding). Due to this,
+	 * FW does not include the frequency(s), for which the
+	 * connection failed, in roam scan.
+	 * To avoid this, store the frequency(s) of all the candidates
+	 * to which the driver tried connection in the rso config during
+	 * connect resp failure and use the same list to update the roam
+	 * channel list on the top of entries present in scan db.
+	 */
+	if (QDF_IS_STATUS_ERROR(rsp->connect_rsp.connect_status))
+		cm_update_tried_candidate_freq_list(rsp->psoc, vdev,
+						    &rsp->connect_rsp);
+
 	cm_csr_connect_rsp(vdev, rsp);
 	if (rsp->connect_rsp.is_reassoc)
 		status = wlan_cm_reassoc_rsp(vdev, &rsp->connect_rsp);

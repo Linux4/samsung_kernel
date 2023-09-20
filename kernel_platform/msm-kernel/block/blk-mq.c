@@ -512,6 +512,14 @@ static void __blk_mq_free_request(struct request *rq)
 		blk_mq_put_tag(hctx->tags, ctx, rq->tag);
 	if (sched_tag != BLK_MQ_NO_TAG)
 		blk_mq_put_tag(hctx->sched_tags, ctx, sched_tag);
+
+	if (!__blk_mq_active_requests(hctx)) {
+		if (rq->tag != BLK_MQ_NO_TAG)
+			blk_mq_tag_wakeup_all(hctx->tags, false);
+		if (sched_tag != BLK_MQ_NO_TAG)
+			blk_mq_tag_wakeup_all(hctx->sched_tags, false);
+	}
+
 	blk_mq_sched_restart(hctx);
 	blk_queue_exit(q);
 }

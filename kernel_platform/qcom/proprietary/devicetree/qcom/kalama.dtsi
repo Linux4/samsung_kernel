@@ -561,7 +561,7 @@
 		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
 		reusable;
 		alignment = <0x0 0x400000>;
-		size = <0x0 0x400000>;
+		size = <0x0 0xC00000>;
 	};
 
 	adsp_mem_heap: adsp_heap_region {
@@ -779,7 +779,7 @@
 		};
 	};
 
-	apps_rsc: rsc@17a00000 {
+	apps_rsc: apps_rsc@17a00000 {
 		label = "apps_rsc";
 		compatible = "qcom,rpmh-rsc";
 		reg = <0x17a00000 0x10000>,
@@ -829,7 +829,7 @@
 		clock-frequency = <19200000>;
 	};
 
-	cam_rsc: rsc@add9000 {
+	cam_rsc: cam_rsc@add9000 {
 		label = "cam_rsc";
 		compatible = "qcom,rpmh-rsc";
 		reg = <0xadd9000 0x1000>,
@@ -916,7 +916,7 @@
 		};
 	};
 
-	disp_rsc: rsc@af20000 {
+	disp_rsc: disp_rsc@af20000 {
 		label = "disp_rsc";
 		compatible = "qcom,rpmh-rsc";
 		reg = <0xaf20000 0x10000>;
@@ -2256,12 +2256,14 @@
 			qcom,glinkpkt-edge = "mpss";
 			qcom,glinkpkt-ch-name = "QMC_DMA_LINE";
 			qcom,glinkpkt-dev-name = "qmc_dma";
+			qcom,glinkpkt-enable-ch-close;
 		};
 
 		qcom,glinkpkt-qmc-cma {
 			qcom,glinkpkt-edge = "mpss";
 			qcom,glinkpkt-ch-name = "QMC_CMA_LINE";
 			qcom,glinkpkt-dev-name = "qmc_cma";
+			qcom,glinkpkt-enable-ch-close;
 		};
 	};
 
@@ -2393,7 +2395,7 @@
 		qcom,fastrpc-adsp-sensors-pdr;
 		qcom,rpc-latency-us = <235>;
 		qcom,fastrpc-gids = <2908>;
-		qcom,qos-cores = <0 1 2 3>;
+		qcom,qos-cores = <0 1 2>;
 
 		qcom,msm_fastrpc_compute_cb1 {
 			compatible = "qcom,msm-fastrpc-compute-cb";

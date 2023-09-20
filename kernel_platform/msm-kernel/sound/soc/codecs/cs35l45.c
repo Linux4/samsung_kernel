@@ -32,6 +32,8 @@
 
 #define DRV_NAME "cs35l45"
 
+static DEFINE_MUTEX(cs35l45_irq_init_mutex);
+
 static struct wm_adsp_ops cs35l45_halo_ops;
 static int (*cs35l45_halo_start_core)(struct wm_adsp *dsp);
 static int __cs35l45_initialize(struct cs35l45_private *cs35l45);
@@ -2935,6 +2937,8 @@ int cs35l45_initialize(struct cs35l45_private *cs35l45)
 			   CS35L45_CCM_CORE_EN_MASK, 0);
 
 	if (cs35l45->irq) {
+		mutex_lock(&cs35l45_irq_init_mutex);
+
 		if (cs35l45->pdata.gpio_ctrl2.invert & (~CS35L45_VALID_PDATA))
 			irq_pol |= IRQF_TRIGGER_HIGH;
 		else
@@ -2944,6 +2948,7 @@ int cs35l45_initialize(struct cs35l45_private *cs35l45)
 					       &cs35l45_regmap_irq_chip, &cs35l45->irq_data);
 		if (ret) {
 			dev_err(dev, "Failed to register IRQ chip: %d\n", ret);
+			mutex_unlock(&cs35l45_irq_init_mutex);
 			return ret;
 		}
 
@@ -2951,6 +2956,7 @@ int cs35l45_initialize(struct cs35l45_private *cs35l45)
 			irq = regmap_irq_get_virq(cs35l45->irq_data, cs35l45_irqs[i].irq);
 			if (irq < 0) {
 				dev_err(dev, "Failed to get %s\n", cs35l45_irqs[i].name);
+				mutex_unlock(&cs35l45_irq_init_mutex);
 				return irq;
 			}
 
@@ -2959,9 +2965,11 @@ int cs35l45_initialize(struct cs35l45_private *cs35l45)
 			if (ret) {
 				dev_err(dev, "Failed to request IRQ %s: %d\n",
 					cs35l45_irqs[i].name, ret);
+				mutex_unlock(&cs35l45_irq_init_mutex);
 				return ret;
 			}
 		}
+		mutex_unlock(&cs35l45_irq_init_mutex);
 	}
 
 	return 0;

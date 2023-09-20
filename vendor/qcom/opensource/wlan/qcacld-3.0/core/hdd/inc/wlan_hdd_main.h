@@ -1002,6 +1002,47 @@ struct wlm_multi_client_info_table {
  * @gpio_tsf_sync_work: work to sync send TSF CAP WMI command
  * @cache_sta_count: number of currently cached stations
  * @acs_complete_event: acs complete event
+ * @tsf: structure containing tsf related information
+ * @mc_addr_list: multicast address list
+ * @mc_list_lock: spin lock for multicast list
+ * @addr_filter_pattern:
+ * @scan_info:
+ * @psb_changed: Flag to ensure PSB is configured through framework
+ * @configured_psb: UAPSD psb value configured through framework
+ * @scan_block_work:
+ * @blocked_scan_request_q:
+ * @blocked_scan_request_q_lock:
+ * @mscs_prev_tx_vo_pkts:
+ * @mscs_counter:
+ * @tx_flow_control_timer:
+ * @tx_flow_timer_initialized:
+ * @tx_flow_low_watermark:
+ * @tx_flow_hi_watermark_offset:
+ * @dscp_to_up_map: DSCP to UP QoS Mapping
+ * @is_link_layer_stats_set:
+ * @ll_stats_failure_count:
+ * @link_status:
+ * @upgrade_udp_qos_threshold: The threshold for user priority upgrade for
+ *			       any UDP packet.
+ * @udp_qos_upgrade_type: UDP QoS packet upgrade request type
+ * @temperature: variable for temperature in Celsius
+ * @ocb_mac_address: MAC addresses used for OCB interfaces
+ * @ocb_mac_addr_count:
+ * @pause_map: BITMAP indicating pause reason
+ * @subqueue_pause_map:
+ * @pause_map_lock:
+ * @start_time:
+ * @last_time:
+ * @total_pause_time:
+ * @total_unpause_time:
+ * @history_index:
+ * @queue_oper_history:
+ * @queue_oper_stats:
+ * @debugfs_phy: debugfs entry
+ * @lfr_fw_status:
+ * @active_ac:
+ * @mon_chan_freq:
+ * @mon_bandwidth:
  * @latency_level: 0 - normal, 1 - xr, 2 - low, 3 - ultralow
  * @multi_client_ll_support: to check multi client ll support in driver
  * @client_info: To store multi client id information
@@ -1191,6 +1232,7 @@ struct hdd_adapter {
 #endif
 
 	struct hdd_multicast_addr_list mc_addr_list;
+	qdf_spinlock_t mc_list_lock;
 	uint8_t addr_filter_pattern;
 
 	struct hdd_scan_info scan_info;
@@ -4754,5 +4796,13 @@ static inline void wlan_hdd_link_speed_update(struct wlan_objmgr_psoc *psoc,
 					      bool is_link_speed_good)
 {}
 #endif
+
+/**
+ * hdd_update_multicast_list() - update the multicast list
+ * @vdev: pointer to VDEV object
+ *
+ * Return: none
+ */
+void hdd_update_multicast_list(struct wlan_objmgr_vdev *vdev);
 
 #endif /* end #if !defined(WLAN_HDD_MAIN_H) */

@@ -4902,15 +4902,18 @@ static void mfc_set_iec_params(struct i2c_client *client, struct mfc_iec_data da
 	/* need to set before set MFC_MST_MODE_SEL_REG */
 	mfc_reg_write(client, WPCTx_E_FOD_INIT_FREQ, data.reg_84); /* E-FOD Enable */
 	mfc_reg_write(client, WPCTx_E_FOD_INIT_DUTY, data.reg_85);
-	mfc_reg_write(client, WPCTx_E_FOD_WATCH_FREQ, data.reg_86);
+	mfc_reg_write(client, WPCTx_E_FOD_DELAY, data.reg_86);
 	mfc_reg_write(client, WPCTx_E_FOD_2Q_DESIGNED, data.reg_87);
-	mfc_reg_write(client, WPCTx_E_FOD_Q_THRESHOLD, data.reg_88);
+	mfc_reg_write(client, WPCTx_E_FOD_Q_THRESHOLD_NORMAL, data.reg_88);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_THRESHOLD_DUTY_INIT, data.reg_89);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_THRESHOLD_DUTY, data.reg_8A);
 	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_CHECK_FREQ, data.reg_8B);
-	mfc_reg_write(client, WPCTx_E_FOD_MAX_Q, data.reg_5B);
-	mfc_reg_write(client, WPCTx_E_FOD_CRADLE_CURRENT, data.reg_56);
-	mfc_reg_write(client, WPCTx_E_FOD_CRADLE_FREQ, data.reg_57);
+	mfc_reg_write(client, WPCTx_E_FOD_NU_PEAKING_DELAY, data.reg_5B);
+	mfc_reg_write(client, WPCTx_E_FOD_MIN_CURRENT_HIGH_F, data.reg_56);
+	mfc_reg_write(client, WPCTx_E_FOD_POWER_LIMIT, data.reg_57);
+	mfc_reg_write(client, WPCTX_E_FOD_Q_LIMIT, data.reg_800);
+	mfc_reg_write(client, WPCTX_E_FOD_I1_LIMIT, data.reg_801);
+	mfc_reg_write(client, WPCTX_E_FOD_I2_LIMIT, data.reg_802);
 }
 
 /* mfc_mst_routine : MST dedicated codes */
@@ -5537,13 +5540,33 @@ static void mfc_chg_parse_iec_data(struct device_node *np,
 	else
 		pdata->iec_params.reg_8B = temp;
 
+	ret = of_property_read_u32(np, "reg_800", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_800 = temp;
+
+	ret = of_property_read_u32(np, "reg_801", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_801 = temp;
+
+	ret = of_property_read_u32(np, "reg_802", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_802 = temp;
+
 	pr_info("%s: reg_56=0x%x, reg_57=0x%x, reg_5B=0x%x,"
 		" reg_84=0x%x, reg_85=0x%x, reg_86=0x%x, reg_87=0x%x,"
-		" reg_88=0x%x, reg_89=0x%x, reg_8A=0x%x, reg_8B=0x%x\n",
+		" reg_88=0x%x, reg_89=0x%x, reg_8A=0x%x, reg_8B=0x%x,"
+		" reg_800=0x%x, reg_801=0x%x, reg_802=0x%x\n",
 		__func__, pdata->iec_params.reg_56, pdata->iec_params.reg_57,
 		pdata->iec_params.reg_5B, pdata->iec_params.reg_84, pdata->iec_params.reg_85,
 		pdata->iec_params.reg_86, pdata->iec_params.reg_87, pdata->iec_params.reg_88,
-		pdata->iec_params.reg_89, pdata->iec_params.reg_8A, pdata->iec_params.reg_8B);
+		pdata->iec_params.reg_89, pdata->iec_params.reg_8A, pdata->iec_params.reg_8B,
+		pdata->iec_params.reg_800, pdata->iec_params.reg_801, pdata->iec_params.reg_802);
 }
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)

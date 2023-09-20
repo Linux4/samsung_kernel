@@ -274,7 +274,7 @@ static void sec_hall_dumpkey_event(struct input_handle *handle, unsigned int eve
 	if (!is_event_supported(event_type, event_code))
 		return;
 
-	pr_info("%s key_event: %u, %d\n", SECLOG, event_code, value);
+	//pr_info("%s key_event: %u, %d\n", SECLOG, event_code, value);
 
 	spin_lock(&sec_hall_dumpkey_event_lock);
 

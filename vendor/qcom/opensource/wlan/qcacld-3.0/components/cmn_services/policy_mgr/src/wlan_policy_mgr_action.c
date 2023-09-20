@@ -1652,9 +1652,12 @@ bool policy_mgr_is_sap_restart_required_after_sta_disconnect(
 	QDF_STATUS status;
 	uint32_t sta_gc_present = 0;
 	qdf_freq_t user_config_freq = 0;
+	tQDF_MCC_TO_SCC_SWITCH_MODE cc_mode =
+				policy_mgr_get_mcc_to_scc_switch_mode(psoc);
 
 	if (intf_ch_freq)
 		*intf_ch_freq = 0;
+
 	pm_ctx = policy_mgr_get_context(psoc);
 	if (!pm_ctx) {
 		policy_mgr_err("Invalid pm context");
@@ -1738,9 +1741,28 @@ bool policy_mgr_is_sap_restart_required_after_sta_disconnect(
 			break;
 		}
 
+		/*
+		 * STA got disconnected & SAP has previously moved to 2.4 GHz
+		 * due to concurrency, then move SAP back to user configured
+		 * frequency.
+		 * if SCC to MCC switch mode is
+		 * QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL, then move SAP to
+		 * user configured frequency whenever standalone SAP is
+		 * currently not on the user configured frequency.
+		 * else move the SAP only when SAP is on 2.4 GHz band and user
+		 * configured frequency is on any other bands.
+		 */
 		if (!sta_gc_present && user_config_freq &&
-		    WLAN_REG_IS_24GHZ_CH_FREQ(op_ch_freq_list[i]) &&
-		    WLAN_REG_IS_5GHZ_CH_FREQ(user_config_freq)) {
+		    cc_mode == QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL &&
+		    !wlan_reg_is_same_band_freqs(user_config_freq,
+						 op_ch_freq_list[i])) {
+			curr_sap_freq = op_ch_freq_list[i];
+			policy_mgr_debug("Move sap to user configured freq: %d",
+					 user_config_freq);
+			break;
+		} else if (!sta_gc_present && user_config_freq &&
+			   WLAN_REG_IS_24GHZ_CH_FREQ(op_ch_freq_list[i]) &&
+			   !WLAN_REG_IS_24GHZ_CH_FREQ(user_config_freq)) {
 			curr_sap_freq = op_ch_freq_list[i];
 			policy_mgr_debug("Move sap to user configured freq: %d",
 					 user_config_freq);

@@ -5906,6 +5906,12 @@ exit:
     } else {
         mBytesRead = UINT64_MAX;
     }
+#ifdef SEC_AUDIO_ROUTING_NOISE
+    // P230608-00262 : TX buzzing sound occurs when EP was pulled right after answering the call
+    if (ret < 0) {
+        memset(palBuffer.buffer, 0, bytes);
+    }
+#endif
     stream_mutex_.unlock();
     clock_gettime(CLOCK_MONOTONIC, &readAt);
     AHAL_VERBOSE("Exit: returning size: %zu size ", size);

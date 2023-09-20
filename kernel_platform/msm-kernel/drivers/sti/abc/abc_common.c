@@ -87,6 +87,8 @@ struct registered_abc_event_struct abc_event_list[] = {
 	{"decon", "fence_timeout", "", true, true, 0},
 	{"display", "act_section_panel_main_dsi_error", "", true, true, 0},
 	{"display", "act_section_panel_sub_dsi_error", "", true, true, 0},
+	{"display", "act_section_dsierr0", "", true, true, 0},
+	{"display", "act_section_dsierr1", "", true, true, 0},
 	{"display", "panel_main_no_te", "", true, true, 0},
 	{"display", "panel_sub_no_te", "", true, true, 0},
 	{"gpu", "gpu_fault", "", true, false, 0},

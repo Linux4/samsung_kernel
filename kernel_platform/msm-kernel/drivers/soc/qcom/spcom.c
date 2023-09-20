@@ -3039,8 +3039,8 @@ static int spcom_ioctl_handle_poll_event(struct spcom_ioctl_poll_event *arg, int
 				&spcom_dev->rpmsg_state_change);
 
 			if (ret) {/* wait was interrupted */
-				spcom_pr_info("Wait for link state change interrupted, ret[%d]\n",
-						ret);
+				/*spcom_pr_info("Wait for link state change interrupted, ret[%d]\n",
+						ret);*/
 				return -EINTR;
 			}
 		}

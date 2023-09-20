@@ -64,6 +64,8 @@ on init
     chown system usb /sys/class/usb_notify/usb_control/usb_maximum_speed
     chmod 0664 /sys/class/usb_notify/usb_control/usb_maximum_speed
 
+	exec u:r:vendor-qti-testscripts:s0 -- /vendor/bin/sh /vendor/bin/init.qti.usb.debug.sh
+
 # usb hw param
     chown system usb /sys/class/usb_notify/usb_control/usb_hw_param
     chmod 0664 /sys/class/usb_notify/usb_control/usb_hw_param
