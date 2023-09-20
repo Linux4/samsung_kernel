@@ -142,9 +142,9 @@ static int smcdsd_dsi_tx_set(struct lcd_info *lcd, struct lcd_seq_info *seq, u32
 				return ret;
 			}
 		}
-		if (seq[i].sleep < 20)
+		if (seq[i].sleep && seq[i].sleep < 20)
 			usleep_range(seq[i].sleep * USEC_PER_MSEC, (seq[i].sleep + 1) * USEC_PER_MSEC);
-		else
+		else if (seq[i].sleep)
 			msleep(seq[i].sleep);
 	}
 	return ret;

@@ -46,6 +46,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(dchg_adc_mode_ctrl),
 	SEC_BATTERY_ATTR(dchg_temp),
 	SEC_BATTERY_ATTR(dchg_temp_adc),
+	SEC_BATTERY_ATTR(dchg_read_batp_batn),
 #endif
 	SEC_BATTERY_ATTR(blkt_temp),
 	SEC_BATTERY_ATTR(blkt_temp_adc),
@@ -120,7 +121,6 @@ static struct device_attribute sec_battery_attrs[] = {
 #if defined(CONFIG_SEC_FACTORY)
 	SEC_BATTERY_ATTR(afc_test_fg_mode),
 #endif
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	SEC_BATTERY_ATTR(fg_cycle),
 	SEC_BATTERY_ATTR(fg_full_voltage),
 	SEC_BATTERY_ATTR(fg_fullcapnom),
@@ -129,7 +129,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_after_manufactured),
 #endif
 	SEC_BATTERY_ATTR(battery_cycle_test),
-#endif
 	SEC_BATTERY_ATTR(batt_wpc_temp),
 	SEC_BATTERY_ATTR(batt_wpc_temp_adc),
 	SEC_BATTERY_ATTR(mst_switch_test), /* MFC MST switch test */
@@ -141,6 +140,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(otp_firmware_ver_bin),
 	SEC_BATTERY_ATTR(otp_firmware_ver),
 #endif
+	SEC_BATTERY_ATTR(wc_phm_ctrl),
 	SEC_BATTERY_ATTR(wc_vout),
 	SEC_BATTERY_ATTR(wc_vrect),
 	SEC_BATTERY_ATTR(wc_tx_en),
@@ -245,6 +245,8 @@ static struct device_attribute sec_battery_attrs[] = {
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	SEC_BATTERY_ATTR(batt_main_voltage),
 	SEC_BATTERY_ATTR(batt_sub_voltage),
+	SEC_BATTERY_ATTR(batt_main_vcell),
+	SEC_BATTERY_ATTR(batt_sub_vcell),
 	SEC_BATTERY_ATTR(batt_main_current_ma),
 	SEC_BATTERY_ATTR(batt_sub_current_ma),
 	SEC_BATTERY_ATTR(batt_main_con_det),
@@ -492,6 +494,12 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		}
+		break;
+	case DCHG_READ_BATP_BATN:
+		psy_do_property(battery->pdata->charger_name, get,
+			POWER_SUPPLY_EXT_PROP_DCHG_READ_BATP_BATN, value);
+		pr_info("%s: DCHG_READ_BATP_BATN(%dmV) ", __func__, value.intval / 1000);
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval / 1000);
 		break;
 #endif
 	case BLKT_TEMP:
@@ -788,7 +796,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 	case AFC_TEST_FG_MODE:
 		break;
 #endif
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case FG_CYCLE:
 		value.intval = SEC_BATTERY_CAPACITY_CYCLE;
 		psy_do_property(battery->pdata->fuelgauge_name, get,
@@ -831,7 +838,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		break;
 	case BATTERY_CYCLE_TEST:
 		break;
-#endif
 	case BATT_WPC_TEMP:
 		value.intval = sec_bat_get_temperature(battery->dev, &battery->pdata->wpc_thm_info, 0,
 				battery->pdata->charger_name, battery->pdata->fuelgauge_name);
@@ -894,6 +900,11 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%x\n", value.intval);
 		break;
 #endif
+	case WC_PHM_CTRL:
+		psy_do_property(battery->pdata->wireless_charger_name, get,
+			POWER_SUPPLY_EXT_PROP_RX_PHM, value);
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
+		break;
 	case WC_VOUT:
 		psy_do_property(battery->pdata->wireless_charger_name, get,
 			POWER_SUPPLY_PROP_ENERGY_NOW, value);
@@ -1754,6 +1765,24 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 				value.intval);
 		}
 		break;
+	case BATT_MAIN_VCELL:
+		{
+			value.intval = SEC_DUAL_BATTERY_MAIN;
+			psy_do_property(battery->pdata->dual_battery_name, get,
+				POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_SUB_VCELL:
+		{
+			value.intval = SEC_DUAL_BATTERY_SUB;
+			psy_do_property(battery->pdata->dual_battery_name, get,
+				POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
 	case BATT_MAIN_CURRENT_MA:
 		{
 			value.intval = SEC_DUAL_BATTERY_MAIN;
@@ -2235,6 +2264,7 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case DCHG_TEMP:
 	case DCHG_TEMP_ADC:
+	case DCHG_READ_BATP_BATN:
 		break;
 #endif
 	case BLKT_TEMP:
@@ -2338,9 +2368,7 @@ ssize_t sec_bat_store_attrs(
 #if defined(CONFIG_BATTERY_CISD)
 				battery->cisd.data[CISD_DATA_ASOC] = x;
 #endif
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 				sec_bat_check_battery_health(battery);
-#endif
 			}
 			ret = count;
 		}
@@ -2850,7 +2878,6 @@ ssize_t sec_bat_store_attrs(
 		}
 	break;
 #endif
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case FG_CYCLE:
 		break;
 	case FG_FULL_VOLTAGE:
@@ -2875,9 +2902,7 @@ ssize_t sec_bat_store_attrs(
 				if (prev_battery_cycle < 0) {
 					sec_bat_aging_check(battery);
 				}
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 				sec_bat_check_battery_health(battery);
-#endif
 			}
 			ret = count;
 		}
@@ -2885,7 +2910,6 @@ ssize_t sec_bat_store_attrs(
 	case BATTERY_CYCLE_TEST:
 		sec_bat_aging_check(battery);
 	break;
-#endif
 	case BATT_WPC_TEMP:
 		break;
 	case BATT_WPC_TEMP_ADC:
@@ -2938,6 +2962,15 @@ ssize_t sec_bat_store_attrs(
 	case OTP_FIRMWARE_VER:
 		break;
 #endif
+	case WC_PHM_CTRL:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			pr_info("%s : phm ctrl %d\n", __func__, x);
+			value.intval = x;
+			psy_do_property(battery->pdata->wireless_charger_name, set,
+				POWER_SUPPLY_EXT_PROP_RX_PHM, value);
+			ret = count;
+		}
+		break;
 	case WC_VOUT:
 		break;
 	case WC_VRECT:
@@ -3950,6 +3983,8 @@ ssize_t sec_bat_store_attrs(
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	case BATT_MAIN_VOLTAGE:
 	case BATT_SUB_VOLTAGE:
+	case BATT_MAIN_VCELL:
+	case BATT_SUB_VCELL:
 	case BATT_MAIN_CURRENT_MA:
 	case BATT_SUB_CURRENT_MA:
 	case BATT_MAIN_CON_DET:
@@ -4090,6 +4125,7 @@ ssize_t sec_bat_store_attrs(
 #endif
 #endif /* CONFIG_DUAL_BATTERY */
 	case EXT_EVENT:
+#if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			pr_info("%s: ext event 0x%x\n", __func__, x);
 			battery->ext_event = x;
@@ -4097,6 +4133,7 @@ ssize_t sec_bat_store_attrs(
 			queue_delayed_work(battery->monitor_wqueue, &battery->ext_event_work, 0);
 			ret = count;
 		}
+#endif
 		break;
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
 	case DIRECT_CHARGING_STATUS:

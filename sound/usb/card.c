@@ -69,6 +69,10 @@
 #include "power.h"
 #include "stream.h"
 
+#ifdef CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME
+#include <linux/usb_notify.h>
+#endif
+
 MODULE_AUTHOR("Takashi Iwai <tiwai@suse.de>");
 MODULE_DESCRIPTION("USB Audio");
 MODULE_LICENSE("GPL");
@@ -722,7 +726,10 @@ static int usb_audio_probe(struct usb_interface *intf,
 		}
 	}
 	dev_set_drvdata(&dev->dev, chip);
-
+#ifdef CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME
+	set_usb_audio_cardnum(chip->card->number, 0, 1);
+	send_usb_audio_uevent(chip->dev, chip->card->number, 1);
+#endif
 #if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
 	/*trace_android_vh_audio_usb_offload_connect(intf, chip);*/
 	sound_usb_connect(intf, chip);
@@ -799,6 +806,9 @@ static int usb_audio_probe(struct usb_interface *intf,
  */
 static void usb_audio_disconnect(struct usb_interface *intf)
 {
+#ifdef CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME
+	struct usb_device *udev = interface_to_usbdev(intf);
+#endif
 	struct snd_usb_audio *chip = usb_get_intfdata(intf);
 	struct snd_card *card;
 	struct list_head *p;
@@ -807,7 +817,10 @@ static void usb_audio_disconnect(struct usb_interface *intf)
 		return;
 
 	card = chip->card;
-
+#ifdef CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME
+	send_usb_audio_uevent(udev, chip->card->number, 0);
+	set_usb_audio_cardnum(chip->card->number, 0, 0);
+#endif
 #if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
 	/*trace_android_rvh_audio_usb_offload_disconnect(intf);*/
 	sound_usb_disconnect(intf);

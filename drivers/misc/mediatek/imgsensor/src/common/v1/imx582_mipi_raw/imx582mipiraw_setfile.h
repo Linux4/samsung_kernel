@@ -6,7 +6,7 @@
 #ifndef __IMX582_SENSOR_SETFILE_H__
 #define __IMX582_SENSOR_SETFILE_H__
 
-/* setfile: IMX582_SEC-MTK-DPHY-26MHz_RegisterSetting_ver4.00-6.10_b3_MP_221021.xlsx */
+/* setfile: IMX582_SEC-MTK-DPHY-26MHz_RegisterSetting_ver4.00-6.10_b3_MP_230203_DPCon.xlsx */
 #include "imx582mipiraw_Sensor.h"
 
 static kal_uint16 imx582_init_setting[] = {
@@ -273,7 +273,7 @@ static kal_uint16 imx582_preview_setting[] = {
 	0x3FE5, 0x00,
 
 	/* DPC output ctrl Setting */
-	0x0B06, 0x00,
+	0x0B06, 0x01,
 
 	/* PDAF TYPE Setting */
 	0x3E20, 0x02,

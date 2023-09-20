@@ -55,7 +55,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 
 	.checksum_value = 0x8ac2d94a,
 
-	.pre = { /* reg_C_2 */
+	.pre = { /* reg_C_3 */
 		.pclk = 863200000,
 		.linelength = 7872,
 		.framelength = 3654,
@@ -69,7 +69,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.max_framerate = 300, /* 30fps */
 	},
 
-	.cap = { /* reg_C_2 */
+	.cap = { /* reg_C_3 */
 		.pclk = 863200000,
 		.linelength = 7872,
 		.framelength = 3654,
@@ -1202,22 +1202,19 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 				read_cmos_sensor_8(0x0016),
 				read_cmos_sensor_8(0x0017),
 				read_cmos_sensor(0x0000));
+			LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 				return ERROR_NONE;
 			}
-
-			LOG_INF("Read sensor id fail, id: 0x%x\n",
-				imgsensor.i2c_write_id);
 			retry--;
 		} while (retry > 0);
 		i++;
 		retry = 2;
 	}
 	if (*sensor_id != imgsensor_info.sensor_id) {
-		/*if Sensor ID is not correct,
-		 *Must set *sensor_id to 0xFFFFFFFF
-		 */
+		LOG_ERR("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
+
+		/*if Sensor ID is not correct, Must set *sensor_id to 0xFFFFFFFF */
 		*sensor_id = 0xFFFFFFFF;
 		return ERROR_SENSOR_CONNECT_FAIL;
 	}

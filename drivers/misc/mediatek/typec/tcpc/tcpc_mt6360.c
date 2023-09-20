@@ -2181,6 +2181,17 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 		goto out;
 	}
 
+	if ( usbid >= CONFIG_WD_SBU_PH_LBOUND2_SS &&
+		usbid <= CONFIG_WD_SBU_PH_UBOUND2_SS) {
+#ifdef CONFIG_PD_DBG_INFO
+		MT6360_INFO("%s ignore for SS accessory2\n", __func__);
+#else
+		pr_info("%s ignore for SS accessory2\n", __func__);
+#endif
+		ret = 0;
+		goto out;
+	}
+
 	if (cable_type == TCPC_CABLE_TYPE_C2C) {
 		if (((usbid >= CONFIG_WD_SBU_PH_LBOUND1_C2C) &&
 		    (usbid <= CONFIG_WD_SBU_PH_UBOUND1_C2C)) ||

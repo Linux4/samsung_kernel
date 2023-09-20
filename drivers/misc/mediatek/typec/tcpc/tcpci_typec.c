@@ -538,6 +538,7 @@ static void typec_wd_work(struct work_struct *work)
 			return;
 		}
 	}
+
 	if (tcpci_is_water_detected(tcpc) > 0) {
 		tcpci_lock_typec(tcpc);
  		tcpc_typec_handle_wd(tcpc, true);

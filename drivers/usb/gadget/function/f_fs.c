@@ -2010,10 +2010,8 @@ static void ffs_func_eps_disable(struct ffs_function *func)
 	unsigned long flags;
 
 	pr_info("%s +\n", __func__);
-	if (func->ffs->epfiles == NULL) {
-		pr_err("%s epfiles is null. -\n", __func__);
-		return;
-	}
+	if (func->ffs->epfiles == NULL)
+		pr_err("%s epfiles is null.\n", __func__);
 
 	spin_lock_irqsave(&func->ffs->eps_lock, flags);
 	while (count--) {

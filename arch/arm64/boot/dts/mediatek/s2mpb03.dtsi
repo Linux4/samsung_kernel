@@ -2,7 +2,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	s2mpb03_pmic@56 {
+	s2mpb03_pmic_0: s2mpb03_pmic@56 {
 		compatible = "samsung,s2mpb03pmic";
 		reg = <0x56>;
 		s2mpb03,wakeup;

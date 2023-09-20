@@ -80,7 +80,6 @@ do {								\
 
 #define REDUCE_CURRENT_STEP         25
 #define MINIMUM_INPUT_CURRENT           300
-#define SLOW_CHARGING_CURRENT_STANDARD      400
 
 ssize_t mtk_charger_show_attrs(struct device *dev,
 		struct device_attribute *attr, char *buf);
@@ -115,6 +114,7 @@ typedef struct mtk_charger_platform_data {
 	int ib_fcc;
 	int chgenb_en;
 	int chgilm_en;
+	bool boosting_voltage_aicl;
 } mtk_charger_platform_data_t;
 
 

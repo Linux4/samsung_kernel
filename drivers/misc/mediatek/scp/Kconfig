@@ -35,3 +35,12 @@ config MTK_TINYSYS_SCP_RV_SUPPORT
 	default n
 	help
 	  MTK_TINYSYS_SCP_VERSION define which scp version will be used
+
+config SHUB_DUMP_NOTI
+	tristate "Specify dump notifier by SHUB"
+	depends on MTK_TINYSYS_SCP_SUPPORT
+	default n
+	help
+	  This is notifier to give a reset information at scp reset.
+	  Set y enable notifier call at scp reset.
+	  Set n disable notifier call at scp reset.

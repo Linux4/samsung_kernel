@@ -56,12 +56,14 @@ enum registers {
 	ISG6320_OSCCON_REG,
 	ISG6320_IRQFUNC_REG,
 	ISG6320_WUTDATA_REG = 0x08,
+	ISG6320_WUTDATA_LSB_REG = 0x09,
 	ISG6320_WUTDATD_REG = 0x0A,
 	ISG6320_BS_ON_WD_REG = 0x0B,
 	ISG6320_CML_BIAS_REG = 0x0E,
 	ISG6320_NUM_OF_CLK = 0x17,
 	ISG6320_SCANCTRL1_REG = 0x29,
 	ISG6320_SCANCTRL2_REG,
+	ISG6320_ACTSCAN_REG = 0x2C,
 	ISG6320_SCANCTRL11_REG = 0x30,
 	ISG6320_SCANCTRL13_REG,
 	ISG6320_A_COARSE_OUT_REG,
@@ -112,9 +114,10 @@ enum registers {
 	ISG6320_B_CDC_DN_COEF_REG,
 	ISG6320_RESETCON_REG = 0xC9,
 	ISG6320_PROTECT_REG = 0xCD,
-	ISG6320_IC_TYPE_REG = 0xFB,
 	ISG6320_SOFTRESET_REG = 0xFD,
 };
+
+#define ISG6320_CHANNEL_DISABLE     0x00
 
 #define ISG6320_PROX_A_STATE		4
 #define ISG6320_PROX_B_STATE		0
@@ -149,6 +152,9 @@ enum registers {
 
 #define ISG6320_CAL_RTN_A_MASK		0x02
 #define ISG6320_CAL_RTN_B_MASK		0x01
+
+#define SCAN_ON_CMD  0x03
+#define SCAN_OFF_CMD 0x00
 
 #define UNKNOWN_ON  1
 #define UNKNOWN_OFF 2
@@ -256,5 +262,7 @@ extern unsigned int lpcharge;
 extern int fcd_notifier_register(struct notifier_block *nb);
 extern int fcd_notifier_unregister(struct notifier_block *nb);
 #endif
-
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+extern void update_grip_error(u8 idx, u32 error_state);
+#endif
 #endif /* __ISG6320_REG_H__ */

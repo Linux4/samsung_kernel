@@ -148,6 +148,7 @@ struct lcd_info {
 	unsigned int			hbm_en;	//todo: merge with mask_state
 	unsigned int			hbm_wait;
 	u64				hbm_time_stamp;
+	u64				hbm_interval;
 #endif
 };
 
@@ -335,6 +336,11 @@ static int smcdsd_panel_send_msg(struct lcd_info *lcd, int force)
 	struct msg_package *package[MAX_TX_CMD_NUM];
 
 	lcd->brightness = lcd->mask_state ? lcd->mask_brightness : lcd->bd->props.brightness;
+
+	if (lcd->hbm_interval) {
+		run_timer_to(NULL, "hbm_right_after_brightness", "hbm_interval");
+		lcd->hbm_interval = 0;
+	}
 
 	dev_info(&lcd->ld->dev, "%s: brightness(%3d) acl(%d) refresh(%3d) degree(%3d) mode(%d)\n", __func__,
 		lcd->brightness, lcd->adaptive_control, lcd->vrefresh, lcd->temperature, lcd->disp_mode_idx);
@@ -1514,7 +1520,10 @@ static ssize_t dsc_crc_store(struct device *dev,
 	mutex_lock(&lcd->lock);
 
 	msleep(40);
-	send_msg_segment(MSG_S6E3FC5_SDC_CRC, ARRAY_SIZE(MSG_S6E3FC5_SDC_CRC));
+	if (lcd->fac_info)
+		send_msg_segment(MSG_S6E3FC5_SDC_CRC, ARRAY_SIZE(MSG_S6E3FC5_SDC_CRC));
+	else
+		send_msg_segment(MSG_S6E3FC5_SDC_CRC_USER, ARRAY_SIZE(MSG_S6E3FC5_SDC_CRC_USER));
 
 	lcd->dsc_crc_state = 1;
 
@@ -2495,7 +2504,9 @@ static int smcdsd_panel_hbm_set_lcm_cmdq(struct platform_device *p, bool en)
 
 	dev_info(&lcd->ld->dev, "%s: en(%d->%d) te_cnt(%d) refresh(%3u) %lu\n", __func__,
 		lcd->hbm_en, en, lcd->te_cnt, lcd->vrefresh,
-		div_u64(local_clock() - lcd->hbm_time_stamp, NSEC_PER_USEC));
+		lcd->hbm_time_stamp ? div_u64(local_clock() - lcd->hbm_time_stamp, NSEC_PER_USEC) : 0);
+
+	lcd->hbm_time_stamp = local_clock();
 
 	if (en == true) {
 		if (lcd->te_cnt == 1 + 0) {
@@ -2529,8 +2540,6 @@ static int smcdsd_panel_hbm_get_state(struct platform_device *p, bool *state)
 {
 	struct lcd_info *lcd = get_lcd_info(p);
 
-	lcd->hbm_time_stamp = local_clock();
-
 	*state = lcd->hbm_en;
 
 	dev_dbg(&lcd->ld->dev, "%s: en_state(%d)\n", __func__, *state);
@@ -2541,8 +2550,6 @@ static int smcdsd_panel_hbm_get_state(struct platform_device *p, bool *state)
 static int smcdsd_panel_hbm_get_wait_state(struct platform_device *p, bool *wait)
 {
 	struct lcd_info *lcd = get_lcd_info(p);
-
-	lcd->hbm_time_stamp = local_clock();
 
 	*wait = lcd->hbm_wait;
 
@@ -2559,13 +2566,21 @@ static int smcdsd_panel_hbm_set_wait_state(struct platform_device *p, bool wait)
 
 	lcd->hbm_wait = wait;
 
-	dev_info(&lcd->ld->dev, "%s: wait_state(%d->%d) refresh(%3u) %lu\n", __func__,
-		old, lcd->hbm_wait, lcd->vrefresh,
+	//mask off and right after 1st cmd(including brightness) should have delay
+	if (!lcd->hbm_en && old && lcd->vrefresh == 60) {
+		lcd->hbm_interval = 1;
+		run_timer_from(NULL, "hbm_exit", "hbm_interval", 34);
+	}
+
+	dev_info(&lcd->ld->dev, "%s: wait_state(%d->%d) refresh(%3u) hbm_interval(%u) %lu\n", __func__,
+		old, lcd->hbm_wait, lcd->vrefresh, lcd->hbm_interval,
 		div_u64(local_clock() - lcd->hbm_time_stamp, NSEC_PER_USEC));
 
 	lcd->actual_mask_brightness = lcd->mask_state ? lcd->mask_brightness : 0;
 
 	sysfs_notify(&lcd->ld->dev.kobj, NULL, "actual_mask_brightness");
+
+	lcd->hbm_time_stamp = 0;
 
 	//todo: sysfs notify in this position is proper? or after return? check mtk_drm_crtc_hbm_wait and ddp_cmdq_cb
 

@@ -9,7 +9,7 @@
 #include "s5kjn1mipiraw_Sensor.h"
 #include "kd_imgsensor_adaptive_mipi.h"
 
-/* sensor set-file: JN1_EVT0.0_Setfile_20220302_ver0.13.xlsx */
+/* sensor set-file: JN1_EVT0.0_Setfile_20220302_ver0.14.xlsx */
 static kal_uint16 addr_data_init_s5kjn1[] = {
 	0x6226, 0x0001,
 	0x6028, 0x2400,
@@ -766,8 +766,8 @@ static kal_uint16 addr_data_hs_s5kjn1[] = {
 	0x030E, 0x0400,
 	0x0310, 0x6F00,
 	0x0312, 0x0000,
-	0x0340, 0xEA06,
-	0x0342, 0xF00A,
+	0x0340, 0x8D05,
+	0x0342, 0xA40D,
 	0x0344, 0x1000,
 	0x0346, 0x0003,
 	0x0348, 0xEF1F,

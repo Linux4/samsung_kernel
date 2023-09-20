@@ -918,3 +918,4 @@ int cam_ois_sysfs_init(void)
 }
 
 #endif
+

@@ -28,6 +28,7 @@
 #include <linux/version.h>
 #include <linux/ratelimit.h>
 #include <linux/priority_control_manager.h>
+#include <linux/sched/signal.h>
 
 #include <mali_kbase_jm.h>
 #include <mali_kbase_kinstr_jm.h>
@@ -39,6 +40,10 @@
 #include <mali_kbase_cs_experimental.h>
 
 #include <mali_kbase_caps.h>
+
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
 
 #define beenthere(kctx, f, a...)  dev_dbg(kctx->kbdev->dev, "%s:" f, __func__, ##a)
 
@@ -1250,6 +1255,12 @@ int kbase_jd_submit(struct kbase_context *kctx,
 		return -EINVAL;
 	}
 
+	if (nr_atoms > BASE_JD_ATOM_COUNT) {
+		dev_dbg(kbdev->dev, "Invalid attempt to submit %u atoms at once for kctx %d_%d",
+			nr_atoms, kctx->tgid, kctx->id);
+		return -EINVAL;
+	}
+
 	/* All atoms submitted in this call have the same flush ID */
 	latest_flush = kbase_backend_get_current_flush_id(kbdev);
 
@@ -1378,6 +1389,12 @@ while (false)
 		kbase_disjoint_event_potential(kbdev);
 
 		mutex_unlock(&jctx->lock);
+		if (fatal_signal_pending(current)) {
+			dev_dbg(kbdev->dev, "Fatal signal pending for kctx %d_%d",
+				kctx->tgid, kctx->id);
+			/* We're being killed so the result code doesn't really matter  */
+			return 0;
+		}
 	}
 
 	if (need_to_try_schedule_context)
@@ -1453,12 +1470,19 @@ void kbase_jd_done_worker(struct work_struct *data)
 	}
 
 	if ((katom->event_code != BASE_JD_EVENT_DONE) &&
-			(!kbase_ctx_flag(katom->kctx, KCTX_DYING)))
+			(!kbase_ctx_flag(katom->kctx, KCTX_DYING))) {
 		dev_err(kbdev->dev,
 			"t6xx: GPU fault 0x%02lx from job slot %d\n",
 					(unsigned long)katom->event_code,
 								katom->slot_nr);
-
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		sec_abc_send_event("MODULE=gpu@INFO=gpu_fault");
+#else
+		sec_abc_send_event("MODULE=gpu@WARN=gpu_fault");
+#endif
+#endif
+	}
 	/* Retain state before the katom disappears */
 	kbasep_js_atom_retained_state_copy(&katom_retained_state, katom);
 

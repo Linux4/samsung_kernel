@@ -2632,7 +2632,15 @@ static void accdet_init_once(void)
 #if defined CONFIG_MTK_PMIC_WRAP_HAL
 	pwrap_write(ACCDET_CTRL, pmic_read(ACCDET_CTRL) | ACCDET_EINT0_EN_B2);
 #endif
-
+	if (water_r == 0) {
+		/* For normal mode, select VTH to 2v and 500k, use internal resitance,
+		 * 219C bit[10][11][12] = 1
+		 */
+		pmic_write(AUDENC_ANA_CON11,
+			pmic_read(AUDENC_ANA_CON11) | 0x1C00);
+		pr_info("%s: register AUDENC_ANA_CON11%x=%x",
+			__func__, AUDENC_ANA_CON11, pmic_read(AUDENC_ANA_CON11));
+	}
 #elif defined CONFIG_ACCDET_SUPPORT_EINT1
 	/* set eint0 pwm width&thresh, and enable eint0 PWM */
 	reg = pmic_read(ACCDET_EINT1_CTL);

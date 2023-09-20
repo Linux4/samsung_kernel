@@ -2164,6 +2164,7 @@ static int tfa98xx_set_device_ctl(struct snd_kcontrol *kcontrol,
 			if (tfa->pause_state == 0) {
 				pr_info("%s: [%d] already resumed; no need to activate\n",
 					__func__, dev);
+				tfa_set_status_flag(tfa, TFA_SET_DEVICE, 1);
 				break;
 			}
 
@@ -2172,6 +2173,7 @@ static int tfa98xx_set_device_ctl(struct snd_kcontrol *kcontrol,
 			mutex_lock(&tfa98xx->dsp_lock);
 			pr_info("%s: trigger [dev %d - prof %d]\n", __func__,
 				dev, tfa98xx->profile);
+			tfa_set_active_handle(tfa98xx->tfa, tfa98xx->profile);
 			err = tfa98xx_tfa_start(tfa98xx,
 				tfa98xx->profile, tfa98xx->vstep);
 			if (err) {
@@ -2201,6 +2203,11 @@ static int tfa98xx_set_device_ctl(struct snd_kcontrol *kcontrol,
 			break;
 		}
 	}
+
+	/* reset counter */
+	tfa = tfa98xx_get_tfa_device_from_index(0);
+	tfa_set_status_flag(tfa, TFA_SET_DEVICE, -1);
+
 	mutex_unlock(&tfa98xx_mutex);
 
 	return 1;
@@ -2413,6 +2420,7 @@ static int tfa98xx_set_pause_ctl(struct snd_kcontrol *kcontrol,
 			if (tfa->pause_state == 0) {
 				pr_info("%s: [%d] already resumed, skip the request\n",
 					__func__, dev);
+				tfa_set_status_flag(tfa, TFA_SET_DEVICE, 1);
 				break;
 			}
 			/* exit if stream is not ready for initialization */
@@ -2428,6 +2436,7 @@ static int tfa98xx_set_pause_ctl(struct snd_kcontrol *kcontrol,
 			mutex_lock(&tfa98xx->dsp_lock);
 			pr_info("%s: trigger [dev %d - prof %d]\n", __func__,
 				dev, tfa98xx->profile);
+			tfa_set_active_handle(tfa98xx->tfa, tfa98xx->profile);
 			err = tfa98xx_tfa_start(tfa98xx,
 				tfa98xx->profile, tfa98xx->vstep);
 			if (err) {
@@ -2473,6 +2482,11 @@ static int tfa98xx_set_pause_ctl(struct snd_kcontrol *kcontrol,
 			break;
 		}
 	}
+
+	/* reset counter */
+	tfa = tfa98xx_get_tfa_device_from_index(0);
+	tfa_set_status_flag(tfa, TFA_SET_DEVICE, -1);
+
 	mutex_unlock(&tfa98xx_mutex);
 
 	return 1;
@@ -5313,7 +5327,8 @@ int tfa98xx_get_blackbox_data(int dev, int *data)
 	}
 
 	/* update current session if it's active */
-	if (tfa98xx_count_active_stream(BIT_PSTREAM) > 0) {
+	if (tfa98xx_count_active_stream(BIT_PSTREAM) > 0
+		&& tfa->is_configured > 0) {
 		ret = tfa_update_log();
 		if (ret != TFA98XX_ERROR_OK)
 			pr_info("%s: failure in updating current data\n",
@@ -5363,7 +5378,8 @@ int tfa98xx_get_blackbox_data_index(int dev, int index, int reset)
 	}
 
 	/* update current session if it's active */
-	if (tfa98xx_count_active_stream(BIT_PSTREAM) > 0) {
+	if (tfa98xx_count_active_stream(BIT_PSTREAM) > 0
+		&& tfa->is_configured > 0) {
 		ret = tfa_update_log();
 		if (ret != TFA98XX_ERROR_OK)
 			pr_info("%s: failure in updating current data\n",

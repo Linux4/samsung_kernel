@@ -144,6 +144,9 @@ struct isg6320_data {
 #if IS_ENABLED(CONFIG_FLIP_COVER_DETECTOR_NOTIFIER)
 	struct notifier_block fcd_nb;
 #endif
+#if defined(CONFIG_SENSORS_GRIP_SCANOFF) && !defined(CONFIG_SEC_FACTORY)
+	struct work_struct scanoff_work;
+#endif
 	direct_info direct;
 
 	int gpio_int;
@@ -2525,7 +2528,6 @@ static void isg6320_check_first_working(struct isg6320_data *data, int channel_n
 
 static void cal_work_func(struct work_struct *work)
 {
-
 	struct delayed_work *delayed_work = to_delayed_work(work);
 	struct isg6320_data *data = container_of(delayed_work,
 						  struct isg6320_data, cal_work);
@@ -3307,6 +3309,149 @@ static struct i2c_device_id isg6320_id_table[] = {
 };
 MODULE_DEVICE_TABLE(i2c, isg6320_id_table);
 
+#if defined(CONFIG_SENSORS_GRIP_SCANOFF) && !defined(CONFIG_SEC_FACTORY)
+static void scanoff_work_func(struct work_struct *work)
+{
+	struct isg6320_data *data = container_of((struct work_struct *)work,
+						struct isg6320_data, scanoff_work);
+	int ret;
+	u8 buf;
+
+	ret = isg6320_i2c_write(data, ISG6320_WUTDATA_REG, 0x01);
+	if (ret < 0) {
+		pr_err("[GRIP_%d] Scan Rate(1) failed (%d)\n", data->ic_num, ret);
+	}
+	ret = isg6320_i2c_write(data, ISG6320_WUTDATA_LSB_REG, 0x80);
+	if (ret < 0) {
+		pr_err("[GRIP_%d] Scan Rate(2) failed (%d)\n", data->ic_num, ret);
+	}
+
+	ret = isg6320_i2c_write(data, ISG6320_ACTSCAN_REG, SCAN_OFF_CMD);
+	if (ret < 0) {
+		pr_err("[GRIP_%d] Scan Off failed (%d)\n", data->ic_num, ret);
+		goto err;
+	}
+	isg6320_i2c_read(data, ISG6320_ACTSCAN_REG, &buf, 1);
+	pr_info("[GRIP_%d] read 0x%02X 0x%02X (w 0x%02X)\n", data->ic_num, ISG6320_ACTSCAN_REG, buf, SCAN_OFF_CMD);
+
+	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, ISG6320_DFE_ENABLE);
+	if (ret < 0) {
+		pr_err("[GRIP_%d] Scan Stop failed (%d)\n", data->ic_num, ret);
+		goto err;
+	}
+	isg6320_i2c_read(data, ISG6320_SCANCTRL1_REG, &buf, 1);
+	pr_info("[GRIP_%d] read 0x%02X 0x%02X (w 0x%02X)\n", data->ic_num, ISG6320_SCANCTRL1_REG, buf, ISG6320_DFE_ENABLE);
+
+	usleep_range(10000, 10010);
+	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, 0x00);
+	if (ret < 0) {
+		pr_err("[GRIP_%d] AFE Off failed (%d)\n", data->ic_num, ret);
+		goto err;
+	}
+	isg6320_i2c_read(data, ISG6320_SCANCTRL1_REG, &buf, 1);
+	pr_info("[GRIP_%d] read 0x%02X 0x%02X (w 0x%02X)\n", data->ic_num, ISG6320_SCANCTRL1_REG, buf, 0x00);
+
+	msleep(100);
+	ret = isg6320_i2c_write(data, ISG6320_SCANCTRL1_REG, ISG6320_CFCAL_START);
+	if (ret < 0) {
+		pr_err("[GRIP_%d] Calibration failed (%d)\n", data->ic_num, ret);
+		goto err;
+	}
+
+	pr_info("[GRIP_%d] scan off setting done, cal start\n", data->ic_num);
+
+	return;
+err:
+	pr_err("[GRIP_%d] scan off setting fail\n", data->ic_num);
+}
+
+static int isg6320_sm_probe(struct i2c_client *client,
+			  const struct i2c_device_id *id)
+{
+	struct isg6320_data *data;
+	int ic_num = MAIN_GRIP;
+
+	if (strcmp(client->name, "isg6320") == 0)
+		ic_num = MAIN_GRIP;
+	else
+		goto err;
+
+	pr_info("[GRIP_%d] %s # scan off probe #\n", ic_num, device_name[ic_num]);
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		pr_info("[GRIP_%d] i2c_check_functionality err\n", ic_num);
+		goto err;
+	}
+
+	data = kzalloc(sizeof(struct isg6320_data), GFP_KERNEL);
+	if (!data) {
+		pr_info("[GRIP_%d] fail to alloc mem\n", ic_num);
+		goto err_kzalloc;
+	}
+
+	data->ic_num = ic_num;
+	data->client = client;
+	i2c_set_clientdata(client, data);
+
+	INIT_WORK(&data->scanoff_work, scanoff_work_func);
+	schedule_work(&data->scanoff_work);
+
+	return 0;
+
+err_kzalloc:
+err:
+	pr_err("[GRIP_%d] # scan off probe fail \n", ic_num);
+
+	return -ENODEV;
+}
+
+static int isg6320_sm_suspend(struct device *dev)
+{
+	pr_info("%s\n", __func__);
+
+	return 0;
+}
+
+static int isg6320_sm_resume(struct device *dev)
+{
+	pr_info("%s\n", __func__);
+
+	return 0;
+}
+
+static int isg6320_sm_remove(struct i2c_client *client)
+{
+	struct isg6320_data *data = i2c_get_clientdata(client);
+
+	pr_info("[GRIP_%d] %s\n", data->ic_num, __func__);
+	kfree(data);
+
+	return 0;
+}
+
+static void isg6320_sm_shutdown(struct i2c_client *client)
+{
+	pr_info("%s\n", __func__);
+}
+
+static const struct dev_pm_ops isg6320_sm_pm_ops = {
+	.suspend = isg6320_sm_suspend,
+	.resume = isg6320_sm_resume,
+};
+
+static struct i2c_driver isg6320_driver_sm = {
+	.driver = {
+		.name = isg6320_id_table[0].name,
+		.owner = THIS_MODULE,
+		.of_match_table = isg6320_match_table,
+		.pm = &isg6320_sm_pm_ops,
+	},
+	.id_table = isg6320_id_table,
+	.probe = isg6320_sm_probe,
+	.remove = isg6320_sm_remove,
+	.shutdown = isg6320_sm_shutdown,
+};
+#endif //CONFIG_SENSORS_GRIP_SCANOFF
 
 static struct i2c_driver isg6320_driver = {
 	.driver = {
@@ -3402,15 +3547,16 @@ static struct i2c_driver isg6320_wifi_driver = {
 static int __init isg6320_init(void)
 {
 	int ret = 0;
-#if 0 //IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-	if (lpcharge) {
-		pr_err("lpm : Do not load driver\n");
-		return 0;
-	}
-#endif
+
+#if defined(CONFIG_SENSORS_GRIP_SCANOFF) && !defined(CONFIG_SEC_FACTORY) //only main grip.
+	ret = i2c_add_driver(&isg6320_driver_sm);
+	if (ret != 0)
+		pr_err("isg6320_driver_sm probe fail\n");
+#else
 	ret = i2c_add_driver(&isg6320_driver);
 	if (ret != 0)
 		pr_err("isg6320_driver probe fail\n");
+#endif
 #if defined(CONFIG_SENSORS_ISG6320_SUB)
 	ret = i2c_add_driver(&isg6320_sub_driver);
 	if (ret != 0)

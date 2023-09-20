@@ -1713,11 +1713,11 @@ static s32 mtk_dsi_poll_for_idle(struct mtk_dsi *dsi, struct cmdq_pkt *handle)
 	}
 
 	while (loop_cnt < 100 * 1000) {
+		udelay(1);
 		tmp = readl(dsi->regs + DSI_INTSTA);
 		if (!(tmp & DSI_BUSY))
 			return 1;
 		loop_cnt++;
-		udelay(1);
 	}
 	DDPPR_ERR("%s timeout\n", __func__);
 	return 0;

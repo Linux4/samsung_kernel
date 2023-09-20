@@ -19,156 +19,176 @@
 #include <linux/moduleparam.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 #include <linux/workqueue.h>
-#include <linux/pm_wakeup.h>
+#include <linux/platform_device.h>
+#include "linux/of.h"
+#include "linux/miscdevice.h"
+#include <linux/dma-mapping.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#include <linux/dma-map-ops.h>
+#endif
 
 #include "stui_core.h"
 #include "stui_hal.h"
 #include "stui_inf.h"
 #include "stui_ioctl.h"
+#ifdef CONFIG_SAMSUNG_TUI_LOWLEVEL
+#include "iwd_agent.h"
+#endif /* CONFIG_SAMSUNG_TUI_LOWLEVEL */
 
-static struct device *stui_device;
-static struct cdev stui_cdev;
-static struct class *tui_class;
 static DEFINE_MUTEX(stui_mode_mutex);
-
-struct wakeup_source *tui_ws;
-
-struct device *get_stui_device(void)
-{
-	return stui_device;
-}
+struct device* (dev_tui) = NULL;
+struct miscdevice tui;
 
 static void stui_wq_func(struct work_struct *param)
 {
 	struct delayed_work *wq = container_of(param, struct delayed_work, work);
-	long ret;
+	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
 	mutex_lock(&stui_mode_mutex);
-	ret = stui_process_cmd(NULL, STUI_HW_IOCTL_FINISH_TUI, 0);
-	if (ret < 0)
-		pr_err("[STUI] STUI_HW_IOCTL_FINISH_TUI in wq fail: %ld\n", ret);
+	stui_close_touch();
+	stui_close_display();
 	kfree(wq);
 	mutex_unlock(&stui_mode_mutex);
+	pr_debug(TUIHW_LOG_TAG " %s <<\n", __func__);
 }
 
 static int stui_open(struct inode *inode, struct file *filp)
 {
 	int ret = 0;
+	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
 	mutex_lock(&stui_mode_mutex);
 	filp->private_data = NULL;
 	if (stui_get_mode() & STUI_MODE_ALL) {
 		ret = -EBUSY;
-		pr_err("[STUI] Device is busy\n");
+		pr_err(TUIHW_LOG_TAG " Device is busy\n");
 	}
 	mutex_unlock(&stui_mode_mutex);
+	pr_debug(TUIHW_LOG_TAG " %s <<\n", __func__);
 	return ret;
 }
 
 static int stui_release(struct inode *inode, struct file *filp)
 {
 	struct delayed_work *work;
+	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
 	mutex_lock(&stui_mode_mutex);
 	if ((stui_get_mode() & STUI_MODE_ALL) && filp->private_data) {
-		pr_err("[STUI] Device close while TUI session is active\n");
+		pr_err(TUIHW_LOG_TAG " Device close while TUI session is active\n");
 		work = kmalloc(sizeof(struct delayed_work), GFP_KERNEL);
 		if (!work) {
 			mutex_unlock(&stui_mode_mutex);
+			pr_err(TUIHW_LOG_TAG " %s memory allocation error\n", __func__);
 			return -ENOMEM;
 		}
 		INIT_DELAYED_WORK(work, stui_wq_func);
 		schedule_delayed_work(work, msecs_to_jiffies(4000));
 	}
 	mutex_unlock(&stui_mode_mutex);
+	pr_debug(TUIHW_LOG_TAG " %s <<\n", __func__);
 	return 0;
 }
 
-static long stui_handler_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
+static long stui_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
 	long ret;
+	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
 	mutex_lock(&stui_mode_mutex);
 	ret = stui_process_cmd(f, cmd, arg);
-	if (stui_get_mode() & STUI_MODE_ALL) {
+	if (stui_get_mode() & STUI_MODE_ALL)
 		f->private_data = (void *)1UL;
-	} else {
+	else
 		f->private_data = (void *)0UL;
-	}
 	mutex_unlock(&stui_mode_mutex);
+	pr_debug(TUIHW_LOG_TAG " %s << ret=%d\n", __func__, ret);
 	return ret;
 }
 
-static const struct file_operations tui_fops = {
-	.owner = THIS_MODULE,
-	.open = stui_open,
-	.release = stui_release,
-	.unlocked_ioctl = stui_handler_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl = stui_handler_ioctl,
-#endif /* CONFIG_COMPAT */
+static int teegris_tui_probe(struct platform_device *pdev)
+{
+	(void)pdev;
+
+#ifdef CONFIG_ARCH_EXYNOS
+	dev_tui = &pdev->dev;
+#if !defined(CONFIG_SOC_S5E9925) && !defined(CONFIG_SOC_S5E8825)
+	arch_setup_dma_ops(&pdev->dev, 0x0ULL, 1ULL << 36, NULL, false);
+#endif
+	pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
+	dma_set_mask(&pdev->dev, DMA_BIT_MASK(36));
+#endif /* CONFIG_ARCH_EXYNOS */
+	pr_debug(TUIHW_LOG_TAG " TUI probe done.\n");
+	return 0;
+}
+
+#ifdef CONFIG_ARCH_EXYNOS
+static const struct of_device_id teegris_tui_of_match_table[] = {
+	{ .compatible = "samsung,exynos-tui", },
+	{ },
+};
+#endif /* CONFIG_ARCH_EXYNOS */
+
+static struct platform_driver teegris_tui_driver = {
+	.probe = teegris_tui_probe,
+	.driver = {
+		.name = "tui",
+		.owner = THIS_MODULE,
+#ifdef CONFIG_ARCH_EXYNOS
+		.of_match_table = teegris_tui_of_match_table,
+#endif /* CONFIG_ARCH_EXYNOS */
+	}
 };
 
-static int stui_handler_init(void)
+static int __init teegris_tui_init(void)
 {
-	int err = 0;
-	dev_t devno;
+	int ret;
 
-	pr_info("[STUI] stui_handler_init +\n");
-	err = alloc_chrdev_region(&devno, 0, 1, STUI_DEV_NAME);
-	if (err) {
-		pr_err("[STUI] Unable to allocate TUI device number(%d)\n", err);
-		return err;
-	}
-	tui_class = class_create(THIS_MODULE, STUI_DEV_NAME);
-	if (IS_ERR(tui_class)) {
-		pr_err("[STUI] Failed to create TUI class\n");
-		err = PTR_ERR(tui_class);
-		goto err_class_create;
-	}
-	cdev_init(&stui_cdev, &tui_fops);
-	err = cdev_add(&stui_cdev, devno, 1);
-	if (err) {
-		pr_err("[STUI] Unable to add TUI char device(%d)\n", err);
-		goto err_cdev_add;
+	pr_info(TUIHW_LOG_TAG " =============== Running TEEgris TUI  ===============");
+
+	ret = misc_register(&tui);
+	if (ret) {
+		pr_err(TUIHW_LOG_TAG " tui can't register misc on minor=%d\n",
+				MISC_DYNAMIC_MINOR);
+		return ret;
 	}
 
-	tui_ws = wakeup_source_register(NULL, "TUI_WAKELOCK");
-	if (!tui_ws) {
-		pr_err("[STUI] failed to allocate wakelock\n");
-		goto err_cdev_add;
-	}
+#ifdef CONFIG_SAMSUNG_TUI_LOWLEVEL
+	__init_iwd_agent();
+	init_iwd_agent();
+#endif /* CONFIG_SAMSUNG_TUI_LOWLEVEL */
 
-	stui_device = device_create(tui_class, NULL, devno, NULL, STUI_DEV_NAME);
-	if (!IS_ERR(stui_device)) {
-		pr_info("[STUI] stui_handler_init -\n");
-		/* Registration on REE events */
-		if (stui_register_on_events() != 0) {
-			pr_err("[STUI] stui_register_on_events failed\n");
-			goto err_reg_events;
-		}
-		return 0;
-	}
-
-err_reg_events:
-	err = PTR_ERR(stui_device);
-	wakeup_source_unregister(tui_ws);
-
-err_cdev_add:
-	class_destroy(tui_class);
-
-err_class_create:
-	unregister_chrdev_region(devno, 1);
-	return err;
+	return platform_driver_register(&teegris_tui_driver);
 }
 
-static void stui_handler_exit(void)
+static void __exit teegris_tui_exit(void)
 {
-	pr_debug("[STUI] stui_handler_exit\n");
-	stui_unregister_from_events();
-	wakeup_source_unregister(tui_ws);
-	unregister_chrdev_region(stui_cdev.dev, 1);
-	cdev_del(&stui_cdev);
-	device_destroy(tui_class, stui_cdev.dev);
-	class_destroy(tui_class);
+	pr_info(TUIHW_LOG_TAG " Unloading teegris tui module.");
+#ifdef CONFIG_SAMSUNG_TUI_LOWLEVEL
+	uninit_iwd_agent();
+	__uninit_iwd_agent();
+#endif /* CONFIG_SAMSUNG_TUI_LOWLEVEL */
+	misc_deregister(&tui);
+	platform_driver_unregister(&teegris_tui_driver);
 }
 
-module_init(stui_handler_init);
-module_exit(stui_handler_exit);
+static const struct file_operations tui_fops = {
+		.owner = THIS_MODULE,
+		.unlocked_ioctl = stui_ioctl,
+#ifdef CONFIG_COMPAT
+		.compat_ioctl = stui_ioctl,
+#endif
+		.open = stui_open,
+		.release = stui_release,
+};
+
+struct miscdevice tui = {
+		.minor  = MISC_DYNAMIC_MINOR,
+		.name   = STUI_DEV_NAME,
+		.fops   = &tui_fops,
+};
+
+module_init(teegris_tui_init);
+module_exit(teegris_tui_exit);
+
+MODULE_AUTHOR("TUI Teegris");
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("TEEGRIS TUI");

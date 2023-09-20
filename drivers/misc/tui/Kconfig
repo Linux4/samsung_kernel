@@ -7,9 +7,16 @@ config SAMSUNG_TUI
 		synchronization of display and touch device between
 		Normal World and Secure World.
 
+config SAMSUNG_TUI_LOWLEVEL
+	bool "TUI HW Low Level mode"
+	default n
+	depends on SAMSUNG_TUI
+	help
+		Enables tui low level API.
+
 config SAMSUNG_TUI_TEST
 	bool "Testing module for TUI HW handler"
 	default n
-	depends on TEEGRIS_TUI_TUI
+	depends on SAMSUNG_TUI
 	help
 		support TUI Driver Test

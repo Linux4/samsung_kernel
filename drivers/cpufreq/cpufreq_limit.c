@@ -347,11 +347,16 @@ static ssize_t cpufreq_max_limit_show(struct kobject *kobj,
 		if (i == DVFS_OVERLIMIT_ID)
 			continue;
 
+#ifdef CONFIG_CPU_FREQ_LTL_LIMIT
+		if (freq_to_set[i][BIG].max != -1 && freq_to_set[i][LITTLE].max != -1 )
+			val = MIN(freq_to_set[i][BIG].max, val);
+#else
 		if (freq_to_set[i][BIG].max != -1)
 			val = MIN(freq_to_set[i][BIG].max, val);
 
 		if (freq_to_set[i][LITTLE].max != -1)
 			val = MIN((int)(freq_to_set[i][LITTLE].max / param.ltl_divider), val);
+#endif
 	}
 	mutex_unlock(&cpufreq_limit_mutex);
 

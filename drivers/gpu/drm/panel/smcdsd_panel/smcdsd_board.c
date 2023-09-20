@@ -550,11 +550,6 @@ static int decide_subinfo(struct device_node *np, struct action_info *action)
 			action->timer = find_timer(timer_name);
 			action->timer->delay = delay;
 		}
-
-		if (action->timer->delay < SMALL_MSECS) {
-			dbg_warn("use usleep instead of timer for (%d)ms\n", action->timer->delay);
-			ret = -EINVAL;
-		}
 		kfree(timer_name);
 		break;
 	case ACTION_TIMER_DELAY:
@@ -880,21 +875,23 @@ static int do_list(struct list_head *lh)
 			break;
 		case ACTION_TIMER_DELAY:
 			action->timer->now = local_clock();
-			print_timer(action->timer);
 
-			if (!action->timer->end)
-				msleep(action->timer->delay);
-			else if (action->timer->end > action->timer->now) {
+			if (action->timer->end > action->timer->now) {
+				print_timer(action->timer);
+
 				us_delta = ktime_us_delta(ns_to_ktime(action->timer->end), ns_to_ktime(action->timer->now));
 
-				if (!us_delta || us_delta > UINT_MAX)
+				if (!us_delta)
 					break;
 
 				if (us_delta < MSEC_TO_USEC(SMALL_MSECS)) {
-					usleep_range(us_delta, us_delta + (us_delta >> 1));
+					usleep_range(us_delta, us_delta + 1);
 				} else {
 					USEC_TO_MSEC(us_delta);
-					msleep(us_delta);
+					if (us_delta < SHRT_MAX)
+						msleep(us_delta);
+					else
+						dbg_warn("ACTION_TIMER_DELAY: invalid us_delta(%d)\n", us_delta);
 				}
 			}
 		case ACTION_TIMER_CLEAR:

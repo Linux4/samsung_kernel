@@ -1213,3 +1213,4 @@ void cam_ois_get_hall_position(unsigned int *targetPosition, unsigned int *hallP
 #endif
 	LOG_INF(" - X");
 }
+
