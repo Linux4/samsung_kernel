@@ -554,6 +554,8 @@ static int pablo_icpu_adt_send_msg_start(struct pablo_icpu_adt *icpu_adt, u32 in
 
 	adt = icpu_adt->priv;
 
+	CALL_SS_ADT_OPS(adt->sensor_adt[instance], start);
+
 	/* prepare data */
 	CALL_SS_ADT_OPS(adt->sensor_adt[instance], update_actuator_info, true);
 	ret = CALL_SS_ADT_OPS(adt->sensor_adt[instance], get_sensor_info, pcsi_buf->kva);
@@ -875,6 +877,9 @@ static int pablo_icpu_adt_send_msg_stop(struct pablo_icpu_adt *icpu_adt, u32 ins
 	else
 		ret = __send_blocking_message(&hic_cmd_info[cmd], data, icpu_adt, NULL,
 				&adt->cb_handler[cmd].wait_q[instance]);
+
+	if (suspend == PABLO_STOP_IMMEDIATE)
+		CALL_SS_ADT_OPS(adt->sensor_adt[instance], stop);
 
 	return ret;
 }

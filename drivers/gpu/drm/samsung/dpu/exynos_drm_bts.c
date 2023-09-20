@@ -588,14 +588,17 @@ void dpu_bts_set_bus_qos(const struct exynos_drm_crtc *exynos_crtc)
 		 *  - INT min freq : 400Mhz
 		 *  - MIF min freq : 546Mhz
 		 */
-		if ((decon->config.out_type & DECON_OUT_DSI)
-				&& (decon->config.image_width >= 1440)
-				&& (decon->config.image_height >= 2960)
-				&& (decon->bts.fps >= 63)) {
-			exynos_pm_qos_update_request(&decon->bts.int_qos, 400 * 1000);
-			exynos_pm_qos_update_request(&decon->bts.mif_qos, 546 * 1000);
+		if ((decon->config.out_type & DECON_OUT_DSI) &&
+		    (decon->config.image_width >= 1440) &&
+		    (decon->config.image_height >= 2960) &&
+		    (decon->bts.fps >= 63)) {
+			decon->bts.int_default = 400000;
+			decon->bts.mif_default = 546000;
 		}
 	}
+
+	exynos_pm_qos_update_request(&decon->bts.int_qos, decon->bts.int_default);
+	exynos_pm_qos_update_request(&decon->bts.mif_qos, decon->bts.mif_default);
 }
 
 static void dpu_bts_dp_qos_update(struct decon_device *decon)
@@ -895,6 +898,28 @@ static void dpu_bts_dsi_qos_update(struct decon_device *decon)
 	}
 }
 
+static bool dpu_bts_check_max_perf(struct decon_device *decon)
+{
+	if (is_version(&decon->config.version, 6, 20)) {
+		if ((decon->config.mode.op_mode == DECON_COMMAND_MODE) &&
+		    (decon->config.out_type & DECON_OUT_DSI0) &&
+		    (decon->bts.total_layer_cnt >= 6) &&
+		    (decon->bts.resol_clk >= 361428)) {
+			exynos_pm_qos_update_request(&decon->bts.int_qos, 666 * 1000);
+			exynos_pm_qos_update_request(&decon->bts.mif_qos, 2093 * 1000);
+			exynos_pm_qos_update_request(&decon->bts.disp_qos, decon->bts.dfs_lv[0]);
+
+			DPU_DEBUG_BTS(decon, "dpu is runnning with max performance\n");
+			return true;
+		} else {
+			exynos_pm_qos_update_request(&decon->bts.int_qos, decon->bts.int_default);
+			exynos_pm_qos_update_request(&decon->bts.mif_qos, decon->bts.mif_default);
+		}
+	}
+
+	return false;
+}
+
 static int cmp_dpp_vstart(const void *a, const void *b)
 {
 	struct dpu_bts_overlap *in_a = (struct dpu_bts_overlap *)a;
@@ -918,15 +943,14 @@ static void dpu_bts_calc_overlap_bw(struct decon_device *decon)
 	struct bts_decon_info *bts_info = &bts->bts_info;
 	struct dpu_bts_win_config *config = bts->win_config;
 	struct dpu_bts_overlap line_bw[BTS_DPP_MAX*2];
-	int cur_total = 0;
-	int pos = 0;
-	int cur_port[MAX_PORT_CNT];
-	int pos_port[MAX_PORT_CNT];
+	unsigned int cur_total = 0;
+	unsigned int cur_port[MAX_PORT_CNT];
+	unsigned int disp_ch_bw[MAX_PORT_CNT];
 	int cnt = 0;
 
 	memset(&line_bw, 0, sizeof(struct dpu_bts_overlap)*BTS_DPP_MAX*2);
 	memset(&cur_port, 0, sizeof(int)*MAX_PORT_CNT);
-	memset(&pos_port, 0, sizeof(int)*MAX_PORT_CNT);
+	memset(&disp_ch_bw, 0, sizeof(int)*MAX_PORT_CNT);
 
 	for (i = 0; i < decon->win_cnt; ++i) {
 		if (config[i].state != DPU_WIN_STATE_BUFFER)
@@ -935,8 +959,7 @@ static void dpu_bts_calc_overlap_bw(struct decon_device *decon)
 		idx = config[i].dpp_ch;
 		line_bw[cnt].pos =
 			bts_info->dpp[idx].dst.y1 > WIN_START_TIME ?
-				(bts_info->dpp[idx].dst.y1 - WIN_START_TIME) :
-				0;
+				(bts_info->dpp[idx].dst.y1 - WIN_START_TIME) : 0;
 		line_bw[cnt].bw = bts_info->dpp[idx].bw;
 		line_bw[cnt].port = decon->bts.bw[idx].ch_num;
 		cnt++;
@@ -957,15 +980,16 @@ static void dpu_bts_calc_overlap_bw(struct decon_device *decon)
 		cur_total += line_bw[i].bw;
 		cur_port[port] += line_bw[i].bw;
 
-		pos = line_bw[i].pos;
-		pos_port[port] = line_bw[i].pos;
-
-		if (cur_total > bts->overlay_bw)
-			bts->overlay_bw = cur_total;
-
-		if (cur_port[port] > bts->overlay_peak)
-			bts->overlay_peak = cur_port[port];
+		bts->overlay_bw = max(bts->overlay_bw, cur_total);
+		disp_ch_bw[port] = max(disp_ch_bw[port], cur_port[port]);
 	}
+
+	bts->overlay_bw += decon->bts.write_bw;
+	bts->overlay_bw += decon->bts.bus_overhead;
+
+	dpu_bts_sum_all_decon_bw(decon, disp_ch_bw);
+	for (i = 0; i < MAX_PORT_CNT; i++)
+		bts->overlay_peak = max(bts->overlay_peak, disp_ch_bw[i]);
 
 	if (decon->config.rcd_en)
 		bts->overlay_bw += bts_info->vclk;
@@ -991,6 +1015,7 @@ static void dpu_bts_find_max_disp_freq(struct decon_device *decon)
 		dpu_bts_calc_overlap_bw(decon);
 		decon->bts.peak = decon->bts.overlay_peak;
 		decon->bts.total_bw = decon->bts.overlay_bw;
+		decon->bts.read_bw = min(decon->bts.read_bw, decon->bts.total_bw);
 	} else {
 		u32 disp_ch_bw[MAX_PORT_CNT];
 		u32 max_disp_ch_bw;
@@ -1083,7 +1108,7 @@ static void dpu_bts_find_max_disp_freq(struct decon_device *decon)
 	decon->bts.has_yuv = false;
 
 	for (i = 0; i < decon->win_cnt; ++i) {
-		if (!is_version(&decon->config.version, 6, 30))
+		if (!is_version_below(&decon->config.version, 6, 30))
 			continue;
 
 		if (config[i].state != DPU_WIN_STATE_BUFFER)
@@ -1326,6 +1351,7 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 		DPU_DEBUG_BTS(decon, "additional BW for RCD\n");
 		read_bw += bts_info.vclk;
 	}
+	read_bw += decon->bts.bus_overhead;
 
 	/* write bw calculation */
 	config = &decon->bts.wb_config;
@@ -1371,6 +1397,7 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 					to_exynos_crtc_state(new_crtc_state);
 	u64 system_disp = 0;
 	u64 dp_pixelclock;
+	static bool is_max_perf = false;
 
 	if (!decon->bts.enabled)
 		return;
@@ -1384,6 +1411,7 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 	bw.peak = decon->bts.peak;
 	bw.read = decon->bts.read_bw;
 	bw.write = decon->bts.write_bw;
+
 	DPU_DEBUG_BTS(decon, "\t(%s shadow_update) peak = %d, read = %d, write = %d\n",
 		(shadow_updated ? "after" : "before"), bw.peak, bw.read, bw.write);
 
@@ -1398,7 +1426,7 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 			return;
 		}
 
-		if (decon->bts.max_disp_freq < decon->bts.prev_max_disp_freq) {
+		if (!is_max_perf && (decon->bts.max_disp_freq < decon->bts.prev_max_disp_freq)) {
 			exynos_pm_qos_update_request(&decon->bts.disp_qos,
 					decon->bts.max_disp_freq);
 			DPU_DEBUG_BTS(decon, "disp_qos_update_request(disp_qos=%d)\n",
@@ -1421,17 +1449,20 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 				IS_DP_ON_STATE() && dp_pixelclock >= 297000000)
 			return;
 
-		system_disp = exynos_devfreq_get_domain_freq(decon->bts.df_disp_idx);
-		if (system_disp < decon->bts.max_disp_freq ||
-			decon->bts.max_disp_freq > decon->bts.prev_max_disp_freq) {
+		is_max_perf = dpu_bts_check_max_perf(decon);
+		if (!is_max_perf) {
+			system_disp = exynos_devfreq_get_domain_freq(decon->bts.df_disp_idx);
+			if (system_disp < decon->bts.max_disp_freq ||
+				decon->bts.max_disp_freq > decon->bts.prev_max_disp_freq) {
 
-			if (system_disp < decon->bts.max_disp_freq)
-				DPU_DEBUG_BTS(decon, "\tWARN: Applied disp clock is lower\n");
+				if (system_disp < decon->bts.max_disp_freq)
+					DPU_DEBUG_BTS(decon, "\tWARN: Applied disp clock is lower\n");
 
-			exynos_pm_qos_update_request(&decon->bts.disp_qos,
-					decon->bts.max_disp_freq);
-			DPU_DEBUG_BTS(decon, "disp_qos_update_request(disp_qos=%d)\n",
+				exynos_pm_qos_update_request(&decon->bts.disp_qos,
 						decon->bts.max_disp_freq);
+				DPU_DEBUG_BTS(decon, "disp_qos_update_request(disp_qos=%d)\n",
+							decon->bts.max_disp_freq);
+			}
 		}
 
 		if (new_exynos_crtc_state->wb_type == EXYNOS_WB_CWB)

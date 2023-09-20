@@ -226,6 +226,29 @@ void secdbg_base_built_check_handle_bad_stack(void)
 }
 #endif /* CONFIG_SEC_DEBUG_HANDLE_BAD_STACK */
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG_BAD_STACK_INFO)
+void secdbg_base_built_bad_stack_info(unsigned long tsk_stk, unsigned long irq_stk, unsigned long ovf_stk)
+{
+	struct sec_debug_kernel_data *kernd;
+	struct bad_stack_info *bsi;
+
+	if (!secdbg_base_va)
+		return;
+
+	kernd = (struct sec_debug_kernel_data *)get_sdn_lv1(SDN_LV1_KERNEL_DATA);
+	bsi = &kernd->bsi;
+
+	bsi->magic = 0xbad;
+	bsi->tsk_stk = tsk_stk;
+	bsi->irq_stk = irq_stk;
+	bsi->ovf_stk = ovf_stk;
+	bsi->spel0 = read_sysreg(sp_el0);
+	bsi->esr = read_sysreg(esr_el1);
+	bsi->far = read_sysreg(far_el1);
+	bsi->cpu = raw_smp_processor_id();
+}
+#endif
+
 void *secdbg_base_built_get_debug_base(int type)
 {
 	if (secdbg_base_va) {

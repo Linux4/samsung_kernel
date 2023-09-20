@@ -135,6 +135,8 @@ struct pablo_rta_frame_info {
 	struct pablo_point csis_bns_binning;	/* 1000 = 1.0 */
 	struct pablo_point csis_mcb_binning;	/* 1000 = 1.0 */
 
+	u32 batch_num;
+
 	/* CSTAT */
 	u32 cstat_input_bayer_bit;
 	struct pablo_size cstat_input_size;
@@ -180,6 +182,19 @@ struct pablo_pdaf_info {
 struct pablo_laser_af_info {
 	u32			type;		/* enum itf_laser_af_type */
 	u32			dataSize;	/* size of itf_laser_af_data_<type> structure */
+};
+
+struct pablo_sensor_mode_info {
+	u32	mode;
+	u32	min_expo;
+	u32	max_expo;
+	u32	min_again;
+	u32	max_again;
+	u32	min_dgain;
+	u32	max_dgain;
+	u32	vvalid_time;
+	u32	vblank_time;
+	u32	max_fps;
 };
 
 struct pablo_crta_sensor_info {
@@ -228,7 +243,10 @@ struct pablo_crta_sensor_info {
 	u32				next_again[EXPOSURE_NUM_MAX];
 	u32				next_dgain[EXPOSURE_NUM_MAX];
 	u32				current_fps;
-	u32				reserved3[10];
+	u32				opening_hint;
+	u32				closing_hint;
+	u32				min_frame_duration;
+	u32				reserved3[7];
 
 	/* af */
 	u32				actuator_position;
@@ -243,6 +261,10 @@ struct pablo_crta_sensor_info {
 	struct pablo_pdaf_info		pdaf_info;
 	struct pablo_laser_af_info	laser_af_info;
 	u32				reserved5[8];
+
+	/* seamless mode */
+	struct pablo_sensor_mode_info seamless_mode_info[SEAMLESS_MODE_MAX];
+	u32				seamless_mode_cnt;
 
 	u32 magic;
 };

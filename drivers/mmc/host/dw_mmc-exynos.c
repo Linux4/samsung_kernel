@@ -534,6 +534,14 @@ static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 			clksel = SDMMC_CLKSEL_UP_SAMPLE(priv->sdr_timing, priv->tuned_sample);
 		}
 		break;
+	case MMC_TIMING_SD_HS:
+		if (priv->hs_timing)
+			clksel = priv->hs_timing;
+		else {
+			dev_info(host->dev, "No HS CLKSEL value in dt. replace with default value\n");
+			clksel = priv->sdr_timing;
+		}
+		break;
 	default:
 		clksel = priv->sdr_timing;
 	}
@@ -734,6 +742,15 @@ static int dw_mci_exynos_parse_dt(struct dw_mci *host)
 		/* dwmmc1 : SDIO    */
 	case 2:
 		/* dwmmc2 : SD Card */
+		ret = of_property_read_u32_array(np, "samsung,dw-mshc-hs-timing", timing, 4);	/* HS 50Mhz */
+		if (!ret)
+			priv->hs_timing =
+			    SDMMC_CLKSEL_TIMING(timing[0], timing[1], timing[2], timing[3]);
+		else {
+			priv->hs_timing = priv->sdr_timing;
+			ret = 0;
+		}
+
 		ret = of_property_read_u32_array(np, "samsung,dw-mshc-sdr50-timing", timing, 4);	/* SDR50 100Mhz */
 		if (!ret)
 			priv->sdr50_timing =

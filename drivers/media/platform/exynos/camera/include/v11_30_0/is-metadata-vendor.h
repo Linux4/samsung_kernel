@@ -37,7 +37,7 @@ struct rational {
 #define CAMERA2_MAX_FACES			16
 #define CAMERA2_MAX_VENDER_LENGTH		400
 #define CAMERA2_AWB_VENDER_LENGTH		415
-#define CAMERA2_MAX_IPC_VENDER_LENGTH		5630
+#define CAMERA2_MAX_IPC_VENDER_LENGTH		6630
 #define CAMERA2_MAX_PDAF_MULTIROI_COLUMN	13
 #define CAMERA2_MAX_PDAF_MULTIROI_ROW		9
 #define CAMERA2_MAX_UCTL_VENDER_LENGTH		32
@@ -131,6 +131,12 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_FRONT_3RD_PARY_VT = 71,                                    /* 3rd Party VT call (HDR Auto) */
 	ISS_SUB_SCENARIO_VIDEO_PRO_HIGH_SPEED = 72,                                 /* 72 : Pro video 120fps */
 	ISS_SUB_SCENARIO_3RD_PARTY_VIDEO_BINNING = 73,                              /* 73 : 3rd Party rear video binning (HDR Auto) */
+
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW_IN_RCP = 81,                         /* 81: Bokeh RCP Preview  */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE_TNR_IN_RCP = 82,                     /* 82: Bokeh RCP TNR capture (HDR Auto) */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE_TNR_LLHDR_IN_RCP = 83,               /* 83: Bokeh RCP TNR LLS capture (0 EV) */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE_NIGHT_IN_RCP = 84,                   /* 84: Bokeh RCP NIGHT capture (HDR Auto) */
+	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_CAPTURE_SINGLE_IN_RCP = 85,                  /* 85: Bokeh RCP TNR LLS capture (- EV) */
 
 	ISS_SUB_SCENARIO_VIDEO_ISPLP_TNR = 110,                                     /* TODO: 110: ISPLT_TNR */
 	ISS_SUB_END,
@@ -693,7 +699,7 @@ struct camera2_stats_dm {
 	uint32_t			histogram[3 * 256];
 	int32_t 			sharpnessMap[2][2][3];
 	uint8_t 			lensShadingCorrectionMap;
-	float				lensShadingMap[4][17][13];	/* 4channel x grid width x grid height */
+	float				lensShadingMap[17 * 13 * 4]; // grid width * grid height * 4 channel
 	enum stats_scene_flicker	sceneFlicker;
 	int32_t 			hotPixelMap[CAMERA2_MAX_AVAILABLE_MODE][2];
 
@@ -742,14 +748,14 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_HANDHELD_FAST          = 120,	/* 1st frame for JPEG+Thumbnail */
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_TRIPOD_FAST            = 121,	/* 1st frame for JPEG+Thumbnail */
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_TRIPOD_LE_FAST         = 122,	/* 1st frame for JPEG+Thumbnail */
-	AA_CAPTURE_INTENT_STILL_CAPTURE_CROPPED_REMOSAIC_DYNAMIC_SHOT           = 123,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_SINGLE_FLASH                   = 124,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_CROPPED_REMOSAIC_SINGLE                 = 125,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_RCC_DYNAMIC_SHOT                        = 123,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_SINGLE_FLASH                    = 124,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_RCC_SINGLE                              = 125,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SHORT_REF_LLHDR_DYNAMIC_SHOT            = 126,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_PROCESSED_REMOSAIC_SINGLE               = 127,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_PROCESSED_REMOSAIC_DYNAMIC_SHOT         = 128,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_PROCESSED_REMOSAIC_MFHDR_DYNAMIC_SHOT   = 129,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_PROCESSED_REMOSAIC_SINGLE_FLASH         = 130,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_PROCESSED_HIGHRES_SINGLE                = 127,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_PROCESSED_HIGHRES_DYNAMIC_SHOT          = 128,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_PROCESSED_HIGHRES_MFHDR_DYNAMIC_SHOT    = 129,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_PROCESSED_HIGHRES_SINGLE_FLASH          = 130,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AIF_DYNAMIC_SHOT                        = 131,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_GFHDR_DYNAMIC_SHOT                      = 132,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_EXTREME_DARK           = 133,
@@ -760,11 +766,16 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT                 = 138,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_LLHDR_DYNAMIC_SHOT             = 139,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AEB_HDR_LIKE                            = 140,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_FUSION_HIGHRES_DYNAMIC_SHOT             = 141,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_FUSION_HIGHRES_LLHDR_DYNAMIC_SHOT       = 142,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_HIGHRES_SINGLE                       = 150,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_HIGHRES_HDR                          = 151,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_HYBRID_MFHDR_DYNAMIC_SHOT               = 160,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_HYBRID_LLHDR_DYNAMIC_SHOT               = 161,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_EXECUTOR_NIGHT_SHOT                     = 162,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_REPEATED_MULTI_FRAME_LIST               = 167,  /* multiFrameEv, Iso, Exposure List */
+	AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_TNR                             = 168,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_HYBRID_NNHDR_DYNAMIC_SHOT               = 169,
 
 	AA_CAPTURE_INTENT_VIDEO_RECORD_CHANGE_FPS                               = 500,
 	AA_CAPTURE_INTENT_VIDEO_RECORD_START                                    = 501,
@@ -774,7 +785,7 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL1 = 90001,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL2 = 90002,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_MOON,
-	AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_EXPOSURE_DYNAMIC_SHOT,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_EXPOSURE_DYNAMIC_SHOT,
 };
 
 static inline int CHK_MODECHANGE_SCN(int captureIntent) {
@@ -782,13 +793,14 @@ static inline int CHK_MODECHANGE_SCN(int captureIntent) {
 
 	switch (captureIntent) {
 		case AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_SINGLE:
-		case AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_SINGLE_FLASH:
+		case AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_SINGLE_FLASH:
 		case AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_DYNAMIC_SHOT:
 		case AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_MFHDR_DYNAMIC_SHOT:
 		case AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_LLHDR_DYNAMIC_SHOT:
-		case AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_EXPOSURE_DYNAMIC_SHOT:
+		case AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_EXPOSURE_DYNAMIC_SHOT:
 		case AA_CAPTURE_INTENT_STILL_CAPTURE_AI_HIGHRES_SINGLE:
 		case AA_CAPTURE_INTENT_STILL_CAPTURE_AI_HIGHRES_HDR:
+		case AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_TNR:
 			ret = 1;
 			break;
 		default:
@@ -1197,6 +1209,12 @@ enum aa_ae_extra_mode {
 	AA_AE_EXTRA_MODE_ISO_PRIORITY     = 2,
 };
 
+enum aa_transient_action {
+	AA_TRANSIENT_ACTION_NONE = 0,
+	AA_TRANSIENT_ACTION_ZOOMING,
+	AA_TRANSIENT_ACTION_MANUAL_FOCUSING,
+};
+
 enum aa_transient_capture_action {
 	AA_TRANSIENT_CAPTURE_ACTION_OFF = 0,
 	AA_TRANSIENT_CAPTURE_ACTION_FAST_CAPTURE = 1,
@@ -1205,6 +1223,7 @@ enum aa_transient_capture_action {
 enum aa_captureExtraInfo_mask {
 	AA_CAPTURE_EXTRA_INFO_REMOSAIC_PROCESSED_BAYER = 1 << 0,   /* bit 0       */
 	AA_CAPTURE_EXTRA_INFO_CROPPED_REMOSAIC_SEAMLESS = 1 << 1,   /* bit 1       */
+	AA_CAPTURE_EXTRA_INFO_PREVIEW_CROPPED_REMOSAIC_SEAMLESS = 1 << 2,   /* bit 2       */
 	AA_CAPTURE_EXTRA_INFO_CROPPED_REMOSAIC_ZOOM = 0xFF << 24,  /* bit 24 ~ 31 */
 };
 
@@ -1223,9 +1242,15 @@ enum aa_moire_result {
 	AA_MOIRE_DETECTED,
 };
 
-enum aa_sensor_state_result {
+enum aa_sensor_state {
 	AA_SENSOR_STATE_NORMAL = 0,
 	AA_SENSOR_STATE_CROPPED_REMOSAIC = 1,
+};
+
+enum aa_night_indicator {
+	AA_NIGHT_INDICATOR_NONE = 0,
+	AA_NIGHT_INDICATOR_ON,
+	AA_NIGHT_INDICATOR_OFF,
 };
 
 struct camera2_video_output_size {
@@ -1312,7 +1337,8 @@ struct camera2_aa_ctl {
 
 	// static info for remosaic preview crop zoom ratio (0:invalid)
 	uint32_t			vendor_remosaicCropZoomRatio;
-	uint32_t			vendor_reserved[8];
+	enum aa_transient_action	vendor_transientAction;
+	uint32_t			vendor_reserved[25];
 };
 
 struct aa_apexInfo {
@@ -1400,8 +1426,11 @@ struct camera2_aa_dm {
 	uint32_t			vendor_aeDarkBoostGain;
 	enum aa_aeb_state		vendor_aebState;
 	enum aa_moire_trigger		vendor_moireTrigger;
-	enum aa_sensor_state_result	vendor_sensorState;
-	uint32_t			vendor_reserved[25];
+	enum aa_sensor_state            vendor_sensorResultState;
+	enum aa_sensor_state            vendor_sensorAvailableState;
+	uint32_t			vendor_nightModeSuggest; // 0(off), 1(on)
+	enum aa_night_indicator	vendor_nightIndicator;
+	uint32_t vendor_reserved[22];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -1615,6 +1644,7 @@ struct camera2_lens_uctl {
 	uint32_t	direction;
 	uint32_t	slewRate;
 	uint32_t	oisCoefVal;
+	int32_t		ndFilter;
 };
 
 struct camera2_lens_udm {
@@ -1636,8 +1666,6 @@ struct camera2_awb_udm {
 };
 
 struct camera2_af_udm {
-	uint32_t	vsLength;
-	uint32_t	vendorSpecific[CAMERA2_MAX_VENDER_LENGTH];
 	int32_t		lensPositionInfinity;
 	int32_t		lensPositionMacro;
 	int32_t		lensPositionCurrent;
@@ -2066,8 +2094,14 @@ enum remosaic_oper_mode {
 	REMOSAIC_OPER_MODE_NONE = 0,
 	REMOSAIC_OPER_MODE_SINGLE = 1,
 	REMOSAIC_OPER_MODE_MFHDR = 2,
-	REMOSAIC_OPER_MODE_SINGLE_4_3H = 3,
 };
+
+enum highresolution_mode {
+	HIGHRESOLUTION_MODE_NONE       = 0,
+	HIGHRESOLUTION_MODE_MID        = 1,
+	HIGHRESOLUTION_MODE_HIGH       = 2,
+};
+
 enum camera_adaptive_lens_condition {
 	CAMERA_ADAPTIVE_LENS_UNAVAILABLE = 0,
 	CAMERA_ADAPTIVE_LENS_UW_AUTO_AVAILABLE = 1,
@@ -2078,6 +2112,20 @@ enum camera_adaptive_lens_mode_state {
 	CAMERA_ADAPTIVE_LENS_MODE_STATE_NONE = 0,
 	CAMERA_ADAPTIVE_LENS_MODE_STATE_UW_AUTO_DONE = 1,
 	CAMERA_ADAPTIVE_LENS_MODE_STATE_MAX,
+};
+
+enum camera_flip_mode {
+	CAM_FLIP_MODE_NORMAL = 0,
+	CAM_FLIP_MODE_HORIZONTAL,
+	CAM_FLIP_MODE_VERTICAL,
+	CAM_FLIP_MODE_HORIZONTAL_VERTICAL,
+	CAM_FLIP_MODE_MAX,
+};
+
+enum camera_external_lens_mask {
+	CAMERA_EXTERNAL_LENS_NONE           = 0,
+	CAMERA_EXTERNAL_LENS_DOF            = 1 << 0, /* bit 0 */
+	CAMERA_EXTERNAL_LENS_ANAMORPHIC     = 1 << 1, /* bit 1 */
 };
 
 struct camera2_object_detect_uctl {
@@ -2151,7 +2199,11 @@ struct camera2_uctl {
 	struct camera2_object_detect_uctl multiObjectDetectInfoUd[3];
 	struct camera2_segmentationInfo_uctl segmentationInfo;
 	struct camera2_object_detect_uctl sunDetectInfoUd;
-	uint32_t			reserved[50];
+	uint32_t			highResolutionMode;
+	enum camera_flip_mode sensorFlip;
+	enum camera_external_lens_mask externalLensType;
+	uint32_t			textDetectionInfo;
+	uint32_t			reserved[46];
 };
 
 struct camera2_udm {
@@ -2301,14 +2353,6 @@ struct hfd_meta {
 	uint32_t		rot[CAMERA2_MAX_FACES];
 	uint32_t		mirror_x[CAMERA2_MAX_FACES];
 	uint32_t		hw_rot_mirror[CAMERA2_MAX_FACES];
-};
-
-enum camera_flip_mode {
-	CAM_FLIP_MODE_NORMAL = 0,
-	CAM_FLIP_MODE_HORIZONTAL,
-	CAM_FLIP_MODE_VERTICAL,
-	CAM_FLIP_MODE_HORIZONTAL_VERTICAL,
-	CAM_FLIP_MODE_MAX,
 };
 
 enum camera_thermal_mode {

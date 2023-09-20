@@ -23,12 +23,9 @@
 #define SLSI_TX_PRIORITY_Q_INDEX     (SLSI_TX_DATA_QUEUE_NUM)
 #define SLSI_TX_ARP_Q_INDEX          (SLSI_TX_PRIORITY_Q_INDEX + 1)
 #define SLSI_TX_BP_MBULK_GUARD       (10)
-#ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 #define SLSI_TX_LBM_RUNNING          (0x2)
-#else
 #define SLSI_TX_NAPI_ENABLED         (0x1)
 #define SLSI_TX_NAPI_POLLING         (SLSI_TX_NAPI_ENABLED << 1)
-#endif
 
 struct txq_stats {
 	ktime_t stop;
@@ -53,10 +50,10 @@ struct tx_struct {
 	unsigned long lbm_bh_state;
 #else
 	struct napi_struct napi;
-	unsigned long napi_state;
 	u8 target_cpu;
 	call_single_data_t csd;
 #endif
+	unsigned long napi_state;
 	struct sk_buff_head *assigned_q[SLSI_TX_DATA_QUEUE_NUM];
 	struct slsi_dev *sdev;
 	struct net_device *ndev;
@@ -69,7 +66,6 @@ struct tx_netdev_data {
 	int ac_cod[AC_CATEGORIES];
 	int ac_completed[AC_CATEGORIES];
 	struct net_device napi_netdev;
-	rwlock_t q_lock;
 	u8 ac_presence;
 	u8 ac_presence_update;
 	unsigned long last_presence_check_time;

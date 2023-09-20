@@ -133,6 +133,8 @@ struct pablo_rta_frame_info {
 	struct pablo_point csis_bns_binning;	/* 1000 = 1.0 */
 	struct pablo_point csis_mcb_binning;	/* 1000 = 1.0 */
 
+	u32 batch_num;
+
 	/* CSTAT */
 	u32 cstat_input_bayer_bit;
 	struct pablo_size cstat_input_size;

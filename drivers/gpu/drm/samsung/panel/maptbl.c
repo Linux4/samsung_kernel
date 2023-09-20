@@ -11,6 +11,7 @@
 #include <asm-generic/errno-base.h>
 #include <linux/string.h>
 
+#include "panel_obj.h"
 #include "maptbl.h"
 #include "panel_debug.h"
 
@@ -19,7 +20,7 @@ int maptbl_alloc_buffer(struct maptbl *m, size_t size)
 	if (!m || !size)
 		return -EINVAL;
 
-	m->arr = kzalloc(size, GFP_KERNEL);
+	m->arr = kvmalloc(size, GFP_KERNEL);
 	if (!m->arr)
 		return -ENOMEM;
 
@@ -31,7 +32,7 @@ void maptbl_free_buffer(struct maptbl *m)
 	if (!m)
 		return;
 
-	kfree(m->arr);
+	kvfree(m->arr);
 	m->arr = NULL;
 }
 
@@ -41,6 +42,14 @@ void maptbl_set_shape(struct maptbl *m, struct maptbl_shape *shape)
 		return;
 
 	memcpy(&m->shape, shape, sizeof(*shape));
+}
+
+void maptbl_set_sizeof_copy(struct maptbl *m, unsigned int sizeof_copy)
+{
+	if (!m)
+		return;
+
+	m->sz_copy = sizeof_copy;
 }
 
 void maptbl_set_ops(struct maptbl *m, struct maptbl_ops *ops)
@@ -100,9 +109,10 @@ struct maptbl *maptbl_create(char *name, struct maptbl_shape *shape,
 	if (!m)
 		return NULL;
 
-	m->type = CMD_TYPE_MAP;
-	m->name = name;
+	pnobj_init(&m->base, CMD_TYPE_MAP, name);
 	maptbl_set_shape(m, shape);
+	maptbl_set_sizeof_copy(m,
+			maptbl_get_countof_n_dimen_element(m, NDARR_1D));
 	maptbl_set_ops(m, ops);
 	maptbl_set_private_data(m, priv);
 
@@ -120,7 +130,9 @@ struct maptbl *maptbl_create(char *name, struct maptbl_shape *shape,
 	return m;
 
 err:
+	free_pnobj_name(&m->base);
 	kfree(m);
+
 	return NULL;
 }
 EXPORT_SYMBOL(maptbl_create);
@@ -138,11 +150,16 @@ EXPORT_SYMBOL(maptbl_create);
  */
 struct maptbl *maptbl_clone(struct maptbl *src)
 {
+	struct maptbl *dst;
+
 	if (!src)
 		return NULL;
 
-	return maptbl_create(src->name, &src->shape, &src->ops,
+	dst = maptbl_create(maptbl_get_name(src), &src->shape, &src->ops,
 			src->arr, maptbl_get_private_data(src));
+	maptbl_set_sizeof_copy(dst, src->sz_copy);
+
+	return dst;
 }
 EXPORT_SYMBOL(maptbl_clone);
 
@@ -167,9 +184,9 @@ struct maptbl *maptbl_deepcopy(struct maptbl *dst, struct maptbl *src)
 	if (dst == src)
 		return dst;
 
-	dst->type = src->type;
-	dst->name = src->name;
+	pnobj_init(&dst->base, CMD_TYPE_MAP, maptbl_get_name(src));
 	maptbl_set_shape(dst, &src->shape);
+	maptbl_set_sizeof_copy(dst, src->sz_copy);
 	maptbl_set_ops(dst, &src->ops);
 	maptbl_set_private_data(dst, maptbl_get_private_data(src));
 	maptbl_free_buffer(dst);
@@ -180,6 +197,7 @@ struct maptbl *maptbl_deepcopy(struct maptbl *dst, struct maptbl *src)
 	ret = maptbl_alloc_buffer(dst, maptbl_get_sizeof_maptbl(src));
 	if (ret < 0) {
 		panel_err("failed to alloc maptbl buffer(ret:%d)\n", ret);
+		free_pnobj_name(&dst->base);
 		return NULL;
 	}
 
@@ -198,7 +216,11 @@ EXPORT_SYMBOL(maptbl_deepcopy);
  */
 void maptbl_destroy(struct maptbl *m)
 {
+	if (!m)
+		return;
+
 	maptbl_free_buffer(m);
+	free_pnobj_name(&m->base);
 	kfree(m);
 }
 EXPORT_SYMBOL(maptbl_destroy);
@@ -210,7 +232,7 @@ int maptbl_get_indexof_n_dimen_element(struct maptbl *tbl, enum ndarray_dimen di
 
 	if (indexof_element >= maptbl_get_countof_n_dimen_element(tbl, dimen)) {
 		panel_err("%s: out of bound(indexof_%dD_element:%d >= countof_%dD_element:%d)\n",
-				tbl->name, dimen + 1, indexof_element,
+				maptbl_get_name(tbl), dimen + 1, indexof_element,
 				dimen + 1, maptbl_get_countof_n_dimen_element(tbl, dimen));
 		return -EINVAL;
 	}
@@ -345,21 +367,23 @@ int maptbl_init(struct maptbl *tbl)
 	if (!tbl)
 		return -EINVAL;
 
-	if (!tbl->name)
+	if (!maptbl_get_name(tbl))
 		return -ENODATA;
 
 	if (!tbl->ops.init) {
-		panel_err("%s:no init callback\n", tbl->name);
+		panel_err("%s:no init callback\n", maptbl_get_name(tbl));
 		return -EINVAL;
 	}
 
-	ret = tbl->ops.init(tbl);
+	ret = call_maptbl_init(tbl);
 	if (ret < 0) {
-		panel_err("%s:failed to init(ret:%d)\n", tbl->name, ret);
+		panel_err("%s:failed to init(ret:%d)\n",
+				maptbl_get_name(tbl), ret);
 		return ret;
 	}
 
 	maptbl_set_initialized(tbl, true);
+	pr_info("maptbl(%s) init\n", maptbl_get_name(tbl));
 
 	return 0;
 }
@@ -373,24 +397,24 @@ int maptbl_getidx(struct maptbl *tbl)
 		return -EINVAL;
 
 	if (!tbl->ops.getidx) {
-		panel_err("%s:no getidx callback\n", tbl->name);
+		panel_err("%s:no getidx callback\n", maptbl_get_name(tbl));
 		return -EINVAL;
 	}
 
 	if (!maptbl_is_initialized(tbl)) {
-		panel_err("%s:not initialized\n", tbl->name);
+		panel_err("%s:not initialized\n", maptbl_get_name(tbl));
 		return -EINVAL;
 	}
 
-	index = tbl->ops.getidx(tbl);
+	index = call_maptbl_getidx(tbl);
 	if (index < 0) {
-		panel_err("%s:failed to getidx(ret:%d)\n", tbl->name, index);
+		panel_err("%s:failed to getidx(ret:%d)\n", maptbl_get_name(tbl), index);
 		return -EINVAL;
 	}
 
 	if (!maptbl_is_index_in_bound(tbl, index)) {
 		panel_err("%s:out of bound(index:%d, sizeof_copy:%d, sizeof_maptbl:%d)\n",
-				tbl->name, index, maptbl_get_sizeof_copy(tbl), maptbl_get_sizeof_maptbl(tbl));
+				maptbl_get_name(tbl), index, maptbl_get_sizeof_copy(tbl), maptbl_get_sizeof_maptbl(tbl));
 		return -EINVAL;
 	}
 
@@ -404,16 +428,16 @@ int maptbl_copy(struct maptbl *tbl, u8 *dst)
 		return -EINVAL;
 
 	if (!tbl->ops.copy) {
-		panel_err("%s:no copy callback\n", tbl->name);
+		panel_err("%s:no copy callback\n", maptbl_get_name(tbl));
 		return -EINVAL;
 	}
 
 	if (!maptbl_is_initialized(tbl)) {
-		panel_err("%s:not initialized\n", tbl->name);
+		panel_err("%s:not initialized\n", maptbl_get_name(tbl));
 		return -EINVAL;
 	}
 
-	tbl->ops.copy(tbl, dst);
+	call_maptbl_copy(tbl, dst);
 
 	return 0;
 }
@@ -479,8 +503,8 @@ struct maptbl *maptbl_memcpy(struct maptbl *dst, struct maptbl *src)
 
 	if (maptbl_cmp_shape(src, dst)) {
 		panel_err("failed to copy different shape of maptbl, src:%s(%d), dst:%s(%d)\n",
-				src->name, maptbl_get_sizeof_maptbl(src),
-				dst->name, maptbl_get_sizeof_maptbl(dst));
+				maptbl_get_name(src), maptbl_get_sizeof_maptbl(src),
+				maptbl_get_name(dst), maptbl_get_sizeof_maptbl(dst));
 		return NULL;
 	}
 
@@ -498,7 +522,7 @@ int maptbl_snprintf_head(struct maptbl *tbl, char *buf, size_t size)
 		return 0;
 
 	len = snprintf(buf, size, "%dD-MAPTBL:%s",
-			maptbl_get_countof_dimen(tbl), tbl->name);
+			maptbl_get_countof_dimen(tbl), maptbl_get_name(tbl));
 	maptbl_for_each_dimen_reverse(tbl, i)
 		len += snprintf(buf + len, size - len, "[%d]",
 				maptbl_get_countof_n_dimen_element(tbl, i));

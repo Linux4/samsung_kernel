@@ -223,11 +223,13 @@ void is_dmsg_init(void);
 void is_dmsg_concate(const char *fmt, ...);
 char *is_dmsg_print(void);
 void is_print_buffer(char *buffer, size_t len);
-int is_dbg_dma_dump(struct is_queue *queue, u32 instance, u32 index, u32 vid, u32 type);
 #ifdef USE_KERNEL_VFS_READ_WRITE
-int is_dbg_dma_dump_by_frame(struct is_frame *queue, u32 vid, u32 type);
+struct is_frame;
+int is_dbg_dma_dump_by_frame(struct is_frame *frame, u32 vid, u32 type);
+int is_dbg_dma_dump(void *q, u32 instance, u32 index, u32 vid, u32 type);
 #else
-#define is_dbg_dma_dump_by_frame(q, v, t)	({ 0;})
+#define is_dbg_dma_dump_by_frame(q, v, t)	({ -EINVAL;})
+#define is_dbg_dma_dump(q, i, idx, v, t)	({ -EINVAL;})
 #endif
 
 void is_dbg_draw_digit(struct is_debug_dma_info *dinfo, u64 digit);

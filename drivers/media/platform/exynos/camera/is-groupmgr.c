@@ -1730,7 +1730,7 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 	gtask = &groupmgr->gtask[head->id];
 	device = group->device;
 
-	retry = 150;
+	retry = 3000;
 	while (--retry && framemgr->queued_count[FS_REQUEST]) {
 		if (test_bit(IS_GROUP_OTF_INPUT, &head->state) &&
 			!list_empty(&head->smp_trigger.wait_list)) {
@@ -1780,10 +1780,11 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 #endif
 		}
 
-		mgwarn(" %d reqs waiting1...(pc %d) smp_resource(%d)", device, head,
+		if (retry % 100 == 0)
+			mgwarn(" %d reqs waiting1...(pc %d) smp_resource(%d)", device, head,
 				framemgr->queued_count[FS_REQUEST], head->pcount,
 				list_empty(&gtask->smp_resource.wait_list));
-		msleep(20);
+		usleep_range(1000, 1000);
 	}
 
 	if (!retry) {
@@ -1831,10 +1832,11 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 		}
 	}
 
-	retry = 150;
+	retry = 3000;
 	while (--retry && framemgr->queued_count[FS_PROCESS]) {
-		mgwarn(" %d pros waiting...(pc %d)", device, head, framemgr->queued_count[FS_PROCESS], head->pcount);
-		msleep(20);
+		if (retry % 100 == 0)
+			mgwarn(" %d pros waiting...(pc %d)", device, head, framemgr->queued_count[FS_PROCESS], head->pcount);
+		usleep_range(1000, 1000);
 	}
 
 	if (!retry) {
@@ -1932,10 +1934,17 @@ static void is_group_override_meta(struct is_group *group,
 			frame->shot->ctl.aa.ispHwTargetFpsRange[0] = 60;
 			frame->shot->ctl.aa.ispHwTargetFpsRange[1] = 60;
 		} else {
-			frame->shot->ctl.aa.ispHwTargetFpsRange[0] =
-				frame->shot->ctl.aa.aeTargetFpsRange[0];
-			frame->shot->ctl.aa.ispHwTargetFpsRange[1] =
-				frame->shot->ctl.aa.aeTargetFpsRange[1];
+			if (frame->shot->ctl.aa.vendor_fpsHintResult == 0) {
+				frame->shot->ctl.aa.ispHwTargetFpsRange[0] =
+					frame->shot->ctl.aa.aeTargetFpsRange[0];
+				frame->shot->ctl.aa.ispHwTargetFpsRange[1] =
+					frame->shot->ctl.aa.aeTargetFpsRange[1];
+			}  else {
+				frame->shot->ctl.aa.ispHwTargetFpsRange[0] =
+					frame->shot->ctl.aa.vendor_fpsHintResult;
+				frame->shot->ctl.aa.ispHwTargetFpsRange[1] =
+					frame->shot->ctl.aa.vendor_fpsHintResult;
+			}
 		}
 	}
 

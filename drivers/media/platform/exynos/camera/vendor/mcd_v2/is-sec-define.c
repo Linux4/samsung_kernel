@@ -3,7 +3,7 @@
  *
  * exynos5 fimc-is video functions
  *
- * Copyright (c) 2011 Samsung Electronics Co., Ltd
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -45,10 +45,12 @@ static int cam_id = CAMERA_SINGLE_REAR;
 bool is_dumped_fw_loading_needed = false;
 static struct is_rom_info sysfs_finfo[ROM_ID_MAX];
 static struct is_rom_info sysfs_pinfo[ROM_ID_MAX];
+
 #if defined(CAMERA_UWIDE_DUALIZED)
 static bool rear3_dualized_rom_probe = false;
 static struct is_rom_info sysfs_finfo_rear3_otp;
 #endif
+
 static char rom_buf[ROM_ID_MAX][IS_MAX_CAL_SIZE];
 char loaded_fw[IS_HEADER_VER_SIZE + 1] = {0, };
 char loaded_companion_fw[30] = {0, };

@@ -142,6 +142,8 @@
 
 #define	NOT_SUPPORT			(0xFF)
 
+#define HISTORY_MAGIC			(0xCAFECAFE)
+
 enum err_type {
 	TMOUT,
 	PRTCHKER,

@@ -497,6 +497,13 @@ void pdo_ctrl_by_flash(bool mode)
 EXPORT_SYMBOL(pdo_ctrl_by_flash);
 #endif
 
+void usbpd_manager_ccopen_req(int is_on)
+{
+	struct usbpd_data *pd_data = g_pd_data;
+
+	PDIC_OPS_PARAM_FUNC(ops_ccopen_req, pd_data, is_on);
+}
+
 void usbpd_manager_select_pdo_handler(struct work_struct *work)
 {
 	pr_info("%s: call select pdo handler\n", __func__);
@@ -2130,7 +2137,9 @@ static int usbpd_manager_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
 {
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 	struct usbpd_data *pd_data = power_supply_get_drvdata(psy);
+#endif
 	enum power_supply_lsi_property lsi_psp = (enum power_supply_lsi_property)psp;
 
 	switch ((int)psp) {
@@ -2142,9 +2151,6 @@ static int usbpd_manager_get_property(struct power_supply *psy,
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 			(*val).intval = PDIC_OPS_FUNC(water_get_power_role, pd_data);
 #endif
-			break;
-		case POWER_SUPPLY_LSI_PROP_GET_CC_STATE:
-			(*val).intval = PDIC_OPS_FUNC(ops_get_fsm_state, pd_data);
 			break;
 		case POWER_SUPPLY_LSI_PROP_WATER_CHECK:
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
@@ -2289,7 +2295,7 @@ int usbpd_init_manager(struct usbpd_data *pd_data)
 	pd_data->pd_noti.sink_status.fp_sec_pd_select_pps = usbpd_manager_select_pps;
 #endif
 	pd_data->pd_noti.sink_status.fp_sec_pd_vpdo_auth = usbpd_manager_vpdo_auth;
-	pd_data->pd_noti.sink_status.fp_sec_pd_manual_ccopen_req = NULL;
+	pd_data->pd_noti.sink_status.fp_sec_pd_manual_ccopen_req = usbpd_manager_ccopen_req;
 #endif
 #endif
 	mutex_init(&manager->vdm_mutex);

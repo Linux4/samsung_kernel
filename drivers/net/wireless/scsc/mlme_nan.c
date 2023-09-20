@@ -1141,7 +1141,7 @@ int slsi_mlme_ndp_response(struct slsi_dev *sdev, struct net_device *dev,
 	u8                nomac[ETH_ALEN] = {0, 0, 0, 0, 0, 0};
 
 	SLSI_NET_DBG3(dev, SLSI_MLME, "\n");
-	data_dev = slsi_get_netdev_by_ifname(sdev, hal_req->ndp_iface);
+	data_dev = slsi_get_netdev_by_ifname_locked(sdev, hal_req->ndp_iface);
 	if (!data_dev)
 		local_ndi = nomac;
 	else
@@ -1201,15 +1201,16 @@ int slsi_mlme_ndp_response(struct slsi_dev *sdev, struct net_device *dev,
 		/* new ndp entry was made when received mlme-ndp-requested.ind
 		 * but local_ndi is decided now.
 		 */
-		if (hal_req->ndp_instance_id && rsp_code == FAPI_REASONCODE_NDP_ACCEPTED)
+		if (hal_req->ndp_instance_id && rsp_code == FAPI_REASONCODE_NDP_ACCEPTED) {
 			ether_addr_copy(ndev_vif->nan.ndp_ndi[hal_req->ndp_instance_id - 1], local_ndi);
-		if (data_dev) {
-			struct netdev_vif *ndev_data_vif = netdev_priv(data_dev);
+			if (data_dev) {
+				struct netdev_vif *ndev_data_vif = netdev_priv(data_dev);
 
-			ndev_data_vif = netdev_priv(data_dev);
-			SLSI_MUTEX_LOCK(ndev_data_vif->vif_mutex);
-			ndev_data_vif->nan.ndp_count++;
-			SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
+				ndev_data_vif = netdev_priv(data_dev);
+				SLSI_MUTEX_LOCK(ndev_data_vif->vif_mutex);
+				ndev_data_vif->nan.ndp_count++;
+				SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
+			}
 		}
 	}
 

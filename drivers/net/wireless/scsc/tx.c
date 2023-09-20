@@ -114,6 +114,7 @@ int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff 
 
 			dwell_time = 0;
 			if (eapol && eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAP_PACKET) {
+				sdev->conn_log2us_ctx.host_tag_eap_type = SLSI_IEEE8021X_TYPE_EAP_PACKET;
 				eap_length = (skb->len - sizeof(struct ethhdr)) - 4;
 				if (eapol[SLSI_EAP_CODE_POS] == SLSI_EAP_PACKET_REQUEST) {
 					SLSI_INFO(sdev, "Send EAP-Request (%d)\n", eap_length);
@@ -131,6 +132,12 @@ int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff 
 				 * EAP identity frame for P2P
 				 */
 				dwell_time = slsi_get_dwell_time_for_wps(sdev, ndev_vif, eapol, eap_length);
+			} else if (ndev_vif->iftype == NL80211_IFTYPE_STATION && (eapol && eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAP_START)) {
+				sdev->conn_log2us_ctx.host_tag_eap_type = SLSI_IEEE8021X_TYPE_EAP_START;
+				eap_length = (skb->len - sizeof(struct ethhdr)) - 4;
+				SLSI_INFO(sdev, "Send EAP-Start (%d)\n", eap_length);
+				if (ndev_vif->iftype == NL80211_IFTYPE_STATION)
+						sdev->conn_log2us_ctx.eap_start_len = eap_length;
 			}
 		}
 	break;
@@ -498,6 +505,11 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 						continue;
 					}
 					fapi_set_u16(duplicate_skb, u.ma_unitdata_req.vif, ndev_vif->peer_sta_record[i]->ndl_vif);
+					/* TODO: group option will be added to next fapi.xml.
+					 * Until then, set configuration_option for NAN multicast with 0x0010
+					 */
+					fapi_set_u16(skb, u.ma_unitdata_req.configuration_option,
+						     FAPI_OPTION_INLINE | 0x0010);
 
 					if (!ndev_vif->peer_sta_record[i]->qos_enabled)
 						fapi_set_u16(duplicate_skb, u.ma_unitdata_req.flow_id,

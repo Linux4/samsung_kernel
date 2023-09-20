@@ -2135,7 +2135,6 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev, boo
 	kfree(ndev_vif->probe_req_ies);
 	ndev_vif->probe_req_ies = NULL;
 	ndev_vif->probe_req_ie_len = 0;
-	slsi_wake_lock_destroy(&ndev_vif->wlan_wl_sae);
 
 	if (atomic_read(&ndev_vif->is_registered)) {
 		atomic_set(&ndev_vif->is_registered, 0);
@@ -2153,6 +2152,7 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev, boo
 		free_netdev(dev);
 		mutex_unlock(&sdev->netdev_remove_mutex);
 	}
+	slsi_wake_lock_destroy(&ndev_vif->wlan_wl_sae);
 }
 
 void slsi_netif_remove_rtlnl_locked(struct slsi_dev *sdev, struct net_device *dev, bool is_cfg80211)

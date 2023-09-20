@@ -11,6 +11,7 @@
 #define __PANEL_DEBUG_H__
 
 #include <linux/printk.h>
+#include "util.h"
 
 #ifndef PANEL_PR_TAG
 #define PANEL_PR_TAG	"drv"
@@ -25,13 +26,13 @@ extern int panel_cmd_log;
 #define panel_err(fmt, ...)							\
 	do {									\
 		if (panel_log_level >= 3)					\
-			pr_err(pr_fmt(PANEL_PR_PREFIX PANEL_PR_TAG ":E:%s: " fmt), __func__, ##__VA_ARGS__);			\
+			pr_err(pr_fmt(PANEL_PR_PREFIX PANEL_PR_TAG ":E:%s:%d: " fmt), __func__, __LINE__, ##__VA_ARGS__);			\
 	} while (0)
 
 #define panel_warn(fmt, ...)							\
 	do {									\
 		if (panel_log_level >= 4)					\
-			pr_warn(pr_fmt(PANEL_PR_PREFIX PANEL_PR_TAG ":W:%s: " fmt), __func__, ##__VA_ARGS__);			\
+			pr_warn(pr_fmt(PANEL_PR_PREFIX PANEL_PR_TAG ":W:%s:%d: " fmt), __func__, __LINE__, ##__VA_ARGS__);			\
 	} while (0)
 
 #define panel_info(fmt, ...)							\

@@ -628,6 +628,14 @@ int ili_irq_register(int type)
 		get_irq_pin = true;
 	}
 
+	ilits->irq_workqueue = create_singlethread_workqueue("ilits_irq_wq");
+	if (!IS_ERR_OR_NULL(ilits->irq_workqueue)) {
+		INIT_WORK(&ilits->irq_work, ili_handler_wait_resume_work);
+		input_info(true, ilits->dev, "%s: set ili_handler_wait_resume_work\n", __func__);
+	} else {
+		input_err(true, ilits->dev, "%s: failed to create irq_workqueue, err: %ld\n",
+				__func__, PTR_ERR(ilits->irq_workqueue));
+	}
 	input_info(true, ilits->dev, "%s ilits->irq_num = %d\n", __func__, ilits->irq_num);
 
 	ret = devm_request_threaded_irq(ilits->dev, ilits->irq_num,
@@ -781,7 +789,7 @@ int ilitek_set_vbus(void)
 {
 	int ret = 0;
 
-	if (ilits->power_status == POWER_OFF_STATUS || ilits->tp_shutdown) {
+	if (ilits->power_status == POWER_OFF_STATUS || ilits->tp_shutdown || atomic_read(&ilits->fw_stat) != END) {
 		input_info(true, ilits->dev, "%s: power off status(%d,%d)\n",
 					__func__, ilits->power_status, ilits->tp_shutdown);
 		return ret;
@@ -1156,6 +1164,9 @@ static int ilitek_plat_probe(void)
 	INIT_DELAYED_WORK(&ilits->work_vbus, ilitek_vbus_work);
 	vbus_notifier_register(&ilits->vbus_nb, ilitek_vbus_notifier, VBUS_NOTIFY_DEV_CHARGER);
 #endif
+
+	ili_ic_lpwg_dump_buf_init();
+
 	input_info(true, ilits->dev, "%s ILITEK Driver loaded successfully!", __func__);
 	return 0;
 }

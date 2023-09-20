@@ -105,6 +105,8 @@ enum sec_reset_reason {
 	SEC_RESET_REASON_BOOTLOADER   = (SEC_RESET_REASON_PREFIX | 0xd), /* go to download mode */
 	SEC_RESET_REASON_EMERGENCY = 0x0,
 
+	SEC_RESET_SET_SECDBG       = (SEC_RESET_SET_PREFIX | 0x10000),
+	SEC_RESET_SET_DPRM         = (SEC_RESET_SET_PREFIX | 0x20000),
 	SEC_RESET_SET_FORCE_UPLOAD = (SEC_RESET_SET_PREFIX | 0x40000),
 	SEC_RESET_SET_DEBUG        = (SEC_RESET_SET_PREFIX | 0xd0000),
 	SEC_RESET_SET_SWSEL        = (SEC_RESET_SET_PREFIX | 0xe0000),
@@ -367,6 +369,10 @@ static int sec_reboot(struct notifier_block *this,
 			regmap_write(pmureg, panic_inform, SEC_RESET_SET_DUMPSINK | (SEC_DUMPSINK_MASK & value));
 		else if (!strncmp(cmd, "forceupload", 11) && !kstrtoul(cmd + 11, 0, &value))
 			regmap_write(pmureg, panic_inform, SEC_RESET_SET_FORCE_UPLOAD | value);
+		else if (!strncmp(cmd, "dprm", 4))
+			regmap_write(pmureg, panic_inform, SEC_RESET_SET_DPRM);
+		else if (!strncmp(cmd, "secdbg", 6) && !kstrtoul(cmd + 6, 0, &value))
+			regmap_write(pmureg, panic_inform, SEC_RESET_SET_SECDBG | value);
 		else if (!strncmp(cmd, "swsel", 5) && !kstrtoul(cmd + 5, 0, &value))
 			regmap_write(pmureg, panic_inform, SEC_RESET_SET_SWSEL | value);
 		else if (!strncmp(cmd, "sud", 3) && !kstrtoul(cmd + 3, 0, &value))

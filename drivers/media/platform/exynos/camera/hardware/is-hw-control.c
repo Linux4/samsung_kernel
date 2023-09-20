@@ -734,7 +734,6 @@ int is_hardware_shot_prepare(struct is_hardware *hardware,
 	struct pablo_crta_buf_info shot_buf = { 0, }, pcfi_buf = { 0, };
 	struct is_group *head;
 	struct is_hw_ip *hw_ip;
-	struct is_vb2_buf *vbuf;
 
 	icpu_adt = hardware->icpu_adt;
 	shot = frame->shot;
@@ -766,12 +765,6 @@ int is_hardware_shot_prepare(struct is_hardware *hardware,
 	/* get shot va */
 	shot_buf.kva = shot;
 	shot_buf.dva = frame->shot_dva;
-
-	if (!IS_ENABLED(ICPU_IO_COHERENCY)) {
-		vbuf = frame->vbuf;
-		if (vbuf)
-			vbuf->ops->plane_sync_for_device(vbuf);
-	}
 
 	CALL_ADT_MSG_OPS(icpu_adt, send_msg_shot, instance,
 			 (void *)group, (void *)frame,

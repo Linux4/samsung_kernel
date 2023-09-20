@@ -131,6 +131,7 @@ struct dsim_device {
 	struct dsim_burst_cmd burst_cmd;
 	bool emul_mode;
 	bool lp11_reset;
+	bool wait_lp11_after_cmds;
 };
 
 extern struct dsim_device *dsim_drvdata[MAX_DSI_CNT];

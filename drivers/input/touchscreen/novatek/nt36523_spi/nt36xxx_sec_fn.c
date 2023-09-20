@@ -212,7 +212,7 @@ static void nvt_ts_read_mdata(struct nvt_ts_data *ts, int *buff, u32 xdata_addr,
 	data_len = ts->platdata->x_num * ts->platdata->y_num * 2;
 	residual_len = (head_addr + dummy_len + data_len) % XDATA_SECTOR_SIZE;
 
-	rawdata_buf = vzalloc(ts->platdata->x_num * ts->platdata->y_num * 2 + dummy_len);
+	rawdata_buf = vzalloc(ts->platdata->x_num * ts->platdata->y_num * 2 + dummy_len + XDATA_SECTOR_SIZE);
 	if (!rawdata_buf)
 		return;
 

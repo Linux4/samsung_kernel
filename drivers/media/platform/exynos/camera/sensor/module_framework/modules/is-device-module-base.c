@@ -739,6 +739,27 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		device->obte_config = ctrl->value;
 		info("[OBTE] obte_config is set by %d", ctrl->value);
 		break;
+	case V4L2_CID_SENSOR_SET_BAYER_ORDER:
+		switch (ctrl->value) {
+		case SENSOR_COLORFILTERARRANGEMENT_RGGB:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_RG_GB;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_GRBG:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_GBRG:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_GB_RG;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_BGGR:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_BG_GR;
+			break;
+		default:
+			break;
+		}
+
+		info("%s bayer order = %d, sensor id = %d", __func__,
+			sensor_peri->cis.bayer_order, sensor_peri->module->sensor_id);
+		break;
 	default:
 		err("err!!! Unknown CID(%#x)", ctrl->id);
 		ret = -EINVAL;
@@ -1483,7 +1504,6 @@ static int sensor_module_probe_i2c(struct platform_device *pdev)
 	v4l2_set_subdevdata(subdev_module, module);
 	v4l2_set_subdev_hostdata(subdev_module, device);
 	snprintf(subdev_module->name, V4L2_SUBDEV_NAME_SIZE, "sensor-subdev.%s", module->sensor_name);
-	probe_info("module->cfg=%p module->cfgs=%d\n", module->cfg, module->cfgs);
 
 	if (device->pdata->i2c_dummy_enable) {
 		probe_info("%s: try to use match seq", __func__);

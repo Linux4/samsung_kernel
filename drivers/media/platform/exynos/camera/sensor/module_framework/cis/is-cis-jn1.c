@@ -141,9 +141,10 @@ static const struct is_cis_log log_jn1[] = {
 	{I2C_READ, 16, 0x0000, 0, "model_id"},
 	{I2C_READ, 8, 0x0002, 0, "rev_number"},
 	{I2C_READ, 8, 0x0005, 0, "frame_count"},
+	/* 4000 page */
+	{I2C_WRITE, 16, 0x6000, 0x0005, "page unlock"},
+	{I2C_WRITE, 16, 0xFCFC, 0x4000, "0x4000 page"},
 	{I2C_READ, 16, 0x0100, 0, "mode_select"},
-	{I2C_READ, 16, 0x0300, 0, "0x0300"},
-	{I2C_READ, 16, 0x0302, 0, "0x0302"},
 	{I2C_READ, 16, 0x0300, 0, "0x0300"},
 	{I2C_READ, 16, 0x0302, 0, "0x0302"},
 	{I2C_READ, 16, 0x0304, 0, "0x0304"},
@@ -152,8 +153,18 @@ static const struct is_cis_log log_jn1[] = {
 	{I2C_READ, 16, 0x030a, 0, "0x030A"},
 	{I2C_READ, 16, 0x030c, 0, "0x030C"},
 	{I2C_READ, 16, 0x030e, 0, "0x030E"},
+	{I2C_READ, 16, 0x0310, 0, "0x0310"},
 	{I2C_READ, 16, 0x0340, 0, "fll"},
 	{I2C_READ, 16, 0x0342, 0, "llp"},
+	/* 0x2400 page */
+	{I2C_WRITE, 16, 0xFCFC, 0x2400, "0x2400 page"},
+	{I2C_READ, 16, 0x37C0, 0, "0x37C0"}, /* m_sys_debug_first_error */
+	{I2C_READ, 16, 0x37C4, 0, "0x37C4"}, /* m_sys_debug_first_error_info */
+	{I2C_READ, 16, 0x37C8, 0, "0x37C8"}, /* m_sys_debug_last_error */
+	{I2C_READ, 16, 0x37CC, 0, "0x37CC"}, /* m_sys_debug_last_error_info */
+	/* restore 4000 page */
+	{I2C_WRITE, 16, 0xFCFC, 0x4000, "0x4000 page"},
+	{I2C_WRITE, 16, 0x6000, 0x0085, "page lock"},
 };
 
 int sensor_jn1_cis_log_status(struct v4l2_subdev *subdev)

@@ -125,7 +125,6 @@ static int __cma_alloc(struct device *dev, struct icpu_buf *special_buf)
 
 	if (!fw_pages) {
 		ICPU_ERR("Failed to allocate with CMA");
-		is_debug_s2d(true, "CMA alloc fail");
 
 		goto err_buf_alloc;
 	}

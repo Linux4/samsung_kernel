@@ -13,6 +13,33 @@
 
 #include "dev.h"
 #define TDLS_PEER_HASH_TABLE_SIZE BIT(4)
+#define SLSI_TDLS_MAX_PEERS (14)
+#define SLSI_TDLS_TX_AC (4)
+
+enum tdls_peer_state {
+	SLSI_TDLS_PEER_ACTIVE,
+	SLSI_TDLS_PEER_DISCOVER,
+	SLSI_TDLS_PEER_DISCOVERED_IND,
+	SLSI_TDLS_PEER_CANDIDATE_SETUP,
+	SLSI_TDLS_PEER_SETUP,
+	SLSI_TDLS_PEER_CONNECTED_IND,
+	SLSI_TDLS_PEER_TEARDOWN,
+	SLSI_TDLS_PEER_DISCONNECTED_IND,
+	SLSI_TDLS_PEER_CFM_EINVAL,
+	SLSI_TDLS_PEER_CFM_EOPNOTSUPP,
+	SLSI_TDLS_PEER_CFM_SUCCESS,
+	SLSI_TDLS_PEER_INACTIVE,
+	SLSI_TDLS_PEER_BLOCKED,
+	SLSI_TDLS_PEER_IND_TIMEOUT
+};
+
+enum tdls_initiator {
+	SLSI_TDLS_INITIATOR_UNKNOWN,
+	SLSI_TDLS_INITIATOR_DRIVER,
+	SLSI_TDLS_INITIATOR_REMOTE_PEER,
+	SLSI_TDLS_INITIATOR_FRWK
+};
+
 struct tdls_manager {
 	u8 active;
 	/**
@@ -46,6 +73,46 @@ struct tdls_manager {
 	struct work_struct peer_state_transition_manager;
 };
 
+struct tdls_tx_traffic {
+	u32 count;
+	ktime_t last_sent;
+	/* For checking if count has exceeded a threshold in succession */
+	bool ischecked;
+};
+
+/**
+ * TDLS peer information.
+ * Note: We need private peer data structure for tdls manager.
+ * There can be more than 14 peers need to monitor and, in such case, we should sort peers in descending order of loads
+ * for prioritization. This would give us more radio resource efficiency.
+ */
+struct tdls_peer {
+	u8 mac_addr[ETH_ALEN];
+	enum tdls_peer_state state;
+	enum tdls_initiator initiator;
+	u32 tdls_weight;
+	struct tdls_tx_traffic tx_packets[SLSI_TDLS_TX_AC];
+	struct delayed_work tdls_peer_ind_timeout_work;
+	struct delayed_work tdls_peer_blocked_work;
+	struct net_device *dev;
+	struct tdls_manager *manager;
+	/* For peer_hash_table */
+	struct hlist_node hlist;
+	/* Count to detect that there is no traffic */
+	u8 no_traffic_count;
+};
+
+struct state_transition_request {
+	struct list_head list;
+	enum tdls_peer_state next_state;
+	struct tdls_peer *peer;
+	struct sk_buff *frame;
+};
+
+struct sorted_peer_entry {
+	struct list_head list;
+	struct tdls_peer *peer;
+};
 /**
  * Lock: __netif_tx_lock spinlock
  * Context: Process with BHs disabled or BH

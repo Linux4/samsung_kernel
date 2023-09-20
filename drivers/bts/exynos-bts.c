@@ -557,6 +557,10 @@ static ssize_t exynos_bts_qos_write(struct file *file, const char __user *user_b
 	}
 
 	stat = info[index].stat;
+	if (stat == NULL) {
+		pr_err("%s: stat is NULL\n", __func__);
+		return -ENOMEM;
+	}
 
 	spin_lock(&btsdev->lock);
 
@@ -655,6 +659,10 @@ static ssize_t exynos_bts_mo_write(struct file *file, const char __user *user_bu
 	}
 
 	stat = info[index].stat;
+	if (stat == NULL) {
+		pr_err("%s: stat is NULL\n", __func__);
+		return -ENOMEM;
+	}
 
 	spin_lock(&btsdev->lock);
 
@@ -747,6 +755,10 @@ static ssize_t exynos_bts_urgent_write(struct file *file, const char __user *use
 	}
 
 	stat = info[index].stat;
+	if (stat == NULL) {
+		pr_err("%s: stat is NULL\n", __func__);
+		return -ENOMEM;
+	}
 
 	spin_lock(&btsdev->lock);
 
@@ -851,6 +863,10 @@ static ssize_t exynos_bts_blocking_write(struct file *file, const char __user *u
 	}
 
 	stat = info[index].stat;
+	if (stat == NULL) {
+		pr_err("%s: stat is NULL\n", __func__);
+		return -ENOMEM;
+	}
 
 	spin_lock(&btsdev->lock);
 
@@ -1055,6 +1071,11 @@ static ssize_t exynos_bts_drex_write(struct file *file, const char __user *user_
 	                        __func__, btsdev->num_scen - 1, scen);
 	        return -EINVAL;
 	}
+
+	if (&info[index] == NULL && &info[index].stat[scen] == NULL) {
+                pr_err("%s: info is NULL\n", __func__);
+                return -ENOMEM;
+        }
 
 	if(type == 0) { //drex
 		if(offset >= sizeof(struct drex_stat))

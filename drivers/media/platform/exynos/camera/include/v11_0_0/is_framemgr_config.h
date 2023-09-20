@@ -72,9 +72,11 @@ struct is_stripe_info {
 	/* sub-frame size for incrop/otcrop */
 	struct is_stripe_size		in;
 	struct is_stripe_size		out;
+#ifdef USE_KERNEL_VFS_READ_WRITE
 	/* For image dump */
 	ulong                           kva[MAX_STRIPE_REGION_NUM][IS_MAX_PLANES];
 	size_t                          size[MAX_STRIPE_REGION_NUM][IS_MAX_PLANES];
+#endif
 };
 
 struct is_sub_frame {
@@ -87,9 +89,6 @@ struct is_sub_frame {
 	u32			hw_pixeltype;
 	ulong			kva[IS_MAX_PLANES];
 	dma_addr_t		dva[IS_MAX_PLANES];
-	dma_addr_t		backup_dva[IS_MAX_PLANES];
-
-	struct is_stripe_info	stripe_info;
 };
 
 struct is_sub_node {
@@ -122,7 +121,6 @@ struct is_frame {
 	/* common use */
 	u32			planes; /* total planes include multi-buffers */
 	struct is_priv_buf	*pb_output;
-	struct is_priv_buf	*pb_capture[CAPTURE_NODE_MAX];
 	dma_addr_t		dvaddr_buffer[IS_MAX_PLANES];
 	ulong			kvaddr_buffer[IS_MAX_PLANES];
 	u32			size[IS_MAX_PLANES];
@@ -187,7 +185,6 @@ struct is_frame {
 	u64 kva_lme_rta_info[IS_MAX_PLANES];
 
 	/* Logical node information */
-	struct is_sub_node	out_node;
 	struct is_sub_node	cap_node;
 
 	/* multi-buffer use */

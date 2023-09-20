@@ -59,9 +59,7 @@ static int exynos_change_power_mode(struct ufs_hba *hba, struct uic_pwr_mode *pm
 {
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	struct ufs_vs_handle *handle = &ufs->handle;
-	int retry = 10;
 	int ret = 0;
-	u32 reg;
 
 	/* info gear update */
 	hba->pwr_info.gear_rx = pmd->gear;
@@ -81,28 +79,12 @@ static int exynos_change_power_mode(struct ufs_hba *hba, struct uic_pwr_mode *pm
 	unipro_writel(handle, 1, UNIP_PA_TXTERMINATION); /* PA_TxTermination */
 	unipro_writel(handle, pmd->hs_series, UNIP_PA_HSSERIES); /* PA_HSSeries */
 
-	ret = ufshcd_dme_set(hba, UIC_ARG_MIB(PA_PWRMODE),
+	ret = ufshcd_uic_change_pwr_mode(hba,
 			(TX_PWRMODE(FAST_MODE) | RX_PWRMODE(FAST_MODE)));
-	if (ret) {
+	if (ret)
 		dev_err(hba->dev, "%s: failed to change pwr_mode ret %d\n",
 				__func__, ret);
-		goto out;
-	}
 
-	while (retry--) {
-		reg = __get_upmcrs(ufs);
-		if (reg == PWR_LOCAL)
-			break;
-
-		usleep_range(1000, 1100);
-	}
-
-	if (!retry) {
-		dev_err(ufs->dev, "gear change failed, UPMCRS = 0x%08X\n", reg);
-		ret = -1;
-	}
-
-out:
 	return ret;
 }
 
@@ -115,7 +97,6 @@ int ufs_gear_change(struct ufs_hba *hba, bool en)
 	struct ufs_perf_stat_v2 *stat = &perf->stat_v2;
 	unsigned long flags;
 	int prev, ret = 0;
-	u32 reg;
 
 	prev = act_pmd->gear;
 	if (en) {
@@ -153,10 +134,6 @@ int ufs_gear_change(struct ufs_hba *hba, bool en)
 		dev_info(ufs->dev, "cal pre pmc fail\n");
 		goto out;
 	}
-
-	reg = ufshcd_readl(hba, REG_INTERRUPT_ENABLE);
-	reg &= ~(UIC_POWER_MODE);
-	ufshcd_writel(hba, reg, REG_INTERRUPT_ENABLE);
 
 	/* gear change */
 	ret = exynos_change_power_mode(hba, act_pmd);
@@ -218,6 +195,9 @@ static void ufs_g_scale_handler(struct work_struct *work)
 		return;
 
 	if (hba->pm_op_in_progress)
+		return;
+
+	if (!ufshcd_is_link_active(hba) || !ufshcd_is_ufs_dev_active(hba))
 		return;
 
 	ret = ufs_gear_change(hba, stat->g_scale_en);
@@ -304,6 +284,31 @@ static void __resume(struct ufs_perf *perf)
 	stat->start_count_time = -1LL;
 	stat->count = 0;
 	spin_unlock_irqrestore(&perf->lock_handle, flags);
+}
+
+int ufs_gear_scale_update(struct ufs_perf *perf)
+{
+	struct ufs_perf_stat_v2 *stat = &perf->stat_v2;
+	int ret = 0;
+
+	if (perf->exynos_gear_scale) {
+		perf->stat_bits |= UPDATE_GEAR;
+		stat->exynos_stat = UFS_EXYNOS_PERF_OPERATIONAL;
+		stat->o_traffic = TRAFFIC_NONE;
+
+		__resume(perf);
+	} else {
+		perf->stat_bits &= ~UPDATE_GEAR;
+		stat->exynos_stat = UFS_EXYNOS_PERF_DISABLED;
+
+		cancel_work_sync(&stat->gear_work);
+		ret = ufs_gear_change(perf->hba, true);
+		if (ret)
+			pr_err("%s: ufs_gear_change failed: ret = %d\n",
+					__func__, ret);
+	}
+
+	return ret;
 }
 
 void ufs_gear_scale_init(struct ufs_perf *perf)

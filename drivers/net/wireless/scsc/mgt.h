@@ -31,6 +31,7 @@
 
 #define SLSI_IEEE8021X_TYPE_EAPOL_KEY    3
 #define SLSI_IEEE8021X_TYPE_EAP_PACKET   0
+#define SLSI_IEEE8021X_TYPE_EAP_START    1
 
 #define VHT_CAP_INFO_CHAN_WIDTH_SET_MASK                0x0000000C
 #define VHT_CAP_INFO_SUPPORTED_BW_160_80P80             BIT(2)
@@ -828,3 +829,4 @@ int slsi_dump_eth_packet(struct slsi_dev *sdev, struct sk_buff *skb);
 int slsi_send_twt_setup_event(struct slsi_dev *sdev, struct net_device *dev, struct slsi_twt_setup_event setup_event);
 int slsi_send_twt_teardown(struct slsi_dev *sdev, struct net_device *dev, u16 setup_id, u8 result_code);
 int slsi_send_twt_notification(struct slsi_dev *sdev, struct net_device *dev);
+bool slsi_release_dp_resources(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif);

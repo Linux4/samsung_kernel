@@ -30,8 +30,9 @@
 #include <linux/delay.h>
 #include <linux/bitops.h>
 #include <soc/samsung/exynos-modem-ctrl.h>
-
 #include <soc/samsung/acpm_ipc_ctrl.h>
+#include <soc/samsung/exynos-bcm_dbg.h>
+
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "cpif_version.h"
@@ -198,13 +199,14 @@ struct io_device *insert_iod_with_format(struct modem_shared *msd,
 static void netif_tx_flowctl(struct modem_shared *msd, bool tx_stop)
 {
 	struct io_device *iod;
+	unsigned long flags;
 
 	if (!msd) {
 		mif_err_limited("modem shared data does not exist\n");
 		return;
 	}
 
-	spin_lock(&msd->active_list_lock);
+	spin_lock_irqsave(&msd->active_list_lock, flags);
 	list_for_each_entry(iod, &msd->activated_ndev_list, node_ndev) {
 		if (tx_stop)
 			netif_stop_subqueue(iod->ndev, 0);
@@ -217,7 +219,7 @@ static void netif_tx_flowctl(struct modem_shared *msd, bool tx_stop)
 			iod->ndev->name);
 #endif
 	}
-	spin_unlock(&msd->active_list_lock);
+	spin_unlock_irqrestore(&msd->active_list_lock, flags);
 }
 
 bool stop_net_ifaces(struct link_device *ld, unsigned long set_mask)
@@ -664,6 +666,12 @@ EXPORT_SYMBOL(mif_gpio_toggle_value);
 void mif_stop_logging(void)
 {
 	acpm_stop_log();
+}
+
+void mif_stop_ap_ppmu_logging(void)
+{
+	mif_info("stop ap ppmu logging");
+	exynos_bcm_dbg_stop(0);
 }
 
 const char *get_cpif_driver_version(void)

@@ -152,7 +152,7 @@ static int dwc3_exynos_clk_get(struct dwc3_exynos *exynos)
 	clk_ids[clk_count] = NULL;
 
 	exynos->clocks = (struct clk **) devm_kmalloc(exynos->dev,
-			clk_count * sizeof(struct clk *), GFP_KERNEL);
+			(clk_count + 1)  * sizeof(struct clk *), GFP_KERNEL);
 	if (!exynos->clocks) {
 		dev_err(exynos->dev, "%s: couldn't alloc\n", __func__);
 		return -ENOMEM;
@@ -693,6 +693,27 @@ int dwc3_exynos_vbus_event(struct device *dev, bool vbus_active)
 }
 EXPORT_SYMBOL_GPL(dwc3_exynos_vbus_event);
 
+int dwc3_gadget_speed(struct device *dev)
+{
+	struct dwc3_exynos	*exynos;
+	struct usb_gadget	*gadget;
+
+	exynos = dev_get_drvdata(dev);
+	if (!exynos) {
+		dev_err(dev, "%s: exynos is NULL!!\n", __func__);
+		return 0;
+	}
+
+	gadget = exynos->dwc->gadget;
+	if (!gadget) {
+		dev_err(dev, "%s: gadget is NULL!!\n", __func__);
+		return 0;
+	}
+
+	return gadget->speed;
+}
+EXPORT_SYMBOL(dwc3_gadget_speed);
+
 /**
  * dwc3_exynos_phy_enable - received combo phy control.
  */
@@ -848,9 +869,6 @@ static int dwc3_exynos_host_init(struct dwc3_exynos *exynos)
 	struct platform_device	*dwc3_pdev = to_platform_device(dwc->dev);
 	int			prop_idx = 0;
 	int			ret = 0;
-#if IS_ENABLED(CONFIG_SND_EXYNOS_USB_AUDIO)
-	dma_addr_t	dma;
-#endif
 
 	/* Configuration xhci resources */
 	res = platform_get_resource(dwc3_pdev, IORESOURCE_MEM, 0);
@@ -924,30 +942,6 @@ static int dwc3_exynos_host_init(struct dwc3_exynos *exynos)
 	}
 
 	dwc->xhci = xhci;
-
-#if IS_ENABLED(CONFIG_SND_EXYNOS_USB_AUDIO)
-	/* In data buf alloc */
-	xhci_data.in_data_addr = dma_alloc_coherent(dev,
-			(PAGE_SIZE * 256), &dma, GFP_KERNEL);
-	xhci_data.in_data_dma = dma;
-	dev_info(dev, "// IN Data address = 0x%llx (DMA), %p (virt)",
-		(unsigned long long)xhci_data.in_data_dma, xhci_data.in_data_addr);
-
-	/* Out data buf alloc */
-	xhci_data.out_data_addr = dma_alloc_coherent(dev,
-			(PAGE_SIZE * 256), &dma, GFP_KERNEL);
-	xhci_data.out_data_dma = dma;
-	dev_info(dev, "// OUT Data address = 0x%llx (DMA), %p (virt)",
-		(unsigned long long)xhci_data.out_data_dma, xhci_data.out_data_addr);
-#endif
-
-	/* pre dma_alloc */
-	xhci_pre_alloc.pre_dma_alloc = dma_alloc_coherent(dev, SZ_2M,
-					&xhci_pre_alloc.dma, GFP_KERNEL);
-	if (!xhci_pre_alloc.pre_dma_alloc) {
-		dev_err(dev, "%s: dma_alloc fail!\n", __func__);
-		return -ENOMEM;
-	}
 
 	return 0;
 err:

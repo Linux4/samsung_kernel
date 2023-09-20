@@ -2659,6 +2659,8 @@ static void cstat_hw_g_pcfi(struct is_hw_ip *hw_ip, u32 instance, struct is_fram
 	prfi->cstat_out_drcclct_buffer = cstat_p->drc.cmd;
 	prfi->cstat_out_meds_buffer = cstat_p->lme_ds0.cmd;
 
+	prfi->batch_num = frame->num_buffers;
+
 	prfi->magic = PABLO_CRTA_MAGIC_NUMBER;
 
 	memcpy(&hw->prfi[instance], prfi, sizeof(struct pablo_rta_frame_info));

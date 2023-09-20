@@ -28,6 +28,7 @@
 #include "blk-mq-tag.h"
 #include "blk-mq-sched.h"
 #include "ssg.h"
+#include "blk-sec-stats.h"
 
 #define MAX_ASYNC_WRITE_RQS	8
 
@@ -89,23 +90,6 @@ static inline struct ssg_request_info *ssg_rq_info(struct ssg_data *ssg,
 		return NULL;
 
 	return &ssg->rq_info[rq->internal_tag];
-}
-
-static inline void set_thread_group_info(struct ssg_request_info *rqi)
-{
-	struct task_struct *gleader = current->group_leader;
-
-	rqi->tgid = task_tgid_nr(gleader);
-	strncpy(rqi->tg_name, gleader->comm, TASK_COMM_LEN - 1);
-	rqi->tg_name[TASK_COMM_LEN - 1] = '\0';
-	rqi->tg_start_time = gleader->start_time;
-}
-
-static inline void clear_thread_group_info(struct ssg_request_info *rqi)
-{
-	rqi->tgid = 0;
-	rqi->tg_name[0] = '\0';
-	rqi->tg_start_time = 0;
 }
 
 /*
@@ -389,8 +373,7 @@ static void ssg_completed_request(struct request *rq, u64 now)
 	rqi = ssg_rq_info(ssg, rq);
 	if (likely(rqi)) {
 		ssg_stat_account_io_done(ssg, rq, rqi->data_size, now);
-		blk_sec_stat_account_io_done(rq, rqi->data_size,
-				rqi->tgid, rqi->tg_name, rqi->tg_start_time);
+		blk_sec_stat_account_io_complete(rq, rqi->data_size, rqi->pio);
 	}
 }
 
@@ -683,12 +666,14 @@ static void ssg_prepare_request(struct request *rq)
 
 	rqi = ssg_rq_info(ssg, rq);
 	if (likely(rqi)) {
-		set_thread_group_info(rqi);
+		rqi->tgid = task_tgid_nr(current->group_leader);
 
 		rcu_read_lock();
 		rqi->blkg = blkg_lookup(css_to_blkcg(blkcg_css()), rq->q);
 		ssg_blkcg_inc_rq(rqi->blkg);
 		rcu_read_unlock();
+
+		blk_sec_stat_account_io_prepare(rq, &rqi->pio);
 	}
 
 	if (ssg_op_is_async_write(rq->cmd_flags))
@@ -732,9 +717,12 @@ static void ssg_finish_request(struct request *rq)
 
 	rqi = ssg_rq_info(ssg, rq);
 	if (likely(rqi)) {
-		clear_thread_group_info(rqi);
+		rqi->tgid = 0;
+
 		ssg_blkcg_dec_rq(rqi->blkg);
 		rqi->blkg = NULL;
+
+		blk_sec_stat_account_io_finish(rq, &rqi->pio);
 	}
 
 	if (ssg_op_is_async_write(rq->cmd_flags))
@@ -824,6 +812,7 @@ static struct elv_fs_entry ssg_attrs[] = {
 	SSG_STAT_ATTR_RO(flush_latency),
 	SSG_STAT_ATTR_RO(discard_latency),
 	SSG_STAT_ATTR_RO(inflight),
+	SSG_STAT_ATTR_RO(rqs_info),
 
 	__ATTR_NULL
 };

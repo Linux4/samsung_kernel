@@ -18,97 +18,69 @@
 #include "panel_drv.h"
 #include "panel.h"
 #include "panel_debug.h"
+#include "panel_packet.h"
 #include "panel_bl.h"
 #include "panel_dimming.h"
 #include "maptbl.h"
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
 #endif
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#include "adaptive_mipi.h"
+#endif
+#ifdef CONFIG_USDM_COPR_SPI
 #include "spi.h"
 #endif
+#include "util.h"
 
-#ifdef CONFIG_PANEL_AID_DIMMING
+#ifdef CONFIG_USDM_PANEL_DIMMING
 #include "dimming.h"
 #endif
 
 const char *cmd_type_name[MAX_CMD_TYPE] = {
 	[CMD_TYPE_NONE] = "NONE",
+	[CMD_TYPE_PROP] = "PROPERTY",
+	[CMD_TYPE_FUNC] = "FUNCTION",
 	[CMD_TYPE_DELAY] = "DELAY",
-	[CMD_TYPE_DELAY_NO_SLEEP] = "DELAY_NO_SLEEP",
-	[CMD_TYPE_FRAME_DELAY] = "FRAME_DELAY",
-	[CMD_TYPE_VSYNC_DELAY] = "VSYNC_DELAY",
 	[CMD_TYPE_TIMER_DELAY] = "TIMER_DELAY",
 	[CMD_TYPE_TIMER_DELAY_BEGIN] = "TIMER_DELAY_BEGIN",
-	[CMD_TYPE_VARIABLE_DELAY] = "VARIABLE_DELAY",
-	[CMD_TYPE_VARIABLE_DELAY_MARK] = "VARIABLE_DELAY_MARK",
-	[CMD_TYPE_PINCTL] = "PINCTL",
-	[CMD_PKT_TYPE_NONE] = "PKT_NONE",
-	[SPI_PKT_TYPE_WR] = "SPI_WR",
-	[DSI_PKT_TYPE_WR] = "DSI_WR",
-	[DSI_PKT_TYPE_WR_NO_WAKE] = "DSI_WR_NO_WAKE",
-	[DSI_PKT_TYPE_COMP] = "DSI_DSC_WR",
-	[DSI_PKT_TYPE_WR_SR] = "DSI_WR_SR",
-	[DSI_PKT_TYPE_SR_FAST] = "DSI_SR_FAST",
-	[DSI_PKT_TYPE_WR_MEM] = "DSI_WR_MEM",
-	[DSI_PKT_TYPE_PPS] = "DSI_WR_PPS",
-	[SPI_PKT_TYPE_RD] = "SPI_RD",
-	[DSI_PKT_TYPE_RD] = "DSI_RD",
-#ifdef CONFIG_SUPPORT_DDI_FLASH
-	[DSI_PKT_TYPE_RD_POC] = "DSI_RD_POC",
-#endif
+	[CMD_TYPE_TX_PACKET] = "TX_PACKET",
+	[CMD_TYPE_RX_PACKET] = "RX_PACKET",
 	[CMD_TYPE_RES] = "RES",
 	[CMD_TYPE_SEQ] = "SEQ",
 	[CMD_TYPE_KEY] = "KEY",
-	[CMD_TYPE_MAP] = "MAP",
+	[CMD_TYPE_MAP] = "MAPTBL",
 	[CMD_TYPE_DMP] = "DUMP",
 	[CMD_TYPE_COND_IF] = "COND_IF",
 	[CMD_TYPE_COND_EL] = "COND_EL",
 	[CMD_TYPE_COND_FI] = "COND_FI",
-	[CMD_TYPE_PROP] = "PROP",
+	[CMD_TYPE_PCTRL] = "PWRCTRL",
+	[CMD_TYPE_CFG] = "CONFIG",
 };
 
-#define MAX_PRINT_DATA_LEN 1024
-void print_data(char *data, int size)
+const char *cmd_type_to_string(u32 type)
 {
-	char buf[256];
-	int i, len = 0, sz_buf = ARRAY_SIZE(buf);
-	bool newline = true;
-
-	if (data == NULL || size <= 0) {
-		panel_warn("invalid parameter (size %d)\n", size);
-		return;
-	}
-
-	if (panel_log_level < 7)
-		return;
-
-	if (size > MAX_PRINT_DATA_LEN) {
-		panel_info("size %d -> %d\n", size, MAX_PRINT_DATA_LEN);
-		size = MAX_PRINT_DATA_LEN;
-	}
-
-	for (i = 0; i < size; i++) {
-		if (newline)
-			len += snprintf(buf + len, sz_buf - len,
-					"[%02Xh]  ", i);
-		len += snprintf(buf + len, sz_buf - len,
-				"%02X", data[i] & 0xFF);
-		if (!((i + 1) % 32) || (i + 1 == size)) {
-			len += snprintf(buf + len, sz_buf - len, "\n");
-			newline = true;
-		} else {
-			len += snprintf(buf + len, sz_buf - len, " ");
-			newline = false;
-		}
-
-		if (newline) {
-			panel_info("%s", buf);
-			len = 0;
-		}
-	}
+	return (type < MAX_CMD_TYPE) ?
+		cmd_type_name[type] : cmd_type_name[CMD_TYPE_NONE];
 }
-EXPORT_SYMBOL(print_data);
+
+int string_to_cmd_type(const char *str)
+{
+	unsigned int type;
+
+	if (!str)
+		return -EINVAL;
+
+	for (type = 0; type < MAX_CMD_TYPE; type++) {
+		if (!cmd_type_name[type])
+			continue;
+
+		if (!strcmp(cmd_type_name[type], str))
+			return type;
+	}
+
+	return -EINVAL;
+}
 
 __visible_for_testing int nr_panel;
 __visible_for_testing struct common_panel_info *panel_list[MAX_PANEL];
@@ -122,7 +94,7 @@ int register_common_panel(struct common_panel_info *info)
 	}
 
 	if (unlikely(nr_panel >= MAX_PANEL)) {
-		panel_warn("exceed max seqtbl\n");
+		panel_warn("exceed MAX_PANEL\n");
 		return -EINVAL;
 	}
 
@@ -174,21 +146,23 @@ static struct common_panel_info *find_common_panel_with_name(const char *name)
 
 void print_panel_lut(struct panel_dt_lut *lut_info)
 {
-	struct panel_id_mask *id_mask = NULL;;
+	struct panel_id_mask *id_mask = NULL;
+
 	if (IS_ERR_OR_NULL(lut_info)) {
 		panel_err("Null lut_info in panel_lut_list\n");
-		return ;
+		return;
 	}
+
 	list_for_each_entry(id_mask, &lut_info->id_mask_list, head) {
 		if (IS_ERR_OR_NULL(id_mask)) {
 			panel_err("Null id_mask in id_mask_list\n");
-			return ;
+			return;
 		}
 		panel_dbg("panel_lut id:0x%08X mask:0x%08X\n", id_mask->id, id_mask->mask);
 	}
 }
 
-__visible_for_testing struct panel_dt_lut *find_panel_lut(struct panel_device *panel, u32 id)
+struct panel_dt_lut *find_panel_lut(struct panel_device *panel, u32 panel_id)
 {
 	struct panel_dt_lut *lut_info = NULL, *default_lut = NULL;
 	struct panel_id_mask *id_mask = NULL;
@@ -208,32 +182,33 @@ __visible_for_testing struct panel_dt_lut *find_panel_lut(struct panel_device *p
 			}
 			if (id_mask->id == 0 && id_mask->mask == 0) {
 				panel_info("default %s (id:0x%08X lut_id:0x%08X lut_mask:0x%08X)\n",
-					lut_info->name, id, id_mask->id, id_mask->mask);
+					lut_info->name, panel_id, id_mask->id, id_mask->mask);
 				if (default_lut == NULL)
 					default_lut = lut_info;
 				continue;
 			}
-			if ((id & id_mask->mask) == id_mask->id) {
+			if ((panel_id & id_mask->mask) == id_mask->id) {
 				panel_info("found %s (id:0x%08X lut_id:0x%08X lut_mask:0x%08X)\n",
-					lut_info->name, id, id_mask->id, id_mask->mask);
+					lut_info->name, panel_id, id_mask->id, id_mask->mask);
 				return lut_info;
 			}
 			panel_dbg("panel name %s (id:0x%08X lut_id:0x%08X lut_mask:0x%08X) - not same\n",
-				lut_info->name, id, id_mask->id, id_mask->mask);
+				lut_info->name, panel_id, id_mask->id, id_mask->mask);
 		}
 	}
 	if (default_lut) {
 		panel_info("use default lut %s\n", default_lut->name);
 		return default_lut;
 	}
-	panel_err("panel not found!! (id 0x%08X)\n", id);
+	panel_err("panel not found!! (id 0x%08X)\n", panel_id);
 	return ERR_PTR(-ENODEV);
 }
-struct common_panel_info *find_panel(struct panel_device *panel, u32 id)
+
+struct common_panel_info *find_panel(struct panel_device *panel, u32 panel_id)
 {
 	struct panel_dt_lut *lut_info;
 
-	lut_info = find_panel_lut(panel, id);
+	lut_info = find_panel_lut(panel, panel_id);
 	if (IS_ERR_OR_NULL(lut_info)) {
 		panel_err("failed to find panel lookup table\n");
 		return NULL;
@@ -247,220 +222,81 @@ struct common_panel_info *find_panel(struct panel_device *panel, u32 id)
 	return find_common_panel_with_name(lut_info->name);
 }
 
-struct device_node * __mockable
-find_panel_ddi_node(struct panel_device *panel, u32 id)
+struct seqinfo *find_panel_seq_by_name(struct panel_device *panel, char *seqname)
 {
-	struct panel_dt_lut *lut_info;
+	struct pnobj *pnobj;
 
-	lut_info = find_panel_lut(panel, id);
-	if (IS_ERR_OR_NULL(lut_info)) {
-		panel_err("failed to find panel lookup table\n");
+	if (!panel) {
+		panel_err("invalid panel\n");
 		return NULL;
 	}
 
-	if (!lut_info->ddi_node) {
-		panel_err("invalid ddi_node\n");
+	if (list_empty(&panel->seq_list)) {
+		panel_err("sequence is empty\n");
 		return NULL;
 	}
 
-	return lut_info->ddi_node;
+	if (!seqname) {
+		panel_err("sequence is null\n");
+		return NULL;
+	}
+
+	pnobj = pnobj_find_by_name(&panel->seq_list, seqname);
+	if (!pnobj)
+		return NULL;
+
+	return pnobj_container_of(pnobj, struct seqinfo);
 }
 
-struct device_node * __mockable
-find_panel_modes_node(struct panel_device *panel, u32 id)
+bool check_seqtbl_exist(struct panel_device *panel, char *seqname)
 {
-	struct panel_dt_lut *lut_info;
+	struct seqinfo *seq;
 
-	lut_info = find_panel_lut(panel, id);
-	if (IS_ERR_OR_NULL(lut_info)) {
-		panel_err("failed to find panel lookup table\n");
-		return NULL;
-	}
+	seq = find_panel_seq_by_name(panel, seqname);
+	if (!seq)
+		return false;
 
-	if (!lut_info->panel_modes_node) {
-		panel_err("invalid panel_modes_node\n");
-		return NULL;
-	}
+	if (!is_valid_sequence(seq))
+		return false;
 
-	return lut_info->panel_modes_node;
+	return true;
 }
 
-struct device_node * __mockable
-find_panel_power_ctrl_node(struct panel_device *panel, u32 id)
+__visible_for_testing int strcmp_suffix(const char *str, const char *suffix)
 {
-	struct panel_dt_lut *lut_info;
+	unsigned int len, suffix_len;
 
-	lut_info = find_panel_lut(panel, id);
-	if (IS_ERR_OR_NULL(lut_info)) {
-		panel_err("failed to find panel lookup table\n");
-		return NULL;
-	}
-
-	if (!lut_info->power_ctrl_node) {
-		panel_err("invalid power_ctrl_node\n");
-		return NULL;
-	}
-
-	return lut_info->power_ctrl_node;
+	len = strlen(str);
+	suffix_len = strlen(suffix);
+	if (len <= suffix_len)
+		return -1;
+	return strcmp(str + len - suffix_len, suffix);
 }
 
-const char *get_panel_lut_dqe_suffix(struct panel_device *panel, u32 id)
-{
-	struct panel_dt_lut *lut_info;
-
-	lut_info = find_panel_lut(panel, id);
-	if (IS_ERR_OR_NULL(lut_info)) {
-		panel_err("failed to find panel lookup table\n");
-		return NULL;
-	}
-
-	return lut_info->dqe_suffix;
-}
-
-#ifdef CONFIG_PANEL_FREQ_HOP
-struct device_node *get_panel_lut_freq_hop_node(struct panel_device *panel, u32 id)
-{
-	struct panel_dt_lut *lut_info;
-
-	lut_info = find_panel_lut(panel, id);
-	if (IS_ERR_OR_NULL(lut_info)) {
-		panel_err("failed to find panel lookup table\n");
-		return NULL;
-	}
-
-	return lut_info->freq_hop_node;
-}
-#endif
-
-struct seqinfo *find_panel_seqtbl(struct panel_info *panel_data, char *name)
+struct pktinfo *find_packet_suffix(struct seqinfo *seq, char *suffix)
 {
 	int i;
 
-	if (unlikely(!panel_data->seqtbl)) {
-		panel_err("seqtbl not exist\n");
-		return NULL;
-	}
-
-	for (i = 0; i < panel_data->nr_seqtbl; i++) {
-		if (unlikely(!panel_data->seqtbl[i].name))
-			continue;
-		if (!strcmp(panel_data->seqtbl[i].name, name)) {
-			panel_dbg("found %s panel seqtbl\n", name);
-			return &panel_data->seqtbl[i];
-		}
-	}
-	return NULL;
-}
-
-bool check_seqtbl_exist(struct panel_info *panel_data, u32 index)
-{
-	if (unlikely(!panel_data->seqtbl)) {
-		panel_err("seqtbl not exist\n");
-		return false;
-	}
-
-	if (unlikely(index >= MAX_PANEL_SEQ)) {
-		panel_err("invalid parameter (index %d)\n", index);
-		return false;
-	}
-
-
-	if (panel_data->seqtbl[index].cmdtbl != NULL)
-		return true;
-
-	return false;
-}
-
-struct seqinfo *find_index_seqtbl(struct panel_info *panel_data, u32 index)
-{
-	struct seqinfo *tbl;
-
-	if (unlikely(!panel_data->seqtbl)) {
-		panel_err("seqtbl not exist\n");
-		return NULL;
-	}
-
-	if (unlikely(index >= MAX_PANEL_SEQ)) {
-		panel_err("invalid parameter (index %d)\n", index);
-		return NULL;
-	}
-
-	tbl = &panel_data->seqtbl[index];
-	if (tbl != NULL)
-		panel_dbg("found %s panel seqtbl\n", tbl->name);
-
-	return tbl;
-}
-
-
-struct pktinfo *alloc_static_packet(char *name, u32 type, u8 *data, u32 dlen)
-{
-	struct pktinfo *info = kzalloc(sizeof(struct pktinfo), GFP_KERNEL);
-
-	info->name = name;
-	info->type = type;
-	info->data = data;
-	info->dlen = dlen;
-
-	return info;
-}
-
-struct pktinfo *find_packet(struct seqinfo *seqtbl, char *name)
-{
-	int i;
 	void **cmdtbl;
 
-	if (unlikely(!seqtbl || !name)) {
-		panel_err("invalid parameter (seqtbl %p, name %p)\n", seqtbl, name);
+	if (unlikely(!seq || !suffix)) {
+		panel_err("invalid parameter (seq %pK, suffix %pK)\n", seq, suffix);
 		return NULL;
 	}
 
-	cmdtbl = seqtbl->cmdtbl;
+	cmdtbl = seq->cmdtbl;
 	if (unlikely(!cmdtbl)) {
 		panel_err("invalid command table\n");
 		return NULL;
 	}
 
-	for (i = 0; i < seqtbl->size; i++) {
+	for (i = 0; i < seq->size; i++) {
 		if (cmdtbl[i] == NULL) {
 			panel_dbg("end of cmdtbl %d\n", i);
 			break;
 		}
-		if (!strcmp(((struct cmdinfo *)cmdtbl[i])->name, name))
+		if (!strcmp_suffix(get_pnobj_name((struct pnobj *)cmdtbl[i]), suffix))
 			return cmdtbl[i];
-	}
-
-	return NULL;
-}
-
-
-struct pktinfo *find_packet_suffix(struct seqinfo *seqtbl, char *name)
-{
-	int i, j, len;
-
-	void **cmdtbl;
-
-	if (unlikely(!seqtbl || !name)) {
-		panel_err("invalid parameter (seqtbl %p, name %p)\n", seqtbl, name);
-		return NULL;
-	}
-
-	cmdtbl = seqtbl->cmdtbl;
-	if (unlikely(!cmdtbl)) {
-		panel_err("invalid command table\n");
-		return NULL;
-	}
-
-	for (i = 0; i < seqtbl->size; i++) {
-		if (cmdtbl[i] == NULL) {
-			panel_dbg("end of cmdtbl %d\n", i);
-			break;
-		}
-		len = strlen(((struct cmdinfo *)cmdtbl[i])->name);
-		for (j = 0; j < len; j++) {
-			if (!strcmp(&((struct cmdinfo *)cmdtbl[i])->name[j], name))
-				return cmdtbl[i];
-		}
 	}
 
 	return NULL;
@@ -480,221 +316,80 @@ find_panel_dimming(struct panel_info *panel_data, char *name)
 	return NULL;
 }
 
-struct maptbl *find_panel_maptbl_by_index(struct panel_info *panel, int index)
+struct maptbl *find_panel_maptbl_by_substr(struct panel_device *panel, char *substr)
 {
-	if (unlikely(!panel || !panel->maptbl)) {
-		panel_err("maptbl not exist\n");
+	struct pnobj *pnobj;
+
+	if (!panel) {
+		panel_err("invalid panel\n");
 		return NULL;
 	}
 
-	if (index < 0 || index >= panel->nr_maptbl) {
-		panel_err("out of range (index %d)\n", index);
+	pnobj = pnobj_find_by_substr(&panel->maptbl_list, substr);
+	if (!pnobj)
 		return NULL;
-	}
 
-	return &panel->maptbl[index];
+	return pnobj_container_of(pnobj, struct maptbl);
 }
-EXPORT_SYMBOL(find_panel_maptbl_by_index);
+EXPORT_SYMBOL(find_panel_maptbl_by_substr);
 
-struct maptbl *find_panel_maptbl_by_name(struct panel_info *panel_data, char *name)
+__visible_for_testing u32 get_frame_delay(struct panel_device *panel, struct delayinfo *delay)
 {
-	int i = 0;
+	if (delay->nframe == 0)
+		return 0;
 
-	if (unlikely(!panel_data || !panel_data->maptbl)) {
-		panel_err("maptbl not exist\n");
-		return NULL;
-	}
-
-	for (i = 0; i < panel_data->nr_maptbl; i++)
-		if (strstr(panel_data->maptbl[i].name, name))
-			return &panel_data->maptbl[i];
-	return NULL;
-}
-EXPORT_SYMBOL(find_panel_maptbl_by_name);
-
-struct maptbl *maptbl_find(struct panel_info *panel, char *name)
-{
-	int i;
-
-	if (unlikely(!panel || !name)) {
-		panel_err("invalid parameter\n");
-		return NULL;
-	}
-
-	if (unlikely(!panel->maptbl)) {
-		panel_err("maptbl not exist\n");
-		return NULL;
-	}
-
-	for (i = 0; i < panel->nr_maptbl; i++)
-		if (!strcmp(name, panel->maptbl[i].name))
-			return &panel->maptbl[i];
-	return NULL;
-}
-
-int pktui_maptbl_getidx(struct pkt_update_info *pktui)
-{
-	if (pktui && pktui->getidx)
-		return pktui->getidx(pktui);
-	return -EINVAL;
-}
-
-void panel_update_packet_data(struct panel_device *panel, struct pktinfo *info)
-{
-	struct pkt_update_info *pktui;
-	struct maptbl *maptbl;
-	int i, idx, offset, ret;
-
-	if (!info || !info->data || !info->pktui || !info->nr_pktui) {
-		panel_warn("invalid pkt update info\n");
-		return;
-	}
-
-	pktui = info->pktui;
-	/*
-	 * TODO : move out pktui->pdata initial code
-	 * panel_pkt_update_info_init();
-	 */
-	for (i = 0; i < info->nr_pktui; i++) {
-		pktui[i].pdata = panel;
-		offset = pktui[i].offset;
-		if (pktui[i].nr_maptbl > 1 && pktui[i].getidx) {
-			idx = pktui_maptbl_getidx(&pktui[i]);
-			if (unlikely(idx < 0)) {
-				panel_err("failed to pktui_maptbl_getidx %d\n", idx);
-				return;
-			}
-			maptbl = &pktui[i].maptbl[idx];
-		} else {
-			maptbl = pktui[i].maptbl;
-		}
-		if (unlikely(!maptbl)) {
-			panel_err("invalid info (offset %d, maptbl %p)\n",
-					pktui[i].offset, pktui[i].maptbl);
-			return;
-		}
-
-		if (!maptbl_is_initialized(maptbl)) {
-			panel_info("init maptbl(%s) +\n", maptbl->name);
-			maptbl_init(maptbl);
-			panel_info("init maptbl(%s) -\n", maptbl->name);
-		}
-
-		if (unlikely(offset + maptbl_get_sizeof_copy(maptbl) > info->dlen)) {
-			panel_err("out of range (offset %d, sz_copy %d, dlen %d)\n",
-					offset, maptbl_get_sizeof_copy(maptbl), info->dlen);
-			return;
-		}
-
-		ret = maptbl_copy(maptbl, &info->data[offset]);
-		if (ret < 0) {
-			panel_err("failed to copy maptbl (offset %d, sz_copy %d, dlen %d)\n",
-					offset, maptbl_get_sizeof_copy(maptbl), info->dlen);
-			return;
-		}
-
-		panel_dbg("copy %d bytes from %s to %s[%d]\n",
-				maptbl_get_sizeof_copy(maptbl), maptbl->name, info->name, offset);
-	}
-}
-
-static int panel_do_delay(struct panel_device *panel, struct delayinfo *info, ktime_t s_time)
-{
-	ktime_t e_time = ktime_get();
-	int remained_usec = 0;
-
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
-		return -EINVAL;
-	}
-
-	if (ktime_after(e_time, ktime_add_us(s_time, info->usec))) {
-		panel_dbg("skip delay (elapsed %lld usec >= requested %d usec)\n",
-				ktime_to_us(ktime_sub(e_time, s_time)), info->usec);
+	if (panel->panel_data.props.vrr_origin_fps == 0 ||
+			panel->panel_data.props.vrr_fps == 0) {
+		panel_err("invalid fps(N:%d, N+1:%d)\n",
+				panel->panel_data.props.vrr_origin_fps,
+				panel->panel_data.props.vrr_fps);
 		return 0;
 	}
 
-	if (info->usec >= (u32)ktime_to_us(ktime_sub(e_time, s_time)))
-		remained_usec = info->usec - (u32)ktime_to_us(ktime_sub(e_time, s_time));
-
-	if (remained_usec > 0)
-		usleep_range(remained_usec, remained_usec + 1);
-
-	return 0;
+	return (USEC_PER_SEC / panel->panel_data.props.vrr_origin_fps) +
+		(USEC_PER_SEC / panel->panel_data.props.vrr_fps) * (delay->nframe - 1);
 }
 
-static int panel_do_delay_no_sleep(struct panel_device *panel, struct delayinfo *info, ktime_t s_time)
+__visible_for_testing u32 get_total_delay(struct panel_device *panel, struct delayinfo *delay)
 {
-	ktime_t e_time = ktime_get();
-	int remained_usec = 0;
+	return delay->usec + get_frame_delay(panel, delay);
+}
 
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
-		return -EINVAL;
-	}
+__visible_for_testing u32 get_remaining_delay(struct panel_device *panel, struct delayinfo *delay,
+		ktime_t start, ktime_t now)
+{
+	ktime_t end;
 
-	if (ktime_after(e_time, ktime_add_us(s_time, info->usec))) {
-		panel_dbg("skip delay (elapsed %lld usec >= requested %d usec)\n",
-				ktime_to_us(ktime_sub(e_time, s_time)), info->usec);
+	if (!delay)
+		return 0;
+
+	if (ktime_after(start, now)) {
+		panel_err("invalid start time(start > now)\n");
 		return 0;
 	}
 
-	if (info->usec >= (u32)ktime_to_us(ktime_sub(e_time, s_time)))
-		remained_usec = info->usec - (u32)ktime_to_us(ktime_sub(e_time, s_time));
-
-	if (remained_usec > 0)
-		udelay(remained_usec);
-
-	return 0;
+	end = ktime_add_us(start, get_total_delay(panel, delay));
+	return ktime_after(now, end) ?
+		0 : ktime_to_us(ktime_add_ns(ktime_sub(end, now), NSEC_PER_USEC - 1));
 }
 
-static int panel_do_frame_delay(struct panel_device *panel, struct delayinfo *info, ktime_t s_time)
-{
-	ktime_t e_time = ktime_get();
-	int remained_usec = 0;
-	int usec;
-
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
-		return -EINVAL;
-	}
-
-	usec = 1000000 / panel->panel_data.props.vrr_origin_fps;
-	if (info->nframe > 0)
-		usec += (1000000 / panel->panel_data.props.vrr_fps) * (info->nframe - 1);
-	if (ktime_after(e_time, ktime_add_us(s_time, usec))) {
-		panel_dbg("skip delay (elapsed %lld usec >= requested %d usec)\n",
-				ktime_to_us(ktime_sub(e_time, s_time)), usec);
-		return 0;
-	}
-
-	if (usec >= (u32)ktime_to_us(ktime_sub(e_time, s_time)))
-		remained_usec = usec - (u32)ktime_to_us(ktime_sub(e_time, s_time));
-
-	if (remained_usec > 0)
-		usleep_range(remained_usec, remained_usec + 1);
-
-	return 0;
-}
-
-__visible_for_testing int __mockable
-panel_do_vsync_delay(struct panel_device *panel, struct delayinfo *info)
+static int panel_wait_nvsync(struct panel_device *panel, struct delayinfo *delay)
 {
 	int i, ret;
 	u32 timeout = PANEL_WAIT_VSYNC_TIMEOUT_MSEC;
 	ktime_t s_time = ktime_get();
 	int usec;
 
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
+	if (unlikely(!panel || !delay)) {
+		panel_err("invalid parameter\n");
 		return -EINVAL;
 	}
 
-	for (i = 0; i < info->nframe; i++) {
+	for (i = 0; i < delay->nvsync; i++) {
 		ret = panel_dsi_wait_for_vsync(panel, timeout);
 		if (ret < 0) {
 			panel_err("vsync timeout(elapsed:%dms, ret:%d)\n", timeout, ret);
-			return 0;
+			return -ETIMEDOUT;
 		}
 	}
 	usec = ktime_to_us(ktime_sub(ktime_get(), s_time));
@@ -702,12 +397,35 @@ panel_do_vsync_delay(struct panel_device *panel, struct delayinfo *info)
 			usec / 1000, usec % 1000,
 			panel->panel_data.props.vrr_fps);
 
-#ifdef CONFIG_SUPPORT_MASK_LAYER
-	if (panel->panel_bl.props.mask_layer_br_hook == MASK_LAYER_HOOK_ON)
-		panel_info("elapsed:%2d.%03d ms (cnt:%d)in %d FPS\n",
-			usec / 1000, usec % 1000, info->nframe,
-			panel->panel_data.props.vrr_fps);
-#endif
+	return 0;
+}
+
+
+static int panel_do_delay(struct panel_device *panel, struct delayinfo *delay, ktime_t start)
+{
+	int ret;
+	u32 usec;
+
+	if (unlikely(!panel || !delay)) {
+		panel_err("invalid parameter\n");
+		return -EINVAL;
+	}
+
+	if (delay->nvsync > 0) {
+		ret = panel_wait_nvsync(panel, delay);
+		if (ret < 0)
+			panel_warn("failed to wait vsync\n");
+	} else {
+		usec = get_remaining_delay(panel, delay, start, ktime_get());
+		if (usec == 0)
+			return 0;
+
+		if (delay->no_sleep)
+			udelay(usec);
+		else
+			usleep_range(usec, usec + 1);
+	}
+
 	return 0;
 }
 
@@ -717,7 +435,7 @@ static int panel_do_timer_begin(struct panel_device *panel,
 	struct delayinfo *info;
 
 	if (unlikely(!panel || !begin_info || !begin_info->delay)) {
-		panel_err("invalid parameter (panel %p, begin_info %p, delay %p)\n",
+		panel_err("invalid parameter (panel %pK, begin_info %pK, delay %pK)\n",
 				panel, begin_info, begin_info ? begin_info->delay : NULL);
 		return -EINVAL;
 	}
@@ -735,7 +453,7 @@ static int panel_do_timer_delay(struct panel_device *panel, struct delayinfo *in
 	s64 remained_usec;
 
 	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
+		panel_err("invalid parameter\n");
 		return -EINVAL;
 	}
 
@@ -762,89 +480,7 @@ static int panel_do_timer_delay(struct panel_device *panel, struct delayinfo *in
 	return 0;
 }
 
-static int panel_do_variable_delay(struct panel_device *panel,
-	struct variable_delayinfo *info, ktime_t s_time)
-{
-	int usec, ret;
-
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %pK, info %pK)\n", panel, info);
-		return -EINVAL;
-	}
-
-	if (!info->func_delay) {
-		panel_err("function not defined.\n");
-		return -EINVAL;
-	}
-
-	usec = info->func_delay(panel, s_time, info->mark_time);
-	if (usec < 0) {
-		panel_err("failed to get delay %d\n", usec);
-		return usec;
-	}
-
-	if (usec > 0) {
-		panel_dbg("flush cmdq, wait %d usecs\n", usec);
-		mutex_lock(&panel->cmdq.lock);
-		ret = panel_cmdq_flush(panel);
-		mutex_unlock(&panel->cmdq.lock);
-		if (ret < 0)
-			panel_err("failed to panel_cmdq_flush %d\n", ret);
-
-		usleep_range(usec, usec + 1);
-	}
-
-	return 0;
-}
-
-static int panel_do_variable_delay_mark(struct panel_device *panel, struct cmdinfo *info, ktime_t s_time)
-{
-	struct variable_delayinfo *v_delay;
-	int ret = 0;
-
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %pK, info %pK)\n", panel, info);
-		return -EINVAL;
-	}
-
-	v_delay = container_of(info, struct variable_delayinfo, mark);
-	if (v_delay->type != CMD_TYPE_VARIABLE_DELAY) {
-		panel_err("invalid variable delayinfo (vdelay %pK, mark %pK)\n", v_delay, info);
-		return -EINVAL;
-	}
-
-	if (v_delay->func_mark) {
-		ret = v_delay->func_mark(panel, s_time, &v_delay->mark_time);
-		if (ret < 0) {
-			panel_err("func_mark returned %d\n", ret);
-			return -EINVAL;
-		}
-	} else
-		v_delay->mark_time = s_time;
-
-	panel_dbg("%s marked %lld.%06lld\n", v_delay->name,
-		ktime_to_us(v_delay->mark_time) / 1000000, ktime_to_us(v_delay->mark_time) % 1000000);
-
-	return 0;
-}
-
-static int panel_do_pinctl(struct panel_device *panel, struct pininfo *info)
-{
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
-		return -EINVAL;
-	}
-
-	if (info->pin) {
-		/*
-		 * TODO : control external pin
-		 */
-		panel_dbg("set %d pin %s\n", info->pin, info->onoff ? "on" : "off");
-	}
-
-	return 0;
-}
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 int __mockable panel_spi_read_data(struct panel_device *panel, u8 cmd_id, u8 *buf, int size)
 {
 	struct panel_spi_dev *spi_dev;
@@ -917,46 +553,19 @@ int panel_cmdq_get_size(struct panel_device *panel)
 	return panel->cmdq.top + 1;
 }
 
-__visible_for_testing int panel_set_property(struct panel_device *panel, struct propinfo *info)
-{
-	int ret = 0;
-
-	if (panel == NULL || info == NULL) {
-		panel_err("got null ptr\n");
-		return -EINVAL;
-	}
-
-	switch (info->prop_type) {
-	case PANEL_OBJ_PROP_TYPE_VALUE:
-		panel_info("prop_name:%s prop_value:%u\n", info->prop_name, info->value);
-		ret = panel_obj_set_property_value(&panel->properties, info->prop_name, info->value);
-		break;
-
-	case PANEL_OBJ_PROP_TYPE_STR:
-		panel_info("prop_name:%s prop_str:%s\n", info->prop_name, info->str);
-		ret = panel_obj_set_property_str(&panel->properties, info->prop_name, info->str);
-		break;
-
-	default:
-		panel_err("property type is abnormal(%d)", info->type);
-	}
-
-	return ret;
-}
-
-__visible_for_testing int panel_get_property_value(struct panel_device *panel, char *name)
+__visible_for_testing int panel_get_property_value(struct panel_device *panel, char *propname)
 {
 	if (panel == NULL) {
 		panel_err("got null ptr\n");
 		return -EINVAL;
 	}
 
-	if (name == NULL) {
-		panel_err("name is null\n");
+	if (propname == NULL) {
+		panel_err("propname is null\n");
 		return -EINVAL;
 	}
 
-	return panel_obj_get_property_value(&panel->properties, name);
+	return panel_property_get_value(&panel->prop_list, propname);
 }
 
 DEFINE_REDIRECT_MOCKABLE(panel_cmdq_flush, RETURNS(int), PARAMS(struct panel_device *));
@@ -974,8 +583,9 @@ int REAL_ID(panel_cmdq_flush)(struct panel_device *panel)
 	if (panel_cmdq_is_empty(panel))
 		return 0;
 
-	if (panel->adapter.funcs->write_table != NULL) {
-		if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_OFF)
+	if ((panel->adapter.funcs->write_table != NULL) &&
+		(panel_get_property_value(panel, PANEL_PROPERTY_SEPARATE_TX) == SEPARATE_TX_OFF)) {
+		if (panel_get_property_value(panel, PANEL_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_OFF)
 			tx_done_wait = false;
 
 		ret = panel_dsi_write_table(panel, panel->cmdq.cmd,
@@ -984,9 +594,9 @@ int REAL_ID(panel_cmdq_flush)(struct panel_device *panel)
 			panel_err("failed to panel_dsi_write_table %d\n", ret);
 	} else if (panel->adapter.funcs->write != NULL) {
 		for (i = 0; i < panel_cmdq_get_size(panel); i++) {
-			if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_OFF)
+			if (panel_get_property_value(panel, PANEL_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_OFF)
 				tx_done_wait = false;
-			else if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_ON)
+			else if (panel_get_property_value(panel, PANEL_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_ON)
 				tx_done_wait = true;
 			else if (i == panel_cmdq_get_size(panel) - 1)
 				tx_done_wait = true;
@@ -1040,16 +650,16 @@ int panel_cmdq_push(struct panel_device *panel, u8 cmd_id, const u8 *buf, int si
 	panel->cmdq.cmd[index].buf = data_buf;
 	panel->cmdq.cmd[index].size = size;
 
-	if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_ON) {
+	panel_dbg("cmdq[%d] id:%02X cmd:%02X size:%d\n",
+			index, cmd_id, buf[0], size);
+
+	if (panel_get_property_value(panel, PANEL_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_ON) {
 		ret = panel_cmdq_flush(panel);
 		if (ret < 0) {
 			panel_err("failed to panel_cmdq_flush %d\n", ret);
 			return ret;
 		}
 	}
-
-	panel_dbg("cmdq[%d] id:%02X cmd:%02X size:%d\n", index,
-			cmd_id, panel->cmdq.cmd[index].buf[0], panel->cmdq.cmd[index].size);
 
 	return 0;
 }
@@ -1061,14 +671,14 @@ static int panel_dsi_write_cmd(struct panel_device *panel,
 	u8 gpara[4] = { 0xB0, 0x00, };
 	bool block = (option & PKT_OPTION_CHECK_TX_DONE) ? true : false;
 
-	mutex_lock(&panel->cmdq.lock);
+	panel_mutex_lock(&panel->cmdq.lock);
 	if (panel->panel_data.ddi_props.cmd_fifo_size &&
 		panel->cmdq.cmd_payload_size + ARRAY_SIZE(gpara) + size >=
 		panel->panel_data.ddi_props.cmd_fifo_size) {
 		ret = panel_cmdq_flush(panel);
 		if (ret < 0) {
 			panel_err("failed to panel_cmdq_flush %d\n", ret);
-			mutex_unlock(&panel->cmdq.lock);
+			panel_mutex_unlock(&panel->cmdq.lock);
 			return ret;
 		}
 	}
@@ -1090,7 +700,7 @@ static int panel_dsi_write_cmd(struct panel_device *panel,
 				gpara, gpara_len);
 		if (ret < 0) {
 			panel_err("failed to panel_cmdq_push %d\n", ret);
-			mutex_unlock(&panel->cmdq.lock);
+			panel_mutex_unlock(&panel->cmdq.lock);
 			return ret;
 		}
 	}
@@ -1098,7 +708,7 @@ static int panel_dsi_write_cmd(struct panel_device *panel,
 	ret = panel_cmdq_push(panel, cmd_id, buf, size);
 	if (ret < 0) {
 		panel_err("failed to panel_cmdq_push %d\n", ret);
-		mutex_unlock(&panel->cmdq.lock);
+		panel_mutex_unlock(&panel->cmdq.lock);
 		return ret;
 	}
 	panel->cmdq.cmd_payload_size += size;
@@ -1107,11 +717,11 @@ static int panel_dsi_write_cmd(struct panel_device *panel,
 		ret = panel_cmdq_flush(panel);
 		if (ret < 0) {
 			panel_err("failed to panel_cmdq_flush %d\n", ret);
-			mutex_unlock(&panel->cmdq.lock);
+			panel_mutex_unlock(&panel->cmdq.lock);
 			return ret;
 		}
 	}
-	mutex_unlock(&panel->cmdq.lock);
+	panel_mutex_unlock(&panel->cmdq.lock);
 
 	return size;
 }
@@ -1208,7 +818,7 @@ __visible_for_testing int panel_dsi_write_img(struct panel_device *panel,
 	}
 
 	do {
-		mutex_lock(&panel->cmdq.lock);
+		panel_mutex_lock(&panel->cmdq.lock);
 		cmdbuf[0] = (size == remained) ? c_start : c_next;
 
 		/* set cmd size less then (fifo - 1) */
@@ -1226,7 +836,7 @@ __visible_for_testing int panel_dsi_write_img(struct panel_device *panel,
 		ret = panel_cmdq_push(panel, MIPI_DSI_WR_GEN_CMD, cmdbuf, data_size + padding + 1);
 		if (ret < 0) {
 			panel_err("failed to panel_cmdq_push %d\n", ret);
-			mutex_unlock(&panel->cmdq.lock);
+			panel_mutex_unlock(&panel->cmdq.lock);
 			return ret;
 		}
 
@@ -1234,11 +844,11 @@ __visible_for_testing int panel_dsi_write_img(struct panel_device *panel,
 			ret = panel_cmdq_flush(panel);
 			if (ret < 0) {
 				panel_err("failed to panel_cmdq_flush %d\n", ret);
-				mutex_unlock(&panel->cmdq.lock);
+				panel_mutex_unlock(&panel->cmdq.lock);
 				return ret;
 			}
 		}
-		mutex_unlock(&panel->cmdq.lock);
+		panel_mutex_unlock(&panel->cmdq.lock);
 		len += data_size;
 		remained = (remained > data_size) ? (remained - data_size) : 0;
 		panel_dbg("tx_size %d len %d, remained %d\n", data_size, len, remained);
@@ -1256,11 +866,11 @@ static int panel_dsi_fast_write_mem(struct panel_device *panel,
 				!panel->adapter.funcs->sr_write))
 		return -EINVAL;
 
-	mutex_lock(&panel->cmdq.lock);
+	panel_mutex_lock(&panel->cmdq.lock);
 	panel_cmdq_flush(panel);
 	ret = panel_dsi_sr_write_data(panel, MIPI_DSI_WR_SRAM_CMD,
 				buf, 0, size, option);
-	mutex_unlock(&panel->cmdq.lock);
+	panel_mutex_unlock(&panel->cmdq.lock);
 
 	return size;
 }
@@ -1281,10 +891,10 @@ static int panel_dsi_read_data(struct panel_device *panel,
 					DDI_SUPPORT_2BYTE_GPARA))
 		option |= DSIM_OPTION_2BYTE_GPARA;
 
-	mutex_lock(&panel->cmdq.lock);
+	panel_mutex_lock(&panel->cmdq.lock);
 	panel_cmdq_flush(panel);
 	ret = call_panel_adapter_func(panel, read, addr, ofs, buf, size, option);
-	mutex_unlock(&panel->cmdq.lock);
+	panel_mutex_unlock(&panel->cmdq.lock);
 
 	return ret;
 }
@@ -1349,13 +959,13 @@ int panel_flush_image(struct panel_device *panel)
 	return call_panel_adapter_func(panel, flush_image);
 }
 
-#if defined(CONFIG_PANEL_FREQ_HOP)
-int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_elem *elem)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP) || defined(CONFIG_USDM_ADAPTIVE_MIPI)
+int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_param *param)
 {
-	if (!elem)
+	if (!param)
 		return -EINVAL;
 
-	return call_panel_adapter_func(panel, set_freq_hop, elem);
+	return call_panel_adapter_func(panel, set_freq_hop, param);
 }
 #endif
 
@@ -1475,37 +1085,19 @@ int panel_verify_tx_packet(struct panel_device *panel, u8 *src, u32 ofs, u8 len)
 	return ret;
 }
 
-static int panel_do_tx_packet(struct panel_device *panel, struct pktinfo *info, bool block)
+__visible_for_testing u8 dsi_tx_packet_type_to_cmd_id(u32 packet_type)
 {
-	int ret;
-	u32 type;
-	u8 addr = 0, cmd_id = MIPI_DSI_WR_UNKNOWN;
-	u32 option;
+	u8 cmd_id;
 
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
-		return -EINVAL;
-	}
-
-	if (info->pktui)
-		panel_update_packet_data(panel, info);
-
-	type = info->type;
-	panel_dbg("send packet %s - start\n", info->name);
-	switch (type) {
-	case DSI_PKT_TYPE_COMP:
+	switch (packet_type) {
+	case DSI_PKT_TYPE_WR_COMP:
 		cmd_id = MIPI_DSI_WR_DSC_CMD;
 		break;
-	case DSI_PKT_TYPE_PPS:
+	case DSI_PKT_TYPE_WR_PPS:
 		cmd_id = MIPI_DSI_WR_PPS_CMD;
 		break;
 	case DSI_PKT_TYPE_WR:
 		cmd_id = MIPI_DSI_WR_GEN_CMD;
-		addr = info->data ? info->data[0] : 0;
-		break;
-	case DSI_PKT_TYPE_WR_NO_WAKE:
-		cmd_id = MIPI_DSI_WR_CMD_NO_WAKE;
-		addr = info->data ? info->data[0] : 0;
 		break;
 	case DSI_PKT_TYPE_WR_MEM:
 		cmd_id = MIPI_DSI_WR_GRAM_CMD;
@@ -1513,143 +1105,150 @@ static int panel_do_tx_packet(struct panel_device *panel, struct pktinfo *info, 
 	case DSI_PKT_TYPE_WR_SR:
 		cmd_id = MIPI_DSI_WR_SRAM_CMD;
 		break;
-	case DSI_PKT_TYPE_SR_FAST:
+	case DSI_PKT_TYPE_WR_SR_FAST:
 		cmd_id = MIPI_DSI_WR_SR_FAST_CMD;
 		break;
-
-	case CMD_PKT_TYPE_NONE:
-	case DSI_PKT_TYPE_RD:
 	default:
 		cmd_id = MIPI_DSI_WR_UNKNOWN;
 		break;
 	}
 
+	return cmd_id;
+}
+
+__visible_for_testing int panel_do_dsi_tx_packet(struct panel_device *panel, struct pktinfo *info, bool block)
+{
+	int ret;
+	u32 type;
+	u8 cmd_id;
+	u32 option;
+	u8 *txbuf;
+
+	if (unlikely(!panel || !info))
+		return -EINVAL;
+
+	txbuf = get_pktinfo_txbuf(info);
+	if (!txbuf)
+		return -EINVAL;
+
+	if (info->pktui)
+		update_tx_packet(info);
+
+	type = get_pktinfo_type(info);
+	cmd_id = dsi_tx_packet_type_to_cmd_id(type);
+
 	if (cmd_id == MIPI_DSI_WR_UNKNOWN) {
-		panel_err("unknown type\n");
+		panel_err("%s unknown packet type(%d)\n",
+				get_pktinfo_name(info), type);
 		return -EINVAL;
 	}
 
-	panel_dbg("%s:start\n", info->name);
+	if (cmd_id == MIPI_DSI_WR_GEN_CMD) {
+		u8 addr = txbuf[0];
 
-	if (info->option & PKT_OPTION_CHECK_TX_DONE ||
-		(addr == MIPI_DCS_SOFT_RESET ||
-		 addr == MIPI_DCS_SET_DISPLAY_ON ||
-		 addr == MIPI_DCS_SET_DISPLAY_OFF ||
-		 addr == MIPI_DCS_ENTER_SLEEP_MODE ||
-		 addr == MIPI_DCS_EXIT_SLEEP_MODE ||
-		 /* poc command */
-		 addr == 0xC0 || addr == 0xC1))
-		block = true;
+		if (addr == MIPI_DCS_SOFT_RESET ||
+				addr == MIPI_DCS_SET_DISPLAY_ON ||
+				addr == MIPI_DCS_SET_DISPLAY_OFF ||
+				addr == MIPI_DCS_ENTER_SLEEP_MODE ||
+				addr == MIPI_DCS_EXIT_SLEEP_MODE ||
+				/* poc command */
+				addr == 0xC0 || addr == 0xC1)
+			block = true;
+	}
 
 	option = info->option;
 	if (block)
 		option |= PKT_OPTION_CHECK_TX_DONE;
 
-	panel_dbg("%s: ofs 0x%X option %d %d block %s\n", info->name, info->offset,
-		info->option, option, block ? "true" : "false");
+	panel_dbg("%s ofs:0x%X opt:0x%X\n",
+			get_pktinfo_name(info), info->offset, option);
 
 	if (cmd_id == MIPI_DSI_WR_GRAM_CMD || cmd_id == MIPI_DSI_WR_SRAM_CMD)
-		ret = panel_dsi_write_img(panel, cmd_id, info->data, info->offset, info->dlen, option);
+		ret = panel_dsi_write_img(panel, cmd_id, txbuf, info->offset, info->dlen, option);
 	else if (cmd_id == MIPI_DSI_WR_SR_FAST_CMD)
-		ret = panel_dsi_fast_write_mem(panel, cmd_id, info->data, info->offset, info->dlen, option);
+		ret = panel_dsi_fast_write_mem(panel, cmd_id, txbuf, info->offset, info->dlen, option);
 	else
-		ret = panel_dsi_write_cmd(panel, cmd_id, info->data, info->offset, info->dlen, option);
+		ret = panel_dsi_write_cmd(panel, cmd_id, txbuf, info->offset, info->dlen, option);
 
 	if (ret != info->dlen) {
-		panel_err("failed to send packet %s (ret %d)\n", info->name, ret);
+		panel_err("failed to send packet %s (ret %d)\n",
+				get_pktinfo_name(info), ret);
 		return -EINVAL;
 	}
-	panel_dbg("%s:end\n", info->name);
-	print_data(info->data, info->dlen);
+	usdm_dbg_bytes(txbuf, info->dlen);
 
 	return 0;
 }
 
-static inline bool panel_do_cond(struct panel_device *panel, struct condinfo *info)
+__visible_for_testing int panel_do_power_ctrl(struct panel_device *panel, struct pwrctrl *pwrctrl)
 {
-	if (panel == NULL || info == NULL) {
-		panel_err("got null ptr\n");
-		return false;
-	}
+	char *key;
 
-	if (info->cond == NULL) {
-		panel_err("cond_start %s: func is not set\n", info->name);
-		return false;
-	}
-	return info->cond(panel);
-}
-
-__visible_for_testing int panel_do_power_ctrl(struct panel_device *panel, struct pctrlinfo *info)
-{
-	if (panel == NULL || info == NULL) {
+	if (panel == NULL || pwrctrl == NULL) {
 		panel_err("got null ptr\n");
 		return -EINVAL;
 	}
 
-	if (info->type != CMD_TYPE_PCTRL) {
+	if (get_pnobj_cmd_type(&pwrctrl->base) != CMD_TYPE_PCTRL) {
 		panel_err("got invalid type\n");
 		return -EINVAL;
 	}
 
-	if (info->name == NULL) {
+	if (!get_pwrctrl_name(pwrctrl)) {
 		panel_err("got null name\n");
 		return -EINVAL;
 	}
 
-	if (info->pctrl_name == NULL) {
-		panel_err("got null power_ctrl name\n");
+	key = get_pwrctrl_key(pwrctrl);
+	if (!key) {
+		panel_err("got null power control key\n");
 		return -EINVAL;
 	}
 
-	if (!panel_power_control_exists(panel, info->pctrl_name)) {
-		panel_warn("cannot found %s in power_ctrl list\n", info->pctrl_name);
+	if (!panel_drv_power_ctrl_exists(panel, key)) {
+		panel_warn("cannot found %s in power control list\n", key);
 		return -ENODATA;
 	}
-	panel_dbg("run power_ctrl seq: %s\n", info->pctrl_name);
-	return panel_power_control_execute(panel, info->pctrl_name);
+	panel_dbg("run power_ctrl: %s\n", key);
+	return panel_drv_power_ctrl_execute(panel, key);
 }
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 int __mockable panel_spi_packet(struct panel_device *panel, struct pktinfo *info)
 {
 	struct panel_spi_dev *spi_dev;
 	int ret = 0;
 	u32 type;
 
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
+	if (!panel || !info)
 		return -EINVAL;
-	}
+
 	spi_dev = &panel->panel_spi_dev;
-
-	if (!spi_dev) {
-		panel_err("spi_dev not found\n");
-		return -EINVAL;
-	}
-
 	if (!spi_dev->ops) {
 		panel_err("spi_dev.ops not found\n");
 		return -EINVAL;
 	}
 
 	if (info->pktui)
-		panel_update_packet_data(panel, info);
+		update_tx_packet(info);
 
-	type = info->type;
+	type = get_pktinfo_type(info);
 	switch (type) {
 	case SPI_PKT_TYPE_WR:
 		if (!spi_dev->pdrv_ops->pdrv_cmd) {
 			ret = -EINVAL;
 			break;
 		}
-		ret = spi_dev->pdrv_ops->pdrv_cmd(spi_dev, info->data, info->dlen, NULL, 0);
+		ret = spi_dev->pdrv_ops->pdrv_cmd(spi_dev,
+				get_pktinfo_txbuf(info), info->dlen, NULL, 0);
 		break;
 	case SPI_PKT_TYPE_SETPARAM:
 		if (!spi_dev->pdrv_ops->pdrv_read_param) {
 			ret = -EINVAL;
 			break;
 		}
-		ret = spi_dev->pdrv_ops->pdrv_read_param(spi_dev, info->data, info->dlen);
+		ret = spi_dev->pdrv_ops->pdrv_read_param(spi_dev,
+				get_pktinfo_txbuf(info), info->dlen);
 		break;
 	default:
 		break;
@@ -1657,7 +1256,7 @@ int __mockable panel_spi_packet(struct panel_device *panel, struct pktinfo *info
 
 	if (ret < 0) {
 		panel_err("failed to send spi packet %s (ret %d type %d)\n",
-				info->name, ret, type);
+				get_pktinfo_name(info), ret, type);
 		return -EINVAL;
 	}
 	return 0;
@@ -1665,26 +1264,21 @@ int __mockable panel_spi_packet(struct panel_device *panel, struct pktinfo *info
 }
 #endif
 
-#ifdef CONFIG_MCD_PANEL_I2C
+#ifdef CONFIG_USDM_BLIC_I2C
 static int panel_do_i2c_packet(struct panel_device *panel, struct pktinfo *info)
 {
 	struct panel_i2c_dev *i2c_dev;
 	int ret = 0;
 	u32 type;
 
-	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %pK, info %pK)\n",
-				panel, info);
+	if (!panel || !info)
 		return -EINVAL;
-	}
 
 	/*
 	 * Use i2c_dev seleted before.
 	 * It is locked by panel->op_lock
 	 */
-
 	i2c_dev = panel->i2c_dev_selected;
-
 	if (!i2c_dev) {
 		panel_err("i2c_dev not found\n");
 		return -EINVAL;
@@ -1695,28 +1289,31 @@ static int panel_do_i2c_packet(struct panel_device *panel, struct pktinfo *info)
 		return -EINVAL;
 	}
 
-	type = info->type;
+	if (info->pktui)
+		update_tx_packet(info);
+
+	type = get_pktinfo_type(info);
 	switch (type) {
 	case I2C_PKT_TYPE_WR:
 		if (!i2c_dev->ops->tx) {
 			ret = -ENOTSUPP;
 			break;
 		}
-		ret = i2c_dev->ops->tx(i2c_dev, info->data, info->dlen);
+		ret = i2c_dev->ops->tx(i2c_dev, get_pktinfo_txbuf(info), info->dlen);
 		break;
 	case I2C_PKT_TYPE_RD:
 		if (!i2c_dev->ops->rx) {
 			ret = -ENOTSUPP;
 			break;
 		}
-		ret = i2c_dev->ops->rx(i2c_dev, info->data, info->dlen);
+		ret = i2c_dev->ops->rx(i2c_dev, get_pktinfo_txbuf(info), info->dlen);
 		break;
 	default:
 		break;
 	}
 
 	if (ret < 0) {
-		panel_err("failed to send i2c packet %s (ret %d type %d)\n", info->name, ret, type);
+		panel_err("failed to send i2c packet %s (ret %d type %d)\n", get_pktinfo_name(info), ret, type);
 		return -EINVAL;
 	}
 	return 0;
@@ -1730,7 +1327,7 @@ static int panel_do_setkey(struct panel_device *panel, struct keyinfo *info, boo
 	int ret = 0;
 
 	if (unlikely(!panel || !info)) {
-		panel_err("invalid parameter (panel %p, info %p)\n", panel, info);
+		panel_err("invalid parameter (panel %pK, info %pK)\n", panel, info);
 		return -EINVAL;
 	}
 
@@ -1763,9 +1360,9 @@ static int panel_do_setkey(struct panel_device *panel, struct keyinfo *info, boo
 	}
 
 	if (send_packet) {
-		ret = panel_do_tx_packet(panel, info->packet, block);
+		ret = panel_do_dsi_tx_packet(panel, info->packet, block);
 		if (ret < 0)
-			panel_err("failed to tx packet(%s)\n", info->packet->name);
+			panel_err("failed to tx packet(%s)\n", get_pktinfo_name(info->packet));
 	} else {
 		panel_warn("ignore send key %d %s packet\n",
 				info->level, info->en ? "ENABLED" : "DISABLED");
@@ -1782,18 +1379,46 @@ static int panel_do_setkey(struct panel_device *panel, struct keyinfo *info, boo
 	return 0;
 }
 
+static int panel_do_tx_packet(struct panel_device *panel, struct pktinfo *info, bool block)
+{
+	int ret;
+	u32 type;
+
+	type = get_pktinfo_type(info);
+
+	switch (type) {
+#ifdef CONFIG_USDM_POC_SPI
+	case SPI_PKT_TYPE_WR:
+	case SPI_PKT_TYPE_SETPARAM:
+		ret = panel_spi_packet(panel, info);
+		break;
+#endif
+#ifdef CONFIG_USDM_BLIC_I2C
+	case I2C_PKT_TYPE_WR:
+	case I2C_PKT_TYPE_RD:
+		ret = panel_do_i2c_packet(panel, info);
+		break;
+#endif
+	default:
+		ret = panel_do_dsi_tx_packet(panel, info, block);
+		break;
+	}
+
+	return ret;
+}
+
 int panel_do_init_maptbl(struct panel_device *panel, struct maptbl *maptbl)
 {
 	int ret;
 
 	if (unlikely(!panel || !maptbl)) {
-		panel_err("invalid parameter (panel %p, maptbl %p)\n", panel, maptbl);
+		panel_err("invalid parameter (panel %pK, maptbl %pK)\n", panel, maptbl);
 		return -EINVAL;
 	}
 
 	ret = maptbl_init(maptbl);
 	if (ret < 0) {
-		panel_err("failed to init maptbl(%s) ret %d\n", maptbl->name, ret);
+		panel_err("failed to init maptbl(%s) ret %d\n", maptbl_get_name(maptbl), ret);
 		return ret;
 	}
 
@@ -1801,7 +1426,7 @@ int panel_do_init_maptbl(struct panel_device *panel, struct maptbl *maptbl)
 }
 
 static int _panel_do_seqtbl(struct panel_device *panel,
-		struct seqinfo *seqtbl, int depth)
+		struct seqinfo *seq, int depth)
 {
 	int i, ret = 0;
 	u32 type;
@@ -1811,31 +1436,32 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 	int cond_skip_count = 0;
 	ktime_t s_time = ktime_get();
 
-	if (unlikely(!panel || !seqtbl)) {
-		panel_err("invalid parameter (panel %p, seqtbl %p)\n", panel, seqtbl);
+	if (unlikely(!panel || !seq)) {
+		panel_err("invalid parameter (panel %pK, seq %pK)\n", panel, seq);
 		return -EINVAL;
 	}
 
-	cmdtbl = seqtbl->cmdtbl;
+	cmdtbl = seq->cmdtbl;
 	if (unlikely(!cmdtbl)) {
 		panel_err("invalid command table\n");
 		return -EINVAL;
 	}
 
-	for (i = 0; i < seqtbl->size; i++) {
+	for (i = 0; i < seq->size; i++) {
 		if (cmdtbl[i] == NULL) {
 			panel_dbg("end of cmdtbl %d\n", i);
 			break;
 		}
-		type = *((u32 *)cmdtbl[i]);
+		type = get_pnobj_cmd_type((struct pnobj *)cmdtbl[i]);
 		if (type >= MAX_CMD_TYPE) {
 			panel_warn("invalid cmd type %u\n", type);
 			break;
 		}
 
-		panel_dbg("SEQ: %s %s %s+ %s\n", seqtbl->name, cmd_type_name[type],
-				(((struct cmdinfo *)cmdtbl[i])->name ?
-				((struct cmdinfo *)cmdtbl[i])->name : "none"),
+		panel_dbg("SEQ: %s %s %s+ %s\n",
+				get_sequence_name(seq),
+				cmd_type_to_string(type),
+				(get_pnobj_name((struct pnobj *)cmdtbl[i]) ?: "none"),
 				(condition ? "" : "skipped"));
 
 		if (!condition) {
@@ -1870,30 +1496,30 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 
 		if (type != CMD_TYPE_KEY &&
 			type != CMD_TYPE_SEQ &&
+			!IS_CMD_TYPE_KEY(type) &&
 			!IS_CMD_TYPE_TX_PKT(type) &&
-			!IS_CMD_TYPE_COND(type) &&
-			!IS_CMD_TYPE_VARIABLE_DELAY(type)) {
-			mutex_lock(&panel->cmdq.lock);
+			!IS_CMD_TYPE_COND(type)) {
+			panel_mutex_lock(&panel->cmdq.lock);
 			panel_cmdq_flush(panel);
-			mutex_unlock(&panel->cmdq.lock);
+			panel_mutex_unlock(&panel->cmdq.lock);
 		}
 
 		switch (type) {
 		case CMD_TYPE_KEY:
-		case CMD_TYPE_TX_PKT_START ... CMD_TYPE_TX_PKT_END:
+		case CMD_TYPE_TX_PACKET:
 			block = false;
 			/* blocking call if next cmdtype is not tx pkt */
-			if (i + 1 < seqtbl->size && cmdtbl[i + 1] &&
+			if (i + 1 < seq->size && cmdtbl[i + 1] &&
 					(*((u32 *)cmdtbl[i + 1]) != CMD_TYPE_SEQ) &&
 					!IS_CMD_TYPE_COND(*((u32 *)cmdtbl[i + 1])) &&
-					!IS_CMD_TYPE_TX_PKT(*((u32 *)cmdtbl[i + 1])) &&
-					!IS_CMD_TYPE_VARIABLE_DELAY(*((u32 *)cmdtbl[i + 1]))) {
+					!IS_CMD_TYPE_KEY(*((u32 *)cmdtbl[i + 1])) &&
+					!IS_CMD_TYPE_TX_PKT(*((u32 *)cmdtbl[i + 1]))) {
 				block = true;
 				panel_dbg("blocking call : next cmd is not tx packet\n");
 			}
 
 			/* blocking call if end of seq */
-			if (depth == 0 && (i + 1 == seqtbl->size)) {
+			if (depth == 0 && (i + 1 == seq->size)) {
 				block = true;
 				panel_dbg("blocking call : end of seq\n");
 			}
@@ -1906,29 +1532,11 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 		case CMD_TYPE_DELAY:
 			ret = panel_do_delay(panel, (struct delayinfo *)cmdtbl[i], s_time);
 			break;
-		case CMD_TYPE_DELAY_NO_SLEEP:
-			ret = panel_do_delay_no_sleep(panel, (struct delayinfo *)cmdtbl[i], s_time);
-			break;
-		case CMD_TYPE_FRAME_DELAY:
-			ret = panel_do_frame_delay(panel, (struct delayinfo *)cmdtbl[i], s_time);
-			break;
-		case CMD_TYPE_VSYNC_DELAY:
-			ret = panel_do_vsync_delay(panel, (struct delayinfo *)cmdtbl[i]);
-			break;
 		case CMD_TYPE_TIMER_DELAY_BEGIN:
 			ret = panel_do_timer_begin(panel, (struct timer_delay_begin_info *)cmdtbl[i], s_time);
 			break;
 		case CMD_TYPE_TIMER_DELAY:
 			ret = panel_do_timer_delay(panel, (struct delayinfo *)cmdtbl[i], s_time);
-			break;
-		case CMD_TYPE_VARIABLE_DELAY:
-			ret = panel_do_variable_delay(panel, (struct variable_delayinfo *)cmdtbl[i], s_time);
-			break;
-		case CMD_TYPE_VARIABLE_DELAY_MARK:
-			ret = panel_do_variable_delay_mark(panel, (struct cmdinfo *)cmdtbl[i], s_time);
-			break;
-		case CMD_TYPE_PINCTL:
-			ret = panel_do_pinctl(panel, (struct pininfo *)cmdtbl[i]);
 			break;
 		case CMD_TYPE_RES:
 			ret = panel_resource_update(panel, (struct resinfo *)cmdtbl[i]);
@@ -1942,22 +1550,9 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 		case CMD_TYPE_DMP:
 			ret = panel_dumpinfo_update(panel, (struct dumpinfo *)cmdtbl[i]);
 			break;
-#ifdef CONFIG_SUPPORT_POC_SPI
-		case SPI_PKT_TYPE_WR:
-		case SPI_PKT_TYPE_SETPARAM:
-			ret = panel_spi_packet(panel, (struct pktinfo *)cmdtbl[i]);
-			break;
-#endif
-#ifdef CONFIG_MCD_PANEL_I2C
-		case I2C_PKT_TYPE_WR:
-		case I2C_PKT_TYPE_RD:
-			ret = panel_do_i2c_packet(panel, (struct pktinfo *)cmdtbl[i]);
-			break;
-#endif
-
 		case CMD_TYPE_COND_IF:
 			/* skip cmd until next COND_END */
-			condition = panel_do_cond(panel, (struct condinfo *)cmdtbl[i]);
+			condition = panel_do_condition(panel, (struct condinfo *)cmdtbl[i]);
 			panel_dbg("condition set to: %s\n", condition ? "true" : "false");
 			break;
 		case CMD_TYPE_COND_EL:
@@ -1969,25 +1564,25 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 			panel_dbg("condition clear\n");
 			break;
 		case CMD_TYPE_PCTRL:
-			ret = panel_do_power_ctrl(panel, (struct pctrlinfo *)cmdtbl[i]);
+			ret = panel_do_power_ctrl(panel, (struct pwrctrl *)cmdtbl[i]);
 			break;
-		case CMD_TYPE_PROP:
-			mutex_lock(&panel->cmdq.lock);
+		case CMD_TYPE_CFG:
+			panel_mutex_lock(&panel->cmdq.lock);
 			panel_cmdq_flush(panel);
-			mutex_unlock(&panel->cmdq.lock);
-			ret = panel_set_property(panel, (struct propinfo *)cmdtbl[i]);
+			panel_mutex_unlock(&panel->cmdq.lock);
+			ret = panel_apply_pnobj_config(panel, (struct pnobj_config *)cmdtbl[i]);
 			break;
 		case CMD_TYPE_NONE:
 		default:
-			panel_warn("unknown pakcet type %d\n", type);
+			panel_warn("unknown command type %d\n", type);
 			break;
 		}
 
 		if (ret < 0) {
 			panel_err("failed to do(seq:%s type:%s cmd:%s)\n",
-					seqtbl->name, cmd_type_name[type],
-					(((struct cmdinfo *)cmdtbl[i])->name ?
-					 ((struct cmdinfo *)cmdtbl[i])->name : "none"));
+					get_sequence_name(seq),
+					cmd_type_to_string(type),
+					(get_pnobj_name((struct pnobj *)cmdtbl[i]) ?: "none"));
 
 			/*
 			 * CMD_TYP_DMP seq is intended for debugging only.
@@ -1999,17 +1594,18 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 
 		s_time = ktime_get();
 
-		panel_dbg("SEQ: %s %s %s- %s\n", seqtbl->name, cmd_type_name[type],
-				(((struct cmdinfo *)cmdtbl[i])->name ?
-				((struct cmdinfo *)cmdtbl[i])->name : "none"),
+		panel_dbg("SEQ: %s %s %s- %s\n",
+				get_sequence_name(seq),
+				cmd_type_to_string(type),
+				(get_pnobj_name((struct pnobj *)cmdtbl[i]) ?: "none"),
 				(condition ? "" : "skipped"));
 	}
 
 	/* flush cmdq if end of seq */
 	if (depth == 0) {
-		mutex_lock(&panel->cmdq.lock);
+		panel_mutex_lock(&panel->cmdq.lock);
 		panel_cmdq_flush(panel);
-		mutex_unlock(&panel->cmdq.lock);
+		panel_mutex_unlock(&panel->cmdq.lock);
 	}
 
 	if (!condition)
@@ -2021,26 +1617,25 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 	return 0;
 }
 
-int panel_do_seqtbl(struct panel_device *panel, struct seqinfo *seqtbl)
+int panel_do_seqtbl(struct panel_device *panel, struct seqinfo *seq)
 {
-	return _panel_do_seqtbl(panel, seqtbl, 0);
+	return _panel_do_seqtbl(panel, seq, 0);
 }
 
-int excute_seqtbl_nolock(struct panel_device *panel, struct seqinfo *seqtbl, int index)
+int execute_sequence_nolock(struct panel_device *panel, struct seqinfo *seq)
 {
 	int ret;
-	struct seqinfo *tbl;
 	struct panel_info *panel_data;
 	struct timespec64 cur_ts, last_ts, delta_ts;
 	s64 elapsed_usec;
 
-	if (panel == NULL) {
+	if (!panel) {
 		panel_err("panel is null\n");
 		return -EINVAL;
 	}
 
-	if (seqtbl == NULL) {
-		panel_err("seqtbl is null\n");
+	if (!seq) {
+		panel_err("sequence is null\n");
 		return -EINVAL;
 	}
 
@@ -2050,14 +1645,13 @@ int excute_seqtbl_nolock(struct panel_device *panel, struct seqinfo *seqtbl, int
 	}
 
 	panel_data = &panel->panel_data;
-	tbl = seqtbl;
 	ktime_get_ts64(&cur_ts);
 
 	if (panel_data->props.key[CMD_LEVEL_1] != 0 ||
 			panel_data->props.key[CMD_LEVEL_2] != 0 ||
 			panel_data->props.key[CMD_LEVEL_3] != 0) {
 		panel_warn("before seq:%s unbalanced key [1]%s(%d) [2]%s(%d) [3]%s(%d)\n",
-				tbl[index].name,
+				get_sequence_name(seq),
 				(panel_data->props.key[CMD_LEVEL_1] > 0 ? "ENABLED" : "DISABLED"),
 				panel_data->props.key[CMD_LEVEL_1],
 				(panel_data->props.key[CMD_LEVEL_2] > 0 ? "ENABLED" : "DISABLED"),
@@ -2069,10 +1663,10 @@ int excute_seqtbl_nolock(struct panel_device *panel, struct seqinfo *seqtbl, int
 		panel_data->props.key[CMD_LEVEL_3] = 0;
 	}
 
-	ret = panel_do_seqtbl(panel, &tbl[index]);
+	ret = panel_do_seqtbl(panel, seq);
 	if (unlikely(ret < 0)) {
-		panel_err("failed to excute seqtbl %s(%d)\n",
-				tbl[index].name, index);
+		panel_err("failed to execute seqtbl %s\n",
+				get_sequence_name(seq));
 		ret = -EIO;
 		goto do_exit;
 	}
@@ -2082,7 +1676,7 @@ do_exit:
 			panel_data->props.key[CMD_LEVEL_2] != 0 ||
 			panel_data->props.key[CMD_LEVEL_3] != 0) {
 		panel_warn("after seq:%s unbalanced key [1]%s(%d) [2]%s(%d) [3]%s(%d)\n",
-				tbl[index].name,
+				get_sequence_name(seq),
 				(panel_data->props.key[CMD_LEVEL_1] > 0 ? "ENABLED" : "DISABLED"),
 				panel_data->props.key[CMD_LEVEL_1],
 				(panel_data->props.key[CMD_LEVEL_2] > 0 ? "ENABLED" : "DISABLED"),
@@ -2098,236 +1692,153 @@ do_exit:
 	delta_ts = timespec64_sub(last_ts, cur_ts);
 	elapsed_usec = timespec64_to_ns(&delta_ts) / 1000;
 	panel_dbg("seq:%s done (elapsed %2lld.%03lld msec)\n",
-			tbl[index].name, elapsed_usec / 1000, elapsed_usec % 1000);
+			get_sequence_name(seq),
+			elapsed_usec / 1000, elapsed_usec % 1000);
 
 	return 0;
 }
 
-int panel_do_seqtbl_by_index_nolock(struct panel_device *panel, int index)
+int panel_do_seqtbl_by_name_nolock(struct panel_device *panel, char *seqname)
 {
-	if (panel == NULL) {
+	struct seqinfo *seq;
+
+	if (!panel) {
 		panel_err("invalid panel\n");
 		return -EINVAL;
 	}
 
-	if (panel->panel_data.seqtbl == NULL) {
-		panel_err("invalid seqtbl\n");
+	seq = find_panel_seq_by_name(panel, seqname);
+	if (!seq)
 		return -EINVAL;
-	}
 
-	if (unlikely(index < 0 || index >= MAX_PANEL_SEQ)) {
-		panel_err("invalid parameter (panel %p, index %d)\n", panel, index);
-		return -EINVAL;
-	}
-
-	return excute_seqtbl_nolock(panel, panel->panel_data.seqtbl, index);
+	return execute_sequence_nolock(panel, seq);
 }
-EXPORT_SYMBOL(panel_do_seqtbl_by_index_nolock);
+EXPORT_SYMBOL(panel_do_seqtbl_by_name_nolock);
 
-int panel_do_seqtbl_by_index(struct panel_device *panel, int index)
+int panel_do_seqtbl_by_name(struct panel_device *panel, char *seqname)
 {
 	int ret;
 
-	mutex_lock(&panel->op_lock);
-	ret = panel_do_seqtbl_by_index_nolock(panel, index);
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_lock(&panel->op_lock);
+	ret = panel_do_seqtbl_by_name_nolock(panel, seqname);
+	panel_mutex_unlock(&panel->op_lock);
 
 	return ret;
 }
-EXPORT_SYMBOL(panel_do_seqtbl_by_index);
+EXPORT_SYMBOL(panel_do_seqtbl_by_name);
 
-struct resinfo *find_panel_resource(struct panel_info *panel_data, char *name)
+struct resinfo *find_panel_resource(struct panel_device *panel, char *name)
 {
-	int i = 0;
+	struct pnobj *pnobj;
 
-	if (unlikely(!panel_data->restbl))
+	if (!panel) {
+		panel_err("invalid panel\n");
+		return NULL;
+	}
+
+	pnobj = pnobj_find_by_name(&panel->res_list, name);
+	if (!pnobj)
 		return NULL;
 
-	for (i = 0; i < panel_data->nr_restbl; i++) {
-		if (panel_data->restbl[i].name == NULL)
-			continue;
-		if (!strcmp(name, panel_data->restbl[i].name))
-			return &panel_data->restbl[i];
-	}
-	return NULL;
+	return pnobj_container_of(pnobj, struct resinfo);
 }
 EXPORT_SYMBOL(find_panel_resource);
 
-bool panel_resource_initialized(struct panel_info *panel_data, char *name)
+bool is_panel_resource_initialized(struct panel_device *panel, char *name)
 {
-	struct resinfo *res = find_panel_resource(panel_data, name);
+	struct resinfo *res = find_panel_resource(panel, name);
 
 	if (unlikely(!res)) {
 		panel_err("%s not found in resource\n", name);
 		return false;
 	}
 
-	return res->state == RES_INITIALIZED;
+	return is_resource_initialized(res);
 }
-EXPORT_SYMBOL(panel_resource_initialized);
+EXPORT_SYMBOL(is_panel_resource_initialized);
 
-int rescpy(u8 *dst, struct resinfo *res, u32 offset, u32 len)
-{
-	if (unlikely(!dst || !res)) {
-		panel_warn("invalid parameter\n");
-		return -EINVAL;
-	}
-
-	if (unlikely(offset + len > res->dlen)) {
-		panel_err("exceed range (offset %d, len %d, res->dlen %d\n",
-				offset, len, res->dlen);
-		return -EINVAL;
-	}
-
-	memcpy(dst, &res->data[offset], len);
-	return 0;
-}
-EXPORT_SYMBOL(rescpy);
-
-int rescpy_by_name(struct panel_info *panel_data, u8 *dst, char *name, u32 offset, u32 len)
+int panel_resource_clear(struct panel_device *panel, char *name)
 {
 	struct resinfo *res;
 
-	if (unlikely(!panel_data || !dst || !name)) {
-		panel_err("invalid parameter\n");
-		return -EINVAL;
-	}
-
-	res = find_panel_resource(panel_data, name);
-	if (unlikely(!res)) {
-		panel_err("%s not found in resource\n", name);
-		return -EINVAL;
-	}
-
-	if (unlikely(offset + len > res->dlen)) {
-		panel_err("exceed range (offset %d, len %d, res->dlen %d\n",
-				offset, len, res->dlen);
-		return -EINVAL;
-	}
-	memcpy(dst, &res->data[offset], len);
-	return 0;
-}
-
-int get_panel_resource_size(struct resinfo *res)
-{
-	if (unlikely(!res)) {
+	if (unlikely(!panel || !name)) {
 		panel_warn("invalid parameter\n");
 		return -EINVAL;
 	}
 
-	return res->dlen;
-}
-
-int resource_clear(struct resinfo *res)
-{
-	if (!res)
-		return -EINVAL;
-
-	res->state = RES_UNINITIALIZED;
-	return 0;
-}
-
-int resource_clear_by_name(struct panel_info *panel_data, char *name)
-{
-	struct resinfo *res;
-
-	if (unlikely(!panel_data || !name)) {
-		panel_warn("invalid parameter\n");
-		return -EINVAL;
-	}
-
-	res = find_panel_resource(panel_data, name);
+	res = find_panel_resource(panel, name);
 	if (unlikely(!res)) {
 		panel_warn("%s not found in resource\n", name);
 		return -EINVAL;
 	}
+	set_resource_state(res, RES_UNINITIALIZED);
 
-	return resource_clear(res);
+	return 0;
 }
 
-int resource_copy(u8 *dst, struct resinfo *res)
-{
-	if (unlikely(!dst || !res)) {
-		panel_warn("invalid parameter\n");
-		return -EINVAL;
-	}
-
-	if (res->state == RES_UNINITIALIZED) {
-		panel_warn("%s not initialized\n", res->name);
-		return -EINVAL;
-	}
-	return rescpy(dst, res, 0, res->dlen);
-}
-EXPORT_SYMBOL(resource_copy);
-
-int resource_copy_by_name(struct panel_info *panel_data, u8 *dst, char *name)
+int panel_resource_copy(struct panel_device *panel, u8 *dst, char *name)
 {
 	struct resinfo *res;
 
-	if (unlikely(!panel_data || !dst || !name)) {
+	if (unlikely(!panel || !dst || !name)) {
 		panel_warn("invalid parameter\n");
 		return -EINVAL;
 	}
 
-	res = find_panel_resource(panel_data, name);
+	res = find_panel_resource(panel, name);
 	if (unlikely(!res)) {
 		panel_warn("%s not found in resource\n", name);
 		return -EINVAL;
 	}
-
-	if (res->state == RES_UNINITIALIZED) {
-		panel_warn("%s not initialized\n", res->name);
-		return -EINVAL;
-	}
-	return rescpy(dst, res, 0, res->dlen);
+	return copy_resource(dst, res);
 }
-EXPORT_SYMBOL(resource_copy_by_name);
+EXPORT_SYMBOL(panel_resource_copy);
 
-int resource_copy_n_clear_by_name(struct panel_info *panel_data, u8 *dst, char *name)
+int panel_resource_copy_and_clear(struct panel_device *panel, u8 *dst, char *name)
 {
 	struct resinfo *res;
 	int ret;
 
-	if (unlikely(!panel_data || !dst || !name)) {
+	if (unlikely(!panel || !dst || !name)) {
 		panel_warn("invalid parameter\n");
 		return -EINVAL;
 	}
 
-	res = find_panel_resource(panel_data, name);
+	res = find_panel_resource(panel, name);
 	if (unlikely(!res)) {
 		panel_warn("%s not found in resource\n", name);
 		return -EINVAL;
 	}
 
-	if (res->state == RES_UNINITIALIZED) {
-		panel_warn("%s not initialized\n", res->name);
+	if (!is_resource_initialized(res)) {
+		panel_warn("%s not initialized\n", get_resource_name(res));
 		return -EINVAL;
 	}
-	ret = rescpy(dst, res, 0, res->dlen);
-	resource_clear(res);
+	ret = copy_resource_slice(dst, res, 0, res->dlen);
+	set_resource_state(res, RES_UNINITIALIZED);
 
 	return ret;
 }
-EXPORT_SYMBOL(resource_copy_n_clear_by_name);
+EXPORT_SYMBOL(panel_resource_copy_and_clear);
 
-int get_resource_size_by_name(struct panel_info *panel_data, char *name)
+int get_panel_resource_size(struct panel_device *panel, char *name)
 {
 	struct resinfo *res;
 
-	if (unlikely(!panel_data || !name)) {
+	if (unlikely(!panel || !name)) {
 		panel_warn("invalid parameter\n");
 		return -EINVAL;
 	}
 
-	res = find_panel_resource(panel_data, name);
+	res = find_panel_resource(panel, name);
 	if (unlikely(!res)) {
 		panel_warn("%s not found in resource\n", name);
 		return -EINVAL;
 	}
 
-	return get_panel_resource_size(res);
+	return get_resource_size(res);
 }
-EXPORT_SYMBOL(get_resource_size_by_name);
+EXPORT_SYMBOL(get_panel_resource_size);
 
 #define MAX_READ_BYTES  (128)
 int panel_rx_nbytes(struct panel_device *panel,
@@ -2341,12 +1852,12 @@ int panel_rx_nbytes(struct panel_device *panel,
 		return -EINVAL;
 	}
 
-	if (!IS_CMD_TYPE_RX_PKT(type)) {
+	if (!IS_RX_PKT_TYPE(type)) {
 		panel_err("invalid type %d\n", type);
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	if (type == SPI_PKT_TYPE_RD) {
 		ret = panel_spi_read_data(panel, addr, buf, len);
 		if (ret < 0)
@@ -2380,7 +1891,7 @@ int panel_rx_nbytes(struct panel_device *panel,
 				ret = panel_dsi_read_data(panel,
 						addr, pos, &buf[index], read_len);
 			}
-#ifdef CONFIG_EXYNOS_DECON_LCD_SPI
+#ifdef CONFIG_USDM_COPR_SPI
 		} else if (type == SPI_PKT_TYPE_RD) {
 			if (pos != 0) {
 				int gpara_len = 1;
@@ -2413,35 +1924,8 @@ int panel_rx_nbytes(struct panel_device *panel,
 	}
 
 	panel_dbg("addr:%2Xh, pos:%u, len:%u\n", addr, offset, len);
-	print_data(buf, len);
+	usdm_dbg_bytes(buf, len);
 	return len;
-}
-
-int panel_tx_nbytes(struct panel_device *panel,
-		u32 type, u8 *buf, u8 addr, u32 pos, u32 len)
-{
-	int ret;
-
-	if (panel == NULL) {
-		panel_err("panel is null\n");
-		return -EINVAL;
-	}
-
-	if (!IS_CMD_TYPE_TX_PKT(type)) {
-		panel_err("invalid type %d\n", type);
-		return -EINVAL;
-	}
-
-	ret = panel_dsi_write_cmd(panel, MIPI_DSI_WR_GEN_CMD, buf, pos, len, false);
-	if (ret != len) {
-		panel_err("failed to write addr:0x%02X, pos:%d, len:%u ret %d\n",
-				addr, pos, len, ret);
-		return -EINVAL;
-	}
-
-	panel_dbg("addr:%2Xh, pos:%d, len:%u\n", buf[0], pos, len);
-	print_data(buf, len);
-	return ret;
 }
 
 /*
@@ -2450,9 +1934,9 @@ int panel_tx_nbytes(struct panel_device *panel,
  * It works also for compatibility if REG_04 feature is NOT set and LCD_TFT_COMMON feature is set.
  * Other cases, read 3 bytes from 04h.
  */
-#if IS_ENABLED(CONFIG_PANEL_ID_READ_REG_DADBDC) || \
-	IS_ENABLED(CONFIG_PANEL_ID_READ_REG_ADAEAF) || \
-	(!IS_ENABLED(CONFIG_PANEL_ID_READ_REG_04) && IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON))
+#if IS_ENABLED(CONFIG_USDM_PANEL_ID_READ_REG_DADBDC) || \
+	IS_ENABLED(CONFIG_USDM_PANEL_ID_READ_REG_ADAEAF) || \
+	(!IS_ENABLED(CONFIG_USDM_PANEL_ID_READ_REG_04) && IS_ENABLED(CONFIG_USDM_PANEL_TFT_COMMON))
 int read_panel_id(struct panel_device *panel, u8 *buf)
 {
 	int len, ret = 0;
@@ -2467,7 +1951,7 @@ int read_panel_id(struct panel_device *panel, u8 *buf)
 		return -ENODEV;
 
 	panel_info("id read from 0x%02X\n", PANEL_ID_REG);
-	mutex_lock(&panel->op_lock);
+	panel_mutex_lock(&panel->op_lock);
 	for (i = 0; i < PANEL_ID_LEN; i++) {
 		len = panel_rx_nbytes(panel, DSI_PKT_TYPE_RD, buf + i, PANEL_ID_REG + i, 0, 1);
 		if (len < 0) {
@@ -2478,7 +1962,7 @@ int read_panel_id(struct panel_device *panel, u8 *buf)
 	}
 
 read_err:
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 	return ret;
 }
 #else
@@ -2495,7 +1979,7 @@ int read_panel_id(struct panel_device *panel, u8 *buf)
 		return -ENODEV;
 
 	panel_info("id read from 0x%02X 3bytes\n", PANEL_ID_REG);
-	mutex_lock(&panel->op_lock);
+	panel_mutex_lock(&panel->op_lock);
 	panel_set_key(panel, 3, true);
 	len = panel_rx_nbytes(panel, DSI_PKT_TYPE_RD, buf, PANEL_ID_REG, 0, 3);
 	if (len != 3) {
@@ -2506,18 +1990,24 @@ int read_panel_id(struct panel_device *panel, u8 *buf)
 
 read_err:
 	panel_set_key(panel, 3, false);
-	mutex_unlock(&panel->op_lock);
+	panel_mutex_unlock(&panel->op_lock);
 	return ret;
 }
 #endif
 
-static struct rdinfo *find_panel_rdinfo(struct panel_info *panel_data, char *name)
+__visible_for_testing struct rdinfo *find_panel_rdinfo(struct panel_device *panel, char *name)
 {
-	int i;
+	struct pnobj *pnobj;
 
-	for (i = 0; i < panel_data->nr_rditbl; i++)
-		if (!strcmp(name, panel_data->rditbl[i].name))
-			return &panel_data->rditbl[i];
+	if (!panel) {
+		panel_err("invalid panel\n");
+		return NULL;
+	}
+
+	list_for_each_entry(pnobj, &panel->rdi_list, list) {
+		if (!strcmp(get_pnobj_name(pnobj), name))
+			return pnobj_container_of(pnobj, struct rdinfo);
+	}
 
 	return NULL;
 }
@@ -2536,13 +2026,13 @@ int panel_rdinfo_update(struct panel_device *panel, struct rdinfo *rdi)
 	if (!rdi->data)
 		return -ENOMEM;
 
-#ifdef CONFIG_SUPPORT_DDI_FLASH
-	if (rdi->type == DSI_PKT_TYPE_RD_POC)
+#ifdef CONFIG_USDM_PANEL_DDI_FLASH
+	if (get_rdinfo_type(rdi) == DSI_PKT_TYPE_RD_POC)
 		ret = copy_poc_partition(&panel->poc_dev, rdi->data, rdi->addr, rdi->offset, rdi->len);
 	else
-		ret = panel_rx_nbytes(panel, rdi->type, rdi->data, rdi->addr, rdi->offset, rdi->len);
+		ret = panel_rx_nbytes(panel, get_rdinfo_type(rdi), rdi->data, rdi->addr, rdi->offset, rdi->len);
 #else
-	ret = panel_rx_nbytes(panel, rdi->type, rdi->data, rdi->addr, rdi->offset, rdi->len);
+	ret = panel_rx_nbytes(panel, get_rdinfo_type(rdi), rdi->data, rdi->addr, rdi->offset, rdi->len);
 #endif
 	if (unlikely(ret != rdi->len)) {
 		panel_err("read failed\n");
@@ -2556,15 +2046,13 @@ int panel_rdinfo_update_by_name(struct panel_device *panel, char *name)
 {
 	int ret;
 	struct rdinfo *rdi;
-	struct panel_info *panel_data;
 
 	if (unlikely(!panel || !name)) {
 		panel_err("invalid parameter\n");
 		return -EINVAL;
 	}
-	panel_data = &panel->panel_data;
 
-	rdi = find_panel_rdinfo(panel_data, name);
+	rdi = find_panel_rdinfo(panel, name);
 	if (unlikely(!rdi)) {
 		panel_err("read info %s not found\n", name);
 		return -ENODEV;
@@ -2577,33 +2065,6 @@ int panel_rdinfo_update_by_name(struct panel_device *panel, char *name)
 	}
 
 	return 0;
-}
-
-void print_panel_resource(struct panel_device *panel)
-{
-	struct panel_info *panel_data;
-	int i;
-
-	if (panel == NULL) {
-		panel_err("panel is null\n");
-		return;
-	}
-
-	panel_data = &panel->panel_data;
-	if (unlikely(!panel_data)) {
-		panel_err("panel_data is null\n");
-		return;
-	}
-
-	for (i = 0; i < panel_data->nr_restbl; i++) {
-		panel_info("[panel_resource : %12s %3d bytes] %s\n",
-				panel_data->restbl[i].name, panel_data->restbl[i].dlen,
-				(panel_data->restbl[i].state == RES_UNINITIALIZED ?
-				 "UNINITIALIZED" : "INITIALIZED"));
-		if (panel_data->restbl[i].state == RES_INITIALIZED)
-			print_data(panel_data->restbl[i].data,
-					panel_data->restbl[i].dlen);
-	}
 }
 
 int panel_resource_update(struct panel_device *panel, struct resinfo *res)
@@ -2633,14 +2094,14 @@ int panel_resource_update(struct panel_device *panel, struct resinfo *res)
 			return -EINVAL;
 		}
 		memcpy(res->data + res->resui[i].offset, rdi->data, rdi->len);
-		res->state = RES_INITIALIZED;
+		set_resource_state(res, RES_INITIALIZED);
 	}
 
 	panel_dbg("[panel_resource : %12s %3d bytes] %s\n",
-			res->name, res->dlen, (res->state == RES_UNINITIALIZED ?
-				"UNINITIALIZED" : "INITIALIZED"));
-	if (res->state == RES_INITIALIZED)
-		print_data(res->data, res->dlen);
+			get_resource_name(res), res->dlen,
+			is_resource_initialized(res) ? "INITIALIZED" : "UNINITIALIZED");
+	if (is_resource_initialized(res))
+		usdm_dbg_bytes(res->data, res->dlen);
 
 	return 0;
 }
@@ -2649,15 +2110,13 @@ int __mockable panel_resource_update_by_name(struct panel_device *panel, char *n
 {
 	int ret;
 	struct resinfo *res;
-	struct panel_info *panel_data;
 
 	if (unlikely(!panel || !name)) {
 		panel_err("invalid parameter\n");
 		return -EINVAL;
 	}
-	panel_data = &panel->panel_data;
 
-	res = find_panel_resource(panel_data, name);
+	res = find_panel_resource(panel, name);
 	if (unlikely(!res)) {
 		panel_warn("%s not found in resource\n", name);
 		return -EINVAL;
@@ -2677,35 +2136,24 @@ int panel_dumpinfo_update(struct panel_device *panel, struct dumpinfo *info)
 {
 	int ret;
 
-	if (unlikely(!panel || !info || !info->res || !info->callback)) {
+	if (unlikely(!panel || !info || !info->res)) {
 		panel_err("invalid parameter\n");
 		return -EINVAL;
 	}
 
 	ret = panel_resource_update(panel, info->res);
 	if (unlikely(ret < 0)) {
-		panel_err("dump:%s failed to update resource\n", info->name);
+		panel_err("dump:%s failed to update resource\n", get_dump_name(info));
 		return ret;
 	}
 
-	ret = info->callback(info);
+	ret = call_dump_func(info);
 	if (unlikely(ret < 0)) {
-		panel_err("dump:%s failed to callback\n", info->name);
+		panel_err("dump:%s failed to show\n", get_dump_name(info));
 		return ret;
 	}
 
 	return 0;
-}
-
-u16 calc_checksum_16bit(u8 *arr, int size)
-{
-	u16 chksum = 0;
-	int i;
-
-	for (i = 0; i < size; i++)
-		chksum += arr[i];
-
-	return chksum;
 }
 
 int check_panel_active(struct panel_device *panel, const char *caller)
@@ -2742,57 +2190,4 @@ int check_panel_active(struct panel_device *panel, const char *caller)
 #endif
 
 	return 1;
-}
-
-int find_sysfs_arg_by_name(struct sysfs_arg *arglist, int nr_arglist, char *s)
-{
-	int i;
-	const char *name;
-
-	if (arglist == NULL || s == NULL)
-		return -EINVAL;
-
-	for (i = 0; i < nr_arglist; i++) {
-		name = arglist[i].name;
-		if (name == NULL)
-			continue;
-
-		if (!strncmp(name, s, strlen(name)))
-			return i;
-	}
-
-	return -EINVAL;
-}
-
-int parse_sysfs_arg(int nargs, enum sysfs_arg_type type,
-		char *s, struct sysfs_arg_out *out)
-{
-	int i, rc, parse;
-	char *p = s;
-
-	if (s == NULL || out == NULL ||
-		nargs > MAX_SYSFS_ARG_NUM ||
-		type >= MAX_SYSFS_ARG_TYPE)
-		return -EINVAL;
-
-	if (type == SYSFS_ARG_TYPE_NONE)
-		return 0;
-
-	for (i = 0; i < nargs; i++) {
-		if (type == SYSFS_ARG_TYPE_S32)
-			rc = sscanf(p, "%d%n", &out->d[i].val_s32, &parse);
-		else if (type == SYSFS_ARG_TYPE_U32)
-			rc = sscanf(p, "%u%n", &out->d[i].val_u32, &parse);
-		else if (type == SYSFS_ARG_TYPE_STR)
-			rc = sscanf(p, "%31s%n", out->d[i].val_str, &parse);
-		if (rc != 1) {
-			panel_err("invalid arg(%s), nargs(%d), type(%d), rc(%d)\n",
-					s, nargs, type, rc);
-			return -EINVAL;
-		}
-		p += parse;
-	}
-	out->nargs = nargs;
-
-	return (int)(p - s);
 }

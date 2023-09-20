@@ -3510,6 +3510,7 @@ static void is_ischain_update_otf_data(struct is_device_ischain *device,
 	struct is_device_sensor *sensor = device->sensor;
 	enum aa_capture_intent captureIntent;
 	unsigned long flags;
+	struct is_vb2_buf *vbuf;
 
 	spin_lock_irqsave(&group->slock_s_ctrl, flags);
 
@@ -3566,6 +3567,12 @@ static void is_ischain_update_otf_data(struct is_device_ischain *device,
 			sizeof(struct camera2_fd_uctl));
 
 	is_ischain_update_shot(device, frame);
+
+	if (!IS_ENABLED(ICPU_IO_COHERENCY)) {
+		vbuf = frame->vbuf;
+		if (vbuf)
+			vbuf->ops->plane_sync_for_device(vbuf);
+	}
 }
 
 #if defined(USE_OFFLINE_PROCESSING)

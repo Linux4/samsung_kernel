@@ -374,6 +374,8 @@ struct nvt_ts_data {
 	struct completion secure_interrupt;
 	struct mutex secure_lock;
 #endif
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 };
 
 #if NVT_TOUCH_PROC

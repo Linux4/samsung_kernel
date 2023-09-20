@@ -35,6 +35,8 @@ struct pablo_sensor_adt_ops {
 	int (*open)(struct pablo_sensor_adt *adt, u32 instance,
 		    struct is_sensor_interface *sensor_itf);
 	int (*close)(struct pablo_sensor_adt *sensor_adt);
+	int (*start)(struct pablo_sensor_adt *sensor_adt);
+	int (*stop)(struct pablo_sensor_adt *sensor_adt);
 	int (*update_actuator_info)(struct pablo_sensor_adt *adt, bool block);
 	int (*get_sensor_info)(struct pablo_sensor_adt *adt, struct pablo_crta_sensor_info *prsi);
 	int (*control_sensor)(struct pablo_sensor_adt *adt, struct pablo_sensor_control_info *psci,

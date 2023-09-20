@@ -16,6 +16,9 @@
 
 #define PANEL_DISPLAY_MODE_NAME_LEN	(64)
 
+/* The PPS is encapsulated in 128 bytes (PPS0 through PPS127). */
+#define MAX_PANEL_DISPLAY_DSC_PICTURE_PARAMETER_SET (128)
+
 /**
  * @REFRESH_MODE_NS: normal speed refresh mode
  * @REFRESH_MODE_HS: high speed refresh mode
@@ -73,6 +76,7 @@ struct panel_display_mode {
 	unsigned int dsc_slice_num;
 	unsigned int dsc_slice_w;
 	unsigned int dsc_slice_h;
+	u8 dsc_picture_parameter_set[MAX_PANEL_DISPLAY_DSC_PICTURE_PARAMETER_SET];
 	/* video mode parameters */
 	bool panel_video_mode;
 	unsigned int panel_hporch[MAX_PANEL_H_PORCH];

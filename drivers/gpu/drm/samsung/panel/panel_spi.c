@@ -840,7 +840,7 @@ static int panel_spi_fops_open(struct inode *inode, struct file *file)
 	if (!SPI_IS_READY(spi_dev))
 		return -ENODEV;
 
-	mutex_lock(&spi_dev->f_lock);
+	panel_mutex_lock(&spi_dev->f_lock);
 
 	panel_info("was called\n");
 
@@ -848,20 +848,20 @@ static int panel_spi_fops_open(struct inode *inode, struct file *file)
 /*
  *	if (spi_dev->fopened) {
  *		panel_err("Already in use");
- *		mutex_unlock(&spi_dev->f_lock);
+ *		panel_mutex_unlock(&spi_dev->f_lock);
  *		return -EBUSY;
  *	}
  */
 	ret = panel_spi_flash_init(spi_dev);
 	if (ret) {
 		panel_err("error occurred. init at read-only mode.");
-//		mutex_unlock(&spi_dev->f_lock);
+//		panel_mutex_unlock(&spi_dev->f_lock);
 //		return -EBUSY;
 	}
 
 	spi_dev->fopened = true;
 
-	mutex_unlock(&spi_dev->f_lock);
+	panel_mutex_unlock(&spi_dev->f_lock);
 
 	return ret;
 }
@@ -874,12 +874,12 @@ static int panel_spi_fops_release(struct inode *inode, struct file *file)
 		return -ENODEV;
 
 	panel_info("was called\n");
-	mutex_lock(&spi_dev->f_lock);
+	panel_mutex_lock(&spi_dev->f_lock);
 
 	panel_spi_flash_exit(spi_dev);
 
 	spi_dev->fopened = false;
-	mutex_unlock(&spi_dev->f_lock);
+	panel_mutex_unlock(&spi_dev->f_lock);
 
 	return 0;
 }
@@ -910,11 +910,11 @@ static ssize_t panel_spi_fops_read(struct file *file, char __user *buf, size_t l
 		return -EINVAL;
 	}
 
-	mutex_lock(&spi_dev->f_lock);
+	panel_mutex_lock(&spi_dev->f_lock);
 	read_buf = (u8 *)devm_kzalloc(panel->dev,  count * sizeof(u8), GFP_KERNEL);
 	if (!read_buf) {
 		panel_err("invalid alloc mem\n");
-		mutex_unlock(&spi_dev->f_lock);
+		panel_mutex_unlock(&spi_dev->f_lock);
 		return -EINVAL;
 	}
 
@@ -934,7 +934,7 @@ static ssize_t panel_spi_fops_read(struct file *file, char __user *buf, size_t l
 		ret = panel_spi_flash_read(spi_dev, &spi_data_buf);
 		if (ret < 0) {
 			panel_err("failed to read 0x%06x %lu\n", read_addr, read_size);
-			mutex_unlock(&spi_dev->f_lock);
+			panel_mutex_unlock(&spi_dev->f_lock);
 			return -EIO;
 		}
 
@@ -947,11 +947,11 @@ static ssize_t panel_spi_fops_read(struct file *file, char __user *buf, size_t l
 	res = simple_read_from_buffer(buf, count, &empty_pos, read_buf, count);
 	if (res < 0) {
 		panel_err("copy failed\n");
-		mutex_unlock(&spi_dev->f_lock);
+		panel_mutex_unlock(&spi_dev->f_lock);
 		return res;
 	}
 	*ppos = *ppos + count;
-	mutex_unlock(&spi_dev->f_lock);
+	panel_mutex_unlock(&spi_dev->f_lock);
 	return count;
 }
 
@@ -980,18 +980,18 @@ static ssize_t panel_spi_fops_write(struct file *file, const char __user *buf, s
 		return -EINVAL;
 	}
 
-	mutex_lock(&spi_dev->f_lock);
+	panel_mutex_lock(&spi_dev->f_lock);
 	write_buf = (u8 *)devm_kzalloc(panel->dev,  count * sizeof(u8), GFP_KERNEL);
 	if (!write_buf) {
 		panel_err("invalid alloc mem\n");
-		mutex_unlock(&spi_dev->f_lock);
+		panel_mutex_unlock(&spi_dev->f_lock);
 		return -EINVAL;
 	}
 
 	res = simple_write_to_buffer(write_buf, count, &empty_pos, buf, count);
 	if (res < 0) {
 		panel_err("copy failed\n");
-		mutex_unlock(&spi_dev->f_lock);
+		panel_mutex_unlock(&spi_dev->f_lock);
 		return res;
 	}
 
@@ -999,7 +999,7 @@ static ssize_t panel_spi_fops_write(struct file *file, const char __user *buf, s
 		write_addr = *ppos + write_done;
 		if (write_addr % SZ_256 != 0) {
 			panel_err("byte align error 0x%06X\n", write_addr);
-			mutex_unlock(&spi_dev->f_lock);
+			panel_mutex_unlock(&spi_dev->f_lock);
 			return -EINVAL;
 		}
 
@@ -1024,7 +1024,7 @@ static ssize_t panel_spi_fops_write(struct file *file, const char __user *buf, s
 
 	*ppos += write_done;
 
-	mutex_unlock(&spi_dev->f_lock);
+	panel_mutex_unlock(&spi_dev->f_lock);
 	return count;
 }
 
@@ -1088,7 +1088,7 @@ static long panel_spi_fops_ioctl(struct file *file, unsigned int cmd, unsigned l
 	if (!SPI_IS_READY(spi_dev))
 		return -ENODEV;
 
-	mutex_lock(&spi_dev->f_lock);
+	panel_mutex_lock(&spi_dev->f_lock);
 
 	switch (cmd) {
 	case IOCTL_AUTO_ERASE_ENABLE:
@@ -1122,7 +1122,7 @@ static long panel_spi_fops_ioctl(struct file *file, unsigned int cmd, unsigned l
 		break;
 	}
 
-	mutex_unlock(&spi_dev->f_lock);
+	panel_mutex_unlock(&spi_dev->f_lock);
 	return ret;
 }
 
@@ -1213,7 +1213,7 @@ int panel_spi_drv_probe(struct panel_device *panel, struct spi_data **spi_data_t
 		spi_dev->dev.fops = &panel_spi_drv_fops;
 		spi_dev->dev.name = DRIVER_NAME;
 		spi_dev->auto_erase = false;
-		mutex_init(&spi_dev->f_lock);
+		panel_mutex_init(panel, &spi_dev->f_lock);
 		ret = misc_register(&spi_dev->dev);
 		if (ret) {
 			panel_err("failed to register for spi_dev\n");

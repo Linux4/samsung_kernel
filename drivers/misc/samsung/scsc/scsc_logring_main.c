@@ -463,6 +463,7 @@ static inline int _scsc_printk(int level, int tag,
 
 static struct memlog_obj *memlog_print_obj;
 static struct memlog_obj *memlog_pm_obj;
+static DEFINE_MUTEX(memlog_lock);
 extern const char *tagstr[MAX_TAG + 1];
 
 static inline bool memlog_get_obj_pm(void)
@@ -473,21 +474,23 @@ static inline bool memlog_get_obj_pm(void)
 	if (!preemptible() || in_interrupt() || rcu_preempt_depth() > 0)
 		return false;
 
-	memlog_desc = memlog_get_desc("WB_LOG");
-	if (!memlog_desc)
-		return false;
-
-	memlog_pm_obj = memlog_get_obj_by_name(memlog_desc, "ker_mem2");
 	if (!memlog_pm_obj) {
-		file_obj = memlog_get_obj_by_name(memlog_desc, "ker_fil2");
-		if (!file_obj)
-			file_obj = memlog_alloc_file(memlog_desc, "ker_fil2", SZ_256K, SZ_256K, 1000, 1);
-
-		if (file_obj)
-			memlog_pm_obj = memlog_alloc_printf(memlog_desc, SZ_128K, file_obj, "ker_mem2", false);
-
-		if (!memlog_pm_obj)
+		memlog_desc = memlog_get_desc("WB_LOG");
+		if (!memlog_desc)
 			return false;
+
+		memlog_pm_obj = memlog_get_obj_by_name(memlog_desc, "ker_mem2");
+		if (!memlog_pm_obj) {
+			file_obj = memlog_get_obj_by_name(memlog_desc, "ker_fil2");
+			if (!file_obj)
+				file_obj = memlog_alloc_file(memlog_desc, "ker_fil2", SZ_256K, SZ_256K, 1000, 1);
+
+			if (file_obj)
+				memlog_pm_obj = memlog_alloc_printf(memlog_desc, SZ_128K, file_obj, "ker_mem2", false);
+
+			if (!memlog_pm_obj)
+				return false;
+		}
 	}
 
 	return true;
@@ -501,27 +504,39 @@ static inline bool memlog_get_obj(void)
 	if (!preemptible() || in_interrupt() || rcu_preempt_depth() > 0)
 		return false;
 
-	memlog_desc = memlog_get_desc("WB_LOG");
-	if (!memlog_desc)
+	if (!mutex_trylock(&memlog_lock))
 		return false;
 
-	memlog_print_obj = memlog_get_obj_by_name(memlog_desc, "ker_mem");
 	if (!memlog_print_obj) {
-		file_obj = memlog_get_obj_by_name(memlog_desc, "ker_fil");
-		if (!file_obj)
-			file_obj = memlog_alloc_file(memlog_desc, "ker_fil", SZ_1M, SZ_1M, 1000, 1);
-
-		if (file_obj)
-			memlog_print_obj = memlog_alloc_printf(memlog_desc, SZ_512K, file_obj, "ker_mem", false);
-
-		if (!memlog_print_obj)
+		memlog_desc = memlog_get_desc("WB_LOG");
+		if (!memlog_desc) {
+			mutex_unlock(&memlog_lock);
 			return false;
+		}
+
+		memlog_print_obj = memlog_get_obj_by_name(memlog_desc, "ker_mem");
+		if (!memlog_print_obj) {
+			file_obj = memlog_get_obj_by_name(memlog_desc, "ker_fil");
+			if (!file_obj)
+				file_obj = memlog_alloc_file(memlog_desc, "ker_fil", SZ_1M, SZ_1M, 1000, 1);
+
+			if (file_obj)
+				memlog_print_obj = memlog_alloc_printf(memlog_desc, SZ_512K, file_obj, "ker_mem",
+								       false);
+
+			if (!memlog_print_obj) {
+				mutex_unlock(&memlog_lock);
+				return false;
+			}
+		}
 	}
 
 	/* Invoke in advance to avoid call memlog_get_obj_pm() when resume.
 	 * memlog seems to have a bug for file alloc early in resume.
 	 */
 	memlog_get_obj_pm();
+
+	mutex_unlock(&memlog_lock);
 
 	return true;
 }
@@ -553,8 +568,9 @@ void memlog_out_string_print(int level, int tag, const char *fmt,
 	u8 core;
 	char *msg_head = NULL;
 
-	if (memlog_print_obj == NULL && !memlog_get_obj())
-		return;
+	if ((memlog_print_obj == NULL) || (memlog_pm_obj == NULL))
+		if  (!memlog_get_obj())
+			return;
 
 	if (!IS_MEMLOG_ALLOWED(force, level, memlog_print_obj->log_level))
 		return;
@@ -619,8 +635,9 @@ void memlog_out_bin_print(int level, int tag, const void *start,
 	u8 ctx;
 	u8 core;
 
-	if (memlog_print_obj == NULL && !memlog_get_obj())
-		return;
+	if ((memlog_print_obj == NULL) || (memlog_pm_obj == NULL))
+		if  (!memlog_get_obj())
+			return;
 
 	if (!IS_MEMLOG_ALLOWED(force, level, memlog_print_obj->log_level))
 		return;

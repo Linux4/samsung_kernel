@@ -36,7 +36,7 @@ struct exynos_drm_connector_properties {
 	struct drm_property *adjusted_fps;
 	struct drm_property *lp_mode;
 	struct drm_property *hdr_sink_connected;
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	struct drm_property *fingerprint_mask;
 #endif
 };
@@ -94,7 +94,7 @@ struct exynos_drm_connector_state {
 	 *  on & off during the recovery
 	 */
 	bool requested_panel_recovery;
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	/* @fingerprint_mask: boolead, if true it means fingerprint is on */
 	bool fingerprint_mask;
 #endif

@@ -4069,6 +4069,70 @@ int set_sensor_info_mfhdr_mode_change(struct is_sensor_interface *itf,
 	return 0;
 }
 
+int get_sensor_min_frame_duration(struct is_sensor_interface *itf,
+			u32 *min_frame_duration)
+{
+	int ret = 0;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+
+	FIMC_BUG(!itf);
+	FIMC_BUG(!min_frame_duration);
+
+	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
+	FIMC_BUG(!sensor_peri);
+	FIMC_BUG(!sensor_peri->cis.cis_data);
+
+	*min_frame_duration = sensor_peri->cis.cis_data->min_sync_frame_us_time;
+
+	return ret;
+}
+
+int get_sensor_seamless_mode_info(struct is_sensor_interface *itf,
+			struct is_sensor_mode_info *seamless_mode_info, u32 *seamless_mode_cnt)
+{
+	struct is_device_sensor_peri *sensor_peri;
+	cis_shared_data *cis_data;
+	int ret = 0;
+	int i;
+
+	if (!itf) {
+		err("invalid sensor interface");
+		return -EINVAL;
+	}
+
+	FIMC_BUG(itf->magic != SENSOR_INTERFACE_MAGIC);
+
+	sensor_peri = container_of(itf, struct is_device_sensor_peri,
+			sensor_interface);
+
+	cis_data = sensor_peri->cis.cis_data;
+	FIMC_BUG(!cis_data);
+
+	dbg_actuator("%s", __func__);
+
+	*seamless_mode_cnt = cis_data->seamless_mode_cnt;
+
+	if (cis_data->seamless_mode_cnt > 0) {
+		for (i = 0; i < cis_data->seamless_mode_cnt; i++) {
+			seamless_mode_info[i].mode = cis_data->seamless_mode_info[i].mode;
+			seamless_mode_info[i].min_expo = cis_data->seamless_mode_info[i].min_expo;
+			seamless_mode_info[i].max_expo = cis_data->seamless_mode_info[i].max_expo;
+			seamless_mode_info[i].min_again = cis_data->seamless_mode_info[i].min_again;
+			seamless_mode_info[i].max_again = cis_data->seamless_mode_info[i].max_again;
+			seamless_mode_info[i].min_dgain = cis_data->seamless_mode_info[i].min_dgain;
+			seamless_mode_info[i].max_dgain = cis_data->seamless_mode_info[i].max_dgain;
+			seamless_mode_info[i].vvalid_time = cis_data->seamless_mode_info[i].vvalid_time;
+			seamless_mode_info[i].vblank_time = cis_data->seamless_mode_info[i].vblank_time;
+			seamless_mode_info[i].max_fps = cis_data->seamless_mode_info[i].max_fps;
+		}
+	}
+
+	if (ret)
+		err("err!!! ret(%d), seamless_mode_info(%d)", ret, seamless_mode_info);
+
+	return ret;
+}
+
 int get_delayed_preflash_time(struct is_sensor_interface *itf, u32 *delayedTime)
 {
 	// Need to change
@@ -4310,7 +4374,8 @@ int init_sensor_interface(struct is_sensor_interface *itf)
 	itf->cis_ext2_itf_ops.set_lte_multi_capture_mode = set_lte_multi_capture_mode;
 	itf->cis_ext2_itf_ops.get_delayed_preflash_time = get_delayed_preflash_time;
 	itf->cis_ext2_itf_ops.set_remosaic_zoom_ratio = set_remosaic_zoom_ratio;
-
+	itf->cis_ext2_itf_ops.get_sensor_min_frame_duration = get_sensor_min_frame_duration;
+	itf->cis_ext2_itf_ops.get_sensor_seamless_mode_info = get_sensor_seamless_mode_info;
 	/*
 	 * For ZEBU environment, some CIS APIs could not be run
 	 * because there is no actual CIS module.

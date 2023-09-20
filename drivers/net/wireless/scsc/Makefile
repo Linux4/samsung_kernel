@@ -212,9 +212,6 @@ ifneq ($(ANDROID_PLATFORM_VERSION),)
     ifeq ($(CONFIG_SCSC_WLAN_ENHANCED_PKT_FILTER),y)
     $(error Invalid config CONFIG_SCSC_WLAN_ENHANCED_PKT_FILTER)
     endif
-    ifeq ($(CONFIG_SCSC_WLAN_NUM_ANTENNAS),y)
-    $(error Invalid config CONFIG_SCSC_WLAN_NUM_ANTENNAS)
-    endif
     ifeq ($(CONFIG_SCSC_ENHANCED_PACKET_STATS),y)
     $(error Invalid config CONFIG_SCSC_ENHANCED_PACKET_STATS)
     endif

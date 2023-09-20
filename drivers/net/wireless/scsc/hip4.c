@@ -2857,6 +2857,7 @@ int slsi_hip_transmit_frame(struct slsi_hip *hip, struct sk_buff *skb, bool ctrl
 	struct slsi_dev           *sdev = container_of(hip, struct slsi_dev, hip);
 	struct fapi_signal_header *fapi_header;
 	int                       ret = 0;
+	struct netdev_vif         *ndev_vif;
 
 	if (!hip || !sdev || !sdev->service || !skb || !hip->hip_priv)
 		return -EINVAL;
@@ -2883,12 +2884,19 @@ int slsi_hip_transmit_frame(struct slsi_hip *hip, struct sk_buff *skb, bool ctrl
 	service = sdev->service;
 	fapi_header = (struct fapi_signal_header *)skb->data;
 
-	if (fapi_is_ma(skb))
+	if (fapi_is_ma(skb)) {
+		u8 vif_index_colour = vif_index;
+
+		if (skb->dev) {
+			ndev_vif = netdev_priv(skb->dev);
+			vif_index_colour = ndev_vif->ifnum;
+		}
 #ifndef CONFIG_SCSC_WLAN_TX_API
-		SLSI_MBULK_COLOUR_SET(colour, vif_index, peer_index, priority);
+		SLSI_MBULK_COLOUR_SET(colour, vif_index_colour, peer_index, priority);
 #else
-		SLSI_MBULK_COLOUR_SET(colour, vif_index, priority);
+		SLSI_MBULK_COLOUR_SET(colour, vif_index_colour, priority);
 #endif
+	}
 	m = hip4_skb_to_mbulk(hip->hip_priv, skb, ctrl_packet, colour);
 	if (!m) {
 		SCSC_HIP4_SAMPLER_MFULL(hip->hip_priv->minor);

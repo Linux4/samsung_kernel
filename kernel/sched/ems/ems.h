@@ -83,6 +83,8 @@ enum task_cgroup {
 #define TASK_AVD1_53(task)		(task->android_vendor_data1[53])
 #define TASK_AVD1_54(task)		(task->android_vendor_data1[54])
 #define TASK_AVD1_55(task)		(task->android_vendor_data1[55])
+#define TASK_AVD1_56(task)		(task->android_vendor_data1[56])
+#define TASK_AVD1_57(task)		(task->android_vendor_data1[57])
 
 /* support flag-handling for EMS */
 #define EMS_PF_GET(task)		TASK_AVD1_2(task)
@@ -106,6 +108,7 @@ enum task_cgroup {
 #define ems_tex_chances(task)		(TASK_AVD1_52(task))
 #define ems_boosted_tex(task)		(TASK_AVD1_53(task))
 #define ems_binder_task(task)		(TASK_AVD1_54(task))
+#define ems_render(task)		(TASK_AVD1_56(task))
 #define ems_somac_dequeued(rq)		(RQ_AVD1_5(rq))
 #define ems_task_misfited(task)		(TASK_AVD1_46(task))
 #define ems_rq_nr_misfited(rq)		(RQ_AVD1_6(rq))
@@ -113,6 +116,7 @@ enum task_cgroup {
 #define ems_rq_cluster_idx(rq)		(RQ_AVD1_8(rq))
 #define ems_prio_tex(task)			(TASK_AVD1_55(task))
 #define ems_rq_nr_prio_tex(rq)		(RQ_AVD1_9(rq))
+#define ems_last_waked(task)		(TASK_AVD1_57(task))
 
 #define ems_qjump_list_entry(list)	({						\
 	void *__mptr = (void *)(list);						\

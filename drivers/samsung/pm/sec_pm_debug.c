@@ -22,6 +22,29 @@ struct sec_pm_debug_info {
 	struct device		*sec_pm_dev;
 };
 
+#define WS_LOG_PERIOD	10
+#define MAX_WAKE_SOURCES_LEN 256
+
+static void wake_sources_print_acquired_work(struct work_struct *work);
+static DECLARE_DELAYED_WORK(ws_log_work, wake_sources_print_acquired_work);
+
+extern void pm_get_active_wakeup_sources(char *pending_wakeup_source, size_t max);
+
+static void wake_sources_print_acquired(void)
+{
+	char wake_sources_acquired[MAX_WAKE_SOURCES_LEN];
+
+	pm_get_active_wakeup_sources(wake_sources_acquired, MAX_WAKE_SOURCES_LEN);
+
+	pr_info("PM: %s\n", wake_sources_acquired);
+}
+
+static void wake_sources_print_acquired_work(struct work_struct *work)
+{
+	wake_sources_print_acquired();
+
+	schedule_delayed_work(&ws_log_work, WS_LOG_PERIOD * HZ);
+}
 /*********************************************************************
  *            Sleep Time and Count                                   *
  *********************************************************************/
@@ -67,6 +90,8 @@ static int suspend_resume_pm_event(struct notifier_block *notifier,
 		last_monotime = ktime_get();
 		/* monotonic time since boot including the time spent in suspend */
 		last_stime = ktime_get_boottime();
+
+		cancel_delayed_work_sync(&ws_log_work);
 		break;
 	case PM_POST_SUSPEND:
 		/* monotonic time since boot */
@@ -81,6 +106,8 @@ static int suspend_resume_pm_event(struct notifier_block *notifier,
 
 		total_sleep_time = timespec64_add(total_sleep_time, sleep_time);
 		sleep_count++;
+
+		schedule_delayed_work(&ws_log_work, WS_LOG_PERIOD * HZ);
 		break;
 	default:
 		break;
@@ -134,6 +161,8 @@ static int sec_pm_debug_probe(struct platform_device *pdev)
 
 	main_pmic_init_debug_sysfs(sec_pm_dev);
 
+	schedule_delayed_work(&ws_log_work, 60 * HZ);
+
 	return 0;
 
 err_create_sysfs:
@@ -144,6 +173,8 @@ err_create_sysfs:
 static int sec_pm_debug_remove(struct platform_device *pdev)
 {
 	struct sec_pm_debug_info *info = platform_get_drvdata(pdev);
+
+	cancel_delayed_work_sync(&ws_log_work);
 
 	sec_device_destroy(info->sec_pm_dev->devt);
 	return 0;

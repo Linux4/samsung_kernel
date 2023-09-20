@@ -226,7 +226,7 @@ struct exynos_panel_funcs {
 	void (*req_set_clock)(struct exynos_panel *exynos_panel, void *arg);
 #endif
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	/**
 	 * @set_fingermask_layer:
 	 *
@@ -262,6 +262,7 @@ struct exynos_panel_desc {
 	int delay_before_reset;
 	int reset_delay[3];
 	enum exynos_reset_pos reset_pos;
+    bool wait_lp11;
 #if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
 	const struct drm_panel_funcs *panel_func;
 	const struct exynos_panel_funcs *exynos_panel_func;
@@ -301,7 +302,7 @@ struct exynos_panel {
 	struct rw_semaphore panel_drm_state_lock;
 	struct mcd_drm_drv_wq wqs[MAX_MCD_DRM_DRV_WQ];
 	struct ddi_properties ddi_props;
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	bool fingerprint_mask;
 #endif
 #endif

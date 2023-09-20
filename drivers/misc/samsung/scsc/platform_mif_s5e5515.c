@@ -287,7 +287,7 @@ static int platform_mif_pm_qos_update_request(struct scsc_mif_abs *interface, st
 		return -ENODEV;
 
 	if (!platform->qos_enabled) {
-		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "PM QoS not configured\n");
+		SCSC_TAG_DEBUG_DEV(PLAT_MIF, platform->dev, "PM QoS not configured\n");
 		return -EOPNOTSUPP;
 	}
 
@@ -2074,22 +2074,41 @@ static int wlbt_itmon_notifier(struct notifier_block *nb,
 		if((itmon_data->target_addr >= PMU_BOOT_RAM_START)
 			&& (itmon_data->target_addr <= PMU_BOOT_RAM_END))
 			wlbt_karam_dump(platform);
-#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
-#if defined(GO_S2D_ID)
-		dbg_snapshot_do_dpm_policy(GO_S2D_ID);
-#elif defined(CONFIG_S3C2410_WATCHDOG)
-		s3c2410wdt_set_emergency_reset(0, 0);
-#endif
-#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+		ret = ITMON_S2D_MASK;
+#else
 		ret = NOTIFY_BAD;
+#endif
 	} else if (itmon_data->port &&
 		(!strncmp("WLBT", itmon_data->port, sizeof("WLBT") - 1))) {
 		platform_wlbt_regdump(&platform->interface);
+		if (platform->mem_start)
+			SCSC_TAG_INFO(PLAT_MIF, "Physical mem_start addr: 0x%lx\n", platform->mem_start);
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+        	if (platform->paddr)
+			SCSC_TAG_INFO(PLAT_MIF, "Physical memlog_start addr: 0x%lx\n", platform->paddr);
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+		SCSC_TAG_INFO(PLAT_MIF, "ITMON Type: %d, Error code: %d\n", itmon_data->read, itmon_data->errcode);
+		ret = ((!itmon_data->read) && (itmon_data->errcode == ITMON_ERRCODE_DECERR)) ? ITMON_SKIP_MASK : NOTIFY_OK;
+#else
 		ret = NOTIFY_OK;
+#endif
 	} else if (itmon_data->master &&
 		(!strncmp("WLBT", itmon_data->master, sizeof("WLBT") - 1))) {
 		platform_wlbt_regdump(&platform->interface);
+		if (platform->mem_start)
+			SCSC_TAG_INFO(PLAT_MIF, "Physical mem_start addr: 0x%lx\n", platform->mem_start);
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+        	if (platform->paddr)
+			SCSC_TAG_INFO(PLAT_MIF, "Physical memlog_start addr: 0x%lx\n", platform->paddr);
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+		SCSC_TAG_INFO(PLAT_MIF, "ITMON Type: %d, Error code: %d\n", itmon_data->read, itmon_data->errcode);
+		ret = ((!itmon_data->read) && (itmon_data->errcode == ITMON_ERRCODE_DECERR)) ? ITMON_SKIP_MASK : NOTIFY_OK;
+#else
 		ret = NOTIFY_OK;
+#endif
 	}
 
 error_exit:

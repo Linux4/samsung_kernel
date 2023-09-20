@@ -28,6 +28,8 @@
 
 #if defined(CONFIG_CAMERA_AAW_A14X)
 #include "aaw_v14x/is-vendor-config_aaw_v14x.h"
+#elif defined(CONFIG_CAMERA_MMW_E14X)
+#include "aaw_v14x/is-vendor-config_mmw_v14x.h"
 #else
 #include "aaw_v14x/is-vendor-config_aaw_v14x.h"
 #endif

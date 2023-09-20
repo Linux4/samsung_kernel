@@ -1005,7 +1005,7 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	}
 
 #ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
-	if (slsi_is_rf_test_mode_enabled()) {
+	if (slsi_is_rf_test_mode_enabled() && !slsi_is_test_mode_enabled()) {
 		if (sysfs_antenna == SLSI_ANTENNA_NOT_SET)
 			SLSI_INFO(sdev, "antenna not set. Set /sys/wifi/ant to modify antenna\n");
 		else
@@ -1173,6 +1173,7 @@ void slsi_ndl_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw
 	u32 ndp_instance_id;
 	struct net_device *nan_mgmt_dev = slsi_get_netdev_locked(sdev, SLSI_NET_INDEX_NAN);
 
+	WLBT_WARN_ON(!SLSI_MUTEX_IS_LOCKED(sdev->netdev_add_remove_mutex));
 	WLBT_WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
 	netif_carrier_off(dev);
 	slsi_spinlock_lock(&ndev_vif->peer_lock);
@@ -1181,9 +1182,9 @@ void slsi_ndl_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw
 		while (peer && peer->valid) {
 			ndp_instance_id = slsi_nan_get_ndp_from_ndl_local_ndi(nan_mgmt_dev, peer->ndl_vif, dev->dev_addr);
 			slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_DISCONNECTED);
-			if (peer->ndp_count == 1)
-				slsi_peer_remove(sdev, dev, peer);
 			peer->ndp_count--;
+			if (peer->ndp_count == 0)
+				slsi_peer_remove(sdev, dev, peer);
 			if (ndev_vif->nan.ndp_count > 0)
 				ndev_vif->nan.ndp_count--;
 			if (nan_mgmt_dev && ndp_instance_id < SLSI_NAN_MAX_NDP_INSTANCES + 1)
@@ -1192,11 +1193,8 @@ void slsi_ndl_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw
 	}
 
 	slsi_spinlock_unlock(&ndev_vif->peer_lock);
-#ifdef CONFIG_SCSC_WLAN_TX_API
-	if (!ndev_vif->activated)
-		slsi_vif_deactivated_post(sdev, dev, ndev_vif);
-#endif
-
+	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "nan.ndp_count: %d , vif_activated:%d\n", ndev_vif->nan.ndp_count, ndev_vif->activated);
+	slsi_release_dp_resources(sdev, dev, ndev_vif);
 }
 #endif
 void slsi_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw_available, bool is_recovery)
@@ -1367,6 +1365,13 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 
 	if (!ndev_vif->is_available) {
 		SLSI_NET_DBG1(dev, SLSI_INIT_DEINIT, "Not Available\n");
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+		if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START && ndev_vif->activated) {
+			ndev_vif->activated = false;
+			slsi_release_dp_resources(sdev, dev, ndev_vif);
+		}
+#endif
+
 		return;
 	}
 
@@ -1684,10 +1689,7 @@ static int slsi_mib_open_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *m
 
 #if defined SCSC_SEP_VERSION
 	ret = scsc_mx_service_phandle_property_read_u32(sdev->service, "samsung,wlbt_hcf", "hcf_rev", &value, ret);
-	/* hcf revision version 0 then only XXXX.hcf.rev0 will be loaded.
-	 * else defult file XXXX.hcf will be loaded.
-	 */
-	if (ret == 0 && value == 0) {
+	if (ret == 0) {
 		memset(filename, 0, MX_WLAN_FILE_LEN_MAX);
 		scnprintf(filename, sizeof(filename), "%s.rev%d", mib_file_name, value);
 		r = mx140_file_request_conf(sdev->maxwell_core, &e, "wlan", filename);
@@ -2473,7 +2475,7 @@ int slsi_mib_get_rtt_cap(struct slsi_dev *sdev, struct net_device *dev, struct s
 	return 0;
 }
 
-int slsi_mib_get_sta_tlds_activated(struct slsi_dev *sdev, struct net_device *dev, bool *tdls_supported)
+int slsi_mib_get_sta_tdls_activated(struct slsi_dev *sdev, struct net_device *dev, bool *tdls_supported)
 {
 	struct slsi_mib_data mibrsp = { 0, NULL };
 	struct slsi_mib_value *values = NULL;
@@ -2483,7 +2485,6 @@ int slsi_mib_get_sta_tlds_activated(struct slsi_dev *sdev, struct net_device *de
 	mibrsp.data = kmalloc(mibrsp.dataLength, GFP_KERNEL);
 	if (!mibrsp.data) {
 		SLSI_ERR(sdev, "Cannot kmalloc %d bytes\n", mibrsp.dataLength);
-		kfree(mibrsp.data);
 		return -ENOMEM;
 	}
 
@@ -2509,11 +2510,47 @@ int slsi_mib_get_sta_tlds_activated(struct slsi_dev *sdev, struct net_device *de
 	return 0;
 }
 
+int slsi_mib_get_sta_tdls_max_peer(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif)
+{
+	struct slsi_mib_data mibrsp = { 0, NULL };
+	struct slsi_mib_value *values = NULL;
+	struct slsi_mib_get_entry get_values[] = { { SLSI_PSID_UNIFI_MAX_TDLS_CLIENT, { 0, 0 } }, };
+
+	mibrsp.dataLength = 16;
+	mibrsp.data = kmalloc(mibrsp.dataLength, GFP_KERNEL);
+	if (!mibrsp.data) {
+		SLSI_ERR(sdev, "Cannot kmalloc %d bytes\n", mibrsp.dataLength);
+		return -ENOMEM;
+	}
+
+	values = slsi_read_mibs(sdev, dev, get_values, 1, &mibrsp);
+	if (!values) {
+		SLSI_NET_DBG1(dev, SLSI_MLME, "mib decode list failed\n");
+		kfree(mibrsp.data);
+		return -EINVAL;
+	}
+
+	if (values[0].type != SLSI_MIB_TYPE_UINT) {
+		SLSI_ERR(sdev, "Invalid type (%d) for SLSI_PSID_UNIFI_MAX_TDLS_CLIENT", values[0].type);
+		kfree(mibrsp.data);
+		kfree(values);
+		return -EINVAL;
+	}
+
+	ndev_vif->sta.tdls_max_peer = (int)values[0].u.uintValue;
+
+	kfree(values);
+	kfree(mibrsp.data);
+
+	return 0;
+}
+
 struct slsi_peer *slsi_peer_add(struct slsi_dev *sdev, struct net_device *dev, u8 *peer_address, u16 aid)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_peer *peer = NULL;
 	u16 queueset = 0;
+	u8 i = 0;
 
 	if (WLBT_WARN_ON(!aid)) {
 		SLSI_NET_ERR(dev, "Invalid aid(0) received\n");
@@ -2601,7 +2638,9 @@ struct slsi_peer *slsi_peer_add(struct slsi_dev *sdev, struct net_device *dev, u
 		ndev_vif->peer_sta_records++;
 
 	ndev_vif->cfg80211_sinfo_generation++;
-	skb_queue_head_init(&peer->buffered_frames);
+
+	for (i = 0; i < NUM_BA_SESSIONS_PER_PEER; i++)
+		skb_queue_head_init(&peer->buffered_frames[i]);
 
 	/* For TDLS this flag will be set while moving the packets from STAQ to TDLSQ */
 	/* TODO: changes for moving packets is removed for now. Enable this when these data path changes go in*/
@@ -3060,6 +3099,7 @@ int slsi_peer_remove(struct slsi_dev *sdev, struct net_device *dev, struct slsi_
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct sk_buff *buff_frame;
+	u8 i = 0;
 
 	SLSI_UNUSED_PARAMETER(sdev);
 
@@ -3073,11 +3113,13 @@ int slsi_peer_remove(struct slsi_dev *sdev, struct net_device *dev, struct slsi_
 
 	SLSI_NET_DBG2(dev, SLSI_CFG80211, "%pM\n", peer->address);
 
-	buff_frame = skb_dequeue(&peer->buffered_frames);
-	while (buff_frame) {
-		SLSI_NET_DBG3(dev, SLSI_MLME, "FLUSHING BUFFERED FRAMES\n");
-		kfree_skb(buff_frame);
-		buff_frame = skb_dequeue(&peer->buffered_frames);
+	for (i = 0; i < NUM_BA_SESSIONS_PER_PEER; i++) {
+		buff_frame = skb_dequeue(&peer->buffered_frames[i]);
+		while (buff_frame) {
+			SLSI_NET_DBG3(dev, SLSI_MLME, "FLUSHING BUFFERED FRAMES\n");
+			kfree_skb(buff_frame);
+			buff_frame = skb_dequeue(&peer->buffered_frames[i]);
+		}
 	}
 
 	/* If TCP packet is enqueued in BA reordering buffer,
@@ -3144,12 +3186,13 @@ int slsi_vif_activated(struct slsi_dev *sdev, struct net_device *dev)
 	if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION) {
 		/* MUST have cleared any tdls peer records previously */
 		WLBT_WARN_ON(ndev_vif->sta.tdls_peer_sta_records);
-
+		INIT_LIST_HEAD(&ndev_vif->sta.tdls_candidate_setup_list);
 		ndev_vif->sta.tdls_peer_sta_records = 0;
+		ndev_vif->sta.tdls_candidate_setup_count = 0;
+		ndev_vif->sta.tdls_max_peer = 0;
 		ndev_vif->sta.tdls_enabled = false;
 		ndev_vif->sta.roam_in_progress = false;
 		ndev_vif->sta.nd_offload_enabled = true;
-
 		memset(ndev_vif->sta.keepalive_host_tag, 0, sizeof(ndev_vif->sta.keepalive_host_tag));
 
 		slsi_tdls_manager_on_vif_activated(sdev, dev, ndev_vif);
@@ -3161,13 +3204,17 @@ int slsi_vif_activated(struct slsi_dev *sdev, struct net_device *dev)
 	ndev_vif->set_tid_attr.mode = SLSI_NETIF_SET_TID_OFF;
 	ndev_vif->set_tid_attr.uid = 0;
 	ndev_vif->set_tid_attr.tid = 0;
+
+	if (!SLSI_IS_VIF_INDEX_NAN(ndev_vif)) {
 #ifdef CONFIG_SCSC_WLAN_TX_API
-	if (!slsi_vif_activated_post(sdev, dev, ndev_vif))
-		return -EFAULT;
+		if (!slsi_vif_activated_post(sdev, dev, ndev_vif))
+			return -EFAULT;
 #endif
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
-	slsi_lbm_netdev_activate(sdev, dev);
+		slsi_lbm_netdev_activate(sdev, dev);
 #endif
+	}
+
 #ifdef CONFIG_SCSC_WLAN_SAP_POWER_SAVE
 	/* disable sap suspend-mode */
 	ndev_vif->softap_suspend_mode = 0;
@@ -3203,6 +3250,7 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			ndev_vif->sta.sta_bss = NULL;
 		}
 		ndev_vif->sta.tdls_enabled = false;
+
 #if defined(CONFIG_SLSI_WLAN_STA_FWD_BEACON) && (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 10)
 		ndev_vif->is_wips_running = false;
 #endif
@@ -3213,6 +3261,16 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 		}
 #endif
 		slsi_tdls_manager_on_vif_deactivated(sdev, dev, ndev_vif);
+		if (!list_empty(&ndev_vif->sta.tdls_candidate_setup_list)) {
+			struct sorted_peer_entry *entry;
+			struct sorted_peer_entry *tmp;
+
+			list_for_each_entry_safe(entry, tmp, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+				list_del(&entry->list);
+				kfree(entry);
+			}
+		}
+		ndev_vif->sta.tdls_candidate_setup_count = 0;
 		ndev_vif->sta.twt_peer_cap = 0;
 	}
 
@@ -3276,12 +3334,8 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 		ndev_vif->sta.tdls_enabled = false;
 		slsi_tdls_manager_on_vif_deactivated(sdev, dev, ndev_vif);
 	}
-#ifdef CONFIG_SCSC_WLAN_TX_API
-	slsi_vif_deactivated_post(sdev, dev, ndev_vif);
-#endif
-#ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
-	slsi_lbm_netdev_deactivate(sdev, dev);
-#endif
+
+	slsi_release_dp_resources(sdev, dev, ndev_vif);
 }
 
 int slsi_sta_ieee80211_mode(struct net_device *dev, u16 current_bss_channel_frequency)
@@ -5400,11 +5454,6 @@ void slsi_p2p_vif_deactivate(struct slsi_dev *sdev, struct net_device *dev, bool
 		return;
 	}
 
-	if (!ndev_vif->chan) {
-		SLSI_NET_ERR(dev, "ndev_vif->chan is null\n");
-		return;
-	}
-
 	/* Indicate failure using cfg80211_mgmt_tx_status() if frame TX is not completed during VIF delete */
 	if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID)
 		ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
@@ -5412,8 +5461,13 @@ void slsi_p2p_vif_deactivate(struct slsi_dev *sdev, struct net_device *dev, bool
 		cfg80211_mgmt_tx_status(&ndev_vif->wdev, ndev_vif->mgmt_tx_data.cookie, ndev_vif->mgmt_tx_data.buf, ndev_vif->mgmt_tx_data.buf_len, false, GFP_KERNEL);
 	cancel_delayed_work(&ndev_vif->unsync.del_vif_work);
 	if (delayed_work_pending(&ndev_vif->unsync.roc_expiry_work) && sdev->recovery_status) {
-		cfg80211_remain_on_channel_expired(&ndev_vif->wdev, ndev_vif->unsync.roc_cookie, ndev_vif->chan,
-						   GFP_KERNEL);
+		if (ndev_vif->chan) {
+			cfg80211_remain_on_channel_expired(&ndev_vif->wdev, ndev_vif->unsync.roc_cookie,
+							   ndev_vif->chan, GFP_KERNEL);
+		} else {
+			SLSI_NET_WARN(dev, "There is pending work for ROC expire. But no chan. Cookie = 0x%llx\n",
+				      ndev_vif->unsync.roc_cookie);
+		}
 	}
 	cancel_delayed_work(&ndev_vif->unsync.roc_expiry_work);
 
@@ -5548,7 +5602,7 @@ int slsi_p2p_dev_null_ies(struct slsi_dev *sdev, struct net_device *dev)
 		SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 		scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		while (scan_result) {
-			slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan_result);
+			slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan_result, true);
 			scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		}
 		SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -5860,7 +5914,7 @@ void slsi_abort_sta_scan(struct slsi_dev *sdev)
 		SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 		scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		while (scan_result) {
-			slsi_rx_scan_pass_to_cfg80211(sdev, wlan_net_dev, scan_result);
+			slsi_rx_scan_pass_to_cfg80211(sdev, wlan_net_dev, scan_result, true);
 			scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		}
 		SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -7304,6 +7358,8 @@ int slsi_wlan_unsync_vif_activate(struct slsi_dev *sdev, struct net_device *dev,
 		SLSI_NET_ERR(dev, "vif activate failed for wlan unsync vif\n");
 		if (slsi_mlme_del_vif(sdev, dev) != 0)
 			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
+
+		slsi_release_dp_resources(sdev, dev, ndev_vif);
 		goto exit_with_error;
 	}
 	sdev->wlan_unsync_vif_state = WLAN_UNSYNC_VIF_ACTIVE;
@@ -7616,6 +7672,7 @@ void slsi_wlan_unsync_vif_deactivate(struct slsi_dev *sdev, struct net_device *d
 	ndev_vif->chan = NULL;
 
 	(void)slsi_set_mgmt_tx_data(ndev_vif, 0, 0, NULL, 0);
+	slsi_release_dp_resources(sdev, dev, ndev_vif);
 }
 
 void slsi_scan_ind_timeout_handle(struct work_struct *work)
@@ -7822,6 +7879,8 @@ int slsi_set_latency_crt_data(struct net_device *dev, int latency_mode)
 
 		if (ret != 0)
 			SLSI_NET_ERR(dev, "Error in setting the Scan Mode, ret=%d", ret);
+		else
+			sdev->scan_mode = scan_mode;
 	}
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	return ret;
@@ -8899,4 +8958,20 @@ void slsi_destroy_sysfs_ant(void)
 
 	/* Destroy /sys/wifi virtual dir */
 	mxman_wifi_kobject_ref_put();
+}
+
+bool slsi_release_dp_resources(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif)
+{
+	if (!sdev || !dev || !ndev_vif)
+		return false;
+
+#ifdef CONFIG_SCSC_WLAN_TX_API
+	slsi_vif_deactivated_post(sdev, dev, ndev_vif);
+#endif
+
+#ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
+	slsi_lbm_netdev_deactivate(sdev, dev, ndev_vif);
+#endif
+
+	return true;
 }

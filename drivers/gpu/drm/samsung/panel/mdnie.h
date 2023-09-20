@@ -38,9 +38,6 @@ typedef u8 mdnie_t;
 #define RECOGNIZE_REGION(compV, compH)	\
 		((((compV) > 0) ? (0 + (((compH) > 0) ? 0 : 1)) : (2 + (((compH) < 0) ? 0 : 1))))
 
-#define MAPTBL_IDX_SCENARIO(_idx_)	(MDNIE_SCENARIO_MAPTBL_START + (_idx_))
-#define MAPTBL_IDX_ACCESSIBILITY(_idx_)	(MDNIE_ACCESSIBILITY_MAPTBL_START + (_idx_) - 1)
-
 #define IS_BYPASS_MODE(_mdnie_)	(((_mdnie_)->props.bypass >= BYPASS_ON) && ((_mdnie_)->props.bypass < BYPASS_MAX))
 #define IS_ACCESSIBILITY_MODE(_mdnie_)	(((_mdnie_)->props.accessibility > ACCESSIBILITY_OFF) && ((_mdnie_)->props.accessibility < ACCESSIBILITY_MAX))
 #define IS_LIGHT_NOTIFICATION_MODE(_mdnie_)			(((_mdnie_)->props.light_notification >= LIGHT_NOTIFICATION_ON) && ((_mdnie_)->props.light_notification < LIGHT_NOTIFICATION_MAX))
@@ -69,7 +66,7 @@ typedef u8 mdnie_t;
 #define MIN_WCRD_Y	(3050)
 #define MAX_WCRD_Y	(3260)
 
-#ifdef CONFIG_SUPPORT_AFC
+#ifdef CONFIG_USDM_MDNIE_AFC
 #define MAX_AFC_ROI_LEN	(12)
 #endif
 
@@ -263,89 +260,31 @@ enum TRANS_MODE {
 	MAX_TRANS_MODE,
 };
 
-enum MDNIE_MAPTBL {
-	/* SCENARIO */
-	MDNIE_SCENARIO_MAPTBL_START,
-	MDNIE_UI_MAPTBL = MDNIE_SCENARIO_MAPTBL_START,
-	MDNIE_VIDEO_MAPTBL,
-	MDNIE_CAMERA_MAPTBL = 4,
-	MDNIE_NAVI_MAPTBL,
-	MDNIE_GALLERY_MAPTBL,
-	MDNIE_VT_MAPTBL,
-	MDNIE_BROWSER_MAPTBL,
-	MDNIE_EBOOK_MAPTBL,
-	MDNIE_EMAIL_MAPTBL,
-	MDNIE_GAME_LOW_MAPTBL,
-	MDNIE_GAME_MID_MAPTBL,
-	MDNIE_GAME_HIGH_MAPTBL,
-	MDNIE_VIDEO_ENHANCER_MAPTBL,
-	MDNIE_VIDEO_ENHANCER_THIRD_MAPTBL,
-	MDNIE_HMD_8_MAPTBL,
-	MDNIE_HMD_16_MAPTBL,
-#if defined(CONFIG_TDMB)
-	MDNIE_DMB_MAPTBL,
-	MDNIE_SCENARIO_MAPTBL_END = MDNIE_DMB_MAPTBL,
-#else
-	MDNIE_SCENARIO_MAPTBL_END = MDNIE_HMD_16_MAPTBL,
+/* scenario */
+#define MDNIE_SCENARIO_SEQ ("mdnie_scenario_seq")
+
+/* accessibility */
+#define MDNIE_NEGATIVE_SEQ ("mdnie_negative_seq")
+#define MDNIE_COLOR_BLIND_SEQ ("mdnie_color_blind_seq")
+#define MDNIE_SCREEN_CURTAIN_SEQ ("mdnie_screen_curtain_seq")
+#define MDNIE_GRAYSCALE_SEQ ("mdnie_grayscale_seq")
+#define MDNIE_GRAYSCALE_NEGATIVE_SEQ ("mdnie_grayscale_negative_seq")
+#define MDNIE_COLOR_BLIND_HBM_SEQ ("mdnie_color_blind_hbm_seq")
+
+/* mdnie sysfs related */
+#define MDNIE_NIGHT_SEQ ("mdnie_night_seq")
+#define MDNIE_BYPASS_SEQ ("mdnie_bypass_seq")
+#define MDNIE_HBM_SEQ ("mdnie_hbm_seq")
+#define MDNIE_HMD_SEQ ("mdnie_hmd_seq")
+#define MDNIE_HDR_SEQ ("mdnie_hdr_seq")
+#define MDNIE_NIGHT_SEQ ("mdnie_night_seq")
+#define MDNIE_LIGHT_NOTIFICATION_SEQ ("mdnie_light_notification_seq")
+#define MDNIE_COLOR_LENS_SEQ ("mdnie_color_lens_seq")
+
+#ifdef CONFIG_USDM_MDNIE_AFC
+#define MDNIE_AFC_OFF_SEQ ("mdnie_afc_off_seq")
+#define MDNIE_AFC_ON_SEQ ("mdnie_afc_on_seq")
 #endif
-	/* ACCESSIBILITY */
-	MDNIE_ACCESSIBILITY_MAPTBL_START,
-	MDNIE_NEGATIVE_MAPTBL = MDNIE_ACCESSIBILITY_MAPTBL_START,
-	MDNIE_COLOR_BLIND_MAPTBL,
-	MDNIE_SCREEN_CURTAIN_MAPTBL,
-	MDNIE_GRAYSCALE_MAPTBL,
-	MDNIE_GRAYSCALE_NEGATIVE_MAPTBL,
-	MDNIE_COLOR_BLIND_HBM_MAPTBL,
-	MDNIE_ACCESSIBILITY_MAPTBL_END = MDNIE_COLOR_BLIND_HBM_MAPTBL,
-	/* BYPASS */
-	MDNIE_BYPASS_MAPTBL,
-	/* HBM */
-	MDNIE_HBM_MAPTBL,
-	/* HMD */
-	MDNIE_HMD_MAPTBL,
-	/* HDR */
-	MDNIE_HDR_MAPTBL,
-	/* NIGHT */
-	MDNIE_NIGHT_MAPTBL,
-	/* LIGHT_NOTIFICATION */
-	MDNIE_LIGHT_NOTIFICATION_MAPTBL,
-	/* COLOR LENS */
-	MDNIE_COLOR_LENS_MAPTBL,
-	MAX_MDNIE_MAPTBL,
-};
-
-#ifdef CONFIG_SUPPORT_AFC
-enum AFC_MAPTBL {
-	AFC_ON_MAPTBL,
-	MAX_AFC_MAPTBL,
-};
-#endif
-
-enum MDNIE_SEQ {
-	MDNIE_SET_SEQ,
-#ifdef CONFIG_SUPPORT_AFC
-	MDNIE_AFC_OFF_SEQ,
-	MDNIE_AFC_ON_SEQ,
-#endif
-	/* if necessary, add new seq */
-	MAX_MDNIE_SEQ,
-};
-
-enum {
-	MDNIE_SCR_WHITE_NONE_MAPTBL,
-	MDNIE_COLOR_COORDINATE_MAPTBL,
-	MDNIE_ADJUST_LDU_MAPTBL,
-	MDNIE_SENSOR_RGB_MAPTBL,
-	MAX_SCR_WHITE_MAPTBL,
-};
-
-enum {
-	MDNIE_ETC_NONE_MAPTBL,
-	MDNIE_ETC_TRANS_MAPTBL,
-	MDNIE_ETC_NIGHT_MAPTBL,
-	MDNIE_ETC_COLOR_LENS_MAPTBL,
-	MAX_MDNIE_ETC_MAPTBL,
-};
 
 enum {
 	WCRD_TYPE_ADAPTIVE,
@@ -395,16 +334,6 @@ struct cal_coef {
 struct mdnie_tune {
 	struct seqinfo *seqtbl;
 	u32 nr_seqtbl;
-	struct maptbl *maptbl;
-	u32 nr_maptbl;
-	struct maptbl *scr_white_maptbl;
-	u32 nr_scr_white_maptbl;
-	struct maptbl *etc_maptbl;
-	u32 nr_etc_maptbl;
-#ifdef CONFIG_SUPPORT_AFC
-	struct maptbl *afc_maptbl;
-	u32 nr_afc_maptbl;
-#endif
 	struct cal_center center;
 	struct cal_line line[MAX_CAL_LINE];
 	struct cal_coef coef[MAX_QUAD];
@@ -412,11 +341,19 @@ struct mdnie_tune {
 	u32 cal_y_center;
 	u32 cal_boundary_center;
 	u8 vtx[MAX_WCRD_TYPE][MAX_CCRD_PT][MAX_COLOR];
+	u8 adjust_ldu_wrgb[MAX_WCRD_TYPE][MAX_LDU_MODE][MAX_COLOR];
 	u32 num_ldu_mode;
 	u32 num_night_level;
 	u32 num_color_lens_color;
 	u32 num_color_lens_level;
 	u32 hbm_ce_lux;
+	u32 scr_white_len;
+	u32 scr_cr_ofs;
+	u32 night_mode_ofs;
+	u32 color_lens_ofs;
+
+	/* w/a flag */
+	unsigned force_scr_white_mode_none_on_hbm:1; /* don't update scr_white values in HBM */
 };
 
 struct mdnie_properties {
@@ -453,7 +390,7 @@ struct mdnie_properties {
 	/* default whiteRGB : color coordinated wrgb */
 	u8 def_wrgb[MAX_COLOR];
 	s8 def_wrgb_ofs[MAX_COLOR];
-#ifdef CONFIG_SUPPORT_AFC
+#ifdef CONFIG_USDM_MDNIE_AFC
 	u8 afc_roi[MAX_AFC_ROI_LEN];
 	bool afc_on;
 #endif
@@ -468,8 +405,13 @@ struct mdnie_properties {
 	u32 cal_y_center;
 	u32 cal_boundary_center;
 	u8 vtx[MAX_WCRD_TYPE][MAX_CCRD_PT][MAX_COLOR];
+	u8 adjust_ldu_wrgb[MAX_WCRD_TYPE][MAX_LDU_MODE][MAX_COLOR];
 
 	u32 hbm_ce_lux;
+	u32 scr_white_len;
+	u32 scr_cr_ofs;
+	u32 night_mode_ofs;
+	u32 color_lens_ofs;
 
 	/* support */
 	unsigned support_ldu:1;
@@ -483,8 +425,11 @@ struct mdnie_properties {
 	unsigned update_ldu:1;			/* adjust ldu updated */
 	unsigned update_sensorRGB:1;	/* sensorRGB scr white updated */
 
+	/* w/a flag */
+	unsigned force_scr_white_mode_none_on_hbm:1; /* don't update scr_white values in HBM */
+
 	/* mdnie tuning */
-#ifdef CONFIG_EXYNOS_DECON_LCD_TUNING
+#ifdef CONFIG_USDM_MDNIE_TUNING
 	char tfilepath[128];			/* tuning file path */
 #endif
 };
@@ -493,30 +438,40 @@ struct mdnie_info {
 	struct device *dev;
 	struct class *class;
 	char name[MAX_MDNIE_DEV_NAME_SIZE];
-	struct mutex lock;
+	struct panel_mutex lock;
 	struct mdnie_properties props;
 	struct notifier_block fb_notif;
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	struct notifier_block dpui_notif;
 #endif
-	struct maptbl *maptbl;
-	u32 nr_maptbl;
-	struct maptbl *scr_white_maptbl;
-	u32 nr_scr_white_maptbl;
-	struct maptbl *etc_maptbl;
-	u32 nr_etc_maptbl;
-#ifdef CONFIG_SUPPORT_AFC
-	struct maptbl *afc_maptbl;
-	u32 nr_afc_maptbl;
-#endif
-	struct seqinfo *seqtbl;
-	u32 nr_seqtbl;
-	u32 nr_reg;
 };
 
-#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#define __MDNIE_ATTR_RO(_name, _mode, _flags) {	\
+				.dev_attr = __ATTR(_name, _mode,		\
+					 PN_CONCAT(_name, show), NULL),		\
+				.flags = _flags,				\
+			}
+
+#define __MDNIE_ATTR_WO(_name, _mode, _flags) {	\
+				.dev_attr = __ATTR(_name, _mode,		\
+					 NULL, mdnie_store_check_test_mode),		\
+				.flags = _flags,				\
+				.store = PN_CONCAT(_name, store) \
+			}
+
+#define __MDNIE_ATTR_RW(_name, _mode, _flags) {	\
+				.dev_attr = __ATTR(_name, _mode,		\
+					 PN_CONCAT(_name, show), mdnie_store_check_test_mode),		\
+				.flags = _flags,				\
+				.store = PN_CONCAT(_name, store) \
+			}
+
+
+#ifdef CONFIG_USDM_MDNIE
 extern int mdnie_init(struct mdnie_info *mdnie);
 extern int mdnie_exit(struct mdnie_info *mdnie);
+extern int mdnie_prepare(struct mdnie_info *mdnie, struct mdnie_tune *mdnie_tune);
+extern int mdnie_unprepare(struct mdnie_info *mdnie);
 extern int mdnie_probe(struct mdnie_info *mdnie, struct mdnie_tune *mdnie_tune);
 extern int mdnie_remove(struct mdnie_info *mdnie);
 extern int mdnie_enable(struct mdnie_info *mdnie);
@@ -532,6 +487,9 @@ extern int mdnie_update_wrgb(struct mdnie_info *mdnie,
 		unsigned char r, unsigned char g, unsigned char b);
 #else
 static inline int mdnie_init(struct mdnie_info *mdnie) { return 0; }
+static inline int mdnie_exit(struct mdnie_info *mdnie) { return 0; }
+static inline int mdnie_prepare(struct mdnie_info *mdnie, struct mdnie_tune *mdnie_tune) { return 0; }
+static inline int mdnie_unprepare(struct mdnie_info *mdnie) { return 0; }
 static inline int mdnie_probe(struct mdnie_info *mdnie, struct mdnie_tune *mdnie_tune) { return 0; }
 static inline int mdnie_remove(struct mdnie_info *mdnie) { return 0; }
 static inline int mdnie_enable(struct mdnie_info *mdnie) { return 0; }
@@ -546,7 +504,6 @@ static inline int mdnie_cur_wrgb_to_byte_array(struct mdnie_info *mdnie,
 static inline int mdnie_update_wrgb(struct mdnie_info *mdnie,
 		unsigned char r, unsigned char g, unsigned char b) { return 0; }
 #endif
-extern struct maptbl *mdnie_find_maptbl(struct mdnie_info *);
-extern struct maptbl *mdnie_find_etc_maptbl(struct mdnie_info *mdnie, int index);
-extern int mdnie_get_maptbl_index(struct mdnie_info *mdnie);
+extern int mdnie_do_sequence_nolock(struct mdnie_info *mdnie, char *seqname);
+extern int mdnie_do_sequence(struct mdnie_info *mdnie, char *seqname);
 #endif /* __MDNIE_H__ */

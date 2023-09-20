@@ -19,6 +19,7 @@
 #include <linux/jiffies.h>
 #include <linux/time.h>
 #include <linux/crc32.h>
+#include <linux/mutex.h>
 
 #include <scsc/scsc_logring.h>
 

@@ -117,7 +117,7 @@
 		cpu@102 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x102>;
 			enable-method = "psci";
 			next-level-cache = <0x04>;
 			phandle = <0x0b>;
@@ -126,7 +126,7 @@
 		cpu@103 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x103>;
 			enable-method = "psci";
 			next-level-cache = <0x04>;
 			phandle = <0x0c>;
@@ -959,7 +959,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x2e>;
 		};
@@ -1166,7 +1166,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x38>;
 		};

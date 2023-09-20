@@ -27,6 +27,7 @@
 #include <soc/samsung/exynos/exynos-itmon.h>
 #include <soc/samsung/exynos/debug-snapshot.h>
 #include "exynos-itmon-local.h"
+#include <linux/sec_debug.h>
 
 static struct itmon_policy err_policy[] = {
 	[TMOUT]		= {"err_tmout",		0, 0, 0, false},
@@ -865,6 +866,9 @@ static void itmon_report_prt_chk_rawdata(struct itmon_dev *itmon,
 					 struct itmon_tracedata *data)
 {
 	struct itmon_nodeinfo *node = data->node;
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	char temp_buf[SZ_128];
+#endif
 
 	/* Output Raw register information */
 	dev_err(itmon->dev,
@@ -881,6 +885,16 @@ static void itmon_report_prt_chk_rawdata(struct itmon_dev *itmon,
 		data->prt_chk_ctl,
 		data->prt_chk_info,
 		data->prt_chk_int_id);
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	snprintf(temp_buf, SZ_128, "%s/ %s/ 0x%08X/ %s/ 0x%08X, 0x%08X, 0x%08X, 0x%08X",
+		"Protocol Error", node->name, node->phy_regs,
+		itmon_node_string[node->type],
+		data->dbg_mo_cnt,
+		data->prt_chk_ctl,
+		data->prt_chk_info,
+		data->prt_chk_int_id);
+	secdbg_exin_set_busmon(temp_buf);
+#endif
 }
 
 static void itmon_report_rawdata(struct itmon_dev *itmon,
@@ -916,6 +930,9 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 				   struct itmon_traceinfo *info,
 				   unsigned int trans_type)
 {
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	char temp_buf[SZ_128];
+#endif
 	/* SEC DEBUG FEATURE */
 	int acon = (itmon_get_dpm_policy(itmon) > 0) ? 1 : 0;
 	/* SEC DEBUG FEATURE */
@@ -938,6 +955,19 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 		info->baaw_prot == true ? "(BAAW Remapped address)" : "",
 		trans_type == TRANS_TYPE_READ ? "READ" : "WRITE",
 		itmon_errcode[info->errcode]);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	if (acon) {
+		snprintf(temp_buf, SZ_128, "%s %s/ %s/ 0x%zx %s/ %s/ %s",
+			info->port, info->master ? info->master : "",
+			info->dest ? info->dest : NO_NAME,
+			info->target_addr,
+			info->baaw_prot == true ? "(by CP maybe)" : "",
+			trans_type == TRANS_TYPE_READ ? "READ" : "WRITE",
+			itmon_errcode[info->errcode]);
+		secdbg_exin_set_busmon(temp_buf);
+	}
+#endif
 
 	pr_auto_on(acon, ASL3,
 		"\n-----------------------------------------"

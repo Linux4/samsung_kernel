@@ -62,6 +62,9 @@
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 #include <mcd_drm_helper.h>
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
+#include "dpui.h"
+#endif
 #endif
 
 struct decon_device *decon_drvdata[MAX_DECON_CNT];
@@ -1539,7 +1542,7 @@ static const struct exynos_drm_crtc_ops decon_crtc_ops = {
 	.check_svsync_start = decon_check_svsync_start,
 #endif
 	.dump_register = decon_dump,
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	.set_fingerprint_mask = decon_fingerprint_mask,
 #endif
 #if defined(CONFIG_EXYNOS_PLL_SLEEP)
@@ -1607,6 +1610,11 @@ static int decon_bind(struct device *dev, struct device *master, void *data)
 				decon_info(decon, "request qos for fb handover\n");
 				exynos_pm_qos_update_request(&decon->bts.disp_qos,
 						decon->bts.dfs_lv[0]);
+				if (exynos_pm_qos_request_active(&decon->bts.int_qos))
+					exynos_pm_qos_update_request(&decon->bts.int_qos,
+								533 * 1000);
+				else
+					decon_err(decon, "int qos setting error\n");
 			} else
 				decon_err(decon, "disp qos setting error\n");
 		}
@@ -1835,6 +1843,11 @@ static int decon_parse_bts_info(struct decon_device *decon, struct device_node *
 	if (of_property_read_u32(np, "rot_util", &bts->rot_util)) {
 		bts->rot_util = 60UL;
 		decon_warn(decon, "WARN: rot util is not defined in DT.\n");
+	}
+
+	if (of_property_read_u32(np, "bus_overhead", &bts->bus_overhead)) {
+		bts->bus_overhead = 0UL;
+		decon_info(decon, "Bus overhead is not defined in DT.\n");
 	}
 
 	dfs_lv_cnt = of_property_count_u32_elems(np, "dfs_lv");
@@ -2450,7 +2463,7 @@ static int decon_probe(struct platform_device *pdev)
 	INIT_WORK(&decon->off_work, decon_emergency_off_handler);
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 	decon->dpui_notif.notifier_call = decon_dpui_notifier_callback;
 	ret = dpui_logging_register(&decon->dpui_notif, DPUI_TYPE_CTRL);
 	if (ret)

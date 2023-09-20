@@ -1339,6 +1339,95 @@ p_err:
 }
 EXPORT_SYMBOL_GPL(sensor_cis_compensate_gain_for_extremely_br);
 
+int sensor_cis_get_mode_info(struct v4l2_subdev *subdev, u32 mode, struct is_sensor_mode_info *mode_info)
+{
+	int ret = 0;
+	struct is_cis *cis;
+	const struct sensor_cis_mode_info *cis_mode_info;
+	cis_shared_data *cis_data;
+
+	u16 fll, llp;
+	u32 frame_rate, max_fps, frame_valid_us;
+	u32 min_coarse = 0, min_fine = 0;
+	u32 max_coarse_margin = 0, max_coarse = 0, max_fine = 0;
+	u64 pclk_hz, pclk_khz;
+	unsigned int min_frame_us_time;
+	unsigned int min_sync_frame_us_time;
+	unsigned int cur_frame_us_time;
+	unsigned int min_fine_integration_time;
+	unsigned int max_fine_integration_time;
+	unsigned int min_coarse_integration_time;
+	unsigned int max_margin_coarse_integration_time;
+
+	WARN_ON(!subdev);
+	WARN_ON(!mode_info);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+
+	WARN_ON(!cis);
+	WARN_ON(!cis->cis_data);
+
+	cis_mode_info = cis->sensor_info->mode_infos[mode];
+	cis_data = cis->cis_data;
+
+	/* get pclk value from pll info */
+	pclk_hz = cis_mode_info->pclk;
+	pclk_khz = pclk_hz / (1000);
+	fll = cis_mode_info->frame_length_lines;
+	llp = cis_mode_info->line_length_pck;
+
+	/* the time of processing one frame calculation (us) */
+	min_frame_us_time = (u64)fll * llp * 1000 * 1000 / pclk_hz;
+	cur_frame_us_time = min_frame_us_time;
+	min_sync_frame_us_time = min_frame_us_time;
+
+	frame_rate = pclk_hz / (fll * llp);
+	max_fps = frame_rate;
+
+	/* calculate max fps with rounding */
+	if (((pclk_hz * 10) / (fll * llp)) % 10 >= 5)
+		max_fps++;
+
+	frame_valid_us = (u64)cis_data->cur_height * llp * 1000 * 1000 / pclk_hz;
+
+	min_fine_integration_time = cis->sensor_info->fine_integration_time;
+	max_fine_integration_time = cis->sensor_info->fine_integration_time;
+
+	min_coarse_integration_time = cis_mode_info->min_cit;
+	max_margin_coarse_integration_time = cis_mode_info->max_cit_margin;
+
+	/* calculate max_expo */
+	max_coarse_margin = max_margin_coarse_integration_time;
+	max_coarse = fll - max_coarse_margin;
+	max_fine = max_fine_integration_time;
+
+	/* calculate min_expo */
+	min_coarse = cis_data->min_coarse_integration_time;
+	min_fine = cis_data->min_fine_integration_time;
+
+	mode_info->min_expo = (u32)((u64)((llp * min_coarse) + min_fine) * 1000 / pclk_khz);
+	mode_info->max_expo = (u32)((u64)((llp * max_coarse) + max_fine) * 1000 / pclk_khz);
+	mode_info->min_again = CALL_CISOPS(cis, cis_calc_again_permile, cis->sensor_info->min_analog_gain);
+	mode_info->max_again = CALL_CISOPS(cis, cis_calc_again_permile, cis_mode_info->max_analog_gain);
+	mode_info->min_dgain = CALL_CISOPS(cis, cis_calc_dgain_permile, cis->sensor_info->min_digital_gain);
+	mode_info->max_dgain = CALL_CISOPS(cis, cis_calc_dgain_permile, cis_mode_info->max_digital_gain);
+	mode_info->vvalid_time = frame_valid_us;
+	mode_info->vblank_time = 1000000U / max_fps - frame_valid_us;
+	mode_info->max_fps = max_fps;
+
+	dbg_sensor(1, "[%s] mode(%d), min_expo(%d), max_expo(%d), min_again(%d), max_again(%d), "
+		KERN_CONT "min_dgain(%d), max_dgain(%d), vvalid_time(%d), vblank_time(%d), max_fps(%d)\n",
+		__func__, mode_info->mode,
+		mode_info->min_expo, mode_info->max_expo,
+		mode_info->min_again, mode_info->max_again,
+		mode_info->min_dgain, mode_info->max_dgain,
+		mode_info->vvalid_time, mode_info->vblank_time,
+		mode_info->max_fps);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sensor_cis_get_mode_info);
+
 int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const u32 size)
 {
 	int ret = 0;

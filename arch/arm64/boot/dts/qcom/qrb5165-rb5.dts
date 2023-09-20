@@ -1498,6 +1498,7 @@
 				clocks = <0x1b 0x35>;
 				clock-names = "pipe0";
 				#phy-cells = <0x00>;
+				#clock-cells = <0x00>;
 				clock-output-names = "pcie_0_pipe_clk";
 				phandle = <0x49>;
 			};
@@ -1560,6 +1561,7 @@
 				clocks = <0x1b 0x3c>;
 				clock-names = "pipe0";
 				#phy-cells = <0x00>;
+				#clock-cells = <0x00>;
 				clock-output-names = "pcie_1_pipe_clk";
 				phandle = <0x4d>;
 			};
@@ -1622,6 +1624,7 @@
 				clocks = <0x1b 0x43>;
 				clock-names = "pipe0";
 				#phy-cells = <0x00>;
+				#clock-cells = <0x00>;
 				clock-output-names = "pcie_2_pipe_clk";
 				phandle = <0x4f>;
 			};
@@ -5580,7 +5583,7 @@
 		};
 	};
 
-	can_clock {
+	can-clock {
 		compatible = "fixed-clock";
 		#clock-cells = <0x00>;
 		clock-frequency = <0x2625a00>;
@@ -6123,7 +6126,7 @@
 		compute_alert0 = "/thermal-zones/compute-thermal/trips/trip-point0";
 		npu_alert0 = "/thermal-zones/npu-thermal/trips/trip-point0";
 		gpu2_alert0 = "/thermal-zones/gpu-thermal-bottom/trips/trip-point0";
-		clk40M = "/can_clock";
+		clk40M = "/can-clock";
 		dc12v = "/dc12v-regulator";
 		hdmi_con = "/hdmi-out/port/endpoint";
 		lt9611_1v2 = "/lt9611-vdd12-regulator";

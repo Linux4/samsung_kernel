@@ -110,7 +110,7 @@ int mifqos_update_request(struct mifqos *qos, enum scsc_service_id id, enum scsc
 		return -EIO;
 	}
 
-	SCSC_TAG_INFO(MIF, "Service id %d update QoS request %d\n", id, config);
+	SCSC_TAG_DEBUG(MIF, "Service id %d update QoS request %d\n", id, config);
 
 	mif = qos->mif;
 	req = &qos->qos_req[id];

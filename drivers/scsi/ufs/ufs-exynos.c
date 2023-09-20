@@ -53,7 +53,7 @@
 #include "ufs-sec-feature.h"
 #endif
 
-#define LDO_DISCHARGE_GUARANTEE	10
+#define LDO_DISCHARGE_GUARANTEE	15
 #define IS_C_STATE_ON(h) ((h)->c_state == C_ON)
 #define PRINT_STATES(h)							\
 	dev_err((h)->dev, "%s: prev h_state %d, cur c_state %d\n",	\
@@ -281,11 +281,6 @@ out:
 	if (hba->saved_err & SYSTEM_BUS_FATAL_ERROR)
 		dbg_snapshot_expire_watchdog();
 #endif
-#endif
-
-#if defined(CONFIG_SCSI_UFS_TEST_MODE)
-	/* do not recover system if test mode is enabled */
-	BUG();
 #endif
 	return;
 }
@@ -695,7 +690,7 @@ static inline void exynos_enable_vendor_irq(struct exynos_ufs *ufs)
 	need_preproc = !!of_find_property(dev->of_node, "check-ah8-preproc", NULL);
 	if (need_preproc) {
 		reg = hci_readl(handle, HCI_VENDOR_SPECIFIC_IE);
-		reg |= AH8_ERR_AT_PRE_PROC | AH8_TIMEOUT;
+		reg |= (AH8_ERR_AT_PRE_PROC | AH8_TIMEOUT);
 		hci_writel(handle, reg, HCI_VENDOR_SPECIFIC_IE);
 
 		hci_writel(handle, VS_INT_MERGE2PH_EN, HCI_VS_INT_MERGE2PH);
@@ -1392,8 +1387,10 @@ static int __exynos_ufs_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 			ufs->h_state != H_HIBERN8)
 		PRINT_STATES(ufs);
 
-	if (notify != POST_CHANGE)
+	if (notify != POST_CHANGE) {
+		ufs->deep_suspended = false;
 		return 0;
+	}
 
 	if (hba->shutting_down)
 		ufs_sec_print_err_info(hba);
@@ -1459,6 +1456,7 @@ static int __exynos_ufs_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 	exynos_pm_qos_update_request(&ufs->pm_qos_int, 0);
 #endif
 	ufs->h_state = H_SUSPEND;
+	pr_info("%s: notify=%d, is shutdown=%d", __func__, notify, hba->shutting_down);
 
 	return 0;
 }
@@ -1471,6 +1469,11 @@ static int __exynos_ufs_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 {
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	int ret = 0;
+
+	if (!ufs->deep_suspended) {
+		pr_info("%s: need ufs power discharge time.\n", __func__);
+		mdelay(LDO_DISCHARGE_GUARANTEE);
+	}
 
 	if (!IS_C_STATE_ON(ufs) ||
 			ufs->h_state != H_SUSPEND)
@@ -1592,7 +1595,19 @@ static int exynos_ufs_suspend(struct device *dev)
 	/* Save timestamp of vcc/vccq off time */
 	ufs->vcc_off_time = ktime_get();
 
+	dev_info(dev, "%s done\n", __func__);
+
 	return ret;
+}
+
+static int exynos_ufs_suspend_noirq(struct device *dev)
+{
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct exynos_ufs *ufs = to_exynos_ufs(hba);
+
+	ufs->deep_suspended = true;
+
+	return 0;
 }
 
 static int exynos_ufs_resume(struct device *dev)
@@ -1602,6 +1617,9 @@ static int exynos_ufs_resume(struct device *dev)
 	ktime_t now;
 	s64 discharge_period;
 	int ret;
+
+	/* treat as deep suspened here to prevent duplicated delay at vops_resume */
+	ufs->deep_suspended = true;
 
 	if (ufs->vcc_off_time == -1LL)
 		goto resume;
@@ -1614,6 +1632,10 @@ static int exynos_ufs_resume(struct device *dev)
 				__func__, discharge_period);
 		mdelay(LDO_DISCHARGE_GUARANTEE - discharge_period);
 	}
+
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	dev_info(dev, "%s: discharge time = %d\n", __func__, discharge_period);
+#endif
 
 	ufs->vcc_off_time = -1LL;
 
@@ -1730,14 +1752,34 @@ static int __device_reset(struct ufs_hba *hba)
 #if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
 		ufs_sec_inc_hwrst_cnt();
 #endif
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+		/* no dump for some cases, get dump before recovery */
+		exynos_ufs_dump_debug_info(hba);
+#endif
 	}
 
 	return 0;
 }
 
+#define UFS_TEST_COUNT 3
+
 static void exynos_ufs_event_notify(struct ufs_hba *hba,
 		enum ufs_event_type evt, void *data)
 {
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+	struct ufs_event_hist *e;
+
+	e = &hba->ufs_stats.event[evt];
+
+	if ((e->cnt > UFS_TEST_COUNT) &&
+			(evt == UFS_EVT_PA_ERR ||
+			evt == UFS_EVT_DL_ERR ||
+			evt == UFS_EVT_LINK_STARTUP_FAIL)) {
+		exynos_ufs_dump_debug_info(hba);
+		BUG();
+	}
+#endif
+
 #if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
 	ufs_sec_inc_op_err(hba, evt, data);
 #endif
@@ -2284,24 +2326,42 @@ static struct exynos_ufs_sysfs_attr ufs_s_clkgate_enable = {
 static ssize_t ufs_exynos_gear_scale_show(struct exynos_ufs *ufs, char *buf,
 		exynos_ufs_param_id id)
 {
+	struct ufs_perf *perf = ufs->perf;
 	struct uic_pwr_mode *pmd = &ufs->device_pmd_parm;
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", pmd->gear);
+	if (perf)
+               return snprintf(buf, PAGE_SIZE, "%s[%d]\n",
+			       perf->exynos_gear_scale? "enabled" : "disabled",
+			       pmd->gear);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", -EINVAL);
 }
 
 static int ufs_exynos_gear_scale_store(struct exynos_ufs *ufs, const char *buf,
 		exynos_ufs_param_id id)
 {
-	struct ufs_hba *hba = ufs->hba;
+	struct ufs_perf *perf = ufs->perf;
 	int value;
 	int ret;
+
+	if (perf == NULL)
+		return -EINVAL;
 
 	ret = sscanf(buf, "%d", &value);
 	if (!ret)
 		return -EINVAL;
 
-	value = !!value;
-	ret = ufs_gear_change(hba, value);
+	if (perf->exynos_gear_scale == !!value) {
+		dev_info(ufs->dev, "already gear scale %s!!\n",
+				perf->exynos_gear_scale? "enable" : "disable");
+		return -EINVAL;
+	}
+
+	perf->exynos_gear_scale = !!value;
+	dev_info(ufs->dev, "sysfs input: %s gear scale\n",
+			perf->exynos_gear_scale? "enable" : "disable");
+
+	ret = ufs_gear_scale_update(perf);
 
 	return ret;
 }
@@ -2619,6 +2679,7 @@ static const struct dev_pm_ops exynos_ufs_dev_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(exynos_ufs_suspend, exynos_ufs_resume)
 	.prepare	 = ufshcd_suspend_prepare,
 	.complete	 = ufshcd_resume_complete,
+	.suspend_noirq = exynos_ufs_suspend_noirq,
 };
 
 static const struct of_device_id exynos_ufs_match[] = {

@@ -16,6 +16,8 @@
 #include <linux/genhd.h>
 #include <linux/part_stat.h>
 
+#include "blk-sec-stats.h"
+
 struct disk_info {
 	/* fields related with target device itself */
 	struct gendisk *gd;
@@ -35,8 +37,10 @@ static struct accumulated_stat old, new;
 
 extern int blk_sec_stat_pio_init(struct kobject *kobj);
 extern void blk_sec_stat_pio_exit(struct kobject *kobj);
-extern void update_pio_node(struct request *rq, unsigned int data_size,
-		pid_t tgid, const char *tg_name, u64 tg_start_time);
+extern struct pio_node *get_pio_node(struct request *rq);
+extern void update_pio_node(struct request *rq,
+		unsigned int data_size, struct pio_node *pio);
+extern void put_pio_node(struct pio_node *pio);
 
 extern int blk_sec_stat_traffic_init(struct kobject *kobj);
 extern void blk_sec_stat_traffic_exit(struct kobject *kobj);
@@ -194,16 +198,35 @@ static inline bool may_account_rq(struct request *rq)
 	return true;
 }
 
-void blk_sec_stat_account_io_done(struct request *rq, unsigned int data_size,
-		pid_t tgid, const char *tg_name, u64 tg_start_time)
+void blk_sec_stat_account_io_prepare(struct request *rq, void *ptr_pio)
+{
+	if (unlikely(!may_account_rq(rq)))
+		return;
+
+	*(struct pio_node **)ptr_pio = get_pio_node(rq);
+}
+EXPORT_SYMBOL(blk_sec_stat_account_io_prepare);
+
+void blk_sec_stat_account_io_complete(struct request *rq,
+		unsigned int data_size, void *pio)
 {
 	if (unlikely(!may_account_rq(rq)))
 		return;
 
 	blk_sec_stat_traffic_update(rq, data_size);
-	update_pio_node(rq, data_size, tgid, tg_name, tg_start_time);
+	update_pio_node(rq, data_size, (struct pio_node *)pio);
 }
-EXPORT_SYMBOL(blk_sec_stat_account_io_done);
+EXPORT_SYMBOL(blk_sec_stat_account_io_complete);
+
+void blk_sec_stat_account_io_finish(struct request *rq, void *ptr_pio)
+{
+	if (unlikely(!may_account_rq(rq)))
+		return;
+
+	put_pio_node(*(struct pio_node **)ptr_pio);
+	*(struct pio_node **)ptr_pio = NULL;
+}
+EXPORT_SYMBOL(blk_sec_stat_account_io_finish);
 
 static struct kobj_attribute diskios_attr = __ATTR(diskios, 0444, diskios_show,  NULL);
 

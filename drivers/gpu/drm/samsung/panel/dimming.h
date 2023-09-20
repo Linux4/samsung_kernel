@@ -460,7 +460,7 @@ struct gm2_dimming_init_info {
 	int sz_brt_range;
 };
 
-#ifdef CONFIG_PANEL_AID_DIMMING
+#ifdef CONFIG_USDM_PANEL_DIMMING
 int init_dimming_info(struct dimming_info *, struct dimming_init_info *);
 int init_dimming_mtp(struct dimming_info *, s32 (*)[MAX_COLOR]);
 int init_dimming_hbm_info(struct dimming_info *, s32 (*)[MAX_COLOR], u32);
@@ -511,5 +511,5 @@ void get_dimming_gamma(struct dimming_info *dim_info, u32 luminance, u8 *output,
 		void (*copy)(u8 *output, u32 value, u32 index, u32 color)) {}
 /* for debug */
 static inline void print_dimming_info(struct dimming_info *dim_info, int tag) {}
-#endif	/* CONFIG_PANEL_AID_DIMMING */
+#endif	/* CONFIG_USDM_PANEL_DIMMING */
 #endif	/* _DIMMING_H_ */

@@ -204,6 +204,30 @@ static void pablo_sensor_adt_v1_control_sensor_negative_kunit_test(struct kunit 
 			      test, pablo_sensor_adt_v1_callback);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
+	/* control_sensor without start case */
+	psci.sensor_control_size = 1;
+	psci.sensor_control[0] = PABLO_CRTA_MAGIC_NUMBER;
+	psci.sensor_control[1] = SS_CTRL_CIS_REQUEST_EXPOSURE;
+	psci.sensor_control[2] = 3;
+	psci.sensor_control[3] = 10000;
+	psci.sensor_control[4] = 20000;
+	psci.sensor_control[5] = 30000;
+	psci.sensor_control[6] = SS_CTRL_END;
+
+	atomic_set(&test_ctx->callback, 0);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, control_sensor, &psci, 0, 0);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = wait_event_timeout(test_ctx->callback_queue,
+				atomic_read(&test_ctx->callback),
+				CALLBACK_TIMEOUT);
+	KUNIT_EXPECT_NE(test, 0, ret);
+	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	/* magic number error */
 	psci.sensor_control_size = 1;
 	psci.sensor_control[0] = 0;
@@ -239,6 +263,9 @@ static void pablo_sensor_adt_v1_control_sensor_negative_kunit_test(struct kunit 
 	ret = CALL_SS_ADT_OPS(sensor_adt, control_sensor, NULL, 0, 0);
 	KUNIT_EXPECT_EQ(test, -EINVAL, ret);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -266,6 +293,9 @@ static void pablo_sensor_adt_v1_request_exp_kunit_test(struct kunit *test)
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -303,6 +333,9 @@ static void pablo_sensor_adt_v1_request_exp_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -324,6 +357,9 @@ static void pablo_sensor_adt_v1_request_gain_kunit_test(struct kunit *test)
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -361,6 +397,9 @@ static void pablo_sensor_adt_v1_request_gain_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -382,6 +421,9 @@ static void pablo_sensor_adt_v1_set_alg_reset_flag_kunit_test(struct kunit *test
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -416,6 +458,9 @@ static void pablo_sensor_adt_v1_set_alg_reset_flag_kunit_test(struct kunit *test
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -437,6 +482,9 @@ static void pablo_sensor_adt_v1_set_num_of_frame_kunit_test(struct kunit *test)
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -471,6 +519,9 @@ static void pablo_sensor_adt_v1_set_num_of_frame_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -492,6 +543,9 @@ static void pablo_sensor_adt_v1_apply_sensor_setting_kunit_test(struct kunit *te
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -525,6 +579,9 @@ static void pablo_sensor_adt_v1_apply_sensor_setting_kunit_test(struct kunit *te
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -546,6 +603,9 @@ static void pablo_sensor_adt_v1_reqeust_reset_expo_gain_kunit_test(struct kunit 
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -584,6 +644,9 @@ static void pablo_sensor_adt_v1_reqeust_reset_expo_gain_kunit_test(struct kunit 
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -605,6 +668,9 @@ static void pablo_sensor_adt_v1_set_stream_off_on_mode_kunit_test(struct kunit *
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -644,6 +710,9 @@ static void pablo_sensor_adt_v1_set_stream_off_on_mode_kunit_test(struct kunit *
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -665,6 +734,9 @@ static void pablo_sensor_adt_v1_set_sensor_info_mode_change_kunit_test(struct ku
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -702,6 +774,9 @@ static void pablo_sensor_adt_v1_set_sensor_info_mode_change_kunit_test(struct ku
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -723,6 +798,9 @@ static void pablo_sensor_adt_v1_set_sensor_info_mfhdr_mode_change_kunit_test(str
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -761,6 +839,9 @@ static void pablo_sensor_adt_v1_set_sensor_info_mfhdr_mode_change_kunit_test(str
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -778,6 +859,9 @@ static void pablo_sensor_adt_v1_adjust_sync_kunit_test(struct kunit *test)
 	instance = 0;
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, open, instance, test_ctx->sensor_interface);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
@@ -816,6 +900,9 @@ static void pablo_sensor_adt_v1_adjust_sync_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -837,6 +924,9 @@ static void pablo_sensor_adt_v1_request_frame_length_line_kunit_test(struct kuni
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -871,6 +961,9 @@ static void pablo_sensor_adt_v1_request_frame_length_line_kunit_test(struct kuni
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -888,6 +981,9 @@ static void pablo_sensor_adt_v1_request_sensitivity_kunit_test(struct kunit *tes
 	instance = 0;
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, open, instance, test_ctx->sensor_interface);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
@@ -926,6 +1022,9 @@ static void pablo_sensor_adt_v1_request_sensitivity_kunit_test(struct kunit *tes
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -943,6 +1042,9 @@ static void pablo_sensor_adt_v1_set_sensor_12bit_state_kunit_test(struct kunit *
 	instance = 0;
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, open, instance, test_ctx->sensor_interface);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
@@ -981,6 +1083,9 @@ static void pablo_sensor_adt_v1_set_sensor_12bit_state_kunit_test(struct kunit *
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1002,6 +1107,9 @@ static void pablo_sensor_adt_v1_set_low_noise_mode_kunit_test(struct kunit *test
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1036,6 +1144,9 @@ static void pablo_sensor_adt_v1_set_low_noise_mode_kunit_test(struct kunit *test
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1057,6 +1168,9 @@ static void pablo_sensor_adt_v1_request_wb_gain_kunit_test(struct kunit *test)
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* noraml case */
@@ -1094,6 +1208,9 @@ static void pablo_sensor_adt_v1_request_wb_gain_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1119,6 +1236,9 @@ static void pablo_sensor_adt_v1_set_mainflash_duration_kunit_test(struct kunit *
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 		test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1150,6 +1270,9 @@ static void pablo_sensor_adt_v1_set_mainflash_duration_kunit_test(struct kunit *
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1175,6 +1298,9 @@ static void pablo_sensor_adt_v1_request_direct_flash_kunit_test(struct kunit *te
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1209,6 +1335,9 @@ static void pablo_sensor_adt_v1_request_direct_flash_kunit_test(struct kunit *te
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS( sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1230,6 +1359,9 @@ static void pablo_sensor_adt_v1_set_hdr_mode_kunit_test(struct kunit *test)
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, register_control_sensor_callback,
 			      test, pablo_sensor_adt_v1_callback);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1262,6 +1394,9 @@ static void pablo_sensor_adt_v1_set_hdr_mode_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1287,6 +1422,9 @@ static void pablo_sensor_adt_v1_set_position_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, get_sensor_info, &pcsi);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1319,6 +1457,9 @@ static void pablo_sensor_adt_v1_set_position_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1344,6 +1485,9 @@ static void pablo_sensor_adt_v1_set_soft_landing_config_kunit_test(struct kunit 
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, get_sensor_info, &pcsi);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1377,6 +1521,9 @@ static void pablo_sensor_adt_v1_set_soft_landing_config_kunit_test(struct kunit 
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1402,6 +1549,9 @@ static void pablo_sensor_adt_v1_request_flash_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, get_sensor_info, &pcsi);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1436,6 +1586,9 @@ static void pablo_sensor_adt_v1_request_flash_kunit_test(struct kunit *test)
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1461,6 +1614,9 @@ static void pablo_sensor_adt_v1_request_flash_expo_gain_kunit_test(struct kunit 
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, get_sensor_info, &pcsi);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1522,6 +1678,9 @@ static void pablo_sensor_adt_v1_request_flash_expo_gain_kunit_test(struct kunit 
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
 
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 }
@@ -1547,6 +1706,9 @@ static void pablo_sensor_adt_v1_set_aperture_value_kunit_test(struct kunit *test
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, get_sensor_info, &pcsi);
+	KUNIT_EXPECT_EQ(test, 0, ret);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, start);
 	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	/* normal case */
@@ -1578,6 +1740,9 @@ static void pablo_sensor_adt_v1_set_aperture_value_kunit_test(struct kunit *test
 				atomic_read(&test_ctx->callback), CALLBACK_TIMEOUT);
 	KUNIT_EXPECT_NE(test, 0, ret);
 	KUNIT_EXPECT_EQ(test, test_ctx->callback_ret, -EINVAL);
+
+	ret = CALL_SS_ADT_OPS(sensor_adt, stop);
+	KUNIT_EXPECT_EQ(test, 0, ret);
 
 	ret = CALL_SS_ADT_OPS(sensor_adt, close);
 	KUNIT_EXPECT_EQ(test, 0, ret);

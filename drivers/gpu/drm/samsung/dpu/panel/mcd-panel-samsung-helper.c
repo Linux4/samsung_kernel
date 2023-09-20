@@ -207,7 +207,8 @@ static int exynos_display_mode_get_disp_qos_fps(struct panel_display_mode *pdm)
 	vscan = panel_mode_vscan(pdm);
 	total_pixel_during_one_sec = htotal * vtotal * pdm->refresh_rate * vscan;
 
-	vtotal_without_vfp = vtotal - pdm->panel_vporch[PANEL_PORCH_VFP];
+	vtotal_without_vfp = (vtotal > pdm->panel_vporch[PANEL_PORCH_VFP]) ?
+		(vtotal - pdm->panel_vporch[PANEL_PORCH_VFP]) : 0;
 
 	disp_qos_fps = total_pixel_during_one_sec / (vtotal_without_vfp * htotal);
 

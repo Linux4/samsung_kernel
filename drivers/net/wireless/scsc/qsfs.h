@@ -7,8 +7,6 @@
 #ifndef __SLSI_QSFS_H__
 #define __SLSI_QSFS_H__
 
-#define SLSI_PSID_UNIFI_MISC_FEATURES_ACTIVATED 2880
-#define SLSI_PSID_UNIFI_APPENDIX_VERSIONS 2881
 #define SLSI_QSF_LOW_RX_CORE_GET_MASK  1
 #define SLSI_QSF_MAIN_CORES_GET_MASK   0x0E
 #define SLSI_QSF_MAIN_CORES_SHIFT 1
@@ -263,6 +261,9 @@ struct slsi_qsf_mib_data {
 #define SLSI_QSF_FEATURE_VER_LEN      4
 #define SLSI_QSF_SOLUTION_PROVIDER    3
 #define SLSI_QSF_SW_FEATURE_CHAR_LEN  4
+#define SLSI_QSF_WIFI_FEATURE_VERSION 1
+#define SLSI_QSF_WIFI_HCF_FILE_NAME   "wlan_sw.hcf"
+#define SLSI_HCF_HEADER_LEN           8
 
 void slsi_qsf_init(struct slsi_dev *sdev);
 void slsi_qsf_deinit(void);

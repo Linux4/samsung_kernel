@@ -218,6 +218,9 @@ struct exynos_usbdrd_phy {
 	int is_conn;
 	int is_irq_enabled;
 	int idle_ip_idx;
+	struct notifier_block	pm_nb;
+	struct completion	resume_cmpl;
+	int			phy_usbdrd_suspended;
 	u32 phy_port;
 	u32 reverse_phy_port;
 	spinlock_t lock;
@@ -257,6 +260,7 @@ enum samsung_phy_set_option {
 	SET_DPDM_PULLDOWN,
 };
 
+void exynos_usb_pm_noti_init(struct exynos_usbdrd_phy *phy_drd);
 #if IS_ENABLED(CONFIG_PHY_EXYNOS_EUSB_REPEATER)
 extern int eusb_repeater_power_on(void);
 extern int eusb_repeater_power_off(void);

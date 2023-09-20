@@ -19,6 +19,9 @@
 #include <linux/battery/sec_pd.h>
 #endif
 #endif
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+#include <linux/usb/typec/manager/if_cb_manager.h>
+#endif
 
 #define MAX_CHARGING_VOLT		12000 /* 12V */
 #define USBPD_VOLT_UNIT			50 /* 50mV */
@@ -545,6 +548,10 @@ typedef enum {
 	PD_WATER_DEFAULT,
 } PDIC_WATER_STATUS;
 
+enum {
+	CC_OPEN_OVERHEAT,
+};
+
 #define PDIC_OPS_FUNC(func, _data) \
 	((pd_data->phy_ops.func) ? \
 	 (pd_data->phy_ops.func(_data)) : \
@@ -607,7 +614,7 @@ typedef struct usbpd_phy_ops {
 	int    (*pps_enable)(void *, int);
 	int    (*get_pps_enable)(void *, int *);
 #endif
-#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER) || IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	int		(*water_get_power_role)(void *);
 	int		(*ops_water_check)(void *);
 	int		(*ops_dry_check)(void *);
@@ -630,7 +637,7 @@ typedef struct usbpd_phy_ops {
 	void	(*ops_control_option_command)(void *, int);
 	void	(*ops_sysfs_lpm_mode)(void *, int cmd);
 	void	(*set_pcp_clk)(void *, int);
-
+	void	(*ops_ccopen_req)(void *, int);
 } usbpd_phy_ops_type;
 
 struct policy_data {
@@ -755,6 +762,7 @@ struct usbpd_manager_data {
 	int d2d_type;
 	int req_pdo_type;
 	bool psrdy_sent;
+	int is_ccopen;
 };
 
 struct usbpd_data {
@@ -813,6 +821,10 @@ struct usbpd_data {
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	ppdic_data_t ppdic_data;
 	struct workqueue_struct *pdic_wq;
+#endif
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	struct usbpd_dev usbpd_d;
+	struct if_cb_manager *man;
 #endif
 };
 

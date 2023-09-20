@@ -284,8 +284,8 @@ config SEC_UFS_CMD_LOGGING
 	 If unsure, say N.
 
 config SCSI_UFS_HWMON
-	bool "UFS  Temperature Notification"
-	depends on SCSI_UFSHCD && HWMON
+	bool "UFS Temperature Notification"
+	depends on SCSI_UFSHCD=HWMON || HWMON=y
 	help
 	  This provides support for UFS hardware monitoring. If enabled,
 	  a hardware monitoring device will be created for the UFS device.

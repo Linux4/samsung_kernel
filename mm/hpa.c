@@ -376,11 +376,13 @@ static int steal_highorder_pages_block(struct page *pages[], unsigned int order,
 	return picked;
 }
 
+#define pageblock_end_pfn(pfn)		ALIGN((pfn) + 1, pageblock_nr_pages)
 static int steal_highorder_pages(struct page *pages[], int required, unsigned int order,
 				 unsigned long base_pfn, unsigned long end_pfn,
 				 phys_addr_t exception_areas[][2], int nr_exception,
 				 unsigned int *status)
 {
+	struct zone *zone;
 	unsigned long pfn;
 	int picked = 0;
 
@@ -406,6 +408,10 @@ static int steal_highorder_pages(struct page *pages[], int required, unsigned in
 		}
 
 		if (!pfn_valid(pfn))
+			continue;
+
+		zone = page_zone(pfn_to_page(pfn));
+		if (!pageblock_pfn_to_page(pfn, pageblock_end_pfn(pfn), zone))
 			continue;
 
 		picked += steal_highorder_pages_block(pages + picked, order, required - picked,
@@ -449,6 +455,7 @@ int alloc_pages_highorder_except(int order, struct page **pages, int nents,
 	int i;
 
 	base_pfn = ALIGN(base_pfn, pageblock_nr_pages);
+	end_pfn = ALIGN_DOWN(end_pfn, pageblock_nr_pages);
 
 	while (true) {
 		struct zone *zone;

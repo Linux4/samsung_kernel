@@ -49,11 +49,6 @@ static struct slsi_ba_session_rx *slsi_rx_ba_alloc_buffer(struct net_device *dev
 	struct slsi_ba_session_rx *buffer = NULL;
 	u16 i;
 
-	SLSI_NET_DBG3(dev, SLSI_RX_BA, "RX BA buffer pool status: %d,%d,%d,%d,%d,%d,%d,%d\n",
-		      sdev->rx_ba_buffer_pool[0].used, sdev->rx_ba_buffer_pool[1].used, sdev->rx_ba_buffer_pool[2].used,
-		      sdev->rx_ba_buffer_pool[3].used, sdev->rx_ba_buffer_pool[4].used, sdev->rx_ba_buffer_pool[5].used,
-		      sdev->rx_ba_buffer_pool[6].used, sdev->rx_ba_buffer_pool[7].used);
-
 	slsi_spinlock_lock(&sdev->rx_ba_buffer_pool_lock);
 	for (i = 0; i < SLSI_MAX_RX_BA_SESSIONS; i++) {
 		if (!sdev->rx_ba_buffer_pool[i].used) {
@@ -646,6 +641,7 @@ void slsi_ba_update_window(struct net_device *dev,
 void slsi_handle_blockack(struct net_device *dev, struct slsi_peer *peer,
 			  u16 reason_code, u16 user_priority, u16 buffer_size, u16 sequence_number)
 {
+	struct netdev_vif		  *ndev_vif = netdev_priv(dev);
 	struct slsi_ba_session_rx *ba_session_rx;
 
 	if (WLBT_WARN_ON(user_priority > FAPI_PRIORITY_QOS_UP7)) {
@@ -666,9 +662,12 @@ void slsi_handle_blockack(struct net_device *dev, struct slsi_peer *peer,
 		if (!peer->ba_session_rx[user_priority])
 			peer->ba_session_rx[user_priority] = slsi_rx_ba_alloc_buffer(dev);
 
-		if (peer->ba_session_rx[user_priority])
+		if (peer->ba_session_rx[user_priority]) {
 			if (slsi_rx_ba_start(dev, peer, peer->ba_session_rx[user_priority], user_priority, buffer_size, sequence_number) != 0)
 				slsi_rx_ba_free_buffer(dev, peer, user_priority);
+			else
+				slsi_rx_buffered_frames(ndev_vif->sdev, dev, peer, user_priority);
+		}
 		break;
 	case FAPI_REASONCODE_END:
 		if (ba_session_rx) {

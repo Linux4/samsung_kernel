@@ -22,7 +22,9 @@
 #define __MUIC_PLATFORM_LAYER_H__
 
 #include <linux/muic/common/muic.h>
-
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+#include <linux/usb/typec/manager/if_cb_manager.h>
+#endif
 #if IS_ENABLED(CONFIG_MUIC_SUPPORT_POWERMETER)
 #include <linux/power_supply.h>
 #endif
@@ -44,7 +46,7 @@ enum pdic_events {
 	EVENT_PDIC_MAX,
 };
 
-struct muic_ops {
+struct muic_ic_ops {
 	int (*get_vbus_state)(void *mdata);
 	int (*set_gpio_uart_sel)(void *mdata, int uart_path);
 	int (*set_gpio_usb_sel)(void *mdata, int usb_path);
@@ -90,7 +92,7 @@ struct muic_ops {
 };
 
 struct muic_ic_data {
-	struct muic_ops m_ops;
+	struct muic_ic_ops m_ops;
 	void *drv_data;
 };
 
@@ -99,6 +101,7 @@ struct muic_share_data {
 	struct muic_interface_t *muic_if;
 	struct muic_ic_data *ic_data;
 	struct mutex hv_mutex;
+	struct mutex attach_mutex;
 	struct delayed_work hv_work;
 
 	bool suspended;

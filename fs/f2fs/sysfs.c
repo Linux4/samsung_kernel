@@ -498,6 +498,15 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 			__sec_bigdata_init_value(sbi, a->attr.name);
 
 		return len;
+	} else if (!strcmp(a->attr.name, "sec_heimdallfs_stat")) {
+		return snprintf(buf, PAGE_SIZE,
+		"\"%s\":\"%u\",\"%s\":\"%llu\",\"%s\":\"%u\",\"%s\":\"%llu\","
+		"\"%s\":\"%llu\"\n",
+			"NR_PKGS", sbi->sec_heimdallfs_stat.nr_pkgs,
+			"NR_PKG_BLKS", sbi->sec_heimdallfs_stat.nr_pkg_blks,
+			"NR_COMP_PKGS", sbi->sec_heimdallfs_stat.nr_comp_pkgs,
+			"NR_COMP_PKG_BLKS", sbi->sec_heimdallfs_stat.nr_comp_pkg_blks,
+			"NR_COMP_PKG_SAVED_BLKS", sbi->sec_heimdallfs_stat.nr_comp_saved_blks);
 	} else if (!strcmp(a->attr.name, "sec_defrag_stat")) {
 		int len = 0;
 
@@ -888,7 +897,6 @@ out:
 
 	if (!strcmp(a->attr.name, "gc_urgent_high_remaining")) {
 		spin_lock(&sbi->gc_urgent_high_lock);
-		sbi->gc_urgent_high_limited = t != 0;
 		sbi->gc_urgent_high_remaining = t;
 		spin_unlock(&sbi->gc_urgent_high_lock);
 
@@ -1202,6 +1210,7 @@ F2FS_RW_ATTR(CPRC_INFO, ckpt_req_control, ckpt_thread_ioprio, ckpt_thread_ioprio
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_gc_stat, sec_stat);
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_io_stat, sec_stat);
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_fsck_stat, sec_fsck_stat);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_heimdallfs_stat, sec_heimdallfs_stat);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_best_extents, s_sec_part_best_extents);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_current_extents, s_sec_part_current_extents);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_score, s_sec_part_score);
@@ -1273,6 +1282,10 @@ F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, compr_saved_block, compr_saved_block);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, compr_new_inode, compr_new_inode);
 #endif
 F2FS_FEATURE_RO_ATTR(pin_file);
+
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+F2FS_FEATURE_RO_ATTR(sec_dnode_relocation);
+#endif
 
 /* For ATGC */
 F2FS_RW_ATTR(ATGC_INFO, atgc_management, atgc_candidate_ratio, candidate_ratio);
@@ -1352,6 +1365,7 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(sec_gc_stat),
 	ATTR_LIST(sec_io_stat),
 	ATTR_LIST(sec_fsck_stat),
+	ATTR_LIST(sec_heimdallfs_stat),
 	ATTR_LIST(sec_part_best_extents),
 	ATTR_LIST(sec_part_current_extents),
 	ATTR_LIST(sec_part_score),
@@ -1431,6 +1445,9 @@ static struct attribute *f2fs_feat_attrs[] = {
 	ATTR_LIST(compression),
 #endif
 	ATTR_LIST(pin_file),
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	ATTR_LIST(sec_dnode_relocation),
+#endif
 	NULL,
 };
 ATTRIBUTE_GROUPS(f2fs_feat);

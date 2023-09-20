@@ -661,7 +661,7 @@ static int platform_mif_pm_qos_update_request(struct scsc_mif_abs *interface, st
 
 	table = platform_mif_pm_qos_get_table(platform, config);
 
-	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev,
+	SCSC_TAG_DEBUG_DEV(PLAT_MIF, platform->dev,
 		"PM QoS update request: %u. MIF %u INT %u CL0 %u CL1 %u CL2 %u\n", config, table.freq_mif, table.freq_int, table.freq_cl0, table.freq_cl1, table.freq_cl2);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))

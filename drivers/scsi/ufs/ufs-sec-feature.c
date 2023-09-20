@@ -10,6 +10,7 @@
 
 #include <linux/time.h>
 #include <linux/of.h>
+#include <linux/irqreturn.h>
 #include <asm/unaligned.h>
 #include <trace/hooks/ufshcd.h>
 #include <linux/panic_notifier.h>
@@ -1040,14 +1041,25 @@ static void ufs_sec_init_error_logging(struct device *dev)
 
 void ufs_sec_check_device_stuck(void)
 {
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+#if (!IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP) ||\
+	IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE))
 	struct ufs_vendor_dev_info *vdi = ufs_sec_features.vdi;
+#endif
 
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	if (vdi && vdi->device_stuck) {
 		/* waiting for cache flush and make a panic */
 		ssleep(2);
 		panic("UFS TM ERROR\n");
 	}
+#endif
+
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+	if (vdi && vdi->hba && vdi->hba->eh_flags)
+		/* do not recover system if test mode is enabled */
+		/* 1. reset recovery is in progress from ufshcd_err_handler */
+		/* 2. exynos_ufs_init_host has been succeeded */
+		BUG();
 #endif
 }
 
@@ -1254,9 +1266,8 @@ static int ufs_sec_panic_callback(struct notifier_block *nfb,
 
 	pr_err("%s: Send UFS information to AP : %s\n", __func__, buf);
 
-#if IS_ENABLED(CONFIG_SEC_USER_RESET_DEBUG)
-	sec_debug_store_additional_dbg(DBG_1_UFS_ERR, 0, "%s", buf);
-#endif
+	secdbg_exin_set_ufs(buf);
+
 	if (ufs_vdi)
 		ufs_sec_print_evt_hist(ufs_vdi->hba);
 
@@ -1572,6 +1583,15 @@ static void sec_android_vh_ufs_send_tm_command(void *data,
 
 	if ((str_t == UFS_TM_ERR) && ufs_sec_is_err_cnt_allowed())
 		ufs_sec_inc_tm_error(tm_func);
+
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+	if (str_t == UFS_TM_COMP && !hba->eh_flags) {
+		dev_err(hba->dev,
+			"%s: ufs tm cmd is succeeded and forced BUG called\n", __func__);
+		ssleep(2);
+		BUG();
+	}
+#endif
 }
 
 static void sec_android_vh_ufs_update_sdev(void *data, struct scsi_device *sdev)

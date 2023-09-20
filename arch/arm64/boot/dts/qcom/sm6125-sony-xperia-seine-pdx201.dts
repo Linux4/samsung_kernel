@@ -389,59 +389,59 @@
 			gpio-reserved-ranges = <0x16 0x02 0x1c 0x06>;
 			phandle = <0x10>;
 
-			sdc2-off {
+			sdc2-off-state {
 				phandle = <0x16>;
 
 				clk {
 					pins = "sdc2_clk";
-					bias-disable;
 					drive-strength = <0x02>;
+					bias-disable;
 				};
 
 				cmd {
 					pins = "sdc2_cmd";
-					bias-pull-up;
 					drive-strength = <0x02>;
+					bias-pull-up;
 				};
 
 				data {
 					pins = "sdc2_data";
-					bias-pull-up;
 					drive-strength = <0x02>;
+					bias-pull-up;
 				};
 
 				sd-cd {
 					pins = "gpio98";
-					bias-disable;
 					drive-strength = <0x02>;
+					bias-disable;
 				};
 			};
 
-			sdc2-on {
+			sdc2-on-state {
 				phandle = <0x15>;
 
 				clk {
 					pins = "sdc2_clk";
-					bias-disable;
 					drive-strength = <0x10>;
+					bias-disable;
 				};
 
 				cmd {
 					pins = "sdc2_cmd";
-					bias-pull-up;
 					drive-strength = <0x0a>;
+					bias-pull-up;
 				};
 
 				data {
 					pins = "sdc2_data";
-					bias-pull-up;
 					drive-strength = <0x0a>;
+					bias-pull-up;
 				};
 
 				sd-cd {
 					pins = "gpio98";
-					bias-pull-up;
 					drive-strength = <0x02>;
+					bias-pull-up;
 				};
 			};
 		};
@@ -727,8 +727,8 @@
 		smem = "/smem";
 		tcsr_mutex = "/soc/hwlock@340000";
 		tlmm = "/soc/pinctrl@500000";
-		sdc2_state_off = "/soc/pinctrl@500000/sdc2-off";
-		sdc2_state_on = "/soc/pinctrl@500000/sdc2-on";
+		sdc2_off_state = "/soc/pinctrl@500000/sdc2-off-state";
+		sdc2_on_state = "/soc/pinctrl@500000/sdc2-on-state";
 		gcc = "/soc/clock-controller@1400000";
 		hsusb_phy1 = "/soc/phy@1613000";
 		rpm_msg_ram = "/soc/sram@45f0000";

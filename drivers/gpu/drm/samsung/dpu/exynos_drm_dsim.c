@@ -1680,6 +1680,26 @@ exit:
 	dsim_debug(dsim, "-\n");
 }
 
+static int dsim_wait_datalane_stop_state(struct dsim_device *dsim)
+{
+	int cnt = 5000;
+	enum dsim_datalane_status s;
+
+	do {
+		s = dsim_reg_get_datalane_status(dsim->id);
+
+		if (dsim_reg_payload_fifo_is_empty(dsim->id) &&
+				(s == DSIM_DATALANE_STATUS_STOPDATA))
+
+			break;
+
+		usleep_range(10, 11);
+		cnt--;
+	} while (cnt);
+
+	return cnt;
+}
+
 static int dsim_wait_for_cmd_fifo_empty(struct dsim_device *dsim, bool must_wait)
 {
 	int ret = 0;
@@ -1690,7 +1710,7 @@ static int dsim_wait_for_cmd_fifo_empty(struct dsim_device *dsim, bool must_wait
 			del_timer(&dsim->cmd_timer);
 
 		dsim_debug(dsim, "Doesn't need to wait fifo_completion\n");
-		return ret;
+		goto exit;
 	}
 
 	del_timer(&dsim->cmd_timer);
@@ -1701,13 +1721,17 @@ static int dsim_wait_for_cmd_fifo_empty(struct dsim_device *dsim, bool must_wait
 			reinit_completion(&dsim->ph_wr_comp);
 			dsim_reg_clear_int(dsim->id,
 					DSIM_INTSRC_SFR_PH_FIFO_EMPTY);
-			return 0;
+			goto exit;
 		}
 		ret = -ETIMEDOUT;
 	}
 
 	if ((is_dsim_enabled(dsim)) && (ret == -ETIMEDOUT))
 		dsim_err(dsim, "have timed out\n");
+
+exit:
+	if (ret == 0 && dsim->wait_lp11_after_cmds)
+		dsim_wait_datalane_stop_state(dsim);
 
 	return ret;
 }
@@ -2086,6 +2110,17 @@ dsim_set_max_pkt_size(struct dsim_device *dsim, const struct mipi_dsi_msg *msg)
 	return dsim_write_data(dsim, &pkt_size_msg);
 }
 
+static void dsim_clear_rx_fifo(struct dsim_device *dsim)
+{
+	u32 depth =  DSIM_RX_FIFO_MAX_DEPTH;
+
+	while (depth-- && !dsim_reg_rx_fifo_is_empty(dsim->id))
+		dsim_reg_get_rx_fifo(dsim->id);
+
+	if (!depth)
+		dsim_err(dsim, "rxfifo was incompletely cleared\n");
+}
+
 #define DSIM_RX_PHK_HEADER_SIZE	4
 static int dsim_read_data(struct dsim_device *dsim, const struct mipi_dsi_msg *msg)
 {
@@ -2117,8 +2152,7 @@ static int dsim_read_data(struct dsim_device *dsim, const struct mipi_dsi_msg *m
 	}
 
 	rx_fifo = dsim_reg_get_rx_fifo(dsim->id);
-	dsim_debug(dsim, "rx fifo:0x%8x, response:0x%x, rx_size:%d\n", rx_fifo,
-		 rx_fifo & 0xff, rx_size);
+	dsim_debug(dsim, "rx fifo:0x%8x\n", rx_fifo);
 
 	/* Parse the RX packet data types */
 	switch (rx_fifo & 0xff) {
@@ -2166,7 +2200,12 @@ static int dsim_read_data(struct dsim_device *dsim, const struct mipi_dsi_msg *m
 
 	if (!dsim_reg_rx_fifo_is_empty(dsim->id)) {
 		dsim_err(dsim, "RX FIFO is not empty\n");
+		rx_fifo = dsim_reg_get_rx_fifo(dsim->id);
+		if (rx_fifo && 0xFF == MIPI_DSI_RX_ACKNOWLEDGE_AND_ERROR_REPORT)
+			dsim_reg_rx_err_handler(dsim->id, rx_fifo);
+
 		dsim_dump(dsim);
+		dsim_clear_rx_fifo(dsim);
 		ret = -EBUSY;
 	} else  {
 		ret = rx_size;

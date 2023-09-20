@@ -24,7 +24,7 @@
 #define POC_CHKSUM_DATA_LEN		(4)
 #define POC_CHKSUM_RES_LEN		(1)
 #define POC_CHKSUM_LEN		(POC_CHKSUM_DATA_LEN + POC_CHKSUM_RES_LEN)
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 #define POC_TOTAL_TRY_COUNT_FILE_PATH	("/efs/afc/apply_count")
 #define POC_TOTAL_FAIL_COUNT_FILE_PATH	("/efs/afc/fail_count")
 #define POC_INFO_FILE_PATH	("/efs/FactoryApp/poc_info")
@@ -35,52 +35,48 @@
 #define BIT_RATE_DIV_4	(1)
 #define BIT_RATE_DIV_32	(4)
 
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 #define POC_SPI_WAIT_WRITE_CNT 100
 #define POC_SPI_WAIT_ERASE_CNT 100
 #endif
 
 #define PANEL_POC_SPI_BUSY_WAIT
 
-enum {
-	/* poc erase */
-	POC_ERASE_ENTER_SEQ,
-	POC_ERASE_SEQ,
-	POC_ERASE_4K_SEQ,
-	POC_ERASE_32K_SEQ,
-	POC_ERASE_64K_SEQ,
-	POC_ERASE_EXIT_SEQ,
+/* poc erase */
+#define POC_ERASE_ENTER_SEQ ("poc_erase_enter_seq")
+#define POC_ERASE_SEQ ("poc_erase_seq")
+#define POC_ERASE_4K_SEQ ("poc_erase_4k_seq")
+#define POC_ERASE_32K_SEQ ("poc_erase_32k_seq")
+#define POC_ERASE_64K_SEQ ("poc_erase_64k_seq")
+#define POC_ERASE_EXIT_SEQ ("poc_erase_exit_seq")
 
-	/* poc write */
-	POC_WRITE_ENTER_SEQ,
-	POC_WRITE_STT_SEQ,
-	POC_WRITE_DAT_SEQ,
-	POC_WRITE_DAT_STT_END_SEQ,
-	POC_WRITE_END_SEQ,
-	POC_WRITE_EXIT_SEQ,
+/* poc write */
+#define POC_WRITE_ENTER_SEQ ("poc_write_enter_seq")
+#define POC_WRITE_STT_SEQ ("poc_write_stt_seq")
+#define POC_WRITE_DAT_SEQ ("poc_write_dat_seq")
+#define POC_WRITE_DAT_STT_END_SEQ ("poc_write_dat_stt_end_seq")
+#define POC_WRITE_END_SEQ ("poc_write_end_seq")
+#define POC_WRITE_EXIT_SEQ ("poc_write_exit_seq")
 
-	/* poc read */
-	POC_READ_PRE_ENTER_SEQ,
-	POC_READ_ENTER_SEQ,
-	POC_READ_DAT_SEQ,
-	POC_READ_EXIT_SEQ,
+/* poc read */
+#define POC_READ_PRE_ENTER_SEQ ("poc_read_pre_enter_seq")
+#define POC_READ_ENTER_SEQ ("poc_read_enter_seq")
+#define POC_READ_DAT_SEQ ("poc_read_dat_seq")
+#define POC_READ_EXIT_SEQ ("poc_read_exit_seq")
 
-#ifdef CONFIG_SUPPORT_POC_SPI
-	/* poc spi */
-	POC_SPI_INIT_SEQ,
-	POC_SPI_EXIT_SEQ,
-	POC_SPI_ERASE_64K_SEQ,
-	POC_SPI_ERASE_32K_SEQ,
-	POC_SPI_ERASE_4K_SEQ,
-	POC_SPI_WRITE_SEQ,
-	POC_SPI_READ_SEQ,
-	POC_SPI_STATUS_SEQ,
-	POC_SPI_WAIT_WRITE_SEQ,
-	POC_SPI_WAIT_ERASE_SEQ,
+/* poc spi */
+#ifdef CONFIG_USDM_POC_SPI
+#define POC_SPI_INIT_SEQ ("poc_spi_init_seq")
+#define POC_SPI_EXIT_SEQ ("poc_spi_exit_seq")
+#define POC_SPI_ERASE_64K_SEQ ("poc_spi_erase_64k_seq")
+#define POC_SPI_ERASE_32K_SEQ ("poc_spi_erase_32k_seq")
+#define POC_SPI_ERASE_4K_SEQ ("poc_spi_erase_4k_seq")
+#define POC_SPI_WRITE_SEQ ("poc_spi_write_seq")
+#define POC_SPI_READ_SEQ ("poc_spi_read_seq")
+#define POC_SPI_STATUS_SEQ ("poc_spi_status_seq")
+#define POC_SPI_WAIT_WRITE_SEQ ("poc_spi_wait_write_seq")
+#define POC_SPI_WAIT_ERASE_SEQ ("poc_spi_wait_erase_seq")
 #endif
-	/* if necessary, add new seq */
-	MAX_POC_SEQ,
-};
 
 enum {
 	/* IMG PARTITION */
@@ -139,7 +135,7 @@ enum {
 	POC_OP_DIM_READ_FROM_FILE = 23,
 	POC_OP_MTP_READ = 24,
 	POC_OP_MCD_READ = 25,
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	POC_OP_SET_CONN_SRC = 26,
 	POC_OP_SET_SPI_SPEED = 27,
 	POC_OP_READ_SPI_STATUS_REG = 28,
@@ -178,7 +174,7 @@ enum poc_state {
 	POC_STATE_RD_FAILED,
 	MAX_POC_STATE,
 };
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 enum poc_conn_src {
 	POC_CONN_SRC_DSI = 0,
 	POC_CONN_SRC_SPI = 1,
@@ -210,7 +206,7 @@ struct panel_poc_info {
 	u32 rpos;
 	u32 rsize;
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	int total_failcount;
 	int total_trycount;
 	int erase_trycount;
@@ -220,7 +216,7 @@ struct panel_poc_info {
 	int read_trycount;
 	int read_failcount;
 #endif
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	enum poc_conn_src conn_src;
 	u32 spi_wdata_len;
 	u32 state_mask;
@@ -235,22 +231,20 @@ struct panel_poc_device {
 	struct miscdevice dev;
 	__u64 count;
 	unsigned int flags;
-	struct mutex op_lock;
+	struct panel_mutex op_lock;
 	atomic_t cancel;
 	bool opened;
 	struct panel_poc_info poc_info;
-#ifdef CONFIG_DISPLAY_USE_INFO
+#ifdef CONFIG_USDM_PANEL_DPUI
 	struct notifier_block poc_notif;
 #endif
-	struct seqinfo *seqtbl;
-	u32 nr_seqtbl;
-	struct maptbl *maptbl;
-	u32 nr_maptbl;
 	struct poc_partition *partition;
 	u32 nr_partition;
+	struct list_head seq_list;
+	struct list_head maptbl_list;
 };
 
-#ifdef CONFIG_SUPPORT_DIM_FLASH
+#ifdef CONFIG_USDM_PANEL_DIM_FLASH
 enum dim_flash_items {
 	DIM_FLASH_GAMMA,
 	DIM_FLASH_AOR,
@@ -326,7 +320,7 @@ struct panel_poc_data {
 	struct poc_partition *partition;
 	u32 nr_partition;
 	u32 wdata_len;
-#ifdef CONFIG_SUPPORT_POC_SPI
+#ifdef CONFIG_USDM_POC_SPI
 	enum poc_conn_src conn_src;
 	u32 spi_wdata_len;
 	u32 state_mask;

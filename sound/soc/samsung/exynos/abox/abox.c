@@ -3815,6 +3815,22 @@ error:
 	return ret;
 }
 
+void abox_force_enable(void)
+{
+	int ret;
+
+	if(list_empty(&p_abox_data->conf.nodes)) {
+		abox_info(p_abox_data->dev, "%s\n", __func__);
+		pm_runtime_get_sync(p_abox_data->dev);
+		if (!p_abox_data->enabled) {
+			ret = abox_enable(p_abox_data->dev);
+			if(ret < 0)
+				abox_err(p_abox_data->dev, "Failed to enable abox, ret=%d\n", ret);
+		}
+		pm_runtime_put(p_abox_data->dev);
+	}
+}
+
 static int abox_disable(struct device *dev)
 {
 	struct abox_data *data = dev_get_drvdata(dev);
@@ -3933,8 +3949,10 @@ static int abox_pm_notifier(struct notifier_block *nb,
 			ret = pm_runtime_suspend(dev);
 			if (ret < 0) {
 				abox_info(dev, "runtime suspend: %d\n", ret);
-				if (atomic_read(&dev->power.child_count) < 1)
+				if (atomic_read(&dev->power.child_count) < 1) {
 					abox_qos_print(dev, ABOX_QOS_AUD);
+					abox_qos_print(dev, ABOX_QOS_FW0);
+				}
 				abox_print_power_usage(dev, NULL);
 				return NOTIFY_BAD;
 			}
@@ -4710,7 +4728,10 @@ static int samsung_abox_probe(struct platform_device *pdev)
 	pm_runtime_put(dev);
 
 #if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	data->debug_mode = DEBUG_MODE_NONE;
+	abox_info(dev, "debug_mode NONE\n");
+#else
 	data->debug_mode = DEBUG_MODE_FILE;
 	abox_info(dev, "debug_mode FILE\n");
 #endif

@@ -21,6 +21,7 @@
 
 #define SENSOR_CONTROL_MAX		100
 #define EXPOSURE_NUM_MAX		3
+#define SEAMLESS_MODE_MAX		10
 
 /* message */
 #define MSG_INSTANCE_ID_MASK		0xF0000000

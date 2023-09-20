@@ -32,6 +32,7 @@ get_init_chipset_funcs_ptr get_acc_funcs_ary[] = {
 	get_accelometer_lsm6dsl_function_pointer,
 	get_accelometer_lis2dlc12_function_pointer,
 	get_accelometer_lsm6dsotr_function_pointer,
+	get_accelometer_lsm6dsvtr_function_pointer,
 	get_accelometer_icm42632m_function_pointer,
 };
 
@@ -144,7 +145,7 @@ int sync_accelerometer_status(void)
 void print_accelerometer_debug(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_ACCELEROMETER);
-	struct sensor_event *event = &(sensor->event_buffer);
+	struct sensor_event *event = &(sensor->last_event_buffer);
 	struct accel_event *sensor_value = (struct accel_event *)(event->value);
 
 	shub_info("%s(%u) : %d, %d, %d (%lld) (%ums, %dms)", sensor->name, SENSOR_TYPE_ACCELEROMETER, sensor_value->x,
@@ -152,67 +153,43 @@ void print_accelerometer_debug(void)
 		  sensor->max_report_latency);
 }
 
+static struct sensor_funcs accelerometer_sensor_func = {
+	.sync_status = sync_accelerometer_status,
+	.print_debug = print_accelerometer_debug,
+	.set_position = set_accel_position,
+	.get_position = get_accel_position,
+	.open_calibration_file = open_accel_calibration_file,
+	.parse_dt = parse_dt_accelerometer,
+	.get_init_chipset_funcs = get_accel_init_chipset_funcs,
+};
+
+static struct accelerometer_data accelerometer_data;
+
 int init_accelerometer(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_ACCELEROMETER);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "accelerometer_sensor");
+		ret = init_default_func(sensor, "accelerometer_sensor", 6, 6, sizeof(struct accel_event));
+
 		sensor->report_mode_continuous = true;
-		sensor->receive_event_size = 6;
-		sensor->report_event_size = 6;
-		sensor->event_buffer.value = kzalloc(sizeof(struct accel_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->data = kzalloc(sizeof(struct accelerometer_data), GFP_KERNEL);
-		if (!sensor->data)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->sync_status = sync_accelerometer_status;
-		sensor->funcs->print_debug = print_accelerometer_debug;
-		sensor->funcs->set_position = set_accel_position;
-		sensor->funcs->get_position = get_accel_position;
-		sensor->funcs->open_calibration_file = open_accel_calibration_file;
-		sensor->funcs->parse_dt = parse_dt_accelerometer;
-		sensor->funcs->get_init_chipset_funcs = get_accel_init_chipset_funcs;
+		sensor->data = (void *)&accelerometer_data;
+		sensor->funcs = &accelerometer_sensor_func;		
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
-
-		kfree(sensor->data);
-		sensor->data = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	shub_errf("err no memory");
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->data);
-	sensor->data = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
 
 static void print_accelerometer_uncal_debug(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED);
-	struct sensor_event *event = &(sensor->event_buffer);
+	struct sensor_event *event = &(sensor->last_event_buffer);
 	struct uncal_accel_event *sensor_value = (struct uncal_accel_event *)(event->value);
 
 	shub_info("%s(%u) : %d, %d, %d, %d, %d, %d (%lld) (%ums, %dms)", sensor->name,
@@ -221,42 +198,26 @@ static void print_accelerometer_uncal_debug(void)
 		  event->timestamp, sensor->sampling_period, sensor->max_report_latency);
 }
 
+static struct sensor_funcs accelerometer_uncal_sensor_func = {
+	.print_debug = print_accelerometer_uncal_debug,
+};
+
 int init_accelerometer_uncal(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "uncal_accel_sensor");
+		ret = init_default_func(sensor, "uncal_accel_sensor", 12, 12, sizeof(struct uncal_accel_event));
+
 		sensor->report_mode_continuous = true;
-		sensor->receive_event_size = 12;
-		sensor->report_event_size = 12;
-		sensor->event_buffer.value = kzalloc(sizeof(struct uncal_accel_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->print_debug = print_accelerometer_uncal_debug;
+		sensor->funcs = &accelerometer_uncal_sensor_func;		
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

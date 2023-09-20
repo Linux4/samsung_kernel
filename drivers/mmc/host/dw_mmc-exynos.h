@@ -47,6 +47,7 @@ struct dw_mci_exynos_priv_data {
 	u32 hs400_tx_t_initval;
 	u32 sdr104_timing;
 	u32 sdr50_timing;
+	u32 hs_timing;
 	u32 *ref_clk;
 	u32 delay_line;
 	u32 tx_delay_line;

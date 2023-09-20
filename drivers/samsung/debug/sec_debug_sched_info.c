@@ -52,7 +52,7 @@ static void secdbg_scin_show_sched_info(unsigned int cpu, int count)
 	if (!log_item->entry.enabled)
 		return;
 
-	if (cpu < 0 || cpu >= NR_CPUS) {
+	if (cpu >= NR_CPUS) {
 		pr_warn("%s: invalid cpu %d\n", __func__, cpu);
 		return;
 	}
@@ -197,7 +197,7 @@ static int get_current_sclass(void)
 	int i;
 	char sym[KSYM_SYMBOL_LEN] = {0,};
 
-	sprint_symbol_no_offset(sym, (unsigned long)current->sched_class);
+	snprintf(sym, KSYM_SYMBOL_LEN, "%ps", current->sched_class);
 
 	for (i = SECDBG_SCHED_IDLE; i < SECDBG_SCHED_MAX; i++) {
 		if (!strncmp(sched_class_array[i].symname, sym, KSYM_SYMBOL_LEN))
@@ -258,7 +258,7 @@ static int secdbg_scin_show_busy_task(unsigned int cpu, unsigned long long durat
 	struct list_head *list = per_cpu_ptr(&busy_info_list, cpu);
 	bool is_busy;
 
-	if (cpu < 0 || cpu >= NR_CPUS) {
+	if (cpu >= NR_CPUS) {
 		pr_warn("%s: invalid cpu %d\n", __func__, cpu);
 		return -EINVAL;
 	}

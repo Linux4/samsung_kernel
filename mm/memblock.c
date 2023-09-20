@@ -2534,8 +2534,8 @@ static int memblock_memsize_show(struct seq_file *m, void *private)
 		size = rgn->size;
 		end = base + size;
 
-		seq_printf(m, "0x%09lx-0x%09lx 0x%08lx ( %7lu KB ) %s %s %s\n",
-			   (unsigned long)base, (unsigned long)end,
+		seq_printf(m, "0x%09pK-0x%09pK 0x%08lx ( %7lu KB ) %s %s %s\n",
+			   (void *)base, (void *)end,
 			   size, DIV_ROUND_UP(size, SZ_1K),
 			   rgn->nomap ? "nomap" : "  map",
 			   rgn->reusable ? "reusable" : "unusable",

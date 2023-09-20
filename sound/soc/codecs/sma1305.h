@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
  * sma1305.h -- sma1305 ALSA SoC Audio driver
  *
- * r023, 2022.11.03
+ * r028, 2022.12.27
  *
  * Copyright 2020 Iron Device Corporation
  *
@@ -20,8 +20,26 @@ int sma1305_reinit(struct snd_soc_component *component);
 #endif
 
 int get_sma_amp_component(struct snd_soc_component **component);
+bool get_amp_pwr_status(void);
+
 int afe_ff_prot_algo_ctrl(int *user_data, uint32_t param_id,
 		uint8_t get_set, uint32_t length);
+typedef void (*callback_fptr) (void *param1, int param2);
+struct callback_ops {
+	callback_fptr set_i2c_err;
+	callback_fptr set_irq_err;
+};
+void sma1305_set_callback_func(struct callback_ops ops);
+
+enum {
+	SMA1305_FAULT_OT1,
+	SMA1305_FAULT_OT2,
+	SMA1305_FAULT_UVLO,
+	SMA1305_FAULT_OVP_BST,
+	SMA1305_FAULT_OCP_SPK,
+	SMA1305_FAULT_OCP_BST,
+	SMA1305_FAULT_CLK
+};
 
 #define SMA1305_I2C_ADDR_00		0x1e
 #define SMA1305_I2C_ADDR_01		0x3e

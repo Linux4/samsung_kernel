@@ -1444,6 +1444,7 @@
 				clocks = <0x1b 0x35>;
 				clock-names = "pipe0";
 				#phy-cells = <0x00>;
+				#clock-cells = <0x00>;
 				clock-output-names = "pcie_0_pipe_clk";
 				phandle = <0x3d>;
 			};
@@ -1504,6 +1505,7 @@
 				clocks = <0x1b 0x3c>;
 				clock-names = "pipe0";
 				#phy-cells = <0x00>;
+				#clock-cells = <0x00>;
 				clock-output-names = "pcie_1_pipe_clk";
 				phandle = <0x40>;
 			};
@@ -1564,6 +1566,7 @@
 				clocks = <0x1b 0x43>;
 				clock-names = "pipe0";
 				#phy-cells = <0x00>;
+				#clock-cells = <0x00>;
 				clock-output-names = "pcie_2_pipe_clk";
 				phandle = <0x42>;
 			};

@@ -27,6 +27,9 @@
 #if defined(CONFIG_S2MF301_PDIC_TRY_SNK)
 #include <linux/alarmtimer.h>
 #endif
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+#include <linux/usb/typec/slsi/s2mf301/s2mf301-water.h>
+#endif
 
 #ifndef __USBPD_S2MF301_H__
 #define __USBPD_S2MF301_H__
@@ -276,6 +279,7 @@
 /* reg 0x30 */
 #define S2MF301_REG_PPS_ENABLE_SHIFT	(4)
 #define S2MF301_REG_PPS_TIMER_SHIFT		(5)
+#define S2MF301_REG_PPS_CTRL_MSG_IRQ_SEL_SHIFT				(7)
 
 #define S2MF301_REG_PPS_ENABLE_MASK		(0x3 << S2MF301_REG_PPS_ENABLE_SHIFT)
 #define S2MF301_REG_PPS_TIMER_MASK 		(0x3 << S2MF301_REG_PPS_TIMER_SHIFT)
@@ -283,6 +287,9 @@
 #define S2MF301_REG_PPS_TIMER_5S_MASK	(0x1 << S2MF301_REG_PPS_TIMER_SHIFT)
 #define S2MF301_REG_PPS_TIMER_8S_MASK	(0x2 << S2MF301_REG_PPS_TIMER_SHIFT)
 #define S2MF301_REG_PPS_TIMER_10S_MASK	(0x3 << S2MF301_REG_PPS_TIMER_SHIFT)
+
+#define S2MF301_REG_PPS_CTRL_MSG_IRQ_SEL \
+		(0x1 << S2MF301_REG_PPS_CTRL_MSG_IRQ_SEL_SHIFT) /* 0x80 */
 
 /* reg 0x34 */
 #define S2MF301_REG_RETRANS_SHIFT				(6)
@@ -321,8 +328,8 @@
 #define S2MF301_PDIC_RID_MASK        (0x7 << S2MF301_PDIC_RID_SHIFT) /* 0xE0 */
 
 /* reg 0xB3 */
-#define S2MF301_REG_CTRL_MON_PD1_SHIFT        (0)
-#define S2MF301_REG_CTRL_MON_PD2_SHIFT        (3)
+#define S2MF301_REG_CTRL_MON_PD1_SHIFT        (3)
+#define S2MF301_REG_CTRL_MON_PD2_SHIFT        (0)
 #define S2MF301_REG_CTRL_MON_PD1_MASK \
 	(0x7 << S2MF301_REG_CTRL_MON_PD1_SHIFT) /* 0x07 */
 #define S2MF301_REG_CTRL_MON_PD2_MASK \
@@ -434,6 +441,9 @@
 				S2MF301_REG_INT_STATUS4_MSG_ERROR)
 #define ENABLED_INT_4_PPS    (S2MF301_REG_INT_STATUS4_USB_DETACH |\
 				S2MF301_REG_INT_STATUS4_PLUG_IRQ)
+#define ENABLED_INT_4_CCOPEN    (S2MF301_REG_INT_STATUS4_USB_DETACH |\
+				S2MF301_REG_INT_STATUS4_MSG_PASS |\
+				S2MF301_REG_INT_STATUS4_MSG_ERROR)
 #define ENABLED_INT_5    (S2MF301_REG_INT_STATUS5_HARD_RESET)
 
 /* S2MF301 I2C registers */
@@ -657,6 +667,13 @@ typedef enum {
 } PDIC_RETRANSMITTION;
 
 typedef enum {
+	CC_STATE_OPEN,
+	CC_STATE_RD,
+	CC_STATE_DRP,
+	CC_STATE_DEFAULT,
+}PDIC_CC_STATE;
+
+typedef enum {
 	DET_HARD_RESET = 0,
 	DET_DETACH = 1,
 } PDIC_DETACH_TYPE;
@@ -748,24 +765,18 @@ struct s2mf301_usbpd_data {
 	int cc1_val;
 	int cc2_val;
 	int cc_instead_of_vbus;
+	int cc_state;
+	int is_manual_cc_open;
 	bool checking_pm_water;
 #if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	struct delayed_work check_facwater;
 	int water_status;
-	int water_cc;
 	int power_off_water_detected;
-
-	int water_th;
-	int water_post;
-	int dry_th;
-	int dry_th_post;
-	int water_delay;
-	int water_th_ra;
 
 	int water_gpadc_short;
 	int water_gpadc_poweroff;
 
-	struct mutex plug_mutex;
+	struct s2mf301_water_data water;
 #endif
 
 #if IS_ENABLED(CONFIG_ARCH_QCOM)
@@ -800,5 +811,10 @@ extern int s2mf301_sys_power_off_water_check(struct s2mf301_usbpd_data *pdic_dat
 extern void s2mf301_rprd_mode_change(void *data, u8 mode);
 extern int s2mf301_set_lpm_mode(struct s2mf301_usbpd_data *pdic_data);
 extern int s2mf301_set_normal_mode(struct s2mf301_usbpd_data *pdic_data);
+
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+extern void s2mf301_usbpd_water_set_cc(struct s2mf301_usbpd_data *pdic_data, enum s2m_water_cc_state cc);
+extern void s2mf301_usbpd_water_set_status(struct s2mf301_usbpd_data *pdic_data, int status);
+#endif
 #endif /* __USBPD_S2MF301_H__ */
 

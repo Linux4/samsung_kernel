@@ -310,7 +310,7 @@
 					vdd_l17_29-supply = <0x10>;
 					vdd_l20_21-supply = <0x10>;
 					vdd_l25-supply = <0x0f>;
-					vdd_lvs1_2 = <0x11>;
+					vdd_lvs1_2-supply = <0x11>;
 					phandle = <0x54>;
 
 					s1 {
@@ -744,7 +744,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x28>;
 		};
@@ -879,7 +879,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x31>;
 		};

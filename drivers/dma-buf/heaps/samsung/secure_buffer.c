@@ -17,19 +17,21 @@
 #include "secure_buffer.h"
 #include "heap_private.h"
 
-#define PROTID_SHIFT		16
-#define PROTID_MASK(x)		(x & ((1 << PROTID_SHIFT) - 1))
-#define PROTID(flags, id)	(PROTID_MASK(flags) << PROTID_SHIFT | PROTID_MASK(id))
-
-static atomic_t buffer_id = ATOMIC_INIT(0);
+static DEFINE_IDA(secure_unique_id);
 
 static int buffer_protect_hvc(struct device *dev, struct buffer_prot_info *protdesc,
 			      unsigned int protalign)
 {
 	unsigned long size = protdesc->chunk_count * protdesc->chunk_size;
 	unsigned long ret;
+	int unique_id = ida_alloc_max(&secure_unique_id, SECURE_UID_MAX, GFP_KERNEL);
 
-	protdesc->dma_addr = PROTID(protdesc->flags, atomic_inc_return(&buffer_id));
+	if (unique_id < 0) {
+		pr_err("%s: err from ida_alloc, %d\n", __func__, unique_id);
+		return unique_id;
+	}
+
+	protdesc->dma_addr = SECURE_MAKE_BUFID(protdesc->flags, unique_id);
 
 	dma_map_single(dev, protdesc, sizeof(*protdesc), DMA_TO_DEVICE);
 
@@ -38,6 +40,7 @@ static int buffer_protect_hvc(struct device *dev, struct buffer_prot_info *protd
 		perr("%s: PROT %#x (err=%#lx,dva=%#x,size=%#lx,cnt=%u,flg=%u)",
 		     __func__, HVC_DRM_TZMP2_PROT, ret, protdesc->dma_addr, size,
 		     protdesc->chunk_count, protdesc->flags);
+		ida_free(&secure_unique_id, unique_id);
 		return -EACCES;
 	}
 
@@ -49,6 +52,9 @@ static int buffer_unprotect_hvc(struct device *dev,
 {
 	unsigned long size = protdesc->chunk_count * protdesc->chunk_size;
 	unsigned long ret;
+	int unique_id = SECURE_BUFID_TO_UID(protdesc->dma_addr);
+
+	ida_free(&secure_unique_id, unique_id);
 
 	ret = ppmp_hvc(HVC_DRM_TZMP2_UNPROT, virt_to_phys(protdesc), 0, 0, 0);
 	if (ret) {

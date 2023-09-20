@@ -237,7 +237,7 @@ static int s2mf301_i2c_probe(struct i2c_client *i2c,
 	s2mf301->irq = i2c->irq;
 	if (pdata) {
 		s2mf301->pdata = pdata;
-#if IS_ENABLED(CONFIG_CHARGER_S2MF301) || IS_ENABLED(CONFIG_LEDS_S2MF301) || \
+#if IS_ENABLED(CONFIG_CHARGER_S2MF301) || IS_ENABLED(CONFIG_LEDS_S2MF301_FLASH) || \
 	IS_ENABLED(CONFIG_HV_MUIC_S2MF301_AFC) || IS_ENABLED(CONFIG_MUIC_S2MF301) || \
 	IS_ENABLED(CONFIG_PM_S2MF301) || IS_ENABLED(CONFIG_REGULATOR_S2MF301) || \
 	IS_ENABLED(CONFIG_FUELGAUGE_S2MF301)
@@ -264,10 +264,12 @@ static int s2mf301_i2c_probe(struct i2c_client *i2c,
 
 	s2mf301->pmic_ver = temp;
 	pr_err("%s : pmic ver = 0x%x\n", __func__, s2mf301->pmic_ver);
-	if (s2mf301->pmic_ver == 0x18)
-		s2mf301->is_301x = true;
+
+	s2mf301_read_reg(s2mf301->i2c, S2MF301_REG_ES_NO_REV_NO, &temp);
+	if ((temp & 0x0F) == 0x04)
+		s2mf301->evt0 = true;
 	else
-		s2mf301->is_301x = false;
+		s2mf301->evt0 = false;
 
 	/* I2C enable for MUIC, AFC */
 	s2mf301->muic = i2c_new_dummy_device(i2c->adapter, I2C_ADDR_7C_SLAVE);
@@ -291,18 +293,6 @@ static int s2mf301_i2c_probe(struct i2c_client *i2c,
 	if (ret < 0) {
 		pr_err("%s : irq init fail(%d)\n", __func__, ret);
 		goto err_irq_init;
-	}
-
-	if (s2mf301->is_301x) {
-		pr_info("%s, S2MF301X, change add device\n", __func__);
-		s2mf301_devs[0].name = "s2mf301x-charger";
-	} else {
-		/* 301A W/A - BL guide */
-		pr_info("%s, S2MF301A, WA\n", __func__);
-		s2mf301_write_reg(s2mf301->i2c, 0xC7, 0xFF);
-		s2mf301_update_reg(s2mf301->chg, 0xE9, 0x04, 0x04);
-		s2mf301_write_reg(s2mf301->chg, 0x62, 0x40);
-		s2mf301_update_reg(s2mf301->muic, 0x2D, 0x04, 0x07);
 	}
 
 	ret = mfd_add_devices(s2mf301->dev, -1, s2mf301_devs,

@@ -2556,6 +2556,31 @@ Description:
 return:
 	n.a.
 *******************************************************/
+static void nvt_ts_handler_wait_resume_work(struct work_struct *work)
+{
+	struct nvt_ts_data *ts = container_of(work, struct nvt_ts_data, irq_work);
+	struct irq_desc *desc = irq_to_desc(ts->client->irq);
+	int ret;
+
+	ret = wait_for_completion_interruptible_timeout(&ts->resume_done,
+			msecs_to_jiffies(SEC_TS_WAKE_LOCK_TIME));
+	if (ret == 0) {
+		input_err(true, &ts->client->dev, "%s: LPM: pm resume is not handled\n", __func__);
+		goto out;
+	}
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
+		goto out;
+	}
+
+	if (desc && desc->action && desc->action->thread_fn) {
+		input_info(true, &ts->client->dev, "%s: run irq thread\n", __func__);
+		desc->action->thread_fn(ts->client->irq, desc->action->dev_id);
+	}
+out:
+	enable_irq(ts->client->irq);
+}
+
 static irqreturn_t nvt_ts_work_func(int irq, void *data)
 {
 	uint8_t point_data[POINT_DATA_LEN + 1 + DUMMY_BYTES] = {0};
@@ -2576,18 +2601,17 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 	if (ts->power_status == LP_MODE_STATUS) {
 		pm_wakeup_event(&ts->input_dev->dev, 500);
 
-		ret = wait_for_completion_interruptible_timeout(&ts->resume_done, msecs_to_jiffies(500));
-		if (ret == 0) {
-			input_err(true, &ts->client->dev, "%s: LPM: pm resume is not handled\n", __func__);
-			return SEC_ERROR;
+		if (!ts->resume_done.done) {
+			if (!IS_ERR_OR_NULL(ts->irq_workqueue)) {
+				input_info(true, &ts->client->dev, "%s: disable irq and queue waiting work\n", __func__);
+				disable_irq_nosync(ts->client->irq);
+				queue_work(ts->irq_workqueue, &ts->irq_work);
+				return IRQ_HANDLED;
+			} else {
+				input_info(true, &ts->client->dev, "%s: irq_workqueue not exist\n", __func__);
+				return IRQ_HANDLED;
+			}
 		}
-
-		if (ret < 0) {
-			input_err(true, &ts->client->dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
-			return ret;
-		}
-
-		input_info(true, &ts->client->dev, "%s: run LPM interrupt handler, %d\n", __func__, ret);
 	}
 
 	mutex_lock(&ts->lock);
@@ -3169,6 +3193,16 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		goto err_input_register_proximity_device_failed;
 	}
 #endif
+
+	ts->irq_workqueue = create_singlethread_workqueue("nvt_ts_irq_wq");
+	if (!IS_ERR_OR_NULL(ts->irq_workqueue)) {
+		INIT_WORK(&ts->irq_work, nvt_ts_handler_wait_resume_work);
+		input_info(true, &client->dev, "%s: set nvt_ts_handler_wait_resume_work\n", __func__);
+	} else {
+		input_err(true, &client->dev, "%s: failed to create irq_workqueue, err: %ld\n",
+				__func__, PTR_ERR(ts->irq_workqueue));
+	}
+
 
 	//---set int-pin & request irq---
 	client->irq = gpio_to_irq(platdata->irq_gpio);

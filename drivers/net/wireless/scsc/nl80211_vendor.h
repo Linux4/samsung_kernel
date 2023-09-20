@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2022 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -113,7 +113,26 @@
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_EMERGENCY             5
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_IDLE                  6
 #define SLSI_WIFI_ROAMING_SEARCH_REASON_WTC                   7
-#define SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX               8
+#define SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER      8
+#define SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER            9
+#define SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX               10
+
+enum slsi_roaming_trigger_event_value {
+	SLSI_SOFT_ROAMING_TRIGGER_EVENT_DEFAULT,
+	SLSI_SOFT_ROAMING_TRIGGER_EVENT_INACTIVITY_TIMER,
+	SLSI_SOFT_ROAMING_TRIGGER_EVENT_RESCAN_TIMER,
+	SLSI_SOFT_ROAMING_TRIGGER_EVENT_BACKGROUND_RESCAN_TIMER
+};
+
+/* TBD: Once Fapi is updated the below defines to be removed */
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_RX		80
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_RX		81
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_RX		82
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_RX		83
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_REQUEST_TX_STATUS		84
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_RESPONSE_TX_STATUS	85
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_CONFIRM_TX_STATUS		86
+#define FAPI_EVENT_WIFI_EVENT_NAN_NDP_INSTALL_TX_STATUS		87
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
 enum slsi_low_latency_attr {
@@ -371,6 +390,7 @@ enum slsi_hal_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_GET_ROAMING_CAPABILITIES,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_ROAMING_STATE,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_LATENCY_MODE,
+	SLSI_NL80211_VENDOR_SUBCMD_GET_USABLE_CHANNELS,
 	SLSI_NL80211_VENDOR_SUBCMD_SELECT_TX_POWER_SCENARIO,
 	SLSI_NL80211_VENDOR_SUBCMD_RESET_TX_POWER_SCENARIO,
 	SLSI_NL80211_VENDOR_SUBCMD_RTT_GET_CAPABILITIES = SLSI_NL80211_RTT_SUBCMD_RANGE_START,
@@ -459,7 +479,9 @@ enum slsi_vendor_event_values {
 	SLSI_NL80211_VENDOR_TWT_TEARDOWN_EVENT,
 	SLSI_NL80211_VENDOR_TWT_NOTIFICATION_EVENT,
 	SLSI_NL80211_VENDOR_SCHED_PM_TEARDOWN_EVENT = 37,
-	SLSI_NL80211_VENDOR_SCHED_PM_LEAKY_AP_DETECT_EVENT = 38
+	SLSI_NL80211_VENDOR_SCHED_PM_LEAKY_AP_DETECT_EVENT = 38,
+	SLSI_NL80211_NAN_INTERFACE_CREATED_EVENT = 39,
+	SLSI_NL80211_NAN_INTERFACE_DELETED_EVENT = 40
 };
 
 enum slsi_lls_interface_mode {
@@ -672,6 +694,42 @@ enum slsi_wifi_rtt_status {
 	SLSI_RTT_STATUS_INVALID_REQ,    /* bad request args */
 	SLSI_RTT_STATUS_NO_WIFI,    /* WiFi not enabled */
 	SLSI_RTT_STATUS_FAIL_FTM_PARAM_OVERRIDE /* Responder overrides param info, cannot range with new params */
+};
+
+enum slsi_usable_channel_attr {
+	SLSI_UC_ATTRIBUTE_BAND = 1,
+	SLSI_UC_ATTRIBUTE_IFACE_MODE,
+	SLSI_UC_ATTRIBUTE_FILTER,
+	SLSI_UC_ATTRIBUTE_MAX_NUM,
+	SLSI_UC_ATTRIBUTE_NUM_CHANNELS,
+	SLSI_UC_ATTRIBUTE_CHANNEL_LIST,
+	SLSI_UC_ATTRIBUTE_MAX
+};
+
+enum slsi_uc_band {
+	SLSI_UC_MAC_2_4_BAND = 1 << 0,
+	SLSI_UC_MAC_5_BAND = 1 << 1,
+	SLSI_UC_MAC_6_BAND = 1 << 2,
+	SLSI_UC_MAC_60_0_BAND = 1 << 3
+};
+
+enum slsi_uc_iface_mode {
+	SLSI_UC_ITERFACE_STA = 1 << 0,
+	SLSI_UC_ITERFACE_SOFTAP = 1 << 1,
+	SLSI_UC_ITERFACE_IBSS = 1 << 2,
+	SLSI_UC_ITERFACE_P2P_CLIENT = 1 << 3,
+	SLSI_UC_ITERFACE_P2P_GO = 1 << 4,
+	SLSI_UC_ITERFACE_P2P_NAN = 1 << 5,
+	SLSI_UC_ITERFACE_P2P_MESH = 1 << 6,
+	SLSI_UC_ITERFACE_P2P_TDLS = 1 << 7,
+	SLSI_UC_ITERFACE_UNKNOWN = -1,
+};
+
+enum slsi_uc_filter {
+	SLSI_UC_FILTER_REGULATORY = 0,
+	SLSI_UC_FILTER_CELLULAR_COEX = 1 << 0,
+	SLSI_UC_FILTER_CONCURRENCY = 1 << 1,
+	SLSI_UC_FILTER_NAN_INSTANT_MODE = 1 << 2
 };
 
 /* Format of information elements found in the beacon */
@@ -1082,6 +1140,19 @@ struct slsi_acs_request {
 	u8 band;
 };
 
+struct slsi_uc_request {
+	u32 band;
+	u32 iface_mode;
+	u32 filter;
+	u32 max_num;
+};
+
+struct slsi_usable_channel {
+	int freq;                           /* channel frequency in MHz */
+	enum slsi_lls_channel_width width;  /* Channel operating width (20, 40, 80, 160, 320 etc.) */
+	u32 iface_mode_mask;                /* BIT MASK represented by slsi_uc_iface_mode */
+};
+
 void slsi_nl80211_vendor_init(struct slsi_dev *sdev);
 void slsi_nl80211_vendor_deinit(struct slsi_dev *sdev);
 u8 slsi_gscan_get_scan_policy(enum wifi_band band);
@@ -1094,7 +1165,8 @@ int slsi_mib_get_gscan_cap(struct slsi_dev *sdev, struct slsi_nl_gscan_capabilit
 void slsi_rx_rssi_report_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_mib_get_apf_cap(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_mib_get_rtt_cap(struct slsi_dev *sdev, struct net_device *dev, struct slsi_rtt_capabilities *cap);
-int slsi_mib_get_sta_tlds_activated(struct slsi_dev *sdev, struct net_device *dev, bool *tdls_supported);
+int slsi_mib_get_sta_tdls_activated(struct slsi_dev *sdev, struct net_device *dev, bool *tdls_supported);
+int slsi_mib_get_sta_tdls_max_peer(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif);
 void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 void slsi_rx_range_done_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_tx_rate_calc(struct sk_buff *nl_skb, u16 fw_rate, int res, bool tx_rate);

@@ -26,6 +26,7 @@ extern u32 acpm_get_early_wakeup_count(void);
 extern int acpm_get_mif_request(void);
 extern u32 acpm_noti_dsu_cpd(bool is_dsu_cpd);
 extern u32 acpm_get_dsu_cpd(void);
+extern void acpm_print_mif_request(void);
 #else
 static inline int acpm_get_mif_request(void) { return 0; }
 static inline u32 acpm_get_mifdn_count(void) { return 0; }
@@ -33,6 +34,7 @@ static inline u32 acpm_get_apsocdn_count(void) { return 0; }
 static inline u32 acpm_get_early_wakeup_count(void ){ return 0; }
 static inline u32 acpm_noti_dsu_cpd(bool is_dsu_cpd){ return 0; }
 static inline u32 acpm_get_dsu_cpd(void){ return 0; }
+static inline void acpm_print_mif_request(void){}
 #endif
 
 struct wakeup_stat_name {

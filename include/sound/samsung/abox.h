@@ -288,6 +288,11 @@ extern void abox_synchronize_power(void);
  * 		refer to the wait_event_timeout().
  */
 extern long abox_wait_boot_timeout(struct device *dev, unsigned long jiffies);
+
+/**
+ * abox forced enable
+**/
+extern void abox_force_enable(void);
 #else /* !CONFIG_SND_SOC_SAMSUNG_ABOX */
 
 static inline bool abox_is_on(void)

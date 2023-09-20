@@ -54,7 +54,11 @@
  * @brief	Priority for QoS(Quality of Service)
  */
 enum qos_prio {
-	QOS_HIPRIO = 10,
+#if IS_ENABLED(CONFIG_CH_EXTENSION)
+	QOS_HIPRIO = SIPC_CH_EX_ID_PDP_0,
+#else
+	QOS_HIPRIO = SIPC_CH_ID_PDP_0,
+#endif
 	QOS_NORMAL,
 	QOS_MAX_PRIO,
 };

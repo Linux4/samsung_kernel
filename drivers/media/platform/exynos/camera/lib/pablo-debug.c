@@ -845,6 +845,7 @@ int is_debug_close(void)
 }
 EXPORT_SYMBOL(is_debug_close);
 
+#ifdef USE_KERNEL_VFS_READ_WRITE
 /**
   * is_debug_dma_dump: dump buffer by is_queue.
   *                         should be enable DBG_IMAGE_KMAPPING for kernel addr
@@ -954,7 +955,6 @@ int is_dbg_dma_dump(struct is_queue *queue, u32 instance, u32 index, u32 vid, u3
 }
 EXPORT_SYMBOL_GPL(is_dbg_dma_dump);
 
-#ifdef USE_KERNEL_VFS_READ_WRITE
 int is_dbg_dma_dump_by_frame(struct is_frame *frame, u32 vid, u32 type)
 {
 	int i = 0;

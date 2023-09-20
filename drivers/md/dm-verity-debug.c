@@ -73,25 +73,14 @@ int get_dmv_ctr_cnt(void){
     return 0;
 }
 
-void add_dmv_ctr_entry(char* dev_name){
-    int idx = get_dmv_ctr_cnt();
-
-    if(!empty_b_info() && idx < MAX_DEV_LIST){
-        snprintf(b_info->dmv_ctr_list[idx],MAX_DEV_NAME,"%s",dev_name);
-        atomic_inc(&b_info->dmv_ctr_cnt);
-    }
-}
-
 struct blks_info * get_b_info(char* dev_name){
     pr_err("dm-verity-debug : dev_name = %s\n",dev_name);
 
     if(empty_b_info()) {
         b_info = create_b_info();
-        add_dmv_ctr_entry(dev_name);
     }
     else{
         pr_info("dm-verity-debug : b_info already exists\n");
-        add_dmv_ctr_entry(dev_name);
         return b_info;
     }
 
@@ -137,16 +126,6 @@ void add_fc_blks_entry(sector_t cur_blk, char* dev_name){
     snprintf(b_info->dev_name[b_info->list_idx],MAX_DEV_NAME,"%s",dev_name);
 
     b_info->list_idx = (b_info->list_idx + 1) % MAX_FC_BLKS_LIST;
-}
-void add_fec_off_cnt(char* dev_name){
-    if(!empty_b_info()){
-        int idx = get_fec_off_cnt();
-
-        if(idx < MAX_DEV_LIST){
-            snprintf(b_info->fec_off_list[idx],MAX_DEV_NAME,"%s",dev_name);
-            atomic_inc(&b_info->fec_off_cnt);
-        }
-    }
 }
 
 void print_blks_cnt(char* dev_name){

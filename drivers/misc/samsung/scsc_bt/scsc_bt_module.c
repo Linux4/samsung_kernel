@@ -811,11 +811,7 @@ static void get_bt_conf_filename(char *buf, int size)
 	int ret = 0, value;
 	ret = scsc_mx_phandle_property_read_u32(common_service.maxwell_core,
 			"samsung,wlbt_hcf", "hcf_rev", &value, 1);
-
-	/* hcf revision version 0 then only XXXX.hcf.rev0 will be loaded.
-	 * else defult file XXXX.hcf will be loaded.
-	 */
-	if (ret == 0 && value == 0) {
+	if (ret == 0) {
 		scnprintf(buf, size, "%s.rev%d", SCSC_BT_CONF, value);
 		return;
 	}
@@ -1132,6 +1128,8 @@ int slsi_sm_bt_service_start(void)
 	 */
 	start_data->protocol.offset = bt_service.bsmhcp_ref;
 	start_data->protocol.length = sizeof(struct BSMHCP_PROTOCOL);
+
+	dma_wmb();
 
 #endif /* CONFIG_SCSC_INDEPENDENT_SUBSYSTEM */
 

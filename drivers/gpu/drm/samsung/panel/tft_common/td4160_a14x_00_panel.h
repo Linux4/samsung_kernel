@@ -14,6 +14,7 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "tft_common.h"
+#include "tft_function.h"
 #include "td4160_a14x_00_resol.h"
 
 #undef __pn_name__
@@ -144,9 +145,13 @@ static u8 td4160_a14x_00_brt_table[TD4160_TOTAL_STEP][1] = {
 };
 
 static struct maptbl td4160_a14x_00_maptbl[MAX_MAPTBL] = {
-	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(td4160_a14x_00_brt_table, init_brt_table, getidx_brt_table, copy_common_maptbl),
+	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(td4160_a14x_00_brt_table,
+			&TFT_FUNC(TFT_MAPTBL_INIT_BRT),
+			&TFT_FUNC(TFT_MAPTBL_GETIDX_BRT),
+			&TFT_FUNC(TFT_MAPTBL_COPY_DEFAULT)),
 };
 
+#if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
 static u8 SEQ_TD4160_A14X_00_SLEEP_OUT[] = {
 	0x11
 };
@@ -162,6 +167,7 @@ static u8 SEQ_TD4160_A14X_00_DISPLAY_ON[] = {
 static u8 SEQ_TD4160_A14X_00_DISPLAY_OFF[] = {
 	0x28
 };
+#endif
 
 static u8 SEQ_TD4160_A14X_00_BRIGHTNESS[] = {
 	0x51,
@@ -170,6 +176,7 @@ static u8 SEQ_TD4160_A14X_00_BRIGHTNESS[] = {
 
 /* < CABC Mode control Function > */
 
+#if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
 static u8 SEQ_TD4160_A14X_00_BRIGHTNESS_ON[] = {
 	0x53,
 	0x2C,
@@ -184,9 +191,10 @@ static unsigned char SEQ_TD4160_A14X_00_CABC_MIN[] = {
 	0x5E,
 	0x30,
 };
+#endif
 
 /* Display config (1) */
-
+#if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
 static unsigned char SEQ_TD4160_A14X_00_001[] = {
 	0xB0,
 	0x04,
@@ -503,17 +511,20 @@ static unsigned char SEQ_TD4160_A14X_00_040[] = {
 	0xB0,
 	0x03,
 };
+#endif
 
-
+#if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
 static DEFINE_STATIC_PACKET(td4160_a14x_00_sleep_out, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_SLEEP_OUT, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_sleep_in, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_SLEEP_IN, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_display_on, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_DISPLAY_ON, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_display_off, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_DISPLAY_OFF, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_brightness_on, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_BRIGHTNESS_ON, 0);
+#endif
 
 static DEFINE_PKTUI(td4160_a14x_00_brightness, &td4160_a14x_00_maptbl[BRT_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(td4160_a14x_00_brightness, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_BRIGHTNESS, 0);
 
+#if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
 static DEFINE_STATIC_PACKET(td4160_a14x_00_001, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_001, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_002, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_002, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_003, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_003, 0);
@@ -556,17 +567,27 @@ static DEFINE_STATIC_PACKET(td4160_a14x_00_039, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X
 static DEFINE_STATIC_PACKET(td4160_a14x_00_040, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_040, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_cabc_mode, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_CABC_MODE, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_cabc_min, DSI_PKT_TYPE_WR, SEQ_TD4160_A14X_00_CABC_MIN, 0);
+#endif
 
 static DEFINE_PANEL_MDELAY(td4160_a14x_00_wait_20msec, 20); /* 1 frame */
 static DEFINE_PANEL_MDELAY(td4160_a14x_00_wait_40msec, 40);
-static DEFINE_PANEL_MDELAY(td4160_a14x_00_wait_60msec, 60); /* 4 frame */
 static DEFINE_PANEL_MDELAY(td4160_a14x_00_wait_100msec, 100);
-static DEFINE_PANEL_MDELAY(td4160_a14x_00_wait_1msec, 1);
-static DEFINE_PANEL_MDELAY(td4160_a14x_00_wait_2msec, 2);
 
-//static DEFINE_SETPROP_VALUE(a14x_00_set_wait_tx_done_property_off, PANEL_OBJ_PROPERTY_WAIT_TX_DONE, WAIT_TX_DONE_MANUAL_OFF);
-//static DEFINE_SETPROP_VALUE(a14x_00_set_wait_tx_done_property_auto, PANEL_OBJ_PROPERTY_WAIT_TX_DONE, WAIT_TX_DONE_AUTO);
+//static DEFINE_PNOBJ_CONFIG(a14x_00_set_wait_tx_done_property_off, PANEL_PROPERTY_WAIT_TX_DONE, WAIT_TX_DONE_MANUAL_OFF);
+//static DEFINE_PNOBJ_CONFIG(a14x_00_set_wait_tx_done_property_auto, PANEL_PROPERTY_WAIT_TX_DONE, WAIT_TX_DONE_AUTO);
 
+static u8 TD4160_A14X_00_ID[TFT_COMMON_ID_LEN];
+static DEFINE_RDINFO(td4160_a14x_00_id1, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DA_REG, TFT_COMMON_ID_DA_OFS, TFT_COMMON_ID_DA_LEN);
+static DEFINE_RDINFO(td4160_a14x_00_id2, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DA_REG, TFT_COMMON_ID_DB_OFS, TFT_COMMON_ID_DB_LEN);
+static DEFINE_RDINFO(td4160_a14x_00_id3, DSI_PKT_TYPE_RD, TFT_COMMON_ID_DA_REG, TFT_COMMON_ID_DC_OFS, TFT_COMMON_ID_DC_LEN);
+static DECLARE_RESUI(td4160_a14x_00_id) = {
+	{ .rditbl = &RDINFO(td4160_a14x_00_id1), .offset = 0 },
+	{ .rditbl = &RDINFO(td4160_a14x_00_id2), .offset = 1 },
+	{ .rditbl = &RDINFO(td4160_a14x_00_id3), .offset = 2 },
+};
+static DEFINE_RESOURCE(td4160_a14x_00_id, TD4160_A14X_00_ID, RESUI(td4160_a14x_00_id));
+
+#if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
 static void *td4160_a14x_00_init_cmdtbl[] = {
 	&PKTINFO(td4160_a14x_00_001),
 	&PKTINFO(td4160_a14x_00_002),
@@ -614,15 +635,17 @@ static void *td4160_a14x_00_init_cmdtbl[] = {
 	&DLYINFO(td4160_a14x_00_wait_100msec),
 	&PKTINFO(td4160_a14x_00_display_on),
 };
+#endif
 
 static void *td4160_a14x_00_res_init_cmdtbl[] = {
-	&tft_common_restbl[RES_ID],
+	&RESINFO(td4160_a14x_00_id),
 };
 
 static void *td4160_a14x_00_set_bl_cmdtbl[] = {
 	&PKTINFO(td4160_a14x_00_brightness),
 };
 
+#if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
 static void *td4160_a14x_00_display_on_cmdtbl[] = {
 	&DLYINFO(td4160_a14x_00_wait_40msec),
 	&PKTINFO(td4160_a14x_00_brightness),
@@ -637,32 +660,28 @@ static void *td4160_a14x_00_display_off_cmdtbl[] = {
 static void *td4160_a14x_00_exit_cmdtbl[] = {
 	&PKTINFO(td4160_a14x_00_sleep_in),
 };
+#endif
 
 static void *td4160_a14x_00_display_mode_cmdtbl[] = {
-//	&SETPROP(a14x_00_set_wait_tx_done_property_off),
-		&PKTINFO(td4160_a14x_00_brightness),
-		/* Will flush on next VFP */
-//	&SETPROP(a14x_00_set_wait_tx_done_property_auto),
+//	&PNOBJ_CONFIG(a14x_00_set_wait_tx_done_property_off),
+	&PKTINFO(td4160_a14x_00_brightness),
+	/* Will flush on next VFP */
+//	&PNOBJ_CONFIG(a14x_00_set_wait_tx_done_property_auto),
 };
 
-static void *td4160_a14x_00_dummy_cmdtbl[] = {
-	NULL,
-};
-
-static struct seqinfo td4160_a14x_00_seqtbl[MAX_PANEL_SEQ] = {
+static struct seqinfo td4160_a14x_00_seqtbl[] = {
 #if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
-	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", td4160_a14x_00_init_cmdtbl),
+	SEQINFO_INIT(PANEL_INIT_SEQ, td4160_a14x_00_init_cmdtbl),
 #endif
-	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", td4160_a14x_00_res_init_cmdtbl),
-	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", td4160_a14x_00_set_bl_cmdtbl),
-	[PANEL_DISPLAY_MODE_SEQ] = SEQINFO_INIT("set-bl-seq", td4160_a14x_00_display_mode_cmdtbl), /* Dummy */
+	SEQINFO_INIT(PANEL_RES_INIT_SEQ, td4160_a14x_00_res_init_cmdtbl),
+	SEQINFO_INIT(PANEL_SET_BL_SEQ, td4160_a14x_00_set_bl_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_MODE_SEQ, td4160_a14x_00_display_mode_cmdtbl), /* Dummy */
 #if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
-	[PANEL_DISPLAY_ON_SEQ] = SEQINFO_INIT("display-on-seq", td4160_a14x_00_display_on_cmdtbl),
-	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", td4160_a14x_00_display_off_cmdtbl),
-	[PANEL_EXIT_SEQ] = SEQINFO_INIT("exit-seq", td4160_a14x_00_exit_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_ON_SEQ, td4160_a14x_00_display_on_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_OFF_SEQ, td4160_a14x_00_display_off_cmdtbl),
+	SEQINFO_INIT(PANEL_EXIT_SEQ, td4160_a14x_00_exit_cmdtbl),
 #endif
 };
-
 
 /* BLIC SETTING START */
 static u8 TD4160_A14X_00_KTZ8864_I2C_INIT[] = {
@@ -683,6 +702,7 @@ static u8 TD4160_A14X_00_KTZ8864_I2C_EXIT_BLEN[] = {
 	0x08, 0x00,
 };
 
+#ifdef DEBUG_I2C_READ
 static u8 TD4160_A14X_00_KTZ8864_I2C_DUMP[] = {
 	0x0C, 0x00,
 	0x0D, 0x00,
@@ -697,12 +717,13 @@ static u8 TD4160_A14X_00_KTZ8864_I2C_DUMP[] = {
 	0x10, 0x00,
 	0x08, 0x00,
 };
+#endif
 
 static DEFINE_STATIC_PACKET(td4160_a14x_00_ktz8864_i2c_init, I2C_PKT_TYPE_WR, TD4160_A14X_00_KTZ8864_I2C_INIT, 0);
 static DEFINE_STATIC_PACKET(td4160_a14x_00_ktz8864_i2c_exit_blen, I2C_PKT_TYPE_WR, TD4160_A14X_00_KTZ8864_I2C_EXIT_BLEN, 0);
+#ifdef DEBUG_I2C_READ
 static DEFINE_STATIC_PACKET(td4160_a14x_00_ktz8864_i2c_dump, I2C_PKT_TYPE_RD, TD4160_A14X_00_KTZ8864_I2C_DUMP, 0);
-
-static DEFINE_PANEL_MDELAY(td4160_a14x_00_blic_wait_delay, 2);
+#endif
 
 static void *td4160_a14x_00_ktz8864_init_cmdtbl[] = {
 #ifdef DEBUG_I2C_READ
@@ -721,16 +742,17 @@ static void *td4160_a14x_00_ktz8864_exit_cmdtbl[] = {
 	&PKTINFO(td4160_a14x_00_ktz8864_i2c_exit_blen),
 };
 
-static struct seqinfo td4160_a14x_00_ktz8864_seq_tbl[MAX_PANEL_BLIC_SEQ] = {
+static struct seqinfo td4160_a14x_00_ktz8864_seq_tbl[] = {
 #if !defined(IGNORE_PANEL_ON_OFF_CONTROL)
-	[PANEL_BLIC_I2C_ON_SEQ] = SEQINFO_INIT("i2c-init-seq", td4160_a14x_00_ktz8864_init_cmdtbl),
-	[PANEL_BLIC_I2C_OFF_SEQ] = SEQINFO_INIT("i2c-exit-seq", td4160_a14x_00_ktz8864_exit_cmdtbl),
+	SEQINFO_INIT(PANEL_BLIC_I2C_ON_SEQ, td4160_a14x_00_ktz8864_init_cmdtbl),
+	SEQINFO_INIT(PANEL_BLIC_I2C_OFF_SEQ, td4160_a14x_00_ktz8864_exit_cmdtbl),
 #endif
 };
 
 static struct blic_data td4160_a14x_00_ktz8864_blic_data = {
 	.name = "ktz8864",
 	.seqtbl = td4160_a14x_00_ktz8864_seq_tbl,
+	.nr_seqtbl = ARRAY_SIZE(td4160_a14x_00_ktz8864_seq_tbl),
 };
 
 static struct blic_data *td4160_a14x_00_blic_tbl[] = {
@@ -755,7 +777,7 @@ struct common_panel_info td4160_a14x_00_panel_info = {
 		.init_seq_by_lpdt = false,
 #endif
 	},
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	.common_panel_modes = &td4160_a14x_00_display_modes,
 #endif
 	.mres = {
@@ -768,10 +790,10 @@ struct common_panel_info td4160_a14x_00_panel_info = {
 	.nr_maptbl = ARRAY_SIZE(td4160_a14x_00_maptbl),
 	.seqtbl = td4160_a14x_00_seqtbl,
 	.nr_seqtbl = ARRAY_SIZE(td4160_a14x_00_seqtbl),
-	.rditbl = tft_common_rditbl,
-	.nr_rditbl = ARRAY_SIZE(tft_common_rditbl),
-	.restbl = tft_common_restbl,
-	.nr_restbl = ARRAY_SIZE(tft_common_restbl),
+	.rditbl = NULL,
+	.nr_rditbl = 0,
+	.restbl = NULL,
+	.nr_restbl = 0,
 	.dumpinfo = NULL,
 	.nr_dumpinfo = 0,
 	.panel_dim_info = {

@@ -299,7 +299,7 @@ static inline void ethr_ii_to_subframe_msdu(struct sk_buff *skb)
 #define SLSI_NCHO_MAX_FREQUENCY_LIST 20
 #define SLSI_MAX_CHANNEL_LIST 20
 #define SLSI_MAX_FREQUENCY_LIST 20
-#define SLSI_MAX_RX_BA_SESSIONS (8)
+#define SLSI_MAX_RX_BA_SESSIONS (32)
 #define SLSI_STA_ACTION_FRAME_BITMAP (SLSI_ACTION_FRAME_PUBLIC | SLSI_ACTION_FRAME_WMM | SLSI_ACTION_FRAME_WNM |\
 				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL |\
 				      SLSI_ACTION_FRAME_RADIO_MEASUREMENT)
@@ -578,7 +578,7 @@ struct slsi_peer {
 
 	/* Needed for STA/AP VIF */
 	struct sk_buff                 *assoc_ie;
-	struct sk_buff_head            buffered_frames;
+	struct sk_buff_head            buffered_frames[NUM_BA_SESSIONS_PER_PEER];
 	/* Needed for STA VIF */
 	struct sk_buff                 *assoc_resp_ie;
 
@@ -784,7 +784,10 @@ struct slsi_vif_sta {
 	struct sk_buff          *mlme_scan_ind_skb;
 	bool                    roam_in_progress;
 	int                     tdls_peer_sta_records;
+	int                     tdls_max_peer;
 	bool                    tdls_enabled;
+	struct list_head        tdls_candidate_setup_list;
+	int                     tdls_candidate_setup_count;
 	struct cfg80211_bss     *sta_bss;
 	u8                      *assoc_req_add_info_elem;
 	int                     assoc_req_add_info_elem_len;
@@ -944,6 +947,7 @@ struct slsi_vif_nan {
 	u32 ndp_instance_id_map;
 	u32 next_service_id;
 	u32 next_ndp_instance_id;
+	u16 ndp_active_id_map;
 	struct slsi_nan_ndl_info ndl_list[SLSI_NAN_MAX_NDP_INSTANCES];
 	u8  ndp_ndi[SLSI_NAN_MAX_NDP_INSTANCES][ETH_ALEN];
 	u16 ndp_instance_id2ndl_vif[SLSI_NAN_MAX_NDP_INSTANCES];
@@ -1222,6 +1226,7 @@ struct netdev_vif {
 #endif
 	int grace_period;
 	bool sap_ax_mode;
+	bool p2p_ax_mode;
 };
 
 struct slsi_802_11d_reg_domain {
@@ -1454,7 +1459,9 @@ struct conn_log2us {
 	int full_scan_roam;
 	u8  eapol_ptk_msg_type;
 	u16 host_tag_eap;
+	u16 host_tag_eap_type;
 	int eap_resp_len;
+	int eap_start_len;
 	bool is_eapol_gtk;
 	bool is_eapol_ptk;
 	int eap_str_type;
@@ -1562,12 +1569,14 @@ struct slsi_dev {
 #ifdef CONFIG_SCSC_WLAN_ANDROID
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	struct scsc_wake_lock			wlan_wl;
+	struct scsc_wake_lock			wlan_wl_mlme_evt;
 	struct scsc_wake_lock			wlan_wl_mlme;
 	struct scsc_wake_lock			wlan_wl_ma;
 	struct scsc_wake_lock			wlan_wl_roam;
 	struct scsc_wake_lock			wlan_wl_init;
 #else
 	struct wake_lock                        wlan_wl;
+	struct wake_lock			wlan_wl_mlme_evt;
 	struct wake_lock                        wlan_wl_mlme;
 	struct wake_lock                        wlan_wl_ma;
 	struct wake_lock                        wlan_wl_roam;
@@ -1652,6 +1661,7 @@ struct slsi_dev {
 	bool                       fw_SoftAp_2g_40mhz_enabled;
 	bool                       nan_enabled;
 	u16                        assoc_result_code; /* Status of latest association in STA mode */
+	int                        ap_cert_11ax_enabled; /* Used in AP cert to enable 11ax mode */
 	bool                       allow_switch_40_mhz; /* Used in AP cert to disable HT40 when not configured */
 	bool                       allow_switch_80_mhz; /* Used in AP cert to disable VHT when not configured */
 	bool                       allow_switch_160_mhz;
@@ -1694,9 +1704,10 @@ struct slsi_dev {
 	/* unset ARP queue after a timer */
 	struct delayed_work        unpause_arp_q_work;
 #endif
-	u8                         fw_ext_cap_ie[9]; /*extended capability IE length is 9 */
+	u8                         fw_ext_cap_ie[12]; /*extended capability IE length is 12 */
 	u32                        fw_ext_cap_ie_len;
 	struct slsi_spinlock       netdev_lock;
+	int                        scan_mode;
 	int                        home_time;
 	int                        home_away_time;
 	int                        max_channel_time;
@@ -1725,6 +1736,12 @@ struct slsi_dev {
 	struct rtc_time            resume_tm;
 #ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 	u8 nan_cluster_id[ETH_ALEN];
+#if (KERNEL_VERSION(5, 12, 0) <= LINUX_VERSION_CODE)
+	struct work_struct        nan_data_interface_create_work;
+	struct work_struct        nan_data_interface_delete_work;
+	struct list_head          nan_data_interface_create_data;
+	struct list_head          nan_data_interface_delete_data;
+#endif
 #endif
 	u32                        fw_build_id;
 	u8                         qsfs_feature_set[SLSI_QSF_BUFF_LEN];
@@ -1767,8 +1784,9 @@ void slsi_rx_dbg_sap_work(struct work_struct *work);
 void slsi_rx_netdev_data_work(struct work_struct *work);
 void slsi_rx_netdev_mlme_work(struct work_struct *work);
 int slsi_rx_enqueue_netdev_mlme(struct slsi_dev *sdev, struct sk_buff *skb, u16 vif);
-struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
-void slsi_rx_buffered_frames(struct slsi_dev *sdev, struct net_device *dev, struct slsi_peer *peer);
+struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev,
+							struct sk_buff *skb, bool release_skb);
+void slsi_rx_buffered_frames(struct slsi_dev *sdev, struct net_device *dev, struct slsi_peer *peer, u8 priority);
 int slsi_rx_blocking_signals(struct slsi_dev *sdev, struct sk_buff *skb);
 void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_id, bool aborted,
 			bool flush_scan_results);
@@ -1945,9 +1963,13 @@ static inline struct net_device *slsi_get_netdev(struct slsi_dev *sdev, u16 ifnu
 	return dev;
 }
 
-static inline struct net_device *slsi_get_netdev_by_mac_addr(struct slsi_dev *sdev, u8 *mac_addr, int start_idx)
+static inline struct net_device *slsi_get_netdev_by_mac_addr_locked(struct slsi_dev *sdev, u8 *mac_addr, int start_idx)
 {
 	int i;
+	unsigned char     dev_addr_zero_check[ETH_ALEN] = {0};
+
+	if (!memcmp(mac_addr, dev_addr_zero_check, ETH_ALEN))
+		return NULL;
 
 	if (!start_idx)
 		start_idx = 1;
@@ -1958,12 +1980,12 @@ static inline struct net_device *slsi_get_netdev_by_mac_addr(struct slsi_dev *sd
 	return NULL;
 }
 
-static inline struct net_device *slsi_get_netdev_by_mac_addr_locked(struct slsi_dev *sdev, u8 *mac_addr, int start_idx)
+static inline struct net_device *slsi_get_netdev_by_mac_addr(struct slsi_dev *sdev, u8 *mac_addr, int start_idx)
 {
 	struct net_device *dev;
 
 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
-	dev = slsi_get_netdev_by_mac_addr(sdev, mac_addr, start_idx);
+	dev = slsi_get_netdev_by_mac_addr_locked(sdev, mac_addr, start_idx);
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 
 	return dev;

@@ -29,6 +29,10 @@ enum wlbt_irqs {
        PLATFORM_MIF_NUM_IRQS
 };
 
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON) || IS_ENABLED(CONFIG_EXYNOS_ITMON_V2)
+#define ITMON_ERRCODE_DECERR       (1)
+#endif
+
 struct platform_device;
 
 struct scsc_mif_abs    *platform_mif_create(struct platform_device *pdev);

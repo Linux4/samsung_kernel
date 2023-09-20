@@ -49,6 +49,24 @@ enum pdic_sysfs_property usbpd_sysfs_properties[] = {
 extern struct device *pdic_device;
 #endif
 
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+static void usbpd_ops_ccopen_req(void *data, int is_on)
+{
+	struct usbpd_data *pd_data = (struct usbpd_data *)data;
+
+	if (!pd_data) {
+		pr_info("%s, pd_data is NULL\n", __func__);
+		return;
+	}
+
+	PDIC_OPS_PARAM_FUNC(ops_ccopen_req, pd_data, is_on);
+}
+
+struct usbpd_ops ops_usbpd = {
+	.usbpd_cc_control_command = usbpd_ops_ccopen_req,
+};
+#endif
+
 void usbpd_timer_vdm_start(struct usbpd_data *pd_data)
 {
 	ktime_get_real_ts64(&pd_data->time_vdm);
@@ -439,7 +457,6 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.authentic			= ops->authentic;
 	pd_data->phy_ops.energy_now			= ops->energy_now;
 	pd_data->phy_ops.set_usbpd_reset		= ops->set_usbpd_reset;
-	pd_data->phy_ops.ops_get_fsm_state		= ops->ops_get_fsm_state;
 	pd_data->phy_ops.set_is_otg_vboost		= ops->set_is_otg_vboost;
 	pd_data->phy_ops.get_detach_valid		= ops->get_detach_valid;
 	pd_data->phy_ops.rprd_mode_change		= ops->rprd_mode_change;
@@ -456,6 +473,7 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 #endif
 	pd_data->phy_ops.ops_control_option_command	= ops->ops_control_option_command;
 	pd_data->phy_ops.set_pcp_clk			= ops->set_pcp_clk;
+	pd_data->phy_ops.ops_ccopen_req = ops->ops_ccopen_req;
 }
 EXPORT_SYMBOL(usbpd_set_ops);
 
@@ -982,6 +1000,11 @@ int usbpd_init(struct device *dev, void *phy_driver_data)
 		ppdic_data->misc_dev->uvdm_write = samsung_uvdm_write;
 		pd_data->ppdic_data = ppdic_data;
 	}
+#endif
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	pd_data->usbpd_d.ops = &ops_usbpd;
+	pd_data->usbpd_d.data = (void *)pd_data;
+	pd_data->man = register_usbpd(&pd_data->usbpd_d);
 #endif
 
 	INIT_WORK(&pd_data->worker, usbpd_policy_work);

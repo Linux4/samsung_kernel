@@ -470,9 +470,8 @@
 	#size-cells = <0>;
 	gpios = <&gpm0 0 0 &gpm1 0 0>;
 	status = "okay";
-	clock-frequency = <1000000>;
+	clock-frequency = <400000>;
 	samsung,reset-before-trans;
-	samsung,fast-plus-mode;
 
 	pinctrl-names = "default","on_i2c","off_i2c";
 	pinctrl-0 = <&hsi2c20_bus_in>;
@@ -647,9 +646,8 @@
 	#size-cells = <0>;
 	gpios = <&gpm17 0 0 &gpm18 0 0>;
 	status = "okay";
-	clock-frequency = <1000000>;
+	clock-frequency = <400000>;
 	samsung,reset-before-trans;
-	samsung,fast-plus-mode;
 
 	pinctrl-names = "default","on_i2c","off_i2c";
 	pinctrl-0 = <&hsi2c28_bus_in>;
@@ -680,9 +678,8 @@
 	#size-cells = <0>;
 	gpios = <&gpm19 0 0 &gpm20 0 0>;
 	status = "okay";
-	clock-frequency = <1000000>;
+	clock-frequency = <400000>;
 	samsung,reset-before-trans;
-	samsung,fast-plus-mode;
 
 	pinctrl-names = "default","on_i2c","off_i2c";
 	pinctrl-0 = <&hsi2c29_bus_in>;

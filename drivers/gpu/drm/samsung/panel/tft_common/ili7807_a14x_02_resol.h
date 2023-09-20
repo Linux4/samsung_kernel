@@ -67,7 +67,7 @@ static struct panel_resol ili7807_a14x_02_default_resol[] = {
 	}
 };
 
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 static struct common_panel_display_mode ili7807_a14x_02_display_mode[] = {
 	/* FHD */
 	[ILI7807_A14X_02_DISPLAY_MODE_1080x2408_90HS] = {
@@ -91,5 +91,5 @@ static struct common_panel_display_modes ili7807_a14x_02_display_modes = {
 	.num_modes = ARRAY_SIZE(ili7807_a14x_02_display_mode_array),
 	.modes = (struct common_panel_display_mode **)&ili7807_a14x_02_display_mode_array,
 };
-#endif /* CONFIG_PANEL_DISPLAY_MODE */
+#endif /* CONFIG_USDM_PANEL_DISPLAY_MODE */
 #endif /* __ILI7807_A14X_02_RESOL_H__ */

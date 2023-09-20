@@ -18,6 +18,11 @@
 
 struct is_sensor_interface;
 
+enum pablo_sensor_adt_state {
+	IS_SENSOR_ADT_OPEN,
+	IS_SENSOR_ADT_START,
+};
+
 typedef int (*sensor_control_fn)(struct is_sensor_interface *sensor_itf, u32 instance,
 	u32 *ctrl_param, u32 *param_idx);
 
@@ -53,6 +58,8 @@ struct pablo_sensor_adt_v1 {
 	struct work_struct				actuator_info_work;
 	struct pablo_crta_sensor_info			latest_pcsi;
 	spinlock_t					latest_pcsi_slock;
+
+	unsigned long					state;
 };
 
 static int __pablo_sensor_adt_request_exposure(struct is_sensor_interface *sensor_itf, u32 instance,
@@ -677,6 +684,12 @@ static void __pablo_sensor_adt_handle_kthread_work(struct kthread_work *work)
 
 	mdbg_adt(2, "%s\n", instance, __func__);
 
+	if (!test_bit(IS_SENSOR_ADT_START, &sensor_adt->state)) {
+		merr_adt("sensor adt is already stopped", instance);
+		ret = -EINVAL;
+		goto callback;
+	}
+
 	param_idx = 0;
 	if (ctrl[param_idx] != PABLO_CRTA_MAGIC_NUMBER) {
 		merr_adt("invalid magic number: 0x%08X, 0x%08X", instance,
@@ -819,6 +832,8 @@ static int pablo_sensor_adt_open(struct pablo_sensor_adt *adt, u32 instance,
 			__pablo_sensor_adt_update_actuator_info_work);
 
 		spin_lock_init(&sensor_adt->latest_pcsi_slock);
+
+		set_bit(IS_SENSOR_ADT_OPEN, &sensor_adt->state);
 	} else {
 		sensor_adt = (struct pablo_sensor_adt_v1 *)adt->priv;
 	}
@@ -833,6 +848,31 @@ err_alloc:
 	return ret;
 }
 
+static int pablo_sensor_adt_start(struct pablo_sensor_adt *adt)
+{
+	struct pablo_sensor_adt_v1 *sensor_adt = (struct pablo_sensor_adt_v1 *)adt->priv;
+
+	mdbg_adt(1, "%s\n", sensor_adt->instance, __func__);
+
+	set_bit(IS_SENSOR_ADT_START, &sensor_adt->state);
+
+	return 0;
+}
+
+static int pablo_sensor_adt_stop(struct pablo_sensor_adt *adt)
+{
+	struct pablo_sensor_adt_v1 *sensor_adt = (struct pablo_sensor_adt_v1 *)adt->priv;
+
+	mdbg_adt(1, "%s\n", sensor_adt->instance, __func__);
+
+	clear_bit(IS_SENSOR_ADT_START, &sensor_adt->state);
+
+	if (sensor_adt->sensor_task.worker)
+		kthread_flush_worker(sensor_adt->sensor_task.worker);
+
+	return 0;
+}
+
 static int pablo_sensor_adt_close(struct pablo_sensor_adt *adt)
 {
 	struct pablo_sensor_adt_v1 *sensor_adt = (struct pablo_sensor_adt_v1 *)adt->priv;
@@ -844,6 +884,8 @@ static int pablo_sensor_adt_close(struct pablo_sensor_adt *adt)
 
 		if (sensor_adt->sensor_task.worker)
 			kthread_destroy_worker(sensor_adt->sensor_task.worker);
+
+		clear_bit(IS_SENSOR_ADT_OPEN, &sensor_adt->state);
 
 		vfree(adt->priv);
 		adt->priv = NULL;
@@ -927,12 +969,14 @@ static int __pablo_sensor_adt_get_vc_dma_pdaf_buf_info(struct is_sensor_interfac
 static int pablo_sensor_adt_get_sensor_info(struct pablo_sensor_adt *adt, struct pablo_crta_sensor_info *pcsi)
 {
 	u32 instance;
+	int i;
 	unsigned long flags;
 	struct pablo_sensor_adt_v1 *sensor_adt;
 	struct is_sensor_interface *sensor_itf;
 	enum is_sensor_stat_control stat_control;
 	enum itf_laser_af_type af_type;
 	union itf_laser_af_data af_data;
+	struct is_sensor_mode_info seamless_mode_info[SEAMLESS_MODE_MAX];
 
 	if (!atomic_read(&adt->rsccount)) {
 		err("sensor_adt is not open");
@@ -963,6 +1007,25 @@ static int pablo_sensor_adt_get_sensor_info(struct pablo_sensor_adt *adt, struct
 	sensor_itf->cis_itf_ops.get_sensor_frame_timing(sensor_itf,
 		&pcsi->vvalid_time, &pcsi->vblank_time);
 	sensor_itf->cis_itf_ops.get_sensor_max_fps(sensor_itf, &pcsi->max_fps);
+
+	sensor_itf->cis_ext2_itf_ops.get_sensor_seamless_mode_info(sensor_itf,
+		seamless_mode_info, &pcsi->seamless_mode_cnt);
+
+	if (pcsi->seamless_mode_cnt > 0) {
+		for (i = 0; i < pcsi->seamless_mode_cnt; i++) {
+			pcsi->seamless_mode_info[i].mode = seamless_mode_info[i].mode;
+			pcsi->seamless_mode_info[i].min_expo = seamless_mode_info[i].min_expo;
+			pcsi->seamless_mode_info[i].max_expo = seamless_mode_info[i].max_expo;
+			pcsi->seamless_mode_info[i].min_again = seamless_mode_info[i].min_again;
+			pcsi->seamless_mode_info[i].max_again = seamless_mode_info[i].max_again;
+			pcsi->seamless_mode_info[i].min_dgain = seamless_mode_info[i].min_dgain;
+			pcsi->seamless_mode_info[i].max_dgain = seamless_mode_info[i].max_dgain;
+			pcsi->seamless_mode_info[i].vvalid_time = seamless_mode_info[i].vvalid_time;
+			pcsi->seamless_mode_info[i].vblank_time = seamless_mode_info[i].vblank_time;
+			pcsi->seamless_mode_info[i].max_fps = seamless_mode_info[i].max_fps;
+		}
+	}
+
 	pcsi->mono_en = is_sensor_get_mono_mode(sensor_itf); /* 0: normal, 1: mono */
 	pcsi->bayer_pattern = 0; /* 0: normal, 1: tetra */
 	pcsi->hdr_type = is_sensor_get_frame_type(instance);
@@ -989,6 +1052,8 @@ static int pablo_sensor_adt_get_sensor_info(struct pablo_sensor_adt *adt, struct
 	sensor_itf->cis_itf_ops.get_next_analog_gain(sensor_itf, EXPOSURE_NUM_MAX, pcsi->next_again);
 	sensor_itf->cis_itf_ops.get_next_digital_gain(sensor_itf, EXPOSURE_NUM_MAX, pcsi->next_dgain);
 	sensor_itf->cis_itf_ops.get_sensor_cur_fps(sensor_itf, &pcsi->current_fps);
+	sensor_itf->cis_ext2_itf_ops.get_open_close_hint(&pcsi->opening_hint, &pcsi->closing_hint);
+	sensor_itf->cis_ext2_itf_ops.get_sensor_min_frame_duration(sensor_itf, &pcsi->min_frame_duration);
 
 	/* af info */
 	if (pcsi->actuator_available) {
@@ -1081,6 +1146,8 @@ static int pablo_sensor_adt_register_callback(struct pablo_sensor_adt *adt, void
 const static struct pablo_sensor_adt_ops sensor_adt_ops = {
 	.open					= pablo_sensor_adt_open,
 	.close					= pablo_sensor_adt_close,
+	.start					= pablo_sensor_adt_start,
+	.stop					= pablo_sensor_adt_stop,
 	.update_actuator_info			= pablo_sensor_adt_update_actuator_info,
 	.get_sensor_info			= pablo_sensor_adt_get_sensor_info,
 	.control_sensor				= pablo_sensor_adt_control_sensor,

@@ -2066,9 +2066,9 @@ err_query_state:
 	return ret;
 }
 
-unsigned long __mfc_rm_get_weighted_mb(struct mfc_ctx *ctx)
+unsigned long __mfc_rm_get_op_fps(struct mfc_ctx *ctx)
 {
-	unsigned long weighted_mb, op_fps;
+	unsigned long op_fps;
 
 	op_fps = ctx->operating_framerate;
 	if ((op_fps == 0) && (ctx->type == MFCINST_ENCODER) &&
@@ -2078,7 +2078,14 @@ unsigned long __mfc_rm_get_weighted_mb(struct mfc_ctx *ctx)
 	if (op_fps > MFC_MAX_FPS)
 		op_fps = MFC_MAX_FPS;
 
-	weighted_mb = mfc_qos_get_weighted_mb_fps(ctx, op_fps);
+	return op_fps;
+}
+
+unsigned long __mfc_rm_get_weighted_mb(struct mfc_ctx *ctx)
+{
+	unsigned long weighted_mb;
+
+	weighted_mb = mfc_qos_get_weighted_mb_fps(ctx, __mfc_rm_get_op_fps(ctx));
 	mfc_show_ctx_info(ctx, weighted_mb);
 
 	return weighted_mb;
@@ -2088,8 +2095,9 @@ int __mfc_rm_check_real_time_resource(struct mfc_ctx *ctx)
 {
 	struct mfc_dev *dev = ctx->dev;
 	struct mfc_ctx *tmp_ctx;
+	struct mfc_ctx *rt_ctx[MFC_NUM_CONTEXTS];
 	unsigned long total_mb = 0, weighted_mb, max_mb = 0;
-	int i;
+	int i, cnt = 0;
 
 	mutex_lock(&dev->mfc_migrate_mutex);
 	for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
@@ -2102,6 +2110,7 @@ int __mfc_rm_check_real_time_resource(struct mfc_ctx *ctx)
 			continue;
 		}
 
+		rt_ctx[cnt++] = tmp_ctx;
 		weighted_mb = __mfc_rm_get_weighted_mb(tmp_ctx);
 		total_mb += weighted_mb;
 	}
@@ -2114,6 +2123,14 @@ int __mfc_rm_check_real_time_resource(struct mfc_ctx *ctx)
 
 	if (total_mb > max_mb) {
 		mfc_ctx_info("[RM] RT resource is full(mb: %u / %u)\n", total_mb, max_mb);
+		for (i = 0; i < cnt; i++) {
+			if (!rt_ctx[i])
+				continue;
+			mfc_ctx_info("[RM][c:%d] RT resource %s %dx%d@%lu\n", rt_ctx[i]->num,
+					rt_ctx[i]->type == MFCINST_DECODER ? "DEC" : "ENC",
+					rt_ctx[i]->img_width, rt_ctx[i]->img_height,
+					__mfc_rm_get_op_fps(rt_ctx[i]) / 1000);
+		}
 		return -EBUSY;
 	}
 

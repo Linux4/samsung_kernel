@@ -131,7 +131,8 @@ static struct ieee80211_mgmt *slsi_rx_scan_update_ssid(struct slsi_dev *sdev, st
 	return NULL;
 }
 
-struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev,
+							struct sk_buff *skb, bool release_skb)
 {
 	u16                      id = fapi_get_u16(skb, id);
 	struct ieee80211_mgmt    *mgmt = fapi_get_mgmt(skb);
@@ -201,7 +202,8 @@ do_no_calc:
 		SLSI_NET_DBG1(dev, SLSI_MLME, "No Channel info found for freq:%d\n", freq);
 	}
 
-	kfree_skb(skb);
+	if (release_skb)
+		kfree_skb(skb);
 	return channel;
 }
 
@@ -374,11 +376,10 @@ static int slsi_extract_mbssids(struct slsi_dev *sdev, struct netdev_vif *ndev_v
 			const u8 *ssid_ie;
 			int ssid_len = 0;
 
-			if ((sub_elem->data - (u8 *)elem) + sub_elem->datalen > elem->datalen) {
-				SLSI_WARN(sdev, "Invalid mbssid set length found\n");
+			if ((sub_elem->data - (u8 *)elem) + sub_elem->datalen > elem->datalen + 2) {
+				SLSI_WARN(sdev, "Invalid mbssid sub element length found\n");
 				break;
 			}
-
 
 			if (sub_elem->id != 0 || sub_elem->datalen < 4) {
 				/* not a valid BSS profile */
@@ -1211,7 +1212,7 @@ void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_
 	while (scan) {
 		scan_results_count++;
 		/* skb freed inside slsi_rx_scan_pass_to_cfg80211 */
-		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan);
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan, true);
 
 		if ((SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) && (*result_count >= max_count)) {
 			more_than_max_count = 1;
@@ -2218,10 +2219,18 @@ void __slsi_rx_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 	if (peer) {
 		/* Buffering of frames before the mlme_connected_ind */
 		if (ndev_vif->vif_type == FAPI_VIFTYPE_AP && peer->connected_state == SLSI_STA_CONN_STATE_CONNECTING) {
-			SLSI_NET_DBG3(dev, SLSI_MLME, "buffering blockack indication\n");
-			skb_queue_tail(&peer->buffered_frames, skb);
+			SLSI_NET_DBG3(dev, SLSI_MLME, "buffering MA_BLOCKACKREQ_IND\n");
+			skb_queue_tail(&peer->buffered_frames[priority], skb);
 			return;
 		}
+
+		/* Buffering of Block Ack Request frame before the Add BA Request */
+		if ((reason_code == FAPI_REASONCODE_UNSPECIFIED_REASON) && !peer->ba_session_rx[priority]) {
+			SLSI_NET_DBG3(dev, SLSI_MLME, "buffering MA_BLOCKACKREQ_IND (peer:%pM, priority:%d)\n", peer->address, priority);
+			skb_queue_tail(&peer->buffered_frames[priority], skb);
+			return;
+		}
+
 		slsi_handle_blockack(
 			dev,
 			peer,
@@ -2484,9 +2493,11 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 
 	SLSI_ETHER_COPY(peer->address, mgmt->bssid);
 
+	slsi_wake_lock(&sdev->wlan_wl_roam);
+
 	if (ndev_vif->sta.mlme_scan_ind_skb) {
 		/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 		ndev_vif->sta.mlme_scan_ind_skb = NULL;
 	} else {
 		SLSI_NET_ERR(dev, "mlme_scan_ind_skb is not available, mlme_synchronised_ind not received");
@@ -2516,6 +2527,7 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 		netif_dormant_on(dev);
 		slsi_mlme_disconnect(sdev, dev, peer->address, 0, true);
 		slsi_handle_disconnect(sdev, dev, peer->address, 0, NULL, 0);
+		slsi_wake_unlock(&sdev->wlan_wl_roam);
 	} else {
 		u8  *assoc_ie = NULL;
 		size_t assoc_ie_len = 0;
@@ -2579,14 +2591,17 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
 		roam_info.links[0].channel = ndev_vif->sta.sta_bss->channel;
 		roam_info.links[0].bssid = peer->address;
+		roam_info.links[0].bss = ndev_vif->sta.sta_bss;
 #else
 		roam_info.channel = ndev_vif->sta.sta_bss->channel;
 		roam_info.bssid = peer->address;
+		roam_info.bss = ndev_vif->sta.sta_bss;
 #endif
 		roam_info.req_ie = assoc_ie;
 		roam_info.req_ie_len = assoc_ie_len;
 		roam_info.resp_ie = assoc_rsp_ie;
 		roam_info.resp_ie_len = assoc_rsp_ie_len;
+		cfg80211_ref_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
 		cfg80211_roamed(dev, &roam_info, GFP_KERNEL);
 #else
 		cfg80211_roamed(dev,
@@ -2611,6 +2626,8 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 		ndev_vif->sta.roam_in_progress = false;
 		ndev_vif->chan = ndev_vif->sta.sta_bss->channel;
 		SLSI_ETHER_COPY(ndev_vif->sta.bssid, peer->address);
+
+		slsi_wake_unlock(&sdev->wlan_wl_roam);
 
 		SLSI_NET_DBG1(dev, SLSI_MLME, "Taking a wakelock for DHCP to finish after roaming\n");
 		slsi_wake_lock_timeout(&sdev->wlan_wl_roam, msecs_to_jiffies(10 * 1000));
@@ -2728,33 +2745,57 @@ void slsi_tdls_peer_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 }
 
 /* Retrieve any buffered frame before connected_ind and pass them up. */
-void slsi_rx_buffered_frames(struct slsi_dev *sdev, struct net_device *dev, struct slsi_peer *peer)
+void slsi_rx_buffered_frames(struct slsi_dev *sdev, struct net_device *dev, struct slsi_peer *peer, u8 priority)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct sk_buff    *buff_frame = NULL;
+	u8 i = 0;
 
 	WLBT_WARN_ON(!SLSI_MUTEX_IS_LOCKED(ndev_vif->vif_mutex));
 	if (WLBT_WARN(!peer, "Peer is NULL"))
 		return;
 	WLBT_WARN(peer->connected_state == SLSI_STA_CONN_STATE_CONNECTING, "Wrong state");
 
-	SLSI_NET_DBG2(dev, SLSI_MLME,
-		      "Processing buffered RX frames received before mlme_connected_ind for (vif:%d, aid:%d)\n",
-		      ndev_vif->ifnum, peer->aid);
-	buff_frame = skb_dequeue(&peer->buffered_frames);
-	while (buff_frame) {
-		slsi_debug_frame(sdev, dev, buff_frame, "RX_BUFFERED");
-		switch (fapi_get_sigid(buff_frame)) {
-		case MA_BLOCKACKREQ_IND:
-			SLSI_NET_DBG2(dev, SLSI_MLME, "Transferring buffered MA_BLOCKACK_IND frame");
-			__slsi_rx_blockack_ind(sdev, dev, buff_frame);
-			break;
-		default:
-			SLSI_NET_WARN(dev, "Unexpected Data: 0x%.4x\n", fapi_get_sigid(buff_frame));
-			kfree_skb(buff_frame);
-			break;
+	if (priority < NUM_BA_SESSIONS_PER_PEER) {
+		SLSI_NET_DBG2(dev, SLSI_MLME,
+			      "Processing buffered MA_BLOCKACK_IND received before ADDBA request for (vif:%d, aid:%d, priority:%d)\n",
+			      ndev_vif->ifnum, peer->aid, priority);
+		buff_frame = skb_dequeue(&peer->buffered_frames[priority]);
+		while (buff_frame) {
+			switch (fapi_get_sigid(buff_frame)) {
+			case MA_BLOCKACKREQ_IND:
+				SLSI_NET_DBG2(dev, SLSI_MLME, "transferring buffered MA_BLOCKACK_IND frame");
+				__slsi_rx_blockack_ind(sdev, dev, buff_frame);
+				break;
+			default:
+				SLSI_NET_WARN(dev, "Unexpected Data: 0x%.4x\n", fapi_get_sigid(buff_frame));
+				kfree_skb(buff_frame);
+				break;
+			}
+			buff_frame = skb_dequeue(&peer->buffered_frames[priority]);
 		}
-		buff_frame = skb_dequeue(&peer->buffered_frames);
+		return;
+	}
+
+	for (i = 0; i < NUM_BA_SESSIONS_PER_PEER; i++) {
+		SLSI_NET_DBG2(dev, SLSI_MLME,
+			      "Processing buffered RX frames received before mlme_connected_ind for (vif:%d, aid:%d, priority:%d)\n",
+			      ndev_vif->ifnum, peer->aid, i);
+		buff_frame = skb_dequeue(&peer->buffered_frames[i]);
+		while (buff_frame) {
+			slsi_debug_frame(sdev, dev, buff_frame, "RX_BUFFERED");
+			switch (fapi_get_sigid(buff_frame)) {
+			case MA_BLOCKACKREQ_IND:
+				SLSI_NET_DBG2(dev, SLSI_MLME, "transferring buffered MA_BLOCKACK_IND frame");
+				__slsi_rx_blockack_ind(sdev, dev, buff_frame);
+				break;
+			default:
+				SLSI_NET_WARN(dev, "Unexpected Data: 0x%.4x\n", fapi_get_sigid(buff_frame));
+				kfree_skb(buff_frame);
+				break;
+			}
+			buff_frame = skb_dequeue(&peer->buffered_frames[i]);
+		}
 	}
 }
 
@@ -2784,6 +2825,7 @@ void slsi_rx_synchronised_ind(struct slsi_dev *sdev, struct net_device *dev, str
 
 	SLSI_NET_DBG1(dev, SLSI_MLME, "Received synchronised_ind, bssid:%pM SAE Auth Request = %d\n", bssid, sae_auth);
 	if (ndev_vif->sta.crypto.wpa_versions == 3 && !sae_auth) {
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, skb, false);
 		if (!slsi_wake_lock_active(&ndev_vif->wlan_wl_sae))
 			slsi_wake_lock(&ndev_vif->wlan_wl_sae);
 
@@ -2997,7 +3039,7 @@ void slsi_rx_connected_ind(struct slsi_dev *sdev, struct net_device *dev, struct
 			slsi_mlme_connected_resp(sdev, dev, aid);
 			slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_CONNECTED);
 		}
-		slsi_rx_buffered_frames(sdev, dev, peer);
+		slsi_rx_buffered_frames(sdev, dev, peer, 0xFF);
 		break;
 	}
 
@@ -3084,8 +3126,8 @@ void slsi_rx_reassoc_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 
 	if (!assoc_ie || !assoc_ie_len)
 		status = WLAN_STATUS_UNSPECIFIED_FAILURE;
-	/* cfg80211_connect_result will take a copy of any ASSOC or (RE)ASSOC RSP IEs passed to it */
 
+	cfg80211_ref_bss(sdev->wiphy, ndev_vif->sta.sta_bss);
 	cfg80211_connect_bss(dev, peer->address, ndev_vif->sta.sta_bss, assoc_ie, assoc_ie_len, reassoc_rsp_ie,
 			     reassoc_rsp_ie_len, status, GFP_KERNEL, NL80211_TIMEOUT_UNSPECIFIED);
 
@@ -3114,6 +3156,11 @@ void slsi_rx_reassoc_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 		if (slsi_mlme_del_vif(sdev, dev) != 0)
 			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 		slsi_vif_deactivated(sdev, dev);
+#if (KERNEL_VERSION(4, 2, 0) <= LINUX_VERSION_CODE)
+		cfg80211_disconnected(dev, 0, NULL, 0, false, GFP_KERNEL);
+#else
+		cfg80211_disconnected(dev, 0, NULL, 0, GFP_KERNEL);
+#endif
 	}
 
 exit_with_lock:
@@ -3426,7 +3473,7 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 #endif
 			SLSI_NET_DBG1(dev, SLSI_MLME, "Sending scan indication to cfg80211, bssid: %pM\n", fapi_get_mgmt(ndev_vif->sta.mlme_scan_ind_skb)->bssid);
 			/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 			ndev_vif->sta.mlme_scan_ind_skb = NULL;
 		} else {
 			SLSI_NET_ERR(dev, "mlme_scan_ind_skb is not available, mlme_synchronised_ind not received");

@@ -52,4 +52,11 @@ int copy_to_sliced_byte_array(u8 *dest, const u8 *src,
 		int start, int stop, int step);
 s32 hextos32(u32 hex, u32 bits);
 u32 s32tohex(s32 dec, u32 bits);
+u16 calc_checksum_16bit(u8 *arr, int size);
+int usdm_snprintf_bytes(char *buf, size_t size,
+		const u8 *bytes, size_t sz_bytes);
+void usdm_print_bytes(int log_level, const void *buf, size_t len);
+#define usdm_dbg_bytes(_bytes, _len) do { usdm_print_bytes(7, _bytes, _len); } while (0)
+#define usdm_info_bytes(_bytes, _len) do { usdm_print_bytes(6, _bytes, _len); } while (0)
+
 #endif /* __UTIL_H__ */

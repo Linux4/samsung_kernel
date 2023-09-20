@@ -36,17 +36,23 @@ static int get_sma1305_amp_curr_temperature(enum amp_id id)
 		return -EINVAL;
 	}
 
-	/* Reset data */
-	memset(data, 0, 8*sizeof(int32_t));
-	param_id = (SMA_APS_TEMP_CURR)|((iter+1)<<24)|
-		((sizeof(data)/sizeof(int32_t))<<16);
-	ret = afe_ff_prot_algo_ctrl((int *)(&(data[0])), param_id,
-			SMA_GET_PARAM, sizeof(data));
-	if (ret < 0) {
-		dev_err(component->dev,
-			"%s: Failed to get Current Temperature", __func__);
-	} else
-		value = data[1];
+	if (get_amp_pwr_status()) {
+		/* Reset data */
+		memset(data, 0, 8*sizeof(int32_t));
+		param_id = (SMA_APS_TEMP_CURR)|((iter+1)<<24)|
+			((sizeof(data)/sizeof(int32_t))<<16);
+		ret = afe_ff_prot_algo_ctrl((int *)(&(data[0])), param_id,
+				SMA_GET_PARAM, sizeof(data));
+		if (ret < 0) {
+			dev_err(component->dev,
+				"%s: Failed to get Current Temperature",
+				__func__);
+		} else
+			value = data[1];
+	} else {
+		dev_info(component->dev, "%s: amp off\n", __func__);
+		return -EINVAL;
+	}
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
 
@@ -66,20 +72,26 @@ static int set_sma1305_amp_surface_temperature(enum amp_id id, int temperature)
 		return -EPERM;
 	}
 
-	dev_info(component->dev, "%s: id %d temperature %d\n", __func__, id, temperature);
-
 	if (id >= AMP_ID_MAX) {
 		dev_err(component->dev, "%s: invalid id(%d)\n", __func__, id);
 		return -EINVAL;
 	}
 
-	param_id = (SMA_APS_SURFACE_TEMP)|((iter+1)<<24);
-	ret = afe_ff_prot_algo_ctrl(&surface_temp, param_id,
-			SMA_SET_PARAM, sizeof(int));
-	if (ret < 0) {
-		dev_err(component->dev,
-			"%s: Failed to set Surface Temperature", __func__);
+	if (get_amp_pwr_status()) {
+		param_id = (SMA_APS_SURFACE_TEMP)|((iter+1)<<24);
+		ret = afe_ff_prot_algo_ctrl(&surface_temp, param_id,
+				SMA_SET_PARAM, sizeof(int));
+		if (ret < 0)
+			dev_err(component->dev,
+				"%s: Failed to set Surface Temperature",
+				__func__);
+	} else {
+		dev_info(component->dev, "%s: amp off\n", __func__);
+		return -EINVAL;
 	}
+
+	dev_info(component->dev,
+		"%s: id %d temperature %d\n", __func__, id, temperature);
 
 	return ret;
 }

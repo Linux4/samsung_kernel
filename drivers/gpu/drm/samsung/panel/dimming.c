@@ -1335,7 +1335,7 @@ void prepare_dim_info(struct dimming_info *dim_info)
 void print_tp_lut(struct dimming_info *dim_info)
 {
 	int i, len, col, ncol, *fields;
-	char buf[MAX_PRINT_BUF_SIZE];
+	char buf[MAX_PRINT_BUF_SIZE] = { 0, };
 
 	ncol = dim_info->tp_lut_info.ncol;
 	fields = dim_info->tp_lut_info.fields;
@@ -1378,7 +1378,7 @@ void print_tp_lut(struct dimming_info *dim_info)
 void print_dim_lut(struct dimming_info *dim_info)
 {
 	int ilum, i, c, len, col, ncol, *fields;
-	char buf[MAX_PRINT_BUF_SIZE];
+	char buf[MAX_PRINT_BUF_SIZE] = { 0, };
 	struct dimming_lut_info *dim_lut_info;
 
 	dim_lut_info = &dim_info->dim_lut_info;

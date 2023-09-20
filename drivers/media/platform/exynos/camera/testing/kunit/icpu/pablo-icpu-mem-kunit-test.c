@@ -69,7 +69,6 @@ static void pablo_icpu_mem_alloc_cma_kunit_test(struct kunit *test)
 	 */
 	buf = pablo_kunit_alloc_dummy_cma_buf();
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, buf);
-	KUNIT_EXPECT_TRUE(test, pkt_ctx.dss_flag);
 
 	buf_info = pablo_icpu_mem_get_buf_info(buf);
 

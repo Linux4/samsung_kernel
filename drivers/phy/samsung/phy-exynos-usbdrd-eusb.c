@@ -2076,6 +2076,7 @@ skip_clock:
 	}
 
 	spin_lock_init(&phy_drd->lock);
+	exynos_usb_pm_noti_init(phy_drd);
 
 	dev_info(dev, "Get USB LDO!\n");
 	phy_drd->vdd075_usb = regulator_get(dev, "vdd075_usb");

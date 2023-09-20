@@ -2609,10 +2609,7 @@ static bool dw_mci_clear_pending_cmd_complete(struct dw_mci *host)
 	 * running concurrently so that the del_timer() in the interrupt
 	 * handler couldn't run.
 	 */
-	if (del_timer_sync(&host->cto_timer)) {
-		dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, host->state);
-		BUG();
-	}
+	WARN_ON(del_timer_sync(&host->cto_timer));
 	clear_bit(EVENT_CMD_COMPLETE, &host->pending_events);
 	dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, host->state);
 
@@ -2871,9 +2868,8 @@ static void dw_mci_tasklet_func(unsigned long priv)
 				break;
 
 			set_bit(EVENT_XFER_COMPLETE, &host->completed_events);
-			set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
-			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, state);
 			set_bit(EVENT_DATA_COMPLETE, &host->pending_events);
+			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, state);
 
 			state = STATE_DATA_BUSY;
 			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_DATA_PROCESS, state);
@@ -3407,15 +3403,18 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			spin_unlock_irqrestore(&host->irq_lock, irqflags);
 		}
 
+		/* NULL check of host->data, if ISR preempts remove card_work */
 		if (pending & SDMMC_INT_RXDR) {
 			mci_writel(host, RINTSTS, SDMMC_INT_RXDR);
-			if (host->dir_status == DW_MCI_RECV_STATUS && host->sg)
+			if (host->dir_status == DW_MCI_RECV_STATUS && host->sg
+				&& host->data)
 				dw_mci_read_data_pio(host, false);
 		}
 
 		if (pending & SDMMC_INT_TXDR) {
 			mci_writel(host, RINTSTS, SDMMC_INT_TXDR);
-			if (host->dir_status == DW_MCI_SEND_STATUS && host->sg)
+			if (host->dir_status == DW_MCI_SEND_STATUS && host->sg
+				&& host->data)
 				dw_mci_write_data_pio(host);
 		}
 
@@ -3963,6 +3962,7 @@ static void dw_mci_work_routine_card(struct work_struct *work)
 	struct dw_mci_slot *slot = host->slot;
 	struct mmc_host *mmc = slot->mmc;
 	struct mmc_request *mrq;
+	unsigned int int_mask = 0;
 	int present;
 
 	present = dw_mci_get_cd(mmc);
@@ -3970,6 +3970,14 @@ static void dw_mci_work_routine_card(struct work_struct *work)
 		dev_info(&slot->mmc->class_dev, "card %s\n", present ? "inserted" : "removed");
 
 		spin_lock_bh(&host->lock);
+
+		/*
+		* Prevent endless ISR preemption in remove card scenario
+		* till dw_mci_stop_dma() be complete.
+		* Enabling interrupt would be done after dw_mci_reset().
+		*/
+		if (present == 0)
+			dw_mci_disable_interrupt(host, &int_mask);
 
 		/* Card change detected */
 		slot->last_detect_state = present;
@@ -4024,9 +4032,7 @@ static void dw_mci_work_routine_card(struct work_struct *work)
 		/* Power down slot */
 		if (present == 0) {
 			dw_mci_reset(host);
-
-			if (host->pdata->only_once_tune)
-				host->pdata->tuned = false;
+			dw_mci_enable_interrupt(host, int_mask);
 		}
 		spin_unlock_bh(&host->lock);
 	}
@@ -4102,9 +4108,6 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 
 	if (!device_property_read_u32(dev, "clock-frequency", &clock_frequency))
 		pdata->bus_hz = clock_frequency;
-
-	if (of_find_property(np, "only_once_tune", NULL))
-		pdata->only_once_tune = true;
 
 	if (drv_data && drv_data->parse_dt) {
 		ret = drv_data->parse_dt(host);
@@ -4410,8 +4413,6 @@ int dw_mci_probe(struct dw_mci *host)
 	if (ret)
 		goto err_workqueue;
 
-	host->pdata->tuned = false;
-
 	/*
 	 * Enable interrupts for command done, data over, data empty,
 	 * receive ready and error such as transmit, receive timeout, crc error
@@ -4557,13 +4558,8 @@ int dw_mci_runtime_resume(struct device *dev)
 	if (host->use_dma && host->dma_ops->init)
 		host->dma_ops->init(host);
 
-	if (host->quirks & DW_MCI_QUIRK_HWACG_CTRL) {
-		if (drv_data && drv_data->hwacg_control)
-			drv_data->hwacg_control(host, HWACG_Q_ACTIVE_EN);
-	} else {
-		if (drv_data && drv_data->hwacg_control)
-			drv_data->hwacg_control(host, HWACG_Q_ACTIVE_DIS);
-	}
+	if (drv_data && drv_data->hwacg_control)
+		drv_data->hwacg_control(host, HWACG_Q_ACTIVE_DIS);
 
 	if (drv_data && drv_data->crypto_sec_cfg) {
 		ret = drv_data->crypto_sec_cfg(host, false);

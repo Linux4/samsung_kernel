@@ -36,7 +36,7 @@
 #include "panel-samsung-drv.h"
 #include "mcd-panel-samsung-helper.h"
 #include "panel_drv.h"
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
 #endif
 
@@ -169,6 +169,24 @@ static void notify_lp11_reset(struct exynos_panel *ctx, bool en)
 	dsim->lp11_reset = en;
 }
 
+static void notify_lp11_wait(struct exynos_panel *ctx, bool en)
+{
+	struct mipi_dsi_device *dsi;
+	struct dsim_device *dsim;
+
+	dsi = to_mipi_dsi_device(ctx->dev);
+	if (!dsi || !dsi->host) {
+		panel_err(ctx, "dsi not attached yet\n");
+		return;
+	}
+
+	panel_info(ctx, "%s \n", __func__);
+
+	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
+
+	dsim->wait_lp11_after_cmds = en;
+}
+
 static void exynos_panel_connector_print_state(struct drm_printer *p,
 		const struct exynos_drm_connector_state *exynos_conn_state)
 {
@@ -203,7 +221,7 @@ static void exynos_panel_connector_print_state(struct drm_printer *p,
 		   desc->max_avg_luminance);
 	drm_printf(p, "\thdr_formats: 0x%x\n", desc->hdr_formats);
 	drm_printf(p, "\tadjusted_fps: %d\n", exynos_conn_state->adjusted_fps);
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	drm_printf(p, "\tfingerprint_mask_req: 0x%x\n", exynos_conn_state->fingerprint_mask);
 #endif
 }
@@ -257,6 +275,7 @@ int exynos_drm_cmdset_cleanup(struct exynos_panel *ctx)
 		ctx->msg[i].tx_buf = NULL;
 		ctx->msg[i].type = 0;
 		ctx->msg[i].tx_len = 0;
+		ctx->msg[i].flags = 0;
 	}
 	ctx->cmdset_msg_total = 0;
 	ctx->cmdset_payload_total = 0;
@@ -301,7 +320,7 @@ exynos_panel_connector_set_property(struct exynos_drm_connector *exynos_conn,
 			struct exynos_drm_connector_state *exynos_conn_state,
 			struct drm_property *property, uint64_t val)
 {
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	struct exynos_panel *ctx = exynos_connector_to_panel(exynos_conn);
 	const struct exynos_drm_connector_properties *p =
 		exynos_drm_connector_get_properties(&ctx->exynos_connector);
@@ -331,7 +350,7 @@ exynos_panel_connector_get_property(struct exynos_drm_connector *exynos_conn,
 		*val = ctx->desc->hdr_formats;
 	else if (property == p->adjusted_fps)
 		*val = exynos_conn_state->adjusted_fps;
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	else if (property == p->fingerprint_mask)
 		*val = ctx->fingerprint_mask;
 #endif
@@ -673,6 +692,22 @@ enum exynos_reset_pos exynos_panel_get_reset_position(struct exynos_panel *ctx)
 	return pdesc->reset_pos;
 }
 
+bool exynos_panel_get_wait_lp11(struct exynos_panel *ctx)
+{
+	struct exynos_panel_desc *pdesc;
+	bool ret = 0;
+
+	if (!ctx)
+		return ret;
+
+	pdesc = ctx->desc;
+	if (!pdesc)
+		return ret;
+
+	return pdesc->wait_lp11;
+}
+
+
 static void exynos_panel_enable(struct drm_bridge *bridge)
 {
 	struct exynos_panel *ctx = bridge_to_exynos_panel(bridge);
@@ -930,7 +965,7 @@ static void exynos_panel_parse_vendor_pps(struct device *dev, struct exynos_pane
 		return;
 	}
 
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		dev_err(ctx->dev, "%s: mcd_panel ddi-node is null", __func__);
 		return;
@@ -963,7 +998,7 @@ static void exynos_panel_parse_vfp_detail(struct exynos_panel *ctx)
 		return;
 	}
 
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		dev_err(ctx->dev, "%s: mcd_panel ddi-node is null", __func__);
 		return;
@@ -1338,7 +1373,7 @@ int mcd_drm_panel_init_rcd_info(struct exynos_panel *ctx)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 static int mcd_drm_panel_set_fingermask_layer(struct exynos_panel *ctx, u32 after)
 {
 	struct mask_layer_data data;
@@ -2316,7 +2351,7 @@ __visible_for_testing int mcd_drm_emergency_off(void *_ctx)
 	return 0;
 }
 
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 static int mcd_drm_panel_set_osc(struct exynos_panel *ctx, u32 frequency)
 {
 	struct panel_clock_info info;
@@ -2428,7 +2463,7 @@ struct panel_adapter_funcs mcd_panel_adapter_funcs = {
 	.dpu_event_log_print = mcd_drm_dpu_event_log_print,
 	.set_commit_retry = mcd_drm_set_commit_retry,
 	.emergency_off = mcd_drm_emergency_off,
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if IS_ENABLED(CONFIG_PANEL_FREQ_HOP) || IS_ENABLED(CONFIG_USDM_PANEL_FREQ_HOP)
 	.set_freq_hop = mcd_drm_set_freq_hop,
 #endif
 };
@@ -2445,7 +2480,7 @@ static const struct exynos_panel_funcs mcd_exynos_panel_funcs = {
 	.set_lp_mode = exynos_panel_set_lp_mode,
 	.mode_set = mcd_drm_panel_mode_set,
 	.req_set_clock = mcd_drm_request_set_clock,
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	.set_fingermask_layer = mcd_drm_panel_set_fingermask_layer,
 #endif
 };
@@ -2583,7 +2618,7 @@ int mcd_drm_panel_get_size_mm(struct exynos_panel *ctx,
 	/* TODO: get width_mm, height_mm from mcd-panel */
 
 	/* temporary get width_mm, height_mm directly */
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		dev_err(ctx->dev, "%s: mcd_panel ddi-node is null", __func__);
 		return -EINVAL;
@@ -2608,7 +2643,7 @@ u32 mcd_drm_panel_get_reset_pos(struct exynos_panel *ctx)
 		goto err;
 	}
 
-	np = ctx->mcd_panel_dev->ddi_node;
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
 	if (!np) {
 		ret = -EINVAL;
 		goto err;
@@ -2630,6 +2665,41 @@ err:
 	panel_err(ctx, "reset_pos: failed %d\n", ret);
 	/* default value : PANEL_RESET_LP11_HS */
 	return PANEL_RESET_LP11_HS;
+}
+
+u32 mcd_drm_panel_get_wait_lp11(struct exynos_panel *ctx)
+{
+	struct device_node *np;
+	int ret;
+	u32 reg = 0;
+
+	if (!ctx || !ctx->dev || !ctx->mcd_panel_dev) {
+		ret = -ENODEV;
+		goto err;
+	}
+
+	np = ctx->mcd_panel_dev->ap_vendor_setting_node;
+	if (!np) {
+		ret = -EINVAL;
+		goto err;
+	}
+
+	ret = of_property_read_u32(np, "wait-lp11-after-sending-cmds", &reg);
+	if (reg >= 2) {
+		ret = -ERANGE;
+		goto err;
+	}
+
+	if (ret)
+		notify_lp11_wait(ctx, true);
+
+	panel_info(ctx, "wait-lp11-after-sending-cmds:(%d)\n", reg);
+
+	return reg;
+err:
+	panel_err(ctx, "wait-lp11-after-sending-cmds: failed %d\n", ret);
+	/* default value : 0 */
+	return 0;
 }
 
 struct exynos_panel_desc *
@@ -2655,6 +2725,7 @@ mcd_drm_panel_get_exynos_panel_desc(struct exynos_panel *ctx)
 	desc->panel_func = &mcd_drm_panel_funcs;
 	desc->exynos_panel_func = &mcd_exynos_panel_funcs;
 	desc->reset_pos = mcd_drm_panel_get_reset_pos(ctx);
+    	desc->wait_lp11 = mcd_drm_panel_get_wait_lp11(ctx);
 
 	/* set width_mm, height_mm on exynos_panel_mode */
 	ret = mcd_drm_panel_get_size_mm(ctx, &width_mm, &height_mm);
@@ -2790,6 +2861,7 @@ int exynos_panel_probe(struct mipi_dsi_device *dsi)
 	dsi->format = MIPI_DSI_FMT_RGB888;
 
 	notify_lp11_reset(ctx, ctx->desc->reset_pos == PANEL_RESET_LP11);
+	notify_lp11_wait(ctx, ctx->desc->wait_lp11 == 1);
 
 	drm_panel_init(&ctx->panel, dev, &mcd_drm_panel_funcs, DRM_MODE_CONNECTOR_DSI);
 	drm_panel_add(&ctx->panel);

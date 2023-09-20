@@ -1636,10 +1636,6 @@ policy_state usbpd_policy_snk_give_sink_cap(struct policy_data *policy)
 
 	PDIC_OPS_PARAM_FUNC(get_data_role, pd_data, &data_role);
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-	pd_data->pd_noti.sink_status.selected_pdo_num = 0;
-#endif
-
 	/* Sink Cap Message Setting */
 	policy->tx_msg_header.word = pd_data->sink_msg_header.word;
 	policy->tx_msg_header.port_data_role = data_role;

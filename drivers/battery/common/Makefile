@@ -13,18 +13,28 @@ sec-battery-$(CONFIG_BATTERY_LOGGING)	+= battery_logger.o sb_batt_dump.o
 obj-$(CONFIG_UPDATE_BATTERY_DATA)	+= sec_battery_data.o
 
 ifeq ($(CONFIG_SEC_KUNIT), y)
- GCOV_PROFILE_sec_battery.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_battery_wc.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_battery_thermal.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_battery_vote.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_cisd.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_adc.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_battery_sysfs.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_battery_ttf.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_step_charging.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_battery_dt.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_battery_misc.o := $(CONFIG_SEC_KUNIT)
- GCOV_PROFILE_sec_pd.o := $(CONFIG_SEC_KUNIT)
+ifeq ($(CONFIG_BATTERY_SAMSUNG), m)
+GCOV_PROFILE_sec_battery.o := y
+GCOV_PROFILE_sec_battery_thermal.o := y
+GCOV_PROFILE_sec_battery_vote.o := y
+GCOV_PROFILE_sec_adc.o := y
+GCOV_PROFILE_sec_battery_sysfs.o := y
+GCOV_PROFILE_sec_battery_ttf.o := y
+GCOV_PROFILE_sec_battery_dt.o := y
+ifneq ($(CONFIG_WIRELESS_CHARGING), n)
+GCOV_PROFILE_sec_battery_wc.o := y
+endif
+ifneq ($(CONFIG_BATTERY_CISD), n)
+GCOV_PROFILE_sec_cisd.o := y
+endif
+ifneq ($(CONFIG_STEP_CHARGING), n)
+GCOV_PROFILE_sec_step_charging.o := y
+endif
+ifneq ($(CONFIG_WIRELESS_AUTH), n)
+GCOV_PROFILE_sec_battery_misc.o := y
+endif
+endif
+GCOV_PROFILE_sec_pd.o := y
 ifeq ($(CONFIG_UML), y)
 endif
 endif
