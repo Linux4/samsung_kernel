@@ -124,6 +124,11 @@ extern bool enable_pr_debug;
 #define LCD_INFO_ONCE(V, X, ...) pr_info_once("[%d.%d][SDE_%d] %s : "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_ERR(V, X, ...) pr_err("[%d.%d][SDE_%d] %s : error: "X, ktime_to_ms(ktime_get())/1000, ktime_to_ms(ktime_get())%1000, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #else
+#define LCD_INFO_IF(V, X, ...) \
+	do { \
+		if (V->debug_data && V->debug_data->print_cmds) \
+			pr_info("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__); \
+	} while (0)
 #define LCD_INFO(V, X, ...) pr_info("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_INFO_ONCE(V, X, ...) pr_info_once("[SDE_%d] %s : "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
 #define LCD_ERR(V, X, ...) pr_err("[SDE_%d] %s : error: "X, V ? V->ndx : 0, __func__, ## __VA_ARGS__)
@@ -1470,6 +1475,7 @@ void XCP2_NT36672C_PM6585JB2_FHD_init(struct samsung_display_driver_data *vdd);
 void TAP2_HX8279_TV101WUM_WUXGA_init(struct samsung_display_driver_data *vdd);
 void GTACT4PRO_HX8279_TV101WUM_WUXGA_init(struct samsung_display_driver_data *vdd);
 void B4_S6E3FAC_AMF670BS01_FHD_init(struct samsung_display_driver_data *vdd);
+void M44X_ILI7807S_BS066FBM_FHD_init(struct samsung_display_driver_data * vdd);
 void PBA_BOOTING_FHD_init(struct samsung_display_driver_data *vdd);
 void PBA_BOOTING_FHD_DSI1_init(struct samsung_display_driver_data *vdd);
 
@@ -2473,11 +2479,25 @@ struct samsung_display_driver_data {
 	bool aot_reset_regulator;
 
 	/* To call reset seq later then LP11
-	 * (Power on - LP11 - Reset)
+	 * (Power on - LP11 - Reset on)
 	 * Only position change of aot_reset_regulator.
 	 * Should not be with panel->lp11_init
 	 */
 	bool aot_reset_regulator_late;
+
+	/* To turn off reset while LP11
+	 * (LP11 - Reset off - LP00)
+	 * Should be with aot_reset_regulator(_late)
+	 * Use when TDDI off timing Requests
+	 */
+	bool aot_reset_early_off;
+
+	/* To call TSP Reset on after Reset on
+	 * (Power on - LP11 - Reset on - TSP reset on)
+	 * Off sequence will be TSP Reset off - Reset off
+	 * Following of aot_reset_regulator.
+	 */
+	bool aot_tsp_reset_regulator;
 
 	/*
 	 * Condition : TFT has boost_en

@@ -514,7 +514,7 @@ static int get_kernel_wa_level(u64 regid)
 			return KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_3_NOT_REQUIRED;
 		}
 		return KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_3_NOT_AVAIL;
-	}
+        }
 
 	return -EINVAL;
 }

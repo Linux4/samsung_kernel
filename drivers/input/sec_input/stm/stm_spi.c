@@ -940,14 +940,23 @@ error_allocate_mem:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+void stm_ts_spi_remove(struct spi_device *client)
+#else
 int stm_ts_spi_remove(struct spi_device *client)
+#endif
+
 {
 	struct stm_ts_data *ts = spi_get_drvdata(client);
 	int ret = 0;
 
 	ret = stm_ts_remove(ts);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	return;
+#else
+	return ret;
+#endif
 
-	return 0;
 }
 
 void stm_ts_spi_shutdown(struct spi_device *client)

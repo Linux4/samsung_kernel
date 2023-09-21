@@ -4187,6 +4187,7 @@
 				compatible = "samsung,s2mpb03pmic";
 				reg = <0x56>;
 				s2mpb03,wakeup;
+				phandle = <0xe7>;
 
 				regulators {
 
@@ -4363,7 +4364,7 @@
 				pca9468,ntc-threshold = <0x0>;
 				pca9468,ta-mode = <0x1>;
 				pca9468,ta-max-vol = <0xa037a0>;
-				phandle = <0xe7>;
+				phandle = <0xe8>;
 			};
 		};
 	};
@@ -5019,7 +5020,7 @@
 				sec,firmware_name = "tsp_stm/fts5cu56a_a52sxq.bin";
 				sec,regulator_boot_on;
 				sec,unuse_dvdd_power;
-				phandle = <0xe8>;
+				phandle = <0xe9>;
 			};
 		};
 	};
@@ -5172,12 +5173,12 @@
 
 			qcom,dsi-display@1 {
 				label = "ss_dsi_panel_S6E3FC3_AMS646YD01_LO_FHD";
-				phandle = <0xe9>;
+				phandle = <0xea>;
 			};
 
 			qcom,dsi-display@0 {
 				label = "ss_dsi_panel_PBA_BOOTING_FHD";
-				phandle = <0xea>;
+				phandle = <0xeb>;
 			};
 		};
 	};
@@ -5442,7 +5443,7 @@
 				compatible = "samsung,usb-notifier";
 				qcom,disable_control_en = <0x1>;
 				qcom,unsupport_host_en = <0x0>;
-				phandle = <0xeb>;
+				phandle = <0xec>;
 			};
 
 			qcom,glinkpkt {
@@ -5476,19 +5477,19 @@
 			samsung,security_mz1@146e9aa0 {
 				compatible = "samsung,security_mz1";
 				reg = <0x146aaaa0 0x4>;
-				phandle = <0xec>;
+				phandle = <0xed>;
 			};
 
 			samsung,security_mz2@146e9aa4 {
 				compatible = "samsung,security_mz2";
 				reg = <0x146aaaa4 0x4>;
-				phandle = <0xed>;
+				phandle = <0xee>;
 			};
 
 			samsung,security_mz3@146e9aa8 {
 				compatible = "samsung,security_mz3";
 				reg = <0x146aaaa8 0x4>;
-				phandle = <0xee>;
+				phandle = <0xef>;
 			};
 		};
 	};
@@ -5517,14 +5518,14 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xf0000000 0x0 0x900000>;
-				phandle = <0xef>;
+				phandle = <0xf0>;
 			};
 
 			sec_debug_rdx_bootdev@0 {
 				alloc-ranges = <0x1 0x0 0x0 0xad00000>;
 				size = <0x0 0x0>;
 				non_gki_size = <0x0 0xad00000>;
-				phandle = <0xf0>;
+				phandle = <0xf1>;
 			};
 
 			ss_plog@1B0900000 {
@@ -5546,14 +5547,14 @@
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xa0001000 0x0 0x1000>;
-				phandle = <0xf1>;
+				phandle = <0xf2>;
 			};
 
 			tima_region@B0100000 {
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x0 0xb0100000 0x0 0x100000>;
-				phandle = <0xf2>;
+				phandle = <0xf3>;
 			};
 
 			modem_shared_mem_region@d0000000 {
@@ -5574,7 +5575,7 @@
 			dummy_mem {
 				reg = <0x0 0x9c700000 0x0 0x100000>;
 				no-map;
-				phandle = <0xf3>;
+				phandle = <0xf4>;
 			};
 		};
 	};
@@ -5842,7 +5843,7 @@
 				ti,port_id = <0x1016>;
 				ti,module_id_rx = <0x1000fc00>;
 				ti,module_id_tx = <0x1000fd00>;
-				phandle = <0xf4>;
+				phandle = <0xf5>;
 			};
 		};
 	};
@@ -6133,7 +6134,7 @@
 				cam,ois = <0x1>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0xf5>;
+				phandle = <0xf6>;
 			};
 		};
 	};
@@ -6189,7 +6190,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0xf6>;
+				phandle = <0xf7>;
 			};
 
 			qcom,cam-sensor2 {
@@ -6236,7 +6237,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0xf7>;
+				phandle = <0xf8>;
 			};
 
 			qcom,cam-sensor1 {
@@ -6284,7 +6285,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0xf8>;
+				phandle = <0xf9>;
 			};
 
 			qcom,cam-sensor13 {
@@ -6332,7 +6333,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0xf9>;
+				phandle = <0xfa>;
 			};
 
 			qcom,cam-sensor4 {
@@ -6382,7 +6383,7 @@
 				cam,ois = <0x0>;
 				cam,dual_open = <0x0>;
 				cam,valid = <0x1>;
-				phandle = <0xfa>;
+				phandle = <0xfb>;
 			};
 
 			qcom,eeprom@50 {
@@ -6680,7 +6681,7 @@
 				size-cells = <0x0>;
 				pinctrl-names = "default";
 				pinctrl-0 = <0x90>;
-				phandle = <0xfb>;
+				phandle = <0xfc>;
 
 				sx9360-i2c@28 {
 					compatible = "sx9360";
@@ -7376,6 +7377,7 @@
 		sde_wb = "/fragment@35/__overlay__/qcom,wb-display@0";
 		gpio_keys = "/fragment@37/__overlay__/gpio_keys";
 		ss_dsi_panel_PBA_BOOTING_FHD = "/fragment@47/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD";
+		s2mpb03_pmic_0 = "/fragment@48/__overlay__/s2mpb03_pmic@56";
 		s2mpb03_0_l1 = "/fragment@48/__overlay__/s2mpb03_pmic@56/regulators/s2mpb03-ldo1";
 		s2mpb03_0_l2 = "/fragment@48/__overlay__/s2mpb03_pmic@56/regulators/s2mpb03-ldo2";
 		s2mpb03_0_l3 = "/fragment@48/__overlay__/s2mpb03_pmic@56/regulators/s2mpb03-ldo3";

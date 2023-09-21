@@ -655,7 +655,7 @@ static int et7xx_parse_dt(struct device *dev, struct et7xx_data *etspi)
 
 	if (of_property_read_string_index(np, "etspi-chipid", 0,
 			(const char **)&etspi->chipid)) {
-		etspi->chipid = NULL;
+		etspi->chipid = "NULL";
 	}
 	pr_info("chipid: %s\n", etspi->chipid);
 
@@ -740,19 +740,19 @@ static int et7xx_type_check(struct et7xx_data *etspi)
 	 * EL721  : 0x07 / 0x15
 	 */
 	if ((buf1 == 0x07) && ((buf2 == 0x1D) || (buf2 == 0x0B))) {
-		etspi->sensortype = SENSOR_EGISOPTICAL;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET711A sensor\n");
 	} else if ((buf1 == 0x07) && (buf2 == 0x0D)) {
-		etspi->sensortype = SENSOR_EGISOPTICAL;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET713A sensor\n");
 	} else if ((buf1 == 0x07) && (buf2 == 0x0F)) {
-		etspi->sensortype = SENSOR_EGISOPTICAL;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET715 sensor\n");
 	} else if ((buf1 == 0x07) && (buf2 == 0x14)) {
-		etspi->sensortype = SENSOR_EGISOPTICAL;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS ET713S sensor\n");
 	} else if ((buf1 == 0x07) && (buf2 == 0x15)) {
-		etspi->sensortype = SENSOR_EGISOPTICAL;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS EL721 sensor\n");
 	} else {
 		etspi->sensortype = SENSOR_FAILED;
@@ -857,7 +857,7 @@ static void et7xx_work_func_debug(struct work_struct *work)
 	pr_info("ldo: %d, sleep: %d, tz: %d, spi_value: 0x%x, type: %s\n",
 		etspi->ldo_enabled, gpio_get_value(etspi->sleepPin),
 		etspi->tz_mode, etspi->spi_value,
-		sensor_status[etspi->sensortype + 2]);
+		etspi->sensortype > 0 ? etspi->chipid : sensor_status[etspi->sensortype + 2]);
 }
 
 static struct et7xx_data *alloc_platformdata(struct device *dev)

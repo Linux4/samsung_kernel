@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/platform_device.h>
@@ -8,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <soc/snd_event.h>
+#include <soc/qcom/boot_stats.h>
 
 struct snd_event_client {
 	struct list_head node;
@@ -232,6 +234,9 @@ int snd_event_client_deregister(struct device *dev)
 		return -EINVAL;
 	}
 
+	dev_dbg(dev, "%s: removing client to SND event FW \n",
+		__func__);
+
 	mutex_lock(&snd_event_mutex);
 	if (list_empty(&snd_event_client_list)) {
 		dev_dbg(dev, "%s: No SND client registered\n", __func__);
@@ -248,7 +253,7 @@ int snd_event_client_deregister(struct device *dev)
 
 	c->state = false;
 
-	if (master && master->clients_found) {
+	if (master) {
 		struct snd_event_client *d;
 		bool dev_found = false;
 
@@ -259,9 +264,12 @@ int snd_event_client_deregister(struct device *dev)
 				break;
 			}
 		}
-		if (dev_found) {
-			ret = check_and_update_fwk_state();
-			master->clients_found = false;
+		if (dev_found ) {
+			if(master->clients_found) {
+				ret = check_and_update_fwk_state();
+				master->clients_found = false;
+			}
+			master->clients->cl_arr[i].dev = NULL;
 		}
 	}
 
@@ -303,6 +311,8 @@ void snd_event_mstr_add_client(struct snd_event_clients **snd_clients,
 					 GFP_KERNEL);
 		if (!client->cl_arr) {
 			*snd_clients = ERR_PTR(-ENOMEM);
+			kfree(client);
+			client = NULL;
 			return;
 		}
 		*snd_clients = client;
@@ -462,6 +472,9 @@ int snd_event_notify(struct device *dev, unsigned int state)
 		return -EINVAL;
 	}
 
+	dev_dbg(dev, "%s: snd_event_notify (state %u)\n",
+		__func__, state);
+
 	mutex_lock(&snd_event_mutex);
 	if (list_empty(&snd_event_client_list) && !master) {
 		dev_err(dev, "%s: No device registered\n", __func__);
@@ -489,6 +502,18 @@ exit:
 	return ret;
 }
 EXPORT_SYMBOL(snd_event_notify);
+
+static int __init snd_event_init(void)
+{
+	place_marker("M - Driver Sound Event Init");
+	return 0;
+}
+module_init(snd_event_init);
+
+static void __exit snd_event_exit(void)
+{
+}
+module_exit(snd_event_exit);
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("SND event module");
