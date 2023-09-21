@@ -186,6 +186,7 @@ struct cstat_stat_buf_info {
 };
 
 struct cstat_size_cfg {
+	u32 rms_crop_ratio;
 	struct is_crop bcrop;
 	struct is_crop bns;
 	enum cstat_bns_scale_ratio bns_r;
@@ -303,6 +304,7 @@ void cstat_hw_s_grid_cfg(void __iomem *base, enum cstat_grid_id id,
 void cstat_hw_s_bns_cfg(void __iomem *base,
 		struct is_crop *crop,
 		struct cstat_size_cfg *size_cfg);
+void cstat_hw_g_bns_size(struct is_crop *in, struct is_crop *out);
 
 /*
  * DS

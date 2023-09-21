@@ -125,6 +125,7 @@ void gsc_update_stat(struct gsc_group *grp,
 static void _gsc_decision_activate(struct gsc_group *grp)
 {
 	struct task_struct *p;
+	struct rq *rq;
 	unsigned long group_util = 0;
 	unsigned long util = 0;
 	bool prev_stat = grp->curr_stat;
@@ -144,7 +145,15 @@ static void _gsc_decision_activate(struct gsc_group *grp)
 	list_for_each_entry(gte, &grp->task_list, grp_list) {
 		p = gte->p;
 		se = &p->se;
+		rq = task_rq(p);
+
+		raw_spin_lock(&rq->lock);
+		if (!(rq->clock_update_flags & RQCF_UPDATED))
+			update_rq_clock(rq);
+
 		curr = cfs_rq_clock_pelt(cfs_rq_of(se));
+		raw_spin_unlock(&rq->lock);
+
 
 		delta = curr - se->avg.last_update_time;
 		delta = max_t(u64, delta, 0);

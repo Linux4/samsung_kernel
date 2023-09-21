@@ -51,6 +51,7 @@ enum sensor_gh1_mode_enum {
 	SENSOR_GH1_1472x1104_30FPS,
 	SENSOR_GH1_1616x912_30FPS,
 	SENSOR_GH1_3648x2052_30FPS,
+	SENSOR_GH1_7936x4464_15FPS,
 	SENSOR_GH1_MODE_MAX
 };
 
@@ -88,6 +89,7 @@ static bool sensor_gh1_support_wb_gain[] = {
 	false, //SENSOR_GH1_1472x1104_30FPS = 16,
 	false, //SENSOR_GH1_1616x912_30FPS = 17,
 	false, //SENSOR_GH1_3648x2052_30FPS = 18,
+	true, //SENSOR_GH1_7936x4464_15FPS = 19,
 };
 
 #endif

@@ -41,7 +41,7 @@
 #include <linux/compat.h>
 
 #include <linux/iommu.h>
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 #include <linux/exynos_iovmm.h>
 #endif
 
@@ -606,7 +606,7 @@ void jsqz_task_schedule(struct jsqz_task *task)
 
 	if (test_bit(DEV_RUN, &jsqz_device->state)) {
 		dev_dbg(jsqz_device->dev
-			 , "%s: unexpected state (ctx %pk task %pk)\n"
+			 , "%s: unexpected state (ctx %pK task %pK)\n"
 			 , __func__, task->ctx, task);
 	}
 
@@ -821,7 +821,7 @@ static struct dma_buf *jsqz_get_dmabuf_from_userptr(
 	}
 
 	dev_dbg(jsqz_device->dev
-		, "%s: VMA found, %pk. Starting at %#lx within parent area\n"
+		, "%s: VMA found, %pK. Starting at %#lx within parent area\n"
 		, __func__, vma, vma->vm_start);
 
 	//vm_file is the file that this vma is a memory mapping of
@@ -834,7 +834,7 @@ static struct dma_buf *jsqz_get_dmabuf_from_userptr(
 	/* get_dma_buf_file is not support now */
 	//dmabuf = get_dma_buf_file(vma->vm_file);
 	dev_dbg(jsqz_device->dev
-		, "%s: got dmabuf %pk of vm_file %pk\n", __func__, dmabuf
+		, "%s: got dmabuf %pK of vm_file %pK\n", __func__, dmabuf
 		, vma->vm_file);
 
 	if (dmabuf != NULL)
@@ -867,7 +867,7 @@ static int jsqz_buffer_get_and_attach(struct jsqz_dev *jsqz_device,
 	off_t offset = 0;
 
 	dev_dbg(jsqz_device->dev
-		, "%s: BEGIN, acquiring plane from buf %pk into dma buffer %pk\n"
+		, "%s: BEGIN, acquiring plane from buf %pK into dma buffer %pK\n"
 		, __func__, buffer, dma_buffer);
 
 	plane = &dma_buffer->plane;
@@ -875,7 +875,7 @@ static int jsqz_buffer_get_and_attach(struct jsqz_dev *jsqz_device,
 	if (buffer->type == HWSQZ_BUFFER_DMABUF) {
 		plane->dmabuf = dma_buf_get(buffer->fd);
 
-		dev_dbg(jsqz_device->dev, "%s: dmabuf of fd %d is %pk\n", __func__
+		dev_dbg(jsqz_device->dev, "%s: dmabuf of fd %d is %pK\n", __func__
 			, buffer->fd, plane->dmabuf);
 	} else if (buffer->type == HWSQZ_BUFFER_USERPTR) {
 		// Check if there's already a dmabuf associated to the
@@ -890,7 +890,7 @@ static int jsqz_buffer_get_and_attach(struct jsqz_dev *jsqz_device,
 				"%s: failed to get dmabuf, err %d\n", __func__, ret);
 			goto err;
 		}
-		dev_dbg(jsqz_device->dev, "%s: dmabuf of userptr %pk is %pk\n"
+		dev_dbg(jsqz_device->dev, "%s: dmabuf of userptr %pK is %pK\n"
 			, __func__, (void *) buffer->userptr, plane->dmabuf);
 	}
 
@@ -924,7 +924,7 @@ static int jsqz_buffer_get_and_attach(struct jsqz_dev *jsqz_device,
 						   , jsqz_device->dev);
 
 		dev_dbg(jsqz_device->dev
-			, "%s: attachment of dmabuf %pk is %pk\n", __func__
+			, "%s: attachment of dmabuf %pK is %pK\n", __func__
 			, plane->dmabuf, plane->attachment);
 
 		plane->offset = offset;
@@ -1029,7 +1029,7 @@ static int jsqz_buffer_setup(struct jsqz_ctx *ctx,
 	dev_dbg(jsqz_device->dev, "%s: BEGIN\n", __func__);
 
 	dev_dbg(jsqz_device->dev
-		, "%s: computing bytes needed for dma buffer %pk\n"
+		, "%s: computing bytes needed for dma buffer %pK\n"
 		, __func__, dma_buffer);
 
 	if (plane->bytes_used == 0) {
@@ -1061,7 +1061,7 @@ static int jsqz_buffer_setup(struct jsqz_ctx *ctx,
 	dma_buffer->buffer = buffer;
 
 	dev_dbg(jsqz_device->dev
-		, "%s: about to prepare buffer %pk, dir DMA_TO_DEVICE? %d\n"
+		, "%s: about to prepare buffer %pK, dir DMA_TO_DEVICE? %d\n"
 		, __func__, dma_buffer, dir == DMA_TO_DEVICE);
 
 	/* the callback function should fill 'dma_addr' field */
@@ -1071,7 +1071,7 @@ static int jsqz_buffer_setup(struct jsqz_ctx *ctx,
 		dev_err(jsqz_device->dev, "%s: Failed to prepare plane"
 			, __func__);
 
-		dev_dbg(jsqz_device->dev, "%s: releasing buffer %pk\n"
+		dev_dbg(jsqz_device->dev, "%s: releasing buffer %pK\n"
 			, __func__, dma_buffer);
 
 		jsqz_buffer_put_and_detach(dma_buffer);
@@ -1345,7 +1345,7 @@ static void jsqz_destroy_context(struct kref *kreference)
 	dev_dbg(jsqz_device->dev, "%s: BEGIN\n", __func__);
 
 	spin_lock_irqsave(&jsqz_device->lock_ctx, flags);
-	dev_dbg(jsqz_device->dev, "%s: deleting context %pk from list\n"
+	dev_dbg(jsqz_device->dev, "%s: deleting context %pK from list\n"
 		, __func__, ctx);
 	list_del(&ctx->node);
 	spin_unlock_irqrestore(&jsqz_device->lock_ctx, flags);
@@ -1429,13 +1429,13 @@ static int jsqz_process(struct jsqz_ctx *ctx,
 
 	init_completion(&task->complete);
 
-	dev_dbg(jsqz_device->dev, "%s: acquiring kref of ctx %pk\n",
+	dev_dbg(jsqz_device->dev, "%s: acquiring kref of ctx %pK\n",
 		__func__, ctx);
 	kref_get(&ctx->kref);
 
 	mutex_lock(&ctx->mutex);
 
-	dev_dbg(jsqz_device->dev, "%s: inside context lock (ctx %pk task %pk)\n"
+	dev_dbg(jsqz_device->dev, "%s: inside context lock (ctx %pK task %pK)\n"
 		, __func__, ctx, task);
 
 	ret = jsqz_task_setup(jsqz_device, ctx, task);
@@ -1477,11 +1477,11 @@ static int jsqz_process(struct jsqz_ctx *ctx,
 err_prepare_task:
 	HWJSQZ_PROFILE(
 
-	dev_dbg(jsqz_device->dev, "%s: releasing lock of ctx %pk\n"
+	dev_dbg(jsqz_device->dev, "%s: releasing lock of ctx %pK\n"
 		, __func__, ctx);
 	mutex_unlock(&ctx->mutex);
 
-	dev_dbg(jsqz_device->dev, "%s: releasing kref of ctx %pk\n"
+	dev_dbg(jsqz_device->dev, "%s: releasing kref of ctx %pK\n"
 		, __func__, ctx);
 
 	kref_put(&ctx->kref, jsqz_destroy_context);
@@ -1534,7 +1534,7 @@ static int jsqz_open(struct inode *inode, struct file *filp)
 	ctx->jsqz_dev = jsqz_device;
 
 	spin_lock_irqsave(&jsqz_device->lock_ctx, flags);
-	dev_dbg(jsqz_device->dev, "%s: adding new context %pk to contexts list\n"
+	dev_dbg(jsqz_device->dev, "%s: adding new context %pK to contexts list\n"
 		, __func__, ctx);
 	list_add_tail(&ctx->node, &jsqz_device->contexts);
 	spin_unlock_irqrestore(&jsqz_device->lock_ctx, flags);
@@ -1561,7 +1561,7 @@ static int jsqz_release(struct inode *inode, struct file *filp)
 {
 	struct jsqz_ctx *ctx = filp->private_data;
 
-	dev_dbg(ctx->jsqz_dev->dev, "%s: releasing context %pk\n"
+	dev_dbg(ctx->jsqz_dev->dev, "%s: releasing context %pK\n"
 		, __func__, ctx);
 
 	//the release callback will not be invoked if counter
@@ -2053,15 +2053,15 @@ static int jsqz_clock_gating(struct jsqz_dev *jsqz, bool on)
 		}
 	}
 	else {
-		dev_dbg(jsqz->dev, "%s failed to gating clock : %d\n"
-					, __func__, on);
+		dev_err(jsqz->dev, "%s failed to gating clock : %d, %d\n"
+					, __func__, ret, on);
 		return -1;
 	}
 
 	return ret;
 }
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 static int jsqz_sysmmu_fault_handler(struct iommu_domain *domain,
 				     struct device *dev,
 				     unsigned long fault_addr,
@@ -2245,7 +2245,7 @@ static int jsqz_probe(struct platform_device *pdev)
 	pm_runtime_set_suspended(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_set_fault_handler(&pdev->dev,
 				jsqz_sysmmu_fault_handler, jsqz);
 
@@ -2282,7 +2282,7 @@ static int jsqz_probe(struct platform_device *pdev)
 err_pm:
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_deactivate(&pdev->dev);
 	err_iovmm:
 #else
@@ -2324,7 +2324,7 @@ static int jsqz_remove(struct platform_device *pdev)
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_deactivate(&pdev->dev);
 #else
 	iommu_unregister_device_fault_handler(&pdev->dev);

@@ -516,6 +516,15 @@ int sensor_module_g_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 	case V4L2_CID_SENSOR_GET_CUR_HDR_MODE:
 		ctrl->value = sensor_peri->cis.cis_data->pre_hdr_mode;
 		break;
+	case V4L2_CID_SENSOR_GET_UPDATED_BINNING_RATIO:
+		ret = CALL_CISOPS(&sensor_peri->cis, cis_get_updated_binning_ratio,
+				sensor_peri->subdev_cis, &ctrl->value);
+		if (ret < 0) {
+			err("err!!! ret(%d)", ret);
+			ret = -EINVAL;
+			goto p_err;
+		}
+		break;
 	default:
 		err("err!!! Unknown CID(%#x)", ctrl->id);
 		ret = -EINVAL;
@@ -756,6 +765,27 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		info("%s Auto framing set. val = %d, sensor id = %d", __func__,
 			sensor_peri->check_auto_framing, sensor_peri->module->sensor_id);
 		break;
+	case V4L2_CID_SENSOR_SET_BAYER_ORDER:
+		switch (ctrl->value) {
+		case SENSOR_COLORFILTERARRANGEMENT_RGGB:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_RG_GB;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_GRBG:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_GBRG:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_GB_RG;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_BGGR:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_BG_GR;
+			break;
+		default:
+			break;
+		}
+
+		info("%s bayer order = %d, sensor id = %d", __func__,
+			sensor_peri->cis.bayer_order, sensor_peri->module->sensor_id);
+		break;
 	default:
 		err("err!!! Unknown CID(%#x)", ctrl->id);
 		ret = -EINVAL;
@@ -790,6 +820,7 @@ int sensor_module_s_ext_ctrls(struct v4l2_subdev *subdev, struct v4l2_ext_contro
 	struct v4l2_control ctrl;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct v4l2_rect ssm_roi;
+	struct sensor_shift_info shift_offset;
 	struct is_device_sensor *device;
 	struct is_core *core;
 
@@ -917,6 +948,21 @@ int sensor_module_s_ext_ctrls(struct v4l2_subdev *subdev, struct v4l2_ext_contro
 #endif
 			break;
 		}
+
+		case V4L2_CID_SENSOR_SET_REMOSAIC_CROP_SHIFT_INFO:
+			ret = copy_from_user(&shift_offset, ext_ctrl->ptr, sizeof(struct sensor_shift_info));
+			if (ret) {
+				err("fail to copy_from_user, ret(%d)\n", ret);
+				goto p_err;
+			}
+
+			info("[%s][%d][%s] remosaic_crop_shift_info offset (%d, %d)",
+				__func__, sensor_peri->cis.id, sensor_peri->module->sensor_name,
+				shift_offset.offsetX, shift_offset.offsetY);
+
+			CALL_CISOPS(&sensor_peri->cis, cis_set_remosaic_crop_shift_info,
+				sensor_peri->subdev_cis, shift_offset.offsetX, shift_offset.offsetY);
+			break;
 
 		default:
 			ctrl.id = ext_ctrl->id;
@@ -1059,9 +1105,12 @@ int sensor_module_s_stream(struct v4l2_subdev *sd, int enable)
 		 * not setting exposure so need to this check
 		 */
 		if ((sensor_peri->use_sensor_work)
+#ifndef CONFIG_OIS_HALL_DATA_PROVIDER
 			|| (sensor_peri->cis.cis_data->video_mode == true
 				&& cfg->framerate >= 60
-				&& sensor->image.framerate >= 60)) {
+				&& sensor->image.framerate >= 60)
+#endif
+		) {
 			ret = is_sensor_init_sensor_thread(sensor_peri);
 			if (ret) {
 				err("is_sensor_init_sensor_thread is fail");
@@ -1069,12 +1118,15 @@ int sensor_module_s_stream(struct v4l2_subdev *sd, int enable)
 			}
 		}
 
+#ifndef CONFIG_OIS_HALL_DATA_PROVIDER
 		if (sensor_peri->cis.cis_data->video_mode == true
 			&& cfg->framerate >= 60
 			&& sensor->image.framerate >= 60) {
 			sensor_peri->sensor_interface.diff_bet_sen_isp
 				= sensor_peri->sensor_interface.otf_flag_3aa ? DIFF_OTF_DELAY + 1 : DIFF_M2M_DELAY;
-		} else {
+		} else
+#endif
+		{
 			sensor_peri->sensor_interface.diff_bet_sen_isp
 				= sensor_peri->sensor_interface.otf_flag_3aa ? DIFF_OTF_DELAY : DIFF_M2M_DELAY;
 		}
@@ -1491,7 +1543,6 @@ static int sensor_module_probe(struct platform_device *pdev)
 	v4l2_set_subdevdata(subdev_module, module);
 	v4l2_set_subdev_hostdata(subdev_module, device);
 	snprintf(subdev_module->name, V4L2_SUBDEV_NAME_SIZE, "sensor-subdev.%s", module->sensor_name);
-	probe_info("module->cfg=%p module->cfgs=%d\n", module->cfg, module->cfgs);
 
 	if (device->pdata->i2c_dummy_enable) {
 		probe_info("%s: try to use match seq", __func__);

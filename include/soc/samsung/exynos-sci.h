@@ -29,8 +29,18 @@
 #define ArrDbgRDataMi				0x070
 #define ArrDbgRDataLo				0x074
 #define CCMControl1				0x0A8
-#define PM_SCI_CTL				0x140
+#define PM_SCI_CTL				0x2A8
+#define PM_SCI_CTL1				0x2B8
+#define PM_SCI_ST				0x2AC
 #define SCI_SB_LLCSTATUS			0xA0C
+
+#define DMC_MAX					4
+#define DMC0_BASE				0x1C03F000
+#define DMC_OFFSET				0x00100000
+#define InitCtl					0x028
+#define DramTiming10				0x500
+#define DramTiming10_regfiledim1		0x564
+#define DvfsCtl0				0x364
 
 #define LLC_En_Bit				(25)
 #define DisableLlc_Bit				(9)
@@ -112,7 +122,7 @@ enum exynos_sci_llc_region_index {
 	LLC_REGION_MFC0_DPB,
 	LLC_REGION_MFC1_DPB,
 	LLC_REGION_GDC,
-	LLC_REGION_MIGOV,
+	LLC_REGION_PROFILER,
 	LLC_REGION_GPU,
 	LLC_REGION_NPU0,
 	LLC_REGION_NPU1,
@@ -191,6 +201,7 @@ struct exynos_sci_data {
 	unsigned int			invway;
 
 	void __iomem			*sci_base;
+	void __iomem			*dmc_base[4];
 	struct exynos_llc_dump_addr	llc_dump_addr;
 	const char			*region_name[LLC_REGION_MAX];
 	unsigned int			region_priority[LLC_REGION_MAX];

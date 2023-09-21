@@ -1983,6 +1983,9 @@ static irqreturn_t exynos_sci_irq_handler(int irq, void *p)
 	struct exynos_sci_data *data = p;
 	unsigned int source, miscinfo;
 	unsigned int addrlow, addrhigh;
+	unsigned int initctl[4], dramtiming10[4], dramtiming10_reg[4], dvfsctl0[4];
+	unsigned int pm_sci_ctl, pm_sci_st, pm_sci_ctl1;
+	int i;
 
 	if (!data->sci_base)
 		return IRQ_HANDLED;
@@ -2041,10 +2044,41 @@ static irqreturn_t exynos_sci_irq_handler(int irq, void *p)
 
 	SCI_INFO("UcErrOverrun : 0x%08X\n", __raw_readl(data->sci_base + 0x950));
 	SCI_INFO("------------------------------------------\n");
+	/* DMC INFO */
+	for (i = 0; i < DMC_MAX; i++) {
+		initctl[i] = __raw_readl(data->dmc_base[i] + InitCtl);
+		dramtiming10[i] = __raw_readl(data->dmc_base[i] + DramTiming10);
+		dramtiming10_reg[i] = __raw_readl(data->dmc_base[i] + DramTiming10_regfiledim1);
+		dvfsctl0[i] = __raw_readl(data->dmc_base[i] + DvfsCtl0);
+	}
+
+	for (i = 0; i < DMC_MAX; i++) {
+		SCI_INFO("[DMC%d]InitCTL: 0x%08X\n", i, initctl[i]);
+		SCI_INFO("[DMC%d]InitCTL.InSrPwrDownModeStatus:	0x%01X\n", i, initctl[i] >> 16 & 0x3);
+		SCI_INFO("[DMC%d]DramTiming10: 0x%08X\n", i, dramtiming10[i]);
+		SCI_INFO("[DMC%d]DramTiming10.TvrcgDisable: 0x%02X\n", i, dramtiming10[i] >> 24 & 0xFF);
+		SCI_INFO("[DMC%d]DramTiming10_reg: 0x%08X\n", i, dramtiming10_reg[i]);
+		SCI_INFO("[DMC%d]DramTiming10_reg.TvrcgDisable: 0x%02X\n",
+				i, dramtiming10_reg[i] >> 24 & 0xFF);
+		SCI_INFO("[DMC%d]DvfsCtl0: 0x%08X\n", i, dvfsctl0[i]);
+		SCI_INFO("[DMC%d]DvfsCtl0.TimingSetSwState: 0x%01X\n", i, dvfsctl0[i] >> 20 & 0x1);
+	}
+	SCI_INFO("------------------------------------------\n");
+	pm_sci_ctl = __raw_readl(data->sci_base + PM_SCI_CTL);
+	pm_sci_ctl1 = __raw_readl(data->sci_base + PM_SCI_CTL1);
+	pm_sci_st = __raw_readl(data->sci_base + PM_SCI_ST);
+
+	SCI_INFO("PM_SCI_CTL:	0x%08X\n", pm_sci_ctl);
+	SCI_INFO("PM_SCI_CTL1:	0x%08X\n", pm_sci_ctl1);
+	SCI_INFO("PM_SCI_ST:	0x%08X\n", pm_sci_st);
+	SCI_INFO("------------------------------------------\n");
 
 	/* panic only when LLC uncorrected error occurred */
 	if ((source > 47 && source < 56) && (((miscinfo >> 13) & 0xF) == 0x6)) {
 		pr_err("SCI uncorrectable error (irqnum: %d)\n", irq);
+		disable_irq_nosync(irq);
+		dbg_snapshot_expire_watchdog();
+	} else if ((source >= 0x8 && source <= 0xB)) {
 		disable_irq_nosync(irq);
 		dbg_snapshot_expire_watchdog();
 	} else {
@@ -2165,6 +2199,14 @@ static int exynos_sci_probe(struct platform_device *pdev)
 		goto err_ioremap;
 	}
 
+	for (i = 0; i < DMC_MAX; i++) {
+		data->dmc_base[i] = ioremap(DMC0_BASE + (DMC_OFFSET * i), SZ_4K);
+		if (IS_ERR(data->dmc_base[i])) {
+			SCI_ERR("%s: Failed DMC base remap\n", __func__);
+			goto err_dmc_ioremap;
+		}
+	}
+
 	if (data->vch_size)
 		exynos_cal_pd_sci_sync = sci_pd_sync;
 
@@ -2195,6 +2237,13 @@ static int exynos_sci_probe(struct platform_device *pdev)
 
 	return 0;
 
+err_dmc_ioremap:
+	iounmap(data->sci_base);
+	if (i) {
+		for (i = i - 1; i >= 0 ; i--) {
+			iounmap(data->dmc_base[i]);
+		}
+	}
 err_ioremap:
 err_llc_disable:
 err_cpu_min_region:

@@ -1123,6 +1123,7 @@ static int exynos_usbdrd_fill_hstune_param(struct exynos_usbdrd_phy *phy_drd,
 		if (ret == 0) {
 			phy_drd->hs_tune_param_value[param_index][0] = res[0];
 			phy_drd->hs_tune_param_value[param_index][1] = res[1];
+			hs_tune_param[param_index].value = res[0];
 		} else {
 			dev_err(dev, "failed to read hs tune value from %s node\n", child->name);
 			return -EINVAL;
@@ -1747,14 +1748,17 @@ static void exynos_usbdrd_pipe3_tune(struct exynos_usbdrd_phy *phy_drd,
 	}
 	phy_exynos_snps_usbdp_tune(&phy_drd->usbphy_sub_info);
 }
-
+extern void phy_exynos_eusb_tune(struct exynos_usbphy_info *info);
 static void exynos_usbdrd_utmi_tune(struct exynos_usbdrd_phy *phy_drd,
 							int phy_state)
 {
-#if 0
 	struct exynos_usb_tune_param *hs_tune_param = phy_drd->usbphy_info.tune_param;
 	int i;
 
+	if (!hs_tune_param) {
+		dev_err(phy_drd->dev, "%s no hs_tune_param\n", __func__);
+		return;
+	}
 	dev_info(phy_drd->dev, "%s\n", __func__);
 
 	if (phy_state >= OTG_STATE_A_IDLE) {
@@ -1773,8 +1777,7 @@ static void exynos_usbdrd_utmi_tune(struct exynos_usbdrd_phy *phy_drd,
 		}
 	}
 	//phy_exynos_usb_v3p1_tune(&phy_drd->usbphy_info);
-	//phy_exynos_eusb_tune(&phy_drd->usbphy_info);
-#endif
+	phy_exynos_eusb_tune(&phy_drd->usbphy_info);
 }
 
 int exynos_usbdrd_phy_tune(struct phy *phy, int phy_state)

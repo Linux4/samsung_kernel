@@ -27,6 +27,8 @@
 #include "rsv/is-vendor-config_rsv_v02.h"
 #elif defined(CONFIG_CAMERA_RSV_V03)
 #include "rsv/is-vendor-config_rsv_v03.h"
+#elif defined(CONFIG_CAMERA_RSW_V11)
+#include "rsw_v11/is-vendor-config_rsw_v11.h"
 #else
 #include "rsv/is-vendor-config_rsv_v02.h" /* Default */
 #endif

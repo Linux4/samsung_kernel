@@ -25,6 +25,9 @@
 #include <linux/uaccess.h>
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #include <linux/regulator/consumer.h>
+#ifdef CONFIG_NFC_SN2XX_ESE_SUPPORT
+#include "p73.h"
+#endif
 #endif
 #include "common_ese.h"
 
@@ -216,9 +219,7 @@ int nfc_regulator_onoff(struct nfc_dev *nfc_dev, int onoff)
 		goto done;
 	}
 
-	g_is_nfc_pvdd_enabled = regulator_is_enabled(regulator_nfc_pvdd);
-
-	NFC_LOG_INFO("onoff = %d, is_nfc_pvdd_enabled = %d\n", onoff, g_is_nfc_pvdd_enabled);
+	NFC_LOG_INFO("onoff = %d, g_is_nfc_pvdd_enabled = %d\n", onoff, g_is_nfc_pvdd_enabled);
 
 	if (g_is_nfc_pvdd_enabled == onoff) {
 		NFC_LOG_INFO("%s already pvdd %s\n", __func__, onoff ? "enabled" : "disabled");
@@ -605,6 +606,9 @@ void nfc_print_status(void)
 
 	NFC_LOG_INFO("en: %d, firm: %d, pvdd: %d, irq: %d, clk_req: %d\n",
 		en, firm, pvdd, irq, clk_req_irq);
+#ifdef CONFIG_NFC_SN2XX_ESE_SUPPORT
+	p61_print_status(__func__);
+#endif
 #ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
 	nfc_logger_acpm_log_print();
 #endif
@@ -649,7 +653,7 @@ static int nfc_gpio_info(struct nfc_dev *nfc_dev, unsigned long arg)
 	nfc_print_status();
 #endif
 	if (copy_to_user((uint32_t *) arg, &gpios_status, sizeof(value))) {
-		pr_err("%s : Unable to copy data from kernel space to user space");
+		pr_err("%s : Unable to copy data from kernel space to user space\n", __func__);
 		return -EFAULT;
 	}
 	return 0;

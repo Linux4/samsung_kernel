@@ -108,8 +108,8 @@ lbl_rollback_touch:
 			ret = -EPERM;
 			break;
 		}
-		stui_close_touch();
 		stui_close_display();
+		stui_close_touch();
 		stui_set_mode(STUI_MODE_OFF);
 		stui_set_tui_version(TUI_NOPE);
 		break;

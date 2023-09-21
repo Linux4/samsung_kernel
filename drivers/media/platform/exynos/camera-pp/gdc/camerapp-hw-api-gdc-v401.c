@@ -629,14 +629,6 @@ u32 camerapp_hw_get_sbwc_constraint(struct gdc_frame *frame, u32 type)
 			frame->gdc_fmt->pixelformat);
 		return -EINVAL;
 	}
-	/* Size align */
-	if (!IS_ALIGNED(frame->width, CAMERAPP_COMP_BLOCK_WIDTH) ||
-	    !IS_ALIGNED(frame->height, CAMERAPP_COMP_BLOCK_HEIGHT)) {
-		gdc_info("%dx%d of target image is not aligned by %d*%d\n",
-			frame->width, frame->height,
-			CAMERAPP_COMP_BLOCK_WIDTH, CAMERAPP_COMP_BLOCK_HEIGHT);
-		return -EINVAL;
-	}
 
 	return 0;
 }

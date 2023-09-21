@@ -32,7 +32,7 @@
 #include <exynos_drm_gem.h>
 #include <exynos_drm_writeback.h>
 #include <exynos_display_common.h>
-#include <exynos_drm_migov.h>
+#include <exynos_drm_profiler.h>
 #include <exynos_drm_freq_hop.h>
 #include <exynos_drm_partial.h>
 #include <exynos_drm_tui.h>
@@ -521,8 +521,8 @@ static void commit_tail(struct drm_atomic_state *old_state)
 	for_each_crtc_in_state(old_state, crtc, i) {
 		const struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
 
-		if (exynos_crtc->migov)
-			exynos_migov_update_ems_fence_cnt(exynos_crtc->migov);
+		if (exynos_crtc->profiler) 
+			exynos_profiler_update_ems_fence_cnt(exynos_crtc->profiler);
 
 		recovery = check_recovery_state(crtc);
 	}
@@ -589,9 +589,7 @@ static void exynos_atomic_queue_work(struct drm_atomic_state *old_state, bool no
 
 int exynos_atomic_commit(struct drm_device *dev, struct drm_atomic_state *state, bool nonblock)
 {
-	const struct drm_crtc *crtc;
 	int ret;
-	int i;
 
 	DPU_ATRACE_BEGIN("exynos_atomic_commit");
 	ret = drm_atomic_helper_setup_commit(state, nonblock);
@@ -607,7 +605,6 @@ int exynos_atomic_commit(struct drm_device *dev, struct drm_atomic_state *state,
 	 * when the hw goes bonghits. Which means we can commit the new state on
 	 * the software side now.
 	 */
-
 	ret = drm_atomic_helper_swap_state(state, true);
 	if (ret) {
 		drm_atomic_helper_cleanup_planes(dev, state);
@@ -615,12 +612,6 @@ int exynos_atomic_commit(struct drm_device *dev, struct drm_atomic_state *state,
 	}
 
 	exynos_drm_crtc_alloc_windows(dev, state);
-
-	for_each_crtc_in_state(state, crtc, i) {
-		struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
-		if (exynos_crtc->freq_hop)
-			exynos_crtc->freq_hop->update_freq_hop(exynos_crtc);
-	}
 
 	/*
 	 * Everything below can be run asynchronously without the need to grab

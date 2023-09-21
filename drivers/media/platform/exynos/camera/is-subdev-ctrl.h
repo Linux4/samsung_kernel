@@ -41,7 +41,6 @@ enum is_subdev_state {
 
 enum pablo_subdev_get_type {
 	PSGT_REGION_NUM,
-	PSGT_RTA_FRAME_INFO,
 };
 
 enum is_lme_subdev {

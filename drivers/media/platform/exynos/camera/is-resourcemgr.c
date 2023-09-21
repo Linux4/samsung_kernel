@@ -2378,6 +2378,13 @@ int is_logsync(struct is_interface *itf, u32 sync_id, u32 msg_test_id)
 	return ret;
 }
 
+u32 is_get_shot_timeout(void)
+{
+	struct is_core *core = is_get_is_core();
+
+	return core->resourcemgr.shot_timeout;
+}
+
 struct is_dbuf_q *is_init_dbuf_q(void)
 {
 	void *ret;

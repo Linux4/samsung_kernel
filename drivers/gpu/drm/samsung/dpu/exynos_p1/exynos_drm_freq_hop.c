@@ -29,7 +29,19 @@
 #include <exynos_drm_freq_hop.h>
 #include <exynos_drm_dsim.h>
 
-static int dsim_set_freq_hop(struct dsim_device *dsim, struct dsim_freq_hop *freq)
+static inline bool is_freq_hop_enabled(const struct dsim_device *dsim)
+{
+	if (!dsim)
+		return false;
+
+	if (!dsim->freq_hop || !dsim->freq_hop->enabled)
+		return false;
+
+	return true;
+}
+
+static int dsim_set_freq_hop(struct dsim_device *dsim,
+		const struct dsim_freq_hop *freq, bool en)
 {
 	struct stdphy_pms *pms;
 
@@ -40,22 +52,25 @@ static int dsim_set_freq_hop(struct dsim_device *dsim, struct dsim_freq_hop *fre
 
 	pms = &dsim->config.dphy_pms;
 	dsim_reg_set_dphy_freq_hopping(dsim->id, pms->p, freq->target_m,
-			freq->target_k,	(freq->target_m > 0) ? 1 : 0);
+			freq->target_k,	en);
 
 	return 0;
 }
 
-// This function is called common display driver */
 void dpu_update_freq_hop(struct exynos_drm_crtc *exynos_crtc)
 {
 	struct decon_device *decon = exynos_crtc->ctx;
 	struct dsim_device *dsim = decon_get_dsim(decon);
+	struct dsim_freq_hop *freq_hop;
 
-	if ((!dsim) || (!dsim->freq_hop.enabled))
+	if (!is_freq_hop_enabled(dsim))
 		return;
 
-	dsim->freq_hop.target_m = dsim->freq_hop.request_m;
-	dsim->freq_hop.target_k = dsim->freq_hop.request_k;
+	freq_hop = dsim->freq_hop;
+	mutex_lock(&freq_hop->lock);
+	freq_hop->target_m = freq_hop->request_m;
+	freq_hop->target_k = freq_hop->request_k;
+	mutex_unlock(&freq_hop->lock);
 }
 
 void dpu_set_freq_hop(struct exynos_drm_crtc *exynos_crtc, bool en)
@@ -63,14 +78,15 @@ void dpu_set_freq_hop(struct exynos_drm_crtc *exynos_crtc, bool en)
 	struct stdphy_pms *pms;
 	struct decon_device *decon = exynos_crtc->ctx;
 	struct dsim_device *dsim = decon_get_dsim(decon);
-	struct dsim_freq_hop freq_hop;
+	struct dsim_freq_hop *freq_hop;
 	u32 target_m, target_k;
 
-	if (!dsim || !dsim->freq_hop.enabled)
+	if (!is_freq_hop_enabled(dsim))
 		return;
 
-	target_m = dsim->freq_hop.target_m;
-	target_k = dsim->freq_hop.target_k;
+	freq_hop = dsim->freq_hop;
+	target_m = freq_hop->target_m;
+	target_k = freq_hop->target_k;
 
 	pms = &dsim->config.dphy_pms;
 	if ((pms->m != target_m) || (pms->k != target_k)) {
@@ -80,14 +96,13 @@ void dpu_set_freq_hop(struct exynos_drm_crtc *exynos_crtc, bool en)
 			decon_reg_set_pll_wakeup(decon->id, true);
 			decon_reg_set_pll_sleep(decon->id, false);
 #endif
-			dsim_set_freq_hop(dsim, &dsim->freq_hop);
+			dsim_set_freq_hop(dsim, freq_hop, true);
 		} else {
-			pms->m = dsim->freq_hop.target_m;
-			pms->k = dsim->freq_hop.target_k;
-			freq_hop.target_m = 0;
+			pms->m = freq_hop->target_m;
+			pms->k = freq_hop->target_k;
 			pr_info("%s: en(%d), pmsk[%d %d %d %d]\n", __func__,
 					en, pms->p, pms->m, pms->s, pms->k);
-			dsim_set_freq_hop(dsim, &freq_hop);
+			dsim_set_freq_hop(dsim, freq_hop, false);
 #if defined(CONFIG_EXYNOS_PLL_SLEEP)
 			decon_reg_set_pll_sleep(decon->id, true);
 #endif
@@ -104,12 +119,15 @@ static int dpu_debug_freq_hop_show(struct seq_file *s, void *unused)
 {
 	struct decon_device *decon = s->private;
 	struct dsim_device *dsim = decon_get_dsim(decon);
+	struct dsim_freq_hop *freq_hop;
 
-	if (!dsim || !dsim->freq_hop.enabled)
+	if (!is_freq_hop_enabled(dsim))
 		return 0;
 
-	seq_printf(s, "m(%u) k(%u)\n", dsim->freq_hop.request_m,
-			dsim->freq_hop.request_k);
+	freq_hop = dsim->freq_hop;
+	mutex_lock(&freq_hop->lock);
+	seq_printf(s, "m(%u) k(%u)\n", freq_hop->request_m, freq_hop->request_k);
+	mutex_unlock(&freq_hop->lock);
 
 	return 0;
 }
@@ -124,10 +142,11 @@ static ssize_t dpu_debug_freq_hop_write(struct file *file,
 {
 	struct decon_device *decon = get_decon_drvdata(0);
 	struct dsim_device *dsim = decon_get_dsim(decon);
+	struct dsim_freq_hop *freq_hop;
 	char *buf_data;
 	int ret;
 
-	if (!dsim || !dsim->freq_hop.enabled)
+	if (!is_freq_hop_enabled(dsim))
 		return count;
 
 	if (!count)
@@ -143,10 +162,10 @@ static ssize_t dpu_debug_freq_hop_write(struct file *file,
 	if (ret < 0)
 		goto out;
 
-	mutex_lock(&dsim->freq_hop_lock);
-	ret = sscanf(buf_data, "%u %u", &dsim->freq_hop.request_m,
-			&dsim->freq_hop.request_k);
-	mutex_unlock(&dsim->freq_hop_lock);
+	freq_hop = dsim->freq_hop;
+	mutex_lock(&freq_hop->lock);
+	ret = sscanf(buf_data, "%u %u", &freq_hop->request_m, &freq_hop->request_k);
+	mutex_unlock(&freq_hop->lock);
 	if (ret < 0)
 		goto out;
 
@@ -163,7 +182,6 @@ static const struct file_operations dpu_freq_hop_fops = {
 	.release = seq_release,
 };
 
-/* This function is called decon_late_register */
 void dpu_freq_hop_debugfs(struct exynos_drm_crtc *exynos_crtc)
 {
 #if defined(CONFIG_DEBUG_FS)
@@ -181,18 +199,62 @@ void dpu_freq_hop_debugfs(struct exynos_drm_crtc *exynos_crtc)
 #endif
 }
 
-/* This function is called dsim_probe */
 void dpu_init_freq_hop(struct dsim_device *dsim)
 {
+	struct stdphy_pms *pms;
+	struct dsim_freq_hop *freq_hop = dsim->freq_hop;
 	const struct dsim_pll_params *pll_params = dsim->pll_params;
+	const struct dsim_pll_param *p;
 
-	if (IS_ENABLED(CONFIG_EXYNOS_FREQ_HOP)) {
-		dsim->freq_hop.enabled = true;
-		dsim->freq_hop.target_m = pll_params->params[0]->m;
-		dsim->freq_hop.request_m = pll_params->params[0]->m;
-		dsim->freq_hop.target_k = pll_params->params[0]->k;
-		dsim->freq_hop.request_k = pll_params->params[0]->k;
-	} else {
-		dsim->freq_hop.enabled = false;
+	if (!freq_hop)
+		return;
+
+	if (dsim->config.mode == DSIM_VIDEO_MODE) {
+		freq_hop->enabled = false;
+		return;
 	}
+
+	if (pll_params->curr_idx < 0)
+		return;
+
+	p = pll_params->params[pll_params->curr_idx];
+	freq_hop->target_m = p->m;
+	freq_hop->target_k = p->k;
+
+	pms = &dsim->config.dphy_pms;
+	if ((pms->m != freq_hop->target_m) || (pms->k != freq_hop->target_k)) {
+		pms->m = freq_hop->target_m;
+		pms->k = freq_hop->target_k;
+	}
+
+	if (freq_hop->enabled == false) {
+		mutex_lock(&freq_hop->lock);
+		freq_hop->request_m = p->m;
+		freq_hop->request_k = p->k;
+		mutex_unlock(&freq_hop->lock);
+		freq_hop->enabled = true;
+	}
+}
+
+struct dsim_freq_hop *dpu_register_freq_hop(struct dsim_device *dsim)
+{
+	struct dsim_freq_hop *freq_hop;
+	const struct device_node *np = dsim->dev->of_node;
+	int ret;
+	u32 val = 1;
+
+	ret = of_property_read_u32(np, "frequency-hopping", &val);
+	if (ret == -EINVAL || (ret == 0 && val == 0)) {
+		pr_info("freq-hop feature feature is not supported\n");
+		return NULL;
+	}
+
+	freq_hop = devm_kzalloc(dsim->dev, sizeof(struct dsim_freq_hop), GFP_KERNEL);
+	if (!freq_hop) {
+		pr_err("failed to alloc freq_hop");
+		return NULL;
+	}
+	mutex_init(&freq_hop->lock);
+
+	return freq_hop;
 }

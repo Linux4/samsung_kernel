@@ -62,7 +62,7 @@ int sec_input_get_lcd_id(struct device *dev)
 #if !IS_ENABLED(CONFIG_SMCDSD_PANEL)
 	int lcdtype = 0;
 #endif
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL) || IS_ENABLED(CONFIG_USDM_PANEL)
 	int connected;
 #endif
 	int lcd_id_param = 0;
@@ -75,7 +75,7 @@ int sec_input_get_lcd_id(struct device *dev)
 	}
 #endif
 
-#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL)
+#if IS_ENABLED(CONFIG_EXYNOS_DPU30) || IS_ENABLED(CONFIG_MCD_PANEL) || IS_ENABLED(CONFIG_USDM_PANEL)
 	connected = get_lcd_info("connected");
 	if (connected < 0) {
 		input_err(true, dev, "%s: Failed to get lcd info(connected)\n", __func__);

@@ -15,8 +15,10 @@
 #ifdef CONFIG_DRM_SGPU_EXYNOS
 #include <soc/samsung/cal-if.h>
 #include <linux/notifier.h>
-#include <soc/samsung/exynos-migov.h>
 #include "exynos_gpu_interface.h"
+
+#include "sgpu_profiler_v1.h"
+
 
 #if IS_ENABLED(CONFIG_GPU_THERMAL)
 #include "exynos_tmu.h"
@@ -83,27 +85,6 @@ err_kfree:
 	kfree(tokenized_data);
 err:
 	return ERR_PTR(err);
-}
-
-typedef enum {
-	SGPU_DVFS_GOVERNOR_STATIC = 0,
-	SGPU_DVFS_GOVERNOR_CONSERVATIVE,
-	SGPU_DVFS_GOVERNOR_INTERACTIVE,
-	SGPU_DVFS_GOVERNOR_AMIGO,
-	SGPU_MAX_GOVERNOR_NUM,
-} gpu_governor_type;
-
-struct sgpu_governor_info {
-	uint64_t	id;
-	char		*name;
-	int (*get_target)(struct devfreq *df, uint32_t *level);
-	int (*clear)(struct devfreq *df, uint32_t level);
-};
-
-int exynos_amigo_is_joint_gov(struct devfreq *df)
-{
-	struct sgpu_governor_data *gdata = df->data;
-	return (gdata->governor->id == SGPU_DVFS_GOVERNOR_AMIGO)? 1 : 0;
 }
 
 void sgpu_dvfs_governor_major_current(struct devfreq *df, uint32_t *level)
@@ -497,7 +478,7 @@ static int sgpu_dvfs_governor_static_get_target(struct devfreq *df, uint32_t *le
 
 	return 0;
 }
-
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
 static uint32_t weight_table[WEIGHT_TABLE_MAX_SIZE][WINDOW_MAX_SIZE + 1] = {
 	{  48,  44,  40,  36,  32,  28,  24,  20,  16,  12,   8,   4,  312},
 	{ 100,  10,   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,  111},
@@ -547,7 +528,7 @@ uint64_t sgpu_weight_prediction_utilization(struct devfreq *df, uint64_t utiliza
 	return util_conv;
 }
 
-static int sgpu_dvfs_governor_amigo_get_target(struct devfreq *df, uint32_t *level)
+static int sgpu_dvfs_governor_profiler_get_target(struct devfreq *df, uint32_t *level)
 {
 	struct sgpu_governor_data *data = df->data;
 	unsigned long cur_freq = df->profile->freq_table[*level];
@@ -577,11 +558,11 @@ static int sgpu_dvfs_governor_amigo_get_target(struct devfreq *df, uint32_t *lev
 			sgpu_dvfs_governor_major_level_down(df, level);
 	}
 
-	exynos_sdp_set_cur_freq(MIGOV_GPU, df->profile->freq_table[*level]);
+	profiler_pb_set_cur_freq(PROFILER_GPU, df->profile->freq_table[*level]);
 
 	return 0;
 }
-
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
 
 static struct sgpu_governor_info governor_info[SGPU_MAX_GOVERNOR_NUM] = {
 	{
@@ -602,12 +583,14 @@ static struct sgpu_governor_info governor_info[SGPU_MAX_GOVERNOR_NUM] = {
 		sgpu_dvfs_governor_interactive_get_target,
 		sgpu_dvfs_governor_interactive_clear,
 	},
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
 	{
-		SGPU_DVFS_GOVERNOR_AMIGO,
-		"amigo",
-		sgpu_dvfs_governor_amigo_get_target,
+		SGPU_DVFS_GOVERNOR_PROFILER,
+		"profiler",
+		sgpu_dvfs_governor_profiler_get_target,
 		NULL,
 	},
+#endif
 };
 
 #if IS_ENABLED(CONFIG_GPU_THERMAL)
@@ -841,11 +824,12 @@ ssize_t sgpu_governor_all_info_show(struct devfreq *df, char *buf)
 	return count;
 }
 
-ssize_t sgpu_governor_current_info_show(struct devfreq *df, char *buf)
+ssize_t sgpu_governor_current_info_show(struct devfreq *df, char *buf,
+					size_t size)
 {
 	struct sgpu_governor_data *data = df->data;
 
-	return scnprintf(buf, PAGE_SIZE, "%s", data->governor->name);
+	return scnprintf(buf, size, "%s", data->governor->name);
 }
 
 int sgpu_governor_change(struct devfreq *df, char *str_governor)
@@ -928,14 +912,14 @@ int sgpu_governor_init(struct device *dev, struct devfreq_dev_profile *dp,
 	data->in_suspend = false;
 	data->adev = adev;
 	data->power_ratio = DEFAULT_POWER_RATIO;
-
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
 	data->freq_margin = 10;
 	data->window_idx = 0;
 	for (i = 0; i < WINDOW_MAX_SIZE; i++)
 		data->window[i] = 0;
 	for (i = 0; i < WEIGHT_TABLE_IDX_NUM; i++)
 		data->weight_table_idx[i] = 0;
-
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
 	data->cl_boost_disable = false;
 	data->cl_boost_status = false;
 	data->cl_boost_level = 0;

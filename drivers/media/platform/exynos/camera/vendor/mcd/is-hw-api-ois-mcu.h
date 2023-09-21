@@ -54,9 +54,9 @@ int __is_mcu_hw_peri1_dump(void __iomem *base);
 int __is_mcu_hw_peri2_dump(void __iomem *base);
 
 /*
-* control function
-*/
-void is_mcu_set_reg(void __iomem *base, int cmd, u8 val);
-u8 is_mcu_get_reg(void __iomem *base, int cmd);
-
+ * control function
+ */
+void is_mcu_set_reg_u8(void __iomem *base, int cmd, u8 val);
+u8 is_mcu_get_reg_u8(void __iomem *base, int cmd);
+void is_mcu_hw_set_field(void __iomem *base, int cmd, int field, u32 val);
 #endif

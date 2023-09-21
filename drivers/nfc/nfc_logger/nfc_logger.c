@@ -103,9 +103,9 @@ void nfc_logger_print(char *fmt, ...)
 	time = local_clock();
 	nsec = do_div(time, 1000000000);
 	if (g_curpos < BOOT_LOG_SIZE)
-		len = snprintf(buf, sizeof(buf), "[B%4llu.%06ld] ", time, nsec / 1000);
+		len = snprintf(buf, sizeof(buf), "[B%4llu.%06u] ", time, nsec / 1000);
 	else
-		len = snprintf(buf, sizeof(buf), "[%5llu.%06ld] ", time, nsec / 1000);
+		len = snprintf(buf, sizeof(buf), "[%5llu.%06u] ", time, nsec / 1000);
 
 	if (date_time_print)
 		len += snprintf(buf + len, sizeof(buf) - len, "[%s] ", date_time);

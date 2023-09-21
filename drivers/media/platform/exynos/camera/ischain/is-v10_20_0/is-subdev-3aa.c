@@ -966,6 +966,9 @@ static int is_ischain_3aa_tag(struct is_subdev *subdev,
 			mrerr("__taa_dma_in_cfg is fail(%d)", device, frame, ret);
 			return ret;
 		}
+
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 			if (!cap_node->vid)
@@ -993,6 +996,8 @@ static int is_ischain_3aa_tag(struct is_subdev *subdev,
 					return ret;
 				}
 			}
+
+			cap_node->result = 1;
 		}
 
 		/* buffer tagging */

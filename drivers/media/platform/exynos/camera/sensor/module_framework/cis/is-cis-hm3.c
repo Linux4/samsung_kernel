@@ -1453,7 +1453,6 @@ int sensor_hm3_cis_check_aeb(struct v4l2_subdev *subdev)
 	}
 
 	mode = cis->cis_data->sens_config_index_cur;
-	is_aeb_on = sensor_hm3_cis_check_aeb_status(subdev);
 
 	if (cis->cis_data->stream_on == false
 		|| is_sensor_g_ex_mode(device) != EX_AEB
@@ -1461,6 +1460,8 @@ int sensor_hm3_cis_check_aeb(struct v4l2_subdev *subdev)
 		ret = -1; //continue;
 		goto EXIT;
 	}
+
+	is_aeb_on = sensor_hm3_cis_check_aeb_status(subdev);
 
 	if (cis->cis_data->cur_hdr_mode == cis->cis_data->pre_hdr_mode) {
 		if (cis->cis_data->cur_hdr_mode != SENSOR_HDR_MODE_2AEB_2VC) {

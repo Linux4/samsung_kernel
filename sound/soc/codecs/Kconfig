@@ -205,6 +205,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_TAS5720
 	imply SND_SOC_TAS6424
 	imply SND_SOC_TDA7419
+	imply SND_SOC_TFA9874
 	imply SND_SOC_TFA9878
 	imply SND_SOC_TFA9879
 	imply SND_SOC_TLV320ADCX140
@@ -1391,6 +1392,10 @@ config SND_SOC_TDA7419
 	tristate "ST TDA7419 audio processor"
 	depends on I2C
 	select REGMAP_I2C
+
+config SND_SOC_TFA9874
+	tristate "NXP Semiconductors TFA9874 amplifier"
+	depends on I2C
 
 config SND_SOC_TFA9878
 	tristate "Goodix TFA9878 amplifier"

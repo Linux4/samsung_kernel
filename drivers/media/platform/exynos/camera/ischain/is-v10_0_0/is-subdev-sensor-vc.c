@@ -54,20 +54,24 @@ static int is_sensor_vc_tag(struct is_subdev *subdev,
 
 	if (node->request) {
 		/* When it's on 2EXP single mode, only VC0/2 could be enabled. */
-		if (test_bit(IS_SENSOR_SINGLE_MODE, &device->seamless_state) &&
+		if (test_bit(IS_SENSOR_SINGLE_MODE, &device->aeb_state) &&
 				!((subdev->id - ENTRY_SENSOR) & SENSOR_2EXP_MODE_VC_MASK))
 			ret = is_sensor_buf_skip(device,
 					subdev,
 					subdev_csi,
 					ldr_frame);
-		else
+		else {
+			node->result = 1;
 			ret = is_sensor_buf_tag(device,
 					subdev,
 					subdev_csi,
 					ldr_frame);
+		}
+
 		if (ret) {
 			mswarn("%d frame is drop", device, subdev, ldr_frame->fcount);
 			node->request = 0;
+			node->result = 0;
 		}
 
 		if (!test_and_set_bit(IS_SUBDEV_RUN, &subdev->state))

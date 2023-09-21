@@ -265,12 +265,12 @@ find_panel_ddi_node(struct panel_device *panel, u32 id)
 		return NULL;
 	}
 
-	if (!lut_info->ddi_node) {
-		panel_err("invalid ddi_node\n");
+	if (!lut_info->ap_vendor_setting_node) {
+		panel_err("invalid ap_vendor_setting_node\n");
 		return NULL;
 	}
 
-	return lut_info->ddi_node;
+	return lut_info->ap_vendor_setting_node;
 }
 
 struct device_node * __mockable
@@ -1047,6 +1047,9 @@ int panel_cmdq_push(struct panel_device *panel, u8 cmd_id, const u8 *buf, int si
 	panel->cmdq.cmd[index].buf = data_buf;
 	panel->cmdq.cmd[index].size = size;
 
+	panel_dbg("cmdq[%d] id:%02X cmd:%02X size:%d\n",
+			index, cmd_id, buf[0], size);
+
 	if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_ON) {
 		ret = panel_cmdq_flush(panel);
 		if (ret < 0) {
@@ -1054,9 +1057,6 @@ int panel_cmdq_push(struct panel_device *panel, u8 cmd_id, const u8 *buf, int si
 			return ret;
 		}
 	}
-
-	panel_dbg("cmdq[%d] id:%02X cmd:%02X size:%d\n", index,
-			cmd_id, panel->cmdq.cmd[index].buf[0], panel->cmdq.cmd[index].size);
 
 	return 0;
 }
@@ -1357,12 +1357,12 @@ int panel_flush_image(struct panel_device *panel)
 }
 
 #if defined(CONFIG_PANEL_FREQ_HOP)
-int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_elem *elem)
+int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_param *param)
 {
-	if (!elem)
+	if (!param)
 		return -EINVAL;
 
-	return call_panel_adapter_func(panel, set_freq_hop, elem);
+	return call_panel_adapter_func(panel, set_freq_hop, param);
 }
 #endif
 

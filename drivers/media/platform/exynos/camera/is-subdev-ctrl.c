@@ -18,9 +18,6 @@
 #include "is-device-ischain.h"
 #include "is-debug.h"
 #include "pablo-mem.h"
-#if defined(SDC_HEADER_GEN)
-#include "is-sdc-header.h"
-#endif
 #include "is-hw-common-dma.h"
 
 bool is_subdev_check_vid(uint32_t vid)
@@ -468,9 +465,7 @@ p_err:
 
 int pablo_subdev_buffer_init(struct is_subdev *is, struct vb2_buffer *vb)
 {
-	unsigned long flags;
 	struct is_framemgr *framemgr = GET_SUBDEV_FRAMEMGR(is);
-	struct is_frame *frame;
 	unsigned int index = vb->index;
 	struct is_device_ischain *idi = GET_DEVICE(is->vctx);
 
@@ -478,14 +473,6 @@ int pablo_subdev_buffer_init(struct is_subdev *is, struct vb2_buffer *vb)
 		mserr("out of range (%d >= %d)", idi, is, index, framemgr->num_frames);
 		return -EINVAL;
 	}
-
-	framemgr_e_barrier_irqs(framemgr, FMGR_IDX_17, flags);
-
-	frame = &framemgr->frames[index];
-	memset(&frame->prfi, 0x0, sizeof(struct pablo_rta_frame_info));
-	frame->prfi.magic = 0x5F4D5246;
-
-	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_17, flags);
 
 	return 0;
 }
@@ -1203,34 +1190,6 @@ static int is_subdev_internal_alloc_buffer(struct is_subdev *subdev)
 					frame->kvaddr_buffer[j - 1] + out_buf_size;
 			}
 		}
-
-#if defined(SDC_HEADER_GEN)
-		if (subdev->id == ENTRY_PAF) {
-			const u32 *header = NULL;
-			u32 byte_per_line;
-			u32 header_size;
-			u32 width = subdev->output.width;
-
-			if (width == SDC_WIDTH_HD)
-				header = is_sdc_header_hd;
-			else if (width == SDC_WIDTH_FHD)
-				header = is_sdc_header_fhd;
-			else
-				mserr("invalid SDC size: width(%d)", subdev, subdev, width);
-
-			if (header) {
-				byte_per_line = ALIGN(width / 2 * 10 / BITS_PER_BYTE, 16);
-				header_size = byte_per_line * SDC_HEADER_LINE;
-
-				memcpy((void *)frame->kvaddr_buffer[0], header, header_size);
-#if !defined(MODULE)
-				__flush_dcache_area((void *)frame->kvaddr_buffer[0], header_size);
-#endif
-				msinfo("Write SDC header: width(%d) size(%d)\n",
-					subdev, subdev, width, header_size);
-			}
-		}
-#endif
 	}
 	is_subdev_internal_unlock_shared_framemgr(subdev);
 

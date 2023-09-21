@@ -51,3 +51,11 @@ const struct is_subdev_ops is_subdev_sensor_ops = {
 	.cfg	= is_sensor_subdev_cfg,
 	.tag	= is_sensor_subdev_tag,
 };
+
+#if IS_ENABLED(CONFIG_PABLO_KUNIT_TEST)
+const struct is_subdev_ops *pablo_get_is_subdev_sensor_ops(void)
+{
+	return &is_subdev_sensor_ops;
+}
+KUNIT_EXPORT_SYMBOL(pablo_get_is_subdev_sensor_ops);
+#endif

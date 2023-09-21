@@ -707,7 +707,7 @@ int sensor_gh1_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 			}
 			xtc_cal_first = false;
 		}
-		if (mode == SENSOR_GH1_7296X5472_15FPS) {
+		if (mode == SENSOR_GH1_7296X5472_15FPS || mode == SENSOR_GH1_7936x4464_15FPS) {
 			ret = is_sensor_write16(cis->client, 0x6028, 0x2000); /* cal page */
 			ret |= is_sensor_write16(cis->client, 0x602A, 0x4330); /* cal addr */
 			if (xtc_skip)
@@ -1107,7 +1107,7 @@ int sensor_gh1_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param
 
 	long_coarse_int = ((target_exposure->long_val * vt_pic_clk_freq_khz) / 1000 - min_fine_int) / line_length_pck;
 	short_coarse_int = ((target_exposure->short_val * vt_pic_clk_freq_khz) / 1000 - min_fine_int) / line_length_pck;
-	if (mode != SENSOR_GH1_7296X5472_15FPS) {
+	if (mode != SENSOR_GH1_7296X5472_15FPS && mode != SENSOR_GH1_7936x4464_15FPS) {
 		long_coarse_int = ALIGN_DOWN(long_coarse_int, 2);
 		short_coarse_int = ALIGN_DOWN(short_coarse_int, 2);
 	}
@@ -1322,7 +1322,7 @@ int sensor_gh1_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, 
 	}
 
 	coarse_int = ((expo * vt_pic_clk_freq_khz) / 1000 - min_fine_int) / line_length_pck;
-	if (mode != SENSOR_GH1_7296X5472_15FPS)
+	if (mode != SENSOR_GH1_7296X5472_15FPS && mode != SENSOR_GH1_7936x4464_15FPS)
 		coarse_int = ALIGN_DOWN(coarse_int, 2);
 
 	if (coarse_int < cis_data->min_coarse_integration_time) {

@@ -242,64 +242,6 @@ p_err:
 	return ret;
 }
 
-static int __lme_internal_buffer_cfg(struct is_group *group,
-	struct is_device_ischain *device,
-	struct is_frame *frame)
-{
-	int ret = 0;
-	struct is_framemgr *internal_framemgr = NULL;
-	struct is_frame *internal_frame = NULL;
-	struct is_subdev *subdev_lme;
-	struct is_sub_frame *sframe;
-	u32 cap_node_num = 0;
-	u32 *targetAddr, num_planes;
-	u64 *targetAddr_k;
-	int j, i, buffer_idx;
-
-	subdev_lme = group->subdev[ENTRY_LME_MBMV];
-
-	internal_framemgr = GET_SUBDEV_I_FRAMEMGR(subdev_lme);
-	if (internal_framemgr) {
-		for (buffer_idx = 0; buffer_idx < LME_TNR_MODE_MIN_BUFFER_NUM; buffer_idx++) {
-			internal_frame = &internal_framemgr->frames[buffer_idx];
-			if (!internal_frame) {
-				mrerr("internal frame is NULL", device, frame);
-				return -EINVAL;
-			}
-			cap_node_num = is_subdev_internal_get_cap_node_num(subdev_lme);
-			for (i = 0; i < cap_node_num; i++) {
-				sframe = &internal_frame->cap_node.sframe[i];
-
-				if (!sframe->id || sframe->id != IS_LVN_LME_MBMV0 + buffer_idx)
-					continue;
-
-				targetAddr = NULL;
-				targetAddr_k = NULL;
-				ret = is_hw_get_capture_slot(frame, &targetAddr,
-						&targetAddr_k, sframe->id);
-				if (ret) {
-					mrerr("Invalid capture slot(%d)", device, frame,
-							sframe->id);
-					continue;
-				}
-				num_planes = sframe->num_planes;
-
-				if (targetAddr) {
-					for (j = 0; j < num_planes; j++)
-						targetAddr[j] = sframe->dva[j];
-				}
-				if (targetAddr_k) {
-					for (j = 0; j < num_planes; j++)
-						targetAddr_k[j] = sframe->kva[j];
-				}
-			}
-		}
-	} else
-		mrerr("internal framemgr is NULL", device, frame);
-
-	return ret;
-}
-
 static int is_ischain_lme_tag(struct is_subdev *subdev,
 	void *device_data,
 	struct is_frame *frame,
@@ -359,6 +301,8 @@ static int is_ischain_lme_tag(struct is_subdev *subdev,
 			return ret;
 		}
 
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 			if (!cap_node->vid)
@@ -370,6 +314,8 @@ static int is_ischain_lme_tag(struct is_subdev *subdev,
 						frame->fcount, ret);
 				return ret;
 			}
+
+			cap_node->result = 1;
 		}
 
 		/* buffer tagging */
@@ -425,8 +371,6 @@ static int is_ischain_lme_tag(struct is_subdev *subdev,
 				}
 			}
 		}
-
-		__lme_internal_buffer_cfg(group, device, frame);
 
 		ret = is_itf_s_param(device, frame, pmap);
 		if (ret) {

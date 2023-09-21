@@ -19,7 +19,7 @@
 	dbg_common((is_get_debug_param(IS_DEBUG_PARAM_STREAM)) >= (level), \
 		"[stripe]", fmt, ##args)
 
-int is_calc_region_num(int input_width, struct is_subdev *subdev);
+int is_calc_region_num(struct is_crop *incrop, struct is_crop *outcrop, struct is_subdev *subdev);
 
 int is_ischain_g_stripe_cfg(struct is_frame *frame,
 		struct camera2_node *node,

@@ -113,6 +113,7 @@ static int is_hw_3aa_init(struct is_hw_ip *hw_ip, u32 instance,
 		}
 	}
 
+	hw_ip->frame_type = f_type;
 	group->hw_ip = hw_ip;
 	msinfo_hw("[%s] Binding\n", instance, hw_ip, group_id_name[group->id]);
 
@@ -952,7 +953,7 @@ static int is_hw_3aa_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	if (test_bit(hw_ip->id, &frame->core_flag))
 		output_id = IS_HW_CORE_END;
 
-	ret = is_hardware_frame_done(hw_ip, frame, -1,
+	ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 			output_id, done_type, false);
 
 	return ret;

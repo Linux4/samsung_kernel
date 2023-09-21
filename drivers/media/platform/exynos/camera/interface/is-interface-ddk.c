@@ -48,7 +48,7 @@ flush_wait_done_frame:
 				instance_id, hw_ip, fcount, frame->fcount, hw_fcount,
 				queued_count);
 
-			ret = CALL_HW_OPS(hardware, frame_ndone, hw_ip, frame, frame->instance,
+			ret = CALL_HW_OPS(hw_ip, frame_ndone, hw_ip, frame, frame->instance,
 					IS_SHOT_LATE_FRAME);
 			if (ret) {
 				mserr_hw("hardware_frame_ndone fail(LATE_SHOT)",
@@ -68,7 +68,7 @@ flush_wait_done_frame:
 				frame_manager_print_info_queues(framemgr);
 				framemgr_x_barrier_common(framemgr, 0, flags);
 
-				ret = CALL_HW_OPS(hardware, frame_ndone, hw_ip, frame, frame->instance,
+				ret = CALL_HW_OPS(hw_ip, frame_ndone, hw_ip, frame, frame->instance,
 					IS_SHOT_INVALID_FRAMENUMBER);
 				if (ret) {
 					mserr_hw("hardware_frame_ndone fail(old frame)",
@@ -102,7 +102,7 @@ flush_config_frame:
 				mserr_hw("[F:%d,FF:%d,HWF:%d] late config frame",
 					instance_id, hw_ip, fcount, frame->fcount, hw_fcount);
 
-				CALL_HW_OPS(hardware, frame_ndone, hw_ip, frame, frame->instance,
+				CALL_HW_OPS(hw_ip, frame_ndone, hw_ip, frame, frame->instance,
 					IS_SHOT_INVALID_FRAMENUMBER);
 				goto flush_config_frame;
 			} else if (frame->fcount == hw_fcount) {
@@ -129,7 +129,7 @@ flush_config_frame:
 	if (test_bit(hw_ip->id, &frame->core_flag))
 		output_id = IS_HW_CORE_END;
 
-	CALL_HW_OPS(hardware, frame_done, hw_ip, NULL, -1, output_id,
+	CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, output_id,
 			IS_SHOT_SUCCESS, true);
 	return ret;
 }
@@ -158,7 +158,7 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance_id]]))
 			msinfo_hw("[F:%d]DMA A\n", instance_id, hw_ip,
 				hw_fcount);
-		CALL_HW_OPS(hardware, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_DMA_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_DMA_END);
 
 		switch (hw_ip->id) {
 		case DEV_HW_3AA0: /* after BDS */
@@ -167,7 +167,7 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 		case DEV_HW_3AA3:
 		case DEV_HW_ISP0: /* chunk output */
 		case DEV_HW_ISP1:
-			CALL_HW_OPS(hardware, frame_done, hw_ip, NULL, -1,
+			CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1,
 					output_id, IS_SHOT_SUCCESS, true);
 			break;
 		case DEV_HW_CLH0:
@@ -183,7 +183,7 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance_id]]))
 			msinfo_hw("[F:%d]DMA B\n", instance_id, hw_ip,
 				hw_fcount);
-		CALL_HW_OPS(hardware, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_DMA_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_DMA_END);
 		switch (hw_ip->id) {
 		case DEV_HW_3AA0: /* before BDS */
 		case DEV_HW_3AA1:
@@ -192,7 +192,7 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 		case DEV_HW_ISP0: /* yuv output */
 		case DEV_HW_ISP1:
 		case DEV_HW_CLH0:
-			CALL_HW_OPS(hardware, frame_done, hw_ip, NULL, -1,
+			CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1,
 					output_id, IS_SHOT_SUCCESS, true);
 			break;
 		default:
@@ -207,7 +207,7 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 		smc_ppc_enable(0);
 #endif
 		msinfo_hw("LIB_EVENT_ERROR_CIN_OVERFLOW\n", instance_id, hw_ip);
-		CALL_HW_OPS(hardware, flush_frame, hw_ip, FS_HW_CONFIGURE, IS_SHOT_OVERFLOW);
+		CALL_HW_OPS(hw_ip, flush_frame, hw_ip, FS_HW_CONFIGURE, IS_SHOT_OVERFLOW);
 #if defined(ENABLE_FULLCHAIN_OVERFLOW_RECOVERY)
 		ret = is_hw_overflow_recovery();
 		if (ret < 0)
@@ -270,7 +270,7 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 				hw_fcount, (u32)fcount);
 
 		/* fcount : frame number of current frame in Vvalid */
-		CALL_HW_OPS(hardware, config_lock, hw_ip, instance_id, (u32)fcount);
+		CALL_HW_OPS(hw_ip, config_lock, hw_ip, instance_id, (u32)fcount);
 		break;
 	case LIB_EVENT_FRAME_START_ISR:
 		sysfs_debug = is_get_sysfs_debug();
@@ -310,7 +310,7 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 
 			csi_frame_start_inline(csi);
 		}
-		CALL_HW_OPS(hardware, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
 
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance_id]])
 			|| debug_irq_ddk))
@@ -318,10 +318,10 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 				hw_fcount);
 
 		atomic_add(1, &hw_ip->count.fs);
-		CALL_HW_OPS(hardware, frame_start, hw_ip, instance_id);
+		CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance_id);
 		break;
 	case LIB_EVENT_FRAME_END:
-		CALL_HW_OPS(hardware, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 
 		atomic_add(1, &hw_ip->count.fe);
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance_id]])
@@ -335,7 +335,7 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 		framemgr_x_barrier_common(framemgr, 0, flags);
 
 		if (frame && frame->result) {
-			if (CALL_HW_OPS(hardware, frame_ndone, hw_ip, frame, frame->instance,
+			if (CALL_HW_OPS(hw_ip, frame_ndone, hw_ip, frame, frame->instance,
 						frame->result)) {
 				mserr_hw("failure in hardware_frame_ndone",
 						frame->instance, hw_ip);
@@ -348,7 +348,7 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 			} else {
 				msdbg_hw(1, "dma done interrupt separate\n", instance_id, hw_ip);
 
-				CALL_HW_OPS(hardware, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
+				CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 					IS_SHOT_SUCCESS, true);
 			}
 		}
@@ -358,7 +358,7 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 		wake_up(&hw_ip->status.wait_queue);
 		break;
 	case LIB_EVENT_ERROR_CONFIG_LOCK_DELAY:
-		CALL_HW_OPS(hardware, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 
 		atomic_add(1, &hw_ip->count.fe);
 
@@ -368,7 +368,7 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 		framemgr_x_barrier_common(framemgr, 0, flags);
 
 		if (frame) {
-			if (CALL_HW_OPS(hardware, frame_ndone, hw_ip, frame, frame->instance,
+			if (CALL_HW_OPS(hw_ip, frame_ndone, hw_ip, frame, frame->instance,
 						IS_SHOT_CONFIG_LOCK_DELAY)) {
 				mserr_hw("failure in hardware_frame_ndone",
 						frame->instance, hw_ip);
@@ -789,12 +789,12 @@ int __nocfi is_lib_isp_shot(struct is_hw_ip *hw_ip,
 	FIMC_BUG(!this->object);
 
 	hw_fcount = atomic_read(&hw_ip->fcount);
-	CALL_HW_OPS(hw_ip->hardware, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_LIB_SHOT_E);
+	CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_LIB_SHOT_E);
 
 	ret = CALL_LIBOP_NO_FPSIMD(this, shot, this->object, param_set,
 			shot, hw_ip->num_buffers);
 
-	CALL_HW_OPS(hw_ip->hardware, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_LIB_SHOT_X);
+	CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_LIB_SHOT_X);
 
 	if (ret)
 		mserr_lib("shot fail", atomic_read(&hw_ip->instance), hw_ip);

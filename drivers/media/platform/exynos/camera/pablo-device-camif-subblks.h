@@ -60,6 +60,7 @@ struct pablo_camif_ebuf {
 	int			irq;
 	struct mutex		lock;
 	unsigned int		num_of_ebuf;
+	unsigned int		fake_done_offset;
 };
 
 struct pablo_camif_ebuf *pablo_camif_ebuf_get(void);

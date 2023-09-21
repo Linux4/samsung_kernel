@@ -393,48 +393,6 @@ int is_devicemgr_close(struct is_devicemgr *devicemgr,
 	return ret;
 }
 
-int __nocfi is_devicemgr_shot_prepare(struct is_group *group,
-		struct is_frame *frame,
-		u32 fcount,
-		enum is_device_type type)
-{
-	struct is_device_ischain *idi = group->device;
-	struct pablo_rta_frame_info *prfi;
-	struct is_framemgr *framemgr;
-	struct is_frame *ldr_frame;
-
-	if (IS_ENABLED(IMAGE_RTA) && group->id == GROUP_ID_BYRP) {
-		framemgr = GET_HEAD_GROUP_FRAMEMGR(group, frame->cur_shot_idx);
-		ldr_frame = find_frame(framemgr, FS_PROCESS, frame_fcount,
-						(void *)(ulong)frame->fcount);
-		if (!ldr_frame) {
-			ldr_frame = find_frame(framemgr, FS_STRIPE_PROCESS,
-						frame_fcount,
-						(void *)(ulong)frame->fcount);
-		}
-
-		if (!ldr_frame) {
-			mgerr("failed to get leader frame", idi, group);
-			return 0;
-		}
-
-		prfi = &ldr_frame->prfi;
-		if (test_bit(IS_ISCHAIN_REPROCESSING, &idi->state)) {
-			mgrdbgs(1, "set_frame_info\n", idi, group, ldr_frame);
-
-			((set_frame_info_func_t)SET_FRAME_INFO_FUNC_ADDR)(
-				idi->instance, ldr_frame->fcount, (void *)&ldr_frame->prfi);
-		}
-
-		mgrdbgs(1, "trigger_image_rta\n", idi, group, ldr_frame);
-
-		((trigger_image_rta_func_t)TRIGGER_IMAGE_RTA_FUNC_ADDR)(
-			idi->instance, ldr_frame->fcount, (void *)&ldr_frame->prfi);
-	}
-
-	return 0;
-}
-
 int __nocfi is_devicemgr_shot_callback(struct is_group *group,
 		struct is_frame *frame,
 		u32 fcount,
@@ -453,16 +411,6 @@ int __nocfi is_devicemgr_shot_callback(struct is_group *group,
 
 	switch (type) {
 	case IS_DEVICE_SENSOR:
-		if (IS_ENABLED(IMAGE_RTA) &&
-				(group->id >= GROUP_ID_SS0 && group->id <= GROUP_ID_SS5)) {
-			struct is_device_ischain *idi = group->device;
-
-			mgrdbgs(1, "set_frame_info\n", idi, group, frame);
-
-			((set_frame_info_func_t)SET_FRAME_INFO_FUNC_ADDR)(
-				idi->instance, frame->fcount, (void *)&idi->prfi);
-		}
-
 		child_group = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, group);
 
 		PROGRAM_COUNT(9);
@@ -586,6 +534,7 @@ int is_devicemgr_shot_done(struct is_group *group,
 
 void is_devicemgr_late_shot_handle(struct is_group *group, struct is_frame *frame, u32 status)
 {
+	u32 vc0_dma = 0;
 	unsigned long flags;
 	struct is_framemgr *framemgr;
 	unsigned long framemgr_flag;
@@ -619,7 +568,12 @@ void is_devicemgr_late_shot_handle(struct is_group *group, struct is_frame *fram
 	if (status) {
 		mginfo("[F%d] Start CANCEL Other subdev frame\n", group->device, group, ldr_frame->fcount);
 		flags = is_group_lock(group, group->device_type, false);
-		is_group_subdev_cancel(group, ldr_frame, group->device_type, FS_REQUEST, false);
+		is_group_subdev_check(group, &vc0_dma);
+		if (vc0_dma)
+			is_group_subdev_cancel(group, ldr_frame, group->device_type, FS_PROCESS, false);
+		else
+			is_group_subdev_cancel(group, ldr_frame, group->device_type, FS_REQUEST, false);
+
 		is_group_unlock(group, flags, group->device_type, false);
 		mginfo("[F%d] End CANCEL Other subdev frame\n", group->device, group, ldr_frame->fcount);
 	}
@@ -667,14 +621,6 @@ int is_devicemgr_close(struct is_devicemgr *devicemgr,
 		void *device, enum is_device_type type)
 {
 	return 0;
-}
-
-int is_devicemgr_shot_prepare(struct is_group *group,
-               struct is_frame *frame,
-               u32 fcount,
-               enum is_device_type type)
-{
-       return 0;
 }
 
 int is_devicemgr_shot_callback(struct is_group *group,

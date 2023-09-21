@@ -779,6 +779,8 @@ static int is_ischain_rgbp_tag(struct is_subdev *subdev,
 			return ret;
 		}
 
+		out_node->result = 1;
+
 		ret = __rgbp_otf_out_cfg(device, subdev, frame, out_node,
 					PARAM_RGBP_OTF_OUTPUT, pmap);
 		if (ret) {
@@ -806,6 +808,8 @@ static int is_ischain_rgbp_tag(struct is_subdev *subdev,
 						(dma_type == 1) ? "in" : "out");
 				return ret;
 			}
+
+			cap_node->result = 1;
 		}
 
 		/* buffer tagging */
@@ -959,7 +963,8 @@ static int is_ischain_rgbp_get(struct is_subdev *subdev,
 	case PSGT_REGION_NUM:
 		node = &frame->shot_ext->node_group.leader;
 		incrop = (struct is_crop *)node->input.cropRegion;
-		*(int *)result = is_calc_region_num(incrop->w, subdev);
+
+		*(int *)result = is_calc_region_num(incrop, NULL, subdev);
 		break;
 	default:
 		break;

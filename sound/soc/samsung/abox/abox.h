@@ -478,7 +478,6 @@ struct abox_data {
 	void *shm_addr;
 	size_t shm_size;
 	struct abox2host_hndshk_tag *hndshk_tag;
-	int clk_diff_ppb;
 	unsigned int bootargs_offset;
 	unsigned int slogargs_offset;
 	unsigned int if_count;

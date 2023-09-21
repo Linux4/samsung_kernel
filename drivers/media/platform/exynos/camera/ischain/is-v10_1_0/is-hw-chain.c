@@ -364,7 +364,6 @@ int is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_LME] = &device->group_lme.leader;
 		group->subdev[ENTRY_LMES] = &device->lmes;
 		group->subdev[ENTRY_LMEC] = &device->lmec;
-		group->subdev[ENTRY_LME_MBMV] = &device->subdev_lme[IS_LME_SUBDEV_MBMV];
 
 		list_add_tail(&device->group_lme.leader.list, &group->subdev_list);
 		list_add_tail(&device->lmes.list, &group->subdev_list);
@@ -1805,7 +1804,10 @@ int is_hw_get_capture_slot(struct is_frame *frame, u32 **taddr, u64 **taddr_k, u
 		*taddr = frame->txpTargetAddress[frame->cstat_ctx];
 		break;
 	case IS_LVN_BYRP_BYR:
-		*taddr = frame->ixcTargetAddress;
+		*taddr = frame->dva_byrp_byr;
+		break;
+	case IS_LVN_BYRP_BYR_PROCESSED:
+		*taddr = frame->dva_byrp_byr_processed;
 		break;
 	case IS_LVN_BYRP_HDR:
 		*taddr = frame->dva_byrp_hdr;
@@ -2091,7 +2093,8 @@ void is_hw_fill_target_address(u32 hw_id, struct is_frame *dst, struct is_frame 
 		break;
 	case DEV_HW_BYRP:
 		TADDR_COPY(dst, src, dva_byrp_hdr, reset);
-		TADDR_COPY(dst, src, ixcTargetAddress, reset);
+		TADDR_COPY(dst, src, dva_byrp_byr, reset);
+		TADDR_COPY(dst, src, dva_byrp_byr_processed, reset);
 		break;
 	case DEV_HW_RGBP:
 		TADDR_COPY(dst, src, dva_rgbp_hf, reset);
@@ -2354,6 +2357,7 @@ struct is_mem *is_hw_get_iommu_mem(u32 vid)
 	case IS_VIDEO_BYRP:
 	case IS_LVN_BYRP_HDR:
 	case IS_LVN_BYRP_BYR:
+	case IS_LVN_BYRP_BYR_PROCESSED:
 		return &core->resourcemgr.mem;
 	case IS_VIDEO_LME:
 	case IS_LVN_LME_PREV:
@@ -2399,4 +2403,103 @@ struct is_mem *is_hw_get_iommu_mem(u32 vid)
 		err("Invalid vid(%d)", vid);
 		return NULL;
 	}
+}
+
+static inline int __nocfi is_set_frame_info(struct is_group *group,
+		struct is_frame *frame, u32 fcount,
+		struct pablo_rta_frame_info *_prfi)
+{
+	struct is_device_ischain *idi = group->device;
+	struct pablo_rta_frame_info *prfi;
+	struct is_framemgr *framemgr;
+	struct is_frame *ldr_frame;
+
+
+	framemgr = GET_HEAD_GROUP_FRAMEMGR(group, frame->cur_shot_idx);
+	ldr_frame = find_frame(framemgr, FS_PROCESS, frame_fcount,
+					(void *)(ulong)frame->fcount);
+	if (!ldr_frame) {
+		ldr_frame = find_frame(framemgr, FS_STRIPE_PROCESS,
+					frame_fcount,
+					(void *)(ulong)frame->fcount);
+	}
+
+	if (!ldr_frame) {
+		mgerr("failed to get leader frame", idi, group);
+		return 0;
+	}
+
+	prfi = _prfi;
+	if (test_bit(IS_ISCHAIN_REPROCESSING, &idi->state)) {
+		mgrdbgs(1, "set_frame_info\n", idi, group, ldr_frame);
+
+		((set_frame_info_func_t)SET_FRAME_INFO_FUNC_ADDR)(
+			idi->instance, ldr_frame->fcount, (void *)prfi);
+	}
+
+	mgrdbgs(1, "trigger_image_rta\n", idi, group, ldr_frame);
+
+	((trigger_image_rta_func_t)TRIGGER_IMAGE_RTA_FUNC_ADDR)(
+		idi->instance, ldr_frame->fcount, (void *)prfi);
+
+	return 0;
+}
+
+
+void is_hw_update_prfi(struct is_hardware *hardware, struct is_group *group,
+			struct is_frame *frame)
+{
+	struct is_hw_ip *hw_ip;
+	struct pablo_rta_frame_info prfi;
+	struct is_group *child = NULL;
+	int hw_maxnum = 0;
+	int hw_list[GROUP_HW_MAX], hw_index;
+	u32 instance, hw_slot;
+
+	instance = group->instance;
+
+	child = group->tail;
+	memset(&prfi, 0x0, sizeof(struct pablo_rta_frame_info));
+
+	while (child && (child->device_type == IS_DEVICE_ISCHAIN)) {
+		hw_maxnum = is_get_hw_list(child->id, hw_list);
+
+		for (hw_index = hw_maxnum - 1; hw_index >= 0; hw_index--) {
+			hw_slot = is_hw_slot_id(hw_list[hw_index]);
+
+			if (!valid_hw_slot_id(hw_slot)) {
+				merr_hw("invalid hw_idex (%d,%d)", instance, hw_list[hw_index]);
+				return;
+			}
+
+			hw_ip = &hardware->hw_ip[hw_slot];
+			if (!hw_ip) {
+				merr_hw("invalid slot(%d)", instance, hw_slot);
+				return;
+			}
+
+
+			CALL_HWIP_OPS(hw_ip, query, instance, PABLO_QUERY_GET_PCFI,
+					frame, &prfi);
+		}
+		child = child->parent;
+	}
+
+
+	if (IS_ENABLED(IMAGE_RTA) && group->id == GROUP_ID_BYRP) {
+		is_set_frame_info(group, frame, frame->fcount, &prfi);
+	}
+
+
+	dbg_interface(2, "[SENSOR] (%dx%d) -> binning (%dx%d) -> crop (%d,%d,%dx%d)", frame->instance,
+		prfi.sensor_calibration_size.width, prfi.sensor_calibration_size.height,
+		prfi.sensor_binning.x, prfi.sensor_binning.y,
+		prfi.sensor_crop.offset.x, prfi.sensor_crop.offset.y,
+		prfi.sensor_crop.size.width, prfi.sensor_crop.size.height);
+
+	dbg_interface(2, "[CSTAT] (%dx%d) -> dzoom (%d,%d,%dx%d) -> bns (%dx%d)", frame->instance,
+		prfi.cstat_input_size.width, prfi.cstat_input_size.height,
+		prfi.cstat_crop_dzoom.offset.x, prfi.cstat_crop_dzoom.offset.y,
+		prfi.cstat_crop_dzoom.size.width, prfi.cstat_crop_dzoom.size.height,
+		prfi.cstat_bns_size.width, prfi.cstat_bns_size.height);
 }

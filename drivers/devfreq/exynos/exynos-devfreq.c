@@ -1274,15 +1274,17 @@ static int change_target_load(struct exynos_devfreq_data *data, const char *buf)
 	int *new_target_load = NULL;
 	struct devfreq_alt_dvfs_param *alt_user_mode = data->simple_interactive_data.alt_data.alt_user_mode;
 
-	new_target_load = get_tokenized_data(buf , &ntokens);
-	if (IS_ERR(new_target_load))
-		return PTR_ERR_OR_ZERO(new_target_load);
+	if (alt_user_mode) {
+		new_target_load = get_tokenized_data(buf , &ntokens);
+		if (IS_ERR(new_target_load))
+			return PTR_ERR_OR_ZERO(new_target_load);
 
-	mutex_lock(&data->devfreq->lock);
-	kfree(alt_user_mode->target_load);
-	alt_user_mode->target_load = new_target_load;
-	alt_user_mode->num_target_load = ntokens;
-	mutex_unlock(&data->devfreq->lock);
+		mutex_lock(&data->devfreq->lock);
+		kfree(alt_user_mode->target_load);
+		alt_user_mode->target_load = new_target_load;
+		alt_user_mode->num_target_load = ntokens;
+		mutex_unlock(&data->devfreq->lock);
+	}
 
 	return 0;
 }
@@ -1300,15 +1302,18 @@ static ssize_t show_current_target_load(struct device *dev,
 	ssize_t count = 0;
 	int i;
 
-	mutex_lock(&data->devfreq->lock);
-	for (i = 0; i < alt_param->num_target_load; i++) {
-		count += snprintf(buf + count, PAGE_SIZE, "%d%s",
-				  alt_param->target_load[i],
-				  (i == alt_param->num_target_load - 1) ?
-				  "" : (i % 2) ? ":" : " ");
+	if (alt_param) {
+		mutex_lock(&data->devfreq->lock);
+		for (i = 0; i < alt_param->num_target_load; i++) {
+			count += snprintf(buf + count, PAGE_SIZE, "%d%s",
+					alt_param->target_load[i],
+					(i == alt_param->num_target_load - 1) ?
+					"" : (i % 2) ? ":" : " ");
+		}
+		count += snprintf(buf + count, PAGE_SIZE, "\n");
+		mutex_unlock(&data->devfreq->lock);
 	}
-	count += snprintf(buf + count, PAGE_SIZE, "\n");
-	mutex_unlock(&data->devfreq->lock);
+
 	return count;
 }
 
@@ -1323,10 +1328,13 @@ static ssize_t show_current_hold_sample_time(struct device *dev, struct device_a
 	struct devfreq_alt_dvfs_param *alt_param = data->simple_interactive_data.alt_data.alt_param;
 	ssize_t count = 0;
 
-	mutex_lock(&data->devfreq->lock);
-	count += snprintf(buf, PAGE_SIZE, "%u\n",
-			  alt_param->hold_sample_time);
-	mutex_unlock(&data->devfreq->lock);
+	if (alt_param) {
+		mutex_lock(&data->devfreq->lock);
+		count += snprintf(buf, PAGE_SIZE, "%u\n",
+				alt_param->hold_sample_time);
+		mutex_unlock(&data->devfreq->lock);
+	}
+
 	return count;
 }
 
@@ -1344,15 +1352,18 @@ static ssize_t show_user_target_load(struct device *dev,
 	ssize_t count = 0;
 	int i;
 
-	mutex_lock(&data->devfreq->lock);
-	for (i = 0; i < alt_user_mode->num_target_load; i++) {
-		count += snprintf(buf + count, PAGE_SIZE, "%d%s",
-				  alt_user_mode->target_load[i],
-				  (i == alt_user_mode->num_target_load - 1) ?
-				  "" : (i % 2) ? ":" : " ");
+	if (alt_user_mode) {
+		mutex_lock(&data->devfreq->lock);
+		for (i = 0; i < alt_user_mode->num_target_load; i++) {
+			count += snprintf(buf + count, PAGE_SIZE, "%d%s",
+					alt_user_mode->target_load[i],
+					(i == alt_user_mode->num_target_load - 1) ?
+					"" : (i % 2) ? ":" : " ");
+		}
+		count += snprintf(buf + count, PAGE_SIZE, "\n");
+		mutex_unlock(&data->devfreq->lock);
 	}
-	count += snprintf(buf + count, PAGE_SIZE, "\n");
-	mutex_unlock(&data->devfreq->lock);
+
 	return count;
 }
 
@@ -1382,10 +1393,12 @@ static ssize_t show_user_hold_sample_time(struct device *dev, struct device_attr
 	struct devfreq_alt_dvfs_param *alt_user_mode = data->simple_interactive_data.alt_data.alt_user_mode;
 	ssize_t count = 0;
 
-	mutex_lock(&data->devfreq->lock);
-	count += snprintf(buf, PAGE_SIZE, "%u\n",
-			  alt_user_mode->hold_sample_time);
-	mutex_unlock(&data->devfreq->lock);
+	if (alt_user_mode) {
+		mutex_lock(&data->devfreq->lock);
+		count += snprintf(buf, PAGE_SIZE, "%u\n",
+				alt_user_mode->hold_sample_time);
+		mutex_unlock(&data->devfreq->lock);
+	}
 	return count;
 }
 
@@ -1401,11 +1414,13 @@ static ssize_t store_user_hold_sample_time(struct device *dev,
 	struct devfreq_alt_dvfs_param *alt_user_mode = data->simple_interactive_data.alt_data.alt_user_mode;
 	int ret;
 
-	mutex_lock(&data->devfreq->lock);
-	ret = sscanf(buf, "%u", &alt_user_mode->hold_sample_time);
-	mutex_unlock(&data->devfreq->lock);
-	if (ret != 1)
-		return -EINVAL;
+	if (alt_user_mode) {
+		mutex_lock(&data->devfreq->lock);
+		ret = sscanf(buf, "%u", &alt_user_mode->hold_sample_time);
+		mutex_unlock(&data->devfreq->lock);
+		if (ret != 1)
+			return -EINVAL;
+	}
 
 	return count;
 }
@@ -1421,10 +1436,13 @@ static ssize_t show_user_hispeed_load(struct device *dev, struct device_attribut
 	struct devfreq_alt_dvfs_param *alt_user_mode = data->simple_interactive_data.alt_data.alt_user_mode;
 	ssize_t count = 0;
 
-	mutex_lock(&data->devfreq->lock);
-	count += snprintf(buf, PAGE_SIZE, "%u\n",
-			  alt_user_mode->hispeed_load);
-	mutex_unlock(&data->devfreq->lock);
+	if (alt_user_mode) {
+		mutex_lock(&data->devfreq->lock);
+		count += snprintf(buf, PAGE_SIZE, "%u\n",
+				alt_user_mode->hispeed_load);
+		mutex_unlock(&data->devfreq->lock);
+	}
+
 	return count;
 }
 
@@ -1440,11 +1458,13 @@ static ssize_t store_user_hispeed_load(struct device *dev,
 	struct devfreq_alt_dvfs_param *alt_user_mode = data->simple_interactive_data.alt_data.alt_user_mode;
 	int ret;
 
-	mutex_lock(&data->devfreq->lock);
-	ret = sscanf(buf, "%u", &alt_user_mode->hispeed_load);
-	mutex_unlock(&data->devfreq->lock);
-	if (ret != 1)
-		return -EINVAL;
+	if (alt_user_mode) {
+		mutex_lock(&data->devfreq->lock);
+		ret = sscanf(buf, "%u", &alt_user_mode->hispeed_load);
+		mutex_unlock(&data->devfreq->lock);
+		if (ret != 1)
+			return -EINVAL;
+	}
 
 	return count;
 }
@@ -1460,10 +1480,13 @@ static ssize_t show_user_hispeed_freq(struct device *dev, struct device_attribut
 	struct devfreq_alt_dvfs_param *alt_user_mode = data->simple_interactive_data.alt_data.alt_user_mode;
 	ssize_t count = 0;
 
-	mutex_lock(&data->devfreq->lock);
-	count += snprintf(buf, PAGE_SIZE, "%u\n",
-			  alt_user_mode->hispeed_freq);
-	mutex_unlock(&data->devfreq->lock);
+	if (alt_user_mode) {
+		mutex_lock(&data->devfreq->lock);
+		count += snprintf(buf, PAGE_SIZE, "%u\n",
+				alt_user_mode->hispeed_freq);
+		mutex_unlock(&data->devfreq->lock);
+	}
+
 	return count;
 }
 
@@ -1479,11 +1502,13 @@ static ssize_t store_user_hispeed_freq(struct device *dev,
 	struct devfreq_alt_dvfs_param *alt_user_mode = data->simple_interactive_data.alt_data.alt_user_mode;
 	int ret;
 
-	mutex_lock(&data->devfreq->lock);
-	ret = sscanf(buf, "%u", &alt_user_mode->hispeed_freq);
-	mutex_unlock(&data->devfreq->lock);
-	if (ret != 1)
-		return -EINVAL;
+	if (alt_user_mode) {
+		mutex_lock(&data->devfreq->lock);
+		ret = sscanf(buf, "%u", &alt_user_mode->hispeed_freq);
+		mutex_unlock(&data->devfreq->lock);
+		if (ret != 1)
+			return -EINVAL;
+	}
 
 	return count;
 }
@@ -1544,6 +1569,7 @@ static ssize_t show_default_mode(struct device *dev, struct device_attribute *at
 	mutex_lock(&data->devfreq->lock);
 	count += snprintf(buf, PAGE_SIZE, "%d\n", alt_data->default_mode);
 	mutex_unlock(&data->devfreq->lock);
+
 	return count;
 }
 
@@ -1584,19 +1610,23 @@ static ssize_t show_alt_dvfs_info(struct device *dev,
 	ssize_t count = 0;
 	int i;
 
-	mutex_lock(&data->devfreq->lock);
+	if (alt_param_set) {
+		mutex_lock(&data->devfreq->lock);
 
-	count += snprintf(buf + count, PAGE_SIZE, "Current Mode >> %d, # Modes >> %d\n", alt_data->current_mode, alt_data->num_modes);
+		count += snprintf(buf + count, PAGE_SIZE, "Current Mode >> %d, # Modes >> %d\n", alt_data->current_mode, alt_data->num_modes);
 
-	for (i = 0; i < alt_data->num_modes; i++) {
-		count += snprintf(buf + count, PAGE_SIZE, "\n<< MODE %d >>\n", i);
-		print_alt_dvfs_info(&alt_param_set[i], buf, &count);
+		for (i = 0; i < alt_data->num_modes; i++) {
+			count += snprintf(buf + count, PAGE_SIZE, "\n<< MODE %d >>\n", i);
+			print_alt_dvfs_info(&alt_param_set[i], buf, &count);
+		}
+
+		if (alt_data->alt_user_mode) {
+			count += snprintf(buf + count, PAGE_SIZE, "\n<< MODE USER >>\n");
+			print_alt_dvfs_info(alt_data->alt_user_mode, buf, &count);
+		}
+
+		mutex_unlock(&data->devfreq->lock);
 	}
-
-	count += snprintf(buf + count, PAGE_SIZE, "\n<< MODE USER >>\n");
-	print_alt_dvfs_info(alt_data->alt_user_mode, buf, &count);
-
-	mutex_unlock(&data->devfreq->lock);
 
 	return count;
 }
@@ -1810,7 +1840,7 @@ static int exynos_devfreq_parse_dt(struct device_node *np, struct exynos_devfreq
 	const char *pd_name;
 	const char *update_fvp;
 	const char *use_dtm;
-	const char *use_migov;
+	const char *use_profiler;
 	const char *sysbusy;
 	int ntokens;
 	int not_using_ect = true;
@@ -2070,10 +2100,10 @@ static int exynos_devfreq_parse_dt(struct device_node *np, struct exynos_devfreq
 		data->use_dtm = false;
 	}
 
-	if (!of_property_read_string(np, "use_migov", &use_migov)) {
-		if (!strcmp(use_migov, "true")) {
+	if (!of_property_read_string(np, "use_profiler", &use_profiler)) {
+		if (!strcmp(use_profiler, "true")) {
 			data->profile = kzalloc(sizeof(struct exynos_devfreq_profile), GFP_KERNEL);
-			dev_info(data->dev, "This domain controlled by MIGOV\n");
+			dev_info(data->dev, "This domain controlled by PROFILER\n");
 		} else {
 			data->profile = NULL;
 		}

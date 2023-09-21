@@ -1102,6 +1102,7 @@ struct is_fmt *is_find_format(u32 pixelformat,
 
 	return result;
 }
+EXPORT_SYMBOL_GPL(is_find_format);
 
 static inline void vref_init(struct is_video *video)
 {
@@ -1390,7 +1391,7 @@ static int _is_queue_subbuf_prepare(struct device *dev,
 			node->request, node->vid, node->buf.length);
 	}
 
-	node->result = 1;
+	node->result = 0;
 
 	dbg_draw_digit_ctrl = is_get_digit_ctrl();
 	/* Disable SBWC for drawing digit on it */
@@ -1458,7 +1459,7 @@ static int _is_queue_subbuf_prepare(struct device *dev,
 			continue;
 		}
 
-		node->result = 1;
+		node->result = 0;
 		num_i_planes = node->buf.length - NUM_OF_META_PLANE;
 
 		sbuf = &queue->out_buf[index];

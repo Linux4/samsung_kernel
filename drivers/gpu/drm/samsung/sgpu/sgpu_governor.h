@@ -10,9 +10,29 @@
 #include "../../../../devfreq/governor.h"
 
 #define HZ_PER_KHZ			1000
+
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
 #define WINDOW_MAX_SIZE			12
 #define WEIGHT_TABLE_MAX_SIZE		11
 #define WEIGHT_TABLE_IDX_NUM		2
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
+
+typedef enum {
+	SGPU_DVFS_GOVERNOR_STATIC = 0,
+	SGPU_DVFS_GOVERNOR_CONSERVATIVE,
+	SGPU_DVFS_GOVERNOR_INTERACTIVE,
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
+	SGPU_DVFS_GOVERNOR_PROFILER,
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
+	SGPU_MAX_GOVERNOR_NUM,
+} gpu_governor_type;
+
+struct sgpu_governor_info {
+	uint64_t	id;
+	char		*name;
+	int (*get_target)(struct devfreq *df, uint32_t *level);
+	int (*clear)(struct devfreq *df, uint32_t level);
+};
 
 struct sgpu_governor_data {
 	struct devfreq			*devfreq;
@@ -50,12 +70,13 @@ struct sgpu_governor_data {
 	unsigned long			expire_highspeed_delay;
 	uint32_t			power_ratio;
 	struct mutex			lock;
-
+#if IS_ENABLED(CONFIG_EXYNOS_GPU_PROFILER)
 	/* utilization window table */
 	uint32_t			window[WINDOW_MAX_SIZE];
 	uint32_t			window_idx;
 	uint32_t			weight_table_idx[WEIGHT_TABLE_IDX_NUM];
 	int				freq_margin;
+#endif /* CONFIG_EXYNOS_GPU_PROFILER */
 	/* %, additional weight for compute scenario */
 	int				compute_weight;
 	void __iomem			*bg3d_dvfs;
@@ -86,7 +107,8 @@ struct sgpu_governor_data {
 };
 
 ssize_t sgpu_governor_all_info_show(struct devfreq *df, char *buf);
-ssize_t sgpu_governor_current_info_show(struct devfreq *df, char *buf);
+ssize_t sgpu_governor_current_info_show(struct devfreq *df, char *buf,
+					size_t size);
 int sgpu_governor_change(struct devfreq *df, char *str_governor);
 int sgpu_governor_init(struct device *dev, struct devfreq_dev_profile *dp,
 		       struct sgpu_governor_data **governor_data);

@@ -128,6 +128,16 @@ int mcd_dsim_update_dsi_freq(struct dsim_device *dsim, unsigned int freq)
 	int ret;
 	struct stdphy_pms pms;
 
+	if (!dsim) {
+		pr_err("FREQ_HOP: ERR:%s: dsim is null\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!dsim->freq_hop) {
+		pr_err("FREQ_HOP: ERR:%s: freq_hop is not initialized\n", __func__);
+		return -ENODEV;
+	}
+
 	ret = mcd_dsim_of_get_pll_param(dsim->dev->of_node, freq, &pms);
 	if (ret) {
 		pr_err("FREQ_HOP: ERR:%s: failed to get pll param\n", __func__);
@@ -137,8 +147,8 @@ int mcd_dsim_update_dsi_freq(struct dsim_device *dsim, unsigned int freq)
 	pr_info("FREQ_HOP: %s: found (dsi_freq:%d kHz, pmsk:%d %d %d %d)\n",
 			__func__, freq, pms.p, pms.m, pms.s, pms.k);
 
-	dsim->freq_hop.request_m = pms.m;
-	dsim->freq_hop.request_k = pms.k;
+	dsim->freq_hop->request_m = pms.m;
+	dsim->freq_hop->request_k = pms.k;
 
 	return 0;
 }

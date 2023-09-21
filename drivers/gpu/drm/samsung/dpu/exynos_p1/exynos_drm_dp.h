@@ -50,6 +50,9 @@
 #define FEATURE_MANAGE_HMD_LIST
 #define FEATURE_DEX_ADAPTER_TWEAK
 /*#define FEATURE_ADD_VSYNC_NODE*/
+/*#define FEATURE_HF_EEODB_SUPPORT*/
+/*#define FEATURE_HIGHER_RESOLUTION*/
+
 
 extern int forced_resolution;
 //extern int phy_status;
@@ -91,6 +94,13 @@ int get_dp_log_level(void);
 		}							\
 	} while (0)
 
+#define dp_edid_dump(dp, buf, size)				\
+	do {							\
+		print_hex_dump(KERN_INFO, "EDID: ", DUMP_PREFIX_OFFSET, 16, 1,	\
+					buf, size, false);	\
+		dp_logger_hex_dump(buf, "EDID: ", size);	\
+	} while (0)
+
 #undef cal_log_debug
 #define cal_log_debug(id, fmt, ...)				\
 	do {							\
@@ -125,17 +135,20 @@ int get_dp_log_level(void);
 #else /* CONFIG_SEC_DISPLAYPORT_LOGGER */
 
 #define dp_info(dp, fmt, ...)	\
-dpu_pr_info(drv_name((dp)), 0, get_dp_log_level(), fmt, ##__VA_ARGS__)
+	dpu_pr_info(drv_name((dp)), 0, get_dp_log_level(), fmt, ##__VA_ARGS__)
 
 #define dp_warn(dp, fmt, ...)	\
-dpu_pr_warn(drv_name((dp)), 0, get_dp_log_level(), fmt, ##__VA_ARGS__)
+	dpu_pr_warn(drv_name((dp)), 0, get_dp_log_level(), fmt, ##__VA_ARGS__)
 
 #define dp_err(dp, fmt, ...)	\
-dpu_pr_err(drv_name((dp)), 0, get_dp_log_level(), fmt, ##__VA_ARGS__)
+	dpu_pr_err(drv_name((dp)), 0, get_dp_log_level(), fmt, ##__VA_ARGS__)
 
 #define dp_debug(dp, fmt, ...)	\
-dpu_pr_debug(drv_name((dp)), 0, get_dp_log_level(), fmt, ##__VA_ARGS__)
+	dpu_pr_debug(drv_name((dp)), 0, get_dp_log_level(), fmt, ##__VA_ARGS__)
 
+#define dp_edid_dump(dp, buf, size)	\
+	print_hex_dump(KERN_INFO, "EDID: ", DUMP_PREFIX_OFFSET, 16, 1,	\
+					buf, size, false);
 #endif /* CONFIG_SEC_DISPLAYPORT_LOGGER */
 
 extern struct dp_device *dp_drvdata;
@@ -691,6 +704,9 @@ struct dp_device {
 #ifdef FEATURE_ADD_VSYNC_NODE
 	struct dp_vsync vsync;
 #endif
+#ifdef FEATURE_HIGHER_RESOLUTION
+	bool higher_resolution;
+#endif
 };
 
 struct dp_debug_param {
@@ -909,6 +925,11 @@ void dp_mode_filter_out(struct dp_device *dp, int mode_num);
 void dp_mode_clean_up(struct dp_device *dp);
 void dp_mode_set_fail_safe(struct dp_device *dp);
 void dp_mode_sort_for_mirror(struct dp_device *dp);
+
+#ifdef FEATURE_HIGHER_RESOLUTION
+void dp_mode_sort_for_higher(struct dp_device *dp);
+#endif
+
 #ifdef FEATURE_DEX_SUPPORT
 void dp_find_best_mode_for_dex(struct dp_device *dp);
 #endif

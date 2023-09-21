@@ -1495,6 +1495,8 @@ static int is_ischain_isp_tag(struct is_subdev *subdev,
 		ret = __isp_dma_in_cfg(device, subdev, frame, out_node,
 				PARAM_ISP_VDMA1_INPUT, pmap);
 
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 
@@ -1512,6 +1514,8 @@ static int is_ischain_isp_tag(struct is_subdev *subdev,
 				if (cap_node->vid == IS_VIDEO_IRGW_NUM)
 					pixelformat = cap_node->pixelformat;
 			}
+
+			cap_node->result = 1;
 		}
 
 		/* buffer tagging */

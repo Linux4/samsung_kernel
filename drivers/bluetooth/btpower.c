@@ -1074,7 +1074,7 @@ void qcomm_bt_lpm_exit_lpm_locked(struct uart_port *uport)
 	exynos_update_ip_idle_status(idle_ip_index, STATUS_BUSY);
 	set_wake_locked(1);
 
-	pr_err("host has data to send\n");
+	//pr_err("host has data to send\n");
 	hrtimer_start(&bt_lpm_q.enter_lpm_timer, bt_lpm_q.enter_lpm_delay,
 		HRTIMER_MODE_REL);
 }
@@ -1086,7 +1086,7 @@ static void update_host_wake_locked(int host_wake)
 		return;
 	}
 
-	pr_err("soc has data to send - %d\n", host_wake);
+	//pr_err("soc has data to send - %d\n", host_wake);
 	bt_lpm_q.host_wake = host_wake;
 
 	if (host_wake) {

@@ -705,7 +705,7 @@ static void decon_release_sec_buf(struct decon_device *decon)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 static void decon_fingerprint_mask(struct exynos_drm_crtc *crtc,
 			struct drm_crtc_state *old_crtc_state, u32 after)
 {
@@ -858,7 +858,7 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 			&& (new_exynos_crtc_state->tui_changed == 0))
 		decon_reg_sec_win_shadow_update_req(decon);
 #endif
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	exynos_crtc->ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 0);
 #endif
 	decon_reg_all_win_shadow_update_req(decon->id);
@@ -1379,7 +1379,7 @@ static const struct exynos_drm_crtc_ops decon_crtc_ops = {
 #endif
 	.dump_register = decon_dump,
 	.update_bts_fps = decon_mode_update_bts_fps,
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	.set_fingerprint_mask = decon_fingerprint_mask,
 #endif
 };

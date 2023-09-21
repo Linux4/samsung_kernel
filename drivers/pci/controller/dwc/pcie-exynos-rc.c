@@ -2545,7 +2545,8 @@ void exynos_pcie_work_l1ss(struct work_struct *work)
 static void exynos_pcie_rc_use_ia(struct exynos_pcie *exynos_pcie)
 {
 	if (exynos_pcie->use_ia) {
-		if (exynos_pcie->ep_device_type == EP_QC_WIFI) {
+		pr_info("[%s] ep type : %d, speed : %d \n", __func__, exynos_pcie->ep_device_type, exynos_pcie->max_link_speed);
+		if (exynos_pcie->max_link_speed == 1 && exynos_pcie->ep_device_type == EP_QC_WIFI) {
 			pr_info("[%s] Set I/A for refclk common voltage off ver.9\n", __func__);
 
 			//Release NOTE: Pamir_PCIE_GEN2_ERIO_control_IA_code_ver. 9
@@ -2642,7 +2643,7 @@ static void exynos_pcie_rc_use_ia(struct exynos_pcie *exynos_pcie)
 
 			/* PCIE_IA Enable */
 			exynos_ia_write(exynos_pcie, 0x1, 0x0);
-		} else if (exynos_pcie->ep_device_type == EP_BCM_WIFI) {
+		} else if (exynos_pcie->max_link_speed == 2 || exynos_pcie->ep_device_type == EP_BCM_WIFI) {
 			pr_info("[%s] Set I/A for refclk common voltage off ver.13\n", __func__);
 
 			//Release NOTE: Pamir_PCIE_GEN2_ERIO_control_IA_code_ver. 9

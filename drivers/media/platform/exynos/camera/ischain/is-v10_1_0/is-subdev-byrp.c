@@ -50,6 +50,10 @@ static int __ischain_byrp_slot(struct camera2_node *node, u32 *pindex)
 		*pindex = PARAM_BYRP_BYR;
 		ret = 2;
 		break;
+	case IS_LVN_BYRP_BYR_PROCESSED:
+		*pindex = PARAM_BYRP_BYR_PROCESSED;
+		ret = 2;
+		break;
 	default:
 		ret = 0;
 		break;
@@ -407,6 +411,16 @@ static int __byrp_dma_out_cfg(struct is_device_ischain *device,
 		} else {
 			merr("Undefined wdma(%d) format(%d)", device, node->vid, hw_format);
 		}
+		break;
+	case IS_LVN_BYRP_BYR_PROCESSED:
+		/* V4L2_PIX_FMT_SBGGR12P: u12/12, if pixel_size is 13b -> s13/13 */
+		if ((hw_bitwidth == DMA_INOUT_BIT_WIDTH_12BIT)
+		    && (flag_pixel_size == CAMERA_PIXEL_SIZE_13BIT)) {
+			hw_bitwidth = DMA_INOUT_BIT_WIDTH_13BIT;
+			hw_msb = DMA_INOUT_BIT_WIDTH_13BIT - 1;
+		}
+		mdbgs_ischain(3, "wdma(%d) pack (bitwidth: %d, msb: %d)\n",
+			device, node->vid, hw_bitwidth, hw_msb);
 		break;
 	default:
 		merr("wdma(%d) is not found", device, node->vid);
@@ -820,6 +834,8 @@ static int is_ischain_byrp_tag(struct is_subdev *subdev,
 			goto p_err;
 		}
 
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 
@@ -839,6 +855,8 @@ static int is_ischain_byrp_tag(struct is_subdev *subdev,
 						(dma_type == 1) ? "in" : "out");
 				return ret;
 			}
+
+			cap_node->result = 1;
 		}
 
 		/* buffer tagging */
@@ -861,7 +879,7 @@ static int is_ischain_byrp_tag(struct is_subdev *subdev,
 				continue;
 
 			if ((sframe->id < IS_LVN_BYRP_HDR) ||
-			    (sframe->id > IS_LVN_BYRP_BYR))
+			    (sframe->id > IS_LVN_BYRP_BYR_PROCESSED))
 				continue;
 
 			targetAddr = NULL;
@@ -1003,44 +1021,6 @@ p_err:
 	return ret;
 }
 
-static int subdev_byrp_get_prfi(struct is_subdev *subdev, struct is_device_ischain *idi, struct is_frame *frame)
-{
-	struct pablo_rta_frame_info *prfi = &frame->prfi;
-	struct camera2_node *node;
-	struct is_fmt *fmt;
-	int i;
-
-	prfi->byrp_zsl_type = 0;
-	prfi->byrp_zsl_bit = 0;
-
-	if (!IS_ENABLED(LOGICAL_VIDEO_NODE))
-		return 0;
-
-	for (i = 0; i < CAPTURE_NODE_MAX; i++) {
-		node = &frame->shot_ext->node_group.capture[i];
-		if (node->vid == IS_LVN_BYRP_BYR) {
-			if (!node->request)
-				break;
-
-			fmt = is_find_format(node->pixelformat, node->flags);
-			if (!fmt)
-				break;
-
-			if (fmt->hw_format == DMA_INOUT_FORMAT_BAYER) {
-				prfi->byrp_zsl_type = 1;
-				prfi->byrp_zsl_bit = fmt->bitsperpixel[0];
-			} else if (fmt->hw_format == DMA_INOUT_FORMAT_BAYER_PACKED) {
-				prfi->byrp_zsl_type = 2;
-				prfi->byrp_zsl_bit = -13;
-			}
-
-			break;
-		}
-	}
-
-	return 0;
-}
-
 static int is_ischain_byrp_get(struct is_subdev *subdev,
 			       struct is_device_ischain *idi,
 			       struct is_frame *frame,
@@ -1049,21 +1029,15 @@ static int is_ischain_byrp_get(struct is_subdev *subdev,
 {
 	struct is_crop *incrop;
 	struct camera2_node *node;
-	int dma_crop_x, dma_crop_w;
 
 	msrdbgs(1, "GET type: %d\n", idi, subdev, frame, type);
 
 	switch (type) {
 	case PSGT_REGION_NUM:
-		/* Use DMA crop size for BYRP input */
 		node = &frame->shot_ext->node_group.leader;
 		incrop = (struct is_crop *)node->input.cropRegion;
-		dma_crop_x = round_down(incrop->x, 512);
-		dma_crop_w = ALIGN(incrop->w + incrop->x - dma_crop_x, 512);
-		*(int *)result = is_calc_region_num(dma_crop_w, subdev);
-		break;
-	case PSGT_RTA_FRAME_INFO:
-		subdev_byrp_get_prfi(subdev, idi, frame);
+
+		*(int *)result = is_calc_region_num(incrop, NULL, subdev);
 		break;
 	default:
 		break;
@@ -1078,3 +1052,11 @@ const struct is_subdev_ops is_subdev_byrp_ops = {
 	.tag	= is_ischain_byrp_tag,
 	.get	= is_ischain_byrp_get,
 };
+
+#if IS_ENABLED(CONFIG_PABLO_KUNIT_TEST)
+const struct is_subdev_ops *pablo_get_is_subdev_byrp_ops(void)
+{
+	return &is_subdev_byrp_ops;
+}
+KUNIT_EXPORT_SYMBOL(pablo_get_is_subdev_byrp_ops);
+#endif

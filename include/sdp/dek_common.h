@@ -26,7 +26,6 @@
 #include <linux/device.h>
 
 #include <sdp/common.h>
-#include "../../fs/crypto/sdp/sdp_crypto.h"
 
 // ==== common configs
 #define SDPK_DEFAULT_ALGOTYPE (SDPK_ALGOTYPE_ASYMM_ECDH)
@@ -136,6 +135,8 @@ typedef struct _ss_payload {
 #endif /* DEK_DEBUG */
 #define DEK_LOGI(...) printk(KERN_INFO "dek: "__VA_ARGS__)
 #define DEK_LOGE(...) printk(KERN_ERR "dek: "__VA_ARGS__)
+
+#include "../../fs/crypto/sdp/sdp_crypto.h"
 
 void hex_key_dump(const char* tag, uint8_t *data, size_t data_len);
 void key_dump(unsigned char *buf, int len);

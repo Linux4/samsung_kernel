@@ -224,8 +224,8 @@
 
 #define HW_TIMEOUT_PANIC_ENABLE
 #ifdef HW_TIMEOUT_PANIC_ENABLE
-#define CHECK_TIMEOUT_PANIC_GROUP(gid)	((gid == GROUP_ID_ISP0) || \
-				(gid == GROUP_ID_LME0))
+#define CHECK_TIMEOUT_PANIC_HW(id)	((id == DEV_HW_ISP0) || \
+				(id == DEV_HW_LME0))
 #endif
 #if defined(CONFIG_ARM_EXYNOS_DEVFREQ)
 #define CONFIG_IS_BUS_DEVFREQ
@@ -351,8 +351,6 @@
 #define CSIS_PDP_VOTF_GLOBAL_WA
 #define USE_VOTF_AXI_APB
 #define USE_YPP_VOTF
-
-/* #define SDC_HEADER_GEN */
 
 /* BTS */
 /* #define DISABLE_BTS_CALC	*/ /* This is only for v8.1. next AP don't have to use this */

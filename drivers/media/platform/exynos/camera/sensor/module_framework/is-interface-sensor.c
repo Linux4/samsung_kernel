@@ -1162,7 +1162,12 @@ u32 set_sensor_12bit_state(struct is_sensor_interface *itf, enum is_sensor_12bit
 
 	cis_data->cur_12bit_mode = state;
 
-	dbg_sensor(1, "[%s] state(%d), cur_12bit_mode(%d)\n", __func__, state, cis_data->cur_12bit_mode);
+	if (cis_data->cur_12bit_mode != cis_data->pre_12bit_mode)
+		info("[%s][%d][%s][AE_CTL] pre(%d)->cur(%d)\n", __func__, sensor_peri->cis.id,
+			sensor_peri->module->sensor_name, cis_data->pre_12bit_mode, cis_data->cur_12bit_mode);
+
+	dbg_sensor(1, "[%s][%d][%s] state(%d)\n", __func__, sensor_peri->cis.id,
+		sensor_peri->module->sensor_name, state);
 
 	return 0;
 }
@@ -1188,7 +1193,7 @@ u32 get_sensor_12bit_state(struct is_sensor_interface *itf, enum is_sensor_12bit
 	return 0;
 }
 
-u32 set_cropped_remosaic(struct is_sensor_interface *itf, u32 zoom_ratio)
+u32 set_remosaic_zoom_ratio(struct is_sensor_interface *itf, u32 zoom_ratio)
 {
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	cis_shared_data *cis_data = NULL;
@@ -1204,7 +1209,37 @@ u32 set_cropped_remosaic(struct is_sensor_interface *itf, u32 zoom_ratio)
 
 	cis_data->cur_remosaic_zoom_ratio = zoom_ratio;
 
-	dbg_sensor(1, "[%s] zoom_ratio(%d), cur_remosaic_zoom_ratio(%d)\n", __func__, zoom_ratio, cis_data->cur_remosaic_zoom_ratio);
+	if (cis_data->cur_remosaic_zoom_ratio != cis_data->pre_remosaic_zoom_ratio)
+		info("[%s][%d][%s][AE_CTL] pre(%d)->cur(%d)\n", __func__, sensor_peri->cis.id,
+			sensor_peri->module->sensor_name,
+			cis_data->pre_remosaic_zoom_ratio, cis_data->cur_remosaic_zoom_ratio);
+
+	dbg_sensor(1, "[%s][%d][%s] zoom_ratio(%d)\n", __func__, sensor_peri->cis.id,
+		sensor_peri->module->sensor_name, zoom_ratio);
+
+	return 0;
+}
+
+u32 get_remosaic_zoom_ratio(struct is_sensor_interface *itf, u32 *zoom_ratio)
+{
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	cis_shared_data *cis_data = NULL;
+
+	WARN_ON(!itf);
+	WARN_ON(itf->magic != SENSOR_INTERFACE_MAGIC);
+
+	if (IS_ENABLED(CONFIG_CAMERA_CIS_ZEBU_OBJ))
+		return 0;
+
+	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
+	WARN_ON(!sensor_peri);
+
+	cis_data = sensor_peri->cis.cis_data;
+	WARN_ON(!cis_data);
+
+	*zoom_ratio = cis_data->pre_remosaic_zoom_ratio;
+
+	dbg_sensor(1, "[%d][%s] zoom_ratio(%d)\n", sensor_peri->cis.id, __func__, *zoom_ratio);
 
 	return 0;
 }
@@ -3373,9 +3408,11 @@ int set_hdr_mode(struct is_sensor_interface *itf, u32 mode)
 	cis_data->cur_hdr_mode = mode;
 
 	if (cis_data->cur_hdr_mode != cis_data->pre_hdr_mode)
-		info("%s : AEB pre(%d),cur(%d)\n", __func__, cis_data->pre_hdr_mode, cis_data->cur_hdr_mode);
+		info("[%s][%d][%s][AE_CTL] pre(%d)->cur(%d)\n", __func__, sensor_peri->cis.id,
+			sensor_peri->module->sensor_name, cis_data->pre_hdr_mode, cis_data->cur_hdr_mode);
 
-	dbg_sensor(1, "[%s] hdr_mode(%d)\n", __func__, mode);
+	dbg_sensor(1, "[%s][%d][%s] mode(%d)\n", __func__, sensor_peri->cis.id,
+		sensor_peri->module->sensor_name, mode);
 
 	return 0;
 }
@@ -3394,16 +3431,17 @@ int set_low_noise_mode(struct is_sensor_interface *itf, u32 mode)
 	cis_data = sensor_peri->cis.cis_data;
 	WARN_ON(!cis_data);
 
-	if (mode != cis_data->cur_lownoise_mode)
-		info("[%s]cur(%d)->new(%d)", __func__, cis_data->cur_lownoise_mode, mode);
-
 	if (mode < IS_CIS_LOWNOISE_MODE_MAX)
 		cis_data->cur_lownoise_mode = mode;
 	else
 		cis_data->cur_lownoise_mode = IS_CIS_LNOFF;
 
-	dbg_sensor(1, "[%s] mode(%d), cur_lownoise_mode(%d)\n",
-		__func__, mode, cis_data->cur_lownoise_mode);
+	if (cis_data->cur_lownoise_mode != cis_data->pre_lownoise_mode)
+		info("[%s][%d][%s][AE_CTL] pre(%d)->cur(%d)\n", __func__, sensor_peri->cis.id,
+			sensor_peri->module->sensor_name, cis_data->pre_lownoise_mode, cis_data->cur_lownoise_mode);
+
+	dbg_sensor(1, "[%s][%d][%s] mode(%d)\n", __func__, sensor_peri->cis.id,
+		sensor_peri->module->sensor_name, mode);
 
 	return 0;
 }
@@ -4180,7 +4218,7 @@ int init_sensor_interface(struct is_sensor_interface *itf)
 	itf->cis_ext2_itf_ops.request_direct_flash = request_direct_flash;
 	itf->cis_ext2_itf_ops.set_lte_multi_capture_mode = set_lte_multi_capture_mode;
 	itf->cis_ext2_itf_ops.get_delayed_preflash_time = get_delayed_preflash_time;
-	itf->cis_ext2_itf_ops.set_cropped_remosaic = set_cropped_remosaic;
+	itf->cis_ext2_itf_ops.set_remosaic_zoom_ratio = set_remosaic_zoom_ratio;
 	itf->cis_ext2_itf_ops.get_sensor_min_frame_duration = get_sensor_min_frame_duration;
 
 	/*

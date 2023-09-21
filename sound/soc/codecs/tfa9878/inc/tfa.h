@@ -16,7 +16,7 @@
 
 extern struct tfa_device **devs;
 
-/**
+/*
  * tfa error return codes
  */
 enum tfa_error {

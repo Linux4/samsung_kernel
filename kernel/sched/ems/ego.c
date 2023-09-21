@@ -944,15 +944,7 @@ static int get_boost_pelt_util(int capacity, int util, int boost)
 {
 	long long margin;
 
-	if (!boost)
-		return util;
-
-	if (boost > 0) {
-		margin = max(capacity - util, 0) * boost;
-	} else {
-		margin = util * boost;
-	}
-	margin /= 100;
+	margin = util * boost / 100;
 
 	return util + margin;
 }

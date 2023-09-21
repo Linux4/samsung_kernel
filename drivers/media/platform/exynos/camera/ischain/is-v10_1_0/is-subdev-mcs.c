@@ -445,6 +445,8 @@ static int is_ischain_mcs_tag(struct is_subdev *subdev,
 			return ret;
 		}
 
+		out_node->result = 1;
+
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {
 			cap_node = &frame->shot_ext->node_group.capture[i];
 			if (!cap_node->vid)
@@ -469,6 +471,8 @@ static int is_ischain_mcs_tag(struct is_subdev *subdev,
 						(dma_type == 1) ? "in" : "out");
 				return ret;
 			}
+
+			cap_node->result = 1;
 		}
 
 		for (i = 0; i < CAPTURE_NODE_MAX; i++) {

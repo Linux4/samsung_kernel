@@ -515,6 +515,13 @@ config CAMERA_CIS_HI846_OBJ
 	help
 	  Use to build HI846 camera sensor.
 
+config CAMERA_CIS_HI847_OBJ
+	tristate "Use HI847 camera cis"
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build HI847 camera sensor.
+
 config CAMERA_CIS_GD1_TELE_OBJ
 	tristate "Use GD1_TELE camera cis"
 	depends on CAMERA_CIS_SELECT

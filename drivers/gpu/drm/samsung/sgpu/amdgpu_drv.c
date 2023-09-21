@@ -182,7 +182,7 @@ int sgpu_enable_dvfs = 0;
 
 int sgpu_unscheduled_job_debug = 1;
 int sgpu_jobtimeout_to_panic = 0;
-int sgpu_amigo_user_time = 0;
+int sgpu_profiler_user_time = 0;
 
 struct amdgpu_mgpu_info mgpu_info = {
 	.mutex = __MUTEX_INITIALIZER(mgpu_info.mutex),

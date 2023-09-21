@@ -495,31 +495,32 @@ config EXYNOS_DP_POWER_CONTROL
 	help
 	  Enable DP power control of EXYNOS.
 
-config EXYNOS_MIGOV
-	tristate "Exynos Multi IP Governor support"
-	default m
-	help
-	Support Multi IP Governor for Exynos SoC.
-
-config EXYNOS_GPU_PROFILER
-	tristate "Exynos GPU Profiler support"
-	depends on EXYNOS_MIGOV
-	default m
-	help
-	Support GPU Profiler for Exynos SoC.
-
-config EXYNOS_MIF_PROFILER
-	tristate "Exynos MIF Profiler support"
-	default m
-	help
-	Support MIF Profiler for Exynos SoC.
+config EXYNOS_MAIN_PROFILER
+        tristate "Exynos Multi IP Governor support"
+        default m
+        help
+          Support Multi IP Governor for Exynos SoC.
 
 config EXYNOS_CPU_PROFILER
-	tristate "Exynos CPU Profiler support"
-	depends on EXYNOS_MIGOV
-	default m
-	help
-	Support CPU Profiler for Exynos SoC.
+        tristate "Exynos CPU Profiler support"
+        depends on EXYNOS_MAIN_PROFILER
+        default m
+        help
+          Support CPU Profiler for Exynos SoC.
+
+config EXYNOS_GPU_PROFILER
+        tristate "Exynos GPU Profiler support"
+        depends on EXYNOS_MAIN_PROFILER
+        default m
+        help
+          Support GPU Profiler for Exynos SoC.
+
+config EXYNOS_MIF_PROFILER
+        tristate "Exynos MIF Profiler support"
+        depends on EXYNOS_MAIN_PROFILER
+        default m
+        help
+          Support MIF Profiler for Exynos SoC.
 
 config EXYNOS_WOW
 	tristate "Exynos Workload Watcher"

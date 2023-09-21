@@ -27,14 +27,14 @@ void is_hw_vra_save_debug_info(struct is_hw_ip *hw_ip,
 
 	switch (debug_point) {
 	case DEBUG_POINT_FRAME_START:
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
 
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]])
 			|| test_bit(VRA_LIB_BYPASS_REQUESTED, &lib_vra->state))
 			msinfo_hw("[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 		break;
 	case DEBUG_POINT_FRAME_END:
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 
 		index = hw_ip->debug_index[1];
 		dbg_isr_hw("[F:%d][S-E] %05llu us\n", hw_ip, hw_fcount,
@@ -71,7 +71,7 @@ int is_hw_vra_frame_end_final_out_ready_done(struct is_lib_vra *lib_vra)
 
 	msdbg_hw(2, "VRA FE & Final done\n", atomic_read(&hw_ip->instance), hw_ip);
 
-	ret = is_hardware_frame_done(hw_ip, NULL, -1,
+	ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1,
 		IS_HW_CORE_END, IS_SHOT_SUCCESS, true);
 
 	wake_up(&hw_ip->status.wait_queue);
@@ -520,7 +520,7 @@ new_frame:
 
 	/* for Frame_start - no F.S interrupt */
 	atomic_inc(&hw_ip->count.fs);
-	is_hardware_frame_start(hw_ip, instance);
+	CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 	is_hw_vra_save_debug_info(hw_ip, lib_vra, DEBUG_POINT_FRAME_START);
 	atomic_set(&hw_ip->status.Vvalid, V_VALID);
 	clear_bit(HW_CONFIG, &hw_ip->state);
@@ -591,7 +591,7 @@ static int is_hw_vra_frame_ndone(struct is_hw_ip *hw_ip,
 	wq_id     = -1;
 	output_id = IS_HW_CORE_END;
 	if (test_bit_variables(hw_ip->id, &frame->core_flag))
-		ret = is_hardware_frame_done(hw_ip, frame, wq_id, output_id,
+		ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, wq_id, output_id,
 				done_type, false);
 
 	if (done_type == IS_SHOT_TIMEOUT)

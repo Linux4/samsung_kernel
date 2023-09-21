@@ -25,16 +25,6 @@
 
 #define TFA_CLASS_NAME	"tfa"
 
-#if defined(TFA_STEREO_NODE)
-/* stereo */
-/* ref. device order in container file */
-#define INDEX_0 1 /* dev 1 - left; top */
-#define INDEX_1 0 /* dev 0 - right; bottom */
-#else
-/* mono */
-#define INDEX_0 0 /* dev 0 - mono; bottom */
-#endif /* TFA_STEREO_NODE */
-
 enum tfa_sysfs_device_id {
 	DEV_ID_TFA_NULL,
 	DEV_ID_TFA_CAL,

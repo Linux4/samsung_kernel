@@ -18,7 +18,5 @@
 #define VTSDRV_MISC_IOCTL_SET_PARAM		_IOW('V', 0x04, struct vts_ipc_msg)
 #define VTSDRV_MISC_IOCTL_READ_GOOGLE_UUID	_IOR('V', 0x05, char[40])
 
-#define VTSDRV_MISC_MODEL_BIN_MAXSZ  0x10800
-
 #endif /* _UAPI__SOUND_VTS_H */
 

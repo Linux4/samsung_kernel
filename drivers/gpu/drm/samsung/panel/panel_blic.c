@@ -167,7 +167,7 @@ bool panel_blic_power_control_exists(struct panel_blic_dev *blic, const char *na
 		if (PTR_ERR(pctrl) == -ENODATA)
 			panel_dbg("not found %s\n", name);
 		else
-			panel_err("error occurred when find %s, %d\n", name, PTR_ERR(pctrl));
+			panel_err("error occurred when find %s, %ld\n", name, PTR_ERR(pctrl));
 		return false;
 	}
 
@@ -201,7 +201,7 @@ int panel_blic_power_control_execute(struct panel_blic_dev *blic, const char *na
 			panel_dbg("%s not found\n", name);
 			return -ENODATA;
 		}
-		panel_dbg("error occurred when find %s, %d\n", name, PTR_ERR(pctrl));
+		panel_dbg("error occurred when find %s, %ld\n", name, PTR_ERR(pctrl));
 		return PTR_ERR(pctrl);
 	}
 	return panel_power_ctrl_helper_execute(pctrl);
@@ -536,7 +536,7 @@ static int of_get_panel_blic(struct panel_blic_dev *blic_dev, struct device_node
 	}
 
 	if (panel->nr_blic_dev >= PANEL_BLIC_MAX) {
-		pr_err("%s i2c_dev array is full. (%d)\n", panel->nr_blic_dev);
+		pr_err("%s i2c_dev array is full. (%d)\n", __func__, panel->nr_blic_dev);
 		return -EINVAL;
 	}
 

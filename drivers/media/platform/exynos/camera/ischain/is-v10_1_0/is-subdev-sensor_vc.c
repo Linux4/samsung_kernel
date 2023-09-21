@@ -32,17 +32,17 @@ static int is_sensor_vc_cfg(struct is_subdev *leader,
 static inline bool is_sensor_vc_skip(struct is_device_sensor *sensor,
 		struct is_subdev *subdev)
 {
-	ulong seamless_mode = sensor->seamless_state & IS_SENSOR_SEAMLESS_MODE_MASK;
+	ulong aeb_mode = sensor->aeb_state & IS_SENSOR_AEB_MODE_MASK;
 	u32 vc = subdev->id - ENTRY_SSVC0;
 
 	/* Skip VC tagging is only valid for VC1/3 */
 	if (!(vc & SENSOR_2EXP_MODE_SHORT_VC_MASK))
 		return false;
-	else if (test_bit(IS_SENSOR_SINGLE_MODE, &seamless_mode) &&
-			!test_bit(IS_SENSOR_SWITCHING, &seamless_mode))
+	else if (test_bit(IS_SENSOR_SINGLE_MODE, &aeb_mode) &&
+			!test_bit(IS_SENSOR_SWITCHING, &aeb_mode))
 		return true;
-	else if (test_bit(IS_SENSOR_2EXP_MODE, &seamless_mode) &&
-			test_bit(IS_SENSOR_SWITCHING, &seamless_mode))
+	else if (test_bit(IS_SENSOR_2EXP_MODE, &aeb_mode) &&
+			test_bit(IS_SENSOR_SWITCHING, &aeb_mode))
 		return true;
 
 	return false;
@@ -74,12 +74,12 @@ static int is_sensor_vc_tag(struct is_subdev *subdev,
 	if (node->request) {
 		/* When it's on 2EXP single mode, only VC0/2 could be enabled. */
 		if (is_sensor_vc_skip(device, subdev)) {
-			node->result = 0;
 			ret = is_sensor_buf_skip(device,
 					subdev,
 					subdev_csi,
 					ldr_frame);
 		} else {
+			node->result = 1;
 			ret = is_sensor_buf_tag(device,
 					subdev,
 					subdev_csi,
@@ -88,6 +88,7 @@ static int is_sensor_vc_tag(struct is_subdev *subdev,
 		if (ret) {
 			mswarn("%d frame is drop", device, subdev, ldr_frame->fcount);
 			node->request = 0;
+			node->result = 0;
 		}
 
 		if (!test_and_set_bit(IS_SUBDEV_RUN, &subdev->state))

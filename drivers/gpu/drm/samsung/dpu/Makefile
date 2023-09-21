@@ -34,7 +34,7 @@ subdir-ccflags-$(CONFIG_DRM_MCD_COMMON)	+= -I$(srctree)/$(src)/mcd_cal
 
 exynos-drm-y := exynos_drm_drv.o  exynos_drm_fb.o exynos_drm_format.o		\
 		exynos_drm_crtc.o exynos_drm_plane.o exynos_drm_connector.o	\
-		exynos_drm_debug.o exynos_drm_gem.o exynos_drm_migov.o		\
+		exynos_drm_debug.o exynos_drm_gem.o 				\
 		exynos_drm_tui.o exynos_drm_partial.o				\
 		exynos_drm_recovery.o						\
 		$(dpu-dir)/exynos_drm_hibernation.o				\
@@ -64,6 +64,7 @@ exynos-drm-y				+= $(cal-dir)/decon_reg.o		\
 					   $(cal-dir)/hdr_reg.o			\
 
 exynos-drm-$(CONFIG_EXYNOS_BTS)		+= $(dpu-dir)/exynos_drm_bts.o
+exynos-drm-$(CONFIG_EXYNOS_GPU_PROFILER)	+= exynos_drm_profiler.o
 
 obj-$(CONFIG_DRM_SAMSUNG_DPU)		+= exynos-drm.o
 ifneq ($(filter y m,$(CONFIG_DRM_PANEL_MCD_COMMON)),)

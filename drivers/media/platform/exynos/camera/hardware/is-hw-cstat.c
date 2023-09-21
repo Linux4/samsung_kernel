@@ -19,6 +19,7 @@
 #include "is-hw.h"
 #include "is-dvfs.h"
 #include "is-votfmgr.h"
+#include "is-interface-sensor.h"
 #include "pablo-obte.h"
 
 static DEFINE_MUTEX(cmn_reg_lock);
@@ -231,13 +232,13 @@ static inline void is_hw_cstat_frame_start(struct is_hw_ip *hw_ip, u32 instance)
 		is_lib_isp_event_notifier(hw_ip, &hw->lib[instance], instance,
 				hw_fcount, EVENT_FRAME_START, 0, NULL);
 	} else {
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_START);
 		atomic_add(hw_ip->num_buffers, &hw_ip->count.fs);
 
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 			msinfo_hw("[F%d]F.S\n", instance, hw_ip, hw_fcount);
 
-		is_hardware_frame_start(hw_ip, instance);
+		CALL_HW_OPS(hw_ip, frame_start, hw_ip, instance);
 	}
 }
 
@@ -277,13 +278,13 @@ static inline void is_hw_cstat_frame_end(struct is_hw_ip *hw_ip, u32 instance, b
 				hw_fcount, e_id, 0, NULL);
 		tasklet_schedule(&hw->end_tasklet);
 	} else {
-		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
+		CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 		atomic_add(hw_ip->num_buffers, &hw_ip->count.fe);
 
 		if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 			msinfo_hw("[F%d]F.E\n", instance, hw_ip, hw_fcount);
 
-		is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+		CALL_HW_OPS(hw_ip, frame_done, hw_ip, NULL, -1, IS_HW_CORE_END,
 				IS_SHOT_SUCCESS, true);
 
 		if (atomic_read(&hw_ip->count.fs) < atomic_read(&hw_ip->count.fe))
@@ -481,7 +482,7 @@ static int is_hw_cstat_isr1(u32 hw_id, void *data)
 					int_status &= ~corex_end;
 					corex_end = 0;
 				}
-				is_hardware_config_lock(hw_ip, instance, hw_fcount);
+				CALL_HW_OPS(hw_ip, config_lock, hw_ip, instance, hw_fcount);
 				hw->event_state = CSTAT_LINE;
 				int_status &= ~line;
 				line = 0;
@@ -812,6 +813,11 @@ static int is_hw_cstat_init(struct is_hw_ip *hw_ip, u32 instance,
 			return -EINVAL;
 		}
 	}
+	hw_ip->frame_type = f_type;
+	if (hw_ip->group[instance] && hw_ip->group[instance]->device)
+		hw->sensor_itf[instance] = is_sensor_get_sensor_interface(hw_ip->group[instance]->device->sensor);
+	else
+		hw->sensor_itf[instance] = NULL;
 
 	for (sd_id = 0; sd_id < IS_CSTAT_SUBDEV_NUM; sd_id++) {
 		sd = &device->subdev_cstat[sd_id];
@@ -2021,7 +2027,7 @@ static int is_hw_cstat_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	struct cstat_param_set *p_set;
 	u32 instance = atomic_read(&hw_ip->instance);
 	u32 b_idx, batch_num;
-	bool do_blk_cfg = true, do_lib_shot;
+	bool do_lib_shot;
 	ulong debug_iq = (unsigned long) is_get_debug_param(IS_DEBUG_PARAM_IQ);
 
 	msdbgs_hw(2, "[F%d][T%d]shot\n", instance, hw_ip, frame->fcount, frame->type);
@@ -2087,6 +2093,9 @@ static int is_hw_cstat_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			mserr_hw("init_config fail", instance, hw_ip);
 			return ret;
 		}
+
+		if (hw_ip->frame_type == LIB_FRAME_HDR_SHORT)
+			is_hw_cstat_internal_shot(hw_ip, frame, p_set);
 	}
 
 	cstat_hw_s_corex_type(hw_ip->regs[REG_SETA], COREX_IGNORE);
@@ -2104,13 +2113,11 @@ static int is_hw_cstat_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			return ret;
 
 		if (likely(!test_bit(hw_ip->id, &debug_iq))) {
-			_is_hw_frame_dbg_trace(hw_ip, frame->fcount, DEBUG_POINT_RTA_REGS_E);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, frame->fcount, DEBUG_POINT_RTA_REGS_E);
 			ret = is_hw_cstat_s_iq_regs(hw_ip, instance);
-			_is_hw_frame_dbg_trace(hw_ip, frame->fcount, DEBUG_POINT_RTA_REGS_X);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, frame->fcount, DEBUG_POINT_RTA_REGS_X);
 			if (ret)
 				mserr_hw("is_hw_cstat_s_iq_regs is fail", instance, hw_ip);
-			else
-				do_blk_cfg = false;
 		} else {
 			msdbg_hw(1, "bypass s_iq_regs\n", instance, hw_ip);
 		}
@@ -2118,7 +2125,7 @@ static int is_hw_cstat_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		is_hw_cstat_s_stat_cfg(hw_ip, instance, p_set);
 	}
 
-	if (unlikely(do_blk_cfg))
+	if (unlikely(!hw->cur_iq_set.size))
 		is_hw_cstat_s_block_reg(hw_ip, p_set);
 
 	ret = is_hw_cstat_s_ds(hw_ip, p_set);
@@ -2244,7 +2251,7 @@ static int is_hw_cstat_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *fram
 		is_hw_cstat_print_stall_status(hw_ip);
 
 	if (test_bit(hw_ip->id, &frame->core_flag))
-		ret = is_hardware_frame_done(hw_ip, frame, -1,
+		ret = CALL_HW_OPS(hw_ip, frame_done, hw_ip, frame, -1,
 				IS_HW_CORE_END, done_type, false);
 
 	return ret;
@@ -2756,6 +2763,241 @@ static void is_hw_cstat_suspend(struct is_hw_ip *hw_ip, u32 instance)
 	set_bit(HW_SUSPENDING, &hw_ip->state);
 }
 
+
+#define RMS_SCALE_DOWN(v, r) ((v) * 1000 / (r))
+#define RMS_SCALE_UP(v, r) ((v) * (r) / 1000)
+static void cstat_hw_apply_rms_crop(struct pablo_rta_frame_info *prfi,
+						struct cstat_param_set *param)
+{
+	u32 ss_crop_region[4]; /* offset + size */
+	u32 ss_binning[2]; /* size */
+	u32 crop_ratio[2]; /* ratio */
+	u32 usr_region[4]; /* offset + size */
+	u32 i;
+
+	ss_crop_region[0] = prfi->sensor_crop.offset.x;
+	ss_crop_region[1] = prfi->sensor_crop.offset.y;
+	ss_crop_region[2] = prfi->sensor_crop.size.width;
+	ss_crop_region[3] = prfi->sensor_crop.size.height;
+
+	ss_binning[0] = RMS_SCALE_DOWN(prfi->sensor_calibration_size.width, prfi->sensor_binning.x);
+	ss_binning[1] = RMS_SCALE_DOWN(prfi->sensor_calibration_size.height, prfi->sensor_binning.y);
+
+	for (i = 0; i < 2; i++)
+		crop_ratio[i] = ss_binning[i] * 1000 / ss_crop_region[i + 2];
+
+	/* OTF input size */
+	if (param->otf_input.cmd) {
+		param->otf_input.width = ss_crop_region[2];
+		param->otf_input.height = ss_crop_region[3];
+	} else {
+		param->dma_input.width = ss_crop_region[2];
+		param->dma_input.height = ss_crop_region[3];
+	}
+
+	/**
+	 * Bayer crop size
+	 * Step 2. Remove the overlapped crop offset from user crop region.
+	 */
+	if (param->otf_input.cmd) {
+		usr_region[0] = param->otf_input.bayer_crop_offset_x;
+		usr_region[1] = param->otf_input.bayer_crop_offset_y;
+		usr_region[2] = param->otf_input.bayer_crop_width;
+		usr_region[3] = param->otf_input.bayer_crop_height;
+	} else {
+		usr_region[0] = param->dma_input.bayer_crop_offset_x;
+		usr_region[1] = param->dma_input.bayer_crop_offset_y;
+		usr_region[2] = param->dma_input.bayer_crop_width;
+		usr_region[3] = param->dma_input.bayer_crop_height;
+	}
+
+	/**
+	 * Step 1.
+	 *
+	 * Transform the user crop coordinate
+	 * from 'sensor crop coordinate' to 'sensor binning coordinate'.
+	 */
+	for (i = 0; i < 4; i++)
+		usr_region[i] = RMS_SCALE_UP(usr_region[i], crop_ratio[i % 2]);
+
+	/**
+	 * Step 2.
+	 *
+	 * Remove the overlapped crop offset from user crop region.
+	 */
+	for (i = 0; i < 2; i++)
+		usr_region[i] = (usr_region[i] > ss_crop_region[i]) ?
+					(usr_region[i] - ss_crop_region[i]) :
+					0;
+
+	/**
+	 * Step 3.
+	 *
+	 * Check user crop boundary.
+	 */
+	for (i = 2; i < 4; i++)
+		usr_region[i] = (usr_region[i] > ss_crop_region[i]) ?
+					ss_crop_region[i] :
+					usr_region[i];
+
+	if (param->otf_input.cmd) {
+		param->otf_input.bayer_crop_offset_x = usr_region[0];
+		param->otf_input.bayer_crop_offset_y = usr_region[1];
+		param->otf_input.bayer_crop_width = usr_region[2];
+		param->otf_input.bayer_crop_height = usr_region[3];
+	} else {
+		param->dma_input.bayer_crop_offset_x = usr_region[0];
+		param->dma_input.bayer_crop_offset_y = usr_region[1];
+		param->dma_input.bayer_crop_width = usr_region[2];
+		param->dma_input.bayer_crop_height = usr_region[3];
+	}
+}
+
+static void cstat_hw_g_prfi(struct is_hw_ip *hw_ip, int instance,
+			 struct is_frame *frame, struct pablo_rta_frame_info *prfi)
+{
+	struct is_hw_cstat *hw = NULL;
+	u32 ctx_idx;
+
+	struct cstat_param_set *p_set;
+	struct cstat_size_cfg *size_cfg = NULL;
+	struct is_crop in_crop, bns_size;
+	struct is_device_sensor *sensor = NULL;
+	struct is_sensor_interface *sensor_itf = NULL;
+
+	hw = (struct is_hw_cstat *)hw_ip->priv_info;
+
+	/* handle internal shot prfi */
+	if (frame->type == SHOT_TYPE_INTERNAL)
+		return;
+
+	/* For now, it only considers 2 contexts */
+	if (hw_ip->frame_type == LIB_FRAME_HDR_SHORT)
+		ctx_idx = 1;
+	else
+		ctx_idx = 0;
+
+	p_set = &hw->param_set[instance];
+	size_cfg = &hw->size;
+
+	prfi->sensor_binning.x = frame->shot->udm.frame_info.sensor_binning[0];
+	prfi->sensor_binning.y = frame->shot->udm.frame_info.sensor_binning[1];
+
+	prfi->csis_bns_binning.x = frame->shot->udm.frame_info.bns_binning[0];
+	prfi->csis_bns_binning.y = frame->shot->udm.frame_info.bns_binning[1];
+	prfi->csis_mcb_binning.x = 1000;
+	prfi->csis_mcb_binning.y = 1000;
+
+	prfi->sensor_remosaic_crop_zoom_ratio = 0;
+	prfi->sensor_crop.offset.x = frame->shot->udm.frame_info.sensor_crop_region[0];
+	prfi->sensor_crop.offset.y = frame->shot->udm.frame_info.sensor_crop_region[1];
+	prfi->sensor_crop.size.width = frame->shot->udm.frame_info.sensor_crop_region[2];
+	prfi->sensor_crop.size.height = frame->shot->udm.frame_info.sensor_crop_region[3];
+	prfi->sensor_calibration_size.width = frame->shot->udm.frame_info.sensor_size[0];
+	prfi->sensor_calibration_size.height = frame->shot->udm.frame_info.sensor_size[1];
+
+	sensor_itf = hw->sensor_itf[instance];
+	if (!sensor_itf) {
+		mserr_hw("sensor_interface is NULL", instance, hw_ip);
+		return;
+	}
+
+	if (hw_ip->group[instance] && hw_ip->group[instance]->device)
+		sensor = hw_ip->group[instance]->device->sensor;
+
+	if (sensor && test_bit(IS_SENSOR_RMS_CROP_ON, &sensor->rms_crop_state)) {
+		get_remosaic_zoom_ratio(sensor_itf, &prfi->sensor_remosaic_crop_zoom_ratio);
+		sensor_itf->cis_itf_ops.get_sensor_cur_size(sensor_itf,
+							&prfi->sensor_crop.offset.x,
+							&prfi->sensor_crop.offset.y,
+							&prfi->sensor_crop.size.width,
+							&prfi->sensor_crop.size.height);
+		sensor_itf->cis_itf_ops.get_calibrated_size(sensor_itf,
+							&prfi->sensor_calibration_size.width,
+							&prfi->sensor_calibration_size.height);
+
+		size_cfg->rms_crop_ratio = prfi->sensor_remosaic_crop_zoom_ratio;
+		cstat_hw_apply_rms_crop(prfi, p_set);
+	} else {
+		size_cfg->rms_crop_ratio = 10; /* x1.0 */
+	}
+
+	p_set->sensor_config.sensor_binning_ratio_x = prfi->sensor_binning.x;
+	p_set->sensor_config.sensor_binning_ratio_y = prfi->sensor_binning.y;
+	p_set->sensor_config.sensor_remosaic_crop_zoom_ratio =
+							prfi->sensor_remosaic_crop_zoom_ratio;
+
+
+	if (p_set->otf_input.cmd == OTF_INPUT_COMMAND_ENABLE) {
+		prfi->cstat_input_bayer_bit = p_set->otf_input.bitwidth;
+		prfi->cstat_input_size.width = p_set->otf_input.width;
+		prfi->cstat_input_size.height = p_set->otf_input.height;
+	} else {
+		prfi->cstat_input_bayer_bit =  p_set->dma_input.msb + 1;
+		prfi->cstat_input_size.width = p_set->dma_input.width;
+		prfi->cstat_input_size.height = p_set->dma_input.height;
+	}
+
+	prfi->cstat_crop_in.offset.x = 0;
+	prfi->cstat_crop_in.offset.y = 0;
+	prfi->cstat_crop_in.size.width = prfi->cstat_input_size.width;
+	prfi->cstat_crop_in.size.height = prfi->cstat_input_size.height;
+
+	if (p_set->otf_input.cmd == OTF_INPUT_COMMAND_ENABLE) {
+		in_crop.x = p_set->otf_input.bayer_crop_offset_x;
+		in_crop.y = p_set->otf_input.bayer_crop_offset_y;
+		in_crop.w = p_set->otf_input.bayer_crop_width;
+		in_crop.h = p_set->otf_input.bayer_crop_height;
+	} else {
+		in_crop.x = p_set->dma_input.bayer_crop_offset_x;
+		in_crop.y = p_set->dma_input.bayer_crop_offset_y;
+		in_crop.w = p_set->dma_input.bayer_crop_width;
+		in_crop.h = p_set->dma_input.bayer_crop_height;
+	}
+
+	prfi->cstat_crop_dzoom.offset.x = in_crop.x;
+	prfi->cstat_crop_dzoom.offset.y = in_crop.y;
+	prfi->cstat_crop_dzoom.size.width = in_crop.w;
+	prfi->cstat_crop_dzoom.size.height = in_crop.h;
+
+	cstat_hw_g_bns_size(&in_crop, &bns_size);
+
+	prfi->cstat_bns_size.width = bns_size.w;
+	prfi->cstat_bns_size.height = bns_size.h;
+
+	prfi->cstat_crop_bns.offset.x = 0;
+	prfi->cstat_crop_bns.offset.y = 0;
+	prfi->cstat_crop_bns.size.width = bns_size.w;
+	prfi->cstat_crop_bns.size.height = bns_size.h;
+
+	prfi->cstat_fdpig_crop.offset.x = p_set->dma_output_fdpig.dma_crop_offset_x;
+	prfi->cstat_fdpig_crop.offset.y = p_set->dma_output_fdpig.dma_crop_offset_y;
+	prfi->cstat_fdpig_crop.size.width = p_set->dma_output_fdpig.dma_crop_width;
+	prfi->cstat_fdpig_crop.size.height = p_set->dma_output_fdpig.dma_crop_height;
+
+	prfi->cstat_fdpig_ds_size.width = p_set->dma_output_fdpig.width;
+	prfi->cstat_fdpig_ds_size.height = p_set->dma_output_fdpig.height;
+
+	prfi->magic = 0x5F4D5246;
+
+	msdbg_hw(2, "[F%d] %s. (binning x %d , y %d), ratio(%d)\n",
+			instance, hw_ip, frame->fcount,
+			size_cfg->rms_crop_ratio == 10 ? "NOR" : "RMS",
+			prfi->sensor_binning.x, prfi->sensor_binning.y,
+			prfi->sensor_remosaic_crop_zoom_ratio);
+}
+
+static void pablo_hw_cstat_query(struct is_hw_ip *ip, u32 instance, u32 type, void *in, void *out)
+{
+	switch (type) {
+	case PABLO_QUERY_GET_PCFI:
+		cstat_hw_g_prfi(ip, instance, (struct is_frame *)in, (struct pablo_rta_frame_info *)out);
+		break;
+	default:
+		break;
+	}
+}
+
 const static struct is_hw_ip_ops is_hw_cstat_ops = {
 	.open			= is_hw_cstat_open,
 	.init			= is_hw_cstat_init,
@@ -2779,6 +3021,7 @@ const static struct is_hw_ip_ops is_hw_cstat_ops = {
 	.set_config		= is_hw_cstat_set_config,
 	.notify_timeout		= is_hw_cstat_notify_timeout,
 	.suspend		= is_hw_cstat_suspend,
+	.query			= pablo_hw_cstat_query,
 };
 
 int is_hw_cstat_probe(struct is_hw_ip *hw_ip, struct is_interface *itf,

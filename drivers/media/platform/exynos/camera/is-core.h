@@ -27,11 +27,6 @@
 #include <media/v4l2-mediabus.h>
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-v4l2.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
-#include <soc/samsung/exynos-smc.h>
-#else
-#include <linux/smc.h>
-#endif
 
 #include <exynos-is.h>
 #include "is-interface.h"
@@ -49,6 +44,7 @@
 #include "is-vender.h"
 #include "exynos-is-module.h"
 #include "is-irq.h"
+#include "pablo-smc.h"
 
 #define IS_DRV_NAME			"exynos-is"
 #define IS_COMMAND_TIMEOUT			(30*HZ)

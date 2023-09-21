@@ -2732,8 +2732,7 @@ static long vts_fio_common_ioctl(struct file *file,
 
 		if (sm_info.actual_sz < 0 || sm_info.actual_sz > sm_info.max_sz)
 			return -EINVAL;
-		if (sm_info.actual_sz > VTS_MODEL_BIN_MAXSZ)
-			return -EINVAL;
+
 		memcpy(data->sm_data, data->dmab_model.area, sm_info.actual_sz);
 		data->sm_loaded = true;
 		data->sm_info.actual_sz = sm_info.actual_sz;
@@ -3078,11 +3077,19 @@ static int samsung_vts_probe(struct platform_device *pdev)
 
 	/* Model binary memory allocation */
 	data->google_version = 0;
-	data->sm_info.max_sz = VTS_MODEL_BIN_MAXSZ;
+	result = of_property_read_u32(np, "samsung,max-model-size", (u32 *)(&data->sm_info.max_sz));
+	if (result) {
+		vts_dev_info(dev, "%s: get max-model-size error :%d, set default value\n",
+				__func__, result);
+		data->sm_info.max_sz = VTS_MODEL_BIN_MAXSZ;
+	}
+	vts_dev_info(dev, "%s: sound model's max size: 0x%x\n",
+			__func__, data->sm_info.max_sz);
+
 	data->sm_info.actual_sz = 0;
 	data->sm_info.offset = 0;
 	data->sm_loaded = false;
-	data->sm_data = vmalloc(VTS_MODEL_BIN_MAXSZ);
+	data->sm_data = vmalloc(data->sm_info.max_sz);
 	if (!data->sm_data) {
 		vts_dev_err(dev, "%s Failed to allocate Grammar Bin memory\n",
 			__func__);
@@ -3249,13 +3256,13 @@ static int samsung_vts_probe(struct platform_device *pdev)
 	data->dmab_log.dev.type = SNDRV_DMA_TYPE_DEV;
 
 	data->dmab_model.area = dmam_alloc_coherent(dev,
-		VTSDRV_MISC_MODEL_BIN_MAXSZ,
+		data->sm_info.max_sz,
 		&data->dmab_model.addr, GFP_KERNEL);
 	if (data->dmab_model.area == NULL) {
 		result = -ENOMEM;
 		goto error;
 	}
-	data->dmab_model.bytes = VTSDRV_MISC_MODEL_BIN_MAXSZ;
+	data->dmab_model.bytes = data->sm_info.max_sz;
 	data->dmab_model.dev.dev = dev;
 	data->dmab_model.dev.type = SNDRV_DMA_TYPE_DEV;
 #if defined(CONFIG_SOC_S5E8825)

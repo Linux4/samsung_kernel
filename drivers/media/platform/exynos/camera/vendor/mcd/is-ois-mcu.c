@@ -52,9 +52,6 @@
 #include "is-vender-specific.h"
 #include "is-sec-define.h"
 
-int debug_ois_mcu;
-module_param(debug_ois_mcu, int, 0644);
-
 static const struct v4l2_subdev_ops subdev_ops;
 static bool ois_wide_init;
 static bool ois_tele_init;
@@ -72,6 +69,9 @@ static struct is_common_mcu_info common_mcu_infos;
 static struct mcu_efs_info efs_info;
 #endif
 bool mcu_support_oldhw = false;
+#ifdef CONFIG_OIS_HALL_DATA_PROVIDER
+u64 timestampboot;
+#endif
 
 void is_get_common_mcu_info(struct is_common_mcu_info **mcuinfo)
 {
@@ -246,22 +246,22 @@ static irqreturn_t is_isr_ois_mcu(int irq, void *data)
 	//info_mcu("IRQ: %d\n", state);
 	if (is_mcu_hw_g_irq_type(state, MCU_IRQ_WDT)) {
 		/* TODO: WDR IRQ handling */
-		dbg_mcu(1, "IRQ: MCU_IRQ_WDT");
+		dbg_ois("IRQ: MCU_IRQ_WDT");
 	}
 
 	if (is_mcu_hw_g_irq_type(state, MCU_IRQ_WDT_RST)) {
 		/* TODO: WDR RST handling */
-		dbg_mcu(1, "IRQ: MCU_IRQ_WDT_RST");
+		dbg_ois("IRQ: MCU_IRQ_WDT_RST");
 	}
 
 	if (is_mcu_hw_g_irq_type(state, MCU_IRQ_LOCKUP_RST)) {
 		/* TODO: LOCKUP RST handling */
-		dbg_mcu(1, "IRQ: MCU_IRQ_LOCKUP_RST");
+		dbg_ois("IRQ: MCU_IRQ_LOCKUP_RST");
 	}
 
 	if (is_mcu_hw_g_irq_type(state, MCU_IRQ_SYS_RST)) {
 		/* TODO: SYS RST handling */
-		dbg_mcu(1, "IRQ: MCU_IRQ_SYS_RST");
+		dbg_ois("IRQ: MCU_IRQ_SYS_RST");
 	}
 
 	return IRQ_HANDLED;
@@ -399,6 +399,7 @@ int ois_mcu_dump(struct ois_mcu_dev *mcu, int type)
 
 void ois_mcu_parsing_raw_data(uint8_t *buf, long efs_size, long *raw_data_x, long *raw_data_y, long *raw_data_z)
 {
+	int ret;
 	int i = 0, j = 0;
 	char efs_data_pre[MAX_GYRO_EFS_DATA_LENGTH + 1];
 	char efs_data_post[MAX_GYRO_EFS_DATA_LENGTH + 1];
@@ -436,8 +437,8 @@ void ois_mcu_parsing_raw_data(uint8_t *buf, long efs_size, long *raw_data_x, lon
 		}
 	}
 	i++;
-	kstrtol(efs_data_pre, 10, &raw_pre);
-	kstrtol(efs_data_post, 10, &raw_post);
+	ret = kstrtol(efs_data_pre, 10, &raw_pre);
+	ret = kstrtol(efs_data_post, 10, &raw_post);
 	*raw_data_x = sign * (raw_pre * 1000 + raw_post);
 
 	detect_point = false;
@@ -472,8 +473,8 @@ void ois_mcu_parsing_raw_data(uint8_t *buf, long efs_size, long *raw_data_x, lon
 			break;
 		}
 	}
-	kstrtol(efs_data_pre, 10, &raw_pre);
-	kstrtol(efs_data_post, 10, &raw_post);
+	ret = kstrtol(efs_data_pre, 10, &raw_pre);
+	ret = kstrtol(efs_data_post, 10, &raw_post);
 	*raw_data_y = sign * (raw_pre * 1000 + raw_post);
 
 	detect_point = false;
@@ -508,8 +509,8 @@ void ois_mcu_parsing_raw_data(uint8_t *buf, long efs_size, long *raw_data_x, lon
 			break;
 		}
 	}
-	kstrtol(efs_data_pre, 10, &raw_pre);
-	kstrtol(efs_data_post, 10, &raw_post);
+	ret = kstrtol(efs_data_pre, 10, &raw_pre);
+	ret = kstrtol(efs_data_post, 10, &raw_post);
 	*raw_data_z = sign * (raw_pre * 1000 + raw_post);
 
 	info_mcu("%s : X raw_x = %ld, raw_y = %ld, raw_z = %ld\n", __func__, *raw_data_x, *raw_data_y, *raw_data_z);
@@ -655,7 +656,7 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 
 	if (!ois_hw_check && test_bit(OM_HW_RUN, &mcu->state)) {
 		do {
-			val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+			val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 			usleep_range(500, 510);
 			if (--retries < 0) {
 				err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -663,22 +664,22 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 			}
 		} while (val != 0x01);
 
-		error_reg[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
-		error_reg[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM);
+		error_reg[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
+		error_reg[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM);
 		info_mcu("%s error reg value = 0x%02x/0x%02x", __func__, error_reg[0], error_reg[1]);
 
 		/* MCU err reg recovery code */
 		if (core->mcu->need_reset_mcu && error_reg[1]) {
 #ifdef USE_TELE2_OIS_AF_COMMON_INTERFACE
 			/* write AF CTRL standby */
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_STANDBY);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_STANDBY);
 			msleep(10);
 #endif
 			/* clear ois err reg */
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM, 0x0);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM, 0x0);
 #ifdef USE_TELE2_OIS_AF_COMMON_INTERFACE
 			/* write AF CTRL active */
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_ACTIVE);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_ACTIVE);
 #endif
 			core->mcu->need_reset_mcu = false;
 			info("[%s] clear ois reset flag.", __func__);
@@ -701,34 +702,34 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 				gyro_y2 = (gyro_data_y >> 8) & 0xFF;
 				gyro_z = gyro_data_z & 0xFF;
 				gyro_z2 = (gyro_data_z >> 8) & 0xFF;
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X1, gyro_x);
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X2, gyro_x2);
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y1, gyro_y);
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y2, gyro_y2);
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z1, gyro_z);
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z2, gyro_z2);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X1, gyro_x);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X2, gyro_x2);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y1, gyro_y);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y2, gyro_y2);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z1, gyro_z);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z2, gyro_z2);
 				info_mcu("Write Gyro offset data :  0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x", gyro_x, gyro_x2, gyro_y, gyro_y2, gyro_z, gyro_z2);
 			}
 			/* write wide xgg ygg xcoef ycoef */
 			if (ois_pinfo->wide_romdata.cal_mark[0] == 0xBB) {
 				for (i = 0; i < 4; i++) {
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_XGG1 + i, ois_pinfo->wide_romdata.xgg[i]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_XGG1 + i, ois_pinfo->wide_romdata.xgg[i]);
 				}
 				for (i = 0; i < 4; i++) {
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_YGG1 + i, ois_pinfo->wide_romdata.ygg[i]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_YGG1 + i, ois_pinfo->wide_romdata.ygg[i]);
 				}
 				for (i = 0; i < 2; i++) {
 #ifdef OIS_DUAL_CAL_DEFAULT_VALUE_WIDE
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_XCOEF_M1_1 + i, OIS_DUAL_CAL_DEFAULT_VALUE_WIDE);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_XCOEF_M1_1 + i, OIS_DUAL_CAL_DEFAULT_VALUE_WIDE);
 #else
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_XCOEF_M1_1 + i, ois_pinfo->wide_romdata.xcoef[i]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_XCOEF_M1_1 + i, ois_pinfo->wide_romdata.xcoef[i]);
 #endif
 				}
 				for (i = 0; i < 2; i++) {
 #ifdef OIS_DUAL_CAL_DEFAULT_VALUE_WIDE
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_YCOEF_M1_1 + i, OIS_DUAL_CAL_DEFAULT_VALUE_WIDE);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_YCOEF_M1_1 + i, OIS_DUAL_CAL_DEFAULT_VALUE_WIDE);
 #else
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_YCOEF_M1_1 + i, ois_pinfo->wide_romdata.ycoef[i]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_YCOEF_M1_1 + i, ois_pinfo->wide_romdata.ycoef[i]);
 #endif
 				}
 			} else {
@@ -757,31 +758,31 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 				}
 #endif
 				for (i = 0; i < 4; i++) {
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_XGG1 + i, ois_pinfo->tele_romdata.xgg[i]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_XGG1 + i, ois_pinfo->tele_romdata.xgg[i]);
 #ifdef CAMERA_3RD_OIS
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_XGG1 + i, ois_pinfo->tele2_romdata.xgg[i]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_XGG1 + i, ois_pinfo->tele2_romdata.xgg[i]);
 #endif
 				}
 				for (i = 0; i < 4; i++) {
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_YGG1 + i, ois_pinfo->tele_romdata.ygg[i]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_YGG1 + i, ois_pinfo->tele_romdata.ygg[i]);
 #ifdef CAMERA_3RD_OIS
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_YGG1 + i, ois_pinfo->tele2_romdata.ygg[i]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_YGG1 + i, ois_pinfo->tele2_romdata.ygg[i]);
 #endif
 				}
 #ifdef OIS_DUAL_CAL_DEFAULT_VALUE_TELE
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_xcoef, OIS_DUAL_CAL_DEFAULT_VALUE_TELE);
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_xcoef + 1, OIS_DUAL_CAL_DEFAULT_VALUE_TELE);
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_ycoef, OIS_DUAL_CAL_DEFAULT_VALUE_TELE);
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_ycoef + 1, OIS_DUAL_CAL_DEFAULT_VALUE_TELE);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_xcoef, OIS_DUAL_CAL_DEFAULT_VALUE_TELE);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_xcoef + 1, OIS_DUAL_CAL_DEFAULT_VALUE_TELE);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_ycoef, OIS_DUAL_CAL_DEFAULT_VALUE_TELE);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_ycoef + 1, OIS_DUAL_CAL_DEFAULT_VALUE_TELE);
 
 				info_mcu("%s tele use default coef value", __func__);
 #else
 				if (!test_bit(IS_EFS_STATE_READ, &efs_info.efs_state)) {
 #ifdef OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_xcoef, OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_xcoef + 1, OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_ycoef, OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_ycoef + 1, OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_xcoef, OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_xcoef + 1, OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_ycoef, OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_ycoef + 1, OIS_DUAL_CAL_DEFAULT_EEPROM_VALUE_TELE);
 
 					info_mcu("%s tele use default eeprom coef value", __func__);
 #else
@@ -794,10 +795,10 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 					eeprom_ycoef[0] = *((u8 *)&cal_buf[finfo->rom_dualcal_slave1_oisshift_y_addr]);
 					eeprom_ycoef[1] = *((u8 *)&cal_buf[finfo->rom_dualcal_slave1_oisshift_y_addr + 1]);
 
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_xcoef, eeprom_xcoef[0]);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_xcoef + 1, eeprom_xcoef[1]);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_ycoef, eeprom_ycoef[0]);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_ycoef + 1, eeprom_ycoef[1]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_xcoef, eeprom_xcoef[0]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_xcoef + 1, eeprom_xcoef[1]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_ycoef, eeprom_ycoef[0]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_ycoef + 1, eeprom_ycoef[1]);
 
 					info_mcu("%s tele eeprom xcoef = %d/%d, ycoef = %d/%d", __func__, eeprom_xcoef[0], eeprom_xcoef[1],
 						eeprom_ycoef[0], eeprom_ycoef[1]);
@@ -812,10 +813,10 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 					tele_ycoef[0] = efs_info.ois_hall_shift_y & 0xFF;
 					tele_ycoef[1] = (efs_info.ois_hall_shift_y >> 8) & 0xFF;
 
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_xcoef, tele_xcoef[0]);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_xcoef + 1, tele_xcoef[1]);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_ycoef, tele_ycoef[0]);
-					is_mcu_set_reg(mcu->regs[OM_REG_CORE], tele_cmd_ycoef + 1, tele_ycoef[1]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_xcoef, tele_xcoef[0]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_xcoef + 1, tele_xcoef[1]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_ycoef, tele_ycoef[0]);
+					is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], tele_cmd_ycoef + 1, tele_ycoef[1]);
 
 					info_mcu("%s tele efs xcoef = %d, ycoef = %d", __func__, efs_info.ois_hall_shift_x, efs_info.ois_hall_shift_y);
 				}
@@ -825,7 +826,7 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 			}
 
 			/* enable dual cal */
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_ENABLE_DUALCAL, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_ENABLE_DUALCAL, 0x01);
 
 			wx_pole = common_mcu_infos.ois_gyro_direction[0];
 			wy_pole = common_mcu_infos.ois_gyro_direction[1];
@@ -844,14 +845,14 @@ int ois_mcu_init(struct v4l2_subdev *subdev)
 #endif
 
 
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_X, wx_pole);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_Y, wy_pole);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_ORIENT, gyro_orientation);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_X_M2, tx_pole);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_Y_M2, ty_pole);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_X, wx_pole);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_Y, wy_pole);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_ORIENT, gyro_orientation);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_X_M2, tx_pole);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_Y_M2, ty_pole);
 #ifdef CAMERA_3RD_OIS
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_X_M3, t2x_pole);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_Y_M3, t2y_pole);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_X_M3, t2x_pole);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_POLA_Y_M3, t2y_pole);
 #endif
 			info_mcu("%s gyro init data applied.\n", __func__);
 
@@ -920,7 +921,7 @@ int ois_mcu_init_factory(struct v4l2_subdev *subdev)
 
 	if (test_bit(OM_HW_RUN, &mcu->state)) {
 		do {
-			val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+			val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 			usleep_range(500, 510);
 			if (--retries < 0) {
 				err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -930,13 +931,13 @@ int ois_mcu_init_factory(struct v4l2_subdev *subdev)
 	}
 
 #ifdef CAMERA_3RD_OIS
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x07); /* OIS SEL (wide : 1 , tele : 2, tele2 : 4, triple : 7 ). */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x07); /* OIS SEL (wide : 1 , tele : 2, tele2 : 4, triple : 7 ). */
 #else
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03); /* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03); /* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
 #endif
 
 	gyro_orientation = common_mcu_infos.ois_gyro_direction[2];
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_ORIENT, gyro_orientation);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_ORIENT, gyro_orientation);
 
 	info_mcu("%s sensor(%d) X\n", __func__, ois->device);
 	return ret;
@@ -954,7 +955,7 @@ void ois_mcu_init_rear2(struct is_core *core)
 
 	/* check ois status */
 	do {
-		val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 		usleep_range(500, 510);
 		if (--retries < 0) {
 			err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -963,7 +964,7 @@ void ois_mcu_init_rear2(struct is_core *core)
 	} while (val != 0x01);
 
 	/* set power mode */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x04); /* OIS SEL (wide : 1 , tele : 2, tele2 : 4, triple : 7 ). */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x04); /* OIS SEL (wide : 1 , tele : 2, tele2 : 4, triple : 7 ). */
 
 	info_mcu("%s : X\n", __func__);
 
@@ -1034,15 +1035,15 @@ int ois_mcu_deinit(struct v4l2_subdev *subdev)
 		) {
 #ifdef CONFIG_USE_OIS_TAMODE_CONTROL
 		if (ois_tamode_onoff && ois_tamode_status) {
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TAMODE, 0x00);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TAMODE, 0x00);
 			ois_tamode_status = false;
 			ois_tamode_onoff = false;
 		}
 #endif
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x00);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x00);
 		usleep_range(2000, 2100);
 		do {
-			val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+			val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 			usleep_range(1000, 1100);
 			if (--retries < 0) {
 				err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -1102,36 +1103,36 @@ int ois_mcu_set_ggfadeupdown(struct v4l2_subdev *subdev, int up, int down)
 	dbg_ois("%s up:%d down:%d\n", __func__, up, down);
 
 	/* Wide af position value */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_AF, MCU_AF_INIT_POSITION);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_AF, MCU_AF_INIT_POSITION);
 
 #ifdef CAMERA_2ND_OIS
 	/* Tele af position value */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_AF, MCU_AF_INIT_POSITION);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_AF, MCU_AF_INIT_POSITION);
 #endif
 #ifdef CAMERA_3RD_OIS
 	/* Tele2 af position value */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_AF, MCU_AF_INIT_POSITION);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_AF, MCU_AF_INIT_POSITION);
 #endif
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CACTRL_WRITE, 0x01);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CACTRL_WRITE, 0x01);
 
 	/* set fadeup */
 	data[0] = up & 0xFF;
 	data[1] = (up >> 8) & 0xFF;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_FADE_UP1, data[0]);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_FADE_UP2, data[1]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_FADE_UP1, data[0]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_FADE_UP2, data[1]);
 
 	/* set fadedown */
 	data[0] = down & 0xFF;
 	data[1] = (down >> 8) & 0xFF;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_FADE_DOWN1, data[0]);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_FADE_DOWN2, data[1]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_FADE_DOWN1, data[0]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_FADE_DOWN2, data[1]);
 
 	/* wait idle status
 	 * 100msec delay is needed between "ois_power_on" and "ois_mode_s6".
 	 */
 	do {
-		status = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		status = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 		if (status == 0x01 || status == 0x13)
 			break;
 		if (--retries < 0) {
@@ -1194,48 +1195,48 @@ int ois_mcu_set_mode(struct v4l2_subdev *subdev, int mode)
 
 	switch(mode) {
 		case OPTICAL_STABILIZATION_MODE_STILL:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x00);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x00);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_VIDEO:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x01);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_CENTERING:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x05);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x05);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_HOLD:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x06);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x06);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_STILL_ZOOM:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x13);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x13);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_VDIS:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x14);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x14);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_VDIS_ASR:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x15);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x15);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_SINE_X:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_1, 0x01);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_2, 0x01);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_3, 0x2D);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x03);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_1, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_2, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_3, 0x2D);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x03);
 			msleep(20);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		case OPTICAL_STABILIZATION_MODE_SINE_Y:
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_1, 0x02);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_2, 0x01);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_3, 0x2D);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x03);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_1, 0x02);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_2, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SINE_3, 0x2D);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x03);
 			msleep(20);
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 			break;
 		default:
 			dbg_ois("%s: ois_mode value(%d)\n", __func__, mode);
@@ -1299,19 +1300,19 @@ int ois_mcu_shift_compensation(struct v4l2_subdev *subdev, int position, int res
 
 	if (module->position == SENSOR_POSITION_REAR && ois->af_pos_wide != position_changed) {
 		/* Wide af position value */
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_AF, (u8)position_changed);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_AF, (u8)position_changed);
 		ois->af_pos_wide = position_changed;
 	}
 #if !defined(USE_TELE_OIS_AF_COMMON_INTERFACE) && defined(CAMERA_2ND_OIS)
 	else if (module->position == SENSOR_POSITION_REAR2 && ois->af_pos_tele != position_changed) {
 		/* Tele af position value */
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_AF, (u8)position_changed);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_AF, (u8)position_changed);
 		ois->af_pos_tele = position_changed;
 	}
 #elif !defined(USE_TELE2_OIS_AF_COMMON_INTERFACE) && defined(CAMERA_3RD_OIS)
 	else if (module->position == SENSOR_POSITION_REAR4 && ois->af_pos_tele2 != position_changed) {
 		/* Tele af position value */
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_AF, (u8)position_changed);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_AF, (u8)position_changed);
 		ois->af_pos_tele2 = position_changed;
 	}
 #endif
@@ -1332,10 +1333,10 @@ int ois_mcu_self_test(struct is_core *core)
 
 	mcu = core->mcu;
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL, 0x08);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL, 0x08);
 
 	do {
-		val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL);
+		val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL);
 		 msleep(50);
 		if (--retries < 0) {
 			err("Read register failed!!!!, data = 0x%04x\n", val);
@@ -1343,22 +1344,22 @@ int ois_mcu_self_test(struct is_core *core)
 		}
 	} while (val);
 
-	val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
+	val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
 
 	/* Gyro selfTest result */
-	reg_val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_VAL_X);
+	reg_val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_VAL_X);
 	x = reg_val;
-	reg_val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_LOG_X);
+	reg_val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_LOG_X);
 	x_gyro_log = (reg_val << 8) | x;
 
-	reg_val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_VAL_Y);
+	reg_val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_VAL_Y);
 	y = reg_val;
-	reg_val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_LOG_Y);
+	reg_val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_LOG_Y);
 	y_gyro_log = (reg_val << 8) | y;
 
-	reg_val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_VAL_Z);
+	reg_val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_VAL_Z);
 	z = reg_val;
-	reg_val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_LOG_Z);
+	reg_val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_LOG_Z);
 	z_gyro_log = (reg_val << 8) | z;
 
 	info_mcu("%s(GSTLOG0=%d, GSTLOG1=%d, GSTLOG2=%d)\n", __func__, x_gyro_log, y_gyro_log, z_gyro_log);
@@ -1401,21 +1402,21 @@ int ois_mcu_af_write_position(struct ois_mcu_dev *mcu, u32 val)
 {
 	u8 val_high = 0, val_low = 0;
 
-	dbg_mcu(1, "%s : E\n", __func__);
+	dbg_ois("%s : E\n", __func__);
 
 	val_high = (val & 0x0FFF) >> 4;
 	val_low = (val & 0x000F) << 4;
 
 #if defined(USE_TELE_OIS_AF_COMMON_INTERFACE)
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS1_REAR2_AF, val_high);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS2_REAR2_AF, val_low);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS1_REAR2_AF, val_high);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS2_REAR2_AF, val_low);
 #elif defined(USE_TELE2_OIS_AF_COMMON_INTERFACE)
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS1_REAR3_AF, val_high);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS2_REAR3_AF, val_low);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS1_REAR3_AF, val_high);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS2_REAR3_AF, val_low);
 #endif
 	usleep_range(2000, 2100);
 
-	dbg_mcu(1, "%s : X\n", __func__);
+	dbg_ois("%s : [val : 0x%08x] X\n", __func__, val);
 
 	return 0;
 }
@@ -1466,7 +1467,7 @@ int ois_mcu_af_init(struct v4l2_subdev *subdev, u32 val)
 
 	actuator->position = val;
 
-	dbg_mcu(1, "%s : X\n", __func__);
+	dbg_ois("%s : X\n", __func__);
 
 	return 0;
 }
@@ -1507,11 +1508,11 @@ int ois_mcu_af_set_active(struct v4l2_subdev *subdev, int enable)
 			info_mcu("%s : set af delay\n", __func__);
 		}
 
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_ACTIVE);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_ACTIVE);
 		msleep(10);
 		ois_mcu_af_init_position(mcu, actuator);
 	} else {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_STANDBY);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_STANDBY);
 	}
 
 	info_mcu("%s : enable = %d X\n", __func__, enable);
@@ -1544,7 +1545,7 @@ int ois_mcu_af_set_position(struct v4l2_subdev *subdev, struct v4l2_control *ctr
 
 	actuator->position = position;
 
-	dbg_mcu(1, "%s : X\n", __func__);
+	dbg_ois("%s : [position : 0x%08x] X\n", __func__, position);
 
 	return 0;
 }
@@ -1589,13 +1590,13 @@ int ois_mcu_af_move_lens(struct is_core *core)
 
 	info_mcu("%s : E\n", __func__);
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_ACTIVE);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_ACTIVE);
 #if defined(USE_TELE_OIS_AF_COMMON_INTERFACE)
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS1_REAR2_AF, 0x80);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS2_REAR2_AF, 0x00);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS1_REAR2_AF, 0x80);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS2_REAR2_AF, 0x00);
 #elif defined(USE_TELE2_OIS_AF_COMMON_INTERFACE)
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS1_REAR3_AF, 0x80);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS2_REAR3_AF, 0x00);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS1_REAR3_AF, 0x80);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_POS2_REAR3_AF, 0x00);
 #endif
 
 	info_mcu("%s : X\n", __func__);
@@ -1622,25 +1623,25 @@ bool ois_mcu_sine_wavecheck_all(struct is_core *core,
 	mcu = core->mcu;
 
 #ifdef CAMERA_3RD_OIS
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x07); /* OIS SEL (wide : 1 , tele : 2, tele2 : 4, w/t : 3, all : 7 ). */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x07); /* OIS SEL (wide : 1 , tele : 2, tele2 : 4, w/t : 3, all : 7 ). */
 #else
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03); /* OIS SEL (wide : 1 , tele : 2, tele2 : 4, w/t : 3, all : 7 ). */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03); /* OIS SEL (wide : 1 , tele : 2, tele2 : 4, w/t : 3, all : 7 ). */
 #endif
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV, (u8)threshold); /* error threshold level. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV_M2, (u8)threshold); /* error threshold level. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV, (u8)threshold); /* error threshold level. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV_M2, (u8)threshold); /* error threshold level. */
 #ifdef CAMERA_3RD_OIS
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV_M3, (u8)threshold); /* error threshold level. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV_M3, (u8)threshold); /* error threshold level. */
 #endif
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_ERR_VAL_CNT, 0x00); /* count value for error judgement level. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_FREQ_LEV, 0x05); /* frequency level for measurement. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_AMPLI_LEV, 0x2A); /* amplitude level for measurement. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_DUM_PULSE, 0x03); /* dummy pulse setting. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VYVLE_LEV, 0x02); /* vyvle level for measurement. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START_WAVE_CHECK, 0x01); /* start sine wave check operation */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_ERR_VAL_CNT, 0x00); /* count value for error judgement level. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_FREQ_LEV, 0x05); /* frequency level for measurement. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_AMPLI_LEV, 0x2A); /* amplitude level for measurement. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_DUM_PULSE, 0x03); /* dummy pulse setting. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VYVLE_LEV, 0x02); /* vyvle level for measurement. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START_WAVE_CHECK, 0x01); /* start sine wave check operation */
 
 	retries = 22;
 	do {
-		val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START_WAVE_CHECK);
+		val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START_WAVE_CHECK);
 		msleep(100);
 		if (--retries < 0) {
 			err("sine wave operation fail, val = 0x%02x.\n", val);
@@ -1648,82 +1649,82 @@ bool ois_mcu_sine_wavecheck_all(struct is_core *core,
 		}
 	} while (val);
 
-	buf[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MCERR_W);
-	buf[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MCERR_W2);
+	buf[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MCERR_W);
+	buf[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MCERR_W2);
 
 	*result = (buf[1] << 8) | buf[0];
 
-	u8_sinx_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_COUNT1);
-	u8_sinx_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_COUNT2);
+	u8_sinx_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_COUNT1);
+	u8_sinx_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_COUNT2);
 	sinx_count = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count > 0x7FFF) {
 		sinx_count = -((sinx_count ^ 0xFFFF) + 1);
 	}
-	u8_siny_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_COUNT1);
-	u8_siny_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_COUNT2);
+	u8_siny_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_COUNT1);
+	u8_siny_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_COUNT2);
 	siny_count = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count > 0x7FFF) {
 		siny_count = -((siny_count ^ 0xFFFF) + 1);
 	}
-	u8_sinx[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_DIFF1);
-	u8_sinx[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_DIFF2);
+	u8_sinx[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_DIFF1);
+	u8_sinx[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_DIFF2);
 	*sinx = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx > 0x7FFF) {
 		*sinx = -((*sinx ^ 0xFFFF) + 1);
 	}
-	u8_siny[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_DIFF1);
-	u8_siny[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_DIFF2);
+	u8_siny[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_DIFF1);
+	u8_siny[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_DIFF2);
 	*siny = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny > 0x7FFF) {
 		*siny = -((*siny ^ 0xFFFF) + 1);
 	}
 
-	u8_sinx_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_COUNT1);
-	u8_sinx_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_COUNT2);
+	u8_sinx_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_COUNT1);
+	u8_sinx_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_COUNT2);
 	sinx_count_2nd = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count_2nd > 0x7FFF) {
 		sinx_count_2nd = -((sinx_count_2nd ^ 0xFFFF) + 1);
 	}
-	u8_siny_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_COUNT1);
-	u8_siny_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_COUNT2);
+	u8_siny_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_COUNT1);
+	u8_siny_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_COUNT2);
 	siny_count_2nd = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count_2nd > 0x7FFF) {
 		siny_count_2nd = -((siny_count_2nd ^ 0xFFFF) + 1);
 	}
-	u8_sinx[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_DIFF1);
-	u8_sinx[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_DIFF2);
+	u8_sinx[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_DIFF1);
+	u8_sinx[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_DIFF2);
 	*sinx_2nd = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx_2nd > 0x7FFF) {
 		*sinx_2nd = -((*sinx_2nd ^ 0xFFFF) + 1);
 	}
-	u8_siny[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_DIFF1);
-	u8_siny[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_DIFF2);
+	u8_siny[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_DIFF1);
+	u8_siny[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_DIFF2);
 	*siny_2nd = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny_2nd > 0x7FFF) {
 		*siny_2nd = -((*siny_2nd ^ 0xFFFF) + 1);
 	}
 
 #ifdef CAMERA_3RD_OIS
-	u8_sinx_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINX_COUNT1);
-	u8_sinx_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINX_COUNT2);
+	u8_sinx_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINX_COUNT1);
+	u8_sinx_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINX_COUNT2);
 	sinx_count_3rd = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count_3rd > 0x7FFF) {
 		sinx_count_3rd = -((sinx_count_3rd ^ 0xFFFF) + 1);
 	}
-	u8_siny_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINY_COUNT1);
-	u8_siny_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINY_COUNT2);
+	u8_siny_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINY_COUNT1);
+	u8_siny_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINY_COUNT2);
 	siny_count_3rd = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count_3rd > 0x7FFF) {
 		siny_count_3rd = -((siny_count_3rd ^ 0xFFFF) + 1);
 	}
-	u8_sinx[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINX_DIFF1);
-	u8_sinx[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINX_DIFF2);
+	u8_sinx[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINX_DIFF1);
+	u8_sinx[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINX_DIFF2);
 	*sinx_3rd = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx_3rd > 0x7FFF) {
 		*sinx_3rd = -((*sinx_3rd ^ 0xFFFF) + 1);
 	}
-	u8_siny[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINY_DIFF1);
-	u8_siny[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINY_DIFF2);
+	u8_siny[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINY_DIFF1);
+	u8_siny[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR3_SINY_DIFF2);
 	*siny_3rd = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny_3rd > 0x7FFF) {
 		*siny_3rd = -((*siny_3rd ^ 0xFFFF) + 1);
@@ -1876,19 +1877,19 @@ bool ois_mcu_sine_wavecheck_rear2(struct is_core *core,
 
 	mcu = core->mcu;
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03); /* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV, (u8)threshold); /* error threshold level. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV_M2, (u8)threshold); /* error threshold level. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_ERR_VAL_CNT, 0x00); /* count value for error judgement level. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_FREQ_LEV, 0x05); /* frequency level for measurement. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_AMPLI_LEV, 0x2A); /* amplitude level for measurement. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_DUM_PULSE, 0x03); /* dummy pulse setting. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VYVLE_LEV, 0x02); /* vyvle level for measurement. */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START_WAVE_CHECK, 0x01); /* start sine wave check operation */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03); /* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV, (u8)threshold); /* error threshold level. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_THRESH_ERR_LEV_M2, (u8)threshold); /* error threshold level. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_ERR_VAL_CNT, 0x00); /* count value for error judgement level. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_FREQ_LEV, 0x05); /* frequency level for measurement. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_AMPLI_LEV, 0x2A); /* amplitude level for measurement. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_DUM_PULSE, 0x03); /* dummy pulse setting. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VYVLE_LEV, 0x02); /* vyvle level for measurement. */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START_WAVE_CHECK, 0x01); /* start sine wave check operation */
 
 	retries = 22;
 	do {
-		val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START_WAVE_CHECK);
+		val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START_WAVE_CHECK);
 		msleep(100);
 		if (--retries < 0) {
 			err("sine wave operation fail.\n");
@@ -1896,55 +1897,55 @@ bool ois_mcu_sine_wavecheck_rear2(struct is_core *core,
 		}
 	} while (val);
 
-	buf = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MCERR_W);
+	buf = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MCERR_W);
 
 	*result = (int)buf;
 
-	u8_sinx_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_COUNT1);
-	u8_sinx_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_COUNT2);
+	u8_sinx_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_COUNT1);
+	u8_sinx_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_COUNT2);
 	sinx_count = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count > 0x7FFF) {
 		sinx_count = -((sinx_count ^ 0xFFFF) + 1);
 	}
-	u8_siny_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_COUNT1);
-	u8_siny_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_COUNT2);
+	u8_siny_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_COUNT1);
+	u8_siny_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_COUNT2);
 	siny_count = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count > 0x7FFF) {
 		siny_count = -((siny_count ^ 0xFFFF) + 1);
 	}
-	u8_sinx[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_DIFF1);
-	u8_sinx[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_DIFF2);
+	u8_sinx[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_DIFF1);
+	u8_sinx[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINX_DIFF2);
 	*sinx = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx > 0x7FFF) {
 		*sinx = -((*sinx ^ 0xFFFF) + 1);
 	}
-	u8_siny[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_DIFF1);
-	u8_siny[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_DIFF2);
+	u8_siny[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_DIFF1);
+	u8_siny[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR_SINY_DIFF2);
 	*siny = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny > 0x7FFF) {
 		*siny = -((*siny ^ 0xFFFF) + 1);
 	}
 
-	u8_sinx_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_COUNT1);
-	u8_sinx_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_COUNT2);
+	u8_sinx_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_COUNT1);
+	u8_sinx_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_COUNT2);
 	sinx_count_2nd = (u8_sinx_count[1] << 8) | u8_sinx_count[0];
 	if (sinx_count_2nd > 0x7FFF) {
 		sinx_count_2nd = -((sinx_count_2nd ^ 0xFFFF) + 1);
 	}
-	u8_siny_count[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_COUNT1);
-	u8_siny_count[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_COUNT2);
+	u8_siny_count[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_COUNT1);
+	u8_siny_count[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_COUNT2);
 	siny_count_2nd = (u8_siny_count[1] << 8) | u8_siny_count[0];
 	if (siny_count_2nd > 0x7FFF) {
 		siny_count_2nd = -((siny_count_2nd ^ 0xFFFF) + 1);
 	}
-	u8_sinx[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_DIFF1);
-	u8_sinx[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_DIFF2);
+	u8_sinx[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_DIFF1);
+	u8_sinx[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINX_DIFF2);
 	*sinx_2nd = (u8_sinx[1] << 8) | u8_sinx[0];
 	if (*sinx_2nd > 0x7FFF) {
 		*sinx_2nd = -((*sinx_2nd ^ 0xFFFF) + 1);
 	}
-	u8_siny[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_DIFF1);
-	u8_siny[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_DIFF2);
+	u8_siny[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_DIFF1);
+	u8_siny[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_REAR2_SINY_DIFF2);
 	*siny_2nd = (u8_siny[1] << 8) | u8_siny[0];
 	if (*siny_2nd > 0x7FFF) {
 		*siny_2nd = -((*siny_2nd ^ 0xFFFF) + 1);
@@ -2053,7 +2054,7 @@ bool ois_mcu_auto_test_rear2(struct is_core *core,
 
 void ois_mcu_device_ctrl(struct ois_mcu_dev *mcu)
 {
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_DEVCTRL, 0x01);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_DEVCTRL, 0x01);
 }
 
 #if defined(CAMERA_3RD_OIS) && defined(USE_TELE2_OIS_AF_COMMON_INTERFACE)
@@ -2071,10 +2072,10 @@ int ois_mcu_set_sleep_mode_folded_zoom(void)
 
 	mcu = core->mcu;
 
-	state = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF);
+	state = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF);
 	state = state & MCU_AF_MODE_STANDBY;
 	if (state == MCU_AF_MODE_ACTIVE) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_STANDBY);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CTRL_AF, MCU_AF_MODE_STANDBY);
 		usleep_range(5000, 5010);
 	}
 
@@ -2125,7 +2126,7 @@ int ois_mcu_set_power_mode(struct v4l2_subdev *subdev, int forceMode)
 		ois_mcu_device_ctrl(mcu);
 		do {
 			usleep_range(500, 510);
-			val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_DEVCTRL);
+			val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_DEVCTRL);
 			if (--retry < 0) {
 				err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
 				break;
@@ -2146,44 +2147,44 @@ int ois_mcu_set_power_mode(struct v4l2_subdev *subdev, int forceMode)
 
 	/* OIS SEL (wide : 1 , tele : 2, tele2 : 4, triple : 7 ). */
 	if (forceMode == OIS_USE_UW_ONLY) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x00);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x00);
 		ois->ois_power_mode = OIS_POWER_MODE_NONE;
 	} else if (camera_running && !camera_running2 && !camera_running4) { //TEMP_OLYMPUS ==> need to be changed based on camera scenario
 #ifdef USE_TELE2_OIS_AF_COMMON_INTERFACE
 		ois_mcu_set_sleep_mode_folded_zoom();
 #endif
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x01);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x01);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE_WIDE;
 		usleep_range(5000, 5010);
 	} else if (!camera_running && camera_running2 && !camera_running4) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x02);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x02);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE_TELE;
 	} else if (camera_running && camera_running2 && !camera_running4) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03);
 		ois->ois_power_mode = OIS_POWER_MODE_DUAL;
 	} else if (!camera_running && !camera_running2 && camera_running4) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x04);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x04);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE_TELE2;
 	} else {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x07);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x07);
 		ois->ois_power_mode = OIS_POWER_MODE_TRIPLE;
 	}
 #else
 	/* OIS SEL (wide : 1 , tele : 2, both : 3 ). */
 	if (forceMode == OIS_USE_UW_ONLY) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x00);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x00);
 		ois->ois_power_mode = OIS_POWER_MODE_NONE;
 	} else if (forceMode == OIS_USE_UW_WIDE) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x01);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x01);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE_WIDE;
 	} else if (camera_running && !camera_running2) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x01);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x01);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE_WIDE;
 	} else if (!camera_running && camera_running2) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x02);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x02);
 		ois->ois_power_mode = OIS_POWER_MODE_SINGLE_TELE;
 	} else {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_OIS_SEL, 0x03);
 		ois->ois_power_mode = OIS_POWER_MODE_DUAL;
 	}
 #endif
@@ -2202,9 +2203,9 @@ void ois_mcu_enable(struct is_core *core)
 
 	info_mcu("%s : E\n", __func__);
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x00);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x00);
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x01);
 
 	info_mcu("%s : X\n", __func__);
 }
@@ -2224,12 +2225,12 @@ int ois_mcu_disable(struct v4l2_subdev *subdev)
 	if (ois_hw_check) {
 #ifdef CONFIG_USE_OIS_TAMODE_CONTROL
 		if (ois_tamode_onoff && ois_tamode_status) {
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TAMODE, 0x00);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TAMODE, 0x00);
 			ois_tamode_status = false;
 			ois_tamode_onoff = false;
 		}
 #endif
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x00);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x00);
 		usleep_range(2000, 2100);
 
 		ois_fadeupdown = false;
@@ -2259,75 +2260,75 @@ void ois_mcu_get_hall_position(struct is_core *core, u16 *targetPos, u16 *hallPo
 	info_mcu("%s : E\n", __func__);
 
 	/* set centering mode */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x05);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x05);
 
 	/* enable position data read */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_FWINFO_CTRL, 0x01);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_FWINFO_CTRL, 0x01);
 
 	msleep(150);
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR_X);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR_X2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR_X);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR_X2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	targetPos[0] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR_Y);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR_Y2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR_Y);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR_Y2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	targetPos[1] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR_X);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR_X2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR_X);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR_X2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	hallPos[0] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR_Y);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR_Y2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR_Y);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR_Y2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	hallPos[1] = pos;
 
 	info_mcu("%s : wide pos = 0x%04x, 0x%04x, 0x%04x, 0x%04x\n", __func__, targetPos[0], targetPos[1], hallPos[0], hallPos[1]);
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR2_X);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR2_X2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR2_X);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR2_X2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	targetPos[2] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR2_Y);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR2_Y2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR2_Y);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR2_Y2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	targetPos[3] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR2_X);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR2_X2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR2_X);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR2_X2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	hallPos[2] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR2_Y);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR2_Y2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR2_Y);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR2_Y2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	hallPos[3] = pos;
 
 	info_mcu("%s : tele pos = 0x%04x, 0x%04x, 0x%04x, 0x%04x\n", __func__, targetPos[2], targetPos[3], hallPos[2], hallPos[3]);
 
 #ifdef CAMERA_3RD_OIS
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR3_X);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR3_X2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR3_X);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR3_X2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	targetPos[4] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR3_Y);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR3_Y2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR3_Y);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TARGET_POS_REAR3_Y2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	targetPos[5] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR3_X);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR3_X2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR3_X);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR3_X2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	hallPos[4] = pos;
 
-	pos_temp[0] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR3_Y);
-	pos_temp[1] = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR3_Y2);
+	pos_temp[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR3_Y);
+	pos_temp[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_POS_REAR3_Y2);
 	pos = (pos_temp[1] << 8) | pos_temp[0];
 	hallPos[5] = pos;
 
@@ -2335,7 +2336,7 @@ void ois_mcu_get_hall_position(struct is_core *core, u16 *targetPos, u16 *hallPo
 #endif
 
 	/* disable position data read */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_FWINFO_CTRL, 0x00);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_FWINFO_CTRL, 0x00);
 
 	info_mcu("%s : X\n", __func__);
 }
@@ -2354,11 +2355,11 @@ bool ois_mcu_offset_test(struct is_core *core, long *raw_data_x, long *raw_data_
 
 	info_mcu("%s : E\n", __func__);
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL, 0x01);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL, 0x01);
 
 	retries = avg_count;
 	do {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL);
 		 msleep(50);
 		if (--retries < 0) {
 			err("Read register failed!!!!, data = 0x%04x\n", val);
@@ -2367,7 +2368,7 @@ bool ois_mcu_offset_test(struct is_core *core, long *raw_data_x, long *raw_data_
 	} while (val);
 
 	/* Gyro result check */
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
 
 	if ((val & 0x63) == 0x0) {
 		info_mcu("[%s] Gyro result check success. Result is OK. gyro value = 0x%02x", __func__, val);
@@ -2380,9 +2381,9 @@ bool ois_mcu_offset_test(struct is_core *core, long *raw_data_x, long *raw_data_
 	sum = 0;
 	retries = avg_count;
 	for (i = 0; i < retries; retries--) {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X1);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X1);
 		x = val;
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X2);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X2);
 		x_sum = (val << 8) | x;
 		if (x_sum > 0x7FFF) {
 			x_sum = -((x_sum ^ 0xFFFF) + 1);
@@ -2395,9 +2396,9 @@ bool ois_mcu_offset_test(struct is_core *core, long *raw_data_x, long *raw_data_
 	sum = 0;
 	retries = avg_count;
 	for (i = 0; i < retries; retries--) {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y1);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y1);
 		y = val;
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y2);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y2);
 		y_sum = (val << 8) | y;
 		if (y_sum > 0x7FFF) {
 			y_sum = -((y_sum ^ 0xFFFF) + 1);
@@ -2410,9 +2411,9 @@ bool ois_mcu_offset_test(struct is_core *core, long *raw_data_x, long *raw_data_
 	sum = 0;
 	retries = avg_count;
 	for (i = 0; i < retries; retries--) {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z1);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z1);
 		z = val;
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z2);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z2);
 		z_sum = (val << 8) | z;
 		if (z_sum > 0x7FFF) {
 			z_sum = -((z_sum ^ 0xFFFF) + 1);
@@ -2441,7 +2442,7 @@ void ois_mcu_get_offset_data(struct is_core *core, long *raw_data_x, long *raw_d
 	/* check ois status */
 	retries = avg_count;
 	do {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 		msleep(50);
 		if (--retries < 0) {
 			err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -2470,27 +2471,27 @@ int ois_mcu_bypass_read(struct ois_mcu_dev *mcu, u16 id, u16 reg, u8 reg_size, u
 	/* device id */
 	dev_id[0] = id & 0xFF;
 	dev_id[1] = (id >> 8) & 0xFF;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID1, dev_id[0]);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID2, dev_id[1]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID1, dev_id[0]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID2, dev_id[1]);
 
 	/* register address */
 	reg_add[0] = reg & 0xFF;
 	reg_add[1] = (reg >> 8) & 0xFF;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD1, reg_add[0]);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD2, reg_add[1]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD1, reg_add[0]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD2, reg_add[1]);
 
 	/* reg size */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_SIZE, reg_size);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_SIZE, reg_size);
 
 	/* data size */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DATA_SIZE, data_size);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DATA_SIZE, data_size);
 
 	/* run bypass mode */
 	mode = 0x02;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL, mode);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL, mode);
 
 	do {
-		rcvdata = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL);
+		rcvdata = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL);
 		usleep_range(1000, 1100);
 		if (--retries < 0) {
 			err_mcu("%s read status failed!!!!, data = 0x%04x\n", __func__, rcvdata);
@@ -2500,7 +2501,7 @@ int ois_mcu_bypass_read(struct ois_mcu_dev *mcu, u16 id, u16 reg, u8 reg_size, u
 
 	/* get data */
 	for (i = 0; i < data_size; i++) {
-		rcvdata = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DATA_TRANSFER + i);
+		rcvdata = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DATA_TRANSFER + i);
 		*(buf + i) = rcvdata & 0xFF;
 	}
 
@@ -2523,32 +2524,32 @@ int ois_mcu_bypass_write(struct ois_mcu_dev *mcu, u16 id, u16 reg, u8 reg_size, 
 	/* device id */
 	dev_id[0] = id & 0xFF;
 	dev_id[1] = (id >> 8) & 0xFF;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID1, dev_id[0]);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID2, dev_id[1]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID1, dev_id[0]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID2, dev_id[1]);
 
 	/* register address */
 	reg_add[0] = reg& 0xFF;
 	reg_add[1] = (reg >> 8) & 0xFF;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD1, reg_add[0]);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD2, reg_add[1]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD1, reg_add[0]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD2, reg_add[1]);
 
 	/* reg size */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_SIZE, reg_size);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_SIZE, reg_size);
 
 	/* data size */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DATA_SIZE, data_size);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DATA_SIZE, data_size);
 
 	/* send data */
 	for (i = 0; i < data_size; i++) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DATA_TRANSFER + i, *(buf + i) & 0xFF);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DATA_TRANSFER + i, *(buf + i) & 0xFF);
 	}
 
 	/* run bypass mode */
 	mode = 0x02;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL, mode);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL, mode);
 
 	do {
-		rcvdata = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL);
+		rcvdata = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL);
 		usleep_range(1000, 1100);
 		if (--retries < 0) {
 			err_mcu("%s read status failed!!!!, data = 0x%04x\n", __func__, rcvdata);
@@ -2586,7 +2587,7 @@ int ois_mcu_check_cross_talk(struct v4l2_subdev *subdev, u16 *hall_data)
 	}
 
 	do {
-		val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 		usleep_range(500, 510);
 		if (--retries < 0) {
 			err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -2636,20 +2637,20 @@ int ois_mcu_bypass_read_mode1(struct ois_mcu_dev *mcu, u8 id, u8 reg, u8 *buf, u
 	info_mcu("%s E\n", __func__);
 
 	/* device id */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID1, id);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID1, id);
 
 	/* register address */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID2, reg);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID2, reg);
 
 	/* data size */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD1, data_size);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD1, data_size);
 
 	/* run bypass mode */
 	mode = 0x01;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL, mode);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL, mode);
 
 	do {
-		rcvdata = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL);
+		rcvdata = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL);
 		usleep_range(1000, 1100);
 		if (--retries < 0) {
 			err_mcu("%s read status failed!!!!, data = 0x%04x\n", __func__, rcvdata);
@@ -2659,7 +2660,7 @@ int ois_mcu_bypass_read_mode1(struct ois_mcu_dev *mcu, u8 id, u8 reg, u8 *buf, u
 
 	/* get data */
 	for (i = 0; i < data_size; i++) {
-		rcvdata = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD2 + i);
+		rcvdata = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD2 + i);
 		*(buf + i) = rcvdata & 0xFF;
 	}
 
@@ -2678,25 +2679,25 @@ int ois_mcu_bypass_write_mode1(struct ois_mcu_dev *mcu, u8 id, u8 reg, u8 *buf, 
 	info_mcu("%s E\n", __func__);
 
 	/* device id */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID1, id);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID1, id);
 
 	/* register address */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID2, reg);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_DEVICE_ID2, reg);
 
 	/* data size */
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD1, data_size);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD1, data_size);
 
 	/* send data */
 	for (i = 0; i < data_size; i++) {
-		is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD2 + i, *(buf + i) & 0xFF);
+		is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_REG_ADD2 + i, *(buf + i) & 0xFF);
 	}
 
 	/* run bypass mode */
 	mode = 0x01;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL, mode);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL, mode);
 
 	do {
-		rcvdata = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL);
+		rcvdata = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_BYPASS_CTRL);
 		usleep_range(1000, 1100);
 		if (--retries < 0) {
 			err_mcu("%s read status failed!!!!, data = 0x%04x\n", __func__, rcvdata);
@@ -2745,7 +2746,7 @@ int ois_mcu_check_hall_cal(struct v4l2_subdev *subdev, u16 *hall_cal_data)
 	}
 
 	do {
-		val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 		usleep_range(500, 510);
 		if (--retries < 0) {
 			err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -2893,7 +2894,7 @@ int ois_mcu_read_ext_clock(struct v4l2_subdev *subdev, u32 *clock)
 	}
 
 	do {
-		val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		val = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 		usleep_range(500, 510);
 		if (--retries < 0) {
 			err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -2918,10 +2919,10 @@ void ois_mcu_gyro_sleep(struct is_core *core)
 
 	mcu = core->mcu;
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x00);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x00);
 
 	do {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 
 		if (val == 0x01 || val == 0x13)
 			break;
@@ -2933,7 +2934,7 @@ void ois_mcu_gyro_sleep(struct is_core *core)
 		err("Read register failed!!!!, data = 0x%04x\n", val);
 	}
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_SLEEP, 0x03);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_SLEEP, 0x03);
 	usleep_range(1000, 1100);
 
 	return;
@@ -2950,12 +2951,12 @@ void ois_mcu_exif_data(struct is_core *core)
 
 	is_ois_get_exif_data(&ois_exif_data);
 
-	error_reg[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
-	error_reg[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM);
+	error_reg[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
+	error_reg[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM);
 
 	error_sum = (error_reg[1] << 8) | error_reg[0];
 
-	status_reg = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+	status_reg = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 
 	ois_exif_data->error_data = error_sum;
 	ois_exif_data->status_data = status_reg;
@@ -2970,7 +2971,7 @@ u8 ois_mcu_read_status(struct is_core *core)
 
 	mcu = core->mcu;
 
-	status = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_STATUS);
+	status = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_STATUS);
 
 	return status;
 }
@@ -2982,7 +2983,7 @@ u8 ois_mcu_read_cal_checksum(struct is_core *core)
 
 	mcu = core->mcu;
 
-	status = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM);
+	status = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM);
 
 	return status;
 }
@@ -3020,7 +3021,7 @@ int ois_mcu_set_coef(struct v4l2_subdev *subdev, u8 coef)
 
 	dbg_ois("%s %d\n", __func__, coef);
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_SET_COEF, coef);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SET_COEF, coef);
 
 	ois->pre_coef = coef;
 
@@ -3053,13 +3054,13 @@ int ois_mcu_shift(struct v4l2_subdev *subdev)
 
 	data[0] = (ois_center_x & 0xFF);
 	data[1] = (ois_center_x & 0xFF00) >> 8;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CENTER_X1, data[0]);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CENTER_X2, data[1]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CENTER_X1, data[0]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CENTER_X2, data[1]);
 
 	data[0] = (ois_center_y & 0xFF);
 	data[1] = (ois_center_y & 0xFF00) >> 8;
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CENTER_Y1, data[0]);
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CENTER_Y2, data[1]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CENTER_Y1, data[0]);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CENTER_Y2, data[1]);
 
 	return ret;
 }
@@ -3089,7 +3090,7 @@ int ois_mcu_set_centering(struct v4l2_subdev *subdev)
 
 	ois = is_mcu->ois;
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x05);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE, 0x05);
 
 	ois->pre_ois_mode = OPTICAL_STABILIZATION_MODE_CENTERING;
 
@@ -3117,7 +3118,7 @@ u8 ois_mcu_read_mode(struct v4l2_subdev *subdev)
 		return ret;
 	}
 
-	mode = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE);
+	mode = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_MODE);
 
 	switch(mode) {
 		case 0x00:
@@ -3158,7 +3159,7 @@ bool ois_mcu_gyro_cal(struct is_core *core, long *x_value, long *y_value, long *
 
 	/* check ois status */
 	do {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 		 msleep(20);
 		if (--retries < 0) {
 			err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -3168,10 +3169,10 @@ bool ois_mcu_gyro_cal(struct is_core *core, long *x_value, long *y_value, long *
 
 	retries = 30;
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL, 0x01);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL, 0x01);
 
 	do {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_CAL);
 		msleep(15);
 		if (--retries < 0) {
 			err("Read register failed!!!!, data = 0x%04x\n", val);
@@ -3180,7 +3181,7 @@ bool ois_mcu_gyro_cal(struct is_core *core, long *x_value, long *y_value, long *
 	} while (val);
 
 	/* Gyro result check */
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
 
 	if ((val & 0x63) == 0x0) {
 		info_mcu("[%s] Written cal is OK. val = 0x%02x.", __func__, val);
@@ -3190,25 +3191,25 @@ bool ois_mcu_gyro_cal(struct is_core *core, long *x_value, long *y_value, long *
 		result = false;
 	}
 
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X1);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X1);
 	x = val;
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X2);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_X2);
 	x_sum = (val << 8) | x;
 	if (x_sum > 0x7FFF) {
 		x_sum = -((x_sum ^ 0xFFFF) + 1);
 	}
 
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y1);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y1);
 	y = val;
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y2);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Y2);
 	y_sum = (val << 8) | y;
 	if (y_sum > 0x7FFF) {
 		y_sum = -((y_sum ^ 0xFFFF) + 1);
 	}
 
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z1);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z1);
 	z = val;
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z2);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_RAW_DEBUG_Z2);
 	z_sum = (val << 8) | z;
 	if (z_sum > 0x7FFF) {
 		z_sum = -((z_sum ^ 0xFFFF) + 1);
@@ -3237,12 +3238,12 @@ bool ois_mcu_read_gyro_noise(struct is_core *core, long *x_value, long *y_value)
 
 	msleep(500);
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x00);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_START, 0x00);
 	usleep_range(1000, 1100);
 
 	/* check ois status */
 	do {
-		val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
+		val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_STATUS);
 		msleep(20);
 		if (--retries < 0) {
 			err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
@@ -3251,21 +3252,21 @@ bool ois_mcu_read_gyro_noise(struct is_core *core, long *x_value, long *y_value)
 		}
 	} while (val != 0x01);
 
-	is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_SET_GYRO_NOISE, 0x01);
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SET_GYRO_NOISE, 0x01);
 
 	msleep(1000);
 
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_GYRO_NOISE_X1);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_GYRO_NOISE_X1);
 	x = val;
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_GYRO_NOISE_X2);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_GYRO_NOISE_X2);
 	x_sum = (val << 8) | x;
 	if (x_sum > 0x7FFF) {
 		x_sum = -((x_sum ^ 0xFFFF) + 1);
 	}
 
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_GYRO_NOISE_Y1);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_GYRO_NOISE_Y1);
 	y = val;
-	val = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_GYRO_NOISE_Y2);
+	val = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_READ_GYRO_NOISE_Y2);
 	y_sum = (val << 8) | y;
 	if (y_sum > 0x7FFF) {
 		y_sum = -((y_sum ^ 0xFFFF) + 1);
@@ -3329,7 +3330,7 @@ request_err:
 	return ret;
 }
 
-#ifdef USE_OIS_HALL_DATA_FOR_VDIS
+#if defined(USE_OIS_HALL_DATA_FOR_VDIS)
 int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *halldata)
 {
 	int ret = 0;
@@ -3347,112 +3348,286 @@ int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *h
 		return ret;
 	}
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_TIME_STAMP_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_TIME_STAMP_2);
-	val3 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_TIME_STAMP_3);
-	val4 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_TIME_STAMP_4);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_TIME_STAMP_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_TIME_STAMP_2);
+	val3 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_TIME_STAMP_3);
+	val4 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_TIME_STAMP_4);
 	defaultAngle =  (val4 << 24) | (val3 << 16) | (val2 << 8) | val1;
 	halldata->defaultAngle = defaultAngle;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X1_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X1_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X1_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X1_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->X_AngVel[0] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y1_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y1_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y1_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y1_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Y_AngVel[0] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z1_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z1_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z1_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z1_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Z_AngVel[0] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X2_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X2_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X2_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X2_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->X_AngVel[1] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y2_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y2_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y2_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y2_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Y_AngVel[1] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z2_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z2_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z2_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z2_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Z_AngVel[1] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X3_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X3_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X3_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X3_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->X_AngVel[2] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y3_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y3_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y3_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y3_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Y_AngVel[2] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z3_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z3_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z3_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z3_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Z_AngVel[2] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X4_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X4_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X4_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X4_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->X_AngVel[3] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y4_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y4_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y4_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y4_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Y_AngVel[3] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z4_ANGVEL_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z4_ANGVEL_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z4_ANGVEL_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Z4_ANGVEL_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Z_AngVel[3] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X1_ANG_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X1_ANG_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X1_ANG_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X1_ANG_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->X_Angle[0] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y1_ANG_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y1_ANG_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y1_ANG_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y1_ANG_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Y_Angle[0] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X2_ANG_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X2_ANG_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X2_ANG_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X2_ANG_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->X_Angle[1] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y2_ANG_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y2_ANG_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y2_ANG_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y2_ANG_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Y_Angle[1] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X3_ANG_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X3_ANG_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X3_ANG_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X3_ANG_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->X_Angle[2] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y3_ANG_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y3_ANG_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y3_ANG_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y3_ANG_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Y_Angle[2] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X4_ANG_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X4_ANG_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X4_ANG_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_X4_ANG_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->X_Angle[3] = val_sum;
 
-	val1 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y4_ANG_1);
-	val2 = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y4_ANG_2);
+	val1 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y4_ANG_1);
+	val2 = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_VDIS_Y4_ANG_2);
 	val_sum = (val2 << 8) | val1;
 	halldata->Y_Angle[3] = val_sum;
+
+	return ret;
+}
+#elif defined(CONFIG_OIS_HALL_DATA_PROVIDER)
+int ois_mcu_get_hall_data(struct v4l2_subdev *subdev, struct is_ois_hall_data *halldata)
+{
+	int ret = 0;
+	struct ois_mcu_dev *mcu = NULL;
+	u8 val[4] = {0, };
+	u64 timeStamp = 0;
+	int val_sum = 0;
+	int max_cnt = 192;
+	int index = 0;
+	int i = 0;
+	int valid_cnt = 0;
+	int valid_num = 0;
+	u64 prev_timestampboot = timestampboot;
+
+	WARN_ON(!subdev);
+
+	mcu = (struct ois_mcu_dev *)v4l2_get_subdevdata(subdev);
+	if(!mcu) {
+		err("%s, mcu is NULL", __func__);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if (!test_bit(OM_HW_RUN, &mcu->state)) {
+		err("%s, mcu turned off. Skip get_hall_data", __func__);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	/* SVDIS CTRL READ HALLDATA */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SVDIS_CTRL, 0x02);
+	usleep_range(150, 160);
+
+	/* S/W interrupt to MCU */
+	is_mcu_hw_set_field(mcu->regs[OM_REG_CORE], R_OIS_CM0P_IRQ, OIS_F_CM0P_IRQ_REQ, 0x01);
+	usleep_range(200, 210);
+
+	/* get current AP time stamp (read irq timing) */
+	timestampboot = ktime_get_boottime_ns();
+
+	val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TIME_STAMP1);
+	val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TIME_STAMP2);
+	val[2] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TIME_STAMP3);
+	val[3] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TIME_STAMP4);
+	timeStamp =  ((uint64_t)val[3] << 24) | ((uint64_t)val[2] << 16) | ((uint64_t)val[1] << 8) | (uint64_t)val[0];
+	halldata->timeStamp = prev_timestampboot + (timeStamp * 1000);
+
+	valid_num = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_VALID_NUMBER);
+	halldata->validData = valid_num;
+
+	valid_cnt = (int)valid_num * 8;
+	if (valid_cnt > max_cnt) {
+		valid_cnt = max_cnt;
+	}
+
+	/* Wide data */
+	for (i = 0; i < valid_cnt; i += 8) {
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_WIDE_X_ANG_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_WIDE_X_ANG_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->xAngleWide[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_WIDE_Y_ANG_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_WIDE_Y_ANG_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->yAngleWide[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_WIDE_X_ANGVEL_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_WIDE_X_ANGVEL_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->xAngVelWide[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_WIDE_Y_ANGVEL_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_WIDE_Y_ANGVEL_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->yAngVelWide[index] = val_sum;
+
+		index++;
+
+		if (index >= NUM_OF_HALLDATA_AT_ONCE) {
+			dbg_ois("Number of hall data (%d) is over than max", index);
+			break;
+		}
+	}
+#if defined(CAMERA_2ND_OIS)
+	/* Tele data */	
+	index = 0;
+
+	for (i = 0; i < valid_cnt; i += 8) {
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE_X_ANG_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE_X_ANG_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->xAngleTele[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE_Y_ANG_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE_Y_ANG_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->yAngleTele[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE_X_ANGVEL_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE_X_ANGVEL_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->xAngVelTele[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE_Y_ANGVEL_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE_Y_ANGVEL_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->yAngVelTele[index] = val_sum;
+		index++;
+
+		if (index >= NUM_OF_HALLDATA_AT_ONCE)
+			break;
+	}
+#endif
+#if defined(CAMERA_3RD_OIS)
+	/* Tele2 data */	
+	index = 0;
+
+	for (i = 0; i < valid_cnt; i += 8) {
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE2_X_ANG_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE2_X_ANG_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->xAngleTele2[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE2_Y_ANG_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE2_Y_ANG_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->yAngleTele2[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE2_X_ANGVEL_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE2_X_ANGVEL_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->xAngVelTele2[index] = val_sum;
+
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE2_Y_ANGVEL_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_TELE2_Y_ANGVEL_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->yAngVelTele2[index] = val_sum;
+		index++;
+
+		if (index >= NUM_OF_HALLDATA_AT_ONCE)
+			break;
+	}
+#endif
+
+	/* Z-axis data */
+	index = 0;
+	valid_cnt = valid_cnt / 4;  //= valid * 2
+
+	for (i = 0; i < valid_cnt; i += 2) {
+		val[0] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_Z_ANGVEL_0 + i);
+		val[1] = is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_HALL_Z_ANGVEL_0 + i + 1);
+		val_sum = (val[1] << 8) | val[0];
+		halldata->zAngVel[index] = val_sum;
+
+		index++;
+
+		if (index >= NUM_OF_HALLDATA_AT_ONCE)
+			break;
+	}
+
+	/* delay between write irq & read irq */
+	usleep_range(250, 260);
+
+	/* SVDIS CTRL WRITE TIMESTAMP */
+	is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_SVDIS_CTRL, 0x01);
+	usleep_range(300, 310);
+	
+	/* S/W interrupt to MCU */
+	is_mcu_hw_set_field(mcu->regs[OM_REG_CORE], R_OIS_CM0P_IRQ, OIS_F_CM0P_IRQ_REQ, 0x01);
 
 	return ret;
 }
@@ -3490,8 +3665,8 @@ void ois_mcu_check_valid(struct v4l2_subdev *subdev, u8 *value)
 
 	ois_mcu_init_factory(subdev);
 
-	error_reg[0] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
-	error_reg[1] = (u8)is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM);
+	error_reg[0] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_GYRO_RESULT);
+	error_reg[1] = (u8)is_mcu_get_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_CHECKSUM);
 	info_mcu("%s error reg value = 0x%02x/0x%02x", __func__, error_reg[0], error_reg[1]);
 
 	*value = error_reg[1];
@@ -3522,14 +3697,14 @@ void ois_mcu_set_tamode(void *ois_core, bool onoff)
 	if (onoff) {
 		ois_tamode_onoff = true;
 		if ((camera_running_rear || camera_running_rear2 || camera_running_rear4) && !ois_tamode_status) {
-			is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TAMODE, 0x01);
+			is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TAMODE, 0x01);
 			ois_tamode_status = true;
 			info_mcu("ois ta mode on.");
 		}
 	} else {
 		if (ois_tamode_onoff) {
 			if ((camera_running_rear || camera_running_rear2 || camera_running_rear4) && ois_tamode_status) {
-				is_mcu_set_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_TAMODE, 0x00);
+				is_mcu_set_reg_u8(mcu->regs[OM_REG_CORE], R_OIS_CMD_TAMODE, 0x00);
 				ois_tamode_status = false;
 				info_mcu("ois ta mode off.");
 			}
@@ -3588,7 +3763,7 @@ static struct is_ois_ops ois_ops_mcu = {
 	.ois_check_cross_talk = ois_mcu_check_cross_talk,
 	.ois_check_hall_cal = ois_mcu_check_hall_cal,
 	.ois_check_valid = ois_mcu_check_valid,
-#ifdef USE_OIS_HALL_DATA_FOR_VDIS
+#if defined(USE_OIS_HALL_DATA_FOR_VDIS) || defined(CONFIG_OIS_HALL_DATA_PROVIDER)
 	.ois_get_hall_data = ois_mcu_get_hall_data,
 #endif
 	.ois_get_active = ois_mcu_get_active,

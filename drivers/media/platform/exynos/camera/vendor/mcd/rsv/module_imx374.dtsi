@@ -158,7 +158,7 @@
 						vc1 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 1 HW_FORMAT_RAW10_POTF 1988 280	/* out */ HW_FORMAT_RAW10_POTF VC_TAILPDAF 1988 280>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { votf = <0>; binnig = <1995>; };
+						option { votf = <0>; };
 					};
 					mode8 {
 						common = <1988 1120 120 0 7 CSI_DATA_LANES_4 1721 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
@@ -166,7 +166,7 @@
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { votf = <0>; binnig = <1995>; };
+						option { votf = <0>; };
 					};
 					mode9 {
 						common = <1824 1368 30 0 8 CSI_DATA_LANES_4 1721 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MOD3 EX_NONE>;
@@ -174,7 +174,7 @@
 						vc1 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 1 HW_FORMAT_RAW10_POTF 1824 342	/* out */ HW_FORMAT_RAW10_POTF VC_TAILPDAF 1824 342>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { votf = <0>; binnig = <1995>; };
+						option { votf = <0>; };
 					};
 					mode10 {
 						common = <1616 912 30 0 9 CSI_DATA_LANES_4 1721 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MOD3 EX_NONE>;
@@ -198,7 +198,7 @@
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { votf = <0>; binnig = <1995>; special_mode = <IS_SPECIAL_MODE_FASTAE>; };
+						option { votf = <0>; special_mode = <IS_SPECIAL_MODE_FASTAE>; };
 					};
 					mode13 {
 						common = <3648 2056 30 0 12 CSI_DATA_LANES_4 1721 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MOD3 EX_NONE>;

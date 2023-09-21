@@ -117,7 +117,7 @@ static void is_lib_vra_callback_final_output_ready(u32 instance,
 #endif
 
 	if (IS_ENABLED(ENABLE_REPROCESSING_FD)) {
-		CALL_HW_OPS(lib_vra->hw_ip->hardware, dbg_trace, lib_vra->hw_ip,
+		CALL_HW_OPS(lib_vra->hw_ip, dbg_trace, lib_vra->hw_ip,
 			atomic_read(&lib_vra->hw_ip->fcount),
 			DEBUG_POINT_FRAME_END);
 
@@ -129,7 +129,7 @@ static void is_lib_vra_callback_final_output_ready(u32 instance,
 			clear_bit(instance, &lib_vra->done_vra_callback_out_ready);
 			clear_bit(instance, &lib_vra->done_vra_hw_intr);
 			spin_unlock_irqrestore(&lib_vra->reprocess_fd_lock, lib_vra->reprocess_fd_flag);
-			CALL_HW_OPS(lib_vra->hw_ip->hardware, frame_done, lib_vra->hw_ip,
+			CALL_HW_OPS(lib_vra->hw_ip, frame_done, lib_vra->hw_ip,
 				NULL, -1, IS_HW_CORE_END, IS_SHOT_SUCCESS, true);
 		} else {
 			spin_unlock_irqrestore(&lib_vra->reprocess_fd_lock, lib_vra->reprocess_fd_flag);

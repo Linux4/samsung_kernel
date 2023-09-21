@@ -458,7 +458,7 @@ void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
 			writel(0x02, phy_base_regs + 0x2D4);
 			writel(0x02, phy_base_regs + 0x358);
 
-			writel(0x02, phy_base_regs + 0x204);
+			writel(0x03, phy_base_regs + 0x204);
 
 			writel(0x700D5, phy_pcs_base_regs + 0x154);// always on clkref P1 CPM
 			writel(0x16400000, phy_pcs_base_regs + 0x100);

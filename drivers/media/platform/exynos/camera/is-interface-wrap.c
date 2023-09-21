@@ -41,7 +41,7 @@ int is_itf_s_param_wrap(struct is_device_ischain *device,
 	return ret;
 }
 
-int is_itf_a_param_wrap(struct is_device_ischain *device, u64 group)
+int is_itf_chg_setfile_wrap(struct is_device_ischain *device, u64 group)
 {
 	struct is_hardware *hardware = NULL;
 	u32 instance, ginstance;
@@ -67,6 +67,7 @@ int is_itf_a_param_wrap(struct is_device_ischain *device, u64 group)
 			return ret;
 		}
 	}
+	minfo("[ISC:D] %s(%d)\n", device, __func__, device->setfile & IS_SETFILE_MASK);
 
 	return 0;
 }
@@ -755,8 +756,8 @@ int is_itf_shot_wrap(struct is_device_ischain *device,
 		}
 	}
 
-	ret = is_hardware_grp_shot(hardware, instance, group, frame,
-					hardware->hw_map[instance]);
+	ret = CALL_HW_GRP_OPS(group, shot, hardware, instance, group, frame,
+						hardware->hw_map[instance]);
 	if (ret) {
 		merr("is_hardware_grp_shot is fail(%d)", device, ret);
 		return ret;

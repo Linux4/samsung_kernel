@@ -125,6 +125,7 @@
 		battery,tx_gear_min_op_freq_delay = <4000>;
 		battery,mis_align_guide;
 		battery,mis_align_target_vout = <5000>;
+		battery,fw_ver = <0x2032>;
 
 		fod_list {
 			count = <1>;

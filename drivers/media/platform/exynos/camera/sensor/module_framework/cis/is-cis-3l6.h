@@ -14,18 +14,16 @@
 
 #include "is-cis.h"
 
-#define EXT_CLK_Mhz (26)
+#define EXT_CLK_Khz (19200)
 
-#define SENSOR_3L6_MAX_WIDTH		(4128)
-#define SENSOR_3L6_MAX_HEIGHT		(3096)
+#define SENSOR_3L6_MAX_WIDTH		(4000)
+#define SENSOR_3L6_MAX_HEIGHT		(3000)
 
 /* TODO: Check below values are valid */
 #define SENSOR_3L6_FINE_INTEGRATION_TIME_MIN                0x1C5
 #define SENSOR_3L6_FINE_INTEGRATION_TIME_MAX                0x1C5
 #define SENSOR_3L6_COARSE_INTEGRATION_TIME_MIN              0x2
 #define SENSOR_3L6_COARSE_INTEGRATION_TIME_MAX_MARGIN       0x4
-
-#define USE_GROUP_PARAM_HOLD	(0)
 
 /****
  **  Register Address
@@ -56,14 +54,5 @@
 #define SENSOR_3L6_BINNING_TYPE_ADDR		(0x0901)
 #define SENSOR_3L6_PLL_POWER_CONTROL_ADDR	(0x3C1E)
 #define SENSOR_3L6_PAGE_SELECT_ADDR		(0x6028)
-
-/*Apply the same order as in is-cis-3l6-setX.h file*/
-enum sensor_mode_enum {
-	SENSOR_3L6_MODE_4128x3096_30FPS,
-	SENSOR_3L6_MODE_4128x2324_30FPS,
-	SENSOR_3L6_MODE_3408x2556_30FPS,
-	SENSOR_3L6_MODE_3408x1916_30FPS,
-	SENSOR_3L6_MODE_1028x772_120FPS,
-};
 
 #endif

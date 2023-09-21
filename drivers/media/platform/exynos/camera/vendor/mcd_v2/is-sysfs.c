@@ -183,7 +183,7 @@ static int is_get_sensor_data(char *maker, char *name, int position)
 /* common function for sysfs */
 static ssize_t camera_info_show(char *buf, enum is_cam_info_index cam_index)
 {
-	char camera_info[130] = {0, };
+	char camera_info[150] = {0, };
 #ifdef CONFIG_OF
 	struct is_cam_info *cam_info;
 
@@ -802,8 +802,8 @@ static ssize_t camera_afcal_show(char *buf, enum is_cam_info_index cam_index)
 	char *cal_buf;
 	bool is_front = false;
 	int i;
-	char tempbuf[30] = {0, };
-	char tmpChar[5] = {0, };
+	char tempbuf[15 * AF_CAL_MAX] = {0, };
+	char tmpChar[15] = {0, };
 
 	is_get_cam_info_from_index(&cam_info, cam_index);
 
@@ -2876,7 +2876,16 @@ static ssize_t rear_camera_hw_param_show(struct device *dev,
 	position = cam_info->internal_id;
 
 	is_sec_get_sysfs_finfo(&finfo, is_vendor_get_rom_id_from_position(position));
+	if (!finfo) {
+		err("wrong position (%d)", position);
+		return 0;
+	}
+
 	is_sec_get_hw_param(&ec_param, position);
+	if (!ec_param) {
+		err("Fail to get ec_param (%d)", position);
+		return 0;
+	}
 
 	if (is_sec_is_valid_moduleid(finfo->rom_module_id)) {
 		return sprintf(buf, "\"CAMIR_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR_AF\":\"%d\","
@@ -2925,7 +2934,16 @@ static ssize_t front_camera_hw_param_show(struct device *dev,
 	position = cam_info->internal_id;
 
 	is_sec_get_sysfs_finfo(&finfo, is_vendor_get_rom_id_from_position(position));
+	if (!finfo) {
+		err("wrong position (%d)", position);
+		return 0;
+	}
+
 	is_sec_get_hw_param(&ec_param, position);
+	if (!ec_param) {
+		err("Fail to get ec_param (%d)", position);
+		return 0;
+	}
 
 	if (is_sec_is_valid_moduleid(finfo->rom_module_id)) {
 		return sprintf(buf, "\"CAMIF_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CF_AF\":\"%d\","
@@ -2976,7 +2994,16 @@ static ssize_t rear2_camera_hw_param_show(struct device *dev,
 	position = cam_info->internal_id;
 
 	is_sec_get_sysfs_finfo(&finfo, is_vendor_get_rom_id_from_position(position));
+	if (!finfo) {
+		err("wrong position (%d)", position);
+		return 0;
+	}
+
 	is_sec_get_hw_param(&ec_param, position);
+	if (!ec_param) {
+		err("Fail to get ec_param (%d)", position);
+		return 0;
+	}
 
 	if (is_sec_is_valid_moduleid(finfo->rom_module_id)) {
 		return sprintf(buf, "\"CAMIR2_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR2_AF\":\"%d\","
@@ -3027,7 +3054,16 @@ static ssize_t rear3_camera_hw_param_show(struct device *dev,
 	position = cam_info->internal_id;
 
 	is_sec_get_sysfs_finfo(&finfo, is_vendor_get_rom_id_from_position(position));
+	if (!finfo) {
+		err("wrong position (%d)", position);
+		return 0;
+	}
+
 	is_sec_get_hw_param(&ec_param, position);
+	if (!ec_param) {
+		err("Fail to get ec_param (%d)", position);
+		return 0;
+	}
 
 	if (is_sec_is_valid_moduleid(finfo->rom_module_id)) {
 		return sprintf(buf, "\"CAMIR3_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR3_AF\":\"%d\","
@@ -3078,7 +3114,16 @@ static ssize_t rear4_camera_hw_param_show(struct device *dev,
 	position = cam_info->internal_id;
 
 	is_sec_get_sysfs_finfo(&finfo, is_vendor_get_rom_id_from_position(position));
+	if (!finfo) {
+		err("wrong position (%d)", position);
+		return 0;
+	}
+
 	is_sec_get_hw_param(&ec_param, position);
+	if (!ec_param) {
+		err("Fail to get ec_param (%d)", position);
+		return 0;
+	}
 
 	if (is_sec_is_valid_moduleid(finfo->rom_module_id)) {
 		return sprintf(buf, "\"CAMIR4_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR4_AF\":\"%d\","

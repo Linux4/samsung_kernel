@@ -19,7 +19,11 @@ obj-$(CONFIG_WLAN_VENDOR_ST) += st/
 obj-$(CONFIG_WLAN_VENDOR_TI) += ti/
 obj-$(CONFIG_WLAN_VENDOR_ZYDAS) += zydas/
 obj-$(CONFIG_WLAN_VENDOR_QUANTENNA) += quantenna/
+ifeq ($(CONFIG_SOC_S5E9925),y)
+obj-$(CONFIG_SCSC_WLAN) += paean_scsc/
+else
 obj-$(CONFIG_SCSC_WLAN) += scsc/
+endif
 
 obj-$(CONFIG_BCM_DHD_WLAN) += broadcom/
 
@@ -37,4 +41,8 @@ obj-$(CONFIG_CNSS2) += cnss2/
 obj-$(CONFIG_CNSS_UTILS) += cnss_utils/
 obj-$(CONFIG_CNSS_GENL) += cnss_genl/
 obj-$(CONFIG_WCNSS_MEM_PRE_ALLOC) += cnss_prealloc/
+ifeq ($(CONFIG_R11S_WIRELESS),y)
+obj-$(CONFIG_QCA_CLD_WLAN)  += qualcomm/r11s/qcacld-3.0/
+else
 obj-$(CONFIG_QCA_CLD_WLAN)  += qualcomm/qca6490/qcacld-3.0/
+endif

@@ -17,16 +17,20 @@
 #include "is-hw-dm.h"
 #include "is-work.h"
 #include "is-hw-ip.h"
+#include "is-interface-ddk.h"
+#include "is-interface-sensor.h"
 #include "pablo-obte.h"
+
 
 #define INTERNAL_SHOT_EXIST	(1)
 
 static ulong debug_time_hw;
 module_param(debug_time_hw, ulong, 0644);
 
-static int is_hardware_frame_ndone(struct is_hw_ip *ldr_hw_ip,
-	struct is_frame *frame, u32 instance,
-	enum ShotErrorType done_type);
+static inline int is_hardware_shot(struct is_hardware *hardware, u32 instance,
+	struct is_group *group, struct is_frame *frame,
+	struct is_framemgr *framemgr, ulong hw_map, u32 framenum);
+static const struct is_hardware_ops is_hardware_ops;
 
 static inline void wq_func_schedule(struct is_interface *itf,
 	struct work_struct *work_wq)
@@ -393,7 +397,7 @@ void print_all_hw_frame_count(struct is_hardware *hardware)
 	}
 }
 
-static void is_hardware_flush_frame(struct is_hw_ip *hw_ip,
+void is_hardware_flush_frame(struct is_hw_ip *hw_ip,
 	enum is_frame_state state,
 	enum ShotErrorType done_type)
 {
@@ -440,87 +444,8 @@ static void is_hardware_flush_frame(struct is_hw_ip *hw_ip,
 		err_hw("frame flush is not completed");
 }
 
-u32 get_group_id_from_hw_ip(u32 hw_id)
-{
-	u32 group_id = GROUP_ID_MAX;
 
-	switch(hw_id) {
-	case DEV_HW_3AA0:
-		group_id = GROUP_ID_3AA0;
-		break;
-	case DEV_HW_3AA1:
-		group_id = GROUP_ID_3AA1;
-		break;
-	case DEV_HW_3AA2:
-		group_id = GROUP_ID_3AA2;
-		break;
-	case DEV_HW_3AA3:
-		group_id = GROUP_ID_3AA3;
-		break;
-	case DEV_HW_LME0:
-		group_id = GROUP_ID_LME0;
-		break;
-	case DEV_HW_LME1:
-		group_id = GROUP_ID_LME1;
-		break;
-	case DEV_HW_ORB0:
-		group_id = GROUP_ID_ORB0;
-		break;
-	case DEV_HW_ORB1:
-		group_id = GROUP_ID_ORB1;
-		break;
-	case DEV_HW_ISP0:
-		group_id = GROUP_ID_ISP0;
-		break;
-	case DEV_HW_ISP1:
-		group_id = GROUP_ID_ISP1;
-		break;
-	case DEV_HW_MCSC0:
-		group_id = GROUP_ID_MCS0;
-		break;
-	case DEV_HW_MCSC1:
-		group_id = GROUP_ID_MCS1;
-		break;
-	case DEV_HW_VRA:
-		group_id = GROUP_ID_VRA0;
-		break;
-	case DEV_HW_PAF0:
-		group_id = GROUP_ID_PAF0;
-		break;
-	case DEV_HW_PAF1:
-		group_id = GROUP_ID_PAF1;
-		break;
-	case DEV_HW_PAF2:
-		group_id = GROUP_ID_PAF2;
-		break;
-	case DEV_HW_PAF3:
-		group_id = GROUP_ID_PAF3;
-		break;
-	case DEV_HW_CLH0:
-		group_id = GROUP_ID_CLH0;
-		break;
-	case DEV_HW_YPP:
-		group_id = GROUP_ID_YPP;
-		break;
-	case DEV_HW_BYRP:
-		group_id = GROUP_ID_BYRP;
-		break;
-	case DEV_HW_RGBP:
-		group_id = GROUP_ID_RGBP;
-		break;
-	case DEV_HW_MCFP:
-		group_id = GROUP_ID_MCFP;
-		break;
-	default:
-		group_id = GROUP_ID_MAX;
-		err_hw("invalid hw_id(%d)", hw_id);
-		break;
-	}
-
-	return group_id;
-}
-
-static inline void is_hardware_fill_frame_info(u32 instance,
+void is_hardware_fill_frame_info(u32 instance,
 	struct is_frame *hw_frame,
 	struct is_frame *frame,
 	struct is_group *group,
@@ -789,11 +714,83 @@ flush_frame:
 
 	if (timeout) {
 		print_all_hw_frame_count(hw_ip->hardware);
-		is_hardware_flush_frame(hw_ip, FS_HW_REQUEST, IS_SHOT_TIMEOUT);
+		CALL_HW_OPS(hw_ip, flush_frame, hw_ip, FS_HW_REQUEST, IS_SHOT_TIMEOUT);
 	} else {
 		msinfo_hw(" false alarm timeout", instance, hw_ip);
 		print_all_hw_frame_count(hw_ip->hardware);
 	}
+}
+
+static void is_hardware_update_sensor_info(struct is_group *grp, struct is_frame *frame)
+{
+	struct is_device_sensor *sensor = grp->device->sensor;
+	ulong rms_crop_state = sensor->rms_crop_state;
+	int b_ratio;
+	u32 sensor_w, sensor_h;
+	u32 rms_crop_ofs_x, rms_crop_ofs_y;
+
+	if (test_bit(IS_SENSOR_RMS_CROP_OFF, &rms_crop_state))
+		return;
+
+	b_ratio = is_sensor_g_updated_bratio(sensor);
+
+	dbg_hw(2, "[%s][F%d]%s: binning %d -> %d\n",
+	       group_id_name[grp->id], frame->fcount, __func__,
+	       frame->shot->udm.frame_info.sensor_binning[0], b_ratio);
+
+	sensor_w = frame->shot->udm.frame_info.sensor_size[0] * 1000 / b_ratio;
+	sensor_h = frame->shot->udm.frame_info.sensor_size[1] * 1000 / b_ratio;
+	rms_crop_ofs_x = (sensor_w - frame->shot->udm.frame_info.sensor_crop_region[2]) >> 1;
+	rms_crop_ofs_y = (sensor_h - frame->shot->udm.frame_info.sensor_crop_region[3]) >> 1;
+	rms_crop_ofs_x = ALIGN_DOWN(rms_crop_ofs_x, 2);
+	rms_crop_ofs_y = ALIGN_DOWN(rms_crop_ofs_y, 2);
+
+	frame->shot->udm.frame_info.sensor_binning[0] = b_ratio;
+	frame->shot->udm.frame_info.sensor_binning[1] = b_ratio;
+	frame->shot->udm.frame_info.sensor_crop_region[0] = rms_crop_ofs_x;
+	frame->shot->udm.frame_info.sensor_crop_region[1] = rms_crop_ofs_y;
+
+	dbg_hw(2, "[%s][F%d]%s: cal_size %dx%d binning %d bns %d crop %d,%d %dx%d\n",
+	       group_id_name[grp->id], frame->fcount, __func__,
+	       frame->shot->udm.frame_info.sensor_size[0],
+	       frame->shot->udm.frame_info.sensor_size[1],
+	       frame->shot->udm.frame_info.sensor_binning[0],
+	       frame->shot->udm.frame_info.bns_binning[0],
+	       frame->shot->udm.frame_info.sensor_crop_region[0],
+	       frame->shot->udm.frame_info.sensor_crop_region[1],
+	       frame->shot->udm.frame_info.sensor_crop_region[2],
+	       frame->shot->udm.frame_info.sensor_crop_region[3]);
+}
+
+static int is_hardware_shot_prepare(struct is_hardware *hardware,
+	struct is_group *group, struct is_frame *frame)
+{
+	u32 instance, fcount;
+	struct is_group *head;
+	struct is_hw_ip *head_hw_ip;
+
+	instance = group->instance;
+	fcount = frame->fcount;
+
+	head = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, group);
+	head_hw_ip = is_get_hw_ip(head->id, hardware);
+	if (!head_hw_ip) {
+		mgerr("invalid head_hw_ip", head, head);
+		return -EINVAL;
+	}
+
+	if (!test_bit(IS_GROUP_USE_MULTI_CH, &head->state) &&
+		frame->type == SHOT_TYPE_EXTERNAL)
+		is_hardware_update_sensor_info(head, frame);
+
+	is_hw_update_prfi(hardware, group, frame);
+
+	msdbg_hw(1, "[F%d][G:%s][S:%s]shot_prepare [C:0x%lx]\n", instance, head_hw_ip,
+			frame->fcount, group_id_name[group->id],
+			hw_frame_state_name[frame->state],
+			frame->core_flag);
+
+	return 0;
 }
 
 static void is_hardware_suspend(struct is_hardware *hardware,
@@ -829,7 +826,7 @@ static int _is_hardware_shot(struct is_hardware *hardware,
 	struct is_framemgr *framemgr, u32 framenum)
 {
 	int ret = 0;
-	struct is_hw_ip *hw_ip = NULL;
+	struct is_hw_ip *hw_ip, *ldr_hw_ip;
 	enum is_hardware_id hw_id = DEV_HW_END;
 	struct is_group *child = NULL;
 	struct is_group *head = NULL;
@@ -841,9 +838,9 @@ static int _is_hardware_shot(struct is_hardware *hardware,
 
 	head = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, group);
 
-	ret = is_devicemgr_shot_prepare(group, frame, frame->fcount, IS_DEVICE_ISCHAIN);
-	if (ret) {
-		err_hw("is_devicemgr_shot_prepare fail[F:%d].", frame->fcount);
+	ldr_hw_ip = is_get_hw_ip(head->id, hardware);
+	if (!ldr_hw_ip) {
+		mgerr("invalid ldr_hw_ip", head, head);
 		return -EINVAL;
 	}
 
@@ -869,12 +866,12 @@ static int _is_hardware_shot(struct is_hardware *hardware,
 			atomic_set(&hw_ip->fcount, framenum);
 			atomic_set(&hw_ip->instance, instance);
 
-			hw_ip->framemgr = &hardware->framemgr[head->id];
+			hw_ip->framemgr = &hardware->framemgr[ldr_hw_ip->id];
 
 			hw_map = hardware->hw_map[instance];
-			_is_hw_frame_dbg_trace(hw_ip, frame->fcount, DEBUG_POINT_HW_SHOT_E);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, frame->fcount, DEBUG_POINT_HW_SHOT_E);
 			ret = CALL_HWIP_OPS(hw_ip, shot, frame, hw_map);
-			_is_hw_frame_dbg_trace(hw_ip, frame->fcount, DEBUG_POINT_HW_SHOT_X);
+			CALL_HW_OPS(hw_ip, dbg_trace, hw_ip, frame->fcount, DEBUG_POINT_HW_SHOT_X);
 			if (ret) {
 				mserr_hw("shot fail (%d)[F:%d]", instance, hw_ip,
 					hw_slot, frame->fcount);
@@ -905,20 +902,20 @@ shot_err_cancel:
 	return ret;
 }
 
-int is_hardware_shot(struct is_hardware *hardware, u32 instance,
+static inline int is_hardware_shot(struct is_hardware *hardware, u32 instance,
 	struct is_group *group, struct is_frame *frame,
 	struct is_framemgr *framemgr, ulong hw_map, u32 framenum)
 {
 	struct is_device_sensor *sensor;
+	struct is_group *pnext;
 	int ret = 0;
 	ulong flags = 0;
-	bool is_ss_grp;
 
 	FIMC_BUG(!hardware);
 	FIMC_BUG(!frame);
 
 	sensor = group->device->sensor;
-	is_ss_grp = test_bit(IS_GROUP_OTF_INPUT, &group->state);
+	pnext = group->head->pnext;
 
 	framemgr_e_barrier_common(framemgr, 0, flags);
 	if (!test_bit(IS_GROUP_USE_MULTI_CH, &group->state))
@@ -930,10 +927,24 @@ int is_hardware_shot(struct is_hardware *hardware, u32 instance,
 		is_hw_mcsc_set_size_for_uvsp(hardware, frame, hw_map);
 #endif
 
-	if (is_ss_grp && test_and_clear_bit(IS_SKIP_CHAIN_SHOT, &sensor->seamless_state)) {
+	if (test_and_clear_bit(IS_SKIP_CHAIN_SHOT, &sensor->aeb_state)) {
 		/* Trigger HW be in IDLE state because there will be no more shot */
 		is_hardware_suspend(hardware, group);
 		goto skip_chain_shot;
+	} else if (test_and_clear_bit(IS_DO_SHORT_CHAIN_S_PARAM, &sensor->aeb_state)) {
+		/* Set initial parameter for short stream. */
+		if (CALL_HW_GRP_OPS(pnext, s_param, hardware, pnext->instance, pnext, frame)) {
+			mgerr("[F%d]grp_s_param fail", pnext, pnext, frame->fcount);
+			return -EINVAL;
+		}
+	}
+
+	is_hardware_shot_prepare(hardware, group, frame);
+
+	if (test_and_clear_bit(IS_DO_SHORT_CHAIN_SHOT, &sensor->aeb_state)) {
+		/* Generate init_shot without DDK shot_callback to do initial HW congirutaion. */
+		_is_hardware_shot(hardware, pnext, frame, framemgr, framenum);
+		is_hardware_shot_prepare(hardware, pnext, frame);
 	}
 
 	ret = _is_hardware_shot(hardware, group, frame, framemgr, framenum);
@@ -942,7 +953,7 @@ int is_hardware_shot(struct is_hardware *hardware, u32 instance,
 		return ret;
 	}
 
-	if (is_ss_grp && test_and_clear_bit(IS_DO_SHORT_CHAIN_SHOT, &sensor->seamless_state)) {
+	if (test_and_clear_bit(IS_DO_SHORT_CHAIN_SHOT, &sensor->aeb_state)) {
 		ret = _is_hardware_shot(hardware, group->head->pnext, frame, framemgr, framenum);
 		if (ret) {
 			err_hw("_is_hardware_shot fail");
@@ -951,7 +962,7 @@ int is_hardware_shot(struct is_hardware *hardware, u32 instance,
 	}
 
 skip_chain_shot:
-	if (!is_ss_grp || test_and_clear_bit(IS_SKIP_SENSOR_SHOT, &sensor->seamless_state))
+	if (test_and_clear_bit(IS_SKIP_SENSOR_SHOT, &sensor->aeb_state))
 		goto skip_sensor_shot;
 	/*
 	 * do the other device's group shot
@@ -1107,7 +1118,7 @@ void is_set_hw_count(struct is_hardware *hardware, struct is_group *head,
 	}
 }
 
-int is_hardware_grp_shot(struct is_hardware *hardware, u32 instance,
+int is_hw_otf_grp_shot(struct is_hardware *hardware, u32 instance,
 	struct is_group *group, struct is_frame *frame, ulong hw_map)
 {
 	int ret = 0;
@@ -1139,7 +1150,7 @@ int is_hardware_grp_shot(struct is_hardware *hardware, u32 instance,
 			frame->fcount, GROUP_ID(head->id),
 			frame->bak_flag, frame->out_flag, &frame->dvaddr_buffer[0]);
 
-	hw_ip->framemgr = &hardware->framemgr[head->id];
+	hw_ip->framemgr = &hardware->framemgr[hw_ip->id];
 	framemgr = hw_ip->framemgr;
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
@@ -1204,43 +1215,28 @@ int is_hardware_grp_shot(struct is_hardware *hardware, u32 instance,
 	msdbg_hw(2, "ischain batch_num(%d), HW FRO(%d)\n", instance, hw_ip,
 		num_buffers, hw_ip->hw_fro_en);
 
-	if (test_bit(IS_GROUP_OTF_INPUT, &head->state)) {
-		ss_grp = head->head;
-		sensor = ss_grp->sensor;
+	ss_grp = head->head;
+	sensor = ss_grp->sensor;
 
-		if (!atomic_read(&ss_grp->scount)) {
-			hw_frame = peek_frame(framemgr, FS_HW_REQUEST);
-
-			if (hw_frame)
-				msinfo_hw("OTF start [F:%d][G:0x%lx][B:0x%lx][O:0x%lx]\n",
-						instance, hw_ip,
-						hw_frame->fcount, GROUP_ID(head->id),
-						hw_frame->bak_flag, hw_frame->out_flag);
-
-			if (is_sensor_g_aeb_mode(sensor))
-				sensor->seamless_state = BIT(IS_SENSOR_SINGLE_MODE)
-							| BIT(IS_DO_SHORT_CHAIN_SHOT);
-		} else {
-			atomic_set(&hw_ip->hardware->log_count, 0);
-			framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-			return ret;
-		}
-	} else {
-		/* set shot timer in DMA operation */
-		u32 shot_timeout = head->device->resourcemgr->shot_timeout;
-		mod_timer(&hw_ip->shot_timer, jiffies + msecs_to_jiffies(shot_timeout));
-
+	if (!atomic_read(&ss_grp->scount)) {
 		hw_frame = peek_frame(framemgr, FS_HW_REQUEST);
+		msinfo_hw("OTF start [F:%d][G:0x%lx][B:0x%lx][O:0x%lx]\n",
+					instance, hw_ip,
+					hw_frame->fcount, GROUP_ID(head->id),
+					hw_frame->bak_flag, hw_frame->out_flag);
+
+		if (is_sensor_g_aeb_mode(sensor))
+			sensor->aeb_state = BIT(IS_SENSOR_SINGLE_MODE)
+									| BIT(IS_DO_SHORT_CHAIN_SHOT)
+									| BIT(IS_DO_SHORT_CHAIN_S_PARAM);
+
+	} else {
+		atomic_set(&hw_ip->hardware->log_count, 0);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+		return ret;
 	}
 
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
-
-	if (hw_frame == NULL) {
-		mserr_hw("[F%d][G:0x%lx]req_head(NULL)",
-			instance, hw_ip, frame->fcount, GROUP_ID(head->id));
-		return -EINVAL;
-	}
 
 	is_set_hw_count(hardware, head, instance, frame->fcount, num_buffers, hw_map);
 	ret = is_hardware_shot(hardware, instance, head, hw_frame, framemgr,
@@ -1252,6 +1248,42 @@ int is_hardware_grp_shot(struct is_hardware *hardware, u32 instance,
 
 	return ret;
 }
+
+static int is_hw_otf_grp_s_param(struct is_hardware *hardware, u32 instance,
+		struct is_group *grp, struct is_frame *frame)
+{
+	struct is_hw_ip *hw_ip;
+	struct is_region *region;
+	ulong hw_map = hardware->hw_map[instance];
+
+	mdbg_hw(1, "[F%d]grp_s_param:hw_map 0x%lx\n", instance, frame->fcount, hw_map);
+
+	while (grp) {
+		hw_ip = is_get_hw_ip(grp->id, hardware);
+		region = hw_ip->region[instance];
+		if (!region) {
+			mserr_hw("No valid is_region", instance, hw_ip);
+			return -EINVAL;
+		}
+
+		if (CALL_HWIP_OPS(hw_ip, set_param, region, frame->pmap, instance, hw_map))
+			mserr_hw("set_param fail", instance, hw_ip);
+
+		grp = grp->child;
+	}
+
+	return 0;
+}
+static const struct is_hw_group_ops is_hw_group_ops_otf = {
+	.shot = is_hw_otf_grp_shot,
+	.s_param = is_hw_otf_grp_s_param,
+};
+
+const struct is_hw_group_ops *is_hw_get_otf_group_ops(void)
+{
+	return &is_hw_group_ops_otf;
+}
+EXPORT_SYMBOL_GPL(is_hw_get_otf_group_ops);
 
 int make_internal_shot(struct is_hw_ip *hw_ip, u32 instance, u32 fcount,
 		struct is_framemgr *framemgr, u32 buf_index)
@@ -1280,7 +1312,7 @@ int make_internal_shot(struct is_hw_ip *hw_ip, u32 instance, u32 fcount,
 	}
 
 	frame->groupmgr		= NULL;
-	frame->group		= NULL;
+	frame->group 		= NULL;
 	frame->shot_ext		= NULL;
 	frame->shot		= NULL;
 	frame->shot_size	= 0;
@@ -1328,8 +1360,6 @@ int is_hardware_config_lock(struct is_hw_ip *hw_ip, u32 instance, u32 framenum)
 	head = group->head;
 	dev_head = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, group);
 
-	if (!test_bit(IS_GROUP_OTF_INPUT, &dev_head->state))
-		return ret;
 
 	msdbgs_hw(2, "[F:%d]C.L\n", instance, hw_ip, framenum);
 
@@ -1359,9 +1389,9 @@ retry_get_frame:
 		frame = peek_frame_tail(framemgr, FS_HW_CONFIGURE);
 		if (!frame) {
 			framemgr_x_barrier(framemgr, 0);
-			mserr_hw("[F%d] Failed to get main frame. seamless_state 0x%lx",
+			mserr_hw("[F%d] Failed to get main frame. aeb_state 0x%lx",
 					instance, hw_ip, framenum,
-					sensor->seamless_state);
+					sensor->aeb_state);
 			return -EINVAL;
 		}
 
@@ -1463,7 +1493,7 @@ struct is_hw_ip *is_get_hw_ip(u32 group_id, struct is_hardware *hardware)
 	return hw_ip;
 }
 
-static void is_hardware_seamless_change(struct is_group *group, u32 fcount)
+static void is_hardware_aeb_change(struct is_group *group, u32 fcount)
 {
 	struct is_device_sensor *sensor;
 	struct v4l2_control ctrl;
@@ -1481,51 +1511,65 @@ static void is_hardware_seamless_change(struct is_group *group, u32 fcount)
 			SENSOR_IOCTL_MOD_G_CTRL, &ctrl);
 	cur_hdr_mode = ctrl.value;
 
-	prev_state = sensor->seamless_state;
+	prev_state = sensor->aeb_state;
+
+	/* Keep AEB_ERR state until sensor turns off AEB mode. */
+	if (test_bit(IS_SENSOR_AEB_ERR, &sensor->aeb_state)) {
+		if (cur_hdr_mode == SENSOR_HDR_MODE_2AEB_2VC)
+			goto skip_transition;
+		else
+			clear_bit(IS_SENSOR_AEB_ERR, &sensor->aeb_state);
+	}
 
 	/* IS-chain shot control for AEB mode */
 	if (!test_bit(IS_GROUP_USE_MULTI_CH, &group->state)) {
 		/* Long frame shot context */
-		if (test_bit(IS_SENSOR_SINGLE_MODE, &sensor->seamless_state)) {
-			if (test_and_clear_bit(IS_SENSOR_SWITCHING, &sensor->seamless_state))
+		if (test_bit(IS_SENSOR_SINGLE_MODE, &sensor->aeb_state)) {
+			if (test_and_clear_bit(IS_SENSOR_SWITCHING, &sensor->aeb_state))
 				/* 2nd frame: Trigger short shot to turn on AEB */
-				sensor->seamless_state = BIT(IS_SENSOR_2EXP_MODE);
+				sensor->aeb_state = BIT(IS_SENSOR_2EXP_MODE);
 			else if (cur_hdr_mode == CAMERA_SENSOR_HDR_MODE_2STHDR)
 				/* 1st frame: Wait one more long shot */
-				sensor->seamless_state |= BIT(IS_SENSOR_SWITCHING)
+				sensor->aeb_state |= BIT(IS_SENSOR_SWITCHING)
 							| BIT(IS_DO_SHORT_CHAIN_SHOT);
-		} else if (test_bit(IS_SENSOR_2EXP_MODE, &sensor->seamless_state)) {
-			if (test_and_clear_bit(IS_SENSOR_SWITCHING, &sensor->seamless_state))
+		} else if (test_bit(IS_SENSOR_2EXP_MODE, &sensor->aeb_state)) {
+			if (test_and_clear_bit(IS_SENSOR_SWITCHING, &sensor->aeb_state))
 				/*
 				 * Long frame shot after turning off AEB mode
 				 * It's now on SINGLE mode
 				 */
-				sensor->seamless_state = BIT(IS_SENSOR_SINGLE_MODE);
+				sensor->aeb_state = BIT(IS_SENSOR_SINGLE_MODE);
 			else if (cur_hdr_mode == CAMERA_SENSOR_HDR_MODE_SINGLE)
 				/*
 				 * Long frame shot to turn off AEB mode
 				 * Wait next short shot
 				 */
-				set_bit(IS_SENSOR_SWITCHING, &sensor->seamless_state);
+				set_bit(IS_SENSOR_SWITCHING, &sensor->aeb_state);
 		}
 	} else {
 		/* Short frame shot context */
-		if (test_bit(IS_SENSOR_2EXP_MODE, &sensor->seamless_state)) {
-			if (test_bit(IS_SENSOR_SWITCHING, &sensor->seamless_state) ||
+		if (test_bit(IS_SENSOR_2EXP_MODE, &sensor->aeb_state)) {
+			if (test_bit(IS_SENSOR_SWITCHING, &sensor->aeb_state) ||
 					cur_hdr_mode == CAMERA_SENSOR_HDR_MODE_SINGLE)
 				/*
 				 * Short frame to turn off AEB mode
 				 * Skip next Short frame shot
 				 */
-				sensor->seamless_state |= BIT(IS_SENSOR_SWITCHING)
+				sensor->aeb_state |= BIT(IS_SENSOR_SWITCHING)
 							| BIT(IS_SKIP_CHAIN_SHOT);
 		} else {
-			/* Short frame shot conext in SINGLE mode: Abnormal HW operation! */
+			/**
+			 * Short frame shot conext in SINGLE mode
+			 * This is abnormal sensor operation! Restore the AEB modes.
+			 *  1. Return to SINGLE mode.
+			 *  2. Don't trigger any additional shot for short stream.
+			 *  3. Reset the sensor OTF out mode
+			 */
 			mgerr("[F%d] Invalid sensor output on SINGLE mode. seamless_state 0x%lx",
-					group, group, fcount, sensor->seamless_state);
+					group, group, fcount, sensor->aeb_state);
 
-			sensor->seamless_state |= BIT(IS_SKIP_CHAIN_SHOT)
-						| BIT(IS_SKIP_SENSOR_SHOT);
+			sensor->aeb_state &= ~IS_SENSOR_AEB_MODE_MASK;
+			sensor->aeb_state |= IS_SENSOR_AEB_INVALID_SHORT_OUT_MASK;
 		}
 	}
 
@@ -1534,24 +1578,56 @@ static void is_hardware_seamless_change(struct is_group *group, u32 fcount)
 	 * Long shot should not trigger sensor shot on AEB on
 	 */
 	if (!test_bit(IS_GROUP_USE_MULTI_CH, &group->state) &&
-			test_bit(IS_SENSOR_2EXP_MODE, &sensor->seamless_state))
-		set_bit(IS_SKIP_SENSOR_SHOT, &sensor->seamless_state);
+			test_bit(IS_SENSOR_2EXP_MODE, &sensor->aeb_state))
+		set_bit(IS_SKIP_SENSOR_SHOT, &sensor->aeb_state);
 
-	dbg_hw(2, "[%s][F%d]%s: %s_shot cur_hdr_mode %d seamless_state 0x%x\n",
+skip_transition:
+	dbg_hw(2, "[%s][F%d]%s: %s_shot cur_hdr_mode %d seamless_state 0x%lx\n",
 			group_id_name[group->id],
 			fcount,
 			__func__,
 			test_bit(IS_GROUP_USE_MULTI_CH, &group->state) ? "SHORT" : "LONG",
 			cur_hdr_mode,
-			sensor->seamless_state);
+			sensor->aeb_state);
 
-	if ((prev_state ^ sensor->seamless_state) & IS_SENSOR_SEAMLESS_MODE_MASK)
-		mginfo("[F%d] Change seamless_state 0x%lx -> 0x%lx\n",
+	if ((prev_state ^ sensor->aeb_state) & IS_SENSOR_AEB_MODE_MASK)
+		mginfo("[F%d] Change aeb_state 0x%lx -> 0x%lx\n",
 				group, group, fcount,
-				prev_state, sensor->seamless_state);
+				prev_state, sensor->aeb_state);
 }
 
-void is_hardware_frame_start(struct is_hw_ip *hw_ip, u32 instance)
+static inline void is_hardware_rms_crop_state_change(struct is_group *grp, u32 fcount)
+{
+	struct is_device_sensor *sensor = grp->device->sensor;
+	ulong prev_state = sensor->rms_crop_state;
+	int b_ratio = is_sensor_g_bratio(sensor);
+	int new_b_ratio = is_sensor_g_updated_bratio(sensor);
+
+	/* For now, SWITCHING state is only required to print state transition log. */
+	if (test_bit(IS_SENSOR_RMS_CROP_SWITCHING, &prev_state))
+		clear_bit(IS_SENSOR_RMS_CROP_SWITCHING, &sensor->rms_crop_state);
+
+	if (test_bit(IS_SENSOR_RMS_CROP_OFF, &prev_state)) {
+		if (new_b_ratio != b_ratio)
+			sensor->rms_crop_state = BIT(IS_SENSOR_RMS_CROP_ON)
+						| BIT(IS_SENSOR_RMS_CROP_SWITCHING);
+	} else if (test_bit(IS_SENSOR_RMS_CROP_ON, &prev_state)) {
+		if (new_b_ratio == b_ratio)
+			sensor->rms_crop_state = BIT(IS_SENSOR_RMS_CROP_OFF)
+						| BIT(IS_SENSOR_RMS_CROP_SWITCHING);
+	}
+
+	if (test_bit(IS_SENSOR_RMS_CROP_SWITCHING, &sensor->rms_crop_state))
+		mginfo("[F%d] Change rms_crop_state 0x%lx -> 0x%lx\n",
+		       grp, grp, fcount,
+		       prev_state, sensor->rms_crop_state);
+
+	dbg_hw(2, "[%s][F%d]%s: b_ratio %d rms_crop_state 0x%lx\n",
+	       group_id_name[grp->id], fcount, __func__,
+	       b_ratio, sensor->rms_crop_state);
+}
+
+static void is_hardware_frame_start(struct is_hw_ip *hw_ip, u32 instance)
 {
 	struct is_frame *frame = NULL, *check_frame;
 	struct is_framemgr *framemgr;
@@ -1559,19 +1635,17 @@ void is_hardware_frame_start(struct is_hw_ip *hw_ip, u32 instance)
 	u32 config_count;
 	u32 hw_fcount;
 
-	FIMC_BUG_VOID(!hw_ip);
-
 	group = hw_ip->group[instance];
 	head = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, group);
 	FIMC_BUG_VOID(!head);
 
 	hw_fcount = atomic_read(&hw_ip->fcount);
 
-	if (test_bit(IS_GROUP_OTF_INPUT, &head->state))
-		is_hardware_seamless_change(group, hw_fcount);
+	is_hardware_aeb_change(group, hw_fcount);
+	is_hardware_rms_crop_state_change(group, hw_fcount);
 
 	/* Frame state trasition is done by main stream */
-	if (test_bit(IS_GROUP_USE_MULTI_CH, &group->state))
+	if (hw_ip->frame_type == LIB_FRAME_HDR_SHORT)
 		goto skip_start;
 
 	/*
@@ -1588,29 +1662,27 @@ void is_hardware_frame_start(struct is_hw_ip *hw_ip, u32 instance)
 	framemgr_e_barrier(framemgr, 0);
 	frame = peek_frame(framemgr, FS_HW_CONFIGURE);
 
-	if (test_bit(IS_GROUP_OTF_INPUT, &head->state)) {
-		while (frame) {
-			config_count = framemgr->queued_count[FS_HW_CONFIGURE];
-			if (config_count > 1) {
-				framemgr->proc_warn_cnt++;
-				if (framemgr->proc_warn_cnt > 5) {
-					msinfo_hw("[F%d][HWF%d][CF%d]flush configured frame\n",
-						instance, hw_ip, frame->fcount, hw_fcount,
-						config_count);
+	while (frame) {
+		config_count = framemgr->queued_count[FS_HW_CONFIGURE];
+		if (config_count > 1) {
+			framemgr->proc_warn_cnt++;
+			if (framemgr->proc_warn_cnt > 5) {
+				msinfo_hw("[F%d][HWF%d][CF%d]flush configured frame\n",
+					instance, hw_ip, frame->fcount, hw_fcount,
+					config_count);
+				frame_manager_print_info_queues(framemgr);
 
-					frame_manager_print_info_queues(framemgr);
-
-					trans_frame(framemgr, frame, FS_HW_WAIT_DONE);
-					frame = peek_frame(framemgr, FS_HW_CONFIGURE);
-				} else {
-					break;
-				}
+				trans_frame(framemgr, frame, FS_HW_WAIT_DONE);
+				frame = peek_frame(framemgr, FS_HW_CONFIGURE);
 			} else {
-				framemgr->proc_warn_cnt = 0;
 				break;
 			}
+		} else {
+			framemgr->proc_warn_cnt = 0;
+			break;
 		}
 	}
+
 
 	if (!frame) {
 		check_frame = find_frame(framemgr, FS_HW_WAIT_DONE,
@@ -1637,13 +1709,12 @@ void is_hardware_frame_start(struct is_hw_ip *hw_ip, u32 instance)
 	frame->frame_info[INFO_FRAME_START].pid = current->pid;
 	frame->frame_info[INFO_FRAME_START].when = local_clock();
 
-	if (test_bit(IS_GROUP_OTF_INPUT, &head->state)) {
-		if (framemgr->batch_num == 1 && frame->fcount != atomic_read(&hw_ip->count.fs)) {
-			/* error handling */
-			info_hw("frame_start_isr (%d, %d)\n", frame->fcount,
-					atomic_read(&hw_ip->count.fs));
-			atomic_set(&hw_ip->count.fs, frame->fcount);
-		}
+
+	if (framemgr->batch_num == 1 && frame->fcount != atomic_read(&hw_ip->count.fs)) {
+		/* error handling */
+		info_hw("frame_start_isr (%d, %d)\n", frame->fcount,
+				atomic_read(&hw_ip->count.fs));
+		atomic_set(&hw_ip->count.fs, frame->fcount);
 	}
 
 	trans_frame(framemgr, frame, FS_HW_WAIT_DONE);
@@ -2081,17 +2152,8 @@ int is_hardware_open(struct is_hardware *hardware, u32 hw_id,
 	hw_ip = &(hardware->hw_ip[hw_slot]);
 	refcount = atomic_inc_return(&hw_ip->rsccount);
 	if (refcount == 1) {
-		u32 group_id = get_group_id_from_hw_ip(hw_ip->id);
-
-		if (group_id >= GROUP_ID_MAX) {
-			merr_hw("[ID:%d]invalid group_id %d", instance, hw_id, group_id);
-			return -EINVAL;
-		}
 		hw_ip->hardware = hardware;
-		hw_ip->framemgr = &hardware->framemgr[group_id];
-		msdbg_hw(1, "%s: [%s], framemgr[%s]\n",
-			instance, hw_ip, __func__, group_id_name[group_id],
-			hw_ip->framemgr->name);
+		hw_ip->framemgr = &hardware->framemgr[hw_ip->id];
 
 		group->hw_ip = NULL;
 		ret = CALL_HWIP_OPS(hw_ip, open, instance, group);
@@ -2115,6 +2177,11 @@ int is_hardware_open(struct is_hardware *hardware, u32 hw_id,
 		atomic_set(&hw_ip->run_rsccount, 0);
 		atomic_inc(&hardware->slot_rsccount[group->slot]);
 		timer_setup(&hw_ip->shot_timer, (void (*)(struct timer_list *))is_hardware_shot_timer, 0);
+
+		if (test_bit(IS_GROUP_OTF_INPUT, &group->head->state))
+			hw_ip->hw_ops = &is_hardware_ops;
+		else
+			hw_ip->hw_ops = is_hw_get_m2m_ops();
 
 		if (!test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
 #if defined(MULTI_SHOT_TASKLET)
@@ -2182,16 +2249,7 @@ static int is_hardware_close_by_rsccount(struct is_hardware *hardware, struct is
 
 	refcount = atomic_dec_return(&hw_ip->rsccount);
 	if (refcount == 0) {
-		u32 group_id = get_group_id_from_hw_ip(hw_ip->id);
-
-		if (group_id >= GROUP_ID_MAX) {
-			merr_hw("[ID:%d]invalid group_id %d", instance, hw_id, group_id);
-			return -EINVAL;
-		}
-		msdbg_hw(1, "%s: [%s], framemgr[%s]->framemgr[%s]\n",
-				instance, hw_ip, __func__, group_id_name[group_id],
-				hw_ip->framemgr->name, hardware->framemgr[group_id].name);
-		hw_ip->framemgr = &hardware->framemgr[group_id];
+		hw_ip->framemgr = &hardware->framemgr[hw_ip->id];
 
 		del_timer_sync(&hw_ip->shot_timer);
 
@@ -2534,7 +2592,6 @@ int is_hardware_frame_done(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	ulong flags = 0;
 	u32 hw_fe_cnt = 0;
 	struct is_subdev *subdev;
-	struct is_hw_ip *ldr_hw_ip;
 	u32 instance;
 
 	FIMC_BUG(!hw_ip);
@@ -2681,13 +2738,6 @@ shot_done:
 		&& atomic_dec_and_test(&frame->shot_done_flag)) {
 		framemgr_x_barrier_common(framemgr, 0, flags);
 		ret = is_hardware_shot_done(hw_ip, frame, framemgr, done_type);
-
-		if (!test_bit(IS_GROUP_OTF_INPUT, &head->state)) {
-			ldr_hw_ip = is_get_hw_ip(head->id, hw_ip->hardware);
-			if (ldr_hw_ip)
-				del_timer(&ldr_hw_ip->shot_timer);
-		}
-
 		return ret;
 	}
 	framemgr_x_barrier_common(framemgr, 0, flags);
@@ -2695,7 +2745,7 @@ shot_done:
 	return ret;
 }
 
-static int is_hardware_frame_ndone(struct is_hw_ip *ldr_hw_ip,
+int is_hardware_frame_ndone(struct is_hw_ip *ldr_hw_ip,
 	struct is_frame *frame, u32 instance,
 	enum ShotErrorType done_type)
 {
@@ -2768,7 +2818,7 @@ static int is_hardware_frame_ndone(struct is_hw_ip *ldr_hw_ip,
 		}
 	}
 #if defined(HW_TIMEOUT_PANIC_ENABLE)
-	if (CHECK_TIMEOUT_PANIC_GROUP(group->id) && (done_type == IS_SHOT_TIMEOUT))
+	if (CHECK_TIMEOUT_PANIC_HW(ldr_hw_ip->id) && (done_type == IS_SHOT_TIMEOUT))
 		is_debug_s2d(true, "IS_SHOT_TIMEOUT");
 #endif
 
@@ -3349,7 +3399,7 @@ int is_hardware_flush_frame_by_group(struct is_hardware *hardware,
 	hw_ip = &hardware->hw_ip[hw_slot];
 
 	msdbg_hw(1, "flush_frame by group(%d)\n", instance, hw_ip, group->id);
-	is_hardware_flush_frame(hw_ip, FS_HW_REQUEST, IS_SHOT_UNPROCESSED);
+	CALL_HW_OPS(hw_ip, flush_frame, hw_ip, FS_HW_REQUEST, IS_SHOT_UNPROCESSED);
 
 	return 0;
 }
@@ -3783,9 +3833,6 @@ int is_hardware_probe(struct is_hardware *hardware,
 
 	for (i = 0; i < GROUP_SLOT_MAX; i++)
 		atomic_set(&hardware->slot_rsccount[i], 0);
-
-	/* Initialize hardware operations */
-	hardware->ops = &is_hardware_ops;
 
 	mutex_init(&hardware->itf_lock);
 

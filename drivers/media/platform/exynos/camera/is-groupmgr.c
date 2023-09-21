@@ -595,6 +595,28 @@ void is_group_unlock(struct is_group *group, unsigned long flags,
 		framemgr_x_barrier_irqr(ldr_framemgr, FMGR_IDX_20, flags);
 }
 
+void is_group_subdev_check(struct is_group *group, u32 *vc0_dma)
+{
+	struct is_device_sensor *sensor;
+	struct is_device_csi *csi;
+	struct v4l2_subdev		*subdev_csi;
+	u32 vc;
+
+	FIMC_BUG_VOID(!group);
+	sensor = group->sensor;
+	subdev_csi = sensor->subdev_csi;
+	csi = v4l2_get_subdevdata(subdev_csi);
+	if (!csi) {
+		merr("CSI is NULL", sensor);
+		return;
+	}
+	vc = CSI_VIRTUAL_CH_0;
+	if (csi->cur_dma_enable[vc]) {
+		*vc0_dma = 1;
+		mginfo("CSI_VIRTUAL_CH_0 DMA on, should cancel subdev FS_PROCESS!\n", group, group);
+	}
+}
+
 void is_group_subdev_cancel(struct is_group *group,
 		struct is_frame *ldr_frame,
 		enum is_device_type device_type,
@@ -1296,6 +1318,32 @@ static int is_group_path_dmsg(struct is_device_ischain *device,
 	return 0;
 }
 
+static void is_group_set_group_ops(struct is_group *leader_group, struct is_hardware *hw)
+{
+	struct is_group *pos, *g_ldr, *head;
+	u32 instance = leader_group->instance;
+
+	g_ldr = leader_group;
+
+
+	while (g_ldr) {
+		for_each_group_child(pos, g_ldr) {
+			head = pos->head;
+			if (head == pos) {
+				if (test_bit(IS_GROUP_OTF_INPUT, &head->state))
+					head->hw_grp_ops = is_hw_get_otf_group_ops();
+				else
+					head->hw_grp_ops = is_hw_get_m2m_group_ops();
+			}
+		}
+		g_ldr = g_ldr->next;
+	}
+
+	mginfo("%s: hw_map[0x%X]\n", leader_group, leader_group, __func__, hw->hw_map[instance]);
+}
+
+
+
 int is_groupmgr_init(struct is_groupmgr *groupmgr,
 	struct is_device_ischain *device)
 {
@@ -1472,9 +1520,12 @@ int is_groupmgr_init(struct is_groupmgr *groupmgr,
 		else
 			sibling = next;
 
+
 		group = next;
 		next = group->next;
 	}
+
+	is_group_set_group_ops(leader_group, device->hardware);
 
 p_err:
 	minfo(" =STM CFG===============\n", device);
@@ -1819,6 +1870,7 @@ int is_group_open(struct is_groupmgr *groupmgr,
 	group->pcount = 0;
 	group->aeflashMode = 0; /* Flash Mode Control */
 	group->remainIntentCount = 0;
+	group->remainCaptureIntentCount = 0;
 	atomic_set(&group->scount, 0);
 	atomic_set(&group->rcount, 0);
 	atomic_set(&group->backup_fcount, 0);
@@ -2889,22 +2941,10 @@ int pablo_group_buffer_init(struct is_groupmgr *grpmgr, struct is_group *ig, u32
 	frame = &framemgr->frames[index];
 	frame->groupmgr = grpmgr;
 	frame->group = ig;
-	memset(&frame->prfi, 0x0, sizeof(struct pablo_rta_frame_info));
-	frame->prfi.magic = 0x5F4D5246;
 
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_23, flags);
 
 	return 0;
-}
-
-int pablo_group_update_prfi(struct is_group *group, struct is_frame *frame)
-{
-       struct is_group *pos;
-
-       for_each_group_child(pos, group)
-               CALL_SOPS(&pos->leader, get, group->device, frame, PSGT_RTA_FRAME_INFO, NULL);
-
-       return 0;
 }
 
 int is_group_buffer_queue(struct is_groupmgr *groupmgr,
@@ -3048,9 +3088,7 @@ trigger_multi_grp_shot:
 
 	is_group_update_stripe(group, frame, resourcemgr);
 
-	pablo_group_update_prfi(group, frame);
-
-	is_group_start_trigger(groupmgr, group, frame);
+		is_group_start_trigger(groupmgr, group, frame);
 
 	if (cur_shot_idx++ < (frame->num_shots - 1))
 		goto trigger_multi_grp_shot;

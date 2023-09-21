@@ -1146,7 +1146,8 @@ void csi_hw_s_mcb_qch(u32 __iomem *base_reg, bool on)
 {
 }
 
-void csi_hw_s_ebuf_enable(u32 __iomem *base_reg, bool on, u32 ebuf_ch, int mode)
+void csi_hw_s_ebuf_enable(u32 __iomem *base_reg, bool on, u32 ebuf_ch, int mode,
+			u32 num_of_ebuf, u32 offset_fake_frame_done)
 {
 }
 
@@ -1156,7 +1157,7 @@ void csi_hw_s_cfg_ebuf(u32 __iomem *base_reg, u32 ebuf_ch, u32 vc, u32 width,
 }
 
 void csi_hw_g_ebuf_irq_src(u32 __iomem *base_reg, struct csis_irq_src *src, int ebuf_ch,
-			unsigned int num_of_ebuf)
+			unsigned int offset_fake_frame_done)
 {
 }
 

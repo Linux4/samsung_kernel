@@ -608,8 +608,8 @@ static u64 need_win_overlay_clk(struct decon_device *decon, struct bts_overlay_p
 	int i, fid;
 	u32 max_tot_h = 0;
 	u32 non_max_tot_h = 0;
+	u32 applied_ppc;
 	u64 need_clk = max_clk;
-	u64 applied_ppc;
 
 	for (fid = 0; fid < MAX_DPUF_CNT; fid++) {
 		if (info->max_overlay[fid] >= max_overlay_cnt) {
@@ -630,7 +630,7 @@ static u64 need_win_overlay_clk(struct decon_device *decon, struct bts_overlay_p
 	} else
 		applied_ppc = matrix[max_overlay_cnt];
 
-	need_clk = resol_clk * DISP_FACTOR / applied_ppc;
+	need_clk = resol_clk * DISP_FACTOR / (u64)applied_ppc;
 	DPU_DEBUG_BTS(decon, "\tmax_tot_h: %d, non_max_tot_h: %d\n",
 			max_tot_h, non_max_tot_h);
 	DPU_DEBUG_BTS(decon, "[%s] applied_ppcx100: %ld\n", is_sajc ? "sajc" : "hdr", applied_ppc);

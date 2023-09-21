@@ -412,7 +412,7 @@ static ssize_t axis_threshold_setting_store(struct device *dev,
 	int threshold;
 	int8_t shub_data[5] = {0};
 
-	ret = sscanf(buf, "%d,%d", &axis, &threshold);
+	ret = sscanf(buf, "%hhd,%d", &axis, &threshold);
 
 	if (ret != 2) {
 		pr_err("[SSP]: [FACTORY] Invalid values received, ret=%d\n", ret);
@@ -424,7 +424,7 @@ static ssize_t axis_threshold_setting_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	pr_info("[SSP]: [FACTORY] axis=%d, threshold=%d\n", axis, threshold);
+	pr_info("[SSP]: [FACTORY] axis=%hhd, threshold=%d\n", axis, threshold);
 
 	data->fcd_data.axis_update = axis;
 	data->fcd_data.threshold_update = threshold;

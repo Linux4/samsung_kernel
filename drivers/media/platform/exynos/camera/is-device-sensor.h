@@ -156,19 +156,35 @@ enum is_sensor_state {
 	IS_SENSOR_START,
 };
 
-#define IS_SENSOR_SEAMLESS_MODE_MASK	0xFF
-enum is_sensor_seamless_state {
-	/* Current seamless mode [7:0] */
+#define IS_SENSOR_AEB_MODE_MASK	0xFF
+#define IS_SENSOR_AEB_INVALID_SHORT_OUT_MASK	(0\
+						| BIT(IS_SENSOR_SINGLE_MODE)\
+						| BIT(IS_SENSOR_AEB_ERR)\
+						| BIT(IS_SKIP_CHAIN_SHOT)\
+						| BIT(IS_SKIP_SENSOR_SHOT)\
+						| BIT(IS_DO_SENSOR_OTF_OUT_CFG)\
+						)
+enum is_sensor_aeb_state {
+	/* Current aeb mode [7:0] */
 	IS_SENSOR_SINGLE_MODE,
 	IS_SENSOR_2EXP_MODE,
 	IS_SENSOR_SWITCHING,
+	IS_SENSOR_AEB_ERR,
 
 	/* Seamless mode change ischain shot state [11:8] */
 	IS_SKIP_CHAIN_SHOT = 8,
 	IS_DO_SHORT_CHAIN_SHOT,
+	IS_DO_SHORT_CHAIN_S_PARAM,
 
 	/* Seamless mode change sensor shot state [15:12] */
 	IS_SKIP_SENSOR_SHOT = 12,
+	IS_DO_SENSOR_OTF_OUT_CFG
+};
+
+enum is_sensor_rms_crop_state {
+	IS_SENSOR_RMS_CROP_OFF,
+	IS_SENSOR_RMS_CROP_ON,
+	IS_SENSOR_RMS_CROP_SWITCHING,
 };
 
 /*
@@ -318,7 +334,8 @@ struct is_device_sensor {
 	u32						exposure_fcount[IS_EXP_BACKUP_COUNT];
 	u32						obte_config;
 
-	ulong						seamless_state;
+	ulong						aeb_state;
+	ulong						rms_crop_state;
 };
 
 int is_sensor_open(struct is_device_sensor *device,
@@ -388,8 +405,10 @@ int is_sensor_g_bns_width(struct is_device_sensor *device);
 int is_sensor_g_bns_height(struct is_device_sensor *device);
 int is_sensor_g_bns_ratio(struct is_device_sensor *device);
 int is_sensor_g_bratio(struct is_device_sensor *device);
+int is_sensor_g_updated_bratio(struct is_device_sensor *device);
 int is_sensor_g_module(struct is_device_sensor *device,
 	struct is_module_enum **module);
+struct is_sensor_interface *is_sensor_get_sensor_interface(struct is_device_sensor *device);
 int is_sensor_deinit_module(struct is_module_enum *module);
 int is_sensor_g_position(struct is_device_sensor *device);
 int is_sensor_g_fast_mode(struct is_device_sensor *device);

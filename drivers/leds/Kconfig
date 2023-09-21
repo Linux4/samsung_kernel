@@ -969,6 +969,13 @@ config LEDS_S2MF301_FLASH
 	  If you say yes here you will get support for
 	  for the LEDS_S2MF301_FLASH led chip.
 
+config LEDS_AW36518_FLASH
+	tristate "FLASH LED support for the AW36518"
+    depends on I2C
+	help
+	  If you say yes here you will get support for
+	  for the LEDS_AW36518_FLASH led chip.
+
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"
 
