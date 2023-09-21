@@ -1482,10 +1482,12 @@ static ssize_t touchkey_fw_update(struct device *dev,
 	case 'S':
 		cmd = BUILT_IN;
 		break;
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	case 'i':
 	case 'I':
 		cmd = SDCARD;
 		break;
+#endif
 	default:
 		info->fw_update_state = FW_UP_FAILED;
 		goto touchkey_fw_update_out;

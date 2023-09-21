@@ -81,6 +81,7 @@ static void jopp_test_bad_func_ptr(void){
 #endif
 
 #ifdef CONFIG_RKP_CFP_ROPP
+#ifdef CONFIG_RKP_CFP_ROPP_SYSREGKEY
 static void ropp_print_all_rrk(void){
 	struct task_struct * tsk;
 	struct thread_info * thread;
@@ -110,6 +111,7 @@ static void ropp_writebvr(void){
 	ropp_readbvr();
 }
 
+#endif
 #endif
 
 static int cfp_is_prefix(const char * prefix, const char * string) 

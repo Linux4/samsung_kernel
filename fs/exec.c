@@ -1116,6 +1116,9 @@ void __set_task_comm(struct task_struct *tsk, const char *buf, bool exec)
 }
 #ifdef CONFIG_RKP_NS_PROT
 extern struct super_block *sys_sb;	/* pointer to superblock */
+extern struct super_block *vendor_sb;	/* pointer to superblock */
+extern struct super_block *product_sb;
+extern struct super_block *odm_sb;	/* pointer to superblock */
 extern struct super_block *rootfs_sb;	/* pointer to superblock */
 extern unsigned int is_boot_recovery;
 
@@ -1134,9 +1137,12 @@ static int invalid_drive(struct linux_binprm * bprm)
 
 	if((!is_boot_recovery) &&
 		sb != rootfs_sb   
-		&& sb != sys_sb) {
-		printk("\n Superblock Mismatch #%s# vfsmnt #%p#sb #%p:%p:%p#\n",
-					bprm->filename,vfsmnt,sb,rootfs_sb,sys_sb);
+		&& sb != sys_sb
+		&& sb != vendor_sb
+		&& sb != product_sb
+		&& sb != odm_sb) {
+		printk("\n Superblock Mismatch #%s# vfsmnt #%p#sb #%p:%p:%p:%p:%p:%p#\n",
+					bprm->filename,vfsmnt,sb,rootfs_sb,sys_sb,vendor_sb,odm_sb,product_sb);
 		return 1;
 	}
 

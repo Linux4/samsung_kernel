@@ -80,9 +80,6 @@
 #define SEC_BAT_CURRENT_EVENT_HV_DISABLE		0x10000
 #define SEC_BAT_CURRENT_EVENT_SELECT_PDO		0x20000
 
-#define SIOP_EVENT_NONE 	0x0000
-#define SIOP_EVENT_WPC_CALL 	0x0001
-
 #if defined(CONFIG_SEC_FACTORY)             // SEC_FACTORY
 #define STORE_MODE_CHARGING_MAX 80
 #define STORE_MODE_CHARGING_MIN 70
@@ -123,6 +120,20 @@
 #define BATT_MISC_EVENT_BATT_RESET_SOC			0x00000008
 #define BATT_MISC_EVENT_HICCUP_TYPE				0x00000020
 #define BATT_MISC_EVENT_WIRELESS_FOD			0x00000100
+#define BATT_MISC_EVENT_BATTERY_HEALTH			0x000F0000
+
+#define BATTERY_HEALTH_SHIFT                16
+enum misc_battery_health {
+	BATTERY_HEALTH_UNKNOWN = 0,
+	BATTERY_HEALTH_GOOD,
+	BATTERY_HEALTH_NORMAL,
+	BATTERY_HEALTH_AGED,
+	BATTERY_HEALTH_MAX = BATTERY_HEALTH_AGED,
+
+	/* For event */
+	BATTERY_HEALTH_BAD = 0xF,
+};
+
 
 #define SEC_INPUT_VOLTAGE_0V	0
 #define SEC_INPUT_VOLTAGE_5V	5
@@ -348,8 +359,6 @@ struct sec_battery_info {
 	struct delayed_work update_work;
 	struct delayed_work fw_init_work;
 #endif
-	struct delayed_work siop_event_work;
-	struct wake_lock siop_event_wake_lock;
 	struct delayed_work siop_level_work;
 	struct wake_lock siop_level_wake_lock;
 	struct delayed_work wc_headroom_work;
@@ -388,6 +397,7 @@ struct sec_battery_info {
 	int wc_status;
 	bool wc_cv_mode;
 	bool wc_pack_max_curr;
+	bool wc_rx_phm_mode;
 
 	int wire_status;
 	/* pogo status */
@@ -407,7 +417,6 @@ struct sec_battery_info {
 	bool is_hc_usb;
 
 	int siop_level;
-	int siop_event;
 	int siop_prev_event;
 	int stability_test;
 	int eng_not_full_status;
@@ -431,6 +440,7 @@ struct sec_battery_info {
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int batt_cycle;
 #endif
+	int batt_asoc;
 #if defined(CONFIG_STEP_CHARGING)
 	unsigned int step_charging_type;
 	unsigned int step_charging_charge_power;
@@ -445,6 +455,9 @@ struct sec_battery_info {
 	unsigned int prev_misc_event;
 	struct delayed_work misc_event_work;
 	struct wake_lock misc_event_wake_lock;
+	unsigned int ext_event;
+	struct delayed_work ext_event_work;
+	struct wake_lock ext_event_wake_lock;
 	struct mutex batt_handlelock;
 	struct mutex current_eventlock;
 	struct mutex typec_notylock;
@@ -647,6 +660,7 @@ enum {
 	BATT_TEMP_TEST,
 #endif
 	BATT_CURRENT_EVENT,
+	EXT_EVENT,
 };
 
 enum {

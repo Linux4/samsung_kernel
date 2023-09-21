@@ -754,7 +754,7 @@ __secondary_switched:
 	msr	sp_el0, x0			// save thread_info
 #endif
 #ifdef CONFIG_RKP_CFP_ROPP
-	ropp_secondary_init x0
+	ropp_secondary_init x2
 #endif
 	mov	x29, #0
 	b	secondary_start_kernel

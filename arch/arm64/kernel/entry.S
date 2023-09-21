@@ -891,7 +891,7 @@ ENTRY(cpu_switch_to)
 	msr	sp_el0, x9
 #endif
 #ifdef CONFIG_RKP_CFP_ROPP
-	ropp_load_key	x9 //must be after sp updated
+	ropp_load_key	x1 //must be after sp updated
 #endif
 	ret
 ENDPROC(cpu_switch_to)

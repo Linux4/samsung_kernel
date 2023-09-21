@@ -175,6 +175,8 @@ int msm_ion_do_cache_offset_op(
 		void *vaddr, unsigned int offset, unsigned long len,
 		unsigned int cmd);
 
+bool is_buffer_hlos_assigned(struct ion_buffer *buffer);
+
 #else
 static inline struct ion_client *msm_ion_client_create(const char *name)
 {

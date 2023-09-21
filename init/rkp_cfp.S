@@ -93,6 +93,32 @@ nop
 	// Don't need springboards for x31 (not allowed in RET by assembler)
 
 #endif
+
+#ifdef CONFIG_RKP_CFP_ROPP
+/*
+ * ROPP allows backtrace debugging
+ *   x0 = encrypted return address
+ *   x1 = task struct
+ */
+ENTRY(ropp_enable_backtrace)
+#ifdef CONFIG_RKP_CFP_ROPP_SYSREGKEY
+    push    x2, x3
+    ldr x2, [x1, #TSK_TI_RRK]
+    eor x0, x0, x2      // x0=ra^x17^mk
+    mrs x3, DAIF
+    msr DAIFset, #0x3
+    mrs x2, RRMK
+    eor x0, x0, x2      //x0=ra^x17^mk^mk=ra^x17
+    msr DAIF, x3
+    pop x2, x3
+    ret
+#else
+    ldr x1, [x1, #TSK_TI_RRK]
+    eor x0, x0, x1
+    ret
+#endif
+ENDPROC(ropp_enable_backtrace)
+#endif
 .global _end_hyperdrive
 _end_hyperdrive:
 

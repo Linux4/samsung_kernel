@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2018, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -652,28 +652,7 @@ static int allocate_extra_arg_buffer(struct scm_desc *desc, gfp_t flags)
 	return 0;
 }
 
-/**
- * scm_call2() - Invoke a syscall in the secure world
- * @fn_id: The function ID for this syscall
- * @desc: Descriptor structure containing arguments and return values
- *
- * Sends a command to the SCM and waits for the command to finish processing.
- * This should *only* be called in pre-emptible context.
- *
- * A note on cache maintenance:
- * Note that any buffers that are expected to be accessed by the secure world
- * must be flushed before invoking scm_call and invalidated in the cache
- * immediately after scm_call returns. An important point that must be noted
- * is that on ARMV8 architectures, invalidation actually also causes a dirty
- * cache line to be cleaned (flushed + unset-dirty-bit). Therefore it is of
- * paramount importance that the buffer be flushed before invoking scm_call2,
- * even if you don't care about the contents of that buffer.
- *
- * Note that cache maintenance on the argument buffer (desc->args) is taken care
- * of by scm_call2; however, callers are responsible for any other cached
- * buffers passed over to the secure world.
-*/
-int scm_call2(u32 fn_id, struct scm_desc *desc)
+static int __scm_call2(u32 fn_id, struct scm_desc *desc, bool retry)
 {
 	const char* const proca_clients_names[] =
 	{"secure_storage_", "pa_daemon", "proca@1.0-servi", "wsmd", "wsm@1.0-service", NULL}; // keep last NULL!
@@ -691,7 +670,6 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 		return ret;
 
 	x0 = fn_id | scm_version_mask;
-	
 	
 	/*
 	 * in case of pa_daemon
@@ -757,13 +735,15 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 			mutex_unlock(&scm_lmh_lock);
 
 		mutex_unlock(&scm_lock);
+		if (!retry)
+			goto out;
 
 		if (ret == SCM_V2_EBUSY)
 			msleep(SCM_EBUSY_WAIT_MS);
 		if (retry_count == 33)
 			pr_warn("scm: secure world has been busy for 1 second!\n");
-	}  while (ret == SCM_V2_EBUSY && (retry_count++ < SCM_EBUSY_MAX_RETRY));
-
+	} while (ret == SCM_V2_EBUSY && (retry_count++ < SCM_EBUSY_MAX_RETRY));
+out:
 	if (ret < 0)
 		pr_err("scm_call failed: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
 			x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
@@ -774,7 +754,45 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 		return scm_remap_error(ret);
 	return 0;
 }
+
+/**
+ * scm_call2() - Invoke a syscall in the secure world
+ * @fn_id: The function ID for this syscall
+ * @desc: Descriptor structure containing arguments and return values
+ *
+ * Sends a command to the SCM and waits for the command to finish processing.
+ * This should *only* be called in pre-emptible context.
+ *
+ * A note on cache maintenance:
+ * Note that any buffers that are expected to be accessed by the secure world
+ * must be flushed before invoking scm_call and invalidated in the cache
+ * immediately after scm_call returns. An important point that must be noted
+ * is that on ARMV8 architectures, invalidation actually also causes a dirty
+ * cache line to be cleaned (flushed + unset-dirty-bit). Therefore it is of
+ * paramount importance that the buffer be flushed before invoking scm_call2,
+ * even if you don't care about the contents of that buffer.
+ *
+ * Note that cache maintenance on the argument buffer (desc->args) is taken care
+ * of by scm_call2; however, callers are responsible for any other cached
+ * buffers passed over to the secure world.
+ */
+int scm_call2(u32 fn_id, struct scm_desc *desc)
+{
+	return __scm_call2(fn_id, desc, true);
+}
 EXPORT_SYMBOL(scm_call2);
+
+/**
+ * scm_call2_noretry() - Invoke a syscall in the secure world
+ *
+ * Similar to scm_call2 except that there is no retry mechanism
+ * implemented.
+ */
+int scm_call2_noretry(u32 fn_id, struct scm_desc *desc)
+{
+	return __scm_call2(fn_id, desc, false);
+}
+EXPORT_SYMBOL(scm_call2_noretry);
 
 /**
  * scm_call2_atomic() - Invoke a syscall in the secure world

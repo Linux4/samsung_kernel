@@ -61,16 +61,19 @@
 #define _STR(x) #x
 #define STR(x) _STR(x)
 
-struct task_struct;
-
 #ifdef CONFIG_RKP_CFP_ROPP
-void ropp_change_key(struct task_struct *);
+struct task_struct;
 unsigned long ropp_enable_backtrace(unsigned long, struct task_struct *);
 #endif // CONFIG_RKP_CFP_ROPP
 
 #ifdef CONFIG_RKP_CFP_ROPP_SYSREGKEY
 extern unsigned long ropp_master_key;
 #endif
+
+#if (defined SYSREG_DEBUG) || defined(CONFIG_RKP_CFP_ROPP_FIXKEY)
+extern unsigned long ropp_fixed_key;
+#endif
+
 
 #endif //__ASSEMBLY__
 

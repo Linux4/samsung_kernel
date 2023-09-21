@@ -40,67 +40,11 @@ unsigned long ropp_thread_key = 0x33333333;
 
 #endif
 
-void ropp_change_key(struct task_struct *p)
-{
-	unsigned long new_key = 0x0;
-#ifdef CONFIG_RKP_CFP_ROPP_HYPKEY
-#elif defined (CONFIG_RKP_CFP_ROPP_SYSREGKEY)
-	unsigned long enc_key=0x0, mask = 0x0;
-
-	new_key = get_random_long();
-	asm volatile(
-			"mrs %2, DAIF\n\t"
-			"msr DAIFset, #0x3\n\t"
-			"mrs %1, "STR(RRMK)"\n\t"
-			"eor %1, %0, %1\n\t"
-			"mov %0, #0x0\n\t"
-			"msr DAIF, %2"
-			: "=r" (new_key), "=r" (enc_key), "=r" (mask));
-
-	task_thread_info(p)->rrk = enc_key;
-
-#ifdef SYSREG_DEBUG
-	task_thread_info(p)->rrk = ropp_thread_key ^ ropp_master_key;
+#if (defined CONFIG_RKP_CFP_ROPP_FIXKEY) || (defined SYSREG_DEBUG)
+unsigned long ropp_fixed_key = 0x3333333333333333;
 #endif
-
-#elif defined (CONFIG_RKP_CFP_ROPP_RANDKEY)
-	asm volatile("mrs %0, cntpct_el0" : "=r" (new_key));
-	task_thread_info(p)->rrk = new_key;
-#elif defined (CONFIG_RKP_CFP_ROPP_FIXKEY)
-	task_thread_info(p)->rrk = 0x33333333;
-#elif defined (CONFIG_RKP_CFP_ROPP_ZEROKEY)
-	new_key = 0x0;
-	task_thread_info(p)->rrk = new_key;
-#else
-	#error "Please choose one ROPP key scheme"
-#endif
-}
 
 /*
  * should not leak mk or rrk to memory
  */
-unsigned long ropp_enable_backtrace(unsigned long where, struct task_struct *tsk)
-{
 
-#ifdef CONFIG_RKP_CFP_ROPP_SYSREGKEY
-	register unsigned long mask asm("x2") =0x0;
-	register unsigned long tmp asm("x3") =0x0;
-	register unsigned long rrk asm("x4") =0x0;
-	register unsigned long enc asm("x5") = task_thread_info(tsk)->rrk;
-
-	asm volatile ( 
-		"mrs %0, DAIF\n\t"
-		"msr DAIFset, #0x3\n\t"
-		"mrs %1, "STR(RRMK)"\n\t"
-		"eor %2, %3, %1\n\t"
-		"eor %2, %4, %2\n\t"
-		"mov %1, #0x0\n\t"
-		"msr DAIF, %0"
-		: "=r" (mask), "=r" (tmp), "=r" (rrk)
-		: "r" (enc), "r" (where));
-
-	return rrk;
-#else //CONFIG_RKP_CFP_ROPP_HYPKEY
-	return where ^ (task_thread_info(tsk)->rrk);
-#endif //CONFIG_RKP_CFP_ROPP_HYPKEY
-}

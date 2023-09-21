@@ -4490,6 +4490,26 @@ out:
 	return len;
 }
 
+static ssize_t sd_cid_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *host = dev_get_drvdata(dev);
+	struct mmc_card *card = host->card;
+	int len = 0;
+
+	if (!card) {
+		len = snprintf(buf, PAGE_SIZE, "no card\n");
+		goto out;
+	}
+
+	len = snprintf(buf, PAGE_SIZE,
+			"%08x%08x%08x%08x\n",
+			card->raw_cid[0], card->raw_cid[1],
+			card->raw_cid[2], card->raw_cid[3]);
+out:
+	return len;
+}
+
 /* SYSFS for big data support */
 static struct device *sd_data_dev;
 static ssize_t sd_data_show(struct device *dev,
@@ -4535,6 +4555,7 @@ static DEVICE_ATTR(current_mode, S_IRUGO, sd_detect_curmode_show, NULL);
 static DEVICE_ATTR(current_phase, S_IRUGO, sd_detect_curphase_show, NULL);
 static DEVICE_ATTR(sdcard_summary, S_IRUGO, sdcard_summary_show, NULL);
 static DEVICE_ATTR(sd_count, S_IRUGO, sd_count_show, NULL);
+static DEVICE_ATTR(data, S_IRUGO, sd_cid_show, NULL);
 static DEVICE_ATTR(sd_data, S_IRUGO, sd_data_show, NULL);
 
 /* Callback function for SD Card IO Error */
@@ -5262,6 +5283,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
                         &dev_attr_sd_count) < 0)
                         pr_err("%s : Failed to create device file(%s)!\n",
                                         __func__, dev_attr_sd_count.attr.name);
+
+		if (device_create_file(sd_info_dev,
+					&dev_attr_data) < 0)
+                        pr_err("%s : Failed to create device file(%s)!\n",
+                                        __func__, dev_attr_data.attr.name);
 
                 dev_set_drvdata(sd_info_dev, msm_host->mmc);
 	}
