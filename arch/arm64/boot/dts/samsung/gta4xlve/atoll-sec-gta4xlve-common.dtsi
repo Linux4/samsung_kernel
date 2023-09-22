@@ -31,3 +31,9 @@
 &sdhc_1 {
 	status = "disabled";
 };
+
+&sdhc_2 {
+	qcom,clk-rates = <400000 20000000 25000000
+			50000000 100000000 179555556>;
+	qcom,devfreq,freq-table = <50000000 179555556>;
+};
