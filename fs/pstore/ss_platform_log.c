@@ -745,7 +745,7 @@ static int ss_plog_probe(struct platform_device *pdev)
 	logger.buffer = vmalloc(PAGE_SIZE * 3);
 
 	if (logger.buffer)
-		pr_info("logger buffer alloc address: 0x%p\n", logger.buffer);
+		pr_info("logger buffer alloc address: 0x%pK\n", logger.buffer);
 
 	return 0;
 

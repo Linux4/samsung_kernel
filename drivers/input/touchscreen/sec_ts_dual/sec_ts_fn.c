@@ -282,6 +282,16 @@ static void fw_update(void *device_data)
 		return;
 	}
 
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	if (sec->cmd_param[0] == 1) {
+		snprintf(buff, sizeof(buff), "%s", "OK");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		input_info(true, &ts->client->dev, "%s: user_ship, skip\n", __func__);
+		return;
+	}
+#endif
+
 	retval = sec_ts_firmware_update_on_hidden_menu(ts, sec->cmd_param[0]);
 	if (retval < 0) {
 		snprintf(buff, sizeof(buff), "%s", "NA");

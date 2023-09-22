@@ -28,11 +28,6 @@
 #include <asm/asm-offsets.h>
 
 #ifdef CONFIG_RKP_CFP_ROPP
-	.macro	ropp_get_ti, rd			//get thread info
-	mov	\rd, sp
-	and	\rd, \rd, #~(THREAD_SIZE - 1)	// top of stack
-	.endm
-
 	.macro reset_sysreg
 	//disable debug bcr
 	mrs	RRX, dbgbcr5_el1
@@ -69,89 +64,66 @@
 /*
  * For kernel_entry
  */
-	.macro ropp_new_key, ti
-#ifdef CONFIG_RKP_CFP_ROPP_HYPKEY
-#elif defined (CONFIG_RKP_CFP_ROPP_SYSREGKEY)
-	push	x0, x1
-	mrs	x1, DAIF
-	msr	DAIFset, #0x3
-	//dec the old thread key
-	ldr	x0, [\ti, #TI_RRK]
-	mrs	RRK, RRMK
-	eor	RRK, x0, RRK
-	//gen the new one
-	mrs	x0, CNTPCT_EL0
-	add	RRK, x0, RRK, lsl #0x8
-	mrs	x0, RRMK
-	eor	x0, RRK, x0
+    .macro ropp_new_key, ti
+#ifdef CONFIG_RKP_CFP_ROPP_SYSREGKEY
+    push    x0, x1
+    mrs x1, DAIF
+    msr DAIFset, #0x3
+    //dec the old thread key
+    ldr x0, [\ti, #TSK_TI_RRK]
+    mrs RRK, RRMK
+    eor RRK, x0, RRK
+    //gen the new one
+    mrs x0, CNTPCT_EL0
+    add RRK, x0, RRK, lsl #0x8
+    mrs x0, RRMK
+    eor x0, RRK, x0
 #ifdef SYSREG_DEBUG
-	ldr	RRK, =ropp_thread_key
-	ldr	RRK, [RRK]
-	mrs	x0, RRMK
-	eor	x0, x0, RRK
+    ldr RRK, = ropp_fixed_key
+    ldr RRK, [RRK]
+    mrs x0, RRMK
+    eor x0, x0, RRK
 #endif
-	str	x0, [\ti, #TI_RRK]
-	msr	DAIF, x1
-	pop	x0, x1
-#elif defined (CONFIG_RKP_CFP_ROPP_RANDKEY)
-	mrs	RRK, CNTPCT_EL0
-	str	RRK, [\ti, #TI_RRK]
-#elif defined (CONFIG_RKP_CFP_ROPP_FIXKEY)
-	mov	RRK, #0x3333
-	movk	RRK, #0x3333, lsl #16
-	str	RRK, [\ti, #TI_RRK]
-#elif defined (CONFIG_RKP_CFP_ROPP_ZEROKEY)
-	mov	RRK, xzr
-	str	RRK, [\ti, #TI_RRK]
+    str x0, [\ti, #TSK_TI_RRK]
+    msr DAIF, x1
+    pop x0, x1
+#elif defined CONFIG_RKP_CFP_ROPP_RANDKEY
+    mrs RRK, CNTPCT_EL0
+    add RRK, RRK, RRK, lsl #32
+    str RRK, [\ti, #TSK_TI_RRK]
+#elif defined CONFIG_RKP_CFP_ROPP_FIXKEY
+    ldr RRK, = ropp_fixed_key
+    ldr RRK, [RRK]
+    str RRK, [\ti, #TSK_TI_RRK]
+#elif defined CONFIG_RKP_CFP_ROPP_ZEROKEY
+    mov RRK, xzr
+    str RRK, [\ti, #TSK_TI_RRK]
 #else
-	#error "Please choose one ROPP key scheme"
+    #error "Please choose one ROPP key scheme"
 #endif
-	.endm
+    .endm
 
 /*
  * Load the key register from thread_info
  */
-	.macro	ropp_load_key, ti
-#ifdef CONFIG_RKP_CFP_ROPP_HYPKEY
-#elif defined (CONFIG_RKP_CFP_ROPP_SYSREGKEY)
-	push	x0, x1
-	mrs	x1, DAIF
-	msr	DAIFset, #0x3
-	ldr	x0, [\ti, #TI_RRK]
-	mrs	RRK, RRMK
-#ifdef CONFIG_RKP_CFP_TEST
-	cmp	RRK, xzr
-	b.ne	22f
-	hlt	#0
-22:
+    .macro  ropp_load_key, ti
+#ifdef CONFIG_RKP_CFP_ROPP_SYSREGKEY
+    push    x0, x1
+    ldr x0, [\ti, #TSK_TI_RRK]
+    mrs x1, DAIF
+    msr DAIFset, #0x3
+    mrs RRK, RRMK
+    eor RRK, RRK, x0
+    msr DAIF, x1
+    pop x0, x1
+#elif defined CONFIG_RKP_CFP_ROPP_RANDKEY
+    ldr RRK, [\ti, #TSK_TI_RRK]
+#elif defined CONFIG_RKP_CFP_ROPP_FIXKEY
+    ldr RRK, [\ti, #TSK_TI_RRK]
+#elif defined CONFIG_RKP_CFP_ROPP_ZEROKEY
+    ldr RRK, [\ti, #TSK_TI_RRK]
 #endif
-	eor	RRK, RRK, x0
-	msr	DAIF, x1
-	pop	x0, x1
-#elif defined (CONFIG_RKP_CFP_ROPP_RANDKEY)
-	ldr	RRK, [\ti, #TI_RRK]
-#elif defined (CONFIG_RKP_CFP_ROPP_FIXKEY)
-	ldr	RRK, [\ti, #TI_RRK]
-	//BUG_ON
-	push	x0, x1
-	mov	x0, #0x3333
-	movk	x0, #0x3333, lsl #16
-	cmp	RRK, x0
-	b.eq	11f
-	cmp	RRK, xzr
-	b.eq	11f
-	hlt	#0
-11:
-	pop	x0, x1
-#elif defined (CONFIG_RKP_CFP_ROPP_ZEROKEY)
-	ldr	RRK, [\ti, #TI_RRK]
-	//BUG_ON
-	cmp	RRK, xzr
-	b.eq	1f
-	hlt	#0
-1:
-#endif
-	.endm
+    .endm
 
 	.macro ropp_load_mk
 	push	x0, x1

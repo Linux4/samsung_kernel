@@ -19462,6 +19462,7 @@
 			battery,sleep_mode_limit_current = <0x1f4>;
 			battery,wc_full_input_limit_current = <0x64>;
 			battery,wc_cv_current = <0x334>;
+			battery,wc_cv_tx_current = <0x28a>;
 			battery,wc_cv_pack_current = <0x276>;
 			battery,wc_hero_stand_cc_cv = <0x46>;
 			battery,wc_hero_stand_cv_current = <0x258>;
@@ -19505,9 +19506,6 @@
 			battery,swelling_drop_float_voltage = <0xa21c>;
 			battery,swelling_high_rechg_voltage = <0xfa0>;
 			battery,swelling_low_rechg_voltage = <0xfa0>;
-			battery,siop_event_check_type = <0x1>;
-			battery,siop_call_cv_current = <0x14a>;
-			battery,siop_call_cc_current = <0x14a>;
 			battery,siop_input_limit_current = <0x4b0>;
 			battery,siop_charging_limit_current = <0x3e8>;
 			battery,siop_hv_input_limit_current = <0x1f4>;
@@ -19523,6 +19521,7 @@
 			battery,pd_charging_charge_power = <0x3a98>;
 			battery,max_charging_current = <0x9c4>;
 			battery,age_data = <0x0 0xa9ec 0x10b8 0x109a 0x5d 0x12c 0xa924 0x10a4 0x1081 0x5c 0x190 0xa85c 0x1090 0x1074 0x5b 0x2bc 0xa794 0x107c 0x105b 0x5a 0x3e8 0xa5a0 0x104a 0x1029 0x59>;
+			battery,health_condition = <0x4b0 0x4b 0x578 0x41 0x640 0x37>;
 			battery,max_input_voltage = <0x2ee0>;
 			battery,max_input_current = <0xbb8>;
 			battery,enable_sysovlo_irq;
@@ -19611,13 +19610,13 @@
 			};
 
 			current_group_2 {
-				cable_number = <0x2 0x19>;
+				cable_number = <0x2 0x19 0x1f>;
 				input_current = <0x3e8>;
 				charging_current = <0x3e8>;
 			};
 
 			current_group_3 {
-				cable_number = <0x5>;
+				cable_number = <0x5 0x20>;
 				input_current = <0x5dc>;
 				charging_current = <0x5dc>;
 			};
@@ -19635,7 +19634,7 @@
 			};
 
 			current_group_6 {
-				cable_number = <0xa 0xc 0xe 0xf 0x1b>;
+				cable_number = <0xa 0xc 0xf 0x1b 0x23>;
 				input_current = <0x384>;
 				charging_current = <0x578>;
 			};
@@ -19659,7 +19658,7 @@
 			};
 
 			current_group_10 {
-				cable_number = <0xb 0x10 0x1c>;
+				cable_number = <0xb 0xe 0x10 0x1c>;
 				input_current = <0x28a>;
 				charging_current = <0x578>;
 			};

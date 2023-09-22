@@ -78,6 +78,9 @@ static struct kmem_cache *mnt_cache __read_mostly;
 static struct kmem_cache *vfsmnt_cache __read_mostly;
 RKP_RO_AREA struct super_block *sys_sb;
 RKP_RO_AREA struct super_block *rootfs_sb;
+RKP_RO_AREA struct super_block *vendor_sb;
+RKP_RO_AREA struct super_block *odm_sb;
+RKP_RO_AREA struct super_block *product_sb;
 #endif
 
 static DECLARE_RWSEM(namespace_sem);
@@ -347,8 +350,12 @@ static struct mount *alloc_vfsmnt(const char *name)
 		mnt->mnt_count = 1;
 		mnt->mnt_writers = 0;
 #endif
-		mnt->mnt.data = NULL;
 
+#ifdef CONFIG_RKP_NS_PROT
+		rkp_call(RKP_CMDID(0x56), (u64)(mnt->mnt), 0, 0, 0, 0);
+#else
+		mnt->mnt.data = NULL;
+#endif
 		INIT_HLIST_NODE(&mnt->mnt_hash);
 		INIT_LIST_HEAD(&mnt->mnt_child);
 		INIT_LIST_HEAD(&mnt->mnt_mounts);
@@ -2954,7 +2961,10 @@ static int do_new_mount(struct path *path, const char *fstype, int flags,
 	struct user_namespace *user_ns = current->nsproxy->mnt_ns->user_ns;
 	struct vfsmount *mnt;
 	int err;
-
+	
+#ifdef CONFIG_RKP_NS_PROT
+	char *mount_point;
+#endif
 	if (!fstype)
 		return -EINVAL;
 
@@ -2991,16 +3001,17 @@ static int do_new_mount(struct path *path, const char *fstype, int flags,
 	if (err)
 		mntput(mnt);
 #ifdef CONFIG_RKP_NS_PROT
-	if(!sys_sb) 
-	{
-		char *mount_point;
-		mount_point = copy_mount_string(dir_name);
-		if(!strcmp(mount_point,"/system")) {
-			rkp_call(RKP_CMDID(0x55),(u64)&sys_sb,(u64)mnt,0,0,0);
-		}
-		kfree(mount_point);
+	mount_point = copy_mount_string(dir_name);
+	if(!sys_sb && !strcmp(mount_point, "/system")) {
+		rkp_call(RKP_CMDID(0x55),(u64)&sys_sb,(u64)mnt,0,0,0);
+	} else if(!vendor_sb && !strcmp(mount_point, "/vendor")){
+		rkp_call(RKP_CMDID(0x55),(u64)&vendor_sb,(u64)mnt,0,0,0);
+	} else if (!odm_sb && !strcmp(mount_point, "/odm")){
+		rkp_call(RKP_CMDID(0x55),(u64)&odm_sb,(u64)mnt,0,0,0);
+	} else if (!product_sb && !strcmp(mount_point, "/product")){
+		rkp_call(RKP_CMDID(0x55),(u64)&product_sb,(u64)mnt,0,0,0);
 	}
-	
+	kfree(mount_point);
 #endif
 	return err;
 }
