@@ -275,6 +275,11 @@ static long ipc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		rmnet_type = filter_arg->cid - 1;
 
 		if (rmnet_type < RMNET_COUNT) {
+			if (filter_arg->filters_count > NUMBER_FILTERS) {
+				mif_err("Filters count out of bounds %d", filter_arg->filters_count);
+				kvfree(filter_arg);
+				return -EINVAL;
+			}
 			if (filter_arg->filters_count != 0) {
 				memcpy(&ld->packet_filter_table.rmnet[rmnet_type], filter_arg, sizeof(struct packet_filter));
 				ld->is_modern_standby = true;

@@ -162,6 +162,8 @@
 #define SSP_AUTO_ROTATION_ORIENTATION "SSP:AUTO_ROTATION_ORIENTATION="
 #define SSP_SAR_BACKOFF_MOTION_NOTI "SSP:SAR_BACKOFF_MOTION_NOTI="
 
+#define SSP_SENSOR_CUSTOM_INFO "SSP:CUSTOM_INFO="
+
 extern bool ssp_debug_time_flag;
 
 #define ssp_debug_time(format, ...) \
@@ -313,6 +315,7 @@ enum {
 // for data injection
 #define MSG2SSP_AP_DATA_INJECTION_MODE_ON_OFF 0x41
 #define MSG2SSP_AP_DATA_INJECTION_SEND 0x42
+#define MSG2SSP_AP_CUSTOM_INFO			0x9C
 
 #define MSG2SSP_AP_SET_PROX_SETTING		0x48
 #define MSG2SSP_AP_SET_LIGHT_COEF		0x49

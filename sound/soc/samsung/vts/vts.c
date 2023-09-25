@@ -346,6 +346,9 @@ static int vts_start_ipc_transaction_atomic(
 			vts_dev_warn(dev, "Transaction timeout!! Ack_value:0x%x\n",
 					ack_value);
 			vts_dbg_dump_fw_gpr(dev, data, VTS_IPC_TRANS_FAIL);
+			print_hex_dump(KERN_ERR, "vts-fw-log", DUMP_PREFIX_OFFSET, 32, 4,
+					data->sramlog_baseaddr,
+					0x800, true);
 		}
 		if (*state == SEND_MSG_OK || ack_value == (0x1 << msg)) {
 			vts_dev_dbg(dev, "Transaction success Ack_value:0x%x\n",
@@ -2406,6 +2409,19 @@ static void vts_update_config(struct device *dev)
 			data->target_sysclk, clk_get_rate(data->clk_sys));
 }
 
+void vts_disable_sfr(struct device *dev)
+{
+	struct vts_data *data = dev_get_drvdata(dev);
+
+	vts_dev_info(dev, "%s: enter\n", __func__);
+
+	/* Controls by firmware should be disabled before pd_vts off. */
+	writel(0x0, data->dmic_if0_base);
+	writel(0x0, data->sfr_base + VTS_DMIC_IF_ENABLE_DMIC_IF);
+	writel(0x0, data->dmic_ahb0_base);
+	writel(0x0, data->timer0_base);
+}
+
 static int vts_runtime_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -2478,6 +2494,7 @@ static int vts_runtime_suspend(struct device *dev)
 			data, VTS_IRQ_AP_POWER_DOWN, &values, 0, 1);
 		if (result < 0) {
 			vts_dev_warn(dev, "POWER_DOWN IPC transaction Failed\n");
+
 			result = vts_start_ipc_transaction(dev,
 				data, VTS_IRQ_AP_POWER_DOWN, &values, 0, 1);
 			if (result < 0)
@@ -2509,6 +2526,8 @@ static int vts_runtime_suspend(struct device *dev)
 			vts_irq_enable(pdev, false);
 			data->irq_state = false;
 		}
+
+		vts_disable_sfr(dev);
 #if IS_ENABLED(CONFIG_SOC_EXYNOS2100)
 		clk_disable(data->clk_dmic_sync);
 #else
@@ -3534,6 +3553,20 @@ static int samsung_vts_probe(struct platform_device *pdev)
 		goto error;
 	}
 #endif
+	data->dmic_ahb0_base = samsung_vts_devm_request_and_map(pdev,
+		"dmic_ahb0", NULL, NULL);
+	if (IS_ERR(data->dmic_ahb0_base)) {
+		result = PTR_ERR(data->dmic_ahb0_base);
+		goto error;
+	}
+
+	data->timer0_base = samsung_vts_devm_request_and_map(pdev,
+		"timer0", NULL, NULL);
+	if (IS_ERR(data->timer0_base)) {
+		result = PTR_ERR(data->timer0_base);
+		goto error;
+	}
+
 	data->lpsdgain = 0;
 	data->dmicgain = 0;
 	data->amicgain = 0;
