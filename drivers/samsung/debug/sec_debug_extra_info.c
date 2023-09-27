@@ -944,6 +944,13 @@ void secdbg_exin_set_epd(const char *str)
 }
 EXPORT_SYMBOL(secdbg_exin_set_epd);
 
+void secdbg_exin_set_ufs(const char *str)
+{
+	clear_item_val("UFS");
+	set_item_val("UFS", "%s", str);
+}
+EXPORT_SYMBOL(secdbg_exin_set_ufs);
+
 /* OCP total limitation */
 #define MAX_OCP_CNT		(0xFF)
 

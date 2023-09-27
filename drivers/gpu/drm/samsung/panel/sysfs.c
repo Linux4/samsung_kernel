@@ -4244,6 +4244,35 @@ static ssize_t te_check_show(struct device *dev,
 	return sprintf(buf, "%d\n", (ret == 0) ? 1 : 0);
 }
 
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+static ssize_t vcom_trim_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_device *panel = dev_get_drvdata(dev);
+	char result[SZ_32] = { 0, };
+	int ret;
+
+	if (panel == NULL) {
+		panel_err("panel is null\n");
+		return -EINVAL;
+	}
+
+	ret = panel_vcom_trim_test(panel, result, SZ_32);
+	panel_info("ret %d\n", ret);
+
+	if (ret == -ENOENT) {
+		ret = PANEL_VCOM_TRIM_TEST_PASS;
+	}
+
+	if (ret == PANEL_VCOM_TRIM_TEST_PASS) {
+		snprintf(buf, PAGE_SIZE, "%d\n", ret);
+	} else {
+		snprintf(buf, PAGE_SIZE, "%d %s\n", ret, result);
+	}
+	return strlen(buf);
+}
+#endif
+
 struct device_attribute panel_attrs[] = {
 	__PANEL_ATTR_RO(lcd_type, 0444),
 	__PANEL_ATTR_RO(window_type, 0444),
@@ -4367,6 +4396,9 @@ struct device_attribute panel_attrs[] = {
 #endif
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 	__PANEL_ATTR_RW(brightdot, 0664),
+#endif
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+	__PANEL_ATTR_RO(vcom_trim, 0440),
 #endif
 	__PANEL_ATTR_RO(te_check, 0440),
 };

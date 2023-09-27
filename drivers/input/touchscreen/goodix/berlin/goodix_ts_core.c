@@ -1399,11 +1399,15 @@ static void goodix_ts_esd_work(struct work_struct *work)
 	ret = hw_ops->esd_check(cd);
 	if (ret) {
 		ts_err("esd check failed");
-		mutex_lock(&cd->input_dev->mutex);
-		cd->hw_ops->reset(cd, 100);
-		/* reinit */
-		cd->plat_data->init(cd);
-		mutex_unlock(&cd->input_dev->mutex);
+
+		if (mutex_trylock(&cd->input_dev->mutex)) {
+			cd->hw_ops->reset(cd, 100);
+			/* reinit */
+			cd->plat_data->init(cd);
+			mutex_unlock(&cd->input_dev->mutex);
+		} else {
+			ts_err("mutex is busy & skip!");
+		}
 	}
 
 exit:
@@ -1752,7 +1756,7 @@ static void goodix_ts_input_close(struct input_dev *dev)
 	core_data->plat_data->enabled = false;
 
 	/* for debugging */
-	cancel_delayed_work(&core_data->debug_delayed_work);
+	cancel_delayed_work_sync(&core_data->debug_delayed_work);
 
 	cancel_delayed_work(&core_data->work_print_info);
 	sec_input_print_info(core_data->bus->dev, NULL);

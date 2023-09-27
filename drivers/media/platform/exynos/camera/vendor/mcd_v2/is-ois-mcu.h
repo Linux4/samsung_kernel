@@ -128,6 +128,7 @@ extern int debug_ois_mcu;
 #define __mcu_err(fmt, ...)	pr_err(fmt, ##__VA_ARGS__)
 #define __mcu_warning(fmt, ...)	pr_warn(fmt, ##__VA_ARGS__)
 #define __mcu_log(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
+#define __mcu_dbg(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
 
 #define err_mcu(fmt, args...) \
 	__mcu_err("[@][OIS_MCU]" fmt, ##args)
@@ -138,10 +139,15 @@ extern int debug_ois_mcu;
 #define info_mcu(fmt, args...) \
 	__mcu_log("[@][OIS_MCU]" fmt, ##args)
 
+#if defined(CONFIG_CAMERA_USE_INTERNAL_MCU)
 #define dbg_mcu(level, fmt, args...)			\
 	do {						\
 		if (unlikely(debug_ois_mcu >= level))	\
 			__mcu_log("[@][OIS_MCU]" fmt, ##args);	\
 	} while (0)
+#else
+#define dbg_mcu(fmt, args...) \
+	__mcu_dbg("[@][OIS_MCU]" fmt, ##args)
+#endif
 
 #endif

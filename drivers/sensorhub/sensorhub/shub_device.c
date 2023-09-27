@@ -520,7 +520,15 @@ int shub_probe(struct platform_device *pdev)
 		goto err_init_file_manager;
 	}
 
+	if (initialize_indio_dev(&shub_data->pdev->dev) < 0) {
+		shub_errf("failed to init initialize_indio_dev");
+		goto err_initialize_indio_dev;
+	}
+
 	init_shub_panel();
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SHUB_PANEL_NOTIFY)
+	init_shub_panel_callback();
+#endif
 #ifdef CONFIG_SHUB_DEBUG
 	shub_system_checker_init();
 #endif
@@ -535,6 +543,8 @@ int shub_probe(struct platform_device *pdev)
 
 	return ret;
 
+err_initialize_indio_dev:
+	remove_indio_dev();
 err_init_file_manager:
 	remove_shub_debug_sysfs();
 err_init_debug_sysfs:
@@ -566,6 +576,9 @@ void shub_shutdown(struct platform_device *pdev)
 
 	sensorhub_shutdown();
 	remove_shub_panel();
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SHUB_PANEL_NOTIFY)
+	remove_shub_panel_callback();
+#endif
 	remove_shub_dump();
 	remove_shub_motor_callback();
 	remove_factory();

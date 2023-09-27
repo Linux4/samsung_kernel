@@ -1612,6 +1612,29 @@ static int zram_is_writeback_entry(unsigned long index)
 	return ret;
 }
 
+static void zram_mark_entry_non_lru(unsigned long index)
+{
+	struct zram *zram = g_zram;
+	unsigned long flags;
+
+	if (index >= (zram->disksize >> PAGE_SHIFT))
+		return;
+
+	zram_slot_lock(zram, index);
+	if (zram_allocated(zram, index)) {
+		spin_lock_irqsave(&zram->list_lock, flags);
+		if (!list_empty(&zram->table[index].lru_list)) {
+			list_del_init(&zram->table[index].lru_list);
+			if (zram_test_flag(zram, index, ZRAM_LRU)) {
+				zram_clear_flag(zram, index, ZRAM_LRU);
+				atomic64_dec(&zram->stats.lru_pages);
+			}
+		}
+		spin_unlock_irqrestore(&zram->list_lock, flags);
+	}
+	zram_slot_unlock(zram, index);
+}
+
 static int zram_writeback_oem_func(int cmd, void *priv, unsigned long param)
 {
 	if (cmd == ZRAM_APP_LAUNCH_NOTIFY)
@@ -1626,6 +1649,8 @@ static int zram_writeback_oem_func(int cmd, void *priv, unsigned long param)
 		free_writeback_buffer(priv);
 	else if (cmd == ZRAM_IS_WRITEBACK_ENTRY)
 		return zram_is_writeback_entry(param);
+	else if (cmd == ZRAM_MARK_ENTRY_NON_LRU)
+		zram_mark_entry_non_lru(param);
 
 	return 0;
 }

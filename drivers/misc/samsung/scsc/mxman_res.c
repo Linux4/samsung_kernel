@@ -192,7 +192,7 @@ int mxman_res_mappings_logger_init(struct mxman *mxman, void *start_dram)
 	start_dram_section2 = (char *)obj->vaddr;
 #else
 	struct scsc_mif_abs *mif;
-	scsc_mifram_ref mifram_ref;
+	//scsc_mifram_ref mifram_ref;
 
 	mif = scsc_mx_get_mif_abs(mxman->mx);
 	start_dram_section2 = (char *)start_dram + MX_DRAM_SIZE_SECTION_1;

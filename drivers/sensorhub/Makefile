@@ -29,6 +29,7 @@ shub-y += factory/magnetometer/magnetometer_mxg4300s_factory.o
 shub-y += factory/pressure/pressure_factory.o
 shub-y += factory/pressure/pressure_bmp580_factory.o
 shub-y += factory/pressure/pressure_lps22hh_factory.o
+shub-y += factory/pressure/pressure_lps22df_factory.o
 shub-y += factory/pressure/pressure_lps25h_factory.o
 shub-y += factory/proximity/proximity_factory.o
 shub-y += factory/proximity/proximity_gp2ap110s_factory.o
@@ -37,6 +38,7 @@ shub-y += factory/proximity/proximity_stk3328_factory.o
 shub-y += factory/proximity/proximity_tmd4912_factory.o
 shub-y += factory/proximity/proximity_stk3391x_factory.o
 shub-y += factory/proximity/proximity_stk33512_factory.o
+shub-y += factory/proximity/proximity_stk3afx_factory.o
 
 shub-y += others/shub_motor_callback.o
 shub-y += others/shub_panel.o
@@ -62,6 +64,7 @@ shub-y += sensor/proximity_raw.o
 shub-y += sensor/proximity_calibration.o
 shub-y += sensor/motion.o
 shub-y += sensor/super.o
+shub-y += sensor/hub_debugger.o
 #shub-y += sensor/thermistor.o
 shub-y += sensor/pocket_mode.o
 shub-y += sensor/device_orientation.o
@@ -93,10 +96,12 @@ shub-y += sensor/physical_sensor/proximity/proximity_stk3328.o
 shub-y += sensor/physical_sensor/proximity/proximity_tmd4912.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk33512.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk3391x.o
-shub-y += sensor/physical_sensor/light/light_stk33512.o
+shub-y += sensor/physical_sensor/proximity/proximity_stk3afx.o
+shub-y += sensor/physical_sensor/light/light_stk_common.o
 
 shub-y += sensor/physical_sensor/pressure/pressure_bmp580.o
 shub-y += sensor/physical_sensor/pressure/pressure_lps22hh.o
+shub-y += sensor/physical_sensor/pressure/pressure_lps22df.o
 
 shub-y += sensorhub/shub_device.o
 shub-y += sensorhub/shub_sysfs.o

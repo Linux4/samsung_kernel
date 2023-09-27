@@ -604,6 +604,12 @@ int npu_interface_close(struct npu_system *system)
 
 	dev = &system->pdev->dev;
 
+	for (i = 0; i < system->irq_num; i++)
+		irq_set_affinity_hint(system->irq[i], NULL);
+
+	for (i = 0; i < system->irq_num; i++)
+		devm_free_irq(dev, system->irq[i], NULL);
+
 	queue_work(wq, &work_report);
 	if ((wq) && (interface.mbox_hdr)) {
 		if (work_pending(&work_report)) {
@@ -616,12 +622,6 @@ int npu_interface_close(struct npu_system *system)
 		destroy_workqueue(wq);
 		wq = NULL;
 	}
-
-	for (i = 0; i < system->irq_num; i++)
-		irq_set_affinity_hint(system->irq[i], NULL);
-
-	for (i = 0; i < system->irq_num; i++)
-		devm_free_irq(dev, system->irq[i], NULL);
 
 	interface.addr = NULL;
 	interface.mbox_hdr = NULL;

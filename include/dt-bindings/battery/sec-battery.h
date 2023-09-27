@@ -59,13 +59,12 @@
 
 /* ADC type */
 	/* NOT using this ADC channel */
-#define SEC_BATTERY_ADC_TYPE_NONE 	0
+#define SEC_BATTERY_ADC_TYPE_NONE	0
 	/* ADC in AP */
-#define SEC_BATTERY_ADC_TYPE_AP 	1
+#define SEC_BATTERY_ADC_TYPE_AP		1
 	 /* ADC by additional IC */
-#define SEC_BATTERY_ADC_TYPE_IC 	2
-#define SEC_BATTERY_ADC_TYPE_NUM 	3
-
+#define SEC_BATTERY_ADC_TYPE_IC		2
+#define SEC_BATTERY_ADC_TYPE_NUM	3
 
 /* thermal source */
 /* none */
@@ -299,6 +298,7 @@
 #define WIRELESS_VOUT_9V_STEP		15
 #define WIRELESS_VOUT_10V_STEP		16
 #define WIRELESS_VOUT_OTG			17
+#define WIRELESS_VOUT_FORCE_9V	18
 
 /* enum mfc_send_command */
 #define MFC_END_SIG_STRENGTH		0

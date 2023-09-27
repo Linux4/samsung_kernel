@@ -84,6 +84,17 @@ struct shub_data_t {
 	char mini_dump[MINI_DUMP_LENGTH];
 };
 
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+enum grip_ic_num {
+	MAIN_GRIP = 0,
+	SUB_GRIP,
+	SUB2_GRIP,
+	WIFI_GRIP,
+	GRIP_MAX_CNT
+};
+static u32 grip_error[GRIP_MAX_CNT] = {0,};
+#endif
+
 struct device *get_shub_device(void);
 struct shub_data_t *get_shub_data(void);
 

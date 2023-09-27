@@ -270,3 +270,8 @@ config PANEL_ID_READ_BY_HSDT
 	depends on MCD_PANEL
 	default n
 
+config SUPPORT_PANEL_VCOM_TRIM_TEST
+	bool "Support VCOM TRIM test"
+	depends on MCD_PANEL
+	default n
+

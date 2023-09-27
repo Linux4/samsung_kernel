@@ -4416,7 +4416,7 @@ static int ufshcd_complete_dev_init(struct ufs_hba *hba)
 					QUERY_FLAG_IDN_FDEVICEINIT, 0, &flag_res);
 		if (!flag_res)
 			break;
-		usleep_range(500, 1000);
+		usleep_range(5000, 10000);
 	} while (ktime_before(ktime_get(), timeout));
 
 	if (err) {
@@ -5965,8 +5965,10 @@ static void ufshcd_err_handling_prepare(struct ufs_hba *hba)
 	}
 	ufshcd_scsi_block_requests(hba);
 	/* Drain ufshcd_queuecommand() */
-	down_write(&hba->clk_scaling_lock);
-	up_write(&hba->clk_scaling_lock);
+	if (ufshcd_is_clkscaling_supported(hba)) {
+		down_write(&hba->clk_scaling_lock);
+		up_write(&hba->clk_scaling_lock);
+	}
 	cancel_work_sync(&hba->eeh_work);
 }
 
@@ -6180,7 +6182,8 @@ lock_skip_pending_xfer_clear:
 		 * Hold the scaling lock just in case dev cmds
 		 * are sent via bsg and/or sysfs.
 		 */
-		down_write(&hba->clk_scaling_lock);
+		if (ufshcd_is_clkscaling_supported(hba))
+			down_write(&hba->clk_scaling_lock);
 		hba->force_pmc = true;
 		pmc_err = ufshcd_config_pwr_mode(hba, &(hba->pwr_info));
 		if (pmc_err) {
@@ -6190,7 +6193,8 @@ lock_skip_pending_xfer_clear:
 		}
 		hba->force_pmc = false;
 		ufshcd_print_pwr_info(hba);
-		up_write(&hba->clk_scaling_lock);
+		if (ufshcd_is_clkscaling_supported(hba))
+			up_write(&hba->clk_scaling_lock);
 		spin_lock_irqsave(hba->host->host_lock, flags);
 	}
 

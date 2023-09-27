@@ -209,7 +209,6 @@
 					battery,pre_wc_afc_work_delay = <0xfa0>;
 					battery,pre_afc_input_current = <0x1f4>;
 					battery,pre_wc_afc_input_current = <0x1f4>;
-					battery,prepare_ta_delay = <0x00>;
 					battery,swelling_high_rechg_voltage = <0xfd2>;
 					battery,swelling_low_rechg_voltage = <0x10ae>;
 					battery,siop_icl = <0x4b0>;
@@ -237,7 +236,14 @@
 					battery,store_mode_charging_min = <0x3c>;
 					battery,wireless_cc_cv = <0x55>;
 					battery,wireless_otg_input_current = <0x384>;
+					battery,age_data_cycle = <0x00 0x12c 0x190 0x2bc 0x3e8>;
+					battery,age_data_full_condition_soc = <0x5d 0x5c 0x5b 0x5a 0x59>;
+					battery,age_data_chg_float_voltage_offset = <0x00 0x14 0x28 0x3c 0x6e>;
+					battery,age_data_full_condition_vcell_offset = <0x00 0x14 0x28 0x3c 0x6e>;
+					battery,age_data_recharge_condition_vcell_offset = <0x00 0x14 0x28 0x3c 0x6e>;
 					battery,age_data = <0x00 0x1144 0x10fe 0x1112 0x5d 0x12c 0x1130 0x10ea 0x10fe 0x5c 0x190 0x111c 0x10d6 0x10ea 0x5b 0x2bc 0x1108 0x10c2 0x10d6 0x5a 0x3e8 0x10d6 0x1090 0x10a4 0x59>;
+					battery,health_condition_cycle = <0x384 0x4b0 0x5dc>;
+					battery,health_condition_asoc = <0x00 0x00 0x00>;
 					battery,max_input_voltage = <0x2328>;
 					battery,max_input_current = <0xbb8>;
 					battery,cisd_alg_index = <0x08>;
@@ -263,7 +269,6 @@
 					battery,low_temp_float = <0x1144>;
 					battery,chg_ocp_current = <0x00>;
 					battery,max_charging_charge_power = <0x61a8>;
-					battery,health_condition = <0x384 0x00 0x4b0 0x00 0x5dc 0x00>;
 					battery,step_chg_type = <0x00>;
 					battery,dc_step_chg_type = <0xe9>;
 					battery,dc_step_chg_charge_power = <0x55f0>;
@@ -736,7 +741,7 @@
 				};
 
 				wireless-power-info {
-					count = <0x05>;
+					count = <0x06>;
 					phandle = <0x75>;
 
 					current_group_0 {
@@ -759,6 +764,15 @@
 
 					current_group_2 {
 						wireless_power_class = <0x02>;
+						vout = <0x2af8>;
+						input_current_limit = <0x2a8>;
+						fast_charging_current = <0xc4e>;
+						ttf_charge_current = <0x5dc>;
+						rx_power = <0x1d4c>;
+					};
+
+					current_group_3 {
+						wireless_power_class = <0x02>;
 						vout = <0x2328>;
 						input_current_limit = <0x4b0>;
 						fast_charging_current = <0xc4e>;
@@ -766,7 +780,7 @@
 						rx_power = <0x2ee0>;
 					};
 
-					current_group_3 {
+					current_group_4 {
 						wireless_power_class = <0x02>;
 						vout = <0x2af8>;
 						input_current_limit = <0x44c>;
@@ -775,7 +789,7 @@
 						rx_power = <0x2ee0>;
 					};
 
-					current_group_4 {
+					current_group_5 {
 						wireless_power_class = <0x02>;
 						vout = <0x2af8>;
 						input_current_limit = <0x514>;
@@ -1926,7 +1940,7 @@
 				status = "okay";
 				compatible = "samsung,exynos-gnss";
 				interrupt-parent = <0xffffffff>;
-				interrupts = <0x00 0x16 0x04 0x00 0x10e 0x01 0x00 0x10d 0x04 0x00 0x10c 0x01>;
+				interrupts = <0x00 0x16 0x04 0x00 0x10e 0x04 0x00 0x10d 0x04 0x00 0x10c 0x01>;
 				interrupt-names = "ACTIVE\0WATCHDOG\0WAKEUP\0SW_INIT";
 				shmem,name = "KEPLER";
 				device_node_name = "gnss_ipc";

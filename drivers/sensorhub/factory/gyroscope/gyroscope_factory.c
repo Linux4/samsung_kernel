@@ -151,7 +151,7 @@ void initialize_gyroscope_sysfs(void)
 		if (chipset_attrs) {
 			ret = add_sensor_device_attr(gyro_sysfs_device, chipset_attrs);
 			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
 				return;
 			}
 			break;

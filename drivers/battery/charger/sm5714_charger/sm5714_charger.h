@@ -104,11 +104,11 @@ struct sm5714_charger_platform_data {
 	unsigned int irq_pogo_int;
 #endif
 	bool boosting_voltage_aicl;
+	bool ovp_bypass_mode;
 };
 
 #define REDUCE_CURRENT_STEP			100
 #define MINIMUM_INPUT_CURRENT			300
-#define SLOW_CHARGING_CURRENT_STANDARD          400
 
 struct sm5714_charger_data {
 	struct device *dev;

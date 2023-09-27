@@ -28,8 +28,8 @@ struct sensor_manager_t {
  *	index 0 : for sensor legacy hal sensors, type < SENSOR_TYPE_LEGACY_MAX
  *	index 2,3 : for scontext sensors, type > SENSOR_TYPE_LEGACY_MAX
  */
-	uint64_t sensor_probe_state[3];
 	struct shub_sensor *sensor_list[SENSOR_TYPE_MAX];
+	uint64_t sensor_probe_state[3];
 	struct sensor_spec_t *sensor_spec;
 	bool is_fs_ready;
 };
@@ -70,4 +70,5 @@ void fs_ready_cb(void);
 
 void get_sensor_vendor_name(int vendor_type, char *vendor_name);
 
+void print_big_data(void);
 #endif /* __SENSOR_MANAGER_H_ */

@@ -3943,7 +3943,7 @@ int get_sensor_min_frame_duration(struct is_sensor_interface *itf,
 int get_delayed_preflash_time(struct is_sensor_interface *itf, u32 *delayedTime)
 {
 	int ret = 0;
-#ifdef CONFIG_LEDS_S2MU106_FLASH
+#ifdef USE_LEDS_FLASH_CHARGING_VOLTAGE_CONTROL
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct v4l2_subdev *subdev_flash;
 	struct v4l2_control ctrl;

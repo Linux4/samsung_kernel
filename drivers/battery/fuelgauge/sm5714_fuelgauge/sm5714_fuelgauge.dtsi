@@ -24,7 +24,11 @@
 		fuelgauge,sw_v_empty_voltage_cisd = <3100>;
 		fuelgauge,sw_v_empty_recover_voltage = <3480>;
 		fuelgauge,capacity = <4000>;
-#if 1
+#if 0
+		fuelgauge,bat_id_gpio = <
+				SEC_GPIO_REF(${bat_id_single_gpio}) 0  /* BAT_ID_1 */
+				>;
+#elif 1
 		fuelgauge,bat_id_gpio = <
 				SEC_GPIO_REF(PM,s2mpu14_gpio,gpio_s,8) 0  /* BAT_ID_2 */
 				SEC_GPIO_REF(PM,s2mpu14_gpio,gpio_s,7) 0  /* BAT_ID_1 */

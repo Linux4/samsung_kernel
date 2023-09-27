@@ -168,17 +168,11 @@ struct exynos_ufs {
 	/* async resume */
 	struct work_struct resume_work;
 
-	struct work_struct ah8_enter;
-	struct work_struct ah8_exit;
-
-	struct timer_list ah8_timer;	/* stat reset timer */
-
-	u32 ah8_reset_in_ms;
 	u32 ah8_ahit;
 
-	u32 ah8_state;
-	u32 ah8_enter_count;
-	u32 ah8_exit_count;
+	u32 hibern8_state;
+	u32 hibern8_enter_cnt;
+	u32 hibern8_exit_cnt;
 
 	/* value 1 whenever resuming, and then we can deal with
 	   UAC(Unit Attention Condition). */
@@ -194,14 +188,18 @@ struct exynos_ufs {
 
 	/* cache of hardware contents */
 	unsigned long nexus;
-
-	atomic_t dma_busy_cnt;
 	bool skip_flush;
+	bool deep_suspended;
 };
 
 static inline struct exynos_ufs *to_exynos_ufs(struct ufs_hba *hba)
 {
 	return dev_get_platdata(hba->dev);
+}
+
+static inline u32 __get_upmcrs(struct exynos_ufs *ufs)
+{
+	return (std_readl(&ufs->handle, REG_CONTROLLER_STATUS) >> 8) & 0x7;
 }
 
 int exynos_ufs_init_dbg(struct ufs_vs_handle *);

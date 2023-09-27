@@ -199,7 +199,8 @@
 #define IDX_SKW_CAL	3 /* skew_cal_en */
 #define IDX_SKW_DLY	4 /* skew_delay_sel */
 #define IDX_BIA_VAL	5 /* bias */
-#define IDX_MAX_VAL	6
+#define IDX_CLK_VAL	6 /* clock lane */
+#define IDX_MAX_VAL	7
 
 /* PD MODE */
 #define PD_MSPD			0
@@ -369,7 +370,13 @@
 #define SENSOR_NAME_HI846		215
 #define SENSOR_NAME_OV02A10		216
 #define SENSOR_NAME_HI847		217
-#define SENSOR_NAME_OV32A1Q     218
+#define SENSOR_NAME_OV32A1Q		218
+#define SENSOR_NAME_GC08A3		219
+#define SENSOR_NAME_SC201		220
+#define SENSOR_NAME_HI556		221
+#define SENSOR_NAME_GC02M2		222
+#define SENSOR_NAME_SC501		223
+#define SENSOR_NAME_HI1339		225
 
 /* 256~: currently not used */
 #define SENSOR_NAME_CUSTOM		301

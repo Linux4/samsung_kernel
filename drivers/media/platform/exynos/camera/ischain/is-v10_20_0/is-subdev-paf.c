@@ -16,6 +16,7 @@
 #include "is-param.h"
 #include "is-video.h"
 #include "is-type.h"
+#include "pablo-obte.h"
 
 void is_ischain_paf_stripe_cfg(struct is_subdev *subdev,
 		struct is_frame *frame,
@@ -215,6 +216,13 @@ static int is_ischain_paf_tag(struct is_subdev *subdev,
 		inparm.y = 0;
 		inparm.w = paf_param->dma_input.dma_crop_width;
 		inparm.h = paf_param->dma_input.dma_crop_height;
+	}
+
+	if (IS_RUNNING_TUNING_SYSTEM()) {
+		incrop->x = 0;
+		incrop->y = 0;
+		incrop->w = leader->input.width;
+		incrop->h = leader->input.height;
 	}
 
 	if (IS_NULL_CROP(incrop))

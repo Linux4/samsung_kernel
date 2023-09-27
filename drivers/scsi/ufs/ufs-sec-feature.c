@@ -1061,6 +1061,14 @@ void ufs_sec_check_device_stuck(void)
 		panic("UFS TM ERROR\n");
 	}
 #endif
+
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+	if (ufs_vdi.hba && ufs_vdi.hba->eh_flags)
+		/* do not recover system if test mode is enabled */
+		/* 1. reset recovery is in progress from ufshcd_err_handler */
+		/* 2. exynos_ufs_init_host has been succeeded */
+		BUG();
+#endif
 }
 
 static void ufs_sec_utp_error_check(struct ufs_hba *hba, int tag)
@@ -1371,6 +1379,15 @@ static void sec_android_vh_ufs_send_tm_command(void *data, struct ufs_hba *hba, 
 
 	if (!strncmp(str, "tm_complete_err", sizeof("tm_complete_err")))
 		ufs_sec_tm_error_check(tm_func);
+
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+	if (!strncmp(str, "tm_complete", sizeof("tm_complete"))) {
+		dev_err(hba->dev,
+			"%s: ufs tm cmd is succeeded and forced BUG called\n", __func__);
+		ssleep(2);
+		BUG();
+	}
+#endif
 }
 
 static void sec_android_vh_ufs_check_int_errors(void *data, struct ufs_hba *hba, bool queue_eh_work)

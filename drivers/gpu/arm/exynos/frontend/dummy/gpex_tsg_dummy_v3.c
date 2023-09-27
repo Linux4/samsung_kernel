@@ -432,7 +432,7 @@ int gpex_tsg_get_queue_nr(int type)
 	return 0;
 }
 
-struct atomic_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void)
+struct blocking_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void)
 {
 	return 0;
 }

@@ -58,11 +58,7 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 #endif
 	static int curr_cnt = 0;
 	static bool skip_lcd_on_changed;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int age_step = battery->pdata->age_step;
-#else
-	int age_step = 0;
-#endif
 	union power_supply_propval val = {0, };
 	int fpdo_sc = 0;
 
@@ -279,11 +275,7 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 	int force_step_soc = 0, step_fg_current = -1;
 	bool force_change_step = false;
 	union power_supply_propval val = {0, };
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int age_step = battery->pdata->age_step;
-#else
-	int age_step = 0;
-#endif
 	unsigned int dc_step_chg_type;
 
 	if (battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC) {
@@ -590,11 +582,7 @@ int sec_dc_step_charging_dt(struct sec_battery_info *battery, struct device *dev
 	char str[128] = {0,};
 	u32 *soc_cond_temp, *vol_cond_temp, *vfloat_temp, *iout_temp;
 	int age_step = battery->pdata->age_step;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int num_age_step = battery->pdata->num_age_step;
-#else
-	int num_age_step = 0;
-#endif
 	battery->dchg_dc_in_swelling = of_property_read_bool(np,
 						     "battery,dchg_dc_in_swelling");
 	pr_info("%s: dchg_dc_in_swelling(%d)\n", __func__, battery->dchg_dc_in_swelling);
@@ -752,10 +740,15 @@ int sec_dc_step_charging_dt(struct sec_battery_info *battery, struct device *dev
 			if (ret)
 				battery->pdata->dc_step_cond_v_margin_sub = 0;
 
-			ret = of_property_read_u32(np, "battery,sc_vbat_thresh",
-					&battery->pdata->sc_vbat_thresh);
+			ret = of_property_read_u32(np, "battery,sc_vbat_thresh_main",
+					&battery->pdata->sc_vbat_thresh_main);
 			if (ret)
-				battery->pdata->sc_vbat_thresh = 4420;
+				battery->pdata->sc_vbat_thresh_main = 4420;
+
+			ret = of_property_read_u32(np, "battery,sc_vbat_thresh_sub",
+					&battery->pdata->sc_vbat_thresh_sub);
+			if (ret)
+				battery->pdata->sc_vbat_thresh_sub = battery->pdata->sc_vbat_thresh_main;
 #endif
 		}
 	}
@@ -896,8 +889,15 @@ int sec_dc_step_charging_dt(struct sec_battery_info *battery, struct device *dev
 			pdata->dc_step_chg_vol_offset = kcalloc(battery->dc_step_chg_step, sizeof(u32), GFP_KERNEL);
 			ret = of_property_read_u32_array(np, "battery,dc_step_chg_vol_offset",
 						pdata->dc_step_chg_vol_offset, battery->dc_step_chg_step);
-			if (ret)
+			if (ret) {
 				pr_info("%s: dc_step_chg_vol_offset is empty\n", __func__);
+				/* Fill-up use one-dimensional offset table */
+				for (j = 0; j < battery->dc_step_chg_step; j++)
+					if (pdata->dc_step_chg_val_vfloat[0][j] > battery->pdata->chg_float_voltage)
+						pdata->dc_step_chg_vol_offset[j] =
+							pdata->dc_step_chg_val_vfloat[0][j] -
+								battery->pdata->chg_float_voltage;
+			}
 
 			memset(str, 0x0, sizeof(str));
 			sprintf(str + strlen(str), "dc_step_chg_vol_offset arr :");
@@ -959,7 +959,8 @@ int sec_dc_step_charging_dt(struct sec_battery_info *battery, struct device *dev
 		kfree(iout_temp);
 	}
 
-	if (dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) {
+	if ((dc_step_chg_type & STEP_CHARGING_CONDITION_INPUT_CURRENT) ||
+		(dc_step_chg_type & STEP_CHARGING_CONDITION_FG_CURRENT)) {
 		p = of_get_property(np, "battery,dc_step_chg_cond_iin", &len);
 		if (!p) {
 			pr_info("%s: dc_step_chg_cond_iin is Empty, set default (Iout / 2)\n", __func__);
@@ -1021,10 +1022,9 @@ int sec_dc_step_charging_dt(struct sec_battery_info *battery, struct device *dev
 
 dc_step_charging_dt_error:
 	return -1;
-}
+} /* sec_dc_step_charging_dt */
 #endif
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 void sec_bat_set_aging_info_step_charging(struct sec_battery_info *battery)
 {
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
@@ -1090,7 +1090,6 @@ void sec_bat_set_aging_info_step_charging(struct sec_battery_info *battery)
 #endif
 }
 EXPORT_SYMBOL(sec_bat_set_aging_info_step_charging);
-#endif
 
 void sec_step_charging_dt(struct sec_battery_info *battery, struct device *dev)
 {
@@ -1101,11 +1100,7 @@ void sec_step_charging_dt(struct sec_battery_info *battery, struct device *dev)
 	const u32 *p;
 	char str[128] = {0,};
 	u32 *soc_cond_temp, *vfloat_temp, *curr_temp;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int num_age_step = battery->pdata->num_age_step;
-#else
-	int num_age_step = 0;
-#endif
 
 	battery->step_charging_skip_lcd_on = of_property_read_bool(np,
 						     "battery,step_charging_skip_lcd_on");

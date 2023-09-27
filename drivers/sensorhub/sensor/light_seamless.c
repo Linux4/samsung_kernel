@@ -50,42 +50,25 @@ static int inject_light_seamless_additional_data(char *buf, int count)
 	return ret;
 }
 
+static struct sensor_funcs light_seamless_sensor_funcs = {
+	.inject_additional_data = inject_light_seamless_additional_data,
+};
+
 int init_light_seamless(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_SEAMLESS);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "light_seamless_sensor");
-		sensor->receive_event_size = 4;
-		sensor->report_event_size = 4;
-		sensor->event_buffer.value = kzalloc(sizeof(struct light_seamless_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "light_seamless_sensor", 4, 4, sizeof(struct light_seamless_event));
 
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-        sensor->funcs->inject_additional_data = inject_light_seamless_additional_data;
+		sensor->funcs = &light_seamless_sensor_funcs;
 	} else {
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

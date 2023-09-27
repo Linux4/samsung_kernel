@@ -313,14 +313,14 @@ int gpex_tsg_get_queue_nr(int type)
 	return atomic_read(&tsg.queue.nr[type]);
 }
 
-struct atomic_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void)
+struct blocking_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void)
 {
 	return &(tsg.frag_utils_change_notifier_list);
 }
 
 int gpex_tsg_notify_frag_utils_change(u32 js0_utils)
 {
-	return atomic_notifier_call_chain(gpex_tsg_get_frag_utils_change_notifier_list(), js0_utils, NULL);
+	return blocking_notifier_call_chain(gpex_tsg_get_frag_utils_change_notifier_list(), 0, (void *)&js0_utils);
 }
 
 int gpex_tsg_spin_lock(void)
