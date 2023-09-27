@@ -30,7 +30,7 @@
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.dtsi */
 &tsp_stm {
 	sec,tclm_level = <2>;
 	sec,afe_base = <0x0011>;
@@ -49,7 +49,7 @@
 	stm,lpmode_change_delay = <50>;
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.02.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.02.dtsi */
 &tsp_stm {
 	status = "ok";
 };

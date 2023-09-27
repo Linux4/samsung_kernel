@@ -314,7 +314,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a32.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a32.dtsi */
 &sec_battery {
 	pinctrl-names = "default";
 

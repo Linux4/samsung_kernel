@@ -973,11 +973,10 @@ int et7xx_write_register(struct et7xx_data *etspi, u8 addr, u8 buf)
 	spi_message_add_tail(&xfer, &m);
 	retval = spi_sync(etspi->spi, &m);
 
-	if (retval == 0) {
+	if (retval == 0)
 		pr_info("address = %x\n", addr);
-	} else {
+	else
 		pr_err("read data error retval = %d\n", retval);
-	}
 
 	return retval;
 #endif
@@ -1179,9 +1178,7 @@ int et7xx_eeprom_sector_erase(struct et7xx_data *etspi, struct egis_ioc_transfer
 	retval = spi_sync(etspi->spi, &m);
 
 end:
-
-	if (buf)
-		kfree(buf);
+	kfree(buf);
 
 	return retval;
 
@@ -1234,8 +1231,7 @@ int et7xx_eeprom_block_erase(struct et7xx_data *etspi, struct egis_ioc_transfer 
 	retval = spi_sync(etspi->spi, &m);
 
 end:
-	if (buf)
-		kfree(buf);
+	kfree(buf);
 
 	return retval;
 
@@ -1332,8 +1328,7 @@ int et7xx_eeprom_read(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 	}
 
 end:
-	if (buf)
-		kfree(buf);
+	kfree(buf);
 
 	return retval;
 #endif
@@ -1402,8 +1397,7 @@ int et7xx_eeprom_high_speed_read(struct et7xx_data *etspi, struct egis_ioc_trans
 	}
 
 end:
-	if (buf)
-		kfree(buf);
+	kfree(buf);
 
 	return retval;
 #endif
@@ -1455,8 +1449,7 @@ int et7xx_eeprom_write(struct et7xx_data *etspi, struct egis_ioc_transfer *ioc)
 	retval = spi_sync(etspi->spi, &m);
 
 end:
-	if (buf)
-		kfree(buf);
+	kfree(buf);
 
 	return retval;
 
@@ -1639,11 +1632,8 @@ write_eeprom:
 end:
 	gpio_set_value(etspi->sleepPin, 1);
 
-	if (buf)
-		kfree(buf);
-
-	if (data)
-		kfree(data);
+	kfree(buf);
+	kfree(data);
 
 	return retval;
 #endif

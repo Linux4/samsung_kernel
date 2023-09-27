@@ -333,7 +333,7 @@ static void devapc_violation_triggered(uint32_t vio_idx,
 		DEVAPC_MSG("Device APC Violation Issue/%s", subsys_str);
 
 		/* Connsys will trigger EE instead of AP KE */
-		if (id != INFRA_SUBSYS_CONN)
+		if ((id != INFRA_SUBSYS_CONN) && strncasecmp(vio_master, "APMCU_Read", 10))
 			BUG();
 	} else if (dbg_stat->enable_AEE) {
 

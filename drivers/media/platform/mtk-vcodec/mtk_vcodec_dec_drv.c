@@ -117,7 +117,6 @@ static int fops_vcodec_open(struct file *file)
 		mtk_v4l2_debug(0, "decoder capability %x", dev->dec_capability);
 	}
 
-	list_add(&ctx->list, &dev->ctx_list);
 	dev->dec_cnt++;
 
 	mutex_unlock(&dev->dev_mutex);
@@ -165,7 +164,6 @@ static int fops_vcodec_release(struct file *file)
 	v4l2_fh_exit(&ctx->fh);
 	v4l2_ctrl_handler_free(&ctx->ctrl_hdl);
 
-	list_del_init(&ctx->list);
 	kfree(ctx->dec_flush_buf);
 	kfree(ctx);
 	if (dev->dec_cnt > 0)
@@ -312,6 +310,7 @@ static int mtk_vcodec_dec_probe(struct platform_device *pdev)
 		spin_lock_init(&dev->dec_power_lock[i]);
 		dev->dec_is_power_on[i] = false;
 	}
+	mutex_init(&dev->ctx_mutex);
 	mutex_init(&dev->dev_mutex);
 	mutex_init(&dev->dec_dvfs_mutex);
 	spin_lock_init(&dev->irqlock);

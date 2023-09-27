@@ -141,9 +141,11 @@ static int dump_buffer(struct adsp_exception_control *ctrl, int coredump_id)
 	n += dump_adsp_shared_memory(buf + n, total - n, coredump_id);
 	n += dump_adsp_shared_memory(buf + n, total - n, ADSP_A_LOGGER_MEM_ID);
 
+	mutex_lock(&ctrl->buffer_lock);
 	reinit_completion(&ctrl->done);
 	ctrl->buf_backup = buf;
 	ctrl->buf_size = total;
+	mutex_unlock(&ctrl->buffer_lock);
 
 	pr_debug("%s, vmalloc size %u, buffer %p, dump_size %u",
 		 __func__, total, buf, n);
@@ -225,6 +227,10 @@ void adsp_aed_worker(struct work_struct *ws)
 						aed_work);
 	struct adsp_priv *pdata = NULL;
 	int cid = 0, ret = 0, retry = 0;
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+	char env[32] = {0,};
+	char *envp[2] = {env, NULL};
+#endif
 
 	/* wake lock AP*/
 	__pm_stay_awake(&ctrl->wakeup_lock);
@@ -248,6 +254,8 @@ void adsp_aed_worker(struct work_struct *ws)
 
 #if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
 	send_adsp_silent_reset_ev();
+	snprintf(env, sizeof(env), "ADSP_LAST_MSG");
+	kobject_uevent_env(&ctrl->wakeup_lock.dev->kobj, KOBJ_CHANGE, envp);
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	pr_info("%s, adsp dead, bug on", __func__);
 	BUG_ON(1);
@@ -316,6 +324,7 @@ int init_adsp_exception_control(struct workqueue_struct *workq,
 	ctrl->buf_backup = NULL;
 	ctrl->buf_size = 0;
 	mutex_init(&ctrl->lock);
+	mutex_init(&ctrl->buffer_lock);
 	init_completion(&ctrl->done);
 	INIT_WORK(&ctrl->aed_work, adsp_aed_worker);
 	wakeup_source_init(&ctrl->wakeup_lock, "adsp wakelock");
@@ -451,6 +460,7 @@ static ssize_t adsp_dump_show(struct file *filep, struct kobject *kobj,
 	ssize_t n = 0;
 	struct adsp_exception_control *ctrl = &excep_ctrl;
 
+	mutex_lock(&ctrl->buffer_lock);
 	if (ctrl->buf_backup) {
 		n = copy_from_buffer(buf, -1, ctrl->buf_backup,
 			ctrl->buf_size, offset, size);
@@ -464,6 +474,7 @@ static ssize_t adsp_dump_show(struct file *filep, struct kobject *kobj,
 			complete(&ctrl->done);
 		}
 	}
+	mutex_unlock(&ctrl->buffer_lock);
 
 	return n;
 }

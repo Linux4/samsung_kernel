@@ -295,7 +295,6 @@ static int status_open(struct inode *inode, struct file *f)
 static const struct file_operations status_fops = {
 	.open		= status_open,
 	.read		= seq_read,
-	.llseek		= no_llseek,
 	.release	= single_release,
 };
 
@@ -445,7 +444,7 @@ static int help_show(struct seq_file *m, void *unused)
 	seq_puts(m, "------------------------------------------------------------\n");
 	seq_puts(m, "\n");
 	seq_puts(m, "---------- usage\n");
-	seq_puts(m, "# cd /d/dd_mdnie\n");
+	seq_puts(m, "# cd /d/dd/mdnie\n");
 	seq_puts(m, "---------- status usage\n");
 	seq_puts(m, "# cat status\n");
 	seq_puts(m, "= see status value with latest read data from panel\n");
@@ -487,7 +486,7 @@ static const struct file_operations help_fops = {
 	.open		= help_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
-	.release	= seq_release,
+	.release	= single_release,
 };
 
 int init_debugfs_mdnie(struct mdnie_info *md, unsigned int mdnie_no)
@@ -495,6 +494,7 @@ int init_debugfs_mdnie(struct mdnie_info *md, unsigned int mdnie_no)
 	char name[NAME_MAX] = {0, };
 	int ret = 0;
 	static struct dentry *debugfs_root;
+	static struct dentry *dd_debugfs_root;
 	struct d_info *d;
 
 	if (!md) {
@@ -507,8 +507,11 @@ int init_debugfs_mdnie(struct mdnie_info *md, unsigned int mdnie_no)
 
 	d = kzalloc(sizeof(struct d_info), GFP_KERNEL);
 
+	dd_debugfs_root = debugfs_lookup("dd", NULL);
+	dd_debugfs_root = dd_debugfs_root ? dd_debugfs_root : debugfs_create_dir("dd", NULL);
+
 	if (!debugfs_root) {
-		debugfs_root = debugfs_create_dir("dd_mdnie", NULL);
+		debugfs_root = debugfs_create_dir("mdnie", dd_debugfs_root);
 		debugfs_create_file("_help", 0400, debugfs_root, md, &help_fops);
 	}
 

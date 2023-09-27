@@ -26,12 +26,14 @@
 
 #define MXG4300S_NAME	"MXG4300S"
 
-static void init_mag_mxg4300s(void)
+static int init_mag_mxg4300s(void)
 {
 	struct magnetometer_data *data = get_sensor(SENSOR_TYPE_GEOMAGNETIC_FIELD)->data;
 
 	data->mag_matrix_len = 27;
 	data->cal_data_len = sizeof(struct calibration_data_mxg4300s);
+
+	return 0;
 }
 
 static void parse_dt_magnetometer_mxg4300s(struct device *dev)
@@ -60,9 +62,8 @@ static void parse_dt_magnetometer_mxg4300s(struct device *dev)
 		value_nfc = gpio_get_value(check_nfc_gpio);
 
 	check_mst_gpio = of_get_named_gpio(np, "mag-check-mst", 0);
-	if (check_mst_gpio >= 0) {
+	if (check_mst_gpio >= 0)
 		value_mst = gpio_get_value(check_mst_gpio);
-	}
 
 	if (value_mst == 1) {
 		shub_info("mag matrix(%d %d) nfc/mst array", value_nfc, value_mst);
@@ -82,12 +83,12 @@ static void parse_dt_magnetometer_mxg4300s(struct device *dev)
 	}
 }
 
-struct magnetometer_chipset_funcs magnetometer_mxg4300s_func = {
+struct sensor_chipset_init_funcs magnetometer_mxg4300s_func = {
 	.init = init_mag_mxg4300s,
 	.parse_dt = parse_dt_magnetometer_mxg4300s,
 };
 
-struct magnetometer_chipset_funcs *get_magnetic_mxg4300s_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_magnetic_mxg4300s_function_pointer(char *name)
 {
 	if (strcmp(name, MXG4300S_NAME) != 0)
 		return NULL;

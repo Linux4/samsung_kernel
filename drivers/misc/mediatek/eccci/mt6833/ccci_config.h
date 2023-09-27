@@ -98,5 +98,6 @@
 #define CUST_FT_BUS_TIMEOUT_DEBUG
 #define CUST_FT_EMI_DUMP_EN
 #define CUST_FT_DEVAPC_MD_DEBUG
+#define CUST_FT_SEND_TX_POWER
 
 #endif

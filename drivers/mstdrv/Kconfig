@@ -104,3 +104,12 @@ config MST_LPM_CONTROL
 	default n
 	help
 	This enables the MST LPM control code
+
+config MST_DUMMY_DRV
+	bool "MST DUMMY DRVIER for MTK"
+	default n
+	help
+	  Say y here to enable
+	  This config is for mtk devices
+	  It can distinguish the regions
+	  This enables the MST DUMMY DRIVER

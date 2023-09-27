@@ -48,6 +48,7 @@ struct ccu_device_s {
 	unsigned long pmem_base;
 	unsigned long n3d_a_base;
 	unsigned int irq_num;
+	struct mutex dev_mutex;
 	struct mutex user_mutex;
 	struct mutex clk_mutex;
 	/* list of vlist_type(struct ccu_user_s) */
@@ -192,8 +193,6 @@ int ccu_get_i2c_dma_buf_addr(uint32_t *mva, uint32_t *pa_h,
 int ccu_memcpy(void *dest, void *src, int length);
 
 int ccu_memclr(void *dest, int length);
-
-int ccu_read_info_reg(int regNo);
 
 int32_t ccu_get_current_fps(void);
 

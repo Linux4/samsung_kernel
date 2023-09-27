@@ -865,15 +865,6 @@ static void ilitek_tddi_touch_send_debug_data(u8 *buf, int len)
 
 	mutex_lock(&ilits->debug_mutex);
 
-	if (!ilits->netlink && !ilits->dnp)
-		goto out;
-
-	/* Send data to netlink */
-	if (ilits->netlink) {
-		ili_netlink_reply_msg(buf, len);
-		goto out;
-	}
-
 	/* Sending data to apk via the node of debug_message node */
 	if (ilits->dnp) {
 		index = ilits->dbf;

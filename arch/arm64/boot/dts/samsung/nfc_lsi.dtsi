@@ -9,6 +9,98 @@
  * GNU General Public License for more details.
  */
 
+#if 0
+#if 0
+&${ese_check_parent} {
+	ese_check_default: check_default {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_check}), 0)>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+#endif
+
+&${ese_spi_parent} {
+	ese_spi_bus: ese_spi_bus {
+		pins_cmd_dat {
+			/* spi func is 2, but this can be different by AP */
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_miso}), 2)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_mosi}), 2)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_cs}), 2)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_clk}), 2)>;
+			bias-disable;
+		};
+	};
+
+	ese_spi_bus_suspend: ese_spi_bus_suspend {
+		pins_cmd_dat {
+			/* spi func is 2, but this can be different by AP */
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_miso}), 0)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_mosi}), 0)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_clk}), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+
+	/*need cs pin controlled by ese driver*/
+	ese_spi_cs: ese_spi_cs {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_cs}), 0)>;
+			output-high;
+			bias-disable;
+		};
+	};
+
+	ese_spi_cs_suspend: ese_spi_cs_suspend {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${ese_spi_cs}), 0)>;
+			output-high;
+			bias-disable;
+		};
+	};
+};
+
+&${ese_spi} {
+	status = "ok";
+	pinctrl-names = "ese_active", "ese_suspend";
+	pinctrl-0 = <&ese_spi_bus>;
+	pinctrl-1 = <&ese_spi_bus_suspend &ese_spi_cs_suspend>;
+
+	ese_spi@0 {
+		compatible = "ese_p3";
+		reg = <0>;
+		spi-max-frequency = <7000000>;
+#if 0
+		ese-det-gpio = <SEC_GPIO_REF(${ese_check}) 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ese_check_default>;
+#endif
+#if 0
+		p3-vdd-supply = <&${ese_pvdd_ldo}>;
+#endif
+		/*need cs pin controlled by ese driver*/
+		/*ese_p3,cs-gpio = <SEC_GPIO_REF(${ese_spi_cs}) 0>;*/
+	};
+};
+
+#if 0
+/ {
+	fragment@ese_platform {
+		target-path = "/";
+		__overlay__ {
+			ese_platform {
+				compatible = "p3_platform";
+			};
+		};
+	};
+};
+#endif
+#endif
+
+
 &pio {
 	nfc_ven: nfc_ven {
 		pins_cmd_dat{
@@ -128,6 +220,9 @@
 #endif
 #if 1
 		sec-nfc,check_nfc = <SEC_GPIO_REF(AP,pio,52) 0>;
+#endif
+#if 0
+		sec-nfc,coldreset-gpio = <SEC_GPIO_REF(${ese_reset}) 0>;
 #endif
 		sec-nfc,clk_req_wake;
 		sec-nfc,ldo_control;

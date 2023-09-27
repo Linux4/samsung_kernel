@@ -50,6 +50,7 @@ fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI) += tsp_novatek/nt36525_a32_
 							tsp_novatek/nt36525_a02_boe.bin tsp_novatek/nt36525_a02_mp_boe.bin
 fw-external-$(CONFIG_SENSORS_A96T396_A13X_EUR) += abov/a96t396_a13x_eur_main.bin \
 							abov/a96t396_a13x_eur_sub.bin
+fw-external-$(CONFIG_SENSORS_A96T396_A13X_KOR) += abov/a96t396_a13x_kor_main.bin
 fw-external-$(CONFIG_SENSORS_A96T396_A13X) += abov/a96t396_a13x_main.bin
 fw-external-$(CONFIG_SENSORS_A96T3X6_A32X) += abov/a96t356_a32x_main.bin abov/a96t356_a32x_sub.bin \
 					 abov/a96t356_a32x_kor_main.bin abov/a96t356_a32x_kor_sub.bin
