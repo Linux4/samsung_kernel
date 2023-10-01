@@ -1,0 +1,34 @@
+config MTK_LEGACY_THERMAL
+	bool "Use MTK legacy thermal code"
+	help
+	  Upstream thermal code and legacy thermal
+	  code are not compatiable. As a result,
+	  add a new switch MTK_LEGACY_THERMAL to replace
+	  CONFIG_THERMAL for MTK legacy thermal code.
+
+config MTK_THERMAL_PA_VIA_ATCMD
+	bool "Thermal switch for query modem RF temp"
+	depends on MTK_LEGACY_THERMAL
+	help
+	  Internal switch for thermal management
+	  to query modem RF temperature
+	  via AT command.
+	  (RIL sockets)
+
+config MTK_LEGACY_THERMAL_PLATFORM
+	string "MTK legacy thermal platform name"
+	depends on MTK_LEGACY_THERMAL
+	help
+	  To separate platform codes for legacy thermal
+	  drivers. Config platform name for your
+	  selection. It's used for legacy thermal
+	  drivers only.
+
+# TabA7 Lite code for SR-AX3565-01-55 remove pa thermal in wifi-only by wenyaqi at 20201225 start
+config NO_PA_NTC
+	bool "Remove PA NTC"
+	default n
+	help
+	  If NO_PA_NTC is true, it means there is no PA
+	  NTC, and the temp of PA will set to 25 degree.
+# TabA7 Lite code for SR-AX3565-01-55 remove pa thermal in wifi-only by wenyaqi at 20201225 end

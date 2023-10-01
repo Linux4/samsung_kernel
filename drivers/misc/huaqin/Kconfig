@@ -1,0 +1,13 @@
+#
+# for huaqin mis info
+#
+
+# TabA7 Lite code added by SunXunou at 20201120 start
+config HQ_SIM_TRAY_CHECK
+	bool "check sim stry status"
+        default y
+	help
+	  this will create a node to show sim tray status.
+
+	  If unsure, say N.
+# TabA7 Lite code added by SunXunou at 20201120 end

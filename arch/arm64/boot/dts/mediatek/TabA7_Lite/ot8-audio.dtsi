@@ -1,0 +1,40 @@
+&i2c3 {
+/* AWINIC AW87XXX Smart K PA */
+	aw87xxx_pa_58@58 {
+		compatible = "awinic,aw87xxx_pa";
+		reg = <0x58>;
+		//reset-gpio = <&pio 63 0>;
+		pa-channel = < 0 >; //left
+		//actflag-gain-array = < 0x00 0x08 0x08 0x08 0x00 >;
+		gain-reg-addr = <0x05>;
+		monitor-flag = <1>;
+		monitor-timer-val = <3000>;
+		monitor-timer-count-max = <5>;
+		status = "okay";
+	};
+
+	aw87xxx_pa_59@59 {
+		compatible = "awinic,aw87xxx_pa";
+		reg = <0x59>;
+		//reset-gpio = <&pio 1 0>;
+		pa-channel = < 1 >; //right
+		//actflag-gain-array = < 0x00 0x08 0x08 0x08 0x00 >;
+		gain-reg-addr = <0x05>;
+		monitor-flag = <1>;
+		monitor-timer-val = <3000>;
+		monitor-timer-count-max = <5>;
+		status = "okay";
+	};
+/* AWINIC AW87XXX Smart K PA End */
+};
+
+/* huaqin modify for OT8-714 rm moisture function by limengxia at 2021/1/6 start*/
+&pmic_accdet{
+
+	/delete-property/ moisture-ver;
+	/delete-property/ moisture_use_ext_res;
+	/delete-property/ moisture-external-r;
+	/delete-property/ moisture-water-r;
+
+};
+/* huaqin modify for OT8-714 rm moisture function by limengxia at 2021/1/6 end*/

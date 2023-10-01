@@ -1,0 +1,25 @@
+
+config TOUCHSCREEN_MTK
+	bool "MediaTek Touch Panel Driver"
+	help
+	  Say Y here if you have MediaTek touch panel.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+config TOUCHSCREEN_HIMAX_CHIPSET
+        bool "Himax touchpanel CHIPSET"
+        depends on I2C
+        help
+          Say Y here if you have a Himax CHIPSET touchscreen.
+          HIMAX controllers are multi touch controllers which can
+          report 10 touches at a time.
+
+          If unsure, say N.
+source "drivers/input/touchscreen/mediatek/hxchipset/Kconfig"
+source "drivers/input/touchscreen/mediatek/focaltech_touch_ax3565/Kconfig"
+source "drivers/input/touchscreen/mediatek/novatek_touch/Kconfig"
+source "drivers/input/touchscreen/mediatek/ilitek_touch/Kconfig"
+
