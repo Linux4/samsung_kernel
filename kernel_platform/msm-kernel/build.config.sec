@@ -1,0 +1,13 @@
+# LEGO defconfig
+apply_defconfig_fragment ${KERNEL_DIR}/lego.config vendor/${MSM_ARCH}-gki_defconfig
+
+# DEFCONFIG base
+apply_defconfig_fragment ${KERNEL_DIR}/arch/${ARCH}/configs/vendor/${MSM_ARCH}_sec_defconfig vendor/${MSM_ARCH}-gki_defconfig
+
+# DEBUG_DEFCONFIG
+if [[ "${TARGET_BUILD_VARIANT}" != "user" ]]; then
+	apply_defconfig_fragment ${KERNEL_DIR}/arch/${ARCH}/configs/vendor/${MSM_ARCH}_sec_${TARGET_BUILD_VARIANT}_defconfig vendor/${MSM_ARCH}-gki_defconfig
+fi
+
+# VARIANT_DEFCONFIG
+# apply_defconfig_fragment ${KERNEL_DIR}/arch/${ARCH}/configs/vendor/${MSM_ARCH}_sec_${TARGET_VARIANT}_defconfig vendor/${MSM_ARCH}-gki_defconfig

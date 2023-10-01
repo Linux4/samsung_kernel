@@ -1,0 +1,50 @@
+// Copyright 2014 Google Inc. All Rights Reserved.
+// Author: siddharthr@google.com (Siddharth Ray)
+// Protos for uploading GNSS metrics.
+
+syntax = "proto2";
+
+option java_package = "com.android.internal.logging";
+option java_outer_classname = "OlogProto";
+
+package com_android_internal_logging;
+
+message OlogTestEnum {
+
+  // Types of events
+  enum Type {
+    PERFLOG_DEF = 0;
+    PERFLOG_LOG = 1;
+    PERFLOG_EVT = 2;
+    PERFLOG_WRN = 3;
+    PERFLOG_CRI = 4;
+  }
+
+  // IDs of events
+  enum ID {
+    PERFLOG_UNKNOWN = 0;
+    PERFLOG_LCDV = 2;
+    PERFLOG_ARGOS = 3;
+    PERFLOG_APPLAUNCH = 4;
+    PERFLOG_LOADAPK = 5;
+    PERFLOG_MAINLOOPER = 6;
+    PERFLOG_ACTIVITYSERVICE = 7;
+    PERFLOG_ACTIVITYSLOW = 8;
+    PERFLOG_BROADCAST = 9;
+    PERFLOG_STORE = 10;
+    PERFLOG_AUTOBRIGHT = 11;
+    PERFLOG_LCD = 12;
+    PERFLOG_CPU = 13;
+    PERFLOG_LOCKCONTENTION = 14;
+    PERFLOG_CPUFREQ = 15;
+    PERFLOG_MEMPRESSURE = 16;
+    PERFLOG_INPUTD = 17;
+    PERFLOG_AMPSS = 18;
+    PERFLOG_SERVICEMANAGERSLOW = 19;
+    PERFLOG_IPCSTARVE = 20;
+    PERFLOG_SCREENSHOT = 21;
+    PERFLOG_MUTEX = 22;
+    PERFLOG_SYSTEMSERVER = 23;
+    PERFLOG_PERFETTOLOGGINGENABLED = 24;
+  }
+}

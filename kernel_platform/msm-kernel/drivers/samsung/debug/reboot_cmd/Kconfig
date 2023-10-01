@@ -1,0 +1,4 @@
+config SEC_REBOOT_CMD
+	tristate "SEC Reboot Command Iterator"
+	help
+	  TODO: help is not ready.
