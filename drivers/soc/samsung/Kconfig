@@ -1,0 +1,293 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# SAMSUNG SoC drivers
+#
+menuconfig SOC_SAMSUNG
+	bool "Samsung SoC driver support" if COMPILE_TEST
+
+if SOC_SAMSUNG
+config EXYNOS_CHIPID
+	bool "Exynos Chip ID Driver Support"
+	depends on ARCH_EXYNOS
+	select SOC_BUS
+
+config EXYNOS_SCI
+	bool "EXYNOS SCI interface driver support"
+	help
+	  Enable exynos sci interface driver support
+
+config EXYNOS_BCM_DBG
+	bool "EXYNOS_BCM_DBG driver support"
+	depends on !DEBUG_SNAPSHOT_MINIMIZED_MODE
+	default y
+	help
+	  Enable exynos-bcm_dbg driver support
+
+config EXYNOS_BCM_DBG_GNR
+	bool "EXYNOS_BCM_DBG_GNR driver support"
+	depends on !EXYNOS_ADV_TRACER && !DEBUG_SNAPSHOT_MINIMIZED_MODE
+	default y
+	help
+	  Enable exynos-bcm_dbg general interface support.
+	  The general interface is not used ADV-tracer IPC interface.
+
+config EXYNOS_BCM_DBG_AUTO
+	bool "EXYNOS_BCM_DBG_AUTO support"
+	default y
+	depends on EXYNOS_BCM_DBG
+	depends on !(USE_SIGNED_BINARY)
+	help
+	  Enable exynos-bcm_dbg_auto support
+
+config EXYNOS_BCM_DBG_DUMP
+	bool "EXYNOS_BCM_DBG dump support"
+	depends on EXYNOS_BCM_DBG
+	help
+	  Enable exynos-bcm_dbg dump support
+
+config CAL_IF
+	bool "Exynos Chip Abstraction Layer Interface"
+	help
+	  Support CMU CAL for Exynos SoC.
+
+config CMU_EWF
+	bool "exynos early wakeup force enable"
+	depends on CAL_IF
+	default n
+	help
+	Support CMUEWF for Exynos SoC.
+
+config CMUCAL
+	bool "Exynos CMU Chip Abstraction Layer"
+	depends on CAL_IF
+	default y
+	help
+	Support CMUCAL for Exynos SoC.
+
+config EXYNOS_REBOOT
+	bool "Exynos Chip Reboot Driver Support"
+	depends on ARCH_EXYNOS
+
+config CMUCAL_DEBUG
+	bool "CMUCAL Debug Interface"
+	depends on CMUCAL
+
+config CMUCAL_QCH_IGNORE_SUPPORT
+	bool "CMUCAL QCH IGNORE Support"
+	depends on CMUCAL
+
+source "drivers/soc/samsung/acpm/Kconfig"
+
+config ACPM_DVFS
+	bool "Exynos ACPM DVFS manager"
+	depends on CAL_IF && CMUCAL
+	default y
+	help
+	Support ACPM DVFS for Exynos SoC.
+config PMUCAL
+	bool "Exynos PMU Chip Abstraction Layer"
+	depends on CAL_IF
+	default y
+	help
+	Support PMUCAL for Exynos SoC.
+
+config FLEXPMU
+	bool "Exynos FLEXPMU"
+	depends on PMUCAL
+	default n
+	help
+	Support PMUCAL for Exynos SoC.
+
+config EXYNOS_FLEXPMU_DBG
+	bool "Exynos FLEXPMU DBG"
+	depends on FLEXPMU
+	default y
+	help
+	Support FLEXPMU for Exynos SoC.
+
+config CP_PMUCAL
+	bool "Exynos PMU(for CP) Chip Abstraction Layer"
+	depends on CAL_IF
+	help
+	  Support CP_PMUCAL for Exynos SoC.
+
+config GNSS_PMUCAL
+	bool "Exynos PMU(for GNSS) Chip Abstraction Layer"
+	depends on CAL_IF
+	help
+	  Support GNSS_PMUCAL for Exynos SoC.
+
+config SHUB_PMUCAL
+	bool "Exynos PMU(for SHUB) Chip Abstraction Layer"
+	depends on CAL_IF
+	help
+	  Support SHUB_PMUCAL for Exynos SoC.
+
+config EXYNOS_PMU
+	bool "Exynos Power Management Unit Driver Support"
+	depends on ARCH_EXYNOS
+	select MFD_SYSCON
+
+config EXYNOS_CPUPM
+	bool "Exynos CPU Power Management driver"
+	depends on ARCH_EXYNOS && EXYNOS_PMU && PMUCAL
+	help
+	Support Exynos CPU Power Control for EXYNOS SoC.
+
+config EXYNOS_PD
+	bool "Exynos PM domain Support"
+	depends on ARCH_EXYNOS
+	depends on PM
+	select PM_GENERIC_DOMAINS
+
+config ECT
+	bool "Enable Exynos Characteristic Table File"
+	default n
+	depends on ARCH_EXYNOS
+
+config ECT_DUMP
+	bool "Enable Exynos Characteristic Table File Dump sysfs"
+	default n
+	depends on ECT
+
+config EXYNOS_RGT
+	bool "Exynos Regulator Debug Support"
+	depends on REGULATOR
+	depends on DEBUG_FS
+	depends on OF
+	help
+	  dummy device driver for debugging samsung PMIC
+# There is no need to enable these drivers for ARMv8
+config EXYNOS_PMU_ARM_DRIVERS
+	bool "Exynos PMU ARMv7-specific driver extensions" if COMPILE_TEST
+	depends on EXYNOS_PMU
+
+config EXYNOS_PM_DOMAINS
+	bool "Exynos PM domains" if COMPILE_TEST
+	depends on PM_GENERIC_DOMAINS || COMPILE_TEST
+
+config USI_V2
+	bool "Enable Universal Serial Interface version 2"
+	default y
+
+source "drivers/soc/samsung/debug/Kconfig"
+
+config EXYNOS_DVFS_MANAGER
+	bool "Exynos DVFS Manager"
+	default n
+	depends on ARCH_EXYNOS
+	help
+	  Enable DVFS Manager for Exynos SoC.
+	  This module controls constraint between each DVFS domains.
+
+config EXYNOS_OCP
+	bool "Exynos OCP Handler"
+	depends on CPU_FREQ
+	default n
+	help
+	  Enable OCP handler for Exynos SoC.
+
+config EXYNOS_MCINFO
+	bool "Exynos memory controller information"
+	default n
+
+config MCINFO_SYSFS
+	bool "Exynos memory controller information sysfs"
+	depends on EXYNOS_MCINFO
+	default	y if SYSFS
+
+config EXYNOS_SECURE_LOG
+	bool "Exynos Secure Log"
+	default y
+	help
+	  Support Exynos Secure Log
+
+config EXYNOS_KERNEL_PROTECTION
+	bool "Exynos Kernel Code Protection"
+	help
+	  Support Exynos Kernel Code Protection
+
+config EXYNOS_SSP
+	bool "Exynos Samsung Secure Platform"
+	default y
+	help
+	  Support Samsung Secure Platform
+
+config EXYNOS_PPMPU_FAIL_DETECTOR
+	bool "Exynos PPMPU Fail Detector"
+	default y
+	help
+	  Support Exynos PPMPU Fail Detector
+
+config EXYNOS_SDM
+	bool "Exynos Security Dump Manager Support"
+	depends on DEBUG_SNAPSHOT
+	default y
+	help
+	  Exynos Security Dump Manager
+
+config EXYNOS_PPMPU_SEPARATE_INTERRUPT
+	bool "PPMPU separate interrupt(R/W)"
+	depends on EXYNOS_PPMPU_FAIL_DETECTOR
+	help
+	  PPMPU interrupt source is separate from
+	  read and write
+
+config EXYNOS_PPMPU_ILLEGAL_READ_LOGGING
+	bool "Logging PPMPU Read Fail Information"
+	depends on EXYNOS_PPMPU_FAIL_DETECTOR
+	default n
+	help
+	  PPMPU fail information of illegal reads will be printed
+	  by the Kernel logging system.
+
+config EXYNOS_PPMPU_ILLEGAL_ACCESS_PANIC
+	bool "Kernel Panic over PPMPU Illegal Access"
+	depends on EXYNOS_PPMPU_FAIL_DETECTOR
+	default y
+	help
+	  Kernel panic will occur in case that PPMPU illegal
+	  access is detected.
+
+config EXYNOS_TZASC_FAIL_DETECTOR
+	bool "Exynos TZASC Fail Detector"
+	default y
+	help
+	  Support Exynos TZASC Fail Detector
+
+config EXYNOS_TZASC_ILLEGAL_READ_LOGGING
+	bool "Logging TZASC Read Fail Information"
+	depends on EXYNOS_TZASC_FAIL_DETECTOR
+	default n
+	help
+	  TZASC fail information of illegal reads will be printed
+	  by the Kernel logging system.
+
+config EXYNOS_TZASC_ILLEGAL_ACCESS_PANIC
+	bool "Kernel Panic over TZASC Illegal Access"
+	depends on EXYNOS_TZASC_FAIL_DETECTOR
+	default y
+	help
+	  Kernel panic will occur in case that TZASC illegal
+	  access is detected.
+
+config EXYNOS_CONTENT_PATH_PROTECTION
+	bool "Exynos Content Path Protection"
+	default y
+	help
+	  Enable content path protection of EXYNOS.
+
+config EXYNOS_DEBUG_FREQ
+	bool "check constraint freq and print log"
+	default n
+	help
+	  If this config is set, check constraint freq every time which cpufreq,
+	  devfreq are changed. In case of that, print error message
+
+source "drivers/soc/samsung/exynos_cpu_perf/Kconfig"
+endif
+
+source "drivers/soc/samsung/exynos-hdcp/Kconfig"
+source "drivers/soc/samsung/cpif/Kconfig"
+source "drivers/soc/samsung/dit/Kconfig"
+source "drivers/soc/samsung/gnssif/Kconfig"

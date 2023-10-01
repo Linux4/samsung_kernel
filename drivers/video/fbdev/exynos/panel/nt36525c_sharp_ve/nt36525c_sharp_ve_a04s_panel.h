@@ -1,0 +1,1561 @@
+/*
+ * linux/drivers/video/fbdev/exynos/panel/nt36525c_sharp_ve/nt36525c_sharp_ve_a04s_panel.h
+ *
+ * Header file for NT36525C Dimming Driver
+ *
+ * Copyright (c) 2016 Samsung Electronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef __NT36525C_A04S_PANEL_H__
+#define __NT36525C_A04S_PANEL_H__
+#include "../panel_drv.h"
+#include "nt36525c_sharp_ve.h"
+
+#include "nt36525c_sharp_ve_a04s_panel_dimming.h"
+#include "nt36525c_sharp_ve_a04s_panel_i2c.h"
+
+#include "nt36525c_sharp_ve_a04s_resol.h"
+
+#undef __pn_name__
+#define __pn_name__	a04s
+
+#undef __PN_NAME__
+#define __PN_NAME__	A04S
+
+static struct seqinfo a04s_seqtbl[MAX_PANEL_SEQ];
+
+
+/* ===================================================================================== */
+/* ============================= [NT36525C READ INFO TABLE] ============================= */
+/* ===================================================================================== */
+/* <READINFO TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================= [NT36525C RESOURCE TABLE] ============================== */
+/* ===================================================================================== */
+/* <RESOURCE TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================== [NT36525C MAPPING TABLE] ============================== */
+/* ===================================================================================== */
+
+static u8 a04s_brt_table[NT36525C_TOTAL_NR_LUMINANCE][1] = {
+	{0},
+	{1}, {1}, {2}, {3}, {3}, {4}, {5}, {5}, {6}, {7}, /* 1: 1 */
+	{7}, {8}, {9}, {9}, {10}, {11}, {11}, {12}, {13}, {14},
+	{14}, {15}, {16}, {16}, {17}, {18}, {18}, {19}, {20}, {20},
+	{21}, {22}, {22}, {23}, {24}, {24}, {25}, {26}, {27}, {27},
+	{28}, {29}, {29}, {30}, {31}, {31}, {32}, {33}, {33}, {34},
+	{35}, {35}, {36}, {37}, {37}, {38}, {39}, {40}, {40}, {41},
+	{42}, {42}, {43}, {44}, {44}, {45}, {46}, {46}, {47}, {48},
+	{48}, {49}, {50}, {51}, {51}, {52}, {53}, {53}, {54}, {55},
+	{55}, {56}, {57}, {57}, {58}, {59}, {59}, {60}, {61}, {61},
+	{62}, {63}, {64}, {64}, {65}, {66}, {66}, {67}, {68}, {68},
+	{69}, {70}, {70}, {71}, {72}, {72}, {73}, {74}, {74}, {75},
+	{76}, {77}, {77}, {78}, {79}, {79}, {80}, {81}, {81}, {82},
+	{83}, {83}, {84}, {85}, {85}, {86}, {87}, {88}, {88}, {89}, /* 128: 88 */
+	{90}, {91}, {92}, {93}, {94}, {95}, {96}, {97}, {98}, {99},
+	{100}, {101}, {102}, {103}, {104}, {105}, {106}, {107}, {108}, {109},
+	{110}, {111}, {112}, {113}, {114}, {115}, {116}, {117}, {118}, {118},
+	{119}, {120}, {121}, {122}, {123}, {124}, {125}, {126}, {127}, {128},
+	{129}, {130}, {131}, {132}, {133}, {134}, {135}, {136}, {137}, {138},
+	{139}, {140}, {141}, {142}, {143}, {144}, {145}, {146}, {147}, {148},
+	{149}, {149}, {150}, {151}, {152}, {153}, {154}, {155}, {156}, {157},
+	{158}, {159}, {160}, {161}, {162}, {163}, {164}, {165}, {166}, {167},
+	{168}, {169}, {170}, {171}, {172}, {173}, {174}, {175}, {176}, {177},
+	{178}, {179}, {180}, {180}, {181}, {182}, {183}, {184}, {185}, {186},
+	{187}, {188}, {189}, {190}, {191}, {192}, {193}, {194}, {195}, {196},
+	{197}, {198}, {199}, {200}, {201}, {202}, {203}, {204}, {205}, {206},
+	{207}, {208}, {209}, {210}, {211}, {211}, {211}, {211}, {211}, {211}, /* 255: 211 */
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {254}, /* 306: 255 */
+};
+
+
+
+static struct maptbl a04s_maptbl[MAX_MAPTBL] = {
+	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(a04s_brt_table, init_brightness_table, getidx_brt_table, copy_common_maptbl),
+};
+
+/* ===================================================================================== */
+/* ============================== [NT36525C COMMAND TABLE] ============================== */
+/* ===================================================================================== */
+static u8 A04S_SLEEP_OUT[] = { 0x11 };
+static u8 A04S_SLEEP_IN[] = { 0x10 };
+static u8 A04S_DISPLAY_OFF[] = { 0x28 };
+static u8 A04S_DISPLAY_ON[] = { 0x29 };
+
+static u8 A04S_BRIGHTNESS[] = {
+	0x51,
+	0xFF,
+};
+
+static u8 A04S_BRIGHTNESS_MODE[] = {
+	0x53,
+	0x2C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_001[] = {
+	0xFF,
+	0x20,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_002[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_003[] = {
+	0x00,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_004[] = {
+	0x01,
+	0x55,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_005[] = {
+	0x03,
+	0x55,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_006[] = {
+	0x05,
+	0xB1,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_007[] = {
+	0x07,
+	0x69,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_008[] = {
+	0x08,
+	0xDF,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_009[] = {
+	0x0E,
+	0x87,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_010[] = {
+	0x0F,
+	0x7D,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_011[] = {
+	0x1F,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_012[] = {
+	0x69,
+	0xA9,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_013[] = {
+	0x94,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_014[] = {
+	0x95,
+	0xD7,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_015[] = {
+	0x96,
+	0xD7,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_016[] = {
+	0xFF,
+	0x23,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_017[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_018[] = {
+	0x00,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_019[] = {
+	0x04,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_020[] = {
+	0x07,
+	0x60,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_021[] = {
+	0x08,
+	0x04,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_022[] = {
+	0x09,
+	0x2F,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_023[] = {
+	0x12,
+	0xB4,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_024[] = {
+	0x15,
+	0xE9,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_025[] = {
+	0x16,
+	0x0B,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_026[] = {
+	0x19,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_027[] = {
+	0x1A,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_028[] = {
+	0x1B,
+	0x08,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_029[] = {
+	0x1C,
+	0x0A,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_030[] = {
+	0x1D,
+	0x0C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_031[] = {
+	0x1E,
+	0x12,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_032[] = {
+	0x1F,
+	0x16,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_033[] = {
+	0x20,
+	0x1A,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_034[] = {
+	0x21,
+	0x1C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_035[] = {
+	0x22,
+	0x20,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_036[] = {
+	0x23,
+	0x24,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_037[] = {
+	0x24,
+	0x28,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_038[] = {
+	0x25,
+	0x2C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_039[] = {
+	0x26,
+	0x30,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_040[] = {
+	0x27,
+	0x38,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_041[] = {
+	0x28,
+	0x3C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_042[] = {
+	0x29,
+	0x10,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_043[] = {
+	0x30,
+	0xFF,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_044[] = {
+	0x31,
+	0xFF,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_045[] = {
+	0x32,
+	0xFE,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_046[] = {
+	0x33,
+	0xFD,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_047[] = {
+	0x34,
+	0xFD,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_048[] = {
+	0x35,
+	0xFC,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_049[] = {
+	0x36,
+	0xFB,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_050[] = {
+	0x37,
+	0xFA,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_051[] = {
+	0x38,
+	0xF8,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_052[] = {
+	0x39,
+	0xF6,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_053[] = {
+	0x3A,
+	0xF4,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_054[] = {
+	0x3B,
+	0xF2,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_055[] = {
+	0x3D,
+	0xEF,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_056[] = {
+	0x3F,
+	0xEB,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_057[] = {
+	0x40,
+	0xE8,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_058[] = {
+	0x41,
+	0xE5,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_059[] = {
+	0xFF,
+	0x24,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_060[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_061[] = {
+	0x00,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_062[] = {
+	0x02,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_063[] = {
+	0x06,
+	0x08,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_064[] = {
+	0x07,
+	0x04,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_065[] = {
+	0x08,
+	0x20,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_066[] = {
+	0x0A,
+	0x0F,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_067[] = {
+	0x0B,
+	0x0E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_068[] = {
+	0x0C,
+	0x0D,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_069[] = {
+	0x0D,
+	0x0C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_070[] = {
+	0x12,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_071[] = {
+	0x13,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_072[] = {
+	0x14,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_073[] = {
+	0x16,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_074[] = {
+	0x18,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_075[] = {
+	0x1C,
+	0x08,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_076[] = {
+	0x1D,
+	0x04,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_077[] = {
+	0x1E,
+	0x20,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_078[] = {
+	0x20,
+	0x0F,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_079[] = {
+	0x21,
+	0x0E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_080[] = {
+	0x22,
+	0x0D,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_081[] = {
+	0x23,
+	0x0C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_082[] = {
+	0x28,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_083[] = {
+	0x29,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_084[] = {
+	0x2A,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_085[] = {
+	0x2F,
+	0x06,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_086[] = {
+	0x37,
+	0x66,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_087[] = {
+	0x39,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_088[] = {
+	0x3A,
+	0x82,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_089[] = {
+	0x3B,
+	0x90,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_090[] = {
+	0x3D,
+	0x91,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_091[] = {
+	0x3F,
+	0x47,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_092[] = {
+	0x47,
+	0x44,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_093[] = {
+	0x49,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_094[] = {
+	0x4A,
+	0x82,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_095[] = {
+	0x4B,
+	0x90,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_096[] = {
+	0x4C,
+	0x91,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_097[] = {
+	0x4D,
+	0x12,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_098[] = {
+	0x4E,
+	0x34,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_099[] = {
+	0x55,
+	0x83,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_100[] = {
+	0x56,
+	0x44,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_101[] = {
+	0x5A,
+	0x82,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_102[] = {
+	0x5B,
+	0x90,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_103[] = {
+	0x5C,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_104[] = {
+	0x5D,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_105[] = {
+	0x5E,
+	0x06,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_106[] = {
+	0x5F,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_107[] = {
+	0x60,
+	0x80,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_108[] = {
+	0x61,
+	0x90,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_109[] = {
+	0x64,
+	0x11,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_110[] = {
+	0x85,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_111[] = {
+	0x86,
+	0x51,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_112[] = {
+	0x92,
+	0x91,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_113[] = {
+	0x93,
+	0x0D,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_114[] = {
+	0x94,
+	0x08,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_115[] = {
+	0xAB,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_116[] = {
+	0xAC,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_117[] = {
+	0xAD,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_118[] = {
+	0xAF,
+	0x04,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_119[] = {
+	0xB0,
+	0x05,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_120[] = {
+	0xB1,
+	0x8C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_121[] = {
+	0xC2,
+	0x86,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_122[] = {
+	0xFF,
+	0x25,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_123[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_124[] = {
+	0x02,
+	0x10,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_125[] = {
+	0x0A,
+	0x81,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_126[] = {
+	0x0B,
+	0xBD,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_127[] = {
+	0x0C,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_128[] = {
+	0x17,
+	0x82,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_129[] = {
+	0x18,
+	0x06,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_130[] = {
+	0x19,
+	0x0F,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_131[] = {
+	0x58,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_132[] = {
+	0x59,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_133[] = {
+	0x5A,
+	0x40,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_134[] = {
+	0x5B,
+	0x80,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_135[] = {
+	0x5C,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_136[] = {
+	0x5D,
+	0x82,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_137[] = {
+	0x5E,
+	0x90,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_138[] = {
+	0x5F,
+	0x82,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_139[] = {
+	0x60,
+	0x90,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_140[] = {
+	0x61,
+	0x82,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_141[] = {
+	0x62,
+	0x90,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_142[] = {
+	0x65,
+	0x05,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_143[] = {
+	0x66,
+	0x8C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_144[] = {
+	0xC0,
+	0x03,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_145[] = {
+	0xCA,
+	0x1C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_146[] = {
+	0xCB,
+	0x18,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_147[] = {
+	0xCC,
+	0x1C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_148[] = {
+	0xD4,
+	0xCC,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_149[] = {
+	0xD5,
+	0x11,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_150[] = {
+	0xD6,
+	0x18,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_151[] = {
+	0xFF,
+	0x26,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_152[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_153[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_154[] = {
+	0xFF,
+	0x27,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_155[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_156[] = {
+	0x13,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_157[] = {
+	0x15,
+	0xB4,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_158[] = {
+	0x1F,
+	0x55,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_159[] = {
+	0x26,
+	0x0F,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_160[] = {
+	0xC0,
+	0x19,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_161[] = {
+	0xC1,
+	0x3A,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_162[] = {
+	0xC2,
+	0x10,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_163[] = {
+	0xC3,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_164[] = {
+	0xC4,
+	0x3A,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_165[] = {
+	0xC5,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_166[] = {
+	0xC6,
+	0x00,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_167[] = {
+	0xC7,
+	0x03,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_168[] = {
+	0xFF,
+	0x23,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_169[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_170[] = {
+	0x12,
+	0xB4,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_171[] = {
+	0x15,
+	0xE9,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_172[] = {
+	0x16,
+	0x0B,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_173[] = {
+	0xFF,
+	0xD0,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_174[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_175[] = {
+	0x25,
+	0xA9,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_176[] = {
+	0x05,
+	0x07,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_177[] = {
+	0x09,
+	0xF0,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_178[] = {
+	0x28,
+	0x70,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_179[] = {
+	0xFF,
+	0x10,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_180[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_181[] = {
+	0xBA,
+	0x02,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_182[] = {
+	0xBB,
+	0x13,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_183[] = {
+	0x53,
+	0x2C,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_184[] = {
+	0x55,
+	0x01,
+};
+
+static u8 A04S_NT36525C_SHARP_VE_185[] = {
+	0x68,
+	0x00, 0x01,
+};
+
+static DEFINE_STATIC_PACKET(a04s_sleep_out, DSI_PKT_TYPE_WR, A04S_SLEEP_OUT, 0);
+static DEFINE_STATIC_PACKET(a04s_sleep_in, DSI_PKT_TYPE_WR, A04S_SLEEP_IN, 0);
+static DEFINE_STATIC_PACKET(a04s_display_on, DSI_PKT_TYPE_WR, A04S_DISPLAY_ON, 0);
+static DEFINE_STATIC_PACKET(a04s_display_off, DSI_PKT_TYPE_WR, A04S_DISPLAY_OFF, 0);
+static DEFINE_STATIC_PACKET(a04s_brightness_mode, DSI_PKT_TYPE_WR, A04S_BRIGHTNESS_MODE, 0);
+
+static DEFINE_PKTUI(a04s_brightness, &a04s_maptbl[BRT_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(a04s_brightness, DSI_PKT_TYPE_WR, A04S_BRIGHTNESS, 0);
+
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_001, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_001, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_002, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_002, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_003, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_003, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_004, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_004, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_005, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_005, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_006, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_006, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_007, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_007, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_008, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_008, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_009, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_009, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_010, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_010, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_011, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_011, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_012, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_012, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_013, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_013, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_014, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_014, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_015, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_015, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_016, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_016, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_017, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_017, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_018, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_018, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_019, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_019, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_020, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_020, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_021, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_021, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_022, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_022, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_023, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_023, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_024, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_024, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_025, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_025, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_026, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_026, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_027, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_027, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_028, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_028, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_029, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_029, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_030, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_030, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_031, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_031, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_032, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_032, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_033, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_033, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_034, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_034, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_035, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_035, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_036, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_036, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_037, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_037, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_038, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_038, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_039, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_039, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_040, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_040, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_041, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_041, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_042, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_042, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_043, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_043, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_044, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_044, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_045, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_045, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_046, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_046, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_047, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_047, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_048, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_048, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_049, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_049, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_050, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_050, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_051, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_051, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_052, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_052, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_053, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_053, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_054, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_054, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_055, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_055, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_056, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_056, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_057, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_057, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_058, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_058, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_059, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_059, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_060, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_060, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_061, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_061, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_062, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_062, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_063, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_063, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_064, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_064, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_065, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_065, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_066, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_066, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_067, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_067, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_068, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_068, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_069, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_069, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_070, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_070, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_071, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_071, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_072, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_072, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_073, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_073, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_074, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_074, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_075, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_075, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_076, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_076, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_077, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_077, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_078, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_078, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_079, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_079, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_080, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_080, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_081, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_081, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_082, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_082, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_083, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_083, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_084, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_084, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_085, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_085, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_086, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_086, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_087, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_087, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_088, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_088, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_089, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_089, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_090, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_090, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_091, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_091, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_092, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_092, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_093, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_093, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_094, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_094, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_095, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_095, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_096, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_096, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_097, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_097, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_098, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_098, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_099, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_099, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_100, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_100, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_101, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_101, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_102, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_102, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_103, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_103, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_104, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_104, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_105, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_105, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_106, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_106, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_107, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_107, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_108, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_108, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_109, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_109, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_110, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_110, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_111, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_111, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_112, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_112, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_113, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_113, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_114, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_114, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_115, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_115, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_116, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_116, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_117, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_117, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_118, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_118, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_119, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_119, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_120, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_120, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_121, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_121, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_122, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_122, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_123, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_123, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_124, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_124, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_125, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_125, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_126, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_126, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_127, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_127, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_128, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_128, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_129, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_129, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_130, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_130, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_131, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_131, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_132, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_132, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_133, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_133, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_134, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_134, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_135, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_135, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_136, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_136, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_137, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_137, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_138, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_138, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_139, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_139, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_140, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_140, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_141, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_141, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_142, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_142, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_143, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_143, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_144, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_144, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_145, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_145, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_146, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_146, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_147, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_147, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_148, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_148, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_149, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_149, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_150, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_150, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_151, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_151, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_152, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_152, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_153, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_153, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_154, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_154, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_155, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_155, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_156, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_156, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_157, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_157, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_158, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_158, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_159, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_159, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_160, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_160, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_161, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_161, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_162, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_162, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_163, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_163, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_164, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_164, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_165, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_165, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_166, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_166, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_167, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_167, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_168, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_168, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_169, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_169, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_170, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_170, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_171, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_171, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_172, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_172, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_173, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_173, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_174, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_174, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_175, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_175, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_176, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_176, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_177, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_177, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_178, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_178, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_179, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_179, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_180, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_180, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_181, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_181, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_182, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_182, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_183, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_183, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_184, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_184, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_sharp_ve_185, DSI_PKT_TYPE_WR, A04S_NT36525C_SHARP_VE_185, 0);
+
+static DEFINE_PANEL_MDELAY(a04s_wait_display_off, 20);
+static DEFINE_PANEL_MDELAY(a04s_wait_sleep_in, 4 * 17); /* 4 frame */
+static DEFINE_PANEL_MDELAY(a04s_wait_2msec, 2);
+static DEFINE_PANEL_MDELAY(a04s_wait_1msec, 1);
+static DEFINE_PANEL_MDELAY(a04s_wait_40msec, 40);
+static DEFINE_PANEL_MDELAY(a04s_wait_100msec, 100);
+static DEFINE_PANEL_MDELAY(a04s_wait_blic_off, 1);
+
+
+static void *a04s_init_cmdtbl[] = {
+	&nt36525c_sharp_ve_restbl[RES_ID],
+	&PKTINFO(a04s_nt36525c_sharp_ve_001),
+	&PKTINFO(a04s_nt36525c_sharp_ve_002),
+	&PKTINFO(a04s_nt36525c_sharp_ve_003),
+	&PKTINFO(a04s_nt36525c_sharp_ve_004),
+	&PKTINFO(a04s_nt36525c_sharp_ve_005),
+	&PKTINFO(a04s_nt36525c_sharp_ve_006),
+	&PKTINFO(a04s_nt36525c_sharp_ve_007),
+	&PKTINFO(a04s_nt36525c_sharp_ve_008),
+	&PKTINFO(a04s_nt36525c_sharp_ve_009),
+	&PKTINFO(a04s_nt36525c_sharp_ve_010),
+	&PKTINFO(a04s_nt36525c_sharp_ve_011),
+	&PKTINFO(a04s_nt36525c_sharp_ve_012),
+	&PKTINFO(a04s_nt36525c_sharp_ve_013),
+	&PKTINFO(a04s_nt36525c_sharp_ve_014),
+	&PKTINFO(a04s_nt36525c_sharp_ve_015),
+	&PKTINFO(a04s_nt36525c_sharp_ve_016),
+	&PKTINFO(a04s_nt36525c_sharp_ve_017),
+	&PKTINFO(a04s_nt36525c_sharp_ve_018),
+	&PKTINFO(a04s_nt36525c_sharp_ve_019),
+	&PKTINFO(a04s_nt36525c_sharp_ve_020),
+	&PKTINFO(a04s_nt36525c_sharp_ve_021),
+	&PKTINFO(a04s_nt36525c_sharp_ve_022),
+	&PKTINFO(a04s_nt36525c_sharp_ve_023),
+	&PKTINFO(a04s_nt36525c_sharp_ve_024),
+	&PKTINFO(a04s_nt36525c_sharp_ve_025),
+	&PKTINFO(a04s_nt36525c_sharp_ve_026),
+	&PKTINFO(a04s_nt36525c_sharp_ve_027),
+	&PKTINFO(a04s_nt36525c_sharp_ve_028),
+	&PKTINFO(a04s_nt36525c_sharp_ve_029),
+	&PKTINFO(a04s_nt36525c_sharp_ve_030),
+	&PKTINFO(a04s_nt36525c_sharp_ve_031),
+	&PKTINFO(a04s_nt36525c_sharp_ve_032),
+	&PKTINFO(a04s_nt36525c_sharp_ve_033),
+	&PKTINFO(a04s_nt36525c_sharp_ve_034),
+	&PKTINFO(a04s_nt36525c_sharp_ve_035),
+	&PKTINFO(a04s_nt36525c_sharp_ve_036),
+	&PKTINFO(a04s_nt36525c_sharp_ve_037),
+	&PKTINFO(a04s_nt36525c_sharp_ve_038),
+	&PKTINFO(a04s_nt36525c_sharp_ve_039),
+	&PKTINFO(a04s_nt36525c_sharp_ve_040),
+	&PKTINFO(a04s_nt36525c_sharp_ve_041),
+	&PKTINFO(a04s_nt36525c_sharp_ve_042),
+	&PKTINFO(a04s_nt36525c_sharp_ve_043),
+	&PKTINFO(a04s_nt36525c_sharp_ve_044),
+	&PKTINFO(a04s_nt36525c_sharp_ve_045),
+	&PKTINFO(a04s_nt36525c_sharp_ve_046),
+	&PKTINFO(a04s_nt36525c_sharp_ve_047),
+	&PKTINFO(a04s_nt36525c_sharp_ve_048),
+	&PKTINFO(a04s_nt36525c_sharp_ve_049),
+	&PKTINFO(a04s_nt36525c_sharp_ve_050),
+	&PKTINFO(a04s_nt36525c_sharp_ve_051),
+	&PKTINFO(a04s_nt36525c_sharp_ve_052),
+	&PKTINFO(a04s_nt36525c_sharp_ve_053),
+	&PKTINFO(a04s_nt36525c_sharp_ve_054),
+	&PKTINFO(a04s_nt36525c_sharp_ve_055),
+	&PKTINFO(a04s_nt36525c_sharp_ve_056),
+	&PKTINFO(a04s_nt36525c_sharp_ve_057),
+	&PKTINFO(a04s_nt36525c_sharp_ve_058),
+	&PKTINFO(a04s_nt36525c_sharp_ve_059),
+	&PKTINFO(a04s_nt36525c_sharp_ve_060),
+	&PKTINFO(a04s_nt36525c_sharp_ve_061),
+	&PKTINFO(a04s_nt36525c_sharp_ve_062),
+	&PKTINFO(a04s_nt36525c_sharp_ve_063),
+	&PKTINFO(a04s_nt36525c_sharp_ve_064),
+	&PKTINFO(a04s_nt36525c_sharp_ve_065),
+	&PKTINFO(a04s_nt36525c_sharp_ve_066),
+	&PKTINFO(a04s_nt36525c_sharp_ve_067),
+	&PKTINFO(a04s_nt36525c_sharp_ve_068),
+	&PKTINFO(a04s_nt36525c_sharp_ve_069),
+	&PKTINFO(a04s_nt36525c_sharp_ve_070),
+	&PKTINFO(a04s_nt36525c_sharp_ve_071),
+	&PKTINFO(a04s_nt36525c_sharp_ve_072),
+	&PKTINFO(a04s_nt36525c_sharp_ve_073),
+	&PKTINFO(a04s_nt36525c_sharp_ve_074),
+	&PKTINFO(a04s_nt36525c_sharp_ve_075),
+	&PKTINFO(a04s_nt36525c_sharp_ve_076),
+	&PKTINFO(a04s_nt36525c_sharp_ve_077),
+	&PKTINFO(a04s_nt36525c_sharp_ve_078),
+	&PKTINFO(a04s_nt36525c_sharp_ve_079),
+	&PKTINFO(a04s_nt36525c_sharp_ve_080),
+	&PKTINFO(a04s_nt36525c_sharp_ve_081),
+	&PKTINFO(a04s_nt36525c_sharp_ve_082),
+	&PKTINFO(a04s_nt36525c_sharp_ve_083),
+	&PKTINFO(a04s_nt36525c_sharp_ve_084),
+	&PKTINFO(a04s_nt36525c_sharp_ve_085),
+	&PKTINFO(a04s_nt36525c_sharp_ve_086),
+	&PKTINFO(a04s_nt36525c_sharp_ve_087),
+	&PKTINFO(a04s_nt36525c_sharp_ve_088),
+	&PKTINFO(a04s_nt36525c_sharp_ve_089),
+	&PKTINFO(a04s_nt36525c_sharp_ve_090),
+	&PKTINFO(a04s_nt36525c_sharp_ve_091),
+	&PKTINFO(a04s_nt36525c_sharp_ve_092),
+	&PKTINFO(a04s_nt36525c_sharp_ve_093),
+	&PKTINFO(a04s_nt36525c_sharp_ve_094),
+	&PKTINFO(a04s_nt36525c_sharp_ve_095),
+	&PKTINFO(a04s_nt36525c_sharp_ve_096),
+	&PKTINFO(a04s_nt36525c_sharp_ve_097),
+	&PKTINFO(a04s_nt36525c_sharp_ve_098),
+	&PKTINFO(a04s_nt36525c_sharp_ve_099),
+	&PKTINFO(a04s_nt36525c_sharp_ve_100),
+	&PKTINFO(a04s_nt36525c_sharp_ve_101),
+	&PKTINFO(a04s_nt36525c_sharp_ve_102),
+	&PKTINFO(a04s_nt36525c_sharp_ve_103),
+	&PKTINFO(a04s_nt36525c_sharp_ve_104),
+	&PKTINFO(a04s_nt36525c_sharp_ve_105),
+	&PKTINFO(a04s_nt36525c_sharp_ve_106),
+	&PKTINFO(a04s_nt36525c_sharp_ve_107),
+	&PKTINFO(a04s_nt36525c_sharp_ve_108),
+	&PKTINFO(a04s_nt36525c_sharp_ve_109),
+	&PKTINFO(a04s_nt36525c_sharp_ve_110),
+	&PKTINFO(a04s_nt36525c_sharp_ve_111),
+	&PKTINFO(a04s_nt36525c_sharp_ve_112),
+	&PKTINFO(a04s_nt36525c_sharp_ve_113),
+	&PKTINFO(a04s_nt36525c_sharp_ve_114),
+	&PKTINFO(a04s_nt36525c_sharp_ve_115),
+	&PKTINFO(a04s_nt36525c_sharp_ve_116),
+	&PKTINFO(a04s_nt36525c_sharp_ve_117),
+	&PKTINFO(a04s_nt36525c_sharp_ve_118),
+	&PKTINFO(a04s_nt36525c_sharp_ve_119),
+	&PKTINFO(a04s_nt36525c_sharp_ve_120),
+	&PKTINFO(a04s_nt36525c_sharp_ve_121),
+	&PKTINFO(a04s_nt36525c_sharp_ve_122),
+	&PKTINFO(a04s_nt36525c_sharp_ve_123),
+	&PKTINFO(a04s_nt36525c_sharp_ve_124),
+	&PKTINFO(a04s_nt36525c_sharp_ve_125),
+	&PKTINFO(a04s_nt36525c_sharp_ve_126),
+	&PKTINFO(a04s_nt36525c_sharp_ve_127),
+	&PKTINFO(a04s_nt36525c_sharp_ve_128),
+	&PKTINFO(a04s_nt36525c_sharp_ve_129),
+	&PKTINFO(a04s_nt36525c_sharp_ve_130),
+	&PKTINFO(a04s_nt36525c_sharp_ve_131),
+	&PKTINFO(a04s_nt36525c_sharp_ve_132),
+	&PKTINFO(a04s_nt36525c_sharp_ve_133),
+	&PKTINFO(a04s_nt36525c_sharp_ve_134),
+	&PKTINFO(a04s_nt36525c_sharp_ve_135),
+	&PKTINFO(a04s_nt36525c_sharp_ve_136),
+	&PKTINFO(a04s_nt36525c_sharp_ve_137),
+	&PKTINFO(a04s_nt36525c_sharp_ve_138),
+	&PKTINFO(a04s_nt36525c_sharp_ve_139),
+	&PKTINFO(a04s_nt36525c_sharp_ve_140),
+	&PKTINFO(a04s_nt36525c_sharp_ve_141),
+	&PKTINFO(a04s_nt36525c_sharp_ve_142),
+	&PKTINFO(a04s_nt36525c_sharp_ve_143),
+	&PKTINFO(a04s_nt36525c_sharp_ve_144),
+	&PKTINFO(a04s_nt36525c_sharp_ve_145),
+	&PKTINFO(a04s_nt36525c_sharp_ve_146),
+	&PKTINFO(a04s_nt36525c_sharp_ve_147),
+	&PKTINFO(a04s_nt36525c_sharp_ve_148),
+	&PKTINFO(a04s_nt36525c_sharp_ve_149),
+	&PKTINFO(a04s_nt36525c_sharp_ve_150),
+	&PKTINFO(a04s_nt36525c_sharp_ve_151),
+	&PKTINFO(a04s_nt36525c_sharp_ve_152),
+	&PKTINFO(a04s_nt36525c_sharp_ve_153),
+	&PKTINFO(a04s_nt36525c_sharp_ve_154),
+	&PKTINFO(a04s_nt36525c_sharp_ve_155),
+	&PKTINFO(a04s_nt36525c_sharp_ve_156),
+	&PKTINFO(a04s_nt36525c_sharp_ve_157),
+	&PKTINFO(a04s_nt36525c_sharp_ve_158),
+	&PKTINFO(a04s_nt36525c_sharp_ve_159),
+	&PKTINFO(a04s_nt36525c_sharp_ve_160),
+	&PKTINFO(a04s_nt36525c_sharp_ve_161),
+	&PKTINFO(a04s_nt36525c_sharp_ve_162),
+	&PKTINFO(a04s_nt36525c_sharp_ve_163),
+	&PKTINFO(a04s_nt36525c_sharp_ve_164),
+	&PKTINFO(a04s_nt36525c_sharp_ve_165),
+	&PKTINFO(a04s_nt36525c_sharp_ve_166),
+	&PKTINFO(a04s_nt36525c_sharp_ve_167),
+	&PKTINFO(a04s_nt36525c_sharp_ve_168),
+	&PKTINFO(a04s_nt36525c_sharp_ve_169),
+	&PKTINFO(a04s_nt36525c_sharp_ve_170),
+	&PKTINFO(a04s_nt36525c_sharp_ve_171),
+	&PKTINFO(a04s_nt36525c_sharp_ve_172),
+	&PKTINFO(a04s_nt36525c_sharp_ve_173),
+	&PKTINFO(a04s_nt36525c_sharp_ve_174),
+	&PKTINFO(a04s_nt36525c_sharp_ve_175),
+	&PKTINFO(a04s_nt36525c_sharp_ve_176),
+	&PKTINFO(a04s_nt36525c_sharp_ve_177),
+	&PKTINFO(a04s_nt36525c_sharp_ve_178),
+	&PKTINFO(a04s_nt36525c_sharp_ve_179),
+	&PKTINFO(a04s_nt36525c_sharp_ve_180),
+	&PKTINFO(a04s_nt36525c_sharp_ve_181),
+	&PKTINFO(a04s_nt36525c_sharp_ve_182),
+	&PKTINFO(a04s_nt36525c_sharp_ve_183),
+	&PKTINFO(a04s_nt36525c_sharp_ve_184),
+	&PKTINFO(a04s_nt36525c_sharp_ve_185),
+	&PKTINFO(a04s_sleep_out),
+	&DLYINFO(a04s_wait_100msec),
+};
+
+static void *a04s_res_init_cmdtbl[] = {
+	&nt36525c_sharp_ve_restbl[RES_ID],
+};
+
+static void *a04s_set_bl_cmdtbl[] = {
+	&PKTINFO(a04s_brightness), //51h
+};
+
+static void *a04s_display_on_cmdtbl[] = {
+	&PKTINFO(a04s_display_on),
+	&DLYINFO(a04s_wait_40msec),
+	&PKTINFO(a04s_brightness_mode),
+};
+
+static void *a04s_display_off_cmdtbl[] = {
+	&PKTINFO(a04s_display_off),
+	&DLYINFO(a04s_wait_display_off),
+};
+
+static void *a04s_exit_cmdtbl[] = {
+	&PKTINFO(a04s_sleep_in),
+};
+
+/* ===================================================================================== */
+/* ================================= [EA8076 I2C TABLE] ===========+++================= */
+/* ===================================================================================== */
+static u8 NT36525C_A04S_I2C_INIT[] = {
+	0x0C, 0x2C,
+	0x0D, 0x26,
+	0x0E, 0x26,
+	0x09, 0x99,
+	0x02, 0x6B,
+	0x03, 0x0D,
+	0x11, 0x74,
+	0x04, 0x07,
+	0x05, 0xD6,
+	0x10, 0x67,
+	0x08, 0x13,
+};
+static u8 NT36525C_A04S_I2C_EXIT_VSP[] = {
+	0x09, 0x18,
+};
+
+static u8 NT36525C_A04S_I2C_EXIT_BLEN[] = {
+	0x08, 0x00,
+};
+
+static u8 NT36525C_A04S_I2C_DUMP[] = {
+	0x0C, 0x2C,
+	0x0D, 0x26,
+	0x0E, 0x26,
+	0x09, 0xBE,
+	0x02, 0x6B,
+	0x03, 0x0D,
+	0x11, 0x74,
+	0x04, 0x06,
+	0x05, 0xFA,
+	0x10, 0x67,
+	0x08, 0x13,
+};
+
+static DEFINE_STATIC_PACKET(nt36525c_sharp_ve_a04s_i2c_init, I2C_PKT_TYPE_WR, NT36525C_A04S_I2C_INIT, 0);
+static DEFINE_STATIC_PACKET(nt36525c_sharp_ve_a04s_i2c_exit_vsp, I2C_PKT_TYPE_WR, NT36525C_A04S_I2C_EXIT_VSP, 0);
+static DEFINE_STATIC_PACKET(nt36525c_sharp_ve_a04s_i2c_exit_blen, I2C_PKT_TYPE_WR, NT36525C_A04S_I2C_EXIT_BLEN, 0);
+static DEFINE_STATIC_PACKET(nt36525c_sharp_ve_a04s_i2c_dump, I2C_PKT_TYPE_RD, NT36525C_A04S_I2C_DUMP, 0);
+
+static void *nt36525c_sharp_ve_a04s_init_cmdtbl[] = {
+	&PKTINFO(nt36525c_sharp_ve_a04s_i2c_init),
+};
+
+static void *nt36525c_sharp_ve_a04s_exit_cmdtbl[] = {
+	&PKTINFO(nt36525c_sharp_ve_a04s_i2c_exit_vsp),	
+	&PKTINFO(nt36525c_sharp_ve_a04s_i2c_exit_blen),
+};
+
+static void *nt36525c_sharp_ve_a04s_dump_cmdtbl[] = {
+	&PKTINFO(nt36525c_sharp_ve_a04s_i2c_dump),
+};
+
+static struct seqinfo a04s_seqtbl[MAX_PANEL_SEQ] = {
+	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", a04s_init_cmdtbl),
+	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", a04s_res_init_cmdtbl),
+	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", a04s_set_bl_cmdtbl),
+	[PANEL_DISPLAY_ON_SEQ] = SEQINFO_INIT("display-on-seq", a04s_display_on_cmdtbl),
+	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", a04s_display_off_cmdtbl),
+	[PANEL_EXIT_SEQ] = SEQINFO_INIT("exit-seq", a04s_exit_cmdtbl),
+#ifdef CONFIG_SUPPORT_I2C
+	[PANEL_I2C_INIT_SEQ] = SEQINFO_INIT("i2c-init-seq", nt36525c_sharp_ve_a04s_init_cmdtbl),
+	[PANEL_I2C_EXIT_SEQ] = SEQINFO_INIT("i2c-exit-seq", nt36525c_sharp_ve_a04s_exit_cmdtbl),
+	[PANEL_I2C_DUMP_SEQ] = SEQINFO_INIT("i2c-dump-seq", nt36525c_sharp_ve_a04s_dump_cmdtbl),
+#endif
+};
+
+struct common_panel_info nt36525c_sharp_ve_a04s_default_panel_info = {
+	.ldi_name = "nt36525c_sharp_ve",
+	.name = "nt36525c_sharp_ve_a04s_default",
+	.model = "SHARP_VE_6_517_inch",
+	.vendor = "CSOT",
+	.id = 0x9AF240,
+	.rev = 0,
+	.ddi_props = {
+		.gpara = 0,
+		.err_fg_recovery = false,
+		.init_seq_by_lpdt = true,
+		.delay_cmd = 0xFF,
+		.delay_duration = 1,
+	},
+	.mres = {
+		.nr_resol = ARRAY_SIZE(nt36525c_sharp_ve_a04s_resol),
+		.resol = nt36525c_sharp_ve_a04s_resol,
+	},
+	.maptbl = a04s_maptbl,
+	.nr_maptbl = ARRAY_SIZE(a04s_maptbl),
+	.seqtbl = a04s_seqtbl,
+	.nr_seqtbl = ARRAY_SIZE(a04s_seqtbl),
+	.rditbl = nt36525c_sharp_ve_rditbl,
+	.nr_rditbl = ARRAY_SIZE(nt36525c_sharp_ve_rditbl),
+	.restbl = nt36525c_sharp_ve_restbl,
+	.nr_restbl = ARRAY_SIZE(nt36525c_sharp_ve_restbl),
+	.dumpinfo = NULL,
+	.nr_dumpinfo = 0,
+	.panel_dim_info = {
+		&nt36525c_sharp_ve_a04s_panel_dimming_info,
+	},
+	.i2c_data = &nt36525c_sharp_ve_a04s_i2c_data,
+};
+
+static int __init nt36525c_sharp_ve_a04s_panel_init(void)
+{
+	register_common_panel(&nt36525c_sharp_ve_a04s_default_panel_info);
+
+	return 0;
+}
+arch_initcall(nt36525c_sharp_ve_a04s_panel_init)
+#endif /* __NT36525C_A04S_PANEL_H__ */

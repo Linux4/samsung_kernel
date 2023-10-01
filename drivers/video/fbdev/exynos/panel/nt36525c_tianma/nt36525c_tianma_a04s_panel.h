@@ -1,0 +1,1449 @@
+/*
+ * linux/drivers/video/fbdev/exynos/panel/nt36525c_tianma/nt36525c_tianma_a04s_panel.h
+ *
+ * Header file for NT36525C Dimming Driver
+ *
+ * Copyright (c) 2016 Samsung Electronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef __NT36525C_A04S_PANEL_H__
+#define __NT36525C_A04S_PANEL_H__
+#include "../panel_drv.h"
+#include "nt36525c_tianma.h"
+
+#include "nt36525c_tianma_a04s_panel_dimming.h"
+#include "nt36525c_tianma_a04s_panel_i2c.h"
+
+#include "nt36525c_tianma_a04s_resol.h"
+
+#undef __pn_name__
+#define __pn_name__	a04s
+
+#undef __PN_NAME__
+#define __PN_NAME__	A04S
+
+static struct seqinfo a04s_seqtbl[MAX_PANEL_SEQ];
+
+
+/* ===================================================================================== */
+/* ============================= [NT36525C READ INFO TABLE] ============================= */
+/* ===================================================================================== */
+/* <READINFO TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================= [NT36525C RESOURCE TABLE] ============================== */
+/* ===================================================================================== */
+/* <RESOURCE TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================== [NT36525C MAPPING TABLE] ============================== */
+/* ===================================================================================== */
+
+static u8 a04s_brt_table[NT36525C_TOTAL_NR_LUMINANCE][1] = {
+	{0},
+	{1}, {1}, {2}, {3}, {3}, {4}, {5}, {5}, {6}, {7}, /* 1: 1 */
+	{7}, {8}, {9}, {9}, {10}, {11}, {11}, {12}, {13}, {14},
+	{14}, {15}, {16}, {16}, {17}, {18}, {18}, {19}, {20}, {20},
+	{21}, {22}, {22}, {23}, {24}, {24}, {25}, {26}, {27}, {27},
+	{28}, {29}, {29}, {30}, {31}, {31}, {32}, {33}, {33}, {34},
+	{35}, {35}, {36}, {37}, {37}, {38}, {39}, {40}, {40}, {41},
+	{42}, {42}, {43}, {44}, {44}, {45}, {46}, {46}, {47}, {48},
+	{48}, {49}, {50}, {51}, {51}, {52}, {53}, {53}, {54}, {55},
+	{55}, {56}, {57}, {57}, {58}, {59}, {59}, {60}, {61}, {61},
+	{62}, {63}, {64}, {64}, {65}, {66}, {66}, {67}, {68}, {68},
+	{69}, {70}, {70}, {71}, {72}, {72}, {73}, {74}, {74}, {75},
+	{76}, {77}, {77}, {78}, {79}, {79}, {80}, {81}, {81}, {82},
+	{83}, {83}, {84}, {85}, {85}, {86}, {87}, {88}, {88}, {89}, /* 128: 88 */
+	{90}, {91}, {92}, {93}, {94}, {95}, {96}, {97}, {98}, {99},
+	{100}, {101}, {102}, {103}, {104}, {105}, {106}, {107}, {108}, {109},
+	{110}, {111}, {112}, {113}, {114}, {115}, {116}, {117}, {118}, {118},
+	{119}, {120}, {121}, {122}, {123}, {124}, {125}, {126}, {127}, {128},
+	{129}, {130}, {131}, {132}, {133}, {134}, {135}, {136}, {137}, {138},
+	{139}, {140}, {141}, {142}, {143}, {144}, {145}, {146}, {147}, {148},
+	{149}, {149}, {150}, {151}, {152}, {153}, {154}, {155}, {156}, {157},
+	{158}, {159}, {160}, {161}, {162}, {163}, {164}, {165}, {166}, {167},
+	{168}, {169}, {170}, {171}, {172}, {173}, {174}, {175}, {176}, {177},
+	{178}, {179}, {180}, {180}, {181}, {182}, {183}, {184}, {185}, {186},
+	{187}, {188}, {189}, {190}, {191}, {192}, {193}, {194}, {195}, {196},
+	{197}, {198}, {199}, {200}, {201}, {202}, {203}, {204}, {205}, {206},
+	{207}, {208}, {209}, {210}, {211}, {211}, {211}, {211}, {211}, {211}, /* 255: 211 */
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211}, {211},
+	{211}, {211}, {211}, {211}, {211}, {254}, /* 306: 255 */
+};
+
+
+
+static struct maptbl a04s_maptbl[MAX_MAPTBL] = {
+	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(a04s_brt_table, init_brightness_table, getidx_brt_table, copy_common_maptbl),
+};
+
+/* ===================================================================================== */
+/* ============================== [NT36525C COMMAND TABLE] ============================== */
+/* ===================================================================================== */
+static u8 A04S_SLEEP_OUT[] = { 0x11 };
+static u8 A04S_SLEEP_IN[] = { 0x10 };
+static u8 A04S_DISPLAY_OFF[] = { 0x28 };
+static u8 A04S_DISPLAY_ON[] = { 0x29 };
+
+static u8 A04S_BRIGHTNESS[] = {
+	0x51,
+	0xFF,
+};
+
+static u8 A04S_BRIGHTNESS_MODE[] = {
+	0x53,
+	0x2C,
+};
+
+static u8 A04S_NT36525C_TIANMA_001[] = {
+	0xFF,
+	0x20,
+};
+
+static u8 A04S_NT36525C_TIANMA_002[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_003[] = {
+	0x03,
+	0x54,
+};
+
+static u8 A04S_NT36525C_TIANMA_004[] = {
+	0x05,
+	0xB1,
+};
+
+static u8 A04S_NT36525C_TIANMA_005[] = {
+	0x07,
+	0x6E,
+};
+
+static u8 A04S_NT36525C_TIANMA_006[] = {
+	0x08,
+	0xCB,
+};
+
+static u8 A04S_NT36525C_TIANMA_007[] = {
+	0x0E,
+	0x87,
+};
+
+static u8 A04S_NT36525C_TIANMA_008[] = {
+	0x0F,
+	0x69,
+};
+
+static u8 A04S_NT36525C_TIANMA_009[] = {
+	0x69,
+	0xA9,
+};
+
+static u8 A04S_NT36525C_TIANMA_010[] = {
+	0x94,
+	0xC0,
+};
+
+static u8 A04S_NT36525C_TIANMA_011[] = {
+	0x95,
+	0x09,
+};
+
+static u8 A04S_NT36525C_TIANMA_012[] = {
+	0x96,
+	0x09,
+};
+
+static u8 A04S_NT36525C_TIANMA_013[] = {
+	0xFF,
+	0x23,
+};
+
+static u8 A04S_NT36525C_TIANMA_014[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_015[] = {
+	0x04,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_016[] = {
+	0x08,
+	0x10,
+};
+
+static u8 A04S_NT36525C_TIANMA_017[] = {
+	0x09,
+	0x2F,
+};
+
+static u8 A04S_NT36525C_TIANMA_018[] = {
+	0x12,
+	0xB4,
+};
+
+static u8 A04S_NT36525C_TIANMA_019[] = {
+	0x15,
+	0xE9,
+};
+
+static u8 A04S_NT36525C_TIANMA_020[] = {
+	0x16,
+	0x0B,
+};
+
+static u8 A04S_NT36525C_TIANMA_021[] = {
+	0x19,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_022[] = {
+	0x1A,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_023[] = {
+	0x1B,
+	0x08,
+};
+
+static u8 A04S_NT36525C_TIANMA_024[] = {
+	0x1C,
+	0x0A,
+};
+
+static u8 A04S_NT36525C_TIANMA_025[] = {
+	0x1D,
+	0x0C,
+};
+
+static u8 A04S_NT36525C_TIANMA_026[] = {
+	0x1E,
+	0x12,
+};
+
+static u8 A04S_NT36525C_TIANMA_027[] = {
+	0x1F,
+	0x16,
+};
+
+static u8 A04S_NT36525C_TIANMA_028[] = {
+	0x20,
+	0x1A,
+};
+
+static u8 A04S_NT36525C_TIANMA_029[] = {
+	0x21,
+	0x1C,
+};
+
+static u8 A04S_NT36525C_TIANMA_030[] = {
+	0x22,
+	0x20,
+};
+
+static u8 A04S_NT36525C_TIANMA_031[] = {
+	0x23,
+	0x24,
+};
+
+static u8 A04S_NT36525C_TIANMA_032[] = {
+	0x24,
+	0x28,
+};
+
+static u8 A04S_NT36525C_TIANMA_033[] = {
+	0x25,
+	0x2C,
+};
+
+static u8 A04S_NT36525C_TIANMA_034[] = {
+	0x26,
+	0x30,
+};
+
+static u8 A04S_NT36525C_TIANMA_035[] = {
+	0x27,
+	0x38,
+};
+
+static u8 A04S_NT36525C_TIANMA_036[] = {
+	0x28,
+	0x3C,
+};
+
+static u8 A04S_NT36525C_TIANMA_037[] = {
+	0x29,
+	0x10,
+};
+
+static u8 A04S_NT36525C_TIANMA_038[] = {
+	0x30,
+	0xFF,
+};
+
+static u8 A04S_NT36525C_TIANMA_039[] = {
+	0x31,
+	0xFF,
+};
+
+static u8 A04S_NT36525C_TIANMA_040[] = {
+	0x32,
+	0xFE,
+};
+
+static u8 A04S_NT36525C_TIANMA_041[] = {
+	0x33,
+	0xFD,
+};
+
+static u8 A04S_NT36525C_TIANMA_042[] = {
+	0x34,
+	0xFD,
+};
+
+static u8 A04S_NT36525C_TIANMA_043[] = {
+	0x35,
+	0xFC,
+};
+
+static u8 A04S_NT36525C_TIANMA_044[] = {
+	0x36,
+	0xFB,
+};
+
+static u8 A04S_NT36525C_TIANMA_045[] = {
+	0x37,
+	0xF9,
+};
+
+static u8 A04S_NT36525C_TIANMA_046[] = {
+	0x38,
+	0xF7,
+};
+
+static u8 A04S_NT36525C_TIANMA_047[] = {
+	0x39,
+	0xF3,
+};
+
+static u8 A04S_NT36525C_TIANMA_048[] = {
+	0x3A,
+	0xEA,
+};
+
+static u8 A04S_NT36525C_TIANMA_049[] = {
+	0x3B,
+	0xE6,
+};
+
+static u8 A04S_NT36525C_TIANMA_050[] = {
+	0x3D,
+	0xE0,
+};
+
+static u8 A04S_NT36525C_TIANMA_051[] = {
+	0x3F,
+	0xDD,
+};
+
+static u8 A04S_NT36525C_TIANMA_052[] = {
+	0x40,
+	0xDB,
+};
+
+static u8 A04S_NT36525C_TIANMA_053[] = {
+	0x41,
+	0xD9,
+};
+
+static u8 A04S_NT36525C_TIANMA_054[] = {
+	0xFF,
+	0x24,
+};
+
+static u8 A04S_NT36525C_TIANMA_055[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_056[] = {
+	0x00,
+	0x05,
+};
+
+static u8 A04S_NT36525C_TIANMA_057[] = {
+	0x01,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_058[] = {
+	0x02,
+	0x1F,
+};
+
+static u8 A04S_NT36525C_TIANMA_059[] = {
+	0x03,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_TIANMA_060[] = {
+	0x04,
+	0x20,
+};
+
+static u8 A04S_NT36525C_TIANMA_061[] = {
+	0x05,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_062[] = {
+	0x06,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_063[] = {
+	0x07,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_064[] = {
+	0x08,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_065[] = {
+	0x09,
+	0x0F,
+};
+
+static u8 A04S_NT36525C_TIANMA_066[] = {
+	0x0A,
+	0x0E,
+};
+
+static u8 A04S_NT36525C_TIANMA_067[] = {
+	0x0B,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_068[] = {
+	0x0C,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_069[] = {
+	0x0D,
+	0x0D,
+};
+
+static u8 A04S_NT36525C_TIANMA_070[] = {
+	0x0E,
+	0x0C,
+};
+
+static u8 A04S_NT36525C_TIANMA_071[] = {
+	0x0F,
+	0x04,
+};
+
+static u8 A04S_NT36525C_TIANMA_072[] = {
+	0x10,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_073[] = {
+	0x11,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_074[] = {
+	0x12,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_075[] = {
+	0x13,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_076[] = {
+	0x14,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_077[] = {
+	0x15,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_078[] = {
+	0x16,
+	0x05,
+};
+
+static u8 A04S_NT36525C_TIANMA_079[] = {
+	0x17,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_080[] = {
+	0x18,
+	0x1F,
+};
+
+static u8 A04S_NT36525C_TIANMA_081[] = {
+	0x19,
+	0x1E,
+};
+
+static u8 A04S_NT36525C_TIANMA_082[] = {
+	0x1A,
+	0x20,
+};
+
+static u8 A04S_NT36525C_TIANMA_083[] = {
+	0x1B,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_084[] = {
+	0x1C,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_085[] = {
+	0x1D,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_086[] = {
+	0x1E,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_087[] = {
+	0x1F,
+	0x0F,
+};
+
+static u8 A04S_NT36525C_TIANMA_088[] = {
+	0x20,
+	0x0E,
+};
+
+static u8 A04S_NT36525C_TIANMA_089[] = {
+	0x21,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_090[] = {
+	0x22,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_091[] = {
+	0x23,
+	0x0D,
+};
+
+static u8 A04S_NT36525C_TIANMA_092[] = {
+	0x24,
+	0x0C,
+};
+
+static u8 A04S_NT36525C_TIANMA_093[] = {
+	0x25,
+	0x04,
+};
+
+static u8 A04S_NT36525C_TIANMA_094[] = {
+	0x26,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_095[] = {
+	0x27,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_096[] = {
+	0x28,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_097[] = {
+	0x29,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_098[] = {
+	0x2A,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_099[] = {
+	0x2B,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_100[] = {
+	0x2F,
+	0x06,
+};
+
+static u8 A04S_NT36525C_TIANMA_101[] = {
+	0x30,
+	0x30,
+};
+
+static u8 A04S_NT36525C_TIANMA_102[] = {
+	0x33,
+	0x30,
+};
+
+static u8 A04S_NT36525C_TIANMA_103[] = {
+	0x34,
+	0x06,
+};
+
+static u8 A04S_NT36525C_TIANMA_104[] = {
+	0x37,
+	0x74,
+};
+
+static u8 A04S_NT36525C_TIANMA_105[] = {
+	0x3A,
+	0x34,
+};
+
+static u8 A04S_NT36525C_TIANMA_106[] = {
+	0x3B,
+	0x80,
+};
+
+static u8 A04S_NT36525C_TIANMA_107[] = {
+	0x3D,
+	0x52,
+};
+
+static u8 A04S_NT36525C_TIANMA_108[] = {
+	0x4D,
+	0x12,
+};
+
+static u8 A04S_NT36525C_TIANMA_109[] = {
+	0x4E,
+	0x34,
+};
+
+static u8 A04S_NT36525C_TIANMA_110[] = {
+	0x51,
+	0x43,
+};
+
+static u8 A04S_NT36525C_TIANMA_111[] = {
+	0x52,
+	0x21,
+};
+
+static u8 A04S_NT36525C_TIANMA_112[] = {
+	0x55,
+	0x43,
+};
+
+static u8 A04S_NT36525C_TIANMA_113[] = {
+	0x56,
+	0x44,
+};
+
+static u8 A04S_NT36525C_TIANMA_114[] = {
+	0x5A,
+	0x74,
+};
+
+static u8 A04S_NT36525C_TIANMA_115[] = {
+	0x5B,
+	0x80,
+};
+
+static u8 A04S_NT36525C_TIANMA_116[] = {
+	0x5C,
+	0x9F,
+};
+
+static u8 A04S_NT36525C_TIANMA_117[] = {
+	0x5D,
+	0x0A,
+};
+
+static u8 A04S_NT36525C_TIANMA_118[] = {
+	0x5E,
+	0x08,
+};
+
+static u8 A04S_NT36525C_TIANMA_119[] = {
+	0x60,
+	0x80,
+};
+
+static u8 A04S_NT36525C_TIANMA_120[] = {
+	0x61,
+	0x90,
+};
+
+static u8 A04S_NT36525C_TIANMA_121[] = {
+	0x64,
+	0x11,
+};
+
+static u8 A04S_NT36525C_TIANMA_122[] = {
+	0x92,
+	0x91,
+};
+
+static u8 A04S_NT36525C_TIANMA_123[] = {
+	0x93,
+	0x1C,
+};
+
+static u8 A04S_NT36525C_TIANMA_124[] = {
+	0x94,
+	0x08,
+};
+
+static u8 A04S_NT36525C_TIANMA_125[] = {
+	0xAB,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_126[] = {
+	0xAD,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_127[] = {
+	0xB0,
+	0x05,
+};
+
+static u8 A04S_NT36525C_TIANMA_128[] = {
+	0xB1,
+	0x8D,
+};
+
+static u8 A04S_NT36525C_TIANMA_129[] = {
+	0xC2,
+	0x86,
+};
+
+static u8 A04S_NT36525C_TIANMA_130[] = {
+	0xFF,
+	0x25,
+};
+
+static u8 A04S_NT36525C_TIANMA_131[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_132[] = {
+	0x02,
+	0x10,
+};
+
+static u8 A04S_NT36525C_TIANMA_133[] = {
+	0x0A,
+	0x81,
+};
+
+static u8 A04S_NT36525C_TIANMA_134[] = {
+	0x0B,
+	0xB7,
+};
+
+static u8 A04S_NT36525C_TIANMA_135[] = {
+	0x0C,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_136[] = {
+	0x17,
+	0x82,
+};
+
+static u8 A04S_NT36525C_TIANMA_137[] = {
+	0x18,
+	0x06,
+};
+
+static u8 A04S_NT36525C_TIANMA_138[] = {
+	0x19,
+	0x0F,
+};
+
+static u8 A04S_NT36525C_TIANMA_139[] = {
+	0xFF,
+	0x26,
+};
+
+static u8 A04S_NT36525C_TIANMA_140[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_141[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 A04S_NT36525C_TIANMA_142[] = {
+	0x45,
+	0x8E,
+};
+
+static u8 A04S_NT36525C_TIANMA_143[] = {
+	0xFF,
+	0x27,
+};
+
+static u8 A04S_NT36525C_TIANMA_144[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_145[] = {
+	0x13,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_146[] = {
+	0x15,
+	0xB4,
+};
+
+static u8 A04S_NT36525C_TIANMA_147[] = {
+	0x1F,
+	0x55,
+};
+
+static u8 A04S_NT36525C_TIANMA_148[] = {
+	0x26,
+	0x0F,
+};
+
+static u8 A04S_NT36525C_TIANMA_149[] = {
+	0xC0,
+	0x19,
+};
+
+static u8 A04S_NT36525C_TIANMA_150[] = {
+	0xC1,
+	0x44,
+};
+
+static u8 A04S_NT36525C_TIANMA_151[] = {
+	0xC2,
+	0x10,
+};
+
+static u8 A04S_NT36525C_TIANMA_152[] = {
+	0xC3,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_153[] = {
+	0xC4,
+	0x44,
+};
+
+static u8 A04S_NT36525C_TIANMA_154[] = {
+	0xC5,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_155[] = {
+	0xC6,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_156[] = {
+	0xFF,
+	0xD0,
+};
+
+static u8 A04S_NT36525C_TIANMA_157[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_158[] = {
+	0x05,
+	0x07,
+};
+
+static u8 A04S_NT36525C_TIANMA_159[] = {
+	0x09,
+	0xF0,
+};
+
+static u8 A04S_NT36525C_TIANMA_160[] = {
+	0x25,
+	0xA9,
+};
+
+static u8 A04S_NT36525C_TIANMA_161[] = {
+	0x28,
+	0x70,
+};
+
+static u8 A04S_NT36525C_TIANMA_162[] = {
+	0xFF,
+	0x10,
+};
+
+static u8 A04S_NT36525C_TIANMA_163[] = {
+	0xFB,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_164[] = {
+	0xBA,
+	0x02,
+};
+
+static u8 A04S_NT36525C_TIANMA_165[] = {
+	0xBB,
+	0x13,
+};
+
+static u8 A04S_NT36525C_TIANMA_166[] = {
+	0x35,
+	0x00,
+};
+
+static u8 A04S_NT36525C_TIANMA_167[] = {
+	0x53,
+	0x2C,
+};
+
+static u8 A04S_NT36525C_TIANMA_168[] = {
+	0x55,
+	0x01,
+};
+
+static u8 A04S_NT36525C_TIANMA_169[] = {
+	0x68,
+	0x00, 0x01,
+};
+
+static DEFINE_STATIC_PACKET(a04s_sleep_out, DSI_PKT_TYPE_WR, A04S_SLEEP_OUT, 0);
+static DEFINE_STATIC_PACKET(a04s_sleep_in, DSI_PKT_TYPE_WR, A04S_SLEEP_IN, 0);
+static DEFINE_STATIC_PACKET(a04s_display_on, DSI_PKT_TYPE_WR, A04S_DISPLAY_ON, 0);
+static DEFINE_STATIC_PACKET(a04s_display_off, DSI_PKT_TYPE_WR, A04S_DISPLAY_OFF, 0);
+static DEFINE_STATIC_PACKET(a04s_brightness_mode, DSI_PKT_TYPE_WR, A04S_BRIGHTNESS_MODE, 0);
+
+static DEFINE_PKTUI(a04s_brightness, &a04s_maptbl[BRT_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(a04s_brightness, DSI_PKT_TYPE_WR, A04S_BRIGHTNESS, 0);
+
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_001, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_001, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_002, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_002, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_003, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_003, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_004, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_004, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_005, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_005, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_006, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_006, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_007, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_007, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_008, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_008, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_009, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_009, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_010, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_010, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_011, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_011, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_012, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_012, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_013, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_013, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_014, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_014, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_015, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_015, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_016, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_016, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_017, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_017, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_018, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_018, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_019, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_019, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_020, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_020, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_021, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_021, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_022, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_022, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_023, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_023, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_024, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_024, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_025, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_025, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_026, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_026, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_027, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_027, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_028, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_028, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_029, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_029, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_030, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_030, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_031, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_031, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_032, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_032, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_033, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_033, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_034, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_034, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_035, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_035, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_036, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_036, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_037, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_037, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_038, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_038, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_039, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_039, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_040, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_040, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_041, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_041, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_042, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_042, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_043, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_043, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_044, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_044, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_045, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_045, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_046, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_046, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_047, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_047, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_048, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_048, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_049, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_049, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_050, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_050, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_051, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_051, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_052, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_052, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_053, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_053, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_054, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_054, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_055, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_055, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_056, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_056, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_057, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_057, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_058, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_058, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_059, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_059, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_060, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_060, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_061, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_061, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_062, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_062, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_063, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_063, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_064, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_064, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_065, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_065, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_066, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_066, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_067, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_067, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_068, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_068, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_069, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_069, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_070, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_070, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_071, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_071, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_072, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_072, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_073, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_073, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_074, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_074, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_075, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_075, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_076, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_076, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_077, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_077, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_078, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_078, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_079, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_079, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_080, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_080, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_081, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_081, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_082, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_082, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_083, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_083, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_084, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_084, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_085, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_085, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_086, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_086, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_087, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_087, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_088, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_088, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_089, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_089, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_090, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_090, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_091, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_091, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_092, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_092, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_093, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_093, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_094, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_094, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_095, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_095, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_096, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_096, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_097, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_097, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_098, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_098, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_099, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_099, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_100, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_100, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_101, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_101, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_102, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_102, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_103, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_103, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_104, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_104, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_105, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_105, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_106, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_106, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_107, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_107, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_108, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_108, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_109, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_109, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_110, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_110, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_111, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_111, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_112, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_112, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_113, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_113, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_114, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_114, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_115, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_115, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_116, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_116, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_117, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_117, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_118, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_118, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_119, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_119, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_120, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_120, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_121, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_121, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_122, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_122, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_123, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_123, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_124, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_124, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_125, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_125, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_126, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_126, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_127, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_127, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_128, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_128, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_129, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_129, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_130, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_130, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_131, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_131, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_132, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_132, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_133, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_133, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_134, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_134, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_135, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_135, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_136, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_136, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_137, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_137, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_138, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_138, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_139, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_139, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_140, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_140, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_141, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_141, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_142, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_142, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_143, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_143, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_144, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_144, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_145, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_145, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_146, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_146, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_147, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_147, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_148, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_148, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_149, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_149, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_150, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_150, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_151, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_151, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_152, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_152, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_153, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_153, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_154, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_154, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_155, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_155, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_156, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_156, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_157, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_157, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_158, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_158, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_159, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_159, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_160, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_160, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_161, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_161, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_162, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_162, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_163, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_163, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_164, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_164, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_165, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_165, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_166, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_166, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_167, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_167, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_168, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_168, 0);
+static DEFINE_STATIC_PACKET(a04s_nt36525c_tianma_169, DSI_PKT_TYPE_WR, A04S_NT36525C_TIANMA_169, 0);
+
+
+static DEFINE_PANEL_MDELAY(a04s_wait_display_off, 20);
+static DEFINE_PANEL_MDELAY(a04s_wait_sleep_in, 4 * 17); /* 4 frame */
+static DEFINE_PANEL_MDELAY(a04s_wait_2msec, 2);
+static DEFINE_PANEL_MDELAY(a04s_wait_1msec, 1);
+static DEFINE_PANEL_MDELAY(a04s_wait_40msec, 40);
+static DEFINE_PANEL_MDELAY(a04s_wait_100msec, 100);
+static DEFINE_PANEL_MDELAY(a04s_wait_blic_off, 1);
+
+
+static void *a04s_init_cmdtbl[] = {
+	&nt36525c_tianma_restbl[RES_ID],
+	&PKTINFO(a04s_nt36525c_tianma_001),
+	&PKTINFO(a04s_nt36525c_tianma_002),
+	&PKTINFO(a04s_nt36525c_tianma_003),
+	&PKTINFO(a04s_nt36525c_tianma_004),
+	&PKTINFO(a04s_nt36525c_tianma_005),
+	&PKTINFO(a04s_nt36525c_tianma_006),
+	&PKTINFO(a04s_nt36525c_tianma_007),
+	&PKTINFO(a04s_nt36525c_tianma_008),
+	&PKTINFO(a04s_nt36525c_tianma_009),
+	&PKTINFO(a04s_nt36525c_tianma_010),
+	&PKTINFO(a04s_nt36525c_tianma_011),
+	&PKTINFO(a04s_nt36525c_tianma_012),
+	&PKTINFO(a04s_nt36525c_tianma_013),
+	&PKTINFO(a04s_nt36525c_tianma_014),
+	&PKTINFO(a04s_nt36525c_tianma_015),
+	&PKTINFO(a04s_nt36525c_tianma_016),
+	&PKTINFO(a04s_nt36525c_tianma_017),
+	&PKTINFO(a04s_nt36525c_tianma_018),
+	&PKTINFO(a04s_nt36525c_tianma_019),
+	&PKTINFO(a04s_nt36525c_tianma_020),
+	&PKTINFO(a04s_nt36525c_tianma_021),
+	&PKTINFO(a04s_nt36525c_tianma_022),
+	&PKTINFO(a04s_nt36525c_tianma_023),
+	&PKTINFO(a04s_nt36525c_tianma_024),
+	&PKTINFO(a04s_nt36525c_tianma_025),
+	&PKTINFO(a04s_nt36525c_tianma_026),
+	&PKTINFO(a04s_nt36525c_tianma_027),
+	&PKTINFO(a04s_nt36525c_tianma_028),
+	&PKTINFO(a04s_nt36525c_tianma_029),
+	&PKTINFO(a04s_nt36525c_tianma_030),
+	&PKTINFO(a04s_nt36525c_tianma_031),
+	&PKTINFO(a04s_nt36525c_tianma_032),
+	&PKTINFO(a04s_nt36525c_tianma_033),
+	&PKTINFO(a04s_nt36525c_tianma_034),
+	&PKTINFO(a04s_nt36525c_tianma_035),
+	&PKTINFO(a04s_nt36525c_tianma_036),
+	&PKTINFO(a04s_nt36525c_tianma_037),
+	&PKTINFO(a04s_nt36525c_tianma_038),
+	&PKTINFO(a04s_nt36525c_tianma_039),
+	&PKTINFO(a04s_nt36525c_tianma_040),
+	&PKTINFO(a04s_nt36525c_tianma_041),
+	&PKTINFO(a04s_nt36525c_tianma_042),
+	&PKTINFO(a04s_nt36525c_tianma_043),
+	&PKTINFO(a04s_nt36525c_tianma_044),
+	&PKTINFO(a04s_nt36525c_tianma_045),
+	&PKTINFO(a04s_nt36525c_tianma_046),
+	&PKTINFO(a04s_nt36525c_tianma_047),
+	&PKTINFO(a04s_nt36525c_tianma_048),
+	&PKTINFO(a04s_nt36525c_tianma_049),
+	&PKTINFO(a04s_nt36525c_tianma_050),
+	&PKTINFO(a04s_nt36525c_tianma_051),
+	&PKTINFO(a04s_nt36525c_tianma_052),
+	&PKTINFO(a04s_nt36525c_tianma_053),
+	&PKTINFO(a04s_nt36525c_tianma_054),
+	&PKTINFO(a04s_nt36525c_tianma_055),
+	&PKTINFO(a04s_nt36525c_tianma_056),
+	&PKTINFO(a04s_nt36525c_tianma_057),
+	&PKTINFO(a04s_nt36525c_tianma_058),
+	&PKTINFO(a04s_nt36525c_tianma_059),
+	&PKTINFO(a04s_nt36525c_tianma_060),
+	&PKTINFO(a04s_nt36525c_tianma_061),
+	&PKTINFO(a04s_nt36525c_tianma_062),
+	&PKTINFO(a04s_nt36525c_tianma_063),
+	&PKTINFO(a04s_nt36525c_tianma_064),
+	&PKTINFO(a04s_nt36525c_tianma_065),
+	&PKTINFO(a04s_nt36525c_tianma_066),
+	&PKTINFO(a04s_nt36525c_tianma_067),
+	&PKTINFO(a04s_nt36525c_tianma_068),
+	&PKTINFO(a04s_nt36525c_tianma_069),
+	&PKTINFO(a04s_nt36525c_tianma_070),
+	&PKTINFO(a04s_nt36525c_tianma_071),
+	&PKTINFO(a04s_nt36525c_tianma_072),
+	&PKTINFO(a04s_nt36525c_tianma_073),
+	&PKTINFO(a04s_nt36525c_tianma_074),
+	&PKTINFO(a04s_nt36525c_tianma_075),
+	&PKTINFO(a04s_nt36525c_tianma_076),
+	&PKTINFO(a04s_nt36525c_tianma_077),
+	&PKTINFO(a04s_nt36525c_tianma_078),
+	&PKTINFO(a04s_nt36525c_tianma_079),
+	&PKTINFO(a04s_nt36525c_tianma_080),
+	&PKTINFO(a04s_nt36525c_tianma_081),
+	&PKTINFO(a04s_nt36525c_tianma_082),
+	&PKTINFO(a04s_nt36525c_tianma_083),
+	&PKTINFO(a04s_nt36525c_tianma_084),
+	&PKTINFO(a04s_nt36525c_tianma_085),
+	&PKTINFO(a04s_nt36525c_tianma_086),
+	&PKTINFO(a04s_nt36525c_tianma_087),
+	&PKTINFO(a04s_nt36525c_tianma_088),
+	&PKTINFO(a04s_nt36525c_tianma_089),
+	&PKTINFO(a04s_nt36525c_tianma_090),
+	&PKTINFO(a04s_nt36525c_tianma_091),
+	&PKTINFO(a04s_nt36525c_tianma_092),
+	&PKTINFO(a04s_nt36525c_tianma_093),
+	&PKTINFO(a04s_nt36525c_tianma_094),
+	&PKTINFO(a04s_nt36525c_tianma_095),
+	&PKTINFO(a04s_nt36525c_tianma_096),
+	&PKTINFO(a04s_nt36525c_tianma_097),
+	&PKTINFO(a04s_nt36525c_tianma_098),
+	&PKTINFO(a04s_nt36525c_tianma_099),
+	&PKTINFO(a04s_nt36525c_tianma_100),
+	&PKTINFO(a04s_nt36525c_tianma_101),
+	&PKTINFO(a04s_nt36525c_tianma_102),
+	&PKTINFO(a04s_nt36525c_tianma_103),
+	&PKTINFO(a04s_nt36525c_tianma_104),
+	&PKTINFO(a04s_nt36525c_tianma_105),
+	&PKTINFO(a04s_nt36525c_tianma_106),
+	&PKTINFO(a04s_nt36525c_tianma_107),
+	&PKTINFO(a04s_nt36525c_tianma_108),
+	&PKTINFO(a04s_nt36525c_tianma_109),
+	&PKTINFO(a04s_nt36525c_tianma_110),
+	&PKTINFO(a04s_nt36525c_tianma_111),
+	&PKTINFO(a04s_nt36525c_tianma_112),
+	&PKTINFO(a04s_nt36525c_tianma_113),
+	&PKTINFO(a04s_nt36525c_tianma_114),
+	&PKTINFO(a04s_nt36525c_tianma_115),
+	&PKTINFO(a04s_nt36525c_tianma_116),
+	&PKTINFO(a04s_nt36525c_tianma_117),
+	&PKTINFO(a04s_nt36525c_tianma_118),
+	&PKTINFO(a04s_nt36525c_tianma_119),
+	&PKTINFO(a04s_nt36525c_tianma_120),
+	&PKTINFO(a04s_nt36525c_tianma_121),
+	&PKTINFO(a04s_nt36525c_tianma_122),
+	&PKTINFO(a04s_nt36525c_tianma_123),
+	&PKTINFO(a04s_nt36525c_tianma_124),
+	&PKTINFO(a04s_nt36525c_tianma_125),
+	&PKTINFO(a04s_nt36525c_tianma_126),
+	&PKTINFO(a04s_nt36525c_tianma_127),
+	&PKTINFO(a04s_nt36525c_tianma_128),
+	&PKTINFO(a04s_nt36525c_tianma_129),
+	&PKTINFO(a04s_nt36525c_tianma_130),
+	&PKTINFO(a04s_nt36525c_tianma_131),
+	&PKTINFO(a04s_nt36525c_tianma_132),
+	&PKTINFO(a04s_nt36525c_tianma_133),
+	&PKTINFO(a04s_nt36525c_tianma_134),
+	&PKTINFO(a04s_nt36525c_tianma_135),
+	&PKTINFO(a04s_nt36525c_tianma_136),
+	&PKTINFO(a04s_nt36525c_tianma_137),
+	&PKTINFO(a04s_nt36525c_tianma_138),
+	&PKTINFO(a04s_nt36525c_tianma_139),
+	&PKTINFO(a04s_nt36525c_tianma_140),
+	&PKTINFO(a04s_nt36525c_tianma_141),
+	&PKTINFO(a04s_nt36525c_tianma_142),
+	&PKTINFO(a04s_nt36525c_tianma_143),
+	&PKTINFO(a04s_nt36525c_tianma_144),
+	&PKTINFO(a04s_nt36525c_tianma_145),
+	&PKTINFO(a04s_nt36525c_tianma_146),
+	&PKTINFO(a04s_nt36525c_tianma_147),
+	&PKTINFO(a04s_nt36525c_tianma_148),
+	&PKTINFO(a04s_nt36525c_tianma_149),
+	&PKTINFO(a04s_nt36525c_tianma_150),
+	&PKTINFO(a04s_nt36525c_tianma_151),
+	&PKTINFO(a04s_nt36525c_tianma_152),
+	&PKTINFO(a04s_nt36525c_tianma_153),
+	&PKTINFO(a04s_nt36525c_tianma_154),
+	&PKTINFO(a04s_nt36525c_tianma_155),
+	&PKTINFO(a04s_nt36525c_tianma_156),
+	&PKTINFO(a04s_nt36525c_tianma_157),
+	&PKTINFO(a04s_nt36525c_tianma_158),
+	&PKTINFO(a04s_nt36525c_tianma_159),
+	&PKTINFO(a04s_nt36525c_tianma_160),
+	&PKTINFO(a04s_nt36525c_tianma_161),
+	&PKTINFO(a04s_nt36525c_tianma_162),
+	&PKTINFO(a04s_nt36525c_tianma_163),
+	&PKTINFO(a04s_nt36525c_tianma_164),
+	&PKTINFO(a04s_nt36525c_tianma_165),
+	&PKTINFO(a04s_nt36525c_tianma_166),
+	&PKTINFO(a04s_nt36525c_tianma_167),
+	&PKTINFO(a04s_nt36525c_tianma_168),
+	&PKTINFO(a04s_nt36525c_tianma_169),
+	&PKTINFO(a04s_sleep_out),
+	&DLYINFO(a04s_wait_100msec),
+};
+
+static void *a04s_res_init_cmdtbl[] = {
+	&nt36525c_tianma_restbl[RES_ID],
+};
+
+static void *a04s_set_bl_cmdtbl[] = {
+	&PKTINFO(a04s_brightness), //51h
+};
+
+static void *a04s_display_on_cmdtbl[] = {
+	&PKTINFO(a04s_display_on),
+	&PKTINFO(a04s_brightness_mode),
+};
+
+static void *a04s_display_off_cmdtbl[] = {
+	&PKTINFO(a04s_display_off),
+	&DLYINFO(a04s_wait_display_off),
+};
+
+static void *a04s_exit_cmdtbl[] = {
+	&PKTINFO(a04s_sleep_in),
+};
+
+/* ===================================================================================== */
+/* ================================= [EA8076 I2C TABLE] ===========+++================= */
+/* ===================================================================================== */
+static u8 NT36525C_A04S_I2C_INIT[] = {
+	0x0C, 0x2C,
+	0x0D, 0x26,
+	0x0E, 0x26,
+	0x09, 0x99,
+	0x02, 0x6B,
+	0x03, 0x0D,
+	0x11, 0x74,
+	0x04, 0x07,
+	0x05, 0xD6,
+	0x10, 0x67,
+	0x08, 0x13,
+};
+static u8 NT36525C_A04S_I2C_EXIT_VSP[] = {
+	0x09, 0x18,
+};
+
+static u8 NT36525C_A04S_I2C_EXIT_BLEN[] = {
+	0x08, 0x00,
+};
+
+static u8 NT36525C_A04S_I2C_DUMP[] = {
+	0x0C, 0x2C,
+	0x0D, 0x26,
+	0x0E, 0x26,
+	0x09, 0xBE,
+	0x02, 0x6B,
+	0x03, 0x0D,
+	0x11, 0x74,
+	0x04, 0x07,
+	0x05, 0xD6,
+	0x10, 0x67,
+	0x08, 0x13,
+};
+
+static DEFINE_STATIC_PACKET(nt36525c_tianma_a04s_i2c_init, I2C_PKT_TYPE_WR, NT36525C_A04S_I2C_INIT, 0);
+static DEFINE_STATIC_PACKET(nt36525c_tianma_a04s_i2c_exit_vsp, I2C_PKT_TYPE_WR, NT36525C_A04S_I2C_EXIT_VSP, 0);
+static DEFINE_STATIC_PACKET(nt36525c_tianma_a04s_i2c_exit_blen, I2C_PKT_TYPE_WR, NT36525C_A04S_I2C_EXIT_BLEN, 0);
+static DEFINE_STATIC_PACKET(nt36525c_tianma_a04s_i2c_dump, I2C_PKT_TYPE_RD, NT36525C_A04S_I2C_DUMP, 0);
+
+static void *nt36525c_tianma_a04s_init_cmdtbl[] = {
+	&PKTINFO(nt36525c_tianma_a04s_i2c_init),
+};
+
+static void *nt36525c_tianma_a04s_exit_cmdtbl[] = {
+	&PKTINFO(nt36525c_tianma_a04s_i2c_exit_vsp),
+	&PKTINFO(nt36525c_tianma_a04s_i2c_exit_blen),
+};
+
+static void *nt36525c_tianma_a04s_dump_cmdtbl[] = {
+	&PKTINFO(nt36525c_tianma_a04s_i2c_dump),
+};
+
+static struct seqinfo a04s_seqtbl[MAX_PANEL_SEQ] = {
+	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", a04s_init_cmdtbl),
+	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", a04s_res_init_cmdtbl),
+	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", a04s_set_bl_cmdtbl),
+	[PANEL_DISPLAY_ON_SEQ] = SEQINFO_INIT("display-on-seq", a04s_display_on_cmdtbl),
+	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", a04s_display_off_cmdtbl),
+	[PANEL_EXIT_SEQ] = SEQINFO_INIT("exit-seq", a04s_exit_cmdtbl),
+#ifdef CONFIG_SUPPORT_I2C
+	[PANEL_I2C_INIT_SEQ] = SEQINFO_INIT("i2c-init-seq", nt36525c_tianma_a04s_init_cmdtbl),
+	[PANEL_I2C_EXIT_SEQ] = SEQINFO_INIT("i2c-exit-seq", nt36525c_tianma_a04s_exit_cmdtbl),
+	[PANEL_I2C_DUMP_SEQ] = SEQINFO_INIT("i2c-dump-seq", nt36525c_tianma_a04s_dump_cmdtbl),
+#endif
+};
+
+struct common_panel_info nt36525c_tianma_a04s_default_panel_info = {
+	.ldi_name = "nt36525c_tianma",
+	.name = "nt36525c_tianma_a04s_default",
+	.model = "TIANMA_6_517_inch",
+	.vendor = "TMC",
+	.id = 0x5A7240,
+	.rev = 0,
+	.ddi_props = {
+		.gpara = 0,
+		.err_fg_recovery = false,
+		.init_seq_by_lpdt = true,
+		.delay_cmd = 0xFF,
+		.delay_duration = 1,
+	},
+	.mres = {
+		.nr_resol = ARRAY_SIZE(nt36525c_tianma_a04s_resol),
+		.resol = nt36525c_tianma_a04s_resol,
+	},
+	.maptbl = a04s_maptbl,
+	.nr_maptbl = ARRAY_SIZE(a04s_maptbl),
+	.seqtbl = a04s_seqtbl,
+	.nr_seqtbl = ARRAY_SIZE(a04s_seqtbl),
+	.rditbl = nt36525c_tianma_rditbl,
+	.nr_rditbl = ARRAY_SIZE(nt36525c_tianma_rditbl),
+	.restbl = nt36525c_tianma_restbl,
+	.nr_restbl = ARRAY_SIZE(nt36525c_tianma_restbl),
+	.dumpinfo = NULL,
+	.nr_dumpinfo = 0,
+	.panel_dim_info = {
+		&nt36525c_tianma_a04s_panel_dimming_info,
+	},
+	.i2c_data = &nt36525c_tianma_a04s_i2c_data,
+};
+
+static int __init nt36525c_tianma_a04s_panel_init(void)
+{
+	register_common_panel(&nt36525c_tianma_a04s_default_panel_info);
+
+	return 0;
+}
+arch_initcall(nt36525c_tianma_a04s_panel_init)
+#endif /* __NT36525C_A04S_PANEL_H__ */
