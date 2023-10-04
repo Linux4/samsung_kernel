@@ -3138,12 +3138,14 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 #else
 		.may_swap = 1,
 #endif
-#ifdef CONFIG_ZSWAP
-		.swappiness = vm_swappiness / 2,
-#else
 		.swappiness = vm_swappiness,
-#endif
 	};
+
+	unsigned long pgdatfile = global_page_state(NR_ACTIVE_FILE) +
+				global_page_state(NR_INACTIVE_FILE);
+	if (pgdatfile <= 12800) {
+		sc.may_swap = 1;
+	}
 
 	/*
 	 * Do not enter reclaim if fatal signal was delivered while throttled.

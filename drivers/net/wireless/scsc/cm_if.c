@@ -392,11 +392,14 @@ void slsi_sm_service_driver_unregister(void)
 /* start/stop wlan service
  * =======================
  */
-void slsi_sm_service_failed(struct slsi_dev *sdev, const char *reason)
+void slsi_sm_service_failed(struct slsi_dev *sdev, const char *reason, bool is_work)
 {
 	int state;
 
 	mutex_lock(&slsi_start_mutex);
+
+	if (is_work)
+		complete_all(&sdev->service_fail_started_indication);
 
 	state = atomic_read(&sdev->cm_if.cm_if_state);
 	if (state != SCSC_WIFI_CM_IF_STATE_STARTED &&
@@ -417,6 +420,9 @@ void slsi_sm_service_failed(struct slsi_dev *sdev, const char *reason)
 		scsc_mx_service_mif_dump_registers(sdev->service);
 		sdev->fail_reported = true;
 	}
+
+	if (is_work)
+		reinit_completion(&sdev->service_fail_started_indication);
 
 	mutex_unlock(&slsi_start_mutex);
 }
@@ -651,7 +657,7 @@ skip_state_check:
 		snprintf(reason, sizeof(reason), "WLAN scsc_mx_service_stop failed");
 
 		mutex_unlock(&slsi_start_mutex);
-		slsi_sm_service_failed(sdev, reason);
+		slsi_sm_service_failed(sdev, reason, false);
 		mutex_lock(&slsi_start_mutex);
 
 		__slsi_sm_wlan_service_stop_wait_locked(sdev);

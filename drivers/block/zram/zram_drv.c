@@ -42,6 +42,9 @@
 #include "zram_drv.h"
 #include "../loop.h"
 
+/* Total bytes used by the compressed storage */
+static u64 zram_pool_total_size;
+
 static DEFINE_IDR(zram_index_idr);
 /* idr index must be protected */
 static DEFINE_MUTEX(zram_index_mutex);
@@ -2401,6 +2404,7 @@ compress_again:
 	}
 
 	alloced_pages = zs_get_total_pages(zram->mem_pool);
+	zram_pool_total_size = alloced_pages << PAGE_SHIFT;
 	update_used_max(zram, alloced_pages);
 
 	if (zram->limit_pages && alloced_pages > zram->limit_pages) {
@@ -3123,6 +3127,26 @@ static void destroy_devices(void)
 	unregister_blkdev(zram_major, "zram");
 }
 
+static int zram_size_notifier(struct notifier_block *nb,
+			       unsigned long action, void *data)
+{
+	struct seq_file *s;
+
+	s = (struct seq_file *)data;
+	if (s)
+		seq_printf(s, "ZramDevice:    %8lu kB\n",
+			(unsigned long)zram_pool_total_size >> 10);
+	else
+		pr_cont("ZramDevice:%lukB ",
+			(unsigned long)zram_pool_total_size >> 10);
+	return 0;
+}
+
+static struct notifier_block zram_size_nb = {
+	.notifier_call = zram_size_notifier,
+};
+
+
 static int __init zram_init(void)
 {
 	int ret;
@@ -3150,6 +3174,7 @@ static int __init zram_init(void)
 		num_devices--;
 	}
 
+	show_mem_extra_notifier_register(&zram_size_nb);
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
 	am_app_launch_notifier_register(&zram_app_launch_nb);
 #endif

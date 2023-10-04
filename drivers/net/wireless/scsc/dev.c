@@ -330,6 +330,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	init_completion(&sdev->recovery_remove_completion);
 	init_completion(&sdev->recovery_stop_completion);
 	init_completion(&sdev->recovery_completed);
+	init_completion(&sdev->service_fail_started_indication);
 	sdev->recovery_status = 0;
 
 	sdev->term_udi_users         = &term_udi_users;
@@ -456,6 +457,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #endif
 #endif
 	}
+	INIT_WORK(&sdev->trigger_wlan_fail_work, slsi_trigger_service_failure);
 	return sdev;
 
 #if CONFIG_SCSC_WLAN_MAX_INTERFACES >= 4
@@ -518,6 +520,7 @@ void slsi_dev_detach(struct slsi_dev *sdev)
 	complete_all(&sdev->recovery_remove_completion);
 	complete_all(&sdev->recovery_stop_completion);
 	complete_all(&sdev->recovery_completed);
+	complete_all(&sdev->service_fail_started_indication);
 
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Unregister inetaddr_notifier\n");
 	unregister_inetaddr_notifier(&sdev->inetaddr_notifier);
