@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,6 +23,7 @@
 #include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
+#include <linux/mm.h>
 #include <soc/qcom/subsystem_notif.h>
 #include <soc/qcom/subsystem_restart.h>
 #include <soc/qcom/ramdump.h>
@@ -150,6 +151,7 @@ static struct smem_partition_info partitions[NUM_SMEM_SUBSYSTEMS];
 
 #define SMEM_COMM_PART_VERSION 0x000C
 #define SMEM_COMM_HOST 0xFFFE
+#define SMEM_LEGACY_PARTITION 0xFFFF
 static bool use_comm_partition;
 static struct smem_partition_info comm_partition;
 /* end smem security feature components */
@@ -1238,6 +1240,25 @@ static void smem_module_init_notify(uint32_t state, void *data)
 	mutex_unlock(&smem_module_init_notifier_lock);
 }
 
+static int smem_map_partition(struct smem_toc_entry *entry)
+{
+	unsigned long virt_base;
+	phys_addr_t phys_base;
+
+	virt_base = (unsigned long)smem_ram_base + entry->offset;
+	phys_base = smem_ram_phys + entry->offset;
+	/*map partition*/
+	if (ioremap_page_range(virt_base,
+							virt_base + entry->size,
+							phys_base, pgprot_device(PAGE_KERNEL))) {
+		LOG_ERR("failed to map partition host0:%d host1:%d\n", entry->host0, entry->host1);
+		return -1;
+	}
+
+	return 0;
+}
+
+
 /**
  * smem_init_security_partition - Init local structures for a secured smem
  *                   partition that has apps as one of the hosts
@@ -1258,6 +1279,12 @@ static void smem_init_security_partition(struct smem_toc_entry *entry,
 	uint16_t remote_host = 0;
 	struct smem_partition_header *hdr;
 	bool is_comm_partition = false;
+
+	if ((entry->host0 == SMEM_LEGACY_PARTITION &&
+		entry->host1 == SMEM_LEGACY_PARTITION) && !entry->offset) {
+		smem_map_partition(entry);
+		return;
+	}
 
 	if (!entry->offset) {
 		SMEM_INFO("Skipping smem partition %d - bad offset\n", num);
@@ -1302,7 +1329,10 @@ static void smem_init_security_partition(struct smem_toc_entry *entry,
 		}
 	}
 
-	hdr = smem_areas[0].virt_addr + entry->offset;
+	if (smem_map_partition(entry))
+		return;
+
+	hdr = smem_ram_base + entry->offset;
 
 	if (hdr->identifier != SMEM_PART_HDR_IDENTIFIER) {
 		LOG_ERR("Smem partition %d hdr magic is bad\n", num);
@@ -1365,7 +1395,14 @@ static void smem_init_security(void)
 
 	SMEM_DBG("%s\n", __func__);
 
-	toc = smem_areas[0].virt_addr + smem_areas[0].size - 4 * 1024;
+	toc = smem_ram_base + smem_ram_size - SZ_4K;
+	if (ioremap_page_range((unsigned long)toc,
+				(unsigned long)toc + SZ_4K,
+				smem_ram_phys + smem_ram_size - SZ_4K,
+				pgprot_device(PAGE_KERNEL))) {
+		LOG_ERR("%s:failed to map toc\n", __func__);
+		return;
+	}
 
 	if (toc->identifier != SMEM_TOC_IDENTIFIER) {
 		LOG_ERR("%s failed: invalid TOC magic\n", __func__);
@@ -1429,6 +1466,7 @@ static int msm_smem_probe(struct platform_device *pdev)
 	struct smem_area *smem_areas_tmp = NULL;
 	int smem_idx = 0;
 	bool security_enabled;
+	struct vm_struct *area;
 
 	r = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 						"smem_targ_info_imem");
@@ -1472,7 +1510,23 @@ smem_targ_info_done:
 		return -ENODEV;
 	}
 
-	smem_ram_base = ioremap_nocache(smem_ram_phys, smem_ram_size);
+	key = "qcom,mpu-enabled";
+	security_enabled = of_property_read_bool(pdev->dev.of_node, key);
+	if (security_enabled) {
+		SMEM_INFO("smem security enabled\n");
+
+		area = get_vm_area(smem_ram_size, VM_IOREMAP);
+		if (!area) {
+			LOG_ERR("%s:Failed to allocate vm area\n", __func__);
+			return -ENOMEM;
+		}
+
+		smem_ram_base = area->addr;
+		smem_init_security();
+	} else {
+		smem_ram_base = (void *)ioremap_nocache(smem_ram_phys,
+							smem_ram_size);
+	}
 
 	if (!smem_ram_base) {
 		LOG_ERR("%s: ioremap_nocache() of addr:%pa size: %pa\n",
@@ -1599,12 +1653,6 @@ smem_targ_info_done:
 	smem_areas = smem_areas_tmp;
 	smem_ramdump_segments = ramdump_segments_tmp;
 
-	key = "qcom,mpu-enabled";
-	security_enabled = of_property_read_bool(pdev->dev.of_node, key);
-	if (security_enabled) {
-		SMEM_INFO("smem security enabled\n");
-		smem_init_security();
-	}
 	smem_dev = &pdev->dev;
 	probe_done = true;
 

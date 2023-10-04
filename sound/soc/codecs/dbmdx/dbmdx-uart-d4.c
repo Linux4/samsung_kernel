@@ -140,9 +140,9 @@ static int dbmd4_uart_sync(struct dbmdx_private *p)
 	}
 
 	divider = (u32)(rx_divider[2]) +
-		  (((u32)(rx_divider[3]) << 8) & 0x000000ff) +
-		  (((u32)(rx_divider[4]) << 16) & 0x0000ff00) +
-		  (((u32)(rx_divider[5]) << 24) & 0x00ff0000);
+		  (((u32)(rx_divider[3]) << 8) & 0x0000ff00) +
+		  (((u32)(rx_divider[4]) << 16) & 0x00ff0000) +
+		  (((u32)(rx_divider[5]) << 24) & 0xff000000);
 
 
 	expected_divider = ((u32)(clock_rate / uart_p->normal_baud_rate) % 16);

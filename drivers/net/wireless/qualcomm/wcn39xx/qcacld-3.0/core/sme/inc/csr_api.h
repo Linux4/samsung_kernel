@@ -1344,6 +1344,7 @@ typedef struct tagCsrConfigParam {
 	bool enable_adaptive_11r;
 #endif
 	bool enable_pending_list_req;
+	bool p2p_disable_roam;
 } tCsrConfigParam;
 
 /* Tush */

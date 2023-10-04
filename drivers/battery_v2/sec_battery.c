@@ -7035,7 +7035,7 @@ static int sec_wireless_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = (battery->pdata->wireless_charger_name) ?
-			1 : 0;
+		((battery->pdata->support_pogo) ? 0 : 1) : 0;
 		break;
 	default:
 		return -EINVAL;
@@ -8265,7 +8265,12 @@ static int sec_bat_parse_dt(struct device *dev,
 		pr_info("standard_curr is empty\n");
 		pdata->standard_curr = 2150;
 	}
-
+	ret = of_property_read_u32(np,
+				   "battery,support_pogo", &pdata->support_pogo);
+	if (ret) {
+		pr_info("support pogo is empty\n");
+		pdata->support_pogo = 0;
+	}
 	ret = of_property_read_string(np,
 		"battery,vendor", (char const **)&pdata->vendor);
 	if (ret)

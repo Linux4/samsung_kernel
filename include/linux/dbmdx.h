@@ -76,6 +76,7 @@ struct dbmdx_platform_data {
 
 #ifdef DBMDX_VA_NS_SUPPORT
 	unsigned int			va_ns_supported;
+	unsigned int			mic_config_source;
 	unsigned int			va_ns_cfg_values;
 	unsigned int			va_ns_num_of_configs;
 	u32				*va_ns_cfg_value;
@@ -101,6 +102,7 @@ struct dbmdx_platform_data {
 	u32				min_samples_chunk_size;
 	u32				pcm_streaming_mode;
 	int				buffering_timeout;
+	u32				retrigger_interval_sec;
 
 	struct va_speed	va_speed_cfg[DBMDX_VA_NR_OF_SPEEDS];
 	u32				va_mic_config[5];

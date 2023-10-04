@@ -59,6 +59,7 @@ struct sec_param_data {
 	char api_gpio_test_result[256];
 	char reboot_recovery_cause[256];
 	unsigned int user_partition_flashed;
+	unsigned int FMM_lock;
 };
 
 struct sec_param_data_s {
@@ -111,6 +112,7 @@ enum sec_param_index {
 	param_index_qnad,
 	param_index_qnad_ddr_result,
 #endif
+	param_index_FMM_lock,
 	param_index_max_sec_param_data,
 };
 
@@ -122,6 +124,7 @@ extern bool sales_code_is(char*);
 #define SEC_PARAM_FILE_OFFSET (SEC_PARAM_FILE_SIZE - 0x100000)
 #define SECTOR_UNIT_SIZE (4096) /* UFS */
 
+#define FMMLOCK_MAGIC_NUM	0x464D4F4E
 
 #ifdef CONFIG_SEC_NAD
 /* SEC NAD region in PARAM partition */

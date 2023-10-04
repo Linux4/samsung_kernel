@@ -6848,7 +6848,7 @@ enum hdd_link_speed_rpt_type {
  * <ini>
  * gTDLSExternalControl - Enable external TDLS control.
  * @Min: 0
- * @Max: 1
+ * @Max: 2
  * @Default: 1
  *
  * This ini is used to enable/disable external TDLS control.
@@ -6856,6 +6856,12 @@ enum hdd_link_speed_rpt_type {
  * control allows a user to add a MAC address of potential TDLS peers so
  * that the CLD driver can initiate implicit TDLS setup to only those peers
  * when criteria for TDLS setup (throughput and RSSI threshold) is met.
+ * There are two flavors of external control supported. If control default
+ * is set 1 it means strict external control where only for configured
+ * tdls peer mac address tdls link will be established. If control default
+ * is set 2 it means liberal tdls external control needed. It means
+ * tdls link will be established with configured peer mac address as well
+ * as any other peer which supports tdls.
  *
  * Related: gEnableTDLSSupport, gEnableTDLSImplicitTrigger.
  *
@@ -6867,7 +6873,7 @@ enum hdd_link_speed_rpt_type {
  */
 #define CFG_TDLS_EXTERNAL_CONTROL                   "gTDLSExternalControl"
 #define CFG_TDLS_EXTERNAL_CONTROL_MIN               (0)
-#define CFG_TDLS_EXTERNAL_CONTROL_MAX               (1)
+#define CFG_TDLS_EXTERNAL_CONTROL_MAX               (2)
 #define CFG_TDLS_EXTERNAL_CONTROL_DEFAULT           (1)
 
 /*
@@ -17266,7 +17272,7 @@ struct hdd_config {
 	uint32_t fTDLSRxFrameThreshold;
 	uint32_t fTDLSPuapsdPTIWindow;
 	uint32_t fTDLSPuapsdPTRTimeout;
-	bool fTDLSExternalControl;
+	uint8_t fTDLSExternalControl;
 	uint32_t fEnableTDLSOffChannel;
 	uint32_t fEnableTDLSWmmMode;
 	uint8_t fTDLSPrefOffChanNum;
@@ -17913,6 +17919,7 @@ struct hdd_config {
 #ifdef WLAN_ADAPTIVE_11R
 	bool enable_adaptive_11r;
 #endif
+	bool p2p_disable_roam;
 };
 
 #define VAR_OFFSET(_Struct, _Var) (offsetof(_Struct, _Var))
@@ -17923,6 +17930,26 @@ struct hdd_config {
 /* bit 0 is Required or Optional */
 #define VAR_FLAGS_REQUIRED     (1 << 0)
 #define VAR_FLAGS_OPTIONAL     (0 << 0)
+
+/*
+ * <ini>
+ * p2p_disable_roam- Disable Roam on sta interface during P2P connection
+ * @Min: 0 - Roam Enabled on sta interface during P2P connection
+ * @Max: 1 - Roam Disabled on sta interface during P2P connection
+ * @Default: 0
+ *
+ * Disable roaming on STA iface to avoid audio glitches on p2p if its connected
+ *
+ * Supported Feature: Disable Roam during P2P
+ *
+ * Usage: Internal
+ *
+ * </ini>
+ */
+#define CFG_P2P_DISABLE_ROAM            "p2p_disable_roam"
+#define CFG_P2P_DISABLE_ROAM_MIN         (0)
+#define CFG_P2P_DISABLE_ROAM_MAX         (1)
+#define CFG_P2P_DISABLE_ROAM_DEFAULT     (0)
 
 /*
  * bit 1 tells if range checking is required.

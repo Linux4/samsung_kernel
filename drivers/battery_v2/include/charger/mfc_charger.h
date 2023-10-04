@@ -736,6 +736,8 @@ struct mfc_charger_data {
 	u8 device_event;
 
 	int i2c_error_count;
+
+	struct mutex fw_lock;
 };
 
 #endif /* __MFC_CHARGER_H */

@@ -25,7 +25,7 @@
 #include <linux/usb_notify.h>
 #endif
 
-#define ENABLE_MIVR 0
+#define ENABLE_MIVR 1
 
 #define EN_OVP_IRQ 1
 #define EN_IEOC_IRQ 1
@@ -127,7 +127,7 @@ static int s2mu004_charger_otg_control(
 	} else {
 		s2mu004_update_reg(charger->i2c,
 			S2MU004_CHG_CTRL4,
-			S2MU004_SET_OTG_OCP_1500mA << SET_OTG_OCP_SHIFT,
+			S2MU004_SET_OTG_OCP_900mA << SET_OTG_OCP_SHIFT,
 			SET_OTG_OCP_MASK);
 		msleep(10);
 		s2mu004_update_reg(charger->i2c, 0xAE, 0x00, 0xF0);
@@ -599,7 +599,7 @@ enum {
 /* charger input regulation voltage setting */
 static void s2mu004_set_ivr_level(struct s2mu004_charger_data *charger)
 {
-	int chg_2l_ivr = S2MU004_CHG_2L_IVR_4500MV;
+	int chg_2l_ivr = charger->pdata->mivr_voltage;
 
 	s2mu004_update_reg(charger->i2c, S2MU004_CHG_CTRL5,
 		chg_2l_ivr << SET_CHG_2L_DROP_SHIFT, SET_CHG_2L_DROP_MASK);
@@ -1622,6 +1622,13 @@ static int s2mu004_charger_parse_dt(struct device *dev,
 		}
 		pr_info("%s: battery,chg_float_voltage is %d\n",
 			__func__, pdata->chg_float_voltage);
+			
+		ret = of_property_read_u32(np, "battery,mivr_voltage",
+				&pdata->mivr_voltage);
+		if (ret) {
+			pr_info("%s : MIVR voltage is Empty\n", __func__);
+			pdata->mivr_voltage = S2MU004_CHG_2L_IVR_4500MV;
+		}		
 
 
 		pdata->chg_eoc_dualpath = of_property_read_bool(np,

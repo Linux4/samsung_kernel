@@ -19,9 +19,9 @@
 #include <linux/workqueue.h>
 #include <linux/clk.h>
 #include <linux/kfifo.h>
+#include <linux/rtc.h>
+#include <linux/alarmtimer.h>
 #include "dbmdx-customer-def.h"
-#include <linux/dbmdx.h>
-#include <sound/dbmdx-export.h>
 
 #if defined(CONFIG_SND_SOC_DBMDX_COMPAT)
 #include "dbmdx-compat.h"
@@ -34,6 +34,17 @@
 #undef CONFIG_OF
 #endif /* CONFIG_OF */
 #endif
+
+#if defined(CONFIG_SND_SOC_DBMDX_VA_NS_SUPPORT)
+#if !defined(DBMDX_VA_NS_SUPPORT)
+#define DBMDX_VA_NS_SUPPORT		1
+#endif
+#endif
+
+#define DBMDX_KEEP_ALIVE_TIMER		1
+
+#include <linux/dbmdx.h>
+#include <sound/dbmdx-export.h>
 
 #ifndef DBMD2_VA_FIRMWARE_NAME
 #define DBMD2_VA_FIRMWARE_NAME			"dbmd2_va_fw.bin"
@@ -103,7 +114,7 @@
 #define DBMDX_VE_AMODEL_NAME			"ve_amodel.bin"
 #endif
 
-#define MAX_REQ_SIZE				8192
+#define MAX_REQ_SIZE				4096
 
 #define DBMDX_AMODEL_HEADER_SIZE		12
 #define DBMDX_AMODEL_MAX_CHUNKS			3
@@ -132,6 +143,7 @@
 #define DBMDX_USLEEP_AMODEL_HEADER		2000
 #define DBMDX_USLEEP_AFTER_LOAD_AMODEL		10000
 #define DBMDX_USLEEP_RESET_TOGGLE		10000
+#define DBMDX_USLEEP_BEFORE_INIT_CONFIG		20000
 
 #define DBMDX_MSLEEP_UART_PROBE			50
 #define DBMDX_MSLEEP_UART_WAKEUP		50
@@ -199,6 +211,10 @@
 #define DBMDX_USLEEP_I2C_D4_AFTER_RESET		15000
 #define DBMDX_USLEEP_I2C_D4_AFTER_BOOT		10000
 
+#define DBMDX_DEBUG_MODE_OFF			0x0000
+#define DBMDX_DEBUG_MODE_RECORD			0x0001
+#define DBMDX_DEBUG_MODE_FW_LOG			0x0002
+
 #define DBMDX_BOOT_MODE_NORMAL_BOOT		0x0000
 #define DBMDX_BOOT_MODE_RESET_DISABLED		0x0001
 
@@ -232,6 +248,12 @@
 #define DBMDX_LOAD_MODEL_FROM_MEMORY		0x0004
 
 #define DBMDX_NO_EXT_DETECTION_MODE_PARAMS	0x0000
+#define DBMDX_MIC_CONFIG_SOURCE_EXPLICIT	0x0000
+
+
+
+#define DBMDX_ASRP_PARAMS_OPTIONS_DEFAULT	0x0000
+#define DBMDX_ASRP_PARAMS_OPTIONS_ALWAYS_RELOAD	0x0001
 
 #define DBMDX_WAKELOCK_IRQ_TIMEOUT_MS		5000
 
@@ -317,7 +339,12 @@ struct va_flags {
 	bool	disabling_mics_not_allowed;
 	bool	microphones_enabled;
 	int	cancel_pm_work;
+#ifdef DBMDX_KEEP_ALIVE_TIMER
+	int	cancel_keep_alive_work;
+#endif
 	unsigned int	mode;
+	bool	recovery_requested;
+	int	va_debug_val1;
 };
 
 struct vqe_flags {
@@ -495,6 +522,7 @@ struct dbmdx_private {
 	bool				va_ns_enabled;
 	int				va_ns_cfg_index;
 	bool				va_ns_pcm_streaming_enabled;
+	u32				va_load_asrp_params_options;
 #endif
 	int				va_cur_digital_mic_digital_gain;
 	int				va_cur_analog_mic_analog_gain;
@@ -511,6 +539,7 @@ struct dbmdx_private {
 
 	u32				boot_mode;
 
+	u32				recovery_times;
 
 	unsigned int			num_dais;
 	struct snd_soc_dai_driver	*dais;
@@ -521,6 +550,14 @@ struct dbmdx_private {
 
 	struct delayed_work		delayed_pm_work;
 	struct workqueue_struct		*dbmdx_workq;
+
+#ifdef DBMDX_KEEP_ALIVE_TIMER
+	struct alarm			keep_alive_timer;
+	int				keep_alive_timer_created;
+	int				keep_alive_timer_started;
+	int				keep_alive_triggers;
+	struct work_struct		keep_alive_work;
+#endif
 
 	/* limit request size of audio data from the firmware */
 	unsigned long				rxsize;

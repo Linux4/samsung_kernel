@@ -134,8 +134,8 @@ ssize_t send_spi_cmd_vqe(struct dbmdx_private *p,
 		return 0;
 
 	/* we need additional sleep till system is ready */
-	if ((command == (DBMDX_VQE_SET_SYSTEM_CONFIG_CMD |
-			DBMDX_VQE_SET_SYSTEM_CONFIG_PRIMARY_CFG)))
+	if (command == (DBMDX_VQE_SET_SYSTEM_CONFIG_CMD |
+			DBMDX_VQE_SET_SYSTEM_CONFIG_PRIMARY_CFG))
 		msleep(DBMDX_MSLEEP_SPI_VQE_SYS_CFG_CMD);
 
 	/* read response */
@@ -204,7 +204,7 @@ ssize_t send_spi_cmd_va(struct dbmdx_private *p, u32 command,
 		usleep_range(DBMDX_USLEEP_SPI_VA_CMD_AFTER_SEND,
 			DBMDX_USLEEP_SPI_VA_CMD_AFTER_SEND + 100);
 
-		if (p->va_debug_mode)
+		if (p->va_debug_mode & DBMDX_DEBUG_MODE_FW_LOG)
 			msleep(DBMDX_MSLEEP_DBG_MODE_CMD_RX);
 
 		ret = 0;
@@ -262,7 +262,7 @@ out:
 	usleep_range(DBMDX_USLEEP_SPI_VA_CMD_AFTER_SEND_2,
 		DBMDX_USLEEP_SPI_VA_CMD_AFTER_SEND_2 + 100);
 
-	if (p->va_debug_mode)
+	if (p->va_debug_mode & DBMDX_DEBUG_MODE_FW_LOG)
 		msleep(DBMDX_MSLEEP_DBG_MODE_CMD_TX);
 
 	return ret;
@@ -299,7 +299,7 @@ ssize_t send_spi_cmd_va_padded(struct dbmdx_private *p,
 		usleep_range(DBMDX_USLEEP_SPI_VA_CMD_AFTER_SEND,
 			DBMDX_USLEEP_SPI_VA_CMD_AFTER_SEND + 100);
 
-		if (p->va_debug_mode)
+		if (p->va_debug_mode & DBMDX_DEBUG_MODE_FW_LOG)
 			msleep(DBMDX_MSLEEP_DBG_MODE_CMD_RX);
 
 		ret = 0;
@@ -357,7 +357,7 @@ out:
 	usleep_range(DBMDX_USLEEP_SPI_VA_CMD_AFTER_SEND_2,
 		DBMDX_USLEEP_SPI_VA_CMD_AFTER_SEND_2 + 100);
 
-	if (p->va_debug_mode)
+	if (p->va_debug_mode & DBMDX_DEBUG_MODE_FW_LOG)
 		msleep(DBMDX_MSLEEP_DBG_MODE_CMD_TX);
 
 	return ret;

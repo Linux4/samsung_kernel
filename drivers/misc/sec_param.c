@@ -17,6 +17,7 @@
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/delay.h>
+#include <linux/sec_class.h>
 #ifdef CONFIG_SEC_NAD
 #include <linux/sec_nad.h>
 #endif
@@ -230,6 +231,10 @@ bool sec_get_param(enum sec_param_index index, void *value)
 		memcpy(value, param_data->reboot_recovery_cause,
 				sizeof(param_data->reboot_recovery_cause));
 		break;
+	case param_index_FMM_lock:
+		memcpy(value, &(param_data->FMM_lock),
+				sizeof(param_data->FMM_lock));
+		break;
 #ifdef CONFIG_SEC_NAD
 	case param_index_qnad:
 		sched_sec_param_data.value=value;
@@ -365,6 +370,12 @@ bool sec_set_param(enum sec_param_index index, void *value)
 		memcpy(param_data->reboot_recovery_cause,
 				value, sizeof(param_data->reboot_recovery_cause));
 		break;
+	case param_index_FMM_lock:
+		if (*(unsigned int*)value == (unsigned int)FMMLOCK_MAGIC_NUM || *(unsigned int*)value == (unsigned int)0 ) {
+			memcpy(&(param_data->FMM_lock),
+					value, sizeof(param_data->FMM_lock));
+		}
+		break;
 #ifdef CONFIG_SEC_NAD
 	case param_index_qnad:
 		sched_sec_param_data.value=(struct param_qnad *)value;
@@ -447,6 +458,64 @@ static void __exit sec_param_work_exit(void)
 	cancel_work_sync(&sched_sec_param_data.sec_param_work);
 	pr_info("%s: exit\n", __func__);
 }
+
+static struct device *sec_debug_dev = NULL;
+
+static ssize_t show_FMM_lock(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+        int lock=0;
+	char str[30];
+
+        sec_get_param(param_index_FMM_lock, &lock);
+        snprintf(str,sizeof(str),"FMM lock : [%s]\n", lock?"ON":"OFF");
+
+        return scnprintf(buf, sizeof(str), "%s", str);
+}
+
+static ssize_t store_FMM_lock(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+        int lock;
+
+	sscanf(buf, "%d", &lock);
+	if(lock)
+		lock = FMMLOCK_MAGIC_NUM;
+	else
+		lock = 0;
+
+	pr_err("FMM lock[%s]\n", lock?"ON":"OFF");
+        sec_set_param(param_index_FMM_lock, &lock);
+
+        return count;
+}
+
+static DEVICE_ATTR(FMM_lock, 0660, show_FMM_lock, store_FMM_lock);
+
+static int __init sec_debug_FMM_lock_init(void)
+{
+        int ret;
+
+	if(!sec_debug_dev){
+		/* create sec_debug_dev */
+		sec_debug_dev = device_create(sec_class, NULL, 0, NULL, "sec_debug");
+		if (IS_ERR(sec_debug_dev)) {
+			pr_err("Failed to create device for sec_debug\n");
+			return PTR_ERR(sec_debug_dev);
+		}
+	}
+
+        ret = sysfs_create_file(&sec_debug_dev->kobj, &dev_attr_FMM_lock.attr);
+        if (ret) {
+                pr_err("Failed to create sysfs group for sec_debug\n");
+		device_destroy(sec_class, sec_debug_dev->devt);
+                sec_debug_dev = NULL;
+                return ret;
+        }
+
+        return 0;
+}
+device_initcall(sec_debug_FMM_lock_init);
 
 module_init(sec_param_work_init);
 module_exit(sec_param_work_exit);

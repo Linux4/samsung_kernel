@@ -75,10 +75,14 @@ enum act_function_num {
 	FUNC_AFC_9V_TO_AFC_5V,
 	FUNC_AFC_9V_TO_AFC_9V,
 	FUNC_QC_PREPARE_TO_QC_9V,
+	FUNC_QC_5V_TO_QC_9V,
+	FUNC_QC_5V_TO_QC_5V,
 	FUNC_QC_9V_TO_QC_5V,
+	FUNC_QC_9V_TO_QC_9V,
 };
 
 muic_afc_data_t prepare_dupli_to_afc_9v;
+muic_afc_data_t qc_9v_to_qc_9v;
 /* afc_condition_checklist[ATTACHED_DEV_TA_MUIC] */
 muic_afc_data_t ta_to_prepare = {
 	.new_dev		= ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC,
@@ -275,20 +279,50 @@ muic_afc_data_t qc_prepare_to_qc_9v = {
 	.new_dev		= ATTACHED_DEV_QC_CHARGER_9V_MUIC,
 	.afc_name		= "QC charger 9V",
 	.afc_irq		= MUIC_AFC_IRQ_VBADC,
-	.status_vbadc		= VBADC_QC_9V,
+	.status_vbadc		= VBADC_AFC_9V,
 	.status_vdnmon          = VDNMON_DONTCARE,
 	.function_num		= FUNC_QC_PREPARE_TO_QC_9V,
 	.next			= &qc_prepare_to_qc_9v,
+};
+
+muic_afc_data_t qc_5v_to_qc_9v = {
+	.new_dev		= ATTACHED_DEV_QC_CHARGER_9V_MUIC,
+	.afc_name		= "QC charger 9V",
+	.afc_irq		= MUIC_AFC_IRQ_VBADC,
+	.status_vbadc		= VBADC_AFC_9V,
+	.status_vdnmon          = VDNMON_DONTCARE,
+	.function_num		= FUNC_QC_5V_TO_QC_9V,
+	.next			= &qc_9v_to_qc_9v,
+};
+
+muic_afc_data_t qc_5v_to_qc_5v = {
+	.new_dev		= ATTACHED_DEV_QC_CHARGER_5V_MUIC,
+	.afc_name		= "QC charger 5V",
+	.afc_irq		= MUIC_AFC_IRQ_DONTCARE,
+	.status_vbadc		= VBADC_AFC_5V,
+	.status_vdnmon          = VDNMON_DONTCARE,
+	.function_num		= FUNC_QC_5V_TO_QC_5V,
+	.next			= &qc_5v_to_qc_9v,
+};
+
+muic_afc_data_t qc_9v_to_qc_5v = {
+	.new_dev		= ATTACHED_DEV_QC_CHARGER_5V_MUIC,
+	.afc_name		= "QC charger 5V",
+	.afc_irq		= MUIC_AFC_IRQ_VBADC,
+	.status_vbadc		= VBADC_AFC_5V,
+	.status_vdnmon          = VDNMON_DONTCARE,
+	.function_num		= FUNC_QC_9V_TO_QC_5V,
+	.next			= &qc_5v_to_qc_5v,
 };
 
 muic_afc_data_t qc_9v_to_qc_9v = {
 	.new_dev		= ATTACHED_DEV_QC_CHARGER_9V_MUIC,
 	.afc_name		= "QC charger 9V",
 	.afc_irq		= MUIC_AFC_IRQ_DONTCARE,
-	.status_vbadc		= VBADC_QC_9V,
+	.status_vbadc		= VBADC_AFC_9V,
 	.status_vdnmon          = VDNMON_DONTCARE,
-	.function_num		= FUNC_QC_PREPARE_TO_QC_9V,
-	.next			= &qc_9v_to_qc_9v,
+	.function_num		= FUNC_QC_9V_TO_QC_9V,
+	.next			= &qc_9v_to_qc_5v,
 };
 
 /* afc_condition_checklist[ATTACHED_DEV_AFC_CHARGER_9V_MUIC] */
@@ -323,6 +357,7 @@ muic_afc_data_t		*afc_condition_checklist[ATTACHED_DEV_NUM] = {
 	[ATTACHED_DEV_AFC_CHARGER_ERR_V_DUPLI_MUIC] = &afc_err_v_dupli_to_afc_err_v_dupli,
 	[ATTACHED_DEV_AFC_CHARGER_9V_MUIC]	= &afc_9v_to_afc_9v,
 	[ATTACHED_DEV_QC_CHARGER_PREPARE_MUIC]	= &qc_prepare_to_qc_9v,
+	[ATTACHED_DEV_QC_CHARGER_5V_MUIC]	= &qc_5v_to_qc_5v,
 	[ATTACHED_DEV_QC_CHARGER_9V_MUIC]	= &qc_9v_to_qc_9v,
 };
 
@@ -790,6 +825,10 @@ static int s2mu004_hv_muic_handle_attach
 #endif
 		break;
 	case FUNC_QC_PREPARE_TO_QC_9V:
+	case FUNC_QC_5V_TO_QC_9V:
+	case FUNC_QC_5V_TO_QC_5V:
+	case FUNC_QC_9V_TO_QC_5V:
+	case FUNC_QC_9V_TO_QC_9V:
 		pr_info("%s FUNC_QC_PREPARE_TO_QC_9V\n", __func__);
 		cancel_delayed_work(&muic_data->afc_qc_retry);
 		break;
@@ -1343,7 +1382,7 @@ void hv_muic_change_afc_voltage(int tx_data)
 	pr_info("%s %x\n", __func__, tx_data);
 
 	/* QC */
-	if (muic_pdata->attached_dev == ATTACHED_DEV_QC_CHARGER_9V_MUIC) {
+	if ((muic_pdata->attached_dev == ATTACHED_DEV_QC_CHARGER_9V_MUIC) || (muic_pdata->attached_dev == ATTACHED_DEV_QC_CHARGER_5V_MUIC)) {
 		switch (tx_data) {
 		case MUIC_HV_5V:
 			s2mu004_hv_muic_write_reg(i2c, 0x49, 0xa1);

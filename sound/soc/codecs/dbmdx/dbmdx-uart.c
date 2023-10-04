@@ -471,9 +471,6 @@ ssize_t send_uart_cmd_va(struct dbmdx_private *p, u32 command,
 		if (command == DBMDX_VA_SET_POWER_STATE_SLEEP)
 			goto out;
 
-		if (!response)
-			goto out;
-
 		ret = uart_read_data(p, recv, 5);
 		if (ret < 0)
 			goto out;

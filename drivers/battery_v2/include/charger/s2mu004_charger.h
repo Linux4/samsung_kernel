@@ -385,6 +385,7 @@ struct s2mu004_charger_platform_data {
 	sec_battery_full_charged_t full_check_type_2nd;
 	/* Slow charging current */
 	int slow_charging_current;
+	int mivr_voltage;
 };
 
 #define s2mu004_charger_platform_data_t \
