@@ -5,9 +5,7 @@
 # Features to Enable
 PED_ENABLE=true
 SAFEPLACE_ENABLE=true
-ifneq ($(SEC_FACTORY_BUILD), true)
 IMMUTABLE_ENABLE=true
-endif
 LP_ENABLE=true
 UMH_RESTRICTION_ENABLE=true
 TRUSTED_MAP_ENABLE=false

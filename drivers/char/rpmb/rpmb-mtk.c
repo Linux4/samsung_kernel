@@ -3072,11 +3072,11 @@ static int rpmb_iwsock_thread(void *context)
 
 		boot_type = dt_get_boot_type();
 		mutex_lock(&rpmb_mutex);
-#if defined(CONFIG_MMC_MTK_PRO)
-		rpmb_iwsock_execute_emmc(ctx);
-#endif
+		if (boot_type == BOOTDEV_SDMMC)
+			rpmb_iwsock_execute_emmc(ctx);
 #ifdef CONFIG_SCSI_UFS_MEDIATEK
-		rpmb_iwsock_execute_ufs(ctx);
+		else if (boot_type == BOOTDEV_UFS)
+			rpmb_iwsock_execute_ufs(ctx);
 #endif
 		mutex_unlock(&rpmb_mutex);
 

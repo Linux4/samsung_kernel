@@ -2420,7 +2420,9 @@ void PolicySinkTransitionDefault(struct Port *port)
 			DeviceWrite(port->I2cAddr, regMeasure, 1,
 						&port->Registers.Measure.byte);
 
-			TimerStart(&port->PolicyStateTimer, tSrcRecoverMax + tSrcTurnOn);
+			/* hs14 code for AL6528A-1049 by gaozhengwei at 2022/12/28 start */
+			TimerStart(&port->PolicyStateTimer, tSrcRecoverMax + tSrcTurnOn - 400 * TICK_SCALE_TO_MS);
+			/* hs14 code for AL6528A-1049 by gaozhengwei at 2022/12/28 end */
 		}
 		else if (TimerExpired(&port->PolicyStateTimer))
 		{

@@ -521,8 +521,7 @@ __visible_for_testing int task_defex_immutable(struct defex_context *dc, int att
 		pr_crit("defex: immutable %s violation [task=%s (%s), access to:%s]\n",
 			(attribute==feature_immutable_path_open)?"open":"write", p->comm, proc_file, new_file);
 #ifdef DEFEX_DSMS_ENABLE
-		/* Disable to collect data for Immutable feature temporarily */
- 		//defex_report_violation(IMMUTABLE_VIOLATION, 0, dc, 0, 0, 0, 0);
+ 		defex_report_violation(IMMUTABLE_VIOLATION, 0, dc, 0, 0, 0, 0);
 #endif /* DEFEX_DSMS_ENABLE */
 	}
 out:

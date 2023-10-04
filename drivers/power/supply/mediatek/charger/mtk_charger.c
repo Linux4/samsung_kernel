@@ -1718,6 +1718,10 @@ void mtk_charger_int_handler(void)
 /* hs14 code for SR-AL6528A-01-321|AL6528ADEU-580|AL6528A-297 by gaozhengwei at 2022/10/13 start */
 bool ss_fast_charger_status(struct charger_manager *info)
 {
+	/* hs14 code for P221214-05432 by wenyaqi at 2022/12/26 start */
+	if (info->afc_sts >= AFC_5V)
+		return true;
+	/* hs14 code for P221214-05432 by wenyaqi at 2022/12/26 end */
 	if (info->chr_type == STANDARD_CHARGER && afc_get_is_connect(info))
 		return true;
 	switch (info->pd_type) {

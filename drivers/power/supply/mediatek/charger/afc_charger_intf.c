@@ -69,7 +69,11 @@ int send_afc_result(int res)
 			(enum power_supply_property)POWER_SUPPLY_PROP_AFC_RESULT, &value);
 	if (ret < 0)
 		pr_err("%s: POWER_SUPPLY_EXT_PROP_AFC_RESULT set failed\n", __func__);
-
+	/* hs14 code for P221214-05432 by wenyaqi at 2022/12/26 start */
+	if (!IS_ERR_OR_NULL(psy_bat)) {
+		power_supply_changed(psy_bat);
+	}
+	/* hs14 code for P221214-05432 by wenyaqi at 2022/12/26 end */
 	return 0;
 }
 

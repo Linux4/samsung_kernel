@@ -1824,14 +1824,23 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 	struct u2phy_banks *u2_banks = &instance->u2_banks;
 	struct device *dev = &instance->phy->dev;
 	u32 tmp, val;
+	/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 start */
+	u32 tmp_ssd;
+	/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 end */
 
 	tmp = readl(u2_banks->com + U3P_U2PHYDTM1);
+	/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 start */
+	tmp_ssd = readl(u2_banks->com + 0x014);
+	/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 end */
 	switch (mode) {
 	case PHY_MODE_UART:
 		u2_phy_instance_set_mode_2uart(u2_banks);
 		return;
 	case PHY_MODE_USB_DEVICE:
 		tmp |= P2C_FORCE_IDDIG | P2C_RG_IDDIG;
+		/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 start */
+		tmp_ssd &= ~(1 << 16);
+		/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 end */
 #ifdef CONFIG_USB_MTK_HDRC
 		/* Used by phone products */
 		tmp |= P2C_RG_VBUSVALID | P2C_RG_BVALID | P2C_RG_AVALID | P2C_RG_RG_IDPULLUP;
@@ -1864,6 +1873,9 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 		tmp |= P2C_RG_VBUSVALID | P2C_RG_BVALID | P2C_RG_AVALID | P2C_RG_RG_IDPULLUP;
 		tmp &= ~P2C_RG_SESSEND;
 #endif
+		/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 start */
+		tmp_ssd |= (1 << 16);
+		/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 end */
 		u2_phy_set_default_value(instance);
 		if(!device_property_read_u32(dev, "mediatek,host-eye-src", &val))
 			instance->eye_src = val;
@@ -1893,6 +1905,9 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 		tmp &= ~(P2C_RG_VBUSVALID | P2C_RG_BVALID | P2C_RG_AVALID |
 			P2C_RG_IDDIG);
 		tmp |= P2C_FORCE_IDDIG;
+		/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 start */
+		tmp_ssd &= ~(1 << 16);
+		/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 end */
 		break;
 	default:
 		return;
@@ -1903,6 +1918,9 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 		P2C_FORCE_AVALID | P2C_FORCE_IDPULLUP;
 #endif
 	writel(tmp, u2_banks->com + U3P_U2PHYDTM1);
+	/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 start */
+	writel(tmp_ssd, u2_banks->com + 0x014);
+	/* hs14 code for P221226-04679 by wenyaqi at 2022/12/28 end */
 }
 
 static void u2_phy_instance_set_mode_ext(struct mtk_tphy *tphy,

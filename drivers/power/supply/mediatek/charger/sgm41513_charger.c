@@ -360,7 +360,6 @@ int sgm41513_set_input_current_limit(struct sgm41513 *sgm, int curr)
         curr = REG00_IINLIM_BASE;
 
     val = (curr - REG00_IINLIM_BASE) / REG00_IINLIM_LSB;
-    msleep(500);
     return sgm41513_update_bits(sgm, SGM41513_REG_00, REG00_IINLIM_MASK,
                     val << REG00_IINLIM_SHIFT);
 }
