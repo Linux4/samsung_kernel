@@ -888,6 +888,11 @@ int __second_parsing_ncp(
 
 				(*WGT_av + WGT_cnt)->av_index = address_vector_index;
 				weight_size = (av + address_vector_index)->size;
+				if (unlikely((weight_offset + weight_size) < weight_size)) {
+					npu_err("weight_offset(0x%x) + weight size (0x%x) seems to be overflow.\n",
+						weight_offset, weight_size);
+					return -ERANGE;
+				}
 				if ((weight_offset + weight_size) > (u32)session->ncp_mem_buf->size) {
 					npu_err("weight_offset(0x%x) + weight size (0x%x) seems to go beyond ncp size(0x%x)\n",
 							weight_offset, weight_size, (u32)session->ncp_mem_buf->size);

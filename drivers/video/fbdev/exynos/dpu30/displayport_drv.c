@@ -446,6 +446,24 @@ void displayport_get_voltage_and_pre_emphasis_max_reach(u8 *drive_current, u8 *p
 	}
 }
 
+u8 displayport_get_max_lane_count_from_pin_assignment(struct displayport_device *displayport)
+{
+	u8 lane_count = 4;
+
+	switch (displayport->ccic_notify_dp_conf) {
+	case CCIC_NOTIFY_DP_PIN_B:
+	case CCIC_NOTIFY_DP_PIN_D:
+	case CCIC_NOTIFY_DP_PIN_F:
+		displayport_info("support 2 lanes pin_assignment\n");
+		lane_count = 2;
+		break;
+	default:
+		break;
+	}
+
+	return lane_count;
+}
+
 static int displayport_full_link_training(u32 sst_id)
 {
 	u8 link_rate;
@@ -497,6 +515,13 @@ static int displayport_full_link_training(u32 sst_id)
 	lane_cnt = val[2] & MAX_LANE_COUNT;
 	tps3_supported = val[2] & TPS3_SUPPORTED;
 	enhanced_frame_cap = val[2] & ENHANCED_FRAME_CAP;
+
+	lane_cnt = min_t(u8, lane_cnt, displayport_get_max_lane_count_from_pin_assignment(displayport));
+
+	if (link_rate == 0 || lane_cnt == 0) {
+		displayport_err("invalid link rate or lane count in full link training\n");
+		return -EINVAL;
+	}
 
 #ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
 	secdp_bigdata_save_item(BD_MAX_LANE_COUNT, lane_cnt);
