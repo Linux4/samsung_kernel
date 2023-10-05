@@ -814,6 +814,36 @@ static void slsi_scan_save_probe_req_ies(struct cfg80211_scan_request *request,
 	}
 }
 
+/*TODO: define will be removed when autogen to be done*/
+#define SLSI_PSID_UNIFI_HE_ACTIVATED_P2P_GO 2393
+#if defined(CONFIG_SCSC_WLAN_HE) && (defined(SCSC_SEP_VERSION))
+static void slsi_p2p_go_set_he_mode(struct slsi_dev *sdev, struct net_device *ndev, struct cfg80211_ap_settings *request)
+{
+	struct netdev_vif	*ndev_vif = NULL;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	bool	 	        p2p_ax_mode = false;
+#endif
+
+	ndev_vif = netdev_priv(ndev);
+
+	if (ndev_vif->ifnum != SLSI_NET_INDEX_P2PX_SWLAN || ndev_vif->iftype != NL80211_IFTYPE_P2P_GO)
+		return;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	if (request->he_cap) {
+		p2p_ax_mode = true;
+		SLSI_NET_DBG3(ndev, SLSI_CFG80211, "P2P GO 11ax mode\n");
+
+		if (slsi_set_uint_mib(sdev, NULL, SLSI_PSID_UNIFI_HE_ACTIVATED_P2P_GO, p2p_ax_mode)) {
+			SLSI_ERR(sdev, "Set HE_ACTIVATED_P2P_GO has failed\n");
+			return;
+		}
+		ndev_vif->p2p_ax_mode = p2p_ax_mode;
+	}
+#endif
+}
+#endif
+
 static void slsi_abort_hw_scan(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct netdev_vif   *ndev_vif = netdev_priv(dev);
@@ -886,8 +916,8 @@ int slsi_scan(struct wiphy                 *wiphy,
 #if defined(CONFIG_SLSI_WLAN_STA_FWD_BEACON) && (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 10)
 	slsi_set_sta_forward_beacon(sdev, dev);
 #endif
-	SLSI_NET_DBG3(dev, SLSI_CFG80211, "channels:%d, ssids:%d, ie_len:%d, vif_index:%d\n", request->n_channels,
-		      request->n_ssids, (int)request->ie_len, ndev_vif->ifnum);
+	SLSI_NET_DBG3(dev, SLSI_CFG80211, "channels:%d, ssids:%d, ie_len:%d, vif_index:%d, vif_type:%d\n",
+		      request->n_channels, request->n_ssids, (int)request->ie_len, ndev_vif->ifnum, ndev_vif->iftype);
 
 	slsi_p2p_cancel_unset_channel(sdev, request);
 
@@ -3164,6 +3194,9 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		slsi_p2p_group_start_remove_unsync_vif(sdev);
 		p2p_dev = slsi_get_netdev(sdev, SLSI_NET_INDEX_P2P);
 		SLSI_ETHER_COPY(device_address, p2p_dev->dev_addr);
+#if defined(CONFIG_SCSC_WLAN_HE) && (defined(SCSC_SEP_VERSION))
+		slsi_p2p_go_set_he_mode(sdev, dev, settings);
+#endif
 		if (keep_alive_period != SLSI_P2PGO_KEEP_ALIVE_PERIOD_SEC)
 			if (slsi_set_uint_mib(sdev, NULL, SLSI_PSID_UNIFI_MLMEGO_KEEP_ALIVE_TIMEOUT,
 					      keep_alive_period) != 0) {

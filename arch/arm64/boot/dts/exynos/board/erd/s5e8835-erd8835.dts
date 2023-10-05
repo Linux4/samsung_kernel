@@ -756,7 +756,7 @@
 				qos = <0x0f>;
 				port-name = "CPIF";
 				#iommu-cells = <0x00>;
-				phandle = <0x40>;
+				phandle = <0x41>;
 			};
 		};
 	};
@@ -1921,7 +1921,7 @@
 				id = <0x00>;
 				led_ch = <0x01>;
 				status = "okay";
-				phandle = <0x41>;
+				phandle = <0x42>;
 			};
 
 			is-flash-s2mf302@0 {
@@ -1930,7 +1930,7 @@
 				id = <0x02>;
 				led_ch = <0x01>;
 				status = "okay";
-				phandle = <0x42>;
+				phandle = <0x43>;
 			};
 
 			is_sensor0@15030000 {
@@ -1945,7 +1945,7 @@
 				interrupt-names = "csi";
 				phys = <0xffffffff 0x00>;
 				phy_setfile = <0x0c>;
-				phandle = <0x43>;
+				phandle = <0x44>;
 			};
 
 			is_sensor1@15040000 {
@@ -1961,7 +1961,7 @@
 				interrupt-names = "csi";
 				phys = <0xffffffff 0x00>;
 				phy_setfile = <0x0d>;
-				phandle = <0x44>;
+				phandle = <0x45>;
 			};
 
 			is_sensor2@15050000 {
@@ -1977,7 +1977,7 @@
 				interrupt-names = "csi";
 				phys = <0xffffffff 0x00>;
 				phy_setfile = <0x0c>;
-				phandle = <0x45>;
+				phandle = <0x46>;
 			};
 
 			is_sensor3@15070000 {
@@ -1992,7 +1992,7 @@
 				interrupts = <0x00 0xc5 0x04>;
 				phys = <0xffffffff 0x00>;
 				phy_setfile = <0x0d>;
-				phandle = <0x46>;
+				phandle = <0x47>;
 			};
 		};
 	};
@@ -2655,7 +2655,7 @@
 					#io-channel-cells = <0x01>;
 					io-channel-ranges;
 					acpm-ipc-channel = <0x0b>;
-					phandle = <0x47>;
+					phandle = <0x48>;
 				};
 
 				s2mpu15-keys {
@@ -2677,7 +2677,7 @@
 					#gpio-cells = <0x02>;
 					samsung,npins = <0x02>;
 					status = "okay";
-					phandle = <0x48>;
+					phandle = <0x49>;
 				};
 
 				regulators {
@@ -2689,7 +2689,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x49>;
+						phandle = <0x4a>;
 					};
 
 					BUCK2 {
@@ -2699,7 +2699,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x4a>;
+						phandle = <0x4b>;
 					};
 
 					BUCK3 {
@@ -2709,7 +2709,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x4b>;
+						phandle = <0x4c>;
 					};
 
 					BUCK4 {
@@ -2719,7 +2719,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x4c>;
+						phandle = <0x4d>;
 					};
 
 					BUCK5 {
@@ -2729,7 +2729,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x4d>;
+						phandle = <0x4e>;
 					};
 
 					BUCK6 {
@@ -2739,7 +2739,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x4e>;
+						phandle = <0x4f>;
 					};
 
 					BUCK7 {
@@ -2749,7 +2749,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x4f>;
+						phandle = <0x50>;
 					};
 
 					BUCK8 {
@@ -2759,7 +2759,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x03>;
 						regulator-always-on;
-						phandle = <0x50>;
+						phandle = <0x51>;
 					};
 
 					BUCK_SR1 {
@@ -2769,7 +2769,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x03>;
 						regulator-always-on;
-						phandle = <0x51>;
+						phandle = <0x52>;
 					};
 
 					BUCK_SR2 {
@@ -2779,7 +2779,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x03>;
 						regulator-always-on;
-						phandle = <0x52>;
+						phandle = <0x53>;
 					};
 
 					BUCK_SR3 {
@@ -2789,7 +2789,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x03>;
 						regulator-always-on;
-						phandle = <0x53>;
+						phandle = <0x54>;
 					};
 
 					BUCK_SR4 {
@@ -2799,7 +2799,7 @@
 						regulator-ramp-delay = <0x1770>;
 						regulator-initial-mode = <0x03>;
 						regulator-always-on;
-						phandle = <0x54>;
+						phandle = <0x55>;
 					};
 
 					LDO1 {
@@ -2809,7 +2809,7 @@
 						regulator-ramp-delay = <0x2ee0>;
 						regulator-initial-mode = <0x03>;
 						regulator-always-on;
-						phandle = <0x55>;
+						phandle = <0x56>;
 					};
 
 					LDO2 {
@@ -2818,7 +2818,7 @@
 						regulator-max-microvolt = <0x337f98>;
 						regulator-ramp-delay = <0x2ee0>;
 						regulator-initial-mode = <0x03>;
-						phandle = <0x56>;
+						phandle = <0x57>;
 					};
 
 					LDO3 {
@@ -2828,7 +2828,7 @@
 						regulator-ramp-delay = <0x2ee0>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x57>;
+						phandle = <0x58>;
 					};
 
 					LDO4 {
@@ -2838,7 +2838,7 @@
 						regulator-ramp-delay = <0x2ee0>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x58>;
+						phandle = <0x59>;
 					};
 
 					LDO5 {
@@ -2848,17 +2848,16 @@
 						regulator-ramp-delay = <0x2ee0>;
 						regulator-initial-mode = <0x01>;
 						regulator-always-on;
-						phandle = <0x59>;
+						phandle = <0x5a>;
 					};
 
 					LDO6 {
-						regulator-name = "vdd_ldo6";
+						regulator-name = "vdd33_usb";
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x337f98>;
 						regulator-ramp-delay = <0x2ee0>;
 						regulator-initial-mode = <0x03>;
-						regulator-always-on;
-						phandle = <0x5a>;
+						phandle = <0x3f>;
 					};
 
 					LDO7 {
@@ -4070,7 +4069,7 @@
 
 			hs_tune {
 				hs_tune_cnt = <0x07>;
-				phandle = <0x3f>;
+				phandle = <0x40>;
 
 				hs_tune1 {
 					tune_name = "tx_pre_emp";
@@ -5049,6 +5048,7 @@
 			samsung,abox-gic = <0xffffffff>;
 			xhci_l2_support = <0x01>;
 			xhci_use_uram_for_audio = <0x01>;
+			vdd33_usb-supply = <0x3f>;
 		};
 	};
 
@@ -5058,7 +5058,8 @@
 		__overlay__ {
 			status = "okay";
 			use_default_tune_val = <0x01>;
-			hs_tune_param = <0x3f>;
+			hs_tune_param = <0x40>;
+			vdd33_usb-supply = <0x3f>;
 			low_power_call = <0x01>;
 		};
 	};
@@ -5888,10 +5889,18 @@
 			};
 		};
 
+		fragment@35 {
+
+			__overlay__ {
+				vdd33_usb-supply = <0x00>;
+			};
+		};
+
 		fragment@36 {
 
 			__overlay__ {
 				hs_tune_param = <0x00>;
+				vdd33_usb-supply = <0x00>;
 			};
 		};
 	};

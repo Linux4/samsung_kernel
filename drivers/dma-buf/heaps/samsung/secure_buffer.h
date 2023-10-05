@@ -58,4 +58,24 @@ static inline unsigned long ppmp_hvc(unsigned long cmd, unsigned long arg0,
 	arm_smccc_hvc(cmd, arg0, arg1, arg2, arg3, 0, 0, 0, &res);
 	return (unsigned long)res.a0;
 }
+
+/*
+ * buffer id is consist of unique id and magic value.
+ * buffer id [31:8] : unique id
+ * buffer id [7:4]  : protection id
+ * buffer id [3:0]  : non-zero value as 0xA
+ */
+#define SECURE_UID_WIDTH		24
+#define SECURE_UID_SHIFT		8
+#define SECURE_UID_MAX			((1 << SECURE_UID_WIDTH) - 1)
+#define SECURE_UID_MASK(x)		(x & ((1 << SECURE_UID_WIDTH) - 1))
+#define SECURE_PID_WIDTH		4
+#define SECURE_PID_SHIFT		4
+#define SECURE_PID_MASK(x)		(x & ((1 << SECURE_PID_WIDTH) - 1))
+#define SECURE_BUFID_MAGIC		0xA
+#define SECURE_BUFID_TO_UID(bufid)	SECURE_UID_MASK((bufid) >> SECURE_UID_SHIFT)
+
+#define SECURE_MAKE_BUFID(flags, uid)	((SECURE_UID_MASK(uid)   << SECURE_UID_SHIFT) |	\
+					 (SECURE_PID_MASK(flags) << SECURE_PID_SHIFT) | \
+					  SECURE_BUFID_MAGIC)
 #endif

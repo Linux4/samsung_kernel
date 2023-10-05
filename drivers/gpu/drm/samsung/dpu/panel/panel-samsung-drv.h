@@ -262,6 +262,7 @@ struct exynos_panel_desc {
 	int delay_before_reset;
 	int reset_delay[3];
 	enum exynos_reset_pos reset_pos;
+    bool wait_lp11;
 #if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
 	const struct drm_panel_funcs *panel_func;
 	const struct exynos_panel_funcs *exynos_panel_func;

@@ -198,13 +198,14 @@ struct io_device *insert_iod_with_format(struct modem_shared *msd,
 static void netif_tx_flowctl(struct modem_shared *msd, bool tx_stop)
 {
 	struct io_device *iod;
+	unsigned long flags;
 
 	if (!msd) {
 		mif_err_limited("modem shared data does not exist\n");
 		return;
 	}
 
-	spin_lock(&msd->active_list_lock);
+	spin_lock_irqsave(&msd->active_list_lock, flags);
 	list_for_each_entry(iod, &msd->activated_ndev_list, node_ndev) {
 		if (tx_stop)
 			netif_stop_subqueue(iod->ndev, 0);
@@ -217,7 +218,7 @@ static void netif_tx_flowctl(struct modem_shared *msd, bool tx_stop)
 			iod->ndev->name);
 #endif
 	}
-	spin_unlock(&msd->active_list_lock);
+	spin_unlock_irqrestore(&msd->active_list_lock, flags);
 }
 
 bool stop_net_ifaces(struct link_device *ld, unsigned long set_mask)

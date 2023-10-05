@@ -306,6 +306,7 @@ struct sm5714_phydrv_data {
 	bool suspended;
 	bool soft_reset;
 	bool is_timer_expired;
+	bool is_wait_sinktxok;
 	wait_queue_head_t suspend_wait;
 	struct wakeup_source	*irq_ws;
 	int cc_open_cmd;
@@ -346,6 +347,7 @@ struct sm5714_phydrv_data {
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	struct delayed_work vbus_noti_work;
 #endif
+	int vbus_noti_status;
 	struct delayed_work rx_buf_work;
 	struct delayed_work vbus_dischg_work;
 	struct delayed_work debug_work;

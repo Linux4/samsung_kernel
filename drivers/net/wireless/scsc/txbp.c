@@ -225,12 +225,25 @@ static __always_inline u8 slsi_txbp_check_ac_presence(struct tx_netdev_data *tx_
 
 static __always_inline int slsi_txbp_has_resource(struct tx_netdev_data *tx_priv)
 {
-	u8 ac_presence = slsi_txbp_check_ac_presence(tx_priv);
+	struct tx_struct *tx_info;
 	int mod;
 	int cod;
 	int trigger_min;
 	int ret = 0;
+	u8 ac_presence;
 
+	if (!tx_priv) {
+		SLSI_WARN_NODEV("BP: tx_priv is NULL\n");
+		return ret;
+	}
+
+	tx_info = &tx_priv->tx;
+	if (!tx_info) {
+		SLSI_WARN_NODEV("BP: tx_info is NULL\n");
+		return ret;
+	}
+
+	ac_presence = slsi_txbp_check_ac_presence(tx_priv);
 	if ((ac_presence == (0x1 << SLSI_TRAFFIC_Q_BE)) || (ac_presence == (0x1 << SLSI_TRAFFIC_Q_BK)) ||
 	    (ac_presence == (0x1 << SLSI_TRAFFIC_Q_VI)) || (ac_presence == (0x1 << SLSI_TRAFFIC_Q_VO)))
 		trigger_min = 5;
@@ -257,7 +270,7 @@ static __always_inline int slsi_txbp_has_resource(struct tx_netdev_data *tx_priv
 	}
 
 	if (bp_log & LOG_FILTER_RESOURCE)
-		SLSI_NET_INFO(tx_priv->tx.ndev, "BP: resource available %d\n", ret);
+		SLSI_NET_INFO(tx_info->ndev, "BP: resource available %d\n", ret);
 end:
 	read_unlock(&txbp_priv.cod_lock);
 	return ret;
@@ -573,6 +586,7 @@ static int slsi_txbp_napi(struct napi_struct *napi, int budget)
 	int ret;
 	int cod = 0;
 
+	read_lock_bh(&txbp_priv.vif_lock);
 	tx_priv = (struct tx_netdev_data *)ndev_vif->tx_netdev_data;
 	if (!tx_priv)
 		goto tx_done;
@@ -590,7 +604,6 @@ static int slsi_txbp_napi(struct napi_struct *napi, int budget)
 		goto tx_done_check_q;
 #endif
 
-	read_lock(&tx_priv->q_lock);
 	for (ac = SLSI_TRAFFIC_Q_VO; ac > -1; ac--) {
 		struct sk_buff_head *q;
 		struct sk_buff *skb;
@@ -614,7 +627,7 @@ static int slsi_txbp_napi(struct napi_struct *napi, int budget)
 				show_cod(tx_priv);
 				if (bp_log & LOG_FILTER_TX_FAILURE)
 					SLSI_NET_INFO(tx->ndev, "BP: Tx failed remaining budget %u\n", ac_budget_limit[ac]);
-				goto tx_done_with_lock_held;
+				goto tx_done_check_q;
 			} else {
 				work_done++;
 				ac_budget_limit[ac]--;
@@ -631,11 +644,9 @@ static int slsi_txbp_napi(struct napi_struct *napi, int budget)
 			}
 
 			if (SLSI_HIP_TX_DATA_SLOTS_NUM - cod < SLSI_TX_BP_MBULK_GUARD)
-				goto tx_done_with_lock_held;
+				goto tx_done_check_q;
 		}
 	}
-tx_done_with_lock_held:
-	read_unlock(&tx_priv->q_lock);
 tx_done_check_q:
 	for (ac = SLSI_TRAFFIC_Q_VO; ac > -1; ac--)
 #ifdef CONFIG_SCSC_WLAN_SAP_POWER_SAVE
@@ -661,6 +672,7 @@ tx_done:
 	if (bp_log & LOG_FILTER_TX_NAPI)
 		SLSI_NET_INFO(tx->ndev, "BP: work_done %d budget %d\n", work_done, budget);
 
+	read_unlock_bh(&txbp_priv.vif_lock);
 	return work_done;
 }
 
@@ -723,10 +735,8 @@ __always_inline void slsi_txbp_vif_budget_redistribute(struct net_device *dev, b
 	struct tx_netdev_data *tx_priv = NULL;
 	int mod;
 
-	if (!txbp_priv.vif_cnt) {
-		SLSI_NET_ERR(dev, "BP: invalid budget distribution request(activated %d)\n", is_activated);
+	if (!txbp_priv.vif_cnt)
 		return;
-	}
 
 	mod = bp_mod / txbp_priv.vif_cnt;
 	list_for_each_entry(tx_priv, &txbp_priv.vif_list, list) {
@@ -754,27 +764,20 @@ __always_inline bool slsi_vif_activated_post(struct slsi_dev *sdev, struct net_d
 	if (!tx_priv)
 		return false;
 
-	rwlock_init(&tx_priv->q_lock);
-	tx_priv->ac_presence = 0;
-	tx_priv->ac_presence_update = 0;
-	tx_priv->last_presence_check_time = jiffies;
 	tx_info = &tx_priv->tx;
-
-	for (ac = 0; ac < AC_CATEGORIES; ac++) {
-		skb_queue_head_init(&tx_priv->q[ac]);
-		tx_info->assigned_q[ac] = &tx_priv->q[ac];
-	}
-
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
-	tx_priv->bh_tx = slsi_lbm_register_napi(sdev, slsi_txbp_napi, -1, NP_TX_0);
-	if (tx_priv->bh_tx) {
-		tx_priv->bh_tx->tx = tx_info;
-		slsi_lbm_setup(tx_priv->bh_tx);
-		slsi_lbm_register_cpu_affinity_control(tx_priv->bh_tx, NP_TX_0);
-		tx_priv->dedicated_napi = slsi_lbm_get_napi_cpu(NP_TX_0, TRAFFIC_MON_CLIENT_STATE_HIGH);
-	} else {
-		SLSI_NET_ERR(dev, "BP: slsi_lbm_register_napi failed\n");
-		return false;
+	if (!test_and_set_bit(SLSI_TX_NAPI_ENABLED, &tx_info->napi_state)) {
+		tx_priv->bh_tx = slsi_lbm_register_napi(sdev, slsi_txbp_napi, -1, NP_TX_0);
+		if (tx_priv->bh_tx) {
+			tx_priv->bh_tx->tx = tx_info;
+			slsi_lbm_setup(tx_priv->bh_tx);
+			slsi_lbm_register_cpu_affinity_control(tx_priv->bh_tx, NP_TX_0);
+			tx_priv->dedicated_napi = slsi_lbm_get_napi_cpu(NP_TX_0, TRAFFIC_MON_CLIENT_STATE_HIGH);
+		} else {
+			SLSI_NET_ERR(dev, "BP: slsi_lbm_register_napi failed\n");
+			kfree(tx_priv);
+			return false;
+		}
 	}
 #else
 	init_dummy_netdev(&tx_priv->napi_netdev);
@@ -789,6 +792,15 @@ __always_inline bool slsi_vif_activated_post(struct slsi_dev *sdev, struct net_d
 #endif
 	tx_info->sdev = sdev;
 	tx_info->ndev = dev;
+
+	tx_priv->ac_presence = 0;
+	tx_priv->ac_presence_update = 0;
+	tx_priv->last_presence_check_time = jiffies;
+
+	for (ac = 0; ac < AC_CATEGORIES; ac++) {
+		skb_queue_head_init(&tx_priv->q[ac]);
+		tx_info->assigned_q[ac] = &tx_priv->q[ac];
+	}
 
 	tx_priv->netdev_cod = 0;
 	for (ac = 0; ac < AC_CATEGORIES; ac++) {
@@ -808,18 +820,16 @@ __always_inline bool slsi_vif_activated_post(struct slsi_dev *sdev, struct net_d
 	return true;
 }
 
-__always_inline void slsi_vif_deactivated_post(struct slsi_dev *sdev, struct net_device *dev,
+__always_inline bool slsi_vif_deactivated_post(struct slsi_dev *sdev, struct net_device *dev,
 					       struct netdev_vif *ndev_vif)
 {
 	struct tx_netdev_data *tx_priv;
-#ifndef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 	struct tx_struct *tx_info;
-#endif
 	u8 qidx;
 
 	tx_priv = (struct tx_netdev_data *)ndev_vif->tx_netdev_data;
 	if (!tx_priv)
-		return;
+		return false;
 
 	write_lock_bh(&txbp_priv.vif_lock);
 	ndev_vif->tx_netdev_data = NULL;
@@ -828,14 +838,15 @@ __always_inline void slsi_vif_deactivated_post(struct slsi_dev *sdev, struct net
 	slsi_txbp_vif_budget_redistribute(dev, false);
 	write_unlock_bh(&txbp_priv.vif_lock);
 
-#ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
-	slsi_lbm_unregister_bh(tx_priv->bh_tx);
-	tx_priv->bh_tx = NULL;
-#else
 	tx_info = &tx_priv->tx;
+#ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
+	if (test_and_clear_bit(SLSI_TX_NAPI_ENABLED, &tx_info->napi_state)) {
+		slsi_lbm_unregister_bh(tx_priv->bh_tx);
+		tx_priv->bh_tx = NULL;
+	}
+#else
 	if (test_and_clear_bit(SLSI_TX_NAPI_ENABLED, &tx_info->napi_state))
 		napi_disable(&tx_info->napi);
-
 	netif_napi_del(&tx_info->napi);
 #endif
 
@@ -844,6 +855,8 @@ __always_inline void slsi_vif_deactivated_post(struct slsi_dev *sdev, struct net
 
 	kfree(tx_priv);
 	SLSI_NET_INFO(dev, "BP: deactive interfaces(%s) vif_cnt %u\n", dev->name, txbp_priv.vif_cnt);
+
+	return true;
 }
 
 __always_inline int slsi_tx_ps_port_control(struct slsi_dev *sdev, struct net_device *dev, struct slsi_peer *peer,
@@ -1078,10 +1091,25 @@ static __always_inline void slsi_txbp_schedule_napi(struct net_device *dev, stru
 {
 	struct tx_struct *tx_info;
 
+	if (!tx_priv) {
+		SLSI_WARN_NODEV("BP: tx_priv is NULL\n");
+		return;
+	}
+
+	tx_info = &tx_priv->tx;
+	if (!tx_info) {
+		SLSI_WARN_NODEV("BP: tx_info is NULL\n");
+		return;
+	}
+
+	if (!test_bit(SLSI_TX_NAPI_ENABLED, &tx_info->napi_state)) {
+		SLSI_WARN_NODEV("BP: napi is disabled\n");
+		return;
+	}
+
 	if (!slsi_txbp_has_resource(tx_priv))
 		return;
 
-	tx_info = &tx_priv->tx;
 
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 	if (!test_and_set_bit(SLSI_TX_LBM_RUNNING, &tx_info->lbm_bh_state))
@@ -1244,7 +1272,11 @@ static __always_inline int slsi_tx_transmit_nan_multicast(struct slsi_dev *sdev,
 	fapi_set_u16(skb, receiver_pid, 0);
 	fapi_set_u16(skb, sender_pid,   SLSI_TX_PROCESS_ID_MIN);
 	fapi_set_u32(skb, fw_reference, 0);
-	fapi_set_u16(skb, u.ma_unitdata_req.configuration_option, FAPI_OPTION_INLINE);
+
+	/* TODO: group option will be added to next fapi.xml.
+	 * Until then, set configuration_option for NAN multicast with 0x0010
+	 */
+	fapi_set_u16(skb, u.ma_unitdata_req.configuration_option, FAPI_OPTION_INLINE | 0x0010);
 	fapi_set_memcpy(skb, u.ma_unitdata_req.address, sdev->nan_cluster_id);
 	SLSI_NET_DBG_HEX(dev, SLSI_TX, skb->data, skb->len < 128 ? skb->len : 128, "\n");
 
@@ -1303,7 +1335,7 @@ static __always_inline int slsi_tx_transmit_normal(struct slsi_dev *sdev, struct
 	const int len = skb->len;
 	struct slsi_peer  *peer;
 	enum slsi_traffic_q tq;
-	u8 vif_index;
+	u8 vif;
 	u8 peer_index;
 	struct slsi_skb_cb  *cb;
 	int ret = NETDEV_TX_OK;
@@ -1323,13 +1355,18 @@ static __always_inline int slsi_tx_transmit_normal(struct slsi_dev *sdev, struct
 
 	(void)skb_push(skb, fapi_sig_size(ma_unitdata_req));
 	tq = slsi_frame_priority_to_ac_queue(skb->priority);
-	vif_index = ndev_vif->ifnum;
+
+	if (ndev_vif->ifnum < SLSI_NAN_DATA_IFINDEX_START)
+		vif = ndev_vif->ifnum;
+	else
+		vif = peer->ndl_vif;
+
 	peer_index = MAP_QS_TO_AID(peer->queueset);
 	fapi_set_u16(skb, id,           MA_UNITDATA_REQ);
 	fapi_set_u16(skb, receiver_pid, 0);
 	fapi_set_u16(skb, sender_pid,   SLSI_TX_PROCESS_ID_MIN);
 	fapi_set_u32(skb, fw_reference, 0);
-	fapi_set_u16(skb, u.ma_unitdata_req.vif, vif_index);
+	fapi_set_u16(skb, u.ma_unitdata_req.vif, vif);
 	fapi_set_u16(skb, u.ma_unitdata_req.configuration_option, FAPI_OPTION_INLINE);
 
 	/* by default the priority is set to contention. It is overridden and set appropriate

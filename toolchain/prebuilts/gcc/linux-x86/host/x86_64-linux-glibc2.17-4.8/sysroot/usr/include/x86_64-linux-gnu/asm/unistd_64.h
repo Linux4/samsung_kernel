@@ -315,5 +315,6 @@
 #define __NR_process_vm_writev 311
 #define __NR_kcmp 312
 #define __NR_finit_module 313
+#define __NR_bpf 321
 
 #endif /* _ASM_X86_UNISTD_64_H */

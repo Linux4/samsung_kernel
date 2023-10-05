@@ -51,6 +51,8 @@ static struct switch_dev rt5691_headset_switch = {
 static struct dentry *rt5691_debugfs_root;
 #endif
 
+static struct wakeup_source *rt5691_ws;
+
 static struct {
 	int imp;
 	int gain;
@@ -633,6 +635,8 @@ static struct reg_sequence rt5691_init_list[] = {
 	{RT5691_ADC_FILTER2_CTRL_3, 		0x0090},
 	{RT5691_HPOUT_CP_CTRL_1, 		0x5018},
 	{RT5691_GPIO_CLK, 			0x8000},
+	{RT5691_ADC_FILTER_CTRL_7, 		0x0001},
+	{RT5691_ADC_FILTER_CTRL_9, 		0x0001},
 };
 
 static bool rt5691_volatile_register(struct device *dev, unsigned int reg)
@@ -650,7 +654,6 @@ static bool rt5691_volatile_register(struct device *dev, unsigned int reg)
 	case RT5691_MIC_BTN_CTRL_2:
 	case RT5691_MIC_BTN_CTRL_13:
 	case RT5691_MIC_BTN_CTRL_14:
-	case RT5691_MIC_BTN_CTRL_26:
 	case RT5691_MIC_BTN_CTRL_27:
 	case RT5691_MIC_BTN_CTRL_28:
 	case RT5691_DMIC_FLOATING_DET_CTRL_1:
@@ -1823,6 +1826,8 @@ static void rt5691_recalibrate(struct snd_soc_component *component)
 	unsigned int rt5691_rek_list_saved[ARRAY_SIZE(rt5691_rek_list)];
 	int i;
 
+	dev_dbg(component->dev, "%s\n", __func__);
+
 	for (i = 0; i < ARRAY_SIZE(rt5691_rek_list); i++) {
 		rt5691_rek_list_saved[i] =
 			snd_soc_component_read(component, rt5691_rek_list[i].reg);
@@ -2924,6 +2929,8 @@ static int rt5691_probe(struct snd_soc_component *component)
 
 	rt5691->component = component;
 
+	rt5691_ws = wakeup_source_register(component->dev, "rt5691-codec");
+
 	schedule_delayed_work(&rt5691->calibrate_work, msecs_to_jiffies(100));
 
 	return ret;
@@ -2937,16 +2944,20 @@ static void rt5691_remove(struct snd_soc_component *component)
 	cancel_delayed_work_sync(&rt5691->calibrate_work);
 
 	regmap_write(rt5691->regmap, RT5691_RESET, 0);
+
+	wakeup_source_unregister(rt5691_ws);
 }
 
 #ifdef CONFIG_PM
 static int rt5691_suspend(struct snd_soc_component *component)
 {
+	dev_info(component->dev, "%s\n", __func__);
 	return 0;
 }
 
 static int rt5691_resume(struct snd_soc_component *component)
 {
+	dev_info(component->dev, "%s\n", __func__);
 	return 0;
 }
 #else
@@ -3237,6 +3248,8 @@ static int rt5691_water_detect(struct snd_soc_component *component,
 	unsigned int rt5691_wt_list_saved[ARRAY_SIZE(rt5691_wt_list)];
 	int i;
 
+	dev_dbg(component->dev, "%s\n", __func__);
+
 	if (enable) {
 		snd_soc_dapm_force_enable_pin(dapm, "Vref1");
 		snd_soc_dapm_force_enable_pin(dapm, "Vref2");
@@ -3496,6 +3509,8 @@ static unsigned int rt5691_imp_detect(struct snd_soc_component *component)
 	unsigned int rt5691_imp_list_saved[ARRAY_SIZE(rt5691_imp_list)];
 	int i;
 
+	dev_dbg(component->dev, "%s\n", __func__);
+
 	snd_soc_dapm_force_enable_pin(dapm, "Vref1");
 	snd_soc_dapm_force_enable_pin(dapm, "Vref2");
 	snd_soc_dapm_sync(dapm);
@@ -3547,13 +3562,17 @@ static void rt5691_jack_detect_handler(struct work_struct *work)
 	struct snd_soc_component *component = rt5691->component;
 	int val, btn_type, mask, i;
 
-	pm_stay_awake(component->dev);
+	__pm_stay_awake(rt5691_ws);
 
 	dev_info(component->dev, "%s\n", __func__);
 
 	if (rt5691->is_suspend) {
-		/* Because some SOCs need wake up time of I2C controller */
-		msleep(50);
+		dev_info(component->dev, "%s wait resume\n", __func__);
+		i = 0;
+		while (i < 10 && rt5691->is_suspend) {
+			msleep(50);
+			i++;
+		}
 	}
 
 	rt5691->mic_check_break = true;
@@ -3561,7 +3580,11 @@ static void rt5691_jack_detect_handler(struct work_struct *work)
 
 	mask = 0x8000;
 
-	regmap_read(rt5691->regmap, RT5691_ANLG_READ_STA_324, &val);
+	i = 0;
+	while (regmap_read(rt5691->regmap, RT5691_ANLG_READ_STA_324, &val) && i < 5) {
+		msleep(100);
+		i++;
+	}
 
 	dev_info(component->dev, "JD state = 0x%04x\n", val);
 
@@ -3587,7 +3610,7 @@ static void rt5691_jack_detect_handler(struct work_struct *work)
  					dev_info(component->dev, "open gender jack out\n");
 				}
 
-				pm_wakeup_event(component->dev, 1000);
+				__pm_wakeup_event(rt5691_ws, 1000);
 				return;
 			}
 		} else if (!rt5691->wt_en && !rt5691->jack_type) {
@@ -3602,7 +3625,7 @@ static void rt5691_jack_detect_handler(struct work_struct *work)
 			} else {
 				dev_info(component->dev, "water detected 0x%04x\n",
 					val);
-				pm_wakeup_event(component->dev, 1000);
+				__pm_wakeup_event(rt5691_ws, 1000);
 				return;
 			}
 		}
@@ -3755,7 +3778,7 @@ static void rt5691_jack_detect_handler(struct work_struct *work)
 			SND_JACK_BTN_0 | SND_JACK_BTN_1 |
 			SND_JACK_BTN_2 | SND_JACK_BTN_3);
 
-	pm_wakeup_event(component->dev, 1000);
+	__pm_wakeup_event(rt5691_ws, 1000);
 }
 
 static irqreturn_t rt5691_irq(int irq, void *data)
@@ -3764,7 +3787,7 @@ static irqreturn_t rt5691_irq(int irq, void *data)
 	struct snd_soc_component *component = rt5691->component;
 
 	dev_info(component->dev, "%s\n", __func__);
-	pm_wakeup_event(component->dev, 3000);
+	__pm_wakeup_event(rt5691_ws, 3000);
 	cancel_delayed_work_sync(&rt5691->jack_detect_work);
 	queue_delayed_work(system_wq, &rt5691->jack_detect_work,
 		msecs_to_jiffies(rt5691->irq_work_delay));
@@ -3903,9 +3926,19 @@ static void rt5691_mic_check_handler(struct work_struct *work)
 	struct snd_soc_dapm_context *dapm = &component->dapm;
 	int sar_hs_type, i;
 
-	pm_wakeup_event(component->dev, 3000);
+	__pm_wakeup_event(rt5691_ws, 3000);
 
 	rt5691->mic_check_break = false;
+
+	if (rt5691->is_suspend) {
+		/* Because some SOCs need wake up time of I2C controller */
+		dev_info(component->dev, "%s wait resume\n", __func__);
+		i = 0;
+		while (i < 10 && rt5691->is_suspend) {
+			msleep(50);
+			i++;
+		}
+	}
 
 	regmap_update_bits(rt5691->regmap, RT5691_PWR_DA_PATH_2, 0x80, 0x80);
 	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
@@ -4457,7 +4490,9 @@ MODULE_DEVICE_TABLE(acpi, rt5691_acpi_match);
 static int rt5691_pm_suspend(struct device *dev)
 {
 	struct rt5691_priv *rt5691 = dev_get_drvdata(dev);
+	struct snd_soc_component *component = rt5691->component;
 
+	dev_info(component->dev, "%s\n", __func__);
 	rt5691->is_suspend = true;
 
 	return 0;
@@ -4466,7 +4501,9 @@ static int rt5691_pm_suspend(struct device *dev)
 static int rt5691_pm_resume(struct device *dev)
 {
 	struct rt5691_priv *rt5691 = dev_get_drvdata(dev);
+	struct snd_soc_component *component = rt5691->component;
 
+	dev_info(component->dev, "%s\n", __func__);
 	rt5691->is_suspend = false;
 	rt5691->rek = true;
 

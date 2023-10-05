@@ -646,6 +646,11 @@ static int sm5714_chg_get_property(struct power_supply *psy,
 
 	dev_info(charger->dev, "%s: psp=%d\n", __func__, psp);
 
+	if (atomic_read(&charger->shutdown_cnt) > 0) {
+		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		return -EINVAL;
+	}
+
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		val->intval = psy_chg_get_online(charger);
@@ -956,6 +961,11 @@ static int sm5714_chg_set_property(struct power_supply *psy,
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 
 	dev_info(charger->dev, "%s: psp=%d\n", __func__, psp);
+
+	if (atomic_read(&charger->shutdown_cnt) > 0) {
+		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		return -EINVAL;
+	}
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -1490,6 +1500,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	charger->i2c = sm5714->charger;
 	charger->otg_on = false;
 	charger->sm5714_pdata = pdata;
+	atomic_set(&charger->shutdown_cnt, 0);
 	mutex_init(&charger->charger_mutex);
 
 	charger->pdata = devm_kzalloc(&pdev->dev, sizeof(*(charger->pdata)),
@@ -1726,6 +1737,8 @@ static void sm5714_charger_shutdown(struct platform_device *pdev)
 		platform_get_drvdata(pdev);
 
 	pr_info("%s: ++\n", __func__);
+
+	atomic_inc(&charger->shutdown_cnt);
 
 	if (charger->i2c) {
 		if (!sm5714_get_facmode()) {

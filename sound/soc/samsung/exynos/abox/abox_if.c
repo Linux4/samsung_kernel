@@ -421,7 +421,7 @@ static int abox_uaif_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	struct device *dev = dai->dev;
 	struct abox_if_data *data = snd_soc_dai_get_drvdata(dai);
 	struct snd_soc_component *cmpnt = data->cmpnt;
-	unsigned int ctrl0, ctrl1;
+	unsigned int ctrl0, ctrl1, ctrl2;
 	int ret = 0;
 
 	abox_info(dev, "%s(0x%08x)\n", __func__, fmt);
@@ -430,6 +430,7 @@ static int abox_uaif_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 
 	ctrl0 = snd_soc_component_read(cmpnt, UAIF_REG_CTRL0);
 	ctrl1 = snd_soc_component_read(cmpnt, UAIF_REG_CTRL1);
+	ctrl2 = snd_soc_component_read(cmpnt, UAIF_REG_CTRL2);
 
 	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
 	case SND_SOC_DAIFMT_I2S:
@@ -477,8 +478,12 @@ static int abox_uaif_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		ret = -EINVAL;
 	}
 
+	if (data->real_i2s)
+		set_value_by_name(ctrl2, ABOX_REAL_I2S_MODE, 1);
+
 	snd_soc_component_write(cmpnt, UAIF_REG_CTRL0, ctrl0);
 	snd_soc_component_write(cmpnt, UAIF_REG_CTRL1, ctrl1);
+	snd_soc_component_write(cmpnt, UAIF_REG_CTRL2, ctrl2);
 
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
@@ -650,6 +655,7 @@ static int abox_uaif_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 	struct abox_if_data *data = snd_soc_dai_get_drvdata(dai);
 	struct snd_soc_component *cmpnt = data->cmpnt;
 	unsigned long mask, shift;
+	int vol_factor = 0x800000; 	/*default value*/
 
 	abox_info(dev, "%s[%c](%d)\n", __func__,
 			(stream == SNDRV_PCM_STREAM_CAPTURE) ? 'C' : 'P', mute);
@@ -663,8 +669,16 @@ static int abox_uaif_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 	}
 
 	/* Delay to flush FIFO in UAIF */
-	if (mute)
+	if (mute) {
 		usleep_range(600, 1000);
+		vol_factor = 0;
+	}
+
+	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		snd_soc_component_update_bits(cmpnt, UAIF_REG_SPK_VOL_FACTOR,
+						ABOX_VOL_FACTOR_SPK_MASK, vol_factor << ABOX_VOL_FACTOR_SPK_L);
+		usleep_range(50, 100);
+	}
 
 	return snd_soc_component_update_bits(cmpnt, UAIF_REG_CTRL0,
 				mask, !mute << shift);
@@ -1476,6 +1490,11 @@ static int samsung_abox_if_probe(struct platform_device *pdev)
 		dev_err(dev, "Couldn't get pins (%li)\n", PTR_ERR(data->pinctrl));
 		data->pinctrl = NULL;
 	}
+
+	data->real_i2s = of_samsung_property_read_bool(dev, np,
+		"real-i2s");
+	if (data->real_i2s)
+		abox_info(dev, "real i2s mode is activated\n");
 
 	data->quirks = abox_if_probe_quirks(np);
 

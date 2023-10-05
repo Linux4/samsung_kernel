@@ -2789,6 +2789,14 @@ u32 dsim_reg_get_cmd_tansfer_mode(u32 id)
 	return val ? 1 : 0;
 }
 
+enum dsim_datalane_status dsim_reg_get_datalane_status(u32 id)
+{
+	u32 val;
+
+	val = dsim_read(id, DSIM_LINK_STATUS2);
+	return DSIM_LINK_STATUS2_DATALANE_STATUS_GET(val);
+}
+
 #if defined(CONFIG_EXYNOS_DMA_DSIMFC)
 void dsim_reg_set_cmd_access_mode(u32 id, u32 dma_en)
 {

@@ -37,7 +37,7 @@ struct rational {
 #define CAMERA2_MAX_FACES			16
 #define CAMERA2_MAX_VENDER_LENGTH		400
 #define CAMERA2_AWB_VENDER_LENGTH		415
-#define CAMERA2_MAX_IPC_VENDER_LENGTH		5630
+#define CAMERA2_MAX_IPC_VENDER_LENGTH		6630
 #define CAMERA2_MAX_PDAF_MULTIROI_COLUMN	13
 #define CAMERA2_MAX_PDAF_MULTIROI_ROW		9
 #define CAMERA2_MAX_UCTL_VENDER_LENGTH		32
@@ -693,7 +693,7 @@ struct camera2_stats_dm {
 	uint32_t			histogram[3 * 256];
 	int32_t 			sharpnessMap[2][2][3];
 	uint8_t 			lensShadingCorrectionMap;
-	float				lensShadingMap[4][17][13];	/* 4channel x grid width x grid height */
+	float				lensShadingMap[17 * 13 * 4]; // grid width * grid height * 4 channel
 	enum stats_scene_flicker	sceneFlicker;
 	int32_t 			hotPixelMap[CAMERA2_MAX_AVAILABLE_MODE][2];
 
@@ -760,6 +760,8 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT                 = 138,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_LLHDR_DYNAMIC_SHOT             = 139,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AEB_HDR_LIKE                            = 140,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_FUSION_REMOSAIC_DYNAMIC_SHOT            = 141,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_FUSION_REMOSAIC_LLHDR_DYNAMIC_SHOT      = 142,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_HIGHRES_SINGLE                       = 150,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_HIGHRES_HDR                          = 151,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_HYBRID_MFHDR_DYNAMIC_SHOT               = 160,
@@ -1197,6 +1199,12 @@ enum aa_ae_extra_mode {
 	AA_AE_EXTRA_MODE_ISO_PRIORITY     = 2,
 };
 
+enum aa_transient_action {
+	AA_TRANSIENT_ACTION_NONE = 0,
+	AA_TRANSIENT_ACTION_ZOOMING,
+	AA_TRANSIENT_ACTION_MANUAL_FOCUSING,
+};
+
 enum aa_transient_capture_action {
 	AA_TRANSIENT_CAPTURE_ACTION_OFF = 0,
 	AA_TRANSIENT_CAPTURE_ACTION_FAST_CAPTURE = 1,
@@ -1205,6 +1213,7 @@ enum aa_transient_capture_action {
 enum aa_captureExtraInfo_mask {
 	AA_CAPTURE_EXTRA_INFO_REMOSAIC_PROCESSED_BAYER = 1 << 0,   /* bit 0       */
 	AA_CAPTURE_EXTRA_INFO_CROPPED_REMOSAIC_SEAMLESS = 1 << 1,   /* bit 1       */
+	AA_CAPTURE_EXTRA_INFO_PREVIEW_CROPPED_REMOSAIC_SEAMLESS = 1 << 2,   /* bit 2       */
 	AA_CAPTURE_EXTRA_INFO_CROPPED_REMOSAIC_ZOOM = 0xFF << 24,  /* bit 24 ~ 31 */
 };
 
@@ -1223,7 +1232,7 @@ enum aa_moire_result {
 	AA_MOIRE_DETECTED,
 };
 
-enum aa_sensor_state_result {
+enum aa_sensor_state {
 	AA_SENSOR_STATE_NORMAL = 0,
 	AA_SENSOR_STATE_CROPPED_REMOSAIC = 1,
 };
@@ -1312,7 +1321,8 @@ struct camera2_aa_ctl {
 
 	// static info for remosaic preview crop zoom ratio (0:invalid)
 	uint32_t			vendor_remosaicCropZoomRatio;
-	uint32_t			vendor_reserved[8];
+	enum aa_transient_action	vendor_transientAction;
+	uint32_t			vendor_reserved[25];
 };
 
 struct aa_apexInfo {
@@ -1400,8 +1410,9 @@ struct camera2_aa_dm {
 	uint32_t			vendor_aeDarkBoostGain;
 	enum aa_aeb_state		vendor_aebState;
 	enum aa_moire_trigger		vendor_moireTrigger;
-	enum aa_sensor_state_result	vendor_sensorState;
-	uint32_t			vendor_reserved[25];
+	enum aa_sensor_state            vendor_sensorResultState;
+	enum aa_sensor_state            vendor_sensorAvailableState;
+	uint32_t			vendor_reserved[24];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -1615,6 +1626,7 @@ struct camera2_lens_uctl {
 	uint32_t	direction;
 	uint32_t	slewRate;
 	uint32_t	oisCoefVal;
+	int32_t		ndFilter;
 };
 
 struct camera2_lens_udm {
@@ -1636,8 +1648,6 @@ struct camera2_awb_udm {
 };
 
 struct camera2_af_udm {
-	uint32_t	vsLength;
-	uint32_t	vendorSpecific[CAMERA2_MAX_VENDER_LENGTH];
 	int32_t		lensPositionInfinity;
 	int32_t		lensPositionMacro;
 	int32_t		lensPositionCurrent;
@@ -2066,8 +2076,14 @@ enum remosaic_oper_mode {
 	REMOSAIC_OPER_MODE_NONE = 0,
 	REMOSAIC_OPER_MODE_SINGLE = 1,
 	REMOSAIC_OPER_MODE_MFHDR = 2,
-	REMOSAIC_OPER_MODE_SINGLE_4_3H = 3,
 };
+
+enum highresolution_mode {
+	HIGHRESOLUTION_MODE_NONE       = 0,
+	HIGHRESOLUTION_MODE_MID        = 1,
+	HIGHRESOLUTION_MODE_HIGH       = 2,
+};
+
 enum camera_adaptive_lens_condition {
 	CAMERA_ADAPTIVE_LENS_UNAVAILABLE = 0,
 	CAMERA_ADAPTIVE_LENS_UW_AUTO_AVAILABLE = 1,
@@ -2151,7 +2167,8 @@ struct camera2_uctl {
 	struct camera2_object_detect_uctl multiObjectDetectInfoUd[3];
 	struct camera2_segmentationInfo_uctl segmentationInfo;
 	struct camera2_object_detect_uctl sunDetectInfoUd;
-	uint32_t			reserved[50];
+	uint32_t			highResolutionMode;
+	uint32_t			reserved[49];
 };
 
 struct camera2_udm {

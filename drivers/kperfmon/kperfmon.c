@@ -643,7 +643,7 @@ static void ologk_workqueue_func(struct work_struct *work)
 #endif
 
 //#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
-static inline void do_gettimeofday(struct timeval *tv)
+static inline void do_gettimeofday2(struct timeval *tv)
 {
 	struct timespec64 now;
 
@@ -681,7 +681,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 
 		INIT_WORK((struct work_struct *)workqueue, ologk_workqueue_func);
 
-		do_gettimeofday(&time);
+		do_gettimeofday2(&time);
 		local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
 		rtc_time_to_tm(local_time, &tm);
 
@@ -716,7 +716,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 
 		//{
 		//	struct timeval end_time;
-		//	do_gettimeofday(&end_time);
+		//	do_gettimeofday2(&end_time);
 		//	printk("ologk() execution time with workqueue : %ld us ( %ld - %ld )\n",
 		//			end_time.tv_usec - time.tv_usec,
 		//			end_time.tv_usec,
@@ -727,7 +727,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 	}
 
 #else
-	do_gettimeofday(&time);
+	do_gettimeofday2(&time);
 	local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
 	rtc_time_to_tm(local_time, &tm);
 
@@ -765,7 +765,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 
 	//{
 	//	struct timeval end_time;
-	//	do_gettimeofday(&end_time);
+	//	do_gettimeofday2(&end_time);
 	//	printk(KERN_INFO "ologk() execution time : %ld us ( %ld - %ld )\n",
 	//			end_time.tv_usec - time.tv_usec,
 	//			end_time.tv_usec, time.tv_usec);
@@ -833,7 +833,7 @@ void perflog_evt(int logid, int arg1)
 
 	int digit = 0;
 
-	do_gettimeofday(&start_time);
+	do_gettimeofday2(&start_time);
 #endif
 	if (arg1 < 0 || buffer.status != FLAG_NOTHING)
 		return;
@@ -861,7 +861,7 @@ void perflog_evt(int logid, int arg1)
 			_perflog(PERFLOG_EVT, PERFLOG_MUTEX, log_buffer);
 			arg1 = MAX_MUTEX_RAWDATA;
 
-			//do_gettimeofday(&end_time);
+			//do_gettimeofday2(&end_time);
 			//_perflog(PERFLOG_EVT,
 			//		PERFLOG_MUTEX,
 			//		"[MUTEX] processing time : %d",

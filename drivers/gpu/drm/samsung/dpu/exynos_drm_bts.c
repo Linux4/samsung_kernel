@@ -918,10 +918,10 @@ static void dpu_bts_calc_overlap_bw(struct decon_device *decon)
 	struct bts_decon_info *bts_info = &bts->bts_info;
 	struct dpu_bts_win_config *config = bts->win_config;
 	struct dpu_bts_overlap line_bw[BTS_DPP_MAX*2];
-	int cur_total = 0;
+	unsigned int cur_total = 0;
 	int pos = 0;
-	int cur_port[MAX_PORT_CNT];
-	int pos_port[MAX_PORT_CNT];
+	unsigned int cur_port[MAX_PORT_CNT];
+	unsigned int pos_port[MAX_PORT_CNT];
 	int cnt = 0;
 
 	memset(&line_bw, 0, sizeof(struct dpu_bts_overlap)*BTS_DPP_MAX*2);
@@ -960,15 +960,16 @@ static void dpu_bts_calc_overlap_bw(struct decon_device *decon)
 		pos = line_bw[i].pos;
 		pos_port[port] = line_bw[i].pos;
 
-		if (cur_total > bts->overlay_bw)
-			bts->overlay_bw = cur_total;
-
-		if (cur_port[port] > bts->overlay_peak)
-			bts->overlay_peak = cur_port[port];
+		bts->overlay_bw = max(bts->overlay_bw, cur_total);
+		bts->overlay_peak = max(bts->overlay_peak, cur_port[port]);
 	}
+
+	bts->overlay_bw += decon->bts.write_bw;
+	bts->overlay_bw  += decon->bts.bus_overhead;
 
 	if (decon->config.rcd_en)
 		bts->overlay_bw += bts_info->vclk;
+
 
 	DPU_DEBUG_BTS(decon, "\tTotal.BW(KB) = %d, Overlap.BW = %d\n",
 		     decon->bts.total_bw, decon->bts.overlay_bw);
@@ -991,6 +992,7 @@ static void dpu_bts_find_max_disp_freq(struct decon_device *decon)
 		dpu_bts_calc_overlap_bw(decon);
 		decon->bts.peak = decon->bts.overlay_peak;
 		decon->bts.total_bw = decon->bts.overlay_bw;
+		decon->bts.read_bw = min(decon->bts.read_bw, decon->bts.total_bw);
 	} else {
 		u32 disp_ch_bw[MAX_PORT_CNT];
 		u32 max_disp_ch_bw;
@@ -1326,6 +1328,7 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 		DPU_DEBUG_BTS(decon, "additional BW for RCD\n");
 		read_bw += bts_info.vclk;
 	}
+	read_bw += decon->bts.bus_overhead;
 
 	/* write bw calculation */
 	config = &decon->bts.wb_config;
@@ -1384,6 +1387,7 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 	bw.peak = decon->bts.peak;
 	bw.read = decon->bts.read_bw;
 	bw.write = decon->bts.write_bw;
+
 	DPU_DEBUG_BTS(decon, "\t(%s shadow_update) peak = %d, read = %d, write = %d\n",
 		(shadow_updated ? "after" : "before"), bw.peak, bw.read, bw.write);
 

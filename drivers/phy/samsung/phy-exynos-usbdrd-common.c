@@ -70,6 +70,37 @@ void exynos_usb_wakelock(struct exynos_usbdrd_phy *phy_drd,
 	}
 }
 
+static int exynos_usb_pm_notifier(struct notifier_block *nb,
+		unsigned long action, void *nb_data)
+{
+	struct exynos_usbdrd_phy *phy_drd
+		= container_of(nb, struct exynos_usbdrd_phy, pm_nb);
+
+	switch (action) {
+	case PM_SUSPEND_PREPARE:
+		pr_info("%s suspend prepare\n", __func__);
+		phy_drd->phy_usbdrd_suspended = true;
+		reinit_completion(&phy_drd->resume_cmpl);
+		break;
+	case PM_POST_SUSPEND:
+		pr_info("%s post suspend\n", __func__);
+		phy_drd->phy_usbdrd_suspended = false;
+		complete(&phy_drd->resume_cmpl);
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+void exynos_usb_pm_noti_init(struct exynos_usbdrd_phy *phy_drd)
+{
+	init_completion(&phy_drd->resume_cmpl);
+	phy_drd->phy_usbdrd_suspended = false;
+	phy_drd->pm_nb.notifier_call = exynos_usb_pm_notifier;
+	register_pm_notifier(&phy_drd->pm_nb);
+}
+
 int xhci_exynos_wake_lock(int is_main_hcd, int is_lock)
 {
 	int idle_ip_index;
@@ -169,6 +200,11 @@ int exynos_usbdrd_phy_set_common(struct exynos_usbdrd_phy *phy_drd,
 	case PHY_MODE_ABOX_POWER:
 #ifdef CONFIG_SND_EXYNOS_USB_AUDIO_GIC
 		if (submode == 1) {
+			if (phy_drd->phy_usbdrd_suspended) {
+				pr_info("%s: wait resume completion\n", __func__);
+				wait_for_completion_timeout(&phy_drd->resume_cmpl,
+							    msecs_to_jiffies(5000));
+			}
 			ret = abox_request_power_sync(abox_dev, 0x7007, "TFA9874");
 			if (ret < 0)
 				dev_err(abox_dev, "failed to abox_request_power_sync\n");

@@ -1156,6 +1156,9 @@ static int ilitek_plat_probe(void)
 	INIT_DELAYED_WORK(&ilits->work_vbus, ilitek_vbus_work);
 	vbus_notifier_register(&ilits->vbus_nb, ilitek_vbus_notifier, VBUS_NOTIFY_DEV_CHARGER);
 #endif
+
+	ili_ic_lpwg_dump_buf_init();
+
 	input_info(true, ilits->dev, "%s ILITEK Driver loaded successfully!", __func__);
 	return 0;
 }

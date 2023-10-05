@@ -121,6 +121,7 @@ enum sec_battery_voltage_type {
 enum sec_battery_dual_mode {
 	SEC_DUAL_BATTERY_MAIN = 0,
 	SEC_DUAL_BATTERY_SUB,
+	SEC_DUAL_BATTERY_TOTAL,
 };
 #endif
 

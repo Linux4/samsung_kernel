@@ -65,7 +65,6 @@ extern void add_skipped_blks(void);
 extern void add_fec_correct_blks(void);
 extern void add_corrupted_blks(void);
 extern void add_fc_blks_entry(sector_t cur_blk, char* dev_name);
-extern void add_fec_off_cnt(char* dev_name);
 
 #endif
 

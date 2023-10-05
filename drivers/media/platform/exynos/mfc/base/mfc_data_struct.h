@@ -37,7 +37,8 @@
 #include <soc/samsung/bts.h>
 #endif
 #include <linux/videodev2.h>
-#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON) || IS_ENABLED(CONFIG_EXYNOS_ITMON_V2)
+#define CONFIG_MFC_USE_ITMON
 #include <soc/samsung/exynos/exynos-itmon.h>
 #endif
 #if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
@@ -1716,7 +1717,7 @@ struct mfc_core {
 	struct dump_info dbg_info;
 
 	/* ITMON */
-#if IS_ENABLED(CONFIG_EXYNOS_ITMON)
+#ifdef CONFIG_MFC_USE_ITMON
 	struct notifier_block itmon_nb;
 #endif
 	int itmon_notified;

@@ -22,7 +22,7 @@
 #define LIGHT_COEF_SIZE 7
 
 #define LIGHT_CALIBRATION_FILE_PATH "/efs/FactoryApp/light_cal_data"
-
+#define PANEL_TYPE_FILE_PATH "sys/class/lcd/panel/lcd_type"
 #define LIGHT_DEBIG_EVENT_SIZE_4BYTE_VERSION	2000
 
 struct light_event {
@@ -65,8 +65,10 @@ struct light_data {
 	int brightness_array_len;
 	u32 *brightness_array;
 	int raw_data_size;
+	int panel_vendor;
 	bool ddi_support;
 	bool use_cal_data;
+	bool hbm_finger;
 	struct light_cal_data cal_data;
 };
 
@@ -76,7 +78,11 @@ void set_light_ddi_support(uint32_t ddi_support);
 /* light sub command */
 #define LIGHT_SUBCMD_TWO_LIGHT_FACTORY_TEST		130
 #define LIGHT_SUBCMD_TRIM_CHECK					131
-
+// reserved subcmd from sensorhub				132
+// reserved subcmd from sensorhub				133
+#define LIGHT_SUBCMD_BRIGHTNESS_HYSTERESIS		134
+#define LIGHT_SUBCMD_HBM_FINGERPRINT			135
+#define LIGHT_SUBCMD_PANEL_TYPE					136
 
 struct sensor_chipset_init_funcs *get_light_stk33512_function_pointer(char *name);
 

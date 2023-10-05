@@ -197,7 +197,7 @@ static int get_current_sclass(void)
 	int i;
 	char sym[KSYM_SYMBOL_LEN] = {0,};
 
-	sprint_symbol_no_offset(sym, (unsigned long)current->sched_class);
+	snprintf(sym, KSYM_SYMBOL_LEN, "%ps", current->sched_class);
 
 	for (i = SECDBG_SCHED_IDLE; i < SECDBG_SCHED_MAX; i++) {
 		if (!strncmp(sched_class_array[i].symname, sym, KSYM_SYMBOL_LEN))

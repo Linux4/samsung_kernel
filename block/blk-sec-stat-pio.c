@@ -13,66 +13,45 @@
 #include <linux/blk_types.h>
 #include <linux/blkdev.h>
 
+#include "blk-sec-stats.h"
+
 #define MAX_PIO_NODE_NUM	10000
 #define SORT_PIO_NODE_NUM	100
 #define PIO_HASH_SIZE		100
 
 #define GET_HASH_KEY(tgid) ((unsigned int)(tgid) % PIO_HASH_SIZE)
-
-struct pio_node {
-	struct list_head list;
-
-	pid_t tgid;
-	char name[TASK_COMM_LEN];
-	u64 start_time;
-
-	unsigned long long bytes[REQ_OP_DISCARD + 1];
-
-	struct pio_node *h_next; /* next pio_node for hash */
-};
-
 #define RESET_PIO_IO(pio) \
 do { \
-	(pio)->bytes[REQ_OP_READ] = 0; \
-	(pio)->bytes[REQ_OP_WRITE] = 0; \
-	(pio)->bytes[REQ_OP_FLUSH] = 0; \
-	(pio)->bytes[REQ_OP_DISCARD] = 0; \
+	atomic_set(&(pio)->kb[REQ_OP_READ], 0); \
+	atomic_set(&(pio)->kb[REQ_OP_WRITE], 0); \
+	atomic_set(&(pio)->kb[REQ_OP_FLUSH], 0); \
+	atomic_set(&(pio)->kb[REQ_OP_DISCARD], 0); \
 } while (0)
-
 #define GET_PIO_PRIO(pio) \
-	((pio)->bytes[REQ_OP_READ] + (pio)->bytes[REQ_OP_WRITE]*2)
+	(atomic_read(&(pio)->kb[REQ_OP_READ]) + \
+	 atomic_read(&(pio)->kb[REQ_OP_WRITE]) * 2)
 
-static DEFINE_SPINLOCK(pio_list_lock);
-static DEFINE_SPINLOCK(others_pio_lock);
 LIST_HEAD(pio_list);
+LIST_HEAD(inflight_pios);
+static DEFINE_SPINLOCK(pio_list_lock);
+static DEFINE_SPINLOCK(inflight_pios_lock);
 static int pio_cnt;
 static int pio_enabled;
 static unsigned int pio_duration_ms = 5000;
 static unsigned long pio_timeout;
 static struct kmem_cache *pio_cache;
 static struct pio_node *pio_hash[PIO_HASH_SIZE];
+static struct pio_node others;
 
-static struct pio_node others = {
-	.list = LIST_HEAD_INIT(others.list),
-	.tgid = 99999,
-	.name = "others",
-	.start_time = 9999999,
-	.bytes = {0, 0, 0, 0},
-};
-
-static void add_pio_node(struct request *rq, unsigned int data_size,
-		pid_t tgid, const char *tg_name, u64 tg_start_time)
+static struct pio_node *add_pio_node(struct request *rq,
+		struct task_struct *gleader)
 {
 	struct pio_node *pio = NULL;
 	unsigned int hash_key = 0;
-	unsigned long flags;
 
 	if (pio_cnt >= MAX_PIO_NODE_NUM) {
 add_others:
-		spin_lock_irqsave(&others_pio_lock, flags);
-		others.bytes[req_op(rq)] += data_size;
-		spin_unlock_irqrestore(&others_pio_lock, flags);
-		return;
+		return &others;
 	}
 
 	pio = kmem_cache_alloc(pio_cache, GFP_NOWAIT);
@@ -81,23 +60,24 @@ add_others:
 
 	INIT_LIST_HEAD(&pio->list);
 
-	pio->tgid = tgid;
-	strncpy(pio->name, tg_name, TASK_COMM_LEN - 1);
+	pio->tgid = task_tgid_nr(gleader);
+	strncpy(pio->name, gleader->comm, TASK_COMM_LEN - 1);
 	pio->name[TASK_COMM_LEN - 1] = '\0';
-	pio->start_time = tg_start_time;
+	pio->start_time = gleader->start_time;
 
 	RESET_PIO_IO(pio);
-	pio->bytes[req_op(rq)] = data_size;
+	atomic_set(&pio->ref_count, 1);
 
-	hash_key = GET_HASH_KEY(tgid);
+	hash_key = GET_HASH_KEY(pio->tgid);
 
-	spin_lock_irqsave(&pio_list_lock, flags);
+	spin_lock(&pio_list_lock);
 	list_add(&pio->list, &pio_list);
 	pio->h_next = pio_hash[hash_key];
 	pio_hash[hash_key] = pio;
-	spin_unlock_irqrestore(&pio_list_lock, flags);
-
 	pio_cnt++;
+	spin_unlock(&pio_list_lock);
+
+	return pio;
 }
 
 static struct pio_node *find_pio_node(pid_t tgid, u64 tg_start_time)
@@ -120,38 +100,64 @@ static void free_pio_nodes(struct list_head *remove_list)
 	struct pio_node *pio;
 	struct pio_node *pion;
 
+	/* move previous inflight pios to remove_list */
+	spin_lock(&inflight_pios_lock);
+	list_splice_init(&inflight_pios, remove_list);
+	spin_unlock(&inflight_pios_lock);
+
 	list_for_each_entry_safe(pio, pion, remove_list, list) {
 		list_del(&pio->list);
+		if (atomic_read(&pio->ref_count)) {
+			spin_lock(&inflight_pios_lock);
+			list_add(&pio->list, &inflight_pios);
+			spin_unlock(&inflight_pios_lock);
+			continue;
+		}
 		kmem_cache_free(pio_cache, pio);
 	}
 }
 
-void update_pio_node(struct request *rq, unsigned int data_size,
-		pid_t tgid, const char *tg_name, u64 tg_start_time)
+struct pio_node *get_pio_node(struct request *rq)
 {
+	struct task_struct *gleader = current->group_leader;
 	struct pio_node *pio;
-	unsigned long size = 0;
-	unsigned long flags;
 
 	if (pio_enabled == 0)
-		return;
+		return NULL;
 	if (time_after(jiffies, pio_timeout))
-		return;
+		return NULL;
 	if (req_op(rq) > REQ_OP_DISCARD)
-		return;
+		return NULL;
 
-	size = (req_op(rq) == REQ_OP_FLUSH) ? 1 : data_size;
-
-	spin_lock_irqsave(&pio_list_lock, flags);
-	pio = find_pio_node(tgid, tg_start_time);
+	spin_lock(&pio_list_lock);
+	pio = find_pio_node(task_tgid_nr(gleader), gleader->start_time);
 	if (pio) {
-		pio->bytes[req_op(rq)] += size;
-		spin_unlock_irqrestore(&pio_list_lock, flags);
-		return;
+		atomic_inc(&pio->ref_count);
+		spin_unlock(&pio_list_lock);
+		return pio;
 	}
-	spin_unlock_irqrestore(&pio_list_lock, flags);
+	spin_unlock(&pio_list_lock);
 
-	add_pio_node(rq, data_size, tgid, tg_name, tg_start_time);
+	return add_pio_node(rq, gleader);
+}
+
+void update_pio_node(struct request *rq,
+		unsigned int data_size, struct pio_node *pio)
+{
+	if (!pio)
+		return;
+
+	/* transfer bytes to kbytes via '>> 10' */
+	atomic_add((req_op(rq) == REQ_OP_FLUSH) ? 1 : data_size >> 10,
+			&pio->kb[req_op(rq)]);
+}
+
+void put_pio_node(struct pio_node *pio)
+{
+	if (!pio)
+		return;
+
+	atomic_dec(&pio->ref_count);
 }
 
 static void sort_pios(struct list_head *pios)
@@ -185,44 +191,47 @@ static ssize_t pio_show(struct kobject *kobj, struct kobj_attribute *attr, char 
 	struct pio_node curr_others;
 	struct pio_node *pio;
 	int len = 0;
-	unsigned long flags;
 
-	spin_lock_irqsave(&pio_list_lock, flags);
+	spin_lock(&pio_list_lock);
 	list_replace_init(&pio_list, &curr_pios);
 	curr_pio_cnt = pio_cnt;
 	curr_others = others;
 	memset(pio_hash, 0x0, sizeof(pio_hash));
 	pio_cnt = 0;
 	RESET_PIO_IO(&others);
-	spin_unlock_irqrestore(&pio_list_lock, flags);
+	spin_unlock(&pio_list_lock);
 
 	if (curr_pio_cnt > SORT_PIO_NODE_NUM)
 		sort_pios(&curr_pios);
 
 	list_for_each_entry(pio, &curr_pios, list) {
 		if (PAGE_SIZE - len > 80) {
-			/* pid read(KB) write(KB) comm printed */
 			len += scnprintf(buf + len, PAGE_SIZE - len,
-					"%d %llu %llu %s\n",
+					"%d %d %d %s\n",
 					pio->tgid,
-					pio->bytes[REQ_OP_READ] / 1024,
-					pio->bytes[REQ_OP_WRITE] / 1024,
+					atomic_read(&pio->kb[REQ_OP_READ]),
+					atomic_read(&pio->kb[REQ_OP_WRITE]),
 					(pio->name[0]) ? pio->name : "-");
 			continue;
 		}
 
-		curr_others.bytes[REQ_OP_READ] += pio->bytes[REQ_OP_READ];
-		curr_others.bytes[REQ_OP_WRITE] += pio->bytes[REQ_OP_WRITE];
-		curr_others.bytes[REQ_OP_FLUSH] += pio->bytes[REQ_OP_FLUSH];
-		curr_others.bytes[REQ_OP_DISCARD] += pio->bytes[REQ_OP_DISCARD];
+		atomic_add(atomic_read(&pio->kb[REQ_OP_READ]),
+				&curr_others.kb[REQ_OP_READ]);
+		atomic_add(atomic_read(&pio->kb[REQ_OP_WRITE]),
+				&curr_others.kb[REQ_OP_WRITE]);
+		atomic_add(atomic_read(&pio->kb[REQ_OP_FLUSH]),
+				&curr_others.kb[REQ_OP_FLUSH]);
+		atomic_add(atomic_read(&pio->kb[REQ_OP_DISCARD]),
+				&curr_others.kb[REQ_OP_DISCARD]);
 	}
 
-	if (curr_others.bytes[REQ_OP_READ] + curr_others.bytes[REQ_OP_WRITE])
+	if (atomic_read(&curr_others.kb[REQ_OP_READ]) +
+	    atomic_read(&curr_others.kb[REQ_OP_WRITE]))
 		len += scnprintf(buf + len, PAGE_SIZE - len,
-				"%d %llu %llu %s\n",
+				"%d %d %d %s\n",
 				curr_others.tgid,
-				curr_others.bytes[REQ_OP_READ] / 1024,
-				curr_others.bytes[REQ_OP_WRITE] / 1024,
+				atomic_read(&curr_others.kb[REQ_OP_READ]),
+				atomic_read(&curr_others.kb[REQ_OP_WRITE]),
 				curr_others.name);
 
 	free_pio_nodes(&curr_pios);
@@ -234,10 +243,9 @@ static ssize_t pio_show(struct kobject *kobj, struct kobj_attribute *attr, char 
 static ssize_t pio_enabled_store(struct kobject *kobj, struct kobj_attribute *attr,
 		const char *buf, size_t count)
 {
+	LIST_HEAD(curr_pios);
 	int enable = 0;
 	int ret;
-	unsigned long flags;
-	LIST_HEAD(curr_pios);
 
 	ret = kstrtoint(buf, 10, &enable);
 	if (ret)
@@ -245,12 +253,12 @@ static ssize_t pio_enabled_store(struct kobject *kobj, struct kobj_attribute *at
 
 	pio_enabled = (enable >= 1) ? 1 : 0;
 
-	spin_lock_irqsave(&pio_list_lock, flags);
+	spin_lock(&pio_list_lock);
 	list_replace_init(&pio_list, &curr_pios);
 	memset(pio_hash, 0x0, sizeof(pio_hash));
 	pio_cnt = 0;
 	RESET_PIO_IO(&others);
-	spin_unlock_irqrestore(&pio_list_lock, flags);
+	spin_unlock(&pio_list_lock);
 
 	free_pio_nodes(&curr_pios);
 	pio_timeout = jiffies + msecs_to_jiffies(pio_duration_ms);
@@ -320,6 +328,16 @@ int blk_sec_stat_pio_init(struct kobject *kobj)
 		kmem_cache_destroy(pio_cache);
 		return retval;
 	}
+
+	/* init others */
+	INIT_LIST_HEAD(&others.list);
+	others.tgid = INT_MAX;
+	strncpy(others.name, "others", TASK_COMM_LEN - 1);
+	others.name[TASK_COMM_LEN - 1] = '\0';
+	others.start_time = 0;
+	RESET_PIO_IO(&others);
+	atomic_set(&others.ref_count, 1);
+	others.h_next = NULL;
 
 	return 0;
 }

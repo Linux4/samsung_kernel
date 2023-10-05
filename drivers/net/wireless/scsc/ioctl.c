@@ -226,6 +226,9 @@
 #define CMD_LEAKY_AP_PASSIVE_DETECTION_END   "LEAKY_AP_PASSIVE_DETECTION_END"
 #define CMD_SET_GRACE_PERIOD                 "SET_GRACE_PERIOD"
 
+#define CMD_GET_TDLS_MAX_SESSION	"GET_TDLS_MAX_SESSION"
+#define CMD_GET_TDLS_NUM_OF_SESSION "GET_TDLS_NUM_OF_SESSION"
+
 #define ROAMOFFLAPLIST_MIN 1
 #define ROAMOFFLAPLIST_MAX 100
 
@@ -2994,10 +2997,10 @@ static ssize_t slsi_set_low_latency_params(struct net_device *dev, int latency_p
 	int ret = 0;
 
 	if ((sdev->latency_param_mask & LATENCY_ALL_SET_MASK) == LATENCY_ALL_SET_MASK) {
-		SLSI_INFO(sdev, "Home Away Time = %d, Home time = %d, Max Channel Time = %d Passive Time = %d\n",
-			  sdev->home_away_time, sdev->home_time, sdev->max_channel_time,
-			  sdev->max_channel_passive_time);
-		ret = slsi_mlme_set_scan_mode_req(sdev, dev, FAPI_SCANMODE_LOW_LATENCY, sdev->max_channel_time,
+		SLSI_INFO(sdev, "Scan Mode = %d, Home Away Time = %d, Home time = %d, Max Channel Time = %d Passive Time = %d\n",
+			  sdev->scan_mode, sdev->home_away_time, sdev->home_time,
+			  sdev->max_channel_time, sdev->max_channel_passive_time);
+		ret = slsi_mlme_set_scan_mode_req(sdev, dev, sdev->scan_mode, sdev->max_channel_time,
 						  sdev->home_away_time, sdev->home_time, sdev->max_channel_passive_time);
 		sdev->latency_param_mask = 0;
 	} else if (latency_param == 0) {
@@ -4513,8 +4516,10 @@ static int slsi_setting_sap_ax_mode(struct net_device *dev, char *command, int c
 		kfree(ioctl_args);
 		return -EINVAL;
 	}
-
-	ndev_vif->sap_ax_mode = ax_mode;
+	if (!sdev->ap_cert_11ax_enabled)
+		ndev_vif->sap_ax_mode = ax_mode;
+	else
+		ndev_vif->sap_ax_mode = sdev->ap_cert_11ax_enabled;
 	kfree(ioctl_args);
 	return result;
 }
@@ -7614,6 +7619,32 @@ exit:
 	return ret;
 }
 
+static int slsi_get_tdls_max_session(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	int               len = 0;
+
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	len = snprintf(command, buf_len, "%s %d", CMD_GET_TDLS_MAX_SESSION,
+		       ndev_vif->sta.tdls_max_peer);
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
+	return len;
+}
+
+static int slsi_get_tdls_num_of_session(struct net_device *dev, char *command, int buf_len)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	int               len = 0;
+
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	len = snprintf(command, buf_len, "%s %d", CMD_GET_TDLS_NUM_OF_SESSION,
+		       ndev_vif->sta.tdls_peer_sta_records);
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+
+	return len;
+}
+
 static const struct slsi_ioctl_fn slsi_ioctl_fn_table[] = {
 	{ CMD_SETSUSPENDMODE,               slsi_set_suspend_mode },
 	{ CMD_SETJOINPREFER,                slsi_update_rssi_boost },
@@ -7795,6 +7826,8 @@ static const struct slsi_ioctl_fn slsi_ioctl_fn_table[] = {
 	{CMD_LEAKY_AP_PASSIVE_DETECTION_START, slsi_sched_pm_leaky_ap_passive_detection_start},
 	{CMD_LEAKY_AP_PASSIVE_DETECTION_END,   slsi_sched_pm_leaky_ap_passive_detection_end},
 	{CMD_SET_GRACE_PERIOD,                 slsi_sched_pm_set_grace_period},
+	{CMD_GET_TDLS_MAX_SESSION,          slsi_get_tdls_max_session},
+	{CMD_GET_TDLS_NUM_OF_SESSION,       slsi_get_tdls_num_of_session},
 };
 
 static int slsi_ioctl_fn_lookup(char *command, int len)

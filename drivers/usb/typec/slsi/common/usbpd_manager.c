@@ -497,6 +497,13 @@ void pdo_ctrl_by_flash(bool mode)
 EXPORT_SYMBOL(pdo_ctrl_by_flash);
 #endif
 
+void usbpd_manager_ccopen_req(int is_on)
+{
+	struct usbpd_data *pd_data = g_pd_data;
+
+	PDIC_OPS_PARAM_FUNC(ops_ccopen_req, pd_data, is_on);
+}
+
 void usbpd_manager_select_pdo_handler(struct work_struct *work)
 {
 	pr_info("%s: call select pdo handler\n", __func__);
@@ -2289,7 +2296,7 @@ int usbpd_init_manager(struct usbpd_data *pd_data)
 	pd_data->pd_noti.sink_status.fp_sec_pd_select_pps = usbpd_manager_select_pps;
 #endif
 	pd_data->pd_noti.sink_status.fp_sec_pd_vpdo_auth = usbpd_manager_vpdo_auth;
-	pd_data->pd_noti.sink_status.fp_sec_pd_manual_ccopen_req = NULL;
+	pd_data->pd_noti.sink_status.fp_sec_pd_manual_ccopen_req = usbpd_manager_ccopen_req;
 #endif
 #endif
 	mutex_init(&manager->vdm_mutex);

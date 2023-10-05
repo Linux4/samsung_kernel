@@ -364,9 +364,7 @@ struct dw_mci_board {
 	u32 detect_delay_ms;
 	u8 clk_smpl;
 	bool is_fine_tuned;
-	bool tuned;
 	bool extra_tuning;
-	bool only_once_tune;
 	bool prev_all_pass;
 
 	/* INT QOS khz */

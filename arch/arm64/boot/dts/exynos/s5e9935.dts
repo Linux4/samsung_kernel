@@ -16080,32 +16080,6 @@
 		phandle = <0x38a>;
 	};
 
-	abc_hub {
-		compatible = "samsung,abc_hub";
-		status = "okay";
-
-		bootc {
-			bootc,time_spec_user = <0x186a0>;
-			bootc,time_spec_eng = <0x249f0>;
-			bootc,time_spec_fac = <0x186a0>;
-		};
-	};
-
-	sec_abc {
-		compatible = "samsung,sec_abc";
-		status = "okay";
-
-		abc_spec_type1 {
-			module_list = "gpu\0gpu_qc\0gpu_qc";
-			name_list = "gpu_fault\0gpu_fault\0gpu_page_fault";
-			spec_cnt_list = <0x01 0x01 0x01>;
-			th_cnt_list0 = <0x14 0x02 0x14>;
-			th_time_list0 = <0x4b0 0x4b0 0x4b0>;
-			th_cnt_list1 = <0x14 0x02 0x14>;
-			th_time_list1 = <0x4b0 0x4b0 0x4b0>;
-		};
-	};
-
 	fixed-rate-clocks {
 
 		oscclk {

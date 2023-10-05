@@ -1347,20 +1347,11 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	ti->per_io_data_size = roundup(ti->per_io_data_size,
 				       __alignof__(struct dm_verity_io));
 
-#ifdef SEC_HEX_DEBUG
-	if (!verity_fec_is_enabled(v))
-		add_fec_off_cnt(v->data_dev->name);
-#endif
-
 	verity_verify_sig_opts_cleanup(&verify_args);
 
 	return 0;
 
 bad:
-
-#ifdef SEC_HEX_DEBUG
-	add_fec_off_cnt("bad");
-#endif
 
 	verity_verify_sig_opts_cleanup(&verify_args);
 	verity_dtr(ti);
@@ -1370,6 +1361,7 @@ bad:
 
 static struct target_type verity_target = {
 	.name		= "verity",
+	.features	= DM_TARGET_IMMUTABLE,
 	.version	= {1, 8, 0},
 	.module		= THIS_MODULE,
 	.ctr		= verity_ctr,

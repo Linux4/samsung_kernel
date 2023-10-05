@@ -130,6 +130,7 @@ void scsc_bt_qos_service_stop(void)
 {
 	/* Ensure no crossing of work and stop */
 	mutex_lock(&bt_qos_mutex);
+	cancel_delayed_work(&qos_service.disable_work);
 	qos_service.pending_state = SCSC_QOS_DISABLED;
 	qos_service.disabling = false;
 	if (qos_service.enabled) {

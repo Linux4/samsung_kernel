@@ -15,6 +15,7 @@
 #include <linux/mfd/sm/sm5714/sm5714.h>
 #include <linux/mfd/sm/sm5714/sm5714-private.h>
 #include "../../common/sec_charging_common.h"
+#include <linux/types.h>
 
 enum {
 	CHIP_ID = 0,
@@ -118,6 +119,8 @@ struct sm5714_charger_data {
 	struct sm5714_charger_platform_data *pdata;
 	struct power_supply	*psy_chg;
 	struct power_supply	*psy_otg;
+
+	atomic_t	shutdown_cnt;
 
 	int read_reg;
 

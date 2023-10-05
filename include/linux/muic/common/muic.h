@@ -227,7 +227,8 @@ typedef enum {
 	ATTACHED_DEV_TURBO_CHARGER,
 	ATTACHED_DEV_SPECOUT_CHARGER_MUIC,
 	ATTACHED_DEV_UNKNOWN_MUIC,
-	ATTACHED_DEV_POGO_DOCK_MUIC,
+
+	ATTACHED_DEV_POGO_DOCK_MUIC = 81,
 	ATTACHED_DEV_POGO_DOCK_5V_MUIC,
 	ATTACHED_DEV_POGO_DOCK_9V_MUIC,
 	ATTACHED_DEV_POGO_DOCK_34K_MUIC,
@@ -236,6 +237,7 @@ typedef enum {
 	ATTACHED_DEV_RETRY_TIMEOUT_OPEN_MUIC,
 	ATTACHED_DEV_RETRY_AFC_CHARGER_5V_MUIC,
 	ATTACHED_DEV_RETRY_AFC_CHARGER_9V_MUIC,
+	ATTACHED_DEV_WIRELESS_TA_MUIC,
 	ATTACHED_DEV_NUM,
 } muic_attached_dev_t;
 
@@ -320,6 +322,11 @@ struct muic_platform_data {
 	struct muic_sysfs_cb sysfs_cb;
 #endif
 	struct device *muic_device;
+
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	struct muic_dev	*muic_d;
+	struct if_cb_manager	*man;
+#endif
 
 	int switch_sel;
 
@@ -442,7 +449,7 @@ enum muic_param_en {
 #define IS_VCHGIN_5V(x) ((4000 <= x) && (x <= 6000))
 
 #define AFC_MRXRDY_CNT_LIMIT (3)
-#define AFC_MPING_RETRY_CNT_LIMIT (20)
+#define AFC_MPING_RETRY_CNT_LIMIT (10)
 #define AFC_QC_RETRY_CNT_LIMIT (3)
 #define VCHGIN_CHECK_CNT_LIMIT (3)
 #define AFC_QC_RETRY_WAIT_CNT_LIMIT (3)

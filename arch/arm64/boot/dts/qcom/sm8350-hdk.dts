@@ -1179,7 +1179,7 @@
 
 		phy@1d87000 {
 			compatible = "qcom,sm8350-qmp-ufs-phy";
-			reg = <0x00 0x1d87000 0x00 0xe10>;
+			reg = <0x00 0x1d87000 0x00 0x1c4>;
 			#address-cells = <0x02>;
 			#size-cells = <0x02>;
 			#clock-cells = <0x01>;

@@ -220,8 +220,11 @@ void secdbg_base_built_set_unfrozen_task(struct task_struct *task, uint64_t coun
 static inline void secdbg_base_built_set_unfrozen_task(struct task_struct *task, uint64_t count) {}
 #endif /* CONFIG_SEC_DEBUG_UNFROZEN_TASK */
 
-/* CONFIG_SEC_DEBUG_BAD_STACK_INFO */
-extern void secdbg_base_set_bs_info_phase(int phase);
+#if IS_ENABLED(CONFIG_SEC_DEBUG_BAD_STACK_INFO)
+extern void secdbg_base_built_bad_stack_info(unsigned long tsk_stk, unsigned long irq_stk, unsigned long ovf_stk);
+#else
+static inline void secdbg_base_built_bad_stack_info(unsigned long tsk_stk, unsigned long irq_stk, unsigned long ovf_stk) {}
+#endif 
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG_DTASK)
 static inline void secdbg_dtsk_built_set_data(long type, void *data)

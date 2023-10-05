@@ -38,6 +38,7 @@
 #define ABOX_DBG_DUMP_LIMIT_NS		(5 * NSEC_PER_SEC)
 
 static struct platform_device *p_pdev;
+static struct mutex lock;
 
 void abox_dbg_print_gpr_from_addr(struct device *dev, struct abox_data *data,
 		unsigned int *addr)
@@ -91,7 +92,6 @@ struct abox_dbg_dump {
 
 struct abox_dbg_dump_min {
 	struct abox_dbg_dump_sram sram;
-	struct abox_dbg_dump_dram *dram;
 	struct abox_dbg_dump_log log;
 	struct abox_dbg_dump_log log_01;
 	struct abox_dbg_dump_sfr sfr;
@@ -454,14 +454,6 @@ static void dump_mem_min(struct device *dev, struct abox_data *data,
 	}
 	abox_gicd_dump(data->dev_gic, (char *)p_dump->sfr_gic_gicd, 0,
 			sizeof(p_dump->sfr_gic_gicd));
-
-	if (p_dump->dram) {
-		memcpy(p_dump->dram->dump, data->dram_base,
-				DRAM_FIRMWARE_SIZE);
-		p_dump->dram->magic = ABOX_DBG_DUMP_MAGIC_DRAM;
-	} else {
-		abox_info(dev, "Failed to save ABOX dram\n");
-	}
 }
 
 static int abox_dbg_dump_count;
@@ -663,13 +655,13 @@ static void abox_dbg_rmem_init(struct abox_data *data)
 				p_dump->previous_gpr = 0;
 				p_dump->previous_mem = 0;
 			}
-			p_dump->dram = NULL;
 		}
 
 		abox_dbg_dump_count = ABOX_DBG_DUMP_COUNT;
 		p_dump_gpr_from_addr = dump_gpr_from_addr_min;
 		p_dump_gpr = dump_gpr_min;
 		p_dump_mem = dump_mem_min;
+		mutex_init(&lock);
 		abox_info(dev_abox, "%s debug dump\n", "min");
 	}
 
@@ -1216,62 +1208,6 @@ static void abox_dbg_create_files(struct abox_data *data)
 			NULL, PAGE_SIZE);
 }
 
-static void abox_dbg_alloc_work_func(struct work_struct *work)
-{
-	struct abox_dbg_dump_min *p_dump;
-	int i;
-
-	if (!p_abox_dbg_dump_min)
-		return;
-
-
-	for (i = 0; i < ABOX_DBG_DUMP_COUNT; i++) {
-		p_dump = &(*p_abox_dbg_dump_min)[i];
-		if (!p_dump->dram)
-			p_dump->dram = vmalloc(sizeof(*p_dump->dram));
-	}
-
-}
-static DECLARE_WORK(abox_dbg_alloc_work, abox_dbg_alloc_work_func);
-
-static void abox_dbg_free_work_func(struct work_struct *work)
-{
-	struct abox_dbg_dump_min *p_dump;
-	int i;
-
-	if (!p_abox_dbg_dump_min)
-		return;
-
-	for (i = 0; i < ABOX_DBG_DUMP_COUNT; i++) {
-		p_dump = &(*p_abox_dbg_dump_min)[i];
-		if (p_dump->dram)
-			vfree(p_dump->dram);
-		p_dump->dram = NULL;
-	}
-}
-static DECLARE_DEFERRABLE_WORK(abox_dbg_free_work, abox_dbg_free_work_func);
-
-static int abox_dbg_power_notifier(struct notifier_block *nb,
-		unsigned long action, void *data)
-{
-	const unsigned long TIMEOUT = 3 * HZ;
-	bool en = !!action;
-
-	if (en) {
-		cancel_delayed_work_sync(&abox_dbg_free_work);
-		schedule_work(&abox_dbg_alloc_work);
-	} else {
-		schedule_delayed_work(&abox_dbg_free_work, TIMEOUT);
-	}
-
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block abox_dbg_power_nb = {
-	.notifier_call = abox_dbg_power_notifier,
-};
-
-
 void abox_dbg_create(struct abox_data *data)
 {
 	struct device *dev = &p_pdev->dev;
@@ -1305,6 +1241,7 @@ void abox_dbg_create(struct abox_data *data)
 					battr->attr.name);
 	}
 }
+
 static int samsung_abox_debug_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1348,9 +1285,6 @@ static int samsung_abox_debug_probe(struct platform_device *pdev)
 		abox_dbg_slog_init(data);
 	}
 
-	if (p_abox_dbg_dump_min)
-		abox_power_notifier_register(&abox_dbg_power_nb);
-
 	abox_proc_symlink_dev(dev, "debug");
 
 	return 0;
@@ -1359,20 +1293,8 @@ static int samsung_abox_debug_probe(struct platform_device *pdev)
 static int samsung_abox_debug_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct abox_dbg_dump_min *p_dump;
-	int i;
 
 	abox_dbg(dev, "%s\n", __func__);
-
-	if (p_abox_dbg_dump_min) {
-		abox_power_notifier_unregister(&abox_dbg_power_nb);
-		for (i = 0; i < ABOX_DBG_DUMP_COUNT; i++) {
-			p_dump = &(*p_abox_dbg_dump_min)[i];
-			if (p_dump->dram)
-				vfree(p_dump->dram);
-			p_dump->dram = NULL;
-		}
-	}
 
 	return 0;
 }

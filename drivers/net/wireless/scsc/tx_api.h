@@ -85,7 +85,7 @@ bool slsi_vif_activated_post(struct slsi_dev *sdev, struct net_device *dev, stru
  * We should free the resources allocated in on_vif_activated.
  * At this stage, ndev_vif->activated is false.
  */
-void slsi_vif_deactivated_post(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif);
+bool slsi_vif_deactivated_post(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif);
 
 /**
  * Lock:

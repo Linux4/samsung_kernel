@@ -28,7 +28,9 @@ struct flexpmu_dbg *flxp_dbg;
 struct flexpmu_cpu_pm *flxp_cpu_pm;
 struct flexpmu_mif *flxp_mif;
 struct flexpmu_ext_clk_buf *flxp_eclkbuf;
+struct mif_req_info *mif_req_info;
 static u32 nfc_clkreq_idx;
+static int mif_master_num;
 
 u32 *apsoc_down_cnt;
 u32 *apsoc_ewkup_cnt;
@@ -169,6 +171,17 @@ u32 acpm_get_mif_request(void)
 	return flxp_mif->requests;
 }
 EXPORT_SYMBOL_GPL(acpm_get_mif_request);
+
+void acpm_print_mif_request(void)
+{
+	int i = 0;
+
+	for (i = 0; i < mif_master_num - 1; i++) {
+		if (flxp_mif->requests & (1 << mif_req_info[i].up))
+			pr_info("%s: MIF blocker is %s\n", EXYNOS_FLEXPMU_DBG_PREFIX, mif_requester_names[i]);
+	}
+}
+EXPORT_SYMBOL_GPL(acpm_print_mif_request);
 
 static ssize_t flexpmu_dbg_cpu_status_read(int fid, char *buf)
 {
@@ -469,6 +482,7 @@ static void parse_mif_requesters(struct device_node *np)
 				__func__, size);
 		return;
 	}
+	mif_master_num = size;
 
 	mif_requester_names = kzalloc(sizeof(const char *)* size, GFP_KERNEL);
 	if (!mif_requester_names)
@@ -538,6 +552,7 @@ static int flexpmu_dbg_probe(struct platform_device *pdev)
 
 	flxp_cpu_pm = (struct flexpmu_cpu_pm *)(flexpmu_dbg_base + flxp_dbg->cpu_pm);
 	flxp_mif = (struct flexpmu_mif *)(flexpmu_dbg_base + flxp_dbg->mif);
+	mif_req_info = (struct mif_req_info *)(flexpmu_dbg_base + flxp_mif->req_info);
 
 	apsoc_down_cnt = (u32 *)(flexpmu_dbg_base + flxp_cpu_pm->p_apsoc_down_cnt);
 	apsoc_ewkup_cnt = (u32 *)(flexpmu_dbg_base + flxp_cpu_pm->p_apsoc_ewkup_cnt);

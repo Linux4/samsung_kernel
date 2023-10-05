@@ -461,6 +461,9 @@ struct panel_thread {
 enum {
 	PANEL_DEBUGFS_LOG,
 	PANEL_DEBUGFS_CMD_LOG,
+#if IS_ENABLED(CONFIG_PANEL_NOTIFY)
+	PANEL_DEBUGFS_PANEL_EVENT,
+#endif
 #if defined(CONFIG_PANEL_FREQ_HOP)
 	PANEL_DEBUGFS_FREQ_HOP,
 #endif
@@ -607,6 +610,9 @@ int panel_ecc_test(struct panel_device *panel);
 #endif
 int panel_decoder_test(struct panel_device *panel, u8 *buf, int len);
 bool check_panel_decoder_test_exists(struct panel_device *panel);
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+int panel_vcom_trim_test(struct panel_device *panel, u8 *buf, int len);
+#endif
 int panel_ddi_init(struct panel_device *panel);
 
 #ifdef CONFIG_SUPPORT_DIM_FLASH

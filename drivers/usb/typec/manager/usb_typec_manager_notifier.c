@@ -777,6 +777,10 @@ __visible_for_testing int manager_handle_pdic_notification(struct notifier_block
 	switch (p_noti.id) {
 	case PDIC_NOTIFY_ID_POWER_STATUS:
 		if (p_noti.sub1 && !typec_manager.pd_con_state) {
+			if (!typec_manager.pdic_attach_state) {
+				pr_err("%s: PD event is invalid in cc detach state", __func__);
+				return 0;
+			}
 			typec_manager.pd_con_state = 1;
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 			store_usblog_notify(NOTIFY_MANAGER, (void *)&p_noti, NULL);
@@ -1157,7 +1161,7 @@ __visible_for_testing int manager_handle_vbus_notification(struct notifier_block
 		break;
 	case STATUS_VBUS_LOW:
 		typec_manager.vbus_by_otg_detection = 0;
-		if (typec_manager.water.wVbus_det)
+		if (typec_manager.water.detected)
 			manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_BATT,
 				PDIC_NOTIFY_ID_ATTACH, PDIC_NOTIFY_DETACH, 0, typec_manager.water.report_type);
 		manager_event_processing_by_vbus(true);

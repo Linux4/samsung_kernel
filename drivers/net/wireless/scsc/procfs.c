@@ -687,6 +687,35 @@ static ssize_t slsi_procfs_p2p_certif_read(struct file *file, char __user *user_
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
 
+static ssize_t slsi_procfs_ap_certif_11ax_mode_write(struct file *file, const char __user *user_buf,
+						     size_t count, loff_t *ppos)
+{
+	struct slsi_dev   *sdev = file->private_data;
+	char              *read_string;
+	int               enabled = 0;
+	int               offset = 0;
+
+	read_string = kmalloc(count + 1, GFP_KERNEL);
+	if (!read_string) {
+		SLSI_ERR(sdev, "Malloc for read_string failed\n");
+		return -ENOMEM;
+	}
+	memset(read_string, 0, (count + 1));
+
+	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
+	read_string[count] = '\0';
+
+	offset = kstrtoint(read_string, 10, &enabled);
+	if (offset) {
+		SLSI_ERR(sdev, "qos info : failed to read a numeric value");
+		kfree(read_string);
+		return -EINVAL;
+	}
+	sdev->ap_cert_11ax_enabled = enabled;
+	kfree(read_string);
+	return count;
+}
+
 static int slsi_procfs_mac_addr_show(struct seq_file *m, void *v)
 {
 	struct slsi_dev *sdev = (struct slsi_dev *)m->private;
@@ -1306,6 +1335,7 @@ SLSI_PROCFS_SEQ_FILE_OPS(vifs);
 SLSI_PROCFS_SEQ_FILE_OPS(mac_addr);
 SLSI_PROCFS_WRITE_FILE_OPS(uapsd);
 SLSI_PROCFS_WRITE_FILE_OPS(ap_cert_disable_ht_vht);
+SLSI_PROCFS_WRITE_FILE_OPS(ap_certif_11ax_mode);
 #ifdef CONFIG_SCSC_WLAN_LOG_2_USER_SP
 SLSI_PROCFS_WRITE_FILE_OPS(conn_log_event_burst_to_us);
 #endif
@@ -1359,6 +1389,7 @@ int slsi_create_proc_dir(struct slsi_dev *sdev)
 		SLSI_PROCFS_SEQ_ADD_FILE(sdev, mac_addr, parent, S_IRUSR | S_IRGRP | S_IROTH); /*Add S_IROTH permission so that android settings can access it*/
 		SLSI_PROCFS_ADD_FILE(sdev, uapsd, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		SLSI_PROCFS_ADD_FILE(sdev, ap_cert_disable_ht_vht, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+		SLSI_PROCFS_ADD_FILE(sdev, ap_certif_11ax_mode, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		SLSI_PROCFS_ADD_FILE(sdev, p2p_certif, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		SLSI_PROCFS_ADD_FILE(sdev, create_tspec, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 #ifdef CONFIG_SCSC_WLAN_LOG_2_USER_SP
@@ -1405,6 +1436,7 @@ void slsi_remove_proc_dir(struct slsi_dev *sdev)
 		SLSI_PROCFS_REMOVE_FILE(ba_stats, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(uapsd, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(ap_cert_disable_ht_vht, sdev->procfs_dir);
+		SLSI_PROCFS_REMOVE_FILE(ap_certif_11ax_mode, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(p2p_certif, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(create_tspec, sdev->procfs_dir);
 #ifdef CONFIG_SCSC_WLAN_LOG_2_USER_SP

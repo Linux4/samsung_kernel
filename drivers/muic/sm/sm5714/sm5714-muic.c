@@ -1537,7 +1537,6 @@ static void sm5714_muic_handle_detach(struct sm5714_muic_data *muic_data,
 #if defined(CONFIG_MUIC_BCD_RESCAN)
 	muic_data->bc12_retry_count = 0;
 #endif
-	muic_data->hv_voltage = 0;
 	muic_afc_request_cause_clear();
 }
 
@@ -2315,7 +2314,6 @@ static int sm5714_muic_probe(struct platform_device *pdev)
 	muic_data->vbus_changed_9to5 = 0;
 	muic_data->fled_torch_enable = false;
 	muic_data->fled_flash_enable = false;
-	muic_data->hv_voltage = 0;
 	muic_data->is_pdic_ready = false;
 
 #if defined(CONFIG_HICCUP_CHARGER)

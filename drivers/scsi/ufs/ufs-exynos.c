@@ -53,7 +53,7 @@
 #include "ufs-sec-feature.h"
 #endif
 
-#define LDO_DISCHARGE_GUARANTEE	10
+#define LDO_DISCHARGE_GUARANTEE	15
 #define IS_C_STATE_ON(h) ((h)->c_state == C_ON)
 #define PRINT_STATES(h)							\
 	dev_err((h)->dev, "%s: prev h_state %d, cur c_state %d\n",	\
@@ -695,7 +695,7 @@ static inline void exynos_enable_vendor_irq(struct exynos_ufs *ufs)
 	need_preproc = !!of_find_property(dev->of_node, "check-ah8-preproc", NULL);
 	if (need_preproc) {
 		reg = hci_readl(handle, HCI_VENDOR_SPECIFIC_IE);
-		reg |= AH8_ERR_AT_PRE_PROC | AH8_TIMEOUT;
+		reg |= (AH8_ERR_AT_PRE_PROC | AH8_TIMEOUT);
 		hci_writel(handle, reg, HCI_VENDOR_SPECIFIC_IE);
 
 		hci_writel(handle, VS_INT_MERGE2PH_EN, HCI_VS_INT_MERGE2PH);
@@ -1592,6 +1592,10 @@ static int exynos_ufs_suspend(struct device *dev)
 	/* Save timestamp of vcc/vccq off time */
 	ufs->vcc_off_time = ktime_get();
 
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	dev_info(dev, "%s done\n", __func__);
+#endif
+
 	return ret;
 }
 
@@ -1614,6 +1618,10 @@ static int exynos_ufs_resume(struct device *dev)
 				__func__, discharge_period);
 		mdelay(LDO_DISCHARGE_GUARANTEE - discharge_period);
 	}
+
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	dev_info(dev, "%s: discharge time = %d\n", __func__, discharge_period);
+#endif
 
 	ufs->vcc_off_time = -1LL;
 
@@ -2284,24 +2292,42 @@ static struct exynos_ufs_sysfs_attr ufs_s_clkgate_enable = {
 static ssize_t ufs_exynos_gear_scale_show(struct exynos_ufs *ufs, char *buf,
 		exynos_ufs_param_id id)
 {
+	struct ufs_perf *perf = ufs->perf;
 	struct uic_pwr_mode *pmd = &ufs->device_pmd_parm;
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", pmd->gear);
+	if (perf)
+               return snprintf(buf, PAGE_SIZE, "%s[%d]\n",
+			       perf->exynos_gear_scale? "enabled" : "disabled",
+			       pmd->gear);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", -EINVAL);
 }
 
 static int ufs_exynos_gear_scale_store(struct exynos_ufs *ufs, const char *buf,
 		exynos_ufs_param_id id)
 {
-	struct ufs_hba *hba = ufs->hba;
+	struct ufs_perf *perf = ufs->perf;
 	int value;
 	int ret;
+
+	if (perf == NULL)
+		return -EINVAL;
 
 	ret = sscanf(buf, "%d", &value);
 	if (!ret)
 		return -EINVAL;
 
-	value = !!value;
-	ret = ufs_gear_change(hba, value);
+	if (perf->exynos_gear_scale == !!value) {
+		dev_info(ufs->dev, "already gear scale %s!!\n",
+				perf->exynos_gear_scale? "enable" : "disable");
+		return -EINVAL;
+	}
+
+	perf->exynos_gear_scale = !!value;
+	dev_info(ufs->dev, "sysfs input: %s gear scale\n",
+			perf->exynos_gear_scale? "enable" : "disable");
+
+	ret = ufs_gear_scale_update(perf);
 
 	return ret;
 }

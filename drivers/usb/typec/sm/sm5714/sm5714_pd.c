@@ -187,10 +187,12 @@ int sm5714_select_pps(int num, int ppsVol, int ppsCur)
 
 	if ((pdic_data->rp_currentlvl == RP_CURRENT_LEVEL3) &&
 			(psubpd->specification_revision == USBPD_REV_30)) {
+		pdic_data->is_wait_sinktxok = false;
 #if !IS_ENABLED(CONFIG_SM5714_DISABLE_PD)
 		sm5714_usbpd_inform_event(psubpd, MANAGER_NEW_POWER_SRC);
 #endif
 	} else {
+		pdic_data->is_wait_sinktxok = true;
 		pr_info(" %s : PD 3.0, but SinkTxNG state.\n", __func__);
 	}
 
@@ -199,8 +201,20 @@ int sm5714_select_pps(int num, int ppsVol, int ppsCur)
 	    wait_for_completion_timeout(&psubpd->pd_completion,
 					msecs_to_jiffies(1000));
 
-	if (!timeout)
+	if (!timeout) {
 		return -EBUSY;
+	} else {
+		if (pdic_data->is_wait_sinktxok && pdic_data->is_attached) {
+#if !IS_ENABLED(CONFIG_SM5714_DISABLE_PD)
+			sm5714_usbpd_inform_event(psubpd, MANAGER_NEW_POWER_SRC);
+#endif
+			pdic_data->is_wait_sinktxok = false;
+			reinit_completion(&psubpd->pd_completion);
+			if (!wait_for_completion_timeout(&psubpd->pd_completion,
+					msecs_to_jiffies(1000)))
+				return -EBUSY;
+		}
+	}
 
 	return 0;
 }

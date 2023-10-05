@@ -219,6 +219,27 @@ struct sensor_imx_3hdr_ev_control {
 	u8 evc_ngain;
 };
 
+/* sensor mode information interface */
+enum is_rta_sensor_mode {
+	SENSOR_MODE_LN2			= (1 << 1),
+	SENSOR_MODE_LN4			= (1 << 2),
+	SENSOR_MODE_REAL_12BIT	= (1 << 3),
+	SENSOR_MODE_CROPPED_RMS	= (1 << 4),
+};
+
+struct is_sensor_mode_info {
+	u32 mode;
+	u32 min_expo;
+	u32 max_expo;
+	u32 min_again;
+	u32 max_again;
+	u32 min_dgain;
+	u32 max_dgain;
+	u32 vvalid_time;
+	u32 vblank_time;
+	u32 max_fps;
+};
+
 typedef struct {
 	/** The length of a frame is specified as a number of lines, frame_length_lines.
 	  @remarks
@@ -320,6 +341,9 @@ typedef struct {
 	/* for deliver crop coordinate for RTA */
 	u32	crop_x;
 	u32	crop_y;
+
+	struct is_sensor_mode_info seamless_mode_info[10];
+	u32 seamless_mode_cnt;
 } cis_shared_data;
 
 struct v4l2_subdev;
@@ -986,6 +1010,10 @@ struct is_cis_ext2_interface_ops {
 	int (*set_hdr_mode)(struct is_sensor_interface *itf, u32 mode);
 	u32 (*set_remosaic_zoom_ratio)(struct is_sensor_interface *itf,
 						u32 zoom_ratio);
+	int (*get_sensor_min_frame_duration)(struct is_sensor_interface *itf,
+				u32 *min_frame_duration);
+	int (*get_sensor_seamless_mode_info)(struct is_sensor_interface *itf,
+				struct is_sensor_mode_info *seamless_mode_info, u32 *seamless_mode_cnt);
 	void *reserved[7];
 };
 

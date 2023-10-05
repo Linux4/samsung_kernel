@@ -326,12 +326,14 @@ static void exynos_pm_syscore_resume(void)
 	if (pm_dbg->mifdn_early_wakeup_cnt != pm_dbg->mifdn_early_wakeup_prev)
 		pr_debug("%s: Sequence early wakeup\n", EXYNOS_PM_PREFIX);
 
-	if (pm_dbg->mifdn_cnt == pm_dbg->mifdn_cnt_prev)
+	if (pm_dbg->mifdn_cnt == pm_dbg->mifdn_cnt_prev) {
 		pr_info("%s: MIF blocked. MIF request Mster was  0x%x\n",
 				EXYNOS_PM_PREFIX, pm_dbg->mif_req);
-	else
+		acpm_print_mif_request();
+	} else {
 		pr_info("%s: MIF down. cur_count: %d, acc_count: %d\n",
 				EXYNOS_PM_PREFIX, pm_dbg->mifdn_cnt - pm_dbg->mifdn_cnt_prev, pm_dbg->mifdn_cnt);
+	}
 
 	if (pm_info->is_pcieon_suspend)
 		exynos_wakeup_sys_powerdown(pm_info->pcieon_suspend_mode_idx, pm_info->is_early_wakeup);

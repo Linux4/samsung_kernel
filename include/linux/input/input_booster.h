@@ -62,10 +62,15 @@
 		} \
 		ssize_t input_booster_sysfs_class_store_##_ATTR_(struct class *dev, struct class_attribute *attr, const char *buf, size_t count) \
 		{ \
-			unsigned int enable_event[1] = {-1}; \
-			unsigned int debug_level[1] = {-1}; \
-			unsigned int sendevent[1] = {-1}; \
+			unsigned int enable_event[1] = {0}; \
+			unsigned int debug_level[1] = {0}; \
+			unsigned int sendevent[1] = {0}; \
 			unsigned int ib_mode_state[1] = {0}; \
+			enable_event[0] = enable_event_booster; \
+			debug_level[0] = debug_flag; \
+			sendevent[0] = send_ev_enable; \
+			if (IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)) \
+				ib_mode_state[0] = u_ib_mode; \
 			sscanf _ARGU_; \
 			send_ev_enable = sendevent[0]; \
 			debug_flag = debug_level[0]; \

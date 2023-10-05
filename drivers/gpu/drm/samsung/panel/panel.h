@@ -755,8 +755,6 @@ enum PANEL_SEQ {
 	PANEL_ECC_TEST_SEQ,
 #endif
 	PANEL_DECODER_TEST_SEQ,
-	PANEL_PRE_READ_SEQ,
-	PANEL_POST_READ_SEQ,
 	PANEL_DUMMY_SEQ,
 	MAX_PANEL_SEQ,
 };
@@ -1444,6 +1442,7 @@ static inline int search_table(void *tbl, int itemsize, u32 sz_tbl, void *value)
 
 #define disp_div_round(n, m) ((((n) * 10 / (m)) + 5) / 10)
 
+const char *pnobj_type_to_string(u32 type);
 void print_data(char *data, int size);
 int register_common_panel(struct common_panel_info *info);
 int deregister_common_panel(struct common_panel_info *info);

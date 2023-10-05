@@ -16,6 +16,7 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "tft_common.h"
+#include "ili7807_a14x_02.h"
 #include "ili7807_a14x_02_resol.h"
 //#include "tft_common_a14x.h"
 
@@ -2056,6 +2057,23 @@ static DEFINE_STATIC_PACKET(ili7807_a14x_02_304, DSI_PKT_TYPE_WR, SEQ_ILI7807_A1
 static DEFINE_STATIC_PACKET(ili7807_a14x_02_305, DSI_PKT_TYPE_WR, SEQ_ILI7807_A14X_02_305, 0);
 static DEFINE_STATIC_PACKET(ili7807_a14x_02_306, DSI_PKT_TYPE_WR, SEQ_ILI7807_A14X_02_306, 0);
 
+static u8 ILI7807_A14X_02_VCOM_TRIM_ACCESS_1[] = {
+	0xFF,
+	0x78, 0x07, 0x05,
+};
+static DEFINE_STATIC_PACKET(ili7807_a14x_02_vcom_trim_access_1, DSI_PKT_TYPE_WR, ILI7807_A14X_02_VCOM_TRIM_ACCESS_1, 0);
+
+static u8 ILI7807_A14X_02_VCOM_TRIM_ACCESS_2[] = {
+	0xFF,
+	0x78, 0x07, 0x07,
+};
+static DEFINE_STATIC_PACKET(ili7807_a14x_02_vcom_trim_access_2, DSI_PKT_TYPE_WR, ILI7807_A14X_02_VCOM_TRIM_ACCESS_2, 0);
+
+static u8 ILI7807_A14X_02_VCOM_TRIM_ACCESS_END[] = {
+	0xFF,
+	0x78, 0x07, 0x00,
+};
+static DEFINE_STATIC_PACKET(ili7807_a14x_02_vcom_trim_access_end, DSI_PKT_TYPE_WR, ILI7807_A14X_02_VCOM_TRIM_ACCESS_END, 0);
 
 static DEFINE_PANEL_MDELAY(ili7807_a14x_02_wait_20msec, 20); /* 1 frame */
 static DEFINE_PANEL_MDELAY(ili7807_a14x_02_wait_40msec, 40);
@@ -2403,6 +2421,20 @@ static void *ili7807_a14x_02_exit_cmdtbl[] = {
 	&PKTINFO(ili7807_a14x_02_sleep_in),
 };
 
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+static void *ili7807_a14x_02_vcom_trim_test_cmdtbl[] = {
+	&PKTINFO(ili7807_a14x_02_vcom_trim_access_1),
+	&tft_common_restbl[RES_VCOM_TRIM],
+	&DLYINFO(ili7807_a14x_02_wait_20msec),
+	&PKTINFO(ili7807_a14x_02_vcom_trim_access_2),
+	&tft_common_restbl[RES_VCOM_MARK1],
+	&DLYINFO(ili7807_a14x_02_wait_20msec),
+	&tft_common_restbl[RES_VCOM_MARK2],
+	&DLYINFO(ili7807_a14x_02_wait_20msec),
+	&PKTINFO(ili7807_a14x_02_vcom_trim_access_end),
+};
+#endif
+
 static void *ili7807_a14x_02_display_mode_cmdtbl[] = {
 	/* dummy cmd */
 	&CONDINFO_IF(ili7807_a14x_02_cond_is_fps_90hz),
@@ -2422,6 +2454,9 @@ static struct seqinfo ili7807_a14x_02_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_DISPLAY_ON_SEQ] = SEQINFO_INIT("display-on-seq", ili7807_a14x_02_display_on_cmdtbl),
 	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", ili7807_a14x_02_display_off_cmdtbl),
 	[PANEL_EXIT_SEQ] = SEQINFO_INIT("exit-seq", ili7807_a14x_02_exit_cmdtbl),
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+	[PANEL_VCOM_TRIM_TEST_SEQ] = SEQINFO_INIT("vcom-trim-test-seq", ili7807_a14x_02_vcom_trim_test_cmdtbl),
+#endif
 };
 
 
@@ -2510,6 +2545,11 @@ struct common_panel_info ili7807_a14x_02_panel_info = {
 		.support_vrr = true,
 		.init_seq_by_lpdt = true,
 	},
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+	.ddi_ops = {
+		.vcom_trim_test = ili7807_a14x_02_vcom_trim_test,
+	},
+#endif
 #if defined(CONFIG_PANEL_DISPLAY_MODE)
 	.common_panel_modes = &ili7807_a14x_02_display_modes,
 #endif

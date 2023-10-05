@@ -969,12 +969,14 @@ static int __pablo_sensor_adt_get_vc_dma_pdaf_buf_info(struct is_sensor_interfac
 static int pablo_sensor_adt_get_sensor_info(struct pablo_sensor_adt *adt, struct pablo_crta_sensor_info *pcsi)
 {
 	u32 instance;
+	int i;
 	unsigned long flags;
 	struct pablo_sensor_adt_v1 *sensor_adt;
 	struct is_sensor_interface *sensor_itf;
 	enum is_sensor_stat_control stat_control;
 	enum itf_laser_af_type af_type;
 	union itf_laser_af_data af_data;
+	struct is_sensor_mode_info seamless_mode_info[SEAMLESS_MODE_MAX];
 
 	if (!atomic_read(&adt->rsccount)) {
 		err("sensor_adt is not open");
@@ -1005,6 +1007,25 @@ static int pablo_sensor_adt_get_sensor_info(struct pablo_sensor_adt *adt, struct
 	sensor_itf->cis_itf_ops.get_sensor_frame_timing(sensor_itf,
 		&pcsi->vvalid_time, &pcsi->vblank_time);
 	sensor_itf->cis_itf_ops.get_sensor_max_fps(sensor_itf, &pcsi->max_fps);
+
+	sensor_itf->cis_ext2_itf_ops.get_sensor_seamless_mode_info(sensor_itf,
+		seamless_mode_info, &pcsi->seamless_mode_cnt);
+
+	if (pcsi->seamless_mode_cnt > 0) {
+		for (i = 0; i < pcsi->seamless_mode_cnt; i++) {
+			pcsi->seamless_mode_info[i].mode = seamless_mode_info[i].mode;
+			pcsi->seamless_mode_info[i].min_expo = seamless_mode_info[i].min_expo;
+			pcsi->seamless_mode_info[i].max_expo = seamless_mode_info[i].max_expo;
+			pcsi->seamless_mode_info[i].min_again = seamless_mode_info[i].min_again;
+			pcsi->seamless_mode_info[i].max_again = seamless_mode_info[i].max_again;
+			pcsi->seamless_mode_info[i].min_dgain = seamless_mode_info[i].min_dgain;
+			pcsi->seamless_mode_info[i].max_dgain = seamless_mode_info[i].max_dgain;
+			pcsi->seamless_mode_info[i].vvalid_time = seamless_mode_info[i].vvalid_time;
+			pcsi->seamless_mode_info[i].vblank_time = seamless_mode_info[i].vblank_time;
+			pcsi->seamless_mode_info[i].max_fps = seamless_mode_info[i].max_fps;
+		}
+	}
+
 	pcsi->mono_en = is_sensor_get_mono_mode(sensor_itf); /* 0: normal, 1: mono */
 	pcsi->bayer_pattern = 0; /* 0: normal, 1: tetra */
 	pcsi->hdr_type = is_sensor_get_frame_type(instance);
@@ -1031,6 +1052,8 @@ static int pablo_sensor_adt_get_sensor_info(struct pablo_sensor_adt *adt, struct
 	sensor_itf->cis_itf_ops.get_next_analog_gain(sensor_itf, EXPOSURE_NUM_MAX, pcsi->next_again);
 	sensor_itf->cis_itf_ops.get_next_digital_gain(sensor_itf, EXPOSURE_NUM_MAX, pcsi->next_dgain);
 	sensor_itf->cis_itf_ops.get_sensor_cur_fps(sensor_itf, &pcsi->current_fps);
+	sensor_itf->cis_ext2_itf_ops.get_open_close_hint(&pcsi->opening_hint, &pcsi->closing_hint);
+	sensor_itf->cis_ext2_itf_ops.get_sensor_min_frame_duration(sensor_itf, &pcsi->min_frame_duration);
 
 	/* af info */
 	if (pcsi->actuator_available) {

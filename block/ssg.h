@@ -6,12 +6,11 @@
 
 struct ssg_request_info {
 	pid_t tgid;
-	char tg_name[TASK_COMM_LEN];
-	u64 tg_start_time;
+	unsigned int data_size;
 
 	struct blkcg_gq *blkg;
 
-	unsigned int data_size;
+	void *pio;
 };
 
 struct ssg_data {
@@ -72,6 +71,7 @@ extern ssize_t ssg_stat_write_latency_show(struct elevator_queue *e, char *page)
 extern ssize_t ssg_stat_flush_latency_show(struct elevator_queue *e, char *page);
 extern ssize_t ssg_stat_discard_latency_show(struct elevator_queue *e, char *page);
 extern ssize_t ssg_stat_inflight_show(struct elevator_queue *e, char *page);
+extern ssize_t ssg_stat_rqs_info_show(struct elevator_queue *e, char *page);
 
 /* ssg-cgroup.c */
 #if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_CGROUP)
@@ -129,29 +129,6 @@ static inline void ssg_blkcg_inc_rq(struct blkcg_gq *blkg)
 }
 
 static inline void ssg_blkcg_dec_rq(struct blkcg_gq *blkg)
-{
-}
-#endif
-
-/* blk-sec-stat.c */
-#if IS_ENABLED(CONFIG_BLK_SEC_STATS)
-extern void blk_sec_stat_account_init(struct request_queue *q);
-extern void blk_sec_stat_account_exit(struct elevator_queue *eq);
-extern void blk_sec_stat_account_io_done(
-		struct request *rq, unsigned int data_size,
-		pid_t tgid, const char *tg_name, u64 tg_start_time);
-#else
-static inline void blk_sec_stat_account_init(struct request_queue *q)
-{
-}
-
-static inline void blk_sec_stat_account_exit(struct elevator_queue *eq)
-{
-}
-
-static inline void blk_sec_stat_account_io_done(
-		struct request *rq, unsigned int data_size,
-		pid_t tgid, const char *tg_name, u64 tg_start_time)
 {
 }
 #endif

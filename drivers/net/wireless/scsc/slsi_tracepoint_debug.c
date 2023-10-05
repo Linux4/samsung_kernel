@@ -61,7 +61,7 @@ static void slsi_add_tracepoint(struct tracepoint *tp, void *data)
 	if (strcmp(tp->name, tp_name))
 		return;
 
-	e = kmalloc(sizeof(struct tracepoint_entry *), GFP_KERNEL);
+	e = kmalloc(sizeof(struct tracepoint_entry) + (strlen(tp_name) + 1), GFP_KERNEL);
 	if (!e)
 		return;
 
@@ -103,7 +103,7 @@ int slsi_register_tracepoint_callback(const char *tp_name, void *func, void *dat
 			}
 		}
 	}
-	tp_cb = kmalloc(sizeof(struct tracepoint_cb *), GFP_KERNEL);
+	tp_cb = kmalloc(sizeof(struct tracepoint_cb), GFP_KERNEL);
 	if (!tp_cb) {
 		if (list_empty(&e->probes)) {
 			hlist_del(&e->hlist);
@@ -194,7 +194,7 @@ void slsi_unregister_all_tracepoints(void)
 	for_each_kernel_tracepoint(remove_tracepoint, NULL);
 }
 
-void tcp_retransmit_skb_callback(void *ignore, struct sock *sk, struct sk_buff *skb)
+void tcp_retransmit_skb_callback(void *ignore, const struct sock *sk, const struct sk_buff *skb)
 {
 	struct tcp_sock *tp = NULL;
 	struct inet_sock *inet = NULL;

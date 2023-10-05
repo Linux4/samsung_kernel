@@ -73,6 +73,10 @@ static u32  aperture_sensor_index;
 static struct mutex g_efs_mutex;
 static struct mutex g_shaking_mutex;
 
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
+static struct task_struct *sm5714_preflash_thread = NULL;
+#endif
+
 #ifdef CAMERA_PARALLEL_RETENTION_SEQUENCE
 struct workqueue_struct *sensor_pwr_ctrl_wq = 0;
 #define CAMERA_WORKQUEUE_MAX_WAITING	1000
@@ -2102,6 +2106,11 @@ extern int s2mpb02_set_torch_current(enum s2mpb02_torch_mode torch_mode, unsigne
 extern int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness);
 #endif
 
+static int sm5714_trigger_pre_flash(void *data) {
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PRE_FLASH,0);
+	return 0;
+}
+
 int is_vender_set_torch(struct camera2_shot *shot)
 {
 	u32 aeflashMode = shot->ctl.aa.vendor_aeflashMode;
@@ -2128,7 +2137,11 @@ int is_vender_set_torch(struct camera2_shot *shot)
 #if IS_ENABLED(CONFIG_LEDS_SM5714)
 		if (shot->uctl.masterCamera == AA_SENSORPLACE_REAR) {
 			info("is_vender_set_torch sm5714_fled_mode_ctrl:(%d)\n", aeflashMode);
-			sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PRE_FLASH,0);
+			sm5714_preflash_thread = kthread_run(sm5714_trigger_pre_flash, NULL, "sm5714_preflash_thread");
+			if (IS_ERR(sm5714_preflash_thread)) {
+				WARN_ON(1);
+				return 0;
+			}
 		}
 #endif
 
@@ -2300,13 +2313,18 @@ int is_vender_vidioc_g_ctrl(struct is_video_ctx *vctx,
 	switch (ctrl->id) {
 	case V4L2_CID_SENSOR_GET_CAL_SIZE:
 		rom_id = is_vendor_get_rom_id_from_position(specific->cal_sensor_pos);
+		if (rom_id == ROM_ID_NOTHING) {
+			err("%s Failed to get rom_id", __func__);
+			ret = -EINVAL;
+			goto p_err;
+		}
 		ctrl->value = is_sec_get_max_cal_size(core, rom_id);
 		break;
 	default:
 		ret = -EINVAL;
 		break;
 	}
-
+p_err:
 	return ret;
 }
 
@@ -2334,6 +2352,11 @@ int is_vender_vidioc_g_ext_ctrl(struct is_video_ctx *vctx,
 		switch (ext_ctrl->id) {
 		case V4L2_CID_SENSOR_GET_CAL_DATA:
 			rom_id = is_vendor_get_rom_id_from_position(specific->cal_sensor_pos);
+			if (rom_id == ROM_ID_NOTHING) {
+				err("%s Failed to get rom_id", __func__);
+				ret = -EINVAL;
+				goto p_err;
+			}
 			cal_size = is_sec_get_max_cal_size(core, rom_id);
 			is_sec_get_cal_buf(&cal_buf, rom_id);
 			minfo("%s: cal size(%#x) sensor position(%d)\n", idi,

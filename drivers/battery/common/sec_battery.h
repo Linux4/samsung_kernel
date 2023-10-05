@@ -307,6 +307,17 @@ struct sec_bat_thm_info {
 	int channel;
 };
 
+enum sec_battery_thm_info {
+	THM_INFO_NONE = 0,
+	THM_INFO_BAT,
+	THM_INFO_USB,
+	THM_INFO_CHG,
+	THM_INFO_WPC,
+	THM_INFO_SUB_BAT,
+	THM_INFO_BLK,
+	THM_INFO_DCHG,
+};
+
 #define sec_wireless_rx_power_info_t \
 	struct sec_wireless_rx_power_info
 
@@ -656,6 +667,14 @@ typedef struct sec_battery_platform_data {
 
 	unsigned int main_cell_sensing;
 	unsigned int sub_cell_sensing;
+#endif
+
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+	char *dual_fuelgauge_name;
+	char *main_fuelgauge_name;
+	char *sub_fuelgauge_name;
+	unsigned int main_design_capacity;
+	unsigned int sub_design_capacity;
 #endif
 
 #if defined(CONFIG_BATTERY_AGE_FORECAST)

@@ -493,8 +493,9 @@ int muic_platform_handle_attach(struct muic_share_data *sdata,
 
 	if (!sdata) {
 		pr_info("%s sdata is NULL\n", __func__);
-		goto out;
+		goto out1;
 	}
+	mutex_lock(&sdata->attach_mutex);
 
 	muic_if = (struct muic_interface_t *)sdata->muic_if;
 	ic_data = (struct muic_ic_data *)sdata->ic_data;
@@ -572,6 +573,8 @@ int muic_platform_handle_attach(struct muic_share_data *sdata,
 	}
 
 out:
+	mutex_unlock(&sdata->attach_mutex);
+out1:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(muic_platform_handle_attach);
@@ -1575,6 +1578,9 @@ int register_muic_platform_layer(struct muic_share_data *sdata)
 {
 	struct muic_platform_data *pdata;
 	struct muic_interface_t *muic_if;
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	struct muic_dev *muic_d;
+#endif
 	int ret = 0;
 
 	pr_info("%s +\n", __func__);
@@ -1588,6 +1594,17 @@ int register_muic_platform_layer(struct muic_share_data *sdata)
 	mpl_data->pdata = &muic_pdata;
 
 	pdata = mpl_data->pdata;
+
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	muic_d = kzalloc(sizeof(struct muic_dev), GFP_KERNEL);
+	if (!muic_d) {
+		ret = -ENOMEM;
+		goto err;
+	}
+	muic_d->ops = NULL;
+	muic_d->data = (void *)pdata;
+	pdata->man = register_muic(muic_d);
+#endif
 
 	sdata->pdata = pdata;
 	pdata->drv_data = sdata;
@@ -1604,6 +1621,7 @@ int register_muic_platform_layer(struct muic_share_data *sdata)
 	sdata->is_pdic_probe = false;
 
 	mutex_init(&sdata->hv_mutex);
+	mutex_init(&sdata->attach_mutex);
 
 	pdata->muic_afc_get_voltage_cb = muic_platform_afc_get_voltage;
 	pdata->muic_afc_set_voltage_cb = muic_platform_afc_set_voltage;
@@ -1619,13 +1637,19 @@ int register_muic_platform_layer(struct muic_share_data *sdata)
 	if (!muic_if) {
 		pr_err("%s failed to init muic manager\n", __func__);
 		ret = -ENOMEM;
-		goto err;
+		goto err_kfree1;
 	}
 	sdata->muic_if = muic_if;
 #ifdef CONFIG_MUIC_COMMON_SYSFS
 	fill_muic_sysfs_cb(pdata);
 #endif
+	pr_info("%s -\n", __func__);
+	return ret;
 
+err_kfree1:
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	kfree(muic_d);
+#endif
 err:
 	pr_info("%s -\n", __func__);
 	return ret;
@@ -1642,6 +1666,9 @@ void unregister_muic_platform_layer(struct muic_share_data *sdata)
 #endif
 	mutex_destroy(&sdata->hv_mutex);
 	unregister_muic_platform_manager(sdata);
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+	kfree(sdata->pdata->man->muic_d);
+#endif
 }
 EXPORT_SYMBOL_GPL(unregister_muic_platform_layer);
 

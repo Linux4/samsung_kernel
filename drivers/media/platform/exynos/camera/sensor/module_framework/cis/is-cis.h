@@ -144,6 +144,7 @@ int sensor_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain);
 int sensor_cis_get_min_digital_gain(struct v4l2_subdev *subdev, u32 *min_dgain);
 int sensor_cis_get_max_digital_gain(struct v4l2_subdev *subdev, u32 *max_dgain);
 int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 expo, u32 *again, u32 *dgain);
+int sensor_cis_get_mode_info(struct v4l2_subdev *subdev, u32 mode, struct is_sensor_mode_info *mode_info);
 
 void sensor_cis_data_calculation(struct v4l2_subdev *subdev, u32 mode);
 u8 sensor_cis_get_duration_shifter(struct is_cis *cis, u32 input_duration);

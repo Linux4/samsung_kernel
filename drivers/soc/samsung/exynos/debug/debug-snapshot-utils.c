@@ -39,6 +39,8 @@
 
 #define BACKTRACE_CPU_INVALID	(-1)
 
+static struct cpumask cpu_dss_context_saved_mask;
+
 #if IS_ENABLED(CONFIG_SEC_DEBUG_AUTO_COMMENT)
 #define SUMMARY_BUF_MAX		64
 #endif
@@ -249,6 +251,9 @@ static int dbg_snapshot_unwind_frame(struct task_struct *tsk,
 	unsigned long fp = frame->fp;
 
 	if (fp & 0xf)
+		return -EINVAL;
+
+	if (!is_vmalloc_addr((const void *)fp) && !virt_addr_valid(fp))
 		return -EINVAL;
 
 	if (!tsk)
@@ -1013,6 +1018,7 @@ static void dbg_snapshot_save_context(struct pt_regs *regs, bool stack_dump)
 		dbg_snapshot_save_core(regs);
 		dbg_snapshot_ecc_dump(false);
 		dev_emerg(dss_desc.dev, "context saved(CPU:%d)\n", cpu);
+		set_bit(cpu, cpumask_bits(&cpu_dss_context_saved_mask));
 	} else
 		dev_emerg(dss_desc.dev, "skip context saved(CPU:%d)\n", cpu);
 
@@ -1085,9 +1091,12 @@ static int dbg_snapshot_post_panic_handler(struct notifier_block *nb,
 	dbg_snapshot_print_log_report();
 	dbg_snapshot_save_context(NULL, false);
 
-	if (dss_desc.panic_to_wdt || (num_online_cpus() > 1)) {
-		pr_warn("Watchdog reset triggered due to secondary CPUs lock up: %*pbl\n",
-			cpumask_pr_args(cpu_online_mask));
+	if (dss_desc.panic_to_wdt ||
+		(num_active_cpus() != cpumask_weight(&cpu_dss_context_saved_mask))) {
+		pr_warn("Watchdog reset triggered due to secondary CPUs lock up\n");
+		pr_warn("CPUs context saved %*pbl | active CPUs %*pbl\n",
+						cpumask_pr_args(&cpu_dss_context_saved_mask),
+						cpumask_pr_args(cpu_active_mask));
 
 		dbg_snapshot_expire_watchdog();
 	}

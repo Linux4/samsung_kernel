@@ -1732,6 +1732,22 @@ bool check_panel_decoder_test_exists(struct panel_device *panel)
 	return true;
 }
 
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+/*
+ * panel_vcom_trim_test - call vcom_trim test function defined in ddi.
+ * Do not use op_lock in the function defined in ddi. A deadlock may occur.
+ */
+int panel_vcom_trim_test(struct panel_device *panel, u8 *buf, int len)
+{
+	struct ddi_ops *ops = &panel->panel_data.ddi_ops;
+
+	if (!ops->vcom_trim_test)
+		return -ENOENT;
+
+	return ops->vcom_trim_test(panel, buf, len);
+}
+#endif
+
 int panel_ddi_init(struct panel_device *panel)
 {
 	struct ddi_ops *ops = &panel->panel_data.ddi_ops;

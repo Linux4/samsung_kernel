@@ -35,7 +35,7 @@ MODULE_DEVICE_TABLE(of, gw3x_of_match);
 static struct gf_device *g_data;
 struct debug_logger *g_logger;
 
-static ssize_t gw3x_bfs_values_show(struct device *dev,
+static ssize_t bfs_values_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -44,7 +44,7 @@ static ssize_t gw3x_bfs_values_show(struct device *dev,
 			gf_dev->clk_setting->spi_speed);
 }
 
-static ssize_t gw3x_type_check_show(struct device *dev,
+static ssize_t type_check_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -52,13 +52,13 @@ static ssize_t gw3x_type_check_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", gf_dev->sensortype);
 }
 
-static ssize_t gw3x_vendor_show(struct device *dev,
+static ssize_t vendor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%s\n", "GOODIX");
 }
 
-static ssize_t gw3x_name_show(struct device *dev,
+static ssize_t name_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -66,13 +66,13 @@ static ssize_t gw3x_name_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", gf_dev->chipid);
 }
 
-static ssize_t gw3x_adm_show(struct device *dev,
+static ssize_t adm_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", DETECT_ADM);
 }
 
-static ssize_t gw3x_intcnt_show(struct device *dev,
+static ssize_t intcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -80,7 +80,7 @@ static ssize_t gw3x_intcnt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", gf_dev->interrupt_count);
 }
 
-static ssize_t gw3x_intcnt_store(struct device *dev,
+static ssize_t intcnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -93,7 +93,7 @@ static ssize_t gw3x_intcnt_store(struct device *dev,
 	return size;
 }
 
-static ssize_t gw3x_resetcnt_show(struct device *dev,
+static ssize_t resetcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -101,7 +101,7 @@ static ssize_t gw3x_resetcnt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", gf_dev->reset_count);
 }
 
-static ssize_t gw3x_resetcnt_store(struct device *dev,
+static ssize_t resetcnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -114,13 +114,13 @@ static ssize_t gw3x_resetcnt_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(bfs_values, 0444, gw3x_bfs_values_show, NULL);
-static DEVICE_ATTR(type_check, 0444, gw3x_type_check_show, NULL);
-static DEVICE_ATTR(vendor, 0444,	gw3x_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, gw3x_name_show, NULL);
-static DEVICE_ATTR(adm, 0444, gw3x_adm_show, NULL);
-static DEVICE_ATTR(intcnt, 0664, gw3x_intcnt_show, gw3x_intcnt_store);
-static DEVICE_ATTR(resetcnt, 0664, gw3x_resetcnt_show, gw3x_resetcnt_store);
+static DEVICE_ATTR_RO(bfs_values);
+static DEVICE_ATTR_RO(type_check);
+static DEVICE_ATTR_RO(vendor);
+static DEVICE_ATTR_RO(name);
+static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RW(intcnt);
+static DEVICE_ATTR_RW(resetcnt);
 
 static struct device_attribute *fp_attrs[] = {
 	&dev_attr_bfs_values,
@@ -621,6 +621,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 {
 	struct device_node *np = dev->of_node;
 	int retval = 0;
+
 	gf_dev->p = NULL;
 	gf_dev->pins_poweroff = NULL;
 	gf_dev->pins_poweron = NULL;
@@ -649,9 +650,8 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 			pr_info("fail to get regulator_3p3\n");
 			gf_dev->regulator_3p3 = NULL;
 			return -EINVAL;
-		} else {
-			pr_info("btp_regulator ok\n");
 		}
+		pr_info("btp_regulator ok\n");
 	}
 
     /* get reset resource */

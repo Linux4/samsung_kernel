@@ -19,8 +19,8 @@
 #include "../sensormanager/shub_sensor_manager.h"
 #include "../utility/shub_utility.h"
 #include "../utility/shub_file_manager.h"
+#include "../others/shub_panel.h"
 #include "light.h"
-
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
 
@@ -181,18 +181,51 @@ static int set_light_cal(struct light_data *data)
 	return ret;
 }
 
+static int set_panel_vendor(struct light_data *data)
+{
+	int ret = 0;
+
+	data->panel_vendor = get_panel_lcd_type();
+	if (data->panel_vendor < 0)
+		return ret;
+
+	shub_info("%s : %d", __func__, data->panel_vendor);
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_PANEL_TYPE, (u8 *)(&data->panel_vendor),
+							sizeof(int8_t));
+	if (ret < 0)
+		shub_errf("shub_send_command fail %d", ret);
+
+	return ret;
+}
+
+static int set_hbm_finger(struct light_data *data)
+{
+	int ret = 0;
+
+	shub_info("%s : %d", __func__, data->hbm_finger);
+	if (data->hbm_finger == true) {
+		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_HBM_FINGERPRINT,
+		(u8 *)(&data->hbm_finger), sizeof(data->hbm_finger));
+	}
+	if (ret < 0)
+		shub_errf("shub_send_command fail %d", ret);
+
+	return ret;
+}
+
 static int sync_light_status(void)
 {
 	int ret = 0;
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
-
+	shub_info("sync_light_status ");
 	set_light_coef(data);
 	set_light_brightness(data);
 #ifdef CONFIG_SENSORS_SSP_LIGHT_JPNCONCEPT
 	set_light_region(data);
 #endif
 	set_light_cal(data);
-
+	set_panel_vendor(data);
+	set_hbm_finger(data);
 	return ret;
 }
 
@@ -237,35 +270,61 @@ int inject_light_additional_data(char *buf, int count)
 	int i, ret = 0;
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
 
-	if (count < 4) {
+	if (count < 1) {
 		shub_errf("brightness length error %d", count);
 		return -EINVAL;
-	}
-	brightness = *((int32_t *)(buf));
-	cal_brightness = brightness / 10;
-	cal_brightness *= 10;
+	} else if (count == sizeof(int8_t)) {
+		int8_t finger_print;
 
-	// shub_errf("br %d, cal_br %d", brightness, cal_brightness);
-	// set current level for changing itime
-	for (i = 0; i < data->brightness_array_len; i++) {
-		if (brightness <= data->brightness_array[i]) {
-			cur_level = i + 1;
-			// shub_infof("brightness %d <= %d , level %d", brightness, data->brightness_array[i],
-			// cur_level);
-			break;
+		finger_print = *((int8_t *)(buf));
+		shub_infof("finger_print on/off = %d", finger_print);
+		if (data->hbm_finger != finger_print) {
+			shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_HBM_FINGERPRINT,
+								(char *)&finger_print, sizeof(finger_print));
 		}
-	}
+		data->hbm_finger = finger_print;
+	} else if (count == sizeof(int32_t)) {
+		brightness = *((int32_t *)(buf));
+		cal_brightness = brightness / 10;
+		cal_brightness *= 10;
 
-	if (data->last_brightness_level != cur_level) {
-		data->brightness = brightness;
-		// update last level
-		data->last_brightness_level = cur_level;
-		ret = set_light_brightness(data);
-		data->brightness = cal_brightness;
-	} else if (data->brightness != cal_brightness) {
-		data->brightness = brightness;
-		ret = set_light_brightness(data);
-		data->brightness = cal_brightness;
+		// shub_errf("br %d, cal_br %d", brightness, cal_brightness);
+		// set current level for changing itime
+		for (i = 0; i < data->brightness_array_len; i++) {
+			if (brightness <= data->brightness_array[i]) {
+				cur_level = i + 1;
+				// shub_infof("brightness %d <= %d , level %d", brightness, data->brightness_array[i],
+				// cur_level);
+				break;
+			}
+		}
+
+		if (data->last_brightness_level != cur_level) {
+			data->brightness = brightness;
+			// update last level
+			data->last_brightness_level = cur_level;
+			ret = set_light_brightness(data);
+			data->brightness = cal_brightness;
+		} else if (data->brightness != cal_brightness) {
+			data->brightness = brightness;
+			ret = set_light_brightness(data);
+			data->brightness = cal_brightness;
+		}
+	} else if (count == sizeof(int32_t)*4) {
+		int32_t data[4] = {0,};
+
+		if (!get_sensor_probe_state(SENSOR_TYPE_LIGHT)) {
+			shub_infof("light sensor is not connected");
+			return ret;
+		}
+		memcpy(data, buf, sizeof(data));
+		shub_infof("target br %d threshold_dark %d lux %d threshold_bright %d", data[0], data[1], data[2], data[3]);
+		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_BRIGHTNESS_HYSTERESIS, (char *)data, sizeof(data));
+		
+		if (ret < 0) {
+			shub_errf("CMD fail %d\n", ret);
+			return ret;
+		}
 	}
 
 	return ret;

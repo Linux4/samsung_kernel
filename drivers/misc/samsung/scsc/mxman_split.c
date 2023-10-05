@@ -139,8 +139,6 @@ static struct work_struct wlbtd_work;
 #define SCSC_R4_V2_MINOR_53 53
 #define SCSC_R4_V2_MINOR_54 54
 
-#define MM_HALT_RSP_TIMEOUT_MS 100
-
 /* If limits below are exceeded, a service level reset will be raised to level 7 */
 #define SYSERR_LEVEL7_HISTORY_SIZE (4)
 /* Minimum time between system error service resets (ms) */
@@ -170,6 +168,10 @@ MODULE_PARM_DESC(skip_header, "Skip header, assuming unidentified firmware");
 static ulong mm_completion_timeout_ms = 1000;
 module_param(mm_completion_timeout_ms, ulong, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mm_completion_timeout_ms, "Timeout wait_for_mm_msg_start_ind (ms) - default 1000. 0 = infinite");
+
+static ulong mm_halt_rsp_timeout_ms = 1000;
+module_param(mm_halt_rsp_timeout_ms, ulong, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(mm_halt_rsp_timeout_ms, "Timeout wait_for_mm_msg_halt_rsp (ms) - default 1000");
 
 static bool skip_mbox0_check;
 module_param(skip_mbox0_check, bool, S_IRUGO | S_IWUSR);
@@ -391,7 +393,7 @@ void mxman_scan_dump_mode(void)
 EXPORT_SYMBOL(mxman_scan_dump_mode);
 #endif
 
-static bool is_bug_on_enabled(void)
+bool is_bug_on_enabled(void)
 {
 	bool bug_on_enabled;
 
@@ -403,6 +405,7 @@ static bool is_bug_on_enabled(void)
 	SCSC_TAG_INFO(MX_FILE, "bug_on_enabled %d\n", bug_on_enabled);
 	return bug_on_enabled;
 }
+EXPORT_SYMBOL(is_bug_on_enabled);
 
 struct kobject *mxman_wifi_kobject_ref_get(void)
 {
@@ -803,14 +806,14 @@ static int wait_for_mm_msg_halt_rsp(struct mxman *mxman)
 	int r;
 	(void)mxman; /* unused */
 
-	if (MM_HALT_RSP_TIMEOUT_MS == 0) {
+	if (mm_halt_rsp_timeout_ms == 0) {
 		/* Zero implies infinite wait */
 		r = wait_for_completion_interruptible(&mxman->mm_msg_halt_rsp_completion);
 		/* r = -ERESTARTSYS if interrupted, 0 if completed */
 		return r;
 	}
 
-	r = wait_for_completion_timeout(&mxman->mm_msg_halt_rsp_completion, msecs_to_jiffies(MM_HALT_RSP_TIMEOUT_MS));
+	r = wait_for_completion_timeout(&mxman->mm_msg_halt_rsp_completion, msecs_to_jiffies(mm_halt_rsp_timeout_ms));
 	if (r)
 		SCSC_TAG_INFO(MXMAN, "Received MM_HALT_RSP from firmware\n");
 	else
@@ -1149,7 +1152,16 @@ error:
 static int mxman_start(struct mxman *mxman, enum scsc_subsystem sub, void *data, size_t data_sz)
 {
 	int ret = 0;
-
+#if IS_ENABLED(CONFIG_WLBT_PMU2AP_MBOX)
+	struct scsc_mif_abs *mif = scsc_mx_get_mif_abs(mxman->mx);
+	/* 	For Quartz, enable PMU Mailbox interrupt before sending START_WLAN/START_WPAN */
+	/* 
+		The reason why interrupt unmasking of the PMU Mailbox is performed at this location
+		is that the host driver must be able to transmit the RESET command 
+		to process the failure case of the function using the PMU Mailbox even if this function fails.
+	*/
+	mif->irq_pmu_bit_unmask(mif);
+#endif
 	/* At this point memory should be mapped and PMU booted
 	 * Specific chip resources and
 	 * boot pre-conditions should be allocated and assigned before booting
@@ -2392,11 +2404,12 @@ int mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data, size_t 
 
 	mx140_basedir_file(mxman->mx);
 
-	if (mxman->scsc_panic_code) {
-		SCSC_TAG_INFO(MXMAN, "Previously recorded crash panic code: scsc_panic_code=0x%x\n",
-			      mxman->scsc_panic_code);
+	if (mxman->scsc_panic_code || mxman->scsc_panic_code_wpan) {
+		SCSC_TAG_INFO(MXMAN, "Previously recorded crash panic code: scsc_panic_code=0x%x, scsc_panic_code_wpan=0x%x\n",
+			      mxman->scsc_panic_code, mxman->scsc_panic_code_wpan);
 		SCSC_TAG_INFO(MXMAN, "Reason: '%s'\n", mxman->failure_reason[0] ? mxman->failure_reason : "<null>");
 		print_panic_code(mxman);
+		mxman->scsc_panic_code = mxman->scsc_panic_code_wpan = 0;
 	}
 
 	SCSC_TAG_INFO(MXMAN, "Auto-recovery: %s\n", mxman_recovery_disabled() ? "off" : "on");

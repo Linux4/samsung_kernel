@@ -41,6 +41,7 @@ struct a96t396_fw_data {
 enum ic_num {
 	MAIN_GRIP = 0,
 	SUB_GRIP,
+	SUB2_GRIP,
 	WIFI_GRIP,
 	GRIP_MAX_CNT
 };
@@ -48,24 +49,28 @@ enum ic_num {
 const char *grip_name[GRIP_MAX_CNT] = {
 	"MAIN",
 	"SUB",
+	"SUB2",
 	"WIFI"
 };
 
 const char *device_name[GRIP_MAX_CNT] = {
 	"A96T3X6",
 	"A96T3X6_SUB",
+	"A96T3X6_SUB2",
 	"A96T3X6_WIFI"
 };
 
 const char *module_name[GRIP_MAX_CNT] = {
 	"grip_sensor",
 	"grip_sensor_sub",
+	"grip_sensor_sub2",
 	"grip_sensor_wifi"
 };
 
 const char *sdcard_fw_path[GRIP_MAX_CNT] = {
 	"/sdcard/Firmware/Grip/abov_fw.bin",
 	"/sdcard/Firmware/GripSub/abov_fw.bin",
+	"/sdcard/Firmware/GripSub2/abov_fw.bin",
 	"/sdcard/Firmware/GripWifi/abov_fw.bin"
 };
 
@@ -137,12 +142,13 @@ enum {
 #define GRIP_INFO(fmt, ...) pr_info("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
 #define GRIP_WARN(fmt, ...) pr_warn("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
 
-
+#ifndef CONFIG_SENSORS_CORE_AP
 extern int sensors_create_symlink(struct input_dev *inputdev);
 extern void sensors_remove_symlink(struct input_dev *inputdev);
 extern int sensors_register(struct device *dev, void *drvdata,
-	struct device_attribute *attributes[], char *name);
+		struct device_attribute *attributes[], char *name);
 extern void sensors_unregister(struct device *dev,
-	struct device_attribute *attributes[]);
+		struct device_attribute *attributes[]);
+#endif
 
 #endif /* LINUX_A96T396_H */

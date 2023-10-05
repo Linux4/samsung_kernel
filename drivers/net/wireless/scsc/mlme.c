@@ -1082,10 +1082,11 @@ int slsi_mlme_set_scan_mode_req(struct slsi_dev *sdev, struct net_device *dev, u
 	if (!req)
 		return -EIO;
 	fapi_set_u16(req, u.mlme_set_scan_mode_req.scan_mode, scan_mode);
-	fapi_set_u16(req, u.mlme_set_scan_mode_req.max_channel_time_active, max_channel_time);
-	fapi_set_u16(req, u.mlme_set_scan_mode_req.home_away_time, home_away_time);
-	fapi_set_u16(req, u.mlme_set_scan_mode_req.home_time, home_time);
-	fapi_set_u16(req, u.mlme_set_scan_mode_req.max_channel_time_passive, max_channel_passive_time);
+	fapi_set_u16(req, u.mlme_set_scan_mode_req.max_channel_time_active, (u16)SLSI_MS_TO_TU(max_channel_time));
+	fapi_set_u16(req, u.mlme_set_scan_mode_req.home_away_time, (u16)SLSI_MS_TO_TU(home_away_time));
+	fapi_set_u16(req, u.mlme_set_scan_mode_req.home_time, (u16)SLSI_MS_TO_TU(home_time));
+	fapi_set_u16(req, u.mlme_set_scan_mode_req.max_channel_time_passive,
+		     (u16)SLSI_MS_TO_TU(max_channel_passive_time));
 
 	cfm = slsi_mlme_req_cfm(sdev, NULL, req, MLME_SET_SCAN_MODE_CFM);
 	if (!cfm)
@@ -3529,7 +3530,7 @@ int slsi_mlme_connect_scan(struct slsi_dev *sdev, struct net_device *dev,
 	SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 	scan = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 	while (scan) {
-		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan);
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan, true);
 		scan = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 	}
 	SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -3980,7 +3981,7 @@ int slsi_mlme_wifisharing_permitted_channels(struct slsi_dev *sdev, struct net_d
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
 	req = fapi_alloc(mlme_wifisharing_permitted_channels_req, MLME_WIFISHARING_PERMITTED_CHANNELS_REQ,
-			 ndev_vif->ifnum, SLSI_WIFISHARING_PERMITTED_CHANNELS_SIZE);
+			 0, SLSI_WIFISHARING_PERMITTED_CHANNELS_SIZE);
 	if (!req) {
 		r = -ENOMEM;
 		goto exit;
@@ -3988,8 +3989,7 @@ int slsi_mlme_wifisharing_permitted_channels(struct slsi_dev *sdev, struct net_d
 
 	fapi_append_data(req, permitted_channels, SLSI_WIFISHARING_PERMITTED_CHANNELS_SIZE);
 
-	SLSI_NET_DBG2(dev, SLSI_MLME, "(vif:%u)\n", ndev_vif->ifnum);
-	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_WIFISHARING_PERMITTED_CHANNELS_CFM);
+	cfm = slsi_mlme_req_cfm(sdev, NULL, req, MLME_WIFISHARING_PERMITTED_CHANNELS_CFM);
 	if (!cfm) {
 		r = -EIO;
 		goto exit;
@@ -4412,18 +4412,48 @@ exit:
 int slsi_mlme_tdls_action(struct slsi_dev *sdev, struct net_device *dev, const u8 *peer, int action)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_mlme_parameters req_header;
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
 	int               r = 0;
 	int               result_code = 0;
+	int               alloc_data_size = 0;
+	int               mac_count = ndev_vif->sta.tdls_candidate_setup_count - 1;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_tdls_action_req(action:%u)\n", action);
-	req = fapi_alloc(mlme_tdls_action_req, MLME_TDLS_ACTION_REQ, ndev_vif->ifnum, 0);
+
+	if (action == FAPI_TDLSACTION_CANDIDATE_SETUP && ndev_vif->sta.tdls_candidate_setup_count > 1)
+		alloc_data_size = (mac_count * ETH_ALEN) + sizeof(req_header);
+
+	req = fapi_alloc(mlme_tdls_action_req, MLME_TDLS_ACTION_REQ, ndev_vif->ifnum, alloc_data_size);
 	if (!req)
 		return -ENOMEM;
 
 	fapi_set_memcpy(req, u.mlme_tdls_action_req.peer_sta_address, peer);
 	fapi_set_u16(req, u.mlme_tdls_action_req.tdls_action, action);
+
+	if (alloc_data_size) {
+		req_header.element_id = SLSI_WLAN_EID_VENDOR_SPECIFIC;
+		req_header.length = SLSI_MLME_PARAM_HEADER_SIZE + (mac_count * ETH_ALEN);
+		slsi_mlme_put_oui(req_header.oui, SLSI_MLME_SAMSUNG_OUI);
+		slsi_mlme_put_oui_type(&req_header, SLSI_MLME_TYPE_MAC_ADDRESS, SLSI_MLME_SUBTYPE_RESERVED);
+		fapi_append_data(req, (u8 *)&req_header, sizeof(req_header));
+	}
+
+	if (action == FAPI_TDLSACTION_CANDIDATE_SETUP) {
+		if (!list_empty(&ndev_vif->sta.tdls_candidate_setup_list)) {
+			struct sorted_peer_entry *tdls_entry, *tdls_tmp;
+
+			list_for_each_entry_safe(tdls_entry, tdls_tmp, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+				if (is_broadcast_ether_addr(peer)) {
+					fapi_set_memcpy(req, u.mlme_tdls_action_req.peer_sta_address, tdls_entry->peer->mac_addr);
+					peer = tdls_entry->peer->mac_addr;
+				} else {
+					fapi_append_data(req, (const u8 *)tdls_entry->peer->mac_addr, ETH_ALEN);
+				}
+			}
+		}
+	}
 
 	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_TDLS_ACTION_CFM);
 	if (!cfm)

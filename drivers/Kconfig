@@ -249,8 +249,6 @@ if EXYNOS_VARIANT1
 source "drivers/Kconfig.variant1"
 endif
 
-source "drivers/sti/Kconfig"
-
 source "drivers/mfd/slsi/s2mf301/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/vibrator/common/vib_info/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/muic/slsi/platform/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

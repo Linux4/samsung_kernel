@@ -40,9 +40,9 @@ const char *cmd_type_name[MAX_CMD_TYPE] = {
 	[CMD_TYPE_VSYNC_DELAY] = "VSYNC_DELAY",
 	[CMD_TYPE_TIMER_DELAY] = "TIMER_DELAY",
 	[CMD_TYPE_TIMER_DELAY_BEGIN] = "TIMER_DELAY_BEGIN",
-	[CMD_TYPE_VARIABLE_DELAY] = "VARIABLE_DELAY",
-	[CMD_TYPE_VARIABLE_DELAY_MARK] = "VARIABLE_DELAY_MARK",
-	[CMD_TYPE_PINCTL] = "PINCTL",
+	[CMD_TYPE_VARIABLE_DELAY] = "VAR_DELAY",
+	[CMD_TYPE_VARIABLE_DELAY_MARK] = "VAR_DELAY_MARK",
+	[CMD_TYPE_PINCTL] = "PINCTRL",
 	[CMD_PKT_TYPE_NONE] = "PKT_NONE",
 	[SPI_PKT_TYPE_WR] = "SPI_WR",
 	[DSI_PKT_TYPE_WR] = "DSI_WR",
@@ -60,13 +60,20 @@ const char *cmd_type_name[MAX_CMD_TYPE] = {
 	[CMD_TYPE_RES] = "RES",
 	[CMD_TYPE_SEQ] = "SEQ",
 	[CMD_TYPE_KEY] = "KEY",
-	[CMD_TYPE_MAP] = "MAP",
+	[CMD_TYPE_MAP] = "MAPTBL",
 	[CMD_TYPE_DMP] = "DUMP",
 	[CMD_TYPE_COND_IF] = "COND_IF",
 	[CMD_TYPE_COND_EL] = "COND_EL",
 	[CMD_TYPE_COND_FI] = "COND_FI",
+	[CMD_TYPE_PCTRL] = "PWRCTRL",
 	[CMD_TYPE_PROP] = "PROP",
 };
+
+const char *pnobj_type_to_string(u32 type)
+{
+	return (type < MAX_CMD_TYPE) ?
+		cmd_type_name[type] : cmd_type_name[CMD_TYPE_NONE];
+}
 
 #define MAX_PRINT_DATA_LEN 1024
 void print_data(char *data, int size)
@@ -1833,7 +1840,8 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 			break;
 		}
 
-		panel_dbg("SEQ: %s %s %s+ %s\n", seqtbl->name, cmd_type_name[type],
+		panel_dbg("SEQ: %s %s %s+ %s\n", seqtbl->name,
+				pnobj_type_to_string(type),
 				(((struct cmdinfo *)cmdtbl[i])->name ?
 				((struct cmdinfo *)cmdtbl[i])->name : "none"),
 				(condition ? "" : "skipped"));
@@ -1985,7 +1993,8 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 
 		if (ret < 0) {
 			panel_err("failed to do(seq:%s type:%s cmd:%s)\n",
-					seqtbl->name, cmd_type_name[type],
+					seqtbl->name,
+					pnobj_type_to_string(type),
 					(((struct cmdinfo *)cmdtbl[i])->name ?
 					 ((struct cmdinfo *)cmdtbl[i])->name : "none"));
 
@@ -1999,9 +2008,10 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 
 		s_time = ktime_get();
 
-		panel_dbg("SEQ: %s %s %s- %s\n", seqtbl->name, cmd_type_name[type],
+		panel_dbg("SEQ: %s %s %s- %s\n", seqtbl->name,
+				pnobj_type_to_string(type),
 				(((struct cmdinfo *)cmdtbl[i])->name ?
-				((struct cmdinfo *)cmdtbl[i])->name : "none"),
+				 ((struct cmdinfo *)cmdtbl[i])->name : "none"),
 				(condition ? "" : "skipped"));
 	}
 

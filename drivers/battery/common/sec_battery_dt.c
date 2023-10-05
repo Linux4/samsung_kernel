@@ -453,9 +453,6 @@ int sec_bat_parse_dt(struct device *dev,
 	}
 
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
-	battery->disable_mfc = of_property_read_bool(np,
-						     "battery,disable_mfc");
-
 	np = of_find_node_by_name(NULL, "wireless-power-info");
 	if (!np) {
 		pr_err ("%s : np NULL\n", __func__);
@@ -2196,6 +2193,38 @@ int sec_bat_parse_dt(struct device *dev,
 		}
 	}
 	np = of_find_node_by_name(NULL, "battery");
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+	ret = of_property_read_string(np,
+		"battery,dual_fuelgauge_name", (char const **)&pdata->dual_fuelgauge_name);
+	if (ret)
+		pr_info("%s: Dual fuelgauge name is Empty\n", __func__);
+
+	np = of_find_node_by_name(NULL, "sec-dual-fuelgauge");
+	if (!np) {
+		pr_info("%s: np NULL\n", __func__);
+	} else {
+		ret = of_property_read_u32(np, "battery,main_design_capacity",
+				&pdata->main_design_capacity);
+		if (ret)
+			pr_err("%s: main_design_capacity is Empty\n", __func__);
+
+		ret = of_property_read_u32(np, "battery,sub_design_capacity",
+				&pdata->sub_design_capacity);
+		if (ret)
+			pr_err("%s: sub_design_capacity is Empty\n", __func__);
+	}
+	ret = of_property_read_string(np, "battery,main_fuelgauge_name",
+			(char const **)&battery->pdata->main_fuelgauge_name);
+	if (ret)
+		pr_err("%s: main_fuelgauge_name is Empty\n", __func__);
+
+	ret = of_property_read_string(np, "battery,sub_fuelgauge_name",
+			(char const **)&battery->pdata->sub_fuelgauge_name);
+	if (ret)
+		pr_err("%s: sub_fuelgauge_name is Empty\n", __func__);
+
+	np = of_find_node_by_name(NULL, "battery");
+#endif
 #endif
 
 #if defined(CONFIG_BATTERY_CISD)
@@ -2225,7 +2254,11 @@ int sec_bat_parse_dt(struct device *dev,
 		pr_info("%s : battery,ignore_cisd_index_d is Empty\n", __func__);
 	}
 #endif
-
+#if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
+	battery->disable_mfc = of_property_read_bool(np,
+						     "battery,disable_mfc");
+	pr_info("%s: disable_mfc(%d)\n", __func__, battery->disable_mfc);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(sec_bat_parse_dt);

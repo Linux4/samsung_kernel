@@ -60,6 +60,9 @@ enum EVENT_CMD {
 #define MAX_STR_LEN_VIB_TYPE 32
 #define MAX_STR_LEN_EVENT_CMD 32
 
+#define SEC_VIBRATOR_DEFAULT_HIGH_TEMP_REF INT_MAX
+#define SEC_VIBRATOR_DEFAULT_HIGH_TEMP_RATIO 100
+
 struct sec_vibrator_ops {
 	int (*enable)(struct device *dev, bool en);
 	int (*set_intensity)(struct device *dev, int intensity);
@@ -89,6 +92,13 @@ struct sec_vibrator_ops {
 	ssize_t (*get_virtual_pwle_indexes)(struct device *dev, char *buf);
 };
 
+struct sec_vibrator_pdata  {
+	bool probe_done;
+	int normal_ratio;
+	int high_temp_ratio;
+	int high_temp_ref;
+};
+
 struct sec_vibrator_drvdata {
 	struct class *to_class;
 	struct device *to_dev;
@@ -106,12 +116,15 @@ struct sec_vibrator_drvdata {
 	int packet_cnt;
 	unsigned int index;
 
+	int temperature;
 	int force_touch_intensity;
 	int intensity;
 	int frequency;
 	bool overdrive;
 
 	int timeout;
+
+	struct sec_vibrator_pdata *pdata;
 
 	char event_cmd[MAX_STR_LEN_EVENT_CMD];
 
@@ -120,4 +133,5 @@ struct sec_vibrator_drvdata {
 
 extern int sec_vibrator_register(struct sec_vibrator_drvdata *ddata);
 extern int sec_vibrator_unregister(struct sec_vibrator_drvdata *ddata);
+extern int sec_vibrator_recheck_ratio(struct sec_vibrator_drvdata *ddata);
 #endif /* SEC_VIBRATOR_H */

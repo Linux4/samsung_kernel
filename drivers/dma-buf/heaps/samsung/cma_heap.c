@@ -33,6 +33,7 @@ struct cma_heap {
 	struct page *pages;
 	void *priv;
 	int alloc_count;
+	unsigned long alloc_size;
 };
 
 static void cma_heap_region_flush(struct device *dev, struct page *page, size_t size)
@@ -92,7 +93,7 @@ static struct dma_buf *cma_heap_allocate(struct dma_heap *heap, unsigned long le
 
 		mutex_lock(&cma_heap->utc_lock);
 		if (++cma_heap->alloc_count == 1) {
-			unsigned long heap_size = cma_heap->rmem->size;
+			unsigned long heap_size = cma_heap->alloc_size;
 
 			nr_pages = heap_size >> PAGE_SHIFT;
 			cma_heap->pages = pages = cma_alloc(cma_heap->cma, nr_pages,
@@ -103,10 +104,25 @@ static struct dma_buf *cma_heap_allocate(struct dma_heap *heap, unsigned long le
 				goto free_cma;
 			}
 
+			cma_heap->pool = gen_pool_create(PAGE_SHIFT, -1);
+			if (!cma_heap->pool) {
+				perrfn("failed to create pool");
+				goto free_prot;
+			}
+
+			ret = gen_pool_add(cma_heap->pool, page_to_phys(pages), heap_size, -1);
+			if (ret) {
+				perrfn("failed to add pool from %s, base %lu, size %lu",
+				       dma_heap_get_name(heap), page_to_phys(pages), heap_size);
+				gen_pool_destroy(cma_heap->pool);
+				goto free_prot;
+			}
+
 			paddr = gen_pool_alloc(cma_heap->pool, size);
 			if (!paddr) {
 				perrfn("failed to allocate 1st pool from %s, size %lu",
 				       dma_heap_get_name(heap), size);
+				gen_pool_destroy(cma_heap->pool);
 				goto free_prot;
 			}
 
@@ -121,8 +137,9 @@ static struct dma_buf *cma_heap_allocate(struct dma_heap *heap, unsigned long le
 						page_to_phys(cma_heap->pages));
 				if (IS_ERR(priv)) {
 					ret = PTR_ERR(priv);
-					gen_pool_free(cma_heap->pool,
-						      sg_phys(buffer->sg_table.sgl), buffer->len);
+					gen_pool_free(cma_heap->pool, sg_phys(buffer->sg_table.sgl),
+						      buffer->len);
+					gen_pool_destroy(cma_heap->pool);
 					goto free_prot;
 				}
 				cma_heap->priv = priv;
@@ -140,7 +157,7 @@ static struct dma_buf *cma_heap_allocate(struct dma_heap *heap, unsigned long le
 
 			alloc_pages = phys_to_page(paddr);
 			sg_set_page(buffer->sg_table.sgl, alloc_pages, size, 0);
-			offset = paddr - cma_heap->rmem->base;
+			offset = paddr - page_to_phys(cma_heap->pages);
 			buffer->priv = samsung_dma_buffer_copy_offset_info(cma_heap->priv, offset);
 		}
 		mutex_unlock(&cma_heap->utc_lock);
@@ -192,20 +209,23 @@ static void cma_heap_release(struct samsung_dma_buffer *buffer)
 	} else {
 		mutex_lock(&cma_heap->utc_lock);
 		if (--cma_heap->alloc_count == 0) {
-			unsigned long heap_size = cma_heap->rmem->size;
+			unsigned long heap_size = cma_heap->alloc_size;
 
 			if (dma_heap_flags_protected(buffer->flags))
 				ret = samsung_dma_buffer_unprotect(cma_heap->priv, dma_heap);
 			if (!ret) {
-				cma_release(cma_heap->cma, cma_heap->pages, heap_size >> PAGE_SHIFT);
+				cma_release(cma_heap->cma, cma_heap->pages,
+					    heap_size >> PAGE_SHIFT);
 				cma_heap->priv = NULL;
 			}
-		} else {
-			ret = 0;
+		}
+		if (!ret) {
+			gen_pool_free(cma_heap->pool, sg_phys(buffer->sg_table.sgl), buffer->len);
+			if (cma_heap->alloc_count == 0)
+				gen_pool_destroy(cma_heap->pool);
 		}
 		mutex_unlock(&cma_heap->utc_lock);
-		if (!ret)
-			gen_pool_free(cma_heap->pool, sg_phys(buffer->sg_table.sgl), buffer->len);
+
 		samsung_dma_buffer_release_copied_info(buffer->priv);
 	}
 
@@ -227,6 +247,7 @@ static int cma_heap_probe(struct platform_device *pdev)
 	struct reserved_mem *rmem;
 	struct device_node *rmem_np;
 	int ret;
+	unsigned int alloc_size;
 
 	rmem_np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!rmem_np) {
@@ -256,15 +277,12 @@ static int cma_heap_probe(struct platform_device *pdev)
 	if (!cma_heap)
 		return -ENOMEM;
 
-	cma_heap->cma = pdev->dev.cma_area;
-	cma_heap->pool = devm_gen_pool_create(&pdev->dev, PAGE_SHIFT, -1, 0);
-	if (!cma_heap->pool)
-		return -ENOMEM;
-
-	ret = gen_pool_add(cma_heap->pool, rmem->base, rmem->size, -1);
+	ret = of_property_read_u32_index(pdev->dev.of_node, "dma-heap,alloc-size", 0, &alloc_size);
 	if (ret)
-		return ret;
+		alloc_size = rmem->size;
 
+	cma_heap->alloc_size = alloc_size;
+	cma_heap->cma = pdev->dev.cma_area;
 	cma_heap->rmem = rmem;
 	mutex_init(&cma_heap->utc_lock);
 

@@ -1869,7 +1869,7 @@ static ssize_t s610_radio_fops_read(struct file *file, char __user *buf,
 		radio->rds_reset_cnt++;
 		if (radio->rds_reset_cnt > radio->low->fm_state.rds_unsync_blk_cnt) {
 			fm_set_rds_mode(radio, FM_RDS_DISABLE);
-			mdelay(10);
+			usleep_range(10000, 10000);
 			fm_set_rds_mode(radio, FM_RDS_ENABLE);
 			radio->rds_reset_cnt = 0;
 			RDSEBUG(radio, "RDS reset! cause of block type invalid");

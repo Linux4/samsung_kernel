@@ -1275,6 +1275,7 @@ static void __mfc_dump_info_and_stop_hw(struct mfc_core *core)
 	struct mfc_ctx *ctx;
 	int curr_ctx = __mfc_get_curr_ctx(core);
 	int two_dump = 0;
+	bool itmon_notified = core->itmon_notified;
 
 	MFC_TRACE_CORE("** %s will stop!!!\n", core->name);
 	dev_err(dev->device, "** %s will stop!!!\n", core->name);
@@ -1347,8 +1348,10 @@ panic:
 	if (dev->debugfs.sfr_dump & MFC_DUMP_ALL_INFO)
 		return;
 
-	dbg_snapshot_expire_watchdog();
-	BUG();
+	if (!itmon_notified) {
+		dbg_snapshot_expire_watchdog();
+		BUG();
+	}
 }
 
 static void __mfc_dump_info_and_stop_hw_debug(struct mfc_core *core)

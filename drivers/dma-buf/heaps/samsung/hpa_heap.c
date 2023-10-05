@@ -177,18 +177,20 @@ static int nr_hpa_exception;
 #define HPA_PAGE_COUNT(len) (ALIGN(len, HPA_CHUNK_SIZE) / HPA_CHUNK_SIZE)
 #define HPA_MAX_CHUNK_COUNT ((PAGE_SIZE * 2) / sizeof(struct page *))
 
-#define HPA_PROTID_SHIFT	16
-#define HPA_PROTID_MASK(x)	(x & ((1 << HPA_PROTID_SHIFT) - 1))
-#define HPA_PROTID(flags, id)	(HPA_PROTID_MASK(flags) << HPA_PROTID_SHIFT | HPA_PROTID_MASK(id))
-
-static atomic_t protid = ATOMIC_INIT(0);
+static DEFINE_IDA(hpa_unique_id);
 
 static int hpa_secure_protect(struct buffer_prot_info *protdesc, struct device *dev)
 {
 	unsigned long size = protdesc->chunk_count * protdesc->chunk_size;
 	unsigned long ret = 0;
+	int unique_id = ida_alloc_max(&hpa_unique_id, SECURE_UID_MAX, GFP_KERNEL);
 
-	protdesc->dma_addr = HPA_PROTID(protdesc->flags, atomic_inc_return(&protid));
+	if (unique_id < 0) {
+		pr_err("%s: err from ida_alloc, %d\n", __func__, unique_id);
+		return unique_id;
+	}
+
+	protdesc->dma_addr = SECURE_MAKE_BUFID(protdesc->flags, unique_id);
 
 	dma_map_single(dev, protdesc, sizeof(*protdesc), DMA_TO_DEVICE);
 
@@ -199,6 +201,7 @@ static int hpa_secure_protect(struct buffer_prot_info *protdesc, struct device *
 		pr_err("%s: PROT %#x (err=%#lx,dva=%#x,size=%#lx,cnt=%u,flg=%u)\n",
 		       __func__, HVC_DRM_TZMP2_PROT, ret, protdesc->dma_addr,
 		       size, protdesc->chunk_count, protdesc->flags);
+		ida_free(&hpa_unique_id, unique_id);
 		return -EACCES;
 	}
 
@@ -209,6 +212,9 @@ static int hpa_secure_unprotect(struct buffer_prot_info *protdesc, struct device
 {
 	unsigned long size = protdesc->chunk_count * protdesc->chunk_size;
 	unsigned long ret;
+	int unique_id = SECURE_BUFID_TO_UID(protdesc->dma_addr);
+
+	ida_free(&hpa_unique_id, unique_id);
 
 	dma_unmap_single(dev, phys_to_dma(dev, virt_to_phys(protdesc)),
 			 sizeof(*protdesc), DMA_TO_DEVICE);

@@ -17,30 +17,7 @@
 #include "tx_api.h"
 #endif
 
-#define SLSI_TDLS_MAX_PEERS (14)
-#define SLSI_TDLS_TX_AC (4)
-
-enum tdls_peer_state {
-	SLSI_TDLS_PEER_ACTIVE,
-	SLSI_TDLS_PEER_DISCOVER,
-	SLSI_TDLS_PEER_DISCOVERED_IND,
-	SLSI_TDLS_PEER_SETUP,
-	SLSI_TDLS_PEER_CONNECTED_IND,
-	SLSI_TDLS_PEER_TEARDOWN,
-	SLSI_TDLS_PEER_DISCONNECTED_IND,
-	SLSI_TDLS_PEER_CFM_EINVAL,
-	SLSI_TDLS_PEER_CFM_EOPNOTSUPP,
-	SLSI_TDLS_PEER_CFM_SUCCESS,
-	SLSI_TDLS_PEER_INACTIVE,
-	SLSI_TDLS_PEER_BLOCKED
-};
-
-enum tdls_initiator {
-	SLSI_TDLS_INITIATOR_UNKNOWN,
-	SLSI_TDLS_INITIATOR_DRIVER,
-	SLSI_TDLS_INITIATOR_REMOTE_PEER,
-	SLSI_TDLS_INITIATOR_FRWK
-};
+static const u8 broadcast_mac[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 #define SLSI_TDLS_NO_TRAFFIC_MAX_COUNT (20)
 #define SLSI_TDLS_MAX_TIME_NS_AFTER_LAST_TX (100000000)
@@ -48,46 +25,56 @@ enum tdls_initiator {
 #define TDLS_PEER_IND_TIMEOUT (msecs_to_jiffies(20000))
 #define TDLS_PEER_BLOCKED_TIMEOUT (msecs_to_jiffies(5000))
 
-struct tdls_tx_traffic {
-	u32 count;
-	ktime_t last_sent;
-	/* For checking if count has exceeded a threshold in succession */
-	bool ischecked;
-};
-
-/**
- * TDLS peer information.
- * Note: We need private peer data structure for tdls manager.
- * There can be more than 14 peers need to monitor and, in such case, we should sort peers in descending order of loads
- * for prioritization. This would give us more radio resource efficiency.
- */
-struct tdls_peer {
-	u8 mac_addr[ETH_ALEN];
-	enum tdls_peer_state state;
-	enum tdls_initiator initiator;
-	u32 tdls_weight;
-	struct tdls_tx_traffic tx_packets[SLSI_TDLS_TX_AC];
-	struct delayed_work tdls_peer_ind_timeout_work;
-	struct delayed_work tdls_peer_blocked_work;
-	struct net_device *dev;
-	struct tdls_manager *manager;
-	/* For peer_hash_table */
-	struct hlist_node hlist;
-	/* Count to detect that there is no traffic */
-	u8 no_traffic_count;
-};
-
-struct state_transition_request {
-	struct list_head list;
-	enum tdls_peer_state next_state;
-	struct tdls_peer *peer;
-	struct sk_buff *frame;
-};
-
 static bool tdls_supported_by_fw;
 static int tdls_manager_discovery_threshold = 100;
 module_param(tdls_manager_discovery_threshold, int, 0644);
 MODULE_PARM_DESC(tdls_manager_discovery_threshold, "The number of packets to trigger TDLS dicovery");
+
+static int slsi_tdls_manager_add_peer_to_candidate_list(struct netdev_vif *ndev_vif, struct tdls_manager *manager, struct tdls_peer *t_peer)
+{
+	struct sorted_peer_entry *entry;
+
+	WLBT_WARN_ON(!mutex_is_locked(&manager->state_transition_queue_mutex));
+
+	if (!list_empty(&ndev_vif->sta.tdls_candidate_setup_list)) {
+		struct sorted_peer_entry *tmp;
+
+		list_for_each_entry_safe(entry, tmp, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+			if (ether_addr_equal(t_peer->mac_addr, entry->peer->mac_addr))
+				return 0;
+		}
+	}
+
+	entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+	if (entry) {
+		entry->peer = t_peer;
+		INIT_LIST_HEAD(&entry->list);
+		list_add_tail(&entry->list, &ndev_vif->sta.tdls_candidate_setup_list);
+		ndev_vif->sta.tdls_candidate_setup_count++;
+		return 1;
+	}
+	return 0;
+}
+
+static int slsi_tdls_manager_remove_candidate_list(struct netdev_vif *ndev_vif, struct tdls_manager *manager, struct tdls_peer *t_peer)
+{
+	WLBT_WARN_ON(!mutex_is_locked(&manager->state_transition_queue_mutex));
+
+	if (!list_empty(&ndev_vif->sta.tdls_candidate_setup_list)) {
+		struct sorted_peer_entry *entry;
+		struct sorted_peer_entry *tmp;
+
+		list_for_each_entry_safe(entry, tmp, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+			if (ether_addr_equal(t_peer->mac_addr, entry->peer->mac_addr)) {
+				list_del(&entry->list);
+				kfree(entry);
+				ndev_vif->sta.tdls_candidate_setup_count--;
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
 
 static inline void slsi_lock_tdls_tcp_ack_lock(struct netdev_vif *ndev_vif)
 {
@@ -138,11 +125,6 @@ static struct tdls_peer *slsi_tdls_manager_find_peer(struct net_device *dev, str
 	}
 	return NULL;
 }
-
-struct sorted_peer_entry {
-	struct list_head list;
-	struct tdls_peer *peer;
-};
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0))
 static int slsi_tdls_manager_peer_sort(void *priv, const struct list_head *a, const struct list_head *b)
@@ -229,8 +211,23 @@ static void slsi_tdls_manager_indication_timeout(struct work_struct *work)
 	struct delayed_work *delayed_work_instance = container_of(work, struct delayed_work, work);
 	struct tdls_peer *t_peer = container_of(delayed_work_instance, struct tdls_peer, tdls_peer_ind_timeout_work);
 	struct tdls_manager *manager = t_peer->manager;
+	struct slsi_vif_sta *vif_sta = container_of(manager, struct slsi_vif_sta, tdls_manager);
+	struct netdev_vif *ndev_vif = container_of(vif_sta, struct netdev_vif, sta);
+	struct net_device *dev = slsi_get_netdev(ndev_vif->sdev, ndev_vif->ifnum);
 
 	mutex_lock(&manager->state_transition_queue_mutex);
+	if (slsi_tdls_manager_remove_candidate_list(ndev_vif, manager, t_peer)) {
+		struct tdls_peer *peer = kmalloc(sizeof(*peer), GFP_KERNEL);
+
+		if (peer) {
+			peer->dev = dev;
+			peer->state = SLSI_TDLS_PEER_ACTIVE;
+			peer->manager = manager;
+			ether_addr_copy(peer->mac_addr, broadcast_mac);
+			SLSI_NET_DBG1(dev, SLSI_TDLS, "Delete peer:%pM from candidate list\n", t_peer->mac_addr);
+			enqueue_peer_state_transition(manager, peer, SLSI_TDLS_PEER_CANDIDATE_SETUP, NULL);
+		}
+	}
 	enqueue_peer_state_transition(manager, t_peer, SLSI_TDLS_PEER_INACTIVE, NULL);
 	mutex_unlock(&manager->state_transition_queue_mutex);
 }
@@ -273,7 +270,7 @@ static void slsi_tdls_manager_connected_ind(struct tdls_manager *manager, struct
 	SLSI_NET_DBG1(dev, SLSI_MLME, "TDLS session connected\n");
 	slsi_lock_tdls_tcp_ack_lock(ndev_vif);
 	/* Check for MAX client */
-	if (ndev_vif->sta.tdls_peer_sta_records + 1 > SLSI_TDLS_PEER_CONNECTIONS_MAX) {
+	if (ndev_vif->sta.tdls_peer_sta_records + 1 > ndev_vif->sta.tdls_max_peer) {
 		SLSI_NET_ERR(dev, "MAX TDLS peer limit reached. Ignore ind for peer_index:%d\n", peer_index);
 		slsi_lock_tdls_tcp_ack_unlock(ndev_vif);
 		goto exit_with_lock;
@@ -379,6 +376,8 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 	struct net_device *dev = (struct net_device *)((void *)ndev_vif - netdev_priv((struct net_device *)0));
 	struct state_transition_request *entry;
 	struct state_transition_request *tmp;
+	struct sorted_peer_entry *entry_candidate;
+	struct sorted_peer_entry *tmp_candidate;
 
 	if (!manager->active)
 		return;
@@ -392,7 +391,7 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 	mutex_lock(&manager->state_transition_queue_mutex);
 
 	list_for_each_entry_safe(entry, tmp, &manager->state_transition_queue, list) {
-		int err;
+		int err = 0;
 		switch (entry->next_state) {
 		case SLSI_TDLS_PEER_DISCOVER:
 			if (entry->peer->state == SLSI_TDLS_PEER_INACTIVE)
@@ -402,8 +401,6 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 						    FAPI_TDLSACTION_DISCOVERY);
 			if (!err) {
 				entry->peer->state = SLSI_TDLS_PEER_CFM_SUCCESS;
-				if (entry->peer->initiator == SLSI_TDLS_INITIATOR_UNKNOWN)
-					entry->peer->initiator = SLSI_TDLS_INITIATOR_DRIVER;
 				if (delayed_work_pending(&entry->peer->tdls_peer_ind_timeout_work)) {
 					mutex_unlock(&manager->state_transition_queue_mutex);
 					cancel_delayed_work_sync(&entry->peer->tdls_peer_ind_timeout_work);
@@ -420,16 +417,44 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 			}
 			break;
 
+		case SLSI_TDLS_PEER_CANDIDATE_SETUP:
+			err = slsi_mlme_tdls_action(ndev_vif->sdev, dev, entry->peer->mac_addr, FAPI_TDLSACTION_CANDIDATE_SETUP);
+			if (list_empty(&ndev_vif->sta.tdls_candidate_setup_list)) {
+				/* Delete virtual tdls_peer for processing the candidate setup list */
+				kfree(entry->peer);
+				break;
+			}
+			if (!err) {
+				list_for_each_entry_safe(entry_candidate, tmp_candidate, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+					entry->peer->initiator = SLSI_TDLS_INITIATOR_DRIVER;
+					entry_candidate->peer->state = SLSI_TDLS_PEER_CFM_SUCCESS;
+					if (delayed_work_pending(&entry_candidate->peer->tdls_peer_ind_timeout_work)) {
+						mutex_unlock(&manager->state_transition_queue_mutex);
+						cancel_delayed_work_sync(&entry_candidate->peer->tdls_peer_ind_timeout_work);
+						mutex_lock(&manager->state_transition_queue_mutex);
+					}
+					schedule_delayed_work(&entry_candidate->peer->tdls_peer_ind_timeout_work, TDLS_PEER_IND_TIMEOUT);
+				}
+			} else if (err == -EOPNOTSUPP) {
+				list_for_each_entry_safe(entry_candidate, tmp_candidate, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+					entry_candidate->peer->state = SLSI_TDLS_PEER_CFM_EOPNOTSUPP;
+					enqueue_peer_state_transition(manager, entry_candidate->peer, SLSI_TDLS_PEER_INACTIVE, NULL);
+				}
+			} else {
+				list_for_each_entry_safe(entry_candidate, tmp_candidate, &ndev_vif->sta.tdls_candidate_setup_list, list) {
+					entry_candidate->peer->state = SLSI_TDLS_PEER_CFM_EINVAL;
+					enqueue_peer_state_transition(manager, entry_candidate->peer, SLSI_TDLS_PEER_INACTIVE, NULL);
+				}
+			}
+			/* Delete virtual tdls_peer for processing the candidate setup list */
+			kfree(entry->peer);
+			break;
+
 		case SLSI_TDLS_PEER_SETUP:
 			if (entry->peer->state == SLSI_TDLS_PEER_INACTIVE)
 				break;
 			entry->peer->state = SLSI_TDLS_PEER_SETUP;
-			if (entry->peer->initiator == SLSI_TDLS_INITIATOR_FRWK)
-				err = slsi_mlme_tdls_action(ndev_vif->sdev, dev, entry->peer->mac_addr,
-							    FAPI_TDLSACTION_FORCED_SETUP);
-			else
-				err = slsi_mlme_tdls_action(ndev_vif->sdev, dev, entry->peer->mac_addr,
-							    FAPI_TDLSACTION_CANDIDATE_SETUP);
+			err = slsi_mlme_tdls_action(ndev_vif->sdev, dev, entry->peer->mac_addr, FAPI_TDLSACTION_FORCED_SETUP);
 			if (!err) {
 				entry->peer->state = SLSI_TDLS_PEER_CFM_SUCCESS;
 				if (delayed_work_pending(&entry->peer->tdls_peer_ind_timeout_work)) {
@@ -530,6 +555,7 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 				cancel_delayed_work_sync(&entry->peer->tdls_peer_ind_timeout_work);
 				mutex_lock(&manager->state_transition_queue_mutex);
 			}
+			slsi_tdls_manager_remove_candidate_list(ndev_vif, manager, entry->peer);
 			spin_lock_bh(&manager->peer_hash_lock);
 			hlist_del(&entry->peer->hlist);
 			kfree(entry->peer);
@@ -555,13 +581,17 @@ static void slsi_tdls_manager_active_peer_mgmt(struct work_struct *work)
 	u8 ac = 0;
 	struct delayed_work *delayed_work_instance = container_of(work, struct delayed_work, work);
 	struct tdls_manager *manager = container_of(delayed_work_instance, struct tdls_manager, active_peer_manager);
+	struct slsi_vif_sta *vif_sta = container_of(manager, struct slsi_vif_sta, tdls_manager);
+	struct netdev_vif *ndev_vif = container_of(vif_sta, struct netdev_vif, sta);
+	struct net_device *dev = (struct net_device *)((void *)ndev_vif - netdev_priv((struct net_device *)0));
 	struct tdls_peer *t_peer = NULL;
 	int tdls_peers_in_transient_state = 0;
 	int tdls_peers_in_connected_state = 0;
 	int available_tdls_slots = 0;
+	u8 changed_list = 0;
 	ktime_t now = ktime_get();
 
-	LIST_HEAD(tdls_discovery_candidate_peer_list);
+	LIST_HEAD(tdls_candidate_peer_list);
 	LIST_HEAD(tdls_inactive_peer_list);
 
 	if (!tdls_supported_by_fw)
@@ -602,7 +632,7 @@ static void slsi_tdls_manager_active_peer_mgmt(struct work_struct *work)
 					if (entry) {
 						entry->peer = t_peer;
 						INIT_LIST_HEAD(&entry->list);
-						list_add_tail(&entry->list, &tdls_discovery_candidate_peer_list);
+						list_add_tail(&entry->list, &tdls_candidate_peer_list);
 					}
 				}
 				if (++t_peer->no_traffic_count > SLSI_TDLS_NO_TRAFFIC_MAX_COUNT) {
@@ -630,17 +660,19 @@ static void slsi_tdls_manager_active_peer_mgmt(struct work_struct *work)
 	available_tdls_slots = SLSI_TDLS_MAX_PEERS - tdls_peers_in_transient_state - tdls_peers_in_connected_state;
 	spin_unlock_bh(&manager->peer_hash_lock);
 
-	if (!list_empty(&tdls_discovery_candidate_peer_list)) {
+	if (!list_empty(&tdls_candidate_peer_list)) {
 		struct sorted_peer_entry *entry;
 		struct sorted_peer_entry *tmp;
 
-		list_sort(NULL, &tdls_discovery_candidate_peer_list, slsi_tdls_manager_peer_sort);
+		list_sort(NULL, &tdls_candidate_peer_list, slsi_tdls_manager_peer_sort);
 
-		list_for_each_entry_safe(entry, tmp, &tdls_discovery_candidate_peer_list, list) {
+		list_for_each_entry_safe(entry, tmp, &tdls_candidate_peer_list, list) {
 			if (available_tdls_slots > 0) {
-				enqueue_peer_state_transition(manager, entry->peer, SLSI_TDLS_PEER_DISCOVER, NULL);
-				SLSI_DBG2_NODEV(SLSI_TDLS, "Try to TDLS Discovery Peer:%pM\n", entry->peer->mac_addr);
-				available_tdls_slots--;
+				if (slsi_tdls_manager_add_peer_to_candidate_list(ndev_vif, manager, entry->peer)) {
+					changed_list = 1;
+					SLSI_NET_DBG1(dev, SLSI_TDLS, "Add peer:%pM to candidate list\n", entry->peer->mac_addr);
+					available_tdls_slots--;
+				}
 			}
 			list_del(&entry->list);
 			kfree(entry);
@@ -652,13 +684,32 @@ static void slsi_tdls_manager_active_peer_mgmt(struct work_struct *work)
 		struct sorted_peer_entry *tmp;
 
 		list_for_each_entry_safe(entry, tmp, &tdls_inactive_peer_list, list) {
+			if (slsi_tdls_manager_remove_candidate_list(ndev_vif, manager, entry->peer)) {
+				changed_list = 1;
+				SLSI_NET_DBG1(dev, SLSI_TDLS, "Delete peer:%pM from candidate list\n", t_peer->mac_addr);
+			}
 			enqueue_peer_state_transition(manager, entry->peer, SLSI_TDLS_PEER_INACTIVE, NULL);
 			list_del(&entry->list);
 			kfree(entry);
 		}
 	}
+
+	/* Create a virtual tdls_peer to process the candidate setup list */
+	if (changed_list) {
+		t_peer = kmalloc(sizeof(*t_peer), GFP_KERNEL);
+		if (t_peer) {
+			t_peer->dev = dev;
+			t_peer->state = SLSI_TDLS_PEER_ACTIVE;
+			t_peer->manager = manager;
+			ether_addr_copy(t_peer->mac_addr, broadcast_mac);
+			SLSI_NET_DBG1(dev, SLSI_TDLS, "Try to TDLS Candidate Setup for %d peers\n", ndev_vif->sta.tdls_candidate_setup_count);
+			enqueue_peer_state_transition(manager, t_peer, SLSI_TDLS_PEER_CANDIDATE_SETUP, NULL);
+		}
+	}
+
+	if (ndev_vif->sta.tdls_manager.active)
+		schedule_delayed_work(&manager->active_peer_manager, msecs_to_jiffies(1000));
 	mutex_unlock(&manager->state_transition_queue_mutex);
-	schedule_delayed_work(&manager->active_peer_manager, msecs_to_jiffies(1000));
 }
 
 static struct tdls_peer *slsi_tdls_manager_init_peer(struct net_device *dev,
@@ -761,11 +812,12 @@ int slsi_tdls_manager_on_vif_activated(struct slsi_dev *sdev, struct net_device 
 	u8 i;
 	int err = 0;
 
-	err = slsi_mib_get_sta_tlds_activated(sdev, dev, &tdls_supported_by_fw);
+	err = slsi_mib_get_sta_tdls_activated(sdev, dev, &tdls_supported_by_fw);
 	if (err) {
 		SLSI_NET_ERR(dev, "FW doesn't activate TDLS, check FW mib status\n");
 		return 0;
 	}
+	slsi_mib_get_sta_tdls_max_peer(sdev, dev, ndev_vif);
 	SLSI_NET_DBG1(dev, SLSI_MLME, "tdls support: %s\n", tdls_supported_by_fw?"support":"not support");
 	if (ndev_vif->vif_type != FAPI_VIFTYPE_STATION)
 		return 0;
@@ -867,6 +919,7 @@ void slsi_tdls_manager_event_connected(struct slsi_dev *sdev, struct net_device 
 	struct tdls_peer *t_peer = NULL;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	u8 *peer_mac = fapi_get_buff(skb, u.mlme_tdls_peer_ind.peer_sta_address);
+	struct tdls_manager *manager = NULL;
 
 	mutex_lock(&ndev_vif->sta.tdls_manager.state_transition_queue_mutex);
 
@@ -889,7 +942,8 @@ void slsi_tdls_manager_event_connected(struct slsi_dev *sdev, struct net_device 
 			mutex_lock(&ndev_vif->sta.tdls_manager.state_transition_queue_mutex);
 		}
 	}
-
+	manager = t_peer->manager;
+	slsi_tdls_manager_remove_candidate_list(ndev_vif, manager, t_peer);
 	SLSI_NET_DBG1(dev, SLSI_MLME, "peer mac_addr: %pM\n", t_peer->mac_addr);
 
 	/* In case of that peer connect event received on existing connection */

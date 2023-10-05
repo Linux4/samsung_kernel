@@ -105,7 +105,7 @@
 		cpu@102 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x102>;
 			enable-method = "psci";
 			next-level-cache = <0x03>;
 			phandle = <0x0a>;
@@ -114,7 +114,7 @@
 		cpu@103 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x103>;
 			enable-method = "psci";
 			next-level-cache = <0x03>;
 			phandle = <0x0b>;
@@ -199,7 +199,7 @@
 			phandle = <0x4a>;
 		};
 
-		memory@3800000 {
+		memory@3401000 {
 			reg = <0x00 0x3401000 0x00 0x2200000>;
 			no-map;
 			phandle = <0x4b>;
@@ -814,7 +814,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x2d>;
 		};
@@ -949,7 +949,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x36>;
 		};
@@ -1660,7 +1660,7 @@
 		cpu7_map = "/cpus/cpu-map/cluster1/core3";
 		tcsr_mutex = "/hwlock";
 		dfps_data_mem = "/reserved-memory/dfps_data_mem@3400000";
-		cont_splash_mem = "/reserved-memory/memory@3800000";
+		cont_splash_mem = "/reserved-memory/memory@3401000";
 		smem_mem = "/reserved-memory/smem_region@6a00000";
 		mpss_mem = "/reserved-memory/memory@7000000";
 		peripheral_region = "/reserved-memory/memory@ca00000";

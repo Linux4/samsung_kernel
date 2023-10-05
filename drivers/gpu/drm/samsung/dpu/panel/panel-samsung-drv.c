@@ -105,6 +105,22 @@ static void notify_lp11_reset(struct exynos_panel *ctx, bool en)
 	dsim->lp11_reset = en;
 }
 
+static void notify_lp11_wait(struct exynos_panel *ctx, bool en)
+{
+	struct mipi_dsi_device *dsi;
+	struct dsim_device *dsim;
+
+	dsi = to_mipi_dsi_device(ctx->dev);
+	if (!dsi || !dsi->host) {
+		panel_err(ctx, "dsi not attached yet\n");
+		return;
+	}
+
+	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
+
+	dsim->wait_lp11_after_cmds = en;
+}
+
 static int exynos_panel_parse_gpios(struct exynos_panel *ctx)
 {
 	struct device *dev = ctx->dev;
@@ -2098,6 +2114,9 @@ static int exynos_panel_parse_timings(struct exynos_panel *ctx)
 		pdesc->width_mm = data[0];
 		pdesc->height_mm = data[1];
 	}
+
+	if (of_property_read_bool(np, "samsung,wait-lp11-after-sending-cmds"))
+		notify_lp11_wait(ctx, true);
 
 	ret = of_get_exynos_display_info(np, ctx);
 	if (ret) {

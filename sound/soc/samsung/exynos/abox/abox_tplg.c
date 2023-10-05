@@ -2352,6 +2352,8 @@ int abox_tplg_probe(struct snd_soc_component *cmpnt)
 	if (ret < 0)
 		goto err_ipc;
 
+	abox_force_enable();
+
 	return ret;
 
 err_ipc:

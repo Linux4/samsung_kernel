@@ -195,10 +195,6 @@ obj-$(CONFIG_EXYNOS_BTS)        += bts/
 # vision drivers
 obj-$(CONFIG_VISION_SUPPORT)	+= vision/
 
-# ABC Driver
-obj-${CONFIG_SEC_STI}           += sti/
-
-# ABC Driver
 obj-${CONFIG_DRV_SAMSUNG}           += samsung/
 
 ifeq ($(CONFIG_EXYNOS_VARIANT1),y)

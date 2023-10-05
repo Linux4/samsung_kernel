@@ -87,6 +87,8 @@ static bool skip_header;
 module_param(skip_header, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(skip_header, "Skip header, assuming unidentified firmware");
 
+extern bool is_bug_on_enabled(void);
+
 int mxman_res_mem_map(struct mxman *mxman, void **start_dram, size_t *size_dram)
 {
 	struct scsc_mif_abs *mif;
@@ -610,11 +612,6 @@ int mxman_res_pmu_boot(struct mxman *mxman, enum scsc_subsystem sub)
 	|| IS_ENABLED(CONFIG_SOC_S5E9925) || IS_ENABLED(CONFIG_SOC_S5E5515) \
 	|| IS_ENABLED(CONFIG_SOC_S5E9935) || IS_ENABLED(CONFIG_SOC_S5E8535) \
 	|| IS_ENABLED(CONFIG_SOC_S5E8835)
-#if IS_ENABLED(CONFIG_WLBT_PMU2AP_MBOX)
-	struct scsc_mif_abs *mif = scsc_mx_get_mif_abs(mxman->mx);
-	/* For Quartz, enable PMU Mailbox interrupt before sending START_WLAN/START_WPAN */
-	mif->irq_pmu_bit_unmask(mif);
-#endif
 	/* This should be a blocking call, mifpmu should do the waitqueue */
 	r = mifpmuman_start_subsystem(scsc_mx_get_mifpmuman(mxman->mx), sub);
 	if (r)
@@ -1204,7 +1201,8 @@ int mxman_res_init_common(struct mxman *mxman)
 		return ret;
 #endif
 #ifdef CONFIG_SCSC_LAST_PANIC_IN_DRAM
-	ret = scsc_log_in_dram_mmap_create();
+	if(is_bug_on_enabled())
+		ret = scsc_log_in_dram_mmap_create();
 	if(ret)
 		return ret;
 #endif
@@ -1244,7 +1242,8 @@ int mxman_res_deinit_common(struct mxman *mxman)
 		return ret;
 #endif
 #ifdef CONFIG_SCSC_LAST_PANIC_IN_DRAM
-	ret = scsc_log_in_dram_mmap_destroy();
+	if(is_bug_on_enabled())
+		ret = scsc_log_in_dram_mmap_destroy();
 	if(ret)
 		return ret;
 #endif
@@ -1317,7 +1316,7 @@ int mxman_res_post_init_subsystem(struct mxman *mxman, enum scsc_subsystem sub)
 #if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 		r = mxlogger_start_channel(scsc_mx_get_mxlogger(mxman->mx), SCSC_MIF_ABS_TARGET_WLAN);
 		if (r) {
-			mxlogger_deinit_channel(scsc_mx_get_mxlogger(mxman->mx), SCSC_MIF_ABS_TARGET_WPAN);
+			mxlogger_deinit_channel(scsc_mx_get_mxlogger(mxman->mx), SCSC_MIF_ABS_TARGET_WLAN);
 		}
 #endif
 		break;

@@ -2769,8 +2769,8 @@
 			interrupt-names = "wdog\0fatal\0ready\0handover\0stop-ack";
 			power-domains = <0x4e 0x00 0x4e 0x03>;
 			power-domain-names = "cx\0mx";
-			qcom,state = <0x9c 0x00>;
-			qcom,state-names = "stop";
+			qcom,smem-states = <0x9c 0x00>;
+			qcom,smem-state-names = "stop";
 			pinctrl-names = "default";
 			pinctrl-0 = <0x9d>;
 			status = "okay";

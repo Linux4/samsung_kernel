@@ -3302,6 +3302,10 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 	int event = 0;
 #endif
 	policy_state next_state = 0;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	union power_supply_propval val;
+	struct power_supply *psy;
+#endif
 
 	dev_info(pd_data->dev, "%s Start, last_state = %x, state = %x\n",
 		__func__, policy->last_state, policy->state);
@@ -3448,6 +3452,16 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 		case PE_SNK_Hard_Reset:
 			policy->state =
 				sm5714_usbpd_policy_snk_hard_reset(policy);
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+			psy = power_supply_get_by_name("battery");
+			if (psy) {
+				val.intval = 1;
+				psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_HARDRESET_OCCUR, val);
+			} else {
+				pr_err("%s: Fail to get psy battery\n", __func__);
+			}
+#endif
 			break;
 		case PE_SNK_Transition_to_default:
 			policy->state =
@@ -3878,6 +3892,16 @@ void sm5714_usbpd_policy_work(struct work_struct *work)
 					policy->rx_hardreset = 0;
 					policy->state =
 						PE_SNK_Transition_to_default;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+					psy = power_supply_get_by_name("battery");
+					if (psy) {
+						val.intval = 0;
+						psy_do_property("battery", set,
+							POWER_SUPPLY_EXT_PROP_HARDRESET_OCCUR, val);
+					} else {
+						pr_err("%s: Fail to get psy battery\n", __func__);
+					}
+#endif
 				} else if (policy->rx_softreset) {
 					policy->rx_softreset = 0;
 					policy->state = PE_SNK_Soft_Reset;

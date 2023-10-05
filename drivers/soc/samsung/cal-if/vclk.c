@@ -506,22 +506,28 @@ static int vclk_get_dfs_info(struct vclk *vclk)
 	vclk->resume_freq = 0;
 
 	if (minmax_table != NULL) {
-		for (i = 0; i <  vclk->num_rates; i++) {
-			if (vclk->lut[i].rate == minmax_table[MINMAX_BOOT_FREQ] * 1000)
-				vclk->boot_freq = vclk->lut[i].rate;
-		}
+		if (!vclk->is_fine_grain) {
+			for (i = 0; i <  vclk->num_rates; i++) {
+				if (vclk->lut[i].rate == minmax_table[MINMAX_BOOT_FREQ] * 1000)
+					vclk->boot_freq = vclk->lut[i].rate;
+			}
 
-		for (i = 0; i < vclk->num_rates; i++) {
-			if (vclk->lut[i].rate == minmax_table[MINMAX_RESUME_FREQ] * 1000)
-				vclk->resume_freq = vclk->lut[i].rate;
+			for (i = 0; i < vclk->num_rates; i++) {
+				if (vclk->lut[i].rate == minmax_table[MINMAX_RESUME_FREQ] * 1000)
+					vclk->resume_freq = vclk->lut[i].rate;
+			}
+		} else {
+			vclk->boot_freq = minmax_table[MINMAX_BOOT_FREQ] * 1000;
+			vclk->resume_freq = minmax_table[MINMAX_RESUME_FREQ] * 1000;
 		}
-	} else{
+	} else {
 		if (dvfs_domain->boot_level_idx != -1)
 			vclk->boot_freq = vclk->lut[dvfs_domain->boot_level_idx].rate;
 
 		if (dvfs_domain->resume_level_idx != -1)
 			vclk->resume_freq = vclk->lut[dvfs_domain->resume_level_idx].rate;
 	}
+
 
 	return ret;
 err_nomem2:

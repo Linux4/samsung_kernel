@@ -94,7 +94,7 @@ static int is_vender_caminfo_cmd_get_rom_data_by_position(void __user *user_data
 
 	rom_id = is_vendor_get_rom_id_from_position(romdata.cam_position);
 
-	if(rom_id == ROM_ID_NOTHING) {
+	if (rom_id == ROM_ID_NOTHING) {
 		err("%s : invalid camera position (%d)", __func__, romdata.cam_position);
 		ret = -EINVAL;
 		goto EXIT;
@@ -310,6 +310,11 @@ static int is_vender_caminfo_sec2lsi_cmd_get_module_info(void __user *user_data)
 	}
 
 	rom_id = is_vendor_get_rom_id_from_position(caminfo.camID);
+	if (rom_id == ROM_ID_NOTHING) {
+		err("%s : invalid camera position (%d)", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
 
 	info("%s in for ROM[%d]", __func__, caminfo.camID);
 
@@ -382,6 +387,11 @@ static int is_vender_caminfo_sec2lsi_cmd_get_buff(void __user *user_data)
 	}
 
 	rom_id = is_vendor_get_rom_id_from_position(caminfo.camID);
+	if (rom_id == ROM_ID_NOTHING) {
+		err("%s : invalid camera position (%d)", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
 
 	info("%s in for ROM[%d]", __func__, caminfo.camID);
 
@@ -492,6 +502,11 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 	}
 
 	rom_id = is_vendor_get_rom_id_from_position(caminfo.camID);
+	if (rom_id == ROM_ID_NOTHING) {
+		err("%s : invalid camera position (%d)", __func__, caminfo.camID);
+		ret = -EINVAL;
+		goto EXIT;
+	}
 	info("%s in for ROM[%d]", __func__, caminfo.camID);
 
 	if (is_need_use_standard_cal(rom_id) == false) {

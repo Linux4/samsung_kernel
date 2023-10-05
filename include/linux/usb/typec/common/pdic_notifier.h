@@ -61,6 +61,7 @@ typedef enum {
 #if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 	PDIC_NOTIFY_ID_POGO				= 21,
 #endif
+	PDIC_NOTIFY_ID_RPLEVEL		= 22,
 } pdic_notifier_id_t;
 
 typedef enum {

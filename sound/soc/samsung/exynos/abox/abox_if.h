@@ -84,6 +84,7 @@ struct abox_if_data {
 	bool enable_bclk; /* force enable */
 	bool mic_auto_fade_in;
 	bool spk_auto_fade_in;
+	bool real_i2s;
 	struct completion mic_func_changed;
 	struct completion spk_func_changed;
 	struct pinctrl *pinctrl;

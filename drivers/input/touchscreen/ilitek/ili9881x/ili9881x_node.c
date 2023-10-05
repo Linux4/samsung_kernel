@@ -2285,26 +2285,32 @@ static struct proc_ops proc_output_data_fops = {
 
 static struct proc_ops proc_mp_lcm_on_test_fops = {
 	.proc_read = ilitek_node_mp_lcm_on_test_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_mp_lcm_off_test_fops = {
 	.proc_read = ilitek_node_mp_lcm_off_test_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_ver_info_fops = {
 	.proc_read = ilitek_node_ver_info_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_change_list_fops = {
 	.proc_read = ilitek_node_change_list_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_debug_message_fops = {
 	.proc_read = ilitek_proc_debug_message_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_debug_message_switch_fops = {
 	.proc_read = ilitek_proc_debug_switch_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_ioctl_fops = {
@@ -2313,43 +2319,53 @@ static struct proc_ops proc_ioctl_fops = {
 	.proc_compat_ioctl = ilitek_node_compat_ioctl,
 #endif
 	.proc_write = ilitek_node_ioctl_write,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_fw_upgrade_fops = {
 	.proc_read = ilitek_node_fw_upgrade_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_fw_process_fops = {
 	.proc_read = ilitek_proc_fw_process_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_get_delta_data_fops = {
 	.proc_read = ilitek_proc_get_delta_data_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_get_raw_data_fops = {
 	.proc_read = ilitek_proc_fw_get_raw_data_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_rw_tp_reg_fops = {
 	.proc_read = ilitek_proc_rw_tp_reg_read,
 	.proc_write = ilitek_proc_rw_tp_reg_write,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_fw_pc_counter_fops = {
 	.proc_read = ilitek_proc_fw_pc_counter_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_debug_level_fops = {
 	.proc_read = ilitek_proc_debug_level_read,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_get_customer_info_fops = {
 	.proc_read = ilitek_proc_get_customer_info,
+	.proc_lseek = default_llseek,
 };
 
 static struct proc_ops proc_sram_test_fops = {
 	.proc_read = ilitek_proc_sram_test_info,
+	.proc_lseek = default_llseek,
 };
 
 
@@ -2372,26 +2388,32 @@ static struct file_operations proc_output_data_fops = {
 
 static struct file_operations proc_mp_lcm_on_test_fops = {
 	.read = ilitek_node_mp_lcm_on_test_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_mp_lcm_off_test_fops = {
 	.read = ilitek_node_mp_lcm_off_test_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_ver_info_fops = {
 	.read = ilitek_node_ver_info_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_change_list_fops = {
 	.read = ilitek_node_change_list_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_debug_message_fops = {
 	.read = ilitek_proc_debug_message_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_debug_message_switch_fops = {
 	.read = ilitek_proc_debug_switch_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_ioctl_fops = {
@@ -2400,43 +2422,53 @@ static struct file_operations proc_ioctl_fops = {
 	.compat_ioctl = ilitek_node_compat_ioctl,
 #endif
 	.write = ilitek_node_ioctl_write,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_fw_upgrade_fops = {
 	.read = ilitek_node_fw_upgrade_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_fw_process_fops = {
 	.read = ilitek_proc_fw_process_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_get_delta_data_fops = {
 	.read = ilitek_proc_get_delta_data_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_get_raw_data_fops = {
 	.read = ilitek_proc_fw_get_raw_data_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_rw_tp_reg_fops = {
 	.read = ilitek_proc_rw_tp_reg_read,
 	.write = ilitek_proc_rw_tp_reg_write,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_fw_pc_counter_fops = {
 	.read = ilitek_proc_fw_pc_counter_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_debug_level_fops = {
 	.read = ilitek_proc_debug_level_read,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_get_customer_info_fops = {
 	.read = ilitek_proc_get_customer_info,
+	.llseek = default_llseek,
 };
 
 static struct file_operations proc_sram_test_fops = {
 	.read = ilitek_proc_sram_test_info,
+	.llseek = default_llseek,
 };
 #endif
 

@@ -46,6 +46,8 @@
 #include <asm/system_misc.h>
 #include <asm/sysreg.h>
 
+#include <linux/sec_debug.h>
+
 #include <trace/hooks/traps.h>
 
 static bool __kprobes __check_eq(unsigned long pstate)
@@ -758,15 +760,6 @@ static void ctr_read_handler(unsigned int esr, struct pt_regs *regs)
 	int rt = ESR_ELx_SYS64_ISS_RT(esr);
 	unsigned long val = arm64_ftr_reg_user_value(&arm64_ftr_reg_ctrel0);
 
-	if (cpus_have_const_cap(ARM64_WORKAROUND_1542419)) {
-		/* Hide DIC so that we can trap the unnecessary maintenance...*/
-		val &= ~BIT(CTR_DIC_SHIFT);
-
-		/* ... and fake IminLine to reduce the number of traps. */
-		val &= ~CTR_IMINLINE_MASK;
-		val |= (PAGE_SHIFT - 2) & CTR_IMINLINE_MASK;
-	}
-
 	pt_regs_write_reg(regs, rt, val);
 
 	arm64_skip_faulting_instruction(regs, AARCH64_INSN_SIZE);
@@ -1043,6 +1036,8 @@ void panic_bad_stack(struct pt_regs *regs, unsigned int esr, unsigned long far)
 	unsigned long irq_stk = (unsigned long)this_cpu_read(irq_stack_ptr);
 	unsigned long ovf_stk = (unsigned long)this_cpu_ptr(overflow_stack);
 
+	secdbg_base_built_bad_stack_info(tsk_stk, irq_stk, ovf_stk);
+
 	console_verbose();
 	pr_emerg("Insufficient stack space to handle exception!");
 
@@ -1118,6 +1113,13 @@ bool arm64_is_fatal_ras_serror(struct pt_regs *regs, unsigned int esr)
 
 void do_serror(struct pt_regs *regs, unsigned int esr)
 {
+	int ret = 0;
+
+	/* Add vendor hooks for unusual abort cases */
+	trace_android_rvh_do_serror(regs, esr, &ret);
+	if (ret != 0)
+		return;
+
 	/* non-RAS errors are not containable */
 	if (!arm64_is_ras_serror(esr) || arm64_is_fatal_ras_serror(regs, esr))
 		arm64_serror_panic(regs, esr);

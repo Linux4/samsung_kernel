@@ -25,7 +25,16 @@ struct {
 
 bool is_boosted_tex_task(struct task_struct *p)
 {
-	return ems_boosted_tex(p);
+	if (ems_boosted_tex(p))
+		return true;
+	else if (emstune_get_cur_level() == 2 && cpuctl_task_group_idx(p) == CGROUP_TOPAPP) {
+		/* RenderThread and zygote boost */
+		if (ems_render(p) == 1 || strcmp(p->comm, "main") == 0) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 static bool is_binder_tex_task(struct task_struct *p)
@@ -217,6 +226,9 @@ static int tex_boosted_fit_cpus(struct tp_env *env)
 			spare_cap = capacity_cpu_orig(cpu) - cpu_util;
 
 			if (ems_rq_migrated(cpu_rq(cpu)))
+				continue;
+
+			if (get_tex_level(cpu_rq(cpu)->curr) == BOOSTED_TEX)
 				continue;
 
 			if (available_idle_cpu(cpu)) {
@@ -565,7 +577,7 @@ static void take_util_snapshot(struct tp_env *env)
 	 * Because we do better apply active power of task
 	 * when get the energy
 	 */
-	env->task_util = ml_task_util_est(env->p);
+	env->task_util = max(ml_task_util_est(env->p), (unsigned long)1);
 	env->task_util_clamped = ml_uclamp_task_util(env->p);
 	env->task_load_avg = ml_task_load_avg(env->p);
 
@@ -580,10 +592,9 @@ static void take_util_snapshot(struct tp_env *env)
 		env->cpu_stat[cpu].dl_util = cpu_util_dl(rq);
 		extra_util = env->cpu_stat[cpu].rt_util + env->cpu_stat[cpu].dl_util;
 
-		env->cpu_stat[cpu].util_wo = min(ml_cpu_util_est_without(cpu, env->p) + extra_util,
+		env->cpu_stat[cpu].util_wo = min(ml_cpu_util_without(cpu, env->p) + extra_util,
 			    capacity);
-		env->cpu_stat[cpu].util_with = min(ml_cpu_util_est_with(env->p, cpu) + extra_util,
-			    capacity);
+		env->cpu_stat[cpu].util_with = env->cpu_stat[cpu].util_wo + env->task_util;
 
 		env->cpu_stat[cpu].runnable = READ_ONCE(cfs_rq->avg.runnable_avg);
 		env->cpu_stat[cpu].load_avg = ml_cpu_load_avg(cpu);
@@ -811,6 +822,10 @@ static int find_best_perf_cpu(struct tp_env *env)
 			util = min(util + extra_util, capacity);
 			spare = capacity - util;
 
+			if (get_tex_level(env->p) == NOT_TEX &&
+					get_tex_level(rq->curr) != NOT_TEX)
+				continue;
+
 			if (available_idle_cpu(cpu)) {
 				unsigned int exit_latency = get_idle_exit_latency(cpu_rq(cpu));
 
@@ -959,6 +974,10 @@ static bool is_boosted_task(struct task_struct *p)
 {
 	if (emstune_sched_boost() && is_perf_task(p))
 		return true;
+
+	/* if prio > DEFAULT_PRIO and should_spread, skip boost task in level 2 */
+	if (emstune_get_cur_level() == 2 && p->prio > DEFAULT_PRIO && emstune_should_spread())
+		return false;
 
 	if (is_gsc_task(p))
 		return true;

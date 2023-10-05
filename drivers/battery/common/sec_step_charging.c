@@ -1061,8 +1061,7 @@ void sec_bat_set_aging_info_step_charging(struct sec_battery_info *battery)
 			POWER_SUPPLY_EXT_PROP_DIRECT_CONSTANT_CHARGE_VOLTAGE_MAX, val);
 	}
 
-	if (battery->step_chg_status >= 0 && !battery->dc_float_voltage_set)
-		sec_vote(battery->dc_fv_vote, VOTER_DC_STEP_CHARGE, true, max_fv);
+	sec_vote(battery->dc_fv_vote, VOTER_AGING_STEP, true, max_fv);
 
 	sec_bat_reset_step_charging(battery);
 	sec_bat_check_dc_step_charging(battery);

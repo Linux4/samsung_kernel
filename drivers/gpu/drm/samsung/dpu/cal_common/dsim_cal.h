@@ -64,6 +64,16 @@ enum {
 	DSIM_BIST_MODE_MAX,
 };
 
+enum dsim_datalane_status {
+	DSIM_DATALANE_STATUS_STOPDATA,
+	DSIM_DATALANE_STATUS_HSDT,
+	DSIM_DATALANE_STATUS_LPDT,
+	DSIM_DATALANE_STATUS_TRIGGER,
+	DSIM_DATALANE_STATUS_ULPSDATA,
+	DSIM_DATALANE_STATUS_SEWCALDATA,
+	DSIM_DATALANE_STATUS_BTA
+};
+
 struct dsim_clks {
 	u32 hs_clk;
 	u32 esc_clk;
@@ -259,6 +269,7 @@ void dsim_reg_set_dphy_freq_hopping(u32 id, u32 p, u32 m, u32 k, u32 en);
 /* For reading DSIM STATUS */
 bool dsim_reg_check_ppi_stuck(u32 id);
 void dsim_reg_set_datalane_state(u32 id);
+enum dsim_datalane_status dsim_reg_get_datalane_status(u32 id);
 int dsim_reg_get_linecount(u32 id, struct dsim_reg_config config);
 u32 dsim_reg_get_display_mode(u32 id);
 

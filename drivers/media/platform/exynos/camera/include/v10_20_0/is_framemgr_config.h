@@ -70,10 +70,11 @@ struct is_stripe_info {
 	/* Stripe size for incrop/otcrop */
 	struct is_stripe_size	in;
 	struct is_stripe_size	out;
+#ifdef USE_KERNEL_VFS_READ_WRITE
 	/* For image dump */
 	ulong                           kva[MAX_STRIPE_REGION_NUM][IS_MAX_PLANES];
 	size_t                          size[MAX_STRIPE_REGION_NUM][IS_MAX_PLANES];
-
+#endif
 	/* for backward compatibility */
 	u32				h_pix_num[MAX_STRIPE_REGION_NUM];
 	u32				start_pos_x;

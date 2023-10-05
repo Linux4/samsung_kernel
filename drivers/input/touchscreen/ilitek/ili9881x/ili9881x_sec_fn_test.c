@@ -32,6 +32,7 @@ void sec_factory_print_frame(u32 *buf)
 	int lsize;
 	u32 data;
 	char temp[SEC_CMD_STR_LEN] = { 0 };
+	bool print_long_log = buf[0] > 100 ? true : false;
 
 	input_info(true, ilits->dev, "%s\n", __func__);
 
@@ -44,21 +45,27 @@ void sec_factory_print_frame(u32 *buf)
 	memset(temp, 0x00, SEC_CMD_STR_LEN);
 
 	memset(pStr, 0x0, lsize);
-	snprintf(pTmp, sizeof(pTmp), "      TX");
+	snprintf(pTmp, sizeof(pTmp), "     TX");
 	strlcat(pStr, pTmp, lsize);
 
 	for (i = 0; i < ilits->xch_num; i++) {
-		snprintf(pTmp, sizeof(pTmp), "%7d ", i);
+		if (print_long_log)
+			snprintf(pTmp, sizeof(pTmp), "%7d ", i);
+		else
+			snprintf(pTmp, sizeof(pTmp), "%3d ", i);
 		strlcat(pStr, pTmp, lsize);
 	}
 
 	input_raw_info(true, ilits->dev, "%s\n", pStr);
 	memset(pStr, 0x0, lsize);
-	snprintf(pTmp, sizeof(pTmp), " +");
+	snprintf(pTmp, sizeof(pTmp), "     +");
 	strlcat(pStr, pTmp, lsize);
 
 	for (i = 0; i < ilits->xch_num; i++) {
-		snprintf(pTmp, sizeof(pTmp), "----");
+		if (print_long_log)
+			snprintf(pTmp, sizeof(pTmp), "--------");
+		else
+			snprintf(pTmp, sizeof(pTmp), "----");
 		strlcat(pStr, pTmp, lsize);
 	}
 
@@ -70,7 +77,10 @@ void sec_factory_print_frame(u32 *buf)
 		strlcat(pStr, pTmp, lsize);
 		for (j = 0; j < ilits->xch_num; j++) {
 			data = buf[(j + (ilits->xch_num * i))];
-			snprintf(pTmp, sizeof(pTmp), " %7d", data);
+			if (print_long_log)
+				snprintf(pTmp, sizeof(pTmp), " %7d", data);
+			else
+				snprintf(pTmp, sizeof(pTmp), " %3d", data);
 			strlcat(pStr, pTmp, lsize);
 			if (ilits->allnode) {
 				snprintf(temp, CMD_RESULT_WORD_LEN, "%d,", data);
@@ -211,7 +221,7 @@ sram_out_2:
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
 		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "SRAM");
 
-	input_info(true, ilits->dev, "%s final result: %s\n", __func__, buff);
+	input_raw_info(true, ilits->dev, "%s: %s\n", __func__, buff);
 
 	return ret;
 }

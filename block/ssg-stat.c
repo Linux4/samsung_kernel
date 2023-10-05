@@ -196,6 +196,60 @@ ssize_t ssg_stat_inflight_show(struct elevator_queue *e, char *page)
 			inflight[REQ_OP_WRITE], inflight[REQ_OP_DISCARD]);
 }
 
+static bool print_ssg_rq_info(struct sbitmap *bitmap, unsigned int bitnr, void *data)
+{
+	struct ssg_bt_tags_iter_data *iter_data = data;
+	struct blk_mq_tags *tags = iter_data->tags;
+	bool reserved = iter_data->reserved;
+	char *page =  iter_data->data;
+	struct request *rq;
+	int len = strlen(page);
+
+	if (!reserved)
+		bitnr += tags->nr_reserved_tags;
+
+	rq = tags->static_rqs[bitnr];
+
+	if (!rq)
+		return true;
+
+	scnprintf(page + len, PAGE_SIZE - len, "%d %d %x %x %llu %u %llu %d\n",
+			rq->tag, rq->internal_tag, req_op(rq), rq->rq_flags,
+			blk_rq_pos(rq), blk_rq_bytes(rq), rq->start_time_ns, rq->state);
+
+	return true;
+}
+
+static void print_ssg_rqs(struct request_queue *q, char *page)
+{
+	struct blk_mq_hw_ctx *hctx = *q->queue_hw_ctx;
+	struct blk_mq_tags *tags = hctx->sched_tags;
+	struct ssg_bt_tags_iter_data iter_data = {
+		.tags = tags,
+		.data = page,
+	};
+
+	if (tags->nr_reserved_tags) {
+		iter_data.reserved = true;
+		sbitmap_for_each_set(&tags->breserved_tags->sb, print_ssg_rq_info, &iter_data);
+	}
+
+	iter_data.reserved = false;
+	sbitmap_for_each_set(&tags->bitmap_tags->sb, print_ssg_rq_info, &iter_data);
+}
+
+ssize_t ssg_stat_rqs_info_show(struct elevator_queue *e, char *page)
+{
+	struct ssg_data *ssg = e->elevator_data;
+
+	if (unlikely(!ssg->stats))
+		return 0;
+
+	print_ssg_rqs(ssg->queue, page);
+
+	return strlen(page);
+}
+
 int ssg_stat_init(struct ssg_data *ssg)
 {
 	ssg->stats = alloc_percpu_gfp(struct ssg_stats,

@@ -44,6 +44,8 @@
 #define F2FS_IOC_COMPRESS_FILE		_IO(F2FS_IOCTL_MAGIC, 24)
 
 #define F2FS_IOC_GET_VALID_NODE_COUNT	_IOR(F2FS_IOCTL_MAGIC, 32, __u32)
+#define F2FS_IOC_STAT_COMPRESS_FILE	_IOWR(F2FS_IOCTL_MAGIC, 33, \
+						struct f2fs_sec_stat_compfile)
 
 /*
  * should be same as XFS_IOC_GOINGDOWN.
@@ -95,6 +97,22 @@ struct f2fs_sectrim_range {
 struct f2fs_comp_option {
 	__u8 algorithm;
 	__u8 log_cluster_size;
+};
+
+struct f2fs_sec_stat_compfile {
+	union {
+		struct {
+			__u32 in_init:1;
+			__u32 in_scan:1;
+			__u32 in_commit:1;
+			__u32 in_reserved:13;
+			__u32 out_compressed:1;
+			__u32 out_reserved:15;
+		};
+		__u32 flags;
+	};
+	__u64	st_blocks;
+	__u64	st_compressed_blocks;
 };
 
 #endif /* _UAPI_LINUX_F2FS_H */

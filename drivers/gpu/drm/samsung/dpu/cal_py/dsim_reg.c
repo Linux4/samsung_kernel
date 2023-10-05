@@ -2457,6 +2457,14 @@ u32 dsim_reg_get_cmd_tansfer_mode(u32 id)
 	return val ? 1 : 0;
 }
 
+enum dsim_datalane_status dsim_reg_get_datalane_status(u32 id)
+{
+	u32 val;
+
+	val = dsim_read(id, DSIM_LINK_STATUS2);
+	return DSIM_LINK_STATUS2_DATALANE_STATUS_GET(val);
+}
+
 bool dsim_reg_check_ppi_stuck(u32 id)
 {
 	cal_log_info(id, "undefined\n");

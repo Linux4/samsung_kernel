@@ -1837,6 +1837,11 @@ static int decon_parse_bts_info(struct decon_device *decon, struct device_node *
 		decon_warn(decon, "WARN: rot util is not defined in DT.\n");
 	}
 
+	if (of_property_read_u32(np, "bus_overhead", &bts->bus_overhead)) {
+		bts->bus_overhead = 0UL;
+		decon_info(decon, "Bus overhead is not defined in DT.\n");
+	}
+
 	dfs_lv_cnt = of_property_count_u32_elems(np, "dfs_lv");
 	if (dfs_lv_cnt < 0) {
 		decon_err(decon, "DPU DFS Info is not defined in DT.\n");

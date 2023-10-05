@@ -4,9 +4,11 @@
  */
 
 #define pr_fmt(fmt) "[VIB] " fmt
+#include <linux/device.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/hrtimer.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/err.h>
 #include <linux/delay.h>
@@ -19,7 +21,7 @@
 #if defined(CONFIG_BATTERY_GKI)
 #include <linux/battery/sec_battery_common.h>
 #else
-#include "../../battery/common/sec_charging_common.h"
+#include <linux/battery/common/sb_psy.h>
 #endif
 #endif
 #if defined(CONFIG_SEC_KUNIT)
@@ -44,6 +46,13 @@ static const char sec_vib_event_cmd[EVENT_CMD_MAX][MAX_STR_LEN_EVENT_CMD] = {
 	[EVENT_CMD_ACCESSIBILITY_BOOST_OFF]			= "ACCESSIBILITY_BOOST_OFF",
 	[EVENT_CMD_TENT_CLOSE]					= "FOLDER_TENT_CLOSE",
 	[EVENT_CMD_TENT_OPEN]					= "FOLDER_TENT_OPEN",
+};
+
+static struct sec_vibrator_pdata sec_vibrator_pdata = {
+	.probe_done = false,
+	.normal_ratio = 100,
+	.high_temp_ratio = SEC_VIBRATOR_DEFAULT_HIGH_TEMP_RATIO,
+	.high_temp_ref = SEC_VIBRATOR_DEFAULT_HIGH_TEMP_REF,
 };
 
 #if IS_ENABLED(CONFIG_SEC_VIB_NOTIFIER)
@@ -139,6 +148,7 @@ static int sec_vibrator_check_temp(struct sec_vibrator_drvdata *ddata)
 	return ret;
 }
 #endif
+
 __visible_for_testing int sec_vibrator_set_enable(struct sec_vibrator_drvdata *ddata, bool en)
 {
 	int ret = 0;
@@ -242,6 +252,7 @@ static void sec_vibrator_haptic_enable(struct sec_vibrator_drvdata *ddata)
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	sec_vibrator_check_temp(ddata);
 #endif
+
 	sec_vibrator_set_frequency(ddata, ddata->frequency);
 	sec_vibrator_set_intensity(ddata, ddata->intensity);
 	sec_vibrator_set_enable(ddata, true);
@@ -823,6 +834,50 @@ err:
 	return ret ? ret : size;
 }
 
+int sec_vibrator_recheck_ratio(struct sec_vibrator_drvdata *ddata)
+{
+	int temp = ddata->temperature;
+
+	if (temp >= ddata->pdata->high_temp_ref)
+		return ddata->pdata->high_temp_ratio;
+
+	return ddata->pdata->normal_ratio;
+}
+EXPORT_SYMBOL_GPL(sec_vibrator_recheck_ratio);
+
+__visible_for_testing ssize_t current_temp_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	return sprintf(buf, "%d\n", ddata->temperature);
+}
+
+__visible_for_testing ssize_t current_temp_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int temp, ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	ret = kstrtos32(buf, 0, &temp);
+	if (ret < 0) {
+		pr_err("%s kstrtos32 error : %d\n", __func__, ret);
+		ddata->temperature = INT_MIN;
+		goto err;
+	}
+
+	ddata->temperature = temp;
+	pr_info("%s temperature : %d\n", __func__, ddata->temperature);
+err:
+	return ret ? ret : count;
+}
+
 __visible_for_testing ssize_t num_waves_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct sec_vibrator_drvdata *ddata = g_ddata;
@@ -1067,6 +1122,7 @@ static DEVICE_ATTR_RO(virtual_pwle_indexes);
 static DEVICE_ATTR_RW(enable);
 static DEVICE_ATTR_RO(motor_type);
 static DEVICE_ATTR_WO(use_sep_index);
+static DEVICE_ATTR_RW(current_temp);
 static DEVICE_ATTR_RO(num_waves);
 static DEVICE_ATTR_RO(intensities);
 static DEVICE_ATTR_RO(haptic_intensities);
@@ -1077,6 +1133,7 @@ static struct attribute *sec_vibrator_attributes[] = {
 	&dev_attr_enable.attr,
 	&dev_attr_motor_type.attr,
 	&dev_attr_use_sep_index.attr,
+	&dev_attr_current_temp.attr,
 	NULL,
 };
 
@@ -1246,6 +1303,8 @@ int sec_vibrator_register(struct sec_vibrator_drvdata *ddata)
 		}
 	}
 
+	ddata->pdata = &sec_vibrator_pdata;
+
 	pr_info("%s done\n", __func__);
 
 	ddata->is_registered = true;
@@ -1325,6 +1384,75 @@ int sec_vibrator_unregister(struct sec_vibrator_drvdata *ddata)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(sec_vibrator_unregister);
+
+static int sec_vibrator_parse_dt(struct platform_device *pdev)
+{
+	struct device_node *np = pdev->dev.of_node;
+	int ret = 0;
+	int temp;
+
+	pr_info("%s +++\n", __func__);
+
+	if (unlikely(!np)) {
+		pr_err("err: could not parse dt node\n");
+		return -ENODEV;
+	}
+
+	ret = of_property_read_u32(np, "haptic,normal_ratio", &temp);
+	if (ret) {
+		pr_err("%s: WARNING! normal_ratio not found\n", __func__);
+		sec_vibrator_pdata.normal_ratio = 100;  // 100%
+	} else
+		sec_vibrator_pdata.normal_ratio = (int)temp;
+
+	ret = of_property_read_u32(np, "haptic,high_temp_ref", &temp);
+	if (ret) {
+		pr_info("%s: high temperature concept isn't used\n", __func__);
+		sec_vibrator_pdata.high_temp_ref = SEC_VIBRATOR_DEFAULT_HIGH_TEMP_REF;
+	} else {
+		sec_vibrator_pdata.high_temp_ref = (int)temp;
+
+		ret = of_property_read_u32(np, "haptic,high_temp_ratio", &temp);
+		if (ret) {
+			pr_info("%s: high_temp_ratio isn't used\n", __func__);
+			sec_vibrator_pdata.high_temp_ratio = SEC_VIBRATOR_DEFAULT_HIGH_TEMP_RATIO;
+		} else
+			sec_vibrator_pdata.high_temp_ratio = (int)temp;
+	}
+
+	pr_info("%s : done! ---\n", __func__);
+	return 0;
+}
+
+static int sec_vibrator_probe(struct platform_device *pdev)
+{
+	pr_info("%s +++\n", __func__);
+
+	if (unlikely(sec_vibrator_parse_dt(pdev)))
+		pr_err("%s: WARNING!>..parse dt failed\n", __func__);
+
+	sec_vibrator_pdata.probe_done = true;
+	pr_info("%s : done! ---\n", __func__);
+
+	return 0;
+}
+
+
+static const struct of_device_id sec_vibrator_id[] = {
+	{ .compatible = "sec_vibrator" },
+	{ }
+};
+
+static struct platform_driver sec_vibrator_driver = {
+	.probe		= sec_vibrator_probe,
+	.driver		= {
+		.name	=  "sec_vibrator",
+		.owner	= THIS_MODULE,
+		.of_match_table = sec_vibrator_id,
+	},
+};
+
+module_platform_driver(sec_vibrator_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("sec vibrator driver");

@@ -24,6 +24,8 @@
 #include "sec_debug_internal.h"
 
 #define PWRSRC_LEN 16
+#define RSTSTAT_LEN 32
+
 static char regs_bit[][16][PWRSRC_LEN] = {
 	{ "UNINIT0", "UNINIT2", "UNINIT3", "UNINIT4", "UNINIT5", "UNINIT6", "UNINIT7",
 	  "UNINIT8", "UNINIT9", "UNINIT10", "UNINIT11", "UNINIT12", "UNINIT13", "UNINIT14", "UNINIT15",
@@ -33,7 +35,7 @@ static char regs_bit[][16][PWRSRC_LEN] = {
 	},
 }; /* S2MPS23 */
 
-static const char *dword_regs_bit[][32] = {
+static char dword_regs_bit[][32][RSTSTAT_LEN] = {
 	{ "CLUSTER0_DBGRSTREQ0", "CLUSTER0_DBGRSTREQ1", "CLUSTER0_DBGRSTREQ2", "CLUSTER0_DBGRSTREQ3",
 	  "CLUSTER1_DBGRSTREQ0", "CLUSTER1_DBGRSTREQ1", "CLUSTER2_DBGRSTREQ0", "CLUSTER2_DBGRSTREQ1",
 	  "RSVD8", "RSVD9", "RSVD10", "RSVD11",
@@ -50,6 +52,7 @@ static struct outbuf pwrsrc_buf;
 
 static int power_off_src_cnt;
 static int power_on_src_cnt;
+static int rst_stat_cnt;
 
 static int __read_mostly reset_reason;
 module_param(reset_reason, int, 0440);
@@ -457,6 +460,7 @@ static void secdbg_rere_parse_dt(void)
 
 	power_off_src_cnt = of_property_count_strings(np, "power_off_src");
 	power_on_src_cnt = of_property_count_strings(np, "power_on_src");
+	rst_stat_cnt = of_property_count_strings(np, "rst_stat");
 
 	for (i = 0; i < power_off_src_cnt; i++) {
 		ret = of_property_read_string_index(np, "power_off_src", i, &src_name);
@@ -472,6 +476,16 @@ static void secdbg_rere_parse_dt(void)
 			snprintf(regs_bit[1][i], PWRSRC_LEN, "ERR");
 		else
 			snprintf(regs_bit[1][i], PWRSRC_LEN, "%s", src_name);
+	}
+
+	if (rst_stat_cnt > 0) {
+		for (i = 0; i < rst_stat_cnt; i++) {
+			ret = of_property_read_string_index(np, "rst_stat", i, &src_name);
+			if (ret < 0)
+				snprintf(dword_regs_bit[0][i], RSTSTAT_LEN, "ERR");
+			else
+				snprintf(dword_regs_bit[0][i], RSTSTAT_LEN, "%s", src_name);
+		}
 	}
 }
 

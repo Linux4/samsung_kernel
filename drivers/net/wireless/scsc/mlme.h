@@ -202,13 +202,6 @@ struct slsi_sched_pm_leaky_ap {
         int grace_period;
 };
 
-#define SLSI_MLME_OUI_LENGTH          3
-#define SLSI_MLME_SAMSUNG_OUI         0x001632
-#define SLSI_MLME_TYPE_SCAN_PARAM     0x01
-#define SLSI_MLME_PARAM_HEADER_SIZE   5
-#define SLSI_MLME_TYPE_IP             0x03
-#define SLSI_MLME_TYPE_FILS_ASSOC_IES 0x0b
-
 #ifdef CONFIG_SCSC_WLAN_SAP_POWER_SAVE
 struct ap_rps_params {
 	int ips;
@@ -217,6 +210,14 @@ struct ap_rps_params {
 	int checkstastatus;
 };
 #endif
+
+#define SLSI_MLME_OUI_LENGTH		3
+#define SLSI_MLME_SAMSUNG_OUI		0x001632
+#define SLSI_MLME_TYPE_SCAN_PARAM	0x01
+#define SLSI_MLME_PARAM_HEADER_SIZE	5
+#define SLSI_MLME_TYPE_FILS_ASSOC_IES	0x0b
+#define SLSI_MLME_TYPE_IP               0x03
+#define SLSI_MLME_TYPE_MAC_ADDRESS	0x0b
 
 #define SLSI_MLME_MAX_CHAN_COUNT ((0xFF - SLSI_SCAN_PRIVATE_IE_CHANNEL_LIST_HEADER_LEN) / \
 				  SLSI_SCAN_CHANNEL_DESCRIPTOR_SIZE)

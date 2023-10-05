@@ -48,6 +48,7 @@ struct ctrl_event {
 };
 
 struct load_manager {
+	struct slsi_dev *sdev;
 	/**
 	 * list of bh handlers
 	 */
@@ -164,7 +165,7 @@ void slsi_lbm_deinit(struct slsi_dev *sdev);
 int slsi_lbm_set_property(struct slsi_dev *sdev);
 
 int slsi_lbm_netdev_activate(struct slsi_dev *sdev, struct net_device *dev);
-int slsi_lbm_netdev_deactivate(struct slsi_dev *sdev, struct net_device *dev);
+int slsi_lbm_netdev_deactivate(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif);
 
 struct bh_struct *slsi_lbm_register_napi(struct slsi_dev *sdev, int (*napi_poll)(struct napi_struct *, int),
 					 int irq, int idx);

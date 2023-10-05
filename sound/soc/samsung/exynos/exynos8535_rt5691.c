@@ -1251,7 +1251,7 @@ static int exynos8535_rt5691_mainmic(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_card *card = w->dapm->card;
 
-	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+	dev_info(card->dev, "%s ev: %d, i2c_ecnt %d\n", __func__, event, rt5691_i2c_err_priv.err_cnt);
 
 	return 0;
 }
@@ -1261,7 +1261,7 @@ static int exynos8535_rt5691_submic(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_card *card = w->dapm->card;
 
-	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+	dev_info(card->dev, "%s ev: %d, i2c_ecnt %d\n", __func__, event, rt5691_i2c_err_priv.err_cnt);
 
 	return 0;
 }
@@ -1272,7 +1272,8 @@ static int exynos8535_rt5691_headsetmic(struct snd_soc_dapm_widget *w,
 	struct snd_soc_card *card = w->dapm->card;
 	struct _drvdata *drvdata = &exynos_drvdata;
 
-	dev_info(card->dev, "%s ev: %d, status %d\n", __func__, event, drvdata->rt5691_headset.status);
+	dev_info(card->dev, "%s ev: %d, status %d, i2c_ecnt %d\n",
+			__func__, event, drvdata->rt5691_headset.status, rt5691_i2c_err_priv.err_cnt);
 
 	return 0;
 }
@@ -1282,7 +1283,7 @@ static int exynos8535_rt5691_receiver(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_card *card = w->dapm->card;
 
-	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+	dev_info(card->dev, "%s ev: %d, i2c_ecnt %d\n", __func__, event, rt5691_i2c_err_priv.err_cnt);
 
 	return 0;
 }
@@ -1303,7 +1304,8 @@ static int exynos8535_rt5691_headphone(struct snd_soc_dapm_widget *w,
 	struct snd_soc_card *card = w->dapm->card;
 	struct _drvdata *drvdata = &exynos_drvdata;
 
-	dev_info(card->dev, "%s ev: %d, status %d\n", __func__, event, drvdata->rt5691_headset.status);
+	dev_info(card->dev, "%s ev: %d, status %d, i2c_ecnt %d\n",
+			__func__, event, drvdata->rt5691_headset.status, rt5691_i2c_err_priv.err_cnt);
 
 	return 0;
 }

@@ -520,6 +520,7 @@ enum OUTPUT_DATA_MODE {
 #define SPI_BUF_SIZE				MAX_HEX_FILE_SIZE
 #define INFO_HEX_ST_ADDR			0x4F
 #define INFO_MP_HEX_ADDR			0x1F
+#define INFO_HEX_LPDUMP_ADDR			0x59
 #define INFO_CUSTOMER_INFO_HEX_ADDR		0x5F
 
 /* DMA Control Registers */
@@ -804,6 +805,7 @@ enum OUTPUT_DATA_MODE {
 #define P5_X_GET_PROTOCOL_VERSION			0x22
 #define P5_X_GET_CORE_VERSION				0x23
 #define P5_X_GET_CORE_VERSION_NEW			0x24
+#define P5_X_GET_LP_DUMP_STATUE				0x2C
 #define P5_X_MODE_CONTROL				0xF0
 #define P5_X_SET_CDC_INIT				0xF1
 #define P5_X_GET_CDC_DATA				0xF2
@@ -863,6 +865,13 @@ enum OUTPUT_DATA_MODE {
 
 #define USB_PLUG_ATTACHED	1
 #define USB_PLUG_DETACHED	0
+
+/* LP DUMP */
+#define LPWG_DUMP_PACKET_SIZE	5		/* 5 byte */
+#define LPWG_DUMP_TOTAL_SIZE	500		/* 5 byte * 100 */
+#define ILITEK_LPDUMP_LCDOFF	0x3
+#define ILITEK_LPDUMP_LCDON		0x7
+
 /* not fixed */
 struct ilitek_coordinate {
 	u8 id;
@@ -935,6 +944,11 @@ struct ilitek_ts_data {
 	int usb_plug_status;
 	struct delayed_work work_vbus;
 #endif
+
+	u8 *lpwg_dump_buf;
+	u16 lpwg_dump_buf_idx;
+	u16 lpwg_dump_buf_size;
+
 	struct mutex touch_mutex;
 	struct mutex debug_mutex;
 	struct mutex debug_read_mutex;
@@ -1060,6 +1074,7 @@ struct ilitek_ts_data {
 	bool prev_palmflag;
 	int sleep_handler_mode;
 	int screen_off_sate;
+	bool lp_dump_enable;
 
 	/* module info */
 	char *mp_csv_name;
@@ -1368,10 +1383,16 @@ extern void ili_demo_debug_info_id0(u8 *buf, size_t len);
 extern int ili_tp_data_mode_ctrl(u8 *cmd);
 extern void set_current_ic_mode(int mode);
 
+void ili_ic_lpwg_get(void);
+void ili_ic_lpwg_dump_buf_init(void);
+int ili_ic_lpwg_dump_buf_read(u8 *buf);
+int ili_ic_lpwg_dump_buf_write(u8 *buf);
+
 void ilitek_tddi_touch_send_debug_data(u8 *buf, int len);
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 int ilitek_set_vbus(void);
 #endif
+void ili_read_info_onboot(void *device_data);
 
 #if IS_ENABLED(CONFIG_SPU_VERIFY)
 extern long spu_firmware_signature_verify(const char *fw_name, const u8 *fw_data, const long fw_size);

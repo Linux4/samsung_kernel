@@ -218,7 +218,6 @@ struct is_queue {
 
 	/* for logical video node */
 	u32				mode;
-	struct is_sub_buf		in_buf[IS_MAX_BUFS];
 	struct is_sub_buf		out_buf[IS_MAX_BUFS];
 };
 

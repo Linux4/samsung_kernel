@@ -169,6 +169,24 @@ static void notify_lp11_reset(struct exynos_panel *ctx, bool en)
 	dsim->lp11_reset = en;
 }
 
+static void notify_lp11_wait(struct exynos_panel *ctx, bool en)
+{
+	struct mipi_dsi_device *dsi;
+	struct dsim_device *dsim;
+
+	dsi = to_mipi_dsi_device(ctx->dev);
+	if (!dsi || !dsi->host) {
+		panel_err(ctx, "dsi not attached yet\n");
+		return;
+	}
+
+	panel_info(ctx, "%s \n", __func__);
+
+	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
+
+	dsim->wait_lp11_after_cmds = en;
+}
+
 static void exynos_panel_connector_print_state(struct drm_printer *p,
 		const struct exynos_drm_connector_state *exynos_conn_state)
 {
@@ -672,6 +690,22 @@ enum exynos_reset_pos exynos_panel_get_reset_position(struct exynos_panel *ctx)
 
 	return pdesc->reset_pos;
 }
+
+bool exynos_panel_get_wait_lp11(struct exynos_panel *ctx)
+{
+	struct exynos_panel_desc *pdesc;
+	bool ret = 0;
+
+	if (!ctx)
+		return ret;
+
+	pdesc = ctx->desc;
+	if (!pdesc)
+		return ret;
+
+	return pdesc->wait_lp11;
+}
+
 
 static void exynos_panel_enable(struct drm_bridge *bridge)
 {
@@ -2632,6 +2666,41 @@ err:
 	return PANEL_RESET_LP11_HS;
 }
 
+u32 mcd_drm_panel_get_wait_lp11(struct exynos_panel *ctx)
+{
+	struct device_node *np;
+	int ret;
+	u32 reg = 0;
+
+	if (!ctx || !ctx->dev || !ctx->mcd_panel_dev) {
+		ret = -ENODEV;
+		goto err;
+	}
+
+	np = ctx->mcd_panel_dev->ddi_node;
+	if (!np) {
+		ret = -EINVAL;
+		goto err;
+	}
+
+	ret = of_property_read_u32(np, "wait-lp11-after-sending-cmds", &reg);
+	if (reg >= 2) {
+		ret = -ERANGE;
+		goto err;
+	}
+
+	if (ret)
+		notify_lp11_wait(ctx, true);
+
+	panel_info(ctx, "wait-lp11-after-sending-cmds:(%d)\n", reg);
+
+	return reg;
+err:
+	panel_err(ctx, "wait-lp11-after-sending-cmds: failed %d\n", ret);
+	/* default value : 0 */
+	return 0;
+}
+
 struct exynos_panel_desc *
 mcd_drm_panel_get_exynos_panel_desc(struct exynos_panel *ctx)
 {
@@ -2655,6 +2724,7 @@ mcd_drm_panel_get_exynos_panel_desc(struct exynos_panel *ctx)
 	desc->panel_func = &mcd_drm_panel_funcs;
 	desc->exynos_panel_func = &mcd_exynos_panel_funcs;
 	desc->reset_pos = mcd_drm_panel_get_reset_pos(ctx);
+    	desc->wait_lp11 = mcd_drm_panel_get_wait_lp11(ctx);
 
 	/* set width_mm, height_mm on exynos_panel_mode */
 	ret = mcd_drm_panel_get_size_mm(ctx, &width_mm, &height_mm);
@@ -2790,6 +2860,7 @@ int exynos_panel_probe(struct mipi_dsi_device *dsi)
 	dsi->format = MIPI_DSI_FMT_RGB888;
 
 	notify_lp11_reset(ctx, ctx->desc->reset_pos == PANEL_RESET_LP11);
+	notify_lp11_wait(ctx, ctx->desc->wait_lp11 == 1);
 
 	drm_panel_init(&ctx->panel, dev, &mcd_drm_panel_funcs, DRM_MODE_CONNECTOR_DSI);
 	drm_panel_add(&ctx->panel);

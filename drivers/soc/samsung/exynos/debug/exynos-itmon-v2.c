@@ -29,6 +29,7 @@
 #include <soc/samsung/exynos/debug-snapshot.h>
 #include <soc/samsung/exynos/debug-snapshot-log.h>
 #include "exynos-itmon-local-v2.h"
+#include <linux/sec_debug.h>
 
 static struct itmon_policy err_policy[] = {
 	[TMOUT]		= {"err_tmout",		0, 0, 0, false},
@@ -1100,6 +1101,9 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 				   struct itmon_traceinfo *info,
 				   unsigned int trans_type)
 {
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	char temp_buf[SZ_128];
+#endif
 	/* SEC DEBUG FEATURE */
 	int acon = (itmon_get_dpm_policy(itmon) > 0) ? 1 : 0;
 	/* SEC DEBUG FEATURE */
@@ -1123,6 +1127,18 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 		trans_type == TRANS_TYPE_READ ? "READ" : "WRITE",
 		itmon_errcode[info->err_code]);
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	if (acon) {
+		snprintf(temp_buf, SZ_128, "%s %s/ %s/ 0x%zx %s/ %s/ %s",
+			info->src, info->master ? info->master : "",
+			info->dest ? info->dest : NO_NAME,
+			info->target_addr,
+			info->baaw_prot == true ? "(by CP maybe)" : "",
+			trans_type == TRANS_TYPE_READ ? "READ" : "WRITE",
+			itmon_errcode[info->err_code]);
+		secdbg_exin_set_busmon(temp_buf);
+	}
+#endif
 	pr_auto_on(acon, ASL3,
 		"\n-----------------------------------------"
 		"-----------------------------------------\n"

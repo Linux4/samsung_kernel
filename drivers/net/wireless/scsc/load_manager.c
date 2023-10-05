@@ -177,10 +177,36 @@ static void lbm_ctrl_work_func(struct work_struct *data)
 		break;
 		case CPU_AFFINITY_T:
 		{
-			struct bh_struct *bh = event->event.cpu_affinity.bh;
+			struct bh_struct *bh, *tmp;
+			struct list_head *pos, *n;
+			struct slsi_dev *sdev = load_man.sdev;
+			bool skip = true;
 
-			if (!bh || !bh->sdev || !bh->sdev->service)
+			SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
+			if (sdev->device_state != SLSI_DEVICE_STATE_STARTED) {
+				SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 				break;
+			}
+
+			bh = event->event.cpu_affinity.bh;
+
+			mutex_lock(&sdev->hip.hip_mutex);
+			read_lock_bh(&load_man.bh_list_lock);
+			list_for_each_safe(pos, n, &load_man.bh_list) {
+				tmp = list_entry(pos, struct bh_struct, list);
+
+				if (bh == tmp) {
+					skip = false;
+					break;
+				}
+			}
+
+			if (skip || !sdev->service) {
+				read_unlock_bh(&load_man.bh_list_lock);
+				mutex_unlock(&sdev->hip.hip_mutex);
+				SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
+				break;
+			}
 
 			if (bh->cpu_affinity) {
 #if defined(CONFIG_SCSC_QOS)
@@ -199,10 +225,14 @@ static void lbm_ctrl_work_func(struct work_struct *data)
 				SLSI_DBG3_NODEV(SLSI_LBM, "POP affinity event state %u(%d)\n",
 						event->event.cpu_affinity.state, target_cpu);
 
-				if (bh->cpu_affinity->idx == NP_TX_0)
+				if (bh->cpu_affinity->idx == NP_TX_0) {
+					read_unlock_bh(&load_man.bh_list_lock);
+					mutex_unlock(&sdev->hip.hip_mutex);
+					SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 					break;
-
-				service = bh->sdev->service;
+				}
+				read_unlock_bh(&load_man.bh_list_lock);
+				service = sdev->service;
 #if defined(CONFIG_SOC_S5E9925)
 				/* MSI affinity is not supported (yet), msi
 				 * argument will be ignored */
@@ -211,9 +241,13 @@ static void lbm_ctrl_work_func(struct work_struct *data)
 				if (scsc_service_set_affinity_cpu(service, target_cpu) != 0)
 #endif
 					SLSI_ERR_NODEV("failed to change IRQ affinity (CPU%d)\n", target_cpu);
+				read_lock_bh(&load_man.bh_list_lock);
 #endif
 #endif
 			}
+			read_unlock_bh(&load_man.bh_list_lock);
+			mutex_unlock(&sdev->hip.hip_mutex);
+			SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 		}
 		break;
 		}
@@ -225,6 +259,7 @@ void slsi_lbm_init(struct slsi_dev *sdev)
 {
 	int cpu;
 
+	load_man.sdev = sdev;
 	for_each_cpu_and(cpu, cpu_possible_mask, cpu_online_mask) {
 		load_man.cpu_avail[cpu] = true;
 		SLSI_DBG4(sdev, SLSI_LBM, "CPU%d is online\n", cpu);
@@ -285,9 +320,8 @@ int slsi_lbm_netdev_activate(struct slsi_dev *sdev, struct net_device *dev)
 	return 0;
 }
 
-int slsi_lbm_netdev_deactivate(struct slsi_dev *sdev, struct net_device *dev)
+int slsi_lbm_netdev_deactivate(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif)
 {
-	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct list_head *pos, *n;
 	struct bh_struct *bh;
 	bool perf_in_use = false;
@@ -535,7 +569,8 @@ struct rps_ctrl_info *slsi_lbm_register_rps_control(struct net_device *dev, cons
 		      ndev_vif->rps->rps[2], ndev_vif->rps->rps[3]);
 
 	if (slsi_traffic_mon_client_register(ndev_vif->sdev, dev, TRAFFIC_MON_CLIENT_MODE_EVENTS, ndev_vif->rps->mid,
-					     ndev_vif->rps->high, TRAFFIC_MON_DIR_RX, slsi_lbm_traffic_mon_rps_affinity_cb)) {
+					     ndev_vif->rps->high, TRAFFIC_MON_DIR_DEFAULT,
+					     slsi_lbm_traffic_mon_rps_affinity_cb)) {
 		SLSI_NET_WARN(dev, "failed to register RPS controller cb\n");
 		kfree(ndev_vif->rps);
 		ndev_vif->rps = NULL;

@@ -73,9 +73,14 @@ static void check_no_event(void)
 		if (sensor->report_mode_continuous && sensor->enabled && sensor->max_report_latency == 0 &&
 		    sensor->enable_timestamp + 5000000000ULL < timestamp &&
 		    event->received_timestamp + 5000000000ULL < timestamp) {
-			shub_infof("sensor(%d) %lld(%lld), cur = %lld", type, event->received_timestamp,
-				   event->timestamp, timestamp);
+			shub_infof("sensor(%d) %lld(%lld), cur = %lld en = %lld", type, event->received_timestamp,
+				   event->timestamp, timestamp, sensor->enable_timestamp);
 
+			if (sensor->enable_timestamp < sensor->disable_timestamp) {
+				shub_infof("enable_timestamp invalid: enable_timestamp(%lld)  disable_timestamp(%lld)",
+				sensor->enable_timestamp, sensor->disable_timestamp);
+				break;
+			}
 			if (check_reset) {
 				shub_errf("no event, no sensorhub reset");
 				reset_mcu(RESET_TYPE_KERNEL_NO_EVENT);
@@ -108,12 +113,13 @@ static void debug_work_func(struct work_struct *work)
 			print_sensor_debug(type);
 	}
 
-	shub_infof("FW(%d):%u, Sensor state: 0x%llx, En: 0x%llx, Reset cnt: %d[%d : C %u(%u, %u), N %u, %u]"
+	shub_infof("FW(%d):%u, Sensor state: 0x%llx, En: 0x%llx, Reset cnt: %d[%d : C %u(%u, %u), N %u, %u, %u]"
 		   ", Cal result : [M:%c, P:%c]",
 		   get_firmware_type(), get_firmware_rev(),
 		   get_sensors_legacy_probe_state(), en_state, data->cnt_reset, data->cnt_shub_reset[RESET_TYPE_MAX],
 		   data->cnt_shub_reset[RESET_TYPE_KERNEL_COM_FAIL], get_cnt_comm_fail(), get_cnt_timeout(),
 		   data->cnt_shub_reset[RESET_TYPE_KERNEL_NO_EVENT], data->cnt_shub_reset[RESET_TYPE_HUB_NO_EVENT],
+		   data->cnt_shub_reset[RESET_TYPE_HUB_REQ_TASK_FAILURE],
 		   open_cal_result[SENSOR_TYPE_GEOMAGNETIC_FIELD], open_cal_result[SENSOR_TYPE_PRESSURE]);
 
 	if (is_shub_working())

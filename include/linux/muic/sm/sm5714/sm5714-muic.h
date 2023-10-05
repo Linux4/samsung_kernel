@@ -304,7 +304,6 @@ struct sm5714_muic_data {
 	int vbus_changed_9to5;
 	int fled_torch_enable;
 	int fled_flash_enable;
-	int hv_voltage;
 
 	struct delayed_work	afc_retry_work;
 	struct delayed_work	afc_torch_work;
