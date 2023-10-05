@@ -7,7 +7,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/sm5451_charger_gki/sm5451_charger.r9s.dtsi */
+/* /home/dpi/qb5_8816/workspace/P4_1716/android/kernel/kmodule/battery/charger/sm5451_charger_gki/sm5451_charger.r9s.dtsi */
 &sm5451_charger {
 	sm5451,pps_lr = <340000>;
 	sm5451,rpcm = <30000>;

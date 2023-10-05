@@ -137,7 +137,7 @@ static void __dsp_graph_unmap_list(struct dsp_graph *graph,
 }
 
 static int __dsp_graph_map_list(struct dsp_graph *graph,
-		void *list, unsigned int count, unsigned int param_type)
+		void *list, unsigned long long count, unsigned int param_type)
 {
 	int ret;
 	int idx;
@@ -524,7 +524,8 @@ struct dsp_graph *dsp_graph_load(struct dsp_graph_manager *gmgr,
 	graph->version = version;
 
 	ret = __dsp_graph_map_list(graph, ginfo_param_list,
-			ginfo_n_tsgd + ginfo_n_param, DSP_COMMON_PARAM_TSGD);
+			(unsigned long long)ginfo_n_tsgd +
+			(unsigned long long)ginfo_n_param, DSP_COMMON_PARAM_TSGD);
 	if (ret)
 		goto p_err_map;
 
@@ -620,7 +621,8 @@ int dsp_graph_execute(struct dsp_graph *graph, struct dsp_mailbox_pool *pool)
 
 	if (einfo_n_update_param) {
 		ret = __dsp_graph_map_list(graph, einfo_param_list,
-				einfo_n_update_param, DSP_COMMON_PARAM_UPDATE);
+				(unsigned long long)einfo_n_update_param,
+				DSP_COMMON_PARAM_UPDATE);
 		if (ret) {
 			mutex_unlock(&gmgr->lock);
 			goto p_err;

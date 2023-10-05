@@ -1755,8 +1755,10 @@ static void displayport_hpd_plug_work(struct work_struct *work)
 				secdp_bigdata_inc_error_cnt(ERR_EDID);
 #endif
 			}
-			displayport_topology_make();
-			displayport_on_by_hpd_high(i, displayport);
+			if (displayport->mst_cap == 1) {
+				displayport_topology_make();
+				displayport_on_by_hpd_high(i, displayport);
+			}
 		}
 	}
 }
@@ -2090,7 +2092,7 @@ static void displayport_hpd_irq_work(struct work_struct *work)
 					&displayport->hdcp22_work, msecs_to_jiffies(2000));
 		}
 
-		if ((val[1] & UP_REQ_MSG_RDY) == UP_REQ_MSG_RDY) {
+		if (displayport->mst_cap == 1 && (val[1] & UP_REQ_MSG_RDY) == UP_REQ_MSG_RDY) {
 			displayport_info("Detect UP_REQ_MSG_RDY IRQ\n");
 			displayport_msg_rx(UP_REQ);
 		} else if ((val[1] & CP_IRQ) == CP_IRQ) {
@@ -2146,7 +2148,7 @@ static void displayport_hpd_irq_work(struct work_struct *work)
 					&displayport->hdcp13_work, msecs_to_jiffies(2000));
 		}
 
-		if ((val[1] & UP_REQ_MSG_RDY) == UP_REQ_MSG_RDY) {
+		if (displayport->mst_cap == 1 && (val[1] & UP_REQ_MSG_RDY) == UP_REQ_MSG_RDY) {
 			displayport_info("Detect UP_REQ_MSG_RDY IRQ\n");
 			displayport_msg_rx(UP_REQ);
 		}
@@ -2159,7 +2161,7 @@ static void displayport_hpd_irq_work(struct work_struct *work)
 			displayport_reg_dpcd_read(ADDR_HDCP13_BSTATUS, 1, HDCP13_DPCD.HDCP13_BSTATUS);
 		}
 
-		if ((val[1] & UP_REQ_MSG_RDY) == UP_REQ_MSG_RDY) {
+		if (displayport->mst_cap == 1 && (val[1] & UP_REQ_MSG_RDY) == UP_REQ_MSG_RDY) {
 			displayport_info("Detect UP_REQ_MSG_RDY IRQ\n");
 			displayport_msg_rx(UP_REQ);
 		}

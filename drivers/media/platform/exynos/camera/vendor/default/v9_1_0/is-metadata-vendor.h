@@ -982,6 +982,7 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_PORTRAIT_NIGHT   = 142,
 	AA_SCENE_MODE_PORTRAIT_VERY_NIGHT = 143,
 	AA_SCENE_MODE_FHD_AUTO         = 144,
+	AA_SCENE_MODE_AI_HIGHRES       = 146,
 };
 
 enum aa_effect_mode {

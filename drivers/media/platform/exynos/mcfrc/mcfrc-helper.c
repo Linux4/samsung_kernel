@@ -17,7 +17,7 @@
 
 #include <linux/kernel.h>
 #include <linux/iommu.h>
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 #include <linux/exynos_iovmm.h>
 #endif
 
@@ -69,7 +69,7 @@ int mcfrc_dma_addr_map(struct device *dev,
               enum dma_data_direction dir)
 {
     struct mcfrc_buffer_plane_dma *plane = &buf->plane;
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
     int prot = IOMMU_READ;
 #endif
     dma_addr_t iova;
@@ -77,7 +77,7 @@ int mcfrc_dma_addr_map(struct device *dev,
     dev_dbg(dev, "%s: using iovmm to get dma address, DMA_TO_DEVICE? %d, DMA_FROM_DEVICE? %d\n"
         , __func__, dir == DMA_TO_DEVICE, dir == DMA_FROM_DEVICE);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
     if (dir != DMA_TO_DEVICE)
         prot = IOMMU_WRITE;
     if (device_get_dma_attr(dev) == DEV_DMA_COHERENT)
@@ -125,7 +125,7 @@ void mcfrc_dma_addr_unmap(struct device *dev,
     dev_dbg(dev, "%s: umapping dma address %pad\n"
         ,  __func__, &dma_addr);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
     if (plane->dmabuf)
         ion_iovmm_unmap(plane->attachment, dma_addr);
     else

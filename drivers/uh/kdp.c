@@ -251,9 +251,9 @@ void put_rocred_rcu(struct rcu_head *rcu)
 struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 {
 	u64 pgd = (u64)(current->mm ? current->mm->pgd : swapper_pg_dir);
-	struct cred_kdp temp_old;
+	struct cred_kdp temp_old __aligned(256);
 	struct cred_kdp *new_ro = NULL;
-	struct cred_param param_data;
+	struct cred_param param_data __aligned(64);
 	void *use_cnt_ptr = NULL;
 	void *rcu_ptr = NULL;
 	void *tsec = NULL;
@@ -290,6 +290,9 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	param_data.sec_ptr = tsec;
 	param_data.type = kdp_cmd;
 	param_data.use_cnt = (u64)p;
+
+	READ_ONCE(param_data);
+	READ_ONCE(temp_old);
 
 	uh_call(UH_APP_KDP, PREPARE_RO_CRED, (u64)&param_data, (u64)current, (u64)&init_cred, (u64)&init_cred_kdp);
 	if (kdp_cmd == CMD_COPY_CREDS) {

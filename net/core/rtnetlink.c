@@ -57,6 +57,9 @@
 #define RTNL_MAX_TYPE		50
 #define RTNL_SLAVE_MAX_TYPE	36
 
+#define CONFIG_DEBUG_RTNL_LATENCY
+#define RTNL_LATENCY_TIME_MS 500
+
 struct rtnl_link {
 	rtnl_doit_func		doit;
 	rtnl_dumpit_func	dumpit;
@@ -67,15 +70,53 @@ struct rtnl_link {
 
 static DEFINE_MUTEX(rtnl_mutex);
 
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+static unsigned long time_latency;
+static char owner_comm[TASK_COMM_LEN];
+#endif
+
 void rtnl_lock(void)
 {
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	unsigned long local_time_latency = jiffies;
+
 	mutex_lock(&rtnl_mutex);
+
+	if (time_after(jiffies, local_time_latency + RTNL_LATENCY_TIME_MS * HZ / 1000)) {
+		pr_err("rtnl_lock: %s: %s took over %lu msec to grab local rtnl_lock!\n",
+			__func__, current->comm, (jiffies - local_time_latency) * 1000 / HZ);
+		dump_stack();
+	}
+
+	memcpy(owner_comm, current->comm, TASK_COMM_LEN);
+	time_latency = jiffies;
+#else
+	mutex_lock(&rtnl_mutex);
+#endif
 }
 EXPORT_SYMBOL(rtnl_lock);
 
 int rtnl_lock_killable(void)
 {
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	unsigned long local_time_latency = jiffies;
+	int ret = mutex_lock_killable(&rtnl_mutex);
+
+	if (time_after(jiffies, local_time_latency + RTNL_LATENCY_TIME_MS * HZ / 1000)) {
+		pr_err("rtnl_lock: %s: %s took over %lu msec to grab local rtnl_lock_killable! ret=%d\n",
+			__func__, current->comm, (jiffies - local_time_latency) * 1000 / HZ, ret);
+		dump_stack();
+	}
+
+	if (!ret) {
+		memcpy(owner_comm, current->comm, TASK_COMM_LEN);
+		time_latency = jiffies;
+	}
+
+	return ret;
+#else
 	return mutex_lock_killable(&rtnl_mutex);
+#endif
 }
 EXPORT_SYMBOL(rtnl_lock_killable);
 
@@ -94,6 +135,15 @@ void __rtnl_unlock(void)
 	struct sk_buff *head = defer_kfree_skb_list;
 
 	defer_kfree_skb_list = NULL;
+
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	if (time_after(jiffies, time_latency + RTNL_LATENCY_TIME_MS * HZ / 1000)) {
+		pr_err("rtnl_lock: %s: %s(%s) took over %lu msec to unlock\n", __func__,
+			owner_comm, current->comm, (jiffies - time_latency) * 1000 / HZ);
+		dump_stack();
+	}
+	time_latency = jiffies;
+#endif
 
 	mutex_unlock(&rtnl_mutex);
 
@@ -115,7 +165,21 @@ EXPORT_SYMBOL(rtnl_unlock);
 
 int rtnl_trylock(void)
 {
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	int ret;
+
+	ret = mutex_trylock(&rtnl_mutex);
+
+	if (ret) {
+		/* succeed to grab lock */
+		memcpy(owner_comm, current->comm, TASK_COMM_LEN);
+		time_latency = jiffies;
+	}
+
+	return ret;
+#else
 	return mutex_trylock(&rtnl_mutex);
+#endif
 }
 EXPORT_SYMBOL(rtnl_trylock);
 
@@ -3022,8 +3086,8 @@ static int __rtnl_newlink(struct sk_buff *skb, struct nlmsghdr *nlh,
 	struct nlattr *slave_attr[RTNL_SLAVE_MAX_TYPE + 1];
 	unsigned char name_assign_type = NET_NAME_USER;
 	struct nlattr *linkinfo[IFLA_INFO_MAX + 1];
-	const struct rtnl_link_ops *m_ops = NULL;
-	struct net_device *master_dev = NULL;
+	const struct rtnl_link_ops *m_ops;
+	struct net_device *master_dev;
 	struct net *net = sock_net(skb->sk);
 	const struct rtnl_link_ops *ops;
 	struct nlattr *tb[IFLA_MAX + 1];
@@ -3063,6 +3127,8 @@ replay:
 			dev = NULL;
 	}
 
+	master_dev = NULL;
+	m_ops = NULL;
 	if (dev) {
 		master_dev = netdev_master_upper_dev_get(dev);
 		if (master_dev)
@@ -3729,7 +3795,7 @@ static int rtnl_fdb_add(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 	/* Support fdb on master device the net/bridge default case */
 	if ((!ndm->ndm_flags || ndm->ndm_flags & NTF_MASTER) &&
-	    (dev->priv_flags & IFF_BRIDGE_PORT)) {
+	    netif_is_bridge_port(dev)) {
 		struct net_device *br_dev = netdev_master_upper_dev_get(dev);
 		const struct net_device_ops *ops = br_dev->netdev_ops;
 
@@ -3840,7 +3906,7 @@ static int rtnl_fdb_del(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 	/* Support fdb on master device the net/bridge default case */
 	if ((!ndm->ndm_flags || ndm->ndm_flags & NTF_MASTER) &&
-	    (dev->priv_flags & IFF_BRIDGE_PORT)) {
+	    netif_is_bridge_port(dev)) {
 		struct net_device *br_dev = netdev_master_upper_dev_get(dev);
 		const struct net_device_ops *ops = br_dev->netdev_ops;
 
@@ -4066,13 +4132,13 @@ static int rtnl_fdb_dump(struct sk_buff *skb, struct netlink_callback *cb)
 				continue;
 
 			if (!br_idx) { /* user did not specify a specific bridge */
-				if (dev->priv_flags & IFF_BRIDGE_PORT) {
+				if (netif_is_bridge_port(dev)) {
 					br_dev = netdev_master_upper_dev_get(dev);
 					cops = br_dev->netdev_ops;
 				}
 			} else {
 				if (dev != br_dev &&
-				    !(dev->priv_flags & IFF_BRIDGE_PORT))
+				    !netif_is_bridge_port(dev))
 					continue;
 
 				if (br_dev != netdev_master_upper_dev_get(dev) &&
@@ -4084,7 +4150,7 @@ static int rtnl_fdb_dump(struct sk_buff *skb, struct netlink_callback *cb)
 			if (idx < s_idx)
 				goto cont;
 
-			if (dev->priv_flags & IFF_BRIDGE_PORT) {
+			if (netif_is_bridge_port(dev)) {
 				if (cops && cops->ndo_fdb_dump) {
 					err = cops->ndo_fdb_dump(skb, cb,
 								br_dev, dev,
@@ -4234,7 +4300,7 @@ static int rtnl_fdb_get(struct sk_buff *in_skb, struct nlmsghdr *nlh,
 
 	if (dev) {
 		if (!ndm_flags || (ndm_flags & NTF_MASTER)) {
-			if (!(dev->priv_flags & IFF_BRIDGE_PORT)) {
+			if (!netif_is_bridge_port(dev)) {
 				NL_SET_ERR_MSG(extack, "Device is not a bridge port");
 				return -EINVAL;
 			}
@@ -4950,7 +5016,7 @@ nla_put_failure:
 static size_t if_nlmsg_stats_size(const struct net_device *dev,
 				  u32 filter_mask)
 {
-	size_t size = 0;
+	size_t size = NLMSG_ALIGN(sizeof(struct if_stats_msg));
 
 	if (stats_attr_valid(filter_mask, IFLA_STATS_LINK_64, 0))
 		size += nla_total_size_64bit(sizeof(struct rtnl_link_stats64));

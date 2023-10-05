@@ -45,7 +45,7 @@
 #include <linux/delay.h>
 
 #include <linux/iommu.h>
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 #include <linux/exynos_iovmm.h>
 #endif
 
@@ -58,16 +58,6 @@
 //The name of the gate clock. This is set in the device-tree entry
 static const char *clk_producer_name = "gate";
 
-static const unsigned int init_q_table[32] = {
-	0x01010101, 0x01010101, 0x01010101, 0x03020201,
-	0x02020202, 0x03030402, 0x04050302, 0x04050505,
-	0x06050404, 0x05050607, 0x04040607, 0x07060906,
-	0x08080808, 0x09060508, 0x0a08090a, 0x08080807,
-	0x02010101, 0x02040202, 0x05080402, 0x08080504,
-	0x08080808, 0x08080808, 0x08080808, 0x08080808,
-	0x08080808, 0x08080808, 0x08080808, 0x08080808,
-	0x08080808,	0x08080808, 0x08080808, 0x08080808
-};
 
 #ifdef DEBUG
 #define HWMCFRC_PROFILE_ENABLE
@@ -1782,8 +1772,19 @@ static int mcfrc_buffer_get_and_attach( struct mcfrc_dev *mcfrc_device,
 								 buffer->userptr,
 								 buffer->len,
 								 &offset);
-		dev_dbg(mcfrc_device->dev, "%s: dmabuf of userptr %p is %p\n"
-			, __func__, (void *) buffer->userptr, plane->dmabuf);
+		if (!plane->dmabuf) {
+			ret = -EINVAL;
+			dev_err(mcfrc_device->dev,
+				"%s: failed to get dmabuf, err %d\n", __func__, ret);
+			goto err;
+		}
+	} else {
+		if (!plane->dmabuf) {
+			ret = -EINVAL;
+			dev_err(mcfrc_device->dev,
+				"%s: failed to get dmabuf, err %d\n", __func__, ret);
+			goto err;
+		}
 	}
 
 	if (IS_ERR(plane->dmabuf)) {
@@ -1820,6 +1821,11 @@ static int mcfrc_buffer_get_and_attach( struct mcfrc_dev *mcfrc_device,
 			ret = PTR_ERR(plane->attachment);
 			goto err;
 		}
+	} else {
+		ret = -EINVAL;
+		dev_err(mcfrc_device->dev,
+			"%s: failed to get dmabuf, err %d\n", __func__, ret);
+		goto err;
 	}
 
 	dev_dbg(mcfrc_device->dev, "%s: END\n", __func__);
@@ -2251,15 +2257,6 @@ static int mcfrc_process(   struct mcfrc_ctx *ctx,
 
 	mcfrc_device = ctx->mcfrc_dev;
 	dev_dbg(mcfrc_device->dev, "%s: BEGIN\n", __func__);
-
-	//if (task->type == JPEG_SQZ) {
-	//    if (mcfrc_check_image_align(mcfrc_device, &task->user_task.info_out)) {
-	//        for (i = 0; i < 32; i++) {
-	//            task->user_task.buf_q[i] = init_q_table[i];
-	//        }
-	//        return 0;
-	//    }
-	//}
 
 	init_completion(&task->complete);
 
@@ -3158,7 +3155,7 @@ static int mcfrc_clock_gating(struct mcfrc_dev *mcfrc, bool on)
 }
 
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 static int mcfrc_sysmmu_fault_handler(struct iommu_domain *domain,
 	struct device *dev,
 	unsigned long fault_addr,
@@ -3621,7 +3618,7 @@ static int mcfrc_probe(struct platform_device *pdev)
 	pm_runtime_set_suspended(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_set_fault_handler(&pdev->dev,
 				mcfrc_sysmmu_fault_handler, mcfrc);
 
@@ -3658,7 +3655,7 @@ static int mcfrc_probe(struct platform_device *pdev)
 err_pm:
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_deactivate(&pdev->dev);
 err_iovmm:
 #else
@@ -3701,7 +3698,7 @@ static int mcfrc_remove(struct platform_device *pdev)
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 
-#if defined(CONFIG_EYXNOS_IOVMM)
+#if defined(CONFIG_EXYNOS_IOVMM)
 	iovmm_deactivate(&pdev->dev);
 #else
 	iommu_unregister_device_fault_handler(&pdev->dev);

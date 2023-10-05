@@ -18,6 +18,40 @@
 #include <dt-bindings/soc/samsung/ems.h>
 
 extern int emstune_cur_level;
+
+#define TINY_TASK_RATIO_SHIFT	3	/* 12.5% */
+#define BUSY_GROUP_RATIO_SHIFT  2	/* 25% */
+
+static bool ems_initialized;
+
+#define MAX_CLUSTER_NUM 3
+static void (*lb_newidle_func[MAX_CLUSTER_NUM])(int, struct rq **, int, bool);
+
+/* List of process element */
+struct pe_list {
+	struct cpumask *cpus;
+	int num_of_cpus;
+};
+
+struct pe_list *pe_list;
+static int num_of_list;
+
+struct pe_list *get_pe_list(int index)
+{
+	if (unlikely(!pe_list))
+		return NULL;
+
+	if (index >= num_of_list)
+		return NULL;
+
+	return &pe_list[index];
+}
+
+static int get_pe_list_size(void)
+{
+	return num_of_list;
+}
+
 static void select_fit_cpus(struct tp_env *env)
 {
 	struct cpumask fit_cpus;
@@ -397,6 +431,434 @@ int ems_can_migrate_task(struct task_struct *p, int dst_cpu)
 	return 1;
 }
 
+static bool lb_busiest_queue_pre_condition(struct rq *rq, bool check_overutil)
+{
+	int cpu = cpu_of(rq);
+
+	/* if there is no fair task, we can't balance */
+	if (!rq->cfs.h_nr_running)
+		return false;
+
+	/* if rq is in the active balance, will be less busy */
+	if (rq->active_balance)
+		return false;
+
+	if (check_overutil && !cpu_overutilized(capacity_cpu(cpu), ml_cpu_util(cpu)))
+		return false;
+
+	return true;
+}
+
+static inline bool lb_is_per_cpu_kthread(struct task_struct *p)
+{
+	if (!(p->flags & PF_KTHREAD))
+		return false;
+
+	if (p->nr_cpus_allowed != 1)
+		return false;
+
+	return true;
+}
+
+static inline bool lb_can_migrate(struct task_struct *p, int dst_cpu)
+{
+	struct rq *dst_rq = cpu_rq(dst_cpu);
+
+	if (p->exit_state)
+		return false;
+
+	if (lb_is_per_cpu_kthread(p))
+		return false;
+
+	if (!cpu_active(dst_cpu))
+		return false;
+
+	if (!cpumask_test_cpu(dst_rq->cpu, p->cpus_ptr))
+		return false;
+
+	if (task_running(NULL, p))
+		return false;
+
+	return true;
+}
+
+static void attach_task(struct rq *dst_rq, struct task_struct *p)
+{
+	activate_task(dst_rq, p, ENQUEUE_NOCLOCK);
+	check_preempt_curr(dst_rq, p, 0);
+}
+
+static void attach_one_task(struct rq *dst_rq, struct task_struct *p)
+{
+	struct rq_flags rf;
+
+	rq_lock(dst_rq, &rf);
+	update_rq_clock(dst_rq);
+	attach_task(dst_rq, p);
+	rq_unlock(dst_rq, &rf);
+}
+
+static void detach_task(struct rq *src_rq, struct rq *dst_rq, struct task_struct *p)
+{
+	deactivate_task(src_rq, p, DEQUEUE_NOCLOCK);
+	set_task_cpu(p, dst_rq->cpu);
+}
+
+static int lb_idle_pull_tasks(int dst_cpu, int src_cpu)
+{
+	struct rq *dst_rq = cpu_rq(dst_cpu);
+	struct rq *src_rq = cpu_rq(src_cpu);
+	struct task_struct *pulled_task = NULL, *p;
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&src_rq->lock, flags);
+	list_for_each_entry_reverse(p, &src_rq->cfs_tasks, se.group_node) {
+		if (!ems_can_migrate_task(p, dst_cpu))
+			continue;
+
+		if (task_running(src_rq, p))
+			continue;
+
+		if (lb_can_migrate(p, dst_cpu)) {
+			update_rq_clock(src_rq);
+			detach_task(src_rq, dst_rq, p);
+			pulled_task = p;
+			break;
+		}
+	}
+
+	if (!pulled_task) {
+		raw_spin_unlock_irqrestore(&src_rq->lock, flags);
+		return 0;
+	}
+
+	raw_spin_unlock(&src_rq->lock);
+
+	attach_one_task(dst_rq, pulled_task);
+
+	local_irq_restore(flags);
+
+	return 1;
+}
+
+#define NIB_AVG_IDLE_THRESHOLD  500000
+static inline bool determine_short_idle(u64 avg_idle)
+{
+	return avg_idle < NIB_AVG_IDLE_THRESHOLD;
+}
+
+static int get_cl_idx(int cpu)
+{
+	if (cpumask_test_cpu(cpu, cpu_coregroup_mask(0)))
+		return 0;
+	else if (cpumask_test_cpu(cpu, cpu_coregroup_mask(4)))
+		return 1;
+	else
+		return 2;
+}
+
+static void lb_find_busiest_equivalent_queue(int dst_cpu,
+		struct cpumask *src_cpus, struct rq **busiest)
+{
+	int src_cpu, busiest_cpu = -1;
+	unsigned long util, busiest_util = 0;
+
+	for_each_cpu_and(src_cpu, src_cpus, cpu_active_mask) {
+		struct rq *src_rq = cpu_rq(src_cpu);
+
+		trace_lb_cpu_util(src_cpu, "equal");
+
+		if (!lb_busiest_queue_pre_condition(src_rq, false))
+			continue;
+
+		if (src_rq->nr_running < 2)
+			continue;
+
+		/* find highest util cpu */
+		util = ml_cpu_util(src_cpu) + cpu_util_rt(src_rq);
+		if (util < busiest_util)
+			continue;
+
+		busiest_util = util;
+		busiest_cpu = src_cpu;
+	}
+
+	if (busiest_cpu != -1)
+		*busiest = cpu_rq(busiest_cpu);
+}
+
+static void lb_find_busiest_slower_queue(int dst_cpu, struct cpumask *src_cpus,
+				struct rq **busiest, int *is_misfit)
+{
+	int src_cpu, busiest_cpu = -1;
+	unsigned long util, busiest_util = 0;
+	unsigned long busiest_misfit_task_load = 0;
+
+	for_each_cpu_and(src_cpu, src_cpus, cpu_active_mask) {
+		struct rq *src_rq = cpu_rq(src_cpu);
+
+		trace_lb_cpu_util(src_cpu, "slower");
+
+		if (!lb_busiest_queue_pre_condition(src_rq, true))
+			continue;
+
+		if (src_rq->cfs.h_nr_running == 1)
+			continue;
+
+		util = ml_cpu_util(src_cpu) + cpu_util_rt(src_rq);
+		if (util < busiest_util)
+			continue;
+
+		busiest_util = util;
+		busiest_cpu = src_cpu;
+		busiest_misfit_task_load = src_rq->misfit_task_load;
+	}
+
+	if (busiest_cpu != -1) {
+		if (busiest_misfit_task_load)
+			*is_misfit = true;
+		*busiest = cpu_rq(busiest_cpu);
+	}
+}
+
+static bool lb_group_is_busy(struct cpumask *cpus,
+			int nr_task, unsigned long util)
+{
+	unsigned long capacity = capacity_orig_of(cpumask_first(cpus));
+	int nr_cpus = cpumask_weight(cpus);
+	/*
+	 * if there is a available cpu in the group,
+	 * this group is not busy
+	 */
+	if (nr_task <= nr_cpus)
+		return false;
+
+	if ((util + (util >> BUSY_GROUP_RATIO_SHIFT)) < (capacity * nr_cpus))
+		return false;
+
+	return true;
+}
+
+static void lb_find_busiest_faster_queue(int dst_cpu,
+		struct cpumask *src_cpus, struct rq **busiest)
+{
+	int src_cpu, busiest_cpu = -1;
+	struct cpumask candidate_mask;
+	unsigned long util, busiest_util = 0;
+	unsigned long util_sum = 0, nr_task_sum = 0;
+	unsigned long tiny_task_util;
+
+	tiny_task_util = capacity_orig_of(cpumask_first(src_cpus)) >> TINY_TASK_RATIO_SHIFT;
+	cpumask_and(&candidate_mask, src_cpus, cpu_active_mask);
+	cpumask_and(&candidate_mask, &candidate_mask, ecs_cpus_allowed(NULL));
+	if (cpumask_empty(&candidate_mask))
+		return;
+
+	for_each_cpu(src_cpu, &candidate_mask) {
+		struct rq *src_rq = cpu_rq(src_cpu);
+
+		trace_lb_cpu_util(src_cpu, "faster");
+
+		util = ml_cpu_util(src_cpu) + cpu_util_rt(src_rq);
+		util_sum += util;
+		nr_task_sum += src_rq->cfs.h_nr_running;
+
+		if (!lb_busiest_queue_pre_condition(src_rq, true))
+			continue;
+
+		if (src_rq->cfs.h_nr_running < 2)
+			continue;
+
+		if (src_rq->cfs.h_nr_running == 2 &&
+			ml_task_util(src_rq->curr) < tiny_task_util)
+			continue;
+
+		if (util < busiest_util)
+			continue;
+
+		busiest_util = util;
+		busiest_cpu = src_cpu;
+	}
+
+	/*
+	 * Don't allow migrating to lower cluster unless
+	 * this faster cluster is sufficiently loaded.
+	 */
+	if (!lb_group_is_busy(&candidate_mask, nr_task_sum, util_sum))
+		return;
+
+	if (busiest_cpu != -1)
+		*busiest = cpu_rq(busiest_cpu);
+}
+
+static void __lb_find_busiest_queue(int dst_cpu, struct cpumask *src_cpus,
+				struct rq **busiest, int *is_misfit)
+{
+	unsigned long dst_capacity, src_capacity;
+
+	src_capacity = capacity_orig_of(cpumask_first(src_cpus));
+	dst_capacity = capacity_orig_of(dst_cpu);
+
+	if (dst_capacity == src_capacity)
+		lb_find_busiest_equivalent_queue(dst_cpu, src_cpus, busiest);
+	else if (dst_capacity > src_capacity)
+		lb_find_busiest_slower_queue(dst_cpu, src_cpus, busiest, is_misfit);
+	else
+		lb_find_busiest_faster_queue(dst_cpu, src_cpus, busiest);
+}
+
+static void lb_newidle_slowest_find_busiest(int dst_cpu, struct rq **busiest,
+					int cl_idx, bool short_idle)
+{
+	struct pe_list *pl = get_pe_list(cl_idx);
+	int pe_list_size = get_pe_list_size();
+	int cnt;
+	int is_misfit = 0;
+
+	if (!pl)
+		return;
+
+	for (cnt = 0; cnt < pe_list_size; cnt++) {
+		if (cnt > 1) {
+			*busiest = NULL;
+			return;
+		}
+
+		if (cnt && short_idle)
+			continue;
+
+		is_misfit = 0;
+		__lb_find_busiest_queue(dst_cpu, &pl->cpus[cnt], busiest, &is_misfit);
+		if (*busiest)
+			return;
+	}
+}
+
+static void lb_newidle_mid_find_busiest(int dst_cpu, struct rq **busiest,
+					int cl_idx, bool short_idle)
+{
+	struct pe_list *pl = get_pe_list(cl_idx);
+	int pe_list_size = get_pe_list_size();
+	int cnt;
+	int is_misfit = 0;
+
+	if (!pl)
+		return;
+
+	for (cnt = 0; cnt < pe_list_size; cnt++) {
+		int src_cpu = cpumask_any(&pl->cpus[cnt]);
+		bool is_faster = capacity_orig_of(dst_cpu) > capacity_orig_of(src_cpu) ? true : false;
+
+		if (cnt && short_idle)
+			continue;
+
+		is_misfit = 0;
+		__lb_find_busiest_queue(dst_cpu, &pl->cpus[cnt], busiest, &is_misfit);
+		if (*busiest) {
+			if (!cnt)
+				return;
+
+			if (is_faster && is_misfit)
+				return;
+			else if (!is_faster)
+				return;
+			else
+				*busiest = NULL;
+		}
+	}
+}
+
+static void lb_newidle_fastest_find_busiest(int dst_cpu, struct rq **busiest,
+					int cl_idx, bool short_idle)
+{
+	int pe_list_size = get_pe_list_size();
+	struct pe_list *pl = get_pe_list(cl_idx);
+	int cnt;
+	int is_misfit = 0;
+
+	if (!pl)
+		return;
+
+	for (cnt = 0; cnt < pe_list_size; cnt++) {
+		is_misfit = 0;
+		__lb_find_busiest_queue(dst_cpu, &pl->cpus[cnt], busiest, &is_misfit);
+		if (*busiest) {
+			if (!cnt) {
+				return;
+			} else if (cnt == 1) {
+				if (short_idle && !is_misfit)
+					*busiest = NULL;
+				else
+					return;
+			}
+		}
+	}
+}
+
+void lb_newidle_balance(struct rq *dst_rq, void *rf_ptr,
+			int *pulled_task, int *done)
+{
+	struct rq *busiest = NULL;
+	int dst_cpu = dst_rq->cpu;
+	int src_cpu = -1;
+	struct rq_flags *rf = (struct rq_flags *)rf_ptr;
+	bool short_idle;
+	int cl_idx = get_cl_idx(dst_cpu);
+
+	if (unlikely(!ems_initialized))
+		return;
+
+	dst_rq->misfit_task_load = 0;
+	*done = true;
+
+	short_idle = determine_short_idle(dst_rq->avg_idle);
+	if (unlikely(!ecs_cpu_available(dst_cpu, NULL)))
+		return;
+
+	dst_rq->idle_stamp = rq_clock(dst_rq);
+
+	/*
+	 * Do not pull tasks towards !active CPUs...
+	 */
+	if (!cpu_active(dst_cpu))
+		return;
+
+	if (dst_rq->nr_running)
+		goto out;
+
+	if (!READ_ONCE(dst_rq->rd->overload))
+		goto out;
+
+	if (atomic_read(&dst_rq->nr_iowait) && short_idle)
+		goto out;
+
+	raw_spin_unlock(&dst_rq->lock);
+
+	lb_newidle_func[cl_idx](dst_rq->cpu, &busiest, cl_idx, short_idle);
+	if (busiest) {
+		src_cpu = cpu_of(busiest);
+		if (dst_cpu != src_cpu && dst_rq->nr_running < 1)
+			*pulled_task = lb_idle_pull_tasks(dst_cpu, src_cpu);
+	}
+
+	raw_spin_lock(&dst_rq->lock);
+
+out:
+	if (dst_rq->cfs.h_nr_running && !*pulled_task)
+		*pulled_task = 1;
+
+	/* Is there a task of a high priority class? */
+	if (dst_rq->nr_running != dst_rq->cfs.h_nr_running)
+		*pulled_task = -1;
+
+	if (*pulled_task)
+		dst_rq->idle_stamp = 0;
+
+	rq_repin_lock(dst_rq, rf);
+
+	trace_lb_newidle_balance(dst_cpu, src_cpu, *pulled_task, short_idle);
+}
+
 int exynos_select_task_rq(struct task_struct *p, int prev_cpu,
 			  int sd_flag, int wake_flag)
 {
@@ -518,6 +980,47 @@ static void ems_delayed_init(struct work_struct *work)
 	sysbusy_init();
 }
 
+static void pe_list_init(void)
+{
+	struct device_node *dn, *child;
+	int index = 0;
+
+	dn = of_find_node_by_path("/ems/pe-list");
+	if (!dn) {
+		pr_err("%s: Fail to get pe-list node\n", __func__);
+		return;
+	}
+
+	num_of_list = of_get_child_count(dn);
+	if (num_of_list == 0)
+		return;
+
+	pe_list = kmalloc_array(num_of_list, sizeof(struct pe_list), GFP_KERNEL);
+
+	for_each_child_of_node(dn, child) {
+		struct pe_list *pl = &pe_list[index++];
+		const char *buf[10];
+		int i;
+
+		pl->num_of_cpus = of_property_count_strings(child, "cpus");
+		if (pl->num_of_cpus == 0)
+			continue;
+
+		pl->cpus = kmalloc_array(pl->num_of_cpus, sizeof(struct cpumask), GFP_KERNEL);
+
+		of_property_read_string_array(child, "cpus", buf, pl->num_of_cpus);
+		for (i = 0; i < pl->num_of_cpus; i++)
+			cpulist_parse(buf[i], &pl->cpus[i]);
+	}
+}
+
+static void lb_newidle_init(void)
+{
+	lb_newidle_func[0] = lb_newidle_slowest_find_busiest;
+	lb_newidle_func[1] = lb_newidle_mid_find_busiest;
+	lb_newidle_func[2] = lb_newidle_fastest_find_busiest;
+}
+
 static int ems_init(void)
 {
 	int ret;
@@ -541,6 +1044,11 @@ static int ems_init(void)
 	frt_init();
 	ecs_init();
 	emstune_init();
+	pe_list_init();
+	lb_newidle_init();
+
+	/* some api must be called after ems initialized */
+	ems_initialized = true;
 
 	/* booting lock for sysbusy, it is expired after 40s */
 	INIT_DELAYED_WORK(&ems_init_dwork, ems_delayed_init);

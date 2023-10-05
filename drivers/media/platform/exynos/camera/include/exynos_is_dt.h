@@ -206,6 +206,7 @@
 #define	EX_LOW_RES_TETRA	12
 #define	EX_NIGHT		13
 #define	EX_12BIT	14
+#define	EX_AI_REMOSAIC	15
 
 /* EX_OPTION 32 = 0x20 */
 #define	EX_OPTION_VIDEO		32
