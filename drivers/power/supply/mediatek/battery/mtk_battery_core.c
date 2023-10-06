@@ -1510,6 +1510,21 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	fg_read_dts_val(np, "SWOCV_OLDOCV_DIFF_EMB",
 		&(fg_cust_data.swocv_oldocv_diff_emb), 1);
 
+#if defined(CONFIG_SEC_FACTORY)
+	bm_err("%s oldocv diff set 0 in only factory bin\n", __func__);
+	fg_cust_data.hwocv_oldocv_diff = 0;
+	fg_cust_data.hwocv_oldocv_diff_chr = 0;
+	fg_cust_data.hwocv_swocv_diff = 0;
+	fg_cust_data.hwocv_swocv_diff_lt = 0;
+	fg_cust_data.swocv_oldocv_diff = 0;
+	fg_cust_data.swocv_oldocv_diff_chr = 0;
+	fg_cust_data.vbat_oldocv_diff = 0;
+	fg_cust_data.swocv_oldocv_diff_emb = 0;
+	fg_cust_data.vir_oldocv_diff_emb = 0;
+	fg_cust_data.vir_oldocv_diff_emb_lt = 0;
+	fg_cust_data.tnew_told_pon_diff = -1;
+#endif
+
 	fg_read_dts_val(np, "PMIC_SHUTDOWN_TIME",
 		&(fg_cust_data.pmic_shutdown_time), UNIT_TRANS_60);
 	fg_read_dts_val(np, "TNEW_TOLD_PON_DIFF",

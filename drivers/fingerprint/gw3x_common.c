@@ -35,7 +35,7 @@ MODULE_DEVICE_TABLE(of, gw3x_of_match);
 static struct gf_device *g_data;
 struct debug_logger *g_logger;
 
-static ssize_t gw3x_bfs_values_show(struct device *dev,
+static ssize_t bfs_values_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -44,7 +44,7 @@ static ssize_t gw3x_bfs_values_show(struct device *dev,
 			gf_dev->clk_setting->spi_speed);
 }
 
-static ssize_t gw3x_type_check_show(struct device *dev,
+static ssize_t type_check_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -52,13 +52,13 @@ static ssize_t gw3x_type_check_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", gf_dev->sensortype);
 }
 
-static ssize_t gw3x_vendor_show(struct device *dev,
+static ssize_t vendor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%s\n", "GOODIX");
 }
 
-static ssize_t gw3x_name_show(struct device *dev,
+static ssize_t name_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -66,13 +66,13 @@ static ssize_t gw3x_name_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", gf_dev->chipid);
 }
 
-static ssize_t gw3x_adm_show(struct device *dev,
+static ssize_t adm_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", DETECT_ADM);
 }
 
-static ssize_t gw3x_intcnt_show(struct device *dev,
+static ssize_t intcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -80,7 +80,7 @@ static ssize_t gw3x_intcnt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", gf_dev->interrupt_count);
 }
 
-static ssize_t gw3x_intcnt_store(struct device *dev,
+static ssize_t intcnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -93,7 +93,7 @@ static ssize_t gw3x_intcnt_store(struct device *dev,
 	return size;
 }
 
-static ssize_t gw3x_resetcnt_show(struct device *dev,
+static ssize_t resetcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
@@ -101,7 +101,7 @@ static ssize_t gw3x_resetcnt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", gf_dev->reset_count);
 }
 
-static ssize_t gw3x_resetcnt_store(struct device *dev,
+static ssize_t resetcnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -114,13 +114,13 @@ static ssize_t gw3x_resetcnt_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(bfs_values, 0444, gw3x_bfs_values_show, NULL);
-static DEVICE_ATTR(type_check, 0444, gw3x_type_check_show, NULL);
-static DEVICE_ATTR(vendor, 0444,	gw3x_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, gw3x_name_show, NULL);
-static DEVICE_ATTR(adm, 0444, gw3x_adm_show, NULL);
-static DEVICE_ATTR(intcnt, 0664, gw3x_intcnt_show, gw3x_intcnt_store);
-static DEVICE_ATTR(resetcnt, 0664, gw3x_resetcnt_show, gw3x_resetcnt_store);
+static DEVICE_ATTR_RO(bfs_values);
+static DEVICE_ATTR_RO(type_check);
+static DEVICE_ATTR_RO(vendor);
+static DEVICE_ATTR_RO(name);
+static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RW(intcnt);
+static DEVICE_ATTR_RW(resetcnt);
 
 static struct device_attribute *fp_attrs[] = {
 	&dev_attr_bfs_values,
@@ -333,7 +333,6 @@ static long gw3x_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			free_irq(gf_dev->irq, gf_dev);
 			gf_dev->irq = 0;
 		}
-		fb_unregister_client(&gf_dev->notifier);
 		gf_dev->system_status = 0;
 		break;
 
@@ -622,6 +621,7 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 {
 	struct device_node *np = dev->of_node;
 	int retval = 0;
+
 	gf_dev->p = NULL;
 	gf_dev->pins_poweroff = NULL;
 	gf_dev->pins_poweron = NULL;
@@ -650,9 +650,8 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 			pr_info("fail to get regulator_3p3\n");
 			gf_dev->regulator_3p3 = NULL;
 			return -EINVAL;
-		} else {
-			pr_info("btp_regulator ok\n");
 		}
+		pr_info("btp_regulator ok\n");
 	}
 
     /* get reset resource */
@@ -762,64 +761,72 @@ int gw3x_type_check(struct gf_device *gf_dev)
 	int retval = -ENODEV;
 	unsigned char mcuid[4] = {0x00, 0x00, 0x00, 0x00};
 	u32 mcuid32 = 0;
+	u32 mcuid24 = 0;
 
 	gw3x_hw_power_enable(gf_dev, 1);
 	usleep_range(4950, 5000);
 	gw3x_hw_reset(gf_dev, 50);
 
 	gw3x_spi_read_bytes(gf_dev, 0x0000, 4, mcuid);
-	mcuid32 = (mcuid[2] << 16 | mcuid[3] << 8 | mcuid[0]);
+	mcuid32 = (mcuid[2] << 24 | mcuid[3] << 16 | mcuid[0] << 8 | mcuid[1]);
+	mcuid24 = (mcuid32 >> 8);
 	pr_info("Sensor read : %x %x %x %x\n",
 		mcuid[0], mcuid[1], mcuid[2], mcuid[3]);
-	pr_info("Sensor read : 0x%8x\n", mcuid32);
-	if (mcuid32 == GF_GW32J_CHIP_ID) {
+	pr_info("Sensor read mcuid32 : 0x%08x\n", mcuid32);
+	pr_info("Sensor read mcuid24 : 0x%08x\n", mcuid24);
+	if (mcuid24 == GF_GW32J_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW32J\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW32N_CHIP_ID) {
+	} else if (mcuid24 == GF_GW32N_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW32N\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW36H_CHIP_ID) {
+	} else if (mcuid24 == GF_GW36H_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36H\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW36C_CHIP_ID) {
+	} else if (mcuid24 == GF_GW36C_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36C\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW36T1_CHIP_ID) {
+	} else if (mcuid24 == GF_GW36T1_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T1\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW36T2_CHIP_ID) {
+	} else if (mcuid24 == GF_GW36T2_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T2\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW36T3_CHIP_ID) {
+	} else if (mcuid24 == GF_GW36T3_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T3\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW36T1_SHIFT_CHIP_ID) {
+	} else if (mcuid24 == GF_GW36T1_SHIFT_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T1 SHIFT\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW36T2_SHIFT_CHIP_ID) {
+	} else if (mcuid24 == GF_GW36T2_SHIFT_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T2 SHIFT\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
-	} else if (mcuid32 == GF_GW36T3_SHIFT_CHIP_ID) {
+	} else if (mcuid24 == GF_GW36T3_SHIFT_CHIP_ID) {
 		gf_dev->sensortype = SENSOR_GOODIX;
 		pr_info("%s sensor type is GW36T3 SHIFT\n",
+		sensor_status[gf_dev->sensortype + 2]);
+		retval = 0;
+	} else if (mcuid32 == GF_GW39B_CHIP_ID) {
+		gf_dev->sensortype = SENSOR_GOODIX;
+		pr_info("%s sensor type is GW39B\n",
 		sensor_status[gf_dev->sensortype + 2]);
 		retval = 0;
 	} else {

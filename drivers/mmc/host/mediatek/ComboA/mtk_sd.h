@@ -627,7 +627,7 @@ static inline unsigned int uffs(unsigned int x)
 #define is_card_present(h)      (((struct msdc_host *)(h))->card_inserted)
 #define is_card_sdio(h)         (((struct msdc_host *)(h))->hw->register_pm)
 
-#define CMD_TIMEOUT             (HZ/10 * 5)     /* 100ms x5 */
+#define CMD_TIMEOUT             (HZ/100 * 5)     /* 10ms x5 */
 #define CMD_CQ_TIMEOUT          (HZ    * 3)
 #define DAT_TIMEOUT             (HZ    * 5)     /* 1000ms x5 */
 #define POLLING_BUSY            (HZ    * 3)

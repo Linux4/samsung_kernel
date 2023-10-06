@@ -142,7 +142,7 @@
 
 #endif /*isg5320a_sub*/
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.f22.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.f22.dtsi */
 &isg5320a {
 	isg5320a,set_reg = /bits/ 8 <
 		0x05 0xFC

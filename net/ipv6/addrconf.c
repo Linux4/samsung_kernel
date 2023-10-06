@@ -109,6 +109,12 @@
 #define IPV6_MAX_STRLEN \
 	sizeof("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255")
 
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+#define NET_IF_NAME	"rmnet"
+#else
+#define NET_IF_NAME	"ccmni"
+#endif
+
 static inline u32 cstamp_delta(unsigned long cstamp)
 {
 	return (cstamp - INITIAL_JIFFIES) * 100UL / HZ;
@@ -3879,8 +3885,8 @@ static void addrconf_rs_timer(unsigned long data)
 		goto out;
 
 	if (idev->rs_probes == RTR_SOLICITS_MAX && (idev->if_flags & IF_RS_VZW_SENT)) {
-		idev->if_flags &= ~IF_RS_VZW_SENT;
 		inet6_no_ra_notify(RTM_DELADDR, idev);
+		idev->if_flags &= ~IF_RS_VZW_SENT;
 		goto out;
 	}
 
@@ -3894,7 +3900,7 @@ static void addrconf_rs_timer(unsigned long data)
 
 		write_lock(&idev->lock);
 		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
-		    (strncmp(dev->name, "ccmni", 2) == 0))
+		    (strncmp(dev->name,  NET_IF_NAME, 2) == 0))
 			idev->rs_interval = idev->cnf.rtr_solicit_interval;
 		else
 			idev->rs_interval = rfc3315_s14_backoff_update(
@@ -4212,7 +4218,7 @@ static void addrconf_dad_completed(struct inet6_ifaddr *ifp, bool bump_id,
 		write_lock_bh(&ifp->idev->lock);
 		spin_lock(&ifp->lock);
 		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
-		    (strncmp(dev->name, "ccmni", 2) == 0)) {
+		    (strncmp(dev->name,  NET_IF_NAME, 2) == 0)) {
 			ifp->idev->rs_interval =
 				ifp->idev->cnf.rtr_solicit_interval;
 		} else {
@@ -4485,7 +4491,7 @@ static void calc_next_vzw(struct inet6_ifaddr *ifp, struct rt6_info *rt,
 			  unsigned long *next, unsigned long age,
 			  int is_expires, u32 minimum_lft)
 {
-	if (strncmp(ifp->idev->dev->name, "ccmni", 2) == 0) {
+	if (strncmp(ifp->idev->dev->name, NET_IF_NAME, 2) == 0) {
 		if (is_expires || (rt && (rt->rt6i_flags & RTF_EXPIRES))) {
 			if (!(ifp->idev->if_flags & IF_RS_VZW_SENT) &&
 			    age >= (minimum_lft * 3 / 4))
@@ -5519,7 +5525,7 @@ update_lft:
 	if (update_rs) {
 		idev->if_flags |= IF_RS_SENT;
 		if (sysctl_optr == MTK_IPV6_VZW_ALL &&
-		    (strncmp(dev->name, "ccmni", 2) == 0))
+		    (strncmp(dev->name,  NET_IF_NAME, 2) == 0))
 			idev->rs_interval = idev->cnf.rtr_solicit_interval;
 		else
 			idev->rs_interval = rfc3315_s14_backoff_init(

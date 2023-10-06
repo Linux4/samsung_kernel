@@ -1218,8 +1218,8 @@ static int fb_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
-	case FB_EARLY_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
+	case SMCDSD_EARLY_EVENT_BLANK:
 	case SMCDSD_EVENT_DOZE:
 	case SMCDSD_EARLY_EVENT_DOZE:
 		break;
@@ -1247,7 +1247,7 @@ static int fb_notifier_callback(struct notifier_block *self,
 		ea8076_displayon(lcd);
 	}
 
-	if (fb_blank == FB_BLANK_UNBLANK && event == FB_EVENT_BLANK)
+	if (fb_blank == FB_BLANK_UNBLANK && event == SMCDSD_EVENT_BLANK)
 		panel_bl_init_average(lcd, 1);
 
 	if (IS_ENABLED(CONFIG_MTK_FB))
@@ -2324,8 +2324,6 @@ exit:
 static int smcdsd_panel_set_mask(struct platform_device *p, int on)
 {
 	struct lcd_info *lcd = get_lcd_info(p);
-	struct mipi_dsi_lcd_common *pdata = lcd->pdata;
-	struct abd_protect *abd = &pdata->abd;
 
 	/* update HBM state */
 	lcd->mask_state = !!on;
@@ -2345,11 +2343,6 @@ static int smcdsd_panel_set_mask(struct platform_device *p, int on)
 //	_smcdsd_panel_set_brightness(lcd, 1, false);
 	smcdsd_panel_set_mask_brightness(lcd);
 	lcd->mask_framedone_check_req = true;
-
-	if (on)
-		smcdsd_abd_save_str(abd, "mask_brightness");
-	else
-		smcdsd_abd_save_str(abd, "prev_brightness");
 
 	return 0;
 }
@@ -2381,8 +2374,6 @@ static int smcdsd_panel_path_lock(struct platform_device *p, bool locking)
 static int smcdsd_panel_framedone_mask(struct platform_device *p)
 {
 	struct lcd_info *lcd = get_lcd_info(p);
-	struct mipi_dsi_lcd_common *pdata = lcd->pdata;
-	struct abd_protect *abd = &pdata->abd;
 
 	if (lcd->mask_framedone_check_req) {
 		if (lcd->mask_state == 0) {
@@ -2391,11 +2382,6 @@ static int smcdsd_panel_framedone_mask(struct platform_device *p)
 		} else {
 			lcd->actual_mask_brightness = lcd->mask_brightness;
 		}
-
-		if (lcd->mask_state)
-			smcdsd_abd_save_str(abd, "mask_done");
-		else
-			smcdsd_abd_save_str(abd, "prev_done");
 
 		sysfs_notify(&lcd->ld->dev.kobj, NULL, "actual_mask_brightness");
 

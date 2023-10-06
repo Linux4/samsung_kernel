@@ -2032,7 +2032,7 @@ static int stm_ts_get_rawdata(struct stm_ts_data *ts)
 	target_mem = ts->raw_pool[ts->raw_write_index++];
 	memcpy(target_mem, ts->raw, ts->raw_len);
 
-	if (ts->raw_write_index >= 3)
+	if (ts->raw_write_index >= RAW_VEC_NUM)
 		ts->raw_write_index = 0;
 
 /*	input_info(true, &ts->client->dev, "%s: | %d | %d | %d | %d\n", __func__, ts->raw[0], ts->raw[1], ts->raw[2], ts->raw[3]);*/
@@ -2192,6 +2192,16 @@ int stm_ts_input_open(struct input_dev *dev)
 
 	if (ts->fix_active_mode) 
 		stm_ts_fix_active_mode(ts, STM_TS_ACTIVE_TRUE);
+
+	if (ts->plat_data->low_sensitivity_mode) {
+		u8 reg[2];
+
+		reg[0] = STM_TS_CMD_FUNCTION_SET_LOW_SENSITIVITY_MODE;
+		reg[1] = ts->plat_data->low_sensitivity_mode;
+		ret = ts->stm_ts_write(ts, reg, 2, NULL, 0);
+		if (ret < 0)
+			input_err(true, &ts->client->dev, "%s: Failed to set low sensitivity mode\n", __func__);
+	}
 
 	sec_input_set_temperature(&ts->client->dev, SEC_INPUT_SET_TEMPERATURE_FORCE);
 

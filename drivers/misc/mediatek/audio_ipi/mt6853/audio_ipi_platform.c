@@ -127,6 +127,9 @@ uint32_t audio_get_dsp_id(const uint8_t task)
 	case TASK_SCENE_PHONE_CALL_SUB:
 	case TASK_SCENE_BLECALLDL:
 	case TASK_SCENE_BLECALLUL:
+	case TASK_SCENE_ECHO_REF_DL:
+	case TASK_SCENE_UL_PROCESS:
+	case TASK_SCENE_ECHO_REF_UL:
 		dsp_id = AUDIO_OPENDSP_USE_HIFI3_A;
 		break;
 	default:

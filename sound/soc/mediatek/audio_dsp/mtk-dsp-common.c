@@ -157,6 +157,12 @@ int get_dspscene_by_dspdaiid(int id)
 		return TASK_SCENE_CAPTURE_RAW;
 	case AUDIO_TASK_FM_ADSP_ID:
 		return TASK_SCENE_FM_ADSP;
+	case AUDIO_TASK_UL_PROCESS_ID:
+		return TASK_SCENE_UL_PROCESS;
+	case AUDIO_TASK_ECHO_REF_ID:
+		return TASK_SCENE_ECHO_REF_UL;
+	case AUDIO_TASK_ECHO_REF_DL_ID:
+		return TASK_SCENE_ECHO_REF_DL;
 	default:
 		pr_warn("%s() err\n", __func__);
 		return -1;
@@ -195,6 +201,12 @@ int get_dspdaiid_by_dspscene(int dspscene)
 		return AUDIO_TASK_CAPTURE_RAW_ID;
 	case TASK_SCENE_FM_ADSP:
 		return AUDIO_TASK_FM_ADSP_ID;
+	case TASK_SCENE_UL_PROCESS:
+		return AUDIO_TASK_UL_PROCESS_ID;
+	case TASK_SCENE_ECHO_REF_UL:
+		return AUDIO_TASK_ECHO_REF_ID;
+	case TASK_SCENE_ECHO_REF_DL:
+		return AUDIO_TASK_ECHO_REF_DL_ID;
 	default:
 		pr_info("%s() err dspscene=%d\n", __func__, dspscene);
 		return -1;
@@ -229,7 +241,8 @@ int afe_get_pcmdir(int dir, struct audio_hw_buffer buf)
 	memif = buf.audio_memiftype;
 	for (i = 0; i < AUDIO_TASK_DAI_NUM; i++) {
 		if (get_afememref_by_afe_taskid(i) == memif &&
-		   buf.hw_buffer == BUFFER_TYPE_HW_MEM) {
+		   buf.hw_buffer == BUFFER_TYPE_HW_MEM &&
+		   get_task_attr(i, ADSP_TASK_ATTR_REF_RUNTIME) == 1) {
 			ret = AUDIO_DSP_TASK_PCM_HWPARAM_REF;
 			break;
 		}

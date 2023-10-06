@@ -161,6 +161,7 @@
 #endif
 #if 0
 				goodix,btp-regulator = "VDD_BTP_3P3";
+				VDD_BTP_3P3-supply = <&${fps_regul_vdd_3p3}>;
 #endif
 				goodix,gpio_reset = <SEC_GPIO_REF(AP,pio,53) 0>;
 				goodix,gpio_irq = <SEC_GPIO_REF(AP,pio,58) 0>;
