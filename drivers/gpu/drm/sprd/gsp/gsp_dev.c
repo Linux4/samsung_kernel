@@ -111,6 +111,10 @@ static struct gsp_core_ops gsp_r8p0_core_ops = {
 	.intercept = gsp_r8p0_core_intercept,
 	.reset = gsp_r8p0_core_reset,
 	.dump = gsp_r8p0_core_dump,
+/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 start*/
+	.resume = gsp_r8p0_core_resume,
+	.suspend = gsp_r8p0_core_suspend,
+/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 end*/
 };
 
 static struct gsp_core_ops gsp_r9p0_core_ops = {

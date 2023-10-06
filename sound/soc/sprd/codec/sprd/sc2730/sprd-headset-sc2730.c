@@ -2331,13 +2331,8 @@ static void headset_detect_all_work_func(struct work_struct *work)
 			ret = sprd_headset_valid_insert_all(hdst, 20);
 		}
 		/*HS03 code for SL6215DEV-3519|SL6215DEV-576 by yuyongxiang at 20211108 end*/
+
 		if (ret) {
-			/* Tab A8 code for P221213-04953 by hujincan at 20221219 start */
-			if (hdst->plug_state_last == 1) {
-				pr_err("%s insert all invalid return %d\n", __func__, ret);
-				return;
-			}
-			/* Tab A8 code for P221213-04953 by hujincan at 20221219 end */
 			pr_err("%s insert all invalid %d\n", __func__, ret);
 			sprd_headset_reset(hdst);
 			hdst->hdst_hw_status = HW_LDETL_PLUG_OUT;

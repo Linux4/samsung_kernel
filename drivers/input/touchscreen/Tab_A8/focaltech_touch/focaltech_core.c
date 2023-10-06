@@ -2343,8 +2343,7 @@ static int __init fts_ts_init(void)
         FTS_INFO("it is not focal tp\n");
         return -ENODEV;
     }
-    FTS_FUNC_ENTER();
-    ret = spi_register_driver(&fts_ts_driver);
+    FTS_FUNC_ENTER();	/* Tab A8 code for AX6300TDEV-594 by suyurui at 20230630 start */    if (saved_command_line && (strstr(saved_command_line, "androidboot.mode=normal") ||        strstr(saved_command_line, "androidboot.mode=autotest") ||        strstr(saved_command_line, "androidboot.mode=alarm"))) {        FTS_ERROR("it is normal mode\n");        ret = spi_register_driver(&fts_ts_driver);    } else {        FTS_ERROR("it is not normal mode\n");        return -ENODEV;    }    /* Tab A8 code for AX6300TDEV-594 by suyurui at 20230630 end */
     if (ret != 0) {
         FTS_ERROR("Focaltech touch screen driver init failed!");
     }

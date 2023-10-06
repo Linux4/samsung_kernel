@@ -900,7 +900,9 @@ struct charger_manager {
 	#if !defined(HQ_FACTORY_BUILD)
 	u64 charging_dur_time;
 	u64 charging_count_start;
-	bool batt_protect_flag;
+	/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 start */
+	u32 batt_protect_flag;
+	/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 end */
 	bool en_batt_protect;
 	#endif
 	/* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 end */
