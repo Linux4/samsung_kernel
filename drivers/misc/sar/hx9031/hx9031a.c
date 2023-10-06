@@ -801,6 +801,9 @@ void self_cali(void)
     }
 }
 /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
+/*Tab A8_T code for AX6300TDEV-642 by xiongxiaoliang at 2023/06/20 start*/
+const int g_anfr_event = 1;
+const int g_noanfr_event = 2;
 
 static void hx9031a_input_report(void)
 {
@@ -853,6 +856,7 @@ static void hx9031a_input_report(void)
         if (anfr_status == SELF_CALI_NUM) {
             PRINT_ERR("LC_SELF\n");
             input_report_abs(input, ABS_DISTANCE, 0);
+            input_report_rel(input, REL_X, g_anfr_event);
             input_sync(input);
         } else {
             PRINT_ERR("LC_recover\n");
@@ -875,6 +879,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR1_FAR, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
                     }else if(1 == ii){
@@ -883,6 +888,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR2_FAR, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
                     }else if(2 == ii){
@@ -891,6 +897,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR3_FAR, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
                     }
@@ -912,6 +919,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR1_FAR, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
 
@@ -921,6 +929,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR2_FAR, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
                     }else if(2 == ii){
@@ -929,6 +938,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR3_FAR, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 0);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
                     }
@@ -950,6 +960,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR1_CLOSE, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 5);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
                     }else if(1 == ii){
@@ -958,6 +969,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR2_CLOSE, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 5);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
                     }else if(2 == ii){
@@ -966,6 +978,7 @@ static void hx9031a_input_report(void)
                             input_report_key(input, KEY_SAR3_CLOSE, 0);
                             #else
                             input_report_abs(input, ABS_DISTANCE, 5);
+                            input_report_rel(input, REL_X, g_noanfr_event);
                             #endif
                             input_sync(input);
                     }
@@ -980,6 +993,7 @@ static void hx9031a_input_report(void)
         /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
     }
 }
+/*Tab A8_T code for AX6300TDEV-642 by xiongxiaoliang at 2023/06/20 end*/
 
 static int hx9031a_parse_dt(struct device *dev)
 {
@@ -1220,6 +1234,7 @@ static int hx9031a_ch_en(uint8_t ch_id, uint8_t en)
 }
 #endif
 
+/*Tab A8_T code for AX6300TDEV-642 by xiongxiaoliang at 2023/06/20 start*/
 static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned int enable)
 {
     int ret = -1;
@@ -1249,6 +1264,7 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
                 if (anfr_status == 1) {
                     PRINT_ERR("lc_enable\n");
                     input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, 0);
+                    input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_X, g_anfr_event);
                     input_sync(hx9031a_channels[ii].hx9031a_input_dev);
                 } else {
                     if (((hx9031a_pdata.prox_state_reg >> ii) & 0x1) == 0) {
@@ -1259,6 +1275,7 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
                         hx9031a_channels[ii].state = PROXACTIVE;
                     }
                     input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, ((hx9031a_pdata.prox_state_reg >> ii) & 0x1) ?  0 : 5);
+                    input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_X, g_noanfr_event);
                     input_sync(hx9031a_channels[ii].hx9031a_input_dev);
                 }
                 /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
@@ -1280,6 +1297,7 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
                 /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 start */
                 /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 start*/
                 input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1);
+                input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_X, g_noanfr_event);
                 /*Tab A8_T code for SR-AX6301A-01-112 by lichang at 2022/10/18 end*/
                 /* Tab A8 code for AX6300DEV-3809 by xiongxiaoliang at 2021/12/16 end */
                 input_sync(hx9031a_channels[ii].hx9031a_input_dev);
@@ -1292,7 +1310,7 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
 
     return 0;
 }
-
+/*Tab A8_T code for AX6300TDEV-642 by xiongxiaoliang at 2023/06/20 end*/
 //alg start===========================================================================
 /* Tab A8 code for AX6300DEV-735 by mayuhang at 2021/9/23 start */
 #if HX9031A_ALG_COMPILE_EN
@@ -2208,47 +2226,6 @@ static struct class_attribute hx9031a_class_attributes[] = {
 };
 #endif
 
-#if defined(CONFIG_SENSORS)
-static ssize_t hx9031_onoff_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-    return snprintf(buf, PAGE_SIZE, "%u\n", !hx9031a_pdata.skip_data);
-}
-
-static ssize_t hx9031_onoff_store(struct device *dev,
-        struct device_attribute *attr, const char *buf, size_t count)
-{
-    u8 val;
-    int ret;
-
-    ret = kstrtou8(buf, 2, &val);
-    if (ret) {
-        PRINT_ERR("%s - Invalid Argument\n", __func__);
-        return ret;
-    }
-
-    if (val == 0) {
-        hx9031a_pdata.skip_data = true;
-        if (hx9031a_channels[0].enabled || hx9031a_channels[1].enabled || hx9031a_channels[2].enabled) {
-            input_report_abs(hx9031a_channels[0].hx9031a_input_dev, ABS_DISTANCE, 5);                   
-            input_sync(hx9031a_channels[0].hx9031a_input_dev);
-            input_report_abs(hx9031a_channels[1].hx9031a_input_dev, ABS_DISTANCE, 5); 
-            input_sync(hx9031a_channels[1].hx9031a_input_dev);
-            input_report_abs(hx9031a_channels[2].hx9031a_input_dev, ABS_DISTANCE, 5); 
-            input_sync(hx9031a_channels[2].hx9031a_input_dev);
-        }
-    } else {
-        hx9031a_pdata.skip_data = false;
-    }
-
-    PRINT_INF("%s -%u\n", __func__, val);
-    return count;
-}
-
-static DEVICE_ATTR(onoff, S_IRUGO | S_IWUSR | S_IWGRP,
-        hx9031_onoff_show, hx9031_onoff_store);
-#endif
-
 struct class hx9031a_class = {
         .name = "sar",
         .owner = THIS_MODULE,
@@ -2315,6 +2292,7 @@ static struct notifier_block sdcard_block = {
     .notifier_call = sdcard_calibration_func,
 };
 /*Tab A8 code for AX6300DEV-1840 by mayuhang at 2021/10/21 end*/
+/*Tab A8_T code for AX6300TDEV-642 by xiongxiaoliang at 2023/06/20 start*/
 static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
     int ii = 0;
@@ -2409,6 +2387,7 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
 #else
                 __set_bit(EV_ABS, hx9031a_channels[ii].hx9031a_input_dev->evbit);
                 input_set_abs_params(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1, 100, 0, 0);
+                input_set_capability(hx9031a_channels[ii].hx9031a_input_dev, EV_REL, REL_X);
 #endif
             }
             if(ii == 1)
@@ -2420,6 +2399,7 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
 #else
                 __set_bit(EV_ABS, hx9031a_channels[ii].hx9031a_input_dev->evbit);
                 input_set_abs_params(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1, 100, 0, 0);
+                input_set_capability(hx9031a_channels[ii].hx9031a_input_dev, EV_REL, REL_X);
 #endif
             }
             if(ii == 2)
@@ -2431,19 +2411,20 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
 #else
                 __set_bit(EV_ABS, hx9031a_channels[ii].hx9031a_input_dev->evbit);
                 input_set_abs_params(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1, 100, 0, 0);
+                input_set_capability(hx9031a_channels[ii].hx9031a_input_dev, EV_REL, REL_X);
 #endif
             }
             /*Tab A8 code for SR-AX6300-01-81 by mayuhang at 2021/8/12 end*/
             ret = input_register_device(hx9031a_channels[ii].hx9031a_input_dev);
 
-            input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, 5);
+            input_report_abs(hx9031a_channels[ii].hx9031a_input_dev, ABS_DISTANCE, -1);
+            input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_X, g_noanfr_event);
             input_sync(hx9031a_channels[ii].hx9031a_input_dev);
 
             hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_enable = hx9031a_set_enable;
             hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_poll_delay = NULL;
             hx9031a_channels[ii].hx9031a_sensors_classdev.name = hx9031a_channels[ii].name;
-            hx9031a_channels[ii].hx9031a_sensors_classdev.vendor = "TianYiHeXin";
-            hx9031a_channels[ii].hx9031a_sensors_classdev.sensor_name = "HX9031";
+            hx9031a_channels[ii].hx9031a_sensors_classdev.vendor = "HX9031A";
             hx9031a_channels[ii].hx9031a_sensors_classdev.version = 1;
             hx9031a_channels[ii].hx9031a_sensors_classdev.type = SENSOR_TYPE_CAPSENSE;
             hx9031a_channels[ii].hx9031a_sensors_classdev.max_range = "5";
@@ -2460,12 +2441,6 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
             if (ret < 0) {
                 PRINT_ERR("create %d cap sensor_class  file failed (%d)\n", ii, ret);
             }
-
-#if defined(CONFIG_SENSORS)
-            if (ii == 1){
-                device_create_file(hx9031a_channels[ii].hx9031a_sensors_classdev.dev, &dev_attr_onoff);
-            }
-#endif
         }
     }
     spin_lock_init(&hx9031a_pdata.lock);
@@ -2543,6 +2518,7 @@ failed_i2c_check_functionality:
 /*Tab A8 code for SR-AX6300-01-81 by mayuhang at 2021/8/12 end*/
     return ret;
 }
+/*Tab A8_T code for AX6300TDEV-642 by xiongxiaoliang at 2023/06/20 end*/
 
 static int hx9031a_remove(struct i2c_client *client)
 {

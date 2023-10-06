@@ -137,10 +137,16 @@
 #define LOW_CPPICITY 55
 #define ENABLE_BATT_PROTECT 1
 #define DISABLE_BATT_PROTECT 0
+/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 start */
+#define DEFAULT_BATT_FULL_CAP 100
+#define ENABLE_BATT_PROTECT_DISCHARGE 2
+#define ENABLE_BATT_PROTECT_HOLD 1
+#define ENABLE_BATT_PROTECT_CHARGE 0
+/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 end */
+
 #define CHR_COUNT_TIME 60000 // interval time 60s to ms
 #define TSUSPEND 259200000 // 72h to ms
 
-static int hq_enable_charging(struct charger_manager *cm, bool val);
 #endif
 /* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 end */
 /* Tab A8 code for AX6300DEV-2187 by lina at 20211028 start */
@@ -712,8 +718,9 @@ static bool is_ext_pwr_online(struct charger_manager *cm)
 	{
 		cm->charging_count_start = 0;
 		if(cm->charging_dur_time > TSUSPEND) {
+			/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 start */
 			cm->batt_protect_flag = DISABLE_BATT_PROTECT;
-			hq_enable_charging(cm, true);
+			/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 end */
 			pr_info("%s: usb_plug_out, charging_dur_time = %d, resume charging !", __func__, cm->charging_dur_time);
 		}
 	}
@@ -4586,6 +4593,24 @@ static int cm_get_target_status(struct charger_manager *cm)
 			dev_info (cm->dev, "%s:The battery starts to be recharged !", __func__);
 		}
 	}
+
+	/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 start */
+	if (cm->desc->batt_full_cap == DEFAULT_BATT_FULL_CAP) {
+		if (cm->batt_protect_flag == ENABLE_BATT_PROTECT_DISCHARGE) {
+			cm->power_path_enabled = false;
+			try_power_path_enable_by_psy(cm,cm->power_path_enabled);
+			return POWER_SUPPLY_STATUS_NOT_CHARGING;
+		} if (cm->batt_protect_flag == ENABLE_BATT_PROTECT_HOLD) {
+			cm->power_path_enabled = true;
+			try_power_path_enable_by_psy(cm,cm->power_path_enabled);
+			return POWER_SUPPLY_STATUS_NOT_CHARGING;
+		} else if (cm->batt_protect_flag == ENABLE_BATT_PROTECT_CHARGE) {
+			cm->power_path_enabled = true;
+			try_power_path_enable_by_psy(cm,cm->power_path_enabled);
+                }
+	}
+	pr_info("batt_protect_flag:%d\n", cm->batt_protect_flag);
+	/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 end */
 #endif
 /* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 start */
@@ -6833,68 +6858,6 @@ static int charger_extcon_init(struct charger_manager *cm, struct charger_cable 
 
 /* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 start */
 #if !defined(HQ_FACTORY_BUILD)
-static int hq_enable_charging(struct charger_manager *cm, bool val)
-{
-	int ret;
-
-	if (val) {
-		cm->input_suspend = false;
-		cm->power_path_enabled = true;
-	} else {
-		cm->input_suspend = true;
-		cm->power_path_enabled = false;
-	}
-
-	if (cm->input_suspend || cm->power_path_enabled) {
-		ret = try_charger_enable(cm,false);
-		if (ret) {
-			pr_err("%s: failed to stop charger.\n", __func__);
-			return ret;
-		}
-		dev_info(cm->dev, "input_suspend = 1,disable charge\n");
-	} else {
-		ret = try_charger_enable(cm,true);
-		if (ret) {
-			pr_err("%s: failed to start charger.\n", __func__);
-			return ret;
-		}
-		dev_info(cm->dev, "input_suspend = 0,enable charge\n");
-	}
-
-	return 0;
-}
-
-static int hq_batt_capacity_hold(struct charger_manager *cm, bool enable)
-{
-	struct charger_desc *desc = cm->desc;
-	union power_supply_propval val;
-	struct power_supply *psy;
-	int i, err;
-
-	if (!desc) {
-		  pr_err("%s: Cannot find charger_desc \n", __func__);
-		  return 1;
-	}
-
-	for (i = 0; desc->psy_charger_stat[i]; i++) {
-		psy = power_supply_get_by_name(desc->psy_charger_stat[i]);
-		if (!psy) {
-			dev_err(cm->dev, "Cannot find power supply \"%s\"\n",
-				desc->psy_charger_stat[i]);
-			continue;
-		}
-
-		val.intval = enable;
-		err = power_supply_set_property(psy, POWER_SUPPLY_PROP_POWER_PATH_ENABLED, &val);
-		power_supply_put(psy);
-		if (err)
-			return err;
-		if (desc->psy_charger_stat[1])
-			break;
-	}
-
-	return 0;
-}
 
 /* HS03 code for SL6215DEV-734 by shixuanxuan at 20210906 start */
 static int hq_disable_chg_ic_timer(struct charger_manager *cm)
@@ -6974,60 +6937,43 @@ static hq_get_uisoc(struct charger_manager *cm)
 	}
 	return uisoc;
 }
-
+/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 start */
 void hq_update_charge_state(struct charger_manager *cm)
 {
-	int cap, ret;
+	int cap=0;
 
 	hq_update_charing_count(cm);
 	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
-	if (cm->charging_dur_time > TSUSPEND && cm->desc->batt_full_cap == 100) {
-	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
-		if (cm->en_batt_protect == ENABLE_BATT_PROTECT) {
-			/* HS03 code for SL6215DEV-734 by shixuanxuan at 20210906 start */
-			if (cm->desc->batt_store_mode == true)
+	if (cm->charging_dur_time > TSUSPEND && \
+		cm->en_batt_protect == ENABLE_BATT_PROTECT) {
+			if (cm->desc->batt_store_mode == true){
 				return;
+			}
 			/* HS03 code for SL6215DEV-734 by shixuanxuan at 20210906 end */
 			cap = hq_get_uisoc(cm);
 			pr_debug("%s: get_uisoc = %d", __func__, cap);
 
 			if (cap > HIGHT_CPPICITY) {
-				ret = hq_enable_charging(cm, false);
-				if (ret) {
-					dev_err(cm->dev, "Cannot stop cahrging\n");
-					return;
-				}
-				pr_err("charging_time = %d over 72h! batt_capacity = %d, Charging disabled!\n",cm->charging_dur_time, cap);
-				cm->batt_protect_flag = ENABLE_BATT_PROTECT;
+				cm->batt_protect_flag = ENABLE_BATT_PROTECT_DISCHARGE;
+				pr_info("charging_time = %d over 72h! capacity = %d, charging disable!\n",
+                                cm->charging_dur_time, cap);
 			} else if (cap == HIGHT_CPPICITY) {
-				ret = hq_batt_capacity_hold(cm, true);
-				if (ret) {
-					dev_err(cm->dev, "Cannot stat cahrging! ret = %d\n", ret);
-					return;
-				}
-				pr_err("charging_time = %d over 72h! batt_capacity = %d, Battery charging disabled!\n",cm->charging_dur_time, cap);
-				cm->batt_protect_flag = ENABLE_BATT_PROTECT;
+				cm->batt_protect_flag = ENABLE_BATT_PROTECT_HOLD;
+				pr_info("charging_time = %d over 72h! capacity = %d, charging hold!\n",
+									cm->charging_dur_time, cap);
 			} else if (cap < LOW_CPPICITY) {
-				ret = hq_enable_charging(cm, true);
-				if (ret) {
-					dev_err(cm->dev, "Cannot stat cahrging\n");
-					return;
-				}
 				cm->batt_protect_flag = DISABLE_BATT_PROTECT;
-			}
+				pr_info("charging_time = %d over 72h! capacity = %d, charging resume!\n",
+                                cm->charging_dur_time, cap);
 		} else {
-			ret = hq_enable_charging(cm, true);
-			if (ret) {
-				dev_err(cm->dev, "Cannot stat cahrging\n");
-				return;
-			}
-			cm->batt_protect_flag = DISABLE_BATT_PROTECT;
+			pr_info("charging_time = %d over 72h! capacity = %d\n",
+                                cm->charging_dur_time, cap);
 		}
 	}
 
 	return;
 }
-
+/* Tab A8 code for P230719-01290 by shixuanxuan at 20230724 end */
 static void hq_charging_count_work(struct work_struct *work)
 {
 	struct charger_manager *cm = container_of(work,

@@ -223,6 +223,9 @@ source security/tomoyo/Kconfig
 source security/apparmor/Kconfig
 source security/loadpin/Kconfig
 source security/yama/Kconfig
+source security/samsung/five/Kconfig
+source security/samsung/proca/Kconfig
+source security/samsung/proca/gaf/Kconfig
 
 source security/integrity/Kconfig
 

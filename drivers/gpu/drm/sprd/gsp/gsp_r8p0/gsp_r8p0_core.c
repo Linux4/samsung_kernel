@@ -1698,4 +1698,29 @@ void gsp_r8p0_core_reset(struct gsp_core *core)
 {
 
 }
+/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 start*/
+int gsp_r8p0_core_resume(struct gsp_core *core)
+{
+       core->secure_init = false;
+
+       return 0;
+}
+
+int gsp_r8p0_core_suspend(struct gsp_core *core)
+{
+       int ret;
+
+       if (core->secure_init == true) {
+               ret = trusty_fast_call32(NULL, SMC_FC_GSP_FW_SET_SECURITY, FW_ATTR_NON_SECURE, 0, 0);
+               if (ret) {
+                       pr_err("Trusty gsp fastcall clear firewall failed, ret = %d\n", ret);
+                       return ret;
+               }
+
+               core->secure_init = false;
+       }
+
+       return 0;
+}
+/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 end*/
 
