@@ -149,6 +149,9 @@ static ssize_t sec_qc_reset_tzlog_proc_read(struct file *file,
 	struct qc_user_reset_proc *reset_tzlog = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
 
+	if (pos < 0 || pos > reset_tzlog->len)
+		return 0;
+
 	nbytes = min_t(size_t, nbytes, reset_tzlog->len - pos);
 	if (copy_to_user(buf, &reset_tzlog->buf[pos], nbytes))
 		return -EFAULT;

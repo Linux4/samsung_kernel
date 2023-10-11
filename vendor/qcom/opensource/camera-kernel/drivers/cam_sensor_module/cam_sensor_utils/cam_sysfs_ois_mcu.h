@@ -17,6 +17,7 @@ extern const struct device_attribute *ois_attrs[];
 extern struct cam_ois_ctrl_t *g_o_ctrl;
 extern struct cam_actuator_ctrl_t *g_a_ctrls[SEC_SENSOR_ID_MAX];
 
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
 extern uint8_t ois_m1_xygg[OIS_XYGG_SIZE];
 extern uint8_t ois_m1_cal_mark;
 extern uint8_t ois_m2_xygg[OIS_XYGG_SIZE];
@@ -28,6 +29,7 @@ extern uint8_t ois_m2_xysr[OIS_XYSR_SIZE];
 extern uint8_t ois_m2_cross_talk[OIS_CROSSTALK_SIZE];
 extern uint8_t ois_m3_xysr[OIS_XYSR_SIZE];
 extern uint8_t ois_m3_cross_talk[OIS_CROSSTALK_SIZE];
+#endif
 
 #if defined(CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING)
 extern int actuator_power;

@@ -551,6 +551,11 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_CELT),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_RVP),
+#endif
+// SS_BT_HFP - H_127 end
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_LC3),
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM),
@@ -8410,6 +8415,9 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_BT_SCO_SWB:
         case PAL_PARAM_ID_BT_SCO_LC3:
         case PAL_PARAM_ID_BT_SCO_NREC:
+#ifdef SEC_AUDIO_BLUETOOTH
+        case PAL_PARAM_ID_BT_SCO_CODEC_TYPE:
+#endif
         {
             std::shared_ptr<Device> dev = nullptr;
             struct pal_device dattr;
@@ -9953,6 +9961,16 @@ bool ResourceManager::isDpDevice(pal_device_id_t id) {
         return false;
 }
 
+bool ResourceManager::isPluginPlaybackDevice(pal_device_id_t id) {
+    if (id == PAL_DEVICE_OUT_USB_DEVICE ||
+        id == PAL_DEVICE_OUT_USB_HEADSET ||
+        id == PAL_DEVICE_OUT_WIRED_HEADSET ||
+        id == PAL_DEVICE_OUT_WIRED_HEADPHONE)
+        return true;
+    else
+        return false;
+}
+
 void ResourceManager::processConfigParams(const XML_Char **attr)
 {
     if (strcmp(attr[0], "key") != 0) {
@@ -10974,6 +10992,13 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
 
     curDeviceId = dev->getSndDeviceId();
 
+#ifndef SEC_AUDIO_COMMON
+    // Below code is added for QC Patch(3891320), remove it with QC case#05961502
+    if (isPluginPlaybackDevice((pal_device_id_t)dev->getSndDeviceId())) {
+        PAL_ERR(LOG_TAG, "don't restore device for usb/3.5 hs playback");
+        goto exit;
+    }
+#endif
     // if haptics device to be stopped, check and restore headset device config
     if (dev->getSndDeviceId() == PAL_DEVICE_OUT_HAPTICS_DEVICE) {
         curDevAttr.id = PAL_DEVICE_OUT_WIRED_HEADSET;
@@ -11142,6 +11167,19 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         }
     }
     mActiveStreamMutex.unlock();
+
+#ifdef SEC_AUDIO_COMMON
+    // Below code is added for QC Patch(3891320) at the beginning of this function
+    if (isPluginPlaybackDevice((pal_device_id_t)dev->getSndDeviceId())) {
+        char currentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+        getSndDeviceName(dev->getSndDeviceId(), currentSndDeviceName);
+        if (!strcmp(activeSndDeviceName, currentSndDeviceName)) { // added by samsung
+            PAL_ERR(LOG_TAG, "don't restore device for usb/3.5 hs playback");
+            goto exit;
+        }
+    }
+#endif
+
     if (!streamDevDisconnect.empty())
         streamDevSwitch(streamDevDisconnect, streamDevConnect);
 exit:

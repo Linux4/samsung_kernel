@@ -74,6 +74,10 @@ bool AudioDevice::mic_characteristics_available = false;
 
 card_status_t AudioDevice::sndCardState = CARD_STATUS_ONLINE;
 
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+btsco_lc3_cfg_t AudioDevice::btsco_lc3_cfg = {};
+#endif
+
 struct audio_string_to_enum {
     const char* name;
     unsigned int value;
@@ -1230,9 +1234,20 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
     std::shared_ptr<AudioDevice> adevice =
             AudioDevice::GetInstance((audio_hw_device_t*)device);
     if (adevice) {
+#ifdef SEC_AUDIO_CALL
+        std::shared_ptr<AudioVoice> avoice = adevice->voice_;
+        dprintf(fd, " \n");
+        dprintf(fd, "max_voice_sessions_: %d \n", avoice->max_voice_sessions_);        
+        if (avoice) {
+            for (int i = 0; i < MAX_VOICE_SESSIONS; i++) {
+                dprintf(fd, "voice_.session[%d].vsid: 0x%x \n", i, avoice->voice_.session[i].vsid);
+                dprintf(fd, "voice_.session[%d].state.current_: %s \n",
+                    i, avoice->voice_.session[i].state.current_ == CALL_ACTIVE ? "CALL_ACTIVE" : "CALL_INACTIVE");
+            }
+        }
         dprintf(fd, "primary_out_io_handle: %d \n",
             (adevice->primary_out_io_handle != AUDIO_IO_HANDLE_NONE) ? adevice->primary_out_io_handle : 0);
-
+#endif
         if (adevice->sec_device_) {
             adevice->sec_device_->Dump(fd);
         }
@@ -1464,7 +1479,7 @@ std::shared_ptr<StreamOutPrimary> AudioDevice::OutGetStream(audio_io_handle_t ha
 
 std::shared_ptr<StreamOutPrimary> AudioDevice::OutGetStream(audio_stream_t* stream_out) {
 
-    std::shared_ptr<StreamOutPrimary> astream_out;
+    std::shared_ptr<StreamOutPrimary> astream_out = NULL;
     AHAL_VERBOSE("stream_out(%p)", stream_out);
     out_list_mutex.lock();
     for (int i = 0; i < stream_out_list_.size(); i++) {
@@ -1472,13 +1487,11 @@ std::shared_ptr<StreamOutPrimary> AudioDevice::OutGetStream(audio_stream_t* stre
                                         (audio_stream_out*) stream_out) {
             AHAL_VERBOSE("Found stream associated with stream_out");
             astream_out = stream_out_list_[i];
+            AHAL_VERBOSE("astream_out(%p)", astream_out->stream_.get());
             break;
         }
     }
     out_list_mutex.unlock();
-    if (astream_out)
-        AHAL_VERBOSE("astream_out(%p)", astream_out->stream_.get());
-
     return astream_out;
 }
 
@@ -1498,7 +1511,7 @@ std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_io_handle_t han
 }
 
 std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_stream_t* stream_in) {
-    std::shared_ptr<StreamInPrimary> astream_in;
+    std::shared_ptr<StreamInPrimary> astream_in = NULL;
 
     AHAL_VERBOSE("stream_in(%p)", stream_in);
     in_list_mutex.lock();
@@ -1506,12 +1519,11 @@ std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_stream_t* strea
         if (stream_in_list_[i]->stream_.get() == (audio_stream_in*) stream_in) {
             AHAL_VERBOSE("Found existing stream associated with astream_in");
             astream_in = stream_in_list_[i];
+            AHAL_VERBOSE("astream_in(%p)", astream_in->stream_.get());
             break;
         }
     }
     in_list_mutex.unlock();
-    if (astream_in)
-        AHAL_VERBOSE("astream_in(%p)", astream_in->stream_.get());
     return astream_in;
 }
 
@@ -1545,15 +1557,6 @@ int AudioDevice::SetMode(const audio_mode_t mode) {
     int ret = 0;
 
     AHAL_DBG("enter: mode: %d", mode);
-
-#ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
-    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-    AudioExtn* AudExtn = &adevice->sec_device_->SecAudExtn;
-    if((mode != AUDIO_MODE_NORMAL) && adevice->sec_device_->listenback_on && AudExtn->is_karaoke_mode()) {
-        adevice->sec_device_->SetListenbackMode(false);
-    }
-#endif
-
     ret = voice_->SetMode(mode);
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
@@ -1605,7 +1608,16 @@ int AudioDevice::SetParameters(const char *kvpairs) {
     uint8_t channels = 0;
     std::set<audio_devices_t> new_devices;
 
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    bool bIncludeSensitiveInfo = false;
+#endif
+#ifdef SEC_AUDIO_DUMP 
+    // includeSensitiveInfo(mac addr), not to use on user ship
     AHAL_DBG("enter: %s", kvpairs);
+#else
+    AHAL_DBG("enter");
+#endif
+
     ret = voice_->VoiceSetParameters(kvpairs);
     if (ret)
         AHAL_ERR("Error in VoiceSetParameters %d", ret);
@@ -1694,6 +1706,10 @@ int AudioDevice::SetParameters(const char *kvpairs) {
         pal_param_device_connection_t param_device_connection;
         val = atoi(value);
         audio_devices_t device = (audio_devices_t)val;
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+        bIncludeSensitiveInfo = true;
+        AHAL_DBG("connect = 0x%x", device);
+#endif
 
         if (audio_is_usb_out_device(device) || audio_is_usb_in_device(device)) {
             ret = str_parms_get_str(parms, "card", value, sizeof(value));
@@ -1732,6 +1748,7 @@ int AudioDevice::SetParameters(const char *kvpairs) {
             ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_FORMAT, value, sizeof(value));
             if (ret >= 0) {
                 val = atoi(value);
+                AHAL_DBG("device format=0x%x",val);
                 if (audio_is_bt_offload_format((audio_format_t)val)) {
                     param_device_connection.is_bt_offload_enabled = true;
                     AHAL_INFO("bt_offload state is enabled");
@@ -1914,6 +1931,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
         pal_param_device_connection_t param_device_connection;
         val = atoi(value);
         audio_devices_t device = (audio_devices_t)val;
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+        bIncludeSensitiveInfo = true;
+        AHAL_DBG("disconnect = 0x%x", device);
+#endif
+
         if (audio_is_usb_out_device(device) || audio_is_usb_in_device(device)) {
             ret = str_parms_get_str(parms, "card", value, sizeof(value));
             if (ret >= 0)
@@ -2094,7 +2116,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_BT_SCO_WB, value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0)
             param_bt_sco.bt_wb_speech_enabled = true;
         else
@@ -2107,7 +2133,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, "bt_swb", value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
 
         val = atoi(value);
         param_bt_sco.bt_swb_speech_mode = val;
@@ -2118,7 +2148,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, "bt_ble", value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0) {
             bt_lc3_speech_enabled = true;
 
@@ -2144,7 +2178,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_BT_NREC, value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0) {
             AHAL_INFO("BTSCO NREC mode = ON");
             param_bt_sco.bt_sco_nrec = true;
@@ -2189,7 +2227,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     if (((btsco_lc3_cfg.fields_map & LC3_BIT_MASK) == LC3_BIT_VALID) &&
            (bt_lc3_speech_enabled == true)) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         param_bt_sco.bt_lc3_speech_enabled  = bt_lc3_speech_enabled;
         param_bt_sco.lc3_cfg.frame_duration = btsco_lc3_cfg.frame_duration;
         param_bt_sco.lc3_cfg.num_blocks     = btsco_lc3_cfg.num_blocks;
@@ -2266,7 +2308,19 @@ exit:
     if (parms)
         str_parms_destroy(parms);
 
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+#ifdef SEC_AUDIO_DUMP 
     AHAL_DBG("exit: %s", kvpairs);
+#else // only for user ship
+    if (!bIncludeSensitiveInfo) {
+        AHAL_DBG("exit: %s", kvpairs);
+    } else {
+        AHAL_DBG("exit");
+    }
+#endif
+#else // qc orig
+    AHAL_DBG("exit: %s", kvpairs);
+#endif
     return 0;
 }
 

@@ -4376,6 +4376,7 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 #if defined(CONFIG_BATTERY_CISD)
 	battery->cisd.ab_vbat_check_count = 0;
 	battery->cisd.state &= ~CISD_STATE_OVER_VOLTAGE;
+	battery->d2d_check = false;
 #endif
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
 	battery->wc20_power_class = 0;
@@ -4426,6 +4427,7 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 			SEC_BAT_CURRENT_EVENT_USB_STATE |
 			SEC_BAT_CURRENT_EVENT_SEND_UVDM));
 	sec_bat_set_misc_event(battery, 0, BATT_MISC_EVENT_WIRELESS_MISALIGN);
+	sec_bat_recov_full_capacity(battery); /* should call this after setting discharging */
 
 	/* slate_mode needs to be clear manually since smart switch does not disable slate_mode sometimes */
 	if (is_slate_mode(battery)) {
@@ -5337,12 +5339,32 @@ static int sec_bat_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_CHARGE_OTG_CONTROL:
 			value.intval = val->intval;
 			pr_info("%s: d2d reverse boost : %d\n", __func__, val->intval);
-			if (val->intval)
+			if (val->intval) {
+#if defined(CONFIG_BATTERY_CISD)
+				if (!battery->d2d_check) {
+					battery->cisd.event_data[EVENT_D2D]++;
+					battery->d2d_check = true;
+				}
+#endif
 				sec_vote(battery->chgen_vote, VOTER_D2D_WIRE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
+			}
 			psy_do_property(battery->pdata->charger_name, set,
 				POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VOLTAGE, value);
-			if (!val->intval)
+			if (!val->intval) {
+#if defined(CONFIG_BATTERY_CISD)
+				battery->d2d_check = false;
+#endif
 				sec_vote(battery->chgen_vote, VOTER_D2D_WIRE, false, 0);
+			}
+			break;
+		case POWER_SUPPLY_EXT_PROP_ABNORMAL_SRCCAP:
+			store_battery_log(
+				"ABNORMAL_SRCCAP:%d%%,%dmV,%s,PDO(0x%X)",
+				battery->capacity,
+				battery->voltage_now,
+				sb_get_bst_str(battery->status),
+				val->intval
+			);
 			break;
 		default:
 			return -EINVAL;
@@ -6130,6 +6152,13 @@ static int sec_otg_set_property(struct power_supply *psy,
 	int ret = 0;
 
 	value.intval = val->intval;
+#if defined(CONFIG_BATTERY_CISD)
+	if (value.intval && !battery->otg_check) {
+		battery->cisd.event_data[EVENT_OTG]++;
+		battery->otg_check = true;
+	} else if (!value.intval)
+		battery->otg_check = false;
+#endif
 	ret = psy_do_property(battery->pdata->otg_name, set, psp, value);
 	return ret;
 }
@@ -6628,6 +6657,7 @@ static int usb_typec_handle_id_power_status(struct sec_battery_info *battery,
 #endif
 		battery->pdic_attach = false;
 		battery->update_pd_list = false;
+		sec_vote_refresh(battery->iv_vote);
 	}
 
 	if (!battery->pdic_attach) {
@@ -6763,7 +6793,7 @@ static int usb_typec_handle_id_power_status(struct sec_battery_info *battery,
 			__func__, max_power, apdo_max_power, fpdo_max_power, battery->pd_max_charge_power * 1000);
 		battery->pd_rated_power = max_power / 1000 / 1000; /* save as W */
 #if defined(CONFIG_BATTERY_CISD)
-		count_cisd_power_data(&battery->cisd, max_power);
+		count_cisd_power_data(&battery->cisd, max_power / 1000);
 		if (battery->cable_type == SEC_BATTERY_CABLE_NONE) {
 			if (battery->pd_max_charge_power > HV_CHARGER_STATUS_STANDARD1)
 				battery->cisd.cable_data[CISD_CABLE_PD_HIGH]++;

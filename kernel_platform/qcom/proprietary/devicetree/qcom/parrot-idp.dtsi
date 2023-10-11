@@ -51,6 +51,36 @@
 
 		novatek,reset-gpio = <&tlmm 12 0x00>;
 		novatek,irq-gpio = <&tlmm 13 0x2008>;
+
+		novatek,trusted-touch-mode = "vm_mode";
+		novatek,touch-environment = "pvm";
+		novatek,trusted-touch-spi-irq = <566>;
+		novatek,trusted-touch-io-bases = <0xa8c000 0xa10000>;
+		novatek,trusted-touch-io-sizes = <0x1000 0x4000>;
+		novatek,trusted-touch-vm-gpio-list = <&tlmm 10 0 &tlmm 11 0
+						&tlmm 12 0 &tlmm 13 0x2008>;
+	};
+
+	focaltech@38 {
+		compatible = "focaltech,fts_ts";
+		status = "disabled";
+		reg = <0x38>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <13 0x2008>;
+		focaltech,reset-gpio = <&tlmm 12 0x00>;
+		focaltech,irq-gpio = <&tlmm 13 0x2008>;
+		focaltech,display-coords = <0 0 1080 2408>;
+		focaltech,max-touch-number = <5>;
+		focaltech,ic-type = <0x8726081C>;
+		focaltech,touch-type = "primary";
+
+		vdd-supply = <&L28B>;
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_release";
+		pinctrl-0 = <&ts_active>;
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+		pinctrl-2 = <&ts_release>;
 	};
 };
 
@@ -82,13 +112,11 @@
 	status = "ok";
 
 	vdd-supply = <&L24B>;
-	qcom,vdd-voltage-level = <2960000 2960000>;
 	qcom,vdd-current-level = <0 570000>;
 
 	vdd-io-supply = <&L19B>;
 	qcom,vdd-io-always-on;
 	qcom,vdd-io-lpm-sup;
-	qcom,vdd-io-voltage-level = <1800000 1800000>;
 	qcom,vdd-io-current-level = <0 325000>;
 
 	pinctrl-names = "default", "sleep";
@@ -139,6 +167,26 @@
 
 	qcom,vddp-ref-clk-supply = <&L13B>;
 	qcom,vddp-ref-clk-max-microamp = <100>;
+
+	/*
+	 * ufs-dev-types and nvmem entries are for ufs device
+	 * identification using nvmem interface. Use number of
+	 * ufs devices supported for ufs-dev-types, and nvmem handle
+	 * added by pmic for sdam register.
+	 *
+	 * Default value taken by driver is bit[0] = 0 for 3.x and
+	 * bit[0] = 1 for 2.x driver code takes this as default case.
+	 *
+	 * But Bit value to identify ufs device is not consistent
+	 * across the targets it could be bit[0] = 0/1 for UFS2.x/3x
+	 * and vice versa. If the bit[0] value is not same as default
+	 * value used in driver and if its reverted then use flag
+	 * qcom,ufs-dev-revert to identify ufs device.
+	 */
+	ufs-dev-types = <2>;
+	qcom,ufs-dev-revert;
+	nvmem-cells = <&ufs_dev>, <&boot_config>;
+	nvmem-cell-names = "ufs_dev", "boot_conf";
 
 	status = "ok";
 };

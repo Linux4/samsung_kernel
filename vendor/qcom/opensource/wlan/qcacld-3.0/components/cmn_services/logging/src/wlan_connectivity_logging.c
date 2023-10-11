@@ -93,7 +93,8 @@ wlan_connectivity_mgmt_event(struct wlan_frame_hdr *mac_hdr,
 			     enum qdf_dp_tx_rx_status tx_status,
 			     int8_t peer_rssi,
 			     uint8_t auth_algo, uint8_t auth_type,
-			     uint8_t auth_seq, enum wlan_main_tag tag)
+			     uint8_t auth_seq, uint16_t aid,
+			     enum wlan_main_tag tag)
 {
 	struct wlan_log_record *new_rec;
 
@@ -116,6 +117,7 @@ wlan_connectivity_mgmt_event(struct wlan_frame_hdr *mac_hdr,
 	new_rec->pkt_info.auth_algo = auth_algo;
 	new_rec->pkt_info.auth_type = auth_type;
 	new_rec->pkt_info.auth_seq_num = auth_seq;
+	new_rec->pkt_info.assoc_id = aid;
 	new_rec->pkt_info.is_retry_frame =
 		(mac_hdr->i_fc[1] & IEEE80211_FC1_RETRY);
 

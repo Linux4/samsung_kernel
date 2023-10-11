@@ -272,21 +272,21 @@ static int cdsp_loader_remove(struct platform_device *pdev)
 static int cdsp_loader_probe(struct platform_device *pdev)
 {
 	phandle rproc_phandle;
-	struct property *prop;
-	int size;
-	struct rproc *cdsp;
-	int ret;
+	struct property *prop = NULL;
+	int size = 0;
+	struct rproc *cdsp = NULL;
+	int ret = 0;
 
-	prop = of_find_property(pdev->dev.of_node, "qcom,rproc-handle",
-		&size);
+	prop = of_find_property(pdev->dev.of_node, "qcom,rproc-handle", &size);
 	if (!prop) {
-		dev_err(&pdev->dev, "Missing remotproc handle\n");
+		dev_err(&pdev->dev, "%s: error reading rproc phandle\n", __func__);
 		return -ENOPARAM;
 	}
+
 	rproc_phandle = be32_to_cpup(prop->value);
 	cdsp = rproc_get_by_phandle(rproc_phandle);
 	if (!cdsp) {
-		dev_err(&pdev->dev, "fail to get rproc\n", __func__);
+		dev_err(&pdev->dev, "%s: rproc not found\n", __func__);
 		return -EPROBE_DEFER;
 	}
 

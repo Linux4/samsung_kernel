@@ -1753,15 +1753,14 @@ struct policy_mgr_cdp_cbacks {
 /**
  * struct policy_mgr_dp_cbacks - CDP Callbacks to be invoked
  * from policy manager
- * @hdd_rx_handle_concurrency: Callback to handle concurrency related
- *  operations for rx
+ * @hdd_disable_rx_ol_in_concurrency: Callback to disable LRO/GRO offloads
  * @hdd_set_rx_mode_rps_cb: Callback to set RPS
  * @hdd_ipa_set_mcc_mode_cb: Callback to set mcc mode for ipa module
  * @hdd_v2_flow_pool_map: Callback to create vdev flow pool
  * @hdd_v2_flow_pool_unmap: Callback to delete vdev flow pool
  */
 struct policy_mgr_dp_cbacks {
-	void (*hdd_rx_handle_concurrency)(bool);
+	void (*hdd_disable_rx_ol_in_concurrency)(bool);
 	void (*hdd_set_rx_mode_rps_cb)(bool);
 	void (*hdd_ipa_set_mcc_mode_cb)(bool);
 	void (*hdd_v2_flow_pool_map)(int);
@@ -1894,6 +1893,7 @@ bool policy_mgr_is_scc_with_this_vdev_id(struct wlan_objmgr_psoc *psoc,
 
 /**
  * policy_mgr_soc_set_dual_mac_cfg_cb() - Callback for set dual mac config
+ * @psoc: PSOC object information
  * @status: Status of set dual mac config
  * @scan_config: Current scan config whose status is the first param
  * @fw_mode_config: Current FW mode config whose status is the first param
@@ -1902,8 +1902,10 @@ bool policy_mgr_is_scc_with_this_vdev_id(struct wlan_objmgr_psoc *psoc,
  *
  * Return: None
  */
-void policy_mgr_soc_set_dual_mac_cfg_cb(enum set_hw_mode_status status,
-		uint32_t scan_config, uint32_t fw_mode_config);
+void policy_mgr_soc_set_dual_mac_cfg_cb(struct wlan_objmgr_psoc *psoc,
+					enum set_hw_mode_status status,
+					uint32_t scan_config,
+					uint32_t fw_mode_config);
 
 /**
  * policy_mgr_map_concurrency_mode() - to map concurrency mode
@@ -2052,6 +2054,44 @@ QDF_STATUS policy_mgr_reset_connection_update(struct wlan_objmgr_psoc *psoc);
  * Return: QDF_STATUS
  */
 QDF_STATUS policy_mgr_set_connection_update(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * policy_mgr_reset_dual_mac_configuration() - Reset dual MAC configuration
+ * complete event
+ * @psoc: PSOC object information
+ * Resets the concurrent dual MAC configuration complete event
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+policy_mgr_reset_dual_mac_configuration(struct wlan_objmgr_psoc *psoc);
+
+
+/**
+ * policy_mgr_wait_for_dual_mac_configuration() - Wait for set dual MAC
+ * configuration command to get processed
+ * @psoc: PSOC object information
+ * Waits for DUAL_MAC_CONFIG_TIMEOUT duration until
+ * policy_mgr_soc_set_dual_mac_cfg_cb sets the event
+ * dual_mac_configuration_complete_evt
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+policy_mgr_wait_for_dual_mac_configuration(struct wlan_objmgr_psoc *psoc);
+
+
+/**
+ * policy_mgr_dual_mac_configuration_complete() - Complete dual MAC
+ * configuration wait event
+ * @psoc: PSOC object information
+ * Sets the concurrent dual MAC configuration complete event
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+policy_mgr_dual_mac_configuration_complete(struct wlan_objmgr_psoc *psoc);
+
 
 /**
  * policy_mgr_set_chan_switch_complete_evt() - set channel
@@ -3604,6 +3644,15 @@ bool policy_mgr_is_special_mode_active_5g(struct wlan_objmgr_psoc *psoc,
  * Return: true if sta is connected in 2g else false
  */
 bool policy_mgr_is_sta_connected_2g(struct wlan_objmgr_psoc *psoc);
+
+/** policy_mgr_is_connected_sta_5g() - check if sta connected in 5 GHz
+ * @psoc: pointer to soc
+ * @freq: Pointer to the frequency on which sta is connected
+ *
+ * Return: true if sta is connected in 5 GHz else false
+ */
+bool policy_mgr_is_connected_sta_5g(struct wlan_objmgr_psoc *psoc,
+				    qdf_freq_t *freq);
 
 /**
  * policy_mgr_scan_trim_5g_chnls_for_dfs_ap() - check if sta scan should skip

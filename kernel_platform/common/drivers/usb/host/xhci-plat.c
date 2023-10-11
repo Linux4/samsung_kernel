@@ -482,6 +482,10 @@ static int __maybe_unused xhci_plat_suspend(struct device *dev)
 	int ret;
 
 	dev_dbg(dev, "xhci-plat suspend\n");
+
+	if (pm_runtime_suspended(dev))
+		pm_runtime_resume(dev);
+
 	ret = xhci_priv_suspend_quirk(hcd);
 	if (ret)
 		return ret;

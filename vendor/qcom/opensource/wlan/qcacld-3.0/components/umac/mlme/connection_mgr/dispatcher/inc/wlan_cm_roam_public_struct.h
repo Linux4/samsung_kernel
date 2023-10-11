@@ -100,7 +100,7 @@
 #define WLAN_FILS_MAX_RIK_LENGTH WLAN_FILS_MAX_RRK_LENGTH
 #define WLAN_FILS_FT_MAX_LEN          48
 
-#define WLAN_MAX_PMK_DUMP_BYTES 6
+#define WLAN_MAX_PMK_DUMP_BYTES 2
 #define DEFAULT_ROAM_SCAN_SCHEME_BITMAP 0
 #define ROAM_MAX_CFG_VALUE 0xffffffff
 
@@ -1916,6 +1916,8 @@ enum roam_rt_stats_type {
  * applicable only for tx frames
  * @rssi: Frame rssi
  * @retry_count: Frame retry count
+ * @assoc_id: Association id received in the association response/
+ * reassociation response frame
  */
 struct roam_frame_info {
 	bool present;
@@ -1928,6 +1930,7 @@ struct roam_frame_info {
 	uint16_t status_code;
 	int32_t rssi;
 	uint16_t retry_count;
+	uint16_t assoc_id;
 };
 
 /**

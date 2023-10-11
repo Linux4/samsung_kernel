@@ -2271,6 +2271,13 @@ int StreamOutPrimary::Standby() {
             adevice->voice_->sec_voice_->SetCNGForEchoRefMute(false);
         }
 #endif
+#ifdef SEC_AUDIO_PREVOLUME_SOUNDBOOSTER
+        uint32_t mode = sec_stream_out_->GetSoundBoosterVolumeMode(this);
+        if ((mode != PARAM_VOLUME_NONE) &&
+            isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
+            adevice->effect_->send_soundbooster_on(mode, false);
+        }
+#endif
         ret = pal_stream_stop(pal_stream_handle_);
         if (ret) {
             AHAL_ERR("failed to stop stream.");
@@ -2390,6 +2397,9 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
     bool isHifiFilterEnabled = false;
     bool *payload_hifiFilter = &isHifiFilterEnabled;
     size_t param_size = 0;
+#ifdef SEC_AUDIO_PREVOLUME_SOUNDBOOSTER
+    uint32_t mode = PARAM_VOLUME_NONE;
+#endif
 
     stream_mutex_.lock();
     if (!mInitialized) {
@@ -2505,7 +2515,7 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
             // Compress offload leakage via speaker, when changing from combo to single device
             skip_combo |= (streamAttributes_.type == PAL_STREAM_COMPRESSED);
 #endif
-            if ((noPalDevices > 1) && skip_combo && 
+            if ((noPalDevices > 1) && skip_combo &&
                     (mPalOutDeviceIds[i] == PAL_DEVICE_OUT_SPEAKER)) {
                 AHAL_ERR("Error speaker combo device is not supported for stream type %d",
                     streamAttributes_.type);
@@ -2555,10 +2565,10 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
 #endif // } CONFIG_EFFECTS_VIDEOCALL
         mAndroidOutDevices = new_devices;
 
-    if (hac_voip && (mPalOutDevice->id == PAL_DEVICE_OUT_HANDSET)) {
-         strlcpy(mPalOutDevice->custom_config.custom_key, "HAC",
-                sizeof(mPalOutDevice->custom_config.custom_key));
-    }
+        if (hac_voip && (mPalOutDevice->id == PAL_DEVICE_OUT_HANDSET)) {
+            strlcpy(mPalOutDevice->custom_config.custom_key, "HAC",
+                    sizeof(mPalOutDevice->custom_config.custom_key));
+        }
 
         if (pal_stream_handle_) {
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
@@ -2600,6 +2610,17 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
         adevice->sec_device_->SetSpeakerMute(false);
 #endif
     }
+
+#ifdef SEC_AUDIO_PREVOLUME_SOUNDBOOSTER
+    mode = sec_stream_out_->GetSoundBoosterVolumeMode(this);
+    if (mode != PARAM_VOLUME_NONE) {
+        if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
+            adevice->effect_->send_soundbooster_on(mode, true);
+        } else {
+            adevice->effect_->send_soundbooster_on(mode, false);
+        }
+    }
+#endif
 
 done:
     if (device_cap_query) {
@@ -2713,28 +2734,30 @@ int StreamOutPrimary::SetVolume(float left , float right) {
     /* if stream is not opened already cache the volume and set on open */
     if (pal_stream_handle_) {
 #ifdef SEC_AUDIO_COMMON
+#if defined (SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP) || defined (SEC_AUDIO_PREVOLUME_SOUNDBOOSTER)
+        if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
+            uint32_t mode = sec_stream_out_->GetSoundBoosterVolumeMode(this);
+            if (mode != PARAM_VOLUME_NONE) {
+                adevice->effect_->send_soundbooster_volume(volume_, mode);
+                if (sec_stream_out_->CheckSoundBoosterRotationType(streamAttributes_.type)) {
+                    adevice->effect_->send_soundbooster_rotation();
+                }
+            }
+        }
+#endif
 #ifdef SEC_AUDIO_OFFLOAD
         if (CheckOffloadEffectsType(streamAttributes_.type)) {
             adevice->effect_->send_effect_volume(volume_);
-#ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
-            if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
-                adevice->effect_->send_soundbooster_volume(volume_, PARAM_VOLUME_OFFLOAD);
-            }
-#endif
-            goto done;
-        }
-#endif
-#ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
-        if ((streamAttributes_.type == PAL_STREAM_DEEP_BUFFER) &&
-            isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
-            adevice->effect_->send_soundbooster_volume(volume_, PARAM_VOLUME_DEEP);
-            adevice->effect_->send_soundbooster_rotation();
-
             goto done;
         }
 #endif
 #ifdef SEC_AUDIO_CALL_VOIP
+#ifdef SEC_AUDIO_SUPPORT_VOIP_OUTPUT_FOR_INCALL
+        if (streamAttributes_.type == PAL_STREAM_VOIP_RX &&
+                adevice->voice_ && adevice->voice_->mode_ != AUDIO_MODE_IN_CALL) {
+#else
         if (streamAttributes_.type == PAL_STREAM_VOIP_RX) {
+#endif
 #ifdef SEC_AUDIO_SUPPORT_BT_RVC
             std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
             if (adevice->effect_->SetScoVolume(volume_->volume_pair[0].vol) == 0) {
@@ -3004,7 +3027,9 @@ int StreamOutPrimary::Open() {
 #ifdef SEC_AUDIO_DSM_AMP
     struct pal_device* feedbackDevice;
 #endif
-
+#ifdef SEC_AUDIO_PREVOLUME_SOUNDBOOSTER
+    uint32_t mode = PARAM_VOLUME_NONE;
+#endif
     bool isHifiFilterEnabled = false;
     bool *payload_hifiFilter = &isHifiFilterEnabled;
     size_t param_size = 0;
@@ -3398,6 +3423,16 @@ int StreamOutPrimary::Open() {
 #ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
     playback_volume_reset = false;
 #endif
+#ifdef SEC_AUDIO_PREVOLUME_SOUNDBOOSTER
+    mode = sec_stream_out_->GetSoundBoosterVolumeMode(this);
+    if (mode != PARAM_VOLUME_NONE) {
+        if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
+            adevice->effect_->send_soundbooster_on(mode, true);
+        } else {
+            adevice->effect_->send_soundbooster_on(mode, false);
+        }
+    }
+#endif
 error_open:
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
@@ -3663,15 +3698,32 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
         CheckAndSwitchListenbackMode(true);
 #endif
+
+#if defined (SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP) || defined (SEC_AUDIO_PREVOLUME_SOUNDBOOSTER)
+        if (volume_) {
+            if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
+                uint32_t mode = sec_stream_out_->GetSoundBoosterVolumeMode(this);
+                if (mode != PARAM_VOLUME_NONE) {
+                    adevice->effect_->send_soundbooster_volume(volume_, mode);
+                    if (sec_stream_out_->CheckSoundBoosterRotationType(streamAttributes_.type)) {
+                        adevice->effect_->send_soundbooster_rotation();
+                    }
+                }
+#ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
+                adevice->effect_->send_soundbooster_flatmotion();
+#endif
+            }
+        }
+#if SEC_AUDIO_MULTI_SPEAKER == 4
+        if ((adevice->factory_->factory.state & FACTORY_ROUTE_ACTIVE) &&
+            adevice->factory_->factory.out_device == AUDIO_DEVICE_OUT_SPEAKER) {
+            adevice->factory_->send_factory_soundbooster_mode(adevice->factory_->factory.soundbooster_mode);
+        }
+#endif
 #ifdef SEC_AUDIO_OFFLOAD
         if (streamAttributes_.type == PAL_STREAM_COMPRESSED) {
             if (volume_) {
                 adevice->effect_->send_effect_volume(volume_);
-#ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
-                if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
-                    adevice->effect_->send_soundbooster_volume(volume_, PARAM_VOLUME_OFFLOAD);
-                }
-#endif
             }
             if (isDeviceAvailable(PAL_DEVICE_OUT_USB_HEADSET) ||
                 isDeviceAvailable(PAL_DEVICE_OUT_AUX_DIGITAL)) {
@@ -3691,33 +3743,14 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
             ret = StartOffloadVisualizer(handle_, pal_stream_handle_);
         }
 #endif
-#ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
-        if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
-            if (streamAttributes_.type == PAL_STREAM_DEEP_BUFFER && volume_) {
-                adevice->effect_->send_soundbooster_volume(volume_, PARAM_VOLUME_DEEP);
-            } else if (streamAttributes_.type == PAL_STREAM_COMPRESSED && volume_){
-                adevice->effect_->send_soundbooster_volume(volume_, PARAM_VOLUME_OFFLOAD);
-            }
+#endif
 
-#if defined(SEC_AUDIO_DUAL_SPEAKER) || defined(SEC_AUDIO_MULTI_SPEAKER)
-            if (sec_stream_out_->CheckSoundBoosterRotationType(streamAttributes_.type)) {
-                adevice->effect_->send_soundbooster_rotation();
-            }
-            adevice->effect_->send_soundbooster_flatmotion();
-#endif
-        }
-#if SEC_AUDIO_MULTI_SPEAKER == 4
-        if ((adevice->factory_->factory.state & FACTORY_ROUTE_ACTIVE) &&
-            adevice->factory_->factory.out_device == AUDIO_DEVICE_OUT_SPEAKER) {
-            adevice->factory_->send_factory_soundbooster_mode(adevice->factory_->factory.soundbooster_mode);
-        }
-#endif
-#endif // SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
 #ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
         if (adevice->voice_ && (streamAttributes_.type == PAL_STREAM_VOIP_RX)) {
             adevice->voice_->sec_voice_->SetVideoCallEffect();
         }
 #endif // } CONFIG_EFFECTS_VIDEOCALL
+
 #ifdef SEC_AUDIO_COMMON
 #ifdef SEC_AUDIO_CALL_VOIP
         if (adevice->voice_ && adevice->voice_->sec_voice_->cng_enable &&
@@ -3726,7 +3759,12 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
             adevice->voice_->sec_voice_->SetCNGForEchoRefMute(true);
         }
         // send volume once after pal_stream_start()
+#ifdef SEC_AUDIO_SUPPORT_VOIP_OUTPUT_FOR_INCALL
+        if (streamAttributes_.type == PAL_STREAM_VOIP_RX && volume_ &&
+            adevice->voice_ && adevice->voice_->mode_ != AUDIO_MODE_IN_CALL) {
+#else
         if (streamAttributes_.type == PAL_STREAM_VOIP_RX && volume_) {
+#endif
 #ifdef SEC_AUDIO_SUPPORT_BT_RVC
             if (adevice->effect_->SetScoVolume(volume_->volume_pair[0].vol) == 0) {
                 AHAL_DBG("sco volume applied on voip stream");
@@ -3922,6 +3960,21 @@ ssize_t StreamOutPrimary::write(const void *buffer, size_t bytes)
             }
         }
 #endif
+#ifdef SEC_AUDIO_OFFLOAD
+        if (CheckOffloadEffectsType(streamAttributes_.type) && !playback_started) {
+            UpdateOffloadEffects(OFFLOAD_EFFECT_ALL);
+            if (volume_) {
+                std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+                adevice->effect_->send_effect_volume(volume_);
+#ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
+                if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
+                    adevice->effect_->send_soundbooster_volume(volume_, PARAM_VOLUME_OFFLOAD);
+                }
+#endif
+            }
+            playback_started = true;
+        }
+#endif
         ret = pal_stream_write(pal_stream_handle_, &palBuffer);
     }
     ATRACE_END();
@@ -3933,22 +3986,6 @@ exit:
         mBytesWritten = UINT64_MAX;
     }
 
-#ifdef SEC_AUDIO_OFFLOAD
-    if (CheckOffloadEffectsType(streamAttributes_.type) &&
-        !playback_started && ret > 0) {
-        UpdateOffloadEffects(OFFLOAD_EFFECT_ALL);
-        if (volume_) {
-            std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-            adevice->effect_->send_effect_volume(volume_);
-#ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
-            if (isDeviceAvailable(PAL_DEVICE_OUT_SPEAKER)) {
-                adevice->effect_->send_soundbooster_volume(volume_, PARAM_VOLUME_OFFLOAD);
-            }
-#endif
-        }
-        playback_started = true;
-    }
-#endif
     stream_mutex_.unlock();
     clock_gettime(CLOCK_MONOTONIC, &writeAt);
 
@@ -4142,12 +4179,15 @@ StreamOutPrimary::StreamOutPrimary(
             AHAL_ERR("Error usb device is not connected");
             free(dynamic_media_config);
             free(device_cap_query_);
-            goto error;
+            dynamic_media_config = NULL;
+            device_cap_query_ = NULL;
         }
         if (!config->sample_rate || !config->format || !config->channel_mask) {
-            config->sample_rate = dynamic_media_config->sample_rate[0];
-            config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
-            config->format = (audio_format_t)dynamic_media_config->format[0];
+            if (dynamic_media_config) {
+                config->sample_rate = dynamic_media_config->sample_rate[0];
+                config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
+                config->format = (audio_format_t)dynamic_media_config->format[0];
+            }
             if (config->sample_rate == 0)
                 config->sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
             if (config->channel_mask == AUDIO_CHANNEL_NONE)
@@ -4268,7 +4308,6 @@ StreamOutPrimary::StreamOutPrimary(
     }
 #endif
 
-    (void)FillHalFnPtrs();
     mInitialized = true;
     for(auto dev : mAndroidOutDevices)
         audio_extn_gef_notify_device_config(dev, config_.channel_mask,
@@ -4286,6 +4325,7 @@ StreamOutPrimary::StreamOutPrimary(
 #endif
 
 error:
+    (void)FillHalFnPtrs();
     AHAL_DBG("Exit");
     return;
 }
@@ -4843,7 +4883,12 @@ int StreamInPrimary::SetParameters(const char* kvpairs) {
     struct str_parms *parms = (str_parms *)NULL;
     int ret = 0;
 
-    AHAL_DBG("enter: kvpairs=%s", kvpairs);
+#ifdef SEC_AUDIO_DUMP
+    AHAL_DBG("enter: kvpairs: %s", kvpairs);
+#else
+    AHAL_DBG("enter");
+#endif
+
     if(!mInitialized)
         goto exit;
 
@@ -5421,7 +5466,7 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
     ret = pal_stream_read(pal_stream_handle_, &palBuffer);
 
 #ifdef SEC_AUDIO_SAMSUNGRECORD
-    ret = preprocess_->Process(this, (void**)&palBuffer.buffer, bytes);
+    preprocess_->Process(this, (void**)&palBuffer.buffer, bytes);
     palBuffer.size = preprocess_->SwapBuffer(this, (void**)&palBuffer.buffer, bytes, palBuffer.size);
 #endif
 
@@ -5557,16 +5602,19 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
             AHAL_ERR("Error usb device is not connected");
             free(dynamic_media_config);
             free(device_cap_query_);
-            goto error;
+            dynamic_media_config = NULL;
+            device_cap_query_ = NULL;
         }
-        AHAL_DBG("usb fs=%d format=%d mask=%x",
-            dynamic_media_config->sample_rate[0],
-            dynamic_media_config->format[0], dynamic_media_config->mask[0]);
-        if (!config->sample_rate) {
-            config->sample_rate = dynamic_media_config->sample_rate[0];
-            config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
-            config->format = (audio_format_t)dynamic_media_config->format[0];
-            memcpy(&config_, config, sizeof(struct audio_config));
+        if (dynamic_media_config) {
+            AHAL_DBG("usb fs=%d format=%d mask=%x",
+                dynamic_media_config->sample_rate[0],
+                dynamic_media_config->format[0], dynamic_media_config->mask[0]);
+            if (!config->sample_rate) {
+                config->sample_rate = dynamic_media_config->sample_rate[0];
+                config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
+                config->format = (audio_format_t)dynamic_media_config->format[0];
+                memcpy(&config_, config, sizeof(struct audio_config));
+            }
         }
     }
 
@@ -5694,9 +5742,9 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
         stream_.get()->create_mmap_buffer = astream_in_create_mmap_buffer;
         stream_.get()->get_mmap_position = astream_in_get_mmap_position;
     }
-    (void)FillHalFnPtrs();
     mInitialized = true;
 error:
+    (void)FillHalFnPtrs();
     AHAL_DBG("Exit");
     return;
 }
@@ -5865,6 +5913,66 @@ int StreamInPrimary::ForceRouteStream(const std::set<audio_devices_t>& new_devic
     stream_mutex_.unlock();
     return ret;
 }
+
+
+#ifdef SEC_AUDIO_SUPPORT_VOIP_MICMODE_DEFAULT
+int StreamOutPrimary::SetVideoCallEffectKvParams(int mode)
+{
+    int ret = 0;
+    if (!pal_stream_handle_) {
+        // pal stream handle not opened, cannot set kvParam
+        return ret;
+    }
+
+    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+    uint32_t voip_sample_rate = streamAttributes_.in_media_config.sample_rate;
+    AHAL_DBG("voip_mic_mode %d voip_sample_rate %d (pal_stream_handle_ %p)",
+        mode, voip_sample_rate, pal_stream_handle_);
+
+    auto it = getVoipSampleRate.find(voip_sample_rate);
+    if (it == getVoipSampleRate.end()) {
+        // Invalid sample rate, set NB as temp
+        voip_sample_rate = 0; /* VOIP_SR_NB */
+    } else {
+        voip_sample_rate = getVoipSampleRate.at(voip_sample_rate); 
+    }
+
+    // for voip rx, set TAG_DVRX_MODE_KEY
+    ret = adevice->effect_->send_mic_mode_params_pal(pal_stream_handle_, TAG_DVRX_MODE_KEY, mode, voip_sample_rate);
+
+    AHAL_VERBOSE("exit: %d", ret );
+    return ret;
+}
+
+int StreamInPrimary::SetVideoCallEffectKvParams(int mode)
+{
+    int ret = 0;
+    if (!pal_stream_handle_) {
+        // pal stream handle not opened, cannot set kvParam
+        return ret;
+    }
+
+    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+    uint32_t voip_sample_rate = streamAttributes_.in_media_config.sample_rate;
+    AHAL_DBG("enter : voip_mic_mode %d voip_sample_rate %d (pal_stream_handle_ %p)",
+        mode, voip_sample_rate, pal_stream_handle_);
+
+    auto it = getVoipSampleRate.find(voip_sample_rate);
+    if (it == getVoipSampleRate.end()) {
+        // Invalid sample rate, set NB as temp
+        voip_sample_rate = 0; /* VOIP_SR_NB */
+    } else {
+        voip_sample_rate = getVoipSampleRate.at(voip_sample_rate); 
+    }
+
+    // for voip tx, set TAG_ECNS_MODE_KEY, TAG_DVTX_MODE_KEY
+    ret = adevice->effect_->send_mic_mode_params_pal(pal_stream_handle_, TAG_ECNS_MODE_KEY, mode, voip_sample_rate);
+    ret |= adevice->effect_->send_mic_mode_params_pal(pal_stream_handle_, TAG_DVTX_MODE_KEY, mode, voip_sample_rate);
+
+    AHAL_VERBOSE("exit: %d", ret );
+    return ret;
+}
+#endif
 #endif
 
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK

@@ -489,7 +489,7 @@ static void lim_process_sae_auth_frame(struct mac_context *mac_ctx,
 		wlan_connectivity_mgmt_event(
 			(struct wlan_frame_hdr *)mac_hdr, pe_session->vdev_id,
 			sae_status_code, 0,
-			WMA_GET_RX_RSSI_NORMALIZED(rx_pkt_info), auth_algo,
+			WMA_GET_RX_RSSI_NORMALIZED(rx_pkt_info), auth_algo, 0,
 			sae_auth_seq, sae_auth_seq, WLAN_AUTH_RESP);
 	}
 
@@ -1657,7 +1657,7 @@ lim_process_auth_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 				     0, WMA_GET_RX_RSSI_NORMALIZED(rx_pkt_info),
 				     auth_alg, 0,
 				     rx_auth_frm_body->authTransactionSeqNumber,
-				     WLAN_AUTH_RESP);
+				     0, WLAN_AUTH_RESP);
 	switch (rx_auth_frm_body->authTransactionSeqNumber) {
 	case SIR_MAC_AUTH_FRAME_1:
 		lim_process_auth_frame_type1(mac_ctx,
@@ -1751,7 +1751,7 @@ bool lim_process_sae_preauth_frame(struct mac_context *mac, uint8_t *rx_pkt)
 				     vdev_id, sae_status_code,
 				     0, WMA_GET_RX_RSSI_NORMALIZED(rx_pkt),
 				     auth_alg, sae_auth_seq,
-				     sae_auth_seq, WLAN_AUTH_RESP);
+				     sae_auth_seq, 0, WLAN_AUTH_RESP);
 
 	lim_send_sme_mgmt_frame_ind(mac, dot11_hdr->fc.subType,
 				    (uint8_t *)dot11_hdr,

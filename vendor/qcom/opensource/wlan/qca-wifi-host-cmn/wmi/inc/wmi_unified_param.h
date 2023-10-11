@@ -7778,6 +7778,7 @@ struct wmi_roam_candidate_info {
 /**
  * struct wmi_roam_scan_data - Roam scan event details
  * @present:            Flag to check if the roam scan tlv is present
+ * @is_btcoex_active:   is bluetooth connection active
  * @type:      0 - Partial roam scan; 1 - Full roam scan
  * @num_ap:    Number of candidate APs.
  * @num_chan:  Number of channels.
@@ -7788,6 +7789,7 @@ struct wmi_roam_candidate_info {
  */
 struct wmi_roam_scan_data {
 	bool present;
+	bool is_btcoex_active;
 	uint16_t type;
 	uint16_t num_ap;
 	uint16_t num_chan;

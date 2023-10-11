@@ -159,6 +159,8 @@ int config_ep_by_speed_and_alt(struct usb_gadget *g,
 	int want_comp_desc = 0;
 
 	struct usb_descriptor_header **d_spd; /* cursor for speed desc */
+	struct usb_composite_dev *cdev;
+	bool incomplete_desc = false;
 
 	if (!g || !f || !_ep)
 		return -EIO;
@@ -167,27 +169,42 @@ int config_ep_by_speed_and_alt(struct usb_gadget *g,
 	switch (g->speed) {
 	case USB_SPEED_SUPER_PLUS:
 		if (gadget_is_superspeed_plus(g)) {
-			speed_desc = f->ssp_descriptors;
-			want_comp_desc = 1;
-			break;
+			if (f->ssp_descriptors) {
+				speed_desc = f->ssp_descriptors;
+				want_comp_desc = 1;
+				break;
+			}
+			incomplete_desc = true;
 		}
 		fallthrough;
 	case USB_SPEED_SUPER:
 		if (gadget_is_superspeed(g)) {
-			speed_desc = f->ss_descriptors;
-			want_comp_desc = 1;
-			break;
+			if (f->ss_descriptors) {
+				speed_desc = f->ss_descriptors;
+				want_comp_desc = 1;
+				break;
+			}
+			incomplete_desc = true;
 		}
 		fallthrough;
 	case USB_SPEED_HIGH:
 		if (gadget_is_dualspeed(g)) {
-			speed_desc = f->hs_descriptors;
-			break;
+			if (f->hs_descriptors) {
+				speed_desc = f->hs_descriptors;
+				break;
+			}
+			incomplete_desc = true;
 		}
 		fallthrough;
 	default:
 		speed_desc = f->fs_descriptors;
 	}
+
+	cdev = get_gadget_data(g);
+	if (incomplete_desc)
+		WARNING(cdev,
+			"%s doesn't hold the descriptors for current speed\n",
+			f->name);
 
 	/* find correct alternate setting descriptor */
 	for_each_desc(speed_desc, d_spd, USB_DT_INTERFACE) {
@@ -244,12 +261,8 @@ ep_found:
 			_ep->maxburst = comp_desc->bMaxBurst + 1;
 			break;
 		default:
-			if (comp_desc->bMaxBurst != 0) {
-				struct usb_composite_dev *cdev;
-
-				cdev = get_gadget_data(g);
+			if (comp_desc->bMaxBurst != 0)
 				ERROR(cdev, "ep0 bMaxBurst must be 0\n");
-			}
 			_ep->maxburst = 1;
 			break;
 		}
@@ -306,6 +319,9 @@ int usb_add_function(struct usb_configuration *config,
 	DBG(config->cdev, "adding '%s'/%p to config '%s'/%p\n",
 			function->name, function,
 			config->label, config);
+	pr_err("[USB] %s adding '%s'/%p to config '%s'/%p\n",
+			__func__, function->name, function,
+			config->label, config);
 
 	if (!function->set_alt || !function->disable)
 		goto done;
@@ -344,9 +360,12 @@ int usb_add_function(struct usb_configuration *config,
 		config->superspeed_plus = true;
 
 done:
-	if (value)
+	if (value) {
 		DBG(config->cdev, "adding '%s'/%p --> %d\n",
 				function->name, function, value);
+		pr_err("[USB] %s: adding '%s'/%p --> %d\n",
+				__func__, function->name, function, value);
+		}
 	return value;
 }
 EXPORT_SYMBOL_GPL(usb_add_function);
@@ -2337,6 +2356,8 @@ static int composite_bind(struct usb_gadget *gadget,
 	struct usb_composite_driver	*composite = to_cdriver(gdriver);
 	int				status = -ENOMEM;
 
+	pr_err("[USB] %s\n", __func__);
+
 	cdev = kzalloc(sizeof *cdev, GFP_KERNEL);
 	if (!cdev)
 		return status;
@@ -2348,21 +2369,27 @@ static int composite_bind(struct usb_gadget *gadget,
 	INIT_LIST_HEAD(&cdev->gstrings);
 
 	status = composite_dev_prepare(composite, cdev);
-	if (status)
+	if (status) {
+		pr_err("[USB] %s: composite_dev_prepare failed (status = %d)\n", __func__, status);
 		goto fail;
+	}
 
 	/* composite gadget needs to assign strings for whole device (like
 	 * serial number), register function drivers, potentially update
 	 * power state and consumption, etc
 	 */
 	status = composite->bind(cdev);
-	if (status < 0)
+	if (status < 0) {
+		pr_err("[USB] %s: composite->bind failed (status = %d)\n", __func__, status);
 		goto fail;
+	}
 
 	if (cdev->use_os_string) {
 		status = composite_os_desc_req_prepare(cdev, gadget->ep0);
-		if (status)
+		if (status) {
+			pr_err("[USB] %s: ccomposite_os_desc_req_prepare failed (status = %d)\n", __func__, status);
 			goto fail;
+		}
 	}
 
 	update_unchanged_dev_desc(&cdev->desc, composite->dev);
@@ -2370,7 +2397,7 @@ static int composite_bind(struct usb_gadget *gadget,
 	/* has userspace failed to provide a serial number? */
 	if (composite->needs_serial && !cdev->desc.iSerialNumber)
 		WARNING(cdev, "userspace failed to provide iSerialNumber\n");
-
+	pr_err("[USB] %s: %s ready\n", __func__, composite->name);
 	INFO(cdev, "%s ready\n", composite->name);
 	return 0;
 

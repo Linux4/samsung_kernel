@@ -94,7 +94,7 @@ void sec_bat_check_mix_temp(struct sec_battery_info *battery, int ct, int siop_l
 	chg_temp = battery->chg_temp;
 #endif
 
-	if (siop_level >= 100 && !battery->lcd_status && is_not_wireless_type(ct)) {
+	if (siop_level >= 100 && !battery->lcd_status && !is_wireless_fake_type(ct)) {
 		if ((!battery->mix_limit && (temperature >= battery->pdata->mix_high_temp) &&
 					(chg_temp >= battery->pdata->mix_high_chg_temp)) ||
 			(battery->mix_limit && (temperature > battery->pdata->mix_high_temp_recovery))) {

@@ -1807,6 +1807,8 @@ extract_roam_frame_info_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 
 		dst_buf->retry_count = src_data->retry_count;
 		dst_buf->rssi = (-1) * src_data->rssi_dbm_abs;
+		dst_buf->assoc_id =
+			WMI_GET_ASSOC_ID(src_data->frame_info_ext);
 
 		dst_buf++;
 		src_data++;
@@ -3422,6 +3424,7 @@ static void wmi_fill_roam_offload_11r_params(
 
 	if (akm == WMI_AUTH_FT_RSNA_FILS_SHA256 ||
 	    akm == WMI_AUTH_FT_RSNA_FILS_SHA384) {
+		wmi_debug("Update the FILS FT key to Firmware");
 		psk_msk = roam_req->fils_roam_config.fils_ft;
 		len = roam_req->fils_roam_config.fils_ft_len;
 	} else {

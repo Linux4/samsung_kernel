@@ -20,8 +20,8 @@
 #include <linux/slab.h>
 #include <linux/qcom-cpufreq-hw.h>
 #include <trace/events/power.h>
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
-#include <linux/thermal.h>
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+#include <linux/sec_pm_log.h>
 #endif
 
 #define CREATE_TRACE_POINTS
@@ -76,7 +76,7 @@ struct cpufreq_qcom {
 	bool is_irq_enabled;
 	bool is_irq_requested;
 	bool exited;
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 	unsigned long lowest_freq;
 	bool limiting;
 #endif
@@ -159,7 +159,7 @@ static unsigned long limits_mitigation_notify(struct cpufreq_qcom *c,
 	trace_dcvsh_freq(cpumask_first(&c->related_cpus), freq);
 	c->dcvsh_freq_limit = freq;
 
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 	if (c->limiting == false) {
 		ss_thermal_print("Start lmh cpu%d @%lu\n",
 			cpumask_first(&c->related_cpus), freq);
@@ -190,7 +190,7 @@ static void limits_dcvsh_poll(struct work_struct *work)
 	dcvsh_freq = qcom_cpufreq_hw_get(cpu);
 
 	if (freq_limit < dcvsh_freq) {
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 		if ((c->limiting == true) && (freq_limit < c->lowest_freq))
 			c->lowest_freq = freq_limit;
 #endif
@@ -206,7 +206,7 @@ static void limits_dcvsh_poll(struct work_struct *work)
 
 		c->is_irq_enabled = true;
 		enable_irq(c->dcvsh_irq);
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 		ss_thermal_print("Fin. lmh cpu%d, lowest %lu, f_lim %lu, dcvsh %lu\n",
 			cpu, c->lowest_freq, freq_limit, dcvsh_freq);
 		c->limiting = false;

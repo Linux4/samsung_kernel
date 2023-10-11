@@ -943,6 +943,9 @@ typedef enum {
 #ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
     PAL_PARAM_ID_BT_A2DP_SUSPENDED_FOR_BLE = 2004,
 #endif
+#ifdef SEC_AUDIO_BLUETOOTH
+    PAL_PARAM_ID_BT_SCO_CODEC_TYPE = 2005,
+#endif
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1125,6 +1128,14 @@ typedef struct btsco_lc3_cfg {
     char     vendor[PAL_LC3_MAX_STRING_LEN];
 } btsco_lc3_cfg_t;
 
+
+#ifdef SEC_AUDIO_BLUETOOTH
+typedef enum {
+    PAL_BT_SCO_CODEC_TYPE_NONE,
+    PAL_BT_SCO_CODEC_TYPE_RVP,
+} pal_bt_sco_codec_t;
+#endif
+
 typedef struct pal_param_btsco {
     bool   bt_sco_on;
     bool   bt_wb_speech_enabled;
@@ -1132,6 +1143,9 @@ typedef struct pal_param_btsco {
     int    bt_swb_speech_mode;
     bool   bt_lc3_speech_enabled;
     btsco_lc3_cfg_t lc3_cfg;
+#ifdef SEC_AUDIO_BLUETOOTH
+    pal_bt_sco_codec_t bt_sco_codec_type;
+#endif	
 } pal_param_btsco_t;
 
 /* Payload For ID: PAL_PARAM_ID_BT_A2DP*
