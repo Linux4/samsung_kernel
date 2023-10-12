@@ -762,13 +762,13 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		char *buff = iod->msd->cp_crash_info + strlen(CP_CRASH_TAG);
 		void __user *user_buff = (void __user *)arg;
 
-		mif_err("%s: ERR! IOCTL_MODEM_CP_UPLOAD\n", iod->name);
+		mif_err("%s: IOCTL_MODEM_CP_UPLOAD\n", iod->name);
 		strcpy(iod->msd->cp_crash_info, CP_CRASH_TAG);
 		if (arg) {
 			if (copy_from_user(buff, user_buff, CP_CRASH_INFO_SIZE))
 				return -EFAULT;
 		}
-		panic(iod->msd->cp_crash_info);
+		panic("%s", iod->msd->cp_crash_info);
 		return 0;
 	}
 
@@ -837,6 +837,14 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return ld->security_req(ld, iod, arg);
 		}
 		mif_err("%s: !ld->check_security\n", iod->name);
+		return -EINVAL;
+
+	case IOCTL_MODEM_CRASH_REASON:
+		if (ld->crash_reason) {
+			mif_info("%s: IOCTL_MODEM_CRASH_REASON\n", iod->name);
+			return ld->crash_reason(ld, iod, arg);
+		}
+		mif_err("%s: !ld->crash_reason\n", iod->name);
 		return -EINVAL;
 
 	default:

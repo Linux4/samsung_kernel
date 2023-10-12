@@ -239,6 +239,16 @@ enum mem_ipc_mode {
 	MEM_SBD_IPC,
 };
 
+#define MEM_CRASH_REASON_CP		0
+#define MEM_CRASH_REASON_AP		1
+#define MEM_CRASH_REASON_RIL	2
+#define MEM_CRASH_REASON_SIZE	512
+
+struct crash_reason {
+	u32 owner;
+	char string[MEM_CRASH_REASON_SIZE];
+};
+
 struct mem_link_device {
 	/**
 	 * COMMON and MANDATORY to all link devices
@@ -431,6 +441,7 @@ struct mem_link_device {
 	enum link_state state;
 
 	struct pktlog_data *pktlog;
+	struct crash_reason crash_reason;
 };
 
 #define to_mem_link_device(ld) \

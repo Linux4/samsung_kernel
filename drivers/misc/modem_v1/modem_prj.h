@@ -118,6 +118,7 @@ IOCTL commands
 
 #define IOCTL_SECURITY_REQ		_IO('o', 0x53)	/* Request smc_call */
 #define IOCTL_SHMEM_FULL_DUMP		_IO('o', 0x54)	/* For shmem dump */
+#define IOCTL_MODEM_CRASH_REASON	_IO('o', 0x55)	/* Get Crash Reason */
 
 /*
 Definitions for IO devices
@@ -484,6 +485,10 @@ struct link_device {
 
 	/* Change secure mode, Call SMC API */
 	int (*security_req)(struct link_device *ld, struct io_device *iod,
+			unsigned long arg);
+
+	/* Get crash reason form modem_if driver */
+	int (*crash_reason)(struct link_device *ld, struct io_device *iod,
 			unsigned long arg);
 };
 
