@@ -47,6 +47,7 @@ config SOC_EXYNOS3475
 	select S5P_SLEEP if SUSPEND
 	select SAMSUNG_DMADEV
 	select ARM_ERRATA_814220
+	select SECCOMP
 	help
 	  Enable EXYNOS3 SoC support
 
@@ -898,6 +899,12 @@ config SEC_BAT_AUT
 	default n
 	help
 	  Samsung TN Bat Automation Test
+
+# Margin up for Xcover3velte project only
+config MIF_VOLT_MARGINE_UP
+	bool "Avoiding Kernel Lockup Because The Abnormal CPU State"
+	default n
+	help
 
 # CP Secure boot
 config CP_SECURE_BOOT

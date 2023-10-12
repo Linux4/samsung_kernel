@@ -27,6 +27,8 @@
 #include <linux/printk.h>
 #include <linux/exynos-ss.h>
 #include <linux/kallsyms.h>
+#include <linux/platform_device.h>
+#include <linux/pstore_ram.h>
 #include <linux/ptrace.h>
 #include <linux/clk-private.h>
 
@@ -44,6 +46,10 @@
 #ifdef CONFIG_SEC_PM_DEBUG
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
+#endif
+
+#ifdef CONFIG_SEC_BSP
+#include <linux/sec_bsp.h>
 #endif
 
 /*  Size domain */
@@ -348,6 +354,9 @@ extern void register_hook_logbuf(void (*)(const char));
 extern void register_hook_logbuf(void (*)(const char *, size_t));
 #endif
 extern void register_hook_logger(void (*)(const char *, const char *, size_t));
+#ifdef CONFIG_ANDROID_LOGGER
+extern void register_hook_logger_sec(void (*)(const char *, const char *, size_t));
+#endif
 
 static DEFINE_SPINLOCK(ess_lock);
 static unsigned ess_callstack = CONFIG_EXYNOS_SNAPSHOT_CALLSTACK;
@@ -384,9 +393,13 @@ static struct exynos_ss_item ess_items[] = {
 #ifndef CONFIG_EXYNOS_SNAPSHOT_MINIMIZED_MODE
 	{"log_main",	{SZ_4M,		0, 0, true}, NULL ,NULL},
 #else
-	{"log_main",	{SZ_2M,		0, 0, true}, NULL ,NULL},
+	{"log_main",	{SZ_4M,		0, 0, true}, NULL ,NULL},
 #endif
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
+	{"log_pstore",	{SZ_2M,		0, 0, true}, NULL ,NULL},
+#else
 	{"log_radio",	{SZ_2M,		0, 0, true}, NULL ,NULL},
+#endif
 #endif
 #ifdef CONFIG_EXYNOS_CORESIGHT_ETM
 	{"log_etm",	{SZ_16M,	0, 0, true}, NULL ,NULL},
@@ -619,7 +632,7 @@ EXPORT_SYMBOL(exynos_ss_prepare_panic);
 int exynos_ss_post_panic(void)
 {
 	exynos_ss_save_context(NULL);
-
+	flush_cache_all();
 	if (!no_wdt_dev) {
 #ifdef CONFIG_EXYNOS_SNAPSHOT_WATCHDOG_RESET
 		if (ess_hardlockup || num_online_cpus() > 1)
@@ -1033,7 +1046,7 @@ static struct notifier_block nb_panic_block = {
 static unsigned int __init exynos_ss_remap(unsigned int base, unsigned int size)
 {
 	static struct map_desc ess_iodesc[ESS_ITEMS_NUM];
-	int i;
+	unsigned long i;
 
 	for (i = 0; i < ARRAY_SIZE(ess_items); i++) {
 		/* fill rest value of ess_items arrary */
@@ -1291,7 +1304,12 @@ static int __init exynos_ss_init(void)
 		register_hook_logbuf(exynos_ss_hook_logbuf);
 
 #ifdef CONFIG_EXYNOS_SNAPSHOT_HOOK_LOGGER
+#ifdef CONFIG_ANDROID_LOGGER
+		register_hook_logger_sec(exynos_ss_hook_logger);
+#endif
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
 		register_hook_logger(exynos_ss_hook_logger);
+#endif
 #endif
 		register_reboot_notifier(&nb_reboot_block);
 		atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);
@@ -1759,7 +1777,6 @@ void exynos_ss_printk(const char *fmt, ...)
 	{
 		int cpu = raw_smp_processor_id();
 		va_list args;
-		int ret;
 		unsigned i;
 		unsigned j;
 
@@ -1767,7 +1784,7 @@ void exynos_ss_printk(const char *fmt, ...)
 			(ARRAY_SIZE(ess_log->printk) - 1);
 
 		va_start(args, fmt);
-		ret = vsnprintf(ess_log->printk[i].log,
+		vsnprintf(ess_log->printk[i].log,
 				sizeof(ess_log->printk[i].log), fmt, args);
 		va_end(args);
 
@@ -1806,6 +1823,303 @@ void exynos_ss_printkl(size_t msg, size_t val)
 		}
 	}
 }
+#endif
+
+/* This defines are for PSTORE */
+#define ESS_LOGGER_LEVEL_HEADER 	(1)
+#define ESS_LOGGER_LEVEL_PREFIX 	(2)
+#define ESS_LOGGER_LEVEL_TEXT		(3)
+#define ESS_LOGGER_LEVEL_MAX		(4)
+#define ESS_LOGGER_SKIP_COUNT		(4)
+#define ESS_LOGGER_STRING_PAD		(1)
+#define ESS_LOGGER_HEADER_SIZE		(68)
+
+#define ESS_LOG_ID_MAIN 		(0)
+#define ESS_LOG_ID_RADIO		(1)
+#define ESS_LOG_ID_EVENTS		(2)
+#define ESS_LOG_ID_SYSTEM		(3)
+#define ESS_LOG_ID_CRASH		(4)
+#define ESS_LOG_ID_KERNEL		(5)
+
+typedef struct __attribute__((__packed__)) {
+    uint8_t magic;
+    uint16_t len;
+    uint16_t uid;
+    uint16_t pid;
+} ess_pmsg_log_header_t;
+
+typedef struct __attribute__((__packed__)) {
+	unsigned char id;
+	uint16_t tid;
+	int32_t tv_sec;
+	int32_t tv_nsec;
+} ess_android_log_header_t;
+
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
+typedef struct ess_logger {
+	uint16_t	len;
+	uint16_t	id;
+	uint16_t	pid;
+	uint16_t	tid;
+	uint16_t	uid;
+	uint16_t	level;
+	int32_t		tv_sec;
+	int32_t		tv_nsec;
+	char		msg[0];
+	char*		buffer;
+	void		(*func_hook_logger)(const char*, const char*, size_t);
+} __attribute__((__packed__)) ess_logger;
+
+static ess_logger logger;
+
+void register_hook_logger(void (*func)(const char *name, const char *buf, size_t size))
+{
+	logger.func_hook_logger = func;
+	logger.buffer = vmalloc(PAGE_SIZE * 3);
+
+	if (logger.buffer)
+		pr_info("exynos-snapshot: logger buffer alloc address: 0x%p\n", logger.buffer);
+}
+EXPORT_SYMBOL(register_hook_logger);
+#endif
+
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
+static int exynos_ss_combine_pmsg(char *buffer, size_t count, unsigned int level)
+{
+	char *logbuf = logger.buffer;
+	if (!logbuf)
+		return -ENOMEM;
+
+	switch(level) {
+	case ESS_LOGGER_LEVEL_HEADER:
+		{
+			struct tm tmBuf;
+			unsigned int logbuf_len;
+			u64 tv_kernel;
+			unsigned long rem_nsec;
+
+#ifndef CONFIG_SEC_EVENT_LOG
+			if (logger.id == ESS_LOG_ID_EVENTS)
+				break;
+#endif
+
+			tv_kernel = local_clock();
+			rem_nsec = do_div(tv_kernel, 1000000000);
+			time_to_tm(logger.tv_sec, 0, &tmBuf);
+
+			logbuf_len = snprintf(logbuf, ESS_LOGGER_HEADER_SIZE,
+					"\n[%5lu.%06lu][%d:%16s] %02d-%02d %02d:%02d:%02d.%03d %5d %5d  ",
+					(unsigned long)tv_kernel, rem_nsec / 1000,
+					raw_smp_processor_id(), current->comm,
+					tmBuf.tm_mon + 1, tmBuf.tm_mday,
+					tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec,
+					logger.tv_nsec / 1000000, logger.pid, logger.tid);
+
+			logger.func_hook_logger("log_main", logbuf, logbuf_len - 1);
+		}
+		break;
+	case ESS_LOGGER_LEVEL_PREFIX:
+		{
+			static const char* kPrioChars = "!.VDIWEFS";
+			unsigned char prio = logger.msg[0];
+
+			if (logger.id == ESS_LOG_ID_EVENTS)
+				break;
+
+			logbuf[0] = prio < strlen(kPrioChars) ? kPrioChars[prio] : '?';
+			logbuf[1] = ' ';
+
+#ifdef CONFIG_SEC_EVENT_LOG
+			logger.msg[0] = 0xff;
+#endif
+
+			logger.func_hook_logger("log_main", logbuf, ESS_LOGGER_LEVEL_PREFIX);
+		}
+		break;
+	case ESS_LOGGER_LEVEL_TEXT:
+		{
+			char *eatnl = buffer + count - ESS_LOGGER_STRING_PAD;
+
+			if (logger.id == ESS_LOG_ID_EVENTS)
+			{
+#ifdef CONFIG_SEC_EVENT_LOG
+				unsigned int buf_len;
+				char buf[64] = {0};
+				int tag_id = *(int *)buffer;
+				const char * tag_name  = NULL;
+				
+				if ( count == 4 && (tag_name = find_tag_name_from_id(tag_id)) != NULL )
+				{					
+					buf_len = snprintf(buf, 64, "# %s ", tag_name);
+					logger.func_hook_logger("log_main", buf, buf_len);
+				}
+				else
+				{
+					// SINGLE ITEM
+					// logger.msg[0] => count == 1 , if event log, it is type.
+					if ( logger.msg[0] == EVENT_TYPE_LONG || logger.msg[0] == EVENT_TYPE_INT || logger.msg[0] == EVENT_TYPE_FLOAT )
+						parse_buffer(buffer, logger.msg[0]);
+					else if ( count > 6 ) // TYPE(1) + ITEMS(1) + SINGLEITEM(5) or STRING(2+4+1>..)
+					// CASE 2,3:
+					// STRING OR LIST ITEM
+					{
+						if ( *buffer == EVENT_TYPE_LIST )
+						{
+							unsigned char items = *(buffer+1);
+							unsigned char i = 0;
+							buffer+=2;
+							
+							logger.func_hook_logger("log_main", "[", 1);
+							
+							for (;i<items;++i)
+							{
+								unsigned char type = *buffer;
+								buffer++;
+								buffer = parse_buffer(buffer, type);
+								logger.func_hook_logger("log_main", ":", 1);
+							}
+							
+							logger.func_hook_logger("log_main", "]", 1);
+		
+						}
+						else if ( *buffer == EVENT_TYPE_STRING )
+							parse_buffer(buffer+1, EVENT_TYPE_STRING);
+					}
+						
+					logger.msg[0]=0xff; // dummy value;	
+				}
+#else
+				break;
+#endif
+			}
+			else
+			{
+				if (count == ESS_LOGGER_SKIP_COUNT && *eatnl != '\0')
+					break;
+
+				memcpy((void *)logbuf, buffer, count);
+				eatnl = logbuf + count - ESS_LOGGER_STRING_PAD;
+
+				/* Mark End of String for safe to buffer */
+				*eatnl = '\0';
+				while (--eatnl >= logbuf) {
+					if (*eatnl == '\n' || *eatnl == '\0')
+						*eatnl = ' ';
+				};
+
+				logger.func_hook_logger("log_main", logbuf, count);
+#ifdef CONFIG_SEC_EXT
+				if (count > 1 && strncmp(logbuf, "!@", 2) == 0) {
+					logbuf[count-1] = '\0';
+					pr_info("%s\n", logbuf);
+#ifdef CONFIG_SEC_BSP
+					if (count > 5 && strncmp(logbuf, "!@Boot", 6) == 0){
+						sec_boot_stat_add(logbuf);
+					}
+#endif /* CONFIG_SEC_BOOTSTAT */
+				}
+#endif /* CONFIG_SEC_EXT */
+			}
+		}
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
+int exynos_ss_hook_pmsg(char *buffer, size_t count)
+{
+	ess_android_log_header_t header;
+	ess_pmsg_log_header_t pmsg_header;
+
+	if (!logger.buffer)
+		return -ENOMEM;
+
+	switch(count) {
+	case sizeof(pmsg_header):
+		memcpy((void *)&pmsg_header, buffer, count);
+		if (pmsg_header.magic != 'l') {
+			exynos_ss_combine_pmsg(buffer, count, ESS_LOGGER_LEVEL_TEXT);
+		} else {
+			/* save logger data */
+			logger.pid = pmsg_header.pid;
+			logger.uid = pmsg_header.uid;
+			logger.len = pmsg_header.len;
+		}
+		break;
+	case sizeof(header):
+		/* save logger data */
+		memcpy((void *)&header, buffer, count);
+		logger.id = header.id;
+		logger.tid = header.tid;
+		logger.tv_sec = header.tv_sec;
+		logger.tv_nsec  = header.tv_nsec;
+		if (logger.id < 0 || logger.id > 7) {
+			/* write string */
+			exynos_ss_combine_pmsg(buffer, count, ESS_LOGGER_LEVEL_TEXT);
+		} else {
+			/* write header */
+			exynos_ss_combine_pmsg(buffer, count, ESS_LOGGER_LEVEL_HEADER);
+		}
+		break;
+	case sizeof(unsigned char):
+		logger.msg[0] = buffer[0];
+		/* write char for prefix */
+		exynos_ss_combine_pmsg(buffer, count, ESS_LOGGER_LEVEL_PREFIX);
+		break;
+	default:
+		/* write string */
+		exynos_ss_combine_pmsg(buffer, count, ESS_LOGGER_LEVEL_TEXT);
+		break;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(exynos_ss_hook_pmsg);
+#endif
+
+/*
+ *  To support pstore/pmsg/pstore_ram, following is implementation for exynos-snapshot
+ *  ess_ramoops platform_device is used by pstore fs.
+ */
+
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
+static struct ramoops_platform_data ess_ramoops_data = {
+	.record_size	= SZ_512K,
+	.console_size	= SZ_512K,
+	.ftrace_size	= SZ_512K,
+	.pmsg_size	= SZ_512K,
+	.dump_oops	= 1,
+};
+
+static struct platform_device ess_ramoops = {
+	.name = "ramoops",
+	.dev = {
+		.platform_data = &ess_ramoops_data,
+	},
+};
+
+static int __init ess_pstore_init(void)
+{
+	if (exynos_ss_get_enable("log_pstore")) {
+		ess_ramoops_data.mem_size = exynos_ss_get_item_size("log_pstore");
+		ess_ramoops_data.mem_address = exynos_ss_get_item_paddr("log_pstore");
+	}
+	return platform_device_register(&ess_ramoops);
+}
+
+static void __exit ess_pstore_exit(void)
+{
+	platform_device_unregister(&ess_ramoops);
+}
+module_init(ess_pstore_init);
+module_exit(ess_pstore_exit);
+
+MODULE_DESCRIPTION("Exynos Snapshot pstore module");
+MODULE_LICENSE("GPL");
 #endif
 
 /*
@@ -2150,4 +2464,129 @@ static int __init sec_log_late_init(void)
 }
 
 late_initcall(sec_log_late_init);
+#endif
+
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_EXYNOS_SNAPSHOT_SAVE_SLUGGISHINFO)
+static int schedinfo_proc_show(struct seq_file *m, void *v)
+{
+	unsigned cpu=0;
+	unsigned start, curr;
+	unsigned long long ts, rem_nsec;
+	unsigned long long pretime, elapsedtime;
+	int len;
+	struct exynos_ss_item *item = &ess_items[ESS_ITEMS_KEVENTS];
+
+	if (unlikely(!ess_base.enabled || !item->entry.enabled)) {
+		seq_printf(m, "exynos-ss is not enabled\n");
+		return 0;
+	}
+
+	for(cpu = 0; cpu < CONFIG_NR_CPUS; cpu++) {
+		pretime=0;
+		elapsedtime=0;
+
+		start = (atomic_read(&ess_idx.task_log_idx[cpu]) + 1) & (ARRAY_SIZE(ess_log->task[0]) - 1);
+		curr = start;
+		seq_printf(m, "[ CPU%d sched log] pid     task                 elapsed time\n", cpu);
+		do {
+			if(pretime) {
+				elapsedtime=ess_log->task[cpu][curr].time-pretime;
+				ts = elapsedtime;
+				rem_nsec = do_div(ts, 1000000000);
+				seq_printf(m, "  %3llu.%09llu \n", ts, rem_nsec);
+			}
+
+			pretime = ess_log->task[cpu][curr].time;
+			ts = ess_log->task[cpu][curr].time;
+			rem_nsec = do_div(ts, 1000000000);
+
+			for(len = 0; (len < TASK_COMM_LEN) && (ess_log->task[cpu][curr].task_comm)[len]; len++);
+			if(len < TASK_COMM_LEN)
+				seq_printf(m, "[%5llu.%09llu] %-6d  %-15s  ",
+					ts, rem_nsec,
+					ess_log->task[cpu][curr].task->pid,
+					ess_log->task[cpu][curr].task_comm);
+			else
+				seq_printf(m, "[%5llu.%09llu]         %-15s  ",
+					ts, rem_nsec, "exited");
+
+			curr = (curr+1) & (ARRAY_SIZE(ess_log->task[0])-1);
+		} while (start != curr);
+		seq_printf(m, "\n\n");
+	}
+	return 0;
+}
+
+static int schedinfo_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, schedinfo_proc_show, NULL);
+}
+
+static const struct file_operations schedinfo_proc_fops = {
+	.open		= schedinfo_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int __init proc_schedinfo_init(void)
+{
+	proc_create("schedinfo", 0, NULL, &schedinfo_proc_fops);
+	return 0;
+}
+late_initcall(proc_schedinfo_init);
+
+static int irqinfo_proc_show(struct seq_file *m, void *v)
+{
+	unsigned cpu=0;
+	unsigned start, curr;
+	unsigned long long ts, rem_nsec;
+	struct exynos_ss_item *item = &ess_items[ESS_ITEMS_KEVENTS];
+
+	if (unlikely(!ess_base.enabled || !item->entry.enabled)) {
+		seq_printf(m, "exynos-ss is not enabled\n");
+		return 0;
+	}
+
+	for(cpu = 0; cpu < CONFIG_NR_CPUS; cpu++) {
+		start = (atomic_read(&ess_idx.irq_log_idx[cpu]) + 1) & (ARRAY_SIZE(ess_log->irq[0]) - 1);
+		curr = start;
+		seq_printf(m, "[   CPU%d irq log] irq    fn          preempt     en \n", cpu);
+		do {
+			ts = ess_log->irq[cpu][curr].time;
+			rem_nsec = do_div(ts, 1000000000);
+
+			seq_printf(m, "[%5llu.%09llu] %-5d  0x%p  0x%-8x  %d\n",
+				ts, rem_nsec,
+				ess_log->irq[cpu][curr].irq,
+				ess_log->irq[cpu][curr].fn,
+				ess_log->irq[cpu][curr].preempt,
+				ess_log->irq[cpu][curr].en);
+
+			curr = (curr+1) & (ARRAY_SIZE(ess_log->irq[0]) - 1);
+		} while (start != curr);
+		seq_printf(m, "\n");
+	}
+	return 0;
+}
+
+static int irqinfo_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, irqinfo_proc_show, NULL);
+}
+
+static const struct file_operations irqinfo_proc_fops = {
+	.open		= irqinfo_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int __init proc_irqinfo_init(void)
+{
+	proc_create("irqinfo", 0, NULL, &irqinfo_proc_fops);
+	return 0;
+}
+
+late_initcall(proc_irqinfo_init);
 #endif

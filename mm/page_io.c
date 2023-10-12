@@ -245,7 +245,13 @@ int swap_writepage(struct page *page, struct writeback_control *wbc)
 		end_page_writeback(page);
 		goto out;
 	}
+#ifdef CONFIG_VNSWAP
+	set_page_dirty(page);
+	ClearPageReclaim(page);
+	unlock_page(page);
+#else
 	ret = __swap_writepage(page, wbc, end_swap_bio_write);
+#endif
 out:
 	return ret;
 }

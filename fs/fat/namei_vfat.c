@@ -23,6 +23,31 @@
 #include <linux/namei.h>
 #include "fat.h"
 
+#define VFAT_DSTATE_LOCKED	(void *)(0xCAFE2016)
+#define VFAT_DSTATE_UNLOCKED	(void *)(0x0)
+static inline void __lock_d_revalidate(struct dentry *dentry)
+{
+	spin_lock(&dentry->d_lock);
+	dentry->d_fsdata = VFAT_DSTATE_LOCKED;
+	spin_unlock(&dentry->d_lock);
+}
+
+static inline void __unlock_d_revalidate(struct dentry *dentry)
+{
+	spin_lock(&dentry->d_lock);
+	dentry->d_fsdata = VFAT_DSTATE_UNLOCKED;
+	spin_unlock(&dentry->d_lock);
+}
+
+/* __check_dstate_locked requires dentry->d_lock */
+static inline int __check_dstate_locked(struct dentry *dentry)
+{
+	if (dentry->d_fsdata == VFAT_DSTATE_LOCKED)
+		return 1;
+
+	return 0;
+}
+
 /*
  * If new entry was created in the parent, it could create the 8.3
  * alias (the shortname of logname).  So, the parent may have the
@@ -35,8 +60,10 @@ static int vfat_revalidate_shortname(struct dentry *dentry)
 {
 	int ret = 1;
 	spin_lock(&dentry->d_lock);
-	if (dentry->d_time != dentry->d_parent->d_inode->i_version)
+	if ((!dentry->d_inode) && (!__check_dstate_locked(dentry)) &&
+		(dentry->d_time != dentry->d_parent->d_inode->i_version)) {
 		ret = 0;
+	}
 	spin_unlock(&dentry->d_lock);
 	return ret;
 }
@@ -69,7 +96,7 @@ static int vfat_revalidate_ci(struct dentry *dentry, unsigned int flags)
 	 */
 	if (dentry->d_inode)
 		return 1;
-
+#if 0
 	/*
 	 * This may be nfsd (or something), anyway, we can't see the
 	 * intent of this. So, since this can be for creation, drop it.
@@ -84,7 +111,7 @@ static int vfat_revalidate_ci(struct dentry *dentry, unsigned int flags)
 	 */
 	if (flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET))
 		return 0;
-
+#endif
 	return vfat_revalidate_shortname(dentry);
 }
 
@@ -740,7 +767,12 @@ static struct dentry *vfat_lookup(struct inode *dir, struct dentry *dentry,
 	}
 
 	alias = d_find_alias(inode);
-	if (alias && !vfat_d_anon_disconn(alias)) {
+	/*
+	 * Checking "alias->d_parent == dentry->d_parent" to make sure
+	 * FS is not corrupted (especially double linked dir).
+	 */
+	if (alias && alias->d_parent == dentry->d_parent &&
+	    !vfat_d_anon_disconn(alias)) {
 		/*
 		 * This inode has non anonymous-DCACHE_DISCONNECTED
 		 * dentry. This means, the user did ->lookup() by an
@@ -759,12 +791,9 @@ static struct dentry *vfat_lookup(struct inode *dir, struct dentry *dentry,
 
 out:
 	mutex_unlock(&MSDOS_SB(sb)->s_lock);
-	dentry->d_time = dentry->d_parent->d_inode->i_version;
-	dentry = d_splice_alias(inode, dentry);
-	if (dentry)
-		dentry->d_time = dentry->d_parent->d_inode->i_version;
-	return dentry;
-
+	if (!inode)
+		dentry->d_time = dir->i_version;
+	return d_splice_alias(inode, dentry);
 error:
 	mutex_unlock(&MSDOS_SB(sb)->s_lock);
 	return ERR_PTR(err);
@@ -785,20 +814,23 @@ static int vfat_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 	err = vfat_add_entry(dir, &dentry->d_name, 0, 0, &ts, &sinfo);
 	if (err)
 		goto out;
+
+	__lock_d_revalidate(dentry);
 	dir->i_version++;
 
 	inode = fat_build_inode(sb, sinfo.de, sinfo.i_pos);
 	brelse(sinfo.bh);
 	if (IS_ERR(inode)) {
 		err = PTR_ERR(inode);
+		__unlock_d_revalidate(dentry);
 		goto out;
 	}
 	inode->i_version++;
 	inode->i_mtime = inode->i_atime = inode->i_ctime = ts;
 	/* timestamp is already written, so mark_inode_dirty() is unneeded. */
 
-	dentry->d_time = dentry->d_parent->d_inode->i_version;
 	d_instantiate(dentry, inode);
+	__unlock_d_revalidate(dentry);
 out:
 	mutex_unlock(&MSDOS_SB(sb)->s_lock);
 	return err;
@@ -828,6 +860,7 @@ static int vfat_rmdir(struct inode *dir, struct dentry *dentry)
 	clear_nlink(inode);
 	inode->i_mtime = inode->i_atime = CURRENT_TIME_SEC;
 	fat_detach(inode);
+	dentry->d_time = dir->i_version;
 out:
 	mutex_unlock(&MSDOS_SB(sb)->s_lock);
 
@@ -853,6 +886,7 @@ static int vfat_unlink(struct inode *dir, struct dentry *dentry)
 	clear_nlink(inode);
 	inode->i_mtime = inode->i_atime = CURRENT_TIME_SEC;
 	fat_detach(inode);
+	dentry->d_time = dir->i_version;
 out:
 	mutex_unlock(&MSDOS_SB(sb)->s_lock);
 
@@ -878,6 +912,7 @@ static int vfat_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	err = vfat_add_entry(dir, &dentry->d_name, 1, cluster, &ts, &sinfo);
 	if (err)
 		goto out_free;
+	__lock_d_revalidate(dentry);
 	dir->i_version++;
 	inc_nlink(dir);
 
@@ -886,6 +921,7 @@ static int vfat_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	if (IS_ERR(inode)) {
 		err = PTR_ERR(inode);
 		/* the directory was completed, just return a error */
+		__unlock_d_revalidate(dentry);
 		goto out;
 	}
 	inode->i_version++;
@@ -893,9 +929,9 @@ static int vfat_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	inode->i_mtime = inode->i_atime = inode->i_ctime = ts;
 	/* timestamp is already written, so mark_inode_dirty() is unneeded. */
 
-	dentry->d_time = dentry->d_parent->d_inode->i_version;
 	d_instantiate(dentry, inode);
 
+	__unlock_d_revalidate(dentry);
 	mutex_unlock(&MSDOS_SB(sb)->s_lock);
 	return 0;
 
@@ -951,6 +987,9 @@ static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
 			goto out;
 		new_i_pos = sinfo.i_pos;
 	}
+
+	__lock_d_revalidate(old_dentry);
+	__lock_d_revalidate(new_dentry);
 	new_dir->i_version++;
 
 	fat_detach(old_inode);
@@ -992,6 +1031,8 @@ static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
 			drop_nlink(new_inode);
 		new_inode->i_ctime = ts;
 	}
+	__unlock_d_revalidate(old_dentry);
+	__unlock_d_revalidate(new_dentry);
 out:
 	brelse(sinfo.bh);
 	brelse(dotdot_bh);
@@ -1010,6 +1051,9 @@ error_dotdot:
 		corrupt |= sync_dirty_buffer(dotdot_bh);
 	}
 error_inode:
+	__unlock_d_revalidate(old_dentry);
+	__unlock_d_revalidate(new_dentry);
+
 	fat_detach(old_inode);
 	fat_attach(old_inode, old_sinfo.i_pos);
 	if (new_inode) {

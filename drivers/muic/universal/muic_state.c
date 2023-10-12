@@ -48,6 +48,7 @@
 #include "muic_apis.h"
 #include "muic_i2c.h"
 #include "muic_vps.h"
+#include "muic_regmap.h"
 
 extern int muic_wakeup_noti;
 
@@ -62,6 +63,18 @@ static void muic_handle_attach(muic_data_t *pmuic,
 {
 	int ret = 0;
 	bool noti_f = true;
+#if defined(CONFIG_MUIC_UNIVERSAL_SM5703)
+	struct vendor_ops *pvendor = pmuic->regmapdesc->vendorops;
+
+	/* W/A of sm5703 lanhub issue */
+	if ((new_dev == ATTACHED_DEV_OTG_MUIC) && (vbvolt > 0)) {
+		if (pvendor && pvendor->reset_vbus_path) {
+			pr_info("%s:%s reset vbus path\n", MUIC_DEV_NAME, __func__);
+			pvendor->reset_vbus_path(pmuic->regmapdesc);
+		} else
+			pr_info("%s: No Vendor API ready.\n", __func__);
+	}
+#endif
 
 	pr_info("%s:%s attached_dev:%d new_dev:%d adc:0x%02x, vbvolt:%02x\n",
 		MUIC_DEV_NAME, __func__, pmuic->attached_dev, new_dev, adc, vbvolt);
@@ -145,7 +158,7 @@ static void muic_handle_attach(muic_data_t *pmuic,
 		break;
 	case ATTACHED_DEV_DESKDOCK_MUIC:
 	case ATTACHED_DEV_DESKDOCK_VB_MUIC:
-		if (new_dev == ATTACHED_DEV_DESKDOCK_MUIC || 
+		if (new_dev == ATTACHED_DEV_DESKDOCK_MUIC ||
 				new_dev == ATTACHED_DEV_DESKDOCK_VB_MUIC) {
 			pr_warn("%s:%s new(%d)!=attached(%d), assume same device\n",
 					MUIC_DEV_NAME, __func__, new_dev,
@@ -268,8 +281,6 @@ static void muic_handle_detach(muic_data_t *pmuic)
 	bool noti_f = true;
 
 	ret = com_to_open_with_vbus(pmuic);
-
-	//muic_enable_accdet(pmuic);
 
 	switch (pmuic->attached_dev) {
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:

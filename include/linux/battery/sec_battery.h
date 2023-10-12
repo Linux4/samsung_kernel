@@ -55,6 +55,38 @@
 
 #define BATT_MISC_EVENT_UNDEFINED_RANGE_TYPE	0x00000001
 
+#define SEC_BAT_CURRENT_EVENT_NONE					0x0000
+#define SEC_BAT_CURRENT_EVENT_AFC					0x0001
+#define SEC_BAT_CURRENT_EVENT_CHARGE_DISABLE		0x0002
+#define SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL	0x0004
+#define SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING		0x0010
+#define SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING	0x0020
+#if defined(CONFIG_ENABLE_100MA_CHARGING_BEFORE_USB_CONFIGURED)
+#define SEC_BAT_CURRENT_EVENT_USB_100MA			0x0040
+#else
+#define SEC_BAT_CURRENT_EVENT_USB_100MA			0x0000
+#endif
+#define SEC_BAT_CURRENT_EVENT_LOW_TEMP			0x0080
+#define SEC_BAT_CURRENT_EVENT_USB_SUPER			0x0100
+#define SEC_BAT_CURRENT_EVENT_CHG_LIMIT			0x0200
+#define SEC_BAT_CURRENT_EVENT_CALL				0x0400
+#define SEC_BAT_CURRENT_EVENT_SLATE				0x0800
+#define SEC_BAT_CURRENT_EVENT_VBAT_OVP			0x1000
+#define SEC_BAT_CURRENT_EVENT_VSYS_OVP			0x2000
+
+#define SEC_INPUT_VOLTAGE_5V	5
+#define SEC_INPUT_VOLTAGE_9V	9
+#define SEC_INPUT_VOLTAGE_10V	10
+#define SEC_INPUT_VOLTAGE_12V	12
+
+#if defined(CONFIG_BATTERY_SWELLING)
+enum swelling_mode_state {
+	SWELLING_MODE_NONE = 0,
+	SWELLING_MODE_CHARGING,
+	SWELLING_MODE_FULL,
+};
+#endif
+
 struct adc_sample_info {
 	unsigned int cnt;
 	int total_adc;
@@ -79,6 +111,10 @@ struct sec_battery_info {
 	struct notifier_block vbus_nb;
 #endif
 
+	bool safety_timer_set;
+	bool lcd_status;
+	bool skip_swelling;
+
 	int status;
 	int health;
 	bool present;
@@ -93,8 +129,7 @@ struct sec_battery_info {
 	int current_adc;
 
 	unsigned int capacity;			/* SOC (%) */
-
-
+	unsigned int input_voltage;		/* CHGIN/WCIN input voltage (V) */
 
 	struct mutex adclock;
 	struct adc_sample_info	adc_sample[ADC_CH_COUNT];
@@ -181,6 +216,12 @@ struct sec_battery_info {
 
 	unsigned int full_check_cnt;
 	unsigned int recharge_check_cnt;
+	struct mutex iolock;
+	int input_current;
+	int charging_current;
+	int topoff_current;
+	unsigned int current_event;
+	struct mutex current_eventlock;
 
 	/* wireless charging enable*/
 	int wc_enable;
@@ -222,6 +263,11 @@ struct sec_battery_info {
 	bool sw_self_discharging;
 #endif
 
+	bool stop_timer;
+	unsigned long prev_safety_time;
+	unsigned long expired_time;
+	unsigned long cal_safety_time;
+
 	bool charging_block;
 #if defined(CONFIG_BATTERY_SWELLING)
 	bool swelling_mode;
@@ -247,6 +293,9 @@ struct sec_battery_info {
 	unsigned int prev_misc_event;
 	struct delayed_work misc_event_work;
 	struct wake_lock misc_event_wake_lock;
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	int batt_cycle;
+#endif
 };
 
 ssize_t sec_bat_show_attrs(struct device *dev,
@@ -367,11 +416,18 @@ enum {
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	FG_CYCLE,
 	FG_FULL_VOLTAGE,
+	FG_FULLCAPNOM,
+	BATTERY_CYCLE,
+#if defined(CONFIG_BATTERY_AGE_FORECAST_DETACHABLE)
+	BATT_AFTER_MANUFACTURED,
+#endif
 #endif
 	FACTORY_MODE_RELIEVE,
 	FACTORY_MODE_BYPASS,
-	BATTERY_CYCLE,
 	BATT_MISC_EVENT,
+	BATT_SWELLING_CONTROL,
+	SAFETY_TIMER_SET,
+	SAFETY_TIMER_INFO,
 };
 
 #ifdef CONFIG_OF

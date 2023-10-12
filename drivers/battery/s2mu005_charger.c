@@ -193,8 +193,11 @@ static void s2mu005_enable_charger_switch(struct s2mu005_charger_data *charger,
 		s2mu005_update_reg(charger->client, S2MU005_CHG_CTRL0,
 			0 << REG_MODE_SHIFT, REG_MODE_MASK);
 		msleep(50);
+		s2mu005_update_reg(charger->client, 0x2A, 0 << 3, 0x08); // set async time 150msec
 		s2mu005_update_reg(charger->client, S2MU005_CHG_CTRL0,
 			2 << REG_MODE_SHIFT, REG_MODE_MASK);
+		msleep(150);
+		s2mu005_update_reg(charger->client, 0x2A, 1 << 3, 0x08); // set async time 20msec recover
 	} else {
 		charger->full_charged = false;
 		pr_err("[DEBUG] %s: turn off charger\n", __func__);
@@ -518,6 +521,7 @@ static bool s2mu005_chg_init(struct s2mu005_charger_data *charger)
 
 	s2mu005_read_reg(charger->client, 0x7B, &temp);
 	charger->fg_clock = temp;
+	s2mu005_update_reg(charger->client, 0x2A, 1 << 3, 0x08); // set async time 20msec recover
 
 	return true;
 }

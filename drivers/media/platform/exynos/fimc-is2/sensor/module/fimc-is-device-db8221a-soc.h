@@ -127,9 +127,12 @@ struct sensor_regset_table {
 	struct sensor_regset resol_800_600;
 	struct sensor_regset resol_1280_960;
 	struct sensor_regset resol_1600_1200;
-	struct sensor_regset camcoder_640_480;
-	struct sensor_regset camcoder_352_288;
-	struct sensor_regset camcoder_176_144;
+	struct sensor_regset camcoder_640_480_50Hz;
+	struct sensor_regset camcoder_640_480_60Hz;
+	struct sensor_regset camcoder_352_288_50Hz;
+	struct sensor_regset camcoder_352_288_60Hz;
+	struct sensor_regset camcoder_176_144_50Hz;
+	struct sensor_regset camcoder_176_144_60Hz;
 	struct sensor_regset capture_mode;
 	struct sensor_regset dtp_on;
 	struct sensor_regset dtp_off;

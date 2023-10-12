@@ -192,4 +192,5 @@ int fimc_is_lib_isp_convert_face_map(struct fimc_is_hardware *hardware,
 	struct taa_param_set *param_set, struct fimc_is_frame *frame);
 void fimc_is_lib_isp_configure_algorithm(void);
 void fimc_is_isp_get_bcrop1_size(void __iomem *base_addr, u32 *width, u32 *height);
+void fimc_is_isp_get_cin2isp_count(void __iomem *base_addr, u32 *col_cnt, u32 *row_cnt);
 #endif

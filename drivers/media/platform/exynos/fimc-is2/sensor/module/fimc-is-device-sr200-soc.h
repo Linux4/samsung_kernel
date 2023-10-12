@@ -131,8 +131,10 @@ struct sensor_regset_table {
 	struct sensor_regset vflip;
 	struct sensor_regset flip_off;
 	struct sensor_regset camcorder_flip;
-	struct sensor_regset anti_banding_flicker_50hz;
-	struct sensor_regset anti_banding_flicker_60hz;
+	struct sensor_regset preview_anti_banding_flicker_50hz;
+	struct sensor_regset preview_anti_banding_flicker_60hz;
+	struct sensor_regset camcorder_anti_banding_flicker_50hz;
+	struct sensor_regset camcorder_anti_banding_flicker_60hz;
 	struct sensor_regset video_mode_preview;
 	struct sensor_regset video_mode_encode;
 	struct sensor_regset video_mode_upcc;

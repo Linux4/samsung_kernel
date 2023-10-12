@@ -1064,6 +1064,13 @@ static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 					((unsigned int)sg_page(&data->sg[i])->index  >= 2)) {
 			sector_key |= DW_MMC_FILE_ENCRYPTION_SECTOR_BEGIN;
 			rw_size = DW_MMC_SECTOR_SIZE;
+			if ((strncmp(sg_page(&data->sg[i])->mapping->alg, "aes", sizeof("aes")) &&
+				strncmp(sg_page(&data->sg[i])->mapping->alg, "aesxts", sizeof("aesxts"))) ||
+				!sg_page(&data->sg[i])->mapping->key_length) {
+					sector_key &= ~DW_MMC_FILE_ENCRYPTION_SECTOR_BEGIN;
+					if (mq_rq && !(mq_rq->req->bio->bi_sensitive_data))
+						rw_size =  DW_MMC_MAX_TRANSFER_SIZE;
+			}
 		} else {
 			sector_key &= ~DW_MMC_FILE_ENCRYPTION_SECTOR_BEGIN;
 			if (mq_rq && !(mq_rq->req->bio->bi_sensitive_data))
@@ -1688,6 +1695,9 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 
 		if (slot->clock <= 400000)
 			clk_en_a &= ~(SDMMC_CLKEN_LOW_PWR << slot->id);
+
+		if (host->pdata->enable_low_pwr)
+			clk_en_a |= SDMMC_CLKEN_LOW_PWR << slot->id;
 
 		mci_writel(host, CLKENA, clk_en_a);
 
@@ -4444,6 +4454,12 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 
 	if (of_find_property(np, "enable-cclk-on-suspend", NULL))
 		pdata->enable_cclk_on_suspend = true;
+
+	if (of_find_property(np, "enable-low-pwr", NULL))
+		pdata->enable_low_pwr = true;
+	else
+		pdata->enable_low_pwr = false;
+
 	return pdata;
 }
 

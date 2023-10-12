@@ -75,6 +75,10 @@ struct cfg80211_registered_device {
 	struct work_struct scan_done_wk;
 	struct work_struct sched_scan_results_wk;
 
+#ifdef CONFIG_CFG80211_SUPPORT_VENDOR_COMMANDS
+	struct genl_info *cur_cmd_info;
+#endif
+
 	struct mutex sched_scan_mtx;
 
 #ifdef CONFIG_NL80211_TESTMODE
@@ -102,6 +106,15 @@ struct cfg80211_registered_device *wiphy_to_dev(struct wiphy *wiphy)
 	BUG_ON(!wiphy);
 	return container_of(wiphy, struct cfg80211_registered_device, wiphy);
 }
+
+#ifdef CONFIG_CFG80211_SUPPORT_VENDOR_COMMANDS
+static inline
+struct cfg80211_registered_device *wiphy_to_rdev(struct wiphy *wiphy)
+{
+	BUG_ON(!wiphy);
+	return container_of(wiphy, struct cfg80211_registered_device, wiphy);
+}
+#endif
 
 static inline void
 cfg80211_rdev_free_wowlan(struct cfg80211_registered_device *rdev)

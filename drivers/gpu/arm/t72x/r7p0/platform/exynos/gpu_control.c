@@ -274,11 +274,6 @@ int gpu_control_module_init(struct kbase_device *kbdev)
 	}
 #endif /* CONFIG_REGULATOR */
 
-#ifdef CONFIG_SOC_EXYNOS8890
-	platform->gpu_max_clock = (u32)cal_dfs_get_max_freq(dvfs_g3d) / 1000;
-	GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "Board. Max clock limit %d.\n", platform->gpu_max_clock);
-#endif
-
 	return 0;
 out:
 	return -EPERM;

@@ -544,7 +544,6 @@ int fimc_is_hardware_grp_shot(struct fimc_is_hardware *hardware,
 	framemgr = hw_ip->framemgr;
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	ret = check_shot_exist(framemgr, frame->fcount);
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	/* check late shot */
 	if (hw_ip->internal_fcount >= frame->fcount || ret == INTERNAL_SHOT_EXIST) {
@@ -552,7 +551,11 @@ int fimc_is_hardware_grp_shot(struct fimc_is_hardware *hardware,
 			instance, hw_ip->internal_fcount, frame->fcount, GROUP_ID(group->id),
 			frame->req_flag, frame->out_flag, frame->core_flag);
 		frame->type = SHOT_TYPE_LATE;
+		/* unlock previous framemgr */
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		framemgr = &hardware->framemgr_late;
+		/* lock by late framemgr */
+		framemgr_e_barrier_irqs(framemgr, 0, flags);
 		if (framemgr->queued_count[FS_REQUEST] > 0) {
 			warn_hw("[%d]LATE_SHOT REQ(%d) > 0, PRO(%d)",
 				instance,
@@ -563,13 +566,11 @@ int fimc_is_hardware_grp_shot(struct fimc_is_hardware *hardware,
 	} else {
 		frame->type = SHOT_TYPE_EXTERNAL;
 		enable_debug_info = false;
-		framemgr = hw_ip->framemgr;
 	}
 
-	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	hw_frame = get_frame(framemgr, FS_FREE);
-	framemgr_x_barrier_irqr(framemgr, 0, flags);
 	if (hw_frame == NULL) {
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
 		err_hw("[%d][G:0x%x]free_head(NULL)", instance, GROUP_ID(group->id));
 		ret = -EINVAL;
 		goto p_err;
@@ -614,13 +615,14 @@ int fimc_is_hardware_grp_shot(struct fimc_is_hardware *hardware,
 				atomic_set(&hw_ip->cl_count, (frame->fcount - 1));
 			}
 		} else {
-			framemgr_e_barrier_irqs(framemgr, 0, flags);
 			put_frame(framemgr, hw_frame, FS_REQUEST);
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 			return ret;
 		}
 	}
+
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
 	if (frame->type == SHOT_TYPE_LATE) {
 		err_hw("[%d]grp_shot: LATE_SHOT", instance);
@@ -846,7 +848,14 @@ void fimc_is_hardware_frame_start(struct fimc_is_hw_ip *hw_ip, u32 instance)
 
 	if (frame->fcount != atomic_read(&hw_ip->fs_count)) {
 		/* error handling */
-		info_hw("frame_start_isr (%d, %d)\n", frame->fcount, atomic_read(&hw_ip->fs_count));
+		info_hw("frame_start_isr (frm:%d, fs:%d, cl:%d, fe:%d)\n",
+				frame->fcount,
+				atomic_read(&hw_ip->fs_count),
+				atomic_read(&hw_ip->cl_count),
+				atomic_read(&hw_ip->fe_count));
+		frame_manager_print_info_queues(framemgr);
+		print_hw_interrupt_time(hw_ip);
+		atomic_set(&hw_ip->fs_count, frame->fcount);
 	}
 	/* TODO: multi-instance */
 	frame->frame_info[INFO_FRAME_START].cpu = raw_smp_processor_id();

@@ -13,6 +13,7 @@
 #include "exynos3475-gtes_common.dtsi"
 #include "modem-ss308ap-pdata.dtsi"
 #include "exynos3475-gteslte_battery.dtsi"
+#include "exynos3475-gteslte_usa_vzw_battery_05.dtsi"
 #include "exynos3475-gteslte_usa_vzw_gpio_00.dtsi"
 
 / {

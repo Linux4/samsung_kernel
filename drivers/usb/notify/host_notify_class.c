@@ -1,10 +1,12 @@
 /*
  *  drivers/usb/notify/host_notify_class.c
  *
- * Copyright (C) 2011 Samsung, Inc.
+ * Copyright (C) 2011-2017 Samsung, Inc.
  * Author: Dongrak Shin <dongrak.shin@samsung.com>
  *
 */
+
+ /* usb notify layer v3.0 */
 
 #include <linux/module.h>
 #include <linux/types.h>
@@ -14,6 +16,9 @@
 #include <linux/fs.h>
 #include <linux/err.h>
 #include <linux/host_notify.h>
+#if defined(CONFIG_USB_HW_PARAM)
+#include <linux/usb_notify.h>
+#endif
 
 struct notify_data {
 	struct class *host_notify_class;
@@ -57,21 +62,25 @@ static ssize_t mode_store(
 
 	char *mode;
 	size_t ret = -ENOMEM;
+	int sret = 0;
 
 	mode = kzalloc(size+1, GFP_KERNEL);
 	if (!mode)
 		goto error;
 
-	sscanf(buf, "%s", mode);
+	sret = sscanf(buf, "%s", mode);
+	if (sret != 1)
+		goto error1;
 
 	if (ndev->set_mode) {
+		pr_info("host_notify: set mode %s\n", mode);
 		if (!strncmp(mode, "HOST", 4))
 			ndev->set_mode(NOTIFY_SET_ON);
 		else if (!strncmp(mode, "NONE", 4))
 			ndev->set_mode(NOTIFY_SET_OFF);
-		pr_info("host_notify: set mode %s\n", mode);
 	}
 	ret = size;
+error1:
 	kfree(mode);
 error:
 	return ret;
@@ -107,14 +116,18 @@ static ssize_t booster_store(
 
 	char *booster;
 	size_t ret = -ENOMEM;
+	int sret = 0;
 
 	booster = kzalloc(size+1, GFP_KERNEL);
 	if (!booster)
 		goto error;
 
-	sscanf(buf, "%s", booster);
+	sret = sscanf(buf, "%s", booster);
+	if (sret != 1)
+		goto error1;
 
 	if (ndev->set_booster) {
+		pr_info("host_notify: set booster %s\n", booster);
 		if (!strncmp(booster, "ON", 2)) {
 			ndev->set_booster(NOTIFY_SET_ON);
 			ndev->mode = NOTIFY_TEST_MODE;
@@ -122,9 +135,9 @@ static ssize_t booster_store(
 			ndev->set_booster(NOTIFY_SET_OFF);
 			ndev->mode = NOTIFY_NONE_MODE;
 		}
-		pr_info("host_notify: set booster %s\n", booster);
 	}
 	ret = size;
+error1:
 	kfree(booster);
 error:
 	return ret;
@@ -168,6 +181,14 @@ int host_state_notify(struct host_notify_dev *ndev, int state)
 		ndev->state = state;
 		if (state != NOTIFY_HOST_NONE)
 			kobject_uevent(&ndev->dev->kobj, KOBJ_CHANGE);
+#if defined(CONFIG_USB_HW_PARAM)
+		if (state == NOTIFY_HOST_ADD)
+			inc_hw_param_host(ndev, USB_CCIC_OTG_USE_COUNT);
+		else if (state == NOTIFY_HOST_OVERCURRENT)
+			inc_hw_param_host(ndev, USB_CCIC_OVC_COUNT);
+		else
+			;
+#endif
 		return 1;
 	}
 	return 0;

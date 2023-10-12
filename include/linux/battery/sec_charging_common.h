@@ -89,6 +89,12 @@ enum sec_battery_adc_channel {
 	SEC_BAT_ADC_CHANNEL_NUM
 };
 
+enum sec_battery_charge_mode {
+	SEC_BAT_CHG_MODE_CHARGING = 0,
+	SEC_BAT_CHG_MODE_CHARGING_OFF,
+	SEC_BAT_CHG_MODE_BUCK_OFF,
+};
+
 /* charging mode */
 enum sec_battery_charging_mode {
 	/* no charging */
@@ -412,6 +418,19 @@ struct sec_charging_current {
 #define sec_charging_current_t \
 	struct sec_charging_current
 
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+struct sec_age_data {
+	unsigned int cycle;
+	unsigned int float_voltage;
+	unsigned int recharge_condition_vcell;
+	unsigned int full_condition_vcell;
+	unsigned int full_condition_soc;
+};
+
+#define sec_age_data_t \
+	struct sec_age_data
+#endif
+
 struct sec_battery_platform_data {
 	/* NO NEED TO BE CHANGED */
 	/* callback functions */
@@ -485,11 +504,17 @@ struct sec_battery_platform_data {
 	/* battery swelling */
 	int swelling_high_temp_block;
 	int swelling_high_temp_recov;
-	int swelling_low_temp_block;
-	int swelling_low_temp_recov;
-	int swelling_chg_current;
-	int swelling_chg_high_current;
-	unsigned int swelling_full_check_current_2nd;
+	int swelling_low_temp_block_1st;
+	int swelling_low_temp_recov_1st;
+	int swelling_low_temp_block_2nd;
+	int swelling_low_temp_recov_2nd;
+	unsigned int swelling_low_temp_current;
+	unsigned int swelling_low_temp_topoff;
+	unsigned int swelling_high_temp_current;
+	unsigned int swelling_high_temp_topoff;
+	unsigned int swelling_wc_high_temp_current;
+	unsigned int swelling_wc_low_temp_current;
+
 	unsigned int swelling_normal_float_voltage;
 	unsigned int swelling_drop_float_voltage;
 	unsigned int swelling_high_rechg_voltage;
@@ -621,6 +646,9 @@ struct sec_battery_platform_data {
 
 	/* fuel gauge */
 	char *fuelgauge_name;
+	char *fgsrc_switch_name;
+	bool support_fgsrc_change;
+
 	int fg_irq;
 	unsigned long fg_irq_attr;
 	/* fuel alert SOC (-1: not use) */
@@ -636,6 +664,13 @@ struct sec_battery_platform_data {
 
 	int capacity_max_margin;
 	int capacity_min;
+
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	int num_age_step;
+	int age_step;
+	int age_data_length;
+	sec_age_data_t* age_data;
+#endif
 
 	/* charger */
 	char *charger_name;
@@ -661,11 +696,16 @@ struct sec_battery_platform_data {
 #else
 	int chg_float_voltage;
 #endif
+	unsigned int chg_float_voltage_conv;
 	sec_charger_functions_t chg_functions_setting;
 	bool fake_capacity;
 	bool wchg_ctl_en;
 	bool always_enable;
 	bool chg_eoc_dualpath;
+
+	unsigned int expired_time;
+	unsigned int recharging_expired_time;
+	int standard_curr;
 
 #if defined(CONFIG_SW_SELF_DISCHARGING)
 	int self_discharging_temp_block;
@@ -733,4 +773,54 @@ static inline struct power_supply *get_power_supply_by_name(char *name)
 #define GET_POWER_CABLE_TYPE(extended)	\
 	((extended >> ONLINE_TYPE_PWR_SHIFT)&0xf)
 
+#define is_hv_wireless_type(cable_type) ( \
+	cable_type == POWER_SUPPLY_TYPE_HV_WIRELESS || \
+	cable_type == POWER_SUPPLY_TYPE_HV_WIRELESS_ETX || \
+	cable_type == POWER_SUPPLY_TYPE_WIRELESS_HV_STAND)
+
+#define is_nv_wireless_type(cable_type)	( \
+	cable_type == POWER_SUPPLY_TYPE_WIRELESS || \
+	cable_type == POWER_SUPPLY_TYPE_PMA_WIRELESS || \
+	cable_type == POWER_SUPPLY_TYPE_WIRELESS_PACK || \
+	cable_type == POWER_SUPPLY_TYPE_WIRELESS_PACK_TA || \
+	cable_type == POWER_SUPPLY_TYPE_WIRELESS_STAND)
+
+#define is_wireless_type(cable_type) \
+	(is_hv_wireless_type(cable_type) || is_nv_wireless_type(cable_type))
+
+#define is_not_wireless_type(cable_type) ( \
+	cable_type != POWER_SUPPLY_TYPE_WIRELESS && \
+	cable_type != POWER_SUPPLY_TYPE_PMA_WIRELESS && \
+	cable_type != POWER_SUPPLY_TYPE_WIRELESS_PACK && \
+	cable_type != POWER_SUPPLY_TYPE_WIRELESS_PACK_TA && \
+	cable_type != POWER_SUPPLY_TYPE_WIRELESS_STAND && \
+	cable_type != POWER_SUPPLY_TYPE_HV_WIRELESS && \
+	cable_type != POWER_SUPPLY_TYPE_HV_WIRELESS_ETX && \
+	cable_type != POWER_SUPPLY_TYPE_WIRELESS_HV_STAND)
+
+#define is_wired_type(cable_type) \
+	(is_not_wireless_type(cable_type) && (cable_type != POWER_SUPPLY_TYPE_BATTERY))
+
+#define is_hv_qc_wire_type(cable_type) ( \
+	cable_type == POWER_SUPPLY_TYPE_HV_QC20 || \
+	cable_type == POWER_SUPPLY_TYPE_HV_QC30)
+
+#define is_hv_afc_wire_type(cable_type) ( \
+	cable_type == POWER_SUPPLY_TYPE_HV_ERR || \
+	cable_type == POWER_SUPPLY_TYPE_HV_MAINS || \
+	cable_type == POWER_SUPPLY_TYPE_HV_UNKNOWN || \
+	cable_type == POWER_SUPPLY_TYPE_HV_MAINS_12V)
+
+#define is_hv_wire_9v_type(cable_type) ( \
+	cable_type == POWER_SUPPLY_TYPE_HV_ERR || \
+	cable_type == POWER_SUPPLY_TYPE_HV_MAINS || \
+	cable_type == POWER_SUPPLY_TYPE_HV_UNKNOWN || \
+	cable_type == POWER_SUPPLY_TYPE_HV_QC20)
+
+#define is_hv_wire_12v_type(cable_type) ( \
+	cable_type == POWER_SUPPLY_TYPE_HV_MAINS_12V || \
+	cable_type == POWER_SUPPLY_TYPE_HV_QC30)
+
+#define is_hv_wire_type(cable_type) ( \
+	is_hv_afc_wire_type(cable_type) || is_hv_qc_wire_type(cable_type))
 #endif /* __SEC_CHARGING_COMMON_H */

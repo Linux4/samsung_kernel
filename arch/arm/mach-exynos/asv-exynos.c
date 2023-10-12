@@ -86,9 +86,23 @@ unsigned int get_match_volt(enum asv_type_id target_type, unsigned int target_fr
 	for (i = 0; i < target_dvfs_level; i++) {
 		if (match_asv_info->asv_volt[i].asv_freq == target_freq) {
 #ifndef CONFIG_EXYNOS_ASV_MARGIN_TEST
+#ifdef CONFIG_MIF_VOLT_MARGINE_UP
+			if (target_type == ID_MIF)
+				return match_asv_info->asv_volt[i].asv_value + 25000;
+			else
+				return match_asv_info->asv_volt[i].asv_value;
+#else
 			return match_asv_info->asv_volt[i].asv_value;
+#endif
+#else
+#ifdef CONFIG_MIF_VOLT_MARGINE_UP
+			if (target_type == ID_MIF)
+				actual_volt = match_asv_info->asv_volt[i].asv_value + 25000;
+			else
+				actual_volt = match_asv_info->asv_volt[i].asv_value;
 #else
 			actual_volt = match_asv_info->asv_volt[i].asv_value;
+#endif
 			break;
 #endif
 		}

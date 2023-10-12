@@ -118,7 +118,7 @@ void kbase_timeline_job_slot_submit(struct kbase_device *kbdev, struct kbase_con
 	lockdep_assert_held(&kbdev->js_data.runpool_irq.lock);
 
 	if (kbdev->timeline.slot_atoms_submitted[js] > 0) {
-+	/* MALI_SEC_INTEGRATION */
+	/* MALI_SEC_INTEGRATION */
 		base_atom_id atom_number = kbase_jd_atom_id(kctx, katom);
 		KBASE_TIMELINE_JOB_START_NEXT(kctx, js, 1);
 		KBASE_TIMELINE_JOB_START(kctx, js, atom_number);

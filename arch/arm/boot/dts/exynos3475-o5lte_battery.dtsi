@@ -197,6 +197,11 @@
 		battery,swelling_high_rechg_voltage = <4150>;
 		battery,swelling_low_rechg_voltage = <4050>;
 		battery,swelling_block_time = <600>;
+		
+		battery,self_discharging_temp_block = <600>;
+		battery,self_discharging_volt_block = <4250>;
+		battery,self_discharging_temp_recov = <550>;
+		battery,self_discharging_temp_pollingtime = <400>;
 	};
 
 	charger {
@@ -210,7 +215,7 @@
 		battery,chg_gpio_status = <0>;
 		battery,chg_polarity_status = <0>;
 		battery,chg_float_voltage = <4340>;
-		chg_autostop = <0>;
+		chg_autostop = <1>;
 		chg_autoset = <1>;
 		chg_aiclen = <0>;
 		chg_aiclth = <4500>;

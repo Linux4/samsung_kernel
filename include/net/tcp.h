@@ -356,6 +356,9 @@ extern struct proto tcp_prot;
 
 extern void tcp_init_mem(struct net *net);
 
+
+void inet_twsk_free(struct inet_timewait_sock *tw);
+
 extern void tcp_tasklet_init(void);
 
 extern void tcp_v4_err(struct sk_buff *skb, u32);
@@ -1042,6 +1045,8 @@ extern void tcp_set_state(struct sock *sk, int state);
 
 extern void tcp_done(struct sock *sk);
 
+int tcp_abort(struct sock *sk, int err);
+
 static inline void tcp_sack_reset(struct tcp_options_received *rx_opt)
 {
 	rx_opt->dsack = 0;
@@ -1390,6 +1395,8 @@ static inline void tcp_check_send_head(struct sock *sk, struct sk_buff *skb_unli
 {
 	if (sk->sk_send_head == skb_unlinked)
 		sk->sk_send_head = NULL;
+	if (tcp_sk(sk)->highest_sack == skb_unlinked)
+		tcp_sk(sk)->highest_sack = NULL;
 }
 
 static inline void tcp_init_send_head(struct sock *sk)

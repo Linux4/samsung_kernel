@@ -7,7 +7,7 @@
  * published by the Free Software Foundation.
 */
 
-// Support O5 HW REV00 (b0000)
+// Support On5 HW REV00 (b0000)
 
 #include "exynos_gpio_config_macros.dtsi"
 
@@ -147,7 +147,7 @@
 		PIN_SLP(gpd1-0, INPUT, DOWN);	/* CAM_CORE_EN */
 		PIN_SLP(gpd1-1, OUT0, DOWN);	/* LCD_ENN */
 		PIN_SLP(gpd1-2, OUT0, DOWN);	/* LCD_ENP */
-		PIN_SLP(gpd1-3, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpd1-3, PREV, NONE);	/* CHG_EN */
 		PIN_SLP(gpd1-4, PREV, NONE);	/* WL_REG_ON */
 		PIN_SLP(gpd1-5, INPUT, NONE);	/* TSP_INT */
 		PIN_SLP(gpd1-6, OUT0, DOWN);	/* LCD_BL_EN */

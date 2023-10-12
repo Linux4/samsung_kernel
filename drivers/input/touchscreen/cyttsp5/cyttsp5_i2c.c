@@ -49,7 +49,7 @@ static int cyttsp5_i2c_read_default(struct device *dev, void *buf, int size)
 		break;
 	}
 	if (retry == I2C_RETRY_TIMES)
-		dev_err(dev, "%s: I2C retry 3 times over [%d]\n", __func__, rc);
+		tsp_debug_err(true, dev, "%s: I2C retry 3 times over [%d]\n", __func__, rc);
 
 	return (rc < 0) ? rc : rc != size ? -EIO : 0;
 }
@@ -78,7 +78,7 @@ static int cyttsp5_i2c_read_default_nosize(struct device *dev, u8 *buf, u32 max)
 			break;
 	}
 	if (retry == I2C_RETRY_TIMES)
-		dev_err(dev, "%s: I2C retry 3 times over [%d]\n", __func__, rc);
+		tsp_debug_err(true, dev, "%s: I2C retry 3 times over [%d]\n", __func__, rc);
 
 	if (rc < 0 || rc != msg_count)
 		return (rc < 0) ? rc : -EIO;
@@ -98,7 +98,7 @@ static int cyttsp5_i2c_read_default_nosize(struct device *dev, u8 *buf, u32 max)
 			break;
 	}
 	if (retry == I2C_RETRY_TIMES)
-		dev_err(dev, "%s: I2C retry 3 times over [%d]\n", __func__, rc);
+		tsp_debug_err(true, dev, "%s: I2C retry 3 times over [%d]\n", __func__, rc);
 
 	return (rc < 0) ? rc : rc != (int)size ? -EIO : 0;
 }
@@ -127,7 +127,7 @@ static int cyttsp5_i2c_write_read_specific(struct device *dev, u8 write_len,
 			break;
 	}
 	if (retry == I2C_RETRY_TIMES)
-		dev_err(dev, "%s: I2C retry 3 times over [%d]\n", __func__, rc);
+		tsp_debug_err(true, dev, "%s: I2C retry 3 times over [%d]\n", __func__, rc);
 	if (rc < 0 || rc != msg_count)
 		return (rc < 0) ? rc : -EIO;
 	else
@@ -163,11 +163,11 @@ static int cyttsp5_i2c_probe(struct i2c_client *client,
 	const struct of_device_id *match;
 #endif
 	if (lcdtype == 0) {
-		dev_err(dev, "%s tsp_connect : %d TSP driver unload\n", __func__, lcdtype);
+		tsp_debug_err(true, dev, "%s tsp_connect : %d TSP driver unload\n", __func__, lcdtype);
 		return -EIO;
 	}
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		dev_err(dev, "I2C functionality not Supported\n");
+		tsp_debug_err(true, dev, "I2C functionality not Supported\n");
 		return -EIO;
 	}
 #ifdef CONFIG_TOUCHSCREEN_CYTTSP5_DEVICETREE_SUPPORT

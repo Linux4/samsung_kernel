@@ -494,8 +494,7 @@ static void sx9310_set_enable(struct sx9310_p *data, int enable)
 		sx9310_read_irqstate(data);
 
 		/* enable interrupt */
-		sx9310_i2c_write(data, SX9310_IRQ_ENABLE_REG,
-			(setup_reg[0].val | 0x80));
+		sx9310_i2c_write(data, SX9310_IRQ_ENABLE_REG, setup_reg[0].val);
 
 		enable_irq(data->irq);
 		enable_irq_wake(data->irq);
@@ -1277,8 +1276,7 @@ static void sx9310_init_work_func(struct work_struct *work)
 	sx9310_read_irqstate(data);
 
 	/* disable interrupt */
-	sx9310_i2c_write(data, SX9310_IRQ_ENABLE_REG,
-		(setup_reg[0].val & 0x7F));
+	sx9310_i2c_write(data, SX9310_IRQ_ENABLE_REG, 0x00);
 }
 
 static void sx9310_irq_work_func(struct work_struct *work)
@@ -1602,7 +1600,7 @@ static int sx9310_probe(struct i2c_client *client,
 		goto grip_sensor_register_failed;
 	}
 
-	schedule_delayed_work(&data->init_work, msecs_to_jiffies(10000));
+	schedule_delayed_work(&data->init_work, msecs_to_jiffies(300));
 	sx9310_set_debug_work(data, ON, 20000);
 
 #if defined(CONFIG_MUIC_NOTIFIER)

@@ -101,8 +101,8 @@ static gpu_attribute gpu_config_attributes[] = {
 	{GPU_EARLY_CLK_GATING, 0},
 	{GPU_DVS, 0},
 #ifdef MALI_SEC_HWCNT
-	{GPU_HWCNT_GATHERING, 1},
-	{GPU_HWCNT_GPR, 1},
+	{GPU_HWCNT_GATHERING, 0},
+	{GPU_HWCNT_GPR, 0},
 	{GPU_HWCNT_DUMP_PERIOD, 50}, /* ms */
 	{GPU_HWCNT_CHOOSE_JM , 0},
 	{GPU_HWCNT_CHOOSE_SHADER , 0xF8},

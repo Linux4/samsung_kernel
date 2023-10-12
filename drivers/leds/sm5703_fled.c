@@ -113,6 +113,7 @@ int32_t sm5703_led_mode_ctrl(int state)
 #endif
 			break;
 		case SM5703_FLED_MODE_PREFLASH:
+			sm5703_fled_set_movie_current_sel(fled_info, info->pdata->fled_preflash_current);
 			sm5703_fled_set_mode(fled_info, FLASHLIGHT_MODE_TORCH);
 			sm5703_fled_notification(fled_info);
 #ifdef CONFIG_CAMERA_USE_SOC_SENSOR
@@ -162,6 +163,7 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 	sm_fled_info_t *fled_info = sm_fled_get_info_by_name(NULL);
 	sm5703_fled_info_t *info = (sm5703_fled_info_t *)fled_info;
 	int i, nValue=0;
+	int torch_current = 0;
 	struct pinctrl *pinctrl;
 
 	BUG_ON(fled_info == NULL);
@@ -190,25 +192,6 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 				pr_err("%s: flash %s pins are not configured\n", __func__, FLED_PINCTRL_STATE_SLEEP);
 			else
 				rear_flash_status = 0;
-			break;
-
-		case 1:
-			pr_info("Torch ON\n");
-			assistive_light = true;
-			sel = sm5703_fled_set_movie_current_sel(fled_info, info->pdata->fled_torch_current);
-			if(sel < 0){
-				pr_err("SM5703 fled current set fail \n");
-			}
-
-			pinctrl = devm_pinctrl_get_select(sm5703_dev, FLED_PINCTRL_STATE_DEFAULT);
-			if (IS_ERR(pinctrl))
-				pr_err("%s: flash %s pins are not configured\n", __func__, FLED_PINCTRL_STATE_DEFAULT);
-			else
-				rear_flash_status = 1;
-
-			sm5703_fled_set_mode(fled_info,FLASHLIGHT_MODE_TORCH);
-			sm5703_fled_notification(fled_info);
-			sm5703_fled_flash(fled_info,TURN_WAY_GPIO);
 			break;
 
 		case 99:
@@ -244,6 +227,47 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 			sm5703_fled_set_mode(fled_info,FLASHLIGHT_MODE_TORCH);
 			sm5703_fled_notification(fled_info);
 			sm5703_fled_flash(fled_info,TURN_WAY_GPIO);
+			break;
+
+		case 1:
+		case 1001:
+		case 1002:
+		case 1004:
+		case 1006:
+		case 1009:
+			pr_info("Torch ON\n");
+			assistive_light = true;
+			if (1001 <= nValue && nValue <= 1010) {
+				/* (value) 1001, 1002, 1004, 1006, 1009 */
+				if (nValue <= 1001)
+					torch_current = 20;
+				else if (nValue <= 1002)
+					torch_current = 40;
+				else if (nValue <= 1004)
+					torch_current = 60;
+				else if (nValue <= 1006)
+					torch_current = 90;
+				else if (nValue <= 1009)
+					torch_current = 120;
+				else
+					torch_current = 60;
+			} else {
+				torch_current = 60;
+			}
+			sel = sm5703_fled_set_movie_current_sel(fled_info, SM5703_MOVIE_CURRENT(torch_current));
+			if(sel < 0){
+				pr_err("SM5703 fled current set fail \n");
+			}
+
+			pinctrl = devm_pinctrl_get_select(sm5703_dev, FLED_PINCTRL_STATE_DEFAULT);
+			if (IS_ERR(pinctrl))
+				pr_err("%s: flash %s pins are not configured\n", __func__, FLED_PINCTRL_STATE_DEFAULT);
+			else
+				rear_flash_status = 1;
+
+			sm5703_fled_set_mode(fled_info, FLASHLIGHT_MODE_TORCH);
+			sm5703_fled_notification(fled_info);
+			sm5703_fled_flash(fled_info, TURN_WAY_GPIO);
 			break;
 
 		default:

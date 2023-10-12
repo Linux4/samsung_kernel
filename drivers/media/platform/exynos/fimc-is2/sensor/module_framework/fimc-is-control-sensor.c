@@ -518,6 +518,17 @@ void fimc_is_sensor_ctl_frame_evt(struct fimc_is_device_sensor *device)
 		memset(&applied_ae_setting, 0, sizeof(ae_setting));
 		fimc_is_sensor_ctl_adjust_ae_setting(device, &applied_ae_setting, cis_data);
 
+		/* set frame rate : Limit of max frame duration */
+		if (sensor_ctrl->frameDuration != 0 && module_ctl->valid_sensor_ctrl == true)
+			frame_duration = fimc_is_sensor_convert_ns_to_us(sensor_ctrl->frameDuration);
+		else
+			frame_duration = fimc_is_sensor_convert_ns_to_us(sensor_uctrl->frameDuration);
+
+		ret = fimc_is_sensor_ctl_set_frame_rate(device, frame_duration, 0);
+		if (ret < 0) {
+			err("[%s] frame number(%d) set frame duration fail\n", __func__, applied_frame_number);
+		}
+
 		/* Set exposureTime */
 		/* TODO: WDR mode */
 		if (sensor_ctrl->exposureTime != 0 && module_ctl->valid_sensor_ctrl == true) {
@@ -535,15 +546,10 @@ void fimc_is_sensor_ctl_frame_evt(struct fimc_is_device_sensor *device)
 		if (ret < 0) {
 			err("err!!! ret(%d)", ret);
 		}
+
 		sensor_uctrl->dynamicFrameDuration = fimc_is_sensor_convert_us_to_ns(ctrl.value);
 
-		/* set frame rate */
-		if (sensor_ctrl->frameDuration != 0 && module_ctl->valid_sensor_ctrl == true)
-			frame_duration = fimc_is_sensor_convert_ns_to_us(sensor_ctrl->frameDuration);
-		else
-			frame_duration = fimc_is_sensor_convert_ns_to_us(sensor_uctrl->frameDuration);
-
-		ret = fimc_is_sensor_ctl_set_frame_rate(device, frame_duration,
+		ret = fimc_is_sensor_ctl_set_frame_rate(device, 0,
 						fimc_is_sensor_convert_ns_to_us(sensor_uctrl->dynamicFrameDuration));
 		if (ret < 0) {
 			err("[%s] frame number(%d) set frame duration fail\n", __func__, applied_frame_number);

@@ -59,9 +59,6 @@ extern struct dsim_device *dsim1_for_decon;
 #define PANEL_STATE_RESUMED		1
 #define PANEL_STATE_SUSPENDING	2
 
-#define PANEL_DISCONNEDTED		0
-#define PANEL_CONNECTED			1
-
 
 enum mipi_dsim_pktgo_state {
 	DSIM_PKTGO_DISABLED,
@@ -89,55 +86,8 @@ struct dsim_resources {
 };
 
 struct panel_private {
-	struct backlight_device *bd;
-	unsigned char id[3];
-	unsigned char code[5];
-	unsigned char tset[8];
-	unsigned char elvss[4];
-#if defined(CONFIG_EXYNOS3475_DECON_LCD_S6E88A0) || defined(CONFIG_EXYNOS3475_DECON_LCD_EA8061S_J1)
-	unsigned char DB[33];
-	unsigned char elvss_hbm;
-	unsigned char elvss_hbm_default;
-#elif defined(CONFIG_EXYNOS3475_DECON_LCD_S6E8AA5X01)
-	unsigned char hbm_gamma[35];
-	unsigned char elvss22th;
-	unsigned char chip_id[5];
-#endif
-	int	temperature;
-	unsigned int coordinate[2];
-	unsigned char date[5];
 	unsigned int lcdConnected;
-	unsigned int state;
-	unsigned int auto_brightness;
-	unsigned int br_index;
-	unsigned int acl_enable;
-	unsigned int acl_enable_force;
-	unsigned int current_acl;
-	unsigned int current_hbm;
-	unsigned int current_acl_opr;
-	unsigned int current_vint;
-	unsigned int siop_enable;
-	unsigned char dump_info[2];
-	unsigned int weakness_hbm_comp;
-
-	void *dim_data;
-	void *dim_info;
-	unsigned int *br_tbl;
-	unsigned char **hbm_tbl;
-	unsigned char **acl_cutoff_tbl;
-	unsigned char **acl_opr_tbl;
-	struct mutex lock;
-	struct dsim_panel_ops *ops;
-	unsigned int panel_type;
-};
-
-struct dsim_panel_ops {
-	int (*early_probe)(struct dsim_device *dsim);
-	int	(*probe)(struct dsim_device *dsim);
-	int	(*displayon)(struct dsim_device *dsim);
-	int	(*displayon_late)(struct dsim_device *dsim);
-	int	(*exit)(struct dsim_device *dsim);
-	int	(*init)(struct dsim_device *dsim);
+	void *par;
 };
 
 struct dsim_device {
@@ -188,7 +138,6 @@ struct dsim_device {
 
 	int		rev;
 	int		octa_id;
-	struct notifier_block	fb_notif_panel;
 };
 
 /**
@@ -205,6 +154,7 @@ struct mipi_dsim_lcd_driver {
 	int	(*suspend)(struct dsim_device *dsim);
 	int	(*displayon)(struct dsim_device *dsim);
 	int	(*resume)(struct dsim_device *dsim);
+	int	(*displayon_late)(struct dsim_device *dsim);
 };
 
 int dsim_write_data(struct dsim_device *dsim, unsigned int data_id,
@@ -279,8 +229,5 @@ u32 dsim_reg_get_hozval(u32 id);
 #define DSIM_IOC_SET_PORCH		_IOW('D', 7, struct decon_lcd *)
 #define DSIM_IOC_DUMP			_IOW('D', 8, u32)
 #define DSIM_IOC_VSYNC			_IOW('D', 9, u32)
-
-int dsim_write_hl_data(struct dsim_device *dsim, const u8 *cmd, u32 cmdSize);
-int dsim_read_hl_data(struct dsim_device *dsim, u8 addr, u32 size, u8 *buf);
 
 #endif /* __DSIM_H__ */

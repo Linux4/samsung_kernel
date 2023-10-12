@@ -1,7 +1,7 @@
 /*
  * Platform Dependent file for Samsung Exynos
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_custom_exynos.c 605818 2015-12-11 15:14:08Z $
+ * $Id: dhd_custom_exynos.c 692448 2017-03-28 06:06:19Z $
  */
 #include <linux/device.h>
 #include <linux/gpio.h>
@@ -46,16 +46,20 @@
 #include <linux/platform_device.h>
 #include <linux/wlan_plat.h>
 
-#if !defined(CONFIG_ARCH_SWA100)&& !defined(CONFIG_MACH_UNIVERSAL7580)
+#if defined(CONFIG_64BIT)
+#include <asm-generic/gpio.h>
+#else
+#if !defined(CONFIG_ARCH_SWA100) && !defined(CONFIG_MACH_UNIVERSAL7580)
 #include <mach/gpio.h>
 #endif /* !CONFIG_ARCH_SWA100 && !CONFIG_MACH_UNIVERSAL7580 */
+#endif /* CONFIG_64BIT */
 
-#ifndef CONFIG_ARCH_SWA100
+#if !defined(CONFIG_ARCH_SWA100) && !defined(CONFIG_SOC_EXYNOS7870)
 #include <mach/irqs.h>
-#include <linux/sec_sysfs.h>
-#endif /* not CONFIG_ARCH_SWA100 */
-
 #include <plat/gpio-cfg.h>
+#endif /* !CONFIG_ARCH_SWA100 && !CONFIG_MACH_UNIVERSAL7580 */
+
+#include <linux/sec_sysfs.h>
 
 #ifdef CONFIG_MACH_A7LTE
 #define PINCTL_DELAY 150
@@ -66,10 +70,13 @@
 #define WLAN_STATIC_SCAN_BUF1		6
 #define WLAN_STATIC_DHD_INFO_BUF	7
 #define WLAN_STATIC_DHD_WLFC_INFO	8
-#define WLAN_STATIC_DHD_LOG_DUMP_BUF	9
+#define WLAN_STATIC_DHD_WLFC_HANGER	9
+#define WLAN_STATIC_DHD_LOG_DUMP_BUF	10
+#define WLAN_STATIC_DHD_LOG_DUMP_BUF_EX	11
 #define WLAN_SCAN_BUF_SIZE		(64 * 1024)
 #define WLAN_DHD_INFO_BUF_SIZE			(24 * 1024)
 #define WLAN_STATIC_DHD_WLFC_INFO_SIZE		(64 * 1024)
+#define WLAN_STATIC_DHD_WLFC_HANGER_SIZE	(64 * 1024)
 
 #define PREALLOC_WLAN_SEC_NUM		4
 #define PREALLOC_WLAN_BUF_NUM		160
@@ -87,6 +94,7 @@
 
 #define WLAN_SKB_BUF_NUM	17
 #define DHD_LOG_DUMP_BUF_SIZE	(1024 * 1024)
+#define DHD_LOG_DUMP_BUF_EX_SIZE   (8 * 1024)
 
 #if defined(CONFIG_ARGOS)
 extern int argos_irq_affinity_setup_label(unsigned int irq, const char *label,
@@ -111,7 +119,9 @@ void *wlan_static_scan_buf0 = NULL;
 void *wlan_static_scan_buf1 = NULL;
 void *wlan_static_dhd_info_buf = NULL;
 void *wlan_static_dhd_wlfc_buf = NULL;
+void *wlan_static_dhd_wlfc_hanger_buf = NULL;
 void *wlan_static_dhd_log_dump_buf = NULL;
+void *wlan_static_dhd_log_dump_buf_ex = NULL;
 
 static void *dhd_wlan_mem_prealloc(int section, unsigned long size)
 {
@@ -144,6 +154,16 @@ static void *dhd_wlan_mem_prealloc(int section, unsigned long size)
 		return wlan_static_dhd_wlfc_buf;
 	}
 
+	if (section == WLAN_STATIC_DHD_WLFC_HANGER)  {
+		if (size > WLAN_STATIC_DHD_WLFC_HANGER_SIZE) {
+			pr_err("request DHD_WLFC_HANGER size(%lu) is bigger than"
+				" static size(%d).\n",
+				size, WLAN_STATIC_DHD_WLFC_HANGER_SIZE);
+			return NULL;
+		}
+		return wlan_static_dhd_wlfc_hanger_buf;
+	}
+
 	if (section == WLAN_STATIC_DHD_LOG_DUMP_BUF) {
 		if (size > DHD_LOG_DUMP_BUF_SIZE) {
 			pr_err("request DHD_LOG_DUMP_BUF size(%lu) is bigger then"
@@ -151,6 +171,15 @@ static void *dhd_wlan_mem_prealloc(int section, unsigned long size)
 			return NULL;
 		}
 		return wlan_static_dhd_log_dump_buf;
+	}
+
+	if (section == WLAN_STATIC_DHD_LOG_DUMP_BUF_EX) {
+		if (size > DHD_LOG_DUMP_BUF_EX_SIZE) {
+			pr_err("request DHD_LOG_DUMP_BUF_EX size(%lu) is bigger then"
+				" static size(%d).\n", size, DHD_LOG_DUMP_BUF_EX_SIZE);
+			return NULL;
+		}
+		return wlan_static_dhd_log_dump_buf_ex;
 	}
 
 	if ((section < 0) || (section > PREALLOC_WLAN_SEC_NUM))
@@ -208,9 +237,26 @@ static int dhd_init_wlan_mem(void)
 		goto err_mem_alloc;
 	}
 
+	wlan_static_dhd_wlfc_hanger_buf = kmalloc(WLAN_STATIC_DHD_WLFC_HANGER_SIZE, GFP_KERNEL);
+	if (!wlan_static_dhd_wlfc_hanger_buf) {
+		goto err_mem_alloc;
+	}
+
 	wlan_static_dhd_log_dump_buf = kmalloc(DHD_LOG_DUMP_BUF_SIZE, GFP_KERNEL);
 	if (!wlan_static_dhd_log_dump_buf) {
 		pr_err("Failed to alloc wlan_static_dhd_log_dump_buf\n");
+		goto err_mem_alloc;
+	}
+
+	wlan_static_dhd_log_dump_buf_ex = kmalloc(DHD_LOG_DUMP_BUF_EX_SIZE, GFP_KERNEL);
+	if (!wlan_static_dhd_log_dump_buf_ex) {
+		pr_err("Failed to alloc wlan_static_dhd_log_dump_buf_ex\n");
+		goto err_mem_alloc;
+	}
+
+	wlan_static_dhd_log_dump_buf_ex = kmalloc(DHD_LOG_DUMP_BUF_EX_SIZE, GFP_KERNEL);
+	if (!wlan_static_dhd_log_dump_buf_ex) {
+		pr_err("Failed to alloc wlan_static_dhd_log_dump_buf_ex\n");
 		goto err_mem_alloc;
 	}
 
@@ -229,6 +275,8 @@ err_mem_alloc:
 		kfree(wlan_static_dhd_wlfc_buf);
 	if (wlan_static_dhd_log_dump_buf)
 		kfree(wlan_static_dhd_log_dump_buf);
+	if (wlan_static_dhd_log_dump_buf_ex)
+		kfree(wlan_static_dhd_log_dump_buf_ex);
 
 	for (j = 0; j < i; j++)
 		kfree(wlan_mem_array[j].mem_ptr);
@@ -250,11 +298,14 @@ static int wlan_host_wake_irq = 0;
 #ifdef CONFIG_MACH_A7LTE
 extern struct device *mmc_dev_for_wlan;
 #endif /* CONFIG_MACH_A7LTE */
-#ifdef CONFIG_MACH_UNIVERSAL3475
+#if (defined(CONFIG_MACH_UNIVERSAL3475) || defined(CONFIG_SOC_EXYNOS7870) || \
+	defined(CONFIG_MACH_UNIVERSAL7420))
 extern struct mmc_host *wlan_mmc;
 extern void mmc_ctrl_power(struct mmc_host *host, bool onoff);
-#endif /* CONFIG_MACH_UNIVERSAL3475 */
-
+#endif /* CONFIG_MACH_UNIVERSAL3475 ||
+	* CONFIG_SOC_EXYNOS7870 ||
+	* CONFIG_MACH_UNIVERSAL7420
+	*/
 static int dhd_wlan_power(int onoff)
 {
 #ifdef CONFIG_MACH_A7LTE
@@ -287,10 +338,14 @@ static int dhd_wlan_power(int onoff)
 			printk(KERN_INFO "%s WLAN SDIO GPIO control error\n", __FUNCTION__);
 	}
 #endif /* CONFIG_MACH_A7LTE */
-#ifdef CONFIG_MACH_UNIVERSAL3475
+#if (defined(CONFIG_MACH_UNIVERSAL3475) || defined(CONFIG_SOC_EXYNOS7870) || \
+	defined(CONFIG_MACH_UNIVERSAL7420))
 	if (wlan_mmc)
 		mmc_ctrl_power(wlan_mmc, onoff);
-#endif /* CONFIG_MACH_UNIVERSAL3475 */
+#endif /* CONFIG_MACH_UNIVERSAL3475 ||
+	* CONFIG_SOC_EXYNOS7870 ||
+	* CONFIG_MACH_UNIVERSAL7420
+	*/
 	return 0;
 }
 

@@ -344,6 +344,19 @@ void ecryptfs_propagate_fmpinfo(struct inode *inode, unsigned int flag)
 }
 #endif
 
+static int ecryptfs_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct dentry *dentry = ecryptfs_dentry_to_lower(file->f_path.dentry);
+	/*
+	 * Don't allow mmap on top of file systems that don't support it
+	 * natively.  If FILESYSTEM_MAX_STACK_DEPTH > 2 or ecryptfs
+	 * allows recursive mounting, this will need to be extended.
+	 */
+	if (!dentry->d_inode->i_fop->mmap)
+		return -ENODEV;
+	return generic_file_mmap(file, vma);
+}
+
 /**
  * ecryptfs_open
  * @inode: inode speciying file to open
@@ -501,8 +514,8 @@ static int ecryptfs_open(struct inode *inode, struct file *file)
 #ifdef CONFIG_DLP
 	if(crypt_stat->flags & ECRYPTFS_DLP_ENABLED) {
 #if DLP_DEBUG
-		printk("DLP %s: try to open %s with crypt_stat->flags %d\n",
-				__func__, ecryptfs_dentry->d_name.name, crypt_stat->flags);
+		printk("DLP %s: try to open %s [%lu] with crypt_stat->flags %d\n",
+				__func__, ecryptfs_dentry->d_name.name, inode->i_ino, crypt_stat->flags);
 #endif
 		if (dlp_is_locked(mount_crypt_stat->userid)) {
 			printk("%s: DLP locked\n", __func__);
@@ -510,8 +523,8 @@ static int ecryptfs_open(struct inode *inode, struct file *file)
 			goto out_put;
 		}
 		if(in_egroup_p(AID_KNOX_DLP) || in_egroup_p(AID_KNOX_DLP_RESTRICTED)) {
-			dlp_len = ecryptfs_getxattr_lower(
-					ecryptfs_dentry_to_lower(ecryptfs_dentry),
+			dlp_len = ecryptfs_dentry->d_inode->i_op->getxattr(
+					ecryptfs_dentry,
 					KNOX_DLP_XATTR_NAME,
 					&dlp_data, sizeof(dlp_data));
 			if (dlp_len == sizeof(dlp_data)) {
@@ -520,7 +533,8 @@ static int ecryptfs_open(struct inode *inode, struct file *file)
 				printk("DLP %s: current time [%ld/%ld] %s\n",
 						__func__, (long)ts.tv_sec, (long)dlp_data.expiry_time.tv_sec, ecryptfs_dentry->d_name.name);
 #endif
-				if ((ts.tv_sec > dlp_data.expiry_time.tv_sec) && dlp_isInterestedFile(ecryptfs_dentry->d_name.name)==0) {
+				if ((ts.tv_sec > dlp_data.expiry_time.tv_sec) &&
+						dlp_isInterestedFile(mount_crypt_stat->userid, ecryptfs_dentry->d_name.name)==0) {
 					/* Command to delete expired file  */
 					cmd = sdp_fs_command_alloc(FSOP_DLP_FILE_REMOVE,
 							current->tgid, mount_crypt_stat->userid, mount_crypt_stat->partition_id,
@@ -819,7 +833,7 @@ const struct file_operations ecryptfs_main_fops = {
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = ecryptfs_compat_ioctl,
 #endif
-	.mmap = generic_file_mmap,
+	.mmap = ecryptfs_mmap,
 	.open = ecryptfs_open,
 	.flush = ecryptfs_flush,
 	.release = ecryptfs_release,

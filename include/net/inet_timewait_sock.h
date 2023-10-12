@@ -189,6 +189,8 @@ static inline struct inet_timewait_sock *inet_twsk(const struct sock *sk)
 	return (struct inet_timewait_sock *)sk;
 }
 
+void inet_twsk_free(struct inet_timewait_sock *tw);
+
 static inline __be32 sk_rcv_saddr(const struct sock *sk)
 {
 /* both inet_sk() and inet_twsk() store rcv_saddr in skc_rcv_saddr */

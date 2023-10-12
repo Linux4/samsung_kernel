@@ -152,6 +152,7 @@ static int ta_notification(struct notifier_block *nb,
 			S2MU005_REG_FLED_CTRL1, 0x00, 0x80);
 		if (ret < 0)
 			goto err;
+		
 		break;
 	case MUIC_NOTIFY_CMD_ATTACH:
 	case MUIC_NOTIFY_CMD_LOGICALLY_ATTACH:
@@ -161,6 +162,7 @@ static int ta_notification(struct notifier_block *nb,
 		if (led_data->attach_ta) {
 			s2mu005_read_reg(led_data->i2c,
 				S2MU005_REG_FLED_STATUS, &temp);
+
 			/* if CH1_TORCH_ON or CH2_TORCH_ON setting CHGIN_ENGH bit 1 */
 			if (temp & 0x50) {
 				 ret = s2mu005_update_reg(led_data->i2c,
@@ -191,17 +193,21 @@ err:
 static void torch_led_on_off(int value)
 {
 	int ret;
+
 	if (value && g_led_datas[S2MU005_FLASH_LED]->attach_ta) { //torch on & ta attach
 		ret = s2mu005_update_reg(g_led_datas[S2MU005_FLASH_LED]->i2c,
 			S2MU005_REG_FLED_CTRL1, 0x80, 0x80);
 		if (ret < 0)
 			pr_err("%s : CHGIN_ENGH = 1 fail\n", __func__);
 	}
+
 	if (value == 0) { // torch off
-		ret = s2mu005_update_reg(g_led_datas[S2MU005_FLASH_LED]->i2c,
-			S2MU005_REG_FLED_CTRL1, 0x00, 0x80);
-		if (ret < 0)
-			pr_err("%s : CHGIN_ENGH = 0 fail\n", __func__);
+		if (!factory_mode) {
+			ret = s2mu005_update_reg(g_led_datas[S2MU005_FLASH_LED]->i2c,
+				S2MU005_REG_FLED_CTRL1, 0x00, 0x80);
+			if (ret < 0)
+				pr_err("%s : CHGIN_ENGH = 0 fail\n", __func__);
+		}
 	}
 }
 EXPORT_SYMBOL_GPL(torch_led_on_off);

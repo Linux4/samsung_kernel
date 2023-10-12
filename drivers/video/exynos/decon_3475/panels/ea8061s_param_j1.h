@@ -29,12 +29,12 @@ enum {
 };
 
 #define POWER_IS_ON(pwr)		(pwr <= FB_BLANK_NORMAL)
-#define LEVEL_IS_HBM(level)		(level >= 6)
-#define LEVEL_IS_CAPS_OFF(level)	(level <= 19)
+#define LEVEL_IS_HBM(brightness)	(brightness == EXTEND_BRIGHTNESS)
 #define UNDER_MINUS_20(temperature)	(temperature <= -20)
-#define ACL_IS_ON(nit)			(nit < 350)
+#define ACL_IS_ON(nit)			(nit != 350)
 
 #define NORMAL_TEMPERATURE	25	/* 25 degrees Celsius */
+#define EXTEND_BRIGHTNESS	355
 #define UI_MAX_BRIGHTNESS	255
 #define UI_MIN_BRIGHTNESS	0
 #define UI_DEFAULT_BRIGHTNESS	134
@@ -44,7 +44,6 @@ enum {
 #define S6E88A0_MTP_DATE_SIZE		S6E88A0_MTP_SIZE
 #define S6E88A0_COORDINATE_REG		0xB5
 #define S6E88A0_COORDINATE_LEN		24
-#define HBM_INDEX			62
 #define S6E88A0_ID_REG			0x04
 #define S6E88A0_ID_LEN			3
 #define TSET_REG			0xB8

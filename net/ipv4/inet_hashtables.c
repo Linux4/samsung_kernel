@@ -114,6 +114,10 @@ int __inet_inherit_port(struct sock *sk, struct sock *child)
 
 	spin_lock(&head->lock);
 	tb = inet_csk(sk)->icsk_bind_hash;
+	if (unlikely(!tb)) {
+		spin_unlock(&head->lock);
+		return -ENOENT;
+	}
 	if (tb->port != port) {
 		/* NOTE: using tproxy and redirecting skbs to a proxy
 		 * on a different listener port breaks the assumption
@@ -229,6 +233,19 @@ begin:
 	return result;
 }
 EXPORT_SYMBOL_GPL(__inet_lookup_listener);
+
+/* All sockets share common refcount, but have different destructors */
+void sock_gen_put(struct sock *sk)
+{
+	if (!atomic_dec_and_test(&sk->sk_refcnt))
+		return;
+
+	if (sk->sk_state == TCP_TIME_WAIT)
+		inet_twsk_free(inet_twsk(sk));
+	else
+		sk_free(sk);
+}
+EXPORT_SYMBOL_GPL(sock_gen_put);
 
 struct sock *__inet_lookup_established(struct net *net,
 				  struct inet_hashinfo *hashinfo,

@@ -51,7 +51,7 @@
 #elif defined(CONFIG_CAMERA_J3XLTE)
 #include "fimc-is-device-4ec-soc-reg-j3xlte_ga.h" /* 4ECGA */
 #elif defined(CONFIG_CAMERA_ON5LTE)
-#include "fimc-is-device-4ec-soc-reg-j3xlte_ga.h" /* 4ECGA : same setfile with j3xlte */
+#include "fimc-is-device-4ec-soc-reg_ga_on5_tmo.h" /* 4ECGA : setfile for ON5_TMO */
 #elif defined(CONFIG_CAMERA_XCOVER3VELTE)
 #include "fimc-is-device-4ec-soc-reg_ga.h" /* 4ECGA */
 #else /* J2LTE */
@@ -89,6 +89,10 @@ extern int s2mu005_led_mode_ctrl(int state);
 #define SECOND_AF_SEARCH_COUNT  80
 #define AE_STABLE_SEARCH_COUNT  4
 #define LOW_LIGHT_LEVEL	0x13
+
+#define CFG_CHANGED_LEVEL	0x00
+#define MODE_CHANGED_LEVEL	0x0100
+#define PREVIEW_CHANGED_LEVEL	0x00
 
 #define EV_MIN_VALUE  EV_MINUS_4
 #define CONTRAST_MIN_VALUE  CONTRAST_MINUS_2
@@ -155,6 +159,7 @@ enum s5k4ecgx_capture_frame_size {
 	S5K4ECGX_CAPTURE_1632_1218,	/* 1632x1218 */
 	S5K4ECGX_CAPTURE_1920_1920,	/* 1920x1920 */
 	S5K4ECGX_CAPTURE_1928_1928,	/* 1928x1928 */
+	S5K4ECGX_CAPTURE_1536_1536,	/* 1536x1536 */
 	S5K4ECGX_CAPTURE_2036_1526,	/* 2036x1526 */
 	S5K4ECGX_CAPTURE_2048_1152,	/* 2048x1152 */
 	S5K4ECGX_CAPTURE_2048_1232,	/* 2048x1232 */
@@ -226,6 +231,7 @@ static const struct s5k4ecgx_framesize capture_size_list[] = {
 	{ S5K4ECGX_CAPTURE_1632_1218,	1632, 1218 },
 	{ S5K4ECGX_CAPTURE_1920_1920,	1920, 1920 },
 	{ S5K4ECGX_CAPTURE_1928_1928,	1928, 1928 },
+	{ S5K4ECGX_CAPTURE_1536_1536,	1536, 1536 },
 	{ S5K4ECGX_CAPTURE_2036_1526,	2036, 1526 },
 	{ S5K4ECGX_CAPTURE_2048_1152,	2048, 1152 },
 	{ S5K4ECGX_CAPTURE_2048_1232,	2048, 1232 },
@@ -342,6 +348,8 @@ struct s5k4ecgx_regs {
 	struct s5k4ecgx_regset_table get_modechange_check;
 	struct s5k4ecgx_regset_table set_vendor_id_read;
 	struct s5k4ecgx_regset_table get_vendor_id_read;
+	struct s5k4ecgx_regset_table check_configuration_change;
+	struct s5k4ecgx_regset_table stop_stream;
 };
 
 static const struct s5k4ecgx_regs regs_set =
@@ -397,6 +405,7 @@ static const struct s5k4ecgx_regs regs_set =
 			S5K4ECGX_REGSET(S5K4ECGX_CAPTURE_3MP, 3M_Capture),
 			S5K4ECGX_REGSET(S5K4ECGX_CAPTURE_1920_1920, 1920_1920_Capture),
 			S5K4ECGX_REGSET(S5K4ECGX_CAPTURE_1928_1928, 1928_1928_Capture),
+			S5K4ECGX_REGSET(S5K4ECGX_CAPTURE_1536_1536, 1536_1536_Capture),
 			S5K4ECGX_REGSET(S5K4ECGX_CAPTURE_2036_1526, 2036_1526_Capture),
 			S5K4ECGX_REGSET(S5K4ECGX_CAPTURE_2048_1152, 2048_1152_Capture),
 			S5K4ECGX_REGSET(S5K4ECGX_CAPTURE_2048_1232, 2048_1232_Capture),
@@ -581,6 +590,10 @@ static const struct s5k4ecgx_regs regs_set =
 		S5K4ECGX_REGSET_TABLE(set_vendor_id_read_reg),
 	.get_vendor_id_read =
 		S5K4ECGX_REGSET_TABLE(get_vendor_id_read_reg),
+	.check_configuration_change =
+		S5K4ECGX_REGSET_TABLE(check_configuration_change),
+	.stop_stream =
+		S5K4ECGX_REGSET_TABLE(stop_stream),
 };
 
 struct s5k4ecgx_regset {
@@ -940,6 +953,54 @@ p_err:
 	/* restore write mode */
 	fimc_is_sensor_write16(client, 0x0028, 0x7000);
 	mutex_unlock(&module_4ec->i2c_lock);
+	return ret;
+}
+
+static int sensor_4ec_wait_register_changed(struct v4l2_subdev *subdev,
+	const struct s5k4ecgx_regset_table *regset, u16 ref)
+{
+	int ret = 0;
+	u16 read_value = 0;
+	u32 poll_time_ms = 0;
+	struct fimc_is_module_enum *module;
+	struct fimc_is_module_4ec *module_4ec;
+	
+	module = (struct fimc_is_module_enum *)v4l2_get_subdevdata(subdev);
+	if (unlikely(!module)) {
+		err("module is NULL\n");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	module_4ec = module->private_data;
+	if (unlikely(!module_4ec)) {
+		err("module_4ec is NULL\n");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	if (unlikely(!regset)) {
+		err("regset is NULL\n");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	do {
+		sensor_4ec_read_reg(subdev, regset, &read_value, 1);
+		if (read_value == ref)
+			break;
+		msleep(POLL_TIME_MS);
+		poll_time_ms += POLL_TIME_MS;
+	} while (poll_time_ms < CAPTURE_POLL_TIME_MS);
+
+	if(poll_time_ms < CAPTURE_POLL_TIME_MS)
+		cam_info("%s: %s finished after %d ms\n",
+			__func__, regset->setting_name[module_4ec->setfile_index], poll_time_ms);
+	else
+		cam_err("%s: %s finished : polling timeout occured after %d ms\n",
+			__func__, regset->setting_name[module_4ec->setfile_index], poll_time_ms);
+
+p_err:
 	return ret;
 }
 
@@ -1356,6 +1417,10 @@ static int sensor_4ec_s_metering(struct v4l2_subdev *subdev, int metering)
 		goto p_err;
 	}
 
+	// wait configuration register changed
+	sensor_4ec_wait_register_changed(subdev,
+		&regs_set.check_configuration_change, CFG_CHANGED_LEVEL);	
+
 p_err:
 
 	return ret;
@@ -1439,6 +1504,10 @@ static int sensor_4ec_s_scene_mode(struct v4l2_subdev *subdev, int scene_mode)
 		err("%s: write cmd failed\n", __func__);
 		goto p_err;
 	}
+
+	// wait configuration register changed
+	sensor_4ec_wait_register_changed(subdev,
+		&regs_set.check_configuration_change, CFG_CHANGED_LEVEL);
 
 p_err:
 
@@ -1537,6 +1606,10 @@ static int sensor_4ec_s_frame_rate(struct v4l2_subdev *subdev, int frame_rate)
 		err("%s: write cmd failed\n", __func__);
 		goto p_err;
 	}
+
+	// wait configuration register changed
+	sensor_4ec_wait_register_changed(subdev,
+		&regs_set.check_configuration_change, CFG_CHANGED_LEVEL);
 
 p_err:
 
@@ -2131,6 +2204,10 @@ static int sensor_4ec_s_format(struct v4l2_subdev *subdev, struct v4l2_mbus_fram
 		}
 		module_4ec->preview.width = size->width;
 		module_4ec->preview.height = size->height;
+
+		// wait configuration register changed
+		sensor_4ec_wait_register_changed(subdev,
+			&regs_set.check_configuration_change, CFG_CHANGED_LEVEL);
 	}
 
 	cam_info("%s: stream size(%d) %d x %d\n", __func__, size->index, size->width, size->height);
@@ -2213,7 +2290,6 @@ p_err:
 static int sensor_4ec_stream_on(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	u16 read_value = 0;
 	u32 poll_time_ms = 0;
 	struct fimc_is_module_enum *module;
 	struct fimc_is_module_4ec *module_4ec;
@@ -2270,15 +2346,10 @@ static int sensor_4ec_stream_on(struct v4l2_subdev *subdev)
 
 		msleep(50);
 		poll_time_ms = 50;
-		do {
-			sensor_4ec_read_reg(subdev, &regs_set.get_modechange_check, &read_value, 1);
-			if (read_value == 0x0100)
-				break;
-			msleep(POLL_TIME_MS);
-			poll_time_ms += POLL_TIME_MS;
-		} while (poll_time_ms < CAPTURE_POLL_TIME_MS);
+		/* Checking preveiw start (handshaking) */
+		sensor_4ec_wait_register_changed(subdev,
+			&regs_set.get_modechange_check, MODE_CHANGED_LEVEL);
 
-		cam_info("%s: capture done check finished after %d ms\n", __func__, poll_time_ms);
 	} else {
 		ret = sensor_4ec_apply_set(subdev, &regs_set.init_reg_3);
 		if (ret) {
@@ -2287,16 +2358,8 @@ static int sensor_4ec_stream_on(struct v4l2_subdev *subdev)
 		}
 
 		/* Checking preveiw start (handshaking) */
-		do {
-			sensor_4ec_read_reg(subdev, &regs_set.get_preview_status, &read_value, 1);
-			if (read_value == 0x00)
-				break;
-			cam_dbg("%s: value = %d\n",  __func__, read_value);
-			msleep(POLL_TIME_MS);
-			poll_time_ms += POLL_TIME_MS;
-		} while (poll_time_ms < CAPTURE_POLL_TIME_MS);
-
-		cam_info("%s: preview on done check finished after %d ms\n", __func__, poll_time_ms);
+		sensor_4ec_wait_register_changed(subdev,
+			&regs_set.get_preview_status, PREVIEW_CHANGED_LEVEL);
 	}
 
 	cam_info("%s: stream on end\n", __func__);
@@ -2308,8 +2371,6 @@ p_err:
 static int sensor_4ec_stream_off(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	u16 read_value = 0;
-	u32 poll_time_ms = 0;
 	struct fimc_is_module_enum *module;
 	struct fimc_is_module_4ec *module_4ec;
 
@@ -2362,16 +2423,14 @@ static int sensor_4ec_stream_off(struct v4l2_subdev *subdev)
 	}
 
 	/* Checking preveiw start (handshaking) */
-	do {
-		sensor_4ec_read_reg(subdev, &regs_set.get_preview_status, &read_value, 1);
-		if (read_value == 0x00)
-			break;
-		cam_dbg("%s: value = %d\n",  __func__, read_value);
-		msleep(POLL_TIME_MS);
-		poll_time_ms += POLL_TIME_MS;
-	} while (poll_time_ms < CAPTURE_POLL_TIME_MS);
+	// wait preveiw start register changed
+	sensor_4ec_wait_register_changed(subdev,
+		&regs_set.get_preview_status, PREVIEW_CHANGED_LEVEL);
+				
+	ret = sensor_4ec_apply_set(subdev, &regs_set.stop_stream);
 
-	cam_info("%s: preview off done check finished after %d ms\n", __func__, poll_time_ms);
+	sensor_4ec_wait_register_changed(subdev,
+		&regs_set.get_preview_status, PREVIEW_CHANGED_LEVEL);
 /*
 	if (module_4ec->runmode == S5K4ECGX_RUNMODE_CAPTURE) {
 		dev_dbg(&client->dev, "%s: sending Preview_Return cmd\n",
@@ -3531,6 +3590,10 @@ static int sensor_4ec_s_sensor_mode(struct v4l2_subdev *subdev, int value)
 			}
 		}
 
+		// wait configuration register changed
+		sensor_4ec_wait_register_changed(subdev,
+			&regs_set.check_configuration_change, CFG_CHANGED_LEVEL);
+
 		ret = sensor_4ec_apply_set(subdev, &regs_set.preview_return);
 		if (ret) {
 			err("%s: write cmd failed\n", __func__);
@@ -3547,6 +3610,10 @@ static int sensor_4ec_s_sensor_mode(struct v4l2_subdev *subdev, int value)
 			err("%s: write cmd failed\n", __func__);
 			goto p_err;
 		}
+
+		// wait configuration register changed
+		sensor_4ec_wait_register_changed(subdev,
+			&regs_set.check_configuration_change, CFG_CHANGED_LEVEL);
 
 		module_4ec->sensor_mode = SENSOR_MOVIE;
 		break;
@@ -3605,6 +3672,10 @@ static int sensor_4ec_s_duration(struct v4l2_subdev *subdev, u64 duration)
 	if (ret) {
 		err("%s: write cmd failed\n", __func__);
 	}
+
+	// wait configuration register changed
+	sensor_4ec_wait_register_changed(subdev,
+		&regs_set.check_configuration_change, CFG_CHANGED_LEVEL);
 
 p_err:
 	return ret;

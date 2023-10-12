@@ -28,6 +28,8 @@ static irqreturn_t mcu_ipc_handler(int irq, void *data)
 	u32 irq_stat, i;
 
 	irq_stat = mcu_ipc_readl(EXYNOS_MCU_IPC_INTSR0) & 0xFFFF0000;
+	/* Interrupt Clear */
+	mcu_ipc_writel(irq_stat, EXYNOS_MCU_IPC_INTCR0);
 
 	for (i = 0; i < 16; i++) {
 		if (irq_stat & (1 << (i + 16))) {
@@ -37,8 +39,6 @@ static irqreturn_t mcu_ipc_handler(int irq, void *data)
 				dev_err(mcu_dat.mcu_ipc_dev,
 					"Unregistered INT received.\n");
 
-			/* Interrupt Clear */
-			mcu_ipc_writel(1 << (i + 16), EXYNOS_MCU_IPC_INTCR0);
 			irq_stat &= ~(1 << (i + 16));
 		}
 
@@ -254,6 +254,7 @@ static struct platform_driver mcu_ipc_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(exynos_mcu_ipc_dt_match),
 		.pm = &mcu_ipc_pm_ops,
+		.suppress_bind_attrs = true,
 	},
 };
 module_platform_driver(mcu_ipc_driver);

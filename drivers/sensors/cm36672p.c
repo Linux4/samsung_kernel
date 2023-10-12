@@ -794,6 +794,7 @@ static int proximity_vdd_onoff(struct device *dev, bool onoff)
 		data->vdd = devm_regulator_get(dev, "cm36672p,vdd");
 		if (IS_ERR(data->vdd)) {
 			SENSOR_ERR("cannot get vdd\n");
+			data->vdd = NULL;
 			return -ENOMEM;
 		}
 
@@ -802,6 +803,12 @@ static int proximity_vdd_onoff(struct device *dev, bool onoff)
 	}
 
 	if (onoff) {
+		if(regulator_is_enabled(data->vdd))
+		{
+			SENSOR_INFO("Regulator already enabled\n");
+			return 0;
+		}
+		
 		ret = regulator_enable(data->vdd);
 		if (ret)
 			SENSOR_ERR("Failed to enable vdd.\n");
@@ -821,7 +828,7 @@ static int proximity_vled_onoff(struct device *dev, bool onoff)
 	struct cm36672p_data *data = dev_get_drvdata(dev);
 	int ret;
 
-	SENSOR_INFO("%s, %d\n", (onoff) ? "on" : "off", data->pdata->vled_ldo);
+	SENSOR_INFO("%s, ldo:%d\n", (onoff) ? "on" : "off", data->pdata->vled_ldo);
 
 	// ldo -control
 	if(data->pdata->vled_ldo)
@@ -836,12 +843,18 @@ static int proximity_vled_onoff(struct device *dev, bool onoff)
 		data->vled = devm_regulator_get(dev, "cm36672p,vled");
 		if (IS_ERR(data->vled)) {
 			SENSOR_ERR("cannot get vled\n");
-			devm_regulator_put(data->vled);
+			data->vled = NULL;
 			return -ENOMEM;
 		}
 	}
 
 	if (onoff) {
+		if(regulator_is_enabled(data->vled))
+		{
+			SENSOR_INFO("Regulator already enabled\n");
+			return 0;
+		}
+		
 		ret = regulator_enable(data->vled);
 		if (ret)
 			SENSOR_ERR("Failed to enable vled.\n");
@@ -1205,7 +1218,7 @@ err_setup_dev:
 	mutex_destroy(&data->read_lock);
 err_no_pdata:
 err_parse_dt:
-	if(pdata) kfree(pdata);
+	if(pdata) devm_kfree(&client->dev, pdata);
 	kfree(data);
 
 	SENSOR_ERR("failed (%d)\n", ret);

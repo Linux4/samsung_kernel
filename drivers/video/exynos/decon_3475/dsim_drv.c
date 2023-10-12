@@ -373,68 +373,17 @@ err_exit:
 	return ret;
 }
 
-int dsim_write_hl_data(struct dsim_device *dsim, const u8 *cmd, u32 cmdSize)
-{
-	int ret;
-	int retry;
-	struct panel_private *panel = &dsim->priv;
-
-	if (panel->lcdConnected == PANEL_DISCONNEDTED)
-		return cmdSize;
-
-	//mutex_lock(&dsim->rdwr_lock);
-	retry = 5;
-
-try_write:
-	if (cmdSize == 1)
-		ret = dsim_write_data(dsim, MIPI_DSI_DCS_SHORT_WRITE, cmd[0], 0);
-	else if (cmdSize == 2)
-		ret = dsim_write_data(dsim, MIPI_DSI_DCS_SHORT_WRITE_PARAM, cmd[0], cmd[1]);
-	else
-		ret = dsim_write_data(dsim, MIPI_DSI_DCS_LONG_WRITE, (unsigned long)cmd, cmdSize);
-
-	if (ret != 0) {
-		if (--retry)
-			goto try_write;
-		else
-			dsim_err("dsim write failed,  cmd : %x\n", cmd[0]);
-	}
-	//mutex_unlock(&dsim->rdwr_lock);
-	return ret;
-}
-
-int dsim_read_hl_data(struct dsim_device *dsim, u8 addr, u32 size, u8 *buf)
-{
-	int ret;
-	int retry = 4;
-	struct panel_private *panel = &dsim->priv;
-
-	if (panel->lcdConnected == PANEL_DISCONNEDTED)
-		return size;
-
-try_read:
-	ret = dsim_read_data(dsim, MIPI_DSI_DCS_READ, (u32)addr, size, buf);
-	dsim_info("%s read ret : %d\n", __func__, ret);
-	if (ret != size) {
-		if (--retry)
-			goto try_read;
-		else
-			dsim_err("dsim read failed,  addr : %x\n", addr);
-	}
-
-	return ret;
-}
 
 #ifdef CONFIG_FB_WINDOW_UPDATE
 static int dsim_partial_area_command(struct dsim_device *dsim, void *arg)
 {
-	struct panel_private *panel = &dsim->priv;
+	struct panel_private *priv = &dsim->priv;
 	struct decon_win_rect *win_rect = (struct decon_win_rect *)arg;
 	char data_2a[5];
 	char data_2b[5];
 	int retry;
 
-	if (panel->lcdConnected == PANEL_DISCONNEDTED)
+	if (!priv->lcdConnected)
 		return 0;
 
 	/* w is right & h is bottom */
@@ -1419,14 +1368,6 @@ static int dsim_probe(struct platform_device *pdev)
 		goto err_mem_region;
 	}
 
-	dsim->irq = res->start;
-	ret = devm_request_irq(dev, res->start,
-			dsim_interrupt_handler, 0, pdev->name, dsim);
-	if (ret) {
-		dev_err(dev, "failed to install irq\n");
-		goto err_irq;
-	}
-
 	if (!of_property_read_string(dev->of_node, "lcd_vdd", &lcd_supply)) {
 		dsim->lcd_vdd = regulator_get(NULL, lcd_supply);
 	} else {
@@ -1472,6 +1413,14 @@ static int dsim_probe(struct platform_device *pdev)
 #else
 	dsim_runtime_resume(dsim->dev);
 #endif
+
+	dsim->irq = res->start;
+	ret = devm_request_irq(dev, res->start,
+			dsim_interrupt_handler, 0, pdev->name, dsim);
+	if (ret) {
+		dev_err(dev, "failed to install irq\n");
+		goto err_irq;
+	}
 
 	dsim_reg_prepare_clocks(&dsim->clks_param);
 
@@ -1558,7 +1507,6 @@ static int dsim_remove(struct platform_device *pdev)
 	pm_runtime_disable(dev);
 	dsim_put_clocks(dsim);
 	mutex_destroy(&dsim_rd_wr_mutex);
-	kfree(dsim);
 	dev_info(dev, "mipi-dsi driver removed\n");
 
 	return 0;
@@ -1644,6 +1592,7 @@ static struct platform_driver dsim_driver __refdata = {
 		.owner		= THIS_MODULE,
 		.pm		= &dsim_pm_ops,
 		.of_match_table	= of_match_ptr(dsim_match),
+		.suppress_bind_attrs = true,
 	}
 };
 

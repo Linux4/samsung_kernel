@@ -2708,6 +2708,7 @@ static bool ts_set_touchmode2(u16 value)
 static bool ts_set_touchmode3(u16 value)
 {
 	int i;
+	u8 temp[8];
 
 	disable_irq(misc_info->irq);
 	clear_report_data(misc_info);
@@ -2739,6 +2740,23 @@ static bool ts_set_touchmode3(u16 value)
 	misc_info->work_state = SET_MODE;
 
 	if(value == TOUCH_RXSHORT_MODE) {
+		if (write_reg(misc_info->client, 0xc000, 0x0001) != I2C_SUCCESS) 
+			tsp_debug_info(true, &misc_info->client->dev, "vendor cmd enable \n");
+
+		temp[0] = 0x90;
+		temp[1] = 0x31;
+		temp[2] = 0x02;
+		temp[3] = 0x80;
+		temp[4] = 0x11;
+		temp[5] = 0x01;
+		temp[6] = 0x00;
+		temp[7] = 0x00;
+		write_data(misc_info->client, 0xCC02, temp, 8);
+
+		if (write_reg(misc_info->client, 0xc000, 0x0000) != I2C_SUCCESS) 
+			tsp_debug_info(true, &misc_info->client->dev, "vendor cmd disable \n");    
+
+
 		if (write_reg(misc_info->client, ZT75XX_SY_AMP_V_SEL,
 						SEC_SY_AMP_V_SEL)!=I2C_SUCCESS)
 			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
@@ -2757,6 +2775,24 @@ static bool ts_set_touchmode3(u16 value)
 					"Fail to set SEC_SHORT_U_COUNT %d.\n", SEC_SHORT_U_COUNT);
 	}
 	else if(value == TOUCH_TXSHORT_MODE) {
+		if (write_reg(misc_info->client, 0xc000, 0x0001) != I2C_SUCCESS) 
+			tsp_debug_info(true, &misc_info->client->dev, "vendor cmd enable \n");
+
+		temp[0] = 0x90;
+		temp[1] = 0x31;
+		temp[2] = 0x02;
+		temp[3] = 0x80;
+		temp[4] = 0x11;
+		temp[5] = 0x01;
+		temp[6] = 0x00;
+		temp[7] = 0x00;
+		write_data(misc_info->client, 0xCC02, temp, 8);
+
+		if (write_reg(misc_info->client, 0xc000, 0x0000) != I2C_SUCCESS) 
+		tsp_debug_info(true, &misc_info->client->dev, "vendor cmd disable \n");
+
+
+
 		if (write_reg(misc_info->client, ZT75XX_SX_AMP_V_SEL,
 						SEC_SX_AMP_V_SEL)!=I2C_SUCCESS)
 			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
@@ -2775,6 +2811,22 @@ static bool ts_set_touchmode3(u16 value)
 					"Fail to set SEC_SHORT_U_COUNT %d.\n", SEC_SHORT_U_COUNT);
 	}
 	else if(misc_info->touch_mode == TOUCH_RXSHORT_MODE || misc_info->touch_mode == TOUCH_TXSHORT_MODE ) {
+		if (write_reg(misc_info->client, 0xc000, 0x0001) != I2C_SUCCESS) 
+			tsp_debug_info(true, &misc_info->client->dev, "vendor cmd enable \n");
+
+		temp[0] = 0x90;
+		temp[1] = 0x31;
+		temp[2] = 0x02;
+		temp[3] = 0x80;
+		temp[4] = 0x00;
+		temp[5] = 0x00;
+		temp[6] = 0x00;
+		temp[7] = 0x00;
+		write_data(misc_info->client, 0xCC02, temp, 8);
+
+		if (write_reg(misc_info->client, 0xc000, 0x0000) != I2C_SUCCESS) 
+		tsp_debug_info(true, &misc_info->client->dev, "vendor cmd disable \n");
+
 		if (write_reg(misc_info->client, ZT75XX_MUTUAL_AMP_V_SEL,
 						misc_info->cap_info.mutual_amp_v_sel) != I2C_SUCCESS)
 			tsp_debug_info(true, &misc_info->client->dev, "[zinitix_touch] TEST Mode : "
@@ -4225,6 +4277,17 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 	bool cmd_found = false;
 	int param_cnt = 0;
 
+	if (strlen(buf) >=  TSP_CMD_STR_LEN) {		
+		tsp_debug_err(true, &client->dev, "%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
+	if (count >= (unsigned int)TSP_CMD_STR_LEN) {
+		pr_err("%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
+		return -EINVAL;
+	}
+
 	if (finfo->cmd_is_running == true) {
 		tsp_debug_err(true, &client->dev, "%s: other cmd is running\n", __func__);
 		goto err_out;
@@ -4286,7 +4349,7 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt < TSP_CMD_PARAM_NUM));
 	}
 
 	tsp_debug_info(true, &client->dev, "cmd = %s\n", tsp_cmd_ptr->cmd_name);
@@ -4476,9 +4539,11 @@ static ssize_t touch_led_control(struct device *dev, struct device_attribute *at
 		tsp_debug_info(true, &info->client->dev, "[TKEY] %s : %d _ %d\n",__func__,data,__LINE__);
 
 		if (data) {
-			retval = regulator_enable(regulator_led);
-			if (retval)
-				tsp_debug_err(true, dev, "%s: Failed to enable regulator_led: %d\n", __func__, retval);
+			if (!regulator_is_enabled(regulator_led)){
+				retval = regulator_enable(regulator_led);
+				if (retval)
+					tsp_debug_err(true, dev, "%s: Failed to enable regulator_led: %d\n", __func__, retval);
+			}
 		} else {
 			if (regulator_is_enabled(regulator_led)){
 				retval = regulator_disable(regulator_led);

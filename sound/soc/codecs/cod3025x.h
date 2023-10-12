@@ -86,6 +86,7 @@ struct cod3025x_priv {
 	bool use_external_jd;
 	int vol_hpl;
 	int vol_hpr;
+	atomic_t adc_mute_use_count;
 	int mic_adc_range;
 	int mic_det_delay;
 	int btn_release_value;

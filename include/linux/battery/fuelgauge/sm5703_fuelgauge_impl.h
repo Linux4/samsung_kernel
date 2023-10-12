@@ -98,6 +98,7 @@
 #define ENABLE_MIX_MODE         0x8000
 #define ENABLE_TEMP_MEASURE     0x4000
 #define ENABLE_TOPOFF_SOC       0x2000
+#define ENABLE_MODE_nENQ4       0x0200
 #define ENABLE_MANUAL_OCV       0x0400
 #define ENABLE_RS_MAN_MODE      0x0800
 

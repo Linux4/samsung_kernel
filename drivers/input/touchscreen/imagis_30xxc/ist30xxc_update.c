@@ -30,8 +30,15 @@
 #include "ist30xxc_tracking.h"
 
 #if IST30XX_INTERNAL_BIN
+#if defined(CONFIG_TOUCHSCREEN_IST3026C)
+#include "ist3026c_novel_fw_BOE.h"
+#include "ist3026c_novel_fw_CNI.h"
+#elif defined(CONFIG_TOUCHSCREEN_IST3032C)
+#include "ist3032c_j2_fw.h"
+#else
 #include "ist30xxc_fw.h"
 #endif
+#endif  // IST30XX_INTERNAL_BIN
 
 #define TAGS_PARSE_OK		(0)
 

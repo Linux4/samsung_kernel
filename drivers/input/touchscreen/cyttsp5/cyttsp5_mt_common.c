@@ -167,7 +167,7 @@ static void cyttsp5_get_touch_hdr(struct cyttsp5_mt_data *md,
 			touch->hdr[hdr], touch->hdr[hdr]);
 	}
 #if CYTTSP5_TOUCHLOG_ENABLE
-	dev_dbg(dev,
+	tsp_debug_dbg(false, dev,
 		"%s: time=%X tch_num=%d lo=%d noise=%d counter=%d\n",
 		__func__,
 		touch->hdr[CY_TCH_TIME],
@@ -240,9 +240,9 @@ static inline void print_log(struct device *dev,
 {
 #if CYTTSP5_TOUCHLOG_ENABLE
 	if (tch->abs[CY_TCH_E] == CY_EV_LIFTOFF)
-		dev_dbg(dev, "%s: t=%d e=%d lift-off\n",
+		tsp_debug_dbg(false, dev, "%s: t=%d e=%d lift-off\n",
 			__func__, t, tch->abs[CY_TCH_E]);
-	dev_dbg(dev,
+	tsp_debug_dbg(false, dev,
 		"%s: t=%d x=%d y=%d z=%d M=%d m=%d o=%d e=%d obj=%d tip=%d\n",
 		__func__, t,
 		tch->abs[CY_TCH_X],
@@ -258,15 +258,15 @@ static inline void print_log(struct device *dev,
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 	if ((tch->abs[CY_TCH_E] == CY_EV_TOUCHDOWN) &&
 		(tch->abs[CY_TCH_O] != CY_OBJ_HOVER))
-		dev_info(dev, "P [%d]\n", t);
+		tsp_debug_info(true, dev, "P [%d]\n", t);
 	else if ((tch->abs[CY_TCH_E] == CY_EV_LIFTOFF) &&
 		(tch->abs[CY_TCH_O] != CY_OBJ_HOVER))
-		dev_info(dev, "[R][%d],ver=%04x\n",
+		tsp_debug_info(true, dev, "[R][%d],ver=%04x\n",
 			t, md->fw_ver_ic);
 #else
 	if ((tch->abs[CY_TCH_E] == CY_EV_TOUCHDOWN) &&
 		(tch->abs[CY_TCH_O] != CY_OBJ_HOVER))
-		dev_err(dev, "P [%d] x=%d y=%d z=%d M=%d m=%d\n",
+		tsp_debug_err(true, dev, "P [%d] x=%d y=%d z=%d M=%d m=%d\n",
 			t, tch->abs[CY_TCH_X],
 			tch->abs[CY_TCH_Y],
 			tch->abs[CY_TCH_P],
@@ -274,7 +274,7 @@ static inline void print_log(struct device *dev,
 			tch->abs[CY_TCH_MIN]);
 	else if ((tch->abs[CY_TCH_E] == CY_EV_LIFTOFF) &&
 		(tch->abs[CY_TCH_O] != CY_OBJ_HOVER))
-		dev_err(dev, "R [%d] x=%d y=%d z=%d M=%d m=%d ver=%04x\n",
+		tsp_debug_err(true, dev, "R [%d] x=%d y=%d z=%d M=%d m=%d ver=%04x\n",
 			t, tch->abs[CY_TCH_X],
 			tch->abs[CY_TCH_Y],
 			tch->abs[CY_TCH_P],
@@ -298,7 +298,7 @@ static void inline scale_sum_size(struct cyttsp5_mt_data *md,
 	if (*sumsize > 255)
 		*sumsize = 255;
 
-//	dev_dbg(dev, "%s: sumsize=%d\n", __func__, *sumsize);
+//	tsp_debug_dbg(false, dev, "%s: sumsize=%d\n", __func__, *sumsize);
 }
 #endif//SAMSUNG_PALM_MOTION
 
@@ -308,7 +308,7 @@ static void forceSatisfyPalmPause(struct cyttsp5_mt_data *md,
 {
 	int x, y;
 
-	dev_dbg(md->dev, "%s: \n", __func__);
+	tsp_debug_dbg(false, md->dev, "%s: \n", __func__);
 	switch (t) {
 	case 0: x = 10;y = 10; break;
 	case 1: x = 700;y = 10; break;
@@ -364,7 +364,7 @@ static void cyttsp5_get_mt_touches(struct cyttsp5_mt_data *md,
 
 		if (tch->abs[CY_TCH_T] < ABS_PARAM(CY_ABS_ID_OST, CY_MIN_OST) ||
 			tch->abs[CY_TCH_T] > ABS_PARAM(CY_ABS_ID_OST, CY_MAX_OST)) {
-			dev_err(dev, "%s: tch=%d -> bad trk_id=%d max_id=%d\n",
+			tsp_debug_err(true, dev, "%s: tch=%d -> bad trk_id=%d max_id=%d\n",
 				__func__, i, tch->abs[CY_TCH_T],
 				ABS_PARAM(CY_ABS_ID_OST, CY_MAX_OST));
 			cyttsp5_input_sync(md->input);
@@ -378,7 +378,7 @@ static void cyttsp5_get_mt_touches(struct cyttsp5_mt_data *md,
 			t = tch->abs[CY_TCH_T] - ABS_PARAM(CY_ABS_ID_OST, CY_MIN_OST);
 
 			if (t >= MAX_TOUCH_NUMBER) {
-				dev_dbg(dev, "%s: t=%d exceeds max touch num\n",
+				tsp_debug_dbg(true, dev, "%s: t=%d exceeds max touch num\n",
 					__func__, t);
 				goto cyttsp5_get_mt_touches_pr_tch; // means continue for()
 			}
@@ -474,13 +474,13 @@ static int cyttsp5_xy_worker(struct cyttsp5_mt_data *md)
 
 	num_cur_tch = tch.hdr[CY_TCH_NUM];
 	if (num_cur_tch > MAX_TOUCH_ID_NUMBER) {
-		dev_err(dev, "%s: Num touch err detected (n=%d)\n",
+		tsp_debug_err(true, dev, "%s: Num touch err detected (n=%d)\n",
 			__func__, num_cur_tch);
 		num_cur_tch = MAX_TOUCH_ID_NUMBER;
 	}
 
 	if (tch.hdr[CY_TCH_LO]) {
-		dev_dbg(dev, "%s: Large area detected\n", __func__);
+		tsp_debug_dbg(true, dev, "%s: Large area detected\n", __func__);
 		if (md->pdata->flags & CY_MT_FLAG_NO_TOUCH_ON_LO)
 			num_cur_tch = 0;
 #if SAMSUNG_PALM_MOTION
@@ -551,7 +551,7 @@ static int cyttsp5_mt_attention(struct device *dev)
 	if (md->prevent_touch) {
 		mutex_unlock(&md->mt_lock);
 
-		dev_dbg(dev, "%s: touch is now prevented\n", __func__);
+		tsp_debug_dbg(true, dev, "%s: touch is now prevented\n", __func__);
 		return 0;
 	}
 
@@ -559,7 +559,7 @@ static int cyttsp5_mt_attention(struct device *dev)
 	rc = cyttsp5_xy_worker(md);
 	mutex_unlock(&md->mt_lock);
 	if (rc < 0)
-		dev_err(dev, "%s: xy_worker error r=%d\n", __func__, rc);
+		tsp_debug_err(true, dev, "%s: xy_worker error r=%d\n", __func__, rc);
 
 	return rc;
 }
@@ -597,7 +597,7 @@ void cyttsp5_mt_prevent_touch(struct device *dev, bool prevent)
 	if (md == NULL)
 		return;
 
-	dev_dbg(dev, "%s: %d\n", __func__, prevent);
+	tsp_debug_dbg(true, dev, "%s: %d\n", __func__, prevent);
 
 	mutex_lock(&md->mt_lock);
 	md->prevent_touch = prevent;
@@ -611,7 +611,7 @@ static int cyttsp5_mt_open(struct input_dev *input)
 {
 	struct device *dev = input->dev.parent;
 
-	dev_info(dev, "%s:\n", __func__);
+	tsp_debug_info(true, dev, "%s:\n", __func__);
 
 	/* pm_runtime_get_sync(dev); */
 
@@ -639,7 +639,7 @@ static void cyttsp5_mt_close(struct input_dev *input)
 	struct cyttsp5_core_data *cd = dev_get_drvdata(dev);
 	struct cyttsp5_mt_data *md = &cd->md;
 
-	dev_info(dev, "%s:\n", __func__);
+	tsp_debug_info(true, dev, "%s:\n", __func__);
 
 	_cyttsp5_unsubscribe_attention(dev, CY_ATTEN_IRQ, CY_MODULE_MT,
 		cyttsp5_mt_attention, CY_MODE_OPERATIONAL);
@@ -713,7 +713,7 @@ static int cyttsp5_setup_input_device(struct device *dev)
 			input_set_abs_params(md->input, signal, min, max,
 				ABS_PARAM(i, CY_FUZZ_OST),
 				ABS_PARAM(i, CY_FLAT_OST));
-			dev_dbg(dev, "%s: register signal=%02X min=%d max=%d\n",
+			tsp_debug_dbg(true, dev, "%s: register signal=%02X min=%d max=%d\n",
 				__func__, signal, min, max);
 		}
 	}
@@ -721,18 +721,18 @@ static int cyttsp5_setup_input_device(struct device *dev)
 #if SAMSUNG_PALM_MOTION
 	input_set_abs_params(md->input, signal = ABS_MT_PALM,
 		min = 0, max = 1, 0, 0);
-	dev_dbg(dev, "%s: register signal=%02X min=%d max=%d\n",
+	tsp_debug_dbg(true, dev, "%s: register signal=%02X min=%d max=%d\n",
 				__func__, signal, min, max);
 	input_set_abs_params(md->input, signal = ABS_MT_SUMSIZE,
 		min = 0, max = 255, 0, 0);
-	dev_dbg(dev, "%s: register signal=%02X min=%d max=%d\n",
+	tsp_debug_dbg(true, dev, "%s: register signal=%02X min=%d max=%d\n",
 				__func__, signal, min, max);
 #endif
 
 	rc = cyttsp5_input_register_device(md->input,
 			MAX_TOUCH_ID_NUMBER);
 	if (rc < 0)
-		dev_err(dev, "%s: Error, failed register input device r=%d\n",
+		tsp_debug_err(true, dev, "%s: Error, failed register input device r=%d\n",
 			__func__, rc);
 	else
 		md->input_device_registered = true;
@@ -766,10 +766,10 @@ int cyttsp5_mt_probe(struct device *dev)
 	struct cyttsp5_mt_platform_data *mt_pdata;
 	int rc = 0;
 
-	dev_dbg(dev, "%s:\n", __func__);
+	tsp_debug_dbg(false, dev, "%s:\n", __func__);
 
 	if (!pdata || !pdata->mt_pdata) {
-		dev_err(dev, "%s: Missing platform data\n", __func__);
+		tsp_debug_err(false, dev, "%s: Missing platform data\n", __func__);
 		rc = -ENODEV;
 		goto error_no_pdata;
 	}
@@ -784,7 +784,7 @@ int cyttsp5_mt_probe(struct device *dev)
 		__func__);
 	md->input = input_allocate_device();
 	if (!md->input) {
-		dev_err(dev, "%s: Error, failed to allocate input device\n",
+		tsp_debug_err(false, dev, "%s: Error, failed to allocate input device\n",
 			__func__);
 		rc = -ENOSYS;
 		goto error_alloc_failed;
@@ -810,7 +810,7 @@ int cyttsp5_mt_probe(struct device *dev)
 		if (rc)
 			goto error_init_input;
 	} else {
-		dev_err(dev, "%s: Fail get sysinfo pointer from core p=%p\n",
+		tsp_debug_err(false, dev, "%s: Fail get sysinfo pointer from core p=%p\n",
 			__func__, md->si);
 		_cyttsp5_subscribe_attention(dev, CY_ATTEN_STARTUP,
 			CY_MODULE_MT, cyttsp5_setup_input_attention, 0);
@@ -820,14 +820,14 @@ int cyttsp5_mt_probe(struct device *dev)
 	cyttsp5_setup_early_suspend(md);
 #endif
 
-	dev_dbg(dev, "%s:done\n", __func__);
+	tsp_debug_dbg(false, dev, "%s:done\n", __func__);
 	return 0;
 
 error_init_input:
 	input_free_device(md->input);
 error_alloc_failed:
 error_no_pdata:
-	dev_err(dev, "%s failed.\n", __func__);
+	tsp_debug_err(false, dev, "%s failed.\n", __func__);
 	return rc;
 }
 EXPORT_SYMBOL(cyttsp5_mt_probe);

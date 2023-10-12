@@ -197,7 +197,9 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 #ifdef CONFIG_USE_VSYNC_SKIP
 			struct kbase_uk_tmu_skip *tskip = args;
 			int thermistor = sec_therm_get_ap_temperature();
-			u32 i, t_index = tskip->num_ratiometer;
+			u32 i, t_index;
+			tskip->num_ratiometer = MIN(tskip->num_ratiometer, TMU_INDEX_MAX);
+			t_index = tskip->num_ratiometer;
 
 			for (i = 0; i < tskip->num_ratiometer; i++)
 				if (thermistor >= tskip->temperature[i])
@@ -405,10 +407,10 @@ int gpu_vendor_dispatch(struct kbase_context *kctx, void * const args, u32 args_
 int gpu_memory_seq_show(struct seq_file *sfile, void *data)
 {
 	ssize_t ret = 0;
-#ifdef R7P0_EAC_BLOCK
 	struct list_head *entry;
 	const struct list_head *kbdev_list;
 	size_t free_size = 0;
+	size_t each_free_size = 0;
 
 	kbdev_list = kbase_dev_list_get();
 	list_for_each(entry, kbdev_list) {
@@ -419,7 +421,9 @@ int gpu_memory_seq_show(struct seq_file *sfile, void *data)
 		/* output the total memory usage and cap for this device */
 		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(element, &kbdev->kctx_list, link) {
-			free_size += atomic_read(&(element->kctx->mem_pool.cur_size));
+			spin_lock(&(element->kctx->mem_pool.pool_lock));
+			free_size += element->kctx->mem_pool.cur_size;
+			spin_unlock(&(element->kctx->mem_pool.pool_lock));
 		}
 		mutex_unlock(&kbdev->kctx_list_lock);
 		ret = seq_printf(sfile, "===========================================================\n");
@@ -445,17 +449,19 @@ int gpu_memory_seq_show(struct seq_file *sfile, void *data)
 			/* output the memory usage and cap for each kctx
 			* opened on this device */
 
-			ret = seq_printf(sfile, "  (%24s), %s-0x%p    %12u  %10u\n", \
+			spin_lock(&(element->kctx->mem_pool.pool_lock));
+			each_free_size = element->kctx->mem_pool.cur_size;
+			spin_unlock(&(element->kctx->mem_pool.pool_lock));
+			ret = seq_printf(sfile, "  (%24s), %s-0x%pK    %12u  %10zu\n", \
 				element->kctx->name, \
 				"kctx", \
 				element->kctx, \
 				atomic_read(&(element->kctx->used_pages)),
-				atomic_read(&(element->kctx->mem_pool.cur_size)) );
+					each_free_size );
 		}
 		mutex_unlock(&kbdev->kctx_list_lock);
 	}
 	kbase_dev_list_put(kbdev_list);
-#endif
 	return ret;
 }
 
@@ -568,7 +574,7 @@ static void gpu_page_table_info_dp_level(struct kbase_context *kctx, u64 vaddr, 
 
 	pgd_page = kmap(pfn_to_page(PFN_DOWN(pgd)));
 
-	//dev_err(kctx->kbdev->dev, "Dumping level %d @ physical address 0x%016llX (matching index %d):\n", level, pgd, index);
+	dev_err(kctx->kbdev->dev, "Dumping level %d @ physical address 0x%016llX (matching index %d):\n", level, (unsigned long long)pgd, index);
 
 	if (!pgd_page) {
 		dev_err(kctx->kbdev->dev, "kmap failure\n");
@@ -758,12 +764,15 @@ static void kbase_fence_timeout(unsigned long data)
 		spin_unlock_irqrestore(&katom->fence_lock, flags);
 		return;
 	}
-
-/*	if (atomic_read(&(katom->fence->status)) != 0) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+	if (katom->fence->status != 0) {
+#else
+	if (atomic_read(&(katom->fence->status)) != 0) {
+#endif
 		spin_unlock_irqrestore(&katom->fence_lock, flags);
 		kbase_fence_del_timer(katom);
 		return;
-	}*/
+	}
 	pr_info("Release fence is not signaled on [%p] for %d ms\n", katom->fence, KBASE_FENCE_TIMEOUT);
 
 #ifdef KBASE_FENCE_DUMP
@@ -1031,12 +1040,16 @@ static bool gpu_mem_profile_check_kctx(void *ctx)
 	kbdev = pkbdev;
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
+	mutex_lock(&kbdev->kctx_list_lock);
 	list_for_each_entry_safe(element, tmp, &kbdev->kctx_list, link) {
 		if (element->kctx == kctx) {
+			if (kctx->destroying_context == false) {
 			found_element = true;
 			break;
 		}
 	}
+	}
+	mutex_unlock(&kbdev->kctx_list_lock);
 
 	return found_element;
 }

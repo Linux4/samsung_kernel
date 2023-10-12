@@ -180,7 +180,10 @@ static int ecryptfs_interpose(struct dentry *lower_dentry,
 
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
+
 	d_instantiate(dentry, inode);
+	if(d_unhashed(dentry))
+		d_rehash(dentry);
 
 #ifdef CONFIG_SDP
 	if(S_ISDIR(inode->i_mode) && dentry) {
@@ -339,9 +342,11 @@ int ecryptfs_initialize_file(struct dentry *ecryptfs_dentry,
 #endif
 		if(!rc && (in_egroup_p(AID_KNOX_DLP) || in_egroup_p(AID_KNOX_DLP_RESTRICTED))) {
 			/* TODO: Can DLP files be created while in locked state? */
+			struct timespec ts;
 			crypt_stat->flags |= ECRYPTFS_DLP_ENABLED;
-			getnstimeofday(&crypt_stat->expiry.expiry_time);
-			crypt_stat->expiry.expiry_time.tv_sec += 600;
+			getnstimeofday(&ts);
+			crypt_stat->expiry.expiry_time.tv_sec = (int64_t)ts.tv_sec + 20;
+			crypt_stat->expiry.expiry_time.tv_nsec = (int64_t)ts.tv_nsec;
 #if DLP_DEBUG
 			printk(KERN_ERR "DLP %s: current->pid : %d\n", __func__, current->tgid);
 			printk(KERN_ERR "DLP %s: crypt_stat->mount_crypt_stat->userid : %d\n", __func__, crypt_stat->mount_crypt_stat->userid);
@@ -449,6 +454,8 @@ ecryptfs_create(struct inode *directory_inode, struct dentry *ecryptfs_dentry,
 	}
 	unlock_new_inode(ecryptfs_inode);
 	d_instantiate(ecryptfs_dentry, ecryptfs_inode);
+	if(d_unhashed(ecryptfs_dentry))
+		d_rehash(ecryptfs_dentry);
 out:
 	return rc;
 }
@@ -631,18 +638,52 @@ static struct dentry *ecryptfs_lookup(struct inode *ecryptfs_dir_inode,
 #ifdef CONFIG_SDP
 	if(!strncmp(lower_dir_dentry->d_sb->s_type->name, "sdcardfs", 8)) {
 		struct sdcardfs_dentry_info *dinfo = SDCARDFS_D(lower_dir_dentry);
-		int len = strlen(ecryptfs_dentry->d_name.name);
-		int i, numeric = 1;
+		struct dentry *parent = dget_parent(lower_dir_dentry);
+		struct sdcardfs_dentry_info *parent_info = SDCARDFS_D(parent);
 
 		dinfo->under_knox = 1;
 		dinfo->userid = -1;
+
 		if(IS_UNDER_ROOT(ecryptfs_dentry)) {
-			for(i=0 ; i < len ; i++)
-				if(!isdigit(ecryptfs_dentry->d_name.name[i])) { numeric = 0; break; }
-			if(numeric) {
-				dinfo->userid = simple_strtoul(ecryptfs_dentry->d_name.name, NULL, 10);
+			parent_info->permission = PERMISSION_PRE_ROOT;
+			if(mount_crypt_stat->userid >= 100 && mount_crypt_stat->userid <= 200) {
+				parent_info->userid = mount_crypt_stat->userid;
+
+				/* Assume masked off by default. */
+				if (!strcasecmp(ecryptfs_dentry->d_name.name, "Android")) {
+					/* App-specific directories inside; let anyone traverse */
+					dinfo->permission = PERMISSION_ROOT;
+				}	
+			}
+			else {
+				int len = strlen(ecryptfs_dentry->d_name.name);
+				int i, numeric = 1;
+
+				for(i=0 ; i < len ; i++)
+					if(!isdigit(ecryptfs_dentry->d_name.name[i])) { numeric = 0; break; }
+				if(numeric) {
+					dinfo->userid = simple_strtoul(ecryptfs_dentry->d_name.name, NULL, 10);
+				}
+			} 
+		}
+		else {
+			struct sdcardfs_sb_info *sbi = SDCARDFS_SB(lower_dir_dentry->d_sb);
+			
+			/* Derive custom permissions based on parent and current node */
+			switch (parent_info->permission) {
+				case PERMISSION_ROOT:
+					if (!strcasecmp(ecryptfs_dentry->d_name.name, "data") || !strcasecmp(ecryptfs_dentry->d_name.name, "obb") || !strcasecmp(ecryptfs_dentry->d_name.name, "media")) {
+						/* App-specific directories inside; let anyone traverse */
+						dinfo->permission = PERMISSION_ANDROID;
+					} 
+					break;
+               			case PERMISSION_ANDROID:
+					dinfo->permission = PERMISSION_UNDER_ANDROID;
+               				dinfo->appid = get_appid(sbi->pkgl_id, ecryptfs_dentry->d_name.name);
+					break;
 			}
 		}
+		dput(parent);
 	}
 #endif
 
@@ -1434,10 +1475,10 @@ ecryptfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 #ifdef CONFIG_DLP
 	if (!strcmp(name, KNOX_DLP_XATTR_NAME)) {
 #if DLP_DEBUG
-		printk(KERN_ERR "%s: setting knox_dlp by [%d]\n", __func__, current_uid());
+		printk(KERN_ERR "DLP %s: setting knox_dlp by [%d]\n", __func__, current_uid());
 #endif
 		if (!is_root() && !is_system_server()) {
-			printk(KERN_ERR "%s: setting knox_dlp not allowed by [%d]\n", __func__, current_uid());
+			printk(KERN_ERR "DLP %s: setting knox_dlp not allowed by [%d]\n", __func__, current_uid());
 			return -EPERM;
 		}
 		/* TODO: Need to set DLP flag here too? */
@@ -1480,16 +1521,46 @@ ecryptfs_getxattr(struct dentry *dentry, const char *name, void *value,
 	rc = ecryptfs_getxattr_lower(ecryptfs_dentry_to_lower(dentry), name,
 			value, size);
 
+	if (rc == 8 && !strcmp(name, KNOX_DLP_XATTR_NAME)) {
+		uint32_t msw, lsw;
+		struct knox_dlp_data *dlp_data = value;
+		if (size < sizeof(struct knox_dlp_data)) {
+			return -ERANGE;
+		}
+		msw = (dlp_data->expiry_time.tv_sec >> 32) & 0xFFFFFFFF;
+		lsw = dlp_data->expiry_time.tv_sec & 0xFFFFFFFF;
+		dlp_data->expiry_time.tv_sec = (uint64_t)lsw;
+		dlp_data->expiry_time.tv_nsec = (uint64_t)msw;
+		rc = sizeof(struct knox_dlp_data);
+#if DLP_DEBUG
+		printk(KERN_ERR "DLP %s: conversion done, tv_sec=[%ld]\n",
+				__func__, (long)dlp_data->expiry_time.tv_sec);
+#endif
+	}
+
 	if ((rc == -ENODATA) && (!strcmp(name, KNOX_DLP_XATTR_NAME))) {
 		if (dentry->d_inode) {
 			crypt_stat = &ecryptfs_inode_to_private(dentry->d_inode)->crypt_stat;
 		}
-		if (crypt_stat && (crypt_stat->expiry.expiry_time.tv_sec > 0)) {
+		if (crypt_stat && (crypt_stat->flags & ECRYPTFS_DLP_ENABLED)) {
+			if (size < sizeof(struct knox_dlp_data)) {
+				return -ERANGE;
+			}
+			if (crypt_stat->expiry.expiry_time.tv_sec <= 0) {
+				struct timespec ts;
+				getnstimeofday(&ts);
+				crypt_stat->expiry.expiry_time.tv_sec = (int64_t)ts.tv_sec + 20;
+				crypt_stat->expiry.expiry_time.tv_nsec = (int64_t)ts.tv_nsec;
+#if DLP_DEBUG
+				printk(KERN_ERR "DLP %s: use temp expiry\n", __func__);
+#endif
+			}
 			memcpy(value, &crypt_stat->expiry, sizeof(struct knox_dlp_data));
-			rc = 0;
-		} else if (crypt_stat && (crypt_stat->flags & ECRYPTFS_DLP_ENABLED)) {
-			/* TODO: We should never come here */
-			rc = -EFAULT;
+#if DLP_DEBUG
+			printk(KERN_ERR "DLP %s: returning expiry from cryp_stat [%ld]\n",
+					__func__, (long)crypt_stat->expiry.expiry_time.tv_sec);
+#endif
+			rc = sizeof(struct knox_dlp_data);
 		}
 	}
 	return rc;
@@ -1532,10 +1603,10 @@ static int ecryptfs_removexattr(struct dentry *dentry, const char *name)
 #ifdef CONFIG_DLP
 	if (!strcmp(name, KNOX_DLP_XATTR_NAME)) {
 #if DLP_DEBUG
-		printk(KERN_ERR "%s: removing knox_dlp by [%d]\n", __func__, current_uid());
+		printk(KERN_ERR "DLP %s: removing knox_dlp by [%d]\n", __func__, current_uid());
 #endif
 		if (!is_root() && !is_system_server()) {
-			printk(KERN_ERR "%s: removing knox_dlp not allowed by [%d]\n", __func__, current_uid());
+			printk(KERN_ERR "DLP %s: removing knox_dlp not allowed by [%d]\n", __func__, current_uid());
 			return -EPERM;
 		}
 	}

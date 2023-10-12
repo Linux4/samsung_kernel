@@ -20,12 +20,13 @@
 #define _SENSORS_CORE_H_
 
 #define SENSOR_ERR(fmt, ...) \
-	{ pr_err("[SENSOR] %s: "fmt, __func__, ##__VA_ARGS__); \
-	}
+	pr_err("[SENSOR] %s: "fmt, __func__, ##__VA_ARGS__)
 
 #define SENSOR_INFO(fmt, ...) \
-	{ pr_info("[SENSOR] %s: "fmt, __func__, ##__VA_ARGS__); \
-	}
+	pr_info("[SENSOR] %s: "fmt, __func__, ##__VA_ARGS__)
+
+#define SENSOR_WARN(fmt, ...) \
+	pr_warn("[SENSOR] %s: "fmt, __func__, ##__VA_ARGS__)
 
 int sensors_create_symlink(struct kobject *, const char *);
 void sensors_remove_symlink(struct kobject *, const char *);

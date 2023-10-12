@@ -820,7 +820,7 @@ static void pm_qos_debug_show_one(struct seq_file *s, struct pm_qos_object *qos)
 	plist_for_each(p, &qos->constraints->list) {
 		struct pm_qos_request *req =
 			container_of(p, struct pm_qos_request, node);
-		seq_printf(s, "      %pk: %d (%ps)\n",
+		seq_printf(s, "      %pK: %d (%ps)\n",
 				req, p->prio, (void *)req->caller);
 	}
 

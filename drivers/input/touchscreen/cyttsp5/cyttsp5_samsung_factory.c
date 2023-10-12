@@ -169,7 +169,7 @@ static int fw_update_ums(struct cyttsp5_samsung_factory_data* sfd)
 
 	fp = filp_open(CY_FW_FILE_PATH, O_RDONLY, S_IRUSR);
 	if (IS_ERR(fp)) {
-		dev_err(sfd->dev, "%s: failed to open firmware. %s\n",
+		tsp_debug_err(true, sfd->dev, "%s: failed to open firmware. %s\n",
 			__func__, CY_FW_FILE_PATH);
 		error = -ENOENT;
 		goto open_err;
@@ -183,11 +183,11 @@ static int fw_update_ums(struct cyttsp5_samsung_factory_data* sfd)
 		nread = vfs_read(fp, (char __user *)fw_data,
 			fw_size, &fp->f_pos);
 
-		dev_info(sfd->dev, "%s: start, file path %s, size %u Bytes\n",
+		tsp_debug_info(true, sfd->dev, "%s: start, file path %s, size %u Bytes\n",
 			__func__, CY_FW_FILE_PATH, fw_size);
 
 		if (nread != fw_size) {
-			dev_err(sfd->dev, "%s: failed to read firmware file, nread %u Bytes\n",
+			tsp_debug_err(true, sfd->dev, "%s: failed to read firmware file, nread %u Bytes\n",
 				__func__, nread);
 			error = -EIO;
 		} else {
@@ -196,7 +196,7 @@ static int fw_update_ums(struct cyttsp5_samsung_factory_data* sfd)
 		}
 
 		if (error < 0)
-			dev_err(sfd->dev, "%s: failed update firmware\n", __func__);
+			tsp_debug_err(true, sfd->dev, "%s: failed update firmware\n", __func__);
 
 		kfree(fw_data);
 	}
@@ -228,7 +228,7 @@ static void fw_update(void *device_data)
 	} else if (sfd->factory_cmd_param[0] == 1) {
 		rc = fw_update_ums(sfd);
 	} else {
-		dev_err(sfd->dev, "%s: parameter %d is wrong\n",
+		tsp_debug_err(true, sfd->dev, "%s: parameter %d is wrong\n",
 			__func__, sfd->factory_cmd_param[0]);
 		rc = -1;
 	}
@@ -237,7 +237,7 @@ static void fw_update(void *device_data)
 		snprintf(strbuff, sizeof(strbuff), "%s", "OK");
 		sfd->factory_cmd_state = FACTORYCMD_OK;
 	} else {
-		dev_err(sfd->dev, "%s: rc=%d\n", __func__, rc);
+		tsp_debug_err(true, sfd->dev, "%s: rc=%d\n", __func__, rc);
 
 		snprintf(strbuff, sizeof(strbuff), "%s", "NG");
 		sfd->factory_cmd_state = FACTORYCMD_FAIL;
@@ -245,7 +245,7 @@ static void fw_update(void *device_data)
 
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 			strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -272,7 +272,7 @@ static void get_fw_ver_bin(void *device_data)
 
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -289,7 +289,7 @@ static void get_fw_ver_ic(void *device_data)
 		sti->hw_version, sti->fw_versionh, sti->fw_versionl);
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 	sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -313,7 +313,7 @@ static void get_config_ver(void *device_data)
 #endif
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -337,7 +337,7 @@ static void get_threshold(void *device_data)
 		sfd->factory_cmd_state = FACTORYCMD_FAIL;
 	else
 		sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -360,7 +360,7 @@ static void module_off_master(void *device_data)
 	snprintf(strbuff, sizeof(strbuff), "%s", "OK");
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 		sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -386,7 +386,7 @@ static void module_on_master(void *device_data)
 	snprintf(strbuff, sizeof(strbuff), "%s", "OK");
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 		sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -400,7 +400,7 @@ static void get_chip_vendor(void *device_data)
 	snprintf(strbuff, sizeof(strbuff), "%s", "Cypress");
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 	sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -414,7 +414,7 @@ static void get_chip_name(void *device_data)
 	snprintf(strbuff, sizeof(strbuff), "%s", "CYTMA445A");
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 	sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -430,7 +430,7 @@ static void get_x_num(void *device_data)
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 
 	sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -446,7 +446,7 @@ static void get_y_num(void *device_data)
 
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 	sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -469,7 +469,7 @@ static void get_raw_diff(struct cyttsp5_samsung_factory_data* sfd,
 		sfd->factory_cmd_param[0] >= sfd->si->sensing_conf_data.electrodes_x ||
 		sfd->factory_cmd_param[1] < 0 ||
 		sfd->factory_cmd_param[1] >= sfd->si->sensing_conf_data.electrodes_y) {
-		dev_err(sfd->dev,
+		tsp_debug_err(false, sfd->dev,
 			"%s: parameter wrong param[0]=%d param[1]=%d\n", __func__,
 			sfd->factory_cmd_param[0], sfd->factory_cmd_param[1]);
 
@@ -499,10 +499,10 @@ static void get_raw_diff(struct cyttsp5_samsung_factory_data* sfd,
 
 		sfd->factory_cmd_state = FACTORYCMD_OK;
 
-		dev_info(sfd->dev, "%s: node [%d,%d] = %d\n", __func__,
+		tsp_debug_info(true, sfd->dev, "%s: node [%d,%d] = %d\n", __func__,
 			sfd->factory_cmd_param[0], sfd->factory_cmd_param[1], value);
 	}
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -600,25 +600,25 @@ static int panel_scan_and_retrieve(struct cyttsp5_samsung_factory_data* sfd,
 	int buf_offset;
 	int rc = 0;
 
-	dev_dbg(sfd->dev, "%s\n", __func__);
+	tsp_debug_dbg(true, sfd->dev, "%s\n", __func__);
 
 	rc = cyttsp5_request_exclusive(dev, CY_REQUEST_EXCLUSIVE_TIMEOUT);
 	if (rc < 0) {
-		dev_err(dev, "%s: request exclusive failed(%d)\n",
+		tsp_debug_err(true, dev, "%s: request exclusive failed(%d)\n",
 			__func__, rc);
 		return rc;
 	}
 
 	rc = sfd->corecmd->cmd->suspend_scanning(dev, 0);
 	if (rc < 0) {
-		dev_err(dev, "%s: suspend scanning failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: suspend scanning failed r=%d\n",
 			__func__, rc);
 		goto release_exclusive;
 	}
 
 	rc = sfd->corecmd->cmd->exec_panel_scan(dev, 0);
 	if (rc < 0) {
-		dev_err(dev, "%s: exec panel scan failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: exec panel scan failed r=%d\n",
 			__func__, rc);
 		goto release_exclusive;
 	}
@@ -632,7 +632,7 @@ static int panel_scan_and_retrieve(struct cyttsp5_samsung_factory_data* sfd,
 	rc = retrieve_panel_scan(sfd, panel_scan_data->buf, data_id,
 		node_count, &panel_scan_data->element_size);
 	if (rc < 0) {
-		dev_err(dev,
+		tsp_debug_err(true, dev,
 			"%s: retrieve_panel_scan raw count failed r=%d\n",
 			__func__, rc);
 		goto release_exclusive;
@@ -654,14 +654,14 @@ static int panel_scan_and_retrieve(struct cyttsp5_samsung_factory_data* sfd,
 
 	rc = sfd->corecmd->cmd->resume_scanning(dev, 0);
 	if (rc < 0) {
-		dev_err(dev, "%s: resume_scanning failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: resume_scanning failed r=%d\n",
 			__func__, rc);
 	}
 
 release_exclusive:
 	rc = cyttsp5_release_exclusive(dev);
 	if (rc < 0)
-		dev_err(dev, "%s: release_exclusive failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: release_exclusive failed r=%d\n",
 			__func__, rc);
 
 	return rc;
@@ -676,7 +676,7 @@ static void cyttsp5_check_and_calibrate(struct cyttsp5_samsung_factory_data* sfd
 		if (rc == 0)
 			sfd->cal_done = true;
 		else
-			dev_err(sfd->dev, "%s: calibration fail, rc=%d\n",
+			tsp_debug_err(true, sfd->dev, "%s: calibration fail, rc=%d\n",
 				__func__, rc);
 	}
 }
@@ -704,16 +704,16 @@ static void run_raw_count_read(void *device_data)
 #if 0
 {
 	int i;
-	dev_info(sfd->dev, "%s: raw : \n", __func__);
+	tsp_debug_info(true, sfd->dev, "%s: raw : \n", __func__);
 	for (i = 0; i < (sfd->num_all_nodes * 2); i++) {
-		dev_info(sfd->dev, "%s: 0x%02x\n",
+		tsp_debug_info(true, sfd->dev, "%s: 0x%02x\n",
 			__func__, sfd->raw.buf[CY_CMD_RET_PANEL_HDR + i]);
 	}
 }
 #endif
 
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -738,7 +738,7 @@ static void run_difference_read(void *device_data)
 	}
 
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -826,7 +826,7 @@ static void get_global_idac(void *device_data)
 
 	if (sfd->factory_cmd_param[0] < 0 ||
 		sfd->factory_cmd_param[0] >= gidac_node_num(sfd)) {
-		dev_err(sfd->dev, "%s: parameter %d is wrong\n",
+		tsp_debug_err(true, sfd->dev, "%s: parameter %d is wrong\n",
 					__func__, sfd->factory_cmd_param[0]);
 
 		sprintf(strbuff, "%s", "NG");
@@ -841,10 +841,10 @@ static void get_global_idac(void *device_data)
 
 		sfd->factory_cmd_state = FACTORYCMD_OK;
 
-		dev_info(sfd->dev, "%s: node %d = %d\n",
+		tsp_debug_info(true, sfd->dev, "%s: node %d = %d\n",
 					__func__, sfd->factory_cmd_param[0], value);
 	}
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -865,7 +865,7 @@ static void get_local_idac(void *device_data)
 		sfd->factory_cmd_param[1] >= sti->gidac_nodes ||
 		sfd->factory_cmd_param[0] < 0 ||
 		sfd->factory_cmd_param[0] >= sti->rx_nodes) {
-		dev_err(sfd->dev,
+		tsp_debug_err(true, sfd->dev,
 			"%s: parameter wrong param[0]=%d param[1]=%d\n", __func__,
 			sfd->factory_cmd_param[0], sfd->factory_cmd_param[1]);
 
@@ -886,10 +886,10 @@ static void get_local_idac(void *device_data)
 
 		sfd->factory_cmd_state = FACTORYCMD_OK;
 
-		dev_info(sfd->dev, "%s: node [%d,%d] = %d\n", __func__,
+		tsp_debug_info(true, sfd->dev, "%s: node [%d,%d] = %d\n", __func__,
 			sfd->factory_cmd_param[0], sfd->factory_cmd_param[1], value);
 	}
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -901,14 +901,14 @@ static int retrieve_mutual_idac(struct cyttsp5_samsung_factory_data* sfd,
 
 	rc = cyttsp5_request_exclusive(dev, CY_REQUEST_EXCLUSIVE_TIMEOUT);
 	if (rc < 0) {
-		dev_err(dev, "%s: request exclusive failed(%d)\n",
+		tsp_debug_err(true, dev, "%s: request exclusive failed(%d)\n",
 			__func__, rc);
 		return rc;
 	}
 
 	rc = sfd->corecmd->cmd->suspend_scanning(dev, 0);
 	if (rc < 0) {
-		dev_err(dev, "%s: suspend scanning failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: suspend scanning failed r=%d\n",
 			__func__, rc);
 		goto release_exclusive;
 	}
@@ -916,7 +916,7 @@ static int retrieve_mutual_idac(struct cyttsp5_samsung_factory_data* sfd,
 	rc = retrieve_data_structure(sfd, CY_PWC_MUT, sfd->mutual_idac.buf,
 			gidac_node_num(sfd)+lidac_node_num(sfd));
 	if (rc < 0) {
-		dev_err(dev, "%s: retrieve_data_structure failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: retrieve_data_structure failed r=%d\n",
 			__func__, rc);
 		goto release_exclusive;
 	}
@@ -929,7 +929,7 @@ static int retrieve_mutual_idac(struct cyttsp5_samsung_factory_data* sfd,
 
 	rc = sfd->corecmd->cmd->resume_scanning(dev, 0);
 	if (rc < 0) {
-		dev_err(dev, "%s: resume_scanning failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: resume_scanning failed r=%d\n",
 			__func__, rc);
 		goto release_exclusive;
 	}
@@ -937,7 +937,7 @@ static int retrieve_mutual_idac(struct cyttsp5_samsung_factory_data* sfd,
 release_exclusive:
 	rc = cyttsp5_release_exclusive(dev);
 	if (rc < 0)
-		dev_err(dev, "%s: release_exclusive failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: release_exclusive failed r=%d\n",
 			__func__, rc);
 
 	return rc;
@@ -968,7 +968,7 @@ static void run_idac_read(struct cyttsp5_samsung_factory_data* sfd,
 	}
 
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 }
 
@@ -999,13 +999,13 @@ static inline void _check_rc(struct cyttsp5_samsung_factory_data* sfd,
 		snprintf(strbuff, sizeof(strbuff), "OK");
 		sfd->factory_cmd_state = FACTORYCMD_OK;
 	} else {
-		dev_err(sfd->dev, "%s failed(%d)\n", __func__, rc);
+		tsp_debug_err(true, sfd->dev, "%s failed(%d)\n", __func__, rc);
 		sprintf(strbuff, "%s", "NG");
 		sfd->factory_cmd_state = FACTORYCMD_FAIL;
 	}
 
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 
 	mutex_lock(&sfd->factory_cmd_lock);
@@ -1025,33 +1025,33 @@ static int initialize_baselines(struct cyttsp5_samsung_factory_data* sfd)
 
 	rc = cyttsp5_request_exclusive(dev, CY_REQUEST_EXCLUSIVE_TIMEOUT);
 	if (rc < 0) {
-		dev_err(dev, "%s: request exclusive failed(%d)\n",
+		tsp_debug_err(true, dev, "%s: request exclusive failed(%d)\n",
 			__func__, rc);
 		return rc;
 	}
 
 	rc = sfd->corecmd->cmd->suspend_scanning(sfd->dev, 0);
 	if (rc) {
-		dev_err(sfd->dev, "%s: error on suspend_scanning\n", __func__);
+		tsp_debug_err(true, sfd->dev, "%s: error on suspend_scanning\n", __func__);
 		goto release_exclusive;
 	}
 
 	rc = sfd->corecmd->cmd->initialize_baselines(sfd->dev, 0, 0x07);
 	if (rc) {
-		dev_err(sfd->dev, "%s: error on initialize_baselines\n", __func__);
+		tsp_debug_err(true, sfd->dev, "%s: error on initialize_baselines\n", __func__);
 		goto release_exclusive;
 	}
 
 	rc = sfd->corecmd->cmd->resume_scanning(sfd->dev, 0);
 	if (rc) {
-		dev_err(sfd->dev, "%s: error on resume_scanning\n", __func__);
+		tsp_debug_err(true, sfd->dev, "%s: error on resume_scanning\n", __func__);
 		goto release_exclusive;
 	}
 
 release_exclusive:
 	rc1 = cyttsp5_release_exclusive(dev);
 	if (rc1 < 0)
-		dev_err(dev, "%s: release_exclusive failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: release_exclusive failed r=%d\n",
 			__func__, rc);
 
 	return rc;
@@ -1074,14 +1074,14 @@ static void baseline_reset(void *device_data)
 	set_default_result(sfd);
 
 	if (sfd->suspended) {
-		dev_err(sfd->dev, "%s: device is suspended\n", __func__);
+		tsp_debug_err(true, sfd->dev, "%s: device is suspended\n", __func__);
 		rc = -EIO;
 		goto check_rc;
 	}
 
 	rc = initialize_baselines(sfd);
 	if (rc) {
-		dev_err(sfd->dev, "%s: error on initialize_baselines\n",
+		tsp_debug_err(true, sfd->dev, "%s: error on initialize_baselines\n",
 			__func__);
 		goto check_rc;
 	}
@@ -1135,12 +1135,12 @@ static void touch_mode_switch(struct cyttsp5_samsung_factory_data* sfd,
 	if (sfd->factory_cmd_param[0] < 0 ||
 	    sfd->factory_cmd_param[0] > param_max) {
 		rc = -EINVAL;
-		dev_err(sfd->dev, "%s: parameter %d is wrong\n",
+		tsp_debug_err(true, sfd->dev, "%s: parameter %d is wrong\n",
 			__func__, sfd->factory_cmd_param[0]);
 		goto check_rc;
 	}
 
-	dev_info(sfd->dev,
+	tsp_debug_info(true, sfd->dev,
 		"%s: old touch mode=%s\n", __func__,
 		get_touch_mode_str(sfd->touch_mode));
 
@@ -1162,12 +1162,12 @@ static void touch_mode_switch(struct cyttsp5_samsung_factory_data* sfd,
 		sfd->touch_mode &= ~SCAN_TYPE_GLOVE;
 
 	if (sfd->suspended) {
-		dev_err(sfd->dev, "%s: device is suspended\n", __func__);
+		tsp_debug_err(true, sfd->dev, "%s: device is suspended\n", __func__);
 		goto check_rc;
 	}
 	rc = cyttsp5_request_exclusive(sfd->dev, CY_REQUEST_EXCLUSIVE_TIMEOUT_SET_PARAM);
 	if (rc < 0) {
-		dev_err(sfd->dev, "%s: request exclusive failed(%d)\n",
+		tsp_debug_err(true, sfd->dev, "%s: request exclusive failed(%d)\n",
 			__func__, rc);
 		goto check_rc;
 	}
@@ -1181,11 +1181,11 @@ static void touch_mode_switch(struct cyttsp5_samsung_factory_data* sfd,
 	rc = sfd->corecmd->cmd->set_param(sfd->dev, 0,
 		PARAM_ID_TOUCH_MODE, sfd->touch_mode);
 	if (rc) {
-		dev_err(sfd->dev,
+		tsp_debug_err(true, sfd->dev,
 			"%s: error on set_param touch mode\n", __func__);
 		goto release_exclusive;
 	}
-	dev_info(sfd->dev,
+	tsp_debug_info(true, sfd->dev,
 			"%s: new touch mode=%s\n", __func__,
 			get_touch_mode_str(sfd->touch_mode));
 skip_touch_mode_glove_setting:
@@ -1197,18 +1197,18 @@ skip_touch_mode_glove_setting:
 			PARAM_ID_VIEW_COVER_MODE,
 			sfd->view_cover_closed);
 		if (rc) {
-			dev_err(sfd->dev,
+			tsp_debug_err(true, sfd->dev,
 				"%s: error on set_param view cover mode\n", __func__);
 			goto release_exclusive;
 		}
-		dev_info(sfd->dev, "%s: view_cover_closed=%d\n",
+		tsp_debug_info(true, sfd->dev, "%s: view_cover_closed=%d\n",
 			__func__, sfd->view_cover_closed);
 		cyttsp5_mt_prevent_touch(sfd->dev, 0);
 	}
 
 release_exclusive:
 	if (cyttsp5_release_exclusive(sfd->dev) < 0)
-		dev_err(sfd->dev, "%s: release_exclusive failed\n",
+		tsp_debug_err(true, sfd->dev, "%s: release_exclusive failed\n",
 			__func__);
 check_rc:
 	_check_rc(sfd, rc);
@@ -1251,12 +1251,12 @@ static int report_rate_set_param(struct cyttsp5_samsung_factory_data* sfd)
 		break;
 	}
 
-	dev_dbg(sfd->dev, "%s: interval=%d\n", __func__,
+	tsp_debug_dbg(false, sfd->dev, "%s: interval=%d\n", __func__,
 		interval);
 	rc = sfd->corecmd->cmd->set_param(sfd->dev, 0,
 		PARAM_ID_ACT_INTRVL0, interval);
 	if (rc)
-		dev_err(sfd->dev, "%s: error on set_param\n", __func__);
+		tsp_debug_err(true, sfd->dev, "%s: error on set_param\n", __func__);
 
 	return rc;
 }
@@ -1276,7 +1276,7 @@ static void report_rate(void *device_data)
 
 	if ((sfd->factory_cmd_param[0] < 0) ||
 		(sfd->factory_cmd_param[0] > 2)) {
-		dev_err(sfd->dev, "%s: parameter %d is wrong\n",
+		tsp_debug_err(true, sfd->dev, "%s: parameter %d is wrong\n",
 			__func__, sfd->factory_cmd_param[0]);
 
 		rc = -EINVAL;
@@ -1285,12 +1285,12 @@ static void report_rate(void *device_data)
 	sfd->report_rate = sfd->factory_cmd_param[0];
 
 	if (sfd->suspended) {
-		dev_info(sfd->dev, "%s: device is suspended\n", __func__);
+		tsp_debug_info(true, sfd->dev, "%s: device is suspended\n", __func__);
 		goto check_rc;
 	}
 	rc = cyttsp5_request_exclusive(sfd->dev, CY_REQUEST_EXCLUSIVE_TIMEOUT_SET_PARAM);
 	if (rc < 0) {
-		dev_info(sfd->dev, "%s: request exclusive failed(%d)\n",
+		tsp_debug_info(true, sfd->dev, "%s: request exclusive failed(%d)\n",
 			__func__, rc);
 		goto check_rc;
 	}
@@ -1298,7 +1298,7 @@ static void report_rate(void *device_data)
 	rc = report_rate_set_param(sfd);
 
 	if (cyttsp5_release_exclusive(sfd->dev) < 0)
-		dev_info(sfd->dev, "%s: release_exclusive failed\n",
+		tsp_debug_info(true, sfd->dev, "%s: release_exclusive failed\n",
 			__func__);
 check_rc:
 	_check_rc(sfd, rc);
@@ -1318,7 +1318,7 @@ static void not_support_cmd(void *device_data)
 	sprintf(strbuff, "%s", "NA");
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
 	sfd->factory_cmd_state = FACTORYCMD_NOT_APPLICABLE;
-	dev_info(sfd->dev, "%s: \"%s(%d)\"\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: \"%s(%d)\"\n", __func__,
 		strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 
 	/* Some cmds are supported in specific IC and they are clear the cmd_is running flag
@@ -1348,7 +1348,7 @@ static void boost_level(void *device_data)
 	snprintf(strbuff, sizeof(strbuff), "%s", "OK");
 	set_cmd_result(sfd, strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 	sfd->factory_cmd_state = FACTORYCMD_OK;
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	tsp_debug_info(true, sfd->dev, "%s: %s(%d)\n", __func__,
 			strbuff, (int)strnlen(strbuff, sizeof(strbuff)));
 	return;
 }
@@ -1365,8 +1365,19 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 	char delim = ',';
 	bool cmd_found = false;
 
+	if (strlen(buf) >= FACTORY_CMD_STR_LEN) {		
+		dev_err(sfd->dev, "%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
+	if (count >= (unsigned int)FACTORY_CMD_STR_LEN) {
+		dev_err(sfd->dev, "%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
+		return -EINVAL;
+	}
+
 	if (sfd->factory_cmd_is_running == true) {
-		dev_err(sfd->dev, "factory_cmd: other cmd is running.\n");
+		tsp_debug_err(true, sfd->dev, "factory_cmd: other cmd is running.\n");
 		goto err_out;
 	}
 
@@ -1427,12 +1438,12 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt < FACTORY_CMD_PARAM_NUM));
 	}
 
-	dev_info(sfd->dev, "cmd = %s\n", factory_cmd_ptr->cmd_name);
+	tsp_debug_info(true, sfd->dev, "cmd = %s\n", factory_cmd_ptr->cmd_name);
 	/*for (i = 0; i < param_cnt; i++)
-		dev_info(sfd->dev, "cmd param %d= %d\n", i,
+		tsp_debug_info(true, sfd->dev, "cmd param %d= %d\n", i,
 			sfd->factory_cmd_param[i]);*/
 
 	factory_cmd_ptr->cmd_func(sfd);
@@ -1447,7 +1458,7 @@ static ssize_t show_cmd_status(struct device *dev,
 	struct cyttsp5_samsung_factory_data *sfd = dev_get_drvdata(dev);
 	char strbuff[16] = {0};
 
-	dev_info(sfd->dev, "tsp cmd: status:%d, PAGE_SIZE=%ld\n",
+	tsp_debug_info(true, sfd->dev, "tsp cmd: status:%d, PAGE_SIZE=%ld\n",
 			sfd->factory_cmd_state, PAGE_SIZE);
 
 	if (sfd->factory_cmd_state == FACTORYCMD_WAITING)
@@ -1473,7 +1484,7 @@ static ssize_t show_cmd_result(struct device *dev, struct device_attribute
 {
 	struct cyttsp5_samsung_factory_data *sfd = dev_get_drvdata(dev);
 
-	dev_info(sfd->dev, "tsp cmd: result: %s\n", sfd->factory_cmd_result);
+	tsp_debug_info(true, sfd->dev, "tsp cmd: result: %s\n", sfd->factory_cmd_result);
 
 	mutex_lock(&sfd->factory_cmd_lock);
 	sfd->factory_cmd_is_running = false;
@@ -1516,12 +1527,12 @@ static int inputmethod_set_param(struct cyttsp5_samsung_factory_data* sfd)
 {
 	int rc;
 
-	dev_dbg(sfd->dev, "%s: intputmethod=%d\n", __func__,
+	tsp_debug_dbg(true, sfd->dev, "%s: intputmethod=%d\n", __func__,
 		sfd->is_inputmethod);
 	rc = sfd->corecmd->cmd->set_param(sfd->dev, 0,
 		PARAM_ID_SEPERATE_VELOCITY_MODE, sfd->is_inputmethod);
 	if (rc)
-		dev_err(sfd->dev, "%s: error on set_param\n", __func__);
+		tsp_debug_err(true, sfd->dev, "%s: error on set_param\n", __func__);
 
 	return rc;
 }
@@ -1536,50 +1547,50 @@ static ssize_t set_tsp_for_inputmethod_store(struct device *dev,
 
 	ret = sscanf(buf, "%d", &scan_buffer);
 	if (ret != 1) {
-		dev_err(sfd->dev, "%s: cmd read err(%d)\n",
+		tsp_debug_err(true, sfd->dev, "%s: cmd read err(%d)\n",
 			__func__, ret);
 		return count;
 	}
 
 	if (!(scan_buffer == 0 || scan_buffer == 1)) {
-		dev_err(sfd->dev, "%s: wrong command(%d)\n",
+		tsp_debug_err(true, sfd->dev, "%s: wrong command(%d)\n",
 			__func__, scan_buffer);
 		return count;
 	}
 
 	if ((scan_buffer == 1) && (!sfd->is_inputmethod)) {
-		dev_info(sfd->dev,
+		tsp_debug_info(true, sfd->dev,
 			"%s: Set TSP inputmethod IN\n", __func__);
 		sfd->is_inputmethod = true;
 	} else if ((scan_buffer == 0) && (sfd->is_inputmethod)) {
-		dev_info(sfd->dev,
+		tsp_debug_info(true, sfd->dev,
 			"%s: Set TSP inputmethod OUT\n", __func__);
 		sfd->is_inputmethod = false;
 	} else {
-		dev_dbg(sfd->dev,
+		tsp_debug_dbg(true, sfd->dev,
 			"%s: do not excute(same command,%d)\n", __func__, scan_buffer);
 		return count;
 	}
 
 	if (sfd->suspended) {
-		dev_err(sfd->dev, "%s: device is suspended\n", __func__);
+		tsp_debug_err(true, sfd->dev, "%s: device is suspended\n", __func__);
 		return count;
 	}
 
 	rc = cyttsp5_request_exclusive(sfd->dev, CY_REQUEST_EXCLUSIVE_TIMEOUT_SET_PARAM);
 	if (rc < 0) {
-		dev_err(sfd->dev, "%s: request exclusive failed(%d)\n",
+		tsp_debug_err(true, sfd->dev, "%s: request exclusive failed(%d)\n",
 			__func__, rc);
 		return count;
 	}
 
 	rc = inputmethod_set_param(sfd);
 	if (rc) {
-		dev_err(sfd->dev, "%s: error on set input method rc=%d\n",
+		tsp_debug_err(true, sfd->dev, "%s: error on set input method rc=%d\n",
 			__func__, rc);
 	}
 	if (cyttsp5_release_exclusive(sfd->dev) < 0)
-		dev_err(sfd->dev, "%s: release_exclusive failed\n",
+		tsp_debug_err(true, sfd->dev, "%s: release_exclusive failed\n",
 			__func__);
 
 	return count;
@@ -1612,29 +1623,29 @@ int cyttsp5_samsung_factory_startup_attention(struct device *dev)
 		return 0;
 	}
 
-	dev_dbg(dev, "%s: \n", __func__);
+	tsp_debug_dbg(true, dev, "%s: \n", __func__);
 
 #if SAMSUNG_TOUCH_MODE
 //-- touch mode
 	if (sfd->touch_mode == sfd->touch_mode_default)
-		dev_dbg(sfd->dev,
+		tsp_debug_dbg(true, sfd->dev,
 			"%s: touch mode %s is default value, bypass set param\n",
 			__func__, get_touch_mode_str(sfd->touch_mode));
 	else {
 		rc = sfd->corecmd->cmd->set_param(sfd->dev, 0,
 			PARAM_ID_TOUCH_MODE, sfd->touch_mode);
 		if (rc) {
-			dev_err(sfd->dev, "%s: error on set touch mode rc=%d\n",
+			tsp_debug_err(true, sfd->dev, "%s: error on set touch mode rc=%d\n",
 				__func__, rc);
 			goto exit;
 		}
-		dev_dbg(sfd->dev, "%s: touch_mode=%s\n", __func__,
+		tsp_debug_dbg(true, sfd->dev, "%s: touch_mode=%s\n", __func__,
 			get_touch_mode_str(sfd->touch_mode));
 	}
 
 //-- view cover mode
 	if (sfd->view_cover_closed == PARAM_ID_VIEW_COVER_MODE_DEFAULT)
-		dev_dbg(sfd->dev,
+		tsp_debug_dbg(true, sfd->dev,
 			"%s: view cover mode %x is default value, bypass set param\n",
 			__func__, sfd->view_cover_closed);
 	else {
@@ -1642,42 +1653,42 @@ int cyttsp5_samsung_factory_startup_attention(struct device *dev)
 			PARAM_ID_VIEW_COVER_MODE,
 			sfd->view_cover_closed);
 		if (rc) {
-			dev_err(sfd->dev,
+			tsp_debug_err(true, sfd->dev,
 				"%s: error on set_param view cover mode\n", __func__);
 			goto exit;
 		}
-		dev_info(sfd->dev, "%s: view_cover_closed=%d\n",
+		tsp_debug_info(true, sfd->dev, "%s: view_cover_closed=%d\n",
 			__func__, sfd->view_cover_closed);
 	}
 #endif
 
 //-- report rate
 	if (sfd->report_rate == PARAM_ID_REPORT_RATE_DEFAULT)
-		dev_dbg(sfd->dev,
+		tsp_debug_dbg(true, sfd->dev,
 			"%s: report_rate %x is default value, bypass set param\n",
 			__func__, sfd->report_rate);
 	else {
 		rc = report_rate_set_param(sfd);
 		if (rc) {
-			dev_err(sfd->dev, "%s: error on set report rate rc=%d\n",
+			tsp_debug_err(true, sfd->dev, "%s: error on set report rate rc=%d\n",
 				__func__, rc);
 		}
-		dev_info(sfd->dev, "%s: report rate=%d\n",
+		tsp_debug_info(true, sfd->dev, "%s: report rate=%d\n",
 			__func__, sfd->report_rate);
 	}
 
 //-- input method
 	if (sfd->is_inputmethod == PARAM_ID_SEPERATE_VELOCITY_MODE_DEFAULT)
-		dev_dbg(sfd->dev,
+		tsp_debug_dbg(true, sfd->dev,
 			"%s: input method %x is default value, bypass set param\n",
 			__func__, sfd->is_inputmethod);
 	else {
 		rc = inputmethod_set_param(sfd);
 		if (rc) {
-			dev_err(sfd->dev, "%s: error on set input method rc=%d\n",
+			tsp_debug_err(true, sfd->dev, "%s: error on set input method rc=%d\n",
 				__func__, rc);
 		}
-		dev_info(sfd->dev, "%s: input method=%d\n",
+		tsp_debug_info(true, sfd->dev, "%s: input method=%d\n",
 			__func__, sfd->is_inputmethod);
 	}
 #if SAMSUNG_TOUCH_MODE
@@ -1702,7 +1713,7 @@ int cyttsp5_samsung_factory_suspend_attention(struct device *dev)
 		return 0;
 	}
 
-	dev_dbg(dev, "%s: \n", __func__);
+	tsp_debug_dbg(false, dev, "%s: \n", __func__);
 
 	sfd->suspended = 1;
 	return 0;
@@ -1723,27 +1734,27 @@ int cyttsp5_samsung_factory_probe(struct device *dev)
 
 	sfd->corecmd = cyttsp5_get_commands();
 	if (!sfd->corecmd) {
-		dev_err(dev, "%s: core cmd not available\n", __func__);
+		tsp_debug_err(true, dev, "%s: core cmd not available\n", __func__);
 		rc = -EINVAL;
 		goto error_return;
 	}
 
 	sfd->si = _cyttsp5_request_sysinfo(dev);
 	if (!sfd->si) {
-		dev_err(dev, "%s: Fail get sysinfo pointer from core\n", __func__);
+		tsp_debug_err(true, dev, "%s: Fail get sysinfo pointer from core\n", __func__);
 		rc = -EINVAL;
 		goto error_return;
 	}
 
-	dev_dbg(dev, "%s: electrodes_x=%d\n", __func__,
+	tsp_debug_dbg(false, dev, "%s: electrodes_x=%d\n", __func__,
 		sfd->si->sensing_conf_data.electrodes_x);
-	dev_dbg(dev, "%s: electrodes_y=%d\n", __func__,
+	tsp_debug_dbg(false, dev, "%s: electrodes_y=%d\n", __func__,
 		sfd->si->sensing_conf_data.electrodes_y);
 
 	sfd->num_all_nodes = sfd->si->sensing_conf_data.electrodes_x *
 		sfd->si->sensing_conf_data.electrodes_y;
 	if (sfd->num_all_nodes > MAX_NODE_NUM) {
-		dev_err(dev, "%s: sensor node num(%d) exceeds limits\n", __func__,
+		tsp_debug_err(true, dev, "%s: sensor node num(%d) exceeds limits\n", __func__,
 			sfd->num_all_nodes);
 		rc = -EINVAL;
 		goto error_return;
@@ -1752,7 +1763,7 @@ int cyttsp5_samsung_factory_probe(struct device *dev)
 	sfd->raw.buf = kzalloc((MAX_INPUT_HEADER_SIZE +
 		sfd->num_all_nodes * 2), GFP_KERNEL);
 	if (sfd->raw.buf == NULL) {
-		dev_err(dev, "%s: Error, kzalloc sfd->raw.buf\n", __func__);
+		tsp_debug_err(true, dev, "%s: Error, kzalloc sfd->raw.buf\n", __func__);
 		rc = -ENOMEM;
 		goto error_return;
 	}
@@ -1760,7 +1771,7 @@ int cyttsp5_samsung_factory_probe(struct device *dev)
 	sfd->diff.buf = kzalloc((MAX_INPUT_HEADER_SIZE +
 		sfd->num_all_nodes * 2), GFP_KERNEL);
 	if (sfd->diff.buf == NULL) {
-		dev_err(dev, "%s: Error, kzalloc sfd->diff.buf\n", __func__);
+		tsp_debug_err(true, dev, "%s: Error, kzalloc sfd->diff.buf\n", __func__);
 		rc = -ENOMEM;
 		goto error_alloc_difference_buf;
 	}
@@ -1768,7 +1779,7 @@ int cyttsp5_samsung_factory_probe(struct device *dev)
 	sfd->mutual_idac.buf = kzalloc((MAX_INPUT_HEADER_SIZE +
 		gidac_node_num(sfd) + lidac_node_num(sfd)), GFP_KERNEL);
 	if (sfd->mutual_idac.buf == NULL) {
-		dev_err(dev, "%s: Error, kzalloc sfd->mutual_idac.buf\n", __func__);
+		tsp_debug_err(true, dev, "%s: Error, kzalloc sfd->mutual_idac.buf\n", __func__);
 		rc = -ENOMEM;
 		goto error_alloc_idac_buf;
 	}
@@ -1782,30 +1793,30 @@ int cyttsp5_samsung_factory_probe(struct device *dev)
 
 	sfd->sec_dev = sec_device_create(sfd, "sec_touchscreen");
 	if (IS_ERR(sfd->sec_dev)) {
-		dev_err(sfd->dev, "Failed to create device sec_touchscreen\n");
+		tsp_debug_err(true, sfd->dev, "Failed to create device sec_touchscreen\n");
 		goto error_device_create_sec_dev;
 	}
-	dev_dbg(dev, "%s sfd->sec_dev->devt=%d\n",
+	tsp_debug_dbg(true, dev, "%s sfd->sec_dev->devt=%d\n",
 		__func__, sfd->sec_dev->devt);
 
 	if (device_create_file(sfd->sec_dev, &dev_attr_set_tsp_for_inputmethod) < 0) {
-		dev_err(sfd->dev, "Failed to create device file(%s)\n",
+		tsp_debug_err(true, sfd->dev, "Failed to create device file(%s)\n",
 			dev_attr_set_tsp_for_inputmethod.attr.name);
 		goto error_device_create_file;
 	}
 
 	sfd->factory_dev = sec_device_create(sfd, "tsp");
 	if (IS_ERR(sfd->factory_dev)) {
-		dev_err(sfd->dev, "Failed to create device for the sysfs\n");
+		tsp_debug_err(true, sfd->dev, "Failed to create device for the sysfs\n");
 		goto error_device_create_factory_dev;
 	}
-	dev_dbg(dev, "%s sfd->factory_dev->devt=%d\n",
+	tsp_debug_dbg(true, dev, "%s sfd->factory_dev->devt=%d\n",
 		__func__, sfd->factory_dev->devt);
 
 	rc = sysfs_create_link(&sfd->factory_dev->kobj,
 		&cd->md.input->dev.kobj, "input");
 	if (rc < 0) {
-		dev_err(sfd->dev,
+		tsp_debug_err(true, sfd->dev,
 			"%s: Failed to create input symbolic link\n",
 			__func__);
 	}
@@ -1813,7 +1824,7 @@ int cyttsp5_samsung_factory_probe(struct device *dev)
 	rc = sysfs_create_group(&sfd->factory_dev->kobj,
 		&sec_touch_factory_attr_group);
 	if (rc) {
-		dev_err(sfd->dev, "Failed to create sysfs group\n");
+		tsp_debug_err(true, sfd->dev, "Failed to create sysfs group\n");
 		goto error_sysfs_create_group;
 	}
 
@@ -1822,13 +1833,13 @@ int cyttsp5_samsung_factory_probe(struct device *dev)
 	rc = sfd->corecmd->cmd->get_param(sfd->dev, 1,
 		PARAM_ID_TOUCH_MODE, &sfd->touch_mode_default);
 	if (rc) {
-		dev_err(dev, "%s: get_param failed r=%d\n",
+		tsp_debug_err(true, dev, "%s: get_param failed r=%d\n",
 			__func__, rc);
 		sfd->touch_mode_default = PARAM_ID_TOUCH_MODE_DEFAULT;
 	}
 	sfd->touch_mode = sfd->touch_mode_default;
 #if SAMSUNG_TOUCH_MODE
-	dev_dbg(sfd->dev, "%s: touch_mode=%s\n", __func__,
+	tsp_debug_dbg(true, sfd->dev, "%s: touch_mode=%s\n", __func__,
 		get_touch_mode_str(sfd->touch_mode));
 #endif
 
@@ -1838,7 +1849,7 @@ int cyttsp5_samsung_factory_probe(struct device *dev)
 
 	sfd->cal_done = false;
 	sfd->probe_done = 1;
-	dev_dbg(sfd->dev, "%s: success. rc=%d\n", __func__, rc);
+	tsp_debug_dbg(true, sfd->dev, "%s: success. rc=%d\n", __func__, rc);
 	return 0;
 
 error_sysfs_create_group:
@@ -1854,7 +1865,7 @@ error_alloc_idac_buf:
 error_alloc_difference_buf:
 	kfree(sfd->raw.buf);
 error_return:
-	dev_err(dev, "%s failed. rc=%d\n", __func__, rc);
+	tsp_debug_err(true, dev, "%s failed. rc=%d\n", __func__, rc);
 	return rc;
 }
 
@@ -1866,11 +1877,11 @@ int cyttsp5_samsung_factory_release(struct device *dev)
 	if (sfd->sysfs_nodes_created) {
 		sysfs_remove_group(&sfd->factory_dev->kobj,
 			&sec_touch_factory_attr_group);
-		dev_dbg(dev, "%s sfd->factory_dev->devt=%d\n",
+		tsp_debug_dbg(false, dev, "%s sfd->factory_dev->devt=%d\n",
 			__func__, sfd->factory_dev->devt);
 		sec_device_destroy(sfd->factory_dev->devt);
 		device_remove_file(sfd->sec_dev, &dev_attr_set_tsp_for_inputmethod);
-		dev_dbg(dev, "%s sfd->sec_dev->devt=%d\n",
+		tsp_debug_dbg(true, dev, "%s sfd->sec_dev->devt=%d\n",
 			__func__, sfd->sec_dev->devt);
 		sec_device_destroy(sfd->sec_dev->devt);
 
@@ -1879,7 +1890,7 @@ int cyttsp5_samsung_factory_release(struct device *dev)
 		kfree(sfd->raw.buf);
 		sfd->sysfs_nodes_created = false;
 	}
-	dev_dbg(dev, "%s\n",__func__);
+	tsp_debug_dbg(true, dev, "%s\n",__func__);
 
 	return 0;
 }

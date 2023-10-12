@@ -21,7 +21,7 @@
 	model_info-platform = "android";
 	model_info-subtype = "samsung";
 	model_info-hw_rev = <0>;
-	model_info-hw_rev_end = <255>;
+	model_info-hw_rev_end = <1>;
 	compatible = "samsung,UNIVERSAL3475", "samsung,exynos3475";
 
 	hsi2c@13870000 {
@@ -81,7 +81,7 @@
 				compatible = "siliconmitus,sm5703-fled";
 				enable = <1 1>;
 				flash_current = <1000>;
-				preflash_current = <180>;
+				preflash_current = <120>;
 				movie_current = <180>;
 				torch_current = <60>;
 				factory_current = <240>;
@@ -117,7 +117,7 @@
 		pinctrl-0=<&bt_hostwake &bt_btwake &bt_reg_on>;
 		status = "okay";
 	};
-	
+
 	pinctrl@138C0000 {
 		es704_reset: es704-reset {
 			samsung,pins ="gpc2-2";
@@ -134,7 +134,7 @@
 			samsung,pins = "gpq0-2";
 			samsung,pin-function = <3>;
 			samsung,pin-pud = <1>;
-			samsung,pin-drv = <0>;
+			samsung,pin-drv = <8>;
 		};
 
 		es704_bclk_idle: es704-bclk-idle {
@@ -187,7 +187,7 @@
 			adnc,dhwpt_mode = <72>;
 		};
 	};
-	
+
 	sec_vib {
 		compatible = "sec_vib";
 		sec_vib_pdata {
@@ -207,7 +207,7 @@
 		prox_int: prox_int {
 			samsung,pins = "gpa1-7";
 			samsung,pins-function = <0x0>;
-			samsung,pin-pud = <3>;
+			samsung,pin-pud = <0>;
 			samsung,pin-drv = <0>;
 		};
 	};
@@ -234,25 +234,29 @@
 			k2hh,min_interval = <2>;
 		};
 
-		cm36672p@60 {
-			compatible = "cm36672p";
-			reg = <0x60>;
+		stk3013@48 {
+			compatible = "stk,stk3013";
+			reg = <0x48>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&prox_int>;
-			interrupt-parent = <&gpa1>;
+			interrupt-parent =  <&gpa1>;
 			interrupts = <7 0 0>;
-			cm36672p,vdd-supply = <&sm5703_ldo3>;
-			cm36672p,vio-supply = <&ldo23_reg>;
-			cm36672p,vled-supply = <&ldo25_reg>;
-			cm36672p,irq_gpio = <&gpa1 7 0>;
-			cm36672p,default_hi_thd = <17>;
-			cm36672p,default_low_thd = <13>;
-			cm36672p,cancel_hi_thd = <10>;
-			cm36672p,cancel_low_thd = <7>;
-			cm36672p,ps_duty = <2>;
-			cm36672p,ps_it = <4>;
-			cm36672p,led_current = <5>;
-			cm36672p,default_trim = <0>;
+			stk,vdd-supply = <&sm5703_ldo3>;
+			stk,vio-supply = <&ldo25_reg>;
+			stk,irq-gpio = <&gpa1 7 0>;
+			stk,state-reg = <0x2d>;
+			stk,psctrl-reg = <0x72>;
+			stk,alsctrl-reg = <0x2A>;
+			stk,ledctrl-reg = <0xB8>;
+			stk,wait-reg = <0x03>;
+			stk,ps-thd-h = <20>;
+			stk,ps-thd-l = <13>;
+			stk,ps-cancel-thd-h = <9>;
+			stk,ps-cancel-thd-l = <6>;
+			stk,ps-cal-skip-adc = <8>;
+			stk,ps-cal-fail-adc = <17>;
+			stk,ps-default-offset = <0>;
+			stk,transmittance = <500>;
 		};
 	};
 };

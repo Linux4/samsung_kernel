@@ -1581,15 +1581,31 @@ int copy_sensor_ctl(struct fimc_is_sensor_interface *itf,
 	sensor_peri = container_of(itf, struct fimc_is_device_sensor_peri, sensor_interface);
 	sensor_ctl = &sensor_peri->cis.sensor_ctls[index];
 
-	if (shot == NULL) {
-		sensor_ctl->ctl_frame_number = 0;
-		sensor_ctl->valid_sensor_ctrl = false;
-		sensor_ctl->is_sensor_request = false;
-	} else {
+	sensor_ctl->ctl_frame_number = 0;
+	sensor_ctl->valid_sensor_ctrl = false;
+	sensor_ctl->is_sensor_request = false;
+
+	if (shot != NULL) {
 		sensor_ctl->ctl_frame_number = shot->dm.request.frameCount;
 		sensor_ctl->cur_cam20_sensor_ctrl = shot->ctl.sensor;
-		sensor_ctl->valid_sensor_ctrl = true;
-		sensor_ctl->is_sensor_request = true;
+
+		/* set frame rate : Limit of max frame duration
+		 * Frame duration is set by
+		 * 1. Manual sensor control
+		 *     - For HAL3.2
+		 *     - AE_MODE is OFF and ctl.sensor.frameDuration is not 0.
+		 * 2. Target FPS Range
+		 *     - For backward compatibility
+		 *     - In case of AE_MODE is not OFF and aeTargetFpsRange[0] is not 0,
+		 *       frame durtaion is 1000000us / aeTargetFpsRage[0]
+		 */
+		if (shot->ctl.aa.aeMode == AA_AEMODE_OFF) {
+			sensor_ctl->valid_sensor_ctrl = true;
+			sensor_ctl->is_sensor_request = true;
+		} else if (shot->ctl.aa.aeTargetFpsRange[1] != 0) {
+			u32 duration_us = 1000000 / shot->ctl.aa.aeTargetFpsRange[1];
+			sensor_ctl->cur_cam20_sensor_udctrl.frameDuration = fimc_is_sensor_convert_us_to_ns(duration_us);
+		}
 	}
 
 	return ret;

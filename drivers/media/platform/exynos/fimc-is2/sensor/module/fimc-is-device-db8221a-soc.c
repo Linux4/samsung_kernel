@@ -38,9 +38,16 @@
 #include "fimc-is-hw.h"
 #include "fimc-is-dt.h"
 #include "fimc-is-device-db8221a-soc.h"
+
+#if defined(CONFIG_CAMERA_ON5LTE)
+#include "fimc-is-device-db8221a-soc-reg_on5_tmo.h" /* DB8221A : setfile for ON5_TMO */
+#else
 #include "fimc-is-device-db8221a-soc-reg.h"
+#endif
+
 #define SENSOR_NAME "db8221a_soc"
 #define SENSOR_VER "DB8221A-M01F0"
+#define MAX_I2C_RETRY_COUNT 2
 
 static const struct sensor_regset_table db8221a_regset_table = {
 	.init			= SENSOR_REGISTER_REGSET(db8221a_Init_Reg),
@@ -95,9 +102,12 @@ static const struct sensor_regset_table db8221a_regset_table = {
 	.resol_800_600		= SENSOR_REGISTER_REGSET(db8221a_resol_800_600),
 	.resol_1280_960		= SENSOR_REGISTER_REGSET(db8221a_resol_1280_960),
 	.resol_1600_1200	= SENSOR_REGISTER_REGSET(db8221a_resol_1600_1200),
-	.camcoder_640_480	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_640_480),
-	.camcoder_352_288	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_352_288),
-	.camcoder_176_144	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_176_144),
+	.camcoder_640_480_50Hz	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_640_480_50Hz),
+	.camcoder_640_480_60Hz	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_640_480_60Hz),
+	.camcoder_352_288_50Hz	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_352_288_50Hz),
+	.camcoder_352_288_60Hz	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_352_288_60Hz),
+	.camcoder_176_144_50Hz	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_176_144_50Hz),
+	.camcoder_176_144_60Hz	= SENSOR_REGISTER_REGSET(db8221a_24fps_camcoder_176_144_60Hz),
 
 	.dtp_on			= SENSOR_REGISTER_REGSET(db8221a_DTP_On),
 	.dtp_off		= SENSOR_REGISTER_REGSET(db8221a_DTP_Off),
@@ -119,9 +129,9 @@ static struct fimc_is_sensor_cfg settle_db8221a[] = {
 	FIMC_IS_SENSOR_CFG(1280, 960, 15, 12, 1),
 	FIMC_IS_SENSOR_CFG(800, 600, 15, 12, 2),
 	FIMC_IS_SENSOR_CFG(704, 576, 15, 12, 3),
-	FIMC_IS_SENSOR_CFG(640, 480, 30, 6, 4),
-	FIMC_IS_SENSOR_CFG(640, 480, 24, 6, 5),
-	FIMC_IS_SENSOR_CFG(352, 288, 15, 6, 6),
+	FIMC_IS_SENSOR_CFG(640, 480, 30, 12, 4),
+	FIMC_IS_SENSOR_CFG(640, 480, 24, 12, 5),
+	FIMC_IS_SENSOR_CFG(352, 288, 15, 12, 6),
 	FIMC_IS_SENSOR_CFG(176, 144, 15, 12, 7),
 };
 
@@ -225,6 +235,7 @@ static int fimc_is_db8221a_write8(struct i2c_client *client, u8 addr, u8 val)
 	int ret = 0;
 	struct i2c_msg msg[1];
 	u8 wbuf[3];
+	int retry_count = MAX_I2C_RETRY_COUNT;
 
 	if (!client->adapter) {
 		cam_err("Could not find adapter!\n");
@@ -243,7 +254,15 @@ static int fimc_is_db8221a_write8(struct i2c_client *client, u8 addr, u8 val)
 		cam_info("%s : use delay (%d ms) in I2C Write \n", __func__, val);
 		msleep(val);
 	} else {
-		ret = i2c_transfer(client->adapter, msg, 1);
+		do {
+			ret = i2c_transfer(client->adapter, msg, 1);
+			if (likely(ret == 1))
+				break;
+			cam_info("%s : I2C communication failed so retry communication: retry count : %d \n", 
+				__func__, retry_count);
+			msleep(10);
+		} while (retry_count-- > 0);
+
 		if (ret < 0) {
 			cam_err("i2c transfer fail(%d)", ret);
 			cam_info("I2CW08(0x%04X) [0x%04X] : 0x%04X\n", client->addr, addr, val);
@@ -611,7 +630,7 @@ static int db8221a_set_frame_rate(struct v4l2_subdev *subdev, s32 fps)
 		return 0;
 	}
 
-	if (fps == state->fps) {
+	if ((fps == state->fps) && (state->vt_mode == VT_MODE_OFF)) {
 		cam_info("skip same fps: fps:%d, state->fps:%d\n", fps, state->fps);
 		return 0;
 	}
@@ -647,15 +666,28 @@ static int db8221a_set_frame_rate(struct v4l2_subdev *subdev, s32 fps)
 			width = state->preview.frmsize->width;
 			height = state->preview.frmsize->height;
 
-			if (width == 352 && height == 288) {
-				ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_352_288",
-					&db8221a_regset_table.camcoder_352_288);
-			} else if (width == 176 && height == 144) {
-				ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_176_144",
-					&db8221a_regset_table.camcoder_176_144);
-			} else {
-				ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_640_480",
-					&db8221a_regset_table.camcoder_640_480);
+			if (state->anti_banding == ANTI_BANDING_60HZ) {
+				if (width == 352 && height == 288) {
+					ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_352_288_60Hz",
+						&db8221a_regset_table.camcoder_352_288_60Hz);
+				} else if (width == 176 && height == 144) {
+					ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_176_144_60Hz",
+						&db8221a_regset_table.camcoder_176_144_60Hz);
+				} else {
+					ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_640_480_60Hz",
+						&db8221a_regset_table.camcoder_640_480_60Hz);
+				}
+			} else { /* ANTI_BANDING_50HZ */
+				if (width == 352 && height == 288) {
+					ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_352_288_50Hz",
+						&db8221a_regset_table.camcoder_352_288_50Hz);
+				} else if (width == 176 && height == 144) {
+					ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_176_144_50Hz",
+						&db8221a_regset_table.camcoder_176_144_50Hz);
+				} else {
+					ret = sensor_db8221a_apply_set(subdev, "db8221a_24fps_camcoder_640_480_50Hz",
+						&db8221a_regset_table.camcoder_640_480_50Hz);
+				}				
 			}
 			db8221a_set_anti_banding(subdev, state->anti_banding);
 		}
@@ -1361,6 +1393,13 @@ static int db8221a_start_preview(struct v4l2_subdev *subdev)
 	/* Set preview size */
 	err = db8221a_set_preview_size(subdev);
 	CHECK_ERR_MSG(err, "failed to set preview size(%d)\n", err);
+
+	/* VT_MODE fps update */
+	if (state->vt_mode != VT_MODE_OFF) {
+		cam_info("update fps to %d for vt_mode %d\n", state->fps, state->vt_mode);
+		err = db8221a_set_frame_rate(subdev, state->fps);
+		CHECK_ERR(err);
+	}
 
 	err = sensor_db8221a_stream_on(subdev);
 	CHECK_ERR(err);

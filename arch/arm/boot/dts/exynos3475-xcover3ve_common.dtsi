@@ -331,7 +331,6 @@
 			mic-bias2-voltage = <1>;
 			mic-bias-ldo-voltage = <3>;
 			use-btn-adc-mode;
-			use-ldet-threshold;
 			io-channels = <&exynos_adc 2>;
 			io-channel-names = "adc-jack";
 			#io-channel-cells = <1>;
@@ -627,6 +626,7 @@
 		fixed_volt;
 		clock-gate;
 		enable-cclk-on-suspend;
+		enable-low-pwr;
 		caps-control;
 		supports-highspeed;
 		not-allow-single-dma;
@@ -755,8 +755,8 @@
 		resolution = <480 800>;
 		size = <59 98>;
 		timing,refresh = <60>;
-		/* HBP:220, HFP:160, HSW:4 */
-		timing,h-porch = <220 160 4>;
+		/* HBP:190, HFP:160, HSW:4 */
+		timing,h-porch = <190 160 4>;
 		/* VBP:12, VFP:10, VSW:4 */
 		timing,v-porch = <12 10 4>;
 		timing,dsi-hs-clk = <510>;
@@ -1187,6 +1187,28 @@
 			net_boost,table_size = <1>;
 			net_boost,table= < 1 0 0 0 0 0 1 >;
 		};
+		
+		 boot_device@3 {
+			net_boost,label="P2P";
+			net_boost,node="p2p-wlan0-0";
+			net_boost,table_size = <3>;
+			net_boost,table= <
+				30 1196000 0 413000 0 0 0
+				50 1300000 0 413000 275000 0 0
+				90 1300000 0 666000 275000 1 1
+				>;
+		};
+		boot_device@4 {
+			net_boost,label="WIFI";
+			net_boost,node="wlan0";
+			net_boost,table_size = <3>;
+			net_boost,table= <
+				10 1001000 0 413000 0 0 0
+				60 1300000 0 666000 275000 1 1
+				120 1300000 0 666000 275000 1 1
+				>;
+		 };
+	
 		/* Example
 		   boot_device@2 {
 		   net_boost,label="EMMC";

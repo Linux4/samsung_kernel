@@ -57,6 +57,46 @@
 #include <linux/vbus_notifier.h>
 #endif
 
+#ifdef CONFIG_SEC_DEBUG_TSP_LOG
+#include <linux/sec_debug.h>
+#endif
+
+#ifdef CONFIG_SEC_DEBUG_TSP_LOG
+#define tsp_debug_dbg(mode, dev, fmt, ...)	\
+({								\
+	if (mode) {					\
+		dev_dbg(dev, fmt, ## __VA_ARGS__);	\
+		sec_debug_tsp_log(fmt, ## __VA_ARGS__);		\
+	}				\
+	else					\
+		dev_dbg(dev, fmt, ## __VA_ARGS__);	\
+})
+
+#define tsp_debug_info(mode, dev, fmt, ...)	\
+({								\
+	if (mode) {							\
+		dev_info(dev, fmt, ## __VA_ARGS__);		\
+		sec_debug_tsp_log(fmt, ## __VA_ARGS__);		\
+	}				\
+	else					\
+		dev_info(dev, fmt, ## __VA_ARGS__);	\
+})
+
+#define tsp_debug_err(mode, dev, fmt, ...)	\
+({								\
+	if (mode) {					\
+		dev_err(dev, fmt, ## __VA_ARGS__);	\
+		sec_debug_tsp_log(fmt, ## __VA_ARGS__);	\
+	}				\
+	else					\
+		dev_err(dev, fmt, ## __VA_ARGS__); \
+})
+#else
+#define tsp_debug_dbg(mode, dev, fmt, ...)	dev_dbg(dev, fmt, ## __VA_ARGS__)
+#define tsp_debug_info(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__)
+#define tsp_debug_err(mode, dev, fmt, ...)	dev_err(dev, fmt, ## __VA_ARGS__)
+#endif
+
 #define TTHE_TUNER_SUPPORT				1
 #define RTD_TUNER_SUPPORT				1
 #define SAMSUNG_FACTORY_TEST				1

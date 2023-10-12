@@ -66,6 +66,8 @@ static struct delayed_work chk_route_st_and_recfg_work;
 static long cnt_reconfig;
 #endif
 
+#define AVOID_GLITCH_SOUND /* Use for only ON5 TMO */
+
 #if defined(CONFIG_SND_SOC_ESXXX_SEAMLESS_VOICE_WAKEUP)
 #define ES705_NO_EVENT			0x0000
 
@@ -727,6 +729,17 @@ static int es705_chk_route_id_for_dhwpt(long route_index)
 	return rc;
 }
 
+static void SetSmoothRate(u16 SmoothRate)
+{
+	struct es705_priv *es705 = &es705_priv;
+	int rc = 0;
+	u32 cmd = (ES705_SET_SMOOTH << 16) | (SmoothRate & 0xFFFF);
+
+	rc = es705_cmd(es705, cmd);
+	usleep_range(5000, 5500);
+	dev_info(es705->dev, "%s: SmoothRate is %d\n", __func__, SmoothRate);
+}
+
 static void es705_switch_route(long route_index)
 {
 	struct es705_priv *es705 = &es705_priv;
@@ -763,6 +776,15 @@ static void es705_switch_route(long route_index)
 		es705->current_veq = -1;
 		return;
 	}
+
+#if defined(AVOID_GLITCH_SOUND)
+	/* 
+	* Output audio is automatically muted 
+	* when changing routes or certain route parameters.
+	* sometimes, audio glitches may occur and cause unacceptable noise 
+	*/
+	SetSmoothRate(900);
+#endif
 
 	rc = es705_write_block(es705,
 			       &es705_route_configs[route_index][0]);

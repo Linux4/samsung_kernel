@@ -1974,9 +1974,9 @@ static inline u16 read_ap2cp_irq(struct mem_link_device *mld)
 	return mbox_get_value(mld->mbx_ap2cp_msg);
 }
 
-#define SHMEM_SRINFO_OFFSET 0xF00 /* 4KB - 0x100 */
-#define SHMEM_SRINFO_SBD_OFFSET 0xFF00 /* 64KB - 0x100 */
-#define SHMEM_SRINFO_SIZE 0x100
+#define SHMEM_SRINFO_OFFSET 0x800 /* 4KB - 2KB */
+#define SHMEM_SRINFO_SBD_OFFSET 0xF800 /* 64KB - 2KB */
+#define SHMEM_SRINFO_SIZE 0x800
 #define SHMEM_SRINFO_DATA_STR 64
 
 struct shmem_srinfo {
@@ -2001,25 +2001,6 @@ static int shmem_ioctl(struct link_device *ld, struct io_device *iod,
 	mif_info("%s: cmd 0x%08X\n", ld->name, cmd);
 
 	switch (cmd) {
-	case IOCTL_MODEM_GET_SHMEM_INFO:
-	{
-		struct shdmem_info mem_info;
-		void __user *dst;
-		unsigned long size;
-
-		mif_info("%s: IOCTL_MODEM_GET_SHMEM_INFO\n", ld->name);
-
-		mem_info.base = shm_get_phys_base();
-		mem_info.size = shm_get_phys_size();
-		dst = (void __user *)arg;
-		size = sizeof(struct shdmem_info);
-
-		if (copy_to_user(dst, &mem_info, size))
-			return -EFAULT;
-
-		break;
-	}
-
 	case IOCTL_MODEM_GET_SHMEM_SRINFO:
 	{
 		struct shmem_srinfo __user *sr_arg =

@@ -954,6 +954,9 @@ static void reset_ctrl_regs(void *unused)
 		/* ARMv6 cores clear the registers out of reset. */
 		goto out_mdbgen;
 	case ARM_DEBUG_ARCH_V7_ECP14:
+		ARM_DBG_WRITE(c1, c0, 4, CS_LAR_KEY);
+		isb();
+
 		/*
 		 * Ensure sticky power-down is clear (i.e. debug logic is
 		 * powered up).
@@ -966,6 +969,8 @@ static void reset_ctrl_regs(void *unused)
 			goto clear_vcr;
 		break;
 	case ARM_DEBUG_ARCH_V7_1:
+		ARM_DBG_WRITE(c1, c0, 4, CS_LAR_KEY);
+		isb();
 		/*
 		 * Ensure the OS double lock is clear.
 		 */
@@ -980,13 +985,6 @@ static void reset_ctrl_regs(void *unused)
 		cpumask_or(&debug_err_mask, &debug_err_mask, cpumask_of(cpu));
 		return;
 	}
-
-	/*
-	 * Unconditionally clear the OS lock by writing a value
-	 * other than CS_LAR_KEY to the access register.
-	 */
-	ARM_DBG_WRITE(c1, c0, 4, ~CS_LAR_KEY);
-	isb();
 
 	/*
 	 * Clear any configured vector-catch events before

@@ -131,40 +131,40 @@ static int cyttsp5_check_firmware_version(struct device *dev,
 	fw_ver_img = ld->si->cydata.fw_ver_major << 8;
 	fw_ver_img += ld->si->cydata.fw_ver_minor;
 
-	dev_dbg(dev, "%s: img vers:0x%04X new vers:0x%04X\n", __func__,
+	tsp_debug_dbg(true, dev, "%s: img vers:0x%04X new vers:0x%04X\n", __func__,
 			fw_ver_img, fw_ver_new);
 
 	if (0) {
-		dev_dbg(dev, "%s: block update, will not upgrade\n",
+		tsp_debug_dbg(true, dev, "%s: block update, will not upgrade\n",
 				__func__);
 		return -1;
 	}
 
 	if (fw_ver_new > fw_ver_img) {
-		dev_dbg(dev, "%s: Image is newer, will upgrade\n",
+		tsp_debug_dbg(true, dev, "%s: Image is newer, will upgrade\n",
 				__func__);
 		return 1;
 	}
 
 	if (fw_ver_new < fw_ver_img) {
-		dev_dbg(dev, "%s: Image is older, will NOT upgrade\n",
+		tsp_debug_dbg(true, dev, "%s: Image is older, will NOT upgrade\n",
 				__func__);
 		return -1;
 	}
 
 	fw_revctrl_img = ld->si->cydata.revctrl;
 
-	dev_dbg(dev, "%s: img revctrl:0x%04X new revctrl:0x%04X\n",
+	tsp_debug_dbg(true, dev, "%s: img revctrl:0x%04X new revctrl:0x%04X\n",
 			__func__, fw_revctrl_img, fw_revctrl_new);
 
 	if (fw_revctrl_new > fw_revctrl_img) {
-		dev_dbg(dev, "%s: Image is newer, will upgrade\n",
+		tsp_debug_dbg(true, dev, "%s: Image is newer, will upgrade\n",
 				__func__);
 		return 1;
 	}
 
 	if (fw_revctrl_new < fw_revctrl_img) {
-		dev_dbg(dev, "%s: Image is older, will NOT upgrade\n",
+		tsp_debug_dbg(true, dev, "%s: Image is older, will NOT upgrade\n",
 				__func__);
 		return -1;
 	}
@@ -202,10 +202,10 @@ static int cyttsp5_ldr_enter_(struct device *dev, struct cyttsp5_dev_id *dev_id)
 		return -EINVAL;
 
 	if (mode == CY_MODE_BOOTLOADER)
-		dev_info(dev, "%s: Bootloader mode\n", __func__);
+		tsp_debug_info(true, dev, "%s: Bootloader mode\n", __func__);
 	else
 	if (mode == CY_MODE_OPERATIONAL) {
-		dev_info(dev, "%s: Operational mode\n", __func__);
+		tsp_debug_info(true, dev, "%s: Operational mode\n", __func__);
 		rc = cmd->cmd->start_bl(dev, 0);
 		if (rc < 0)
 			return rc;
@@ -240,7 +240,7 @@ static int cyttsp5_ldr_parse_row_(struct device *dev, u8 *row_buf,
 	row_image->row_size = get_unaligned_be16(&row_buf[CY_ROW_SIZE_OFFSET]);
 
 	if (row_image->row_size > ARRAY_SIZE(row_image->row_data)) {
-		dev_err(dev, "%s: row data buffer overflow\n", __func__);
+		tsp_debug_err(true, dev, "%s: row data buffer overflow\n", __func__);
 		rc = -EOVERFLOW;
 		goto cyttsp5_ldr_parse_row_exit;
 	}
@@ -301,12 +301,12 @@ static int cyttsp5_load_app_(struct device *dev, const u8 *fw, int fw_size)
 
 	image_rec_size = sizeof(struct cyttsp5_hex_image);
 	if (fw_size % image_rec_size != 0) {
-		dev_err(dev, "%s: Firmware image is misaligned\n", __func__);
+		tsp_debug_err(true, dev, "%s: Firmware image is misaligned\n", __func__);
 		rc = -EINVAL;
 		goto _cyttsp5_load_app_error;
 	}
 
-	dev_info(dev, "%s: start load app\n", __func__);
+	tsp_debug_info(true, dev, "%s: start load app\n", __func__);
 #if TTHE_TUNER_SUPPORT
 	cmd->request_tthe_print(dev, NULL, 0, "start load app");
 #endif
@@ -315,7 +315,7 @@ static int cyttsp5_load_app_(struct device *dev, const u8 *fw, int fw_size)
 	row_image = kzalloc(sizeof(struct cyttsp5_hex_image), GFP_KERNEL);
 	dev_id = kzalloc(sizeof(struct cyttsp5_dev_id), GFP_KERNEL);
 	if (!row_buf || !row_image || !dev_id) {
-		dev_err(dev, "%s: Unable to alloc row buffers(%p %p %p)\n",
+		tsp_debug_err(true, dev, "%s: Unable to alloc row buffers(%p %p %p)\n",
 			__func__, row_buf, row_image, dev_id);
 		rc = -ENOMEM;
 		goto _cyttsp5_load_app_exit;
@@ -323,17 +323,17 @@ static int cyttsp5_load_app_(struct device *dev, const u8 *fw, int fw_size)
 
 	cmd->request_stop_wd(dev);
 
-	dev_info(dev, "%s: Send BL Loader Enter\n", __func__);
+	tsp_debug_info(true, dev, "%s: Send BL Loader Enter\n", __func__);
 #if TTHE_TUNER_SUPPORT
 	cmd->request_tthe_print(dev, NULL, 0, "Send BL Loader Enter");
 #endif
 	rc = cyttsp5_ldr_enter_(dev, dev_id);
 	if (rc) {
-		dev_err(dev, "%s: Error cannot start Loader (ret=%d)\n",
+		tsp_debug_err(true, dev, "%s: Error cannot start Loader (ret=%d)\n",
 			__func__, rc);
 		goto _cyttsp5_load_app_exit;
 	}
-	dev_dbg(dev, "%s: dev: silicon id=%08X rev=%02X bl=%08X\n",
+	tsp_debug_dbg(true, dev, "%s: dev: silicon id=%08X rev=%02X bl=%08X\n",
 		__func__, dev_id->silicon_id,
 		dev_id->rev_id, dev_id->bl_ver);
 
@@ -345,19 +345,19 @@ static int cyttsp5_load_app_(struct device *dev, const u8 *fw, int fw_size)
 	/* initialise bootloader */
 	rc = cyttsp5_ldr_init_(dev, row_image);
 	if (rc) {
-		dev_err(dev, "%s: Error cannot init Loader (ret=%d)\n",
+		tsp_debug_err(true, dev, "%s: Error cannot init Loader (ret=%d)\n",
 			__func__, rc);
 		goto _cyttsp5_load_app_exit;
 	}
 
-	dev_info(dev, "%s: Send BL Loader Blocks\n", __func__);
+	tsp_debug_info(true, dev, "%s: Send BL Loader Blocks\n", __func__);
 #if TTHE_TUNER_SUPPORT
 	cmd->request_tthe_print(dev, NULL, 0, "Send BL Loader Blocks");
 #endif
 	p = (u8 *)fw;
 	while (p < last_row) {
 		/* Get row */
-		dev_dbg(dev, "%s: read row=%d\n", __func__, ++row_count);
+		tsp_debug_dbg(false, dev, "%s: read row=%d\n", __func__, ++row_count);
 		memset(row_buf, 0, row_buf_size);
 		p = cyttsp5_get_row_(dev, row_buf, p, image_rec_size);
 
@@ -370,7 +370,7 @@ static int cyttsp5_load_app_(struct device *dev, const u8 *fw, int fw_size)
 			row_image->row_num, row_image->row_num,
 			row_image->row_size, row_image->row_size);
 		if (rc) {
-			dev_err(dev, "%s: Parse Row Error (a=%d r=%d ret=%d\n",
+			tsp_debug_err(true, dev, "%s: Parse Row Error (a=%d r=%d ret=%d\n",
 				__func__, row_image->array_id,
 				row_image->row_num, rc);
 			goto _cyttsp5_load_app_exit;
@@ -383,7 +383,7 @@ static int cyttsp5_load_app_(struct device *dev, const u8 *fw, int fw_size)
 		/* program row */
 		rc = cyttsp5_ldr_prog_row_(dev, row_image);
 		if (rc) {
-			dev_err(dev, "%s: Program Row Error (array=%d row=%d ret=%d)\n",
+			tsp_debug_err(true, dev, "%s: Program Row Error (array=%d row=%d ret=%d)\n",
 				__func__, row_image->array_id,
 				row_image->row_num, rc);
 			goto _cyttsp5_load_app_exit;
@@ -395,22 +395,22 @@ static int cyttsp5_load_app_(struct device *dev, const u8 *fw, int fw_size)
 	}
 
 	/* exit loader */
-	dev_info(dev, "%s: Send BL Loader Terminate\n", __func__);
+	tsp_debug_info(true, dev, "%s: Send BL Loader Terminate\n", __func__);
 #if TTHE_TUNER_SUPPORT
 	cmd->request_tthe_print(dev, NULL, 0, "Send BL Loader Terminate");
 #endif
 	rc = cyttsp5_ldr_exit_(dev);
 	if (rc) {
-		dev_err(dev, "%s: Error on exit Loader (ret=%d)\n",
+		tsp_debug_err(true, dev, "%s: Error on exit Loader (ret=%d)\n",
 			__func__, rc);
 
 		/* verify app checksum */
 		rc_tmp = cyttsp5_ldr_verify_chksum_(dev);
 		if (rc_tmp)
-			dev_err(dev, "%s: ldr_verify_chksum fail r=%d\n",
+			tsp_debug_err(true, dev, "%s: ldr_verify_chksum fail r=%d\n",
 				__func__, rc_tmp);
 		else
-			dev_info(dev, "%s: APP Checksum Verified\n", __func__);
+			tsp_debug_info(true, dev, "%s: APP Checksum Verified\n", __func__);
 	}
 
 _cyttsp5_load_app_exit:
@@ -429,7 +429,7 @@ static int cyttsp5_upgrade_firmware(struct device *dev, const u8 *fw_img,
 	int rc;
 
 	/*pm_runtime_get_sync(dev);*/
-	dev_dbg(dev, "%s: cmd->request_exclusive = %p\n",
+	tsp_debug_dbg(true, dev, "%s: cmd->request_exclusive = %p\n",
 		__func__, cmd->request_exclusive);
 
 	rc = cmd->request_exclusive(dev, CY_LDR_REQUEST_EXCLUSIVE_TIMEOUT);
@@ -441,14 +441,14 @@ static int cyttsp5_upgrade_firmware(struct device *dev, const u8 *fw_img,
 	while (retry--) {
 		rc = cyttsp5_load_app_(dev, fw_img, fw_size);
 		if (rc < 0)
-			dev_err(dev, "%s: Firmware update failed rc=%d, retry:%d\n",
+			tsp_debug_err(true, dev, "%s: Firmware update failed rc=%d, retry:%d\n",
 				__func__, rc, retry);
 		else
 			break;
 		msleep(20);
 	}
 	if (rc < 0) {
-		dev_err(dev, "%s: Firmware update failed with error code %d\n",
+		tsp_debug_err(true, dev, "%s: Firmware update failed with error code %d\n",
 			__func__, rc);
 	}
 
@@ -478,32 +478,32 @@ static int cyttsp5_check_firmware_version_platform(struct device *dev,
 		cyttsp5_get_samsung_tsp_info(dev);
 	struct cyttsp_samsung_fw_file_ver *fw_file_ver;
 	if (!ld->si) {
-		dev_info(dev, "%s: No firmware infomation found, device FW may be corrupted\n",
+		tsp_debug_info(true, dev, "%s: No firmware infomation found, device FW may be corrupted\n",
 			__func__);
 		return CYTTSP5_AUTO_LOAD_FOR_CORRUPTED_FW;
 	}
 
 	if ((ld->si->cydata.post_code & CY_POST_TT_CFG_CRC_MASK) == 0) {
-		dev_dbg(dev, "%s: POST, TT_CFG failed (0x%04X), will upgrade\n",
+		tsp_debug_dbg(true, dev, "%s: POST, TT_CFG failed (0x%04X), will upgrade\n",
 			__func__, ld->si->cydata.post_code);
 		return CYTTSP5_AUTO_LOAD_FOR_CORRUPTED_FW;
 	}
-	dev_dbg(dev, "%s: POST = 0x%04x\n", __func__, ld->si->cydata.post_code);
+	tsp_debug_dbg(true, dev, "%s: POST = 0x%04x\n", __func__, ld->si->cydata.post_code);
 
 	if (!sti) {
-		dev_info(dev, "%s: Samsung TSP Info Invalid\n",
+		tsp_debug_info(true, dev, "%s: Samsung TSP Info Invalid\n",
 			__func__);
 		return 0;
 	}
 
 	fw_file_ver = (struct cyttsp_samsung_fw_file_ver *)fw->ver;
-	dev_info(dev, "%s: phone hw ver=0x%02x, fw ver=0x%04x\n", __func__,
+	tsp_debug_info(true, dev, "%s: phone hw ver=0x%02x, fw ver=0x%04x\n", __func__,
 		fw_file_ver->hw_ver, get_unaligned_be16(fw_file_ver->fw_ver));
-	dev_info(dev, "%s: tsp hw ver=0x%02x, fw ver=0x%04x\n", __func__,
+	tsp_debug_info(true, dev, "%s: tsp hw ver=0x%02x, fw ver=0x%04x\n", __func__,
 		sti->hw_version, get_unaligned_be16(&sti->fw_versionh));
 
 	if (fw_file_ver->hw_ver >= 0x03 && sti->hw_version < 0x03) {
-		dev_info(dev, "%s: old panel, skip upgrade\n", __func__);
+		tsp_debug_info(true, dev, "%s: old panel, skip upgrade\n", __func__);
 		return 0;
 	}
 
@@ -511,14 +511,14 @@ static int cyttsp5_check_firmware_version_platform(struct device *dev,
 		get_unaligned_be16(&sti->fw_versionh))
 		return 1;
 
-	dev_info(dev, "%s: upgrade not required\n", __func__);
+	tsp_debug_info(true, dev, "%s: upgrade not required\n", __func__);
 #else
 	u32 fw_ver_new;
 	u32 fw_revctrl_new;
 	int upgrade;
 
 	if (!ld->si) {
-		dev_info(dev, "%s: No firmware infomation found, device FW may be corrupted\n",
+		tsp_debug_info(true, dev, "%s: No firmware infomation found, device FW may be corrupted\n",
 			__func__);
 		return CYTTSP5_AUTO_LOAD_FOR_CORRUPTED_FW;
 	}
@@ -543,21 +543,21 @@ static int upgrade_firmware_from_platform(struct device *dev, bool forcedUpgrade
 	int rc = -ENOSYS;
 	int upgrade;
 
-	dev_dbg(dev, "%s: \n", __func__);
+	tsp_debug_dbg(true, dev, "%s: \n", __func__);
 
 	if (!ld->loader_pdata) {
-		dev_err(dev, "%s: No loader platform data\n", __func__);
+		tsp_debug_err(true, dev, "%s: No loader platform data\n", __func__);
 		return rc;
 	}
 
 	fw = ld->loader_pdata->fw;
 	if (!fw || !fw->img || !fw->size) {
-		dev_err(dev, "%s: No platform firmware\n", __func__);
+		tsp_debug_err(true, dev, "%s: No platform firmware\n", __func__);
 		return rc;
 	}
 
 	if (!fw->ver || !fw->vsize) {
-		dev_err(dev, "%s: No platform firmware version\n",
+		tsp_debug_err(true, dev, "%s: No platform firmware version\n",
 			__func__);
 		return rc;
 	}
@@ -565,7 +565,7 @@ static int upgrade_firmware_from_platform(struct device *dev, bool forcedUpgrade
 	upgrade = cyttsp5_check_firmware_version_platform(dev, fw);
 
 	if (forcedUpgrade)
-		dev_info(dev, "%s: forced upgrade\n", __func__);
+		tsp_debug_info(true, dev, "%s: forced upgrade\n", __func__);
 	if (upgrade || forcedUpgrade)
 		return cyttsp5_upgrade_firmware(dev, fw->img, fw->size);
 
@@ -584,13 +584,13 @@ static void _cyttsp5_firmware_cont(const struct firmware *fw, void *context)
 		goto cyttsp5_firmware_cont_exit;
 
 	if (!fw->data || !fw->size) {
-		dev_err(dev, "%s: No firmware received\n", __func__);
+		tsp_debug_err(true, dev, "%s: No firmware received\n", __func__);
 		goto cyttsp5_firmware_cont_release_exit;
 	}
 
 	header_size = fw->data[0];
 	if (header_size >= (fw->size + 1)) {
-		dev_err(dev, "%s: Firmware format is invalid\n", __func__);
+		tsp_debug_err(true, dev, "%s: Firmware format is invalid\n", __func__);
 		goto cyttsp5_firmware_cont_release_exit;
 	}
 
@@ -614,7 +614,7 @@ static int cyttsp5_check_firmware_version_builtin(struct device *dev,
 	int upgrade;
 
 	if (!ld->si) {
-		dev_info(dev, "%s: No firmware infomation found, device FW may be corrupted\n",
+		tsp_debug_info(true, dev, "%s: No firmware infomation found, device FW may be corrupted\n",
 			__func__);
 		return CYTTSP5_AUTO_LOAD_FOR_CORRUPTED_FW;
 	}
@@ -640,16 +640,16 @@ static void _cyttsp5_firmware_cont_builtin(const struct firmware *fw,
 	int upgrade;
 
 	if (!fw) {
-		dev_info(dev, "%s: No builtin firmware\n", __func__);
+		tsp_debug_info(true, dev, "%s: No builtin firmware\n", __func__);
 		goto _cyttsp5_firmware_cont_builtin_exit;
 	}
 
 	if (!fw->data || !fw->size) {
-		dev_err(dev, "%s: Invalid builtin firmware\n", __func__);
+		tsp_debug_err(true, dev, "%s: Invalid builtin firmware\n", __func__);
 		goto _cyttsp5_firmware_cont_builtin_exit;
 	}
 
-	dev_dbg(dev, "%s: Found firmware\n", __func__);
+	tsp_debug_dbg(true, dev, "%s: Found firmware\n", __func__);
 
 	upgrade = cyttsp5_check_firmware_version_builtin(dev, fw);
 	if (upgrade) {
@@ -675,7 +675,7 @@ static int upgrade_firmware_from_class(struct device *dev)
 	retval = request_firmware_nowait(THIS_MODULE, FW_ACTION_NOHOTPLUG, "",
 			dev, GFP_KERNEL, dev, _cyttsp5_firmware_cont);
 	if (retval < 0) {
-		dev_err(dev, "%s: Fail request firmware class file load\n",
+		tsp_debug_err(true, dev, "%s: Fail request firmware class file load\n",
 			__func__);
 		return retval;
 	}
@@ -695,7 +695,7 @@ static int upgrade_firmware_from_builtin(struct device *dev)
 			CY_FW_FILE_NAME, dev, GFP_KERNEL, dev,
 			_cyttsp5_firmware_cont_builtin);
 	if (retval < 0) {
-		dev_err(dev, "%s: Fail request firmware class file load\n",
+		tsp_debug_err(true, dev, "%s: Fail request firmware class file load\n",
 			__func__);
 		return retval;
 	}
@@ -715,18 +715,18 @@ int upgrade_firmware_from_sdcard(struct device *dev,
 	int rc = 0;
 
 	if (!fw_data || !fw_size) {
-		dev_err(dev, "%s: No firmware received\n", __func__);
+		tsp_debug_err(true, dev, "%s: No firmware received\n", __func__);
 		return -EINVAL;
 	}
 
-	dev_dbg(dev, "%s: bin data[0~3]=0x%02x 0x%02x 0x%02x 0x%02x\n", __func__,
+	tsp_debug_dbg(true, dev, "%s: bin data[0~3]=0x%02x 0x%02x 0x%02x 0x%02x\n", __func__,
 			fw_data[0], fw_data[1], fw_data[2], fw_data[3]);
 
 	header_size = fw_data[0];
-	dev_dbg(dev, "%s: header_size=0x%02x\n", __func__, header_size);
-	dev_dbg(dev, "%s: fw_size=0x%08x\n", __func__, fw_size);
+	tsp_debug_dbg(true, dev, "%s: header_size=0x%02x\n", __func__, header_size);
+	tsp_debug_dbg(true, dev, "%s: fw_size=0x%08x\n", __func__, fw_size);
 	if (header_size >= (fw_size + 1)) {
-		dev_err(dev, "%s: Firmware format is invalid\n", __func__);
+		tsp_debug_err(true, dev, "%s: Firmware format is invalid\n", __func__);
 		return -EINVAL;
 	}
 
@@ -739,7 +739,7 @@ int upgrade_firmware_from_sdcard(struct device *dev,
 int upgrade_firmware_from_sdcard(struct device *dev,
 	const u8 *fw_data, int fw_size)
 {
-	dev_err(dev,"%s: Firmware upgrade is not supported.\n",__func__);
+	tsp_debug_err(true, dev,"%s: Firmware upgrade is not supported.\n",__func__);
 	return -ESRCH;
 }
 #endif
@@ -755,13 +755,13 @@ static int cyttsp5_write_config_row_(struct device *dev, u8 ebid,
 			row_size, ebid, data, (u8 *)cyttsp5_security_key,
 			&actual_write_len);
 	if (rc) {
-		dev_err(dev, "%s: Fail Put EBID=%d row=%d cmd fail r=%d\n",
+		tsp_debug_err(true, dev, "%s: Fail Put EBID=%d row=%d cmd fail r=%d\n",
 			__func__, ebid, row_number, rc);
 		return rc;
 	}
 
 	if (actual_write_len != row_size) {
-		dev_err(dev, "%s: Fail Put EBID=%d row=%d wrong write size=%d\n",
+		tsp_debug_err(true, dev, "%s: Fail Put EBID=%d row=%d wrong write size=%d\n",
 			__func__, ebid, row_number, actual_write_len);
 		rc = -EINVAL;
 	}
@@ -787,7 +787,7 @@ static int cyttsp5_upgrade_ttconfig(struct device *dev,
 	table_size = ttconfig_size;
 	row_count = table_size / row_size;
 	row_buf = (u8 *)ttconfig_data;
-	dev_dbg(dev, "%s: size:%d row_size=%d row_count=%d\n",
+	tsp_debug_dbg(false, dev, "%s: size:%d row_size=%d row_count=%d\n",
 		__func__, table_size, row_size, row_count);
 
 	/*pm_runtime_get_sync(dev);*/
@@ -803,11 +803,11 @@ static int cyttsp5_upgrade_ttconfig(struct device *dev,
 		goto release;
 
 	for (i = 0; i < row_count; i++) {
-		dev_dbg(dev, "%s: row=%d size=%d\n", __func__, i, row_size);
+		tsp_debug_dbg(false, dev, "%s: row=%d size=%d\n", __func__, i, row_size);
 		rc = cyttsp5_write_config_row_(dev, ebid, i, row_size,
 				row_buf);
 		if (rc) {
-			dev_err(dev, "%s: Fail put row=%d r=%d\n",
+			tsp_debug_err(true, dev, "%s: Fail put row=%d r=%d\n",
 				__func__, i, rc);
 			break;
 		}
@@ -815,27 +815,27 @@ static int cyttsp5_upgrade_ttconfig(struct device *dev,
 	}
 	if (!rc) {
 		residue = table_size % row_size;
-		dev_dbg(dev, "%s: row=%d size=%d\n", __func__, i, residue);
+		tsp_debug_dbg(false, dev, "%s: row=%d size=%d\n", __func__, i, residue);
 		rc = cyttsp5_write_config_row_(dev, ebid, i, residue,
 				row_buf);
 		row_count++;
 		if (rc)
-			dev_err(dev, "%s: Fail put row=%d r=%d\n",
+			tsp_debug_err(true, dev, "%s: Fail put row=%d r=%d\n",
 				__func__, i, rc);
 	}
 
 	if (!rc)
-		dev_dbg(dev, "%s: TT_CFG updated: rows:%d bytes:%d\n",
+		tsp_debug_dbg(false, dev, "%s: TT_CFG updated: rows:%d bytes:%d\n",
 			__func__, row_count, table_size);
 
 	rc = cmd->cmd->verify_config_block_crc(dev, 0, ebid,
 			&verify_crc_status, &calculated_crc, &stored_crc);
 	if (rc || verify_crc_status)
-		dev_err(dev, "%s: CRC Failed, ebid=%d, status=%d, scrc=%X ccrc=%X\n",
+		tsp_debug_err(true, dev, "%s: CRC Failed, ebid=%d, status=%d, scrc=%X ccrc=%X\n",
 			__func__, ebid, verify_crc_status,
 			calculated_crc, stored_crc);
 	else
-		dev_dbg(dev, "%s: CRC PASS, ebid=%d, status=%d, scrc=%X ccrc=%X\n",
+		tsp_debug_dbg(true, dev, "%s: CRC PASS, ebid=%d, status=%d, scrc=%X ccrc=%X\n",
 			__func__, ebid, verify_crc_status,
 			calculated_crc, stored_crc);
 
@@ -885,16 +885,16 @@ static int cyttsp5_check_ttconfig_version(struct device *dev,
 	if (!ld->si)
 		return 0;
 
-	dev_dbg(dev, "%s: img_crc:0x%04X new_crc:0x%04X\n",
+	tsp_debug_dbg(false, dev, "%s: img_crc:0x%04X new_crc:0x%04X\n",
 		__func__, ld->si->ttconfig.crc, cfg_crc_new);
 
 	if (cfg_crc_new != ld->si->ttconfig.crc) {
-		dev_dbg(dev, "%s: Config CRC different, will upgrade\n",
+		tsp_debug_dbg(false, dev, "%s: Config CRC different, will upgrade\n",
 			__func__);
 		return 1;
 	}
 
-	dev_dbg(dev, "%s: Config CRC equal, will NOT upgrade\n", __func__);
+	tsp_debug_dbg(false, dev, "%s: Config CRC equal, will NOT upgrade\n", __func__);
 	return 0;
 }
 
@@ -906,7 +906,7 @@ static int cyttsp5_check_ttconfig_version_platform(struct device *dev,
 	u32 fw_revctrl_config;
 
 	if (!ld->si) {
-		dev_info(dev, "%s: No firmware infomation found, device FW may be corrupted\n",
+		tsp_debug_info(true, dev, "%s: No firmware infomation found, device FW may be corrupted\n",
 			__func__);
 		return 0;
 	}
@@ -918,13 +918,13 @@ static int cyttsp5_check_ttconfig_version_platform(struct device *dev,
 	/* FW versions should match */
 	if (cyttsp5_check_firmware_version(dev, fw_ver_config,
 			fw_revctrl_config)) {
-		dev_err(dev, "%s: FW versions mismatch\n", __func__);
+		tsp_debug_err(true, dev, "%s: FW versions mismatch\n", __func__);
 		return 0;
 	}
 
 	/* Check PowerOn Self Test, TT_CFG CRC bit */
 	if ((ld->si->cydata.post_code & CY_POST_TT_CFG_CRC_MASK) == 0) {
-		dev_dbg(dev, "%s: POST, TT_CFG failed (%X), will upgrade\n",
+		tsp_debug_dbg(true, dev, "%s: POST, TT_CFG failed (%X), will upgrade\n",
 			__func__, ld->si->cydata.post_code);
 		return 1;
 	}
@@ -943,29 +943,29 @@ static int upgrade_ttconfig_from_platform(struct device *dev)
 	int upgrade;
 
 	if (!ld->loader_pdata) {
-		dev_info(dev, "%s: No loader platform data\n", __func__);
+		tsp_debug_info(true, dev, "%s: No loader platform data\n", __func__);
 		return rc;
 	}
 
 	ttconfig = ld->loader_pdata->ttconfig;
 	if (!ttconfig) {
-		dev_info(dev, "%s: No ttconfig data\n", __func__);
+		tsp_debug_info(true, dev, "%s: No ttconfig data\n", __func__);
 		return rc;
 	}
 
 	param_regs = ttconfig->param_regs;
 	if (!param_regs) {
-		dev_info(dev, "%s: No touch parameters\n", __func__);
+		tsp_debug_info(true, dev, "%s: No touch parameters\n", __func__);
 		return rc;
 	}
 
 	if (!param_regs->data || !param_regs->size) {
-		dev_info(dev, "%s: Invalid touch parameters\n", __func__);
+		tsp_debug_info(true, dev, "%s: Invalid touch parameters\n", __func__);
 		return rc;
 	}
 
 	if (!ttconfig->fw_ver || !ttconfig->fw_vsize) {
-		dev_info(dev, "%s: Invalid FW version for touch parameters\n",
+		tsp_debug_info(true, dev, "%s: Invalid FW version for touch parameters\n",
 			__func__);
 		return rc;
 	}
@@ -1046,7 +1046,7 @@ static int cyttsp5_verify_ttconfig_binary(struct device *dev,
 	u32 fw_revctrl_config;
 
 	if (!ld->si) {
-		dev_err(dev, "%s: No firmware infomation found, device FW may be corrupted\n",
+		tsp_debug_err(true, dev, "%s: No firmware infomation found, device FW may be corrupted\n",
 			__func__);
 		return -ENODEV;
 	}
@@ -1057,7 +1057,7 @@ static int cyttsp5_verify_ttconfig_binary(struct device *dev,
 	 */
 	header_size = bin_config_data[0] + 1;
 	if (header_size < 11 || header_size >= bin_config_size - 6) {
-		dev_err(dev, "%s: Invalid header size %d\n", __func__,
+		tsp_debug_err(true, dev, "%s: Invalid header size %d\n", __func__,
 			header_size);
 		return -EINVAL;
 	}
@@ -1069,14 +1069,14 @@ static int cyttsp5_verify_ttconfig_binary(struct device *dev,
 	/* FW versions should match */
 	if (cyttsp5_check_firmware_version(dev, fw_ver_config,
 			fw_revctrl_config)) {
-		dev_err(dev, "%s: FW versions mismatch\n", __func__);
+		tsp_debug_err(true, dev, "%s: FW versions mismatch\n", __func__);
 		return -EINVAL;
 	}
 
 	config_size = get_unaligned_le16(&bin_config_data[header_size]);
 	/* Perform a simple size check (2 bytes for CRC) */
 	if (config_size != bin_config_size - header_size - 2) {
-		dev_err(dev, "%s: Config size invalid\n", __func__);
+		tsp_debug_err(true, dev, "%s: Config size invalid\n", __func__);
 		return -EINVAL;
 	}
 
@@ -1102,7 +1102,7 @@ static ssize_t cyttsp5_config_loading_store(struct device *dev,
 
 	rc = kstrtol(buf, 10, &value);
 	if (rc < 0 || value < -1 || value > 1) {
-		dev_err(dev, "%s: Invalid value\n", __func__);
+		tsp_debug_err(true, dev, "%s: Invalid value\n", __func__);
 		return size;
 	}
 
@@ -1115,7 +1115,7 @@ static ssize_t cyttsp5_config_loading_store(struct device *dev,
 	else if (value == 0 && ld->config_loading) {
 		ld->config_loading = false;
 		if (ld->config_size == 0) {
-			dev_err(dev, "%s: No config data\n", __func__);
+			tsp_debug_err(true, dev, "%s: No config data\n", __func__);
 			goto exit_free;
 		}
 
@@ -1160,14 +1160,14 @@ static void cyttsp5_fw_and_config_upgrade(
 #endif
 	struct device *dev = ld->dev;
 
-	dev_dbg(dev, "%s:\n", __func__);
+	tsp_debug_dbg(true, dev, "%s:\n", __func__);
 
 	ld->si = cmd->request_sysinfo(dev);
 	if (!ld->si)
-		dev_err(dev, "%s: Fail get sysinfo pointer from core\n",
+		tsp_debug_err(true, dev, "%s: Fail get sysinfo pointer from core\n",
 			__func__);
 #if !CYTTSP5_FW_UPGRADE
-	dev_info(dev, "%s: No FW upgrade method selected!\n", __func__);
+	tsp_debug_info(true, dev, "%s: No FW upgrade method selected!\n", __func__);
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_PLATFORM_FW_UPGRADE
@@ -1218,22 +1218,22 @@ int cyttsp5_loader_probe(struct device *dev)
 	struct cyttsp5_platform_data *pdata = dev_get_platdata(dev);
 	int rc;
 
-	dev_dbg(dev, "%s:\n", __func__);
+	tsp_debug_dbg(true, dev, "%s:\n", __func__);
 	cmd = cyttsp5_get_commands();
 	if (!cmd) {
-		dev_err(dev, "%s: cmd invalid\n", __func__);
+		tsp_debug_err(true, dev, "%s: cmd invalid\n", __func__);
 		return -EINVAL;
 	}
 
 	if (!pdata || !pdata->loader_pdata) {
-		dev_err(dev, "%s: Missing platform data\n", __func__);
+		tsp_debug_err(true, dev, "%s: Missing platform data\n", __func__);
 		rc = -ENODEV;
 		goto error_no_pdata;
 	}
 
 	ld = kzalloc(sizeof(*ld), GFP_KERNEL);
 	if (!ld) {
-		dev_err(dev, "%s: Error, kzalloc\n", __func__);
+		tsp_debug_err(true, dev, "%s: Error, kzalloc\n", __func__);
 		rc = -ENOMEM;
 		goto error_alloc_data_failed;
 	}
@@ -1241,7 +1241,7 @@ int cyttsp5_loader_probe(struct device *dev)
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_BINARY_FW_UPGRADE
 	rc = device_create_file(dev, &dev_attr_manual_upgrade);
 	if (rc) {
-		dev_err(dev, "%s: Error, could not create manual_upgrade\n",
+		tsp_debug_err(true, dev, "%s: Error, could not create manual_upgrade\n",
 				__func__);
 		goto error_create_manual_upgrade;
 	}
@@ -1250,14 +1250,14 @@ int cyttsp5_loader_probe(struct device *dev)
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_MANUAL_TTCONFIG_UPGRADE
 	rc = device_create_file(dev, &dev_attr_config_loading);
 	if (rc) {
-		dev_err(dev, "%s: Error, could not create config_loading\n",
+		tsp_debug_err(true, dev, "%s: Error, could not create config_loading\n",
 				__func__);
 		goto error_create_config_loading;
 	}
 
 	rc = device_create_bin_file(dev, &bin_attr_config_data);
 	if (rc) {
-		dev_err(dev, "%s: Error, could not create config_data\n",
+		tsp_debug_err(true, dev, "%s: Error, could not create config_data\n",
 				__func__);
 		goto error_create_config_data;
 	}
@@ -1293,7 +1293,7 @@ int cyttsp5_loader_probe(struct device *dev)
 #endif
 #endif
 
-	dev_info(dev, "%s: Successful probe %s\n", __func__, dev_name(dev));
+	tsp_debug_info(true, dev, "%s: Successful probe %s\n", __func__, dev_name(dev));
 	return 0;
 
 
@@ -1311,7 +1311,7 @@ error_create_manual_upgrade:
 	kfree(ld);
 error_alloc_data_failed:
 error_no_pdata:
-	dev_err(dev, "%s failed.\n", __func__);
+	tsp_debug_err(true, dev, "%s failed.\n", __func__);
 	return rc;
 }
 EXPORT_SYMBOL(cyttsp5_loader_probe);
@@ -1325,7 +1325,7 @@ int cyttsp5_loader_release(struct device *dev)
 	rc = cmd->unsubscribe_attention(dev, CY_ATTEN_IRQ, CY_MODULE_LOADER,
 		cyttsp5_loader_attention, CY_MODE_BOOTLOADER);
 	if (rc < 0)
-		dev_err(dev, "%s: Failed to restart IC with error code %d\n",
+		tsp_debug_err(true, dev, "%s: Failed to restart IC with error code %d\n",
 			__func__, rc);
 #endif
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_MANUAL_TTCONFIG_UPGRADE

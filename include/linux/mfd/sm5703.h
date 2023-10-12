@@ -102,6 +102,7 @@ typedef struct sm5703_charger_platform_data {
 	int fg_curr_avr_val;
 	char *charger_name;
 	int chgen_gpio; //nCHGEN Pin
+	int otg_current;
 	sec_battery_full_charged_t full_check_type_2nd;
 } sm5703_charger_platform_data_t;
 

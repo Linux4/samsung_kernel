@@ -66,13 +66,11 @@ void kbase_job_hw_submit(struct kbase_device *kbdev,
 	struct kbase_context *kctx;
 	u32 cfg;
 	u64 jc_head = katom->jc;
-	struct exynos_context *platform;
 
 	KBASE_DEBUG_ASSERT(kbdev);
 	KBASE_DEBUG_ASSERT(katom);
 
 	kctx = katom->kctx;
-	platform = (struct exynos_context *) kbdev->platform_context;
 
 	/* Command register must be available */
 	KBASE_DEBUG_ASSERT(kbasep_jm_is_js_free(kbdev, js, kctx));
@@ -108,18 +106,8 @@ void kbase_job_hw_submit(struct kbase_device *kbdev,
 								value, kctx);
 	}
 #else
-#ifdef MALI_SEC_HWCNT_VERT
-	if ((js ==1) &&(platform->hwcnt_allow_vertex_throttle == 1)) {
-		kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_AFFINITY_NEXT_LO), 0x3F, kctx);
-	}
-	else {
-		kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_AFFINITY_NEXT_LO),
-						katom->affinity & 0xFFFFFFFF, kctx);
-	}
-#else
 	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_AFFINITY_NEXT_LO),
 					katom->affinity & 0xFFFFFFFF, kctx);
-#endif
 	kbase_reg_write(kbdev, JOB_SLOT_REG(js, JS_AFFINITY_NEXT_HI),
 					katom->affinity >> 32, kctx);
 #endif
@@ -847,7 +835,9 @@ void kbase_jm_wait_for_zero_jobs(struct kbase_context *kctx)
 	/* Wait for all jobs to finish, and for the context to be not-scheduled
 	 * (due to kbase_job_zap_context(), we also guarentee it's not in the JS
 	 * policy queue either */
-	wait_event(kctx->jctx.zero_jobs_wait, kctx->jctx.job_nr == 0);
+	/* MALI_SEC_INTEGRATION */
+	wait_event_timeout(kctx->jctx.zero_jobs_wait,
+			kctx->jctx.job_nr == 0, (unsigned int) msecs_to_jiffies(300));
 	wait_event(kctx->jctx.sched_info.ctx.is_scheduled_wait,
 			kctx->jctx.sched_info.ctx.is_scheduled == false);
 

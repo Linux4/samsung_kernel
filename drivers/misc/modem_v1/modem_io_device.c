@@ -1081,7 +1081,9 @@ static int vnet_stop(struct net_device *ndev)
 			ld->terminate_comm(ld, iod);
 	}
 
+	spin_lock(&msd->active_list_lock);
 	list_del(&iod->node_ndev);
+	spin_unlock(&msd->active_list_lock);
 	netif_stop_queue(ndev);
 
 	mif_info("%s (opened %d) by %s\n",
@@ -1463,5 +1465,37 @@ int sipc5_init_io_device(struct io_device *iod)
 		skb_queue_head_init(&iod->sk_multi_q[i]);
 
 	return ret;
+}
+
+void sipc5_deinit_io_device(struct io_device *iod)
+{
+	mif_err("%s: io_typ=%d\n", iod->name, iod->io_typ);
+
+	wake_lock_destroy(&iod->wakelock);
+	
+	/* De-register misc or net device */
+	switch (iod->io_typ) {
+	case IODEV_MISC:
+		if (iod->id == SIPC_CH_ID_CPLOG1) {
+			unregister_netdev(iod->ndev);
+			free_netdev(iod->ndev);
+		}
+
+		misc_deregister(&iod->miscdev);
+		break;
+		
+	case IODEV_NET:
+		unregister_netdev(iod->ndev);
+		free_netdev(iod->ndev);
+		break;
+
+	case IODEV_DUMMY:
+		device_remove_file(iod->miscdev.this_device, &attr_waketime);
+		device_remove_file(iod->miscdev.this_device, &attr_loopback);
+		device_remove_file(iod->miscdev.this_device, &attr_txlink);
+		
+		misc_deregister(&iod->miscdev);
+		break;
+	}
 }
 

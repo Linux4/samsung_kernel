@@ -99,6 +99,12 @@ extern void exynos_ss_irq_exit(unsigned int irq, unsigned long long start_time);
 #define exynos_ss_irq_exit_var(v)	do {	v = 0; } while(0);
 #endif
 
+#ifdef CONFIG_EXYNOS_SNAPSHOT_PSTORE
+extern int exynos_ss_hook_pmsg(char *buffer, size_t count);
+#else
+#define exynos_ss_hook_pmsg(a,b)	do { } while(0)
+#endif
+
 #else
 #define exynos_ss_task(a,b)		do { } while(0)
 #define exynos_ss_work(a,b,c,d)		do { } while(0)
@@ -115,6 +121,7 @@ extern void exynos_ss_irq_exit(unsigned int irq, unsigned long long start_time);
 #define exynos_ss_irq_exit_var(v)	do { v = 0; } while(0)
 #define exynos_ss_reg(a,b,c,d)		do { } while(0)
 #define exynos_ss_hrtimer(a,b,c,d)	do { } while(0)
+#define exynos_ss_hook_pmsg(a,b)	do { } while(0)
 #define exynos_ss_printk(...)		do { } while(0)
 #define exynos_ss_printkl(a,b)		do { } while(0)
 #define exynos_ss_save_context(a)	do { } while(0)

@@ -15,6 +15,7 @@ struct lcd_seq_info {
 #define UNDER_MINUS_20(temperature)	(temperature <= -20)
 
 #define NORMAL_TEMPERATURE			25	/* 25 degrees Celsius */
+#define EXTEND_BRIGHTNESS	306
 #define UI_MAX_BRIGHTNESS 	255
 #define UI_MIN_BRIGHTNESS 	0
 #define UI_DEFAULT_BRIGHTNESS 134

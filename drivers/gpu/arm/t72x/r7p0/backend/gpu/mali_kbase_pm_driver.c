@@ -1033,10 +1033,6 @@ bool kbase_pm_clock_off(struct kbase_device *kbdev, bool is_suspend)
 /* MALI_SEC_INTEGRATION */
 #ifdef MALI_SEC_HWCNT
 	mutex_lock(&kbdev->hwcnt.mlock);
-	if (kbdev->vendor_callbacks->hwcnt_update) {
-		kbdev->vendor_callbacks->hwcnt_update(kbdev);
-		dvfs_hwcnt_get_resource(kbdev);
-	}
 	if (kbdev->vendor_callbacks->hwcnt_disable)
 		kbdev->vendor_callbacks->hwcnt_disable(kbdev);
 	mutex_unlock(&kbdev->hwcnt.mlock);

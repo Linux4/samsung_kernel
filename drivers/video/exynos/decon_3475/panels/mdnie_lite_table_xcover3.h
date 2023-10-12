@@ -4,52 +4,29 @@
 /* 2015.11.05 */
 
 static struct mdnie_scr_info scr_info = {
- .index = 2,
- .color_blind = 28, //scr Bb
- .white_r = 27, //scr Wr
- .white_g = 25, //scr Wg
- .white_b = 23 //scr Wb
+	.index = 2,
+	.cr = 28, //scr Bb
+	.wr = 27, //scr Wr
+	.wg = 25, //scr Wg
+	.wb = 23 //scr Wb
 };
 
-static inline int color_offset_f1(int x, int y)
+static inline int get_hbm_index(int idx)
 {
-	return ((y << 10) - (((x << 10) * 99) / 91) - (6 << 10)) >> 10;
-}
-static inline int color_offset_f2(int x, int y)
-{
-	return ((y << 10) - (((x << 10) * 164) / 157) - (8 << 10)) >> 10;
-}
-static inline int color_offset_f3(int x, int y)
-{
-	return ((y << 10) + (((x << 10) * 218) / 39) - (20166 << 10)) >> 10;
-}
-static inline int color_offset_f4(int x, int y)
-{
-	return ((y << 10) + (((x << 10) * 23) / 8) - (11610 << 10)) >> 10;
-}
+	int i = 0;
+	int idx_list[] = {
+		20000	/* idx < 20000: HBM_OFF */
+				/* idx >= 20000: HBM_ON */
+	};
 
-/* color coordination order is WR, WG, WB */
-static unsigned char coordinate_data_1[] = {
-	0xff, 0xff, 0xff, /* dummy */
-	0xff, 0xff, 0xff, /* Tune_1 */
-	0xff, 0xff, 0xff, /* Tune_2 */
-	0xff, 0xff, 0xff, /* Tune_3 */
-	0xff, 0xff, 0xff, /* Tune_4 */
-	0xff, 0xff, 0xff, /* Tune_5 */
-	0xff, 0xff, 0xff, /* Tune_6 */
-	0xff, 0xff, 0xff, /* Tune_7 */
-	0xff, 0xff, 0xff, /* Tune_8 */
-	0xff, 0xff, 0xff, /* Tune_9 */
-};
+	while (i < ARRAY_SIZE(idx_list)) {
+		if (idx < idx_list[i])
+			break;
+		i++;
+	}
 
-static unsigned char *coordinate_data[MODE_MAX] = {
-	coordinate_data_1,
-	coordinate_data_1,
-	coordinate_data_1,
-	coordinate_data_1,
-	coordinate_data_1,
-	coordinate_data_1,
-};
+	return i;
+}
 
 static unsigned char LEVEL_UNLOCK[] = { /* turn off mdnie */
 	0xB9,
@@ -61,12 +38,12 @@ static unsigned char LEVEL_LOCK[] = { /* turn off mdnie */
 	0x00, 0x00, 0x00
 };
 
-static unsigned char BYPASS_1[] ={
+static unsigned char BYPASS_1[] = {
 	0x20,
 	0x00,
 };
 
-static unsigned char BYPASS_2[] ={
+static unsigned char BYPASS_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -183,12 +160,12 @@ static unsigned char BYPASS_2[] ={
 	0x00,
 };
 
-static unsigned char NEGATIVE_1[] ={
+static unsigned char NEGATIVE_1[] = {
 	0x20,
 	0x00,
 };
 
-static unsigned char NEGATIVE_2[] ={
+static unsigned char NEGATIVE_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -305,12 +282,12 @@ static unsigned char NEGATIVE_2[] ={
 	0x00,
 };
 
-static unsigned char COLOR_BLIND_1[] ={
+static unsigned char COLOR_BLIND_1[] = {
 	0x20,
 	0x00,
 };
 
-static unsigned char COLOR_BLIND_2[] ={
+static unsigned char COLOR_BLIND_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -427,12 +404,12 @@ static unsigned char COLOR_BLIND_2[] ={
 	0x00,
 };
 
-static unsigned char GRAYSCALE_1[] ={
+static unsigned char GRAYSCALE_1[] = {
 	0x20,
 	0x00,
 };
 
-static unsigned char GRAYSCALE_2[] ={
+static unsigned char GRAYSCALE_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -549,12 +526,12 @@ static unsigned char GRAYSCALE_2[] ={
 	0x00,
 };
 
-static unsigned char GRAYSCALE_NEGATIVE_1[] ={
+static unsigned char GRAYSCALE_NEGATIVE_1[] = {
 	0x20,
 	0x00,
 };
 
-static unsigned char GRAYSCALE_NEGATIVE_2[] ={
+static unsigned char GRAYSCALE_NEGATIVE_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -672,7 +649,7 @@ static unsigned char GRAYSCALE_NEGATIVE_2[] ={
 };
 
 /*
-static char DSI0_NEGATIVE_MDNIE_OFF_CMDS[] ={
+static char DSI0_NEGATIVE_MDNIE_OFF_CMDS[] = {
 	0x20,
 	0x00,
 };
@@ -682,7 +659,7 @@ static unsigned char UI_1[] = {
 	0x00,
 };
 
-static unsigned char UI_2[] ={
+static unsigned char UI_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -804,7 +781,7 @@ static unsigned char VIDEO_1[] = {
 	0x00,
 };
 
-static unsigned char VIDEO_2[] ={
+static unsigned char VIDEO_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -922,7 +899,7 @@ static unsigned char VIDEO_2[] ={
 };
 
 /*
-static char VIDEO_WARM_1[] ={
+static char VIDEO_WARM_1[] = {
 	//start
 	0xE6,
 	0x5A,//password 5A
@@ -1039,7 +1016,7 @@ static char VIDEO_WARM_1[] ={
 	0xd7,
 };
 
-static char VIDEO_COLD_1[] ={
+static char VIDEO_COLD_1[] = {
 	//start
 	0xE6,
 	0x5A,//password 5A
@@ -1162,7 +1139,7 @@ static unsigned char CAMERA_1[] = {
 	0x00,
 };
 
-static unsigned char CAMERA_2[] ={
+static unsigned char CAMERA_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -1284,7 +1261,7 @@ static unsigned char GALLERY_1[] = {
 	0x00,
 };
 
-static unsigned char GALLERY_2[] ={
+static unsigned char GALLERY_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -1406,7 +1383,7 @@ static unsigned char VT_1[] = {
 	0x00,
 };
 
-static unsigned char VT_2[] ={
+static unsigned char VT_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -1528,7 +1505,7 @@ static unsigned char BROWSER_1[] = {
 	0x00,
 };
 
-static unsigned char BROWSER_2[] ={
+static unsigned char BROWSER_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -1650,7 +1627,7 @@ static unsigned char EBOOK_1[] = {
 	0x00,
 };
 
-static unsigned char EBOOK_2[] ={
+static unsigned char EBOOK_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -1772,7 +1749,7 @@ static unsigned char EMAIL_1[] = {
 	0x00,
 };
 
-static unsigned char EMAIL_2[] ={
+static unsigned char EMAIL_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -1894,7 +1871,7 @@ static unsigned char LOCAL_CE_1[] = {
 	0x00,
 };
 
-static unsigned char LOCAL_CE_2[] ={
+static unsigned char LOCAL_CE_2[] = {
 	//start
 	0xE6,
 	0x5A, //password 5A
@@ -2025,11 +2002,11 @@ static unsigned char LOCAL_CE_2[] ={
 	}	\
 }
 
-struct mdnie_table bypass_table[BYPASS_MAX] = {
+static struct mdnie_table bypass_table[BYPASS_MAX] = {
 	[BYPASS_ON] = MDNIE_SET(BYPASS)
 };
 
-struct mdnie_table accessibility_table[ACCESSIBILITY_MAX] = {
+static struct mdnie_table accessibility_table[ACCESSIBILITY_MAX] = {
 	[NEGATIVE] = MDNIE_SET(NEGATIVE),
 	MDNIE_SET(COLOR_BLIND),
 	MDNIE_SET(UI),
@@ -2037,12 +2014,11 @@ struct mdnie_table accessibility_table[ACCESSIBILITY_MAX] = {
 	MDNIE_SET(GRAYSCALE_NEGATIVE)
 };
 
-struct mdnie_table hbm_table[HBM_MAX] = {
-	[HBM_ON] = MDNIE_SET(LOCAL_CE),
-	MDNIE_SET(LOCAL_CE),
+static struct mdnie_table hbm_table[HBM_MAX] = {
+	[HBM_ON] = MDNIE_SET(LOCAL_CE)
 };
 
-struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
+static struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 	{
 		MDNIE_SET(UI),
 		MDNIE_SET(UI),
@@ -2103,6 +2079,7 @@ struct mdnie_table main_table[SCENARIO_MAX][MODE_MAX] = {
 		MDNIE_SET(EMAIL),
 	}
 };
+
 #undef MDNIE_SET
 
 static struct mdnie_tune tune_info = {
@@ -2111,9 +2088,8 @@ static struct mdnie_tune tune_info = {
 	.hbm_table = hbm_table,
 	.main_table = main_table,
 
-	.coordinate_table = coordinate_data,
 	.scr_info = &scr_info,
-	.color_offset = {color_offset_f1, color_offset_f2, color_offset_f3, color_offset_f4}
+	.get_hbm_index = get_hbm_index,
 };
 
 #endif

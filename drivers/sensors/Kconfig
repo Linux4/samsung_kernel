@@ -175,6 +175,13 @@ config SENSORS_TCS3490
 	help
 	  This option enables light sensor using TCS3490 driver.
 
+config SENSORS_STK3013
+	depends on I2C
+	tristate "STK3013 driver"
+	default n
+	help
+	   This option enables proximity sensors using STK3013 driver.
+
 config SENSORS_SX9306
 	depends on I2C
 	tristate "SX9306 driver"
@@ -298,6 +305,14 @@ config SENSORS_SX9500_WIFI_REGULATOR_ONOFF
 	  Say Y here if you use regulator for grip sensor for WIFI.
 	  This option enables regulator for grip sensor using
 	  SemTech sx9500 device driver for WIFI.
+
+config SENSORS_GTESLTE_CAN
+	depends on SENSORS_SX9500
+	tristate "Grip sensor Register settings for GTESLTE_CAN variant"
+	default n
+	help
+	  Say Y here if you want to define separate configuration for Sensors
+	  for GTESLTE_CAN variant
 
 config SENSORS_BMA2X2
 	tristate "BMA255/BMA250E/BMA222E/BMA280 acceleration sensor support"

@@ -346,16 +346,11 @@ int fimc_is_hw_3aa_shot(struct fimc_is_hw_ip *hw_ip,
 		if (hw_ip->internal_fcount != 0) {
 			hw_ip->internal_fcount = 0;
 
-			if (region->parameter.taa.otf_input.cmd != param_set->otf_input.cmd)
-				lindex |= LOWBIT_OF(PARAM_3AA_OTF_INPUT);
-			if (region->parameter.taa.vdma1_input.cmd != param_set->dma_input.cmd)
-				lindex |= LOWBIT_OF(PARAM_3AA_VDMA1_INPUT);
-			if (region->parameter.taa.otf_output.cmd != param_set->otf_output.cmd)
-				lindex |= LOWBIT_OF(PARAM_3AA_OTF_OUTPUT);
-			if (region->parameter.taa.vdma4_output.cmd != param_set->vdma4_output.cmd)
-				lindex |= LOWBIT_OF(PARAM_3AA_VDMA4_OUTPUT);
-			if (region->parameter.taa.vdma2_output.cmd != param_set->vdma2_output.cmd)
-				lindex |= LOWBIT_OF(PARAM_3AA_VDMA2_OUTPUT);
+			lindex |= LOWBIT_OF(PARAM_3AA_OTF_INPUT);
+			lindex |= LOWBIT_OF(PARAM_3AA_VDMA1_INPUT);
+			lindex |= LOWBIT_OF(PARAM_3AA_OTF_OUTPUT);
+			lindex |= LOWBIT_OF(PARAM_3AA_VDMA4_OUTPUT);
+			lindex |= LOWBIT_OF(PARAM_3AA_VDMA2_OUTPUT);
 		}
 	}
 
@@ -717,11 +712,14 @@ exit:
 void fimc_is_hw_3aa_size_dump(struct fimc_is_hw_ip *hw_ip)
 {
 	u32 bcrop_w = 0, bcrop_h = 0;
+	u32 col_cnt = 0, row_cnt = 0;
 
 	fimc_is_isp_get_bcrop1_size(hw_ip->base_addr, &bcrop_w, &bcrop_h);
+	fimc_is_isp_get_cin2isp_count(hw_ip->base_addr, &col_cnt, &row_cnt);
 
 	info_hw("[3AA]=SIZE=====================================\n");
 	info_hw("[BCROP1]w(%d), h(%d)\n", bcrop_w, bcrop_h);
+	info_hw("[PIXCNT]COL(%d), ROW(%d)\n", col_cnt, row_cnt);
 	info_hw("[3AA]==========================================\n");
 }
 

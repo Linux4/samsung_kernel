@@ -37,6 +37,19 @@ config SW_SELF_DISCHARGING
 	help
 	  Say Y to enable CONFIG_SW_SELF_DISCHARGING
 
+config BATTERY_AGE_FORECAST
+	tristate "battery age forecast"
+	default n
+	help
+	Say Y to use calc time to full function
+
+config BATTERY_AGE_FORECAST_DETACHABLE
+	tristate "battery age forecast for detachable"
+	default n
+	select BATTERY_AGE_FORECAST
+	help
+	Say Y to use battery age forecast for detachable
+
 config INBATTERY
        bool "prevent inbattery"
        default n
@@ -48,13 +61,6 @@ config CALC_TIME_TO_FULL
 	tristate "calculate time to full"
 	default n
 	depends on BATTERY_SAMSUNG
-	help
-	Say Y to use calc time to full function.
-
-config BATTERY_AGE_FORECAST
-	tristate "battery age forecast"
-	default n
-	depends on BATTERY_SWELLING
 	help
 	Say Y to use calc time to full function.
 

@@ -15,6 +15,7 @@ struct lcd_seq_info {
 #define UNDER_MINUS_20(temperature)	(temperature <= -20)
 
 #define NORMAL_TEMPERATURE			25	/* 25 degrees Celsius */
+#define EXTEND_BRIGHTNESS	306
 #define UI_MAX_BRIGHTNESS 	255
 #define UI_MIN_BRIGHTNESS 	0
 #define UI_DEFAULT_BRIGHTNESS 134
@@ -83,7 +84,6 @@ static const struct SKY82896_rom_data LP8557_eprom_drv_arr_off[] = {
 	{ 0x00, 0x00},
 };
 
-int sky82896_array_write(const struct SKY82896_rom_data * eprom_ptr, int eprom_size);
 
 /* S6D7AA0 */
 static const unsigned char SEQ_PASSWD1[] = {

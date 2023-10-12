@@ -2027,7 +2027,7 @@ static struct notifier_block s3c24xx_serial_notifier_block = {
 static ssize_t s3c24xx_serial_bt_log(struct file *file, char __user *userbuf, size_t bytes, loff_t *off)
 {
 	int ret;
-	struct s3c24xx_uart_port *ourport = &s3c24xx_serial_ports[4];
+	struct s3c24xx_uart_port *ourport = &s3c24xx_serial_ports[1];
 	static int copied_bytes = 0;
 
 	if (copied_bytes >= BT_LOG_BUFFER_SIZE) {

@@ -191,3 +191,11 @@ config CFG80211_ALLOW_RECONNECT
 
 	  Select this option ONLY for wlan drivers that are specifically
 	  built for such purposes.
+
+config CFG80211_SUPPORT_VENDOR_COMMANDS
+	bool "Support vendor commands"
+	depends on CFG80211
+	default n
+	help
+	  There are no functions for support vendor commands in 3.10 kernel.
+	  Merge functions from 3.18 kernel.

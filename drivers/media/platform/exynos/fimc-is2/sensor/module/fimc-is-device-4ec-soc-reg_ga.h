@@ -7800,20 +7800,6 @@ static const u32 s5k4ecga_3M_Capture[] = {
 	0x002A0398,
 	0x0F120800,  /* REG_0TC_CCFG_usWidth */
 	0x0F120600,  /* REG_0TC_CCFG_usWidth */
-	0x0F120005,  /* REG_0TC_CCFG_Format */
-	0x0F12278D,   //REG_0TC_CCFG_usMaxOut4KHzRate
-	0x0F12278D,   //REG_0TC_CCFG_usMinOut4KHzRate
-	0x0F120100,   //REG_0TC_CCFG_OutClkPerPix88
-	0x0F120300,   //REG_0TC_CCFG_uBpp88
-	0x0F120052,   //REG_0TC_CCFG_PVIMask
-	0x0F120000,   //REG_0TC_CCFG_OIFMask
-	0x0F120810,   //REG_0TC_CCFG_usJpegPacketSize
-	0x0F120000,   //REG_0TC_CCFG_usJpegTotalPackets
-	0x0F120000,   //REG_0TC_CCFG_uClockInd
-	0x0F120000,   //REG_0TC_CCFG_usFrTimeType
-	0x0F120002,   //REG_0TC_CCFG_FrRateQualityType
-	0x0F120535,   //REG_0TC_CCFG_usMaxFrTimeMsecMult10
-	0x0F12029A,   //REG_0TC_CCFG_usMinFrTimeMsecMult10
 
 	0x002A024E,
 	0x0F120001,		/*REG_TC_GP_NewConfigSync */
@@ -7949,6 +7935,41 @@ static const u32 s5k4ecga_1928_1928_Capture[] = {
 	0x002A0398,
 	0x0F120788,	//REG_0TC_CCFG_usWidth //1928
 	0x0F120788,	//REG_0TC_CCFG_usHeight //1928
+
+	0x002A024E,
+	0x0F120001,	//REG_TC_GP_NewConfigSync
+	0x002A0270,
+	0x0F120001,	//REG_TC_GP_CapConfigChanged
+};
+
+// Capture : 1536 x 1536
+static const u32 s5k4ecga_1536_1536_Capture[] = {
+	0xFCFCD000,
+
+	0x00287000,
+	0x002A0258,
+	0x0F12078C,		//REG_TC_GP_CapReqInputWidth 1932 
+	0x0F12078C,		//REG_TC_GP_CapReqInputHeight 1932 
+	0x0F12014A,		//REG_TC_GP_CapInputWidthOfs (2592-1932)/2 
+	0x0F120006,		//REG_TC_GP_CapInputHeightOfs (1944-1932)/2 
+
+	0x002A0264,
+	0x0F120001,		//REG_TC_GP_bUseReqInputInCap 
+
+	0x002A049C,
+	0x0F12078C,		//REG_TC_PZOOM_CapZoomReqInputWidth 1932 
+	0x0F12078C,		//REG_TC_PZOOM_CapZoomReqInputHeight 1932 
+	0x0F120000,		//REG_TC_PZOOM_CapZoomReqInputWidthOfs 
+	0x0F120000,		//REG_TC_PZOOM_CapZoomReqInputHeightOfs 
+
+	0x002A047C,
+	0x0F120001,	//REG_TC_THUMB_Thumb_bActive
+	0x0F1201E0,		//REG_TC_THUMB_Thumb_uWidth 480 ?
+	0x0F1201E0,		//REG_TC_THUMB_Thumb_uHeight 480 ?
+
+	0x002A0398,
+	0x0F120600,	//REG_0TC_CCFG_usWidth //1536
+	0x0F120600,	//REG_0TC_CCFG_usHeight //1536
 
 	0x002A024E,
 	0x0F120001,	//REG_TC_GP_NewConfigSync
@@ -9654,6 +9675,11 @@ static const u32 s5k4ecga_set_vendor_id_read_reg[] = {
 static const u32 s5k4ecga_get_vendor_id_read_reg[] = {
 	0x002CD000,
 	0x002EA006,
+};
+
+static const u32 s5k4ecga_check_configuration_change[] = {
+	0x002C7000,
+	0x002E0268,
 };
 
 #endif

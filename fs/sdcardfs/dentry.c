@@ -43,6 +43,12 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, unsigned int flags)
 		spin_unlock(&dentry->d_lock);
 		return 1;
 	}
+	if (dentry->d_flags & DCACHE_WILL_INVALIDATE) {
+		dentry->d_flags &= ~DCACHE_WILL_INVALIDATE;
+		__d_drop(dentry);
+		spin_unlock(&dentry->d_lock);
+		return 0;
+	}
 	spin_unlock(&dentry->d_lock);
 
 	/* check uninitialized obb_dentry and  
@@ -179,10 +185,15 @@ static int sdcardfs_cmp_ci(const struct dentry *parent,
 	return 1;
 }
 
+static void sdcardfs_canonical_path(const struct path *path, struct path *actual_path) {
+	sdcardfs_get_real_lower(path->dentry, actual_path);
+}
+
 const struct dentry_operations sdcardfs_ci_dops = {
 	.d_revalidate	= sdcardfs_d_revalidate,
 	.d_release	= sdcardfs_d_release,
 	.d_hash 	= sdcardfs_hash_ci, 
 	.d_compare	= sdcardfs_cmp_ci,
+	.d_canonical_path = sdcardfs_canonical_path,
 };
 

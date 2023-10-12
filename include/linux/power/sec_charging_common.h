@@ -34,7 +34,7 @@
 #include <linux/wakelock.h>
 
 /* definitions */
-#define	SEC_SIZEOF_POWER_SUPPLY_TYPE	POWER_SUPPLY_TYPE_WIRELESS_REMOVE
+#define	SEC_SIZEOF_POWER_SUPPLY_TYPE	(POWER_SUPPLY_TYPE_MAX - 1)
 
 enum sec_battery_voltage_mode {
 	/* average voltage */

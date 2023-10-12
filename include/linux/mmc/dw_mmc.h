@@ -518,6 +518,7 @@ struct dw_mci_board {
 	u32 data_timeout;	/* DATA_TIMEOUT[31:11] of TMOUT */
 	bool use_gate_clock;
 	bool enable_cclk_on_suspend;
+	bool enable_low_pwr;
 	bool on_suspend;
 	unsigned int dev_drv_str;
 	void (*ext_setpower)(struct dw_mci *host, u32 flag);

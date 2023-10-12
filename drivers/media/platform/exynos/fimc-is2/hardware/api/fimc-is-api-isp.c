@@ -616,3 +616,9 @@ void fimc_is_isp_get_bcrop1_size(void __iomem *base_addr, u32 *width, u32 *heigh
 	*width  = fimc_is_hw_get_field(base_addr, &isp_regs[ISP_R_BCROP1_SIZE_X], &isp_fields[ISP_F_BCROP1_SIZE_X]);
 	*height = fimc_is_hw_get_field(base_addr, &isp_regs[ISP_R_BCROP1_SIZE_Y], &isp_fields[ISP_F_BCROP1_SIZE_Y]);
 }
+
+void fimc_is_isp_get_cin2isp_count(void __iomem *base_addr, u32 *col_cnt, u32 *row_cnt)
+{
+	*col_cnt = fimc_is_hw_get_field(base_addr, &isp_regs[ISP_R_CIN2ISP_COL_CNT], &isp_fields[ISP_F_CIN2ISP_COL_CNT]);
+	*row_cnt = fimc_is_hw_get_field(base_addr, &isp_regs[ISP_R_CIN2ISP_ROW_CNT], &isp_fields[ISP_F_CIN2ISP_ROW_CNT]);
+}

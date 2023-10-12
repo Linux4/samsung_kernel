@@ -255,9 +255,9 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 
 	GPU_LOG(DVFS_INFO, LSI_GPU_ON, 0u, 0u, "runtime on callback\n");
 
+	platform->power_status = true;
 	gpu_control_enable_clock(kbdev);
 	gpu_dvfs_start_env_data_gathering(kbdev);
-	platform->power_status = true;
 #ifdef CONFIG_MALI_DVFS
 	if (platform->dvfs_status && platform->wakeup_lock)
 		gpu_set_target_clk_vol(platform->gpu_dvfs_start_clock, false);

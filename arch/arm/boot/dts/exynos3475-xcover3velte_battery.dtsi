@@ -169,10 +169,10 @@
 		battery,discharging_adc_min = <1700>;
 		battery,discharging_ntc_limit = <2750>;
 
-		battery,swelling_high_temp_block = <450>;
-		battery,swelling_high_temp_recov = <400>;
-		battery,swelling_low_temp_block = <100>;
-		battery,swelling_low_temp_recov = <150>;
+		battery,swelling_high_temp_block = <500>;
+		battery,swelling_high_temp_recov = <450>;
+		battery,swelling_low_temp_block = <50>;
+		battery,swelling_low_temp_recov = <100>;
 		battery,swelling_chg_current = <1100>;
 		battery,swelling_drop_float_voltage = <4200>;
 		battery,swelling_high_rechg_voltage = <4150>;

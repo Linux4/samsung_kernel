@@ -740,7 +740,7 @@
 		};
 	};
 
-	i2c@35 {
+	sky82896 {
 		compatible = "i2c-gpio";
 		gpios = <&gpf1 1 0
 			&gpf1 0 0>;
@@ -749,8 +749,8 @@
 		#size-cells = <0>;
 		status = "okay";
 
-		sky82896@35 {
-			compatible = "sky82896,i2c";
+		sky82896@60 {
+			compatible = "i2c,sky82896";
 			reg = <0x60>;
 			pinctrl-names = "default";
 			gpios = <&gpd0 6 0>;

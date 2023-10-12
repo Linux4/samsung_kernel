@@ -83,6 +83,17 @@ config EXYNOS_SNAPSHOT_HOOK_LOGGER
 	depends on EXYNOS_SNAPSHOT
 	default y
 
+config EXYNOS_SNAPSHOT_PSTORE
+	bool "Enable supporting ramoops driver for pstore filesystem"
+	depends on EXYNOS_SNAPSHOT
+	depends on ANDROID_MAJOR_VERSION != "m"
+	depends on ANDROID_MAJOR_VERSION != "l"
+	depends on ANDROID_MAJOR_VERSION != "k"
+	select PSTORE
+	select PSTORE_RAM
+	select PSTORE_PMSG
+	default y
+
 config EXYNOS_SNAPSHOT_PANIC_REBOOT
 	bool "Enable forced reboot after panic for ramdump"
 	depends on EXYNOS_SNAPSHOT
@@ -98,4 +109,10 @@ config EXYNOS_SNAPSHOT_MINIMIZED_MODE
 	depends on EXYNOS_SNAPSHOT
 	default n
 
+config EXYNOS_SNAPSHOT_SAVE_SLUGGISHINFO
+	bool "Support saving scheduling-history and irq-history"
+	depends on EXYNOS_SNAPSHOT	
+	default n
+	help
+	  Support saving scheduling-history and irq-history
 endif

@@ -144,6 +144,14 @@ static int suspend_prepare(suspend_state_t state)
 	if (error)
 		goto Finish;
 
+	printk(KERN_INFO "PM: Syncing filesystems ... ");
+	if (intr_sync(NULL)) {
+		printk("canceled.\n");
+		error = -EBUSY;
+		goto Finish;
+	}
+	printk("done.\n");
+
 	error = suspend_freeze_processes();
 	if (!error)
 		return 0;
@@ -333,10 +341,6 @@ static int enter_state(suspend_state_t state)
 
 	if (state == PM_SUSPEND_FREEZE)
 		freeze_begin();
-
-	printk(KERN_INFO "PM: Syncing filesystems ... ");
-	sys_sync();
-	printk("done.\n");
 
 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
 	error = suspend_prepare(state);

@@ -152,11 +152,7 @@ int gpu_set_target_clk_vol(int clk, bool pending_is_allowed)
 
 #ifdef CONFIG_EXYNOS_CL_DVFS_G3D
 	level = gpu_dvfs_get_level(clk);
-#ifdef CONFIG_SOC_EXYNOS8890
-	exynos_cl_dvfs_stop(ID_G3D, level);
-#else
 	exynos7420_cl_dvfs_stop(ID_G3D, level);
-#endif
 #endif
 
 	GPU_SET_CLK_VOL(kbdev, prev_clk, target_clk, target_vol);
@@ -165,11 +161,7 @@ int gpu_set_target_clk_vol(int clk, bool pending_is_allowed)
 #ifdef CONFIG_EXYNOS_CL_DVFS_G3D
 	if (!platform->voltage_margin
 		&& platform->cl_dvfs_start_base && platform->cur_clock >= platform->cl_dvfs_start_base)
-#ifdef CONFIG_SOC_EXYNOS8890
-		exynos_cl_dvfs_start(ID_G3D);
-#else
 		exynos7420_cl_dvfs_start(ID_G3D);
-#endif
 #endif
 	mutex_unlock(&platform->gpu_clock_lock);
 
@@ -204,11 +196,7 @@ int gpu_set_target_clk_vol_pending(int clk)
 	prev_clk = gpu_get_cur_clock(platform);
 #ifdef CONFIG_EXYNOS_CL_DVFS_G3D
 	level = gpu_dvfs_get_level(clk);
-#ifdef CONFIG_SOC_EXYNOS8890
-	exynos_cl_dvfs_stop(ID_G3D, level);
-#else
 	exynos7420_cl_dvfs_stop(ID_G3D, level);
-#endif
 #endif
 
 	GPU_SET_CLK_VOL(kbdev, platform->cur_clock, target_clk, target_vol);
@@ -216,11 +204,7 @@ int gpu_set_target_clk_vol_pending(int clk)
 #ifdef CONFIG_EXYNOS_CL_DVFS_G3D
 	if (!platform->voltage_margin && platform->cl_dvfs_start_base
 			&& platform->cur_clock >= platform->cl_dvfs_start_base)
-#ifdef CONFIG_SOC_EXYNOS8890
-		exynos_cl_dvfs_start(ID_G3D);
-#else
 		exynos7420_cl_dvfs_start(ID_G3D);
-#endif
 #endif
 	GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u, "pending clk[%d -> %d], vol[%d (margin : %d)]\n",
 		prev_clk, gpu_get_cur_clock(platform), gpu_get_cur_voltage(platform), platform->voltage_margin);
@@ -597,11 +581,9 @@ static bool gpu_dvfs_check_valid_job(gpu_dvfs_job *job)
 	struct exynos_context *platform;
 	bool valid = true;
 
-	if (kbdev) {
-		platform = (struct exynos_context *) kbdev->platform_context;
-		if (platform == NULL)
-			return false;
-	}
+	platform = kbdev ? (struct exynos_context *) kbdev->platform_context:NULL;
+	if (platform == NULL)
+		return false;
 
 	switch(job->type)
 	{
@@ -727,11 +709,11 @@ void gpu_dvfs_check_destroy_context(struct kbase_context *kctx)
 {
 	struct kbase_device *kbdev = pkbdev;
 	struct exynos_context *platform;
-	if (kbdev) {
-		platform = (struct exynos_context *) kbdev->platform_context;
-		if (platform == NULL)
-			return;
-	}
+
+	platform = kbdev ? (struct exynos_context *) kbdev->platform_context:NULL;
+	if (platform == NULL)
+		return;
+
 	mutex_lock(&platform->gpu_process_job_lock);
 	if (platform->dvfs_kctx == kctx)
 	{
@@ -780,19 +762,18 @@ bool gpu_dvfs_process_job(void *pkatom)
 	int level, step;
 	unsigned int ret_val = 0;
 
-	if (kbdev) {
-		platform = (struct exynos_context *) kbdev->platform_context;
-		if (platform == NULL)
-			return false;
-	}
+	platform = kbdev ? (struct exynos_context *) kbdev->platform_context:NULL;
+	if (platform == NULL)
+		return false;
 
 	mutex_lock(&platform->gpu_process_job_lock);
+
+	job = &dvfs_job;
 
 	job_addr = get_compat_pointer(katom->kctx, (union kbase_pointer *)&katom->jc);
 	if (copy_from_user(&dvfs_job, job_addr, sizeof(gpu_dvfs_job)) != 0)
 		goto out;
 
-	job = &dvfs_job;
 	data = (gpu_dvfs_job __user *)get_compat_pointer(katom->kctx, (union kbase_pointer *)&job->data);
 
 	job->event = DVFS_JOB_EVENT_ERROR;

@@ -9,14 +9,17 @@
 #
 #
 
+config DDK_VERSION_OS
+	string "version"
+	default ANDROID_MAJOR_VERSION
+	help
+	  Android OS major version
 
 menu "ARM GPU Configuration"
-source "drivers/gpu/arm/t6xx/kbase/Kconfig"
-source "drivers/gpu/arm/midgard/Kconfig"
-source "drivers/gpu/arm/midgard_wk04/Kconfig"
-source "drivers/gpu/arm/mali400/Kconfig"
-source "drivers/gpu/arm/t7xx/Kconfig"
-if SOC_EXYNOS3475
-source "drivers/gpu/arm/t72x/Kconfig"
-endif
+    if DDK_VERSION_OS = "n"
+    source "drivers/gpu/arm/t7xx/Kconfig"
+    endif
+    if DDK_VERSION_OS = "l" || DDK_VERSION_OS = "m"
+    source "drivers/gpu/arm/t72x/Kconfig"
+    endif
 endmenu

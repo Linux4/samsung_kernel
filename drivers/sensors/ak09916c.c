@@ -55,6 +55,9 @@
 #define AK09916C_BOTTOM_UPPER_LEFT       6
 #define AK09916C_BOTTOM_UPPER_RIGHT      7
 
+#define AK09916C_MAX_DELAY		200000000LL
+#define AK09916C_MIN_DELAY		10000000LL
+
 struct ak09916c_v {
 	union {
 		s16 v[3];
@@ -430,6 +433,14 @@ static ssize_t ak09916c_delay_store(struct device *dev,
 	if (ret) {
 		pr_err("[SENSOR]: %s - Invalid Argument\n", __func__);
 		return ret;
+	}
+
+	if (delay > AK09916C_MAX_DELAY) {
+		pr_info("[SENSOR]: %s - %lld > AK09916C_MAX_DELAY\n", __func__, delay);
+		delay = AK09916C_MAX_DELAY;
+	} else if (delay < AK09916C_MIN_DELAY) {
+		pr_info("[SENSOR]: %s - %lld < AK09916C_MAX_DELAY\n", __func__, delay);
+		delay = AK09916C_MIN_DELAY;
 	}
 
 	mutex_lock(&data->enable_lock);

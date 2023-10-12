@@ -131,19 +131,19 @@ static int cyttsp5_ic_parse_input(struct device *dev, const char *buf,
 	u32 j;
 	int last = 0;
 	int ret;
-	dev_dbg(dev, "%s: pbuf=%p buf=%p size=%d %s=%d buf=%s\n", __func__,
+	tsp_debug_dbg(false, dev, "%s: pbuf=%p buf=%p size=%d %s=%d buf=%s\n", __func__,
 			pbuf, buf, (int) buf_size, "scan buf size",
 			(int)CYTTSP5_INPUT_ELEM_SZ, buf);
 
 	while (pbuf <= (buf + buf_size)) {
 		if (i >= CY_MAX_CONFIG_BYTES) {
-			dev_err(dev, "%s: %s size=%d max=%d\n", __func__,
+			tsp_debug_err(false, dev, "%s: %s size=%d max=%d\n", __func__,
 					"Max cmd size exceeded", i,
 					CY_MAX_CONFIG_BYTES);
 			return -EINVAL;
 		}
 		if (i >= ic_buf_size) {
-			dev_err(dev, "%s: %s size=%d buf_size=%d\n", __func__,
+			tsp_debug_err(false, dev, "%s: %s size=%d buf_size=%d\n", __func__,
 					"Buffer size exceeded", i, (int)ic_buf_size);
 			return -EINVAL;
 		}
@@ -158,7 +158,7 @@ static int cyttsp5_ic_parse_input(struct device *dev, const char *buf,
 
 		memset(scan_buf, 0, CYTTSP5_INPUT_ELEM_SZ);
 		if ((last == ',') && (*pbuf == ',')) {
-			dev_err(dev, "%s: %s \",,\" not allowed.\n", __func__,
+			tsp_debug_err(false, dev, "%s: %s \",,\" not allowed.\n", __func__,
 					"Invalid data format.");
 			return -EINVAL;
 		}
@@ -172,7 +172,7 @@ static int cyttsp5_ic_parse_input(struct device *dev, const char *buf,
 
 		ret = kstrtoul(scan_buf, 16, &value);
 		if (ret < 0) {
-			dev_err(dev, "%s: %s '%s' %s%s i=%d r=%d\n", __func__,
+			tsp_debug_err(false, dev, "%s: %s '%s' %s%s i=%d r=%d\n", __func__,
 					"Invalid data format. ", scan_buf,
 					"Use \"0xHH,...,0xHH\"", " instead.",
 					i, ret);
@@ -200,7 +200,7 @@ static ssize_t cyttsp5_command_store(struct device *dev,
 	length = cyttsp5_ic_parse_input(dev, buf, size, dad->ic_buf,
 			CY_MAX_PRBUF_SIZE);
 	if (length <= 0) {
-		dev_err(dev, "%s: %s Group Data store\n", __func__,
+		tsp_debug_err(false, dev, "%s: %s Group Data store\n", __func__,
 				"Malformed input for");
 		goto exit;
 	}
@@ -215,7 +215,7 @@ static ssize_t cyttsp5_command_store(struct device *dev,
 	/*pm_runtime_put(dev);*/
 	if (rc) {
 		dad->response_length = 0;
-		dev_err(dev, "%s: Failed to store command\n", __func__);
+		tsp_debug_err(false, dev, "%s: Failed to store command\n", __func__);
 	} else {
 		dad->status = 1;
 	}
@@ -239,7 +239,7 @@ static int cyttsp5_exec_scan_cmd_(struct device *dev)
 
 	rc = cmd->cmd->exec_panel_scan(dev, 0);
 	if (rc < 0)
-		dev_err(dev, "%s: Heatmap start scan failed r=%d\n",
+		tsp_debug_err(false, dev, "%s: Heatmap start scan failed r=%d\n",
 			__func__, rc);
 	return rc;
 }
@@ -257,7 +257,7 @@ static int cyttsp5_ret_scan_data_cmd_(struct device *dev, u16 read_offset,
 			read_count, data_id, response, config, actual_read_len,
 			return_buf);
 	if (rc < 0)
-		dev_err(dev, "%s: Retrieve scan data failed r=%d\n",
+		tsp_debug_err(false, dev, "%s: Retrieve scan data failed r=%d\n",
 				__func__, rc);
 	return rc;
 }
@@ -376,7 +376,7 @@ static ssize_t tthe_get_panel_data_debugfs_write(struct file *filp,
 	length = cyttsp5_ic_parse_input(dev, buf_in, count, dad->ic_buf,
 			CY_MAX_PRBUF_SIZE);
 	if (length <= 0) {
-		dev_err(dev, "%s: %s Group Data store\n", __func__,
+		tsp_debug_err(false, dev, "%s: %s Group Data store\n", __func__,
 				"Malformed input for");
 		goto exit;
 	}
@@ -398,7 +398,7 @@ static ssize_t tthe_get_panel_data_debugfs_write(struct file *filp,
 		dad->heatmap.num_element =
 			(CY_MAX_PRBUF_SIZE - CY_CMD_RET_PANEL_HDR)
 			/ CY_CMD_RET_PANEL_ELMNT_SZ_MAX;
-		dev_err(dev, "%s: Will get %d element\n", __func__,
+		tsp_debug_err(false, dev, "%s: Will get %d element\n", __func__,
 				dad->heatmap.num_element);
 	}
 
@@ -456,21 +456,21 @@ static int cyttsp5_setup_sysfs(struct device *dev)
 
 	rc = device_create_file(dev, &dev_attr_command);
 	if (rc) {
-		dev_err(dev, "%s: Error, could not create command\n",
+		tsp_debug_err(false, dev, "%s: Error, could not create command\n",
 				__func__);
 		goto exit;
 	}
 
 	rc = device_create_file(dev, &dev_attr_status);
 	if (rc) {
-		dev_err(dev, "%s: Error, could not create status\n",
+		tsp_debug_err(false, dev, "%s: Error, could not create status\n",
 				__func__);
 		goto unregister_command;
 	}
 
 	rc = device_create_file(dev, &dev_attr_response);
 	if (rc) {
-		dev_err(dev, "%s: Error, could not create response\n",
+		tsp_debug_err(false, dev, "%s: Error, could not create response\n",
 				__func__);
 		goto unregister_status;
 	}
@@ -480,7 +480,7 @@ static int cyttsp5_setup_sysfs(struct device *dev)
 			CYTTSP5_TTHE_TUNER_GET_PANEL_DATA_FILE_NAME,
 			0644, NULL, dad, &tthe_get_panel_data_fops);
 	if (IS_ERR_OR_NULL(dad->tthe_get_panel_data_debugfs)) {
-		dev_err(dev, "%s: Error, could not create get_panel_data\n",
+		tsp_debug_err(false, dev, "%s: Error, could not create get_panel_data\n",
 				__func__);
 		dad->tthe_get_panel_data_debugfs = NULL;
 		goto unregister_response;
@@ -533,7 +533,7 @@ int cyttsp5_device_access_probe(struct device *dev)
 
 	dad = kzalloc(sizeof(*dad), GFP_KERNEL);
 	if (!dad) {
-		dev_err(dev, "%s: Error, kzalloc\n", __func__);
+		tsp_debug_err(false, dev, "%s: Error, kzalloc\n", __func__);
 		rc = -ENOMEM;
 		goto cyttsp5_device_access_probe_data_failed;
 	}
@@ -553,7 +553,7 @@ int cyttsp5_device_access_probe(struct device *dev)
 		if (rc)
 			goto cyttsp5_device_access_setup_sysfs_failed;
 	} else {
-		dev_err(dev, "%s: Fail get sysinfo pointer from core p=%p\n",
+		tsp_debug_err(false, dev, "%s: Fail get sysinfo pointer from core p=%p\n",
 				__func__, dad->si);
 		cmd->subscribe_attention(dev, CY_ATTEN_STARTUP,
 			CY_MODULE_DEVICE_ACCESS, cyttsp5_setup_sysfs_attention,
@@ -565,7 +565,7 @@ int cyttsp5_device_access_probe(struct device *dev)
  cyttsp5_device_access_setup_sysfs_failed:
 	kfree(dad);
  cyttsp5_device_access_probe_data_failed:
-	dev_err(dev, "%s failed.\n", __func__);
+	tsp_debug_err(false, dev, "%s failed.\n", __func__);
 	return rc;
 }
 EXPORT_SYMBOL(cyttsp5_device_access_probe);

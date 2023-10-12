@@ -25,6 +25,14 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
+	arm-pmu {
+		compatible = "arm,cortex-a7-pmu";
+		interrupts = <0 50 4>,
+			     <0 51 4>,
+			     <0 52 4>,
+			     <0 53 4>;
+	};
+
 	aliases {
 		mdev0 = &mdev_0;
 		dsim0 = &dsim_0;

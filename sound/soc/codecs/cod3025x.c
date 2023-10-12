@@ -65,6 +65,7 @@ static void cod3025x_save_otp_registers(struct snd_soc_codec *codec);
 static void cod3025x_restore_otp_registers(struct snd_soc_codec *codec);
 static void cod3025x_reset_io_selector_bits(struct snd_soc_codec *codec);
 static void cod3025x_configure_mic_bias(struct snd_soc_codec *codec);
+int cod3025x_snd_soc_put_volsw_adc_mute(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol);
 
 #ifdef CONFIG_SND_RF_REF_RCV_STATE
 static void cod3x25x_rf_rcv_state(struct cod3025x_priv *cod3025x, bool state)
@@ -523,6 +524,9 @@ static const struct snd_kcontrol_new cod3025x_snd_controls[] = {
 			DNC_LVL_L_SHIFT, DNC_LVL_R_SHIFT,
 			(BIT(DNC_LVL_L_WIDTH) - 1), 0, cod3025x_dnc_lvl_tlv),
 
+	SOC_SINGLE_EXT("ADC UnMute", COD3025X_42_ADC1, 0, 1, 1,
+		snd_soc_get_volsw , cod3025x_snd_soc_put_volsw_adc_mute),
+
 	SOC_ENUM("MonoMix Mode", cod3025x_mono_mix_mode_enum),
 
 	SOC_ENUM("Chargepump Mode", cod3025x_chargepump_mode_enum),
@@ -581,6 +585,65 @@ static int cod3025x_capture_init(struct snd_soc_codec *codec)
 	return 0;
 }
 
+static int cod3025x_adc_mute_use_count(struct snd_soc_codec *codec, bool on)
+{
+	struct cod3025x_priv *cod3025x = snd_soc_codec_get_drvdata(codec);
+	int process_event = 0;
+
+	if(on) {
+		atomic_inc(&cod3025x->adc_mute_use_count);
+		if(atomic_read(&cod3025x->adc_mute_use_count) == 1)
+			process_event = 1;
+	} else {
+		atomic_dec(&cod3025x->adc_mute_use_count);
+		if(atomic_read(&cod3025x->adc_mute_use_count) == 0)
+			process_event = 1;
+	}
+
+	dev_dbg(codec->dev, "%s called, mute process_evnet = %d\n", __func__, process_event);
+	return process_event;
+}
+
+static int cod3025x_adc_digital_mute(struct snd_soc_codec *codec, bool on)
+{
+	dev_info(codec->dev, "%s called, on = %d\n", __func__, on);
+	if(!cod3025x_adc_mute_use_count(codec, on))
+		return 0;
+
+ 	if (on)
+ 		snd_soc_update_bits(codec, COD3025X_42_ADC1,
+ 				ADC1_MUTE_AD_EN_MASK, ADC1_MUTE_AD_EN_MASK);
+ 	else
+ 		snd_soc_update_bits(codec, COD3025X_42_ADC1,
+ 				ADC1_MUTE_AD_EN_MASK, 0);
+	return 0;
+}
+
+int cod3025x_snd_soc_put_volsw_adc_mute(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	int max = mc->max;
+	unsigned int mask = (1 << fls(max)) - 1;
+	unsigned int val;
+
+	val = (ucontrol->value.integer.value[0] & mask);
+
+	if(val == 1)
+		val =0;
+	else
+		val =1;
+
+	dev_dbg(codec->dev, "%s called, val = %d\n", __func__, val);
+
+	if(!cod3025x_adc_mute_use_count(codec, val))
+		return 0;
+
+	return snd_soc_put_volsw(kcontrol, ucontrol);
+}
+
 static int adc_ev(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcontrol,
 		int event)
 {
@@ -597,9 +660,11 @@ static int adc_ev(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcontrol,
 		/* if adc data path is disabled then do capture init */
 		if(!(RSTB_DAT_AD_MASK & dac_on))
 			cod3025x_capture_init(w->codec);
+		cod3025x_adc_digital_mute(w->codec, false);
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
+		cod3025x_adc_digital_mute(w->codec, true);
 		if (PDB_DACDIG_MASK & dac_on)
 			snd_soc_update_bits(w->codec,
 					COD3025X_40_DIGITAL_POWER,
@@ -618,16 +683,6 @@ static int adc_ev(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static void cod3025x_adc_digital_mute(struct snd_soc_codec *codec, bool on)
-{
-	if (on)
-		snd_soc_update_bits(codec, COD3025X_42_ADC1,
-				ADC1_MUTE_AD_EN_MASK, ADC1_MUTE_AD_EN_MASK);
-	else
-		snd_soc_update_bits(codec, COD3025X_42_ADC1,
-				ADC1_MUTE_AD_EN_MASK, 0);
-}
-
 /**
  * cod3025x_mute_mic2
  * Mute mic2 if it is active
@@ -636,16 +691,8 @@ static void cod3025x_adc_digital_mute(struct snd_soc_codec *codec, bool on)
  */
 static int cod3025x_mute_mic2(bool on)
 {
-	int mic_on;
-
 	if (g_cod3025x == NULL)
 		return -1;
-
-	mic_on = snd_soc_read(g_cod3025x->codec, COD3025X_75_CHOP_AD);
-
-	/* Check mic2 active, if mic2 is not active return */
-	if (!(mic_on & EN_MCB2_CHOP_MASK))
-		return 0;
 
 	dev_dbg(g_cod3025x->codec->dev, "%s called, %s\n", __func__,
 			on ? "Mute" : "Unmute");
@@ -683,8 +730,6 @@ static int cod3025_power_on_mic1(struct snd_soc_codec *codec)
 	if (!mix_val)
 		mix_val = EN_MIX_MIC1L_MASK | EN_MIX_MIC1R_MASK;
 
-	cod3025x_adc_digital_mute(codec, true);
-
 	snd_soc_update_bits(codec, COD3025X_10_PD_REF,
 			PDB_MCB1_MASK | PDB_MCB_LDO_CODEC_MASK,
 			PDB_MCB1_MASK | PDB_MCB_LDO_CODEC_MASK);
@@ -704,7 +749,6 @@ static int cod3025_power_on_mic1(struct snd_soc_codec *codec)
 
 	/* 140 ms delay recommended by MSC Team */
 	msleep(140);
-	cod3025x_adc_digital_mute(codec, false);
 
 	return 0;
 }
@@ -722,8 +766,6 @@ static int cod3025_power_on_mic2(struct snd_soc_codec *codec)
 	/* Select default if no paths have been selected */
 	if (!mix_val)
 		mix_val = EN_MIX_MIC2L_MASK | EN_MIX_MIC2R_MASK;
-
-	cod3025x_adc_digital_mute(codec, true);
 
 	/* mic bias2 On */
 	snd_soc_update_bits(codec, COD3025X_10_PD_REF,
@@ -751,7 +793,6 @@ static int cod3025_power_on_mic2(struct snd_soc_codec *codec)
 		snd_soc_update_bits(codec, COD3025X_18_CTRL_REF,
 				CTRM_MCB2_MASK, CTRM_MCB2_MASK);
 	}
-	cod3025x_adc_digital_mute(codec, false);
 
 	return 0;
 }
@@ -760,19 +801,12 @@ static int cod3025_power_off_mic1(struct snd_soc_codec *codec)
 {
 	dev_dbg(codec->dev, "%s called\n", __func__);
 
-	cod3025x_adc_digital_mute(codec, true);
-
-	snd_soc_update_bits(codec, COD3025X_23_MIX_AD,
-			EN_MIX_MIC1L_MASK | EN_MIX_MIC1R_MASK, 0);
-
 	snd_soc_update_bits(codec, COD3025X_16_PWAUTO_AD,
 			APW_MIC1_MASK, 0);
 
 	snd_soc_update_bits(codec, COD3025X_10_PD_REF,
 			PDB_MCB1_MASK | PDB_MCB_LDO_CODEC_MASK,
 			0);
-
-	cod3025x_adc_digital_mute(codec, false);
 
 	return 0;
 }
@@ -782,16 +816,11 @@ static int cod3025_power_off_mic2(struct snd_soc_codec *codec)
 	struct cod3025x_priv *cod3025x = snd_soc_codec_get_drvdata(codec);
 	dev_dbg(codec->dev, "%s called\n", __func__);
 
-	cod3025x_adc_digital_mute(codec, true);
-
 	if (cod3025x->mic_bias2_highquality == false) {
 		/* mic bias2 low quality setting */
 		snd_soc_update_bits(codec, COD3025X_18_CTRL_REF,
 				CTRM_MCB2_MASK, 0);
 	}
-
-	snd_soc_update_bits(codec, COD3025X_23_MIX_AD,
-			EN_MIX_MIC2L_MASK | EN_MIX_MIC2R_MASK, 0);
 
 	snd_soc_update_bits(codec, COD3025X_16_PWAUTO_AD,
 			APW_MIC2_MASK, 0);
@@ -800,8 +829,6 @@ static int cod3025_power_off_mic2(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, COD3025X_10_PD_REF,
 			PDB_MCB2_MASK | PDB_MCB_LDO_CODEC_MASK,
 			0);
-
-	cod3025x_adc_digital_mute(codec, false);
 
 	return 0;
 }
@@ -818,8 +845,6 @@ static int cod3025_power_on_mic3(struct snd_soc_codec *codec)
 	/* Select default if no paths have been selected */
 	if (!mix_val)
 		mix_val = EN_MIX_MIC3L_MASK | EN_MIX_MIC3R_MASK;
-
-	cod3025x_adc_digital_mute(codec, true);
 
 	snd_soc_update_bits(codec, COD3025X_10_PD_REF,
 			PDB_MCB1_MASK | PDB_MCB_LDO_CODEC_MASK,
@@ -841,8 +866,6 @@ static int cod3025_power_on_mic3(struct snd_soc_codec *codec)
 	/* 140 ms delay recommended by MSC Team */
 	msleep(140);
 
-	cod3025x_adc_digital_mute(codec, false);
-
 	return 0;
 }
 
@@ -850,19 +873,12 @@ static int cod3025_power_off_mic3(struct snd_soc_codec *codec)
 {
 	dev_dbg(codec->dev, "%s called\n", __func__);
 
-	cod3025x_adc_digital_mute(codec, true);
-
-	snd_soc_update_bits(codec, COD3025X_23_MIX_AD,
-			EN_MIX_MIC3L_MASK | EN_MIX_MIC3R_MASK, 0);
-
 	snd_soc_update_bits(codec, COD3025X_16_PWAUTO_AD,
 			APW_MIC1_MASK | APW_MIC3_MASK, 0);
 
 	snd_soc_update_bits(codec, COD3025X_10_PD_REF,
 			PDB_MCB1_MASK | PDB_MCB_LDO_CODEC_MASK,
 			0);
-
-	cod3025x_adc_digital_mute(codec, false);
 
 	return 0;
 }
@@ -874,6 +890,7 @@ static int vmid_ev(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		cod3025x_adc_digital_mute(w->codec, true);
 		cod3025x_capture_init(w->codec);
 		break;
 
@@ -881,6 +898,7 @@ static int vmid_ev(struct snd_soc_dapm_widget *w,
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
+		cod3025x_adc_digital_mute(w->codec, false);
 		break;
 
 	default:
@@ -1407,7 +1425,6 @@ static int epdrv_ev(struct snd_soc_dapm_widget *w,
 					CTMV_CP_MODE_MASK,
 					CTMV_CP_MODE_HALF_VDD << CTMV_CP_MODE_SHIFT);
 
-		msleep(150);
 		snd_soc_update_bits(w->codec, COD3025X_37_MIX_DA2,
 				EN_EP_MIX_DCTL_MASK | EN_EP_MIX_DCTR_MASK, 0x0);
 		cod3025x_usleep(100);
@@ -1592,7 +1609,7 @@ static const struct snd_soc_dapm_widget cod3025x_dapm_widgets[] = {
 	SND_SOC_DAPM_SWITCH("MIC3", SND_SOC_NOPM, 0, 0, mic3_on),
 
 	SND_SOC_DAPM_SUPPLY("VMID", SND_SOC_NOPM, 0, 0, vmid_ev,
-			SND_SOC_DAPM_PRE_PMU),
+			SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
 
 	SND_SOC_DAPM_OUT_DRV_E("SPKDRV", SND_SOC_NOPM, 0, 0, NULL, 0,
 			spkdrv_ev, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
@@ -2129,6 +2146,14 @@ static void cod3025x_buttons_work(struct work_struct *work)
 
 		dev_err(cod3025x->dev, ":key skipped. ADC %d\n", adc);
 	} else {
+		snd_soc_update_bits(cod3025x->codec, COD3025X_10_PD_REF,
+				PDB_MCB1_MASK, 0);
+
+		msleep(40);
+
+		snd_soc_update_bits(cod3025x->codec, COD3025X_10_PD_REF,
+				PDB_MCB1_MASK, PDB_MCB1_MASK);
+
 		jd->button_det = false;
 		input_report_key(cod3025x->input, jd->button_code, 0);
 		input_sync(cod3025x->input);
@@ -2939,6 +2964,8 @@ static int cod3025x_codec_probe(struct snd_soc_codec *codec)
 	cod3025x->aifrate = COD3025X_SAMPLE_RATE_48KHZ;
 
 	cod3025x_i2c_parse_dt(cod3025x);
+
+	atomic_set(&cod3025x->adc_mute_use_count, 0);
 
 	if (cod3025x->update_fw)
 		exynos_regmap_update_fw(COD3025X_FIRMWARE_NAME,

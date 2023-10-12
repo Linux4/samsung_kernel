@@ -314,9 +314,10 @@
 	};
 
 	s2803x: s2803x@148C0000 {
-		pinctrl-names = "default", "idle";
+		pinctrl-names = "default", "idle", "bt-idle";
 		pinctrl-0 = <&i2s_pmic_bus &i2s_bt_bus>;
 		pinctrl-1 = <&i2s_pmic_bus_idle &i2s_bt_bus_idle>;
+		pinctrl-2 = <&i2s_pmic_bus &i2s_bt_bus_idle>;
 		bck-mcko-mode;
 		status = "okay";
 	};
@@ -703,7 +704,7 @@
 		timing,h-porch = <112 96 28>;
 		/* VBP:12, VFP:16, VSW:4 */
 		timing,v-porch = <12 16 4>;
-		timing,dsi-hs-clk = <500 494>;
+		timing,dsi-hs-clk = <489 489>;
 		timing,dsi-escape-clk = <16>;
 	};
 

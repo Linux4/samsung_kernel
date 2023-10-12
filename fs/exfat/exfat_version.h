@@ -1,1 +1,1 @@
-#define EXFAT_VERSION	"1.2.22"
+#define EXFAT_VERSION	"1.2.24"

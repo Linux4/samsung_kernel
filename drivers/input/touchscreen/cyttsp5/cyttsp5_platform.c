@@ -100,7 +100,7 @@ struct cyttsp5_loader_platform_data _cyttsp5_loader_platform_data = {
 
 int enabled = 0;
 
-static int cyttsp5_hw_power(struct cyttsp5_core_platform_data *pdata, int on)
+static int cyttsp5_hw_power(struct cyttsp5_core_platform_data *pdata, struct device *dev, int on)
 {
 	struct regulator *regulator_avdd = NULL;
 	int ret;
@@ -111,17 +111,17 @@ static int cyttsp5_hw_power(struct cyttsp5_core_platform_data *pdata, int on)
 
 	regulator_avdd = regulator_get(NULL, pdata->regulator_avdd);
 	if (IS_ERR(regulator_avdd)) {
-		pr_err("%s: Failed to get %s regulator.\n",
+		tsp_debug_err(true, dev, "%s: Failed to get %s regulator.\n",
 			 __func__, pdata->regulator_avdd);
 		return PTR_ERR(regulator_avdd);
 	}
 
-	pr_err("%s: %s\n", __func__, on ? "on" : "off");
+	tsp_debug_err(true, dev, "%s: %s\n", __func__, on ? "on" : "off");
 
 	if(on) {
 		ret = regulator_enable(regulator_avdd);
 		if (ret){
-			pr_err("%s : Failed to enable avdd: %d\n", __func__, ret);
+			tsp_debug_err(true, dev, "%s : Failed to enable avdd: %d\n", __func__, ret);
 			return ret;
 		}
 		
@@ -142,17 +142,17 @@ int cyttsp5_xres(struct cyttsp5_core_platform_data *pdata,
 {
 	int rc;
 
-	rc = cyttsp5_hw_power(pdata, 0);
+	rc = cyttsp5_hw_power(pdata, dev, 0);
 	if (rc) {
-		dev_err(dev, "%s: Fail power down HW\n", __func__);
+		tsp_debug_err(true, dev, "%s: Fail power down HW\n", __func__);
 		goto exit;
 	}
 
 	msleep(50);
 
-	rc = cyttsp5_hw_power(pdata, 1);
+	rc = cyttsp5_hw_power(pdata, dev, 1);
 	if (rc) {
-		dev_err(dev, "%s: Fail power up HW\n", __func__);
+		tsp_debug_err(true, dev, "%s: Fail power up HW\n", __func__);
 		goto exit;
 	}
 	msleep(10);
@@ -170,12 +170,12 @@ int cyttsp5_init(struct cyttsp5_core_platform_data *pdata,
 	on_off_flag =0;
 	
 	if (on) {
-		cyttsp5_hw_power(pdata, 1);
+		cyttsp5_hw_power(pdata, dev, 1);
 	} else {
-		cyttsp5_hw_power(pdata, 0);
+		cyttsp5_hw_power(pdata, dev, 0);
 	}
 
-	dev_info(dev,
+	tsp_debug_info(true, dev,
 		"%s: INIT CYTTSP IRQ gpio=%d onoff=%d r=%d\n",
 		__func__, irq_gpio, on, ret);
 	return ret;
@@ -184,7 +184,7 @@ int cyttsp5_init(struct cyttsp5_core_platform_data *pdata,
 int cyttsp5_power(struct cyttsp5_core_platform_data *pdata,
 		int on, struct device *dev, atomic_t *ignore_irq)
 {
-	return cyttsp5_hw_power(pdata, on);
+	return cyttsp5_hw_power(pdata, dev, on);
 }
 
 int cyttsp5_irq_stat(struct cyttsp5_core_platform_data *pdata,

@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2017, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd.h 607587 2015-12-21 11:25:08Z $
+ * $Id: dhd.h 700407 2017-05-19 03:32:21Z $
  */
 
 /****************
@@ -59,6 +59,11 @@ int get_scheduler_policy(struct task_struct *p);
 #include <wlioctl.h>
 #include <wlfc_proto.h>
 
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0) && LINUX_VERSION_CODE < \
+	KERNEL_VERSION(3, 18, 0) || defined(CONFIG_BCMDHD_VENDOR_EXT))
+#define WL_VENDOR_EXT_SUPPORT
+#endif /* 3.13.0 <= LINUX_KERNEL_VERSION < 3.18.0 || CONFIG_BCMDHD_VENDOR_EXT */
 
 #if defined(KEEP_ALIVE)
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
@@ -139,7 +144,9 @@ enum dhd_prealloc_index {
 	DHD_PREALLOC_WIPHY_ESCAN1 = 6,
 	DHD_PREALLOC_DHD_INFO = 7,
 	DHD_PREALLOC_DHD_WLFC_INFO = 8,
-	DHD_PREALLOC_DHD_LOG_DUMP_BUF = 9,
+	DHD_PREALLOC_DHD_WLFC_HANGER = 9,
+	DHD_PREALLOC_DHD_LOG_DUMP_BUF = 10,
+	DHD_PREALLOC_DHD_LOG_DUMP_BUF_EX = 11,
 	DHD_PREALLOC_SECTION_MAX = DHD_PREALLOC_DHD_LOG_DUMP_BUF
 };
 
@@ -174,6 +181,12 @@ typedef struct reorder_info {
 	uint8 pend_pkts;
 } reorder_info_t;
 
+struct cntry_locales_custom {
+	char iso_abbrev[WLC_CNTRY_BUF_SZ];      /* ISO 3166-1 country abbreviation */
+	char custom_locale[WLC_CNTRY_BUF_SZ];   /* Custom firmware locale */
+	int32 custom_locale_rev;                /* Custom local revisin default -1 */
+};
+
 #ifdef DHDTCPACK_SUPPRESS
 #define TCPACK_SUP_OFF		0	/* TCPACK suppress off */
 /* Replace TCPACK in txq when new coming one has higher ACK number. */
@@ -191,19 +204,19 @@ typedef struct reorder_info {
 struct dhd_log_dump_buf
 {
 	spinlock_t lock;
+	unsigned int enable;
 	unsigned int wraparound;
 	unsigned long max;
 	unsigned int remain;
 	char* present;
 	char* front;
 	char* buffer;
+	struct dhd_log_dump_buf *next;
 };
 
 #define FW_VER_STR_LEN	128
-#define DHD_LOG_DUMP_BUFFER_SIZE	(1024 * 1024)
-#define DHD_LOG_DUMP_MAX_TEMP_BUFFER_SIZE 256
-
-extern void dhd_log_dump_print(const char *fmt, ...);
+#define DHD_LOG_DUMP_MAX_TEMP_BUFFER_SIZE	256
+extern void dhd_log_dump_write(int type, const char *fmt, ...);
 extern char *dhd_log_dump_get_timestamp(void);
 #endif /* DHD_LOG_DUMP */
 #define DHD_COMMON_DUMP_PATH	"/data/misc/wifi/log/"
@@ -223,6 +236,9 @@ typedef struct dhd_pub {
 
 	/* Internal dhd items */
 	bool up;		/* Driver up/down (to OS) */
+#ifdef WL_CFG80211
+	spinlock_t up_lock;	/* Synchronization with CFG80211 down */
+#endif /* WL_CFG80211 */
 	bool txoff;		/* Transmit flow-controlled */
 	bool dongle_reset;  /* TRUE = DEVRESET put dongle into reset */
 	enum dhd_bus_state busstate;
@@ -382,17 +398,18 @@ typedef struct dhd_pub {
 	bool affinity_isdpc;
 	bool affinity_isrxf;
 #endif /* CUSTOMER_HW4 && ARGOS_CPU_SCHEDULER */
-#ifdef KEEP_JP_REGREV
+#if defined(KEEP_KR_REGREV) || defined(KEEP_JP_REGREV)
 	char vars_ccode[WLC_CNTRY_BUF_SZ];
 	uint vars_regrev;
-#endif /* KEEP_JP_REGREV */
+#endif /* KEEP_KR_REGREV || KEEP_JP_REGREV */
 #ifdef DHD_LOSSLESS_ROAMING
 	uint8 dequeue_prec_map;
+	uint8 prio_8021x;
 #endif
-#ifdef DHD_LOG_DUMP
-	struct dhd_log_dump_buf dld_buf;
-	unsigned int dld_enable;
-#endif /* DHD_LOG_DUMP */
+	bool max_dtim_enable;         /* use MAX bcn_li_dtim value in suspend mode */
+#ifdef ENABLE_WAKEUP_PKT_DUMP
+	long long temp_raw;
+#endif /* ENABLE_WAKEUP_PKT_DUMP */
 } dhd_pub_t;
 #if defined(CUSTOMER_HW4)
 #define MAX_RESCHED_CNT 600
@@ -471,8 +488,10 @@ int dhd_pno_clean(dhd_pub_t *dhd);
  */
 extern int dhd_os_wake_lock(dhd_pub_t *pub);
 extern int dhd_os_wake_unlock(dhd_pub_t *pub);
-extern int dhd_event_wake_lock(dhd_pub_t *pub);
-extern int dhd_event_wake_unlock(dhd_pub_t *pub);
+extern void dhd_event_wake_lock(dhd_pub_t *pub);
+extern void dhd_event_wake_unlock(dhd_pub_t *pub);
+extern void dhd_pm_wake_lock_timeout(dhd_pub_t *pub, int val);
+extern void dhd_pm_wake_unlock(dhd_pub_t *pub);
 extern int dhd_os_wake_lock_timeout(dhd_pub_t *pub);
 extern int dhd_os_wake_lock_rx_timeout_enable(dhd_pub_t *pub, int val);
 extern int dhd_os_wake_lock_ctrl_timeout_enable(dhd_pub_t *pub, int val);
@@ -516,6 +535,16 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 			__FUNCTION__, __LINE__); \
 		dhd_os_wake_unlock(pub); \
 	} while (0)
+#define DHD_PM_WAKE_LOCK_TIMEOUT(pub, val) \
+	do { \
+		PRINT_CALL_INFO("call pm_wake_timeout enable"); \
+	dhd_pm_wake_lock_timeout(pub, val); \
+	} while (0)
+#define DHD_PM_WAKE_UNLOCK(pub) \
+	do { \
+		PRINT_CALL_INFO("call pm_wake unlock"); \
+	dhd_pm_wake_unlock(pub); \
+	} while (0)
 #define DHD_OS_WAKE_LOCK_TIMEOUT(pub) \
 	do { \
 		printf("call wake_lock_timeout: %s %d\n", \
@@ -557,6 +586,8 @@ inline static void MUTEX_UNLOCK_SOFTAP_SET(dhd_pub_t * dhdp)
 #define DHD_OS_WAKE_UNLOCK(pub)		dhd_os_wake_unlock(pub)
 #define DHD_EVENT_WAKE_LOCK(pub)			dhd_event_wake_lock(pub)
 #define DHD_EVENT_WAKE_UNLOCK(pub)		dhd_event_wake_unlock(pub)
+#define DHD_PM_WAKE_LOCK_TIMEOUT(pub, val)  dhd_pm_wake_lock_timeout(pub, val)
+#define DHD_PM_WAKE_UNLOCK(pub) 			dhd_pm_wake_unlock(pub)
 #define DHD_OS_WAKE_LOCK_TIMEOUT(pub)		dhd_os_wake_lock_timeout(pub)
 #define DHD_OS_WAKE_LOCK_RX_TIMEOUT_ENABLE(pub, val) \
 	dhd_os_wake_lock_rx_timeout_enable(pub, val)
@@ -700,7 +731,9 @@ extern int dhd_keep_alive_onoff(dhd_pub_t *dhd);
 #define DHD_MULTICAST6_FILTER_NUM	3
 #define DHD_MDNS_FILTER_NUM		4
 #define DHD_ARP_FILTER_NUM		5
-extern int 	dhd_os_enable_packet_filter(dhd_pub_t *dhdp, int val);
+#define DHD_BROADCAST_ARP_FILTER_NUM	6
+#define DHD_IP4BCAST_DROP_FILTER_NUM	7
+extern int dhd_os_enable_packet_filter(dhd_pub_t *dhdp, int val);
 extern void dhd_enable_packet_filter(int value, dhd_pub_t *dhd);
 extern int net_os_enable_packet_filter(struct net_device *dev, int val);
 extern int net_os_rxfilter_add_remove(struct net_device *dev, int val, int num);
@@ -731,10 +764,12 @@ extern int dhd_net2idx(struct dhd_info *dhd, struct net_device *net);
 extern struct net_device * dhd_idx2net(void *pub, int ifidx);
 extern int net_os_send_hang_message(struct net_device *dev);
 extern int net_os_send_hang_message_reason(struct net_device *dev, const char *string_num);
-extern int wl_host_event(dhd_pub_t *dhd_pub, int *idx, void *pktdata,
-                         size_t pktlen, wl_event_msg_t *, void **data_ptr);
+extern int wl_host_event(dhd_pub_t *dhd_pub, int *idx, void *pktdata, uint pktlen,
+	wl_event_msg_t *, void **data_ptr,  void *);
+extern int wl_process_host_event(dhd_pub_t *dhd_pub, int *idx, void *pktdata, uint pktlen,
+	wl_event_msg_t *, void **data_ptr,  void *);
 extern void wl_event_to_host_order(wl_event_msg_t * evt);
-
+extern int wl_host_event_get_data(void *pktdata, uint pktlen, bcm_event_msg_u_t *evu);
 extern int dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifindex, wl_ioctl_t *ioc, void *buf, int len);
 extern int dhd_wl_ioctl_cmd(dhd_pub_t *dhd_pub, int cmd, void *arg, int len, uint8 set,
                             int ifindex);
@@ -780,7 +815,8 @@ extern int dhd_keep_alive_onoff(dhd_pub_t *dhd);
 #endif /* KEEP_ALIVE */
 
 extern bool dhd_is_concurrent_mode(dhd_pub_t *dhd);
-extern int dhd_iovar(dhd_pub_t *pub, int ifidx, char *name, char *cmd_buf, uint cmd_len, int set);
+int dhd_iovar(dhd_pub_t *pub, int ifidx, char *name, char *param_buf, uint param_len,
+		char *res_buf, uint res_len, int set);
 typedef enum cust_gpio_modes {
 	WLAN_RESET_ON,
 	WLAN_RESET_OFF,
@@ -1050,6 +1086,13 @@ enum {
 extern int sec_get_param_wfa_cert(dhd_pub_t *dhd, int mode, uint* read_val);
 #endif /* CUSTOMER_HW4 && USE_WFA_CERT_CONF */
 
+#ifdef DHD_LEGACY_FILE_PATH
+#define PLATFORM_PATH	"/data/"
+#elif defined(PLATFORM_SLP)
+#define PLATFORM_PATH	"/opt/etc/"
+#else
+#define PLATFORM_PATH	"/data/misc/conn/"
+#endif /* DHD_LEGACY_FILE_PATH */
 /*
  * Enable this macro if you want to track the calls to wake lock
  * This records can be printed using the following command

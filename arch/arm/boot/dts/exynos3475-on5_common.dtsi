@@ -20,16 +20,45 @@
 		#size-cells = <1>;
 		ranges;
 
+		common {
+			compatible = "exynos5433-ion,common";
+			reg = <0x4e700000 0x600000>;
+			id = <0>;
+		};
+
+		video {
+			compatible = "exynos5433-ion,video";
+			secure;
+			reusable;
+			reg = <0x32000000 0x5800000>;
+			id = <11>;
+			compat-id = <4 5 6 7>;
+		};
+
+		video_ext {
+			compatible = "exynos5433-ion,video_ext";
+			secure;
+			reusable;
+			reg = <0x38000000 0x1400000>;
+			id = <1>;
+		};
+
+		mfc_fw {
+			compatible = "exynos5433-ion,mfc_fw";
+			secure;
+			reg = <0x30000000 0x200000>;
+			id = <8>;
+		};
+
 		mfc_nfw {
 			compatible = "exynos5433-ion,mfc_nfw";
-			size = <0x100000>;
-			alignment = <0x100000>;
+			reg = <0x31000000 0x100000>;
 			id = <12>;
 		};
 	};
 
 	chosen {
-		bootargs = "console=ttySAC2,115200 vmalloc=256M ess_setup=0x26000000";
+		bootargs = "console=ttySAC2,115200 vmalloc=256M ess_setup=0x26000000 androidboot.hardware=universal3475";
 		linux,initrd-start = <0x22000000>;
 		linux,initrd-end = <0x221FFFFF>;
 	};
@@ -303,11 +332,11 @@
 			io-channel-names = "adc-jack";
 			#io-channel-cells = <1>;
 			io-channel-ranges;
-			but-zones-list = <&but_zones 226 0 380>, /* send/end */
-					<&but_zones 582 381 430>, /* google */
-					<&but_zones 115 431 575>, /* vol up */
-					<&but_zones 114 576 1050>; /* vol down */
-			mic-adc-range = <1000>;
+			but-zones-list = <&but_zones 226 0 168>, /* send/end */
+					<&but_zones 582 169 231>, /* google */
+					<&but_zones 115 232 395>, /* vol up */
+					<&but_zones 114 396 1050>; /* vol down */
+			mic-adc-range = <1120>;
 			mic-det-delay = <50>;
 			adc-trace-num2 = <4>;
 		};
@@ -661,14 +690,14 @@
 
 	decon_board_list: decon_board_list {
 		dsim_set_panel_power_enable {
-			type = "gpio,high", "delay,usleep", "gpio,high", "delay,usleep", "gpio,high", "delay,usleep";
-			gpios = <&gpd0 5 0x1>, <&gpd1 2 0x1>, <&gpd1 1 0x1>;
-			delay = <10000 11000>, <10000 11000>, <10000 11000>;
+			type = "gpio,high", "delay,usleep", "gpio,high", "delay,usleep", "gpio,high", "delay,usleep", "gpio,high", "delay,usleep";
+			gpios = <&gpd0 5 0x1>, <&gpd1 2 0x1>, <&gpd1 1 0x1>, <&gpd1 6 0x1>;
+			delay = <10000 11000>, <10000 11000>, <10000 11000>, <10000 11000>;
 		};
 		dsim_set_panel_power_disable {
-			type = "gpio,low", "delay,usleep", "gpio,low", "delay,usleep", "gpio,low", "delay,usleep", "gpio,low", "delay,usleep";
-			gpios = <&gpd2 2 0x1>, <&gpd1 2 0x1>, <&gpd1 1 0x1>, <&gpd0 5 0x1>;
-			delay = <10000 11000>, <10000 11000>, <10000 11000>, <10000 11000>;
+			type = "gpio,low", "delay,usleep", "gpio,low", "delay,usleep", "gpio,low", "delay,usleep", "gpio,low", "delay,usleep", "gpio,low", "delay,usleep";
+			gpios = <&gpd1 6 0x1>, <&gpd2 2 0x1>, <&gpd1 1 0x1>, <&gpd1 2 0x1>, <&gpd0 5 0x1>;
+			delay = <10000 11000>, <10000 11000>, <10000 11000>, <10000 11000>, <10000 11000>;
 		};
 		dsim_reset_panel {
 			type = "gpio,high", "delay,usleep", "gpio,low", "delay,usleep", "gpio,high", "delay,usleep";
@@ -697,13 +726,13 @@
 		panel_name = "s6d7aa0x62_";
 		/*Need correct this later*/
 		resolution = <720 1280>;
-		size = <62 106>;
+		size = <62 110>;
 		timing,refresh = <60>;
 		/* HBP:112, HFP:96, HSW:28 */
 		timing,h-porch = <112 96 28>;
 		/* VBP:12, VFP:16, VSW:4 */
 		timing,v-porch = <12 16 4>;
-		timing,dsi-hs-clk = <500 494>;
+		timing,dsi-hs-clk = <489 489>;
 		timing,dsi-escape-clk = <16>;
 	};
 
@@ -861,8 +890,8 @@
 	};
 
 	fimc_is@14400000 {
-		rear_sensor_id = <57>;
-		front_sensor_id = <303>;
+		rear_sensor_id = <57>; /* 4ec */
+		front_sensor_id = <303>; /* db8221a */
 		use_module_check;
 		skip_cal_loading;
 

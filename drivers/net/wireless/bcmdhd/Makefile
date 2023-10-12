@@ -28,9 +28,17 @@ DHDCFLAGS += -DDHD_TRACE_WAKE_LOCK
 DHDCFLAGS += -DBCMASSERT_LOG
 # Collect Current Assoc/Reject Status for Big Data logging
 DHDCFLAGS += -DDHD_ENABLE_BIGDATA_LOGGING
+# Enable SI utility error log
+DHDCFLAGS += -DSI_ERROR_ENFORCE
 
 # Print 8021X
 DHDCFLAGS += -DDHD_8021X_DUMP
+
+# Print DHCP
+DHDCFLAGS += -DDHD_DHCP_DUMP
+
+# Print ICMP
+DHDCFLAGS += -DDHD_ICMP_DUMP
 
 # VSDB
 DHDCFLAGS += -DVSDB
@@ -121,7 +129,8 @@ DHDCFLAGS += -DDHD_USE_IDLECOUNT
 # Used short dwell time during initial scan
 DHDCFLAGS += -DUSE_INITIAL_SHORT_DWELL_TIME
 
-# Japan ccode revision will be fixed by nvram's value
+# Korea and Japan ccode revision will be fixed by nvram's value
+DHDCFLAGS += -DKEEP_KR_REGREV
 DHDCFLAGS += -DKEEP_JP_REGREV
 
 # SKB TAILPAD to avoid out of boundary memory access
@@ -138,8 +147,32 @@ DHDCFLAGS += -DUSE_WFA_CERT_CONF
 # Does not forword internal packet
 DHDCFLAGS += -DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT
 
+# Customer scan timeout setting
+DHDCFLAGS += -DCUSTOMER_SCAN_TIMEOUT_SETTING
 
+# Enable HANG event test private command
+DHDCFLAGS += -DSUPPORT_TRIGGER_HANG_EVENT
 
+# Random mac scan
+DHDCFLAGS += -DSUPPORT_RANDOM_MAC_SCAN
+
+# Android Version Check from Platform source
+CANDIDATE_VERSION_PATH := ./../../build/core ../../../../../../build/core out
+FOUND_VERSION_PATH := $(foreach dir,$(CANDIDATE_VERSION_PATH), $(wildcard $(dir)/version_defaults.mk))
+FOUND_VERSION_PATH := $(word 1, $(FOUND_VERSION_PATH))
+ifeq ($(FOUND_VERSION_PATH),)
+$(warning Not found Android version file. Set as Legacy mode)
+DHDCFLAGS += -DDHD_LEGACY_FILE_PATH
+else
+# Extract version string and get major number
+ANDROID_PLATFORM_VERSION := $(shell grep "PLATFORM_VERSION := " $(FOUND_VERSION_PATH) | cut -d "=" -f 2 | cut -d "." -f 1 | sed 's/ //g')
+$(warning WiFi - Android Platform Version - $(ANDROID_PLATFORM_VERSION))
+# If Android version lower than 7(Nougat) => Use Legacy File path
+ifeq ($(shell expr $(ANDROID_PLATFORM_VERSION) \< 7),1)
+DHDCFLAGS += -DDHD_LEGACY_FILE_PATH
+$(warning WiFi will be using Legacy file path)
+endif
+endif
 ##############################
 # Android Platform Definition
 ##############################
@@ -450,6 +483,8 @@ ifneq ($(CONFIG_BCM4334W),)
   DHDCFLAGS += -DPROP_TXSTATUS_VSDB
   DHDCFLAGS += -DWES_SUPPORT
   DHDCFLAGS += -DSUPPORT_WL_TXPOWER
+  # 4334W not enabled PM wake feature
+  DHDCFLAGS :=$(filter-out -DCUSTOM_EVENT_PM_WAKE=20,$(DHDCFLAGS))
 ifeq ($(CONFIG_ARCH_MSM8960),y)
   DHDCFLAGS += -DDHD_SDALIGN=4
 endif
@@ -498,6 +533,10 @@ endif
   DHDCFLAGS += -DCUSTOM_BCN_TIMEOUT_IN_SUSPEND=10
   DHDCFLAGS += -DCUSTOM_ROAM_TIME_THRESH_IN_SUSPEND=6000
   DHDCFLAGS += -DMAX_DTIM_ALLOWED_INTERVAL=925
+
+ifeq ($(CONFIG_WLAN_ON7),y)
+  DHDCFLAGS += -DDHD_SUPPORT_TR_212
+endif
 
   # Remove common feature for BCM4343
   DHDCFLAGS :=$(filter-out -DDISABLE_11H_SOFTAP,$(DHDCFLAGS))
@@ -559,12 +598,16 @@ ifeq ($(CONFIG_SPI_SC8810),y)
   DHDCFLAGS :=$(filter-out -DWL_CFG80211_STA_EVENT,$(DHDCFLAGS))
 endif
 
-# For SLP feature
-ifeq ($(CONFIG_SLP),y)
+# For TIZEN(SLP) feature
+ifeq ($(filter y,$(CONFIG_SLP) $(CONFIG_TIZEN)),y)
   DHDCFLAGS += -DUSE_INITIAL_2G_SCAN
   DHDCFLAGS += -DPLATFORM_SLP -DWRITE_MACADDR
   DHDCFLAGS += -DSUPPORT_MULTIPLE_CHIPS
   DHDCFLAGS += -USUPPORT_MULTIPLE_REVISION -UCONFIG_HAS_WAKELOCK
+  DHDCFLAGS += -DREMOVE_P2PIE_BEFORE_DELIF
+  # RX pkt dump for host wake.
+  DHDCFLAGS += -DENABLE_WAKEUP_PKT_DUMP
+  DHDCFLAGS += -DENABLE_IPMCAST_FILTER
 endif
 
 # GGSM_WIFI_5GHz_CHANNELS feature is define for only GGSM model
@@ -592,6 +635,18 @@ DHDCFLAGS += -DDHD_OF_SUPPORT
 endif
 ifneq ($(CONFIG_MACH_UNIVERSAL5433),)
 DHDCFLAGS += -DSDIO_PADDING_FOR_BLK_TRANS
+endif
+ifneq ($(CONFIG_SOC_EXYNOS7870),)
+DHDCFLAGS += -DDHD_OF_SUPPORT
+DHDCFLAGS += -Wno-date-time
+endif
+ifneq ($(CONFIG_SOC_EXYNOS7420),)
+DHDCFLAGS += -DDHD_OF_SUPPORT
+DHDCFLAGS += -Wno-date-time
+endif
+ifneq ($(CONFIG_ARCH_MDM9607),)
+DHDCFLAGS += -DDHD_OF_SUPPORT
+DHDCFLAGS += -Wno-date-time
 endif
 endif
 

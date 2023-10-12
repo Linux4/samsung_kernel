@@ -1066,6 +1066,22 @@ static ssize_t mms_sys_cmd(struct device *dev, struct device_attribute *devattr,
 		goto ERROR;
 	}
 
+	if (strlen(buf) >= CMD_LEN) { 
+		pr_err("%s: cmd length is over (%s,%d)!!\n",
+					__func__, buf, (int)strlen(buf)); 
+		ret = -EINVAL;
+		goto ERROR;
+
+	}
+
+	if (count >= (unsigned int)CMD_LEN) {
+		pr_err("%s: cmd length(count) is over (%d,%s)!!\n",
+				__func__, (unsigned int)count, buf);
+		ret = -EINVAL;
+		goto ERROR;
+
+	}
+
 	if (info->cmd_busy == true) {
 		tsp_debug_err(true, &info->client->dev,
 			"%s [ERROR] previous command is not ended\n", __func__);
@@ -1131,7 +1147,7 @@ static ssize_t mms_sys_cmd(struct device *dev, struct device_attribute *devattr,
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt < CMD_PARAM_NUM));
 	}
 
 	//print

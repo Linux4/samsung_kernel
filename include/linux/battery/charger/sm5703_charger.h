@@ -16,10 +16,22 @@
 #include <linux/mfd/sm5703_irq.h>
 
 enum {
+	SM5703_TOPOFF_TIMER_10m         = 0x0,
+	SM5703_TOPOFF_TIMER_20m         = 0x1,
+	SM5703_TOPOFF_TIMER_30m         = 0x2,
+	SM5703_TOPOFF_TIMER_45m         = 0x3,
+};
+
+enum {
 	CHG_REG = 0,
 	CHG_DATA,
 	CHG_REGS,
 };
+
+#define ENABLE 1
+#define DISABLE 0
+
+extern bool sec_bat_get_slate_mode(void);
 
 #define SM5703_CNTL				0x0C
 #define SM5703_VBUSCNTL				0x0D
@@ -67,6 +79,10 @@ enum {
 #define SM5703_AICLEN               0x1
 #define SM5703_AICLEN_MASK          (1 << 7)
 
+#define SM5703_TOPOFF_TIMER			0x3
+#define SM5703_TOPOFF_TIMER_MASK	0x60
+#define SM5703_TOPOFF_TIMER_SHIFT	0x5
+
 #define SM5703_VBUSLIMIT            0x3F
 #define SM5703_VBUSLIMIT_MASK       0x3F
 
@@ -109,7 +125,7 @@ enum {
 #define REDUCE_CURRENT_STEP				50
 #define MINIMUM_INPUT_CURRENT			300
 #define SLOW_CHARGING_CURRENT_STANDARD	999
-#define SIOP_INPUT_LIMIT_CURRENT		1200
+#define SIOP_INPUT_LIMIT_CURRENT		1250
 
 extern sec_battery_platform_data_t sec_battery_pdata;
 

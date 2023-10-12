@@ -912,6 +912,12 @@ config RTC_ALARM_BOOT
 	  This is for alarm booting function. This feature is only used in
 	  Chinese models.
 
+config RTC_HRMODE_CLREAR_WA
+	bool "RTC HRmode abnormal clear workaround"
+	default n
+	help
+	  This is an workaround for RTC HRmode abnormal clear issue.
+
 config RTC_DRV_EP93XX
 	tristate "Cirrus Logic EP93XX"
 	depends on ARCH_EP93XX

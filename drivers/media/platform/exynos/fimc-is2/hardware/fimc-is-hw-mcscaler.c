@@ -248,9 +248,13 @@ int fimc_is_hw_mcsc_enable(struct fimc_is_hw_ip *hw_ip, u32 instance, unsigned l
 		goto exit;
 	}
 
-	if (!test_bit(HW_RUN, &hw_ip->state))
-		fimc_is_scaler_start(hw_ip->base_addr);
+	if (!test_bit(HW_RUN, &hw_ip->state)) {
+		u32 hl = 0, vl = 0;
+		fimc_is_scaler_get_input_status(hw_ip->base_addr, &hl, &vl);
+		info_hw("[MCSC][F:%d] enable(%d,%d)\n", hw_ip->fcount, hl, vl);
 
+		fimc_is_scaler_start(hw_ip->base_addr);
+	}
 	set_bit(HW_RUN, &hw_ip->state);
 
 exit:
@@ -267,6 +271,8 @@ int fimc_is_hw_mcsc_disable(struct fimc_is_hw_ip *hw_ip, u32 instance, unsigned 
 	dbg_hw("[%d][ID:%d] hw_mcsc disable\n", instance, hw_ip->id);
 
 	if (test_bit(HW_RUN, &hw_ip->state)) {
+		u32 hl = 0, vl = 0;
+
 		/* disable MCSC */
 		fimc_is_scaler_clear_dma_out_addr(hw_ip->base_addr);
 		fimc_is_scaler_stop(hw_ip->base_addr);
@@ -282,6 +288,9 @@ int fimc_is_hw_mcsc_disable(struct fimc_is_hw_ip *hw_ip, u32 instance, unsigned 
 		fimc_is_scaler_clear_intr_all(hw_ip->base_addr);
 		fimc_is_scaler_disable_intr(hw_ip->base_addr);
 		fimc_is_scaler_mask_intr(hw_ip->base_addr, intr_mask);
+
+		fimc_is_scaler_get_input_status(hw_ip->base_addr, &hl, &vl);
+		info_hw("[MCSC][F:%d] disable(%d,%d)\n", hw_ip->fcount, hl, vl);
 
 		clear_bit(HW_RUN, &hw_ip->state);
 	} else {

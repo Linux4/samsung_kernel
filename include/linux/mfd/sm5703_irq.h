@@ -43,7 +43,7 @@ enum {
 #define SM5703_STATUS4				0x0B
 #define SM5703_STATUS5              0x6B
 
-#define SM5703_STATUS1_OTGFAIL      0x80
+#define SM5703_STATUS1_OTGFAIL      0x40
 #define SM5703_STATUS3_DONE         0x08
 #define SM5703_STATUS3_TOPOFF       0x04
 #define SM5703_STATUS3_CHGON        0x01

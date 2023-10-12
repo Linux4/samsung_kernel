@@ -443,11 +443,11 @@ static void fix_up_readers(struct logger_log *log, size_t len)
 #define ESS_MAX_TIMEBUF_SIZE	(20)
 
 static void (*func_hook_logger)(const char *name, const char *buf, size_t size);
-void register_hook_logger(void (*func)(const char *name, const char *buf, size_t size))
+void register_hook_logger_sec(void (*func)(const char *name, const char *buf, size_t size))
 {
 	func_hook_logger = func;
 }
-EXPORT_SYMBOL(register_hook_logger);
+EXPORT_SYMBOL(register_hook_logger_sec);
 
 static int reparse_hook_logger_header(struct logger_log *log,
 				      struct logger_entry *entry)

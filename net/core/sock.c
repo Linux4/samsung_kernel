@@ -614,6 +614,34 @@ out:
 	return ret;
 }
 
+/* START_OF_KNOX_VPN */
+/** The function sets the domain name associated with the socket. **/
+static int sock_set_domain_name(struct sock *sk, char __user *optval,
+                int optlen)
+{
+    int ret = -EADDRNOTAVAIL;
+    char domain[255];
+
+    ret = -EINVAL;
+    if (optlen < 0)
+        goto out;
+
+    if (optlen > 255 - 1)
+        optlen = 255 - 1;
+
+    memset(domain, 0, sizeof(domain));
+
+    ret = -EFAULT;
+    if (copy_from_user(domain, optval, optlen))
+        goto out;
+    memcpy(sk->domain_name,domain, sizeof(sk->domain_name)-1);
+    ret = 0;
+
+out:
+    return ret;
+}
+/* END_OF_KNOX_VPN */
+
 static inline void sock_valbool_flag(struct sock *sk, int bit, int valbool)
 {
 	if (valbool)
@@ -642,6 +670,11 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 
 	if (optname == SO_BINDTODEVICE)
 		return sock_setbindtodevice(sk, optval, optlen);
+
+    /* START_OF_KNOX_VPN */
+    if (optname == SO_SET_DOMAIN_NAME)
+        return sock_set_domain_name(sk, optval, optlen);
+    /* END_OF_KNOX_VPN */
 
 	if (optlen < sizeof(int))
 		return -EINVAL;
@@ -687,7 +720,7 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 		val = min_t(u32, val, sysctl_wmem_max);
 set_sndbuf:
 		sk->sk_userlocks |= SOCK_SNDBUF_LOCK;
-		sk->sk_sndbuf = max_t(u32, val * 2, SOCK_MIN_SNDBUF);
+		sk->sk_sndbuf = max_t(int, val * 2, SOCK_MIN_SNDBUF);
 		/* Wake up sending tasks if we upped the value. */
 		sk->sk_write_space(sk);
 		break;
@@ -723,7 +756,7 @@ set_rcvbuf:
 		 * returning the value we actually used in getsockopt
 		 * is the most desirable behavior.
 		 */
-		sk->sk_rcvbuf = max_t(u32, val * 2, SOCK_MIN_RCVBUF);
+		sk->sk_rcvbuf = max_t(int, val * 2, SOCK_MIN_RCVBUF);
 		break;
 
 	case SO_RCVBUFFORCE:
@@ -1329,6 +1362,10 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 {
 	struct sock *sk;
 
+	/* START_OF_KNOX_VPN */
+	struct timespec open_timespec;
+	/* END_OF_KNOX_VPN */
+
 	sk = sk_prot_alloc(prot, priority | __GFP_ZERO, family);
 	if (sk) {
 		sk->sk_family = family;
@@ -1343,6 +1380,12 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 
 		sock_update_classid(sk);
 		sock_update_netprioidx(sk);
+		/* START_OF_KNOX_VPN */
+		sk->knox_uid = current->cred->uid;
+		sk->knox_pid = current->tgid;
+		open_timespec = current_kernel_time();
+		sk->open_time = open_timespec.tv_sec;
+		/* END_OF_KNOX_VPN */
 	}
 
 	return sk;

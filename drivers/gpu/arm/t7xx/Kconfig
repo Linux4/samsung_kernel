@@ -15,7 +15,7 @@
 
 menuconfig MALI_T7XX
 	tristate "Mali-T7XX support"
-	default n
+	default y
 	help
 	  Enable this option to build support for the ARM Mali-T7xx GPU.
 
@@ -25,18 +25,17 @@ menuconfig MALI_T7XX
 choice
 	prompt "version Configuration"
 	depends on MALI_T7XX
-	default MALI_R5P0
+	default MALI_R15P0 if DDK_VERSION_OS = "n"
 	help
 	  Select the gpu support version.
 
-config MALI_R5P0
+config MALI_R15P0
 	depends on MALI_T7XX
-	bool "r5p0 driver"
-
-if MALI_R5P0
-source "drivers/gpu/arm/t7xx/r5p0/Kconfig"
-endif
+	bool "r15p0 driver"
 
 endchoice
 
+if MALI_R15P0
+source "drivers/gpu/arm/t7xx/r15p0/Kconfig"
+endif
 

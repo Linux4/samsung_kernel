@@ -117,10 +117,37 @@ static int s2m_rtc_update(struct s2m_rtc_info *info,
 	u8 data;
 	int ret;
 
+#if defined(CONFIG_RTC_HRMODE_CLREAR_WA)
+	u32 ctrl_val;
+#endif
+
 	if (!info || !info->iodev) {
 		pr_err("%s: Invalid argument\n", __func__);
 		return -EINVAL;
 	}
+
+#if defined(CONFIG_RTC_HRMODE_CLREAR_WA)
+	ret = sec_rtc_read(info->iodev, S2M_RTC_CTRL, &ctrl_val);
+
+	if (ret < 0) {
+		dev_err(info->dev, "%s: fail to read control reg(%d)\n", __func__, ret);
+		return ret;
+	}
+
+	if(!(ctrl_val & MODEL24_MASK))
+	{
+
+		dev_err(info->dev, "%s: Control Register : 0x%02x => RTC HRMode cleared, Entered to Workaround code to set it again.\n", __func__, ctrl_val);
+
+		/* Set RTC HRMode register to 24hour mode again */
+		data = MODEL24_MASK;
+		ret = sec_rtc_write(info->iodev, S2M_RTC_CTRL, data);
+		if (ret < 0) {
+			dev_err(info->dev, "%s: fail to write CTRL reg(%d)\n", __func__, ret);
+			return ret;
+		}
+	}
+#endif
 
 	switch (op) {
 	case S2M_RTC_READ:
@@ -132,7 +159,7 @@ static int s2m_rtc_update(struct s2m_rtc_info *info,
 	case S2M_RTC_WRITE_ALARM:
 		if (info->iodev->device_type == S2MPU04X)
 			data = info->audr_mask;
-		if (info->udr_updated)
+		else if (info->udr_updated)
 			data = info->audr_mask | info->wudr_mask;
 		else
 			data = RTC_RUDR_MASK | RTC_WUDR_MASK;

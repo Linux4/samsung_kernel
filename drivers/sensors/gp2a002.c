@@ -62,7 +62,7 @@
 #define OFFSET_FILE_PATH		"/efs/FactoryApp/prox_cal"
 
 #define PROXIMITY	1
-#define CHIP_DEV_NAME	"GP2AP002"
+#define CHIP_DEV_NAME	"GP2A002"
 #define CHIP_DEV_VENDOR	"SHARP"
 
 enum {

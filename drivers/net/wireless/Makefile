@@ -61,8 +61,9 @@ obj-$(CONFIG_MACH_UNIVERSAL3475) += bcmdhd/dhd_custom_exynos.o
 endif
 
 ifneq ($(CONFIG_BCM43454),)
-obj-$(CONFIG_BCM43454)	+= bcmdhd/
-obj-$(CONFIG_MACH_UNIVERSAL3475) += bcmdhd/dhd_custom_exynos.o
+obj-$(CONFIG_BCM43454) += bcmdhd_1_77/
+obj-$(CONFIG_BCM43454) += bcmdhd_1_77/dhd_custom_exynos.o
+obj-$(CONFIG_BCM43454) += bcmdhd_1_77/dhd_custom_memprealloc.o
 endif
 
 obj-$(CONFIG_BRCMFMAC)	+= brcm80211/

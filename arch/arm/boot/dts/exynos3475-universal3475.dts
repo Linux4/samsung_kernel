@@ -59,7 +59,7 @@
 	};
 
 	chosen {
-		bootargs = "console=ttySAC2,115200 vmalloc=256M ess_setup=0x26000000";
+		bootargs = "console=ttySAC2,115200 vmalloc=256M ess_setup=0x26000000 androidboot.hardware=universal3475";
 	};
 
 	fixed-rate-clocks {
@@ -149,6 +149,10 @@
 			samsung,pins = "gpd0-1";
 			samsung,pin-con-pdn = <3>;
 		};
+	};
+
+	but_zones: but_zones {
+		#list-but-cells = <3>;
 	};
 
 	hsi2c@104C0000 {
@@ -349,6 +353,15 @@
 			mic-bias1-voltage = <3>;
 			mic-bias2-voltage = <3>;
 			mic-bias-ldo-voltage = <3>;
+			use-btn-adc-mode;
+			io-channels = <&exynos_adc 1>;
+			io-channel-names = "adc-jack";
+			#io-channel-cells = <1>;
+			io-channel-ranges;
+			but-zones-list = <&but_zones 226 0 217>,
+				<&but_zones 582 218 296>,
+				<&but_zones 115 297 498>,
+				<&but_zones 114 499 1000>;
 		};
 	};
 

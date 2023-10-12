@@ -15,6 +15,7 @@ struct lcd_seq_info {
 #define UNDER_MINUS_20(temperature)	(temperature <= -20)
 
 #define NORMAL_TEMPERATURE			25	/* 25 degrees Celsius */
+#define EXTEND_BRIGHTNESS	306
 #define UI_MAX_BRIGHTNESS 	255
 #define UI_MIN_BRIGHTNESS 	0
 #define UI_DEFAULT_BRIGHTNESS 134
@@ -25,7 +26,12 @@ struct lcd_seq_info {
 
 static const unsigned char SEQ_BR_OPEN[] = {
 	0x53,
-	0x24,
+	0x2C,
+};
+
+static const unsigned char SEQ_BR_DEF[] = {
+	0x51,
+	0xB7,
 };
 
 static const unsigned char SEQ_SLEEP_OUT[] = {
@@ -70,12 +76,12 @@ static const unsigned char SEQ_TEST_KEY_OFF_F1[] = {
 
 static const unsigned char SEQ_TEST_KEY_ON_FC[] = {
 	0xFC,
-	0x5A, 0x5A,
+	0xA5, 0xA5,
 };
 
 static const unsigned char SEQ_TEST_KEY_OFF_FC[] = {
 	0xFC,
-	0xA5, 0xA5,
+	0x5A, 0x5A,
 };
 
 /* Commands for SEC S6D7AA0X62 */
@@ -129,7 +135,7 @@ static const unsigned char SEQ_S6D7AA0X62_INIT_7[] = {
 
 static const unsigned char SEQ_S6D7AA0X62_INIT_8[] = {
 	0xC1,
-	0x03
+	0x01
 };
 
 static const unsigned char SEQ_S6D7AA0X62_INIT_9[] = {
@@ -154,7 +160,8 @@ static const unsigned char SEQ_S6D7AA0X62_INIT_12[] = {
 
 static const unsigned char SEQ_S6D7AA0X62_INIT_13[] = {
 	0xF2,
-	0x02, 0x10, 0x10, 0x44, 0x10
+	0x02, 0x10, 0x10, 0x8c, 0x60
+	/* 0x02 VBP(VBP+VS) VFP HBP(HBP+HS) HFP */
 };
 
 static const unsigned char SEQ_S6D7AA0X62_INIT_14[] = {
@@ -211,5 +218,10 @@ static const unsigned char SEQ_S6D7AA0X62_INIT_23[] = {
 	0x55,
 	0x01
 };
-
+#if defined(CONFIG_SEC_FACTORY)
+static const unsigned char SEQ_S6D7AA0X62_REVERSE[] = {
+	0x36,
+	0x10
+};
+#endif
 #endif /* ___S6D7AA0X62_PARAM_H__ */

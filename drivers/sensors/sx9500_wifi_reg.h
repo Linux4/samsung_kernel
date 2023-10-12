@@ -81,10 +81,17 @@ static const struct smtc_reg_data setup_reg[] = {
 		.reg = SX9500_CPS_CTRL1_REG,
 		.val = 0x43, /* Range : small */
 	},
+#if defined(CONFIG_SENSORS_GTESLTE_CAN)
 	{
 		.reg = SX9500_CPS_CTRL2_REG,
-		.val = 0x57, /* CS1 GAIN : x4, FREQ: 167 KHz */
+		.val = 0x77, /* CS1 GAIN : */
 	},
+#else
+	{
+		.reg = SX9500_CPS_CTRL2_REG,
+		.val = 0x57, /* CS1 GAIN : x2, FREQ: 167 KHz */
+	},
+#endif
 	{
 		.reg = SX9500_CPS_CTRL3_REG,
 		.val = 0x02, /* RAWFILT: Medium */

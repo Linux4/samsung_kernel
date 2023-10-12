@@ -15,7 +15,7 @@
 
 menuconfig MALI_T72X
 	tristate "Mali-T72X support"
-	default n
+	default y
 	help
 	  Enable this option to build support for the ARM Mali-T72x GPU.
 
@@ -25,7 +25,8 @@ menuconfig MALI_T72X
 choice
 	prompt "version Configuration"
 	depends on MALI_T72X
-	default MALI_R5P0_REL
+	default MALI_R5P0_REL if DDK_VERSION_OS = "l"
+	default MALI_R7P0_T72X if DDK_VERSION_OS = "m"
 	help
 	  Select the gpu support version.
 
