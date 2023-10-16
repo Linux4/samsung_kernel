@@ -54,6 +54,7 @@
 #include "sdio_ops.h"
 #include "mtk_mmc_block.h"
 #include "queue.h"
+#include "block.h"
 
 /* If the device is not responding */
 #define MMC_CORE_TIMEOUT_MS	(10 * 60 * 1000) /* 10 minute timeout */
@@ -186,8 +187,10 @@ static int mmc_blk_status_check(struct mmc_card *card, unsigned int *status)
 	err = mmc_wait_for_cmd(card->host, &cmd, retries);
 	if (err == 0)
 		*status = cmd.resp[0];
-	else
+	else {
+		mmc_error_count_log(card, MMC_CMD_OFFSET, err, 0);
 		pr_err("%s: err %d\n", __func__, err);
+	}
 
 	return err;
 }
@@ -3180,11 +3183,17 @@ static int mmc_cmdq_do_erase(struct mmc_cmdq_req *cmdq_req,
 			pr_notice("%s: %s Card stuck in programming state!\n",
 				mmc_hostname(card->host), __func__);
 			err =  -EIO;
-			goto out;
+			mmc_error_count_log(card, MMC_BUSY_OFFSET, -ETIMEDOUT, cmd->resp[0]);
+			goto busy_out;
 		}
 	} while (!(cmd->resp[0] & R1_READY_FOR_DATA) ||
 		 (R1_CURRENT_STATE(cmd->resp[0]) == R1_STATE_PRG));
 out:
+#if defined(CONFIG_MTK_EMMC_CQ_SUPPORT) || defined(CONFIG_MTK_EMMC_HW_CQ)
+	if (err)
+		mmc_cmdq_error_logging(card, cmdq_req, 0);
+#endif
+busy_out:
 	return err;
 }
 #endif
@@ -3318,12 +3327,16 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 			pr_err("%s: Card stuck in programming state! %s\n",
 				mmc_hostname(card->host), __func__);
 			err =  -EIO;
-			goto out;
+			mmc_error_count_log(card, MMC_BUSY_OFFSET, -ETIMEDOUT, cmd.resp[0]);
+			goto busy_out;
 		}
 
 	} while (!(cmd.resp[0] & R1_READY_FOR_DATA) ||
 		 (R1_CURRENT_STATE(cmd.resp[0]) == R1_STATE_PRG));
 out:
+	if (err)
+		mmc_error_count_log(card, MMC_CMD_OFFSET, err, 0);
+busy_out:
 	mmc_retune_release(card->host);
 	return err;
 }

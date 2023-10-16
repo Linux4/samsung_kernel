@@ -292,6 +292,15 @@ int get_scp_dump_size(void)
 
 	return scp_dump_size;
 }
+
+int shub_dump_notifier_register(struct notifier_block *nb)
+{
+	int ret;
+
+	ret = false;
+	pr_notice("[SCP][SHUB] don't support SHUB_DUMP_NOTI\n");
+	return ret;
+}
 #endif
 
 /*

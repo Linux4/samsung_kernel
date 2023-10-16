@@ -25,5 +25,6 @@ struct device_attribute **get_proximity_stk3328_dev_attrs(char *name);
 struct device_attribute **get_proximity_tmd4912_dev_attrs(char *name);
 struct device_attribute **get_proximity_stk3391x_dev_attrs(char *name);
 struct device_attribute **get_proximity_stk33512_dev_attrs(char *name);
+struct device_attribute **get_proximity_stk3afx_dev_attrs(char *name);
 
 #endif

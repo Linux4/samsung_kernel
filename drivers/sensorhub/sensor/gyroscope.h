@@ -63,6 +63,7 @@ struct sensor_chipset_init_funcs *get_gyroscope_lsm6dsl_function_pointer(char *n
 struct sensor_chipset_init_funcs *get_gyroscope_icm42605m_function_pointer(char *name);
 struct sensor_chipset_init_funcs *get_gyroscope_lsm6dsotr_function_pointer(char *name);
 struct sensor_chipset_init_funcs *get_gyroscope_icm42632m_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_gyroscope_lsm6dsvtr_function_pointer(char *name);
 
 int save_gyro_calibration_file(s16 *cal_data);
 
