@@ -889,16 +889,10 @@ static void dp_link_parse_sink_status_field(struct dp_link_private *link)
 	if (len < DP_LINK_STATUS_SIZE)
 		DP_ERR("DP link status read failed\n");
 #ifdef CONFIG_SEC_DISPLAYPORT
-	else {
-		int i;
-
-		pr_cont("[drm-dp] %s: ", __func__);
-		for (i = 0; i < DP_LINK_STATUS_SIZE; i++) {
-			pr_cont("0x%x: 0x%02x ", DP_LANE0_1_STATUS + i,
-				link->link_status[i]);
-		}
-		pr_cont("\n");
-	}
+	else
+		DP_INFO("[202h-207h] %02x-%02x-%02x-%02x-%02x-%02x\n",
+			link->link_status[0], link->link_status[1], link->link_status[2],
+			link->link_status[3], link->link_status[4], link->link_status[5]);
 #endif
 	dp_link_parse_request(link);
 }

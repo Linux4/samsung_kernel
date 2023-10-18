@@ -1384,6 +1384,26 @@ static ssize_t sbm_init_store(struct device *dev,
 	return size;
 }
 
+static ssize_t pocket_inject_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_POCKET_INJECT, 0};
+	int pocket_inject_data = 0;
+
+	if (kstrtoint(buf, 10, &pocket_inject_data)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (pocket_inject_data) {
+		msg_buf[1] = pocket_inject_data;
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
 static DEVICE_ATTR(dumpstate, 0440, dumpstate_show, NULL);
 static DEVICE_ATTR(operation_mode, 0664,
 	operation_mode_show, operation_mode_store);
@@ -1416,6 +1436,7 @@ static DEVICE_ATTR(lcd_onoff, 0220, NULL, lcd_onoff_store);
 #endif
 static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
 static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
+static DEVICE_ATTR(pocket_inject, 0220, NULL, pocket_inject_store);
 
 static struct device_attribute *core_attrs[] = {
 	&dev_attr_dumpstate,
@@ -1449,6 +1470,7 @@ static struct device_attribute *core_attrs[] = {
 #endif
 	&dev_attr_sbm_init,
 	&dev_attr_ar_mode,
+	&dev_attr_pocket_inject,
 	NULL,
 };
 
