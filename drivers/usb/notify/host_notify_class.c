@@ -182,7 +182,10 @@ int host_state_notify(struct host_notify_dev *ndev, int state)
 		host_state_string(ndev->state),
 		host_state_string(state));
 
-	if (ndev->state != state) {
+	if (state == NOTIFY_HOST_BLOCK) {
+		ndev->state = state;
+		kobject_uevent(&ndev->dev->kobj, KOBJ_CHANGE);
+	} else if (ndev->state != state) {
 		ndev->state = state;
 		if (state != NOTIFY_HOST_NONE)
 			kobject_uevent(&ndev->dev->kobj, KOBJ_CHANGE);
