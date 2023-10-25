@@ -22,8 +22,14 @@
 
 struct flip_cover_detector_event {
 	u8 value;
+	s8 nfc;
+	s32 diff;
 	s32 magX;
-	s32 stable_min_max;
+	s32 stable_min;
+	s32 stable_max;
+	u16 detach_mismatch_cnt;
+    u16 detach_mismatch_stop_cnt;
+	u16 attach_retry_cnt;
 	s32 uncal_mag_x;
 	s32 uncal_mag_y;
 	s32 uncal_mag_z;

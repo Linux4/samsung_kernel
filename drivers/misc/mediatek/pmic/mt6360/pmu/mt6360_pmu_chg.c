@@ -1014,6 +1014,12 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 #ifdef MT6360_APPLE_SAMSUNG_TA_SUPPORT
 	if (mpci->chg_type == NONSTANDARD_CHARGER && !mpci->is_host) {
 		dev_info(mpci->dev, "%s: call mt6360_detect_apple_samsung_ta()\n", __func__);
+		ret = mt6360_pmu_reg_clr_bits(mpci->mpi, MT6360_PMU_DEVICE_TYPE,
+										MT6360_MASK_USBCHGEN);
+		if (ret < 0)
+			dev_notice(mpci->dev, "%s: disable chgdet fail\n", __func__);
+		usleep_range(1000, 1100);
+
 		ret = mt6360_detect_apple_samsung_ta(mpci);
 		if (ret < 0)
 			dev_notice(mpci->dev,

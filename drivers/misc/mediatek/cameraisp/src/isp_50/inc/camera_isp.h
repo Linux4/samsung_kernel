@@ -56,6 +56,8 @@ extern void mt_irq_set_polarity(unsigned int irq, unsigned int polarity);
 
 #define ISP_REG_RANGE           (PAGE_SIZE*2)
 
+#define USERKEY_STR_LEN 32
+
 /* In order with the suquence of device nodes defined in dtsi */
 /* in dtsi rule, one hw module should mapping to one node. */
 enum ISP_DEV_NODE_ENUM {
@@ -167,7 +169,7 @@ struct ISP_WAIT_IRQ_STRUCT {
 
 struct ISP_REGISTER_USERKEY_STRUCT {
 	int userKey;
-	char userName[32]; /* this size must the same as the
+	char userName[USERKEY_STR_LEN]; /* this size must the same as the
 			    * icamiopipe api - registerIrq(...)
 			    */
 };

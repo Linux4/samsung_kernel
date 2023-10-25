@@ -52,9 +52,9 @@ static int aois_cmd_factory_notifier(struct notifier_block *nb, unsigned long va
 	}
 
 	memcpy(&factory_op, data, sizeof(factory_op));
-
+#ifdef CONFIG_SHUB_DEBUG
 	shub_infof("[DEBUG] factory mode %d", factory_op);
-
+#endif
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_AOIS, AOIS_SUBCMD_FACTORY, (char *)&factory_op,
 							sizeof(factory_op));
 
@@ -78,9 +78,9 @@ static int aois_cmd_write_notifier(struct notifier_block *nb, unsigned long val,
 	}
 
 	memcpy(&cmd_data, data, sizeof(cmd_data));
-
+#ifdef CONFIG_SHUB_DEBUG
 	shub_infof("[DEBUG] 0x%x %d", cmd_data.addr, cmd_data.size);
-
+#endif
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_AOIS, AOIS_SUBCMD_WRITE, (char *)&cmd_data,
 							sizeof(cmd_data));
 
@@ -107,9 +107,9 @@ static int aois_reg_read_notifier(struct notifier_block *nb, unsigned long val, 
 
 	memcpy(&addr, data, sizeof(u16));
 	memcpy(&size, ((u8 *)data + 2), sizeof(u8));
-
+#ifdef CONFIG_SHUB_DEBUG
 	shub_infof("[DEBUG] 0x%x %d", addr, size);
-
+#endif
 	ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_AOIS, AOIS_SUBCMD_READ, 1000, (char *)data, 3, &buf,
 								 &buf_len, false);
 

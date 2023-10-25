@@ -142,6 +142,7 @@ get_init_chipset_funcs_ptr get_gyro_funcs_ary[] = {
 	get_gyroscope_icm42605m_function_pointer,
 	get_gyroscope_lsm6dsl_function_pointer,
 	get_gyroscope_lsm6dsotr_function_pointer,
+	get_gyroscope_lsm6dsvtr_function_pointer,
 	get_gyroscope_icm42632m_function_pointer,
 };
 
@@ -175,7 +176,7 @@ int sync_gyroscope_status(void)
 void print_gyroscope_debug(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GYROSCOPE);
-	struct sensor_event *event = &(sensor->event_buffer);
+	struct sensor_event *event = &(sensor->last_event_buffer);
 	struct gyro_event *sensor_value = (struct gyro_event *)(event->value);
 
 	shub_info("%s(%u) : %d, %d, %d (%lld) (%ums, %dms)", sensor->name, SENSOR_TYPE_GYROSCOPE, sensor_value->x,
@@ -183,146 +184,86 @@ void print_gyroscope_debug(void)
 		  sensor->max_report_latency);
 }
 
+static struct gyroscope_data gyroscope_data;
+static struct sensor_funcs gyroscope_sensor_func = {
+	.sync_status = sync_gyroscope_status,
+	.set_position = set_gyro_position,
+	.get_position = get_gyro_position,
+	.print_debug = print_gyroscope_debug,
+	.parsing_data = parsing_gyro_calibration,
+	.open_calibration_file = open_gyro_calibration_file,
+	.get_init_chipset_funcs = get_gyro_init_chipset_funcs,
+};
+
 int init_gyroscope(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_GYROSCOPE);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "gyro_sensor");
+		ret = init_default_func(sensor, "gyro_sensor", 6, 6, sizeof(struct gyro_event));
+
 		sensor->report_mode_continuous = true;
-		sensor->receive_event_size = 6;
-		sensor->report_event_size = 6;
-		sensor->event_buffer.value = kzalloc(sizeof(struct gyro_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->data = kzalloc(sizeof(struct gyroscope_data), GFP_KERNEL);
-		if (!sensor->data)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->sync_status = sync_gyroscope_status;
-		sensor->funcs->set_position = set_gyro_position;
-		sensor->funcs->get_position = get_gyro_position;
-		sensor->funcs->print_debug = print_gyroscope_debug;
-		sensor->funcs->parsing_data = parsing_gyro_calibration;
-		sensor->funcs->open_calibration_file = open_gyro_calibration_file;
-		sensor->funcs->get_init_chipset_funcs = get_gyro_init_chipset_funcs;
+		sensor->data = (void *)&gyroscope_data;
+		sensor->funcs = &gyroscope_sensor_func;
 	} else {
-		kfree(sensor->data);
-		sensor->data = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->data);
-	sensor->data = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
 
 int init_interrupt_gyroscope(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_INTERRUPT_GYRO);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "interrupt_gyro_sensor");
-		sensor->receive_event_size = 6;
-		sensor->report_event_size = 6;
-		sensor->event_buffer.value = kzalloc(sizeof(struct gyro_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
+		ret = init_default_func(sensor, "interrupt_gyro_sensor", 6, 6, sizeof(struct gyro_event));
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
 
 int init_vdis_gyroscope(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_VDIS_GYROSCOPE);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "vdis_gyro_sensor");
-		sensor->receive_event_size = 6;
-		sensor->report_event_size = 6;
-		sensor->event_buffer.value = kzalloc(sizeof(struct gyro_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "vdis_gyro_sensor", 6, 6, sizeof(struct gyro_event));
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
-
 
 int init_super_steady_gyroscope(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_SUPER_STEADY_GYROSCOPE);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "super_steady_gyro_sensor");
-		sensor->receive_event_size = 6;
-		sensor->report_event_size = 6;
-		sensor->event_buffer.value = kzalloc(sizeof(struct gyro_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "super_steady_gyro_sensor", 6, 6, sizeof(struct gyro_event));
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
 
