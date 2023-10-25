@@ -480,6 +480,8 @@
 					battery,battery_check_type = <0x00>;
 					battery,ovp_uvlo_check_type = <0x03>;
 					battery,temp_check_count = <0x01>;
+					battery,usb_protection_temp = <0x262>;
+					battery,temp_gap_bat_usb = <0xc8>;
 					battery,overheatlimit_threshold = <0x2bc>;
 					battery,overheatlimit_recovery = <0x2a8>;
 					battery,wire_warm_overheat_thresh = <0x1f4>;
@@ -618,6 +620,7 @@
 					battery,siop_icl_20 = <0x3e8 0x3e8 0x3e8>;
 					battery,siop_fcc_20 = <0xffff 0xffff 0xffff>;
 					battery,standard_curr = <0x880>;
+					battery,bc12_ifcon_wa;
 					battery,ttf_hv_charge_current = <0x8fc>;
 					phandle = <0x59>;
 				};

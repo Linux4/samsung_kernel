@@ -7,21 +7,23 @@
 
 #define BMP580_NAME	"BMP580"
 
-static void init_pressure_bmp580(void)
+static int init_pressure_bmp580(void)
 {
 	struct pressure_data *data = (struct pressure_data *)(get_sensor(SENSOR_TYPE_PRESSURE)->data);
 
 	shub_infof("");
 
 	data->convert_coef = 6400;
+
+	return 0;
 }
 
 
-struct pressure_chipset_funcs pressure_bmp580_func = {
+struct sensor_chipset_init_funcs pressure_bmp580_func = {
 	.init = init_pressure_bmp580,
 };
 
-struct pressure_chipset_funcs *get_pressure_bmp580_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_pressure_bmp580_function_pointer(char *name)
 {
 	if (strcmp(name, BMP580_NAME) != 0)
 		return NULL;

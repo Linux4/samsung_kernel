@@ -253,7 +253,7 @@ void set_wireless_otg_input_current(struct sec_battery_info *battery)
 		sec_vote(battery->input_vote, VOTER_OTG, false, 0);
 }
 
-void sec_bat_set_mfc_off(struct sec_battery_info *battery, bool need_ept)
+void sec_bat_set_mfc_off(struct sec_battery_info *battery, char flag, bool need_ept)
 {
 	union power_supply_propval value = {0, };
 	char wpc_en_status[2];
@@ -265,27 +265,27 @@ void sec_bat_set_mfc_off(struct sec_battery_info *battery, bool need_ept)
 		msleep(300);
 	}
 
-	wpc_en_status[0] = WPC_EN_CHARGING;
+	wpc_en_status[0] = flag;
 	wpc_en_status[1] = false;
 	value.strval = wpc_en_status;
 	psy_do_property(battery->pdata->wireless_charger_name, set,
 		POWER_SUPPLY_EXT_PROP_WPC_EN, value);
 
-	pr_info("@DIS_MFC %s: WC CONTROL: Disable\n", __func__);
+	pr_info("@DIS_MFC %s: WC CONTROL: Disable %d\n", __func__, flag);
 }
 
-void sec_bat_set_mfc_on(struct sec_battery_info *battery)
+void sec_bat_set_mfc_on(struct sec_battery_info *battery, char flag)
 {
 	union power_supply_propval value = {0, };
 	char wpc_en_status[2];
 
-	wpc_en_status[0] = WPC_EN_CHARGING;
+	wpc_en_status[0] = flag;
 	wpc_en_status[1] = true;
 	value.strval = wpc_en_status;
 	psy_do_property(battery->pdata->wireless_charger_name, set,
 		POWER_SUPPLY_EXT_PROP_WPC_EN, value);
 
-	pr_info("%s: WC CONTROL: Enable\n", __func__);
+	pr_info("%s: WC CONTROL: Enable %d\n", __func__, flag);
 }
 
 void sec_bat_mfc_ldo_cntl(struct sec_battery_info *battery, bool en)
@@ -296,6 +296,14 @@ void sec_bat_mfc_ldo_cntl(struct sec_battery_info *battery, bool en)
 	value.intval = en;
 	psy_do_property(battery->pdata->wireless_charger_name, set,
 		POWER_SUPPLY_PROP_CHARGE_EMPTY, value);
+
+	if (battery->disable_mfc) {
+		pr_info("%s : set mfc %s\n", __func__, (en ? "on" : "off"));
+		if (en)
+			sec_bat_set_mfc_on(battery, WPC_EN_CHARGING);
+		else
+			sec_bat_set_mfc_off(battery, WPC_EN_CHARGING, false);
+	}
 }
 
 __visible_for_testing int sec_bat_get_wire_power(struct sec_battery_info *battery, int wr_sts)
@@ -413,7 +421,9 @@ int sec_bat_choose_cable_type(struct sec_battery_info *battery)
 			if (battery->wc_need_ldo_on)
 				sec_bat_mfc_ldo_cntl(battery, MFC_LDO_ON);
 		}
-	} else if (battery->pogo_status) {
+	} else if (is_nocharge_type(wr_sts) && battery->disable_mfc) {
+		pr_info("%s : sec_bat_set_mfc_on because of CABLE_NONE\n", __func__);
+		sec_bat_set_mfc_on(battery, WPC_EN_CHARGING);
 	}
 
 	return cur_ct;
@@ -609,15 +619,15 @@ void sec_bat_ext_event_work_content(struct sec_battery_info *battery)
 			/* process escape phm */
 			if (battery->wc_rx_phm_mode) {
 				pr_info("%s: ESCAPE PHM STEP 1\n", __func__);
-				sec_bat_set_mfc_on(battery);
+				sec_bat_set_mfc_on(battery, WPC_EN_CHARGING);
 				msleep(100);
 
 				pr_info("%s: ESCAPE PHM STEP 2\n", __func__);
-				sec_bat_set_mfc_off(battery, false);
+				sec_bat_set_mfc_off(battery, WPC_EN_CHARGING, false);
 				msleep(510);
 
 				pr_info("%s: ESCAPE PHM STEP 3\n", __func__);
-				sec_bat_set_mfc_on(battery);
+				sec_bat_set_mfc_on(battery, WPC_EN_CHARGING);
 			}
 			battery->wc_rx_phm_mode = false;
 		}

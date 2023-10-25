@@ -2953,10 +2953,6 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 		if (fw_result_code <= FAPI_RESULTCODE_ASSOC_FAILED_CODE)
 			slsi_connect_result_code(ndev_vif, fw_result_code, &status, &timeout_reason);
 
-#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
-		/* Trigger log collection if fw result code is not success */
-		scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_CONNECT_ERR);
-#endif
 #if (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
 #ifdef CONFIG_SCSC_WLAN_SAE_CONFIG
 		if (ndev_vif->sta.crypto.wpa_versions == 3) {
@@ -3211,12 +3207,8 @@ void slsi_rx_disconnect_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 		      fapi_get_vif(skb),
 		      fapi_get_buff(skb, u.mlme_disconnect_ind.peer_sta_address));
 
-#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
-	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_DISCONNECT_IND);
-#else
 #ifndef SLSI_TEST_DEV
 	mx140_log_dump();
-#endif
 #endif
 
 	SLSI_INFO(sdev, "Received DEAUTH, reason = 0\n");
@@ -3251,13 +3243,10 @@ void slsi_rx_disconnected_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		      fapi_get_u16(skb, u.mlme_disconnected_ind.reason_code),
 		      fapi_get_buff(skb, u.mlme_disconnected_ind.peer_sta_address));
 
-#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
-	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_DISCONNECTED_IND);
-#else
 #ifndef SLSI_TEST_DEV
 	mx140_log_dump();
 #endif
-#endif
+
 	if (reason <= 0xFF) {
 		SLSI_INFO(sdev, "Received DEAUTH, reason = %d\n", reason);
 	} else if (reason >= 0x8100 && reason <= 0x81FF) {

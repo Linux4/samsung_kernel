@@ -104,6 +104,7 @@ typedef struct
 	unsigned char *inCalBuf;
 	unsigned char *outCalBuf;
 	uint32_t cal_size;
+	uint32_t bank; // only sc501 is effective
 } caminfo_romdata_sec2lsi;
 
 #ifdef CONFIG_COMPAT_CAMERA
@@ -122,6 +123,7 @@ typedef struct
 	compat_uptr_t inCalBuf;
 	compat_uptr_t outCalBuf;
 	uint32_t cal_size;
+	uint32_t bank; // only sc501 is effective
 } caminfo_romdata_sec2lsi_compat;
 #endif
 

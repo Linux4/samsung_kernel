@@ -732,9 +732,22 @@ static ssize_t gpr_show(struct device *dev,
 
 static DEVICE_ATTR(gpr, 0440, gpr_show, NULL);
 
+void set_dbg_dram_alloc_flag(struct abox_data *data)
+{
+	data->is_dbg_dram_alloc = 1;
+#ifdef CONFIG_SEC_DEBUG
+	/* debug level low -> upload mode 0 */
+	if (secdbg_mode_enter_upload() == 0)
+		data->is_dbg_dram_alloc = 0;
+
+	pr_info("%s is_dbg_dram_alloc=%d\n", __func__, data->is_dbg_dram_alloc);
+#endif
+}
+
 static void abox_dbg_alloc_work_func(struct work_struct *work)
 {
 	struct abox_dbg_dump_min *p_dump;
+	struct abox_data *data = abox_get_abox_data();
 	int i;
 
 	if (!p_abox_dbg_dump_min)
@@ -743,7 +756,7 @@ static void abox_dbg_alloc_work_func(struct work_struct *work)
 
 	for (i = 0; i < ABOX_DBG_DUMP_COUNT; i++) {
 		p_dump = &(*p_abox_dbg_dump_min)[i];
-		if (!p_dump->dram)
+		if (!p_dump->dram && data->is_dbg_dram_alloc)
 			p_dump->dram = vmalloc(sizeof(*p_dump->dram));
 	}
 
@@ -808,6 +821,8 @@ static int samsung_abox_debug_probe(struct platform_device *pdev)
 	int i, ret;
 
 	dev_dbg(dev, "%s\n", __func__);
+
+	set_dbg_dram_alloc_flag(data);
 
 	if (abox_dbg_slog) {
 		if (is_slog_memory_free()) {

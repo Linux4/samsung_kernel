@@ -23,9 +23,9 @@ struct rom_ap2ap_standard_cal_data front_hi556_ap2ap_standard_cal_info = {
 	.rom_lsi_end_addr                                          = 0x1A5F,
 
 	.rom_num_of_segments                                       = 4,
-	.rom_num_of_groups                                         = 3,
+	.rom_num_of_banks                                          = 3,
 
-	.rom_group_start_addr = {
+	.rom_bank_start_addr = {
 		{0x0402, 0x040A, 0x0412},
 		{0x041B, 0x0428, 0x0435},
 		{0x0443, 0x0454, 0x0465},
@@ -34,7 +34,7 @@ struct rom_ap2ap_standard_cal_data front_hi556_ap2ap_standard_cal_info = {
 	.rom_seg_checksum_len = {
 		7, 12, 16, 1868
 	},
-	.rom_seg_len = {
+	.rom_seg_size = {
 		8, 13, 17, 1869
 	},
 	.rom_total_checksum_addr = {

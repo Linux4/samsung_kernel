@@ -23,7 +23,7 @@
 #define VDM_HEAD_TYPE(head)	((head >> 15) & 1) /* checked at pd_process_evt_vdm.c */
 #define VDM_HEAD_OBJ_POS(head)	((head >> 8) & 7)
 #define VDM_HEAD_CMD_TYPE(head)	((head >> 6) & 3) /* checked at pd_process_evt_vdm.c */
-#define VDM_HEAD_CMD(head)	((head) & 0x1f)a
+#define VDM_HEAD_CMD(head)	((head) & 0x1f)
 
 #define ID_HEAD_PRODUCT_TYPE(head)	((head >> 27) & 7)
 

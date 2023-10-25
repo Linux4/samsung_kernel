@@ -7,6 +7,32 @@
 //#define IS_FRONT_MAX_CAL_SIZE                                (0x1A7F - 0x0000 + 0x1)
 #define SC501_FRONT_HEADER_CHECKSUM_LEN                        ((0x4B - 0x00 + 0x1))
 
+#define ADDR_BANK1_BASE     0x80EC
+#define ADDR_BANK1_CHECKSUM 0x886F
+#define ADDR_BANK2_BASE     0x8870
+#define ADDR_BANK2_CHECKSUM 0x8FE7
+
+#define SC501_FRONT_MODULE_INFO_LEN 9
+#define SC501_FRONT_MODULE_SN_LEN   14
+#define SC501_FRONT_AWB_LEN         18
+#define SC501_FRONT_BANK1_LSC_LEN   1882
+#define SC501_FRONT_BANK2_LSC_LEN   1870
+
+#define SC501_FLAG_BANK_VALID       0x55
+#define SC501_RETRIES_COUNT         35
+#define SC501_STATUS_LOAD_COMPLETED 0
+#define SC501_STATUS_LOAD_ONGOING   1
+
+#define SC501_AREA2_START_ADDR      0x8800
+
+#define SC501_FRONT_GROUP1  (0)
+#define SC501_FRONT_GROUP2  (1)
+
+#define SC501_FRONT_SEGMENT_MODULE (0)
+#define SC501_FRONT_SEGMENT_SN     (1)
+#define SC501_FRONT_SEGMENT_AWB    (2)
+#define SC501_FRONT_SEGMENT_LSC    (3)
+
 struct rom_ap2ap_standard_cal_data front_sc501_ap2ap_standard_cal_info = {
 	.rom_orig_start_addr                                       = 0x0,
 	.rom_orig_end_addr                                         = 0x783,
@@ -14,22 +40,41 @@ struct rom_ap2ap_standard_cal_data front_sc501_ap2ap_standard_cal_info = {
 	.rom_lsi_end_addr                                          = 0x1A5F,
 
 	.rom_num_of_segments                                       = 4,
-	.rom_num_of_groups                                         = 2,
+	.rom_num_of_banks                                          = 2,
 
-	.rom_group_start_addr = {
-		{0x80EC, 0x8870},
-		{0x80F5, 0x8879},
-		{0x8103, 0x8887},
-		{0x8115, 0x8899}
+	.rom_bank_start_addr = {
+		{
+			ADDR_BANK1_BASE,
+			ADDR_BANK2_BASE,
+		},
+		{
+			ADDR_BANK1_BASE + SC501_FRONT_MODULE_INFO_LEN,
+			ADDR_BANK2_BASE + SC501_FRONT_MODULE_INFO_LEN,
+		},
+		{
+			ADDR_BANK1_BASE + SC501_FRONT_MODULE_INFO_LEN + SC501_FRONT_MODULE_SN_LEN,
+			ADDR_BANK2_BASE + SC501_FRONT_MODULE_INFO_LEN + SC501_FRONT_MODULE_SN_LEN,
+		},
+		{
+			ADDR_BANK1_BASE + SC501_FRONT_MODULE_INFO_LEN + SC501_FRONT_MODULE_SN_LEN + SC501_FRONT_AWB_LEN,
+			ADDR_BANK2_BASE + SC501_FRONT_MODULE_INFO_LEN + SC501_FRONT_MODULE_SN_LEN + SC501_FRONT_AWB_LEN,
+		},
 	},
 	.rom_seg_checksum_len = {
-		8, 13, 17, 1881
+		SC501_FRONT_MODULE_INFO_LEN - 1,
+		SC501_FRONT_MODULE_SN_LEN - 1,
+		SC501_FRONT_AWB_LEN - 1,
+		SC501_FRONT_BANK1_LSC_LEN - 1,
 	},
-	.rom_seg_len = {
-		9, 14, 18, 1882
+	.rom_seg_size = {
+		SC501_FRONT_MODULE_INFO_LEN,
+		SC501_FRONT_MODULE_SN_LEN,
+		SC501_FRONT_AWB_LEN,
+		SC501_FRONT_BANK1_LSC_LEN,
 	},
 	.rom_total_checksum_addr = {
-		0x886F, 0x8FE7
+		ADDR_BANK1_CHECKSUM,
+		ADDR_BANK2_CHECKSUM,
 	},
 };
 

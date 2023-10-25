@@ -135,7 +135,7 @@ bool sec_abc_reached_spec_type1(struct abc_common_spec_data *common_spec, unsign
 
 	do_div(cur_time, MSEC_PER_SEC);
 
-	ABC_PRINT("MODULE(%s) WARN(%s) warn_cnt(%d) time(%d)",
+	ABC_DEBUG("MODULE(%s) WARN(%s) warn_cnt(%d) time(%d)",
 			  spec_type1->common_spec.module_name,
 			  spec_type1->common_spec.error_name,
 			  spec_type1->buffer.warn_cnt,
@@ -233,7 +233,7 @@ int sec_abc_get_diff_time_type1(struct abc_event_buffer *buffer)
 	front_time = buffer->abc_element[(buffer->front + 1) % buffer->size].cur_time;
 	rear_time = buffer->abc_element[buffer->rear].cur_time;
 
-	ABC_PRINT("front time : %d sec (%d) rear_time %d sec (%d) diff : %d",
+	ABC_DEBUG("front time : %d sec (%d) rear_time %d sec (%d) diff : %d",
 		  front_time,
 		  buffer->front + 1,
 		  rear_time,

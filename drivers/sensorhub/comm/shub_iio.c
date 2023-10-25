@@ -215,13 +215,8 @@ void shub_report_sensordata(int type, u64 timestamp, char *data, int data_len)
 	struct shub_sensor *sensor = get_sensor(type);
 	char *buf;
 
-	if ((!sensor) || (sensor && sensor->report_event_size == 0))
+	if (!sensor || !indio_dev)
 		return;
-
-	if (!indio_dev || !data || data_len == 0) {
-		shub_errf("type(%d) indio_dev | data | data_len is wrong", type);
-		return;
-	}
 
 	buf = kzalloc(sensor->report_event_size + sizeof(timestamp), GFP_KERNEL);
 	if (!buf) {
@@ -229,7 +224,9 @@ void shub_report_sensordata(int type, u64 timestamp, char *data, int data_len)
 		return;
 	}
 
-	memcpy(buf, data, data_len);
+	if (data && data_len > 0)
+		memcpy(buf, data, data_len);
+
 	memcpy(buf + data_len, &timestamp, sizeof(timestamp));
 	mutex_lock(&indio_dev->mlock);
 	iio_push_to_buffers(indio_dev, buf);

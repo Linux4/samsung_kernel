@@ -386,9 +386,8 @@ READELF		= llvm-readelf
 OBJSIZE		= llvm-size
 STRIP		= llvm-strip
 else
+CC              = $(srctree)/toolchain/clang/host/linux-x86/clang-r383902/bin/clang
 LD		= $(CROSS_COMPILE)ld
-CC              = $(srctree)/toolchain/clang/host/linux-x86/clang-r353983c/bin/clang
-CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
 OBJCOPY		= $(CROSS_COMPILE)objcopy
@@ -510,7 +509,7 @@ endif
 
 ifeq ($(cc-name),clang)
 ifneq ($(CROSS_COMPILE),)
-CLANG_TRIPLE    ?= $(srctree)/toolchain/clang/host/linux-x86/clang-r353983c/bin/aarch64-linux-gnu-
+CLANG_TRIPLE    ?= $(srctree)/toolchain/clang/host/linux-x86/clang-r383902/bin/aarch64-linux-gnu-
 CLANG_FLAGS	+= --target=$(notdir $(CLANG_TRIPLE:%-=%))
 ifeq ($(shell $(srctree)/scripts/clang-android.sh $(CC) $(CLANG_FLAGS)), y)
 $(error "Clang with Android --target detected. Did you specify CLANG_TRIPLE?")
@@ -1886,4 +1885,3 @@ FORCE:
 # Declare the contents of the PHONY variable as phony.  We keep that
 # information in a variable so we can use it in if_changed and friends.
 .PHONY: $(PHONY)
-

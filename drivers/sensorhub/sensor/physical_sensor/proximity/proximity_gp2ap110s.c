@@ -29,9 +29,18 @@
 #define GP2AP110S_NAME    "GP2AP110S"
 #define GP2AP110S_VENDOR  "SHARP"
 
-void init_proximity_gp2ap110s_variable(struct proximity_data *data)
+int init_proximity_gp2ap110s(void)
 {
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
+	if (data->threshold_data == NULL) {
+		data->threshold_data = kzalloc(sizeof(struct proximity_gp2ap110s_data), GFP_KERNEL);
+		if (!data->threshold_data)
+			return -ENOMEM;
+	}
+
 	data->setting_mode = 1;
+	return 0;
 }
 
 void parse_dt_proximity_gp2ap110s(struct device *dev)
@@ -74,7 +83,7 @@ int open_proximity_setting_mode(void)
 			data->setting_mode = buf[0];
 		else
 			sscanf(buf, "%d", &data->setting_mode);
-		
+
 		shub_infof("prox_settings %d", data->setting_mode);
 		if (data->setting_mode != 1 && data->setting_mode != 2) {
 			data->setting_mode = 1;
@@ -98,26 +107,24 @@ void pre_enable_proximity_gp2ap110s(struct proximity_data *data)
 	set_proximity_setting_mode();
 }
 
-int init_proximity_gp2ap110s(struct proximity_data *data)
-{
-	if (data->threshold_data == NULL) {
-		data->threshold_data = kzalloc(sizeof(struct proximity_gp2ap110s_data), GFP_KERNEL);
-		if (!data->threshold_data)
-			return -ENOMEM;
-	}
-	return 0;
-}
-
-struct proximity_chipset_funcs prox_gp2ap110s_ops = {
-	.init = init_proximity_gp2ap110s,
-	.init_proximity_variable = init_proximity_gp2ap110s_variable,
-	.parse_dt = parse_dt_proximity_gp2ap110s,
+struct proximity_chipset_funcs prox_gp2ap110s_funcs = {
 	.sync_proximity_state = set_proximity_gp2ap110s_state,
 	.pre_enable_proximity = pre_enable_proximity_gp2ap110s,
 	.open_calibration_file = open_proximity_setting_mode,
 };
 
-struct proximity_chipset_funcs *get_proximity_gp2ap110s_function_pointer(char *name)
+void *get_proximity_gp2ap110s_chipset_funcs(void)
+{
+	return &prox_gp2ap110s_funcs;
+}
+
+struct sensor_chipset_init_funcs prox_gp2ap110s_ops = {
+	.init = init_proximity_gp2ap110s,
+	.parse_dt = parse_dt_proximity_gp2ap110s,
+	.get_chipset_funcs = get_proximity_gp2ap110s_chipset_funcs,
+};
+
+struct sensor_chipset_init_funcs *get_proximity_gp2ap110s_function_pointer(char *name)
 {
 	if (strcmp(name, GP2AP110S_NAME) != 0)
 		return NULL;

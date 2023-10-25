@@ -57,6 +57,9 @@ extern struct class *sec_class;
 #if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
 #include <linux/sti/abc_motto.h>
 #endif
+#ifndef EXPORT_SYMBOL_KUNIT
+#define EXPORT_SYMBOL_KUNIT(sym)	/* nothing */
+#endif
 #define ABC_CMD_MAX					8
 #define ABC_UEVENT_MAX				10
 #define ABC_BUFFER_MAX				128
@@ -76,6 +79,7 @@ extern struct class *sec_class;
 #define ABC_EVENT_BUFFER_MAX		30
 #define ABC_DEFAULT_COUNT			0
 #define ABC_TEST_STR_MAX		128
+#define ABC_SKIP_EVENT_COUNT_THRESHOLD		3
 
 enum abc_enable_cmd {
 	ERROR_REPORT_MODE_ENABLE = 0,
@@ -90,8 +94,10 @@ enum abc_enable_cmd {
 struct registered_abc_event_struct {
 	char module_name[ABC_EVENT_STR_MAX];
 	char error_name[ABC_EVENT_STR_MAX];
+	char host[ABC_EVENT_STR_MAX];
 	bool enabled;
 	bool singular_spec;
+	int error_count;
 };
 
 struct abc_enable_cmd_struct {
@@ -109,7 +115,6 @@ struct abc_key_data {
 	char event_type[ABC_TYPE_STR_MAX];
 	char event_module[ABC_EVENT_STR_MAX];
 	char event_name[ABC_EVENT_STR_MAX];
-	char host_name[ABC_EVENT_STR_MAX];
 	char ext_log[ABC_EVENT_STR_MAX];
 	unsigned int cur_time;
 	int idx;
@@ -194,6 +199,7 @@ extern struct registered_abc_event_struct abc_event_list[];
 extern int REGISTERED_ABC_EVENT_TOTAL;
 
 #define ABC_PRINT(format, ...) pr_info("[sec_abc] %s : " format, __func__, ##__VA_ARGS__)
+#define ABC_DEBUG(format, ...) pr_debug("[sec_abc] %s : " format, __func__, ##__VA_ARGS__)
 
 #ifdef CONFIG_SEC_KUNIT
 #define ABC_PRINT_KUNIT(format, ...) do { \
@@ -202,8 +208,15 @@ extern int REGISTERED_ABC_EVENT_TOTAL;
 	snprintf(temp, ABC_TEST_STR_MAX, format, ##__VA_ARGS__); \
 	abc_common_test_get_log_str(temp); \
 } while (0)
+#define ABC_DEBUG_KUNIT(format, ...) do { \
+	char temp[ABC_TEST_STR_MAX]; \
+	ABC_PRINT(format, ##__VA_ARGS__); \
+	snprintf(temp, ABC_TEST_STR_MAX, format, ##__VA_ARGS__); \
+	abc_common_test_get_log_str(temp); \
+} while (0)
 #else
 #define ABC_PRINT_KUNIT(format, ...) ABC_PRINT(format, ##__VA_ARGS__)
+#define ABC_DEBUG_KUNIT(format, ...) ABC_DEBUG(format, ##__VA_ARGS__)
 #endif
 
 #endif

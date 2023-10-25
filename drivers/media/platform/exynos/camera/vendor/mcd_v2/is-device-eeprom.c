@@ -97,6 +97,7 @@ int sensor_eeprom_probe(struct i2c_client *client,
 		specific->rom_client[id->driver_data] = client;
 		specific->rom_data[id->driver_data].rom_type = ROM_TYPE_EEPROM;
 		specific->rom_data[id->driver_data].rom_valid = true;
+		specific->rom_bank[id->driver_data] = 0;
 
 		specific->rom_cal_map_addr[id->driver_data] = vender_rom_addr[id->driver_data];
 	} else {

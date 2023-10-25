@@ -24,19 +24,32 @@
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
 
+get_init_chipset_funcs_ptr get_light_funcs_ary[] = {
+	get_light_stk33512_function_pointer,
+};
 
-static void init_light_variable(struct light_data *data)
+static get_init_chipset_funcs_ptr *get_light_init_chipset_funcs(int *len)
 {
+	*len = ARRAY_SIZE(get_light_funcs_ary);
+	return get_light_funcs_ary;
+}
+
+
+static int init_light_variable(void)
+{
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
+	struct light_data *data = sensor->data;
 	struct shub_system_info *system_info = get_shub_system_info();
 
 	data->brightness = -1;
-	data->raw_data_size = 2;
-	data->use_cal_data = false;
+	if(sensor->spec.version >= LIGHT_DEBIG_EVENT_SIZE_4BYTE_VERSION)
+		data->raw_data_size = 4;
+	else
+		data->raw_data_size = 2;
 
 	set_light_ddi_support(system_info->support_ddi);
 
-	if (data->chipset_funcs && data->chipset_funcs->init_light_variable)
-		data->chipset_funcs->init_light_variable(data);
+	return 0;
 }
 
 static void parse_dt_light(struct device *dev)
@@ -55,7 +68,8 @@ static void parse_dt_light(struct device *dev)
 		data->brightness_array_len = 0;
 		data->brightness_array = NULL;
 	} else {
-		data->brightness_array = kcalloc(data->brightness_array_len, sizeof(*data->brightness_array), GFP_KERNEL);
+		data->brightness_array = kcalloc(data->brightness_array_len, sizeof(*data->brightness_array),
+						 GFP_KERNEL);
 		if (of_property_read_u32_array(np, "brightness-array", data->brightness_array,
 					       data->brightness_array_len)) {
 			shub_errf("no brightness array");
@@ -128,42 +142,6 @@ int set_light_region(struct light_data *data)
 }
 #endif
 
-typedef struct light_chipset_funcs *(get_light_function_pointer)(char *);
-
-get_light_function_pointer *get_light_funcs_ary[] = {
-	get_light_stk33512_function_pointer,
-};
-
-int init_light_chipset(void)
-{
-	uint64_t i;
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
-	struct light_data *data = sensor->data;
-	struct light_chipset_funcs *funcs;
-
-	if (data->chipset_funcs)
-		return 0;
-
-	shub_infof("");
-
-	for (i = 0; i < ARRAY_SIZE(get_light_funcs_ary); i++) {
-		funcs = get_light_funcs_ary[i](sensor->spec.name);
-		if (funcs) {
-			data->chipset_funcs = funcs;
-			if (data->chipset_funcs->init)
-				data->chipset_funcs->init(data);
-			break;
-		}
-	}
-
-	if (!data->chipset_funcs)
-		shub_infof("cannot find light sensor chipset");
-
-	parse_dt_light(get_shub_device());
-	init_light_variable(data);
-	return 0;
-}
-
 void set_light_ddi_support(uint32_t ddi_support)
 {
 	shub_infof("%d", ddi_support);
@@ -233,9 +211,9 @@ static void report_event_light(void)
 	struct light_event *sensor_value = (struct light_event *)(sensor->event_buffer.value);
 
 	if (data->light_log_cnt < 3) {
-		shub_info("Light Sensor : lux=%u brightness=%u r=%d g=%d b=%d c=%d atime=%d again=%d", sensor_value->lux,
-			  sensor_value->brightness, sensor_value->r, sensor_value->g, sensor_value->b, sensor_value->w,
-			  sensor_value->a_time, sensor_value->a_gain);
+		shub_info("Light Sensor : lux=%u brightness=%u r=%d g=%d b=%d c=%d atime=%d again=%d",
+			  sensor_value->lux, sensor_value->brightness, sensor_value->r, sensor_value->g,
+			  sensor_value->b, sensor_value->w, sensor_value->a_time, sensor_value->a_gain);
 
 		data->light_log_cnt++;
 	}
@@ -262,32 +240,48 @@ int inject_light_additional_data(char *buf, int count)
 	if (count < 4) {
 		shub_errf("brightness length error %d", count);
 		return -EINVAL;
-	}
-	brightness = *((int32_t *)(buf));
-	cal_brightness = brightness / 10;
-	cal_brightness *= 10;
+	} else if (count == sizeof(int32_t)) {
+		brightness = *((int32_t *)(buf));
+		cal_brightness = brightness / 10;
+		cal_brightness *= 10;
 
-	// shub_errf("br %d, cal_br %d", brightness, cal_brightness);
-	// set current level for changing itime
-	for (i = 0; i < data->brightness_array_len; i++) {
-		if (brightness <= data->brightness_array[i]) {
-			cur_level = i + 1;
-			// shub_infof("brightness %d <= %d , level %d", brightness, data->brightness_array[i],
-			// cur_level);
-			break;
+		// shub_errf("br %d, cal_br %d", brightness, cal_brightness);
+		// set current level for changing itime
+		for (i = 0; i < data->brightness_array_len; i++) {
+			if (brightness <= data->brightness_array[i]) {
+				cur_level = i + 1;
+				// shub_infof("brightness %d <= %d , level %d", brightness, data->brightness_array[i],
+				// cur_level);
+				break;
+			}
 		}
-	}
 
-	if (data->last_brightness_level != cur_level) {
-		data->brightness = brightness;
-		// update last level
-		data->last_brightness_level = cur_level;
-		ret = set_light_brightness(data);
-		data->brightness = cal_brightness;
-	} else if (data->brightness != cal_brightness) {
-		data->brightness = brightness;
-		ret = set_light_brightness(data);
-		data->brightness = cal_brightness;
+		if (data->last_brightness_level != cur_level) {
+			data->brightness = brightness;
+			// update last level
+			data->last_brightness_level = cur_level;
+			ret = set_light_brightness(data);
+			data->brightness = cal_brightness;
+		} else if (data->brightness != cal_brightness) {
+			data->brightness = brightness;
+			ret = set_light_brightness(data);
+			data->brightness = cal_brightness;
+		}
+	} else if (count == sizeof(int32_t)*4) {
+		int32_t data[4] = {0,};
+
+		if (!get_sensor_probe_state(SENSOR_TYPE_LIGHT)) {
+			shub_infof("light sensor is not connected");
+			return ret;
+		}
+		memcpy(data, buf, sizeof(data));
+		shub_infof("target br %d threshold_dark %d lux %d threshold_bright %d", data[0], data[1], data[2], data[3]);
+		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_BRIGHTNESS_HYSTERESIS, (char *)data, sizeof(data));
+		
+		if (ret < 0) {
+			shub_errf("CMD fail %d\n", ret);
+			return ret;
+		}
 	}
 
 	return ret;
@@ -312,10 +306,10 @@ int get_light_sensor_value(char *dataframe, int *index, struct sensor_event *eve
 	memcpy(&sensor_value->w, dataframe + *index, data->raw_data_size);
 	*index += data->raw_data_size;
 
-	memcpy(&sensor_value->a_time, dataframe + *index, sizeof(sensor_value->a_time));
-	*index += sizeof(sensor_value->a_time);
-	memcpy(&sensor_value->a_gain, dataframe + *index, sizeof(sensor_value->a_gain));
-	*index += sizeof(sensor_value->a_gain);
+	memcpy(&sensor_value->a_time, dataframe + *index, data->raw_data_size);
+	*index += data->raw_data_size;
+	memcpy(&sensor_value->a_gain, dataframe + *index, data->raw_data_size);
+	*index += data->raw_data_size;
 	memcpy(&sensor_value->brightness, dataframe + *index, sizeof(sensor_value->brightness));
 	*index += sizeof(sensor_value->brightness);
 
@@ -331,7 +325,10 @@ int init_light(bool en)
 
 	if (en) {
 		strcpy(sensor->name, "light_sensor");
-		sensor->receive_event_size = 28;
+		if(sensor->spec.version >= LIGHT_DEBIG_EVENT_SIZE_4BYTE_VERSION)
+			sensor->receive_event_size = 40;
+		else
+			sensor->receive_event_size = 28;
 		sensor->report_event_size = 4;
 		sensor->event_buffer.value = kzalloc(sizeof(struct light_event), GFP_KERNEL);
 		if (!sensor->event_buffer.value)
@@ -350,9 +347,11 @@ int init_light(bool en)
 		sensor->funcs->report_event = report_event_light;
 		sensor->funcs->print_debug = print_light_debug;
 		sensor->funcs->inject_additional_data = inject_light_additional_data;
-		sensor->funcs->init_chipset = init_light_chipset;
 		sensor->funcs->get_sensor_value = get_light_sensor_value;
 		sensor->funcs->open_calibration_file = light_open_calibration;
+		sensor->funcs->parse_dt = parse_dt_light;
+		sensor->funcs->init_variable = init_light_variable;
+		sensor->funcs->get_init_chipset_funcs = get_light_init_chipset_funcs;
 	} else {
 		struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
 
