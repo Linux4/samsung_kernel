@@ -10042,6 +10042,7 @@
 				battery,chg_temp_check_type = <0x1>;
 				battery,sub_bat_temp_check_type = <0x1>;
 				battery,wpc_temp_check_type = <0x1>;
+				battery,lrp_temp_check_type = <0x0>;
 				battery,thermal_source = <0x2>;
 				battery,usb_thermal_source = <0x2>;
 				battery,chg_thermal_source = <0x2>;

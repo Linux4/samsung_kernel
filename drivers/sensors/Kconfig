@@ -224,3 +224,9 @@ config NOT_SUPPORT_HALL
 	default n
 	help
 	  Not support hall
+
+config SENSORS_A96T3X6_HALL_NOTIFIER
+	bool "folder detect for grip reset"
+	default n
+	help
+	  Say Y here if you use grip reset by folder detect
