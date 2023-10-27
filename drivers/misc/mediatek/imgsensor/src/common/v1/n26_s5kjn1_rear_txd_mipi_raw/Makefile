@@ -1,0 +1,1 @@
+obj-y += n26_s5kjn1_rear_txd_mipiraw_Sensor.o
