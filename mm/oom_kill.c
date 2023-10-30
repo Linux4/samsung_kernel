@@ -654,6 +654,7 @@ static void dump_header(struct oom_control *oc, struct task_struct *p)
  */
 static atomic_t oom_victims = ATOMIC_INIT(0);
 static DECLARE_WAIT_QUEUE_HEAD(oom_victims_wait);
+atomic64_t last_oom_jiffies = ATOMIC64_INIT(0);
 
 static bool oom_killer_disabled __read_mostly;
 
@@ -906,6 +907,7 @@ static void mark_oom_victim(struct task_struct *tsk)
 	__thaw_task(tsk);
 	atomic_inc(&oom_victims);
 	trace_mark_victim(tsk->pid);
+	atomic64_set(&last_oom_jiffies, jiffies);
 }
 
 /**
@@ -959,6 +961,23 @@ bool oom_killer_disable(signed long timeout)
 	ret = wait_event_interruptible_timeout(oom_victims_wait,
 			!atomic_read(&oom_victims), timeout);
 	if (ret <= 0) {
+		struct task_struct *p, *t, *child;
+		int nr_victims = 0;
+
+		read_lock(&tasklist_lock);
+		for_each_process_thread(p, t)
+			list_for_each_entry(child, &t->children, sibling)
+				if (test_tsk_thread_flag(child, TIF_MEMDIE))
+					pr_info("%s process with TIF_MEMDIE %d %s %d\n",
+						__func__, child->pid, child->comm, ++nr_victims);
+		read_unlock(&tasklist_lock);
+		pr_info("%s failed oom_victims %d last_oom_jiffies %ld current %ld\n",
+			__func__, atomic_read(&oom_victims),
+			atomic64_read(&last_oom_jiffies), jiffies);
+
+		if (!nr_victims)
+			atomic_set(&oom_victims, 0);
+
 		oom_killer_enable();
 		return false;
 	}
