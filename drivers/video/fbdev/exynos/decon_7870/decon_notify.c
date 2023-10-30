@@ -1,15 +1,11 @@
-/* decon_notify.c
+/*
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  */
+
 #include <linux/fb.h>
 #include <linux/export.h>
 #include <linux/module.h>
@@ -36,42 +32,10 @@ int decon_notifier_call_chain(unsigned long val, void *v)
 }
 EXPORT_SYMBOL(decon_notifier_call_chain);
 
-#define EVENT_LIST	\
-_X(EVENT_NONE)	\
-_X(EVENT_MODE_CHANGE)	\
-_X(EVENT_SUSPEND)	\
-_X(EVENT_RESUME)	\
-_X(EVENT_MODE_DELETE)	\
-_X(EVENT_FB_REGISTERED)	\
-_X(EVENT_FB_UNREGISTERED)	\
-_X(EVENT_GET_CONSOLE_MAP)	\
-_X(EVENT_SET_CONSOLE_MAP)	\
-_X(EVENT_BLANK)	\
-_X(EVENT_NEW_MODELIST)	\
-_X(EVENT_MODE_CHANGE_ALL)	\
-_X(EVENT_CONBLANK)	\
-_X(EVENT_GET_REQ)	\
-_X(EVENT_FB_UNBIND)	\
-_X(EVENT_REMAP_ALL_CONSOLE)	\
-_X(EARLY_EVENT_BLANK)	\
-_X(R_EARLY_EVENT_BLANK)	\
-
-#define STATE_LIST	\
-_X(BLANK_UNBLANK)	\
-_X(BLANK_NORMAL)	\
-_X(BLANK_VSYNC_SUSPEND)	\
-_X(BLANK_HSYNC_SUSPEND)	\
-_X(BLANK_POWERDOWN)	\
-
-#define _X(a)	DECON_##a,
-enum {	EVENT_LIST	EVENT_MAX	};
-enum {	STATE_LIST	STATE_MAX	};
-#undef _X
-
-#define _X(a)	#a,
-char *EVENT_NAME[] = { EVENT_LIST };
-char *STATE_NAME[] = { STATE_LIST };
-#undef _X
+#define __XX(a)	#a,
+const char *EVENT_NAME[] = { EVENT_LIST };
+const char *STATE_NAME[] = { STATE_LIST };
+#undef __XX
 
 static ktime_t decon_ktime;
 
@@ -111,6 +75,7 @@ static int decon_notifier_event(struct notifier_block *this,
 	switch (val) {
 	case FB_EVENT_BLANK:
 	case FB_EARLY_EVENT_BLANK:
+	case DECON_EVENT_DOZE:
 		break;
 	default:
 		return NOTIFY_DONE;

@@ -3177,7 +3177,7 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 				ret = 0;
 			}
 			blank = FB_BLANK_UNBLANK;
-			decon_notifier_call_chain(FB_EVENT_BLANK, &v);
+			decon_notifier_call_chain(DECON_EVENT_DOZE, &v);
 			break;
 		case DECON_POWER_MODE_DOZE_SUSPEND:
 			decon_info("%s: DECON_POWER_MODE_DOZE_SUSPEND\n", __func__);
@@ -3187,7 +3187,7 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 				ret = 0;
 			}
 			blank = FB_BLANK_POWERDOWN;
-			decon_notifier_call_chain(FB_EVENT_BLANK, &v);
+			decon_notifier_call_chain(DECON_EVENT_DOZE, &v);
 			break;
 		default:
 			decon_info("%s: pwr_mode: %d\n", __func__, decon->pwr_mode);
