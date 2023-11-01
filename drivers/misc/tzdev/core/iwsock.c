@@ -940,7 +940,6 @@ static int __tz_iwsock_read(struct sock_desc *sd, struct circ_buf_desc *read_buf
 	int swd_state;
 	long ret;
 	size_t nbytes;
-	int try_count = 0;
 
 	if (unlikely(tz_iwsock_state != READY)) {
 		log_error(tzdev_iwsock, "Failed to read socket, subsystem is not ready\n");
@@ -964,7 +963,6 @@ static int __tz_iwsock_read(struct sock_desc *sd, struct circ_buf_desc *read_buf
 
 	swd_state = sd->iwd_buf->swd_state;
 
-retry:
 	smp_rmb();
 
 	if (msg->msg_control) {
@@ -1002,12 +1000,8 @@ retry:
 	}
 
 recheck:
-	if (ret == -EAGAIN && swd_state == BUF_SK_CLOSED) {
-		if (try_count++ == 0)
-			goto retry;
-
+	if (ret == -EAGAIN && swd_state == BUF_SK_CLOSED)
 		ret = 0;
-	}
 
 unlock:
 	mutex_unlock(&sd->lock);
