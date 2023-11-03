@@ -1,0 +1,21 @@
+#
+# USB repeater common driver
+#
+
+comment "USB repeater common configs"
+
+config USB_REPEATER
+	tristate "USB repeater support"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the USB repeater device.
+
+config USB_REPEATER_TEST
+        bool "KUnit test for usb_repeater_test"
+        depends on SEC_KUNIT
+        help
+          This driver is for usb_repeater_test driver
+		  usb_repeater_test kunit test
+		  If you want to add some functions,
+		  Please make the test case.
