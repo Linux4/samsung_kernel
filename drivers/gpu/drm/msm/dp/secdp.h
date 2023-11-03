@@ -229,6 +229,8 @@ struct secdp_misc {
 	struct delayed_work hpd_noti_work;
 	struct delayed_work hdcp_start_work;
 	struct delayed_work link_status_work;
+	struct delayed_work link_backoff_work;
+	bool backoff_start;
 	struct delayed_work poor_discon_work;
 #ifdef SECDP_SELF_TEST
 	struct delayed_work self_test_reconnect_work;
@@ -342,6 +344,8 @@ enum dex_support_res_t secdp_get_dex_res(void);
 void secdp_clear_link_status_update_cnt(struct dp_link *dp_link);
 void secdp_reset_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+void secdp_link_backoff_start(void);
+void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
 
