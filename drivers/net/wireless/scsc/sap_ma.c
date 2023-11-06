@@ -103,14 +103,23 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 		msdu_len = (skb->data[ETH_ALEN * 2] << 8) | skb->data[(ETH_ALEN * 2) + 1];
 
 		/* check if the length of sub-frame is valid */
-		if (msdu_len > skb->len) {
+		if (!msdu_len || msdu_len >= skb->len) {
 			SLSI_NET_ERR(dev, "invalid MSDU length %d, SKB length = %d\n", msdu_len, skb->len);
+			__skb_queue_purge(msdu_list);
 			slsi_kfree_skb(skb);
 			return -EINVAL;
 		}
 
 		subframe_len = msdu_len + (2 * ETH_ALEN) + 2;
-
+        
+		/* check if the length of sub-frame is valid */
+		if (subframe_len > skb->len) {
+			SLSI_NET_ERR(dev, "invalid subframe length %d, SKB length = %d\n", subframe_len, skb->len);
+			__skb_queue_purge(msdu_list);
+			slsi_kfree_skb(skb);
+			return -EINVAL;
+		}
+		
 		/* For the last subframe skb length and subframe length will be same */
 		if (skb->len == subframe_len) {
 			/* Use the original skb for the last subframe */
@@ -122,6 +131,7 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 			/* Clone the skb for the subframe */
 			subframe = slsi_skb_clone(skb, GFP_ATOMIC);
 			if (!subframe) {
+				__skb_queue_purge(msdu_list);
 				slsi_kfree_skb(skb);
 				SLSI_NET_ERR(dev, "Failed to clone the SKB for A-MSDU subframe\n");
 				return -ENOMEM;
@@ -157,8 +167,18 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 		}
 
 		/* If this is not the last subframe then move to the next subframe */
-		if (skb != subframe)
-			skb_pull(skb, (subframe_len + padding));
+		if (skb != subframe) {
+			/* If A-MSDU is not formed correctly (e.g when skb->len < subframe_len + padding),
+			 * skb_pull() will return NULL without any manipulation in skb.
+			 * It can lead to infinite loop.
+			 */
+			if (!skb_pull(skb, (subframe_len + padding))) {
+				SLSI_NET_ERR(dev, "Invalid subframe + padding length=%d, SKB length=%d\n", subframe_len + padding, skb->len);
+				__skb_queue_purge(msdu_list);
+				slsi_kfree_skb(skb);
+				return -EINVAL;
+			}
+		}
 
 		/* If this frame has been filtered out, free the clone and continue */
 		if (skip_frame) {
