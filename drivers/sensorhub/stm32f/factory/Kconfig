@@ -1,0 +1,68 @@
+#
+# sensor drivers configuration
+#
+
+config SENSORS_SSP_ATUC128L5HAR
+	tristate "Sensors ssp atuc128l5har"
+	default n
+	depends on SPI
+	help
+	  atuc128l5har file for factory test in ssp driver.
+          If you say yes here you get atuc128l5har support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_ACCEL
+	tristate "Sensors ssp accel sensor"
+	default n
+	depends on SPI
+	help
+	  accelerometer sensor file for factory test in ssp driver.
+          If you say yes here you get accelerometer sensor support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_6AXIS
+	tristate "Sensors ssp 6axis sensor"
+	default n
+	depends on SPI
+	help
+	  6axis sensor file for factory test in ssp driver.
+          If you say yes here you get 6axis sensor support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_TMD3725
+	tristate "Sensors ssp tmd3725"
+	default n
+	depends on SPI
+	help
+	  tmd3725 file for factory test in ssp driver.
+          If you say yes here you get tmd3725 support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+	  
+config SENSORS_SSP_AK09916
+	tristate "Sensors ssp ak09916"
+	default n
+	depends on SPI
+	help
+	  ak09916 file for factory test and doeplus in ssp driver.
+          If you say yes here you get ak09916 support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_MOBEAM
+	tristate "Sensors ssp mobeam"
+	default n
+	depends on SPI
+	help
+	  mobeam file for ssp driver.
+          If you say yes here you get mobeam support using TMG399x.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.

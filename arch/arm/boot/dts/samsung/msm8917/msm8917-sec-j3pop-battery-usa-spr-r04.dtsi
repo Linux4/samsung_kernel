@@ -1,0 +1,25 @@
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "msm8917-sec-j3pop-battery-common.dtsi"
+
+/ {
+	battery {
+		battery,battery_check_type = <4>; /* SEC_BATTERY_CHECK_FUELGAUGE */
+	};
+
+	i2c_11: i2c@11 {
+		sm5703-fuelgauge@71{
+			fuelgauge,bat_int = <&tlmm 45 0x1>;
+		};
+	};
+};

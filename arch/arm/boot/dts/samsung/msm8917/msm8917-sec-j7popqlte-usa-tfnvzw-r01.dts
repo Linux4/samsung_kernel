@@ -1,0 +1,60 @@
+/*
+ * Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "../../qcom/msm8917.dtsi"
+#include "msm8917-sec-j7popqlte-usa-tfnvzw-r01.dtsi"
+
+/ {
+	model = "Samsung J7POPQLTE USA TFNVZW PROJECT Rev01";
+	compatible = "qcom,msm8917-mtp", "qcom,msm8917", "qcom,mtp";
+	qcom,board-id= <8 1>;
+	qcom,pmic-id = <0x10019 0x020037 0x0 0x0>;
+};
+
+&soc{
+	sec_thermistor {
+		compatible = "samsung,sec-ap-thermistor";
+		qcom,therm-vadc = <&pm8937_vadc>;
+		status = "okay";
+		adc_channel = <19>;
+		adc_array = <25840 25878 25916 25954 25992 26030 26079 26129 
+					26178 26228 26277 26337 26396 26456 26515 26575 
+					26642 26710 26778 26846 26914 26991 27067 27144 
+					27220 27297 27388 27480 27571 27663 27754 27877 
+					27999 28122 28244 28367 28488 28609 28730 28851 
+					28972 29118 29264 29409 29555 29701 29852 30003 
+					30155 30306 30457 30628 30798 30969 31140 31311 
+					31491 31671 31852 32032 32213 32440 32668 32896 
+					33124 33352 33569 33786 34003 34220 34437 34656 
+					34875 35094 35313 35532 35737 35942 36147 36352 
+					36557 36757 36956 37156 37355 37555 37698 37840 
+					37983 38125 38268 38437 38605 38774 38942 39111 
+					39258 39406 39553 39701 39849 39979 40109 40239 
+					40369 40499 40607 40715 40824 40932 41041 >;
+  
+		temp_array = <900 890 880 870 860 850 840 830 820 810
+			800 790 780 770 760 750 740 730 720 710
+			700 690 680 670 660 650 640 630 620 610
+			600 590 580 570 560 550 540 530 520 510
+			500 490 480 470 460 450 440 430 420 410
+			400 390 380 370 360 350 340 330 320 310
+			300 290 280 270 260 250 240 230 220 210
+			200 190 180 170 160 150 140 130 120 110
+			100 90 80 70 60 50 40 30 20 10
+			0 (-10) (-20) (-30) (-40) (-50) (-60) (-70) (-80) (-90)
+			(-100) (-110) (-120) (-130) (-140) (-150) (-160) (-170) (-180) (-190)
+			(-200)>;
+	};
+};
