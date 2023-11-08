@@ -1,7 +1,7 @@
-dtbo-y += a52xq_chn_open_w00_r02.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-a52xq_chn_open_w00_r02.dtbo-base := ../../../vendor/qcom/lagoon.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += a52xq_chn_open_w00_r01.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-a52xq_chn_open_w00_r01.dtbo-base := ../../../vendor/qcom/lagoon.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += a52xq_chn_hk_w00_r02.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+a52xq_chn_hk_w00_r02.dtbo-base := ../../../vendor/qcom/lagoon.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += a52xq_chn_hk_w00_r01.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+a52xq_chn_hk_w00_r01.dtbo-base := ../../../vendor/qcom/lagoon.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 dtbo-y += a52xq_eur_open_w00_r00.dtbo
 a52xq_eur_open_w00_r00.dtbo-base := ../../../vendor/qcom/lagoon.dtb
 

@@ -11,8 +11,10 @@ fwdir := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE_DIR))
 fwabs := $(addprefix $(srctree)/,$(filter-out /%,$(fwdir)))$(filter /%,$(fwdir))
 
 fw-external-y := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE))
-
-ifdef CONFIG_SEC_A42XQ_PROJECT
+ifdef CONFIG_MACH_A42XQ_KOR_SINGLE
+fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_a42xq_kor.bin
+fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t356_a42xq_kor_sub.bin
+else ifdef CONFIG_SEC_A42XQ_PROJECT
 fw-external-$(CONFIG_SENSORS_A96T3X6) += abov/a96t356_a42xq.bin
 fw-external-$(CONFIG_SENSORS_A96T3X6_SUB) += abov/a96t356_a42xq_sub.bin
 else ifdef CONFIG_SEC_A42XUQ_PROJECT
