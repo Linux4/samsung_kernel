@@ -664,6 +664,6 @@ void hdd_debugfs_mws_coex_info_init(struct hdd_context *hdd_ctx)
 void hdd_debugfs_mws_coex_info_deinit(struct hdd_context *hdd_ctx)
 {
 	/**
-	 * Coex info dosent have a directory it is removed as part of qdf remove
+	 * Coex info doesn't have a directory it is removed as part of qdf remove
 	 */
 }

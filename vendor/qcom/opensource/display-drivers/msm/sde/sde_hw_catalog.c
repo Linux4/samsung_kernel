@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -228,6 +228,7 @@ enum sde_prop {
 	TVM_INCLUDE_REG,
 	IPCC_PROTOCOL_ID,
 	SDE_EMULATED_ENV,
+	IPCC_CLIENT_DPU_PHYS_ID,
 	SDE_PROP_MAX,
 };
 
@@ -628,6 +629,7 @@ static struct sde_prop_type sde_prop[] = {
 	{TVM_INCLUDE_REG, "qcom,tvm-include-reg", false, PROP_TYPE_U32_ARRAY},
 	{IPCC_PROTOCOL_ID, "qcom,sde-ipcc-protocol-id", false, PROP_TYPE_U32},
 	{SDE_EMULATED_ENV, "qcom,sde-emulated-env", false, PROP_TYPE_BOOL},
+	{IPCC_CLIENT_DPU_PHYS_ID, "qcom,sde-ipcc-client-dpu-phys-id", false, PROP_TYPE_U32}
 };
 
 static struct sde_prop_type sde_perf_prop[] = {
@@ -2126,7 +2128,7 @@ static int sde_mixer_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_c
 	struct sde_lm_cfg *mixer;
 	struct sde_lm_sub_blks *sblk;
 	int pp_count, dspp_count, ds_count, mixer_count;
-	u32 pp_idx, dspp_idx, ds_idx;
+	u32 pp_idx, dspp_idx, ds_idx, merge_3d_idx;
 	u32 mixer_base;
 	struct device_node *snp = NULL;
 	struct sde_dt_props *props, *blend_props, *blocks_props = NULL;
@@ -2167,8 +2169,8 @@ static int sde_mixer_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_c
 		goto put_blocks;
 	}
 
-	for (i = 0, mixer_count = 0, pp_idx = 0, dspp_idx = 0,
-			ds_idx = 0; i < off_count; i++) {
+	for (i = 0, mixer_count = 0, pp_idx = 0, dspp_idx = 0, ds_idx = 0,
+			merge_3d_idx = 0; i < off_count; i++) {
 		const char *disp_pref = NULL;
 		const char *cwb_pref = NULL;
 		const char *dcwb_pref = NULL;
@@ -2242,6 +2244,7 @@ static int sde_mixer_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_c
 		mixer->dspp = dspp_count > 0 ? dspp_idx + DSPP_0
 							: DSPP_MAX;
 		mixer->ds = ds_count > 0 ? ds_idx + DS_0 : DS_MAX;
+		mixer->merge_3d = merge_3d_idx + MERGE_3D_0;
 		pp_count--;
 		dspp_count--;
 		ds_count--;
@@ -2250,6 +2253,12 @@ static int sde_mixer_parse_dt(struct device_node *np, struct sde_mdss_cfg *sde_c
 		ds_idx++;
 
 		mixer_count++;
+		/*
+		 * Since each 3dmux is assigned to a pair of LM,
+		 * increment this idx only at even LM counts
+		 */
+		if ((mixer_count & 1) == 0)
+			merge_3d_idx++;
 
 		sblk->gc.id = SDE_MIXER_GC;
 		if (blocks_props && blocks_props->exists[MIXER_GC_PROP]) {
@@ -4012,6 +4021,9 @@ static void _sde_top_parse_dt_helper(struct sde_mdss_cfg *cfg,
 		PROP_VALUE_ACCESS(props->values, SMART_PANEL_ALIGN_MODE, 0);
 
 	cfg->ipcc_protocol_id = PROP_VALUE_ACCESS(props->values, IPCC_PROTOCOL_ID, 0);
+	cfg->ipcc_client_phys_id = PROP_VALUE_ACCESS(props->values, IPCC_CLIENT_DPU_PHYS_ID, 0);
+	if (!cfg->ipcc_protocol_id || !cfg->ipcc_client_phys_id)
+		cfg->hw_fence_rev = 0; /* disable hw fences*/
 
 	if (props->exists[SEC_SID_MASK]) {
 		cfg->sec_sid_mask_count = props->counts[SEC_SID_MASK];
@@ -4419,12 +4431,45 @@ static void _sde_perf_parse_dt_cfg_populate(struct sde_mdss_cfg *cfg,
 			DEFAULT_AXI_BUS_WIDTH;
 }
 
+/**
+ * _sde_set_possible_cpu_mask - checks defective cores in qos mask and update the
+ * mask to avoid defective cores and add next possible cores for pm qos vote.
+ * @qos_mask:	qos_mask set from DT
+ */
+static int _sde_set_possible_cpu_mask(unsigned long qos_mask)
+{
+	int cpu = 0, defective_cores_count = 0;
+	struct cpumask *cpu_qos_mask = to_cpumask(&qos_mask);
+	unsigned long cpu_p_mask = cpu_possible_mask->bits[0];
+	unsigned long cpu_defective_qos = qos_mask & (~cpu_p_mask);
+
+	/* Count all the defective cores in cpu_defective_qos */
+	defective_cores_count = cpumask_weight(to_cpumask(&cpu_defective_qos));
+
+	for_each_cpu(cpu, cpu_all_mask) {
+		if (cpu_possible(cpu) && !cpumask_test_cpu(cpu, cpu_qos_mask) &&
+					defective_cores_count > 0) {
+			/* Set next possible cpu */
+			cpumask_set_cpu(cpu, cpu_qos_mask);
+			defective_cores_count--;
+		} else if (cpumask_test_cpu(cpu, cpu_qos_mask) && !cpu_possible(cpu))
+			/* Unset the defective core from qos mask */
+			cpumask_clear_cpu(cpu, cpu_qos_mask);
+	}
+
+	qos_mask = cpu_qos_mask->bits[0];
+	return qos_mask;
+}
+
+
+
 static int _sde_perf_parse_dt_cfg(struct device_node *np,
 	struct sde_mdss_cfg *cfg, int *prop_count,
 	struct sde_prop_value *prop_value, bool *prop_exists)
 {
 	int rc, j;
 	const char *str = NULL;
+	unsigned long qos_mask = 0;
 
 	/*
 	 * The following performance parameters (e.g. core_ib_ff) are
@@ -4468,14 +4513,16 @@ static int _sde_perf_parse_dt_cfg(struct device_node *np,
 		set_bit(SDE_FEATURE_CDP, cfg->features);
 	}
 
-	cfg->perf.cpu_mask =
-			prop_exists[PERF_CPU_MASK] ?
+	qos_mask = prop_exists[PERF_CPU_MASK] ?
 			PROP_VALUE_ACCESS(prop_value, PERF_CPU_MASK, 0) :
 			DEFAULT_CPU_MASK;
-	cfg->perf.cpu_mask_perf =
-			prop_exists[CPU_MASK_PERF] ?
+	cfg->perf.cpu_mask = _sde_set_possible_cpu_mask(qos_mask);
+
+	qos_mask = prop_exists[CPU_MASK_PERF] ?
 			PROP_VALUE_ACCESS(prop_value, CPU_MASK_PERF, 0) :
 			DEFAULT_CPU_MASK;
+	cfg->perf.cpu_mask_perf = _sde_set_possible_cpu_mask(qos_mask);
+
 	cfg->perf.cpu_dma_latency =
 			prop_exists[PERF_CPU_DMA_LATENCY] ?
 			PROP_VALUE_ACCESS(prop_value, PERF_CPU_DMA_LATENCY, 0) :
@@ -5190,7 +5237,12 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->ts_prefill_rev = 2;
 		sde_cfg->ctl_rev = SDE_CTL_CFG_VERSION_1_0_0;
 		sde_cfg->true_inline_rot_rev = SDE_INLINE_ROT_VERSION_2_0_1;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		/* Disable UIDLE_PC - sometimes it causes abnormal display behavior */
+		sde_cfg->uidle_cfg.uidle_rev = 0;
+#else
 		sde_cfg->uidle_cfg.uidle_rev = SDE_UIDLE_VERSION_1_0_3;
+#endif
 		sde_cfg->sid_rev = SDE_SID_VERSION_2_0_0;
 		sde_cfg->mdss_hw_block_size = 0x158;
 		sde_cfg->demura_supported[SSPP_DMA1][0] = 0;

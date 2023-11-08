@@ -27,6 +27,12 @@
 * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+/*
+* Changes from Qualcomm Innovation Center are provided under the following license:
+* Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+* SPDX-License-Identifier: BSD-3-Clause-Clear
+*/
+
 #include <utils/constants.h>
 #include <utils/debug.h>
 #include <errno.h>
@@ -295,6 +301,7 @@ int SDMCompDisplayBuiltIn::ApplyCurrentColorModeWithRenderIntent() {
   }
 
   apply_mode_ = false;
+  validated_ = false;
 
   DLOGV_IF(kTagQDCM, "Successfully applied mode gamut = %d, gamma = %d, intent = %d",
            current_mode_.gamut, current_mode_.gamma, current_mode_.intent);
@@ -352,6 +359,15 @@ int SDMCompDisplayBuiltIn::PrepareLayerStack(BufferHandle *buf_handle) {
     DLOGE("buf_handle pointer is null");
     return -EINVAL;
   }
+
+  if (cached_buf_handle_.width == buf_handle->width &&
+    cached_buf_handle_.height == buf_handle->height &&
+    cached_buf_handle_.aligned_width == buf_handle->aligned_width &&
+    cached_buf_handle_.aligned_height == buf_handle->aligned_height &&
+    cached_buf_handle_.format == buf_handle->format &&
+    cached_buf_handle_.src_crop == buf_handle->src_crop)
+    return 0;
+
   Layer *layer = layer_set_.at(0);
   BufferFormat buf_format = GetSDMCompFormat(layer->input_buffer.format);
   LayerRect src_crop = LayerRect(buf_handle->src_crop.left, buf_handle->src_crop.top,
@@ -377,8 +393,17 @@ int SDMCompDisplayBuiltIn::PrepareLayerStack(BufferHandle *buf_handle) {
         layer->input_buffer.height, layer->input_buffer.format, layer->src_rect.left,
         layer->src_rect.top, layer->src_rect.right, layer->src_rect.bottom);
 
+  layer_stack_.layers.clear();
+  validated_ = false;
   for (auto &it : layer_set_)
     layer_stack_.layers.push_back(it);
+
+  cached_buf_handle_.width = buf_handle->width;
+  cached_buf_handle_.height = buf_handle->height;
+  cached_buf_handle_.aligned_width = buf_handle->aligned_width;
+  cached_buf_handle_.aligned_height = buf_handle->aligned_height;
+  cached_buf_handle_.format = buf_handle->format;
+  cached_buf_handle_.src_crop = buf_handle->src_crop;
 
   return 0;
 }

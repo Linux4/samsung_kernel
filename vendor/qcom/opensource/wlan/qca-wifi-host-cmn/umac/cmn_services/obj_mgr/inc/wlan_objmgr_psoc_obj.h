@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all
@@ -187,7 +187,7 @@
 #define WLAN_SOC_F_UAPSD               0x00000400
 	/* STATUS: sleeping */
 #define WLAN_SOC_F_SLEEP               0x00000800
-	/* Enable marking of dfs interfernce */
+	/* Enable marking of dfs interference */
 #define WLAN_SOC_F_MARKDFS             0x00001000
 	/* enable or disable s/w ccmp encrypt decrypt support */
 #define WLAN_SOC_F_CCMPSW_ENCDEC       0x00002000
@@ -195,7 +195,7 @@
 #define WLAN_SOC_F_HIBERNATION         0x00004000
 	/* CONF: desired country has been set */
 #define WLAN_SOC_F_DESCOUNTRY          0x00008000
-	/* CONF: enable power capability or contraint IE */
+	/* CONF: enable power capability or constraint IE */
 #define WLAN_SOC_F_PWRCNSTRIE          0x00010000
 	/* STATUS: 11D in used */
 #define WLAN_SOC_F_DOT11D              0x00020000
@@ -211,7 +211,7 @@
 #define WLAN_SOC_F_SPECTRAL_INI_DISABLE    0x00800000
 	/* FTM testmode enable */
 #define WLAN_SOC_F_TESTMODE_ENABLE     0x01000000
-	/* Dynamic HW mode swithch enable */
+	/* Dynamic HW mode switchh enable */
 #define WLAN_SOC_F_DYNAMIC_HW_MODE     0x02000000
 	/* Broadcast TWT support enable */
 #define WLAN_SOC_F_BCAST_TWT           0x04000000
@@ -249,6 +249,12 @@
 
 /* Delete all vdev peer support */
 #define WLAN_VDEV_DELETE_ALL_PEER_SUPPORT         0x00000040
+
+
+/* CCA busy info for each 20Mhz subband of wideband scan channel support */
+#define WLAN_CCA_BUSY_INFO_FOREACH_20MHZ               0x00000400
+/* ch width notify support */
+#define WLAN_VDEV_PARAM_CHWIDTH_WITH_NOTIFY_SUPPORT    0x00000800
 
 /* PSOC op flags */
 
@@ -392,7 +398,7 @@ struct wlan_soc_timer {
 /**
  * struct wlan_objmgr_psoc - PSOC common object
  * @soc_reg:               regulatory sub structure
- * @soc_nif:               nif sub strucutre
+ * @soc_nif:               nif sub structure
  * @soc_objmgr:            object manager sub structure
  * @soc_cb:                south bound callbacks
  * @soc_timer:             soc timer for inactivity
@@ -465,7 +471,7 @@ struct wlan_psoc_host_hal_reg_capabilities_ext2 {
  * @phy_version: device id (from probe)
  * @dev_type: Offload/DA
  *
- * Creates PSOC object, intializes with default values
+ * Creates PSOC object, initializes with default values
  * Invokes the registered notifiers to create component object
  *
  * Return: Handle to struct wlan_objmgr_psoc on successful creation,
@@ -540,7 +546,7 @@ typedef void (*wlan_objmgr_op_handler)(struct wlan_objmgr_psoc *psoc,
  * @obj_type: PDEV_OP/VDEV_OP/PEER_OP
  * @handler: the handler will be called for each object of requested type
  *            the handler should be implemented to perform required operation
- * @arg:     agruments passed by caller
+ * @arg:     arguments passed by caller
  * @lock_free_op: its obsolete
  * @dbg_id: id of the caller
  *
@@ -562,7 +568,7 @@ QDF_STATUS wlan_objmgr_iterate_obj_list(
  * @obj_type: PDEV_OP/VDEV_OP/PEER_OP
  * @handler: the handler will be called for each object of requested type
  *            the handler should be implemented to perform required operation
- * @arg:     agruments passed by caller
+ * @arg:     arguments passed by caller
  * @lock_free_op: its obsolete
  * @dbg_id: id of the caller
  *
@@ -1107,7 +1113,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_psoc_not_log_del(
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_psoc_debug(
 		struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-		uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
+		const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line);
 
 #define wlan_objmgr_get_vdev_by_macaddr_from_psoc(psoc, pdev_id, macaddr, \
@@ -1117,7 +1123,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_psoc_debug(
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_psoc(
 		struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-		uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id);
+		const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id);
 #endif
 
 /**
@@ -1142,7 +1148,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_psoc(
 struct wlan_objmgr_vdev
 	*wlan_objmgr_get_vdev_by_macaddr_from_psoc_no_state_debug(
 		struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-		uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
+		const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line);
 
 #define wlan_objmgr_get_vdev_by_macaddr_from_psoc_no_state(psoc, pdev_id, \
@@ -1152,7 +1158,7 @@ struct wlan_objmgr_vdev
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_psoc_no_state(
 		struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-		uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id);
+		const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id);
 #endif
 
 /**

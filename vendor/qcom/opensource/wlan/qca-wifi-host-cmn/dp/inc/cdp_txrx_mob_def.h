@@ -441,7 +441,7 @@ struct ol_txrx_ocb_set_chan {
 /**
  * @brief Parameter type to pass WMM setting to ol_txrx_set_wmm_param
  * @details
- *   The struct is used to specify informaiton to update TX WMM scheduler.
+ *   The struct is used to specify information to update TX WMM scheduler.
  */
 struct ol_tx_ac_param_t {
 	uint32_t aifs;

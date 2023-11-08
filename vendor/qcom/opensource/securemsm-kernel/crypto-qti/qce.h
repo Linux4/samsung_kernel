@@ -198,6 +198,13 @@ struct qce_pm_table {
 
 extern struct qce_pm_table qce_pm_table;
 
+struct qce_error {
+    bool no_error;
+    bool timer_error;
+    bool key_paused;
+    bool generic_error;
+};
+
 void *qce_open(struct platform_device *pdev, int *rc);
 int qce_close(void *handle);
 int qce_aead_req(void *handle, struct qce_req *req);
@@ -209,9 +216,7 @@ int qce_disable_clk(void *handle);
 void qce_get_driver_stats(void *handle);
 void qce_clear_driver_stats(void *handle);
 void qce_dump_req(void *handle);
-void qce_get_crypto_status(void *handle, unsigned int *s1, unsigned int *s2,
-			   unsigned int *s3, unsigned int *s4,
-			   unsigned int *s5, unsigned int *s6);
+void qce_get_crypto_status(void *handle, struct qce_error *error);
 int qce_manage_timeout(void *handle, int req_info);
 int qce_set_irqs(void *handle, bool enable);
 #endif /* __CRYPTO_MSM_QCE_H */

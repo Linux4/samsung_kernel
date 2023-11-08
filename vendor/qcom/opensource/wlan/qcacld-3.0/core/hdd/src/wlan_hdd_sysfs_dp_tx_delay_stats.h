@@ -25,7 +25,7 @@
 #ifndef _WLAN_HDD_SYSFS_DP_TX_DELAY_STATS_H
 #define _WLAN_HDD_SYSFS_DP_TX_DELAY_STATS_H
 
-#ifdef HW_TX_DELAY_STATS_ENABLE
+#if defined(WLAN_SYSFS) && defined(HW_TX_DELAY_STATS_ENABLE)
 /**
  * hdd_sysfs_dp_tx_delay_stats_create() - API to create dp tx delay stats
  *  related sysfs entry

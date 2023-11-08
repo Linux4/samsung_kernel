@@ -124,7 +124,7 @@ static int32_t vl53l8_k_glare_detect(int32_t tgt_range, uint32_t tgt_peak_x16,
 			p_tuning->threshold_numerator[VL53L8_K_GLARE_LUT_SIZE - 1];
 	} else {
 
-		for (i = 1; i < (VL53L8_K_GLARE_LUT_SIZE - 1); i++ ) {
+		for (i = 1; i < (VL53L8_K_GLARE_LUT_SIZE - 1); i++) {
 			if (p_tuning->lut_range[i] > tgt_range)
 				break;
 		}
@@ -167,8 +167,8 @@ out:
 	defined(VL53L5_NO_OF_TARGETS_ON)
 
 static void copy_target_data(struct vl53l5_range_per_tgt_results_t *pper_tgt,
-				int dest_idx, int src_idx ) {
-
+				int dest_idx, int src_idx)
+{
 #ifdef VL53L5_PEAK_RATE_KCPS_PER_SPAD_ON
 	pper_tgt->peak_rate_kcps_per_spad[dest_idx] =
 		pper_tgt->peak_rate_kcps_per_spad[src_idx];
@@ -212,7 +212,7 @@ static void copy_target_data(struct vl53l5_range_per_tgt_results_t *pper_tgt,
 	pper_tgt->target_status[dest_idx] = pper_tgt->target_status[src_idx];
 #endif
 
-    return;
+	return;
 }
 
 static int32_t vl53l8_k_median_glare_filter(
@@ -352,10 +352,8 @@ static int32_t vl53l8_k_median_glare_remove(
 				if (tgt_idx < pper_zone->rng__no_of_targets[zone]) {
 					tgt_status = pper_tgt->target_status[idx];
 					if (tgt_status == VL53L8_TARGET_STATUS__TARGETDUETOGLARE) {
-						if (tgt_idx == 0 && pper_zone->rng__no_of_targets[zone] == 2) {
-
+						if (tgt_idx == 0 && pper_zone->rng__no_of_targets[zone] == 2)
 							copy_target_data(pper_tgt, idx, idx+1);
-						}
 
 						pper_zone->rng__no_of_targets[zone]--;
 					}
@@ -368,11 +366,9 @@ static int32_t vl53l8_k_median_glare_remove(
 			idx = (zone * max_targets_per_zone) + tgt_idx;
 			if (tgt_idx < pper_zone->rng__no_of_targets[zone]) {
 				tgt_status = pper_tgt->target_status[idx];
-				if (tgt_status == VL53L8_TARGET_STATUS__TARGETDUETOGLARE ) {
-					if (tgt_idx == 0 && pper_zone->rng__no_of_targets[zone] == 2) {
-
+				if (tgt_status == VL53L8_TARGET_STATUS__TARGETDUETOGLARE) {
+					if (tgt_idx == 0 && pper_zone->rng__no_of_targets[zone] == 2)
 						copy_target_data(pper_tgt, idx, idx+1);
-					}
 
 					pper_zone->rng__no_of_targets[zone]--;
 				}
@@ -430,7 +426,7 @@ static int32_t vl53l8_k_d16_glare_filter(
 		for (tgt = 0; tgt < max_targets_per_zone; tgt++) {
 			d16_data.bytes = depth16[idx];
 			if ((d16_data.confidence == VL53L8_K_D16_CONF_00PC) ||
-				(d16_data.confidence == VL53L8_K_D16_CONF_14PC) ) {
+				(d16_data.confidence == VL53L8_K_D16_CONF_14PC)) {
 
 				continue;
 			} else {

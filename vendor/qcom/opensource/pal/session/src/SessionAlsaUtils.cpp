@@ -99,6 +99,7 @@ static const char *feCtrlNames[] = {
     " loopback",
     " event",
     " setcal",
+    " flush"
 };
 
 static const char *beCtrlNames[] = {
@@ -513,7 +514,14 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         }
 
         deviceCKV.clear();
-
+        if (be->first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            MUX_DEMUX_CHANNELS);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate mux channels");
+                status = 0; /**< ignore device MUX CKV failures */
+            }
+        }
         if (ResourceManager::isSpeakerProtectionEnabled) {
             PAL_DBG(LOG_TAG, "Speaker protection enabled");
             if (be->first == PAL_DEVICE_OUT_SPEAKER) {
@@ -1600,6 +1608,15 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         }
     }
     deviceCKV.clear();
+	if (rxBackEnds[0].first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            MUX_DEMUX_CHANNELS);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate mux channels");
+                status = 0; /**< ignore device MUX CKV failures */
+            }
+    }
+
     if (ResourceManager::isSpeakerProtectionEnabled) {
         PAL_DBG(LOG_TAG, "Speaker protection enabled");
         if (rxBackEnds[0].first == PAL_DEVICE_OUT_SPEAKER) {
@@ -2064,10 +2081,11 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
     uint32_t streamDevicePropId[] = { 0x08000010, 1, 0x3 };
     struct mixer_ctl* feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
     struct mixer_ctl* beMetaDataMixerCtrl = nullptr;
-    std::vector <std::tuple<Stream*, uint32_t>> activeStreamsDevices;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    std::shared_ptr<Device> dev = nullptr;
     int sub = 1;
     uint32_t i;
+    int devCount = 0;
 
     switch (streamType) {
         case PAL_STREAM_COMPRESSED:
@@ -2138,9 +2156,32 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
     }
 
     //To check if any active stream present on same backend
-    activeStreamsDevices.clear();
-    rm->getSharedBEActiveStreamDevs(activeStreamsDevices, aifBackEndsToDisconnect[0].first);
-    if (activeStreamsDevices.size() > 1) {
+    dev = Device::getInstance(&dAttr, rm);
+    if (dev == 0) {
+        PAL_ERR(LOG_TAG, "device_id[%d] Instance query failed", dAttr.id );
+        status = -EINVAL;
+        goto freeMetaData;
+    }
+
+    devCount = dev->getDeviceCount();
+
+    // Do not clear device metadata for A2DP device if SCO device is active
+    if ((devCount == 1) && rm->isBtDevice(dAttr.id) && !rm->isBtScoDevice(dAttr.id)) {
+        dev = nullptr;
+        struct pal_device scoDAttr;
+        scoDAttr.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
+
+        dev = Device::getInstance(&scoDAttr, rm);
+        if (dev == 0) {
+            PAL_ERR(LOG_TAG, "device_id[%d] Instance query failed", dAttr.id );
+            status = -EINVAL;
+            goto freeMetaData;
+        }
+
+        devCount += dev->getDeviceCount();
+    }
+
+    if (devCount > 1) {
         PAL_INFO(LOG_TAG, "No need to free device metadata since active streams present on device");
     } else {
         mixer_ctl_set_array(beMetaDataMixerCtrl, (void*)deviceMetaData.buf,
@@ -2495,6 +2536,15 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
 
     deviceCKV.clear();
 
+    if (aifBackEndsToConnect[0].first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            MUX_DEMUX_CHANNELS);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate mux channels");
+                status = 0; /**< ignore device MUX CKV failures */
+            }
+    }
+
     if (ResourceManager::isSpeakerProtectionEnabled) {
         PAL_DBG(LOG_TAG, "Speaker protection enabled");
         if (aifBackEndsToConnect[0].first == PAL_DEVICE_OUT_SPEAKER) {
@@ -2636,3 +2686,34 @@ unsigned int SessionAlsaUtils::bytesToFrames(size_t bufSizeInBytes, unsigned int
     return (bufSizeInBytes * 8)/(ch*bits);
 }
 
+int SessionAlsaUtils::flush(std::shared_ptr<ResourceManager> rmHandle, uint32_t id)
+{
+    int status = 0;
+    int doFlush = 1;
+    struct mixer *mixerHandle = nullptr;
+    struct mixer_ctl *ctl = nullptr;
+    char *pcmDeviceName = nullptr;
+
+    pcmDeviceName = rmHandle->getDeviceNameFromID(id);
+
+    if(!pcmDeviceName) {
+        PAL_ERR(LOG_TAG, "Device name from id not found");
+        return -EINVAL;
+    }
+
+    status = rmHandle->getVirtualAudioMixer(&mixerHandle);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Error: Failed to get mixer handle\n");
+        return status;
+    }
+
+
+    ctl = getFeMixerControl(mixerHandle, std::string(pcmDeviceName), FE_FLUSH);
+    if (!ctl) {
+        return -ENOENT;
+    }
+
+    mixer_ctl_set_value(ctl, 0, doFlush);
+
+    return status;
+}

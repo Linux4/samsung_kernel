@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "ipa_i.h"
@@ -98,8 +99,10 @@ static int ipa3_hdr_proc_ctx_to_hw_format(struct ipa_mem_buffer *mem,
 
 		/* Check the pointer and header length to avoid dangerous overflow in HW */
 		if (unlikely(!entry->hdr || !entry->hdr->offset_entry ||
-			entry->hdr->hdr_len > ipa_hdr_bin_sz[IPA_HDR_BIN_MAX - 1]))
+			entry->hdr->hdr_len > ipa_hdr_bin_sz[IPA_HDR_BIN_MAX - 1])) {
+			IPAERR_RL("Found invalid hdr entry\n");
 			return -EINVAL;
+		}
 
 		ret = ipahal_cp_proc_ctx_to_hw_buff(entry->type, mem->base,
 				entry->offset_entry->offset,
@@ -130,6 +133,7 @@ static int ipa3_generate_hdr_proc_ctx_hw_tbl(u64 hdr_sys_addr,
 	struct ipa_mem_buffer *mem, struct ipa_mem_buffer *aligned_mem)
 {
 	gfp_t flag = GFP_KERNEL;
+	int ret;
 
 	mem->size = (ipa3_ctx->hdr_proc_ctx_tbl.end) ? : 4;
 
@@ -156,7 +160,12 @@ alloc:
 		(aligned_mem->phys_base - mem->phys_base);
 	aligned_mem->size = mem->size - IPA_HDR_PROC_CTX_TABLE_ALIGNMENT_BYTE;
 	memset(aligned_mem->base, 0, aligned_mem->size);
-	return ipa3_hdr_proc_ctx_to_hw_format(aligned_mem, hdr_sys_addr);
+	ret = ipa3_hdr_proc_ctx_to_hw_format(aligned_mem, hdr_sys_addr);
+	if (ret) {
+		dma_free_coherent(ipa3_ctx->pdev, mem->size, mem->base, mem->phys_base);
+		return ret;
+	}
+	return ret;
 }
 
 /**
@@ -578,7 +587,7 @@ static int __ipa_add_hdr(struct ipa_hdr_add *hdr, bool user,
 
 	memcpy(entry->hdr, hdr->hdr, hdr->hdr_len);
 	entry->hdr_len = hdr->hdr_len;
-	strlcpy(entry->name, hdr->name, IPA_RESOURCE_NAME_MAX);
+	strscpy(entry->name, hdr->name, IPA_RESOURCE_NAME_MAX);
 	entry->is_partial = hdr->is_partial;
 	entry->type = hdr->type;
 	entry->is_eth2_ofst_valid = hdr->is_eth2_ofst_valid;
@@ -642,26 +651,35 @@ static int __ipa_add_hdr(struct ipa_hdr_add *hdr, bool user,
 		while (htbl->end + ipa_hdr_bin_sz[bin] > mem_size) {
 			if (entry->is_lcl) {
 				/* if header does not fit to SRAM table, place it in DDR */
+				IPADBG_LOW("SRAM header table was full allocting DDR header table! Requested: %d Left: %d name %s, end %d\n",
+						ipa_hdr_bin_sz[bin], mem_size - htbl->end, entry->name, htbl->end);
 				htbl = &ipa3_ctx->hdr_tbl[HDR_TBL_SYS];
 				mem_size = IPA_MEM_PART(apps_hdr_size_ddr);
 				entry->is_lcl = false;
-			} else {
-				/* check if DDR free list */
-				if (list_empty(&htbl->head_free_offset_list[bin])) {
-					IPAERR("No space in DDR header buffer! Requested: %d Left: %d name %s, end %d\n",
+			}
+
+			if (!entry->is_lcl && (htbl->end + ipa_hdr_bin_sz[bin] > mem_size)) {
+				IPAERR("No space in DDR header buffer! Requested: %d Left: %d name %s, end %d\n",
+					ipa_hdr_bin_sz[bin], mem_size - htbl->end, entry->name, htbl->end);
+				goto bad_hdr_len;
+			}
+
+			/* check if DDR free list */
+			if (list_empty(&htbl->head_free_offset_list[bin])) {
+				IPADBG_LOW("No free offset in DDR allocating new offset Requested: %d Left: %d name %s, end %d\n",
 						ipa_hdr_bin_sz[bin], mem_size - htbl->end, entry->name, htbl->end);
-					goto bad_hdr_len;
-				} else {
-					/* get the first free slot */
-					offset = list_first_entry(&htbl->head_free_offset_list[bin],
+				goto create_entry;
+			} else {
+				/* get the first free slot */
+				offset = list_first_entry(&htbl->head_free_offset_list[bin],
 						struct ipa_hdr_offset_entry, link);
-					list_move(&offset->link, &htbl->head_offset_list[bin]);
-					entry->offset_entry = offset;
-					offset->ipacm_installed = user;
-					goto free_list;
-				}
+				list_move(&offset->link, &htbl->head_offset_list[bin]);
+				entry->offset_entry = offset;
+				offset->ipacm_installed = user;
+				goto free_list;
 			}
 		}
+create_entry:
 		offset = kmem_cache_zalloc(ipa3_ctx->hdr_offset_cache,
 					   GFP_KERNEL);
 		if (!offset) {

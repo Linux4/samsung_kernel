@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -135,8 +135,8 @@ init_deinit_update_roam_stats_cap(struct wmi_unified *wmi_handle,
 /**
  * init_deinit_update_multi_client_ll_caps() - Update multi client service
  * capability bit
- * @wmi_handle: wmi hanle
- * @psoc: psoc commom object
+ * @wmi_handle: wmi handle
+ * @psoc: psoc common object
  *
  * Return: none
  */
@@ -160,8 +160,8 @@ init_deinit_update_multi_client_ll_caps(struct wmi_unified *wmi_handle,
 /**
  * init_deinit_update_vendor_handoff_control_caps() - Update vendor handoff
  * control service capability bit
- * @wmi_handle: wmi hanle
- * @psoc: psoc commom object
+ * @wmi_handle: wmi handle
+ * @psoc: psoc common object
  *
  * Return: none
  */
@@ -406,6 +406,15 @@ static int init_deinit_service_ready_event_handler(ol_scn_t scn_handle,
 
 	init_deinit_update_vendor_handoff_control_caps(wmi_handle, psoc);
 
+	if (wmi_service_enabled(wmi_handle,
+				wmi_service_cca_busy_info_for_each_20mhz))
+		wlan_psoc_nif_fw_ext2_cap_set(psoc,
+					WLAN_CCA_BUSY_INFO_FOREACH_20MHZ);
+	if (wmi_service_enabled(wmi_handle,
+			wmi_service_vdev_param_chwidth_with_notify_support))
+		wlan_psoc_nif_fw_ext2_cap_set(psoc,
+				WLAN_VDEV_PARAM_CHWIDTH_WITH_NOTIFY_SUPPORT);
+
 	if (wmi_service_enabled(wmi_handle, wmi_service_ext_msg)) {
 		target_if_debug("Wait for EXT message");
 	} else {
@@ -518,6 +527,11 @@ static int init_deinit_service_ext2_ready_event_handler(ol_scn_t scn_handle,
 	if (err_code)
 		target_if_debug("failed to populate dbs_or_sbs cap ext2");
 
+	err_code = init_deinit_populate_sap_coex_capability(psoc, wmi_handle,
+							    event);
+	if (err_code)
+		target_if_debug("failed to populate sap_coex_capability ext2");
+
 	legacy_callback = target_if_get_psoc_legacy_service_ready_cb();
 	if (legacy_callback)
 		if (legacy_callback(wmi_service_ready_ext2_event_id,
@@ -532,6 +546,10 @@ static int init_deinit_service_ext2_ready_event_handler(ol_scn_t scn_handle,
 	target_if_reg_set_disable_upper_6g_edge_ch_info(psoc);
 
 	target_if_reg_set_afc_dev_type(psoc, tgt_hdl);
+
+	target_if_set_regulatory_eirp_preferred_support(psoc);
+
+	tgt_if_set_reg_afc_configure(tgt_hdl, psoc);
 
 	/* send init command */
 	init_deinit_set_send_init_cmd(psoc, tgt_hdl);

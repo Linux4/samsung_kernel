@@ -18,6 +18,11 @@ ifeq ($(TARGET_DATARMNET_EXT_ENABLE), true)
 	DATA_SHS_DLKM_BOARD_PLATFORMS_LIST += kalama
 	DATA_APS_DLKM_BOARD_PLATFORMS_LIST := taro
 	DATA_APS_DLKM_BOARD_PLATFORMS_LIST += kalama
+	DATA_WLAN_DLKM_BOARD_PLATFORMS_LIST := lahaina
+	DATA_WLAN_DLKM_BOARD_PLATFORMS_LIST += taro
+	DATA_WLAN_DLKM_BOARD_PLATFORMS_LIST += kalama
+	DATA_WLAN_DLKM_BOARD_PLATFORMS_LIST += bengal
+	DATA_WLAN_DLKM_BOARD_PLATFORMS_LIST += monaco
 
 	ifneq ($(TARGET_BOARD_AUTO),true)
 		ifeq ($(call is-board-platform-in-list,$(DATA_OFFLOAD_DLKM_BOARD_PLATFORMS_LIST)),true)
@@ -27,11 +32,13 @@ ifeq ($(TARGET_DATARMNET_EXT_ENABLE), true)
 		endif
 		ifeq ($(call is-board-platform-in-list,$(DATA_SHS_DLKM_BOARD_PLATFORMS_LIST)),true)
 			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_shs.ko
-			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_wlan.ko
 		endif
 		ifeq ($(call is-board-platform-in-list,$(DATA_APS_DLKM_BOARD_PLATFORMS_LIST)),true)
 			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_aps.ko
 			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_sch.ko
+		endif
+		ifeq ($(call is-board-platform-in-list,$(DATA_WLAN_DLKM_BOARD_PLATFORMS_LIST)),true)
+			BOARD_VENDOR_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/rmnet_wlan.ko
 		endif
 	endif
 endif

@@ -1127,7 +1127,7 @@ static inline bool dp_peer_get_ast_valid(uint8_t mask, uint16_t index)
 
 /**
  * dp_peer_ast_index_flow_queue_map_create() - create ast index flow queue map
- * @soc - genereic soc handle
+ * @soc - generic soc handle
  * @is_wds - flag to indicate if peer is wds
  * @peer_id - peer_id from htt peer map message
  * @peer_mac_addr - mac address of the peer

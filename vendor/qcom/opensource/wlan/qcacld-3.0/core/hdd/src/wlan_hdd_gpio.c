@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,13 +32,13 @@
 #include <wlan_hdd_gpio.h>
 
 /**
- * wlan_cfg80211_set_gpio_config - Set the gpio configuration
+ * __wlan_hdd_cfg80211_set_gpio_config() - Set the gpio configuration
  * @wiphy: pointer to wiphy
  * @wdev: pointer to wireless_wdev
  * @data: pointer to data
  * @data_len: data length
  *
- * __wlan_cfg80211_set_gpio_config will forward the GPIO setting to FW by
+ * __wlan_hdd_cfg80211_set_gpio_config will forward the GPIO setting to FW by
  * WMI_GPIO_CONFIG/OUTPUT_CMDID
  *
  * Return: 0 on success; errno on failure

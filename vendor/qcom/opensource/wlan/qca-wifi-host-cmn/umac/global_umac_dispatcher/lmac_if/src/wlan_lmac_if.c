@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -81,6 +81,7 @@
 
 #ifdef WLAN_FEATURE_11BE_MLO
 #include "wlan_mlo_mgr_cmn.h"
+#include <wlan_mlo_t2lm.h>
 #endif
 
 #include <wlan_twt_tgt_if_rx_api.h>
@@ -90,6 +91,9 @@
 
 #ifdef WLAN_FEATURE_DBAM_CONFIG
 #include "target_if_coex.h"
+#endif
+#if defined(WIFI_POS_CONVERGED) && defined(WLAN_FEATURE_RTT_11AZ_SUPPORT)
+#include <wifi_pos_pasn_api.h>
 #endif
 
 #include "target_if.h"
@@ -321,7 +325,17 @@ wlan_lmac_if_crypto_rx_ops_register(struct wlan_lmac_if_rx_ops *rx_ops)
 static void
 wlan_lmac_if_wifi_pos_rx_ops(struct wlan_lmac_if_rx_ops *rx_ops)
 {
-	target_if_wifi_pos_register_rx_ops(rx_ops);
+	struct wlan_lmac_if_wifi_pos_rx_ops *wifi_pos_rx_ops =
+		&rx_ops->wifi_pos_rx_ops;
+
+	wifi_pos_rx_ops->wifi_pos_ranging_peer_create_cb =
+			wifi_pos_handle_ranging_peer_create;
+	wifi_pos_rx_ops->wifi_pos_ranging_peer_create_rsp_cb =
+			wifi_pos_handle_ranging_peer_create_rsp;
+	wifi_pos_rx_ops->wifi_pos_ranging_peer_delete_cb =
+			wifi_pos_handle_ranging_peer_delete;
+	wifi_pos_rx_ops->wifi_pos_vdev_delete_all_ranging_peers_rsp_cb =
+			wifi_pos_vdev_delete_all_ranging_peers_rsp;
 }
 #else
 static inline void
@@ -365,6 +379,10 @@ static void wlan_lmac_if_register_afc_handlers(
 	rx_ops->reg_rx_ops.afc_event_handler = tgt_reg_process_afc_event;
 	rx_ops->reg_rx_ops.reg_set_afc_dev_type = tgt_reg_set_afc_dev_type;
 	rx_ops->reg_rx_ops.reg_get_afc_dev_type = tgt_reg_get_afc_dev_type;
+	rx_ops->reg_rx_ops.reg_set_eirp_preferred_support =
+				tgt_reg_set_eirp_preferred_support;
+	rx_ops->reg_rx_ops.reg_get_eirp_preferred_support =
+				tgt_reg_get_eirp_preferred_support;
 }
 #else
 static inline void wlan_lmac_if_register_afc_handlers(
@@ -949,6 +967,11 @@ wlan_lmac_if_mlo_mgr_rx_ops_register(struct wlan_lmac_if_rx_ops *rx_ops)
 	/* register handler for received mlo related events */
 	rx_ops->mlo_rx_ops.process_link_set_active_resp =
 		mlo_process_link_set_active_resp;
+	rx_ops->mlo_rx_ops.process_mlo_vdev_tid_to_link_map_event =
+		wlan_mlo_vdev_tid_to_link_map_event;
+	rx_ops->mlo_rx_ops.process_mlo_link_state_info_event =
+		wlan_handle_ml_link_state_info_event;
+
 }
 #else
 static void

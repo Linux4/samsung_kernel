@@ -55,6 +55,17 @@
  */
 uint32_t wlan_dp_intf_get_pkt_type_bitmap_value(void *intf_ctx);
 
+#if defined(WLAN_SUPPORT_RX_FISA)
+/**
+ * dp_rx_skip_fisa() - Set flags to skip fisa aggregation
+ * @cdp_soc: core txrx main context
+ * @value: allow or skip fisa
+ *
+ * Return: None
+ */
+void dp_rx_skip_fisa(struct cdp_soc_t *cdp_soc, uint32_t value);
+#endif
+
 /**
  * dp_reset_all_intfs_connectivity_stats() - reset connectivity stats
  * @dp_ctx: pointer to DP Context
@@ -602,7 +613,7 @@ void wlan_dp_pkt_add_timestamp(struct wlan_dp_intf *dp_intf,
 #if defined(FEATURE_LRO)
 /**
  * dp_lro_set_reset() - API for Disable/Enable LRO
- * @dp_intf: DP inerface pointer
+ * @dp_intf: DP interface pointer
  * @enable_flag: enable or disable LRO.
  *
  * Return: 0 on success and non zero on failure.
@@ -634,6 +645,30 @@ dp_rx_ol_init(struct wlan_dp_psoc_context *dp_ctx,
 	      bool is_wifi3_0_target)
 {
 	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif
+
+#ifdef WLAN_FEATURE_11BE_MLO
+static inline
+void dp_rx_pkt_da_check(struct wlan_dp_intf *dp_intf, qdf_nbuf_t nbuf)
+{
+	/* only do DA check for RX frame from non-regular path */
+	if (!qdf_nbuf_is_exc_frame(nbuf))
+		return;
+
+	if (qdf_mem_cmp(qdf_nbuf_data(nbuf), dp_intf->mac_addr.bytes,
+			ETH_ALEN)) {
+		dp_info("da mac:" QDF_MAC_ADDR_FMT "intf_mac:" QDF_MAC_ADDR_FMT,
+			QDF_MAC_ADDR_REF(qdf_nbuf_data(nbuf)),
+			QDF_MAC_ADDR_REF(dp_intf->mac_addr.bytes));
+		qdf_mem_copy(qdf_nbuf_data(nbuf), dp_intf->mac_addr.bytes,
+			     ETH_ALEN);
+	}
+}
+#else
+static inline
+void dp_rx_pkt_da_check(struct wlan_dp_intf *dp_intf, qdf_nbuf_t nbuf)
+{
 }
 #endif
 

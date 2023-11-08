@@ -118,6 +118,12 @@ Subsystem properties:
 		85. sdr6
 		86. sdr7
 		87. rf_cal
+		88. modem_cfg
+		89. lte_cc
+		90. mcg_fr1_cc
+		91. mcg_fr2_cc
+		92. scg_fr1_cc
+		93. scg_fr2_cc
 
 Example:
 

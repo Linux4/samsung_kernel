@@ -131,6 +131,12 @@ static void lim_extract_he_op(struct pe_session *session,
 		session->he_op.oper_info_6g.info.center_freq_seg1;
 	session->ap_power_type =
 		session->he_op.oper_info_6g.info.reg_info;
+	if (session->ap_power_type < REG_INDOOR_AP ||
+	    session->ap_power_type > REG_MAX_SUPP_AP_TYPE) {
+		session->ap_power_type = REG_VERY_LOW_POWER_AP;
+		pe_debug("AP power type invalid, defaulting to VLP");
+	}
+
 	pe_debug("6G op info: ch_wd %d cntr_freq_seg0 %d cntr_freq_seg1 %d",
 		 session->ch_width, session->ch_center_freq_seg0,
 		 session->ch_center_freq_seg1);
@@ -248,7 +254,7 @@ void lim_update_he_bw_cap_mcs(struct pe_session *session,
 				STA_PREFER_BW_80MHZ) {
 			is_80mhz = 1;
 			if (session->ch_width == CH_WIDTH_160MHZ) {
-				pe_debug("STA prferred HE80 over HE160, falling back to 80MHz");
+				pe_debug("STA preferred HE80 over HE160, falling back to 80MHz");
 				session->ch_width = CH_WIDTH_80MHZ;
 			}
 		} else {
@@ -565,7 +571,9 @@ void lim_update_ch_width_for_p2p_client(struct mac_context *mac,
 	 */
 	ch_params.ch_width = CH_WIDTH_80MHZ;
 
-	wlan_reg_set_channel_params_for_freq(mac->pdev, ch_freq, 0, &ch_params);
+	wlan_reg_set_channel_params_for_pwrmode(mac->pdev, ch_freq, 0,
+						&ch_params,
+						REG_CURRENT_PWR_MODE);
 	if (ch_params.ch_width == CH_WIDTH_20MHZ)
 		ch_params.sec_ch_offset = PHY_SINGLE_CHANNEL_CENTERED;
 

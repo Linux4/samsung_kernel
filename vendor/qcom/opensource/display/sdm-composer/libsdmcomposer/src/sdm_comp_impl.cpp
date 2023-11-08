@@ -357,6 +357,10 @@ int SDMCompImpl::OnEvent(SDMCompServiceEvents event, ...) {
 void SDMCompImpl::HandlePendingEvents() {
   for (auto pending_event : pending_events_) {
     SDMCompDisplayType display_type = pending_event.second;
+    if (!display_builtin_[display_type]) {
+      continue;
+    }
+
     switch (pending_event.first) {
     case kEventSetDisplayConfig: {
       uint32_t num_configs = 0;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2016, 2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -62,7 +63,7 @@ QDF_STATUS cds_pkt_get_packet_length(cds_pkt_t *pPacket,
 
 /*
  * TODO: Remove later
- * All the below difinitions are not
+ * All the below definitions are not
  * required for Host Driver 2.0
  * once corresponding references are removed
  * from HDD and other layers

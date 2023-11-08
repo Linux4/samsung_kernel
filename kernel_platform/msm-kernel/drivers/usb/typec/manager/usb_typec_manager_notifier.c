@@ -1356,6 +1356,19 @@ int manager_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			nb->notifier_call(nb, m_noti.id, &(m_noti));
 		}
 #else
+		if (typec_manager.muic.attach_state) {
+			m_noti.src = PDIC_NOTIFY_DEV_MANAGER;
+			m_noti.dest = PDIC_NOTIFY_DEV_BATT;
+			m_noti.pd = typec_manager.pd;
+			m_noti.id = PDIC_NOTIFY_ID_ATTACH;
+			m_noti.sub1 = PDIC_NOTIFY_ATTACH;
+			m_noti.sub3 = typec_manager.muic.cable_type;
+
+			pr_info("%s: [BATTERY] id:%s, cable_type=%d %s\n", __func__,
+					pdic_event_id_string(m_noti.id),
+					m_noti.sub3, m_noti.sub1 ? "Attached" : "Detached");
+			nb->notifier_call(nb, m_noti.id, &(m_noti));
+		}
 		pr_info("%s: [BATTERY] Registration completed\n", __func__);
 #endif
 		manager_notify_pdic_battery_init = true;

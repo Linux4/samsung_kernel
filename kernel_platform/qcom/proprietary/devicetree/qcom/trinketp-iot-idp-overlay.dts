@@ -1,6 +1,8 @@
 /dts-v1/;
 /plugin/;
 
+#include "trinketp-iot-idp.dtsi"
+
 / {
 	model = "Qualcomm Technologies, Inc. TRINKETP IOT IDP Overlay";
 	compatible = "qcom,trinketp-iot";

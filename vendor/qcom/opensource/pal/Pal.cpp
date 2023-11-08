@@ -279,7 +279,10 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
     s->setCachedState(STREAM_IDLE);
     status = s->close();
 
-    rm->deactivateStreamUserCounter(s);
+    if (rm->deactivateStreamUserCounter(s)) {
+        PAL_ERR(LOG_TAG, "stream is being closed by another client");
+        return 0;
+    }
 
     if (0 != status) {
         PAL_ERR(LOG_TAG, "stream closed failed. status %d", status);
@@ -855,8 +858,8 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     struct pal_stream_attributes sattr;
     struct pal_device_info devinfo = {};
     struct pal_device *pDevices = NULL;
-    struct pal_device activeDevAttr;
-    std::vector <std::shared_ptr<Device>> aDevices;
+    struct pal_device curPalDevAttr;
+    std::vector <std::shared_ptr<Device>> aDevices, palDevices;
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -869,18 +872,34 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     if (no_of_devices == 0 || !devices) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid device status %d", status);
-        goto exit;
+        return status;
     }
 
     rm = ResourceManager::getInstance();
     if (!rm) {
+        status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid resource manager");
-        goto exit;
+        return status;
+    }
+
+    rm->lockActiveStream();
+    if (!rm->isActiveStream(stream_handle)) {
+        rm->unlockActiveStream();
+        status = -EINVAL;
+        return status;
     }
 
     /* Choose best device config for this stream */
     /* TODO: Decide whether to update device config or not based on flag */
     s = reinterpret_cast<Stream *>(stream_handle);
+    status = rm->increaseStreamUserCounter(s);
+    if (0 != status) {
+        rm->unlockActiveStream();
+        PAL_ERR(LOG_TAG, "failed to increase stream user count");
+        return status;
+    }
+    rm->unlockActiveStream();
+
     s->getStreamAttributes(&sattr);
 
     // device switch will be handled in global param setting for SVA
@@ -897,20 +916,24 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-    s->getPalDevices(aDevices);
-    if (!aDevices.empty()) {
-        std::set<pal_device_id_t> activeDevices;
+    s->getAssociatedDevices(aDevices);
+    s->getPalDevices(palDevices);
+    if (!aDevices.empty() && !palDevices.empty()) {
+        std::set<pal_device_id_t> activeDevices, curPalDevices;
         std::set<pal_device_id_t> newDevices;
         bool force_switch = s->isA2dpMuted();
 
-        for (auto &dev : aDevices) {
+        for (auto &dev : aDevices)
             activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
+
+        for (auto &dev : palDevices) {
+            curPalDevices.insert((pal_device_id_t)dev->getSndDeviceId());
             // check if custom key matches for same device
             for (int i = 0; i < no_of_devices; i++) {
                 if (dev->getSndDeviceId() == devices[i].id) {
-                    dev->getDeviceAttributes(&activeDevAttr, s);
+                    dev->getDeviceAttributes(&curPalDevAttr, s);
                     if (strcmp(devices[i].custom_config.custom_key,
-                        activeDevAttr.custom_config.custom_key) != 0) {
+                        curPalDevAttr.custom_config.custom_key) != 0) {
                         PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
                         force_switch = true;
                         break;
@@ -920,6 +943,30 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
             if (force_switch)
                 break;
         }
+
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+      /*
+       * When USB headset is disconnected the music playback pauses
+       * and the policy manager sends routing=0. But if the USB is connected
+       * back before the standby time, it can not switch device to usb hs any more
+       * because current pal device is usb hs which equals new device when resuming playback.
+       * So routing to default device first during handling routing = 0 msg will guarantee
+       * the device switch to usb can be executed once USB is connected again.
+       */
+        bool curPalDevice_usb = curPalDevices.find(PAL_DEVICE_OUT_USB_DEVICE) != curPalDevices.end() ||
+                                curPalDevices.find(PAL_DEVICE_OUT_USB_HEADSET) != curPalDevices.end();
+        bool activeDevices_usb = activeDevices.find(PAL_DEVICE_OUT_USB_DEVICE) != activeDevices.end() ||
+                                 activeDevices.find(PAL_DEVICE_OUT_USB_HEADSET) != activeDevices.end();
+        bool usb_active = rm->isDeviceAvailable(PAL_DEVICE_OUT_USB_DEVICE) ||
+                          rm->isDeviceAvailable(PAL_DEVICE_OUT_USB_HEADSET);
+
+        if (devices[0].id == PAL_DEVICE_NONE &&
+            curPalDevice_usb && activeDevices_usb && !usb_active)
+        {
+            devices[0].id = PAL_DEVICE_OUT_SPEAKER;
+        }
+#endif
+
         if (!force_switch) {
             for (int i = 0; i < no_of_devices; i++) {
                 newDevices.insert(devices[i].id);
@@ -940,7 +987,8 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
                 }
             }
         }
-        if (!force_switch && (activeDevices == newDevices)) {
+        if (!force_switch && (activeDevices == newDevices) &&
+                             (curPalDevices == newDevices)) {
             status = 0;
             PAL_DBG(LOG_TAG, "devices are same, no need to switch");
             goto exit;
@@ -983,8 +1031,10 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-
 exit:
+    rm->lockActiveStream();
+    rm->decreaseStreamUserCounter(s);
+    rm->unlockActiveStream();
     if (pDevices)
         free(pDevices);
     PAL_INFO(LOG_TAG, "Exit. status %d", status);
@@ -1245,14 +1295,35 @@ int32_t pal_set_mic_mute(bool state){
 }
 
 #ifdef SEC_AUDIO_COMMON
+int pal_active_device_count(pal_device_id_t deviceId)
+{
+    int32_t device_count = 0;
+    std::shared_ptr<ResourceManager> rm = NULL;
+    rm = ResourceManager::getInstance();
+
+    std::shared_ptr<Device> dev = nullptr;
+    struct pal_device devAttr = {};
+    devAttr.id = deviceId;
+
+    dev = Device::getInstance(&devAttr, rm);
+    if (!dev) {
+        PAL_DBG(LOG_TAG, "device(%) is not available", deviceId);
+        goto exit;
+    }
+
+    device_count = dev->getDeviceCount();
+exit:
+    PAL_DBG(LOG_TAG, "%s count is %d", deviceNameLUT.at(deviceId).c_str(), device_count);
+    return device_count;
+}
+
 void pal_dump(int fd)
 {
     std::shared_ptr<ResourceManager> rm = NULL;
     rm = ResourceManager::getInstance();
 #ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    std::shared_ptr<Device> dev = nullptr;
     struct pal_device devAttr = {};
-    std::shared_ptr<USB> USB_device;
-    devAttr.id = PAL_DEVICE_OUT_USB_HEADSET;
 #endif
 
     dprintf(fd, " \n");
@@ -1262,10 +1333,19 @@ void pal_dump(int fd)
     }
 
 #ifdef SEC_AUDIO_ADD_FOR_DEBUG
-    USB_device = std::dynamic_pointer_cast<USB>(USB::getInstance(&devAttr, rm));
-    if (USB_device) {
-        USB_device->dump(fd);
+    devAttr.id = PAL_DEVICE_OUT_USB_HEADSET;
+    dev = Device::getInstance(&devAttr, rm);
+    if (dev) {
+        dev->dump(fd);
     }
+
+#ifdef ENABLE_TFA98XX_SUPPORT
+    devAttr.id = PAL_DEVICE_OUT_SPEAKER;
+    dev = Device::getInstance(&devAttr, rm);
+    if (dev) {
+        dev->dump(fd);
+    }
+#endif
 #endif
 }
 #endif

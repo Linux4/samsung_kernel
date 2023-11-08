@@ -57,7 +57,7 @@ typedef enum {
 /**
  * qdf_ipa_wdi_meter_evt_type_t - type of event client callback is
  * for AP+STA mode metering
- * @IPA_GET_WDI_SAP_STATS: get IPA_stats betwen SAP and STA -
+ * @IPA_GET_WDI_SAP_STATS: get IPA_stats between SAP and STA -
  *			use ipa_get_wdi_sap_stats structure
  * @IPA_SET_WIFI_QUOTA: set quota limit on STA -
  *			use ipa_set_wifi_quota structure
@@ -712,5 +712,12 @@ static inline bool qdf_ipa_get_lan_rx_napi(void)
 	return false;
 }
 #endif /* IPA_LAN_RX_NAPI_SUPPORT */
+#else
+#ifdef ENABLE_SMMU_S1_TRANSLATION
+static inline bool qdf_get_ipa_smmu_enabled(void)
+{
+	return false;
+}
+#endif
 #endif /* IPA_OFFLOAD */
 #endif /* _QDF_IPA_H */

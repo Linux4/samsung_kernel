@@ -33,6 +33,74 @@
 #define HAL_TX_NUM_DSCP_REGISTER_SIZE 32
 
 /**
+ * hal_tx_ppe2tcl_ring_halt_set() - Enable ring halt for the ppe2tcl ring
+ * @hal_soc: HAL SoC context
+ *
+ * Return: none
+ */
+static void hal_tx_ppe2tcl_ring_halt_set_9224(hal_soc_handle_t hal_soc)
+{
+	uint32_t cmn_reg_addr;
+	uint32_t regval;
+	struct hal_soc *soc = (struct hal_soc *)hal_soc;
+
+	cmn_reg_addr =
+		HWIO_TCL_R0_CONS_RING_CMN_CTRL_REG_ADDR(MAC_TCL_REG_REG_BASE);
+
+	/* Enable RING_HALT */
+	regval = HAL_REG_READ(soc, cmn_reg_addr);
+	regval |=
+	    (1 <<
+	    HWIO_TCL_R0_CONS_RING_CMN_CTRL_REG_PPE2TCL1_RNG_HALT_SHFT);
+
+	HAL_REG_WRITE(soc, cmn_reg_addr, regval);
+}
+
+/**
+ * hal_tx_ppe2tcl_ring_halt_reset() - Disable ring halt for the ppe2tcl ring
+ * @hal_soc: HAL SoC context
+ *
+ * Return: none
+ */
+static void hal_tx_ppe2tcl_ring_halt_reset_9224(hal_soc_handle_t hal_soc)
+{
+	uint32_t cmn_reg_addr;
+	uint32_t regval;
+	struct hal_soc *soc = (struct hal_soc *)hal_soc;
+
+	cmn_reg_addr =
+		HWIO_TCL_R0_CONS_RING_CMN_CTRL_REG_ADDR(MAC_TCL_REG_REG_BASE);
+
+	/* Disable RING_HALT */
+	regval = HAL_REG_READ(soc, cmn_reg_addr);
+	regval &= ~(1 <<
+	    HWIO_TCL_R0_CONS_RING_CMN_CTRL_REG_PPE2TCL1_RNG_HALT_SHFT);
+
+	HAL_REG_WRITE(soc, cmn_reg_addr, regval);
+}
+
+/**
+ * hal_tx_ppe2tcl_ring_halt_done() - Check if ring halt is done for ppe2tcl ring
+ * @hal_soc: HAL SoC context
+ *
+ * Return: true if halt done
+ */
+static bool hal_tx_ppe2tcl_ring_halt_done_9224(hal_soc_handle_t hal_soc)
+{
+	uint32_t cmn_reg_addr;
+	uint32_t regval;
+	struct hal_soc *soc = (struct hal_soc *)hal_soc;
+
+	cmn_reg_addr =
+		HWIO_TCL_R0_CONS_RING_CMN_CTRL_REG_ADDR(MAC_TCL_REG_REG_BASE);
+
+	regval = HAL_REG_READ(soc, cmn_reg_addr);
+	regval &= (1 << HWIO_TCL_R0_CONS_RING_CMN_CTRL_REG_PPE2TCL1_RNG_HALT_STAT_SHFT);
+
+	return(!!regval);
+}
+
+/**
  * hal_tx_set_dscp_tid_map_9224() - Configure default DSCP to TID map table
  * @soc: HAL SoC context
  * @map: DSCP-TID mapping table
@@ -71,7 +139,7 @@ static void hal_tx_set_dscp_tid_map_9224(struct hal_soc *hal_soc, uint8_t *map,
 
 	HAL_REG_WRITE(soc, cmn_reg_addr, regval);
 
-	/* Write 8 (24 bits) DSCP-TID mappings in each interation */
+	/* Write 8 (24 bits) DSCP-TID mappings in each iteration */
 	for (i = 0; i < 64; i += 8) {
 		value = (map[i] |
 			(map[i + 1] << 0x3) |
@@ -355,60 +423,12 @@ void hal_tx_set_ppe_vp_entry_9224(hal_soc_handle_t hal_soc_hdl,
 				  int ppe_vp_idx)
 {
 	struct hal_soc *soc = (struct hal_soc *)hal_soc_hdl;
-	uint32_t reg_addr, reg_val = 0;
+	uint32_t reg_addr;
 
 	reg_addr = HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_ADDR(MAC_TCL_REG_REG_BASE,
 							  ppe_vp_idx);
 
-	/*
-	 * Drop precedence is enabled by default.
-	 */
-	reg_val = HAL_REG_READ(soc, reg_addr);
-
-	reg_val &= ~HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_VP_NUM_BMSK;
-	reg_val |= (cfg->vp_num &
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_VP_NUM_BMSK) <<
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_VP_NUM_SHFT;
-
-	reg_val &= ~HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_PMAC_ID_BMSK;
-	reg_val |= (cfg->pmac_id &
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_PMAC_ID_BMSK) <<
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_PMAC_ID_SHFT;
-
-	reg_val &= ~HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_BANK_ID_BMSK;
-	reg_val |= (cfg->bank_id &
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_BANK_ID_BMSK) <<
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_BANK_ID_SHFT;
-
-	reg_val &= ~HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_VDEV_ID_BMSK;
-	reg_val |= (cfg->vdev_id &
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_VDEV_ID_BMSK) <<
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_VDEV_ID_SHFT;
-
-	reg_val &= ~HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_SEARCH_INDEX_REG_NUM_BMSK;
-	reg_val |=
-	    (cfg->search_idx_reg_num &
-	     HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_SEARCH_INDEX_REG_NUM_BMSK) <<
-	     HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_SEARCH_INDEX_REG_NUM_SHFT;
-
-	reg_val &=
-		~HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_USE_PPE_INT_PRI_FOR_TID_BMSK;
-	reg_val |=
-	(cfg->use_ppe_int_pri &
-	HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_USE_PPE_INT_PRI_FOR_TID_BMSK) <<
-	HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_USE_PPE_INT_PRI_FOR_TID_SHFT;
-
-	reg_val &= ~HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_TO_FW_BMSK;
-	reg_val |= (cfg->to_fw &
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_TO_FW_BMSK) <<
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_TO_FW_SHFT;
-
-	reg_val &= ~HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_DROP_PREC_ENABLE_BMSK;
-	reg_val |= (cfg->drop_prec_enable &
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_DROP_PREC_ENABLE_BMSK) <<
-		    HWIO_TCL_R0_PPE_VP_CONFIG_TABLE_n_DROP_PREC_ENABLE_SHFT;
-
-	HAL_REG_WRITE(soc, reg_addr, reg_val);
+	HAL_REG_WRITE(soc, reg_addr, cfg->val);
 }
 
 /**

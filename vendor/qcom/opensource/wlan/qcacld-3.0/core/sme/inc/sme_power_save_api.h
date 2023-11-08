@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,6 +41,30 @@ QDF_STATUS sme_enable_sta_ps_check(struct mac_context *mac_ctx,
 QDF_STATUS sme_ps_process_command(struct mac_context *mac_ctx,
 				  uint32_t session_id,
 				  enum sme_ps_cmd command);
+
+/**
+ * sme_ps_set_powersave(): Set powersave state
+ * @mac_handle: Opaque handle to the global MAC context
+ * @vdev_id:    vdev Id
+ * @allow_power_save: allow powersave or not
+ * @timeout:    timeout period in ms
+ * @ap_supports_immediate_power_save: ap support immediate powersave
+ *
+ * Returns: QDF_STATUS
+ */
+QDF_STATUS sme_ps_set_powersave(mac_handle_t mac_handle,
+				uint8_t vdev_id, bool allow_power_save,
+				uint32_t timeout,
+				bool ap_supports_immediate_power_save);
+
+/**
+ * sme_ps_update(): Update current powersave state to target
+ * @mac_handle: Opaque handle to the global MAC context
+ * @vdev_id:    vdev Id
+ *
+ * Returns: QDF_STATUS
+ */
+QDF_STATUS sme_ps_update(mac_handle_t mac_handle, uint32_t vdev_id);
 
 void sme_set_tspec_uapsd_mask_per_session(struct mac_context *mac_ctx,
 					  struct mac_ts_info *ts_info,

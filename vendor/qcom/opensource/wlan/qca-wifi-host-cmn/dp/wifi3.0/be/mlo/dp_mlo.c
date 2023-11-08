@@ -19,6 +19,7 @@
 #include <hal_be_api.h>
 #include "dp_mlo.h"
 #include <dp_be.h>
+#include <dp_be_rx.h>
 #include <dp_htt.h>
 #include <dp_internal.h>
 #include <wlan_cfg.h>
@@ -168,21 +169,121 @@ static QDF_STATUS dp_partner_soc_rx_hw_cc_init(struct dp_mlo_ctxt *mlo_ctxt,
 	return qdf_status;
 }
 
+static void dp_mlo_soc_drain_rx_buf(struct dp_soc *soc, void *arg)
+{
+	uint8_t i = 0;
+	uint8_t cpu = 0;
+	uint8_t rx_ring_mask[WLAN_CFG_INT_NUM_CONTEXTS] = {0};
+	uint8_t rx_err_ring_mask[WLAN_CFG_INT_NUM_CONTEXTS] = {0};
+	uint8_t rx_wbm_rel_ring_mask[WLAN_CFG_INT_NUM_CONTEXTS] = {0};
+	uint8_t reo_status_ring_mask[WLAN_CFG_INT_NUM_CONTEXTS] = {0};
+
+	/* Save the current interrupt mask and disable the interrupts */
+	for (i = 0; i < wlan_cfg_get_num_contexts(soc->wlan_cfg_ctx); i++) {
+		rx_ring_mask[i] = soc->intr_ctx[i].rx_ring_mask;
+		rx_err_ring_mask[i] = soc->intr_ctx[i].rx_err_ring_mask;
+		rx_wbm_rel_ring_mask[i] = soc->intr_ctx[i].rx_wbm_rel_ring_mask;
+		reo_status_ring_mask[i] = soc->intr_ctx[i].reo_status_ring_mask;
+
+		soc->intr_ctx[i].rx_ring_mask = 0;
+		soc->intr_ctx[i].rx_err_ring_mask = 0;
+		soc->intr_ctx[i].rx_wbm_rel_ring_mask = 0;
+		soc->intr_ctx[i].reo_status_ring_mask = 0;
+	}
+
+	/* make sure dp_service_srngs not running on any of the CPU */
+	for (cpu = 0; cpu < NR_CPUS; cpu++) {
+		while (qdf_atomic_test_bit(cpu,
+					   &soc->service_rings_running))
+			;
+	}
+
+	for (i = 0; i < wlan_cfg_get_num_contexts(soc->wlan_cfg_ctx); i++) {
+		uint8_t ring = 0;
+		uint32_t num_entries = 0;
+		hal_ring_handle_t hal_ring_hdl = NULL;
+		uint8_t rx_mask = wlan_cfg_get_rx_ring_mask(
+						soc->wlan_cfg_ctx, i);
+		uint8_t rx_err_mask = wlan_cfg_get_rx_err_ring_mask(
+						soc->wlan_cfg_ctx, i);
+		uint8_t rx_wbm_rel_mask = wlan_cfg_get_rx_wbm_rel_ring_mask(
+						soc->wlan_cfg_ctx, i);
+
+		if (rx_mask) {
+			/* iterate through each reo ring and process the buf */
+			for (ring = 0; ring < soc->num_reo_dest_rings; ring++) {
+				if (!(rx_mask & (1 << ring)))
+					continue;
+
+				hal_ring_hdl =
+					soc->reo_dest_ring[ring].hal_srng;
+				num_entries = hal_srng_get_num_entries(
+								soc->hal_soc,
+								hal_ring_hdl);
+				dp_rx_process_be(&soc->intr_ctx[i],
+						 hal_ring_hdl,
+						 ring,
+						 num_entries);
+			}
+		}
+
+		/* Process REO Exception ring */
+		if (rx_err_mask) {
+			hal_ring_hdl = soc->reo_exception_ring.hal_srng;
+			num_entries = hal_srng_get_num_entries(
+						soc->hal_soc,
+						hal_ring_hdl);
+
+			dp_rx_err_process(&soc->intr_ctx[i], soc,
+					  hal_ring_hdl, num_entries);
+		}
+
+		/* Process Rx WBM release ring */
+		if (rx_wbm_rel_mask) {
+			hal_ring_hdl = soc->rx_rel_ring.hal_srng;
+			num_entries = hal_srng_get_num_entries(
+						soc->hal_soc,
+						hal_ring_hdl);
+
+			dp_rx_wbm_err_process(&soc->intr_ctx[i], soc,
+					      hal_ring_hdl, num_entries);
+		}
+	}
+
+	/* restore the interrupt mask */
+	for (i = 0; i < wlan_cfg_get_num_contexts(soc->wlan_cfg_ctx); i++) {
+		soc->intr_ctx[i].rx_ring_mask = rx_ring_mask[i];
+		soc->intr_ctx[i].rx_err_ring_mask = rx_err_ring_mask[i];
+		soc->intr_ctx[i].rx_wbm_rel_ring_mask = rx_wbm_rel_ring_mask[i];
+		soc->intr_ctx[i].reo_status_ring_mask = reo_status_ring_mask[i];
+	}
+}
+
 static void dp_mlo_soc_setup(struct cdp_soc_t *soc_hdl,
 			     struct cdp_mlo_ctxt *cdp_ml_ctxt)
 {
 	struct dp_soc *soc = cdp_soc_t_to_dp_soc(soc_hdl);
 	struct dp_mlo_ctxt *mlo_ctxt = cdp_mlo_ctx_to_dp(cdp_ml_ctxt);
 	struct dp_soc_be *be_soc = dp_get_be_soc_from_dp_soc(soc);
+	uint8_t pdev_id;
 
 	if (!cdp_ml_ctxt)
 		return;
+
+	be_soc->ml_ctxt = mlo_ctxt;
+
+	for (pdev_id = 0; pdev_id < MAX_PDEV_CNT; pdev_id++) {
+		if (soc->pdev_list[pdev_id])
+			dp_mlo_update_link_to_pdev_map(soc,
+						       soc->pdev_list[pdev_id]);
+	}
 
 	dp_mlo_set_soc_by_chip_id(mlo_ctxt, soc, be_soc->mlo_chip_id);
 }
 
 static void dp_mlo_soc_teardown(struct cdp_soc_t *soc_hdl,
-				struct cdp_mlo_ctxt *cdp_ml_ctxt)
+				struct cdp_mlo_ctxt *cdp_ml_ctxt,
+				bool is_force_down)
 {
 	struct dp_soc *soc = cdp_soc_t_to_dp_soc(soc_hdl);
 	struct dp_mlo_ctxt *mlo_ctxt = cdp_mlo_ctx_to_dp(cdp_ml_ctxt);
@@ -190,6 +291,11 @@ static void dp_mlo_soc_teardown(struct cdp_soc_t *soc_hdl,
 
 	if (!cdp_ml_ctxt)
 		return;
+
+	/* During the teardown drain the Rx buffers if any exist in the ring */
+	dp_mcast_mlo_iter_ptnr_soc(be_soc,
+				   dp_mlo_soc_drain_rx_buf,
+				   NULL);
 
 	dp_mlo_set_soc_by_chip_id(mlo_ctxt, NULL, be_soc->mlo_chip_id);
 }
@@ -286,7 +392,7 @@ QDF_STATUS dp_update_mlo_ptnr_list(struct cdp_soc_t *soc_hdl,
 							dp_err("Unable to add vdev to self vdev's list");
 							dp_vdev_unref_delete(self_soc,
 								vdev, DP_MOD_ID_RX);
-							/* TODO - relase soc ref here */
+							/* TODO - release soc ref here */
 							/* dp_soc_unref_delete(soc);*/
 							ret = QDF_STATUS_E_FAILURE;
 							goto exit;
@@ -426,6 +532,8 @@ static struct cdp_mlo_ops dp_mlo_ops = {
 	.mlo_update_delta_tsf2 = dp_mlo_update_delta_tsf2,
 	.mlo_update_delta_tqm = dp_mlo_update_delta_tqm,
 	.mlo_update_mlo_ts_offset = dp_mlo_update_mlo_ts_offset,
+	.mlo_ctxt_attach = dp_mlo_ctxt_attach_wifi3,
+	.mlo_ctxt_detach = dp_mlo_ctxt_detach_wifi3,
 };
 
 void dp_soc_mlo_fill_params(struct dp_soc *soc,
@@ -646,6 +754,9 @@ dp_rx_replensih_soc_get(struct dp_soc *soc, uint8_t chip_id)
 	if (!be_soc->mlo_enabled || !mlo_ctxt)
 		return soc;
 
+	if (be_soc->mlo_chip_id == chip_id)
+		return soc;
+
 	replenish_soc = dp_mlo_get_soc_ref_by_chip_id(mlo_ctxt, chip_id);
 	if (qdf_unlikely(!replenish_soc)) {
 		dp_alert("replenish SOC is NULL");
@@ -653,6 +764,30 @@ dp_rx_replensih_soc_get(struct dp_soc *soc, uint8_t chip_id)
 	}
 
 	return replenish_soc;
+}
+
+struct dp_soc *
+dp_soc_get_by_idle_bm_id(struct dp_soc *soc, uint8_t idle_bm_id)
+{
+	struct dp_soc_be *be_soc = dp_get_be_soc_from_dp_soc(soc);
+	struct dp_mlo_ctxt *mlo_ctxt = be_soc->ml_ctxt;
+	struct dp_soc *partner_soc = NULL;
+	uint8_t chip_id;
+
+	if (!be_soc->mlo_enabled || !mlo_ctxt)
+		return soc;
+
+	for (chip_id = 0; chip_id < WLAN_MAX_MLO_CHIPS; chip_id++) {
+		partner_soc = dp_mlo_get_soc_ref_by_chip_id(mlo_ctxt, chip_id);
+
+		if (!partner_soc)
+			continue;
+
+		if (partner_soc->idle_link_bm_id == idle_bm_id)
+			return partner_soc;
+	}
+
+	return NULL;
 }
 
 #ifdef WLAN_MCAST_MLO

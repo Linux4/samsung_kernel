@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #endif
 
-#include "drv_interface.h"
+#include "../drv_interface.h"
 #include "ic_drv_global.h"
 #include "ic_drv_interface.h"
 #include "f303_ic_control.h"

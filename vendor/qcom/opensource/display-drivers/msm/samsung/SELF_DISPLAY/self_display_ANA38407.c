@@ -216,25 +216,31 @@ static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 
 static int self_display_debug(struct samsung_display_driver_data *vdd)
 {
-	char buf[4];
+	int rx_len;
+	char buf[7] = {0,};
 
-	if (ss_get_cmds(vdd, RX_SELF_DISP_DEBUG)->count) {
-
-		ss_panel_data_read(vdd, RX_SELF_DISP_DEBUG, buf, LEVEL1_KEY);
-		vdd->self_disp.debug.SM_SUM_O = ((buf[0] & 0xFF) << 24);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[1] & 0xFF) << 16);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[2] & 0xFF) << 8);
-		vdd->self_disp.debug.SM_SUM_O |= (buf[3] & 0xFF);
-
-		LCD_INFO(vdd, "SM_SUM_O(0x%X)\n",
-			vdd->self_disp.debug.SM_SUM_O);
-
-		if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum !=
-					vdd->self_disp.debug.SM_SUM_O) {
-			LCD_ERR(vdd, "self mask img checksum fail!!\n");
-			return -1;
+	if (is_ss_style_cmd(vdd, RX_SELF_DISP_DEBUG)) {
+		rx_len = ss_send_cmd_get_rx(vdd, RX_SELF_DISP_DEBUG, buf);
+		if (rx_len < 0) {
+			LCD_ERR(vdd, "invalid rx_len(%d)\n", rx_len);
+			return false;
 		}
+	} else {
+		ss_panel_data_read(vdd, RX_SELF_DISP_DEBUG, buf, LEVEL1_KEY);
 	}
+
+	vdd->self_disp.debug.SM_SUM_O = ((buf[1] & 0xFF) << 24);
+	vdd->self_disp.debug.SM_SUM_O |= ((buf[2] & 0xFF) << 16);
+	vdd->self_disp.debug.SM_SUM_O |= ((buf[3] & 0xFF) << 8);
+	vdd->self_disp.debug.SM_SUM_O |= (buf[4] & 0xFF);
+
+	if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum != vdd->self_disp.debug.SM_SUM_O) {
+		LCD_ERR(vdd, "self mask img checksum fail!! 0x%X 0x%X\n",
+			vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum, vdd->self_disp.debug.SM_SUM_O);
+		SS_XLOG(vdd->self_disp.debug.SM_SUM_O);
+		return -1;
+	} else
+		LCD_INFO(vdd, "Self Mask Checksum Pass!\n");
 
 	return 0;
 }
@@ -305,6 +311,8 @@ int self_display_init_ANA38407(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.dev.name = devname;
 	vdd->self_disp.dev.fops = &self_display_fops;
 	vdd->self_disp.dev.parent = NULL;
+
+	vdd->self_disp.debug.SM_SUM_O = 0xFF; /* initial value */
 
 	vdd->self_disp.self_mask_img_write = self_mask_img_write;
 	vdd->self_disp.self_mask_on = self_mask_on;

@@ -666,6 +666,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 			break;
 
 		ret = (data[0] | (data[1] << 8));
+		charger->mfc_adc_vout = ret;
 		break;
 	case MFC_ADC_VRECT:
 		ret = mfc_reg_read(charger->client, MFC_ADC_VRECT_L_REG, &data[0]);
@@ -676,6 +677,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 			break;
 
 		ret = (data[0] | (data[1] << 8));
+		charger->mfc_adc_vrect = ret;
 		break;
 	case MFC_ADC_RX_IOUT:
 		ret = mfc_reg_read(charger->client, MFC_ADC_IOUT_L_REG, &data[0]);
@@ -686,6 +688,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 			break;
 
 		ret = (data[0] | (data[1] << 8));
+		charger->mfc_adc_rx_iout = ret;
 		break;
 	case MFC_ADC_DIE_TEMP:
 		ret = mfc_reg_read(charger->client, MFC_ADC_DIE_TEMP_L_REG, &data[0]);
@@ -708,6 +711,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 			break;
 
 		ret = (data[0] | (data[1] << 8)) / 10;
+		charger->mfc_adc_op_frq = ret;
 		break;
 	case MFC_ADC_TX_MAX_OP_FRQ:
 		ret = mfc_reg_read(charger->client, MFC_TX_MAX_OP_FREQ_L_REG, &data[0]);
@@ -718,6 +722,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 			break;
 
 		ret = (data[0] | (data[1] << 8)) / 10;
+		charger->mfc_adc_tx_max_op_frq = ret;
 		break;
 	case MFC_ADC_TX_MIN_OP_FRQ:
 		ret = mfc_reg_read(charger->client, MFC_TX_MIN_OP_FREQ_L_REG, &data[0]);
@@ -728,6 +733,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 			break;
 
 		ret = (data[0] | (data[1] << 8)) / 10;
+		charger->mfc_adc_tx_min_op_frq = ret;
 		break;
 	case MFC_ADC_PING_FRQ:
 		ret = mfc_reg_read(charger->client, MFC_TX_PING_FREQ_L_REG, &data[0]);
@@ -738,6 +744,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 			break;
 
 		ret = (data[0] | (data[1] << 8)) / 10;
+		charger->mfc_adc_ping_frq = ret;
 		break;
 	case MFC_ADC_TX_VOUT:
 		ret = mfc_reg_read(charger->client, MFC_ADC_VOUT_L_REG, &data[0]);
@@ -748,6 +755,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 			break;
 
 		ret = (data[0] | (data[1] << 8));
+		charger->mfc_adc_tx_vout = ret;
 		break;
 	case MFC_ADC_TX_IOUT:
 		if (charger->wc_tx_enable) {
@@ -767,6 +775,7 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 		}
 
 		ret = (data[0] | (data[1] << 8));
+		charger->mfc_adc_tx_iout = ret;
 		break;
 	default:
 		break;
@@ -2446,14 +2455,16 @@ static void mfc_recover_vout_by_pad(struct mfc_charger_data *charger)
 		else
 			charger->vout_mode = WIRELESS_VOUT_10V;
 
-		cancel_delayed_work(&charger->wpc_vout_mode_work);
-		__pm_stay_awake(charger->wpc_vout_mode_ws);
-		queue_delayed_work(charger->wqueue, &charger->wpc_vout_mode_work, 0);
+		if (!charger->is_otg_on) {
+			cancel_delayed_work(&charger->wpc_vout_mode_work);
+			__pm_stay_awake(charger->wpc_vout_mode_ws);
+			queue_delayed_work(charger->wqueue, &charger->wpc_vout_mode_work, 0);
 
-		if ((charger->pdata->cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20) &&
-			(charger->tx_id == TX_ID_FG_PAD)) {
-			pr_info("%s: set power = %d\n", __func__, charger->current_rx_power);
-			mfc_reset_rx_power(charger, charger->current_rx_power);
+			if ((charger->pdata->cable_type == SEC_BATTERY_CABLE_HV_WIRELESS_20) &&
+				(charger->tx_id == TX_ID_FG_PAD)) {
+				pr_info("%s: set power = %d\n", __func__, charger->current_rx_power);
+				mfc_reset_rx_power(charger, charger->current_rx_power);
+			}
 		}
 	}
 }
@@ -2497,11 +2508,6 @@ static void mfc_wpc_afc_vout_work(struct work_struct *work)
 #endif
 	pr_info("%s: check OTG(%d), full(%d) tx_id(0x%x)\n",
 		__func__, charger->is_otg_on, charger->is_full_status, charger->tx_id);
-
-	if (charger->is_otg_on) {
-		pr_info("%s: skip voltgate set to pad, otg is conntected\n", __func__);
-		goto skip_set_afc_vout;
-	}
 
 	if (charger->is_full_status && volt_ctrl_pad(charger->tx_id)) {
 		pr_info("%s: skip voltgate set to pad, full status with dream pad\n", __func__);
@@ -3074,6 +3080,28 @@ end_work:
 	__pm_relax(charger->mode_change_ws);
 }
 
+static void mfc_check_high_temp_swelling(struct mfc_charger_data *charger, bool is_charging)
+{
+	union power_supply_propval value = {0, };
+	int capacity = 0;
+
+	psy_do_property("battery", get, POWER_SUPPLY_PROP_CAPACITY, value);
+	capacity = value.intval;
+
+	pr_info("%s: soc:%d, charging:%s\n",
+		__func__, capacity, is_charging ? "charging" : "discharging");
+
+	if (is_charging) {
+		mfc_fod_set(charger, (capacity > 70) ? FOD_STATE_CV : FOD_STATE_CC);
+		if (capacity > 70)
+			mfc_cma_cmb_onoff(charger, true, true);
+	} else {
+		/* Set CS100 FOD */
+		mfc_fod_set(charger, FOD_STATE_FULL);
+		mfc_cma_cmb_onoff(charger, true, false);
+	}
+}
+
 static int cps4038_chg_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
@@ -3300,21 +3328,21 @@ static int cps4038_chg_get_property(struct power_supply *psy,
 
 			if (val->intval == SB_WRL_TX_MODE) {
 				sprintf(buf, "%d,%d,%d,%d,%d,%d,%s,%x,0x%x,",
-					mfc_get_adc(charger, MFC_ADC_TX_VOUT),
-					mfc_get_adc(charger, MFC_ADC_TX_IOUT),
-					mfc_get_adc(charger, MFC_ADC_PING_FRQ),
-					mfc_get_adc(charger, MFC_ADC_TX_MIN_OP_FRQ),
-					mfc_get_adc(charger, MFC_ADC_TX_MAX_OP_FRQ),
+					charger->mfc_adc_tx_vout,
+					charger->mfc_adc_tx_iout,
+					charger->mfc_adc_ping_frq,
+					charger->mfc_adc_tx_min_op_frq,
+					charger->mfc_adc_tx_max_op_frq,
 					charger->tx_device_phm,
 					sb_rx_type_str(charger->wc_rx_type),
 					charger->pdata->otp_firmware_ver,
 					charger->pdata->wc_ic_rev);
 			} else if (val->intval == SB_WRL_RX_MODE) {
 				sprintf(buf, "%d,%d,%d,%d,0x%x,%x,0x%x,",
-					mfc_get_adc(charger, MFC_ADC_VOUT),
-					mfc_get_adc(charger, MFC_ADC_VRECT),
-					mfc_get_adc(charger, MFC_ADC_RX_IOUT),
-					mfc_get_adc(charger, MFC_ADC_OP_FRQ),
+					charger->mfc_adc_vout,
+					charger->mfc_adc_vrect,
+					charger->mfc_adc_rx_iout,
+					charger->mfc_adc_op_frq,
 					charger->tx_id,
 					charger->pdata->otp_firmware_ver,
 					charger->pdata->wc_ic_rev);
@@ -3340,6 +3368,8 @@ static int cps4038_chg_get_property(struct power_supply *psy,
 			default:
 				val->intval = RX_POWER_NONE;
 			}
+			break;
+		case POWER_SUPPLY_EXT_PROP_WARM_FOD:
 			break;
 		default:
 			return -ENODATA;
@@ -4225,6 +4255,10 @@ static int cps4038_chg_set_property(struct power_supply *psy,
 			pr_info("%s: LED_COVER(%d)\n", __func__, charger->led_cover);
 			break;
 		case POWER_SUPPLY_EXT_PROP_TX_PWR_BUDG:
+			break;
+		case POWER_SUPPLY_EXT_PROP_WARM_FOD:
+			/* Set FOD and CMA/CMB based on Capacity and High temperature swelling protection */
+			mfc_check_high_temp_swelling(charger, val->intval);
 			break;
 		default:
 			return -ENODATA;

@@ -118,10 +118,10 @@ static QDF_STATUS cm_fill_scan_req(struct cnx_mgr *cm_ctx,
 		     cm_req->req.ssid.length);
 
 	req->scan_req.ssid[0].length = cm_req->req.ssid.length;
-	mlme_debug(CM_PREFIX_FMT "Connect scan for %.*s",
+	mlme_debug(CM_PREFIX_FMT "Connect scan for " QDF_SSID_FMT,
 		   CM_PREFIX_REF(vdev_id, cm_req->cm_id),
-		   req->scan_req.ssid[0].length,
-		   req->scan_req.ssid[0].ssid);
+		   QDF_SSID_REF(req->scan_req.ssid[0].length,
+				req->scan_req.ssid[0].ssid));
 
 	req->scan_req.num_bssid = 1;
 	if (qdf_is_macaddr_zero(&cm_req->req.bssid))

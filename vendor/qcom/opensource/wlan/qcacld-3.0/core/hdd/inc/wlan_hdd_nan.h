@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -50,6 +51,15 @@ int wlan_hdd_cfg80211_nan_ext_request(struct wiphy *wiphy,
 				      const void *data,
 				      int data_len);
 
+#ifdef WLAN_FEATURE_SR
+/**
+ * hdd_nan_sr_concurrency_update() - NAN Spatial Reuse concurrency
+ * @nan_evt: nan event params
+ *
+ * Return: None
+ */
+void hdd_nan_sr_concurrency_update(struct nan_event_params *nan_evt);
+#endif
 #define FEATURE_NAN_VENDOR_COMMANDS					\
 	{                                                               \
 		.info.vendor_id = QCA_NL80211_VENDOR_ID,                \
@@ -71,6 +81,7 @@ int wlan_hdd_cfg80211_nan_ext_request(struct wiphy *wiphy,
 		vendor_command_policy(vendor_attr_policy,		\
 				      QCA_WLAN_VENDOR_ATTR_NDP_PARAMS_MAX) \
 	},
+
 #else /* WLAN_FEATURE_NAN */
 #define FEATURE_NAN_VENDOR_COMMANDS
 

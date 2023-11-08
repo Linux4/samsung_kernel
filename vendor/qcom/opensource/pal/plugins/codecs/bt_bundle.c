@@ -40,6 +40,10 @@
 #include <media_fmt_api.h>
 #include <ldac_encoder_api.h>
 #include <aac_encoder_api.h>
+// SS_BT_HFP - H_127 : RVP
+#include <rvp_encoder_api.h>
+#include <rvp_decoder_api.h>
+// SS_BT_HFP - H_127 end
 
 static int bt_aac_populate_enc_frame_size_ctrl(custom_block_t *blk, uint32_t ctl_type,
                                         uint32_t ctl_value)
@@ -771,6 +775,150 @@ free_payload:
     return ret;
 }
 
+// SS_BT_HFP - H_127 : RVP
+static int rvp_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
+{
+    param_id_rvp_enc_config_t *rvp_enc_cfg = NULL;
+    bt_enc_payload_t *enc_payload = NULL;
+    uint32_t *mode;
+    int ret = 0, num_blks = 1, i = 0;
+    custom_block_t *blk[1] = {NULL};
+
+    ALOGV("%s", __func__);
+    if ((src == NULL) || (dst == NULL)) {
+        ALOGE("%s: invalid input parameters", __func__);
+        return -EINVAL;
+    }
+
+    mode = (uint32_t *)src;
+
+    enc_payload = (bt_enc_payload_t *)calloc(1, sizeof(bt_enc_payload_t) +
+                   num_blks * sizeof(custom_block_t *));
+    if (enc_payload == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        return -ENOMEM;
+    }
+    enc_payload->bit_format     = ENCODER_BIT_FORMAT_DEFAULT;
+    enc_payload->sample_rate    = SAMPLING_RATE_16K;
+    enc_payload->channel_count  = CH_MONO;
+    enc_payload->num_blks       = num_blks;
+    enc_payload->is_abr_enabled = true;
+
+    for (i = 0; i < num_blks; i++) {
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
+        if (!blk[i]) {
+            ret = -ENOMEM;
+            goto free_payload;
+        }
+    }
+
+    /* populate payload for PARAM_ID_RVP_ENC_CONFIG */
+    rvp_enc_cfg = (param_id_rvp_enc_config_t *)calloc(1,
+                         sizeof(param_id_rvp_enc_config_t));
+    if (rvp_enc_cfg == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        ret = -ENOMEM;
+        goto free_payload;
+    }
+    rvp_enc_cfg->mode = *mode;
+
+    ret = bt_base_populate_enc_cmn_param(blk[0], PARAM_ID_RVP_ENC_CONFIG,
+            rvp_enc_cfg, sizeof(param_id_rvp_enc_config_t));
+    free(rvp_enc_cfg);
+    if (ret)
+        goto free_payload;
+
+    enc_payload->blocks[0] = blk[0];
+    *dst = enc_payload;
+    codec->payload = enc_payload;
+
+    return ret;
+free_payload:
+    for (i = 0; i < num_blks; i++) {
+        if (blk[i]) {
+            if (blk[i]->payload)
+                free(blk[i]->payload);
+            free(blk[i]);
+        }
+    }
+    if (enc_payload)
+        free(enc_payload);
+
+    return ret;
+}
+
+static int rvp_pack_dec_config(bt_codec_t *codec, void *src, void **dst)
+{
+    param_id_rvp_dec_config_t *rvp_dec_cfg = NULL;
+    bt_enc_payload_t *enc_payload = NULL;
+    uint32_t *mode;
+    int ret = 0, num_blks = 1, i = 0;
+    custom_block_t *blk[1] = {NULL};
+
+    ALOGV("%s", __func__);
+    if ((src == NULL) || (dst == NULL)) {
+        ALOGE("%s: invalid input parameters", __func__);
+        return -EINVAL;
+    }
+
+    mode = (uint32_t *)src;
+
+    enc_payload = (bt_enc_payload_t *)calloc(1, sizeof(bt_enc_payload_t) +
+                   num_blks * sizeof(custom_block_t *));
+    if (enc_payload == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        return -ENOMEM;
+    }
+    enc_payload->bit_format     = ENCODER_BIT_FORMAT_DEFAULT;
+    enc_payload->sample_rate    = SAMPLING_RATE_16K;
+    enc_payload->channel_count  = CH_MONO;
+    enc_payload->num_blks       = num_blks;
+    enc_payload->is_abr_enabled = true;
+
+    for (i = 0; i < num_blks; i++) {
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
+        if (!blk[i]) {
+            ret = -ENOMEM;
+            goto free_payload;
+        }
+    }
+
+    /* populate payload for PARAM_ID_RVP_DEC_CONFIG */
+    rvp_dec_cfg = (param_id_rvp_dec_config_t *)calloc(1,
+                         sizeof(param_id_rvp_dec_config_t));
+    if (rvp_dec_cfg == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        ret = -ENOMEM;
+        goto free_payload;
+    }
+    rvp_dec_cfg->mode = *mode;
+
+    ret = bt_base_populate_enc_cmn_param(blk[0], PARAM_ID_RVP_DEC_CONFIG,
+            rvp_dec_cfg, sizeof(param_id_rvp_dec_config_t));
+    free(rvp_dec_cfg);
+    if (ret)
+        goto free_payload;
+
+    enc_payload->blocks[0] = blk[0];
+    *dst = enc_payload;
+    codec->payload = enc_payload;
+
+    return ret;
+free_payload:
+    for (i = 0; i < num_blks; i++) {
+        if (blk[i]) {
+            if (blk[i]->payload)
+                free(blk[i]->payload);
+            free(blk[i]);
+        }
+    }
+    if (enc_payload)
+        free(enc_payload);
+
+    return ret;
+}
+// SS_BT_HFP - H_127 end
+
 static int bt_bundle_populate_payload(bt_codec_t *codec, void *src, void **dst)
 {
     config_fn_t config_fn = NULL;
@@ -806,6 +954,12 @@ static int bt_bundle_populate_payload(bt_codec_t *codec, void *src, void **dst)
                                                      &ssc_pack_dec_config);
             break;
 #endif
+// SS_BT_HFP - H_127 : RVP
+        case CODEC_TYPE_RVP:
+            config_fn = ((codec->direction == ENC) ? &rvp_pack_enc_config :
+                                                     &rvp_pack_dec_config);
+            break;
+// SS_BT_HFP - H_127 end
         default:
             ALOGD("%s unsupported codecFmt %d\n", __func__, codec->codecFmt);
     }

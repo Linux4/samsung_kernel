@@ -56,6 +56,10 @@ on the Qualcomm Technologies inc ADSP Hexagon core.
 		    "qcom,kona-adsp-pas"
 		    "qcom,kona-cdsp-pas"
 		    "qcom,kona-slpi-pas"
+		    "qcom,crow-wpss-pas"
+		    "qcom,crow-adsp-pas"
+		    "qcom,crow-cdsp-pas"
+		    "qcom,crow-modem-pas"
 
 - interrupts-extended:
 	Usage: required

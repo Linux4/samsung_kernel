@@ -125,10 +125,13 @@ void ssc_set_fw_idx(int src)
 EXPORT_SYMBOL(ssc_set_fw_idx);
 #endif
 
-void send_ssc_recovery_command(void)
+void send_ssc_recovery_command(int type)
 {
 	int32_t msg_buf;
-	msg_buf = OPTION_TYPE_SSC_RECOVERY;
+	if (type == 1)
+		msg_buf = OPTION_TYPE_SSC_SSR_DUMP;
+	else
+		msg_buf = OPTION_TYPE_SSC_RECOVERY;
 	pr_info("[FACTORY] %s: msg_buf = %d\n", __func__, msg_buf);
 	adsp_unicast(&msg_buf, sizeof(int32_t),
 			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
@@ -587,6 +590,7 @@ static ssize_t ssr_reset_show(struct device *dev,
 		(int)adsp->recovery_disabled);
 	if (adsp->fssr) {
 		adsp->fssr = false;
+		adsp->fssr_dump = false;
 		adsp->recovery_disabled = adsp->prev_recovery_disabled;
 	}
 

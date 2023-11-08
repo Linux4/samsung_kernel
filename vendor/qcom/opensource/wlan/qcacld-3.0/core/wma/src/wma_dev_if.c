@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -415,7 +415,7 @@ QDF_STATUS wma_vdev_detach_callback(struct vdev_delete_response *rsp)
 
 	iface = &wma->interfaces[rsp->vdev_id];
 
-	wma_err("vdev del response received for VDEV_%d", rsp->vdev_id);
+	wma_debug("vdev del response received for VDEV_%d", rsp->vdev_id);
 	iface->del_staself_req = NULL;
 
 	if (iface->roam_scan_stats_req) {
@@ -508,7 +508,7 @@ static QDF_STATUS wma_handle_vdev_detach(tp_wma_handle wma_handle,
 	uint8_t vdev_id = del_vdev_req_param->vdev_id;
 	struct wma_txrx_node *iface = &wma_handle->interfaces[vdev_id];
 	void *soc = cds_get_context(QDF_MODULE_ID_SOC);
-	int i;
+	struct wmi_mgmt_params mgmt_params = {};
 
 	if (!soc) {
 		status = QDF_STATUS_E_FAILURE;
@@ -524,7 +524,8 @@ rel_ref:
 	wma_cdp_vdev_detach(soc, wma_handle, vdev_id);
 	if (qdf_is_recovering())
 		wlan_mgmt_txrx_vdev_drain(iface->vdev,
-					  wma_mgmt_frame_fill_peer_cb, &i);
+					  wma_mgmt_frame_fill_peer_cb,
+					  &mgmt_params);
 	wma_debug("Releasing wma reference for vdev:%d", vdev_id);
 	wma_release_vdev_ref(iface);
 	return status;
@@ -642,7 +643,7 @@ void wma_remove_objmgr_peer(tp_wma_handle wma,
 
 }
 
-static QDF_STATUS wma_check_for_deffered_peer_delete(tp_wma_handle wma_handle,
+static QDF_STATUS wma_check_for_deferred_peer_delete(tp_wma_handle wma_handle,
 						     struct del_vdev_params
 						     *pdel_vdev_req_param)
 {
@@ -665,10 +666,10 @@ static QDF_STATUS wma_check_for_deffered_peer_delete(tp_wma_handle wma_handle,
 			return status;
 		}
 
-		wma_debug("BSS is not yet stopped. Defering vdev(vdev id %x) deletion",
+		wma_debug("BSS is not yet stopped. Deferring vdev(vdev id %x) deletion",
 			  vdev_id);
 		iface->del_staself_req = pdel_vdev_req_param;
-		iface->is_del_sta_defered = true;
+		iface->is_del_sta_deferred = true;
 	}
 
 	return status;
@@ -719,15 +720,15 @@ QDF_STATUS wma_vdev_detach(struct del_vdev_params *pdel_vdev_req_param)
 		return status;
 	}
 
-	status = wma_check_for_deffered_peer_delete(wma_handle,
+	status = wma_check_for_deferred_peer_delete(wma_handle,
 						    pdel_vdev_req_param);
 	if (QDF_IS_STATUS_ERROR(status))
 		goto  send_fail_rsp;
 
-	if (iface->is_del_sta_defered)
+	if (iface->is_del_sta_deferred)
 		return status;
 
-	iface->is_del_sta_defered = false;
+	iface->is_del_sta_deferred = false;
 	iface->del_staself_req = NULL;
 
 	status = wma_vdev_self_peer_delete(wma_handle, pdel_vdev_req_param);
@@ -918,7 +919,7 @@ static void wma_find_mcc_ap(tp_wma_handle wma, uint8_t vdev_id, bool add)
 /**
  * wma_handle_hidden_ssid_restart() - handle hidden ssid restart
  * @wma: wma handle
- * @iface: interfcae pointer
+ * @iface: interface pointer
  *
  * Return: none
  */
@@ -1282,7 +1283,6 @@ QDF_STATUS wma_vdev_start_resp_handler(struct vdev_mlme_obj *vdev_mlme,
 		wma_dcs_clear_vdev_starting(mac_ctx, rsp->vdev_id);
 		wma_dcs_wlan_interference_mitigation_enable(mac_ctx,
 							    iface->mac_id, rsp);
-		wma_spr_update(wma, rsp->vdev_id, true);
 	}
 
 #ifdef FEATURE_AP_MCC_CH_AVOIDANCE
@@ -1568,6 +1568,10 @@ bool wma_objmgr_peer_exist(tp_wma_handle wma,
 {
 	struct wlan_objmgr_peer *peer;
 
+	if (!peer_addr ||
+	    qdf_is_macaddr_zero((struct qdf_mac_addr *)peer_addr))
+		return false;
+
 	peer = wlan_objmgr_get_peer_by_mac(wma->psoc, peer_addr,
 					   WLAN_LEGACY_WMA_ID);
 	if (!peer)
@@ -1723,7 +1727,7 @@ static int wma_get_obj_mgr_peer_type(tp_wma_handle wma, uint8_t vdev_id,
 
 	vdev = wma->interfaces[vdev_id].vdev;
 	if (!vdev) {
-		wma_err("Couldnt find vdev for VDEV_%d", vdev_id);
+		wma_err("Couldn't find vdev for VDEV_%d", vdev_id);
 		return obj_peer_type;
 	}
 	addr = wlan_vdev_mlme_get_macaddr(vdev);
@@ -1751,7 +1755,7 @@ static int wma_get_obj_mgr_peer_type(tp_wma_handle wma, uint8_t vdev_id,
 	} else if (wma->interfaces[vdev_id].type == WMI_VDEV_TYPE_NDI) {
 		obj_peer_type = WLAN_PEER_NDP;
 	} else {
-		wma_err("Couldnt find peertype for type %d and sub type %d",
+		wma_err("Couldn't find peertype for type %d and sub type %d",
 			 wma->interfaces[vdev_id].type,
 			 wma->interfaces[vdev_id].sub_type);
 	}
@@ -1760,25 +1764,122 @@ static int wma_get_obj_mgr_peer_type(tp_wma_handle wma, uint8_t vdev_id,
 
 }
 
+#ifdef WLAN_FEATURE_11BE_MLO
+static QDF_STATUS
+wma_create_peer_validate_mld_address(tp_wma_handle wma,
+				     uint8_t *peer_mld_addr,
+				     struct wlan_objmgr_vdev *vdev)
+{
+	uint8_t peer_vdev_id, vdev_id;
+	struct wlan_objmgr_vdev *dup_vdev;
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	struct wlan_objmgr_psoc *psoc = wma->psoc;
+
+	vdev_id = wlan_vdev_get_id(vdev);
+	/* Check if the @peer_mld_addr matches any other
+	 * peer's link address.
+	 * We may find a match if one of the peers added
+	 * has same MLD and link, in such case check if
+	 * both are in same ML dev context.
+	 */
+	if (wma_objmgr_peer_exist(wma, peer_mld_addr, &peer_vdev_id)) {
+		if (peer_vdev_id != vdev_id) {
+			dup_vdev = wlan_objmgr_get_vdev_by_id_from_psoc(
+						psoc, peer_vdev_id,
+						WLAN_LEGACY_WMA_ID);
+			if (!dup_vdev)
+				return QDF_STATUS_E_INVAL;
+
+			/* If ML dev context is NULL then the matching
+			 * peer exist on non ML VDEV, so reject the peer.
+			 */
+			if (!dup_vdev->mlo_dev_ctx) {
+				wlan_objmgr_vdev_release_ref(
+						dup_vdev, WLAN_LEGACY_WMA_ID);
+				return QDF_STATUS_E_ALREADY;
+			} else if (dup_vdev->mlo_dev_ctx != vdev->mlo_dev_ctx) {
+				wma_debug("Peer " QDF_MAC_ADDR_FMT " already exists on vdev %d, current vdev %d",
+					  QDF_MAC_ADDR_REF(peer_mld_addr),
+					  peer_vdev_id, vdev_id);
+				wlan_objmgr_vdev_release_ref(
+						dup_vdev, WLAN_LEGACY_WMA_ID);
+				status = QDF_STATUS_E_ALREADY;
+			} else {
+				wlan_objmgr_vdev_release_ref(
+						dup_vdev, WLAN_LEGACY_WMA_ID);
+				wma_debug("Allow ML peer on same ML dev context");
+				status = QDF_STATUS_SUCCESS;
+			}
+		} else {
+			wma_debug("Allow ML peer on same ML dev context");
+			status = QDF_STATUS_SUCCESS;
+		}
+	} else if (mlo_mgr_ml_peer_exist_on_diff_ml_ctx(peer_mld_addr,
+							&vdev_id)) {
+		/* Reject if MLD exists on different ML dev context,
+		 */
+		wma_debug("ML Peer " QDF_MAC_ADDR_FMT " already exists on different ML dev context",
+			  QDF_MAC_ADDR_REF(peer_mld_addr));
+		status = QDF_STATUS_E_ALREADY;
+	}
+
+	return status;
+}
+#else
+static QDF_STATUS
+wma_create_peer_validate_mld_address(tp_wma_handle wma,
+				     uint8_t *peer_mld_addr,
+				     struct wlan_objmgr_vdev *vdev)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
 struct wlan_objmgr_peer *wma_create_objmgr_peer(tp_wma_handle wma,
 						uint8_t vdev_id,
 						uint8_t *peer_addr,
-						uint32_t wma_peer_type)
+						uint32_t wma_peer_type,
+						uint8_t *peer_mld_addr)
 {
-	uint32_t obj_peer_type = 0;
-	struct wlan_objmgr_peer *obj_peer = NULL;
-	struct wlan_objmgr_vdev *obj_vdev = NULL;
-	struct wlan_objmgr_psoc *psoc = wma->psoc;
+	QDF_STATUS status;
 	uint8_t peer_vdev_id;
+	uint32_t obj_peer_type;
+	struct wlan_objmgr_vdev *obj_vdev;
+	struct wlan_objmgr_peer *obj_peer = NULL;
+	struct wlan_objmgr_psoc *psoc = wma->psoc;
+
+	obj_vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
+							WLAN_LEGACY_WMA_ID);
+
+	if (!obj_vdev) {
+		wma_err("Invalid obj vdev. Unable to create peer");
+		return NULL;
+	}
 
 	/*
 	 * Check if peer with same MAC exist on any Vdev, If so avoid
 	 * adding this peer.
 	 */
 	if (wma_objmgr_peer_exist(wma, peer_addr, &peer_vdev_id)) {
-		wma_info("Peer "QDF_MAC_ADDR_FMT" already exist on vdev %d, current vdev %d",
+		wma_debug("Peer " QDF_MAC_ADDR_FMT " already exists on vdev %d, current vdev %d",
 			  QDF_MAC_ADDR_REF(peer_addr), peer_vdev_id, vdev_id);
-		return NULL;
+		goto vdev_ref;
+	}
+
+	/* Reject if same MAC exists on different ML dev context */
+	if (mlo_mgr_ml_peer_exist_on_diff_ml_ctx(peer_addr,
+						 &vdev_id)) {
+		wma_debug("Peer " QDF_MAC_ADDR_FMT " already exists on different ML dev context",
+			  QDF_MAC_ADDR_REF(peer_addr));
+		goto vdev_ref;
+	}
+
+	status = wma_create_peer_validate_mld_address(wma, peer_mld_addr,
+						      obj_vdev);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		wma_debug("MLD " QDF_MAC_ADDR_FMT " matches with peer on different MLD context",
+			  QDF_MAC_ADDR_REF(peer_mld_addr));
+		goto vdev_ref;
 	}
 
 	obj_peer_type = wma_get_obj_mgr_peer_type(wma, vdev_id, peer_addr,
@@ -1786,21 +1887,14 @@ struct wlan_objmgr_peer *wma_create_objmgr_peer(tp_wma_handle wma,
 	if (!obj_peer_type) {
 		wma_err("Invalid obj peer type. Unable to create peer %d",
 			obj_peer_type);
-		return NULL;
+		goto vdev_ref;
 	}
 
 	/* Create obj_mgr peer */
-	obj_vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
-						    WLAN_LEGACY_WMA_ID);
-
-	if (!obj_vdev) {
-		wma_err("Invalid obj vdev. Unable to create peer %d",
-			obj_peer_type);
-		return NULL;
-	}
-
 	obj_peer = wlan_objmgr_peer_obj_create(obj_vdev, obj_peer_type,
 						peer_addr);
+
+vdev_ref:
 	wlan_objmgr_vdev_release_ref(obj_vdev, WLAN_LEGACY_WMA_ID);
 
 	return obj_peer;
@@ -1893,7 +1987,8 @@ QDF_STATUS wma_add_peer(tp_wma_handle wma,
 		return QDF_STATUS_E_FAILURE;
 	}
 
-	obj_peer = wma_create_objmgr_peer(wma, vdev_id, peer_addr, peer_type);
+	obj_peer = wma_create_objmgr_peer(wma, vdev_id, peer_addr, peer_type,
+					  peer_mld_addr);
 	if (!obj_peer)
 		return QDF_STATUS_E_FAILURE;
 
@@ -2311,7 +2406,6 @@ void wma_send_del_bss_response(tp_wma_handle wma, struct del_bss_resp *resp)
 		 vdev_id);
 	cdp_fc_vdev_unpause(soc, vdev_id, OL_TXQ_PAUSE_REASON_VDEV_STOP, 0);
 	wma_vdev_clear_pause_bit(vdev_id, PAUSE_TYPE_HOST);
-	wma_spr_update(wma, vdev_id, false);
 	qdf_atomic_set(&iface->bss_status, WMA_BSS_STATUS_STOPPED);
 	wma_debug("(type %d subtype %d) BSS is stopped",
 		 iface->type, iface->sub_type);
@@ -2342,9 +2436,9 @@ void wma_send_del_bss_response(tp_wma_handle wma, struct del_bss_resp *resp)
 					   (void *)resp, 0);
 	}
 
-	if (iface->del_staself_req && iface->is_del_sta_defered) {
-		iface->is_del_sta_defered = false;
-		wma_nofl_alert("scheduling defered deletion (vdev id %x)",
+	if (iface->del_staself_req && iface->is_del_sta_deferred) {
+		iface->is_del_sta_deferred = false;
+		wma_nofl_alert("scheduling deferred deletion (vdev id %x)",
 			      vdev_id);
 		wma_vdev_detach(iface->del_staself_req);
 	}
@@ -2410,8 +2504,7 @@ static void wma_send_vdev_down_req(tp_wma_handle wma,
 }
 
 #ifdef WLAN_FEATURE_11BE_MLO
-static void wma_delete_peer_mlo(struct wlan_objmgr_psoc *psoc,
-				uint8_t *macaddr)
+void wma_delete_peer_mlo(struct wlan_objmgr_psoc *psoc, uint8_t *macaddr)
 {
 	struct wlan_objmgr_peer *peer = NULL;
 
@@ -2420,11 +2513,6 @@ static void wma_delete_peer_mlo(struct wlan_objmgr_psoc *psoc,
 		wlan_mlo_link_peer_delete(peer);
 		wlan_objmgr_peer_release_ref(peer, WLAN_LEGACY_WMA_ID);
 	}
-}
-#else /* WLAN_FEATURE_11BE_MLO */
-static inline void wma_delete_peer_mlo(struct wlan_objmgr_psoc *psoc,
-				       uint8_t *macaddr)
-{
 }
 #endif /* WLAN_FEATURE_11BE_MLO */
 
@@ -2554,8 +2642,8 @@ __wma_handle_vdev_stop_rsp(struct vdev_stop_response *resp_event)
 	if (mode == QDF_STA_MODE || mode == QDF_P2P_CLIENT_MODE) {
 		status = wlan_vdev_get_bss_peer_mac(iface->vdev, &bssid);
 		if (QDF_IS_STATUS_ERROR(status)) {
-			wma_err("Failed to get bssid");
-			return QDF_STATUS_E_INVAL;
+			wma_debug("Failed to get bssid, peer might have got deleted already");
+			return wlan_cm_bss_peer_delete_rsp(iface->vdev, status);
 		}
 		/* initiate CM to delete bss peer */
 		return wlan_cm_bss_peer_delete_ind(iface->vdev,  &bssid);
@@ -2682,7 +2770,8 @@ QDF_STATUS wma_vdev_self_peer_create(struct vdev_mlme_obj *vdev_mlme)
 		obj_peer = wma_create_objmgr_peer(wma_handle,
 						  wlan_vdev_get_id(vdev),
 						  self_peer_macaddr,
-						  WMI_PEER_TYPE_DEFAULT);
+						  WMI_PEER_TYPE_DEFAULT,
+						  vdev->vdev_mlme.macaddr);
 		if (!obj_peer) {
 			wma_err("Failed to create obj mgr peer for self");
 			status = QDF_STATUS_E_INVAL;
@@ -5021,7 +5110,7 @@ static void wma_add_sta_req_sta_mode(tp_wma_handle wma, tpAddStaParams params)
 	/* Sta is now associated, configure various params */
 
 	/* Send SMPS force command to FW to send the required
-	 * action frame only when SM power save is enbaled in
+	 * action frame only when SM power save is enabled in
 	 * from INI. In case dynamic antenna selection, the
 	 * action frames are sent by the chain mask manager
 	 * In addition to the action frames, The SM power save is
@@ -5543,7 +5632,8 @@ void wma_delete_sta(tp_wma_handle wma, tpDeleteStaParams del_sta)
 	switch (oper_mode) {
 	case BSS_OPERATIONAL_MODE_STA:
 		if (wlan_cm_is_roam_sync_in_progress(wma->psoc, vdev_id) ||
-		    MLME_IS_MLO_ROAM_SYNCH_IN_PROGRESS(wma->psoc, vdev_id)) {
+		    MLME_IS_MLO_ROAM_SYNCH_IN_PROGRESS(wma->psoc, vdev_id) ||
+		    mlo_is_roaming_in_progress(wma->psoc, vdev_id)) {
 			wma_debug("LFR3: Del STA on vdev_id %d", vdev_id);
 			qdf_mem_free(del_sta);
 			return;
@@ -5822,7 +5912,8 @@ void wma_delete_bss(tp_wma_handle wma, uint8_t vdev_id)
 	}
 
 	if (wlan_cm_is_roam_sync_in_progress(wma->psoc, vdev_id) ||
-	    MLME_IS_MLO_ROAM_SYNCH_IN_PROGRESS(wma->psoc, vdev_id)) {
+	    MLME_IS_MLO_ROAM_SYNCH_IN_PROGRESS(wma->psoc, vdev_id) ||
+	    mlo_is_roaming_in_progress(wma->psoc, vdev_id)) {
 		roam_synch_in_progress = true;
 		wma_debug("LFR3: Setting vdev_up to FALSE for vdev:%d",
 			  vdev_id);

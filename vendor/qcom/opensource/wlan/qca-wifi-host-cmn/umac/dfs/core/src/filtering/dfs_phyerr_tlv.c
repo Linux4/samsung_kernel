@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012, 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -388,7 +389,7 @@ static int dfs_tlv_parse_frame(struct wlan_dfs *dfs,
 			 * we examine search FFT report and make the following
 			 * assumption as per algorithms group's input:
 			 * (1) There may be multiple TLV
-			 * (2) We make false detection decison solely based on
+			 * (2) We make false detection decision solely based on
 			 * the first TLV
 			 * (3) If the first TLV is a serch FFT report then we
 			 * check the peak_mag value.

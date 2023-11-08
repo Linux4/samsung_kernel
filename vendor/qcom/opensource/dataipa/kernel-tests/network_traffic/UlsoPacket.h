@@ -205,7 +205,7 @@ public:
         uint32_t seqNum = 0;
 
         if(isSegmented()){
-            throw std::logic_error("A segmented packet cannot be segmented again!");
+            return vector<UlsoPacket>();
         }
         unsigned int segmentSize = mQmapHeader.mSegmentSize.to_ulong();
         vector<vector<uint8_t>> payloads = segmentPayload(segmentSize, mPayload);

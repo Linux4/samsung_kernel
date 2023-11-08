@@ -97,7 +97,7 @@
 #define FAC_CAL		1
 #define USER_CAL	2
 
-#endif 
+#endif
 #define VL53L8_ASZ_0_BH 0xdfa00081U
 #define VL53L8_ASZ_1_BH 0xdfe40081U
 #define VL53L8_ASZ_2_BH 0xe0280081U
@@ -589,7 +589,7 @@ static int _write_p2p_calibration(struct vl53l8_k_module_t *p_module, int flow)
 		goto out;
 
 	_encode_device_info(&p_module->calibration, buffer);
-	
+
 #ifdef STM_VL53L5_SUPPORT_LEGACY_CODE
 	vl53l8_k_log_debug("filename %s", VL53L8_CAL_P2P_FILENAME);
 	vl53l8_k_log_debug("file size %i", VL53L8_K_P2P_FILE_SIZE + 4);
@@ -655,7 +655,7 @@ int _write_shape_calibration(struct vl53l8_k_module_t *p_module)
 
 	if (status != VL53L5_ERROR_NONE)
 		goto out;
-	
+
 #ifdef STM_VL53L5_SUPPORT_LEGACY_CODE
 	vl53l8_k_log_debug("filename %s", VL53L8_CAL_SHAPE_FILENAME);
 	vl53l8_k_log_debug("file size %i", VL53L8_K_SHAPE_FILE_SIZE + 4);
@@ -873,7 +873,7 @@ int vl53l8_ioctl_init(struct vl53l8_k_module_t *p_module)
 	memset(&p_module->comms_buffer, 0, VL53L5_COMMS_BUFFER_SIZE_BYTES);
 #endif
 
-    if (!p_module->firmware_name) {
+	if (!p_module->firmware_name) {
 		vl53l8_k_log_error("FW name not in dts");
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 		p_module->stdev.status_probe = -2;
@@ -913,11 +913,13 @@ int vl53l8_ioctl_init(struct vl53l8_k_module_t *p_module)
 				 _comms_buff_count);
 
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
+#ifndef CONFIG_SEPARATE_IO_CORE_POWER
 	vl53l8_power_onoff(p_module, false);
 	usleep_range(2000, 2100);
 
 	vl53l8_power_onoff(p_module, true);
 	usleep_range(5000, 5100);
+#endif
 #endif
 	status = vl53l5_init(&p_module->stdev);
 
@@ -1002,9 +1004,9 @@ int vl53l8_ioctl_term(struct vl53l8_k_module_t *p_module)
 			status = _check_state(p_module, VL53L8_STATE_LOW_POWER);
 			if (status != VL53L5_ERROR_NONE)
 				goto out_state;
-#else   
+#else
 			goto out_state;
-#endif      
+#endif
 		}
 	} else {
 		status = vl53l5_stop(&p_module->stdev,
@@ -1160,7 +1162,7 @@ int vl53l8_ioctl_get_module_info(struct vl53l8_k_module_t *p_module,
 			status = copy_to_user(p, &p_module->m_info, sizeof(struct vl53l5_module_info_t));
 		else
 			status = STATUS_OK;
-#else 
+#else
 	status = copy_to_user(p, &p_module->m_info,
 				sizeof(struct vl53l5_module_info_t));
 
@@ -1210,8 +1212,12 @@ void vl53l8_load_calibration(struct vl53l8_k_module_t *p_module)
 	else
 		ret = vl53l8_load_open_calibration(p_module);
 
-	if (ret < 0)
+	if (ret < 0) {
 		vl53l8_k_log_error("Cal data load fail");
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+		vl53l8_last_error_counter(p_module, VL53L8_CALFILE_LOAD_ERROR);
+#endif
+	}
 }
 
 int vl53l8_load_open_calibration(struct vl53l8_k_module_t *p_module)
@@ -1287,6 +1293,37 @@ int vl53l8_load_factory_calibration(struct vl53l8_k_module_t *p_module)
 #endif
 
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+int vl53l8_check_ldo_onoff(struct vl53l8_k_module_t *data)
+{
+	int ldo_status = 0, comp = ALL_VDD_ENABLED;
+	int reg_enabled = 0;
+
+	if (data->avdd_vreg) {
+		reg_enabled = regulator_is_enabled(data->avdd_vreg);
+		vl53l8_k_log_debug("avdd reg_enabled=%d\n", reg_enabled);
+		ldo_status |= (reg_enabled & 0x01) << AVDD;
+	} else
+		vl53l8_k_log_error("avdd error\n");
+
+	if (data->iovdd_vreg) {
+		reg_enabled = regulator_is_enabled(data->iovdd_vreg);
+		vl53l8_k_log_debug("iovdd reg_enabled=%d\n", reg_enabled);
+		ldo_status |= (reg_enabled & 0x01) << IOVDD;
+	} else
+		vl53l8_k_log_error("vdd_vreg err\n");
+
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
+	if (data->corevdd_vreg) {
+		reg_enabled = regulator_is_enabled(data->corevdd_vreg);
+		vl53l8_k_log_info("corevdd reg_enabled=%d\n", reg_enabled);
+		ldo_status |= (reg_enabled & 0x01) << COREVDD;
+	} else
+		vl53l8_k_log_error("vdd_vreg err\n");
+#endif
+	return (comp ^ ldo_status);
+}
+#endif
 int vl53l8_ioctl_start(struct vl53l8_k_module_t *p_module)
 #else
 int vl53l8_ioctl_start(struct vl53l8_k_module_t *p_module, void __user *p)
@@ -1735,7 +1772,7 @@ int vl53l8_ioctl_get_range(struct vl53l8_k_module_t *p_module, void __user *p)
 						  &p_module->range.data);
 		if (status != VL53L5_ERROR_NONE)
 			goto out;
-		
+
 		if (p_module->patch_ver.patch_version.ver_major < 6 &&
 		    p_module->patch_ver.patch_version.ver_minor >= 0) {
 			status = vl53l8_k_glare_filter(&p_module->gf_tuning,
@@ -1743,14 +1780,13 @@ int vl53l8_ioctl_get_range(struct vl53l8_k_module_t *p_module, void __user *p)
 			if (status != VL53L5_ERROR_NONE)
 				goto out;
 		}
-		
+
 		p_module->range.count++;
 		p_module->range.is_valid = 1;
 	}
-#endif 
+#endif
 #ifdef STM_VL53L5_SUPPORT_LEGACY_CODE
-	if(p!=NULL)
-	{
+	if (p != NULL) {
 		status = copy_to_user(
 			p, &p_module->range.data, sizeof(struct vl53l5_range_data_t));
 		if (status != VL53L5_ERROR_NONE) {
@@ -1766,9 +1802,8 @@ int vl53l8_ioctl_get_range(struct vl53l8_k_module_t *p_module, void __user *p)
 			status = copy_to_user(
 				p, &p_module->af_range_data, sizeof(struct range_sensor_data_t));
 		}
-		if (status != STATUS_OK) {
+		if (status != STATUS_OK)
 			status = VL53L8_K_ERROR_FAILED_TO_COPY_RANGE_DATA;
-		}
 	}
 #endif
 #ifdef STM_VL53L5_SUPPORT_LEGACY_CODE
@@ -1778,8 +1813,12 @@ out:
 		status = vl53l5_read_device_error(&p_module->stdev, status);
 #ifdef VL53L8_INTERRUPT
 	if (p_module->last_driver_error != VL53L5_ERROR_NONE &&
-	    p_module->last_driver_error != status)
+	    p_module->last_driver_error != status) {
 		status = p_module->last_driver_error;
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+		vl53l8_last_error_counter(p_module, p_module->last_driver_error);
+#endif
+	}
 	if (status != VL53L5_ERROR_NONE) {
 #endif
 #ifdef VL53L8_INTERRUPT
@@ -1849,6 +1888,69 @@ out_state:
 	return status;
 }
 
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
+int vl53l8_regulator_init_state(struct vl53l8_k_module_t *data)
+{
+	int voltage;
+
+	if (data->avdd_vreg_name) {
+		if (data->avdd_vreg == NULL) {
+			data->avdd_vreg = regulator_get(&data->spi_info.device->dev, data->avdd_vreg_name);
+			if (IS_ERR(data->avdd_vreg)) {
+				data->avdd_vreg = NULL;
+				return VL53L8_LDO_AVDD_ERROR;
+			}
+			if (data->avdd_vreg) {
+				voltage = regulator_get_voltage(data->avdd_vreg);
+				if (voltage < 0) {
+					vl53l8_k_log_error("avdd dummy voltage=%d\n", voltage);
+					data->avdd_vreg = NULL;
+					return VL53L8_LDO_AVDD_ERROR;
+				}
+			}
+		}
+	}
+
+	if (data->iovdd_vreg_name) {
+		if (data->iovdd_vreg == NULL) {
+			data->iovdd_vreg = regulator_get(&data->spi_info.device->dev, data->iovdd_vreg_name);
+			if (IS_ERR(data->iovdd_vreg)) {
+				data->iovdd_vreg = NULL;
+				return VL53L8_LDO_AVDD_ERROR;
+			}
+			if (data->iovdd_vreg) {
+				voltage = regulator_get_voltage(data->iovdd_vreg);
+				if (voltage < 0) {
+					vl53l8_k_log_error("iovdd_vreg dummy voltage=%d\n", voltage);
+					data->iovdd_vreg = NULL;
+					return VL53L8_LDO_IOVDD_ERROR;
+				}
+			}
+		}
+	}
+
+	if (data->corevdd_vreg_name) {
+		if (data->corevdd_vreg == NULL) {
+			data->corevdd_vreg = regulator_get(&data->spi_info.device->dev, data->corevdd_vreg_name);
+			if (IS_ERR(data->corevdd_vreg)) {
+				data->corevdd_vreg = NULL;
+				return VL53L8_LDO_AVDD_ERROR;
+			}
+			if (data->corevdd_vreg) {
+				voltage = regulator_get_voltage(data->corevdd_vreg);
+				if (voltage < 0) {
+					vl53l8_k_log_error("corevdd_vreg dummy voltage=%d\n", voltage);
+					data->corevdd_vreg = NULL;
+					return VL53L8_LDO_COREVDD_ERROR;
+				}
+			}
+		}
+	}
+
+	return STATUS_OK;
+}
+#endif
+
 int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 {
 	int ret = 0;
@@ -1876,7 +1978,10 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 			vl53l8_k_log_debug("avdd reg_enabled=%d voltage=%d\n", reg_enabled, voltage);
 
 			if (on) {
-				if (reg_enabled == 0) {
+#ifndef CONFIG_SEPARATE_IO_CORE_POWER
+				if (reg_enabled == 0)
+#endif
+				{
 					vl53l8_k_log_info("avdd on\n");
 					ret = regulator_enable(data->avdd_vreg);
 					if (ret) {
@@ -1885,7 +1990,11 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 					}
 				}
 			} else {
-				if (reg_enabled == 1) {
+#ifndef CONFIG_SEPARATE_IO_CORE_POWER
+
+				if (reg_enabled == 1)
+#endif
+				{
 					vl53l8_k_log_info("avdd off\n");
 					ret = regulator_disable(data->avdd_vreg);
 					if (ret) {
@@ -1915,7 +2024,10 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 			vl53l8_k_log_debug("iovdd reg_enabled=%d voltage=%d\n", reg_enabled, voltage);
 
 			if (on) {
-				if (reg_enabled == 0) {
+#ifndef CONFIG_SEPARATE_IO_CORE_POWER
+				if (reg_enabled == 0)
+#endif
+				{
 					vl53l8_k_log_info("iovdd on\n");
 					ret = regulator_enable(data->iovdd_vreg);
 					if (ret) {
@@ -1924,7 +2036,10 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 					}
 				}
 			} else {
-				if (reg_enabled == 1) {
+#ifndef CONFIG_SEPARATE_IO_CORE_POWER
+				if (reg_enabled == 1)
+#endif
+				{
 					vl53l8_k_log_info("iovdd off\n");
 					ret = regulator_disable(data->iovdd_vreg);
 					if (ret) {
@@ -1935,7 +2050,7 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 			}
 		} else
 			vl53l8_k_log_info("vdd_vreg err\n");
-#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
 	} else if (io == COREVDD) {
 		if (data->corevdd_vreg_name) {
 			if (data->corevdd_vreg == NULL) {
@@ -1955,28 +2070,23 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 			vl53l8_k_log_info("corevdd reg_enabled=%d voltage=%d\n", reg_enabled, voltage);
 
 			if (on) {
-				if (reg_enabled == 0) {
-					vl53l8_k_log_info("corevdd on\n");
-					ret = regulator_enable(data->corevdd_vreg);
-					if (ret) {
-						vl53l8_k_log_error("corevdd enable err\n");
-						return ret;
-					}
+				vl53l8_k_log_info("corevdd on\n");
+				ret = regulator_enable(data->corevdd_vreg);
+				if (ret) {
+					vl53l8_k_log_error("corevdd enable err\n");
+					return ret;
 				}
 			} else {
-				if (reg_enabled == 1) {
-					vl53l8_k_log_info("corevdd off\n");
-					ret = regulator_disable(data->corevdd_vreg);
-					if (ret) {
-						vl53l8_k_log_error("corevdd disable err\n");
-						return ret;
-					}
+				vl53l8_k_log_info("corevdd off\n");
+				ret = regulator_disable(data->corevdd_vreg);
+				if (ret) {
+					vl53l8_k_log_error("corevdd disable err\n");
+					return ret;
 				}
 			}
-		}
-		else
+		} else
 			vl53l8_k_log_info("vdd_vreg err\n");
-#endif 
+#endif
 	} else {
 		vl53l8_k_log_info("wrong io %d\n", io);
 	}
@@ -1987,14 +2097,23 @@ int vl53l8_ldo_onoff(struct vl53l8_k_module_t *data, int io, bool on)
 void vl53l8_power_onoff(struct vl53l8_k_module_t *p_module, bool on)
 {
 	int status = STATUS_OK;
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
+	static int prev_on = -1;
 
+	if (prev_on == on)
+		return;
+	prev_on = on;
+#endif
 	if (!on)
 		p_module->state_preset = VL53L8_STATE_PRESENT;
 
 	vl53l8_ldo_onoff(p_module, IOVDD, on);
 	vl53l8_ldo_onoff(p_module, AVDD, on);
-#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
 	vl53l8_ldo_onoff(p_module, COREVDD, on);
+#endif
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+	p_module->ldo_status = vl53l8_check_ldo_onoff(p_module);
 #endif
 	if (on) {
 		usleep_range(1000, 1100);
@@ -2014,6 +2133,20 @@ void vl53l8_power_onoff(struct vl53l8_k_module_t *p_module, bool on)
 		p_module->power_state = VL53L5_POWER_STATE_HP_IDLE;
 		vl53l8_k_log_info("VL53L8_STATE_INITIALISED");
 	}
+}
+
+int vl53l8_ioctl_get_status(struct vl53l8_k_module_t *p_module, void __user *p)
+{
+	int status = STATUS_OK;
+
+	if (p != NULL) {
+		status = copy_to_user(p, &p_module->ioctl_enable_status, sizeof(int));
+	} else {
+		vl53l8_k_log_error("failed to get enable status");
+		status = VL53L5_ERROR_INVALID_PARAMS;
+	}
+
+	return status;
 }
 
 int vl53l8_ioctl_get_cal_data(struct vl53l8_k_module_t *p_module, void __user *p)
@@ -2070,6 +2203,7 @@ int vl53l8_ioctl_set_pass_fail(struct vl53l8_k_module_t *p_module,
 
 	if (p != NULL) {
 		struct vl53l8_update_data_t result;
+
 		status = copy_from_user(&result, p, sizeof(struct vl53l8_update_data_t));
 		if (status == STATUS_OK) {
 			p_module->pass_fail_flag |= result.pass_fail << result.cmd;
@@ -2091,12 +2225,12 @@ int vl53l8_ioctl_set_file_list(struct vl53l8_k_module_t *p_module,
 
 	if (p != NULL) {
 		struct vl53l8_file_list_t list;
+
 		status = copy_from_user(&list, p, sizeof(struct vl53l8_file_list_t));
-		if (status == STATUS_OK) {
+		if (status == STATUS_OK)
 			p_module->file_list = list.file_list;
-		} else {
+		else
 			vl53l8_k_log_error("copy from user err");
-		}
 	} else
 		status = VL53L5_ERROR_INVALID_PARAMS;
 
@@ -2226,6 +2360,9 @@ out:
 		status = vl53l5_read_device_error(&p_module->stdev, status);
 		vl53l8_k_log_error("Failed: %d", status);
 		p_module->last_driver_error = status;
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+		vl53l8_last_error_counter(p_module, p_module->last_driver_error);
+#endif
 	}
 out_free:
 	kfree(p_get_data);
@@ -2515,7 +2652,7 @@ int vl53l8_ioctl_read_p2p_calibration(struct vl53l8_k_module_t *p_module)
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 			if (!p_module->stdev.status_cal)
 				p_module->stdev.status_cal = -13;
-#endif	
+#endif
 			goto out;
 		}
 	} else {
@@ -2557,11 +2694,12 @@ int vl53l8_ioctl_read_shape_calibration(struct vl53l8_k_module_t *p_module)
 
 	vl53l8_k_log_debug("Read filename %s", VL53L8_CAL_SHAPE_FILENAME);
 	vl53l8_k_log_debug("Read file size %i", VL53L8_K_SHAPE_FILE_SIZE);
-/*	status = vl53l5_read_file(&p_module->stdev,
-				  p_module->stdev.host_dev.p_comms_buff,
-				  VL53L8_K_SHAPE_FILE_SIZE + 4,
-				  VL53L8_CAL_SHAPE_FILENAME);
-*/
+#ifdef STM_VL53L5_SUPPORT_LEGACY_CODE
+	status = vl53l5_read_file(&p_module->stdev,
+				p_module->stdev.host_dev.p_comms_buff,
+				VL53L8_K_SHAPE_FILE_SIZE + 4,
+				VL53L8_CAL_SHAPE_FILENAME);
+#endif
 	if (status < VL53L5_ERROR_NONE) {
 		vl53l8_k_log_error("read file %s failed: %d ",
 				   VL53L8_CAL_SHAPE_FILENAME, status);
@@ -2824,10 +2962,10 @@ int vl53l8_readfile_genshape(struct vl53l8_k_module_t *p_module,
 		vl53l8_k_log_error(
 			"generic shape name does not declared");
 		p_module->stdev.status_cal = -1;
-		status = -1;
+		status = -EPERM;
 		goto out;
 	}
-	
+
 	spi = p_module->spi_info.device;
 	status = request_firmware(&fw_entry, p_module->genshape_name, &spi->dev);
 	if (status) {
@@ -2870,7 +3008,7 @@ int vl53l8_ioctl_read_generic_shape(struct vl53l8_k_module_t *p_module)
 		goto out_state;
 
 	}
-	
+
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 	status = vl53l8_readfile_genshape(p_module, p_module->stdev.host_dev.p_comms_buff,
 							VL53L8_K_SHAPE_FILE_SIZE + 4);
@@ -3057,7 +3195,7 @@ int vl53l8_set_asz_tuning(struct vl53l8_k_module_t *p_module, struct vl53l8_k_as
 		goto out_state;
 
 	memcpy(&asz_tuning, asz_layout, sizeof(struct vl53l8_k_asz_tuning_t));
-	
+
 	if (status != VL53L5_ERROR_NONE) {
 		status = VL53L8_K_ERROR_FAILED_TO_COPY_ASZ_TUNING;
 		goto out;
@@ -3083,8 +3221,8 @@ out_state:
 	LOG_FUNCTION_END(status);
 	return status;
 }
+#endif
 
-#endif 
 int vl53l8_ioctl_set_asz_tuning(struct vl53l8_k_module_t *p_module,
 				void __user *p)
 {
@@ -3186,9 +3324,10 @@ static int _populate_asz_struct(uint8_t *p_zone, uint32_t zone_idx)
 		p_zone[i] = (uint8_t)(zone_idx + c  + (r * grid_size));
 		vl53l8_k_log_debug("zone[%i] %i", i, p_zone[i]);
 	}
-	for (i = 4; i < 8; i++) {
+
+	for (i = 4; i < 8; i++)
 		p_zone[i] = (uint8_t)255;
-	}
+
 out:
 	return status;
 }
@@ -3310,11 +3449,10 @@ static uint32_t _buf_r2p_calc3(uint32_t zone_id,
 		vpos2 = y * y;
 
 		for (x = xs; x < xe; x += 4) {
+			hpos2 = x * x;
+			dpos2 = (uint32_t)(hpos2) + (uint32_t)vpos2;
 
-		hpos2 = x * x;
-		dpos2 = (uint32_t)(hpos2) + (uint32_t)vpos2;
-
-		dpos2_zone += (uint32_t)dpos2;
+			dpos2_zone += (uint32_t)dpos2;
 		}
 	}
 
@@ -3467,6 +3605,7 @@ int vl53l8_ioctl_set_transfer_speed_hz(struct vl53l8_k_module_t *p_module,
 					 void __user *p)
 {
 	int32_t status = VL53L5_ERROR_NONE;
+
 	LOG_FUNCTION_START("");
 
 	vl53l8_k_log_debug("Lock");
@@ -3507,8 +3646,8 @@ out_state:
 int vl53l8_set_transfer_speed_hz(struct vl53l8_k_module_t *p_module, unsigned int freq)
 {
 	int32_t status = VL53L5_ERROR_NONE;
-	LOG_FUNCTION_START("");
 
+	LOG_FUNCTION_START("");
 	p_module->transfer_speed_hz = freq;
 
 	vl53l8_k_log_debug("transfer hz  %d", p_module->transfer_speed_hz);

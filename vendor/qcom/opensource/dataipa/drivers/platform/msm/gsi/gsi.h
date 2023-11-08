@@ -87,6 +87,18 @@
 		} \
 	} while (0)
 
+#define GSIERR_RL(fmt, args...) \
+	do { \
+		dev_err_ratelimited(gsi_ctx->dev, "%s:%d " fmt, __func__, __LINE__, \
+		## args);\
+		if (gsi_ctx) { \
+			GSI_IPC_LOGGING(gsi_ctx->ipc_logbuf, \
+				"%s:%d " fmt, ## args); \
+			GSI_IPC_LOGGING(gsi_ctx->ipc_logbuf_low, \
+				"%s:%d " fmt, ## args); \
+		} \
+	} while (0)
+
 #define GSI_IPC_LOG_PAGES 50
 #define GSI_MAX_NUM_MSI 2
 
@@ -103,6 +115,7 @@ enum gsi_ver {
 	GSI_VER_2_11 = 9,
 	GSI_VER_3_0 = 10,
 	GSI_VER_5_5 = 11,
+	GSI_VER_6_0 = 12,
 	GSI_VER_MAX,
 };
 
@@ -162,6 +175,7 @@ enum gsi_evt_chtype {
 	GSI_EVT_CHTYPE_11AD_EV = 0x9,
 	GSI_EVT_CHTYPE_RTK_EV = 0xC,
 	GSI_EVT_CHTYPE_NTN_EV = 0xD,
+	GSI_EVT_CHTYPE_WDI3_V2_EV = 0XF,
 };
 
 enum gsi_evt_ring_elem_size {
@@ -251,6 +265,7 @@ enum gsi_chan_prot {
 	GSI_CHAN_PROT_QDSS = 0xB,
 	GSI_CHAN_PROT_RTK = 0xC,
 	GSI_CHAN_PROT_NTN = 0xD,
+	GSI_CHAN_PROT_WDI3_V2 = 0XF,
 };
 
 enum gsi_max_prefetch {
@@ -942,6 +957,35 @@ struct __packed gsi_11ad_tx_channel_scratch {
 	uint32_t fixed_data_buffer_size_pow_2:16;
 	uint32_t resv2:8;
 };
+/**
+ * gsi_wdi3_hamilton_channel_scratch - WDI 3 protocol, hamilton chipset
+ * SW config area of channel scratch
+ *
+ * @wifi_rx_ri_addr_low: Low 32 bits of Transfer ring Read Index address.
+ * @wifi_rx_ri_addr_high: High 32 bits of Transer ring Read Index address.
+ * @update_ri_moderation_threshold: Threshold N for Transfer ring Read Index
+				    N is the number of packets that IPA will
+				    process before wifi transfer ring Ri will
+				    be updated.
+ * @endp_metadata_reg_offset: Rx only, the offset of IPA_ENDP_INIT_HDR_METADATA_n
+			      of the corresponding endpoint in 4B words from IPA
+			      base address.
+ * @qmap_id: Rx only, used for setting metadata register in IPA, Read only field
+	     for MCS, Write for SW
+ */
+
+struct __packed gsi_wdi3_v2_channel_scratch {
+	uint32_t wifi_rp_address_low;
+	uint32_t wifi_rp_address_high;
+	uint32_t update_rp_moderation_threshold : 5;
+	uint32_t qmap_id : 8;
+	uint32_t reserved1 : 3;
+	uint32_t endp_metadata_reg_offset : 16;
+	uint32_t rx_pkt_offset : 16;
+	uint32_t reserved2 : 6;
+	uint32_t bank_id : 6;
+	uint32_t reserved3: 4;
+};
 
 /**
  * gsi_wdi3_channel_scratch - WDI protocol 3 SW config area of
@@ -1113,6 +1157,7 @@ union __packed gsi_channel_scratch {
 	struct __packed gsi_11ad_rx_channel_scratch rx_11ad;
 	struct __packed gsi_11ad_tx_channel_scratch tx_11ad;
 	struct __packed gsi_wdi3_channel_scratch wdi3;
+	struct __packed gsi_wdi3_v2_channel_scratch wdi3_v2;
 	struct __packed gsi_mhip_channel_scratch mhip;
 	struct __packed gsi_wdi2_channel_scratch_new wdi2_new;
 	struct __packed gsi_aqc_channel_scratch aqc;

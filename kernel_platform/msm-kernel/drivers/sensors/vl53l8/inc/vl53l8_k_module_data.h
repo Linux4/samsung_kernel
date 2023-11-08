@@ -72,15 +72,15 @@
 
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 #include <linux/regulator/consumer.h>
-#ifdef CONFIG_SENSORS_VL53L8_SUPPORT_UAPI
 #include <uapi/linux/sensor/range_sensor.h>
-#endif
 #ifdef CONFIG_SENSORS_VL53L8_QCOM
 #include <linux/sensor/sensors_core.h> //for sec dump
 #endif
 #include <linux/input.h> 	//for input_dev
 #endif
-
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+#define MAX_TABLE 152
+#endif
 struct vl53l8_k_module_t {
 #ifdef STM_VL53L5_KOR_CODE
 		struct input_dev *input_dev_ps;
@@ -143,7 +143,9 @@ struct vl53l8_k_module_t {
 	} calibration;
 
 	int polling_count;
-
+#ifdef STM_VL53L5_SUPPORT_SEC_CODE
+	int ioctl_enable_status;
+#endif
 	unsigned int polling_start_time_ms;
 
 	unsigned int polling_sleep_time_ms;
@@ -167,7 +169,12 @@ struct vl53l8_k_module_t {
 	wait_queue_head_t wait_queue;
 
 	int last_driver_error;
-
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+	struct errdata_t {
+		s16 last_error_code;
+		u8 last_error_cnt;
+	} errdata[MAX_TABLE];
+#endif
 	struct vl53l5_module_info_t m_info;
 
 	struct vl53l8_k_glare_filter_tuning_t gf_tuning;
@@ -182,8 +189,9 @@ struct vl53l8_k_module_t {
 	struct input_dev *input_dev; //for input_dev
 	struct regulator *avdd_vreg;
 	struct regulator *iovdd_vreg;
-#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
 	struct regulator *corevdd_vreg;
+	struct delayed_work power_delayed_work;
 #endif
 	struct notifier_block dump_nb;
 	struct vl53l5_range_fac_results_t {
@@ -202,18 +210,18 @@ struct vl53l8_k_module_t {
 #endif 
 
 	} range_data;
-#ifdef CONFIG_SENSORS_VL53L8_SUPPORT_UAPI
 	struct range_sensor_data_t	af_range_data;
-#endif
 	const char *genshape_name;
 	const char *avdd_vreg_name;
 	const char *iovdd_vreg_name;
-#ifdef CONFIG_SEPERATE_IO_CORE_POWER
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
 	const char *corevdd_vreg_name;
 #endif
 	uint32_t fac_rotation_mode;
 	uint32_t rotation_mode;
 	uint32_t force_suspend_count;
+	uint32_t integration_init;
+	uint32_t rate_init;
 
 	int32_t data[64];
 	int32_t number_of_zones;
@@ -221,21 +229,23 @@ struct vl53l8_k_module_t {
 	int32_t min;
 	int32_t avg;
 	int32_t max;
-
+	int32_t max_peak_signal;
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+	int8_t ldo_status;
+#endif
 	int8_t enabled;
 	int8_t test_mode;
 	int8_t failed_count;
 	int8_t update_flag;
 	int8_t pass_fail_flag;
 	int8_t file_list;
-#ifdef STM_VL53L5_SUPPORT_SEC_CODE
-	int32_t max_peak_signal;
-#endif
+
 	bool load_calibration;
 	bool read_p2p_cal_data;
 	bool read_data_valid;
 	bool suspend_state;
 	bool probe_done;
+	bool sensors_register_done;
 #endif
 	// ASZs Tuning Parameter
 	uint32_t asz_0_ll_zone_id;
@@ -247,11 +257,6 @@ struct vl53l8_k_module_t {
 	uint32_t integration;
 	// Sampling rate : 1hz ~15hz
 	uint32_t rate;
-	
-#ifdef STM_VL53L5_SUPPORT_SEC_CODE
-	uint32_t integration_init;
-	uint32_t rate_init;
-#endif
 };
 
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE

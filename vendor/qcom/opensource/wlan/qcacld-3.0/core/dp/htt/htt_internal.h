@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, 2014-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -209,7 +210,7 @@ struct htt_host_rx_desc_base {
  *    Both of these events are stored on the same entry
  *    @paddr : physical address posted on the ring
  *    @nbuf  : virtual address of nbuf containing data
- *    @ndata : virual address of data (corresponds to physical address)
+ *    @ndata : virtual address of data (corresponds to physical address)
  *    @posted: time-stamp when the buffer is posted to the ring
  *    @recved: time-stamp when the buffer is received (rx_in_order_ind)
  *           : or 0, if the buffer has not been received yet
@@ -223,7 +224,7 @@ struct htt_host_rx_desc_base {
  *    @paddr : = 0
  *    @nbuf  : = 0
  *    @ndata : msdu_cnt
- *    @posted: time-stamp when HTT message is recived
+ *    @posted: time-stamp when HTT message is received
  *    @recvd : 0x48545452584D5367 ('HTTRXMSG')
  */
 #ifdef CONFIG_SLUB_DEBUG_ON
@@ -235,7 +236,7 @@ struct rx_buf_debug {
 	qdf_dma_addr_t paddr;
 	qdf_nbuf_t     nbuf;
 	void          *nbuf_data;
-	uint64_t       posted; /* timetamp */
+	uint64_t       posted; /* timestamp */
 	uint64_t       recved; /* timestamp */
 	int            cpu;
 

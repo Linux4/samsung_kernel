@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -60,12 +60,6 @@
 #include <cdp_txrx_cfg.h>
 #include <cdp_txrx_cmn.h>
 #include <lim_mlo.h>
-
-#ifdef FEATURE_WLAN_TDLS
-#define IS_TDLS_PEER(type)  ((type) == STA_ENTRY_TDLS_PEER)
-#else
-#define IS_TDLS_PEER(type) 0
-#endif
 
 /**
  * lim_cmp_ssid() - utility function to compare SSIDs
@@ -2252,6 +2246,34 @@ lim_update_peer_twt_caps(tpAddStaParams add_sta_params,
 {}
 #endif
 
+#ifdef WLAN_FEATURE_SR
+/**
+ * lim_update_srp_ie() - Updates SRP IE to STA node
+ * @bp_rsp: pointer to probe response / beacon frame
+ * @sta_ds: STA Node
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS lim_update_srp_ie(tSirProbeRespBeacon *bp_rsp,
+				    tpDphHashNode sta_ds)
+{
+	QDF_STATUS status = QDF_STATUS_E_NOSUPPORT;
+
+	if (bp_rsp->srp_ie.present) {
+		sta_ds->parsed_ies.srp_ie = bp_rsp->srp_ie;
+		status = QDF_STATUS_SUCCESS;
+	}
+
+	return status;
+}
+#else
+static QDF_STATUS lim_update_srp_ie(tSirProbeRespBeacon *bp_rsp,
+				    tpDphHashNode sta_ds)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
 /**
  * lim_add_sta()- called to add an STA context at hardware
  * @mac_ctx: pointer to global mac structure
@@ -2753,6 +2775,7 @@ lim_del_sta(struct mac_context *mac,
 	 * link peer before post WMA_DELETE_STA_REQ, which will free
 	 * wlan_objmgr_peer of the link peer
 	 */
+	lim_mlo_notify_peer_disconn(pe_session, sta);
 	lim_mlo_delete_link_peer(pe_session, sta);
 	/* Update PE session ID */
 	pDelStaParams->sessionId = pe_session->peSessionId;
@@ -3153,11 +3176,13 @@ lim_check_and_announce_join_success(struct mac_context *mac_ctx,
 {
 	tSirMacSSid current_ssid;
 	tLimMlmJoinCnf mlm_join_cnf;
+	tpDphHashNode sta_ds = NULL;
 	uint32_t val;
 	uint32_t *noa_duration_from_beacon = NULL;
 	uint32_t *noa2_duration_from_beacon = NULL;
 	uint32_t noa;
 	uint32_t total_num_noa_desc = 0;
+	uint16_t aid;
 	bool check_assoc_disallowed;
 
 	qdf_mem_copy(current_ssid.ssId,
@@ -3316,6 +3341,17 @@ lim_check_and_announce_join_success(struct mac_context *mac_ctx,
 			qdf_mem_copy(&session_entry->hs20vendor_ie.hs_id,
 				&beacon_probe_rsp->hs20vendor_ie.hs_id,
 				sizeof(beacon_probe_rsp->hs20vendor_ie.hs_id));
+	}
+
+	sta_ds =  dph_lookup_hash_entry(mac_ctx, session_entry->self_mac_addr,
+					&aid,
+					&session_entry->dph.dphHashTable);
+
+	if (sta_ds && QDF_IS_STATUS_SUCCESS(lim_update_srp_ie(beacon_probe_rsp,
+							      sta_ds))) {
+		/* update the SR parameters */
+		lim_update_vdev_sr_elements(session_entry, sta_ds);
+		/* TODO: Need to send SRP IE update event to userspace */
 	}
 }
 
@@ -3528,6 +3564,47 @@ static void lim_update_vht_oper_assoc_resp(struct mac_context *mac_ctx,
 	pAddBssParams->staContext.ch_width = ch_width;
 }
 
+#ifdef WLAN_FEATURE_11BE
+/**
+ * lim_update_eht_oper_assoc_resp : Update BW based on EHT operation IE.
+ * @pe_session : session entry.
+ * @pAddBssParams: parameters required for add bss params.
+ * @eht_op: EHT Oper IE to update.
+ *
+ * Return : void
+ */
+static void lim_update_eht_oper_assoc_resp(struct pe_session *pe_session,
+					   struct bss_params *pAddBssParams,
+					   tDot11fIEeht_op *eht_op)
+{
+	enum phy_ch_width ch_width;
+
+	ch_width = wlan_mlme_convert_eht_op_bw_to_phy_ch_width(
+						eht_op->channel_width);
+
+	/* Due to puncturing, EHT AP's send seg1 in VHT IE as zero which causes
+	 * downgrade to 80 MHz, check EHT IE and if EHT IE supports 160MHz
+	 * then stick to 160MHz only
+	 */
+
+	if (ch_width > pAddBssParams->ch_width &&
+	    ch_width >= pe_session->ch_width) {
+		pe_debug("eht ch_width %d and ch_width of add bss param %d",
+			 ch_width, pAddBssParams->ch_width);
+		ch_width = pe_session->ch_width;
+	}
+
+	pAddBssParams->ch_width = ch_width;
+	pAddBssParams->staContext.ch_width = ch_width;
+}
+#else
+static void lim_update_eht_oper_assoc_resp(struct pe_session *pe_session,
+					   struct bss_params *pAddBssParams,
+					   tDot11fIEeht_op *eht_op)
+{
+}
+#endif
+
 #ifdef WLAN_SUPPORT_TWT
 /**
  * lim_set_sta_ctx_twt() - Save the TWT settings in STA context
@@ -3686,6 +3763,12 @@ QDF_STATUS lim_sta_send_add_bss(struct mac_context *mac, tpSirAssocRsp pAssocRsp
 		lim_add_bss_eht_cap(pAddBssParams, pAssocRsp);
 		lim_add_bss_eht_cfg(pAddBssParams, pe_session);
 	}
+
+	if (lim_is_session_eht_capable(pe_session) &&
+	    pAssocRsp->eht_op.present &&
+	    pAssocRsp->eht_op.eht_op_information_present)
+		lim_update_eht_oper_assoc_resp(pe_session, pAddBssParams,
+					       &pAssocRsp->eht_op);
 
 	if (pAssocRsp->bss_max_idle_period.present) {
 		pAddBssParams->bss_max_idle_period =
@@ -3907,6 +3990,7 @@ QDF_STATUS lim_sta_send_add_bss(struct mac_context *mac, tpSirAssocRsp pAssocRsp
 		}
 	}
 
+	lim_extract_per_link_id(pe_session, pAddBssParams, pAssocRsp);
 	lim_intersect_ap_emlsr_caps(mac, pe_session, pAddBssParams, pAssocRsp);
 	lim_extract_msd_caps(mac, pe_session, pAddBssParams, pAssocRsp);
 
@@ -4301,7 +4385,7 @@ QDF_STATUS lim_sta_send_add_bss_pre_assoc(struct mac_context *mac,
 					      pe_session, retCode);
 	qdf_mem_free(pAddBssParams);
 	/*
-	 * Set retCode sucess as lim_process_sta_add_bss_rsp_pre_assoc take
+	 * Set retCode success as lim_process_sta_add_bss_rsp_pre_assoc take
 	 * care of failure
 	 */
 	retCode = QDF_STATUS_SUCCESS;
@@ -4450,7 +4534,7 @@ void lim_init_pre_auth_timer_table(struct mac_context *mac,
 
 /** -------------------------------------------------------------
    \fn lim_acquire_free_pre_auth_node
-   \brief Retrives a free Pre Auth node from Pre Auth Table.
+   \brief Retrieves a free Pre Auth node from Pre Auth Table.
    \param     struct mac_context *   mac
    \param     tpLimPreAuthTable pPreAuthTimerTable
    \return none
@@ -4642,4 +4726,3 @@ void lim_extract_ies_from_deauth_disassoc(struct pe_session *session,
 
 	mlme_set_peer_disconnect_ies(session->vdev, &ie);
 }
-

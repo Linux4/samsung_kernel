@@ -896,6 +896,12 @@ void ss_event_frame_update_post(struct samsung_display_driver_data *vdd)
 			}
 		}
 
+		if (vdd->spsram_read_recovery) {
+			LCD_ERR(vdd, "spsram read fail.. do recovery!\n");
+			vdd->spsram_read_recovery = false;
+			ss_panel_recovery(vdd);
+		}
+
 		/* For read flash gamma data before first brightness set */
 		LCD_INFO(vdd, "flash_gamma_init_done: %d, flash_gamma_support: %d\n",
 			vdd->br_info.flash_gamma_init_done, vdd->br_info.flash_gamma_support);
@@ -3958,6 +3964,13 @@ int ss_panel_on_post(struct samsung_display_driver_data *vdd)
 	else if (vdd->support_cabc && vdd->br_info.is_hbm)
 		ss_tft_autobrightness_cabc_update(vdd);
 
+	if (vdd->panel_func.samsung_spsram_gamma_comp_init &&
+			!vdd->br_info.gm2_mtp.spsram_read_done) {
+		LCD_INFO(vdd, "init spsram gamma compensation\n");
+		vdd->br_info.gm2_mtp.spsram_read_done = true;
+		vdd->panel_func.samsung_spsram_gamma_comp_init(vdd);
+	}
+
 	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_on_post))
 		vdd->panel_func.samsung_panel_on_post(vdd);
 
@@ -4739,11 +4752,18 @@ static irqreturn_t ss_ub_con_det_handler(int irq, void *handle)
 
 	vdd->ub_con_det.ub_con_cnt++;
 
+	/* Skip Panel Power off in user binary incase of HW request (Tab S9/S9 Ultra) */
+	if (!vdd->is_factory_mode && vdd->ub_con_det.ub_con_ignore_user) {
+		LCD_INFO(vdd, "Skip Panel Power Off in user binary due to HW request\n");
+		goto power_off_skip;
+	}
+
 	/* Regardless of ESD interrupt, it should guarantee display power off */
 	LCD_INFO(vdd, "turn off dipslay power\n");
 	check_aot_reset_early_off();
 	dsi_panel_power_off(panel);
 
+power_off_skip:
 	LCD_INFO(vdd, "-- cnt : %d\n", vdd->ub_con_det.ub_con_cnt);
 
 	return IRQ_HANDLED;
@@ -4760,6 +4780,10 @@ static void ss_panel_parse_dt_ub_con(struct device_node *np,
 
 	ub_con_det->gpio = ss_wrapper_of_get_named_gpio(np,
 			"samsung,ub-con-det", 0);
+
+	/* Skip panel power off in user binary */
+	ub_con_det->ub_con_ignore_user  = of_property_read_bool(np, "samsung,ub_con_ignore_user");
+	LCD_INFO(vdd, "ub_con_ignore_user = %d\n", ub_con_det->ub_con_ignore_user);
 
 	esd = &vdd->esd_recovery;
 	if (vdd->is_factory_mode) {
@@ -7600,11 +7624,6 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 		LCD_ERR(vdd, "err: no panel mode yet...\n");
 		return -EINVAL;
 	}
-	if ((panel->bl_config.bl_update == BL_UPDATE_DELAY_UNTIL_FIRST_FRAME)
-			&& vdd->bl_delay_until_disp_on && vdd->display_status_dsi.wait_disp_on) {
-		LCD_INFO(vdd, "Skip bl update before disp_on\n");
-		goto skip_bl_update;
-	}
 
 	/* check BRR_STOP_MODE before bl_lock to avoid deadlock and BRR_OFF
 	 *  wait-timeout, with ss_panel_vrr_switch() funciton.
@@ -7715,6 +7734,12 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 
 	if (!ss_panel_attached(vdd->ndx)) {
 		ret = -EINVAL;
+		goto skip_bl_update;
+	}
+
+	if ((panel->bl_config.bl_update == BL_UPDATE_DELAY_UNTIL_FIRST_FRAME)
+			&& vdd->bl_delay_until_disp_on && vdd->display_status_dsi.wait_disp_on) {
+		LCD_INFO(vdd, "Skip bl update before disp_on\n");
 		goto skip_bl_update;
 	}
 
@@ -9744,6 +9769,9 @@ bool ss_is_no_te_case(struct samsung_display_driver_data *vdd)
 
 	dbg = &vdd->dbg_tear_info;
 	pos = dbg->pos_frame_te;
+
+	if (ss_is_panel_off(vdd))
+		return false;
 
 	/* GCT, skip */
 	if (vdd->gct.is_running)

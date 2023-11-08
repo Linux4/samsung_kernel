@@ -21,7 +21,8 @@
  * DOC: Implement various notification handlers which are accessed
  * internally in action_oui component only.
  */
-
+#include "cfg_ucfg_api.h"
+#include "wlan_action_oui_cfg.h"
 #include "wlan_action_oui_main.h"
 #include "wlan_action_oui_public_struct.h"
 #include "wlan_action_oui_tgt_api.h"
@@ -124,6 +125,127 @@ action_oui_destroy(struct action_oui_psoc_priv *psoc_priv)
 	}
 }
 
+static void action_oui_load_config(struct action_oui_psoc_priv *psoc_priv)
+{
+	struct wlan_objmgr_psoc *psoc = psoc_priv->psoc;
+
+	psoc_priv->action_oui_enable =
+		cfg_get(psoc, CFG_ENABLE_ACTION_OUI);
+
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_CONNECT_1X1],
+		      cfg_get(psoc, CFG_ACTION_OUI_CONNECT_1X1),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_ITO_EXTENSION],
+		      cfg_get(psoc, CFG_ACTION_OUI_ITO_EXTENSION),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_CCKM_1X1],
+		      cfg_get(psoc, CFG_ACTION_OUI_CCKM_1X1),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_ITO_ALTERNATE],
+		      cfg_get(psoc, CFG_ACTION_OUI_ITO_ALTERNATE),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_SWITCH_TO_11N_MODE],
+		      cfg_get(psoc, CFG_ACTION_OUI_SWITCH_TO_11N_MODE),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN],
+		      cfg_get(psoc,
+			      CFG_ACTION_OUI_CONNECT_1X1_WITH_1_CHAIN),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_DISABLE_AGGRESSIVE_TX],
+		      cfg_get(psoc,
+			      CFG_ACTION_OUI_DISABLE_AGGRESSIVE_TX),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_FORCE_MAX_NSS],
+		      cfg_get(psoc, CFG_ACTION_OUI_FORCE_MAX_NSS),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str
+					  [ACTION_OUI_DISABLE_AGGRESSIVE_EDCA],
+		      cfg_get(psoc,
+			      CFG_ACTION_OUI_DISABLE_AGGRESSIVE_EDCA),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_EXTEND_WOW_ITO],
+		      cfg_get(psoc, CFG_ACTION_OUI_EXTEND_WOW_ITO),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_DISABLE_TWT],
+		      cfg_get(psoc, CFG_ACTION_OUI_DISABLE_TWT),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_HOST_RECONN],
+		      cfg_get(psoc, CFG_ACTION_OUI_RECONN_ASSOCTIMEOUT),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_TAKE_ALL_BAND_INFO],
+		      cfg_get(psoc, CFG_ACTION_OUI_TAKE_ALL_BAND_INFO),
+		      ACTION_OUI_MAX_STR_LEN);
+	qdf_str_lcopy(psoc_priv->action_oui_str[ACTION_OUI_11BE_OUI_ALLOW],
+		      cfg_get(psoc, CFG_ACTION_OUI_11BE_ALLOW_LIST),
+		      ACTION_OUI_MAX_STR_LEN);
+}
+
+static void action_oui_parse_config(struct wlan_objmgr_psoc *psoc)
+{
+	QDF_STATUS status;
+	uint32_t id;
+	uint8_t *str;
+	struct action_oui_psoc_priv *psoc_priv;
+
+	if (!psoc) {
+		action_oui_err("Invalid psoc");
+		return;
+	}
+
+	psoc_priv = action_oui_psoc_get_priv(psoc);
+	if (!psoc_priv) {
+		action_oui_err("psoc priv is NULL");
+		return;
+	}
+	if (!psoc_priv->action_oui_enable) {
+		action_oui_debug("action_oui is not enable");
+		return;
+	}
+	for (id = 0; id < ACTION_OUI_MAXIMUM_ID; id++) {
+		str = psoc_priv->action_oui_str[id];
+		if (!qdf_str_len(str))
+			continue;
+
+		status = action_oui_parse_string(psoc, str, id);
+		if (!QDF_IS_STATUS_SUCCESS(status))
+			action_oui_err("Failed to parse action_oui str: %u",
+				       id);
+	}
+}
+
+static QDF_STATUS action_oui_send_config(struct wlan_objmgr_psoc *psoc)
+{
+	struct action_oui_psoc_priv *psoc_priv;
+	QDF_STATUS status = QDF_STATUS_E_INVAL;
+	uint32_t id;
+
+	if (!psoc) {
+		action_oui_err("psoc is NULL");
+		goto exit;
+	}
+
+	psoc_priv = action_oui_psoc_get_priv(psoc);
+	if (!psoc_priv) {
+		action_oui_err("psoc priv is NULL");
+		goto exit;
+	}
+	if (!psoc_priv->action_oui_enable) {
+		action_oui_debug("action_oui is not enable");
+		return QDF_STATUS_SUCCESS;
+	}
+
+	for (id = 0; id < ACTION_OUI_MAXIMUM_ID; id++) {
+		if (id >= ACTION_OUI_HOST_ONLY)
+			continue;
+		status = action_oui_send(psoc_priv, id);
+		if (!QDF_IS_STATUS_SUCCESS(status))
+			action_oui_err("Failed to send: %u", id);
+	}
+
+exit:
+	return status;
+}
+
 QDF_STATUS
 action_oui_psoc_create_notification(struct wlan_objmgr_psoc *psoc, void *arg)
 {
@@ -148,20 +270,9 @@ action_oui_psoc_create_notification(struct wlan_objmgr_psoc *psoc, void *arg)
 
 	target_if_action_oui_register_tx_ops(&psoc_priv->tx_ops);
 	psoc_priv->psoc = psoc;
-
-	status = action_oui_allocate(psoc_priv);
-	if (!QDF_IS_STATUS_SUCCESS(status)) {
-		action_oui_err("Failed to alloc action_oui");
-		goto detach_psoc_priv;
-	}
-
+	action_oui_load_config(psoc_priv);
 	action_oui_debug("psoc priv attached");
 	goto exit;
-
-detach_psoc_priv:
-	wlan_objmgr_psoc_component_obj_detach(psoc,
-					      WLAN_UMAC_COMP_ACTION_OUI,
-					      (void *)psoc_priv);
 free_psoc_priv:
 	qdf_mem_free(psoc_priv);
 	status = QDF_STATUS_E_INVAL;
@@ -190,12 +301,52 @@ action_oui_psoc_destroy_notification(struct wlan_objmgr_psoc *psoc, void *arg)
 	if (!QDF_IS_STATUS_SUCCESS(status))
 		action_oui_err("Failed to detach priv with psoc");
 
-	action_oui_destroy(psoc_priv);
 	qdf_mem_free(psoc_priv);
 
 exit:
 	ACTION_OUI_EXIT();
 	return status;
+}
+
+void action_oui_psoc_enable(struct wlan_objmgr_psoc *psoc)
+{
+	struct action_oui_psoc_priv *psoc_priv;
+	QDF_STATUS status = QDF_STATUS_E_FAILURE;
+
+	ACTION_OUI_ENTER();
+
+	psoc_priv = action_oui_psoc_get_priv(psoc);
+	if (!psoc_priv) {
+		action_oui_err("psoc priv is NULL");
+		goto exit;
+	}
+
+	status = action_oui_allocate(psoc_priv);
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		action_oui_err("Failed to alloc action_oui");
+		goto exit;
+	}
+	action_oui_parse_config(psoc);
+	action_oui_send_config(psoc);
+exit:
+	ACTION_OUI_EXIT();
+}
+
+void action_oui_psoc_disable(struct wlan_objmgr_psoc *psoc)
+{
+	struct action_oui_psoc_priv *psoc_priv;
+
+	ACTION_OUI_ENTER();
+
+	psoc_priv = action_oui_psoc_get_priv(psoc);
+	if (!psoc_priv) {
+		action_oui_err("psoc priv is NULL");
+		goto exit;
+	}
+
+	action_oui_destroy(psoc_priv);
+exit:
+	ACTION_OUI_EXIT();
 }
 
 bool wlan_action_oui_search(struct wlan_objmgr_psoc *psoc,
@@ -224,7 +375,76 @@ bool wlan_action_oui_search(struct wlan_objmgr_psoc *psoc,
 	found = action_oui_search(psoc_priv, attr, action_id);
 
 exit:
-
 	return found;
+}
+
+QDF_STATUS
+wlan_action_oui_cleanup(struct action_oui_psoc_priv *psoc_priv,
+			enum action_oui_id action_id)
+{
+	struct action_oui_priv *oui_priv;
+	struct action_oui_extension_priv *ext_priv;
+	qdf_list_t *ext_list;
+	QDF_STATUS status;
+	qdf_list_node_t *node = NULL;
+
+	if (action_id >= ACTION_OUI_MAXIMUM_ID)
+		return QDF_STATUS_E_INVAL;
+
+	oui_priv = psoc_priv->oui_priv[action_id];
+	if (!oui_priv)
+		return QDF_STATUS_SUCCESS;
+
+	ext_list = &oui_priv->extension_list;
+	qdf_mutex_acquire(&oui_priv->extension_lock);
+	while (!qdf_list_empty(ext_list)) {
+		status = qdf_list_remove_front(ext_list, &node);
+		if (!QDF_IS_STATUS_SUCCESS(status)) {
+			action_oui_err("Invalid delete in action: %u",
+				       oui_priv->id);
+			break;
+		}
+		ext_priv = qdf_container_of(
+				node,
+				struct action_oui_extension_priv,
+				item);
+		qdf_mem_free(ext_priv);
+		ext_priv = NULL;
+		if (psoc_priv->total_extensions)
+			psoc_priv->total_extensions--;
+		else
+			action_oui_err("unexpected total_extensions 0");
+	}
+	qdf_mutex_release(&oui_priv->extension_lock);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+bool wlan_action_oui_is_empty(struct wlan_objmgr_psoc *psoc,
+			      enum action_oui_id action_id)
+{
+	struct action_oui_psoc_priv *psoc_priv;
+	bool empty = true;
+
+	if (!psoc) {
+		action_oui_err("Invalid psoc");
+		goto exit;
+	}
+
+	if (action_id >= ACTION_OUI_MAXIMUM_ID) {
+		action_oui_err("Invalid action_oui id: %u", action_id);
+		goto exit;
+	}
+
+	psoc_priv = action_oui_psoc_get_priv(psoc);
+	if (!psoc_priv) {
+		action_oui_err("psoc priv is NULL");
+		goto exit;
+	}
+
+	empty = action_oui_is_empty(psoc_priv, action_id);
+
+exit:
+	return empty;
 }
 

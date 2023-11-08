@@ -16,6 +16,9 @@ int cam_flash_process_evt(struct cam_req_mgr_link_evt_data *event_data);
 int cam_flash_flush_request(struct cam_req_mgr_flush_request *flush);
 int cam_flash_led_prepare(struct led_trigger *trigger, int options,
 	int *max_current, bool is_wled);
-
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, 
+        const char *buf, size_t size);
+#endif
 
 #endif /*_CAM_FLASH_CORE_H_*/

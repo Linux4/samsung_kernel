@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +16,7 @@
  */
 
 /**
- * DOC : wlan_hdd_mlo.h
+ * DOC: wlan_hdd_mlo.h
  *
  * WLAN Host Device Driver file for 802.11be (Extremely High Throughput)
  * support.
@@ -33,51 +33,48 @@
  * @associate_with_ml_adapter: Vdev points to the same netdev adapter
  * @is_ml_adapter: is a ml adapter with associated netdev
  * @is_add_virtual_iface: is netdev create request from add virtual interface
+ * @is_single_link: Is the adapter single link ML
+ * @unused: Reserved spare bits
  */
 struct hdd_adapter_create_param {
 	uint32_t only_wdev_register:1,
 		 associate_with_ml_adapter:1,
 		 is_ml_adapter:1,
 		 is_add_virtual_iface:1,
-		 unused:28;
+		 is_single_link:1,
+		 unused:27;
 };
 
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
 #define hdd_adapter_is_link_adapter(x) ((x)->mlo_adapter_info.is_link_adapter)
 #define hdd_adapter_is_ml_adapter(x)   ((x)->mlo_adapter_info.is_ml_adapter)
+#define hdd_adapter_is_sl_ml_adapter(x) \
+			   ((x)->mlo_adapter_info.is_single_link_ml)
 #define hdd_adapter_is_associated_with_ml_adapter(x) \
 			   ((x)->mlo_adapter_info.associate_with_ml_adapter)
 #define hdd_adapter_get_mlo_adapter_from_link(x) \
 			   ((x)->mlo_adapter_info.ml_adapter)
+/* MLO_STATE_COMMANDS */
+#define FEATURE_ML_LINK_STATE_COMMANDS					\
+	{								\
+		.info.vendor_id = QCA_NL80211_VENDOR_ID,		\
+		.info.subcmd = QCA_NL80211_VENDOR_SUBCMD_MLO_LINK_STATE,\
+		.flags = WIPHY_VENDOR_CMD_NEED_WDEV |			\
+			 WIPHY_VENDOR_CMD_NEED_NETDEV |			\
+			 WIPHY_VENDOR_CMD_NEED_RUNNING,			\
+		.doit = wlan_hdd_cfg80211_process_ml_link_state,	\
+		vendor_command_policy(ml_link_state_event_policy,	\
+				QCA_WLAN_VENDOR_ATTR_LINK_STATE_MAX)	\
+	},
 #else
 #define hdd_adapter_is_link_adapter(x) (0)
 #define hdd_adapter_is_ml_adapter(x)   (0)
+#define hdd_adapter_is_sl_ml_adapter(x) (0)
 #define hdd_adapter_is_associated_with_ml_adapter(x) (0)
 #define hdd_adapter_get_mlo_adapter_from_link(x) (NULL)
 #endif
 
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
-/**
- * struct hdd_mld_mac - hdd structure to hold mld address
- * @mld_mac: mld addr
- * @device_mode: Device mode for mld address
- */
-struct hdd_mld_mac {
-	struct qdf_mac_addr mld_addr;
-	uint8_t device_mode;
-};
-
-/**
- * struct hdd_mld_mac_info - HDD structure to hold mld mac address information
- * @num_mld_addr: Number of mld address supported
- * @mld_intf_addr_mask: mask to dervice the multiple mld address
- * @mld_mac_list: Mac address assigned for device mode
- */
-struct hdd_mld_mac_info {
-	uint8_t num_mld_addr;
-	unsigned long mld_intf_addr_mask;
-	struct hdd_mld_mac mld_mac_list[WLAN_MAX_MLD];
-};
 
 /**
  * struct hdd_mlo_adapter_info - Mlo specific adapter information
@@ -85,7 +82,9 @@ struct hdd_mld_mac_info {
  * @is_link_adapter: Whether this a link adapter without netdev
  * @associate_with_ml_adapter: adapter which shares the vdev object with the ml
  * adapter
- * num_of_vdev_links: Num of vdevs/links part of the association
+ * @num_of_vdev_links: Num of vdevs/links part of the association
+ * @is_single_link_ml: Is the adapter a single link ML adapter
+ * @unused: Reserved spare bits
  * @ml_adapter: ML adapter backpointer
  * @link_adapter: backpointers to link adapters part of association
  */
@@ -94,33 +93,11 @@ struct hdd_mlo_adapter_info {
 		 is_link_adapter:1,
 		 associate_with_ml_adapter:1,
 		 num_of_vdev_links:2,
-		 unused:27;
+		 is_single_link_ml:1,
+		 unused:26;
 	struct hdd_adapter *ml_adapter;
 	struct hdd_adapter *link_adapter[WLAN_MAX_MLD];
 };
-
-/**
- * hdd_update_mld_mac_addr() - Derive mld mac address
- * @hdd_context: Global hdd context
- * @hw_macaddr: Hardware mac address
- *
- * This function derives mld mac address based on the input hardware mac address
- *
- * Return: none
- */
-void hdd_update_mld_mac_addr(struct hdd_context *hdd_ctx,
-			     struct qdf_mac_addr hw_macaddr);
-
-/**
- * wlan_hdd_get_mld_addr() - Function to get MLD address
- * @hdd_ctx: hdd_context pointer
- * @device_mode: QDF_DEVICE_MODE
- *
- * Function returns the mld address for device mode
- * Return: MLD address for success, NULL failure
- */
-uint8_t *wlan_hdd_get_mld_addr(struct hdd_context *hdd_ctx,
-			       uint8_t device_mode);
 
 /**
  * hdd_register_wdev() - Function to register only wdev
@@ -156,36 +133,6 @@ QDF_STATUS hdd_wlan_unregister_mlo_interfaces(struct hdd_adapter *adapter,
 void hdd_wlan_register_mlo_interfaces(struct hdd_context *hdd_ctx);
 
 /**
- * hdd_update_dynamic_mld_mac_addr() - Updates the dynamic MLD MAC list
- * @hdd_ctx: Pointer to HDD context
- * @curr_mac_addr: Current interface mac address
- * @new_mac_addr: New mac address which needs to be updated
- *
- * This function updates newly configured MAC address to the
- * dynamic MLD MAC address list corresponding to the current
- * adapter MLD MAC address
- *
- * Return: None
- */
-void hdd_update_dynamic_mld_mac_addr(struct hdd_context *hdd_ctx,
-				     struct qdf_mac_addr *curr_mac_addr,
-				     struct qdf_mac_addr *new_mac_addr,
-				     uint8_t device_mode);
-
-/**
- * hdd_populate_mld_vdev_params() - populates vdev object mld params
- * @adapter: HDD adapter
- * @vdev_params: vdev create parameters
- *
- * This function populates the mld params in the vdev create params
- *
- * Return: None
- */
-void
-hdd_populate_mld_vdev_params(struct hdd_adapter *adapter,
-			     struct wlan_vdev_create_params *vdev_params);
-
-/**
  * hdd_adapter_set_ml_adapter() - set adapter as ml adapter
  * @adapter: HDD adapter
  *
@@ -195,27 +142,84 @@ hdd_populate_mld_vdev_params(struct hdd_adapter *adapter,
 void hdd_adapter_set_ml_adapter(struct hdd_adapter *adapter);
 
 /**
- * hdd_get_ml_adater() - get an ml adapter
+ * hdd_adapter_set_sl_ml_adapter() - Set adapter as sl ml adapter
  * @adapter: HDD adapter
+ *
+ * This function sets adapter as single link ML adapter
+ * Return: None
+ */
+void hdd_adapter_set_sl_ml_adapter(struct hdd_adapter *adapter);
+
+/**
+ * hdd_get_ml_adapter() - get an ml adapter
+ * @hdd_ctx: HDD context
  *
  * This function returns ml adapter from adapter list
  * Return: adapter or NULL
  */
-struct hdd_adapter *hdd_get_ml_adater(struct hdd_context *hdd_ctx);
+struct hdd_adapter *hdd_get_ml_adapter(struct hdd_context *hdd_ctx);
+
+/**
+ * hdd_get_assoc_link_adapter() - get assoc link adapter
+ * @ml_adapter: ML adapter
+ *
+ * This function returns assoc link adapter.
+ * For single link ML adapter, function returns
+ * same adapter pointer.
+ *
+ * Return: adapter or NULL
+ */
+struct hdd_adapter *hdd_get_assoc_link_adapter(struct hdd_adapter *ml_adapter);
+
+/**
+ * hdd_mlo_t2lm_register_callback() - Register T2LM callback
+ * @vdev: Pointer to vdev
+ *
+ * Return: None
+ */
+void hdd_mlo_t2lm_register_callback(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * hdd_mlo_t2lm_unregister_callback() - Unregister T2LM callback
+ * @vdev: Pointer to vdev
+ *
+ * Return: None
+ */
+void hdd_mlo_t2lm_unregister_callback(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * wlan_handle_mlo_link_state_operation() - mlo link state operation
+ * @wiphy: wiphy pointer
+ * @vdev: vdev handler
+ * @data: pointer to incoming NL vendor data
+ * @data_len: length of @data
+ *
+ * Based on the data get or set the mlo link state
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_handle_mlo_link_state_operation(struct wiphy *wiphy,
+				     struct wlan_objmgr_vdev *vdev,
+				     const void *data, int data_len);
+
+extern const struct
+nla_policy ml_link_state_event_policy[QCA_WLAN_VENDOR_ATTR_LINK_STATE_MAX + 1];
+
+/**
+ * wlan_hdd_cfg80211_process_ml_link_state() - process ml link state
+ * @wiphy: wiphy pointer
+ * @wdev: pointer to struct wireless_dev
+ * @data: pointer to incoming NL vendor data
+ * @data_len: length of @data
+ *
+ * Set (or) get the ml link state.
+ *
+ * Return:  0 on success; error number otherwise.
+ */
+int wlan_hdd_cfg80211_process_ml_link_state(struct wiphy *wiphy,
+					    struct wireless_dev *wdev,
+					    const void *data, int data_len);
 #else
-static inline
-void hdd_update_mld_mac_addr(struct hdd_context *hdd_ctx,
-			     struct qdf_mac_addr hw_macaddr)
-{
-}
-
-static inline
-uint8_t *wlan_hdd_get_mld_addr(struct hdd_context *hdd_ctx,
-			       uint8_t device_mode)
-{
-	return NULL;
-}
-
 static inline
 QDF_STATUS hdd_wlan_unregister_mlo_interfaces(struct hdd_adapter *adapter,
 					      bool rtnl_held)
@@ -235,23 +239,54 @@ void hdd_wlan_register_mlo_interfaces(struct hdd_context *hdd_ctx)
 {
 }
 
-static inline
-void hdd_update_dynamic_mld_mac_addr(struct hdd_context *hdd_ctx,
-				     struct qdf_mac_addr *curr_mac_addr,
-				     struct qdf_mac_addr *new_macaddr,
-				     uint8_t device_mode)
-{
-}
-
 static inline void
 hdd_adapter_set_ml_adapter(struct hdd_adapter *adapter)
 {
 }
 
+static inline void
+hdd_adapter_set_sl_ml_adapter(struct hdd_adapter *adapter)
+{
+}
+
 static inline
-struct hdd_adapter *hdd_get_ml_adater(struct hdd_context *hdd_ctx)
+struct hdd_adapter *hdd_get_ml_adapter(struct hdd_context *hdd_ctx)
 {
 	return NULL;
 }
+
+static inline
+struct hdd_adapter *hdd_get_assoc_link_adapter(struct hdd_adapter *ml_adapter)
+{
+	return NULL;
+}
+
+static inline
+void hdd_mlo_t2lm_register_callback(struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline
+void hdd_mlo_t2lm_unregister_callback(struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline QDF_STATUS
+wlan_handle_mlo_link_state_operation(struct wiphy *wiphy,
+				     struct wlan_objmgr_vdev *vdev,
+				     const void *data, int data_len)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+int wlan_hdd_cfg80211_process_ml_link_state(struct wiphy *wiphy,
+					    struct wireless_dev *wdev,
+					    const void *data, int data_len)
+{
+	return -ENOTSUPP;
+}
+
+#define FEATURE_ML_LINK_STATE_COMMANDS
 #endif
 #endif

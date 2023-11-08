@@ -113,7 +113,8 @@ public class HearingAidService extends ProfileService {
             Log.d(TAG, "start()");
         }
         if (sHearingAidService != null) {
-            throw new IllegalStateException("start() called twice");
+            Log.w(TAG, "HearingAidService is already running");
+            return true;
         }
 
         synchronized (mVariableLock) {
@@ -926,8 +927,8 @@ public class HearingAidService extends ProfileService {
 
         @RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
         private HearingAidService getService(AttributionSource source) {
-            if (!Utils.checkCallerIsSystemOrActiveUser(TAG)
-                    || !Utils.checkServiceAvailable(mService, TAG)
+            if (!Utils.checkServiceAvailable(mService, TAG)
+                    || !Utils.checkCallerIsSystemOrActiveOrManagedUser(mService, TAG)
                     || !Utils.checkConnectPermissionForDataDelivery(mService, source, TAG)) {
                 return null;
             }

@@ -109,3 +109,10 @@ uint64_t qdf_hrtimer_forward(qdf_hrtimer_data_t *timer,
 }
 
 qdf_export_symbol(qdf_hrtimer_forward);
+
+void qdf_hrtimer_add_expires(qdf_hrtimer_data_t *timer, qdf_ktime_t interval)
+{
+	return __qdf_hrtimer_add_expires(timer, interval);
+}
+
+qdf_export_symbol(qdf_hrtimer_add_expires);

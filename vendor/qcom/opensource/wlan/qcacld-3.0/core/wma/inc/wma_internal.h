@@ -26,7 +26,7 @@
 
 /* ################### defines ################### */
 /*
- * TODO: Following constant should be shared by firwmare in
+ * TODO: Following constant should be shared by firmware in
  * wmi_unified.h. This will be done once wmi_unified.h is updated.
  */
 #define WMI_PEER_STATE_AUTHORIZED 0x2
@@ -1208,7 +1208,7 @@ void wma_del_ts_req(tp_wma_handle wma, struct del_ts_params *msg);
  * @pAggrQosRspMsg - combined struct for all ADD_TS requests.
  *
  * A function to handle WMA_AGGR_QOS_REQ. This will send out
- * ADD_TS requestes to firmware in loop for all the ACs with
+ * ADD_TS requests to firmware in loop for all the ACs with
  * active flow.
  *
  * Return: none
@@ -1323,19 +1323,19 @@ static inline QDF_STATUS wma_set_tsf_gpio_pin(WMA_HANDLE handle, uint32_t pin)
 }
 #endif
 
-#ifdef WLAN_FEATURE_11AX
+#ifdef WLAN_FEATURE_SR
 /**
- * wma_spr_update() - enable/disable spatial reuse
+ * wma_sr_update() - enable/disable spatial reuse
  * @wma: wma handle
  * @vdev_id: vdev id
  * @enable: indicates spatial reuse enable/disable
  *
  * Return: QDF_STATUS_SUCCESS for success or error code
  */
-QDF_STATUS wma_spr_update(tp_wma_handle wma, uint8_t vdev_id, bool enable);
+QDF_STATUS wma_sr_update(tp_wma_handle wma, uint8_t vdev_id, bool enable);
 #else
-static inline QDF_STATUS wma_spr_update(tp_wma_handle wma, uint8_t vdev_id,
-					bool enable)
+static inline QDF_STATUS wma_sr_update(tp_wma_handle wma, uint8_t vdev_id,
+				       bool enable)
 {
 	return QDF_STATUS_SUCCESS;
 }
@@ -1807,4 +1807,17 @@ uint16_t wma_mcs_rate_match(uint16_t raw_rate, bool is_he,
 			    const uint16_t *nss1_rate,
 			    const uint16_t *nss2_rate,
 			    uint8_t *nss, enum txrate_gi *guard_interval);
+
+/**
+ * wma_update_edca_pifs_param() - Update edca/pifs param
+ * @handle: wma handle
+ * @edca_pifs_param: pointer to edca_pifs_vparam struct
+ *
+ * This is a helper function to update edca/pifs param for ll sap
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wma_update_edca_pifs_param(WMA_HANDLE handle,
+			   struct edca_pifs_vparam *edca_pifs_param);
 #endif

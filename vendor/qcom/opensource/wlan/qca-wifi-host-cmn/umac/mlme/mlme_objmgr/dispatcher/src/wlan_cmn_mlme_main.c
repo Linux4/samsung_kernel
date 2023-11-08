@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -136,6 +136,26 @@ QDF_STATUS mlme_psoc_ops_ext_hdl_create(struct psoc_mlme_obj *psoc_mlme)
 
 	if (glbl_ops && glbl_ops->mlme_psoc_ext_hdl_create)
 		ret = glbl_ops->mlme_psoc_ext_hdl_create(psoc_mlme);
+
+	return ret;
+}
+
+QDF_STATUS mlme_psoc_ext_enable_cb(struct wlan_objmgr_psoc *psoc)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_ops && glbl_ops->mlme_psoc_ext_hdl_enable)
+		ret = glbl_ops->mlme_psoc_ext_hdl_enable(psoc);
+
+	return ret;
+}
+
+QDF_STATUS mlme_psoc_ext_disable_cb(struct wlan_objmgr_psoc *psoc)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_ops && glbl_ops->mlme_psoc_ext_hdl_disable)
+		ret = glbl_ops->mlme_psoc_ext_hdl_disable(psoc);
 
 	return ret;
 }
@@ -551,6 +571,20 @@ QDF_STATUS mlme_cm_osif_pmksa_candidate_notify(struct wlan_objmgr_vdev *vdev,
 
 	return ret;
 }
+
+QDF_STATUS mlme_cm_osif_send_keys(struct wlan_objmgr_vdev *vdev,
+				  uint8_t key_index, bool pairwise,
+				  enum wlan_crypto_cipher_type cipher_type)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_cm_ops && glbl_cm_ops->mlme_cm_send_keys_cb)
+		ret = glbl_cm_ops->mlme_cm_send_keys_cb(vdev, key_index,
+							pairwise,
+							cipher_type);
+
+	return ret;
+}
 #endif
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
@@ -587,6 +621,22 @@ mlme_cm_osif_roam_complete(struct wlan_objmgr_vdev *vdev)
 
 	return ret;
 }
+
+QDF_STATUS
+mlme_cm_osif_roam_get_scan_params(struct wlan_objmgr_vdev *vdev,
+				  struct element_info *scan_ie,
+				  enum dot11_mode_filter *dot11mode_filter)
+{
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+
+	if (glbl_cm_ops &&
+	    glbl_cm_ops->mlme_cm_roam_get_scan_ie_cb)
+		ret = glbl_cm_ops->mlme_cm_roam_get_scan_ie_cb(vdev,
+						scan_ie, dot11mode_filter);
+
+	return ret;
+}
+
 #endif
 
 #ifdef WLAN_FEATURE_PREAUTH_ENABLE
@@ -632,6 +682,14 @@ void mlme_set_osif_twt_cb(osif_twt_get_global_ops_cb osif_twt_ops)
 void mlme_set_ops_register_cb(mlme_get_global_ops_cb ops_cb)
 {
 	glbl_ops_cb = ops_cb;
+}
+
+void mlme_send_scan_done_complete_cb(uint8_t vdev_id)
+{
+	if (glbl_vdev_mgr_ops &&
+	    glbl_vdev_mgr_ops->mlme_vdev_mgr_send_scan_done_complete_cb)
+		glbl_vdev_mgr_ops->mlme_vdev_mgr_send_scan_done_complete_cb(
+							vdev_id);
 }
 
 bool mlme_max_chan_switch_is_set(struct wlan_objmgr_psoc *psoc)
@@ -822,3 +880,32 @@ mlme_twt_vdev_destroy_notification(struct wlan_objmgr_vdev *vdev)
 
 #endif
 
+void mlme_vdev_reconfig_timer_cb(void *arg)
+{
+	struct vdev_mlme_obj *vdev_mlme;
+
+	vdev_mlme = (struct vdev_mlme_obj *)arg;
+	if (!vdev_mlme)
+		return;
+
+	if ((vdev_mlme->ops) &&
+	    vdev_mlme->ops->mlme_vdev_reconfig_timer_complete)
+		vdev_mlme->ops->mlme_vdev_reconfig_timer_complete(vdev_mlme);
+}
+
+bool mlme_mlo_is_reconfig_reassoc_enable(struct wlan_objmgr_psoc *psoc)
+{
+	struct psoc_mlme_obj *mlme_psoc_obj;
+	struct psoc_mlo_config *mlo_config;
+
+	if (!psoc)
+		return false;
+
+	mlme_psoc_obj = wlan_psoc_mlme_get_cmpt_obj(psoc);
+	if (!mlme_psoc_obj)
+		return false;
+
+	mlo_config = &mlme_psoc_obj->psoc_cfg.mlo_config;
+
+	return mlo_config->reconfig_reassoc_en;
+}

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -79,7 +79,7 @@
  * the configuration component itself will hold one ref count on the global
  * config store. All psocs for which psoc-specific configurations have *not*
  * been provided will reference the global config store. Psocs for which psoc-
- * specific configurations *have* been provded will check for existings stores
+ * specific configurations *have* been provided will check for existings stores
  * with a matching path to use, before parsing the specified configuration file.
  *
  * If, at some point in time, it is known that no further psocs will ever be
@@ -108,7 +108,7 @@
  * Note: A matching cfg_release() call is required to release allocated
  * resources.
  *
- * The *.ini file format is a simple format consiting of a list of key/value
+ * The *.ini file format is a simple format consisting of a list of key/value
  * pairs, separated by an '=' character. e.g.
  *
  *	gConfigItem1=some string value
@@ -180,7 +180,7 @@ QDF_STATUS cfg_section_parse_to_psoc_store(struct wlan_objmgr_psoc *psoc,
 					   const char *section_name);
 
 /**
- * cfg_parse_to_global_store() Parse file @path and update global ini store
+ * cfg_parse_to_global_store() - Parse file @path and update global ini store
  * @path: The full file path of the ini file to parse
  *
  * Return: QDF_STATUS
@@ -188,7 +188,7 @@ QDF_STATUS cfg_section_parse_to_psoc_store(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS cfg_parse_to_global_store(const char *path);
 
 /**
- * cfg_ucfg_store_print() prints the cfg ini/non ini logs
+ * ucfg_cfg_store_print() - prints the cfg ini/non ini logs
  * @psoc: psoc
  *
  * Return: QDF_STATUS
@@ -196,7 +196,7 @@ QDF_STATUS cfg_parse_to_global_store(const char *path);
 QDF_STATUS ucfg_cfg_store_print(struct wlan_objmgr_psoc *psoc);
 
 /**
- * ucfg_cfg_ini_config_print() prints the cfg ini/non ini to buffer
+ * ucfg_cfg_ini_config_print() - prints the cfg ini/non ini to buffer
  * @psoc: psoc
  * @buf: cache to save ini config
  * @plen: the pointer to length
@@ -207,6 +207,13 @@ QDF_STATUS ucfg_cfg_store_print(struct wlan_objmgr_psoc *psoc);
 QDF_STATUS ucfg_cfg_ini_config_print(struct wlan_objmgr_psoc *psoc,
 				     uint8_t *buf, ssize_t *plen,
 				     ssize_t buflen);
+/**
+ * cfg_valid_ini_check() - check ini file for invalid characters
+ * @path: path to ini file
+ *
+ * Return: true if no invalid characters found, false otherwise
+ */
+bool cfg_valid_ini_check(const char *path);
 
 /**
  * cfg_get() - lookup the configured value for @id from @psoc

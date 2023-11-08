@@ -561,10 +561,71 @@ void hal_reo_config_reo2ppe_dest_info_9224(hal_soc_handle_t hal_soc_hdl)
 		      REO2PPE_RULE_FAIL_FB);
 }
 
+#define PMM_REG_BASE_QCN9224_V2 0xB500FC
+
+/**
+ * hal_get_tsf2_scratch_reg_qcn9224_v2(): API to read tsf2 scratch register
+ *
+ * @hal_soc_hdl: HAL soc context
+ * @mac_id: mac id
+ * @value: Pointer to update tsf2 value
+ *
+ * Return: void
+ */
+static void hal_get_tsf2_scratch_reg_qcn9224_v2(hal_soc_handle_t hal_soc_hdl,
+						uint8_t mac_id, uint64_t *value)
+{
+	struct hal_soc *soc = (struct hal_soc *)hal_soc_hdl;
+	uint32_t offset_lo, offset_hi;
+	enum hal_scratch_reg_enum enum_lo, enum_hi;
+
+	hal_get_tsf_enum(DEFAULT_TSF_ID, mac_id, &enum_lo, &enum_hi);
+
+	offset_lo = hal_read_pmm_scratch_reg(soc,
+					     PMM_REG_BASE_QCN9224_V2,
+					     enum_lo);
+
+	offset_hi = hal_read_pmm_scratch_reg(soc,
+					     PMM_REG_BASE_QCN9224_V2,
+					     enum_hi);
+
+	*value = ((uint64_t)(offset_hi) << 32 | offset_lo);
+}
+
+/**
+ * hal_get_tqm_scratch_reg_qcn9224_v2(): API to read tqm scratch register
+ *
+ * @hal_soc_hdl: HAL soc context
+ * @value: Pointer to update tqm value
+ *
+ * Return: void
+ */
+static void hal_get_tqm_scratch_reg_qcn9224_v2(hal_soc_handle_t hal_soc_hdl,
+					       uint64_t *value)
+{
+	struct hal_soc *soc = (struct hal_soc *)hal_soc_hdl;
+	uint32_t offset_lo, offset_hi;
+
+	offset_lo = hal_read_pmm_scratch_reg(soc,
+					     PMM_REG_BASE_QCN9224_V2,
+					     PMM_TQM_CLOCK_OFFSET_LO_US);
+
+	offset_hi = hal_read_pmm_scratch_reg(soc,
+					     PMM_REG_BASE_QCN9224_V2,
+					     PMM_TQM_CLOCK_OFFSET_HI_US);
+
+	*value = ((uint64_t)(offset_hi) << 32 | offset_lo);
+}
+
 static void hal_hw_txrx_ops_override_qcn9224_v2(struct hal_soc *hal_soc)
 {
 	hal_soc->ops->hal_reo_config_reo2ppe_dest_info =
 					hal_reo_config_reo2ppe_dest_info_9224;
+
+	hal_soc->ops->hal_get_tsf2_scratch_reg =
+					hal_get_tsf2_scratch_reg_qcn9224_v2;
+	hal_soc->ops->hal_get_tqm_scratch_reg =
+					hal_get_tqm_scratch_reg_qcn9224_v2;
 }
 /**
  * hal_qcn9224_attach()- Attach 9224 target specific hal_soc ops,

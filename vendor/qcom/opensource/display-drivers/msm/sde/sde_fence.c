@@ -62,12 +62,18 @@ enum sde_hw_fence_clients {
  * This 'hw_fence_data_dpu_client' must be used for HW that does not support dpu-signal.
  */
 struct sde_hw_fence_data hw_fence_data_no_dpu[SDE_HW_FENCE_CLIENT_MAX] = {
-	{SDE_HW_FENCE_CLIENT_CTL_0, HW_FENCE_CLIENT_ID_CTL0, NULL, {0}, 8, 14, {2, 3},   0, 8, 8},
-	{SDE_HW_FENCE_CLIENT_CTL_1, HW_FENCE_CLIENT_ID_CTL1, NULL, {0}, 8, 15, {4, 5},   0, 8, 8},
-	{SDE_HW_FENCE_CLIENT_CTL_2, HW_FENCE_CLIENT_ID_CTL2, NULL, {0}, 8, 16, {6, 7},   0, 8, 8},
-	{SDE_HW_FENCE_CLIENT_CTL_3, HW_FENCE_CLIENT_ID_CTL3, NULL, {0}, 8, 17, {8, 9},   0, 8, 8},
-	{SDE_HW_FENCE_CLIENT_CTL_4, HW_FENCE_CLIENT_ID_CTL4, NULL, {0}, 8, 18, {10, 11}, 0, 8, 8},
-	{SDE_HW_FENCE_CLIENT_CTL_5, HW_FENCE_CLIENT_ID_CTL5, NULL, {0}, 8, 19, {12, 13}, 0, 8, 8}
+	{SDE_HW_FENCE_CLIENT_CTL_0, HW_FENCE_CLIENT_ID_CTL0, NULL, {0}, 8, 14, {2, 3},   0, 8, 8,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_1, HW_FENCE_CLIENT_ID_CTL1, NULL, {0}, 8, 15, {4, 5},   0, 8, 8,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_2, HW_FENCE_CLIENT_ID_CTL2, NULL, {0}, 8, 16, {6, 7},   0, 8, 8,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_3, HW_FENCE_CLIENT_ID_CTL3, NULL, {0}, 8, 17, {8, 9},   0, 8, 8,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_4, HW_FENCE_CLIENT_ID_CTL4, NULL, {0}, 8, 18, {10, 11}, 0, 8, 8,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_5, HW_FENCE_CLIENT_ID_CTL5, NULL, {0}, 8, 19, {12, 13}, 0, 8, 8,
+		0, 0}
 };
 
 /**
@@ -78,12 +84,18 @@ struct sde_hw_fence_data hw_fence_data_no_dpu[SDE_HW_FENCE_CLIENT_MAX] = {
  * This 'hw_fence_data_dpu_client' must be used for HW that supports dpu-signal
  */
 struct sde_hw_fence_data hw_fence_data_dpu_client[SDE_HW_FENCE_CLIENT_MAX] = {
-	{SDE_HW_FENCE_CLIENT_CTL_0, HW_FENCE_CLIENT_ID_CTL0, NULL, {0}, 8, 0, {0, 6},  0, 8, 25},
-	{SDE_HW_FENCE_CLIENT_CTL_1, HW_FENCE_CLIENT_ID_CTL1, NULL, {0}, 8, 1, {1, 7},  0, 8, 25},
-	{SDE_HW_FENCE_CLIENT_CTL_2, HW_FENCE_CLIENT_ID_CTL2, NULL, {0}, 8, 2, {2, 8},  0, 8, 25},
-	{SDE_HW_FENCE_CLIENT_CTL_3, HW_FENCE_CLIENT_ID_CTL3, NULL, {0}, 8, 3, {3, 9},  0, 8, 25},
-	{SDE_HW_FENCE_CLIENT_CTL_4, HW_FENCE_CLIENT_ID_CTL4, NULL, {0}, 8, 4, {4, 10}, 0, 8, 25},
-	{SDE_HW_FENCE_CLIENT_CTL_5, HW_FENCE_CLIENT_ID_CTL5, NULL, {0}, 8, 5, {5, 11}, 0, 8, 25}
+	{SDE_HW_FENCE_CLIENT_CTL_0, HW_FENCE_CLIENT_ID_CTL0, NULL, {0}, 8, 0, {0, 6},  0, 8, 25,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_1, HW_FENCE_CLIENT_ID_CTL1, NULL, {0}, 8, 1, {1, 7},  0, 8, 25,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_2, HW_FENCE_CLIENT_ID_CTL2, NULL, {0}, 8, 2, {2, 8},  0, 8, 25,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_3, HW_FENCE_CLIENT_ID_CTL3, NULL, {0}, 8, 3, {3, 9},  0, 8, 25,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_4, HW_FENCE_CLIENT_ID_CTL4, NULL, {0}, 8, 4, {4, 10}, 0, 8, 25,
+		0, 0},
+	{SDE_HW_FENCE_CLIENT_CTL_5, HW_FENCE_CLIENT_ID_CTL5, NULL, {0}, 8, 5, {5, 11}, 0, 8, 25,
+		0, 0}
 };
 
 int sde_hw_fence_init(struct sde_hw_ctl *hw_ctl, bool use_dpu_ipcc)
@@ -116,6 +128,9 @@ int sde_hw_fence_init(struct sde_hw_ctl *hw_ctl, bool use_dpu_ipcc)
 	SDE_DEBUG("hwfence register ctl:%d client:%d\n", ctl_id, hwfence_data->hw_fence_client_id);
 	hwfence_data->hw_fence_handle = msm_hw_fence_register(hwfence_data->hw_fence_client_id,
 		&hwfence_data->mem_descriptor);
+
+	hwfence_data->dma_context = dma_fence_context_alloc(1);
+
 	if (IS_ERR_OR_NULL(hwfence_data->hw_fence_handle)) {
 
 		hwfence_data->hw_fence_handle = NULL;
@@ -215,12 +230,30 @@ static inline char *_get_client_id_name(int hw_fence_client_id)
 	return "unknown";
 }
 
+static void _cleanup_fences_refcount(struct dma_fence **fences, u32 num_fences)
+{
+	int i;
+
+	for (i = 0; i < num_fences; i++)
+		dma_fence_put(fences[i]);
+}
+
 int sde_fence_register_hw_fences_wait(struct sde_hw_ctl *hw_ctl, struct dma_fence **fences,
 	u32 num_fences)
 {
 	struct sde_hw_fence_data *data;
-	int i, ret;
+	int i, j, ret;
 	int ctl_id;
+	struct dma_fence_array *temp_array = NULL;
+	struct dma_fence *base_fence;
+	struct dma_fence **hw_fences;
+	u32 num_hw_fences;
+	struct dma_fence **fence_list;
+	struct dma_fence_array *array = NULL;
+	int array_childs = 0;
+	int array_count = 0;
+	int fence_list_index = 0;
+	u64 seqno;
 
 	if (!hw_ctl) {
 		SDE_ERROR("wrong ctl\n");
@@ -238,14 +271,102 @@ int sde_fence_register_hw_fences_wait(struct sde_hw_ctl *hw_ctl, struct dma_fenc
 		num_fences, ctl_id, _get_client_id_name(data->hw_fence_client_id));
 
 	for (i = 0; i < num_fences; i++) {
+		/* get a refcount for each of the fences */
+		dma_fence_get(fences[i]);
+
+		if (dma_fence_is_array(fences[i])) {
+			array_count++;
+			array = container_of(fences[i], struct dma_fence_array, base);
+			array_childs += array->num_fences;
+		}
+
 		SDE_DEBUG("registering fence: ctx:%llu seqno:%llu\n",
 			(fences[i])->context, (fences[i])->seqno);
 	}
 
+	if (num_fences > 1) {
+		/* fence_list memory is freed during fence-array release */
+		fence_list = kzalloc(((num_fences - array_count) + array_childs)
+				* (sizeof(struct dma_fence *)), GFP_KERNEL);
+		if (!fence_list) {
+			_cleanup_fences_refcount(fences, num_fences);
+			return -EINVAL;
+		}
+
+		/* populate fence_list with the fences */
+		for (i = 0; i < num_fences; i++) {
+			if (dma_fence_is_array(fences[i])) {
+				array = container_of(fences[i], struct dma_fence_array, base);
+				for (j = 0; j < array->num_fences; j++) {
+					/* get a refcount for each of the child fences */
+					dma_fence_get(array->fences[j]);
+					fence_list[fence_list_index++] = array->fences[j];
+				}
+
+				if (array->num_fences) /* print the first fence from array */
+					SDE_EVT32(ctl_id, num_fences, array->num_fences, i,
+						SDE_EVTLOG_H32(array->fences[0]->context),
+						SDE_EVTLOG_L32(array->fences[0]->context),
+						SDE_EVTLOG_H32(array->fences[0]->seqno),
+						SDE_EVTLOG_L32(array->fences[0]->seqno));
+				else
+					SDE_EVT32(ctl_id, num_fences, array->num_fences, i,
+						SDE_EVTLOG_ERROR);
+
+				/* remove refcount on parent */
+				dma_fence_put(fences[i]);
+			} else {
+				fence_list[fence_list_index++] = fences[i];
+
+				SDE_EVT32(ctl_id, num_fences, i, SDE_EVTLOG_H32(fences[i]->context),
+					SDE_EVTLOG_L32(fences[i]->context),
+					SDE_EVTLOG_H32(fences[i]->seqno),
+					SDE_EVTLOG_L32(fences[i]->seqno));
+			}
+		}
+
+		seqno = data->hw_fence_array_seqno++;
+		temp_array = dma_fence_array_create(fence_list_index, fence_list,
+				data->dma_context, seqno, 0);
+		if (!temp_array) {
+			SDE_ERROR("unable to create fence array, cant register for wait\n");
+			_cleanup_fences_refcount(fences, num_fences);
+			kfree(fence_list);
+			return -EINVAL;
+		}
+		SDE_EVT32(ctl_id, fence_list_index, SDE_EVTLOG_H32(data->dma_context),
+			SDE_EVTLOG_L32(data->dma_context), SDE_EVTLOG_H32(seqno),
+			SDE_EVTLOG_L32(seqno));
+
+		base_fence = &temp_array->base;
+		hw_fences = &base_fence;
+		num_hw_fences = 1;
+
+	} else {
+		struct dma_fence_array *tmp_array;
+
+		hw_fences = fences;
+		num_hw_fences = num_fences;
+		tmp_array = dma_fence_is_array(fences[0]) ?
+				container_of(fences[0], struct dma_fence_array, base) :
+				NULL;
+		SDE_EVT32(ctl_id, num_hw_fences, SDE_EVTLOG_H32(fences[0]->context),
+			SDE_EVTLOG_L32(fences[0]->context), SDE_EVTLOG_H32(fences[0]->seqno),
+			SDE_EVTLOG_L32(fences[0]->seqno), fences[0]->flags,
+			tmp_array ? tmp_array->num_fences : SDE_EVTLOG_FUNC_CASE2);
+	}
+
 	/* register for wait */
-	ret = msm_hw_fence_wait_update(data->hw_fence_handle, fences, num_fences, true);
+	ret = msm_hw_fence_wait_update(data->hw_fence_handle, hw_fences, num_hw_fences, true);
 	if (ret)
 		SDE_ERROR("failed to register wait fences for ctl_id:%d ret:%d\n", ctl_id, ret);
+
+	/* fence-array put will release each individual extra refcount during array release */
+	if (temp_array)
+		dma_fence_put(&temp_array->base);
+	else
+		dma_fence_put(fences[0]);
+
 	SDE_EVT32_VERBOSE(ctl_id, num_fences, ret);
 
 	return ret;
@@ -390,6 +511,8 @@ int sde_fence_update_hw_fences_txq(struct sde_fence_context *ctx, bool vid_mode,
 		}
 
 		/* update hw-fence tx queue */
+		SDE_EVT32(ctl_id, SDE_EVTLOG_H32(fc->hwfence_index),
+			SDE_EVTLOG_L32(fc->hwfence_index));
 		ret = msm_hw_fence_update_txq(data->hw_fence_handle, fc->hwfence_index, 0, 0);
 		if (ret) {
 			SDE_ERROR("fail txq update index:%llu fctx:%llu seqno:%llu client:%d\n",
@@ -475,6 +598,7 @@ int sde_fence_update_input_hw_fence_signal(struct sde_hw_ctl *hw_ctl, u32 debugf
 	u32 ipcc_signal_id;
 	u32 ipcc_client_id;
 	int ctl_id;
+	u64 qtime;
 
 	/* we must support sw_override as well, so check both functions */
 	if (!hw_mdp || !hw_ctl || !hw_ctl->ops.hw_fence_update_input_fence ||
@@ -500,13 +624,16 @@ int sde_fence_update_input_hw_fence_signal(struct sde_hw_ctl *hw_ctl, u32 debugf
 
 	SDE_DEBUG("configure input signal:%d out client:%d ctl_id:%d\n", ipcc_signal_id,
 		ipcc_client_id, ctl_id);
-	SDE_EVT32(ctl_id, ipcc_signal_id, ipcc_client_id);
 
 	/* configure dpu hw for the client/signal pair signaling input-fence */
 	hw_ctl->ops.hw_fence_update_input_fence(hw_ctl, ipcc_client_id, ipcc_signal_id);
 
 	/* Enable hw-fence for this ctrl-path */
 	hw_ctl->ops.hw_fence_ctrl(hw_ctl, true, true, 1);
+
+	qtime = arch_timer_read_counter();
+	SDE_EVT32(ctl_id, ipcc_signal_id, ipcc_client_id, SDE_EVTLOG_H32(qtime),
+		SDE_EVTLOG_L32(qtime));
 
 	return 0;
 }

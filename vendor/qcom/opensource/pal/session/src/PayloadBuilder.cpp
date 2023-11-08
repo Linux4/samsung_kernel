@@ -58,6 +58,11 @@
  * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define LOG_TAG "PAL: PayloadBuilder"
@@ -86,8 +91,6 @@
 #define CUSTOM_STEREO_NUM_OUT_CH 0x0002
 #define CUSTOM_STEREO_NUM_IN_CH 0x0002
 #define Q14_GAIN_ZERO_POINT_FIVE 0x2000
-#define PCM_CHANNEL_FL 1
-#define PCM_CHANNEL_FR 2
 #define CUSTOM_STEREO_CMD_PARAM_SIZE 24
 
 #define PARAM_ID_DISPLAY_PORT_INTF_CFG   0x8001154
@@ -96,6 +99,8 @@
 
 /* ID of the Master Gain parameter used by MODULE_ID_VOL_CTRL. */
 #define PARAM_ID_VOL_CTRL_MASTER_GAIN 0x08001035
+/* ID of the channel mixer coeff for MODULE_ID_MFC */
+#define PARAM_ID_CHMIXER_COEFF 0x0800101F
 
 struct volume_ctrl_master_gain_t
 {
@@ -216,8 +221,6 @@ struct param_id_mfc_output_media_fmt_t
 #include "spf_end_pragma.h"
 #include "spf_end_pack.h"
 ;
-/* Structure type def for above payload. */
-typedef struct param_id_mfc_output_media_fmt_t param_id_mfc_output_media_fmt_t;
 
 struct param_id_usb_audio_intf_cfg_t
 {
@@ -227,10 +230,74 @@ struct param_id_usb_audio_intf_cfg_t
 /* Structure type def for above payload. */
 typedef struct mspp_volume_ctrl_gain_t mspp_volume_ctrl_gain_t;
 
+#include "spf_begin_pack.h"
+struct chmixer_coeff_t
+{
+    uint16_t num_output_channels;
+    uint16_t num_input_channels;
+    uint16_t out_chmap[0];
+    uint16_t in_chmap[0];
+    uint16_t coeff[0];
+}
+#include "spf_end_pack.h"
+;
+typedef struct chmixer_coeff_t chmixer_coeff_t;
+
+#include "spf_begin_pack.h"
+#include "spf_begin_pragma.h"
+struct param_id_chmixer_coeff_t
+{
+    uint32_t num_coeff_tbls;
+    chmixer_coeff_t chmixer_coeff_tbl[0];
+}
+#include "spf_end_pragma.h"
+#include "spf_end_pack.h"
+;
+typedef struct param_id_chmixer_coeff_t param_id_chmixer_coeff_t;
+
 std::vector<allKVs> PayloadBuilder::all_streams;
 std::vector<allKVs> PayloadBuilder::all_streampps;
 std::vector<allKVs> PayloadBuilder::all_devices;
 std::vector<allKVs> PayloadBuilder::all_devicepps;
+
+template <typename T>
+void PayloadBuilder::populateChannelMixerCoeff(T pcmChannel, uint8_t numChannel,
+                int rotationType)
+{
+    /* Channel Coefficient table decides the output channel data for an input
+     * channel data. There is a range from 0 to 0x4000 where 0 means output
+     * will be mute and 0x4000 means unity. For a playback of 2 channels without
+     * swap, the channel coefficients should look like below:
+     *
+     *                  Left(Output)| Right(Output)
+     * Left (Input)     0x4000      | 0x0000
+     * Right(Input)     0x0000      | 0x4000
+     *
+     * We need to send this table as {0x4000,0x0000,0x0000,0x4000} to SPF
+     * Index w.r.t above Matrix      {{0,0} ,{0,1}, {1,0}, {1,1}}
+     * Index expected by SPF         {0, 1, 2, 3}
+     * For swap, we will change the coefficient so that output will be swapped
+     *
+     *                  Left(Output)| Right(Output)
+     * Left (Input)     0x0000      | 0x4000
+     * Right(Input)     0x4000      | 0x0000
+     *
+     */
+
+    int numCoeff = numChannel * numChannel;
+    for (int i = 0; i < numCoeff; i++)
+        pcmChannel[i] = 0x0000;
+
+    if (rotationType == PAL_SPEAKER_ROTATION_RL) {
+        // Swap the channel data
+        pcmChannel[1] = 0x4000;
+        pcmChannel[2] = 0x4000;
+
+    } else {
+        pcmChannel[0] = 0X4000;
+        pcmChannel[3] = 0X4000;
+    }
+}
 
 template <typename T>
 void PayloadBuilder::populateChannelMap(T pcmChannel, uint8_t numChannel)
@@ -433,6 +500,82 @@ void PayloadBuilder::payloadVolumeCtrlRamp(uint8_t** payload, size_t* size,
     PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
+void PayloadBuilder::payloadMFCMixerCoeff(uint8_t** payload, size_t* size,
+        uint32_t miid, int numCh, int rotationType)
+{
+    struct apm_module_param_data_t* header = NULL;
+    param_id_chmixer_coeff_t *mfcMixerCoeff = NULL;
+    chmixer_coeff_t *chMixerCoeff = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+    uint8_t* payloadInfo = NULL;
+    uint16_t* pcmChannel = NULL;
+    int numChannels = numCh;
+
+    // Only Stereo Speaker swap is supported
+    if (numChannels != 2)
+        return;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(param_id_chmixer_coeff_t) +
+                  sizeof(chmixer_coeff_t) // Only 1 table is being send currently
+                  + sizeof(uint16_t) * (numChannels)
+                  + sizeof(uint16_t) * (numChannels)
+                  + sizeof(uint16_t) * (numChannels*2);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+    payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    mfcMixerCoeff = (param_id_chmixer_coeff_t *)(payloadInfo +
+                    sizeof(struct apm_module_param_data_t));
+    // Set number of tables
+    mfcMixerCoeff->num_coeff_tbls = 1;
+
+    chMixerCoeff = (chmixer_coeff_t *) (payloadInfo +
+                    sizeof(struct apm_module_param_data_t) +
+                    sizeof(param_id_chmixer_coeff_t));
+    // Set Number of channels for input and output channels
+    chMixerCoeff->num_output_channels = numChannels;
+    chMixerCoeff->num_input_channels = numChannels;
+    pcmChannel = (uint16_t *) (payloadInfo +
+                    sizeof(struct apm_module_param_data_t)+
+                    sizeof(param_id_chmixer_coeff_t) +
+                    sizeof(chmixer_coeff_t));
+    // Populate output channel map
+    populateChannelMap(pcmChannel, numChannels);
+
+    pcmChannel = (uint16_t *) (payloadInfo +
+                    sizeof(struct apm_module_param_data_t)+
+                    sizeof(param_id_chmixer_coeff_t) +
+                    sizeof(chmixer_coeff_t) +
+                    sizeof(uint16_t) * numChannels);
+    // Populate input channel map
+    populateChannelMap(pcmChannel, numChannels);
+
+
+    pcmChannel = (uint16_t *) (payloadInfo +
+                    sizeof(struct apm_module_param_data_t)+
+                    sizeof(param_id_chmixer_coeff_t) +
+                    sizeof(chmixer_coeff_t) +
+                    sizeof(uint16_t) * numChannels +
+                    sizeof(uint16_t) * numChannels);
+
+    populateChannelMixerCoeff(pcmChannel, numChannels, rotationType);
+
+    header->module_instance_id = miid;
+    header->error_code = 0x0;
+    header->param_id = PARAM_ID_CHMIXER_COEFF;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+
+    PAL_DBG(LOG_TAG, "Exit");
+}
+
 void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
         uint32_t miid, struct sessionToPayloadParam* data)
 {
@@ -483,18 +626,17 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
         populateChannelMap(pcmChannel, data->numChannel);
     }
 
-    if ((2 == data->numChannel) && (PAL_SPEAKER_ROTATION_RL == data->rotation_type))
-    {
-        // Swapping the channel
-        pcmChannel[0] = PCM_CHANNEL_R;
-        pcmChannel[1] = PCM_CHANNEL_L;
-    }
-
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d Miid:%d",
+                      mfcConf->sampling_rate, mfcConf->bit_width,
+                      mfcConf->num_channels, header->module_instance_id);
+#else
     PAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d Miid:%d",
                       mfcConf->sampling_rate, mfcConf->bit_width,
                       mfcConf->num_channels, header->module_instance_id);
+#endif
     PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
                 *size);
 }
@@ -1552,11 +1694,11 @@ int PayloadBuilder::payloadDualMono(uint8_t **payloadInfo)
     /*for stereo mixing num in ch*/
     *update_params_value16++ = CUSTOM_STEREO_NUM_IN_CH;
     /* Out ch map FL/FR*/
-    *update_params_value16++ = PCM_CHANNEL_FL;
-    *update_params_value16++ = PCM_CHANNEL_FR;
+    *update_params_value16++ = PCM_CHANNEL_L;
+    *update_params_value16++ = PCM_CHANNEL_R;
     /* In ch map FL/FR*/
-    *update_params_value16++ = PCM_CHANNEL_FL;
-    *update_params_value16++ = PCM_CHANNEL_FR;
+    *update_params_value16++ = PCM_CHANNEL_L;
+    *update_params_value16++ = PCM_CHANNEL_R;
     /* weight */
     *update_params_value16++ = Q14_GAIN_ZERO_POINT_FIVE;
     *update_params_value16++ = Q14_GAIN_ZERO_POINT_FIVE;
@@ -3427,15 +3569,49 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
                 goto error_1;
             }
             if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
-                if (dAttr.config.ch_info.channels > 1) {
-                    PAL_DBG(LOG_TAG, "Multi channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
+               if (dAttr.config.ch_info.channels == CHANNELS_4) {
+                   switch (dAttr.config.ch_info.channels) {
+                   case 1:
+                       PAL_DBG(LOG_TAG, "Mono channel speaker");
+                       ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO_WITH_DISABLED_2SP));
+                   break;
+                   case 2:
+                       PAL_DBG(LOG_TAG, "Multi channel speaker");
+                       ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT_WITH_DISABLED_2SP));
+                   break;
+                   case 4:
+                       PAL_DBG(LOG_TAG, "four channel speaker");
+                       ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
+                   break;
+                   default :
+                       PAL_ERR(LOG_TAG, "unsupported no of channels");
+#ifdef SEC_AUDIO_COMMON
+                       //  prevent : Resource leak (RESOURCE_LEAK)
+                       goto error_1;
+#else
+                       return status;
+#endif
+                   }
+                } else if (dAttr.config.ch_info.channels <= CHANNELS_2) {
+                    switch (dAttr.config.ch_info.channels) {
+                    case 1:
+                        PAL_DBG(LOG_TAG, "Mono channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
+                    break;
+                    case 2:
+                        PAL_DBG(LOG_TAG, "Multi channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
+                    break;
+                    default :
+                        PAL_ERR(LOG_TAG, "unsupported no of channels");
+#ifdef SEC_AUDIO_COMMON
+                        //  prevent : Resource leak (RESOURCE_LEAK)
+                        goto error_1;
+#else
+                        return status;
+#endif
+                    }
                 }
-                else {
-                    PAL_DBG(LOG_TAG, "Mono channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
-                }
-                break;
             }
         }
         break;
@@ -3453,15 +3629,98 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
                 goto error_1;
             }
             if (dAttr.id == PAL_DEVICE_IN_VI_FEEDBACK) {
-                if (dAttr.config.ch_info.channels > 1) {
-                    PAL_DBG(LOG_TAG, "Multi channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+                if (dAttr.config.ch_info.channels == CHANNELS_4) {
+                    switch (dAttr.config.ch_info.channels) {
+                    case 1:
+                        PAL_DBG(LOG_TAG, "Mono channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR_WITH_DISABLED_2SP));
+                    break;
+                    case 2:
+                        PAL_DBG(LOG_TAG, "Multi channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR_WITH_DISABLED_2SP));
+                    break;
+                    case 4:
+                        PAL_DBG(LOG_TAG, "four channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+                    break;
+                    default :
+                        PAL_ERR(LOG_TAG, "unsupported no of channels");
+#ifdef SEC_AUDIO_COMMON
+                        //    prevent : Resource leak (RESOURCE_LEAK)
+                        goto error_1;
+#else
+                        return status;
+#endif
+                    }
+                } else if (dAttr.config.ch_info.channels <= CHANNELS_2) {
+                    switch (dAttr.config.ch_info.channels) {
+                    case 1:
+                        PAL_DBG(LOG_TAG, "Mono channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
+                    break;
+                    case 2:
+                        PAL_DBG(LOG_TAG, "Multi channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+                    break;
+                    default :
+                        PAL_ERR(LOG_TAG, "unsupported no of channels");
+#ifdef SEC_AUDIO_COMMON
+                        //    prevent : Resource leak (RESOURCE_LEAK)
+                        goto error_1;
+#else
+                        return status;
+#endif
+                    }
                 }
-                else {
+            }
+        }
+    break;
+    case MUX_DEMUX_CHANNELS :
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+#ifdef SEC_AUDIO_COMMON
+            //    prevent : Resource leak (RESOURCE_LEAK)
+            goto error_1;
+#else
+            return status;
+#endif
+        }
+
+        for (int i = 0; i < associatedDevices.size(); i++) {
+            status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+#ifdef SEC_AUDIO_COMMON
+                //    prevent : Resource leak (RESOURCE_LEAK)
+                goto error_1;
+#else
+                return status;
+#endif
+            }
+            if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
+                switch (dAttr.config.ch_info.channels) {
+                case 1:
                     PAL_DBG(LOG_TAG, "Mono channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
-                }
+                    ckv.push_back(std::make_pair(CHANNELS, CHANNELS_1));
                 break;
+                case 2:
+                    PAL_DBG(LOG_TAG, "Multi channel speaker");
+                    ckv.push_back(std::make_pair(CHANNELS, CHANNELS_2));
+                break;
+                case 4:
+                    PAL_DBG(LOG_TAG, "four channel speaker");
+                    ckv.push_back(std::make_pair(CHANNELS, CHANNELS_4));
+                break;
+                default :
+                    PAL_ERR(LOG_TAG, "unsupported no of channels");
+#ifdef SEC_AUDIO_COMMON
+                    //    prevent : Resource leak (RESOURCE_LEAK)
+                    goto error_1;
+#else
+                    return status;
+#endif
+                }
             }
         }
     break;

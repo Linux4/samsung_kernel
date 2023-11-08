@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,6 +27,7 @@
 #include "cfg_ucfg_api.h"
 #include "wlan_ipa_obj_mgmt_api.h"
 
+#ifdef IPA_OFFLOAD
 static struct wlan_ipa_config *g_ipa_config;
 static bool g_ipa_hw_support;
 static bool g_ipa_pld_enable = true;
@@ -911,3 +912,4 @@ bool ipa_is_wds_enabled(void)
 {
 	return g_ipa_config ? g_ipa_config->ipa_wds : 0;
 }
+#endif /* IPA_OFFLOAD */

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,7 +18,7 @@
  */
 
 /**
- * DOC : wlan_hdd_spectralscan.h
+ * DOC: wlan_hdd_spectralscan.h
  *
  * WLAN Host Device Driver spectral scan implementation
  *
@@ -86,7 +87,7 @@ struct spectral_scan_msg_v {
 	.info.subcmd = QCA_NL80211_VENDOR_SUBCMD_SPECTRAL_SCAN_GET_CONFIG, \
 	.flags = WIPHY_VENDOR_CMD_NEED_WDEV | \
 			WIPHY_VENDOR_CMD_NEED_NETDEV, \
-	.doit = wlan_hdd_cfg80211_spectral_scam_get_config, \
+	.doit = wlan_hdd_cfg80211_spectral_scan_get_config, \
 	vendor_command_policy(spectral_scan_policy, \
 			      QCA_WLAN_VENDOR_ATTR_SPECTRAL_SCAN_CONFIG_MAX) \
 }, \
@@ -148,29 +149,30 @@ int wlan_hdd_cfg80211_spectral_scan_stop(struct wiphy *wiphy,
 						int data_len);
 
 /**
- * wlan_hdd_cfg80211_spectral_scan_start() - start spectral scan
+ * wlan_hdd_cfg80211_spectral_scan_get_config() - get spectral scan config
  * @wiphy:    WIPHY structure pointer
  * @wdev:     Wireless device structure pointer
  * @data:     Pointer to the data received
  * @data_len: Length of the data received
  *
- * This function starts spectral scan
+ * This function gets the spectral scan configuration
  *
  * Return: 0 on success and errno on failure
  */
-int wlan_hdd_cfg80211_spectral_scam_get_config(struct wiphy *wiphy,
-						struct wireless_dev *wdev,
-						const void *data,
-						int data_len);
+int wlan_hdd_cfg80211_spectral_scan_get_config(struct wiphy *wiphy,
+					       struct wireless_dev *wdev,
+					       const void *data,
+					       int data_len);
 
 /**
- * wlan_hdd_cfg80211_spectral_scan_start() - start spectral scan
+ * wlan_hdd_cfg80211_spectral_scan_get_diag_stats() -
+ *                                               get spectral scan diag stats
  * @wiphy:    WIPHY structure pointer
  * @wdev:     Wireless device structure pointer
  * @data:     Pointer to the data received
  * @data_len: Length of the data received
  *
- * This function starts spectral scan
+ * This function gets spectral scan diagnostic statistics
  *
  * Return: 0 on success and errno on failure
  */
@@ -180,13 +182,13 @@ int wlan_hdd_cfg80211_spectral_scan_get_diag_stats(struct wiphy *wiphy,
 						int data_len);
 
 /**
- * wlan_hdd_cfg80211_spectral_scan_start() - start spectral scan
+ * wlan_hdd_cfg80211_spectral_scan_get_cap_info() - get spectral scan cpa
  * @wiphy:    WIPHY structure pointer
  * @wdev:     Wireless device structure pointer
  * @data:     Pointer to the data received
  * @data_len: Length of the data received
  *
- * This function starts spectral scan
+ * This function gets the spectral scan capabilities
  *
  * Return: 0 on success and errno on failure
  */
@@ -196,13 +198,13 @@ int wlan_hdd_cfg80211_spectral_scan_get_cap_info(struct wiphy *wiphy,
 						int data_len);
 
 /**
- * wlan_hdd_cfg80211_spectral_scan_start() - start spectral scan
+ * wlan_hdd_cfg80211_spectral_scan_get_status() - get spectral scan status
  * @wiphy:    WIPHY structure pointer
  * @wdev:     Wireless device structure pointer
  * @data:     Pointer to the data received
  * @data_len: Length of the data received
  *
- * This function starts spectral scan
+ * This function gets the spectral scan status
  *
  * Return: 0 on success and errno on failure
  */
@@ -215,7 +217,7 @@ int wlan_hdd_cfg80211_spectral_scan_get_status(struct wiphy *wiphy,
  * hdd_spectral_register_to_dbr() - Register spectral to DBR
  * @hdd_ctx: pointer to hdd context
  *
- * This function is that register spectral to Direct Buffer RX component.
+ * This function registers spectral to Direct Buffer RX component.
  *
  * Return: None
  */

@@ -291,9 +291,14 @@ static u32 msm_vidc_decoder_dpb_size_iris3(struct msm_vidc_inst *inst)
 	 * enabled bitstreams (UBWC & linear).
 	 */
 	color_fmt = inst->capabilities->cap[PIX_FMTS].value;
-	if (!is_linear_colorformat(color_fmt) &&
-		inst->codec != MSM_VIDC_AV1)
-		return size;
+	if (!is_linear_colorformat(color_fmt)) {
+		if (inst->codec != MSM_VIDC_AV1)
+			return size;
+
+		if (inst->codec == MSM_VIDC_AV1 &&
+			!inst->capabilities->cap[FILM_GRAIN].value)
+			return size;
+	}
 
 	f = &inst->fmts[OUTPUT_PORT];
 	width = f->fmt.pix_mp.width;

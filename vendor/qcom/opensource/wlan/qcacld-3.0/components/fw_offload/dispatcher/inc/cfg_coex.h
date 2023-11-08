@@ -375,6 +375,32 @@
 #define SET_INIT_CHAIN_MODE_FOR_BTC_CFG
 #endif
 
+#ifdef FEATURE_COEX_TPUT_SHAPING_CONFIG
+/*
+ * <ini>
+ * coex_tput_shaping_enable - Ini to enable wifi configure traffic shaping
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * 0 - traffic shaping is disable
+ * 1 - traffic shaping is enable
+ *
+ * This ini is used to enable and disable wifi traffic shaping
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_TPUT_SHAPING_ENABLE CFG_INI_BOOL( \
+		"coex_tput_shaping_enable", \
+		0, \
+		"coex_tput_shaping_enable")
+#define TPUT_SHAPING_ENABLE_CFG CFG(CFG_TPUT_SHAPING_ENABLE)
+#else
+#define TPUT_SHAPING_ENABLE_CFG
+#endif
+
 #define CFG_COEX_ALL \
 	CFG(CFG_BTC_MODE) \
 	CFG(CFG_ANTENNA_ISOLATION) \
@@ -391,5 +417,6 @@
 	CFG(CFG_BT_SCO_ALLOW_WLAN_2G_SCAN) \
 	THREE_WAY_COEX_CONFIG_LEGACY_CFG \
 	SET_INIT_CHAIN_MODE_FOR_BTC_CFG \
-	CFG(CFG_BLE_SCAN_COEX_POLICY)
+	CFG(CFG_BLE_SCAN_COEX_POLICY) \
+	TPUT_SHAPING_ENABLE_CFG
 #endif

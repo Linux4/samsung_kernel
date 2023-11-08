@@ -157,7 +157,7 @@ int hdd_set_tdls_offchannel(struct hdd_context *hdd_ctx,
 			    int offchannel);
 
 /**
- * hdd_check_and_set_tdls_conn_params() - Gets conencted TDLS peer count.
+ * hdd_get_tdls_connected_peer_count() - Gets connected TDLS peer count.
  * @adapter: Pointer to adapter
  *
  * This function return number of connected peer.
@@ -169,13 +169,13 @@ hdd_get_tdls_connected_peer_count(struct hdd_adapter *adapter);
 
 /**
  * hdd_check_and_set_tdls_conn_params() - Sets and Overwrite netdev params if
- *                               stations is conencted in 11A, 11B and 11G mode.
+ *                               stations is connected in 11A, 11B and 11G mode.
  * @vdev: Pointer to vdev objmgr
  *
  * This function updates the netdev params such as enabling checksum/tso
  * if the feature "disable checksum/tso for 11abg connections" is enabled via
  * INI. if INI is enabled then 11abg sta link will be created by disabling
- * checksum/tso which are needed to be enabled for better thorughput
+ * checksum/tso which are needed to be enabled for better throughput
  * for TDLS connected in 11AX, 11AC, 11N mode
  *
  * Return: void

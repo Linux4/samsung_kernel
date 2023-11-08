@@ -1095,6 +1095,16 @@ struct mfc_charger_data {
 	bool reg_access_lock;
 	bool check_rx_power;
 
+	int mfc_adc_tx_vout;
+	int mfc_adc_tx_iout;
+	int mfc_adc_ping_frq;
+	int mfc_adc_tx_min_op_frq;
+	int mfc_adc_tx_max_op_frq;
+	int mfc_adc_vout;
+	int mfc_adc_vrect;
+	int mfc_adc_rx_iout;
+	int mfc_adc_op_frq;
+
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;
 	unsigned int wireless_fw_ver_param;

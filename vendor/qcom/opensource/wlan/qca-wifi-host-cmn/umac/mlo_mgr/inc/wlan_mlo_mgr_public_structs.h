@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
+/**
  * DOC: contains mlo manager structure definitions
  */
 #ifndef __MLO_MGR_PUBLIC_STRUCTS_H
@@ -31,6 +31,7 @@
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
 #include <qdf_event.h>
 #endif
+#include <wlan_mlo_t2lm.h>
 
 /* MAX MLO dev support */
 #ifndef WLAN_UMAC_MLO_MAX_VDEVS
@@ -47,6 +48,7 @@
 
 struct mlo_mlme_ext_ops;
 struct vdev_mlme_obj;
+struct wlan_t2lm_context;
 
 /* Max LINK PEER support */
 #define MAX_MLO_LINK_PEERS WLAN_UMAC_MLO_MAX_VDEVS
@@ -96,6 +98,7 @@ enum MLO_LINK_STATE {
  * @valid_link_bitmap: valid MLO link bitmap
  * @state_lock: lock to protect access to link state
  * @qdf_event_t: event for teardown completion
+ * @dp_handle: pointer to DP ML context
  */
 #define MAX_MLO_LINKS 6
 #define MAX_MLO_CHIPS 5
@@ -111,6 +114,7 @@ struct mlo_setup_info {
 	uint16_t valid_link_bitmap;
 	qdf_spinlock_t state_lock;
 	qdf_event_t event;
+	 struct cdp_mlo_ctxt *dp_handle;
 };
 
 /**
@@ -126,7 +130,7 @@ struct mlo_state_params {
 #define MAX_MLO_GROUP 1
 #endif
 
-/*
+/**
  * struct mlo_mgr_context - MLO manager context
  * @ml_dev_list_lock: ML DEV list lock
  * @aid_lock: AID global lock
@@ -139,7 +143,6 @@ struct mlo_state_params {
  * @msgq_ctx: Context switch mgr
  * @mlo_is_force_primary_umac: Force Primary UMAC enable
  * @mlo_forced_primary_umac_id: Force Primary UMAC ID
- * @dp_handle: pointer to DP ML context
  */
 struct mlo_mgr_context {
 #ifdef WLAN_MLO_USE_SPINLOCK
@@ -161,10 +164,9 @@ struct mlo_mgr_context {
 	struct ctxt_switch_mgr *msgq_ctx;
 	bool mlo_is_force_primary_umac;
 	uint8_t mlo_forced_primary_umac_id;
-	void *dp_handle;
 };
 
-/*
+/**
  * struct wlan_ml_vdev_aid_mgr – ML AID manager
  * @aid_bitmap: AID bitmap array
  * @start_aid: start of AID index
@@ -178,18 +180,76 @@ struct wlan_ml_vdev_aid_mgr {
 	struct wlan_vdev_aid_mgr *aid_mgr[WLAN_UMAC_MLO_MAX_VDEVS];
 };
 
-/*
+/**
  * struct wlan_mlo_key_mgmt - MLO key management
  * @link_mac_address: list of vdevs selected for connection with the MLAP
- * @ptk: Pairwise transition keys
- * @gtk: Group transition key
+ * @vdev_id: vdev id value
+ * @keys_saved: keys saved bool
  */
 struct wlan_mlo_key_mgmt {
 	struct qdf_mac_addr link_mac_address;
-	uint32_t ptk;
-	uint32_t gtk;
+	uint8_t vdev_id;
+	bool keys_saved;
 };
 
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * struct mlo_link_state_cmd_params - MLO link state params
+ * @vdev_id: Vdev id
+ * @mld_mac: mld mac address
+ */
+struct mlo_link_state_cmd_params {
+	uint8_t vdev_id;
+	uint8_t mld_mac[QDF_MAC_ADDR_SIZE];
+};
+
+/**
+ * struct ml_link_info - ml link information
+ * @vdev_id: vdev id for this link
+ * @link_id: link id defined as in 802.11 BE spec.
+ * @link_status: active 0, inactive 1
+ * @chan_freq: Channel frequency in MHz
+ * @reserved: reserved bits
+ */
+struct ml_link_info {
+	uint32_t vdev_id:8,
+		 link_id:8,
+		 link_status:2,
+		 reserved:14;
+	uint32_t chan_freq;
+};
+
+/**
+ * struct ml_link_state_info_event - ML link state info response
+ * @status: to indicate the status for ml link info
+ * @hw_mode_index: current hardware mode index
+ * @link_info: link information
+ * @num_mlo_vdev_link_info: number of mlo vdev link info
+ * @vdev_id: vdev_id
+ * @mldaddr: mld addr
+ */
+struct ml_link_state_info_event {
+	uint32_t status;
+	uint32_t hw_mode_index;
+	struct ml_link_info link_info[WLAN_MLO_MAX_VDEVS];
+	uint16_t num_mlo_vdev_link_info;
+	uint8_t vdev_id;
+	struct qdf_mac_addr mldaddr;
+};
+
+/**
+ * struct ml_link_state_cmd_info - ml link state command info
+ * @request_cookie: request cookie
+ * @ml_link_state_resp_cb: callback function to handle response
+ * @ml_link_state_req_context: request context
+ */
+struct ml_link_state_cmd_info {
+	void *request_cookie;
+	void (*ml_link_state_resp_cb)(struct ml_link_state_info_event *ev,
+				      void *cookie);
+	void *ml_link_state_req_context;
+};
+#endif
 /**
  * struct mlo_sta_csa _params - CSA request parameters in mlo mgr
  * @csa_param: csa parameters
@@ -212,7 +272,19 @@ struct mlo_sta_csa_params {
 	bool valid_csa_param;
 };
 
-/*
+/**
+ * mlo_sta_cu_params - critical update parameters in mlo mgr
+ * @vdev_id: vdev id
+ * @bpcc: bss parameter change count
+ * @initialized: flag about the parameter is valid or not
+ */
+struct mlo_sta_cu_params {
+	uint8_t vdev_id;
+	uint8_t bpcc;
+	bool initialized;
+};
+
+/**
  * struct mlo_sta_quiet_status - MLO sta quiet status
  * @link_id: link id
  * @quiet_status: true if corresponding ap in quiet status
@@ -224,7 +296,7 @@ struct mlo_sta_quiet_status {
 	bool valid_status;
 };
 
-/*
+/**
  * struct wlan_mlo_sta - MLO sta additional info
  * @wlan_connect_req_links: list of vdevs selected for connection with the MLAP
  * @wlan_connected_links: list of vdevs associated with this MLO connection
@@ -233,7 +305,14 @@ struct mlo_sta_quiet_status {
  * @copied_conn_req_lock: lock for the original connect request
  * @assoc_rsp: Raw assoc response frame
  * @mlo_csa_param: CSA request parameters for mlo sta
+ * @mlo_cu_param: critical update parameters for mlo sta
  * @disconn_req: disconnect req params
+ * @copied_reassoc_rsp: Reassoc response copied from assoc link roam handling
+ *                      to re-use while link connect in case of deferred/need
+ *                      basis link connect (e.g. MLO OWE roaming).
+ * @ml_link_state: ml link state command info param
+ * NB: not using kernel-doc format since the kernel-doc script doesn't
+ *     handle the qdf_bitmap() macro
  */
 struct wlan_mlo_sta {
 	qdf_bitmap(wlan_connect_req_links, WLAN_UMAC_MLO_MAX_VDEVS);
@@ -249,10 +328,17 @@ struct wlan_mlo_sta {
 	struct element_info assoc_rsp;
 	struct mlo_sta_quiet_status mlo_quiet_status[WLAN_UMAC_MLO_MAX_VDEVS];
 	struct mlo_sta_csa_params mlo_csa_param[WLAN_UMAC_MLO_MAX_VDEVS];
+	struct mlo_sta_cu_params mlo_cu_param[WLAN_UMAC_MLO_MAX_VDEVS];
 	struct wlan_cm_disconnect_req *disconn_req;
+#ifdef WLAN_FEATURE_ROAM_OFFLOAD
+	struct wlan_cm_connect_resp *copied_reassoc_rsp;
+#endif
+#ifdef WLAN_FEATURE_11BE_MLO
+	struct ml_link_state_cmd_info ml_link_state;
+#endif
 };
 
-/*
+/**
  * struct wlan_mlo_ap - MLO AP related info
  * @num_ml_vdevs: number of vdevs to form MLD
  * @ml_aid_mgr: ML AID mgr
@@ -264,7 +350,7 @@ struct wlan_mlo_ap {
 	qdf_bitmap(mlo_vdev_quiet_bmap, WLAN_UMAC_MLO_MAX_VDEVS);
 };
 
-/*
+/**
  * struct wlan_mlo_peer_list - MLO peer list entry
  * @peer_hash: MLO peer hash code
  * @peer_list_lock: lock to access members of structure
@@ -278,7 +364,7 @@ struct wlan_mlo_peer_list {
 #endif
 };
 
-/*
+/**
  * struct wlan_mlo_dev_context - MLO device context
  * @node: QDF list node member
  * @mld_id: MLD id
@@ -293,6 +379,7 @@ struct wlan_mlo_peer_list {
  * @ref_id_dbg: Reference count debug information
  * @sta_ctx: MLO STA related information
  * @ap_ctx: AP related information
+ * @t2lm_ctx: T2LM related information
  */
 struct wlan_mlo_dev_context {
 	qdf_list_node_t node;
@@ -313,9 +400,10 @@ struct wlan_mlo_dev_context {
 	qdf_atomic_t ref_id_dbg[WLAN_REF_ID_MAX];
 	struct wlan_mlo_sta *sta_ctx;
 	struct wlan_mlo_ap *ap_ctx;
+	struct wlan_t2lm_context t2lm_ctx;
 };
 
-/*
+/**
  * struct wlan_mlo_link_peer_entry – Link peer entry
  * @link_peer: Object manager peer
  * @link_addr: MAC address of link peer
@@ -333,7 +421,7 @@ struct wlan_mlo_link_peer_entry {
 	qdf_nbuf_t assoc_rsp_buf;
 };
 
-/*
+/**
  * enum mlo_peer_state – MLO peer state
  * @ML_PEER_CREATED:     Initial state
  * @ML_PEER_ASSOC_DONE:  ASSOC sent on assoc link
@@ -345,8 +433,8 @@ enum mlo_peer_state {
 	ML_PEER_DISCONN_INITIATED,
 };
 
-#ifdef UMAC_SUPPORT_MLNAWDS
-/*
+#if defined(UMAC_SUPPORT_MLNAWDS) || defined(MESH_MODE_SUPPORT)
+/**
  * struct mlnawds_config - MLO NAWDS configuration
  * @caps: Bandwidth & NSS capabilities to be configured on NAWDS peer
  * @puncture_bitmap: puncture bitmap to be configured on NAWDS peer
@@ -360,7 +448,7 @@ struct mlnawds_config {
 };
 #endif
 
-/*
+/**
  * struct mlpeer_auth_params - Deferred Auth params
  * @vdev_id:  VDEV ID
  * @psoc_id:  PSOC ID
@@ -387,166 +475,6 @@ struct mlpeer_auth_params {
 	qdf_nbuf_t wbuf;
 	void *rs;
 };
-
-#ifdef WLAN_FEATURE_11BE
-
-/**
- * enum wlan_t2lm_direction - Indicates the direction for which TID-to-link
- * mapping is available.
- * @WLAN_T2LM_DL_DIRECTION: Downlink
- * @WLAN_T2LM_UL_DIRECTION: Uplink
- * @WLAN_T2LM_BIDI_DIRECTION: Both downlink and uplink
- * @WLAN_T2LM_MAX_DIRECTION: Max direction, this is used only internally
- * @WLAN_T2LM_INVALID_DIRECTION: Invalid, this is used only internally to check
- * if the mapping present in wlan_t2lm_of_tids structure is valid or not.
- */
-enum wlan_t2lm_direction {
-	WLAN_T2LM_DL_DIRECTION,
-	WLAN_T2LM_UL_DIRECTION,
-	WLAN_T2LM_BIDI_DIRECTION,
-	WLAN_T2LM_MAX_DIRECTION,
-	WLAN_T2LM_INVALID_DIRECTION,
-};
-
-/* Total 8 TIDs are supported, TID 0 to TID 7 */
-#define T2LM_MAX_NUM_TIDS 8
-
-/**
- * enum wlan_t2lm_category - T2LM category
- *
- * @WLAN_T2LM_CATEGORY_NONE: none
- * @WLAN_T2LM_CATEGORY_REQUEST: T2LM request
- * @WLAN_T2LM_CATEGORY_RESPONSE: T2LM response
- * @WLAN_T2LM_CATEGORY_TEARDOWN: T2LM teardown
- * @WLAN_T2LM_CATEGORY_INVALID: Invalid
- */
-enum wlan_t2lm_category {
-	WLAN_T2LM_CATEGORY_NONE = 0,
-	WLAN_T2LM_CATEGORY_REQUEST = 1,
-	WLAN_T2LM_CATEGORY_RESPONSE = 2,
-	WLAN_T2LM_CATEGORY_TEARDOWN = 3,
-	WLAN_T2LM_CATEGORY_INVALID,
-};
-
-/**
- * enum wlan_t2lm_tx_status - Status code applicable for the T2LM frames
- * transmitted by the current peer.
- *
- * @WLAN_T2LM_TX_STATUS_NONE: Status code is not applicable
- * @WLAN_T2LM_TX_STATUS_SUCCESS: AP/STA successfully transmitted the T2LM frame
- * @WLAN_T2LM_TX_STATUS_FAILURE: Tx failure received from the FW.
- * @WLAN_T2LM_TX_STATUS_RX_TIMEOUT: T2LM response frame not received from the
- *                              peer for the transmitted T2LM request frame.
- * @WLAN_T2LM_TX_STATUS_INVALID: Invalid status code
- */
-enum wlan_t2lm_tx_status {
-	WLAN_T2LM_TX_STATUS_NONE = 0,
-	WLAN_T2LM_TX_STATUS_SUCCESS = 1,
-	WLAN_T2LM_TX_STATUS_FAILURE = 2,
-	WLAN_T2LM_TX_STATUS_RX_TIMEOUT = 3,
-	WLAN_T2LM_TX_STATUS_INVALID,
-};
-
-/**
- * enum wlan_t2lm_resp_frm_type - T2LM status corresponds to T2LM response frame
- *
- * @WLAN_T2LM_RESP_TYPE_SUCCESS: T2LM mapping provided in the T2LM request is
- *                       accepted either by the AP or STA
- * @WLAN_T2LM_RESP_TYPE_DENIED_TID_TO_LINK_MAPPING: T2LM Request denied because
- *                       the requested TID-to-link mapping is unacceptable.
- * @WLAN_T2LM_RESP_TYPE_PREFERRED_TID_TO_LINK_MAPPING: T2LM Request rejected and
- *                       preferred TID-to-link mapping is suggested.
- * @WLAN_T2LM_RESP_TYPE_INVALID: Status code is not applicable.
- */
-enum wlan_t2lm_resp_frm_type {
-	WLAN_T2LM_RESP_TYPE_SUCCESS = 0,
-	WLAN_T2LM_RESP_TYPE_DENIED_TID_TO_LINK_MAPPING = 133,
-	WLAN_T2LM_RESP_TYPE_PREFERRED_TID_TO_LINK_MAPPING = 134,
-	WLAN_T2LM_RESP_TYPE_INVALID,
-};
-
-/**
- * enum wlan_t2lm_enable - TID-to-link negotiation supported by the mlo peer
- *
- * @WLAN_T2LM_NOT_SUPPORTED: T2LM is not supported by the MLD
- * @WLAN_MAP_EACH_TID_TO_SAME_OR_DIFFERENET_LINK_SET: MLD supports the mapping
- *             of each TID to the same or different link set (Disjoint mapping).
- * @WLAN_MAP_ALL_TIDS_TO_SAME_LINK_SET: MLD only supports the mapping of all
- *             TIDs to the same link set.
- * @WLAN_T2LM_ENABLE_INVALID: invalid
- */
-enum wlan_t2lm_enable {
-	WLAN_T2LM_NOT_SUPPORTED = 0,
-	WLAN_MAP_EACH_TID_TO_SAME_OR_DIFFERENET_LINK_SET = 1,
-	WLAN_MAP_ALL_TIDS_TO_SAME_LINK_SET = 2,
-	WLAN_T2LM_ENABLE_INVALID,
-};
-
-/**
- * struct wlan_t2lm_of_tids - TID-to-Link mapping information for the frames
- * transmitted on the uplink, downlink and bidirectional.
- *
- * @is_homogeneous_mapping: The t2lm_provisioned_links is homogeneous mapping
- * @direction:  0 - Downlink, 1 - uplink 2 - Both uplink and downlink
- * @default_link_mapping: value 1 indicates the default T2LM, where all the TIDs
- *                        are mapped to all the links.
- *                        value 0 indicates the preferred T2LM mapping
- * @t2lm_provisioned_links: Indicates TID to link mapping of all the TIDS.
- */
-struct wlan_t2lm_of_tids {
-	bool is_homogeneous_mapping;
-	enum wlan_t2lm_direction direction;
-	bool default_link_mapping;
-	uint16_t t2lm_provisioned_links[T2LM_MAX_NUM_TIDS];
-};
-
-/**
- * struct wlan_prev_t2lm_negotiated_info - Previous successful T2LM negotiation
- * is saved here.
- *
- * @dialog_token: Save the dialog token used in T2LM request and response frame.
- * @t2lm_info: Provides the TID to LINK mapping information
- */
-struct wlan_prev_t2lm_negotiated_info {
-	uint16_t dialog_token;
-	struct wlan_t2lm_of_tids t2lm_info[WLAN_T2LM_MAX_DIRECTION];
-};
-
-/**
- * struct wlan_t2lm_onging_negotiation_info - Current ongoing T2LM negotiation
- * (information about transmitted T2LM request/response frame)
- *
- * @category: T2LM category as T2LM request frame
- * @dialog_token: Save the dialog token used in T2LM request and response frame.
- * @t2lm_info: Provides the TID-to-link mapping info for UL/DL/BiDi
- * @t2lm_tx_status: Status code corresponds to the transmitted T2LM frames
- * @t2lm_resp_type: T2LM status corresponds to T2LM response frame.
- */
-struct wlan_t2lm_onging_negotiation_info {
-	enum wlan_t2lm_category category;
-	uint8_t dialog_token;
-	struct wlan_t2lm_of_tids t2lm_info[WLAN_T2LM_MAX_DIRECTION];
-	enum wlan_t2lm_tx_status t2lm_tx_status;
-	enum wlan_t2lm_resp_frm_type t2lm_resp_type;
-};
-
-/**
- * struct wlan_mlo_peer_t2lm_policy - TID-to-link mapping information
- *
- * @self_gen_dialog_token: self generated dialog token used to send T2LM request
- *                         frame;
- * @t2lm_enable_val: TID-to-link enable value supported by this peer.
- * @t2lm_negotiated_info: Previous successful T2LM negotiation is saved here.
- * @ongoing_tid_to_link_mapping: This has the ongoing TID-to-link mapping info
- *                               transmitted by this peer to the connected peer.
- */
-struct wlan_mlo_peer_t2lm_policy {
-	uint8_t self_gen_dialog_token;
-	enum wlan_t2lm_enable t2lm_enable_val;
-	struct wlan_prev_t2lm_negotiated_info t2lm_negotiated_info;
-	struct wlan_t2lm_onging_negotiation_info ongoing_tid_to_link_mapping;
-};
-#endif /* WLAN_FEATURE_11BE */
 
 /**
  * struct wlan_mlo_eml_cap - EML capabilities of MLD
@@ -599,7 +527,7 @@ struct wlan_mlo_mld_cap {
 		 reserved:3;
 };
 
-/*
+/**
  * struct wlan_mlo_peer_context - MLO peer context
  *
  * @peer_node:     peer list node for ml_dev qdf list
@@ -609,7 +537,7 @@ struct wlan_mlo_mld_cap {
  * @mlo_peer_id: unique ID for the peer
  * @peer_mld_addr: MAC address of MLD link
  * @mlo_ie: MLO IE struct
- * @mlo_peer_lock: lock to access peer strucutre
+ * @mlo_peer_lock: lock to access peer structure
  * @assoc_id: Assoc ID derived by MLO manager
  * @ref_cnt: Reference counter to avoid use after free
  * @ml_dev: MLO dev context
@@ -622,6 +550,8 @@ struct wlan_mlo_mld_cap {
  * @msd_cap_present: Medium Sync Capability present bit
  * @mlpeer_emlcap: EML capability information for ML peer
  * @mlpeer_msdcap: Medium Sync Delay capability information for ML peer
+ * @is_mesh_ml_peer: flag to indicate if ml_peer is MESH configured
+ * @mesh_config: eack link peer's MESH configuration
  */
 struct wlan_mlo_peer_context {
 	qdf_list_node_t peer_node;
@@ -655,15 +585,20 @@ struct wlan_mlo_peer_context {
 	bool msd_cap_present;
 	struct wlan_mlo_eml_cap mlpeer_emlcap;
 	struct wlan_mlo_msd_cap mlpeer_msdcap;
+#ifdef MESH_MODE_SUPPORT
+	bool is_mesh_ml_peer;
+	struct mlnawds_config mesh_config[MAX_MLO_LINK_PEERS];
+#endif
 };
 
-/*
+/**
  * struct mlo_link_info – ML link info
  * @link_addr: link mac address
  * @link_id: link index
  * @chan_freq: Operating channel frequency
  * @nawds_config: peer's NAWDS configurarion
  * @vdev_id: VDEV ID
+ * @mesh_config: peer's MESH configurarion
  */
 struct mlo_link_info {
 	struct qdf_mac_addr link_addr;
@@ -673,9 +608,12 @@ struct mlo_link_info {
 	struct mlnawds_config nawds_config;
 #endif
 	uint8_t vdev_id;
+#ifdef MESH_MODE_SUPPORT
+	struct mlnawds_config mesh_config;
+#endif
 };
 
-/*
+/**
  * struct mlo_partner_info – mlo partner link info
  * @num_partner_links: no. of partner links
  * @partner_link_info: per partner link info
@@ -689,18 +627,47 @@ struct mlo_partner_info {
 #endif
 };
 
-/*
+/**
  * struct mlo_probereq_info – mlo probe req link info
+ * mlid: MLID requested in the probe req
  * @num_links: no. of link info in probe req
  * @link_id: target link id of APs
+ * @is_mld_id_valid: Indicates if mld_id is valid for a given request
+ * @skip_mbssid: Skip mbssid IE
  */
 struct mlo_probereq_info {
 	uint8_t mlid;
 	uint8_t num_links;
 	uint8_t link_id[WLAN_UMAC_MLO_MAX_VDEVS];
+	bool is_mld_id_valid;
+	bool skip_mbssid;
 };
 
-/*
+/**
+ * struct ml_rv_partner_link_info: Partner link information of an ML reconfig IE
+ * @link_id: Link id advertised by the AP
+ * @is_delete_timer_p: Delete timer is present or not
+ * @delete_timer: number of TBTTs of the AP
+ */
+struct ml_rv_partner_link_info {
+	uint8_t link_id;
+	uint8_t is_delete_timer_p;
+	uint16_t delete_timer;
+};
+
+/**
+ * struct ml_rv_info: Reconfig Multi link information of a 11be beacon
+ * @mld_mac_addr: MLD mac address
+ * @num_links: Number of links supported by ML AP
+ * @link_info: Array containing partner links information
+ */
+struct ml_rv_info {
+	struct qdf_mac_addr mld_mac_addr;
+	uint8_t num_links;
+	struct ml_rv_partner_link_info link_info[WLAN_UMAC_MLO_MAX_VDEVS];
+};
+
+/**
  * struct mlo_tgt_link_info – ML target link info
  * @vdev_id: link peer vdev id
  * @hw_mld_link_id: HW link id
@@ -710,7 +677,7 @@ struct mlo_tgt_link_info {
 	uint8_t hw_mld_link_id;
 };
 
-/*
+/**
  * struct mlo_tgt_partner_info – mlo target partner link info
  * @num_partner_links: no. of partner links
  * @link_info: per partner link info
@@ -720,7 +687,7 @@ struct mlo_tgt_partner_info {
 	struct mlo_tgt_link_info link_info[WLAN_UMAC_MLO_MAX_VDEVS];
 };
 
-/*
+/**
  * struct mlo_mlme_ext_ops - MLME callback functions
  * @mlo_mlme_ext_validate_conn_req: Callback to validate connect request
  * @mlo_mlme_ext_create_link_vdev: Callback to create link vdev for ML STA
@@ -729,7 +696,7 @@ struct mlo_tgt_partner_info {
  * @mlo_mlme_ext_peer_assoc_fail: Callback to notify peer assoc failure
  * @mlo_mlme_ext_peer_delete: Callback to initiate link peer delete
  * @mlo_mlme_ext_assoc_resp: Callback to initiate assoc resp
- * @mlo_mlme_get_link_assoc_req: Calback to get link assoc req buffer
+ * @mlo_mlme_get_link_assoc_req: Callback to get link assoc req buffer
  * @mlo_mlme_ext_deauth: Callback to initiate deauth
  * @mlo_mlme_ext_clone_security_param: Callback to clone mlo security params
  * @mlo_mlme_ext_peer_process_auth: Callback to process pending auth
@@ -750,7 +717,8 @@ struct mlo_mlme_ext_ops {
 	void (*mlo_mlme_ext_assoc_resp)(struct wlan_objmgr_peer *peer);
 	qdf_nbuf_t (*mlo_mlme_get_link_assoc_req)(struct wlan_objmgr_peer *peer,
 						  uint8_t link_ix);
-	void (*mlo_mlme_ext_deauth)(struct wlan_objmgr_peer *peer);
+	void (*mlo_mlme_ext_deauth)(struct wlan_objmgr_peer *peer,
+				    uint8_t is_disassoc);
 	QDF_STATUS (*mlo_mlme_ext_clone_security_param)(
 		    struct vdev_mlme_obj *vdev_mlme,
 		    struct wlan_cm_connect_req *req);
@@ -785,6 +753,8 @@ struct mlo_mlme_ext_ops {
  *  Force inactive a number of links, firmware to decide which links to inactive
  * @MLO_LINK_FORCE_MODE_NO_FORCE:
  *  Cancel the force operation of specific links, allow firmware to decide
+ * @MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE: Force specific links active and
+ *  force specific links inactive
  */
 enum mlo_link_force_mode {
 	MLO_LINK_FORCE_MODE_ACTIVE       = 1,
@@ -792,6 +762,7 @@ enum mlo_link_force_mode {
 	MLO_LINK_FORCE_MODE_ACTIVE_NUM   = 3,
 	MLO_LINK_FORCE_MODE_INACTIVE_NUM = 4,
 	MLO_LINK_FORCE_MODE_NO_FORCE     = 5,
+	MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE = 6,
 };
 
 /**
@@ -800,10 +771,13 @@ enum mlo_link_force_mode {
  *  Set force specific links because of new connection
  * @MLO_LINK_FORCE_REASON_DISCONNECT:
  *  Set force specific links because of new dis-connection
+ * @MLO_LINK_FORCE_REASON_LINK_REMOVAL:
+ *  Set force specific links because of AP side link removal
  */
 enum mlo_link_force_reason {
 	MLO_LINK_FORCE_REASON_CONNECT    = 1,
 	MLO_LINK_FORCE_REASON_DISCONNECT = 2,
+	MLO_LINK_FORCE_REASON_LINK_REMOVAL = 3,
 };
 
 /**
@@ -842,37 +816,51 @@ struct mlo_link_num_param {
  * @reason: reason for the operation (enum mlo_link_force_reason)
  * @num_link_entry: number of the valid entries for link_num
  * @num_vdev_bitmap: number of the valid entries for vdev_bitmap
+ * @num_inactive_vdev_bitmap: number of the valid entries for
+ *  inactive_vdev_bitmap
  * @link_num: link number param array
  *  It's present only when force_mode is MLO_LINK_FORCE_MODE_ACTIVE_NUM or
  *  MLO_LINK_FORCE_MODE_INACTIVE_NUM
  * @vdev_bitmap: active/inactive vdev bitmap array
  *  It will be present when force_mode is MLO_LINK_FORCE_MODE_ACTIVE,
  *  MLO_LINK_FORCE_MODE_INACTIVE, MLO_LINK_FORCE_MODE_NO_FORCE,
- *  MLO_LINK_FORCE_MODE_ACTIVE_NUM or MLO_LINK_FORCE_MODE_INACTIVE_NUM
+ *  MLO_LINK_FORCE_MODE_ACTIVE_NUM or MLO_LINK_FORCE_MODE_INACTIVE_NUM,
+ *  and MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE.
+ *  For MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE, it includes the active vdev
+ *  bitmaps
+ * @inactive_vdev_bitmap: inactive vdev bitmap array
+ *  It will be present when force_mode is MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE,
+ *  it includes the inactive vdev bitmaps
  */
 struct mlo_link_set_active_param {
 	uint32_t force_mode;
 	uint32_t reason;
 	uint32_t num_link_entry;
 	uint32_t num_vdev_bitmap;
+	uint32_t num_inactive_vdev_bitmap;
 	struct mlo_link_num_param link_num[MLO_LINK_NUM_SZ];
 	uint32_t vdev_bitmap[MLO_VDEV_BITMAP_SZ];
+	uint32_t inactive_vdev_bitmap[MLO_VDEV_BITMAP_SZ];
 };
 
-/*
+/**
  * struct mlo_link_set_active_ctx - Context for MLO link set active request
  * @vdev: pointer to vdev on which the request issued
- * @cb: callback function for MLO link set active request
+ * @set_mlo_link_cb: callback function for MLO link set active request
+ * @validate_set_mlo_link_cb: callback to validate set link request
  * @cb_arg: callback context
  */
 struct mlo_link_set_active_ctx {
 	struct wlan_objmgr_vdev *vdev;
 	void (*set_mlo_link_cb)(struct wlan_objmgr_vdev *vdev, void *arg,
 				struct mlo_link_set_active_resp *evt);
+	QDF_STATUS (*validate_set_mlo_link_cb)(
+			struct wlan_objmgr_psoc *psoc,
+			struct mlo_link_set_active_param *param);
 	void *cb_arg;
 };
 
-/*
+/**
  * struct mlo_link_set_active_req - MLO link set active request
  * @ctx: context for MLO link set active request
  * @param: MLO link set active params
@@ -882,7 +870,7 @@ struct mlo_link_set_active_req {
 	struct mlo_link_set_active_param param;
 };
 
-/*
+/**
  * enum mlo_chip_recovery_type - MLO chip recovery types
  * @MLO_RECOVERY_MODE_0: CRASH_PARTNER_CHIPS & recover all chips
  * @MLO_RECOVERY_MODE_1: Crash & recover asserted chip alone
@@ -895,4 +883,80 @@ enum mlo_chip_recovery_type {
 	/* Add new types above */
 	MLO_RECOVERY_MODE_MAX = 0xf
 };
+
+/**
+ * enum wlan_t2lm_status - Target status codes in event of t2lm
+ * @WLAN_MAP_SWITCH_TIMER_TSF: Mapping switch time value in TSF to be included
+ * in probe response frames
+ * @WLAN_MAP_SWITCH_TIMER_EXPIRED: Indication that the new proposed T2LM has
+ * been applied, Update the required data structures and other modules.
+ * @WLAN_EXPECTED_DUR_EXPIRED: Indication that the proposed T2LM ineffective
+ * after this duration and all TIDs fall back to default mode.
+ */
+enum wlan_t2lm_status {
+	WLAN_MAP_SWITCH_TIMER_TSF,
+	WLAN_MAP_SWITCH_TIMER_EXPIRED,
+	WLAN_EXPECTED_DUR_EXPIRED,
+};
+
+/**
+ * struct mlo_vdev_host_tid_to_link_map_resp - TID-to-link mapping response
+ * @vdev_id: Vdev id
+ * @wlan_t2lm_status: Target status for t2lm ie info
+ * @mapping_switch_tsf: Mapping switch time in tsf for probe response frames
+ */
+struct mlo_vdev_host_tid_to_link_map_resp {
+	uint8_t vdev_id;
+	enum wlan_t2lm_status status;
+	uint32_t mapping_switch_tsf;
+};
+
+/**
+ * struct mlo_link_removal_cmd_params - MLO link removal command parameters
+ * @vdev_id: vdev ID of the link to be removed
+ * @reconfig_ml_ie: Entire ML reconfiguration element
+ * @reconfig_ml_ie_size: size of the field @reconfig_ml_ie
+ */
+struct mlo_link_removal_cmd_params {
+	uint8_t vdev_id;
+	uint8_t *reconfig_ml_ie;
+	uint32_t reconfig_ml_ie_size;
+};
+
+/**
+ * struct mlo_link_removal_tbtt_info - MLO link removal TBTT info. This
+ * information will be in correspondence with an outgoing beacon instance.
+ * @tbtt_count: Delete timer TBTT count in the reported beacon
+ * @qtimer_reading: Q-timer reading when the reported beacon is sent out
+ * @tsf: TSF of the reported beacon
+ */
+struct mlo_link_removal_tbtt_info {
+	uint32_t tbtt_count;
+	uint64_t qtimer_reading;
+	uint64_t tsf;
+};
+
+/**
+ * struct mlo_link_removal_evt_params - MLO link removal event parameters
+ * @vdev_id: vdev ID of the link undergoing removal
+ * @tbtt_info: TBTT information of the link undergoing removal
+ */
+struct mlo_link_removal_evt_params {
+	uint8_t vdev_id;
+	struct mlo_link_removal_tbtt_info tbtt_info;
+};
+
+/*
+ * struct mgmt_rx_mlo_link_removal_info - Information, sent in MGMT Rx event, of
+ * a link undergoing removal from its MLD
+ * @vdev_id: Vdev ID of the link undergoing removal
+ * @hw_link_id: HW link ID of the link undergoing removal
+ * @tbtt_count: Delete timer TBTT count of the link undergoing removal
+ */
+struct mgmt_rx_mlo_link_removal_info {
+	uint8_t vdev_id;
+	uint8_t hw_link_id;
+	uint16_t tbtt_count;
+};
+
 #endif

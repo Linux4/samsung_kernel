@@ -29,7 +29,7 @@
  * TODO: At present SAP Channel leakage matrix for ch 144
  * is not available from system's team. So to play it safe
  * and avoid crash if channel 144 is request, in following
- * matix channel 144 is added such that it will cause code
+ * matrix channel 144 is added such that it will cause code
  * to avoid selecting channel 144.
  *
  * THESE ENTRIES SHOULD BE REPLACED WITH CORRECT VALUES AS

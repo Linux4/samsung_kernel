@@ -67,17 +67,6 @@ void reg_init_pdev_mas_chan_list(
 		struct mas_chan_params *mas_chan_params);
 
 /**
- * reg_set_ap_pwr_type() - Set the AP power type.
- * @pdev_priv_obj: pdev private object
- *
- * Set the AP power type as per AFC device deployment if AFC is available.
- * Otherwise set it to indoor by default.
- *
- * Return: None
- */
-void reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj);
-
-/**
  * reg_save_reg_rules_to_pdev() - Save psoc reg-rules to pdev.
  * @pdev_priv_obj: Pointer to regdb pdev private object.
  */
@@ -249,6 +238,18 @@ reg_copy_from_super_chan_info_to_reg_channel(struct regulatory_channel *chan,
 					     const struct super_chan_info sc_entry,
 					     enum supported_6g_pwr_types
 					     in_6g_pwr_mode);
+
+/**
+ * reg_set_ap_pwr_type() - Set the AP power type.
+ * @pdev_priv_obj: pdev private object
+ *
+ * Set the AP power type as per AFC device deployment if AFC is available.
+ * Otherwise set it to indoor by default.
+ *
+ * Return: None
+ */
+void reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj);
+
 #else /* CONFIG_BAND_6GHZ */
 static inline QDF_STATUS
 reg_get_6g_ap_master_chan_list(struct wlan_objmgr_pdev *pdev,
@@ -302,6 +303,11 @@ reg_copy_from_super_chan_info_to_reg_channel(struct regulatory_channel *chan,
 					     const struct super_chan_info sc_entry,
 					     enum supported_6g_pwr_types
 					     in_6g_pwr_mode)
+{
+}
+
+static inline void
+reg_set_ap_pwr_type(struct wlan_regulatory_pdev_priv_obj *pdev_priv_obj)
 {
 }
 #endif /* CONFIG_BAND_6GHZ */

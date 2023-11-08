@@ -96,7 +96,7 @@ static QDF_STATUS lim_add_ndi_peer(struct mac_context *mac_ctx,
 		return QDF_STATUS_E_FAILURE;
 	}
 
-	/* wma decides NDI mode from wma->inferface struct */
+	/* wma decides NDI mode from wma->interface struct */
 	sta_ds->staType = STA_ENTRY_NDI_PEER;
 	status = lim_add_sta(mac_ctx, sta_ds, false, session);
 	if (QDF_STATUS_SUCCESS != status) {

@@ -603,7 +603,8 @@ public class SapService extends ProfileService {
 
     public int getConnectionState(BluetoothDevice device) {
         synchronized (this) {
-            if (getState() == BluetoothSap.STATE_CONNECTED && getRemoteDevice().equals(device)) {
+            if (getState() == BluetoothSap.STATE_CONNECTED && getRemoteDevice() != null
+                    && getRemoteDevice().equals(device)) {
                 return BluetoothProfile.STATE_CONNECTED;
             } else {
                 return BluetoothProfile.STATE_DISCONNECTED;
@@ -912,8 +913,8 @@ public class SapService extends ProfileService {
 
         @RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
         private SapService getService(AttributionSource source) {
-            if (!Utils.checkCallerIsSystemOrActiveUser(TAG)
-                    || !Utils.checkServiceAvailable(mService, TAG)
+            if (!Utils.checkServiceAvailable(mService, TAG)
+                    || !Utils.checkCallerIsSystemOrActiveOrManagedUser(mService, TAG)
                     || !Utils.checkConnectPermissionForDataDelivery(mService, source, TAG)) {
                 return null;
             }
@@ -968,8 +969,8 @@ public class SapService extends ProfileService {
                 boolean defaultValue = false;
                 SapService service = getService(source);
                 if (service != null) {
-                    defaultValue = service.getState() == BluetoothSap.STATE_CONNECTED
-                            && service.getRemoteDevice().equals(device);
+                    defaultValue = service.getConnectionState(device)
+                        == BluetoothProfile.STATE_CONNECTED;
                 }
                 receiver.send(defaultValue);
             } catch (RuntimeException e) {

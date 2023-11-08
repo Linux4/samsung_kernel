@@ -1107,11 +1107,8 @@ dfs_process_radar_ind_on_home_chan(struct wlan_dfs *dfs,
 		goto exit;
 
 	if (!dfs->dfs_use_nol) {
-		if (!dfs->dfs_is_offload_enabled) {
-			dfs_radar_disable(dfs);
-			dfs_second_segment_radar_disable(dfs);
-			dfs_flush_additional_pulses(dfs);
-		}
+		if (!dfs->dfs_is_offload_enabled)
+			dfs_disable_radar_and_flush_pulses(dfs);
 		dfs_reset_bangradar(dfs);
 		dfs_send_csa_to_current_chan(dfs);
 		status = QDF_STATUS_SUCCESS;
@@ -1189,8 +1186,6 @@ dfs_process_radar_ind_on_home_chan(struct wlan_dfs *dfs,
 	 */
 
 	if (!dfs->dfs_is_offload_enabled) {
-		dfs_radar_disable(dfs);
-		dfs_second_segment_radar_disable(dfs);
 		/*
 		 * The radar queues were reset just after the filter match, but
 		 * the phyerror reception was not disabled. This might
@@ -1198,7 +1193,7 @@ dfs_process_radar_ind_on_home_chan(struct wlan_dfs *dfs,
 		 * detected as radar in the new channel. So, clear the radar
 		 * queues and the associated variables.
 		 */
-		dfs_flush_additional_pulses(dfs);
+		dfs_disable_radar_and_flush_pulses(dfs);
 	}
 
 	dfs_mlme_mark_dfs(dfs->dfs_pdev_obj,

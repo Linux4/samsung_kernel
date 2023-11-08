@@ -64,7 +64,17 @@
 
 #define MAX_NCI_PAYLOAD_LEN		(255)
 #define MAX_NCI_BUFFER_SIZE		(NCI_HDR_LEN + MAX_NCI_PAYLOAD_LEN)
-#define MAX_DL_PAYLOAD_LEN		(550)
+/*
+ * Compile time option to select maximum writer buffer of either 4K or 550 bytes.
+ * Default value is set as 4K. This value shall be chosen based on Hal flag "HDLL_4K_WRITE_SUPPORTED".
+ * undef or comment HDLL_4K_WRITE_SUPPORTED to fallback to 550 bytes write frame buffer.
+ */
+#define HDLL_4K_WRITE_SUPPORTED
+#ifdef HDLL_4K_WRITE_SUPPORTED
+#define MAX_DL_PAYLOAD_LEN	(4096)
+#else
+#define MAX_DL_PAYLOAD_LEN	(550)
+#endif
 #define MAX_DL_BUFFER_SIZE		(DL_HDR_LEN + DL_CRC_LEN + \
 					MAX_DL_PAYLOAD_LEN)
 

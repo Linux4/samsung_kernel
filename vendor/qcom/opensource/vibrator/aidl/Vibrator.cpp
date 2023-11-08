@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -26,6 +25,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define LOG_TAG "vendor.qti.vibrator"
@@ -35,7 +38,11 @@
 #include <linux/input.h>
 #include <log/log.h>
 #include <string.h>
+#include <unistd.h>
+#include <bits/epoll_event.h>
 #include <sys/ioctl.h>
+#include <sys/epoll.h>
+#include <sys/poll.h>
 #include <thread>
 
 #include "include/Vibrator.h"
@@ -46,6 +53,7 @@
 extern "C" {
 #include "libsoc_helper.h"
 }
+
 namespace aidl {
 namespace android {
 namespace hardware {
@@ -57,10 +65,20 @@ namespace vibrator {
 #define INVALID_VALUE           -1
 #define CUSTOM_DATA_LEN         3
 #define NAME_BUF_SIZE           32
+#define PRIMITIVE_ID_MASK       0x8000
+#define MAX_PATTERN_ID          32767
 
 #define test_bit(bit, array)    ((array)[(bit)/8] & (1<<((bit)%8)))
 
 static const char LED_DEVICE[] = "/sys/class/leds/vibrator";
+static const char HAPTICS_SYSFS[] = "/sys/class/qcom-haptics";
+
+static constexpr int32_t ComposeDelayMaxMs = 1000;
+static constexpr int32_t ComposeSizeMax = 256;
+
+enum composeEvent {
+    STOP_COMPOSE = 0,
+};
 
 InputFFDevice::InputFFDevice()
 {
@@ -300,6 +318,11 @@ int InputFFDevice::setAmplitude(uint8_t amplitude) {
 }
 
 int InputFFDevice::playEffect(int effectId, EffectStrength es, long *playLengthMs) {
+    if (effectId > MAX_PATTERN_ID) {
+        ALOGE("effect id %d exceeds %d", effectId, MAX_PATTERN_ID);
+        return -1;
+    }
+
     switch (es) {
     case EffectStrength::LIGHT:
         mCurrMagnitude = LIGHT_MAGNITUDE;
@@ -315,6 +338,27 @@ int InputFFDevice::playEffect(int effectId, EffectStrength es, long *playLengthM
     }
 
     return play(effectId, INVALID_VALUE, playLengthMs);
+}
+
+int InputFFDevice::playPrimitive(int primitiveId, float amplitude, long *playLengthMs) {
+    int8_t tmp;
+    int ret = 0;
+
+    if (primitiveId > MAX_PATTERN_ID) {
+        ALOGE("primitive id %d exceeds %d", primitiveId, MAX_PATTERN_ID);
+        return -1;
+    }
+
+    primitiveId |= PRIMITIVE_ID_MASK;
+    tmp = (uint8_t)(amplitude * 0xff);
+    mCurrMagnitude = tmp * (STRONG_MAGNITUDE - LIGHT_MAGNITUDE) / 255;
+    mCurrMagnitude += LIGHT_MAGNITUDE;
+
+    ret = play(primitiveId, INVALID_VALUE, playLengthMs);
+    if (ret != 0)
+        ALOGE("Failed to play primitive %d", primitiveId);
+
+    return ret;
 }
 
 LedVibratorDevice::LedVibratorDevice() {
@@ -400,6 +444,57 @@ int LedVibratorDevice::off()
     return ret;
 }
 
+Vibrator::Vibrator() {
+    struct epoll_event ev;
+
+    epollfd = INVALID_VALUE;
+    pipefd[0] = INVALID_VALUE;
+    pipefd[1] = INVALID_VALUE;
+    inComposition = false;
+
+    if (!ff.mSupportEffects)
+        return;
+
+    if (pipe(pipefd)) {
+        ALOGE("Failed to get pipefd error=%d", errno);
+        return;
+    }
+
+    epollfd = epoll_create1(0);
+    if (epollfd < 0) {
+        ALOGE("Failed to create epoll fd error=%d", errno);
+        goto pipefd_close;
+    }
+
+    ev.events = EPOLLIN;
+    ev.data.fd = pipefd[0];
+
+    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, pipefd[0], &ev) == -1) {
+        ALOGE("Failed to add pipefd to epoll ctl error=%d", errno);
+        goto epollfd_close;
+    }
+
+    return;
+
+epollfd_close:
+    close(epollfd);
+    epollfd = INVALID_VALUE;
+pipefd_close:
+    close(pipefd[0]);
+    close(pipefd[1]);
+    pipefd[0] = INVALID_VALUE;
+    pipefd[1] = INVALID_VALUE;
+}
+
+Vibrator::~Vibrator() {
+    if (epollfd != INVALID_VALUE)
+        close(epollfd);
+    if (pipefd[0] != INVALID_VALUE)
+        close(pipefd[0]);
+    if (pipefd[1] != INVALID_VALUE)
+        close(pipefd[1]);
+}
+
 ndk::ScopedAStatus Vibrator::getCapabilities(int32_t* _aidl_return) {
     *_aidl_return = IVibrator::CAP_ON_CALLBACK;
 
@@ -411,8 +506,10 @@ ndk::ScopedAStatus Vibrator::getCapabilities(int32_t* _aidl_return) {
 
     if (ff.mSupportGain)
         *_aidl_return |= IVibrator::CAP_AMPLITUDE_CONTROL;
-    if (ff.mSupportEffects)
-        *_aidl_return |= IVibrator::CAP_PERFORM_CALLBACK;
+    if (ff.mSupportEffects) {
+       *_aidl_return |= IVibrator::CAP_PERFORM_CALLBACK;
+       *_aidl_return |= IVibrator::CAP_COMPOSE_EFFECTS;
+    }
     if (ff.mSupportExternalControl)
         *_aidl_return |= IVibrator::CAP_EXTERNAL_CONTROL;
 
@@ -422,6 +519,7 @@ ndk::ScopedAStatus Vibrator::getCapabilities(int32_t* _aidl_return) {
 
 ndk::ScopedAStatus Vibrator::off() {
     int ret;
+    int composeEven = STOP_COMPOSE;
 
     ALOGD("QTI Vibrator off");
     if (ledVib.mDetected)
@@ -430,6 +528,14 @@ ndk::ScopedAStatus Vibrator::off() {
         ret = ff.off();
     if (ret != 0)
         return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_SERVICE_SPECIFIC));
+
+    if (inComposition) {
+        ret = write(pipefd[1], &composeEven, sizeof(composeEven));
+        if (ret < 0) {
+            ALOGE("Failed to send STOP_COMPOSE event");
+            return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_SERVICE_SPECIFIC));
+        }
+    }
 
     return ndk::ScopedAStatus::ok();
 }
@@ -469,10 +575,16 @@ ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength es, const std
         return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
 
     ALOGD("Vibrator perform effect %d", effect);
-
-    if (effect < Effect::CLICK ||
-            effect > Effect::HEAVY_CLICK)
-        return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+    if (Offload.mEnabled == 1) {
+        if ((effect < Effect::CLICK) ||
+            ((effect > Effect::HEAVY_CLICK) && (effect < Effect::RINGTONE_12)) ||
+            (effect > Effect::RINGTONE_15))
+            return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+    }
+    else {
+        if (effect < Effect::CLICK ||  effect > Effect::HEAVY_CLICK)
+            return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+    }
 
     if (es != EffectStrength::LIGHT && es != EffectStrength::MEDIUM && es != EffectStrength::STRONG)
         return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
@@ -498,8 +610,13 @@ ndk::ScopedAStatus Vibrator::getSupportedEffects(std::vector<Effect>* _aidl_retu
     if (ledVib.mDetected)
         return ndk::ScopedAStatus::ok();
 
-    *_aidl_return = {Effect::CLICK, Effect::DOUBLE_CLICK, Effect::TICK, Effect::THUD,
-                     Effect::POP, Effect::HEAVY_CLICK};
+    if (Offload.mEnabled == 1)
+        *_aidl_return = {Effect::CLICK, Effect::DOUBLE_CLICK, Effect::TICK, Effect::THUD,
+                         Effect::POP, Effect::HEAVY_CLICK, Effect::RINGTONE_12,
+                         Effect::RINGTONE_13, Effect::RINGTONE_14, Effect::RINGTONE_15};
+    else
+        *_aidl_return = {Effect::CLICK, Effect::DOUBLE_CLICK, Effect::TICK, Effect::THUD,
+                         Effect::POP, Effect::HEAVY_CLICK};
 
     return ndk::ScopedAStatus::ok();
 }
@@ -539,26 +656,230 @@ ndk::ScopedAStatus Vibrator::setExternalControl(bool enabled) {
     return ndk::ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Vibrator::getCompositionDelayMax(int32_t* maxDelayMs  __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+ndk::ScopedAStatus Vibrator::getCompositionDelayMax(int32_t* maxDelayMs) {
+    *maxDelayMs = ComposeDelayMaxMs;
+    return ndk::ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Vibrator::getCompositionSizeMax(int32_t* maxSize __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+ndk::ScopedAStatus Vibrator::getCompositionSizeMax(int32_t* maxSize) {
+    *maxSize = ComposeSizeMax;
+    return ndk::ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Vibrator::getSupportedPrimitives(std::vector<CompositePrimitive>* supported __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+ndk::ScopedAStatus Vibrator::getSupportedPrimitives(std::vector<CompositePrimitive>* supported) {
+    *supported =  {
+        CompositePrimitive::NOOP,   CompositePrimitive::CLICK,
+        CompositePrimitive::THUD,   CompositePrimitive::SPIN,
+        CompositePrimitive::QUICK_RISE, CompositePrimitive::SLOW_RISE,
+        CompositePrimitive::QUICK_FALL, CompositePrimitive::LIGHT_TICK,
+        CompositePrimitive::LOW_TICK,
+    };
+    return ndk::ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Vibrator::getPrimitiveDuration(CompositePrimitive primitive __unused,
-                                                  int32_t* durationMs __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+static int getPrimitiveDurationFromSysfs(uint32_t primitive_id, int32_t* durationMs) {
+    int count = 0;
+    int fd = 0;
+    int ret = 0;
+    /* the Max primitive id is 32767, so define the size of primitive_buf to 6 */
+    char primitive_buf[6];
+    /* the max primitive_duration is the max value of int32, so define the size to 10 */
+    char primitive_duration[10];
+    char primitive_duration_sysfs[50];
+
+    ret = snprintf(primitive_duration_sysfs, sizeof(primitive_duration_sysfs), "%s%s", HAPTICS_SYSFS, "/primitive_duration");
+    if (ret < 0) {
+        ALOGE("Failed to get primitive duration node, ret = %d\n", ret);
+        return ret;
+    }
+
+    count = snprintf(primitive_buf, sizeof(primitive_buf), "%d%c", primitive_id, '\n');
+    if (count < 0) {
+        ALOGE("Failed to get primitive id, count = %d\n", count);
+        ret = count;
+        return ret;
+    }
+
+    fd = TEMP_FAILURE_RETRY(open(primitive_duration_sysfs, O_RDWR));
+    if (fd < 0) {
+        ALOGE("open %s failed, errno = %d", primitive_duration_sysfs, errno);
+        ret = fd;
+        return ret;
+    }
+
+    ret = TEMP_FAILURE_RETRY(write(fd, primitive_buf, count));
+    if (ret < 0) {
+        ALOGE("write primitive %d failed, errno = %d", primitive_id, errno);
+        goto close_fd;
+    }
+
+    ret = TEMP_FAILURE_RETRY(lseek(fd, 0, SEEK_SET));
+    if (ret < 0) {
+        ALOGE("lseek fd to file head failed, errno = %d", errno);
+        goto close_fd;
+    }
+
+    ret = TEMP_FAILURE_RETRY(read(fd, primitive_duration, sizeof(primitive_duration)));
+    if (ret < 0) {
+        ALOGE("read primitive %d failed, errno = %d", primitive_id, errno);
+        goto close_fd;
+    }
+
+    *durationMs = atoi(primitive_duration);
+    *durationMs /= 1000;
+
+close_fd:
+    ret = TEMP_FAILURE_RETRY(close(fd));
+    if (ret < 0) {
+        ALOGE("close primitive duration device failed, errno = %d", errno);
+        return ret;
+    }
+
+    return ret;
 }
 
-ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composite __unused,
-                                     const std::shared_ptr<IVibratorCallback>& callback __unused) {
-    return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_UNSUPPORTED_OPERATION));
+ndk::ScopedAStatus Vibrator::getPrimitiveDuration(CompositePrimitive primitive,
+                                                  int32_t* durationMs) {
+    uint32_t primitive_id = static_cast<uint32_t>(primitive);
+    int ret = 0;
+
+#ifdef USE_EFFECT_STREAM
+    primitive_id |= PRIMITIVE_ID_MASK ;
+    const struct effect_stream *stream;
+    stream = get_effect_stream(primitive_id);
+    if (stream != NULL && stream->play_rate_hz != 0)
+        *durationMs = ((stream->length * 1000) / stream->play_rate_hz) + 1;
+
+    ALOGD("primitive-%d duration is %dms", primitive, *durationMs);
+    return ndk::ScopedAStatus::ok();
+#endif
+
+    ret = getPrimitiveDurationFromSysfs(primitive_id, durationMs);
+    if (ret < 0)
+        return ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+
+    ALOGD("primitive-%d duration is %dms", primitive, *durationMs);
+
+    return ndk::ScopedAStatus::ok();
+}
+
+void Vibrator::composePlayThread(Vibrator *vibrator,
+                            const std::vector<CompositeEffect>& composite,
+                            const std::shared_ptr<IVibratorCallback>& callback){
+    struct epoll_event events;
+    long playLengthMs = 0;
+    int nfd = 0;
+    int status = 0;
+    int ret = 0;
+
+    ALOGD("start a new thread for composeEffect");
+    for (auto& e : composite) {
+        if (e.delayMs) {
+            nfd = epoll_wait(vibrator->epollfd, &events, 1, e.delayMs);
+            if ((nfd == -1) && (errno != EINTR)) {
+                ALOGE("Failed to wait delayMs, error=%d", errno);
+                break;
+            }
+
+            if (nfd > 0) {
+                /* It's supposed that STOP_COMPOSE command is received so quit the composition */
+                ret = read(vibrator->pipefd[0], &status, sizeof(int));
+                if (ret < 0) {
+                    ALOGE("Failed to read stop status from pipe(delayMs), status = %d", status);
+                    break;
+                }
+                if (status == STOP_COMPOSE)
+                    break;
+            }
+        }
+
+        vibrator->ff.playPrimitive((static_cast<int>(e.primitive)), e.scale, &playLengthMs);
+        nfd = epoll_wait(vibrator->epollfd, &events, 1, playLengthMs);
+        if (nfd == -1 && (errno != EINTR)) {
+            ALOGE("Failed to wait sleep playLengthMs, error=%d", errno);
+            break;
+        }
+
+        if (nfd > 0) {
+            /* It's supposed that STOP_COMPOSE command is received so quit the composition */
+            ret = read(vibrator->pipefd[0], &status, sizeof(int));
+            if (ret < 0) {
+                ALOGE("Failed to read stop status from pipe(playLengthMs), status = %d", status);
+                break;
+            }
+            if (status == STOP_COMPOSE)
+                break;
+        }
+    }
+
+    ALOGD("Notifying composite complete, playlength= %ld", playLengthMs);
+    if (callback)
+        callback->onComplete();
+
+    vibrator->inComposition = false;
+}
+
+ndk::ScopedAStatus Vibrator::compose(const std::vector<CompositeEffect>& composite,
+                                     const std::shared_ptr<IVibratorCallback>& callback) {
+    int status, nfd = 0, durationMs = 0, timeoutMs = 0;
+    struct epoll_event events;
+
+    if (composite.size() > ComposeSizeMax) {
+        return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+    }
+
+    std::vector<CompositePrimitive> supported;
+    getSupportedPrimitives(&supported);
+
+    for (auto& e : composite) {
+        if (e.delayMs > ComposeDelayMaxMs) {
+            return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+        }
+        if (e.scale < 0.0f || e.scale > 1.0f) {
+            return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+        }
+        if (std::find(supported.begin(), supported.end(), e.primitive) == supported.end()) {
+            return ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+        }
+
+        getPrimitiveDuration(e.primitive, &durationMs);
+        timeoutMs += durationMs + e.delayMs;
+    }
+
+    /*
+     * wait for 2 times of the play length timeout to make sure last play has been
+     * terminated successfully.
+     */
+    timeoutMs = (timeoutMs + 10) * 2;
+    /* Stop previous composition if it has not yet been completed */
+    if (inComposition) {
+        ALOGD("Last composePlayThread has not done yet, stop it manually");
+        off();
+
+        while (inComposition && timeoutMs--)
+            usleep(1000);
+
+        if (timeoutMs == 0) {
+            ALOGE("wait for last composePlayThread done timeout");
+            return ndk::ScopedAStatus::fromExceptionCode(EX_SERVICE_SPECIFIC);
+        }
+
+        /* Read the pipe again to remove any stale data before triggering a new play */
+        nfd = epoll_wait(epollfd, &events, 1, 0);
+        if (nfd == -1 && (errno != EINTR)) {
+            ALOGE("Failed to wait sleep playLengthMs, error=%d", errno);
+            return ndk::ScopedAStatus::fromExceptionCode(EX_SERVICE_SPECIFIC);
+        }
+        if (nfd > 0)
+            read(pipefd[0], &status, sizeof(int));
+    }
+
+    inComposition = true;
+    composeThread = std::thread(composePlayThread, this, composite, callback);
+    composeThread.detach();
+
+    ALOGD("trigger composition successfully");
+    return ndk::ScopedAStatus::ok();
 }
 
 ndk::ScopedAStatus Vibrator::getSupportedAlwaysOnEffects(std::vector<Effect>* _aidl_return __unused) {

@@ -18,7 +18,7 @@
 
 #ifndef _DRVGLOBAL_H_
 #define _DRVGLOBAL_H_
-#include <Config.h>
+#include "../Config.h"
 #ifdef __KERNEL__
 #include <linux/types.h>
 #else

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2014, 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -35,8 +36,6 @@
 
 #include "parser_api.h"
 
-#define TIM_IE_SIZE 0xB
-
 /* ----------------------- Beacon processing ------------------------ */
 
 /* / Beacon structure */
@@ -48,11 +47,11 @@
  * struct ml_sch_partner_info - Partner link information
  * @vdev_id: Vdev id
  * @beacon_interval: Beacon interval
- * @bcn_csa_cnt_ofst: CSA swith count offset in beacon frame
+ * @bcn_csa_cnt_ofst: CSA switch count offset in beacon frame
  * @bcn_ext_csa_cnt_ofst: ECSA switch count offset in beacon frame
  * @link_info_sta_prof_ofst: offset sta profile in link info.
  *                           If per sta profile exists, this value is non zero
- * @prb_csa_cnt_ofst: CSA swith count offset in probe frame
+ * @prb_csa_cnt_ofst: CSA switch count offset in probe frame
  * @prb_ext_csa_cnt_ofst: ECSA switch count offset in probe frame
  * @csa_ext_csa_exist: csa or ext csa exists
  */

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -94,7 +95,7 @@ do { \
 
 /**
  * qdf_talloc_assert_no_children() - assert @parent has not child allocations
- * @parent: the parent memory ponter to check
+ * @parent: the parent memory pointer to check
  *
  * Return: None
  */
@@ -130,7 +131,7 @@ void __qdf_tfree_fl(void *ptr, const char *func, const uint16_t line);
 
 /**
  * qdf_talloc_assert_no_children_fl() - assert @parent has not child allocations
- * @parent: the parent memory ponter to check
+ * @parent: the parent memory pointer to check
  * @func: name of the function requesting the assert
  * @line: line number of the call site in @func
  *

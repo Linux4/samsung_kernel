@@ -303,7 +303,9 @@ public class BluetoothKeystoreService {
         stopThread();
         startThread();
         // Initialize native interface
-        mBluetoothKeystoreNativeInterface.init();
+        if (mBluetoothKeystoreNativeInterface != null) {
+            mBluetoothKeystoreNativeInterface.init();
+        }
     }
 
     private boolean isAvailable() {

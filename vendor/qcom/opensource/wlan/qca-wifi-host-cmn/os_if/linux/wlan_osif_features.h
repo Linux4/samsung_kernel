@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -228,4 +228,35 @@
 	(defined IEEE80211_EHT_OPER_INFO_PRESENT))
 #define CFG80211_TX_CONTROL_PORT_LINK_SUPPORT 1
 #endif
+
+/*
+ * CFG80211_EXTERNAL_AUTH_MLO_SUPPORT
+ * Used to indicate Linux kernel contains support for ML external auth
+ *
+ * TODO: Corresponding Linux kernel changes are still under wirless-next
+ * will add the commit-ID when available.
+ */
+/*
+ * TODO: will add this check when available.
+ * #if (defined(__ANDROID_COMMON_KERNEL__) && \
+ *	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)) && \
+ *	(defined CFG80211_EXTERNAL_AUTH_MLO_SUPPORT))
+ */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) || \
+	(defined CFG80211_EXTERNAL_AUTH_MLO_SUPPORT))
+#define WLAN_EXTERNAL_AUTH_MLO_SUPPORT
+#endif
+
+/*
+ * CFG80211_TID_LINK_MAP_SUPPORT
+ * Used to indicate Linux kernel contains support to get the TID to link map
+ * status and response event.
+ *
+ * TODO: Corresponding Linux kernel support check changes are still under review
+ * will add the commit-ID when available
+ */
+#if (defined CFG80211_TID_LINK_MAP_SUPPORT)
+#define WLAN_TID_LINK_MAP_SUPPORT
+#endif
+
 #endif

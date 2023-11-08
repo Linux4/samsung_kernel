@@ -123,6 +123,8 @@ static void dp_debug_disable_sim_mode(struct dp_debug_private *debug,
 	debug->sim_mode &= ~mode_mask;
 	dp_sim_set_sim_mode(debug->sim_bridge, debug->sim_mode);
 
+	dp_sim_update_port_num(debug->sim_bridge, 0);
+
 	/* switch to normal mode */
 	if (!debug->sim_mode)
 		debug->aux->set_sim_mode(debug->aux, NULL);
@@ -1772,8 +1774,10 @@ static void dp_debug_set_sim_mode(struct dp_debug_private *debug, bool sim)
 		display = sde_conn->display;
 		if (display->base_connector == (*debug->connector)) {
 			panel = sde_conn->drv_panel;
-			panel->mode_override = false;
-			panel->mst_hide = false;
+			if (panel) {
+				panel->mode_override = false;
+				panel->mst_hide = false;
+			}
 		}
 	}
 	drm_connector_list_iter_end(&conn_iter);

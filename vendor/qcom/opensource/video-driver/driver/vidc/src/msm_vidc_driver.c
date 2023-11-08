@@ -205,6 +205,8 @@ static const struct msm_vidc_cap_name cap_name_arr[] = {
 	{BLUR_TYPES,                     "BLUR_TYPES"                 },
 	{REQUEST_PREPROCESS,             "REQUEST_PREPROCESS"         },
 	{SLICE_MODE,                     "SLICE_MODE"                 },
+	{EARLY_NOTIFY_ENABLE,            "EARLY_NOTIFY_ENABLE"        },
+	{EARLY_NOTIFY_LINE_COUNT,        "EARLY_NOTIFY_LINE_COUNT"    },
 	{MIN_FRAME_QP,                   "MIN_FRAME_QP"               },
 	{MAX_FRAME_QP,                   "MAX_FRAME_QP"               },
 	{I_FRAME_QP,                     "I_FRAME_QP"                 },
@@ -227,6 +229,7 @@ static const struct msm_vidc_cap_name cap_name_arr[] = {
 	{DELIVERY_MODE,                  "DELIVERY_MODE"              },
 	{VUI_TIMING_INFO,                "VUI_TIMING_INFO"            },
 	{SLICE_DECODE,                   "SLICE_DECODE"               },
+	{EARLY_NOTIFY_FENCE_COUNT,       "EARLY_NOTIFY_FENCE_COUNT"   },
 	{INST_CAP_MAX,                   "INST_CAP_MAX"               },
 };
 
@@ -354,6 +357,7 @@ const char *sub_state_name(enum msm_vidc_sub_state sub_state)
 	case MSM_VIDC_DRC_LAST_BUFFER:     return "DRC_LAST_BUFFER ";
 	case MSM_VIDC_INPUT_PAUSE:         return "INPUT_PAUSE ";
 	case MSM_VIDC_OUTPUT_PAUSE:        return "OUTPUT_PAUSE ";
+	case MSM_VIDC_FIRST_IPSC:          return "FIRST_IPSC";
 	}
 
 	return "SUB_STATE_NONE";
@@ -1552,6 +1556,7 @@ bool msm_vidc_allow_s_ctrl(struct msm_vidc_inst *inst, u32 id)
 			case V4L2_CID_MPEG_VIDC_FRAME_RATE:
 			case V4L2_CID_MPEG_VIDC_OPERATING_RATE:
 			case V4L2_CID_MPEG_VIDC_SW_FENCE_ID:
+			case V4L2_CID_MPEG_VIDC_EARLY_NOTIFY_LINE_COUNT:
 				allow = true;
 				break;
 			default:
@@ -2167,7 +2172,8 @@ int msm_vidc_process_streamon_input(struct msm_vidc_inst *inst)
 	 * input port will be resumed.
 	 */
 	if (is_sub_state(inst, MSM_VIDC_DRC) ||
-		is_sub_state(inst, MSM_VIDC_DRAIN)) {
+		is_sub_state(inst, MSM_VIDC_DRAIN) ||
+		is_sub_state(inst, MSM_VIDC_FIRST_IPSC)) {
 		if (!is_sub_state(inst, MSM_VIDC_INPUT_PAUSE)) {
 			rc = venus_hfi_session_pause(inst, INPUT_PORT);
 			if (rc)
@@ -2244,6 +2250,9 @@ int msm_vidc_process_streamon_output(struct msm_vidc_inst *inst)
 			clear_sub_state |= MSM_VIDC_INPUT_PAUSE;
 		}
 	}
+	
+	if (is_sub_state(inst, MSM_VIDC_FIRST_IPSC))
+		clear_sub_state |= MSM_VIDC_FIRST_IPSC;
 
 	rc = venus_hfi_start(inst, OUTPUT_PORT);
 	if (rc)
@@ -2401,7 +2410,7 @@ int msm_vidc_state_change_input_psc(struct msm_vidc_inst *inst)
 	 */
 	if (is_state(inst, MSM_VIDC_INPUT_STREAMING) ||
 		is_state(inst, MSM_VIDC_OPEN))
-		set_sub_state = MSM_VIDC_INPUT_PAUSE;
+		set_sub_state = MSM_VIDC_INPUT_PAUSE | MSM_VIDC_FIRST_IPSC;
 	else
 		set_sub_state = MSM_VIDC_DRC | MSM_VIDC_INPUT_PAUSE;
 
@@ -2801,6 +2810,17 @@ int msm_vidc_flush_input_timer(struct msm_vidc_inst *inst)
 	list_for_each_entry_safe(input_timer, dummy_timer, &inst->input_timer_list, list) {
 		list_del_init(&input_timer->list);
 		msm_memory_pool_free(inst, input_timer);
+	}
+	return 0;
+}
+
+static int msm_vidc_flush_output_fences(struct msm_vidc_inst *inst)
+{
+	struct msm_vidc_fence *fence, *dummy_fence;
+
+	list_for_each_entry_safe(fence, dummy_fence, &inst->fence_list, list) {
+		i_vpr_e(inst, "%s: destroying fence %s\n", __func__, fence->name);
+		msm_vidc_fence_destroy(inst, (u32)fence->dma_fence.seqno);
 	}
 	return 0;
 }
@@ -3699,6 +3719,73 @@ void msm_vidc_stats_handler(struct work_struct *work)
 	put_inst(inst);
 }
 
+static int msm_vidc_destroy_fence_array(struct msm_vidc_inst *inst, struct msm_vidc_buffer *buf)
+{
+	int cnt = 0;
+
+	if (!inst || !buf || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/* return if fence not allocated */
+	if (!buf->fence_count)
+		return 0;
+
+	/* check if fence count valid */
+	if (buf->fence_count > MAX_FENCE_COUNT) {
+		i_vpr_e(inst, "%s: invalid fence count %d\n", __func__, buf->fence_count);
+		return -EINVAL;
+	}
+	cnt = buf->fence_count;
+
+	for (cnt = cnt - 1; cnt >= 0; cnt--) {
+		msm_vidc_fence_destroy(inst, (u32)buf->fence_id[cnt]);
+		buf->fence_count--;
+		buf->fence_id[cnt] = 0;
+	}
+	return 0;
+}
+
+static int msm_vidc_prepare_fence_array(struct msm_vidc_inst *inst, struct msm_vidc_buffer *buf)
+{
+	struct msm_vidc_fence *fence = NULL;
+	int cnt, rc = 0, fence_count = 0;
+
+	if (!inst || !buf || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	if (is_early_notify_enabled(inst))
+		fence_count = inst->capabilities->cap[EARLY_NOTIFY_FENCE_COUNT].value;
+	else if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE))
+		fence_count = 1;
+	else
+		return 0;
+
+	if (fence_count < 1 || fence_count > MAX_FENCE_COUNT) {
+		i_vpr_e(inst, "%s: invalid fence count %d\n", __func__, fence_count);
+		return -EINVAL;
+	}
+
+	memset(buf->fence_id, 0, sizeof(buf->fence_id));
+	for (cnt = 0; cnt < fence_count; cnt++) {
+		fence = msm_vidc_fence_create(inst);
+		if (!fence) {
+			rc = -EINVAL;
+			goto error;
+		}
+		buf->fence_id[cnt] = fence->dma_fence.seqno;
+		buf->fence_count++;
+	}
+	return 0;
+
+error:
+	msm_vidc_destroy_fence_array(inst, buf);
+	return rc;
+}
+
 static int msm_vidc_queue_buffer(struct msm_vidc_inst *inst, struct msm_vidc_buffer *buf)
 {
 	struct msm_vidc_buffer *meta;
@@ -3833,7 +3920,6 @@ int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *
 {
 	int rc = 0;
 	struct msm_vidc_buffer *buf;
-	struct msm_vidc_fence *fence = NULL;
 	enum msm_vidc_allow allow;
 
 	if (!inst || !vb2 || !inst->capabilities) {
@@ -3846,14 +3932,14 @@ int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *
 		return -EINVAL;
 
 	/* update start timestamp */
-	msm_vidc_add_buffer_stats(inst, buf);
+	if (!msm_vidc_is_super_buffer(inst))
+		msm_vidc_add_buffer_stats(inst, buf);
 
-	if (is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE) &&
-		is_output_buffer(buf->type)) {
-		fence = msm_vidc_fence_create(inst);
-		if (!fence)
+	/* create array of fences */
+	if (is_output_buffer(buf->type)) {
+		rc = msm_vidc_prepare_fence_array(inst, buf);
+		if (rc)
 			return rc;
-		buf->fence_id = fence->dma_fence.seqno;
 	}
 
 	allow = msm_vidc_allow_qbuf(inst, vb2->type);
@@ -3876,8 +3962,7 @@ int msm_vidc_queue_buffer_single(struct msm_vidc_inst *inst, struct vb2_buffer *
 exit:
 	if (rc) {
 		i_vpr_e(inst, "%s: qbuf failed\n", __func__);
-		if (fence)
-			msm_vidc_fence_destroy(inst, (u32)fence->dma_fence.seqno);
+		msm_vidc_destroy_fence_array(inst, buf);
 	}
 	return rc;
 }
@@ -3972,7 +4057,11 @@ int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	if (!buffers)
 		return -EINVAL;
 
-	if (buf_size <= buffers->size &&
+	if (is_split_mode_enabled(inst) && is_sub_state(inst, MSM_VIDC_FIRST_IPSC)) {
+		buffers->reuse = false;
+		buffers->size = buf_size;
+		buffers->min_count = buf_count;
+	} else if (buf_size <= buffers->size &&
 		buf_count <= buffers->min_count) {
 		buffers->reuse = true;
 	} else {
@@ -4751,6 +4840,11 @@ int msm_vidc_session_streamoff(struct msm_vidc_inst *inst,
 	if (port == INPUT_PORT) {
 		/* flush input timer list */
 		msm_vidc_flush_input_timer(inst);
+	}
+
+	if (port == OUTPUT_PORT) {
+		/* flush pending fences */
+		msm_vidc_flush_output_fences(inst);
 	}
 
 	/* no more queued buffers after streamoff */

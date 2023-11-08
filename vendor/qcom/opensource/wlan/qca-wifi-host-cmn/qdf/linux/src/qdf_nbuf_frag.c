@@ -91,7 +91,7 @@ void __qdf_frag_mod_exit(void)
  * @p_frag: Pointer to frag
  * @alloc_func_name: Function where frag is allocated
  * @alloc_func_line: Allocation function line no.
- * @refcount: No. of refereces to the frag
+ * @refcount: No. of references to the frag
  * @last_func_name: Function where frag recently accessed
  * @last_func_line_num: Line number of last function
  *

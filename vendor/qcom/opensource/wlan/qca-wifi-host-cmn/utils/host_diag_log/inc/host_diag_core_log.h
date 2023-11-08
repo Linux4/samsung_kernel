@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2017, 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -176,7 +177,7 @@ typedef struct {
 } host_log_beacon_update_pkt_type;
 
 /*---------------------------------------------------------------------------
-   This packet contains the information related to a WoW patern value when set
+   This packet contains the information related to a WoW pattern value when set
    LOG_WLAN_POWERSAVE_WOW_ADD_PTRN_C               0x149C
    ---------------------------------------------------------------------------*/
 typedef struct {
@@ -469,7 +470,7 @@ struct host_log_wlan_roam_scan_data {
 /**
  * struct host_log_wlan_roam_result_info - Roam result related info.
  * @hdr:                Log header
- * @version:            Payload strcuture version
+ * @version:            Payload structure version
  * @vdev_id:            Vdev Id
  * @status:             0 - Roaming is success ; 1 - Roaming failed
  * @timestamp:          Host timestamp in millisecs
@@ -511,9 +512,9 @@ struct wlan_rrm_beacon_report {
 /**
  * struct host_log_wlan_rrm_tx_rx_info - RRM frame related details
  * @hdr:     Log header
- * @version: Version of the payload struture
+ * @version: Version of the payload structure
  * @vdev_id: Vdev id
- * @orgin:   Sent by host or firmware
+ * @origin:   Sent by host or firmware
  * @is_tx:   Is Tx frame or RX frame
  * @roam_result: Roaming result
  * @timestamp: Time of the day in milliseconds
@@ -579,7 +580,7 @@ struct host_event_proto_pkt_info {
 };
 
 /*-------------------------------------------------------------------------
-   Function declarations and documenation
+   Function declarations and documentation
    ------------------------------------------------------------------------*/
 
 #ifdef __cplusplus

@@ -346,6 +346,9 @@ static struct rmnet_bearer_map *__qmi_rmnet_bearer_get(
 		timer_setup(&bearer->ch_switch.guard_timer,
 			    rmnet_ll_guard_fn, 0);
 		list_add(&bearer->list, &qos_info->bearer_head);
+
+		net_log("create bearer: %s m=%d b=%u",
+			qos_info->vnd_dev, qos_info->mux_id, bearer->bearer_id);
 	}
 
 	return bearer;
@@ -380,6 +383,14 @@ static void __qmi_rmnet_bearer_put(struct net_device *dev,
 		/* Remove from bearer map */
 		list_del(&bearer->list);
 		qos_info->removed_bearer = bearer;
+
+		net_log("remove bearer: %s m=%d b=%u gr=%u q=%d",
+			dev->name, qos_info->mux_id, bearer->bearer_id,
+			bearer->grant_size, bearer->mq_idx);
+	} else if (bearer && bearer->flow_ref >= 0) {
+		/* bearer is still being used by other mq */
+		net_log("can't remove bearer_map m=%d b=%u ref:%d q=%d",
+			qos_info->mux_id, bearer->bearer_id, bearer->flow_ref, bearer->mq_idx);
 	}
 }
 
@@ -396,6 +407,11 @@ static void __qmi_rmnet_update_mq(struct net_device *dev,
 
 	mq = &qos_info->mq[itm->mq_idx];
 	if (!mq->bearer) {
+		/* TODO: seems to be assigned multiple times */
+		if (bearer->mq_idx != INVALID_MQ && bearer->mq_idx != itm->mq_idx)
+			net_log("WARN: multiple assign! %s m=%d b=%u f=%u ip=%d prev_q=%d next_q=%d",
+				dev->name, qos_info->mux_id, itm->bearer_id, itm->flow_id, itm->ip_type,
+				bearer->mq_idx, itm->mq_idx);
 		mq->bearer = bearer;
 		mq->is_ll_ch = bearer->ch_switch.current_ch;
 		mq->drop_on_remove = false;
@@ -424,6 +440,12 @@ static void __qmi_rmnet_update_mq(struct net_device *dev,
 				bearer->grant_size, itm->flow_id, bearer->ack_mq_idx);
 			qmi_rmnet_flow_control(dev, bearer->ack_mq_idx, 1);
 		}
+	} else {
+		if (mq->bearer->bearer_id != itm->bearer_id)
+			net_log("WARN: skip update_mp! %s m=%d current(b=%u q=%d) new(b=%u f=%u ip=%d q=%d)",
+				dev->name, qos_info->mux_id,
+				mq->bearer->bearer_id, mq->bearer->mq_idx,
+				itm->bearer_id, itm->flow_id, itm->ip_type, itm->mq_idx);
 	}
 }
 
@@ -509,6 +531,10 @@ again:
 
 	qmi_rmnet_update_flow_map(itm, &new_map);
 	list_add(&itm->list, &qos_info->flow_head);
+
+	net_log("create flow: %s m=%d b=%d f=%d ip=%d q=%d\n",
+		dev->name, qos_info->mux_id, itm->bearer_id,
+		itm->flow_id, itm->ip_type, itm->mq_idx);
 
 	/* Create or update bearer map */
 	bearer = __qmi_rmnet_bearer_get(qos_info, new_map.bearer_id);

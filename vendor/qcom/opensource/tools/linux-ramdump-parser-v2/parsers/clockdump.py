@@ -283,6 +283,42 @@ class ClockDumps(RamParser):
             self.dump_clock(clk_core,clk_name)
             counter = counter + 1
 
+    # of_clk_src_simple_get was added for quite a long time, but
+    # hasn't been used until clk-dummy.ko is enabled by
+    # CONFIG_COMMON_CLK_QCOM on Hypervisor based platforms
+    def print_clk_simple(self, data):
+        clk = data
+        clk_core = self.ramdump.read_structure_field(
+            clk, 'struct clk', 'core')
+        clk_name_addr = self.ramdump.read_structure_field(
+            clk_core, 'struct clk_core', 'name')
+        clk_name = self.ramdump.read_cstring(clk_name_addr, 48)
+        if clk_name == 0 or clk_name is None:
+            return
+        self.dump_clock(clk_core, clk_name)
+
+    # of_clk_hw_virtio_get clk was added since kernel 5.4 but
+    # only on Hypervisor based platforms
+    def print_clk_virtio(self, data):
+        size = self.ramdump.read_structure_field(
+            data, 'struct virtio_clk', 'num_clks')
+        clks = self.ramdump.read_structure_field(
+            data, 'struct virtio_clk', 'clks')
+        sizeof_clk_virtio = self.ramdump.sizeof('struct clk_virtio')
+
+        for counter in range(size):
+            clk = clks + (sizeof_clk_virtio * counter)
+            clk_core = self.ramdump.read_structure_field(
+                clk, 'struct clk_virtio', 'hw.core')
+            if clk_core == 0 or clk_core is None:
+                continue
+            clk_name_addr = self.ramdump.read_structure_field(
+                clk_core, 'struct clk_core', 'name')
+            clk_name = self.ramdump.read_cstring(clk_name_addr, 48)
+            if clk_name == 0 or clk_name is None:
+                break
+            self.dump_clock(clk_core, clk_name)
+
     def clk_providers_walker(self, node):
         if node == self.head:
             return
@@ -302,10 +338,16 @@ class ClockDumps(RamParser):
             elif "qcom_cc_clk_hw_get" in getfunchw[0]:
                 self.print_clk_qcom_cc_data(data)
                 return
+            elif "of_clk_hw_virtio_get" in getfunchw[0]:
+                self.print_clk_virtio(data)
+                return
             else:
                 return
 
-        if (self.ramdump.is_config_defined('CONFIG_COMMON_CLK_MSM')):
+        getfunc = self.ramdump.unwind_lookup(getfunc)
+        if "of_clk_src_simple_get" in getfunc[0]:
+            self.print_clk_simple(data)
+        elif self.ramdump.is_config_defined('CONFIG_COMMON_CLK_MSM'):
             self.print_clk_of_msm_provider_data(data)
         else:
             self.print_clk_onecell_data(data)

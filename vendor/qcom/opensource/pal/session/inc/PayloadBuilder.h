@@ -25,6 +25,11 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #ifndef PAYLOAD_BUILDER_H_
@@ -75,11 +80,10 @@ struct sessionToPayloadParam {
     struct pal_channel_info *ch_info;    /**< channel info */
     int direction;
     int native;
-    int rotation_type;
     void *metadata;
     sessionToPayloadParam():sampleRate(48000),bitWidth(16),
     numChannel(2),ch_info(nullptr), direction(0),
-    native(0),rotation_type(0),metadata(nullptr) {}
+    native(0),metadata(nullptr) {}
 };
 
 struct usbAudioConfig {
@@ -191,6 +195,8 @@ public:
     void payloadMFCConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
                            struct sessionToPayloadParam* data);
+    void payloadMFCMixerCoeff(uint8_t** payload, size_t* size,
+                           uint32_t miid, int numCh, int rotationType);
     void payloadVolumeConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
                            struct pal_volume_data * data);
@@ -214,6 +220,9 @@ public:
                             uint32_t paramId, uint32_t querySize);
     template <typename T>
     void populateChannelMap(T pcmChannel, uint8_t numChannel);
+    template <typename T>
+    void populateChannelMixerCoeff(T pcmChannel, uint8_t numChannel,
+                                 int rotationType);
     void payloadLC3Config(uint8_t** payload, size_t* size,
                           uint32_t miid, bool isLC3MonoModeOn);
     void payloadRATConfig(uint8_t** payload, size_t* size, uint32_t miid,

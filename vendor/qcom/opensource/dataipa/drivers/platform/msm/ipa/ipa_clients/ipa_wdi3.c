@@ -208,7 +208,7 @@ static int ipa_wdi_init_per_inst_internal(struct ipa_wdi_init_in_params *in,
 		return -EINVAL;
 	}
 
-	if (in->wdi_version > IPA_WDI_3 || in->wdi_version < IPA_WDI_1) {
+	if (in->wdi_version > IPA_WDI_3_V2 || in->wdi_version < IPA_WDI_1) {
 		IPA_WDI_ERR("wrong wdi version: %d\n", in->wdi_version);
 		return -EFAULT;
 	}
@@ -255,7 +255,7 @@ static int ipa_wdi_init_per_inst_internal(struct ipa_wdi_init_in_params *in,
 
 	ipa_wdi_ctx_list[hdl]->is_smmu_enabled = out->is_smmu_enabled;
 
-	if (IPA_WDI2_OVER_GSI() || (in->wdi_version == IPA_WDI_3))
+	if (IPA_WDI2_OVER_GSI() || (in->wdi_version >= IPA_WDI_3))
 		out->is_over_gsi = true;
 	else
 		out->is_over_gsi = false;
@@ -400,7 +400,7 @@ static int ipa_wdi_reg_intf_per_inst_internal(
 	rx.prop = rx_prop;
 	memset(rx_prop, 0, sizeof(rx_prop));
 	rx_prop[0].ip = IPA_IP_v4;
-	if (ipa_wdi_ctx_list[in->hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[in->hdl]->wdi_version >= IPA_WDI_3) {
 		if (IPA_CLIENT_IS_WLAN0_INSTANCE(ipa_wdi_ctx_list[in->hdl]->inst_id))
 			rx_prop[0].src_pipe = IPA_CLIENT_WLAN2_PROD;
 		else
@@ -416,7 +416,7 @@ static int ipa_wdi_reg_intf_per_inst_internal(
 	}
 
 	rx_prop[1].ip = IPA_IP_v6;
-	if (ipa_wdi_ctx_list[in->hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[in->hdl]->wdi_version >= IPA_WDI_3) {
 		if (IPA_CLIENT_IS_WLAN0_INSTANCE(ipa_wdi_ctx_list[in->hdl]->inst_id))
 			rx_prop[1].src_pipe = IPA_CLIENT_WLAN2_PROD;
 		else
@@ -537,7 +537,7 @@ static int ipa_wdi_conn_pipes_per_inst_internal(struct ipa_wdi_conn_in_params *i
 		goto fail_setup_sys_pipe;
 	}
 	IPA_WDI_DBG("PM handle Registered\n");
-	if (ipa_wdi_ctx_list[in->hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[in->hdl]->wdi_version >= IPA_WDI_3) {
 		if (ipa3_conn_wdi3_pipes(in, out, ipa_wdi_ctx_list[in->hdl]->wdi_notify)) {
 			IPA_WDI_ERR("fail to setup wdi pipes\n");
 			ret = -EFAULT;
@@ -725,7 +725,7 @@ static int ipa_wdi_enable_pipes_per_inst_internal(ipa_wdi_hdl_t hdl)
 		return -EPERM;
 	}
 
-	if (ipa_wdi_ctx_list[hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[hdl]->wdi_version >= IPA_WDI_3) {
 		if (IPA_CLIENT_IS_WLAN0_INSTANCE(ipa_wdi_ctx_list[hdl]->inst_id)) {
 			ipa_ep_idx_rx = ipa_get_ep_mapping(IPA_CLIENT_WLAN2_PROD);
 			ipa_ep_idx_tx = ipa_get_ep_mapping(IPA_CLIENT_WLAN2_CONS);
@@ -749,7 +749,7 @@ static int ipa_wdi_enable_pipes_per_inst_internal(ipa_wdi_hdl_t hdl)
 		return -EFAULT;
 	}
 	IPA_WDI_DBG("Enable WDI pipes\n");
-	if (ipa_wdi_ctx_list[hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[hdl]->wdi_version >= IPA_WDI_3) {
 		if (ipa3_enable_wdi3_pipes(
 			ipa_ep_idx_tx, ipa_ep_idx_rx, ipa_ep_idx_tx1)) {
 			IPA_WDI_ERR("fail to enable wdi pipes\n");
@@ -1092,7 +1092,7 @@ static int ipa_wdi_disconn_pipes_per_inst_internal(ipa_wdi_hdl_t hdl)
 		}
 	}
 
-	if (ipa_wdi_ctx_list[hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[hdl]->wdi_version >= IPA_WDI_3) {
 		if (IPA_CLIENT_IS_WLAN0_INSTANCE(ipa_wdi_ctx_list[hdl]->inst_id)) {
 			ipa_ep_idx_rx = ipa_get_ep_mapping(IPA_CLIENT_WLAN2_PROD);
 			ipa_ep_idx_tx = ipa_get_ep_mapping(IPA_CLIENT_WLAN2_CONS);
@@ -1109,7 +1109,7 @@ static int ipa_wdi_disconn_pipes_per_inst_internal(ipa_wdi_hdl_t hdl)
 		ipa_ep_idx_tx = ipa_get_ep_mapping(IPA_CLIENT_WLAN1_CONS);
 	}
 
-	if (ipa_wdi_ctx_list[hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[hdl]->wdi_version >= IPA_WDI_3) {
 		if (ipa3_disconn_wdi3_pipes(
 			ipa_ep_idx_tx, ipa_ep_idx_rx, ipa_ep_idx_tx1)) {
 			IPA_WDI_ERR("fail to tear down wdi pipes\n");
@@ -1167,7 +1167,7 @@ static int ipa_wdi_disable_pipes_per_inst_internal(ipa_wdi_hdl_t hdl)
 		return -EPERM;
 	}
 
-	if (ipa_wdi_ctx_list[hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[hdl]->wdi_version >= IPA_WDI_3) {
 		if (IPA_CLIENT_IS_WLAN0_INSTANCE(ipa_wdi_ctx_list[hdl]->inst_id)) {
 			ipa_ep_idx_rx = ipa_get_ep_mapping(IPA_CLIENT_WLAN2_PROD);
 			ipa_ep_idx_tx = ipa_get_ep_mapping(IPA_CLIENT_WLAN2_CONS);
@@ -1184,7 +1184,7 @@ static int ipa_wdi_disable_pipes_per_inst_internal(ipa_wdi_hdl_t hdl)
 		ipa_ep_idx_tx = ipa_get_ep_mapping(IPA_CLIENT_WLAN1_CONS);
 	}
 
-	if (ipa_wdi_ctx_list[hdl]->wdi_version == IPA_WDI_3) {
+	if (ipa_wdi_ctx_list[hdl]->wdi_version >= IPA_WDI_3) {
 		if (ipa3_disable_wdi3_pipes(
 			ipa_ep_idx_tx, ipa_ep_idx_rx, ipa_ep_idx_tx1)) {
 			IPA_WDI_ERR("fail to disable wdi pipes\n");

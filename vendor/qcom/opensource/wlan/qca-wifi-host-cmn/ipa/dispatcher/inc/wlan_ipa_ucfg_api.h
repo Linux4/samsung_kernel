@@ -462,7 +462,7 @@ void ucfg_ipa_flush_pending_vdev_events(struct wlan_objmgr_pdev *pdev,
  * ucfg_ipa_is_wds_enabled() - get IPA AP WDS status
  *
  * IPA driver requires WDS status for adding filter rules
- * to support easymesh feature, IPA expectes wds status
+ * to support easymesh feature, IPA expects wds status
  * with WLAN_IPA_AP_CONNECT event.
  *
  * Return: true - WDS is enabled

@@ -93,7 +93,7 @@ dp_tx_mon_buf_desc_pool_alloc(struct dp_soc *soc);
  *
  * @mon_pdev - DP_MON_PDEV handle
  * @ppdu_id - ppdu_id
- * @end_reason - monitor destiantion descriptor end reason
+ * @end_reason - monitor destination descriptor end reason
  *
  * Return: void
  */
@@ -115,6 +115,21 @@ dp_tx_mon_status_free_packet_buf(struct dp_pdev *pdev,
 				 uint32_t end_offset,
 				 struct dp_tx_mon_desc_list *mon_desc_list_ref);
 
+/**
+ * dp_tx_process_pktlog_be() - process pktlog
+ * @soc: dp soc handle
+ * @pdev: dp pdev handle
+ * @status_frag: frag pointer which needs to be added to nbuf
+ * @end_offset: Offset in frag to be added to nbuf_frags
+ *
+ * Return:
+ * * 0             - OK to runtime suspend the device
+ * * -EINVAL - invalid argument
+ * * -ENOMEM - out of memory
+ */
+QDF_STATUS
+dp_tx_process_pktlog_be(struct dp_soc *soc, struct dp_pdev *pdev,
+			void *status_frag, uint32_t end_offset);
 /*
  * dp_tx_mon_process_status_tlv() - API to processed TLV
  * invoked from interrupt handler
@@ -147,6 +162,14 @@ dp_tx_mon_process_status_tlv(struct dp_soc *soc,
 uint32_t
 dp_tx_mon_process_2_0(struct dp_soc *soc, struct dp_intr *int_ctx,
 		      uint32_t mac_id, uint32_t quota);
+
+/*
+ * dp_tx_mon_print_ring_stat_2_0() - Print monitor ring stats
+ * @pdev: dp pdev handle
+ *
+ */
+void
+dp_tx_mon_print_ring_stat_2_0(struct dp_pdev *pdev);
 
 /* The maximum buffer length allocated for radiotap for monitor status buffer */
 #define MAX_MONITOR_HEADER (512)

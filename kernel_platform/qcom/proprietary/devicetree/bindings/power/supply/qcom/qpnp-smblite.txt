@@ -238,6 +238,16 @@ Charger specific properties:
 	        3 - Disable charging.
 	        4 - Suspend USB input.
 
+- qcom,uusb-ss-mode-extcon-enable
+ Usage:      optional
+ Value type: bool
+ Definition: Boolean flag to support board designs with Micro-AB 3.0 USB port.
+	     If this is enabled, on USB plugin event SS mode extcon notification
+	     is sent  (instead of an HS mode). This DT property should be defined
+	     only if the board is not expected to support Micro-B type USB cable
+	     on the Micro-AB 3.0 port, as the Micro-B cable cannot support SS mode.
+	     By default this feature is disabled.
+
 =================================================
 Second Level Nodes - SMBLITE Charger Peripherals
 =================================================

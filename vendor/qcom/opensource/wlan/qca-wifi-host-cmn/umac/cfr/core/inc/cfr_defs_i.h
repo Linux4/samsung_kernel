@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -88,7 +89,7 @@ wlan_cfr_peer_obj_create_handler(struct wlan_objmgr_peer *peer, void *arg);
  * @peer - pointer to peer object
  * @args - void pointer in case it needs arguments
  *
- * Return: status ofi destry object
+ * Return: status ofi destroy object
  */
 QDF_STATUS
 wlan_cfr_peer_obj_destroy_handler(struct wlan_objmgr_peer *peer, void *arg);
