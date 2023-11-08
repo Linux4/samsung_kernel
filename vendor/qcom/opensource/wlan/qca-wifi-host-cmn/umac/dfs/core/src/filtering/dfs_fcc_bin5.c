@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013, 2016-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2002-2010, Atheros Communications Inc.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
@@ -211,7 +212,7 @@ void bin5_rules_check_internal(struct wlan_dfs *dfs,
 		(uint64_t)br->br_elems[prev].be_ts);
 
 	if (((pri >= DFS_BIN5_PRI_LOWER_LIMIT) &&
-		    /*pri: pulse repitition interval in us. */
+		    /*pri: pulse repetition interval in us. */
 		    (pri <= DFS_BIN5_PRI_HIGHER_LIMIT))) {
 		/*
 		 * Rule 2: pulse width of the pulses in the

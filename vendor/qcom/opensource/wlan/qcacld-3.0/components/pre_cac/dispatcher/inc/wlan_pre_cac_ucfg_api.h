@@ -57,6 +57,14 @@ void ucfg_pre_cac_deinit(void);
 void ucfg_pre_cac_set_osif_cb(struct pre_cac_ops *pre_cac_ops);
 
 /**
+ * ucfg_pre_cac_clear_work() - clear pre cac work fn and arg.
+ * @psoc: psoc object manager
+ *
+ * Return: None
+ */
+void ucfg_pre_cac_clear_work(struct wlan_objmgr_psoc *psoc);
+
+/**
  * ucfg_pre_cac_is_active(): status of pre_cac
  * @psoc: psoc object manager
  *
@@ -200,6 +208,11 @@ void ucfg_pre_cac_deinit(void)
 
 static inline void
 ucfg_pre_cac_set_osif_cb(struct pre_cac_ops *pre_cac_ops)
+{
+}
+
+static inline
+void ucfg_pre_cac_clear_work(struct wlan_objmgr_psoc *psoc)
 {
 }
 

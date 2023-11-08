@@ -571,6 +571,7 @@ struct rproc {
 #if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
 	bool prev_recovery_disabled;
 	bool fssr;
+	bool fssr_dump;
 #endif
 };
 

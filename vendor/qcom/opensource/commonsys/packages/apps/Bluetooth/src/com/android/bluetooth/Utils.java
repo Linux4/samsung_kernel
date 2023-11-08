@@ -350,9 +350,12 @@ public final class Utils {
      */
     public static boolean isPackageNameAccurate(Context context, String callingPackage,
             int callingUid) {
+        UserHandle callingUser = UserHandle.getUserHandleForUid(callingUid);
+
         // Verifies the integrity of the calling package name
         try {
-            int packageUid = context.getPackageManager().getPackageUid(callingPackage, 0);
+            int packageUid = context.createContextAsUser(callingUser, 0)
+                    .getPackageManager().getPackageUid(callingPackage, 0);
             if (packageUid != callingUid) {
                 Log.e(TAG, "isPackageNameAccurate: App with package name " + callingPackage
                         + " is UID " + packageUid + " but caller is " + callingUid);
@@ -801,12 +804,26 @@ public final class Utils {
                 android.Manifest.permission.WRITE_SMS) == PackageManager.PERMISSION_GRANTED;
     }
 
-    public static boolean isQApp(Context context, String pkgName) {
+    /**
+     * Checks that the target sdk of the app corresponding to the provided package name is greater
+     * than or equal to the passed in target sdk.
+     * <p>
+     * For example, if the calling app has target SDK {@link Build.VERSION_CODES#S} and we pass in
+     * the targetSdk {@link Build.VERSION_CODES#R}, the API will return true because S >= R.
+     *
+     * @param context Bluetooth service context
+     * @param pkgName caller's package name
+     * @param expectedMinimumTargetSdk one of the values from {@link Build.VERSION_CODES}
+     * @return {@code true} if the caller's target sdk is greater than or equal to
+     * expectedMinimumTargetSdk, {@code false} otherwise
+     */
+    public static boolean checkCallerTargetSdk(Context context, String pkgName,
+            int expectedMinimumTargetSdk) {
         try {
             return context.getPackageManager().getApplicationInfo(pkgName, 0).targetSdkVersion
-                    >= Build.VERSION_CODES.Q;
+                    >= expectedMinimumTargetSdk;
         } catch (PackageManager.NameNotFoundException e) {
-            // In case of exception, assume Q app
+            // In case of exception, assume true
         }
         return true;
     }

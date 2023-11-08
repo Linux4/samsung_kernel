@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -56,8 +56,8 @@ struct wlan_6ghz_rnr_global_cache {
  * @eht_cap: If dev is configured as EHT capable
  * @vht_24G_cap:If dev is configured as VHT capable for 2.4Ghz
  * @beamformee_cap:If dev is configured as BF capable
- * @bw_above_20_5ghz: BW greater than 20Mhz supprted for 5Ghz
- * @bw_above_20_24ghz: BW greater than 20Mhz supprted for 2.4Ghz
+ * @bw_above_20_5ghz: BW greater than 20Mhz supported for 5Ghz
+ * @bw_above_20_24ghz: BW greater than 20Mhz supported for 2.4Ghz
  * @max_chan_switch_ie: If max channel switch IE is supported
  */
 struct psoc_phy_config {
@@ -75,13 +75,23 @@ struct psoc_phy_config {
 };
 
 /**
+ * struct psoc_mlo_config - psoc mlo config
+ * @reconfig_reassoc_en: If reassoc on ML reconfig AP addition is enabled
+ */
+struct psoc_mlo_config {
+	uint8_t reconfig_reassoc_en;
+};
+
+/**
  * struct psoc_config - psoc level configs
  * @score_config:          BSS scoring related config
  * @phy_config:            Psoc Phy config
+ * @mlo_config:            Psoc mlo config
  */
 struct psoc_config {
 	struct scoring_cfg score_config;
 	struct psoc_phy_config phy_config;
+	struct psoc_mlo_config mlo_config;
 };
 
 /**
@@ -100,7 +110,7 @@ struct psoc_mlme_obj {
 #ifdef FEATURE_VDEV_OPS_WAKELOCK
 	struct psoc_mlme_wakelock psoc_mlme_wakelock;
 #endif
-	struct wlan_6ghz_rnr_global_cache rnr_6ghz_cache;
+	struct wlan_6ghz_rnr_global_cache rnr_6ghz_cache[WLAN_UMAC_MAX_PDEVS];
 	struct psoc_config psoc_cfg;
 };
 

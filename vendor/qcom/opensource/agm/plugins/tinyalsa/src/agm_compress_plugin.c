@@ -88,6 +88,10 @@
 #include <log_utils.h>
 #endif
 
+// { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+#include <system/audiofw_feature.h>
+// } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+
 /* Default values */
 #define COMPR_PLAYBACK_MIN_FRAGMENT_SIZE (8 * 1024)
 #define COMPR_PLAYBACK_MAX_FRAGMENT_SIZE (128 * 1024)
@@ -471,6 +475,13 @@ int agm_session_update_codec_config(struct agm_compress_priv *priv,
         case SND_AUDIOCODEC_VORBIS:
             media_cfg->format = AGM_FORMAT_VORBIS;
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+        case SND_AUDIOCODEC_OPUS:
+            media_cfg->format = AGM_FORMAT_OPUS;
+            sess_cfg->codec.opus_dec.num_channels = params->codec.ch_in;
+            sess_cfg->codec.opus_dec.sample_rate = media_cfg->rate;
+            break;
+#endif
         default:
             break;
         }
@@ -907,6 +918,9 @@ static int agm_populate_codec_caps(struct agm_compress_priv *priv)
 
     priv->compr_cap.codecs[codec_count++] = SND_AUDIOCODEC_MP3;
     priv->compr_cap.codecs[codec_count++] = SND_AUDIOCODEC_AAC;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    priv->compr_cap.codecs[codec_count++] = SND_AUDIOCODEC_OPUS;
+#endif
     priv->compr_cap.codecs[codec_count++] = SND_AUDIOCODEC_WMA;
     priv->compr_cap.codecs[codec_count++] = SND_AUDIOCODEC_FLAC;
     priv->compr_cap.codecs[codec_count++] = SND_AUDIOCODEC_VORBIS;
@@ -1112,6 +1126,10 @@ void agm_session_update_codec_options(struct agm_session_config *sess_cfg,
                 sess_cfg->codec.wma_dec.enc_options = copt->generic.reserved[4];
             }
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+        case SND_AUDIOCODEC_OPUS:
+            break;
+#endif
         default:
             break;
         }

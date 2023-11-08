@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -404,7 +405,7 @@ lim_tspec_find_by_sta_addr(struct mac_context *mac,
 
 /** -------------------------------------------------------------
    \fn lim_tspec_find_by_assoc_id
-   \brief find tspec with matchin staid and Tspec
+   \brief find tspec with matching staid and Tspec
    \param   struct mac_context *mac
    \param       uint32_t               staid
    \param       struct mac_tspec_ie    *pTspecIE

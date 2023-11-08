@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015,2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -78,8 +78,10 @@ bool cm_handle_fw_roaming_event(struct cnx_mgr *cm_ctx, uint16_t event,
 		break;
 	case WLAN_CM_SM_EV_ROAM_SYNC:
 		cm_sm_transition_to(cm_ctx, WLAN_CM_SS_ROAM_SYNC);
-		cm_sm_deliver_event_sync(cm_ctx, event,
-					 data_len, data);
+		status = cm_sm_deliver_event_sync(cm_ctx, event,
+						  data_len, data);
+		if (QDF_IS_STATUS_ERROR(status))
+			event_handled = false;
 		break;
 	default:
 		event_handled = false;
@@ -390,6 +392,7 @@ bool cm_subst_roam_start_event(void *ctx, uint16_t event,
 {
 	bool event_handled = true;
 	struct cnx_mgr *cm_ctx = ctx;
+	QDF_STATUS status;
 
 	switch (event) {
 	case WLAN_CM_SM_EV_CONNECT_REQ:
@@ -414,8 +417,10 @@ bool cm_subst_roam_start_event(void *ctx, uint16_t event,
 		break;
 	case WLAN_CM_SM_EV_ROAM_SYNC:
 		cm_sm_transition_to(cm_ctx, WLAN_CM_SS_ROAM_SYNC);
-		cm_sm_deliver_event_sync(cm_ctx, event,
-					 data_len, data);
+		status = cm_sm_deliver_event_sync(cm_ctx, event,
+						  data_len, data);
+		if (QDF_IS_STATUS_ERROR(status))
+			event_handled = false;
 		break;
 	default:
 		event_handled = false;
@@ -444,6 +449,7 @@ bool cm_subst_roam_sync_event(void *ctx, uint16_t event,
 {
 	bool event_handled = true;
 	struct cnx_mgr *cm_ctx = ctx;
+	QDF_STATUS status;
 
 	switch (event) {
 	case WLAN_CM_SM_EV_CONNECT_REQ:
@@ -455,9 +461,13 @@ bool cm_subst_roam_sync_event(void *ctx, uint16_t event,
 		break;
 	case WLAN_CM_SM_EV_ROAM_SYNC:
 #ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
-		mlo_cm_roam_sync_cb(cm_ctx->vdev, data, data_len);
+		status = mlo_cm_roam_sync_cb(cm_ctx->vdev, data, data_len);
+		if (QDF_IS_STATUS_ERROR(status))
+			event_handled = false;
 #endif
-		cm_fw_send_vdev_roam_event(cm_ctx, data_len, data);
+		status = cm_fw_send_vdev_roam_event(cm_ctx, data_len, data);
+		if (QDF_IS_STATUS_ERROR(status))
+			event_handled = false;
 		break;
 	case WLAN_CM_SM_EV_ROAM_DONE:
 		cm_sm_transition_to(cm_ctx, WLAN_CM_S_CONNECTED);

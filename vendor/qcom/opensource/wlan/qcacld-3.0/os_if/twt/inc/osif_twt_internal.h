@@ -17,7 +17,7 @@
  */
 
 /**
- * DOC : osif_twt_internal.h
+ * DOC: osif_twt_internal.h
  *
  * WLAN Host Device Driver file for TWT (Target Wake Time) support.
  *

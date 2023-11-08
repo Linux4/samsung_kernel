@@ -10,14 +10,24 @@ endif
 
 ifeq ($(CONFIG_ARCH_KALAMA), y)
 include $(VIDEO_ROOT)/config/kalama_video.conf
+include $(VIDEO_ROOT)/config/crow_video.conf
 LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/kalama_video.h \
                    -I$(VIDEO_ROOT)/driver/platform/kalama/inc
+
+LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/crow_video.h \
+                   -I$(VIDEO_ROOT)/driver/platform/crow/inc
 endif
 
 ifeq ($(CONFIG_ARCH_ANORAK), y)
 include $(VIDEO_ROOT)/config/anorak_video.conf
 LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/anorak_video.h \
                    -I$(VIDEO_ROOT)/driver/platform/anorak/inc
+endif
+
+ifeq ($(CONFIG_ARCH_CROW), y)
+include $(VIDEO_ROOT)/config/crow_video.conf
+LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/crow_video.h \
+                   -I$(VIDEO_ROOT)/driver/platform/crow/inc
 endif
 
 LINUXINCLUDE    += -I$(VIDEO_ROOT)/driver/vidc/inc \
@@ -39,6 +49,10 @@ endif
 
 ifeq ($(CONFIG_MSM_VIDC_ANORAK), y)
 msm_video-objs += driver/platform/anorak/src/msm_vidc_anorak.o
+endif
+
+ifeq ($(CONFIG_MSM_VIDC_CROW), y)
+msm_video-objs += driver/platform/crow/src/msm_vidc_crow.o
 endif
 
 ifeq ($(CONFIG_MSM_VIDC_IRIS2), y)

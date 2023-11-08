@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -30,12 +30,14 @@
 #include "wlan_p2p_api.h"
 #include "wlan_mlme_vdev_mgr_interface.h"
 #include "wlan_p2p_ucfg_api.h"
+#include "wlan_vdev_mgr_utils_api.h"
 
 QDF_STATUS if_mgr_ap_start_bss(struct wlan_objmgr_vdev *vdev,
 			       struct if_mgr_event_data *event_data)
 {
 	struct wlan_objmgr_psoc *psoc;
 	struct wlan_objmgr_pdev *pdev;
+	QDF_STATUS status;
 
 	pdev = wlan_vdev_get_pdev(vdev);
 	if (!pdev)
@@ -49,12 +51,19 @@ QDF_STATUS if_mgr_ap_start_bss(struct wlan_objmgr_vdev *vdev,
 
 	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE ||
 	    wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_GO_MODE)
-		wlan_handle_emlsr_sta_concurrency(vdev, true, false);
+		wlan_handle_emlsr_sta_concurrency(vdev, true, false, false);
 
 	if (policy_mgr_is_hw_mode_change_in_progress(psoc)) {
 		if (!QDF_IS_STATUS_SUCCESS(
 		    policy_mgr_wait_for_connection_update(psoc))) {
 			ifmgr_err("qdf wait for event failed!!");
+			return QDF_STATUS_E_FAILURE;
+		}
+	}
+	if (policy_mgr_is_chan_switch_in_progress(psoc)) {
+		status = policy_mgr_wait_chan_switch_complete_evt(psoc);
+		if (!QDF_IS_STATUS_SUCCESS(status)) {
+			ifmgr_err("qdf wait for csa event failed!!");
 			return QDF_STATUS_E_FAILURE;
 		}
 	}
@@ -102,7 +111,8 @@ if_mgr_ap_start_bss_complete(struct wlan_objmgr_vdev *vdev,
 		policy_mgr_check_sap_go_force_scc(psoc, vdev,
 						  CSA_REASON_GO_BSS_STARTED);
 	ifmgr_debug("check for SAP restart");
-	policy_mgr_check_concurrent_intf_and_restart_sap(psoc);
+	policy_mgr_check_concurrent_intf_and_restart_sap(psoc,
+				wlan_util_vdev_mgr_get_acs_mode_for_vdev(vdev));
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -130,7 +140,7 @@ if_mgr_ap_stop_bss_complete(struct wlan_objmgr_vdev *vdev,
 
 	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE ||
 	    wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_GO_MODE)
-		wlan_handle_emlsr_sta_concurrency(vdev, false, false);
+		wlan_handle_emlsr_sta_concurrency(vdev, false, false, true);
 	/*
 	 * Due to audio share glitch with P2P GO caused by
 	 * roam scan on concurrent interface, disable

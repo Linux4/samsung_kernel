@@ -208,6 +208,10 @@
 	HAL_RX_FLD_SET(_mpdu_info_ptr, RX_MPDU_DESC_INFO,		\
 			_field, _val)
 
+#define HAL_RX_MSDU_REO_DST_IND_SET(_msdu_ext_desc_info_ptr, _field, _val)  \
+	HAL_RX_FLD_SET(_msdu_ext_desc_info_ptr, RX_MSDU_EXT_DESC_INFO,	    \
+			_field, _val)
+
 #define HAL_RX_REO_MSDU_REO_DST_IND_GET(reo_desc)	\
 	(HAL_RX_MSDU_REO_DST_IND_GET(&		\
 	(((struct reo_destination_ring *)	\

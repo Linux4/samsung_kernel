@@ -1147,7 +1147,7 @@ int cam_cpas_get_custom_dt_info(struct cam_hw_info *cpas_hw,
 		}
 
 		cpas_core->cpas_client[i] =
-			kzalloc(sizeof(struct cam_cpas_client), GFP_KERNEL);
+			kvzalloc(sizeof(struct cam_cpas_client), GFP_KERNEL);
 		if (!cpas_core->cpas_client[i]) {
 			rc = -ENOMEM;
 			goto cleanup_clients;

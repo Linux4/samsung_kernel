@@ -346,7 +346,7 @@ QDF_STATUS ucfg_pmo_flush_arp_offload_req(struct wlan_objmgr_vdev *vdev);
 /**
  * ucfg_pmo_enable_arp_offload_in_fwr(): API to enable arp req in fwr
  * @vdev: objmgr vdev param
- * @trigger: triger reason for enable arp offload
+ * @trigger: trigger reason for enable arp offload
  *
  *  API to enable cache arp req in fwr from pmo vdev priv ctx
  *
@@ -359,7 +359,7 @@ ucfg_pmo_enable_arp_offload_in_fwr(struct wlan_objmgr_vdev *vdev,
 /**
  * ucfg_pmo_disable_arp_offload_in_fwr(): API to disable arp req in fwr
  * @vdev: objmgr vdev param
- * @trigger: triger reason  for disable arp offload
+ * @trigger: trigger reason  for disable arp offload
  *  API to disable cache arp req in fwr
  *
  * Return QDF_STATUS -in case of success else return error
@@ -804,7 +804,7 @@ ucfg_pmo_get_wow_enable(struct wlan_objmgr_psoc *psoc);
 /**
  * ucfg_pmo_set_wow_enable() - Set wow enable type
  * @psoc: pointer to psoc object
- * @val: wow enalbe value
+ * @val: wow enable value
  *
  * Return: None
  */

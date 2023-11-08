@@ -10,6 +10,10 @@
 #define IClientEnv_OP_registerWithWhitelist 3
 #define IClientEnv_OP_notifyDomainChange 4
 #define IClientEnv_OP_registerWithCredentials 5
+#define IClientEnv_OP_loadCmnlibFromBuffer 6
+#define IClientEnv_OP_configTaRegion 7
+#define IClientEnv_OP_adciAccept 8
+#define IClientEnv_OP_adciShutdown 9
 
 static inline int32_t
 IClientEnv_release(struct Object self)
@@ -115,3 +119,38 @@ IClientEnv_registerWithCredentials(struct Object self, struct Object
 	return result;
 }
 
+static inline int32_t
+IClientEnv_loadCmnlibFromBuffer(struct Object self, const void *cmnlibElf_ptr, size_t cmnlibElf_len)
+{
+  union ObjectArg a[1]={{{0,0}}};
+  a[0].bi = (struct ObjectBufIn) { cmnlibElf_ptr, cmnlibElf_len * 1 };
+
+  return Object_invoke(self, IClientEnv_OP_loadCmnlibFromBuffer, a, ObjectCounts_pack(1, 0, 0, 0));
+}
+
+static inline int32_t
+IClientEnv_configTaRegion(struct Object self, uint64_t appRgnAddr_val, uint32_t appRgnSize_val)
+{
+  union ObjectArg a[1]={{{0,0}}};
+  struct {
+    uint64_t m_appRgnAddr;
+    uint32_t m_appRgnSize;
+  } i;
+  a[0].b = (struct ObjectBuf) { &i, 12 };
+  i.m_appRgnAddr = appRgnAddr_val;
+  i.m_appRgnSize = appRgnSize_val;
+
+  return Object_invoke(self, IClientEnv_OP_configTaRegion, a, ObjectCounts_pack(1, 0, 0, 0));
+}
+
+static inline int32_t
+IClientEnv_adciAccept(struct Object self)
+{
+	return Object_invoke(self, IClientEnv_OP_adciAccept, 0, 0);
+}
+
+static inline int32_t
+IClientEnv_adciShutdown(struct Object self)
+{
+	return Object_invoke(self, IClientEnv_OP_adciShutdown, 0, 0);
+}

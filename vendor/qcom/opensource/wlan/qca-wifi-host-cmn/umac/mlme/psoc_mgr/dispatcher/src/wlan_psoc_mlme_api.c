@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -125,7 +125,9 @@ static void mlme_init_cfg(struct wlan_objmgr_psoc *psoc)
 	mlme_psoc_obj->psoc_cfg.phy_config.max_chan_switch_ie =
 		cfg_get(psoc, CFG_MLME_MAX_CHAN_SWITCH_IE_ENABLE);
 	mlme_psoc_obj->psoc_cfg.phy_config.eht_cap =
-		cfg_default(CFG_MLME_11BE_TARGET_CAPAB);
+		cfg_get(psoc, CFG_ENABLE_11BE);
+	mlme_psoc_obj->psoc_cfg.mlo_config.reconfig_reassoc_en =
+		cfg_get(psoc, CFG_MLME_MLO_RECONFIG_REASSOC_ENABLE);
 }
 
 QDF_STATUS mlme_psoc_open(struct wlan_objmgr_psoc *psoc)

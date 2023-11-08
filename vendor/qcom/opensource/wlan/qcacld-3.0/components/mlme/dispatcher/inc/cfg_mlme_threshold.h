@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,7 +34,7 @@
  * @Default: 2347
  *
  * This ini is used to set default RTSThreshold
- * If minimum value 0 is selectd then it will use always RTS
+ * If minimum value 0 is selected then it will use always RTS
  * max is the max frame size
  *
  * Related: None

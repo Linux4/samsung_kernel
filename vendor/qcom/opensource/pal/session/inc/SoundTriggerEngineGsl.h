@@ -147,12 +147,13 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
 
  private:
     int32_t StartBuffering(Stream *s);
+    int32_t RestartRecognition_l(Stream *s);
     int32_t UpdateSessionPayload(st_param_id_type_t param);
     void HandleSessionEvent(uint32_t event_id __unused, void *data, uint32_t size);
 
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);
     static void HandleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
-                                      uint32_t event_size);
+                                      uint32_t event_size, uint32_t miid);
     bool CheckIfOtherStreamsAttached(Stream *s);
     bool CheckIfOtherStreamsActive(Stream *s);
     int32_t HandleMultiStreamLoad(Stream *s, uint8_t *data, uint32_t data_size);
@@ -204,6 +205,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
                                                      deregister_config_;
 
     bool is_qcva_uuid_;
+    bool is_crr_dev_using_ext_ec_;
     uint32_t lpi_miid_;
     uint32_t nlpi_miid_;
     bool use_lpi_;

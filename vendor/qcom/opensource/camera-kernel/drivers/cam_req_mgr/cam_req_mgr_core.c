@@ -18,13 +18,12 @@
 #include "cam_req_mgr_dev.h"
 #include "cam_req_mgr_debug.h"
 #include "cam_common_util.h"
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include "cam_clock_data_recovery.h"
+#endif
 
 static struct cam_req_mgr_core_device *g_crm_core_dev;
 static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_PER_SESSION];
-
-#if defined(CONFIG_CAMERA_CDR_TEST)
-extern int cdr_value_exist;
-#endif
 
 static void __cam_req_mgr_reset_apply_data(struct cam_req_mgr_core_link *link)
 {
@@ -325,9 +324,6 @@ static int __cam_req_mgr_notify_frame_skip(
 
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (!dev)
-			continue;
-
 		pd = dev->dev_info.p_delay;
 		if (pd >= CAM_PIPELINE_DELAY_MAX) {
 			CAM_WARN(CAM_CRM, "pd %d greater than max",
@@ -1085,8 +1081,6 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 	 */
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (!dev)
-			continue;
 		pd = dev->dev_info.p_delay;
 		if (pd >= CAM_PIPELINE_DELAY_MAX) {
 			CAM_WARN(CAM_CRM, "pd %d greater than max",
@@ -2610,9 +2604,6 @@ static int __cam_req_mgr_disconnect_link(struct cam_req_mgr_core_link *link)
 	/* Using device ops unlink devices */
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (dev == NULL)
-			continue;
-
 		link_data.dev_hdl = dev->dev_hdl;
 		if (dev->ops && dev->ops->link_setup) {
 			rc = dev->ops->link_setup(&link_data);
@@ -3541,9 +3532,6 @@ static void cam_req_mgr_notify_eof_event(struct cam_req_mgr_core_link *link)
 
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-		if (!dev)
-			continue;
-
 		evt_data.dev_hdl = dev->dev_hdl;
 		evt_data.evt_type = CAM_REQ_MGR_LINK_EVT_EOF;
 		evt_data.link_hdl = link->link_hdl;
@@ -5182,7 +5170,7 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 				link->link_hdl, control->init_timeout[i]);
 			/* Start SOF watchdog timer */
 #if defined(CONFIG_CAMERA_CDR_TEST)
-			if (cdr_value_exist)
+			if (cam_clock_data_recovery_is_requested())
 				init_timeout = 1800;
 #endif
 			rc = crm_timer_init(&link->watchdog,
@@ -5256,10 +5244,6 @@ int cam_req_mgr_link_properties(struct cam_req_mgr_link_properties *properties)
 
 	for (i = 0; i < link->num_devs; i++) {
 		dev = &link->l_dev[i];
-
-		if (!dev)
-			continue;
-
 		evt_data.dev_hdl = dev->dev_hdl;
 		evt_data.link_hdl = link->link_hdl;
 		evt_data.evt_type = CAM_REQ_MGR_LINK_EVT_UPDATE_PROPERTIES;

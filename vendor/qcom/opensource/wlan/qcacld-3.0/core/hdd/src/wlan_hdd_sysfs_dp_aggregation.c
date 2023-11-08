@@ -27,23 +27,7 @@
 #include "osif_psoc_sync.h"
 #include <wlan_hdd_sysfs.h>
 #include <wlan_hdd_sysfs_dp_aggregation.h>
-#if defined(WLAN_SUPPORT_RX_FISA)
-#include "dp_fisa_rx.h"
-#endif
 #include "wlan_dp_ucfg_api.h"
-
-#if defined(WLAN_SUPPORT_RX_FISA)
-static inline
-void hdd_rx_skip_fisa(ol_txrx_soc_handle dp_soc, uint32_t value)
-{
-	dp_rx_skip_fisa(dp_soc, value);
-}
-#else
-static inline
-void hdd_rx_skip_fisa(ol_txrx_soc_handle dp_soc, uint32_t value)
-{
-}
-#endif
 
 static ssize_t
 __hdd_sysfs_dp_aggregation_show(struct hdd_context *hdd_ctx,
@@ -92,9 +76,8 @@ __hdd_sysfs_dp_aggregation_store(struct hdd_context *hdd_ctx,
 	char *sptr, *token;
 	uint32_t value;
 	int ret;
-	ol_txrx_soc_handle dp_soc = cds_get_context(QDF_MODULE_ID_SOC);
 
-	if (!wlan_hdd_validate_modules_state(hdd_ctx) || !dp_soc)
+	if (!wlan_hdd_validate_modules_state(hdd_ctx))
 		return -EINVAL;
 
 	ret = hdd_sysfs_validate_and_copy_buf(buf_local, sizeof(buf_local),
@@ -114,7 +97,7 @@ __hdd_sysfs_dp_aggregation_store(struct hdd_context *hdd_ctx,
 
 	hdd_debug("dp_aggregation: %d", value);
 
-	hdd_rx_skip_fisa(dp_soc, value);
+	ucfg_dp_rx_skip_fisa(value);
 	ucfg_dp_set_rx_aggregation_val(hdd_ctx->psoc, !!value);
 
 	return count;

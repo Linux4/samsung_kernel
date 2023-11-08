@@ -77,14 +77,14 @@
 
 class Device;
 
-#define LPASS_WR_CMD_REG_PHY_ADDR 0x6B14020
-#define LPASS_RD_CMD_REG_PHY_ADDR 0x6B14024
-#define LPASS_RD_FIFO_REG_PHY_ADDR 0x6B14040
 #define CPS_WSA_VBATT_REG_ADDR 0x0003429
 #define CPS_WSA_TEMP_REG_ADDR 0x0003422
 
 #define CPS_WSA_VBATT_LOWER_THRESHOLD_1 168
 #define CPS_WSA_VBATT_LOWER_THRESHOLD_2 148
+
+#define WSA2_REGISTER_ADD 1
+#define WSA_REGISTER_ADD 0
 
 typedef enum speaker_prot_cal_state {
     SPKR_NOT_CALIBRATED,     /* Speaker not calibrated  */
@@ -100,6 +100,8 @@ typedef enum speaker_prot_proc_state {
 enum {
     SPKR_RIGHT,    /* Right Speaker */
     SPKR_LEFT,     /* Left Speaker */
+    SPKR_REAR_RIGHT, /*Rear Right Speaker */
+    SPKR_REAR_LEFT,  /*Rear Left Speaker */
 };
 
 /* enum that indicates speaker condition. */
@@ -136,13 +138,17 @@ protected :
     static struct mixer *hwMixer;
     static struct pcm *rxPcm;
     static struct pcm *txPcm;
-    static struct pcm *cpsPcm;
+    static struct pcm *cps1Pcm;
+    static struct pcm *cps2Pcm;
     static int numberOfChannels;
+    static int MaxCH;
+    static uint32_t source_miid, vi_miid_I, vi_miid_II;
     static bool mDspCallbackRcvd;
     static param_id_sp_th_vi_calib_res_cfg_t *callback_data;
     struct pal_device mDeviceAttr;
     std::vector<int> pcmDevIdTx;
     std::vector<int> pcmDevIdCPS;
+    std::vector<int> pcmDevIdCPS2;
     static int calibrationCallbackStatus;
     static int numberOfRequest;
     static struct pal_device_info vi_device;
@@ -181,14 +187,14 @@ public:
     int speakerProtectionDynamicCal();
     void updateSPcustomPayload();
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
+    static std::string getDCDetSpkrCtrl(uint8_t spkr_pos, uint32_t miid);
     static void handleSPCallback (uint64_t hdl, uint32_t event_id, void *event_data,
-                                  uint32_t event_size);
-    void updateCpsCustomPayload(int miid);
+                                  uint32_t event_size, uint32_t miid);
+    void updateCpsCustomPayload(int miid, uint32_t phy_add[], int wsa2_enable);
     int getCpsDevNumber(std::string mixer);
     int32_t getCalibrationData(void **param);
     int32_t getFTMParameter(void **param);
     void disconnectFeandBe(std::vector<int> pcmDevIds, std::string backEndName);
-
 };
 
 class SpeakerFeedback : public Device

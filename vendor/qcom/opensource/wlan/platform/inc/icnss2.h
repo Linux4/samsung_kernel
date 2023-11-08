@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _ICNSS_WLAN_H_
 #define _ICNSS_WLAN_H_
@@ -11,10 +12,7 @@
 #define ICNSS_MAX_IRQ_REGISTRATIONS    12
 #define IWCN_MAX_IRQ_REGISTRATIONS    32
 #define ICNSS_MAX_TIMESTAMP_LEN        32
-
-#ifndef ICNSS_API_WITH_DEV
-#define ICNSS_API_WITH_DEV
-#endif
+#define ICNSS_WLFW_MAX_BUILD_ID_LEN    128
 
 #define DEVICE_NAME_MAX		10
 enum icnss_uevent {
@@ -97,6 +95,10 @@ struct icnss_shadow_reg_v2_cfg {
 	u32 addr;
 };
 
+struct icnss_shadow_reg_v3_cfg {
+	u32 addr;
+};
+
 struct icnss_rri_over_ddr_cfg {
 	u32 base_addr_low;
 	u32 base_addr_high;
@@ -111,6 +113,8 @@ struct icnss_wlan_enable_cfg {
 	struct icnss_shadow_reg_cfg *shadow_reg_cfg;
 	u32 num_shadow_reg_v2_cfg;
 	struct icnss_shadow_reg_v2_cfg *shadow_reg_v2_cfg;
+	u32 num_shadow_reg_v3_cfg;
+	struct icnss_shadow_reg_v3_cfg *shadow_reg_v3_cfg;
 	bool rri_over_ddr_cfg_valid;
 	struct icnss_rri_over_ddr_cfg rri_over_ddr_cfg;
 };
@@ -136,6 +140,7 @@ struct icnss_soc_info {
 	uint32_t soc_id;
 	uint32_t fw_version;
 	char fw_build_timestamp[ICNSS_MAX_TIMESTAMP_LEN + 1];
+	char fw_build_id[ICNSS_WLFW_MAX_BUILD_ID_LEN + 1];
 };
 
 #define icnss_register_driver(ops)		\
@@ -178,6 +183,7 @@ extern unsigned int icnss_socinfo_get_serial_number(struct device *dev);
 extern bool icnss_is_qmi_disable(struct device *dev);
 extern bool icnss_is_fw_ready(void);
 extern bool icnss_is_fw_down(void);
+extern bool icnss_is_low_power(void);
 extern bool icnss_is_rejuvenate(void);
 extern int icnss_trigger_recovery(struct device *dev);
 extern void icnss_block_shutdown(bool status);

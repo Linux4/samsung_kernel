@@ -306,19 +306,17 @@ dp_bb_captured_chan_status(struct dp_pdev *pdev,
  *     bits 21 to 23 = 3, maps BB chain 3 for RF chain 7
  */
 static uint8_t dp_rx_mon_rf_index_conv(uint8_t chain,
-				       struct hal_rx_ppdu_info *ppdu_info,
-				       struct dp_pdev *pdev)
+				       struct dp_mon_pdev *mon_pdev)
 {
-	uint32_t xbar_config = ppdu_info->rx_status.xbar_config;
+	uint32_t xbar_config = mon_pdev->rssi_offsets.xbar_config;
 
-	if (pdev->soc->features.rssi_dbm_conv_support && xbar_config)
+	if (mon_pdev->rssi_dbm_conv_support && xbar_config)
 		return ((xbar_config >> (3 * chain)) & 0x07);
 	return chain;
 }
 #else
 static uint8_t dp_rx_mon_rf_index_conv(uint8_t chain,
-				       struct hal_rx_ppdu_info *ppdu_info,
-				       struct dp_pdev *pdev)
+				       struct dp_mon_pdev *mon_pdev)
 {
 	return chain;
 }
@@ -331,11 +329,11 @@ dp_rx_populate_rx_rssi_chain(struct hal_rx_ppdu_info *ppdu_info,
 	uint8_t chain, bw;
 	uint8_t rssi;
 	uint8_t chain_rf;
+	struct dp_mon_pdev *mon_pdev = pdev->monitor_pdev;
 
 	for (chain = 0; chain < SS_COUNT; chain++) {
 		for (bw = 0; bw < MAX_BW; bw++) {
-			chain_rf = dp_rx_mon_rf_index_conv(chain,
-							   ppdu_info, pdev);
+			chain_rf = dp_rx_mon_rf_index_conv(chain, mon_pdev);
 			rssi = ppdu_info->rx_status.rssi_chain[chain_rf][bw];
 			if (rssi != DP_RSSI_INVAL)
 				cdp_rx_ppdu->rssi_chain[chain_rf][bw] = rssi;
@@ -2029,3 +2027,53 @@ dp_mon_rx_add_tlv(uint8_t id, uint16_t len, void *value, qdf_nbuf_t mpdu_nbuf)
 
 	return num_bytes_pushed;
 }
+
+void
+dp_mon_rx_stats_update_rssi_dbm_params(struct dp_mon_pdev *mon_pdev,
+				       struct hal_rx_ppdu_info *ppdu_info)
+{
+	ppdu_info->rx_status.rssi_offset = mon_pdev->rssi_offsets.rssi_offset;
+	ppdu_info->rx_status.rssi_dbm_conv_support =
+				mon_pdev->rssi_dbm_conv_support;
+	ppdu_info->rx_status.chan_noise_floor =
+		mon_pdev->rssi_offsets.rssi_offset;
+}
+
+#ifdef WLAN_SUPPORT_CTRL_FRAME_STATS
+void dp_rx_mon_update_user_ctrl_frame_stats(struct dp_pdev *pdev,
+					    struct hal_rx_ppdu_info *ppdu_info)
+{
+	struct dp_peer *peer;
+	struct dp_mon_peer *mon_peer;
+	struct dp_soc *soc = pdev->soc;
+	uint16_t fc, sw_peer_id;
+	uint8_t i;
+
+	if (qdf_unlikely(!ppdu_info))
+		return;
+
+	fc = ppdu_info->nac_info.frame_control;
+	if (qdf_likely((qdf_cpu_to_le16(fc) & QDF_IEEE80211_FC0_TYPE_MASK) !=
+	    QDF_IEEE80211_FC0_TYPE_CTL))
+		return;
+
+	for (i = 0; i < ppdu_info->com_info.num_users; i++) {
+		sw_peer_id = ppdu_info->rx_user_status[i].sw_peer_id;
+		peer = dp_peer_get_ref_by_id(soc, sw_peer_id,
+					     DP_MOD_ID_RX_PPDU_STATS);
+		if (qdf_unlikely(!peer))
+			continue;
+		mon_peer = peer->monitor_peer;
+		if (qdf_unlikely(!mon_peer)) {
+			dp_peer_unref_delete(peer, DP_MOD_ID_RX_PPDU_STATS);
+			continue;
+		}
+		DP_STATS_INCC(mon_peer, rx.ndpa_cnt, 1,
+			      ppdu_info->ctrl_frm_info[i].ndpa);
+		DP_STATS_INCC(mon_peer, rx.bar_cnt, 1,
+			      ppdu_info->ctrl_frm_info[i].bar);
+
+		dp_peer_unref_delete(peer, DP_MOD_ID_RX_PPDU_STATS);
+	}
+}
+#endif /* WLAN_SUPPORT_CTRL_FRAME_STATS */

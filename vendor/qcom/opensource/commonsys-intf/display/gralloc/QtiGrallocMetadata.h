@@ -27,6 +27,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #ifndef __QTIGRALLOCMETADATA_H__
@@ -73,6 +77,8 @@
 #define QTI_CUSTOM_CONTENT_METADATA 10029
 // Video transcode metadata stat
 #define QTI_VIDEO_TRANSCODE_STATS 10030
+// Early Notify line count
+#define QTI_EARLYNOTIFY_LINECOUNT 10031
 // Used to indicate to framework that internal definitions are used instead
 #define COMPRESSION_QTI_UBWC 20001
 #define INTERLACED_QTI 20002

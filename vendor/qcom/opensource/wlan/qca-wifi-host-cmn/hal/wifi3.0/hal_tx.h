@@ -136,7 +136,7 @@ do {                                            \
 
 /*
  * Offset of HTT Tx Descriptor in WBM Completion
- * HTT Tx Desc structure is passed from firmware to host overlayed
+ * HTT Tx Desc structure is passed from firmware to host overlaid
  * on wbm_release_ring DWORDs 2,3 ,4 and 5for software based completions
  * (Exception frames and TQM bypass frames)
  */
@@ -194,6 +194,8 @@ do {                                            \
  *       <enum 1 transmit_bw_40_MHz>
  *       <enum 2 transmit_bw_80_MHz>
  *       <enum 3 transmit_bw_160_MHz>
+ *       <enum 4 transmit_bw_320_MHz>
+ *       <enum 5 transmit_bw_240_MHz>
  * @pkt_type: Transmit Packet Type
  * @stbc: When set, STBC transmission rate was used
  * @ldpc: When set, use LDPC transmission rates
@@ -220,7 +222,7 @@ struct hal_tx_completion_status {
 	uint8_t first_msdu:1,
 		last_msdu:1,
 		msdu_part_of_amsdu:1;
-	uint32_t bw:2,
+	uint32_t bw:3,
 		 pkt_type:4,
 		 stbc:1,
 		 ldpc:1,
@@ -372,7 +374,7 @@ static inline void hal_tx_ext_desc_set_tso_enable(void *desc,
 /**
  * hal_tx_ext_desc_set_tso_flags() - Set TSO Flags
  * @desc: Handle to Tx MSDU Extension Descriptor
- * @falgs: 32-bit word with all TSO flags consolidated
+ * @flags: 32-bit word with all TSO flags consolidated
  *
  * Return: none
  */
@@ -481,7 +483,7 @@ static inline void hal_tx_ext_desc_set_buffer(void *desc,
  * @desc: Handle to Tx MSDU Extension Descriptor
  * @frag_num: fragment number (value can be 0 to 5)
  * @iova: fragment dma address
- * @len: fragement Length
+ * @len: fragment Length
  *
  * Return: None
  */
@@ -898,5 +900,43 @@ uint8_t hal_get_wbm_internal_error(hal_soc_handle_t hal_soc_hdl, void *hal_desc)
 	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
 
 	return hal_soc->ops->hal_get_wbm_internal_error(hal_desc);
+}
+
+/**
+ * hal_get_tsf2_offset() - get tsf2 offset
+ *
+ * @hal_soc_hdl: HAL SoC context
+ * @mac_id: mac id
+ * @value: pointer to update tsf2 offset value
+ *
+ * Return: void
+ */
+static inline void
+hal_get_tsf2_offset(hal_soc_handle_t hal_soc_hdl, uint8_t mac_id,
+		    uint64_t *value)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	if (hal_soc->ops->hal_get_tsf2_scratch_reg)
+		hal_soc->ops->hal_get_tsf2_scratch_reg(hal_soc_hdl, mac_id,
+						       value);
+}
+
+/**
+ * hal_get_tqm_offset() - get tqm offset
+ *
+ * @hal_soc_hdl: HAL SoC context
+ * @value: pointer to update tqm offset value
+ *
+ * Return: void
+ */
+
+static inline void
+hal_get_tqm_offset(hal_soc_handle_t hal_soc_hdl, uint64_t *value)
+{
+	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
+
+	if (hal_soc->ops->hal_get_tqm_scratch_reg)
+		hal_soc->ops->hal_get_tqm_scratch_reg(hal_soc_hdl, value);
 }
 #endif /* HAL_TX_H */

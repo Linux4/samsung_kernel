@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2018, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -28,7 +29,7 @@
 #include <qdf_list.h>
 #include <qdf_module.h>
 
-/* Function declarations and documenation */
+/* Function declarations and documentation */
 
 QDF_STATUS qdf_list_insert_before(qdf_list_t *list,
 	qdf_list_node_t *new_node, qdf_list_node_t *node)

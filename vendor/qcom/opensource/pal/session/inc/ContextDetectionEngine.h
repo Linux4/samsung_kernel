@@ -68,6 +68,7 @@ public:
     virtual int32_t SetupEngine(Stream *s, void *config) = 0;
     virtual int32_t TeardownEngine(Stream *s, void *config) = 0;
     virtual int32_t ReconfigureEngine(Stream *s, void *old_config, void *new_config) = 0;
+    virtual bool isEngActive() { return eng_state_ == ENG_ACTIVE; }
 
     virtual int32_t ConnectSessionDevice(
         Stream* stream_handle,

@@ -332,6 +332,10 @@ vdev_mgr_start_param_update_mlo(struct vdev_mlme_obj *mlme_obj,
 	}
 
 	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE) {
+		if (wlan_vdev_mlme_op_flags_get(
+			vdev, WLAN_VDEV_OP_MLO_LINK_ADD))
+			param->mlo_flags.mlo_link_add  = 1;
+
 		vdev_mgr_start_param_update_mlo_mcast(vdev, param);
 		vdev_mgr_start_param_update_mlo_partner(vdev, param);
 	}

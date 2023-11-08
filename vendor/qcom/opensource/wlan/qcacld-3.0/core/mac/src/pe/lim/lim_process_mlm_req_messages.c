@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -549,8 +549,7 @@ static bool lim_is_auth_req_expected(struct mac_context *mac_ctx,
 }
 
 /**
- * lim_is_preauth_ctx_exisits() - check if preauth context exists
- *
+ * lim_is_preauth_ctx_exists() - check if preauth context exists
  * @mac_ctx:          global MAC context
  * @session:          PE session entry
  * @preauth_node_ptr: pointer to preauth node pointer
@@ -591,6 +590,23 @@ static bool lim_is_preauth_ctx_exists(struct mac_context *mac_ctx,
 }
 
 #ifdef WLAN_FEATURE_SAE
+static inline
+uint32_t lim_get_sae_keymgmt_suite(uint32_t keymgmt)
+{
+	/* Select the best SAE AKM suite supported */
+	if (QDF_HAS_PARAM(keymgmt, WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY))
+		return WLAN_AKM_FT_SAE_EXT_KEY;
+	else if (QDF_HAS_PARAM(keymgmt, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY))
+		return WLAN_AKM_SAE_EXT_KEY;
+	else if (QDF_HAS_PARAM(keymgmt, WLAN_CRYPTO_KEY_MGMT_FT_SAE))
+		return WLAN_AKM_FT_SAE;
+	else if (QDF_HAS_PARAM(keymgmt, WLAN_CRYPTO_KEY_MGMT_SAE))
+		return WLAN_AKM_SAE;
+
+	pe_err("Invalid SAE Keymgmt suite %d", keymgmt);
+	return WLAN_AKM_SAE;
+}
+
 QDF_STATUS lim_trigger_auth_req_sae(struct mac_context *mac_ctx,
 				    struct pe_session *session,
 				    struct qdf_mac_addr *peer_bssid)
@@ -598,6 +614,7 @@ QDF_STATUS lim_trigger_auth_req_sae(struct mac_context *mac_ctx,
 	QDF_STATUS qdf_status = QDF_STATUS_SUCCESS;
 	struct sir_sae_info *sae_info;
 	struct scheduler_msg msg = {0};
+	uint32_t keymgmt;
 
 	sae_info = qdf_mem_malloc(sizeof(*sae_info));
 	if (!sae_info)
@@ -608,17 +625,20 @@ QDF_STATUS lim_trigger_auth_req_sae(struct mac_context *mac_ctx,
 	sae_info->vdev_id = session->smeSessionId;
 
 	qdf_copy_macaddr(&sae_info->peer_mac_addr, peer_bssid);
+	keymgmt = wlan_crypto_get_param(session->vdev,
+					WLAN_CRYPTO_PARAM_KEY_MGMT);
+	sae_info->akm = lim_get_sae_keymgmt_suite(keymgmt);
 
 	sae_info->ssid.length = session->ssId.length;
 	qdf_mem_copy(sae_info->ssid.ssId,
 		session->ssId.ssId,
 		session->ssId.length);
 
-	pe_debug("vdev_id %d ssid %.*s "QDF_MAC_ADDR_FMT,
-		sae_info->vdev_id,
-		sae_info->ssid.length,
-		sae_info->ssid.ssId,
-		QDF_MAC_ADDR_REF(sae_info->peer_mac_addr.bytes));
+	pe_debug("vdev_id %d ssid " QDF_SSID_FMT " " QDF_MAC_ADDR_FMT "akm %d",
+		 sae_info->vdev_id,
+		 QDF_SSID_REF(sae_info->ssid.length, sae_info->ssid.ssId),
+		 QDF_MAC_ADDR_REF(sae_info->peer_mac_addr.bytes),
+		 sae_info->akm);
 
 	msg.type = eWNI_SME_TRIGGER_SAE;
 	msg.bodyptr = sae_info;
@@ -1371,7 +1391,7 @@ lim_process_mlm_deauth_req_ntf(struct mac_context *mac_ctx,
 				sme_deauth_rsp->status_code =
 						eSIR_SME_DEAUTH_STATUS;
 				sme_deauth_rsp->sessionId =
-						mlm_deauth_req->sessionId;
+						session->vdev_id;
 
 				qdf_mem_copy(sme_deauth_rsp->peer_macaddr.bytes,
 					     mlm_deauth_req->peer_macaddr.bytes,
@@ -1825,7 +1845,6 @@ static void lim_process_auth_retry_timer(struct mac_context *mac_ctx)
 						SIR_MAC_AUTH_FRAME_1;
 			auth_frame->authStatusCode = 0;
 			pe_debug("Retry Auth");
-			mac_ctx->auth_ack_status = LIM_ACK_NOT_RCD;
 			lim_increase_fils_sequence_number(session_entry);
 			lim_send_auth_mgmt_frame(mac_ctx, auth_frame,
 				mac_ctx->lim.gpLimMlmAuthReq->peerMacAddr,
@@ -1906,6 +1925,7 @@ void lim_process_auth_failure_timeout(struct mac_context *mac_ctx)
 		lim_restore_from_auth_state(mac_ctx,
 				eSIR_SME_AUTH_TIMEOUT_RESULT_CODE,
 				proto_status_code, session);
+		mac_ctx->auth_ack_status = LIM_ACK_NOT_RCD;
 		break;
 	default:
 		/*

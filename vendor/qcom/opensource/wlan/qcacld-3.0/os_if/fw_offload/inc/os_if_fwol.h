@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -86,7 +87,8 @@ static inline int os_if_fwol_send_dscp_up_map_to_fw(
 #ifdef WLAN_FEATURE_MDNS_OFFLOAD
 /**
  * os_if_fwol_enable_mdns_offload() - Enable mdns offload
- * @vdev: Pointer to vdev
+ * @psoc: Pointer to psoc object
+ * @mdns_info: MDNS offload information
  *
  * This function will offload mdns response to FW.
  *
@@ -96,8 +98,8 @@ int os_if_fwol_enable_mdns_offload(struct wlan_objmgr_psoc *psoc,
 				   struct mdns_config_info *mdns_info);
 
 /**
- * os_if_fwol_diasable_mdns_offload() - Disable mdns offload
- * @vdev: Pointer to vdev
+ * os_if_fwol_disable_mdns_offload() - Disable mdns offload
+ * @psoc: Pointer to psoc
  *
  * This function will disable the mdns offload feature.
  *

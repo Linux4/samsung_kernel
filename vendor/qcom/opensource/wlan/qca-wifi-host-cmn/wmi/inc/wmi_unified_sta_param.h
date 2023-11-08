@@ -91,7 +91,7 @@ struct wmi_gtx_config {
  *  bit 8-9: Reserve for roaming
  *  bit 10: Disable css power collapse if setting
  *  bit 11: Disable sys sleep if setting
- *  bit 12-31: Reserve for future useage
+ *  bit 12-31: Reserve for future usage
  * @vdev_id: vdev id
  * @force_reset: bit 0 used as force reset to override the latency level as
  * default for all the wlm clients

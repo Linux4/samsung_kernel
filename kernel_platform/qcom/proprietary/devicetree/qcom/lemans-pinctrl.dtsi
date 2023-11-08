@@ -1550,9 +1550,9 @@
 
 			config {
 				pins = "gpio106";
-				drive-strength = <8>;   /* 8 mA */
+				drive-strength = <2>;   /* 2 mA */
 				bias-disable;           /* NO PULL */
-				output-high;
+				input-enable;
 			};
 		};
 	};
@@ -1580,9 +1580,9 @@
 
 			config {
 				pins = "gpio107";
-				drive-strength = <8>;   /* 8 mA */
+				drive-strength = <2>;   /* 2 mA */
 				bias-disable;           /* NO PULL */
-				output-high;
+				input-enable;
 			};
 		};
 	};

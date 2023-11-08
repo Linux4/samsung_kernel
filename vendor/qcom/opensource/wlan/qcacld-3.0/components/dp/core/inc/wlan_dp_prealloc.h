@@ -19,7 +19,7 @@
 #define _WLAN_DP_PREALLOC_H
 
 #include <wlan_objmgr_psoc_obj.h>
-#include <dp_rx_thread.h>
+#include <wlan_dp_rx_thread.h>
 #include <qdf_trace.h>
 #include <cdp_txrx_cmn_struct.h>
 #include <cdp_txrx_cmn.h>
@@ -91,8 +91,8 @@ void *dp_prealloc_get_coherent(uint32_t *size, void **base_vaddr_unaligned,
 /**
  * dp_prealloc_put_coherent() - puts back pre-alloc DP memory
  * @size: size of memory to be returned
- * @base_vaddr_unaligned: Unaligned virtual address.
- * @paddr_unaligned: Unaligned physical address.
+ * @vaddr_unligned: Unaligned virtual address.
+ * @paddr: Physical address
  *
  * Return: None
  */
@@ -100,7 +100,7 @@ void dp_prealloc_put_coherent(qdf_size_t size, void *vaddr_unligned,
 			      qdf_dma_addr_t paddr);
 
 /**
- * dp_prealloc_get_multi_page() - gets pre-alloc DP multi-pages memory
+ * dp_prealloc_get_multi_pages() - gets pre-alloc DP multi-pages memory
  * @src_type: the source that do memory allocation
  * @element_size: single element size
  * @element_num: total number of elements should be allocated
@@ -127,7 +127,7 @@ void dp_prealloc_put_multi_pages(uint32_t src_type,
 
 /**
  * dp_prealloc_get_consistent_mem_unaligned() - gets pre-alloc unaligned
-						consistent memory
+ *						consistent memory
  * @size: total memory size
  * @base_addr: pointer to dma address
  * @ring_type: HAL ring type that requires memory
@@ -140,7 +140,7 @@ void *dp_prealloc_get_consistent_mem_unaligned(qdf_size_t size,
 
 /**
  * dp_prealloc_put_consistent_mem_unaligned() - puts back pre-alloc unaligned
-						consistent memory
+ *						consistent memory
  * @va_unaligned: memory virtual address pointer
  *
  * Return: None

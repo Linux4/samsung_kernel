@@ -536,8 +536,7 @@ void handleSllRequestNiNotify(GnssNiNotification &notify, const void* data,
         void *context) {
 
     if (nullptr != context) {
-        SynergyLocApi *synergyLocApiInstance = (SynergyLocApi*)context;
-        //synergyLocApiInstance->requestNiNotify(notify, data);
+        LOC_LOGd ("handleSllRequestNiNotify");
     } else {
         LOC_LOGw ("Context is NULL");
     }

@@ -550,7 +550,7 @@ wlan_create_elemsubelem_fragseq(bool inline_frag,
 	 /* used for inline copy, the extra bytes needed in the payload buffer
 	  * due to difference in destination and source.
 	  * Note that the caller should ensure there is enough bytes beyond
-	  * valid data untill payloadbuff_maxsize*/
+	  * valid data until payloadbuff_maxsize*/
 	qdf_size_t payloadbuff_shiftsize;
 
 	/* Miscellaneous variables */

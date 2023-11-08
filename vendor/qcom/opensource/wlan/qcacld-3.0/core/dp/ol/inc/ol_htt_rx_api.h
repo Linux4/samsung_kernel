@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -149,7 +150,7 @@ struct ieee80211_rx_status {
  * so that the user application can do processing based on the RX stats.
  * This structure will be preceded by an ethernet header with
  * the proto field set to 0x8152. This struct includes various RX
- * paramaters including RSSI, data rate, and center frequency.
+ * parameters including RSSI, data rate, and center frequency.
  */
 PREPACK struct ocb_rx_stats_hdr_t {
 	uint16_t version;
@@ -913,7 +914,7 @@ int htt_rx_msdu_buff_in_order_replenish(htt_pdev_handle pdev, uint32_t num)
  * @param pdev - the HTT instance the rx data was received on
  * @param head_msdu - network buffer handle, which points to the first MSDU
  *      in the list. This is a NULL terminated list
- * @param rx_staus - pointer to the status associated with this MPDU.
+ * @param rx_status - pointer to the status associated with this MPDU.
  *      Updated only if there is a new PPDU and new status associated with it
  * @param clone_not_reqd - If set the MPDU linking destroys the passed in
  *      list, else operates on a cloned nbuf

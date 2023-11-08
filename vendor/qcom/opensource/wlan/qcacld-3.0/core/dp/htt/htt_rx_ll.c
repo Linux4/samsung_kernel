@@ -2087,7 +2087,7 @@ void *htt_rx_mpdu_desc_list_next_ll(htt_pdev_handle pdev, qdf_nbuf_t rx_ind_msg)
  * htt_rx_fill_ring_count() - replenish rx msdu buffer
  * @pdev: Handle (pointer) to HTT pdev.
  *
- * This funciton will replenish the rx buffer to the max number
+ * This function will replenish the rx buffer to the max number
  * that can be kept in the ring
  *
  * Return: None

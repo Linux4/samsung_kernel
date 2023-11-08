@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -84,12 +84,12 @@ typedef __qdf_wait_queue_head_t qdf_wait_queue_head_t;
 #endif /* QDF_DEBUG */
 
 /**
- * qdf_assert_always - alway assert "expr" evaluates to false.
+ * qdf_assert_always - always assert "expr" evaluates to false.
  */
 #define qdf_assert_always(expr)  __qdf_assert(expr)
 
 /**
- * qdf_target_assert_always - alway target assert "expr" evaluates to false.
+ * qdf_target_assert_always - always target assert "expr" evaluates to false.
  */
 #define qdf_target_assert_always(expr)  __qdf_target_assert(expr)
 
@@ -446,7 +446,7 @@ static inline void qdf_set_macaddr_broadcast(struct qdf_mac_addr *mac_addr)
  * @ptr: Starting address of a byte array
  * @value: The value to assign to the byte array
  *
- * Caller must validate the byte array has enough space to hold the vlaue
+ * Caller must validate the byte array has enough space to hold the value
  *
  * Return: The address to the byte after the assignment. This may or may not
  * be valid. Caller to verify.
@@ -470,7 +470,7 @@ static inline uint8_t *qdf_set_u16(uint8_t *ptr, uint16_t value)
  * @value: Pointer to a caller allocated buffer for 16 bit value. Value is to
  * assign to this location.
  *
- * Caller must validate the byte array has enough space to hold the vlaue
+ * Caller must validate the byte array has enough space to hold the value
  *
  * Return: The address to the byte after the assignment. This may or may not
  * be valid. Caller to verify.
@@ -492,7 +492,7 @@ static inline uint8_t *qdf_get_u16(uint8_t *ptr, uint16_t *value)
  * @value: Pointer to a caller allocated buffer for 32 bit value. Value is to
  * assign to this location.
  *
- * Caller must validate the byte array has enough space to hold the vlaue
+ * Caller must validate the byte array has enough space to hold the value
  *
  * Return: The address to the byte after the assignment. This may or may not
  * be valid. Caller to verify.
@@ -510,6 +510,11 @@ static inline uint8_t *qdf_get_u32(uint8_t *ptr, uint32_t *value)
 #endif
 	return ptr + 4;
 }
+
+/**
+ * qdf_abs - Get absolute value
+ */
+#define qdf_abs(x)                           __qdf_abs(x)
 
 /**
  * qdf_ntohs - Convert a 16-bit value from network byte order to host byte order
@@ -738,7 +743,7 @@ unsigned int qdf_get_hweight32(unsigned int w)
 /**
  * qdf_device_init_wakeup() - allow a device to wake up the aps system
  * @qdf_dev: the qdf device context
- * @enable: enable/disable the device as a wakup source
+ * @enable: enable/disable the device as a wakeup source
  *
  * Return: 0 or errno
  */

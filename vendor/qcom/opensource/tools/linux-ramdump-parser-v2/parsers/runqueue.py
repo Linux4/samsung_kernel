@@ -1,4 +1,5 @@
 # Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -57,8 +58,25 @@ class RunQueues(RamParser):
                 se = (task_addr + se_offset)
                 vruntime_offset = self.ramdump.field_offset('struct sched_entity', 'vruntime')
                 vruntime = self.ramdump.read_u64(se + vruntime_offset)
+                if self.ramdump.is_config_defined('CONFIG_FAIR_GROUP_SCHED'):
+                    cfs_rq_offset = self.ramdump.field_offset('struct sched_entity', 'cfs_rq')
+                    cfs_rq = self.ramdump.read_word(se + cfs_rq_offset)
+                    tg_offset = self.ramdump.field_offset('struct cfs_rq', 'tg')
+                    tg = self.ramdump.read_word(cfs_rq + tg_offset)
+                    css_offset = self.ramdump.field_offset('struct task_group', 'css')
+                    css = self.ramdump.read_word(tg + css_offset)
+                    cgroup_offset = self.ramdump.field_offset('struct cgroup_subsys_state', 'cgroup')
+                    cgroup = self.ramdump.read_word(css + cgroup_offset)
+                    kn_offset = self.ramdump.field_offset('struct cgroup', 'kn')
+                    kn = self.ramdump.read_word(cgroup + kn_offset)
+                    name_offset = self.ramdump.field_offset('struct kernfs_node', 'name')
+                    name_addr = self.ramdump.read_word(kn + name_offset)
+                    name = self.ramdump.read_cstring(name_addr)
+                else:
+                    name ='n/a'
             print_out_str(
-                '{0}: {1:16s}({2:6d}) [affinity=0x{3:02x}] [vruntime={4:16d}]'.format(status, taskname, pid, affinity, vruntime))
+                '{0}: {1:16s}({2:6d}) [affinity=0x{3:02x}] [vruntime={4:16d}] {5:s}'.format(status, taskname, pid, affinity, vruntime, name))
+
         else:
             self.print_out_str_with_tab('{0}: None(0)'.format(status))
 
@@ -257,7 +275,7 @@ class RunQueues(RamParser):
             return
         no_of_cpus = self.ramdump.get_num_cpus()
         index = 0
-        while index < no_of_cpus:
+        for index in self.ramdump.iter_cpus():
             stack_addr = irq_stack_addr + self.ramdump.per_cpu_offset(index)
             if self.ramdump.arm64:
                 stack_addr = stack_addr & 0xffffffffffffffff
@@ -284,7 +302,6 @@ class RunQueues(RamParser):
                     if wname is not None:
                         print_out_str('0x{0:x}:{1}'.format(i, wname))
 
-            index = index + 1
 
     def parse(self):
         print_out_str(

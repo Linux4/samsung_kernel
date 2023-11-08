@@ -127,12 +127,12 @@ typedef enum {
 	eSAP_STA_ASSOC_IND,           /* Indicate assoc req to upper layers */
 	/*
 	 * Event sent when we have successfully associated a station and
-	 * upper layer neeeds to allocate a context
+	 * upper layer needs to allocate a context
 	 */
 	eSAP_STA_ASSOC_EVENT,
 	/*
 	 * Event sent when we have successfully reassociated a station and
-	 * upper layer neeeds to allocate a context
+	 * upper layer needs to allocate a context
 	 */
 	eSAP_STA_REASSOC_EVENT,
 	/*
@@ -180,10 +180,10 @@ typedef enum {
 } eSapAuthType;
 
 typedef enum {
-	/* Disassociation was internally initated from CORE stack */
+	/* Disassociation was internally initiated from CORE stack */
 	eSAP_MAC_INITATED_DISASSOC = 0x10000,
 	/*
-	 * Disassociation was internally initated from host by
+	 * Disassociation was internally initiated from host by
 	 * invoking wlansap_disassoc_sta call
 	 */
 	eSAP_USR_INITATED_DISASSOC
@@ -578,7 +578,6 @@ typedef struct sSapDfsNolInfo {
 
 typedef struct sSapDfsInfo {
 	qdf_mc_timer_t sap_dfs_cac_timer;
-	uint8_t sap_radar_found_status;
 	/*
 	 * New channel frequency to move to when a  Radar is
 	 * detected on current Channel
@@ -778,7 +777,7 @@ QDF_STATUS sap_init_ctx(struct sap_context *sap_ctx,
  *
  * When SAP session is about to close, this API needs to be called
  * to de-initialize all the members of sap context structure, so that
- * nobody can accidently start using the sap context.
+ * nobody can accidentally start using the sap context.
  *
  * Return: The result code associated with performing the operation
  *         QDF_STATUS_E_FAULT: BSS could not be stopped
@@ -931,7 +930,7 @@ QDF_STATUS wlansap_deauth_sta(struct sap_context *sap_ctx,
 /**
  * wlansap_set_channel_change_with_csa() - Set channel change with CSA
  * @sap_ctx: Pointer to SAP context
- * @target_chan_freq: Target channel frequncy
+ * @target_chan_freq: Target channel frequency
  * @target_bw: Target bandwidth
  * @strict: if true switch to the requested channel always, fail
  *        otherwise
@@ -1502,6 +1501,20 @@ QDF_STATUS wlansap_update_owe_info(struct sap_context *sap_ctx,
 				   uint32_t ie_len, uint16_t owe_status);
 
 /**
+ * wlansap_update_ft_info() - Update FT info
+ * @sap_ctx: sap context
+ * @peer: peer mac
+ * @ie: IE from hostapd
+ * @ie_len: IE length
+ * @ft_status: wlan status codes
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlansap_update_ft_info(struct sap_context *sap_ctx,
+				  uint8_t *peer, const uint8_t *ie,
+				  uint32_t ie_len, uint16_t ft_status);
+
+/**
  * wlansap_filter_ch_based_acs() -filter out channel based on acs
  * @sap_ctx: sap context
  * @ch_freq_list: pointer to channel frequency list
@@ -1781,6 +1794,24 @@ void sap_dump_acs_channel(struct sap_acs_cfg *acs_cfg);
  * Return: None
  */
 void sap_release_vdev_ref(struct sap_context *sap_ctx);
+
+#ifdef CONFIG_AFC_SUPPORT
+/**
+ * sap_afc_dcs_sel_chan() - API to select best SAP best channel/bandwidth with
+ *                          channel ACS weighted algorithm
+ * @sap_ctx: SAP context handle
+ * @cur_freq: SAP current home channel frequency
+ * @cur_bw: SAP current channel bandwidth
+ * @pref_bw: pointer to channel bandwidth prefer to set as input, and target
+ *           channel bandwidth can set as output
+ *
+ * Return: target home channel frequency selected
+ */
+qdf_freq_t sap_afc_dcs_sel_chan(struct sap_context *sap_ctx,
+				qdf_freq_t cur_freq,
+				enum phy_ch_width cur_bw,
+				enum phy_ch_width *pref_bw);
+#endif
 
 #ifdef WLAN_FEATURE_11BE
 /**

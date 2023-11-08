@@ -101,7 +101,7 @@ class Session
 {
 protected:
     void * handle_t;
-    std::mutex mutex;
+    std::mutex kvMutex;
     Session();
     std::shared_ptr<ResourceManager> rm;
     struct mixer *mixer;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014, 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -28,7 +29,7 @@
  * Redefine the register list. To minimize the size of the array, the list must
  * obey the below format. {start0, end0}, {start1, end1}, {start2, end2}.......
  * The value below must obey to "start0 < end0 < start1 < end1 < start2 < ...",
- * otherwise we may encouter error in the dump processing.
+ * otherwise we may encounter error in the dump processing.
  */
 
 static const struct tgt_reg_section ar6320v2_reg_table[] = {
@@ -302,7 +303,7 @@ static const struct tgt_reg_section ar6320v2_reg_table[] = {
 	{0x40000, 0x400A4},
 
 	/*
-	 * SI register is skiped here.
+	 * SI register is skipped here.
 	 * Because it will cause bus hang
 	 *
 	 * {0x50000, 0x50018},
@@ -577,7 +578,7 @@ static const struct tgt_reg_section ar6320v3_reg_table[] = {
 	{0x40000, 0x400A4},
 
 	/*
-	 * SI register is skiped here.
+	 * SI register is skipped here.
 	 * Because it will cause bus hang
 	 *
 	 * {0x50000, 0x50018},
@@ -859,7 +860,7 @@ static const struct tgt_reg_section ar6320v3_reg_table[] = {
 	{0x40000, 0x400A4},
 
 	/*
-	 * SI register is skiped here.
+	 * SI register is skipped here.
 	 * Because it will cause bus hang
 	 *
 	 * {0x50000, 0x50018},

@@ -87,6 +87,14 @@
 			   <Category>ODU</Category>
 			</Iface>
 			<Iface>
+			   <Name>ap_br_wlan2</Name>
+			   <Category>VIRTUAL</Category>
+			</Iface>
+			<Iface>
+			   <Name>ap_br_wlan3</Name>
+			   <Category>VIRTUAL</Category>
+			</Iface>
+			<Iface>
 			   <Name>bridge0</Name>
 			   <Category>VIRTUAL</Category>
 			</Iface>

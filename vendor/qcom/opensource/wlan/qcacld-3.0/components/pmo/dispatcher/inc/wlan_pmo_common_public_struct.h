@@ -20,7 +20,7 @@
  * DOC: Declare various struct, macros which are common for
  * various pmo related features.
  *
- * Note: This file shall not contain public API's prototype/declartions.
+ * Note: This file shall not contain public API's prototype/declarations.
  *
  */
 
@@ -54,6 +54,8 @@
 
 #define MAX_MC_IP_ADDR 10
 #define IGMP_QUERY_ADDRESS 0x10000e0
+
+#define WOW_LARGE_RX_RTPM_DELAY 1200
 
 /**
  * enum pmo_vdev_param_id: tell vdev param id
@@ -175,7 +177,7 @@ enum powersave_mode {
  * @PMO_SUSPEND_NONE: Does not support suspend
  * @PMO_SUSPEND_LEGENCY: Legency PDEV suspend mode
  * @PMO_SUSPEND_WOW: WoW suspend mode
- * @PMO_SUSPEND_SHUTDOWN: shutdown while suspend mode
+ * @PMO_SUSPEND_SHUTDOWN: Shutdown suspend mode. Shutdown while suspend
  */
 enum pmo_suspend_mode {
 	PMO_SUSPEND_NONE = 0,

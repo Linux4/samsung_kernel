@@ -450,14 +450,7 @@ static int lpass_cdc_va_macro_swr_pwr_event(struct snd_soc_dapm_widget *w,
 					 &va_priv, __func__))
 		return -EINVAL;
 
-	if (!va_priv->use_lpi_mixer_control)
-		return 0;
-
-	dev_dbg(va_dev, "%s: event = %d, lpi_enable = %d\n",
-		__func__, event, va_priv->lpi_enable);
-
-	if (!va_priv->lpi_enable)
-		return ret;
+	dev_dbg(va_dev, "%s: event = %d\n",__func__, event);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
@@ -1384,6 +1377,10 @@ static int lpass_cdc_va_macro_enable_dec(struct snd_soc_dapm_widget *w,
 		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
 					0x20, 0x00);
 		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
+					0x40, 0x40);
+		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
+					0x40, 0x00);
+		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
 					0x10, 0x00);
 		break;
 	}
@@ -1446,6 +1443,9 @@ static int lpass_cdc_va_macro_enable_micbias(struct snd_soc_dapm_widget *w,
 					 &va_priv, __func__))
 		return -EINVAL;
 
+	dev_info(va_dev, "%s: event = %d, micb_users = %d\n",
+		__func__, event, va_priv->micb_users);
+
 	if (!va_priv->micb_supply) {
 		dev_err_ratelimited(va_dev,
 			"%s:regulator not provided in dtsi\n", __func__);
@@ -1482,7 +1482,7 @@ static int lpass_cdc_va_macro_enable_micbias(struct snd_soc_dapm_widget *w,
 			return 0;
 		if (va_priv->micb_users < 0) {
 			va_priv->micb_users = 0;
-			dev_dbg(va_dev, "%s: regulator already disabled\n",
+			dev_info(va_dev, "%s: regulator already disabled\n",
 				__func__);
 			return 0;
 		}

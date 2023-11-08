@@ -27,6 +27,7 @@
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 #include "cam_sensor_cmn_header.h"
+#include "cam_hw_bigdata.h"
 #endif
 
 #define IFE_CSID_TIMEOUT                               1000
@@ -3959,7 +3960,6 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 	uint32_t                                    data_idx;
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
-	struct cam_hw_param *hw_param = NULL;
 	uint32_t hw_cam_position = 0;
 	uint32_t hwb_mipi_err = FALSE;
 #endif
@@ -4121,205 +4121,7 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 	if (hwb_mipi_err == TRUE) {
 		msm_is_sec_get_sensor_position(&hw_cam_position);
 		{
-			switch (hw_cam_position) {
-				case CAMERA_0:
-					if (!msm_is_sec_get_rear_hw_param(&hw_param)) {
-						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
-							switch (hw_param->comp_chk) {
-							case TRUE:
-								CAM_ERR(CAM_UTIL, "[HWB][R][MIPI_C] Err\n");
-								hw_param->mipi_comp_err_cnt++;
-								hw_param->mipi_chk = TRUE;
-								hw_param->need_update_to_file = TRUE;
-								break;
-
-							case FALSE:
-								CAM_ERR(CAM_UTIL, "[HWB][R][MIPI_S] Err\n");
-								hw_param->mipi_sensor_err_cnt++;
-								hw_param->mipi_chk = TRUE;
-								hw_param->need_update_to_file = TRUE;
-								break;
-
-							default:
-								CAM_ERR(CAM_UTIL, "[HWB][R][MIPI] Unsupport\n");
-							break;
-							}
-						}
-					}
-					break;
-
-				case CAMERA_1:
-				case CAMERA_12:
-					if (!msm_is_sec_get_front_hw_param(&hw_param)) {
-						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
-							switch (hw_param->comp_chk) {
-							case TRUE:
-								CAM_ERR(CAM_UTIL, "[HWB][F][MIPI_C] Err\n");
-								hw_param->mipi_comp_err_cnt++;
-								hw_param->mipi_chk = TRUE;
-								hw_param->need_update_to_file = TRUE;
-								break;
-
-							case FALSE:
-								CAM_ERR(CAM_UTIL, "[HWB][F][MIPI_S] Err\n");
-								hw_param->mipi_sensor_err_cnt++;
-								hw_param->mipi_chk = TRUE;
-								hw_param->need_update_to_file = TRUE;
-								break;
-
-							default:
-								CAM_ERR(CAM_UTIL, "[HWB][F][MIPI] Unsupport\n");
-								break;
-							}
-						}
-					}
-					break;
-
-#if defined(CONFIG_SAMSUNG_FRONT_TOP)
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-				case CAMERA_11:
-					if (!msm_is_sec_get_front2_hw_param(&hw_param)) {
-						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
-							switch (hw_param->comp_chk) {
-							case TRUE:
-								CAM_ERR(CAM_UTIL, "[HWB][F2][MIPI_C] Err\n");
-								hw_param->mipi_comp_err_cnt++;
-								hw_param->mipi_chk = TRUE;
-								hw_param->need_update_to_file = TRUE;
-								break;
-
-							case FALSE:
-								CAM_ERR(CAM_UTIL, "[HWB][F2][MIPI_S] Err\n");
-								hw_param->mipi_sensor_err_cnt++;
-								hw_param->mipi_chk = TRUE;
-								hw_param->need_update_to_file = TRUE;
-								break;
-
-							default:
-								CAM_ERR(CAM_UTIL, "[HWB][F2][MIPI] Unsupport\n");
-								break;
-							}
-						}
-					}
-					break;
-#else
-				case CAMERA_11:
-					if (!msm_is_sec_get_front3_hw_param(&hw_param)) {
-						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
-							switch (hw_param->comp_chk) {
-							case TRUE:
-								CAM_ERR(CAM_UTIL, "[HWB][F3][MIPI_C] Err\n");
-								hw_param->mipi_comp_err_cnt++;
-								hw_param->mipi_chk = TRUE;
-								hw_param->need_update_to_file = TRUE;
-								break;
-
-							case FALSE:
-								CAM_ERR(CAM_UTIL, "[HWB][F3][MIPI_S] Err\n");
-								hw_param->mipi_sensor_err_cnt++;
-								hw_param->mipi_chk = TRUE;
-								hw_param->need_update_to_file = TRUE;
-								break;
-
-							default:
-								CAM_ERR(CAM_UTIL, "[HWB][F3][MIPI] Unsupport\n");
-								break;
-							}
-						}
-					}
-					break;
-#endif
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE)
-				case CAMERA_2:
-					if (!msm_is_sec_get_rear2_hw_param(&hw_param)) {
-						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
-							switch (hw_param->comp_chk) {
-								case TRUE:
-									CAM_ERR(CAM_UTIL, "[HWB][R2][MIPI_C] Err\n");
-									hw_param->mipi_comp_err_cnt++;
-									hw_param->mipi_chk = TRUE;
-									hw_param->need_update_to_file = TRUE;
-									break;
-
-								case FALSE:
-									CAM_ERR(CAM_UTIL, "[HWB][R2][MIPI_S] Err\n");
-									hw_param->mipi_sensor_err_cnt++;
-									hw_param->mipi_chk = TRUE;
-									hw_param->need_update_to_file = TRUE;
-									break;
-
-								default:
-									CAM_ERR(CAM_UTIL, "[HWB][R2][MIPI] Unsupport\n");
-									break;
-							}
-						}
-					}
-					break;
-
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
-				case CAMERA_3:
-					if (!msm_is_sec_get_rear3_hw_param(&hw_param)) {
-						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
-							switch (hw_param->comp_chk) {
-								case TRUE:
-									CAM_ERR(CAM_UTIL, "[HWB][R3][MIPI_C] Err\n");
-									hw_param->mipi_comp_err_cnt++;
-									hw_param->mipi_chk = TRUE;
-									hw_param->need_update_to_file = TRUE;
-									break;
-
-								case FALSE:
-									CAM_ERR(CAM_UTIL, "[HWB][R3][MIPI_S] Err\n");
-									hw_param->mipi_sensor_err_cnt++;
-									hw_param->mipi_chk = TRUE;
-									hw_param->need_update_to_file = TRUE;
-									break;
-
-								default:
-									CAM_ERR(CAM_UTIL, "[HWB][R3][MIPI] Unsupport\n");
-									break;
-							}
-						}
-					}
-					break;
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
-				case CAMERA_4:
-					if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
-						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
-							switch (hw_param->comp_chk) {
-								case TRUE:
-									CAM_ERR(CAM_UTIL, "[HWB][R4][MIPI_C] Err\n");
-									hw_param->mipi_comp_err_cnt++;
-									hw_param->mipi_chk = TRUE;
-									hw_param->need_update_to_file = TRUE;
-									break;
-
-								case FALSE:
-									CAM_ERR(CAM_UTIL, "[HWB][R4][MIPI_S] Err\n");
-									hw_param->mipi_sensor_err_cnt++;
-									hw_param->mipi_chk = TRUE;
-									hw_param->need_update_to_file = TRUE;
-									break;
-
-								default:
-									CAM_ERR(CAM_UTIL, "[HWB][R4][MIPI] Unsupport\n");
-									break;
-							}
-						}
-					}
-					break;
-#endif
-
-				default:
-					CAM_DBG(CAM_UTIL, "[NON][MIPI][%d] Unsupport\n", hw_cam_position);
-					break;
-			}
+			hw_bigdata_mipi_from_ife_csid_ver1(hw_cam_position);
 		}
 	}
 #endif

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,7 +28,7 @@
  * @wmi_handle: pointer to the wmi handle
  * @utc: pointer to the UTC time struct
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS send_ocb_set_utc_time_cmd_tlv(wmi_unified_t wmi_handle,
 						struct ocb_utc_param *utc)
@@ -74,7 +75,7 @@ static QDF_STATUS send_ocb_set_utc_time_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: pointer to the wmi handle
  * @timing_advert: pointer to the timing advertisement struct
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS send_ocb_start_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,
 				struct ocb_timing_advert_param *timing_advert)
@@ -137,7 +138,7 @@ static QDF_STATUS send_ocb_start_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: pointer to the wmi handle
  * @timing_advert: pointer to the timing advertisement struct
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS send_ocb_stop_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,
 	struct ocb_timing_advert_param *timing_advert)
@@ -179,7 +180,7 @@ static QDF_STATUS send_ocb_stop_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: pointer to the wmi handle
  * @request: pointer to the request
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS send_ocb_get_tsf_timer_cmd_tlv(wmi_unified_t wmi_handle,
 			  uint8_t vdev_id)
@@ -223,7 +224,7 @@ static QDF_STATUS send_ocb_get_tsf_timer_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: pointer to the wmi handle
  * @get_stats_param: pointer to the dcc stats
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS send_dcc_get_stats_cmd_tlv(wmi_unified_t wmi_handle,
 		     struct ocb_dcc_get_stats_param *get_stats_param)
@@ -298,7 +299,7 @@ static QDF_STATUS send_dcc_get_stats_cmd_tlv(wmi_unified_t wmi_handle,
  * @vdev_id: vdev id
  * @dcc_stats_bitmap: dcc status bitmap
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS send_dcc_clear_stats_cmd_tlv(wmi_unified_t wmi_handle,
 				uint32_t vdev_id, uint32_t dcc_stats_bitmap)

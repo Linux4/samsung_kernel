@@ -327,11 +327,14 @@ send_twt_nudge_dialog_cmd_tlv(wmi_unified_t wmi_handle,
 	cmd->dialog_id = params->dialog_id;
 	cmd->suspend_duration_ms = params->suspend_duration / 1000;
 	cmd->next_twt_size = params->next_twt_size;
+	cmd->sp_start_offset = params->sp_start_offset;
 
 	wmi_debug("vdev_id: %d dialog_id: %d duration(in ms): %u next_twt_size: %d "
-		  "peer_macaddr: "QDF_MAC_ADDR_FMT, cmd->vdev_id,
-		  cmd->dialog_id, cmd->suspend_duration_ms, cmd->next_twt_size,
-		  QDF_MAC_ADDR_REF(params->peer_macaddr.bytes));
+		  "peer_macaddr: " QDF_MAC_ADDR_FMT " sp_start_offset: %d",
+		  cmd->vdev_id, cmd->dialog_id, cmd->suspend_duration_ms,
+		  cmd->next_twt_size,
+		  QDF_MAC_ADDR_REF(params->peer_macaddr.bytes),
+		  cmd->sp_start_offset);
 
 	status = wmi_unified_cmd_send(wmi_handle, buf, sizeof(*cmd),
 				      WMI_TWT_NUDGE_DIALOG_CMDID);
@@ -570,7 +573,7 @@ wmi_get_converted_twt_add_dialog_status(WMI_ADD_TWT_STATUS_T tgt_status)
 /**
  * extract_twt_add_dialog_comp_event_tlv - Extacts twt add dialog complete wmi
  * event from firmware
- * @wmi_hande: WMI handle
+ * @wmi_handle: WMI handle
  * @evt_buf: Pointer to wmi event buf of twt add dialog complete event
  * @params: Pointer to store the extracted parameters
  *
@@ -605,7 +608,7 @@ static QDF_STATUS extract_twt_add_dialog_comp_event_tlv(
 /**
  * extract_twt_add_dialog_comp_additional_parameters() - Extracts additional twt
  * twt parameters, as part of add dialog completion event
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
  * @evt_buf_len: length of the add dialog event buffer
  * @idx: index of num_twt_params
@@ -1695,7 +1698,7 @@ wmi_get_converted_twt_add_dialog_status(WMI_ADD_TWT_STATUS_T tgt_status)
 /**
  * extract_twt_add_dialog_comp_event_tlv - Extacts twt add dialog complete wmi
  * event from firmware
- * @wmi_hande: WMI handle
+ * @wmi_handle: WMI handle
  * @evt_buf: Pointer to wmi event buf of twt add dialog complete event
  * @params: Pointer to store the extracted parameters
  *
@@ -1729,7 +1732,7 @@ static QDF_STATUS extract_twt_add_dialog_comp_event_tlv(
 /**
  * extract_twt_add_dialog_comp_additional_parameters() - Extracts additional twt
  * twt parameters, as part of add dialog completion event
- * @wmi_hdl: wmi handle
+ * @wmi_handle: wmi handle
  * @evt_buf: Pointer event buffer
  * @evt_buf_len: length of the add dialog event buffer
  * @idx: index of num_twt_params

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -29,6 +29,7 @@
 #include "qdf_platform.h"
 #include "qdf_module.h"
 
+#ifdef IPA_OFFLOAD
 /* This is as per IPA capbility */
 #define MAX_INSTANCES_SUPPORTED 2
 
@@ -90,7 +91,7 @@ ipa_pdev_obj_destroy_notification(struct wlan_objmgr_pdev *pdev,
 						       WLAN_UMAC_COMP_IPA,
 						       ipa_obj);
 	if (QDF_IS_STATUS_ERROR(status))
-		ipa_err("Failed to detatch ipa pdev object");
+		ipa_err("Failed to detach ipa pdev object");
 
 	qdf_mem_free(ipa_obj);
 
@@ -202,7 +203,7 @@ static void ipa_register_ready_cb(void *user_data)
 		goto out;
 	}
 
-	/* Update instace_id for current pdev */
+	/* Update instance_id for current pdev */
 	ipa_obj->instance_id = psoc->soc_objmgr.psoc_id;
 
 	qdf_dev = wlan_psoc_get_qdf_dev(psoc);
@@ -370,3 +371,4 @@ bool wlan_ipa_is_vlan_enabled(void)
 }
 
 qdf_export_symbol(wlan_ipa_is_vlan_enabled);
+#endif

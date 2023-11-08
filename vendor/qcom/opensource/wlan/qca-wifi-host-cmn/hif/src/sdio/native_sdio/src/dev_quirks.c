@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -329,7 +330,7 @@ int hif_sdio_quirk_mod_strength(struct hif_softc *ol_sc, struct sdio_func *func)
 	struct hif_sdio_dev *device = get_hif_device(ol_sc, func);
 	uint16_t  manfid = device->id->device & MANUFACTURER_ID_AR6K_BASE_MASK;
 
-	if (!modstrength) /* TODO: Dont set this : scn is not popolated yet */
+	if (!modstrength) /* TODO: Dont set this : scn is not populated yet */
 		return 0;
 
 	if (!scn) {

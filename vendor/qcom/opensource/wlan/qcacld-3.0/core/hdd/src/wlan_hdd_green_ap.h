@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,6 +21,12 @@
 #define WLAN_HDD_GREEN_AP_H
 
 #include "qdf_types.h"
+#include "qca_vendor.h"
+#include <net/netlink.h>
+#include <osif_vdev_sync.h>
+#include "wlan_lmac_if_def.h"
+#include "wlan_objmgr_pdev_obj.h"
+#include "wlan_green_ap_api.h"
 
 struct hdd_context;
 
@@ -93,5 +100,46 @@ int hdd_green_ap_start_state_mc(struct hdd_context *hdd_ctx,
 }
 
 #endif /* WLAN_SUPPORT_GREEN_AP */
+
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+
+extern const struct nla_policy
+wlan_hdd_sap_low_pwr_mode[QCA_WLAN_VENDOR_ATTR_DOZED_AP_MAX + 1];
+
+#define FEATURE_GREEN_AP_LOW_LATENCY_PWR_SAVE_COMMANDS			\
+{									\
+	.info.vendor_id = QCA_NL80211_VENDOR_ID,                        \
+	.info.subcmd = QCA_NL80211_VENDOR_SUBCMD_DOZED_AP,		\
+	.flags = WIPHY_VENDOR_CMD_NEED_WDEV |				\
+		WIPHY_VENDOR_CMD_NEED_NETDEV |				\
+		WIPHY_VENDOR_CMD_NEED_RUNNING,				\
+	.doit = wlan_hdd_enter_sap_low_pwr_mode,			\
+	vendor_command_policy(wlan_hdd_sap_low_pwr_mode,		\
+			      QCA_WLAN_VENDOR_ATTR_MAX)			\
+},
+
+#define FEATURE_GREEN_AP_LOW_LATENCY_PWR_SAVE_EVENT			\
+[QCA_NL80211_VENDOR_SUBCMD_DOZED_AP_INDEX] = {				\
+	.vendor_id = QCA_NL80211_VENDOR_ID,				\
+	.subcmd = QCA_NL80211_VENDOR_SUBCMD_DOZED_AP,			\
+},
+
+int
+wlan_hdd_enter_sap_low_pwr_mode(struct wiphy *wiphy,
+				struct wireless_dev *wdev,
+				const void *data, int data_len);
+
+QDF_STATUS wlan_hdd_send_green_ap_ll_ps_event(
+		struct wlan_objmgr_vdev *vdev,
+		struct wlan_green_ap_ll_ps_event_param *ll_ps_event_param);
+
+QDF_STATUS green_ap_register_hdd_callback(struct wlan_objmgr_pdev *pdev,
+					  struct green_ap_hdd_callback *hdd_cback);
+
+#else
+#define FEATURE_GREEN_AP_LOW_LATENCY_PWR_SAVE_COMMANDS
+
+#define FEATURE_GREEN_AP_LOW_LATENCY_PWR_SAVE_EVENT
+#endif
 
 #endif /* !defined(WLAN_HDD_GREEN_AP_H) */

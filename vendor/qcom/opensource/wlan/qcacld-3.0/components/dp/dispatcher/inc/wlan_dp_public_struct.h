@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -16,7 +16,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 /**
- * DOC: Contains DP public data structure definations.
+ * DOC: Contains DP public data structure definitions.
  *
  */
 
@@ -33,6 +33,7 @@
 #include "cdp_txrx_ops.h"
 #include <qdf_defer.h>
 #include <qdf_types.h>
+#include "wlan_dp_rx_thread.h"
 
 #define DP_MAX_SUBTYPES_TRACKED	4
 
@@ -204,17 +205,18 @@ struct dp_dns_stats {
 /**
  * struct dp_tcp_stats - tcp debug stats count
  * @tx_tcp_syn_count: no. of tcp syn received from network stack
- * @@tx_tcp_ack_count: no. of tcp ack received from network stack
+ * @tx_tcp_ack_count: no. of tcp ack received from network stack
  * @rx_tcp_syn_ack_count: no. of tcp syn ack received from FW
  * @tx_tcp_syn_dropped: no. of tcp syn dropped at hdd layer
  * @tx_tcp_ack_dropped: no. of tcp ack dropped at hdd layer
  * @rx_delivered: no. of tcp syn ack delivered to network stack
  * @rx_refused: no of tcp syn ack refused (not delivered) to network stack
  * @tx_tcp_syn_host_fw_sent: no of tcp syn sent by FW OTA
- * @@tx_tcp_ack_host_fw_sent: no of tcp ack sent by FW OTA
+ * @tx_tcp_ack_host_fw_sent: no of tcp ack sent by FW OTA
  * @rx_host_drop: no of tcp syn ack dropped by host
+ * @rx_fw_cnt: no of tcp res received by FW
  * @tx_tcp_syn_ack_cnt: no of tcp syn acked by FW
- * @tx_tcp_syn_ack_cnt: no of tcp ack acked by FW
+ * @tx_tcp_ack_ack_cnt: no of tcp ack acked by FW
  * @is_tcp_syn_ack_rcv: flag to check tcp syn ack received or not
  * @is_tcp_ack_sent: flag to check tcp ack sent or not
  */
@@ -263,6 +265,7 @@ struct dp_icmpv4_stats {
 
 /**
  * struct dp_rsp_stats - arp packet stats
+ * @vdev_id: session id
  * @arp_req_enqueue: fw tx count
  * @arp_req_tx_success: tx ack count
  * @arp_req_tx_failure: tx ack fail count
@@ -351,7 +354,7 @@ struct dp_dhcp_ind {
 };
 
 /**
- * struct dp_mic_info - mic error info in dp
+ * struct dp_mic_error_info - mic error info in dp
  * @ta_mac_addr: transmitter mac address
  * @multicast: Flag for multicast
  * @key_id: Key ID
@@ -376,7 +379,7 @@ enum dp_mic_work_status {
 
 /**
  * struct dp_mic_work - mic work info in dp
- * @mic_error_work: mic error work
+ * @work: mic error work
  * @status: sattus of mic error work
  * @info: Pointer to mic error information
  * @lock: lock to synchronixe mic error work
@@ -402,6 +405,7 @@ enum dp_nud_state {
 	DP_NUD_STATE_INVALID
 };
 
+struct opaque_hdd_callback_handle;
 /**
  * typedef hdd_cb_handle - HDD Handle
  *
@@ -412,13 +416,11 @@ enum dp_nud_state {
  *
  * The HDD must be able to derive it's internal instance structure
  * pointer through this handle.
- */
-/*
+ *
  * NOTE WELL: struct opaque_hdd_callback_handle is not defined anywhere. This
  * reference is used to help ensure that a hdd_cb_handle is never used
  * where a different handle type is expected
  */
-struct opaque_hdd_callback_handle;
 typedef struct opaque_hdd_callback_handle *hdd_cb_handle;
 
 /**
@@ -432,6 +434,9 @@ typedef struct opaque_hdd_callback_handle *hdd_cb_handle;
  * @BUS_BW_LEVEL_5: vote for level-5 bus bandwidth
  * @BUS_BW_LEVEL_6: vote for level-6 bus bandwidth
  * @BUS_BW_LEVEL_7: vote for level-7 bus bandwidth
+ * @BUS_BW_LEVEL_8: vote for level-8 bus bandwidth
+ * @BUS_BW_LEVEL_9: vote for level-9 bus bandwidth
+ * @BUS_BW_LEVEL_MAX: vote for max level bus bandwidth
  */
 enum bus_bw_level {
 	BUS_BW_LEVEL_NONE,
@@ -443,6 +448,7 @@ enum bus_bw_level {
 	BUS_BW_LEVEL_6,
 	BUS_BW_LEVEL_7,
 	BUS_BW_LEVEL_8,
+	BUS_BW_LEVEL_9,
 	BUS_BW_LEVEL_MAX,
 };
 
@@ -456,9 +462,11 @@ enum bus_bw_level {
  * @TPUT_LEVEL_LOW: low throughput level
  * @TPUT_LEVEL_MEDIUM: medium throughtput level
  * @TPUT_LEVEL_HIGH: high throughput level
+ * @TPUT_LEVEL_MID_HIGH: mid high throughput level
  * @TPUT_LEVEL_VERY_HIGH: very high throughput level
  * @TPUT_LEVEL_ULTRA_HIGH: ultra high throughput level
  * @TPUT_LEVEL_SUPER_HIGH: super high throughput level
+ * @TPUT_LEVEL_MAX: maximum throughput level
  */
 enum tput_level {
 	TPUT_LEVEL_NONE,
@@ -466,6 +474,7 @@ enum tput_level {
 	TPUT_LEVEL_LOW,
 	TPUT_LEVEL_MEDIUM,
 	TPUT_LEVEL_HIGH,
+	TPUT_LEVEL_MID_HIGH,
 	TPUT_LEVEL_VERY_HIGH,
 	TPUT_LEVEL_ULTRA_HIGH,
 	TPUT_LEVEL_SUPER_HIGH,
@@ -477,6 +486,7 @@ enum tput_level {
  *
  * @BBM_APPS_RESUME: system resume flag
  * @BBM_APPS_SUSPEND: system suspend flag
+ * @BBM_FLAG_MAX: maximum flag
  */
 enum bbm_non_per_flag {
 	BBM_APPS_RESUME,
@@ -496,6 +506,7 @@ enum bbm_non_per_flag {
  *  is set without taking other policy vote levels into consideration.
  * @BBM_SELECT_TABLE_POLICY: policy where bus bw table is selected based on
  *  the latency level.
+ * @BBM_MAX_POLICY: max policy
  */
 enum bbm_policy {
 	BBM_DRIVER_MODE_POLICY,
@@ -511,6 +522,7 @@ enum bbm_policy {
  *
  * @WLM_LL_NORMAL: normal latency level
  * @WLM_LL_LOW: low latency level
+ * @WLM_LL_MAX: max latency level
  */
 enum wlm_ll_level {
 	WLM_LL_NORMAL,
@@ -528,6 +540,7 @@ enum wlm_ll_level {
  * @wlm_level: latency level. valid for BBM_WLM_POLICY.
  * @user_level: user bus bandwidth vote. valid for BBM_USER_POLICY.
  * @set: set or reset user level. valid for BBM_USER_POLICY.
+ * @usr: user specific info
  */
 union bbm_policy_info {
 	enum QDF_GLOBAL_MODE driver_mode;
@@ -541,7 +554,7 @@ union bbm_policy_info {
 };
 
 /**
- * struct bbm_params - BBM params
+ * struct bbm_params: BBM params
  *
  * @policy: BBM policy
  * @policy_info: policy related info
@@ -552,7 +565,9 @@ struct bbm_params {
 };
 
 /**
- * wlan_tp_data : union of TCP msg for Tx and Rx Dir
+ * union wlan_tp_data: union of TCP msg for Tx and Rx Dir
+ * @tx_tp_data: msg to TCP for Tx Dir
+ * @rx_tp_data: msg to TCP for Rx Dir
  */
 union wlan_tp_data {
 	struct wlan_tx_tp_data tx_tp_data;
@@ -564,6 +579,24 @@ union wlan_tp_data {
  * to non-converged driver
  * @callback_ctx : Opaque callback context
  * @dp_get_netdev_by_vdev_mac: Callback to get netdev from vdev mac address
+ * @dp_get_tx_flow_low_watermark: Callback to get TX flow low watermark info
+ * @dp_get_tx_resource: Callback to check tx resources and take action
+ * @dp_get_tsf_time: Callback to get TSF time
+ * @dp_tsf_timestamp_rx: Callback to set rx packet timestamp
+ * @dp_nbuf_push_pkt: Callback to push rx pkt to network
+ * @dp_rx_napi_gro_flush: OS IF Callback to GRO RX/flush function.
+ * @dp_rx_thread_napi_gro_flush: OS IF Callback to do gro flush
+ * @dp_rx_napi_gro_receive: OS IF Callback for GRO RX receive function.
+ * @dp_lro_rx_cb: OS IF Callback for LRO receive function
+ * @dp_gro_rx_legacy_get_napi: Callback to get napi in legacy gro case
+ * @dp_register_rx_offld_flush_cb: OS IF Callback to get rx offld flush cb
+ * @dp_rx_check_qdisc_configured: OS IF Callback to check if any ingress qdisc
+ * configured
+ * @dp_is_gratuitous_arp_unsolicited_na: OS IF Callback to check gratuitous arp
+ * unsolicited na
+ * @dp_send_rx_pkt_over_nl: OS IF Callback to send rx pkt over nl
+ * @dp_disable_rx_ol_for_low_tput: Callback to disable Rx offload in low TPUT
+ * scenario
  * @wlan_dp_sta_get_dot11mode: Callback to get dot11 mode
  * @wlan_dp_get_ap_client_count: Callback to get client count connected to AP
  * @wlan_dp_sta_ndi_connected: Callback to get NDI connected status
@@ -581,7 +614,8 @@ union wlan_tp_data {
  * @dp_is_ap_active:Callback to check if AP is active
  * @dp_napi_apply_throughput_policy:Callback to apply NAPI throughput policy
  * @wlan_dp_display_tx_multiq_stats: Callback to display Tx Mulit queue stats
- * @wlan_dp_display_netif_queue_history: Callback to display Netif queue history
+ * @wlan_dp_display_netif_queue_history: Callback to display Netif queue
+ * history
  * @osif_dp_process_mic_error: osif callback to process MIC error
  * @dp_is_link_adapter: Callback API to check if adapter is link adapter
  * @os_if_dp_nud_stats_info: osif callback to print nud stats info
@@ -607,6 +641,9 @@ struct wlan_dp_psoc_callbacks {
 	QDF_STATUS (*dp_rx_napi_gro_flush)(qdf_napi_struct *napi_to_use,
 					   qdf_nbuf_t nbuf,
 					   uint8_t *force_flush);
+	void
+	(*dp_rx_thread_napi_gro_flush)(qdf_napi_struct *napi,
+				       enum dp_rx_gro_flush_code flush_code);
 	QDF_STATUS (*dp_rx_napi_gro_receive)(qdf_napi_struct *napi_to_use,
 					     qdf_nbuf_t nbuf);
 
@@ -714,6 +751,7 @@ struct wlan_dp_psoc_nb_ops {
 /**
  * struct wlan_dp_user_config - DP component user config
  * @ipa_enable: IPA enabled/disabled config
+ * @arp_connectivity_map: ARP connectiviy map
  */
 struct wlan_dp_user_config {
 	bool ipa_enable;
@@ -721,7 +759,7 @@ struct wlan_dp_user_config {
 };
 
 /**
- * struct dp_traffic_end_indication - Trafic end indication
+ * struct dp_traffic_end_indication - Traffic end indication
  * @enabled: Feature enabled/disabled config
  * @def_dscp: Default DSCP value in regular packets in traffic
  * @spl_dscp: Special DSCP value to be used by packet to mark

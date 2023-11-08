@@ -289,7 +289,7 @@ dp_tx_adjust_flow_pool_state(struct dp_soc *soc,
 			      WLAN_DATA_FLOW_CTRL_BE_BK);
 		break;
 	default:
-		dp_err("Invalid pool staus:%u to adjust", pool->status);
+		dp_err("Invalid pool status:%u to adjust", pool->status);
 	}
 }
 
@@ -382,6 +382,7 @@ dp_tx_desc_alloc(struct dp_soc *soc, uint8_t desc_pool_id)
 		}
 		qdf_spin_unlock_bh(&pool->flow_pool_lock);
 	} else {
+		dp_err_rl("NULL desc pool pool_id %d", desc_pool_id);
 		soc->pool_stats.pkt_drop_no_pool++;
 	}
 
@@ -419,7 +420,7 @@ dp_tx_desc_free(struct dp_soc *soc, struct dp_tx_desc_s *tx_desc,
 			reason = WLAN_DATA_FLOW_CTRL_PRI;
 			pool->status = FLOW_POOL_VO_PAUSED;
 
-			/* Update maxinum pause duration for HI queue */
+			/* Update maximum pause duration for HI queue */
 			pause_dur = unpause_time -
 					pool->latest_pause_time[DP_TH_HI];
 			if (pool->max_pause_time[DP_TH_HI] < pause_dur)
@@ -432,7 +433,7 @@ dp_tx_desc_free(struct dp_soc *soc, struct dp_tx_desc_s *tx_desc,
 			reason = WLAN_DATA_FLOW_CTRL_VO;
 			pool->status = FLOW_POOL_VI_PAUSED;
 
-			/* Update maxinum pause duration for VO queue */
+			/* Update maximum pause duration for VO queue */
 			pause_dur = unpause_time -
 					pool->latest_pause_time[DP_TH_VO];
 			if (pool->max_pause_time[DP_TH_VO] < pause_dur)
@@ -445,7 +446,7 @@ dp_tx_desc_free(struct dp_soc *soc, struct dp_tx_desc_s *tx_desc,
 			reason = WLAN_DATA_FLOW_CTRL_VI;
 			pool->status = FLOW_POOL_BE_BK_PAUSED;
 
-			/* Update maxinum pause duration for VI queue */
+			/* Update maximum pause duration for VI queue */
 			pause_dur = unpause_time -
 					pool->latest_pause_time[DP_TH_VI];
 			if (pool->max_pause_time[DP_TH_VI] < pause_dur)
@@ -458,7 +459,7 @@ dp_tx_desc_free(struct dp_soc *soc, struct dp_tx_desc_s *tx_desc,
 			reason = WLAN_DATA_FLOW_CTRL_BE_BK;
 			pool->status = FLOW_POOL_ACTIVE_UNPAUSED;
 
-			/* Update maxinum pause duration for BE_BK queue */
+			/* Update maximum pause duration for BE_BK queue */
 			pause_dur = unpause_time -
 					pool->latest_pause_time[DP_TH_BE_BK];
 			if (pool->max_pause_time[DP_TH_BE_BK] < pause_dur)

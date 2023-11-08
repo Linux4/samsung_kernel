@@ -70,7 +70,7 @@ static void hal_tx_set_dscp_tid_map_kiwi(struct hal_soc *hal_soc, uint8_t *map,
 
 	HAL_REG_WRITE(soc, cmn_reg_addr, regval);
 
-	/* Write 8 (24 bits) DSCP-TID mappings in each interation */
+	/* Write 8 (24 bits) DSCP-TID mappings in each iteration */
 	for (i = 0; i < 64; i += 8) {
 		value = (map[i] |
 			(map[i + 1] << 0x3) |

@@ -672,11 +672,6 @@ void sde_core_perf_crtc_update_uidle(struct drm_crtc *crtc,
 		}
 	}
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	/* Dsiable UIDLE_PC - sometimes it causes long trasfer time of video data */
-	uidle_status = UIDLE_STATE_DISABLE;
-#endif
-
 	_sde_core_perf_enable_uidle(kms, crtc,
 			enable ? uidle_status : UIDLE_STATE_DISABLE);
 

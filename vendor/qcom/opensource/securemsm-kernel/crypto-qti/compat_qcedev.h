@@ -171,8 +171,6 @@ struct compat_qcedev_unmap_buf_req {
 };
 
 struct file;
-long qcedev_ioctl(struct file *file,
-			unsigned int cmd, unsigned long arg);
 long compat_qcedev_ioctl(struct file *file,
 			unsigned int cmd, unsigned long arg);
 
@@ -199,4 +197,8 @@ long compat_qcedev_ioctl(struct file *file,
 #define COMPAT_QCEDEV_IOCTL_UNMAP_BUF_REQ \
 	_IOWR(QCEDEV_IOC_MAGIC, 11, struct compat_qcedev_unmap_buf_req)
 #endif /* CONFIG_COMPAT */
+
+long qcedev_ioctl(struct file *file,
+			unsigned int cmd, unsigned long arg);
+
 #endif /* _UAPI_COMPAT_QCEDEV__H */

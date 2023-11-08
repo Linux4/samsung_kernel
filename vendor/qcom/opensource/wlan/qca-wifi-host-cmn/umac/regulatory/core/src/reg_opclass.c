@@ -698,7 +698,7 @@ static uint8_t reg_dmn_get_num_6g_opclasses(struct wlan_objmgr_pdev *pdev)
  * reg_dmn_fill_6g_opcls_chan_lists() - Copy the channel lists for 6g opclasses
  * to the output argument list ('channel_lists')
  * @pdev: Pointer to pdev.
- * @p_frange_lst: Pointer to frequencey range list (AFC)
+ * @p_frange_lst: Pointer to frequency range list (AFC)
  * @chansize_lst: Array of sizes of channel lists
  * @channel_lists: The array list pointers where the channel lists are to be
  *                 copied.
@@ -858,7 +858,7 @@ QDF_STATUS reg_dmn_get_6g_opclasses_and_channels(struct wlan_objmgr_pdev *pdev,
 		p_temp_alloc += l_chansize_lst[i] * sizeof(uint8_t *);
 	}
 
-	/* Fill the array with channl lists */
+	/* Fill the array with channel lists */
 	reg_dmn_fill_6g_opcls_chan_lists(pdev, p_frange_lst, l_chansize_lst, arr_chan_lists);
 
 	*opclass_lst = l_opcls_lst;

@@ -148,7 +148,7 @@ int ucfg_cfr_start_capture_probe_req(struct wlan_objmgr_pdev *pdev,
 	}
 
 	if (pa->cfr_current_sta_count == pa->cfr_max_sta_count) {
-		cfr_err("max cfr cleint reached");
+		cfr_err("max cfr client reached");
 		return -EINVAL;
 	}
 
@@ -452,7 +452,7 @@ void ucfg_cfr_capture_data(struct wlan_objmgr_psoc *psoc, uint32_t vdev_id,
 	 * help in writing next capture.
 	 * ignoring 4 byte for FW magic number from the actual allocated memory
 	 * length to avoid corruption in magic number. This memory is circular
-	 * so after complation of one round, Skipping the first 8 byte as they
+	 * so after completion of one round, Skipping the first 8 byte as they
 	 * are for read index and write index.
 	 */
 	if (((*rindex) + payload_len) <= (pcfr->cfr_mem_chunk.len - 4))
@@ -795,6 +795,13 @@ ucfg_cfr_set_frame_type_subtype(struct wlan_objmgr_vdev *vdev,
 	if (status != QDF_STATUS_SUCCESS)
 		return status;
 
+	if (params->grp_id >= MAX_TA_RA_ENTRIES) {
+		cfr_err("err parameter grp_id, value=%u, max=%u\n",
+			params->grp_id,
+			MAX_TA_RA_ENTRIES);
+		return QDF_STATUS_E_INVAL;
+	}
+
 	/* Populating current config based on user's input */
 	curr_cfg = &pcfr->rcc_param.curr[params->grp_id];
 	curr_cfg->mgmt_subtype_filter = params->expected_mgmt_subtype;
@@ -832,6 +839,13 @@ QDF_STATUS ucfg_cfr_set_bw_nss(struct wlan_objmgr_vdev *vdev,
 	if (status != QDF_STATUS_SUCCESS)
 		return status;
 
+	if (params->grp_id >= MAX_TA_RA_ENTRIES) {
+		cfr_err("err parameter grp_id, value=%u, max=%u\n",
+			params->grp_id,
+			MAX_TA_RA_ENTRIES);
+		return QDF_STATUS_E_INVAL;
+	}
+
 	/* Populating current config based on user's input */
 	curr_cfg = &pcfr->rcc_param.curr[params->grp_id];
 	curr_cfg->bw = params->bw;
@@ -866,6 +880,13 @@ QDF_STATUS ucfg_cfr_set_tara_config(struct wlan_objmgr_vdev *vdev,
 	status = dev_sanity_check(vdev, &pdev, &pcfr);
 	if (status != QDF_STATUS_SUCCESS)
 		return status;
+
+	if (params->grp_id >= MAX_TA_RA_ENTRIES) {
+		cfr_err("err parameter grp_id, value=%u, max=%u\n",
+			params->grp_id,
+			MAX_TA_RA_ENTRIES);
+		return QDF_STATUS_E_INVAL;
+	}
 
 	curr_cfg = &pcfr->rcc_param.curr[params->grp_id];
 	qdf_mem_copy(curr_cfg->tx_addr, params->ta, QDF_MAC_ADDR_SIZE);
@@ -1176,7 +1197,8 @@ QDF_STATUS ucfg_cfr_rcc_dump_lut(struct wlan_objmgr_vdev *vdev)
 }
 
 static void cfr_set_filter(struct wlan_objmgr_pdev *pdev, bool enable,
-			   struct cdp_monitor_filter *filter_val)
+			   struct cdp_monitor_filter *filter_val,
+			   bool cfr_enable_monitor_mode)
 {
 	struct wlan_objmgr_psoc *psoc = wlan_pdev_get_psoc(pdev);
 
@@ -1184,8 +1206,8 @@ static void cfr_set_filter(struct wlan_objmgr_pdev *pdev, bool enable,
 
 	cdp_cfr_filter(wlan_psoc_get_dp_handle(psoc),
 		       wlan_objmgr_pdev_get_pdev_id(pdev),
-		       enable,
-		       filter_val);
+		       enable, filter_val,
+		       cfr_enable_monitor_mode);
 }
 
 #ifdef WLAN_ENH_CFR_ENABLE
@@ -1210,6 +1232,7 @@ QDF_STATUS ucfg_cfr_committed_rcc_config(struct wlan_objmgr_vdev *vdev)
 	struct wlan_objmgr_psoc *psoc = NULL;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 	struct cdp_monitor_filter filter_val = {0};
+	bool cfr_enable_monitor_mode = false;
 
 	status = dev_sanity_check(vdev, &pdev, &pcfr);
 	if (status != QDF_STATUS_SUCCESS)
@@ -1224,6 +1247,9 @@ QDF_STATUS ucfg_cfr_committed_rcc_config(struct wlan_objmgr_vdev *vdev)
 	}
 
 	pcfr->rcc_param.vdev_id = wlan_vdev_get_id(vdev);
+
+	if (wlan_vdev_mlme_is_special_vdev(vdev))
+		cfr_enable_monitor_mode = true;
 
 	/*
 	 * If capture mode is valid, then Host:
@@ -1298,12 +1324,12 @@ QDF_STATUS ucfg_cfr_committed_rcc_config(struct wlan_objmgr_vdev *vdev)
 		if (!cdp_get_cfr_rcc(wlan_psoc_get_dp_handle(psoc),
 				    wlan_objmgr_pdev_get_pdev_id(pdev)))
 			tgt_cfr_start_lut_age_timer(pdev);
-		cfr_set_filter(pdev, 1, &filter_val);
+		cfr_set_filter(pdev, 1, &filter_val, cfr_enable_monitor_mode);
 	} else {
 		if (cdp_get_cfr_rcc(wlan_psoc_get_dp_handle(psoc),
 				    wlan_objmgr_pdev_get_pdev_id(pdev)))
 			tgt_cfr_stop_lut_age_timer(pdev);
-		cfr_set_filter(pdev, 0, &filter_val);
+		cfr_set_filter(pdev, 0, &filter_val, cfr_enable_monitor_mode);
 	}
 
 	/* Trigger wmi to start the TLV processing. */

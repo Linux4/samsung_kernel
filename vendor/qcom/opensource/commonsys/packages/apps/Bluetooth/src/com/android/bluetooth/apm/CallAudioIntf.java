@@ -25,6 +25,11 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  **************************************************************************/
 
 package com.android.bluetooth.apm;
@@ -366,6 +371,24 @@ public class CallAudioIntf {
         try {
             Method isAudioOn = CallAudio.getDeclaredMethod("isAudioOn");
             Boolean ret = (Boolean)isAudioOn.invoke(mCallAudio);
+            return ret;
+        } catch(IllegalAccessException e) {
+            Log.i(TAG, "Exception" + e);
+        } catch(NoSuchMethodException e) {
+            Log.i(TAG, "Exception" + e);
+        } catch(InvocationTargetException e) {
+            Log.i(TAG, "Exception" + e);
+        }
+        return false;
+    }
+
+    public boolean isVoipLeaWarEnabled() {
+        if(CallAudio == null)
+            return false;
+
+        try {
+            Method isVoipLeaWarEnabled = CallAudio.getDeclaredMethod("isVoipLeaWarEnabled");
+            Boolean ret = (Boolean)isVoipLeaWarEnabled.invoke(mCallAudio);
             return ret;
         } catch(IllegalAccessException e) {
             Log.i(TAG, "Exception" + e);

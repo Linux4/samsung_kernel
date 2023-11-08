@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -49,7 +50,7 @@ typedef int (*qld_iter_func)(void *req, struct qld_entry *entry);
 
 /**
  * qld_iterate_list() - qld list iteration routine
- * @gen_table: callback function to genrate table
+ * @gen_table: callback function to generate table
  * @req: opaque request
  *
  * Return: 0 - OK -EINVAL - On failure

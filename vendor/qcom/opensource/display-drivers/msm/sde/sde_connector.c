@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -1077,13 +1077,28 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI) {
 		/* SAMSUNG_FINGERPRINT */
 		vdd = display->panel->panel_private;
-		finger_mask_state = sde_connector_get_property(c_conn->base.state,
-				CONNECTOR_PROP_FINGERPRINT_MASK);
-		vdd->finger_mask_updated = false;
-		if (finger_mask_state != vdd->finger_mask) {
-			SDE_INFO("[FINGER MASK]updated finger mask mode %d\n", finger_mask_state);
-			vdd->finger_mask_updated = true;
-			vdd->finger_mask = finger_mask_state;
+		if (vdd->support_optical_fingerprint) {
+			finger_mask_state = sde_connector_get_property(c_conn->base.state,
+					CONNECTOR_PROP_FINGERPRINT_MASK);
+			/* To prevent race condition between Finger Mask Commit & VRR Commit
+			 * P230622-05552 : Race condition beteen Finger Mask & VRR(HS - PHS Switching)
+			 * Incase of VRR switching, VRR shulod be changed even though finger mask is being changed.
+			 * To protect link between vdd->finger_mask_updated & finger_mask brightness update, vrr_lock should be added.
+			 *
+			 * Simply, please refer below NG/OK cases.
+			 * vdd->finger_mask_updated=true -> vrr brightness_update -> finger_mask brightness_update (NG)
+			 * vdd->finger_mask_updated=true -> finger_mask brightness_update -> vdd->finger_mask_updated=false -> vrr brightness_update (OK)
+			 */
+
+			if (finger_mask_state != vdd->finger_mask) {
+				mutex_lock(&vdd->vrr.vrr_lock);
+				SDE_INFO("[FINGER_MASK]updated finger mask mode %d\n", finger_mask_state);
+				vdd->finger_mask_updated = true;
+				vdd->finger_mask = finger_mask_state;
+				ss_send_hbm_fingermask_image_tx(vdd, vdd->finger_mask);
+				vdd->finger_mask_updated = false;
+				mutex_unlock(&vdd->vrr.vrr_lock);
+			}
 		}
 	}
 #endif
@@ -1219,9 +1234,13 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 
 		if (vdd->vrr.support_vrr_based_bl &&
 				(vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr)) {
-			LCD_DEBUG(vdd, "skip & backup props.brightness = %d during VRR\n",
-					c_conn->bl_device->props.brightness);
-			vdd->br_info.common_br.bl_level = c_conn->bl_device->props.brightness;
+			if (!vdd->br_info.common_br.finger_mask_hbm_on) {
+				LCD_DEBUG(vdd, "skip & backup props.brightness = %d during VRR\n",
+						c_conn->bl_device->props.brightness);
+				vdd->br_info.common_br.bl_level = c_conn->bl_device->props.brightness;
+			} else
+				LCD_INFO(vdd, "Finger Mask Case. Do not backup\n");
+
 		} else {
 			backlight_update_status(c_conn->bl_device);
 		}
@@ -1697,6 +1716,23 @@ static int _sde_connector_set_prop_out_fb(struct drm_connector *connector,
 	return rc;
 }
 
+static struct drm_encoder *
+sde_connector_best_encoder(struct drm_connector *connector)
+{
+	struct sde_connector *c_conn = to_sde_connector(connector);
+
+	if (!connector) {
+		SDE_ERROR("invalid connector\n");
+		return NULL;
+	}
+
+	/*
+	 * This is true for now, revisit this code when multiple encoders are
+	 * supported.
+	 */
+	return c_conn->encoder;
+}
+
 static int _sde_connector_set_prop_retire_fence(struct drm_connector *connector,
 		struct drm_connector_state *state,
 		uint64_t val)
@@ -1732,9 +1768,13 @@ static int _sde_connector_set_prop_retire_fence(struct drm_connector *connector,
 		 */
 		offset++;
 
-		/* get hw_ctl for a wb connector */
-		if (c_conn->connector_type == DRM_MODE_CONNECTOR_VIRTUAL)
-			hw_ctl = sde_encoder_get_hw_ctl(c_conn);
+		/* get hw_ctl for a wb connector not in cwb mode */
+		if (c_conn->connector_type == DRM_MODE_CONNECTOR_VIRTUAL) {
+			struct drm_encoder *drm_enc = sde_connector_best_encoder(connector);
+
+			if (drm_enc && !sde_encoder_in_clone_mode(drm_enc))
+				hw_ctl = sde_encoder_get_hw_ctl(c_conn);
+		}
 
 		rc = sde_fence_create(c_conn->retire_fence,
 					&fence_user_fd, offset, hw_ctl);
@@ -2712,23 +2752,6 @@ sde_connector_mode_valid(struct drm_connector *connector,
 	return MODE_OK;
 }
 
-static struct drm_encoder *
-sde_connector_best_encoder(struct drm_connector *connector)
-{
-	struct sde_connector *c_conn = to_sde_connector(connector);
-
-	if (!connector) {
-		SDE_ERROR("invalid connector\n");
-		return NULL;
-	}
-
-	/*
-	 * This is true for now, revisit this code when multiple encoders are
-	 * supported.
-	 */
-	return c_conn->encoder;
-}
-
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 static struct drm_encoder *
 sde_connector_atomic_best_encoder(struct drm_connector *connector,
@@ -2811,6 +2834,14 @@ static void _sde_connector_report_panel_dead(struct sde_connector *conn,
 
 	SDE_EVT32(SDE_EVTLOG_ERROR);
 	conn->panel_dead = true;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	{
+		struct dsi_display *display = conn->display;
+		struct samsung_display_driver_data *vdd = display->panel->panel_private;
+
+		vdd->panel_dead = true;
+	}
+#endif
 	sde_encoder_display_failure_notification(conn->encoder,
 		skip_pre_kickoff);
 
@@ -2819,17 +2850,8 @@ static void _sde_connector_report_panel_dead(struct sde_connector *conn,
 	msm_mode_object_event_notify(&conn->base.base,
 		conn->base.dev, &event, (u8 *)&conn->panel_dead);
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	{
-		struct dsi_display *display = conn->display;
-		struct samsung_display_driver_data *vdd = display->panel->panel_private;
-
-		vdd->panel_dead = true;
-	}
-#else
 	SDE_ERROR("esd check failed report PANEL_DEAD conn_id: %d enc_id: %d\n",
 		conn->base.base.id, conn->encoder->base.id);
-#endif
 }
 
 const char *sde_conn_get_topology_name(struct drm_connector *conn,

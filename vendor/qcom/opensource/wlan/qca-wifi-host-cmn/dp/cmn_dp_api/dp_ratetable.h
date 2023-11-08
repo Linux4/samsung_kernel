@@ -169,6 +169,32 @@ static inline int dp_ath_rate_out(uint64_t _i)
 #define DP_RATE_TABLE_SIZE HE_LAST_RIX_PLUS_ONE
 #endif
 
+#define INVALID_RATE_ERR -1
+
+/*
+ * The order of the rate types are jumbled below since the current code
+ * implementation is mapped in such way already.
+ *
+ * @DP_HT_RATE: HT Ratetype
+ * @DP_VHT_RATE: VHT Ratetype
+ * @DP_11B_CCK_RATE: 11B CCK Ratetype
+ * @DP_11A_OFDM_RATE: 11A OFDM Ratetype
+ * @DP_11G_CCK_OFDM_RATE: 11G CCK + OFDM Ratetype
+ * @DP_HE_RATE: HE Ratetype
+ */
+enum DP_CMN_RATE_TYPE {
+	DP_HT_RATE = 2,
+	DP_VHT_RATE,
+	DP_11B_CCK_RATE,
+	DP_11A_OFDM_RATE,
+	DP_11G_CCK_OFDM_RATE,
+	DP_HE_RATE
+};
+
+#define DP_RATEKBPS_SGI(i) (dp_11abgnratetable.info[i].ratekbpssgi)
+#define DP_RATEKBPS(i) (dp_11abgnratetable.info[i].ratekbps)
+#define RATE_ROUNDOUT(rate) (((rate) / 1000) * 1000)
+
 /* The following would span more than one octet
  * when 160MHz BW defined for VHT
  * Also it's important to maintain the ordering of
@@ -247,9 +273,12 @@ int dp_rate_idx_to_kbps(uint8_t rate_idx, uint8_t gintval);
 
 #if ALL_POSSIBLE_RATES_SUPPORTED
 int dp_get_supported_rates(int mode, int shortgi, int **rates);
+int dp_get_kbps_to_mcs(int kbps_rate, int shortgi, int htflag);
 #else
 int dp_get_supported_rates(int mode, int shortgi, int nss,
 			   int ch_width, int **rates);
+int dp_get_kbps_to_mcs(int kbps_rate, int shortgi, int htflag,
+		       int nss, int ch_width);
 #endif
 
 #endif /*_DP_RATES_H_*/

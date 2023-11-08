@@ -38,7 +38,7 @@
  * If gWlainMccToSccSwitchMode = 5: Force switch without SAP restart.MCC allowed
  *					in exceptional cases.
  * If gWlainMccToSccSwitchMode = 6: Force Switch without SAP restart only in
-					user preffered band.
+					user preferred band.
  * Related: None.
  *
  * Supported Feature: Concurrency
@@ -652,6 +652,63 @@ CFG_INI_UINT("g_pcl_band_priority", 0, 1, 0, CFG_VALUE_OR_DEFAULT, \
 CFG_INI_BOOL("g_multi_sap_allowed_on_same_band", 1, \
 	     "Allow multi SAP started on same band")
 
+#ifdef WLAN_FEATURE_SR
+/*
+ * <ini>
+ * g_enable_sr_in_same_mac_conc - Enable/Disable SR in same MAC concurrency
+ * @Min: 0
+ * @Max: 1
+ * @Default: 1
+ *
+ * This ini is used to enable/disable SR in same MAC concurrency scenarios.
+ * 0 - disable SR in same mac concurrency
+ * 1 - enable SR in same mac concurrency
+ *
+ * Ex- If 1st connection STA operating on MAC0 has enabled Spatial Reuse
+ * already. Then if user tries to bring-up 2nd connection SAP on MAC0
+ * (STA + SAP (SCC)).
+ * Now if this INI is not set to 1, then Spatial Reuse gets disabled for
+ * all the interfaces running on MAC0. Once 2nd connection or concurrency
+ * interface is disabled, Spatial Reuse gets enabled again.
+ *
+ * Related: None.
+ *
+ * Supported Feature: Spatial Reuse
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_ENABLE_SR_IN_SAME_MAC_CONC \
+CFG_INI_BOOL("g_enable_sr_in_same_mac_conc", 1, \
+	     "Enable/Disable SR in Same MAC concurrency")
+
+#define CFG_SPATIAL_REUSE CFG(CFG_ENABLE_SR_IN_SAME_MAC_CONC)
+#else
+#define CFG_SPATIAL_REUSE
+#endif
+
+/*
+ * <ini>
+ * g_use_original_bw_for_sap_restart - Set sap default BW when do restart
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to set sap default BW when do restart.
+ * 0 - Use maximum BW as default BW
+ * 1 - Use sap original BW as default BW
+ *
+ * Supported Feature: SAP
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_SAP_DEFAULT_BW_FOR_RESTART \
+CFG_INI_BOOL("g_use_original_bw_for_sap_restart", 0, \
+	     "Use SAP original bandwidth when do restart")
+
 #define CFG_POLICY_MGR_ALL \
 		CFG(CFG_MCC_TO_SCC_SWITCH) \
 		CFG(CFG_CONC_SYS_PREF) \
@@ -675,5 +732,7 @@ CFG_INI_BOOL("g_multi_sap_allowed_on_same_band", 1, \
 		CFG(CFG_ALLOW_MCC_GO_DIFF_BI) \
 		CFG(CFG_P2P_GO_ENABLE_FORCE_SCC) \
 		CFG(CFG_PCL_BAND_PRIORITY) \
-		CFG(CFG_MULTI_SAP_ALLOWED_ON_SAME_BAND)
+		CFG(CFG_MULTI_SAP_ALLOWED_ON_SAME_BAND) \
+		CFG_SPATIAL_REUSE \
+		CFG(CFG_SAP_DEFAULT_BW_FOR_RESTART)
 #endif

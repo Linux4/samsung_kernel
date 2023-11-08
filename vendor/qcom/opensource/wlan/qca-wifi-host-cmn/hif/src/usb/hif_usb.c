@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -484,7 +485,7 @@ void hif_get_default_pipe(struct hif_opaque_softc *scn, uint8_t *ul_pipe,
 /**
  * hif_map_service_to_pipe() - maps ul/dl pipe to service id.
  * @scn: HIF context
- * @svc_id: sevice index
+ * @svc_id: service index
  * @ul_pipe: pointer to uplink pipe id
  * @dl_pipe: pointer to down-linklink pipe id
  * @ul_is_polled: if ul is polling based
@@ -539,7 +540,7 @@ int hif_map_service_to_pipe(struct hif_opaque_softc *scn, uint16_t svc_id,
 /**
  * hif_map_service_to_pipe() - maps ul/dl pipe to service id.
  * @scn: HIF context
- * @svc_id: sevice index
+ * @svc_id: service index
  * @ul_pipe: pointer to uplink pipe id
  * @dl_pipe: pointer to down-linklink pipe id
  * @ul_is_polled: if ul is polling based
@@ -904,7 +905,7 @@ void hif_send_complete_check(struct hif_opaque_softc *scn,
 	/* NO-OP*/
 }
 
-/* diagnostic command defnitions */
+/* diagnostic command definitions */
 #define USB_CTRL_DIAG_CC_READ       0
 #define USB_CTRL_DIAG_CC_WRITE      1
 #define USB_CTRL_DIAG_CC_WARM_RESET 2

@@ -86,6 +86,9 @@
 #include "UltrasoundDevice.h"
 #include "ExtEC.h"
 #include "ECRefDevice.h"
+#ifdef ENABLE_TFA98XX_SUPPORT
+#include "SpeakerProtectionTFA.h"
+#endif
 
 #define MAX_CHANNEL_SUPPORTED 2
 #define DEFAULT_OUTPUT_SAMPLING_RATE 48000
@@ -114,7 +117,11 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
         return Speaker::getInstance(device, Rm);
     case PAL_DEVICE_IN_VI_FEEDBACK:
         PAL_VERBOSE(LOG_TAG, "speaker feedback device");
+#ifdef ENABLE_TFA98XX_SUPPORT
+        return SpeakerFeedbackTFA::getInstance(device, Rm);
+#else
         return SpeakerFeedback::getInstance(device, Rm);
+#endif
     case PAL_DEVICE_IN_CPS_FEEDBACK:
         PAL_VERBOSE(LOG_TAG, "speaker feedback device CPS");
         return SpeakerFeedback::getInstance(device, Rm);
@@ -209,6 +216,11 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
         return Speaker::getObject();
     case PAL_DEVICE_IN_VI_FEEDBACK:
         PAL_VERBOSE(LOG_TAG, "speaker feedback device");
+#ifdef ENABLE_TFA98XX_SUPPORT
+        return SpeakerFeedbackTFA::getObject();
+#else
+        return SpeakerFeedback::getObject();
+#endif
         return SpeakerFeedback::getObject();
     case PAL_DEVICE_OUT_WIRED_HEADSET:
     case PAL_DEVICE_OUT_WIRED_HEADPHONE:
@@ -273,6 +285,9 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_IN_ECHO_REF:
         PAL_VERBOSE(LOG_TAG, "Echo ref device %d", dev_id);
         return ECRefDevice::getObject();
+    case PAL_DEVICE_OUT_HAPTICS_DEVICE:
+        PAL_VERBOSE(LOG_TAG, "Haptics device %d", dev_id);
+        return HapticsDev::getObject();
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;

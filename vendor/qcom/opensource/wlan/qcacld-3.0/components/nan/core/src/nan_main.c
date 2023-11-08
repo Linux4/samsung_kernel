@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -315,6 +315,8 @@ QDF_STATUS nan_scheduled_msg_handler(struct scheduler_msg *msg)
 	if (status != WLAN_SER_CMD_ACTIVE && status != WLAN_SER_CMD_PENDING) {
 		nan_err("unable to serialize command");
 		wlan_objmgr_vdev_release_ref(cmd.vdev, WLAN_NAN_ID);
+		qdf_mem_free(msg->bodyptr);
+		msg->bodyptr = NULL;
 		return QDF_STATUS_E_INVAL;
 	}
 	return QDF_STATUS_SUCCESS;
@@ -867,7 +869,7 @@ static QDF_STATUS nan_handle_enable_rsp(struct nan_event_params *nan_event)
 			nan_debug("NAN vdev_id: %u", vdev_id);
 			policy_mgr_incr_active_session(psoc, QDF_NAN_DISC_MODE,
 						       vdev_id);
-			policy_mgr_nan_sap_post_enable_conc_check(psoc);
+			policy_mgr_process_force_scc_for_nan(psoc);
 
 		} else {
 			/*
@@ -888,7 +890,15 @@ fail:
 	psoc_nan_obj->nan_social_ch_2g_freq = 0;
 	psoc_nan_obj->nan_social_ch_5g_freq = 0;
 	nan_set_discovery_state(psoc, NAN_DISC_DISABLED);
-	policy_mgr_check_n_start_opportunistic_timer(psoc);
+	if (ucfg_is_nan_dbs_supported(psoc))
+		policy_mgr_check_n_start_opportunistic_timer(psoc);
+
+	/*
+	 * If FW respond with NAN enable failure, then TDLS should be enable
+	 * again if there is TDLS connection exist earlier.
+	 * decrement the active TDLS session.
+	 */
+	ucfg_tdls_notify_connect_failure(psoc);
 
 done:
 	nan_conc_callback = psoc_nan_obj->cb_obj.nan_concurrency_update;
@@ -976,35 +986,16 @@ static QDF_STATUS nan_handle_schedule_update(
 }
 
 /**
- * nan_handle_host_update() - Updates Host about NAN Datapath status
+ * nan_handle_host_update() - extract the host event
  * @evt: Event data received from firmware
  * @vdev: pointer to vdev
  *
- * Return: status of operation
+ * Return: none
  */
-static QDF_STATUS nan_handle_host_update(struct nan_datapath_host_event *evt,
+static void nan_handle_host_update(struct nan_datapath_host_event *evt,
 					 struct wlan_objmgr_vdev **vdev)
 {
-	struct wlan_objmgr_psoc *psoc;
-	struct nan_psoc_priv_obj *psoc_nan_obj;
-
 	*vdev = evt->vdev;
-	psoc = wlan_vdev_get_psoc(evt->vdev);
-	if (!psoc) {
-		nan_err("psoc is NULL");
-		return QDF_STATUS_E_NULL_VALUE;
-	}
-
-	psoc_nan_obj = nan_get_psoc_priv_obj(psoc);
-	if (!psoc_nan_obj) {
-		nan_err("psoc_nan_obj is NULL");
-		return QDF_STATUS_E_NULL_VALUE;
-	}
-
-	psoc_nan_obj->cb_obj.os_if_ndp_event_handler(psoc, evt->vdev,
-						     NDP_HOST_UPDATE, evt);
-
-	return QDF_STATUS_SUCCESS;
 }
 
 QDF_STATUS nan_discovery_event_handler(struct scheduler_msg *msg)
@@ -1116,7 +1107,6 @@ bool nan_is_enable_allowed(struct wlan_objmgr_psoc *psoc, uint32_t nan_ch_freq)
 	}
 
 	return (NAN_DISC_DISABLED == nan_get_discovery_state(psoc) &&
-		ucfg_is_nan_conc_control_supported(psoc) &&
 		policy_mgr_allow_concurrency(psoc, PM_NAN_DISC_MODE,
 					     nan_ch_freq, HW_MODE_20_MHZ,
 					     0));
@@ -1431,4 +1421,92 @@ bool wlan_nan_get_sap_conc_support(struct wlan_objmgr_psoc *psoc)
 bool wlan_nan_is_beamforming_supported(struct wlan_objmgr_psoc *psoc)
 {
 	return ucfg_nan_is_beamforming_supported(psoc);
+}
+
+/*
+ * The NAN Cluster ID is a MAC address that takes a value from
+ * 50-6F-9A-01-00-00 to 50-6F-9A-01-FF-FF and is carried in the A3 field of
+ * some of the NAN frames. The NAN Cluster ID is randomly chosen by the device
+ * that initiates the NAN Cluster.
+ */
+#define NAN_CLUSTER_MATCH      "\x50\x6F\x9A\x01"
+#define NAN_CLUSTER_MATCH_SIZE 4
+
+/**
+ * wlan_nan_is_bssid_in_cluster() - to check whether BSSID is a part of NAN
+ * cluster
+ * @bssid: BSSID present in mgmt frame
+ *
+ * Return: true if BSSID is part of NAN cluster
+ */
+static
+bool wlan_nan_is_bssid_in_cluster(tSirMacAddr bssid)
+{
+	if (qdf_mem_cmp(bssid, NAN_CLUSTER_MATCH, NAN_CLUSTER_MATCH_SIZE) == 0)
+		return true;
+
+	return false;
+}
+
+/**
+ * wlan_nan_extract_vdev_id_from_vdev_list() -retrieve vdev from vdev list in
+ * pdev and check for nan vdev_id
+ * @pdev: PDEV object
+ * @dbg_id: Object Manager ref debug id
+ *
+ * API to get NAN vdev_id for only NAN BSSID.
+ *
+ * Return: NAN vdev_id
+ */
+static
+uint8_t wlan_nan_extract_vdev_id_from_vdev_list(struct wlan_objmgr_pdev *pdev,
+						wlan_objmgr_ref_dbgid dbg_id)
+{
+	struct wlan_objmgr_pdev_objmgr *objmgr = &pdev->pdev_objmgr;
+	qdf_list_t *vdev_list = NULL;
+	struct wlan_objmgr_vdev *vdev;
+	qdf_list_node_t *node = NULL;
+	qdf_list_node_t *prev_node = NULL;
+	uint8_t vdev_id = WLAN_UMAC_VDEV_ID_MAX;
+
+	wlan_pdev_obj_lock(pdev);
+
+	vdev_list = &objmgr->wlan_vdev_list;
+	if (qdf_list_peek_front(vdev_list, &node) != QDF_STATUS_SUCCESS)
+		goto end;
+
+	do {
+		vdev = qdf_container_of(node, struct wlan_objmgr_vdev,
+					vdev_node);
+		if (wlan_objmgr_vdev_try_get_ref(vdev, dbg_id) ==
+		    QDF_STATUS_SUCCESS) {
+			if (wlan_vdev_mlme_get_opmode(vdev) ==
+			    QDF_NAN_DISC_MODE) {
+				vdev_id = wlan_vdev_get_id(vdev);
+				wlan_objmgr_vdev_release_ref(vdev, dbg_id);
+				goto end;
+			}
+
+			wlan_objmgr_vdev_release_ref(vdev, dbg_id);
+		}
+
+		prev_node = node;
+	} while (qdf_list_peek_next(vdev_list, prev_node, &node) ==
+		 QDF_STATUS_SUCCESS);
+end:
+	wlan_pdev_obj_unlock(pdev);
+
+	return vdev_id;
+}
+
+uint8_t nan_get_vdev_id_from_bssid(struct wlan_objmgr_pdev *pdev,
+				   tSirMacAddr bssid,
+				   wlan_objmgr_ref_dbgid dbg_id)
+{
+	uint8_t vdev_id = WLAN_UMAC_VDEV_ID_MAX;
+
+	if (wlan_nan_is_bssid_in_cluster(bssid))
+		vdev_id = wlan_nan_extract_vdev_id_from_vdev_list(pdev, dbg_id);
+
+	return vdev_id;
 }

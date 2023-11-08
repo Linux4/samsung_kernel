@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -50,6 +50,24 @@
 #define CM_PREFIX_REF(vdev_id, cm_id) (vdev_id), (cm_id)
 
 /*************** CONNECT APIs ****************/
+
+/**
+ * cm_fill_failure_resp_from_cm_id() - This API will fill failure connect
+ * response
+ * @cm_ctx: connection manager context
+ * @resp: connect failure resp
+ * @cm_id: cm_id for connect response to be filled.
+ * @reason: connect failure reason
+ *
+ * This function will fill connect failure response structure with the provided
+ * reason with the help of given cm id.
+ *
+ * Return: void
+ */
+void cm_fill_failure_resp_from_cm_id(struct cnx_mgr *cm_ctx,
+				     struct wlan_cm_connect_resp *resp,
+				     wlan_cm_id cm_id,
+				     enum wlan_cm_connect_fail_reason reason);
 
 /**
  * cm_connect_start() - This API will be called to initiate the connect
@@ -918,7 +936,7 @@ bool cm_is_vdev_connected(struct wlan_objmgr_vdev *vdev);
 bool cm_is_vdev_active(struct wlan_objmgr_vdev *vdev);
 
 /**
- * cm_is_vdev_disconnecting() - check if vdev is in disconneting state
+ * cm_is_vdev_disconnecting() - check if vdev is in disconnecting state
  * @vdev: vdev pointer
  *
  * Return: bool
@@ -995,7 +1013,7 @@ cm_get_active_req_type(struct wlan_objmgr_vdev *vdev);
  * @vdev: vdev pointer
  * @req: pointer to the copy of the active connect request
  * *
- * Context: Should be called only in the conext of the
+ * Context: Should be called only in the context of the
  * cm request activation
  *
  * Return: true and connect req if any request is active
@@ -1008,7 +1026,7 @@ bool cm_get_active_connect_req(struct wlan_objmgr_vdev *vdev,
  * @vdev: vdev pointer
  * @req: pointer to the copy of the active disconnect request
  * *
- * Context: Should be called only in the conext of the
+ * Context: Should be called only in the context of the
  * cm request activation
  *
  * Return: true and disconnect req if any request is active
@@ -1213,4 +1231,75 @@ void cm_set_candidate_custom_sort_cb(
  * Return: void
  */
 bool cm_is_connect_req_reassoc(struct wlan_cm_connect_req *req);
+
+#ifdef CONN_MGR_ADV_FEATURE
+/**
+ * cm_free_connect_rsp_ies() - Function to free all connection IEs.
+ * @connect_rsp: pointer to connect rsp
+ *
+ * Function to free up all the IE in connect response structure.
+ *
+ * Return: void
+ */
+void cm_free_connect_rsp_ies(struct wlan_cm_connect_resp *connect_rsp);
+
+/**
+ * cm_store_first_candidate_rsp() - store the connection failure response
+ * @cm_ctx: connection manager context
+ * @cm_id: cm_id for connect response to be filled
+ * @resp: first connect failure response
+ *
+ * This API would be called when candidate fails to connect. It will cache the
+ * first connect failure response in connect req structure.
+ *
+ * Return: void
+ */
+void cm_store_first_candidate_rsp(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
+				  struct wlan_cm_connect_resp *resp);
+
+/**
+ * cm_get_first_candidate_rsp() - fetch first candidate response
+ * @cm_ctx: connection manager context
+ * @cm_id: cm_id for connect response to be filled
+ * @first_candid_rsp: first connect failure response
+ *
+ * This API would be called when last candidate is failed to connect. It will
+ * fetch the first candidate failure response which was cached in connect
+ * request structure.
+ *
+ * Return: QDF_STATUS_SUCCESS when rsp is fetch successfully
+ */
+QDF_STATUS
+cm_get_first_candidate_rsp(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
+			   struct wlan_cm_connect_resp *first_candid_rsp);
+
+/**
+ * cm_store_n_send_failed_candidate() - stored failed connect response and sent
+ * it to osif.
+ * @cm_ctx: connection manager context
+ * @cm_id: connection manager id
+ *
+ * This API will stored failed connect response in connect request structure
+ * and sent it to osif layer.
+ *
+ * Return: void
+ */
+void cm_store_n_send_failed_candidate(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id);
+#else
+static inline
+void cm_free_connect_rsp_ies(struct wlan_cm_connect_resp *connect_rsp)
+{
+}
+
+static inline
+void cm_store_first_candidate_rsp(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
+				  struct wlan_cm_connect_resp *resp)
+{
+}
+
+static inline
+void cm_store_n_send_failed_candidate(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id)
+{
+}
+#endif /* CONN_MGR_ADV_FEATURE */
 #endif /* __WLAN_CM_MAIN_API_H__ */

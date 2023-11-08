@@ -1047,6 +1047,14 @@ int32_t pal_gef_rw_param(uint32_t param_id, void *param_payload,
     return 0;
 }
 
+int32_t pal_gef_rw_param_acdb(uint32_t param_id __unused, void *param_payload,
+                              size_t payload_size __unused, pal_device_id_t pal_device_id,
+                              pal_stream_type_t pal_stream_type, uint32_t sample_rate,
+                              uint32_t instance_id, uint32_t dir, bool is_play)
+{
+    return 0;
+}
+
 int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle,
                                              size_t *size ,uint8_t *payload)
 {

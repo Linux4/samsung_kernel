@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -46,6 +46,7 @@
 #include "connection_mgr/core/src/wlan_cm_sm.h"
 #include <wlan_mlo_mgr_sta.h>
 #include "wlan_mlo_mgr_roam.h"
+#include "wlan_vdev_mgr_utils_api.h"
 
 QDF_STATUS cm_fw_roam_sync_req(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
 			       void *event, uint32_t event_data_len)
@@ -61,19 +62,23 @@ QDF_STATUS cm_fw_roam_sync_req(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
 		return QDF_STATUS_E_NULL_VALUE;
 	}
 
-	if (cm_is_vdev_connecting(vdev) || cm_is_vdev_disconnecting(vdev)) {
-		mlme_err("vdev %d Roam sync not handled in conneting/disconneting state",
+	if (mlo_is_mld_disconnecting_connecting(vdev) ||
+	    cm_is_vdev_connecting(vdev) ||
+	    cm_is_vdev_disconnecting(vdev)) {
+		mlme_err("vdev %d Roam sync not handled in connecting/disconnecting state",
 			 vdev_id);
 		wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_SB_ID);
 		return cm_roam_stop_req(psoc, vdev_id,
 					REASON_ROAM_SYNCH_FAILED, NULL, false);
 	}
+	mlo_sta_stop_reconfig_timer(vdev);
+	wlan_clear_mlo_sta_link_removed_flag(vdev);
 
 	status = cm_sm_deliver_event(vdev, WLAN_CM_SM_EV_ROAM_SYNC,
 				     event_data_len, event);
 
 	if (QDF_IS_STATUS_ERROR(status)) {
-		mlme_err("EV ROAM SYNC REQ not handled");
+		mlme_err("Roam sync was not handled");
 		cm_fw_roam_abort_req(psoc, vdev_id);
 		cm_roam_stop_req(psoc, vdev_id, REASON_ROAM_SYNCH_FAILED,
 				 NULL, false);
@@ -296,6 +301,22 @@ cm_populate_connect_ies(struct roam_offload_synch_ind *roam_synch_data,
 			return QDF_STATUS_E_NOMEM;
 		qdf_mem_copy(connect_ies->bcn_probe_rsp.ptr, bcn_probe_rsp_ptr,
 			     connect_ies->bcn_probe_rsp.len);
+	}
+
+	/* Beacon/Probe Rsp frame */
+	if (roam_synch_data->link_beacon_probe_resp_length) {
+		connect_ies->link_bcn_probe_rsp.len =
+			roam_synch_data->link_beacon_probe_resp_length;
+		bcn_probe_rsp_ptr = (uint8_t *)roam_synch_data +
+				roam_synch_data->link_beacon_probe_resp_offset;
+
+		connect_ies->link_bcn_probe_rsp.ptr =
+			qdf_mem_malloc(connect_ies->link_bcn_probe_rsp.len);
+		if (!connect_ies->link_bcn_probe_rsp.ptr)
+			return QDF_STATUS_E_NOMEM;
+		qdf_mem_copy(connect_ies->link_bcn_probe_rsp.ptr,
+			     bcn_probe_rsp_ptr,
+			     connect_ies->link_bcn_probe_rsp.len);
 	}
 
 	/* ReAssoc Rsp IE data */
@@ -640,7 +661,8 @@ static QDF_STATUS cm_process_roam_keys(struct wlan_objmgr_vdev *vdev,
 
 	if (roaming_info->auth_status == ROAM_AUTH_STATUS_AUTHENTICATED ||
 	    QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_SAE) ||
-	    QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_OWE)) {
+	    QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_OWE) ||
+	    QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY)) {
 		struct wlan_crypto_pmksa *pmkid_cache, *pmksa;
 
 		cm_csr_set_ss_none(vdev_id);
@@ -830,21 +852,62 @@ end:
 static void
 cm_update_scan_db_on_roam_success(struct wlan_objmgr_vdev *vdev,
 				  struct wlan_cm_connect_resp *resp,
-				  struct roam_offload_synch_ind *roam_synch_data,
+				  struct roam_offload_synch_ind *roam_synch_ind,
 				  wlan_cm_id cm_id)
 {
 	struct cnx_mgr *cm_ctx;
+	qdf_freq_t frame_freq;
+	struct wlan_connect_rsp_ies *ies = &resp->connect_ies;
 
 	cm_ctx = cm_get_cm_ctx(vdev);
 	if (!cm_ctx)
 		return;
 
-	cm_inform_bcn_probe(cm_ctx,
-			    resp->connect_ies.bcn_probe_rsp.ptr,
-			    resp->connect_ies.bcn_probe_rsp.len,
-			    resp->freq,
-			    roam_synch_data->rssi,
-			    cm_id);
+	if (roam_synch_ind->auth_status == ROAM_AUTH_STATUS_CONNECTED) {
+		if (ies->link_bcn_probe_rsp.len) {
+			frame_freq = mlo_roam_get_link_freq_from_mac_addr(
+					roam_synch_ind,
+					wlan_mlme_get_src_addr_from_frame(
+					&ies->link_bcn_probe_rsp));
+			cm_inform_bcn_probe(cm_ctx,
+					    ies->link_bcn_probe_rsp.ptr,
+					    ies->link_bcn_probe_rsp.len,
+					    frame_freq,
+					    roam_synch_ind->rssi,
+					    cm_id);
+		}
+
+		frame_freq = mlo_roam_get_link_freq_from_mac_addr(
+					roam_synch_ind,
+					wlan_mlme_get_src_addr_from_frame(
+					&ies->bcn_probe_rsp));
+		cm_inform_bcn_probe(cm_ctx,
+				    ies->bcn_probe_rsp.ptr,
+				    ies->bcn_probe_rsp.len,
+				    frame_freq,
+				    roam_synch_ind->rssi,
+				    cm_id);
+	} else if (wlan_vdev_mlme_is_mlo_link_vdev(vdev)) {
+		if (ies->link_bcn_probe_rsp.len) {
+			frame_freq = mlo_roam_get_link_freq_from_mac_addr(
+					roam_synch_ind,
+					wlan_mlme_get_src_addr_from_frame(
+					&ies->link_bcn_probe_rsp));
+			cm_inform_bcn_probe(cm_ctx,
+					    ies->link_bcn_probe_rsp.ptr,
+					    ies->link_bcn_probe_rsp.len,
+					    frame_freq,
+					    roam_synch_ind->rssi,
+					    cm_id);
+		}
+	} else {
+		cm_inform_bcn_probe(cm_ctx,
+				    ies->bcn_probe_rsp.ptr,
+				    ies->bcn_probe_rsp.len,
+				    resp->freq,
+				    roam_synch_ind->rssi,
+				    cm_id);
+	}
 
 	cm_update_scan_mlme_on_roam(vdev, &resp->bssid,
 				    SCAN_ENTRY_CON_STATE_ASSOC);
@@ -918,21 +981,21 @@ cm_fw_roam_sync_propagation(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
 
 	cm_process_roam_keys(vdev, rsp, cm_id);
 	/*
-	 * Re-enable the disabled link on roaming as desision
+	 * Re-enable the disabled link on roaming as decision
 	 * will be taken again to disable the link on roam sync completion.
 	 */
 	if (wlan_vdev_mlme_is_mlo_vdev(vdev))
 		policy_mgr_move_vdev_from_disabled_to_connection_tbl(psoc,
 								     vdev_id);
 	mlo_roam_copy_partner_info(connect_rsp, roam_synch_data);
+	mlo_roam_init_cu_bpcc(vdev, roam_synch_data);
+	mlo_roam_set_link_id(vdev, roam_synch_data);
 
 	/**
 	 * Don't send roam_sync complete for MLO link vdevs.
 	 * Send only for legacy STA/MLO STA vdev.
 	 */
 	if (!wlan_vdev_mlme_is_mlo_link_vdev(vdev)) {
-		cm_if_mgr_inform_connect_complete(cm_ctx->vdev,
-						  connect_rsp->connect_status);
 		cm_inform_dlm_connect_complete(cm_ctx->vdev, connect_rsp);
 		wlan_tdls_notify_sta_connect(vdev_id,
 					mlme_get_tdls_chan_switch_prohibited(vdev),
@@ -947,13 +1010,14 @@ cm_fw_roam_sync_propagation(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
 			cm_roam_start_init_on_connect(pdev, vdev_id);
 		}
 		wlan_cm_tgt_send_roam_sync_complete_cmd(psoc, vdev_id);
-
 		mlo_roam_update_connected_links(vdev, connect_rsp);
 		mlo_set_single_link_ml_roaming(psoc, vdev_id,
-					       roam_synch_data, false);
+					       false);
 	}
 	cm_connect_info(vdev, true, &connect_rsp->bssid, &connect_rsp->ssid,
 			connect_rsp->freq);
+
+	cm_update_associated_ch_width(vdev, true);
 
 	status = cm_sm_deliver_event_sync(cm_ctx, WLAN_CM_SM_EV_ROAM_DONE,
 					  sizeof(*roam_synch_data),
@@ -965,9 +1029,12 @@ cm_fw_roam_sync_propagation(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
 	}
 	mlme_cm_osif_connect_complete(vdev, connect_rsp);
 	mlme_cm_osif_roam_complete(vdev);
+
+	if (wlan_vdev_mlme_is_mlo_vdev(vdev) &&
+	    roam_synch_data->auth_status == ROAM_AUTH_STATUS_CONNECTED)
+		mlo_roam_copy_reassoc_rsp(vdev, connect_rsp);
 	mlme_debug(CM_PREFIX_FMT, CM_PREFIX_REF(vdev_id, cm_id));
-	if (!wlan_vdev_mlme_is_mlo_link_vdev(vdev))
-		cm_remove_cmd(cm_ctx, &cm_id);
+	cm_remove_cmd(cm_ctx, &cm_id);
 	status = QDF_STATUS_SUCCESS;
 error:
 	if (rsp)
@@ -1043,7 +1110,8 @@ QDF_STATUS cm_fw_roam_complete(struct cnx_mgr *cm_ctx, void *data)
 	 * roam sync to make sure the new AP is not on disable freq
 	 * or disconnect the AP.
 	 */
-	if (wlan_reg_is_disable_for_freq(pdev, roam_synch_data->chan_freq)) {
+	if (wlan_reg_is_disable_for_pwrmode(pdev, roam_synch_data->chan_freq,
+					    REG_CURRENT_PWR_MODE)) {
 		mlo_disconnect(cm_ctx->vdev, CM_ROAM_DISCONNECT,
 			       REASON_OPER_CHANNEL_BAND_CHANGE, NULL);
 		status = QDF_STATUS_E_FAILURE;
@@ -1127,8 +1195,72 @@ QDF_STATUS cm_fw_roam_complete(struct cnx_mgr *cm_ctx, void *data)
 		wlan_cm_roam_state_change(pdev, vdev_id,
 					  WLAN_ROAM_RSO_STOPPED,
 					  REASON_DISCONNECTED);
-	policy_mgr_check_concurrent_intf_and_restart_sap(psoc);
+	policy_mgr_check_concurrent_intf_and_restart_sap(psoc,
+			wlan_util_vdev_mgr_get_acs_mode_for_vdev(cm_ctx->vdev));
 end:
+	return status;
+}
+
+static QDF_STATUS
+cm_disconnect_roam_invoke_fail(struct wlan_objmgr_vdev *vdev,
+			       wlan_cm_id cm_id)
+{
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+	bool nud_disconnect;
+	struct wlan_objmgr_psoc *psoc;
+	uint8_t vdev_id = wlan_vdev_get_id(vdev);
+	struct rso_config *rso_cfg;
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc) {
+		mlme_err(CM_PREFIX_FMT "psoc not found",
+			 CM_PREFIX_REF(vdev_id, cm_id));
+		return QDF_STATUS_E_INVAL;
+	}
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_NULL_VALUE;
+
+	rso_cfg = wlan_cm_get_rso_config(vdev);
+	if (!rso_cfg) {
+		mlme_err(CM_PREFIX_FMT "rso cfg not found",
+			 CM_PREFIX_REF(vdev_id, cm_id));
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	nud_disconnect = mlme_obj->cfg.lfr.disconnect_on_nud_roam_invoke_fail;
+	mlme_debug(CM_PREFIX_FMT "disconnect on NUD %d, source %d forced roaming %d",
+		   CM_PREFIX_REF(vdev_id, cm_id),
+		   nud_disconnect, rso_cfg->roam_invoke_source,
+		   rso_cfg->is_forced_roaming);
+
+	/*
+	 * If reassoc MAC from user space is broadcast MAC as:
+	 * "wpa_cli DRIVER FASTREASSOC ff:ff:ff:ff:ff:ff 0",
+	 * user space invoked roaming candidate selection will base on firmware
+	 * score algorithm, current connection will be kept if current AP has
+	 * highest score. It is requirement from customer which can avoid
+	 * ping-pong roaming.
+	 */
+	if (qdf_is_macaddr_broadcast(&rso_cfg->roam_invoke_bssid)) {
+		qdf_zero_macaddr(&rso_cfg->roam_invoke_bssid);
+		return status;
+	}
+
+	if (rso_cfg->roam_invoke_source == CM_ROAMING_HOST ||
+	    (rso_cfg->roam_invoke_source == CM_ROAMING_NUD_FAILURE &&
+	    (nud_disconnect || rso_cfg->is_forced_roaming)) ||
+	     rso_cfg->roam_invoke_source == CM_ROAMING_LINK_REMOVAL) {
+		rso_cfg->roam_invoke_source = CM_SOURCE_INVALID;
+		if (rso_cfg->is_forced_roaming)
+			rso_cfg->is_forced_roaming = false;
+		status = mlo_disconnect(vdev, CM_ROAM_DISCONNECT,
+					REASON_USER_TRIGGERED_ROAM_FAILURE,
+					NULL);
+	}
+
 	return status;
 }
 
@@ -1137,16 +1269,13 @@ QDF_STATUS cm_fw_roam_invoke_fail(struct wlan_objmgr_psoc *psoc,
 {
 	QDF_STATUS status;
 	struct wlan_objmgr_vdev *vdev;
-	wlan_cm_id cm_id;
-	enum wlan_cm_source source;
+	wlan_cm_id cm_id = CM_ID_INVALID;
 	struct cnx_mgr *cm_ctx;
 	struct cm_roam_req *roam_req = NULL;
-	struct qdf_mac_addr bssid;
 
 	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc,
 						    vdev_id,
 						    WLAN_MLME_SB_ID);
-
 	if (!vdev) {
 		mlme_err("vdev object is NULL");
 		return QDF_STATUS_E_NULL_VALUE;
@@ -1159,36 +1288,15 @@ QDF_STATUS cm_fw_roam_invoke_fail(struct wlan_objmgr_psoc *psoc,
 	}
 
 	roam_req = cm_get_first_roam_command(vdev);
-	if (!roam_req) {
-		mlme_err("Failed to find roam req from list");
-		status = QDF_STATUS_E_FAILURE;
-		goto error;
-	}
-
-	cm_id = roam_req->cm_id;
-	source = roam_req->req.source;
-	bssid = roam_req->req.bssid;
+	if (roam_req)
+		cm_id = roam_req->cm_id;
 
 	status = cm_sm_deliver_event(vdev, WLAN_CM_SM_EV_ROAM_INVOKE_FAIL,
 				     sizeof(wlan_cm_id), &cm_id);
-
 	if (QDF_IS_STATUS_ERROR(status))
 		cm_remove_cmd(cm_ctx, &cm_id);
-	/*
-	 * If reassoc MAC from user space is broadcast MAC as:
-	 * "wpa_cli DRIVER FASTREASSOC ff:ff:ff:ff:ff:ff 0",
-	 * user space invoked roaming candidate selection will base on firmware
-	 * score algorithm, current connection will be kept if current AP has
-	 * highest score. It is requirement from customer which can avoid
-	 * ping-pong roaming.
-	 */
-	if (qdf_is_macaddr_broadcast(&bssid))
-		mlme_debug("Keep current connection");
-	else if (source == CM_ROAMING_HOST || source == CM_ROAMING_NUD_FAILURE)
-		status = mlo_disconnect(vdev, CM_ROAM_DISCONNECT,
-					REASON_USER_TRIGGERED_ROAM_FAILURE,
-					NULL);
 
+	cm_disconnect_roam_invoke_fail(vdev, cm_id);
 error:
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_SB_ID);
 	return status;
@@ -1343,6 +1451,11 @@ QDF_STATUS wlan_cm_free_roam_synch_frame_ind(struct rso_config *rso_cfg)
 		qdf_mem_free(frame_ind->bcn_probe_rsp);
 		frame_ind->bcn_probe_rsp_len = 0;
 		frame_ind->bcn_probe_rsp = NULL;
+	}
+	if (frame_ind->link_bcn_probe_rsp) {
+		qdf_mem_free(frame_ind->link_bcn_probe_rsp);
+		frame_ind->link_bcn_probe_rsp_len = 0;
+		frame_ind->link_bcn_probe_rsp = NULL;
 	}
 	if (frame_ind->reassoc_req) {
 		qdf_mem_free(frame_ind->reassoc_req);

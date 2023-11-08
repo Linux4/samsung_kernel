@@ -79,13 +79,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <loc_cfg.h>
 #include <loc_misc_utils.h>
 #include <thread>
-
-#ifdef NO_UNORDERED_SET_OR_MAP
-    #include <map>
-    #define unordered_map map
-#else
-    #include <unordered_map>
-#endif
+#include <unordered_map>
 
 #include <LocationClientApi.h>
 #include <LocationIntegrationApi.h>
@@ -1281,10 +1275,12 @@ void getTrackingParams(char *buf, uint32_t *reportTypePtr, uint32_t *tbfMsecPtr,
     if (*tbfMsecPtr == 0) {
         *tbfMsecPtr = 100;
     }
-    if (*reqEngMaskPtr == (LocReqEngineTypeMask) 0) {
-        *reqEngMaskPtr = (LocReqEngineTypeMask)
-                (LOC_REQ_ENGINE_FUSED_BIT|LOC_REQ_ENGINE_SPE_BIT|
-                 LOC_REQ_ENGINE_PPE_BIT);
+    if (reqEngMaskPtr) {
+        if (*reqEngMaskPtr == (LocReqEngineTypeMask) 0) {
+            *reqEngMaskPtr = (LocReqEngineTypeMask)
+                    (LOC_REQ_ENGINE_FUSED_BIT|LOC_REQ_ENGINE_SPE_BIT|
+                     LOC_REQ_ENGINE_PPE_BIT);
+        }
     }
 }
 

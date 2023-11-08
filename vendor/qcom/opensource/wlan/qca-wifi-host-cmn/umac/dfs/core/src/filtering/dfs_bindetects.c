@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2002-2010, Atheros Communications Inc.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
@@ -833,7 +834,7 @@ static inline void dfs_check_pulses_for_delta_variance(
 }
 
 /**
- * dfs_count_the_other_delay_elements() - Counts the ther delay elements.
+ * dfs_count_the_other_delay_elements() - Counts the other delay elements.
  * @dfs: Pointer to wlan_dfs structure.
  * @rf: Pointer to dfs_filter structure.
  * @dl: Pointer to dfs_delayline structure.
@@ -1022,8 +1023,8 @@ int dfs_bin_pri_check(
 	 * once per filter during initialization stage (dfs_attach)
 	 * and stored in its array atleast for fixed frequency
 	 * types like FCC Bin1 to save some CPU cycles.
-	 * multiplication, devide operators in the following code
-	 * are left as it is for readability hoping the complier
+	 * multiplication, divide operators in the following code
+	 * are left as it is for readability hoping the compiler
 	 * will use left/right shifts wherever possible.
 	 */
 	dfs_debug(dfs, WLAN_DEBUG_DFS2,

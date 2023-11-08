@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -107,7 +108,7 @@ uint32_t hdd_reg_legacy_setband_to_reg_wifi_band_bitmap(uint8_t qca_setband);
 
 /**
  * hdd_reg_set_band() - helper function for setting the regulatory band
- * @hdd_ctx: the HDD context to set the band for
+ * @dev: the network device to set the band for
  * @band_bitmap: the band bitmap to configure
  *
  * Return: zero for success, non-zero error code for failure
@@ -127,6 +128,7 @@ void hdd_update_indoor_channel(struct  hdd_context *hdd_ctx,
 					bool disable);
 /**
  * hdd_modify_indoor_channel_state_flags() - modify wiphy flags and cds state
+ * @hdd_ctx: HDD context
  * @wiphy_chan: wiphy channel number
  * @cds_chan: cds channel structure
  * @chan_enum: channel enum maintain in reg db
@@ -146,8 +148,7 @@ void hdd_modify_indoor_channel_state_flags(
 /**
  * hdd_update_regdb_offload_config() - Update regdb offload disable ini
  * for regulatory component.
- *
- * @psoc: psoc ptr
+ * @hdd_ctx: HDD context
  *
  * Return: None
  */

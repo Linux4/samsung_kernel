@@ -1,5 +1,6 @@
 """
 Copyright (c) 2016, 2020 The Linux Foundation. All rights reserved.
+Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -35,8 +36,30 @@ TASK_NAME_LENGTH = 16
 
 def do_dump_lsof_info(self, ramdump, lsof_info):
     for task_struct in ramdump.for_each_process():
+        file_descriptor = []
+        task_comm_offset = ramdump.field_offset('struct task_struct',  'comm')
+        client_name = ramdump.read_cstring(task_struct + task_comm_offset, TASK_NAME_LENGTH)
+        task_pid = ramdump.read_structure_field(task_struct, 'struct task_struct', 'pid')
+        files = ramdump.read_structure_field(task_struct, 'struct task_struct', 'files')
+        file_descriptor.append(files)
+        str_task_file = '\n Task: 0x{0:x}, comm: {1}, pid : {2:1}, files : 0x{3:x}'
+        lsof_info.write(str_task_file.format(task_struct, client_name, task_pid, files))
         parse_task(self, ramdump, task_struct, lsof_info)
+        for curr in ramdump.for_each_thread(task_struct):
+            file_pointer = ramdump.read_structure_field(curr, 'struct task_struct', 'files')
+            #skip if fd is same as parent process or other child process or fd is Null
+            if ((len(file_descriptor) and file_pointer in file_descriptor) or file_pointer == 0x0):
+                continue
+            else:
+                file_descriptor.append((file_pointer))
+                str_task_file = '\n Thread: 0x{0:x}, thread_name: {1}, thread_pid : {2:1}, thread_files : 0x{3:x}'
+                lsof_info.write(str_task_file.format(curr,
+                                                     ramdump.read_cstring(curr + task_comm_offset, TASK_NAME_LENGTH),
+                                                     ramdump.read_structure_field(curr, 'struct task_struct', 'pid'),
+                                                     file_pointer))
+                parse_task(self, ramdump, curr, lsof_info)
         lsof_info.write("\n*********************************")
+
 
 def get_dname_of_dentry(self, dentry):
     ramdump = self.ramdump
@@ -108,21 +131,10 @@ def parse_task(self, ramdump, task, lsof_info):
     else:
         addressspace = 4
 
-    task_comm_offset = ramdump.field_offset(
-                        'struct task_struct',  'comm')
-    task_comm_offset = task + task_comm_offset
-    client_name = ramdump.read_cstring(
-                    task_comm_offset, TASK_NAME_LENGTH)
-    task_pid = ramdump.read_structure_field(
-                    task, 'struct task_struct', 'pid')
     files = ramdump.read_structure_field(
                     task, 'struct task_struct', 'files')
     if files == 0x0:
         return
-
-    str_task_file = '\n Task: 0x{0:x}, comm: {1}, pid : {2:1}, files : 0x{3:x}'
-    lsof_info.write(str_task_file.format(
-                    task, client_name, task_pid, files))
     fdt = ramdump.read_structure_field(
                     files, 'struct files_struct', 'fdt')
     max_fds = ramdump.read_structure_field(
@@ -151,7 +163,7 @@ def parse_task(self, ramdump, task, lsof_info):
             else:
                 lsof_info.write(str.format(index, file, fop, iname))
         index = index + 1
-
+    return
 
 @register_parser('--print-lsof',  'Print list of open files',  optional=True)
 class DumpLsof(RamParser):

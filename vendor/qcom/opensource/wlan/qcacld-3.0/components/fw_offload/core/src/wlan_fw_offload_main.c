@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -113,6 +113,10 @@ fwol_init_coex_config_in_cfg(struct wlan_objmgr_psoc *psoc,
 	fwol_three_way_coex_config_legacy_config_get(psoc, coex_config);
 	coex_config->ble_scan_coex_policy = cfg_get(psoc,
 						    CFG_BLE_SCAN_COEX_POLICY);
+#ifdef FEATURE_COEX_TPUT_SHAPING_CONFIG
+	coex_config->coex_tput_shaping_enable =
+				cfg_get(psoc, CFG_TPUT_SHAPING_ENABLE);
+#endif
 }
 
 #ifdef THERMAL_STATS_SUPPORT
@@ -459,11 +463,49 @@ static void ucfg_fwol_fetch_tsf_gpio_pin(struct wlan_objmgr_psoc *psoc,
  * Return: none
  */
 #if defined(WLAN_FEATURE_TSF) && defined(WLAN_FEATURE_TSF_PLUS)
+#ifdef WLAN_FEATURE_TSF_ACCURACY
+/**
+ * fwol_init_tsf_accuracy_configs: Populate the TSF Accuracy configs from cfg
+ * @psoc: The global psoc handler
+ * @fwol_cfg: The cfg structure
+ *
+ * Return: none
+ */
+static void fwol_init_tsf_accuracy_configs(struct wlan_objmgr_psoc *psoc,
+					   struct wlan_fwol_cfg *fwol_cfg)
+{
+	int32_t configs[CFG_TSF_ACCURACY_CONFIG_LEN] = { 0 };
+	int status;
+	qdf_size_t len;
+
+	status = qdf_int32_array_parse(cfg_get(psoc, CFG_TSF_ACCURACY_CONFIGS),
+				       configs,
+				       CFG_TSF_ACCURACY_CONFIG_LEN,
+				       &len);
+
+	if (status != QDF_STATUS_SUCCESS || len != CFG_TSF_ACCURACY_CONFIG_LEN) {
+		fwol_cfg->tsf_accuracy_configs.enable = 0;
+		fwol_err("Invalid parameters from INI");
+		return;
+	}
+
+	fwol_cfg->tsf_accuracy_configs.enable = configs[0];
+	fwol_cfg->tsf_accuracy_configs.sync_gpio = configs[1];
+	fwol_cfg->tsf_accuracy_configs.periodic_pulse_gpio = configs[2];
+	fwol_cfg->tsf_accuracy_configs.pulse_interval_ms = configs[3];
+}
+#else
+static void fwol_init_tsf_accuracy_configs(struct wlan_objmgr_psoc *psoc,
+					   struct wlan_fwol_cfg *fwol_cfg)
+{
+}
+#endif
 static void ucfg_fwol_init_tsf_ptp_options(struct wlan_objmgr_psoc *psoc,
 					   struct wlan_fwol_cfg *fwol_cfg)
 {
 	fwol_cfg->tsf_ptp_options = cfg_get(psoc, CFG_SET_TSF_PTP_OPT);
 	fwol_cfg->tsf_sync_enable = cfg_get(psoc, CFG_TSF_SYNC_ENABLE);
+	fwol_init_tsf_accuracy_configs(psoc, fwol_cfg);
 }
 #else
 static void ucfg_fwol_init_tsf_ptp_options(struct wlan_objmgr_psoc *psoc,
@@ -612,6 +654,7 @@ QDF_STATUS fwol_cfg_on_psoc_enable(struct wlan_objmgr_psoc *psoc)
 	fwol_init_ie_whiltelist_in_cfg(psoc, &fwol_cfg->ie_allowlist_cfg);
 	fwol_init_neighbor_report_cfg(psoc, &fwol_cfg->neighbor_report_cfg);
 	fwol_cfg->ani_enabled = cfg_get(psoc, CFG_ENABLE_ANI);
+	fwol_cfg->pcie_config = cfg_get(psoc, CFG_PCIE_CONFIG);
 	fwol_cfg->enable_rts_sifsbursting =
 				cfg_get(psoc, CFG_SET_RTS_FOR_SIFS_BURSTING);
 	fwol_cfg->enable_sifs_burst = cfg_get(psoc, CFG_SET_SIFS_BURST);

@@ -17,7 +17,7 @@
  */
 
 /**
- * DOC : osif_twt_ext_rsp.h
+ * DOC: osif_twt_ext_rsp.h
  *
  * WLAN Host Device Driver file for TWT (Target Wake Time) support.
  *
@@ -100,7 +100,7 @@ osif_twt_notify_complete_cb(struct wlan_objmgr_psoc *psoc,
 /**
  * osif_twt_ack_complete_cb() - ack complete osif callback
  * @psoc: psoc pointer
- * @event: ack complete response
+ * @params: ack complete response
  * @context: context
  *
  * Return: QDF_STATUS

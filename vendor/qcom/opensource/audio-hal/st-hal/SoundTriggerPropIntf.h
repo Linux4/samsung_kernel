@@ -169,4 +169,7 @@ typedef int (*audio_hw_open_snd_mixer_t)(struct mixer **mixer);
 
 /* AHAL extn util function which is called by STHAL */
 typedef void (*audio_hw_close_snd_mixer_t)(struct mixer *mixer);
+
+/* AHAL extn util function which is called by STHAL */
+typedef void (*audio_extn_hidl_init)();
 #endif /* SOUND_TRIGGER_PROP_INTF_H */
