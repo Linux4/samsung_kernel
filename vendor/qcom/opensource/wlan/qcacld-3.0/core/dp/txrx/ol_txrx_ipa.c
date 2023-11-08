@@ -325,7 +325,9 @@ static QDF_STATUS __ol_txrx_ipa_tx_buf_smmu_mapping(struct ol_txrx_pdev_t *pdev,
 }
 
 QDF_STATUS ol_txrx_ipa_tx_buf_smmu_mapping(struct cdp_soc_t *soc_hdl,
-					   uint8_t pdev_id)
+					   uint8_t pdev_id,
+					   const char *func,
+					   uint32_t line)
 {
 	QDF_STATUS ret;
 	struct ol_txrx_soc_t *soc = cdp_soc_t_to_ol_txrx_soc_t(soc_hdl);
@@ -346,7 +348,9 @@ QDF_STATUS ol_txrx_ipa_tx_buf_smmu_mapping(struct cdp_soc_t *soc_hdl,
 }
 
 QDF_STATUS ol_txrx_ipa_tx_buf_smmu_unmapping(struct cdp_soc_t *soc_hdl,
-					     uint8_t pdev_id)
+					     uint8_t pdev_id,
+					     const char *func,
+					     uint32_t line)
 {
 	QDF_STATUS ret;
 	struct ol_txrx_soc_t *soc = cdp_soc_t_to_ol_txrx_soc_t(soc_hdl);
@@ -654,7 +658,9 @@ QDF_STATUS ol_txrx_ipa_setup(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 			     uint32_t *p_rx_pipe_handle, bool is_smmu_enabled,
 			     qdf_ipa_sys_connect_params_t *sys_in,
 			     bool over_gsi,
-			     qdf_ipa_wdi_hdl_t hdl)
+			     qdf_ipa_wdi_hdl_t hdl,
+			     qdf_ipa_wdi_hdl_t id,
+			     void *ipa_ast_notify_cb)
 {
 	struct ol_txrx_soc_t *soc = cdp_soc_t_to_ol_txrx_soc_t(soc_hdl);
 	ol_txrx_pdev_handle pdev = ol_txrx_get_pdev_from_pdev_id(soc, pdev_id);
@@ -900,7 +906,7 @@ QDF_STATUS ol_txrx_ipa_setup_iface(char *ifname, uint8_t *mac_addr,
 	ret = qdf_ipa_wdi_reg_intf(&in);
 	if (ret) {
 		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_ERROR,
-			  "%s: ipa_wdi_reg_intf falied: ret=%d", __func__, ret);
+			  "%s: ipa_wdi_reg_intf failed: ret=%d", __func__, ret);
 	}
 
 	return ret;

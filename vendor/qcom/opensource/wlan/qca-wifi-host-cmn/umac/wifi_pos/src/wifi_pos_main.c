@@ -43,7 +43,7 @@
 #endif
 
 #include "wlan_reg_services_api.h"
-/* forward declartion */
+/* forward declaration */
 struct regulatory_channel;
 
 #define REG_SET_CHANNEL_REG_POWER(reg_info_1, val) do { \
@@ -754,6 +754,12 @@ static void wifi_pos_get_vdev_list(struct wlan_objmgr_psoc *psoc,
 				     wifi_pos_vdev_iterator,
 				     vdevs_info, true, WLAN_WIFI_POS_CORE_ID);
 }
+
+static uint32_t wifi_pos_get_vdev_count(struct wlan_objmgr_psoc *psoc)
+{
+	return psoc->soc_objmgr.max_vdev_count;
+}
+
 #else
 /* For WIN, WIFI POS command registration is called only for the first
  * PSOC. Hence, iterate through all the PSOCs and send the vdev list
@@ -774,6 +780,22 @@ static void wifi_pos_get_vdev_list(struct wlan_objmgr_psoc *psoc,
 		}
 	}
 }
+
+static uint32_t wifi_pos_get_vdev_count(struct wlan_objmgr_psoc *tpsoc)
+{
+	struct wlan_objmgr_psoc *psoc = NULL;
+	uint8_t index;
+	uint32_t vdev_count = 0;
+
+	for (index = 0; index < WLAN_OBJMGR_MAX_DEVICES; index++) {
+		if (g_umac_glb_obj->psoc[index]) {
+			psoc = g_umac_glb_obj->psoc[index];
+			vdev_count += psoc->soc_objmgr.max_vdev_count;
+		}
+	}
+
+	return vdev_count;
+}
 #endif
 
 static QDF_STATUS wifi_pos_process_app_reg_req(struct wlan_objmgr_psoc *psoc,
@@ -782,9 +804,9 @@ static QDF_STATUS wifi_pos_process_app_reg_req(struct wlan_objmgr_psoc *psoc,
 	QDF_STATUS ret = QDF_STATUS_SUCCESS;
 	uint8_t err = 0, *app_reg_rsp;
 	uint32_t rsp_len;
+	uint32_t vdev_count;
 	char *sign_str = NULL;
-	struct app_reg_rsp_vdev_info vdevs_info[WLAN_UMAC_PSOC_MAX_VDEVS]
-								= { { 0 } };
+	struct app_reg_rsp_vdev_info *vdevs_info = NULL;
 	struct wifi_pos_psoc_priv_obj *wifi_pos_obj =
 			wifi_pos_get_psoc_priv_obj(psoc);
 
@@ -814,6 +836,26 @@ static QDF_STATUS wifi_pos_process_app_reg_req(struct wlan_objmgr_psoc *psoc,
 	qdf_spin_unlock_bh(&wifi_pos_obj->wifi_pos_lock);
 
 	vdev_idx = 0;
+	vdev_count = wifi_pos_get_vdev_count(psoc);
+
+	if (!vdev_count || vdev_count > (WLAN_OBJMGR_MAX_DEVICES
+	    * WLAN_UMAC_PSOC_MAX_VDEVS)) {
+		wifi_pos_err("App Reg failed as Vdev count is %d (zero or greater than max)",
+			     vdev_count);
+		ret = QDF_STATUS_E_INVAL;
+		err = OEM_ERR_NULL_CONTEXT;
+		goto app_reg_failed;
+	}
+
+	vdevs_info = (struct app_reg_rsp_vdev_info *)
+			qdf_mem_malloc(sizeof(struct app_reg_rsp_vdev_info) *
+				       vdev_count);
+	if (!vdevs_info) {
+		wifi_pos_err("App Reg failed as Vdevs info allocation failed");
+		ret = QDF_STATUS_E_NOMEM;
+		err = OEM_ERR_NULL_CONTEXT;
+		goto app_reg_failed;
+	}
 
 	wifi_pos_get_vdev_list(psoc, vdevs_info);
 
@@ -821,6 +863,7 @@ static QDF_STATUS wifi_pos_process_app_reg_req(struct wlan_objmgr_psoc *psoc,
 	if (!app_reg_rsp) {
 		ret = QDF_STATUS_E_NOMEM;
 		err = OEM_ERR_NULL_CONTEXT;
+		qdf_mem_free(vdevs_info);
 		goto app_reg_failed;
 	}
 
@@ -833,6 +876,7 @@ static QDF_STATUS wifi_pos_process_app_reg_req(struct wlan_objmgr_psoc *psoc,
 					rsp_len, (uint8_t *)app_reg_rsp);
 
 	qdf_mem_free(app_reg_rsp);
+	qdf_mem_free(vdevs_info);
 	return ret;
 
 app_reg_failed:
@@ -1123,7 +1167,7 @@ wifi_pos_peer_object_destroyed_notification(struct wlan_objmgr_peer *peer,
 						       WLAN_UMAC_COMP_WIFI_POS,
 						       (void *)peer_priv);
 	if (QDF_IS_STATUS_ERROR(status))
-		wifi_pos_err("unable to dettach peer_priv obj to peer obj");
+		wifi_pos_err("unable to detach peer_priv obj to peer obj");
 
 	qdf_mem_free(peer_priv);
 
@@ -1165,7 +1209,7 @@ int wifi_pos_oem_rsp_handler(struct wlan_objmgr_psoc *psoc,
 	wifi_pos_debug("oem data rsp, len: %d to pid: %d", len, app_pid);
 
 	if (oem_rsp->rsp_len_2 + oem_rsp->dma_len) {
-		/* stitch togther the msg data_1 + CIR/CFR + data_2 */
+		/* stitch together the msg data_1 + CIR/CFR + data_2 */
 		data = qdf_mem_malloc(len);
 		if (!data)
 			return -ENOMEM;
@@ -1193,6 +1237,8 @@ void wifi_pos_register_rx_ops(struct wlan_lmac_if_rx_ops *rx_ops)
 
 	wifi_pos_rx_ops = &rx_ops->wifi_pos_rx_ops;
 	wifi_pos_rx_ops->oem_rsp_event_rx = wifi_pos_oem_rsp_handler;
+	wifi_pos_rx_ops->wifi_pos_vdev_delete_all_ranging_peers_cb =
+			wifi_pos_vdev_delete_all_ranging_peers;
 }
 
 QDF_STATUS wifi_pos_populate_caps(struct wlan_objmgr_psoc *psoc,

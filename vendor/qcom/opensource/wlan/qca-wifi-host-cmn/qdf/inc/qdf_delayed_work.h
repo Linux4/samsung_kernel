@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,7 +32,7 @@
 typedef void (*qdf_delayed_work_cb)(void *context);
 
 /**
- * struct qdf_delayed_work - a defered work type which executes a callback after
+ * struct qdf_delayed_work - a deferred work type which executes a callback after
  *	some delay
  * @dwork: OS-specific delayed work
  * @callback: the callback to be executed

@@ -200,4 +200,24 @@ QDF_STATUS wmi_extract_multi_vdev_restart_resp_event(
 QDF_STATUS
 wmi_unified_multisoc_tbtt_sync_cmd(wmi_unified_t wmi_handle,
 				   struct rnr_tbtt_multisoc_sync_param *param);
+
+#ifdef WLAN_FEATURE_SR
+/**
+ * wmi_unified_vdev_param_sr_prohibit_send() - send vdev SR prohibit command
+ * @wmi: wmi handle
+ * @srp_param: SR Prohibit parameters
+ *
+ * Return: QDF_STATUS_SUCCESS for success or error code
+ */
+QDF_STATUS
+wmi_unified_vdev_param_sr_prohibit_send(wmi_unified_t wmi_hdl,
+					struct sr_prohibit_param *srp_param);
+#else
+static inline QDF_STATUS
+wmi_unified_vdev_param_sr_prohibit_send(wmi_unified_t wmi_hdl,
+					struct sr_prohibit_param *srp_param)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
 #endif

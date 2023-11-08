@@ -105,6 +105,12 @@ int cnss_set_pci_link(struct cnss_pci_data *pci_priv, bool link_up);
 int cnss_pci_prevent_l1(struct device *dev);
 void cnss_pci_allow_l1(struct device *dev);
 int cnss_pci_get_msi_assignment(struct cnss_pci_data *pci_priv);
+int cnss_pci_get_one_msi_assignment(struct cnss_pci_data *pci_priv);
+bool cnss_pci_fallback_one_msi(struct cnss_pci_data *pci_priv,
+			       int *num_vectors);
+bool cnss_pci_is_one_msi(struct cnss_pci_data *pci_priv);
+int cnss_pci_get_one_msi_mhi_irq_array_size(struct cnss_pci_data *pci_priv);
+bool cnss_pci_is_force_one_msi(struct cnss_pci_data *pci_priv);
 int cnss_pci_init_smmu(struct cnss_pci_data *pci_priv);
 bool cnss_pci_is_drv_supported(struct cnss_pci_data *pci_priv);
 /**

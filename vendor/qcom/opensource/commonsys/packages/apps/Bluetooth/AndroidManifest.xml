@@ -548,6 +548,14 @@
         </service>
         <service
             android:process="@string/process"
+            android:name = "com.android.bluetooth.directionfinder.AtpLocatorService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.IBluetoothLeDirectionFinder" />
+            </intent-filter>
+        </service>
+        <service
+            android:process="@string/process"
             android:name = "com.android.bluetooth.hearingaid.HearingAidService"
             android:exported="true">
             <intent-filter>

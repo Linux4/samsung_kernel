@@ -15,8 +15,12 @@
 #ifndef __SECDP_H
 #define __SECDP_H
 
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
+#endif
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
+#endif
 #include <linux/secdp_logger.h>
 #include <linux/pm_wakeup.h>
 #include <linux/sched/clock.h>
@@ -308,11 +312,6 @@ static inline char *secdp_ps5169_rate_to_string(int hw)
 }
 #endif/*CONFIG_COMBO_REDRIVER_PS5169*/
 
-struct secdp_attention_node {
-	PD_NOTI_TYPEDEF noti;
-	struct list_head list;
-};
-
 struct secdp_adapter {
 	uint ven_id;
 	uint prod_id;
@@ -420,6 +419,7 @@ struct secdp_misc {
 	bool cable_connected; /* previously known as "cable_connected_phy" */
 	bool link_conf;       /* previously known as "sec_link_conf" */
 	struct secdp_hpd hpd;
+	int mode_cnt;
 
 	struct secdp_adapter adapter;
 	struct secdp_pdic_noti pdic_noti;
@@ -466,7 +466,6 @@ struct secdp_misc {
 
 bool secdp_get_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
-bool secdp_get_clk_status(enum dp_pm_type type);
 
 int  secdp_pdic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_phy_reset_check(void);

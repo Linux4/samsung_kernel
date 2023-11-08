@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -139,6 +140,7 @@ typedef struct {
  * @qdf_dev: qdf device
  * @bdev: bus device handle
  * @netdev: net device handle (wifi%d)
+ * @ops: net device operation
  * @intr_tq: tasklet
  * @devstats: net device statistics
  * @bc: hal bus context
@@ -157,6 +159,7 @@ struct _NIC_DEV {
 	qdf_device_t qdf_dev;
 	void *bdev;
 	struct net_device *netdev;
+	struct net_device_ops ops;
 	qdf_bh_t intr_tq;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 	struct rtnl_link_stats64 devstats;

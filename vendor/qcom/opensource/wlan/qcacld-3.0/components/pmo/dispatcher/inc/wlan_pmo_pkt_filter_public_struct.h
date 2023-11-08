@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -64,7 +65,7 @@ enum pmo_rcv_pkt_fltr_flag_type {
 };
 
 /**
- * enum pmo_rcv_pkt_fltr_protocol_params: Receive Filter protocal parameters
+ * enum pmo_rcv_pkt_fltr_protocol_params: Receive Filter protocol parameters
  * @PMO_FILTER_HDR_TYPE_INVALID: invalied type
  * @PMO_FILTER_HDR_TYPE_MAC: mac protocol
  * @PMO_FILTER_HDR_TYPE_ARP: arp protocol

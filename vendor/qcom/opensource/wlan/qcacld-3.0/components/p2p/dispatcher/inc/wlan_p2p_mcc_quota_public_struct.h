@@ -17,7 +17,7 @@
  */
 
 /**
- * DOC: Contains mcc quota event public data structure definations
+ * DOC: Contains mcc quota event public data structure definitions
  */
 
 #ifndef _WLAN_P2P_MCC_QUOTA_PUBLIC_STRUCT_H_
@@ -37,7 +37,7 @@ struct wlan_objmgr_vdev;
 
 /**
  * enum mcc_quota_type - mcc channel quota type
- * @QUOTA_TYPE_CLEAR: target exits MCC state and clear mcc quota inforamtion
+ * @QUOTA_TYPE_CLEAR: target exits MCC state and clear mcc quota information
  * @QUOTA_TYPE_FIXED: channel time quota is fixed and will not be changed
  * @QUOTA_TYPE_DYNAMIC: channel time quota is dynamic and targe may change
  *   the quota based on the data activity

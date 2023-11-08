@@ -311,7 +311,7 @@ static int dsi_phy_settings_init(struct platform_device *pdev,
 	rc = dsi_phy_parse_dt_per_lane_cfgs(pdev, lane,
 					    "qcom,platform-lane-config");
 	if (rc) {
-		DSI_PHY_ERR(phy, "failed to parse lane cfgs, rc=%d\n", rc);
+		DSI_PHY_ERR(phy, "failed to parse platform lane config, rc=%d\n", rc);
 		goto err;
 	}
 
@@ -319,7 +319,7 @@ static int dsi_phy_settings_init(struct platform_device *pdev,
 	rc = dsi_phy_parse_dt_per_lane_cfgs(pdev, strength,
 					    "qcom,platform-strength-ctrl");
 	if (rc) {
-		DSI_PHY_ERR(phy, "failed to parse lane cfgs, rc=%d\n", rc);
+		DSI_PHY_ERR(phy, "failed to parse platform strength ctrl, rc=%d\n", rc);
 		goto err;
 	}
 
@@ -328,7 +328,7 @@ static int dsi_phy_settings_init(struct platform_device *pdev,
 		rc = dsi_phy_parse_dt_per_lane_cfgs(pdev, regs,
 					    "qcom,platform-regulator-settings");
 		if (rc) {
-			DSI_PHY_ERR(phy, "failed to parse lane cfgs, rc=%d\n",
+			DSI_PHY_ERR(phy, "failed to parse platform regulator settings, rc=%d\n",
 					rc);
 			goto err;
 		}

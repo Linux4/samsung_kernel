@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -61,7 +62,7 @@
 #define CFG_WLAN_CM_UTF_PARAM CFG(CFG_WLAN_CM_UTF)
 /**
  * enum wlan_cm_utf_test - CM UTF Test ID
- * @CM_UTF_ID_CONNECT_SUCCESS: Connect Succes
+ * @CM_UTF_ID_CONNECT_SUCCESS: Connect Success
  * @CM_UTF_ID_DISCONNECT_SUCCESS: Disconnect Success
  * @CM_UTF_ID_PEER_CREATE_FAILURE: Peer Create Failure
  * @CM_UTF_ID_PEER_CREATE_TIMEOUT: No Peer Create Response

@@ -164,7 +164,7 @@ qdf_freq_t tdls_get_offchan_freq(struct wlan_objmgr_vdev *vdev,
 	pref_non6g_ch = soc_obj->tdls_configs.tdls_pre_off_chan_num;
 
 	/*
-	 * Fill preffered offchannel frequency here. If TDLS on 6 GHz is
+	 * Fill preferred offchannel frequency here. If TDLS on 6 GHz is
 	 * allowed then fill pref 6 GHz frequency
 	 * Otherwise, fill 5 GHz preferred frequency
 	 */
@@ -220,6 +220,38 @@ static void tdls_fill_pref_off_chan_info(struct tdls_vdev_priv_obj *vdev_obj,
 		   peer->pref_off_chan_freq, peer->pref_off_chan_width);
 }
 
+static QDF_STATUS
+tdls_remove_first_idle_peer(qdf_list_t *head) {
+	QDF_STATUS status;
+	qdf_list_node_t *p_node;
+	struct tdls_peer *peer;
+
+	status = qdf_list_peek_front(head, &p_node);
+	while (QDF_IS_STATUS_SUCCESS(status)) {
+		peer = qdf_container_of(p_node, struct tdls_peer, node);
+		if (peer && peer->link_status == TDLS_LINK_IDLE) {
+			if (peer->is_peer_idle_timer_initialised) {
+				tdls_debug(QDF_MAC_ADDR_FMT
+					": destroy  idle timer ",
+					QDF_MAC_ADDR_REF(
+					peer->peer_mac.bytes));
+				qdf_mc_timer_stop(&peer->peer_idle_timer);
+				qdf_mc_timer_destroy(&peer->peer_idle_timer);
+			}
+
+			tdls_debug(QDF_MAC_ADDR_FMT ": free peer",
+				   QDF_MAC_ADDR_REF(peer->peer_mac.bytes));
+			qdf_list_remove_node(head, p_node);
+			qdf_mem_free(peer);
+
+			return status;
+		}
+		status = qdf_list_peek_next(head, p_node, &p_node);
+	}
+
+	return QDF_STATUS_E_INVAL;
+}
+
 /**
  * tdls_add_peer() - add TDLS peer in TDLS vdev object
  * @vdev_obj: TDLS vdev object
@@ -262,6 +294,15 @@ static struct tdls_peer *tdls_add_peer(struct tdls_vdev_priv_obj *vdev_obj,
 				&reg_bw_offset);
 
 	peer->valid_entry = false;
+
+	if (qdf_list_size(head) >= qdf_list_max_size(head)) {
+		if (QDF_IS_STATUS_ERROR(tdls_remove_first_idle_peer(head))) {
+			tdls_err("list size exceed max and remove idle peer failed, key %d",
+				 key);
+			qdf_mem_free(peer);
+			return NULL;
+		}
+	}
 
 	qdf_list_insert_back(head, &peer->node);
 
@@ -615,7 +656,9 @@ void tdls_extract_peer_state_param(struct tdls_peer_update_state *peer_param,
 	num = 0;
 	for (i = 0; i < peer->supported_channels_len; i++) {
 		ch_freq = peer->supported_chan_freq[i];
-		ch_state = wlan_reg_get_channel_state_for_freq(pdev, ch_freq);
+		ch_state = wlan_reg_get_channel_state_for_pwrmode(
+							pdev, ch_freq,
+							REG_CURRENT_PWR_MODE);
 
 		if (CHANNEL_STATE_INVALID != ch_state &&
 		    CHANNEL_STATE_DFS != ch_state &&
@@ -856,10 +899,10 @@ static void tdls_update_off_chan_peer_caps(struct tdls_vdev_priv_obj *vdev_obj,
 	 * Update Pref Offcahnnel BW such that:
 	 * 1. If 6 GHz is supported then select the ini preferred 6 GHz channel
 	 *    frequency.
-	 * 2. If 6 GHz is supported and peer doesn't support the ini preffered
+	 * 2. If 6 GHz is supported and peer doesn't support the ini preferred
 	 *    channel frequency then select the very first 6 GHz channel which
 	 *    peer supports as prefferd offchannel.
-	 * 3. If peer doesn't support 6 GHz, then select ini preffered 5 GHz
+	 * 3. If peer doesn't support 6 GHz, then select ini preferred 5 GHz
 	 *    off channel frequency, given that peer should also support it
 	 * 4. If peer doesn support 6 GHz and also doesn't support ini preferred
 	 *    5 GHz offcahnnel, then select the very first 5 GHz channel it
@@ -938,6 +981,10 @@ bw_check:
 				vdev_obj->vdev, peer->pref_off_chan_freq,
 				peer->pref_off_chan_width,
 				&reg_bw_offset);
+
+	tdls_debug("Updated preff offchannel freq %d width %d opclass %d",
+		   peer->pref_off_chan_freq, peer->pref_off_chan_width,
+		   peer->op_class_for_pref_off_chan);
 }
 
 void tdls_set_peer_caps(struct tdls_vdev_priv_obj *vdev_obj,

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,10 +25,11 @@
 #include "wlan_cm_roam_ucfg_api.h"
 #include "../../core/src/wlan_cm_roam_offload.h"
 #include "wlan_reg_ucfg_api.h"
+#include "wlan_mlo_mgr_sta.h"
 
-bool ucfg_is_roaming_enabled(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id)
+bool ucfg_is_rso_enabled(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id)
 {
-	return wlan_is_roaming_enabled(pdev, vdev_id);
+	return wlan_is_rso_enabled(pdev, vdev_id);
 }
 
 QDF_STATUS
@@ -89,6 +90,16 @@ ucfg_user_space_enable_disable_rso(struct wlan_objmgr_pdev *pdev,
 	mlme_set_supplicant_disabled_roaming(psoc, vdev_id,
 					     !is_fast_roam_enabled);
 
+	/* For mlo connection, before all links are up
+	 * supplicant can enable roaming, to handle this
+	 * drop the enable rso as host will enable roaming
+	 * once all links are up
+	 */
+	if (mlo_is_ml_connection_in_progress(psoc, vdev_id)) {
+		mlme_debug("mlo connection in progress");
+		return QDF_STATUS_SUCCESS;
+	}
+
 	state = (is_fast_roam_enabled) ?
 		WLAN_ROAM_RSO_ENABLED : WLAN_ROAM_RSO_STOPPED;
 	status = cm_roam_state_change(pdev, vdev_id, state,
@@ -104,30 +115,15 @@ QDF_STATUS ucfg_cm_abort_roam_scan(struct wlan_objmgr_pdev *pdev,
 	QDF_STATUS status;
 	struct wlan_objmgr_psoc *psoc = wlan_pdev_get_psoc(pdev);
 	bool roam_scan_offload_enabled;
-	struct wlan_objmgr_vdev *vdev;
 
 	ucfg_mlme_is_roam_scan_offload_enabled(psoc,
 					       &roam_scan_offload_enabled);
 	if (!roam_scan_offload_enabled)
 		return QDF_STATUS_SUCCESS;
 
-	vdev = wlan_objmgr_get_vdev_by_id_from_pdev(pdev, vdev_id,
-						    WLAN_MLME_CM_ID);
-	if (!vdev) {
-		mlme_err("vdev object is NULL");
-		return QDF_STATUS_E_INVAL;
-	}
-	status = cm_roam_acquire_lock(vdev);
-	if (QDF_IS_STATUS_ERROR(status))
-		goto release_ref;
-
 	status = cm_roam_send_rso_cmd(psoc, vdev_id,
 				      ROAM_SCAN_OFFLOAD_ABORT_SCAN,
 				      REASON_ROAM_ABORT_ROAM_SCAN);
-	cm_roam_release_lock(vdev);
-
-release_ref:
-	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_CM_ID);
 
 	return status;
 }
@@ -487,6 +483,32 @@ ucfg_cm_roam_send_rt_stats_config(struct wlan_objmgr_pdev *pdev,
 	return cm_roam_send_rt_stats_config(psoc, vdev_id, param_value);
 }
 
+QDF_STATUS
+ucfg_cm_roam_send_ho_delay_config(struct wlan_objmgr_pdev *pdev,
+				  uint8_t vdev_id, uint16_t param_value)
+{
+	struct wlan_objmgr_psoc *psoc = wlan_pdev_get_psoc(pdev);
+
+	return cm_roam_send_ho_delay_config(psoc, vdev_id, param_value);
+}
+
+QDF_STATUS
+ucfg_cm_exclude_rm_partial_scan_freq(struct wlan_objmgr_pdev *pdev,
+				     uint8_t vdev_id, uint8_t param_value)
+{
+	struct wlan_objmgr_psoc *psoc = wlan_pdev_get_psoc(pdev);
+
+	return cm_exclude_rm_partial_scan_freq(psoc, vdev_id, param_value);
+}
+
+QDF_STATUS ucfg_cm_roam_full_scan_6ghz_on_disc(struct wlan_objmgr_pdev *pdev,
+					       uint8_t vdev_id,
+					       uint8_t param_value)
+{
+	struct wlan_objmgr_psoc *psoc = wlan_pdev_get_psoc(pdev);
+
+	return cm_roam_full_scan_6ghz_on_disc(psoc, vdev_id, param_value);
+}
 #ifdef WLAN_VENDOR_HANDOFF_CONTROL
 QDF_STATUS
 ucfg_cm_roam_send_vendor_handoff_param_req(struct wlan_objmgr_psoc *psoc,
@@ -506,3 +528,214 @@ ucfg_cm_roam_is_vendor_handoff_control_enable(struct wlan_objmgr_psoc *psoc)
 
 #endif
 #endif /* WLAN_FEATURE_ROAM_OFFLOAD */
+
+QDF_STATUS
+ucfg_cm_get_roam_intra_band(struct wlan_objmgr_psoc *psoc, uint16_t *val)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*val = mlme_obj->cfg.lfr.roam_intra_band;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_cm_get_roam_rescan_rssi_diff(struct wlan_objmgr_psoc *psoc, uint8_t *val)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*val = mlme_obj->cfg.lfr.roam_rescan_rssi_diff;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_cm_get_neighbor_lookup_rssi_threshold(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id,
+					   uint8_t *lookup_threshold)
+{
+	struct cm_roam_values_copy temp;
+
+	wlan_cm_roam_cfg_get_value(psoc, vdev_id,
+				   NEIGHBOUR_LOOKUP_THRESHOLD, &temp);
+	*lookup_threshold = temp.uint_value;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_cm_get_empty_scan_refresh_period(struct wlan_objmgr_psoc *psoc,
+				      uint8_t vdev_id,
+				      uint16_t *refresh_threshold)
+{
+	struct cm_roam_values_copy temp;
+
+	wlan_cm_roam_cfg_get_value(psoc, vdev_id,
+				   EMPTY_SCAN_REFRESH_PERIOD, &temp);
+	*refresh_threshold = temp.uint_value;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+uint16_t
+ucfg_cm_get_neighbor_scan_min_chan_time(struct wlan_objmgr_psoc *psoc,
+					uint8_t vdev_id)
+{
+	struct cm_roam_values_copy temp;
+
+	wlan_cm_roam_cfg_get_value(psoc, vdev_id,
+				   SCAN_MIN_CHAN_TIME, &temp);
+
+	return temp.uint_value;
+}
+
+QDF_STATUS
+ucfg_cm_get_roam_rssi_diff(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
+			   uint8_t *rssi_diff)
+{
+	struct cm_roam_values_copy temp;
+
+	wlan_cm_roam_cfg_get_value(psoc, vdev_id,
+				   ROAM_RSSI_DIFF, &temp);
+	*rssi_diff = temp.uint_value;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+#ifdef FEATURE_WLAN_ESE
+bool ucfg_cm_get_is_ese_feature_enabled(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return false;
+
+	return mlme_obj->cfg.lfr.ese_enabled;
+}
+#endif
+
+uint16_t
+ucfg_cm_get_neighbor_scan_max_chan_time(struct wlan_objmgr_psoc *psoc,
+					uint8_t vdev_id)
+{
+	struct cm_roam_values_copy temp;
+
+	wlan_cm_roam_cfg_get_value(psoc, vdev_id,
+				   SCAN_MAX_CHAN_TIME, &temp);
+
+	return temp.uint_value;
+}
+
+uint16_t
+ucfg_cm_get_neighbor_scan_period(struct wlan_objmgr_psoc *psoc,
+				 uint8_t vdev_id)
+{
+	struct cm_roam_values_copy temp;
+
+	wlan_cm_roam_cfg_get_value(psoc, vdev_id,
+				   NEIGHBOR_SCAN_PERIOD, &temp);
+	return temp.uint_value;
+}
+
+bool ucfg_cm_get_wes_mode(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return false;
+
+	return mlme_obj->cfg.lfr.wes_mode_enabled;
+}
+
+bool ucfg_cm_get_is_lfr_feature_enabled(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return false;
+
+	return mlme_obj->cfg.lfr.lfr_enabled;
+}
+
+bool ucfg_cm_get_is_ft_feature_enabled(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return false;
+
+	return mlme_obj->cfg.lfr.fast_transition_enabled;
+}
+
+QDF_STATUS
+ucfg_cm_get_roam_scan_home_away_time(struct wlan_objmgr_psoc *psoc,
+				     uint8_t vdev_id,
+				     uint16_t *roam_scan_home_away_time)
+{
+	struct cm_roam_values_copy temp;
+
+	wlan_cm_roam_cfg_get_value(psoc, vdev_id, SCAN_HOME_AWAY, &temp);
+
+	*roam_scan_home_away_time = temp.uint_value;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_cm_get_roam_opportunistic_scan_threshold_diff(
+						struct wlan_objmgr_psoc *psoc,
+						int8_t *val)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*val = mlme_obj->cfg.lfr.opportunistic_scan_threshold_diff;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_cm_get_neighbor_scan_refresh_period(struct wlan_objmgr_psoc *psoc,
+					 uint16_t *value)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*value = mlme_obj->cfg.lfr.neighbor_scan_results_refresh_period;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_cm_get_empty_scan_refresh_period_global(struct wlan_objmgr_psoc *psoc,
+					     uint16_t *roam_scan_period_global)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*roam_scan_period_global =
+			mlme_obj->cfg.lfr.empty_scan_refresh_period;
+
+	return QDF_STATUS_SUCCESS;
+}

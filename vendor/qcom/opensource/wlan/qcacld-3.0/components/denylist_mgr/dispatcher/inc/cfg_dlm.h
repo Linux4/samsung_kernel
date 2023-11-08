@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -56,7 +56,7 @@
  * <ini>
  * bad_bssid_counter_thresh - Threshold to move the Ap from avoid to denylist.
  * @Min: 2
- * @Max: 10
+ * @Max: 100
  * @Default: 3
  *
  * This ini is used to specify the threshld after which the BSSID which is in
@@ -73,7 +73,7 @@
 #define CFG_BAD_BSSID_COUNTER_THRESHOLD CFG_INI_UINT( \
 				"bad_bssid_counter_thresh", \
 				2, \
-				10, \
+				100, \
 				3, \
 				CFG_VALUE_OR_DEFAULT, \
 				"bad bssid counter thresh")

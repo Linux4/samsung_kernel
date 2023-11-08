@@ -18,9 +18,9 @@
  */
 
 /**
- * @file wlan_hdd_wowl.c
+ * DOC: wlan_hdd_wowl.c
  *
- * @brief wake up on WLAN API file
+ * wake up on WLAN API file
  */
 
 /* Include Files */
@@ -184,7 +184,7 @@ bool hdd_add_wowl_ptrn(struct hdd_adapter *adapter, const char *ptrn)
 			goto next_ptrn;
 		}
 
-		/* compute the end of pattern sring */
+		/* compute the end of pattern string */
 		offset = offset + 2 * wow_pattern.pattern_mask_size;
 		if (offset + 1 != len) {
 			/* offset begins with 0 */

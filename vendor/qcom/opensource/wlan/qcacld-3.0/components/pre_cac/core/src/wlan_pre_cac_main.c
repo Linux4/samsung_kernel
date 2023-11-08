@@ -34,9 +34,9 @@ void pre_cac_stop(struct wlan_objmgr_psoc *psoc)
 
 	if (!psoc_priv)
 		return;
-	pre_cac_debug("cancel pre_cac_work");
+	pre_cac_debug("flush pre_cac_work");
 	if (psoc_priv->pre_cac_work.fn)
-		qdf_cancel_work(&psoc_priv->pre_cac_work);
+		qdf_flush_work(&psoc_priv->pre_cac_work);
 }
 
 void pre_cac_set_freq(struct wlan_objmgr_vdev *vdev,
@@ -206,6 +206,10 @@ void pre_cac_clean_up(struct wlan_objmgr_psoc *psoc)
 	if (!pre_cac_is_active(psoc))
 		return;
 
+	if (pre_cac_is_active(psoc) && psoc_priv->pre_cac_work.fn) {
+		pre_cac_debug("pre_cac_work already shceduled");
+		return;
+	}
 	pre_cac_get_vdev_id(psoc, &vdev_id);
 	pre_cac_debug("schedue pre_cac_work vdev %d", vdev_id);
 	psoc_priv->pre_cac_vdev_id = vdev_id;
@@ -371,6 +375,19 @@ bool pre_cac_is_active(struct wlan_objmgr_psoc *psoc)
 				     pre_cac_is_active_vdev_handler,
 				     &is_pre_cac_on, true, WLAN_PRE_CAC_ID);
 	return is_pre_cac_on;
+}
+
+void pre_cac_clear_work(struct wlan_objmgr_psoc *psoc)
+{
+	struct pre_cac_psoc_priv *psoc_priv = pre_cac_psoc_get_priv(psoc);
+
+	if (!psoc_priv)
+		return;
+
+	psoc_priv->pre_cac_work.fn = NULL;
+	psoc_priv->pre_cac_work.arg = NULL;
+
+	return;
 }
 
 struct pre_cac_vdev_priv *

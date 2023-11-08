@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2017, 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -88,7 +89,7 @@ int nl_srv_bcast(struct sk_buff *skb, int mcgroup_id, int app_id);
  * @flags: Flags
  * @cmd: Command id
  *
- * API to fill genl message header for brodcast events to user space
+ * API to fill genl message header for broadcast events to user space
  *
  * Return: Pointer to user specific header/payload
  */

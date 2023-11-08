@@ -67,10 +67,17 @@ AUDIO_TEST += osal_in_test_example
 #AUDIO_MODULES := audio.a2dp.default
 AUDIO_MODULES := audio.usb.default
 AUDIO_MODULES += audio.r_submix.default
-AUDIO_MODULES += audio.primary.kalama
-AUDIO_MODULES += ftm_test_config
-AUDIO_MODULES += ftm_test_config_kalama-qrd-snd-card
-AUDIO_MODULES += ftm_test_config_kalama-grd-snd-card
+ifeq ($(call is-board-platform-in-list,kalama),true)
+    AUDIO_MODULES += audio.primary.kalama
+    AUDIO_MODULES += ftm_test_config
+    AUDIO_MODULES += ftm_test_config_kalama-qrd-snd-card
+    AUDIO_MODULES += ftm_test_config_kalama-grd-snd-card
+endif
+ifeq ($(call is-board-platform-in-list,crow),true)
+    AUDIO_MODULES += audio.primary.crow
+    AUDIO_MODULES += ftm_test_config
+    AUDIO_MODULES += ftm_test_config_crow-qrd-snd-card
+endif
 AUDIO_MODULES += audioadsprpcd
 AUDIO_MODULES += android.hardware.audio.service_64
 AUDIO_MODULES += MTP_acdb_cal.acdb
@@ -101,6 +108,9 @@ AUDIO_MODULES += mm-audio-ftm
 AUDIO_MODULES += libmcs
 AUDIO_MODULES += libquasar
 AUDIO_MODULES += sensors.dynamic_sensor_hal
+
+ifeq ($(PRODUCT_ENABLE_QESDK),true)
+endif
 
 AUDIO_MODULES += $(AUDIO_AGM)
 AUDIO_MODULES += $(AUDIO_PAL)

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,7 +33,7 @@
 typedef void (*qdf_periodic_work_cb)(void *context);
 
 /**
- * struct qdf_periodic_work - a defered work type which executes a callback
+ * struct qdf_periodic_work - a deferred work type which executes a callback
  *	periodically until stopped
  * @dwork: OS-specific delayed work
  * @callback: the callback to be executed periodically

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -72,6 +73,7 @@ struct dot11p_channel_sched {
 
 /**
  * enum qca_wlan_vendor_attr_ocb_set_config - vendor subcmd to set ocb config
+ * @QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_CHANNEL_COUNT:
  *	number of channels in the configuration
  * @QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_SCHEDULE_SIZE: size of the schedule
@@ -84,6 +86,8 @@ struct dot11p_channel_sched {
  *	array of NDL active state configuration
  * @QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_FLAGS:
  *	flag to set the absolute expiry
+ * @QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_AFTER_LAST: number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_ocb_set_config {
 	QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_INVALID = 0,
@@ -101,10 +105,13 @@ enum qca_wlan_vendor_attr_ocb_set_config {
 
 /**
  * enum qca_wlan_vendor_attr_ocb_set_utc_time - vendor subcmd to set UTC time
+ * @QCA_WLAN_VENDOR_ATTR_OCB_SET_UTC_TIME_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_OCB_SET_UTC_TIME_VALUE:
  *	the UTC time as an array of 10 bytes
  * @QCA_WLAN_VENDOR_ATTR_OCB_SET_UTC_TIME_ERROR:
  *	the time error as an array of 5 bytes
+ * @QCA_WLAN_VENDOR_ATTR_OCB_SET_UTC_TIME_AFTER_LAST: number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_OCB_SET_UTC_TIME_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_ocb_set_utc_time {
 	QCA_WLAN_VENDOR_ATTR_OCB_SET_UTC_TIME_INVALID = 0,
@@ -117,12 +124,16 @@ enum qca_wlan_vendor_attr_ocb_set_utc_time {
 
 /**
  * enum qca_wlan_vendor_attr_ocb_start_timing_advert - vendor subcmd to start
-						       sending timing advert
-						       frames
+ *						       sending timing advert
+ *						       frames
+ * @QCA_WLAN_VENDOR_ATTR_OCB_START_TIMING_ADVERT_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_OCB_START_TIMING_ADVERT_CHANNEL_FREQ:
  *	channel frequency on which to send the frames
  * @QCA_WLAN_VENDOR_ATTR_OCB_START_TIMING_ADVERT_REPEAT_RATE:
  *	number of times the frame is sent in 5 seconds
+ * @QCA_WLAN_VENDOR_ATTR_OCB_START_TIMING_ADVERT_AFTER_LAST:
+ *	number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_OCB_START_TIMING_ADVERT_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_ocb_start_timing_advert {
 	QCA_WLAN_VENDOR_ATTR_OCB_START_TIMING_ADVERT_INVALID = 0,
@@ -136,8 +147,12 @@ enum qca_wlan_vendor_attr_ocb_start_timing_advert {
 /**
  * enum qca_wlan_vendor_attr_ocb_stop_timing_advert - vendor subcmd to stop
  *						      timing advert
+ * @QCA_WLAN_VENDOR_ATTR_OCB_STOP_TIMING_ADVERT_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_OCB_STOP_TIMING_ADVERT_CHANNEL_FREQ:
  *	the channel frequency on which to stop the timing advert
+ * @QCA_WLAN_VENDOR_ATTR_OCB_STOP_TIMING_ADVERT_AFTER_LAST:
+ *	number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_OCB_STOP_TIMING_ADVERT_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_ocb_stop_timing_advert {
 	QCA_WLAN_VENDOR_ATTR_OCB_STOP_TIMING_ADVERT_INVALID = 0,
@@ -148,12 +163,15 @@ enum qca_wlan_vendor_attr_ocb_stop_timing_advert {
 };
 
 /**
- * enum qca_wlan_vendor_attr_dcc_get_tsf_response - vendor subcmd to get TSF
- *						    timer value
+ * enum qca_wlan_vendor_attr_ocb_get_tsf_resp - vendor subcmd to get TSF
+ *						timer value
+ * @QCA_WLAN_VENDOR_ATTR_OCB_GET_TSF_RESP_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_OCB_GET_TSF_RESP_TIMER_HIGH:
  *      higher 32 bits of the timer
  * @QCA_WLAN_VENDOR_ATTR_OCB_GET_TSF_RESP_TIMER_LOW:
  *      lower 32 bits of the timer
+ * @QCA_WLAN_VENDOR_ATTR_OCB_GET_TSF_RESP_AFTER_LAST: number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_OCB_GET_TSF_RESP_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_ocb_get_tsf_resp {
 	QCA_WLAN_VENDOR_ATTR_OCB_GET_TSF_RESP_INVALID = 0,
@@ -167,10 +185,13 @@ enum qca_wlan_vendor_attr_ocb_get_tsf_resp {
 /**
  * enum qca_wlan_vendor_attr_dcc_get_stats - vendor subcmd to get
  *					     dcc stats
+ * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_CHANNEL_COUNT:
  *      the number of channels in the request array
- * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_REQUEST_ARRAY
+ * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_REQUEST_ARRAY:
  *      array of the channel and information being requested
+ * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_AFTER_LAST: number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_dcc_get_stats {
 	QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_INVALID = 0,
@@ -184,10 +205,13 @@ enum qca_wlan_vendor_attr_dcc_get_stats {
 /**
  * enum qca_wlan_vendor_attr_dcc_get_stats_resp - response event from get
  *						  dcc stats
+ * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_RESP_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_RESP_CHANNEL_COUNT:
  *      the number of channels in the request array
- * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_RESP_STATS_ARRAY
+ * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_RESP_STATS_ARRAY:
  *      array of the information being requested
+ * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_RESP_AFTER_LAST: number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_RESP_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_dcc_get_stats_resp {
 	QCA_WLAN_VENDOR_ATTR_DCC_GET_STATS_RESP_INVALID = 0,
@@ -200,8 +224,11 @@ enum qca_wlan_vendor_attr_dcc_get_stats_resp {
 
 /**
  * enum qca_wlan_vendor_attr_dcc_clear_stats - vendor subcmd to clear DCC stats
+ * @QCA_WLAN_VENDOR_ATTR_DCC_CLEAR_STATS_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_DCC_CLEAR_STATS_BITMAP:
  *      mask of the type of stats to be cleared
+ * @QCA_WLAN_VENDOR_ATTR_DCC_CLEAR_STATS_AFTER_LAST: number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_DCC_CLEAR_STATS_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_dcc_clear_stats {
 	QCA_WLAN_VENDOR_ATTR_DCC_CLEAR_STATS_INVALID = 0,
@@ -212,13 +239,16 @@ enum qca_wlan_vendor_attr_dcc_clear_stats {
 };
 
 /**
- * enum qca_wlan_vendor_attr_ocb_set_config - vendor subcmd to update dcc
+ * enum qca_wlan_vendor_attr_dcc_update_ndl - vendor subcmd to update dcc
+ * @QCA_WLAN_VENDOR_ATTR_DCC_UPDATE_NDL_INVALID: invalid value
  * @QCA_WLAN_VENDOR_ATTR_DCC_UPDATE_NDL_CHANNEL_COUNT:
  *	number of channels in the configuration
  * @QCA_WLAN_VENDOR_ATTR_DCC_UPDATE_NDL_CHANNEL_ARRAY: the array of NDL
  *  channel info
  * @QCA_WLAN_VENDOR_ATTR_DCC_UPDATE_NDL_ACTIVE_STATE_ARRAY: the array of
  *  NDL active states
+ * @QCA_WLAN_VENDOR_ATTR_DCC_UPDATE_NDL_AFTER_LAST: number of enumerators
+ * @QCA_WLAN_VENDOR_ATTR_DCC_UPDATE_NDL_MAX: last enumerator
  */
 enum qca_wlan_vendor_attr_dcc_update_ndl {
 	QCA_WLAN_VENDOR_ATTR_DCC_UPDATE_NDL_INVALID = 0,

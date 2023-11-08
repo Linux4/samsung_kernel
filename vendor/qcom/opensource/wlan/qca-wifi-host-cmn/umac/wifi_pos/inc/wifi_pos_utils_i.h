@@ -61,8 +61,8 @@ struct wifi_pos_req_msg;
 #define wifipos_nofl_debug(params...) \
 	QDF_TRACE_DEBUG_NO_FL(QDF_MODULE_ID_WIFIPOS, params)
 
-#define OEM_APP_SIGNATURE_LEN      16
 #define OEM_APP_SIGNATURE_STR      "QUALCOMM-OEM-APP"
+#define OEM_APP_SIGNATURE_LEN      (sizeof(OEM_APP_SIGNATURE_STR) - 1)
 
 #ifndef OEM_DATA_RSP_SIZE
 #define OEM_DATA_RSP_SIZE 1724
@@ -145,7 +145,7 @@ struct qdf_packed wifi_pos_err_rpt {
  * @req_id: id corresponding to the request.
  * @fragment_info: Valid only for fragments.
  * @pdev_id: pdev_id of radion.
- * @time_left: time left in the measurment req.
+ * @time_left: time left in the measurement req.
  * @err_rpt: Error report data.
  */
 struct qdf_packed wifi_pos_err_msg_report {
@@ -163,7 +163,7 @@ struct qdf_packed wifi_pos_err_msg_report {
  * @pdev_id: pdev_id or mac_id of ring
  * @min_num_ptr: minimum depth of ring required
  * @min_buf_size: minimum size of each buffer
- * @min_buf_align: minimum allignment of buffer memory
+ * @min_buf_align: minimum alignment of buffer memory
  */
 struct wifi_pos_dma_rings_cap {
 	uint32_t pdev_id;

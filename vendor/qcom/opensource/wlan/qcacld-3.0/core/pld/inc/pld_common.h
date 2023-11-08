@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -109,6 +109,7 @@ enum pld_bus_type {
  * @PLD_BUS_WIDTH_LOW: vote for low bus bandwidth
  * @PLD_BUS_WIDTH_MEDIUM: vote for medium bus bandwidth
  * @PLD_BUS_WIDTH_HIGH: vote for high bus bandwidth
+ * @PLD_BUS_WIDTH_MID_HIGH: vote for mid high bus bandwidth
  * @PLD_BUS_WIDTH_VERY_HIGH: vote for very high bus bandwidth
  * @PLD_BUS_WIDTH_ULTRA_HIGH: vote for ultra high bus bandwidth
  * @PLD_BUS_WIDTH_LOW_LATENCY: vote for low latency bus bandwidth
@@ -123,6 +124,7 @@ enum pld_bus_width_type {
 	PLD_BUS_WIDTH_ULTRA_HIGH,
 	PLD_BUS_WIDTH_MAX,
 	PLD_BUS_WIDTH_LOW_LATENCY,
+	PLD_BUS_WIDTH_MID_HIGH,
 };
 
 #define PLD_MAX_FILE_NAME NAME_MAX
@@ -162,6 +164,16 @@ enum pld_platform_cap_flag {
 	PLD_HAS_EXTERNAL_SWREG = 0x01,
 	PLD_HAS_UART_ACCESS = 0x02,
 	PLD_HAS_DRV_SUPPORT = 0x04,
+};
+
+/**
+ * enum pld_wfc_mode - WFC Mode
+ * @PLD_WFC_MODE_OFF: WFC Inactive
+ * @PLD_WFC_MODE_ON: WFC Active
+ */
+enum pld_wfc_mode {
+	PLD_WFC_MODE_OFF,
+	PLD_WFC_MODE_ON,
 };
 
 /**
@@ -399,6 +411,7 @@ struct pld_dev_mem_info {
 };
 
 #define PLD_MAX_TIMESTAMP_LEN 32
+#define PLD_WLFW_MAX_BUILD_ID_LEN 128
 #define PLD_MAX_DEV_MEM_NUM 4
 
 /**
@@ -427,6 +440,7 @@ struct pld_soc_info {
 	char fw_build_timestamp[PLD_MAX_TIMESTAMP_LEN + 1];
 	struct pld_device_version device_version;
 	struct pld_dev_mem_info dev_mem_info[PLD_MAX_DEV_MEM_NUM];
+	char fw_build_id[PLD_WLFW_MAX_BUILD_ID_LEN + 1];
 };
 
 /**
@@ -824,6 +838,16 @@ int pld_auto_resume(struct device *dev);
 int pld_force_wake_request(struct device *dev);
 
 /**
+ * pld_is_direct_link_supported() - Get whether direct_link is supported
+ *                                  by FW or not
+ * @dev: device
+ *
+ * Return: true if supported
+ *         false on failure or if not supported
+ */
+bool pld_is_direct_link_supported(struct device *dev);
+
+/**
  * pld_force_wake_request_sync() - Request to awake MHI synchronously
  * @dev: device
  * @timeout_us: timeout in micro-sec request to wake
@@ -1103,6 +1127,15 @@ int pld_thermal_register(struct device *dev, unsigned long state, int mon_id);
 void pld_thermal_unregister(struct device *dev, int mon_id);
 
 /**
+ * pld_set_wfc_mode() - Sent WFC mode to FW via platform driver
+ * @dev: The device structure
+ * @wfc_mode: WFC Modes (0 => Inactive, 1 => Active)
+ *
+ * Return: Error code on error
+ */
+int pld_set_wfc_mode(struct device *dev, enum pld_wfc_mode wfc_mode);
+
+/**
  * pld_bus_width_type_to_str() - Helper function to convert PLD bandwidth level
  *				 to string
  * @level: PLD bus width level
@@ -1248,4 +1281,47 @@ static inline bool pld_get_enable_intx(struct device *dev)
 	return false;
 }
 
+/**
+ * pld_is_one_msi()- whether one MSI is used or not
+ * @dev: device structure
+ *
+ * Return: true if it is one MSI
+ */
+bool pld_is_one_msi(struct device *dev);
+
+#ifdef FEATURE_DIRECT_LINK
+/**
+ * pld_audio_smmu_map()- Map memory region into Audio SMMU CB
+ * @dev: pointer to device structure
+ * @paddr: physical address
+ * @iova: DMA address
+ * @size: memory region size
+ *
+ * Return: 0 on success else failure code
+ */
+int pld_audio_smmu_map(struct device *dev, phys_addr_t paddr, dma_addr_t iova,
+		       size_t size);
+
+/**
+ * pld_audio_smmu_unmap()- Remove memory region mapping from Audio SMMU CB
+ * @dev: pointer to device structure
+ * @iova: DMA address
+ * @size: memory region size
+ *
+ * Return: None
+ */
+void pld_audio_smmu_unmap(struct device *dev, dma_addr_t iova, size_t size);
+#else
+static inline
+int pld_audio_smmu_map(struct device *dev, phys_addr_t paddr, dma_addr_t iova,
+		       size_t size)
+{
+	return 0;
+}
+
+static inline
+void pld_audio_smmu_unmap(struct device *dev, dma_addr_t iova, size_t size)
+{
+}
+#endif
 #endif

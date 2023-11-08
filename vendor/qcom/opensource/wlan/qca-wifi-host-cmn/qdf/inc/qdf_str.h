@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -186,9 +187,9 @@ static inline char *qdf_str_sep(char **str, char *delim)
  * qdf_str_copy_all_before_char() - API to copy all character before a
  * particular char provided
  * @str: Source string
- * @str_len: Source string legnth
+ * @str_len: Source string length
  * @dst: Destination string
- * @dst_len: Destination string legnth
+ * @dst_len: Destination string length
  * @c: Character before which all characters need to be copied
  *
  * Return: length of the copied string, if success. zero otherwise.

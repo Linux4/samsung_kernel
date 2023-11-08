@@ -470,6 +470,8 @@ enum hfi_picture_type {
     HFI_PICTURE_CRA = 0x00000010,
     HFI_PICTURE_BLA = 0x00000020,
     HFI_PICTURE_NOSHOW = 0x00000040,
+    HFI_PICTURE_START  = 0x00000080,
+    HFI_PICTURE_END    = 0x00000100,
 };
 #define HFI_PROP_PICTURE_TYPE                                   0x03000162
 
@@ -570,6 +572,12 @@ enum hfi_saliency_type {
 #define HFI_PROP_DISABLE_VUI_TIMING_INFO                        0x03000194
 
 #define HFI_PROP_SLICE_DECODE                                   0x03000196
+
+#define HFI_PROP_EARLY_NOTIFY_ENABLE                            0x03000198
+
+#define HFI_PROP_EARLY_NOTIFY_LINE_COUNT                        0x03000199
+
+#define HFI_PROP_EARLY_NOTIFY_FENCE_COUNT                       0x0300019A
 
 #define HFI_PROP_END                                            0x03FFFFFF
 

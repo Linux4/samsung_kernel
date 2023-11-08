@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -47,7 +47,7 @@ bool reg_is_world_ctry_code(uint16_t ctry_code);
 #if defined(CONFIG_REG_CLIENT) && defined(CONFIG_CHAN_FREQ_API)
 /**
  * reg_chan_has_dfs_attribute_for_freq() - check channel frequency has dfs
- * attribue or not
+ * attribute or not
  * @freq: channel frequency.
  *
  * This API gets initial dfs attribute flag of the channel frequency from
@@ -57,16 +57,20 @@ bool reg_is_world_ctry_code(uint16_t ctry_code);
  */
 bool reg_chan_has_dfs_attribute_for_freq(struct wlan_objmgr_pdev *pdev,
 					 qdf_freq_t freq);
+
 /**
- * reg_is_passive_or_disable_for_freq() - Check if the given channel is
+ * reg_is_passive_or_disable_for_pwrmode() - Check if the given channel is
  * passive or disabled.
  * @pdev: Pointer to physical dev
  * @chan: Channel frequency
+ * @in_6g_pwr_mode: Input 6GHz power mode
  *
  * Return: true if channel frequency is passive or disabled, else false.
  */
-bool reg_is_passive_or_disable_for_freq(struct wlan_objmgr_pdev *pdev,
-					qdf_freq_t freq);
+bool reg_is_passive_or_disable_for_pwrmode(
+				struct wlan_objmgr_pdev *pdev,
+				qdf_freq_t freq,
+				enum supported_6g_pwr_types in_6g_pwr_mode);
 #else
 static inline bool
 reg_chan_has_dfs_attribute_for_freq(struct wlan_objmgr_pdev *pdev,
@@ -76,8 +80,10 @@ reg_chan_has_dfs_attribute_for_freq(struct wlan_objmgr_pdev *pdev,
 }
 
 static inline bool
-reg_is_passive_or_disable_for_freq(struct wlan_objmgr_pdev *pdev,
-				   qdf_freq_t freq)
+reg_is_passive_or_disable_for_pwrmode(
+				struct wlan_objmgr_pdev *pdev,
+				qdf_freq_t freq,
+				enum supported_6g_pwr_types in_6g_pwr_mode)
 {
 	return false;
 }
@@ -255,15 +261,18 @@ QDF_STATUS reg_get_domain_from_country_code(v_REGDOMAIN_t *reg_domain_ptr,
 #ifdef CONFIG_REG_CLIENT
 /**
  * reg_get_6g_power_type_for_ctry() - Return power type for 6G based on cntry IE
- * @ap_ctry: ptr to country string in country IE
- * @sta_ctry: ptr to sta programmed country
- * @pwr_type_6g: ptr to 6G power type
+ * @psoc: pointer to psoc
+ * @pdev: pointer to pdev
+ * @ap_ctry: pointer to country string in country IE
+ * @sta_ctry: pointer to sta programmed country
+ * @pwr_type_6g: pointer to 6G power type
  * @ctry_code_match: Check for country IE and sta country code match
  * @ap_pwr_type: AP's power type as advertised in HE ops IE
  * Return: QDF_STATUS
  */
 QDF_STATUS
 reg_get_6g_power_type_for_ctry(struct wlan_objmgr_psoc *psoc,
+			       struct wlan_objmgr_pdev *pdev,
 			       uint8_t *ap_ctry, uint8_t *sta_ctry,
 			       enum reg_6g_ap_type *pwr_type_6g,
 			       bool *ctry_code_match,
@@ -271,7 +280,7 @@ reg_get_6g_power_type_for_ctry(struct wlan_objmgr_psoc *psoc,
 #endif
 
 /**
- * reg_set_config_vars () - set configration variables
+ * reg_set_config_vars () - set configuration variables
  * @psoc: psoc ptr
  * @config_vars: configuration struct
  *

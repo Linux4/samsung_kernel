@@ -257,7 +257,11 @@ public class BluetoothOppService extends ProfileService implements IObexConnecti
         new Thread("trimDatabase") {
             @Override
             public void run() {
-                trimDatabase(contentResolver);
+                try {
+                    trimDatabase(contentResolver);
+                } catch (IllegalArgumentException e) {
+                    Log.w(TAG, "trimDatabase "+ e.toString());
+                }
                 mHandler.sendMessage(mHandler.obtainMessage(MSG_START_UPDATE_THREAD));
             }
         }.start();
@@ -1298,9 +1302,13 @@ public class BluetoothOppService extends ProfileService implements IObexConnecti
                         + BluetoothShare.DIRECTION_INBOUND + ")";
                 ContentValues cv = new ContentValues();
                 cv.put(BluetoothShare.STATUS, BluetoothShare.STATUS_CONNECTION_ERROR);
-                int updatedCount = getContentResolver().update(BluetoothShare.CONTENT_URI,
-                        cv, where_nfc_pending, null);
-                if (V) Log.v(TAG, "updatePendingNfcState " + updatedCount);
+                try {
+                    int updatedCount = getContentResolver().update(BluetoothShare.CONTENT_URI,
+                            cv, where_nfc_pending, null);
+                    if (V) Log.v(TAG, "updatePendingNfcState " + updatedCount);
+                } catch (IllegalArgumentException e) {
+                    Log.w(TAG, "updatePendingNfcState "+ e.toString());
+                }
             }
         }.start();
     }

@@ -11,8 +11,9 @@
 #include "msm_vidc_inst.h"
 #include "msm_vidc_internal.h"
 
-int msm_vidc_ctrl_init(struct msm_vidc_inst *inst);
-int msm_vidc_ctrl_deinit(struct msm_vidc_inst *inst);
+int msm_vidc_ctrl_handler_init(struct msm_vidc_inst *inst, bool init);
+int msm_vidc_ctrl_handler_deinit(struct msm_vidc_inst *inst);
+int msm_vidc_ctrl_handler_update(struct msm_vidc_inst *inst);
 int msm_v4l2_op_s_ctrl(struct v4l2_ctrl *ctrl);
 int msm_v4l2_op_g_volatile_ctrl(struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_bitrate(void *instance, struct v4l2_ctrl *ctrl);
@@ -57,6 +58,9 @@ int msm_vidc_adjust_dec_frame_rate(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_operating_rate(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_early_notify_enable(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_early_notify_line_count(void *instance, struct v4l2_ctrl *ctrl);
+int msm_vidc_adjust_early_notify_fence_count(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_preprocess(void *instance, struct v4l2_ctrl *ctrl);
 int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl);
 

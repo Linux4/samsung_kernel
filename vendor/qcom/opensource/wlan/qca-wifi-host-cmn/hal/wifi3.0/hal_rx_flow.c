@@ -23,10 +23,10 @@
  * hal_rx_flow_get_cmem_fse() - Get FSE from CMEM
  * @hal_soc_hdl: HAL SOC handle
  * @fse_offset: CMEM FSE offset
- * @fse: referece where FSE will be copied
+ * @fse: reference where FSE will be copied
  * @len: length of FSE
  *
- * Return: If read is succesfull or not
+ * Return: If read is successful or not
  */
 static void
 hal_rx_flow_get_cmem_fse(hal_soc_handle_t hal_soc_hdl, uint32_t fse_offset,

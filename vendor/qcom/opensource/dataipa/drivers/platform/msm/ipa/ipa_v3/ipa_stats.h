@@ -17,7 +17,7 @@
 
 #define IPA_LNX_IOC_GET_ALLOC_INFO _IOWR(IPA_LNX_STATS_IOC_MAGIC, \
 	IPA_LNX_CMD_GET_ALLOC_INFO, \
-	struct ipa_lnx_stats_spearhead_ctx)
+	struct ipa_lnx_stats_tlpd_ctx)
 
 #define IPA_LNX_IOC_GET_GENERIC_STATS _IOWR(IPA_LNX_STATS_IOC_MAGIC, \
 	IPA_LNX_CMD_GENERIC_STATS, \
@@ -45,32 +45,31 @@
 
 #define IPA_LNX_IOC_GET_CONSOLIDATED_STATS _IOWR(IPA_LNX_STATS_IOC_MAGIC, \
 	IPA_LNX_CMD_CONSOLIDATED_STATS, \
-	struct ipa_lnx_consolidated_stats)
+	int)
 
 #define IPA_LNX_STATS_SUCCESS 0
 #define IPA_LNX_STATS_FAILURE -1
 
-#define SPEARHEAD_NUM_MAX_PIPES 6
-#define SPEARHEAD_NUM_MAX_TX_INSTANCES 3
-#define SPEARHEAD_NUM_MAX_RX_INSTANCES 3
+#define TLPD_NUM_MAX_PIPES 6
+#define TLPD_NUM_MAX_TX_INSTANCES 3
+#define TLPD_NUM_MAX_RX_INSTANCES 3
 
-#define SPEARHEAD_NUM_MAX_INSTANCES 2
+#define TLPD_NUM_MAX_INSTANCES 2
 
 #define IPA_LNX_PIPE_PAGE_RECYCLING_INTERVAL_COUNT 5
 #define IPA_LNX_PIPE_PAGE_RECYCLING_INTERVAL_TIME 10 /* In milli second */
 
 /**
  * This is used to indicate which set of logs is enabled from IPA
- * These bitmapped macros are copied from
- * spearhead/inc/spearhead_client.h
+ * These bitmapped macros.
  */
-#define SPRHD_IPA_LOG_TYPE_GENERIC_STATS   0x00001
-#define SPRHD_IPA_LOG_TYPE_CLOCK_STATS     0x00002
-#define SPRHD_IPA_LOG_TYPE_WLAN_STATS      0x00004
-#define SPRHD_IPA_LOG_TYPE_ETH_STATS       0x00008
-#define SPRHD_IPA_LOG_TYPE_USB_STATS       0x00010
-#define SPRHD_IPA_LOG_TYPE_MHIP_STATS      0x00020
-#define SPRHD_IPA_LOG_TYPE_RECYCLE_STATS   0x00040
+#define TLPD_IPA_LOG_TYPE_GENERIC_STATS   0x00001
+#define TLPD_IPA_LOG_TYPE_CLOCK_STATS     0x00002
+#define TLPD_IPA_LOG_TYPE_WLAN_STATS      0x00004
+#define TLPD_IPA_LOG_TYPE_ETH_STATS       0x00008
+#define TLPD_IPA_LOG_TYPE_USB_STATS       0x00010
+#define TLPD_IPA_LOG_TYPE_MHIP_STATS      0x00020
+#define TLPD_IPA_LOG_TYPE_RECYCLE_STATS   0x00040
 
 
 /**
@@ -99,7 +98,7 @@ static struct pm_client_name_lookup client_lookup_table[] = {
  * is structure modification.This is NOT the sizeof(struct) but
  * it is addition of the specified type of variable included
  * inside the structre. Also update the internal structure lengths
- * in ipa_lnx_spearhead_stats.c to overcome backward and forward
+ * in ipa_lnx_tlpd_stats.c to overcome backward and forward
  * compatibility between userspace and driver structures.
  */
 /* IPA Linux generic stats structures */
@@ -109,7 +108,6 @@ struct pg_recycle_stats {
 	uint64_t def_total_repl_buff;
 	uint64_t def_temp_repl_buff;
 };
-#define IPA_LNX_PG_RECYCLE_STATS_STRUCT_LEN_INT 32
 
 struct exception_stats {
 	uint32_t excptn_type_none;
@@ -123,7 +121,6 @@ struct exception_stats {
 	uint32_t excptn_type_ipv6_ct;
 	uint32_t excptn_type_csum;
 };
-#define IPA_LNX_EXCEPTION_STATS_STRUCT_LEN_INT 40
 
 struct odl_ep_stats {
 	uint32_t rx_pkt;
@@ -131,7 +128,6 @@ struct odl_ep_stats {
 	uint32_t dropped_pkt;
 	uint32_t num_queue_pkt;
 };
-#define IPA_LNX_ODL_EP_STATS_STRUCT_LEN_INT 16
 
 struct holb_discard_stats {
 	uint32_t client_type;
@@ -139,7 +135,6 @@ struct holb_discard_stats {
 	uint32_t num_drp_bytes;
 	uint32_t reserved;
 };
-#define IPA_LNX_HOLB_DISCARD_STATS_STRUCT_LEN_INT 16
 
 struct holb_monitor_stats {
 	uint32_t client_type;
@@ -147,7 +142,6 @@ struct holb_monitor_stats {
 	uint32_t num_en_cnt;
 	uint32_t num_dis_cnt;
 };
-#define IPA_LNX_HOLB_MONITOR_STATS_STRUCT_LEN_INT 16
 
 struct holb_drop_and_mon_stats {
 	uint32_t num_holb_disc_pipes;
@@ -155,7 +149,6 @@ struct holb_drop_and_mon_stats {
 	struct holb_discard_stats holb_disc_stats[0];
 	struct holb_monitor_stats holb_mon_stats[0];
 };
-#define IPA_LNX_HOLB_DROP_AND_MON_STATS_STRUCT_LEN_INT (8 + 16 +16)
 
 struct ipa_lnx_generic_stats {
 	uint32_t tx_dma_pkts;
@@ -173,7 +166,6 @@ struct ipa_lnx_generic_stats {
 	struct odl_ep_stats odl_stats;
 	struct holb_drop_and_mon_stats holb_stats;
 };
-#define IPA_LNX_GENERIC_STATS_STRUCT_LEN_INT (40 + 32 + 40 + 16 + 40)
 
 /* IPA Linux clock stats structures */
 struct pm_client_stats {
@@ -184,7 +176,6 @@ struct pm_client_stats {
 	uint32_t pm_client_type;
 	uint32_t reserved;
 };
-#define IPA_LNX_PM_CLIENT_STATS_STRUCT_LEN_INT 24
 
 struct ipa_lnx_clock_stats {
 	uint32_t active_clients;
@@ -195,7 +186,6 @@ struct ipa_lnx_clock_stats {
 	uint32_t curr_clk_vote;
 	struct pm_client_stats pm_clnt_stats[0];
 };
-#define IPA_LNX_CLOCK_STATS_STRUCT_LEN_INT (24 + 24)
 
 /* Generic instance structures */
 struct ipa_lnx_gsi_rx_debug_stats {
@@ -212,7 +202,6 @@ struct ipa_lnx_gsi_rx_debug_stats {
 	uint32_t gsi_debug4;
 	uint32_t rx_summary;
 };
-#define IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN_INT 48
 
 struct ipa_lnx_gsi_tx_debug_stats {
 	uint32_t tx_client;
@@ -230,7 +219,6 @@ struct ipa_lnx_gsi_tx_debug_stats {
 	uint32_t tx_summary;
 	uint32_t reserved;
 };
-#define IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN_INT 56
 
 struct ipa_lnx_gsi_debug_stats {
 	uint32_t num_tx_instances;
@@ -238,7 +226,6 @@ struct ipa_lnx_gsi_debug_stats {
 	struct ipa_lnx_gsi_tx_debug_stats gsi_tx_dbg_stats[0];
 	struct ipa_lnx_gsi_rx_debug_stats gsi_rx_dbg_stats[0];
 };
-#define IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN_INT (8 + 48 + 56)
 
 struct ipa_lnx_pipe_info {
 	uint64_t gsi_chan_ring_bp;
@@ -266,7 +253,6 @@ struct ipa_lnx_pipe_info {
 	uint32_t gsi_poll_mode;
 	uint32_t gsi_db_in_bytes;
 };
-#define IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN_INT 120
 
 /* IPA Linux wlan instance stats structures */
 struct wlan_instance_info {
@@ -281,14 +267,12 @@ struct wlan_instance_info {
 	struct ipa_lnx_gsi_debug_stats gsi_debug_stats;
 	struct ipa_lnx_pipe_info pipe_info[0];
 };
-#define IPA_LNX_WLAN_INSTANCE_INFO_STRUCT_LEN_INT (32 + 112 + 120)
 
 struct ipa_lnx_wlan_inst_stats {
 	uint32_t num_wlan_instance;
 	uint32_t reserved;
 	struct wlan_instance_info instance_info[0];
 };
-#define IPA_LNX_WLAN_INST_STATS_STRUCT_LEN_INT (8 + 264)
 
 /* IPA Linux eth instance stats structures */
 struct eth_instance_info {
@@ -299,14 +283,12 @@ struct eth_instance_info {
 	struct ipa_lnx_gsi_debug_stats gsi_debug_stats;
 	struct ipa_lnx_pipe_info pipe_info[0];
 };
-#define IPA_LNX_ETH_INSTANCE_INFO_STRUCT_LEN_INT (16 + 112 + 120)
 
 struct ipa_lnx_eth_inst_stats {
 	uint32_t num_eth_instance;
 	uint32_t reserved;
 	struct eth_instance_info instance_info[0];
 };
-#define IPA_LNX_ETH_INST_STATS_STRUCT_LEN_INT (8 + 248)
 
 /* IPA Linux usb instance stats structures */
 struct usb_instance_info {
@@ -317,14 +299,12 @@ struct usb_instance_info {
 	struct ipa_lnx_gsi_debug_stats gsi_debug_stats;
 	struct ipa_lnx_pipe_info pipe_info[0];
 };
-#define IPA_LNX_USB_INSTANCE_INFO_STRUCT_LEN_INT (16 + 112 + 120)
 
 struct ipa_lnx_usb_inst_stats {
 	uint32_t num_usb_instance;
 	uint32_t reserved;
 	struct usb_instance_info instance_info[0];
 };
-#define IPA_LNX_USB_INST_STATS_STRUCT_LEN_INT (8 + 248)
 
 /* IPA Linux mhip instance stats structures */
 struct mhip_instance_info {
@@ -335,14 +315,12 @@ struct mhip_instance_info {
 	struct ipa_lnx_gsi_debug_stats gsi_debug_stats;
 	struct ipa_lnx_pipe_info pipe_info[0];
 };
-#define IPA_LNX_MHIP_INSTANCE_INFO_STRUCT_LEN_INT (16 + 112 + 120)
 
 struct ipa_lnx_mhip_inst_stats {
 	uint32_t num_mhip_instance;
 	uint32_t reserved;
 	struct mhip_instance_info instance_info[0];
 };
-#define IPA_LNX_MHIP_INST_STATS_STRUCT_LEN_INT (8 + 248)
 
 struct ipa_lnx_consolidated_stats {
 	uint64_t log_type_mask;
@@ -354,7 +332,6 @@ struct ipa_lnx_consolidated_stats {
 	struct ipa_lnx_mhip_inst_stats *mhip_stats;
 	struct ipa_lnx_pipe_page_recycling_stats *recycle_stats;
 };
-#define IPA_LNX_CONSOLIDATED_STATS_STRUCT_LEN_INT (8 + 48)
 
 enum rx_channel_type {
 	RX_WAN_COALESCING,
@@ -391,15 +368,14 @@ struct ipa_lnx_pipe_page_recycling_stats {
 
 /* Explain below structures */
 struct ipa_lnx_each_inst_alloc_info {
-	uint32_t pipes_client_type[SPEARHEAD_NUM_MAX_PIPES];
-	uint32_t tx_inst_client_type[SPEARHEAD_NUM_MAX_TX_INSTANCES];
-	uint32_t rx_inst_client_type[SPEARHEAD_NUM_MAX_RX_INSTANCES];
+	uint32_t pipes_client_type[TLPD_NUM_MAX_PIPES];
+	uint32_t tx_inst_client_type[TLPD_NUM_MAX_TX_INSTANCES];
+	uint32_t rx_inst_client_type[TLPD_NUM_MAX_RX_INSTANCES];
 	uint32_t num_pipes;
 	uint32_t num_tx_instances;
 	uint32_t num_rx_instances;
 	uint32_t reserved;
 };
-#define IPA_LNX_EACH_INST_ALLOC_INFO_STRUCT_LEN_INT (24 + 12 + 12 + 16)
 
 struct ipa_lnx_stats_alloc_info {
 	uint32_t num_holb_drop_stats_clients;
@@ -410,19 +386,17 @@ struct ipa_lnx_stats_alloc_info {
 	uint32_t num_usb_instances;
 	uint32_t num_mhip_instances;
 	uint32_t num_page_rec_interval;
-	struct ipa_lnx_each_inst_alloc_info wlan_inst_info[SPEARHEAD_NUM_MAX_INSTANCES];
-	struct ipa_lnx_each_inst_alloc_info eth_inst_info[SPEARHEAD_NUM_MAX_INSTANCES];
-	struct ipa_lnx_each_inst_alloc_info usb_inst_info[SPEARHEAD_NUM_MAX_INSTANCES];
-	struct ipa_lnx_each_inst_alloc_info mhip_inst_info[SPEARHEAD_NUM_MAX_INSTANCES];
+	struct ipa_lnx_each_inst_alloc_info wlan_inst_info[TLPD_NUM_MAX_INSTANCES];
+	struct ipa_lnx_each_inst_alloc_info eth_inst_info[TLPD_NUM_MAX_INSTANCES];
+	struct ipa_lnx_each_inst_alloc_info usb_inst_info[TLPD_NUM_MAX_INSTANCES];
+	struct ipa_lnx_each_inst_alloc_info mhip_inst_info[TLPD_NUM_MAX_INSTANCES];
 };
-#define IPA_LNX_STATS_ALL_INFO_STRUCT_LEN_INT (32 + 128 + 128 + 128)
 
-struct ipa_lnx_stats_spearhead_ctx {
-	uint32_t usb_teth_prot[SPEARHEAD_NUM_MAX_INSTANCES];
+struct ipa_lnx_stats_tlpd_ctx {
+	uint32_t usb_teth_prot[TLPD_NUM_MAX_INSTANCES];
 	uint32_t log_type_mask;
 	struct ipa_lnx_stats_alloc_info alloc_info;
 };
-#define IPA_LNX_STATS_SPEARHEAD_CTX_STRUCT_LEN_INT (8 + 4 + 416)
 
 /* enum ipa_lnx_stats_ioc_cmd_type - IOCTL Command types for IPA lnx stats
  *
@@ -439,7 +413,7 @@ enum ipa_lnx_stats_ioc_cmd_type {
 	IPA_LNX_CMD_STATS_MAX,
 };
 
-int ipa_spearhead_stats_init(void);
+int ipa_tlpd_stats_init(void);
 
 /* Peripheral stats for Q6, should be in the same order, defined by Q6 */
 struct ipa_peripheral_mdm_stats {

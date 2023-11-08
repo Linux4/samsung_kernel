@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -234,6 +235,51 @@ static uint32_t qdf_types_ut_uint16_array_parse(void)
 	return errors;
 }
 
+#define ut_int32_array_pass(str, max_size, exp_arr, exp_arr_size) \
+__ut_int32_array(str, QDF_STATUS_SUCCESS, max_size, exp_arr, exp_arr_size)
+
+#define ut_int32_array_fail(str, max_size, exp_status, exp_arr, exp_arr_size)\
+__ut_int32_array(str, exp_status, max_size, exp_arr, exp_arr_size)
+
+static uint32_t
+__ut_int32_array(const char *str, QDF_STATUS exp_status,
+		 uint8_t max_array_size, uint32_t *exp_array,
+		 uint8_t exp_array_size)
+{
+	uint32_t parsed_array[10];
+	qdf_size_t parsed_array_size;
+	QDF_STATUS status;
+	uint8_t i;
+
+	status = qdf_int32_array_parse(str, parsed_array, max_array_size,
+				       &parsed_array_size);
+
+	if (status != exp_status) {
+		qdf_nofl_alert("FAIL: qdf_int32_array_parse(\"%s\") -> status %d; expected status %d",
+			       str, status, exp_status);
+		return 1;
+	}
+
+	if (QDF_IS_STATUS_ERROR(status))
+		return 0;
+
+	if (parsed_array_size != exp_array_size) {
+		qdf_nofl_alert("FAIL: qdf_int32_array_parse(\"%s\") -> parsed_array_size %zu; exp_array_size %d",
+			       str, parsed_array_size, exp_array_size);
+		return 1;
+	}
+
+	for (i = 0; i < exp_array_size; i++)
+		if (parsed_array[i] != exp_array[i]) {
+			qdf_nofl_alert("FAIL: qdf_int32_array_parse(\"%s\") -> parsed_array[%d] %d; exp_array[%d] %d",
+				       str, i, parsed_array[i], i,
+				       exp_array[i]);
+		return 1;
+	}
+
+	return 0;
+}
+
 #define ut_uint32_array_pass(str, max_size, exp_arr, exp_arr_size) \
 __ut_uint32_array(str, QDF_STATUS_SUCCESS, max_size, exp_arr, exp_arr_size)
 
@@ -277,6 +323,28 @@ __ut_uint32_array(const char *str, QDF_STATUS exp_status,
 	}
 
 	return 0;
+}
+
+static uint32_t qdf_types_ut_int32_array_parse(void)
+{
+	uint32_t errors = 0;
+	uint32_t exp_array_value[10] = { 1, 100, 9997, 899965, 65536, 0,
+					 2147483647U, -65536,
+					 -899965, -9997};
+
+	errors += ut_int32_array_pass(
+		  "1, 100, 9997, 899965, 65536, 0, 2147483647, -65536, -899965, -9997",
+		  10, exp_array_value, 10);
+	errors += ut_int32_array_pass(
+		  "+1, +100, +9997, +899965, +65536, 0, +2147483647, -65536, -899965, -9997",
+		  10, exp_array_value, 10);
+	errors += ut_int32_array_fail("1;", 10, QDF_STATUS_E_FAILURE,
+				       exp_array_value, 0);
+	errors += ut_int32_array_fail(
+			"1, 100, 9997, 899965, 65536, 日本, 2147483647, -65536, -899965, -9997",
+			10, QDF_STATUS_E_FAILURE, exp_array_value, 0);
+
+	return errors;
 }
 
 static uint32_t qdf_types_ut_uint32_array_parse(void)
@@ -656,6 +724,7 @@ uint32_t qdf_types_unit_test(void)
 	errors += qdf_types_ut_ipv6_parse();
 	errors += qdf_types_ut_uint16_array_parse();
 	errors += qdf_types_ut_uint32_array_parse();
+	errors += qdf_types_ut_int32_array_parse();
 
 	return errors;
 }

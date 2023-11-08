@@ -35,6 +35,9 @@
 #define RoamBTM_Delta_min 0
 #define RoamBTM_Delta_max 20
 #define RoamBTM_Delta_default 0
+#define RoamEmergency_TargetMinRSSI_min -127
+#define RoamEmergency_TargetMinRSSI_max 0
+#define RoamEmergency_TargetMinRSSI_default -70
 #else
 #define RoamCommon_Delta_min 0
 #define RoamCommon_Delta_max 100
@@ -48,6 +51,9 @@
 #define RoamBTM_Delta_min 0
 #define RoamBTM_Delta_max 100
 #define RoamBTM_Delta_default 0
+#define RoamEmergency_TargetMinRSSI_min -120
+#define RoamEmergency_TargetMinRSSI_max 0
+#define RoamEmergency_TargetMinRSSI_default -75
 #endif
 /*
  * <ini>
@@ -257,9 +263,9 @@
  */
 #define CFG_DISCONNECT_ROAM_TRIGGER_MIN_RSSI CFG_INI_INT( \
 		"candidate_min_rssi_for_disconnect RoamEmergency_TargetMinRSSI", \
-		-120, \
-		0, \
-		-75, \
+		RoamEmergency_TargetMinRSSI_min, \
+		RoamEmergency_TargetMinRSSI_max, \
+		RoamEmergency_TargetMinRSSI_default, \
 		CFG_VALUE_OR_DEFAULT, \
 		"Minimum RSSI of candidate AP for Disconnect roam trigger")
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -96,6 +96,14 @@ wlan_scan_id ucfg_scan_get_scan_id(struct wlan_objmgr_psoc *psoc)
 {
 	return wlan_scan_get_scan_id(psoc);
 }
+
+/**
+ * ucfg_scan_get_entry_frame_len() - API to get scan entry frame length
+ * @scan_entry: Scan entry
+ *
+ * Return: scan entry frame length
+ */
+uint32_t ucfg_scan_get_entry_frame_len(struct scan_cache_entry *scan_entry);
 
 #ifdef FEATURE_WLAN_SCAN_PNO
 /**
@@ -488,7 +496,7 @@ ucfg_scan_register_event_handler(struct wlan_objmgr_pdev *pdev,
  * @arg: component specific priv argument to @event_cb callback function
  *
  * Unregister a event cb handler. cb and arg will be used to
- * find the calback.
+ * find the callback.
  *
  * Return: void
  */

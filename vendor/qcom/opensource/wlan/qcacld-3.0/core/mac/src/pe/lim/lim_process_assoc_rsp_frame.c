@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -49,6 +49,7 @@
 #include <lim_mlo.h>
 #include "parser_api.h"
 #include "wlan_twt_cfg_ext_api.h"
+#include "wlan_mlo_mgr_roam.h"
 
 /**
  * lim_update_stads_htcap() - Updates station Descriptor HT capability
@@ -313,6 +314,8 @@ void lim_update_assoc_sta_datas(struct mac_context *mac_ctx,
 		 */
 		pe_debug("OMN IE is present in the assoc rsp, update NSS/Ch width");
 	}
+	if (lim_process_srp_ie(assoc_rsp, sta_ds) == QDF_STATUS_SUCCESS)
+		lim_update_vdev_sr_elements(session_entry, sta_ds);
 }
 
 /**
@@ -573,6 +576,20 @@ static inline void lim_process_he_info(tpSirProbeRespBeacon beacon,
 }
 #endif
 
+#ifdef WLAN_FEATURE_SR
+QDF_STATUS lim_process_srp_ie(tpSirAssocRsp ar, tpDphHashNode sta_ds)
+{
+	QDF_STATUS status = QDF_STATUS_E_NOSUPPORT;
+
+	if (ar->srp_ie.present) {
+		sta_ds->parsed_ies.srp_ie = ar->srp_ie;
+		status = QDF_STATUS_SUCCESS;
+	}
+
+	return status;
+}
+#endif
+
 #ifdef WLAN_FEATURE_11BE
 static void lim_process_eht_info(tpSirProbeRespBeacon beacon,
 				 tpDphHashNode sta_ds)
@@ -763,7 +780,7 @@ lim_update_iot_aggr_sz(struct mac_context *mac_ctx, uint8_t *ie_ptr,
 
 /**
  * hdd_cm_update_mcs_rate_set() - Update MCS rate set from HT capability
- * @vdev: Pointer to vdev boject
+ * @vdev: Pointer to vdev object
  * @ht_cap: pointer to parsed HT capability
  *
  * Return: None.
@@ -904,9 +921,13 @@ lim_update_vdev_rate_set(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
 		mlme_set_ext_opr_rate(vdev,
 				      assoc_resp->extendedRates.rate,
 				      assoc_resp->extendedRates.numRates);
+	else
+		mlme_clear_ext_opr_rate(vdev);
 
 	if (assoc_resp->HTCaps.present)
 		lim_update_mcs_rate_set(vdev, &assoc_resp->HTCaps);
+	else
+		mlme_clear_mcs_rate(vdev);
 
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_MAC_ID);
 }
@@ -1222,7 +1243,7 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 	 */
 	if (!lim_verify_fils_params_assoc_rsp(mac_ctx, session_entry,
 						assoc_rsp, &assoc_cnf)) {
-		pe_err("FILS params doesnot match");
+		pe_err("FILS params does not match");
 		assoc_cnf.resultCode = eSIR_SME_INVALID_ASSOC_RSP_RXED;
 		assoc_cnf.protStatusCode = STATUS_UNSPECIFIED_FAILURE;
 		/* Send advisory Disassociation frame to AP */
@@ -1387,8 +1408,11 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 				goto assocReject;
 			}
 		}
-		qdf_mem_free(beacon);
-		return;
+		if (!mlo_roam_is_auth_status_connected(mac_ctx->psoc,
+						       wlan_vdev_get_id(session_entry->vdev))) {
+			qdf_mem_free(beacon);
+			return;
+		}
 	}
 	pe_debug("Successfully Associated with BSS " QDF_MAC_ADDR_FMT,
 		 QDF_MAC_ADDR_REF(hdr->sa));
@@ -1412,7 +1436,13 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 		lim_post_sme_message(mac_ctx, LIM_MLM_ASSOC_CNF,
 			(uint32_t *) &assoc_cnf);
 		clean_up_ft_sha384(assoc_rsp, sha384_akm);
-		qdf_mem_free(assoc_rsp);
+		/*
+		 * Don't free the assoc rsp if it's cached in pe_session.
+		 * It would be reused in link connect in cases like OWE
+		 * roaming
+		 */
+		if (session_entry->limAssocResponseData != assoc_rsp)
+			qdf_mem_free(assoc_rsp);
 		qdf_mem_free(beacon);
 		return;
 	}
@@ -1483,8 +1513,11 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 		sta_ds->parsed_ies.vht_operation = beacon->VHTOperation;
 
 	lim_process_he_info(beacon, sta_ds);
+	if (lim_process_srp_ie(assoc_rsp, sta_ds) == QDF_STATUS_SUCCESS)
+		lim_update_vdev_sr_elements(session_entry, sta_ds);
 
-	lim_process_eht_info(beacon, sta_ds);
+	if (lim_is_session_eht_capable(session_entry))
+		lim_process_eht_info(beacon, sta_ds);
 
 	if (mac_ctx->lim.gLimProtectionControl !=
 	    MLME_FORCE_POLICY_PROTECTION_DISABLE)
@@ -1509,7 +1542,8 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 			&session_entry->lim_join_req->bssDescription, true,
 			 session_entry)) {
 		clean_up_ft_sha384(assoc_rsp, sha384_akm);
-		qdf_mem_free(assoc_rsp);
+		if (session_entry->limAssocResponseData != assoc_rsp)
+			qdf_mem_free(assoc_rsp);
 		qdf_mem_free(beacon);
 		return;
 	} else {

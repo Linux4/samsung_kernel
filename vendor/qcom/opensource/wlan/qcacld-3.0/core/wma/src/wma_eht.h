@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -54,8 +54,8 @@ struct index_eht_data_rate_type {
  * @wmi_handle: pointer to WMI handle
  * @cfg: pointer to WMA target services
  *
- * Based on WMI SERVICES information, enable 11be support and set DOT11BE
- * bit in feature caps bitmap.
+ * Based on WMI SERVICES information and CFG_ENABLE_11BE INI, enable 11be
+ * support and set DOT11BE bit in feature caps bitmap.
  *
  * Return: None
  */

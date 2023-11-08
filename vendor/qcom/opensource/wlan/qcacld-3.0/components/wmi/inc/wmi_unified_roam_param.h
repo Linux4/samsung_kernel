@@ -169,9 +169,9 @@ struct wmi_invoke_neighbor_report_params {
 };
 
 /**
- * set_pcl_cmd_params  - Set PCL command params
+ * struct set_pcl_cmd_params  - Set PCL command params
  * @vdev_id: Vdev id
- * @weight: PCL weight
+ * @weights: PCL weights
  */
 struct set_pcl_cmd_params {
 	uint8_t vdev_id;

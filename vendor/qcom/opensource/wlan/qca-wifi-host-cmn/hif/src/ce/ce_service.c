@@ -346,8 +346,8 @@ bool hif_ce_service_should_yield(struct hif_softc *scn,
 	bool yield =  hif_max_num_receives_reached(scn, ce_state->receive_count);
 
 	/* Setting receive_count to MAX_NUM_OF_RECEIVES when this count goes
-	 * beyond MAX_NUM_OF_RECEIVES for NAPI backet calulation issue. This
-	 * can happen in fast path handling as processing is happenning in
+	 * beyond MAX_NUM_OF_RECEIVES for NAPI backet calculation issue. This
+	 * can happen in fast path handling as processing is happening in
 	 * batches.
 	 */
 	if (yield)
@@ -376,8 +376,8 @@ bool hif_ce_service_should_yield(struct hif_softc *scn,
 					(scn, ce_state->receive_count);
 
 	/* Setting receive_count to MAX_NUM_OF_RECEIVES when this count goes
-	 * beyond MAX_NUM_OF_RECEIVES for NAPI backet calulation issue. This
-	 * can happen in fast path handling as processing is happenning in
+	 * beyond MAX_NUM_OF_RECEIVES for NAPI backet calculation issue. This
+	 * can happen in fast path handling as processing is happening in
 	 * batches.
 	 */
 	if (rxpkt_thresh_reached)
@@ -905,7 +905,7 @@ ce_completed_send_next(struct CE_handle *copyeng,
  * does receive and reaping of completed descriptor ,
  * This function only handles reaping of Tx complete descriptor.
  * The Function is called from threshold reap  poll routine
- * hif_send_complete_check so should not countain receive functionality
+ * hif_send_complete_check so should not contain receive functionality
  * within it .
  */
 
@@ -1283,7 +1283,7 @@ qdf_export_symbol(ce_per_engine_service);
 /*
  * Handler for per-engine interrupts on ALL active CEs.
  * This is used in cases where the system is sharing a
- * single interrput for all CEs
+ * single interrupt for all CEs
  */
 
 void ce_per_engine_service_any(int irq, struct hif_softc *scn)
@@ -1377,7 +1377,7 @@ void ce_enable_any_copy_compl_intr_nolock(struct hif_softc *scn)
  * ce_send_cb_register(): register completion handler
  * @copyeng: CE_state representing the ce we are adding the behavior to
  * @fn_ptr: callback that the ce should use when processing tx completions
- * @disable_interrupts: if the interupts should be enabled or not.
+ * @disable_interrupts: if the interrupts should be enabled or not.
  *
  * Caller should guarantee that no transactions are in progress before
  * switching the callback function.
@@ -1417,7 +1417,7 @@ qdf_export_symbol(ce_send_cb_register);
  * ce_recv_cb_register(): register completion handler
  * @copyeng: CE_state representing the ce we are adding the behavior to
  * @fn_ptr: callback that the ce should use when processing rx completions
- * @disable_interrupts: if the interupts should be enabled or not.
+ * @disable_interrupts: if the interrupts should be enabled or not.
  *
  * Registers the send context before the fn pointer so that if the cb is valid
  * the context should be valid.
@@ -1539,7 +1539,7 @@ static qdf_dma_addr_t ce_ipa_get_wr_index_addr(struct CE_state *CE_state)
  * Micro controller needs
  *  - Copy engine source descriptor base address
  *  - Copy engine source descriptor size
- *  - PCI BAR address to access copy engine regiser
+ *  - PCI BAR address to access copy engine register
  *
  * Return: None
  */

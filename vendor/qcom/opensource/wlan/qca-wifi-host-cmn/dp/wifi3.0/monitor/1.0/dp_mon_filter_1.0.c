@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -82,7 +82,7 @@ static QDF_STATUS dp_mon_filter_check_co_exist(struct dp_pdev *pdev)
 
 	/*
 	 * Check if the m_copy, monitor mode and the smart_monitor_mode
-	 * can co-exist togther.
+	 * can co-exist together.
 	 */
 	if (mon_pdev->mcopy_mode &&
 	    (mon_pdev->mvdev || mon_pdev->neighbour_peers_added)) {
@@ -279,7 +279,7 @@ static void dp_mon_filter_set_reset_mcopy_dest(struct dp_pdev *pdev,
 
 	/* Set the filter */
 	if (pfilter->valid) {
-		dp_mon_filter_set_mon_cmn(mon_pdev, pfilter);
+		dp_mon_filter_set_mon_cmn(pdev, pfilter);
 
 		pfilter->tlv_filter.fp_data_filter = 0;
 		pfilter->tlv_filter.mo_data_filter = 0;
@@ -456,7 +456,7 @@ void dp_mon_filter_set_reset_rx_enh_capture_dest(struct dp_pdev *pdev,
 
 	/* Set the filter */
 	if (pfilter->valid) {
-		dp_mon_filter_set_mon_cmn(mon_pdev, pfilter);
+		dp_mon_filter_set_mon_cmn(pdev, pfilter);
 
 		pfilter->tlv_filter.fp_mgmt_filter = 0;
 		pfilter->tlv_filter.fp_ctrl_filter = 0;
@@ -581,7 +581,7 @@ static void dp_mon_filter_set_reset_mon_dest(struct dp_pdev *pdev,
 
 	/* set the filter */
 	if (pfilter->valid) {
-		dp_mon_filter_set_mon_cmn(mon_pdev, pfilter);
+		dp_mon_filter_set_mon_cmn(pdev, pfilter);
 
 		dp_mon_filter_show_filter(mon_pdev, mode, pfilter);
 		mon_pdev->filter[mode][srng_type] = *pfilter;
@@ -657,6 +657,67 @@ void dp_mon_filter_reset_mon_mode_1_0(struct dp_pdev *pdev)
 	mon_pdev = pdev->monitor_pdev;
 	dp_mon_filter_set_reset_mon_dest(pdev, &filter);
 
+	srng_type = DP_MON_FILTER_SRNG_TYPE_RXDMA_MONITOR_STATUS;
+	mon_pdev->filter[mode][srng_type] = filter;
+}
+
+static void dp_mon_set_reset_mon_filter(struct dp_mon_filter *filter, bool val)
+{
+	if (val) {
+		dp_mon_filter_debug("Set monitor filter settings");
+		filter->tlv_filter.enable_mon_mac_filter = 1;
+		filter->tlv_filter.enable_md = 1;
+		filter->tlv_filter.md_mgmt_filter = FILTER_MGMT_ALL;
+		filter->tlv_filter.md_ctrl_filter = FILTER_CTRL_ALL;
+		filter->tlv_filter.md_data_filter = 0;
+	} else {
+		dp_mon_filter_debug("Reset monitor filter settings");
+		filter->tlv_filter.enable_mon_mac_filter = 0;
+		filter->tlv_filter.enable_md = 0;
+		filter->tlv_filter.md_mgmt_filter = 0;
+		filter->tlv_filter.md_ctrl_filter = 0;
+		filter->tlv_filter.md_data_filter = 0;
+	}
+}
+
+/**
+ * dp_mon_set_reset_mon_mac_filter_1_0() - Set/Reset monitor buffer and status
+ * filter
+ * @pdev: DP pdev handle
+ * @val: Set or reset the filter
+ *
+ * Return: void
+ */
+void dp_mon_set_reset_mon_mac_filter_1_0(struct dp_pdev *pdev, bool val)
+{
+	struct dp_mon_filter filter = {0};
+	enum dp_mon_filter_mode mode = DP_MON_FILTER_MONITOR_MODE;
+	enum dp_mon_filter_srng_type srng_type =
+				DP_MON_FILTER_SRNG_TYPE_RXDMA_MONITOR_STATUS;
+	struct dp_mon_pdev *mon_pdev;
+
+	if (!pdev) {
+		dp_mon_filter_err("pdev Context is null");
+		return;
+	}
+
+	mon_pdev = pdev->monitor_pdev;
+
+	/* Set monitor buffer filter */
+	dp_mon_filter_debug("Updating monitor buffer filter");
+	filter.valid = true;
+	dp_mon_set_reset_mon_filter(&filter, val);
+	dp_mon_filter_set_reset_mon_dest(pdev, &filter);
+
+	/* Set status cmn filter */
+	dp_mon_filter_debug("Updating monitor status cmn filter");
+	qdf_mem_zero(&(filter), sizeof(struct dp_mon_filter));
+	filter.valid = true;
+	dp_mon_filter_set_status_cmn(mon_pdev, &filter);
+	dp_mon_set_reset_mon_filter(&filter, val);
+	dp_mon_filter_show_filter(mon_pdev, mode, &filter);
+
+	/* Store the above filter */
 	srng_type = DP_MON_FILTER_SRNG_TYPE_RXDMA_MONITOR_STATUS;
 	mon_pdev->filter[mode][srng_type] = filter;
 }
@@ -998,6 +1059,20 @@ QDF_STATUS dp_mon_filter_update_1_0(struct dp_pdev *pdev)
 	return status;
 }
 
+#ifdef QCA_MAC_FILTER_FW_SUPPORT
+void dp_mon_mac_filter_set(uint32_t *msg_word,
+			   struct htt_rx_ring_tlv_filter *tlv_filter)
+{
+	if (!msg_word || !tlv_filter)
+		return;
+
+	if (tlv_filter->enable_mon_mac_filter > 0)
+		HTT_RX_RING_SELECTION_CFG_RXPCU_FILTER_SET(*msg_word, 1);
+	else
+		HTT_RX_RING_SELECTION_CFG_RXPCU_FILTER_SET(*msg_word, 0);
+}
+#endif
+
 #if defined(WLAN_CFR_ENABLE) && defined(WLAN_ENH_CFR_ENABLE)
 /*
  * dp_cfr_filter_1_0() -  Configure HOST RX monitor status ring for CFR
@@ -1006,13 +1081,16 @@ QDF_STATUS dp_mon_filter_update_1_0(struct dp_pdev *pdev)
  * @pdev_id: id of data path pdev handle
  * @enable: Enable/Disable CFR
  * @filter_val: Flag to select Filter for monitor mode
+ * @cfr_enable_monitor_mode: Flag to be enabled when scan radio is brought up
+ * in special vap mode
  *
  * Return: void
  */
 static void dp_cfr_filter_1_0(struct cdp_soc_t *soc_hdl,
 			      uint8_t pdev_id,
 			      bool enable,
-			      struct cdp_monitor_filter *filter_val)
+			      struct cdp_monitor_filter *filter_val,
+			      bool cfr_enable_monitor_mode)
 {
 	struct dp_soc *soc = cdp_soc_t_to_dp_soc(soc_hdl);
 	struct dp_pdev *pdev = NULL;
@@ -1030,7 +1108,10 @@ static void dp_cfr_filter_1_0(struct cdp_soc_t *soc_hdl,
 	mon_pdev = pdev->monitor_pdev;
 
 	if (mon_pdev->mvdev) {
-		dp_mon_info("No action is needed since mon mode is enabled\n");
+		if (enable && cfr_enable_monitor_mode)
+			pdev->cfr_rcc_mode = true;
+		else
+			pdev->cfr_rcc_mode = false;
 		return;
 	}
 

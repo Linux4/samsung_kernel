@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, 2014-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -418,7 +419,7 @@ void htt_tx_detach(struct htt_pdev_t *pdev)
 /**
  * htt_tx_set_frag_desc_addr() - set up the fragmentation descriptor address
  * @pdev: pointer to the HTT instance making the allocation
- * @htt_tx_desc: Host tx decriptor that does not include HTC hdr
+ * @htt_tx_desc: Host tx descriptor that does not include HTC hdr
  * @index: index to alloc htt tx desc
  *
  *
@@ -435,7 +436,7 @@ htt_tx_set_frag_desc_addr(struct htt_pdev_t *pdev,
  * htt_tx_desc_frags_table_set() - set up the descriptor and payload
  *				   to correspondinf fragments
  * @pdev: pointer to the HTT instance making the allocation
- * @htt_tx_desc: Host tx decriptor that does not include HTC hdr
+ * @htt_tx_desc: Host tx descriptor that does not include HTC hdr
  * @paddr: fragment physical address
  * @frag_desc_paddr_lo: frag descriptor address
  * @reset: reset

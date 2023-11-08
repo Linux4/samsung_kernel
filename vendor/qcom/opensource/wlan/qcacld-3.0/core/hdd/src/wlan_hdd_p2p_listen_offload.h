@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,7 +28,7 @@
 
 #ifdef FEATURE_P2P_LISTEN_OFFLOAD
 /**
- * __wlan_hdd_cfg80211_p2p_lo_start() - start P2P Listen Offload
+ * wlan_hdd_cfg80211_p2p_lo_start() - start P2P Listen Offload
  * @wiphy: Pointer to wireless phy
  * @wdev: Pointer to wireless device
  * @data: Pointer to data

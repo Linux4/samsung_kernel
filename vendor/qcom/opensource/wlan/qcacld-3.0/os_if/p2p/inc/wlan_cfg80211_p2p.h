@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -82,6 +83,7 @@ int wlan_cfg80211_cancel_roc(struct wlan_objmgr_vdev *vdev,
  * wlan_cfg80211_mgmt_tx() - API to process cfg80211 mgmt tx request
  * @vdev: Pointer to vdev object
  * @chan: Pointer to channel
+ * @offchan: true if this is an off-channel frame
  * @wait: wait time for this mgmt tx request
  * @buf: TX buffer
  * @len: Length of tx buffer

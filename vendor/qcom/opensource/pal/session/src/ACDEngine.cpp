@@ -311,6 +311,7 @@ void ACDEngine::ParseEventAndNotifyClient()
         free(event_data);
     }
     /* NotifyClient */
+    mutex_.unlock();
     for (auto iter4 = stream_event_info.begin();
          iter4 != stream_event_info.end();) {
         StreamACD *s = dynamic_cast<StreamACD *>(iter4->first);
@@ -334,6 +335,7 @@ void ACDEngine::ParseEventAndNotifyClient()
             free(event);
         }
     }
+    mutex_.lock();
 }
 
 void ACDEngine::EventProcessingThread(ACDEngine *engine)
@@ -346,13 +348,15 @@ void ACDEngine::EventProcessingThread(ACDEngine *engine)
 
     std::unique_lock<std::mutex> lck(engine->mutex_);
     while (!engine->exit_thread_) {
-        PAL_VERBOSE(LOG_TAG, "waiting on cond");
-        engine->cv_.wait(lck);
-        PAL_DBG(LOG_TAG, "done waiting on cond");
+        if (engine->eventQ.empty()) {
+            PAL_DBG(LOG_TAG, "waiting on cond");
+            engine->cv_.wait(lck);
+            PAL_DBG(LOG_TAG, "done waiting on cond");
 
-        if (engine->exit_thread_) {
-            PAL_VERBOSE(LOG_TAG, "Exit thread");
-            break;
+            if (engine->exit_thread_) {
+                PAL_VERBOSE(LOG_TAG, "Exit thread");
+                break;
+            }
         }
         engine->ParseEventAndNotifyClient();
     }
@@ -375,7 +379,7 @@ void ACDEngine::HandleSessionEvent(uint32_t event_id __unused,
 }
 
 void ACDEngine::HandleSessionCallBack(uint64_t hdl, uint32_t event_id,
-                                      void *data, uint32_t event_size)
+                                      void *data, uint32_t event_size, uint32_t miid __unused)
 {
     ACDEngine *engine = nullptr;
 

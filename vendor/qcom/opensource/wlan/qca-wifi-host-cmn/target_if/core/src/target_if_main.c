@@ -111,9 +111,7 @@
 #include "wmi_unified_api.h"
 #include <target_if_twt.h>
 
-#ifdef WLAN_FEATURE_11BE_MLO
 #include <target_if_mlo_mgr.h>
-#endif
 
 #ifdef WLAN_FEATURE_COAP
 #include <target_if_coap.h>
@@ -121,7 +119,7 @@
 
 static struct target_if_ctx *g_target_if_ctx;
 
-struct target_if_ctx *target_if_get_ctx()
+struct target_if_ctx *target_if_get_ctx(void)
 {
 	return g_target_if_ctx;
 }
@@ -302,7 +300,7 @@ static void target_if_son_tx_ops_register(
 }
 #endif
 
-#if defined WLAN_FEATURE_11AX
+#if defined WLAN_FEATURE_SR
 static void target_if_spatial_reuse_tx_ops_register(
 			struct wlan_lmac_if_tx_ops *tx_ops)
 {
@@ -477,6 +475,9 @@ static void target_if_target_tx_ops_register(
 
 	target_tx_ops->tgt_is_tgt_type_qcn6122 =
 		target_is_tgt_type_qcn6122;
+
+	target_tx_ops->tgt_is_tgt_type_qcn9160 =
+		target_is_tgt_type_qcn9160;
 
 	target_tx_ops->tgt_is_tgt_type_qcn7605 =
 		target_is_tgt_type_qcn7605;
@@ -832,6 +833,11 @@ bool target_is_tgt_type_qcn9000(uint32_t target_type)
 bool target_is_tgt_type_qcn6122(uint32_t target_type)
 {
 	return target_type == TARGET_TYPE_QCN6122;
+}
+
+bool target_is_tgt_type_qcn9160(uint32_t target_type)
+{
+	return target_type == TARGET_TYPE_QCN9160;
 }
 
 bool target_is_tgt_type_qcn7605(uint32_t target_type)

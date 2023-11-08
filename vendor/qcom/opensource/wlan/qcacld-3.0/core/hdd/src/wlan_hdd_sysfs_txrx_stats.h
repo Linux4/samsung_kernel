@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,7 +26,7 @@
 
 #if defined(WLAN_SYSFS) && defined(CONFIG_WLAN_TXRX_STATS)
 /**
- * wlan_hdd_sysfs_txrx_stats_create() - API to create txrx_stats
+ * hdd_sysfs_txrx_stats_create() - API to create txrx_stats
  * @adapter: hdd adapter
  *
  * this file is created per adapter.
@@ -39,8 +40,7 @@
 int hdd_sysfs_txrx_stats_create(struct hdd_adapter *adapter);
 
 /**
- * hdd_sysfs_txrx_stats_destroy() -
- *   API to destroy txrx_stats
+ * hdd_sysfs_txrx_stats_destroy() - API to destroy txrx_stats
  * @adapter: pointer to adapter
  *
  * Return: none

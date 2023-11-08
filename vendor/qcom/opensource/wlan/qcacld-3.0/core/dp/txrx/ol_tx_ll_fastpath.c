@@ -160,7 +160,7 @@ ol_tx_tso_adjust_pkt_dnld_len(qdf_nbuf_t msdu,
  * ol_tx_prepare_ll_fast() Alloc and prepare Tx descriptor
  *
  * Allocate and prepare Tx descriptor with msdu and fragment descritor
- * inforamtion.
+ * information.
  *
  * @pdev: pointer to ol pdev handle
  * @vdev: pointer to ol vdev handle

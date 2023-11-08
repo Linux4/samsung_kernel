@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,6 +28,9 @@
 #include <ce_internal.h>
 #include <wlan_cfg.h>
 #include "wlan_dp_prealloc.h"
+#ifdef WIFI_MONITOR_SUPPORT
+#include <dp_mon.h>
+#endif
 
 #ifdef DP_MEM_PRE_ALLOC
 
@@ -138,6 +141,17 @@ static struct dp_prealloc_context g_dp_context_allocs[] = {
 	 NULL},
 	{DP_RX_RING_HIST_TYPE, sizeof(struct dp_rx_history), false, false,
 	 NULL},
+#ifdef CONFIG_BERYLLIUM
+	/* 4 extra Rx ring history */
+	{DP_RX_RING_HIST_TYPE, sizeof(struct dp_rx_history), false, false,
+	 NULL},
+	{DP_RX_RING_HIST_TYPE, sizeof(struct dp_rx_history), false, false,
+	 NULL},
+	{DP_RX_RING_HIST_TYPE, sizeof(struct dp_rx_history), false, false,
+	 NULL},
+	{DP_RX_RING_HIST_TYPE, sizeof(struct dp_rx_history), false, false,
+	 NULL},
+#endif /* CONFIG_BERYLLIUM */
 	/* 1 Rx error ring history */
 	{DP_RX_ERR_RING_HIST_TYPE, sizeof(struct dp_rx_err_history),
 	 false, false, NULL},
@@ -221,6 +235,36 @@ static struct dp_prealloc_context g_dp_context_allocs[] = {
 	{DP_MON_STATUS_BUF_HIST_TYPE, sizeof(struct dp_mon_status_ring_history),
 	 false, false, NULL},
 #endif
+#ifdef WIFI_MONITOR_SUPPORT
+	{DP_MON_PDEV_TYPE, sizeof(struct dp_mon_pdev),
+	 false, false, NULL},
+#endif
+#ifdef WLAN_FEATURE_DP_CFG_EVENT_HISTORY
+	{DP_CFG_EVENT_HIST_TYPE,
+	 DP_CFG_EVT_HIST_PER_SLOT_MAX * sizeof(struct dp_cfg_event),
+	 false, false, NULL},
+	{DP_CFG_EVENT_HIST_TYPE,
+	 DP_CFG_EVT_HIST_PER_SLOT_MAX * sizeof(struct dp_cfg_event),
+	 false, false, NULL},
+	{DP_CFG_EVENT_HIST_TYPE,
+	 DP_CFG_EVT_HIST_PER_SLOT_MAX * sizeof(struct dp_cfg_event),
+	 false, false, NULL},
+	{DP_CFG_EVENT_HIST_TYPE,
+	 DP_CFG_EVT_HIST_PER_SLOT_MAX * sizeof(struct dp_cfg_event),
+	 false, false, NULL},
+	{DP_CFG_EVENT_HIST_TYPE,
+	 DP_CFG_EVT_HIST_PER_SLOT_MAX * sizeof(struct dp_cfg_event),
+	 false, false, NULL},
+	{DP_CFG_EVENT_HIST_TYPE,
+	 DP_CFG_EVT_HIST_PER_SLOT_MAX * sizeof(struct dp_cfg_event),
+	 false, false, NULL},
+	{DP_CFG_EVENT_HIST_TYPE,
+	 DP_CFG_EVT_HIST_PER_SLOT_MAX * sizeof(struct dp_cfg_event),
+	 false, false, NULL},
+	{DP_CFG_EVENT_HIST_TYPE,
+	 DP_CFG_EVT_HIST_PER_SLOT_MAX * sizeof(struct dp_cfg_event),
+	 false, false, NULL},
+#endif
 };
 
 static struct  dp_consistent_prealloc g_dp_consistent_allocs[] = {
@@ -260,10 +304,17 @@ static struct  dp_consistent_prealloc g_dp_consistent_allocs[] = {
 	{RXDMA_DST, 0, 0, NULL, NULL, 0, 0},
 	{RXDMA_DST, 0, 0, NULL, NULL, 0, 0},
 	/* REFILL ring 0 */
-	{RXDMA_BUF, (sizeof(struct wbm_buffer_ring)) *
-	WLAN_CFG_RXDMA_REFILL_RING_SIZE,	0, NULL, NULL, 0, 0},
+	{RXDMA_BUF, 0, 0, NULL, NULL, 0, 0},
+	/* 2 RXDMA buffer rings */
+	{RXDMA_BUF, 0, 0, NULL, NULL, 0, 0},
+	{RXDMA_BUF, 0, 0, NULL, NULL, 0, 0},
 	/* REO Exception ring */
 	{REO_EXCEPTION, 0, 0, NULL, NULL, 0, 0},
+	/* 1 REO status ring */
+	{REO_STATUS, 0, 0, NULL, NULL, 0, 0},
+	/* 2 monitor status rings */
+	{RXDMA_MONITOR_STATUS, 0, 0, NULL, NULL, 0, 0},
+	{RXDMA_MONITOR_STATUS, 0, 0, NULL, NULL, 0, 0},
 };
 
 /* Number of HW link descriptors needed (rounded to power of 2) */
@@ -516,6 +567,23 @@ dp_update_mem_size_by_ring_type(struct wlan_dp_prealloc_cfg *cfg,
 	case REO_EXCEPTION:
 		*mem_size = (sizeof(struct reo_destination_ring)) *
 			    cfg->num_reo_exception_ring_entries;
+		return;
+	case REO_DST:
+		*mem_size = (sizeof(struct reo_destination_ring)) *
+			    cfg->num_reo_dst_ring_entries;
+		return;
+	case RXDMA_BUF:
+		*mem_size = (sizeof(struct wbm_buffer_ring)) *
+			    cfg->num_rxdma_refill_ring_entries;
+		return;
+	case REO_STATUS:
+		*mem_size = (sizeof(struct tlv_32_hdr) +
+			     sizeof(struct reo_get_queue_stats_status)) *
+			    cfg->num_reo_status_ring_entries;
+		return;
+	case RXDMA_MONITOR_STATUS:
+		*mem_size = (sizeof(struct wbm_buffer_ring)) *
+			    cfg->num_mon_status_ring_entries;
 		return;
 	default:
 		return;

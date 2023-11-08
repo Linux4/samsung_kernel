@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -64,6 +64,7 @@
  * @TYPE_PEER_STATS_INFO_EXT: peer stats info ext was requested
  * @TYPE_CONGESTION_STATS: congestion stats was requested
  * @TYPE_BIG_DATA_STATS: big data stats was requested
+ * @TYPE_MAX: maximum value
  */
 enum stats_req_type {
 	TYPE_CONNECTION_TX_POWER = 0,
@@ -119,11 +120,11 @@ enum tx_rate_info {
 };
 
 /**
- * enum - txrate_gi
- * @txrate_gi_0_8_US: guard interval 0.8 us
- * @txrate_gi_0_4_US: guard interval 0.4 us for legacy
- * @txrate_gi_1_6_US: guard interval 1.6 us
- * @txrate_gi_3_2_US: guard interval 3.2 us
+ * enum txrate_gi - Guard Intervals
+ * @TXRATE_GI_0_8_US: guard interval 0.8 us
+ * @TXRATE_GI_0_4_US: guard interval 0.4 us for legacy
+ * @TXRATE_GI_1_6_US: guard interval 1.6 us
+ * @TXRATE_GI_3_2_US: guard interval 3.2 us
  */
 enum txrate_gi {
 	TXRATE_GI_0_8_US = 0,
@@ -152,15 +153,15 @@ enum txrate_gi {
  * @uc_drop_wake_up_count:      local data uc drop wakeup count
  * @fatal_event_wake_up_count:  fatal event wakeup count
  * @pwr_save_fail_detected:     pwr save fail detected wakeup count
- * @scan_11d                    11d scan wakeup count
+ * @scan_11d:                   11d scan wakeup count
  * @mgmt_assoc: association request management frame
  * @mgmt_disassoc: disassociation management frame
  * @mgmt_assoc_resp: association response management frame
  * @mgmt_reassoc: reassociate request management frame
  * @mgmt_reassoc_resp: reassociate response management frame
- * @mgmt_auth: authentication managament frame
+ * @mgmt_auth: authentication management frame
  * @mgmt_deauth: deauthentication management frame
- * @mgmt_action: action managament frame
+ * @mgmt_action: action management frame
  */
 struct wake_lock_stats {
 	uint32_t ucast_wake_up_count;
@@ -245,6 +246,7 @@ struct medium_assess_data {
  * @pdev_id: pdev_id of request
  * @peer_mac_addr: peer mac address
  * @ml_vdev_info: mlo_stats_vdev_params structure
+ * @ml_peer_mac_addr: Array of ml peer mac addresses
  */
 struct request_info {
 	void *cookie;
@@ -270,6 +272,7 @@ struct request_info {
 	uint8_t peer_mac_addr[QDF_MAC_ADDR_SIZE];
 #ifdef WLAN_FEATURE_11BE_MLO
 	struct mlo_stats_vdev_params ml_vdev_info;
+	uint8_t ml_peer_mac_addr[WLAN_UMAC_MLO_MAX_VDEVS][QDF_MAC_ADDR_SIZE];
 #endif
 };
 
@@ -312,7 +315,7 @@ struct psoc_mc_cp_stats {
 };
 
 /**
- * struct pdev_extd_stats - pdev extd stats
+ * struct pdev_mc_cp_extd_stats - pdev extd stats
  * @pdev_id: pdev id
  * @my_rx_count: What portion of time, as measured by the MAC HW clock was
  *               occupied, by receiving PPDUs addressed to one of the vdevs
@@ -535,8 +538,8 @@ struct dot11_counters {
 
 /**
  * struct dot11_mac_statistics - mib stats information on the operation of MAC
- * @retry_cnt: retries done by mac for successful transmition
- * @multi_retry_cnt: multiple retries done before successful transmition
+ * @retry_cnt: retries done by mac for successful transmission
+ * @multi_retry_cnt: multiple retries done before successful transmission
  * @frame_dup_cnt: duplicate no of frames
  * @rts_success_cnt: number of CTS received (in response to RTS)
  * @rts_fail_cnt: number of CTS not received (in response to RTS)
@@ -552,7 +555,7 @@ struct dot11_mac_statistics {
 };
 
 /**
- * dot11_qos_counters - qos mac counters
+ * struct dot11_qos_counters - qos mac counters
  * @qos_tx_frag_cnt: transmitted QoS fragments
  * @qos_failed_cnt: failed Qos fragments
  * @qos_retry_cnt: Qos frames transmitted after retransmissions
@@ -586,7 +589,7 @@ struct dot11_qos_counters {
 };
 
 /**
- * dot11_rsna_stats - mib rsn stats
+ * struct dot11_rsna_stats - mib rsn stats
  * @rm_ccmp_replays: received robust management CCMP MPDUs discarded
  *                   by the replay mechanism
  * @tkip_icv_err: TKIP ICV errors encountered
@@ -607,7 +610,7 @@ struct dot11_rsna_stats {
 };
 
 /**
- * dot11_counters_group3 - dot11 group3 stats
+ * struct dot11_counters_group3 - dot11 group3 stats
  * @tx_ampdu_cnt: transmitted AMPDUs
  * @tx_mpdus_in_ampdu_cnt: number of MPDUs in the A-MPDU in transmitted AMPDUs
  * @tx_octets_in_ampdu_cnt: octets in the transmitted A-MPDUs
@@ -627,7 +630,7 @@ struct dot11_counters_group3 {
 };
 
 /**
- * mib_stats_metrics - mib stats counters
+ * struct mib_stats_metrics - mib stats counters
  * @mib_counters: dot11Counters group
  * @mib_mac_statistics: dot11MACStatistics group
  * @mib_qos_counters: dot11QoSCounters group
@@ -736,12 +739,13 @@ struct peer_stats_info_ext_event {
  * @num_chain_rssi_stats: number of chain rssi stats
  * @vdev_chain_rssi: if populated indicates array of chain rssi per vdev
  * @tx_rate: tx rate (kbps)
+ * @rx_rate: rx rate (kbps)
  * @tx_rate_flags: tx rate flags, (enum tx_rate_info)
  * @last_event: The LSB indicates if the event is the last event or not and the
  *              MSB indicates if this feature is supported by FW or not.
  * @num_peer_stats_info_ext: number of peer extended stats info
  * @peer_stats_info_ext: peer extended stats info
- * @pmf_bcn_protect_stats: pmf bcn protect stats
+ * @bcn_protect_stats: pmf bcn protect stats
  */
 struct stats_event {
 	uint32_t num_pdev_stats;

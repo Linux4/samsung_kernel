@@ -17,7 +17,7 @@
 #define MAX_MODULE_NUM      (3)
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
 #define CUR_MODULE_NUM      (3)
-#elif defined(CONFIG_SAMSUNG_REAR_DUAL) && defined(CONFIG_SEC_B4Q_PROJECT)
+#elif defined(CONFIG_SAMSUNG_REAR_DUAL) && defined(CONFIG_SEC_B5Q_PROJECT)
 #define CUR_MODULE_NUM      (1)
 #else
 #define CUR_MODULE_NUM      (2)
@@ -102,6 +102,9 @@ uint32_t cam_ois_check_ext_clk(struct cam_ois_ctrl_t *o_ctrl);
 int32_t cam_ois_set_ext_clk(struct cam_ois_ctrl_t *o_ctrl, uint32_t clk);
 
 int cam_ois_read_hall_cal(struct cam_ois_ctrl_t *o_ctrl, uint16_t subdev_id, uint16_t *result);
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+int get_ois_adc_value(struct cam_ois_ctrl_t *o_ctrl, uint32_t *result);
+#endif
 
 #define OISCTRL				(0x0000) // OIS Control Register
 #define OISSTS				(0x0001) // OIS Status Register
@@ -143,6 +146,9 @@ int cam_ois_read_hall_cal(struct cam_ois_ctrl_t *o_ctrl, uint16_t subdev_id, uin
 #define MCSSKIPNUM			(0x0056) // Sinewave Measurement Skip Frequency Setting Register
 #define MCSNUM				(0x0057) // Sinewave Measurement Skip Frequency Setting Register
 #define MCSTH_M2			(0x005B) // Sinewave Check Error Decision Threshold Setting M2
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+#define GETADC			(0x0070) // GETADC Information
+#endif
 #define VDRINFO				(0x007C) // Vendor Information
 #define FWINFO_CTRL			(0x0080) // F/W Internal Information Update Register
 #define X_GYRO_CALC_M1		(0x0086) // X Target M1

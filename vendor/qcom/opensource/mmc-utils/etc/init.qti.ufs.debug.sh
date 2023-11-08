@@ -50,5 +50,20 @@ if [ -d $tracefs -a "$dbg" = 1 ]; then
     echo scsi_dispatch_cmd_error >> $ufsevent
     echo scsi_dispatch_cmd_done >> $ufsevent
     echo scsi_dispatch_cmd_timeout >> $ufsevent
+
+fi
+
+#MMC Trace event
+mmc_node=$((ls /sys/bus/platform/devices/ | grep sdhc) | head -1)
+dbg=`cat /sys/bus/platform/devices/$mmc_node/qcom/dbg_state`
+
+if [ -d $tracefs -a "$dbg" = 1 ]; then
+    #mmc
+    mkdir $tracefs/instances/mmc
+    mmcevent=$tracefs/instances/mmc/set_event
+
+    echo mmc_request_start >> $mmcevent
+    echo mmc_request_done >> $mmcevent
+
 fi
 

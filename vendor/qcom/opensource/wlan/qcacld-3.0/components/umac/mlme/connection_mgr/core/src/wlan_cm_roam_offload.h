@@ -435,10 +435,72 @@ QDF_STATUS cm_roam_update_vendor_handoff_config(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS
 cm_roam_send_rt_stats_config(struct wlan_objmgr_psoc *psoc,
 			     uint8_t vdev_id, uint8_t param_value);
+
+/**
+ * cm_roam_send_ho_delay_config() - Send HO delay value to FW to delay
+ * hand-off (in msec) by the specified duration to receive pending rx frames
+ * from current BSS.
+ * @psoc: PSOC pointer
+ * @vdev_id: vdev id
+ * @param_value: HO delay value
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+cm_roam_send_ho_delay_config(struct wlan_objmgr_psoc *psoc,
+			     uint8_t vdev_id, uint16_t param_value);
+
+/**
+ * cm_exclude_rm_partial_scan_freq() - Exclude the channels in roam full scan
+ * that are already scanned as part of partial scan.
+ * @psoc: PSOC pointer
+ * @vdev_id: vdev id
+ * @param_value: include/exclude the partial scan channels in roam full scan
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+cm_exclude_rm_partial_scan_freq(struct wlan_objmgr_psoc *psoc,
+				uint8_t vdev_id, uint8_t param_value);
+
+/**
+ * cm_roam_full_scan_6ghz_on_disc() - Include the 6 GHz channels in roam full
+ * scan only on prior discovery of any 6 GHz support in the environment
+ * @pdev: Pointer to pdev
+ * @vdev_id: vdev id
+ * @param_value: Include the 6 GHz channels in roam full scan:
+ * 1 - Include only on prior discovery of any 6 GHz support in the environment
+ * 0 - Include all the supported 6 GHz channels by default
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS cm_roam_full_scan_6ghz_on_disc(struct wlan_objmgr_psoc *psoc,
+					  uint8_t vdev_id, uint8_t param_value);
 #else
 static inline QDF_STATUS
 cm_roam_send_rt_stats_config(struct wlan_objmgr_psoc *psoc,
 			     uint8_t vdev_id, uint8_t param_value)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline QDF_STATUS
+cm_roam_send_ho_delay_config(struct wlan_objmgr_psoc *psoc,
+			     uint8_t vdev_id, uint16_t param_value)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline QDF_STATUS
+cm_exclude_rm_partial_scan_freq(struct wlan_objmgr_psoc *psoc,
+				uint8_t vdev_id, uint8_t param_value)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline
+QDF_STATUS cm_roam_full_scan_6ghz_on_disc(struct wlan_objmgr_psoc *psoc,
+					  uint8_t vdev_id, uint8_t param_value)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
@@ -576,6 +638,26 @@ QDF_STATUS
 cm_roam_beacon_loss_disconnect_event(struct wlan_objmgr_psoc *psoc,
 				     struct qdf_mac_addr bssid,
 				     uint8_t vdev_id);
+
+/**
+ * cm_roam_neigh_rpt_req_event() - Send Neighbor Report request logging
+ * event
+ * @neigh_rpt: Neighbor Report parameter
+ * @vdev: vdev pointer
+ */
+void
+cm_roam_neigh_rpt_req_event(struct wmi_neighbor_report_data *neigh_rpt,
+			    struct wlan_objmgr_vdev *vdev);
+
+/**
+ * cm_roam_neigh_rpt_resp_event() - Send Neighbor Report response logging
+ * event
+ * @neigh_rpt: Neighbor Report parameter
+ * @vdev_id: vdev id
+ */
+void
+cm_roam_neigh_rpt_resp_event(struct wmi_neighbor_report_data *neigh_rpt,
+			     uint8_t vdev_id);
 #else
 static inline QDF_STATUS
 cm_roam_mgmt_frame_event(struct roam_frame_info *frame_data,
@@ -613,6 +695,18 @@ cm_roam_beacon_loss_disconnect_event(struct wlan_objmgr_psoc *psoc,
 				     uint8_t vdev_id)
 {
 	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline void
+cm_roam_neigh_rpt_req_event(struct wmi_neighbor_report_data *neigh_rpt,
+			    struct wlan_objmgr_vdev *vdev)
+{
+}
+
+static inline void
+cm_roam_neigh_rpt_resp_event(struct wmi_neighbor_report_data *neigh_rpt,
+			     uint8_t vdev_id)
+{
 }
 #endif /* FEATURE_CONNECTIVITY_LOGGING */
 #endif /* _WLAN_CM_ROAM_OFFLOAD_H_ */

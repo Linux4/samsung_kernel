@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -113,7 +114,7 @@ ol_rx_reorder_seq_num_check(
 	 * should be the one with retry bit set.
 	 * However, since many implementations do not set the retry bit,
 	 * and since this same function is also used for filtering out
-	 * late-arriving frames (frames that arive after their rx reorder
+	 * late-arriving frames (frames that arrive after their rx reorder
 	 * timeout has expired) which are not retries, don't bother checking
 	 * the retry bit for now.
 	 */

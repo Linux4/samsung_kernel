@@ -648,7 +648,7 @@ static void sde_hw_input_hw_fence_status(struct sde_hw_mdp *mdp, u64 *s_val, u64
 }
 
 static void sde_hw_setup_hw_fences_config(struct sde_hw_mdp *mdp, u32 protocol_id,
-	unsigned long ipcc_base_addr)
+	u32 client_phys_id, unsigned long ipcc_base_addr)
 {
 	u32 val, offset;
 	struct sde_hw_blk_reg_map c;
@@ -674,7 +674,7 @@ static void sde_hw_setup_hw_fences_config(struct sde_hw_mdp *mdp, u32 protocol_i
 	/* configure the attribs for the isr read_reg op */
 	offset = MDP_CTL_HW_FENCE_ID_OFFSET_m(MDP_CTL_HW_FENCE_IDm_ADDR, 0);
 	val = HW_FENCE_IPCC_PROTOCOLp_CLIENTc_RECV_ID(ipcc_base_addr,
-				protocol_id, HW_FENCE_IPCC_CLIENT_DPU);
+				protocol_id, client_phys_id);
 	SDE_REG_WRITE(&c, offset, val);
 
 	offset = MDP_CTL_HW_FENCE_ID_OFFSET_m(MDP_CTL_HW_FENCE_IDm_ATTR, 0);
@@ -713,7 +713,7 @@ static void sde_hw_setup_hw_fences_config(struct sde_hw_mdp *mdp, u32 protocol_i
 	/* configure the attribs for the isr load_data op */
 	offset = MDP_CTL_HW_FENCE_ID_OFFSET_m(MDP_CTL_HW_FENCE_IDm_ADDR, 4);
 	val =  HW_FENCE_IPCC_PROTOCOLp_CLIENTc_SEND(ipcc_base_addr,
-			protocol_id, HW_FENCE_IPCC_CLIENT_DPU);
+			protocol_id, client_phys_id);
 	SDE_REG_WRITE(&c, offset, val);
 
 	offset = MDP_CTL_HW_FENCE_ID_OFFSET_m(MDP_CTL_HW_FENCE_IDm_ATTR, 4);

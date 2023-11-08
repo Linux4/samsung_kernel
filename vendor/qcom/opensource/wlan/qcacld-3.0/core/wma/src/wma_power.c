@@ -1446,7 +1446,7 @@ QDF_STATUS wma_notify_modem_power_state(void *wma_ptr,
 }
 
 /**
- * wma_set_idle_ps_config() - enable/disble Low Power Support(Pdev Specific)
+ * wma_set_idle_ps_config() - enable/disable Low Power Support(Pdev Specific)
  * @wma_ptr: wma handle
  * @idle_ps: idle powersave
  *

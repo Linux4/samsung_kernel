@@ -43,7 +43,7 @@
 
 /*
  * The maximum headroom reserved for monitor destination buffer to
- * accomodate radiotap header and protocol flow tag
+ * accommodate radiotap header and protocol flow tag
  */
 #ifdef DP_RX_MON_MEM_FRAG
 /*
@@ -70,7 +70,7 @@
  * enum dp_mon_reap_status - monitor status ring ppdu status
  *
  * @DP_MON_STATUS_NO_DMA - DMA not done for status ring entry
- * @DP_MON_STATUS_MATCH - status and dest ppdu id mathes
+ * @DP_MON_STATUS_MATCH - status and dest ppdu id matches
  * @DP_MON_STATUS_LAG - status ppdu id is lagging
  * @DP_MON_STATUS_LEAD - status ppdu id is leading
  * @DP_MON_STATUS_REPLENISH - status ring entry is NULL
@@ -129,7 +129,7 @@ dp_rx_mon_handle_status_buf_done(struct dp_pdev *pdev,
 
 /**
  * dp_full_mon_attach() - Full monitor mode attach
- * This API initilises full monitor mode resources
+ * This API initializes full monitor mode resources
  *
  * @pdev: dp pdev object
  *
@@ -218,7 +218,7 @@ QDF_STATUS dp_rx_mon_deliver(struct dp_soc *soc, uint32_t mac_id,
 	qdf_nbuf_t head_msdu, qdf_nbuf_t tail_msdu);
 /*
  * dp_rx_mon_deliver_non_std() - deliver frames for non standard path
- * @soc: core txrx main contex
+ * @soc: core txrx main context
  * @mac_id: MAC ID
  *
  * This function delivers the radio tap and dummy MSDU
@@ -317,7 +317,7 @@ dp_rx_populate_su_evm_details(struct hal_rx_ppdu_info *ppdu_info,
 /**
 * dp_rx_handle_ppdu_stats() - Allocate and deliver ppdu stats to cdp layer
 * @soc: core txrx main context
-* @pdev: pdev strcuture
+* @pdev: pdev structure
 * @ppdu_info: structure for rx ppdu ring
 *
 * Return: none
@@ -366,12 +366,31 @@ dp_rx_handle_ppdu_stats(struct dp_soc *soc, struct dp_pdev *pdev,
 }
 #endif /* QCA_ENHANCED_STATS_SUPPORT */
 
+#ifdef WLAN_SUPPORT_CTRL_FRAME_STATS
+/**
+ * dp_rx_mon_update_user_ctrl_frame_stats() - Function to update Rx control
+ * frame stats per user.
+ * @pdev: DP Pdev Pointer
+ * @ppdu_info: HAL Rx PPDU info Pointer
+ *
+ * Return: None
+ */
+void dp_rx_mon_update_user_ctrl_frame_stats(struct dp_pdev *pdev,
+					    struct hal_rx_ppdu_info *ppdu_info);
+#else
+static inline void
+dp_rx_mon_update_user_ctrl_frame_stats(struct dp_pdev *pdev,
+				       struct hal_rx_ppdu_info *ppdu_info)
+{
+}
+#endif /* WLAN_SUPPORT_CTRL_FRAME_STATS */
+
 #ifdef QCA_UNDECODED_METADATA_SUPPORT
 /**
  * dp_rx_handle_ppdu_undecoded_metadata() - Allocate and deliver ppdu info
  * undecoded metadata to cdp layer
  * @soc: core txrx main context
- * @pdev: pdev strcuture
+ * @pdev: pdev structure
  * @ppdu_info: structure for rx ppdu ring
  *
  * Return: none
@@ -650,7 +669,7 @@ QDF_STATUS dp_rx_mon_deliver(struct dp_soc *soc,
 
 /**
 * dp_rx_mon_deliver_non_std()
-* @soc: core txrx main contex
+* @soc: core txrx main context
 * @mac_id: MAC ID
 *
 * This function delivers the radio tap and dummy MSDU
@@ -772,4 +791,16 @@ dp_rx_process_peer_based_pktlog(struct dp_soc *soc,
 
 uint32_t dp_mon_rx_add_tlv(uint8_t id, uint16_t len, void *value,
 			   qdf_nbuf_t mpdu_nbuf);
+
+/**
+ * dp_mon_rx_stats_update_rssi_dbm_params() - update rssi calibration
+ *                                      parameters in rx stats
+ * @mon_pdev: monitor pdev
+ * @ppdu_info: Structure for rx ppdu info
+ *
+ * Return: none
+ */
+void
+dp_mon_rx_stats_update_rssi_dbm_params(struct dp_mon_pdev *mon_pdev,
+				       struct hal_rx_ppdu_info *ppdu_info);
 #endif /* _DP_RX_MON_H_ */

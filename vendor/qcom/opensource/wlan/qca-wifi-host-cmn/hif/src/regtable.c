@@ -156,6 +156,14 @@ void hif_target_register_tbl_attach(struct hif_softc *scn, u32 target_type)
 		break;
 #endif
 
+#if defined(QCN9160_HEADERS_DEF)
+	case TARGET_TYPE_QCN9160:
+		scn->targetdef = QCN9160_TARGETDEF;
+		scn->target_ce_def = QCN9160_CE_TARGETDEF;
+		hif_info("TARGET_TYPE_QCN9160");
+		break;
+#endif
+
 #if defined(QCA5018_HEADERS_DEF)
 	case TARGET_TYPE_QCA5018:
 		scn->targetdef = QCA5018_TARGETDEF;
@@ -307,6 +315,11 @@ void hif_register_tbl_attach(struct hif_softc *scn, u32 hif_type)
 #if defined(QCN6122_HEADERS_DEF)
 	case HIF_TYPE_QCN6122:
 		scn->hostdef = QCN6122_HOSTDEF;
+		break;
+#endif
+#if defined(QCN9160_HEADERS_DEF)
+	case HIF_TYPE_QCN9160:
+		scn->hostdef = QCN9160_HOSTDEF;
 		break;
 #endif
 #if defined(QCA5018_HEADERS_DEF)

@@ -29,7 +29,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -73,8 +73,10 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <inttypes.h>
 
 static uint32_t sXtraTestEnabled = 0;
+static uint32_t sSleepTime = 800000;
 static const loc_param_s_type gConfigTable[] = {
-    {"XTRA_TEST_ENABLED", &sXtraTestEnabled, NULL, 'n'}
+    {"XTRA_TEST_ENABLED", &sXtraTestEnabled, NULL, 'n'},
+    {"QRTRWATCHER_DELAY_MICROSECOND", &sSleepTime, NULL, 'n'}
 };
 
 namespace location_integration {
@@ -230,7 +232,7 @@ public:
                     LOC_LOGi("LocIpcQrtrWatcher:: HAL Daemon ServiceStatus::UP");
                     auto sender = mWatcher.mIpcSender.lock();
                     if (nullptr != sender && sender->copyDestAddrFrom(mRefSender)) {
-                        sleep(2);
+                        usleep(sSleepTime);
                         auto listener = mWatcher.mIpcListener.lock();
                         if (nullptr != listener) {
                             LocAPIHalReadyIndMsg msg(SERVICE_NAME, &mWatcher.mPbufMsgConv);
@@ -286,6 +288,10 @@ LocationIntegrationApiImpl::LocationIntegrationApiImpl(LocIntegrationCbs& integr
     if (integrationClientAllowed() == false) {
         return;
     }
+
+    // read configuration file
+    UTIL_READ_CONF(LOC_PATH_GPS_CONF, gConfigTable);
+    LOC_LOGd("sXtraTestEnabled=%u", sXtraTestEnabled);
 
     // get pid to generate sokect name
     uint32_t pid = (uint32_t)getpid();
@@ -394,7 +400,11 @@ void IpcListener::onListenerReady() {
     struct ClientRegisterReq : public LocMsg {
         ClientRegisterReq(LocationIntegrationApiImpl& apiImpl) : mApiImpl(apiImpl) {}
         void proc() const {
-            mApiImpl.sendClientRegMsgToHalDaemon();
+            if (mApiImpl.sendClientRegMsgToHalDaemon()) {
+                // lia is able to send msg to hal daemon,
+                // send queued command to hal daemon if there is any
+                mApiImpl.processQueuedReqs();
+            }
         }
         LocationIntegrationApiImpl& mApiImpl;
     };
@@ -427,7 +437,6 @@ void IpcListener::onReceive(const char* data, uint32_t length,
 
             ELocMsgID eLocMsgid = mApiImpl.mPbufMsgConv.getEnumForPBELocMsgID(pbLocApiMsg.msgid());
             string sockName = pbLocApiMsg.msocketname();
-            uint32_t msgVer = pbLocApiMsg.msgversion();
             uint32_t payloadSize = pbLocApiMsg.payloadsize();
             // pbLocApiMsg.payload() contains the payload data.
 
@@ -934,7 +943,7 @@ uint32_t LocationIntegrationApiImpl::configDeadReckoningEngineParams(
         void proc() const {
             string pbStr;
             LocConfigDrEngineParamsReqMsg msg(mApiImpl->mSocketName,
-                                              mApiImpl->mDreConfigInfo.dreConfig,
+                                              mDreConfig,
                                               &mApiImpl->mPbufMsgConv);
             if (msg.serializeToProtobuf(pbStr)) {
                 if (mApiImpl->sendConfigMsgToHalDaemon(CONFIG_DEAD_RECKONING_ENGINE, pbStr)) {
@@ -1085,14 +1094,15 @@ uint32_t LocationIntegrationApiImpl::configOutputNmeaTypes(
         virtual ~ConfigOutputNmeaReq() {}
         void proc() const {
             string pbStr;
-            mApiImpl->mNmeaConfigInfo.isValid = true;
-            mApiImpl->mNmeaConfigInfo.enabledNmeaTypes = mEnabledNmeaTypes;
-            mApiImpl->mNmeaConfigInfo.nmeaDatumType = mNmeaDatumType;
             LocConfigOutputNmeaTypesReqMsg msg(
                     mApiImpl->mSocketName, mEnabledNmeaTypes,
                     mNmeaDatumType, &mApiImpl->mPbufMsgConv);
             if (msg.serializeToProtobuf(pbStr)) {
-                mApiImpl->sendConfigMsgToHalDaemon(CONFIG_OUTPUT_NMEA_TYPES, pbStr);
+                if (mApiImpl->sendConfigMsgToHalDaemon(CONFIG_OUTPUT_NMEA_TYPES, pbStr)) {
+                    mApiImpl->mNmeaConfigInfo.isValid = true;
+                    mApiImpl->mNmeaConfigInfo.enabledNmeaTypes = mEnabledNmeaTypes;
+                    mApiImpl->mNmeaConfigInfo.nmeaDatumType = mNmeaDatumType;
+                }
             } else {
                 LOC_LOGe("serializeToProtobuf failed");
             }
@@ -1103,6 +1113,7 @@ uint32_t LocationIntegrationApiImpl::configOutputNmeaTypes(
         GnssGeodeticDatumType mNmeaDatumType;
     };
 
+    LOC_LOGi("nmea output type: 0x%x, datum type: %d", enabledNmeaTypes, nmeaDatumType);
     mMsgTask.sendMsg(new (nothrow) ConfigOutputNmeaReq(this, enabledNmeaTypes, nmeaDatumType));
 
     return 0;
@@ -1277,21 +1288,21 @@ uint32_t LocationIntegrationApiImpl::registerXtraStatusUpdate(bool registerUpdat
         void proc() const {
             LOC_LOGe("registerXtraStatusUpdate: %d", mRegisterUpdate);
             string pbStr;
-            mApiImpl->mRegisterXtraUpdate = mRegisterUpdate;
-            if (mRegisterUpdate == true) {
-                mApiImpl->mXtraUpdateUponRegisterPending = true;
+            if (true == mRegisterUpdate) {
                 LocConfigRegisterXtraStatusUpdateReqMsg msg(
                     mApiImpl->mSocketName, &mApiImpl->mPbufMsgConv);
                 msg.serializeToProtobuf(pbStr);
             } else {
-                mApiImpl->mXtraUpdateUponRegisterPending = false;
                 LocConfigDeregisterXtraStatusUpdateReqMsg msg(
                     mApiImpl->mSocketName, &mApiImpl->mPbufMsgConv);
                 msg.serializeToProtobuf(pbStr);
             }
 
             if (pbStr.size() != 0) {
-                mApiImpl->sendConfigMsgToHalDaemon(REGISTER_XTRA_STATUS_UPDATE, pbStr);
+                if (mApiImpl->sendConfigMsgToHalDaemon(REGISTER_XTRA_STATUS_UPDATE, pbStr)) {
+                    mApiImpl->mXtraUpdateUponRegisterPending = mRegisterUpdate;
+                    mApiImpl->mRegisterXtraUpdate = mRegisterUpdate;
+                }
             } else {
                 LOC_LOGe("serializeToProtobuf failed");
             }
@@ -1314,11 +1325,15 @@ bool LocationIntegrationApiImpl::sendConfigMsgToHalDaemon(
         LocConfigTypeEnum configType, const string& pbStr, bool invokeResponseCb) {
     bool rc = false;
     LOC_LOGd(">>> sendConfigMsgToHalDaemon, mHalRegistered %d, config type=%d, "
-             "msg size %d, config cb %d",
+             "msg size %zu, config cb %d",
              mHalRegistered, configType, pbStr.size(), invokeResponseCb);
 
     if (!mHalRegistered) {
-        mQueuedMsg.emplace(configType, std::move(pbStr));
+        ProtoMsgInfo msgInfo;
+        msgInfo.configType = configType;
+        msgInfo.protoStr = pbStr;
+        mQueuedMsg.emplace(std::move(msgInfo));
+        rc = true;
         LOC_LOGi(">>> sendConfigMsgToHalDaemon mHal not yet ready, message queued");
     } else {
         bool messageSentToHal = false;
@@ -1367,7 +1382,10 @@ void LocationIntegrationApiImpl::processHalReadyMsg() {
     }
 
     // process the requests that are queued before hal daemon was first ready
-    processQueuedReqs();
+    if (processQueuedReqs()) {
+        // hal is first time ready, no more item to process
+        return;
+    }
 
     // when location hal daemon crashes and restarts,
     // we flush out all pending requests and notify each client
@@ -1547,12 +1565,15 @@ void LocationIntegrationApiImpl::processConfigRespCb(const LocAPIGenericRespMsg*
 }
 
 // process queued reqs that are not able to sent to location hal daemon
-void LocationIntegrationApiImpl::processQueuedReqs() {
+bool LocationIntegrationApiImpl::processQueuedReqs() {
+    bool queueNotEmpty = (mQueuedMsg.size() > 0);
+
     while (mQueuedMsg.size() > 0) {
         ProtoMsgInfo msg = mQueuedMsg.front();
         mQueuedMsg.pop();
         sendConfigMsgToHalDaemon(msg.configType, msg.protoStr, true);
     }
+    return queueNotEmpty;
 }
 
 // flush all the pending config request if location hal daemon has crashed

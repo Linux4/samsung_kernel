@@ -21,8 +21,6 @@
 #include "cam_sensor_cmn_header.h"
 #include "cam_debug_util.h"
 
-static int ois_power = 0;
-
 #if defined(CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING)
 static int actuator_power = 0;
 
@@ -75,7 +73,7 @@ static int rear_actuator_power_on (struct cam_ois_ctrl_t *o_ctrl, uint32_t *targ
 	int i = 0, index = 0;
 
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
-	if (ois_power > 0) {
+	if (o_ctrl->sysfs_ois_power > 0) {
 		pr_info("%s: [WARNING] ois is used", __func__);
 		return -EFAULT;
 	}
@@ -177,13 +175,13 @@ static ssize_t ois_autotest_store(struct device *dev,
 
 static ois_power_store_off (struct cam_ois_ctrl_t *o_ctrl)
 {
-	if (ois_power == 0) {
+	if (o_ctrl->sysfs_ois_power == 0) {
 		pr_info("%s: [WARNING] ois is off, skip power down", __func__);
 		return -EFAULT;
 	}
 	cam_ois_power_down(o_ctrl);
 	pr_info("%s: power down", __func__);
-	ois_power = 0;
+	o_ctrl->sysfs_ois_power = 0;
 
 	return 0;
 }
@@ -197,11 +195,19 @@ static ois_power_store_on (struct cam_ois_ctrl_t *o_ctrl)
 	}
 #endif
 
-	ois_power = 1;
+	o_ctrl->sysfs_ois_power = 1;
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) &&\
+	defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+	o_ctrl->sysfs_ois_init = 0;
+#endif
 	cam_ois_power_up(o_ctrl);
 	msleep(200);
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
 	cam_ois_mcu_init(o_ctrl);
+#endif
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) &&\
+	defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+	o_ctrl->sysfs_ois_init = 1;
 #endif
 	o_ctrl->ois_mode = 0;
 	pr_info("%s: power up", __func__);
@@ -453,7 +459,7 @@ static ssize_t gyro_rawdata_test_store(struct device *dev,
 	long raw_data_x = 0, raw_data_y = 0, raw_data_z = 0;
 	long efs_size = 0;
 
-	if (ois_power) {
+	if (g_o_ctrl->sysfs_ois_power) {
 		if (size > MAX_EFS_DATA_LENGTH || size == 0) {
 			pr_err("%s count is abnormal, count = %d", __func__, size);
 			return 0;
@@ -962,6 +968,105 @@ static ssize_t ois_ext_clk_store(struct device *dev,
 
 	return size;
 }
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+static ssize_t ois_adc_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	uint32_t result = 0;
+
+	rc = get_ois_adc_value(g_o_ctrl, &result);
+	if (rc < 0)
+		CAM_ERR(CAM_OIS, "get ois adc fail");
+
+	CAM_INFO(CAM_OIS, "ois_adc = %d", result);
+
+	rc = scnprintf(buf, PAGE_SIZE, "%u\n", result);
+
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static int convert_adc_to_temperature(struct cam_ois_ctrl_t *o_ctrl, uint32_t adc)
+{
+	int low = 0;
+	int high = 0;
+	int temp = 0;
+	int temp2 = 0;
+
+	if (!o_ctrl->adc_temperature_table || !o_ctrl->adc_arr_size) {
+		/* using fake temp */
+		return 0;
+	}
+
+	high = o_ctrl->adc_arr_size - 1;
+
+	if (o_ctrl->adc_temperature_table[low].adc >= adc)
+		return o_ctrl->adc_temperature_table[low].temperature;
+	else if (o_ctrl->adc_temperature_table[high].adc <= adc)
+		return o_ctrl->adc_temperature_table[high].temperature;
+
+	while (low <= high) {
+		int mid = 0;
+
+		mid = (low + high) / 2;
+		if (o_ctrl->adc_temperature_table[mid].adc > adc)
+			high = mid - 1;
+		else if (o_ctrl->adc_temperature_table[mid].adc < adc)
+			low = mid + 1;
+		else
+			return o_ctrl->adc_temperature_table[mid].temperature;
+	}
+
+	temp = o_ctrl->adc_temperature_table[high].temperature;
+
+	temp2 = (o_ctrl->adc_temperature_table[high].temperature -
+		o_ctrl->adc_temperature_table[low].temperature) *
+		(adc - o_ctrl->adc_temperature_table[high].adc);
+
+	temp -= temp2 /
+		(o_ctrl->adc_temperature_table[low].adc -
+		o_ctrl->adc_temperature_table[high].adc);
+
+	return temp;
+}
+
+static ssize_t ois_temperature_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	uint32_t result = 0;
+	int temperature = 0;
+	static int prev_temperature = 250;
+	uint32_t retry = 10;
+
+	do {
+		rc = get_ois_adc_value(g_o_ctrl, &result);
+		if ((rc < 0) || result)
+			break;
+		CAM_INFO(CAM_OIS, "ois_adc = %d, retry = %d", result, retry);
+		usleep_range(2000, 2100);      
+	} while ((--retry > 0) && (rc >= 0) && (result == 0));
+
+	if ((rc < 0) || (result == 0)) {
+		CAM_ERR(CAM_OIS, "get ois adc fail");
+		temperature = prev_temperature;
+	} else
+		temperature = convert_adc_to_temperature(g_o_ctrl, result);
+
+	prev_temperature = temperature;
+
+	CAM_INFO(CAM_OIS, "ois_adc = %d ois_temperature = %d", result, temperature);
+
+	rc = scnprintf(buf, PAGE_SIZE, "%d\n", temperature);
+
+	if (rc)
+		return rc;
+	return 0;
+}
+#endif
 #endif
 
 static DEVICE_ATTR(rear_actuator_power, S_IWUSR|S_IWGRP, NULL, rear_actuator_power_store);
@@ -999,6 +1104,10 @@ static DEVICE_ATTR(rear4_read_cross_talk, S_IRUGO, ois_rear4_read_cross_talk_sho
 static DEVICE_ATTR(check_cross_talk, S_IRUGO, ois_check_cross_talk_show, NULL);
 static DEVICE_ATTR(check_ois_valid, S_IRUGO, check_ois_valid_show, NULL);
 static DEVICE_ATTR(ois_ext_clk, S_IRUGO|S_IWUSR|S_IWGRP, ois_ext_clk_show, ois_ext_clk_store);
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+static DEVICE_ATTR(adc, S_IRUGO, ois_adc_show, NULL);
+static DEVICE_ATTR(temperature, S_IRUGO, ois_temperature_show, NULL);
+#endif
 #endif
 
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
@@ -1034,6 +1143,10 @@ const struct device_attribute *ois_attrs[] = {
 	&dev_attr_check_ois_valid,
 	&dev_attr_ois_ext_clk,
 	&dev_attr_check_hall_cal,
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+	&dev_attr_adc,
+	&dev_attr_temperature,
+#endif
 #endif
 	NULL, // DO NOT REMOVE
 };

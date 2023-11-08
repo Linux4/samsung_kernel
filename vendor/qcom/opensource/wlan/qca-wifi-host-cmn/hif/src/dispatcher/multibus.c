@@ -188,7 +188,7 @@ void hif_bus_close(struct hif_softc *hif_sc)
  * @hif_ctx: hif context
  * @flag: true = keep bus alive false = let bus go to sleep
  *
- * Keeps the bus awake durring suspend.
+ * Keeps the bus awake during suspend.
  */
 void hif_bus_prevent_linkdown(struct hif_softc *hif_sc, bool flag)
 {

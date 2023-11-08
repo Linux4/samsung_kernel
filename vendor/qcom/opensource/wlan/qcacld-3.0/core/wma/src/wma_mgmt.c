@@ -1380,8 +1380,8 @@ static void wma_set_mlo_capability(tp_wma_handle wma,
 			  QDF_MAC_ADDR_REF(peer->mldaddr),
 			  req->mlo_params.mlo_force_link_inactive);
 		req->mlo_params.emlsr_support = params->emlsr_support;
+		req->mlo_params.ieee_link_id = params->link_id;
 		if (req->mlo_params.emlsr_support) {
-			req->mlo_params.ieee_link_id = params->link_id;
 			req->mlo_params.trans_timeout_us =
 					params->emlsr_trans_timeout;
 		}
@@ -2137,7 +2137,7 @@ QDF_STATUS wma_process_update_edca_param_req(WMA_HANDLE handle,
 	return QDF_STATUS_SUCCESS;
 
 fail:
-	wma_err("Failed to set WMM Paremeters");
+	wma_err("Failed to set WMM Parameters");
 	return QDF_STATUS_E_FAILURE;
 }
 
@@ -2482,7 +2482,7 @@ static int wma_p2p_go_set_beacon_ie(t_wma_handle *wma_handle,
  * @wma: wma handle
  * @probe_rsp_info: probe response info
  *
- * This funciton sends probe response template to fw which
+ * This function sends probe response template to fw which
  * firmware will use in case of probe response offload.
  *
  * Return: none
@@ -2544,6 +2544,7 @@ QDF_STATUS wma_set_ap_vdev_up(tp_wma_handle wma, uint8_t vdev_id)
 	}
 	wma_set_sap_keepalive(wma, vdev_id);
 	wma_set_vdev_mgmt_rate(wma, vdev_id);
+	wma_sr_update(wma, vdev_id, true);
 
 	return status;
 }
@@ -2553,7 +2554,7 @@ QDF_STATUS wma_set_ap_vdev_up(tp_wma_handle wma, uint8_t vdev_id)
  * @wma: wma handle
  * @bcn_info: beacon info
  *
- * This funciton store beacon template locally and
+ * This function store beacon template locally and
  * update keep alive parameters
  *
  * Return: none
@@ -3474,7 +3475,7 @@ int wma_process_rmf_frame(tp_wma_handle wma_handle,
 				return -EINVAL;
 			}
 		} else {
-			wma_err("Rx unprotected unicast mgmt frame");
+			wma_err_rl("Rx unprotected unicast mgmt frame");
 			rx_pkt->pkt_meta.dpuFeedback =
 				DPU_FEEDBACK_UNPROTECTED_ERROR;
 		}
@@ -3564,7 +3565,7 @@ wma_check_and_process_rmf_frame(tp_wma_handle wma_handle,
 }
 
 /**
- * wma_is_pkt_drop_candidate() - check if the mgmt frame should be droppped
+ * wma_is_pkt_drop_candidate() - check if the mgmt frame should be dropped
  * @wma_handle: wma handle
  * @peer_addr: peer MAC address
  * @bssid: BSSID Address
@@ -3573,7 +3574,7 @@ wma_check_and_process_rmf_frame(tp_wma_handle wma_handle,
  * This function is used to decide if a particular management frame should be
  * dropped to prevent DOS attack. Timestamp is used to decide the DOS attack.
  *
- * Return: true if the packet should be dropped and false oterwise
+ * Return: true if the packet should be dropped and false otherwise
  */
 static bool wma_is_pkt_drop_candidate(tp_wma_handle wma_handle,
 				      uint8_t *peer_addr, uint8_t *bssid,
@@ -3848,13 +3849,12 @@ static int wma_mgmt_rx_process(void *handle, uint8_t *data,
 
 	mgmt_rx_params = qdf_mem_malloc(sizeof(*mgmt_rx_params));
 	if (!mgmt_rx_params) {
-		wma_err("memory allocation failed");
 		return -ENOMEM;
 	}
 
 	if (wmi_extract_mgmt_rx_params(wma_handle->wmi_handle,
 			data, mgmt_rx_params, &bufp) != QDF_STATUS_SUCCESS) {
-		wma_err("Extraction of mgmt rx params failed");
+		wma_err_rl("Extraction of mgmt rx params failed");
 		qdf_mem_free(mgmt_rx_params);
 		return -EINVAL;
 	}
@@ -3862,8 +3862,8 @@ static int wma_mgmt_rx_process(void *handle, uint8_t *data,
 	if (mgmt_rx_params->buf_len > data_len ||
 	    !mgmt_rx_params->buf_len ||
 	    !bufp) {
-		wma_err("Invalid data_len %u, buf_len %u bufp %pK",
-			data_len, mgmt_rx_params->buf_len, bufp);
+		wma_err_rl("Invalid data_len %u, buf_len %u bufp %pK",
+			   data_len, mgmt_rx_params->buf_len, bufp);
 		qdf_mem_free(mgmt_rx_params);
 		return -EINVAL;
 	}
@@ -3983,7 +3983,8 @@ QDF_STATUS wma_de_register_mgmt_frm_client(void)
 QDF_STATUS wma_register_roaming_callbacks(
 	QDF_STATUS (*csr_roam_auth_event_handle_cb)(struct mac_context *mac,
 						    uint8_t vdev_id,
-						    struct qdf_mac_addr bssid),
+						    struct qdf_mac_addr bssid,
+						    uint32_t akm),
 	pe_roam_synch_fn_t pe_roam_synch_cb,
 	QDF_STATUS (*pe_disconnect_cb) (struct mac_context *mac,
 					uint8_t vdev_id,
@@ -4168,5 +4169,21 @@ QDF_STATUS wma_mgmt_frame_fill_peer_cb(struct wlan_objmgr_peer *peer,
 	wlan_objmgr_pdev_release_ref(pdev, WLAN_LEGACY_WMA_ID);
 
 	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+wma_update_edca_pifs_param(WMA_HANDLE handle,
+			   struct edca_pifs_vparam *edca_pifs_param)
+{
+	tp_wma_handle wma_handle = (tp_wma_handle) handle;
+	QDF_STATUS status;
+
+	status = wmi_unified_update_edca_pifs_param(wma_handle->wmi_handle,
+						    edca_pifs_param);
+
+	if (QDF_IS_STATUS_ERROR(status))
+		wma_err("Failed to set EDCA/PIFS Parameters");
+
+	return status;
 }
 #endif

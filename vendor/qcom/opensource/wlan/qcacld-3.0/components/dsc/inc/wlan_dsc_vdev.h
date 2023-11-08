@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -65,7 +66,7 @@ void dsc_vdev_destroy(struct dsc_vdev **out_vdev);
  * Call dsc_vdev_trans_stop() to complete the transition.
  *
  * Return:
- *	QDF_STATUS_SUCCESS - transition started succcessfully
+ *	QDF_STATUS_SUCCESS - transition started successfully
  *	QDF_STATUS_E_INVAL - invalid request (causes debug panic)
  *	QDF_STATUS_E_AGAIN - transition cannot currently be started
  *	QDF_STATUS_E_ALREADY - transition with @desc already in flight
@@ -81,7 +82,7 @@ QDF_STATUS dsc_vdev_trans_start(struct dsc_vdev *vdev, const char *desc);
  * Call dsc_vdev_trans_stop() to complete the transition.
  *
  * Return:
- *	QDF_STATUS_SUCCESS - transition started succcessfully
+ *	QDF_STATUS_SUCCESS - transition started successfully
  *	QDF_STATUS_E_INVAL - invalid request (causes debug panic)
  *	QDF_STATUS_E_AGAIN - transition cannot currently be started
  *	QDF_STATUS_E_ALREADY - transition with @desc already queued or in flight
@@ -114,7 +115,7 @@ void dsc_vdev_assert_trans_protected(struct dsc_vdev *vdev);
  * @vdev: the vdev to start an operation on
  *
  * Return:
- *	QDF_STATUS_SUCCESS - operation started succcessfully
+ *	QDF_STATUS_SUCCESS - operation started successfully
  *	QDF_STATUS_E_INVAL - invalid request (causes debug panic)
  *	QDF_STATUS_E_AGAIN - operation cannot currently be started
  *	QDF_STATUS_E_NOMEM - out of memory

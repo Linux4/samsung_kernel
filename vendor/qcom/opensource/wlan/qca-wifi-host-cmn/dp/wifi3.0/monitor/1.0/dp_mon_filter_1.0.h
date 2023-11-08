@@ -109,6 +109,13 @@ static inline void dp_mon_filter_reset_smart_monitor_1_0(struct dp_pdev *pdev)
 }
 #endif
 
+/**
+ * dp_mon_set_reset_mon_mac_filter_1_0() - Set/Reset the monitor mode filter
+ * @pdev: DP pdev handle
+ * @val: Indicate set/reset filter
+ */
+void dp_mon_set_reset_mon_mac_filter_1_0(struct dp_pdev *pdev, bool val);
+
 #ifdef WLAN_RX_PKT_CAPTURE_ENH
 /**
  * dp_mon_filter_setup_rx_enh_capture() - Setup the Rx capture mode filters
@@ -208,5 +215,21 @@ static inline void dp_mon_filter_reset_rx_pktlog_cbf_1_0(struct dp_pdev *pdev)
 #endif
 
 QDF_STATUS dp_mon_filter_update_1_0(struct dp_pdev *pdev);
+
+#ifdef QCA_MAC_FILTER_FW_SUPPORT
+/**
+ * dp_mon_mac_filter_set() - Setup rx monitor mac filter feature
+ * @msg_word: msg word
+ * @htt_tlv_filter: rx ring filter configuration
+ */
+void dp_mon_mac_filter_set(uint32_t *msg_word,
+			   struct htt_rx_ring_tlv_filter *tlv_filter);
+#else
+static inline
+void dp_mon_mac_filter_set(uint32_t *msg_word,
+			   struct htt_rx_ring_tlv_filter *tlv_filter)
+{
+}
+#endif
 
 #endif /* _DP_MON_FILTER_1_0_H_ */

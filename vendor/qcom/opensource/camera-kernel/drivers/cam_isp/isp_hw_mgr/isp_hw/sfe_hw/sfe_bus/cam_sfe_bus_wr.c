@@ -2206,9 +2206,6 @@ static int cam_sfe_bus_wr_user_dump(
 		}
 
 		rsrc_node = &bus_priv->sfe_out[sfe_out_type];
-		if (!rsrc_node)
-			continue;
-
 		if (rsrc_node->res_state < CAM_ISP_RESOURCE_STATE_RESERVED) {
 			CAM_DBG(CAM_ISP,
 				"SFE BUS WR: path inactive res ID: %d, continuing",

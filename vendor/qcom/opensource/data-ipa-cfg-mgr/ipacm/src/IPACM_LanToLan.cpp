@@ -1775,7 +1775,7 @@ void IPACM_LanToLan_Iface::print_data_structure_info()
 			IPACMDBG_H("Ref_cnt of peer l2 type %s is %d.\n", ipa_l2_hdr_type[i], ref_cnt_peer_l2_hdr_type[i]);
 			if(ref_cnt_peer_l2_hdr_type[i] > 0)
 			{
-				IPACMDBG_H("Hdr proc ctx for peer l2 type %s: %d\n", ipa_l2_hdr_type[i], hdr_proc_ctx_for_inter_interface[i]);
+				IPACMDBG_H("Hdr proc ctx for peer l2 type %d: %d\n", i, hdr_proc_ctx_for_inter_interface[i]);
 			}
 		}
 	}
@@ -1805,8 +1805,8 @@ void IPACM_LanToLan_Iface::print_data_structure_info()
 			{
 				if(ref_cnt_peer_l2_hdr_type[j] > 0)
 				{
-					IPACMDBG_H("Printing routing rule info for inter-interface communication for peer l2 type %s.\n",
-						ipa_l2_hdr_type[j]);
+					IPACMDBG_H("Printing routing rule info for inter-interface communication for peer l2 type %d.\n",
+						j);
 					IPACMDBG_H("Number of IPv4 routing rules is %d, handles:\n", it_client->inter_iface_rt_rule_hdl[j].num_hdl[IPA_IP_v4]);
 					for(k = 0; k < it_client->inter_iface_rt_rule_hdl[j].num_hdl[IPA_IP_v4]; k++)
 					{

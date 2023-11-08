@@ -71,16 +71,16 @@ struct hw_fence_sync_create_data {
 
 /**
  * struct hw_fence_array_sync_create_data - data used in creating multiple fences.
- * @seqno: array of sequence numbers used to create fences.
- * @num_fences: number of fences to be created.
- * @fence: return the fd of the new sync_file with the created fence.
- * @hash: array of fence hash
+ * @seqno: sequence number used to create fence array.
+ * @num_fences: number of fence fds received.
+ * @fences: array of fence fds.
+ * @fence_array_fd: fd of fence array.
  */
 struct hw_fence_array_sync_create_data {
-	u64 seqno[HW_FENCE_ARRAY_SIZE];
+	u64 seqno;
 	int num_fences;
-	__s32 fence;
-	u64 hash[HW_FENCE_ARRAY_SIZE];
+	u64 fences[HW_FENCE_ARRAY_SIZE];
+	__s32 fence_array_fd;
 };
 
 /**
@@ -132,9 +132,9 @@ static bool _is_valid_client(struct hw_sync_obj *obj)
 	if (!obj)
 		return false;
 
-	if (obj->client_id < HW_FENCE_CLIENT_ID_VAL0 || obj->client_id >= HW_FENCE_CLIENT_MAX) {
+	if (obj->client_id < HW_FENCE_CLIENT_ID_VAL0 || obj->client_id > HW_FENCE_CLIENT_ID_VAL6) {
 		HWFNC_ERR("invalid client_id:%d min:%d max:%d\n", obj->client_id,
-				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_MAX);
+				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_ID_VAL6);
 		return false;
 	}
 
@@ -151,9 +151,9 @@ static int _get_client_id(struct hw_sync_obj *obj, unsigned long arg)
 	if (!obj)
 		return -EINVAL;
 
-	if (client_id < HW_FENCE_CLIENT_ID_VAL0 || client_id >= HW_FENCE_CLIENT_MAX) {
+	if (client_id < HW_FENCE_CLIENT_ID_VAL0 || client_id > HW_FENCE_CLIENT_ID_VAL6) {
 		HWFNC_ERR("invalid client_id:%d min:%d max:%d\n", client_id,
-				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_MAX);
+				HW_FENCE_CLIENT_ID_VAL0, HW_FENCE_CLIENT_ID_VAL6);
 		return -EINVAL;
 	}
 
@@ -343,16 +343,22 @@ static long hw_sync_ioctl_destroy_fence(struct hw_sync_obj *obj, unsigned long a
 	return 0;
 }
 
+static void _put_child_fences(int i, struct dma_fence **fences)
+{
+	int fence_idx;
+
+	for (fence_idx = i; fence_idx >= 0 ; fence_idx--)
+		dma_fence_put(fences[i]);
+}
+
 static long hw_sync_ioctl_create_fence_array(struct hw_sync_obj *obj, unsigned long arg)
 {
 	struct dma_fence_array *fence_array;
 	struct hw_fence_array_sync_create_data data;
 	struct dma_fence **fences = NULL;
-	struct msm_hw_fence_create_params params;
 	struct sync_file *sync_file;
-	spinlock_t **fence_lock = NULL;
 	int num_fences, i, fd, ret;
-	u64 hash;
+	struct hw_dma_fence *fence;
 
 	if (!_is_valid_client(obj)) {
 		return -EINVAL;
@@ -370,80 +376,43 @@ static long hw_sync_ioctl_create_fence_array(struct hw_sync_obj *obj, unsigned l
 					num_fences, HW_FENCE_ARRAY_SIZE);
 		return -EINVAL;
 	}
-	fence_lock = kcalloc(num_fences, sizeof(*fence_lock), GFP_KERNEL);
-	if (!fence_lock)
-		return -ENOMEM;
 
 	fences = kcalloc(num_fences, sizeof(*fences), GFP_KERNEL);
 	if (!fences) {
-		kfree(fence_lock);
 		return -ENOMEM;
 	}
 
-	/*
-	 * Create the array of dma fences
-	 * This API takes seqno[num_fences] as the seqno for the fence-array
-	 * and from 0 to (num_fences - 1) for the fences in the array.
-	 */
 	for (i = 0; i < num_fences; i++) {
-		struct hw_dma_fence *dma_fence;
-
-		fence_lock[i] = kzalloc(sizeof(spinlock_t), GFP_KERNEL);
-		if (!fence_lock[i]) {
-			_cleanup_fences(i, fences, fence_lock);
-			return -ENOMEM;
+		fd = data.fences[i];
+		if (fd <= 0) {
+			kfree(fences);
+			return -EINVAL;
 		}
-
-		dma_fence = kzalloc(sizeof(*dma_fence), GFP_KERNEL);
-		if (!dma_fence) {
-			_cleanup_fences(i, fences, fence_lock);
-			return -ENOMEM;
+		fence = (struct hw_dma_fence *)_hw_sync_get_fence(fd);
+		if (!fence) {
+			_put_child_fences(i-1, fences);
+			kfree(fences);
+			return -EINVAL;
 		}
-		fences[i] = &dma_fence->base;
-
-		spin_lock_init(fence_lock[i]);
-		dma_fence_init(fences[i], &hw_fence_dbg_ops, fence_lock[i],
-			obj->context, data.seqno[i]);
+		fences[i] = &fence->base;
 	}
 
 	/* create the fence array from array of dma fences */
-	fence_array = dma_fence_array_create(num_fences, fences, obj->context, data.seqno[i], 0);
+	fence_array = dma_fence_array_create(num_fences, fences, obj->context, data.seqno, 0);
 	if (!fence_array) {
 		HWFNC_ERR("Error creating fence_array\n");
-		_cleanup_fences(num_fences - 1, fences, fence_lock);
+		/* decrease the refcount incremented for each child fences */
+		for (i = 0; i < num_fences; i++)
+			dma_fence_put(fences[i]);
+		kfree(fences);
 		return -EINVAL;
-	}
-
-	/* create hw fences */
-	for (i = 0; i < num_fences; i++) {
-		params.fence = fences[i];
-		params.handle = &hash;
-
-		ret = msm_hw_fence_create(obj->client_handle, &params);
-		if (ret) {
-			HWFNC_ERR("Error creating HW fence\n");
-			dma_fence_put(&fence_array->base);
-			/*
-			 * free array of pointers, no need to call kfree in 'fences',
-			 * since that is released from the fence-array release api
-			 */
-			kfree(fence_lock);
-			kfree(fence_array);
-			return -EINVAL;
-		}
-
-		/* keep handle in dma_fence, to destroy hw-fence during release */
-		to_hw_dma_fence(fences[i])->client_handle = obj->client_handle;
-		data.hash[i] = hash;
 	}
 
 	/* create fd */
 	fd = get_unused_fd_flags(0);
-	if (fd < 0) {
+	if (fd <= 0) {
 		HWFNC_ERR("failed to get fd for client:%d\n", obj->client_id);
 		dma_fence_put(&fence_array->base);
-		kfree(fence_lock);
-		kfree(fence_array);
 		return fd;
 	}
 
@@ -451,7 +420,6 @@ static long hw_sync_ioctl_create_fence_array(struct hw_sync_obj *obj, unsigned l
 	if (sync_file == NULL) {
 		HWFNC_ERR("couldn't create fence fd, %d\n", fd);
 		dma_fence_put(&fence_array->base);
-		kfree(fence_lock);
 		kfree(fence_array);
 		ret = -EINVAL;
 		goto exit;
@@ -460,12 +428,10 @@ static long hw_sync_ioctl_create_fence_array(struct hw_sync_obj *obj, unsigned l
 	/* Decrement the refcount that sync_file_create increments */
 	dma_fence_put(&fence_array->base);
 
-	data.fence = fd;
+	data.fence_array_fd = fd;
 	if (copy_to_user((void __user *)arg, &data, sizeof(data))) {
 		fput(sync_file->file);
 		dma_fence_put(&fence_array->base);
-		kfree(fence_lock);
-		kfree(fence_array);
 		ret = -EFAULT;
 		goto exit;
 	}
@@ -492,7 +458,7 @@ static long hw_sync_ioctl_destroy_fence_array(struct hw_sync_obj *obj, unsigned 
 	if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
 		return -EFAULT;
 
-	fd = data.fence;
+	fd = data.fence_array_fd;
 	fence = (struct dma_fence *)_hw_sync_get_fence(fd);
 	if (!fence) {
 		HWFNC_ERR("Invalid fence fd: %d\n", fd);
@@ -536,7 +502,7 @@ static long hw_sync_ioctl_reg_for_wait(struct hw_sync_obj *obj, unsigned long ar
 		return -EINVAL;
 	}
 
-	ret = msm_hw_fence_wait_update(obj->client_handle, &fence, num_fences, 1);
+	ret = msm_hw_fence_wait_update_v2(obj->client_handle, &fence, NULL, NULL, num_fences, 1);
 
 	/* Decrement the refcount that hw_sync_get_fence increments */
 	dma_fence_put(fence);
@@ -546,6 +512,7 @@ static long hw_sync_ioctl_reg_for_wait(struct hw_sync_obj *obj, unsigned long ar
 
 static long hw_sync_ioctl_fence_signal(struct hw_sync_obj *obj, unsigned long arg)
 {
+	struct msm_hw_fence_client *hw_fence_client;
 	struct hw_fence_sync_signal_data data;
 	int ret, tx_client, rx_client, signal_id;
 
@@ -553,6 +520,12 @@ static long hw_sync_ioctl_fence_signal(struct hw_sync_obj *obj, unsigned long ar
 		return -EINVAL;
 	} else if (IS_ERR_OR_NULL(obj->client_handle)) {
 		HWFNC_ERR("invalid client handle for the client_id: %d\n", obj->client_id);
+		return -EINVAL;
+	}
+
+	hw_fence_client = (struct msm_hw_fence_client *)obj->client_handle;
+	if (!hw_fence_client) {
+		HWFNC_ERR("invalid client handle\n");
 		return -EINVAL;
 	}
 
@@ -569,8 +542,8 @@ static long hw_sync_ioctl_fence_signal(struct hw_sync_obj *obj, unsigned long ar
 	if (signal_id < 0)
 		return -EINVAL;
 
-	tx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
-	rx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
+	tx_client = hw_fence_client->ipc_client_vid;
+	rx_client = hw_fence_client->ipc_client_pid;
 	ret = msm_hw_fence_trigger_signal(obj->client_handle, tx_client, rx_client, signal_id);
 	if (ret) {
 		HWFNC_ERR("hw fence trigger signal has failed\n");

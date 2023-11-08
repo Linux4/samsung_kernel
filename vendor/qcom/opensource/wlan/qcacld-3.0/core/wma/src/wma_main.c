@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -120,6 +120,7 @@
 #include "wlan_fwol_ucfg_api.h"
 #include "wlan_tdls_api.h"
 #include "wlan_twt_cfg_ext_api.h"
+#include "wlan_mlo_mgr_sta.h"
 
 #define WMA_LOG_COMPLETION_TIMER 500 /* 500 msecs */
 #define WMI_TLV_HEADROOM 128
@@ -325,6 +326,24 @@ wma_get_concurrency_support(struct wlan_objmgr_psoc *psoc)
 }
 
 /**
+ * wma_update_set_feature_version() - Update the set feature version
+ *
+ * @fs: Feature set structure in which version needs to be updated.
+ *
+ * Version 1 - Base feature version
+ * Version 2 - WMI_HOST_VENDOR1_REQ1_VERSION_3_30 updated.
+ * Version 3 - min sleep period for TWT and Scheduled PM in FW updated
+ * Version 4 -  WMI_HOST_VENDOR1_REQ1_VERSION_3_40 updated.
+ * Version 5 - INI based 11BE support updated
+ *
+ * Return: None
+ */
+static void wma_update_set_feature_version(struct target_feature_set *fs)
+{
+	fs->feature_set_version = 5;
+}
+
+/**
  * wma_set_feature_set_info() - Set feature set info
  * @wma_handle: WMA handle
  * @feature_set: Feature set structure which needs to be filled
@@ -340,7 +359,7 @@ static void wma_set_feature_set_info(tp_wma_handle wma_handle,
 	struct wlan_scan_features scan_feature_set;
 	struct wlan_twt_features twt_feature_set;
 	struct wlan_mlme_features mlme_feature_set;
-	struct wlan_tdls_features tdls_feature_set;
+	struct wlan_tdls_features tdls_feature_set = {0};
 
 	psoc = wma_handle->psoc;
 	if (!psoc) {
@@ -480,6 +499,7 @@ static void wma_set_feature_set_info(tp_wma_handle wma_handle,
 	feature_set->peer_bigdata_assocreject_info_support = true;
 	feature_set->peer_getstainfo_support = true;
 	feature_set->feature_set_version = 2;
+	wma_update_set_feature_version(feature_set);
 }
 
 /**
@@ -507,7 +527,7 @@ static void wma_send_feature_set_cmd(tp_wma_handle wma_handle)
  * wma_is_feature_set_supported() - Check if feaure set is supported or not
  * @wma_handle: WMA handle
  *
- * Return: True, if feature set is supporte lese return false
+ * Return: True, if feature set is supported else return false
  */
 static bool wma_is_feature_set_supported(tp_wma_handle wma_handle)
 {
@@ -1178,6 +1198,50 @@ static inline wmi_traffic_ac wma_convert_ac_value(uint32_t ac_value)
 	return WMI_AC_MAX;
 }
 
+#ifdef WLAN_FEATURE_11BE
+/**
+ * wma_set_per_link_amsdu_cap() - Set AMSDU/AMPDU capability per link to FW.
+ * @wma: wma handle
+ * @privcmd: pointer to set command parameters
+ * @aggr_type: aggregration type
+ *
+ * Return: QDF_STATUS_SUCCESS if set command is sent successfully, else
+ * QDF_STATUS_E_FAILURE
+ */
+static QDF_STATUS
+wma_set_per_link_amsdu_cap(tp_wma_handle wma, wma_cli_set_cmd_t *privcmd,
+			   wmi_vdev_custom_aggr_type_t aggr_type)
+{
+	uint8_t vdev_id;
+	uint8_t op_mode;
+	QDF_STATUS ret = QDF_STATUS_E_FAILURE;
+
+	for (vdev_id = 0; vdev_id < WLAN_MAX_VDEVS; vdev_id++) {
+		op_mode = wlan_get_opmode_from_vdev_id(wma->pdev, vdev_id);
+		if (op_mode == QDF_STA_MODE) {
+			ret = wma_set_tx_rx_aggr_size(vdev_id,
+						      privcmd->param_value,
+						      privcmd->param_value,
+						      aggr_type);
+			if (QDF_IS_STATUS_ERROR(ret)) {
+				wma_err("set_aggr_size failed for vdev: %d, ret %d",
+					vdev_id, ret);
+				return ret;
+			}
+		}
+	}
+
+	return ret;
+}
+#else
+static inline QDF_STATUS
+wma_set_per_link_amsdu_cap(tp_wma_handle wma, wma_cli_set_cmd_t *privcmd,
+			   wmi_vdev_custom_aggr_type_t aggr_type)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
 /**
  * wma_process_cli_set_cmd() - set parameters to fw
  * @wma: wma handle
@@ -1196,6 +1260,7 @@ static void wma_process_cli_set_cmd(tp_wma_handle wma,
 	struct pdev_params pdev_param = {0};
 	void *soc = cds_get_context(QDF_MODULE_ID_SOC);
 	struct target_psoc_info *tgt_hdl;
+	enum wlan_eht_mode eht_mode;
 
 	if (!mac) {
 		wma_err("Failed to get mac");
@@ -1301,13 +1366,24 @@ static void wma_process_cli_set_cmd(tp_wma_handle wma,
 					WMI_VDEV_CUSTOM_AGGR_TYPE_AMPDU;
 			}
 
-			ret = wma_set_tx_rx_aggr_size(vid,
-						      privcmd->param_value,
-						      privcmd->param_value,
-						      aggr_type);
-			if (QDF_IS_STATUS_ERROR(ret)) {
-				wma_err("set_aggr_size failed ret %d", ret);
-				return;
+			wlan_mlme_get_eht_mode(wma->psoc, &eht_mode);
+			if (eht_mode == WLAN_EHT_MODE_MLSR ||
+			    eht_mode == WLAN_EHT_MODE_MLMR) {
+				ret = wma_set_per_link_amsdu_cap(wma, privcmd,
+								 aggr_type);
+				if (QDF_IS_STATUS_ERROR(ret))
+					return;
+			} else {
+				ret = wma_set_tx_rx_aggr_size(
+							vid,
+							privcmd->param_value,
+							privcmd->param_value,
+							aggr_type);
+				if (QDF_IS_STATUS_ERROR(ret)) {
+					wma_err("set_aggr_size failed ret %d",
+						ret);
+					return;
+				}
 			}
 			break;
 		case GEN_PARAM_CRASH_INJECT:
@@ -2072,7 +2148,7 @@ wma_cleanup_vdev_resp_and_hold_req(struct scheduler_msg *msg)
  * @msg :scheduler msg
  *
  * As passed msg->bodyptr is wma in this case this is dummy flush cb so that
- * driver doesnt try to free msg->bodyptr when this msg is flushed.
+ * driver doesn't try to free msg->bodyptr when this msg is flushed.
  *
  * Return: QDF_STATUS
  */
@@ -2083,7 +2159,7 @@ wma_cleanup_vdev_resp_and_hold_req_flush_cb(struct scheduler_msg *msg)
 }
 
 /**
- * wma_shutdown_notifier_cb - Shutdown notifer call back
+ * wma_shutdown_notifier_cb - Shutdown notifier call back
  * @priv : WMA handle
  *
  * During recovery, WMA may wait for resume to complete if the crash happens
@@ -4174,8 +4250,8 @@ void wma_process_pdev_hw_mode_trans_ind(void *handle,
 		fixed_param->num_vdev_mac_entries);
 
 	if (!vdev_mac_entry) {
-		wma_err("Invalid vdev_mac_entry");
-		return;
+		wma_debug("null vdev_mac_entry");
+		goto update_hw_mode;
 	}
 
 	/* Store the vdev-mac map in WMA and send to policy manager */
@@ -4204,6 +4280,7 @@ void wma_process_pdev_hw_mode_trans_ind(void *handle,
 		wma_update_intf_hw_mode_params(vdev_id, mac_id,
 				fixed_param->new_hw_mode_index);
 	}
+update_hw_mode:
 	wma->old_hw_mode_index = fixed_param->old_hw_mode_index;
 	wma->new_hw_mode_index = fixed_param->new_hw_mode_index;
 	policy_mgr_update_new_hw_mode_index(wma->psoc,
@@ -5729,7 +5806,7 @@ static void wma_update_obss_color_collision_support(tp_wma_handle wh,
 }
 
 /**
- * wma_update_restricted_80p80_bw_support() - update restricted 80+80 supprot
+ * wma_update_restricted_80p80_bw_support() - update restricted 80+80 support
  * @wh: wma handle
  * @tgt_cfg: target configuration to be updated
  *
@@ -5755,9 +5832,11 @@ static void wma_green_ap_register_handlers(tp_wma_handle wma_handle)
 		target_if_green_ap_register_egap_event_handler(
 					wma_handle->pdev);
 
+	target_if_green_ap_register_ll_ps_event_handler(wma_handle->pdev);
+
 }
 #else
-static void wma_green_ap_register_handlers(tp_wma_handle wma_handle)
+static inline void wma_green_ap_register_handlers(tp_wma_handle wma_handle)
 {
 }
 #endif
@@ -6177,6 +6256,11 @@ static void wma_set_mlme_caps(struct wlan_objmgr_psoc *psoc)
 	if (tgt_cap)
 		akm_bitmap |= (1 << AKM_SUITEB);
 
+	tgt_cap = wmi_service_enabled(wma->wmi_handle,
+				      wmi_service_wpa3_sha384_roam_support);
+	if (tgt_cap)
+		akm_bitmap |= (1 << AKM_SAE_EXT);
+
 	status = mlme_set_tgt_wpa3_roam_cap(psoc, akm_bitmap);
 	if (QDF_IS_STATUS_ERROR(status))
 		wma_err("Failed to set sae roam support");
@@ -6291,7 +6375,7 @@ static QDF_STATUS wma_register_gtk_offload_event(tp_wma_handle wma_handle)
 
 /**
  * wma_rx_service_ready_event() - event handler to process
- *                                wmi rx sevice ready event.
+ *                                wmi rx service ready event.
  * @handle: wma handle
  * @cmd_param_info: command params info
  *
@@ -6472,7 +6556,7 @@ int wma_rx_service_ready_event(void *handle, uint8_t *cmd_param_info,
 		}
 
 	} else {
-		wma_err("FW doesnot support WMI_SERVICE_MGMT_TX_WMI, Use HTT interface for Management Tx");
+		wma_err("FW does not support WMI_SERVICE_MGMT_TX_WMI, Use HTT interface for Management Tx");
 	}
 
 	status = wma_register_gtk_offload_event(wma_handle);
@@ -7093,7 +7177,7 @@ int wma_rx_service_ready_ext2_event(void *handle, uint8_t *ev, uint32_t len)
 }
 
 /**
- * wma_rx_service_ready_ext_event() - evt handler for sevice ready ext event.
+ * wma_rx_service_ready_ext_event() - evt handler for service ready ext event.
  * @handle: wma handle
  * @event: params of the service ready extended event
  * @length: param length
@@ -7590,7 +7674,7 @@ static void wma_enable_specific_fw_logs(tp_wma_handle wma_handle,
 /**
  * wma_set_wifi_start_packet_stats() - Start/stop packet stats
  * @wma_handle: WMA handle
- * @start_log: Struture containing the start wifi logger params
+ * @start_log: Structure containing the start wifi logger params
  *
  * This function is used to send the WMA commands to start/stop logging
  * of per packet statistics
@@ -8341,7 +8425,7 @@ static QDF_STATUS wma_roam_scan_send_hlp(tp_wma_handle wma_handle,
 #endif
 
 /**
- * wma_process_set_limit_off_chan() - set limit off chanel parameters
+ * wma_process_set_limit_off_chan() - set limit off channel parameters
  * @wma_handle: pointer to wma handle
  * @param: pointer to sir_limit_off_chan
  *
@@ -8775,8 +8859,8 @@ static QDF_STATUS wma_mc_process_msg(struct scheduler_msg *msg)
 		goto end;
 	}
 
-	wma_debug("msg->type = %x %s", msg->type,
-		 mac_trace_get_wma_msg_string(msg->type));
+	wma_nofl_debug("Handle msg %s(0x%x)",
+		       mac_trace_get_wma_msg_string(msg->type), msg->type);
 
 	wma_handle = cds_get_context(QDF_MODULE_ID_WMA);
 	if (!wma_handle) {
@@ -9404,6 +9488,12 @@ static QDF_STATUS wma_mc_process_msg(struct scheduler_msg *msg)
 		wma_twt_process_nudge_dialog(wma_handle, msg->bodyptr);
 		qdf_mem_free(msg->bodyptr);
 		break;
+	case WMA_UPDATE_EDCA_PIFS_PARAM_IND:
+		wma_update_edca_pifs_param(
+				wma_handle,
+				(struct edca_pifs_vparam *)msg->bodyptr);
+		qdf_mem_free(msg->bodyptr);
+		break;
 	default:
 		wma_debug("Unhandled WMA message of type %d", msg->type);
 		if (msg->bodyptr)
@@ -9722,7 +9812,7 @@ QDF_STATUS wma_send_pdev_set_dual_mac_config(tp_wma_handle wma_handle,
 	}
 
 	/*
-	 * aquire the wake lock here and release it in response handler function
+	 * acquire the wake lock here and release it in response handler function
 	 * In error condition, release the wake lock right away
 	 */
 	wma_acquire_wakelock(&wma_handle->wmi_cmd_rsp_wake_lock,

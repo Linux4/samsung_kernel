@@ -178,7 +178,10 @@ public class PanService extends ProfileService {
     protected boolean stop() {
         Log.i(TAG, " stop");
         mAdapterService = null;
-        mTetheringManager.unregisterTetheringEventCallback(mTetheringCallback);
+        if (mTetheringManager != null) {
+            mTetheringManager.unregisterTetheringEventCallback(mTetheringCallback);
+            mTetheringManager = null;
+        }
         mHandler.removeCallbacksAndMessages(null);
         mHandler.sendMessage(mHandler.obtainMessage(STOP_LISTENER));
         return true;
@@ -279,8 +282,8 @@ public class PanService extends ProfileService {
 
         @RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
         private PanService getService(AttributionSource source) {
-            if (!Utils.checkCallerIsSystemOrActiveUser(TAG)
-                    || !Utils.checkServiceAvailable(mService, TAG)
+            if (!Utils.checkServiceAvailable(mService, TAG)
+                    || !Utils.checkCallerIsSystemOrActiveOrManagedUser(mService, TAG)
                     || !Utils.checkConnectPermissionForDataDelivery(mService, source, TAG)) {
                 return null;
             }

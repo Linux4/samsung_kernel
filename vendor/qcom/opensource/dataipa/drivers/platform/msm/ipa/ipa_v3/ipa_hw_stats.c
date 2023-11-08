@@ -1876,6 +1876,19 @@ int ipa_drop_stats_init(void)
 				&reg_idx);
 			pipe_bitmask[reg_idx] |= mask;
 		}
+
+		/* Add drop stats for WAN & WAN_COAL if IPA_HW >=5.5 */
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_5) {
+			mask = ipa_hw_stats_get_ep_bit_n_idx(
+				IPA_CLIENT_APPS_WAN_CONS,
+				&reg_idx);
+			pipe_bitmask[reg_idx] |= mask;
+
+			mask = ipa_hw_stats_get_ep_bit_n_idx(
+				IPA_CLIENT_APPS_WAN_COAL_CONS,
+				&reg_idx);
+			pipe_bitmask[reg_idx] |= mask;
+		}
 	}
 
 	/* Currently we have option to enable drop stats using debugfs.

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -557,6 +557,54 @@ void rrm_get_country_code_from_connected_profile(struct mac_context *mac,
 	}
 }
 
+#ifdef CONNECTIVITY_DIAG_EVENT
+/**
+ * wlan_diag_log_beacon_rpt_req_event() - Send Beacon Report Request logging
+ * event.
+ * @token: Dialog token
+ * @mode: Measurement mode
+ * @op_class: operating class
+ * @chan: channel number
+ * @req_mode: Request mode
+ * @duration: The duration over which the Beacon report was measured
+ * @vdev_id: vdev Id
+ */
+static void
+wlan_diag_log_beacon_rpt_req_event(uint8_t token, uint8_t mode,
+				   uint8_t op_class, uint8_t chan,
+				   uint8_t req_mode, uint32_t duration,
+				   uint8_t vdev_id)
+{
+	WLAN_HOST_DIAG_EVENT_DEF(wlan_diag_event, struct wlan_diag_bcn_rpt);
+
+	qdf_mem_zero(&wlan_diag_event, sizeof(wlan_diag_event));
+
+	wlan_diag_event.diag_cmn.vdev_id = vdev_id;
+	wlan_diag_event.diag_cmn.timestamp_us = qdf_get_time_of_the_day_us();
+	wlan_diag_event.diag_cmn.ktime_us =  qdf_ktime_to_us(qdf_ktime_get());
+
+	wlan_diag_event.subtype = WLAN_CONN_DIAG_BCN_RPT_REQ_EVENT;
+	wlan_diag_event.version = DIAG_BCN_RPT_VERSION;
+
+	wlan_diag_event.meas_token = token;
+	wlan_diag_event.mode = mode;
+	wlan_diag_event.op_class = op_class;
+	wlan_diag_event.chan = chan;
+	wlan_diag_event.duration = duration;
+	wlan_diag_event.req_mode = req_mode;
+
+	WLAN_HOST_DIAG_EVENT_REPORT(&wlan_diag_event, EVENT_WLAN_BCN_RPT);
+}
+#else
+static void
+wlan_diag_log_beacon_rpt_req_event(uint8_t token, uint8_t mode,
+				   uint8_t op_class, uint8_t chan,
+				   uint8_t req_mode, uint32_t duration,
+				   uint8_t vdev_id)
+{
+}
+#endif
+
 #define ABS(x)      ((x < 0) ? -x : x)
 /* -------------------------------------------------------------------- */
 /**
@@ -593,6 +641,7 @@ rrm_process_beacon_report_req(struct mac_context *mac,
 	char ch_buf[RRM_CH_BUF_LEN];
 	char *tmp_buf = NULL;
 	uint8_t country[WNI_CFG_COUNTRY_CODE_LEN];
+	uint8_t req_mode;
 
 	if (!pe_session) {
 		pe_err("pe_session is NULL");
@@ -637,16 +686,28 @@ rrm_process_beacon_report_req(struct mac_context *mac,
 
 	measDuration = pBeaconReq->measurement_request.Beacon.meas_duration;
 
-	pe_nofl_info("RX: [802.11 BCN_RPT] seq:%d SSID:%.*s BSSID:"QDF_MAC_ADDR_FMT" Token:%d op_class:%d ch:%d meas_mode:%d meas_duration:%d max_dur: %d sign: %d max_meas_dur: %d",
+	pe_nofl_info("RX: [802.11 BCN_RPT] seq:%d SSID:" QDF_SSID_FMT " BSSID:" QDF_MAC_ADDR_FMT " Token:%d op_class:%d ch:%d meas_mode:%d meas_duration:%d max_dur: %d sign: %d max_meas_dur: %d",
 		     mac->rrm.rrmPEContext.prev_rrm_report_seq_num,
-		     pBeaconReq->measurement_request.Beacon.SSID.num_ssid,
-		     pBeaconReq->measurement_request.Beacon.SSID.ssid,
-		     QDF_MAC_ADDR_REF(pBeaconReq->measurement_request.Beacon.BSSID),
+		     QDF_SSID_REF(
+			pBeaconReq->measurement_request.Beacon.SSID.num_ssid,
+			pBeaconReq->measurement_request.Beacon.SSID.ssid),
+		     QDF_MAC_ADDR_REF(
+			pBeaconReq->measurement_request.Beacon.BSSID),
 		     pBeaconReq->measurement_token,
 		     pBeaconReq->measurement_request.Beacon.regClass,
 		     pBeaconReq->measurement_request.Beacon.channel,
 		     pBeaconReq->measurement_request.Beacon.meas_mode,
 		     measDuration, maxDuration, sign, maxMeasduration);
+
+	req_mode = (pBeaconReq->parallel << 0) | (pBeaconReq->enable << 1) |
+		   (pBeaconReq->request << 2) | (pBeaconReq->report << 3) |
+		   (pBeaconReq->durationMandatory << 4);
+
+	wlan_diag_log_beacon_rpt_req_event(pBeaconReq->measurement_token,
+					   pBeaconReq->measurement_request.Beacon.meas_mode,
+					   pBeaconReq->measurement_request.Beacon.regClass,
+					   pBeaconReq->measurement_request.Beacon.channel,
+					   req_mode, measDuration, wlan_vdev_get_id(pe_session->vdev));
 
 	if (measDuration == 0 &&
 	    pBeaconReq->measurement_request.Beacon.meas_mode !=

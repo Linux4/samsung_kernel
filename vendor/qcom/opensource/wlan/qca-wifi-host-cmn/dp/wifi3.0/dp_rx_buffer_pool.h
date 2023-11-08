@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -212,10 +213,22 @@ dp_rx_buffer_pool_nbuf_map(struct dp_soc *soc,
 			   struct rx_desc_pool *rx_desc_pool,
 			   struct dp_rx_nbuf_frag_info *nbuf_frag_info_t)
 {
-	return qdf_nbuf_map_nbytes_single(soc->osdev,
-					 (nbuf_frag_info_t->virt_addr).nbuf,
-					 QDF_DMA_FROM_DEVICE,
-					 rx_desc_pool->buf_size);
+	QDF_STATUS status;
+
+	status = qdf_nbuf_map_nbytes_single(soc->osdev,
+					    (nbuf_frag_info_t->virt_addr).nbuf,
+					    QDF_DMA_FROM_DEVICE,
+					    rx_desc_pool->buf_size);
+	if (QDF_IS_STATUS_ERROR(status))
+		return status;
+
+	dp_audio_smmu_map(soc->osdev,
+			  qdf_mem_paddr_from_dmaaddr(soc->osdev,
+						     QDF_NBUF_CB_PADDR((nbuf_frag_info_t->virt_addr).nbuf)),
+			  QDF_NBUF_CB_PADDR((nbuf_frag_info_t->virt_addr).nbuf),
+			  rx_desc_pool->buf_size);
+
+	return status;
 }
 
 static inline void dp_rx_schedule_refill_thread(struct dp_soc *soc) { }

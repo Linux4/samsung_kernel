@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011, 2014-2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,7 +42,7 @@
 
 /*
  * Set the base misclist size to the size of the htt tx copy engine
- * to guarantee that a packet on the misclist wont be freed while it
+ * to guarantee that a packet on the misclist won't be freed while it
  * is sitting in the copy engine.
  */
 #define HTT_HTC_PKT_MISCLIST_SIZE          2048

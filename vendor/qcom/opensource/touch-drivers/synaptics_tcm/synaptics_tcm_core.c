@@ -1238,6 +1238,7 @@ retry:
 		case STATUS_CONTINUED_READ:
 			LOGD(tcm_hcd->pdev->dev.parent,
 					"Out-of-sync continued read\n");
+			fallthrough;
 		case STATUS_IDLE:
 		case STATUS_BUSY:
 			tcm_hcd->payload_length = 0;

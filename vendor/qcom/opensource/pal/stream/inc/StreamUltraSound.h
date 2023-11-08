@@ -47,7 +47,7 @@ public:
    int32_t stop();
 private:
     static void HandleCallBack(uint64_t hdl, uint32_t event_id,
-                               void *data, uint32_t event_size);
+                               void *data, uint32_t event_size, uint32_t miid);
     void HandleEvent(uint32_t event_id, void *data, uint32_t event_size);
 };
 

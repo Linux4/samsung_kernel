@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -39,7 +40,7 @@ QDF_STATUS pmo_init(void);
 /**
  * pmo_deinit() - De initialize pmo_ctx context.
  *
- * This function De initializes power manager offloads (a.k.a pmo) contex.
+ * This function De initializes power manager offloads (a.k.a pmo) context.
  *
  * Return: QDF_STATUS_SUCCESS - in case of success else return error
  */

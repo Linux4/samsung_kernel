@@ -20,6 +20,7 @@
 #include "cam_sensor_adaptive_mipi_uw.h"
 #include "cam_sensor_adaptive_mipi_tele.h"
 #include "cam_sensor_adaptive_mipi_front.h"
+#include "cam_sensor_adaptive_mipi_front_top.h"
 #include "cam_sensor_dev.h"
 
 static int adaptive_mipi_mode;
@@ -184,20 +185,28 @@ int32_t cam_check_sensor_type(uint16_t sensor_id)
 	switch (sensor_id) {
 		case SENSOR_ID_S5KGN3:
 		case SENSOR_ID_S5KHP2:
+		case SENSOR_ID_S5K2LD:
 			sensor_type = WIDE;
 			break;
 
+		case SENSOR_ID_IMX374:
+		case SENSOR_ID_S5K3J1:
 		case SENSOR_ID_S5K3LU:
  			sensor_type = FRONT;
 			break;
 
 		case SENSOR_ID_IMX564:
+		case SENSOR_ID_IMX258:
 			sensor_type = UW;
 			break;
 
 		case SENSOR_ID_S5K3K1:
 		case SENSOR_ID_IMX754:
 			sensor_type = TELE;
+			break;
+
+		case SENSOR_ID_IMX471:
+			sensor_type = FRONT_TOP;
 			break;
 
 		default:
@@ -275,6 +284,21 @@ void cam_mipi_init_setting(struct cam_sensor_ctrl_t *s_ctrl)
 			s_ctrl->mipi_info = sensor_tele_mipi_A_mode;
 		}
 	}
+	else if (sensor_type == FRONT_TOP) {
+		CAM_INFO(CAM_SENSOR, "[AM_DBG] Front_TOP sensor_mode : %d / %d", s_ctrl->sensor_mode, num_front_top_mipi_setting);
+		if (s_ctrl->sensor_mode == 0) {
+			s_ctrl->mipi_info = sensor_front_top_mipi_A_mode;
+		} else if (s_ctrl->sensor_mode == 1 && s_ctrl->sensor_mode <= num_front_top_mipi_setting) {
+			s_ctrl->mipi_info = sensor_front_top_mipi_B_mode;
+		} else if (s_ctrl->sensor_mode == 2 && s_ctrl->sensor_mode <= num_front_top_mipi_setting) {
+			s_ctrl->mipi_info = sensor_front_top_mipi_C_mode;
+		} else if (s_ctrl->sensor_mode == 3 && s_ctrl->sensor_mode <= num_front_top_mipi_setting) {
+			s_ctrl->mipi_info = sensor_front_top_mipi_D_mode;
+		} else {
+			s_ctrl->mipi_info = sensor_front_top_mipi_A_mode;
+		}
+	}
+
 	else {
 		CAM_ERR(CAM_SENSOR, "[AM_DBG] Not support sensor_type : %d", sensor_type);
 		s_ctrl->mipi_info = sensor_wide_mipi_A_mode;

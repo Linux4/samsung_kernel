@@ -551,3 +551,35 @@ QDF_STATUS lim_send_ht40_obss_scanind(struct mac_context *mac_ctx,
 	}
 	return ret;
 }
+
+QDF_STATUS
+lim_send_edca_pifs_param(struct mac_context *mac,
+			 struct wlan_edca_pifs_param_ie *param,
+			 uint8_t vdev_id)
+{
+	struct edca_pifs_vparam *edca_pifs = NULL;
+	QDF_STATUS ret = QDF_STATUS_SUCCESS;
+	struct scheduler_msg msgQ = {0};
+
+	edca_pifs = qdf_mem_malloc(sizeof(*edca_pifs));
+	if (!edca_pifs)
+		return QDF_STATUS_E_NOMEM;
+
+	edca_pifs->vdev_id = vdev_id;
+	qdf_mem_copy(&edca_pifs->param, param,
+		     sizeof(struct wlan_edca_pifs_param_ie));
+
+	msgQ.type = WMA_UPDATE_EDCA_PIFS_PARAM_IND;
+	msgQ.reserved = 0;
+	msgQ.bodyptr = edca_pifs;
+	msgQ.bodyval = 0;
+	pe_debug("Sending WMA_UPDATE_EDCA_PIFS_PARAM_IND");
+	MTRACE(mac_trace_msg_tx(mac, NO_SESSION, msgQ.type));
+	ret = wma_post_ctrl_msg(mac, &msgQ);
+	if (QDF_IS_STATUS_ERROR(ret)) {
+		qdf_mem_free(edca_pifs);
+		pe_err("Posting WMA_UPDATE_EDCA_PIFS_PARAM_IND failed, reason=%X",
+		       ret);
+	}
+	return ret;
+}

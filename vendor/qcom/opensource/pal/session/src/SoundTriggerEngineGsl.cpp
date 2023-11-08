@@ -54,6 +54,7 @@
 #endif
 
 #define TIMEOUT_FOR_EOS 100000
+#define MAX_MMAP_POSITION_QUERY_RETRY_CNT 5
 
 ST_DBG_DECLARE(static int dsp_output_cnt = 0);
 
@@ -105,17 +106,16 @@ void SoundTriggerEngineGsl::EventProcessingThread(
             if (gsl_engine->capture_requested_) {
                 status = gsl_engine->StartBuffering(det_str);
                 if (status < 0) {
-                    lck.unlock();
-                    gsl_engine->RestartRecognition(det_str);
-                    lck.lock();
+                    gsl_engine->RestartRecognition_l(det_str);
                 }
             } else {
-                status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
                 lck.unlock();
                 status = det_str->SetEngineDetectionState(GMM_DETECTED);
-                if (status < 0)
-                    gsl_engine->RestartRecognition(det_str);
                 lck.lock();
+                if (status < 0)
+                    gsl_engine->RestartRecognition_l(det_str);
+                else
+                    gsl_engine->UpdateSessionPayload(ENGINE_RESET);
             }
         }
         /*
@@ -150,10 +150,16 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     FILE *dsp_output_fd = nullptr;
     ChronoSteadyClock_t kw_transfer_begin;
     ChronoSteadyClock_t kw_transfer_end;
+    size_t retry_cnt = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
     UpdateState(ENG_BUFFERING);
     s->getBufInfo(&input_buf_size, &input_buf_num, nullptr, nullptr);
+    sleep_ms = (input_buf_size * input_buf_num) *
+        BITS_PER_BYTE * MS_PER_SEC /
+        (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+        sm_cfg_->GetOutChannels());
+
     std::memset(&buf, 0, sizeof(struct pal_buffer));
     buf.size = input_buf_size * input_buf_num;
     buf.buffer = (uint8_t *)calloc(1, buf.size);
@@ -202,14 +208,6 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         // read data from session
         ATRACE_ASYNC_BEGIN("stEngine: lab read", (int32_t)module_type_);
         if (mmap_buffer_size_ != 0) {
-            if (total_read_size >= ftrt_size) {
-                sleep_ms = (input_buf_size * input_buf_num) *
-                    BITS_PER_BYTE * MS_PER_SEC /
-                    (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
-                     sm_cfg_->GetOutChannels());
-                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
-            }
-
             /*
              * GetMmapPosition returns total frames written for this session
              * which will be accumulated during back to back detections, so
@@ -219,17 +217,31 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
              */
             status = session_->GetMmapPosition(s, &mmap_pos);
             if (!status) {
-                bytes_written = FrameToBytes(mmap_pos.position_frames -
-                    mmap_write_position_);
-                if (bytes_written == UINT32_MAX) {
-                    PAL_ERR(LOG_TAG, "invalid frame value");
+                if (mmap_pos.position_frames >= mmap_write_position_) {
+                    bytes_written = FrameToBytes(mmap_pos.position_frames -
+                        mmap_write_position_);
+                    if (bytes_written == UINT32_MAX) {
+                        PAL_ERR(LOG_TAG, "invalid frame value");
+                        status = -EINVAL;
+                        goto exit;
+                    }
+                } else {
+                    PAL_ERR(LOG_TAG, "invalid mmap position value");
+                    PAL_ERR(LOG_TAG, "position frames : %d, mmap write position : %d",
+                         mmap_pos.position_frames, mmap_write_position_);
                     status = -EINVAL;
                     goto exit;
                 }
                 if (bytes_written > total_read_size) {
                     size_to_read = bytes_written - total_read_size;
+                    retry_cnt = 0;
                 } else {
-                    // TODO: add timeout check & handling
+                    retry_cnt++;
+                    if (retry_cnt > MAX_MMAP_POSITION_QUERY_RETRY_CNT) {
+                        status = -EIO;
+                        goto exit;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
                     continue;
                 }
                 if (size_to_read > (2 * mmap_buffer_size_) - read_offset) {
@@ -317,30 +329,33 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         }
 
         // notify client until ftrt data read
-        if (!event_notified && total_read_size >= ftrt_size) {
-            kw_transfer_end = std::chrono::steady_clock::now();
-            ATRACE_ASYNC_END("stEngine: read FTRT data", (int32_t)module_type_);
-            kw_transfer_latency_ = std::chrono::duration_cast<std::chrono::milliseconds>(
-                kw_transfer_end - kw_transfer_begin).count();
-            PAL_INFO(LOG_TAG, "FTRT data read done! total_read_size %zu, ftrt_size %zu, read latency %llums",
-                    total_read_size, ftrt_size, (long long)kw_transfer_latency_);
+        if (total_read_size >= ftrt_size) {
+            if (!event_notified) {
+                kw_transfer_end = std::chrono::steady_clock::now();
+                ATRACE_ASYNC_END("stEngine: read FTRT data", (int32_t)module_type_);
+                kw_transfer_latency_ = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    kw_transfer_end - kw_transfer_begin).count();
+                PAL_INFO(LOG_TAG, "FTRT data read done! total_read_size %zu, ftrt_size %zu, read latency %llums",
+                        total_read_size, ftrt_size, (long long)kw_transfer_latency_);
 
-            StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(vui_intf_->GetDetectedStream());
-            if (s) {
-                mutex_.unlock();
-                status = s->SetEngineDetectionState(GMM_DETECTED);
-                if (status < 0)
-                    RestartRecognition(s);
-                mutex_.lock();
-            }
+                StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(vui_intf_->GetDetectedStream());
+                if (s) {
+                    mutex_.unlock();
+                    status = s->SetEngineDetectionState(GMM_DETECTED);
+                    mutex_.lock();
+                    if (status < 0)
+                        RestartRecognition_l(s);
+                }
 
-            if (status) {
-                PAL_ERR(LOG_TAG,
-                    "Failed to set engine detection state to stream, status %d",
-                    status);
-                break;
+                if (status) {
+                    PAL_ERR(LOG_TAG,
+                        "Failed to set engine detection state to stream, status %d",
+                        status);
+                    break;
+                }
+                event_notified = true;
             }
-            event_notified = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
         }
     }
 
@@ -392,6 +407,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     lpi_miid_ = 0;
     nlpi_miid_ = 0;
     ec_ref_count_ = 0;
+    is_crr_dev_using_ext_ec_ = false;
 
     UpdateState(ENG_IDLE);
 
@@ -472,14 +488,14 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
 SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     PAL_INFO(LOG_TAG, "Enter");
-    if (buffer_thread_handler_.joinable()) {
+    {
         exit_buffering_ = true;
         std::unique_lock<std::mutex> lck(mutex_);
         exit_thread_ = true;
         cv_.notify_one();
-        lck.unlock();
+    }
+    if (buffer_thread_handler_.joinable()) {
         buffer_thread_handler_.join();
-        lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
     }
 
@@ -998,7 +1014,19 @@ int32_t SoundTriggerEngineGsl::UpdateMergeConfLevelsPayload(
     }
 
     if (!sm_merged_) {
-        PAL_DBG(LOG_TAG, "Soundmodel is not merged, return");
+        PAL_DBG(LOG_TAG, "Soundmodel is not merged, use source sm info");
+        *eng_sm_info_ = *src_sm_info;
+        if (!eng_sm_info_->GetConfLevels()) {
+            PAL_ERR(LOG_TAG, "cf_levels_ allocation failed in assignment operator");
+            return -ENOMEM;
+        }
+        for (uint32_t i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+            if (!set) {
+                eng_sm_info_->UpdateConfLevel(i, MAX_CONF_LEVEL_VALUE);
+                PAL_DBG(LOG_TAG, "reset: cf_levels[%d]=%d",
+                    i, eng_sm_info_->GetConfLevels()[i]);
+            }
+        }
         return 0;
     }
 
@@ -1299,6 +1327,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
     struct param_id_detection_engine_register_multi_sound_model_t *pdk_data =
            nullptr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!data) {
@@ -1370,7 +1399,7 @@ exit:
     if (!status)
         eng_streams_.push_back(s);
 
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1386,6 +1415,7 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
     int32_t status = 0;
     uint32_t model_id = 0;
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1411,7 +1441,7 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
 
     UpdateState(ENG_IDLE);
 exit:
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1463,7 +1493,8 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
     struct pal_mmap_position mmap_pos;
 
     PAL_DBG(LOG_TAG, "Enter");
-
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    rm->acquireWakeLock();
     // release custom detection event before start
     if (custom_detection_event) {
         free(custom_detection_event);
@@ -1531,40 +1562,57 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
     exit_buffering_ = false;
     UpdateState(ENG_ACTIVE);
 exit:
+    rm->releaseWakeLock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
     int32_t status = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
 
     exit_buffering_ = true;
+
     std::unique_lock<std::mutex> lck(mutex_);
 
     if (IsEngineActive())
         ProcessStopRecognition(eng_streams_[0]);
 
     status = ProcessStartRecognition(s);
-    if (0 != status)
+    if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
-
-    if (status == -ENETRESET) {
-        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
-        status = 0;
+        if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
+            PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+            status = 0;
+        }
     }
+
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
 
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     int32_t status = 0;
-    struct pal_mmap_position mmap_pos;
 
-    PAL_DBG(LOG_TAG, "Enter");
+    PAL_VERBOSE(LOG_TAG, "Enter");
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
+
+    status = RestartRecognition_l(s);
+
+    PAL_VERBOSE(LOG_TAG, "Exit, status = %d", status);
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::RestartRecognition_l(Stream *s) {
+    int32_t status = 0;
+    struct pal_mmap_position mmap_pos;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+    PAL_DBG(LOG_TAG, "Enter");
     std::unique_lock<std::mutex> lck_eos(eos_mutex_);
 
     /* If engine is not active, do not restart recognition again */
@@ -1613,7 +1661,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     exit_buffering_ = false;
     UpdateState(ENG_ACTIVE);
 
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1624,6 +1672,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
 int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
     int32_t status = 0;
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1657,7 +1706,7 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
         PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
     vui_intf_->GetSoundModelInfo(st)->SetModelData(nullptr, 0);
 
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1670,6 +1719,8 @@ int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    rm->acquireWakeLock();
     if (buffer_) {
         buffer_->reset();
     }
@@ -1690,6 +1741,7 @@ int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
         PAL_ERR(LOG_TAG, "Failed to stop session, status = %d", status);
     }
     UpdateState(ENG_LOADED);
+    rm->releaseWakeLock();
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -1699,6 +1751,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
     bool restore_eng_state = false;
     uint32_t old_conf = 0;
     uint32_t model_id = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
     PAL_DBG(LOG_TAG, "Enter");
 
     exit_buffering_ = true;
@@ -1745,7 +1798,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
         PAL_DBG(LOG_TAG, "Engine is not active hence no need to stop engine");
     }
 exit:
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1981,14 +2034,16 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnStop(Stream *s) {
     buffer_config_.pre_roll_duration_in_ms = pr_duration;
     capture_requested_ = enable_lab;
 
-    /* Update the merged conf levels considering this stream stop */
-    StreamSoundTrigger *stopped_st = dynamic_cast<StreamSoundTrigger *>(s);
-    status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(stopped_st), false);
-    for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
-        wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
-        wakeup_config_.keyword_user_enables[i] =
-            (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
-        PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+    if (!IS_MODULE_TYPE_PDK(module_type_)) {
+        /* Update the merged conf levels considering this stream stop */
+        StreamSoundTrigger *stopped_st = dynamic_cast<StreamSoundTrigger *>(s);
+        status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(stopped_st), false);
+        for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+            wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+            wakeup_config_.keyword_user_enables[i] =
+                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+        }
     }
 
     return status;
@@ -2021,14 +2076,16 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnRestart(Stream *s) {
     buffer_config_.pre_roll_duration_in_ms = pr_duration;
     capture_requested_ = enable_lab;
 
-    /* Update the merged conf levels considering this stream restarted as well */
-    StreamSoundTrigger *restarted_st = dynamic_cast<StreamSoundTrigger *>(s);
-    status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(restarted_st), true);
-    for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
-        wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
-        wakeup_config_.keyword_user_enables[i] =
-            (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
-        PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+    if (!IS_MODULE_TYPE_PDK(module_type_)) {
+        /* Update the merged conf levels considering this stream restarted as well */
+        StreamSoundTrigger *restarted_st = dynamic_cast<StreamSoundTrigger *>(s);
+        status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(restarted_st), true);
+        for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+            wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+            wakeup_config_.keyword_user_enables[i] =
+                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+        }
     }
 
     return status;
@@ -2077,7 +2134,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
 }
 
 void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_id,
-                                                  void *data, uint32_t event_size) {
+                                                  void *data, uint32_t event_size, uint32_t miid __unused) {
     SoundTriggerEngineGsl *engine = nullptr;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
@@ -2248,6 +2305,7 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
                                         bool setECForFirstTime) {
     int32_t status = 0;
     bool force_enable = false;
+    bool is_dev_enabled_ext_ec = false;
 
     if (!session_) {
         PAL_ERR(LOG_TAG, "Invalid session");
@@ -2256,8 +2314,21 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
     PAL_DBG(LOG_TAG, "Enter, EC ref count : %d, enable : %d", ec_ref_count_, is_enable);
     PAL_DBG(LOG_TAG, "Rx device : %s, stream is setting EC for first time : %d",
             dev ? dev->getPALDeviceName().c_str() :  "Null", setECForFirstTime);
+
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    if (!rm) {
+        PAL_ERR(LOG_TAG, "Failed to get resource manager instance");
+        return -EINVAL;
+    }
+
+    if (dev)
+        is_dev_enabled_ext_ec = rm->isExternalECRefEnabled(dev->getSndDeviceId());
     std::unique_lock<std::mutex> lck(ec_ref_mutex_);
     if (is_enable) {
+        if (is_crr_dev_using_ext_ec_ && !is_dev_enabled_ext_ec) {
+            PAL_ERR(LOG_TAG, "Internal EC connot be set, when external EC is active");
+            return -EINVAL;
+        }
         if (setECForFirstTime) {
             ec_ref_count_++;
         } else if (rx_ec_dev_!=dev ){
@@ -2265,7 +2336,6 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
         } else {
             return status;
         }
-        rx_ec_dev_ = dev;
         if (force_enable || ec_ref_count_ == 1) {
             status = session_->setECRef(s, dev, is_enable);
             if (status) {
@@ -2277,6 +2347,9 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
                 if (force_enable || ec_ref_count_ == 0) {
                     rx_ec_dev_ = nullptr;
                 }
+            } else {
+                is_crr_dev_using_ext_ec_ = is_dev_enabled_ext_ec;
+                rx_ec_dev_ = dev;
             }
         }
     } else {
@@ -2284,10 +2357,12 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
             if (ec_ref_count_ > 0) {
                 ec_ref_count_--;
                 if (ec_ref_count_ == 0) {
-                    rx_ec_dev_ = nullptr;
                     status = session_->setECRef(s, dev, is_enable);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to reset EC Ref");
+                    } else {
+                        rx_ec_dev_ = nullptr;
+                        is_crr_dev_using_ext_ec_ = false;
                     }
                 }
             } else {

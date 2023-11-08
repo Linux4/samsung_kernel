@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -86,6 +87,8 @@ struct wlan_disa_ctx *disa_get_context(void);
  * disa_core_encrypt_decrypt_req() - Form encrypt/decrypt request
  * @psoc: objmgr psoc object
  * @req: DISA encrypt/decrypt request parameters
+ * @cb: Response callback for the encrypt/decrypt request
+ * @cookie: Cookie to pass to the response callback
  *
  * Return: QDF status success or failure
  */

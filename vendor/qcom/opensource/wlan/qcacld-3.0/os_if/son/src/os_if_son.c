@@ -16,7 +16,7 @@
  */
 
 /**
- * DOC : os_if_son.c
+ * DOC: os_if_son.c
  *
  * WLAN Host Device Driver file for son (Self Organizing Network)
  * support.
@@ -475,7 +475,9 @@ int os_if_son_get_ssid(struct wlan_objmgr_vdev *vdev,
 	}
 
 	ucfg_wlan_vdev_mgr_get_param_ssid(vdev, ssid, ssid_len);
-	osif_debug("vdev %d ssid %s", wlan_vdev_get_id(vdev), ssid);
+	osif_debug("vdev %d ssid " QDF_SSID_FMT,
+		   wlan_vdev_get_id(vdev),
+		   QDF_SSID_REF(*ssid_len, ssid));
 
 	return 0;
 }

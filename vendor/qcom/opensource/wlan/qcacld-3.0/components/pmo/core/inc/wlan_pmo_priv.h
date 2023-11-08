@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -71,10 +72,10 @@ struct pmo_psoc_priv_obj {
 /**
  * struct wlan_pmo_ctx -offload mgr context
  * @psoc_context:     psoc context
- * @pmo_suspend_handler: suspend handler table for all componenets
- * @pmo_suspend_handler_arg: suspend handler argument sfor all componenets
- * @pmo_resume_handler: resume handler table for all componenets
- * @pmo_resume_handler_arg: resume handler argument for all componenets
+ * @pmo_suspend_handler: suspend handler table for all components
+ * @pmo_suspend_handler_arg: suspend handler argument sfor all components
+ * @pmo_resume_handler: resume handler table for all components
+ * @pmo_resume_handler_arg: resume handler argument for all components
  * @lock: lock for global pmo ctx
  */
 struct wlan_pmo_ctx {

@@ -252,7 +252,7 @@ int wlan_hdd_apply_user_mcc_quota(struct hdd_adapter *adapter)
  * wlan_cfg80211_indicate_mcc_quota() - Callback to indicate mcc quota
  * event to upper layer
  * @psoc: pointer to soc object
- * @vdev: vdev oject
+ * @vdev: vdev object
  * @quota_info: quota info
  *
  * This callback will be used to indicate mcc quota info to upper layer

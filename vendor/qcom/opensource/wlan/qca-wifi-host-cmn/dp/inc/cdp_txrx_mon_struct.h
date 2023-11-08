@@ -71,6 +71,10 @@ enum cdp_lite_mon_direction {
 	CDP_LITE_MON_DIRECTION_TX = 2,
 };
 #endif
+/* MU max user to sniff */
+#define CDP_MU_SNIF_USER_MAX 4
+/* EHT max type and compression mode */
+#define CDP_EHT_TYPE_MODE_MAX 3
 /* Same as MAX_20MHZ_SEGMENTS */
 #define CDP_MAX_20MHZ_SEGS 16
 /* Same as MAX_ANTENNA_EIGHT */
@@ -130,6 +134,9 @@ enum {
 	CDP_PKT_TYPE_HT,
 	CDP_PKT_TYPE_VHT,
 	CDP_PKT_TYPE_HE,
+	CDP_PKT_TYPE_EHT,
+	CDP_PKT_TYPE_NO_SUP,
+	CDP_PKT_TYPE_MAX,
 };
 
 enum {
@@ -144,6 +151,13 @@ enum {
 	CDP_RX_TYPE_MU_MIMO,
 	CDP_RX_TYPE_MU_OFDMA,
 	CDP_RX_TYPE_MU_OFDMA_MIMO,
+	CDP_RX_TYPE_MAX,
+};
+
+enum {
+	CDP_MU_TYPE_DL = 0,
+	CDP_MU_TYPE_UL,
+	CDP_MU_TYPE_MAX,
 };
 
 /*
@@ -184,7 +198,7 @@ struct cdp_mon_status {
 /* holes in flags here between, ATH_RX_XXXX to IEEE80211_RX_XXX */
 #define IEEE80211_RX_KEYMISS        0x200
 #define IEEE80211_RX_PN_ERROR       0x400
-	int rs_rssi;       /* RSSI (noise floor ajusted) */
+	int rs_rssi;       /* RSSI (noise floor adjusted) */
 	int rs_abs_rssi;   /* absolute RSSI */
 	int rs_datarate;   /* data rate received */
 	int rs_rateieee;
@@ -194,9 +208,9 @@ struct cdp_mon_status {
 
 /* Keep the same as ATH_MAX_ANTENNA */
 #define IEEE80211_MAX_ANTENNA       3
-	/* RSSI (noise floor ajusted) */
+	/* RSSI (noise floor adjusted) */
 	u_int8_t    rs_rssictl[IEEE80211_MAX_ANTENNA];
-	/* RSSI (noise floor ajusted) */
+	/* RSSI (noise floor adjusted) */
 	u_int8_t    rs_rssiextn[IEEE80211_MAX_ANTENNA];
 	/* rs_rssi is valid or not */
 	u_int8_t    rs_isvalidrssi;
@@ -360,6 +374,11 @@ enum cdp_mon_phyrx_abort_reason_code {
  * @status_ppdu_compl: status ring matching start and end count on PPDU
  * @status_ppdu_start_mis: status ring missing start TLV count on PPDU
  * @status_ppdu_end_mis: status ring missing end TLV count on PPDU
+ * @mpdu_cnt_fcs_ok: MPDU ok count per pkt and reception type DL-UL and user
+ * @mpdu_cnt_fcs_err: MPDU err count per pkt and reception type DL-UL and user
+ * @ppdu_eht_type_mode: PPDU count per type compression mode and DL-UL
+ * @end_user_stats_cnt: PPDU end user TLV count
+ * @start_user_info_cnt: PPDU start user info TLV count
  * @status_ppdu_done: status ring PPDU done TLV count
  * @dest_ppdu_done: destination ring PPDU count
  * @dest_mpdu_done: destination ring MPDU count
@@ -393,7 +412,11 @@ enum cdp_mon_phyrx_abort_reason_code {
  * @total_ppdu_info_enq: Number of PPDUs enqueued to wq
  * @total_ppdu_info_drop: Number of PPDUs dropped
  * @total_ppdu_info_alloc: Number of PPDU info allocated
- * @total_ppdu_info_free: Number of PPDU info freeed
+ * @total_ppdu_info_free: Number of PPDU info freed
+ * @ppdu_drop_cnt: Total PPDU drop count
+ * @mpdu_drop_cnt: Total MPDU drop count
+ * @end_of_ppdu_drop_cnt: Total end of ppdu drop count
+ * @tlv_drop_cnt: TLV drop count
  */
 struct cdp_pdev_mon_stats {
 #ifndef REMOVE_MON_DBG_STATS
@@ -404,6 +427,13 @@ struct cdp_pdev_mon_stats {
 	uint32_t status_ppdu_start_mis;
 	uint32_t status_ppdu_end_mis;
 #endif
+	uint32_t mpdu_cnt_fcs_ok[CDP_PKT_TYPE_MAX][CDP_RX_TYPE_MAX]
+				[CDP_MU_TYPE_MAX][CDP_MU_SNIF_USER_MAX];
+	uint32_t mpdu_cnt_fcs_err[CDP_PKT_TYPE_MAX][CDP_RX_TYPE_MAX]
+				 [CDP_MU_TYPE_MAX][CDP_MU_SNIF_USER_MAX];
+	uint32_t ppdu_eht_type_mode[CDP_EHT_TYPE_MODE_MAX][CDP_MU_TYPE_MAX];
+	uint32_t end_user_stats_cnt;
+	uint32_t start_user_info_cnt;
 	uint32_t status_ppdu_done;
 	uint32_t dest_ppdu_done;
 	uint32_t dest_mpdu_done;
@@ -442,6 +472,10 @@ struct cdp_pdev_mon_stats {
 	uint32_t total_ppdu_info_drop;
 	uint32_t total_ppdu_info_alloc;
 	uint32_t total_ppdu_info_free;
+	uint32_t ppdu_drop_cnt;
+	uint32_t mpdu_drop_cnt;
+	uint32_t end_of_ppdu_drop_cnt;
+	uint32_t tlv_drop_cnt;
 };
 
 #ifdef QCA_SUPPORT_LITE_MONITOR
@@ -543,7 +577,7 @@ struct cdp_rssi_dbm_conv_param_dp {
  * struct cdp_rssi_db2dbm_param_dp
  * @pdev_id: pdev_id
  * @rssi_temp_off_present: to check temp offset values present or not
- * @rssi_dbm_info_present: to check rssi dbm converstion parameters
+ * @rssi_dbm_info_present: to check rssi dbm conversion parameters
  *						   present or not
  * @temp_off_param: cdp_rssi_temp_off_param_dp structure value
  * @rssi_dbm_param: cdp_rssi_dbm_conv_param_dp staructure value

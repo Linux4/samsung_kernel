@@ -74,6 +74,17 @@ if (test "x$with_core_includes" != "xno"); then
    CPPFLAGS="${CPPFLAGS} -I${core_incdir}"
 fi
 
+AC_ARG_WITH([locpla_includes],
+      AC_HELP_STRING([--with-locpla-includes=@<:@dir@:>@],
+         [specify the path to locpla-includes in loc-pla_git.bb]),
+      [locpla_incdir=$withval],
+      with_locpla_includes=no)
+
+if test "x$with_locpla_includes" != "xno"; then
+   AC_SUBST(LOCPLA_CFLAGS, "-I${locpla_incdir}")
+fi
+
+
 AC_CONFIG_FILES([ \
         Makefile \
         location-integration-api.pc
