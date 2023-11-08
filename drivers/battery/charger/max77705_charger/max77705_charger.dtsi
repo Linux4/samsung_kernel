@@ -1,0 +1,35 @@
+&smd {
+	max77705_charger: max77705-charger {
+			charger,fac_vsys = <3800>;
+	};
+
+	battery {
+		battery,fgsrc_switch_name = "max77705-charger";
+		battery,otg_name = "max77705-otg";
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/max77705/max77705_charger.gtact4pro.dtsi */
+#if 1
+&tlmm {
+	disqbat_default: disqbat_default {
+		GPIO_CONFIG_PUD(AP,tlmm,142, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+#endif
+
+&max77705_charger {
+	charger,user_wcin_irq;
+	charger,enable_sysovlo_irq;
+	charger,fac_vsys = <4400>;
+	charger,fsw = <0>; /* 3MHz */
+	charger,enable_dpm; /* support direct power mode */
+	charger,dpm_icl = <2750>;
+	
+#if 1
+	pinctrl-names = "default";
+	pinctrl-0 = <&disqbat_default>;
+	charger,disqbat = <SEC_GPIO_REF(AP,tlmm,142) 0>;
+#endif
+};

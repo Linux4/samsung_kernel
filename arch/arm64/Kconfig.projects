@@ -1,0 +1,17 @@
+config SEC_GTACT4PRO_PROJECT
+	default n
+	bool "Samsung GTACT4PRO Project"
+	help
+	  Support for Samsung GTACT4PRO Project
+
+config MACH_GTACT4PRO_EUR_OPENX
+	default n
+	bool "Samsung GTACT4PRO EUR OPENX"
+	help
+	  Support for Samsung GTACT4PRO EUR OPENX device.
+
+config MACH_GTACT4PROWIFI_EUR_OPEN
+	default n
+	bool "Samsung GTACT4PROWIFI EUR OPEN"
+	help
+	  Support for Samsung GTACT4PROWIFI EUR OPEN device.

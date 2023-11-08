@@ -1,0 +1,81 @@
+/* Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "yupik-sec-gtact4pro-camera-sensor-pinctrl-common.dtsi"
+
+&tlmm {
+	wakeup-disabled-gpios = <
+		0	/* VOICE_SPI_MISO */
+		3	/* VOICE_SPI_SS_N */
+		4	/* AMP_I2C_SDA_1P8 */
+		8	/* MAIN_GRIP_SDA_1P8 */
+		11	/* RCAM_LDO_EN */
+		12	/* IF_PMIC_SDA_1P8 */
+		15	/* MOT_LDO_EN */
+		20	/* RCAM_RST_N */
+		23	/* AP_UART_RXD */
+		24	/* OVP_PWR_FLAGB */
+		25	/* OVP_SIG_FLAGB */
+		32	/* CC_SDA_1P8 */
+		34	/* NC */
+		36	/* NFC_SDA_1P8 */
+		40	/* NFC_FIRM */
+		44	/* TSP_LDO_EN */
+		45	/* NC */
+		47	/* LCD_CON_DET */
+		48	/* ESE_SPI_MISO */
+		51	/* ESE_SPI_CS_N */
+		52	/* TSP_SDA_1P8 */
+		56	/* BTP_SPI_MISO */
+		59	/* BTP_SPI_CS_N */
+		60	/* LCD_BUCK_SDA_1P8 */
+		61	/* LCD_BUCK_SCL_1P8 */
+		63	/* GRIP1_LDO_EN */
+		68	/* FCAM_MCLK */
+		72	/* NC */
+		75	/* CAM_AF_EEP_SDA_1P8 */
+		77	/* NC */
+		78	/* NC */
+		79	/* FCAM_RST_N */
+		82	/* AP_USB_BOOT */
+		83	/* CODEC_RST_N */
+		91	/* T_FLASH_DET */
+		93	/* BTP_LDO_EN */
+		95	/* BT_SLIMBUS_DATA */
+		104	/* NC */
+		112	/* NC */
+		116	/* NC */
+		119	/* NC */
+		121	/* NC */
+		123	/* NC */
+		127	/* CP_WLAN_COEX_RXD */
+		128	/* CP_WLAN_COEX_TXD */
+		130	/* NC */
+		131	/* NC */
+		140	/* CC_DIR */
+		142	/* DISQBAT_EN */
+		150	/* AMP_I2S_BCLK */
+		151	/* AMP_I2S_LRCK */
+		153	/* AMP_I2S_D_OUT */
+		155	/* NC */
+		156	/* NC */
+		157	/* NC */
+		159	/* 6AXIS_I3C_SDA_1P8 */
+		161	/* PROXY_SDA_1P8 */
+		163	/* MAGNETIC_SDA_1P8 */
+		166	/* NC */
+		172	/* NC */
+		174	/* NC */
+	>;
+};
+
+
