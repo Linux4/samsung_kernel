@@ -1,0 +1,240 @@
+/*
+ * SAMSUNG EXYNOS3475 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos3475-gtes_common.dtsi"
+#include "modem-ss308ap-pdata.dtsi"
+#include "exynos3475-gteslte_battery_05.dtsi"
+#include "exynos3475-gteslte_usa_open_gpio_02.dtsi"
+
+/ {
+	model = "Samsung UNIVERSAL3475 board based on EXYNOS3475";
+	model_info-chip = <3475>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <5>;
+	model_info-hw_rev_end = <255>;
+	compatible = "samsung,UNIVERSAL3475", "samsung,exynos3475";
+
+	pinctrl@139B0000 {
+		if_pmic_irq: if-pmic-irq {
+			samsung,pins = "gpa0-2";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		chg_en: chg-en {
+			samsung,pins = "gpd0-0";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139C0000 {
+		if_con_sense_ap: if-con-sense-ap {
+			samsung,pins = "gpf0-2";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	hsi2c@13870000 {
+		status = "okay";
+		sm5703-mfd@49 {
+			compatible = "siliconmitus,sm5703mfd";
+			reg = <0x49>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&chg_en &if_pmic_irq &if_con_sense_ap>;
+			sm5703,irq-gpio = <&gpa0 2 0>;
+			sm5703,mrstb-gpio = <&gpd0 7 0>;
+
+			sm5703_ldo1 {
+				compatible = "siliconmitus,sm5703-ldo1";
+				regulator-name = "VDDAF_2.8V_CAM";  /* change name by yourself */
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on;*/ /* = "yes"; optional, exist = enabled */
+				/* regulator-always-on;*/ /* = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo2 {
+				compatible = "siliconmitus,sm5703-ldo2";
+				regulator-name = "KEY_LED_3P3";  /* change name by yourself */
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/*regulator-boot-on;*/  /* = "yes"; optional, exist = enabled */
+				/*regulator-always-on;*/  /* = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo3: sm5703_ldo3 {
+				compatible = "siliconmitus,sm5703-ldo3";
+				regulator-name = "VDD_3.0V_SENSOR"; /* change name by yourself */
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on =*/  /* "yes"; optional, exist = enabled */
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sm5703_buck {
+				compatible = "siliconmitus,sm5703-buck";
+				regulator-name = "VDDD_1.2V_CAM"; /* change name by yourself */
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+		};
+	};
+
+	bluetooth {
+		compatible = "broadcom,bcm43xx";
+		gpios = <&gpd2 0 1	/*BT_EN*/
+				&gpd2 1 1	/*BT_WAKE*/
+				&gpa1 6 0xF	/*BT_HOST_WAKE*/ >;
+		pinctrl-names = "default";
+		pinctrl-0=<&bt_hostwake &bt_btwake &bt_reg_on>;
+		status = "okay";
+	};
+
+	i2c@13830000 {
+		status = "disabled";
+	};
+
+	sec_vib {
+		compatible = "sec_vib";
+		sec_vib_pdata {
+			status = "okay";
+			sec_vib,max_timeout = <10000>;
+			sec_vib,regulator = "VDD_MOT_3P3";
+		};
+	};
+
+	pinctrl@139C0000 {
+		acc_int: acc_int {
+			samsung,pins = "gpd1-5";
+			samsung,pins-function = <0x0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	i2c@13850000 {
+		status = "okay";
+
+		k2hh-i2c@1D {
+			compatible = "k2hh-i2c";
+			reg = <0x1D>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int>;
+			interrupt-parent = <&gpd1>;
+			interrupts = <5 0 0>;
+			k2hh,irq_gpio = <&gpd1 5 0>;
+			k2hh,vio-supply = <&ldo2_reg>;
+			k2hh,axis_map_x = <1>;
+			k2hh,axis_map_y = <0>;
+			k2hh,axis_map_z = <2>;
+			k2hh,negate_x = <1>;
+			k2hh,negate_y = <0>;
+			k2hh,negate_z = <1>;
+			k2hh,poll_interval = <100>;
+			k2hh,min_interval = <2>;
+		};
+	};
+
+	pinctrl@139C0000{
+		grip_reg: grip-reg {
+			samsung,pins = "gpf1-3", "gpf1-2";
+			samsung,pin-function = <0x0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	pinctrl@139B0000{
+		grip_det: grip-det {
+			samsung,pins = "gpa0-5";
+			samsung,pin-function = <0x0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		wifi_touch: wifi-touch {
+			samsung,pins = "gpa1-0";
+			samsung,pin-function = <0x0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	i2c@10 {
+		compatible = "i2c-gpio";
+		gpios = <&gpf1 3 0
+			&gpf1 2 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_reg>;
+		i2c-gpio,delay-us = <2>;
+		status = "okay";
+
+		sx9500-i2c@28 {
+			compatible = "sx9500-i2c";
+			reg = <0x28>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_det>;
+			sx9500-i2c,vio-supply = <&ldo2_reg>;
+			interrupts = <5 0 0>;
+			interrupt-parent = <&gpa0>;
+			sx9500-i2c,nirq-gpio = <&gpa0 5 0>;
+		};
+
+		sx9500_wifi-i2c@2B {
+			compatible = "sx9500_wifi-i2c";
+			reg = <0x2B>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&wifi_touch>;
+			sx9500_wifi-i2c,vio-supply = <&ldo2_reg>;
+			interrupts = <0 0 0>;
+			interrupt-parent = <&gpa1>;
+			sx9500_wifi-i2c,nirq-gpio = <&gpa1 0 0>;
+		};
+	};
+
+	earjack {
+		compatible = "sec_jack";
+		detect-gpio = <&gpa0 7 0>;
+	/*	ear-micbias-en-gpio = <&msmgpio 85 0>; */
+		key-gpio = <&gpa1 3 0>;
+	/*	ext-detchip-en-gpio = <310>; */
+	/*	key-dbtime = <100>; */
+		det-dbtime = <50>;
+	/*	send-end-active-high; */
+		det-zones-list = <&det_zones 3 10000 10 0>,
+			<&det_zones 1706 10000 10 2>,
+			<&det_zones 4095 10000 10 1>,
+			<&det_zones 9999 10000 10 1>;
+		but-zones-list = <&but_zones 226 0 550>,
+			<&but_zones 582 551 634>,
+			<&but_zones 115 635 843>,
+			<&but_zones 114 844 4095>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&earjack_jack_det &earjack_key_det>;
+		status = "okay";
+	};
+};

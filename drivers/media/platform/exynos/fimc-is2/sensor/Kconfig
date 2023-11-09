@@ -1,0 +1,7 @@
+source "drivers/media/platform/exynos/fimc-is2/sensor/module/Kconfig"
+source "drivers/media/platform/exynos/fimc-is2/sensor/csi/Kconfig"
+source "drivers/media/platform/exynos/fimc-is2/sensor/module_framework/Kconfig"
+source "drivers/media/platform/exynos/fimc-is2/sensor/module_framework/cis/Kconfig"
+source "drivers/media/platform/exynos/fimc-is2/sensor/module_framework/actuator/Kconfig"
+source "drivers/media/platform/exynos/fimc-is2/sensor/module_framework/flash/Kconfig"
+source "drivers/media/platform/exynos/fimc-is2/sensor/module_framework/dphy/Kconfig"

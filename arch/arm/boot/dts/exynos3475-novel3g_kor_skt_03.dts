@@ -1,0 +1,182 @@
+/*
+ * SAMSUNG EXYNOS3475 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos3475-novel_common.dtsi"
+#include "exynos3475-novellte_battery_03.dtsi"
+#include "modem-ss308ap-pdata.dtsi"
+#include "exynos3475-novellte_kor-tdmb_01.dtsi"
+#include "exynos3475-novellte_kor_open_gpio_01.dtsi"
+
+/ {
+	model = "Samsung UNIVERSAL3475 board based on EXYNOS3475";
+	model_info-chip = <3475>;
+	model_info-platform = "android";
+	model_info-subtype = "samsung";
+	model_info-hw_rev = <3>;
+	model_info-hw_rev_end = <3>;
+	compatible = "samsung,UNIVERSAL3475", "samsung,exynos3475";
+
+	i2c@13830000 {
+		stmpe@40 {
+			stmpe,block_type = <3>;		// STMPE1801_BLOCK_GPIO : 1 / STMPE1801_BLOCK_KEY : 2
+		};
+	};
+
+	hsi2c@13870000 {
+		status = "okay";
+		sm5703-mfd@49 {
+			compatible = "siliconmitus,sm5703mfd";
+			reg = <0x49>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&chg_en &if_pmic_irq>;
+			sm5703,irq-gpio = <&gpa0 2 0>;
+			sm5703,mrstb-gpio = <&gpd0 7 0>;
+
+			sm5703_ldo1 {
+				compatible = "siliconmitus,sm5703-ldo1";
+				regulator-name = "VDDA_2.8V_CAM";  /* change name by yourself */
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on;*/ /* = "yes"; optional, exist = enabled */
+				/* regulator-always-on;*/ /* = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo2 {
+				compatible = "siliconmitus,sm5703-ldo2";
+				regulator-name = "VDDAF_2.8V_CAM"; /* change name by yourself */
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/*regulator-boot-on;*/  /* = "yes"; optional, exist = enabled */
+				/*regulator-always-on;*/  /* = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_ldo3 {
+				compatible = "siliconmitus,sm5703-ldo3";
+				regulator-name = "none"; /* change name by yourself */
+				regulator-min-microvolt = <3000000>;
+				regulator-max-microvolt = <3000000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on =*/  /* "yes"; optional, exist = enabled */
+				/* regulator-always-on = */  /*"yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+
+			sm5703_buck {
+				compatible = "siliconmitus,sm5703-buck";
+				regulator-name = "VDDD_1.2V_CAM"; /* change name by yourself */
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>; /* max == min then apply_uV = 1 */
+				/* regulator-microvolt-offset = < >; optional*/
+				/* regulator-boot-on = "yes"; optional, exist = enabled */
+				/* regulator-always-on = "yes"; optional, exist = enabled */
+				/* regulator-ramp-delay = <100>; optional*/
+			};
+		};
+	};
+
+	hsi2c@13880000 {
+		status = "okay";
+		muic-sm5703@25 {
+			status = "okay";
+			compatible = "muic-universal";
+			reg = <0x25>;
+			pinctrl-names = "default";
+			muic-universal,chip_name = "sm,sm5703";
+			muic-universal,irq-gpio = <&gpa0 4 0>;
+			muic-universal,uart_addr = "139c0000.pinctrl";
+			muic-universal,uart_rxd = "gpb1-0";
+			muic-universal,uart_txd = "gpb1-1";
+		};
+	};
+
+	i2c@13850000 {
+		ktd2026@30 {
+			compatible = "ktd2026";
+			reg = <0x30>;
+
+			led_conf@1 {
+				led_conf-name = "led_r";
+				brightness = <0>;
+				max_brightness = /bits/ 8 <0x08>;
+				flags = <0>;
+			};
+			led_conf@2 {
+				led_conf-name = "led_g";
+				brightness = <0>;
+				max_brightness = /bits/ 8 <0x02>;
+				flags = <0>;
+			};
+			led_conf@3 {
+				led_conf-name = "led_b";
+				brightness = <0>;
+				max_brightness = /bits/ 8 <0x1e>;
+				flags = <0>;
+			};
+		};
+	};
+
+	muic {
+		status = "disabled";
+		muic,support-list = "-OTG:GND",
+					"-MHL:1K",
+					"-VZW Accessory:28.7K",
+					"-VZW Incompatible:34K",
+					"-Smartdock:40.2K",
+					"-HMT:49.9K",
+					"-Audiodock:64.9K",
+					"-USB LANHUB:80.07K",
+					"-Charging Cable:102K",
+					"-Universal Multimedia dock:121K",
+					"+Jig USB Off:255K",
+					"+Jig USB On:301K",
+					"-Deskdock:365K",
+					"+TYPE2 Charger:442K",
+					"+Jig UART Off:523K",
+					"+Jig UART On:619K",
+					"+TA:OPEN",
+					"+USB:OPEN",
+					"+CDP:OPEN",
+					"+Undefined Charging:XXX";
+	};
+
+	dc_motor {
+		compatible = "dc_motor";
+		gpios = <&gpd1 1 0x0>;
+		dc_motor,max_timeout = <10000>;
+	};
+
+	earjack {
+		compatible = "sec_jack";
+		detect-gpio = <&gpa0 7 0>;
+	/*	ear-micbias-en-gpio = <&msmgpio 85 0>; */
+		key-gpio = <&gpa1 3 0>;
+	/*	ext-detchip-en-gpio = <310>; */
+	/*	key-dbtime = <100>; */
+		det-dbtime = <50>;
+	/*	send-end-active-high; */
+		det-zones-list = <&det_zones 3 10000 10 0>,
+			<&det_zones 1860 10000 10 2>,
+			<&det_zones 4095 10000 10 1>,
+			<&det_zones 9999 10000 10 1>;
+		but-zones-list = <&but_zones 226 0 445>,
+			<&but_zones 582 446 548>,
+			<&but_zones 115 549 668>,
+			<&but_zones 114 719 4095>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&earjack_jack_det &earjack_key_det>;
+		status = "okay";
+	};
+};
