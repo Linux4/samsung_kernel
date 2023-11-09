@@ -3039,8 +3039,10 @@ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
 
 		shrink_lruvec(lruvec, sc);
 
-		shrink_slab(sc->gfp_mask, pgdat->node_id, memcg,
-			    sc->priority);
+		if (current_is_kswapd()) {
+			shrink_slab(sc->gfp_mask, pgdat->node_id, memcg,
+				    sc->priority);
+		}
 
 		/* Record the group's reclaim efficiency */
 		vmpressure(sc->gfp_mask, memcg, false,

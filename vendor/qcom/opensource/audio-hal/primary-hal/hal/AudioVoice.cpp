@@ -158,7 +158,7 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
     if (!parms)
        return  -EINVAL;
 
-#ifdef SEC_AUDIO_DUMP 
+#ifdef SEC_AUDIO_DUMP
     AHAL_DBG("Enter params: %s", kvpairs);
 #else
     AHAL_DBG("Enter");
@@ -565,6 +565,14 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
         rx_devices.find(AUDIO_DEVICE_NONE) != rx_devices.end()) {
         AHAL_ERR("Invalid Tx/Rx device");
         ret = 0;
+#ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
+        if (adevice->sec_device_->aas_on && adevice->sec_device_->isAASActive()
+                && (rx_devices.find(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) != rx_devices.end())
+                && (adevice->sec_device_->pal_aas_out_device == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
+            AHAL_ERR("Invalid SCO device state");
+            adevice->sec_device_->SetAASMode(false);
+        }
+#endif
         goto exit;
     }
 
@@ -598,6 +606,8 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     pal_voice_rx_device_id_ = pal_rx_device;
     pal_voice_tx_device_id_ = pal_tx_device;
 
+    voice_mutex_.lock();
+
 #ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
     if (adevice->sec_device_->aas_on) {
         if (adevice->sec_device_->isAASActive() &&
@@ -609,7 +619,6 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     }
 #endif
 
-    voice_mutex_.lock();
     if (!IsAnyCallActive()) {
         if (mode_ == AUDIO_MODE_IN_CALL || mode_ == AUDIO_MODE_CALL_SCREEN) {
             voice_.in_call = true;

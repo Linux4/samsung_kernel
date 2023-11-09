@@ -36,6 +36,10 @@
 #include "dp_debug.h"
 #include "dp_pll.h"
 #include "sde_dbg.h"
+#ifdef CONFIG_UML
+#include "kunit_test/dp_kunit_macro.h"
+#endif
+#include <kunit/mock.h>
 
 #if defined(CONFIG_SECDP)
 #include <linux/string.h>
@@ -157,7 +161,7 @@ static char *dp_display_state_name(enum dp_display_states state)
 	return buf;
 }
 
-static struct dp_display *g_dp_display;
+__visible_for_testing struct dp_display *g_dp_display;
 #define HPD_STRING_SIZE 30
 
 struct dp_hdcp_dev {
@@ -221,12 +225,24 @@ struct dp_display_private {
 	struct work_struct connect_work;
 	struct work_struct attention_work;
 	struct mutex session_lock;
+#if !defined(CONFIG_UML)
 	bool hdcp_delayed_off;
 
 	u32 active_stream_cnt;
 	struct dp_mst mst;
 
 	u32 tot_dsc_blks_in_use;
+#else
+	struct mutex accounting_lock;
+	bool hdcp_delayed_off;
+	bool no_aux_switch;
+
+	u32 active_stream_cnt;
+	struct dp_mst mst;
+
+	u32 tot_dsc_blks_in_use;
+	u32 tot_lm_blks_in_use;
+#endif
 
 	bool process_hpd_connect;
 	struct dev_pm_qos_request pm_qos_req[NR_CPUS];
@@ -245,7 +261,7 @@ static const struct of_device_id dp_dt_match[] = {
 };
 
 #if defined(CONFIG_SECDP)
-static struct dp_display_private *g_secdp_priv;
+__visible_for_testing struct dp_display_private *g_secdp_priv;
 
 static void dp_audio_enable(struct dp_display_private *dp, bool enable);
 
@@ -314,7 +330,7 @@ bool secdp_get_lpm_mode(void)
 	return sec->lpm_booting;
 }
 
-static void secdp_send_poor_connection_event(bool edid_fail)
+__visible_for_testing void secdp_send_poor_connection_event(bool edid_fail)
 {
 	struct dp_display_private *dp = g_secdp_priv;
 
@@ -525,7 +541,7 @@ end:
  * get max dex resolution of current dongle/cable.
  * it's decided by secdp_check_adapter_type() at connection moment.
  */
-static enum dex_support_res_t secdp_get_dex_res(void)
+__visible_for_testing enum dex_support_res_t secdp_get_dex_res(void)
 {
 	struct dp_display_private *dp = g_secdp_priv;
 	enum dex_support_res_t res = dp->sec.dex.res;
@@ -578,7 +594,7 @@ void secdp_dex_adapter_skip_store(bool skip)
  * check connected dongle type with given vid and pid. Based upon this info,
  * we can decide maximum dex resolution for that cable/adapter.
  */
-static void secdp_adapter_check_dex(struct dp_display_private *dp)
+__visible_for_testing void secdp_adapter_check_dex(struct dp_display_private *dp)
 {
 	struct secdp_adapter *adapter = &dp->sec.adapter;
 	enum dex_support_res_t dex_type = DEX_RES_DFT;
@@ -764,7 +780,7 @@ struct drm_connector *secdp_get_connector(void)
 	return connector;
 }
 
-static int secdp_reboot_cb(struct notifier_block *nb,
+__visible_for_testing int secdp_reboot_cb(struct notifier_block *nb,
 				unsigned long action, void *data)
 {
 	struct secdp_misc *sec = container_of(nb,
@@ -1039,6 +1055,34 @@ bool secdp_check_hmd_dev(const char *name_to_search)
 	mutex_unlock(&hmd->lock);
 
 	return found;
+}
+
+#define PRN_MODE_COUNT	3
+
+static void secdp_mode_count_init(struct dp_display_private *dp)
+{
+	struct secdp_misc *sec = &dp->sec;
+
+	secdp_logger_set_mode_max_count(PRN_MODE_COUNT);
+
+	sec->mode_cnt = PRN_MODE_COUNT + 1;
+}
+
+static void secdp_mode_count_dec(struct dp_display_private *dp)
+{
+	struct secdp_misc *sec = &dp->sec;
+
+	secdp_logger_dec_mode_count();
+
+	if (sec->mode_cnt > 0)
+		sec->mode_cnt--;
+}
+
+static bool secdp_mode_count_check(struct dp_display_private *dp)
+{
+	struct secdp_misc *sec = &dp->sec;
+
+	return sec->mode_cnt ? true : false;
 }
 #endif
 
@@ -1465,8 +1509,8 @@ static void dp_display_hdcp_process_state(struct dp_display_private *dp)
 		dp_display_hdcp_register_streams(dp);
 
 #if defined(CONFIG_SECDP)
-		if (status->hdcp_version < HDCP_VERSION_2P2)
-			secdp_reset_link_status(dp->link);
+		if (!dp->panel->tbox)
+			secdp_read_link_status(dp->link);
 #endif
 		if (dp->hdcp.ops && dp->hdcp.ops->authenticate)
 			rc = dp->hdcp.ops->authenticate(data);
@@ -1821,6 +1865,7 @@ static bool dp_display_send_hpd_event(struct dp_display_private *dp)
 #if defined(CONFIG_SECDP)
 	msleep(100);
 	atomic_set(&dp->sec.noti_status, 1);
+	secdp_mode_count_init(dp);
 #endif
 	snprintf(name, HPD_STRING_SIZE, "name=%s", connector->name);
 	snprintf(status, HPD_STRING_SIZE, "status=%s",
@@ -3379,7 +3424,7 @@ void secdp_self_test_hdcp_off(void)
 }
 #endif
 
-static enum mon_aspect_ratio_t secdp_get_aspect_ratio(struct drm_display_mode *mode)
+__visible_for_testing enum mon_aspect_ratio_t secdp_get_aspect_ratio(struct drm_display_mode *mode)
 {
 	enum mon_aspect_ratio_t aspect_ratio = MON_RATIO_NA;
 	int hdisplay = mode->hdisplay;
@@ -3450,7 +3495,7 @@ static bool secdp_update_max_timing(struct secdp_display_timing *target,
 
 	mode_refresh = drm_mode_vrefresh(mode);
 
-	mode_total = mode->hdisplay * mode->vdisplay;
+	mode_total = (u64)mode->hdisplay * (u64)mode->vdisplay;
 	if (mode_total < target->total)
 		return false;
 
@@ -3515,7 +3560,6 @@ static void secdp_pdic_connect_init(struct dp_display_private *dp,
 
 	secdp_clear_branch_info(dp);
 	secdp_clear_link_status_cnt(dp->link);
-	secdp_logger_set_max_count(300);
 
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	if (connect) {
@@ -3598,7 +3642,6 @@ static void secdp_pdic_handle_hpd(struct dp_display_private *dp,
 	if (noti->sub1 == PDIC_NOTIFY_HIGH) {
 		bool flip = false;
 
-		secdp_logger_set_max_count(300);
 		atomic_set(&sec->hpd.val, 1);
 		dp->hpd->hpd_high = true;
 
@@ -3632,6 +3675,7 @@ static int secdp_pdic_noti_cb(struct notifier_block *nb, unsigned long action,
 		break;
 
 	case PDIC_NOTIFY_ID_DP_CONNECT:
+		secdp_logger_set_max_count(300);
 		DP_INFO("PDIC_NOTIFY_ID_DP_CONNECT<%d>\n", noti.sub1);
 
 		if (noti.sub1 == PDIC_NOTIFY_ATTACH) {
@@ -3656,6 +3700,8 @@ static int secdp_pdic_noti_cb(struct notifier_block *nb, unsigned long action,
 		break;
 
 	case PDIC_NOTIFY_ID_DP_HPD:
+		if (!secdp_is_hpd_irq(&noti))
+			secdp_logger_set_max_count(300);
 		DP_INFO("PDIC_NOTIFY_ID_DP_HPD<%s><%s>\n",
 			(noti.sub1 == PDIC_NOTIFY_HIGH) ? "high" :
 				((noti.sub1 == PDIC_NOTIFY_LOW) ? "low" : "."),
@@ -4055,7 +4101,7 @@ poor_disconnect:
 	schedule_delayed_work(&sec->poor_discon_work, msecs_to_jiffies(10));
 }
 
-static int secdp_init(struct dp_display_private *dp)
+__visible_for_testing int secdp_init(struct dp_display_private *dp)
 {
 	struct secdp_misc *sec;
 	int rc = -1;
@@ -4101,7 +4147,9 @@ static int secdp_init(struct dp_display_private *dp)
 
 	/* reboot notifier callback */
 	sec->reboot_nb.notifier_call = secdp_reboot_cb;
+#ifndef CONFIG_UML
 	register_reboot_notifier(&sec->reboot_nb);
+#endif
 
 #ifdef SECDP_EVENT_THREAD
 	rc = secdp_event_setup(dp);
@@ -4126,7 +4174,7 @@ end:
 	return rc;
 }
 
-static void secdp_deinit(struct dp_display_private *dp)
+__visible_for_testing void secdp_deinit(struct dp_display_private *dp)
 {
 	struct secdp_misc *sec;
 
@@ -4138,6 +4186,7 @@ static void secdp_deinit(struct dp_display_private *dp)
 	sec = &dp->sec;
 
 	secdp_destroy_wakelock(dp);
+	secdp_logger_deinit();
 
 	mutex_destroy(&sec->notify_lock);
 	mutex_destroy(&sec->attention_lock);
@@ -4158,7 +4207,7 @@ end:
 }
 #endif
 
-static void dp_display_connect_work(struct work_struct *work)
+__visible_for_testing void dp_display_connect_work(struct work_struct *work)
 {
 	int rc = 0;
 	struct dp_display_private *dp = container_of(work,
@@ -5258,6 +5307,8 @@ void secdp_reconnect(void)
 {
 	struct dp_display_private *dp = g_secdp_priv;
 
+	secdp_logger_set_max_count(300);
+
 	if (dp->link->poor_connection) {
 		DP_INFO("poor connection, return!\n");
 		return;
@@ -5323,7 +5374,7 @@ static bool secdp_check_fail_safe(struct drm_display_mode *mode)
 /**
  * check if given ratio is one of dex ratios (16:9, 16:10, 21:9)
  */
-static bool secdp_check_dex_ratio(enum mon_aspect_ratio_t ratio)
+__visible_for_testing bool secdp_check_dex_ratio(enum mon_aspect_ratio_t ratio)
 {
 	bool ret = false;
 
@@ -5343,7 +5394,7 @@ static bool secdp_check_dex_ratio(enum mon_aspect_ratio_t ratio)
 /**
  * check if mode's active_h, active_v are within max dex rows/cols
  */
-static bool secdp_check_dex_rowcol(struct drm_display_mode *mode)
+__visible_for_testing bool secdp_check_dex_rowcol(struct drm_display_mode *mode)
 {
 	int max_cols = DEX_DFT_COL, max_rows = DEX_DFT_ROW;
 	bool ret = false;
@@ -5362,7 +5413,7 @@ static bool secdp_check_dex_rowcol(struct drm_display_mode *mode)
 /**
  * check if current refresh_rate meets in dex mode
  */
-static bool secdp_check_dex_refresh(struct drm_display_mode *mode)
+__visible_for_testing bool secdp_check_dex_refresh(struct drm_display_mode *mode)
 {
 	int mode_refresh = drm_mode_vrefresh(mode);
 	bool ret = false;
@@ -5389,7 +5440,7 @@ end:
 	return ret;
 }
 
-static bool secdp_exceed_mst_max_pclk(struct drm_display_mode *mode)
+__visible_for_testing bool secdp_exceed_mst_max_pclk(struct drm_display_mode *mode)
 {
 	bool ret = false;
 
@@ -5409,7 +5460,7 @@ end:
 	return ret;
 }
 
-static bool secdp_check_prefer_resolution(struct dp_display_private *dp,
+__visible_for_testing bool secdp_check_prefer_resolution(struct dp_display_private *dp,
 				struct drm_display_mode *mode)
 {
 	struct secdp_misc *sec;
@@ -5501,7 +5552,7 @@ static bool secdp_dex_fail_safe(struct drm_display_mode *mode)
 	return false;
 }
 
-static bool secdp_check_dex_resolution(struct dp_display_private *dp,
+__visible_for_testing bool secdp_check_dex_resolution(struct dp_display_private *dp,
 				struct drm_display_mode *mode, bool *fail_safe)
 {
 	struct secdp_display_timing *dex_table = secdp_dex_resolution;
@@ -5548,7 +5599,7 @@ end:
 	return ret;
 }
 
-static bool secdp_check_resolution(struct dp_display_private *dp,
+__visible_for_testing bool secdp_check_resolution(struct dp_display_private *dp,
 				struct drm_display_mode *mode,
 				bool supported)
 {
@@ -5567,6 +5618,7 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 
 	prefer_mode = secdp_check_prefer_resolution(dp, mode);
 	if (prefer_mode) {
+		secdp_mode_count_dec(dp);
 		secdp_show_max_timing(dp);
 
 		if ((mrr_timing->clock || prf_timing->clock) && !dex_timing->clock) {
@@ -5578,7 +5630,7 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 		prefer->vdisp = mode->vdisplay;
 		prefer->refresh = mode_refresh;
 		prefer->ratio = secdp_get_aspect_ratio(mode);
-		DP_INFO("prefer timing found! %dx%d@%dhz, %s\n",
+		DP_INFO_M("prefer timing found! %dx%d@%dhz, %s\n",
 			prefer->hdisp, prefer->vdisp, prefer->refresh,
 			secdp_aspect_ratio_to_string(prefer->ratio));
 
@@ -5589,22 +5641,8 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 	}
 
 	if (prefer->ratio == MON_RATIO_NA) {
-		DP_INFO("prefer timing is absent!\n");
-
-		if ((mrr_timing->clock || prf_timing->clock) && !dex_timing->clock) {
-			dex->ignore_prefer_ratio = true;
-			DP_INFO("[dex] ignore prefer ratio\n");
-		}
-
-		prefer->ratio = secdp_get_aspect_ratio(mode);
-		if (prefer->ratio != MON_RATIO_NA) {
-			DP_INFO("get prefer ratio from %dx%d@%dhz, %s\n",
-				mode->hdisplay, mode->vdisplay, mode_refresh,
-				secdp_aspect_ratio_to_string(prefer->ratio));
-		} else {
-			prefer->ratio = MON_RATIO_16_9;
-			DP_INFO("set default prefer ratio\n");
-		}
+		dex->ignore_prefer_ratio = true;
+		DP_INFO("prefer timing is absent, ignore!\n");
 	}
 
 	if (!supported || secdp_exceed_mst_max_pclk(mode)
@@ -5829,9 +5867,11 @@ end:
 	if (!secdp_check_resolution(dp, mode, mode_status == MODE_OK))
 		mode_status = MODE_BAD;
 
-	DP_INFO("%9s@%dhz | %s | max:%7d cur:%7d | vt:%d bpp:%u\n", mode->name,
-		drm_mode_vrefresh(mode), mode_status == MODE_BAD ? "NG" : "OK",
-		dp_display->max_pclk_khz, mode->clock, dp_panel->video_test, mode_bpp);
+	if (secdp_mode_count_check(dp)) {
+		DP_INFO_M("%9s@%dhz | %s | max:%7d cur:%7d | vt:%d bpp:%u\n", mode->name,
+			drm_mode_vrefresh(mode), mode_status == MODE_BAD ? "NG" : "OK",
+			dp_display->max_pclk_khz, mode->clock, dp_panel->video_test, mode_bpp);
+	}
 }
 #endif
 

@@ -450,6 +450,7 @@ struct secdp_misc {
 	bool cable_connected; /* previously known as "cable_connected_phy" */
 	bool link_conf;       /* previously known as "sec_link_conf" */
 	struct secdp_hpd hpd;
+	int mode_cnt;
 
 	struct secdp_adapter adapter;
 	struct secdp_pdic_noti pdic_noti;
@@ -537,7 +538,7 @@ bool secdp_check_reconnect(void);
 bool secdp_check_dex_mode(void);
 
 void secdp_clear_link_status_cnt(struct dp_link *dp_link);
-void secdp_reset_link_status(struct dp_link *dp_link);
+void secdp_read_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
 void secdp_link_backoff_start(void);
 void secdp_link_backoff_stop(void);

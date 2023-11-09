@@ -3055,11 +3055,18 @@ vm_fault_t filemap_map_pages(struct vm_fault *vmf,
 	struct page *head, *page;
 	unsigned int mmap_miss = READ_ONCE(file->f_ra.mmap_miss);
 	vm_fault_t ret = 0;
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	pgoff_t head_pgoff = 0;
+#endif
 
 	rcu_read_lock();
 	head = first_map_page(mapping, &xas, end_pgoff);
 	if (!head)
 		goto out;
+
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	head_pgoff = xas.xa_index;
+#endif
 
 	if (filemap_map_pmd(vmf, head)) {
 		if (pmd_none(*vmf->pmd) &&
@@ -3114,7 +3121,8 @@ out:
 
 #ifdef CONFIG_PAGE_BOOST_RECORDING
 	/* end_pgoff is inclusive */
-	record_io_info(file, start_pgoff, last_pgoff - start_pgoff + 1);
+	if (ret == VM_FAULT_NOPAGE)
+		record_io_info(file, head_pgoff, last_pgoff - head_pgoff + 1);
 #endif
 	WRITE_ONCE(file->f_ra.mmap_miss, mmap_miss);
 	return ret;

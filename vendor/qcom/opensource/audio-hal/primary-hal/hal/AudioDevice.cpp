@@ -74,6 +74,10 @@ bool AudioDevice::mic_characteristics_available = false;
 
 card_status_t AudioDevice::sndCardState = CARD_STATUS_ONLINE;
 
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+btsco_lc3_cfg_t AudioDevice::btsco_lc3_cfg = {};
+#endif
+
 struct audio_string_to_enum {
     const char* name;
     unsigned int value;
@@ -1475,7 +1479,7 @@ std::shared_ptr<StreamOutPrimary> AudioDevice::OutGetStream(audio_io_handle_t ha
 
 std::shared_ptr<StreamOutPrimary> AudioDevice::OutGetStream(audio_stream_t* stream_out) {
 
-    std::shared_ptr<StreamOutPrimary> astream_out;
+    std::shared_ptr<StreamOutPrimary> astream_out = NULL;
     AHAL_VERBOSE("stream_out(%p)", stream_out);
     out_list_mutex.lock();
     for (int i = 0; i < stream_out_list_.size(); i++) {
@@ -1483,13 +1487,11 @@ std::shared_ptr<StreamOutPrimary> AudioDevice::OutGetStream(audio_stream_t* stre
                                         (audio_stream_out*) stream_out) {
             AHAL_VERBOSE("Found stream associated with stream_out");
             astream_out = stream_out_list_[i];
+            AHAL_VERBOSE("astream_out(%p)", astream_out->stream_.get());
             break;
         }
     }
     out_list_mutex.unlock();
-    if (astream_out)
-        AHAL_VERBOSE("astream_out(%p)", astream_out->stream_.get());
-
     return astream_out;
 }
 
@@ -1509,7 +1511,7 @@ std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_io_handle_t han
 }
 
 std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_stream_t* stream_in) {
-    std::shared_ptr<StreamInPrimary> astream_in;
+    std::shared_ptr<StreamInPrimary> astream_in = NULL;
 
     AHAL_VERBOSE("stream_in(%p)", stream_in);
     in_list_mutex.lock();
@@ -1517,12 +1519,11 @@ std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_stream_t* strea
         if (stream_in_list_[i]->stream_.get() == (audio_stream_in*) stream_in) {
             AHAL_VERBOSE("Found existing stream associated with astream_in");
             astream_in = stream_in_list_[i];
+            AHAL_VERBOSE("astream_in(%p)", astream_in->stream_.get());
             break;
         }
     }
     in_list_mutex.unlock();
-    if (astream_in)
-        AHAL_VERBOSE("astream_in(%p)", astream_in->stream_.get());
     return astream_in;
 }
 
@@ -2115,7 +2116,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_BT_SCO_WB, value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0)
             param_bt_sco.bt_wb_speech_enabled = true;
         else
@@ -2128,7 +2133,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, "bt_swb", value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
 
         val = atoi(value);
         param_bt_sco.bt_swb_speech_mode = val;
@@ -2139,7 +2148,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, "bt_ble", value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0) {
             bt_lc3_speech_enabled = true;
 
@@ -2165,7 +2178,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_BT_NREC, value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0) {
             AHAL_INFO("BTSCO NREC mode = ON");
             param_bt_sco.bt_sco_nrec = true;
@@ -2210,7 +2227,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     if (((btsco_lc3_cfg.fields_map & LC3_BIT_MASK) == LC3_BIT_VALID) &&
            (bt_lc3_speech_enabled == true)) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         param_bt_sco.bt_lc3_speech_enabled  = bt_lc3_speech_enabled;
         param_bt_sco.lc3_cfg.frame_duration = btsco_lc3_cfg.frame_duration;
         param_bt_sco.lc3_cfg.num_blocks     = btsco_lc3_cfg.num_blocks;

@@ -71,6 +71,28 @@ static int __summary_parse_dt_panic_notifier_priority(struct builder *bd,
 	return 0;
 }
 
+static int __summary_parse_dt_smem_offset(struct builder *bd, struct device_node *np)
+{
+	struct qc_summary_drvdata *drvdata =
+			container_of(bd, struct qc_summary_drvdata, bd);
+	u32 smem_offset;
+	int err;
+
+	/* NOTE:
+	 * android13-5.15.y and before : optional. if not found assign '0'.
+	 * android14-6.1.y and after : mandatory.
+	 */
+	err = of_property_read_u32(np, "sec,smem_offset", &smem_offset);
+	if (err) {
+		drvdata->smem_offset = 0;
+		return 0;
+	}
+
+	drvdata->smem_offset = (size_t)smem_offset;
+
+	return 0;
+}
+
 /* NOTE: this fucntion doe not return error codes.
  * When this function fails in this function,
  * then, just, 'google,debug_kinfo' is not used by this module.
@@ -125,6 +147,7 @@ static const struct dt_builder __summary_dt_builder[] = {
 	 */
 	DT_BUILDER(__summary_parse_dt_die_notifier_priority),
 	DT_BUILDER(__summary_parse_dt_panic_notifier_priority),
+	DT_BUILDER(__summary_parse_dt_smem_offset),
 };
 
 static int __summary_parse_dt(struct builder *bd)
@@ -138,23 +161,30 @@ static int __summary_alloc_summary_from_smem(struct builder *bd)
 	struct qc_summary_drvdata *drvdata =
 			container_of(bd, struct qc_summary_drvdata, bd);
 	struct device *dev = bd->dev;
+	uint8_t *smem_region;
 	struct sec_qc_summary *dbg_summary;
-	size_t size = sizeof(struct sec_qc_summary);
+	const size_t sz_summary = sizeof(struct sec_qc_summary);
+	const size_t sz_requested = sz_summary + drvdata->smem_offset;
+	size_t sz_alloc = sz_requested;
 	int err;
 
 	/* set summary address in smem for other subsystems to see */
-	err = qcom_smem_alloc(QCOM_SMEM_HOST_ANY, SMEM_ID_VENDOR2, size);
+	err = qcom_smem_alloc(QCOM_SMEM_HOST_ANY, SMEM_ID_VENDOR2, sz_alloc);
 	if (err && err != -EEXIST) {
 		dev_err(dev, "smem alloc failed! (%d)\n", err);
 		return err;
 	}
 
-	dbg_summary = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_ID_VENDOR2, &size);
-	if (!dbg_summary || size < sizeof(struct sec_qc_summary)) {
+	smem_region = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_ID_VENDOR2, &sz_alloc);
+	if (!smem_region) {
 		dev_err(dev, "smem get failed!\n");
+		return -ENOENT;
+	} else if (sz_alloc < sz_requested) {
+		dev_err(dev, "smem is too small (%zu < %zu)!\n", sz_alloc, sz_requested);
 		return -ENOMEM;
 	}
 
+	dbg_summary = (struct sec_qc_summary *)&smem_region[drvdata->smem_offset];
 	drvdata->summary = dbg_summary;
 
 	return 0;

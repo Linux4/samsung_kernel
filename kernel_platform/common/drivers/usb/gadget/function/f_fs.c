@@ -3283,6 +3283,8 @@ static int ffs_func_bind(struct usb_configuration *c,
 	struct ffs_function *func = ffs_func_from_usb(f);
 	int ret;
 
+	pr_err("[USB] %s\n", __func__);
+
 	if (IS_ERR(ffs_opts))
 		return PTR_ERR(ffs_opts);
 

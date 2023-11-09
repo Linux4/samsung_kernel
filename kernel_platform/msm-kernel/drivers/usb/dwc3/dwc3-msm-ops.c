@@ -28,7 +28,7 @@ struct kprobe_data {
 	int xi0;
 };
 
-static int entry_dwc3_gadget_init_in_endpoint(struct kretprobe_instance *ri,
+static int entry_usb_ep_set_maxpacket_limit(struct kretprobe_instance *ri,
 				struct pt_regs *regs)
 {
 	struct dwc3_ep *dep = (struct dwc3_ep *)regs->regs[0];
@@ -41,38 +41,23 @@ static int entry_dwc3_gadget_init_in_endpoint(struct kretprobe_instance *ri,
 	return 0;
 }
 
-static int exit_dwc3_gadget_init_in_endpoint(struct kretprobe_instance *ri,
+static int exit_usb_ep_set_maxpacket_limit(struct kretprobe_instance *ri,
 				struct pt_regs *regs)
 {
 	struct kprobe_data *data = (struct kprobe_data *)ri->data;
+	struct dwc3 *dwc = data->dwc;
+	u8 epnum = data->xi0;
+	struct dwc3_ep *dep = dwc->eps[epnum];
+	struct usb_ep *ep = &dep->endpoint;
 
-	usb_ep_set_maxpacket_limit(&data->dwc->eps[data->xi0]->endpoint, 1024);
+	if (epnum >= 2) {
+		ep->maxpacket_limit = 1024;
+		ep->maxpacket = 1024;
+	}
+ 
+ 	return 0;
+ }
 
-	return 0;
-}
-
-static int entry_dwc3_gadget_init_out_endpoint(struct kretprobe_instance *ri,
-				struct pt_regs *regs)
-{
-	struct dwc3_ep *dep = (struct dwc3_ep *)regs->regs[0];
-	struct dwc3 *dwc = dep->dwc;
-	struct kprobe_data *data = (struct kprobe_data *)ri->data;
-
-	data->dwc = dwc;
-	data->xi0 = dep->number;
-
-	return 0;
-}
-
-static int exit_dwc3_gadget_init_out_endpoint(struct kretprobe_instance *ri,
-				struct pt_regs *regs)
-{
-	struct kprobe_data *data = (struct kprobe_data *)ri->data;
-
-	usb_ep_set_maxpacket_limit(&data->dwc->eps[data->xi0]->endpoint, 1024);
-
-	return 0;
-}
 
 static int entry_dwc3_gadget_run_stop(struct kretprobe_instance *ri,
 				   struct pt_regs *regs)
@@ -385,8 +370,7 @@ static struct kretprobe dwc3_msm_probes[] = {
 	ENTRY(trace_dwc3_gadget_ep_cmd),
 	ENTRY(trace_dwc3_prepare_trb),
 	ENTRY(trace_dwc3_event),
-	ENTRY_EXIT(dwc3_gadget_init_in_endpoint),
-	ENTRY_EXIT(dwc3_gadget_init_out_endpoint),
+	ENTRY_EXIT(usb_ep_set_maxpacket_limit),
 	ENTRY(dwc3_gadget_vbus_draw),
 };
 
@@ -398,10 +382,9 @@ int dwc3_msm_kretprobe_init(void)
 
 	for (i = 0; i < ARRAY_SIZE(dwc3_msm_probes) ; i++) {
 		ret = register_kretprobe(&dwc3_msm_probes[i]);
-		if (ret < 0) {
-			pr_err("register_kretprobe failed, returned %d\n", ret);
-			return ret;
-		}
+		if (ret < 0)
+			pr_err("register_kretprobe failed for %s, returned %d\n",
+					dwc3_msm_probes[i].kp.symbol_name, ret);
 	}
 
 	return 0;

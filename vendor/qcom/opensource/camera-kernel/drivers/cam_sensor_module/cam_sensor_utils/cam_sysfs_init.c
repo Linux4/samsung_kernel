@@ -38,6 +38,9 @@
 #if defined(CONFIG_SAMSUNG_PMIC_FLASH)
 #include "cam_flash_core.h"
 #endif
+#if IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
+#include <linux/leds-aw36518.h>
+#endif
 
 #if defined(CONFIG_CAMERA_SSM_I2C_ENV)
 extern void cam_sensor_ssm_i2c_read(uint32_t addr, uint32_t *data,
@@ -141,6 +144,63 @@ static ssize_t rear_ssm_flicker_state_store(struct device *dev,
 }
 #endif
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+int cdr_value_exist = 0;
+uint64_t cdr_start_ts;
+uint64_t cdr_end_ts;
+char cdr_value[50] = "";
+static ssize_t rear_cam_cdr_value_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_value);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear_cam_cdr_value_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	cdr_value_exist = 1;
+	scnprintf(cdr_value, sizeof(cdr_value), "%s", buf);
+
+	return size;
+}
+
+char cdr_result[40] = "\n";
+static ssize_t rear_cam_cdr_result_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_result);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+char cdr_fastaec[5] = "";
+static ssize_t rear_cam_cdr_fastaec_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cdr_fastaec);
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear_cam_cdr_fastaec_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	scnprintf(cdr_fastaec, sizeof(cdr_fastaec), "%s", buf);
+
+	return size;
+}
+#endif
 char rear_fw_ver[SYSFS_FW_VER_SIZE] = "NULL NULL\n";//multi module
 static ssize_t rear_firmware_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -170,7 +230,7 @@ static ssize_t rear_type_show(struct device *dev,
 
 #if defined(CONFIG_SEC_B0Q_PROJECT)
 	char cam_type[] = "SLSI_S5KHM3\n";
-#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 	char cam_type[] = "SLSI_S5KGN3\n";
 #elif defined(CONFIG_SEC_GTS8U_PROJECT) || defined(CONFIG_SEC_GTS8P_PROJECT)
 	char cam_type[] = "HYNIX_HI1337\n";
@@ -193,6 +253,8 @@ static ssize_t front_camera_type_show(struct device *dev,
 	char cam_type[] = "SLSI_S5KGH1\n";
 #elif defined(CONFIG_SEC_GTS8U_PROJECT) || defined(CONFIG_SEC_GTS8P_PROJECT)
 	char cam_type[] = "HYNIX_HI1337\n";
+#elif defined(CONFIG_SEC_R11Q_PROJECT)
+	char cam_type[] = "SLSI_S5K3J1\n";
 #else
 	char cam_type[] = "SONY_IMX374\n";
 #endif
@@ -289,7 +351,7 @@ static ssize_t rear_firmware_factory_store(struct device *dev,
 	return size;
 }
 
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 char rear3_fw_user_ver[SYSFS_FW_VER_SIZE] = "NULL\n";//multi module
 static ssize_t rear3_firmware_user_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -1602,6 +1664,8 @@ static ssize_t rear3_type_show(struct device *dev,
 	char cam_type[] = "SONY_IMX754\n";
 #elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
 	char cam_type[] = "SLSI_S5K3K1\n";
+#elif defined(CONFIG_SEC_R11Q_PROJECT)
+	char cam_type[] = "HYNIX_HI847\n";
 #else
 	char cam_type[] = "SLSI_S5KGW2\n";
 #endif
@@ -1705,7 +1769,7 @@ static ssize_t rear3_tilt_show(struct device *dev,
 }
 
 uint8_t rear3_module_id[FROM_MODULE_ID_SIZE + 1] = "\0";
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 static ssize_t rear3_moduleid_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -2016,6 +2080,8 @@ static ssize_t rear2_type_show(struct device *dev,
 	int rc = 0;
 #if defined(CONFIG_SEC_GTS8U_PROJECT) || defined(CONFIG_SEC_GTS8P_PROJECT)
 	char cam_type[] = "HYNIX_HI847\n";
+#elif defined(CONFIG_SEC_R11Q_PROJECT)
+	char cam_type[] = "SLSI_S5K3L6\n";
 #else
 	char cam_type[] = "SONY_IMX563\n";
 #endif
@@ -3136,7 +3202,9 @@ ssize_t rear_flash_store(struct device *dev,
 #elif defined(CONFIG_LEDS_KTD2692)
 	ktd2692_store(buf);
 #elif defined(CONFIG_SAMSUNG_PMIC_FLASH)
-        flash_power_store(dev, attr, buf, count);
+	flash_power_store(dev, attr, buf, count);
+#elif IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
+	aw36518_store(buf);
 #endif
 	return count;
 }
@@ -3148,6 +3216,8 @@ ssize_t rear_flash_show(struct device *dev,
 	return s2mpb02_show(buf);
 #elif defined(CONFIG_LEDS_KTD2692)
 	return ktd2692_show(buf);
+#elif IS_REACHABLE(CONFIG_LEDS_AW36518_FLASH)
+	return aw36518_show(buf);
 #else
 	return 0;
 #endif
@@ -3164,7 +3234,13 @@ static DEVICE_ATTR(ssm_gmc_state, S_IRUGO|S_IWUSR|S_IWGRP,
 static DEVICE_ATTR(ssm_flicker_state, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear_ssm_flicker_state_show, rear_ssm_flicker_state_store);
 #endif
-
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static DEVICE_ATTR(cam_cdr_value, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear_cam_cdr_value_show, rear_cam_cdr_value_store);
+static DEVICE_ATTR(cam_cdr_result, S_IRUGO, rear_cam_cdr_result_show, NULL);
+static DEVICE_ATTR(cam_cdr_fastaec, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear_cam_cdr_fastaec_show, rear_cam_cdr_fastaec_store);
+#endif
 static DEVICE_ATTR(rear_camtype, S_IRUGO, rear_type_show, NULL);
 static DEVICE_ATTR(rear_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear_firmware_show, rear_firmware_store);
@@ -3321,7 +3397,7 @@ static DEVICE_ATTR(rear3_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_show, rear3_firmware_store);
 static DEVICE_ATTR(rear3_camfw_full, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_full_show, rear3_firmware_full_store);
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 static DEVICE_ATTR(rear3_checkfw_user, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_user_show, rear3_firmware_user_store);
 static DEVICE_ATTR(rear3_checkfw_factory, S_IRUGO|S_IWUSR|S_IWGRP,
@@ -3343,7 +3419,7 @@ static DEVICE_ATTR(rear3_dualcal_size, S_IRUGO, rear3_dual_cal_size_show, NULL);
 static DEVICE_ATTR(rear3_tilt, S_IRUGO, rear3_tilt_show, NULL);
 static DEVICE_ATTR(rear3_paf_cal_check, S_IRUGO,
 	rear3_paf_cal_check_show, NULL);
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 static DEVICE_ATTR(rear3_moduleid, S_IRUGO, rear3_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module3, S_IRUGO, rear3_moduleid_show, NULL);
 #endif
@@ -3583,7 +3659,7 @@ const struct device_attribute *rear_attrs[] = {
 	&dev_attr_rear3_dualcal,
 	&dev_attr_rear3_dualcal_size,
 	&dev_attr_rear3_paf_cal_check,
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 	&dev_attr_rear3_moduleid,
 	&dev_attr_rear3_checkfw_user,
 	&dev_attr_rear3_checkfw_factory,
@@ -3642,6 +3718,11 @@ const struct device_attribute *rear_attrs[] = {
 #endif
 #if defined(CONFIG_CAMERA_FAC_LN_TEST)
 	&dev_attr_cam_ln_test,
+#endif
+#if defined(CONFIG_CAMERA_CDR_TEST)
+	&dev_attr_cam_cdr_value,
+	&dev_attr_cam_cdr_result,
+	&dev_attr_cam_cdr_fastaec,
 #endif
 	NULL, // DO NOT REMOVE
 };
@@ -3752,7 +3833,7 @@ static struct attribute *svc_cam_attrs[] = {
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 	&dev_attr_SVC_rear_module2.attr,
 #endif
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 	&dev_attr_SVC_rear_module3.attr,
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)

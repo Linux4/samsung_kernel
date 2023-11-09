@@ -66,7 +66,7 @@ static ssize_t type_check_show(struct device *dev,
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
 
-	pr_info("%s\n", sensor_status[drvdata->sensortype + 2]);
+	pr_info("%s\n", drvdata->sensortype > 0 ? drvdata->chipid : sensor_status[drvdata->sensortype + 2]);
 	return snprintf(buf, PAGE_SIZE, "%d\n", drvdata->sensortype);
 }
 
@@ -95,29 +95,6 @@ static ssize_t cbgecnt_store(struct device *dev,
 	if (sysfs_streq(buf, "c")) {
 		drvdata->cbge_count = 0;
 		pr_info("initialization is done\n");
-	} else if (sysfs_streq(buf, "wuhb")) {
-	/* For User HwModuleTest IntTest */
-		drvdata->wuhb_test_flag = 1;
-		drvdata->wuhb_test_result = 0;
-
-		if (drvdata->fd_gpio.gpio) {
-			if (drvdata->enabled_wuhb) {
-				drvdata->wuhb_test_flag = 0;
-				drvdata->wuhb_test_result = -1;
-				pr_err("wuhb test procedure can not perform.\n");
-			} else {
-				enable_irq(drvdata->fd_gpio.irq);
-				drvdata->enabled_wuhb = true;
-				pr_info("wuhb test start.flag:%d,result:%d,en:%d\n",
-					drvdata->wuhb_test_flag,
-					drvdata->wuhb_test_result,
-					drvdata->enabled_wuhb);
-			}
-		} else {
-			drvdata->wuhb_test_flag = 0;
-			drvdata->wuhb_test_result = -1;
-			pr_err("fd_gpio does not supports this hw rev.\n");
-		}
 	}
 	return size;
 }
@@ -168,18 +145,18 @@ static ssize_t wuhbtest_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
-	int rc = drvdata->wuhb_test_result;
+	int rc = 0;
+	int gpio_value = 0;
 
-	if (drvdata->wuhb_test_flag == 1) {
-		if (drvdata->enabled_wuhb) {
-			disable_irq(drvdata->fd_gpio.irq);
-			drvdata->enabled_wuhb = false;
-		}
+	gpio_value = gpio_get_value(drvdata->fd_gpio.gpio);
+	if (gpio_value == 0) { /* Finger Leave */
+		pr_info("wuhbtest Finger Leave Ok\n");
+		rc = 1;
+	} else { /* Finger Down */
+		pr_err("wuhbtest Finger Leave NG\n");
+		rc = 0;
 	}
-	drvdata->wuhb_test_result = 0;
-	drvdata->wuhb_test_flag = 0;
-	pr_info("wuhb test complete.rc=%d,wuhb_en:%d\n", rc,
-			drvdata->enabled_wuhb);
+
 	return snprintf(buf, PAGE_SIZE, "%d\n", rc);
 }
 
@@ -544,13 +521,10 @@ static long qbt2000_ioctl(
 		break;
 	case QBT2000_ENABLE_WUHB:
 		pr_info("ENABLE_WUHB\n");
-		drvdata->wuhb_test_flag = 0;
 		rc = qbt2000_enable_wuhb(drvdata);
 		break;
 	case QBT2000_DISABLE_WUHB:
 		pr_info("DISABLE_WUHB\n");
-		/* initialize IntTest flag */
-		drvdata->wuhb_test_flag = 0;
 		rc = qbt2000_disable_wuhb(drvdata);
 		break;
 	case QBT2000_CPU_SPEEDUP:
@@ -854,15 +828,6 @@ static irqreturn_t qbt2000_wuhb_irq_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	if (drvdata->wuhb_test_flag == 1) {
-		pr_info("IntTest. interrupt occured.flag:%d,result:%d,en:%d\n",
-					drvdata->wuhb_test_flag,
-					drvdata->wuhb_test_result,
-					drvdata->enabled_wuhb);
-		drvdata->wuhb_test_result = 1;
-		return IRQ_HANDLED;
-	}
-
 	drvdata->wuhb_count++;
 	__pm_wakeup_event(drvdata->fp_signal_lock,
 			msecs_to_jiffies(QBT2000_WAKELOCK_HOLD_TIME));
@@ -1100,7 +1065,7 @@ static void qbt2000_work_func_debug(struct work_struct *work)
 	pr_info("ldo:%d,ipc:%d,wuhb:%d,tz:%d,type:%s,int:%d,%d,rst:%d\n",
 		drvdata->enabled_ldo, drvdata->enabled_ipc,
 		drvdata->enabled_wuhb, drvdata->tz_mode,
-		sensor_status[drvdata->sensortype + 2],
+		drvdata->sensortype > 0 ? drvdata->chipid : sensor_status[drvdata->sensortype + 2],
 		drvdata->cbge_count, drvdata->wuhb_count,
 		drvdata->reset_count);
 }
@@ -1199,12 +1164,10 @@ static int qbt2000_probe(struct platform_device *pdev)
 	}
 
 	drvdata->clk_setting->spi_speed = SPI_CLOCK_MAX;
-	drvdata->sensortype = SENSOR_QBT2000;
+	drvdata->sensortype = 7;
 	drvdata->cbge_count = 0;
 	drvdata->wuhb_count = 0;
 	drvdata->reset_count = 0;
-	drvdata->wuhb_test_flag = 0;
-	drvdata->wuhb_test_result = 0;
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	drvdata->clk_setting->enabled_clk = false;
 	drvdata->tz_mode = true;

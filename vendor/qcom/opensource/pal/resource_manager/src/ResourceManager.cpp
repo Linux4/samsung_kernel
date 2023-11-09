@@ -551,6 +551,11 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_CELT),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_RVP),
+#endif
+// SS_BT_HFP - H_127 end
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_LC3),
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM),
@@ -8410,6 +8415,9 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_BT_SCO_SWB:
         case PAL_PARAM_ID_BT_SCO_LC3:
         case PAL_PARAM_ID_BT_SCO_NREC:
+#ifdef SEC_AUDIO_BLUETOOTH
+        case PAL_PARAM_ID_BT_SCO_CODEC_TYPE:
+#endif
         {
             std::shared_ptr<Device> dev = nullptr;
             struct pal_device dattr;

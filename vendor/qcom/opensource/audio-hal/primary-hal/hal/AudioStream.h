@@ -346,6 +346,16 @@ const std::map<uint32_t, uint32_t> getAlsaSupportedFmt {
     {AUDIO_FORMAT_PCM_16_BIT,           AUDIO_FORMAT_PCM_16_BIT},
 };
 
+#ifdef SEC_AUDIO_SUPPORT_VOIP_MICMODE_DEFAULT
+// refer to vendor/qcom/proprietary/mm-audio/ar-acdb/acdbdata/inc/kvh2xml.h
+const std::map<uint32_t, uint32_t> getVoipSampleRate {
+    {8000,     0 /* VOIP_SR_NB */},
+    {16000,    1 /* VOIP_SR_WB */},
+    {32000,    2 /* VOIP_SR_SWB */},
+    {48000,    3 /* VOIP_SR_FB */},
+};
+#endif
+
 const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_DEEP_BUFFER] = "deep-buffer-playback",
 #ifdef SEC_AUDIO_SUPPORT_MEDIA_OUTPUT
@@ -584,6 +594,7 @@ public:
     std::shared_ptr<SecAudioStreamOut> SecStreamOutInit();
     ssize_t isAndroidOutDevicesSize() {return mAndroidOutDevices.size();}
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
+    int SetVideoCallEffectKvParams(int mode);
 #endif
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
@@ -692,6 +703,7 @@ public:
 #ifdef SEC_AUDIO_COMMON
     audio_source_t GetInputSource() { return source_; }
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
+    int SetVideoCallEffectKvParams(int mode);
 #endif
 #ifdef SEC_AUDIO_SOUND_TRIGGER_TYPE
     bool IsSeamlessEnabled();

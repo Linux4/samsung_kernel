@@ -808,7 +808,7 @@ void ss_event_frame_update_post(struct samsung_display_driver_data *vdd)
 		frame_count = 1;
 
 		/* set self_mask_udc before display on */
-		if (vdd->self_disp.self_mask_udc_on)
+		if (vdd->self_disp.self_mask_udc_on && !ss_is_panel_lpm(vdd))
 			vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
 		else
 			LCD_DEBUG(vdd, "Self Mask UDC Function is NULL\n");
@@ -4726,6 +4726,7 @@ static void ss_test_mode_parse_dt(struct samsung_display_driver_data *vdd)
 	u32 tmp[2];
 	int rc;
 	int len;
+	int i;
 	const __be32 *data;
 
 	/* lego-opcode doesn't import test_mode_XXX.dtsi */
@@ -4758,8 +4759,13 @@ static void ss_test_mode_parse_dt(struct samsung_display_driver_data *vdd)
 	LCD_INFO(vdd, "vdd->gct.is_support = %d\n", vdd->gct.is_support);
 
 	/* ccd success,fail value */
-	rc = of_property_read_u32(np, "samsung,ccd_pass_val", tmp);
-	vdd->ccd_pass_val = (!rc ? tmp[0] : 0);
+	data = of_get_property(np, "samsung,ccd_pass_val", &len);
+	if (data) { /* X items & 4 bytes = 4xX bytes */
+		for (i = 0; len > 0; i++) {
+			vdd->ccd_pass_val[i] = be32_to_cpup(&data[i]);
+			len -= 4;
+		}
+	}
 	rc = of_property_read_u32(np, "samsung,ccd_fail_val", tmp);
 	vdd->ccd_fail_val = (!rc ? tmp[0] : 0);
 
@@ -4767,13 +4773,11 @@ static void ss_test_mode_parse_dt(struct samsung_display_driver_data *vdd)
 
 	/* DSC CRC pass value */
 	data = of_get_property(np, "samsung,dsc_crc_pass_val", &len);
-	if (data && len == 8) { /* two items & 4 bytes = 8 bytes */
-		vdd->dsc_crc_pass_val[0] = be32_to_cpup(&data[0]);
-		vdd->dsc_crc_pass_val[1] = be32_to_cpup(&data[1]);
-
-		LCD_INFO(vdd, "dsc crc valid_chksum: %02X %02X\n",
-				vdd->dsc_crc_pass_val[0],
-				vdd->dsc_crc_pass_val[1]);
+	if (data) { /* X items & 4 bytes = 4xX bytes */
+		for (i = 0; len > 0; i++) {
+			vdd->dsc_crc_pass_val[i] = be32_to_cpup(&data[i]);
+			len -= 4;
+		}
 	}
 
 	return;
@@ -4937,6 +4941,9 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 
 	vdd->panel_lpm.is_support = of_property_read_bool(np, "samsung,support_lpm");
 	LCD_INFO(vdd, "alpm enable %s\n", vdd->panel_lpm.is_support? "enabled" : "disabled");
+
+	vdd->support_ccd_crc_R11 = of_property_read_bool(np, "samsung,support_ccd_crc_R11");
+	LCD_INFO(vdd, "support_ccd_crc_R11 %s\n", vdd->support_ccd_crc_R11 ? "enabled" : "disabled");
 
 	vdd->skip_read_on_pre = of_property_read_bool(np, "samsung,skip_read_on_pre");
 	LCD_INFO(vdd, "Skip read on pre %s\n", vdd->skip_read_on_pre ? "enabled" : "disabled");
@@ -8265,7 +8272,14 @@ int samsung_panel_initialize(char *panel_string, unsigned int ndx)
 	else if (!strncmp(panel_string, "Q4_S6E3FAC_AMB619BR01", strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = Q4_S6E3FAC_AMB619BR01_HD_init;
 #endif
-
+#if IS_ENABLED(CONFIG_PANEL_R11_S6E3FC5_AMS642DF01_FHD)
+	else if (!strncmp(panel_string, "R11_S6E3FC5_AMS642DF01", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = R11_S6E3FC5_AMS642DF01_FHD_init;
+#endif
+#if IS_ENABLED(CONFIG_PANEL_R11_S6E3FC3_AMS642DF03_FHD)
+	else if (!strncmp(panel_string, "R11_S6E3FC3_AMS642DF03", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = R11_S6E3FC3_AMS642DF03_FHD_init;
+#endif
 	else {
 		LCD_ERR(vdd, "[%s] not found\n", panel_string);
 		return -1;

@@ -275,9 +275,7 @@ config SEC_PCIE_L1SS
 	bool "SEC_PCIE_L1SS feature"
 
 config SEC_PANIC_PCIE_ERR
-	depends on PCI_MSM
-	depends on SEC_PCIE
-	default y if SEC_FACTORY && !SEC_FACTORY_INTERPOSER
+	default n
 	bool "SEC_PANIC_PCIE_ERR feature"
 
 config SEC_PCIE_KEEP_LINKBW
