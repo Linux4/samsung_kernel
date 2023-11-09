@@ -11,7 +11,9 @@ static void not_support_cmd(void *device_data);
 extern void enable_gesture_wakeup(void);
 extern int gcore_sec_fn_init(struct gcore_dev *ts);
 extern int smart_wakeup_open_flag;
-
+/*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 start*/
+extern struct gcore_dev *gdev_fwu;
+/*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 end*/
 struct sec_cmd gcore_sec_cmds[] = {
     {SEC_CMD("get_fw_ver_bin", get_fw_ver_bin),},
     {SEC_CMD("get_fw_ver_ic", get_fw_ver_ic),},
@@ -30,7 +32,9 @@ static void get_fw_ver_bin(void *device_data)
     char buff[SEC_CMD_STR_LEN] = { 0 };
     struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
     sec_cmd_set_default_result(sec);
-    snprintf(buff, sizeof(buff), "GCORETP_BIN: %08x\n",fn_data.gdev->fw_ver);
+    /*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 start*/
+    snprintf(buff, sizeof(buff), "GCORETP_BIN: %02x\n",gdev_fwu->fw_ver[2]&0xff);
+    /*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 end*/
     sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
     sec->cmd_state = SEC_CMD_STATUS_OK;
     sec_cmd_set_cmd_exit(sec);
@@ -43,7 +47,9 @@ static void get_fw_ver_ic(void *device_data)
     char buff[20] = { 0 };
 
     sec_cmd_set_default_result(sec);
-    snprintf(buff, sizeof(buff), "GCORETP_IC=%08x\n",fn_data.gdev->fw_ver);
+    /*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 start*/
+    snprintf(buff, sizeof(buff), "GCORETP_IC=%02x\n",gdev_fwu->fw_ver[2]&0xff);
+    /*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 end*/
     sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
     sec->cmd_state = SEC_CMD_STATUS_OK;
     sec_cmd_set_cmd_exit(sec);

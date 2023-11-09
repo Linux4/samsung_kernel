@@ -79,10 +79,10 @@ void ccci_get_platform_version(char *ver);
 int ccci_get_md_sec_smem_size_and_update(void);
 
 int ccci_plat_common_init(void);
-//int ccci_platform_init(struct ccci_modem *md);
+int ccci_platform_init(struct ccci_modem *md);
 void ccci_platform_common_init(struct ccci_modem *md);
 
-void ccci_platform_init_6765(struct ccci_modem *md);
+//void ccci_platform_init_6765(struct ccci_modem *md);
 
 //void ccci_reset_ccif_hw(unsigned char md_id,
 //			int ccif_id, void __iomem *baseA, void __iomem *baseB);

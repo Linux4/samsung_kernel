@@ -1295,8 +1295,12 @@ static void cts_charger_notify_work(struct work_struct *work)
     }
     cts_info("noti_value = %d,Set dev charger %s",
         chipone_ts_data->usb_plug_status, chipone_ts_data->usb_plug_status ? "ATTACHED" : "DETATCHED");
+    /*hs04_T code for DEAL6398A-1920 by tangsumian1 at 20221103 start*/
+    cts_lock_device(&chipone_ts_data->cts_dev);
     ret = cts_send_command(&chipone_ts_data->cts_dev,
         chipone_ts_data->usb_plug_status ? CTS_CMD_CHARGER_ATTACHED : CTS_CMD_CHARGER_DETACHED);
+    cts_unlock_device(&chipone_ts_data->cts_dev);
+    /*hs04_T code for DEAL6398A-1920 by tangsumian1 at 20221103 end*/
     if (ret) {
         cts_err("Send CMD_CHARGER_%s failed %d",
             chipone_ts_data->usb_plug_status ? "ATTACHED" : "DETACHED", ret);
@@ -1408,7 +1412,11 @@ static int cts_earphone_notifier_callback(struct notifier_block *nb, unsigned lo
         return -EINVAL;
     }
     if (earphone_pre_status != chipone_ts_data->earphone_status) {
+        /*hs04_T code for DEAL6398A-1920 by tangsumian1 at 20221103 start*/
+        cts_lock_device(&chipone_ts_data->cts_dev);
         ret = cts_set_dev_earjack_attached(&chipone_ts_data->cts_dev,chipone_ts_data->earphone_status);
+        cts_unlock_device(&chipone_ts_data->cts_dev);
+        /*hs04_T code for DEAL6398A-1920 by tangsumian1 at 20221103 end*/
         if (ret) {
             cts_err("cts_set_dev_earjack_attached error");
             return ret;

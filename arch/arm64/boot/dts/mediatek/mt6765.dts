@@ -491,7 +491,6 @@ firmware_class.path=/vendor/firmware";
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
-
 #if defined(CONFIG_SEC_DEBUG)
 		sec-log-reserve-memory@0x46C00000 {
 			reg = <0 0x46C00000 0 0x200000>;
@@ -513,7 +512,6 @@ firmware_class.path=/vendor/firmware";
 			reg = <0 0x47410000 0 0x1F0000>;
 		};
 #endif
-
 		reserve-memory-sspm_share {
 			compatible = "mediatek,reserve-memory-sspm_share";
 			no-map;
@@ -538,7 +536,7 @@ firmware_class.path=/vendor/firmware";
 		consys_mem: consys-reserve-memory {
 			compatible = "mediatek,consys-reserve-memory";
 			no-map;
-			size = <0 0x400000>;
+			size = <0 0x440000>;
 			alignment = <0 0x1000000>;
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
@@ -975,6 +973,7 @@ firmware_class.path=/vendor/firmware";
 		interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>;
 		core_1 = "enable";
 		scp_sramSize = <0x00040000>;
+		scp_mpuRegionId = <27>;
 		scp_feature_tbl = <0 47>,   /* vow */
 				  <1 356>,  /* dsp */
 				  <2 62>,   /* sensor */
@@ -3562,7 +3561,13 @@ firmware_class.path=/vendor/firmware";
 #if 0
 		pd_vbus_upper_bound = <5000000>;
 #endif
+/* Tab A7 lite_T for P221206-04681 by shixuanxuan at 20221224 start */
+#ifdef CONFIG_HQ_PROJECT_OT8
+		pd_vbus_upper_bound = <10000000>;
+#else
 		pd_vbus_upper_bound = <15000000>;
+#endif
+/* Tab A7 lite_T for P221206-04681 by shixuanxuan at 20221224 end */
 
 		vsys_watt = <5000000>;
 		ibus_err = <30>;
@@ -3686,7 +3691,9 @@ firmware_class.path=/vendor/firmware";
 		charger = <&mt6370_chg>;
 		vbus-supply = <&otg_vbus>;
 		vbus-voltage = <5000000>;
-		vbus-current = <1800000>;
+		/*Tab A7 lite_T code for AL5626TDEV-170 by kangkai at 20220927 start*/
+		vbus-current = <1300000>;
+		/*Tab A7 lite_T code for AL5626TDEV-170 by kangkai at 20220927 end*/
 		dev-conn = <&usb>;
 		mediatek,bypss-typec-sink = <1>;
 	};
@@ -3967,12 +3974,12 @@ firmware_class.path=/vendor/firmware";
 		required-opps = <&dvfsrc_freq_opp0>,
 				<&dvfsrc_freq_opp1>;
 	};
-	// TabA7 Lite code added by SunXunou at 20201120 start
-        sdcard-det-pin {
-            compatible = "qcom,sdcard-detect-pin";
-            qcom,sdcard-detect-pin-no = <&pio 1 0>;
-         };
-    // TabA7 Lite code added by SunXunou at 20201120 end
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	hwinfo:HardwareInfo {
+		compatible = "hardinfo,hardinfo_charger";
+		status = "okay";
+	};
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 	input_booster {
 		status = "okay";

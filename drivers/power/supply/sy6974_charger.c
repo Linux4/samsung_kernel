@@ -37,6 +37,10 @@
 #include "sy6974_reg.h"
 #include "sy6974.h"
 
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
+
 enum {
 	PN_SY6974,
 };
@@ -1510,6 +1514,10 @@ static int sy6974_charger_probe(struct i2c_client *client,
 		ret = PTR_ERR(sy->psy);
 	}
 	/*HS03s for SR-AL5625-01-511 by wenyaqi at 20210618 end*/
+
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(CHG_INFO, "SY6974");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 	pr_err("sy6974 probe successfully, Part Num:%d, Revision:%d\n!",
 			sy->part_no, sy->revision);

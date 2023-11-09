@@ -966,6 +966,12 @@ struct mtk_battery {
 	int batt_cap_control;
 	#endif
 	/*HS03s for SR-AL5625-01-272 by wenyaqi at 20210427 end*/
+	/*HS03s for AL5626TDEV-224 by liuhong at 20220921 start*/
+	#ifndef HQ_FACTORY_BUILD
+	int cust_batt_cap;
+	int batt_full_flag;
+	#endif
+	/*HS03s for AL5626TDEV-224 by liuhong at 20220921 end*/
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS04
 /* modify code for O6 */
@@ -977,12 +983,12 @@ struct mtk_battery {
 	int batt_cap_control;
 	#endif
 	/*HS03s for SR-AL5625-01-272 by wenyaqi at 20210427 end*/
-/*hs04 code for SR-AL6398A-01-715 by shixuanxuan at 20220824 start*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 #ifndef HQ_FACTORY_BUILD
 	int cust_batt_cap;
 	int batt_full_flag;
 #endif
-/*hs04 code for SR-AL6398A-01-715 by shixuanxuan at 20220824 end*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 #endif
 #ifdef CONFIG_HQ_PROJECT_OT8
 /* modify code for O8 */
@@ -997,6 +1003,11 @@ struct mtk_battery {
 	/*TabA7 Lite code for SR-QL3095-01-91 add batt_id and battery profile by wenyaqi at 20201201 start*/
 	char *battery_type;
 	/*TabA7 Lite code for SR-QL3095-01-91 add batt_id and battery profile by wenyaqi at 20201201 end*/
+	/* Tab A7 lite_T for AL5626TDEV-715 by duanweiping at 20221102 start */
+	#ifdef HQ_FACTORY_BUILD //factory version
+	int batt_cap_control;
+	#endif
+	/* Tab A7 lite_T for AL5626TDEV-715 by duanweiping at 20221102 end */
        /* TabA7 Lite code for OT8-5454 by shixuanxuan at 2022040 start */
 	#ifndef HQ_FACTORY_BUILD
 	int cust_batt_cap;

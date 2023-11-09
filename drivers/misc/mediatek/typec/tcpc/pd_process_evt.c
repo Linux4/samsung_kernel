@@ -7,6 +7,7 @@
 #include "inc/tcpci_event.h"
 #include "inc/pd_process_evt.h"
 #include "inc/pd_dpm_core.h"
+#include <mt-plat/mtk_boot.h>
 
 /*
  * [BLOCK] print event
@@ -638,6 +639,11 @@ static inline uint8_t pe_get_startup_state(
 {
 	bool act_as_sink = true;
 	uint8_t startup_state = 0xff;
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	struct tcpc_device *tcpc = pd_port->tcpc;
+	bool is_power_off_boot = (tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+			tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT) ? true:false;
+#endif	/* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
 
 #ifdef CONFIG_USB_PD_CUSTOM_DBGACC
 	pd_port->custom_dbgacc = false;
@@ -662,7 +668,12 @@ static inline uint8_t pe_get_startup_state(
 
 	/* At least > 4 for Ellisys VNDI PR_SWAP */
 #ifdef CONFIG_USB_PD_ERROR_RECOVERY_ONCE
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	if ((is_power_off_boot && (pd_port->error_recovery_once >= PD_ERROR_RECOVERY_COUNT))
+			|| (!is_power_off_boot && pd_port->error_recovery_once > 4))
+#else
 	if (pd_port->error_recovery_once > 4)
+#endif /* CONFIG_KPOC_GET_SOURCE_CAP_TRY */
 		startup_state = PE_ERROR_RECOVERY_ONCE;
 #endif	/* CONFIG_USB_PD_ERROR_RECOVERY_ONCE */
 
@@ -709,6 +720,15 @@ static inline uint8_t pe_check_trap_in_idle_state(
 
 	case PE_IDLE2:
 		if (pd_event_hw_msg_match(pd_event, PD_HW_CC_ATTACHED)) {
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+			if (tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT
+				|| tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT) {
+				if (pd_port->error_recovery_once == 1)
+					pd_port->error_recovery_once = PD_ERROR_RECOVERY_COUNT;
+				PE_INFO("error_recovery_once = %d\r\n",
+						pd_port->error_recovery_once);
+			}
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 			if (pe_transit_startup_state(pd_port, pd_event))
 				return TII_TRANSIT_STATE;
 		}

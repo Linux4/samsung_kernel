@@ -783,12 +783,8 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 /*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end*/
 #endif
 
-/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
 #ifdef CONFIG_HQ_PROJECT_HS04
-	/* hs04 code for SR-AL6398A-01-12 by chenjun at  2022/07/7 start */
-	/* hs04 code for SR-AL6398A-01-12 by liluling at 2022/7/25 start */
-	/* hs04 code for SR-AL6398A-01-12 by xutengtao at 2022/7/21 start */
-    /* hs04 code for DEVAL6398A-24 by xutengtao at 2022/07/24 start */
 	#if defined(O2101_SC1300CSLY_BACK_MIPI_RAW)
 		{
 			SENSOR_DRVNAME_O2101_SC1300CSLY_BACK_MIPI_RAW,
@@ -859,7 +855,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			},
 		},
 	#endif
-/*  hs04 code for DEAL6398A-453 by liluling at 2022/08/10 start */
 	#if defined(O2102_OV05A10HLT_FRONT_MIPI_RAW)
         {
 	        SENSOR_DRVNAME_O2102_OV05A10HLT_FRONT_MIPI_RAW,
@@ -874,7 +869,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	        },
         },
 	#endif
-/*  hs04 code for DEAL6398A-453 by liluling at 2022/08/10 end */
 	#if defined(O2103_SC520SYX_FRONT_MIPI_RAW)
         {
 	        SENSOR_DRVNAME_O2103_SC520SYX_FRONT_MIPI_RAW,
@@ -927,7 +921,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			},
 		},
     #endif
-	/* hs04 code for DEVAL6398A-722 by hudongdong at 2022/08/19 start */
 	#if defined(O2103_SP2507HCXT_DEPTH_MIPI_RAW)
         {
 			SENSOR_DRVNAME_O2103_SP2507HCXT_DEPTH_MIPI_RAW,
@@ -941,13 +934,8 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			},
 		},
     #endif
-	/* hs04 code for DEVAL6398A-722 by hudongdong at 2022/08/19 end */
-    /* hs04 code for DEVAL6398A-24 by xutengtao at 2022/07/24 end */
-	/* hs04 code for SR-AL6398A-01-12 by xutengtao at  2022/07/21 end */
-	/* hs04 code for SR-AL6398A-01-12 by chenjun at  2022/07/7 end */
-	/* hs04 code for SR-AL6398A-01-12 by liluling at 2022/7/25 end */
 #endif
-/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
 
 #if defined(IMX398_MIPI_RAW)
 	{

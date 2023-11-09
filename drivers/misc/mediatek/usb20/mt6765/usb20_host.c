@@ -38,11 +38,16 @@
 #include <usb20_phy.h>
 #endif
 
-/*hs04 code for P220812-05767 by zhouyuhang at 20220819 start*/
+/*HS03s code for AL5626TDEV-170 by kangkai at 20220923 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
+#define OTG_CURRENT_LIMIT 1200000
+#endif
+/*HS03s code for AL5626TDEV-170 by kangkai at 20220923 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 #ifdef CONFIG_HQ_PROJECT_HS04
 #define OTG_CURRENT_LIMIT 1200000
 #endif
-/*hs04 code for P220812-05767 by zhouyuhang at 20220819 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 
 MODULE_LICENSE("GPL v2");
 
@@ -311,7 +316,9 @@ static void _set_vbus(int is_on)
 		vbus_on = true;
 	/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
 		charger_dev_enable_otg(primary_charger, true);
-		charger_dev_set_boost_current_limit(primary_charger, 1500000);
+		/*HS03s code for AL5626TDEV-170 by kangkai at 20220923 start*/
+		charger_dev_set_boost_current_limit(primary_charger, OTG_CURRENT_LIMIT);
+		/*HS03s code for AL5626TDEV-170 by kangkai at 20220923 end*/
 		charger_dev_enable(primary_charger, false);
 /*
 
@@ -372,9 +379,7 @@ static void _set_vbus(int is_on)
 		vbus_on = true;
 	/* HS03s for SR-AL5625-01-515 by wangzikang at 21210610 start*/
 		charger_dev_enable_otg(primary_charger, true);
-		/*hs04 code for P220812-05767 by zhouyuhang at 20220819 start*/
 		charger_dev_set_boost_current_limit(primary_charger, OTG_CURRENT_LIMIT);
-		/*hs04 code for P220812-05767 by zhouyuhang at 20220819 end*/
 		charger_dev_enable(primary_charger, false);
 /*
 
@@ -461,6 +466,7 @@ void mt_otg_accessory_power(int is_on)
 		_set_vbus(0);
 }
 #endif
+
 int mt_usb_get_vbus_status(struct musb *musb)
 {
 	return true;
@@ -535,7 +541,7 @@ EXPORT_SYMBOL(mtk_usb_host_connect);
 
 void mt_usb_host_connect(int delay)
 {
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER) && !defined(CONFIG_EXTCON_MTK_USB)
 	host_on_delay = delay;
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_OTG);
 #else
@@ -556,7 +562,7 @@ EXPORT_SYMBOL(mtk_usb_host_disconnect);
 
 void mt_usb_host_disconnect(int delay)
 {
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER) && !defined(CONFIG_EXTCON_MTK_USB)
 	host_off_delay = delay;
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
 #else
@@ -1084,12 +1090,7 @@ static void do_host_work(struct work_struct *data)
 		/* setup fifo for host mode */
 		ep_config_from_table_for_host(mtk_musb);
 
-		/*hs04 code for DEAL6398A-1629 by lina at 20220906 start*/
-		if (!mtk_musb->host_suspend){
-			DBG(0,"enter stay_awake\n");
-			__pm_stay_awake(mtk_musb->usb_lock);
-		}
-		/*hs04 code for DEAL6398A-1629 by lina at 20220906 end*/
+		__pm_stay_awake(mtk_musb->usb_lock);
 
 		/* this make PHY operation workable */
 		musb_platform_enable(mtk_musb);

@@ -95,7 +95,7 @@
     #define CFG_CTS_NUM_GESTURE             (13u)
     #define CFG_CTS_GESTURE_REPORT_KEY
     #define CFG_CTS_GESTURE_KEYMAP      \
-        {{GESTURE_D_TAP, KEY_POWER,},   \
+        {{GESTURE_D_TAP, KEY_WAKEUP,},   \
          {GESTURE_UP, KEY_UP,},         \
          {GESTURE_DOWN, KEY_DOWN,},     \
          {GESTURE_LEFT, KEY_LEFT,},     \

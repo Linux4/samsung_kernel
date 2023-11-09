@@ -9,6 +9,12 @@ fwdir := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE_DIR))
 fwabs := $(addprefix $(srctree)/,$(filter-out /%,$(fwdir)))$(filter /%,$(fwdir))
 
 fw-external-y := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE))
+fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx) += tsp_novatek/NT36525B_BOE_0583_HDp_SEC_A23e_PID724D_V00_20220330.bin
+fw-external-$(CONFIG_TOUCHSCREEN_SYNA_TCM2) += tsp_synaptics/PR3482364-S3908_M52_BOE_PRA_3102000C_20210903.img
+fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102J) += tsp_himax/Himax_HX83102J_firmware.bin
+fw-external-$(CONFIG_TOUCHSCREEN_GOODIX_9895_BRL) += tsp_goodix/A33_GT9895_COMBINED_20220517_v20.bin
+fw-external-$(CONFIG_TOUCHSCREEN_GOODIX_9895_BRL) += tsp_goodix/A34_GT9895_03040002_Combined_20220902_updated.BIN
+fw-external-$(CONFIG_TOUCHSCREEN_MELFAS_MSS100) += melfas/melfas_mip4_ts.fw
 
 quiet_cmd_fwbin = MK_FW   $@
       cmd_fwbin = FWNAME="$(patsubst firmware/%.gen.S,%,$@)";		     \

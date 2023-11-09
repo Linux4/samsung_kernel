@@ -36,6 +36,9 @@
 
 #include "sgm41513_reg.h"
 #include "sgm41513.h"
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 struct sgm41513 {
     struct device *dev;
@@ -747,8 +750,8 @@ static int sgm41513_register_interrupt(struct sgm41513 *sgm)
     return 0;
 }
 
-/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
 static int sgm41513_set_shipmode(struct charger_device *chg_dev, bool en)
 {
     int ret;
@@ -802,7 +805,7 @@ static int sgm41513_disable_battfet_rst(struct sgm41513 *sgm)
     return ret;
 }
 #endif
-/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 
 static int sgm41513_init_device(struct sgm41513 *sgm)
 {
@@ -844,14 +847,13 @@ static int sgm41513_init_device(struct sgm41513 *sgm)
     if (ret)
         pr_err("Failed to set vindpm and iindpm int mask\n");
 
-    /*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
+    /* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
     ret = sgm41513_disable_battfet_rst(sgm);
     if (ret)
         pr_err("Failed to disable_battfet\n");
 #endif
-    /*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 end*/
-
+    /* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
     return 0;
 }
 
@@ -1379,12 +1381,12 @@ static struct charger_ops sgm41513_chg_ops = {
     .get_chr_status = sgm41513_get_charging_status,
     .set_hiz_mode = sgm41513_set_hiz_mode,
     .get_hiz_mode = sgm41513_get_hiz_mode,
-    /*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
+    /* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
     .get_ship_mode = sgm41513_get_shipmode,
     .set_ship_mode = sgm41513_set_shipmode,
 #endif
-    /*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 end*/
+    /* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */
 };
 
 static struct of_device_id sgm41513_charger_match_table[] = {
@@ -1579,14 +1581,12 @@ static int sgm41513_charger_probe(struct i2c_client *client,
         ret = PTR_ERR(sgm->psy);
     }
 
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(CHG_INFO, "SGM41513");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
+
     pr_err("sgm41513 probe successfully, Part Num:%d\n!",
             sgm->part_no);
-
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
-    chg_info = SGM41513;
-#endif
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 end*/
 
     return 0;
 }

@@ -613,8 +613,6 @@ static int fgauge_get_info(struct mtk_gauge *gauge,
 		sign_bit = (reg_val & (0x1 << 0xf))	>> 0xf;
 		tmp_val = (reg_val & (0xff << 0x7))	>> 0x7;
 
-		/*hs04 code for DEAL6398A-1817 by shixuanxuan at 20220922 start*/
-		/*hs04 code for DEAL6398A-1695 by lina at 20220921 start*/
 		if (sign_bit == 1 && tmp_val == 0xff) {
 			bm_err("[%s]: GAUGE_PROP_SHUTDOWN_CAR: invalid, sign:%d value:%d,0x%x\n",
 			__func__, sign_bit, tmp_val, reg_val);
@@ -624,13 +622,17 @@ static int fgauge_get_info(struct mtk_gauge *gauge,
 			*value = 0 - tmp_val;
 			bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
 			__func__, sign_bit, tmp_val);
-		} else if (sign_bit == 0) {
+		}
+		/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+		#ifdef CONFIG_HQ_PROJECT_HS04
+		else if (sign_bit == 0) {
 			*value = tmp_val;
 			bm_err("[%s]:GAUGE_PROP_SHUTDOWN_CAR: sign:%d, tmp_val:%d\n",
 			 __func__, sign_bit, tmp_val);
 		}
-		/*hs04 code for DEAL6398A-1695 by lina at 20220921 end*/
-		/*hs04 code for DEAL6398A-1817 by shixuanxuan at 20220922 end*/
+		#endif
+		/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */
+
 	}
 
 	bm_debug("[%s]info:%d v:%d\n", __func__, ginfo, *value);
@@ -1941,6 +1943,9 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 {
 	signed int adc_result_reg = 0;
 	signed int adc_result = 0;
+	/* hs04_T code for P230223-03290 by shixuanxuan at 20230302 start */
+	static int old_zcv = 0;
+	/* hs04_T code for P230223-03290 by shixuanxuan at 20230302 end */
 
 	regmap_read(gauge_dev->regmap,
 		PMIC_AUXADC_ADC_OUT_FGADC_PCHR_ADDR,
@@ -1951,10 +1956,16 @@ static int zcv_get(struct mtk_gauge *gauge_dev,
 		>> PMIC_AUXADC_ADC_OUT_FGADC_PCHR_SHIFT;
 
 	adc_result = reg_to_mv_value(adc_result_reg);
-	bm_err("[oam] %s BATSNS  (pchr):adc_result_reg=%d, adc_result=%d\n",
-		 __func__, adc_result_reg, adc_result);
-
+	/* hs04_T code for P230223-03290 by shixuanxuan at 20230302 start */
+	bm_err("[oam] %s BATSNS  (pchr):adc_result_reg=%d, adc_result=%d, old_zcv = %d\n",
+	__func__, adc_result_reg, adc_result, old_zcv);
+	if (adc_result != 0) {
 	*zcv = adc_result;
+	old_zcv = adc_result;
+	} else {
+	*zcv = old_zcv;
+	}
+	/* hs04_T code for P230223-03290 by shixuanxuan at 20230302 end */
 	return 0;
 }
 #endif

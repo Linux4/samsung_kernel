@@ -62,6 +62,13 @@ static bool blinkenlights;
 module_param(blinkenlights, bool, S_IRUGO);
 MODULE_PARM_DESC(blinkenlights, "true to cycle leds on hubs");
 
+#ifdef CONFIG_HQ_PROJECT_O22
+    /* modify code for O22 */
+#ifndef HQ_FACTORY_BUILD	//ss version
+int g_usb_connected_unconfigured = 0;
+EXPORT_SYMBOL(g_usb_connected_unconfigured);
+#endif
+#endif
 #ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 /*HS03s for SR-AL5625-01-282 by wenyaqi at 20210426 start*/
@@ -3582,9 +3589,6 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 		 * sequence.
 		 */
 		status = hub_port_status(hub, port1, &portstatus, &portchange);
-
-		/* TRSMRCY = 10 msec */
-		msleep(10);
 	}
 
  SuspendCleared:
@@ -3599,6 +3603,9 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 				usb_clear_port_feature(hub->hdev, port1,
 						USB_PORT_FEAT_C_SUSPEND);
 		}
+
+		/* TRSMRCY = 10 msec */
+		msleep(10);
 	}
 
 	if (udev->persist_enabled)

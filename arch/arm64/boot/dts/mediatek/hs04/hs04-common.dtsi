@@ -10,3 +10,6 @@
 /*HS03s code for DEVAL5626S-9 by zoujiarong at 2022/02/18 start*/
 #include "hs04-nfc.dtsi"
 /*HS03s code for DEVAL5626S-9 by zoujiarong at 2022/02/18 end*/
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 start*/
+#include "mediatek/hs04/hs04-touchscreen.dtsi"
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 end*/

@@ -17,9 +17,11 @@
 #endif
 #include "mt-plat/mtk_smi.h"
 #include "mtk_smi.h"
-/* hs04 code for P220812-01951 by suyurui at 20220920 start */
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start */
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined (CONFIG_HQ_PROJECT_HS03S)
 #include <linux/gpio.h>
-/* hs04 code for P220812-01951 by suyurui at 20220920 end */
+#endif
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end */
 
 
 #ifdef MTK_FB_MMDVFS_SUPPORT
@@ -93,11 +95,11 @@ extern unsigned int arr_fps_enable;
 extern unsigned int round_corner_offset_enable;
 extern bool g_force_cfg;
 extern unsigned int g_force_cfg_id;
-/* hs04 code for P220812-01951 by suyurui at 20220920 start */
-#ifdef CONFIG_HQ_PROJECT_HS04
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined (CONFIG_HQ_PROJECT_HS03S)
 extern int lcm_bias_state;
 #endif
-/* hs04 code for P220812-01951 by suyurui at 20220920 end */
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end */
 
 struct DISP_LAYER_INFO {
 	unsigned int id;

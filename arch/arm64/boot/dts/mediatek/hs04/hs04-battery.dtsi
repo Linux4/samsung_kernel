@@ -178,7 +178,6 @@
 /*hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 start*/
 #include "sgm41513.dtsi"
 /*hs03s_NM code for SR-AL5625-01-646 by shixuanxuan at 20220414 end*/
-/*hs04 code for SR-AL6398A-01-139|SR-AL6398A-01-140 by shixuanxuan at 20220708 start*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 #include "upm6910.dtsi"
-#include "eta6963.dtsi"
-/*hs04 code for SR-AL6398A-01-139|SR-AL6398A-01-140 by shixuanxuan at 20220708 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */

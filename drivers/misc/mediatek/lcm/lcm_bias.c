@@ -22,10 +22,12 @@
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
-/* hs04 code for P220812-01951 by suyurui at 20220920 start */
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined (CONFIG_HQ_PROJECT_HS03S)
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
-/* hs04 code for P220812-01951 by suyurui at 20220920 end */
+#endif
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
 #endif
 
 #include <linux/pinctrl/consumer.h>
@@ -53,11 +55,11 @@ static int lcd_bias_dts_remove(struct platform_device *pdev);
 static int lcd_bias_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id);
 static int lcd_bias_i2c_remove(struct i2c_client *client);
 #endif
-/* hs04 code for P220812-01951 by suyurui at 20220920 start */
-#ifdef CONFIG_HQ_PROJECT_HS04
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined (CONFIG_HQ_PROJECT_HS03S)
 int lcm_bias_state;
 #endif
-/* hs04 code for P220812-01951 by suyurui at 20220920 end */
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
 
 /*****************************************************************************
  * Extern Area
@@ -297,12 +299,13 @@ static int lcd_bias_dts_probe(struct platform_device *pdev)
         return ret;
     }
 
-/* hs04 code for P220812-01951 by suyurui at 20220920 start */
-#ifdef CONFIG_HQ_PROJECT_HS04
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined (CONFIG_HQ_PROJECT_HS03S)
     lcm_bias_state = of_get_named_gpio(pdev->dev.of_node, "lcm_bias,vsp", 0);
     gpio_request(lcm_bias_state,"vsp_gpio");
 #endif
-/* hs04 code for P220812-01951 by suyurui at 20220920 end */
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
+
     LCD_BIAS_PRINT("[LCD][BIAS] lcd_bias_dts_probe success\n");
 
     return 0;

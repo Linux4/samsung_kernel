@@ -1,6 +1,7 @@
 &odm {
 	lcd_bias:lcd_bias {
 		compatible = "mediatek,gpio_lcd_bias";
+		lcm_bias,vsp = <&pio 21 0x00>;
 	};
 };
 

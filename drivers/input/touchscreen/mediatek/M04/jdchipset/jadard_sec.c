@@ -32,9 +32,9 @@ static void get_fw_ver_bin(void *device_data)
 //	struct chipone_ts_data *info = container_of(sec, struct chipone_ts_data, sec);
 
 	sec_cmd_set_default_result(sec);
-
-	snprintf(buff, sizeof(buff), "JDTP_BIN=0x%x",pjadard_ic_data->fw_ver);
-
+	/*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 start*/
+	snprintf(buff, sizeof(buff), "JDTP_BIN=0x%02x",pjadard_ic_data->fw_cid_ver&0xff);
+	/*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 end*/
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	JD_I("%s: %s\n", __func__, buff);
@@ -47,9 +47,9 @@ static void get_fw_ver_ic(void *device_data)
 	char buff[20] = { 0 };
 
 	sec_cmd_set_default_result(sec);
-
-	snprintf(buff, sizeof(buff), "JDTP_IC=0x%x",pjadard_ic_data->fw_ver);
-
+	/*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 start*/
+	snprintf(buff, sizeof(buff), "JDTP_IC=0x%02x",pjadard_ic_data->fw_cid_ver&0xff);
+	/*hs04 code for AL6398ADEU-29 by tangsumian at 20221212 end*/
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	JD_I("%s: %s\n", __func__, buff);

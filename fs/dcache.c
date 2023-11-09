@@ -1437,6 +1437,9 @@ static enum d_walk_ret select_collect(void *_data, struct dentry *dentry)
           // HS03s for P210821-00616 by ningkaixuan at 20220314 start
                 /* M04 code for DEVAL6398A-9 by gaochao at 2022/07/04 start */
                 // #ifdef CONFIG_HQ_PROJECT_HS03S
+                #if defined(CONFIG_HQ_PROJECT_O22)
+                    goto out;
+                #endif
                 #if defined(CONFIG_HQ_PROJECT_HS03S)
                     goto out;
                 #endif

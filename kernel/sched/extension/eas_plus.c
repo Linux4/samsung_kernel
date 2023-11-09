@@ -4,6 +4,16 @@
  */
 #include "sched.h"
 #include <trace/events/sched.h>
+#ifdef CONFIG_MTK_TASK_TURBO
+#include <mt-plat/turbo_common.h>
+#endif
+#include "../../drivers/misc/mediatek/base/power/include/mtk_upower.h"
+/* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 start */
+#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+#include <mt-plat/mtk_boot_common.h>
+extern int hq_get_boot_mode(void);
+#endif
+/* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 end */
 
 DEFINE_PER_CPU(struct task_struct*, migrate_task);
 static int idle_pull_cpu_stop(void *data)
@@ -142,6 +152,8 @@ int perf_domain_compare(void *priv, struct list_head *a, struct list_head *b)
 void init_perf_order_domains(struct perf_domain *pd)
 {
 	struct perf_order_domain *domain;
+	struct upower_tbl *tbl;
+	int cpu;
 
 	pr_info("Initializing perf order domain:\n");
 
@@ -183,6 +195,16 @@ void init_perf_order_domains(struct perf_domain *pd)
 
 	pod_ready = true;
 
+	for_each_possible_cpu(cpu) {
+		tbl = upower_get_core_tbl(cpu);
+		if (arch_scale_cpu_capacity(NULL, cpu) != tbl->row[tbl->row_num - 1].cap) {
+			pr_info("arch_scale_cpu_capacity(%d)=%lu, tbl->row[last_idx].cap=%llu\n",
+				cpu, arch_scale_cpu_capacity(NULL, cpu),
+				tbl->row[tbl->row_num - 1].cap);
+			topology_set_cpu_scale(cpu, tbl->row[tbl->row_num - 1].cap);
+		}
+	}
+
 	pr_info("Initializing perf order domain done\n");
 }
 EXPORT_SYMBOL(init_perf_order_domains);
@@ -193,7 +215,16 @@ inline unsigned int cpu_is_fastest(int cpu)
 	struct list_head *pos;
 
 	if (!pod_is_ready()) {
+/* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 start */
+#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+		if ((hq_get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT) ||
+			(hq_get_boot_mode() != LOW_POWER_OFF_CHARGING_BOOT)) {
+			printk_deferred("Perf order domain is not ready!\n");
+		}
+#else
 		printk_deferred("Perf order domain is not ready!\n");
+#endif
+/* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 end */
 		return -1;
 	}
 
@@ -208,7 +239,16 @@ inline unsigned int cpu_is_slowest(int cpu)
 	struct list_head *pos;
 
 	if (!pod_is_ready()) {
+/* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 start */
+#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+		if ((hq_get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT) ||
+			(hq_get_boot_mode() != LOW_POWER_OFF_CHARGING_BOOT)) {
+			printk_deferred("Perf order domain is not ready!\n");
+		}
+#else
 		printk_deferred("Perf order domain is not ready!\n");
+#endif
+/* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 end */
 		return -1;
 	}
 
@@ -222,7 +262,16 @@ bool is_intra_domain(int prev, int target)
 	struct perf_order_domain *perf_domain = NULL;
 
 	if (!pod_is_ready()) {
+/* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 start */
+#if defined(CONFIG_HQ_PROJECT_O22) && (!defined(HQ_FACTORY_BUILD))
+		if ((hq_get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT) ||
+			(hq_get_boot_mode() != LOW_POWER_OFF_CHARGING_BOOT)) {
+			printk_deferred("Perf order domain is not ready!\n");
+		}
+#else
 		printk_deferred("Perf order domain is not ready!\n");
+#endif
+/* hs14 code for AL6528A-992 by gaozhengwei at 2022/11/25 end */
 		return 0;
 	}
 
@@ -280,6 +329,10 @@ int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
 	int i, iter_domain, domain_cnt = 0;
 	int iter_cpu;
 	struct cpumask *tsk_cpus_allow = &p->cpus_allowed;
+#ifdef CONFIG_MTK_TASK_TURBO
+	unsigned long spare_cap, max_spare_cap = 0;
+	int max_spare_cpu = -1;
+#endif
 
 	task_prefer = cpu_prefer(p);
 
@@ -295,6 +348,12 @@ int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
 		iter_domain = (task_prefer == SCHED_PREFER_BIG) ?
 				domain_cnt-i-1 : i;
 		domain = tmp_domain[iter_domain];
+
+#ifdef CONFIG_MTK_TASK_TURBO
+		/* check fastest domain for turbo task*/
+		if (is_turbo_task(p) && i != 0)
+			break;
+#endif
 
 		if (cpumask_test_cpu(new_cpu, &domain->possible_cpus)
 			&& !cpu_isolated(new_cpu))
@@ -313,10 +372,23 @@ int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
 			 */
 			if (idle_cpu(iter_cpu))
 				return iter_cpu;
+#ifdef CONFIG_MTK_TASK_TURBO
+			if (is_turbo_task(p)) {
+				spare_cap = capacity_spare_without(iter_cpu, p);
 
+				if (spare_cap > max_spare_cap) {
+					max_spare_cap = spare_cap;
+					max_spare_cpu = iter_cpu;
+				}
+			}
+#endif
 		}
 	}
 
+#ifdef CONFIG_MTK_TASK_TURBO
+	if (is_turbo_task(p) && (max_spare_cpu > 0))
+		return max_spare_cpu;
+#endif
 	return new_cpu;
 }
 

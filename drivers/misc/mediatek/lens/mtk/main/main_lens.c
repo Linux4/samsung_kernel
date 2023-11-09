@@ -129,9 +129,7 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 /* A03s code for CAM-AL5625-01-247 by xuxianwei at 2021/05/18 end */
 #endif
 
-/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
-/* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 start */
-/* hs04 code for SR-AL6398A-01-16 by xutengtao at 2022/07/26 start */
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
 #ifdef CONFIG_HQ_PROJECT_HS04
     //ADD AF FOR O2101
     {1, AFDRV_O2101_GT9772AF, O2101_GT9772AF_SetI2Cclient, O2101_GT9772AF_Ioctl,
@@ -146,7 +144,20 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
     {1, AFDRV_O2104_GT9769AF, O2104_GT9769AF_SetI2Cclient, O2104_GT9769AF_Ioctl,
      O2104_GT9769AF_Release, O2104_GT9769AF_GetFileName, NULL},
 #endif
-/* hs04 code for SR-AL6398A-01-16 by xutengtao at 2022/07/26 end */
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
+#ifdef CONFIG_HQ_PROJECT_O22
+    //ADD AF FOR A1401AW8601WAF
+	{1, AFDRV_A1401AW8601WAF, A1401AW8601WAF_SetI2Cclient, A1401AW8601WAF_Ioctl,
+	 A1401AW8601WAF_Release, A1401AW8601WAF_GetFileName, NULL},
+	{1, AFDRV_A1402DW9767AF, A1402DW9767AF_SetI2Cclient, A1402DW9767AF_Ioctl,
+	 A1402DW9767AF_Release, A1402DW9767AF_GetFileName, NULL},
+	{1, AFDRV_A1403GT9778AF, A1403GT9778AF_SetI2Cclient, A1403GT9778AF_Ioctl,
+	A1403GT9778AF_Release, A1403GT9778AF_GetFileName, NULL},
+    {1, AFDRV_A1404AW8601WAF, A1404AW8601WAF_SetI2Cclient, A1404AW8601WAF_Ioctl,
+     A1404AW8601WAF_Release, A1404AW8601WAF_GetFileName, NULL},
+#endif
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 /* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 end */
 /*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 

@@ -314,9 +314,8 @@ int charger_dev_get_hiz_mode(struct charger_device *chg_dev)
 }
 EXPORT_SYMBOL(charger_dev_get_hiz_mode);
 /*HS03s added for DEVAL5626-463 by wangzikang at 20210729 end */
-
-/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
 int charger_dev_set_shipmode(struct charger_device *chg_dev, bool enable)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -337,7 +336,7 @@ int charger_dev_get_shipmode(struct charger_device *chg_dev)
 }
 EXPORT_SYMBOL(charger_dev_get_shipmode);
 #endif
-/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 
 int charger_dev_dump_registers(struct charger_device *chg_dev)
 {

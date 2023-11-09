@@ -225,6 +225,9 @@ int mtk_lp_cpuidle_prepare(struct cpuidle_driver *drv, int index)
 
 	lpmmods = this_cpu_ptr(&mtk_lpm_mods);
 
+	if (index < 0)
+		return -EINVAL;
+
 	if (lpmmods && lpmmods->mod[index])
 		lpm = lpmmods->mod[index];
 
@@ -265,6 +268,9 @@ void mtk_lp_cpuidle_resume(struct cpuidle_driver *drv, int index)
 	const int cpuid = smp_processor_id();
 
 	lpmmods = this_cpu_ptr(&mtk_lpm_mods);
+
+	if (index < 0)
+		return;
 
 	if (lpmmods && lpmmods->mod[index])
 		lpm = lpmmods->mod[index];
@@ -330,6 +336,11 @@ struct syscore_ops mtk_lpm_suspend = {
 	.resume = mtk_lpm_suspend_resume,
 };
 
+int mtk_lpm_suspend_type_get(void)
+{
+	return (mtk_lpm_system.suspend.flag & MTK_LP_REQ_NOSYSCORE_CB)? 1 : 0; //1: MTK_LPM_SUSPEND_S2IDLE 0:MTK_LPM_SUSPEND_SYSTEM
+}
+EXPORT_SYMBOL(mtk_lpm_suspend_type_get);
 int mtk_lpm_suspend_registry(const char *name, struct mtk_lpm_model *suspend)
 {
 	unsigned long flags;
@@ -337,16 +348,16 @@ int mtk_lpm_suspend_registry(const char *name, struct mtk_lpm_model *suspend)
 	if (!suspend)
 		return -EINVAL;
 
-	spin_lock_irqsave(&mtk_lp_mod_locker, flags);
 
 	if (mtk_lpm_system.suspend.flag &
 			MTK_LP_REQ_NOSYSCORE_CB) {
 		mtk_lp_model_register(name, suspend);
-	} else
+	} else {
+		spin_lock_irqsave(&mtk_lp_mod_locker, flags);
 		memcpy(&mtk_lpm_system.suspend, suspend,
 				sizeof(struct mtk_lpm_model));
-
-	spin_unlock_irqrestore(&mtk_lp_mod_locker, flags);
+		spin_unlock_irqrestore(&mtk_lp_mod_locker, flags);
+	}
 	return 0;
 }
 EXPORT_SYMBOL(mtk_lpm_suspend_registry);

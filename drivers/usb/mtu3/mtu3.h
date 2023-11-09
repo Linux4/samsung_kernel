@@ -30,6 +30,15 @@ struct mtu3_request;
 #include "mtu3_hw_regs.h"
 #include "mtu3_qmu.h"
 
+#if defined MTU3_USE_SPM_API
+#include "mtk_spm_resource_req.h"
+
+#else
+#include <linux/arm-smccc.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h>
+
+#endif
+
 #define	MU3D_EP_TXCR0(epnum)	(U3D_TX1CSR0 + (((epnum) - 1) * 0x10))
 #define	MU3D_EP_TXCR1(epnum)	(U3D_TX1CSR1 + (((epnum) - 1) * 0x10))
 #define	MU3D_EP_TXCR2(epnum)	(U3D_TX1CSR2 + (((epnum) - 1) * 0x10))
@@ -61,6 +70,7 @@ struct mtu3_request;
 #define MTU3_EP_BUSY		BIT(3)
 
 #define MTU3_U3_IP_SLOT_DEFAULT 2
+#define MTU3_U3_IP_SLOT_MAX 4
 #define MTU3_U2_IP_SLOT_DEFAULT 1
 
 #define MTU3_SW_ID_GROUND	BIT(0)
@@ -151,6 +161,18 @@ enum mtu3_power_resource_mode {
 	MTU3_RESOURCE_ALL,
 	MTU3_RESOURCE_SUSPEND,
 	MTU3_RESOURCE_RESUME,
+};
+
+enum MTK_USB_SMC_CALL {
+	MTK_USB_SMC_INFRA_REQUEST = 0,
+	MTK_USB_SMC_INFRA_RELEASE,
+	MTK_USB_SMC_NUM
+};
+
+enum mtu3_ep_slot_mode {
+	MTU3_EP_SLOT_DEFAULT = 0,
+	MTU3_EP_SLOT_MIN,
+	MTU3_EP_SLOT_MAX,
 };
 
 /**
@@ -283,6 +305,7 @@ struct ssusb_mtk {
 	struct clk *ref_clk;
 	struct clk *mcu_clk;
 	struct clk *dma_clk;
+	struct clk *host_clk;
 	/* otg */
 	struct otg_switch_mtk otg_switch;
 	enum usb_dr_mode dr_mode;
@@ -292,6 +315,7 @@ struct ssusb_mtk {
 	int u3p_dis_msk;
 	struct dentry *dbgfs_root;
 	bool force_vbus;
+	bool noise_still_tr;
 	/* usb wakeup for host mode */
 	bool uwk_en;
 	struct regmap *uwk;
@@ -300,6 +324,8 @@ struct ssusb_mtk {
 	bool clk_on;
 	bool clk_mgr;
 	bool spm_mgr;
+	/* u2 cdp */
+	struct work_struct dp_work;
 };
 
 /**
@@ -399,6 +425,7 @@ struct mtu3 {
 	u32 hw_version;
 
 	unsigned is_gadget_ready:1;
+	int ep_slot_mode;
 };
 
 static inline struct mtu3 *gadget_to_mtu3(struct usb_gadget *g)
@@ -458,9 +485,11 @@ int ssusb_check_clocks(struct ssusb_mtk *ssusb, u32 ex_clks);
 void ssusb_set_force_vbus(struct ssusb_mtk *ssusb, bool vbus_on);
 int ssusb_phy_power_on(struct ssusb_mtk *ssusb);
 void ssusb_phy_power_off(struct ssusb_mtk *ssusb);
+void ssusb_phy_dp_pullup(struct ssusb_mtk *ssusb);
 int ssusb_clks_enable(struct ssusb_mtk *ssusb);
 void ssusb_clks_disable(struct ssusb_mtk *ssusb);
 void ssusb_ip_sw_reset(struct ssusb_mtk *ssusb);
+void ssusb_set_noise_still_tr(struct ssusb_mtk *ssusb);
 struct usb_request *mtu3_alloc_request(struct usb_ep *ep, gfp_t gfp_flags);
 void mtu3_free_request(struct usb_ep *ep, struct usb_request *req);
 void mtu3_req_complete(struct mtu3_ep *mep,
@@ -482,6 +511,9 @@ void mtu3_gadget_reset(struct mtu3 *mtu);
 void mtu3_gadget_suspend(struct mtu3 *mtu);
 void mtu3_gadget_resume(struct mtu3 *mtu);
 void mtu3_gadget_disconnect(struct mtu3 *mtu);
+
+int mtu3_device_enable(struct mtu3 *mtu);
+void mtu3_device_disable(struct mtu3 *mtu);
 
 int ssusb_set_power_resource(struct ssusb_mtk *ssusb, int mode);
 irqreturn_t mtu3_ep0_isr(struct mtu3 *mtu);

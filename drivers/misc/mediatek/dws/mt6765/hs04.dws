@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--dct_version="2.5" buid_sn="161102" dws_modification_time="07.22.2022.17:43:09"-->
+<!--dct_version="2.5" buid_sn="161102" dws_modification_time="07.05.2022.22:47:05"-->
 <dct_cfg>
     <general chip="MT6765">
         <proj>MT6765</proj>
@@ -55,6 +55,13 @@
                 <sensitive_level>Edge</sensitive_level>
                 <debounce_en>Disable</debounce_en>
             </eint1>
+            <eint2>
+                <varName>MRDUMP_EXT_RST</varName>
+                <debounce_time>512</debounce_time>
+                <polarity>Low</polarity>
+                <sensitive_level>Level</sensitive_level>
+                <debounce_en>Enable</debounce_en>
+            </eint2>
             <eint7>
                 <varName>SMART_PA</varName>
                 <debounce_time>0</debounce_time>
@@ -83,6 +90,13 @@
                 <sensitive_level>Edge</sensitive_level>
                 <debounce_en>Disable</debounce_en>
             </eint11>
+            <eint23>
+                <varName>RT9465_SLAVE_CHR</varName>
+                <debounce_time>0</debounce_time>
+                <polarity>Low</polarity>
+                <sensitive_level>Level</sensitive_level>
+                <debounce_en>Disable</debounce_en>
+            </eint23>
             <eint44>
                 <varName>DSI_TE</varName>
                 <debounce_time>0</debounce_time>
@@ -2144,6 +2158,7 @@
                 <varName0>MAIN_CAMERA_POWER_AF</varName0>
                 <varName1>SUB_CAMERA_POWER_AF</varName1>
                 <varName2>MAIN_CAMERA_2_POWER_AF</varName2>
+                <varName3>CAP_TOUCH_VDD</varName3>
             </pmic5>
         </module>
         <module name="kpd">

@@ -42,6 +42,9 @@
 #include <linux/mutex.h>
 #include <linux/atomic.h>
 #include <linux/hrtimer.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 
 #if 1 /*  #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0))*/
@@ -194,7 +197,7 @@ static inline int wusb3801_i2c_read8(struct tcpc_device *tcpc, u8 reg)
 
 	return wusb3801_reg_read(chip->client, reg);
 }
-/*hs04 code for DEAL6398A-1629 by lina at 20220906 start*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 static inline void retry_wusb3801_i2c_write8(
   struct  wusb3801_chip *chip, u8 reg, const u8 data)
 {
@@ -207,7 +210,7 @@ static inline void retry_wusb3801_i2c_write8(
 		pr_err("retry wusb3801 reg write = %d\n",retry);
 	}
 }
-/*hs04 code for DEAL6398A-1629 by lina at 20220906 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 #ifdef __TEST_CC_PATCH__
 static int test_cc_patch(struct wusb3801_chip *chip)
 {
@@ -216,13 +219,13 @@ static int test_cc_patch(struct wusb3801_chip *chip)
 	struct device *cdev = &chip->client->dev;
 	dev_err(cdev, "%s \n", __func__);
 
-	/*hs04 code for DEAL6398A-1629 by lina at 20220906 start*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 	retry_wusb3801_i2c_write8(chip,
 			WUSB3801_REG_TEST_02, 0x82);
 	//msleep(100);
 	retry_wusb3801_i2c_write8(chip,
 			WUSB3801_REG_TEST_09, 0xC0);
-	//msleep(100);
+	msleep(10);
 	rc = wusb3801_i2c_read8(chip->tcpc, WUSB3801_REG_TEST0);
 	//msleep(10);
 	retry_wusb3801_i2c_write8(chip,
@@ -233,7 +236,7 @@ static int test_cc_patch(struct wusb3801_chip *chip)
 	//msleep(10);
 	retry_wusb3801_i2c_write8(chip,
 			WUSB3801_REG_TEST_02, 0x00);
-	/*hs04 code for DEAL6398A-1629 by lina at 20220906 end*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 	pr_err("dhx---add msleep 200\n");
 	dev_err(cdev, "%s rc = [0x%02x] \n", __func__, rc);
 
@@ -503,10 +506,10 @@ int wusb3801_get_alert_status(struct tcpc_device *tcpc, uint32_t *alert)
 static int wusb3801_get_power_status(
 		struct tcpc_device *tcpc, uint16_t *pwr_status)
 {
-	/*hs04 code for DEAL6398A-495 by shixuanxuan at 20220812 start*/
-	pr_info("%s enter \n", __func__);
+		pr_info("%s enter \n", __func__);
+	/*HS03s code for AL5626TDEV-170 by kangkai at 20220923 start*/
 	*pwr_status = 0;
-	/*hs04 code for DEAL6398A-495 by shixuanxuan at 20220812 end*/
+	/*HS03s code for AL5626TDEV-170 by kangkai at 20220923 end*/
 	return 0;
 }
 
@@ -1090,14 +1093,11 @@ static int wusb3801_i2c_probe(struct i2c_client *client,
 		pr_err("from 0x%02x read 0x%02x\n", (uint8_t)i, rc);
 	}
 
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(TCPC_INFO, "WUSB3801Q");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20210607 end*/
+
 	pr_info("%s probe OK!\n", __func__);
-
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
-	tcpc_info = WUSB3801;
-#endif
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 end*/
-
 	return 0;
 
 #ifdef __TEST_CC_PATCH__

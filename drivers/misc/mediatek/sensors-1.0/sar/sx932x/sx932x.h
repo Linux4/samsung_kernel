@@ -125,7 +125,9 @@
 
 #define LGE_SENSOR
 /*TabA7 Lite code for OT8-1296 by Hujincan at 20210117 start*/
-#define SAR_USB_CALIBRATION
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
+//#define SAR_USB_CALIBRATION
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 end*/
 /*TabA7 Lite code for OT8-1296 by Hujincan at 20210117 end*/
 
 /**************************************
@@ -175,7 +177,7 @@ static struct smtc_reg_data sx932x_i2c_reg_setup[] = {
         .val = 0x00,                    //
     },
     {
-        .reg = SX932x_IRQCFG1_REG,      //0x07
+        .reg = SX932x_IRQCFG1_REG,      //0x07  
         .val = 0x00,
     },
     {
@@ -238,7 +240,7 @@ static struct smtc_reg_data sx932x_i2c_reg_setup[] = {
     },
     {
         .reg = SX932x_AFE_PH2_REG,   //0x2A
-        .val = 0x1B,       //CS2:HZ CS1:HZ CS0 :HZ
+        .val = 0x1B,       //CS2:HZ CS1:HZ CS0 :HZ  
     },
     {
         .reg = SX932x_AFE_PH3_REG,   //0x2B
@@ -266,11 +268,11 @@ static struct smtc_reg_data sx932x_i2c_reg_setup[] = {
         .val = 0x08,       //AVGNEGTHRESH : 16384
     },
     {
-        .reg = SX932x_PROX_CTRL3_REG,  // 0x33
+        .reg = SX932x_PROX_CTRL3_REG,  // 0x33 
         .val = 0x20,       //AVGPOSTHRESH : 16384
     },
     {
-        .reg = SX932x_PROX_CTRL4_REG,  //0x34
+        .reg = SX932x_PROX_CTRL4_REG,  //0x34 
         .val = 0x0C,       //AVGFREEZEDIS : on(0) ,AVGNEGFILT :1-1/2(001) ,AVGPOSFILT : 1-1/256(100)
     },
     {
@@ -405,7 +407,7 @@ struct sx932x_platform_data {
     int (*get_is_nirq_low)(void);
     u8 input_mainsensor;  // 0x01 ~ 0x02,//Startup function
     u8 input_refsensor;   // 0x00 ~ 0x02,//Startup function
-
+      
     int     (*init_platform_hw)(struct i2c_client *client);
     void    (*exit_platform_hw)(struct i2c_client *client);
 #if defined(CONFIG_SENSORS)
@@ -424,7 +426,7 @@ typedef struct sx932x_platform_data *psx932x_platform_data_t;
 #define MAX_NUM_STATUS_BITS (8)
 
 typedef struct sx93XX sx93XX_t, *psx93XX_t;
-struct sx93XX
+struct sx93XX 
 {
     void * bus; /* either i2c_client or spi_client */
 
@@ -437,15 +439,15 @@ struct sx93XX
 
     /* since we are trying to avoid knowing registers, create a pointer to a
     * common read register which would be to read what the interrupt source
-    * is from
+    * is from 
     */
     int (*refreshStatus)(psx93XX_t this); /* read register status */
 
     int (*get_nirq_low)(void); /* get whether nirq is low (platform data) */
 
     /* array of functions to call for corresponding status bit */
-    void (*statusFunc[MAX_NUM_STATUS_BITS])(psx93XX_t this);
-
+    void (*statusFunc[MAX_NUM_STATUS_BITS])(psx93XX_t this); 
+    
     /* Global variable */
     u8 failStatusCode;    /*Fail status code*/
     bool reg_in_dts;

@@ -545,6 +545,7 @@ static void sensor_init(void)
 
 }    /*    MIPI_sensor_Init  */
 /*hs04 code for DEVAL6398A-24 by xutengtao at 2022/07/28 start */
+/* hs04 code for DEAL6398A-1806 by liluling at 2022/11/1 start */
 static void preview_setting(void)
 {
 			write_cmos_sensor(0xfd, 0x00);
@@ -609,7 +610,7 @@ static void preview_setting(void)
 			write_cmos_sensor(0xc5, 0x82);
 			write_cmos_sensor(0xc6, 0x82);
 			write_cmos_sensor(0xc7, 0x82);
-			write_cmos_sensor(0xfb, 0x43);
+			write_cmos_sensor(0xfb, 0x4b);
 			write_cmos_sensor(0xf0, 0x27);
 			write_cmos_sensor(0xf1, 0x27);
 			write_cmos_sensor(0xf2, 0x27);
@@ -655,7 +656,6 @@ static void preview_setting(void)
 			// write_cmos_sensor(0xfd,0x01);
 			// write_cmos_sensor(0xa0,0x01);
 }    /*    preview_setting  */
-
 
 static void capture_setting(void)
 {
@@ -721,7 +721,7 @@ static void capture_setting(void)
 			write_cmos_sensor(0xc5, 0x82);
 			write_cmos_sensor(0xc6, 0x82);
 			write_cmos_sensor(0xc7, 0x82);
-			write_cmos_sensor(0xfb, 0x43);
+			write_cmos_sensor(0xfb, 0x4b);
 			write_cmos_sensor(0xf0, 0x27);
 			write_cmos_sensor(0xf1, 0x27);
 			write_cmos_sensor(0xf2, 0x27);
@@ -772,7 +772,6 @@ static void normal_video_setting(void)
 {
 	preview_setting();
 }    /*    preview_setting  */
-
 
 static void hs_video_setting(void)
 {
@@ -838,7 +837,7 @@ static void hs_video_setting(void)
 			write_cmos_sensor(0xc5, 0x82);
 			write_cmos_sensor(0xc6, 0x82);
 			write_cmos_sensor(0xc7, 0x82);
-			write_cmos_sensor(0xfb, 0x43);
+			write_cmos_sensor(0xfb, 0x4b);
 			write_cmos_sensor(0xf0, 0x27);
 			write_cmos_sensor(0xf1, 0x27);
 			write_cmos_sensor(0xf2, 0x27);
@@ -884,6 +883,7 @@ static void hs_video_setting(void)
 			// write_cmos_sensor(0xa0,0x01);
 
 }
+/* hs04 code for DEAL6398A-1806 by liluling at 2022/11/1 end */
 /*hs04 code for DEVAL6398A-24 by xutengtao at 2022/07/28 end */
 static void slim_video_setting(void)
 {

@@ -878,9 +878,7 @@ static ssize_t show_bios_limit(struct cpufreq_policy *policy, char *buf)
 	return sprintf(buf, "%u\n", policy->cpuinfo.max_freq);
 }
 
-/* hs04 code for P220811-03497 by shengzhong at 20220822 start */
-cpufreq_freq_attr_ro_perm(cpuinfo_cur_freq, 0444);
-/* hs04 code for P220811-03497 by shengzhong at 20220822 end */
+cpufreq_freq_attr_ro_perm(cpuinfo_cur_freq, 0400);
 cpufreq_freq_attr_ro(cpuinfo_min_freq);
 cpufreq_freq_attr_ro(cpuinfo_max_freq);
 cpufreq_freq_attr_ro(cpuinfo_transition_latency);

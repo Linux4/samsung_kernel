@@ -23,7 +23,7 @@
 
 #include "u_ether.h"
 #include "rndis.h"
-/* #include "rps_perf.h" */
+#include "rps_perf.h"
 #ifdef CONFIG_MEDIATEK_SOLUTION
 #include "usb_boost.h"
 #endif
@@ -535,9 +535,8 @@ static void set_rps_map_work(struct work_struct *work)
 	if (!dev->port_usb)
 		return;
 
-	/* pr_info("%s - set rps to 0xff\n", __func__); */
-	/* set_rps_map(dev->net->_rx, 0xff); */
-	pr_info("%s - NOT implement RPS patch yet\n", __func__);
+	pr_info("%s - set rps to 0xff\n", __func__);
+	set_rps_map(dev->net->_rx, 0xff);
 }
 
 static void tx_complete(struct usb_ep *ep, struct usb_request *req)

@@ -226,7 +226,13 @@ static void hw_bc11_init(struct mtk_charger_type *info)
 	int timeout = 200;
 #endif
 	/*HS03s for bugid by wangzikang at 20210731 start*/
+/* hs04 code for AL6398ADEU-199 by shixuanxuan at 20221206 start */
+#ifdef CONFIG_HQ_PROJECT_HS04
+	msleep(300);
+#else
 	msleep(200);
+#endif
+/* hs04 code for AL6398ADEU-199 by shixuanxuan at 20221206 end*/
 	/*HS03s for bugid by wangzikang at 20210731 end*/
 
 	#ifndef HQ_FACTORY_BUILD	//ss version
@@ -580,6 +586,7 @@ static void dump_charger_name(int type)
 }
 
 #ifdef CONFIG_HQ_PROJECT_HS03S
+//wangtao for o8
 static int get_charger_type(struct mtk_charger_type *info)
 {
 	enum power_supply_usb_type type;
@@ -641,17 +648,16 @@ static int get_charger_type(struct mtk_charger_type *info)
 }
 #endif
 #ifdef CONFIG_HQ_PROJECT_HS04
+//wangtao for o8
 static int get_charger_type(struct mtk_charger_type *info)
 {
 	enum power_supply_usb_type type;
-	/*hs04 code for DEVAL6398A-30 by shixuanxuan at 20220729 start*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 	int retry_num = 5;
 	int curr_num = 6;
 	bool bc11_flag = 0;
-	/*hs04 code for DEVAL6398A-30 by shixuanxuan at 20220729 end*/
 
 	hw_bc11_init(info);
-	/*hs04 code for DEVAL6398A-30 by shixuanxuan at 20220729 start*/
 	if (hw_bc11_DCD(info)) {
 		do {
 			msleep(100);
@@ -663,7 +669,6 @@ static int get_charger_type(struct mtk_charger_type *info)
 
 	if (bc11_flag) {
 		pr_err("bc1.1 detect no type!\n");
-	/*hs04 code for DEVAL6398A-30 by shixuanxuan at 20220729 end*/
 		info->psy_desc.type = POWER_SUPPLY_TYPE_USB;
 		type = POWER_SUPPLY_USB_TYPE_DCP;
 	} else {
@@ -680,6 +685,7 @@ static int get_charger_type(struct mtk_charger_type *info)
 			type = POWER_SUPPLY_USB_TYPE_SDP;
 		}
 	}
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 
 /*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 start*/
 	#ifndef HQ_FACTORY_BUILD	//ss version
@@ -721,6 +727,10 @@ static int get_charger_type(struct mtk_charger_type *info)
 //for o8
 #ifdef CONFIG_HQ_PROJECT_OT8
 extern bool pd_hub_flag;
+/* Tab A7 lite_T for P221008-02933 by duanweiping at 20221029 start */
+bool bc12_done = false;
+EXPORT_SYMBOL(bc12_done);
+/* Tab A7 lite_T for P221008-02933 by duanweiping at 20221029 end */
 static int get_charger_type(struct mtk_charger_type *info)
 {
 	enum power_supply_usb_type type;
@@ -743,7 +753,10 @@ static int get_charger_type(struct mtk_charger_type *info)
 			type = POWER_SUPPLY_USB_TYPE_SDP;
 		}
 	}
-
+	/* Tab A7 lite_T for P221008-02933 by duanweiping at 20221029 start */
+	bc12_done = true;
+	pr_err("get_charger_type BC12 done\n");
+	/* Tab A7 lite_T for P221008-02933 by duanweiping at 20221029 end */
 	/*TabA7 Lite code for P201215-02072 samsung lpm animation in POWER_OFF_CHARGING by wenyaqi at 20201224 start*/
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	if (type == POWER_SUPPLY_USB_TYPE_CDP) {
@@ -972,21 +985,16 @@ static void do_charger_detection_work(struct work_struct *data)
 		if (hq_get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		hq_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
 			pr_info("%s: Unplug Charger/USB\n", __func__);
-/*hs04 code for DEAL6398A-11 by shixuanxuan at 20220710 start*/
-#ifdef CONFIG_HQ_PROJECT_HS03S
-//modify it only for O6
+
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+/* HS03s_T for AL5626TDEV-715 by duanweiping at 20221102 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)||defined(CONFIG_HQ_PROJECT_HS03S)
+/* HS03s_T for AL5626TDEV-715 by duanweiping at 20221102 end */
 			pr_info("%s: system_state=%d\n", __func__,
 				system_state);
 			if (system_state != SYSTEM_POWER_OFF)
 				kernel_power_off();
-#endif
-#ifdef CONFIG_HQ_PROJECT_HS04
-			pr_info("%s: system_state=%d\n", __func__,
-				system_state);
-			if (system_state != SYSTEM_POWER_OFF)
-				kernel_power_off();
-#endif
-#ifdef CONFIG_HQ_PROJECT_OT8
+#else
 #ifndef CONFIG_TCPC_CLASS
 			pr_info("%s: system_state=%d\n", __func__,
 				system_state);
@@ -994,7 +1002,7 @@ static void do_charger_detection_work(struct work_struct *data)
 				kernel_power_off();
 #endif
 #endif
-/*hs04 code for DEAL6398A-11 by shixuanxuan at 20220710 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */
 		}
 	}
 	#endif
@@ -1025,25 +1033,18 @@ irqreturn_t chrdet_int_handler(int irq, void *data)
 		if (hq_get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		    hq_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
 			pr_info("%s: Unplug Charger/USB\n", __func__);
-/*hs04 code for DEAL6398A-11 by shixuanxuan at 20220711 start*/
-#ifdef CONFIG_HQ_PROJECT_HS03S
-//modify it only for O6
+
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+/* HS03s_T for AL5626TDEV-715 by duanweiping at 20221102 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)||defined(CONFIG_HQ_PROJECT_HS03S)
+/* HS03s_T for AL5626TDEV-715 by duanweiping at 20221102 end */
 			pr_info("%s: system_state=%d\n", __func__,
 				system_state);
 			if (system_state != SYSTEM_POWER_OFF) {
 				info->power_off_flag = FLAG_POWER_OFF;
 				schedule_delayed_work(&info->dwork,msecs_to_jiffies(POWER_OFF_CHECK_TIME_MS));
 			}
-#endif
-#ifdef CONFIG_HQ_PROJECT_HS04
-			pr_info("%s: system_state=%d\n", __func__,
-				system_state);
-			if (system_state != SYSTEM_POWER_OFF) {
-				info->power_off_flag = FLAG_POWER_OFF;
-				schedule_delayed_work(&info->dwork,msecs_to_jiffies(POWER_OFF_CHECK_TIME_MS));
-			}
-#endif
-#ifdef CONFIG_HQ_PROJECT_OT8
+#else
 #ifndef CONFIG_TCPC_CLASS
 			pr_info("%s: system_state=%d\n", __func__,
 				system_state);
@@ -1053,7 +1054,7 @@ irqreturn_t chrdet_int_handler(int irq, void *data)
 			}
 #endif
 #endif
-/*hs04 code for DEAL6398A-11 by shixuanxuan at 20220711 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 		}
 	}
 	else {

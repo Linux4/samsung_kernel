@@ -48,3 +48,9 @@ config HQ_PROJECT_HS04
    default n
    help
    HQ PROJECT HS04
+
+config HQ_PROJECT_O22
+   bool CONFIG_HQ_PROJECT_O22
+   default n
+   help
+   HQ PROJECT O22

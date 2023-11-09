@@ -24,6 +24,23 @@
 enum ALSPS_NOTIFY_TYPE {
 	ALSPS_NOTIFY_PROXIMITY_CHANGE = 0,
 };
+/*hs14 code for AL6528A-190 by houxin at 2022/09/28 start*/
+#ifdef CONFIG_HQ_PROJECT_O22
+enum lcd_id {
+	LCD_NONE,
+	LCD_FIRST,
+	LCD_SECOND,
+	LCD_THIRD,
+	LCD_FOURTH,
+};
+
+struct lcd_id_info
+{
+	enum lcd_id hwid;
+	char *lcd_strdata;
+};
+#endif
+/*hs14 code for AL6528A-190 by houxin at 2022/09/28 end*/
 
 #endif
 

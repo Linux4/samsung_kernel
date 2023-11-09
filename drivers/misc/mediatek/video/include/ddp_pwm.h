@@ -14,6 +14,8 @@ enum disp_pwm_id_t {
 	DISP_PWM_ALL = (DISP_PWM0 | DISP_PWM1)
 };
 
+extern struct cust_mt65xx_led *pled_dtsi;
+
 void disp_pwm_set_main(enum disp_pwm_id_t main);
 enum disp_pwm_id_t disp_pwm_get_main(void);
 

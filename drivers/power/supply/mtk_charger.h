@@ -758,12 +758,6 @@ struct mtk_charger {
 	#endif
 	/*TabA7 Lite code for P210511-00511 by wenyaqi at 20210518 end*/
 	int capacity;
-/*hs04 code for DEAL6398A-136 by shixuanxuan at 20220726 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
-	bool shipmode_flag;
-	struct delayed_work enable_shipmode_work;
-#endif
-/*hs04 code for DEAL6398A-136 by shixuanxuan at 20220723 end*/
 };
 
 

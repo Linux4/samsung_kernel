@@ -1238,6 +1238,14 @@ static int mmc_select_hs400(struct mmc_card *card)
 	mmc_set_timing(host, MMC_TIMING_MMC_HS400);
 	mmc_set_bus_speed(card);
 
+	if (host->ops->execute_hs400_tuning) {
+		mmc_retune_disable(host);
+		err = host->ops->execute_hs400_tuning(host, card);
+		mmc_retune_enable(host);
+		if (err)
+			goto out_err;
+	}
+
 	if (host->ops->hs400_complete)
 		host->ops->hs400_complete(host);
 
@@ -1265,6 +1273,7 @@ int mmc_hs400_to_hs200(struct mmc_card *card)
 	int err;
 	u8 val;
 
+	dev_info(host->parent,"%s\n", __func__);
 	/* Reduce frequency to HS */
 	max_dtr = card->ext_csd.hs_max_dtr;
 	mmc_set_clock(host, max_dtr);
@@ -1349,7 +1358,12 @@ static void mmc_select_driver_type(struct mmc_card *card)
 							   card->ext_csd.hs200_max_dtr,
 							   card_drv_type, &drv_type);
 
-	card->drive_strength = drive_strength;
+	// hs04 code for DEAL6398A-1104 by sunxunou at 20220929 start
+	if (card->cid.manfid == CID_MANFID_MICRON)
+		card->drive_strength = 0x01;	//strong driver strength(0x1, 33 ohm)
+	else
+		card->drive_strength = drive_strength;
+	// hs04 code for DEAL6398A-1104 by sunxunou at 20220929 end
 
 	if (drv_type)
 		mmc_set_driver_type(card->host, drv_type);
@@ -2051,6 +2065,12 @@ static void mmc_detect(struct mmc_host *host)
 	}
 }
 
+static bool _mmc_cache_enabled(struct mmc_host *host)
+{
+	return host->card->ext_csd.cache_size > 0 &&
+	       host->card->ext_csd.cache_ctrl & 1;
+}
+
 static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 {
 	int err = 0;
@@ -2235,6 +2255,7 @@ static const struct mmc_bus_ops mmc_ops = {
 	.alive = mmc_alive,
 	.shutdown = mmc_shutdown,
 	.hw_reset = _mmc_hw_reset,
+	.cache_enabled = _mmc_cache_enabled,
 };
 
 /*

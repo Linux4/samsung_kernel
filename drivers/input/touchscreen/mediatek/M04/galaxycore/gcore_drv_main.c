@@ -648,12 +648,16 @@ void gcore_touch_down(struct input_dev *dev, s32 x, s32 y, u8 id)
     input_mt_report_slot_state(dev, MT_TOOL_FINGER, true);
     input_report_abs(dev, ABS_MT_POSITION_X, x);
     input_report_abs(dev, ABS_MT_POSITION_Y, y);
+/*hs04 code for DEAL6398A-1929 by suyurui at 20221111 start*/
 #ifdef CONFIG_TOUCH_DRIVER_RUN_ON_MTK_PLATFORM
     /*hs04 code for DEAL6398A-1521 by huangzhongjie at 20220903 start*/
     input_report_abs(dev, ABS_MT_PRESSURE, g_press);
+    #ifdef HQ_FACTORY_BUILD
     GTP_REPORT("gcore_touch_down pressure data:%x",g_press);
+    #endif
     /*hs04 code for DEAL6398A-1521 by huangzhongjie at 20220903 end*/
 #endif
+/*hs04 code for DEAL6398A-1929 by suyurui at 20221111 end*/
 
 #else
     input_report_key(dev, BTN_TOUCH, 1);    /* for single-touch device */
@@ -951,8 +955,12 @@ s32 gcore_touch_event_handler(struct gcore_dev *gdev)
         input_x = ((coor_data[1] << 4) | (coor_data[3] >> 4));
         input_y = ((coor_data[2] << 4) | (coor_data[3] & 0x0F));
 
+/*hs04 code for DEAL6398A-1929 by suyurui at 20221111 start*/
+#ifdef HQ_FACTORY_BUILD
         GTP_REPORT("id:%d (x=%d,y=%d)", id, input_x, input_y);
         GTP_REPORT("tpd_x=%d tpd_y=%d lcm_x=%d lcm_y=%d", tpd_res_x, tpd_res_y, lcm_res_x, lcm_res_y);
+#endif
+/*hs04 code for DEAL6398A-1929 by suyurui at 20221111 end*/
         if (id > GTP_MAX_TOUCH) {
             coor_data += 6;
             continue;
@@ -1160,6 +1168,9 @@ void gcore_wdt_recovery_works(struct work_struct *work)
     struct gcore_dev *gdev = fn_data.gdev;
 
     wdt_contin++;
+    /*hs04 code for DEAL6398A-1923 by suyurui at 20221108 start*/
+    mp_wait_int_set_fail();
+    /*hs04 code for DEAL6398A-1923 by suyurui at 20221108 end*/
 
     GTP_ERROR("WDT timeout recovery ts:%d,wdtime:%d", gdev->ts_stat, wdt_contin);
 

@@ -23,19 +23,24 @@ ifneq ($(strip $(TARGET_NO_KERNEL)),true)
   mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
   current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
 
+  kernel_build_config_suffix := .mtk
   ifeq ($(KERNEL_TARGET_ARCH),arm64)
+    kernel_build_config_suffix := $(kernel_build_config_suffix).aarch64
     ifeq ($(strip $(TARGET_KERNEL_USE_CLANG)),true)
-      include $(current_dir)/build.config.mtk.aarch64
     else
-      include $(current_dir)/build.config.mtk.aarch64.gcc
+      kernel_build_config_suffix := $(kernel_build_config_suffix).gcc
     endif
   else
+    kernel_build_config_suffix := $(kernel_build_config_suffix).arm
     ifeq ($(strip $(TARGET_KERNEL_USE_CLANG)),true)
-      include $(current_dir)/build.config.mtk.arm
     else
       $(error TARGET_KERNEL_USE_CLANG is not set)
     endif
   endif
+  ifeq ($(PLATFORM_VERSION),Tiramisu)
+    kernel_build_config_suffix := $(kernel_build_config_suffix).tiramisu
+  endif
+  include $(current_dir)/build.config$(kernel_build_config_suffix)
 
   ARGS := CROSS_COMPILE=$(CROSS_COMPILE)
   ifneq ($(LLVM),)
@@ -106,4 +111,9 @@ ifneq ($(strip $(TARGET_NO_KERNEL)),true)
     ifeq ($(strip $(HQ_FACTORY_BUILD)), true)
       KERNEL_MAKE_OPTION += HQ_FACTORY_BUILD=$(HQ_FACTORY_BUILD)
     endif
+#hs14 code for SR-AL6528A-01-111 by  TangYuhang at 20221110 start
+    ifeq ($(strip $(HUAQIN_BUILD)), true)
+      KERNEL_MAKE_OPTION += HUAQIN_BUILD=$(HUAQIN_BUILD)
+    endif
+#hs14 code for SR-AL6528A-01-111 by  TangYuhang at 20221110 end
 endif #TARGET_NO_KERNEL

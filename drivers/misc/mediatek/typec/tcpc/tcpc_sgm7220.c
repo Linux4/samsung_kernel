@@ -37,6 +37,9 @@
 #include <linux/sched/rt.h>
 #include <linux/sched/clock.h>
 #include <uapi/linux/sched/types.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 #define SGM7220_DRV_VERSION	"1.0"
 
@@ -1243,14 +1246,10 @@ static int sgm7220_i2c_probe(struct i2c_client *client,
 
 	tcpc_schedule_init_work(chip->tcpc);
 	sgm7220_dump_reg(chip->client);
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(TCPC_INFO, "SGM7220");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20210607 end*/
 	pr_info("%s probe OK!\n", __func__);
-
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
-	tcpc_info = SGM7220;
-#endif
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 end*/
-
 	return 0;
 /*HS03s for SR-AL5625-01-515 by wangzikang at 20210607 start*/
 err_create_file:

@@ -38,16 +38,20 @@
 #endif
 /* A03s code for CAM-AL5625-01-247 by lisizhou at 2021/04/22 end */
 
-/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
-/* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 start */
-/* hs04 code for SR-AL6398A-01-16 by xutengtao at 2022/07/26 start */
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
 #ifdef CONFIG_HQ_PROJECT_HS04
     #define AFDRV_O2101_GT9772AF "O2101_GT9772AF"
     #define AFDRV_O2102_GT9769AF "O2102_GT9769AF"
     #define AFDRV_O2103_PE916AF  "O2103_PE916AF"
     #define AFDRV_O2104_GT9769AF "O2104_GT9769AF"
 #endif
-/* hs04 code for SR-AL6398A-01-16 by xutengtao at 2022/07/26 end */
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
+#define AFDRV_A1401AW8601WAF "A1401AW8601WAF"
+#define AFDRV_A1402DW9767AF "A1402DW9767AF"
+#define AFDRV_A1403GT9778AF "A1403GT9778AF"
+#define AFDRV_A1404AW8601WAF "A1404AW8601WAF"
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 /* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 end */
 /*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 

@@ -144,16 +144,12 @@
 	cam1_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
 	cam2_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
 	cam2_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
-/*hs04 code for SR-AL6398A-01-12 by liluling at 2022/7/25 begin*/
-/*hs04 code for SR-AL6398A-01-12 by xutengtao at 2022/7/21 begin*/
-/* hs04 code for DEVAL6398A-24 by xutengtao at 2022/07/24 start */
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/17 start*/
 	cam0_vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
 	cam0_enable_sensor = "o2101_sc1300csly_back_mipi_raw o2102_hi1336txd_back_mipi_raw o2103_ov13b10hlt_back_mipi_raw o2104_hi1336sjc_back_mipi_raw";
 	cam1_enable_sensor = "o2101_hi556txd_front_mipi_raw o2102_ov05a10hlt_front_mipi_raw o2103_sc520syx_front_mipi_raw o2104_hi556wtxd_front_mipi_raw";
 	cam2_enable_sensor = "o2101_sc201cscxt_depth_mipi_raw o2102_gc2375hhlt_depth_mipi_raw o2103_sp2507hcxt_depth_mipi_raw";
-/* hs04 code for DEVAL6398A-24 by xutengtao at 2022/07/24 end */
-/*hs04 code for SR-AL6398A-01-12 by xutengtao at 2022/7/21 end*/
-/*hs04 code for SR-AL6398A-01-12 by liluling at 2022/7/25 end*/
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/17 end*/
 	status = "okay";
 
 };

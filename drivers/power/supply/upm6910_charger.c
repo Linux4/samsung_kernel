@@ -35,6 +35,9 @@
 #include <mtk_charger.h>
 
 #include "upm6910.h"
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 struct upm6910 {
     struct device *dev;
@@ -764,7 +767,6 @@ static int upm6910_disable_battfet_rst(struct upm6910 *upm)
     return ret;
 }
 #endif
-/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 end*/
 
 static int upm6910_init_device(struct upm6910 *upm)
 {
@@ -1528,14 +1530,12 @@ static int upm6910_charger_probe(struct i2c_client *client,
         ret = PTR_ERR(upm->psy);
     }
 
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(CHG_INFO, "UPM6910");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
+
     pr_err("upm6910 probe successfully, Part Num:%d\n!",
             upm->part_no);
-
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
-    chg_info = UPM6910;
-#endif
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 end*/
 
     return 0;
 }

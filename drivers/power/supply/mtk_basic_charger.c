@@ -453,25 +453,22 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 		info->setting.charging_current_limit1 == -1 &&
 		info->setting.charging_current_limit2 == -1)
 		info->enable_hv_charging = true;
-	/*hs04 code for DEVAL6398A-30 by shixuanxuan at 20220729 start*/
+
 	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 	#ifdef CONFIG_AFC_CHARGER
 	if (support_fast_charging(info) && info->afc_sts < AFC_9V) {
 	#else
 	if (support_fast_charging(info)) {
 	#endif
 	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 end*/
-	#ifdef CONFIG_HQ_PROJECT_OT8
+#ifdef CONFIG_HQ_PROJECT_HS04
+		is_basic = true;
+#else
 		is_basic = false;
-	#endif
-        #ifdef CONFIG_HQ_PROJECT_HS03S
-		is_basic = true;
-	#endif
-	#ifdef CONFIG_HQ_PROJECT_HS04
-		is_basic = true;
-	#endif
+#endif
 	} else {
-	/*hs04 code for DEVAL6398A-30 by shixuanxuan at 20220729 end*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */
 		is_basic = true;
 		/* AICL */
 		charger_dev_run_aicl(info->chg1_dev,
@@ -1018,14 +1015,12 @@ static int do_algorithm(struct mtk_charger *info)
 		else
 			charger_dev_enable(info->chg1_dev, true);
 	}
-	/*hs04 code for P220926-07710 by qiaodan at 20220927 start*/
-	if (info->chg1_dev != NULL) {
-		chr_err("%s dump_register start\n", __func__);
+
+	if (info->chg1_dev != NULL)
 		charger_dev_dump_registers(info->chg1_dev);
-	}
+
 	if (info->chg2_dev != NULL)
 		charger_dev_dump_registers(info->chg2_dev);
-	/*hs04 code for P220926-07710 by qiaodan at 20220927 end*/
 
 	return 0;
 }

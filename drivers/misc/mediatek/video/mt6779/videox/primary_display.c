@@ -2970,7 +2970,7 @@ static int _convert_disp_input_to_ovl(struct OVL_CONFIG_STRUCT *dst,
 
 	/* only updated secure buffer handle for input */
 	if (dst->security != DISP_NORMAL_BUFFER) {
-		dst->hnd = disp_snyc_get_ion_handle(session_id, dst->layer, dst->buff_idx);
+		dst->hnd = disp_sync_get_ion_handle(session_id, dst->layer, dst->buff_idx);
 		DISPINFO("%s [SVP]ovl2mem sec layer id: %d, buf_idx:0x%x\n", __func__,
 			 dst->layer, dst->buff_idx);
 	}
@@ -3417,7 +3417,7 @@ static void DC_config_nightlight(struct cmdqRecStruct *cmdq_handle)
 	if (all_zero)
 		DISP_PR_INFO("Night light backup param is zero matrix\n");
 	else
-		disp_ccorr_set_color_matrix(cmdq_handle, ccorr_matrix, mode);
+		disp_ccorr_set_color_matrix(cmdq_handle, ccorr_matrix, false, mode);
 }
 
 static int _decouple_update_rdma_config_nolock(void)
@@ -5989,7 +5989,7 @@ static int config_wdma_output(disp_path_handle disp_handle,
 
 	/* only updated secure buffer handle for input */
 	if (wcfg->security == DISP_SECURE_BUFFER) {
-		wcfg->hnd = disp_snyc_get_ion_handle(cfg->session_id,
+		wcfg->hnd = disp_sync_get_ion_handle(cfg->session_id,
 						disp_sync_get_output_timeline_id(),
 						output->buff_idx);
 		DISPINFO("%s [SVP]ovl2mem sec layer id: %d, buf_idx:0x%x\n", __func__,
@@ -7171,6 +7171,7 @@ static int primary_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 		else if (!primary_display_is_decouple_mode()) {
 			disp_ccorr_set_color_matrix(cmdq_handle,
 				m_ccorr_config.color_matrix,
+				m_ccorr_config.featureFlag,
 				m_ccorr_config.mode);
 
 			/* backup night params here */

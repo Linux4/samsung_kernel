@@ -33,14 +33,12 @@ endif
 
 ifeq ($(strip $(CONFIG_HQ_PROJECT_OT8)),y)
 obj-$(CONFIG_MTK_LCM) += mtk_lcd_gpio_ctrl.o
-#else
-#obj-$(CONFIG_MTK_LCM) += lcm_drv.o
+else
+obj-$(CONFIG_MTK_LCM) += lcm_drv.o
 endif
-
-#ifeq ($(strip $(CONFIG_HQ_PROJECT_OT8)),y)
-#obj-$(CONFIG_MTK_LCM) += mtk_lcd_gpio_ctrl.c
-#endif
-# HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 end.
+ifeq ($(strip $(CONFIG_HQ_PROJECT_O22)),y)
+obj-$(CONFIG_MTK_LCM) += lcm_drv.o
+endif
 
 #ifeq ($(MTK_TARGET_PROJECT), ot8)
 #      LOCAL_CFLAGS += -DHQ_PROJECT_OT8
@@ -49,20 +47,20 @@ endif
 # HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 start
 obj-$(CONFIG_HQ_SET_LCD_BIAS) += lcm_bias.o
 # HS03S code added for SR-AL5625-01-506 by gaozhengwei at 20210526 end
-
 LCM_LISTS := $(subst ",,$(CONFIG_CUSTOM_KERNEL_LCM))
-# hs04 code for SR-AL6398A-01-145 by suyurui at 2022/7/7 start
-ifdef CONFIG_HQ_PROJECT_HS04
+#hs04 code for DEAL6398A-1875 by zhawei at 20221017 start
+ifdef CONFIG_HQ_PROJECT_O22
+obj-$(CONFIG_MTK_LCM) += $(foreach LCM,$(LCM_LISTS),o22/)
+else ifdef CONFIG_HQ_PROJECT_HS04
 obj-$(CONFIG_MTK_LCM) += $(foreach LCM,$(LCM_LISTS),M04/)
-endif
-ifdef CONFIG_HQ_PROJECT_HS03S
+else ifdef CONFIG_HQ_PROJECT_HS03S
+obj-$(CONFIG_MTK_LCM) += $(foreach LCM,$(LCM_LISTS),$(LCM)/)
+else ifdef CONFIG_HQ_PROJECT_OT8
+obj-$(CONFIG_MTK_LCM) += $(foreach LCM,$(LCM_LISTS),$(LCM)/)
+else
 obj-$(CONFIG_MTK_LCM) += $(foreach LCM,$(LCM_LISTS),$(LCM)/)
 endif
-ifdef CONFIG_HQ_PROJECT_OT8
-obj-$(CONFIG_MTK_LCM) += $(foreach LCM,$(LCM_LISTS),$(LCM)/)
-endif
-# hs04 code for SR-AL6398A-01-145 by suyurui at 2022/7/7 end
-
+#hs04 code for DEAL6398A-1875 by zhawei at 20221017 end
 
 ifeq (y, $(filter y, $(CONFIG_MACH_MT6761)))
     MTK_PLATFORM:= $(subst ",,mt6765)

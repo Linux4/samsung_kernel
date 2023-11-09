@@ -2691,7 +2691,8 @@ static int fsg_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 static void fsg_disable(struct usb_function *f)
 {
 	struct fsg_dev *fsg = fsg_from_func(f);
-	/*hs04 code for DEAL6398A-1778 by liufurong at 20220920 start*/
+
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 #ifdef CONFIG_HQ_PROJECT_HS04
 	/* Disable the endpoints */
 	if (fsg->bulk_in_enabled) {
@@ -2705,7 +2706,8 @@ static void fsg_disable(struct usb_function *f)
 		fsg->bulk_out_enabled = 0;
 	}
 #endif
-	/*hs04 code for DEAL6398A-1778 by liufurong at 20220920 end*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
+
 	__raise_exception(fsg->common, FSG_STATE_CONFIG_CHANGE, NULL);
 }
 

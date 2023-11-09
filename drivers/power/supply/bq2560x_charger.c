@@ -38,6 +38,9 @@
 
 #include "bq2560x_reg.h"
 #include "bq2560x.h"
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 //#define BQ25611
 
@@ -1618,6 +1621,10 @@ static int bq2560x_charger_probe(struct i2c_client *client,
 		ret = PTR_ERR(bq->psy);
 	}
 	/*HS03s for SR-AL5625-01-511 by wenyaqi at 20210618 end*/
+
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(CHG_INFO, "BQ25601");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 	pr_err("bq2560x probe successfully, Part Num:%d-%d, Revision:%d\n!",
 			bq->part_no, bq->e_part_no, bq->revision);

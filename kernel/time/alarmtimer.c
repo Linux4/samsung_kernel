@@ -110,15 +110,15 @@ int alarm_set_alarm(char* alarm_data)
 	struct timespec     wall_time;
 	ktime_t             wall_ktm;
 	struct rtc_time     wall_tm;
-
+	
 	if (!rtcdev) {
 		printk(
 			"alarm_set_alarm: no RTC, time will be lost on reboot\n");
 		return -1;
 	}
-
+	
 	strlcpy(buf_ptr, alarm_data, BOOTALM_BIT_TOTAL+1);
-
+	
 	alm.time.tm_sec = 0;
 	alm.time.tm_min  =  (buf_ptr[BOOTALM_BIT_MIN]    -'0') * 10
 	                  + (buf_ptr[BOOTALM_BIT_MIN+1]  -'0');
@@ -132,27 +132,27 @@ int alarm_set_alarm(char* alarm_data)
 	                  + (buf_ptr[BOOTALM_BIT_YEAR+1] -'0') * 100
 	                  + (buf_ptr[BOOTALM_BIT_YEAR+2] -'0') * 10
 	                  + (buf_ptr[BOOTALM_BIT_YEAR+3] -'0');
-
+					  
 	alm.enabled = (*buf_ptr == '1');
-
+	
 	pr_err("[SAPA] %s : %s => tm(%d %04d-%02d-%02d %02d:%02d:%02d)\n",
 			__func__, buf_ptr, alm.enabled,
 			alm.time.tm_year, alm.time.tm_mon, alm.time.tm_mday,
 			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec);
-
+			
 	if ( alm.enabled ) {
 		/* If time daemon is exist */
-
+		
 		alm.time.tm_mon -= 1;
 		alm.time.tm_year -= 1900;
-
+		
 		/* read current time */
 		rtc_read_time(rtcdev, &rtc_tm);
 		rtc_tm_to_time(&rtc_tm, &rtc_sec);
 		pr_err("hzm [SAPA] rtc  %4d-%02d-%02d %02d:%02d:%02d -> %lu\n",
 			rtc_tm.tm_year, rtc_tm.tm_mon, rtc_tm.tm_mday,
 			rtc_tm.tm_hour, rtc_tm.tm_min, rtc_tm.tm_sec, rtc_sec);
-
+			
 		/* read kernel time */
 		getnstimeofday(&wall_time);
 		wall_ktm = timespec_to_ktime(wall_time);
@@ -160,22 +160,22 @@ int alarm_set_alarm(char* alarm_data)
 		pr_err("hzm [SAPA] wall %4d-%02d-%02d %02d:%02d:%02d -> %lu\n",
 			wall_tm.tm_year, wall_tm.tm_mon, wall_tm.tm_mday,
 			wall_tm.tm_hour, wall_tm.tm_min, wall_tm.tm_sec, wall_time.tv_sec);
-
+			
 		/* calculate offset */
 		set_normalized_timespec(&rtc_delta,
 					wall_time.tv_sec - rtc_sec,
 					wall_time.tv_nsec);
-
+					
 		/* convert user requested SAPA time to second type */
 		rtc_tm_to_time(&alm.time, &rtc_alarm_time);
-
+		
 		/* convert to RTC time with user requested SAPA time and offset */
 		rtc_alarm_time -= rtc_delta.tv_sec;
 		rtc_time_to_tm(rtc_alarm_time, &alm.time);
 		pr_err("hzm [SAPA] arlm %4d-%02d-%02d %02d:%02d:%02d -> %lu\n",
 			alm.time.tm_year, alm.time.tm_mon, alm.time.tm_mday,
 			alm.time.tm_hour, alm.time.tm_min, alm.time.tm_sec, rtc_alarm_time);
-
+			
 	}
 	ret = rtc_set_bootalarm(rtcdev, &alm);
 	if (ret < 0) {

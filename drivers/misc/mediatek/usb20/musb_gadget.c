@@ -1189,8 +1189,10 @@ static int is_db_ok(struct musb *musb, struct musb_ep *musb_ep)
 
 	addr = ((ep->address & 0x80) >> 3)
 			| (ep->address & 0x0f);
-
-	/*hs04 code for DEAL6398A-111 by gaozhengwei at 20220801 start*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+/* hs14 code for AL6528A-657 by shanxinkai at 2022/11/08 start */
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined(CONFIG_HQ_PROJECT_O22)
+/* hs14 code for AL6528A-657 by shanxinkai at 2022/11/08 end */
 	if (!IS_ERR_OR_NULL(cdev->config)) {
 		list_for_each_entry(f, &cdev->config->functions, list) {
 			if (test_bit(addr, f->endpoints))
@@ -1201,7 +1203,14 @@ static int is_db_ok(struct musb *musb, struct musb_ep *musb_ep)
 		pr_err("%s:%d NULL pointer\n", __func__, __LINE__);
 		goto done;
 	}
-	/*hs04 code for DEAL6398A-111 by gaozhengwei at 20220801 end*/
+#else
+	list_for_each_entry(f, &cdev->config->functions, list) {
+		if (test_bit(addr, f->endpoints))
+			goto find_f;
+	}
+	goto done;
+#endif
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 find_f:
 	f_desc = get_function_descriptors(f, gadget->speed);
 	if (f_desc)
@@ -1447,15 +1456,21 @@ static int musb_gadget_enable
 		musb_writew(regs, MUSB_RXCSR, csr);
 #endif
 	}
-
-	/*hs04 code for DEAL6398A-111 by shixuanxuan at 20220728 start*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+/* hs14 code for AL6528A-657 by shanxinkai at 2022/11/08 start */
+#if defined (CONFIG_HQ_PROJECT_HS04) || defined(CONFIG_HQ_PROJECT_O22)
+/* hs14 code for AL6528A-657 by shanxinkai at 2022/11/08 end */
 	if (musb->is_active) {
 		fifo_setup(musb, musb_ep);
 	} else {
 		pr_err("musb->is_active == NULL, return!\n");
 		goto fail;
 	}
-	/*hs04 code for DEAL6398A-111 by shixuanxuan at 20220728 end*/
+#else
+	fifo_setup(musb, musb_ep);
+#endif
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
+
 
 #ifndef CONFIG_MTK_MUSB_QMU_SUPPORT
 	/* NOTE:  all the I/O code _should_ work fine without DMA, in case
@@ -1785,6 +1800,8 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 	if (!ep || !request || to_musb_request(request)->ep != musb_ep)
 		return -EINVAL;
 
+	disable_irq_nosync(musb->nIrq);
+
 	spin_lock_irqsave(&musb->lock, flags);
 
 	list_for_each_entry(r, &musb_ep->req_list, list) {
@@ -1807,10 +1824,10 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 			 ep->address);
 		musb_flush_qmu(musb_ep->hw_ep->epnum,
 				(musb_ep->is_in ? TXQ : RXQ));
-		musb_g_giveback(musb_ep, request, -ECONNRESET);
-		musb_restart_qmu(musb,
+		mtk_qmu_enable(musb,
 				musb_ep->hw_ep->epnum,
 				(musb_ep->is_in ? TXQ : RXQ));
+		musb_g_giveback(musb_ep, request, -ECONNRESET);
 	}
 #else
 	/* ... else abort the dma transfer ... */
@@ -1834,6 +1851,8 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 
 done:
 	spin_unlock_irqrestore(&musb->lock, flags);
+
+	enable_irq(musb->nIrq);
 	return status;
 }
 
@@ -2261,6 +2280,12 @@ static int musb_gadget_vbus_draw
 	return usb_phy_set_power(musb->xceiv, mA);
 }
 
+bool is_usb_rdy(void)
+{
+	return true;
+}
+EXPORT_SYMBOL(is_usb_rdy);
+
 static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
 {
 	struct musb *musb = gadget_to_musb(gadget);
@@ -2288,6 +2313,7 @@ static int musb_gadget_pullup(struct usb_gadget *gadget, int is_on)
 
 	if (!musb->is_ready && is_on) {
 		musb->is_ready = true;
+
 		/* direct issue connection work if usb is forced on */
 		if (musb_force_on) {
 			DBG(0, "mt_usb_connect() on is_ready begin\n");

@@ -23,6 +23,7 @@
 #ifdef CONFIG_MTK_MUSB_PHY
 #include <usb20_phy.h>
 #endif
+
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
 #include <linux/cable_type_notifier.h>
 #endif
@@ -196,22 +197,6 @@ static void usb_6765_dpidle_request(int mode)
 	spin_unlock_irqrestore(&usb_hal_dpidle_lock, flags);
 }
 #endif
-
-/* default value 0 */
-static int usb_rdy;
-bool is_usb_rdy(void)
-{
-	if (mtk_musb->is_ready) {
-		usb_rdy = 1;
-		DBG(0, "set usb_rdy, wake up bat\n");
-	}
-
-	if (usb_rdy)
-		return true;
-	else
-		return false;
-}
-EXPORT_SYMBOL(is_usb_rdy);
 
 /* BC1.2 */
 /* Duplicate define in phy-mtk-tphy */
@@ -719,7 +704,7 @@ static int mt_usb_psy_notifier(struct notifier_block *nb,
 
 		DBG(0, "psy=%s, event=%d", psy->desc->name, event);
 
-		#ifdef CONFIG_TCPC_CLASS
+#ifdef CONFIG_TCPC_CLASS
 		if (sink_to_src_flag && !src_to_sink_flag &&
 			!ss_musb_is_host()) {
 			DBG(0, "device mode, typec sink->src, keep device\n");
@@ -737,9 +722,9 @@ static int mt_usb_psy_notifier(struct notifier_block *nb,
 			DBG(0, "host mode, typec sink->src, keep host\n");
 			return NOTIFY_DONE;
 		}
-		#endif
+#endif
 
-		#ifndef HQ_FACTORY_BUILD	//ss version
+#ifndef HQ_FACTORY_BUILD	//ss version
 		if (hq_get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
 			hq_get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
 			/* do nothing */
@@ -750,12 +735,12 @@ static int mt_usb_psy_notifier(struct notifier_block *nb,
 			else
 				mt_usb_disconnect();
 		}
-		#else
+#else
 		if (usb_cable_connected(musb))
 			mt_usb_connect();
 		else
 			mt_usb_disconnect();
-		#endif
+#endif
 /*HS03s for SR-AL5625-01-261 by wenyaqi at 20210428 end*/
 	}
 	return NOTIFY_DONE;
@@ -966,6 +951,7 @@ exit:
 EXPORT_SYMBOL(usb_enable_clock);
 #endif
 
+#if !defined(CONFIG_EXTCON_MTK_USB)
 static int mt_usb_psy_init(struct musb *musb)
 {
 	int ret = 0;
@@ -992,6 +978,7 @@ static int mt_usb_psy_init(struct musb *musb)
 #endif
 	return ret;
 }
+#endif
 
 static struct delayed_work idle_work;
 
@@ -1163,6 +1150,12 @@ static void mt_usb_enable(struct musb *musb)
 	/* only for mt6761 */
 	usb_sram_setup();
 #endif
+	/*  hs04 code for BSPAL6398A-41 by shixuanxuan at 20221206 start */
+	#ifdef CONFIG_HQ_PROJECT_HS04
+	USBPHY_SET32(0x68, (0x1 << 18));
+	mdelay(100);
+	#endif
+	/*  hs04 code for BSPAL6398A-41 by shixuanxuan at 20221206 end */
 	usb_phy_recover(musb);
 	/* update musb->power & mtk_usb_power in the same time */
 	musb->power = true;
@@ -1283,6 +1276,22 @@ static bool musb_hal_is_vbus_exist(void)
 }
 
 /* be aware this could not be used in non-sleep context */
+#if defined(CONFIG_EXTCON_MTK_USB) && IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+bool usb_cable_connected(void)
+{
+	struct otg_notify *usb_notify;
+	int usb_mode = 0;
+
+	usb_notify = get_otg_notify();
+	usb_mode = get_usb_mode(usb_notify);
+	pr_info("usb: %s: %d\n", __func__, usb_mode);
+	if (usb_mode == NOTIFY_PERIPHERAL_MODE)
+		return true;
+	else
+		return false;
+
+}
+#else
 bool usb_cable_connected(struct musb *musb)
 {
 	struct power_supply *psy;
@@ -1320,6 +1329,7 @@ bool usb_cable_connected(struct musb *musb)
 	else
 		return false;
 }
+#endif
 
 static bool cmode_effect_on(void)
 {
@@ -1338,7 +1348,7 @@ static bool cmode_effect_on(void)
 void do_connection_work(struct work_struct *data)
 {
 	unsigned long flags = 0;
-	int usb_clk_state = NO_CHANGE;
+	int usb_clk_state = NO_CHANGE, phy_mode = -1;
 	bool usb_on, usb_connected;
 	struct mt_usb_work *work =
 		container_of(data, struct mt_usb_work, dwork.work);
@@ -1351,8 +1361,11 @@ void do_connection_work(struct work_struct *data)
 	usb_prepare_clock(true);
 
 	/* be aware this could not be used in non-sleep context */
+#if defined(CONFIG_EXTCON_MTK_USB) && IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+	usb_connected = usb_cable_connected();
+#else
 	usb_connected = usb_cable_connected(mtk_musb);
-
+#endif
 	/* additional check operation here */
 	if (musb_force_on)
 		usb_on = true;
@@ -1398,7 +1411,9 @@ void do_connection_work(struct work_struct *data)
 		/* note this already put SOFTCON */
 		musb_start(mtk_musb);
 		usb_clk_state = OFF_TO_ON;
+		phy_mode = PHY_MODE_USB_DEVICE;
 	} else if (mtk_musb->power && (usb_on == false)) {
+		phy_mode = PHY_MODE_INVALID;
 		/* disable usb */
 		musb_stop(mtk_musb);
 		if (mtk_musb->usb_lock->active) {
@@ -1413,7 +1428,17 @@ void do_connection_work(struct work_struct *data)
 				usb_on, mtk_musb->power);
 exit:
 	spin_unlock_irqrestore(&mtk_musb->lock, flags);
-
+/* hs04_T code for AL6398ADEU-225 by shixuanxuan at 20230113 start */
+#ifdef CONFIG_PHY_MTK_TPHY
+	/* set PHY mode after spinlock released */
+	/*
+	if(phy_mode == PHY_MODE_USB_DEVICE)
+		phy_set_mode(glue->phy, PHY_MODE_USB_DEVICE);
+	else if (phy_mode == PHY_MODE_INVALID)
+		phy_set_mode(glue->phy, PHY_MODE_INVALID);
+	*/
+#endif
+/* hs04_T code for AL6398ADEU-225 by shixuanxuan at 20230113 end */
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
 skip:
 #endif
@@ -1461,7 +1486,7 @@ EXPORT_SYMBOL(mtk_usb_connect);
 void mt_usb_connect(void)
 {
 	DBG(0, "[MUSB] USB connect\n");
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER) && !defined(CONFIG_EXTCON_MTK_USB)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_USB_SDP);
 #else
 	issue_connection_work(CONNECTION_OPS_CONN);
@@ -1479,7 +1504,7 @@ EXPORT_SYMBOL(mtk_usb_disconnect);
 void mt_usb_disconnect(void)
 {
 	DBG(0, "[MUSB] USB disconnect\n");
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER) && !defined(CONFIG_EXTCON_MTK_USB)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
 #else
 	issue_connection_work(CONNECTION_OPS_DISC);
@@ -1489,7 +1514,7 @@ void mt_usb_disconnect(void)
 void mt_usb_dev_disconnect(void)
 {
 	DBG(0, "[MUSB] USB disconnect\n");
-#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER) && !defined(CONFIG_EXTCON_MTK_USB)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
 #else
 	issue_connection_work(CONNECTION_OPS_DISC);

@@ -1020,9 +1020,9 @@ void load_lcm_resources_from_DT(struct LCM_DRIVER *lcm_drv)
 }
 #endif
 
-/*hs04 code for SR-AL6398A-01-145 by suyurui at 2022/7/7 start*/
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
 #ifdef CONFIG_HQ_PROJECT_OT8
-/*hs04 code for SR-AL6398A-01-145 by suyurui at 2022/7/7 end*/
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
 struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
 {
@@ -1178,7 +1178,7 @@ FAIL:
 }
 #endif
 
-/*hs04 code for SR-AL6398A-01-145 by suyurui at 2022/7/7 start*/
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
 #ifdef CONFIG_HQ_PROJECT_HS03S
 struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
@@ -1490,7 +1490,7 @@ FAIL:
 	return NULL;
 }
 #endif
-/*hs04 code for SR-AL6398A-01-145 by suyurui at 2022/7/7 end*/
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
 
 struct disp_lcm_handle *disp_ext_lcm_probe(char *plcm_name,
 	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
@@ -2185,7 +2185,7 @@ bool disp_lcm_need_send_cmd(
 	if (from_level < 0 ||
 		to_level < 0)
 		return false;
-	return	lcm_drv->dfps_need_send_cmd(from_level, to_level);
+	return	lcm_drv->dfps_need_send_cmd(from_level, to_level, lcm_param);
 }
 
 void disp_lcm_dynfps_send_cmd(
@@ -2223,7 +2223,7 @@ void disp_lcm_dynfps_send_cmd(
 			to_level = (dfps_params[j]).level;
 	}
 	lcm_drv->dfps_send_lcm_cmd(cmdq_handle,
-		from_level, to_level);
+		from_level, to_level, lcm_param);
 done:
 	DISPCHECK("%s,add done\n", __func__);
 }

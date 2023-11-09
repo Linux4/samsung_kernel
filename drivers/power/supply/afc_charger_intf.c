@@ -689,6 +689,28 @@ int afc_pre_check(struct mtk_charger *pinfo)
 	return 0;
 }
 
+/*
+* afc_later_check
+*
+* The function will be executed when retry afc.
+*/
+int afc_later_check(struct mtk_charger *pinfo)
+{
+	if(pinfo->afc_sts < AFC_5V && pinfo->afc.afc_retry_flag == true &&
+		pinfo->afc.afc_loop_algo < ALGO_LOOP_MAX) {
+		chr_err("afc failed %d times,try again\n", pinfo->afc.afc_loop_algo++);
+		pinfo->afc.to_check_chr_type = true;
+		pinfo->afc.is_connect = true;
+	}
+	if(pinfo->afc_sts > AFC_5V && get_vbus(pinfo) < 8000) {
+		chr_err("vbus droped,try afc again\n");
+		pinfo->afc.to_check_chr_type = true;
+		pinfo->afc.is_connect = true;
+	}
+
+	return 0;
+}
+
 int afc_check_charger(struct mtk_charger *pinfo)
 {
 	int ret = -1;
@@ -697,7 +719,7 @@ int afc_check_charger(struct mtk_charger *pinfo)
 
 	pr_debug("%s: Start\n", __func__);
 
-	if (!pinfo->enable_hv_charging ) {
+	if (!pinfo->enable_hv_charging || pinfo->hv_disable == HV_DISABLE) {
 		pr_err("%s: hv charging is disabled\n", __func__);
 		if (afc_device->is_connect) {
 			afc_leave(pinfo);
@@ -754,6 +776,7 @@ The AICR will be configured right siut value in CC step */
 	if (!IS_ERR_OR_NULL(psy)) {
 		power_supply_changed(psy);
 	}
+	afc_later_check(pinfo);
 	pr_info("%s End\n", __func__);
 	return 0;
 out:
@@ -766,6 +789,7 @@ out:
 	}
 	afc_enable_vbus_ovp(pinfo, true);
 	charger_dev_set_input_current(pinfo->chg1_dev, pinfo->data.ac_charger_input_current);
+	afc_later_check(pinfo);
 	pr_info("%s:not detect afc\n",__func__);
 	return 0;
 }
@@ -835,7 +859,7 @@ int afc_set_ta_vchr(struct mtk_charger *pinfo, u32 chr_volt)
 			vchr_after / 1000, chr_volt / 1000);
 	} while ( get_charger_type(pinfo) != POWER_SUPPLY_TYPE_UNKNOWN &&
 		 retry_cnt < retry_cnt_max && pinfo->enable_hv_charging &&
-		 cancel_afc(pinfo) != true);
+		 cancel_afc(pinfo) != true && pinfo->hv_disable == HV_ENABLE);
 
 	ret = -EIO;
 	pr_err("%s: failed, vchr_after = %dmV, target_vchr = %dmV\n",
@@ -909,7 +933,7 @@ int afc_start_algorithm(struct mtk_charger *pinfo)
 	int vbat = 0;
 	struct afc_dev *afc_device = &pinfo->afc;
 
-	if (!pinfo->enable_hv_charging) {
+	if (!pinfo->enable_hv_charging || pinfo->hv_disable == HV_DISABLE) {
 		ret = -EPERM;
 		pr_err("%s: hv charging is disabled\n", __func__);
 		if (afc_device->is_connect) {

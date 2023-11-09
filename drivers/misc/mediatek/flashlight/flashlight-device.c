@@ -5,8 +5,7 @@
 
 #include "flashlight-core.h"
 
-/* HS04 code for SR-AL6398A-01-495 by chenjun at2 202/07/21 start */
-/* hs03s code for CAM-AL5625-01-247 by lisizhou at 2021/06/16 start */
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/18 start*/
 #ifdef CONFIG_HQ_PROJECT_HS03S
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
@@ -14,16 +13,23 @@ const struct flashlight_device_id flashlight_id[] = {
 	{0, 0, 0, "flashlights-sgm3785-gpio", 0, 0},
 };
 #endif
-
 #ifdef CONFIG_HQ_PROJECT_HS04
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-o21-sgm3785-gpio", 0, 0},
 };
 #endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/18 end*/
 
+/* hs14 code for SR-AL5628-01-161 by lisizhou at 2022-9-21 start */
+#if defined(mt6768)
+const struct flashlight_device_id flashlight_id[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-sgm3785-gpio", 0, 0},
+};
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/18 start*/
 // #elif defined(mt6739)
-// /* hs03s code for CAM-AL5625-01-247 by lisizhou at 2021/06/16 end */
+// /* hs14 code for SR-AL5628-01-161 by lisizhou at 2022-9-21 end */
 // const struct flashlight_device_id flashlight_id[] = {
 // 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 // 	{0, 0, 0, "flashlights-rt4505", 0, 0},
@@ -119,9 +125,9 @@ const struct flashlight_device_id flashlight_id[] = {
 // 	{1, 1, 1, "flashlights-none", -1, 0},
 // };
 // /* hs03s code for CAM-AL5625-01-324 by lisizhou at 2021/05/31 end */
-// #endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/18 end*/
+#endif
 
-/* HS04 code for SR-AL6398A-01-495 by chenjun at2 202/07/21 end */
 const int flashlight_device_num =
 	sizeof(flashlight_id) / sizeof(struct flashlight_device_id);
 

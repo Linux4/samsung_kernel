@@ -56,6 +56,11 @@ struct last_reboot_reason {
 	uint64_t kaslr_offset;
 	uint64_t oops_in_progress_addr;
 
+	uint32_t kick;
+	uint32_t check;
+	uint64_t wdk_ktime;
+	uint64_t wdk_systimer_cnt;
+	
 	uint32_t last_irq_enter[CPU_NUMS];
 	uint64_t jiffies_last_irq_enter[CPU_NUMS];
 

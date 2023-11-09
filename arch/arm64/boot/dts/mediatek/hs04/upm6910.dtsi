@@ -1,4 +1,4 @@
-/*hs04 code for SR-AL6398A-01-139|SR-AL6398A-01-140 by shixuanxuan at 20220708 start*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 &i2c5 {
     upm6910: upm6910@65 {
         compatible = "upm6910";
@@ -24,4 +24,4 @@
         upm6910,vac-ovp-threshold = <6500>;
     };
 };
-/*hs04 code for SR-AL6398A-01-139|SR-AL6398A-01-140 by shixuanxuan at 20220708 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/

@@ -36,17 +36,13 @@
 #include "eeprom_i2c_sc500cs_dd_driver.h"
 #endif
 
-/* hs04 code for SR-AL6398A-01-17 by liluling at  2022/07/7 start */
-/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
-/*hs04 code for SR-AL6398A-01-12 by liluling at 2022/7/28 start */
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
 #ifdef CONFIG_HQ_PROJECT_HS04
 #include "eeprom_i2c_o2101_hi556txd_front_driver.h"
 #include "eeprom_i2c_o2103_sc520syx_front_driver.h"
 #include "eeprom_i2c_o2104_hi556wtxd_front_driver.h"
 #endif
-/*hs04 code for SR-AL6398A-01-12 by liluling at 2022/7/28 end */
-/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
-/* hs04 code for SR-AL6398A-01-17 by liluling at  2022/07/7 end */
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
 
 #define MAX_EEPROM_SIZE_16K 0x4000
 
@@ -115,10 +111,8 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 /*hs03s code for DEVAL5625-2576 by majunfeng at 2022/04/08 end*/
 /*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end*/
 #endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
 #ifdef CONFIG_HQ_PROJECT_HS04
-/*  hs04 code for SR-AL6398A-01-16 by chenjun at 2022/7/27 start */
-/*hs04 code for SR-AL6398A-01-16 by liluling at  2022/07/7 start */
-/*hs04 code for SR-AL6398A-01-12 by liluling at 2022/7/28 start */
 	{O2101_SC1300CSLY_BACK_SENSOR_ID, 0xA0, Common_read_region},
 	{O2102_HI1336TXD_BACK_SENSOR_ID, 0xA0, Common_read_region},
 	{O2103_OV13B10HLT_BACK_SENSOR_ID, 0xB0, Common_read_region},
@@ -127,11 +121,8 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{O2102_OV05A10HLT_FRONT_SENSOR_ID, 0xA0, Common_read_region},
 	{O2103_SC520SYX_FRONT_SENSOR_ID, 0x6C, o2103_sc520syx_front_read_region},
 	{O2104_HI556WTXD_FRONT_SENSOR_ID, 0x50, o2104_hi556wtxd_front_read_region},
-/*hs04 code for SR-AL6398A-01-12 by liluling at 2022/7/28 end */
-/*hs04 code for SR-AL6398A-01-16 by liluling at  2022/07/7 end */
-/*  hs04 code for SR-AL6398A-01-16 by chenjun at 2022/7/27 end */
 #endif
-/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
 	{IMX230_SENSOR_ID, 0xA0, Common_read_region},
 	{S5K2T7SP_SENSOR_ID, 0xA4, Common_read_region},
 	{IMX338_SENSOR_ID, 0xA0, Common_read_region},

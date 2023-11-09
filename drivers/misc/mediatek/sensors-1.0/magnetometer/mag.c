@@ -152,6 +152,9 @@ static int mag_enable_and_batch(void)
 	struct mag_context *cxt = mag_context_obj;
 	int err;
 
+	/*hs14 code for AL6528A-486 by houxin at 2022/11/10 start*/
+	pr_err("[%s]mtkdebug mag 1109!\n", __func__);
+	/*hs14 code for AL6528A-486 by houxin at 2022/11/10 end*/
 	/* power on -> power off */
 	if (cxt->power == 1 && cxt->enable == 0) {
 		pr_debug("MAG disable\n");
@@ -260,16 +263,23 @@ static ssize_t magactive_store(struct device *dev,
 #ifdef CONFIG_NANOHUB
 	err = cxt->mag_ctl.enable(cxt->enable);
 	if (err) {
-		pr_err("mag turn on power err = %d\n", err);
+		/*hs14 code for AL6528A-486 by houxin at 2022/11/10 start*/
+		pr_err("mtkdebug mag turn on power err = %d\n", err);
+		/*hs14 code for AL6528A-486 by houxin at 2022/11/10 end*/
 		goto err_out;
 	}
 #else
 	err = mag_enable_and_batch();
+	/*hs14 code for AL6528A-486 by houxin at 2022/11/10 start*/
+	pr_err("[%s] mtkdebug mag 1109!\n", __func__);
+	/*hs14 code for AL6528A-486 by houxin at 2022/11/10 end*/
 #endif
 
 err_out:
 	mutex_unlock(&mag_context_obj->mag_op_mutex);
-	pr_debug("%s done\n", __func__);
+	/*hs14 code for AL6528A-486 by houxin at 2022/11/10 start*/
+	pr_debug("%s done mtkdebug mag 1109!\n", __func__);
+	/*hs14 code for AL6528A-486 by houxin at 2022/11/10 end*/
 	if (err)
 		return err;
 	else

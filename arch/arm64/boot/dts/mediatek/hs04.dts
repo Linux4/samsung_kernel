@@ -222,6 +222,7 @@
 };
 /* accdet end */
 
+
 /* TOUCH start */
 &touch {
 	/delete-property/ compatible;
@@ -468,7 +469,4 @@
 #include "mediatek/hs04/hs04-common.dtsi"
 #include "mediatek/hs04/hs04_camera.dtsi"
 /*hs04 code for SR-AL6398A-01-12 by chenjun at 2022/7/7 end*/
-/*hs04 code for SR-AL6398A-01-664 by hehaoran5 at 2022/07/13 start*/
-#include "mediatek/hs04/hs04-touchscreen.dtsi"
-/*hs04 code for SR-AL6398A-01-664 by hehaoran5 at 2022/07/13 end*/
 /*End of this file, DO NOT ADD ANYTHING HERE*/

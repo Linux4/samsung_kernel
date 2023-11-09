@@ -80,19 +80,19 @@ static int md_cd_let_md_go(struct ccci_modem *md);
 static void md_cd_lock_cldma_clock_src(int locked);
 static void md_cd_lock_modem_clock_src(int locked);
 
-static int ccci_modem_remove(struct platform_device *dev);
-static void ccci_modem_shutdown(struct platform_device *dev);
-static int ccci_modem_suspend(struct platform_device *dev, pm_message_t state);
-static int ccci_modem_resume(struct platform_device *dev);
-static int ccci_modem_pm_suspend(struct device *device);
-static int ccci_modem_pm_resume(struct device *device);
-static int ccci_modem_pm_restore_noirq(struct device *device);
-static int md_cd_vcore_config(unsigned int md_id, unsigned int hold_req);
+int ccci_modem_remove(struct platform_device *dev);
+void ccci_modem_shutdown(struct platform_device *dev);
+int ccci_modem_suspend(struct platform_device *dev, pm_message_t state);
+int ccci_modem_resume(struct platform_device *dev);
+int ccci_modem_pm_suspend(struct device *device);
+int ccci_modem_pm_resume(struct device *device);
+int ccci_modem_pm_restore_noirq(struct device *device);
+int md_cd_vcore_config(unsigned int md_id, unsigned int hold_req);
 
 
 
 struct ccci_plat_ops md_cd_plat_ptr = {
-	.init = &ccci_platform_init_6765,
+	//.init = &ccci_platform_init_6765,
 	//.cldma_hw_rst = &md_cldma_hw_reset,
 	//.set_clk_cg = &ccci_set_clk_cg,
 	.remap_md_reg = &md_cd_io_remap_md_side_register,
@@ -357,7 +357,7 @@ static void md_cd_get_md_bootup_status(
 
 	CCCI_NOTICE_LOG(md->index, TAG, "md_boot_stats len %d\n", length);
 
-	if (length < 2) {
+	if (buff == NULL || length < 2) {
 		md_cd_dump_md_bootup_status(md);
 		return;
 	}
@@ -999,7 +999,7 @@ static void md1_pll_init(struct ccci_modem *md)
 
 
 
-static int md_cd_vcore_config(unsigned int md_id, unsigned int hold_req)
+int md_cd_vcore_config(unsigned int md_id, unsigned int hold_req)
 {
 	int ret = 0;
 	static int is_hold;
@@ -1199,16 +1199,16 @@ int ccci_modem_plt_suspend(struct ccci_modem *md)
 	return 0;
 }
 
-static int ccci_modem_remove(struct platform_device *dev)
+int ccci_modem_remove(struct platform_device *dev)
 {
 	return 0;
 }
 
-static void ccci_modem_shutdown(struct platform_device *dev)
+void ccci_modem_shutdown(struct platform_device *dev)
 {
 }
 
-static int ccci_modem_suspend(struct platform_device *dev, pm_message_t state)
+int ccci_modem_suspend(struct platform_device *dev, pm_message_t state)
 {
 	struct ccci_modem *md = (struct ccci_modem *)dev->dev.platform_data;
 
@@ -1216,7 +1216,7 @@ static int ccci_modem_suspend(struct platform_device *dev, pm_message_t state)
 	return 0;
 }
 
-static int ccci_modem_resume(struct platform_device *dev)
+int ccci_modem_resume(struct platform_device *dev)
 {
 	struct ccci_modem *md = (struct ccci_modem *)dev->dev.platform_data;
 
@@ -1224,7 +1224,7 @@ static int ccci_modem_resume(struct platform_device *dev)
 	return 0;
 }
 
-static int ccci_modem_pm_suspend(struct device *device)
+int ccci_modem_pm_suspend(struct device *device)
 {
 	struct platform_device *pdev = to_platform_device(device);
 
@@ -1235,7 +1235,7 @@ static int ccci_modem_pm_suspend(struct device *device)
 	return ccci_modem_suspend(pdev, PMSG_SUSPEND);
 }
 
-static int ccci_modem_pm_resume(struct device *device)
+int ccci_modem_pm_resume(struct device *device)
 {
 	struct platform_device *pdev = to_platform_device(device);
 
@@ -1246,7 +1246,7 @@ static int ccci_modem_pm_resume(struct device *device)
 	return ccci_modem_resume(pdev);
 }
 
-static int ccci_modem_pm_restore_noirq(struct device *device)
+int ccci_modem_pm_restore_noirq(struct device *device)
 {
 	struct ccci_modem *md = (struct ccci_modem *)device->platform_data;
 
@@ -1261,93 +1261,41 @@ static int ccci_modem_pm_restore_noirq(struct device *device)
 	return 0;
 }
 
-static int ccci_modem_probe(struct platform_device *plat_dev)
+/* no support atf-1.4, so write scp smem addr to scp reg direct */
+void ccci_notify_set_scpmem(void)
 {
-	struct ccci_dev_cfg dev_cfg;
-	int ret;
-	struct md_hw_info *md_hw;
+	unsigned long long key = 0;
+	struct device_node *node = NULL;
+	void __iomem *ap_ccif2_base;
+	unsigned long long scp_smem_addr = 0;
+	int size = 0;
 
-	/* Allocate modem hardware info structure memory */
-	md_hw = kzalloc(sizeof(struct md_hw_info), GFP_KERNEL);
-	if (md_hw == NULL) {
-		CCCI_ERROR_LOG(-1, TAG,
-			"%s:alloc md hw mem fail\n", __func__);
-		return -1;
+	node = of_find_compatible_node(NULL, NULL, "mediatek,ap_ccif2");
+	if (node) {
+		ap_ccif2_base = of_iomap(node, 0);
+		if (!ap_ccif2_base) {
+			CCCI_ERROR_LOG(-1, TAG, "ap_ccif2_base fail\n");
+			return;
+		}
+	} else {
+		CCCI_ERROR_LOG(-1, TAG, "can't find node ccif2 !\n");
+		return;
 	}
-	ret = md_cd_get_modem_hw_info(plat_dev, &dev_cfg, md_hw);
-	if (ret != 0) {
-		CCCI_ERROR_LOG(-1, TAG,
-			"%s:get hw info fail(%d)\n", __func__, ret);
-		kfree(md_hw);
-		md_hw = NULL;
-		return -1;
-	}
-#ifdef CCCI_KMODULE_ENABLE
-	ccci_init();
-#endif
+	scp_smem_addr = (unsigned long long) get_smem_phy_start_addr(MD_SYS1,
+		SMEM_USER_CCISM_SCP, &size);
+	if (scp_smem_addr) {
+		ccci_write32(ap_ccif2_base, 0x100, (unsigned int)SCP_SMEM_KEY);
+		ccci_write32(ap_ccif2_base, 0x104, (unsigned int)(SCP_SMEM_KEY >> 32));
+		ccci_write32(ap_ccif2_base, 0x108, (unsigned int)scp_smem_addr);
+		ccci_write32(ap_ccif2_base, 0x10c, (unsigned int)(scp_smem_addr >> 32));
 
-	ret = ccci_modem_init_common(plat_dev, &dev_cfg, md_hw);
-	if (ret < 0) {
-		kfree(md_hw);
-		md_hw = NULL;
-	}
-
-	return ret;
+		key = (unsigned long long) ccci_read32(ap_ccif2_base, 0x104);
+		key = (key << 32 ) |
+			((unsigned long long) ccci_read32(ap_ccif2_base, 0x100));
+		CCCI_NORMAL_LOG(MD_SYS1, TAG,
+			"%s: scp_smem_addr 0x%llx size: 0x%x  magic key: 0x%llx\n",
+			__func__, scp_smem_addr, size, key);
+	} else
+		CCCI_ERROR_LOG(MD_SYS1, TAG, "%s get_smem fail\n", __func__);
 }
-
-static const struct dev_pm_ops ccci_modem_pm_ops = {
-	.suspend = ccci_modem_pm_suspend,
-	.resume = ccci_modem_pm_resume,
-	.freeze = ccci_modem_pm_suspend,
-	.thaw = ccci_modem_pm_resume,
-	.poweroff = ccci_modem_pm_suspend,
-	.restore = ccci_modem_pm_resume,
-	.restore_noirq = ccci_modem_pm_restore_noirq,
-};
-
-#ifdef CONFIG_OF
-static const struct of_device_id ccci_modem_of_ids[] = {
-	{.compatible = "mediatek,mddriver-mt6765",},
-	{}
-};
-#endif
-
-static struct platform_driver ccci_modem_driver = {
-
-	.driver = {
-		   .name = "driver_modem_mt6765",
-#ifdef CONFIG_OF
-		   .of_match_table = ccci_modem_of_ids,
-#endif
-
-#ifdef CONFIG_PM
-		   .pm = &ccci_modem_pm_ops,
-#endif
-		   },
-	.probe = ccci_modem_probe,
-	.remove = ccci_modem_remove,
-	.shutdown = ccci_modem_shutdown,
-	.suspend = ccci_modem_suspend,
-	.resume = ccci_modem_resume,
-};
-
-static int __init modem_cd_init(void)
-{
-	int ret;
-
-	ret = platform_driver_register(&ccci_modem_driver);
-	if (ret) {
-		CCCI_ERROR_LOG(-1, TAG,
-			"clmda modem platform driver register fail(%d)\n",
-			ret);
-		return ret;
-	}
-	return 0;
-}
-
-module_init(modem_cd_init);
-
-MODULE_AUTHOR("CCCI");
-MODULE_DESCRIPTION("CCCI modem driver v0.1");
-MODULE_LICENSE("GPL");
 

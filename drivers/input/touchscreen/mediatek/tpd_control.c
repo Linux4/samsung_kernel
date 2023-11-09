@@ -594,17 +594,14 @@ static ssize_t mtk_tpd_proc_getinfo_read(struct file *filp, char __user *buff, s
 	/*TabA7 Lite code for OT8-5106 by hehaoran at 20210805 start*/
 #endif
     /* modify code for O6 */
-/* HS04 code for SR-AL6398A-01-676 by tangsumian1 at 20220722 start*/
-#ifdef CONFIG_HQ_PROJECT_HS03S
-	snprintf(tp_info_buf, 150, "IC_NAME: %s,TOUCH_VER: %X\n",mtp_chip_name,mtp_fw_ver);
-#endif
-#ifdef CONFIG_HQ_PROJECT_OT8
-	snprintf(tp_info_buf, 150, "IC_NAME: %s,TOUCH_VER: %X\n",mtp_chip_name,mtp_fw_ver);
-#endif
+/* hs04 code for SR-AL6398A-01-676 by tangsumian1 at 20220722 start*/
 #ifdef CONFIG_HQ_PROJECT_HS04
 	snprintf(tp_info_buf, 150, "IC_NAME: %s,TOUCH_VER: %02X\n",mtp_chip_name,mtp_fw_ver&0xff);
+#else
+	snprintf(tp_info_buf, 150, "IC_NAME: %s,TOUCH_VER: %X\n",mtp_chip_name,mtp_fw_ver);
 #endif
-/* HS04 code for SR-AL6398A-01-676 by tangsumian1 at 20220722 end*/
+/* hs04 code for SR-AL6398A-01-676 by tangsumian1 at 20220722 end*/
+
 
 	rc = simple_read_from_buffer(buff, size, pPos, tp_info_buf, strlen(tp_info_buf));
 	return rc;

@@ -1298,6 +1298,11 @@ static int read_node_page(struct page *page, int op_flags)
 
 	if (unlikely(ni.blk_addr == NULL_ADDR) ||
 			is_sbi_flag_set(sbi, SBI_IS_SHUTDOWN)) {
+		if (ni.blk_addr == NULL_ADDR)
+			printk_ratelimited(KERN_ERR "F2FS-fs: Node block address is NULL, nid: %lu, ino: %lu, blkaddr: %lu, version: %u, flag: 0x%x\n",
+					(unsigned long) ni.nid, (unsigned long) ni.ino,
+					(unsigned long) ni.blk_addr, (unsigned int) ni.version,
+					(unsigned int) ni.flag);
 		ClearPageUptodate(page);
 		return -ENOENT;
 	}
@@ -1969,8 +1974,12 @@ continue_unlock:
 				goto continue_unlock;
 			}
 
-			/* flush inline_data, if it's async context. */
-			if (do_balance && is_inline_node(page)) {
+			/* flush inline_data/inode, if it's async context. */
+			if (!do_balance)
+				goto write_node;
+
+			/* flush inline_data */
+			if (is_inline_node(page)) {
 				clear_inline_node(page);
 				unlock_page(page);
 				flush_inline_data(sbi, ino_of_node(page));
@@ -1983,7 +1992,7 @@ continue_unlock:
 				if (flush_dirty_inode(page))
 					goto lock_node;
 			}
-
+write_node:
 			f2fs_wait_on_page_writeback(page, NODE, true, true);
 
 			if (!clear_page_dirty_for_io(page))
@@ -2855,6 +2864,9 @@ static void remove_nats_in_journal(struct f2fs_sb_info *sbi)
 		struct f2fs_nat_entry raw_ne;
 		nid_t nid = le32_to_cpu(nid_in_journal(journal, i));
 
+		if (f2fs_check_nid_range(sbi, nid))
+			continue;
+
 		raw_ne = nat_in_journal(journal, i);
 
 		ne = __lookup_nat_cache(nm_i, nid);
@@ -3044,7 +3056,7 @@ int f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	 */
 	if (enabled_nat_bits(sbi, cpc) ||
 		!__has_cursum_space(journal,
-				nm_i->nat_cnt[DIRTY_NAT], NAT_JOURNAL))
+			nm_i->nat_cnt[DIRTY_NAT], NAT_JOURNAL))
 		remove_nats_in_journal(sbi);
 
 	while ((found = __gang_lookup_nat_set(nm_i,

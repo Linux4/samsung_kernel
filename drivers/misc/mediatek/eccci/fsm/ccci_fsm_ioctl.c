@@ -67,6 +67,23 @@ void drv_tri_panic_by_lvl(int md_id)
 }
 #endif
 
+#ifdef CUST_FT_EE_TRIGGER_REBOOT
+int ccci_get_ap_debug_level(void)
+{
+	if (ccci_md_log_level == MD_LOG_LEVEL_LOW)
+		return 0;
+	else if (ccci_md_log_level == MD_LOG_LEVEL_MID)
+		return 1;
+	else if (ccci_md_log_level == MD_LOG_LEVEL_HIGH)
+		return 2;
+
+	CCCI_ERROR_LOG(-1, FSM,
+		"%s:debug_level(%d) invalid\n", __func__,
+		ccci_md_log_level);
+	return -1;
+}
+#endif
+
 static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0, retry;
@@ -87,16 +104,33 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case CCCI_IOC_GET_MD_PROTOCOL_TYPE:
-		snprintf(buffer, sizeof(buffer), "%d",
-			md_gen);
-		snprintf((void *)ap_platform, sizeof(ap_platform), "%d",
-			md_gen);
+
+
+#if (MD_GENERATION < 6292)
+		if (copy_to_user((void __user *)arg, "DHL", sizeof("DHL"))) {
+			CCCI_ERROR_LOG(md_id, FSM,
+				"CCCI_IOC_GET_MD_PROTOCOL_TYPE: copy_from_user fail\n");
+			return -EFAULT;
+		}
+#else
+		/*fix me :The buffer is not used in and can be deleted*/
+		ret = snprintf(buffer, sizeof(buffer), "%d", MD_GENERATION);
+		if (ret < 0 || ret >= sizeof(buffer)) {
+			CCCI_ERROR_LOG(md_id, FSM,
+				"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+			ret = -EFAULT;
+		}
+		ret = 0;
+//		snprintf(buffer, sizeof(buffer), "%d",md_gen);
+
+		snprintf((void *)ap_platform, sizeof(ap_platform), "%d", md_gen);
 		if (copy_to_user((void __user *)arg,
 			ap_platform, sizeof(ap_platform))) {
 			CCCI_ERROR_LOG(md_id, FSM,
 				"CCCI_IOC_GET_MD_PROTOCOL_TYPE: copy_from_user fail\n");
 			return -EFAULT;
 		}
+#endif
 		break;
 	case CCCI_IOC_SEND_BATTERY_INFO:
 		data = (int)battery_get_bat_voltage();
@@ -137,7 +171,14 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		CCCI_NORMAL_LOG(md_id, FSM,
 			"get SIM lock random pattern %x\n", data);
 
-		snprintf(buffer, sizeof(buffer), "%x", data);
+		ret = snprintf(buffer, sizeof(buffer), "%x", data);
+		if (ret < 0 || ret >= sizeof(buffer)) {
+			CCCI_ERROR_LOG(md_id, FSM,
+				"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+			ret = -EFAULT;
+			break;
+		}
+		ret = 0;
 		set_env("sml_sync", buffer);
 		break;
 #endif
@@ -195,10 +236,10 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 					ret);
 				ret = -EFAULT;
 			}
-		}
 #ifdef CUST_FT_EE_TRIGGER_REBOOT
 			ccci_md_log_level = per_md_data->md_boot_data[MD_CFG_LOG_LEVEL];
 #endif
+		}
 		break;
 	case CCCI_IOC_SIM_SWITCH:
 		if (copy_from_user(&data, (void __user *)arg,
@@ -375,7 +416,7 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 			per_md_data->sim_setting.sim_mode = sim_slot_cfg[1];
 			per_md_data->sim_setting.slot1_mode = sim_slot_cfg[2];
 			per_md_data->sim_setting.slot2_mode = sim_slot_cfg[3];
-			data = ((data << 16)
+			data = (((unsigned int)data << 16)
 					| per_md_data->sim_setting.sim_mode);
 			switch_sim_mode(md_id, (char *)&data, sizeof(data));
 			fsm_monitor_send_message(md_id,
@@ -451,6 +492,7 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 	enum MD_STATE_FOR_USER state_for_user;
 	unsigned int data;
+	static unsigned long boot_ready_count;
 	char *VALID_USER = "ccci_mdinit";
 #ifdef CUST_FT_EE_TRIGGER_REBOOT
 	struct ccci_modem *md;
@@ -598,11 +640,14 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		break;
 	/* RILD nodify ccci power off md */
 	case CCCI_IOC_RILD_POWER_OFF_MD:
+		if (ctl->boot_count == boot_ready_count || ctl->md_state != READY)
+			break;
 		CCCI_NORMAL_LOG(md_id, FSM,
-				"MD will power off ioctl called by %s\n",
-				current->comm);
+				"MD power off called by %s, boot_count %d ,ready_count %lu\n",
+				current->comm, ctl->boot_count, boot_ready_count);
 		inject_md_status_event(md_id, MD_STA_EV_RILD_POWEROFF_START,
 				current->comm);
+		boot_ready_count = ctl->boot_count;
 		break;
 	case CCCI_IOC_SET_EFUN:
 		if (copy_from_user(&data, (void __user *)arg,

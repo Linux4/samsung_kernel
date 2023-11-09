@@ -9,11 +9,6 @@
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/mutex.h>
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
-#include <linux/chg-tcpc_info.h>
-#endif
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 end*/
 
 enum adc_channel {
 	ADC_CHANNEL_VBUS,
@@ -109,12 +104,12 @@ struct charger_ops {
 	/*HS03s added for DEVAL5626-463 by wangzikang at 20210729 start */
 	int (*get_hiz_mode)(struct charger_device *chg_dev);
 	/*HS03s added for DEVAL5626-463 by wangzikang at 20210729 end */
-	/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
 	int (*get_ship_mode)(struct charger_device *chg_dev);
 	int (*set_ship_mode)(struct charger_device *chg_dev, bool enable);
 #endif
-	/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 end*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 
 	/* PE+/PE+2.0 */
 	int (*send_ta_current_pattern)(struct charger_device *dev, bool is_inc);
@@ -252,15 +247,12 @@ extern int charger_dev_get_chr_status(
 extern int charger_dev_set_hiz_mode(
 	struct charger_device *chg_dev, bool enable);
 /*HS03s for DEVAL5625-1125 by wenyaqi at 20210607 end*/
-/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 start*/
-#ifdef CONFIG_HQ_PROJECT_HS04
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
+#if defined(CONFIG_HQ_PROJECT_HS04)
 extern int charger_dev_set_shipmode(struct charger_device *chg_dev, bool enable);
 extern int charger_dev_get_shipmode(struct charger_device *chg_dev);
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 start*/
-extern enum chg_ic_supplier chg_info;
-/*hs04 code for SR-AL6398A-01-651 by gaozhengwei at 20220712 end*/
 #endif
-/*hs04 code for DEVAL6398A-14 by shixuanxuan at 20220709 end*/
+/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end*/
 /*HS03s added for DEVAL5626-463 by wangzikang at 20210729 start */
 extern int charger_dev_get_hiz_mode(
 	struct charger_device *chg_dev);

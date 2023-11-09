@@ -70,7 +70,6 @@ s32 cmdq_sec_mtee_allocate_wsm(struct cmdq_sec_mtee_context *tee,
 	if (!*wsm_buffer)
 		return -ENOMEM;
 #endif
-
 	tee->wsm_param.size = size;
 	tee->wsm_param.buffer = (void *)(u64)virt_to_phys(*wsm_buffer);
 	status = KREE_RegisterSharedmem(tee->wsm_pHandle,
@@ -138,7 +137,7 @@ s32 cmdq_sec_mtee_free_wsm(struct cmdq_sec_mtee_context *tee,
 		return -EINVAL;
 
 	KREE_UnregisterSharedmem(tee->wsm_pHandle, tee->wsm_handle);
-	kfree(*wsm_buffer);
+	vfree(*wsm_buffer);
 	*wsm_buffer = NULL;
 	return 0;
 }
