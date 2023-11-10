@@ -20,7 +20,7 @@ Required properties:
   - qcom,mhi-version: MHI specification version supported by the device.
 
 Optional property:
-  - qcom,use-ipa-software-channel: If property is present use IPA hardware
+  - qcom,use-mhi-dma-software-channel: If property is present use IPA hardware
 		accelerated path for MHI software channel data transfers
 		between host and device.
   - qcom,mhi-config-iatu: If property is present map the control and data region
@@ -31,6 +31,7 @@ Optional property:
 		MHI driver on the host. This property is required if iatu
 		property qcom,mhi-config-iatu is present.
   - qcom,enable-m2: If property is present M2 autonomous is enabled.
+  - qcom,no-path-from-ipa-to-pcie: boolean type; No direct path from the IPA to PCIe.
 
 MSM MHI DEV NET
 
@@ -43,6 +44,8 @@ Required properties:
 Optional property:
   - qcom,mhi-ethernet-interface;: If property is present use ethernet packet
 	parsing support.
+  - qcom,tx_rx_reqs: If property present it will override the number of elements
+	in rx and tx queues for mhi_dev_net device.(Default:128)
 
 Example:
 	mhi: qcom,msm-mhi-dev {

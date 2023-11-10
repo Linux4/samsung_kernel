@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -87,12 +88,12 @@ enum ol_txrx_peer_update_select_t {
 };
 
 /**
- * @brief Update the data peer object as some informaiton changed in node.
+ * @brief Update the data peer object as some information changed in node.
  * @details
- *  Only a single prarameter can be changed for each call to this func.
+ *  Only a single parameter can be changed for each call to this func.
  *
  * @param peer - pointer to the node's object
- * @param param - new param to be upated in peer object.
+ * @param param - new param to be updated in peer object.
  * @param select - specify what's parameter needed to be update
  */
 void
@@ -397,7 +398,7 @@ ol_txrx_peer_stats_copy(ol_txrx_pdev_handle pdev,
  *  channel.
  *
  * @param peer - which peer's RSSI is desired
- * @return RSSI evaluted from frames sent by the specified peer
+ * @return RSSI evaluated from frames sent by the specified peer
  */
 #ifdef QCA_SUPPORT_PEER_DATA_RX_RSSI
 int16_t ol_txrx_peer_rssi(ol_txrx_peer_handle peer);

@@ -132,9 +132,11 @@ struct zram_wb_work {
 	struct page *dst_page;
 	struct bio *bio;
 	struct bio *bio_chain;
+	struct zram_writeback_buffer *buf;
 	struct zram *zram;
 	unsigned long handle;
 	int nr_pages;
+	bool ppr;
 };
 
 struct zram_wb_entry {
@@ -205,6 +207,7 @@ struct zram {
 	unsigned long *blk_bitmap;
 	struct mutex blk_bitmap_lock;
 	unsigned long *read_req_bitmap;
+	struct zram_writeback_buffer *buf;
 #endif
 };
 #endif

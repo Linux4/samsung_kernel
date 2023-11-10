@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -71,6 +71,15 @@ struct pe_session *pe_find_partner_session_by_link_id(
  */
 void lim_get_mlo_vdev_list(struct pe_session *session, uint16_t *vdev_count,
 			   struct wlan_objmgr_vdev **wlan_vdev_list);
+
+/**
+ * lim_mlo_roam_peer_disconn_del - trigger mlo to delete partner peer
+ *                                 This API is only for MLO STA roam.
+ * @vdev: vdev pointer
+ *
+ * Return: void
+ */
+void lim_mlo_roam_peer_disconn_del(struct wlan_objmgr_vdev *vdev);
 
 /**
  * lim_mlo_notify_peer_disconn - trigger mlo to delete partner peer
@@ -335,7 +344,45 @@ QDF_STATUS lim_store_mlo_ie_raw_info(uint8_t *ie, uint8_t *sta_prof_ie,
 bool lim_is_ml_peer_state_disconn(struct mac_context *mac_ctx,
 				  struct pe_session *session,
 				  uint8_t *mac_addr);
+
+bool lim_is_emlsr_band_supported(struct pe_session *session);
+
+/**
+ * lim_cu_info_from_rnr_per_link_id() - get the cu info from rnr per link id
+ * @rnr: rnr element
+ * @linkid: link id
+ * @bpcc: pointer to save BSS parameters change count
+ * @aui: pointer to save all updates included flag
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS lim_cu_info_from_rnr_per_link_id(const uint8_t *rnr,
+					    uint8_t linkid, uint8_t *bpcc,
+					    uint8_t *aui);
+
+/**
+ * lim_get_bpcc_from_mlo_ie() - get the bpcc from mlo_ie info
+ * @bcn: the pointer to tSchBeaconStruct
+ * @bpcc: pbcc pointer to save the fetched value
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS lim_get_bpcc_from_mlo_ie(tSchBeaconStruct *bcn,
+				    uint8_t *bpcc);
+
+/**
+ * lim_check_cu_happens() - check whether cu happens
+ * @vdev: vdev object
+ * @new_bpcc: the new bpcc
+ *
+ * Return: bool
+ */
+bool lim_check_cu_happens(struct wlan_objmgr_vdev *vdev, uint8_t new_bpcc);
+
 #else
+static inline void lim_mlo_roam_peer_disconn_del(struct wlan_objmgr_vdev *vdev)
+{
+}
 static inline void lim_mlo_notify_peer_disconn(struct pe_session *pe_session,
 					       tpDphHashNode sta_ds)
 {
@@ -453,6 +500,32 @@ bool lim_is_ml_peer_state_disconn(struct mac_context *mac_ctx,
 				  uint8_t *mac_addr)
 {
 	return false;
+}
+
+static inline
+bool lim_is_emlsr_band_supported(struct pe_session *session)
+{
+	return false;
+}
+
+static inline
+QDF_STATUS lim_cu_info_from_rnr_per_link_id(const uint8_t *rnr, uint8_t linkid,
+					    uint8_t *bpcc, uint8_t *aui)
+{
+	return QDF_STATUS_E_INVAL;
+}
+
+static inline
+QDF_STATUS lim_get_bpcc_from_mlo_ie(tSchBeaconStruct *bcn,
+				    uint8_t *bpcc)
+{
+	return QDF_STATUS_E_INVAL;
+}
+
+static inline
+bool lim_check_cu_happens(struct wlan_objmgr_vdev *vdev, uint8_t nbpcc)
+{
+	return true;
 }
 #endif
 #endif

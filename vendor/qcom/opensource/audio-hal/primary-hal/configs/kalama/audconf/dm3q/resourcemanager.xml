@@ -98,6 +98,7 @@
         <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_SBC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_SSC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
+        <codec codec_format="CODEC_TYPE_RVP" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_LDAC" codec_type="enc" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_APTX" codec_type="enc" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_APTX_HD" codec_type="enc" codec_library="lib_bt_aptx.so" />
@@ -126,12 +127,13 @@
             <modepair key="0x121C6000" value="0xB3000001"/>
         </mode_map>
     </config_voice>
-    <low_power_vote_streams>
-        <stream_type>PAL_STREAM_VOICE_UI</stream_type>
-        <stream_type>PAL_STREAM_ACD</stream_type>
-        <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
-        <stream_type>PAL_STREAM_SENSOR_PCM_DATA</stream_type>
-    </low_power_vote_streams>
+    <sleep_monitor_vote_streams>
+        <low_power_stream_type>PAL_STREAM_VOICE_UI</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_ACD</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_ULTRASOUND</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_SENSOR_PCM_DATA</low_power_stream_type>
+        <avoid_vote_stream_type>PAL_STREAM_CONTEXT_PROXY</avoid_vote_stream_type>
+    </sleep_monitor_vote_streams>
     <group_device_cfg>
         <upd_rx>
             <snd_device name="handset" />
@@ -195,13 +197,13 @@
                     <channels>2</channels>
                     <bit_width>16</bit_width>
                     <ec_enable>1</ec_enable>
-                    <snd_device_name>bargein-aec-usb-headphones-mic</snd_device_name>
+                    <snd_device_name>bargein-aec-headphones-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="bargein_tts">
                     <channels>2</channels>
                     <bit_width>16</bit_width>
                     <ec_enable>1</ec_enable>
-                    <snd_device_name>bargein-tts-usb-headphones-mic</snd_device_name>
+                    <snd_device_name>bargein-tts-headphones-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="echo_main_mic">
                     <bit_width>16</bit_width>
@@ -300,7 +302,15 @@
                     <channels>1</channels>
                     <snd_device_name>call-headphone-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="translation_headphone_mic">
+                    <channels>1</channels>
+                    <snd_device_name>call-headphone-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="usb_headphone_mic">
+                    <channels>1</channels>
+                    <snd_device_name>call-usb-headphone-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="translation_usb_headphone_mic">
                     <channels>1</channels>
                     <snd_device_name>call-usb-headphone-mic</snd_device_name>
                 </custom-config>
@@ -334,6 +344,14 @@
                 <snd_device_name>rec-main-mic</snd_device_name>
                 <custom-config key="vr">
                     <snd_device_name>vr-main-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="vr_dual">
+                    <channels>2</channels>
+                    <snd_device_name>vr-dual-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="rec_stereo_mic">
+                    <channels>2</channels>
+                    <snd_device_name>rec-stereo-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="dual-mic">
                     <channels>2</channels>
@@ -524,6 +542,9 @@
                 <custom-config key="voip_tv">
                     <snd_device_name>voip-comm-tv-speaker-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="voip_smonitor">
+                    <snd_device_name>voip-smonitor-speaker-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="wifi_call">
                     <snd_device_name>wifi-call-speaker-mic</snd_device_name>
                 </custom-config>
@@ -544,6 +565,10 @@
                     <snd_device_name>video-call-speaker-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="dex">
+                    <channels>1</channels>
+                    <snd_device_name>call-dex-speaker-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="translation_dex">
                     <channels>1</channels>
                     <snd_device_name>call-dex-speaker-mic</snd_device_name>
                 </custom-config>
@@ -587,6 +612,14 @@
                     <channels>1</channels>
                     <snd_device_name>vr-sub-mic</snd_device_name>
                 </custom-config>
+                <custom-config key="vr_dual">
+                    <channels>2</channels>
+                    <snd_device_name>vr-dual-mic</snd_device_name>
+                </custom-config>
+                <custom-config key="rec_stereo_mic">
+                    <channels>2</channels>
+                    <snd_device_name>rec-stereo-mic</snd_device_name>
+                </custom-config>
                 <custom-config key="karaoke">
                     <channels>1</channels>
                     <snd_device_name>karaoke-sub-mic</snd_device_name>
@@ -594,6 +627,9 @@
             </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
+                <id>PAL_DEVICE_OUT_AUX_DIGITAL</id>
+                <id>PAL_DEVICE_OUT_HDMI</id>
+                <id>PAL_DEVICE_OUT_AUX_DIGITAL_1</id>
             </ec_rx_device>
         </in-device>
         <in-device>
@@ -1249,7 +1285,7 @@
            <usecase>
                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
                <priority>3</priority>
-           </usecase>        
+           </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
@@ -1458,6 +1494,8 @@
             <back_end_name>DISPLAY_PORT-RX</back_end_name>
             <max_channels>32</max_channels>
             <channels>2</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>24</bit_width>
             <snd_device_name>display-port</snd_device_name>
             <fractional_sr>1</fractional_sr>
             <usecase>
@@ -1495,6 +1533,8 @@
             <max_channels>32</max_channels>
             <channels>2</channels>
             <fractional_sr>1</fractional_sr>
+            <samplerate>48000</samplerate>
+            <bit_width>24</bit_width>
             <snd_device_name>display-port</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>

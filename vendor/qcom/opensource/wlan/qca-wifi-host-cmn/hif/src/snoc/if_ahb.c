@@ -44,7 +44,7 @@
 #endif
 
 #define HIF_IC_CE0_IRQ_OFFSET 4
-#define HIF_IC_MAX_IRQ 53
+#define HIF_IC_MAX_IRQ 58
 
 static uint16_t ic_irqnum[HIF_IC_MAX_IRQ];
 /* integrated chip irq names */
@@ -102,6 +102,11 @@ const char *ic_irqname[HIF_IC_MAX_IRQ] = {
 "wbm2host-tx-completions-ring2",
 "wbm2host-tx-completions-ring1",
 "tcl2host-status-ring",
+"txmon2host-monitor-destination-mac3",
+"txmon2host-monitor-destination-mac2",
+"txmon2host-monitor-destination-mac1",
+"host2tx-monitor-ring1",
+"umac_reset"
 };
 
 /** hif_ahb_get_irq_name() - get irqname
@@ -440,7 +445,7 @@ void hif_ahb_disable_bus(struct hif_softc *scn)
  * @type: bus type
  *
  * This function enables the radio bus by enabling necessary
- * clocks and waits for the target to get ready to proceed futher
+ * clocks and waits for the target to get ready to proceed further
  *
  * Return: QDF_STATUS
  */
@@ -475,11 +480,16 @@ QDF_STATUS hif_ahb_enable_bus(struct hif_softc *ol_sc,
 	}
 
 	if (target_type == TARGET_TYPE_QCN6122 ||
-	    target_type == TARGET_TYPE_QCA5332) {
+	    target_type == TARGET_TYPE_QCN9160) {
 		hif_ahb_get_soc_info_pld(sc, dev);
 	}
 
-	if (target_type == TARGET_TYPE_QCN6122) {
+	/* 11BE SoC chipsets Need to call this function to get cmem addr */
+	if (target_type == TARGET_TYPE_QCA5332)
+		hif_ahb_get_soc_info_pld(sc, dev);
+
+	if (target_type == TARGET_TYPE_QCN6122 ||
+	    target_type == TARGET_TYPE_QCN9160) {
 		hif_update_irq_ops_with_pci(ol_sc);
 	} else {
 		status = pfrm_platform_get_resource(&pdev->dev,
@@ -792,7 +802,8 @@ void hif_display_ahb_irq_regs(struct hif_softc *scn)
 	void *mem = scn->mem_ce ? scn->mem_ce : scn->mem;
 	struct hif_target_info *tgt_info = &scn->target_info;
 
-	if (tgt_info->target_type == TARGET_TYPE_QCN6122) {
+	if (tgt_info->target_type == TARGET_TYPE_QCN6122 ||
+	    tgt_info->target_type == TARGET_TYPE_QCN9160) {
 		return;
 	}
 	if (scn->per_ce_irq) {

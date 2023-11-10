@@ -75,8 +75,15 @@ bool AudioDevice::mic_characteristics_available = false;
 #ifdef SEC_AUDIO_SPEAKER_CALIBRATION
 #include "Calibration_Interface.h"
 #endif
+#ifdef SEC_AUDIO_LEVEL_DUMP
+#include "SecLevelDump.h"
+#endif
 
 card_status_t AudioDevice::sndCardState = CARD_STATUS_ONLINE;
+
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+btsco_lc3_cfg_t AudioDevice::btsco_lc3_cfg = {};
+#endif
 
 struct audio_string_to_enum {
     const char* name;
@@ -535,6 +542,24 @@ int AudioDevice::CreateAudioPatch(audio_patch_handle_t *handle,
         patch->sinks = sinks;
     }
 
+#ifdef SEC_AUDIO_DSM_AMP
+    if (use_feedback_stream) {
+        feedback_mutex.lock();
+        if (!feedback.HasFeedbackStreamHandle() &&
+            (patch_type == AudioPatch::PATCH_PLAYBACK) &&
+            (AudioExtn::get_device_types(device_types) == AUDIO_DEVICE_OUT_SPEAKER) &&
+            (pal_active_device_count(PAL_DEVICE_OUT_SPEAKER) >= 0)) {
+            // start feedback when routing spk -> other device
+            // in case of playback && call
+            // new device is speaker and current device count is 0 -> 1
+            AHAL_DBG("Open and start feedback stream for speaker");
+            feedback.open(nullptr);
+            feedback.start();
+        }
+        feedback_mutex.unlock();
+    }
+#endif
+
 #ifdef SEC_AUDIO_CALL
     if (primary_out_io_handle == io_handle) {
         std::shared_ptr<StreamOutPrimary> astream_out = OutGetStream(PAL_STREAM_VOIP_RX);
@@ -546,7 +571,8 @@ int AudioDevice::CreateAudioPatch(audio_patch_handle_t *handle,
 
         // call routing primary -> deep -> ... -> voip rx by audio_policy_configuration define
         // to reduce voip routing delay, call voip routing on primary routing case
-        if (astream_out && (voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION)) {
+        if (astream_out && ((voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION) ||
+                             astream_out->HasPalStreamHandle())) {
             AHAL_DBG("Playback route for voip rx");
             ret |= astream_out->RouteStream(device_types);
         }
@@ -556,6 +582,24 @@ int AudioDevice::CreateAudioPatch(audio_patch_handle_t *handle,
         ret = voice_->RouteStream(device_types);
 #endif
     ret |= stream->RouteStream(device_types);
+
+
+#ifdef SEC_AUDIO_DSM_AMP
+    if (use_feedback_stream) {
+        feedback_mutex.lock();
+        if (feedback.HasFeedbackStreamHandle() &&
+            (patch_type == AudioPatch::PATCH_PLAYBACK) &&
+            (pal_active_device_count(PAL_DEVICE_OUT_SPEAKER) == 0)) {
+            // stop feedback when routing spk -> other device
+            // in case of playback && call
+            // and current spk count is 1 -> 0
+            AHAL_DBG("stop and close feedback stream for speaker");
+            feedback.stop();
+            feedback.close();
+        }
+        feedback_mutex.unlock();
+    }
+#endif
 
     if (ret) {
         if (new_patch)
@@ -634,7 +678,8 @@ int AudioDevice::ReleaseAudioPatch(audio_patch_handle_t handle) {
 
         // call routing primary -> deep -> ... -> voip rx by audio_policy_configuration define
         // to reduce voip routing delay, call voip routing on primary routing case
-        if (astream_out && (voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION)) {
+        if (astream_out && ((voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION) ||
+                             astream_out->HasPalStreamHandle())) {
             AHAL_DBG("Playback route for voip rx");
             ret |= astream_out->RouteStream({AUDIO_DEVICE_NONE});
         }
@@ -681,6 +726,9 @@ void AudioDevice::CloseStreamIn(std::shared_ptr<StreamInPrimary> stream) {
     if (iter == stream_in_list_.end()) {
         AHAL_ERR("invalid output stream");
     } else {
+        if (voice_) {
+            voice_->stream_in_primary_ = nullptr;
+        }
         stream_in_list_.erase(iter);
     }
     in_list_mutex.unlock();
@@ -700,6 +748,10 @@ audio_hw_device_t* AudioDevice::GetAudioDeviceInstance()
 extern "C" audio_hw_device_t* sec_get_audio_device_instance()
 {
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+    if (adevice->adev_init_ref_count == 0) {
+        AHAL_ERR("no device instance");
+        return NULL;
+    }
     return adevice->GetAudioDeviceInstance();
 }
 
@@ -714,7 +766,7 @@ extern "C" audio_stream_t* sec_get_audio_stream_instance(audio_hw_device_t *dev,
         for (int i = 0; i < SEC_AUDIO_MAX_STREAM_CNT; i++) {
             in = (struct stream_in *)adevice->sec_in_streams[i];
             astream_in = adevice->InGetStream((audio_stream_t*)in);
-            if (in && (astream_in->GetHandle() == handle)) {
+            if (in && astream_in && (astream_in->GetHandle() == handle)) {
                 stream = adevice->sec_in_streams[i];
                 break;
             }
@@ -725,7 +777,7 @@ extern "C" audio_stream_t* sec_get_audio_stream_instance(audio_hw_device_t *dev,
         for (int i = 0; i < SEC_AUDIO_MAX_STREAM_CNT; i++) {
             out = (struct stream_out *)adevice->sec_out_streams[i];
             astream_out = adevice->OutGetStream((audio_stream_t*)out);
-            if (out && (astream_out->GetHandle() == handle)) {
+            if (out && astream_out && (astream_out->GetHandle() == handle)) {
                 stream = adevice->sec_out_streams[i];
                 break;
             }
@@ -1044,6 +1096,14 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         goto exit;
     }
 
+#ifdef SEC_AUDIO_CALL_RECORD
+    if (source == AUDIO_SOURCE_VOICE_CALL && audio_channel_count_from_in_mask(config->channel_mask) < 2) {
+        config->channel_mask = AUDIO_CHANNEL_IN_STEREO;
+        AHAL_DBG("change channel mask to %#x for input source %d", config->channel_mask, source);
+        ret = -EINVAL;
+        goto exit;
+    }
+#endif
 
     astream = adevice->InGetStream(handle);
     if (astream == nullptr)
@@ -1293,6 +1353,16 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
             AudioDevice::GetInstance((audio_hw_device_t*)device);
     if (adevice) {
 #ifdef SEC_AUDIO_CALL
+        std::shared_ptr<AudioVoice> avoice = adevice->voice_;
+        if (avoice) {
+            dprintf(fd, " \n");
+            dprintf(fd, "max_voice_sessions_: %d \n", avoice->max_voice_sessions_);        
+            for (int i = 0; i < MAX_VOICE_SESSIONS; i++) {
+                dprintf(fd, "voice_.session[%d].vsid: 0x%x \n", i, avoice->voice_.session[i].vsid);
+                dprintf(fd, "voice_.session[%d].state.current_: %s \n",
+                    i, avoice->voice_.session[i].state.current_ == CALL_ACTIVE ? "CALL_ACTIVE" : "CALL_INACTIVE");
+            }
+        }
         dprintf(fd, "primary_out_io_handle: %d \n",
             (adevice->primary_out_io_handle != AUDIO_IO_HANDLE_NONE) ? adevice->primary_out_io_handle : 0);
 #endif
@@ -1304,6 +1374,9 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
         }
     }
     pal_dump(fd);
+#endif
+#ifdef SEC_AUDIO_LEVEL_DUMP
+    SEC_LEVEL_DUMP(fd);
 #endif
 
     return 0;
@@ -1330,6 +1403,11 @@ int AudioDevice::Init(hw_device_t **device, const hw_module_t *module) {
         sec_cal_set_result(amp_parms);
         str_parms_destroy(amp_parms);
     }
+#endif
+
+#ifdef SEC_AUDIO_DSM_AMP
+    feedback.init();
+    use_feedback_stream = feedback.enable_status();
 #endif
 
     /*
@@ -1488,7 +1566,6 @@ std::shared_ptr<AudioVoice> AudioDevice::VoiceInit() {
     std::shared_ptr<AudioVoice> voice (new AudioVoice());
 
     return voice;
-
 }
 
 #ifdef SEC_AUDIO_COMMON
@@ -1558,7 +1635,7 @@ std::vector<std::shared_ptr<StreamOutPrimary>> AudioDevice::OutGetBLEStreamOutpu
 
 std::shared_ptr<StreamOutPrimary> AudioDevice::OutGetStream(audio_stream_t* stream_out) {
 
-    std::shared_ptr<StreamOutPrimary> astream_out;
+    std::shared_ptr<StreamOutPrimary> astream_out = NULL;
     AHAL_VERBOSE("stream_out(%p)", stream_out);
     out_list_mutex.lock();
     for (int i = 0; i < stream_out_list_.size(); i++) {
@@ -1566,12 +1643,11 @@ std::shared_ptr<StreamOutPrimary> AudioDevice::OutGetStream(audio_stream_t* stre
                                         (audio_stream_out*) stream_out) {
             AHAL_VERBOSE("Found stream associated with stream_out");
             astream_out = stream_out_list_[i];
+            AHAL_VERBOSE("astream_out(%p)", astream_out->stream_.get());
             break;
         }
     }
     out_list_mutex.unlock();
-    AHAL_VERBOSE("astream_out(%p)", astream_out->stream_.get());
-
     return astream_out;
 }
 
@@ -1591,7 +1667,7 @@ std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_io_handle_t han
 }
 
 std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_stream_t* stream_in) {
-    std::shared_ptr<StreamInPrimary> astream_in;
+    std::shared_ptr<StreamInPrimary> astream_in = NULL;
 
     AHAL_VERBOSE("stream_in(%p)", stream_in);
     in_list_mutex.lock();
@@ -1599,11 +1675,11 @@ std::shared_ptr<StreamInPrimary> AudioDevice::InGetStream (audio_stream_t* strea
         if (stream_in_list_[i]->stream_.get() == (audio_stream_in*) stream_in) {
             AHAL_VERBOSE("Found existing stream associated with astream_in");
             astream_in = stream_in_list_[i];
+            AHAL_VERBOSE("astream_in(%p)", astream_in->stream_.get());
             break;
         }
     }
     in_list_mutex.unlock();
-    AHAL_VERBOSE("astream_in(%p)", astream_in->stream_.get());
     return astream_in;
 }
 
@@ -1659,23 +1735,13 @@ int AudioDevice::SetMode(const audio_mode_t mode) {
     int ret = 0;
 
     AHAL_DBG("enter: mode: %d", mode);
-
-#ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
-    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-    AudioExtn* AudExtn = &adevice->sec_device_->SecAudExtn;
-    if((mode != AUDIO_MODE_NORMAL) && adevice->sec_device_->listenback_on && AudExtn->is_karaoke_mode()) {
-        adevice->sec_device_->SetListenbackMode(false);
-    }
-#endif
-
     ret = voice_->SetMode(mode);
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
 
 int AudioDevice::add_input_headset_if_usb_out_headset(int *device_count,
-                                                      pal_device_id_t** pal_device_ids,
-                                                      bool conn_state)
+                              pal_device_id_t** pal_device_ids, bool conn_state)
 {
     bool is_usb_headset = false;
     int count = *device_count;
@@ -1697,10 +1763,11 @@ int AudioDevice::add_input_headset_if_usb_out_headset(int *device_count,
         *pal_device_ids = temp;
         temp[count] = PAL_DEVICE_IN_USB_HEADSET;
         *device_count = count + 1;
-        if (conn_state) {    
-            usb_input_dev_enabled = true;
-        } else {
-            usb_input_dev_enabled = false;
+        if (conn_state)
+           usb_input_dev_enabled = true;
+        else {
+           usb_input_dev_enabled = false;
+           usb_out_headset = false;
         }
     }
     return 0;
@@ -1725,7 +1792,7 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 #ifdef SEC_AUDIO_ADD_FOR_DEBUG
     bool bIncludeSensitiveInfo = false;
 #endif
-#ifdef SEC_AUDIO_DUMP 
+#ifdef SEC_AUDIO_DUMP
     // includeSensitiveInfo(mac addr), not to use on user ship
     AHAL_DBG("enter: %s", kvpairs);
 #else
@@ -2083,6 +2150,8 @@ int AudioDevice::SetParameters(const char *kvpairs) {
             if ((usb_card_id_ == param_device_connection.device_config.usb_addr.card_id) &&
                 (audio_is_usb_in_device(device)) && (usb_input_dev_enabled == true)) {
                    usb_input_dev_enabled = false;
+                   usb_out_headset = false;
+                   AHAL_DBG("usb_input_dev_enabled flag is cleared.");
             }
         } else if (val == AUDIO_DEVICE_OUT_AUX_DIGITAL) {
             int controller = -1, stream = -1;
@@ -2120,7 +2189,6 @@ int AudioDevice::SetParameters(const char *kvpairs) {
                 }
                 AHAL_INFO("pal set param sucess for device disconnect");
             }
-            usb_out_headset = false;
         }
     }
 
@@ -2255,7 +2323,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_BT_SCO_WB, value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0)
             param_bt_sco.bt_wb_speech_enabled = true;
         else
@@ -2268,7 +2340,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, "bt_swb", value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
 
         val = atoi(value);
         param_bt_sco.bt_swb_speech_mode = val;
@@ -2279,7 +2355,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, "bt_ble", value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0) {
             bt_lc3_speech_enabled = true;
 
@@ -2305,7 +2385,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_BT_NREC, value, sizeof(value));
     if (ret >= 0) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0) {
             AHAL_INFO("BTSCO NREC mode = ON");
             param_bt_sco.bt_sco_nrec = true;
@@ -2350,7 +2434,11 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     if (((btsco_lc3_cfg.fields_map & LC3_BIT_MASK) == LC3_BIT_VALID) &&
            (bt_lc3_speech_enabled == true)) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        pal_param_btsco_t param_bt_sco = {};
+#else
         pal_param_btsco_t param_bt_sco;
+#endif
         param_bt_sco.bt_lc3_speech_enabled  = bt_lc3_speech_enabled;
         param_bt_sco.lc3_cfg.frame_duration = btsco_lc3_cfg.frame_duration;
         param_bt_sco.lc3_cfg.num_blocks     = btsco_lc3_cfg.num_blocks;
@@ -2426,7 +2514,7 @@ exit:
         str_parms_destroy(parms);
 
 #ifdef SEC_AUDIO_ADD_FOR_DEBUG
-#ifdef SEC_AUDIO_DUMP 
+#ifdef SEC_AUDIO_DUMP
     AHAL_DBG("exit: %s", kvpairs);
 #else // only for user ship
     if (!bIncludeSensitiveInfo) {

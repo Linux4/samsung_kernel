@@ -745,6 +745,8 @@ int set_usb_whitelist_array(const char *buf, int *whitelist_array)
 
 	source = (char *)buf;
 	while ((ptr = strsep(&source, ":")) != NULL) {
+		if (strlen(ptr) < 3)
+			continue;
 		pr_info("%s token = %c%c%c!\n", __func__,
 			ptr[0], ptr[1], ptr[2]);
 		for (i = U_CLASS_PER_INTERFACE; i <= U_CLASS_VENDOR_SPEC; i++) {
@@ -958,6 +960,22 @@ err:
 }
 EXPORT_SYMBOL_GPL(usb_notify_dev_uevent);
 
+#if defined(CONFIG_USB_LPM_CHARGING_SYNC)
+static ssize_t lpm_charging_type_done_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct usb_notify_dev *udev = (struct usb_notify_dev *)
+		dev_get_drvdata(dev);
+
+	if (udev == NULL) {
+		pr_err("udev is NULL\n");
+		return -EINVAL;
+	}
+
+	return sprintf(buf, "%u\n", udev->lpm_charging_type_done);
+}
+#endif
+
 static DEVICE_ATTR_RW(disable);
 static DEVICE_ATTR_RW(usb_data_enabled);
 static DEVICE_ATTR_RO(support);
@@ -971,6 +989,9 @@ static DEVICE_ATTR_RW(usb_hw_param);
 static DEVICE_ATTR_RW(hw_param);
 #endif
 static DEVICE_ATTR_RW(usb_request_action);
+#if defined(CONFIG_USB_LPM_CHARGING_SYNC)
+static DEVICE_ATTR_RO(lpm_charging_type_done);
+#endif
 
 static struct attribute *usb_notify_attrs[] = {
 	&dev_attr_disable.attr,
@@ -986,6 +1007,9 @@ static struct attribute *usb_notify_attrs[] = {
 	&dev_attr_hw_param.attr,
 #endif
 	&dev_attr_usb_request_action.attr,
+#if defined(CONFIG_USB_LPM_CHARGING_SYNC)
+	&dev_attr_lpm_charging_type_done.attr,
+#endif
 	NULL,
 };
 

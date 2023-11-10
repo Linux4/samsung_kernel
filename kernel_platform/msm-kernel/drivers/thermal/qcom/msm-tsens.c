@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/err.h>
@@ -71,37 +71,39 @@ static int tsens_register_interrupts(struct tsens_device *tmdev)
 	return 0;
 }
 
-#ifdef CONFIG_DEEPSLEEP
 static int tsens_suspend(struct device *dev)
 {
 	struct tsens_device *tmdev = dev_get_drvdata(dev);
 
-	if (mem_sleep_current != PM_SUSPEND_MEM)
+	if (pm_suspend_via_firmware() != PM_SUSPEND_MEM)
 		return 0;
 
 	return tmdev->ops->suspend(tmdev);
-}
-
-static int tsens_freeze(struct device *dev)
-{
-	return tsens_suspend(dev);
 }
 
 static int tsens_resume(struct device *dev)
 {
 	struct tsens_device *tmdev = dev_get_drvdata(dev);
 
-	if (mem_sleep_current != PM_SUSPEND_MEM)
+	if (pm_suspend_via_firmware() != PM_SUSPEND_MEM)
 		return 0;
 
 	return tmdev->ops->resume(tmdev);
 }
 
+static int tsens_freeze(struct device *dev)
+{
+	struct tsens_device *tmdev = dev_get_drvdata(dev);
+
+	return tmdev->ops->suspend(tmdev);
+}
+
 static int tsens_restore(struct device *dev)
 {
-	return tsens_resume(dev);
+	struct tsens_device *tmdev = dev_get_drvdata(dev);
+
+	return tmdev->ops->resume(tmdev);
 }
-#endif
 
 static const struct of_device_id tsens_table[] = {
 	{	.compatible = "qcom,msm8953-tsens",
@@ -127,6 +129,10 @@ static const struct of_device_id tsens_table[] = {
 	},
 	{	.compatible = "qcom,tsens26xx",
 		.data = &data_tsens26xx,
+	},
+	{
+		.compatible = "qcom,qcs405-tsens",
+		.data = &data_tsens14xx_405,
 	},
 	{}
 };
@@ -243,6 +249,7 @@ static int tsens_thermal_zone_register(struct tsens_device *tmdev)
 	for (i = 0; i < TSENS_MAX_SENSORS; i++) {
 		tmdev->sensor[i].tmdev = tmdev;
 		tmdev->sensor[i].hw_id = i;
+		tmdev->sensor[i].cached_temp = INT_MIN;
 		if (tmdev->ops->sensor_en(tmdev, i)) {
 			tmdev->sensor[i].tzd =
 				devm_thermal_zone_of_sensor_register(
@@ -293,6 +300,7 @@ static void tsens_therm_fwk_notify(struct work_struct *work)
 
 	TSENS_DBG(tmdev, "Controller %pK\n", &tmdev->phys_addr_tm);
 	for (i = 0; i < TSENS_MAX_SENSORS; i++) {
+		tmdev->sensor[i].cached_temp = INT_MIN;
 		if (tmdev->ops->sensor_en(tmdev, i)) {
 			rc = tsens_get_temp(&tmdev->sensor[i], &temp);
 			if (rc) {
@@ -404,23 +412,19 @@ static int tsens_tm_probe(struct platform_device *pdev)
 	return rc;
 }
 
-#ifdef CONFIG_DEEPSLEEP
 static const struct dev_pm_ops tsens_pm_ops = {
 	.freeze = tsens_freeze,
 	.restore = tsens_restore,
 	.suspend = tsens_suspend,
 	.resume = tsens_resume,
 };
-#endif
 
 static struct platform_driver tsens_tm_driver = {
 	.probe = tsens_tm_probe,
 	.remove = tsens_tm_remove,
 	.driver = {
 		.name = "msm-tsens",
-#ifdef CONFIG_DEEPSLEEP
 		.pm = &tsens_pm_ops,
-#endif
 		.of_match_table = tsens_table,
 	},
 };

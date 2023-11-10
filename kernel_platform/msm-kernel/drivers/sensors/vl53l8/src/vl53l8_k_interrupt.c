@@ -85,8 +85,7 @@ static int _interrupt_get_range_data(struct vl53l8_k_module_t *p_module)
 		vl53l8_k_log_error("skip %d", status);
 		status = VL53L5_ERROR_NONE;
 		goto out;
-	}
-	else if (status != VL53L5_ERROR_NONE)
+	} else if (status != VL53L5_ERROR_NONE)
 		goto out;
 
 	status = vl53l5_decode_range_data(&p_module->stdev,

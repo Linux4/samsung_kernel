@@ -26,7 +26,7 @@
 
 #include "cfg_define.h"
 
-/* DP INI Declerations */
+/* DP INI Declarations */
 /*
  * IPA Offload configuration - Each bit enables a feature
  * bit0 - IPA Enable

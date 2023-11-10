@@ -44,6 +44,7 @@ class AdvertiseHelper {
     private static final int SERVICE_DATA_128_BIT_UUID = 0X21;
     private static final int TRANSPORT_DISCOVERY_DATA = 0X26;
     private static final int MANUFACTURER_SPECIFIC_DATA = 0XFF;
+    private static final int PUBLIC_BROADCAST_NAME = 0X30;
 
     public static byte[] advertiseDataToBytes(AdvertiseData data, String name) {
 
@@ -74,6 +75,11 @@ class AdvertiseHelper {
                 ret.write(nameLength + 1);
                 ret.write(type);
                 ret.write(nameBytes, 0, nameLength);
+                if (data.getIncludePublicBroadcastDeviceName()) {
+                    ret.write(nameLength + 1);
+                    ret.write(PUBLIC_BROADCAST_NAME);
+                    ret.write(nameBytes, 0, nameLength);
+                }
             } catch (java.io.UnsupportedEncodingException e) {
                 Log.e(TAG, "Can't include name - encoding error!", e);
             }

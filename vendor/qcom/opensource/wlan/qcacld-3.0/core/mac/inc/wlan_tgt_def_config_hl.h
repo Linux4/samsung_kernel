@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -118,7 +119,7 @@
 #define CFG_TGT_NUM_VDEV_HANDLERS       4
 /*
  * set this to 8:
- *     one for WAL interals (connection pause)
+ *     one for WAL internals (connection pause)
  *     one for the control stack,
  *     one for the data stack
  *     and one for debugging

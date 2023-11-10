@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,7 +18,7 @@
  */
 
 /**
- * DOC: Contains p2p public data structure definations
+ * DOC: Contains p2p public data structure definitions
  */
 
 #ifndef _WLAN_P2P_PUBLIC_STRUCT_H_
@@ -154,20 +155,6 @@ struct p2p_mgmt_tx {
 	uint32_t dont_wait_for_ack;
 	uint32_t off_chan;
 	const uint8_t *buf;
-};
-
-/**
- * struct p2p_set_mac_filter
- * @vdev_id: Vdev id
- * @mac: mac addr
- * @freq: frequency
- * @set: set or clear
- */
-struct p2p_set_mac_filter {
-	uint32_t vdev_id;
-	uint8_t mac[QDF_MAC_ADDR_SIZE];
-	uint32_t freq;
-	bool set;
 };
 
 /**

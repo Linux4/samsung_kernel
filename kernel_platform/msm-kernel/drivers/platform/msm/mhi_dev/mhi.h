@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MHI_H
@@ -272,8 +272,10 @@ struct mhi_config {
 #define MHI_ENV_VALUE			2
 #define MHI_MASK_ROWS_CH_EV_DB		4
 #define TRB_MAX_DATA_SIZE		8192
+#define TRB_MAX_DATA_SIZE_16K		16384
 #define MHI_CTRL_STATE			100
-#define MHI_MAX_NUM_INSTANCES		16
+#define MHI_MAX_NUM_INSTANCES		17 /* 1PF and 16 VFs */
+#define MHI_DEFAULT_ERROR_LOG_ID	255
 
 /* maximum transfer completion events buffer */
 #define NUM_TR_EVENTS_DEFAULT			128
@@ -329,8 +331,8 @@ struct mhi_meminfo {
 
 struct mhi_addr {
 	uint64_t	host_pa;
-	size_t	device_pa;
-	size_t	device_va;
+	uint64_t	device_pa;
+	uint64_t	device_va;
 	size_t		size;
 	dma_addr_t	phy_addr;
 	void		*virt_addr;
@@ -456,6 +458,7 @@ struct event_req {
 	void			(*msi_cb)(void *req);
 	struct list_head	list;
 	u32			flush_num;
+	u32			snd_cmpl;
 	bool		is_cmd_cpl;
 	bool		is_stale;
 };
@@ -514,6 +517,7 @@ struct mhi_dev_channel {
 	uint32_t			pend_wr_count;
 	uint32_t			msi_cnt;
 	uint32_t			flush_req_cnt;
+	uint32_t			snd_cmpl_cnt;
 	uint32_t			pend_flush_cnt;
 	bool				skip_td;
 	bool				db_pending;
@@ -591,7 +595,7 @@ struct mhi_dev {
 	atomic_t			mhi_dev_wake;
 	atomic_t			re_init_done;
 	struct mutex			mhi_write_test;
-	u32				device_local_pa_base;
+	u64				device_local_pa_base;
 	u32				mhi_ep_msi_num;
 	u32				mhi_version;
 	u32				mhi_chan_hw_base;
@@ -609,13 +613,11 @@ struct mhi_dev {
 	bool				use_mhi_dma;
 
 	/* Denotes if the MHI instance is physcial or virtual */
-	bool				is_mhi_virtual;
+	bool				is_mhi_pf;
 
 	bool				is_flashless;
 
 	bool				mhi_has_smmu;
-
-	bool				is_mhi_pf;
 
 	/* iATU is required to map control and data region */
 	bool				config_iatu;
@@ -645,7 +647,10 @@ struct mhi_dev {
 
 	struct mhi_dev_ctx		*mhi_hw_ctx;
 	struct mhi_sm_dev		*mhi_sm_ctx;
-	int				vf_id;
+	/* MHI VF number */
+	uint32_t			vf_id;
+
+	bool				no_path_from_ipa_to_pcie;
 
 	int (*device_to_host)(uint64_t dst_pa, void *src, uint32_t len,
 				struct mhi_dev *mhi, struct mhi_req *req);
@@ -686,9 +691,9 @@ struct mhi_dev_ctx {
 	struct dma_chan			*tx_dma_chan;
 	struct dma_chan			*rx_dma_chan;
 
-	struct kobj_uevent_env		kobj_env;
 	struct ep_pcie_notify		*notify;
 	struct mhi_dma_ops		mhi_dma_fun_ops;
+	struct ep_pcie_cap		ep_cap;
 };
 
 enum mhi_id {
@@ -707,22 +712,56 @@ enum mhi_msg_level {
 	MHI_MSG_reserved = 0x80000000
 };
 
+
+/* Structure for mhi device operations */
+struct mhi_dev_ops {
+	int	(*register_state_cb)(void (*mhi_state_cb)
+			(struct mhi_dev_client_cb_data *cb_data),
+			void *data, enum mhi_client_channel channel, uint32_t vf_id);
+	int	(*ctrl_state_info)(uint32_t vf_id, uint32_t idx, uint32_t *info);
+	int	(*open_channel)(uint32_t vf_id, uint32_t chan_id,
+			struct mhi_dev_client **handle,
+			void (*mhi_dev_client_cb_reason)
+				(struct mhi_dev_client_cb_reason *cb));
+	void	(*close_channel)(struct mhi_dev_client *handle);
+	int	(*write_channel)(struct mhi_req *mreq);
+	int	(*read_channel)(struct mhi_req *mreq);
+	int	(*is_channel_empty)(struct mhi_dev_client *handle);
+};
+
 extern uint32_t bhi_imgtxdb;
 extern enum mhi_msg_level mhi_msg_lvl;
 extern enum mhi_msg_level mhi_ipc_msg_lvl;
-extern void *mhi_ipc_log;
+extern enum mhi_msg_level mhi_ipc_err_msg_lvl;
+extern void *mhi_ipc_err_log;
+extern void *mhi_ipc_vf_log[MHI_MAX_NUM_INSTANCES];
+extern void *mhi_ipc_default_err_log;
 
-#define mhi_log(_msg_lvl, _msg, ...) do { \
+#define mhi_log(vf_id, _msg_lvl, _msg, ...) do { \
 	if (_msg_lvl >= mhi_msg_lvl) { \
 		pr_err("[0x%x %s] "_msg, bhi_imgtxdb, \
 				__func__, ##__VA_ARGS__); \
 	} \
-	if (mhi_ipc_log && (_msg_lvl >= mhi_ipc_msg_lvl)) { \
-		ipc_log_string(mhi_ipc_log,                     \
-		"[0x%x %s] " _msg, bhi_imgtxdb, __func__, ##__VA_ARGS__);     \
+	if (mhi_ipc_vf_log[vf_id] && (_msg_lvl >= mhi_ipc_msg_lvl)) { \
+		ipc_log_string(mhi_ipc_vf_log[vf_id],                     \
+		"[0x%x %s] " _msg, bhi_imgtxdb, __func__, ##__VA_ARGS__); \
+	} \
+	if (vf_id == MHI_DEFAULT_ERROR_LOG_ID && mhi_ipc_default_err_log &&       \
+			(_msg_lvl >= mhi_ipc_err_msg_lvl)) { \
+		ipc_log_string(mhi_ipc_default_err_log,                     \
+		"[0x%x %s] " _msg, bhi_imgtxdb, __func__, ##__VA_ARGS__); \
+	} \
+	else if (mhi_ipc_err_log && (_msg_lvl >= mhi_ipc_err_msg_lvl)) { \
+		if (vf_id == 0) {				\
+			ipc_log_string(mhi_ipc_err_log,			\
+			"[0x%x %s] PF = %x  " _msg, bhi_imgtxdb, __func__, vf_id, ##__VA_ARGS__); \
+		} \
+		if (vf_id != 0) { \
+			ipc_log_string(mhi_ipc_err_log,                 \
+			"[0x%x %s] VF = %x  " _msg, bhi_imgtxdb, __func__, vf_id, ##__VA_ARGS__); \
+		} \
 	} \
 } while (0)
-
 
 /* Use ID 0 for legacy /dev/mhi_ctrl. Channel 0 used for internal only */
 #define MHI_DEV_UEVENT_CTRL	0
@@ -1167,14 +1206,6 @@ int mhi_pcie_config_db_routing(struct mhi_dev *mhi);
  */
 int mhi_uci_init(void);
 
-/**
- * mhi_dev_net_interface_init() - Initializes the mhi device network interface
- *		which exposes the virtual network interface (mhi_dev_net0).
- *		data packets will transfer between MHI host interface (mhi_swip)
- *		and mhi_dev_net interface using software path
- */
-int mhi_dev_net_interface_init(void);
-
 void mhi_dev_notify_a7_event(struct mhi_dev *mhi);
 
 void uci_ctrl_update(struct mhi_dev_client_cb_reason *reason);
@@ -1193,4 +1224,31 @@ void mhi_uci_chan_state_notify(struct mhi_dev *mhi,
 
 void mhi_dev_pm_relax(struct mhi_dev *mhi_ctx);
 void mhi_dev_resume_init_with_link_up(struct ep_pcie_notify *notify);
+
+int  mhi_edma_release(void);
+
+int  mhi_edma_status(void);
+
+int mhi_edma_init(struct device *dev);
+void free_coherent(struct mhi_dev *mhi, size_t size, void *virt,
+		   dma_addr_t phys);
+void *alloc_coherent(struct mhi_dev *mhi, size_t size, dma_addr_t *phys,
+		     gfp_t gfp);
+/**
+ * mhi_dev_net_interface_init() - Initializes the mhi device network interface
+ *		which exposes the virtual network interface (mhi_dev_net0).
+ *		data packets will transfer between MHI host interface (mhi_swip)
+ *		and mhi_dev_net interface using software path.
+ * @dev_ops	MHI dev function pointers
+ * @vf_id       MHI instance (physical or virtual) id.
+ * @num_vfs     Total number of vutual MHI instances supported on this target.
+ */
+#if IS_ENABLED(CONFIG_MSM_MHI_NET_DEV)
+int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops, u32 vf_id, u32 num_vfs);
+#else
+static inline int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops, u32 vf_id, u32 num_vfs)
+{
+	return -EINVAL;
+}
+#endif
 #endif /* _MHI_H */

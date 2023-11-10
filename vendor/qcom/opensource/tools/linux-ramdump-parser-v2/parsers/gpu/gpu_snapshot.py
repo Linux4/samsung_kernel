@@ -1,4 +1,5 @@
 # Copyright (c) 2021 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -57,7 +58,7 @@ SNAPSHOT_GMU_MEM_LOG        =   2
 SNAPSHOT_GMU_MEM_BWTABLE    =   3
 SNAPSHOT_GMU_MEM_DEBUG      =   4
 SNAPSHOT_GMU_MEM_BIN_BLOCK  =   5
-
+SNAPSHOT_GMU_MEM_CTXT_QUEUE =   6
 
 # KGSL structures
 class kgsl_snapshot_header(Structure):
@@ -94,6 +95,17 @@ class kgsl_snapshot_gmu_mem(Structure):
                 ('hostaddr', c_int64),
                 ('gmuaddr', c_int64),
                 ('gpuaddr', c_int64)]
+
+
+class kgsl_snapshot_gmu_mem_header(Structure):
+    _pack_ = 1
+    _fields_ = [('type', c_int),
+                ('hostaddr_lower', c_uint),
+                ('hostaddr_upper', c_uint),
+                ('gmuaddr_lower', c_uint),
+                ('gmuaddr_upper', c_uint),
+                ('gpuaddr_lower', c_uint),
+                ('gpuaddr_upper', c_uint)]
 
 
 def gmu_log(devp, dump, chipid):
@@ -314,3 +326,44 @@ def create_snapshot_from_ramdump(devp, dump):
     file.write(last_section)
 
     file.close()
+
+
+def extract_gmu_mem_from_snapshot(dump, snapshot_path):
+    try:
+        file = open(snapshot_path, 'rb')
+    except:
+        print("Could not find snapshot, path = ", snapshot_path)
+        return
+
+    header = kgsl_snapshot_header()
+    file.readinto(header)
+
+    while True:
+        current_pos = file.tell()
+        section_header = kgsl_snapshot_section_header()
+        file.readinto(section_header)
+
+        if section_header.id == KGSL_SNAPSHOT_SECTION_GMU_MEMORY:
+            gmu_mem_header = kgsl_snapshot_gmu_mem_header()
+            file.readinto(gmu_mem_header)
+
+            gmu_memory_sz = section_header.size - \
+                sizeof(kgsl_snapshot_gmu_mem_header) - \
+                sizeof(kgsl_snapshot_section_header)
+            data = file.read(gmu_memory_sz)
+
+            bin_filename = "gmu-section-" + str(gmu_mem_header.type) + "-" + \
+                str(hex(gmu_mem_header.gmuaddr_lower)) + ".snap.bin"
+            gmu_bin_file = dump.open_file("gpu_parser/snapshot/gmu_t32/" +
+                                          bin_filename, mode='wb')
+
+            gmu_bin_file.write(data)
+            gmu_bin_file.close()
+        elif section_header.id == 0 or section_header.size == 0:
+            print('Invalid id & size:', section_header.id, section_header.size)
+            print('Total size:', file.tell())
+            break
+        elif section_header.id == KGSL_SNAPSHOT_SECTION_END:
+            break
+
+        file.seek(current_pos + section_header.size, 0)

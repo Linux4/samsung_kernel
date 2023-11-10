@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -139,7 +140,7 @@ bool qdf_periodic_work_stop_sync(struct qdf_periodic_work *pwork)
 
 	/* To avoid using a lock, signal that the work shouldn't be restarted,
 	 * and cancel_sync in a loop. There is a very small race window, and
-	 * thus the work may ocassionally need to be cancelled more than once.
+	 * thus the work may occasionally need to be cancelled more than once.
 	 */
 	pwork->msec = 0;
 	while (cancel_delayed_work_sync(&pwork->dwork))

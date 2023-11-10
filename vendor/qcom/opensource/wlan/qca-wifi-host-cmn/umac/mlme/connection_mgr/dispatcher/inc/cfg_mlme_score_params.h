@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -167,7 +167,7 @@
 
 /*
  * <ini>
- * chan_band_weightage - Channel Band perferance to 5GHZ to
+ * chan_band_weightage - Channel Band preference to 5GHZ to
  * calculate best candidate
  * @Min: 0
  * @Max: 100
@@ -632,6 +632,30 @@
 	76, \
 	CFG_VALUE_OR_DEFAULT, \
 	"RSSI Pref 5G Threshold")
+
+/*
+ * <ini>
+ * ConNonHint_TargetMinRSSI - min RSSI value for connection.
+ * @Min: -95
+ * @Max: -40
+ * @Default: -75
+ *
+ * This ini sets threshold for RSSI, below which BSSID is not considered for
+ * connection.
+ *
+ * Supported Feature: STA Candidate selection
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_CON_NON_HINT_TARGET_MIN_RSSI CFG_INI_UINT(\
+			"ConNonHint_TargetMinRSSI",\
+			-95, \
+			-40,\
+			-75, \
+			CFG_VALUE_OR_DEFAULT, \
+			"Threshold RSSI value for connection")
 
 #ifdef WLAN_FEATURE_11BE
 /*
@@ -1904,6 +1928,7 @@
 	CFG(CFG_SCORING_GOOD_RSSI_BUCKET_SIZE) \
 	CFG(CFG_SCORING_BAD_RSSI_BUCKET_SIZE) \
 	CFG(CFG_SCORING_RSSI_PREF_5G_THRESHOLD) \
+	CFG(CFG_CON_NON_HINT_TARGET_MIN_RSSI) \
 	CFG(CFG_SCORING_BW_WEIGHT_PER_IDX) \
 	CFG(CFG_SCORING_NSS_WEIGHT_PER_IDX) \
 	CFG(CFG_SCORING_BAND_WEIGHT_PER_IDX) \

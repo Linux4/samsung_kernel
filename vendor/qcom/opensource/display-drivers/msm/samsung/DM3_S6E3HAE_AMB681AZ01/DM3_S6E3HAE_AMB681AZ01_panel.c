@@ -56,6 +56,7 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 
 static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 {
+	int ret = 0;
 	/*
 	 * self mask is enabled from bootloader.
 	 * so skip self mask setting during splash booting.
@@ -67,7 +68,12 @@ static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 		LCD_INFO(vdd, "samsung splash enabled.. skip image write\n");
 	}
 
-	if (vdd->self_disp.self_mask_on)
+	/* self mask checksum */
+	if (vdd->self_disp.self_display_debug)
+		ret = vdd->self_disp.self_display_debug(vdd);
+
+	/* self mask is turned on only when data checksum matches. */
+	if (vdd->self_disp.self_mask_on && !ret)
 		vdd->self_disp.self_mask_on(vdd, true);
 
 	/* mafpc */
@@ -258,15 +264,16 @@ done:
 	lfd_base->min_div_def = min_div_def;
 	lfd_base->min_div_lowest = min_div_lowest;
 	lfd_base->fix_div_def = 1; // LFD MAX/MIN 120hz fix
+	lfd_base->highdot_div_def = 120 * 2; // 120hz % 240 = 0.5hz for highdot test (120hz base)
 
 	vrr->lfd.base_rr = base_rr;
 
-	LCD_DEBUG(vdd, "LFD(%s): base_rr: %uhz, def: %uhz(%u)~%uhz(%u), lowest: %uhz(%u)\n",
-			lfd_scope_name[scope],
-			base_rr,
+	LCD_DEBUG(vdd, "LFD(%s): base_rr: %uhz, def: %uhz(%u)~%uhz(%u), lowest: %uhz(%u), highdot_div: %u\n",
+			lfd_scope_name[scope], base_rr,
 			DIV_ROUND_UP(base_rr, min_div_def), min_div_def,
 			DIV_ROUND_UP(base_rr, max_div_def), max_div_def,
-			DIV_ROUND_UP(base_rr, min_div_lowest), min_div_lowest);
+			DIV_ROUND_UP(base_rr, min_div_lowest), min_div_lowest,
+			lfd_base->highdot_div_def);
 
 	return 0;
 }
@@ -564,6 +571,12 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	mdnie_data->DSI_COLOR_LENS_MDNIE_SCR = COLOR_LENS_MDNIE_1;
 	mdnie_data->DSI_COLOR_BLIND_MDNIE_SCR = COLOR_BLIND_MDNIE_1;
 	mdnie_data->DSI_RGB_SENSOR_MDNIE_SCR = RGB_SENSOR_MDNIE_1;
+	mdnie_data->DSI_HBM_CE_MDNIE_SCR_1 = HBM_CE_MDNIE1_1;
+	mdnie_data->DSI_HBM_CE_MDNIE_SCR_2 = HBM_CE_MDNIE2_1;
+	mdnie_data->DSI_HBM_CE_MDNIE_SCR_3 = HBM_CE_MDNIE3_1;
+	mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_1 = HBM_CE_MDNIE1_3;
+	mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_2 = HBM_CE_MDNIE2_3;
+	mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_3 = HBM_CE_MDNIE3_3;
 
 	mdnie_data->mdnie_tune_value_dsi = mdnie_tune_value_dsi0;
 	mdnie_data->hmt_color_temperature_tune_value_dsi = hmt_color_temperature_tune_value_dsi0;
@@ -574,6 +587,7 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	/* Update MDNIE data related with size, offset or index */
 	mdnie_data->dsi_bypass_mdnie_size = ARRAY_SIZE(BYPASS_MDNIE);
 	mdnie_data->mdnie_color_blinde_cmd_offset = MDNIE_COLOR_BLINDE_CMD_OFFSET;
+	mdnie_data->mdnie_scr_cmd_offset = MDNIE_SCR_CMD_OFFSET;
 	mdnie_data->mdnie_step_index[MDNIE_STEP1] = MDNIE_STEP1_INDEX;
 	mdnie_data->mdnie_step_index[MDNIE_STEP2] = MDNIE_STEP2_INDEX;
 	mdnie_data->mdnie_step_index[MDNIE_STEP3] = MDNIE_STEP3_INDEX;
@@ -585,11 +599,13 @@ static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
 	mdnie_data->dsi_rgb_sensor_mdnie_3_size = RGB_SENSOR_MDNIE_3_SIZE;
 
 	mdnie_data->dsi_trans_dimming_data_index = MDNIE_TRANS_DIMMING_DATA_INDEX;
+	mdnie_data->dsi_trans_dimming_slope_index = MDNIE_TRANS_DIMMING_SLOPE_INDEX;
 
 	mdnie_data->dsi_adjust_ldu_table = adjust_ldu_data;
 	mdnie_data->dsi_max_adjust_ldu = 6;
 	mdnie_data->dsi_night_mode_table = night_mode_data;
 	mdnie_data->dsi_max_night_mode_index = 306;
+	mdnie_data->dsi_hbm_scr_table = hbm_scr_data;
 	mdnie_data->dsi_color_lens_table = color_lens_data;
 	mdnie_data->dsi_white_default_r = 0xff;
 	mdnie_data->dsi_white_default_g = 0xff;
@@ -1036,8 +1052,6 @@ static void ss_read_gamma(struct samsung_display_driver_data *vdd)
 	char pBuffer[256];
 	int i, j;
 
-	vdd->debug_data->print_cmds = true;
-
 	ss_send_cmd(vdd, TX_POC_ENABLE);
 
 	LCD_INFO(vdd, "READ_R start\n");
@@ -1061,8 +1075,6 @@ static void ss_read_gamma(struct samsung_display_driver_data *vdd)
 			snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %02x", HS120_R_TYPE_BUF[i][j]);
 		LCD_INFO(vdd, "READ_R 120 SET[%2d] : %s\n", GAMMA_SET_MAX - 1 - i, pBuffer);
 	}
-
-	vdd->debug_data->print_cmds = false;
 
 	return;
 }
@@ -1334,16 +1346,15 @@ static int update_analog1_DM3_S6E3HAE_AMB681AZ01(
 			struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int bl_lvl = state->bl_level;
+	struct cmd_legoop_map *analog_map = &vdd->br_info.analog_offset_120hs[0];
 	int i = -1;
-	struct cmd_legoop_map *analog_map;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
 
 	if (GAMMA_SET_REGION_TABLE[bl_lvl] != GAMMA_SET_0)
 		return 0;
 
 	LCD_ERR(vdd, "++ %d\n", bl_lvl);
-
-	analog_map = &vdd->br_info.analog_offset_120hs[0];
 
 	while (!cmd->pos_0xXX[++i] && i < cmd->tx_len);
 
@@ -1390,19 +1401,7 @@ static int update_analog2_DM3_S6E3HAE_AMB681AZ01(
 		LCD_ERR(vdd, "No offset data for analog 120HS\n");
 		return -EINVAL;
 	}
-#if 0
-	if (vdd->night_dim) {
-		/* write analog offset for G0, G1 (120 addr) during on time. */
-		/* analog offset is always same for all levels in each G region. */
-		/* SET 11, 10 : 0690(G0) + 06D6(G1) -> 70+70 byte */
-		memcpy(&cmd->txbuf[i], HS120_R_TYPE_COMP[0], GAMMA_R_SIZE);
-		memcpy(&cmd->txbuf[i + GAMMA_R_SIZE], HS120_R_TYPE_COMP[2], GAMMA_R_SIZE);
-	} else {
-		/* restore MTP buf */
-		memcpy(&cmd->txbuf[i], HS120_R_TYPE_BUF[0], GAMMA_R_SIZE);
-		memcpy(&cmd->txbuf[i + GAMMA_R_SIZE], HS120_R_TYPE_BUF[2], GAMMA_R_SIZE);
-	}
-#endif
+
 	return 0;
 }
 
@@ -1427,19 +1426,6 @@ static int update_analog3_DM3_S6E3HAE_AMB681AZ01(
 		return -EINVAL;
 	}
 
-#if 0
-	if (vdd->night_dim) {
-		/* write analog offset for G0, G1 (120 addr) during on time. */
-		/* analog offset is always same for all levels in each G region. */
-		/* SET 9, 8 : 071C(G2) + 0762(G3) -> 70+70 byte */
-		memcpy(&cmd->txbuf[i], HS120_R_TYPE_COMP[5], GAMMA_R_SIZE);
-		memcpy(&cmd->txbuf[i + GAMMA_R_SIZE], HS120_R_TYPE_COMP[11], GAMMA_R_SIZE);
-	} else {
-		/* restore MTP buf */
-		memcpy(&cmd->txbuf[i], HS120_R_TYPE_BUF[5], GAMMA_R_SIZE);
-		memcpy(&cmd->txbuf[i + GAMMA_R_SIZE], HS120_R_TYPE_BUF[11], GAMMA_R_SIZE);
-	}
-#endif
 	vdd->br_info.last_tx_time = ktime_get();
 
 	return 0;
@@ -1448,9 +1434,9 @@ static int update_analog3_DM3_S6E3HAE_AMB681AZ01(
 static int update_aor_S6E3HAE_AMB681AZ01(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	struct vrr_info *vrr = &vdd->vrr;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
-	int cur_rr = vrr->cur_refresh_rate;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	int bl_lvl = state->bl_level;
 	struct cmd_legoop_map *manual_aor_map = NULL;
 	int i = -1;
 
@@ -1508,8 +1494,9 @@ static void update_glut_map(struct samsung_display_driver_data *vdd)
 static int update_glut_enable(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	int cur_rr = vdd->vrr.cur_refresh_rate;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	int bl_lvl = state->bl_level;
 	int i = -1;
 	bool glut_enable = true;
 
@@ -1548,8 +1535,9 @@ err_skip:
 static int update_glut(struct samsung_display_driver_data *vdd,
 			char *val, struct ss_cmd_desc *cmd)
 {
-	int cur_rr = vdd->vrr.cur_refresh_rate;
-	int bl_lvl = vdd->br_info.common_br.bl_level;
+	struct cmd_ref_state *state = &vdd->cmd_ref_state;
+	int cur_rr = state->cur_refresh_rate;
+	int bl_lvl = state->bl_level;
 	struct cmd_legoop_map *glut_map = NULL;
 	int i = -1, j;
 
@@ -1656,7 +1644,7 @@ void DM3_S6E3HAE_AMB681AZ01_WQHD_init(struct samsung_display_driver_data *vdd)
 	ss_vrr_init(&vdd->vrr);
 
 	/* early te*/
-	vdd->early_te = true;
+	vdd->early_te = false;
 	vdd->check_early_te = 0;
 
 	vdd->panel_func.samsung_check_support_mode = ss_check_support_mode;

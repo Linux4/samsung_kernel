@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,10 +20,10 @@
 #ifndef _WLAN_IPA_CORE_H_
 #define _WLAN_IPA_CORE_H_
 
-#ifdef IPA_OFFLOAD
-
 #include "wlan_ipa_priv.h"
 #include "wlan_ipa_public_struct.h"
+
+#ifdef IPA_OFFLOAD
 
 /**
  * wlan_ipa_is_enabled() - Is IPA enabled?
@@ -432,7 +432,22 @@ static inline void wlan_ipa_update_tx_stats(struct wlan_ipa_priv *ipa_ctx,
 }
 #endif /* FEATURE_METERING */
 
-/**
+#ifdef IPA_OPT_WIFI_DP
+/*
+ * wlan_ipa_add_rem_flt_cb_event() - Set event to get notified when cce
+ * super rule filter is added/removed
+ * @ipa_ctx: IPA context
+ *
+ * Return: None
+ */
+void wlan_ipa_add_rem_flt_cb_event(struct wlan_ipa_priv *ipa_ctx);
+#else
+static inline void wlan_ipa_add_rem_flt_cb_event(struct wlan_ipa_priv *ipa_ctx)
+{
+}
+#endif /* IPA_OPT_WIFI_DP */
+
+/*
  * wlan_ipa_uc_stat() - Print IPA uC stats
  * @ipa_ctx: IPA context
  *
@@ -787,10 +802,10 @@ QDF_STATUS wlan_ipa_wlan_evt(qdf_netdev_t net_dev, uint8_t device_mode,
 int wlan_ipa_uc_smmu_map(bool map, uint32_t num_buf, qdf_mem_info_t *buf_arr);
 
 /**
- * wlan_ipa_is_fw_wdi_activated() - Is FW WDI actived?
- * @ipa_ctx: IPA contex
+ * wlan_ipa_is_fw_wdi_activated() - Is FW WDI activated?
+ * @ipa_ctx: IPA context
  *
- * Return: true if FW WDI actived, false otherwise
+ * Return: true if FW WDI activated, false otherwise
  */
 bool wlan_ipa_is_fw_wdi_activated(struct wlan_ipa_priv *ipa_ctx);
 
@@ -856,5 +871,83 @@ void wlan_ipa_fw_rejuvenate_send_msg(struct wlan_ipa_priv *ipa_ctx);
  */
 void wlan_ipa_flush_pending_vdev_events(struct wlan_ipa_priv *ipa_ctx,
 					uint8_t vdev_id);
+
+#ifdef IPA_OPT_WIFI_DP
+/**
+ * wlan_ipa_wdi_opt_dpath_flt_rsrv_cb() - reserve cce super rules for Rx filter
+ * @ipa_ctx - ipa_context
+ * out_params - filter reservation params
+ *
+ * Return:int 0 on success, negative on failure
+ *
+ */
+int wlan_ipa_wdi_opt_dpath_flt_rsrv_cb(
+		       void *ipa_ctx,
+		       struct ipa_wdi_opt_dpath_flt_rsrv_cb_params *out_params);
+
+/**
+ * wlan_ipa_wdi_opt_dpath_notify_flt_rsvd() - notify filter reservation
+ * response to IPA
+ *
+ * @is_success : result of filter reservation
+ *
+ * @Return 0 on success, negative on failure
+ */
+int wlan_ipa_wdi_opt_dpath_notify_flt_rsvd(bool is_success);
+
+/**
+ * wlan_ipa_wdi_opt_dpath_flt_add_cb - Add rx filter tuple to cce filter
+ * @ipa_ctx: IPA context
+ * in_out - filter tuple info
+ *
+ * Return: 0 on success, negative on failure
+ */
+int wlan_ipa_wdi_opt_dpath_flt_add_cb(
+			    void *ipa_ctx,
+			    struct ipa_wdi_opt_dpath_flt_add_cb_params *in_out);
+
+/**
+ * wlan_ipa_wdi_opt_dpath_flt_rem_cb() - Remove rx filter tuple from cce filter
+ * @ipa_ctx: IPA context
+ * in - filter tuple info
+ *
+ * Return: 0 on success, negative on failure
+ */
+int wlan_ipa_wdi_opt_dpath_flt_rem_cb(
+			      void *ipa_ctx,
+			      struct ipa_wdi_opt_dpath_flt_rem_cb_params *in);
+
+/**
+ * wlan_ipa_wdi_opt_dpath_notify_flt_add_rem_cb() - notify filter add/remove
+ * result to IPA
+ *
+ * @result0 : result of add/remove filter0
+ * @result1 : result of add/remove filter1
+ *
+ * Return: void
+ */
+void wlan_ipa_wdi_opt_dpath_notify_flt_add_rem_cb(int result0, int result1);
+
+/**
+ * wlan_ipa_wdi_opt_dpath_flt_rsrv_rel_cb() - cb to release cce super rules
+ * @ipa_ctx: IPA context
+ *
+ * Return: 0 on success, negative on failure
+ *
+ */
+int wlan_ipa_wdi_opt_dpath_flt_rsrv_rel_cb(void *ipa_ctx);
+
+/**
+ * wlan_ipa_wdi_opt_dpath_notify_flt_rlsd() - notify filter release
+ * response to IPA
+ *
+ * @result0 : result of filter0 release
+ * @result1 : result of filter1 release
+ *
+ * @Return: 0 on success, negative on failure
+ */
+int wlan_ipa_wdi_opt_dpath_notify_flt_rlsd(int result0, int result1);
+
+#endif /* IPA_OPT_WIFI_DP */
 #endif /* IPA_OFFLOAD */
 #endif /* _WLAN_IPA_CORE_H_ */

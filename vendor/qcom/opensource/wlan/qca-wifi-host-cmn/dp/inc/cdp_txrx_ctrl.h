@@ -97,6 +97,35 @@ cdp_update_filter_neighbour_peers(ol_txrx_soc_handle soc,
 }
 #endif /* ATH_SUPPORT_NAC || ATH_SUPPORT_NAC_RSSI*/
 
+/**
+ * @brief update the monitor buffer and status filter
+ * @details
+ *  This defines interface function to set/reset monitor filter
+ *  in case of special vap (scan radio)
+ *
+ * @param soc - the pointer to soc object
+ * @param vdev_id - id of the pointer to vdev
+ * @param cmd - add/del entry into peer table
+ * @return - QDF_STATUS
+ */
+static inline QDF_STATUS
+cdp_update_mon_mac_filter(ol_txrx_soc_handle soc,
+			  uint8_t vdev_id, uint32_t cmd)
+{
+	if (!soc || !soc->ops) {
+		dp_cdp_debug("Invalid Instance:");
+		QDF_BUG(0);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (!soc->ops->ctrl_ops ||
+	    !soc->ops->ctrl_ops->txrx_update_mon_mac_filter)
+		return QDF_STATUS_E_FAILURE;
+
+	return soc->ops->ctrl_ops->txrx_update_mon_mac_filter
+			(soc, vdev_id, cmd);
+}
+
 #ifdef WLAN_SUPPORT_MSCS
 /**
  * @brief record the MSCS data and send it to the Data path
@@ -893,12 +922,14 @@ cdp_get_pldev(ol_txrx_soc_handle soc, uint8_t pdev_id)
  * @pdev_id: ID of the physical device object
  * @enable: Enable or disable CFR
  * @filter_val: Flag to select filter for monitor mode
+ * @cfr_enable_monitor_mode: Flag to be enabled when scan radio is brought up
+ * in special vap mode
  */
 static inline void
 cdp_cfr_filter(ol_txrx_soc_handle soc,
 	       uint8_t pdev_id,
-	       bool enable,
-	       struct cdp_monitor_filter *filter_val)
+	       bool enable, struct cdp_monitor_filter *filter_val,
+	       bool cfr_enable_monitor_mode)
 {
 	if (!soc || !soc->ops) {
 		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
@@ -910,7 +941,8 @@ cdp_cfr_filter(ol_txrx_soc_handle soc,
 	if (!soc->ops->cfr_ops || !soc->ops->cfr_ops->txrx_cfr_filter)
 		return;
 
-	soc->ops->cfr_ops->txrx_cfr_filter(soc, pdev_id, enable, filter_val);
+	soc->ops->cfr_ops->txrx_cfr_filter(soc, pdev_id, enable, filter_val,
+					   cfr_enable_monitor_mode);
 }
 
 /**
@@ -1109,7 +1141,7 @@ cdp_dump_pdev_rx_protocol_tag_stats(ol_txrx_soc_handle soc,
   * cdp_vdev_config_for_nac_rssi(): To invoke dp callback for nac rssi config
   * @soc: soc pointer
   * @vdev_id: id of vdev
-  * @nac_cmd: specfies nac_rss config action add, del, list
+  * @nac_cmd: specifies nac_rss config action add, del, list
   * @bssid: Neighbour bssid
   * @client_macaddr: Non-Associated client MAC
   * @chan_num: channel number to scan

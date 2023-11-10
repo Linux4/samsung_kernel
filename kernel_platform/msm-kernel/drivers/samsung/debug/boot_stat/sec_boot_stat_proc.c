@@ -20,9 +20,10 @@ static const char *h_line = "---------------------------------------------------
 #define BOOT_PREFIX(__idx, __head) \
 	[__idx] = { \
 		.head = __head, \
+		.head_len = sizeof(__head) - 1, \
 	}
 
-static struct boot_prefix boot_prefixes[] __ro_after_init = {
+static const struct boot_prefix boot_prefixes[] = {
 	BOOT_PREFIX(EVT_PLATFORM, "!@Boot: "),
 	BOOT_PREFIX(EVT_RIL, "!@Boot_SVC : "),
 	BOOT_PREFIX(EVT_DEBUG, "!@Boot_DEBUG: "),
@@ -73,6 +74,7 @@ enum {
 	[__idx] = { \
 		.prefix_idx = __prefix_idx, \
 		.message = __message, \
+		.message_len = sizeof(__message) - 1, \
 	}
 
 __ss_static struct boot_event boot_events[] = {
@@ -138,7 +140,7 @@ __ss_static __ss_always_inline ssize_t __boot_stat_get_message_offset_from_plog(
 	ssize_t i;
 
 	for (i = 0; i < NUM_OF_BOOT_PREFIX; i++) {
-		struct boot_prefix *prefix = &boot_prefixes[i];
+		const struct boot_prefix *prefix = &boot_prefixes[i];
 
 		if (unlikely(!strncmp(log, prefix->head, prefix->head_len))) {
 			*offset = prefix->head_len;
@@ -149,42 +151,41 @@ __ss_static __ss_always_inline ssize_t __boot_stat_get_message_offset_from_plog(
 	return -EINVAL;
 }
 
-static __always_inline void ____boot_stat_record_boot_event_locked(
+static __always_inline struct boot_event *__boot_stat_find_event_locked(
 		struct boot_stat_proc *boot_stat,
-		struct boot_event *event,
-		size_t event_idx, const char *message)
+		const char *message)
 {
-	size_t *record;
+	struct boot_event *h;
+	size_t msg_len = strlen(message);
+	u32 key = __boot_stat_hash(message);
 
-	if (event->ktime)
-		return;
+	hash_for_each_possible(boot_stat->event_htbl, h, hlist, key) {
+		if (h->message_len != msg_len)
+			continue;
 
-	record = &boot_stat->event_record[boot_stat->nr_event];
+		if (!strncmp(h->message, message, msg_len))
+			return h;
+	}
 
-	event->ktime = local_clock();
-	*record = event_idx;
-	boot_stat->nr_event++;
+	return ERR_PTR(-ENOENT);
 }
 
 __ss_static __ss_always_inline void __boot_stat_record_boot_event_locked(
 		struct boot_stat_proc *boot_stat, const char *message)
 {
-	uint64_t hash = *(uint64_t *)message;
-	size_t i;
+	struct boot_event *event =
+			__boot_stat_find_event_locked(boot_stat, message);
 
-	for (i = 0; i < ARRAY_SIZE(boot_events); i++) {
-		struct boot_event *event = &boot_events[i];
+	if (IS_ERR_OR_NULL(event))
+		return;
 
-		if (likely(hash != *(uint64_t *)event->message))
-			continue;
+	if (event->ktime)
+		return;
 
-		if (unlikely(!strncmp(message, event->message,
-				event->message_len))) {
-			____boot_stat_record_boot_event_locked(boot_stat, event,
-					i, message);
-			return;
-		}
-	}
+	event->ktime = local_clock();
+
+	list_add_tail(&event->list, &boot_stat->boot_event_head);
+	boot_stat->nr_event++;
 }
 
 #define MAX_LENGTH_OF_SYSTEMSERVER_LOG 90
@@ -262,10 +263,8 @@ void sec_boot_stat_add_boot_event(struct boot_stat_drvdata *drvdata,
 static unsigned long long __boot_stat_show_boot_event_each_locked(
 		struct seq_file *m,
 		struct boot_stat_proc *boot_stat,
-		size_t idx, unsigned long long prev_ktime)
+		struct boot_event *event, unsigned long long prev_ktime)
 {
-	size_t event_idx = boot_stat->event_record[idx];
-	struct boot_event *event = &boot_events[event_idx];
 	char *log;
 	unsigned long long msec;
 	unsigned long long delta;
@@ -322,25 +321,27 @@ static void __boot_stat_show_boot_event_head(struct seq_file *m,
 static void __boot_stat_show_boot_event_locked(struct seq_file *m,
 		struct boot_stat_proc *boot_stat)
 {
-	unsigned long long prev_ktime;
-	size_t i;
+	struct list_head *boot_event_head = &boot_stat->boot_event_head;
+	struct boot_event *event;
+	unsigned long long prev_ktime = 0ULL;
 
-	for (i = 0, prev_ktime = 0; i < boot_stat->nr_event; i++)
-		prev_ktime = __boot_stat_show_boot_event_each_locked(m, boot_stat,
-				i, prev_ktime);
+	list_for_each_entry(event, boot_event_head, list)
+		prev_ktime = __boot_stat_show_boot_event_each_locked(
+				m, boot_stat, event, prev_ktime);
 }
 
 static void __boot_stat_show_systemserver_init_time_locked(struct seq_file *m,
 		struct boot_stat_proc *boot_stat)
 {
-	struct list_head *head = &boot_stat->systemserver_init_time_head;
-	struct systemserver_init_time_entry *entry;
+	struct list_head *systemserver_init_time_head =
+			&boot_stat->systemserver_init_time_head;
+	struct systemserver_init_time_entry *init_time;
 
 	seq_printf(m, "%s\n", h_line);
 	seq_puts(m, "SystemServer services that took long time\n\n");
 
-	list_for_each_entry(entry, head, list)
-		seq_printf(m, "%s\n", entry->buf);
+	list_for_each_entry(init_time, systemserver_init_time_head, list)
+		seq_printf(m, "%s\n", init_time->buf);
 }
 
 static int sec_boot_stat_proc_show(struct seq_file *m, void *v)
@@ -396,27 +397,18 @@ static void __boot_stat_procfs_exit(struct device *dev,
 	proc_remove(boot_stat->proc);
 }
 
-__ss_static int __boot_stat_init_boot_prefixes(void)
+__ss_static int __boot_stat_init_boot_events(struct boot_stat_proc *boot_stat)
 {
 	size_t i;
 
-	for (i = 0; i < ARRAY_SIZE(boot_prefixes); i++) {
-		struct boot_prefix *prefix = &boot_prefixes[i];
-
-		prefix->head_len = strlen(prefix->head);
-	}
-
-	return 0;
-}
-
-__ss_static int __boot_stat_init_boot_events(void)
-{
-	size_t i;
+	hash_init(boot_stat->event_htbl);
 
 	for (i = 0; i < ARRAY_SIZE(boot_events); i++) {
 		struct boot_event *event = &boot_events[i];
+		u32 key = __boot_stat_hash(event->message);
 
-		event->message_len = strlen(event->message);
+		INIT_HLIST_NODE(&event->hlist);
+		hash_add(boot_stat->event_htbl, &event->hlist, key);
 		event->ktime = 0;
 	}
 
@@ -429,21 +421,14 @@ int sec_boot_stat_proc_init(struct builder *bd)
 			container_of(bd, struct boot_stat_drvdata, bd);
 	struct device *dev = bd->dev;
 	struct boot_stat_proc *boot_stat = &drvdata->boot_stat;
-	size_t *event_record;
 	int err;
-
-	event_record = devm_kcalloc(dev, ARRAY_SIZE(boot_events),
-			sizeof(*boot_stat->event_record), GFP_KERNEL);
-	if (!event_record)
-		return -ENOMEM;
 
 	mutex_init(&boot_stat->lock);
 	boot_stat->total_event = ARRAY_SIZE(boot_events);
-	boot_stat->event_record = event_record;
+	INIT_LIST_HEAD(&boot_stat->boot_event_head);
 	INIT_LIST_HEAD(&boot_stat->systemserver_init_time_head);
 
-	__boot_stat_init_boot_prefixes();
-	__boot_stat_init_boot_events();
+	__boot_stat_init_boot_events(boot_stat);
 
 	if (IS_MODULE(CONFIG_SEC_BOOT_STAT))
 		sec_boot_stat_add_boot_event(drvdata,

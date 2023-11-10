@@ -66,6 +66,7 @@ static enum pdic_sysfs_property max77705_sysfs_properties[] = {
 	PDIC_SYSFS_PROP_CC_PIN_STATUS,
 	PDIC_SYSFS_PROP_RAM_TEST,
 	PDIC_SYSFS_PROP_SBU_ADC,
+	PDIC_SYSFS_PROP_CC_ADC,
 	PDIC_SYSFS_PROP_VSAFE0V_STATUS,
 	PDIC_SYSFS_PROP_OVP_IC_SHUTDOWN,
 	PDIC_SYSFS_PROP_HMD_POWER,
@@ -325,6 +326,22 @@ static int max77705_usbc_gpio5_direction_output(
 
 	return 0;
 }
+
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+static void max77705_usbc_disable_uiden(struct max77705_usbc_platform_data *usbc_data)
+{
+	usbc_cmd_data read_data;
+
+	msg_maxim("%s\n", __func__);
+
+	init_usbc_cmd_data(&read_data);
+	read_data.opcode = COMMAND_BC_CTRL1_READ;
+	read_data.mask = BC_CTRL1_UIDEN_MASK;
+	read_data.val = 0x0;
+
+	max77705_usbc_opcode_update(usbc_data, &read_data);
+}
+#endif
 
 static void max77705_usbc_gpio5_read_complete(
 		struct max77705_usbc_platform_data *usbc_data,
@@ -804,6 +821,32 @@ void max77705_request_sbu_read(struct max77705_usbc_platform_data *usbpd_data)
 	max77705_usbc_opcode_write(usbpd_data, &write_data);
 }
 
+void max77705_response_cc_read(struct max77705_usbc_platform_data *usbpd_data, unsigned char *data)
+{
+	u8 cc1 = 0, cc2 = 0;
+
+	cc1 = data[1];
+	cc2 = data[2];
+
+	msg_maxim("CC1 = 0x%x, CC2 = 0x%x", cc1, cc2);
+
+	usbpd_data->cc[0] = cc1;
+	usbpd_data->cc[1] = cc2;
+
+	complete(&usbpd_data->ccic_sysfs_completion);
+}
+
+void max77705_request_cc_read(struct max77705_usbc_platform_data *usbpd_data)
+{
+	usbc_cmd_data write_data;
+
+	init_usbc_cmd_data(&write_data);
+	write_data.opcode = OPCODE_READ_CC;
+	write_data.write_length = 0x0;
+	write_data.read_length = 0x2;
+	max77705_usbc_opcode_write(usbpd_data, &write_data);
+}
+
 void max77705_request_control3_reg_read(struct max77705_usbc_platform_data *usbpd_data)
 {
 	usbc_cmd_data read_data;
@@ -906,6 +949,25 @@ static void max77705_cc_open_work_func(
 			max77705_set_lockerroren(usbc_data, usbc_data->control3_reg, 0);
 		}
 	}
+}
+
+static void max77705_dp_configure_work_func(
+		struct work_struct *work)
+{
+	struct max77705_usbc_platform_data *usbpd_data;
+#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
+	int timeleft = 0;
+#endif
+
+	usbpd_data = container_of(work, struct max77705_usbc_platform_data, dp_configure_work);
+#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
+	timeleft = wait_event_interruptible_timeout(usbpd_data->device_add_wait_q,
+			usbpd_data->device_add || usbpd_data->pd_data->cc_status == CC_NO_CONN, HZ/2);
+	msg_maxim("%s timeleft = %d\n", __func__, timeleft);
+#endif
+	if (usbpd_data->pd_data->cc_status != CC_NO_CONN)
+		max77705_ccic_event_work(usbpd_data, PDIC_NOTIFY_DEV_DP,
+			PDIC_NOTIFY_ID_DP_LINK_CONF, usbpd_data->dp_selected_pin, 0, 0);
 }
 
 void max77705_response_selftest_read(struct max77705_usbc_platform_data *usbpd_data, unsigned char *data)
@@ -1160,6 +1222,17 @@ static int max77705_sysfs_get_local_prop(struct _pdic_data_t *ppdic_data,
 		msg_maxim("usb: PDIC_SYSFS_PROP_SBU_ADC : %d %d timeout : %d",
 				usbpd_data->sbu[0], usbpd_data->sbu[1], i);
 		retval = sprintf(buf, "%d %d\n", usbpd_data->sbu[0], usbpd_data->sbu[1]);
+		break;
+	case PDIC_SYSFS_PROP_CC_ADC:
+		usbpd_data->cc[0] = 0;usbpd_data->cc[1] = 0;
+		reinit_completion(&usbpd_data->ccic_sysfs_completion);
+		max77705_request_cc_read(usbpd_data);
+		i = wait_for_completion_timeout(&usbpd_data->ccic_sysfs_completion, msecs_to_jiffies(1000 * 5));
+		if (i == 0)
+			msg_maxim("CCIC SYSFS COMPLETION TIMEOUT");
+		msg_maxim("usb: PDIC_SYSFS_PROP_CC_ADC : %d %d timeout : %d",
+				usbpd_data->cc[0], usbpd_data->cc[1], i);
+		retval = sprintf(buf, "%d %d\n", usbpd_data->cc[0], usbpd_data->cc[1]);
 		break;
 	case PDIC_SYSFS_PROP_VSAFE0V_STATUS:
 		usbpd_data->vsafe0v_status = max77705_request_vsafe0v_read(usbpd_data);
@@ -1636,6 +1709,9 @@ static void max77705_init_opcode
 	struct max77705_platform_data *pdata = usbc_data->max77705_data;
 
 	max77705_usbc_disable_auto_vbus(usbc_data);
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+	max77705_usbc_disable_uiden(usbc_data);
+#endif
 	if (pdata && pdata->support_audio)
 		max77705_usbc_enable_audio(usbc_data);
 	if (reset) {
@@ -2145,6 +2221,9 @@ static void max77705_irq_execute(struct max77705_usbc_platform_data *usbc_data,
 		break;
 	case OPCODE_READ_SBU:
 		max77705_response_sbu_read(usbc_data, data);
+		break;
+	case OPCODE_READ_CC:
+		max77705_response_cc_read(usbc_data, data);
 		break;
 	case OPCODE_VDM_DISCOVER_SET_VDM_REQ:
 		vdm_opcode_header = data[1];
@@ -2822,7 +2901,11 @@ static void max77705_reset_ic(struct max77705_usbc_platform_data *usbc_data)
 	//gurantee to block i2c trasaction during ccic reset
 	mutex_lock(&max77705->i2c_lock);
 	max77705_write_reg_nolock(usbc_data->muic, 0x80, 0x0F);
+#if defined(CONFIG_IFPMIC_CRC_CHECK)
+	msleep(300);
+#else
 	msleep(100); /* need 100ms delay */
+#endif
 	mutex_unlock(&max77705->i2c_lock);
 }
 
@@ -3112,6 +3195,16 @@ void max77705_usbc_check_sysmsg(struct max77705_usbc_platform_data *usbc_data, u
 		msg_maxim("TypeC earphone is detached");
 		usbc_data->pd_data->cc_sbu_short = false;
 		max77705_check_pdo(usbc_data);
+		break;
+	case SYSMSG_ABNORMAL_TA:
+		{
+			union power_supply_propval value = {0,};
+
+			msg_maxim("ABNORMAL TA detected");
+			value.intval = true;
+			psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_ABNORMAL_TA, value);
+		}
 		break;
 	default:
 		break;
@@ -3609,8 +3702,25 @@ static void max77705_usbpd_set_host_on(void *data, int mode)
 	}
 }
 
+static void max77705_usbpd_wait_entermode(void *data, int on)
+{
+	struct max77705_usbc_platform_data *usbpd_data = data;
+
+	if (!usbpd_data)
+		return;
+
+	pr_info("%s : %d!\n", __func__, on);
+	if (on) {
+		usbpd_data->wait_entermode = 1;
+	} else {
+		usbpd_data->wait_entermode = 0;
+		wake_up_interruptible(&usbpd_data->host_turn_on_wait_q);
+	}
+}
+
 struct usbpd_ops ops_usbpd = {
 	.usbpd_set_host_on = max77705_usbpd_set_host_on,
+	.usbpd_wait_entermode = max77705_usbpd_wait_entermode,
 };
 #endif
 
@@ -3764,6 +3874,7 @@ static int max77705_usbc_probe(struct platform_device *pdev)
 
 	INIT_WORK(&usbc_data->op_send_work, max77705_uic_op_send_work_func);
 	INIT_WORK(&usbc_data->cc_open_req_work, max77705_cc_open_work_func);
+	INIT_WORK(&usbc_data->dp_configure_work, max77705_dp_configure_work_func);
 #if defined(MAX77705_SYS_FW_UPDATE)
 	INIT_WORK(&usbc_data->fw_update_work,
 			max77705_firmware_update_sysfs_work);
@@ -3846,10 +3957,10 @@ static int max77705_usbc_probe(struct platform_device *pdev)
 	else
 		pr_info("%s : external notifier register done!\n", __func__);
 
-	max77705->cc_booting_complete = 1;
-	max77705_usbc_umask_irq(usbc_data);
 	init_waitqueue_head(&usbc_data->host_turn_on_wait_q);
 	init_waitqueue_head(&usbc_data->device_add_wait_q);
+	max77705->cc_booting_complete = 1;
+	max77705_usbc_umask_irq(usbc_data);
 #if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 	max77705_usbpd_set_host_on(usbc_data, 0);
 #endif

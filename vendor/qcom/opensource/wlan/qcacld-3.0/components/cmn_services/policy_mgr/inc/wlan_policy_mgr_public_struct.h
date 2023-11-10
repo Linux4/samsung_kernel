@@ -94,7 +94,7 @@ typedef int (*send_mode_change_event_cb)(void);
  * @CSA_REASON_CHAN_DISABLED: channel is disabled
  * @CSA_REASON_CHAN_PASSIVE: channel is passive
  * @CSA_REASON_GO_BSS_STARED: P2P go started
- * @CSA_REASON_SAP_ACS: 2.4 GHz perferred SAP ACS starting
+ * @CSA_REASON_SAP_ACS: 2.4 GHz preferred SAP ACS starting
  * @CSA_REASON_SAP_FIX_CH_CONC_WITH_GO: SAP fix channel start
  *  and move GO to other band
  */
@@ -378,6 +378,7 @@ enum policy_mgr_mac_use {
  *	channel on 5 Ghz & 2.4 Ghz channels
  * @PM_SCC_ON_24_SCC_ON_5_5G: SCC channel on 2.4 Ghz, SCC
  *	channel on 5 Ghz & 5 Ghz channels
+ * @PM_SCC_ON_24_CH_24G: SCC channel on 2.4 GHz & 2.4 GHz channels
  * @PM_SCC_ON_5_SCC_ON_24: SCC channel on 5 Ghz, SCC channel on
  *	2.4 Ghz
  * @PM_SCC_ON_24_SCC_ON_5: SCC channel on 2.4 Ghz, SCC channel
@@ -420,6 +421,7 @@ enum policy_mgr_pcl_type {
 	PM_SCC_ON_5_5G_SCC_ON_24G,
 	PM_SCC_ON_24_SCC_ON_5_24G,
 	PM_SCC_ON_24_SCC_ON_5_5G,
+	PM_SCC_ON_24_CH_24G,
 	PM_SCC_ON_5_SCC_ON_24,
 	PM_SCC_ON_24_SCC_ON_5,
 	PM_MCC_CH_24G,
@@ -971,6 +973,8 @@ enum policy_mgr_two_connection_mode {
  * 2.4 GHZ MCC on mac0 and second STA on low 5 GHZ on mac1 doing SBS
  * @PM_STA_STA_5_HIGH_MCC_SAP_5_LOW_SBS : First STA on high 5 GHZ & Second STA
  * on high 5 GHZ MCC on mac0 and SAP on low 5 GHZ on mac1 doing SBS
+ * @PM_STA_24_STA_5_MCC_SAP_5_HIGH_SBS: MLO STA 2+5/6 GHz, SAP on 5/6 GHz
+ * high band, the current hw mode is SBS.
  * @PM_MCC_SCC_5G_LOW_PLUS_5_HIGH_SBS: Any 2 link on low 5 GHZ mac
  * and one link on high 5 GHZ freq doing SBS
  * @PM_STA_24_SAP_5_LOW_MCC_STA_5_HIGH_SBS : First STA on 2.4 GHZ & SAP on low
@@ -986,13 +990,17 @@ enum policy_mgr_two_connection_mode {
  * @PM_24_5_MCC_SCC_PLUS_5_SBS: The 2.4 GHZ vdev creating MCC/SCC with low 5 GHZ
  * or high 5 GHZ (dynamic SBS) on mac 0 and one vdev on high 5 GHZ or low 5 GHZ
  * freq respectively on mac 1 doing SBS
+ * @PM_STA_24_STA_5_MCC_SAP_5_LOW_SBS: MLO STA 2+5/6 GHz, SAP on 5/6 GHz
+ * low band, the current hw mode is SBS.
  * @PM_SAP_24_STA_5_STA_5_LOW_N_HIGH_SHARE_SBS: The 2.4 GHZ SAP creating MCC/SCC
  * with STA of low 5 GHZ or high 5 GHZ (dynamic SBS) on mac 0 and one STA on
  * high 5 GHZ or low 5 GHZ freq respectively on mac 1 doing SBS
  * @PM_STA_24_SAP_5_STA_5_LOW_N_HIGH_SHARE_SBS: The 2.4 GHZ STA creating MCC/SCC
  * with SAP of low 5 GHZ or high 5 GHZ (dynamic SBS) on mac 0 and one STA on
  * high 5 GHZ or low 5 GHZ freq respectively on mac 1 doing SBS
- *
+ * @PM_24_5_PLUS_5_LOW_OR_HIGH_SHARE_SBS (not dynamic SBS): MLO STA 2+5/6 GHz,
+ * SAP on 5/6 GHz, and target only support 2.4 GHz shared with 5 GHz low band
+ * or 5 GHz high band but not both.
  */
 enum policy_mgr_three_connection_mode {
 	PM_STA_SAP_SCC_24_SAP_5_DBS,
@@ -1037,6 +1045,8 @@ enum policy_mgr_three_connection_mode {
 		PM_MCC_SCC_5G_HIGH_PLUS_5_LOW_SBS,
 	PM_STA_STA_5_HIGH_MCC_SAP_5_LOW_SBS =
 		PM_MCC_SCC_5G_HIGH_PLUS_5_LOW_SBS,
+	PM_STA_24_STA_5_MCC_SAP_5_HIGH_SBS =
+		PM_MCC_SCC_5G_HIGH_PLUS_5_LOW_SBS,
 	PM_MCC_SCC_5G_LOW_PLUS_5_HIGH_SBS,
 	PM_STA_24_SAP_5_LOW_MCC_STA_5_HIGH_SBS =
 		PM_MCC_SCC_5G_LOW_PLUS_5_HIGH_SBS,
@@ -1048,11 +1058,14 @@ enum policy_mgr_three_connection_mode {
 		PM_MCC_SCC_5G_LOW_PLUS_5_HIGH_SBS,
 	PM_STA_STA_5_LOW_MCC_SAP_5_HIGH_SBS =
 		PM_MCC_SCC_5G_LOW_PLUS_5_HIGH_SBS,
+	PM_STA_24_STA_5_MCC_SAP_5_LOW_SBS =
+		PM_MCC_SCC_5G_LOW_PLUS_5_HIGH_SBS,
 	PM_24_5_PLUS_5_LOW_N_HIGH_SHARE_SBS,
 	PM_SAP_24_STA_5_STA_5_LOW_N_HIGH_SHARE_SBS =
 			PM_24_5_PLUS_5_LOW_N_HIGH_SHARE_SBS,
 	PM_STA_24_SAP_5_STA_5_LOW_N_HIGH_SHARE_SBS =
 			PM_24_5_PLUS_5_LOW_N_HIGH_SHARE_SBS,
+	PM_24_5_PLUS_5_LOW_OR_HIGH_SHARE_SBS,
 
 	PM_MAX_THREE_CONNECTION_MODE,
 };
@@ -1276,10 +1289,17 @@ enum conn_6ghz_flag {
 	CONN_6GHZ_FLAG_NO_LEGACY_CLIENT = 0x0008,
 };
 
-#define CONN_6GHZ_CAPABLIE (CONN_6GHZ_FLAG_VALID | \
+#ifdef WLAN_FEATURE_AFC_DCS_SKIP_ACS_RANGE
+/* To support DCS to 6 Ghz channel when AFC response receive */
+#define CONN_6GHZ_CAPABLE (CONN_6GHZ_FLAG_VALID | \
+			     CONN_6GHZ_FLAG_SECURITY_ALLOWED | \
+			     CONN_6GHZ_FLAG_NO_LEGACY_CLIENT)
+#else
+#define CONN_6GHZ_CAPABLE (CONN_6GHZ_FLAG_VALID | \
 			     CONN_6GHZ_FLAG_ACS_OR_USR_ALLOWED | \
 			     CONN_6GHZ_FLAG_SECURITY_ALLOWED | \
 			     CONN_6GHZ_FLAG_NO_LEGACY_CLIENT)
+#endif
 
 /**
  * struct policy_mgr_conc_connection_info - information of all existing
@@ -1629,11 +1649,33 @@ struct sap_plus_go_force_scc {
  * @go_plus_go_force_scc: structure to hold params of
  *			  curr and first p2p go ctx
  * @sap_plus_go_force_scc: sap p2p force SCC ctx
+ * @nan_force_scc_in_progress: NAN force scc in progress
  */
 struct sta_ap_intf_check_work_ctx {
 	struct wlan_objmgr_psoc *psoc;
 	struct go_plus_go_force_scc go_plus_go_force_scc;
 	struct sap_plus_go_force_scc sap_plus_go_force_scc;
+	uint8_t nan_force_scc_in_progress;
+};
+
+/**
+ * enum indoor_conc_update_type - Indoor concurrency update type
+ * @CONNECT - On a new STA connection
+ * @DISCONNECT_WITHOUT_CONCURRENCY - On a STA disconnection with no active
+ * sessions on the same frequency
+ * @DISCONNECT_WITH_CONCURRENCY - On a STA disconnection with an active
+ * session on the same frequency
+ * @SWITCH_WITH_CONCURRENCY - On a STA roam or CSA to a different channel
+ * with a concurrent SAP on previous frequency
+ * @SWITCH_WITHOUT_CONCURRENCY - On a STA roam or CSA to a different channel
+ * without any concurrent SAP on previous frequency
+ */
+enum indoor_conc_update_type {
+	CONNECT,
+	DISCONNECT_WITHOUT_CONCURRENCY,
+	DISCONNECT_WITH_CONCURRENCY,
+	SWITCH_WITHOUT_CONCURRENCY,
+	SWITCH_WITH_CONCURRENCY,
 };
 
 #endif /* __WLAN_POLICY_MGR_PUBLIC_STRUCT_H */

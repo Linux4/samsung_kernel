@@ -554,7 +554,7 @@ u32 shadow_dst_wr_ind_addr(struct hif_softc *scn, u32 ctrl_addr);
 	A_TARGET_WRITE(scn, (CE_ctrl_addr) + DST_WR_INDEX_ADDRESS, (n))
 #endif
 
-/* The write index read is only needed durring initialization because
+/* The write index read is only needed during initialization because
  * we keep track of the index that was last written.  Thus the register
  * is the only hardware supported location to read the initial value from.
  */

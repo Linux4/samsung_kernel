@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -38,12 +38,49 @@
 #include "lim_assoc_utils.h"
 #include "lim_prop_exts_utils.h"
 #include "lim_ser_des_utils.h"
+#include "wlan_mlo_t2lm.h"
+#include "wlan_mlo_mgr_roam.h"
+#include "lim_mlo.h"
+#include "wlan_mlo_mgr_sta.h"
 #ifdef WLAN_FEATURE_11BE_MLO
-#include <wlan_mlo_mgr_sta.h>
 #include <cds_ieee80211_common.h>
 #endif
 
 #ifdef WLAN_FEATURE_11BE_MLO
+void lim_process_bcn_prb_rsp_t2lm(struct mac_context *mac_ctx,
+				  struct pe_session *session,
+				  tpSirProbeRespBeacon bcn_ptr)
+{
+	struct wlan_objmgr_vdev *vdev;
+	struct wlan_t2lm_context *t2lm_ctx;
+
+	if (!session || !bcn_ptr || !mac_ctx) {
+		pe_err("invalid input parameters");
+		return;
+	}
+
+	vdev = session->vdev;
+	if (!vdev || !wlan_vdev_mlme_is_mlo_vdev(vdev))
+		return;
+
+	if (!mlo_check_if_all_links_up(vdev))
+		return;
+
+	if (bcn_ptr->t2lm_ctx.upcoming_t2lm.t2lm.direction ==
+	    WLAN_T2LM_INVALID_DIRECTION &&
+	    bcn_ptr->t2lm_ctx.established_t2lm.t2lm.direction ==
+	    WLAN_T2LM_INVALID_DIRECTION) {
+		pe_debug("No t2lm IE");
+		return;
+	}
+
+	t2lm_ctx = &vdev->mlo_dev_ctx->t2lm_ctx;
+	qdf_mem_copy((uint8_t *)&t2lm_ctx->tsf, (uint8_t *)bcn_ptr->timeStamp,
+		     sizeof(uint64_t));
+	wlan_process_bcn_prbrsp_t2lm_ie(vdev, &bcn_ptr->t2lm_ctx,
+					t2lm_ctx->tsf);
+}
+
 void lim_process_beacon_mlo(struct mac_context *mac_ctx,
 			    struct pe_session *session,
 			    tSchBeaconStruct *bcn_ptr)
@@ -96,6 +133,7 @@ void lim_process_beacon_mlo(struct mac_context *mac_ctx,
 			    stacontrol,
 			    WLAN_ML_BV_LINFO_PERSTAPROF_STACTRL_LINKID_IDX,
 			    WLAN_ML_BV_LINFO_PERSTAPROF_STACTRL_LINKID_BITS);
+
 		if (!mlo_is_sta_csa_synced(mlo_ctx, link_id)) {
 			csa_ie = (struct ieee80211_channelswitch_ie *)
 					wlan_get_ie_ptr_from_eid(
@@ -209,37 +247,26 @@ lim_get_update_eht_bw_puncture_allow(struct pe_session *session,
 	return QDF_STATUS_SUCCESS;
 }
 
-void lim_process_beacon_eht(struct mac_context *mac_ctx,
-			    struct pe_session *session,
-			    tSchBeaconStruct *bcn_ptr)
+void lim_process_beacon_eht_op(struct pe_session *session,
+			       tDot11fIEeht_op *eht_op)
 {
-	struct wlan_objmgr_vdev *vdev;
-	struct wlan_channel *des_chan;
 	uint16_t ori_punc = 0;
 	enum phy_ch_width ori_bw = CH_WIDTH_INVALID;
 	uint8_t cb_mode;
 	enum phy_ch_width new_bw;
 	bool update_allow;
 	QDF_STATUS status;
+	struct mac_context *mac_ctx;
+	struct wlan_objmgr_vdev *vdev;
+	struct wlan_channel *des_chan;
+	struct csa_offload_params *csa_param;
 
-	if (!session || !bcn_ptr || !mac_ctx) {
+	if (!session || !eht_op || !session->mac_ctx || !session->vdev) {
 		pe_err("invalid input parameters");
 		return;
 	}
+	mac_ctx = session->mac_ctx;
 	vdev = session->vdev;
-	if (!vdev || wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE ||
-	    !qdf_is_macaddr_equal((struct qdf_mac_addr *)session->bssId,
-				  (struct qdf_mac_addr *)bcn_ptr->bssid))
-		return;
-	des_chan = wlan_vdev_mlme_get_des_chan(vdev);
-	if (!des_chan || !IS_WLAN_PHYMODE_EHT(des_chan->ch_phymode))
-		return;
-
-	if (mlo_is_mld_sta(vdev)) {
-		/* handle beacon IE for 11be mlo case */
-		lim_process_beacon_mlo(mac_ctx, session, bcn_ptr);
-		return;
-	}
 
 	if (wlan_reg_is_24ghz_ch_freq(session->curr_op_freq)) {
 		if (session->force_24ghz_in_ht20)
@@ -261,27 +288,92 @@ void lim_process_beacon_eht(struct mac_context *mac_ctx,
 		return;
 	}
 	/* handle beacon IE for 11be non-mlo case */
-	if (bcn_ptr->eht_op.disabled_sub_chan_bitmap_present) {
+	if (eht_op->disabled_sub_chan_bitmap_present) {
 		ori_punc = QDF_GET_BITS(
-		    bcn_ptr->eht_op.disabled_sub_chan_bitmap[0][0], 0, 8);
+		    eht_op->disabled_sub_chan_bitmap[0][0], 0, 8);
 		ori_punc |= QDF_GET_BITS(
-		    bcn_ptr->eht_op.disabled_sub_chan_bitmap[0][1], 0, 8) << 8;
+		    eht_op->disabled_sub_chan_bitmap[0][1], 0, 8) << 8;
 	}
-	if (bcn_ptr->eht_op.eht_op_information_present) {
+	if (eht_op->eht_op_information_present) {
 		ori_bw = wlan_mlme_convert_eht_op_bw_to_phy_ch_width(
-						bcn_ptr->eht_op.channel_width);
+						eht_op->channel_width);
 		status = lim_get_update_eht_bw_puncture_allow(session, ori_bw,
 							      &new_bw,
 							      &update_allow);
 		if (QDF_IS_STATUS_ERROR(status))
 			return;
-		if (update_allow)
+		if (update_allow) {
 			wlan_cm_sta_update_bw_puncture(vdev, session->bssId,
 						       ori_punc, ori_bw,
-						       bcn_ptr->eht_op.ccfs0,
-						       bcn_ptr->eht_op.ccfs1,
+						       eht_op->ccfs0,
+						       eht_op->ccfs1,
 						       new_bw);
+		} else {
+			csa_param = qdf_mem_malloc(sizeof(*csa_param));
+			if (!csa_param) {
+				pe_err("csa_param allocation fails");
+				return;
+			}
+			des_chan = wlan_vdev_mlme_get_des_chan(vdev);
+			csa_param->channel = des_chan->ch_ieee;
+			csa_param->csa_chan_freq = des_chan->ch_freq;
+			csa_param->new_ch_width = ori_bw;
+			csa_param->new_punct_bitmap = ori_punc;
+			csa_param->new_ch_freq_seg1 = eht_op->ccfs0;
+			csa_param->new_ch_freq_seg2 = eht_op->ccfs1;
+			qdf_copy_macaddr(&csa_param->bssid,
+					 (struct qdf_mac_addr *)session->bssId);
+			lim_handle_sta_csa_param(session->mac_ctx, csa_param);
+		}
 	}
+}
+
+void lim_process_beacon_eht(struct mac_context *mac_ctx,
+			    struct pe_session *session,
+			    tSchBeaconStruct *bcn_ptr)
+{
+	struct wlan_objmgr_vdev *vdev;
+	struct wlan_channel *des_chan;
+
+	if (!session || !bcn_ptr || !mac_ctx) {
+		pe_err("invalid input parameters");
+		return;
+	}
+	vdev = session->vdev;
+	if (!vdev || wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE ||
+	    !qdf_is_macaddr_equal((struct qdf_mac_addr *)session->bssId,
+				  (struct qdf_mac_addr *)bcn_ptr->bssid))
+		return;
+	des_chan = wlan_vdev_mlme_get_des_chan(vdev);
+	if (!des_chan || !IS_WLAN_PHYMODE_EHT(des_chan->ch_phymode))
+		return;
+
+	lim_process_beacon_eht_op(session, &bcn_ptr->eht_op);
+
+	if (mlo_is_mld_sta(vdev))
+		/* handle beacon IE for 802.11be mlo case */
+		lim_process_beacon_mlo(mac_ctx, session, bcn_ptr);
+}
+
+void
+lim_process_ml_reconfig(struct mac_context *mac_ctx,
+			struct pe_session *session,
+			uint8_t *rx_pkt_info)
+{
+	uint8_t *frame;
+	uint16_t frame_len;
+
+	if (!session->vdev)
+		return;
+
+	frame = WMA_GET_RX_MPDU_DATA(rx_pkt_info);
+	frame_len = WMA_GET_RX_PAYLOAD_LEN(rx_pkt_info);
+	if (frame_len < SIR_MAC_B_PR_SSID_OFFSET)
+		return;
+
+	mlo_process_ml_reconfig_ie(session->vdev, NULL,
+				   frame + SIR_MAC_B_PR_SSID_OFFSET,
+				   frame_len - SIR_MAC_B_PR_SSID_OFFSET, NULL);
 }
 #endif
 
@@ -309,6 +401,9 @@ lim_process_beacon_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 	uint8_t *frame;
 	const uint8_t *owe_transition_ie;
 	uint16_t frame_len;
+	uint8_t bpcc;
+	bool cu_flag = true;
+	QDF_STATUS status;
 
 	mac_ctx->lim.gLimNumBeaconsRcvd++;
 
@@ -354,10 +449,17 @@ lim_process_beacon_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 		return;
 	}
 
+	if (mlo_is_mld_sta(session->vdev)) {
+		cu_flag = false;
+		status = lim_get_bpcc_from_mlo_ie(bcn_ptr, &bpcc);
+		if (QDF_IS_STATUS_SUCCESS(status))
+			cu_flag = lim_check_cu_happens(session->vdev, bpcc);
+		lim_process_ml_reconfig(mac_ctx, session, rx_pkt_info);
+	}
+
+	lim_process_bcn_prb_rsp_t2lm(mac_ctx, session, bcn_ptr);
 	if (QDF_IS_STATUS_SUCCESS(lim_check_for_ml_probe_req(session)))
 		goto end;
-
-	lim_process_beacon_eht(mac_ctx, session, bcn_ptr);
 
 	/*
 	 * during scanning, when any session is active, and
@@ -413,6 +515,9 @@ lim_process_beacon_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 		lim_check_and_announce_join_success(mac_ctx, bcn_ptr,
 				mac_hdr, session);
 	}
+
+	if (cu_flag)
+		lim_process_beacon_eht(mac_ctx, session, bcn_ptr);
 end:
 	qdf_mem_free(bcn_ptr);
 	return;

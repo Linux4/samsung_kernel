@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015,2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -38,6 +38,9 @@ typedef uint32_t wlan_cm_id;
 #define DISCONNECT_TIMEOUT \
 	((STOP_RESPONSE_TIMER) + (DELETE_RESPONSE_TIMER) +\
 	 (RSO_STOP_RESPONSE_TIMER) + (1000))
+
+#define CM_DISCONNECT_ASSOC_VDEV_EXTRA_TIMEOUT \
+		(STOP_RESPONSE_TIMER + DELETE_RESPONSE_TIMER)
 
 /*
  * Disconnect command wait timeout VDEV timeouts + 5 sec buff for current active
@@ -134,6 +137,7 @@ struct wlan_fils_con_info {
  * @CM_ROAMING_HOST: Roaming request initiated by host
  * @CM_ROAMING_NUD_FAILURE: Roaming request initiated by NUD failure
  * @CM_ROAMING_FW: Roam req initiated by FW
+ * @CM_ROAMING_LINK_REMOVAL: Roaming request initiate by link removal
  * @CM_OSIF_DISCONNECT: Disconnect req initiated by OSIF or north bound
  * @CM_PEER_DISCONNECT: Disconnect req initiated by peer sending deauth/disassoc
  * only for this localy generated will be false while indicating to kernel
@@ -147,6 +151,9 @@ struct wlan_fils_con_info {
  * @CM_OSIF_CFG_CONNECT: Connect request initiated due to config change
  * @CM_OSIF_CFG_DISCONNECT: Disconnect request initiated due to config change
  * @CM_MLO_LINK_VDEV_DISCONNECT: Disconnect req for ML link
+ * @CM_MLO_LINK_VDEV_CONNECT: Connect req for ML link
+ * @CM_MLO_ROAM_INTERNAL_DISCONNECT: Disconnect req triggered for mlo roaming
+ * @CM_ROAMING_USER: Roaming request initiated by user
  * @CM_SOURCE_MAX: max value of connection manager source
  * @CM_SOURCE_INVALID: Invalid connection manager req source
  */
@@ -155,6 +162,7 @@ enum wlan_cm_source {
 	CM_ROAMING_HOST,
 	CM_ROAMING_NUD_FAILURE,
 	CM_ROAMING_FW,
+	CM_ROAMING_LINK_REMOVAL,
 	CM_OSIF_DISCONNECT,
 	CM_PEER_DISCONNECT,
 	CM_SB_DISCONNECT,
@@ -164,6 +172,9 @@ enum wlan_cm_source {
 	CM_OSIF_CFG_CONNECT,
 	CM_OSIF_CFG_DISCONNECT,
 	CM_MLO_LINK_VDEV_DISCONNECT,
+	CM_MLO_LINK_VDEV_CONNECT,
+	CM_MLO_ROAM_INTERNAL_DISCONNECT,
+	CM_ROAMING_USER,
 	CM_SOURCE_MAX,
 	CM_SOURCE_INVALID = CM_SOURCE_MAX,
 };
@@ -188,7 +199,7 @@ enum wlan_cm_source {
  * for production.
  * @is_wps_connection: if its wps connection
  * @is_osen_connection: if its osen connection
- * @reassoc_in_non_connected: if reassoc received in non connected
+ * @reassoc_in_non_init: if reassoc received in non init state
  * @dot11mode_filter: dot11mode filter used to restrict connection to
  * 11n/11ac/11ax.
  * @sae_pwe: SAE mechanism for PWE derivation
@@ -218,7 +229,7 @@ struct wlan_cm_connect_req {
 	uint8_t force_rsne_override:1,
 		is_wps_connection:1,
 		is_osen_connection:1,
-		reassoc_in_non_connected:1;
+		reassoc_in_non_init:1;
 	enum dot11_mode_filter dot11mode_filter;
 	uint8_t sae_pwe;
 	uint16_t ht_caps;
@@ -364,6 +375,7 @@ struct wlan_cm_vdev_discon_req {
  * @CM_SER_FAILURE: Failed to serialize command
  * @CM_SER_TIMEOUT: Serialization cmd timeout
  * @CM_GENERIC_FAILURE: Generic failure apart from above
+ * @CM_VALID_CANDIDATE_CHECK_FAIL: Valid Candidate Check fail
  */
 enum wlan_cm_connect_fail_reason {
 	CM_NO_CANDIDATE_FOUND,
@@ -380,6 +392,7 @@ enum wlan_cm_connect_fail_reason {
 	CM_SER_FAILURE,
 	CM_SER_TIMEOUT,
 	CM_GENERIC_FAILURE,
+	CM_VALID_CANDIDATE_CHECK_FAIL,
 };
 
 #ifdef WLAN_FEATURE_FILS_SK
@@ -425,12 +438,14 @@ struct fils_connect_rsp_params {
 /**
  * struct connect_rsp_ies - connect rsp ies stored in vdev filled during connect
  * @bcn_probe_rsp: Raw beacon or probe rsp of connected AP
- * @assoc_req: assoc req IE pointer send during conenct
+ * @link_bcn_probe_rsp: Raw beacon or probe rsp of connected non-assoc link
+ * @assoc_req: assoc req IE pointer send during connect
  * @assoc_rsq: assoc rsp IE received during connection
  * @fills_ie: fills connection ie received during connection
  */
 struct wlan_connect_rsp_ies {
 	struct element_info bcn_probe_rsp;
+	struct element_info link_bcn_probe_rsp;
 	struct element_info assoc_req;
 	struct element_info assoc_rsp;
 #ifdef WLAN_FEATURE_FILS_SK

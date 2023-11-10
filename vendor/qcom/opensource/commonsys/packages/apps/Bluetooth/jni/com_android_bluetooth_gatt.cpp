@@ -222,6 +222,7 @@ static jmethodID method_onSyncLost;
 static jmethodID method_onSyncReport;
 static jmethodID method_onSyncStarted;
 static jmethodID method_onSyncTransferredCallback;
+static jmethodID method_onBigInfoReport;
 /**
  * Static variables
  */
@@ -2144,6 +2145,8 @@ static AdvertiseParameters parseParams(JNIEnv* env, jobject i) {
   uint32_t interval = env->CallIntMethod(i, methodId);
   methodId = env->GetMethodID(clazz, "getTxPowerLevel", "()I");
   int8_t txPowerLevel = env->CallIntMethod(i, methodId);
+  methodId = env->GetMethodID(clazz, "getOwnAddressType", "()I");
+  int8_t ownAddressType = env->CallIntMethod(i, methodId);
 
   uint16_t props = 0;
   if (isConnectable) props |= 0x01;
@@ -2164,6 +2167,7 @@ static AdvertiseParameters parseParams(JNIEnv* env, jobject i) {
   p.primary_advertising_phy = primaryPhy;
   p.secondary_advertising_phy = secondaryPhy;
   p.scan_request_notification_enable = false;
+  p.own_address_type = ownAddressType;
   return p;
 }
 
@@ -2415,6 +2419,7 @@ static void periodicScanClassInitNative(JNIEnv* env, jclass clazz) {
   method_onSyncLost = env->GetMethodID(clazz, "onSyncLost", "(I)V");
   method_onSyncTransferredCallback =
       env->GetMethodID(clazz, "onSyncTransferredCallback", "(IILjava/lang/String;)V");
+  method_onBigInfoReport = env->GetMethodID(clazz, "onBigInfoReport", "(IZ)V");
 }
 
 static void periodicScanInitializeNative(JNIEnv* env, jobject object) {
@@ -2482,6 +2487,18 @@ static void onSyncLost(uint16_t sync_handle) {
                                sync_handle);
 }
 
+static void onBigInfoReport(uint16_t sync_handle, bool encrypted) {
+    CallbackEnv sCallbackEnv(__func__);
+    if (!sCallbackEnv.valid()) return;
+    if (!mPeriodicScanCallbacksObj) {
+        ALOGE("mPeriodicScanCallbacksObj is NULL. Return.");
+        return;
+    }
+
+    sCallbackEnv->CallVoidMethod(mPeriodicScanCallbacksObj, method_onBigInfoReport,
+                                 sync_handle, encrypted);
+}
+
 static void startSyncNative(JNIEnv* env, jobject object, jint sid,
                             jstring address, jint skip, jint timeout,
                             jint reg_id) {
@@ -2489,7 +2506,8 @@ static void startSyncNative(JNIEnv* env, jobject object, jint sid,
   sGattIf->scanner->StartSync(sid, str2addr(env, address), skip, timeout,
                               base::Bind(&onSyncStarted, reg_id),
                               base::Bind(&onSyncReport),
-                              base::Bind(&onSyncLost));
+                              base::Bind(&onSyncLost),
+                              base::Bind(&onBigInfoReport));
 }
 
 static void stopSyncNative(JNIEnv* env, jobject object, jint sync_handle) {

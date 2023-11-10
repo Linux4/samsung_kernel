@@ -159,7 +159,6 @@ int arm_smmu_power_on(struct arm_smmu_power_resources *pwr)
 			goto out_disable_clocks;
 	}
 	
-  arm_smmu_debug_power_on(pwr->smmu);
 	pwr->power_count = 1;
 	mutex_unlock(&pwr->power_lock);
 	return 0;
@@ -204,7 +203,6 @@ void arm_smmu_power_off(struct arm_smmu_device *smmu,
 	arm_smmu_lower_interconnect_bw(pwr);
 	pwr->power_count = 0;
 
-	arm_smmu_debug_power_off(smmu);	
 	mutex_unlock(&pwr->power_lock);
 }
 

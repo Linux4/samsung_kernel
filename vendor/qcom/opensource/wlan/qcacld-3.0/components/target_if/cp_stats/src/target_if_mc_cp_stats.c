@@ -1591,7 +1591,7 @@ static QDF_STATUS target_if_cp_stats_send_stats_req(
 	/* only very frequent periodic stats needs to go over QMI.
 	 * for that, wlan_hdd_qmi_get_sync_resume/wlan_hdd_qmi_put_suspend
 	 * needs to be called to cover the period between qmi send and
-	 * qmi resonse.
+	 * qmi response.
 	 */
 	if (TYPE_STATION_STATS == type)
 		param.is_qmi_send_support = true;

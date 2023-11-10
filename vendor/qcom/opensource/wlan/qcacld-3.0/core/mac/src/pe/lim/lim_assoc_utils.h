@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -239,7 +239,7 @@ void lim_update_assoc_sta_datas(struct mac_context *mac,
  * @bss_chan_freq: operating frequency of bss
  * @ht_cap: ht capability extract from beacon/assoc response
  * @ht_inf: ht information extract from beacon/assoc response
- * @chan_width_support: local wide bandwith support capability
+ * @chan_width_support: local wide bandwidth support capability
  * @add_bss: add bss request struct to be updated
  *
  * Return: none

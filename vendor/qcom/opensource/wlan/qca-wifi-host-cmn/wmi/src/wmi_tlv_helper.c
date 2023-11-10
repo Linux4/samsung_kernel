@@ -536,7 +536,7 @@ wmitlv_check_and_pad_tlvs(void *os_handle, void *param_struc_ptr,
 	if (attr_struct_ptr.cmd_num_tlv > g_wmi_static_max_cmd_param_tlvs) {
 		/* Error: Expecting more TLVs that accommodated for static structure  */
 		wmi_tlv_print_error
-			("%s: Error: Expecting more TLVs that accommodated for static structure. Expected:%d Accomodated:%d\n",
+			("%s: Error: Expecting more TLVs that accommodated for static structure. Expected:%d Accommodated:%d\n",
 			__func__, attr_struct_ptr.cmd_num_tlv,
 			g_wmi_static_max_cmd_param_tlvs);
 		return error;
@@ -661,7 +661,9 @@ wmitlv_check_and_pad_tlvs(void *os_handle, void *param_struc_ptr,
 			    || (WMITLV_TAG_ARRAY_BYTE ==
 				attr_struct_ptr.tag_id)
 			    || (WMITLV_TAG_ARRAY_FIXED_STRUC ==
-				attr_struct_ptr.tag_id)) {
+				attr_struct_ptr.tag_id) ||
+				(WMITLV_TAG_ARRAY_INT16 ==
+					attr_struct_ptr.tag_id)) {
 				tlv_size_diff = 0;
 				num_of_elems =
 					curr_tlv_len /
@@ -766,7 +768,7 @@ wmitlv_check_and_pad_tlvs(void *os_handle, void *param_struc_ptr,
 					    (param_buf_len <
 					    buf_idx + curr_tlv_len +
 					    num_padding_bytes * num_of_elems)) {
-						wmi_tlv_print_error("%s: Insufficent buffer\n",
+						wmi_tlv_print_error("%s: Insufficient buffer\n",
 								    __func__);
 						goto
 						Error_wmitlv_check_and_pad_tlvs;
@@ -787,7 +789,7 @@ wmitlv_check_and_pad_tlvs(void *os_handle, void *param_struc_ptr,
 					}
 
 					/* Move subsequent elements of array down by number of
-					 * bytes to be padded for one element and alse set
+					 * bytes to be padded for one element and also set
 					 * padding bytes to zero */
 					tlv_buf_ptr = buf_ptr;
 					for (i = 0; i < num_of_elems - 1; i++) {

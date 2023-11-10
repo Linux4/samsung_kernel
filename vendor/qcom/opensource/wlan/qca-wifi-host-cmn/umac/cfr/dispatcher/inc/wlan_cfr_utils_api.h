@@ -121,6 +121,7 @@ enum cfrradiotype {
 	CFR_CAPTURE_RADIO_KIWI,
 	CFR_CAPTURE_RADIO_MANGO,
 	CFR_CAPTURE_RADIO_MIAMI,
+	CFR_CAPTURE_RADIO_YORK,
 	CFR_CAPTURE_RADIO_MAX = 0xFF,
 };
 
@@ -247,7 +248,7 @@ struct csi_cfr_header {
 
 /**
  * struct cfr_capture_params - structure to store cfr config param
- * bandwidth: bandwitdh of capture
+ * bandwidth: bandwidth of capture
  * period: period of capture
  * method: enum of method being followed to capture cfr data. 0-QoS null data
  */
@@ -435,8 +436,8 @@ struct ta_ra_cfr_cfg {
  * capture_interval: Capture interval field which is time in between
  * consecutive CFR capture, in microsecond units
  * ul_mu_user_mask_lower: Bitfields indicates which of the users in the current
- * UL MU tranmission are enabled for CFR capture.
- * ul_mu_user_mask_upper: This is contiuation of the above lower mask.
+ * UL MU transmission are enabled for CFR capture.
+ * ul_mu_user_mask_upper: This is continuation of the above lower mask.
  * freeze_tlv_delay_cnt_en: Enable Freeze TLV delay counter in MAC
  * freeze_tlv_delay_cnt_thr: Indicates the number of consecutive Rx packets to
  * be skipped before CFR capture is enabled again.
@@ -493,8 +494,8 @@ struct cfr_rcc_param {
 /**
  * struct nl_event_cb - nl event cb for cfr data
  * vdev_id: vdev id
- * pid: PID to which data is sent via unicast nl evnet
- * cfr_nl_cb: callback to send nl evnet
+ * pid: PID to which data is sent via unicast nl event
+ * cfr_nl_cb: callback to send nl event
  */
 struct nl_event_cb {
 	uint8_t vdev_id;

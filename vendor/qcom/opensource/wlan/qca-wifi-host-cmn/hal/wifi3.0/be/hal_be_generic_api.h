@@ -25,7 +25,6 @@
 #include "hal_be_reo.h"
 #include <hal_api_mon.h>
 #include <hal_generic_api.h>
-#include <hal_be_api_mon.h>
 
 /**
  * Debug macro to print the TLV header tag

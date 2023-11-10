@@ -21,7 +21,7 @@
  * Doc: wlan_cp_stats_om_handler.c
  *
  * This file provide definitions to APIs invoked on receiving common object
- * repective create/destroy event notifications, which further
+ * respective create/destroy event notifications, which further
  * (de)allocate cp specific objects and (de)attach to specific
  * common object
  */
@@ -139,7 +139,7 @@ wlan_cp_stats_psoc_obj_destroy_handler(struct wlan_objmgr_psoc *psoc, void *arg)
 		csc->cp_stats_ctx_deinit(csc);
 	qdf_mem_free(csc);
 
-	cp_stats_debug("cp stats context dettached at psoc");
+	cp_stats_debug("cp stats context detached at psoc");
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -226,7 +226,7 @@ wlan_cp_stats_pdev_obj_destroy_handler(struct wlan_objmgr_pdev *pdev, void *arg)
 					      pdev_cs);
 
 	qdf_mem_free(pdev_cs);
-	cp_stats_debug("pdev cp stats object dettached");
+	cp_stats_debug("pdev cp stats object detached");
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -313,7 +313,7 @@ wlan_cp_stats_vdev_obj_destroy_handler(struct wlan_objmgr_vdev *vdev, void *arg)
 					      vdev_cs);
 
 	qdf_mem_free(vdev_cs);
-	cp_stats_debug("vdev cp stats object dettach");
+	cp_stats_debug("vdev cp stats object detach");
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -400,7 +400,7 @@ wlan_cp_stats_peer_obj_destroy_handler(struct wlan_objmgr_peer *peer, void *arg)
 					      peer_cs);
 
 	qdf_mem_free(peer_cs);
-	cp_stats_debug("peer cp stats object dettached");
+	cp_stats_debug("peer cp stats object detached");
 	return QDF_STATUS_SUCCESS;
 }
 

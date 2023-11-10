@@ -60,6 +60,60 @@
 #include <linux/errno.h>
 #include "vl53l8_k_error_converter.h"
 #include "vl53l8_k_error_codes.h"
+#include "vl53l5_platform_log.h"
+
+#ifdef STM_VL53L5_SUPPORT_SEC_CODE
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+#define MAX_ERR_CNT 255
+int vl53l8_hash_func(struct vl53l8_k_module_t *p_module, int err)
+{
+	int hash = 5381;
+	int cnt = 0;
+
+	vl53l8_k_log_error("debug err %d", err);
+	hash = ((((hash << 4) + hash) + err) % (MAX_TABLE-1)) + 1;
+
+	while (cnt++ < MAX_TABLE-1) {
+		if (hash >= MAX_TABLE)
+			return -1;
+		if (p_module->errdata[hash].last_error_code == 0
+			|| err == p_module->errdata[hash].last_error_code)
+			return hash;
+		if (++hash == MAX_TABLE)
+			hash = 1;
+	}
+	return -1;
+}
+
+void vl53l8_error_counter_by_hash(struct vl53l8_k_module_t *p_module, int err)
+{
+	int key = vl53l8_hash_func(p_module, err);
+
+	if (key > 0 && key < MAX_TABLE) {
+		p_module->errdata[key].last_error_code = err;
+		if (p_module->errdata[key].last_error_cnt < MAX_ERR_CNT)
+			p_module->errdata[key].last_error_cnt++;
+		return;
+	}
+	vl53l8_k_log_error("key err %d", key);
+}
+
+void vl53l8_last_error_counter(struct vl53l8_k_module_t *p_module, int err)
+{
+	if (err == VL53L8_DELAYED_LOAD_FIRMWARE)
+		return;
+
+	if (err < -2000 || err >= 0)
+		return;
+
+	if (p_module->ldo_status != 0)
+		err = -1000 - p_module->ldo_status;
+
+	vl53l8_error_counter_by_hash(p_module, err);
+}
+#endif
+#endif
+
 
 void vl53l8_k_store_error(struct vl53l8_k_module_t *p_module,
 			  int32_t vl53l8_k_error)
@@ -70,7 +124,7 @@ void vl53l8_k_store_error(struct vl53l8_k_module_t *p_module,
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 	if (p_module->last_driver_error != VL53L8_PROBE_FAILED)
 		p_module->last_driver_error = vl53l8_k_error;
-#endif	
+#endif
 }
 
 int32_t vl53l8_k_convert_error_to_linux_error(int32_t vl53l8_k_error)

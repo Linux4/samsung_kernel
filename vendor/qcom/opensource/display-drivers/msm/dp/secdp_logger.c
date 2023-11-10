@@ -40,6 +40,8 @@ static unsigned int g_curpos;
 static int is_secdp_logger_init;
 static int is_buf_full;
 static int log_max_count = -1;
+static unsigned int max_mode_count;
+static struct mutex dplog_lock;
 static struct proc_dir_entry *g_entry;
 
 static void dp_logger_print_date_time(void)
@@ -66,33 +68,22 @@ void secdp_logger_set_max_count(int count)
 	dp_logger_print_date_time();
 }
 
-void secdp_logger_print(const char *fmt, ...)
+static void _secdp_logger_print(const char *fmt, va_list args)
 {
 	int len;
-	va_list args;
 	char buf[MAX_STR_LEN] = {0, };
 	u64 time;
 	unsigned long nsec;
 	volatile unsigned int curpos;
 
-	if (!is_secdp_logger_init)
-		return;
-
-	if (!log_max_count)
-		return;
-
-	if (log_max_count > 0)
-		log_max_count--;
+	mutex_lock(&dplog_lock);
 
 	time = local_clock();
 	nsec = do_div(time, 1000000000);
 	len = snprintf(buf, sizeof(buf), "[%5lu.%06ld] ",
 			(unsigned long)time, nsec / 1000);
 
-	va_start(args, fmt);
 	len += vsnprintf(buf + len, MAX_STR_LEN - len, fmt, args);
-	va_end(args);
-
 	if (len > MAX_STR_LEN)
 		len = MAX_STR_LEN;
 
@@ -103,6 +94,56 @@ void secdp_logger_print(const char *fmt, ...)
 	}
 	memcpy(log_buf + curpos, buf, len);
 	g_curpos += len;
+
+	mutex_unlock(&dplog_lock);
+}
+
+void secdp_logger_print(const char *fmt, ...)
+{
+	va_list args;
+
+	if (!is_secdp_logger_init)
+		return;
+
+	if (!log_max_count)
+		return;
+
+	if (log_max_count > 0)
+		log_max_count--;
+
+	va_start(args, fmt);
+	_secdp_logger_print(fmt, args);
+	va_end(args);
+}
+
+/* set max num of modes print */
+void secdp_logger_set_mode_max_count(unsigned int num)
+{
+	max_mode_count = num + 1;
+}
+
+void secdp_logger_dec_mode_count(void)
+{
+	if (!is_secdp_logger_init)
+		return;
+
+	if (max_mode_count > 0)
+		max_mode_count--;
+}
+
+void secdp_logger_print_mode(const char *fmt, ...)
+{
+	va_list args;
+
+	if (!is_secdp_logger_init)
+		return;
+
+	if (!max_mode_count)
+		return;
+
+	va_start(args, fmt);
+	_secdp_logger_print(fmt, args);
+	va_end(args);
 }
 
 void secdp_logger_hex_dump(void *buf, void *pref, size_t size)
@@ -170,11 +211,13 @@ static ssize_t secdp_logger_read(struct file *file, char __user *buf,
 #if KERNEL_VERSION(5, 6, 0) <= LINUX_VERSION_CODE
 static const struct proc_ops secdp_logger_ops = {
 	.proc_read = secdp_logger_read,
+	.proc_lseek = default_llseek,
 };
 #else
 static const struct file_operations secdp_logger_ops = {
 	.owner = THIS_MODULE,
 	.read = secdp_logger_read,
+	.llseek = default_llseek,
 };
 #endif
 
@@ -195,6 +238,7 @@ int secdp_logger_init(void)
 	is_secdp_logger_init = 1;
 	g_entry = entry;
 
+	mutex_init(&dplog_lock);
 	secdp_logger_print("dp logger init ok\n");
 	return 0;
 }
@@ -207,4 +251,7 @@ void secdp_logger_deinit(void)
 	proc_remove(g_entry);
 	is_secdp_logger_init = 0;
 	g_entry = NULL;
+
+	mutex_destroy(&dplog_lock);
+	secdp_logger_print("dp logger deinit ok\n");
 }

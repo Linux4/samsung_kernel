@@ -20,6 +20,7 @@
 #include <linux/property.h>
 #include <linux/spinlock.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/suspend.h>
 
 #include "coresight-priv.h"
 #include "coresight-cti.h"
@@ -108,7 +109,6 @@ static int cti_enable_hw(struct cti_drvdata *drvdata)
 	struct device *dev = &drvdata->csdev->dev;
 	unsigned long flags;
 	int rc = 0;
-
 	rc = pm_runtime_get_sync(dev->parent);
 	if (rc < 0) {
 		pm_runtime_put_noidle(dev->parent);
@@ -990,6 +990,7 @@ static void cti_remove(struct amba_device *adev)
 	struct cti_drvdata *drvdata = dev_get_drvdata(&adev->dev);
 
 	mutex_lock(&ect_mutex);
+	cti_disable_hw(drvdata);
 	cti_remove_conn_xrefs(drvdata);
 	mutex_unlock(&ect_mutex);
 
@@ -1081,12 +1082,11 @@ static int cti_probe(struct amba_device *adev, const struct amba_id *id)
 	/* default to powered - could change on PM notifications */
 	drvdata->config.hw_powered = true;
 
-	/* set up device name - will depend if cpu bound or otherwise */
-	if (drvdata->ctidev.cpu >= 0)
-		cti_desc.name = devm_kasprintf(dev, GFP_KERNEL, "cti_cpu%d",
-					       drvdata->ctidev.cpu);
-	else
-		cti_desc.name = coresight_alloc_device_name(&cti_sys_devs, dev);
+	/* skip cpu cti probe if the corresponding cpu is not ready */
+	if (drvdata->ctidev.cpu == -ENODEV)
+		return -ENXIO;
+
+	cti_desc.name = coresight_alloc_device_name(&cti_sys_devs, dev);
 	if (!cti_desc.name)
 		return -ENOMEM;
 
@@ -1142,6 +1142,72 @@ pm_release:
 	return ret;
 }
 
+#ifdef CONFIG_DEEPSLEEP
+static int cti_suspend(struct device *dev)
+{
+	int rc = 0;
+	struct cti_drvdata *drvdata = dev_get_drvdata(dev);
+
+	if (pm_suspend_via_firmware()
+		&& drvdata->config.hw_enabled) {
+		drvdata->config.hw_enabled_store = drvdata->config.hw_enabled;
+		rc = cti_disable(drvdata->csdev);
+	}
+	return rc;
+}
+
+static int cti_resume(struct device *dev)
+{
+	int rc = 0;
+	struct cti_drvdata *drvdata = dev_get_drvdata(dev);
+
+	if (pm_suspend_via_firmware()
+		&& drvdata->config.hw_enabled_store) {
+		rc = cti_enable(drvdata->csdev);
+		drvdata->config.hw_enabled_store = false;
+	}
+	return rc;
+}
+#endif
+
+#ifdef CONFIG_HIBERNATION
+static int cti_freeze(struct device *dev)
+{
+	int rc = 0;
+	struct cti_drvdata *drvdata = dev_get_drvdata(dev);
+
+	if (drvdata->config.hw_enabled) {
+		drvdata->config.hw_enabled_store = drvdata->config.hw_enabled;
+		rc = cti_disable(drvdata->csdev);
+	}
+
+	return rc;
+}
+
+static int cti_restore(struct device *dev)
+{
+	int rc = 0;
+	struct cti_drvdata *drvdata = dev_get_drvdata(dev);
+
+	if (drvdata->config.hw_enabled_store) {
+		rc = cti_enable(drvdata->csdev);
+		drvdata->config.hw_enabled_store = false;
+	}
+
+	return rc;
+}
+#endif
+
+static const struct dev_pm_ops cti_dev_pm_ops = {
+#ifdef CONFIG_DEEPSLEEP
+	.suspend = cti_suspend,
+	.resume  = cti_resume,
+#endif
+#ifdef CONFIG_HIBERNATION
+	.freeze  = cti_freeze,
+	.restore = cti_restore,
+#endif
+};
 static struct amba_cs_uci_id uci_id_cti[] = {
 	{
 		/*  CTI UCI data */
@@ -1167,6 +1233,7 @@ static struct amba_driver cti_driver = {
 	.drv = {
 		.name	= "coresight-cti",
 		.owner = THIS_MODULE,
+		.pm     = &cti_dev_pm_ops,
 		.suppress_bind_attrs = true,
 	},
 	.probe		= cti_probe,

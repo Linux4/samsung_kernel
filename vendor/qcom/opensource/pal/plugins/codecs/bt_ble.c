@@ -65,7 +65,8 @@ static int ble_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     enc_payload->sample_rate    = ble_bt_cfg->enc_cfg.toAirConfig.sampling_freq;
     enc_payload->num_blks       = num_blks;
     if (ble_bt_cfg->enc_cfg.stream_map_size) {
-        if (1 == ble_bt_cfg->enc_cfg.stream_map_size)
+        if ((1 == ble_bt_cfg->enc_cfg.stream_map_size) &&
+            (ble_bt_cfg->enc_cfg.streamMapOut[0].audio_location != 3))
             enc_payload->channel_count = CH_MONO;
         else
             enc_payload->channel_count = CH_STEREO;

@@ -83,6 +83,10 @@
 #include <log_utils.h>
 #endif
 
+// { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+#include <system/audiofw_feature.h>
+// } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+
 #define DEVICE_RX 0
 #define DEVICE_TX 1
 #define FILE_PATH_EXTN_MAX_SIZE 80
@@ -331,7 +335,7 @@ static int get_acdb_path(void)
 		{"OLM", "ODM"};
 
     /* Populate acdbfiles from the carrier path */
-    property_get("ro.csc.omcnw_code", carrier, "");
+    property_get("ro.csc.sales_code", carrier, "");
 
     ret = snprintf(acdb_path, ACDB_PATH_MAX_LENGTH,
 		"%s%s", AUDCONF_PATH, carrier);
@@ -602,6 +606,7 @@ int graph_open(struct agm_meta_data_gsl *meta_data_kv,
     size_t arraysize = 0;
     module_info_t *stream_module_list = NULL;
     module_info_t *hw_ep_module = NULL;
+    module_info_t *add_module = NULL;
 
     list_declare(node_sess);
     list_init(&node_sess);
@@ -680,10 +685,16 @@ int graph_open(struct agm_meta_data_gsl *meta_data_kv,
                         goto free_graph_obj;
                     }
                     mod = mod_list->data;
-                    mod->miid = gsl_tag_entry->module_entry[0].module_iid;
-                    mod->mid = gsl_tag_entry->module_entry[0].module_id;
-                    AGM_LOGD("miid %x mid %x tag %x", mod->miid, mod->mid, mod->tag);
-                    ADD_MODULE(*mod, NULL);
+                    add_module = ADD_MODULE(*mod, NULL);
+                    if (!add_module) {
+                        AGM_LOGE("no memory to allocate add_module");
+                        ret = -ENOMEM;
+                        goto free_graph_obj;
+                    }
+                    add_module->miid = gsl_tag_entry->module_entry[0].module_iid;
+                    add_module->mid = gsl_tag_entry->module_entry[0].module_id;
+                    add_module->gkv = NULL;
+                    AGM_LOGD("miid %x mid %x tag %x", add_module->miid, add_module->mid, add_module->tag);
                     goto tag_list;
                 }
             }
@@ -705,8 +716,14 @@ int graph_open(struct agm_meta_data_gsl *meta_data_kv,
                         goto free_graph_obj;
                     }
                     mod = mod_list->data;
-                    mod->miid = gsl_tag_entry->module_entry[0].module_iid;
-                    mod->mid = gsl_tag_entry->module_entry[0].module_id;
+                    add_module = ADD_MODULE(*mod, dev_obj);
+                    if (!add_module) {
+                        AGM_LOGE("no memory to allocate add_module");
+                        ret = -ENOMEM;
+                        goto free_graph_obj;
+                    }
+                    add_module->miid = gsl_tag_entry->module_entry[0].module_iid;
+                    add_module->mid = gsl_tag_entry->module_entry[0].module_id;
                     /*store GKV which describes/contains this module*/
                     gkv = calloc(1, sizeof(struct agm_key_vector_gsl));
                     if (!gkv) {
@@ -724,9 +741,8 @@ int graph_open(struct agm_meta_data_gsl *meta_data_kv,
                     }
                     memcpy(gkv->kv, meta_data_kv->gkv.kv,
                           gkv->num_kvs * sizeof(struct agm_key_value));
-                    mod->gkv = gkv;
-                    AGM_LOGD("miid %x mid %x tag %x", mod->miid, mod->mid, mod->tag);
-                    ADD_MODULE(*mod, dev_obj);
+                    add_module->gkv = gkv;
+                    AGM_LOGD("miid %x mid %x tag %x", add_module->miid, add_module->mid, add_module->tag);
                     goto tag_list;
                 }
             }
@@ -983,6 +999,9 @@ int graph_stop(struct graph_obj *graph_obj,
     }
 
     if (meta_data) {
+#ifdef AGM_DEBUG_METADATA
+        metadata_print(meta_data);
+#endif
         memcpy (&(gsl_cmd_prop.gkv), &(meta_data->gkv),
                                        sizeof(struct gsl_key_vector));
         gsl_cmd_prop.property_id = meta_data->sg_props.prop_id;
@@ -1250,7 +1269,7 @@ int graph_rw_acdb_param(void *payload, bool is_param_write)
     size_t size = 0;
     struct gsl_tag_module_info *tag_info;
     struct gsl_tag_module_info_entry *tag_entry;
-    uint32_t offset = 0;
+    uint32_t offset = 0, temp_sum = 0;
     uint32_t total_parsed_size = 0;
     uint8_t tag_pool[TAGGED_MOD_SIZE_BYTES] = { 0 };
 
@@ -1332,9 +1351,10 @@ int graph_rw_acdb_param(void *payload, bool is_param_write)
         payloadACDBTunnelInfo->num_gkvs * sizeof(struct agm_key_value);
 
     AGM_LOGD("blob size = %d", payloadACDBTunnelInfo->blob_size);
-    actual_size = payloadACDBTunnelInfo->blob_size -
-        (payloadACDBTunnelInfo->num_gkvs + payloadACDBTunnelInfo->num_kvs) *
-                sizeof(struct agm_key_value);
+    __builtin_add_overflow(payloadACDBTunnelInfo->num_gkvs * sizeof(struct agm_key_value),
+            payloadACDBTunnelInfo->num_kvs * sizeof(struct agm_key_value),
+            &temp_sum);
+    __builtin_sub_overflow(payloadACDBTunnelInfo->blob_size, temp_sum, &actual_size);
     AGM_LOGD("actual size = 0x%x", actual_size);
     AGM_LOGI("num kvs = %d", kv.num_kvs);
     ptr = kv.kv;
@@ -1521,6 +1541,7 @@ int graph_add(struct graph_obj *graph_obj,
         bool mod_present = false;
         size_t arraysize;
         module_info_t *hw_ep_module = NULL;
+        module_info_t *add_module = NULL;
 
         get_hw_ep_module_list_array(&hw_ep_module, &arraysize);
         if (dev_obj->hw_ep_info.dir == AUDIO_OUTPUT)
@@ -1538,8 +1559,6 @@ int graph_add(struct graph_obj *graph_obj,
                           mod->tag);
             goto done;
         }
-        mod->miid = module_info->module_entry[0].module_iid;
-        mod->mid = module_info->module_entry[0].module_id;
         /**
          *Check if this is the same device object as was passed for graph open
          *or a new one.We do this by comparing the module_iid of the module
@@ -1548,7 +1567,7 @@ int graph_add(struct graph_obj *graph_obj,
          */
         list_for_each(node, &graph_obj->tagged_mod_list) {
             temp_mod = node_to_item(node, module_info_t, list);
-            if (temp_mod->miid == mod->miid) {
+            if (temp_mod->miid == module_info->module_entry[0].module_iid) {
                 mod_present = true;
                 /**
                  * Module might have configured previously as we don't reset in
@@ -1565,6 +1584,14 @@ int graph_add(struct graph_obj *graph_obj,
              */
             /*Make a local copy of gkv and use when we query gsl
             for tagged data*/
+            add_module = ADD_MODULE(*mod, dev_obj);
+            if (!add_module) {
+                AGM_LOGE("no memory to allocate add_module");
+                ret = -ENOMEM;
+                goto done;
+            }
+            add_module->miid = module_info->module_entry[0].module_iid;
+            add_module->mid = module_info->module_entry[0].module_id;
             gkv = calloc(1, sizeof(struct agm_key_vector_gsl));
             if (!gkv) {
                 AGM_LOGE("No memory to allocate for gkv\n");
@@ -1581,11 +1608,10 @@ int graph_add(struct graph_obj *graph_obj,
             }
             memcpy(gkv->kv, meta_data_kv->gkv.kv,
                     gkv->num_kvs * sizeof(struct agm_key_value));
-            mod->gkv = gkv;
+            add_module->gkv = gkv;
             gkv = NULL;
             AGM_LOGD("Adding the new module tag %x mid %x miid %x\n",
-                                    mod->tag, mod->mid, mod->miid);
-            ADD_MODULE(*mod, dev_obj);
+                    add_module->tag, add_module->mid, add_module->miid);
         }
     }
     /* Configure the newly added modules only if graph is in start state,
@@ -2320,6 +2346,11 @@ static bool is_media_config_needed_on_datapath(enum agm_media_format format)
     case AGM_FORMAT_WMAPRO:
         ret = true;
         break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    case AGM_FORMAT_OPUS:
+        ret = true;
+        break;
+#endif
     default:
         AGM_LOGE("Entered default, format %d", format);
         break;

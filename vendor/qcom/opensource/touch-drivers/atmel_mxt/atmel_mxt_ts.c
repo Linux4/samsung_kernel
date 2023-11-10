@@ -37,6 +37,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
+#include <linux/version.h>
 
 #ifdef CONFIG_DRM
 #include <drm/drm_panel.h>
@@ -3881,6 +3882,22 @@ err_disable_regulator:
 	return error;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static void mxt_remove(struct i2c_client *client)
+{
+	struct mxt_data *data = i2c_get_clientdata(client);
+
+#ifdef CONFIG_DRM
+	if (active_panel && data->notifier_cookie)
+		panel_event_notifier_unregister(data->notifier_cookie);
+#endif
+	disable_irq(data->irq);
+	mxt_regulator_disable(data);
+	sysfs_remove_group(&client->dev.kobj, &mxt_attr_group);
+	mxt_free_input_device(data);
+	mxt_free_object_table(data);
+}
+#else
 static int mxt_remove(struct i2c_client *client)
 {
 	struct mxt_data *data = i2c_get_clientdata(client);
@@ -3897,6 +3914,7 @@ static int mxt_remove(struct i2c_client *client)
 
 	return 0;
 }
+#endif
 
 static int __maybe_unused mxt_suspend(struct device *dev)
 {

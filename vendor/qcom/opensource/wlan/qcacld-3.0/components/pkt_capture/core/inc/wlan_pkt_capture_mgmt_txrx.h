@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -86,7 +86,7 @@ pkt_capture_mgmt_tx_completion(struct wlan_objmgr_pdev *pdev,
  * @psoc: psoc context
  * @is_register: register if true, unregister if false
  *
- * This funciton registers or deregisters rx callback
+ * This function registers or deregisters rx callback
  * to mgmt txrx component.
  *
  * Return: QDF_STATUS

@@ -80,13 +80,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <LocationApiMsg.h>
 
 #include <LocHalDaemonClientHandler.h>
-
-#ifdef NO_UNORDERED_SET_OR_MAP
-    #include <map>
-    #define unordered_map map
-#else
-    #include <unordered_map>
-#endif
+#include <unordered_map>
 
 #undef LOG_TAG
 #define LOG_TAG "LocSvc_HalDaemon"
@@ -282,7 +276,7 @@ private:
     void onResponseCb(LocationError err, uint32_t id);
     void onCollectiveResponseCallback(size_t count, LocationError *errs, uint32_t *ids);
     void onGtpWwanTrackingCallback(Location location);
-    void onGnssLocationInfoCb(GnssLocationInfoNotification notification);
+    void onGnssLocationInfoCb(const GnssLocationInfoNotification& notification);
 
     // Location configuration API requests
     void configConstrainedTunc(

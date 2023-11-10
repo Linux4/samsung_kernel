@@ -39,6 +39,16 @@ static __always_inline struct device *__enh_boot_time_proc_to_dev(
 	return drvdata->bd.dev;
 }
 
+static __always_inline u32 __boot_stat_hash(const char *val)
+{
+	u32 hash = 0;
+
+	while (*val++)
+		hash += (u32)*val;
+
+	return hash;
+}
+
 /* sec_boot_stata_main.c */
 extern unsigned long long sec_boot_stat_ktime_to_time(unsigned long long ktime);
 

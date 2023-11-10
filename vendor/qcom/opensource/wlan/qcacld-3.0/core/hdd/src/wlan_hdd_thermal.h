@@ -30,19 +30,20 @@
 
 
 /**
- * enum hdd_thermal_states   - The various thermal states as supported by WLAN
- * @HDD_THERMAL_STATE_NONE   - The normal working state
- * @HDD_THERMAL_STATE_LIGHT  - Intermediate states, WLAN must perform partial
- *                             mitigation
- * @HDD_THERMAL_STATE_MODERATE - Intermediate states, WLAN must perform partial
- *                               mitigation
- * @HDD_THERMAL_STATE_SEVERE - Intermediate states, WLAN must perform partial
- *                             mitigation
- * @HDD_THERMAL_STATE_CRITICAL - Intermediate states, WLAN must perform partial
- *                               mitigation
- * @HDD_THERMAL_STATE_EMERGENCY - The highest state, WLAN must enter forced
- *                                IMPS and will disconnect any active STA
- *                                connection
+ * enum hdd_thermal_states - The various thermal states as supported by WLAN
+ * @HDD_THERMAL_STATE_NONE: The normal working state
+ * @HDD_THERMAL_STATE_LIGHT: Intermediate states, WLAN must perform partial
+ *                           mitigation
+ * @HDD_THERMAL_STATE_MODERATE: Intermediate states, WLAN must perform partial
+ *                              mitigation
+ * @HDD_THERMAL_STATE_SEVERE: Intermediate states, WLAN must perform partial
+ *                            mitigation
+ * @HDD_THERMAL_STATE_CRITICAL: Intermediate states, WLAN must perform partial
+ *                              mitigation
+ * @HDD_THERMAL_STATE_EMERGENCY: The highest state, WLAN must enter forced
+ *                               IMPS and will disconnect any active STA
+ *                               connection
+ * @HDD_THERMAL_STATE_INVAL: Placeholder for invalid/unknown state
  */
 enum hdd_thermal_states {
 	HDD_THERMAL_STATE_NONE = 0,
@@ -81,7 +82,7 @@ bool wlan_hdd_thermal_config_support(void);
  * hdd_restore_thermal_mitigation_config - Restore the saved thermal config
  * @hdd_ctx: HDD context
  *
- * Restore the thermal mitigation config afetr SSR.
+ * Restore the thermal mitigation config after SSR.
  *
  * Return: QDF_STATUS
  */
@@ -163,7 +164,7 @@ hdd_send_thermal_mitigation_val(struct hdd_context *hdd_ctx, uint32_t level,
 #ifdef FEATURE_WPSS_THERMAL_MITIGATION
 /**
  * hdd_thermal_fill_clientid_priority() - fill the client id/priority
- * @hdd_ctx: pointer to hdd contex structure
+ * @hdd_ctx: pointer to hdd context structure
  * @mon_id: Thermal monitor id ie.. apps or wpss
  * @priority_apps: Priority of the apps client to be considered
  * @priority_wpps: Priority of the wpps client to be considered

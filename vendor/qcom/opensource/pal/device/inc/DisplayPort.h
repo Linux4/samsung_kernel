@@ -69,6 +69,7 @@
 #include "PalDefs.h"
 #include "ResourceManager.h"
 #include <system/audio.h>
+#include <media_fmt_api_basic.h>
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
@@ -84,44 +85,6 @@
 #define MAX_DISPLAY_DEVICES             3
 #define MAX_FRAME_BUFFER_NAME_SIZE      80
 #define MAX_CHAR_PER_INT                13
-
-#define PCM_CHANNEL_FL    1  /* Front left channel.                           */
-#define PCM_CHANNEL_FR    2  /* Front right channel.                          */
-#define PCM_CHANNEL_FC    3  /* Front center channel.                         */
-#define PCM_CHANNEL_LS    4  /* Left surround channel.                        */
-#define PCM_CHANNEL_RS    5  /* Right surround channel.                       */
-#define PCM_CHANNEL_LFE   6  /* Low frequency effect channel.                 */
-#define PCM_CHANNEL_CS    7  /* Center surround channel; Rear center channel. */
-#define PCM_CHANNEL_LB    8  /* Left back channel; Rear left channel.         */
-#define PCM_CHANNEL_RB    9  /* Right back channel; Rear right channel.       */
-#define PCM_CHANNEL_TS   10  /* Top surround channel.                         */
-#define PCM_CHANNEL_CVH  11  /* Center vertical height channel.               */
-#define PCM_CHANNEL_MS   12  /* Mono surround channel.                        */
-#define PCM_CHANNEL_FLC  13  /* Front left of center.                         */
-#define PCM_CHANNEL_FRC  14  /* Front right of center.                        */
-#define PCM_CHANNEL_RLC  15  /* Rear left of center.                          */
-#define PCM_CHANNEL_RRC  16  /* Rear right of center.                         */
-#define PCM_CHANNEL_LFE2 17  /* Second low frequency channel.                 */
-#define PCM_CHANNEL_SL   18  /* Side left channel.                            */
-#define PCM_CHANNEL_SR   19  /* Side right channel.                           */
-#define PCM_CHANNEL_TFL  20  /* Top front left channel.                       */
-#define PCM_CHANNEL_LVH  20  /* Left vertical height channel.                 */
-#define PCM_CHANNEL_TFR  21  /* Top front right channel.                      */
-#define PCM_CHANNEL_RVH  21  /* Right vertical height channel.                */
-#define PCM_CHANNEL_TC   22  /* Top center channel.                           */
-#define PCM_CHANNEL_TBL  23  /* Top back left channel.                        */
-#define PCM_CHANNEL_TBR  24  /* Top back right channel.                       */
-#define PCM_CHANNEL_TSL  25  /* Top side left channel.                        */
-#define PCM_CHANNEL_TSR  26  /* Top side right channel.                       */
-#define PCM_CHANNEL_TBC  27  /* Top back center channel.                      */
-#define PCM_CHANNEL_BFC  28  /* Bottom front center channel.                  */
-#define PCM_CHANNEL_BFL  29  /* Bottom front left channel.                    */
-#define PCM_CHANNEL_BFR  30  /* Bottom front right channel.                   */
-#define PCM_CHANNEL_LW   31  /* Left wide channel.                            */
-#define PCM_CHANNEL_RW   32  /* Right wide channel.                           */
-#define PCM_CHANNEL_LSD  33  /* Left side direct channel.                     */
-#define PCM_CHANNEL_RSD  34  /* Right side direct channel.                    */
-
 #define MAX_HDMI_CHANNEL_CNT 8
 
 #define EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE      0x30

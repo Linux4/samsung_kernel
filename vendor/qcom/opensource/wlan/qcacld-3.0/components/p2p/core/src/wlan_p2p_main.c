@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -553,6 +553,8 @@ static QDF_STATUS p2p_object_init_params(
 			cfg_get(psoc, CFG_P2P_DEVICE_ADDRESS_ADMINISTRATED);
 	p2p_soc_obj->param.is_random_seq_num_enabled =
 			cfg_get(psoc, CFG_ACTION_FRAME_RANDOM_SEQ_NUM_ENABLED);
+	p2p_soc_obj->param.indoor_channel_support =
+				cfg_get(psoc, CFG_P2P_GO_ON_INDOOR_CHANNEL);
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -725,7 +727,7 @@ QDF_STATUS p2p_psoc_object_open(struct wlan_objmgr_psoc *soc)
 	p2p_soc_obj = wlan_objmgr_psoc_get_comp_private_obj(soc,
 			WLAN_UMAC_COMP_P2P);
 	if (!p2p_soc_obj) {
-		p2p_err("p2p soc priviate object is NULL");
+		p2p_err("p2p soc private object is NULL");
 		return QDF_STATUS_E_FAILURE;
 	}
 

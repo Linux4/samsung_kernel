@@ -128,6 +128,7 @@ typedef int (*audio_sink_close_t)(void);
 typedef void (*audio_get_dynamic_bitrate_t)(void (*bitrate_cback)(uint32_t bitrate));
 //typedef void (tpeer_mtu_cback)(int mtu);
 typedef void (*audio_get_peer_mtu_t)(void (*peer_mtu_cback)(uint32_t mtu));
+typedef void (*audio_get_lc3_mono_mode_t)(void (*mono_mode_cback)(bool is_lc3_mono_mode)); // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
 #endif
 
 // Abstract base class
@@ -155,6 +156,7 @@ protected:
     int                        abrRefCnt;
     std::mutex                 mAbrMutex;
     int                        totalActiveSessionRequests;
+    bool                       isLc3MonoChanged; // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
 
 #if defined(SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD) && !defined(QCA_OFFLOAD)
     void set_a2dp_suspend(int a2dp_suspend);
@@ -173,6 +175,10 @@ protected:
 
 public:
     int getCodecConfig(struct pal_media_config *config) override;
+// SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+    void setLc3MonoMode(bool mode);
+    void setLc3MonoUpdated(bool mode);
+// SS_BT_LEA - MB_021 : END
     virtual ~Bluetooth();
 };
 
@@ -231,6 +237,7 @@ private:
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
     static audio_get_dynamic_bitrate_t          audio_get_dynamic_bitrate;
     static audio_get_peer_mtu_t                 audio_get_peer_mtu;
+    static audio_get_lc3_mono_mode_t            audio_get_lc3_mono_mode; // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
 #endif
     /* member variables */
     uint8_t         a2dpRole;  // source or sink
@@ -299,6 +306,12 @@ protected:
     static audio_lc3_codec_cfg_t lc3CodecInfo;
     static bool isNrecEnabled;
     int startSwb();
+// SS_BT_HFP - H_127 : RVP
+#ifdef SEC_AUDIO_BLUETOOTH
+    static int rvpMode;
+    int startRvp();
+#endif
+// SS_BT_HFP - H_127 end
 
 public:
     int start();

@@ -139,6 +139,21 @@ void set_led_mode(int led_curr)
 	s2mpb02_led_en(led_mode, led_curr, S2MPB02_LED_TURN_WAY_GPIO);
 #elif IS_ENABLED(CONFIG_LEDS_KTD2692)
 	ktd2692_led_mode_ctrl(led_mode, led_curr);
+#elif IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	if (led_curr)
+		aw36518_enable_flicker(led_curr, true);
+	else
+		aw36518_enable_flicker(0, false);
+#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH) && IS_ENABLED(CONFIG_SENSORS_STK6D2X)
+	if(led_curr) {
+		qti_flash_led_set_strobe_sel(switch3_trigger, 1); 
+		led_trigger_event(torch2_trigger, led_curr/2);
+		led_trigger_event(torch3_trigger, led_curr/2);
+		led_trigger_event(switch3_trigger, 1);
+	} else {
+		qti_flash_led_set_strobe_sel(switch3_trigger, 0);
+		led_trigger_event(switch3_trigger, 0);
+	}
 #endif
 }
 
@@ -150,6 +165,10 @@ void als_eol_set_env(bool torch, int intensity)
 #elif IS_ENABLED(CONFIG_LEDS_KTD2692)
 	led_curr = 1400;
 	led_mode = KTD2692_FLICKER_FLASH_MODE;
+#elif IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	led_curr = intensity;
+#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH)
+	led_curr = intensity;
 #endif
 	printk(KERN_INFO "%s - gpio:%d intensity:%d(%d) led_mode:%d",
 		__func__, gpio_torch, intensity, led_curr, led_mode);
@@ -203,7 +222,7 @@ struct result_data* als_eol_mode(void)
 
 		if (data->eol_state >= EOL_STATE_100) {
 			if (curr_state != data->eol_state) {
-#if IS_ENABLED(CONFIG_LEDS_KTD2692)
+#if IS_ENABLED(CONFIG_LEDS_KTD2692) || IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
 				if(ret >= 0) {
 					gpio_free(gpio_torch);
 				}
@@ -211,7 +230,7 @@ struct result_data* als_eol_mode(void)
 				set_led_mode(led_curr);
 				curr_state = data->eol_state;
 
-#if IS_ENABLED(CONFIG_LEDS_KTD2692)
+#if IS_ENABLED(CONFIG_LEDS_KTD2692) || IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
 				ret = gpio_request(gpio_torch, NULL);
 				if (ret < 0)
 					break;
@@ -302,7 +321,15 @@ static int __init als_eol_init(void)
 	ret = als_eol_parse_dt();
 	if (ret < 0) {
 		printk(KERN_ERR "%s - dt parse fail!", __func__);
+		return ret;
 	}
+
+#if !IS_ENABLED(CONFIG_LEDS_S2MPB02) && !IS_ENABLED(CONFIG_LEDS_KTD2692) && IS_ENABLED(CONFIG_LEDS_QTI_FLASH) \
+	&& IS_ENABLED(CONFIG_SENSORS_STK6D2X) && !IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	led_trigger_register_simple("torch2_trigger", &torch2_trigger);
+	led_trigger_register_simple("torch3_trigger", &torch3_trigger);
+	led_trigger_register_simple("switch3_trigger", &switch3_trigger);
+#endif
 
 	return ret;
 }
@@ -310,6 +337,13 @@ static int __init als_eol_init(void)
 static void __exit als_eol_exit(void)
 {
 	printk(KERN_INFO "%s - EOL_TEST Module exit\n", __func__);
+
+#if !IS_ENABLED(CONFIG_LEDS_S2MPB02) && !IS_ENABLED(CONFIG_LEDS_KTD2692) && IS_ENABLED(CONFIG_LEDS_QTI_FLASH) \
+	&& IS_ENABLED(CONFIG_SENSORS_STK6D2X) && !IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	led_trigger_unregister_simple(torch2_trigger);
+	led_trigger_unregister_simple(torch3_trigger);
+	led_trigger_unregister_simple(switch3_trigger);
+#endif
 
 	if(data) {
 		kfree(data);

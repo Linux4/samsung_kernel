@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -83,7 +84,7 @@ qdf_dentry_t qdf_streamfs_create_file(const char *name, uint16_t mode,
 				      qdf_streamfs_chan_buf_t buf);
 
 /**
- * qdf_streamfs_open() - Create streamfs channel for data trasfer
+ * qdf_streamfs_open() - Create streamfs channel for data transfer
  * @base_filename: base name of files to create, %NULL for buffering only
  * @parent: dentry of parent directory, %NULL for root directory
  * @subbuf_size: size of sub-buffers

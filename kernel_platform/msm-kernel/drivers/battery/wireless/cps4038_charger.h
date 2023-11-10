@@ -25,7 +25,7 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION		0x3015
+#define MFC_FW_BIN_VERSION		0x3019
 #define MFC_FW_VER_BIN_CPS		0x00C4
 
 #define MFC_FLASH_FW_HEX_PATH		"mfc/mfc_fw_flash.bin"
@@ -159,8 +159,33 @@
 #define MFC_CTRL_MODE_REG					0x6E
 #define MFC_RC_PHM_PING_PERIOD_REG			0x6F
 
-#define MFC_IEC_ENABLE_REG				0x114
-#define IEC_ENABLE					0x01
+#define MFC_IEC_QFOD_ENABLE_REG				0x114
+#define MFC_IEC_QVALUE_REG					0x115
+#define MFC_IEC_FRES_L_REG					0x116
+#define MFC_IEC_FRES_R_REG					0x117
+#define MFC_IEC_Q_THRESH1_REG				0x118
+#define MFC_IEC_Q_THRESH2_REG				0x119
+#define MFC_IEC_FRES_THRESH1_REG			0x11A
+#define MFC_IEC_FRES_THRESH2_REG			0x11B
+#define MFC_IEC_POWER_LIMIT_THRESH_L_REG	0x11C
+#define MFC_IEC_POWER_LIMIT_THRESH_H_REG	0x11D
+#define MFC_IEC_PLOSS_THRESH1_L_REG			0x11E
+#define MFC_IEC_PLOSS_THRESH1_H_REG			0x11F
+#define MFC_IEC_PLOSS_THRESH2_L_REG			0x120
+#define MFC_IEC_PLOSS_THRESH2_H_REG			0x121
+#define MFC_IEC_PLOSS_FREQ_THRESH1_REG		0x122
+#define MFC_IEC_PLOSS_FREQ_THRESH2_REG		0x123
+#define MFC_IEC_TA_POWER_LIMIT_THRESH_L_REG	0x124
+#define MFC_IEC_TA_POWER_LIMIT_THRESH_H_REG	0x125
+#define MFC_IEC_TA_PLOSS_THRESH1_L_REG		0x126
+#define MFC_IEC_TA_PLOSS_THRESH1_H_REG		0x127
+#define MFC_IEC_TA_PLOSS_THRESH2_L_REG		0x128
+#define MFC_IEC_TA_PLOSS_THRESH2_H_REG		0x129
+#define MFC_IEC_TA_PLOSS_FREQ_THRESH1_REG	0x12A
+#define MFC_IEC_TA_PLOSS_FREQ_THRESH2_REG	0x12B
+#define MFC_IEC_PLOSS_FOD_ENABLE_REG		0x12C
+#define MFC_IEC_PWM_DUTY_THRESH			0x12D
+#define MFC_IEC_TA_PWM_DUTY_THRESH		0x12E
 
 #define MFC_WPC_FOD_0A_REG					0x70
 #define MFC_WPC_FOD_0B_REG					0x71
@@ -920,10 +945,29 @@ struct mfc_charger_platform_data {
 	struct mfc_fod_data *fod_list;
 	int fod_data_count;
 	int tx_conflict_curr;
-	bool iec_enable;
+	u32 iec_qfod_enable;
+	u32 iec_q_thresh_1;
+	u32 iec_q_thresh_2;
+	u32 iec_fres_thresh_1;
+	u32 iec_fres_thresh_2;
+	u32 iec_power_limit_thresh;
+	u32 iec_ploss_thresh_1;
+	u32 iec_ploss_thresh_2;
+	u32 iec_ploss_freq_thresh_1;
+	u32 iec_ploss_freq_thresh_2;
+	u32 iec_ta_power_limit_thresh;
+	u32 iec_ta_ploss_thresh_1;
+	u32 iec_ta_ploss_thresh_2;
+	u32 iec_ta_ploss_freq_thresh_1;
+	u32 iec_ta_ploss_freq_thresh_2;
+	u32 iec_ploss_fod_enable;
+	u32 iec_pwm_duty_thresh;
+	u32 iec_ta_pwm_duty_thresh;
+
 #if defined(CONFIG_MST_PCR)
 	u32 mst_iset_pcr;
 #endif
+	u32 fw_ver;
 };
 
 #define mfc_charger_platform_data_t \
@@ -1050,6 +1094,16 @@ struct mfc_charger_data {
 	bool skip_phm_work_in_sleep;
 	bool reg_access_lock;
 	bool check_rx_power;
+
+	int mfc_adc_tx_vout;
+	int mfc_adc_tx_iout;
+	int mfc_adc_ping_frq;
+	int mfc_adc_tx_min_op_frq;
+	int mfc_adc_tx_max_op_frq;
+	int mfc_adc_vout;
+	int mfc_adc_vrect;
+	int mfc_adc_rx_iout;
+	int mfc_adc_op_frq;
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;

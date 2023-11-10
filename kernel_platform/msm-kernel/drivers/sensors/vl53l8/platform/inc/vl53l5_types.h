@@ -73,9 +73,13 @@ extern "C"
 #include <linux/string.h>
 #endif
 
+#include <linux/version.h>
+
 #ifndef __KERNEL__
 #include <stdint.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 #include <stddef.h>
+#endif
 #endif
 
 #ifndef NULL
@@ -89,7 +93,9 @@ extern "C"
 #endif
 
 #if !defined(_MSC_VER) && !defined(__BORLANDC__)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 #include <stdbool.h>
+#endif
 #else
 #pragma once
 

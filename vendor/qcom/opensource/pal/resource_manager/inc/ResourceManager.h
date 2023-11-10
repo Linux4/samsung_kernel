@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted (subject to the limitations in the
@@ -192,6 +192,8 @@ typedef enum {
     TAG_CONFIG_LPM,
     TAG_CONFIG_LPM_SUPPORTED_STREAM,
     TAG_CONFIG_LPM_SUPPORTED_STREAMS,
+    TAG_STREAMS_AVOID_SLEEP_MONITOR_VOTE,
+    TAG_AVOID_VOTE_STREAM,
 } resource_xml_tags_t;
 
 typedef enum {
@@ -399,7 +401,7 @@ enum NTStreamTypes_t : uint32_t {
 };
 
 typedef void (*session_callback)(uint64_t hdl, uint32_t event_id, void *event_data,
-                uint32_t event_size);
+                uint32_t event_size, uint32_t miid);
 bool isPalPCMFormat(uint32_t fmt_id);
 
 typedef void* (*adm_init_t)();
@@ -595,7 +597,7 @@ protected:
     static struct disable_lpm_info disableLpmInfo_;
     static std::vector<struct pal_amp_db_and_gain_table> gainLvlMap;
     static SndCardMonitor *sndmon;
-    static std::vector <uint32_t> lpi_vote_streams_;
+    static std::vector <vote_type_t> sleep_monitor_vote_type_;
     /* condition variable for which ssrHandlerLoop will wait */
     static std::condition_variable cv;
     static std::mutex cvMutex;
@@ -635,11 +637,20 @@ public:
     static bool mixerClosed;
     enum card_status_t cardState;
     bool ssrStarted = false;
+    /* Variable to cache a2dp suspended state for a2dp device */
+    static bool a2dp_suspended;
     /* Variable to store whether Speaker protection is enabled or not */
     static bool isSpeakerProtectionEnabled;
     static bool isHandsetProtectionEnabled;
     static bool isChargeConcurrencyEnabled;
     static int cpsMode;
+    static int wsa2_enable;
+    static int wsa_wr_cmd_reg_phy_addr;
+    static int wsa_rd_cmd_reg_phy_addr;
+    static int wsa_rd_fifo_reg_phy_addr;
+    static int wsa2_wr_cmd_reg_phy_addr;
+    static int wsa2_rd_cmd_reg_phy_addr;
+    static int wsa2_rd_fifo_reg_phy_addr;
     static bool isVbatEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
@@ -842,6 +853,8 @@ public:
     bool updateDeviceConfig(std::shared_ptr<Device> *inDev,
              struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr);
     int32_t forceDeviceSwitch(std::shared_ptr<Device> inDev, struct pal_device *newDevAttr);
+    int32_t forceDeviceSwitch(std::shared_ptr<Device> inDev, struct pal_device *newDevAttr,
+                              std::vector <Stream *> prevActiveStreams);
     const std::string getPALDeviceName(const pal_device_id_t id) const;
     bool isNonALSACodec(const struct pal_device *device) const;
     bool isNLPISwitchSupported(pal_stream_type_t type);
@@ -904,6 +917,8 @@ public:
     bool isExternalECSupported(std::shared_ptr<Device> tx_dev);
     bool isExternalECRefEnabled(int rx_dev_id);
     void disableInternalECRefs(Stream *s);
+    void restoreInternalECRefs();
+    bool checkStreamMatch(Stream *target, Stream *ref);
 
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void snd_reset_data_buf(struct xml_userdata *data);
@@ -970,6 +985,8 @@ public:
     void unlockGraph() { mGraphMutex.unlock(); };
     void lockActiveStream() { mActiveStreamMutex.lock(); };
     void unlockActiveStream() { mActiveStreamMutex.unlock(); };
+    void lockResourceManagerMutex() {mResourceManagerMutex.lock();};
+    void unlockResourceManagerMutex() {mResourceManagerMutex.unlock();};       
     void getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream *, uint32_t>> &activeStreamDevs,
                                      int dev_id);
     bool compareSharedBEStreamDevAttr(std::vector <std::tuple<Stream *, uint32_t>> &sharedBEStreamDev,

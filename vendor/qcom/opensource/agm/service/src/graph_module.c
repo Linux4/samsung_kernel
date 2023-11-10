@@ -110,6 +110,10 @@
 #include <log_utils.h>
 #endif
 
+// { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+#include <system/audiofw_feature.h>
+// } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+
 #define MONO 1
 #define GET_BITS_PER_SAMPLE(format, bit_width) \
                            (format == AGM_FORMAT_PCM_S24_LE? 32 : bit_width)
@@ -247,6 +251,9 @@ static int get_media_bit_width(struct session_obj *sess_obj,
         break;
     case AGM_FORMAT_MP3:
     case AGM_FORMAT_AAC:
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+   case AGM_FORMAT_OPUS:
+#endif
     default:
         break;
     }
@@ -744,10 +751,11 @@ int configure_hw_ep(struct module_info *mod,
     int ret = 0;
     struct device_obj *dev_obj = mod->dev_obj;
 
-    if(dev_obj->hw_ep_info.intf == PCM_RT_PROXY || dev_obj->hw_ep_info.intf == PCM_DUMMY) {
+    if ((dev_obj->hw_ep_info.intf == PCM_RT_PROXY) ||
+        (dev_obj->hw_ep_info.intf == PCM_DUMMY) ||
+        (dev_obj->hw_ep_info.intf == BTFM_PROXY)) {
         AGM_LOGD("no ep media config for %d\n",  dev_obj->hw_ep_info.intf);
-    }
-    else {
+    } else {
         ret = configure_hw_ep_media_config(mod, graph_obj);
         if (ret) {
             AGM_LOGE("hw_ep_media_config failed %d", ret);
@@ -772,19 +780,15 @@ int configure_hw_ep(struct module_info *mod,
          break;
     case DISPLAY_PORT:
     case USB_AUDIO:
-        AGM_LOGD("no ep configuration for %d\n",  dev_obj->hw_ep_info.intf);
-        break;
     case PCM_RT_PROXY:
-        AGM_LOGD("no ep configuration for %d\n",  dev_obj->hw_ep_info.intf);
-        break;
     case AUDIOSS_DMA:
-        AGM_LOGD("no ep configuration for %d\n",  dev_obj->hw_ep_info.intf);
-        break;
     case PCM_DUMMY:
+    case BTFM_PROXY:
         AGM_LOGD("no ep configuration for %d\n",  dev_obj->hw_ep_info.intf);
         break;
     default:
          AGM_LOGE("hw intf %d not enabled yet", dev_obj->hw_ep_info.intf);
+         ret = -EINVAL;
          break;
     }
     return ret;
@@ -1095,6 +1099,12 @@ static int get_media_fmt_id_and_size(enum agm_media_format fmt_id,
         format_size = 0;
         *real_fmt_id = MEDIA_FMT_QCELP;
         break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    case AGM_FORMAT_OPUS:
+        format_size = sizeof(struct payload_media_fmt_opus_t);
+        *real_fmt_id = MEDIA_FMT_OPUS;
+        break;
+#endif
     default:
         ret = -EINVAL;
         break;
@@ -1226,6 +1236,24 @@ int  set_compressed_media_format(enum agm_media_format fmt_id,
                  fmt_pl->sample_rate, fmt_pl->bits_per_sample);
         break;
     }
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    case AGM_FORMAT_OPUS:
+    {
+        struct payload_media_fmt_opus_t *fmt_pl;
+        fmt_size = sizeof(struct payload_media_fmt_opus_t);
+        media_fmt_hdr->data_format = AGM_DATA_FORMAT_RAW_COMPRESSED;
+        media_fmt_hdr->fmt_id = MEDIA_FMT_ID_OPUS;
+        media_fmt_hdr->payload_size = fmt_size;
+
+        fmt_pl = (struct payload_media_fmt_opus_t*)(((uint8_t*) media_fmt_hdr) +
+        sizeof(struct media_format_t));
+        memcpy(fmt_pl, &sess_obj->stream_config.codec.opus_dec,
+               fmt_size);
+ 
+        AGM_LOGD("OPUS payload: bit_stream_fmt:%d ", fmt_pl->bit_stream_fmt);
+        break;
+    }
+#endif
     default:
         return -EINVAL;
     }

@@ -36,7 +36,7 @@
 /**
  * qdf_align() - align to the given size.
  * @a: input that needs to be aligned.
- * @align_size: boundary on which 'a' has to be alinged.
+ * @align_size: boundary on which 'a' has to be aligned.
  *
  * Return: aligned value.
  */
@@ -554,7 +554,7 @@ void qdf_ether_addr_copy(void *dst_addr, const void *src_addr);
  * @buf: pointer to memory to be dma mapped
  * @dir: DMA map direction
  * @nbytes: number of bytes to be mapped.
- * @phy_addr: ponter to recive physical address.
+ * @phy_addr: pointer to receive physical address.
  *
  * Return: success/failure
  */
@@ -916,7 +916,7 @@ void qdf_update_mem_map_table(qdf_device_t osdev,
  * @dma_addr: DMA/IOVA address
  *
  * Get actual physical address from dma_addr based on SMMU enablement status.
- * IF SMMU Stage 1 tranlation is enabled, DMA APIs return IO virtual address
+ * IF SMMU Stage 1 translation is enabled, DMA APIs return IO virtual address
  * (IOVA) otherwise returns physical address. So get SMMU physical address
  * mapping from IOVA.
  *
@@ -960,7 +960,7 @@ static inline bool qdf_mem_smmu_s1_enabled(qdf_device_t osdev)
 
 /**
  * qdf_mem_dma_get_sgtable() - Returns DMA memory scatter gather table
- * @dev: device instace
+ * @dev: device instance
  * @sgt: scatter gather table pointer
  * @cpu_addr: HLOS virtual address
  * @dma_addr: dma address
@@ -1005,7 +1005,7 @@ qdf_dma_get_sgtable_dma_addr(struct sg_table *sgt)
  * @mem_info: Pointer to allocated memory information
  *
  * Get dma address based on SMMU enablement status. If SMMU Stage 1
- * tranlation is enabled, DMA APIs return IO virtual address otherwise
+ * translation is enabled, DMA APIs return IO virtual address otherwise
  * returns physical address.
  *
  * Return: dma address
@@ -1320,7 +1320,7 @@ void qdf_mem_tx_desc_cnt_update(qdf_atomic_t pending_tx_descs,
 
 #if IS_ENABLED(CONFIG_ARM_SMMU) && defined(ENABLE_SMMU_S1_TRANSLATION)
 /*
- * typedef qdf_iommu_domain_t: Platform indepedent iommu domain
+ * typedef qdf_iommu_domain_t: Platform independent iommu domain
  * abstraction
  */
 typedef __qdf_iommu_domain_t qdf_iommu_domain_t;

@@ -371,11 +371,9 @@ const std::map<uint32_t, pal_audio_fmt_t> getFormatId {
     {AUDIO_FORMAT_MP3,                 PAL_AUDIO_FMT_MP3},
     {AUDIO_FORMAT_AAC,                 PAL_AUDIO_FMT_AAC},
     {AUDIO_FORMAT_AAC_LC,              PAL_AUDIO_FMT_AAC},
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     {AUDIO_FORMAT_AAC_ADTS_LC ,        PAL_AUDIO_FMT_AAC},
     {AUDIO_FORMAT_AAC_ADTS_HE_V1,      PAL_AUDIO_FMT_AAC},
     {AUDIO_FORMAT_AAC_ADTS_HE_V2,      PAL_AUDIO_FMT_AAC},
-#endif
     {AUDIO_FORMAT_AAC_ADTS,            PAL_AUDIO_FMT_AAC_ADTS},
     {AUDIO_FORMAT_AAC_ADIF,            PAL_AUDIO_FMT_AAC_ADIF},
     {AUDIO_FORMAT_AAC_LATM,            PAL_AUDIO_FMT_AAC_LATM},
@@ -384,7 +382,10 @@ const std::map<uint32_t, pal_audio_fmt_t> getFormatId {
     {AUDIO_FORMAT_APE,                 PAL_AUDIO_FMT_APE},
     {AUDIO_FORMAT_WMA_PRO,             PAL_AUDIO_FMT_WMA_PRO},
     {AUDIO_FORMAT_FLAC,                PAL_AUDIO_FMT_FLAC},
-    {AUDIO_FORMAT_VORBIS,              PAL_AUDIO_FMT_VORBIS}
+    {AUDIO_FORMAT_VORBIS,              PAL_AUDIO_FMT_VORBIS},
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    {AUDIO_FORMAT_OPUS,                PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS}
+#endif
 };
 
 const uint32_t format_to_bitwidth_table[] = {
@@ -397,13 +398,11 @@ const uint32_t format_to_bitwidth_table[] = {
     [AUDIO_FORMAT_PCM_24_BIT_PACKED] = 24,
 };
 
-const std::unordered_map<uint32_t, uint32_t> compressRecordBitWidthTable {
+const std::unordered_map<uint32_t, uint32_t> compressRecordBitWidthTable{
     {AUDIO_FORMAT_AAC_LC, 16},
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     {AUDIO_FORMAT_AAC_ADTS_LC, 16},
     {AUDIO_FORMAT_AAC_ADTS_HE_V1, 16},
     {AUDIO_FORMAT_AAC_ADTS_HE_V2, 16},
-#endif
 };
 
 const std::map<uint32_t, uint32_t> getAlsaSupportedFmt {
@@ -414,6 +413,16 @@ const std::map<uint32_t, uint32_t> getAlsaSupportedFmt {
     {AUDIO_FORMAT_PCM_24_BIT_PACKED,    AUDIO_FORMAT_PCM_24_BIT_PACKED},
     {AUDIO_FORMAT_PCM_16_BIT,           AUDIO_FORMAT_PCM_16_BIT},
 };
+
+#ifdef SEC_AUDIO_SUPPORT_VOIP_MICMODE_DEFAULT
+// refer to vendor/qcom/proprietary/mm-audio/ar-acdb/acdbdata/inc/kvh2xml.h
+const std::map<uint32_t, uint32_t> getVoipSampleRate {
+    {8000,     0 /* VOIP_SR_NB */},
+    {16000,    1 /* VOIP_SR_WB */},
+    {32000,    2 /* VOIP_SR_SWB */},
+    {48000,    3 /* VOIP_SR_FB */},
+};
+#endif
 
 const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_DEEP_BUFFER] = "deep-buffer-playback",
@@ -569,7 +578,6 @@ protected:
     struct pal_stream_attributes streamAttributes_;
 #ifdef SEC_AUDIO_DSM_AMP
     struct pal_stream_attributes mStreamFeedback;
-    bool   use_feedback_stream;
 #endif
     pal_stream_handle_t*      pal_stream_handle_;
     audio_io_handle_t         handle_;
@@ -641,6 +649,10 @@ public:
     int GetOutputUseCase(audio_output_flags_t halStreamFlags);
     bool CheckOffloadEffectsType(pal_stream_type_t pal_stream_type);
 #ifdef SEC_AUDIO_OFFLOAD
+#if defined(SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS) && defined(SEC_AUDIO_OFFLOAD_SOUNDSPEED)
+    int SetPlaybackRate(const audio_playback_rate_t *playbackRate);
+    int GetPlaybackRate(audio_playback_rate_t *playbackRate);
+#endif
     int UpdateOffloadEffects(int);
 #else
     int StartOffloadEffects(audio_io_handle_t, pal_stream_handle_t*);
@@ -658,18 +670,18 @@ public:
     source_metadata_t btSourceMetadata;
     std::vector<playback_track_metadata_t> tracks;
     int SetAggregateSourceMetadata(bool voice_active);
+    static std::mutex sourceMetadata_mutex_;
 
 #ifdef SEC_AUDIO_COMMON
     std::shared_ptr<SecAudioStreamOut> sec_stream_out_;
     std::shared_ptr<SecAudioStreamOut> SecStreamOutInit();
     ssize_t isAndroidOutDevicesSize() {return mAndroidOutDevices.size();}
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
-#endif
+    int SetVideoCallEffectKvParams(int mode);
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
     void CheckAndSwitchListenbackMode(bool on);
 #endif
-#ifdef SEC_AUDIO_COMMON
     void lock_output_stream() { stream_mutex_.lock(); }
     void unlock_output_stream() { stream_mutex_.unlock(); }
 #endif
@@ -686,7 +698,7 @@ protected:
     uint32_t fragments_ = 0;
     uint32_t fragment_size_ = 0;
     pal_snd_dec_t palSndDec;
-    struct pal_compr_gapless_mdata gaplessMeta;
+    struct pal_compr_gapless_mdata gaplessMeta = {0, 0};
     uint32_t msample_rate;
     uint16_t mchannels;
     std::shared_ptr<audio_stream_out>   stream_;
@@ -695,6 +707,9 @@ protected:
 #ifdef SEC_AUDIO_OFFLOAD
     bool playback_started;
     offload_effects_update_output fnp_offload_effect_update_output_ = nullptr;
+#if defined(SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS) && defined(SEC_AUDIO_OFFLOAD_SOUNDSPEED)
+    audio_playback_rate_t playback_rate;
+#endif
 #else
     offload_effects_start_output fnp_offload_effect_start_output_ = nullptr;
     offload_effects_stop_output fnp_offload_effect_stop_output_ = nullptr;
@@ -703,6 +718,9 @@ protected:
 #endif
 #ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_ON_DSP
     bool playback_volume_reset;
+#endif
+#ifdef SEC_AUDIO_SUPPORT_UHQ
+    bool need_update_output_for_uhq;
 #endif
     void *convertBuffer;
     //Haptics Usecase
@@ -761,9 +779,7 @@ public:
     int GetInputUseCase(audio_input_flags_t halStreamFlags, audio_source_t source);
     int addRemoveAudioEffect(const struct audio_stream *stream, effect_handle_t effect,bool enable);
     int SetParameters(const char *kvpairs);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     bool getParameters(struct str_parms *query, struct str_parms *reply);
-#endif
     bool is_st_session;
     audio_input_flags_t                 flags_;
     int CreateMmapBuffer(int32_t min_size_frames, struct audio_mmap_buffer_info *info);
@@ -776,9 +792,14 @@ public:
     sink_metadata_t btSinkMetadata;
     std::vector<record_track_metadata_t> tracks;
     int SetAggregateSinkMetadata(bool voice_active);
+    static std::mutex sinkMetadata_mutex_;
 #ifdef SEC_AUDIO_COMMON
     audio_source_t GetInputSource() { return source_; }
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
+    int SetVideoCallEffectKvParams(int mode);
+#ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
+    int SetVideoCallEffectParams(int mode);
+#endif // } CONFIG_EFFECTS_VIDEOCALL
 #endif
 #ifdef SEC_AUDIO_SAMSUNGRECORD
     std::shared_ptr<AudioPreProcess> PreProcessInit();
@@ -804,21 +825,15 @@ protected:
      * compress record usecase
      * */
     uint64_t mCompressReadCalls = 0;
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     int32_t mCompressStreamAdjBitRate;
     bool mIsBitRateSet =false;
     bool mIsBitRateGet = false;
-#endif
 // {SEC_AUDIO_EARLYDROP_PATCH - SOLO CL 24378304
     std::unordered_set<effect_handle_t> isECEnabledSet;
 // SEC_AUDIO_EARLYDROP_PATCH}
     bool isECEnabled = false;
     bool isNSEnabled = false;
     bool effects_applied_ = true;
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     pal_snd_enc_t palSndEnc{};
-#else
-    pal_snd_enc_t palSndEnc;
-#endif
 };
 #endif  // ANDROID_HARDWARE_AHAL_ASTREAM_H_

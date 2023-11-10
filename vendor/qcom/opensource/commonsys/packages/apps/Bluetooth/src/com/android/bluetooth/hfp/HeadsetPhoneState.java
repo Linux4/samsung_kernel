@@ -312,6 +312,9 @@ public class HeadsetPhoneState {
         }
     };
 
+    boolean getIsSimCardLoaded () {
+      return mIsSimStateLoaded;
+    }
     int getCindService() {
         return mCindService;
     }
@@ -422,6 +425,12 @@ public class HeadsetPhoneState {
         @Override
         public void onSubscriptionsChanged() {
             synchronized (mDeviceEventMap) {
+                int simState = mTelephonyManager.getSimState();
+                if (simState != TelephonyManager.SIM_STATE_READY) {
+                 mCindSignal = 0;
+                 mCindService = HeadsetHalConstants.NETWORK_STATE_NOT_AVAILABLE;
+                 sendDeviceStateChanged();
+                }
                 stopListenForPhoneState();
                 startListenForPhoneState();
                 if ((ApmConstIntf.getQtiLeAudioEnabled()) || (ApmConstIntf.getAospLeaEnabled())) {

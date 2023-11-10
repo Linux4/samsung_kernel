@@ -415,7 +415,7 @@ QDF_STATUS wlan_objmgr_vdev_component_obj_attach(
 		return QDF_STATUS_SUCCESS;
 	/*
 	 * If VDEV object status is partially created means, this API is
-	 * invoked with differnt context, this block should be executed for
+	 * invoked with different context, this block should be executed for
 	 * async components only
 	 */
 	/* Derive status */
@@ -468,7 +468,7 @@ QDF_STATUS wlan_objmgr_vdev_component_obj_detach(
 
 	/**
 	 *If VDEV object status is partially destroyed means, this API is
-	 * invoked with differnt context, this block should be executed for
+	 * invoked with different context, this block should be executed for
 	 * async components only
 	 */
 	if ((vdev->obj_state == WLAN_OBJ_STATE_PARTIALLY_DELETED) ||
@@ -1548,6 +1548,44 @@ void wlan_vdev_mlme_clear_mlo_vdev(struct wlan_objmgr_vdev *vdev)
 	wlan_vdev_mlme_feat_ext2_cap_clear(vdev, WLAN_VDEV_FEXT2_MLO);
 
 	wlan_pdev_dec_mlo_vdev_count(pdev);
+
+	wlan_release_vdev_mlo_lock(vdev);
+}
+
+void wlan_vdev_mlme_set_mlo_link_vdev(struct wlan_objmgr_vdev *vdev)
+{
+	if (!vdev) {
+		obj_mgr_err("vdev is NULL");
+		return;
+	}
+
+	wlan_acquire_vdev_mlo_lock(vdev);
+
+	if (wlan_vdev_mlme_feat_ext2_cap_get(vdev,
+					     WLAN_VDEV_FEXT2_MLO_STA_LINK)) {
+		wlan_release_vdev_mlo_lock(vdev);
+		return;
+	}
+	wlan_vdev_mlme_feat_ext2_cap_set(vdev, WLAN_VDEV_FEXT2_MLO_STA_LINK);
+
+	wlan_release_vdev_mlo_lock(vdev);
+}
+
+void wlan_vdev_mlme_clear_mlo_link_vdev(struct wlan_objmgr_vdev *vdev)
+{
+	if (!vdev) {
+		obj_mgr_err("vdev is NULL");
+		return;
+	}
+
+	wlan_acquire_vdev_mlo_lock(vdev);
+
+	if (!wlan_vdev_mlme_feat_ext2_cap_get(vdev,
+					      WLAN_VDEV_FEXT2_MLO_STA_LINK)) {
+		wlan_release_vdev_mlo_lock(vdev);
+		return;
+	}
+	wlan_vdev_mlme_feat_ext2_cap_clear(vdev, WLAN_VDEV_FEXT2_MLO_STA_LINK);
 
 	wlan_release_vdev_mlo_lock(vdev);
 }

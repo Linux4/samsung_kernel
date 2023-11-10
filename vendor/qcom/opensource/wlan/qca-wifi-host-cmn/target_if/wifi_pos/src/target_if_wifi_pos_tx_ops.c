@@ -168,7 +168,7 @@ target_if_wifi_pos_register_11az_events(struct wlan_objmgr_psoc *psoc)
 			get_wmi_unified_hdl_from_psoc(psoc),
 			wmi_rtt_pasn_peer_create_req_eventid,
 			target_if_wifi_pos_pasn_peer_create_ev_handler,
-			WMI_RX_SERIALIZER_CTX);
+			WMI_RX_EXECUTION_CTX);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		target_if_err("register pasn peer create event_handler failed");
 		return QDF_STATUS_E_INVAL;
@@ -178,7 +178,7 @@ target_if_wifi_pos_register_11az_events(struct wlan_objmgr_psoc *psoc)
 			get_wmi_unified_hdl_from_psoc(psoc),
 			wmi_rtt_pasn_peer_delete_eventid,
 			target_if_wifi_pos_pasn_peer_delete_ev_handler,
-			WMI_RX_SERIALIZER_CTX);
+			WMI_RX_EXECUTION_CTX);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		target_if_err("register pasn peer delete event_handler failed");
 		return status;
@@ -313,8 +313,6 @@ void target_if_wifi_pos_register_tx_ops(struct wlan_lmac_if_tx_ops *tx_ops)
 	wifi_pos_tx_ops->data_req_tx = target_if_wifi_pos_oem_data_req;
 	wifi_pos_tx_ops->wifi_pos_parse_measreq_chan_info =
 			target_if_wifi_pos_parse_measreq_chan_info;
-	wifi_pos_tx_ops->wifi_pos_vdev_delete_all_ranging_peers_cb =
-			wifi_pos_vdev_delete_all_ranging_peers;
 
 	target_if_wifi_pos_register_11az_ops(wifi_pos_tx_ops);
 }

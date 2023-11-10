@@ -61,6 +61,7 @@ enum FeCtrlsIndex {
     FE_LOOPBACK,
     FE_EVENT,
     FE_SETCAL,
+    FE_FLUSH,
     FE_MAX_NUM_MIXER_CONTROLS,
 };
 
@@ -161,6 +162,7 @@ public:
                         uint32_t instanceId, bool isParamWrite);
    static int mixerWriteDatapathParams(struct mixer *mixer, int device,
                                         void *payload, int size);
+   static int flush(std::shared_ptr<ResourceManager> rm, uint32_t id);
 
 };
 

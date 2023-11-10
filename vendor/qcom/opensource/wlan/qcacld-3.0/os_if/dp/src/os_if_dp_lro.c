@@ -51,7 +51,7 @@ static qdf_lro_ctx_t osif_dp_get_lro_ctx(struct sk_buff *skb)
 
 /**
  * osif_dp_lro_rx() - LRO receive function
- * @vdev: Vdev obj mgr
+ * @dev: netdev
  * @nbuf: network buffer
  *
  * Delivers LRO eligible frames to the LRO manager
@@ -106,7 +106,7 @@ QDF_STATUS osif_dp_lro_rx(qdf_netdev_t dev, qdf_nbuf_t nbuf)
 }
 
 /**
- * dp_lro_display_stats() - display LRO statistics
+ * osif_dp_lro_display_stats() - display LRO statistics
  * @vdev: vdev objmgr context
  *
  * Return: none

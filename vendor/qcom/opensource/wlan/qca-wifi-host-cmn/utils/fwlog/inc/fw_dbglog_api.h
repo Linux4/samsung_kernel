@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -110,7 +111,7 @@ void fwdbg_set_timestamp_resolution(struct common_dbglog_handle *dbg_handle,
  * @isenable: Enable/disable
  *
  * API to enable debug information reporting. It encodes wmi config command
- * to enable reporting. If set to false then Target wont deliver any debug
+ * to enable reporting. If set to false then Target won't deliver any debug
  * information.
  *
  * Return: None

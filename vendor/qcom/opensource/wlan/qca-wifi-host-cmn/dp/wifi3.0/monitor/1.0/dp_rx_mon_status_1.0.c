@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -363,6 +363,7 @@ dp_rx_mon_status_ring_record_entry(struct dp_soc *soc,
 	record = &soc->mon_status_ring_history->entry[idx];
 
 	record->timestamp = qdf_get_log_timestamp();
+	record->event = event;
 	if (event == DP_MON_STATUS_BUF_REAP) {
 		hal_rx_buffer_addr_info_get_paddr(ring_desc, &hbi);
 
@@ -498,6 +499,7 @@ dp_rx_mon_status_process_tlv(struct dp_soc *soc, struct dp_intr *int_ctx,
 				 (tlv_status == HAL_TLV_STATUS_MPDU_START) ||
 				 (tlv_status == HAL_TLV_STATUS_MSDU_END));
 		}
+		dp_mon_rx_stats_update_rssi_dbm_params(mon_pdev, ppdu_info);
 		if (qdf_unlikely(mon_pdev->dp_peer_based_pktlog)) {
 			dp_rx_process_peer_based_pktlog(soc, ppdu_info,
 							status_nbuf,
@@ -564,6 +566,8 @@ dp_rx_mon_status_process_tlv(struct dp_soc *soc, struct dp_intr *int_ctx,
 			if (qdf_unlikely(mon_pdev->scan_spcl_vap_configured))
 				dp_rx_mon_update_scan_spcl_vap_stats(pdev,
 								     ppdu_info);
+
+			dp_rx_mon_update_user_ctrl_frame_stats(pdev, ppdu_info);
 
 			/*
 			* if chan_num is not fetched correctly from ppdu RX TLV,
@@ -985,7 +989,7 @@ dp_rx_pdev_mon_status_buffers_free(struct dp_pdev *pdev, uint32_t mac_id)
 
 	dp_debug("Mon RX Status Desc Pool Free pdev[%d]", pdev_id);
 
-	dp_rx_desc_nbuf_free(soc, rx_desc_pool);
+	dp_rx_desc_nbuf_free(soc, rx_desc_pool, true);
 }
 
 /*
@@ -1293,8 +1297,7 @@ uint32_t dp_mon_drop_packets_for_mac(struct dp_pdev *pdev, uint32_t mac_id,
 	uint32_t work_done;
 
 	work_done = dp_mon_status_srng_drop_for_mac(pdev, mac_id, quota);
-	if (!dp_is_rxdma_dst_ring_common(pdev))
-		dp_mon_dest_srng_drop_for_mac(pdev, mac_id);
+	dp_mon_dest_srng_drop_for_mac(pdev, mac_id);
 
 	return work_done;
 }

@@ -54,6 +54,7 @@ typedef enum {
     CODEC_TYPE_CELT           = 0x24000000u,
     CODEC_TYPE_APTX_AD        = 0x25000000u,
     CODEC_TYPE_APTX_AD_SPEECH = 0x26000000u,
+    CODEC_TYPE_RVP            = 0x28000000u, // SS_BT_HFP - H_127 : RVP
     CODEC_TYPE_LC3            = 0x2B000000u,
     CODEC_TYPE_PCM            = 0x1u,
     CODEC_TYPE_APTX_AD_QLEA   = 0x30000000u,
@@ -80,6 +81,7 @@ const std::map<uint32_t, std::string> btCodecFormatLUT {
     {CODEC_TYPE_CELT,             std::string{ "CODEC_TYPE_CELT"} },
     {CODEC_TYPE_APTX_AD,          std::string{ "CODEC_TYPE_APTX_AD"} },
     {CODEC_TYPE_APTX_AD_SPEECH,   std::string{ "CODEC_TYPE_APTX_AD_SPEECH"} },
+    {CODEC_TYPE_RVP,              std::string{ "CODEC_TYPE_RVP"} }, // SS_BT_HFP - H_127 : RVP
     {CODEC_TYPE_LC3,              std::string{ "CODEC_TYPE_LC3"} },
     {CODEC_TYPE_PCM,              std::string{ "CODEC_TYPE_PCM"} },
     {CODEC_TYPE_APTX_AD_QLEA,     std::string{ "CODEC_TYPE_APTX_AD_QLEA"} },

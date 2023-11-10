@@ -43,7 +43,8 @@
 #define SEC_BATTERY_CABLE_PDIC_APDO              38
 #define SEC_BATTERY_CABLE_POGO                   39
 #define SEC_BATTERY_CABLE_POGO_9V		 40
-#define SEC_BATTERY_CABLE_MAX                    41
+#define SEC_BATTERY_CABLE_FPDO_DC		 41
+#define SEC_BATTERY_CABLE_MAX                    42
 
 /* d2d support type */
 #define SB_D2D_NONE	0
@@ -298,6 +299,7 @@
 #define WIRELESS_VOUT_9V_STEP		15
 #define WIRELESS_VOUT_10V_STEP		16
 #define WIRELESS_VOUT_OTG			17
+#define WIRELESS_VOUT_FORCE_9V	18
 
 /* enum mfc_send_command */
 #define MFC_END_SIG_STRENGTH		0

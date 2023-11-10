@@ -541,6 +541,10 @@ Return<int32_t> AGM::ipc_agm_aif_set_metadata(uint32_t aif_id,
     ALOGV("%s called with aif_id = %d, size = %d\n", __func__, aif_id, size);
     uint8_t * metadata_l = NULL;
     int32_t ret = 0;
+
+    if (metadata.size() < size) {
+        return -EINVAL;
+    }
     metadata_l = (uint8_t *) calloc(1,size);
     if (metadata_l == NULL) {
         ALOGE("%s: Cannot allocate memory for metadata_l\n", __func__);
@@ -558,6 +562,11 @@ Return<int32_t> AGM::ipc_agm_session_set_metadata(uint32_t session_id,
     ALOGV("%s : session_id = %d, size = %d\n", __func__, session_id, size);
     uint8_t * metadata_l = NULL;
     int32_t ret = 0;
+
+    if (metadata.size() < size) {
+        return -EINVAL;
+    }
+
     metadata_l = (uint8_t *) calloc(1,size);
     if (metadata_l == NULL) {
         ALOGE("%s: Cannot allocate memory for metadata_l\n", __func__);
@@ -581,6 +590,11 @@ Return<int32_t> AGM::ipc_agm_session_aif_set_metadata(uint32_t session_id,
                                                       session_id, aif_id, size);
     uint8_t * metadata_l = NULL;
     int32_t ret = 0;
+
+    if (metadata.size() < size) {
+        return -EINVAL;
+    }
+
     metadata_l = (uint8_t *) calloc(1,size);
     if (metadata_l == NULL) {
         ALOGE("%s: Cannot allocate memory for metadata_l\n", __func__);
@@ -652,6 +666,11 @@ Return<void> AGM::ipc_agm_session_get_params(uint32_t session_id,
     int32_t ret = 0;
     hidl_vec<uint8_t> payload_hidl;
 
+     if (buff.size() < size) {
+        _hidl_cb(-EINVAL, size);
+        return Void();
+    }
+
     payload_local = (uint8_t *) calloc (1, size);
     if (payload_local == NULL) {
         ALOGE("%s: Cannot allocate memory for payload_local\n", __func__);
@@ -707,6 +726,11 @@ Return<int32_t> AGM::ipc_agm_aif_set_params(uint32_t aif_id,
     int32_t ret = 0;
 
     ALOGV("%s : aif_id =%d, size = %d\n", __func__, aif_id, size);
+
+    if (payload.size() < size) {
+        return -EINVAL;
+    }
+
     payload_local = (void*) calloc (1,size);
     if (payload_local == NULL) {
         ALOGE("%s: calloc failed for payload_local\n", __func__);
@@ -727,6 +751,11 @@ Return<int32_t> AGM::ipc_agm_session_aif_set_params(uint32_t session_id,
     size_t size_local = (size_t) size;
     void * payload_local = NULL;
     int32_t ret = 0;
+
+    if (payload.size() < size) {
+        return -EINVAL;
+    }
+
     payload_local = (void*) calloc (1,size);
     if (payload_local == NULL) {
         ALOGE("%s: Cannot allocate memory for payload_local\n", __func__);
@@ -778,6 +807,11 @@ Return<int32_t> AGM::ipc_agm_session_set_params(uint32_t session_id,
     size_t size_local = (size_t) size;
     void * payload_local = NULL;
     int32_t ret = 0;
+
+    if (payload.size() < size) {
+        return -EINVAL;
+    }
+
     payload_local = (void*) calloc (1,size);
     if (payload_local == NULL) {
         ALOGE("%s: Cannot allocate memory for payload_local\n", __func__);
@@ -826,6 +860,10 @@ Return<int32_t> AGM::ipc_agm_set_params_with_tag_to_acdb(uint32_t session_id,
     size_t size_local = (size_t) size;
     void * payload_local = NULL;
     int32_t ret = 0;
+
+    if (payload.size() < size) {
+        return -EINVAL;
+    }
     payload_local = (void*) calloc(1,size);
     if (payload_local == NULL) {
         ALOGE("%s: Cannot allocate memory for payload_local\n", __func__);
@@ -1076,6 +1114,12 @@ Return<void> AGM::ipc_agm_session_write(uint64_t hndl,
                                         ipc_agm_session_write_cb _hidl_cb) {
     ALOGV("%s called with handle = %llx \n", __func__, (unsigned long long) hndl);
     void* buffer = NULL;
+
+    if (buff.size() < count) {
+        _hidl_cb(-EINVAL, count);
+        return Void();
+    }
+
     buffer = (void*) calloc(1,count);
     if (buffer == NULL) {
         ALOGE("%s: Cannot allocate memory for buffer\n", __func__);
@@ -1425,6 +1469,10 @@ Return<void> AGM::ipc_agm_session_write_with_metadata(uint64_t hndl, const hidl_
     buf.addr = nullptr;
     buf.metadata = nullptr;
 
+    if (buff_hidl.data()->metadata.size() < buff_hidl.data()->metadata_size) {
+        _hidl_cb(-EINVAL, buff_hidl.data()->metadata_size);
+        return Void();
+    }
     bufSize = buff_hidl.data()->size;
     buf.addr = (uint8_t *)calloc(1, bufSize);
     if (!buf.addr) {

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -319,7 +320,7 @@ htt_t2h_stats_pdev_stats_print(struct wlan_dbg_stats *wlan_pdev_stats,
 	qdf_nofl_info("sched self trig   :%d", tx->self_triggers);
 	/* SW retry failures */
 	qdf_nofl_info("ampdu retry failed:%d", tx->sw_retry_failure);
-	/* ilegal phy rate errirs */
+	/* illegal phy rate errors */
 	qdf_nofl_info("illegal rate errs :%d", tx->illgl_rate_phy_err);
 	/* pdev continuous excessive retries  */
 	qdf_nofl_info("pdev cont xretry  :%d", tx->pdev_cont_xretry);

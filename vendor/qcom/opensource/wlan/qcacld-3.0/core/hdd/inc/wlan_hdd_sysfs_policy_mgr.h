@@ -53,8 +53,8 @@ void hdd_sysfs_pm_cinfo_destroy(struct kobject *driver_kobject);
 int hdd_sysfs_pm_pcl_create(struct kobject *driver_kobject);
 
 /**
- * hdd_sysfs_pm_pcl_destroy() -
- *   API to destroy pm_pcl
+ * hdd_sysfs_pm_pcl_destroy() - API to destroy pm_pcl
+ * @driver_kobject: sysfs driver kobject
  *
  * Return: none
  */

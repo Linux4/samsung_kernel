@@ -29,7 +29,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -77,10 +77,12 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <loc_misc_utils.h>
 
 static uint32_t gDebug = 0;
+static uint32_t gSleepTime = 800000;
 
 static const loc_param_s_type gConfigTable[] =
 {
-    {"DEBUG_LEVEL", &gDebug, NULL, 'n'}
+    {"DEBUG_LEVEL", &gDebug, NULL, 'n'},
+    {"QRTRWATCHER_DELAY_MICROSECOND", &gSleepTime, NULL, 'n'}
 };
 
 namespace location_client {
@@ -355,6 +357,9 @@ void LocationClientApiImpl::parseLocation(const ::Location &halLocation, Locatio
     }
     if (::LOCATION_TECHNOLOGY_VIS_BIT & halLocation.techMask) {
         flags |= LOCATION_TECHNOLOGY_VIS_BIT;
+    }
+    if (::LOCATION_TECHNOLOGY_PROPAGATED_BIT & halLocation.techMask) {
+        flags |= LOCATION_TECHNOLOGY_PROPAGATED_BIT;
     }
     location.techMask = (LocationTechnologyMask)flags;
 }
@@ -709,140 +714,140 @@ GnssLocation LocationClientApiImpl::parseLocationInfo(
     parseLocation(halLocationInfo.location, locationInfo);
     uint64_t flags = 0;
 
-    if (::GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT;
+    if (LDT_GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT;
     }
-    if (::GNSS_LOCATION_INFO_DOP_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_DOP_BIT;
+    if (LDT_GNSS_LOCATION_INFO_DOP_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_DOP_BIT;
     }
-    if (::GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT;
+    if (LDT_GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT;
     }
-    if (::GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT;
+    if (LDT_GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT;
     }
-    if (::GNSS_LOCATION_INFO_VER_RELIABILITY_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_VER_RELIABILITY_BIT;
+    if (LDT_GNSS_LOCATION_INFO_VER_RELIABILITY_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_VER_RELIABILITY_BIT;
     }
-    if (::GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT;
+    if (LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT;
     }
-    if (::GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT;
+    if (LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT;
     }
-    if (::GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT;
+    if (LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT;
     }
-    if (::GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT;
+    if (LDT_GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT;
     }
-    if (::GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT;
+    if (LDT_GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT;
     }
-    flags |= GNSS_LOCATION_INFO_POS_TECH_MASK_BIT;
-    if (::GNSS_LOCATION_INFO_SV_SOURCE_INFO_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_SV_SOURCE_INFO_BIT;
+    flags |= LCA_GNSS_LOCATION_INFO_POS_TECH_MASK_BIT;
+    if (LDT_GNSS_LOCATION_INFO_SV_SOURCE_INFO_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_SV_SOURCE_INFO_BIT;
     }
-    if (::GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT;
+    if (LDT_GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT;
     }
-    if (::GNSS_LOCATION_INFO_EXT_DOP_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_EXT_DOP_BIT;
+    if (LDT_GNSS_LOCATION_INFO_EXT_DOP_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_EXT_DOP_BIT;
     }
-    if (::GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT;
+    if (LDT_GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT;
     }
-    if (::GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT;
+    if (LDT_GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT;
     }
-    if (::GNSS_LOCATION_INFO_EAST_STD_DEV_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_EAST_STD_DEV_BIT;
+    if (LDT_GNSS_LOCATION_INFO_EAST_STD_DEV_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_EAST_STD_DEV_BIT;
     }
-    if (::GNSS_LOCATION_INFO_NORTH_VEL_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_NORTH_VEL_BIT;
+    if (LDT_GNSS_LOCATION_INFO_NORTH_VEL_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_NORTH_VEL_BIT;
     }
-    if (::GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT;
+    if (LDT_GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT;
     }
-    if (::GNSS_LOCATION_INFO_EAST_VEL_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_EAST_VEL_BIT;
+    if (LDT_GNSS_LOCATION_INFO_EAST_VEL_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_EAST_VEL_BIT;
     }
-    if (::GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT;
+    if (LDT_GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT;
     }
-    if (::GNSS_LOCATION_INFO_UP_VEL_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_UP_VEL_BIT;
+    if (LDT_GNSS_LOCATION_INFO_UP_VEL_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_UP_VEL_BIT;
     }
-    if (::GNSS_LOCATION_INFO_UP_VEL_UNC_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_UP_VEL_UNC_BIT;
+    if (LDT_GNSS_LOCATION_INFO_UP_VEL_UNC_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_UP_VEL_UNC_BIT;
     }
-    if (::GNSS_LOCATION_INFO_LEAP_SECONDS_BIT & halLocationInfo.flags) {
-       flags |= GNSS_LOCATION_INFO_LEAP_SECONDS_BIT;
+    if (LDT_GNSS_LOCATION_INFO_LEAP_SECONDS_BIT & halLocationInfo.flags) {
+       flags |= LCA_GNSS_LOCATION_INFO_LEAP_SECONDS_BIT;
     }
-    if (::LOCATION_HAS_TIME_UNC_BIT & halLocationInfo.location.flags) {
-        flags |= GNSS_LOCATION_INFO_TIME_UNC_BIT;
+    if (LOCATION_HAS_TIME_UNC_BIT & halLocationInfo.location.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_TIME_UNC_BIT;
     }
-    if (::GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT;
+    if (LDT_GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT;
     }
-    if (::GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_PERCENT_BIT;
+    if (LDT_GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_PERCENT_BIT;
         locationInfo.calibrationConfidencePercent = halLocationInfo.calibrationConfidence;
     }
-    if (::GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT;
+    if (LDT_GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT;
         locationInfo.calibrationStatus =
                 (DrCalibrationStatusMask)halLocationInfo.calibrationStatus;
     }
-    if (::GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT;
+    if (LDT_GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT;
     }
-    if (::GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT;
-    }
-
-    if (::GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT;
+    if (LDT_GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT;
+    if (LDT_GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT;
+    if (LDT_GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT;
+    if (LDT_GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT;
+    if (LDT_GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_SESSION_STATUS_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_SESSION_STATUS_BIT;
+    if (LDT_GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT;
+    if (LDT_GNSS_LOCATION_INFO_SESSION_STATUS_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_SESSION_STATUS_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT;
+    if (LDT_GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT;
+    if (LDT_GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT;
+    if (LDT_GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT;
     }
 
-    if (::GNSS_LOCATION_INFO_DGNSS_STATION_ID_BIT & halLocationInfo.flags) {
-        flags |= GNSS_LOCATION_INFO_DGNSS_STATION_ID_BIT;
+    if (LDT_GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT;
+    }
+
+    if (LDT_GNSS_LOCATION_INFO_DGNSS_STATION_ID_BIT & halLocationInfo.flags) {
+        flags |= LCA_GNSS_LOCATION_INFO_DGNSS_STATION_ID_BIT;
     }
 
     locationInfo.gnssInfoFlags = (GnssLocationInfoFlagMask)flags;
@@ -1281,7 +1286,7 @@ public:
                 if (LocIpcQrtrWatcher::ServiceStatus::UP == mStatus) {
                     auto sender = mWatcher.mIpcSender.lock();
                     if (nullptr != sender && sender->copyDestAddrFrom(mRefSender)) {
-                        sleep(2);
+                        usleep(gSleepTime);
                         auto listener = mWatcher.mIpcListener.lock();
                         if (nullptr != listener) {
                             LocAPIHalReadyIndMsg msg(SERVICE_NAME, &mWatcher.mPbufMsgConv);
@@ -1637,10 +1642,10 @@ uint32_t LocationClientApiImpl::startTrackingSync(TrackingOptions& option) {
                 bool rc = sendMessage(
                    reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()), pbStr.size());
                 LOC_LOGd(">>> StartTrackingReq Interval=%d Distance=%d,"
-                         " locReqEngTypeMask=0x%x",
+                         " locReqEngTypeMask=0x%x rc=%d",
                          mLocationOptions.minInterval,
                          mLocationOptions.minDistance,
-                         mLocationOptions.locReqEngTypeMask);
+                         mLocationOptions.locReqEngTypeMask, rc);
             } else {
                 LOC_LOGe("LocAPIStartTrackingReqMsg serializeToProtobuf failed");
             }
@@ -1866,8 +1871,9 @@ void LocationClientApiImpl::updateTrackingOptionsSync(TrackingOptions& option,
         if (msg.serializeToProtobuf(pbStr)) {
             bool rc = sendMessage(reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()),
                     pbStr.size());
-            LOC_LOGd(">>> updateTrackingOptionsSync Interval=%d Distance=%d, reqTypeMask=0x%x",
-                    option.minInterval, option.minDistance, option.locReqEngTypeMask);
+            LOC_LOGd(">>> updateTrackingOptionsSync Interval=%d Distance=%d, reqTypeMask=0x%x "
+                    "rc=%d",
+                    option.minInterval, option.minDistance, option.locReqEngTypeMask, rc);
         } else {
             LOC_LOGe("LocAPIUpdateTrackingOptionsReqMsg serializeToProtobuf failed");
         }
@@ -1910,9 +1916,9 @@ uint32_t LocationClientApiImpl::startBatchingSync(BatchingOptions& batchOptions)
         if (msg.serializeToProtobuf(pbStr)) {
             bool rc = sendMessage(
             reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()), pbStr.size());
-            LOC_LOGd(">>> StartBatchingReq Interval=%d Distance=%d BatchingMode=%d",
+            LOC_LOGd(">>> StartBatchingReq Interval=%d Distance=%d BatchingMode=%d rc=%d",
                      mBatchingOptions.minInterval, mBatchingOptions.minDistance,
-                     mBatchingOptions.batchingMode);
+                     mBatchingOptions.batchingMode, rc);
         } else {
             LOC_LOGe("LocAPIStartBatchingReqMsg serializeToProtobuf failed");
         }
@@ -1995,9 +2001,9 @@ void LocationClientApiImpl::updateBatchingOptions(uint32_t id, BatchingOptions& 
         if (msg.serializeToProtobuf(pbStr)) {
             bool rc = sendMessage(
                     reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()), pbStr.size());
-            LOC_LOGd(">>> StartBatchingReq Interval=%d Distance=%d BatchingMode=%d",
+            LOC_LOGd(">>> StartBatchingReq Interval=%d Distance=%d BatchingMode=%d rc=%d",
                      mBatchingOptions.minInterval, mBatchingOptions.minDistance,
-                     mBatchingOptions.batchingMode);
+                     mBatchingOptions.batchingMode, rc);
         } else {
             LOC_LOGe("LocAPIUpdateBatchingOptionsReqMsg serializeToProtobuf failed");
         }
@@ -2059,7 +2065,7 @@ uint32_t* LocationClientApiImpl::addGeofences(size_t count, GeofenceOption* opti
     if (msg.serializeToProtobuf(pbStr)) {
         bool rc = sendMessage(reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()),
                               pbStr.size());
-        LOC_LOGd(">>> AddGeofencesReq count=%" PRIu32"", gfCountUsed);
+        LOC_LOGd(">>> AddGeofencesReq count=%" PRIu32" rc=%d", gfCountUsed, rc);
     } else {
         LOC_LOGe("LocAPIAddGeofencesReqMsg serializeToProtobuf failed");
     }
@@ -2151,7 +2157,7 @@ void LocationClientApiImpl::removeGeofences(size_t count, uint32_t* ids) {
                 if (msg.serializeToProtobuf(pbStr)) {
                     bool rc = mApiImpl->sendMessage(
                             reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()), pbStr.size());
-                    LOC_LOGd(">>> RemoveGeofencesReq count=%" PRIu32"", gfCountUsed);
+                    LOC_LOGd(">>> RemoveGeofencesReq count=%" PRIu32" rc=%d", gfCountUsed, rc);
                 } else {
                     LOC_LOGe("LocAPIRemoveGeofencesReqMsg serializeToProtobuf failed");
                 }
@@ -2195,7 +2201,7 @@ void LocationClientApiImpl::modifyGeofences(
                 if (msg.serializeToProtobuf(pbStr)) {
                     bool rc = mApiImpl->sendMessage(
                             reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()), pbStr.size());
-                    LOC_LOGd(">>> ModifyGeofencesReq count=%" PRIu32 "", gfCountUsed);
+                    LOC_LOGd(">>> ModifyGeofencesReq count=%" PRIu32 " rc=%d", gfCountUsed, rc);
                 } else {
                     LOC_LOGe("LocAPIModifyGeofencesReqMsg serializeToProtobuf failed");
                 }
@@ -2236,7 +2242,7 @@ void LocationClientApiImpl::pauseGeofences(size_t count, uint32_t* ids) {
                 if (msg.serializeToProtobuf(pbStr)) {
                     bool rc = mApiImpl->sendMessage(
                             reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()), pbStr.size());
-                    LOC_LOGd(">>> PauseGeofencesReq count=%" PRIu32"", gfCountUsed);
+                    LOC_LOGd(">>> PauseGeofencesReq count=%" PRIu32" rc=%d", gfCountUsed, rc);
                 } else {
                     LOC_LOGe("LocAPIPauseGeofencesReqMsg serializeToProtobuf failed");
                 }
@@ -2275,7 +2281,7 @@ void LocationClientApiImpl::resumeGeofences(size_t count, uint32_t* ids) {
                 if (msg.serializeToProtobuf(pbStr)) {
                     bool rc = mApiImpl->sendMessage(
                             reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()), pbStr.size());
-                    LOC_LOGd(">>> ResumeGeofencesReq count=%" PRIu32"", gfCountUsed);
+                    LOC_LOGd(">>> ResumeGeofencesReq count=%" PRIu32"rc=%d", gfCountUsed, rc);
                 } else {
                     LOC_LOGe("LocAPIResumeGeofencesReqMsg serializeToProtobuf failed");
                 }
@@ -2305,7 +2311,7 @@ void LocationClientApiImpl::updateNetworkAvailability(bool available) {
             if (msg.serializeToProtobuf(pbStr)) {
                 bool rc = mApiImpl->sendMessage(
                         reinterpret_cast<uint8_t *>((uint8_t *)pbStr.c_str()), pbStr.size());
-                LOC_LOGd(">>> UpdateNetworkAvailabilityReq available=%d ", mAvailable);
+                LOC_LOGd(">>> UpdateNetworkAvailabilityReq available=%d rc=%d", mAvailable, rc);
             } else {
                 LOC_LOGe("LocAPIUpdateNetworkAvailabilityReqMsg serializeToProtobuf failed");
             }
@@ -2857,7 +2863,6 @@ void IpcListener::onReceive(const char* data, uint32_t length,
 
             ELocMsgID eLocMsgid = mApiImpl.mPbufMsgConv.getEnumForPBELocMsgID(pbLocApiMsg.msgid());
             string sockName = pbLocApiMsg.msocketname();
-            uint32_t msgVer = pbLocApiMsg.msgversion();
             uint32_t payloadSize = pbLocApiMsg.payloadsize();
             // pbLocApiMsg.payload() contains the payload data.
 
@@ -2974,8 +2979,6 @@ void IpcListener::onReceive(const char* data, uint32_t length,
                         (mApiImpl.mPositionSessionResponseCbPending == false) &&
                         (mApiImpl.mCallbacksMask & E_LOC_CB_TRACKING_BIT)) {
                     const LocAPILocationIndMsg* pLocationIndMsg = (LocAPILocationIndMsg*)(&msg);
-                    Location location = LocationClientApiImpl::parseLocation(
-                            pLocationIndMsg->locationNotification);
                     if (mApiImpl.mLocationCbs.trackingCb) {
                         mApiImpl.mLocationCbs.trackingCb(pLocationIndMsg->locationNotification);
                     }
@@ -3186,7 +3189,6 @@ void IpcListener::onReceive(const char* data, uint32_t length,
                     }
                     LocAPIDataIndMsg msg(sockName.c_str(), pbLocApiDataIndMsg,
                             &mApiImpl.mPbufMsgConv);
-                    const LocAPIDataIndMsg* pDataIndMsg = (LocAPIDataIndMsg*)(&msg);
                     mApiImpl.mLocationCbs.gnssDataCb(msg.gnssDataNotification);
                 }
                 break;

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -617,6 +617,10 @@ static void csr_fill_rsn_auth_type(enum csr_akm_type *auth_type, uint32_t akm)
 		*auth_type = eCSR_AUTH_TYPE_FILS_SHA384;
 	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FILS_SHA256))
 		*auth_type = eCSR_AUTH_TYPE_FILS_SHA256;
+	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY))
+		*auth_type = eCSR_AUTH_TYPE_FT_SAE_EXT_KEY;
+	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY))
+		*auth_type = eCSR_AUTH_TYPE_SAE_EXT_KEY;
 	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_SAE))
 		*auth_type = eCSR_AUTH_TYPE_FT_SAE;
 	else if (QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_SAE))
@@ -795,9 +799,10 @@ static QDF_STATUS csr_fill_bss_from_scan_entry(struct mac_context *mac_ctx,
 	enum channel_state ap_channel_state;
 
 	ap_channel_state =
-		wlan_reg_get_channel_state_for_freq(
+		wlan_reg_get_channel_state_for_pwrmode(
 				mac_ctx->pdev,
-				scan_entry->channel.chan_freq);
+				scan_entry->channel.chan_freq,
+				REG_CURRENT_PWR_MODE);
 	if (ap_channel_state == CHANNEL_STATE_DISABLE ||
 	    ap_channel_state == CHANNEL_STATE_INVALID) {
 		sme_err("BSS "QDF_MAC_ADDR_FMT" channel %d invalid, not populating this BSSID",

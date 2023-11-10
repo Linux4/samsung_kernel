@@ -736,7 +736,37 @@ static inline uint32_t
 if_mgr_get_conc_ext_flags(struct wlan_objmgr_vdev *vdev,
 			  struct validate_bss_data *candidate_info)
 {
+	struct qdf_mac_addr *mld_addr;
+
+	/* If connection is happening on non-ML VDEV
+	 * force the ML AP candidate as non-MLO to
+	 * downgrade connection to 11ax.
+	 */
+	mld_addr = (struct qdf_mac_addr *)wlan_vdev_mlme_get_mldaddr(vdev);
+	if (qdf_is_macaddr_zero(mld_addr))
+		return policy_mgr_get_conc_ext_flags(vdev, false);
+
 	return policy_mgr_get_conc_ext_flags(vdev, candidate_info->is_mlo);
+}
+
+static void if_mgr_update_candidate(struct wlan_objmgr_psoc *psoc,
+				    struct validate_bss_data *candidate_info)
+{
+	struct scan_cache_entry *scan_entry = candidate_info->scan_entry;
+
+	if (!(scan_entry->ie_list.multi_link_bv || scan_entry->ie_list.ehtcap ||
+	      scan_entry->ie_list.ehtop))
+		return;
+
+	if (mlme_get_bss_11be_allowed(psoc, &candidate_info->peer_addr,
+				      util_scan_entry_ie_data(scan_entry),
+				      util_scan_entry_ie_len(scan_entry)))
+		return;
+	scan_entry->ie_list.multi_link_bv = NULL;
+	scan_entry->ie_list.ehtcap = NULL;
+	scan_entry->ie_list.ehtop = NULL;
+	qdf_mem_zero(&scan_entry->ml_info, sizeof(scan_entry->ml_info));
+	candidate_info->is_mlo = false;
 }
 #else
 static inline uint32_t
@@ -744,6 +774,11 @@ if_mgr_get_conc_ext_flags(struct wlan_objmgr_vdev *vdev,
 			  struct validate_bss_data *candidate_info)
 {
 	return 0;
+}
+
+static void if_mgr_update_candidate(struct wlan_objmgr_psoc *psoc,
+				    struct validate_bss_data *candidate_info)
+{
 }
 #endif
 
@@ -770,6 +805,7 @@ QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 	if (!psoc)
 		return QDF_STATUS_E_FAILURE;
 
+	if_mgr_update_candidate(psoc, candidate_info);
 	/*
 	 * Do not allow STA to connect on 6Ghz or indoor channel for non dbs
 	 * hardware if SAP and skip_6g_and_indoor_freq_scan ini are present
@@ -866,6 +902,14 @@ QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 
 	if (conc_freq)
 		return QDF_STATUS_E_INVAL;
+
+	/* Check low latency SAP and STA/GC concurrency are valid or not */
+	if (!policy_mgr_is_ll_sap_concurrency_valid(psoc, chan_freq, mode)) {
+		ifmgr_debug("STA connection not allowed on bssid: "QDF_MAC_ADDR_FMT" with freq: %d due to LL SAP present",
+			    QDF_MAC_ADDR_REF(candidate_info->peer_addr.bytes),
+			    chan_freq);
+		return QDF_STATUS_E_INVAL;
+	}
 
 	return QDF_STATUS_SUCCESS;
 }

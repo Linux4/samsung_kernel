@@ -6,7 +6,6 @@
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
 #include <linux/blkdev.h>
-#include <linux/debugfs.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -16,26 +15,12 @@
 #include <linux/platform_device.h>
 #include <linux/uio.h>
 
-#include <linux/samsung/builder_pattern.h>
+#include <linux/samsung/sec_kunit.h>
 #include <linux/samsung/bsp/sec_class.h>
-#include <linux/samsung/bsp/sec_param.h>
 #include <linux/samsung/debug/sec_debug.h>
 
 #include <block/blk.h>
 #include "sec_qc_param.h"
-
-struct qc_param_drvdata {
-	struct builder bd;
-	struct device *param_dev;
-	struct sec_param_operations ops;
-	const char *bdev_path;
-	loff_t negative_offset;
-	struct block_device *bdev;
-	loff_t offset;
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	struct dentry *dbgfs;
-#endif
-};
 
 static struct qc_param_drvdata *qc_param;
 
@@ -44,33 +29,7 @@ static __always_inline bool __qc_param_is_probed(void)
 	return !!qc_param;
 }
 
-#define QC_PARAM_OFFSET(__member) \
-	(offsetof(struct sec_qc_param_data, __member))
-
-#define QC_PARAM_SIZE(__member) \
-	(sizeof(((struct sec_qc_param_data *)NULL)->__member))
-
-#define QC_PARAM_INFO(__index, __member, __verify_input) \
-	[__index] = { \
-		.name = #__member, \
-		.offset = QC_PARAM_OFFSET(__member), \
-		.size = QC_PARAM_SIZE(__member), \
-		.verify_input = __verify_input, \
-	}
-
-struct qc_param_info;
-
-typedef bool (*qc_param_verify_input_t)(const struct qc_param_info *info,
-		const void *value);
-
-struct qc_param_info {
-	const char *name;
-	loff_t offset;
-	size_t size;
-	qc_param_verify_input_t verify_input;
-};
-
-static bool __qc_param_verify_debuglevel(const struct qc_param_info *info,
+__ss_static bool __qc_param_verify_debuglevel(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int debuglevel = *(const unsigned int *)value;
@@ -90,7 +49,7 @@ static bool __qc_param_verify_debuglevel(const struct qc_param_info *info,
 	return ret;
 }
 
-static bool __qc_param_verify_sapa(const struct qc_param_info *info,
+__ss_static bool __qc_param_verify_sapa(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int sapa = *(const unsigned int *)value;
@@ -101,7 +60,7 @@ static bool __qc_param_verify_sapa(const struct qc_param_info *info,
 	return false;
 }
 
-static bool __qc_param_verify_afc_disable(const struct qc_param_info *info,
+__ss_static bool __qc_param_verify_afc_disable(const struct qc_param_info *info,
 		const void *value)
 {
 	const char mode = *(const char *)value;
@@ -112,7 +71,7 @@ static bool __qc_param_verify_afc_disable(const struct qc_param_info *info,
 	return false;
 }
 
-static bool __qc_param_verify_pd_disable(const struct qc_param_info *info,
+__ss_static bool __qc_param_verify_pd_disable(const struct qc_param_info *info,
 		const void *value)
 {
 	const char mode = *(const char *)value;
@@ -123,7 +82,7 @@ static bool __qc_param_verify_pd_disable(const struct qc_param_info *info,
 	return false;
 }
 
-static bool __qc_param_verify_cp_reserved_mem(const struct qc_param_info *info,
+__ss_static bool __qc_param_verify_cp_reserved_mem(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int cp_reserved_mem = *(const unsigned int *)value;
@@ -143,7 +102,7 @@ static bool __qc_param_verify_cp_reserved_mem(const struct qc_param_info *info,
 	return ret;
 }
 
-static bool __qc_param_verify_FMM_lock(const struct qc_param_info *info,
+__ss_static bool __qc_param_verify_FMM_lock(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int fmm_lock_magic = *(const unsigned int *)value;
@@ -154,7 +113,7 @@ static bool __qc_param_verify_FMM_lock(const struct qc_param_info *info,
 	return false;
 }
 
-static bool __qc_param_verify_fiemap_update(const struct qc_param_info *info,
+__ss_static bool __qc_param_verify_fiemap_update(const struct qc_param_info *info,
 		const void *value)
 {
 	const unsigned int edtbo_fiemap_magic = *(const unsigned int *)value;
@@ -237,7 +196,7 @@ ssize_t sec_qc_param_read_raw(void *buf, size_t len, loff_t pos)
 }
 EXPORT_SYMBOL(sec_qc_param_read_raw);
 
-static bool __qc_param_is_valid_index(size_t index)
+__ss_static bool __qc_param_is_valid_index(size_t index)
 {
 	size_t size;
 
@@ -419,7 +378,7 @@ static bool sec_qc_param_write(size_t index, const void *value)
 	return __qc_param_write(qc_param, index, value);
 }
 
-static int __qc_param_parse_dt_bdev_path(struct builder *bd,
+__ss_static int __qc_param_parse_dt_bdev_path(struct builder *bd,
 		struct device_node *np)
 {
 	struct qc_param_drvdata *drvdata =
@@ -429,7 +388,7 @@ static int __qc_param_parse_dt_bdev_path(struct builder *bd,
 			&drvdata->bdev_path);
 }
 
-static int __qc_param_parse_dt_negative_offset(struct builder *bd,
+__ss_static int __qc_param_parse_dt_negative_offset(struct builder *bd,
 		struct device_node *np)
 {
 	struct qc_param_drvdata *drvdata =

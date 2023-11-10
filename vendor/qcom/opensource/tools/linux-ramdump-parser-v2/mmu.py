@@ -88,6 +88,13 @@ class MMU(object):
                 self._tlb[page_addr] = phys_addr
             return phys_addr + page_offset
 
+    def get_swap_pte(self, addr):
+        if addr is None:
+            return None
+        page_addr = (addr >> 12) << 12
+        pte = self.page_table_walk_to_get_swap_pte(page_addr)
+        return pte
+
     def load_page_tables(self):
         raise NotImplementedError
 
@@ -95,6 +102,9 @@ class MMU(object):
         raise NotImplementedError
 
     def dump_page_tables(self, f):
+        raise NotImplementedError
+
+    def page_table_walk_to_get_swap_pte(self, virt):
         raise NotImplementedError
 
 
@@ -167,6 +177,9 @@ class Armv7MMU(MMU):
         f.write(
             'Dumping page tables is not currently supported for Armv7MMU\n')
         f.flush()
+
+    def page_table_walk_to_get_swap_pte(self, virt):
+        return None
 
 
 class Armv7LPAEMMU(MMU):
@@ -503,6 +516,9 @@ class Armv7LPAEMMU(MMU):
             'Dumping page tables is not currently supported for Armv7LPAEMMU\n')
         f.flush()
 
+    def page_table_walk_to_get_swap_pte(self, virt):
+        return None
+
 class Armv8MMU(MMU):
 
     """An MMU for ARMv8 VMSA"""
@@ -784,6 +800,44 @@ class Armv8MMU(MMU):
 
         r = self.tl_page_desc_2_phys(tl_desc, virt_r)
         return r
+
+    def page_table_walk_to_get_swap_pte(self, virt):
+        virt_r = Register(virt,
+            zl_index=(47,39),
+            fl_index=(38,30),
+            sl_index=(29,21),
+            tl_index=(20,12),
+            page_index=(11,0))
+
+        try:
+          fl_desc = self.do_fl_sl_level_lookup(self.ttbr, virt_r.fl_index, 12, 30)
+        except:
+          return None
+
+        if fl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
+            return self.fl_block_desc_2_phys(fl_desc, virt_r)
+
+        base = Register(base=(47, 12))
+        base.base = fl_desc.next_level_base_addr_upper
+        try:
+            sl_desc = self.do_sl_level_lookup(
+                base.value, virt_r.sl_index)
+        except:
+            return None
+
+        if sl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
+            r = self.sl_block_desc_2_phys(sl_desc, virt_r)
+            return r
+
+        base.base = sl_desc.next_level_base_addr_upper
+
+        descriptor, addr = self.do_level_lookup(
+            base.value, virt_r.tl_index, 12)
+        if descriptor.dtype == Armv8MMU.DESCRIPTOR_INVALID and descriptor.value != 0:
+            return descriptor.value
+
+        return None
+
     def page_table_walkel2(self, virt):
         #print "page_table_walkel2 virt address = {0}".format(hex(virt))
         virt_r = Register(virt,

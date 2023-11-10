@@ -97,6 +97,7 @@ struct sde_rsc_hw_ops {
 	void (*debug_dump)(struct sde_rsc_priv *rsc, u32 mux_sel);
 	int (*state_update)(struct sde_rsc_priv *rsc, enum sde_rsc_state state);
 	int (*debug_show)(struct seq_file *s, struct sde_rsc_priv *rsc);
+	void (*debug_log)(struct sde_rsc_priv *rsc);
 	int (*mode_ctrl)(struct sde_rsc_priv *rsc, enum rsc_mode_req request,
 		char *buffer, int buffer_size, u32 mode);
 	int (*setup_counters)(struct sde_rsc_priv *rsc, bool enable);

@@ -29,6 +29,11 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
 #ifndef __QTIGRALLOCDEFS_H__
 #define __QTIGRALLOCDEFS_H__
 
@@ -63,6 +68,9 @@
 
 /* This flag is set for HEIF usecase */
 #define GRALLOC_USAGE_PRIVATE_HEIF (UINT32_C(1) << 27)
+
+/* Samsung MaskView for FingerPrint in display */
+#define GRALLOC_USAGE_PRIVATE_FINGERPRINT_MASK   1ULL << 34
 
 /* This flag is used to indicate video NV21 format */
 #define GRALLOC_USAGE_PRIVATE_VIDEO_NV21_ENCODER 1ULL << 48
@@ -128,6 +136,9 @@
 #define HAL_PIXEL_FORMAT_NV12_UBWC_FLEX_2_BATCH 0x128
 #define HAL_PIXEL_FORMAT_NV12_UBWC_FLEX_4_BATCH 0x129
 #define HAL_PIXEL_FORMAT_NV12_UBWC_FLEX_8_BATCH 0x130
+#define HAL_PIXEL_FORMAT_NV12_FLEX_2_BATCH 0x140
+#define HAL_PIXEL_FORMAT_NV12_FLEX_4_BATCH 0x141
+#define HAL_PIXEL_FORMAT_NV12_FLEX_8_BATCH 0x142
 
 // FSC Formats
 #define HAL_PIXEL_FORMAT_RGB888_UBWC_FSC 0x131

@@ -1,5 +1,5 @@
 # Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
-# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+# Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -1392,6 +1392,9 @@ def get_wdog_timing(ramdump):
     timer_expires_off = ramdump.field_offset('struct timer_list', 'expires')
     pet_timer_expires = ramdump.read_word(
         wdog_data_addr + pet_timer_off + timer_expires_off)
+    timer_flags_off = ramdump.field_offset('struct timer_list', 'flags')
+    pet_timer_flags = ramdump.read_word(
+        wdog_data_addr + pet_timer_off + timer_flags_off)
     wdog_last_pet = ramdump.read_structure_field(
         wdog_data_addr, 'struct msm_watchdog_data', 'last_pet')
     #For kernel version less than 4.4, as the member variable timer_expired
@@ -1403,13 +1406,13 @@ def get_wdog_timing(ramdump):
             wdog_data_addr + pet_timer_off + pet_timer_entry_offset + pet_timer_prev_offset)
 
         if(pet_timer_entry_prev == '0x200'):
-            pet_timer_expired = 1
+            pet_timer_expired = True
         else:
-            pet_timer_expired = 0
+            pet_timer_expired = False
     else:
         timer_expired_off = ramdump.field_offset(
             'struct msm_watchdog_data', 'timer_expired')
-        pet_timer_expired = ramdump.read_word(wdog_data_addr + timer_expired_off)
+        pet_timer_expired = ramdump.read_bool(wdog_data_addr + timer_expired_off)
     pet_time_off = ramdump.field_offset('struct msm_watchdog_data', 'pet_time')
     bark_time_off = ramdump.field_offset(
         'struct msm_watchdog_data', 'bark_time')
@@ -1435,10 +1438,8 @@ def get_wdog_timing(ramdump):
     if ramdump.is_config_defined('CONFIG_SMP'):
         runqueues_addr = ramdump.address_of('runqueues')
         online_offset = ramdump.field_offset('struct rq', 'online')
-
         for i in ramdump.iter_cpus():
-            rq_addr = runqueues_addr + ramdump.per_cpu_offset(i)
-            online = ramdump.read_int(rq_addr + online_offset)
+            online = ramdump.read_int(runqueues_addr + online_offset, cpu=i)
             runq_online_bits |= (online << i)
 
     if (ramdump.kernel_version >= (4, 9, 0)):
@@ -1451,10 +1452,13 @@ def get_wdog_timing(ramdump):
     if not ramdump.minidump:
         wdog_task = ramdump.read_structure_field(
             wdog_data_addr, 'struct msm_watchdog_data', 'watchdog_task')
-        wdog_task_state = ramdump.read_structure_field(
-            wdog_task, 'struct task_struct', 'state')
-        wdog_task_threadinfo = ramdump.read_structure_field(
-            wdog_task, 'struct task_struct', 'stack')
+        if ramdump.kernel_version >= (5, 15, 0):
+            wdog_task_state = ramdump.read_structure_field(
+                wdog_task, 'struct task_struct', '__state')
+        else:
+            wdog_task_state = ramdump.read_structure_field(
+                wdog_task, 'struct task_struct', 'state')
+        wdog_task_threadinfo = ramdump.get_thread_info_addr(wdog_task)
         wdog_task_cpu = ramdump.get_task_cpu(wdog_task, wdog_task_threadinfo)
         wdog_task_oncpu = ramdump.read_structure_field(
             wdog_task, 'struct task_struct', 'on_cpu')
@@ -1463,10 +1467,10 @@ def get_wdog_timing(ramdump):
         wdog_task_queued = ramdump.read_structure_field(
             wdog_task, 'struct task_struct', 'sched_info.last_queued')
     logical_map_addr = ramdump.address_of('__cpu_logical_map')
-    for i in range(0, ramdump.get_num_cpus()):
+    for i in ramdump.iter_cpus():
         cpu_logical_map_addr = logical_map_addr + (i * 8)
         core_id = ramdump.read_u64(cpu_logical_map_addr)
-        logical_map.append(core_id)
+        logical_map.append(core_id >> 8)
     print_out_str('Non-secure Watchdog data')
     print_out_str('Pet time: {0}s'.format(pet_time / 1000.0))
     print_out_str('Bark time: {0}s'.format(bark_time / 1000.0))
@@ -1483,7 +1487,7 @@ def get_wdog_timing(ramdump):
             print_out_str("CPUs responded to pet(alive_mask): {0:08b}".format(
                 wdog_alive_mask))
             alive_cpus = wdog_alive_mask | (~cpu_online_bits) | cpu_isolated_bits
-            for i in range(0, ramdump.get_num_cpus()):
+            for i in ramdump.iter_cpus():
                 if (alive_cpus & 1):
                     alive_cpus = alive_cpus >> 1
                 else:
@@ -1495,8 +1499,11 @@ def get_wdog_timing(ramdump):
                 "Watchdog task is waiting on core {0} from {1:.6f}".format(
                     wdog_task_cpu, ns_to_sec(wdog_task_queued)))
 
-        elif wdog_task_state == 1 and pet_timer_expired == 1:
+        elif wdog_task_state == 1 and pet_timer_expired == True:
             print_out_str("Pet timer expired but Watchdog task is not queued")
+
+        elif pet_timer_expired == True:
+            print_out_str("Pet timer expired")
 
         else:
             print_out_str('Watchdog pet timer not expired')
@@ -1506,6 +1513,10 @@ def get_wdog_timing(ramdump):
     print_out_str('CPU online bits: {0:08b}'.format(cpu_online_bits))
     print_out_str('CPU runqueue online bits: {0:08b}'.format(runq_online_bits))
     print_out_str('CPU isolated bits: {0:08b}'.format(cpu_isolated_bits))
+    if (ramdump.kernel_version >= (5, 15, 0)):
+        cpu_dying_bits = ramdump.read_word('__cpu_dying_mask')
+        print_out_str('CPU dying bits: {0:08b}'.format(cpu_dying_bits))
+    print_out_str('pet_timer_flags: 0x{0:x}'.format(pet_timer_flags))
     print_out_str('pet_timer_expires: {0}'.format(pet_timer_expires))
     print_out_str('Current jiffies  : {0}'.format(jiffies))
     print_out_str(
@@ -1523,7 +1534,7 @@ def get_wdog_timing(ramdump):
             'tick_broadcast_device cpumask: {0:08b}'.format(tick_bc_cpumask_bits))
         print_out_str(
             'tick_broadcast_device next_event: {0:.6f}'.format(tick_bc_next_evt))
-        for i in range(0, ramdump.get_num_cpus()):
+        for i in ramdump.iter_cpus():
             tick_cpu_device = ramdump.address_of(
                 'tick_cpu_device') + ramdump.per_cpu_offset(i)
             evt_dev = ramdump.read_structure_field(
@@ -1542,11 +1553,11 @@ def get_wdog_timing(ramdump):
                         'struct msm_watchdog_data', 'ping_start')
         ping_end_time_offset = ramdump.field_offset(
                         'struct msm_watchdog_data', 'ping_end')
-        for i in range(0, ramdump.get_num_cpus()):
+        for i in ramdump.iter_cpus():
             ping_start_time = ramdump.read_u64(wdog_data_addr +
-                                                 ping_start_time_offset + i*8)
+                                                 ping_start_time_offset + i * 8)
             ping_end_time = ramdump.read_u64(wdog_data_addr +
-                                                 ping_end_time_offset + i*8)
+                                                 ping_end_time_offset + i * 8)
             print_out_str("CPU#{0} : ping_start: {1:.6f} : ping_end: {2:.6f}"
                           .format(i, ns_to_sec(ping_start_time),
                                   ns_to_sec(ping_end_time)))

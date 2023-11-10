@@ -36,8 +36,8 @@
 /*
  * Number of times to check for any pending tx/rx completion on
  * a copy engine, this count should be big enough. Once we hit
- * this threashold we'll not check for any Tx/Rx comlpetion in same
- * interrupt handling. Note that this threashold is only used for
+ * this threshold we'll not check for any Tx/Rx completion in same
+ * interrupt handling. Note that this threshold is only used for
  * Rx interrupt processing, this can be used tor Tx as well if we
  * suspect any infinite loop in checking for pending Tx completion.
  */
@@ -119,7 +119,7 @@ struct HIF_CE_pipe_info {
 	/* Handle of underlying Copy Engine */
 	struct CE_handle *ce_hdl;
 
-	/* Our pipe number; facilitiates use of pipe_info ptrs. */
+	/* Our pipe number; facilitates use of pipe_info ptrs. */
 	uint8_t pipe_num;
 
 	/* Convenience back pointer to HIF_CE_state. */

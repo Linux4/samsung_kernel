@@ -22,6 +22,12 @@
 * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+/*
+* Changes from Qualcomm Innovation Center are provided under the following license:
+* Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+* SPDX-License-Identifier: BSD-3-Clause-Clear
+*/
+
 #ifndef __BUFFER_INTERFACE_H__
 #define __BUFFER_INTERFACE_H__
 
@@ -77,6 +83,14 @@ struct Rect {
   float top = 0.0f;             //!< Specifies the top coordinates of the pixel buffer
   float right = 0.0f;           //!< Specifies the right coordinates of the pixel buffer
   float bottom = 0.0f;          //!< Specifies the bottom coordinates of the pixel buffer
+
+  bool operator==(const Rect& rect) const {
+    return left == rect.left && right == rect.right && top == rect.top && bottom == rect.bottom;
+  }
+
+  bool operator!=(const Rect& rect) const {
+    return !operator==(rect);
+  }
 };
 
 struct BufferHandle {

@@ -454,9 +454,10 @@ static int __damon_stop(struct damon_ctx *ctx)
 	tsk = ctx->kdamond;
 	if (tsk) {
 		get_task_struct(tsk);
-		mutex_unlock(&ctx->kdamond_lock);
 		kthread_stop(tsk);
 		put_task_struct(tsk);
+		ctx->kdamond = NULL;
+		mutex_unlock(&ctx->kdamond_lock);
 		return 0;
 	}
 	mutex_unlock(&ctx->kdamond_lock);
@@ -480,6 +481,9 @@ int damon_stop(struct damon_ctx **ctxs, int nr_ctxs)
 		err = __damon_stop(ctxs[i]);
 		if (err)
 			return err;
+		mutex_lock(&damon_lock);
+		nr_running_ctxs--;
+		mutex_unlock(&damon_lock);
 	}
 
 	return err;
@@ -989,6 +993,9 @@ static int kdamond_wait_activation(struct damon_ctx *ctx)
 		if (!min_wait_time)
 			return 0;
 
+		if (ctx->callback.before_sleep)
+			ctx->callback.before_sleep(ctx, min_wait_time/1000);
+
 		kdamond_usleep(min_wait_time);
 	}
 	return -EBUSY;
@@ -1025,18 +1032,29 @@ static int kdamond_fn(void *data)
 				ctx->callback.after_sampling(ctx))
 			done = true;
 
+		if (kthread_should_stop())
+			break;
+
 		kdamond_usleep(ctx->sample_interval);
+
+		if (kthread_should_stop())
+			break;
 
 		if (ctx->primitive.check_accesses)
 			max_nr_accesses = ctx->primitive.check_accesses(ctx);
 
+		if (kthread_should_stop())
+			break;
+
 		if (kdamond_aggregate_interval_passed(ctx)) {
+
 			kdamond_merge_regions(ctx,
 					max_nr_accesses / 10,
 					sz_limit);
 			if (ctx->callback.after_aggregation &&
 					ctx->callback.after_aggregation(ctx))
 				done = true;
+
 			kdamond_apply_schemes(ctx);
 			kdamond_reset_aggregated(ctx);
 			kdamond_split_regions(ctx);
@@ -1061,13 +1079,6 @@ static int kdamond_fn(void *data)
 		ctx->primitive.cleanup(ctx);
 
 	pr_debug("kdamond (%d) finishes\n", current->pid);
-	mutex_lock(&ctx->kdamond_lock);
-	ctx->kdamond = NULL;
-	mutex_unlock(&ctx->kdamond_lock);
-
-	mutex_lock(&damon_lock);
-	nr_running_ctxs--;
-	mutex_unlock(&damon_lock);
 
 	return 0;
 }

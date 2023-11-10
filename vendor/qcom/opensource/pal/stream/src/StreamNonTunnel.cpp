@@ -41,7 +41,7 @@
 #include <unistd.h>
 
 static void handleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
-                                  uint32_t event_size)
+                                  uint32_t event_size, uint32_t miid __unused)
 {
     Stream *s = NULL;
     s = reinterpret_cast<Stream *>(hdl);
@@ -617,7 +617,7 @@ int32_t StreamNonTunnel::isBitWidthSupported(uint32_t bitWidth)
 
 int32_t StreamNonTunnel::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
 
     mStreamMutex.lock();

@@ -68,9 +68,9 @@ int32_t VoiceUIInterface::ParseSoundModel(
         case ST_MODULE_TYPE_CUSTOM_1:
         case ST_MODULE_TYPE_CUSTOM_2:
             status = CustomVAInterface::ParseSoundModel(sm_cfg,
-                                                      sound_model,
-                                                      first_stage_type,
-                                                      model_list);
+                                                        sound_model,
+                                                        first_stage_type,
+                                                        model_list);
             break;
         default:
             PAL_ERR(LOG_TAG, "Invalid VUI module type %d",
@@ -139,8 +139,8 @@ int32_t VoiceUIInterface::RegisterModel(Stream *s,
     if (!sm_info_map_[s]->info) {
         PAL_ERR(LOG_TAG, "Failed to allocate memory for SoundModelInfo");
         status = -ENOMEM;
-        free(sm_info_map_[s]->sm_data);
         free(sm_info_map_[s]);
+        goto exit;
     }
 
     sm_info_map_[s]->sm_data = sm_data;

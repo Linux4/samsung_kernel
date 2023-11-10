@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -24,6 +25,18 @@
 
 #ifndef __QDF_STATUS_H
 #define __QDF_STATUS_H
+
+#ifdef IPA_OFFLOAD
+	#ifdef CONFIG_ARCH_KALAMA
+		#include "../../../../dataipa/drivers/platform/msm/ipa/ipa_test_module/ipa_test_module.h"
+		#ifndef IPA_WDI_OPT_DPATH
+			#undef IPA_OFFLOAD
+			#undef IPA_OPT_WIFI_DP
+		#endif
+	#endif
+#else
+	#undef IPA_OPT_WIFI_DP
+#endif
 
 /**
  * typedef QDF_STATUS - QDF error codes
@@ -74,7 +87,9 @@
  * @QDF_STATUS_CRYPTO_DECRYPT_FAILED: decryption failed
  * @QDF_STATUS_E_RANGE: result/parameter/operation was out of range
  * @QDF_STATUS_E_GRO_DROP: return code for GRO drop
- * @QDF_STATUS_MAX: not a realy value just a place holder for max
+ * @QDF_STATUS_E_RESTART: return error code for wait_event_interruptible
+ * @QDF_STATUS_FILT_REQ_ERROR: return error code cee filter rule request
+ * @QDF_STATUS_MAX: not a real value just a place holder for max
  */
 typedef enum {
 	QDF_STATUS_SUCCESS,
@@ -125,6 +140,8 @@ typedef enum {
 	QDF_STATUS_E_DEFRAG_ERROR,
 	QDF_STATUS_E_RANGE,
 	QDF_STATUS_E_GRO_DROP,
+	QDF_STATUS_E_RESTART,
+	QDF_STATUS_FILT_REQ_ERROR,
 	QDF_STATUS_MAX
 } QDF_STATUS;
 

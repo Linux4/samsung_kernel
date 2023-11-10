@@ -60,6 +60,7 @@
 #ifndef _VL53L8_K_MODULE_H_
 #define _VL53L8_K_MODULE_H_
 
+#include <linux/version.h>
 #include "vl53l8_k_module_data.h"
 
 long vl53l8_k_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
@@ -69,8 +70,12 @@ int vl53l8_k_open(struct inode *inode, struct file *file);
 int vl53l8_k_release(struct inode *inode, struct file *file);
 
 int vl53l8_k_spi_probe(struct spi_device *device);
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+void vl53l8_k_spi_remove(struct spi_device *device);
+#else
 int vl53l8_k_spi_remove(struct spi_device *device);
+#endif
+
 
 int vl53l8_k_setup(struct vl53l8_k_module_t *p_module);
 

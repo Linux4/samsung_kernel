@@ -10,6 +10,7 @@
 #include "dp_aux.h"
 #include "dp_hpd.h"
 #include "dp_debug.h"
+#include "sde_dbg.h"
 #if defined(CONFIG_SECDP)
 #if defined(CONFIG_SECDP_BIGDATA)
 #include <linux/secdp_bigdata.h>
@@ -346,6 +347,7 @@ static void dp_aux_isr(struct dp_aux *dp_aux)
 
 	aux->catalog->get_irq(aux->catalog, aux->cmd_busy);
 
+	SDE_EVT32_EXTERNAL(aux->catalog->isr);
 	if (!aux->cmd_busy)
 		return;
 
@@ -567,13 +569,15 @@ static ssize_t dp_aux_transfer(struct drm_dp_aux *drm_aux,
 	if ((ret < 0) && !atomic_read(&aux->aborted)) {
 #if defined(CONFIG_SECDP)
 		if (!secdp_get_cable_status() || !secdp_get_hpd_status()) {
-			DP_INFO("hpd_low or cable_lost\n");
+			DP_INFO("hpd_low or cable_lost %d\n", ret);
 			/*
 			 * don't need to repeat aux.
 			 * exit loop in drm_dp_dpcd_access()
 			 */
-			msg->reply = DP_AUX_NATIVE_REPLY_ACK;
+			msg->reply = aux->native ?
+				DP_AUX_NATIVE_REPLY_ACK : DP_AUX_I2C_REPLY_ACK;
 			ret = msg->size;
+			aux->retry_cnt = 0;
 			goto unlock_exit;
 		}
 #endif

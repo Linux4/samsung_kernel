@@ -10,13 +10,27 @@ maintainers:
 
 properties:
   compatible:
-    const: qcom,spmi-adc-tm5
+    enum:
+        - qcom,spmi-adc-tm5
+        - qcom,spmi-adc-tm5-iio
 
   reg:
     maxItems: 1
 
-  interrupts:
-    maxItems: 1
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: qcom,spmi-adc-tm5
+    then:
+      properties:
+        interrupts:
+          maxItems: 1
+      required:
+        - interrupts
+    else:
+      properties:
+        interrupts: false
 
   "#thermal-sensor-cells":
     const: 1
@@ -103,7 +117,6 @@ patternProperties:
 required:
   - compatible
   - reg
-  - interrupts
   - "#address-cells"
   - "#size-cells"
   - "#thermal-sensor-cells"

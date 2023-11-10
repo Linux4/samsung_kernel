@@ -105,7 +105,7 @@ void hdd_get_apf_capabilities_cb(void *context,
 
 /**
  * hdd_post_get_apf_capabilities_rsp() - Callback function to APF Offload
- * @hdd_context: hdd_context
+ * @hdd_ctx: hdd_context
  * @apf_get_offload: struct for get offload
  *
  * Return: 0 on success, error number otherwise.
@@ -412,7 +412,7 @@ hdd_apf_write_memory(struct hdd_adapter *adapter, struct nlattr **tb)
 /**
  * hdd_apf_read_memory_callback - HDD Callback for the APF read memory
  *	operation
- * @context: Hdd context
+ * @hdd_context: Hdd context
  * @evt: APF read memory event response parameters
  *
  * Return: 0 on success, errno on failure
@@ -589,7 +589,7 @@ fail:
 }
 
 /**
- * wlan_hdd_cfg80211_apf_offload() - Set/Reset to APF Offload
+ * __wlan_hdd_cfg80211_apf_offload() - Set/Reset to APF Offload
  * @wiphy:    wiphy structure pointer
  * @wdev:     Wireless device structure pointer
  * @data:     Pointer to the data received

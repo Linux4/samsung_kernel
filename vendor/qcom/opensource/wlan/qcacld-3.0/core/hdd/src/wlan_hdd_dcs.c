@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -29,6 +29,7 @@
 #include <wlan_dlm_ucfg_api.h>
 #include <wlan_osif_priv.h>
 #include <wlan_objmgr_vdev_obj.h>
+#include <wlan_dcs_ucfg_api.h>
 
 /* Time(in milliseconds) before which the AP doesn't expect a connection */
 #define HDD_DCS_AWGN_BSS_RETRY_DELAY (5 * 60 * 1000)
@@ -147,6 +148,98 @@ static QDF_STATUS hdd_dcs_switch_chan_cb(struct wlan_objmgr_vdev *vdev,
 	return status;
 }
 
+#ifdef WLAN_FEATURE_SAP_ACS_OPTIMIZE
+/**
+ * hdd_get_bw_for_freq - get BW for provided freq
+ * @res_msg: resp msg with freq info
+ * @freq: freq for which BW is required
+ * @total_chan: total no of channels
+ *
+ * Return: bandwidth
+ */
+static enum phy_ch_width
+hdd_get_bw_for_freq(struct get_usable_chan_res_params *res_msg,
+		    uint16_t freq, uint16_t total_chan)
+{
+	uint16_t i;
+
+	for (i = 0; i < total_chan; i++) {
+		if (res_msg[i].freq == freq)
+			return res_msg[i].bw;
+	}
+	return CH_WIDTH_INVALID;
+}
+
+/**
+ * hdd_dcs_select_random_chan: To select random 6G channel
+ * for CSA
+ * @pdev: pdev object
+ * @vdev: vdevobject
+ *
+ * Return: success/failure
+ */
+static QDF_STATUS
+hdd_dcs_select_random_chan(struct wlan_objmgr_pdev *pdev,
+			   struct wlan_objmgr_vdev *vdev)
+{
+	struct get_usable_chan_req_params req_msg;
+	struct get_usable_chan_res_params *res_msg;
+	enum phy_ch_width tgt_width;
+	uint16_t final_lst[NUM_CHANNELS] = {0};
+	uint16_t intf_ch_freq = 0;
+	uint32_t count;
+	uint32_t i;
+	QDF_STATUS status = QDF_STATUS_E_EMPTY;
+
+	res_msg = qdf_mem_malloc(NUM_CHANNELS *
+			sizeof(*res_msg));
+
+	if (!res_msg) {
+		hdd_err("res_msg invalid");
+		return QDF_STATUS_E_NOMEM;
+	}
+	req_msg.band_mask = BIT(REG_BAND_6G);
+	req_msg.iface_mode_mask = BIT(NL80211_IFTYPE_AP);
+	req_msg.filter_mask = 0;
+	status = wlan_reg_get_usable_channel(pdev, req_msg, res_msg, &count);
+	if (QDF_STATUS_SUCCESS != status) {
+		hdd_err("get usable channel failed %d", status);
+		qdf_mem_free(res_msg);
+		return QDF_STATUS_E_INVAL;
+	}
+	hdd_debug("channel count %d for band %d", count, REG_BAND_6G);
+	for (i = 0; i < count; i++)
+		final_lst[i] = res_msg[i].freq;
+
+	intf_ch_freq = wlan_get_rand_from_lst_for_freq(final_lst, count);
+	if (!intf_ch_freq || intf_ch_freq > wlan_reg_max_6ghz_chan_freq()) {
+		hdd_debug("ch freq gt max 6g freq %d",
+			  wlan_reg_max_6ghz_chan_freq());
+		qdf_mem_free(res_msg);
+		return QDF_STATUS_E_INVAL;
+	}
+	tgt_width = hdd_get_bw_for_freq(res_msg, intf_ch_freq, count);
+	if (tgt_width >= CH_WIDTH_INVALID) {
+		qdf_mem_free(res_msg);
+		return QDF_STATUS_E_INVAL;
+	}
+	if (tgt_width > CH_WIDTH_160MHZ) {
+		hdd_debug("restrict max bw to 160");
+		tgt_width = CH_WIDTH_160MHZ;
+	}
+	qdf_mem_free(res_msg);
+	return ucfg_dcs_switch_chan(vdev, intf_ch_freq,
+				    tgt_width);
+}
+#else
+static inline QDF_STATUS
+hdd_dcs_select_random_chan(struct wlan_objmgr_pdev *pdev,
+			   struct wlan_objmgr_vdev *vdev)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif
+
 /**
  * hdd_dcs_cb() - hdd dcs specific callback
  * @psoc: psoc
@@ -166,6 +259,7 @@ static void hdd_dcs_cb(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
 	uint32_t count;
 	uint32_t list[MAX_NUMBER_OF_CONC_CONNECTIONS];
 	uint32_t index;
+	QDF_STATUS status;
 
 	/*
 	 * so far CAP_DCS_CWIM interference mitigation is not supported
@@ -198,16 +292,84 @@ static void hdd_dcs_cb(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
 			WLAN_HDD_GET_SAP_CTX_PTR(adapter))) {
 			hdd_debug("DCS triggers ACS on vdev_id=%u, mac_id=%u",
 				  list[index], mac_id);
+			/*
+			 * Select Random channel for low latency sap as
+			 * ACS can't select channel of same MAC from which
+			 * CSA is triggered because same MAC frequencies
+			 * will not be present in scan list and results and
+			 * selecting freq of other MAC may cause MCC with
+			 * other modes if present.
+			 */
+			if (wlan_mlme_get_ap_policy(adapter->vdev) !=
+			    HOST_CONCURRENT_AP_POLICY_UNSPECIFIED) {
+				status = hdd_dcs_select_random_chan(
+						hdd_ctx->pdev, adapter->vdev);
+				if (QDF_IS_STATUS_SUCCESS(status))
+					return;
+			}
 			wlan_hdd_cfg80211_start_acs(adapter);
 			return;
 		}
 	}
 }
 
+#ifdef CONFIG_AFC_SUPPORT
+/**
+ * hdd_dcs_afc_sel_chan_cb() - Callback to select best SAP channel/bandwidth
+ *                             after channel state update by AFC
+ * @arg: argument
+ * @vdev_id: vdev id of SAP
+ * @cur_freq: SAP current channel frequency
+ * @cur_bw: SAP current channel bandwidth
+ * @pref_bw: pointer to channel bandwidth prefer to set as input and output
+ *           as target bandwidth can set
+ *
+ * Return: Target home channel frequency selected
+ */
+static qdf_freq_t hdd_dcs_afc_sel_chan_cb(void *arg,
+					  uint32_t vdev_id,
+					  qdf_freq_t cur_freq,
+					  enum phy_ch_width cur_bw,
+					  enum phy_ch_width *pref_bw)
+{
+	struct hdd_context *hdd_ctx = (struct hdd_context *)arg;
+	struct hdd_adapter *adapter;
+	struct sap_context *sap_ctx;
+	qdf_freq_t target_freq;
+
+	if (!hdd_ctx)
+		return 0;
+
+	adapter = hdd_get_adapter_by_vdev(hdd_ctx, vdev_id);
+	if (!adapter)
+		return 0;
+
+	sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter);
+	if (!sap_ctx)
+		return 0;
+
+	target_freq = sap_afc_dcs_sel_chan(sap_ctx, cur_freq, cur_bw, pref_bw);
+
+	return target_freq;
+}
+#else
+static inline qdf_freq_t hdd_dcs_afc_sel_chan_cb(void *arg,
+						 uint32_t vdev_id,
+						 qdf_freq_t cur_freq,
+						 enum phy_ch_width cur_bw,
+						 enum phy_ch_width *pref_bw)
+{
+	return 0;
+}
+#endif
+
 void hdd_dcs_register_cb(struct hdd_context *hdd_ctx)
 {
 	ucfg_dcs_register_cb(hdd_ctx->psoc, hdd_dcs_cb, hdd_ctx);
 	ucfg_dcs_register_awgn_cb(hdd_ctx->psoc, hdd_dcs_switch_chan_cb);
+	ucfg_dcs_register_afc_sel_chan_cb(hdd_ctx->psoc,
+					  hdd_dcs_afc_sel_chan_cb,
+					  hdd_ctx);
 }
 
 void hdd_dcs_hostapd_set_chan(struct hdd_context *hdd_ctx,
@@ -306,7 +468,7 @@ static void hdd_dcs_hostapd_enable_wlan_interference_mitigation(
 
 	if (wlansap_dcs_is_wlan_interference_mitigation_enabled(
 			WLAN_HDD_GET_SAP_CTX_PTR(adapter)) &&
-	    wlan_reg_is_5ghz_ch_freq(adapter->session.ap.operating_chan_freq))
+	    !WLAN_REG_IS_24GHZ_CH_FREQ(adapter->session.ap.operating_chan_freq))
 		ucfg_config_dcs_event_data(hdd_ctx->psoc, mac_id, true);
 }
 

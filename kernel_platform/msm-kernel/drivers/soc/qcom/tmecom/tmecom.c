@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+
+#define pr_fmt(fmt)	"tmecom: [%s][%d]:" fmt, __func__, __LINE__
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -146,6 +148,12 @@ int tmecom_process_request(const void *reqbuf, size_t reqsize, void *respbuf,
 	pr_debug("tmecom received size = %u\n", tdev->pkt.size);
 	print_hex_dump_bytes("tmecom received bytes : ",
 			DUMP_PREFIX_ADDRESS, tdev->pkt.data, tdev->pkt.size);
+
+	if (tdev->pkt.size <= TMECOM_RX_HDR_SIZE) {
+		dev_err(tdev->dev, "invalid pkt.size received\n");
+		ret = -EPROTO;
+		goto err_exit;
+	}
 
 	*respsize = tmecom_decode(tdev, respbuf);
 

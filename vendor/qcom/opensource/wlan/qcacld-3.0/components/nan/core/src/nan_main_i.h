@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,6 +31,7 @@
 #include "nan_public_structs.h"
 #include "wlan_objmgr_cmn.h"
 #include "cfg_nan.h"
+#include "sir_mac_prot_def.h"
 
 struct wlan_objmgr_vdev;
 struct wlan_objmgr_psoc;
@@ -109,7 +110,7 @@ struct nan_cfg_params {
 /**
  * struct nan_psoc_priv_obj - nan private psoc obj
  * @lock: lock to be acquired before reading or writing to object
- * @cb_obj: struct contaning callback pointers
+ * @cb_obj: struct containing callback pointers
  * @cfg_param: NAN Config parameters in INI
  * @nan_caps: NAN Target capabilities
  * @tx_ops: Tx ops registered with Target IF interface
@@ -287,6 +288,20 @@ bool nan_is_disc_active(struct wlan_objmgr_psoc *psoc);
 QDF_STATUS
 nan_get_connection_info(struct wlan_objmgr_psoc *psoc, uint8_t *chan,
 			uint8_t *mac_id);
+
+/**
+ * nan_get_vdev_id_from_bssid() -get NAN vdev_id for NAN BSSID
+ * @pdev: PDEV object
+ * @bssid: BSSID present in mgmt frame
+ * @dbg_id: Object Manager ref debug id
+ *
+ * API to get NAN vdev_id for only NAN BSSID.
+ *
+ * Return: NAN vdev_id
+ */
+uint8_t nan_get_vdev_id_from_bssid(struct wlan_objmgr_pdev *pdev,
+				   tSirMacAddr bssid,
+				   wlan_objmgr_ref_dbgid dbg_id);
 
 #endif /* _WLAN_NAN_MAIN_I_H_ */
 #endif /* WLAN_FEATURE_NAN */

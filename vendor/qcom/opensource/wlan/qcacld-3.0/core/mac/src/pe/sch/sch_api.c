@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -52,11 +52,11 @@
 #include <wlan_cmn_ieee80211.h>
 #include <wlan_mgmt_txrx_utils_api.h>
 
-/* Fils Dicovery Frame */
+/* Fils Discovery Frame */
 /**
  * struct fd_action_header - FILS Discovery Action frame header
  * @action_header: WLAN Action frame header
- * @fd_frame_cntl: FILS Disovery Frame Control
+ * @fd_frame_cntl: FILS Discovery Frame Control
  * @timestamp:     Time stamp
  * @bcn_interval:  Beacon Interval
  * @elem:          variable len sub element fields
@@ -774,10 +774,13 @@ uint32_t lim_send_probe_rsp_template_to_hal(struct mac_context *mac,
 	 * dot11f get packed payload size.
 	 */
 	prb_rsp_frm = &pe_session->probeRespFrame;
-	if (extcap_present)
+	if (extcap_present) {
 		lim_merge_extcap_struct(&prb_rsp_frm->ExtCap,
 					&extracted_extcap,
 					true);
+		populate_dot11f_bcn_prot_extcaps(mac, pe_session,
+						 &prb_rsp_frm->ExtCap);
+	}
 
 	nStatus = dot11f_get_packed_probe_response_size(mac,
 			&pe_session->probeRespFrame, &nPayload);

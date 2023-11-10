@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -582,6 +583,29 @@ exit:
 	return qdf_status_to_os_return(status);
 }
 
+int init_deinit_populate_sap_coex_capability(struct wlan_objmgr_psoc *psoc,
+					     wmi_unified_t handle,
+					     uint8_t *event)
+{
+	struct wmi_host_coex_fix_chan_cap sap_coex_fixed_chan_cap;
+	struct target_psoc_info *psoc_info;
+	QDF_STATUS status;
+
+	qdf_mem_zero(&sap_coex_fixed_chan_cap,
+		     sizeof(struct wmi_host_coex_fix_chan_cap));
+
+	status = wmi_extract_sap_coex_cap_service_ready_ext2(handle, event,
+					&sap_coex_fixed_chan_cap);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		target_if_err("Extraction of sap_coex_chan_pref cap failed");
+		goto exit;
+	}
+	psoc_info = wlan_psoc_get_tgt_if_handle(psoc);
+	target_psoc_set_sap_coex_fixed_chan_cap(psoc_info,
+				!!sap_coex_fixed_chan_cap.fix_chan_priority);
+exit:
+	return qdf_status_to_os_return(status);
+}
 
 QDF_STATUS init_deinit_dbr_ring_cap_free(
 		struct target_psoc_info *tgt_psoc_info)
@@ -966,6 +990,7 @@ QDF_STATUS init_deinit_validate_160_80p80_fw_caps(
 	if ((tgt_hdl->info.target_type == TARGET_TYPE_QCA8074) ||
 	    (tgt_hdl->info.target_type == TARGET_TYPE_QCA8074V2) ||
 	    (tgt_hdl->info.target_type == TARGET_TYPE_QCN6122) ||
+	    (tgt_hdl->info.target_type == TARGET_TYPE_QCN9160) ||
 	    (tgt_hdl->info.target_type == TARGET_TYPE_QCA6290)) {
 		/**
 		 * Return true for now. This is not available in

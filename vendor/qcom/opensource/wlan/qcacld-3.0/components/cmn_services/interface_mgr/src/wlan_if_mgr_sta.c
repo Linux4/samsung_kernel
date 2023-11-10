@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -38,6 +38,7 @@
 #ifdef WLAN_FEATURE_11BE_MLO
 #include <wlan_mlo_mgr_sta.h>
 #endif
+#include "wlan_vdev_mgr_utils_api.h"
 
 QDF_STATUS if_mgr_connect_start(struct wlan_objmgr_vdev *vdev,
 				struct if_mgr_event_data *event_data)
@@ -71,7 +72,7 @@ QDF_STATUS if_mgr_connect_start(struct wlan_objmgr_vdev *vdev,
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);
 
 	if (op_mode == QDF_STA_MODE || op_mode == QDF_P2P_CLIENT_MODE)
-		wlan_handle_emlsr_sta_concurrency(vdev, false, true);
+		wlan_handle_emlsr_sta_concurrency(vdev, false, true, false);
 
 	if (op_mode == QDF_P2P_CLIENT_MODE || sap_cnt || sta_cnt) {
 		for (i = 0; i < sta_cnt + sap_cnt; i++) {
@@ -164,9 +165,13 @@ QDF_STATUS if_mgr_connect_complete(struct wlan_objmgr_vdev *vdev,
 	}
 
 	policy_mgr_check_n_start_opportunistic_timer(psoc);
+	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE &&
+	    wlan_vdev_mlme_is_mlo_vdev(vdev))
+		wlan_handle_emlsr_sta_concurrency(vdev, false, false, true);
 
 	if (!wlan_cm_is_vdev_roaming(vdev))
-		policy_mgr_check_concurrent_intf_and_restart_sap(psoc);
+		policy_mgr_check_concurrent_intf_and_restart_sap(psoc,
+				wlan_util_vdev_mgr_get_acs_mode_for_vdev(vdev));
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -207,7 +212,7 @@ QDF_STATUS if_mgr_disconnect_complete(struct wlan_objmgr_vdev *vdev,
 
 	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE ||
 	    wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_CLIENT_MODE)
-		wlan_handle_emlsr_sta_concurrency(vdev, false, false);
+		wlan_handle_emlsr_sta_concurrency(vdev, false, false, true);
 
 	status = if_mgr_enable_roaming_after_p2p_disconnect(pdev, vdev,
 							    RSO_CONNECT_START);
@@ -216,7 +221,8 @@ QDF_STATUS if_mgr_disconnect_complete(struct wlan_objmgr_vdev *vdev,
 		return status;
 	}
 
-	policy_mgr_check_concurrent_intf_and_restart_sap(psoc);
+	policy_mgr_check_concurrent_intf_and_restart_sap(psoc,
+				wlan_util_vdev_mgr_get_acs_mode_for_vdev(vdev));
 
 	status = if_mgr_enable_roaming_on_connected_sta(pdev, vdev);
 	if (status) {

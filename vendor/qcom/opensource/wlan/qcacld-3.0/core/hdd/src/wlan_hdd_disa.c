@@ -18,7 +18,7 @@
  */
 
 /**
- * DOC : wlan_hdd_disa.c
+ * DOC: wlan_hdd_disa.c
  *
  * WLAN Host Device Driver file for DISA certification
  *
@@ -35,7 +35,7 @@
 
 
 /**
- * hdd_encrypt_decrypt_msg_context - hdd encrypt/decrypt message context
+ * struct hdd_encrypt_decrypt_msg_context - hdd encrypt/decrypt message context
  * @status: status of response. 0: no error, -ENOMEM: unable to allocate
  *   memory for the response payload
  * @request: encrypt/decrypt request
@@ -109,7 +109,8 @@ static void hdd_encrypt_decrypt_msg_cb(void *cookie,
 
 /**
  * hdd_post_encrypt_decrypt_msg_rsp () - send encrypt/decrypt data to user space
- * @encrypt_decrypt_rsp_params: encrypt/decrypt response parameters
+ * @hdd_ctx: HDD context
+ * @resp: encrypt/decrypt response parameters
  *
  * Return: none
  */
@@ -164,7 +165,7 @@ encrypt_decrypt_policy[QCA_WLAN_VENDOR_ATTR_ENCRYPTION_TEST_MAX + 1] = {
  * @data: Pointer to data
  * @data_len: Data length
  *
- Return: 0 on success, negative errno on failure
+ * Return: 0 on success, negative errno on failure
  */
 static int
 hdd_fill_encrypt_decrypt_params(struct disa_encrypt_decrypt_req_params
@@ -350,7 +351,7 @@ static void hdd_encrypt_decrypt_context_dealloc(void *priv)
  * @data: Pointer to data
  * @data_len: Data length
  *
- Return: 0 on success, negative errno on failure
+ * Return: 0 on success, negative errno on failure
  */
 static int hdd_encrypt_decrypt_msg(struct hdd_adapter *adapter,
 				   struct hdd_context *hdd_ctx,

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -22,14 +23,6 @@
 #include "wlan_disa_ucfg_api.h"
 #include "wlan_disa_main.h"
 
-/**
- * ucfg_disa_encrypt_decrypt_req() - Send encrypt/decrypt request to the DISA
- * core
- * @psoc: objmgr psoc object
- * @req: DISA encrypt/decrypt request parameters
- *
- * Return: QDF status success or failure
- */
 QDF_STATUS ucfg_disa_encrypt_decrypt_req(struct wlan_objmgr_psoc *psoc,
 		struct disa_encrypt_decrypt_req_params *req,
 		encrypt_decrypt_resp_callback cb,

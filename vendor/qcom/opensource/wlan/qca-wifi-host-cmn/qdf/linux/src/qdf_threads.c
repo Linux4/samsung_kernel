@@ -43,8 +43,8 @@
 #include <linux/stacktrace.h>
 #include <qdf_defer.h>
 #include <qdf_module.h>
-
-/* Function declarations and documenation */
+#include <linux/cpumask.h>
+/* Function declarations and documentation */
 
 typedef int (*qdf_thread_os_func)(void *data);
 
@@ -313,3 +313,13 @@ void qdf_cpumask_or(qdf_cpu_mask *dstp, qdf_cpu_mask *src1p,
 }
 
 qdf_export_symbol(qdf_cpumask_or);
+
+void
+qdf_thread_cpumap_print_to_pagebuf(bool list, char *new_mask_str,
+				   qdf_cpu_mask *new_mask)
+{
+	cpumap_print_to_pagebuf(list, new_mask_str, new_mask);
+}
+
+qdf_export_symbol(qdf_thread_cpumap_print_to_pagebuf);
+

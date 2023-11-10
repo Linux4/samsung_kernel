@@ -231,9 +231,12 @@ static int brl_power_on(struct goodix_ts_core *cd, bool on)
 				goto power_off;
 			}
 		}
+
+		gpio_direction_output(cd->board_data.reset_gpio, 0);
 		usleep_range(15000, 15100);
-		gpio_direction_output(reset_gpio, 1);
-		usleep_range(4000, 4100);
+		gpio_direction_output(cd->board_data.reset_gpio, 1);
+		msleep(GOODIX_NORMAL_RESET_DELAY_MS);
+
 		ret = brl_dev_confirm(cd);
 		if (ret < 0)
 			goto power_off;
@@ -241,7 +244,6 @@ static int brl_power_on(struct goodix_ts_core *cd, bool on)
 		if (ret < 0)
 			goto power_off;
 
-		msleep(GOODIX_NORMAL_RESET_DELAY_MS);
 		return 0;
 	}
 
@@ -497,13 +499,32 @@ static int brl_send_config(struct goodix_ts_core *cd, u8 *cfg, int len)
 {
 	int ret;
 	u8 *tmp_buf;
+	u16 cfg_head_len = sizeof(struct goodix_config_head) / sizeof(u8);
 	struct goodix_ts_cmd cfg_cmd;
 	struct goodix_ic_info_misc *misc = &cd->ic_info.misc;
 	struct goodix_ts_hw_ops *hw_ops = cd->hw_ops;
+	struct goodix_config_head *cfg_head = (struct goodix_config_head *)cfg;
 
-	if (len > misc->fw_buffer_max_len) {
+	if (!cd || !cfg) {
+		ts_err("input parameter is NULL");
+		return -EINVAL;
+	} else if (len > misc->fw_buffer_max_len) {
 		ts_err("config len exceed limit %d > %d",
 			len, misc->fw_buffer_max_len);
+		return -EINVAL;
+	} else if (len < cfg_head_len) {
+		ts_err("config buffer size %d smaller than header size %d",
+			len, cfg_head_len);
+		return -EINVAL;
+	} else if (len != cfg_head_len + cfg_head->cfg_len) {
+		ts_err("config buffer size %d not equal to head %d + cfg_len %d",
+			len, cfg_head_len, cfg_head->cfg_len);
+		return -EINVAL;
+	} else if (checksum_cmp(cfg, cfg_head_len, CHECKSUM_MODE_U8_LE)) {
+		ts_err("config head checksum error");
+		return -EINVAL;
+	} else if (checksum_cmp(cfg + cfg_head_len, cfg_head->cfg_len, CHECKSUM_MODE_U16_LE)) {
+		ts_err("config body checksum error");
 		return -EINVAL;
 	}
 
@@ -573,7 +594,7 @@ static int brl_read_config(struct goodix_ts_core *cd, u8 *cfg, int size)
 	struct goodix_ts_hw_ops *hw_ops = cd->hw_ops;
 	struct goodix_config_head cfg_head;
 
-	if (!cfg)
+	if (!cfg || sizeof(cfg_head) > size)
 		return -EINVAL;
 
 	cfg_cmd.len = CONFIG_CND_LEN;

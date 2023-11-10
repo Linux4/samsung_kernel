@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -668,7 +669,7 @@ target_if_register_tx_completion_event_handler(struct wlan_objmgr_psoc *psoc)
 						 WMI_RX_UMAC_CTX);
 	/*
 	 * Event registration is called per pdev
-	 * Ignore erorr if event is alreday registred.
+	 * Ignore error if event is already registered.
 	 */
 	if (ret == QDF_STATUS_E_FAILURE)
 		ret = QDF_STATUS_SUCCESS;

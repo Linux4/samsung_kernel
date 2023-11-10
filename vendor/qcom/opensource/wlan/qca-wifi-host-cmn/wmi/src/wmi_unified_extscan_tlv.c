@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2018, 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -214,10 +215,10 @@ static QDF_STATUS send_set_epno_network_list_cmd_tlv(wmi_unified_t wmi_handle,
 			qdf_mem_copy(nlo_list[i].ssid.ssid.ssid,
 				     req->networks[i].ssid.ssid,
 				     nlo_list[i].ssid.ssid.ssid_len);
-			wmi_debug("index: %d ssid: %.*s len: %d", i,
-				 nlo_list[i].ssid.ssid.ssid_len,
-				 (char *) nlo_list[i].ssid.ssid.ssid,
-				 nlo_list[i].ssid.ssid.ssid_len);
+			wmi_debug("index: %d ssid: " QDF_SSID_FMT " len: %d", i,
+				  QDF_SSID_REF(nlo_list[i].ssid.ssid.ssid_len,
+					       nlo_list[i].ssid.ssid.ssid),
+				  nlo_list[i].ssid.ssid.ssid_len);
 
 			/* Copy pno flags */
 			nlo_list[i].bcast_nw_type.valid = true;

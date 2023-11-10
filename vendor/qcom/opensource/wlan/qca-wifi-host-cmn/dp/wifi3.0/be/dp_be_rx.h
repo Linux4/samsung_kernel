@@ -72,9 +72,27 @@ dp_rx_intrabss_handle_nawds_be(struct dp_soc *soc, struct dp_txrx_peer *ta_peer,
 			       qdf_nbuf_t nbuf_copy,
 			       struct cdp_tid_rx_stats *tid_stats);
 
+void dp_rx_word_mask_subscribe_be(struct dp_soc *soc,
+				  uint32_t *msg_word,
+				  void *rx_filter);
+
 uint32_t dp_rx_process_be(struct dp_intr *int_ctx,
 			  hal_ring_handle_t hal_ring_hdl, uint8_t reo_ring_num,
 			  uint32_t quota);
+
+/**
+ * dp_rx_chain_msdus_be() - Function to chain all msdus of a mpdu
+ *			    to pdev invalid peer list
+ *
+ * @soc: core DP main context
+ * @nbuf: Buffer pointer
+ * @rx_tlv_hdr: start of rx tlv header
+ * @mac_id: mac id
+ *
+ *  Return: bool: true for last msdu of mpdu
+ */
+bool dp_rx_chain_msdus_be(struct dp_soc *soc, qdf_nbuf_t nbuf,
+			  uint8_t *rx_tlv_hdr, uint8_t mac_id);
 
 /**
  * dp_rx_desc_pool_init_be() - Initialize Rx Descriptor pool(s)
@@ -225,6 +243,9 @@ uint32_t dp_rx_nf_process(struct dp_intr *int_ctx,
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
 struct dp_soc *
 dp_rx_replensih_soc_get(struct dp_soc *soc, uint8_t chip_id);
+
+struct dp_soc *
+dp_soc_get_by_idle_bm_id(struct dp_soc *soc, uint8_t idle_bm_id);
 #else
 static inline struct dp_soc *
 dp_rx_replensih_soc_get(struct dp_soc *soc, uint8_t chip_id)
@@ -468,6 +489,54 @@ dp_rx_prefetch_hw_sw_nbuf_32_byte_desc(struct dp_soc *soc,
 			       hal_ring_desc_t *last_prefetched_hw_desc,
 			       struct dp_rx_desc **last_prefetched_sw_desc)
 {
+}
+#endif
+#ifdef CONFIG_WORD_BASED_TLV
+/**
+ * dp_rx_get_reo_qdesc_addr_be(): API to get qdesc address of reo
+ * entrance ring desc
+ *
+ * @hal_soc: Handle to HAL Soc structure
+ * @dst_ring_desc: reo dest ring descriptor (used for Lithium DP)
+ * @buf: pointer to the start of RX PKT TLV headers
+ * @txrx_peer: pointer to txrx_peer
+ * @tid: tid value
+ *
+ * Return: qdesc address in reo destination ring buffer
+ */
+static inline
+uint64_t dp_rx_get_reo_qdesc_addr_be(hal_soc_handle_t hal_soc,
+				     uint8_t *dst_ring_desc,
+				     uint8_t *buf,
+				     struct dp_txrx_peer *txrx_peer,
+				     unsigned int tid)
+{
+	struct dp_peer *peer = NULL;
+	uint64_t qdesc_addr = 0;
+
+	if (hal_reo_shared_qaddr_is_enable(hal_soc)) {
+		qdesc_addr = (uint64_t)txrx_peer->peer_id;
+	} else {
+		peer = dp_peer_get_ref_by_id(txrx_peer->vdev->pdev->soc,
+					     txrx_peer->peer_id,
+					     DP_MOD_ID_CONFIG);
+		if (!peer)
+			return 0;
+
+		qdesc_addr = (uint64_t)peer->rx_tid[tid].hw_qdesc_paddr;
+		dp_peer_unref_delete(peer, DP_MOD_ID_CONFIG);
+	}
+	return qdesc_addr;
+}
+#else
+static inline
+uint64_t dp_rx_get_reo_qdesc_addr_be(hal_soc_handle_t hal_soc,
+				     uint8_t *dst_ring_desc,
+				     uint8_t *buf,
+				     struct dp_txrx_peer *txrx_peer,
+				     unsigned int tid)
+{
+	return hal_rx_get_qdesc_addr(hal_soc, dst_ring_desc, buf);
 }
 #endif
 #endif

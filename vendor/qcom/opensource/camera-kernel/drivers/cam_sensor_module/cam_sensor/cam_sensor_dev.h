@@ -153,6 +153,9 @@ struct cam_sensor_ctrl_t {
 #if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
 	uint32_t                       camera_shooting_mode;
 #endif
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+	bool                           is_bubble_packet;
+#endif
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
 	u32 mipi_clock_index_new;
 	u32 mipi_clock_index_cur;

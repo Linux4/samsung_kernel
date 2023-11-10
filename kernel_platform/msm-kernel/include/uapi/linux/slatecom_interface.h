@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef LINUX_SLATECOM_INTERFACE_H
 #define LINUX_SLATECOM_INTERFACE_H
@@ -14,16 +14,10 @@
 #define SLATECOM_SET_SPI_FREE  3
 #define SLATECOM_SET_SPI_BUSY  4
 #define SLATECOM_REG_WRITE  5
-#define SLATECOM_SOFT_RESET  6
-#define SLATECOM_MODEM_DOWN2_SLATE  7
-#define SLATECOM_TWM_EXIT  8
-#define SLATECOM_SLATE_APP_RUNNING 9
-#define SLATECOM_ADSP_DOWN2_SLATE  10
-#define SLATECOM_SLATE_LOAD 11
-#define SLATECOM_SLATE_UNLOAD 12
-#define SLATECOM_DEVICE_STATE_TRANSITION 13
-#define SLATE_SEND_TIME_DATA 14
-#define SLATECOM_SEND_DEBUG_CONFIG 15
+#define SLATECOM_MODEM_DOWN2_SLATE  6
+#define SLATECOM_ADSP_DOWN2_SLATE  7
+#define SLATECOM_SEND_IPC_CMD 8
+#define SLATECOM_SEND_BOOT_CMD 9
 #define EXCHANGE_CODE  'V'
 
 struct slate_ui_data {
@@ -33,7 +27,7 @@ struct slate_ui_data {
 	__u32  cmd;
 	__u32  num_of_words;
 	__u8 __user *buffer;
-};
+} __attribute__ ((packed));
 
 enum slate_event_type {
 	SLATE_BEFORE_POWER_DOWN = 1,
@@ -69,6 +63,33 @@ enum debug_config {
 	DISABLE_QCLI,
 };
 
+enum ipc_cmd {
+	STATE_TRANSITION,
+	TIME_SYNC,
+	DEBUG_CONFIG,
+	GET_VERSION,
+};
+
+enum boot_cmd_info {
+	SOFT_RESET,
+	TWM_EXIT,
+	AON_APP_RUNNING,
+	LOAD,
+	UNLOAD,
+	SET_BOOT_MODE,
+	GET_BOOT_MODE,
+	CMD_SAVE_AON_DUMP,
+	BOOT_STATUS,
+};
+
+enum boot_status {
+	SLATE_READY = 1,
+	SLATE_UPDATE_START,
+	SLATE_UPDATE_DONE,
+	SLATE_BOOT_HOST,
+	SLATE_BOOT_FLASH,
+};
+
 #define REG_READ \
 	_IOWR(EXCHANGE_CODE, SLATECOM_REG_READ, \
 	struct slate_ui_data)
@@ -87,35 +108,18 @@ enum debug_config {
 #define REG_WRITE \
 	_IOWR(EXCHANGE_CODE, SLATECOM_REG_WRITE, \
 	struct slate_ui_data)
-#define SLATE_SOFT_RESET \
-	_IOWR(EXCHANGE_CODE, SLATECOM_SOFT_RESET, \
-	struct slate_ui_data)
-#define SLATE_TWM_EXIT \
-	_IOWR(EXCHANGE_CODE, SLATECOM_TWM_EXIT, \
-	struct slate_ui_data)
-#define SLATE_APP_RUNNING \
-	_IOWR(EXCHANGE_CODE, SLATECOM_SLATE_APP_RUNNING, \
-	struct slate_ui_data)
 #define SLATE_MODEM_DOWN2_SLATE_DONE \
 	_IOWR(EXCHANGE_CODE, SLATECOM_MODEM_DOWN2_SLATE, \
-	struct slate_ui_data)
-#define SLATE_LOAD \
-	_IOWR(EXCHANGE_CODE, SLATECOM_SLATE_LOAD, \
-	struct slate_ui_data)
-#define SLATE_UNLOAD \
-	_IOWR(EXCHANGE_CODE, SLATECOM_SLATE_UNLOAD, \
 	struct slate_ui_data)
 #define SLATE_ADSP_DOWN2_SLATE_DONE \
 	_IOWR(EXCHANGE_CODE, SLATECOM_ADSP_DOWN2_SLATE, \
 	struct slate_ui_data)
-#define DEVICE_STATE_TRANSITION \
-	_IOWR(EXCHANGE_CODE, SLATECOM_DEVICE_STATE_TRANSITION, \
+#define SEND_IPC_CMD \
+	_IOWR(EXCHANGE_CODE, SLATECOM_SEND_IPC_CMD, \
 	struct slate_ui_data)
-#define SEND_TIME_DATA \
-	_IOWR(EXCHANGE_CODE, SLATE_SEND_TIME_DATA, \
+#define SEND_BOOT_CMD \
+	_IOWR(EXCHANGE_CODE, SLATECOM_SEND_BOOT_CMD, \
 	struct slate_ui_data)
-#define SEND_DEBUG_CONFIG \
-	_IOWR(EXCHANGE_CODE, SLATECOM_SEND_DEBUG_CONFIG, \
-	struct slate_ui_data)
+
 #endif /* LINUX_SLATECOM_INTERFACE_H */
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -131,12 +131,21 @@ void sap_config_acs_result(mac_handle_t mac_handle,
 {
 	struct ch_params ch_params = {0};
 	struct mac_context *mac_ctx = MAC_CONTEXT(mac_handle);
+	enum phy_ch_width new_ch_width;
 
 	ch_params.ch_width = sap_ctx->acs_cfg->ch_width;
 	sap_acs_set_puncture_support(sap_ctx, &ch_params);
-	wlan_reg_set_channel_params_for_freq(
+
+	new_ch_width =
+		wlan_sap_get_concurrent_bw(mac_ctx->pdev, mac_ctx->psoc,
+					   sap_ctx->acs_cfg->pri_ch_freq,
+					   ch_params.ch_width);
+	sap_debug("new_ch_width:%d", new_ch_width);
+	ch_params.ch_width = new_ch_width;
+
+	wlan_reg_set_channel_params_for_pwrmode(
 			mac_ctx->pdev, sap_ctx->acs_cfg->pri_ch_freq,
-			sec_ch_freq, &ch_params);
+			sec_ch_freq, &ch_params, REG_CURRENT_PWR_MODE);
 	sap_ctx->acs_cfg->ch_width = ch_params.ch_width;
 	if (sap_ctx->acs_cfg->ch_width > CH_WIDTH_40MHZ ||
 	    WLAN_REG_IS_6GHZ_CHAN_FREQ(sap_ctx->acs_cfg->pri_ch_freq))
@@ -291,7 +300,7 @@ wlansap_filter_unsafe_ch(struct wlan_objmgr_psoc *psoc,
 	 * would contain the channels in acs cfg. Now since the scan takes time
 	 * there could be channels present in acs cfg that could become unsafe
 	 * in the mean time, so it is better to filter out those channels from
-	 * the acs channel list before chosing one of them as a default channel
+	 * the acs channel list before choosing one of them as a default channel
 	 */
 	for (i = 0; i < sap_ctx->acs_cfg->ch_list_count; i++) {
 		freq = sap_ctx->acs_cfg->freq_list[i];
@@ -462,18 +471,26 @@ wlansap_roam_process_ch_change_success(struct mac_context *mac_ctx,
 	}
 
 	if (sap_ctx->ch_params.ch_width == CH_WIDTH_160MHZ) {
-		if (wlan_reg_get_bonded_channel_state_for_freq(
-		    mac_ctx->pdev, target_chan_freq,
-		    sap_ctx->ch_params.ch_width, 0) == CHANNEL_STATE_DFS)
+		struct ch_params ch_params = {0};
+
+		wlan_reg_set_create_punc_bitmap(&ch_params, true);
+		ch_params.ch_width = sap_ctx->ch_params.ch_width;
+		if (wlan_reg_get_5g_bonded_channel_state_for_pwrmode(mac_ctx->pdev,
+								     target_chan_freq,
+								     &ch_params,
+								     REG_CURRENT_PWR_MODE) ==
+		    CHANNEL_STATE_DFS)
 			is_ch_dfs = true;
 	} else if (sap_ctx->ch_params.ch_width == CH_WIDTH_80P80MHZ) {
-		if (wlan_reg_get_channel_state_for_freq(
+		if (wlan_reg_get_channel_state_for_pwrmode(
 						mac_ctx->pdev,
-						target_chan_freq) ==
+						target_chan_freq,
+						REG_CURRENT_PWR_MODE) ==
 		    CHANNEL_STATE_DFS ||
-		    wlan_reg_get_channel_state_for_freq(
+		    wlan_reg_get_channel_state_for_pwrmode(
 					mac_ctx->pdev,
-					sap_ctx->ch_params.mhz_freq_seg1) ==
+					sap_ctx->ch_params.mhz_freq_seg1,
+					REG_CURRENT_PWR_MODE) ==
 				CHANNEL_STATE_DFS)
 			is_ch_dfs = true;
 	} else {
@@ -490,10 +507,8 @@ wlansap_roam_process_ch_change_success(struct mac_context *mac_ctx,
 	sap_ctx->chan_freq = target_chan_freq;
 	/* check if currently selected channel is a DFS channel */
 	if (is_ch_dfs && wlan_pre_cac_complete_get(sap_ctx->vdev)) {
-		/* Start beaconing on the new pre cac channel */
-		wlansap_start_beacon_req(sap_ctx);
 		sap_ctx->fsm_state = SAP_STARTING;
-		mac_ctx->sap.SapDfsInfo.sap_radar_found_status = false;
+		sap_ctx->sap_radar_found_status = false;
 		sap_event.event = eSAP_MAC_START_BSS_SUCCESS;
 		sap_event.params = csr_roam_info;
 		sap_event.u1 = eCSR_ROAM_INFRA_IND;
@@ -512,10 +527,8 @@ wlansap_roam_process_ch_change_success(struct mac_context *mac_ctx,
 			sap_event.u1 = 0;
 			sap_event.u2 = 0;
 		} else {
-			/* Start beaconing on the new channel */
-			wlansap_start_beacon_req(sap_ctx);
 			sap_ctx->fsm_state = SAP_STARTING;
-			mac_ctx->sap.SapDfsInfo.sap_radar_found_status = false;
+			sap_ctx->sap_radar_found_status = false;
 			sap_event.event = eSAP_MAC_START_BSS_SUCCESS;
 			sap_event.params = csr_roam_info;
 			sap_event.u1 = eCSR_ROAM_INFRA_IND;
@@ -524,7 +537,7 @@ wlansap_roam_process_ch_change_success(struct mac_context *mac_ctx,
 	} else {
 		/* non-DFS channel */
 		sap_ctx->fsm_state = SAP_STARTING;
-		mac_ctx->sap.SapDfsInfo.sap_radar_found_status = false;
+		sap_ctx->sap_radar_found_status = false;
 		sap_event.event = eSAP_MAC_START_BSS_SUCCESS;
 		sap_event.params = csr_roam_info;
 		sap_event.u1 = eCSR_ROAM_INFRA_IND;
@@ -601,9 +614,9 @@ wlansap_roam_process_dfs_chansw_update(mac_handle_t mac_handle,
 		if (sap_phymode_is_eht(sap_ctx->phyMode))
 			wlan_reg_set_create_punc_bitmap(&sap_ctx->ch_params,
 							true);
-		wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
+		wlan_reg_set_channel_params_for_pwrmode(mac_ctx->pdev,
 				mac_ctx->sap.SapDfsInfo.target_chan_freq,
-				0, &sap_ctx->ch_params);
+				0, &sap_ctx->ch_params, REG_CURRENT_PWR_MODE);
 	}
 
 	/*
@@ -719,7 +732,7 @@ wlansap_roam_process_dfs_radar_found(struct mac_context *mac_ctx,
 			sap_err("sapdfs: DFS channel switch disabled");
 			return;
 		}
-		if (false == mac_ctx->sap.SapDfsInfo.sap_radar_found_status) {
+		if (!sap_ctx->sap_radar_found_status) {
 			sap_err("sapdfs: sap_radar_found_status is false");
 			return;
 		}
@@ -1181,9 +1194,10 @@ QDF_STATUS wlansap_roam_callback(void *ctx,
 			    NULL) {
 				sap_context =
 				    mac_ctx->sap.sapCtxList[intf].sap_context;
-				if (!wlan_reg_is_passive_or_disable_for_freq(
+				if (!wlan_reg_is_passive_or_disable_for_pwrmode(
 						mac_ctx->pdev,
-						sap_context->chan_freq))
+						sap_context->chan_freq,
+						REG_CURRENT_PWR_MODE))
 					continue;
 				sap_debug("Vdev %d no channel available , stop bss",
 					  sap_context->sessionId);
@@ -1474,6 +1488,158 @@ void sap_scan_event_callback(struct wlan_objmgr_vdev *vdev,
 
 #ifdef WLAN_FEATURE_SAP_ACS_OPTIMIZE
 #define WLAN_INVALID_PDEV_ID 0xFFFFFFFF
+/**
+ * sap_mark_freq_as_clean(): This API marks a channel is clean which means
+ * we didn't see any AP's on this channel
+ * @clean_channel_array: array of chan enum containing that chan free or not
+ * @freq: freq for which flag needs to be updated
+ *
+ * Return: void
+ */
+static
+void sap_mark_freq_as_clean(bool *clean_channel_array,
+			    qdf_freq_t freq)
+{
+	uint32_t ch_index;
+	ch_index = wlan_reg_get_chan_enum_for_freq(freq);
+	if (ch_index >= INVALID_CHANNEL)
+		return;
+	clean_channel_array[ch_index] = true;
+}
+
+/**
+ * sap_is_prev_n_freqs_free(): previous frequencies free or not based on channel
+ * width
+ * @clean_channel_array: array of chan enum containing that chan free or not
+ * @curr_index: Chan enum of current scanned channel
+ * @prev_n_freq_count: no. of freq  to be monitored based on BW
+ * @range: Bonded channel freq range
+ *
+ *Return: true if previous channels free else false
+ */
+static
+bool sap_is_prev_n_freqs_free(bool *clean_channel_array, uint32_t curr_index,
+			      uint32_t prev_n_freq_count,
+			      const struct bonded_channel_freq *range)
+{
+	uint32_t index;
+	uint32_t min_index = wlan_reg_get_chan_enum_for_freq(range->start_freq);
+	uint32_t max_index = wlan_reg_get_chan_enum_for_freq(range->end_freq);
+	if (max_index >= INVALID_CHANNEL ||
+	    min_index >= INVALID_CHANNEL)
+		return false;
+	if (curr_index > max_index || curr_index < min_index) {
+		sap_debug("invalid chan index %d", curr_index);
+		return false;
+	}
+	/*
+	 * curr_index will be present in range, so bonded freq
+	 * range can be checked to decide curr_index is best
+	 * available channel or not.
+	 */
+	for (index = min_index; index > 0 && index <= max_index;
+	     index++) {
+		if (!clean_channel_array[index]) {
+			sap_debug("chan_index %d not free", index);
+			return false;
+		}
+	}
+	if ((index - min_index) < prev_n_freq_count) {
+		sap_debug("previous %d are not validated", prev_n_freq_count);
+		return false;
+	}
+
+	return true;
+}
+
+/**
+ * is_freq_allowed_for_sap(): is frequency allowed to start SAP
+ * @pdev: object manager pdev
+ * @clean_channel_array: array of chan enum containing that chan free or not
+ * @freq: Scanned frequency
+ * @ch_width: phy channel width
+ * @vdev: object manager vdev
+ *
+ * Return: true if frequency is allowed based on BW else false.
+ */
+static
+bool is_freq_allowed_for_sap(struct wlan_objmgr_pdev *pdev,
+			     bool *clean_channel_array,
+			     qdf_freq_t freq, enum phy_ch_width ch_width,
+			     struct wlan_objmgr_vdev *vdev) {
+	uint16_t min_bw = 0;
+	uint16_t max_bw = 0;
+	uint16_t curr_bw;
+	struct wlan_objmgr_psoc *psoc;
+	QDF_STATUS status;
+	const struct bonded_channel_freq *range = NULL;
+	uint32_t curr_index = wlan_reg_get_chan_enum_for_freq(freq);
+	if (curr_index >= INVALID_CHANNEL)
+		return false;
+	psoc = wlan_pdev_get_psoc(pdev);
+	if (!psoc) {
+		sap_err("invalid psoc");
+		return false;
+	}
+	if (wlan_mlme_get_ap_policy(vdev) ==
+	    HOST_CONCURRENT_AP_POLICY_UNSPECIFIED) {
+		sap_debug("low latency sap is not present");
+		return false;
+	}
+	/*
+	 * Don't allow frequency that can be shared with 2 GHz frequency
+	 * on same MAC.
+	 */
+	if (policy_mgr_2_freq_always_on_same_mac
+			(psoc, wlan_reg_min_24ghz_chan_freq(), freq)) {
+		sap_debug("frequency can be shared by 2G MAC");
+		return false;
+	}
+
+	status =
+	wlan_reg_get_min_max_bw_for_chan_index(pdev, curr_index, &min_bw,
+					       &max_bw);
+	if (status != QDF_STATUS_SUCCESS) {
+		sap_err("get bw for curr channel failed");
+		return false;
+	}
+	curr_bw = wlan_reg_get_bw_value(ch_width);
+	if (curr_bw < min_bw || curr_bw > max_bw) {
+		sap_debug("frequency doesn't support configured bw");
+		return false;
+	}
+	range = wlan_reg_get_bonded_chan_entry(freq, ch_width, 0);
+	if (!range) {
+		sap_debug("Invalid freq range for freq: %d and ch_width: %d",
+			  freq, ch_width);
+		return false;
+	}
+	sap_debug("freq range for bw %d is %d-%d", ch_width, range->start_freq,
+		  range->end_freq);
+
+	switch (ch_width) {
+	case CH_WIDTH_40MHZ:
+		return sap_is_prev_n_freqs_free(clean_channel_array,
+						curr_index, 40/20,
+						range);
+	case CH_WIDTH_80MHZ:
+		return sap_is_prev_n_freqs_free(clean_channel_array,
+						curr_index, 80/20,
+						range);
+	case CH_WIDTH_160MHZ:
+		return sap_is_prev_n_freqs_free(clean_channel_array,
+						curr_index, 160/20,
+						range);
+	case CH_WIDTH_320MHZ:
+		return sap_is_prev_n_freqs_free(clean_channel_array,
+						curr_index, 320/20,
+						range);
+	default:
+		return false;
+	}
+	return false;
+}
+
 void wlansap_process_chan_info_event(struct sap_context *sap_ctx,
 				     struct csr_roam_info *roam_info)
 {
@@ -1493,11 +1659,31 @@ void wlansap_process_chan_info_event(struct sap_context *sap_ctx,
 	if (SAP_INIT != sap_ctx->fsm_state)
 		return;
 
-	if (WLAN_REG_IS_24GHZ_CH_FREQ(roam_info->chan_info_freq) ||
-	    sap_ctx->acs_cfg->ch_width != CH_WIDTH_20MHZ)
+	if (WLAN_REG_IS_24GHZ_CH_FREQ(roam_info->chan_info_freq))
 		return;
 
 	if (sap_ctx->optimize_acs_chan_selected)
+		return;
+	/* If chan_info_freq is not preferred band's freq
+	 * do not select it as ACS result.
+	 */
+	if (sap_ctx->acs_cfg->ch_list_count &&
+	    !wlan_reg_is_same_band_freqs(
+			sap_ctx->acs_cfg->freq_list[
+			sap_ctx->acs_cfg->ch_list_count - 1],
+			roam_info->chan_info_freq))
+		return;
+	/* Confirm the freq is in ACS list. */
+	if (!wlansap_is_channel_present_in_acs_list(
+			    roam_info->chan_info_freq,
+			    sap_ctx->acs_cfg->freq_list,
+			    sap_ctx->acs_cfg->ch_list_count))
+		return;
+	/* For 6 GHz, do not select non PSC channel */
+	if (wlan_reg_is_6ghz_chan_freq(
+		    roam_info->chan_info_freq) &&
+	    !wlan_reg_is_6ghz_psc_chan_freq(
+		    roam_info->chan_info_freq))
 		return;
 
 	filter = qdf_mem_malloc(sizeof(*filter));
@@ -1520,6 +1706,17 @@ void wlansap_process_chan_info_event(struct sap_context *sap_ctx,
 	if (!policy_mgr_is_sap_freq_allowed(mac->psoc,
 					    roam_info->chan_info_freq))
 		goto exit;
+	if (sap_ctx->acs_cfg->ch_width > CH_WIDTH_20MHZ) {
+		sap_mark_freq_as_clean(sap_ctx->clean_channel_array,
+				       roam_info->chan_info_freq);
+		if (!is_freq_allowed_for_sap(mac->pdev,
+					     sap_ctx->clean_channel_array,
+					     roam_info->chan_info_freq,
+					     sap_ctx->acs_cfg->ch_width,
+					     sap_ctx->vdev)) {
+			goto exit;
+		}
+	}
 
 	sap_debug("ACS Best channel %d as no beacon/probe rsp found\n",
 		  roam_info->chan_info_freq);

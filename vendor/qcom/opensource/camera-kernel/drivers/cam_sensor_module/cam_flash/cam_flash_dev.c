@@ -16,7 +16,10 @@
 #include <cam_sensor_util.h>
 struct msm_pinctrl_info flash_pctrl;
 #endif
-
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+struct msm_pinctrl_info flash_pctrl;
+struct cam_flash_ctrl *g_flash_ctrl;
+#endif
 static int32_t cam_flash_driver_cmd(struct cam_flash_ctrl *fctrl,
 		void *arg, struct cam_flash_private_soc *soc_private)
 {
@@ -525,7 +528,7 @@ static int cam_flash_component_bind(struct device *dev,
 
 	mutex_init(&(fctrl->flash_mutex));
 
-#if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
+#if IS_REACHABLE(CONFIG_LEDS_S2MPB02) || defined(CONFIG_SAMSUNG_PMIC_FLASH)
 	if (msm_camera_pinctrl_init(&flash_pctrl, &pdev->dev) >= 0) {
 		// make pin state to suspend
 		rc = pinctrl_select_state(flash_pctrl.pinctrl, flash_pctrl.gpio_state_suspend);
@@ -537,6 +540,9 @@ static int cam_flash_component_bind(struct device *dev,
 #endif
 
 	fctrl->flash_state = CAM_FLASH_STATE_INIT;
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+        g_flash_ctrl = fctrl;
+#endif
 	CAM_DBG(CAM_FLASH, "Component bound successfully");
 	return rc;
 
@@ -713,7 +719,9 @@ static int cam_flash_i2c_component_bind(struct device *dev,
 
 	mutex_init(&(fctrl->flash_mutex));
 	fctrl->flash_state = CAM_FLASH_STATE_INIT;
-
+#if defined(CONFIG_SAMSUNG_PMIC_FLASH)
+	g_flash_ctrl = fctrl;
+#endif
 	return rc;
 
 unreg_subdev:

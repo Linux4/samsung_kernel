@@ -124,7 +124,7 @@ struct ath_pktlog_info {
 	/* Phyerr threshold for triggered stop */
 	uint32_t phyerr_thresh;
 
-	/* time period for counting trigger parameters, in milisecond */
+	/* time period for counting trigger parameters, in millisecond */
 	uint32_t trigger_interval;
 	uint32_t start_time_thruput;
 	uint32_t start_time_per;

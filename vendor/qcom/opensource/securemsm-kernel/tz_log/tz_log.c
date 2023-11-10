@@ -1460,6 +1460,20 @@ static void tzdbg_free_encrypted_log_buf(struct platform_device *pdev)
 			enc_qseelog_info.vaddr, enc_qseelog_info.paddr);
 }
 
+static bool is_hyp_dir(int tzdbg_stat_type)
+{
+	switch(tzdbg_stat_type)
+	{
+		case TZDBG_HYP_GENERAL:
+		case TZDBG_HYP_LOG:
+		case TZDBG_RM_LOG:
+			return true;
+		default:
+			return false;
+	}
+	return false;
+}
+
 static int  tzdbg_fs_init(struct platform_device *pdev)
 {
 	int rc = 0;
@@ -1475,6 +1489,14 @@ static int  tzdbg_fs_init(struct platform_device *pdev)
 
 	for (i = 0; i < TZDBG_STATS_MAX; i++) {
 		tzdbg.debug_tz[i] = i;
+		/*
+		 * If hypervisor is disabled, do not create
+		 * hyp_general, hyp_log and rm_log directories,
+		 * as accessing them would give segmentation fault
+		 */
+		if ((!tzdbg.is_hyplog_enabled) && (is_hyp_dir(i))) {
+			continue;
+		}
 		dent = proc_create_data(tzdbg.stat[i].name,
 				0444, dent_dir,
 				&tzdbg_fops, &tzdbg.debug_tz[i]);

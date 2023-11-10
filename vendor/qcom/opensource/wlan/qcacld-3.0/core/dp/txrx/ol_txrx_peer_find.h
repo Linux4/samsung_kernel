@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, 2015-2019,2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,7 +34,7 @@
  * @dbg_id: debug id to keep track of peer references
  *
  * The function increments the peer ref count. The ref count can be reduced by
- * caling ol_txrx_peer_release_ref function. Callers are responsible for
+ * calling ol_txrx_peer_release_ref function. Callers are responsible for
  * acquiring the peer_ref_mutex lock when needed.
  *
  * Return: peer debug id ref count or error

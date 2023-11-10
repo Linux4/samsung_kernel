@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,6 +31,8 @@ typedef __qdf_time_t qdf_time_t;
 typedef __qdf_ktime_t qdf_ktime_t;
 typedef __qdf_timespec_t qdf_timespec_t;
 typedef __qdf_work_struct_t qdf_work_struct_t;
+
+#define qdf_time_uint_to_ms(tu) (((tu) * 1024) / 1000)
 
 #ifdef ENHANCED_OS_ABSTRACTION
 /**
