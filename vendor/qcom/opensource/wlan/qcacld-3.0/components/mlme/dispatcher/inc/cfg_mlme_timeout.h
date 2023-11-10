@@ -173,12 +173,12 @@
 
 /*
  * <ini>
- * gHeartbeat24 - Heart beat threashold value
+ * gHeartbeat24 - Heart beat threshold value
  * @Min: 0
  * @Max: 65535
  * @Default: 40
  *
- * This cfg is used to configure the Heart beat threashold.
+ * This cfg is used to configure the Heart beat threshold.
  *
  * Usage: Internal/External
  *
@@ -190,7 +190,7 @@
 		65535, \
 		40, \
 		CFG_VALUE_OR_DEFAULT, \
-		"Heart beat threashold")
+		"Heart beat threshold")
 
 /*
  * <ini>

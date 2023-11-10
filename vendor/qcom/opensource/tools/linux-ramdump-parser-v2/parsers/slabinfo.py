@@ -506,7 +506,7 @@ class Slabinfo(RamParser):
                     slab_out, map_fn, out_slabs_addrs)
 
             # per cpu slab
-            for i in range(0, cpus):
+            for i in self.ramdump.iter_cpus():
                 cpu_slabn_addr = cpu_slab_addr + self.ramdump.per_cpu_offset(i)
                 if cpu_slabn_addr == 0 or None:
                     break

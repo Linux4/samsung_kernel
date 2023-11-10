@@ -56,7 +56,7 @@
 				##__VA_ARGS__); \
 } while (0)
 
-const char * const mhi_log_level_str[MHI_MSG_LVL_MAX] = {
+const char * const mhi_satellite_log_level_str[MHI_MSG_LVL_MAX] = {
 	[MHI_MSG_LVL_VERBOSE] = "Verbose",
 	[MHI_MSG_LVL_INFO] = "Info",
 	[MHI_MSG_LVL_ERROR] = "Error",
@@ -64,8 +64,8 @@ const char * const mhi_log_level_str[MHI_MSG_LVL_MAX] = {
 	[MHI_MSG_LVL_MASK_ALL] = "Mask all",
 };
 #define MSG_LOG_LEVEL_STR(level) ((level >= MHI_MSG_LVL_MAX || \
-				      !mhi_log_level_str[level]) ? \
-				      "Mask all" : mhi_log_level_str[level])
+				      !mhi_satellite_log_level_str[level]) ? \
+				      "Mask all" : mhi_satellite_log_level_str[level])
 
 /* mhi sys error command */
 #define MHI_TRE_CMD_SYS_ERR_PTR (0)
@@ -502,7 +502,11 @@ iommu_map_cmd_completion:
 							 sat_cntrl, id, evt);
 			int ret;
 
-			WARN_ON(!sat_dev);
+			if (!sat_dev) {
+				MSG_LOG("Failed to find the satellite device with id : %d\n", id);
+				WARN_ON(!sat_dev);
+				return;
+			}
 
 			memset(&gen_ctxt, 0, sizeof(gen_ctxt));
 			memset(&buf, 0, sizeof(buf));
@@ -537,7 +541,12 @@ iommu_map_cmd_completion:
 							 SAT_CTXT_TYPE_CHAN);
 			int ret;
 
-			WARN_ON(!sat_dev);
+			if (!sat_dev) {
+				MSG_LOG("Failed to find the satellite device with id : %d\n", id);
+				WARN_ON(!sat_dev);
+				return;
+			}
+
 			WARN_ON(sat_dev->chan_started);
 
 			ret = mhi_prepare_for_transfer(sat_dev->mhi_dev, 0);
@@ -562,7 +571,12 @@ iommu_map_cmd_completion:
 				find_sat_dev_by_id(sat_cntrl, id,
 						   SAT_CTXT_TYPE_CHAN);
 
-			WARN_ON(!sat_dev);
+			if (!sat_dev) {
+				MSG_LOG("Failed to find the satellite device with id : %d\n", id);
+				WARN_ON(!sat_dev);
+				return;
+			}
+
 			WARN_ON(!sat_dev->chan_started);
 
 			mhi_unprepare_from_transfer(sat_dev->mhi_dev);

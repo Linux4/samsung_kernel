@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -53,6 +54,22 @@ QDF_STATUS ucfg_action_oui_init(void);
 void ucfg_action_oui_deinit(void);
 
 /**
+ * ucfg_action_oui_psoc_enable() - Notify action oui psoc enable
+ * @psoc: psoc object
+ *
+ * Return: None
+ */
+void ucfg_action_oui_psoc_enable(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_action_oui_psoc_disable() - Notify action oui psoc disable
+ * @psoc: psoc object
+ *
+ * Return: None
+ */
+void ucfg_action_oui_psoc_disable(struct wlan_objmgr_psoc *psoc);
+
+/**
  * ucfg_action_oui_parse() - Parse input string and extract extensions.
  * @psoc: objmgr psoc object
  * @in_str: input string to be parsed
@@ -83,14 +100,11 @@ QDF_STATUS ucfg_action_oui_send(struct wlan_objmgr_psoc *psoc);
 
 /**
  * ucfg_action_oui_enabled() - State of action_oui component
+ * @psoc: psoc object
  *
- * Return: When action_oui component is present return true
- *	   else return false.
+ * Return: True if action oui is enabled
  */
-static inline bool ucfg_action_oui_enabled(void)
-{
-	return true;
-}
+bool ucfg_action_oui_enabled(struct wlan_objmgr_psoc *psoc);
 
 /**
  * ucfg_action_oui_search() - Check for OUIs and related info in IE data.
@@ -108,6 +122,43 @@ bool ucfg_action_oui_search(struct wlan_objmgr_psoc *psoc,
 			    struct action_oui_search_attr *attr,
 			    enum action_oui_id action_id);
 
+/**
+ * ucfg_action_oui_cleanup() - Remove all in existing oui entry.
+ * @psoc: objmgr psoc object
+ * @action_id: type of action to be removed
+ *
+ * This is a wrapper function which invokes internal function to remove
+ * all the existing oui entry.
+ *
+ * Return: QDF_STATUS_SUCCESS If remove is successful.
+ */
+QDF_STATUS
+ucfg_action_oui_cleanup(struct wlan_objmgr_psoc *psoc,
+			enum action_oui_id action_id);
+
+/**
+ * ucfg_action_oui_send_by_id() - Send action oui for action id
+ * @psoc: objmgr psoc object
+ * @id: type of action to be sent
+ *
+ * This is a wrapper function which invokes internal function to send
+ * action oui entry to firmware.
+ *
+ * Return: QDF_STATUS_SUCCESS If sending is successful.
+ */
+QDF_STATUS ucfg_action_oui_send_by_id(struct wlan_objmgr_psoc *psoc,
+				      enum action_oui_id id);
+
+/**
+ * ucfg_action_oui_get_config() - Get current action INI config
+ * @psoc: objmgr psoc object
+ * @action_id: type of action to get
+ *
+ * Return: config string.
+ */
+uint8_t *
+ucfg_action_oui_get_config(struct wlan_objmgr_psoc *psoc,
+			   enum action_oui_id action_id);
 #else
 
 /**
@@ -135,6 +186,28 @@ QDF_STATUS ucfg_action_oui_init(void)
  */
 static inline
 void ucfg_action_oui_deinit(void)
+{
+}
+
+/**
+ * ucfg_action_oui_psoc_enable() - Notify action oui psoc enable
+ * @psoc: psoc object
+ *
+ * Return: None
+ */
+static inline
+void ucfg_action_oui_psoc_enable(struct wlan_objmgr_psoc *psoc)
+{
+}
+
+/**
+ * ucfg_action_oui_psoc_disable() - Notify action oui psoc disable
+ * @psoc: psoc object
+ *
+ * Return: None
+ */
+static inline
+void ucfg_action_oui_psoc_disable(struct wlan_objmgr_psoc *psoc)
 {
 }
 
@@ -205,6 +278,54 @@ bool ucfg_action_oui_search(struct wlan_objmgr_psoc *psoc,
 	return false;
 }
 
+/**
+ * ucfg_action_oui_cleanup() - Remove all of existing oui entry
+ * @psoc: objmgr psoc object
+ * @action_id: type of action to be removed
+ *
+ * This is a wrapper function which invokes internal function to remove
+ * all the existing oui entry.
+ *
+ * Return: QDF_STATUS_SUCCESS If remove is successful.
+ */
+static inline
+QDF_STATUS
+ucfg_action_oui_cleanup(struct wlan_objmgr_psoc *psoc,
+			enum action_oui_id action_id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * ucfg_action_oui_send_by_id() - Send action oui for action id
+ * @psoc: objmgr psoc object
+ * @id: type of action to be sent
+ *
+ * This is a wrapper function which invokes internal function to send
+ * action oui entry to firmware.
+ *
+ * Return: QDF_STATUS_SUCCESS If sending is successful.
+ */
+static inline
+QDF_STATUS ucfg_action_oui_send_by_id(struct wlan_objmgr_psoc *psoc,
+				      enum action_oui_id id)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * ucfg_action_oui_get_config() - Get current action INI config
+ * @psoc: objmgr psoc object
+ * @action_id: type of action to get
+ *
+ * Return: config string.
+ */
+static inline uint8_t *
+ucfg_action_oui_get_config(struct wlan_objmgr_psoc *psoc,
+			   enum action_oui_id action_id)
+{
+	return "";
+}
 #endif /* WLAN_FEATURE_ACTION_OUI */
 
 #endif /* _WLAN_ACTION_OUI_UCFG_API_H_ */

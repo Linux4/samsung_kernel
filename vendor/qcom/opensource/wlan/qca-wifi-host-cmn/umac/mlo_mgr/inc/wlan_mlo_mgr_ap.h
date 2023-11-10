@@ -60,6 +60,25 @@ void mlo_ap_get_vdev_list(struct wlan_objmgr_vdev *vdev,
 			  struct wlan_objmgr_vdev **wlan_vdev_list);
 
 /**
+ * mlo_ap_get_active_vdev_list() - get mlo vdev list
+ * @vdev: vdev pointer
+ * @vdev_count: vdev count
+ * @wlan_vdev_list: vdev list
+ *
+ * This API gets all active partner vdev's which have WLAN_VDEV_FEXT2_MLO bit
+ * set.
+ *
+ * It takes references for all vdev's with bit set in the list. Callers
+ * of this API should properly release references before destroying the
+ * list.
+ *
+ * Return: None
+ */
+void mlo_ap_get_active_vdev_list(struct wlan_objmgr_vdev *vdev,
+				 uint16_t *vdev_count,
+				 struct wlan_objmgr_vdev **wlan_vdev_list);
+
+/**
  * mlo_ap_get_partner_vdev_list_from_mld() - get partner vdev from MLD
  *                                           vdev_list without checking
  *                                           WLAN_VDEV_FEXT2_MLO bit
@@ -85,9 +104,9 @@ void mlo_ap_get_partner_vdev_list_from_mld(
  *                                  enters WLAN_VDEV_SS_MLO_SYNC_WAIT
  * @vdev: vdev pointer
  *
- * Return: None
+ * Return: true if MLO_SYNC_COMPLETE is posted, else false
  */
-void mlo_ap_link_sync_wait_notify(struct wlan_objmgr_vdev *vdev);
+bool mlo_ap_link_sync_wait_notify(struct wlan_objmgr_vdev *vdev);
 
 /**
  * mlo_ap_link_start_rsp_notify - Notify that the link start is completed
@@ -497,6 +516,26 @@ void mlo_ap_vdev_quiet_clear(struct wlan_objmgr_vdev *vdev);
  */
 bool mlo_ap_vdev_quiet_is_any_idx_set(struct wlan_objmgr_vdev *vdev);
 
+#if defined(MESH_MODE_SUPPORT) && defined(WLAN_FEATURE_11BE_MLO)
+/**
+ * mlo_peer_populate_mesh_params() - Populate mesh parameters in ml_peer
+ * @ml_peer: ml_peer to which mesh config parameters need to be populated
+ * @ml_info: ml_info with mesh config associated with this link
+ *
+ * Return: void
+ */
+void mlo_peer_populate_mesh_params(
+		struct wlan_mlo_peer_context *ml_peer,
+		struct mlo_partner_info *ml_info);
+#else
+static inline
+void mlo_peer_populate_mesh_params(
+		struct wlan_mlo_peer_context *ml_peer,
+		struct mlo_partner_info *ml_info)
+{
+}
+#endif
+
 #ifdef UMAC_SUPPORT_MLNAWDS
 /**
  * mlo_peer_populate_nawds_params() - Populate nawds parameters in ml_peer
@@ -531,4 +570,13 @@ QDF_STATUS mlo_peer_create_get_frm_buf(
 		struct wlan_mlo_peer_context *ml_peer,
 		struct peer_create_notif_s *peer_create,
 		qdf_nbuf_t frm_buf);
+
+/**
+ * wlan_mlo_ap_get_active_links() - Get number of active link VDEVs of MLD
+ * @vdev: vdev pointer
+ *
+ * Return: active vdev count.
+ */
+uint16_t wlan_mlo_ap_get_active_links(struct wlan_objmgr_vdev *vdev);
+
 #endif

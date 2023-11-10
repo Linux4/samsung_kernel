@@ -55,7 +55,7 @@
 #endif
 
 /* QDF_TRACE is the macro invoked to add trace messages to code.  See the
- * documenation for qdf_trace_msg() for the parameters etc. for this function.
+ * documentation for qdf_trace_msg() for the parameters etc. for this function.
  *
  * NOTE:  Code QDF_TRACE() macros into the source code.  Do not code directly
  * to the qdf_trace_msg() function.

@@ -844,6 +844,9 @@ bool dfs_is_true_160mhz_supported(struct wlan_dfs *dfs)
 	    tgt_tx_ops->tgt_is_tgt_type_qcn6122(target_type))
 		return true;
 
+	if (tgt_tx_ops->tgt_is_tgt_type_qcn9160 &&
+	    tgt_tx_ops->tgt_is_tgt_type_qcn9160(target_type))
+		return true;
 	return false;
 }
 

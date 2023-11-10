@@ -195,6 +195,15 @@ config INPUT_QPNP_POWER_ON
           reporting the change in status of the KPDPWR_N line (connected to the
           power-key) as well as reset features.
 
+config INPUT_QTI_HAPTICS
+	tristate "Haptics support for QTI PMIC"
+	depends on MFD_SPMI_PMIC
+	help
+	  This option enables device driver support for the haptics peripheral
+	  found on Qualcomm Technologies, Inc. PMICs.  The haptics peripheral
+	  is capable of driving both LRA and ERM vibrators.  This module provides
+	  haptic feedback for user actions such as a long press on the touch screen.
+
 config INPUT_QCOM_HV_HAPTICS
 	tristate "QTI High Voltage Haptics support"
 	depends on MFD_SPMI_PMIC
@@ -350,7 +359,7 @@ config INPUT_CPCAP_PWRBUTTON
 
 config INPUT_WISTRON_BTNS
 	tristate "x86 Wistron laptop button interface"
-	depends on X86_32
+	depends on X86_32 && !UML
 	select INPUT_SPARSEKMAP
 	select NEW_LEDS
 	select LEDS_CLASS

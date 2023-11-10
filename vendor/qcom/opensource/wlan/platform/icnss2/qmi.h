@@ -203,6 +203,12 @@ int icnss_send_vbatt_update(struct icnss_priv *priv, uint64_t voltage_uv)
 {
 	return 0;
 }
+
+int wlfw_wlan_hw_init_cfg_msg(struct icnss_priv *penv,
+			      enum wlfw_wlan_rf_subtype_v01 type)
+{
+	return 0;
+}
 #else
 int wlfw_ind_register_send_sync_msg(struct icnss_priv *priv);
 int icnss_connect_to_fw_server(struct icnss_priv *priv, void *data);
@@ -258,6 +264,8 @@ void icnss_dms_deinit(struct icnss_priv *priv);
 int wlfw_subsys_restart_level_msg(struct icnss_priv *penv, uint8_t restart_level);
 int wlfw_cal_report_req(struct icnss_priv *priv);
 int icnss_send_vbatt_update(struct icnss_priv *priv, uint64_t voltage_uv);
+int wlfw_wlan_hw_init_cfg_msg(struct icnss_priv *penv,
+			      enum wlfw_wlan_rf_subtype_v01 type);
 #endif
 
 #endif /* __ICNSS_QMI_H__*/

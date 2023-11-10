@@ -28,7 +28,7 @@
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted (subject to the limitations in the
@@ -267,6 +267,9 @@ int USB::init(pal_param_device_connection_t device_conn)
     }
 
     if (iter == usb_card_config_list_.end()) {
+#ifdef SEC_AUDIO_USB_DUMMY_TEST
+        sec_pal_usb_test_init();
+#endif
         std::shared_ptr<USBCardConfig> sp(
             new USBCardConfig(device_conn.device_config.usb_addr));
         if (!sp) {
@@ -278,7 +281,7 @@ int USB::init(pal_param_device_connection_t device_conn)
         else
             ret = sp->getCapability(USB_CAPTURE, device_conn.device_config.usb_addr);
 
-        if (ret != -ENOENT) {
+        if (ret == 0) {
 #ifdef SEC_AUDIO_USB_GAIN_CONTROL
             sp->USBAudioGainControl(device_conn.device_config.usb_addr, device_conn.id);
 #endif
@@ -312,7 +315,9 @@ int USB::deinit(pal_param_device_connection_t device_conn)
     } else {
         PAL_INFO(LOG_TAG, "usb info has not been cached.");
     }
-
+#ifdef SEC_AUDIO_USB_DUMMY_TEST
+    sec_pal_usb_test_deinit();
+#endif
     return 0;
 }
 
@@ -410,6 +415,11 @@ int USB::selectBestConfig(struct pal_device *dattr,
             PAL_ERR(LOG_TAG, "usb device is found.");
             status = (*iter)->readBestConfig(&dattr->config, sattr, is_playback,
                                    devinfo, rm->isUHQAEnabled);
+#endif
+#ifdef SEC_AUDIO_USB_DUMMY_TEST
+            if (isUsbAlive(dattr->address.card_id)) {
+                sec_pal_usb_test_best_config(&dattr->config, is_playback);
+            }
 #endif
             break;
         }
@@ -529,14 +539,28 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     PAL_INFO(LOG_TAG, "for %s", (type == USB_PLAYBACK) ?
           PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR);
 
+#ifdef SEC_AUDIO_USB_DUMMY_TEST
+    if (sec_pal_usb_test_process()) {
+        ret = sec_pal_usb_test_profile(path, sizeof(path));
+        if (type == USB_CAPTURE) {
+            sec_pal_usb_test_supported_channels(addr.card_id);
+        }
+    } else
+#endif
     ret = snprintf(path, sizeof(path), "/proc/asound/card%u/stream0",
              addr.card_id);
     if(ret < 0) {
         PAL_ERR(LOG_TAG, "failed on snprintf (%d) to path %s\n", ret, path);
+        ret = -EINVAL;
         goto done;
     }
 #ifdef SEC_AUDIO_QUICK_USB_DETECTION
     while (retries--) {
+#ifdef SEC_AUDIO_USB_DUMMY_TEST
+        if (sec_pal_usb_test_process()) {
+            break;
+        }
+#endif
         if (usb_recognition_state(addr.card_id) && (access(path, F_OK) < 0)) {
             PAL_INFO(LOG_TAG, "%s doesn't exist, retrying\n", path);
             usleep(20000);
@@ -733,7 +757,7 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
         /* jack status parsing */
         suffix = (type == USB_PLAYBACK) ? USB_OUT_JACK_SUFFIX : USB_IN_JACK_SUFFIX;
         jack_status = getJackConnectionStatus(addr.card_id, suffix);
-        PAL_INFO(LOG_TAG, "jack_status %d", jack_status);
+        PAL_DBG(LOG_TAG, "jack_status %d", jack_status);
         usb_device_info->setJackStatus(jack_status);
 
         /* Add to list if every field is valid */
@@ -907,16 +931,9 @@ unsigned int USBCardConfig::readSupportedChannelMask(bool is_playback, uint32_t 
         channels = MAX_HIFI_CHANNEL_COUNT;
 
     if (is_playback) {
-        // start from 2 channels as framework currently doesn't support mono.
-        if (channels >= 2) {
-            channel[num_masks++] = audio_channel_out_mask_from_count(2);
-        }
-        for (channel_count = 2;
-                channel_count <= channels && num_masks < MAX_SUPPORTED_CHANNEL_MASKS;
-                ++channel_count) {
-            channel[num_masks++] =
-                    audio_channel_mask_for_index_assignment_from_count(channel_count);
-        }
+
+        channel[num_masks++] = channels <= 2 ? audio_channel_out_mask_from_count(channels) : audio_channel_mask_for_index_assignment_from_count(channels);
+
     } else {
         // For capture we report all supported channel masks from 1 channel up.
         channel_count = MIN_CHANNEL_COUNT;
@@ -966,7 +983,7 @@ int USBCardConfig::readSupportedConfig(struct dynamic_media_config *config, bool
     readSupportedChannelMask(is_playback, config->mask);
     suffix = is_playback ? USB_OUT_JACK_SUFFIX : USB_IN_JACK_SUFFIX;
     config->jack_status = getJackConnectionStatus(usb_card, suffix);
-    PAL_INFO(LOG_TAG, "config->jack_status = %d", config->jack_status);
+    PAL_DBG(LOG_TAG, "config->jack_status = %d", config->jack_status);
 
     return 0;
 }
@@ -981,8 +998,8 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
 #endif
 {
     std::shared_ptr<USBDeviceConfig> candidate_config = nullptr;
-    uint32_t max_bit_width = 0;
-    uint32_t max_channel = 0;
+    int max_bit_width = 0;
+    int max_channel = 0;
     int bitwidth = 16;
     int candidate_sr = 0;
     int ret = -EINVAL;
@@ -1026,6 +1043,7 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
         media_config = sattr->in_media_config;
     }
 
+#ifndef SEC_AUDIO_EARLYDROP_PATCH // To be removed
     if (format_list_map.count(target_bit_width) == 0) {
         /* if bit width does not match, use highest width. */
         auto max_fmt = format_list_map.rbegin();
@@ -1035,26 +1053,45 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
                          target_bit_width, max_bit_width);
         target_bit_width = max_bit_width;
     } else {
-        /* bit width matches. */
+        /* 1. bit width matches. */
         config->bit_width = target_bit_width;
         PAL_INFO(LOG_TAG, "found matching BitWidth = %d", config->bit_width);
     }
     max_channel = getMaxChannels(is_playback);
+#endif
     if (!format_list_map.empty()) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        if (format_list_map.count(target_bit_width) == 0) {
+            /* if bit width does not match, use highest width. */
+            auto max_fmt = format_list_map.rbegin();
+            max_bit_width = max_fmt->first;
+            config->bit_width = max_bit_width;
+            PAL_INFO(LOG_TAG, "Target bitwidth of %d is not supported by USB. Use USB width of %d",
+                         target_bit_width, max_bit_width);
+            target_bit_width = max_bit_width;
+        } else {
+            /* 1. bit width matches. */
+            config->bit_width = target_bit_width;
+            PAL_INFO(LOG_TAG, "found matching BitWidth = %d", config->bit_width);
+        }
+
+        max_channel = getMaxChannels(is_playback);
+#endif
         auto profile_list = format_list_map.equal_range(target_bit_width);
         for (auto iter = profile_list.first; iter != profile_list.second; ++iter) {
             auto cfg_iter = iter->second;
             if (cfg_iter->getType() != is_playback)
                 continue;
-
             if (cfg_iter->getChannels() == media_config.ch_info.channels) {
                 profile_list_match_ch.push_back(cfg_iter);
             } else if(cfg_iter->getChannels() == max_channel) {
                 profile_list_max_ch.push_back(cfg_iter);
             }
         }
+
         std::vector<std::shared_ptr<USBDeviceConfig>> profile_list_ch;
         if (!profile_list_match_ch.empty()) {
+            /*2. channal matches */
             profile_list_ch = profile_list_match_ch;
             PAL_INFO(LOG_TAG, "found matching channels = %d", media_config.ch_info.channels);
         } else {
@@ -1062,29 +1099,39 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
             PAL_INFO(LOG_TAG, "Target Channel of %d is not supported by USB. Use USB channel of %d",
                          media_config.ch_info.channels, max_channel);
         }
+
         if (!profile_list_ch.empty()) {
+            /*3. get best Sample Rate */
             int target_sample_rate = media_config.sample_rate;
 #if defined (SEC_AUDIO_CALL) || defined(SEC_AUDIO_SUPPORT_UHQ)
-                if (is_voice_or_voip ||
-                        (!uhqa && is_playback && 
-                            (sattr->type == PAL_STREAM_COMPRESSED || sattr->type == PAL_STREAM_PCM_OFFLOAD))) {
-                    target_sample_rate = devinfo->samplerate;
-                }
+            if (is_voice_or_voip ||
+                    (!uhqa && is_playback && 
+                        (sattr->type == PAL_STREAM_COMPRESSED || sattr->type == PAL_STREAM_PCM_OFFLOAD))) {
+                target_sample_rate = devinfo->samplerate;
+            }
 #endif
-            for (auto ch_iter = profile_list_ch.begin(); ch_iter!= profile_list_ch.end(); ++ch_iter) {
-                if (uhqa && is_playback) {
+            if (uhqa && is_playback) {
+                for (auto ch_iter = profile_list_ch.begin(); ch_iter!= profile_list_ch.end(); ++ch_iter) {
 #ifdef SEC_AUDIO_SUPPORT_USB_OFFLOAD
                     target_sample_rate = state;
 #else
-                    if((*ch_iter)->isRateSupported(SAMPLINGRATE_192K)) {
-                        target_sample_rate = SAMPLINGRATE_192K;
+                    if ((*ch_iter)->isRateSupported(SAMPLINGRATE_192K)) {
+                        config->sample_rate = SAMPLINGRATE_192K;
+                        candidate_config = *ch_iter;
+                        break;
                     } else if ((*ch_iter)->isRateSupported(SAMPLINGRATE_96K)) {
-                        target_sample_rate = SAMPLINGRATE_96K;
-                    } else {
-                        PAL_INFO(LOG_TAG, "found uhqa matching profile for 192K/96K");
+                        config->sample_rate = SAMPLINGRATE_96K;
+                        candidate_config = *ch_iter;
                     }
 #endif
-                }
+               }
+               if (candidate_config) {
+                   PAL_INFO(LOG_TAG, "uhqa: found matching SampleRate = %d", config->sample_rate);
+                   goto UpdateBestCh;
+               }
+            }
+
+            for (auto ch_iter = profile_list_ch.begin(); ch_iter!= profile_list_ch.end(); ++ch_iter) {
                 int ret = (*ch_iter)->getBestRate(target_sample_rate, candidate_sr,
                                         &config->sample_rate);
                 if (ret == 0) {
@@ -1092,18 +1139,22 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
                     candidate_config = *ch_iter;
                     break;
                 }
-                // if target Sample Rate is not supported by USB, look for best one in all list.
+                /* if target Sample Rate is not supported by USB, look for best one
+                   in all profile list that channel and bit-width match.*/
                 candidate_list.insert(std::pair<int, std::shared_ptr<USBDeviceConfig>>
                                                (config->sample_rate, *ch_iter));
                 candidate_sr = config->sample_rate;
                 candidate_config = candidate_list[candidate_sr];
             }
-
+UpdateBestCh:
             if (candidate_config)
-                candidate_config->updateBestChInfo(&media_config.ch_info, &config->ch_info);        
+                candidate_config->updateBestChInfo(&media_config.ch_info, &config->ch_info);
         }
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    } else {
+        PAL_ERR(LOG_TAG, "format_list_map is empty!");
+#endif
     }
-
     return 0;
 }
 
@@ -1299,44 +1350,52 @@ bool USBDeviceConfig::isRateSupported(int requested_rate)
     return false;
 }
 
-// return 0 if match, else return -EINVAL with default sample rate
-int USBDeviceConfig::getBestRate(int requested_rate, int candidate_rate, unsigned int *best_rate) {
-    int i = 0;
-    int nearestRate = 0;
-    int diff = requested_rate > candidate_rate ? requested_rate : candidate_rate;
-
-    if (find(rates_.begin(),rates_.end(),requested_rate) != rates_.end()) {
-        *best_rate = requested_rate;
-        return 0;
-    }
-
-    for (int cur_rate : rates_) {
-        if (abs(double(requested_rate - cur_rate)) <= diff) {
-            nearestRate = cur_rate;
-            diff = abs(double(requested_rate - cur_rate));
+void USBDeviceConfig::usb_find_sample_rate_candidate(int base, int requested_rate,
+                                    int cur_rate, int candidate_rate, unsigned int *best_rate) {
+    if (cur_rate % base == 0 && candidate_rate % base != 0) {
+        *best_rate = cur_rate;
+    } else if ((cur_rate % base == 0 && candidate_rate % base == 0) ||
+               (cur_rate % base != 0 && candidate_rate % base != 0)) {
+        if (abs(double(requested_rate - candidate_rate)) >
+            abs(double(requested_rate - cur_rate))) {
+            *best_rate = cur_rate;
+        } else if (abs(double(requested_rate - candidate_rate)) ==
+                   abs(double(requested_rate - cur_rate)) && (cur_rate > candidate_rate)) {
+            *best_rate = cur_rate;
+        } else {
+            *best_rate = candidate_rate;
         }
     }
-    if (abs(double(requested_rate - candidate_rate)) < diff) {
-        nearestRate = candidate_rate;
+}
+// return 0 if match, else return -EINVAL with USB best sample rate
+int USBDeviceConfig::getBestRate(int requested_rate, int candidate_rate, unsigned int *best_rate) {
+
+    for (int cur_rate : rates_) {
+        if (requested_rate == cur_rate) {
+            *best_rate = requested_rate;
+            return 0;
+        }
+        if (candidate_rate == 0) {
+            candidate_rate = cur_rate;
+        }
+        PAL_DBG(LOG_TAG, "candidate_rate %d, cur_rate %d, requested_rate %d",
+                           candidate_rate, cur_rate, requested_rate);
+        if (requested_rate % SAMPLINGRATE_8K == 0) {
+            usb_find_sample_rate_candidate(SAMPLINGRATE_8K, requested_rate,
+                                      cur_rate, candidate_rate, best_rate);
+            candidate_rate = *best_rate;
+        } else {
+            usb_find_sample_rate_candidate(SAMPLINGRATE_22K, requested_rate,
+                                      cur_rate, candidate_rate, best_rate);
+            candidate_rate = *best_rate;
+        }
     }
-    if (nearestRate == 0)
-        nearestRate = rates_[0];
+    PAL_DBG(LOG_TAG, "requested_rate %d, best_rate %u", requested_rate, *best_rate);
 
-    if (requested_rate % SAMPLINGRATE_8K == 0 && nearestRate % SAMPLINGRATE_8K !=0 &&
-        find(rates_.begin(),rates_.end(),SAMPLINGRATE_48K)!= rates_.end())
-        nearestRate = SAMPLINGRATE_48K;
-
-    if (requested_rate % SAMPLINGRATE_22K ==0 && nearestRate % SAMPLINGRATE_22K !=0 &&
-        find(rates_.begin(),rates_.end(),SAMPLINGRATE_44K)!= rates_.end())
-        nearestRate = SAMPLINGRATE_44K;
-
-    PAL_INFO(LOG_TAG, "nearestRate %d, requested_rate %d", nearestRate, requested_rate);
-    *best_rate = nearestRate;
-
-    return -1;
+    return -EINVAL;
 }
 
-// return 0 if match, else return -EINVAL with default sample rate
+// return 0 if match, else return -EINVAL with USB channel
 int USBDeviceConfig::updateBestChInfo(struct pal_channel_info *requested_ch_info,
                                         struct pal_channel_info *best_ch_info)
 {
@@ -1351,7 +1410,7 @@ int USBDeviceConfig::updateBestChInfo(struct pal_channel_info *requested_ch_info
 
     if (channels_ != requested_ch_info->channels) {
         PAL_ERR(LOG_TAG, "channel num mismatch. use USB's: %d", channels_);
-        return -1;
+        return -EINVAL;
     }
 
     return 0;
@@ -1472,7 +1531,11 @@ bool USB::isUsbAlive(int card)
 
 bool USB::isUsbConnected(struct pal_usb_device_address addr)
 {
-    if (isUsbAlive(addr.card_id)) {
+    if (isUsbAlive(addr.card_id)
+#ifdef SEC_AUDIO_USB_DUMMY_TEST
+        || sec_pal_usb_test_process()
+#endif
+        ) {
         PAL_INFO(LOG_TAG, "usb device is connected");
         return true;
     }
@@ -1505,7 +1568,7 @@ bool USBCardConfig::getJackConnectionStatus(int usb_card, const char* suffix)
     }
     mixer_ctl_update(ctrl);
     value = mixer_ctl_get_value(ctrl, 0);
-    PAL_INFO(LOG_TAG, "ctrl %s - value %d", mixer_ctl_get_name(ctrl), value)
+    PAL_DBG(LOG_TAG, "ctrl %s - value %d", mixer_ctl_get_name(ctrl), value);
     mixer_close(usb_card_mixer);
 
     return value != 0;

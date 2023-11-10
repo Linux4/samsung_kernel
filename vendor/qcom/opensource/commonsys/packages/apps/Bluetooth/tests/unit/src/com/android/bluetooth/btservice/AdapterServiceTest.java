@@ -24,6 +24,7 @@ import android.app.admin.DevicePolicyManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.IBluetoothCallback;
+import android.content.AttributionSource;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -72,6 +73,7 @@ public class AdapterServiceTest {
     private static final String TAG = AdapterServiceTest.class.getSimpleName();
 
     private AdapterService mAdapterService;
+    private AdapterService.AdapterServiceBinder mServiceBinder;
 
     private @Mock Context mMockContext;
     private @Mock ApplicationInfo mMockApplicationInfo;
@@ -90,6 +92,9 @@ public class AdapterServiceTest {
     private static final int ONE_SECOND_MS = 1000;
     private static final int NATIVE_INIT_MS = 8000;
     private static final int NATIVE_DISABLE_MS = 1000;
+
+    private final AttributionSource mAttributionSource = new AttributionSource.Builder(
+            Process.myUid()).build();
 
     private PowerManager mPowerManager;
     private PackageManager mMockPackageManager;
@@ -123,6 +128,7 @@ public class AdapterServiceTest {
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(
                 () -> mAdapterService = new AdapterService());
+        mServiceBinder = new AdapterService.AdapterServiceBinder(mAdapterService);
         mMockPackageManager = mock(PackageManager.class);
         mMockContentResolver = new MockContentResolver(mMockContext);
         MockitoAnnotations.initMocks(this);
@@ -165,7 +171,7 @@ public class AdapterServiceTest {
         mAdapterService.attach(mMockContext, null, null, null, null, null);
 
         mAdapterService.onCreate();
-        mAdapterService.registerCallback(mIBluetoothCallback);
+        mServiceBinder.registerCallback(mIBluetoothCallback, mAttributionSource);
 
         Config.init(mMockContext);
 
@@ -175,7 +181,7 @@ public class AdapterServiceTest {
 
     @After
     public void tearDown() {
-        mAdapterService.unregisterCallback(mIBluetoothCallback);
+        mServiceBinder.unregisterCallback(mIBluetoothCallback, mAttributionSource);
         mAdapterService.cleanup();
         Config.init(InstrumentationRegistry.getTargetContext());
     }
@@ -636,7 +642,7 @@ public class AdapterServiceTest {
         byte[] obfuscatedAddress1 = mAdapterService.obfuscateAddress(device);
         Assert.assertTrue(obfuscatedAddress1.length > 0);
         Assert.assertFalse(isByteArrayAllZero(obfuscatedAddress1));
-        mAdapterService.factoryReset();
+        mServiceBinder.factoryReset(mAttributionSource);
         byte[] obfuscatedAddress2 = mAdapterService.obfuscateAddress(device);
         Assert.assertTrue(obfuscatedAddress2.length > 0);
         Assert.assertFalse(isByteArrayAllZero(obfuscatedAddress2));
@@ -648,7 +654,7 @@ public class AdapterServiceTest {
         Assert.assertFalse(isByteArrayAllZero(obfuscatedAddress3));
         Assert.assertArrayEquals(obfuscatedAddress3,
                 obfuscatedAddress2);
-        mAdapterService.factoryReset();
+        mServiceBinder.factoryReset(mAttributionSource);
         byte[] obfuscatedAddress4 = mAdapterService.obfuscateAddress(device);
         Assert.assertTrue(obfuscatedAddress4.length > 0);
         Assert.assertFalse(isByteArrayAllZero(obfuscatedAddress4));
@@ -672,7 +678,7 @@ public class AdapterServiceTest {
         Assert.assertFalse(isByteArrayAllZero(obfuscatedAddress1));
         Assert.assertArrayEquals(obfuscateInJava(metricsSalt1, device),
                 obfuscatedAddress1);
-        mAdapterService.factoryReset();
+        mServiceBinder.factoryReset(mAttributionSource);
         tearDown();
         setUp();
         // Cannot verify metrics salt since it is not written to disk until native cleanup

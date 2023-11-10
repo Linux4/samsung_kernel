@@ -78,6 +78,13 @@
 #define	EVT_RESUMED			10
 
 #define NUM_LOG_PAGES 10
+#define log_event_err_ratelimited(x, ...) do { \
+	if (gsi) { \
+		ipc_log_string(gsi->ipc_log_ctxt, x, ##__VA_ARGS__); \
+		pr_err_ratelimited(x, ##__VA_ARGS__); \
+	} \
+} while (0)
+
 #define log_event_err(x, ...) do { \
 	if (gsi) { \
 		ipc_log_string(gsi->ipc_log_ctxt, x, ##__VA_ARGS__); \
@@ -284,6 +291,7 @@ struct f_gsi {
 	u8 debugfs_rw_timer_enable;
 	u16 gsi_rw_timer_interval;
 	bool host_supports_flow_control;
+	bool ipa_ready_timeout;
 };
 
 static inline struct f_gsi *func_to_gsi(struct usb_function *f)

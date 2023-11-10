@@ -20,6 +20,7 @@
 #include "cam_debug_util.h"
 #include "cam_sensor_io.h"
 #include "cam_csiphy_core.h"
+#include "cam_sensor_dev.h"
 
 #define INVALID_VREG 100
 #define RES_MGR_GPIO_NEED_HOLD   1
@@ -36,13 +37,18 @@
 
 #define SENSOR_ID_HI847_HI1337 0x2000  // HI847 and HI1337 have same sensor id.
 
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
+#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) || defined(CONFIG_SEC_GTS9_PROJECT) || defined(CONFIG_SEC_GTS9P_PROJECT) || defined(CONFIG_SEC_GTS9U_PROJECT)
 #define SENSOR_ID_S5KGN3 0x08E3
 #define SENSOR_ID_S5K3K1 0x30B1
 #define SENSOR_ID_IMX754 0x0754
 #define SENSOR_ID_S5K3LU 0x34CB
 #define SENSOR_ID_IMX564 0x0564
 #define SENSOR_ID_S5KHP2 0x1B72
+#define SENSOR_ID_IMX258 0x0258
+#define SENSOR_ID_IMX471 0x0471
+#define SENSOR_ID_IMX374 0x0374
+#define SENSOR_ID_S5K2LD 0x20CD
+#define SENSOR_ID_S5K3J1 0x30A1
 
 #define INVALID_MIPI_INDEX -1
 #endif
@@ -50,10 +56,12 @@
 #if defined(CONFIG_SENSOR_RETENTION)
 #define SENSOR_RETENTION_READ_RETRY_CNT 5
 
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT)
+#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
 #define RETENTION_SENSOR_ID 0x08E3
 #elif defined(CONFIG_SEC_DM3Q_PROJECT)
 #define RETENTION_SENSOR_ID 0x1B72
+#elif defined(CONFIG_SEC_B5Q_PROJECT)
+#define RETENTION_SENSOR_ID 0x20CD
 #endif
 
 #define STREAM_ON_ADDR   0x100
@@ -63,6 +71,20 @@ enum sensor_retention_mode {
 	RETENTION_READY_TO_ON,
 	RETENTION_ON,
 };
+#endif
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+extern int to_do_print_vc__sen_id;
+extern int to_dump_when_sof_freeze__sen_id;
+
+typedef enum {
+	e_seq_sensor_idn_s5khp2,
+	e_seq_sensor_idn_s5kgn3,
+	e_seq_sensor_idn_s5k3lu,
+	e_seq_sensor_idn_imx564,
+	e_seq_sensor_idn_imx754,
+	e_seq_sensor_idn_max,
+} e_seq_sensor_idnum;
 #endif
 
 int cam_sensor_count_elems_i3c_device_id(struct device_node *dev,

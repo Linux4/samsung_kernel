@@ -69,6 +69,12 @@ static QDF_STATUS wlan_mgmt_txrx_psoc_obj_create_notification(
 
 	qdf_spinlock_create(&mgmt_txrx_psoc_ctx->mgmt_txrx_psoc_ctx_lock);
 
+	status = wlan_mgmt_rx_reo_psoc_obj_create_notification(psoc);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mgmt_txrx_err("Failed to run mgmt Rx REO psoc create handler");
+		goto err_psoc_attach;
+	}
+
 	if (wlan_objmgr_psoc_component_obj_attach(psoc,
 				WLAN_UMAC_COMP_MGMT_TXRX,
 				mgmt_txrx_psoc_ctx, QDF_STATUS_SUCCESS)
@@ -106,6 +112,7 @@ static QDF_STATUS wlan_mgmt_txrx_psoc_obj_destroy_notification(
 			void *arg)
 {
 	struct mgmt_txrx_priv_psoc_context *mgmt_txrx_psoc_ctx;
+	QDF_STATUS status;
 
 	if (!psoc) {
 		mgmt_txrx_err("psoc context passed is NULL");
@@ -126,6 +133,12 @@ static QDF_STATUS wlan_mgmt_txrx_psoc_obj_destroy_notification(
 			!= QDF_STATUS_SUCCESS) {
 		mgmt_txrx_err("Failed to detach mgmt txrx ctx in psoc ctx");
 		return QDF_STATUS_E_FAILURE;
+	}
+
+	status = wlan_mgmt_rx_reo_psoc_obj_destroy_notification(psoc);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mgmt_txrx_err("Failed to run mgmt Rx REO psoc destroy handler");
+		return status;
 	}
 
 	qdf_spinlock_destroy(&mgmt_txrx_psoc_ctx->mgmt_txrx_psoc_ctx_lock);

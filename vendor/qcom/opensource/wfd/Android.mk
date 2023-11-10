@@ -1,13 +1,13 @@
 LOCAL_PATH := $(call my-dir)
 
-QMAA_DISABLES_WFD := false
+QMAA_DISABLES_WFD := true
 ifeq ($(TARGET_USES_QMAA),true)
 ifneq ($(TARGET_USES_QMAA_OVERRIDE_WFD),true)
 QMAA_DISABLES_WFD := true
 endif #TARGET_USES_QMAA_OVERRIDE_WFD
 endif #TARGET_USES_QMAA
 
-WFD_DISABLE_PLATFORM_LIST := neo anorak
+WFD_DISABLE_PLATFORM_LIST := neo
 
 #Disable WFD for selected 32-bit targets
 ifeq ($(call is-board-platform,bengal),true)

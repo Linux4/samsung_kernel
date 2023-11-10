@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -18,7 +18,7 @@
  */
 
 /**
- * DOC : wlan_hdd_stats.h
+ * DOC: wlan_hdd_stats.h
  *
  * WLAN Host Device Driver statistics related implementation
  *
@@ -115,11 +115,11 @@ struct index_vht_data_rate_type {
 };
 
 /**
- * enum - data_rate_11ac_max_mcs
+ * enum data_rate_11ac_max_mcs - possible VHT max MCS values
  * @DATA_RATE_11AC_MAX_MCS_7: MCS7 rate
  * @DATA_RATE_11AC_MAX_MCS_8: MCS8 rate
  * @DATA_RATE_11AC_MAX_MCS_9: MCS9 rate
- * @DATA_RATE_11AC_MAX_MCS_NA:i Not applicable
+ * @DATA_RATE_11AC_MAX_MCS_NA: Not applicable
  */
 enum data_rate_11ac_max_mcs {
 	DATA_RATE_11AC_MAX_MCS_7,
@@ -191,7 +191,7 @@ static inline bool hdd_link_layer_stats_supported(void)
 }
 
 /**
- * __wlan_hdd_cfg80211_ll_stats_ext_set_param - config monitor parameters
+ * wlan_hdd_cfg80211_ll_stats_ext_set_param() - config monitor parameters
  * @wiphy: wiphy handle
  * @wdev: wdev handle
  * @data: user layer input
@@ -332,6 +332,21 @@ int wlan_hdd_cfg80211_stats_ext_request(struct wiphy *wiphy,
 					int data_len);
 
 #endif /* End of WLAN_FEATURE_STATS_EXT */
+
+/**
+ * wlan_hdd_cfg80211_connected_chan_stats_req() - get currently connected
+ * channel statistics from driver/firmware
+ * @wiphy: Pointer to wiphy
+ * @wdev: Pointer to wdev
+ * @data: Pointer to data
+ * @data_len: Data length
+ *
+ * Return: int
+ */
+int wlan_hdd_cfg80211_connected_chan_stats_req(struct wiphy *wiphy,
+					       struct wireless_dev *wdev,
+					       const void *data,
+					       int data_len);
 
 /**
  * wlan_hdd_cfg80211_get_station() - get station statistics
@@ -545,7 +560,6 @@ wlan_cfg80211_mc_cp_get_big_data_stats(struct wlan_objmgr_vdev *vdev,
 /**
  * wlan_cfg80211_mc_cp_stats_free_big_data_stats_event() - API to release big
  * data statistics buffer
- * @vdev:    Pointer to vdev
  * @info:    pointer to object to populate with big data stats
  *
  * Return: None
@@ -631,7 +645,7 @@ void wlan_hdd_display_tx_multiq_stats(hdd_cb_handle context, uint8_t vdev_id)
  * @rate: The station_info tx/rx rate to be filled
  * @signal: signal from station_info
  * @rate_flags: TX/RX rate flags computed from tx/rx rate
- * @mcs_index; The TX/RX mcs index computed from tx/rx rate
+ * @mcs_index: The TX/RX mcs index computed from tx/rx rate
  * @fw_rate: The tx/rx rate from fw stats
  * @nss: The TX/RX NSS from fw stats
  *

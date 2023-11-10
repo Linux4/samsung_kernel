@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -29,89 +29,104 @@
 #include "cds_api.h"
 #include <wlan_nlink_common.h>
 #include "wlan_ipa_ucfg_api.h"
-#include "dp_txrx.h"
+#include "wlan_dp_rx_thread.h"
 #include "wlan_mlme_vdev_mgr_interface.h"
 #include "hif.h"
 #include "qdf_trace.h"
-#include <wlan_cm_ucfg_api.h>
+#include <wlan_cm_api.h>
 #include <qdf_threads.h>
 #include <qdf_net_stats.h>
 #include "wlan_dp_periodic_sta_stats.h"
-#include "wlan_mlme_ucfg_api.h"
+#include "wlan_mlme_api.h"
 #include "wlan_dp_txrx.h"
 #include "cdp_txrx_host_stats.h"
 #include "wlan_cm_roam_api.h"
 
 #ifdef FEATURE_BUS_BANDWIDTH_MGR
-/**
- * bus_bw_table_default - default table which provides bus bandwidth level
- *  corresonding to a given connection mode and throughput level.
+/*
+ * bus_bw_table_default: default table which provides bus
+ * bandwidth level corresponding to a given connection mode and throughput
+ * level.
  */
 static bus_bw_table_type bus_bw_table_default = {
 	[QCA_WLAN_802_11_MODE_11B] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_1,
 				      BUS_BW_LEVEL_2, BUS_BW_LEVEL_3,
 				      BUS_BW_LEVEL_4, BUS_BW_LEVEL_6,
-				      BUS_BW_LEVEL_7, BUS_BW_LEVEL_8},
+				      BUS_BW_LEVEL_7, BUS_BW_LEVEL_8,
+				      BUS_BW_LEVEL_9},
 	[QCA_WLAN_802_11_MODE_11G] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_5,
 				      BUS_BW_LEVEL_5, BUS_BW_LEVEL_5,
 				      BUS_BW_LEVEL_5, BUS_BW_LEVEL_5,
-				      BUS_BW_LEVEL_5, BUS_BW_LEVEL_5},
+				      BUS_BW_LEVEL_5, BUS_BW_LEVEL_5,
+				      BUS_BW_LEVEL_5},
 	[QCA_WLAN_802_11_MODE_11A] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_5,
 				      BUS_BW_LEVEL_5, BUS_BW_LEVEL_5,
 				      BUS_BW_LEVEL_5, BUS_BW_LEVEL_5,
-				      BUS_BW_LEVEL_5, BUS_BW_LEVEL_5},
+				      BUS_BW_LEVEL_5, BUS_BW_LEVEL_5,
+				      BUS_BW_LEVEL_5},
 	[QCA_WLAN_802_11_MODE_11N] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_1,
 				      BUS_BW_LEVEL_2, BUS_BW_LEVEL_3,
 				      BUS_BW_LEVEL_4, BUS_BW_LEVEL_6,
-				      BUS_BW_LEVEL_7, BUS_BW_LEVEL_8},
+				      BUS_BW_LEVEL_7, BUS_BW_LEVEL_8,
+				      BUS_BW_LEVEL_9},
 	[QCA_WLAN_802_11_MODE_11AC] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_1,
 				       BUS_BW_LEVEL_2, BUS_BW_LEVEL_3,
 				       BUS_BW_LEVEL_4, BUS_BW_LEVEL_6,
-				       BUS_BW_LEVEL_7, BUS_BW_LEVEL_8},
+				       BUS_BW_LEVEL_7, BUS_BW_LEVEL_8,
+				       BUS_BW_LEVEL_9},
 	[QCA_WLAN_802_11_MODE_11AX] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_1,
 				       BUS_BW_LEVEL_2, BUS_BW_LEVEL_3,
 				       BUS_BW_LEVEL_4, BUS_BW_LEVEL_6,
-				       BUS_BW_LEVEL_7, BUS_BW_LEVEL_8},
+				       BUS_BW_LEVEL_7, BUS_BW_LEVEL_8,
+				       BUS_BW_LEVEL_9},
 	[QCA_WLAN_802_11_MODE_11BE] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_1,
 				       BUS_BW_LEVEL_2, BUS_BW_LEVEL_3,
 				       BUS_BW_LEVEL_4, BUS_BW_LEVEL_6,
-				       BUS_BW_LEVEL_7, BUS_BW_LEVEL_8},
+				       BUS_BW_LEVEL_7, BUS_BW_LEVEL_8,
+				       BUS_BW_LEVEL_9},
 };
 
-/**
- * bus_bw_table_low_latency - table which provides bus bandwidth level
- *  corresonding to a given connection mode and throughput level in low
- *  latency setting.
+/*
+ * bus_bw_table_low_latency: table which provides bus
+ * bandwidth level corresponding to a given connection mode and throughput
+ * level in low latency setting.
  */
 static bus_bw_table_type bus_bw_table_low_latency = {
-	[QCA_WLAN_802_11_MODE_11B] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8},
-	[QCA_WLAN_802_11_MODE_11G] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8},
-	[QCA_WLAN_802_11_MODE_11A] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8},
-	[QCA_WLAN_802_11_MODE_11N] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				      BUS_BW_LEVEL_8, BUS_BW_LEVEL_8},
-	[QCA_WLAN_802_11_MODE_11AC] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8},
-	[QCA_WLAN_802_11_MODE_11AX] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8},
-	[QCA_WLAN_802_11_MODE_11BE] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8,
-				       BUS_BW_LEVEL_8, BUS_BW_LEVEL_8},
+	[QCA_WLAN_802_11_MODE_11B] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9},
+	[QCA_WLAN_802_11_MODE_11G] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9},
+	[QCA_WLAN_802_11_MODE_11A] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9},
+	[QCA_WLAN_802_11_MODE_11N] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				      BUS_BW_LEVEL_9},
+	[QCA_WLAN_802_11_MODE_11AC] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9},
+	[QCA_WLAN_802_11_MODE_11AX] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9},
+	[QCA_WLAN_802_11_MODE_11BE] = {BUS_BW_LEVEL_NONE, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9, BUS_BW_LEVEL_9,
+				       BUS_BW_LEVEL_9},
 };
 
 /**
@@ -136,10 +151,12 @@ bbm_convert_to_pld_bus_lvl(enum bus_bw_level vote_lvl)
 	case BUS_BW_LEVEL_5:
 		return PLD_BUS_WIDTH_LOW_LATENCY;
 	case BUS_BW_LEVEL_6:
-		return PLD_BUS_WIDTH_VERY_HIGH;
+		return PLD_BUS_WIDTH_MID_HIGH;
 	case BUS_BW_LEVEL_7:
-		return PLD_BUS_WIDTH_ULTRA_HIGH;
+		return PLD_BUS_WIDTH_VERY_HIGH;
 	case BUS_BW_LEVEL_8:
+		return PLD_BUS_WIDTH_ULTRA_HIGH;
+	case BUS_BW_LEVEL_9:
 		return PLD_BUS_WIDTH_MAX;
 	case BUS_BW_LEVEL_NONE:
 	default:
@@ -294,7 +311,7 @@ bbm_apply_driver_mode_policy(struct bbm_context *bbm_ctx,
 	case QDF_GLOBAL_MONITOR_MODE:
 	case QDF_GLOBAL_FTM_MODE:
 		bbm_ctx->per_policy_vote[BBM_DRIVER_MODE_POLICY] =
-							    BUS_BW_LEVEL_6;
+							    BUS_BW_LEVEL_7;
 		return;
 	default:
 		bbm_ctx->per_policy_vote[BBM_DRIVER_MODE_POLICY] =
@@ -958,8 +975,9 @@ void wlan_dp_display_tx_rx_histogram(struct wlan_objmgr_psoc *psoc)
 
 	dp_nofl_info("BW compute Interval: %d ms",
 		     dp_ctx->dp_cfg.bus_bw_compute_interval);
-	dp_nofl_info("BW TH - Very High: %d High: %d Med: %d Low: %d DBS: %d",
+	dp_nofl_info("BW TH - Very High: %d Mid High: %d High: %d Med: %d Low: %d DBS: %d",
 		     dp_ctx->dp_cfg.bus_bw_very_high_threshold,
+		     dp_ctx->dp_cfg.bus_bw_mid_high_threshold,
 		     dp_ctx->dp_cfg.bus_bw_high_threshold,
 		     dp_ctx->dp_cfg.bus_bw_medium_threshold,
 		     dp_ctx->dp_cfg.bus_bw_low_threshold,
@@ -1127,8 +1145,8 @@ static void wlan_dp_display_txrx_stats(struct wlan_dp_psoc_context *dp_ctx)
 
 /**
  * dp_display_periodic_stats() - Function to display periodic stats
- * @dp_ctx - handle to dp context
- * @bool data_in_interval - true, if data detected in bw time interval
+ * @dp_ctx: handle to dp context
+ * @data_in_interval: true, if data detected in bw time interval
  *
  * The periodicity is determined by dp_ctx->dp_cfg->periodic_stats_disp_time.
  * Stats show up in wlan driver logs.
@@ -1144,7 +1162,7 @@ static void dp_display_periodic_stats(struct wlan_dp_psoc_context *dp_ctx,
 	uint32_t periodic_stats_disp_time = 0;
 	hdd_cb_handle ctx = dp_ctx->dp_ops.callback_ctx;
 
-	ucfg_mlme_stats_get_periodic_display_time(dp_ctx->psoc,
+	wlan_mlme_stats_get_periodic_display_time(dp_ctx->psoc,
 						  &periodic_stats_disp_time);
 	if (!periodic_stats_disp_time)
 		return;
@@ -1159,6 +1177,7 @@ static void dp_display_periodic_stats(struct wlan_dp_psoc_context *dp_ctx,
 
 	if (counter * dp_ctx->dp_cfg.bus_bw_compute_interval >=
 		periodic_stats_disp_time * 1000) {
+		hif_rtpm_display_last_busy_hist(cds_get_context(QDF_MODULE_ID_HIF));
 		if (data_in_time_period) {
 			wlan_dp_display_txrx_stats(dp_ctx);
 			dp_txrx_ext_dump_stats(soc, CDP_DP_RX_THREAD_STATS);
@@ -1416,6 +1435,32 @@ bool dp_bus_bandwidth_work_tune_tx(struct wlan_dp_psoc_context *dp_ctx,
 }
 
 /**
+ * dp_sap_p2p_update_mid_high_tput() - Update mid high BW for SAP and P2P mode
+ * @dp_ctx: DP context
+ * @total_pkts: Total Tx and Rx packets
+ *
+ * Return: True if mid high threshold is set and opmode is SAP or P2P GO
+ */
+static inline
+bool dp_sap_p2p_update_mid_high_tput(struct wlan_dp_psoc_context *dp_ctx,
+				     uint64_t total_pkts)
+{
+	struct wlan_dp_intf *dp_intf = NULL;
+	struct wlan_dp_intf *dp_intf_next = NULL;
+
+	if (dp_ctx->dp_cfg.bus_bw_mid_high_threshold &&
+	    total_pkts > dp_ctx->dp_cfg.bus_bw_mid_high_threshold) {
+		dp_for_each_intf_held_safe(dp_ctx, dp_intf, dp_intf_next) {
+			if (dp_intf->device_mode == QDF_SAP_MODE ||
+			    dp_intf->device_mode == QDF_P2P_GO_MODE)
+				return true;
+		}
+	}
+
+	return false;
+}
+
+/**
  * dp_pld_request_bus_bandwidth() - Function to control bus bandwidth
  * @dp_ctx: handle to DP context
  * @tx_packets: transmit packet count received in BW interval
@@ -1473,6 +1518,10 @@ static void dp_pld_request_bus_bandwidth(struct wlan_dp_psoc_context *dp_ctx,
 	} else if (total_pkts > dp_ctx->dp_cfg.bus_bw_high_threshold) {
 		next_vote_level = PLD_BUS_WIDTH_HIGH;
 		tput_level = TPUT_LEVEL_HIGH;
+		if (dp_sap_p2p_update_mid_high_tput(dp_ctx, total_pkts)) {
+			next_vote_level = PLD_BUS_WIDTH_MID_HIGH;
+			tput_level = TPUT_LEVEL_MID_HIGH;
+		}
 	} else if (total_pkts > dp_ctx->dp_cfg.bus_bw_medium_threshold) {
 		next_vote_level = PLD_BUS_WIDTH_MEDIUM;
 		tput_level = TPUT_LEVEL_MEDIUM;
@@ -1847,7 +1896,7 @@ static void __dp_bus_bw_work_handler(struct wlan_dp_psoc_context *dp_ctx)
 
 		if ((dp_intf->device_mode == QDF_STA_MODE ||
 		     dp_intf->device_mode == QDF_P2P_CLIENT_MODE) &&
-		    !ucfg_cm_is_vdev_active(vdev)) {
+		    !wlan_cm_is_vdev_active(vdev)) {
 			dp_objmgr_put_vdev_by_user(vdev, WLAN_DP_ID);
 			continue;
 		}
@@ -1874,7 +1923,7 @@ static void __dp_bus_bw_work_handler(struct wlan_dp_psoc_context *dp_ctx)
 			dp_intf->prev_tx_bytes);
 
 		if (dp_intf->device_mode == QDF_STA_MODE &&
-		    ucfg_cm_is_vdev_active(vdev)) {
+		    wlan_cm_is_vdev_active(vdev)) {
 			dp_ctx->dp_ops.dp_send_mscs_action_frame(ctx,
 							dp_intf->intf_id);
 			if (dp_intf->link_monitoring.enabled)

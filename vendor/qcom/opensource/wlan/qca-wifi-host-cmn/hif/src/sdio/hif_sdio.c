@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -127,7 +128,7 @@ QDF_STATUS hif_send_head(struct hif_opaque_softc *hif_ctx, uint8_t pipe,
 /**
  * hif_map_service_to_pipe() - maps ul/dl pipe to service id.
  * @hif_ctx: HIF hdl
- * @ServiceId: sevice index
+ * @ServiceId: service index
  * @ul_pipe: uplink pipe id
  * @dl_pipe: down-linklink pipe id
  * @ul_is_polled: if ul is polling based

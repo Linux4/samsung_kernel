@@ -418,6 +418,23 @@ void reg_register_chan_change_callback(struct wlan_objmgr_psoc *psoc,
 		reg_err("callback list is full");
 }
 
+void reg_register_ctry_change_callback(struct wlan_objmgr_psoc *psoc,
+				       reg_ctry_change_callback cbk)
+{
+	struct wlan_regulatory_psoc_priv_obj *psoc_priv_obj;
+
+	psoc_priv_obj = reg_get_psoc_obj(psoc);
+	if (!psoc_priv_obj) {
+		reg_err("reg psoc private obj is NULL");
+		return;
+	}
+
+	qdf_spin_lock_bh(&psoc_priv_obj->cbk_list_lock);
+	if (!psoc_priv_obj->cc_cbk.cbk)
+		psoc_priv_obj->cc_cbk.cbk = cbk;
+	qdf_spin_unlock_bh(&psoc_priv_obj->cbk_list_lock);
+}
+
 void reg_unregister_chan_change_callback(struct wlan_objmgr_psoc *psoc,
 					 reg_chan_change_callback cbk)
 {
@@ -443,3 +460,19 @@ void reg_unregister_chan_change_callback(struct wlan_objmgr_psoc *psoc,
 		reg_err("callback not found in the list");
 }
 
+void reg_unregister_ctry_change_callback(struct wlan_objmgr_psoc *psoc,
+					 reg_ctry_change_callback cbk)
+{
+	struct wlan_regulatory_psoc_priv_obj *psoc_priv_obj;
+
+	psoc_priv_obj = reg_get_psoc_obj(psoc);
+	if (!psoc_priv_obj) {
+		reg_err("reg psoc private obj is NULL");
+		return;
+	}
+
+	qdf_spin_lock_bh(&psoc_priv_obj->cbk_list_lock);
+	if (psoc_priv_obj->cc_cbk.cbk == cbk)
+		psoc_priv_obj->cc_cbk.cbk = NULL;
+	qdf_spin_unlock_bh(&psoc_priv_obj->cbk_list_lock);
+}

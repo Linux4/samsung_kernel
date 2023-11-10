@@ -45,6 +45,22 @@ static inline bool usb_gsi_remote_wakeup_allowed(struct usb_function *f)
 	return remote_wakeup_allowed;
 }
 
+static void ipa_ready_callback(void *user_data)
+{
+	struct f_gsi *gsi = user_data;
+
+	log_event_info("%s: ipa is ready\n", __func__);
+
+	/*
+	 * If ipa_ready_timeout is set then don't mark ipa_ready as true since this
+	 * callback can come even after timeout.
+	 */
+	if (!gsi->ipa_ready_timeout) {
+		gsi->d_port.ipa_ready = true;
+		wake_up_interruptible(&gsi->d_port.wait_for_ipa_ready);
+	}
+}
+
 static void post_event(struct gsi_data_port *port, u8 event)
 {
 	unsigned long flags;
@@ -627,6 +643,22 @@ static int ipa_connect_channels(struct gsi_data_port *d_port)
 				sizeof(ipa_in_channel_out_params));
 	memset(&ipa_out_channel_out_params, 0x0,
 				sizeof(ipa_out_channel_out_params));
+
+	gsi->ipa_ready_timeout = false;
+	ret = ipa_register_ipa_ready_cb(ipa_ready_callback, gsi);
+	if (!ret) {
+		log_event_info("%s: ipa is not ready", __func__);
+		ret = wait_event_interruptible_timeout(
+			gsi->d_port.wait_for_ipa_ready, gsi->d_port.ipa_ready,
+			msecs_to_jiffies(GSI_IPA_READY_TIMEOUT));
+		if (!ret) {
+			log_event_err("%s: ipa ready timeout", __func__);
+			gsi->ipa_ready_timeout = true;
+			ret = -ETIMEDOUT;
+			goto end_xfer_ep_out;
+		}
+		gsi->d_port.ipa_ready = false;
+	}
 
 	log_event_dbg("%s: Calling xdci_connect", __func__);
 	ret = ipa_usb_xdci_connect(out_params, in_params,
@@ -1271,7 +1303,7 @@ static int gsi_ctrl_dev_open(struct inode *ip, struct file *fp)
 
 	if (!inst_cur->inst_exist) {
 		mutex_unlock(&inst_cur->gsi_lock);
-		log_event_err("%s: [prot_id = %d], GSI instance freed already\n",
+		log_event_err_ratelimited("%s: [prot_id = %d], GSI instance freed already\n",
 				__func__, gsi->prot_id);
 		return -ENODEV;
 	}
@@ -1346,12 +1378,12 @@ gsi_ctrl_dev_read(struct file *fp, char __user *buf, size_t count, loff_t *pos)
 	gsi = inst_cur->opts->gsi;
 	c_port = &inst_cur->opts->gsi->c_port;
 	if (!c_port) {
-		log_event_err("%s: gsi ctrl port %pK", __func__, c_port);
+		log_event_err_ratelimited("%s: gsi ctrl port %pK", __func__, c_port);
 		return -ENODEV;
 	}
 
 	if (count > GSI_MAX_CTRL_PKT_SIZE) {
-		log_event_err("Large buff size %zu, should be %d",
+		log_event_err_ratelimited("Large buff size %zu, should be %d",
 			count, GSI_MAX_CTRL_PKT_SIZE);
 		return -EINVAL;
 	}
@@ -1364,7 +1396,7 @@ gsi_ctrl_dev_read(struct file *fp, char __user *buf, size_t count, loff_t *pos)
 		ret = wait_event_interruptible(c_port->read_wq,
 			!list_empty(&c_port->cpkt_req_q));
 		if (ret < 0) {
-			log_event_err("Waiting failed");
+			log_event_err_ratelimited("Waiting failed");
 			return -ERESTARTSYS;
 		}
 		log_event_dbg("Received request packet");
@@ -1377,7 +1409,7 @@ gsi_ctrl_dev_read(struct file *fp, char __user *buf, size_t count, loff_t *pos)
 	spin_unlock_irqrestore(&c_port->lock, flags);
 
 	if (cpkt->len > count) {
-		log_event_err("cpkt size large:%d > buf size:%zu",
+		log_event_err_ratelimited("cpkt size large:%d > buf size:%zu",
 				cpkt->len, count);
 		gsi_ctrl_pkt_free(cpkt);
 		return -ENOMEM;
@@ -1390,7 +1422,7 @@ gsi_ctrl_dev_read(struct file *fp, char __user *buf, size_t count, loff_t *pos)
 
 	ret = copy_to_user(buf, cpkt->buf, cpkt->len);
 	if (ret) {
-		log_event_err("copy_to_user failed: err %d", ret);
+		log_event_err_ratelimited("copy_to_user failed: err %d", ret);
 		ret = -EFAULT;
 	} else {
 		log_event_dbg("%s: copied %d bytes to user", __func__,
@@ -1436,30 +1468,30 @@ static ssize_t gsi_ctrl_dev_write(struct file *fp, const char __user *buf,
 	c_port = &gsi->c_port;
 
 	if (!count || count > GSI_MAX_CTRL_PKT_SIZE) {
-		log_event_err("error: ctrl pkt length %zu", count);
+		log_event_err_ratelimited("error: ctrl pkt length %zu", count);
 		return -EINVAL;
 	}
 
 	if (!atomic_read(&gsi->connected)) {
-		log_event_err("USB cable not connected\n");
+		log_event_err_ratelimited("USB cable not connected\n");
 		return -ECONNRESET;
 	}
 
 	if (gsi->func_is_suspended && !gsi->func_wakeup_allowed) {
 		c_port->cpkt_drop_cnt++;
-		log_event_err("drop ctrl pkt of len %zu", count);
+		log_event_err_ratelimited("drop ctrl pkt of len %zu", count);
 		return -EOPNOTSUPP;
 	}
 
 	cpkt = gsi_ctrl_pkt_alloc(count, GFP_KERNEL);
 	if (IS_ERR(cpkt)) {
-		log_event_err("failed to allocate ctrl pkt");
+		log_event_err_ratelimited("failed to allocate ctrl pkt");
 		return -ENOMEM;
 	}
 
 	ret = copy_from_user(cpkt->buf, buf, count);
 	if (ret) {
-		log_event_err("copy_from_user failed err:%d", ret);
+		log_event_err_ratelimited("copy_from_user failed err:%d", ret);
 		gsi_ctrl_pkt_free(cpkt);
 		return ret;
 	}
@@ -1508,7 +1540,7 @@ static long gsi_ctrl_dev_ioctl(struct file *fp, unsigned int cmd,
 	c_port = &gsi->c_port;
 
 	if (!atomic_read(&gsi->connected)) {
-		log_event_err("USB cable not connected\n");
+		log_event_err_ratelimited("USB cable not connected\n");
 		return -ECONNRESET;
 	}
 
@@ -1522,7 +1554,7 @@ static long gsi_ctrl_dev_ioctl(struct file *fp, unsigned int cmd,
 		gsi_ctrl_clear_cpkt_queues(gsi, true);
 		cpkt = gsi_ctrl_pkt_alloc(0, GFP_KERNEL);
 		if (IS_ERR(cpkt)) {
-			log_event_err("%s: err allocating cpkt\n", __func__);
+			log_event_err_ratelimited("%s: err allocating cpkt\n", __func__);
 			return -ENOMEM;
 		}
 		cpkt->type = GSI_CTRL_NOTIFY_OFFLINE;
@@ -1546,7 +1578,7 @@ static long gsi_ctrl_dev_ioctl(struct file *fp, unsigned int cmd,
 
 		ret = copy_to_user((void __user *)arg, &val, sizeof(val));
 		if (ret) {
-			log_event_err("copy_to_user fail LINE_STATE");
+			log_event_err_ratelimited("copy_to_user fail LINE_STATE");
 			ret = -EFAULT;
 		}
 		log_event_dbg("%s: Sent line_state: %d for prot id:%d",
@@ -1592,7 +1624,7 @@ static long gsi_ctrl_dev_ioctl(struct file *fp, unsigned int cmd,
 		ret = copy_to_user((void __user *)arg, &info,
 			sizeof(info));
 		if (ret) {
-			log_event_err("copy_to_user fail MBIM");
+			log_event_err_ratelimited("copy_to_user fail MBIM");
 			ret = -EFAULT;
 		}
 		break;
@@ -1601,7 +1633,7 @@ static long gsi_ctrl_dev_ioctl(struct file *fp, unsigned int cmd,
 			&gsi->d_port.ntb_info.ntb_input_size,
 			sizeof(gsi->d_port.ntb_info.ntb_input_size));
 		if (ret) {
-			log_event_err("copy_to_user failNTB_SIZE");
+			log_event_err_ratelimited("copy_to_user failNTB_SIZE");
 			ret = -EFAULT;
 		}
 		log_event_dbg("Sent NTB size %d",
@@ -1612,7 +1644,7 @@ static long gsi_ctrl_dev_ioctl(struct file *fp, unsigned int cmd,
 			&gsi->d_port.ntb_info.ntb_max_datagrams,
 			sizeof(gsi->d_port.ntb_info.ntb_max_datagrams));
 		if (ret) {
-			log_event_err("copy_to_user fail DATAGRAM");
+			log_event_err_ratelimited("copy_to_user fail DATAGRAM");
 			ret = -EFAULT;
 		}
 		log_event_dbg("Sent NTB datagrams count %d",
@@ -1644,12 +1676,12 @@ static long gsi_ctrl_dev_ioctl(struct file *fp, unsigned int cmd,
 		ret = copy_to_user((void __user *)arg, &data_info,
 			sizeof(data_info));
 		if (ret) {
-			log_event_err("QTI_CTRL_DATA_BUF_INFO: copy_to_user failed");
+			log_event_err_ratelimited("QTI_CTRL_DATA_BUF_INFO: copy_to_user failed");
 			ret = -EFAULT;
 		}
 		break;
 	default:
-		log_event_err("wrong parameter");
+		log_event_err_ratelimited("wrong parameter");
 		ret = -EINVAL;
 	}
 
@@ -1680,7 +1712,7 @@ static __poll_t gsi_ctrl_dev_poll(struct file *fp, poll_table *wait)
 	gsi = inst_cur->opts->gsi;
 	c_port = &inst_cur->opts->gsi->c_port;
 	if (!c_port) {
-		log_event_err("%s: gsi ctrl port %pK", __func__, c_port);
+		log_event_err_ratelimited("%s: gsi ctrl port %pK", __func__, c_port);
 		mask = EPOLLHUP;
 		goto out;
 	}
@@ -2137,8 +2169,12 @@ invalid:
 static void gsi_ctrl_cmd_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct f_gsi *gsi = req->context;
-	struct usb_composite_dev *cdev = gsi->function.config->cdev;
+	struct usb_composite_dev *cdev;
 
+	if (!gsi->function.config)
+		return;
+
+	cdev = gsi->function.config->cdev;
 	gsi_ctrl_send_cpkt_tomodem(gsi, req->buf, req->actual);
 	cdev->setup_pending = false;
 }
@@ -2832,16 +2868,6 @@ fail:
 	return -ENOMEM;
 }
 
-static void ipa_ready_callback(void *user_data)
-{
-	struct f_gsi *gsi = user_data;
-
-	log_event_info("%s: ipa is ready\n", __func__);
-
-	gsi->d_port.ipa_ready = true;
-	wake_up_interruptible(&gsi->d_port.wait_for_ipa_ready);
-}
-
 static int gsi_bind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct usb_composite_dev *cdev = c->cdev;
@@ -3149,6 +3175,7 @@ static int gsi_bind(struct usb_configuration *c, struct usb_function *f)
 	if (status)
 		goto dereg_rndis;
 
+	gsi->ipa_ready_timeout = false;
 	status = ipa_register_ipa_ready_cb(ipa_ready_callback, gsi);
 	if (!status) {
 		log_event_info("%s: ipa is not ready", __func__);
@@ -3157,9 +3184,11 @@ static int gsi_bind(struct usb_configuration *c, struct usb_function *f)
 			msecs_to_jiffies(GSI_IPA_READY_TIMEOUT));
 		if (!status) {
 			log_event_err("%s: ipa ready timeout", __func__);
+			gsi->ipa_ready_timeout = true;
 			status = -ETIMEDOUT;
 			goto dereg_rndis;
 		}
+		gsi->d_port.ipa_ready = false;
 	}
 
 	gsi->d_port.ipa_usb_notify_cb = ipa_usb_notify_cb;

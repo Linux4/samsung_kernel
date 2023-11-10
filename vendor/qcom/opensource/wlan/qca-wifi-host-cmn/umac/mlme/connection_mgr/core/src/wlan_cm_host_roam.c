@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -435,10 +436,10 @@ cm_resume_reassoc_after_peer_create(struct cnx_mgr *cm_ctx, wlan_cm_id *cm_id)
 	req->self_reassoc = cm_req->roam_req.req.self_reassoc;
 	req->bss = cm_req->roam_req.cur_candidate;
 
-	mlme_nofl_info(CM_PREFIX_FMT "Reassoc to %.*s " QDF_MAC_ADDR_FMT " rssi: %d freq: %d source %d",
+	mlme_nofl_info(CM_PREFIX_FMT "Reassoc to " QDF_SSID_FMT " " QDF_MAC_ADDR_FMT " rssi: %d freq: %d source %d",
 		       CM_PREFIX_REF(req->vdev_id, req->cm_id),
-		       req->bss->entry->ssid.length,
-		       req->bss->entry->ssid.ssid,
+		       QDF_SSID_REF(req->bss->entry->ssid.length,
+				    req->bss->entry->ssid.ssid),
 		       QDF_MAC_ADDR_REF(req->bss->entry->bssid.bytes),
 		       req->bss->entry->rssi_raw,
 		       req->bss->entry->channel.chan_freq,

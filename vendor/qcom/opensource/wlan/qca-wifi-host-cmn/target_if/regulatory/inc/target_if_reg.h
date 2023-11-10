@@ -102,6 +102,24 @@ QDF_STATUS target_if_regulatory_set_ext_tpc(struct wlan_objmgr_psoc *psoc);
 struct wlan_lmac_if_reg_tx_ops *
 target_if_regulatory_get_tx_ops(struct wlan_objmgr_psoc *psoc);
 
+#if defined(CONFIG_BAND_6GHZ) && defined(CONFIG_AFC_SUPPORT)
+/**
+ * tgt_if_set_reg_afc_configure() - Configure target AFC feature
+ * @tgt_hdl: target psoc info handler
+ * @psoc: pointer to psoc
+ *
+ * Return: None
+ */
+void tgt_if_set_reg_afc_configure(struct target_psoc_info *tgt_hdl,
+				  struct wlan_objmgr_psoc *psoc);
+#else
+static inline
+void tgt_if_set_reg_afc_configure(struct target_psoc_info *tgt_hdl,
+				  struct wlan_objmgr_psoc *psoc)
+{
+}
+#endif
+
 #if defined(CONFIG_BAND_6GHZ)
 /**
  * target_if_reg_set_lower_6g_edge_ch_info() - populate lower 6ghz edge channel
@@ -155,10 +173,25 @@ target_if_reg_set_afc_dev_type(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS
 target_if_reg_get_afc_dev_type(struct wlan_objmgr_psoc *psoc,
 			       enum reg_afc_dev_deploy_type *reg_afc_dev_type);
+
+/**
+ * target_if_set_regulatory_eirp_preferred_support() - Set EIRP as the preferred
+ * support
+ * @psoc: psoc pointer
+ * Return: Success or Failure
+ */
+QDF_STATUS
+target_if_set_regulatory_eirp_preferred_support(struct wlan_objmgr_psoc *psoc);
 #else
 static inline QDF_STATUS
 target_if_reg_set_afc_dev_type(struct wlan_objmgr_psoc *psoc,
 			       struct target_psoc_info *tgt_hdl)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline QDF_STATUS
+target_if_set_regulatory_eirp_preferred_support(struct wlan_objmgr_psoc *psoc)
 {
 	return QDF_STATUS_E_FAILURE;
 }

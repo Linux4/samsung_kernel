@@ -1,11 +1,7 @@
 cc_binary {
     name: "ipa-kernel-tests",
 
-    clang_cflags: [
-        "-Wno-missing-field-initializers",
-        "-Wno-int-to-pointer-cast",
-        "-Wno-int-conversion",
-    ],
+    cflags: ["-Wno-missing-field-initializers"] + ["-Wno-int-to-pointer-cast"] + ["-Wno-int-conversion"],
 
     header_libs: ["device_kernel_headers"]+["qti_kernel_headers"]+["qti_ipa_test_kernel_headers"],
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -432,7 +433,7 @@ void ol_rx_frag_indication_handler(ol_txrx_pdev_handle pdev,
  *  target to the host. The packet itself resides in host ring along with some
  *  metadata describing the peer id, vdev id, tid, FW desc and length of
  *  the packet being delivered.
- *  Hight letency case:
+ *  High latency case:
  *  The message itself contains the payload of the MSDU being delivered by
  *  the target to the host. The message also contains meta data describing
  *  the packet such as peer id, vdev id, tid, FW desc and length of the packet

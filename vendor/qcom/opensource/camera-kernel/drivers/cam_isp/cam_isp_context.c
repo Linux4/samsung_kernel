@@ -1549,8 +1549,10 @@ static void __cam_isp_ctx_handle_buf_done_fail_log(
 
 	/* Trigger SOF freeze debug dump on 3 or greater instances of congestion */
 	if ((ctx_isp->congestion_cnt >= CAM_ISP_CONTEXT_CONGESTION_CNT_MAX) &&
-		(!ctx_isp->sof_dbg_irq_en))
+		(!ctx_isp->sof_dbg_irq_en)) {
+		CAM_INFO(CAM_ISP, "[FREEZE_DBG] congestion reached max");
 		__cam_isp_ctx_handle_sof_freeze_evt(ctx);
+	}
 }
 
 static void __cam_isp_context_reset_internal_recovery_params(
@@ -4261,6 +4263,8 @@ static int __cam_isp_ctx_handle_secondary_events(
 			"Sensor sync [vc mismatch] frame dropped ctx: %u on link: 0x%x last_applied_req: %llu last_recovered_req: %llu out_of_sync_cnt: %u, kicking in internal recovery....",
 			ctx->ctx_id, ctx->link_hdl, ctx_isp->last_applied_req_id,
 			ctx_isp->recovery_req_id, ctx_isp->out_of_sync_cnt);;
+
+		__cam_isp_ctx_print_event_record(ctx_isp);
 		break;
 	default:
 		break;

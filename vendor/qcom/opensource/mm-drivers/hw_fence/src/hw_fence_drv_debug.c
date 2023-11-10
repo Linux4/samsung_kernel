@@ -106,8 +106,10 @@ static int _debugfs_ipcc_trigger(struct file *file, const char __user *user_buf,
 static ssize_t hw_fence_dbg_ipcc_write(struct file *file, const char __user *user_buf,
 	size_t count, loff_t *ppos)
 {
-	return _debugfs_ipcc_trigger(file, user_buf, count, ppos, HW_FENCE_IPC_CLIENT_ID_APPS,
-		HW_FENCE_IPC_CLIENT_ID_APPS);
+	struct hw_fence_driver_data *drv_data = file->private_data;
+
+	return _debugfs_ipcc_trigger(file, user_buf, count, ppos, drv_data->ipcc_client_pid,
+		drv_data->ipcc_client_vid);
 }
 
 #ifdef HW_DPU_IPCC
@@ -124,8 +126,10 @@ static ssize_t hw_fence_dbg_ipcc_write(struct file *file, const char __user *use
 static ssize_t hw_fence_dbg_ipcc_dpu_write(struct file *file, const char __user *user_buf,
 	size_t count, loff_t *ppos)
 {
-	return _debugfs_ipcc_trigger(file, user_buf, count, ppos, HW_FENCE_IPC_CLIENT_ID_APPS,
-		HW_FENCE_IPC_CLIENT_ID_DPU);
+	struct hw_fence_driver_data *drv_data = file->private_data;
+
+	return _debugfs_ipcc_trigger(file, user_buf, count, ppos, drv_data->ipcc_client_pid,
+		hw_fence_ipcc_get_client_virt_id(drv_data, HW_FENCE_CLIENT_ID_CTL0));
 
 }
 
@@ -334,13 +338,14 @@ static ssize_t hw_fence_dbg_tx_and_signal_clients_wr(struct file *file,
 
 		/* Write to Tx queue */
 		hw_fence_update_queue(drv_data, hw_fence_client, context, seqno, hash,
-			0, 0, HW_FENCE_TX_QUEUE - 1); // no flags and no error
+			0, 0, 0, HW_FENCE_TX_QUEUE - 1); /* no flags and no error */
 
 		/**********************************************/
 		/***** DST CLIENT - REGISTER WAIT CLIENT ******/
 		/**********************************************/
 		/* use same context and seqno that src client used to create fence */
-		ret = hw_fence_register_wait_client(drv_data, hw_fence_client_dst, context, seqno);
+		ret = hw_fence_register_wait_client(drv_data, NULL, hw_fence_client_dst, context,
+			seqno, &hash, 0);
 		if (ret) {
 			HWFNC_ERR("failed to register for wait\n");
 			return -EINVAL;
@@ -360,8 +365,8 @@ static ssize_t hw_fence_dbg_tx_and_signal_clients_wr(struct file *file,
 			return -EINVAL;
 
 		/*  Write to ipcc to trigger the irq */
-		tx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
-		rx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
+		tx_client = drv_data->ipcc_client_pid;
+		rx_client = drv_data->ipcc_client_vid;
 		HWFNC_DBG_IRQ("client:%d tx_client:%d rx_client:%d signal:%d delay:%d in_data%d\n",
 			client_id_src, tx_client, rx_client, signal_id,
 			drv_data->debugfs_data.hw_fence_sim_release_delay, input_data);
@@ -552,7 +557,7 @@ static ssize_t hw_fence_dbg_dump_queues_wr(struct file *file, const char __user 
 	struct hw_fence_driver_data *drv_data;
 	struct msm_hw_fence_queue *rx_queue;
 	struct msm_hw_fence_queue *tx_queue;
-	u64 hash, ctx_id, seqno, timestamp, flags;
+	u64 hash, ctx_id, seqno, timestamp, flags, client_data;
 	u32 *read_ptr, error;
 	int client_id, i;
 	struct msm_hw_fence_queue_payload *read_ptr_payload;
@@ -589,12 +594,13 @@ static ssize_t hw_fence_dbg_dump_queues_wr(struct file *file, const char __user 
 		seqno = readq_relaxed(&read_ptr_payload->seqno);
 		hash = readq_relaxed(&read_ptr_payload->hash);
 		flags = readq_relaxed(&read_ptr_payload->flags);
+		client_data = readq_relaxed(&read_ptr_payload->client_data);
 		error = readl_relaxed(&read_ptr_payload->error);
 		timestamp = (u64)readl_relaxed(&read_ptr_payload->timestamp_lo) |
 			((u64)readl_relaxed(&read_ptr_payload->timestamp_hi) << 32);
 
-		HWFNC_DBG_L("rx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu err:%u time:%llu\n",
-			i, hash, ctx_id, seqno, flags, error, timestamp);
+		HWFNC_DBG_L("rx[%d]: hash:%d ctx:%llu seqno:%llu f:%llu d:%llu err:%u time:%llu\n",
+			i, hash, ctx_id, seqno, flags, client_data, error, timestamp);
 	}
 
 	HWFNC_DBG_L("-------TX QUEUE------\n");
@@ -849,13 +855,14 @@ static ssize_t hw_fence_dbg_create_join_fence(struct file *file,
 
 		/* Write to Tx queue */
 		hw_fence_update_queue(drv_data, hw_fence_client, client_info_src->dma_context,
-			hw_fence_dbg_seqno + i, hash, 0, 0,
+			hw_fence_dbg_seqno + i, hash, 0, 0, 0,
 			HW_FENCE_TX_QUEUE - 1);
 	}
 
 	/* wait on the fence array */
 	fence_array_fence = &fence_array->base;
-	msm_hw_fence_wait_update(client_info_dst->client_handle, &fence_array_fence, 1, 1);
+	msm_hw_fence_wait_update_v2(client_info_dst->client_handle, &fence_array_fence, NULL, NULL,
+		1, 1);
 
 	signal_id = dbg_out_clients_signal_map_no_dpu[client_id_src].ipc_signal_id;
 	if (signal_id < 0) {
@@ -864,8 +871,8 @@ static ssize_t hw_fence_dbg_create_join_fence(struct file *file,
 	}
 
 	/* write to ipcc to trigger the irq */
-	tx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
-	rx_client = HW_FENCE_IPC_CLIENT_ID_APPS;
+	tx_client = drv_data->ipcc_client_pid;
+	rx_client = drv_data->ipcc_client_vid;
 	hw_fence_ipcc_trigger_signal(drv_data, tx_client, rx_client, signal_id);
 
 	usleep_range(drv_data->debugfs_data.hw_fence_sim_release_delay,
@@ -895,10 +902,10 @@ int process_validation_client_loopback(struct hw_fence_driver_data *drv_data,
 		return -EINVAL;
 	}
 
-	mutex_lock(&drv_data->clients_mask_lock);
+	mutex_lock(&drv_data->clients_register_lock);
 
 	if (!drv_data->clients[client_id]) {
-		mutex_unlock(&drv_data->clients_mask_lock);
+		mutex_unlock(&drv_data->clients_register_lock);
 		return -EINVAL;
 	}
 
@@ -912,7 +919,7 @@ int process_validation_client_loopback(struct hw_fence_driver_data *drv_data,
 	/* wake-up waiting client */
 	wake_up_all(&hw_fence_client->wait_queue);
 
-	mutex_unlock(&drv_data->clients_mask_lock);
+	mutex_unlock(&drv_data->clients_register_lock);
 
 	return 0;
 }
@@ -997,6 +1004,8 @@ int hw_fence_debug_debugfs_register(struct hw_fence_driver_data *drv_data)
 	debugfs_create_file("hw_fence_dump_queues", 0600, debugfs_root, drv_data,
 		&hw_fence_dump_queues_fops);
 	debugfs_create_file("hw_sync", 0600, debugfs_root, NULL, &hw_sync_debugfs_fops);
+	debugfs_create_u64("hw_fence_lock_wake_cnt", 0600, debugfs_root,
+		&drv_data->debugfs_data.lock_wake_cnt);
 
 	return 0;
 }

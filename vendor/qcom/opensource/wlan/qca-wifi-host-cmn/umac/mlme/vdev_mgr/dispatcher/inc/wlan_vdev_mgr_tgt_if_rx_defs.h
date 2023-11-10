@@ -180,11 +180,13 @@ struct peer_delete_all_response {
  * @pdev_id: pdev id
  * @status: FW status for multi vdev restart request
  * @vdev_id_bmap: Bitmap of vdev_ids
+ * @timestamp: Time stamp corresponding to the start of event processing
  */
 struct multi_vdev_restart_resp {
 	uint8_t pdev_id;
 	uint8_t status;
 	qdf_bitmap(vdev_id_bmap, WLAN_UMAC_PSOC_MAX_VDEVS);
+	uint64_t timestamp;
 };
 
 #ifdef WLAN_FEATURE_11BE_MLO

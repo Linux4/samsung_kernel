@@ -36,7 +36,7 @@ void hdd_sysfs_create_dump_in_progress_interface(struct kobject *wifi_kobject);
 /**
  * hdd_sysfs_destroy_dump_in_progress_interface() - API to destroy
  * dump_in_progress sysfs file
- * @driver_kobject: sysfs driver kobject
+ * @wifi_kobject: sysfs wifi kobject
  *
  * Return: None
  */

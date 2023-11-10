@@ -32,6 +32,7 @@
 
 #include <linux/i2c.h>
 #include <linux/of_gpio.h>
+#include <linux/version.h>
 #include "synaptics_tcm_core.h"
 #include "linux/moduleparam.h"
 
@@ -466,6 +467,14 @@ static int syna_tcm_i2c_probe(struct i2c_client *i2c,
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static void syna_tcm_i2c_remove(struct i2c_client *i2c)
+{
+	syna_tcm_i2c_device->dev.platform_data = NULL;
+
+	platform_device_unregister(syna_tcm_i2c_device);
+}
+#else
 static int syna_tcm_i2c_remove(struct i2c_client *i2c)
 {
 	syna_tcm_i2c_device->dev.platform_data = NULL;
@@ -474,6 +483,7 @@ static int syna_tcm_i2c_remove(struct i2c_client *i2c)
 
 	return 0;
 }
+#endif
 
 static const struct i2c_device_id syna_tcm_id_table[] = {
 	{I2C_MODULE_NAME, 0},

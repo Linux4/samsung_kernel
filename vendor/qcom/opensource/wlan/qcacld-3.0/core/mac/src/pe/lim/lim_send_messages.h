@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -112,4 +113,18 @@ QDF_STATUS lim_send_ht40_obss_scanind(struct mac_context *mac_ctx,
 						struct pe_session *session);
 void lim_handle_sme_join_result(struct mac_context *,
 		tSirResultCodes, uint16_t, struct pe_session *);
+
+/**
+ * lim_send_edca_pifs_param() - Send edca/pifs param to firmware based on
+ * edca_param_type ini
+ * @mac: pointer to Global Mac structure
+ * @param: pointer to param
+ * @vdev_id: vdev id
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+lim_send_edca_pifs_param(struct mac_context *mac,
+			 struct wlan_edca_pifs_param_ie *param,
+			 uint8_t vdev_id);
 #endif

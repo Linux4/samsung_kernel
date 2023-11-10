@@ -1,4 +1,5 @@
 # Copyright (c) 2015-2018, 2020-2021 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -22,7 +23,7 @@ class lpm(RamParser):
         self.output = []
         self.clusters = []
         self.cpu_possible_bits = None
-        self.cpu_online_bits = None
+        self.cpu_online_bits = 0
         self.lpm_debug = []
         self.related_cpus_bits = None
 
@@ -38,22 +39,33 @@ class lpm(RamParser):
         self.cpu_possible_bits = self.ramdump.read_int(bits_addr)
         cpus = bin(self.cpu_possible_bits).count('1')
         self.output.append("{}\n".format('Available CPUs'))
-        for i in range(0, cpus):
+        for i in self.ramdump.iter_cpus():
                 self.output.append("{:10}{}:{}\n".format("", "CPU", i))
         self.output.append("\n")
 
-        bits_addr = self.ramdump.address_of('cpu_online_bits')
-        if bits_addr is None:
-            bits_addr = self.ramdump.address_of('__cpu_online_mask')
+        if (self.ramdump.kernel_version >= (4, 9, 0)):
+            if self.ramdump.is_config_defined('CONFIG_SMP'):
+                runqueues_addr = self.ramdump.address_of('runqueues')
+                online_offset = self.ramdump.field_offset('struct rq', 'online')
+                for i in self.ramdump.iter_cpus():
+                    online = self.ramdump.read_int(runqueues_addr + online_offset, cpu=i)
+                    self.cpu_online_bits |= (online << i)
+        else:
+            bits_addr = self.ramdump.address_of('cpu_online_bits')
             if bits_addr is None:
-                self.output.append("NOTE: 'cpu_online_bits' not found")
-                return
+                bits_addr = self.ramdump.address_of('__cpu_online_mask')
+                if bits_addr is None:
+                    self.output.append("NOTE: 'cpu_online_bits' not found")
+                    return
 
         self.cpu_online_bits = self.ramdump.read_int(bits_addr)
-        cpus = bin(self.cpu_online_bits).count('1')
         self.output.append("{}\n".format('Online CPUs'))
-        for i in range(0, cpus):
-                self.output.append("{:10}{}:{}\n".format("", "CPU", i))
+        index = 0
+        while self.cpu_online_bits:
+            if self.cpu_online_bits & 1:
+                self.output.append("{:10}{}:{}\n".format("", "CPU", index))
+            self.cpu_online_bits = self.cpu_online_bits >> 1
+            index += 1
         self.output.append("{}{}{}".format("\n", "-" * 120, "\n"))
 
     def get_cluster_level_info(self, lpm_cluster):
@@ -378,7 +390,7 @@ class lpm(RamParser):
                 return
 
         cpus = bin(self.cpu_possible_bits).count('1')
-        for i in range(0, cpus):
+        for i in self.ramdump.iter_cpus():
                 self.get_cpu_stats(cpu_stats_base, i)
 
     def get_debug_phys(self):
@@ -508,10 +520,8 @@ class lpm(RamParser):
             state_dict = OrderedDict()
             for i in self.ramdump.iter_cpus():
                 # Check for current cpu
-                cpuidle_dev_addr = cpuidle_devices + self.ramdump.per_cpu_offset(i)
-                cpuidle_drv_addr = cpuidle_drivers + self.ramdump.per_cpu_offset(i)
-                cpuidle_dev = self.ramdump.read_word(cpuidle_dev_addr)
-                cpuidle_drv = self.ramdump.read_word(cpuidle_drv_addr)
+                cpuidle_dev = self.ramdump.read_word(cpuidle_devices, cpu=i)
+                cpuidle_drv = self.ramdump.read_word(cpuidle_drivers, cpu=i)
                 state_count = self.ramdump.read_structure_field(cpuidle_drv,
                                                                 'struct cpuidle_driver',
                                                                 'state_count')

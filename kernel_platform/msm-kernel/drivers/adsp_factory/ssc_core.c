@@ -25,8 +25,6 @@
 #define SUPPORT_HALL_NOTIFIER
 #endif
 
-
-
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE)
 #ifdef SUPPORT_HALL_NOTIFIER
 #include <linux/hall/hall_ic_notifier.h>
@@ -47,9 +45,12 @@
 #include <linux/sensor/sensors_core.h>
 #include <linux/notifier.h>
 
+#include <linux/remoteproc.h>
+#include <linux/remoteproc/qcom_rproc.h>
+
 #define HISTORY_CNT 5
 #define NO_SSR 0xFF
-#define SSR_REASON_LEN	128
+#define SSR_REASON_LEN	256
 #define TIME_LEN	24
 #ifdef CONFIG_SEC_FACTORY
 #define SLPI_STUCK "SLPI_STUCK"
@@ -95,10 +96,20 @@ static struct hall_notifier_context *hall_notifier;
 static int32_t curr_fstate;
 #endif
 
+enum ic_num {
+	MAIN_GRIP = 0,
+	SUB_GRIP,
+	SUB2_GRIP,
+	WIFI_GRIP,
+	GRIP_MAX_CNT
+};
+
 struct sdump_data {
 	struct workqueue_struct *sdump_wq;
 	struct work_struct work_sdump;
 	struct adsp_data *dev_data;
+
+	u32 grip_error[GRIP_MAX_CNT];
 };
 struct sdump_data *pdata_sdump;
 
@@ -113,6 +124,19 @@ void ssc_set_fw_idx(int src)
 }
 EXPORT_SYMBOL(ssc_set_fw_idx);
 #endif
+
+void send_ssc_recovery_command(int type)
+{
+	int32_t msg_buf;
+	if (type == 1)
+		msg_buf = OPTION_TYPE_SSC_SSR_DUMP;
+	else
+		msg_buf = OPTION_TYPE_SSC_RECOVERY;
+	pr_info("[FACTORY] %s: msg_buf = %d\n", __func__, msg_buf);
+	adsp_unicast(&msg_buf, sizeof(int32_t),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+}
+EXPORT_SYMBOL(send_ssc_recovery_command);
 
 static unsigned int sec_hw_rev(void);
 
@@ -239,7 +263,7 @@ void sns_vbus_init_work(void)
 /* factory Sysfs							 */
 /*************************************************************************/
 
-static char operation_mode_flag[11];
+static char operation_mode_flag[11] = "normal";
 
 static ssize_t dumpstate_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -462,6 +486,8 @@ void ssr_reason_call_back(char reason[], int len)
 	memset(panic_msg, 0, SSR_REASON_LEN);
 	strlcpy(panic_msg, reason, min(len, (int)(SSR_REASON_LEN - 1)));
 
+	// Please do not modify "[FACTORY] ssr" string.
+	// It is refered from BL to log in history_auto_xxxxxx.lst file.
 	pr_info("[FACTORY] ssr %s\n", panic_msg);
 
 	if (ois_reset.ois_func != NULL && ois_reset.core != NULL) {
@@ -530,6 +556,11 @@ static ssize_t ssr_msg_show(struct device *dev,
 static ssize_t ssr_reset_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
+	struct device_node *np;
+	phandle rproc_phandle;
+	struct rproc *adsp;
+	struct property *prop;
+	int size;
 	int32_t type[1];
 
 	type[0] = 0xff;
@@ -537,6 +568,33 @@ static ssize_t ssr_reset_show(struct device *dev,
 	adsp_unicast(type, sizeof(type), MSG_SSC_CORE, 0, MSG_TYPE_DUMPSTATE);
 	pr_info("[FACTORY] %s\n", __func__);
 
+	np = of_find_node_by_name(NULL, "ssc_adsp_rproc_phandle");
+	if (np == NULL) {
+		pr_err("Didn't find node for ssc_adsp_rproc_phandle\n");
+		goto reset_return;
+	}
+	prop = of_find_property(np, "qcom,rproc-handle", &size);
+	if (!prop) {
+		pr_err("Missing remotproc handle\n");
+		goto reset_return;
+	}
+	rproc_phandle = be32_to_cpup(prop->value);
+	adsp = rproc_get_by_phandle(rproc_phandle);
+	if (!adsp) {
+		pr_err("fail to get rproc\n");
+		goto reset_return;
+	}
+
+	pr_info("fssr:%d, %d->%d\n", (int)adsp->fssr,
+		(int)adsp->prev_recovery_disabled,
+		(int)adsp->recovery_disabled);
+	if (adsp->fssr) {
+		adsp->fssr = false;
+		adsp->fssr_dump = false;
+		adsp->recovery_disabled = adsp->prev_recovery_disabled;
+	}
+
+reset_return:
 	return snprintf(buf, PAGE_SIZE, "%s\n", "Success");
 }
 
@@ -570,8 +628,10 @@ void ssc_flip_work_func(struct work_struct *work)
 	}
 	msg_buf[1] = (int32_t)curr_fstate;
 	pr_info("[FACTORY] %s: msg_buf = %d\n", __func__, msg_buf[1]);
+#if !defined(CONFIG_SEC_FACTORY) || !defined(CONFIG_SUPPORT_SENSOR_FLIP_MODEL)
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 			MSG_VIR_OPTIC, 0, MSG_TYPE_OPTION_DEFINE);
+#endif
 #else
 	msg_buf[0] = 11;
 	msg_buf[1] = (int32_t)curr_fstate;
@@ -601,7 +661,10 @@ int sns_device_mode_notify(struct notifier_block *nb,
 	pr_info("[FACTORY] %s - before device mode curr:%d, fstate:%d",
 		__func__, curr_fstate, data->fac_fstate);
 
-	data->fac_fstate = curr_fstate = (int32_t)flip_state;
+	curr_fstate = (int32_t)flip_state;
+#if !defined(CONFIG_SEC_FACTORY) || !defined(CONFIG_SUPPORT_SENSOR_FLIP_MODEL)
+	data->fac_fstate = curr_fstate;
+#endif
 	pr_info("[FACTORY] %s - after device mode curr:%d, fstate:%d",
 		__func__, curr_fstate, data->fac_fstate);
 
@@ -631,8 +694,11 @@ static ssize_t fac_fstate_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	struct adsp_data *data = dev_get_drvdata(dev);
+	uint8_t cnt = 0;
 	int32_t fstate[2] = {VOPTIC_OP_CMD_FAC_FLIP, 0};
-	
+
+	mutex_lock(&data->vir_optic_factory_mutex);
+
 	if (sysfs_streq(buf, "0"))
 		data->fac_fstate = fstate[1] = curr_fstate;
 	else if (sysfs_streq(buf, "1"))
@@ -646,12 +712,110 @@ static ssize_t fac_fstate_store(struct device *dev,
 
 	adsp_unicast(fstate, sizeof(fstate),
 		MSG_VIR_OPTIC, 0, MSG_TYPE_OPTION_DEFINE);
-	pr_info("[FACTORY] %s - Factory flip state:%d",
-		__func__, fstate[1]);
+	while (!(data->ready_flag[MSG_TYPE_OPTION_DEFINE] & 1 << MSG_VIR_OPTIC) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_OPTION_DEFINE] &= ~(1 << MSG_VIR_OPTIC);
+
+	if (cnt >= TIMEOUT_CNT)
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+
+	mutex_unlock(&data->vir_optic_factory_mutex);
+
+	pr_info("[SSC_FAC] %s - Factory flip state:%d(%d)",
+		__func__, fstate[1], data->msg_buf[MSG_VIR_OPTIC][0]);
 
 	return size;
 }
 #endif
+
+static ssize_t wakeup_reason_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint8_t cnt = 0;
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_WAKEUP_REASON, 0};
+
+	adsp_unicast(msg_buf, sizeof(msg_buf), MSG_SSC_CORE, 0, MSG_TYPE_GET_CAL_DATA);
+	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_SSC_CORE) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_SSC_CORE);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		return snprintf(buf, PAGE_SIZE, "0\n");
+	}
+
+	return snprintf(buf, PAGE_SIZE, "\
+\"SW_SMD\":\"%d\",\"SW_TILT\":\"%d\",\"SW_PICKUP\":\"%d\",\"SW_SBM\":\"%d\",\"SW_WU_MOTION\":\"%d\",\
+\"SW_PROX\":\"%d\",\"SW_CALLGESTURE\":\"%d\",\"SW_POCKET\":\"%d\",\"SW_LEDCOVER\":\"%d\",\"SW_FCD\":\"%d\",\
+\"SW_DROPCLASSIFIER\":\"%d\",\"SW_POCKET_POSE\":\"%d\",\"SW_STEPCOUNT_ALERT\":\"%d\",\"SW_FOLDING_LPM\":\"%d\",\"SW_HINGE_ANGLE\":\"%d\",\
+\"SW_LID_ANGLE\":\"%d\",\"SW_ANGLE_STATUS\":\"%d\",\"SW_SMARTALERT\":\"%d\",\"SW_SEM_ROTATE\":\"%d\",\"SW_WCD\":\"%d\",\
+\"SW_PUTDOWN\":\"%d\",\"SW_SLOCATION\":\"%d\",\"SW_AMD\":\"%d\",\"SW_AOD\":\"%d\",\"SW_FLATMOTION\":\"%d\",\
+\"SW_SENSORCHECK\":\"%d\",\"SW_D_POSITION\":\"%d\",\"SW_LTG\":\"%d\",\"SW_FREEFALL\":\"%d\",\"SW_PEDOMETER\":\"%d\",\
+\"SW_SLM\":\"%d\",\"SW_AT\":\"%d\"\n",
+			data->msg_buf[MSG_SSC_CORE][0], data->msg_buf[MSG_SSC_CORE][1],
+			data->msg_buf[MSG_SSC_CORE][2], data->msg_buf[MSG_SSC_CORE][3],
+			data->msg_buf[MSG_SSC_CORE][4], data->msg_buf[MSG_SSC_CORE][5],
+			data->msg_buf[MSG_SSC_CORE][6], data->msg_buf[MSG_SSC_CORE][7],
+			data->msg_buf[MSG_SSC_CORE][8], data->msg_buf[MSG_SSC_CORE][9],
+			data->msg_buf[MSG_SSC_CORE][10], data->msg_buf[MSG_SSC_CORE][11],
+			data->msg_buf[MSG_SSC_CORE][12], data->msg_buf[MSG_SSC_CORE][13],
+			data->msg_buf[MSG_SSC_CORE][14], data->msg_buf[MSG_SSC_CORE][15],
+			data->msg_buf[MSG_SSC_CORE][16], data->msg_buf[MSG_SSC_CORE][17],
+			data->msg_buf[MSG_SSC_CORE][18], data->msg_buf[MSG_SSC_CORE][19],
+			data->msg_buf[MSG_SSC_CORE][20], data->msg_buf[MSG_SSC_CORE][21],
+			data->msg_buf[MSG_SSC_CORE][22], data->msg_buf[MSG_SSC_CORE][23],
+			data->msg_buf[MSG_SSC_CORE][24], data->msg_buf[MSG_SSC_CORE][25],
+			data->msg_buf[MSG_SSC_CORE][26], data->msg_buf[MSG_SSC_CORE][27],
+			data->msg_buf[MSG_SSC_CORE][28], data->msg_buf[MSG_SSC_CORE][29],
+			data->msg_buf[MSG_SSC_CORE][30], 
+			(data->msg_buf[MSG_SSC_CORE][31] + data->msg_buf[MSG_SSC_CORE][32] + 
+			data->msg_buf[MSG_SSC_CORE][33] + data->msg_buf[MSG_SSC_CORE][34] + data->msg_buf[MSG_SSC_CORE][35]));
+}
+
+static ssize_t probe_fail_reason_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint8_t cnt = 0;
+
+	adsp_unicast(NULL, 0, MSG_REG_SNS, 0, MSG_TYPE_OPTION_DEFINE);
+	while (!(data->ready_flag[MSG_TYPE_OPTION_DEFINE] & 1 << MSG_REG_SNS) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_OPTION_DEFINE] &= ~(1 << MSG_REG_SNS);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		return snprintf(buf, PAGE_SIZE, "0\n");
+	}
+
+    if (!data->send_probe_fail_msg) {
+		data->send_probe_fail_msg = true;
+	    return snprintf(buf, PAGE_SIZE, "\
+\"ACCEL_REASON\":\"%d\",\"ACCEL_INFO\":\"%d\",\"SUBACCEL_REASON\":\"%d\",\"SUBACCEL_INFO\":\"%d\",\
+\"MAG_REASON\":\"%d\",\"MAG_INFO\":\"%d\",\
+\"PROX_REASON\":\"%d\",\"PROX_INFO\":\"%d\",\"SUBPROX_REASON\":\"%d\",\"SUBPROX_INFO\":\"%d\",\
+\"LIGHT_REASON\":\"%d\",\"LIGHT_INFO\":\"%d\",\"SUBLIGHT_REASON\":\"%d\",\"SUBLIGHT_INFO\":\"%d\",\
+\"PRESSURE_REASON\":\"%d\",\"PREESURE_INFO\":\"%d\",\
+\n",
+				data->msg_buf[MSG_REG_SNS][1], data->msg_buf[MSG_REG_SNS][2],
+				data->msg_buf[MSG_REG_SNS][4], data->msg_buf[MSG_REG_SNS][5],
+				data->msg_buf[MSG_REG_SNS][7], data->msg_buf[MSG_REG_SNS][8],
+				data->msg_buf[MSG_REG_SNS][10], data->msg_buf[MSG_REG_SNS][11],
+				data->msg_buf[MSG_REG_SNS][13], data->msg_buf[MSG_REG_SNS][14],
+				data->msg_buf[MSG_REG_SNS][16], data->msg_buf[MSG_REG_SNS][17],
+				data->msg_buf[MSG_REG_SNS][19], data->msg_buf[MSG_REG_SNS][20],
+				data->msg_buf[MSG_REG_SNS][22], data->msg_buf[MSG_REG_SNS][23]);
+	} else {
+		return snprintf(buf, PAGE_SIZE, "");
+	}
+}
 
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 static ssize_t update_ssc_flip_store(struct device *dev,
@@ -814,7 +978,7 @@ static void print_sensor_dump(struct adsp_data *data, int sensor)
 		pr_info("[FACTORY] %s - %d: [L] R:%d, %d, %d, W:%d, P:%d\n",
 			__func__, sensor, data->sub_light_cal_result,
 			data->sub_light_cal1, data->sub_light_cal2,
-			data->sub_copr_w, data->prox_cal);
+			data->sub_copr_w, data->prox_sub_cal);
 #endif
 #endif
 		break;
@@ -871,18 +1035,51 @@ int sensordump_notifier_call_chain(unsigned long val, void *v)
 }
 EXPORT_SYMBOL(sensordump_notifier_call_chain);
 
+static void sensor_get_dhr_info(struct adsp_data *data, int sensor_num)
+{
+	int cnt = 0;
+
+	pr_info("[FACTORY] %s: %d\n", __func__, sensor_num);
+
+	adsp_unicast(NULL, 0, sensor_num, 0, MSG_TYPE_GET_DHR_INFO);
+	while (!(data->ready_flag[MSG_TYPE_GET_DHR_INFO] & 1 << sensor_num) &&
+		cnt++ < TIMEOUT_DHR_CNT)
+		msleep(20);
+
+	data->ready_flag[MSG_TYPE_GET_DHR_INFO] &= ~(1 << sensor_num);
+	if (cnt >= TIMEOUT_DHR_CNT) {
+		pr_err("[FACTORY] %s: %d Timeout!!!\n", __func__, sensor_num);
+	} else {
+		print_sensor_dump(data, sensor_num);
+		msleep(200);
+	}
+}
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+static void sensor_get_grip_info(void)
+{
+	int i = 0;
+	if (pdata_sdump == NULL)
+		return;
+
+	for (i = 0; i < GRIP_MAX_CNT; i++)
+		pr_err("GRIP%d_REASON : %d\n", i, pdata_sdump->grip_error[i]);
+}
+#endif
 void sensor_dump_work_func(struct work_struct *work)
 {
 	struct sdump_data *sensor_dump_data = container_of((struct work_struct *)work,
 		struct sdump_data, work_sdump);
 	struct adsp_data *data = sensor_dump_data->dev_data;
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973)
+	int cnt = 0;
+#endif
 #if IS_ENABLED(CONFIG_SUPPORT_DUAL_6AXIS)
 	int sensor_type[SENSOR_DUMP_CNT] = { MSG_ACCEL, MSG_MAG, MSG_PRESSURE, MSG_LIGHT, MSG_ACCEL_SUB };
 #else
 	int sensor_type[SENSOR_DUMP_CNT] = { MSG_ACCEL, MSG_MAG, MSG_PRESSURE, MSG_LIGHT };
 #endif
 	int32_t msg_buf[2] = {OPTION_TYPE_SSC_DUMP_TYPE, 0};
-	int i, cnt = 0;
+	int i;
 
 	sensordump_notifier_call_chain(1, NULL);
 
@@ -893,46 +1090,19 @@ void sensor_dump_work_func(struct work_struct *work)
 			continue;
 		}
 
+		sensor_get_dhr_info(data, sensor_type[i]);
+	}
+
 #if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
-		if (sensor_type[i] == MSG_LIGHT)
-			sensor_type[i] = get_light_sidx(data);
+	sensor_get_dhr_info(data, MSG_LIGHT_SUB);
 #endif
-		pr_info("[FACTORY] %s: %d\n", __func__, sensor_type[i]);
-		cnt = 0;
-		adsp_unicast(NULL, 0, sensor_type[i], 0, MSG_TYPE_GET_DHR_INFO);
-		while (!(data->ready_flag[MSG_TYPE_GET_DHR_INFO] & 1 << sensor_type[i]) &&
-			cnt++ < TIMEOUT_DHR_CNT)
-			msleep(20);
-
-		data->ready_flag[MSG_TYPE_GET_DHR_INFO] &= ~(1 << sensor_type[i]);
-
-		if (cnt >= TIMEOUT_DHR_CNT) {
-			pr_err("[FACTORY] %s: %d Timeout!!!\n",
-				__func__, sensor_type[i]);
-		} else {
-			print_sensor_dump(data, sensor_type[i]);
-			msleep(200);
-		}
-	}
-
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+	sensor_get_grip_info();
+#endif
 #if IS_ENABLED(CONFIG_SUPPORT_AK09973)
-	if (data->sysfs_created[MSG_DIGITAL_HALL]) {
-		cnt = 0;
-		adsp_unicast(NULL, 0, MSG_DIGITAL_HALL, 0, MSG_TYPE_GET_DHR_INFO);
-		while (!(data->ready_flag[MSG_TYPE_GET_DHR_INFO] & 1 << MSG_DIGITAL_HALL) &&
-			cnt++ < TIMEOUT_DHR_CNT)
-			msleep(20);
+	if (data->sysfs_created[MSG_DIGITAL_HALL])
+		sensor_get_dhr_info(data, MSG_DIGITAL_HALL);
 
-		data->ready_flag[MSG_TYPE_GET_DHR_INFO] &= ~(1 << MSG_DIGITAL_HALL);
-
-		if (cnt >= TIMEOUT_DHR_CNT) {
-			pr_err("[FACTORY] %s: %d Timeout!!!\n",
-				__func__, MSG_DIGITAL_HALL);
-		} else {
-			print_sensor_dump(data, MSG_DIGITAL_HALL);
-			msleep(200);
-		}
-	}
 	adsp_unicast(NULL, 0, MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_GET_CAL_DATA);
 
 	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_DIGITAL_HALL_ANGLE) &&
@@ -941,12 +1111,14 @@ void sensor_dump_work_func(struct work_struct *work)
 
 	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_DIGITAL_HALL_ANGLE);
 
-	if (cnt >= 3) {
-		pr_err("[FACTORY] %s: Read D/Hall Auto Cal Table Timeout!!!\n", __func__);
-	}
+	if (cnt >= 3)
+		pr_err("[FACTORY] %s: Read D/Hall Auto Cal Table Timeout!!!\n",
+			__func__);
 
-	pr_info("[FACTORY] %s: flg_update=%d\n", __func__, data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0]);
+	pr_info("[FACTORY] %s: flg_update=%d\n",
+		__func__, data->msg_buf[MSG_DIGITAL_HALL_ANGLE][0]);
 #endif
+
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
 
@@ -1097,6 +1269,109 @@ static ssize_t ar_mode_store(struct device *dev,
 	return size;
 }
 
+static int sbm_init;
+static ssize_t sbm_init_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	pr_info("[FACTORY] %s : %d\n", __func__, sbm_init);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", sbm_init);
+}
+
+static ssize_t sbm_init_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_SBM_INIT, 0};
+
+	if (kstrtoint(buf, 10, &sbm_init)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sbm_init) {
+		msg_buf[1] = sbm_init;
+		pr_info("[FACTORY] %s : %d\n", __func__, sbm_init);
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
+static ssize_t pocket_inject_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_POCKET_INJECT, 0};
+	int pocket_inject_data = 0;
+
+	if (kstrtoint(buf, 10, &pocket_inject_data)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (pocket_inject_data) {
+		msg_buf[1] = pocket_inject_data;
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
+static ssize_t sns_crash_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int mode;
+
+	if (kstrtoint(buf, 10, &mode)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("[FACTORY] %s : %d\n", __func__, mode);
+	if (mode == 1) {
+		panic("sensor is abnormal, force panic\n");
+	}
+
+	return size;
+}
+
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+void update_grip_error(u8 idx, u32 error_state)
+{
+	if ((pdata_sdump == NULL) || (idx >= GRIP_MAX_CNT)) {
+		pr_info("[FACTORY] %s IC num %d or dump is NULL \n", __func__,
+			idx);
+		return;
+	}
+	pdata_sdump->grip_error[idx] = error_state;
+	pr_info("[FACTORY] %s [IC num %d] grip_error %d\n", __func__,
+		idx, error_state);
+}
+EXPORT_SYMBOL(update_grip_error);
+static ssize_t grip_fail_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int i = 0, j = 0;
+
+	if (pdata_sdump != NULL) {
+		for (i = 0; i < GRIP_MAX_CNT; i++) {
+			j += snprintf(buf + j, PAGE_SIZE - j,
+				"\"GRIP%d_REASON\":\"%d\",",
+				i, pdata_sdump->grip_error[i]);
+			pr_info("[FACTORY] %s \"GRIP%d_REASON\":\"%d\",",
+				__func__, i, pdata_sdump->grip_error[i]);
+			pdata_sdump->grip_error[i] = 0;
+		}
+	}
+
+	return j;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+static DEVICE_ATTR(grip_fail, 0440, grip_fail_show, NULL);
+#endif
 static DEVICE_ATTR(dumpstate, 0440, dumpstate_show, NULL);
 static DEVICE_ATTR(operation_mode, 0664,
 	operation_mode_show, operation_mode_store);
@@ -1110,6 +1385,8 @@ static DEVICE_ATTR(support_algo, 0220, NULL, support_algo_store);
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 static DEVICE_ATTR(fac_fstate, 0220, NULL, fac_fstate_store);
 #endif
+static DEVICE_ATTR(wakeup_reason, 0440, wakeup_reason_show, NULL);
+static DEVICE_ATTR(probe_fail_reason, 0440, probe_fail_reason_show, NULL);
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 static DEVICE_ATTR(update_ssc_flip, 0220, NULL, update_ssc_flip_store);
 #endif
@@ -1128,6 +1405,9 @@ static DEVICE_ATTR(light_seamless, 0660,
 	light_seamless_show, light_seamless_store);
 #endif
 static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
+static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
+static DEVICE_ATTR(pocket_inject, 0220, NULL, pocket_inject_store);
+static DEVICE_ATTR(sns_crash, 0220, NULL, sns_crash_store);
 
 static struct device_attribute *core_attrs[] = {
 	&dev_attr_dumpstate,
@@ -1142,6 +1422,8 @@ static struct device_attribute *core_attrs[] = {
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 	&dev_attr_fac_fstate,
 #endif
+    &dev_attr_wakeup_reason,
+    &dev_attr_probe_fail_reason,
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 	&dev_attr_update_ssc_flip,
 #endif
@@ -1158,6 +1440,12 @@ static struct device_attribute *core_attrs[] = {
 	&dev_attr_light_seamless,
 #endif
 	&dev_attr_ar_mode,
+	&dev_attr_sbm_init,
+	&dev_attr_pocket_inject,
+	&dev_attr_sns_crash,
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+	&dev_attr_grip_fail,
+#endif
 	NULL,
 };
 

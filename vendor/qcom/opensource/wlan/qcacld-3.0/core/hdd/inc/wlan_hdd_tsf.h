@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -21,7 +21,9 @@
 #define WLAN_HDD_TSF_H
 #include "wlan_hdd_cfg.h"
 #include "wlan_hdd_main.h"
-
+#ifdef WLAN_FEATURE_TSF_ACCURACY
+#include "qdf_hrtimer.h"
+#endif
 /**
  * enum hdd_tsf_get_state - status of get tsf action
  * @TSF_RETURN:                   get tsf
@@ -31,7 +33,7 @@
  * @TSF_CAPTURE_FAIL:             capture fail
  * @TSF_GET_FAIL:                 get fail
  * @TSF_RESET_GPIO_FAIL:          GPIO reset fail
- * @TSF_SAP_NOT_STARTED_NO_TSF    SAP not started
+ * @TSF_SAP_NOT_STARTED_NO_TSF:   SAP not started
  * @TSF_NOT_READY: TSF module is not initialized or init failed
  * @TSF_DISABLED_BY_TSFPLUS: cap_tsf/get_tsf are disabled due to TSF_PLUS
  */
@@ -70,6 +72,121 @@ struct hdd_tsf_op_response {
 	uint64_t soc_time;
 };
 
+/**
+ * struct hdd_vdev_tsf - Adapter level tsf params
+ * @cur_target_time: tsf value received from firmware.
+ * @cur_tsf_sync_soc_time: Current SOC time.
+ * @last_tsf_sync_soc_time: Last SOC time when TSF was synced.
+ * @cur_target_global_tsf_time: Global Fw TSF time.
+ * @last_target_global_tsf_time: Last reported global Fw TSF time.
+ * @host_capture_req_timer: Host timer to capture TSF time.
+ * @tsf_id: TSF id as obtained from FW report.
+ * @tsf_mac_id: mac_id as obtained from FW report.
+ * @tsf_details_valid: flag indicating whether tsf details are valid.
+ * @host_target_sync_lock: spin lock for read/write timestamps.
+ * @host_target_sync_timer: Timer to Sync host target.
+ * @host_trigger_gpio_timer: A hrtimer used for TSF Accuracy Feature to
+ *                           indicate TSF cycle complete.
+ * @enable_dynamic_tsf_sync: Enable/Disable TSF sync through NL interface.
+ * @host_target_sync_force: Force update host to TSF mapping.
+ * @dynamic_tsf_sync_interval: TSF sync interval configure through NL interface.
+ * @cur_host_time: Current Host time.
+ * @last_host_time: Host time when TSF read was done.
+ * @last_target_time: Last Fw reported time when TSF read was done.
+ * @continuous_error_count: Store the count of continuous invalid tstamp-pair.
+ * @continuous_cap_retry_count: to store the count of continuous capture retry.
+ * @tsf_sync_ready_flag: to indicate whether tsf_sync has been initialized.
+ * @gpio_tsf_sync_work: work to sync send TSF CAP WMI command.
+ * @tsf_auto_report: to indicate if TSF auto report is enabled or not.
+ */
+struct hdd_vdev_tsf {
+	uint64_t cur_target_time;
+	uint64_t cur_tsf_sync_soc_time;
+	uint64_t last_tsf_sync_soc_time;
+	uint64_t cur_target_global_tsf_time;
+	uint64_t last_target_global_tsf_time;
+	qdf_mc_timer_t host_capture_req_timer;
+#ifdef QCA_GET_TSF_VIA_REG
+	int tsf_id;
+	int tsf_mac_id;
+	qdf_atomic_t tsf_details_valid;
+#endif
+#ifdef WLAN_FEATURE_TSF_PLUS
+	qdf_spinlock_t host_target_sync_lock;
+	qdf_mc_timer_t host_target_sync_timer;
+#ifdef WLAN_FEATURE_TSF_ACCURACY
+	qdf_hrtimer_data_t host_trigger_gpio_timer;
+#endif
+	bool enable_dynamic_tsf_sync;
+	bool host_target_sync_force;
+	uint32_t dynamic_tsf_sync_interval;
+	uint64_t cur_host_time;
+	uint64_t last_host_time;
+	uint64_t last_target_time;
+	int continuous_error_count;
+	int continuous_cap_retry_count;
+	qdf_atomic_t tsf_sync_ready_flag;
+#ifdef WLAN_FEATURE_TSF_PLUS_EXT_GPIO_SYNC
+	qdf_work_t gpio_tsf_sync_work;
+#endif
+#endif /* WLAN_FEATURE_TSF_PLUS */
+#ifdef WLAN_FEATURE_TSF_UPLINK_DELAY
+qdf_atomic_t tsf_auto_report;
+#endif /* WLAN_FEATURE_TSF_UPLINK_DELAY */
+};
+
+/**
+ * struct hdd_ctx_tsf - Context level tsf params
+ * @tsf_ready_flag: indicate whether tsf has been initialized.
+ * @cap_tsf_flag: indicate whether it's now capturing tsf(updating tstamp-pair).
+ * @cap_tsf_context:  the context that is capturing tsf.
+ * @tsf_accuracy_context: the context that is capturing tsf accuracy.
+ * @ptp_cinfo: TSF PTP clock info.
+ * @ptp_clock: TSF PTP clock.
+ */
+struct hdd_ctx_tsf {
+	qdf_atomic_t tsf_ready_flag;
+	qdf_atomic_t cap_tsf_flag;
+	struct hdd_adapter *cap_tsf_context;
+#ifdef WLAN_FEATURE_TSF_ACCURACY
+	struct hdd_adapter *tsf_accuracy_context;
+#endif
+#ifdef WLAN_FEATURE_TSF_PTP
+	struct ptp_clock_info ptp_cinfo;
+	struct ptp_clock *ptp_clock;
+#endif
+};
+
+#ifdef WLAN_FEATURE_TSF_UPLINK_DELAY
+/**
+ * hdd_get_uplink_delay_len() - get uplink delay length
+ * @adapter: pointer to the adapter
+ *
+ * Return: uplink delay length
+ */
+uint32_t hdd_get_uplink_delay_len(struct hdd_adapter *adapter);
+
+/**
+ * hdd_add_uplink_delay() - add uplink delay
+ * @adapter: pointer to the adapter
+ * @skb: nbuf
+ *
+ * Return: status
+ */
+QDF_STATUS hdd_add_uplink_delay(struct hdd_adapter *adapter,
+				struct sk_buff *skb);
+#else /* !WLAN_FEATURE_TSF_UPLINK_DELAY */
+static inline uint32_t hdd_get_uplink_delay_len(struct hdd_adapter *adapter)
+{
+	return 0;
+}
+
+static inline QDF_STATUS hdd_add_uplink_delay(struct hdd_adapter *adapter,
+					      struct sk_buff *skb)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif /* WLAN_FEATURE_TSF_UPLINK_DELAY */
 #ifdef WLAN_FEATURE_TSF
 /**
  * wlan_hdd_tsf_init() - set gpio and callbacks for
@@ -236,6 +353,16 @@ bool hdd_tsf_is_dbg_fs_set(struct hdd_context *hdd);
 int hdd_start_tsf_sync(struct hdd_adapter *adapter);
 
 /**
+ * hdd_restart_tsf_sync_post_wlan_resume() - restart host TSF sync
+ * @adapter: pointer to adapter
+ *
+ * This function restarts host TSF sync immediately after wlan resume
+ *
+ * Return: none
+ */
+void hdd_restart_tsf_sync_post_wlan_resume(struct hdd_adapter *adapter);
+
+/**
  * hdd_stop_tsf_sync() - stop tsf sync
  * @adapter: pointer to adapter
  *
@@ -324,6 +451,11 @@ bool hdd_tsf_is_tsf64_tx_set(struct hdd_context *hdd)
 
 static inline
 void hdd_update_dynamic_tsf_sync(struct hdd_adapter *adapter)
+{
+}
+
+static inline
+void hdd_restart_tsf_sync_post_wlan_resume(struct hdd_adapter *adapter)
 {
 }
 

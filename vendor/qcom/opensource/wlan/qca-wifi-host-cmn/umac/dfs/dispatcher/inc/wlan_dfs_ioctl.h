@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2010, Atheros Communications Inc.
  * All Rights Reserved.
  *
@@ -204,7 +205,7 @@ struct dfs_bangradar_params {
 /* Flag to enable Reduced BW Agile DFS */
 #define DFS_RANDOM_CH_FLAG_ENABLE_REDUCED_BW    0x0080 /* 0000 0000 1000 0000 */
 
-/* Flag to exclude Japan W53 channnels */
+/* Flag to exclude Japan W53 channels */
 #define DFS_RANDOM_CH_FLAG_NO_JAPAN_W53_CH      0x0100 /* 0000 0001 0000 0000 */
 
 /* Restricted 80P80 MHz is enabled */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2016 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "SMB:%s: " fmt, __func__
@@ -11,6 +11,8 @@
 #include <linux/errno.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
+#include <linux/iio/iio.h>
+#include <linux/iio/consumer.h>
 #include <linux/power_supply.h>
 #include <linux/of.h>
 #include <linux/bitops.h>
@@ -18,6 +20,13 @@
 #include <linux/debugfs.h>
 #include <linux/pm_wakeup.h>
 #include <linux/spinlock.h>
+#include <linux/suspend.h>
+
+#define is_between(left, right, value) \
+	(((left) >= (right) && (left) >= (value) \
+		&& (value) >= (right)) \
+	|| ((left) <= (right) && (left) <= (value) \
+		&& (value) <= (right)))
 
 struct smb23x_chip {
 	struct i2c_client		*client;
@@ -56,10 +65,12 @@ struct smb23x_chip {
 	bool				batt_cool;
 	bool				usb_present;
 	bool				apsd_enabled;
+	bool				debug_batt;
 
 	int				chg_disabled_status;
 	int				usb_suspended_status;
 	int				usb_psy_ma;
+	enum power_supply_type		charger_type;
 
 	/* others */
 	bool				irq_waiting;
@@ -70,10 +81,13 @@ struct smb23x_chip {
 	int				therm_lvl_sel;
 	int				thermal_levels;
 	u32				workaround_flags;
+	int				batt_id_ohm;
 	const char			*bms_psy_name;
 	struct power_supply		*usb_psy;
 	struct power_supply		*bms_psy;
 	struct power_supply		*batt_psy;
+	struct power_supply_desc	usb_psy_desc;
+	struct iio_channel		*batt_id_chan;
 	struct mutex			read_write_lock;
 	struct mutex			irq_complete;
 	struct mutex			chg_disable_lock;
@@ -687,11 +701,18 @@ static int smb23x_suspend_usb(struct smb23x_chip *chip,
 #define CURRENT_SUSPEND	2
 #define CURRENT_100_MA	100
 #define CURRENT_500_MA	500
+#define CURRENT_1500_MA	1500
 static int smb23x_set_appropriate_usb_current(struct smb23x_chip *chip)
 {
 	int rc = 0, therm_ma, current_ma;
-	int usb_current = chip->usb_psy_ma;
+	int usb_current;
 	u8 tmp;
+
+	if ((chip->charger_type == POWER_SUPPLY_TYPE_USB_CDP) ||
+				(chip->charger_type == POWER_SUPPLY_TYPE_USB_DCP))
+		chip->usb_psy_ma  = CURRENT_1500_MA;
+
+	usb_current = chip->usb_psy_ma;
 
 	if (chip->therm_lvl_sel > 0
 			&& chip->therm_lvl_sel < (chip->thermal_levels - 1))
@@ -1135,81 +1156,6 @@ static const char * const usb_type_str[] = {
 	"DCP",
 	"CDP",
 };
-static int get_usb_supply_type(struct smb23x_chip *chip)
-{
-	int rc;
-	u8 reg, tmp;
-	enum power_supply_type type;
-
-	rc = smb23x_read(chip, CHG_STATUS_C_REG, &reg);
-	if (rc < 0) {
-		pr_err("Read STATUS_C failed, rc=%d\n", rc);
-		return rc;
-	}
-	tmp = reg & APSD_STATUS_BIT;
-
-	if (!tmp) {
-		pr_debug("APSD not completed\n");
-		return POWER_SUPPLY_TYPE_UNKNOWN;
-	}
-
-	tmp = reg & APSD_RESULT_MASK;
-	if (tmp == CDP_TYPE_VAL) {
-		type = POWER_SUPPLY_TYPE_USB_CDP;
-		tmp = 3;
-	} else if (tmp == DCP_TYPE_VAL) {
-		type = POWER_SUPPLY_TYPE_USB_DCP;
-		tmp = 2;
-	} else if (tmp == SDP_TYPE_VAL) {
-		type = POWER_SUPPLY_TYPE_USB;
-		tmp = 0;
-	} else {
-		type = POWER_SUPPLY_TYPE_UNKNOWN;
-		tmp = 1;
-	}
-
-	pr_debug("Charger type %s detected\n", usb_type_str[tmp]);
-
-	return type;
-}
-
-static int handle_usb_insertion(struct smb23x_chip *chip)
-{
-	enum power_supply_type usb_type;
-	union power_supply_propval pval = {0, };
-
-	usb_type = get_usb_supply_type(chip);
-	pval.intval = usb_type;
-	power_supply_set_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_USB_TYPE, &pval);
-	pval.intval = chip->usb_present;
-	power_supply_set_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_PRESENT,
-					&pval);
-	pval.intval = true;
-	power_supply_set_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_ONLINE, &pval);
-
-	return 0;
-}
-
-static int handle_usb_removal(struct smb23x_chip *chip)
-{
-	union power_supply_propval pval = {0, };
-
-	pval.intval = POWER_SUPPLY_TYPE_UNKNOWN;
-	power_supply_set_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_USB_TYPE, &pval);
-	pval.intval = chip->usb_present;
-	power_supply_set_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_PRESENT,
-					&pval);
-	pval.intval = false;
-	power_supply_set_property(chip->usb_psy,
-				POWER_SUPPLY_PROP_ONLINE, &pval);
-
-	return 0;
-}
 
 static int src_detect_irq_handler(struct smb23x_chip *chip, u8 rt_sts)
 {
@@ -1220,14 +1166,6 @@ static int src_detect_irq_handler(struct smb23x_chip *chip, u8 rt_sts)
 
 	pr_debug("chip->usb_present = %d, usb_present = %d\n",
 					chip->usb_present, usb_present);
-
-	if (usb_present && !chip->usb_present) {
-		chip->usb_present = usb_present;
-		handle_usb_insertion(chip);
-	} else if (!usb_present && chip->usb_present) {
-		chip->usb_present = usb_present;
-		handle_usb_removal(chip);
-	}
 
 	return 0;
 }
@@ -1472,6 +1410,21 @@ static struct irq_handler_info handlers[] = {
 	},
 };
 
+#define DEBUG_BATT_ID_LOW	6000
+#define DEBUG_BATT_ID_HIGH	9000
+static bool is_debug_batt_id(struct smb23x_chip *chip)
+{
+	pr_info("DEBUG_BATT: DEBUG BATT ID value is %d\n", chip->batt_id_ohm);
+
+	if (is_between(DEBUG_BATT_ID_LOW, DEBUG_BATT_ID_HIGH,
+						chip->batt_id_ohm))
+		return true;
+
+
+	return false;
+
+}
+
 #define UPDATE_IRQ_STAT(irq_reg, value) \
 	handlers[irq_reg - IRQ_A_STATUS_REG].prev_val = value
 static int smb23x_determine_initial_status(struct smb23x_chip *chip)
@@ -1495,7 +1448,17 @@ static int smb23x_determine_initial_status(struct smb23x_chip *chip)
 	else if (reg & COLD_SOFT_BIT)
 		chip->batt_cool = true;
 
-	chip->batt_present = true;
+	rc = iio_read_channel_processed(chip->batt_id_chan, &chip->batt_id_ohm);
+	if (rc < 0) {
+		pr_err("Failed to read BATT_ID over ADC, rc=%d\n", rc);
+		return rc;
+	}
+
+	if (!is_debug_batt_id(chip))
+		chip->batt_present = true;
+	else
+		chip->batt_present = false;
+
 	rc = smb23x_read(chip, IRQ_B_STATUS_REG, &reg);
 	if (rc < 0) {
 		pr_err("Read IRQ_B failed, rc=%d\n", rc);
@@ -1538,9 +1501,7 @@ static int smb23x_determine_initial_status(struct smb23x_chip *chip)
 				&pval);
 	}
 
-	if (chip->usb_present && chip->apsd_enabled) {
-		handle_usb_insertion(chip);
-	} else if (chip->usb_present) {
+	if (chip->usb_present) {
 		pval.intval = chip->usb_present;
 		power_supply_set_property(chip->usb_psy,
 					POWER_SUPPLY_PROP_PRESENT,
@@ -1670,6 +1631,9 @@ static int smb23x_get_prop_batt_status(struct smb23x_chip *chip)
 	int rc, status;
 	u8 tmp;
 
+	if (is_debug_batt_id(chip))
+		return POWER_SUPPLY_STATUS_NOT_CHARGING;
+
 	if (chip->batt_full)
 		return POWER_SUPPLY_STATUS_FULL;
 
@@ -1719,9 +1683,13 @@ exit:
 }
 
 #define DEFAULT_BATT_CAPACITY	50
+#define DEBUG_BATT_CAPACITY	67
 static int smb23x_get_prop_batt_capacity(struct smb23x_chip *chip)
 {
 	union power_supply_propval ret = {0, };
+
+	if (is_debug_batt_id(chip))
+		return DEBUG_BATT_CAPACITY;
 
 	if (chip->fake_battery_soc != -EINVAL)
 		return chip->fake_battery_soc;
@@ -1731,6 +1699,7 @@ static int smb23x_get_prop_batt_capacity(struct smb23x_chip *chip)
 				POWER_SUPPLY_PROP_CAPACITY, &ret);
 		return ret.intval;
 	}
+
 
 	return DEFAULT_BATT_CAPACITY;
 }
@@ -1780,6 +1749,155 @@ static int smb23x_system_temp_level_set(struct smb23x_chip *chip, int lvl_sel)
 		pr_err("Couldn't set USB current rc = %d\n", rc);
 
 	mutex_unlock(&chip->icl_set_lock);
+	return rc;
+}
+
+static enum power_supply_usb_type smb23x_usb_psy_supported_types[] = {
+	POWER_SUPPLY_USB_TYPE_UNKNOWN,
+	POWER_SUPPLY_USB_TYPE_SDP,
+	POWER_SUPPLY_USB_TYPE_DCP,
+	POWER_SUPPLY_USB_TYPE_CDP,
+	POWER_SUPPLY_USB_TYPE_ACA,
+};
+
+static enum power_supply_property smb23x_usb_properties[] = {
+	POWER_SUPPLY_PROP_PRESENT,
+	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_CURRENT_MAX,
+	POWER_SUPPLY_PROP_USB_TYPE,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+};
+
+static void smb23x_update_desc_type(struct smb23x_chip *chip)
+{
+	switch (chip->charger_type) {
+	case POWER_SUPPLY_TYPE_USB_CDP:
+	case POWER_SUPPLY_TYPE_USB_DCP:
+	case POWER_SUPPLY_TYPE_USB:
+	case POWER_SUPPLY_TYPE_USB_ACA:
+		chip->usb_psy_desc.type = chip->charger_type;
+		break;
+	default:
+		chip->usb_psy_desc.type = POWER_SUPPLY_TYPE_USB;
+		break;
+	}
+}
+
+static void smb23x_get_usb_type(struct smb23x_chip *chip,
+				union power_supply_propval *val)
+{
+	switch (chip->charger_type) {
+	case POWER_SUPPLY_TYPE_USB_CDP:
+		val->intval = POWER_SUPPLY_USB_TYPE_CDP;
+		break;
+	case POWER_SUPPLY_TYPE_USB_DCP:
+		val->intval = POWER_SUPPLY_USB_TYPE_DCP;
+		break;
+	case POWER_SUPPLY_TYPE_USB:
+		val->intval = POWER_SUPPLY_USB_TYPE_SDP;
+		break;
+	case POWER_SUPPLY_TYPE_USB_ACA:
+		val->intval = POWER_SUPPLY_USB_TYPE_ACA;
+		break;
+	default:
+		val->intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+		break;
+	}
+}
+
+static int smb23x_usb_get_property(struct power_supply *psy,
+		enum power_supply_property psp,
+				  union power_supply_propval *val)
+{
+	struct smb23x_chip *chip = power_supply_get_drvdata(psy);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		val->intval = chip->usb_psy_ma;
+		break;
+	case POWER_SUPPLY_PROP_PRESENT:
+		val->intval = chip->usb_present;
+		break;
+	case POWER_SUPPLY_PROP_ONLINE:
+		val->intval = chip->usb_present && !chip->usb_suspended_status;
+		break;
+	case POWER_SUPPLY_PROP_USB_TYPE:
+		smb23x_get_usb_type(chip, val);
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int smb23x_usb_set_property(struct power_supply *psy,
+				  enum power_supply_property psp,
+				  const union power_supply_propval *val)
+{
+	int rc = 0;
+	struct smb23x_chip *chip = power_supply_get_drvdata(psy);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_USB_TYPE:
+		chip->charger_type = val->intval;
+		smb23x_update_desc_type(chip);
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		if (!is_debug_batt_id(chip)) {
+			chip->usb_psy_ma = val->intval / 1000;
+			smb23x_enable_volatile_writes(chip);
+			rc = smb23x_set_appropriate_usb_current(chip);
+			if (rc)
+				pr_err("Couldn't set USB current rc = %d\n", rc);
+			break;
+		}
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int smb23x_usb_is_writeable(struct power_supply *psy,
+				enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CURRENT_MAX:
+		return 1;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int smb23x_init_usb_psy(struct smb23x_chip *chip)
+{
+	struct power_supply_config usb_cfg = {};
+	int rc = 0;
+
+	chip->usb_psy_desc.name = "usb",
+	chip->usb_psy_desc.type = POWER_SUPPLY_TYPE_USB,
+	chip->usb_psy_desc.properties = smb23x_usb_properties,
+	chip->usb_psy_desc.num_properties = ARRAY_SIZE(smb23x_usb_properties),
+	chip->usb_psy_desc.get_property = smb23x_usb_get_property,
+	chip->usb_psy_desc.set_property = smb23x_usb_set_property,
+	chip->usb_psy_desc.property_is_writeable = smb23x_usb_is_writeable,
+	chip->usb_psy_desc.usb_types  = smb23x_usb_psy_supported_types,
+	chip->usb_psy_desc.num_usb_types = ARRAY_SIZE(smb23x_usb_psy_supported_types);
+	chip->usb_psy_desc.num_properties = ARRAY_SIZE(smb23x_usb_properties);
+
+	usb_cfg.drv_data = chip;
+	usb_cfg.of_node = chip->dev->of_node;
+	chip->usb_psy = devm_power_supply_register(chip->dev,
+					   &chip->usb_psy_desc,
+					   &usb_cfg);
+	if (IS_ERR(chip->usb_psy)) {
+		pr_err("Couldn't register usb power supply\n");
+		return PTR_ERR(chip->usb_psy);
+	}
+
 	return rc;
 }
 
@@ -2173,14 +2291,7 @@ static int smb23x_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	int rc;
-	struct power_supply *usb_psy;
 	struct smb23x_chip *chip;
-
-	usb_psy = power_supply_get_by_name("usb");
-	if (!usb_psy) {
-		dev_dbg(&client->dev, "USB supply not found; defer probe\n");
-		return (-EPROBE_DEFER);
-	}
 
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
 	if (chip == NULL)
@@ -2188,7 +2299,6 @@ static int smb23x_probe(struct i2c_client *client,
 
 	chip->client = client;
 	chip->dev = &client->dev;
-	chip->usb_psy = usb_psy;
 	chip->fake_battery_soc = -EINVAL;
 	i2c_set_clientdata(client, chip);
 
@@ -2216,6 +2326,15 @@ static int smb23x_probe(struct i2c_client *client,
 		goto destroy_mutex;
 	}
 
+	chip->batt_id_chan = devm_iio_channel_get(chip->dev, "batt-id");
+	if (IS_ERR(chip->batt_id_chan)) {
+		rc = PTR_ERR(chip->batt_id_chan);
+		if (rc != -EPROBE_DEFER)
+			dev_err(chip->dev, "batt-id channel unavailable, rc=%d\n", rc);
+		chip->batt_id_chan = NULL;
+		return rc;
+	}
+
 	/*
 	 * Enable register based battery charging as the hw_init moves CHG_EN
 	 * control from pin-based to register based.
@@ -2234,17 +2353,10 @@ static int smb23x_probe(struct i2c_client *client,
 
 	smb23x_irq_polling_wa_check(chip);
 
-	/*
-	 * Disable charging if device tree (USER) requested:
-	 * set USB_SUSPEND to cutoff USB power completely
-	 */
-	rc = smb23x_suspend_usb(chip, USER,
-		chip->cfg_charging_disabled ? true : false);
-	if (rc < 0) {
-		pr_err("%suspend USB failed\n",
-			chip->cfg_charging_disabled ? "S" : "Un-s");
-		goto destroy_mutex;
-	}
+	smb23x_init_batt_psy(chip);
+
+	smb23x_init_usb_psy(chip);
+
 
 	rc = smb23x_determine_initial_status(chip);
 	if (rc < 0) {
@@ -2252,7 +2364,19 @@ static int smb23x_probe(struct i2c_client *client,
 		goto destroy_mutex;
 	}
 
-	smb23x_init_batt_psy(chip);
+	if (is_debug_batt_id(chip))
+		chip->debug_batt = true;
+	/*
+	 * Disable charging if device tree (USER) requested:
+	 * set USB_SUSPEND to cutoff USB power completely
+	 */
+	rc = smb23x_suspend_usb(chip, USER,
+		chip->cfg_charging_disabled | chip->debug_batt ? true : false);
+	if (rc < 0) {
+		pr_err("%suspend USB failed\n",
+			chip->cfg_charging_disabled ? "S" : "Un-s");
+		goto destroy_mutex;
+	}
 
 	chip->resume_completed = true;
 	/* Register IRQ */
@@ -2286,15 +2410,97 @@ destroy_mutex:
 	return rc;
 }
 
+static int smb23x_freeze(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct smb23x_chip *chip = i2c_get_clientdata(client);
+
+	pr_debug("Entering hibernation via smb23x freeze\n");
+	disable_irq(client->irq);
+	cancel_delayed_work_sync(&chip->irq_polling_work);
+
+	return 0;
+}
+
+static int smb23x_restore(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct smb23x_chip *chip = i2c_get_clientdata(client);
+	int rc;
+
+	pr_debug("Resuming from hibernation via smb23x restore\n");
+	devm_free_irq(&client->dev, client->irq, chip);
+
+	/*
+	 * Enable register based battery charging as the hw_init moves CHG_EN
+	 * control from pin-based to register based.
+	 */
+	rc = smb23x_charging_disable(chip, USER, false);
+	if (rc < 0) {
+		pr_err("Register control based charging enable failed\n");
+		return rc;
+	}
+
+	rc = smb23x_hw_init(chip);
+	if (rc < 0) {
+		pr_err("smb23x hw init failed rc=%d\n", rc);
+		return rc;
+	}
+
+	/*
+	 * Disable charging if device tree (USER) requested:
+	 * set USB_SUSPEND to cutoff USB power completely
+	 */
+	rc = smb23x_suspend_usb(chip, USER,
+		chip->cfg_charging_disabled ? true : false);
+	if (rc < 0) {
+		pr_err("%suspend USB failed\n",
+			chip->cfg_charging_disabled ? "S" : "Un-s");
+		return rc;
+	}
+
+	rc = smb23x_determine_initial_status(chip);
+	if (rc < 0) {
+		pr_err("Update initial status failed\n");
+		return rc;
+	}
+
+	smb23x_irq_polling_wa_check(chip);
+
+	/* Register IRQ */
+	if (client->irq) {
+		rc = devm_request_threaded_irq(&client->dev, client->irq, NULL,
+				smb23x_stat_handler, IRQF_ONESHOT,
+				"smb23x_stat_irq", chip);
+		if (rc < 0) {
+			pr_err("Request IRQ(%d) failed, rc = %d\n",
+				client->irq, rc);
+			return rc;
+		}
+		enable_irq_wake(client->irq);
+	}
+
+	pr_debug("Restoring all hardware context in smb23x restore\n");
+
+	return 0;
+}
+
 static int smb23x_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct smb23x_chip *chip = i2c_get_clientdata(client);
 	int rc;
 
+#ifdef CONFIG_DEEPSLEEP
+	if (pm_suspend_via_firmware()) {
+		pr_debug("Entering deepsleep via smb23x suspend\n");
+		smb23x_freeze(dev);
+	}
+#endif
+
 	/* Save the current IRQ config */
 	rc = smb23x_read(chip, IRQ_CFG_REG_9, &chip->irq_cfg_mask);
-	if (rc)
+	if (rc < 0)
 		pr_err("Save irq config failed, rc=%d\n", rc);
 
 	/* enable only important IRQs */
@@ -2333,6 +2539,12 @@ static int smb23x_resume(struct device *dev)
 	if (rc)
 		pr_err("Restore irq cfg reg failed, rc=%d\n", rc);
 
+#ifdef CONFIG_DEEPSLEEP
+	if (pm_suspend_via_firmware()) {
+		pr_debug("Resuming from Deepsleep via smb23x resume\n");
+		smb23x_restore(dev);
+	}
+#endif
 	mutex_lock(&chip->irq_complete);
 	chip->resume_completed = true;
 	if (chip->irq_waiting) {
@@ -2361,9 +2573,11 @@ static int smb23x_remove(struct i2c_client *client)
 }
 
 static const struct dev_pm_ops smb23x_pm_ops = {
+	.freeze		= smb23x_freeze,
+	.restore		= smb23x_restore,
 	.resume		= smb23x_resume,
 	.suspend_noirq	= smb23x_suspend_noirq,
-	.suspend	= smb23x_suspend,
+	.suspend		= smb23x_suspend,
 };
 
 static const struct of_device_id smb23x_match_table[] = {

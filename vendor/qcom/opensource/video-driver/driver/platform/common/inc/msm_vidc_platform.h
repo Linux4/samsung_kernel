@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_PLATFORM_H_
@@ -95,6 +96,11 @@ struct msm_vidc_ubwc_config_data {
 	u32 bank_spreading;
 };
 
+enum vpu_version {
+	VPU_VERSION_IRIS2 = 1,
+	VPU_VERSION_IRIS2_1,
+};
+
 struct msm_vidc_platform_data {
 	struct msm_platform_core_capability *core_data;
 	u32 core_data_size;
@@ -107,6 +113,7 @@ struct msm_vidc_platform_data {
 	struct msm_vidc_efuse_data *efuse_data;
 	unsigned int efuse_data_size;
 	unsigned int sku_version;
+	unsigned int vpu_ver;
 };
 
 struct msm_vidc_platform {

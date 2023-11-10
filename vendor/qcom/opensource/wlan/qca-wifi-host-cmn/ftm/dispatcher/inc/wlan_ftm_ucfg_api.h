@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -88,7 +89,7 @@ enum wifi_ftm_pdev_cmd_type {
  * struct wifi_ftm_pdev_priv_obj - wifi ftm pdev utf event info
  * @pdev: pointer to pdev
  * @data: data ptr
- * @current_seq: curent squence
+ * @current_seq: current sequence
  * @expected_seq: expected sequence
  * @length: length
  * @offset: offset

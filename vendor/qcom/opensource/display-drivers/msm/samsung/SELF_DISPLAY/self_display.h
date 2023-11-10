@@ -167,8 +167,8 @@ struct self_display_op {
 struct self_display_debug {
 	u32 SI_X_O;
 	u32 SI_Y_O;
-	u32 MEM_SUM_O;
-	u32 SM_SUM_O;
+	u32 MEM_SUM_O;	/* sum of image data from side memory */
+	u32 SM_SUM_O;	/* sum of image data from self mask */
 	u32 MEM_WR_DONE_O;
 	u32 mem_wr_icon_pk_err_o;
 	u32 mem_wr_var_pk_err_o;

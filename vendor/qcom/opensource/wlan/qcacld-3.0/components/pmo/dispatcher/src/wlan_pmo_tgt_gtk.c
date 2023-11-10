@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -63,8 +64,10 @@ QDF_STATUS pmo_tgt_send_gtk_offload_req(struct wlan_objmgr_vdev *vdev,
 		qdf_atomic_set(&vdev_ctx->gtk_err_enable, true);
 		qdf_mem_copy(op_gtk_req->kck, gtk_req->kck,
 			     gtk_req->kck_len);
+		op_gtk_req->kck_len = gtk_req->kck_len;
 		qdf_mem_copy(op_gtk_req->kek, gtk_req->kek,
 			     PMO_KEK_LEN);
+		op_gtk_req->kek_len = gtk_req->kek_len;
 		qdf_mem_copy(&op_gtk_req->replay_counter,
 			&gtk_req->replay_counter, PMO_REPLAY_COUNTER_LEN);
 	} else {

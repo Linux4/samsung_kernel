@@ -201,6 +201,14 @@ void pre_cac_set_osif_cb(struct pre_cac_ops *osif_pre_cac_ops);
 bool pre_cac_is_active(struct wlan_objmgr_psoc *psoc);
 
 /**
+ * pre_cac_clear_work(): clear pre cac work fn and arg
+ * @psoc: psoc object manager
+ *
+ * Return: None
+ */
+void pre_cac_clear_work(struct wlan_objmgr_psoc *psoc);
+
+/**
  * pre_cac_validate_and_get_freq() - Validate and get pre cac frequency
  * @pdev: pdev object manager
  * @chan_freq: Channel frequency requested by userspace

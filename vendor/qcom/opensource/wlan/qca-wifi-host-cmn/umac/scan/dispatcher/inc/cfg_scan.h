@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -364,7 +364,7 @@ enum scan_mode_6ghz {
 /*
  * <ini>
  * hostscan_adaptive_dwell_mode - Enable adaptive dwell mode
- * during host scan with conneciton
+ * during host scan with connection
  * @Min: 0
  * @Max: 4
  * @Default: 1
@@ -396,7 +396,7 @@ enum scan_mode_6ghz {
 /*
  * <ini>
  * hostscan_adaptive_dwell_mode_no_conn - Enable adaptive dwell mode
- * during host scan without conneciton
+ * during host scan without connection
  * @Min: 0
  * @Max: 4
  * @Default: 4
@@ -713,7 +713,7 @@ enum scan_mode_6ghz {
  * This ini is used to set the periodic timer upon which
  * a full scan needs to be triggered when PNO channel
  * prediction feature is enabled. This parameter is intended
- * to tweak the internal algortihm for experiments.
+ * to tweak the internal algorithm for experiments.
  *
  * Related: None
  *
@@ -772,7 +772,7 @@ enum scan_mode_6ghz {
  * @Max: 255
  * @Default: 0
  *
- * For Network Listen Offload and Perfered Network Offload, multiply the fast
+ * For Network Listen Offload and Preferred Network Offload, multiply the fast
  * scan period by this value after max cycles have occurred. Setting this to 0
  * disables the feature.
  *
@@ -988,7 +988,7 @@ enum scan_mode_6ghz {
 
 /*
  * <ini>
- * min_rest_time_conc - Mininum time spent on home channel before moving to a
+ * min_rest_time_conc - Minimum time spent on home channel before moving to a
  * new channel to scan.
  * @Min: 0
  * @Max: 50
@@ -1456,6 +1456,34 @@ enum scan_mode_6ghz {
 			"skip_6g_and_indoor_freq_scan", \
 			false, \
 			"skip sta scan on 6Ghz and 5Ghz indoor channel")
+/*
+ * <ini>
+ * last_scan_ageout_time - To use cached scan results for provided time
+ * duration.
+ * @Min: 0
+ * @Max: 30000 ms
+ * @Default: 0
+ *
+ * This is used to use last cached scan results for provided time.
+ * Instead of issuing new scan, cached scan results can be used to
+ * select best SAP channel if channels are scanned with in the provided
+ * value.
+ *
+ * Related: None.
+ *
+ * Supported Feature: ACS scan optimization
+ *
+ * Usage: Internal
+ *
+ * </ini>
+ */
+#define CFG_LAST_SCAN_AGEOUT_TIME CFG_INI_UINT( \
+			"last_scan_ageout_time", \
+			0, \
+			30000, \
+			0, \
+			CFG_VALUE_OR_DEFAULT, \
+			"last scan ageout time")
 #define CFG_SCAN_ALL \
 	CFG(CFG_DROP_BCN_ON_CHANNEL_MISMATCH) \
 	CFG(CFG_DROP_BCN_ON_INVALID_FREQ) \
@@ -1495,6 +1523,6 @@ enum scan_mode_6ghz {
 	CFG(CFG_6GHZ_SCAN_MODE_DUTY_CYCLE) \
 	CFG(CFG_SCAN_ALLOW_BSS_WITH_CORRUPTED_IE) \
 	CFG(CFG_SKIP_6GHZ_AND_INDOOR_FREQ_SCAN) \
-	CFG_SCAN_PNO
-
+	CFG_SCAN_PNO \
+	CFG(CFG_LAST_SCAN_AGEOUT_TIME)
 #endif /* __CONFIG_SCAN_H */

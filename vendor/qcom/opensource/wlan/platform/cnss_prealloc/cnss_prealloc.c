@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2012,2014-2017,2019-2021 The Linux Foundation. All rights reserved. */
+/*
+ * Copyright (c) 2012,2014-2017,2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ */
 
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -7,6 +10,7 @@
 #include <linux/mm.h>
 #include <linux/err.h>
 #include <linux/of.h>
+#include <linux/version.h>
 #ifdef CONFIG_CNSS_OUT_OF_TREE
 #include "cnss_prealloc.h"
 #else
@@ -142,6 +146,49 @@ static void cnss_pool_deinit(void)
 	}
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0))
+/* In kernel 5.17, slab_cache is removed from page struct, so
+ * store cache in the beginning of memory buffer.
+ */
+static inline void cnss_pool_put_cache_in_mem(void *mem, struct kmem_cache *cache)
+{
+	/* put cache at the beginnging of mem */
+	(*(struct kmem_cache **)mem) = cache;
+}
+
+static inline struct kmem_cache *cnss_pool_get_cache_from_mem(void *mem)
+{
+	struct kmem_cache *cache;
+
+	/* read cache from the beginnging of mem */
+	cache = (struct kmem_cache *)(*(struct kmem_cache **)mem);
+
+	return cache;
+}
+#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)) */
+/* for older kernel < 5.17, we use page->slab_cache. In such case
+ * we do not reserve headroom in memory buffer to store cache.
+ */
+static inline void cnss_pool_put_cache_in_mem(void *mem, struct kmem_cache *cache)
+{
+}
+
+static inline struct kmem_cache *cnss_pool_get_cache_from_mem(void *mem)
+{
+	struct page *page;
+
+	if (!virt_addr_valid(mem))
+		return NULL;
+
+	/* mem -> page -> cache */
+	page = virt_to_head_page(mem);
+	if (!page)
+		return NULL;
+
+	return page->slab_cache;
+}
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)) */
+
 /**
  * cnss_pool_get_index() - Get the index of memory pool
  * @mem: Allocated memory
@@ -153,22 +200,12 @@ static void cnss_pool_deinit(void)
  */
 static int cnss_pool_get_index(void *mem)
 {
-	struct page *page;
 	struct kmem_cache *cache;
 	int i;
 
-	if (!virt_addr_valid(mem))
-		return -EINVAL;
-
-	/* mem -> page -> cache */
-	page = virt_to_head_page(mem);
-	if (!page)
-		return -ENOENT;
-
-	cache = page->slab_cache;
+	cache = cnss_pool_get_cache_from_mem(mem);
 	if (!cache)
 		return -ENOENT;
-
 
 	/* Check if memory belongs to a pool */
 	for (i = 0; i < ARRAY_SIZE(cnss_pools); i++) {
@@ -203,10 +240,12 @@ void *wcnss_prealloc_get(size_t size)
 	if (size >= cnss_pool_alloc_threshold()) {
 
 		for (i = 0; i < ARRAY_SIZE(cnss_pools); i++) {
-			if (cnss_pools[i].size >= size) {
+			if (cnss_pools[i].size >= size && cnss_pools[i].mp) {
 				mem = mempool_alloc(cnss_pools[i].mp, gfp_mask);
-				if (mem)
+				if (mem) {
+					cnss_pool_put_cache_in_mem(mem, cnss_pools[i].cache);
 					break;
+				}
 			}
 		}
 	}
@@ -238,8 +277,7 @@ int wcnss_prealloc_put(void *mem)
 		return 0;
 
 	i = cnss_pool_get_index(mem);
-
-	if (i >= 0 && i < ARRAY_SIZE(cnss_pools)) {
+	if (i >= 0 && i < ARRAY_SIZE(cnss_pools) && cnss_pools[i].mp) {
 		mempool_free(mem, cnss_pools[i].mp);
 		return 1;
 	}

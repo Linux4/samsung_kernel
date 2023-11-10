@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -106,6 +107,30 @@ int dsi_clk_set_link_frequencies(void *client, struct link_clk_freq freq,
 		sizeof(struct link_clk_freq));
 
 	return rc;
+}
+
+/**
+ * dsi_clk_get_link_frequencies() - get link clk frequencies
+ * @link_freq:       Structure to get link clock frequencies
+ * @client:     DSI clock client pointer.
+ * @index:      Index of the DSI controller.
+ *
+ * return: error code in case of failure or 0 for success.
+ */
+int dsi_clk_get_link_frequencies(struct link_clk_freq *link_freq, void *client, u32 index)
+{
+	struct dsi_clk_client_info *c = client;
+	struct dsi_clk_mngr *mngr;
+
+	if (!client || !link_freq) {
+		DSI_ERR("invalid params\n");
+		return -EINVAL;
+	}
+
+	mngr = c->mngr;
+	memcpy(link_freq, &mngr->link_clks[index].freq, sizeof(struct link_clk_freq));
+
+	return 0;
 }
 
 /**
@@ -1245,7 +1270,8 @@ int dsi_clk_req_state(void *client, enum dsi_clk_type clk,
 	if (changed) {
 		rc = dsi_recheck_clk_state(mngr);
 		if (rc)
-			DSI_ERR("Failed to adjust clock state rc = %d\n", rc);
+			DSI_ERR("[%s]%s: failed to adjust clock state rc = %d\n",
+				mngr->name, c->name, rc);
 	}
 
 	mutex_unlock(&mngr->clk_mutex);
@@ -1310,6 +1336,38 @@ int dsi_display_link_clk_force_update_ctrl(void *handle)
 
 	return rc;
 }
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include <linux/clk-provider.h>
+
+int dsi_display_is_core_clk_on(void *handle)
+{
+	struct dsi_clk_client_info *c = handle;
+	struct dsi_clk_mngr *mngr;
+	struct dsi_core_clks *clks;
+	struct dsi_core_clks *m_clks;
+
+	if (!c)
+		return -ENODEV;
+
+	/* check only refcount managed by display driver */
+	if (c->core_refcount > 0 || c->core_clk_state != DSI_CLK_OFF)
+		return 1;
+
+	/* check clock further */
+	mngr = c->mngr;
+	if (!mngr)
+		return -ENODEV;
+
+	clks = mngr->core_clks;
+	m_clks = &clks[mngr->master_ndx];
+
+	if (__clk_is_enabled(m_clks->clks.mdp_core_clk))
+		return 1;
+
+	return 0;
+}
+#endif
 
 int dsi_display_clk_ctrl(void *handle,
 	u32 clk_type, u32 clk_state)
@@ -1521,4 +1579,30 @@ int dsi_display_clk_mngr_deregister(void *clk_mngr)
 	DSI_DEBUG("%s: EXIT, rc = %d\n", mngr->name, rc);
 	kfree(mngr);
 	return rc;
+}
+
+/**
+ * dsi_clk_acquire_mngr_lock() - acquire clk manager mutex lock
+ * @client:       DSI clock client pointer.
+ */
+void dsi_clk_acquire_mngr_lock(void *client)
+{
+	struct dsi_clk_mngr *mngr;
+	struct dsi_clk_client_info *c = client;
+
+	mngr = c->mngr;
+	mutex_lock(&mngr->clk_mutex);
+}
+
+/**
+ * dsi_clk_release_mngr_lock() - release clk manager mutex lock
+ * @client:       DSI clock client pointer.
+ */
+void dsi_clk_release_mngr_lock(void *client)
+{
+	struct dsi_clk_mngr *mngr;
+	struct dsi_clk_client_info *c = client;
+
+	mngr = c->mngr;
+	mutex_unlock(&mngr->clk_mutex);
 }

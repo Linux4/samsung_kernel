@@ -239,7 +239,7 @@ def dump_thread_group(ramdump, thread_group, task_out, taskhighlight_out, check_
                 task_out.write(
                     '=======================================================\n')
                 cpu_no = ramdump.get_task_cpu(next_thread_start, threadinfo)
-                if cpu_no >= ramdump.get_num_cpus():
+                if cpu_no not in ramdump.iter_cpus():
                     error = 1
                     return
             task_per_cpu_list[task_cpu].append([thread_task_name, thread_task_pid,
@@ -289,7 +289,7 @@ def do_dump_stacks(ramdump, check_for_panic=0):
 
     no_of_cpus = ramdump.get_num_cpus()
     if len(task_per_cpu_list) == 0:
-        task_per_cpu_list = [[] for j in range(no_of_cpus)]
+        task_per_cpu_list = [[] for j in range(max(ramdump.iter_cpus())+1)]
     while True:
         dump_thread_group(ramdump, init_thread_group,
                           task_out, taskhighlight_out, check_for_panic)
@@ -362,15 +362,15 @@ def do_dump_task_timestamps(ramdump):
     init_thread_group = init_addr + offset_thread_group
     count = 0
     seen_tasks = []
-    task_out = []
+    task_out = {}
     global task_per_cpu_list
     no_of_cpus = ramdump.get_num_cpus()
 
-    for i in range(0, no_of_cpus):
+    for i in ramdump.iter_cpus():
         task_file = ramdump.open_file('tasks_sched_stats/' + 'tasks_sched_stats{0}.txt'.format(i))
-        task_out.append(task_file)
+        task_out[i] = task_file
     if len(task_per_cpu_list) == 0:
-        task_per_cpu_list = [[] for j in range(no_of_cpus)]
+        task_per_cpu_list = [[] for j in range(0, max(ramdump.iter_cpus())+1)]
         while True:
             ret = dump_thread_group_timestamps(ramdump, init_thread_group)
             if ret is False:
@@ -421,7 +421,7 @@ def do_dump_task_timestamps(ramdump):
             init_thread_group = init_next_task - offset_tasks + offset_thread_group
             if init_next_task == orig_init_next_task:
                 break
-    for i in range(0, no_of_cpus):
+    for i in ramdump.iter_cpus():
         if error == 1 or count == 1:
             task_out[i].write('!!!Note : Some thread may be missing\n\n')
         task_per_cpu_list[i] = sorted(task_per_cpu_list[i], key=lambda l:l[2], reverse=True)

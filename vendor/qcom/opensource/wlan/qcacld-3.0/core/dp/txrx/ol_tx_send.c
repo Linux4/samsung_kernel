@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -211,7 +211,9 @@ ol_tx_send(struct ol_txrx_pdev_t *pdev,
 				QDF_TRACE_DEFAULT_PDEV_ID,
 				qdf_nbuf_data_addr(msdu),
 				sizeof(qdf_nbuf_data(msdu)), tx_desc->id,
-				vdev_id, 0));
+				vdev_id, 0,
+				tx_desc->vdev->qdf_opmode
+				));
 	failed = htt_tx_send_std(pdev->htt_pdev, msdu, id);
 	if (qdf_unlikely(failed)) {
 		ol_tx_target_credit_incr_int(pdev, msdu_credit_consumed);
@@ -345,7 +347,9 @@ ol_tx_download_done_hl_free(void *txrx_pdev,
 				 QDF_TRACE_DEFAULT_PDEV_ID,
 				 qdf_nbuf_data_addr(msdu),
 				 sizeof(qdf_nbuf_data(msdu)), tx_desc->id,
-				 dp_status, 0));
+				 dp_status, 0,
+				 tx_desc->vdev->qdf_opmode
+				 ));
 
 	is_frame_freed = ol_tx_download_done_base(pdev, status, msdu, msdu_id);
 
@@ -433,7 +437,7 @@ int ol_tx_deduct_one_credit(struct ol_txrx_pdev_t *pdev)
 				   _lcl_freelist, _tx_desc_last)	\
 	do {								\
 		qdf_atomic_init(&(_tx_desc)->ref_cnt);			\
-		/* restore orginal hdr offset */			\
+		/* restore original hdr offset */			\
 		OL_TX_RESTORE_HDR((_tx_desc), (_netbuf));		\
 		qdf_nbuf_unmap((_pdev)->osdev, (_netbuf), QDF_DMA_TO_DEVICE); \
 		qdf_nbuf_free((_netbuf));				\
@@ -449,7 +453,7 @@ int ol_tx_deduct_one_credit(struct ol_txrx_pdev_t *pdev)
 #define ol_tx_msdu_complete_single(_pdev, _tx_desc, _netbuf,\
 				   _lcl_freelist, _tx_desc_last)	\
 	do {								\
-		/* restore orginal hdr offset */			\
+		/* restore original hdr offset */			\
 		OL_TX_RESTORE_HDR((_tx_desc), (_netbuf));		\
 		qdf_nbuf_unmap((_pdev)->osdev, (_netbuf), QDF_DMA_TO_DEVICE); \
 		qdf_nbuf_free((_netbuf));				\
@@ -1116,7 +1120,8 @@ ol_tx_completion_handler(ol_txrx_pdev_handle pdev,
 			QDF_TRACE_DEFAULT_PDEV_ID,
 			qdf_nbuf_data_addr(netbuf),
 			sizeof(qdf_nbuf_data(netbuf)), tx_desc->id, status,
-			dp_status));
+			dp_status,
+			tx_desc->vdev->qdf_opmode));
 		htc_pm_runtime_put(pdev->htt_pdev->htc_pdev);
 		/*
 		 * If credits are reported through credit_update_ind then do not

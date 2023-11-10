@@ -94,12 +94,13 @@
             <modepair key="0x121C6000" value="0xB3000001"/>
         </mode_map>
     </config_voice>
-    <low_power_vote_streams>
-        <stream_type>PAL_STREAM_VOICE_UI</stream_type>
-        <stream_type>PAL_STREAM_ACD</stream_type>
-        <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
-        <stream_type>PAL_STREAM_SENSOR_PCM_DATA</stream_type>
-    </low_power_vote_streams>
+    <sleep_monitor_vote_streams>
+        <low_power_stream_type>PAL_STREAM_VOICE_UI</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_ACD</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_ULTRASOUND</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_SENSOR_PCM_DATA</low_power_stream_type>
+        <avoid_vote_stream_type>PAL_STREAM_CONTEXT_PROXY</avoid_vote_stream_type>
+    </sleep_monitor_vote_streams>
     <group_device_cfg>
         <upd_rx>
             <snd_device name="handset" />
@@ -468,8 +469,8 @@
         <in-device>
             <id>PAL_DEVICE_IN_VI_FEEDBACK</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-TX-0</back_end_name>
-            <max_channels>2</max_channels>
-            <channels>2</channels>
+            <max_channels>4</max_channels>
+            <channels>4</channels>
             <samplerate>48000</samplerate>
             <bit_width>32</bit_width>
             <snd_device_name>vi-feedback</snd_device_name>
@@ -583,8 +584,18 @@
             <fractional_sr>0</fractional_sr>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
-            <cps_enabled>0</cps_enabled>
+            <cps_mode>0</cps_mode>
             <vbat_enabled>1</vbat_enabled>
+            <!-- To specify WSA2 is enabled wsa2_enable flag should be 1 else 0-->
+            <wsa2_enable>1</wsa2_enable>
+            <!--wsa registers physical addresses in decimal notation -->
+            <wsa_wr_cmd_reg_phy_addr>52757248</wsa_wr_cmd_reg_phy_addr>
+            <wsa_rd_cmd_reg_phy_addr>52757252</wsa_rd_cmd_reg_phy_addr>
+            <wsa_rd_fifo_reg_phy_addr>52757272</wsa_rd_fifo_reg_phy_addr>
+            <!--wsa2 registers physical addresses in decimal notation and to be updated only if wsa2, else should be marked as 0 -->
+            <wsa2_wr_cmd_reg_phy_addr>52364032</wsa2_wr_cmd_reg_phy_addr>
+            <wsa2_rd_cmd_reg_phy_addr>52364036</wsa2_rd_cmd_reg_phy_addr>
+            <wsa2_rd_fifo_reg_phy_addr>52364056</wsa2_rd_fifo_reg_phy_addr>
             <!--specify the supported bit format on speaker end point -->
             <!--this should be in the form of pal_audio_fmt_id-->
             <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_LE</supported_bit_format>-->
@@ -609,8 +620,6 @@
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
                 <priority>2</priority>
-                <channels>1</channels>
-                <snd_device_name>speaker-mono-2</snd_device_name>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>

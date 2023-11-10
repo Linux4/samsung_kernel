@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -171,6 +171,23 @@ void wlan_util_vdev_mgr_set_cac_timeout_for_vdev(struct wlan_objmgr_vdev *vdev,
 						 uint32_t new_chan_cac_ms);
 #endif /* MOBILE_DFS_SUPPORT */
 
+/**
+ * wlan_util_vdev_mgr_set_acs_mode_for_vdev() - set if the SAP is started in ACS
+ * @vdev: Pointer to vdev object.
+ * @is_acs_mode: Indicates true if the SAP is started in ACS
+ *
+ * Return: void
+ */
+void wlan_util_vdev_mgr_set_acs_mode_for_vdev(struct wlan_objmgr_vdev *vdev,
+					      bool is_acs_mode);
+
+/**
+ * wlan_util_vdev_mgr_get_acs_mode_for_vdev() - Get the SAP start mode
+ * @vdev: Pointer to vdev object.
+ *
+ * Return: true if the SAP is started in ACS
+ */
+bool wlan_util_vdev_mgr_get_acs_mode_for_vdev(struct wlan_objmgr_vdev *vdev);
 #ifdef WLAN_FEATURE_11BE_MLO
 /**
  * wlan_util_vdev_mgr_quiet_offload() - set quiet status for given link

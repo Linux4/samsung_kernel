@@ -441,6 +441,7 @@ enum wmamsgtype {
 	WMA_PEER_CREATE_REQ = SIR_HAL_PEER_CREATE_REQ,
 	WMA_TWT_NUDGE_DIALOG_REQUEST = SIR_HAL_TWT_NUDGE_DIALOG_REQUEST,
 	WMA_PASN_PEER_DELETE_REQUEST = SIR_HAL_PASN_PEER_DELETE_REQUEST,
+	WMA_UPDATE_EDCA_PIFS_PARAM_IND = SIR_HAL_UPDATE_EDCA_PIFS_PARAM_IND,
 };
 
 /* Bit 6 will be used to control BD rate for Management frames */
@@ -730,7 +731,8 @@ QDF_STATUS wma_register_roaming_callbacks(
 		QDF_STATUS (*csr_roam_auth_event_handle_cb)(
 			struct mac_context *mac,
 			uint8_t vdev_id,
-			struct qdf_mac_addr bssid),
+			struct qdf_mac_addr bssid,
+			uint32_t akm),
 		pe_roam_synch_fn_t pe_roam_synch_cb,
 		QDF_STATUS (*pe_disconnect_cb) (struct mac_context *mac,
 			uint8_t vdev_id,
@@ -742,7 +744,8 @@ static inline QDF_STATUS wma_register_roaming_callbacks(
 		QDF_STATUS (*csr_roam_auth_event_handle_cb)(
 			struct mac_context *mac,
 			uint8_t vdev_id,
-			struct qdf_mac_addr bssid),
+			struct qdf_mac_addr bssid,
+			uint32_t akm),
 		pe_roam_synch_fn_t pe_roam_synch_cb,
 		QDF_STATUS (*pe_disconnect_cb) (struct mac_context *mac,
 			uint8_t vdev_id,

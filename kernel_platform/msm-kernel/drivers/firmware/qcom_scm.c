@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2010,2015,2019,2021 The Linux Foundation. All rights reserved.
  * Copyright (C) 2015 Linaro Ltd.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #define pr_fmt(fmt)     "qcom-scm: %s: " fmt, __func__
 
@@ -61,6 +61,9 @@ struct qcom_scm {
 
 	u64 dload_mode_addr;
 };
+
+enum qcom_scm_custom_reset_type qcom_scm_custom_reset_type;
+EXPORT_SYMBOL(qcom_scm_custom_reset_type);
 
 #define QCOM_SCM_FLAG_COLDBOOT_CPU0	0x00
 #define QCOM_SCM_FLAG_COLDBOOT_CPU1	0x01
@@ -542,6 +545,25 @@ void qcom_scm_set_download_mode(enum qcom_download_mode mode, phys_addr_t tcsr_b
 }
 EXPORT_SYMBOL(qcom_scm_set_download_mode);
 
+int qcom_scm_get_download_mode(unsigned int *mode, phys_addr_t tcsr_boot_misc)
+{
+	int ret = -EINVAL;
+	struct device *dev = __scm ? __scm->dev : NULL;
+
+	if (tcsr_boot_misc || (__scm && __scm->dload_mode_addr)) {
+		ret = qcom_scm_io_readl(tcsr_boot_misc ? : __scm->dload_mode_addr, mode);
+	} else {
+		dev_err(dev,
+			"No available mechanism for getting download mode\n");
+	}
+
+	if (ret)
+		dev_err(dev, "failed to get download mode: %d\n", ret);
+
+	return ret;
+}
+EXPORT_SYMBOL(qcom_scm_get_download_mode);
+
 int qcom_scm_config_cpu_errata(void)
 {
 	struct qcom_scm_desc desc = {
@@ -947,11 +969,9 @@ void qcom_scm_halt_spmi_pmic_arbiter(void)
 		.arginfo = QCOM_SCM_ARGS(1),
 	};
 
-	pr_crit("Calling SCM to disable SPMI PMIC arbiter\n");
-
 	ret = qcom_scm_call_atomic(__scm->dev, &desc, NULL);
 	if (ret)
-		pr_err("Failed to halt_spmi_pmic_arbiter=0x%x\n", ret);
+		pr_debug("Failed to halt_spmi_pmic_arbiter=0x%x\n", ret);
 }
 EXPORT_SYMBOL(qcom_scm_halt_spmi_pmic_arbiter);
 
@@ -2237,6 +2257,7 @@ int qcom_scm_tsens_reinit(int *tsens_ret)
 	struct qcom_scm_desc desc = {
 		.svc = QCOM_SCM_SVC_TSENS,
 		.cmd = QCOM_SCM_TSENS_INIT_ID,
+		.owner = ARM_SMCCC_OWNER_SIP
 	};
 	struct qcom_scm_res res;
 
@@ -2255,6 +2276,21 @@ static int qcom_scm_reboot(struct device *dev)
 		.cmd = QCOM_SCM_OEM_POWER_REBOOT,
 		.owner = ARM_SMCCC_OWNER_OEM,
 	};
+
+	return qcom_scm_call_atomic(dev, &desc, NULL);
+}
+
+int qcom_scm_custom_reboot(struct device *dev,
+			enum qcom_scm_custom_reset_type reboot_type)
+{
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_SVC_OEM_POWER,
+		.cmd = QCOM_SCM_OEM_POWER_CUSTOM_REBOOT,
+		.owner = ARM_SMCCC_OWNER_OEM,
+	};
+
+	desc.args[0] = reboot_type;
+	desc.arginfo = QCOM_SCM_ARGS(1);
 
 	return qcom_scm_call_atomic(dev, &desc, NULL);
 }
@@ -2547,6 +2583,34 @@ int qcom_scm_qseecom_call(u32 cmd_id, struct qseecom_scm_desc *desc, bool retry)
 }
 EXPORT_SYMBOL(qcom_scm_qseecom_call);
 
+int __qcom_scm_ddrbw_profiler(struct device *dev, phys_addr_t in_buf,
+	size_t in_buf_size, phys_addr_t out_buf, size_t out_buf_size)
+{
+	int ret;
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_SVC_INFO,
+		.cmd = TZ_SVC_BW_PROF_ID,
+		.owner = ARM_SMCCC_OWNER_SIP,
+	};
+
+	desc.args[0] = in_buf;
+	desc.args[1] = in_buf_size;
+	desc.args[2] = out_buf;
+	desc.args[3] = out_buf_size;
+	desc.arginfo = QCOM_SCM_ARGS(4, QCOM_SCM_RW, QCOM_SCM_VAL, QCOM_SCM_RW,
+								 QCOM_SCM_VAL);
+	ret = qcom_scm_call(dev, &desc, NULL);
+
+	return ret;
+}
+
+int qcom_scm_ddrbw_profiler(phys_addr_t in_buf,
+	size_t in_buf_size, phys_addr_t out_buf, size_t out_buf_size)
+{
+	return __qcom_scm_ddrbw_profiler(__scm ? __scm->dev : NULL, in_buf,
+			in_buf_size, out_buf, out_buf_size);
+}
+EXPORT_SYMBOL(qcom_scm_ddrbw_profiler);
 
 static int qcom_scm_find_dload_address(struct device *dev, u64 *addr)
 {
@@ -2594,8 +2658,13 @@ static int qcom_scm_do_restart(struct notifier_block *this, unsigned long event,
 {
 	struct qcom_scm *scm = container_of(this, struct qcom_scm, restart_nb);
 
-	if (reboot_mode == REBOOT_WARM)
+	if (reboot_mode == REBOOT_WARM &&
+		qcom_scm_custom_reset_type == QCOM_SCM_RST_NONE)
 		qcom_scm_reboot(scm->dev);
+
+	if (qcom_scm_custom_reset_type > QCOM_SCM_RST_NONE &&
+			qcom_scm_custom_reset_type < QCOM_SCM_RST_MAX)
+		qcom_scm_custom_reboot(scm->dev, qcom_scm_custom_reset_type);
 
 	return NOTIFY_OK;
 }
@@ -2845,9 +2914,7 @@ static int qcom_scm_probe(struct platform_device *pdev)
 		}
 	}
 
-#if IS_ENABLED(CONFIG_QCOM_SCM_QCPE)
 	__qcom_scm_init();
-#endif
 	__get_convention();
 
 	scm->restart_nb.notifier_call = qcom_scm_do_restart;
@@ -2925,14 +2992,12 @@ static int __init qcom_scm_init(void)
 
 	return qtee_shmbridge_driver_init();
 }
-subsys_initcall(qcom_scm_init);
+core_initcall(qcom_scm_init);
 
 #if IS_MODULE(CONFIG_QCOM_SCM)
 static void __exit qcom_scm_exit(void)
 {
-#if IS_ENABLED(CONFIG_QCOM_SCM_QCPE)
 	__qcom_scm_qcpe_exit();
-#endif
 	platform_driver_unregister(&qcom_scm_driver);
 	qtee_shmbridge_driver_exit();
 }

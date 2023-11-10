@@ -22,6 +22,35 @@
 #include "wlan_policy_mgr_api.h"
 #include "wlan_nan_api.h"
 
+#ifdef WLAN_FEATURE_SR
+/**
+ * policy_mgr_init_same_mac_conc_sr_status() - Function initializes default
+ * value to sr_in_same_mac_conc based on INI g_enable_sr_in_same_mac_conc
+ *
+ * @psoc: Pointer to PSOC
+ *
+ * Return: void
+ */
+static void
+policy_mgr_init_same_mac_conc_sr_status(struct wlan_objmgr_psoc *psoc)
+{
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid Context");
+		return;
+	}
+
+	pm_ctx->cfg.sr_in_same_mac_conc =
+		cfg_get(psoc, CFG_ENABLE_SR_IN_SAME_MAC_CONC);
+}
+#else
+static void
+policy_mgr_init_same_mac_conc_sr_status(struct wlan_objmgr_psoc *psoc)
+{}
+#endif
+
 static QDF_STATUS policy_mgr_init_cfg(struct wlan_objmgr_psoc *psoc)
 {
 	struct policy_mgr_psoc_priv_obj *pm_ctx;
@@ -95,6 +124,9 @@ static QDF_STATUS policy_mgr_init_cfg(struct wlan_objmgr_psoc *psoc)
 	cfg->go_force_scc = cfg_get(psoc, CFG_P2P_GO_ENABLE_FORCE_SCC);
 	cfg->multi_sap_allowed_on_same_band =
 		cfg_get(psoc, CFG_MULTI_SAP_ALLOWED_ON_SAME_BAND);
+	policy_mgr_init_same_mac_conc_sr_status(psoc);
+	cfg->use_sap_original_bw =
+		cfg_get(psoc, CFG_SAP_DEFAULT_BW_FOR_RESTART);
 
 	return QDF_STATUS_SUCCESS;
 }

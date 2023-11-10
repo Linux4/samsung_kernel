@@ -261,7 +261,7 @@ struct tdls_soc_priv_obj {
  * @vdev: vdev objmgr object
  * @peer_list: tdls peer list on this vdev
  * @peer_update_timer: connection tracker timer
- * @peer_dicovery_timer: peer discovery timer
+ * @peer_discovery_timer: peer discovery timer
  * @threshold_config: threshold config
  * @discovery_peer_cnt: discovery peer count
  * @discovery_sent_cnt: discovery sent count
@@ -307,7 +307,7 @@ struct tdls_peer_mlme_info {
  * @tdls_support: tdls support
  * @link_status: tdls link status
  * @is_responder: is responder
- * @discovery_processed: dicovery processed
+ * @discovery_processed: discovery processed
  * @discovery_attempt: discovery attempt
  * @tx_pkt: tx packet
  * @rx_pkt: rx packet
@@ -671,13 +671,13 @@ void tdls_send_update_to_fw(struct tdls_vdev_priv_obj *tdls_vdev_obj,
 void tdls_notify_increment_session(struct wlan_objmgr_psoc *psoc);
 
 /**
- * tdls_get_6g_pwr_for_power_type() - get power for a 6g freq for paticular
+ * tdls_get_6g_pwr_for_power_type() - get power for a 6g freq for particular
  *                                    power type
  * @vdev: vdev object
  * @freq: 6g freq
  * @pwr_typ: power type
  *
- * Function that gets power for a 6g freq for paticular power type
+ * Function that gets power for a 6g freq for particular power type
  *
  * Return: true or false
  */

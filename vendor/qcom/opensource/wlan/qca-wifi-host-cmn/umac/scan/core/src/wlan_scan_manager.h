@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2018, 2020-2021 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -30,8 +31,8 @@
 #include "wlan_scan_manager_6ghz.h"
 
 /**
- * struct scan_event_listners - listeners interested in a particular scan event
- * @count: number of listners
+ * struct scan_event_listeners - listeners interested in a particular scan event
+ * @count: number of listeners
  * @cb: callback handler
  */
 struct scan_event_listeners {
@@ -50,7 +51,6 @@ bool scm_is_scan_allowed(struct wlan_objmgr_vdev *vdev);
 /**
  * scm_scan_start_req() - scan start req core api
  * @msg: scheduler message object containing start scan req params
- * @req: start scan req params
  *
  * The API to start a scan
  *
@@ -61,7 +61,6 @@ QDF_STATUS scm_scan_start_req(struct scheduler_msg *msg);
 /**
  * scm_scan_cancel_req() - scan cancel req core api
  * @msg: scheduler message object containing stop scan params
- * @req: stop scan params
  *
  * The API to cancel a scan
  *

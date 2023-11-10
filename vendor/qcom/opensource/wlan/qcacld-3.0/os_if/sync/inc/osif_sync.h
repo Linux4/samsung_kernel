@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,7 +28,7 @@
  * While DSC is great at doing the required synchronization, it (by design) does
  * not address the gap between receiving a callback and involing the appropriate
  * DSC protections. For example, given an input net_device pointer from the
- * kernel, how does one safely aquire the appropriate DSC context? osif_sync
+ * kernel, how does one safely acquire the appropriate DSC context? osif_sync
  * implements this logic via wrapping DSC APIs with a registration mechanism.
  *
  * For example, after the creation of a new dsc_vdev context, osif_sync allows

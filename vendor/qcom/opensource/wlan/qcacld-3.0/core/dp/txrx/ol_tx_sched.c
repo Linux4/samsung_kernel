@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -765,7 +766,7 @@ ol_tx_sched_select_batch_wrr_adv(
 		}
 		if (++category->state.wrr_count <
 					category->specs.wrr_skip_weight) {
-			/* skip this cateogry (move it to the back) */
+			/* skip this category (move it to the back) */
 			ol_tx_sched_wrr_adv_rotate_order_list_tail(scheduler,
 								   index);
 			/*

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2011-2015, 2017-2019, 2021 The Linux Foundation. All rights
  * reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -60,7 +61,7 @@ QDF_STATUS sch_set_fixed_beacon_fields(struct mac_context *mac,
  * sch_process_pre_beacon_ind() - Process the PreBeacon Indication from the Lim
  * @mac: pointer to mac structure
  * @msg: schedular msg
- * @reason: beaon update reason
+ * @reason: beacon update reason
  *
  * return: success: QDF_STATUS_SUCCESS failure: QDF_STATUS_E_FAILURE
  */
@@ -86,7 +87,7 @@ void sch_set_beacon_interval(struct mac_context *mac,
  * @bcn_payload: beacon payload
  * @size: beacon size
  * @session:pe session
- * @reason: beaon update reason
+ * @reason: beacon update reason
  *
  * return: success: QDF_STATUS_SUCCESS failure: QDF_STATUS_E_FAILURE
  */

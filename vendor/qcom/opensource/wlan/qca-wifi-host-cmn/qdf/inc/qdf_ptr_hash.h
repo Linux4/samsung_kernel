@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -149,7 +150,7 @@ static inline void qdf_ptr_hash_deinit(struct qdf_ptr_hash *ht)
  * qdf_ptr_hash_create() - allocate and initialize a qdf_ptr_hash
  * @bits: the number of bits to use for hashing
  *
- * Return: qdf_ptr_hash pointer on succes, NULL on allocation failure
+ * Return: qdf_ptr_hash pointer on success, NULL on allocation failure
  */
 static inline struct qdf_ptr_hash *qdf_ptr_hash_create(uint8_t bits)
 {

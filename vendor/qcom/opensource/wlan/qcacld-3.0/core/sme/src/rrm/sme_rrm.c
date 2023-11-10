@@ -517,7 +517,7 @@ static QDF_STATUS sme_rrm_send_scan_result(struct mac_context *mac_ctx,
 		 * Spec. doesn't say anything about such condition
 		 * Since section 7.4.6.2 (IEEE802.11k-2008) says-rrm report
 		 * frame should contain one or more report IEs. It probably
-		 * means dont send any respose if no matching BSS found.
+		 * means dont send any response if no matching BSS found.
 		 * Moreover, there is no flag or field in measurement report
 		 * IE(7.3.2.22) OR beacon report IE(7.3.2.22.6) that can be set
 		 * to indicate no BSS found on a given channel. If we finished
@@ -1701,10 +1701,10 @@ static void rrm_change_default_config_param(struct mac_context *mac)
 }
 
 /**
- * rrm_open() - Initialze all RRM module
+ * rrm_open() - Initialize all RRM module
  * @ mac: The handle returned by mac_open.
  *
- * Initialze all RRM module.
+ * Initialize all RRM module.
  *
  * Return: QDF_STATUS
  */

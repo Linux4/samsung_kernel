@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -346,6 +347,20 @@ int init_deinit_populate_dbs_or_sbs_cap_ext2(struct wlan_objmgr_psoc *psoc,
 					     uint8_t *event,
 					     struct tgt_info *info);
 
+/**
+ * init_deinit_populate_sap_coex_capability() - SAP coex capability
+ * @psoc: PSOC object
+ * @handle: WMI handle pointer
+ * @event: event buffer received from FW
+ *
+ * API to populate SAP coex capabilities which currently indicates whether SAP
+ * is allowed on a coex channel when it's started with fixed chan config
+ *
+ * Return: zero on successful capability fetching or failure
+ */
+int init_deinit_populate_sap_coex_capability(struct wlan_objmgr_psoc *psoc,
+					     wmi_unified_t handle,
+					     uint8_t *event);
 /**
  * init_deinit_validate_160_80p80_fw_caps() - validate 160 80p80 fw caps
  * @psoc: PSOC object

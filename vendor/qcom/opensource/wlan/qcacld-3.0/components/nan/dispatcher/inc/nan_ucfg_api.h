@@ -497,7 +497,7 @@ QDF_STATUS ucfg_get_nan_feature_config(struct wlan_objmgr_psoc *psoc,
 bool ucfg_is_nan_vdev(struct wlan_objmgr_vdev *vdev);
 
 /**
- * ucfg_nan_disable_ind_to_userspace() - Send NAN disble ind to userspace
+ * ucfg_nan_disable_ind_to_userspace() - Send NAN disable ind to userspace
  * @psoc: pointer to psoc object
  *
  * Prepare NAN disable indication and send it to userspace

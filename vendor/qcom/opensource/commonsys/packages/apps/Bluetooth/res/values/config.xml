@@ -79,7 +79,9 @@
     <bool name="profile_supported_cc_server">true</bool>
     <bool name="avrcp_target_enable_bip">true</bool>
     <bool name="profile_supported_bass_client">true</bool>
+    <bool name="profile_supported_le_direction_finding">true</bool>
     <bool name="profile_supported_volume_control">true</bool>
+    <bool name="profile_supported_csc">true</bool>
 
     <!-- If true, we will require location to be enabled on the device to
          fire Bluetooth LE scan result callbacks in addition to having one

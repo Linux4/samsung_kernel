@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -28,7 +29,7 @@
 /**
  * @brief find MSCS enabled peer for this mac address and validate priority
  * @details
- *  This function checks if there is a peer for this mac adress with MSCS
+ *  This function checks if there is a peer for this mac address with MSCS
  *  enabled flag set and nbuf priority is valid from user priority bitmap.
  *
  * @param src_mac - source mac address of peer

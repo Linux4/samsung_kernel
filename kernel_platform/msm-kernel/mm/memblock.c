@@ -1645,7 +1645,13 @@ void __init __memblock_free_late(phys_addr_t base, phys_addr_t size)
 	end = PFN_DOWN(base + size);
 
 	for (; cursor < end; cursor++) {
-		memblock_free_pages(pfn_to_page(cursor), cursor, 0);
+		/*
+		 * Reserved pages are always initialized by the end of
+		 * memblock_free_all() (by memmap_init() and, if deferred
+		 * initialization is enabled, memmap_init_reserved_pages()), so
+		 * these pages can be released directly to the buddy allocator.
+		 */
+		__free_pages_core(pfn_to_page(cursor), 0);
 		totalram_pages_inc();
 	}
 }
@@ -2510,7 +2516,7 @@ static int memblock_memsize_show(struct seq_file *m, void *private)
 	struct memsize_rgn_struct *rgn;
 	unsigned long reserved = 0, reusable = 0, total;
 	unsigned long system = totalram_pages() << PAGE_SHIFT;
-	unsigned long text, rw, ro, bss, etc;
+	unsigned long text, rw, ro, bss, memmap, etc;
 
 #ifdef CONFIG_RBIN
 	system += rbin_total << PAGE_SHIFT;
@@ -2519,11 +2525,12 @@ static int memblock_memsize_show(struct seq_file *m, void *private)
 	rw = datasize;
 	ro = rosize;
 	bss = bss_size;
-	etc = kernel_init_size - text - rw - ro - bss;
+	memmap = memmapsize;
+	etc = kernel_init_size - text - rw - ro - bss - memmap;
 
 	sort(memsize_rgn, memsize_rgn_count,
 	     sizeof(memsize_rgn[0]), memsize_rgn_cmp, NULL);
-	seq_printf(m, "v2\n");
+	seq_printf(m, "v3\n");
 	for (i = 0; i < memsize_rgn_count; i++) {
 		phys_addr_t base, end;
 		long size;
@@ -2534,7 +2541,7 @@ static int memblock_memsize_show(struct seq_file *m, void *private)
 		size = rgn->size;
 		end = base + size;
 
-		seq_printf(m, "0x%09pK-0x%09pK 0x%08lx ( %7lu KB ) %s %s %s\n",
+		seq_printf(m, "0x%pK-0x%pK 0x%08lx ( %7lu KB ) %s %s %s\n",
 			   (void *)base, (void *)end,
 			   size, DIV_ROUND_UP(size, SZ_1K),
 			   rgn->nomap ? "nomap" : "  map",
@@ -2557,11 +2564,13 @@ static int memblock_memsize_show(struct seq_file *m, void *private)
 		      "  .rwdata   : %7lu KB\n"
 		      "  .rodata   : %7lu KB\n"
 		      "  .bss      : %7lu KB\n"
+		      "  .memmap   : %7lu KB\n"
 		      "  .etc      : %7lu KB\n",
 			DIV_ROUND_UP(text, SZ_1K),
 			DIV_ROUND_UP(rw, SZ_1K),
 			DIV_ROUND_UP(ro, SZ_1K),
 			DIV_ROUND_UP(bss, SZ_1K),
+			DIV_ROUND_UP(memmap, SZ_1K),
 			DIV_ROUND_UP(etc, SZ_1K));
 	seq_printf(m, " .unusable  : %7lu KB\n",
 		   DIV_ROUND_UP(reserved, SZ_1K));

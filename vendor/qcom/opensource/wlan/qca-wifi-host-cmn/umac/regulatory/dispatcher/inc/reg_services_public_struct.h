@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -95,6 +95,9 @@
 #ifdef CONFIG_REG_CLIENT
 #define MAX_NUM_FCC_RULES 2
 #endif
+
+/* no subchannels punctured */
+#define NO_SCHANS_PUNC 0x0000
 
 /**
  * enum dfs_reg - DFS region
@@ -625,8 +628,8 @@ enum ctl_value {
 /**
  * struct freq_range: The range/band of frequencies, indicated by left and right
  * edge frequencies.
- * @left: Left edge freqency(inclusive)
- * @right: Right edge freqency(inclusive)
+ * @left: Left edge frequency(inclusive)
+ * @right: Right edge frequency(inclusive)
  */
 struct freq_range {
 	qdf_freq_t left;
@@ -645,6 +648,9 @@ struct freq_range {
  * @is_create_punc_bitmap: Whether puncturing bitmap is to be created or not
  *                         Parameter 'reg_punc_bitmap' is valid only if
  *                         is_create_punc_bitmap is true
+ * @input_punc_bitmap: Input puncture bitmap. The channels which are indicated
+ *                     as punctured by this bitmap are not validated by the
+ *                     regulatory.
  */
 struct ch_params {
 	enum phy_ch_width ch_width;
@@ -656,6 +662,7 @@ struct ch_params {
 #ifdef WLAN_FEATURE_11BE
 	uint16_t reg_punc_bitmap;
 	bool is_create_punc_bitmap;
+	uint16_t input_punc_bitmap;
 #endif
 };
 
@@ -722,7 +729,7 @@ enum behav_limit {
 };
 
 /**
- * struct c_freq_lst: The list data strucuture for the center frequencies
+ * struct c_freq_lst: The list data structure for the center frequencies
  * @num_cfis: Number of center frequencies
  * @p_cfis_arr: Start address of the array of center frequency indices. Center
  *              for 40/80/160/320MHz band channel opclasses. For 20MHz the list
@@ -964,6 +971,7 @@ struct get_usable_chan_req_params {
  *                   intolerance.
  * @psd_flag: is PSD channel or not
  * @psd_eirp: PSD power level
+ * @is_static_punctured: is static punctured
  */
 struct regulatory_channel {
 	qdf_freq_t center_freq;
@@ -983,6 +991,9 @@ struct regulatory_channel {
 #ifdef CONFIG_BAND_6GHZ
 	bool psd_flag;
 	uint16_t psd_eirp;
+#endif
+#ifdef CONFIG_REG_CLIENT
+	uint8_t is_static_punctured;
 #endif
 };
 
@@ -1519,7 +1530,12 @@ enum restart_beaconing_on_ch_avoid_rule {
  * userspace
  * @coex_unsafe_chan_reg_disable: To disable reg channels for received coex
  * unsafe channels list
+ * @enable_6ghz_sp_pwrmode_supp: Enable target 6 GHz Standard Power mode support
+ * @afc_disable_timer_check: Disable target AFC timer check
+ * @afc_disable_request_id_check: Disable target AFC request id check
+ * @is_afc_reg_noaction: Whether no action to AFC power event
  * @sta_sap_scc_on_indoor_channel: Value of sap+sta scc on indoor support
+ * @p2p_indoor_ch_support: Allow P2P GO in indoor channels
  */
 struct reg_config_vars {
 	uint32_t enable_11d_support;
@@ -1538,7 +1554,14 @@ struct reg_config_vars {
 	bool coex_unsafe_chan_nb_user_prefer;
 	bool coex_unsafe_chan_reg_disable;
 #endif
+#if defined(CONFIG_AFC_SUPPORT) && defined(CONFIG_BAND_6GHZ)
+	bool enable_6ghz_sp_pwrmode_supp;
+	bool afc_disable_timer_check;
+	bool afc_disable_request_id_check;
+	bool is_afc_reg_noaction;
+#endif
 	bool sta_sap_scc_on_indoor_channel;
+	bool p2p_indoor_ch_support;
 };
 
 /**

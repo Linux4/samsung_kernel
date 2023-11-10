@@ -2642,6 +2642,7 @@ static int cam_icp_mgr_process_msg_ping_ack(uint32_t *msg_ptr)
 static int cam_icp_mgr_process_indirect_ack_msg(uint32_t *msg_ptr)
 {
 	int rc;
+	struct hfi_msg_ipebps_async_ack *ioconfig_ack = NULL;
 
 	if (!msg_ptr) {
 		CAM_ERR(CAM_ICP, "msg ptr is NULL");
@@ -2663,11 +2664,18 @@ static int cam_icp_mgr_process_indirect_ack_msg(uint32_t *msg_ptr)
 		if (rc)
 			return rc;
 		break;
-	default:
-		CAM_ERR(CAM_ICP, "Invalid opcode : %u",
-			msg_ptr[ICP_PACKET_OPCODE]);
-		rc = -EINVAL;
-		break;
+	default: {
+			// apply QC Patch (CN#06449944)
+			CAM_ERR(CAM_ICP, "Invalid opcode : %u",
+				msg_ptr[ICP_PACKET_OPCODE]);
+			cam_icp_mgr_dump_active_req_info();
+
+			ioconfig_ack = (struct hfi_msg_ipebps_async_ack *)msg_ptr;
+			CAM_INFO(CAM_ICP, "user_data2 [request_id]: %llu",
+				ioconfig_ack->user_data2);
+			BUG_ON(1);
+			return -EINVAL;
+		}
 	}
 
 	return rc;

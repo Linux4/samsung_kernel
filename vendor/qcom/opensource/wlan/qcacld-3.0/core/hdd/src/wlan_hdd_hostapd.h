@@ -45,6 +45,20 @@ enum csr_akm_type
 hdd_translate_rsn_to_csr_auth_type(uint8_t auth_suite[4]);
 
 /**
+ * hdd_filter_ft_info() -
+ * This function to filter fast BSS transition related IE
+ * @frame: pointer to the input frame.
+ * @len: input frame length.
+ * @ft_info_len: store the total length of FT related IE.
+ *
+ * Return: pointer to a buffer which stored the FT related IE
+ * This is a malloced memory that must be freed by the caller
+ */
+
+void *hdd_filter_ft_info(const uint8_t *frame,
+			 size_t len, uint32_t *ft_info_len);
+
+/**
  * hdd_softap_set_channel_change() -
  * This function to support SAP channel change with CSA IE
  * set in the beacons.
@@ -63,10 +77,9 @@ int hdd_softap_set_channel_change(struct net_device *dev,
 					bool forced);
 /**
  * hdd_stop_sap_set_tx_power() - Function to set tx power
- * for unsafe chanel if restriction bit mask is set else stop the SAP.
- *
+ * for unsafe channel if restriction bit mask is set else stop the SAP.
  * @psoc: PSOC object information
- * @vdev_id: vdev id
+ * @adapter: AP/SAP adapter
  *
  * This function set tx power/stop the SAP interface
  *
@@ -79,7 +92,7 @@ void hdd_stop_sap_set_tx_power(struct wlan_objmgr_psoc *psoc,
 #ifdef FEATURE_WLAN_MCC_TO_SCC_SWITCH
 /**
  * hdd_sap_restart_with_channel_switch() - SAP channel change with E/CSA
- * @wlan_objmgr_psoc: psoc common object
+ * @psoc: psoc common object
  * @ap_adapter: HDD adapter
  * @target_chan_freq: Channel frequency to which switch must happen
  * @target_bw: Bandwidth of the target channel
@@ -101,6 +114,7 @@ QDF_STATUS hdd_sap_restart_with_channel_switch(struct wlan_objmgr_psoc *psoc,
  * @psoc: PSOC object information
  * @vdev_id: vdev id
  * @ch_freq: channel to switch
+ * @channel_bw: channel bandwidth
  * @forced: Force to switch channel, ignore SCC/MCC check
  *
  * This function restarts SAP with a different channel
@@ -166,7 +180,7 @@ wlan_get_sap_acs_band(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
  * @ch_params: output channel parameters
  *
  * This function is used to get prefer sap target channel bw during sap force
- * scc CSA. The new bw will not exceed the orginal bw during start ap
+ * scc CSA. The new bw will not exceed the original bw during start ap
  * request.
  *
  * Return: QDF_STATUS_SUCCESS if successfully
@@ -227,13 +241,14 @@ QDF_STATUS hdd_hostapd_sap_event_cb(struct sap_event *sap_event,
 /**
  * hdd_init_ap_mode() - to init the AP adaptor
  * @adapter: SAP/GO adapter
- * @rtnl_held: flag to indicate if RTNL lock needs to be acquired
+ * @reinit: true if re-init, otherwise initial init
  *
  * This API can be called to open the SAP session as well as
  * to create and store the vdev object. It also initializes necessary
  * SAP adapter related params.
  */
 QDF_STATUS hdd_init_ap_mode(struct hdd_adapter *adapter, bool reinit);
+
 /**
  * hdd_deinit_ap_mode() - to deinit the AP adaptor
  * @hdd_ctx: pointer to hdd_ctx
@@ -269,7 +284,7 @@ bool hdd_sap_create_ctx(struct hdd_adapter *adapter);
 bool hdd_sap_destroy_ctx(struct hdd_adapter *adapter);
 /**
  * hdd_sap_destroy_ctx_all() - Wrapper API to destroy all SAP context
- * @adapter: pointer to adapter
+ * @hdd_ctx: pointer to HDD context
  * @is_ssr: true if SSR is in progress
  *
  * This wrapper API can be called to destroy all the sap context.
@@ -370,7 +385,7 @@ void hdd_sap_indicate_disconnect_for_sta(struct hdd_adapter *adapter);
  * hdd_handle_acs_2g_preferred_sap_conc() - Handle 2G pereferred SAP
  * concurrency with GO
  * @psoc: soc object
- * @sap_ctx: sap context
+ * @adapter: HDD adapter context
  * @sap_config: sap config
  *
  * In SAP+GO concurrency, if GO is started on 2G and SAP is
@@ -448,27 +463,6 @@ void hdd_stop_sap_due_to_invalid_channel(struct work_struct *work);
  * Return: true if any sta is connecting
  */
 bool hdd_is_any_sta_connecting(struct hdd_context *hdd_ctx);
-
-#ifdef WLAN_FEATURE_11AX
-/**
- * hdd_update_he_obss_pd() - Enable or disable spatial reuse
- * based on user space input and concurrency combination.
- * @adapter:  Pointer to hostapd adapter
- * @params: Pointer to AP configuration from cfg80211
- * @iface_start: Interface start or not
- *
- * Return: void
- */
-void hdd_update_he_obss_pd(struct hdd_adapter *adapter,
-			   struct cfg80211_ap_settings *params,
-			   bool iface_start);
-#else
-static inline void hdd_update_he_obss_pd(struct hdd_adapter *adapter,
-					 struct cfg80211_ap_settings *params,
-					 bool iface_start)
-{
-}
-#endif
 
 #ifdef WLAN_FEATURE_11BE_MLO
 /**

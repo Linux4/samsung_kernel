@@ -36,6 +36,21 @@ uint32_t reo_dest_ring_remap[] = {REO_REMAP_SW1, REO_REMAP_SW2,
 				  REO_REMAP_SW3, REO_REMAP_SW4,
 				  REO_REMAP_SW5, REO_REMAP_SW6,
 				  REO_REMAP_SW7, REO_REMAP_SW8};
+/*
+ * WBM idle link descriptor for Return Buffer Manager in case of
+ * multi-chip configuration.
+ */
+#define HAL_NUM_CHIPS 4
+#define HAL_WBM_CHIP_INVALID	    0
+#define HAL_WBM_CHIP0_IDLE_DESC_MAP 1
+#define HAL_WBM_CHIP1_IDLE_DESC_MAP 2
+#define HAL_WBM_CHIP2_IDLE_DESC_MAP 3
+#define HAL_WBM_CHIP3_IDLE_DESC_MAP 12
+
+uint8_t wbm_idle_link_bm_map[] = {HAL_WBM_CHIP0_IDLE_DESC_MAP,
+				  HAL_WBM_CHIP1_IDLE_DESC_MAP,
+				  HAL_WBM_CHIP2_IDLE_DESC_MAP,
+				  HAL_WBM_CHIP3_IDLE_DESC_MAP};
 
 #if defined(QDF_BIG_ENDIAN_MACHINE)
 void hal_setup_reo_swap(struct hal_soc *soc)
@@ -624,6 +639,8 @@ hal_msdu_desc_info_set_be(hal_soc_handle_t hal_soc_hdl,
 {
 	struct rx_msdu_desc_info *msdu_desc_info =
 		(struct rx_msdu_desc_info *)msdu_desc;
+	struct rx_msdu_ext_desc_info *msdu_ext_desc_info =
+		(struct rx_msdu_ext_desc_info *)(msdu_desc_info + 1);
 
 	HAL_RX_MSDU_DESC_INFO_SET(msdu_desc_info,
 				  FIRST_MSDU_IN_MPDU_FLAG, 1);
@@ -637,6 +654,8 @@ hal_msdu_desc_info_set_be(hal_soc_handle_t hal_soc_hdl,
 				  SA_IS_VALID, 1);
 	HAL_RX_MSDU_DESC_INFO_SET(msdu_desc_info,
 				  DA_IS_VALID, 1);
+	HAL_RX_MSDU_REO_DST_IND_SET(msdu_ext_desc_info,
+				    REO_DESTINATION_INDICATION, dst_ind);
 }
 
 static inline void
@@ -682,7 +701,7 @@ uint32_t hal_rx_msdu_reo_dst_ind_get_be(hal_soc_handle_t hal_soc_hdl,
 
 	msdu_details = hal_rx_link_desc_msdu0_ptr(msdu_link, hal_soc);
 
-	/* The first msdu in the link should exsist */
+	/* The first msdu in the link should exist */
 	msdu_desc_info = hal_rx_msdu_ext_desc_info_get_ptr(&msdu_details[0],
 							   hal_soc);
 	dst_ind = HAL_RX_MSDU_REO_DST_IND_GET(msdu_desc_info);
@@ -745,7 +764,10 @@ qdf_export_symbol(hal_reo_ring_remap_value_get_be);
 
 uint8_t hal_get_idle_link_bm_id_be(uint8_t chip_id)
 {
-	return (WBM_IDLE_DESC_LIST + chip_id);
+	if (chip_id >= HAL_NUM_CHIPS)
+		return HAL_WBM_CHIP_INVALID;
+
+	return wbm_idle_link_bm_map[chip_id];
 }
 
 #ifdef DP_FEATURE_HW_COOKIE_CONVERSION
@@ -966,7 +988,9 @@ void hal_hw_txrx_default_ops_attach_be(struct hal_soc *hal_soc)
 	hal_soc->ops->hal_reset_rx_reo_tid_q = hal_reset_rx_reo_tid_q_be;
 #endif
 	hal_soc->ops->hal_rx_tlv_get_pn_num = hal_rx_tlv_get_pn_num_be;
+#ifndef CONFIG_WORD_BASED_TLV
 	hal_soc->ops->hal_rx_get_qdesc_addr = hal_rx_get_qdesc_addr_be;
+#endif
 	hal_soc->ops->hal_set_reo_ent_desc_reo_dest_ind =
 					hal_set_reo_ent_desc_reo_dest_ind_be;
 	hal_soc->ops->hal_get_reo_ent_desc_qdesc_addr =

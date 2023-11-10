@@ -288,9 +288,9 @@ extract_mlo_glb_rx_reo_snapshot_info_tlv(
 
 		snapshot_ver_info = get_field_value_in_tlv
 					(ptlv, snapshot_ver_info, tlv_len);
-		snapshot_info->hw_forwaded_snapshot_ver =
+		snapshot_info->hw_forwarded_snapshot_ver =
 			MLO_SHMEM_GLB_RX_REO_SNAPSHOT_PARAM_HW_FWD_SNAPSHOT_VER_GET(snapshot_ver_info);
-		snapshot_info->fw_forwaded_snapshot_ver =
+		snapshot_info->fw_forwarded_snapshot_ver =
 			MLO_SHMEM_GLB_RX_REO_SNAPSHOT_PARAM_FW_FWD_SNAPSHOT_VER_GET(snapshot_ver_info);
 		snapshot_info->fw_consumed_snapshot_ver =
 			MLO_SHMEM_GLB_RX_REO_SNAPSHOT_PARAM_FW_CONSUMED_SNAPSHOT_VER_GET(snapshot_ver_info);
@@ -516,7 +516,7 @@ uint8_t mlo_glb_h_shmem_arena_get_no_of_chips_from_crash_info(void)
  * mlo_glb_h_shmem_arena_get_crash_reason_address() - get the address of crash
  * reason associated with chip_id
  *
- * Return: Address of crash_reason field fron global shmem arena in case of
+ * Return: Address of crash_reason field from global shmem arena in case of
  * success, else returns NULL
  */
 void *mlo_glb_h_shmem_arena_get_crash_reason_address(uint8_t chip_id)
@@ -542,7 +542,7 @@ void *mlo_glb_h_shmem_arena_get_crash_reason_address(uint8_t chip_id)
 	}
 
 	if (chip == crash_info->no_of_chips) {
-		target_if_err("No crash info corressponding to chip %u",
+		target_if_err("No crash info corresponding to chip %u",
 			      chip_id);
 		return NULL;
 	}
@@ -908,7 +908,7 @@ void *mgmt_rx_reo_get_snapshot_address(
 	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_CONSUMED:
 		return snapshot_link_info->fw_consumed;
 
-	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWADED:
+	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWARDED:
 		return snapshot_link_info->fw_forwarded;
 
 	default:
@@ -939,15 +939,15 @@ int8_t mgmt_rx_reo_get_snapshot_version(enum mgmt_rx_reo_shared_snapshot_id id)
 
 	switch (id) {
 	case MGMT_RX_REO_SHARED_SNAPSHOT_MAC_HW:
-		snapshot_version = snapshot_info->hw_forwaded_snapshot_ver;
+		snapshot_version = snapshot_info->hw_forwarded_snapshot_ver;
 		break;
 
 	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_CONSUMED:
 		snapshot_version = snapshot_info->fw_consumed_snapshot_ver;
 		break;
 
-	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWADED:
-		snapshot_version = snapshot_info->fw_forwaded_snapshot_ver;
+	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWARDED:
+		snapshot_version = snapshot_info->fw_forwarded_snapshot_ver;
 		break;
 
 	default:

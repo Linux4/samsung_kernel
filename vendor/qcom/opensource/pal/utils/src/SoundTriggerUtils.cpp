@@ -280,15 +280,23 @@ SoundModelInfo & SoundModelInfo::operator =(SoundModelInfo &smi) {
     if (sm_data_)
         free(sm_data_);
     sm_data_ = (uint8_t *)calloc(1, sm_size_);
-    if (sm_data_)
-        memcpy(sm_data_, smi.sm_data_, sm_size_);
+    if (!sm_data_) {
+        PAL_ERR(LOG_TAG, "sm_data calloc allocation failed");
+        goto exit;
+    }
+    memcpy(sm_data_, smi.sm_data_, sm_size_);
 
     /* Free cf_levels and det_cf_levels if they exists, then create and copy them */
     if (cf_levels_)
         free(cf_levels_);
     cf_levels_ = (uint8_t *)calloc(1, 2 * smi.cf_levels_size_);
-    if (cf_levels_)
-        memcpy(cf_levels_, smi.cf_levels_, smi.cf_levels_size_);
+    if (!cf_levels_) {
+        PAL_ERR(LOG_TAG, "cf_levels calloc allocation failed");
+        free(sm_data_);
+        sm_data_ = nullptr;
+        goto exit;
+    }
+    memcpy(cf_levels_, smi.cf_levels_, smi.cf_levels_size_);
 
     det_cf_levels_ = cf_levels_ + smi.cf_levels_size_;
     if (det_cf_levels_)
@@ -330,7 +338,7 @@ SoundModelInfo & SoundModelInfo::operator =(SoundModelInfo &smi) {
                 &smi.cf_levels_kw_users_[i][0] + MAX_KW_USERS_NAME_LEN,
                 &cf_levels_kw_users_[i][0]);
     }
-
+exit:
     PAL_VERBOSE(LOG_TAG, "Exit");
     return *this;
 }

@@ -342,6 +342,11 @@ void SessionAlsaCompress::updateCodecOptions(
             case PAL_AUDIO_FMT_VORBIS:
                 codec.format = pal_snd_dec->vorbis_dec.bit_stream_fmt;
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+            case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+                PAL_DBG(LOG_TAG, "case for PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS(%x)", audio_fmt);
+            break;
+#endif
             default:
                 PAL_ERR(LOG_TAG, "Entered default, format %x", audio_fmt);
             break;
@@ -456,6 +461,12 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_VORBIS:
             id = SND_AUDIOCODEC_VORBIS;
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+            /* SND_AUDIOCODEC_OPUS is defined @agm_api.h */
+            id = SND_AUDIOCODEC_OPUS;
+            break;
+#endif
         default:
             PAL_ERR(LOG_TAG, "Entered default format %x", fmt);
             break;
@@ -497,6 +508,11 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
             break;
         case PAL_AUDIO_FMT_FLAC_OGG:
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+            isSupported = true;
+            break;
+#endif
         default:
             break;
     }
@@ -530,6 +546,10 @@ bool SessionAlsaCompress::isCodecConfigNeeded(
             case PAL_AUDIO_FMT_ALAC:
             case PAL_AUDIO_FMT_FLAC_OGG:
                 break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+            case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+                break;
+#endif
             default:
                 break;
         }
@@ -565,6 +585,11 @@ int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
     if (audio_fmt == PAL_AUDIO_FMT_VORBIS) {
         payload_media_fmt_vorbis_t* media_fmt_vorbis = NULL;
         // set config for vorbis, as it cannot be upstreamed.
+        if (!compressDevIds.size()) {
+            PAL_ERR(LOG_TAG, "No compressDevIds found");
+            status = -EINVAL;
+            return status;
+        }
         status = SessionAlsaUtils::getModuleInstanceId(mixer,
                     compressDevIds.at(0), rxAifBackEnds[0].second.data(),
                     STREAM_INPUT_MEDIA_FORMAT, &miid);
@@ -702,7 +727,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 event_id = PAL_STREAM_CBK_EVENT_ERROR;
             }
             if (compressObj->sessionCb)
-                compressObj->sessionCb(compressObj->cbCookie, event_id, (void*)NULL, 0);
+                compressObj->sessionCb(compressObj->cbCookie, event_id, (void*)NULL, 0, 0);
 
             lock.lock();
         }
@@ -966,6 +991,11 @@ int SessionAlsaCompress::setTKV(Stream * s __unused, configType type, effect_pal
     switch (type) {
         case MODULE:
         {
+            if (!compressDevIds.size()) {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
+                goto exit;
+            }
             tkv.clear();
             pal_key_vector_t *pal_kvpair = (pal_key_vector_t *)effectPayload->payload;
             uint32_t num_tkvs = pal_kvpair->num_tkvs;
@@ -1043,6 +1073,11 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, uint32_t tag1,
     PAL_DBG(LOG_TAG, "Enter");
     switch (type) {
         case MODULE:
+            if (!compressDevIds.size()) {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
+                goto exit;
+            }
             tkv.clear();
             if (tag1)
                 builder->populateTagKeyVector(s, tkv, tag1, &tagsent);
@@ -1099,13 +1134,13 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
     int status = 0;
     struct pal_stream_attributes sAttr;
     uint32_t tagsent;
-    struct agm_tag_config* tagConfig;
+    struct agm_tag_config* tagConfig = nullptr;
     const char *setParamTagControl = "setParamTag";
     const char *stream = "COMPRESS";
     const char *setCalibrationControl = "setCalibration";
     const char *setBEControl = "control";
     struct mixer_ctl *ctl;
-    struct agm_cal_config *calConfig;
+    struct agm_cal_config *calConfig = nullptr;
     std::ostringstream beCntrlName;
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
@@ -1125,8 +1160,12 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
         return -EINVAL;
     }
 
-    if (compressDevIds.size() > 0)
-        beCntrlName<<stream<<compressDevIds.at(0)<<" "<<setBEControl;
+    if (!compressDevIds.size()) {
+        PAL_ERR(LOG_TAG, "No compressDevIds found");
+        status = -EINVAL;
+        goto exit;
+    }
+    beCntrlName<<stream<<compressDevIds.at(0)<<" "<<setBEControl;
 
     ctl = mixer_get_ctl_by_name(mixer, beCntrlName.str().data());
     if (!ctl) {
@@ -1183,25 +1222,26 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             if (tagConfig)
                 free(tagConfig);
             tkv.clear();
-            break;
+            goto exit;
             //todo calibration
         case CALIBRATION:
+            kvMutex.lock();
             ckv.clear();
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to set the calibration data\n");
-                goto exit;
+                goto unlock_kvMutex;
             }
             if (ckv.size() == 0) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             calConfig = (struct agm_cal_config*)malloc (sizeof(struct agm_cal_config) +
                             (ckv.size() * sizeof(agm_key_value)));
             if (!calConfig) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
             status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
             //TODO: how to get the id '0'
@@ -1209,9 +1249,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
-                if (calConfig)
-                    free(calConfig);
-                return -ENOENT;
+                status = -ENOENT;
+                goto unlock_kvMutex;
             }
             PAL_VERBOSE(LOG_TAG, "mixer control: %s\n", calCntrlName.str().data());
             ckv_size = ckv.size()*sizeof(struct agm_key_value);
@@ -1221,16 +1260,17 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
             }
             ctl = NULL;
-            if (calConfig)
-                free(calConfig);
             ckv.clear();
             break;
         default:
             PAL_ERR(LOG_TAG, "invalid type ");
             status = -EINVAL;
-            break;
+            goto exit;
     }
-
+unlock_kvMutex:
+    if (calConfig)
+        free(calConfig);
+    kvMutex.unlock();
 exit:
     PAL_DBG(LOG_TAG, "exit status:%d ", status);
     return status;
@@ -1318,6 +1358,10 @@ int SessionAlsaCompress::start(Stream * s)
                 codec.ch_in = CHS_2;
                 codec.ch_out = codec.ch_in;
             }
+
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+            PAL_DBG(LOG_TAG, "codec.id  : %d ", codec.id );    
+#endif
             compress_config.fragment_size = out_buf_size;
             compress_config.fragments = out_buf_count;
             compress_config.codec = &codec;
@@ -1575,6 +1619,7 @@ int SessionAlsaCompress::start(Stream * s)
         default:
             break;
     }
+#ifndef SEC_AUDIO_OFFLOAD
     memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
     rm->getVolumeSetParamInfo(&vol_set_param_info);
     isStreamAvail = (find(vol_set_param_info.streams_.begin(),
@@ -1614,6 +1659,7 @@ int SessionAlsaCompress::start(Stream * s)
             PAL_ERR(LOG_TAG,"Setting volume failed");
         }
     }
+#endif
     //Setting the device orientation during stream open
     if (PAL_DEVICE_OUT_SPEAKER == dAttr.id && !strcmp(dAttr.custom_config.custom_key, "mspp")) {
         PAL_DBG(LOG_TAG,"set device orientation %d", rm->mOrientation);
@@ -1963,8 +2009,14 @@ struct mixer_ctl* SessionAlsaCompress::getFEMixerCtl(const char *controlName, in
 uint32_t SessionAlsaCompress::getMIID(const char *backendName, uint32_t tagId, uint32_t *miid)
 {
     int status = 0;
-    int device = compressDevIds.at(0);
+    int device = 0;
 
+    if (compressDevIds.size() == 0) {
+        PAL_ERR(LOG_TAG, "compressDevIds is not available.");
+        status = -EINVAL;
+        return status;
+    }
+    device = compressDevIds.at(0);
     status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                                    backendName,
                                                    tagId, miid);
@@ -1978,7 +2030,7 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
 {
     pal_param_payload *param_payload = (pal_param_payload *)payload;
     int status = 0;
-    int device = compressDevIds.at(0);
+    int device = 0;
     uint8_t* alsaParamData = NULL;
     size_t alsaPayloadSize = 0;
     uint32_t miid = 0;
@@ -1994,6 +2046,13 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
     switch (param_id) {
         case PAL_PARAM_ID_DEVICE_ROTATION:
         {
+            if (compressDevIds.size()) {
+                device = compressDevIds.at(0);
+            } else {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
+                goto exit;
+            }
             pal_param_device_rotation_t *rotation =
                                      (pal_param_device_rotation_t *)payload;
             status = handleDeviceRotation(s, rotation->rotation_type, device, mixer,
@@ -2002,6 +2061,13 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         break;
         case PAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
         {
+            if (compressDevIds.size()) {
+                device = compressDevIds.at(0);
+            } else {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
+                goto exit;
+            }
             pal_bt_tws_payload *tws_payload = (pal_bt_tws_payload *)payload;
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                rxAifBackEnds[0].second.data(), tagId, &miid);
@@ -2022,6 +2088,13 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         }
         case PAL_PARAM_ID_BT_A2DP_LC3_CONFIG:
         {
+            if (compressDevIds.size()) {
+                device = compressDevIds.at(0);
+            } else {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
+                goto exit;
+            }
             pal_bt_lc3_payload *lc3_payload = (pal_bt_lc3_payload *)payload;
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                rxAifBackEnds[0].second.data(), tagId, &miid);
@@ -2159,6 +2232,13 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         break;
         case PAL_PARAM_ID_VOLUME_USING_SET_PARAM:
         {
+            if (compressDevIds.size()) {
+                device = compressDevIds.at(0);
+            } else {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
+                goto exit;
+            }
             pal_param_payload *param_payload = (pal_param_payload *)payload;
             pal_volume_data *vdata = (struct pal_volume_data *)param_payload->payload;
             status = streamHandle->getStreamAttributes(&sAttr);
@@ -2189,6 +2269,13 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         break;
         case PAL_PARAM_ID_MSPP_LINEAR_GAIN:
         {
+            if (compressDevIds.size()) {
+                device = compressDevIds.at(0);
+            } else {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
+                goto exit;
+            }
             pal_param_mspp_linear_gain_t *linear_gain = (pal_param_mspp_linear_gain_t *)payload;
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                rxAifBackEnds[0].second.data(), tagId, &miid);
@@ -2211,6 +2298,13 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         break;
         case PAL_PARAM_ID_VOLUME_CTRL_RAMP:
         {
+            if (compressDevIds.size()) {
+                device = compressDevIds.at(0);
+            } else {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
+                goto exit;
+            }
             struct pal_vol_ctrl_ramp_param *rampParam = (struct pal_vol_ctrl_ramp_param *)payload;
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                rxAifBackEnds[0].second.data(), tagId, &miid);
@@ -2243,26 +2337,18 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, uint64_t cookie)
 int SessionAlsaCompress::flush()
 {
     int status = 0;
-    int doFlush = 1;
-    struct mixer_ctl *ctl = NULL;
-    std::string stream = "COMPRESS";
-    std::string flushControl = "flush";
-    std::ostringstream flushCntrlName;
+    PAL_VERBOSE(LOG_TAG, "Enter flush");
 
     if (playback_started) {
-        PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-        if (compressDevIds.size() > 0)
-            flushCntrlName << stream << compressDevIds.at(0) << " " << flushControl;
-
-        ctl = mixer_get_ctl_by_name(mixer, flushCntrlName.str().data());
-        if (!ctl) {
-            PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", flushCntrlName.str().data());
-            return -ENOENT;
+        if (compressDevIds.size() > 0) {
+            status = SessionAlsaUtils::flush(rm, compressDevIds.at(0));
+        } else {
+            PAL_ERR(LOG_TAG, "DevIds size is invalid");
+            return -EINVAL;
         }
-
-        mixer_ctl_set_value(ctl, 0, doFlush);
     }
-    PAL_VERBOSE(LOG_TAG, "status %d\n", status);
+
+    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -2387,15 +2473,26 @@ int SessionAlsaCompress::setECRef(Stream *s __unused, std::shared_ptr<Device> rx
                 goto exit;
             }
         } else {
-            status = SessionAlsaUtils::setECRefPath(mixer, compressDevIds.at(0), "ZERO");
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to disable EC Ref, status %d", status);
+            if (compressDevIds.size()) {
+                status = SessionAlsaUtils::setECRefPath(mixer, compressDevIds.at(0), "ZERO");
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to disable EC Ref, status %d", status);
+                    goto exit;
+                }
+            } else {
+                PAL_ERR(LOG_TAG, "No compressDevIds found");
+                status = -EINVAL;
                 goto exit;
             }
         }
     } else if (is_enable && rx_dev) {
         if (ecRefDevId == rx_dev->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "EC Ref already set for dev %d", ecRefDevId);
+            goto exit;
+        }
+        if (!compressDevIds.size()) {
+            PAL_ERR(LOG_TAG, "No compressDevIds found");
+            status = -EINVAL;
             goto exit;
         }
         // TODO: handle EC Ref switch case also

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -30,6 +30,9 @@
 #define SDE_EVTLOG_PANIC	0xdead
 #define SDE_EVTLOG_FATAL	0xbad
 #define SDE_EVTLOG_ERROR	0xebad
+
+#define SDE_EVTLOG_H32(val) (val >> 32)
+#define SDE_EVTLOG_L32(val) (val & 0xffffffff)
 
 /* flags to enable the HW block dumping */
 #define SDE_DBG_SDE		BIT(0)
@@ -123,7 +126,7 @@ enum sde_dbg_dump_context {
  * sysfs node or panic. This prevents kernel log from evtlog message
  * flood.
  */
-#define SDE_EVTLOG_PRINT_ENTRY	256
+#define SDE_EVTLOG_PRINT_ENTRY	512
 
 /*
  * evtlog keeps this number of entries in memory for debug purpose. This
@@ -565,7 +568,7 @@ void sde_rsc_debug_dump(u32 mux_sel);
 
 /**
  * sde_dbg_update_dump_mode - update dump mode to in_coredump mode if devcoredump
- *  fueature is enabled. Default dump mode is in_mem, if HW recovery feature is
+ *  feature is enabled. Default dump mode is in_mem, if HW recovery feature is
  *  enabled, this function will be called to set dump mode to in_coredump option.
  * @enable_coredump: if enable_coredump is true, update dump mode to in_coredump,
  *	otherwise reset the dump mode to default mode.

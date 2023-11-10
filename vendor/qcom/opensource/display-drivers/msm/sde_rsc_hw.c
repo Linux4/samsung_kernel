@@ -745,6 +745,26 @@ int rsc_hw_mode_ctrl(struct sde_rsc_priv *rsc, enum rsc_mode_req request,
 	return blen;
 }
 
+void sde_rsc_debug_log(struct sde_rsc_priv *rsc)
+{
+
+	u32 override_ctrl = dss_reg_r(&rsc->wrapper_io, SDE_RSCC_WRAPPER_OVERRIDE_CTRL, rsc->debug_mode);
+	u32 pwr_ctrl = dss_reg_r(&rsc->wrapper_io, SDE_RSCC_PWR_CTRL, rsc->debug_mode);
+	u32 vsync_t0 = dss_reg_r(&rsc->wrapper_io, SDE_RSCC_WRAPPER_VSYNC_TIMESTAMP0, rsc->debug_mode);
+	u32 vsync_t1 = dss_reg_r(&rsc->wrapper_io, SDE_RSCC_WRAPPER_VSYNC_TIMESTAMP1, rsc->debug_mode);
+	u32 irq_status_drv0 = dss_reg_r(&rsc->drv_io, SDE_RSCC_ERROR_IRQ_STATUS_DRV0, rsc->debug_mode);
+	u32 busy_drv0 = dss_reg_r(&rsc->drv_io, SDE_RSCC_SEQ_BUSY_DRV0, rsc->debug_mode);
+	u32 override_ctrl0 = dss_reg_r(&rsc->drv_io, SDE_RSCC_SOLVER_OVERRIDE_CTRL_DRV0, rsc->debug_mode);
+	u32 status0_drv0 = dss_reg_r(&rsc->drv_io, SDE_RSCC_SOLVER_STATUS0_DRV0, rsc->debug_mode);
+	u32 status1_drv0 = dss_reg_r(&rsc->drv_io, SDE_RSCC_SOLVER_STATUS1_DRV0, rsc->debug_mode);
+	u32 status2_drv0 = dss_reg_r(&rsc->drv_io, SDE_RSCC_SOLVER_STATUS2_DRV0, rsc->debug_mode);
+	u32 tcs_mode_irq_status = dss_reg_r(&rsc->drv_io, SDE_RSCC_AMC_TCS_MODE_IRQ_STATUS_DRV0, rsc->debug_mode);
+	u32 static_wakeup = dss_reg_r(&rsc->wrapper_io, SDE_RSCC_WRAPPER_STATIC_WAKEUP_0, rsc->debug_mode);
+
+	SDE_EVT32(static_wakeup, override_ctrl, pwr_ctrl, vsync_t0, vsync_t1, irq_status_drv0, busy_drv0, override_ctrl0,
+		status0_drv0, status1_drv0, status2_drv0, tcs_mode_irq_status);
+}
+
 int sde_rsc_debug_show(struct seq_file *s, struct sde_rsc_priv *rsc)
 {
 	seq_printf(s, "override ctrl:0x%x\n",
@@ -904,6 +924,7 @@ int sde_rsc_hw_register(struct sde_rsc_priv *rsc)
 	rsc->hw_ops.debug_show = sde_rsc_debug_show;
 	rsc->hw_ops.mode_ctrl = rsc_hw_mode_ctrl;
 	rsc->hw_ops.debug_dump = rsc_hw_debug_dump;
+	rsc->hw_ops.debug_log = sde_rsc_debug_log;
 
 	return 0;
 }

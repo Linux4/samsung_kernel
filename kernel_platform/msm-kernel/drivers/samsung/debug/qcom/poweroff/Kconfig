@@ -1,0 +1,5 @@
+config SEC_QC_MSM_POWEROFF
+	tristate "SEC Reboot Commands - Concrete writer using msm-poweroff"
+	depends on SEC_QC_RBCMD && POWER_RESET_MSM
+	help
+	  TODO: help is not ready.

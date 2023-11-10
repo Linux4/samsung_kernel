@@ -1,7 +1,7 @@
 /*
  * Driver for the NXP PCA9481 battery charger.
  *
- * Copyright (C) 2021-2022 NXP Semiconductor.
+ * Copyright (C) 2021-2023 NXP Semiconductor.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -63,7 +63,7 @@ char *charging_state_str[] = {
 	"NO_CHARGING", "CHECK_VBAT", "PRESET_DC", "CHECK_ACTIVE", "ADJUST_CC",
 	"START_CC", "CC_MODE", "START_CV", "CV_MODE", "CHARGING_DONE",
 	"ADJUST_TAVOL", "ADJUST_TACUR", "BYPASS_MODE", "DCMODE_CHANGE",
-	"REVERSE_MODE",
+	"REVERSE_MODE", "FPDO_CV_MODE",
 };
 
 static int pca9481_read_reg(struct pca9481_charger *pca9481, unsigned reg, void *val)
@@ -514,11 +514,15 @@ static int pca9481_send_pd_message(struct pca9481_charger *pca9481, unsigned int
 			ret = usbpd_request_pdo(pca9481->pd, pca9481->ta_objpos, pca9481->ta_vol, pca9481->ta_cur);
 		}
 #elif IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-		ret = sec_pd_select_pps(pdo_idx, pps_vol, pps_cur);
-		if (ret == -EBUSY) {
-			pr_info("%s: request again ret=%d\n", __func__, ret);
-			msleep(100);
+		if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+			pr_err("%s: ta_type(%d)! skip pd_select_pps\n", __func__, pca9481->ta_type);
+		} else {
 			ret = sec_pd_select_pps(pdo_idx, pps_vol, pps_cur);
+			if (ret == -EBUSY) {
+				pr_info("%s: request again ret=%d\n", __func__, ret);
+				msleep(100);
+				ret = sec_pd_select_pps(pdo_idx, pps_vol, pps_cur);
+			}
 		}
 #else
 		max_cur = pca9481->ta_cur/10000;	// Maximum Operation Current 10mA units
@@ -935,16 +939,30 @@ static int pca9481_set_input_current(struct pca9481_charger *pca9481, unsigned i
 		iin = iin + PCA9481_IIN_REG_STEP;
 
 	/* Add offset for input current regulation */
-	if (iin < PCA9481_IIN_REG_OFFSET1_TH)
-		iin = iin + PCA9481_IIN_REG_OFFSET1;
-	else if (iin < PCA9481_IIN_REG_OFFSET2_TH)
-		iin = iin + PCA9481_IIN_REG_OFFSET2;
-	else if (iin < PCA9481_IIN_REG_OFFSET3_TH)
-		iin = iin + PCA9481_IIN_REG_OFFSET3;
-	else if (iin < PCA9481_IIN_REG_OFFSET4_TH)
-		iin = iin + PCA9481_IIN_REG_OFFSET4;
-	else
-		iin = iin + PCA9481_IIN_REG_OFFSET5;
+	/* Check TA type */
+	if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		if (iin < pca9481->pdata->fpdo_dc_iin_lowest_limit) {
+			pr_info("%s: IIN LOWEST LIMIT! IIN %d -> %d\n", __func__,
+					iin, pca9481->pdata->fpdo_dc_iin_lowest_limit);
+			iin = pca9481->pdata->fpdo_dc_iin_lowest_limit;
+		}
+#endif
+		/* Apply FPDO offset */
+		iin = iin + PCA9481_IIN_REG_OFFSET_FPDO;
+	} else {
+		/* Add offset for input current regulation */
+		if (iin < PCA9481_IIN_REG_OFFSET1_TH)
+			iin = iin + PCA9481_IIN_REG_OFFSET1;
+		else if (iin < PCA9481_IIN_REG_OFFSET2_TH)
+			iin = iin + PCA9481_IIN_REG_OFFSET2;
+		else if (iin < PCA9481_IIN_REG_OFFSET3_TH)
+			iin = iin + PCA9481_IIN_REG_OFFSET3;
+		else if (iin < PCA9481_IIN_REG_OFFSET4_TH)
+			iin = iin + PCA9481_IIN_REG_OFFSET4;
+		else
+			iin = iin + PCA9481_IIN_REG_OFFSET5;
+	}
 
 	/* maximum value is 6A */
 	if (iin > PCA9481_IIN_REG_MAX)
@@ -1219,6 +1237,13 @@ static int pca9481_softreset(struct pca9481_charger *pca9481)
 
 	/* Set the initial register value */
 
+	/* Set VIN_CURRENT_OCP_21_11 to 1000mA */
+	val = PCA9481_BIT_VIN_CURRENT_OCP_21_11;
+	ret = regmap_update_bits(pca9481->regmap, PCA9481_REG_CHARGING_CNTL_0,
+			PCA9481_BIT_VIN_CURRENT_OCP_21_11, val);
+	if (ret < 0)
+		goto error;
+
 	/* Set Reverse Current Detection */
 	val = PCA9481_BIT_RCP_EN;
 	ret = pca9481_update_reg(pca9481, PCA9481_REG_RCP_CNTL,
@@ -1413,8 +1438,8 @@ static int pca9481_check_error(struct pca9481_charger *pca9481)
 			if (pca9481->pdata->ntc_en == 0) {
 				/* NTC protection function is disabled */
 				/* ignore it */
-				pr_err("%s: NTC_THRESHOLD - ignore\n", __func__);	/* NTC_THRESHOLD */
-				ret = 0;
+				pr_err("%s: NTC_THRESHOLD - retry\n", __func__);	/* NTC_THRESHOLD */
+				ret = -EAGAIN;
 			} else {
 				pr_err("%s: NTC_THRESHOLD\n", __func__);	/* NTC_THRESHOLD */
 				ret = -EINVAL;
@@ -1814,6 +1839,9 @@ static int pca9481_stop_charging(struct pca9481_charger *pca9481)
 		/* Clear previous VBAT_ADC */
 		pca9481->prev_vbat = 0;
 
+		/* Clear charging done counter */
+		pca9481->done_cnt = 0;
+
 		/* Disable VIN_OCP_12_11_EN */
 		ret = regmap_update_bits(pca9481->regmap, PCA9481_REG_CHARGING_CNTL_5,
 								PCA9481_BIT_VIN_OCP_12_11_EN, 0);
@@ -1827,6 +1855,14 @@ static int pca9481_stop_charging(struct pca9481_charger *pca9481)
 								PCA9481_BIT_RCP_EN, PCA9481_BIT_RCP_EN);
 		if (ret < 0) {
 			pr_err("%s: Error-set RCP detection\n", __func__);
+			goto error;
+		}
+
+		/* Enable OV_TRACKING_EN */
+		ret = regmap_update_bits(pca9481->regmap, PCA9481_REG_SC_CNTL_2,
+				PCA9481_BIT_OV_TRACKING_EN, PCA9481_BIT_OV_TRACKING_EN);
+		if (ret < 0) {
+			pr_err("%s: Error-set OV_TRACKING_EN\n", __func__);
 			goto error;
 		}
 
@@ -2673,7 +2709,7 @@ static int pca9481_adjust_ta_current(struct pca9481_charger *pca9481)
 #endif
 						mutex_lock(&pca9481->lock);
 						pca9481->timer_id = TIMER_PDMSG_SEND;
-						pca9481->timer_period = 0;
+						pca9481->timer_period = IIN_CFG_WAIT_T;
 						mutex_unlock(&pca9481->lock);
 					} else {
 						/* Need switching frequency change */
@@ -2789,7 +2825,7 @@ static int pca9481_adjust_ta_current(struct pca9481_charger *pca9481)
 #endif
 					mutex_lock(&pca9481->lock);
 					pca9481->timer_id = TIMER_PDMSG_SEND;
-					pca9481->timer_period = 0;
+					pca9481->timer_period = IIN_CFG_WAIT_T;
 					mutex_unlock(&pca9481->lock);
 				}
 			} else {
@@ -4684,6 +4720,190 @@ error:
 	return ret;
 }
 
+/* 2:1 Direct Charging FPDO CV MODE control */
+static int pca9481_charge_fpdo_cvmode(struct pca9481_charger *pca9481)
+{
+	int ret = 0;
+	int cvmode;
+	int iin, ichg;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	union power_supply_propval val;
+#endif
+
+	pr_info("%s: ======START=======\n", __func__);
+
+	pca9481->charging_state = DC_STATE_FPDO_CV_MODE;
+
+	ret = pca9481_check_error(pca9481);
+	if (ret != 0)
+		goto error; // This is not active mode.
+
+	/* Check new request */
+	if (pca9481->req_new_vfloat == true) {
+		/* Set VFLOAT to new vfloat */
+		pca9481->vfloat = pca9481->new_vfloat;
+		ret = pca9481_set_vfloat(pca9481, pca9481->vfloat);
+		if (ret < 0)
+			goto error;
+		/* Clear req_new_vfloat */
+		mutex_lock(&pca9481->lock);
+		pca9481->req_new_vfloat = false;
+		mutex_unlock(&pca9481->lock);
+	} else {
+		cvmode = pca9481_check_dcmode_status(pca9481);
+		if (cvmode < 0) {
+			ret = cvmode;
+			goto error;
+		}
+
+		/* Read IIN_ADC */
+		iin = pca9481_read_adc(pca9481, ADCCH_VIN_CURRENT);
+		/* Read ICHG_ADC */
+		ichg = pca9481_read_adc(pca9481, ADCCH_BAT_CURRENT);
+
+		/* Check charging done state */
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		psy_do_property("battery", get, POWER_SUPPLY_PROP_VOLTAGE_NOW, val);
+
+		if (cvmode == DCMODE_LOOP_INACTIVE || val.intval >= pca9481->fpdo_dc_vnow_topoff) {
+			/* Compare iin with input topoff current */
+			pr_info("%s: iin=%d, ichg=%d, vnow=%d, fpdo_dc_iin_topoff=%d, fpdo_dc_vnow_topoff=%d\n",
+					__func__, iin, ichg, val.intval,
+					pca9481->fpdo_dc_iin_topoff, pca9481->fpdo_dc_vnow_topoff);
+			if (val.intval >= pca9481->fpdo_dc_vnow_topoff || iin < pca9481->fpdo_dc_iin_topoff) {
+#else
+		if (cvmode == DCMODE_LOOP_INACTIVE) {
+			/* Compare iin with input topoff current */
+			pr_info("%s: iin=%d, ichg=%d, iin_topoff=%d\n",
+					__func__, iin, ichg, pca9481->iin_topoff);
+			if (iin < pca9481->iin_topoff) {
+#endif
+				/* Check charging done counter */
+				if (pca9481->done_cnt < FPDO_DONE_CNT) {
+					/* Keep cvmode status */
+					pr_info("%s: Keep FPDO CVMODE Status=%d\n", __func__, cvmode);
+					/* Increase charging done counter */
+					pca9481->done_cnt++;
+				} else {
+					/* Change cvmode status to charging done */
+					cvmode = DCMODE_CHG_DONE;
+					pr_info("%s: FPDO_CVMODE Status=%d\n", __func__, cvmode);
+					/* Clear charging done counter */
+					pca9481->done_cnt = 0;
+				}
+			} else {
+				/* Clear charging done counter */
+				pca9481->done_cnt = 0;
+			}
+		}
+
+		switch (cvmode) {
+		case DCMODE_CHG_DONE:
+			/* Charging Done */
+			/* Keep FPDO CV mode until battery driver send stop charging */
+			pca9481->charging_state = DC_STATE_CHARGING_DONE;
+			/* Need to implement notification function */
+			/* A customer should insert code */
+
+			pr_info("%s: FPDO CV Done\n", __func__);
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+			pca9481_set_done(pca9481, true);
+#endif
+
+			/* Check the charging status after notification function */
+			if (pca9481->charging_state != DC_STATE_NO_CHARGING) {
+				/* Notification function does not stop timer work yet */
+				/* Keep the charging done state */
+				/* Set timer */
+				mutex_lock(&pca9481->lock);
+				pca9481->timer_id = TIMER_CHECK_FPDOCVMODE;
+				pca9481->timer_period = CVMODE_CHECK2_T;
+				mutex_unlock(&pca9481->lock);
+				queue_delayed_work(pca9481->dc_wq,
+						&pca9481->timer_work,
+						msecs_to_jiffies(pca9481->timer_period));
+			} else {
+				/* Already called stop charging by notification function */
+				pr_info("%s: Already stop DC\n", __func__);
+			}
+			break;
+
+		case DCMODE_CHG_LOOP:
+		case DCMODE_IIN_LOOP:
+			/* IIN_LOOP happens */
+			pr_info("%s: FPDO CV IIN_LOOP\n", __func__);
+			/* Need to stop DC by battery driver */
+
+			/* Need to implement notification function */
+			/* A customer should insert code */
+			/* To do here */
+
+			/* Check the charging status after notification function */
+			if (pca9481->charging_state != DC_STATE_NO_CHARGING) {
+				/* Notification function does not stop timer work yet */
+				/* Keep the current state */
+				/* Set timer - 1s */
+				mutex_lock(&pca9481->lock);
+				pca9481->timer_id = TIMER_CHECK_FPDOCVMODE;
+				pca9481->timer_period = CVMODE_CHECK2_T;
+				mutex_unlock(&pca9481->lock);
+				queue_delayed_work(pca9481->dc_wq,
+						&pca9481->timer_work,
+						msecs_to_jiffies(pca9481->timer_period));
+			} else {
+				/* Already called stop charging by notification function */
+				pr_info("%s: Already stop DC\n", __func__);
+			}
+			break;
+
+		case DCMODE_VFLT_LOOP:
+			/* VFLOAT_LOOP happens */
+			pr_info("%s: FPDO CV VFLOAT_LOOP\n", __func__);
+			/* Need to stop DC and transit to switching charger by battery driver */
+
+			/* Need to implement notification function */
+			/* A customer should insert code */
+			/* To do here */
+
+			/* Check the charging status after notification function */
+			if (pca9481->charging_state != DC_STATE_NO_CHARGING) {
+				/* Notification function does not stop timer work yet */
+				/* Keep the current state */
+				/* Set timer */
+				mutex_lock(&pca9481->lock);
+				pca9481->timer_id = TIMER_CHECK_FPDOCVMODE;
+				pca9481->timer_period = CVMODE_CHECK2_T;
+				mutex_unlock(&pca9481->lock);
+				queue_delayed_work(pca9481->dc_wq,
+						&pca9481->timer_work,
+						msecs_to_jiffies(pca9481->timer_period));
+			} else {
+				/* Already called stop charging by notification function */
+				pr_info("%s: Already stop DC\n", __func__);
+			}
+			break;
+
+		case DCMODE_LOOP_INACTIVE:
+			/* Set timer */
+			mutex_lock(&pca9481->lock);
+			pca9481->timer_id = TIMER_CHECK_FPDOCVMODE;
+			pca9481->timer_period = CVMODE_CHECK3_T;
+			mutex_unlock(&pca9481->lock);
+			queue_delayed_work(pca9481->dc_wq,
+					&pca9481->timer_work,
+					msecs_to_jiffies(pca9481->timer_period));
+			break;
+
+		default:
+			break;
+		}
+	}
+
+error:
+	pr_info("%s: End, ret=%d\n", __func__, ret);
+	return ret;
+}
+
 /* Direct Charging Bypass Mode Control */
 static int pca9481_charge_bypass_mode(struct pca9481_charger *pca9481)
 {
@@ -4807,158 +5027,194 @@ static int pca9481_preset_dcmode(struct pca9481_charger *pca9481)
 	pca9481->charging_state = DC_STATE_PRESET_DC;
 #endif
 
-	/* Read VBAT ADC */
-	vbat = pca9481_read_adc(pca9481, ADCCH_BATP_BATN);
-	if (vbat < 0) {
-		ret = vbat;
-		goto error;
-	}
+	/* Check TA type */
+	if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+		/* TA type is USBPD 2.0 and support only FPDO */
+		pr_info("%s: ta type : fixed PDO\n", __func__);
 
-	/* Compare VBAT with VBAT ADC */
-	if (vbat > pca9481->vfloat)	{
-		/* Warn "Invalid battery voltage to start direct charging" */
-		pr_err("%s: Warning - vbat adc(%duV) is higher than VFLOAT(%duV)\n",
-					__func__, vbat, pca9481->vfloat);
-	}
-
-	/* Check minimum VBAT level */
-	if (vbat <= DC_VBAT_MIN_ERR) {
-		/* Invalid battery level to start direct charging */
-		pr_err("%s: This vbat(%duV) will make VIN_OV_TRACKING error\n", __func__, vbat);
-		ret = -EINVAL;
-		goto error;
-	}
-
-	/* Check the TA type and set the charging mode */
-	if (pca9481->ta_type == TA_TYPE_WIRELESS) {
-		/* Wireless Charger is connected */
-		/* Set the RX max current to input request current(iin_cfg) initially */
-		/* to get RX maximum current from RX IC */
-		pca9481->ta_max_cur = pca9481->iin_cfg;
-		/* Set the RX max voltage to enough high value to find RX maximum voltage initially */
-		pca9481->ta_max_vol = WCRX_MAX_VOL * pca9481->pdata->chg_mode;
-		/* Get the RX max current/voltage(RX_MAX_CUR/VOL) */
-		ret = pca9481_get_rx_max_power(pca9481);
-		if (ret < 0) {
-			/* RX IC does not have the desired maximum voltage */
-			/* Check the desired mode */
-			if (pca9481->pdata->chg_mode == CHG_4TO1_DC_MODE) {
-				/* RX IC doesn't have any maximum voltage to support 4:1 mode */
-				/* Get the RX max current/voltage with 2:1 mode */
-				pca9481->ta_max_vol = WCRX_MAX_VOL;
-				ret = pca9481_get_rx_max_power(pca9481);
-				if (ret < 0) {
-					pr_err("%s: RX IC doesn't have any RX voltage to support 2:1 or 4:1\n", __func__);
-					pca9481->chg_mode = CHG_NO_DC_MODE;
-					goto error;
-				} else {
-					/* RX IC has the maximum RX voltage to support 2:1 mode */
-					pca9481->chg_mode = CHG_2TO1_DC_MODE;
-				}
-			} else {
-				/* The desired CHG mode is 2:1 mode */
-				/* RX IC doesn't have any RX voltage to support 2:1 mode*/
-				pr_err("%s: RX IC doesn't have any RX voltage to support 2:1\n", __func__);
-				pca9481->chg_mode = CHG_NO_DC_MODE;
-				goto error;
-			}
-		} else {
-			/* RX IC has the desired RX voltage */
-			pca9481->chg_mode = pca9481->pdata->chg_mode;
-		}
-
-		chg_mode = pca9481->chg_mode;
-
-		/* Set IIN_CC to MIN[IIN, (RX_MAX_CUR by RX IC)*chg_mode]*/
-		pca9481->iin_cc = MIN(pca9481->iin_cfg, (pca9481->ta_max_cur*chg_mode));
-		/* Set the current IIN_CC to iin_cfg */
-		pca9481->iin_cfg = pca9481->iin_cc;
-
-		/* Set RX voltage to MAX[(2*VBAT_ADC*chg_mode + offset), TA_MIN_VOL_PRESET*chg_mode] */
-		pca9481->ta_vol = max(TA_MIN_VOL_PRESET*chg_mode, (2*vbat*chg_mode + TA_VOL_PRE_OFFSET));
-		val = pca9481->ta_vol/WCRX_VOL_STEP;	/* RX voltage resolution is 100mV */
-		pca9481->ta_vol = val*WCRX_VOL_STEP;
-		/* Set RX voltage to MIN[RX voltage, RX_MAX_VOL*chg_mode] */
-		pca9481->ta_vol = MIN(pca9481->ta_vol, pca9481->ta_max_vol);
-
-		pr_info("%s: Preset DC, rx_max_vol=%d, rx_max_cur=%d, rx_max_pwr=%d, iin_cc=%d, chg_mode=%d\n",
-			__func__, pca9481->ta_max_vol, pca9481->ta_max_cur, pca9481->ta_max_pwr, pca9481->iin_cc, pca9481->chg_mode);
-
-		pr_info("%s: Preset DC, rx_vol=%d\n", __func__, pca9481->ta_vol);
-
-	} else {
-		/* USBPD TA is connected */
-		/* Set the TA max current to input request current(iin_cfg) initially */
-		/* to get TA maximum current from PD IC */
-		pca9481->ta_max_cur = pca9481->iin_cfg;
-		/* Set the TA max voltage to enough high value to find TA maximum voltage initially */
-		pca9481->ta_max_vol = TA_MAX_VOL * pca9481->pdata->chg_mode;
-		/* Search the proper object position of PDO */
-		pca9481->ta_objpos = 0;
-		/* Get the APDO max current/voltage(TA_MAX_CUR/VOL) */
-		ret = pca9481_get_apdo_max_power(pca9481);
-		if (ret < 0) {
-			/* TA does not have the desired APDO */
-			/* Check the desired mode */
-			if (pca9481->pdata->chg_mode == CHG_4TO1_DC_MODE) {
-				/* TA doesn't have any APDO to support 4:1 mode */
-				/* Get the APDO max current/voltage with 2:1 mode */
-				pca9481->ta_max_vol = TA_MAX_VOL;
-				pca9481->ta_objpos = 0;
-				ret = pca9481_get_apdo_max_power(pca9481);
-				if (ret < 0) {
-					pr_err("%s: TA doesn't have any APDO to support 2:1 or 4:1\n", __func__);
-					pca9481->chg_mode = CHG_NO_DC_MODE;
-					goto error;
-				} else {
-					/* TA has APDO to support 2:1 mode */
-					pca9481->chg_mode = CHG_2TO1_DC_MODE;
-				}
-			} else {
-				/* The desired TA mode is 2:1 mode */
-				/* TA doesn't have any APDO to support 2:1 mode*/
-				pr_err("%s: TA doesn't have any APDO to support 2:1\n", __func__);
-				pca9481->chg_mode = CHG_NO_DC_MODE;
-				goto error;
-			}
-		} else {
-			/* TA has the desired APDO */
-			pca9481->chg_mode = pca9481->pdata->chg_mode;
-		}
-
-		chg_mode = pca9481->chg_mode;
-
-		/* Calculate new TA maximum current and voltage that used in the direct charging */
-		/* Set IIN_CC to MIN[IIN, (TA_MAX_CUR by APDO)*chg_mode]*/
-		pca9481->iin_cc = MIN(pca9481->iin_cfg, (pca9481->ta_max_cur*chg_mode));
-		/* Set the current IIN_CC to iin_cfg for recovering it after resolution adjustment */
-		pca9481->iin_cfg = pca9481->iin_cc;
-		/* Calculate new TA max voltage */
-		/* Adjust IIN_CC with APDO resoultion(50mA) - It will recover to the original value after max voltage calculation */
-		val = pca9481->iin_cc/PD_MSG_TA_CUR_STEP;
-		pca9481->iin_cc = val*PD_MSG_TA_CUR_STEP;
-		/* Set TA_MAX_VOL to MIN[TA_MAX_VOL*chg_mode, TA_MAX_PWR/(IIN_CC/chg_mode)] */
-		val = pca9481->ta_max_pwr/(pca9481->iin_cc/chg_mode/1000);	/* mV */
-		val = val*1000/PD_MSG_TA_VOL_STEP;	/* Adjust values with APDO resolution(20mV) */
-		val = val*PD_MSG_TA_VOL_STEP; /* uV */
-		pca9481->ta_max_vol = MIN(val, TA_MAX_VOL*chg_mode);
-
-		/* Set TA voltage to MAX[TA_MIN_VOL_PRESET*chg_mode, (2*VBAT_ADC*chg_mode + offset)] */
-		pca9481->ta_vol = max(TA_MIN_VOL_PRESET*chg_mode, (2*vbat*chg_mode + TA_VOL_PRE_OFFSET));
-		val = pca9481->ta_vol/PD_MSG_TA_VOL_STEP;	/* PPS voltage resolution is 20mV */
-		pca9481->ta_vol = val*PD_MSG_TA_VOL_STEP;
-		/* Set TA voltage to MIN[TA voltage, TA_MAX_VOL*chg_mode] */
-		pca9481->ta_vol = MIN(pca9481->ta_vol, pca9481->ta_max_vol);
-		/* Set the initial TA current to IIN_CC/chg_mode */
-		pca9481->ta_cur = pca9481->iin_cc/chg_mode;
-		/* Recover IIN_CC to the original value(iin_cfg) */
+		/* Disable OV_TRACKING_EN */
+		val = 0;
+		ret = regmap_update_bits(pca9481->regmap, PCA9481_REG_SC_CNTL_2,
+				PCA9481_BIT_OV_TRACKING_EN, val);
+		/* Set PDO object position to 9V FPDO */
+		pca9481->ta_objpos = 2;
+		/* Set TA voltage to 9V */
+		pca9481->ta_vol = 9000000;
+		/* Set TA maximum voltage to 9V */
+		pca9481->ta_max_vol = 9000000;
+		/* Set IIN_CC to iin_cfg */
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		pca9481->iin_cc = pca9481->pdata->fpdo_dc_iin_lowest_limit;
+#else
 		pca9481->iin_cc = pca9481->iin_cfg;
+#endif
+		/* Set TA operating current and maximum current to iin_cc */
+		pca9481->ta_cur = pca9481->iin_cc;
+		pca9481->ta_max_cur = pca9481->iin_cc;
+		/* Calculate TA maximum power */
+		pca9481->ta_max_pwr = (pca9481->ta_max_vol/DENOM_U_M)*(pca9481->ta_max_cur/DENOM_U_M);
 
-		pr_info("%s: Preset DC, ta_max_vol=%d, ta_max_cur=%d, ta_max_pwr=%d, iin_cc=%d, chg_mode=%d\n",
-			__func__, pca9481->ta_max_vol, pca9481->ta_max_cur, pca9481->ta_max_pwr, pca9481->iin_cc, pca9481->chg_mode);
+		pr_info("%s: Preset DC(FPDO), ta_max_vol=%d, ta_max_cur=%d, ta_max_pwr=%d, iin_cc=%d, chg_mode=%d\n",
+				__func__, pca9481->ta_max_vol, pca9481->ta_max_cur, pca9481->ta_max_pwr, pca9481->iin_cc, pca9481->chg_mode);
+	} else {
+		/* Read VBAT ADC */
+		vbat = pca9481_read_adc(pca9481, ADCCH_BATP_BATN);
+		if (vbat < 0) {
+			ret = vbat;
+			goto error;
+		}
 
-		pr_info("%s: Preset DC, ta_vol=%d, ta_cur=%d\n",
-			__func__, pca9481->ta_vol, pca9481->ta_cur);
+		/* Compare VBAT with VBAT ADC */
+		if (vbat > pca9481->vfloat)	{
+			/* Warn "Invalid battery voltage to start direct charging" */
+			pr_err("%s: Warning - vbat adc(%duV) is higher than VFLOAT(%duV)\n",
+					__func__, vbat, pca9481->vfloat);
+		}
+
+		/* Check minimum VBAT level */
+		if (vbat <= DC_VBAT_MIN_ERR) {
+			/* Invalid battery level to start direct charging */
+			pr_err("%s: This vbat(%duV) will make VIN_OV_TRACKING error\n", __func__, vbat);
+			ret = -EINVAL;
+			goto error;
+		}
+
+		/* Check the TA type and set the charging mode */
+		if (pca9481->ta_type == TA_TYPE_WIRELESS) {
+			/* Wireless Charger is connected */
+			/* Set the RX max current to input request current(iin_cfg) initially */
+			/* to get RX maximum current from RX IC */
+			pca9481->ta_max_cur = pca9481->iin_cfg;
+			/* Set the RX max voltage to enough high value to find RX maximum voltage initially */
+			pca9481->ta_max_vol = WCRX_MAX_VOL * pca9481->pdata->chg_mode;
+			/* Get the RX max current/voltage(RX_MAX_CUR/VOL) */
+			ret = pca9481_get_rx_max_power(pca9481);
+			if (ret < 0) {
+				/* RX IC does not have the desired maximum voltage */
+				/* Check the desired mode */
+				if (pca9481->pdata->chg_mode == CHG_4TO1_DC_MODE) {
+					/* RX IC doesn't have any maximum voltage to support 4:1 mode */
+					/* Get the RX max current/voltage with 2:1 mode */
+					pca9481->ta_max_vol = WCRX_MAX_VOL;
+					ret = pca9481_get_rx_max_power(pca9481);
+					if (ret < 0) {
+						pr_err("%s: RX IC doesn't have any RX voltage to support 2:1 or 4:1\n",
+								__func__);
+						pca9481->chg_mode = CHG_NO_DC_MODE;
+						goto error;
+					} else {
+						/* RX IC has the maximum RX voltage to support 2:1 mode */
+						pca9481->chg_mode = CHG_2TO1_DC_MODE;
+					}
+				} else {
+					/* The desired CHG mode is 2:1 mode */
+					/* RX IC doesn't have any RX voltage to support 2:1 mode*/
+					pr_err("%s: RX IC doesn't have any RX voltage to support 2:1\n", __func__);
+					pca9481->chg_mode = CHG_NO_DC_MODE;
+					goto error;
+				}
+			} else {
+				/* RX IC has the desired RX voltage */
+				pca9481->chg_mode = pca9481->pdata->chg_mode;
+			}
+
+			chg_mode = pca9481->chg_mode;
+
+			/* Set IIN_CC to MIN[IIN, (RX_MAX_CUR by RX IC)*chg_mode]*/
+			pca9481->iin_cc = MIN(pca9481->iin_cfg, (pca9481->ta_max_cur*chg_mode));
+			/* Set the current IIN_CC to iin_cfg */
+			pca9481->iin_cfg = pca9481->iin_cc;
+
+			/* Set RX voltage to MAX[(2*VBAT_ADC*chg_mode + offset), TA_MIN_VOL_PRESET*chg_mode] */
+			pca9481->ta_vol = max(TA_MIN_VOL_PRESET*chg_mode, (2*vbat*chg_mode + TA_VOL_PRE_OFFSET));
+			val = pca9481->ta_vol/WCRX_VOL_STEP;	/* RX voltage resolution is 100mV */
+			pca9481->ta_vol = val*WCRX_VOL_STEP;
+			/* Set RX voltage to MIN[RX voltage, RX_MAX_VOL*chg_mode] */
+			pca9481->ta_vol = MIN(pca9481->ta_vol, pca9481->ta_max_vol);
+
+			pr_info("%s: Preset DC, rx_max_vol=%d, rx_max_cur=%d, rx_max_pwr=%d, iin_cc=%d, chg_mode=%d\n",
+					__func__, pca9481->ta_max_vol, pca9481->ta_max_cur, pca9481->ta_max_pwr,
+					pca9481->iin_cc, pca9481->chg_mode);
+
+			pr_info("%s: Preset DC, rx_vol=%d\n", __func__, pca9481->ta_vol);
+
+		} else {
+			/* USBPD TA is connected */
+			/* Set the TA max current to input request current(iin_cfg) initially */
+			/* to get TA maximum current from PD IC */
+			pca9481->ta_max_cur = pca9481->iin_cfg;
+			/* Set the TA max voltage to enough high value to find TA maximum voltage initially */
+			pca9481->ta_max_vol = TA_MAX_VOL * pca9481->pdata->chg_mode;
+			/* Search the proper object position of PDO */
+			pca9481->ta_objpos = 0;
+			/* Get the APDO max current/voltage(TA_MAX_CUR/VOL) */
+			ret = pca9481_get_apdo_max_power(pca9481);
+			if (ret < 0) {
+				/* TA does not have the desired APDO */
+				/* Check the desired mode */
+				if (pca9481->pdata->chg_mode == CHG_4TO1_DC_MODE) {
+					/* TA doesn't have any APDO to support 4:1 mode */
+					/* Get the APDO max current/voltage with 2:1 mode */
+					pca9481->ta_max_vol = TA_MAX_VOL;
+					pca9481->ta_objpos = 0;
+					ret = pca9481_get_apdo_max_power(pca9481);
+					if (ret < 0) {
+						pr_err("%s: TA doesn't have any APDO to support 2:1 or 4:1\n",
+								__func__);
+						pca9481->chg_mode = CHG_NO_DC_MODE;
+						goto error;
+					} else {
+						/* TA has APDO to support 2:1 mode */
+						pca9481->chg_mode = CHG_2TO1_DC_MODE;
+					}
+				} else {
+					/* The desired TA mode is 2:1 mode */
+					/* TA doesn't have any APDO to support 2:1 mode*/
+					pr_err("%s: TA doesn't have any APDO to support 2:1\n", __func__);
+					pca9481->chg_mode = CHG_NO_DC_MODE;
+					goto error;
+				}
+			} else {
+				/* TA has the desired APDO */
+				pca9481->chg_mode = pca9481->pdata->chg_mode;
+			}
+
+			chg_mode = pca9481->chg_mode;
+
+			/* Calculate new TA maximum current and voltage that used in the direct charging */
+			/* Set IIN_CC to MIN[IIN, (TA_MAX_CUR by APDO)*chg_mode]*/
+			pca9481->iin_cc = MIN(pca9481->iin_cfg, (pca9481->ta_max_cur*chg_mode));
+			/* Set the current IIN_CC to iin_cfg for recovering it after resolution adjustment */
+			pca9481->iin_cfg = pca9481->iin_cc;
+			/* Calculate new TA max voltage */
+			/* Adjust IIN_CC with APDO resoultion(50mA) */
+			/* - It will recover to the original value after max voltage calculation */
+			val = pca9481->iin_cc/PD_MSG_TA_CUR_STEP;
+			pca9481->iin_cc = val*PD_MSG_TA_CUR_STEP;
+			/* Set TA_MAX_VOL to MIN[TA_MAX_VOL*chg_mode, TA_MAX_PWR/(IIN_CC/chg_mode)] */
+			val = pca9481->ta_max_pwr/(pca9481->iin_cc/chg_mode/1000);	/* mV */
+			val = val*1000/PD_MSG_TA_VOL_STEP;	/* Adjust values with APDO resolution(20mV) */
+			val = val*PD_MSG_TA_VOL_STEP; /* uV */
+			pca9481->ta_max_vol = MIN(val, TA_MAX_VOL*chg_mode);
+
+			/* Set TA voltage to MAX[TA_MIN_VOL_PRESET*chg_mode, (2*VBAT_ADC*chg_mode + offset)] */
+			pca9481->ta_vol = max(TA_MIN_VOL_PRESET*chg_mode, (2*vbat*chg_mode + TA_VOL_PRE_OFFSET));
+			val = pca9481->ta_vol/PD_MSG_TA_VOL_STEP;	/* PPS voltage resolution is 20mV */
+			pca9481->ta_vol = val*PD_MSG_TA_VOL_STEP;
+			/* Set TA voltage to MIN[TA voltage, TA_MAX_VOL*chg_mode] */
+			pca9481->ta_vol = MIN(pca9481->ta_vol, pca9481->ta_max_vol);
+			/* Set the initial TA current to IIN_CC/chg_mode */
+			pca9481->ta_cur = pca9481->iin_cc/chg_mode;
+			/* Recover IIN_CC to the original value(iin_cfg) */
+			pca9481->iin_cc = pca9481->iin_cfg;
+
+			pr_info("%s: Preset DC, ta_max_vol=%d, ta_max_cur=%d, ta_max_pwr=%d, iin_cc=%d, chg_mode=%d\n",
+					__func__, pca9481->ta_max_vol, pca9481->ta_max_cur, pca9481->ta_max_pwr,
+					pca9481->iin_cc, pca9481->chg_mode);
+
+			pr_info("%s: Preset DC, ta_vol=%d, ta_cur=%d\n",
+					__func__, pca9481->ta_vol, pca9481->ta_cur);
+		}
 	}
 
 	/* Send PD Message */
@@ -5001,20 +5257,31 @@ static int pca9481_preset_config(struct pca9481_charger *pca9481)
 	if (ret < 0)
 		goto error;
 
-	/* Set VFLOAT to default value */
-	ret = pca9481_set_vfloat(pca9481, PCA9481_VBAT_REG_DFT);
-	if (ret < 0)
-		goto error;
+	/* Check TA type */
+	if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+		/* Set VFLOAT to VBAT */
+		ret = pca9481_set_vfloat(pca9481, pca9481->vfloat);
+		if (ret < 0)
+			goto error;
 
-	/* Set switching frequency */
-	if (pca9481->iin_cc > IIN_LOW_TH_SW_FREQ)
-		pca9481->fsw_cfg = pca9481->pdata->fsw_cfg;
-	else
-		pca9481->fsw_cfg = pca9481->pdata->fsw_cfg_low;
+		/* Set switching frequency */
+		pca9481->fsw_cfg = pca9481->pdata->fsw_cfg_fpdo;
+	} else {
+		/* Set VFLOAT to default value */
+		ret = pca9481_set_vfloat(pca9481, PCA9481_VBAT_REG_DFT);
+		if (ret < 0)
+			goto error;
+
+		/* Set switching frequency */
+		if (pca9481->iin_cc > IIN_LOW_TH_SW_FREQ)
+			pca9481->fsw_cfg = pca9481->pdata->fsw_cfg;
+		else
+			pca9481->fsw_cfg = pca9481->pdata->fsw_cfg_low;
+	}
 	ret = pca9481_write_reg(pca9481, PCA9481_REG_SC_CNTL_0, PCA9481_FSW_CFG(pca9481->fsw_cfg));
-
 	if (ret < 0)
 		goto error;
+
 	pr_info("%s: sw_freq=%dkHz\n", __func__, pca9481->fsw_cfg);
 
 	/* Enable PCA9481 */
@@ -5061,12 +5328,20 @@ static int pca9481_check_active_state(struct pca9481_charger *pca9481)
 		/* PCA9481 is in active state */
 		/* Clear retry counter */
 		pca9481->retry_cnt = 0;
-		/* Go to Adjust CC mode */
-		mutex_lock(&pca9481->lock);
-		pca9481->timer_id = TIMER_ADJUST_CCMODE;
-		pca9481->timer_period = 0;
-		mutex_unlock(&pca9481->lock);
-
+		/* Check TA type */
+		if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+			/* Go to FPDO CV mode */
+			mutex_lock(&pca9481->lock);
+			pca9481->timer_id = TIMER_CHECK_FPDOCVMODE;
+			pca9481->timer_period = 0;
+			mutex_unlock(&pca9481->lock);
+		} else {
+			/* Go to Adjust CC mode */
+			mutex_lock(&pca9481->lock);
+			pca9481->timer_id = TIMER_ADJUST_CCMODE;
+			pca9481->timer_period = 0;
+			mutex_unlock(&pca9481->lock);
+		}
 		queue_delayed_work(pca9481->dc_wq,
 							&pca9481->timer_work,
 							msecs_to_jiffies(pca9481->timer_period));
@@ -5311,6 +5586,7 @@ static int pca9481_start_direct_charging(struct pca9481_charger *pca9481)
 	int ret;
 	unsigned int val;
 	u8 reg_val[REG_BUFFER_MAX];
+	union power_supply_propval prop_val;
 #if !IS_ENABLED(CONFIG_BATTERY_SAMSUNG) /* temp disable wc dc charging */
 	struct power_supply *psy;
 	union power_supply_propval pro_val;
@@ -5353,6 +5629,13 @@ static int pca9481_start_direct_charging(struct pca9481_charger *pca9481)
 		return ret;
 	pr_info("%s: sw_freq=%dkHz\n", __func__, pca9481->pdata->fsw_cfg);
 
+	/* Set VIN_CURRENT_OCP_21_11 to 1000mA */
+	val = PCA9481_BIT_VIN_CURRENT_OCP_21_11;
+	ret = regmap_update_bits(pca9481->regmap, PCA9481_REG_CHARGING_CNTL_0,
+			PCA9481_BIT_VIN_CURRENT_OCP_21_11, val);
+	if (ret < 0)
+		return ret;
+
 	/* Set EN_CFG to active high - Disable PCA9481 */
 	val =  PCA9481_EN_ACTIVE_H;
 	ret = pca9481_update_reg(pca9481, PCA9481_REG_DEVICE_CNTL_2,
@@ -5372,6 +5655,26 @@ static int pca9481_start_direct_charging(struct pca9481_charger *pca9481)
 	ret = pca9481_write_reg(pca9481, PCA9481_REG_NTC_1_CNTL, val);
 	if (ret < 0)
 		return ret;
+
+	/* Get TA type information from battery psy */
+
+	psy_do_property("battery", get,
+			POWER_SUPPLY_PROP_ONLINE, prop_val);
+
+	if (prop_val.intval == POWER_SUPPLY_TYPE_WIRELESS) {
+		/* The present power supply type is wireless charger */
+		pca9481->ta_type = TA_TYPE_WIRELESS;
+	} else if (prop_val.intval == SEC_BATTERY_CABLE_FPDO_DC) {
+		/* The present power supply type is USBPD charger with only fixed PDO */
+		pca9481->ta_type = TA_TYPE_USBPD_20;
+	} else if (prop_val.intval == SEC_BATTERY_CABLE_PDIC_APDO) {
+		/* The present power supply type is USBPD with APDO */
+		pca9481->ta_type = TA_TYPE_USBPD;
+	} else {
+		/* DC cannot support the present power supply type - unknown power supply type */
+		pca9481->ta_type = TA_TYPE_UNKNOWN;
+	}
+	pr_info("%s: ta_type = %d\n", __func__, pca9481->ta_type);
 
 	/* wake lock */
 	__pm_stay_awake(pca9481->monitor_wake_lock);
@@ -5616,6 +5919,9 @@ static void pca9481_timer_work(struct work_struct *work)
 
 			/* Set RX voltage */
 			ret = pca9481_send_rx_voltage(pca9481, WCRX_REQUEST_VOLTAGE);
+		} else if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+			/* Send PD Message */
+			ret = pca9481_send_pd_message(pca9481, PD_MSG_REQUEST_FIXED_PDO);
 		} else {
 			val = pca9481->ta_vol/PD_MSG_TA_VOL_STEP;	/* PPS voltage resolution is 20mV */
 			pca9481->ta_vol = val*PD_MSG_TA_VOL_STEP;
@@ -5712,6 +6018,12 @@ static void pca9481_timer_work(struct work_struct *work)
 
 	case TIMER_CHECK_REVERSE_MODE:
 		ret = pca9481_charge_reverse_mode(pca9481);
+		if (ret < 0)
+			goto error;
+		break;
+
+	case TIMER_CHECK_FPDOCVMODE:
+		ret = pca9481_charge_fpdo_cvmode(pca9481);
 		if (ret < 0)
 			goto error;
 		break;
@@ -5826,6 +6138,13 @@ static int pca9481_hw_init(struct pca9481_charger *pca9481)
 	if (ret < 0)
 		return ret;
 
+	/* Set VIN_CURRENT_OCP_21_11 to 1000mA */
+	val = PCA9481_BIT_VIN_CURRENT_OCP_21_11;
+	ret = regmap_update_bits(pca9481->regmap, PCA9481_REG_CHARGING_CNTL_0,
+			PCA9481_BIT_VIN_CURRENT_OCP_21_11, val);
+	if (ret < 0)
+		return ret;
+
 	/* Set Reverse Current Detection */
 	val = PCA9481_BIT_RCP_EN;
 	ret = pca9481_update_reg(pca9481, PCA9481_REG_RCP_CNTL,
@@ -5934,6 +6253,10 @@ static int pca9481_hw_init(struct pca9481_charger *pca9481)
 	pca9481->vfloat = pca9481->pdata->vfloat;
 	pca9481->max_vfloat = pca9481->pdata->vfloat;
 	pca9481->iin_topoff = pca9481->pdata->iin_topoff;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	pca9481->fpdo_dc_iin_topoff = pca9481->pdata->fpdo_dc_iin_topoff;
+	pca9481->fpdo_dc_vnow_topoff = pca9481->pdata->fpdo_dc_vnow_topoff;
+#endif
 
 	/* Clear new iin and new vfloat */
 	pca9481->new_iin = 0;
@@ -5947,6 +6270,9 @@ static int pca9481_hw_init(struct pca9481_charger *pca9481)
 
 	/* Set vfloat decrement flag to false by default */
 	pca9481->dec_vfloat = false;
+
+	/* Clear charging done counter */
+	pca9481->done_cnt = 0;
 
 	return ret;
 }
@@ -6277,7 +6603,8 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 					if ((pca9481->charging_state == DC_STATE_CC_MODE) ||
 						(pca9481->charging_state == DC_STATE_CV_MODE) ||
 						(pca9481->charging_state == DC_STATE_BYPASS_MODE) ||
-						(pca9481->charging_state == DC_STATE_CHARGING_DONE)) {
+						(pca9481->charging_state == DC_STATE_CHARGING_DONE) ||
+						(pca9481->charging_state == DC_STATE_FPDO_CV_MODE)) {
 						/* cancel delayed_work */
 						cancel_delayed_work(&pca9481->timer_work);
 						/* do delayed work at once */
@@ -6320,7 +6647,8 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 					if ((pca9481->charging_state == DC_STATE_CC_MODE) ||
 						(pca9481->charging_state == DC_STATE_CV_MODE) ||
 						(pca9481->charging_state == DC_STATE_BYPASS_MODE) ||
-						(pca9481->charging_state == DC_STATE_CHARGING_DONE)) {
+						(pca9481->charging_state == DC_STATE_CHARGING_DONE) ||
+						(pca9481->charging_state == DC_STATE_FPDO_CV_MODE)) {
 						/* cancel delayed_work */
 						cancel_delayed_work(&pca9481->timer_work);
 						/* do delayed work at once */
@@ -6345,6 +6673,11 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 		pca9481->input_current = val->intval;
 		temp = pca9481->input_current * PCA9481_SEC_DENOM_U_M;
+		if (pca9481->ta_type == TA_TYPE_USBPD_20 && temp < pca9481->pdata->fpdo_dc_iin_lowest_limit) {
+			pr_info("%s: PSP_ICL, IIN LOWEST LIMIT! IIN %d -> %d\n", __func__,
+					temp, pca9481->pdata->fpdo_dc_iin_lowest_limit);
+			temp = pca9481->pdata->fpdo_dc_iin_lowest_limit;
+		}
 		if (temp != pca9481->new_iin) {
 			/* Compare with topoff current */
 			if (temp < pca9481->iin_topoff) {
@@ -6352,7 +6685,7 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 				pr_err("%s: This new iin(%duA) is abnormal value\n", __func__, val->intval);
 				ret = -EINVAL;
 				break;
-			} 
+			}
 			/* request new input current */
 			pca9481->new_iin = temp;
 			/* Check the charging state */
@@ -6361,35 +6694,61 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 				/* Apply new iin when the direct charging is started */
 				pca9481->iin_cfg = pca9481->new_iin;
 			} else {
-				/* Check whether the previous request is done or not */
-				if (pca9481->req_new_iin == true) {
-					/* The previous request is not done yet */
-					pr_err("%s: There is the previous request for New iin\n", __func__);
-					ret = -EBUSY;
+				/* Check TA type */
+				if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+					/* Cannot support change input current during DC */
+					/* Because FPDO cannot control input current by PD messsage */
+					pr_err("%s: Error - FPDO cannot control input current\n", __func__);
+					ret = -EINVAL;
 				} else {
-					/* Set request flag */
-					mutex_lock(&pca9481->lock);
-					pca9481->req_new_iin = true;
-					mutex_unlock(&pca9481->lock);
-					/* Check the charging state */
-					if ((pca9481->charging_state == DC_STATE_CC_MODE) ||
-						(pca9481->charging_state == DC_STATE_CV_MODE) ||
-						(pca9481->charging_state == DC_STATE_BYPASS_MODE) ||
-						(pca9481->charging_state == DC_STATE_CHARGING_DONE)) {
-						/* cancel delayed_work */
-						cancel_delayed_work(&pca9481->timer_work);
-						/* do delayed work at once */
-						mutex_lock(&pca9481->lock);
-						pca9481->timer_period = 0;	// ms unit
-						mutex_unlock(&pca9481->lock);
-						queue_delayed_work(pca9481->dc_wq,
-											&pca9481->timer_work,
-											msecs_to_jiffies(pca9481->timer_period));
+					/* Check whether the previous request is done or not */
+					if (pca9481->req_new_iin == true) {
+						/* The previous request is not done yet */
+						pr_err("%s: There is the previous request for New iin\n", __func__);
+						ret = -EBUSY;
 					} else {
-						/* Wait for next valid state - cc, cv, or bypass state */
-						pr_info("%s: Not support new iin yet in charging state=%d\n",
-								__func__, pca9481->charging_state);
+						/* Set request flag */
+						mutex_lock(&pca9481->lock);
+						pca9481->req_new_iin = true;
+						mutex_unlock(&pca9481->lock);
+						/* Check the charging state */
+						if ((pca9481->charging_state == DC_STATE_CC_MODE) ||
+								(pca9481->charging_state == DC_STATE_CV_MODE) ||
+								(pca9481->charging_state == DC_STATE_BYPASS_MODE) ||
+								(pca9481->charging_state == DC_STATE_CHARGING_DONE)) {
+							/* cancel delayed_work */
+							cancel_delayed_work(&pca9481->timer_work);
+							/* do delayed work at once */
+							mutex_lock(&pca9481->lock);
+							pca9481->timer_period = 0;	// ms unit
+							mutex_unlock(&pca9481->lock);
+							queue_delayed_work(pca9481->dc_wq,
+									&pca9481->timer_work,
+									msecs_to_jiffies(pca9481->timer_period));
+						} else {
+							/* Wait for next valid state - cc, cv, or bypass state */
+							pr_info("%s: Not support new iin yet in charging state=%d\n",
+									__func__, pca9481->charging_state);
+						}
 					}
+				}
+			}
+		} else {
+			/* Compare with topoff current */
+			if (temp < pca9481->iin_topoff) {
+				/* This new iin is abnormal input current */
+				pr_err("%s: This new iin(%duA) is abnormal value\n", __func__, val->intval);
+				ret = -EINVAL;
+			} else {
+				/* new iin is same as previous new_iin, but iin_cfg is different from it */
+				/* Check the charging state */
+				if ((pca9481->charging_state == DC_STATE_NO_CHARGING) ||
+						(pca9481->charging_state == DC_STATE_CHECK_VBAT)) {
+					/* Apply new iin when the direct charging is started */
+					pca9481->iin_cfg = pca9481->new_iin;
+					pr_info("%s: charging state=%d, new iin(%uA) and iin_cfg(%uA)\n",
+							__func__, pca9481->charging_state,
+							pca9481->new_iin, pca9481->iin_cfg);
 				}
 			}
 		}
@@ -6399,39 +6758,66 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 			pca9481->new_iin = val->intval;
 			/* Check the charging state */
 			if ((pca9481->charging_state == DC_STATE_NO_CHARGING) ||
-				(pca9481->charging_state == DC_STATE_CHECK_VBAT)) {
+					(pca9481->charging_state == DC_STATE_CHECK_VBAT)) {
 				/* Apply new iin when the direct charging is started */
 				pca9481->iin_cfg = pca9481->new_iin;
 			} else {
-				/* Check whether the previous request is done or not */
-				if (pca9481->req_new_iin == true) {
-					/* The previous request is not done yet */
-					pr_err("%s: There is the previous request for New iin\n", __func__);
-					ret = -EBUSY;
+				/* Check TA type */
+				if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+					/* Cannot support change input current during DC */
+					/* Because FPDO cannot control input current by PD messsage */
+					pr_err("%s: Error - FPDO cannot control input current\n", __func__);
+					ret = -EINVAL;
 				} else {
-					/* Set request flag */
-					mutex_lock(&pca9481->lock);
-					pca9481->req_new_iin = true;
-					mutex_unlock(&pca9481->lock);
-					/* Check the charging state */
-					if ((pca9481->charging_state == DC_STATE_CC_MODE) ||
-						(pca9481->charging_state == DC_STATE_CV_MODE) ||
-						(pca9481->charging_state == DC_STATE_BYPASS_MODE) ||
-						(pca9481->charging_state == DC_STATE_CHARGING_DONE)) {
-						/* cancel delayed_work */
-						cancel_delayed_work(&pca9481->timer_work);
-						/* do delayed work at once */
-						mutex_lock(&pca9481->lock);
-						pca9481->timer_period = 0;	// ms unit
-						mutex_unlock(&pca9481->lock);
-						queue_delayed_work(pca9481->dc_wq,
-											&pca9481->timer_work,
-											msecs_to_jiffies(pca9481->timer_period));
+					/* Check whether the previous request is done or not */
+					if (pca9481->req_new_iin == true) {
+						/* The previous request is not done yet */
+						pr_err("%s: There is the previous request for New iin\n", __func__);
+						ret = -EBUSY;
 					} else {
-						/* Wait for next valid state - cc, cv, or bypass state */
-						pr_info("%s: Not support new iin yet in charging state=%d\n",
-								__func__, pca9481->charging_state);
+						/* Set request flag */
+						mutex_lock(&pca9481->lock);
+						pca9481->req_new_iin = true;
+						mutex_unlock(&pca9481->lock);
+						/* Check the charging state */
+						if ((pca9481->charging_state == DC_STATE_CC_MODE) ||
+								(pca9481->charging_state == DC_STATE_CV_MODE) ||
+								(pca9481->charging_state == DC_STATE_BYPASS_MODE) ||
+								(pca9481->charging_state == DC_STATE_CHARGING_DONE) ||
+								(pca9481->charging_state == DC_STATE_FPDO_CV_MODE)) {
+							/* cancel delayed_work */
+							cancel_delayed_work(&pca9481->timer_work);
+							/* do delayed work at once */
+							mutex_lock(&pca9481->lock);
+							pca9481->timer_period = 0;	// ms unit
+							mutex_unlock(&pca9481->lock);
+							queue_delayed_work(pca9481->dc_wq,
+									&pca9481->timer_work,
+									msecs_to_jiffies(pca9481->timer_period));
+						} else {
+							/* Wait for next valid state - cc, cv, or bypass state */
+							pr_info("%s: Not support new iin yet in charging state=%d\n",
+									__func__, pca9481->charging_state);
+						}
 					}
+				}
+			}
+		} else {
+			/* Compare with topoff current */
+			if (val->intval < pca9481->iin_topoff) {
+				/* This new iin is abnormal input current */
+				pr_err("%s: This new iin(%duA) is abnormal value\n", __func__, val->intval);
+				ret = -EINVAL;
+			} else {
+				/* new iin is same as previous new_iin, but iin_cfg is different from it */
+				/* Check the charging state */
+				if ((pca9481->charging_state == DC_STATE_NO_CHARGING) ||
+						(pca9481->charging_state == DC_STATE_CHECK_VBAT)) {
+					/* Apply new iin when the direct charging is started */
+					pca9481->iin_cfg = pca9481->new_iin;
+					pr_info("%s: charging state=%d, new iin(%uA) and iin_cfg(%uA)\n",
+							__func__, pca9481->charging_state,
+							pca9481->new_iin, pca9481->iin_cfg);
 				}
 			}
 		}
@@ -6464,6 +6850,11 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_DIRECT_CURRENT_MAX:
 			pca9481->input_current = val->intval;
 			temp = pca9481->input_current * PCA9481_SEC_DENOM_U_M;
+			if (pca9481->ta_type == TA_TYPE_USBPD_20 && temp < pca9481->pdata->fpdo_dc_iin_lowest_limit) {
+				pr_info("%s: PSP_DCM, IIN LOWEST LIMIT! IIN %d -> %d\n", __func__,
+						temp, pca9481->pdata->fpdo_dc_iin_lowest_limit);
+				temp = pca9481->pdata->fpdo_dc_iin_lowest_limit;
+			}
 			if (temp != pca9481->new_iin) {
 				/* request new input current */
 				pca9481->new_iin = temp;
@@ -6940,6 +7331,26 @@ static int pca9481_charger_parse_dt(struct device *dev,
 	}
 	pr_info("%s: pca9481,iin_topoff is %d\n", __func__, pdata->iin_topoff);
 
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	/* fpdo_dc input topoff current */
+	ret = of_property_read_u32(np_pca9481, "pca9481,fpdo_dc_input-itopoff",
+							   &pdata->fpdo_dc_iin_topoff);
+	if (ret) {
+		pr_info("%s: pca9481,fpdo_dc_input-itopoff is Empty\n", __func__);
+		pdata->fpdo_dc_iin_topoff = 1700000; /* 1700mA */
+	}
+	pr_info("%s: pca9481,fpdo_dc_iin_topoff is %d\n", __func__, pdata->fpdo_dc_iin_topoff);
+
+	/* fpdo_dc Vnow topoff condition */
+	ret = of_property_read_u32(np_pca9481, "pca9481,fpdo_dc_vnow-topoff",
+							&pdata->fpdo_dc_vnow_topoff);
+	if (ret) {
+		pr_info("%s: pca9481,fpdo_dc_vnow-topoff is Empty\n", __func__);
+		pdata->fpdo_dc_vnow_topoff = 5000000; /* Vnow 5000000uV means disable */
+	}
+	pr_info("%s: pca9481,fpdo_dc_vnow_topoff is %d\n", __func__, pdata->fpdo_dc_vnow_topoff);
+#endif
+
 	/* external sense resistor value */
 	ret = of_property_read_u32(np_pca9481, "pca9481,sense-resistance",
 							   &pdata->snsres);
@@ -6984,6 +7395,15 @@ static int pca9481_charger_parse_dt(struct device *dev,
 		pdata->fsw_cfg_low = PCA9481_FSW_CFG_LOW_DFT;
 	}
 	pr_info("%s: nxp,fsw_cfg_low is %d\n", __func__, pdata->fsw_cfg_low);
+
+	/* switching frequency for fixed pdo */
+	ret = of_property_read_u32(np_pca9481, "nxp,switching-frequency-fpdo",
+			&pdata->fsw_cfg_fpdo);
+	if (ret) {
+		pr_info("%s: nxp,switching frequency for FPDO is Empty\n", __func__);
+		pdata->fsw_cfg_fpdo = PCA9481_FSW_CFG_DFT;
+	}
+	pr_info("%s: nxp,fsw_cfg_fpdo is %d\n", __func__, pdata->fsw_cfg_fpdo);
 
 	/* NTC0 threshold voltage */
 	ret = of_property_read_u32(np_pca9481, "pca9481,ntc0-threshold",
@@ -7070,6 +7490,17 @@ static int pca9481_charger_parse_dt(struct device *dev,
 			pdata->vfloat = PCA9481_VBAT_REG_DFT;
 		}
 		pr_info("%s: battery,v_float is %d\n", __func__, pdata->vfloat);
+
+		/* the lowest limit to FPDO DC IIN */
+		ret = of_property_read_u32(np, "battery,fpdo_dc_charge_power",
+								   &pdata->fpdo_dc_iin_lowest_limit);
+		pdata->fpdo_dc_iin_lowest_limit *= PCA9481_SEC_DENOM_U_M;
+		pdata->fpdo_dc_iin_lowest_limit /= PCA9481_SEC_FPDO_DC_IV;
+		if (ret) {
+			pr_info("%s: battery,fpdo_dc_charge_power is Empty\n", __func__);
+			pdata->fpdo_dc_iin_lowest_limit = 10000000; /* 10A */
+		}
+		pr_info("%s: fpdo_dc_iin_lowest_limit is %d\n", __func__, pdata->fpdo_dc_iin_lowest_limit);
 	}
 #endif
 
@@ -7455,4 +7886,4 @@ module_i2c_driver(pca9481_driver);
 
 MODULE_DESCRIPTION("PCA9481 charger driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.17S");
+MODULE_VERSION("1.0.20S");

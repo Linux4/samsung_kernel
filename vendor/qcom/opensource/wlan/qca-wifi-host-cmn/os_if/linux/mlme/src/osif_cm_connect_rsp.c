@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -94,7 +94,7 @@ osif_validate_connect_and_reset_src_id(struct vdev_osif_priv *osif_priv,
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
 	/*
-	 * Do not send to kernel if last osif cookie doesnt match or
+	 * Do not send to kernel if last osif cookie doesn't match or
 	 * or source is CM_OSIF_CFG_CONNECT with success status.
 	 * If cookie matches reset the cookie and source.
 	 */
@@ -363,7 +363,7 @@ osif_populate_fils_params(struct cfg80211_connect_resp_params *rsp_params,
 	if (!connect_ies->fils_ie)
 		return;
 
-	/* Increament seq number to be used for next FILS */
+	/* Increment seq number to be used for next FILS */
 	rsp_params->fils.erp_next_seq_num =
 					connect_ies->fils_ie->fils_seq_num + 1;
 	rsp_params->fils.update_erp_next_seq_num = true;
@@ -382,30 +382,8 @@ osif_populate_fils_params(struct cfg80211_connect_resp_params *rsp_params,
 #endif /* WLAN_FEATURE_FILS_SK */
 #endif
 
-#if defined(CFG80211_SINGLE_NETDEV_MULTI_LINK_SUPPORT) && defined(WLAN_FEATURE_11BE_MLO)
-#ifndef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
-static struct wlan_objmgr_vdev *osif_get_partner_vdev(struct wlan_objmgr_vdev *vdev,
-						      struct mlo_link_info rsp_partner_info)
-{
-	return mlo_get_vdev_by_link_id(vdev, rsp_partner_info.link_id);
-}
-#endif
-
-static
-void osif_populate_connect_response_for_link(struct wlan_objmgr_vdev *vdev,
-					     struct cfg80211_connect_resp_params *conn_rsp_params,
-					     uint8_t link_id,
-					     struct cfg80211_bss *bss)
-{
-	osif_debug("Link_id :%d", link_id);
-	conn_rsp_params->valid_links |=  BIT(link_id);
-	conn_rsp_params->links[link_id].bssid = bss->bssid;
-	conn_rsp_params->links[link_id].bss = bss;
-	conn_rsp_params->links[link_id].addr =
-					 wlan_vdev_mlme_get_macaddr(vdev);
-}
-
-static QDF_STATUS
+#ifdef WLAN_FEATURE_11BE_MLO
+QDF_STATUS
 osif_get_partner_info_from_mlie(struct wlan_cm_connect_resp *connect_rsp,
 				struct mlo_partner_info *partner_info)
 {
@@ -434,38 +412,14 @@ osif_get_partner_info_from_mlie(struct wlan_cm_connect_resp *connect_rsp,
 	qdf_status = util_get_bvmlie_persta_partner_info(ml_ie, ml_ie_len,
 							 partner_info);
 	if (QDF_IS_STATUS_ERROR(qdf_status)) {
-		osif_err("Unable to find per-sta profile in ML IE :%d");
+		osif_err("Unable to find per-sta profile in ML IE");
 		return qdf_status;
 	}
 
 	return qdf_status;
 }
 
-static QDF_STATUS
-osif_fill_peer_mld_mac_connect_resp(struct wlan_objmgr_vdev *vdev,
-				    struct wlan_cm_connect_resp *rsp,
-				    struct cfg80211_connect_resp_params *conn_rsp_params)
-{
-	struct wlan_objmgr_peer *peer_obj;
-	struct wlan_objmgr_psoc *psoc;
-
-	psoc = wlan_vdev_get_psoc(vdev);
-	if (!psoc)
-		return QDF_STATUS_E_INVAL;
-
-	peer_obj = wlan_objmgr_get_peer_by_mac(psoc,
-					       rsp->bssid.bytes, WLAN_OSIF_ID);
-	if (!peer_obj)
-		return QDF_STATUS_E_INVAL;
-
-	conn_rsp_params->ap_mld_addr = wlan_peer_mlme_get_mldaddr(peer_obj);
-
-	wlan_objmgr_peer_release_ref(peer_obj, WLAN_OSIF_ID);
-
-	return QDF_STATUS_SUCCESS;
-}
-
-static QDF_STATUS
+QDF_STATUS
 osif_get_link_id_from_assoc_ml_ie(struct mlo_link_info *rsp_link_info,
 				  struct mlo_partner_info *assoc_partner_info,
 				  uint8_t *link_id)
@@ -484,7 +438,7 @@ osif_get_link_id_from_assoc_ml_ie(struct mlo_link_info *rsp_link_info,
 	return QDF_STATUS_E_INVAL;
 }
 
-static struct cfg80211_bss *
+struct cfg80211_bss *
 osif_get_chan_bss_from_kernel(struct wlan_objmgr_vdev *vdev,
 			      struct mlo_link_info *rsp_link_info,
 			      struct wlan_cm_connect_resp *rsp)
@@ -498,7 +452,7 @@ osif_get_chan_bss_from_kernel(struct wlan_objmgr_vdev *vdev,
 				     rsp_link_info->chan_freq);
 	if (!chan) {
 		osif_err("Invalid partner channel");
-		NULL;
+		return NULL;
 	}
 
 	partner_bss = wlan_cfg80211_get_bss(osif_priv->wdev->wiphy, chan,
@@ -510,6 +464,54 @@ osif_get_chan_bss_from_kernel(struct wlan_objmgr_vdev *vdev,
 	}
 
 	return partner_bss;
+}
+#endif
+
+#if defined(CFG80211_SINGLE_NETDEV_MULTI_LINK_SUPPORT) && defined(WLAN_FEATURE_11BE_MLO)
+#ifndef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
+static struct wlan_objmgr_vdev *osif_get_partner_vdev(struct wlan_objmgr_vdev *vdev,
+						      struct mlo_link_info rsp_partner_info)
+{
+	return mlo_get_vdev_by_link_id(vdev, rsp_partner_info.link_id);
+}
+#endif
+
+static
+void osif_populate_connect_response_for_link(struct wlan_objmgr_vdev *vdev,
+					     struct cfg80211_connect_resp_params *conn_rsp_params,
+					     uint8_t link_id,
+					     struct cfg80211_bss *bss)
+{
+	osif_debug("Link_id :%d", link_id);
+	conn_rsp_params->valid_links |=  BIT(link_id);
+	conn_rsp_params->links[link_id].bssid = bss->bssid;
+	conn_rsp_params->links[link_id].bss = bss;
+	conn_rsp_params->links[link_id].addr =
+					 wlan_vdev_mlme_get_macaddr(vdev);
+}
+
+static QDF_STATUS
+osif_fill_peer_mld_mac_connect_resp(struct wlan_objmgr_vdev *vdev,
+				    struct wlan_cm_connect_resp *rsp,
+				    struct cfg80211_connect_resp_params *conn_rsp_params)
+{
+	struct wlan_objmgr_peer *peer_obj;
+	struct wlan_objmgr_psoc *psoc;
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc)
+		return QDF_STATUS_E_INVAL;
+
+	peer_obj = wlan_objmgr_get_peer_by_mac(psoc, rsp->bssid.bytes,
+					       WLAN_OSIF_ID);
+	if (!peer_obj)
+		return QDF_STATUS_E_INVAL;
+
+	conn_rsp_params->ap_mld_addr = wlan_peer_mlme_get_mldaddr(peer_obj);
+
+	wlan_objmgr_peer_release_ref(peer_obj, WLAN_OSIF_ID);
+
+	return QDF_STATUS_SUCCESS;
 }
 
 static void
@@ -1060,16 +1062,13 @@ bool osif_cm_is_unlink_bss_required(struct wlan_cm_connect_resp *rsp)
 	return false;
 }
 static inline void osif_check_and_unlink_bss(struct wlan_objmgr_vdev *vdev,
-					     struct vdev_osif_priv *osif_priv,
 					     struct wlan_cm_connect_resp *rsp)
 {
 	if (osif_cm_is_unlink_bss_required(rsp))
-		osif_cm_unlink_bss(vdev, osif_priv, &rsp->bssid, rsp->ssid.ssid,
-				   rsp->ssid.length);
+		osif_cm_unlink_bss(vdev, &rsp->bssid);
 }
 #else
 static inline void osif_check_and_unlink_bss(struct wlan_objmgr_vdev *vdev,
-					     struct vdev_osif_priv *osif_priv,
 					     struct wlan_cm_connect_resp *rsp)
 {}
 #endif
@@ -1080,16 +1079,16 @@ QDF_STATUS osif_connect_handler(struct wlan_objmgr_vdev *vdev,
 	struct vdev_osif_priv *osif_priv  = wlan_vdev_get_ospriv(vdev);
 	QDF_STATUS status;
 
-	osif_nofl_info("%s(vdevid-%d): " QDF_MAC_ADDR_FMT " Connect with " QDF_MAC_ADDR_FMT " SSID \"%.*s\" is %s cm_id 0x%x cm_reason %d status_code %d is_reassoc %d send discon %d",
+	osif_nofl_info("%s(vdevid-%d): " QDF_MAC_ADDR_FMT " Connect with " QDF_MAC_ADDR_FMT " SSID \"" QDF_SSID_FMT "\" is %s cm_id 0x%x cm_reason %d status_code %d is_reassoc %d send discon %d",
 		       osif_priv->wdev->netdev->name, rsp->vdev_id,
 		       QDF_MAC_ADDR_REF(wlan_vdev_mlme_get_macaddr(vdev)),
 		       QDF_MAC_ADDR_REF(rsp->bssid.bytes),
-		       rsp->ssid.length, rsp->ssid.ssid,
+		       QDF_SSID_REF(rsp->ssid.length, rsp->ssid.ssid),
 		       rsp->connect_status ? "FAILURE" : "SUCCESS", rsp->cm_id,
 		       rsp->reason, rsp->status_code, rsp->is_reassoc,
 		       rsp->send_disconnect);
 
-	osif_check_and_unlink_bss(vdev, osif_priv, rsp);
+	osif_check_and_unlink_bss(vdev, rsp);
 
 	status = osif_validate_connect_and_reset_src_id(osif_priv, rsp);
 	if (QDF_IS_STATUS_ERROR(status)) {
@@ -1124,7 +1123,7 @@ QDF_STATUS osif_connect_handler(struct wlan_objmgr_vdev *vdev,
 		 QDF_IS_STATUS_ERROR(rsp->connect_status))
 		osif_cm_indicate_disconnect(vdev, osif_priv->wdev->netdev,
 					    WLAN_REASON_UNSPECIFIED,
-					    false, NULL, 0,
+					    false, NULL, 0, -1,
 					    qdf_mem_malloc_flags());
 	else
 		osif_indcate_connect_results(vdev, osif_priv, rsp);
@@ -1138,12 +1137,12 @@ QDF_STATUS osif_failed_candidate_handler(struct wlan_objmgr_vdev *vdev,
 {
 	struct vdev_osif_priv *osif_priv  = wlan_vdev_get_ospriv(vdev);
 
-	osif_nofl_info("%s(vdevid-%d): " QDF_MAC_ADDR_FMT " Connect with " QDF_MAC_ADDR_FMT " SSID \"%.*s\" FAILED cm_id 0x%x cm_reason %d reason_code %d",
+	osif_nofl_info("%s(vdevid-%d): " QDF_MAC_ADDR_FMT " Connect with " QDF_MAC_ADDR_FMT " SSID \"" QDF_SSID_FMT "\" FAILED cm_id 0x%x cm_reason %d reason_code %d",
 		       osif_priv->wdev->netdev->name, rsp->vdev_id,
 		       QDF_MAC_ADDR_REF(wlan_vdev_mlme_get_macaddr(vdev)),
 		       QDF_MAC_ADDR_REF(rsp->bssid.bytes),
-		       rsp->ssid.length, rsp->ssid.ssid, rsp->cm_id,
-		       rsp->reason, rsp->status_code);
+		       QDF_SSID_REF(rsp->ssid.length, rsp->ssid.ssid),
+		       rsp->cm_id, rsp->reason, rsp->status_code);
 
 	/**
 	 * Do not unlink the BSS if it is an ML candidate. In case of ML,
@@ -1151,7 +1150,7 @@ QDF_STATUS osif_failed_candidate_handler(struct wlan_objmgr_vdev *vdev,
 	 * connection on other links.
 	 */
 	if (!wlan_vdev_mlme_is_mlo_vdev(vdev))
-		osif_check_and_unlink_bss(vdev, osif_priv, rsp);
+		osif_check_and_unlink_bss(vdev, rsp);
 
 	return QDF_STATUS_SUCCESS;
 }

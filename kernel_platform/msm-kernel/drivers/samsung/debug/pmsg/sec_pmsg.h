@@ -29,7 +29,10 @@ struct pmsg_logger {
 	uint16_t level;
 	int32_t tv_sec;
 	int32_t tv_nsec;
-	char msg[0];
+	union {
+		char msg[0];
+		char __msg;	/* 1 byte reserved area for 'unsigned char' request from user */
+	};
 };
 
 struct pmsg_buffer {

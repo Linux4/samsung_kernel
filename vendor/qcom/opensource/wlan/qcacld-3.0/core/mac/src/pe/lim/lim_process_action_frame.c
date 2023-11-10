@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -54,6 +54,8 @@
 #include "dot11f.h"
 #include "wlan_p2p_cfg_api.h"
 #include "son_api.h"
+#include "wlan_t2lm_api.h"
+#include "wlan_mlo_mgr_public_structs.h"
 
 #define SA_QUERY_REQ_MIN_LEN \
 (DOT11F_FF_CATEGORY_LEN + DOT11F_FF_ACTION_LEN + DOT11F_FF_TRANSACTIONID_LEN)
@@ -97,7 +99,7 @@ void lim_stop_tx_and_switch_channel(struct mac_context *mac, uint8_t sessionId)
 	 * If status is QDF_STATUS_E_FAILURE, mean HW mode change was required
 	 * but driver failed to set HW mode so ignore CSA for the channel.
 	 * If status is QDF_STATUS_SUCCESS mean HW mode change was required
-	 * and was sucessfully changed so the channel switch will continue after
+	 * and was successfully changed so the channel switch will continue after
 	 * HW mode change completion.
 	 * If status is QDF_STATUS_E_NOSUPPORT or QDF_STATUS_E_ALREADY, mean
 	 * DBS is not supported or required HW mode is already set, so
@@ -190,8 +192,9 @@ lim_process_ext_channel_switch_action_frame(struct mac_context *mac_ctx,
 	 * and no concurrent session is running.
 	 */
 	if (!(session_entry->curr_op_freq != target_freq &&
-	      ((wlan_reg_get_channel_state_for_freq(mac_ctx->pdev, target_freq) ==
-		  CHANNEL_STATE_ENABLE) ||
+	      ((wlan_reg_get_channel_state_for_pwrmode(mac_ctx->pdev,
+						       target_freq,
+						       REG_CURRENT_PWR_MODE) == CHANNEL_STATE_ENABLE) ||
 	       (wlan_reg_is_dfs_for_freq(mac_ctx->pdev, target_freq) &&
 		!policy_mgr_concurrent_open_sessions_running(
 			mac_ctx->psoc))))) {
@@ -245,7 +248,7 @@ static void __lim_process_operating_mode_action_frame(struct mac_context *mac_ct
 	uint32_t status;
 	tpDphHashNode sta_ptr;
 	uint16_t aid;
-	uint8_t ch_bw = 0;
+	enum phy_ch_width ch_bw = 0;
 
 	mac_hdr = WMA_GET_RX_MAC_HEADER(rx_pkt_info);
 	body_ptr = WMA_GET_RX_MPDU_DATA(rx_pkt_info);
@@ -1339,7 +1342,7 @@ static void __lim_process_sa_query_request_action_frame(struct mac_context *mac,
 		/*
 		 * In case of channel switch, last ocv frequency will be
 		 * different from current frquency.
-		 * If there is channel switch and OCI is inavlid in sa_query,
+		 * If there is channel switch and OCI is invalid in sa_query,
 		 * deauth STA on new channel.
 		 */
 		if (sta_ds && sta_ds->ocv_enabled &&
@@ -1701,6 +1704,9 @@ void lim_process_action_frame(struct mac_context *mac_ctx,
 	tpSirMacVendorSpecificFrameHdr vendor_specific;
 	uint8_t dpp_oui[] = { 0x50, 0x6F, 0x9A, 0x1A };
 	tpSirMacVendorSpecificPublicActionFrameHdr pub_action;
+	enum wlan_t2lm_resp_frm_type status_code;
+	uint8_t token = 0;
+	struct wlan_objmgr_peer *peer = NULL;
 
 	if (frame_len < sizeof(*action_hdr)) {
 		pe_debug("frame_len %d less than Action Frame Hdr size",
@@ -2135,11 +2141,65 @@ void lim_process_action_frame(struct mac_context *mac_ctx,
 			break;
 		}
 		break;
+	case ACTION_CATEGORY_PROTECTED_EHT:
+		pe_debug("EHT T2LM action category: %d action: %d",
+			 action_hdr->category, action_hdr->actionID);
+		switch (action_hdr->actionID) {
+		case EHT_T2LM_REQUEST:
+			mac_hdr = WMA_GET_RX_MAC_HEADER(rx_pkt_info);
+			body_ptr = WMA_GET_RX_MPDU_DATA(rx_pkt_info);
+			frame_len = WMA_GET_RX_PAYLOAD_LEN(rx_pkt_info);
+
+			peer = wlan_objmgr_get_peer_by_mac(mac_ctx->psoc,
+							   mac_hdr->sa,
+							   WLAN_LEGACY_MAC_ID);
+			if (!peer) {
+				pe_err("Peer is null");
+				break;
+			}
+			if (wlan_t2lm_deliver_event(
+				session->vdev, peer,
+				WLAN_T2LM_EV_ACTION_FRAME_RX_REQ,
+				(void *)body_ptr, &token) == QDF_STATUS_SUCCESS)
+				status_code = WLAN_T2LM_RESP_TYPE_SUCCESS;
+			else
+				status_code =
+				WLAN_T2LM_RESP_TYPE_DENIED_TID_TO_LINK_MAPPING;
+
+			if (lim_send_t2lm_action_rsp_frame(
+					mac_ctx, mac_hdr->sa, session, token,
+					status_code) != QDF_STATUS_SUCCESS)
+				pe_err("T2LM action response frame not sent");
+			else
+				wlan_send_peer_level_tid_to_link_mapping(
+								session->vdev,
+								peer);
+			break;
+		case EHT_T2LM_RESPONSE:
+			wlan_t2lm_deliver_event(
+					session->vdev, peer,
+					WLAN_T2LM_EV_ACTION_FRAME_RX_RESP,
+					(void *)rx_pkt_info, &token);
+			break;
+		case EHT_T2LM_TEARDOWN:
+			wlan_t2lm_deliver_event(
+					session->vdev, peer,
+					WLAN_T2LM_EV_ACTION_FRAME_RX_TEARDOWN,
+					(void *)rx_pkt_info, NULL);
+			break;
+		default:
+			pe_err("Unhandled T2LM action frame");
+			break;
+		}
+		break;
 	default:
-		pe_warn("Action category: %d not handled",
+		pe_warn_rl("Action category: %d not handled",
 			action_hdr->category);
 		break;
 	}
+
+	if (peer)
+		wlan_objmgr_peer_release_ref(peer, WLAN_LEGACY_MAC_ID);
 }
 
 /**
@@ -2221,8 +2281,8 @@ void lim_process_action_frame_no_session(struct mac_context *mac, uint8_t *pBd)
 					RXMGMT_FLAG_NONE);
 			break;
 		default:
-			pe_warn("Unhandled public action frame: %x",
-				       action_hdr->actionID);
+			pe_info_rl("Unhandled public action frame: %x",
+				   action_hdr->actionID);
 			break;
 		}
 		break;

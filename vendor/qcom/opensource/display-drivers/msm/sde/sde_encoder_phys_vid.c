@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -528,10 +528,14 @@ static void sde_encoder_phys_vid_vblank_irq(void *arg, int irq_idx)
 	if (vdd) {
 		if (atomic_add_unless(&vdd->ss_vsync_cnt, -1, 0) &&
 			(atomic_read(&vdd->ss_vsync_cnt) == 0)) {
-			wake_up_all(&vdd->ss_vync_wq);
+			wake_up_all(&vdd->ss_vsync_wq);
 			pr_info("sde_encoder_phys_vid_vblank_irq  ss_vsync_cnt: %d\n", atomic_read(&vdd->ss_vsync_cnt));
 		}
 		vdd->vblank_irq_time = ktime_to_us(ktime_get());
+
+		/* To check whether last finger mask frame kickoff is started */
+		if (vdd->support_optical_fingerprint)
+			vdd->panel_hbm_exit_frame_wait = false;
 
 		ss_print_vsync(vdd);
 	}
@@ -990,6 +994,14 @@ static int _sde_encoder_phys_vid_wait_for_vblank(
 	ret = sde_encoder_helper_wait_for_irq(phys_enc, INTR_IDX_VSYNC,
 			&wait_info);
 
+	/*
+	 * if hwfencing enabled, try again to wait for up to the extended timeout time in
+	 * increments as long as fence has not been signaled.
+	 */
+	if (ret == -ETIMEDOUT && phys_enc->sde_kms->catalog->hw_fence_rev)
+		ret = sde_encoder_helper_hw_fence_extended_wait(phys_enc, phys_enc->hw_ctl,
+			&wait_info, INTR_IDX_VSYNC);
+
 	if (ret == -ETIMEDOUT) {
 		new_cnt = atomic_add_unless(&phys_enc->pending_kickoff_cnt, -1, 0);
 		timeout = true;
@@ -1002,6 +1014,10 @@ static int _sde_encoder_phys_vid_wait_for_vblank(
 			flush_register = hw_ctl->ops.get_flush_register(hw_ctl);
 		if (!flush_register)
 			ret = 0;
+
+		/* if we timeout after the extended wait, reset mixers and do sw override */
+		if (ret && phys_enc->sde_kms->catalog->hw_fence_rev)
+			sde_encoder_helper_hw_fence_sw_override(phys_enc, hw_ctl);
 
 		SDE_EVT32(DRMID(phys_enc->parent), new_cnt, flush_register, ret,
 				SDE_EVTLOG_FUNC_CASE1);
@@ -1040,7 +1056,6 @@ static void sde_encoder_phys_vid_update_txq(struct sde_encoder_phys *phys_enc)
 	if (!sde_enc)
 		return;
 
-	SDE_EVT32(DRMID(phys_enc->parent));
 	sde_encoder_helper_update_out_fence_txq(sde_enc, true);
 }
 
@@ -1228,7 +1243,7 @@ static void sde_encoder_phys_vid_disable(struct sde_encoder_phys *phys_enc)
 	 * Timing generator & dsi clock should be enabled to use vsync irq.
 	 */
 	if (vdd)
-		wait_event_timeout(vdd->ss_vync_wq,
+		wait_event_timeout(vdd->ss_vsync_wq,
 			atomic_read(&vdd->ss_vsync_cnt) == 0, msecs_to_jiffies(500));
 #endif
 

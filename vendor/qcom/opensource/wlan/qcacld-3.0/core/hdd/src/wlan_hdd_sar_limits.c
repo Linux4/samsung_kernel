@@ -35,7 +35,7 @@
 
 #define WLAN_WAIT_TIME_SAR 5000
 /**
- * hdd_sar_context - hdd sar context
+ * struct hdd_sar_context - hdd sar context
  * @event: sar limit event
  */
 struct hdd_sar_context {
@@ -308,7 +308,7 @@ cleanup:
 
 /**
  * hdd_to_nl_sar_version - Map SAR version enum from hdd to nl
- * @cur_sar_version - Current SAR version stored in hdd_ctx
+ * @hdd_sar_version: Current SAR version stored in hdd_ctx
  *
  * This function is used to map SAR version enum stored in hdd_ctx to
  * nl
@@ -324,15 +324,21 @@ static u32 hdd_to_nl_sar_version(enum sar_version hdd_sar_version)
 		return QCA_WLAN_VENDOR_SAR_VERSION_2;
 	case (SAR_VERSION_3):
 		return QCA_WLAN_VENDOR_SAR_VERSION_3;
+	case (SAR_VERSION_4):
+	case (SAR_VERSION_5):
+	case (SAR_VERSION_6):
+		return QCA_WLAN_VENDOR_SAR_VERSION_1;
 	default:
-		return QCA_WLAN_VENDOR_SAR_VERSION_INVALID;
+		hdd_err("Unexpected SAR version received :%u, sending default to userspace",
+			hdd_sar_version);
+		return QCA_WLAN_VENDOR_SAR_VERSION_1;
 	}
 }
 
 /**
  * hdd_sar_fill_capability_response - Fill SAR capability
- * @skb - Pointer to socket buffer
- * @hdd_ctx - pointer to hdd context
+ * @skb: Pointer to socket buffer
+ * @hdd_ctx: pointer to hdd context
  *
  * This function fills SAR Capability in the socket buffer
  *
@@ -341,14 +347,15 @@ static u32 hdd_to_nl_sar_version(enum sar_version hdd_sar_version)
 static int hdd_sar_fill_capability_response(struct sk_buff *skb,
 					    struct hdd_context *hdd_ctx)
 {
-	int errno = 0;
+	int errno;
 	u32 attr;
 	u32 value;
 
 	attr = QCA_WLAN_VENDOR_ATTR_SAR_CAPABILITY_VERSION;
 	value = hdd_to_nl_sar_version(hdd_ctx->sar_version);
 
-	hdd_debug("SAR Version = %u", value);
+	hdd_debug("Sending SAR Version = %u to userspace, fw_sar_version: %d",
+		  value, hdd_ctx->sar_version);
 
 	errno = nla_put_u32(skb, attr, value);
 
@@ -548,8 +555,7 @@ hdd_convert_sarv1_to_sarv2(struct hdd_context *hdd_ctx,
 	struct sar_limit_cmd_row *row;
 
 	hdd_enter();
-	if (hdd_ctx->sar_version != SAR_VERSION_2 &&
-	    hdd_ctx->sar_version != SAR_VERSION_3) {
+	if (hdd_ctx->sar_version == SAR_VERSION_1) {
 		hdd_debug("SAR version: %d", hdd_ctx->sar_version);
 		return false;
 	}
@@ -662,7 +668,7 @@ static int wlan_hdd_cfg80211_sar_convert_modulation(u32 nl80211_value,
 
 /**
  * hdd_extract_sar_nested_attrs() - Extract nested SAR attribute
- * @spec: nested nla attribue
+ * @spec: nested nla attribute
  * @row: output to hold extract nested attribute
  *
  * This function extracts nested SAR attribute one at a time which means
@@ -773,8 +779,7 @@ static int __wlan_hdd_set_sar_power_limits(struct wiphy *wiphy,
 			QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SELECT_BDF0 &&
 		     sar_enable <=
 			QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SELECT_BDF4) &&
-		     (hdd_ctx->sar_version == SAR_VERSION_2 ||
-		      hdd_ctx->sar_version == SAR_VERSION_3) &&
+		     hdd_ctx->sar_version != SAR_VERSION_1 &&
 		     !hdd_ctx->config->enable_sar_conversion) {
 			hdd_err("SARV1 to SARV2 is disabled from ini");
 			return -EINVAL;

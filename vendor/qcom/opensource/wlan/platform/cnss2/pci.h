@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CNSS_PCI_H
@@ -23,7 +23,13 @@
 
 #define PM_OPTIONS_DEFAULT		0
 #define PCI_LINK_DOWN			0
+
+#ifdef CONFIG_CNSS_SUPPORT_DUAL_DEV
+#define LINK_TRAINING_RETRY_MAX_TIMES		2
+#else
 #define LINK_TRAINING_RETRY_MAX_TIMES		3
+#endif
+
 #define LINK_TRAINING_RETRY_DELAY_MS		500
 #define MSI_USERS			4
 
@@ -58,6 +64,7 @@ enum cnss_pci_reg_dev_mask {
 	REG_MASK_QCA6490,
 	REG_MASK_KIWI,
 	REG_MASK_MANGO,
+	REG_MASK_PEACH,
 };
 
 struct cnss_msi_user {
@@ -232,9 +239,18 @@ int cnss_pci_alloc_fw_mem(struct cnss_pci_data *pci_priv);
 int cnss_pci_alloc_qdss_mem(struct cnss_pci_data *pci_priv);
 void cnss_pci_free_qdss_mem(struct cnss_pci_data *pci_priv);
 int cnss_pci_load_m3(struct cnss_pci_data *pci_priv);
+void cnss_pci_free_blob_mem(struct cnss_pci_data *pci_priv);
 int cnss_pci_handle_dev_sol_irq(struct cnss_pci_data *pci_priv);
 int cnss_pci_start_mhi(struct cnss_pci_data *pci_priv);
 void cnss_pci_collect_dump_info(struct cnss_pci_data *pci_priv, bool in_panic);
+#ifdef CONFIG_CNSS2_SSR_DRIVER_DUMP
+void cnss_pci_collect_host_dump_info(struct cnss_pci_data *pci_priv);
+#else
+static inline
+void cnss_pci_collect_host_dump_info(struct cnss_pci_data *pci_priv)
+{
+}
+#endif
 void cnss_pci_device_crashed(struct cnss_pci_data *pci_priv);
 void cnss_pci_clear_dump_info(struct cnss_pci_data *pci_priv);
 u32 cnss_pci_get_wake_msi(struct cnss_pci_data *pci_priv);
@@ -280,8 +296,12 @@ int cnss_pci_debug_reg_write(struct cnss_pci_data *pci_priv, u32 offset,
 int cnss_pci_get_iova(struct cnss_pci_data *pci_priv, u64 *addr, u64 *size);
 int cnss_pci_get_iova_ipa(struct cnss_pci_data *pci_priv, u64 *addr,
 			  u64 *size);
+bool cnss_pci_is_smmu_s1_enabled(struct cnss_pci_data *pci_priv);
 void cnss_pci_handle_linkdown(struct cnss_pci_data *pci_priv);
 
 int cnss_pci_update_time_sync_period(struct cnss_pci_data *pci_priv,
 				     unsigned int time_sync_period);
+int cnss_pci_set_therm_cdev_state(struct cnss_pci_data *pci_priv,
+				  unsigned long thermal_state,
+				  int tcdev_id);
 #endif /* _CNSS_PCI_H */

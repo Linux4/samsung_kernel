@@ -76,6 +76,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#ifndef in_addr_t
+typedef uint32_t in_addr_t;
+#endif
 #include "IPACM_Netlink.h"
 #include "IPACM_Lan.h"
 #include "IPACM_Wan.h"
@@ -3527,7 +3530,7 @@ int IPACM_Lan::handle_uplink_filter_rule(ipacm_ext_prop *prop, ipa_ip_type iptyp
 {
 	struct ipa_flt_rule_add_v2 flt_rule_entry;
 	struct ipa_ioc_add_flt_rule_v2 *pFilteringTable;
-	int len = 0, cnt, ret = IPACM_SUCCESS;
+	int cnt, ret = IPACM_SUCCESS;
 	ipa_fltr_installed_notif_req_msg_v01 flt_index;
 	int fd;
 	int i, index, eq_index;

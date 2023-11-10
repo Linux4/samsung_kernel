@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -93,6 +94,41 @@
 		2000, \
 		CFG_VALUE_OR_DEFAULT, \
 		"egap inactivity time")
+
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+/*
+ * <ini>
+ * gGAPLowBeaconMult - configure Low Beacon interval multiplier.
+ * @Min: 0
+ * @Max: 10
+ * @Default: 10
+ *
+ * This ini is used to configure the Low Beacon interval
+ * multiplier which is used to calculate Low Beacon interval for
+ * power save.
+ *
+ * Related: None
+ *
+ * Supported Feature: SAP
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+
+#define CFG_GAP_LL_PS_LOW_BEACON_MULT CFG_INI_UINT( \
+		"gGAPLowBeaconMult", \
+		0, \
+		10, \
+		10, \
+		CFG_VALUE_OR_DEFAULT, \
+		"low beacon interval multiplier")
+
+#define CFG_GAP_LL_PS_ALL_CFG CFG(CFG_GAP_LL_PS_LOW_BEACON_MULT)
+#else
+#define CFG_GAP_LL_PS_ALL_CFG
+#endif
+
 /*
  * <ini>
  * gEGAPWaitTime - configure the wait time for EGAP
@@ -150,7 +186,8 @@
 	CFG(CFG_ENABLE_EGAP_FEATURE) \
 	CFG(CFG_EGAP_INACT_TIME_FEATURE) \
 	CFG(CFG_EGAP_WAIT_TIME_FEATURE) \
-	CFG(CFG_EGAP_FLAGS_FEATURE)
+	CFG(CFG_EGAP_FLAGS_FEATURE) \
+	CFG_GAP_LL_PS_ALL_CFG
 #else
 #define CFG_GREEN_AP_ALL
 #endif

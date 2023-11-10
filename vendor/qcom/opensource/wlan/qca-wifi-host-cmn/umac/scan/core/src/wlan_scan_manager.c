@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -328,7 +328,7 @@ scm_scan_serialize_callback(struct wlan_serialization_command *cmd,
 	switch (reason) {
 	case WLAN_SER_CB_ACTIVATE_CMD:
 		/* command moved to active list
-		 * modify the params if required for concurency case.
+		 * modify the params if required for concurrency case.
 		 */
 		status = scm_activate_scan_request(req);
 		break;
@@ -607,8 +607,15 @@ static void scm_req_update_concurrency_params(struct wlan_objmgr_vdev *vdev,
 		if (!req->scan_req.scan_f_passive)
 			req->scan_req.dwell_time_active =
 				scan_obj->scan_def.conc_active_dwell;
-		req->scan_req.dwell_time_passive =
-			scan_obj->scan_def.conc_passive_dwell;
+		/*
+		 * Irrespective of any concurrency, if a scan request is
+		 * triggered to get channel utilization for the current
+		 * connected channel, passive scan dwell time should be
+		 * MLME_GET_CHAN_STATS_PASSIVE_SCAN_TIME
+		 */
+		if (!req->scan_req.scan_f_pause_home_channel)
+			req->scan_req.dwell_time_passive =
+				scan_obj->scan_def.conc_passive_dwell;
 		req->scan_req.max_rest_time =
 				scan_obj->scan_def.conc_max_rest_time;
 		req->scan_req.min_rest_time =
@@ -797,7 +804,14 @@ static void scm_req_update_concurrency_params(struct wlan_objmgr_vdev *vdev,
 	if (sta_active) {
 		req->scan_req.dwell_time_active_6g =
 				scan_obj->scan_def.active_dwell_time_6g_conc;
-		req->scan_req.dwell_time_passive_6g =
+		/*
+		 * Irrespective of any concurrency, if a scan request is
+		 * triggered to get channel utilization for the current
+		 * connected channel, 6g passive scan dwell time should be
+		 * MLME_GET_CHAN_STATS_WIDE_BAND_PASSIVE_SCAN_TIME
+		 */
+		if (!req->scan_req.scan_f_pause_home_channel)
+			req->scan_req.dwell_time_passive_6g =
 				scan_obj->scan_def.passive_dwell_time_6g_conc;
 	}
 }
@@ -1038,6 +1052,7 @@ scm_update_channel_list(struct scan_start_request *req,
 /**
  * scm_req_update_dwell_time_as_per_scan_mode() - update scan req params
  * dwell time as per scan mode.
+ * @vdev: vdev to update
  * @req: scan request
  *
  * Return: void
@@ -1189,7 +1204,7 @@ scm_scan_req_update_params(struct wlan_objmgr_vdev *vdev,
 		req->scan_req.scan_f_wide_band = false;
 
 	/*
-	 * Overwrite scan channles with custom scan channel
+	 * Overwrite scan channels with custom scan channel
 	 * list if configured.
 	 */
 	custom_chan_list = &scan_obj->pdev_info[pdev_id].custom_chan_list;
@@ -1200,6 +1215,8 @@ scm_scan_req_update_params(struct wlan_objmgr_vdev *vdev,
 		ucfg_scan_init_chanlist_params(req, 0, NULL, NULL);
 
 	scm_update_channel_list(req, scan_obj);
+
+	wlan_scan_update_low_latency_profile_chnlist(vdev, req);
 }
 
 static inline void scm_print_scan_req_info(struct scan_req_params *req)
@@ -1221,15 +1238,16 @@ static inline void scm_print_scan_req_info(struct scan_req_params *req)
 		       req->scan_priority);
 
 	for (idx = 0; idx < req->num_ssids; idx++)
-		scm_nofl_debug("SSID[%d]: %.*s", idx, req->ssid[idx].length,
-			       req->ssid[idx].ssid);
+		scm_nofl_debug("SSID[%d]: " QDF_SSID_FMT, idx,
+			       QDF_SSID_REF(req->ssid[idx].length,
+					    req->ssid[idx].ssid));
 
 	chan_lst  = &req->chan_list;
 
 	if (!chan_lst->num_chan)
 		return;
 	/*
-	 * Buffer of (num channl * 11) + 1  to consider the 4 char freq, 6 char
+	 * Buffer of (num channel * 11) + 1  to consider the 4 char freq, 6 char
 	 * flags and 1 space after it for each channel and 1 to end the string
 	 * with NULL.
 	 */

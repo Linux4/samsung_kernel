@@ -307,6 +307,23 @@ int slim_unregister_controller(struct slim_controller *ctrl)
 }
 EXPORT_SYMBOL_GPL(slim_unregister_controller);
 
+/*
+ * slim_vote_for_suspend : initiate immediate suspend.
+ * @sb: client handle requesting the address.
+ *
+ * return zero in case of suspended success.
+ */
+int slim_vote_for_suspend(struct slim_device *sbdev)
+{
+	struct slim_controller *ctrl = sbdev->ctrl;
+
+	if (!ctrl)
+		return -EINVAL;
+
+	return ctrl->suspend_slimbus(ctrl);
+}
+EXPORT_SYMBOL(slim_vote_for_suspend);
+
 /**
  * slim_report_absent() - Controller calls this function when a device
  *	reports absent, OR when the device cannot be communicated with
@@ -500,6 +517,14 @@ int slim_device_report_present(struct slim_controller *ctrl,
 	int ret;
 
 	ret = pm_runtime_get_sync(ctrl->dev);
+	if (ret < 0) {
+		dev_err(ctrl->dev, "slim %s: PM get_sync failed ret :%d\n",
+			__func__, ret);
+		pm_runtime_put_noidle(ctrl->dev);
+		/* Set device in suspended since resume failed */
+		pm_runtime_set_suspended(ctrl->dev);
+		return ret;
+	}
 
 	if (ctrl->sched.clk_state != SLIM_CLK_ACTIVE) {
 		dev_err(ctrl->dev, "slim ctrl not active,state:%d, ret:%d\n",

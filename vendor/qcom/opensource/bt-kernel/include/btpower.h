@@ -78,6 +78,8 @@ struct btpower_platform_data {
 	int pdc_init_table_len;
 	const char **pdc_init_table;
 	int bt_device_type;
+	bool sec_peri_feature_disable;
+	int bt_sec_hw_disable;
 #ifdef CONFIG_MSM_BT_OOBS
 	struct file *reffilp_obs;
 	struct task_struct *reftask_obs;
@@ -90,13 +92,14 @@ int btpower_aop_mbox_init(struct btpower_platform_data *pdata);
 int bt_aop_pdc_reconfig(struct btpower_platform_data *pdata);
 
 #define WLAN_SW_CTRL_GPIO       "qcom,wlan-sw-ctrl-gpio"
-#define BT_CMD_SLIM_TEST	0xbfac
-#define BT_CMD_PWR_CTRL		0xbfad
-#define BT_CMD_CHIPSET_VERS	0xbfae
-#define BT_CMD_GET_CHIPSET_ID	0xbfaf
-#define BT_CMD_CHECK_SW_CTRL	0xbfb0
-#define BT_CMD_GETVAL_POWER_SRCS	0xbfb1
-#define BT_CMD_SET_IPA_TCS_INFO  0xbfc0
+#define BT_CMD_SLIM_TEST            0xbfac
+#define BT_CMD_PWR_CTRL             0xbfad
+#define BT_CMD_CHIPSET_VERS         0xbfae
+#define BT_CMD_GET_CHIPSET_ID       0xbfaf
+#define BT_CMD_CHECK_SW_CTRL        0xbfb0
+#define BT_CMD_GETVAL_POWER_SRCS    0xbfb1
+#define BT_CMD_SET_IPA_TCS_INFO     0xbfc0
+#define BT_CMD_KERNEL_PANIC         0xbfc1
 
 #ifdef CONFIG_MSM_BT_OOBS
 #define BT_CMD_OBS_SIGNAL_TASK		0xbfd0

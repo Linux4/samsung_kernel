@@ -7,6 +7,7 @@
 #define _CORESIGHT_CORESIGHT_ETM_H
 
 #include <asm/local.h>
+#include <linux/const.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include "coresight-priv.h"
@@ -417,7 +418,7 @@
 	({									\
 		u64 __val;							\
 										\
-		if (__builtin_constant_p((offset)))				\
+		if (__is_constexpr((offset)))					\
 			__val = read_etm4x_sysreg_const_offset((offset));	\
 		else								\
 			__val = etm4x_sysreg_read((offset), true, (_64bit));	\
@@ -871,7 +872,8 @@ struct etmv4_save_state {
  * @csdev:      Component vitals needed by the framework.
  * @spinlock:   Only one at a time pls.
  * @mode:	This tracer's mode, i.e sysFS, Perf or disabled.
- * @cpu:        The cpu this component is affined to.
+ * @cpu:        The logical cpu this component is affined to.
+ * @pcpu:       The physical cpu this component is affined to.
  * @arch:       ETM architecture version.
  * @nr_pe:	The number of processing entity available for tracing.
  * @nr_pe_cmp:	The number of processing entity comparator inputs that are
@@ -937,6 +939,7 @@ struct etmv4_drvdata {
 	spinlock_t			spinlock;
 	local_t				mode;
 	int				cpu;
+	int				pcpu;
 	u8				arch;
 	u8				nr_pe;
 	u8				nr_pe_cmp;

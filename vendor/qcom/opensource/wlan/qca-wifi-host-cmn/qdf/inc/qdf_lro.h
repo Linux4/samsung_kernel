@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,7 +28,7 @@
 #include <i_qdf_lro.h>
 
 /**
- * @qdf_nbuf_t - Platform indepedent LRO context abstraction
+ * @qdf_nbuf_t - Platform independent LRO context abstraction
  */
 typedef __qdf_lro_ctx_t qdf_lro_ctx_t;
 

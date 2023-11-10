@@ -1821,19 +1821,21 @@ void fifo_get_als(uint32_t *clearband, uint32_t *wideband, uint32_t *uvband, siz
 	end = len&~0x0001;
 
 	for (i = start; i < end; i += 2) {
-		tmp = als_buffer[i+1]<<8 | als_buffer[i];
-		switch((i/2) % 3) {
-			case 0 : /* clearband */
-				clearbuf[clearcnt++] = tmp;
-				break;
-			case 1 : /* wideband */
-				widebuf[widecnt++] = tmp;
-				break;
-			case 2 : /* uv */
-				uvbuf[uvcnt++] = tmp;
-				break;
-			default:
-				break;
+		if (i + 1 < AMS_FLICKER_NUM_SAMPLES) {
+			tmp = als_buffer[i + 1] << 8 | als_buffer[i];
+			switch((i / 2) % 3) {
+				case 0 : /* clearband */
+					clearbuf[clearcnt++] = tmp;
+					break;
+				case 1 : /* wideband */
+					widebuf[widecnt++] = tmp;
+					break;
+				case 2 : /* uv */
+					uvbuf[uvcnt++] = tmp;
+					break;
+				default:
+					break;
+			}
 		}
 	}
 

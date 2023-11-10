@@ -20,7 +20,7 @@
 /**
  * DOC: wlan_tdls_public_structs.h
  *
- * TDLS public structure definations
+ * TDLS public structure definitions
  */
 
 #ifndef _WLAN_TDLS_STRUCTS_H_
@@ -260,7 +260,7 @@ enum tdls_command_type {
  * @TDLS_EVENT_RX_MGMT: rx discovery response frame
  * @TDLS_EVENT_ADD_PEER: add peer or update peer
  * @TDLS_EVENT_DEL_PEER: delete peer
- * @TDLS_EVENT_DISCOVERY_REQ: dicovery request
+ * @TDLS_EVENT_DISCOVERY_REQ: discovery request
  * @TDLS_EVENT_TEARDOWN_REQ: teardown request
  * @TDLS_EVENT_SETUP_REQ: setup request
  * @TDLS_EVENT_TEARDOWN_LINKS_DONE: teardown completion event
@@ -991,7 +991,7 @@ struct tdls_peer_update_state {
  * struct tdls_channel_switch_params - channel switch parameter structure
  * @vdev_id: vdev ID
  * @peer_mac_addr: Peer mac address
- * @tdls_off_ch_bw_offset: Target off-channel bandwitdh offset
+ * @tdls_off_ch_bw_offset: Target off-channel bandwidth offset
  * @tdls_off_ch: Target Off Channel
  * @oper_class: Operating class for target channel
  * @is_responder: Responder or initiator
@@ -1063,7 +1063,7 @@ struct tdls_event_notify {
  * @peer_mac: peer's mac address
  * @frame_type: Type of TDLS mgmt frame to be sent
  * @dialog: dialog token used in the frame.
- * @status_code: status to be incuded in the frame
+ * @status_code: status to be included in the frame
  * @responder: Tdls request type
  * @peer_capability: peer cpabilities
  * @len: length of additional Ies
@@ -1317,7 +1317,7 @@ struct tdls_del_sta_rsp {
  * @session_id: session id
  * @req_type: type of action frame
  * @dialog: dialog token used in the frame.
- * @status_code: status to be incuded in the frame.
+ * @status_code: status to be included in the frame.
  * @responder: tdls request type
  * @peer_capability: peer capability information
  * @bssid: bssid

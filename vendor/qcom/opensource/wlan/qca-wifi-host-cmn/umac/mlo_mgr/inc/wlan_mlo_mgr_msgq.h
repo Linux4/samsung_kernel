@@ -98,9 +98,11 @@ struct peer_discon_notify_s {
 /*
  * struct peer_deauth_notify_s - MLO partner peer deauth notification
  * @peer: Link peer on which Peer deauth to be sent
+ * @is_disassoc: flag indicates that disassoc frame needs to be sent
  */
 struct peer_deauth_notify_s {
 	struct wlan_objmgr_peer *peer;
+	uint8_t is_disassoc;
 };
 
 /*
@@ -150,7 +152,7 @@ struct mlo_ctxt_switch_msg_s {
  * @ml_dev: MLO dev context
  * @payload: msg buf
  *
- * This function post message to defer conext queue for defer processing
+ * This function post message to defer context queue for defer processing
  *
  * Return: SUCCESS if msg is posted
  */

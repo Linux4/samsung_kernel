@@ -413,7 +413,11 @@ static int __init fscrypt_init(void)
 	if (!fscrypt_read_workqueue)
 		goto fail;
 
+#ifdef CONFIG_DDAR
+	fscrypt_info_cachep = KMEM_CACHE(ext_fscrypt_info, SLAB_RECLAIM_ACCOUNT);
+#else
 	fscrypt_info_cachep = KMEM_CACHE(fscrypt_info, SLAB_RECLAIM_ACCOUNT);
+#endif
 	if (!fscrypt_info_cachep)
 		goto fail_free_queue;
 

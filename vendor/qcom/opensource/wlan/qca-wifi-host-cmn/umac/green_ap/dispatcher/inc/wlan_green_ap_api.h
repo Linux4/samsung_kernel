@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -26,6 +27,7 @@
 #include <wlan_objmgr_cmn.h>
 #include <wlan_objmgr_pdev_obj.h>
 #include <qdf_status.h>
+#include "../../../global_umac_dispatcher/lmac_if/inc/wlan_lmac_if_def.h"
 
 /* Green ap mode of operation */
 #define WLAN_GREEN_AP_MODE_NO_STA       1 /* PS if no sta connected */
@@ -60,6 +62,19 @@ struct wlan_green_ap_egap_status_info {
 	uint32_t tx_chainmask;
 	uint32_t rx_chainmask;
 };
+
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+/**
+ * struct green_ap_hdd_callback: Green AP HDD callback structure
+ * @send_event: function to send the event parameter to userspace via hdd
+ */
+
+struct green_ap_hdd_callback {
+	QDF_STATUS (*send_event)(struct wlan_objmgr_vdev *vdev,
+				 struct wlan_green_ap_ll_ps_event_param *ll_event_param);
+
+};
+#endif
 
 /**
  * wlan_green_ap_init() - initialize green ap component

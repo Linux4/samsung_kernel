@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -152,7 +153,7 @@ void pkt_capture_offload_deliver_indication_handler(
 #endif
 
 /**
- * pkt_capture_tx_hdr_elem_t - tx packets header struture to
+ * pkt_capture_tx_hdr_elem_t - tx packets header structure to
  * be used to update radiotap header for packet capture mode
  * @timestamp: timestamp
  * @preamble: preamble

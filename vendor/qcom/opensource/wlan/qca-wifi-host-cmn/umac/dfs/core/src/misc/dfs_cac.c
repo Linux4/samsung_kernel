@@ -81,9 +81,8 @@ static void dfs_clear_nol_history_for_curchan(struct wlan_dfs *dfs)
 				num_subchs, DFS_NOL_HISTORY_RESET);
 }
 
-void dfs_process_cac_completion(void *context)
+void dfs_process_cac_completion(struct wlan_dfs *dfs)
 {
-	struct wlan_dfs *dfs = (struct wlan_dfs *)context;
 	enum phy_ch_width ch_width = CH_WIDTH_INVALID;
 	uint16_t primary_chan_freq = 0, sec_chan_freq = 0;
 	struct dfs_channel *dfs_curchan;
@@ -176,7 +175,7 @@ dfs_cac_timeout(qdf_hrtimer_data_t *arg)
 	if (dfs_is_hw_mode_switch_in_progress(dfs))
 		dfs->dfs_defer_params.is_cac_completed = true;
 	else
-		qdf_sched_work(NULL, &dfs->dfs_cac_completion_work);
+		dfs_process_cac_completion(dfs);
 
 	return QDF_HRTIMER_NORESTART;
 }
@@ -191,11 +190,7 @@ void dfs_cac_timer_attach(struct wlan_dfs *dfs)
 			 dfs_cac_timeout,
 			 QDF_CLOCK_MONOTONIC,
 			 QDF_HRTIMER_MODE_REL,
-			 QDF_CONTEXT_HARDWARE);
-	qdf_create_work(NULL,
-			&dfs->dfs_cac_completion_work,
-			dfs_process_cac_completion,
-			dfs);
+			 QDF_CONTEXT_TASKLET);
 	qdf_timer_init(NULL,
 			&(dfs->dfs_cac_valid_timer),
 			dfs_cac_valid_timeout,
@@ -206,7 +201,6 @@ void dfs_cac_timer_attach(struct wlan_dfs *dfs)
 void dfs_cac_timer_reset(struct wlan_dfs *dfs)
 {
 	qdf_hrtimer_cancel(&dfs->dfs_cac_timer);
-	qdf_flush_work(&dfs->dfs_cac_completion_work);
 	dfs_get_override_cac_timeout(dfs,
 			&(dfs->dfs_cac_timeout_override));
 	dfs_clear_cac_started_chan(dfs);
@@ -215,8 +209,6 @@ void dfs_cac_timer_reset(struct wlan_dfs *dfs)
 void dfs_cac_timer_detach(struct wlan_dfs *dfs)
 {
 	qdf_hrtimer_kill(&dfs->dfs_cac_timer);
-	qdf_flush_work(&dfs->dfs_cac_completion_work);
-	qdf_destroy_work(NULL, &dfs->dfs_cac_completion_work);
 	qdf_timer_free(&dfs->dfs_cac_valid_timer);
 	dfs->dfs_cac_valid = 0;
 }
@@ -476,7 +468,7 @@ bool dfs_is_cac_required(struct wlan_dfs *dfs,
 	/* If the channel has completed PRE-CAC then CAC can be skipped here. */
 	if (dfs_is_precac_done(dfs, cur_chan)) {
 		dfs_debug(dfs, WLAN_DEBUG_DFS,
-			  "PRE-CAC alreay done on this channel %d",
+			  "PRE-CAC already done on this channel %d",
 			  cur_chan->dfs_ch_ieee);
 		return false;
 	}
@@ -519,7 +511,7 @@ bool dfs_is_cac_required(struct wlan_dfs *dfs,
 		 * (as 52 and 64 HT80 are subsets of each other)
 		 * is not expected to be preserved as VAP has come up
 		 * from DOWN state. Hence do not skip CAC on 64 HT80.
-		 * is_vap_restart flag is used as an identifer to indicate if
+		 * is_vap_restart flag is used as an identifier to indicate if
 		 * vap has come up from a DOWN state or UP state (vap restart).
 		 */
 		if (!is_vap_restart) {

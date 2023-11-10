@@ -426,6 +426,126 @@ void ucfg_reg_ch_avoid_ext(struct wlan_objmgr_psoc *psoc,
 			   struct ch_avoid_ind_type *ch_avoid);
 #endif
 
+#if defined(CONFIG_BAND_6GHZ) && defined(CONFIG_AFC_SUPPORT)
+/**
+ * ucfg_reg_get_enable_6ghz_sp_mode_support() - Get enable 6 GHz SP mode support
+ * @psoc: psoc ptr
+ *
+ * Return: enable 6 GHz SP mode support flag
+ */
+bool ucfg_reg_get_enable_6ghz_sp_mode_support(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_reg_set_enable_6ghz_sp_mode_support() - Set enable 6 GHz SP mode support
+ * @psoc: psoc ptr
+ * @value: value to be set
+ *
+ * Return: None
+ */
+void ucfg_reg_set_enable_6ghz_sp_mode_support(struct wlan_objmgr_psoc *psoc,
+					      bool value);
+
+/**
+ * ucfg_reg_get_afc_disable_timer_check() - Get AFC timer check disable flag
+ * @psoc: psoc ptr
+ *
+ * Return: AFC timer check disable flag
+ */
+bool ucfg_reg_get_afc_disable_timer_check(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_reg_set_afc_disable_timer_check() - Set AFC timer check disable flag
+ * @psoc: psoc ptr
+ * @value: value to be set
+ *
+ * Return: None
+ */
+void ucfg_reg_set_afc_disable_timer_check(struct wlan_objmgr_psoc *psoc,
+					  bool value);
+
+/**
+ * ucfg_reg_get_afc_disable_request_id_check() - Get AFC request id check flag
+ * @psoc: psoc ptr
+ *
+ * Return: AFC request id check disable flag
+ */
+bool ucfg_reg_get_afc_disable_request_id_check(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_reg_set_afc_disable_request_id_check() - Set AFC request id check flag
+ * @psoc: psoc ptr
+ * @value: value to be set
+ *
+ * Return: None
+ */
+void ucfg_reg_set_afc_disable_request_id_check(struct wlan_objmgr_psoc *psoc,
+					       bool value);
+
+/**
+ * ucfg_reg_get_afc_no_action() - Get AFC no action flag
+ * @psoc: psoc ptr
+ *
+ * Return: AFC no action flag
+ */
+bool ucfg_reg_get_afc_no_action(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_reg_set_afc_no_action() - Set AFC no action flag
+ * @psoc: psoc ptr
+ * @value: value to be set
+ *
+ * Return: None
+ */
+void ucfg_reg_set_afc_no_action(struct wlan_objmgr_psoc *psoc, bool value);
+#else
+static inline
+bool ucfg_reg_get_enable_6ghz_sp_mode_support(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+void ucfg_reg_set_enable_6ghz_sp_mode_support(struct wlan_objmgr_psoc *psoc,
+					      bool value)
+{
+}
+
+static inline
+bool ucfg_reg_get_afc_disable_timer_check(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+void ucfg_reg_set_afc_disable_timer_check(struct wlan_objmgr_psoc *psoc,
+					  bool value)
+{
+}
+
+static inline
+bool ucfg_reg_get_afc_disable_request_id_check(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+void ucfg_reg_set_afc_disable_request_id_check(struct wlan_objmgr_psoc *psoc,
+					       bool value)
+{
+}
+
+static inline
+bool ucfg_reg_get_afc_no_action(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+void ucfg_reg_set_afc_no_action(struct wlan_objmgr_psoc *psoc, bool value)
+{
+}
+#endif
+
 /**
  * ucfg_reg_11d_vdev_delete_update() - update vdev delete to regulatory
  * @vdev: vdev ptr

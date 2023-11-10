@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015,2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -321,6 +321,10 @@ QDF_STATUS cm_disconnect_start(struct cnx_mgr *cm_ctx,
 		cm_send_disconnect_resp(cm_ctx, req->cm_id);
 		return QDF_STATUS_E_INVAL;
 	}
+
+	if (wlan_vdev_mlme_is_mlo_vdev(cm_ctx->vdev))
+		mlo_internal_disconnect_links(cm_ctx->vdev);
+
 	cm_vdev_scan_cancel(pdev, cm_ctx->vdev);
 	mlme_cm_disconnect_start_ind(cm_ctx->vdev, &req->req);
 	cm_if_mgr_inform_disconnect_start(cm_ctx->vdev);
@@ -519,21 +523,28 @@ cm_inform_dlm_disconnect_complete(struct wlan_objmgr_vdev *vdev,
 #ifdef WLAN_FEATURE_11BE_MLO
 #ifdef WLAN_FEATURE_11BE_MLO_ADV_FEATURE
 static inline void
-cm_clear_vdev_mlo_cap(struct wlan_objmgr_vdev *vdev)
+cm_clear_vdev_mlo_cap(struct wlan_objmgr_vdev *vdev,
+		      struct wlan_cm_discon_rsp *rsp)
 {
 	wlan_vdev_mlme_clear_mlo_vdev(vdev);
 }
 #else /*WLAN_FEATURE_11BE_MLO_ADV_FEATURE*/
 static inline void
-cm_clear_vdev_mlo_cap(struct wlan_objmgr_vdev *vdev)
+cm_clear_vdev_mlo_cap(struct wlan_objmgr_vdev *vdev,
+		      struct wlan_cm_discon_rsp *rsp)
 {
 	if (mlo_is_mld_sta(vdev) && ucfg_mlo_is_mld_disconnected(vdev))
 		ucfg_mlo_mld_clear_mlo_cap(vdev);
+	if (rsp->req.req.reason_code == REASON_HOST_TRIGGERED_LINK_DELETE) {
+		wlan_vdev_mlme_clear_mlo_vdev(vdev);
+		wlan_vdev_mlme_clear_mlo_link_vdev(vdev);
+	}
 }
 #endif /*WLAN_FEATURE_11BE_MLO_ADV_FEATURE*/
 #else /*WLAN_FEATURE_11BE_MLO*/
 static inline void
-cm_clear_vdev_mlo_cap(struct wlan_objmgr_vdev *vdev)
+cm_clear_vdev_mlo_cap(struct wlan_objmgr_vdev *vdev,
+		      struct wlan_cm_discon_rsp *rsp)
 { }
 #endif /*WLAN_FEATURE_11BE_MLO*/
 
@@ -579,8 +590,13 @@ QDF_STATUS cm_disconnect_complete(struct cnx_mgr *cm_ctx,
 
 	/* Set the disconnect wait event once all disconnect are completed */
 	if (!cm_ctx->disconnect_count) {
-		/* Clear MLO cap only when it is the last disconnect req */
-		cm_clear_vdev_mlo_cap(cm_ctx->vdev);
+		/*
+		 * Clear MLO cap only when it is the last disconnect req
+		 * For 1x/owe roaming, link vdev mlo flags are not cleared
+		 * as connect req is queued on link vdev after this.
+		 */
+		if (!wlan_cm_check_mlo_roam_auth_status(cm_ctx->vdev))
+			cm_clear_vdev_mlo_cap(cm_ctx->vdev, resp);
 		qdf_event_set(&cm_ctx->disconnect_complete);
 	}
 
@@ -625,7 +641,12 @@ cm_handle_discon_req_in_non_connected_state(struct cnx_mgr *cm_ctx,
 		mlme_cm_osif_update_id_and_src(cm_ctx->vdev,
 					       CM_SOURCE_INVALID,
 					       CM_ID_INVALID);
-		cm_flush_pending_request(cm_ctx, DISCONNECT_REQ_PREFIX, false);
+
+		/* Flush for non mlo link vdev only */
+		if (!wlan_vdev_mlme_is_mlo_vdev(cm_ctx->vdev) ||
+		    !wlan_vdev_mlme_is_mlo_link_vdev(cm_ctx->vdev))
+			cm_flush_pending_request(cm_ctx, DISCONNECT_REQ_PREFIX,
+						 false);
 		/*
 		 * Flush failed pending connect req as new req is received
 		 * and its no longer the latest one.
@@ -687,7 +708,7 @@ cm_handle_discon_req_in_non_connected_state(struct cnx_mgr *cm_ctx,
 		 * So no need to do anything here, just return failure and drop
 		 * disconnect.
 		 */
-		mlme_info("vdev %d droping disconnect req from source %d in INIT state",
+		mlme_info("vdev %d dropping disconnect req from source %d in INIT state",
 			  wlan_vdev_get_id(cm_ctx->vdev), cm_req->req.source);
 		return QDF_STATUS_E_ALREADY;
 	default:
@@ -758,15 +779,18 @@ QDF_STATUS cm_disconnect_start_req_sync(struct wlan_objmgr_vdev *vdev,
 {
 	struct cnx_mgr *cm_ctx;
 	QDF_STATUS status;
+	uint32_t timeout;
+	bool is_assoc_vdev = false;
 
 	cm_ctx = cm_get_cm_ctx(vdev);
 	if (!cm_ctx)
 		return QDF_STATUS_E_INVAL;
 
 	if (wlan_vdev_mlme_is_mlo_vdev(vdev) &&
-	    !wlan_vdev_mlme_is_mlo_link_vdev(vdev))
+	    !wlan_vdev_mlme_is_mlo_link_vdev(vdev)) {
 		req->is_no_disassoc_disconnect = 1;
-
+		is_assoc_vdev = true;
+	}
 	qdf_event_reset(&cm_ctx->disconnect_complete);
 	status = cm_disconnect_start_req(vdev, req);
 	if (QDF_IS_STATUS_ERROR(status)) {
@@ -774,8 +798,13 @@ QDF_STATUS cm_disconnect_start_req_sync(struct wlan_objmgr_vdev *vdev,
 		return status;
 	}
 
+	if (is_assoc_vdev)
+		timeout = CM_DISCONNECT_CMD_TIMEOUT +
+			  CM_DISCONNECT_ASSOC_VDEV_EXTRA_TIMEOUT;
+	else
+		timeout = CM_DISCONNECT_CMD_TIMEOUT;
 	status = qdf_wait_single_event(&cm_ctx->disconnect_complete,
-				       CM_DISCONNECT_CMD_TIMEOUT);
+				       timeout);
 	if (QDF_IS_STATUS_ERROR(status))
 		mlme_err("Disconnect timeout with status %d", status);
 

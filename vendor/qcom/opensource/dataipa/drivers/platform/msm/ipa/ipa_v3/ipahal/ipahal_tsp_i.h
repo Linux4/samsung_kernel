@@ -85,7 +85,7 @@ struct ipahal_tsp_egress_prod_pair {
 };
 
 /**
- * struct ipahal_tsp_egress_class_even - IPA egress traffic-class (even index)
+ * struct ipahal_tsp_egress_class_odd - IPA egress traffic-class (odd index)
  *
  * @last_rtc: For HW use, initialize to 0x0000
  * @reserved: Reserved
@@ -100,7 +100,7 @@ struct ipahal_tsp_egress_prod_pair {
  * @guaranteed_burst: Maximal-burst allowed for guaranteed bandwidth rate (in bytes)
  * @max_burst: Maximal-burst allowed for maximal bandwidth rate (in bytes)
  */
-struct ipahal_tsp_egress_class_even {
+struct ipahal_tsp_egress_class_odd {
 	u16 last_rtc;
 	u16 reserved;
 	u16 guaranteed_bucket;
@@ -114,7 +114,7 @@ struct ipahal_tsp_egress_class_even {
 };
 
 /**
- * struct ipahal_tsp_egress_class_odd - IPA egress traffic-class (odd index)
+ * struct ipahal_tsp_egress_class_even - IPA egress traffic-class (even index)
  *
  * @guaranteed_burst: Maximal-burst allowed for guaranteed bandwidth rate (in bytes)
  * @max_burst: Maximal-burst allowed for maximal bandwidth rate (in bytes)
@@ -129,7 +129,7 @@ struct ipahal_tsp_egress_class_even {
  * @max_freq: In units of 0.833*usec/64KB, Calculated as:
  * 			 max_freq = 65536/max_rate (always be rounded up)
  */
-struct ipahal_tsp_egress_class_odd {
+struct ipahal_tsp_egress_class_even {
 	u16 guaranteed_burst;
 	u16 max_burst;
 	u16 last_rtc;

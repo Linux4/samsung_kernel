@@ -367,7 +367,7 @@ target_if_mgmt_rx_reo_read_snapshot(
 	switch (id) {
 	case MGMT_RX_REO_SHARED_SNAPSHOT_MAC_HW:
 	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_CONSUMED:
-	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWADED:
+	case MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWARDED:
 		retry_count = 0;
 		for (; retry_count < MGMT_RX_REO_SNAPSHOT_READ_RETRY_LIMIT;
 		     retry_count++) {

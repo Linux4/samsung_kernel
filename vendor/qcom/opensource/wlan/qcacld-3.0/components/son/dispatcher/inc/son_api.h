@@ -386,7 +386,7 @@ int wlan_son_deliver_inst_rssi(struct wlan_objmgr_vdev *vdev,
 			       uint32_t irssi);
 
 /**
- * wlan_son_deliver_opmode() - notity user app of opmode
+ * wlan_son_deliver_opmode() - notify user app of opmode
  * @vdev: vdev objmgr
  * @bw: channel width defined in enum eSirMacHTChannelWidth
  * @nss: supported rx nss
@@ -400,7 +400,7 @@ int wlan_son_deliver_opmode(struct wlan_objmgr_vdev *vdev,
 			    uint8_t *addr);
 
 /**
- * wlan_son_deliver_smps() - notity user app of smps
+ * wlan_son_deliver_smps() - notify user app of smps
  * @vdev: vdev objmgr
  * @is_static: is_static
  * @addr: source addr
@@ -412,7 +412,7 @@ int wlan_son_deliver_smps(struct wlan_objmgr_vdev *vdev,
 			  uint8_t *addr);
 
 /**
- * wlan_son_deliver_rrm_rpt() - notity son module of rrm rpt
+ * wlan_son_deliver_rrm_rpt() - notify son module of rrm rpt
  * @vdev: vdev objmgr
  * @addr: sender addr
  * @frm: points to measurement report

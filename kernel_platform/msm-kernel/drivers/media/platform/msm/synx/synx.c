@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #define pr_fmt(fmt) "synx: " fmt
 
@@ -53,9 +53,8 @@ void synx_external_callback(s32 sync_obj, int status, void *data)
 			pr_info("[sess: %u] ext_id %d h_synx %d found in tbl\n",
 				client->id, sync_obj, bind_data->h_synx);
 			synx_obj = (struct synx_coredata *)entry->data;
-			if (!synx_obj) {
+			if (!synx_obj)
 				goto put_cam_tbl_entry;
-			}
 		} else {
 			pr_info("[sess: %u] ext_id %d h_synx %d missing in tbl\n",
 				client->id, sync_obj, bind_data->h_synx);
@@ -776,7 +775,6 @@ int synx_merge(struct synx_session session_id,
 clean_up:
 	kfree(synx_obj);
 fail:
-	synx_util_merge_error(client, h_synxs, count);
 	if (num_objs && num_objs <= count)
 		kfree(fences);
 	synx_put_client(client);
@@ -999,7 +997,8 @@ int synx_bind(struct synx_session session_id,
 		mutex_lock(&synx_obj->obj_lock);
 		memset(&synx_obj->bound_synxs[bound_idx], 0,
 			sizeof(struct synx_external_desc));
-		synx_obj->num_bound_synxs--;
+		if (synx_obj->num_bound_synxs)
+			synx_obj->num_bound_synxs--;
 		goto free;
 	}
 
@@ -1094,6 +1093,14 @@ int synx_addrefcount(struct synx_session session_id, s32 h_synx, s32 count)
 	idx = synx_util_handle_index(h_synx);
 	mutex_lock(&client->synx_table_lock[idx]);
 	/* acquire additional references to handle */
+	if (synx_data->rel_count + count > SYNX_MAX_REF_COUNTS) {
+		mutex_unlock(&client->synx_table_lock[idx]);
+		pr_err(
+			"[sess: %u] refcount limit for handle %d will exhaust with count %d\n",
+			client->id, h_synx, count);
+		rc = -EINVAL;
+		goto fail;
+	}
 	while (count--) {
 		synx_data->rel_count++;
 		kref_get(&synx_data->internal_refcount);

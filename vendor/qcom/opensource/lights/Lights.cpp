@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2019 The Android Open Source Project
@@ -139,41 +139,57 @@ static int setLedBreathParam(enum rgb_led led, int breath) {
 }
 
 static int setLedDelayParams(enum rgb_led led, int flashOnMs, int flashOffMs) {
-    char file[48];
+    char file_on[48];
+    char file_off[48];
     int rc;
+    int retries = 20;
 
-    snprintf(file, sizeof(file), "/sys/class/leds/%s/delay_on", rgb_led_name[led]);
-    rc = write_int_to_file(file, flashOnMs);
-    if (rc < 0)
-        goto out;
+    snprintf(file_on, sizeof(file_on), "/sys/class/leds/%s/trigger", rgb_led_name[led]);
+    rc = write_str_to_file(file_on, "timer");
+    if (rc < 0) {
+        ALOGD("%s doesn't support timer trigger\n", rgb_led_name[led]);
+        return rc;
+    }
 
-    snprintf(file, sizeof(file), "/sys/class/leds/%s/delay_off", rgb_led_name[led]);
-    rc = write_int_to_file(file, flashOffMs);
-    if (rc < 0)
-        goto out;
+    snprintf(file_off, sizeof(file_off), "/sys/class/leds/%s/delay_off", rgb_led_name[led]);
+    snprintf(file_on, sizeof(file_on), "/sys/class/leds/%s/delay_on", rgb_led_name[led]);
+
+    while(retries--) {
+        ALOGD("retry %d set delay_off and delay_on\n", retries);
+        usleep(2000);
+
+        rc = write_int_to_file(file_off, flashOffMs);
+        if (rc < 0)
+            continue;
+
+        rc = write_int_to_file(file_on, flashOnMs);
+        if (!rc)
+            break;
+    }
+
+    if (rc < 0) {
+        ALOGE("Error in writing to delay_on/off for %s\n", rgb_led_name[led]);
+        return rc;
+    }
 
     return 0;
-out:
-    ALOGE("%s does not support timer trigger", rgb_led_name[led]);
-    return rc;
 }
 
 static int setLedBrightness(enum rgb_led led, int brightness) {
     int rc;
     char file[48];
 
+    snprintf(file, sizeof(file), "/sys/class/leds/%s/trigger", rgb_led_name[led]);
+    rc = write_str_to_file(file, "none");
+    if (rc < 0) {
+        ALOGD("%s failed to set trigger to none\n", rgb_led_name[led]);
+        return rc;
+    }
+
     snprintf(file, sizeof(file), "/sys/class/leds/%s/brightness", rgb_led_name[led]);
     rc = write_int_to_file(file, brightness);
     if (rc < 0)
         return rc;
-
-    /* Reset trigger to timer if LED's brightness is cleared */
-    if (brightness == 0) {
-        snprintf(file, sizeof(file), "/sys/class/leds/%s/trigger", rgb_led_name[led]);
-        rc = write_str_to_file(file, "timer");
-        if (rc < 0)
-            ALOGE("Couldn't reset timer trigger on %s led: %d", rgb_led_name[led], rc);
-    }
 
     return rc;
 }

@@ -80,7 +80,7 @@ typedef struct qdf_mc_timer_s {
 
 void qdf_try_allowing_sleep(QDF_TIMER_TYPE type);
 
-/* Function declarations and documenation */
+/* Function declarations and documentation */
 #ifdef TIMER_MANAGER
 void qdf_mc_timer_manager_init(void);
 void qdf_mc_timer_manager_exit(void);

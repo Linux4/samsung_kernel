@@ -135,8 +135,6 @@ struct qbt2000_drvdata {
 	bool enabled_wuhb;
 	bool enabled_ldo;
 	bool tz_mode;
-	bool wuhb_test_flag;
-	int wuhb_test_result;
 	const char *model_info;
 	const char *chipid;
 	struct pinctrl *p;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2017, 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -142,7 +143,7 @@ qdf_lro_ctx_t qdf_lro_init(void)
 	lro_ctx->lro_mgr = (struct net_lro_mgr *)lro_mem_ptr;
 	lro_mem_ptr += lro_mgr_sz;
 
-	/* LRO decriptor array */
+	/* LRO descriptor array */
 	lro_ctx->lro_mgr->lro_arr = (struct net_lro_desc *)lro_mem_ptr;
 	lro_mem_ptr += desc_arr_sz;
 
@@ -189,7 +190,7 @@ void qdf_lro_deinit(qdf_lro_ctx_t lro_ctx)
  * qdf_lro_tcp_flow_match() - function to check for a flow match
  * @iph: IP header
  * @tcph: TCP header
- * @lro_desc: LRO decriptor
+ * @lro_desc: LRO descriptor
  *
  * Checks if the descriptor belongs to the same flow as the one
  * indicated by the TCP and IP header.
@@ -443,7 +444,7 @@ void qdf_lro_flush(qdf_lro_ctx_t lro_ctx)
  * qdf_lro_get_desc() - LRO descriptor look-up function
  * @iph: IP header
  * @tcph: TCP header
- * @lro_arr: Array of LRO decriptors
+ * @lro_arr: Array of LRO descriptors
  * @lro_mgr: LRO manager
  *
  * Looks-up the LRO descriptor for a given flow

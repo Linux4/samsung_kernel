@@ -1,7 +1,7 @@
  /*
   * Goodix Touchscreen Driver
   * Copyright (C) 2020 - 2021 Goodix, Inc.
-  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+  * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
   *
   * This program is free software; you can redistribute it and/or modify
   * it under the terms of the GNU General Public License as published by
@@ -876,8 +876,13 @@ exit:
 
 static int rawdata_proc_open(struct inode *inode, struct file *file)
 {
-	return single_open_size(file, rawdata_proc_show,
+	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0))
+		return single_open_size(file, rawdata_proc_show,
+			pde_data(inode), PAGE_SIZE * 10);
+	#else
+		return single_open_size(file, rawdata_proc_show,
 			PDE_DATA(inode), PAGE_SIZE * 10);
+	#endif
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
@@ -2293,7 +2298,7 @@ static int goodix_ts_suspend_helper(void *data)
 {
 	struct goodix_ts_core *core_data = data;
 
-	if (!core_data || core_module_prob_sate != CORE_MODULE_PROB_SUCCESS)
+	if (!core_data || !core_data->ready)
 		return 0;
 
 	return goodix_ts_suspend(core_data);
@@ -2303,7 +2308,7 @@ static int goodix_ts_resume_helper(void *data)
 {
 	struct goodix_ts_core *core_data = data;
 
-	if (!core_data || core_module_prob_sate != CORE_MODULE_PROB_SUCCESS)
+	if (!core_data || !core_data->ready)
 		return 0;
 
 	return goodix_ts_resume(core_data);
@@ -2504,18 +2509,6 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	}
 
 	core_data->bus = bus_interface;
-	qts_en = of_property_read_bool(node, "goodix,qts_en");
-	if (qts_en) {
-		mutex_init(&core_data->tui_transition_lock);
-		goodix_ts_fill_qts_vendor_data(&qts_vendor_data, core_data);
-
-		ret = qts_client_register(qts_vendor_data);
-		if (ret) {
-			pr_err("qts client register failed, rc %d\n", ret);
-			goto err_out;
-		}
-		core_data->qts_en = qts_en;
-	}
 
 	if (IS_ENABLED(CONFIG_OF) && bus_interface->dev->of_node) {
 		/* parse devicetree property */
@@ -2574,6 +2567,19 @@ static int goodix_ts_probe(struct platform_device *pdev)
 skip_to_power_gpio_setup:
 #endif
 
+	qts_en = of_property_read_bool(node, "goodix,qts_en");
+	if (qts_en) {
+		mutex_init(&core_data->tui_transition_lock);
+		goodix_ts_fill_qts_vendor_data(&qts_vendor_data, core_data);
+
+		ret = qts_client_register(qts_vendor_data);
+		if (ret) {
+			pr_err("qts client register failed, rc %d\n", ret);
+			goto err_out;
+		}
+		core_data->qts_en = qts_en;
+	}
+
 	/* generic notifier callback */
 	core_data->ts_notifier.notifier_call = goodix_generic_noti_callback;
 	goodix_ts_register_notifier(&core_data->ts_notifier);
@@ -2585,6 +2591,7 @@ skip_to_power_gpio_setup:
 	core_data->init_stage = CORE_INIT_STAGE1;
 	goodix_modules.core_data = core_data;
 	core_module_prob_sate = CORE_MODULE_PROB_SUCCESS;
+	core_data->ready = true;
 
 	/* Try start a thread to get config-bin info */
 	goodix_start_later_init(core_data);

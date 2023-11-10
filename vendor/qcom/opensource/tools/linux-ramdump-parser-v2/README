@@ -111,3 +111,9 @@ tracecmdtool - absolute path to the trace-cmd tool that converts the binary
 
 Note that local_settings.py is just a python file so the file may take advantage
 of python features.
+
+make_rpm.sh
+-------------------------------
+This script helps packages the linux-ramdump-parser-v2 subdirectory in this repo as an RPM deliverable.
+
+Usage: ./make_rpm.sh [-a <Architecture>]

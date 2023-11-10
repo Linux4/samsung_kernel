@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
 # Copyright (c) 2015, 2017, 2019-2021 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -137,6 +139,7 @@ def read_config(config_pt):
                 length = 1
                 tmp_count = 0
         elif descriptor == link_descriptor:
+            total_length = 0
             for i in range(0, 2):
                 offset = offset + (val & 0xFF) * 4 + (length - 1) * track_len
                 val = val >> 8
@@ -144,7 +147,7 @@ def read_config(config_pt):
                 length = (val & 0x7f)
                 val = val >> link_second_arg
                 if length != 0:
-                    list_nr.append(length + list_nr[- 1])
+                    total_length += length
                     count = count + 1
                     tmp_count = tmp_count + 1
                     add_addr(base, offset, length)
@@ -153,6 +156,8 @@ def read_config(config_pt):
                         return list_nr[on_zero_link_len]
                     else:
                         offset = 0
+            if total_length > 0:
+                list_nr.append(total_length + list_nr[- 1])
         elif descriptor == loop_descriptor:
             loop_offset = val & bm(config_loopoffset - 1, 0)
             loop_count = bvalsel(27, config_loopoffset, val)

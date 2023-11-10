@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -182,6 +182,17 @@ QDF_STATUS scm_scan_register_bcn_cb(struct wlan_objmgr_psoc *psoc,
 	update_beacon_cb cb, enum scan_cb_type type);
 
 /**
+ * scm_scan_register_mbssid_cb() - API to register api to handle bcn/probe
+ * as soon as they are generated
+ * @psoc: psoc object
+ * @cb: callback to be registered
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS scm_scan_register_mbssid_cb(struct wlan_objmgr_psoc *psoc,
+				       update_mbssid_bcn_prb_rsp cb);
+
+/**
  * scm_db_init() - API to init scan db
  * @psoc: psoc
  *
@@ -301,4 +312,32 @@ QDF_STATUS scm_scan_update_mlme_by_bssinfo(struct wlan_objmgr_pdev *pdev,
 
 uint32_t scm_get_last_scan_time_per_channel(struct wlan_objmgr_vdev *vdev,
 					    uint32_t freq);
+
+/**
+ * scm_scan_get_entry_by_mac_addr() - Get bcn/probe rsp from scan db
+ * @pdev: pdev info
+ * @bssid: BSSID of the bcn/probe response to be fetched from scan db
+ * @frame: Frame from scan db with given bssid.
+ *
+ * This API allocates the memory for bcn/probe rsp frame and returns
+ * to caller through @frame->ptr. It's caller responsibility to free
+ * the memory once it's done with the usage.
+ *
+ * Return: QDF_STATUS_SUCCESS if scan entry is present in db
+ */
+QDF_STATUS
+scm_scan_get_entry_by_mac_addr(struct wlan_objmgr_pdev *pdev,
+			       struct qdf_mac_addr *bssid,
+			       struct element_info *frame);
+
+/**
+ * scm_scan_get_entry_by_bssid() - function to get scan entry by bssid
+ * @pdev: pdev object
+ * @bssid: bssid to be fetched from scan db
+ *
+ * Return : scan entry if found, else NULL
+ */
+struct scan_cache_entry *
+scm_scan_get_entry_by_bssid(struct wlan_objmgr_pdev *pdev,
+			    struct qdf_mac_addr *bssid);
 #endif

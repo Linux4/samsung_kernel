@@ -32,6 +32,7 @@ struct sound_model_info {
     sec_stage_level_t sec_threshold;
     sec_stage_level_t sec_det_level;
     SoundModelInfo *info;
+    bool is_hist_buffer_duration_set;
 };
 
 class VoiceUIInterface {

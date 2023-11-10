@@ -257,6 +257,30 @@ wlan_mgmt_rx_reo_pdev_obj_destroy_notification(
 			struct mgmt_txrx_priv_pdev_context *mgmt_txrx_pdev_ctx);
 
 /**
+ * wlan_mgmt_rx_reo_psoc_obj_create_notification() - psoc create handler for
+ * management rx-reorder module
+ * @psoc: pointer to psoc object
+ *
+ * This function gets called from object manager when psoc is being created.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_mgmt_rx_reo_psoc_obj_create_notification(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_mgmt_rx_reo_psoc_obj_destroy_notification() - psoc destroy handler for
+ * management rx-reorder feature
+ * @psoc: pointer to psoc object
+ *
+ * This function gets called from object manager when psoc is being destroyed.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_mgmt_rx_reo_psoc_obj_destroy_notification(struct wlan_objmgr_psoc *psoc);
+
+/**
  * wlan_mgmt_rx_reo_attach() - Initializes the per pdev data structures related
  * to management rx-reorder module
  * @pdev: pointer to pdev object
@@ -305,6 +329,28 @@ wlan_mgmt_rx_reo_is_feature_enabled_at_pdev(struct wlan_objmgr_pdev *pdev);
  */
 uint16_t
 wlan_mgmt_rx_reo_get_pkt_ctr_delta_thresh(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_mgmt_rx_reo_get_ingress_frame_debug_list_size() - Get the size of
+ * ingress  frame debug list
+ * @psoc: pointer to psoc object
+ *
+ * Return: Size of ingress frame debug list
+ */
+uint16_t
+wlan_mgmt_rx_reo_get_ingress_frame_debug_list_size
+					(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_mgmt_rx_reo_get_egress_frame_debug_list_size() - Get the size of
+ * egress  frame debug list
+ * @psoc: pointer to psoc object
+ *
+ * Return: Size of egress frame debug list
+ */
+uint16_t
+wlan_mgmt_rx_reo_get_egress_frame_debug_list_size
+					(struct wlan_objmgr_psoc *psoc);
 
 /**
  * wlan_mgmt_rx_reo_is_simulation_in_progress() - API to check whether
@@ -403,6 +449,36 @@ static inline QDF_STATUS
 wlan_mgmt_rx_reo_pdev_obj_destroy_notification(
 			struct wlan_objmgr_pdev *pdev,
 			struct mgmt_txrx_priv_pdev_context *mgmt_txrx_pdev_ctx)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * wlan_mgmt_rx_reo_psoc_obj_create_notification() - psoc create handler for
+ * management rx-reorder module
+ * @psoc: pointer to psoc object
+ *
+ * This function gets called from object manager when psoc is being created.
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS
+wlan_mgmt_rx_reo_psoc_obj_create_notification(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * wlan_mgmt_rx_reo_psoc_obj_destroy_notification() - psoc destroy handler for
+ * management rx-reorder feature
+ * @psoc: pointer to psoc object
+ *
+ * This function gets called from object manager when psoc is being destroyed.
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS
+wlan_mgmt_rx_reo_psoc_obj_destroy_notification(struct wlan_objmgr_psoc *psoc)
 {
 	return QDF_STATUS_SUCCESS;
 }

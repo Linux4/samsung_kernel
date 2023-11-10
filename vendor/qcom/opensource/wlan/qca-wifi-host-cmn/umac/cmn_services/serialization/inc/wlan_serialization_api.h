@@ -520,17 +520,6 @@ enum wlan_serialization_cmd_status
 wlan_serialization_pdev_scan_status(struct wlan_objmgr_pdev *pdev);
 
 /**
- * wlan_serialization_non_scan_cmd_status() - Return status of pdev non-scan cmd
- * @pdev: PDEV Object
- * @cmd_id: ID of the command for which the status has to be checked
- *
- * Return: Status of the command for the corresponding pdev
- */
-enum wlan_serialization_cmd_status
-wlan_serialization_non_scan_cmd_status(struct wlan_objmgr_pdev *pdev,
-				       enum wlan_serialization_cmd_type cmd_id);
-
-/**
  * wlan_serialization_is_cmd_present_in_pending_queue() - Return if the command
  *				is already present in pending queue
  * @cmd: pointer to serialization command to check
@@ -543,6 +532,18 @@ wlan_serialization_non_scan_cmd_status(struct wlan_objmgr_pdev *pdev,
 bool wlan_serialization_is_cmd_present_in_pending_queue(
 		struct wlan_objmgr_psoc *psoc,
 		struct wlan_serialization_command *cmd);
+
+/**
+ * wlan_ser_is_non_scan_cmd_type_in_vdev_queue() - check if a non scan cmd
+ * type is present in pending vdev queue, without checking the cmd id
+ * @vdev: vdev on which cmd need to be check
+ * @cmd_type: command type to check
+ *
+ * Return: true or false
+ */
+bool wlan_ser_is_non_scan_cmd_type_in_vdev_queue(struct wlan_objmgr_vdev *vdev,
+				enum wlan_serialization_cmd_type cmd_type);
+
 /**
  * wlan_serialization_is_cmd_present_in_active_queue() - Return if the command
  *			is already present in active queue

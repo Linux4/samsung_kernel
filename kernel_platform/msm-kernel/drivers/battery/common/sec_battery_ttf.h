@@ -40,6 +40,7 @@ struct sec_ttf_data {
 	unsigned int ttf_dc25_charge_current;
 	unsigned int ttf_dc45_charge_current;
 	unsigned int ttf_predict_wc20_charge_current;
+	unsigned int ttf_fpdo_dc_charge_current;
 
 	struct sec_cv_slope *cv_data;
 	int cv_data_length;

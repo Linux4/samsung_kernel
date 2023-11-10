@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -218,8 +218,8 @@ static void sde_encoder_override_tearcheck_rd_ptr(struct sde_encoder_phys *phys_
 
 	sde_encoder_helper_get_pp_line_count(phys_enc->parent, info);
 	SDE_EVT32_VERBOSE(phys_enc->hw_intf->idx - INTF_0, mode->vdisplay,
-		cmd_enc->qsync_threshold_lines, info[0].rd_ptr_line_count,
-		info[0].rd_ptr_frame_count, info[0].wr_ptr_line_count,
+		cmd_enc->qsync_threshold_lines, adjusted_tear_rd_ptr_line_cnt,
+		info[0].rd_ptr_line_count, info[0].rd_ptr_frame_count, info[0].wr_ptr_line_count,
 		info[1].rd_ptr_line_count, info[1].rd_ptr_frame_count, info[1].wr_ptr_line_count);
 }
 
@@ -228,6 +228,7 @@ static void _sde_encoder_phys_signal_frame_done(struct sde_encoder_phys *phys_en
 	struct sde_encoder_phys_cmd *cmd_enc;
 	struct sde_hw_ctl *ctl;
 	u32 scheduler_status = INVALID_CTL_STATUS, event = 0;
+	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
 
 	cmd_enc = to_sde_encoder_phys_cmd(phys_enc);
 	ctl = phys_enc->hw_ctl;
@@ -251,9 +252,12 @@ static void _sde_encoder_phys_signal_frame_done(struct sde_encoder_phys *phys_en
 	if (ctl->ops.get_scheduler_status)
 		scheduler_status = ctl->ops.get_scheduler_status(ctl);
 
-	SDE_EVT32_IRQ(DRMID(phys_enc->parent), ctl->idx - CTL_0,
-		phys_enc->hw_pp->idx - PINGPONG_0, event, scheduler_status,
-		phys_enc->autorefresh_disable_trans);
+	sde_encoder_helper_get_pp_line_count(phys_enc->parent, info);
+	SDE_EVT32_IRQ(DRMID(phys_enc->parent), ctl->idx - CTL_0, phys_enc->hw_pp->idx - PINGPONG_0,
+		event, scheduler_status, phys_enc->autorefresh_disable_trans, info[0].pp_idx,
+		info[0].intf_idx, info[0].intf_frame_count, info[0].wr_ptr_line_count,
+		info[0].rd_ptr_line_count, info[1].pp_idx, info[1].intf_idx,
+		info[1].intf_frame_count, info[1].wr_ptr_line_count, info[1].rd_ptr_line_count);
 
 	SDE_EVT32_PICK_IRQ(DRMID(phys_enc->parent), ctl->idx - CTL_0,
 		phys_enc->hw_pp->idx - PINGPONG_0, event, scheduler_status,
@@ -348,6 +352,26 @@ static void sde_encoder_phys_cmd_autorefresh_done_irq(void *arg, int irq_idx)
 	wake_up_all(&cmd_enc->autorefresh.kickoff_wq);
 }
 
+static void sde_encoder_phys_cmd_panel_te_irq(void *arg, int irq_idx)
+{
+	struct sde_encoder_phys *phys_enc = arg;
+	struct sde_encoder_phys_cmd *cmd_enc;
+	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
+	struct sde_hw_ctl *ctl;
+	u32 scheduler_status = INVALID_CTL_STATUS;
+
+	cmd_enc = to_sde_encoder_phys_cmd(phys_enc);
+	ctl = phys_enc->hw_ctl;
+	if (ctl && ctl->ops.get_scheduler_status)
+		scheduler_status = ctl->ops.get_scheduler_status(ctl);
+	sde_encoder_helper_get_pp_line_count(phys_enc->parent, info);
+	SDE_EVT32_IRQ(DRMID(phys_enc->parent), scheduler_status, info[0].pp_idx,
+		info[0].intf_idx, info[0].intf_frame_count, info[0].wr_ptr_line_count,
+		info[0].rd_ptr_line_count, info[1].pp_idx, info[1].intf_idx,
+		info[1].intf_frame_count, info[1].wr_ptr_line_count, info[1].rd_ptr_line_count);
+
+}
+
 static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 {
 	struct sde_encoder_phys *phys_enc = arg;
@@ -406,12 +430,10 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 		fence_ready = ctl->ops.get_hw_fence_status(ctl);
 
 	sde_encoder_helper_get_pp_line_count(phys_enc->parent, info);
-	SDE_EVT32_IRQ(DRMID(phys_enc->parent),
-		info[0].pp_idx, info[0].intf_idx,
-		info[0].wr_ptr_line_count, info[0].intf_frame_count, info[0].rd_ptr_line_count,
-		info[1].pp_idx, info[1].intf_idx,
-		info[1].wr_ptr_line_count, info[1].intf_frame_count, info[1].rd_ptr_line_count,
-		scheduler_status, fence_ready);
+	SDE_EVT32_IRQ(DRMID(phys_enc->parent), scheduler_status, fence_ready, info[0].pp_idx,
+		info[0].intf_idx, info[0].intf_frame_count, info[0].wr_ptr_line_count,
+		info[0].rd_ptr_line_count, info[1].pp_idx, info[1].intf_idx,
+		info[1].intf_frame_count, info[1].wr_ptr_line_count, info[1].rd_ptr_line_count);
 
 	SDE_EVT32_PICK_IRQ(DRMID(phys_enc->parent),
 		info[0].pp_idx, info[0].intf_idx,
@@ -420,6 +442,7 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 		info[1].wr_ptr_line_count, info[1].intf_frame_count, info[1].rd_ptr_line_count,
 		scheduler_status, fence_ready);
 
+	sde_rsc_log_vsync_info(phys_enc->parent);
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	/* case 05295952: detect MDP clock underflow that causes line noise */
 	if (ctrl && ctrl->ctrl && info[0].wr_ptr_line_count > (phys_enc->cached_mode.vdisplay/3) &&
@@ -444,7 +467,7 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 skip_call_handle_vblank_virt:
 	if (ndx >= 0 && ndx < MAX_DISPLAY_NDX && vdd)
-		ss_print_vsync(vdd);
+		ss_event_rd_ptr_irq(vdd);
 #endif
 
 	atomic_add_unless(&cmd_enc->pending_vblank_cnt, -1, 0);
@@ -497,10 +520,11 @@ static void sde_encoder_phys_cmd_wr_ptr_irq(void *arg, int irq_idx)
 	}
 
 	sde_encoder_helper_get_pp_line_count(phys_enc->parent, info);
-	SDE_EVT32_IRQ(DRMID(phys_enc->parent),
-		ctl->idx - CTL_0, event,
-		info[0].pp_idx, info[0].intf_idx, info[0].wr_ptr_line_count,
-		info[1].pp_idx, info[1].intf_idx, info[1].wr_ptr_line_count, qsync_mode);
+	SDE_EVT32_IRQ(DRMID(phys_enc->parent), ctl->idx - CTL_0, event, qsync_mode,
+		info[0].pp_idx, info[0].intf_idx, info[0].intf_frame_count,
+		info[0].wr_ptr_line_count, info[0].rd_ptr_line_count, info[1].pp_idx,
+		info[1].intf_idx, info[1].intf_frame_count, info[1].wr_ptr_line_count,
+		info[1].rd_ptr_line_count);
 
 	SDE_EVT32_PICK_IRQ(DRMID(phys_enc->parent),
 		ctl->idx - CTL_0, event,
@@ -545,6 +569,12 @@ static void _sde_encoder_phys_cmd_setup_irq_hw_idx(
 	irq->hw_idx = phys_enc->hw_pp->idx;
 
 	irq = &phys_enc->irq[INTR_IDX_RDPTR];
+	if (phys_enc->has_intf_te)
+		irq->hw_idx = phys_enc->hw_intf->idx;
+	else
+		irq->hw_idx = phys_enc->hw_pp->idx;
+
+	irq = &phys_enc->irq[INTR_IDX_TE_DETECTED];
 	if (phys_enc->has_intf_te)
 		irq->hw_idx = phys_enc->hw_intf->idx;
 	else
@@ -680,9 +710,9 @@ static int _sde_encoder_phys_cmd_handle_framedone_timeout(
 	u32 pending_kickoff_cnt;
 	unsigned long lock_flags;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	struct sde_connector *sde_conn;
-	struct dsi_display *disp;
-	struct samsung_display_driver_data *vdd;
+	struct sde_connector *sde_conn = NULL;
+	struct dsi_display *disp = NULL;
+	struct samsung_display_driver_data *vdd = NULL;
 #endif
 
 	if (!phys_enc->hw_pp || !phys_enc->hw_ctl)
@@ -734,13 +764,18 @@ static int _sde_encoder_phys_cmd_handle_framedone_timeout(
 		phys_enc->hw_ctl->idx - CTL_0,
 		pending_kickoff_cnt);
 
+	SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
+
+	if (disp && atomic_read(&(disp->panel->esd_recovery_pending))) /* case 06577371 */
+		SDE_ERROR_CMDENC(cmd_enc, "skip panic in esd recovery (%d)\n",
+				atomic_read(&(disp->panel->esd_recovery_pending)));
+	else
+		SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
+#endif
+
 	/* check if panel is still sending TE signal or not */
 	if (sde_connector_esd_status(phys_enc->connector))
 		goto exit;
-
-	SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
-	SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
-#endif
 
 	/* to avoid flooding, only log first time, and "dead" time */
 	if (cmd_enc->frame_tx_timeout_report_cnt == 1) {
@@ -1033,7 +1068,7 @@ static int sde_encoder_phys_cmd_control_vblank_irq(
 {
 	struct sde_encoder_phys_cmd *cmd_enc =
 		to_sde_encoder_phys_cmd(phys_enc);
-	int ret = 0;
+	int ret = 0, rc;
 	u32 refcount;
 	struct sde_kms *sde_kms;
 
@@ -1065,12 +1100,14 @@ static int sde_encoder_phys_cmd_control_vblank_irq(
 		ret = sde_encoder_helper_register_irq(phys_enc, INTR_IDX_RDPTR);
 		if (ret)
 			atomic_dec_return(&phys_enc->vblank_refcount);
+		rc = sde_encoder_helper_register_irq(phys_enc, INTR_IDX_TE_DETECTED);
 	} else if (!enable &&
 			atomic_dec_return(&phys_enc->vblank_refcount) == 0) {
 		ret = sde_encoder_helper_unregister_irq(phys_enc,
 				INTR_IDX_RDPTR);
 		if (ret)
 			atomic_inc_return(&phys_enc->vblank_refcount);
+		rc = sde_encoder_helper_unregister_irq(phys_enc, INTR_IDX_TE_DETECTED);
 	}
 
 end:
@@ -1151,28 +1188,34 @@ static int _get_tearcheck_threshold(struct sde_encoder_phys *phys_enc)
 	struct drm_connector *conn = phys_enc->connector;
 	u32 qsync_mode;
 	struct drm_display_mode *mode;
-	u32 threshold_lines = DEFAULT_TEARCHECK_SYNC_THRESH_START;
+	u32 threshold_lines, adjusted_threshold_lines;
 	struct sde_encoder_phys_cmd *cmd_enc =
 			to_sde_encoder_phys_cmd(phys_enc);
+	struct sde_encoder_virt *sde_enc;
+	struct msm_mode_info *info;
 
 	if (!conn || !conn->state)
 		return 0;
 
+	sde_enc = to_sde_encoder_virt(phys_enc->parent);
+	info = &sde_enc->mode_info;
 	mode = &phys_enc->cached_mode;
 	qsync_mode = sde_connector_get_qsync_mode(conn);
+	threshold_lines = adjusted_threshold_lines = DEFAULT_TEARCHECK_SYNC_THRESH_START;
 
 	if (mode && (qsync_mode == SDE_RM_QSYNC_CONTINUOUS_MODE)) {
 		u32 qsync_min_fps = 0;
+		ktime_t qsync_time_ns;
+		ktime_t qsync_l_bound_ns, qsync_u_bound_ns;
 		u32 default_fps = drm_mode_vrefresh(mode);
+		ktime_t default_time_ns;
+		ktime_t default_line_time_ns;
+		ktime_t extra_time_ns;
 		u32 yres = mode->vtotal;
-		u32 slow_time_ns;
-		u32 default_time_ns;
-		u32 extra_time_ns;
-		u32 default_line_time_ns;
 
 		if (phys_enc->parent_ops.get_qsync_fps)
-			phys_enc->parent_ops.get_qsync_fps(
-				phys_enc->parent, &qsync_min_fps, conn->state);
+			phys_enc->parent_ops.get_qsync_fps(phys_enc->parent, &qsync_min_fps,
+					conn->state);
 
 		if (!qsync_min_fps || !default_fps || !yres) {
 			SDE_ERROR_CMDENC(cmd_enc,
@@ -1194,35 +1237,55 @@ static int _get_tearcheck_threshold(struct sde_encoder_phys *phys_enc)
 			goto exit;
 		}
 
-		/* Calculate the number of extra lines*/
-		slow_time_ns = DIV_ROUND_UP(1000000000, qsync_min_fps);
-		default_time_ns = DIV_ROUND_UP(1000000000, default_fps);
-		extra_time_ns = slow_time_ns - default_time_ns;
-		default_line_time_ns = DIV_ROUND_UP(default_time_ns, yres);
+		/*
+		 * Calculate safe qsync trigger window by compensating
+		 * the qsync timeout period by panel jitter value.
+		 *
+		 * qsync_safe_window_period = qsync_timeout_period * (1 - jitter) - nominal_period
+		 * nominal_line_time = nominal_period / vtotal
+		 * qsync_safe_window_lines = qsync_safe_window_period / nominal_line_time
+		 */
+		qsync_time_ns = mult_frac(1000000000, 1, qsync_min_fps);
+		default_time_ns = mult_frac(1000000000, 1, default_fps);
 
-		threshold_lines = extra_time_ns / default_line_time_ns;
+		sde_encoder_helper_get_jitter_bounds_ns(qsync_min_fps, info->jitter_numer,
+				info->jitter_denom, &qsync_l_bound_ns, &qsync_u_bound_ns);
+		if (!qsync_l_bound_ns || !qsync_u_bound_ns)
+			qsync_l_bound_ns = qsync_u_bound_ns = qsync_time_ns;
+
+		extra_time_ns = qsync_l_bound_ns - default_time_ns;
+		default_line_time_ns = mult_frac(1, default_time_ns, yres);
+		threshold_lines = mult_frac(1, extra_time_ns, default_line_time_ns);
 
 		/* some DDICs express the timeout value in lines/4, round down to compensate */
-		threshold_lines = round_down(threshold_lines, 4);
+		adjusted_threshold_lines = round_down(threshold_lines, 4);
 		/* remove 2 lines to cover for latency */
-		if (threshold_lines - 2 > DEFAULT_TEARCHECK_SYNC_THRESH_START)
-			threshold_lines -= 2;
+		if (adjusted_threshold_lines - 2 > DEFAULT_TEARCHECK_SYNC_THRESH_START)
+			adjusted_threshold_lines -= 2;
 
-		SDE_DEBUG_CMDENC(cmd_enc, "slow:%d default:%d extra:%d(ns)\n",
-			slow_time_ns, default_time_ns, extra_time_ns);
-		SDE_DEBUG_CMDENC(cmd_enc, "min_fps:%d fps:%d yres:%d lines:%d\n",
-			qsync_min_fps, default_fps, yres, threshold_lines);
+		SDE_DEBUG_CMDENC(cmd_enc,
+			"qsync mode:%u min_fps:%u time:%lld low:%lld up:%lld jitter:%u/%u\n",
+			qsync_mode, qsync_min_fps, qsync_time_ns, qsync_l_bound_ns,
+			qsync_u_bound_ns, info->jitter_numer, info->jitter_denom);
+		SDE_DEBUG_CMDENC(cmd_enc,
+			"default fps:%u time:%lld yres:%u line_time:%lld\n",
+			default_fps, default_time_ns, yres, default_line_time_ns);
+		SDE_DEBUG_CMDENC(cmd_enc,
+			"extra_time:%lld  threshold_lines:%u adjusted_threshold_lines:%u\n",
+			extra_time_ns, threshold_lines, adjusted_threshold_lines);
 
-		SDE_EVT32(qsync_mode, qsync_min_fps, extra_time_ns, default_fps,
-			yres, threshold_lines);
+		SDE_EVT32(qsync_mode, qsync_min_fps, default_fps, info->jitter_numer,
+				info->jitter_denom, yres, extra_time_ns, default_line_time_ns,
+				adjusted_threshold_lines);
 
-		SDE_EVT32_PICK(qsync_mode, qsync_min_fps, extra_time_ns, default_fps,
-			yres, threshold_lines);
+		SDE_EVT32_PICK(qsync_mode, qsync_min_fps, default_fps, info->jitter_numer,
+				info->jitter_denom, yres, extra_time_ns, default_line_time_ns,
+				adjusted_threshold_lines);
 	}
 
 exit:
 
-	return threshold_lines;
+	return adjusted_threshold_lines;
 }
 
 static void sde_encoder_phys_cmd_tearcheck_config(
@@ -1341,6 +1404,13 @@ static void sde_encoder_phys_cmd_tearcheck_config(
 		phys_enc->hw_intf->idx - INTF_0,
 		tc_cfg.sync_cfg_height,
 		tc_cfg.sync_threshold_start, tc_cfg.sync_threshold_continue);
+
+	SDE_EVT32(phys_enc->hw_pp->idx - PINGPONG_0, phys_enc->hw_intf->idx - INTF_0,
+			vsync_hz, mode->vtotal, vrefresh);
+	SDE_EVT32(tc_enable, tc_cfg.start_pos, tc_cfg.rd_ptr_irq, tc_cfg.wr_ptr_irq,
+			tc_cfg.hw_vsync_mode, tc_cfg.vsync_count, tc_cfg.vsync_init_val,
+			tc_cfg.sync_cfg_height, tc_cfg.sync_threshold_start,
+			tc_cfg.sync_threshold_continue);
 
 	if (phys_enc->has_intf_te) {
 		phys_enc->hw_intf->ops.setup_tearcheck(phys_enc->hw_intf,
@@ -1692,9 +1762,12 @@ void ss_qsync_check(struct sde_encoder_phys *phys)
 			tc_cfg.sync_threshold_start = DEFAULT_TEARCHECK_SYNC_THRESH_START;
 			update = 0x1111;
 
-			SDE_INFO( "set start_pos %d thresh_start %d during vrr/lpm_state/lp_commit/check_early_te (%d/%d/%d/%d)\n",
-				tc_cfg.start_pos, tc_cfg.sync_threshold_start, 
-				is_running_vrr(vdd), ss_is_panel_lpm(vdd), lp_commit, vdd->check_early_te--);
+			if (vdd->check_early_te > 0)
+				vdd->check_early_te--;
+
+			SDE_INFO("set start_pos %d thresh_start %d during vrr/lpm_state/lp_commit/check_early_te (%d/%d/%d/%d)\n",
+				tc_cfg.start_pos, tc_cfg.sync_threshold_start,
+				is_running_vrr(vdd), ss_is_panel_lpm(vdd), lp_commit, vdd->check_early_te);
 
 			SDE_EVT32_PICK(0xAAAA, is_running_vrr(vdd), tc_cfg.start_pos, tc_cfg.sync_threshold_start);
 
@@ -1722,7 +1795,7 @@ void ss_qsync_check(struct sde_encoder_phys *phys)
 		if(_check_power_clock_rate(crtc))
 			tear_start *= 2;
 
-		SDE_DEBUG( "start_pos %d thresh_start %d tear_height %d min_height %d\n",
+		SDE_DEBUG("start_pos %d thresh_start %d tear_height %d min_height %d\n",
 			tc_cfg.start_pos, tc_cfg.sync_threshold_start, tear_start, min_height);
 		if ((crtc_roi-> y > 0) && (crtc_roi->y > (mode->vdisplay - (tear_start + min_height)))) {
 			if (tc_cfg.start_pos <= mode->vdisplay + 1) {
@@ -1762,8 +1835,7 @@ exit:
 			phys->hw_pp->ops.update_start(phys->hw_pp, &tc_cfg);
 
 		_sde_encoder_phys_cmd_update_flush_mask(phys);
-		SDE_INFO("%s : start_pos %d thresh_start %d\n",
-			(update == 0x1111) ? "change" : "restore",
+		SDE_INFO("%s : start_pos %d thresh_start %d\n", (update == 0x1111) ? "change" : "restore",
 			tc_cfg.start_pos, tc_cfg.sync_threshold_start);
 		SDE_EVT32(DRMID(phys->parent), tc_cfg.start_pos, tc_cfg.sync_threshold_start, update);
 			_sde_encoder_phys_cmd_update_flush_mask(phys);
@@ -1849,17 +1921,22 @@ static int sde_encoder_phys_cmd_prepare_for_kickoff(
 static bool _sde_encoder_phys_cmd_needs_vsync_change(
 		struct sde_encoder_phys *phys_enc, ktime_t profile_timestamp)
 {
+	struct sde_encoder_virt *sde_enc;
 	struct sde_encoder_phys_cmd *cmd_enc;
 	struct sde_encoder_phys_cmd_te_timestamp *cur;
 	struct sde_encoder_phys_cmd_te_timestamp *prev = NULL;
 	ktime_t time_diff;
-	u64 l_bound = 0, u_bound = 0;
+	struct msm_mode_info *info;
+	ktime_t l_bound = 0, u_bound = 0;
 	bool ret = false;
 	unsigned long lock_flags;
 
 	cmd_enc = to_sde_encoder_phys_cmd(phys_enc);
-	sde_encoder_helper_get_jitter_bounds_ns(phys_enc->parent,
-							&l_bound, &u_bound);
+	sde_enc = to_sde_encoder_virt(phys_enc->parent);
+	info = &sde_enc->mode_info;
+
+	sde_encoder_helper_get_jitter_bounds_ns(info->frame_rate, info->jitter_numer,
+			info->jitter_denom, &l_bound, &u_bound);
 	if (!l_bound || !u_bound) {
 		SDE_ERROR_CMDENC(cmd_enc, "invalid vsync jitter bounds\n");
 		return false;
@@ -1921,6 +1998,7 @@ static int _sde_encoder_phys_cmd_wait_for_wr_ptr(
 	wait_info.wq = &phys_enc->pending_kickoff_wq;
 	wait_info.atomic_cnt = &phys_enc->pending_retire_fence_cnt;
 	wait_info.timeout_ms = timeout_ms;
+	sde_rsc_log_vsync_info(phys_enc->parent);
 
 	/* slave encoder doesn't enable for ppsplit */
 	if (_sde_encoder_phys_is_ppsplit_slave(phys_enc))
@@ -1928,8 +2006,18 @@ static int _sde_encoder_phys_cmd_wait_for_wr_ptr(
 
 	ret = sde_encoder_helper_wait_for_irq(phys_enc, INTR_IDX_WRPTR,
 			&wait_info);
+
+	/*
+	 * if hwfencing enabled, try again to wait for up to the extended timeout time in
+	 * increments as long as fence has not been signaled.
+	 */
+	if (ret == -ETIMEDOUT && phys_enc->sde_kms->catalog->hw_fence_rev)
+		ret = sde_encoder_helper_hw_fence_extended_wait(phys_enc, ctl, &wait_info,
+			INTR_IDX_WRPTR);
+
 	if (ret == -ETIMEDOUT) {
 		struct sde_hw_ctl *ctl = phys_enc->hw_ctl;
+		sde_rsc_log_vsync_info(phys_enc->parent);
 
 		if (ctl && ctl->ops.get_start_state)
 			frame_pending = ctl->ops.get_start_state(ctl);
@@ -1957,6 +2045,10 @@ static int _sde_encoder_phys_cmd_wait_for_wr_ptr(
 					lock_flags);
 			}
 		}
+
+		/* if we timeout after the extended wait, reset mixers and do sw override */
+		if (ret && phys_enc->sde_kms->catalog->hw_fence_rev)
+			sde_encoder_helper_hw_fence_sw_override(phys_enc, ctl);
 	}
 
 	cmd_enc->wr_ptr_wait_success = (ret == 0) ? true : false;
@@ -2361,6 +2453,7 @@ static void sde_encoder_phys_cmd_trigger_start(
 	struct sde_encoder_phys_cmd *cmd_enc =
 			to_sde_encoder_phys_cmd(phys_enc);
 	u32 frame_cnt;
+	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
@@ -2390,6 +2483,12 @@ static void sde_encoder_phys_cmd_trigger_start(
 	} else {
 		sde_encoder_helper_trigger_start(phys_enc);
 	}
+
+	sde_encoder_helper_get_pp_line_count(phys_enc->parent, info);
+	SDE_EVT32(DRMID(phys_enc->parent), frame_cnt, info[0].pp_idx, info[0].intf_idx,
+		info[0].intf_frame_count, info[0].wr_ptr_line_count, info[0].rd_ptr_line_count,
+		info[1].pp_idx, info[1].intf_idx, info[1].intf_frame_count,
+		info[1].wr_ptr_line_count, info[1].rd_ptr_line_count);
 
 	/* wr_ptr_wait_success is set true when wr_ptr arrives */
 	cmd_enc->wr_ptr_wait_success = false;
@@ -2586,6 +2685,18 @@ struct sde_encoder_phys *sde_encoder_phys_cmd_init(
 		irq->intr_type = SDE_IRQ_TYPE_PING_PONG_RD_PTR;
 
 	irq->cb.func = sde_encoder_phys_cmd_te_rd_ptr_irq;
+
+	irq = &phys_enc->irq[INTR_IDX_TE_DETECTED];
+	irq->intr_idx = INTR_IDX_TE_DETECTED;
+	irq->name = "panel_te_rd_ptr";
+
+	if (phys_enc->has_intf_te)
+		irq->intr_type = SDE_IRQ_TYPE_INTF_TEAR_TE_CHECK;
+	else
+		irq->intr_type = SDE_IRQ_TYPE_PING_PONG_RD_PTR;
+
+	irq->cb.func = sde_encoder_phys_cmd_panel_te_irq;
+
 
 	irq = &phys_enc->irq[INTR_IDX_AUTOREFRESH_DONE];
 	irq->name = "autorefresh_done";

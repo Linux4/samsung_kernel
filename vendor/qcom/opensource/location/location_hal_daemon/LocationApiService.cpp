@@ -29,7 +29,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -882,7 +882,7 @@ void LocationApiService::stopTracking(LocAPIStopTrackingReqMsg *pMsg) {
     if (pMsg->clearSubscriptions) {
         pClient->unsubscribeLocationSessionCb();
     }
-    pClient->stopTracking();
+    pClient->stopTracking(!(pMsg->clearSubscriptions));
     LOC_LOGi(">-- stopping session");
 }
 
@@ -1704,9 +1704,8 @@ void LocationApiService::onGtpWwanTrackingCallback(Location location) {
             LocHalDaemonClientHandler* pClient = getClient(it->first);
             if (pClient) {
                 pClient->sendTerrestrialFix(LOCATION_ERROR_SUCCESS, location);
-            } else {
-                ++it;
             }
+            ++it;
         }
         mTerrestrialFixTimeoutMap.clear();
         mGtpWwanSsLocationApi->stopNetworkLocation(&mGtpWwanPosCallback);
@@ -1714,10 +1713,10 @@ void LocationApiService::onGtpWwanTrackingCallback(Location location) {
 }
 
 // LCA client will get intermediate fixes as well
-void LocationApiService::onGnssLocationInfoCb(GnssLocationInfoNotification notification) {
+void LocationApiService::onGnssLocationInfoCb(const GnssLocationInfoNotification& notification) {
     std::lock_guard<std::recursive_mutex> lock(mMutex);
 
-    Location &location = notification.location;
+    const Location &location = notification.location;
     mSingleFixLastLocation = location;
     LOC_LOGd("--< onGnssLocationInfoCb loc flags=0x%x, accracy %f, request cnt %d",
              location.flags, location.accuracy, mSingleFixReqMap.size());
@@ -1902,7 +1901,7 @@ void LocationApiService::getSingleTerrestrialPos(
 
         mTerrestrialFixTimeoutMap.emplace(
                 std::piecewise_construct, std::forward_as_tuple(clientName),
-                std::forward_as_tuple(this, clientName, SINGLE_SHOT_FIX_TIMER_FUSED));
+                std::forward_as_tuple(this, clientName, SINGLE_SHOT_FIX_TIMER_TERRESTRIAL));
         auto it = mTerrestrialFixTimeoutMap.find(clientName);
         if (it != mTerrestrialFixTimeoutMap.end()) {
             it->second.start(pReqMsg->mTimeoutMsec, false);
@@ -1960,7 +1959,7 @@ void LocationApiService::getSinglePos(LocAPIGetSinglePosReqMsg* pReqMsg) {
             onCollectiveResponseCallback(count, errs, ids);
         };
         mSingleFixLocationApiCallbacks.gnssLocationInfoCb =
-                [this](GnssLocationInfoNotification notification) {
+                [this](const GnssLocationInfoNotification& notification) {
             onGnssLocationInfoCb(notification);
         };
 

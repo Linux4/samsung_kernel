@@ -244,6 +244,11 @@ interconnects:
 	Value type: <bool>
 	Definition: Support clock power management
 
+- qcom,gdsc-clk-drv-ss-nonvotable:
+	Usage: optional
+	Value type: <bool>
+	Definition: gdsc clock can't be turned off during DRV process.
+
 - qcom,n-fts:
 	Usage: optional
 	Value type: <u32>
@@ -264,6 +269,16 @@ interconnects:
 	Usage: optional
 	Value type: <bool>
 	Definition: L1 sub-state (L1ss) is not supported
+
+- qcom,apss-based-l1ss-sleep:
+	Usage: optional
+	Value type: <bool>
+	Definition: Apss based L1ss sleep is supported
+
+- qcom,no-client-based-bw-voting:
+	Usage: optional
+	Value type: <bool>
+	Definition: client based bw voting is not supported
 
 - qcom,no-aux-clk-sync:
 	Usage: optional
@@ -505,6 +520,7 @@ Example
 		qcom,boot-option = <0x1>;
 		qcom,drv-name = "lpass";
 		qcom,use-19p2mhz-aux-clk;
+		qcom,gdsc-clk-drv-ss-nonvotable;
 		qcom,common-clk-en;
 		qcom,clk-power-manage-en;
 		qcom,n-fts = <0x50>;

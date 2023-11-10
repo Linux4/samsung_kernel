@@ -215,11 +215,11 @@ enum nan_datapath_end_reason_code {
 /**
  * enum nan_datapath_state - NAN datapath states
  * @NAN_DATA_NDI_CREATING_STATE: NDI create is in progress
- * @NAN_DATA_NDI_CREATED_STATE: NDI successfully crated
+ * @NAN_DATA_NDI_CREATED_STATE: NDI successfully created
  * @NAN_DATA_NDI_DELETING_STATE: NDI delete is in progress
  * @NAN_DATA_NDI_DELETED_STATE: NDI delete is in progress
  * @NAN_DATA_PEER_CREATE_STATE: Peer create is in progress
- * @NAN_DATA_PEER_DELETE_STATE: Peer delete is in progrss
+ * @NAN_DATA_PEER_DELETE_STATE: Peer delete is in progress
  * @NAN_DATA_CONNECTING_STATE: Data connection in progress
  * @NAN_DATA_CONNECTED_STATE: Data connection successful
  * @NAN_DATA_END_STATE: NDP end is in progress
@@ -796,6 +796,9 @@ struct nan_datapath_host_event {
  * @delete_peers_by_addr: LIM callback for deleting peer by MAC address
  * @update_ndi_conn: WMA callback to update NDI's connection info
  * @nan_concurrency_update: Callback to handle nan concurrency
+ * @set_mc_list: HDD calback to set multicast peer list
+ * @nan_sr_concurrency_update: Callback to handle nan SR(Spatial Reuse)
+ * concurrency
  */
 struct nan_callbacks {
 	/* callback to os_if layer from umac */
@@ -822,6 +825,10 @@ struct nan_callbacks {
 				      struct nan_datapath_channel_info
 								    *chan_info);
 	void (*nan_concurrency_update)(void);
+	void (*set_mc_list)(struct wlan_objmgr_vdev *vdev);
+#ifdef WLAN_FEATURE_SR
+	void (*nan_sr_concurrency_update)(struct nan_event_params *nan_evt);
+#endif
 };
 
 /**

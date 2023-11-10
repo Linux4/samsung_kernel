@@ -50,6 +50,7 @@ extern struct targetdef_s *QCN9224v1_TARGETDEF;
 extern struct targetdef_s *QCN9224_TARGETDEF;
 extern struct targetdef_s *QCA9574_TARGETDEF;
 extern struct targetdef_s *QCA5332_TARGETDEF;
+extern struct targetdef_s *QCN9160_TARGETDEF;
 
 extern struct ce_reg_def *AR6002_CE_TARGETdef;
 extern struct ce_reg_def *AR6003_CE_TARGETdef;
@@ -75,5 +76,6 @@ extern struct ce_reg_def *QCN9224v1_CE_TARGETDEF;
 extern struct ce_reg_def *QCN9224_CE_TARGETDEF;
 extern struct ce_reg_def *QCA9574_CE_TARGETDEF;
 extern struct ce_reg_def *QCA5332_CE_TARGETDEF;
+extern struct ce_reg_def *QCN9160_CE_TARGETDEF;
 
 #endif

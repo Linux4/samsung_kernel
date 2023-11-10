@@ -1544,18 +1544,16 @@ static QDF_STATUS lim_process_csa_wbw_ie(struct mac_context *mac_ctx,
 		struct pe_session *session_entry)
 {
 	struct ch_params ch_params = {0};
-	uint8_t ap_new_ch_width;
+	enum phy_ch_width ap_new_ch_width;
 	uint8_t center_freq_diff;
 	uint32_t fw_vht_ch_wd = wma_get_vht_ch_width() + 1;
 	uint32_t cent_freq1, cent_freq2;
 	uint32_t csa_cent_freq, csa_cent_freq1 = 0, csa_cent_freq2 = 0;
 
-	ap_new_ch_width = csa_params->new_ch_width + 1;
+	ap_new_ch_width = csa_params->new_ch_width;
 
-	if (!csa_params->new_ch_freq_seg1 && !csa_params->new_ch_freq_seg2) {
-		pe_err("CSA wide BW IE has invalid center freq");
+	if (!csa_params->new_ch_freq_seg1 && !csa_params->new_ch_freq_seg2)
 		return QDF_STATUS_E_INVAL;
-	}
 
 	csa_cent_freq = csa_params->csa_chan_freq;
 	if (wlan_reg_is_6ghz_op_class(mac_ctx->pdev,
@@ -1599,7 +1597,7 @@ static QDF_STATUS lim_process_csa_wbw_ie(struct mac_context *mac_ctx,
 		csa_cent_freq1 = cent_freq1;
 		break;
 	default:
-		pe_err("CSA wide BW IE has wrong ch_width %d", ap_new_ch_width);
+		pe_debug("CSA wide BW IE has ch_width %d", ap_new_ch_width);
 		return QDF_STATUS_E_INVAL;
 	}
 
@@ -1657,17 +1655,18 @@ static QDF_STATUS lim_process_csa_wbw_ie(struct mac_context *mac_ctx,
 	}
 
 	if (ap_new_ch_width > fw_vht_ch_wd) {
-		pe_debug("New BW is not supported, setting BW to %d",
+		pe_debug("New BW is not supported, downgrade BW to %d",
 			 fw_vht_ch_wd);
 		ap_new_ch_width = fw_vht_ch_wd;
-		ch_params.ch_width = ap_new_ch_width;
-		wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
-						     csa_params->csa_chan_freq,
-						     0, &ch_params);
-		ap_new_ch_width = ch_params.ch_width;
-		csa_params->new_ch_freq_seg1 = ch_params.center_freq_seg0;
-		csa_params->new_ch_freq_seg2 = ch_params.center_freq_seg1;
 	}
+	ch_params.ch_width = ap_new_ch_width;
+	wlan_reg_set_channel_params_for_pwrmode(mac_ctx->pdev,
+						csa_params->csa_chan_freq,
+						0, &ch_params,
+						REG_CURRENT_PWR_MODE);
+	ap_new_ch_width = ch_params.ch_width;
+	csa_params->new_ch_freq_seg1 = ch_params.center_freq_seg0;
+	csa_params->new_ch_freq_seg2 = ch_params.center_freq_seg1;
 
 	session_entry->gLimChannelSwitch.state =
 		eLIM_CHANNEL_SWITCH_PRIMARY_AND_SECONDARY;
@@ -1675,18 +1674,6 @@ static QDF_STATUS lim_process_csa_wbw_ie(struct mac_context *mac_ctx,
 	chnl_switch_info->newChanWidth = ap_new_ch_width;
 	chnl_switch_info->newCenterChanFreq0 = csa_params->new_ch_freq_seg1;
 	chnl_switch_info->newCenterChanFreq1 = csa_params->new_ch_freq_seg2;
-
-	if (session_entry->ch_width == ap_new_ch_width)
-		goto prnt_log;
-
-	if (session_entry->ch_width == CH_WIDTH_80MHZ) {
-		chnl_switch_info->newChanWidth = CH_WIDTH_80MHZ;
-		chnl_switch_info->newCenterChanFreq1 = 0;
-	} else {
-		session_entry->ch_width = ap_new_ch_width;
-		chnl_switch_info->newChanWidth = ap_new_ch_width;
-	}
-prnt_log:
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1716,15 +1703,64 @@ static bool lim_is_csa_channel_allowed(struct mac_context *mac_ctx,
 	return is_allowed;
 }
 
+#ifdef WLAN_FEATURE_11BE
 /**
- * lim_handle_sta_csa_param() - Handle CSA offload param
- * @mac_ctx: pointer to global adapter context
- * @csa_params: csa parameters.
+ * lim_set_csa_chan_param_11be() - set csa chan params for 11be
+ * @session: pointer to pe session
+ * @csa_param: pointer to csa_offload_params
+ * @ch_param: channel parameters to get
  *
- * Return: None
+ * Return: void
  */
-static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
-				     struct csa_offload_params *csa_params)
+static void lim_set_csa_chan_param_11be(struct pe_session *session,
+					struct csa_offload_params *csa_param,
+					struct ch_params *ch_param)
+{
+	if (!session || !csa_param || !ch_param || !session->vdev) {
+		pe_err("invalid input parameter");
+		return;
+	}
+
+	if (csa_param->new_ch_width == CH_WIDTH_320MHZ &&
+	    !session->eht_config.support_320mhz_6ghz)
+		ch_param->ch_width = CH_WIDTH_160MHZ;
+
+	wlan_cm_sta_set_chan_param(session->vdev,
+				   csa_param->csa_chan_freq,
+				   csa_param->new_ch_width,
+				   csa_param->new_punct_bitmap,
+				   csa_param->new_ch_freq_seg1,
+				   csa_param->new_ch_freq_seg2,
+				   ch_param);
+}
+
+/**
+ * lim_set_chan_sw_puncture() - set puncture to channel switch info
+ * @lim_ch_switch: pointer to tLimChannelSwitchInfo
+ * @ch_param: pointer to ch_params
+ *
+ * Return: void
+ */
+static void lim_set_chan_sw_puncture(tLimChannelSwitchInfo *lim_ch_switch,
+				     struct ch_params *ch_param)
+{
+	lim_ch_switch->puncture_bitmap = ch_param->reg_punc_bitmap;
+}
+#else
+static void lim_set_csa_chan_param_11be(struct pe_session *session,
+					struct csa_offload_params *csa_param,
+					struct ch_params *ch_param)
+{
+}
+
+static void lim_set_chan_sw_puncture(tLimChannelSwitchInfo *lim_ch_switch,
+				     struct ch_params *ch_param)
+{
+}
+#endif
+
+void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
+			      struct csa_offload_params *csa_params)
 {
 	struct pe_session *session_entry;
 	tpDphHashNode sta_ds = NULL;
@@ -1817,9 +1853,15 @@ static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 		pe_debug("new freq: %u, width: %d", csa_params->csa_chan_freq,
 			 csa_params->new_ch_width);
 		ch_params.ch_width = csa_params->new_ch_width;
-		wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
+		if (IS_DOT11_MODE_EHT(session_entry->dot11mode))
+			lim_set_csa_chan_param_11be(session_entry, csa_params,
+						    &ch_params);
+		else
+			wlan_reg_set_channel_params_for_pwrmode(
+						     mac_ctx->pdev,
 						     csa_params->csa_chan_freq,
-						     0, &ch_params);
+						     0, &ch_params,
+						     REG_CURRENT_PWR_MODE);
 		pe_debug("idea width: %d, chn_seg0 %u chn_seg1 %u freq_seg0 %u freq_seg1 %u",
 			 ch_params.ch_width, ch_params.center_freq_seg0,
 			 ch_params.center_freq_seg1, ch_params.mhz_freq_seg0,
@@ -1829,6 +1871,7 @@ static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 		lim_ch_switch->ch_width = ch_params.ch_width;
 		lim_ch_switch->ch_center_freq_seg0 = ch_params.center_freq_seg0;
 		lim_ch_switch->ch_center_freq_seg1 = ch_params.center_freq_seg1;
+		lim_set_chan_sw_puncture(lim_ch_switch, &ch_params);
 
 		if (ch_params.ch_width == CH_WIDTH_20MHZ) {
 			lim_ch_switch->state = eLIM_CHANNEL_SWITCH_PRIMARY_ONLY;
@@ -1856,9 +1899,11 @@ static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 			if (chnl_switch_info->newChanWidth) {
 				ch_params.ch_width =
 					chnl_switch_info->newChanWidth;
-				wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
-								     csa_params->csa_chan_freq,
-								     0, &ch_params);
+				wlan_reg_set_channel_params_for_pwrmode(
+						mac_ctx->pdev,
+						csa_params->csa_chan_freq,
+						0, &ch_params,
+						REG_CURRENT_PWR_MODE);
 				lim_ch_switch->sec_ch_offset =
 					ch_params.sec_ch_offset;
 				session_entry->htSupportedChannelWidthSet =
@@ -1907,9 +1952,9 @@ static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 
 			ch_params.ch_width =
 				chnl_switch_info->newChanWidth;
-			wlan_reg_set_channel_params_for_freq(
+			wlan_reg_set_channel_params_for_pwrmode(
 				mac_ctx->pdev, csa_params->csa_chan_freq, 0,
-				&ch_params);
+				&ch_params, REG_CURRENT_PWR_MODE);
 			chnl_switch_info->newCenterChanFreq0 =
 				ch_params.center_freq_seg0;
 			/*
@@ -1927,9 +1972,11 @@ static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 			lim_ch_switch->state =
 				eLIM_CHANNEL_SWITCH_PRIMARY_AND_SECONDARY;
 			ch_params.ch_width = CH_WIDTH_40MHZ;
-			wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
-							     csa_params->csa_chan_freq,
-							     0, &ch_params);
+			wlan_reg_set_channel_params_for_pwrmode(
+						mac_ctx->pdev,
+						csa_params->csa_chan_freq,
+						0, &ch_params,
+						REG_CURRENT_PWR_MODE);
 			lim_ch_switch->sec_ch_offset =
 				ch_params.sec_ch_offset;
 			chnl_switch_info->newChanWidth = CH_WIDTH_40MHZ;
@@ -1962,9 +2009,11 @@ static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 					CH_WIDTH_40MHZ;
 				ch_params.ch_width =
 					chnl_switch_info->newChanWidth;
-				wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
-								     csa_params->csa_chan_freq,
-								     0, &ch_params);
+				wlan_reg_set_channel_params_for_pwrmode(
+						mac_ctx->pdev,
+						csa_params->csa_chan_freq,
+						0, &ch_params,
+						REG_CURRENT_PWR_MODE);
 				lim_ch_switch->ch_center_freq_seg0 =
 					ch_params.center_freq_seg0;
 				lim_ch_switch->sec_ch_offset =
@@ -1987,9 +2036,11 @@ static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 			lim_ch_switch->state =
 				eLIM_CHANNEL_SWITCH_PRIMARY_AND_SECONDARY;
 			ch_params.ch_width = CH_WIDTH_40MHZ;
-			wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
-							     csa_params->csa_chan_freq,
-							     0, &ch_params);
+			wlan_reg_set_channel_params_for_pwrmode(
+						mac_ctx->pdev,
+						csa_params->csa_chan_freq,
+						0, &ch_params,
+						REG_CURRENT_PWR_MODE);
 			lim_ch_switch->ch_center_freq_seg0 =
 				ch_params.center_freq_seg0;
 			lim_ch_switch->sec_ch_offset =
@@ -1997,13 +2048,12 @@ static void lim_handle_sta_csa_param(struct mac_context *mac_ctx,
 			session_entry->htSupportedChannelWidthSet = true;
 		}
 	}
-	pe_debug("new ch %d freq %d width: %d freq0 %d freq1 %d ht width %d",
-		 lim_ch_switch->primaryChannel,
-		 lim_ch_switch->sw_target_freq,
-		 lim_ch_switch->ch_width,
-		 lim_ch_switch->ch_center_freq_seg0,
+	pe_debug("new ch %d: freq %d width: %d freq0 %d freq1 %d ht width %d, current freq %d: bw %d",
+		 lim_ch_switch->primaryChannel, lim_ch_switch->sw_target_freq,
+		 lim_ch_switch->ch_width, lim_ch_switch->ch_center_freq_seg0,
 		 lim_ch_switch->ch_center_freq_seg1,
-		 lim_ch_switch->sec_ch_offset);
+		 lim_ch_switch->sec_ch_offset, session_entry->curr_op_freq,
+		 session_entry->ch_width);
 
 	if (session_entry->curr_op_freq == csa_params->csa_chan_freq &&
 	    session_entry->ch_width == lim_ch_switch->ch_width) {
@@ -2253,18 +2303,27 @@ lim_send_sme_ap_channel_switch_resp(struct mac_context *mac,
 				BIT(band));
 
 	if (ch_width == CH_WIDTH_160MHZ) {
-		if (wlan_reg_get_bonded_channel_state_for_freq(
-		    mac->pdev, pe_session->curr_op_freq,
-		    ch_width, 0) == CHANNEL_STATE_DFS)
+		struct ch_params ch_params = {0};
+
+		if (IS_DOT11_MODE_EHT(pe_session->dot11mode))
+			wlan_reg_set_create_punc_bitmap(&ch_params, true);
+		ch_params.ch_width = ch_width;
+		if (wlan_reg_get_5g_bonded_channel_state_for_pwrmode(mac->pdev,
+								     pe_session->curr_op_freq,
+								     &ch_params,
+								     REG_CURRENT_PWR_MODE) ==
+		    CHANNEL_STATE_DFS)
 			is_ch_dfs = true;
 	} else if (ch_width == CH_WIDTH_80P80MHZ) {
-		if (wlan_reg_get_channel_state_for_freq(
+		if (wlan_reg_get_channel_state_for_pwrmode(
 						mac->pdev,
-						pe_session->curr_op_freq) ==
+						pe_session->curr_op_freq,
+						REG_CURRENT_PWR_MODE) ==
 		    CHANNEL_STATE_DFS ||
-		    wlan_reg_get_channel_state_for_freq(
+		    wlan_reg_get_channel_state_for_pwrmode(
 						mac->pdev,
-						ch_cfreq1) ==
+						ch_cfreq1,
+						REG_CURRENT_PWR_MODE) ==
 				CHANNEL_STATE_DFS)
 			is_ch_dfs = true;
 	} else {
@@ -2316,6 +2375,7 @@ lim_send_bss_color_change_ie_update(struct mac_context *mac_ctx,
 		 session->he_bss_color_change.countdown);
 }
 
+#ifdef WLAN_FEATURE_SR
 static void
 lim_update_spatial_reuse(struct pe_session *session)
 {
@@ -2325,9 +2385,10 @@ lim_update_spatial_reuse(struct pe_session *session)
 	uint8_t vdev_id = session->vdev_id;
 
 	sr_ctrl = wlan_vdev_mlme_get_sr_ctrl(session->vdev);
-	non_srg_pd_max_offset = wlan_vdev_mlme_get_pd_offset(session->vdev);
+	non_srg_pd_max_offset =
+		wlan_vdev_mlme_get_non_srg_pd_offset(session->vdev);
 	if (non_srg_pd_max_offset && sr_ctrl &&
-	    !wlan_vdev_mlme_get_he_spr_enabled(session->vdev)) {
+	    wlan_vdev_mlme_get_he_spr_enabled(session->vdev)) {
 		psoc = wlan_vdev_get_psoc(session->vdev);
 		policy_mgr_get_mac_id_by_session_id(psoc,
 						    vdev_id,
@@ -2335,17 +2396,32 @@ lim_update_spatial_reuse(struct pe_session *session)
 		conc_vdev_id = policy_mgr_get_conc_vdev_on_same_mac(psoc,
 								    vdev_id,
 								    mac_id);
-		if (conc_vdev_id == WLAN_INVALID_VDEV_ID) {
-		/*
-		 * Enable spatial reuse only if no concurrent
-		 * vdev running on same mac
-		 */
+		if (conc_vdev_id == WLAN_INVALID_VDEV_ID ||
+		    policy_mgr_sr_same_mac_conc_enabled(psoc)) {
+			wlan_vdev_mlme_set_sr_disable_due_conc(session->vdev,
+							       false);
 			wlan_spatial_reuse_config_set(session->vdev, sr_ctrl,
 						      non_srg_pd_max_offset);
-			wlan_vdev_mlme_set_he_spr_enabled(session->vdev, true);
+			wlan_spatial_reuse_osif_event(session->vdev,
+						      SR_OPERATION_RESUME,
+						      SR_REASON_CODE_CONCURRENCY);
+		} else {
+			wlan_vdev_mlme_set_sr_disable_due_conc(session->vdev,
+							       true);
+			wlan_spatial_reuse_config_set(session->vdev, sr_ctrl,
+						 NON_SR_PD_THRESHOLD_DISABLED);
+			wlan_spatial_reuse_osif_event(session->vdev,
+						      SR_OPERATION_SUSPEND,
+						      SR_REASON_CODE_CONCURRENCY);
 		}
 	}
 }
+#else
+static void
+lim_update_spatial_reuse(struct pe_session *session)
+{
+}
+#endif
 
 static void
 lim_handle_bss_color_change_ie(struct mac_context *mac_ctx,
@@ -2423,10 +2499,10 @@ lim_process_beacon_tx_success_ind(struct mac_context *mac_ctx, uint16_t msgType,
 		return;
 	csa_tx_offload = wlan_psoc_nif_fw_ext_cap_get(mac_ctx->psoc,
 						WLAN_SOC_CEXT_CSA_TX_OFFLOAD);
-	if (session->dfsIncludeChanSwIe &&
-	    (session->gLimChannelSwitch.switchCount ==
-	    mac_ctx->sap.SapDfsInfo.sap_ch_switch_beacon_cnt) &&
-	    !csa_tx_offload)
+	if (session->dfsIncludeChanSwIe && !csa_tx_offload &&
+	    ((session->gLimChannelSwitch.switchCount ==
+	      mac_ctx->sap.SapDfsInfo.sap_ch_switch_beacon_cnt) ||
+	     (session->gLimChannelSwitch.switchCount == 1)))
 		lim_process_ap_ecsa_timeout(session);
 
 

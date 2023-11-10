@@ -296,6 +296,8 @@
  * @WLAN_UMAC_COMP_PRE_CAC:       PRE CAC component
  * @WLAN_COMP_DP:                 DP component
  * @WLAN_UMAC_COMP_COAP:          Constrained Application Protocol component
+ * @WLAN_UMAC_COMP_QMI:           QMI component
+ * @WLAN_UMAC_COMP_AFC:           AFC component
  * @WLAN_UMAC_COMP_ID_MAX:        Maximum components in UMAC
  *
  * This id is static.
@@ -351,6 +353,8 @@ enum wlan_umac_comp_id {
 	WLAN_COMP_DP                      = 46,
 	WLAN_COMP_TELEMETRY_AGENT         = 47,
 	WLAN_UMAC_COMP_COAP               = 48,
+	WLAN_UMAC_COMP_QMI                = 49,
+	WLAN_UMAC_COMP_AFC                = 50,
 	WLAN_UMAC_COMP_ID_MAX,
 };
 
@@ -710,5 +714,15 @@ struct wlan_ssid {
 #define PSOC_HOST_EHT_MCS_NSS_MAP_2G_SIZE 2
 #define PSOC_HOST_EHT_MCS_NSS_MAP_5G_SIZE 4
 #endif
+
+/**
+ * enum host_edca_param_type - Host edca param type
+ * @HOST_EDCA_PARAM_TYPE_AGGRESSIVE: Aggressive type
+ * @HOST_EDCA_PARAM_TYPE_PIFS: Pifs type
+ */
+enum host_edca_param_type {
+	HOST_EDCA_PARAM_TYPE_AGGRESSIVE = 0,
+	HOST_EDCA_PARAM_TYPE_PIFS = 1,
+};
 
 #endif /* _WLAN_OBJMGR_CMN_H_*/

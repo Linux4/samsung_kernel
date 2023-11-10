@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,7 +20,7 @@
 /**
  * DOC: This file shall contain all public parameter (struct/macro/enum)
  * definitions to support hardware filtering configuration. No APIs, or
- * implememtations of APIs, shall be contained within.
+ * implementations of APIs, shall be contained within.
  */
 
 #ifndef _WLAN_PMO_HW_FILTER_PUBLIC_STRUCT_H

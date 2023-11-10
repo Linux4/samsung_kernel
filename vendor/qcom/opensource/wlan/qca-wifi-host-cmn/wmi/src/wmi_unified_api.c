@@ -259,6 +259,7 @@ QDF_STATUS wmi_unified_green_ap_ps_send(wmi_unified_t wmi_handle,
 
 	return QDF_STATUS_E_FAILURE;
 }
+
 #else
 QDF_STATUS wmi_unified_green_ap_ps_send(wmi_unified_t wmi_handle,
 					uint32_t value, uint8_t pdev_id)
@@ -266,6 +267,32 @@ QDF_STATUS wmi_unified_green_ap_ps_send(wmi_unified_t wmi_handle,
 	return QDF_STATUS_SUCCESS;
 }
 #endif /* WLAN_SUPPORT_GREEN_AP */
+
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+QDF_STATUS wmi_unified_green_ap_ll_ps_send(
+		wmi_unified_t wmi_handle,
+		struct green_ap_ll_ps_cmd_param *ll_ps_params)
+{
+	if (wmi_handle->ops->send_green_ap_ll_ps_cmd)
+		return wmi_handle->ops->send_green_ap_ll_ps_cmd(
+				wmi_handle,
+				ll_ps_params);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS wmi_unified_extract_green_ap_ll_ps_param(
+	wmi_unified_t wmi_handle, uint8_t *evt_buf,
+	struct wlan_green_ap_ll_ps_event_param *green_ap_ll_ps_event_param)
+{
+	if (wmi_handle->ops->extract_green_ap_ll_ps_param)
+		return wmi_handle->ops->extract_green_ap_ll_ps_param(
+				evt_buf,
+				green_ap_ll_ps_event_param);
+
+	return QDF_STATUS_E_FAILURE;
+}
+#endif
 
 QDF_STATUS
 wmi_unified_pdev_utf_cmd_send(wmi_unified_t wmi_handle,
@@ -309,6 +336,16 @@ wmi_unified_multiple_vdev_param_send(wmi_unified_t wmi_handle,
 	if (wmi_handle->ops->send_multiple_vdev_param_cmd)
 		return wmi_handle->ops->send_multiple_vdev_param_cmd(wmi_handle,
 								     params);
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS
+wmi_unified_set_mac_addr_rx_filter(wmi_unified_t wmi_handle,
+				   struct set_rx_mac_filter *params)
+{
+	if (wmi_handle->ops->set_mac_addr_rx_filter)
+		return wmi_handle->ops->set_mac_addr_rx_filter(wmi_handle,
+							       params);
 	return QDF_STATUS_E_FAILURE;
 }
 
@@ -3792,7 +3829,7 @@ wmi_unified_extract_halphy_stats_event_count(wmi_unified_t wmi_handle,
  * @vdev_id: vdev id
  *
  * TSF_TSTAMP_READ_VALUE is the only operation supported
- * Return: QDF_STATUS_SUCCESS for success or erro code
+ * Return: QDF_STATUS_SUCCESS for success or error code
  */
 QDF_STATUS wmi_unified_send_vdev_tsf_tstamp_action_cmd(wmi_unified_t wmi_hdl,
 						       uint8_t vdev_id)
@@ -4036,3 +4073,27 @@ QDF_STATUS wmi_feature_set_cmd_send(wmi_unified_t wmi_handle,
 	return QDF_STATUS_E_FAILURE;
 }
 #endif
+
+QDF_STATUS
+wmi_unified_update_edca_pifs_param(
+			wmi_unified_t wmi_handle,
+			struct edca_pifs_vparam *edca_pifs_param)
+{
+	if (wmi_handle->ops->send_update_edca_pifs_param_cmd)
+		return wmi_handle->ops->send_update_edca_pifs_param_cmd(
+				wmi_handle, edca_pifs_param);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+QDF_STATUS wmi_extract_sap_coex_cap_service_ready_ext2(
+			wmi_unified_t wmi_handle,
+			uint8_t *evt_buf,
+			struct wmi_host_coex_fix_chan_cap *cap)
+{
+	if (wmi_handle->ops->extract_sap_coex_cap_service_ready_ext2)
+		return wmi_handle->ops->extract_sap_coex_cap_service_ready_ext2(
+				wmi_handle, evt_buf, cap);
+
+	return QDF_STATUS_E_FAILURE;
+}

@@ -1,4 +1,5 @@
 # Copyright (c) 2012-2017, 2020 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -14,6 +15,7 @@ import re
 import os
 import struct
 from print_out import print_out_str
+from fnmatch import fnmatch
 
 
 def minidump_virt_to_phys(ebi_files,addr):
@@ -43,8 +45,8 @@ def read_physical_minidump(ebi_files,ebi_files_ramfile,elffile,addr,length):
         endoff = off + length
         if endoff > ebi[4]:
             endoff = ebi[4]
-        val = textSec.data()
-        return val[off:endoff]
+        textSec.stream.seek(textSec['p_offset'] + off)
+        return textSec.stream.read(endoff - off)
     else:
         ebi = (-1, -1, -1)
         for a in ebi_files_ramfile:
@@ -121,12 +123,25 @@ def get_strings(buf, length):
                         return nlist
         return nlist
 
-def generate_elf(outdir):
-        elfhd = os.path.join(outdir, "md_KELF_HEADER.BIN")
-        if not os.path.exists(elfhd):
+def generate_elf(outdir, vm):
+        if vm == "oemvm":
+            vmid = "31_"
+        elif vm:
+            vmid = "2d_"
+        else:
+            vmid = ""
+        elfhd_old = os.path.join(outdir, "md_" + vmid + "KELF_HEADER.BIN")
+        elfhd_new = os.path.join(outdir, "md_" + vmid + "KELF_HDR.BIN")
+        if os.path.exists(elfhd_old):
+            elfhd = elfhd_old
+            fi = open(elfhd, "rb")
+        elif os.path.exists(elfhd_new):
+            elfhd = elfhd_new
+            fi = open(elfhd, "rb")
+        else:
             print_out_str("ELF header binary is missing")
             return 1
-        fi = open(elfhd, "rb")
+
         outfile = os.path.join(outdir, "ap_minidump.elf")
         fo = open(outfile, "wb")
 
@@ -135,9 +150,21 @@ def generate_elf(outdir):
         buf = fi.read(hsize)
         fo.write(buf)
         nlist = get_strings(buf, len(buf))
+        files = os.listdir(outdir)
         for names in nlist:
-            filepath = "md_" + names + ".BIN"
-            ret = add_file(fo, outdir, filepath)
+            if vm:
+                for file in files:
+                    filepath = "md_" + vmid + names + ".BIN"
+                    is_found = fnmatch(file, "md_" + vmid + names + "*.BIN")
+                    if is_found:
+                        break;
+                if not is_found:
+                    return 1
+                ret = add_file(fo, outdir, file)
+            else:
+                filepath = "md_" + names + ".BIN"
+                ret = add_file(fo, outdir, filepath)
+
             if ret == -1:
                 fo.close()
                 fi.close()

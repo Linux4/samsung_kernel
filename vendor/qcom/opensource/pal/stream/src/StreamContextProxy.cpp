@@ -101,7 +101,7 @@ void StreamContextProxy::ParseASPSEventPayload(uint32_t event_id,
 }
 
 void StreamContextProxy::HandleCallBack(uint64_t hdl, uint32_t event_id,
-                                      void *data, uint32_t event_size) {
+                     void *data, uint32_t event_size, uint32_t miid __unused) {
     StreamContextProxy *ContextProxy = nullptr;
     PAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
     ContextProxy = (StreamContextProxy *)hdl;

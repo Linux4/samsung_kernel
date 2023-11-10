@@ -703,8 +703,8 @@ wlan_ser_cancel_non_scan_cmd(
 		 */
 		if (cmd_bkup.cmd_cb) {
 			/* caller should now do necessary clean up */
-			ser_debug("Cancel command: type %d id %d and Release memory",
-				  cmd_bkup.cmd_type, cmd_bkup.cmd_id);
+			ser_debug("Cancel command: type %d id %d vdev %d and Release memory",
+				  cmd_bkup.cmd_type, cmd_bkup.cmd_id, vdev_id);
 			cmd_bkup.cmd_cb(&cmd_bkup, WLAN_SER_CB_CANCEL_CMD);
 			/* caller should release the memory */
 			cmd_bkup.cmd_cb(&cmd_bkup, WLAN_SER_CB_RELEASE_MEM_CMD);

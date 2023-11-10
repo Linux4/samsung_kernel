@@ -28,6 +28,7 @@
 
 #include "uas-detect.h"
 #include "scsiglue.h"
+#include "usb.h"
 
 #define MAX_CMNDS 256
 
@@ -39,6 +40,7 @@ struct uas_dev_info {
 	struct usb_anchor data_urbs;
 	unsigned long flags;
 	int qdepth, resetting;
+	int reset_count;
 	unsigned cmd_pipe, status_pipe, data_in_pipe, data_out_pipe;
 	unsigned use_streams:1;
 	unsigned shutdown:1;
@@ -80,6 +82,7 @@ static int uas_try_complete(struct scsi_cmnd *cmnd, const char *caller);
 static void uas_free_streams(struct uas_dev_info *devinfo);
 static void uas_log_cmd_state(struct scsi_cmnd *cmnd, const char *prefix,
 				int status);
+extern int usb_remove_device(struct usb_device *udev);
 
 /*
  * This driver needs its own workqueue, as we need to control memory allocation.
@@ -795,7 +798,14 @@ static int uas_eh_device_reset_handler(struct scsi_cmnd *cmnd)
 	usb_kill_anchored_urbs(&devinfo->data_urbs);
 	uas_zap_pending(devinfo, DID_RESET);
 
-	err = usb_reset_device(udev);
+	
+	if (devinfo->reset_count) {
+		err = usb_reset_device(udev);
+		devinfo->reset_count = 0;
+	} else {
+		err = usb_remove_device(udev);
+		devinfo->reset_count = 1;
+	}
 
 	spin_lock_irqsave(&devinfo->lock, flags);
 	devinfo->resetting = 0;
@@ -1019,6 +1029,7 @@ static int uas_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	devinfo->resetting = 0;
 	devinfo->shutdown = 0;
 	devinfo->flags = dev_flags;
+	devinfo->reset_count = 1;
 	init_usb_anchor(&devinfo->cmd_urbs);
 	init_usb_anchor(&devinfo->sense_urbs);
 	init_usb_anchor(&devinfo->data_urbs);

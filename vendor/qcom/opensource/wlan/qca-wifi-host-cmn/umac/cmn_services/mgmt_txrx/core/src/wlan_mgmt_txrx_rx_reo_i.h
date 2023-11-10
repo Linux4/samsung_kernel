@@ -65,9 +65,6 @@
 	((entry)->status & MGMT_RX_REO_STATUS_LIST_MAX_SIZE_EXCEEDED)
 
 #ifdef WLAN_MGMT_RX_REO_DEBUG_SUPPORT
-#define MGMT_RX_REO_INGRESS_FRAME_DEBUG_ENTRIES_MAX             (1000)
-#define MGMT_RX_REO_EGRESS_FRAME_DEBUG_ENTRIES_MAX              (1000)
-
 #define MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_BOARDER_MAX_SIZE   (816)
 #define MGMT_RX_REO_EGRESS_FRAME_DELIVERY_REASON_STATS_BOARDER_A_MAX_SIZE  (66)
 #define MGMT_RX_REO_EGRESS_FRAME_DELIVERY_REASON_STATS_BOARDER_B_MAX_SIZE  (73)
@@ -161,6 +158,30 @@ QDF_STATUS
 mgmt_rx_reo_pdev_obj_destroy_notification(
 	struct wlan_objmgr_pdev *pdev,
 	struct mgmt_txrx_priv_pdev_context *mgmt_txrx_pdev_ctx);
+
+/**
+ * mgmt_rx_reo_psoc_obj_create_notification() - psoc create handler for
+ * management rx-reorder module
+ * @psoc: pointer to psoc object
+ *
+ * This function gets called from object manager when psoc is being created.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+mgmt_rx_reo_psoc_obj_create_notification(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * mgmt_rx_reo_psoc_obj_destroy_notification() - psoc destroy handler for
+ * management rx-reorder feature
+ * @psoc: pointer to psoc object
+ *
+ * This function gets called from object manager when psoc is being destroyed.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+mgmt_rx_reo_psoc_obj_destroy_notification(struct wlan_objmgr_psoc *psoc);
 
 /**
  * enum mgmt_rx_reo_frame_descriptor_type - Enumeration for management frame
@@ -604,6 +625,7 @@ struct reo_egress_frame_stats {
  * struct reo_ingress_debug_info - Circular array to store the
  * debug information about the frames entering the reorder algorithm.
  * @frame_list: Circular array to store the debug info about frames
+ * @frame_list_size: Size of circular array @frame_list
  * @next_index: The index at which information about next frame will be logged
  * @wrap_aroud: Flag to indicate whether wrap around occurred when logging
  * debug information to @frame_list
@@ -611,8 +633,8 @@ struct reo_egress_frame_stats {
  * @boarder: boarder string
  */
 struct reo_ingress_debug_info {
-	struct reo_ingress_debug_frame_info
-			frame_list[MGMT_RX_REO_INGRESS_FRAME_DEBUG_ENTRIES_MAX];
+	struct reo_ingress_debug_frame_info *frame_list;
+	uint16_t frame_list_size;
 	int next_index;
 	bool wrap_aroud;
 	struct reo_ingress_frame_stats stats;
@@ -622,7 +644,8 @@ struct reo_ingress_debug_info {
 /**
  * struct reo_egress_debug_info - Circular array to store the
  * debug information about the frames leaving the reorder module.
- * @debug_info: Circular array to store the debug info
+ * @frame_list: Circular array to store the debug info
+ * @frame_list_size: Size of circular array @frame_list
  * @next_index: The index at which information about next frame will be logged
  * @wrap_aroud: Flag to indicate whether wrap around occurred when logging
  * debug information to @frame_list
@@ -630,8 +653,8 @@ struct reo_ingress_debug_info {
  * @boarder: boarder string
  */
 struct reo_egress_debug_info {
-	struct reo_egress_debug_frame_info
-			frame_list[MGMT_RX_REO_EGRESS_FRAME_DEBUG_ENTRIES_MAX];
+	struct reo_egress_debug_frame_info *frame_list;
+	uint16_t frame_list_size;
 	int next_index;
 	bool wrap_aroud;
 	struct reo_egress_frame_stats stats;
@@ -659,8 +682,12 @@ struct reo_egress_debug_info {
  * of management frames to upper layers in the strict order of MLO
  * global time stamp.
  * @sim_context: Management rx-reorder simulation context
+ * @ingress_debug_info_init_count: Initialization count of
+ * object @ingress_frame_debug_info
  * @ingress_frame_debug_info: Debug object to log incoming frames
  * @egress_frame_debug_info: Debug object to log outgoing frames
+ * @egress_debug_info_init_count: Initialization count of
+ * object @egress_frame_debug_info
  * @simulation_in_progress: Flag to indicate whether simulation is
  * in progress
  */
@@ -672,7 +699,9 @@ struct mgmt_rx_reo_context {
 	struct mgmt_rx_reo_sim_context sim_context;
 #endif /* WLAN_MGMT_RX_REO_SIM_SUPPORT */
 #ifdef WLAN_MGMT_RX_REO_DEBUG_SUPPORT
+	qdf_atomic_t ingress_debug_info_init_count;
 	struct  reo_ingress_debug_info ingress_frame_debug_info;
+	qdf_atomic_t egress_debug_info_init_count;
 	struct  reo_egress_debug_info egress_frame_debug_info;
 #endif /* WLAN_MGMT_RX_REO_DEBUG_SUPPORT */
 	bool simulation_in_progress;

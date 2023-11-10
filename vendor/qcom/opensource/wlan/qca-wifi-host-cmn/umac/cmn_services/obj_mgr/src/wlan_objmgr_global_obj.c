@@ -912,6 +912,7 @@ void wlan_objmgr_set_mlo_ctx(struct mlo_mgr_context *ctx)
 	g_umac_glb_obj->mlo_ctx = ctx;
 }
 
+#ifdef WLAN_MLO_MULTI_CHIP
 void wlan_objmgr_set_dp_mlo_ctx(void *dp_handle)
 {
 	struct mlo_mgr_context *mlo_ctx = wlan_objmgr_get_mlo_ctx();
@@ -919,7 +920,7 @@ void wlan_objmgr_set_dp_mlo_ctx(void *dp_handle)
 	if (!mlo_ctx)
 		return;
 
-	mlo_ctx->dp_handle = dp_handle;
+	mlo_ctx->setup_info.dp_handle = dp_handle;
 }
 
 qdf_export_symbol(wlan_objmgr_set_dp_mlo_ctx);
@@ -931,8 +932,9 @@ void *wlan_objmgr_get_dp_mlo_ctx(void)
 	if (!mlo_ctx)
 		return NULL;
 
-	return mlo_ctx->dp_handle;
+	return mlo_ctx->setup_info.dp_handle;
 }
 
 qdf_export_symbol(wlan_objmgr_get_dp_mlo_ctx);
+#endif /* WLAN_MLO_MULTI_CHIP */
 #endif
