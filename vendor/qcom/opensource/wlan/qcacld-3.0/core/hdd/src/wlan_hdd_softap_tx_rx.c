@@ -63,7 +63,7 @@
 /* Type declarations */
 #ifdef FEATURE_WDS
 /**
- * Layer-2 update frame format
+ * struct l2_update_frame - Layer-2 update frame format
  * @eh: ethernet header
  * @l2_update_pdu: llc pdu format
  * @l2_update_xid_info: xid command information field
@@ -374,6 +374,7 @@ hdd_reset_sta_info_during_reattach(struct hdd_station_info *sta_info)
  *                      the sta_info obj.
  * @sta_info: The station info structure that is to be attached to the
  *            container object.
+ * @sta_mac: MAC address of the station
  *
  * This function re-attaches the station if it gets re-connect after
  * disconnecting and before its all references are released.
@@ -394,7 +395,7 @@ static QDF_STATUS hdd_sta_info_re_attach(
 
 	if (sta_info->is_attached) {
 		qdf_spin_unlock_bh(&sta_info_container->sta_obj_lock);
-		hdd_err("sta info is alredy attached");
+		hdd_err("sta info is already attached");
 		return QDF_STATUS_SUCCESS;
 	}
 

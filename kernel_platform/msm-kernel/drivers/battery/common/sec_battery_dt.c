@@ -1345,7 +1345,7 @@ int sec_bat_parse_dt(struct device *dev,
 	pdata->wire_normal_warm_thresh = (int)temp;
 	if (ret) {
 		pr_info("%s : wire_normal_warm_thresh is Empty\n", __func__);
-		pdata->wire_normal_warm_thresh = 410;
+		pdata->wire_normal_warm_thresh = 420;
 	}
 
 	ret = of_property_read_u32(np, "battery,wire_cool1_normal_thresh", &temp);
@@ -1473,6 +1473,11 @@ int sec_bat_parse_dt(struct device *dev,
 		pr_info("%s : wireless_cool3_current is Empty\n", __func__);
 		pdata->wireless_cool3_current = 500;
 	}
+
+	pdata->update_mfc_power_info =
+		of_property_read_bool(np, "battery,update_mfc_power_info");
+	pdata->abnormal_wpc_check =
+		of_property_read_bool(np, "battery,abnormal_wpc_check");
 
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	ret = of_property_read_u32(np, "battery,limiter_main_warm_current",
@@ -1788,6 +1793,16 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->pd_charging_charge_power = 15000;
 	}
 
+	pdata->support_fpdo_dc = of_property_read_bool(np, "battery,support_fpdo_dc");
+	if (pdata->support_fpdo_dc) {
+		ret = of_property_read_u32(np, "battery,fpdo_dc_charge_power",
+				&pdata->fpdo_dc_charge_power);
+		if (ret) {
+			pr_err("%s: fpdo_dc_charge_power is Empty\n", __func__);
+			pdata->fpdo_dc_charge_power = 15000;
+		}
+	}
+
 	ret = of_property_read_u32(np, "battery,rp_current_rp1",
 			&pdata->rp_current_rp1);
 	if (ret) {
@@ -1843,6 +1858,24 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->tx_minduty_5V = 50;
 		pr_err("%s: tx minduty 5V is Empty. set %d\n", __func__, pdata->tx_minduty_5V);
 	}
+
+	ret = of_property_read_u32(np, "battery,tx_ping_duty_default",
+			&pdata->tx_ping_duty_default);
+	if (ret) {
+		pdata->tx_ping_duty_default = 0;
+		pr_err("%s: tx ping duty default is not changed (disabled) %d\n",
+			__func__, pdata->tx_ping_duty_default);
+	}
+
+	ret = of_property_read_u32(np, "battery,tx_ping_duty_no_ta",
+			&pdata->tx_ping_duty_no_ta);
+	if (ret) {
+		pdata->tx_ping_duty_no_ta = pdata->tx_ping_duty_default;
+		pr_err("%s: tx ping duty no TA is default %d\n", __func__, pdata->tx_ping_duty_no_ta);
+	}
+	if (pdata->tx_ping_duty_default)
+		pr_info("%s : tx_ping_duty_default: %d, tx_ping_duty_no_ta: %d\n",
+			__func__, pdata->tx_ping_duty_default, pdata->tx_ping_duty_no_ta);
 
 	ret = of_property_read_u32(np, "battery,tx_uno_vout",
 			&pdata->tx_uno_vout);
@@ -1952,6 +1985,18 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret) {
 		pdata->tx_aov_delay_phm_escape = 4000;
 		pr_err("%s: tx aov dealy phm escape is Empty. set %d\n", __func__, pdata->tx_aov_delay_phm_escape);
+	}
+
+	pdata->wpc_warm_fod = of_property_read_bool(np, "battery,wpc_warm_fod");
+	pr_info("%s: WPC Warm FOD %s.\n", __func__,
+		pdata->wpc_warm_fod ? "Enabled" : "Disabled");
+
+	/* Default setting 100mA */
+	if (pdata->wpc_warm_fod) {
+		ret = of_property_read_u32(np, "battery,wpc_warm_fod_icc",
+				&pdata->wpc_warm_fod_icc);
+		if (ret)
+			pdata->wpc_warm_fod_icc = 100;
 	}
 
 	pdata->lr_enable = of_property_read_bool(np, "battery,lr_enable");

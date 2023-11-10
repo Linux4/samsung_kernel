@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,6 +33,12 @@
 #include <wlan_cfg80211_spectral.h>
 
 struct hdd_context;
+
+#ifdef WLAN_FEATURE_11BE_MLO
+#define EHT_OPMODE_SUPPORTED 2
+#else
+#define EHT_OPMODE_SUPPORTED 1
+#endif
 
 /* QCA_NL80211_VENDOR_SUBCMD_ROAM policy */
 extern const struct nla_policy wlan_hdd_set_roam_param_policy[
@@ -182,6 +188,14 @@ extern const struct nla_policy wlan_hdd_wisa_cmd_policy[
 #define WLAN_AKM_SUITE_FT_EAP_SHA_384 0x000FAC0D
 #endif
 
+#ifndef WLAN_AKM_SUITE_SAE_EXT_KEY
+#define WLAN_AKM_SUITE_SAE_EXT_KEY 0x000FAC18
+#endif
+
+#ifndef WLAN_AKM_SUITE_FT_SAE_EXT_KEY
+#define WLAN_AKM_SUITE_FT_SAE_EXT_KEY 0x000FAC19
+#endif
+
 #ifdef FEATURE_WLAN_TDLS
 #define WLAN_IS_TDLS_SETUP_ACTION(action) \
 	((TDLS_SETUP_REQUEST <= action) && \
@@ -209,11 +223,11 @@ extern const struct nla_policy wlan_hdd_wisa_cmd_policy[
 #endif
 
 /**
- * enum eDFS_CAC_STATUS: CAC status
+ * typedef eDFS_CAC_STATUS - CAC status
  *
  * @DFS_CAC_NEVER_DONE: CAC never done
  * @DFS_CAC_IN_PROGRESS: CAC is in progress
- * @DFS_CAC_IN_PROGRESS: CAC already done
+ * @DFS_CAC_ALREADY_DONE: CAC already done
  */
 typedef enum {
 	DFS_CAC_NEVER_DONE,
@@ -270,7 +284,7 @@ typedef enum {
 /* Add more features here */
 #define WIFI_TDLS_SUPPORT			BIT(0)
 #define WIFI_TDLS_EXTERNAL_CONTROL_SUPPORT	BIT(1)
-#define WIIF_TDLS_OFFCHANNEL_SUPPORT		BIT(2)
+#define WIFI_TDLS_OFFCHANNEL_SUPPORT		BIT(2)
 
 #define CFG_NON_AGG_RETRY_MAX                  (64)
 #define CFG_AGG_RETRY_MAX                      (64)
@@ -590,7 +604,7 @@ int wlan_hdd_change_hw_mode_for_given_chnl(struct hdd_adapter *adapter,
 					   enum policy_mgr_conn_update_reason reason);
 
 /**
- * hdd_rate_info_bw: an HDD internal rate bandwidth representation
+ * enum hdd_rate_info_bw: an HDD internal rate bandwidth representation
  * @HDD_RATE_BW_5: 5MHz
  * @HDD_RATE_BW_10: 10MHz
  * @HDD_RATE_BW_20: 20MHz
@@ -610,7 +624,7 @@ enum hdd_rate_info_bw {
 };
 
 /**
- * hdd_chain_mode : Representation of Number of chains available.
+ * enum hdd_chain_mode : Representation of Number of chains available.
  * @HDD_CHAIN_MODE_1X1: Chain mask Not Configurable as only one chain available
  * @HDD_CHAIN_MODE_2X2: Chain mask configurable as both chains available
  */
@@ -620,7 +634,7 @@ enum hdd_chain_mode {
 };
 
 /**
- * hdd_ba_mode: Representation of Number to configure BA mode
+ * enum hdd_ba_mode: Representation of Number to configure BA mode
  * @HDD_BA_MODE_AUTO: Auto mode
  * @HDD_BA_MODE_MANUAL: Manual mode
  * @HDD_BA_MODE_64: For buffer size 64
@@ -743,7 +757,7 @@ int wlan_hdd_restore_channels(struct hdd_context *hdd_ctx);
  * event to user space in case of SAP
  * @adapter: Pointer to the adapter
  * @hdd_ctx: HDD Context
- * @mac_addr: MAC address of the STA for whic the Authorized event needs to
+ * @mac_addr: MAC address of the STA for which the Authorized event needs to
  * be sent
  * This api is used to send station authorized event to user space
  */
@@ -982,4 +996,88 @@ bool wlan_hdd_cfg80211_rx_control_port(struct net_device *dev,
 int hdd_send_dbam_config(struct hdd_adapter *adapter,
 			 enum coex_dbam_config_mode dbam_mode);
 #endif
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * wlan_hdd_send_key_vdev() - api to send vdev keys
+ * @vdev: vdev pointer
+ * @key_index: key index value
+ * @pairwise: pairwise keys
+ * @cipher_type: cipher type value
+ *
+ * Api to send vdev keys for mlo link
+ *
+ * Return: none
+ */
+QDF_STATUS wlan_hdd_send_key_vdev(struct wlan_objmgr_vdev *vdev,
+				  u8 key_index, bool pairwise,
+				  enum wlan_crypto_cipher_type cipher_type);
+
+/**
+ * wlan_hdd_mlo_copy_partner_addr_from_mlie  - Copy the Partner link mac
+ * address from the ML IE
+ * @vdev: vdev pointer
+ * @partner_mac: pointer to the mac address to be filled
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_hdd_mlo_copy_partner_addr_from_mlie(struct wlan_objmgr_vdev *vdev,
+					 struct qdf_mac_addr *partner_mac);
+#else
+static inline
+QDF_STATUS wlan_hdd_send_key_vdev(struct wlan_objmgr_vdev *vdev,
+				  u8 key_index, bool pairwise,
+				  enum wlan_crypto_cipher_type cipher_type)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline QDF_STATUS
+wlan_hdd_mlo_copy_partner_addr_from_mlie(struct wlan_objmgr_vdev *vdev,
+					 struct qdf_mac_addr *partner_mac)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif /* WLAN_FEATURE_11BE_MLO */
+
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_TID_LINK_MAP_SUPPORT)
+/**
+ * hdd_mlo_dev_t2lm_notify_link_update() - Send update T2LM info event
+ * @vdev: Pointer to vdev
+ * @t2lm: T2LM info
+ *
+ * Send update T2LM info event to userspace
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS hdd_mlo_dev_t2lm_notify_link_update(struct wlan_objmgr_vdev *vdev,
+					       struct wlan_t2lm_info *t2lm);
+#else
+static inline
+QDF_STATUS hdd_mlo_dev_t2lm_notify_link_update(struct wlan_objmgr_vdev *vdev,
+					       struct wlan_t2lm_info *t2lm)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
+#if defined(WLAN_FEATURE_11BE_MLO) && \
+	defined(CFG80211_SINGLE_NETDEV_MULTI_LINK_SUPPORT)
+/**
+ * wlan_hdd_ml_sap_get_peer  - Get ML SAP peer
+ * @vdev: vdev pointer
+ * @peer_mld: Peer MLD address
+ *
+ * Return: Peer object
+ */
+struct wlan_objmgr_peer *
+wlan_hdd_ml_sap_get_peer(struct wlan_objmgr_vdev *vdev, uint8_t *peer_mld);
+#else
+static inline struct wlan_objmgr_peer *
+wlan_hdd_ml_sap_get_peer(struct wlan_objmgr_vdev *vdev, uint8_t *peer_mld)
+{
+	return NULL;
+}
+#endif /* WLAN_FEATURE_11BE_MLO && CFG80211_SINGLE_NETDEV_MULTI_LINK_SUPPORT */
 #endif

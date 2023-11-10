@@ -19,7 +19,11 @@
 #include <linux/vibrator/sec_vibrator_notifier.h>
 #endif
 #define VENDOR "STM"
+#if IS_ENABLED(CONFIG_LSM6DSV_FACTORY)
+#define CHIP_ID "LSM6DSV"
+#else
 #define CHIP_ID "LSM6DSO"
+#endif
 #define ACCEL_ST_TRY_CNT 3
 #define ACCEL_FACTORY_CAL_CNT 20
 #define ACCEL_RAW_DATA_CNT 3
@@ -63,6 +67,7 @@ struct accel_data {
 };
 
 static struct accel_data *pdata;
+static bool is_ignore_crash_factory = false;
 
 static ssize_t accel_vendor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -257,11 +262,16 @@ static ssize_t accel_selftest_show(struct device *dev,
 	struct adsp_data *data = dev_get_drvdata(dev);
 	uint8_t cnt = 0;
 	int retry = 0;
-#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973)
 	int msg_buf = LSM6DSO_SELFTEST_TRUE;
 
 	adsp_unicast(&msg_buf, sizeof(msg_buf),
 		MSG_DIGITAL_HALL_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
+#elif IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
+	int msg_buf = LSM6DSO_SELFTEST_TRUE;
+
+	adsp_unicast(&msg_buf, sizeof(msg_buf),
+		MSG_REF_ANGLE, 0, MSG_TYPE_OPTION_DEFINE);
 #endif
 
 	pdata->st_complete = false;
@@ -278,7 +288,7 @@ RETRY_ACCEL_SELFTEST:
 		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
 		data->msg_buf[MSG_ACCEL][1] = -1;
 #ifdef CONFIG_SEC_FACTORY
-		panic("force crash : sensor selftest timeout\n");
+		panic("sensor force crash : accel selftest timeout\n");
 #endif
 	}
 
@@ -309,7 +319,8 @@ RETRY_ACCEL_SELFTEST:
 
 	pdata->st_complete = true;
 
-#ifdef CONFIG_SUPPORT_DUAL_6AXIS
+#if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973) ||\
+	IS_ENABLED(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL) || defined(CONFIG_SUPPORT_REF_ANGLE_WITHOUT_DIGITAL_HALL)
 	schedule_delayed_work(&data->lsm6dso_selftest_stop_work, msecs_to_jiffies(300));
 #endif
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d\n",
@@ -353,7 +364,7 @@ static ssize_t accel_raw_data_show(struct device *dev,
 		same_cnt++;
 		pr_info("[FACTORY] %s: same_cnt %d\n", __func__, same_cnt);
 		if (same_cnt >= 20)
-			panic("force crash : raw_data stuck\n");
+			panic("sensor force crash : accel raw_data stuck\n");
 	} else
 		same_cnt = 0;
 #endif
@@ -401,7 +412,7 @@ static ssize_t accel_reactive_show(struct device *dev,
 	if (data->msg_buf[MSG_ACCEL][0] == 0)
 		success = true;
 	else
-		panic("accel interrupt check fail!!");
+		panic("sensor accel interrupt check fail!!");
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", (int)success);
 }
@@ -438,13 +449,19 @@ static ssize_t accel_reactive_store(struct device *dev,
 		}
 
 		if (data->msg_buf[MSG_ACCEL][0] == STM_LSM6DSO_INT_CHECK_RUNNING)
-			pr_info("[FACTORY]: %s - STM_LSM6DSO_INT_CHECK_RUNNING\n", __func__);
+			pr_info("[FACTORY]: %s - STM_LSM6DSx_INT_CHECK_RUNNING\n", __func__);
 		else
 			pr_info("[FACTORY]: %s - Something wrong\n", __func__);
 	}
 
 	return size;
 }
+
+bool sns_check_ignore_crash()
+{
+	return is_ignore_crash_factory;
+}
+EXPORT_SYMBOL(sns_check_ignore_crash);
 
 static ssize_t accel_lowpassfilter_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
@@ -455,14 +472,23 @@ static ssize_t accel_lowpassfilter_store(struct device *dev,
 
 	if (sysfs_streq(buf, "1")) {
 		msg_buf = 1;
+		is_ignore_crash_factory = false;
 	} else if (sysfs_streq(buf, "0")) {
 		msg_buf = 0;
+		is_ignore_crash_factory = false;
 #ifdef CONFIG_SEC_FACTORY
 	} else if (sysfs_streq(buf, "2")) {
 		msg_buf = 2;
+		is_ignore_crash_factory = true;
 		pr_info("[FACTORY] %s: Pretest\n", __func__);
+	} else if (sysfs_streq(buf, "3")) {
+		msg_buf = 3;
+		is_ignore_crash_factory = true;
+		pr_info("[FACTORY] %s: Questt\n", __func__);
+		return size;
 #endif
 	} else {
+		is_ignore_crash_factory = false;
 		pr_info("[FACTORY] %s: wrong value\n", __func__);
 		return size;
 	}
@@ -657,12 +683,12 @@ static ssize_t accel_turn_over_crash_store(struct device *dev,
 	if (sysfs_streq(buf, "1")) {
 		data->turn_over_crash = 1;
 		msg_buf[1] = 1;
-	} else if (sysfs_streq(buf, "0")) {
+	} else if (sysfs_streq(buf, "2")) {
+		data->turn_over_crash = 2;
+		msg_buf[1] = 2;
+	} else {
 		data->turn_over_crash = 0;
 		msg_buf[1] = 0;
-	} else {
-		pr_info("[FACTORY] %s: wrong value\n", __func__);
-		return size;
 	}
 
 	adsp_unicast(msg_buf, sizeof(msg_buf), MSG_ACCEL,

@@ -218,7 +218,7 @@ QDF_STATUS tgt_dfs_process_phyerr(struct wlan_objmgr_pdev *pdev,
 				   r_ext_rssi, r_rs_tstamp, r_fulltsf);
 	else
 		dfs_info(dfs, WLAN_DEBUG_DFS_ALWAYS,
-			 "Unexpect phyerror as DFS is offloaded, pdev_id: %d",
+			 "Unexpected phyerror as DFS is offloaded, pdev_id: %d",
 			 wlan_objmgr_pdev_get_pdev_id(pdev));
 
 	return QDF_STATUS_SUCCESS;
@@ -242,7 +242,7 @@ QDF_STATUS tgt_dfs_process_phyerr_filter_offload(struct wlan_objmgr_pdev *pdev,
 		dfs_process_phyerr_filter_offload(dfs, wlan_radar_event);
 	else
 		dfs_info(dfs, WLAN_DEBUG_DFS_ALWAYS,
-			 "Unexpect phyerror as DFS is offloaded, pdev_id: %d",
+			 "Unexpected phyerror as DFS is offloaded, pdev_id: %d",
 			 wlan_objmgr_pdev_get_pdev_id(pdev));
 
 	return QDF_STATUS_SUCCESS;
@@ -789,7 +789,8 @@ qdf_export_symbol(tgt_dfs_send_subchan_marking);
 #ifdef QCA_SUPPORT_AGILE_DFS
 void tgt_dfs_set_fw_adfs_support(struct wlan_objmgr_pdev *pdev,
 				 bool fw_adfs_support_160,
-				 bool fw_adfs_support_non_160)
+				 bool fw_adfs_support_non_160,
+				 bool fw_adfs_support_320)
 {
 	struct wlan_dfs *dfs;
 
@@ -801,7 +802,8 @@ void tgt_dfs_set_fw_adfs_support(struct wlan_objmgr_pdev *pdev,
 
 	dfs_set_fw_adfs_support(dfs,
 				fw_adfs_support_160,
-				fw_adfs_support_non_160);
+				fw_adfs_support_non_160,
+				fw_adfs_support_320);
 }
 
 qdf_export_symbol(tgt_dfs_set_fw_adfs_support);

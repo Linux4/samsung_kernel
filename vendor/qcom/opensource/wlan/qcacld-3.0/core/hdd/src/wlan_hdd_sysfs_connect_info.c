@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -288,6 +289,9 @@ uint8_t *hdd_dot11_mode_str(uint32_t dot11mode)
 	case eCSR_CFG_DOT11_MODE_11AX:
 	case eCSR_CFG_DOT11_MODE_11AX_ONLY:
 		return "DOT11_MODE_11AX";
+	case eCSR_CFG_DOT11_MODE_11BE:
+	case eCSR_CFG_DOT11_MODE_11BE_ONLY:
+		return "DOT11_MODE_11BE";
 	}
 
 	return "UNKNOWN";

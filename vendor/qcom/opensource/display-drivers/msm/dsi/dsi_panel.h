@@ -114,6 +114,9 @@ struct dsi_pinctrl_info {
 	struct pinctrl_state *active;
 	struct pinctrl_state *suspend;
 	struct pinctrl_state *pwm_pin;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	struct pinctrl_state *pretest;
+#endif
 };
 
 struct dsi_panel_phy_props {
@@ -283,6 +286,8 @@ struct dsi_panel {
 	struct dsi_parser_utils self_display_utils;
 	struct device_node *mafpc_of_node;
 	struct dsi_parser_utils mafpc_utils;
+	struct device_node *fw_update_of_node;
+	struct dsi_parser_utils fw_update_utils;
 	struct device_node *test_mode_of_node;
 	struct dsi_parser_utils test_mode_utils;
 #endif

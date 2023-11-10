@@ -1221,6 +1221,7 @@ wlan_hdd_fill_connectivity_logging_data(struct sk_buff *skb,
  * wlan_hdd_send_connectivity_log_to_user  - Send the connectivity log buffer
  * to userspace
  * @rec: Pointer to the log record
+ * @hdd_context: HDD global context
  * @num_records: Number of records
  *
  * Return: QDF_STATUS
@@ -1306,6 +1307,10 @@ void wlan_hdd_connectivity_event_connecting(struct hdd_context *hdd_ctx,
 
 	qdf_mem_zero(&wlan_diag_event, sizeof(struct wlan_diag_connect));
 
+	if (wlan_get_opmode_from_vdev_id(hdd_ctx->pdev, vdev_id) !=
+	    QDF_STA_MODE)
+		return;
+
 	wlan_diag_event.diag_cmn.timestamp_us = qdf_get_time_of_the_day_us();
 	wlan_diag_event.diag_cmn.ktime_us = qdf_ktime_to_us(qdf_ktime_get());
 	wlan_diag_event.diag_cmn.vdev_id = vdev_id;
@@ -1353,6 +1358,9 @@ wlan_hdd_connectivity_fail_event(struct wlan_objmgr_vdev *vdev,
 		return;
 
 	qdf_mem_zero(&wlan_diag_event, sizeof(struct wlan_diag_connect));
+
+	if (wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE)
+		return;
 
 	wlan_diag_event.diag_cmn.vdev_id = wlan_vdev_get_id(vdev);
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);

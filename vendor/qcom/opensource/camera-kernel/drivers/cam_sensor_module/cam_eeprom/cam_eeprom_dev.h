@@ -329,9 +329,27 @@ typedef struct _cam_eeprom_af_idx_t {
 
 #define MAX_AF_CAL_STR_SIZE                         256
 
+typedef enum {
+	EEP_REAR = 0,
+	EEP_FRONT,
+	EEP_REAR2,
+	EEP_REAR3,
+	EEP_REAR4,
+	EEP_FRONT2,
+	EEP_FRONT3,
+	MAX_EEP_CAMID,
+} eeprom_camera_id_type;
+
+extern char sensor_id[MAX_EEP_CAMID][FROM_SENSOR_ID_SIZE + 1];
+extern uint8_t module_id[MAX_EEP_CAMID][FROM_MODULE_ID_SIZE + 1];
+extern char module_info[MAX_EEP_CAMID][SYSFS_MODULE_INFO_SIZE];
+extern char cam_fw_ver[MAX_EEP_CAMID][SYSFS_FW_VER_SIZE];
+extern char cam_fw_full_ver[MAX_EEP_CAMID][SYSFS_FW_VER_SIZE];
+extern char cam_fw_user_ver[MAX_EEP_CAMID][SYSFS_FW_VER_SIZE];
+extern char cam_fw_factory_ver[MAX_EEP_CAMID][SYSFS_FW_VER_SIZE];
+
 //extern int rear_af_cal[FROM_REAR_AF_CAL_SIZE + 1];
 extern char rear_af_cal_str[MAX_AF_CAL_STR_SIZE];
-extern char rear_sensor_id[FROM_SENSOR_ID_SIZE + 1];
 
 extern char rear_paf_cal_data_far[PAF_2PD_CAL_INFO_SIZE];
 extern char rear_paf_cal_data_mid[PAF_2PD_CAL_INFO_SIZE];
@@ -340,7 +358,6 @@ extern char rear_f2_paf_cal_data_far[PAF_2PD_CAL_INFO_SIZE];
 extern char rear_f2_paf_cal_data_mid[PAF_2PD_CAL_INFO_SIZE];
 extern uint32_t f2_paf_err_data_result;
 
-extern uint8_t rear_module_id[FROM_MODULE_ID_SIZE + 1];
 extern char rear_mtf_exif[FROM_MTF_SIZE + 1];
 extern char rear_mtf2_exif[FROM_MTF_SIZE + 1];
 
@@ -350,18 +367,9 @@ extern uint8_t rear3_dual_cal[FROM_REAR_DUAL_CAL_SIZE + 1];
 extern char rear3_af_cal_str[MAX_AF_CAL_STR_SIZE];
 
 extern char rear3_mtf_exif[FROM_MTF_SIZE + 1];
-extern char rear3_fw_ver[SYSFS_FW_VER_SIZE];
-extern char rear3_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern uint8_t rear3_module_id[FROM_MODULE_ID_SIZE + 1];
 extern char module3_info[SYSFS_MODULE_INFO_SIZE];
 
-extern char rear3_sensor_id[FROM_SENSOR_ID_SIZE + 1];
 extern DualTilt_t rear3_dual;
-#endif
-
-#if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT)
-extern char rear3_fw_factory_ver[SYSFS_FW_VER_SIZE];
-extern char rear3_fw_user_ver[SYSFS_FW_VER_SIZE];
 #endif
 
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
@@ -369,20 +377,9 @@ extern char rear4_af_cal_str[MAX_AF_CAL_STR_SIZE];
 extern uint32_t rear4_paf_err_data_result;
 
 extern char rear4_mtf_exif[FROM_MTF_SIZE + 1];
-extern char rear4_fw_ver[SYSFS_FW_VER_SIZE];
-extern char rear4_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern uint8_t rear4_module_id[FROM_MODULE_ID_SIZE + 1];
-extern char module4_info[SYSFS_MODULE_INFO_SIZE];
-extern char rear4_fw_factory_ver[SYSFS_FW_VER_SIZE];
-extern char rear4_fw_user_ver[SYSFS_FW_VER_SIZE];
-extern char rear4_sensor_id[FROM_SENSOR_ID_SIZE + 1];
 extern DualTilt_t rear4_dual;
 #endif
 
-extern char rear_fw_ver[SYSFS_FW_VER_SIZE];
-extern char rear_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern char rear_fw_factory_ver[SYSFS_FW_VER_SIZE];
-extern char rear_fw_user_ver[SYSFS_FW_VER_SIZE];
 extern char cal_crc[SYSFS_FW_VER_SIZE];
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 #if defined(CONFIG_SEC_DM3Q_PROJECT)
@@ -391,14 +388,7 @@ extern uint32_t rear2_paf_err_data_result;
 #endif
 extern uint8_t rear2_dual_cal[FROM_REAR_DUAL_CAL_SIZE + 1];
 
-extern char module2_info[SYSFS_MODULE_INFO_SIZE];
-extern char rear2_sensor_id[FROM_SENSOR_ID_SIZE + 1];
-extern uint8_t rear2_module_id[FROM_MODULE_ID_SIZE + 1];
 extern char rear2_mtf_exif[FROM_MTF_SIZE + 1];
-extern char rear2_fw_ver[SYSFS_FW_VER_SIZE];
-extern char rear2_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern char rear2_fw_factory_ver[SYSFS_FW_VER_SIZE];
-extern char rear2_fw_user_ver[SYSFS_FW_VER_SIZE];
 
 extern DualTilt_t rear2_dual;
 
@@ -413,7 +403,6 @@ extern char front2_af_cal_str[MAX_AF_CAL_STR_SIZE];
 extern uint8_t front2_dual_cal[FROM_FRONT_DUAL_CAL_SIZE + 1];
 extern DualTilt_t front2_dual;
 #endif
-extern char module_info[SYSFS_MODULE_INFO_SIZE];
 
 /* phone fw info */
 extern uint32_t CAMERA_NORMAL_CAL_CRC;
@@ -423,97 +412,12 @@ extern uint32_t front_af_cal_pan;
 extern uint32_t front_af_cal_macro;
 #endif
 
-extern char front_sensor_id[FROM_SENSOR_ID_SIZE + 1];
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-extern char front2_sensor_id[FROM_SENSOR_ID_SIZE + 1];
-#endif
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 extern char front3_af_cal_str[MAX_AF_CAL_STR_SIZE];
-extern char front3_sensor_id[FROM_SENSOR_ID_SIZE + 1];
-#else
-extern char front2_sensor_id[FROM_SENSOR_ID_SIZE + 1];
 #endif
-#endif
-extern uint8_t front_module_id[FROM_MODULE_ID_SIZE + 1];
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-extern uint8_t front2_module_id[FROM_MODULE_ID_SIZE + 1];
 #endif
 extern char front_mtf_exif[FROM_MTF_SIZE + 1];
-#if defined(CONFIG_SAMSUNG_FRONT_TOP)
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-extern uint8_t front3_module_id[FROM_MODULE_ID_SIZE + 1];
-#else
-extern uint8_t front2_module_id[FROM_MODULE_ID_SIZE + 1];
-#endif
-#endif
-
-extern char front_cam_fw_ver[SYSFS_FW_VER_SIZE];
-extern char front_cam_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern char front_cam_fw_user_ver[SYSFS_FW_VER_SIZE];
-extern char front_cam_fw_factory_ver[SYSFS_FW_VER_SIZE];
-
-extern char front_module_info[SYSFS_MODULE_INFO_SIZE];
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-extern char front2_module_info[SYSFS_MODULE_INFO_SIZE];
-extern char front2_cam_fw_ver[SYSFS_FW_VER_SIZE];
-extern char front2_cam_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern char front2_cam_fw_user_ver[SYSFS_FW_VER_SIZE];
-extern char front2_cam_fw_factory_ver[SYSFS_FW_VER_SIZE];
-#endif
-#if defined(CONFIG_SAMSUNG_FRONT_TOP)
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-extern char front3_module_info[SYSFS_MODULE_INFO_SIZE];
-extern char front3_cam_fw_ver[SYSFS_FW_VER_SIZE];
-extern char front3_cam_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern char front3_cam_fw_user_ver[SYSFS_FW_VER_SIZE];
-extern char front3_cam_fw_factory_ver[SYSFS_FW_VER_SIZE];
-#else
-extern char front2_module_info[SYSFS_MODULE_INFO_SIZE];
-extern char front2_cam_fw_ver[SYSFS_FW_VER_SIZE];
-extern char front2_cam_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern char front2_cam_fw_user_ver[SYSFS_FW_VER_SIZE];
-extern char front2_cam_fw_factory_ver[SYSFS_FW_VER_SIZE];
-#endif
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_TOF)
-extern char rear_tof_fw_ver[SYSFS_FW_VER_SIZE];
-extern char rear_tof_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern char rear_tof_fw_user_ver[SYSFS_FW_VER_SIZE];
-extern char rear_tof_fw_factory_ver[SYSFS_FW_VER_SIZE];
-extern char rear_tof_module_info[SYSFS_MODULE_INFO_SIZE];
-extern char rear_tof_sensor_id[FROM_SENSOR_ID_SIZE + 1];
-extern uint8_t rear_tof_module_id[FROM_MODULE_ID_SIZE + 1];
-
-extern int rear_tof_uid;
-extern int rear_tof_validation_500;
-extern int rear_tof_validation_300;
-extern uint8_t rear_tof_cal[TOFCAL_SIZE + 1];
-extern uint8_t rear_tof_cal_extra[TOFCAL_EXTRA_SIZE + 1];
-extern uint8_t rear_tof_cal_result;
-
-extern uint8_t rear_tof_dual_cal[REAR_TOF_DUAL_CAL_SIZE + 1];
-extern DualTilt_t rear_tof_dual;
-extern DualTilt_t rear2_tof_dual;
-#endif
-#if defined(CONFIG_SAMSUNG_FRONT_TOF)
-extern char front_tof_cam_fw_ver[SYSFS_FW_VER_SIZE];
-extern char front_tof_cam_fw_full_ver[SYSFS_FW_VER_SIZE];
-extern char front_tof_cam_fw_user_ver[SYSFS_FW_VER_SIZE];
-extern char front_tof_cam_fw_factory_ver[SYSFS_FW_VER_SIZE];
-extern char front_tof_module_info[SYSFS_MODULE_INFO_SIZE];
-extern char front_tof_sensor_id[FROM_SENSOR_ID_SIZE + 1];
-extern uint8_t front2_module_id[FROM_MODULE_ID_SIZE + 1];
-
-extern int front_tof_uid;
-extern uint8_t front_tof_cal[TOFCAL_SIZE + 1];
-extern uint8_t front_tof_cal_extra[TOFCAL_EXTRA_SIZE+1];
-extern uint8_t front_tof_cal_result;
-
-extern uint8_t front_tof_dual_cal[FRONT_TOF_DUAL_CAL_SIZE + 1];
-extern DualTilt_t front_tof_dual;
-#endif
 
 enum cam_eeprom_state {
 	CAM_EEPROM_INIT,

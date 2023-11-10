@@ -28,6 +28,7 @@
 #include "cam_ois_core.h"
 #include "cam_eeprom_dev.h"
 #include "cam_actuator_core.h"
+#include "cam_hw_bigdata.h"
 #if defined(CONFIG_SAMSUNG_APERTURE)
 #include "cam_aperture_core.h"
 #endif
@@ -1670,7 +1671,6 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 	uint32_t read_value = 0;
 	int rc = 0, retries = 0;
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
-	struct cam_hw_param *hw_param = NULL;
 	uint32_t hw_cam_position;
 #endif
 
@@ -1690,44 +1690,7 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 				if (rc < 0) {
 					msm_is_sec_get_sensor_position(&hw_cam_position);
 					{
-						switch (hw_cam_position) {
-						case CAMERA_0:
-							if (!msm_is_sec_get_rear_hw_param(&hw_param)) {
-								if (hw_param != NULL) {
-									CAM_ERR(CAM_UTIL, "[HWB][R][OIS] Err\n");
-									hw_param->i2c_ois_err_cnt++;
-									hw_param->need_update_to_file = TRUE;
-								}
-							}
-							break;
-
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
-						case CAMERA_3:
-							if (!msm_is_sec_get_rear3_hw_param(&hw_param)) {
-								if (hw_param != NULL) {
-									CAM_ERR(CAM_UTIL, "[HWB][R3][OIS] Err\n");
-									hw_param->i2c_ois_err_cnt++;
-									hw_param->need_update_to_file = TRUE;
-								}
-							}
-							break;
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
-						case CAMERA_6:
-							if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
-								if (hw_param != NULL) {
-									CAM_ERR(CAM_UTIL, "[HWB][R4][OIS] Err\n");
-									hw_param->i2c_ois_err_cnt++;
-									hw_param->need_update_to_file = TRUE;
-								}
-							}
-							break;
-#endif
-						default:
-							CAM_DBG(CAM_UTIL, "[NON][OIS][%d] Unsupport\n", hw_cam_position);
-							break;
-						}
+						hw_bigdata_i2c_from_ois_status_reg(hw_cam_position);
 					}
 				}
 #endif
@@ -1817,39 +1780,7 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 	}
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
-	if ((o_ctrl->err_reg & 0x0600) != 0) {
-		if (!msm_is_sec_get_rear_hw_param(&hw_param)) {
-			if (hw_param != NULL) {
-				CAM_ERR(CAM_UTIL, "[HWB][R][OIS] Err\n");
-				hw_param->i2c_ois_err_cnt++;
-				hw_param->need_update_to_file = TRUE;
-			}
-		}
-	}
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
-	if ((o_ctrl->err_reg & 0x1800) != 0) {
-		if (!msm_is_sec_get_rear3_hw_param(&hw_param)) {
-			if (hw_param != NULL) {
-				CAM_ERR(CAM_UTIL, "[HWB][R3][OIS] Err\n");
-				hw_param->i2c_ois_err_cnt++;
-				hw_param->need_update_to_file = TRUE;
-			}
-		}
-	}
-#endif
-#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
-	if ((o_ctrl->err_reg & 0x6000) != 0) {
-		if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
-			if (hw_param != NULL) {
-				CAM_ERR(CAM_UTIL, "[HWB][R4][OIS] Err\n");
-				hw_param->i2c_ois_err_cnt++;
-				CAM_ERR(CAM_UTIL, "[HWB][R4][AF] Err\n");
-				hw_param->i2c_af_err_cnt++;
-				hw_param->need_update_to_file = TRUE;
-			}
-		}
-	}
-#endif
+	hw_bigdata_i2c_from_ois_error_reg(o_ctrl->err_reg);
 #endif
 
 #if defined(CONFIG_SAMSUNG_OIS_TAMODE_CONTROL)
@@ -3015,17 +2946,6 @@ uint32_t cam_ois_self_test(struct cam_ois_ctrl_t *o_ctrl)
 		}
 		usleep_range(20000, 21000);
 	}while(RcvData != 0x00);
-	/* Result Check */
-	rc = cam_ois_i2c_read(o_ctrl, OISERR, &RcvData,
-		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE); /* OISERR Read */
-	if (rc < 0)
-		CAM_ERR(CAM_OIS, "i2c read fail %d", rc);
-	if( (RcvData & 0x80) != 0x0) /* OISERR register GSLFERR Bit != 0(Gyro Sensor Self Test Error Found!!) */
-	{
-		/* Gyro Sensor Self Test Error Process */
-		CAM_ERR(CAM_OIS, "GyroSensorSelfTest failed %d \n", RcvData);
-		return -1;
-	}
 
 	// read x_axis, y_axis
 	rc = cam_ois_i2c_read(o_ctrl, GSTLOG0, &regval,
@@ -3041,6 +2961,18 @@ uint32_t cam_ois_self_test(struct cam_ois_ctrl_t *o_ctrl)
 	z = NTOHS(regval);
 
 	CAM_INFO(CAM_OIS, "Gyro x_axis %u, y_axis %u, z_axis %u", x , y, z);
+
+	/* Result Check */
+	rc = cam_ois_i2c_read(o_ctrl, OISERR, &RcvData,
+		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE); /* OISERR Read */
+	if (rc < 0)
+		CAM_ERR(CAM_OIS, "i2c read fail %d", rc);
+	if( (RcvData & 0x80) != 0x0) /* OISERR register GSLFERR Bit != 0(Gyro Sensor Self Test Error Found!!) */
+	{
+		/* Gyro Sensor Self Test Error Process */
+		CAM_ERR(CAM_OIS, "GyroSensorSelfTest failed %d \n", RcvData);
+		return -1;
+	}
 
 	CAM_DBG(CAM_OIS, "GyroSensorSelfTest X");
 	return RcvData;
@@ -3391,7 +3323,7 @@ int cam_ois_set_servo_ctrl(struct cam_ois_ctrl_t *o_ctrl, uint32_t en)
 	}
 
 	if (!o_ctrl->is_servo_on) {
-		CAM_WARN(CAM_OIS, "ois servo is already off");
+		CAM_DBG(CAM_OIS, "ois servo is already off");
 		return 0;
 	}
 
@@ -3623,7 +3555,7 @@ int cam_ois_write_gyro_sensor_calibration(struct cam_ois_ctrl_t *o_ctrl)
 	raw_data_y = (int)o_ctrl->gyro_raw_y;
 	raw_data_z = (int)o_ctrl->gyro_raw_z;
 
-	CAM_INFO(CAM_OIS, "raw_data_x %d, raw_data_y %d raw_data_z %d", raw_data_x, raw_data_y, raw_data_z);
+	CAM_DBG(CAM_OIS, "raw_data_x %d, raw_data_y %d raw_data_z %d", raw_data_x, raw_data_y, raw_data_z);
 
 	xgzero_val = raw_data_x * scale_factor / 1000;
 	if (xgzero_val > 0x7FFF)
@@ -4143,5 +4075,93 @@ int cam_ois_set_ta_mode(struct cam_ois_ctrl_t *o_ctrl) {
 	CAM_INFO(CAM_OIS, "X");
 
 	return rc;
+}
+#endif
+
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+void cam_ois_read_adc(struct cam_ois_ctrl_t *o_ctrl,
+	uint32_t *result, uint32_t prev_result)
+{
+	int rc = 0;
+
+	rc = cam_ois_i2c_read(o_ctrl, GETADC, result,
+		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD);
+	if (rc < 0) {
+		CAM_ERR(CAM_OIS, "ois adc read failed %d", rc);
+		*result = prev_result;
+	} else
+		*result = NTOHS(*result);
+}
+
+int get_ois_adc_value(struct cam_ois_ctrl_t *o_ctrl,
+	uint32_t *result)
+{
+	int rc = 0;
+#if defined(CONFIG_SEC_B5Q_PROJECT)
+	static uint32_t	prev_result = 1897; //default ois_adc value
+#elif defined(CONFIG_SEC_Q5Q_PROJECT)
+	static uint32_t	prev_result = 1954; //default ois_adc value
+#endif
+
+	if (!o_ctrl)
+		return -1;
+
+	if (!o_ctrl->is_power_up) {
+		CAM_INFO(CAM_OIS, "ois is not power up");
+
+		mutex_lock(&(o_ctrl->ois_mutex));
+		if ((o_ctrl->cam_ois_state == CAM_OIS_INIT) && !o_ctrl->sysfs_ois_power) {
+			rc= cam_ois_power_up(o_ctrl);
+			if (rc < 0) {
+				CAM_ERR(CAM_OIS, "OIS Power up failed");
+				goto ois_power_up_failed;
+			}
+
+			msleep(20);
+			rc = cam_ois_mcu_init(o_ctrl);
+			if (rc < 0) {
+				CAM_ERR(CAM_OIS, "OIS mcu init failed");
+				goto ois_mcu_init_failed;
+			}
+		}
+
+		cam_ois_read_adc(o_ctrl, result, prev_result);
+
+		if ((o_ctrl->cam_ois_state == CAM_OIS_INIT) && !o_ctrl->sysfs_ois_power) {
+			rc = cam_ois_power_down(o_ctrl);
+			if (rc < 0) {
+				CAM_ERR(CAM_OIS, "OIS Power down failed");
+				goto ois_power_down_failed;
+			}
+		}
+
+		mutex_unlock(&(o_ctrl->ois_mutex));
+	} else {
+		if (o_ctrl->sysfs_ois_power && !o_ctrl->sysfs_ois_init) {
+			mutex_lock(&(o_ctrl->ois_mutex));
+
+			cam_ois_read_adc(o_ctrl, result, prev_result);
+
+			mutex_unlock(&(o_ctrl->ois_mutex));
+		} else
+			cam_ois_read_adc(o_ctrl, result, prev_result);
+ 	}
+
+	prev_result = *result;
+	return rc;
+
+ois_mcu_init_failed:
+	if (o_ctrl->cam_ois_state == 0) {
+		rc = cam_ois_power_down(o_ctrl);
+		if (rc < 0) {
+			CAM_ERR(CAM_OIS, "OIS Power down failed");
+		}
+	}
+ois_power_up_failed:
+ois_power_down_failed:
+	mutex_unlock(&(o_ctrl->ois_mutex));
+	*result = prev_result;
+	return rc;
+
 }
 #endif

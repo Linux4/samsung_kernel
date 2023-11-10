@@ -70,7 +70,7 @@
         <param key="max_sessions" value="128"/>
         <param key="max_nonTunnel_sessions" value="4"/>
         <param key="logging_level" value ="3" />
-        <param key="context_manager_enable" value ="false" />
+        <param key="context_manager_enable" value ="true" />
         <param key="lpi_logging_enable" value ="false" />
         <param key="upd_dedicated_be" value ="true" />
         <param key="signal_handler" value ="true" />
@@ -123,12 +123,13 @@
             <modepair key="0x121C6000" value="0xB3000001"/>
         </mode_map>
     </config_voice>
-    <low_power_vote_streams>
-        <stream_type>PAL_STREAM_VOICE_UI</stream_type>
-        <stream_type>PAL_STREAM_ACD</stream_type>
-        <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
-        <stream_type>PAL_STREAM_SENSOR_PCM_DATA</stream_type>
-    </low_power_vote_streams>
+    <sleep_monitor_vote_streams>
+        <low_power_stream_type>PAL_STREAM_VOICE_UI</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_ACD</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_ULTRASOUND</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_SENSOR_PCM_DATA</low_power_stream_type>
+        <avoid_vote_stream_type>PAL_STREAM_CONTEXT_PROXY</avoid_vote_stream_type>
+    </sleep_monitor_vote_streams>
     <group_device_cfg>
         <upd_rx>
             <snd_device name="handset" />
@@ -154,6 +155,28 @@
             <group_dev sample_rate = "96000" channels="2" bit_fmt="PAL_AUDIO_FMT_PCM_S16_LE" slot_mask="3" />
         </upd_rx_speaker>
     </group_device_cfg>
+    <!--
+         Usecase Priorities
+        ====================
+
+         Examples of usecases with their corresponding priorities,
+         ranked from 1 (highest priority).
+         1 for voice
+         2 for VOIP
+         3 for playback/recording and (default priority assigned in the streamPriorityLUT map in ResourceManager.cpp)
+         4 for UPD
+
+         In the event of concurrency on shared backend devices, the stream with the highest priority will determine the final device.
+         Example:
+         ========================================
+          usecase   |  priority | snd-devicename
+         ========================================
+          VOICE     |      1    | voice-handset
+          VOIP      |      2    | voip-handset
+          deepbuffer|      3    | speaker-mono
+
+        The final device will be voice-handset.
+    -->
     <device_profile>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_MIC</id>
@@ -669,6 +692,15 @@
             -->
             <cps_mode>1</cps_mode>
             <vbat_enabled>1</vbat_enabled>
+            <wsa2_enable>0</wsa2_enable>
+            <!--wsa registers physical addresses in decimal notation -->
+            <wsa_wr_cmd_reg_phy_addr>112279584</wsa_wr_cmd_reg_phy_addr>
+            <wsa_rd_cmd_reg_phy_addr>112279588</wsa_rd_cmd_reg_phy_addr>
+            <wsa_rd_fifo_reg_phy_addr>112279616</wsa_rd_fifo_reg_phy_addr>
+            <!--wsa2 registers physical addresses in decimal notation and to be updated only if wsa2 is enabled, else should be marked as 0-->
+            <wsa2_wr_cmd_reg_phy_addr>0</wsa2_wr_cmd_reg_phy_addr>
+            <wsa2_rd_cmd_reg_phy_addr>0</wsa2_rd_cmd_reg_phy_addr>
+            <wsa2_rd_fifo_reg_phy_addr>0</wsa2_rd_fifo_reg_phy_addr>
             <!--specify the supported bit format on speaker end point -->
             <!--this should be in the form of pal_audio_fmt_id-->
             <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_LE</supported_bit_format>-->
@@ -698,6 +730,18 @@
                 <channels>1</channels>
                 <snd_device_name>speaker-mono-2</snd_device_name>
             </usecase>
+            <!--
+                 Playback/Recording streams have a default priority of 3
+                 (default priority assigned in the streamPriorityLUT map in ResourceManager.cpp).
+                 Check the comments above "Usecase Priorities" for details.
+            -->
+            <!--
+                 While the UPD runs on a shared backend, whenever a speaker usecase arises,
+                 UPD must always switch to the speaker; it can only return to handset when
+                 the last speaker usecase terminates.
+                 Giving UPD the lowest priority is in line with the understanding of
+                 priority settings.
+            -->
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
                 <priority>4</priority>
@@ -979,7 +1023,6 @@
             <name>PAL_STREAM_VOIP_TX</name>
                 <policies>
                     <ec_ref>
-                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
                         <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
                     </ec_ref>
                 </policies>

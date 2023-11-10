@@ -43,7 +43,7 @@ struct wifi_pos_driver_caps;
 },
 
 /**
- * os_if_wifi_pos_register_nl() - abstration API to register callback with GENL
+ * os_if_wifi_pos_register_nl() - abstraction API to register callback with GENL
  * socket.
  *
  * Return: status of operation
@@ -51,7 +51,7 @@ struct wifi_pos_driver_caps;
 int os_if_wifi_pos_register_nl(void);
 
 /**
- * os_if_wifi_pos_deregister_nl() - abstration API to deregister callback with
+ * os_if_wifi_pos_deregister_nl() - abstraction API to deregister callback with
  * GENL socket.
  *
  * Return: status of operation

@@ -19,25 +19,40 @@
 
 struct cdp_mlo_ctxt;
 
-/**
- * cdp_ctrl_mlo_mgr - opaque handle for mlo manager context
- */
-struct cdp_ctrl_mlo_mgr;
-
 struct
 cdp_mlo_ctxt *dp_mlo_ctxt_attach_wifi3(struct cdp_ctrl_mlo_mgr *ctrl_ctxt);
 void dp_mlo_ctxt_detach_wifi3(struct cdp_mlo_ctxt *ml_ctxt);
 
 static inline
-struct cdp_mlo_ctxt *cdp_mlo_ctxt_attach(struct cdp_ctrl_mlo_mgr *ctrl_ctxt)
+struct cdp_mlo_ctxt *cdp_mlo_ctxt_attach(ol_txrx_soc_handle soc,
+					 struct cdp_ctrl_mlo_mgr *ctrl_ctxt)
 {
-	return dp_mlo_ctxt_attach_wifi3(ctrl_ctxt);
+	if (!soc || !soc->ops) {
+		QDF_BUG(0);
+		return NULL;
+	}
+
+	if (!soc->ops->mlo_ops ||
+	    !soc->ops->mlo_ops->mlo_ctxt_attach)
+		return NULL;
+
+	return soc->ops->mlo_ops->mlo_ctxt_attach(ctrl_ctxt);
 }
 
 static inline
-void cdp_mlo_ctxt_detach(struct cdp_mlo_ctxt *ml_ctxt)
+void cdp_mlo_ctxt_detach(ol_txrx_soc_handle soc,
+			 struct cdp_mlo_ctxt *ml_ctxt)
 {
-	dp_mlo_ctxt_detach_wifi3(ml_ctxt);
+	if (!soc || !soc->ops) {
+		QDF_BUG(0);
+		return;
+	}
+
+	if (!soc->ops->mlo_ops ||
+	    !soc->ops->mlo_ops->mlo_ctxt_detach)
+		return;
+
+	soc->ops->mlo_ops->mlo_ctxt_detach(ml_ctxt);
 }
 
 static inline void cdp_soc_mlo_soc_setup(ol_txrx_soc_handle soc,
@@ -56,7 +71,8 @@ static inline void cdp_soc_mlo_soc_setup(ol_txrx_soc_handle soc,
 }
 
 static inline void cdp_soc_mlo_soc_teardown(ol_txrx_soc_handle soc,
-					    struct cdp_mlo_ctxt *mlo_ctx)
+					    struct cdp_mlo_ctxt *mlo_ctx,
+					    bool is_force_down)
 {
 	if (!soc || !soc->ops) {
 		QDF_BUG(0);
@@ -67,7 +83,7 @@ static inline void cdp_soc_mlo_soc_teardown(ol_txrx_soc_handle soc,
 	    !soc->ops->mlo_ops->mlo_soc_teardown)
 		return;
 
-	soc->ops->mlo_ops->mlo_soc_teardown(soc, mlo_ctx);
+	soc->ops->mlo_ops->mlo_soc_teardown(soc, mlo_ctx, is_force_down);
 }
 
 /*

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
@@ -251,14 +251,13 @@ static void gmu_ao_sync_event(struct adreno_device *adreno_dev)
 
 	local_irq_restore(flags);
 }
-extern void arm_smmu_debug_gdsc_cx_start_wait(void);
+
 int gen7_gmu_enable_gdsc(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	int ret;
 
-  arm_smmu_debug_gdsc_cx_start_wait();
 	ret = wait_for_completion_timeout(&gmu->gdsc_gate, msecs_to_jiffies(5000));
 	if (!ret) {
 		dev_err(device->dev, "GPU CX wait timeout. Dumping CX votes:\n");
@@ -800,10 +799,11 @@ int gen7_gmu_wait_for_idle(struct adreno_device *adreno_dev)
 	return 0;
 }
 
-void gen7_gmu_version_info(struct adreno_device *adreno_dev)
+int gen7_gmu_version_info(struct adreno_device *adreno_dev)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
+	const struct adreno_gen7_core *gen7_core = to_gen7_core(adreno_dev);
 
 	/* GMU version info is at a fixed offset in the DTCM */
 	gmu_core_regread(device, GEN7_GMU_CM3_DTCM_START + 0xff8,
@@ -816,6 +816,15 @@ void gen7_gmu_version_info(struct adreno_device *adreno_dev)
 			&gmu->ver.pwr_dev);
 	gmu_core_regread(device, GEN7_GMU_CM3_DTCM_START + 0xffc,
 			&gmu->ver.hfi);
+
+	/* Check if gmu fw version on device is compatible with kgsl driver */
+	if (gmu->ver.core < gen7_core->gmu_fw_version) {
+		dev_err_once(&gmu->pdev->dev,
+			     "GMU FW version 0x%x error (expected 0x%x)\n",
+			     gmu->ver.core, gen7_core->gmu_fw_version);
+		return -EINVAL;
+	}
+	return 0;
 }
 
 int gen7_gmu_itcm_shadow(struct adreno_device *adreno_dev)
@@ -1040,7 +1049,8 @@ static int _map_gmu_dynamic(struct gen7_gmu_device *gmu,
 
 	spin_lock(&vma->lock);
 	vma_node = find_va(vma, md->gmuaddr, md->size);
-	rb_erase(&vma_node->node, &vma->vma_root);
+	if (vma_node)
+		rb_erase(&vma_node->node, &vma->vma_root);
 	spin_unlock(&vma->lock);
 	kfree(vma_node);
 
@@ -1230,33 +1240,41 @@ int gen7_gmu_parse_fw(struct adreno_device *adreno_dev)
 	int ret, offset = 0;
 	const char *gmufw_name = gen7_core->gmufw_name;
 
-	/* GMU fw already saved and verified so do nothing new */
-	if (gmu->fw_image)
-		return 0;
+	/*
+	 * If GMU fw already saved and verified, do nothing new.
+	 * Skip only request_firmware and allow preallocation to
+	 * ensure in scenario where GMU request firmware succeeded
+	 * but preallocation fails, we don't return early without
+	 * successful preallocations on next open call.
+	 */
+	if (!gmu->fw_image) {
 
-	if (gen7_core->gmufw_name == NULL)
-		return -EINVAL;
+		if (gen7_core->gmufw_name == NULL)
+			return -EINVAL;
 
-	ret = request_firmware(&gmu->fw_image, gmufw_name, &gmu->pdev->dev);
-	if (ret) {
-		if (gen7_core->gmufw_bak_name) {
-			gmufw_name = gen7_core->gmufw_bak_name;
-			ret = request_firmware(&gmu->fw_image, gmufw_name,
+		ret = request_firmware(&gmu->fw_image, gmufw_name,
 				&gmu->pdev->dev);
-		}
 		if (ret) {
-			dev_err(&gmu->pdev->dev,
-				"request_firmware (%s) failed: %d\n",
-				gmufw_name, ret);
+			if (gen7_core->gmufw_bak_name) {
+				gmufw_name = gen7_core->gmufw_bak_name;
+				ret = request_firmware(&gmu->fw_image, gmufw_name,
+					&gmu->pdev->dev);
+			}
 
-			return ret;
+			if (ret) {
+				dev_err(&gmu->pdev->dev,
+					"request_firmware (%s) failed: %d\n",
+					gmufw_name, ret);
+
+				return ret;
+			}
 		}
 	}
 
 	/*
-	 * Zero payload fw blocks contain meta data and are
+	 * Zero payload fw blocks contain metadata and are
 	 * guaranteed to precede fw load data. Parse the
-	 * meta data blocks.
+	 * metadata blocks.
 	 */
 	while (offset < gmu->fw_image->size) {
 		blk = (struct gmu_block_header *)&gmu->fw_image->data[offset];
@@ -1458,7 +1476,7 @@ void gen7_gmu_suspend(struct adreno_device *adreno_dev)
 
 	dev_err(&gmu->pdev->dev, "Suspended GMU\n");
 
-	device->state = KGSL_STATE_NONE;
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
 }
 
 static int gen7_gmu_dcvs_set(struct adreno_device *adreno_dev,
@@ -1744,18 +1762,19 @@ void gen7_gmu_aop_send_acd_state(struct gen7_gmu_device *gmu, bool flag)
 			"AOP mbox send message failed: %d\n", ret);
 }
 
-int gen7_gmu_enable_clks(struct adreno_device *adreno_dev)
+int gen7_gmu_enable_clks(struct adreno_device *adreno_dev, u32 level)
 {
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	int ret;
 
-	gen7_rdpm_cx_freq_update(gmu, gmu->freqs[0] / 1000);
+	gen7_rdpm_cx_freq_update(gmu, gmu->freqs[level] / 1000);
 
 	ret = kgsl_clk_set_rate(gmu->clks, gmu->num_clks, "gmu_clk",
-			gmu->freqs[0]);
+			gmu->freqs[level]);
 	if (ret) {
-		dev_err(&gmu->pdev->dev, "Unable to set the GMU clock\n");
+		dev_err(&gmu->pdev->dev, "GMU clock:%d set failed:%d\n",
+			gmu->freqs[level], ret);
 		return ret;
 	}
 
@@ -1792,7 +1811,7 @@ static int gen7_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
-	ret = gen7_gmu_enable_clks(adreno_dev);
+	ret = gen7_gmu_enable_clks(adreno_dev, 0);
 	if (ret)
 		goto gdsc_off;
 
@@ -1800,7 +1819,9 @@ static int gen7_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		goto clks_gdsc_off;
 
-	gen7_gmu_version_info(adreno_dev);
+	ret = gen7_gmu_version_info(adreno_dev);
+	if (ret)
+		goto clks_gdsc_off;
 
 	ret = gen7_gmu_itcm_shadow(adreno_dev);
 	if (ret)
@@ -1874,7 +1895,7 @@ static int gen7_gmu_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
-	ret = gen7_gmu_enable_clks(adreno_dev);
+	ret = gen7_gmu_enable_clks(adreno_dev, 0);
 	if (ret)
 		goto gdsc_off;
 
@@ -2031,6 +2052,8 @@ static int gen7_gmu_bus_set(struct adreno_device *adreno_dev, int buslevel,
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	int ret = 0;
+
+	kgsl_icc_set_tag(pwr, buslevel);
 
 	if (buslevel != pwr->cur_buslevel) {
 		ret = gen7_gmu_dcvs_set(adreno_dev, INVALID_DCVS_IDX, buslevel);
@@ -2549,7 +2572,7 @@ static int gen7_gmu_power_off(struct adreno_device *adreno_dev)
 
 	gen7_rdpm_cx_freq_update(gmu, 0);
 
-	device->state = KGSL_STATE_NONE;
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
 
 	return 0;
 
@@ -2867,7 +2890,7 @@ static void gmu_idle_check(struct work_struct *work)
 	if (test_bit(GMU_DISABLE_SLUMBER, &device->gmu_core.flags))
 		goto done;
 
-	if (atomic_read(&device->active_cnt)) {
+	if (atomic_read(&device->active_cnt) || time_is_after_jiffies(device->idle_jiffies)) {
 		kgsl_pwrscale_update(device);
 		kgsl_start_idle_timer(device);
 		goto done;
@@ -2885,7 +2908,7 @@ static void gmu_idle_check(struct work_struct *work)
 		goto done;
 	}
 
-	device->slumber = true;
+	device->skip_inline_submit = true;
 	spin_unlock(&device->submit_lock);
 
 	ret = gen7_power_off(adreno_dev);

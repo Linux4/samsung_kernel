@@ -201,6 +201,7 @@ int cam_irq_controller_subscribe_irq(void *irq_controller,
  * cam_irq_controller_unsubscribe_irq()
  *
  * @brief:               Unsubscribe to IRQ events previously subscribed to.
+ *                       Masks out the correspondings events from source
  *
  * @irq_controller:      Pointer to IRQ Controller that controls this event IRQ
  * @handle:              Handle returned on successful subscribe used to
@@ -343,7 +344,7 @@ int cam_irq_controller_register_dependent(void *primary_controller, void *second
 	uint32_t *mask);
 
 /**
- * cam_irq_controller_register_dependent
+ * cam_irq_controller_unregister_dependent
  * @brief:                 Unregister previously registered dependent IRQ controller
  *
  * @primary_controller:    Controller whose top half will invoke handle_irq function of secondary

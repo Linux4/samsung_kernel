@@ -206,6 +206,7 @@ struct damos_stat {
 	unsigned long nr_applied;
 	unsigned long sz_applied;
 	unsigned long qt_exceeds;
+	unsigned long idle_time;
 };
 
 /**
@@ -345,6 +346,7 @@ struct damon_callback {
 	int (*before_start)(struct damon_ctx *context);
 	int (*after_sampling)(struct damon_ctx *context);
 	int (*after_aggregation)(struct damon_ctx *context);
+	int (*before_sleep)(struct damon_ctx *context, unsigned long wait_time_ms);
 	void (*before_terminate)(struct damon_ctx *context);
 };
 

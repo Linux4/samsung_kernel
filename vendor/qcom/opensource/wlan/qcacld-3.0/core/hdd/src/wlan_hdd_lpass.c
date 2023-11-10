@@ -57,7 +57,8 @@ static void wlan_hdd_get_channel_info(struct hdd_context *hdd_ctx,
 	chan_info->band_center_freq2 = 0;
 	chan_info->info = 0;
 	if (CHANNEL_STATE_DFS ==
-	    wlan_reg_get_channel_state_for_freq(hdd_ctx->pdev, chan_freq))
+	    wlan_reg_get_channel_state_for_pwrmode(hdd_ctx->pdev, chan_freq,
+						   REG_CURRENT_PWR_MODE))
 		WMI_SET_CHANNEL_FLAG(chan_info,
 				     WMI_CHAN_FLAG_DFS);
 	hdd_update_channel_bw_info(hdd_ctx, chan_freq,

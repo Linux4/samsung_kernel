@@ -110,7 +110,7 @@ void *dp_soc_init_wifi3(struct cdp_soc_t *soc,
 static inline int cdp_get_arch_type_from_devid(uint16_t devid)
 {
 	switch (devid) {
-	case LITHIUM_DP: /*FIXME Add lithium devide IDs */
+	case LITHIUM_DP: /*FIXME Add lithium device IDs */
 	case QCA8074_DEVICE_ID: /* Hawekeye */
 	case QCA8074V2_DEVICE_ID: /* Hawekeye V2*/
 	case QCA9574_DEVICE_ID:
@@ -118,6 +118,7 @@ static inline int cdp_get_arch_type_from_devid(uint16_t devid)
 	case QCA6290_DEVICE_ID:
 	case QCN9000_DEVICE_ID:
 	case QCN6122_DEVICE_ID:
+	case QCN9160_DEVICE_ID:
 	case QCA6390_DEVICE_ID:
 	case QCA6490_DEVICE_ID:
 	case QCA6750_DEVICE_ID:
@@ -157,7 +158,7 @@ ol_txrx_soc_handle cdp_soc_attach(u_int16_t devid,
 	params.ol_ops = dp_ol_if_ops;
 
 	switch (devid) {
-	case LITHIUM_DP: /*FIXME Add lithium devide IDs */
+	case LITHIUM_DP: /*FIXME Add lithium device IDs */
 	case BERYLLIUM_DP:
 	case QCA8074_DEVICE_ID: /* Hawekeye */
 	case QCA8074V2_DEVICE_ID: /* Hawekeye V2*/
@@ -165,6 +166,7 @@ ol_txrx_soc_handle cdp_soc_attach(u_int16_t devid,
 	case QCA6290_DEVICE_ID:
 	case QCN9000_DEVICE_ID:
 	case QCN6122_DEVICE_ID:
+	case QCN9160_DEVICE_ID:
 	case QCA6390_DEVICE_ID:
 	case QCA6490_DEVICE_ID:
 	case QCA6750_DEVICE_ID:

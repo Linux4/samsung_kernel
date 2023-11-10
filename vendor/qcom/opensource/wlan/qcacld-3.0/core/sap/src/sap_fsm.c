@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -62,6 +62,7 @@
 #include "wlan_vdev_mgr_utils_api.h"
 #include "wlan_pre_cac_api.h"
 #include <wlan_cmn_ieee80211.h>
+#include <target_if.h>
 
 /*----------------------------------------------------------------------------
  * Preprocessor Definitions and Constants
@@ -239,7 +240,7 @@ static qdf_freq_t sap_random_channel_sel(struct sap_context *sap_ctx)
 		flag |= DFS_RANDOM_CH_FLAG_NO_LOWER_5G_CH;
 
 	/*
-	 * Dont choose 6ghz channel currently as legacy clients wont be able to
+	 * Dont choose 6ghz channel currently as legacy clients won't be able to
 	 * scan them. In future create an ini if any customer wants 6ghz freq
 	 * to be prioritize over 5ghz/2.4ghz.
 	 * Currently for SAP there is a high chance of 6ghz being selected as
@@ -254,8 +255,9 @@ static qdf_freq_t sap_random_channel_sel(struct sap_context *sap_ctx)
 		chan_freq = sap_ctx->candidate_freq;
 		if (sap_phymode_is_eht(sap_ctx->phyMode))
 			wlan_reg_set_create_punc_bitmap(ch_params, true);
-		wlan_reg_set_channel_params_for_freq(pdev, chan_freq, 0,
-						     ch_params);
+		wlan_reg_set_channel_params_for_pwrmode(pdev, chan_freq, 0,
+							ch_params,
+							REG_CURRENT_PWR_MODE);
 		sap_debug("random chan select candidate freq=%d", chan_freq);
 		sap_ctx->candidate_freq = 0;
 	} else if (QDF_IS_STATUS_ERROR(
@@ -498,18 +500,23 @@ is_wlansap_cac_required_for_chan(struct mac_context *mac_ctx,
 	uint8_t sta_cnt, i;
 
 	if (ch_params->ch_width == CH_WIDTH_160MHZ) {
-		if (wlan_reg_get_bonded_channel_state_for_freq(
-		    mac_ctx->pdev, chan_freq,
-		    ch_params->ch_width, 0) == CHANNEL_STATE_DFS)
+		wlan_reg_set_create_punc_bitmap(ch_params, true);
+		if (wlan_reg_get_5g_bonded_channel_state_for_pwrmode(mac_ctx->pdev,
+								     chan_freq,
+								     ch_params,
+								     REG_CURRENT_PWR_MODE) ==
+		    CHANNEL_STATE_DFS)
 			is_ch_dfs = true;
 	} else if (ch_params->ch_width == CH_WIDTH_80P80MHZ) {
-		if (wlan_reg_get_channel_state_for_freq(
+		if (wlan_reg_get_channel_state_for_pwrmode(
 						mac_ctx->pdev,
-						chan_freq) ==
+						chan_freq,
+						REG_CURRENT_PWR_MODE) ==
 		    CHANNEL_STATE_DFS ||
-		    wlan_reg_get_channel_state_for_freq(
+		    wlan_reg_get_channel_state_for_pwrmode(
 					mac_ctx->pdev,
-					ch_params->mhz_freq_seg1) ==
+					ch_params->mhz_freq_seg1,
+					REG_CURRENT_PWR_MODE) ==
 				CHANNEL_STATE_DFS)
 			is_ch_dfs = true;
 	} else {
@@ -848,8 +855,9 @@ uint32_t sap_select_default_oper_chan(struct mac_context *mac_ctx,
 
 	for (i = 0; i < acs_cfg->ch_list_count; i++) {
 		enum channel_state state =
-			wlan_reg_get_channel_state_for_freq(
-					mac_ctx->pdev, acs_cfg->freq_list[i]);
+			wlan_reg_get_channel_state_for_pwrmode(
+					mac_ctx->pdev, acs_cfg->freq_list[i],
+					REG_CURRENT_PWR_MODE);
 		if (!freq0 && state == CHANNEL_STATE_ENABLE &&
 		    WLAN_REG_IS_5GHZ_CH_FREQ(acs_cfg->freq_list[i])) {
 			freq0 = acs_cfg->freq_list[i];
@@ -1172,7 +1180,15 @@ validation_done:
 	sap_debug("for configured channel, Ch_freq = %d",
 		  sap_context->chan_freq);
 
-	if (!policy_mgr_is_sap_freq_allowed(mac_ctx->psoc,
+	/*
+	 * Don't check if the frequency is allowed or not if SAP is started
+	 * in fixed channel and coex fixed channel SAP is supported.
+	 */
+
+	if ((sap_context->acs_cfg->acs_mode ||
+	     !target_psoc_get_sap_coex_fixed_chan_cap(
+			wlan_psoc_get_tgt_if_handle(mac_ctx->psoc))) &&
+	    !policy_mgr_is_sap_freq_allowed(mac_ctx->psoc,
 					    sap_context->chan_freq)) {
 		sap_warn("Abort SAP start due to unsafe channel");
 		return QDF_STATUS_E_ABORTED;
@@ -1274,6 +1290,25 @@ static void sap_acs_scan_freq_list_optimize(struct sap_context *sap_ctx,
 					    uint8_t *ch_count)
 {
 }
+#endif
+
+#ifdef WLAN_FEATURE_SAP_ACS_OPTIMIZE
+/**
+ * sap_reset_clean_freq_array(): clear freq array that contains info
+ * channel is free or not
+ * @sap_context: sap context
+ *
+ * Return: void
+ */
+static
+void sap_reset_clean_freq_array(struct sap_context *sap_context)
+{
+	memset(sap_context->clean_channel_array, 0, NUM_CHANNELS);
+}
+#else
+static inline
+void sap_reset_clean_freq_array(struct sap_context *sap_context)
+{}
 #endif
 
 QDF_STATUS sap_channel_sel(struct sap_context *sap_context)
@@ -1384,6 +1419,7 @@ QDF_STATUS sap_channel_sel(struct sap_context *sap_context)
 		sap_context->freq_list = freq_list;
 		sap_context->num_of_channel = num_of_channels;
 		sap_context->optimize_acs_chan_selected = false;
+		sap_reset_clean_freq_array(sap_context);
 		/* Set requestType to Full scan */
 
 		/*
@@ -1895,6 +1931,27 @@ static bool sap_save_owe_pending_assoc_ind(struct sap_context *sap_ctx,
 	return true;
 }
 
+static bool sap_save_ft_pending_assoc_ind(struct sap_context *sap_ctx,
+					  struct assoc_ind *sme_assoc_ind)
+{
+	struct ft_assoc_ind *assoc_ind;
+	QDF_STATUS status;
+
+	assoc_ind = qdf_mem_malloc(sizeof(*assoc_ind));
+	if (!assoc_ind)
+		return false;
+	assoc_ind->assoc_ind = sme_assoc_ind;
+	status = qdf_list_insert_back(&sap_ctx->ft_pending_assoc_ind_list,
+				      &assoc_ind->node);
+	if (QDF_STATUS_SUCCESS != status) {
+		qdf_mem_free(assoc_ind);
+		return false;
+	}
+	qdf_event_set(&sap_ctx->ft_pending_event);
+
+	return true;
+}
+
 #ifdef FEATURE_RADAR_HISTORY
 /* Last cac result */
 static struct prev_cac_result prev_cac_history;
@@ -2006,7 +2063,7 @@ bool find_ch_freq_in_radar_hist(struct dfs_radar_history *radar_result,
  * sap_append_cac_history() - Add CAC history to list
  * @radar_result: radar history buffer
  * @idx: current radar history element number
- * @max_elems: max elements nummber of radar history buffer.
+ * @max_elems: max elements number of radar history buffer.
  *
  * This function is to add the CAC history to radar history list.
  *
@@ -2055,8 +2112,9 @@ void sap_append_cac_history(struct mac_context *mac_ctx,
 
 		chan_cfreq = bonded_chan_ptr->start_freq;
 		while (chan_cfreq <= bonded_chan_ptr->end_freq) {
-			state = wlan_reg_get_channel_state_for_freq(
-					mac_ctx->pdev, chan_cfreq);
+			state = wlan_reg_get_channel_state_for_pwrmode(
+					mac_ctx->pdev, chan_cfreq,
+					REG_CURRENT_PWR_MODE);
 			if (state == CHANNEL_STATE_INVALID) {
 				sap_debug("invalid ch freq %d",
 					  chan_cfreq);
@@ -2308,6 +2366,18 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 				return QDF_STATUS_E_INVAL;
 			}
 			csr_roaminfo->owe_pending_assoc_ind = NULL;
+		}
+
+		if (csr_roaminfo->ft_pending_assoc_ind) {
+			if (!sap_save_ft_pending_assoc_ind(sap_ctx,
+			    csr_roaminfo->ft_pending_assoc_ind)) {
+				sap_err("Failed to save ft assoc ind");
+				qdf_mem_free(csr_roaminfo->ft_pending_assoc_ind);
+				csr_roaminfo->ft_pending_assoc_ind = NULL;
+				qdf_mem_free(sap_ap_event);
+				return QDF_STATUS_E_INVAL;
+			}
+			csr_roaminfo->ft_pending_assoc_ind = NULL;
 		}
 		break;
 	case eSAP_START_BSS_EVENT:
@@ -2801,7 +2871,7 @@ static void wlansap_pre_cac_end_notify(struct sap_context *sap_context,
 				       uint8_t intf)
 {
 	sap_context->isCacEndNotified = true;
-	mac->sap.SapDfsInfo.sap_radar_found_status = false;
+	sap_context->sap_radar_found_status = false;
 	sap_context->fsm_state = SAP_STARTED;
 
 	sap_warn("pre cac end notify on %d: move to state SAP_STARTED", intf);
@@ -2862,7 +2932,7 @@ QDF_STATUS sap_cac_end_notify(mac_handle_t mac_handle,
 				return qdf_status;
 			}
 			sap_context->isCacEndNotified = true;
-			mac->sap.SapDfsInfo.sap_radar_found_status = false;
+			sap_context->sap_radar_found_status = false;
 			sap_debug("sapdfs: Start beacon request on sapctx[%pK]",
 				  sap_context);
 
@@ -2894,7 +2964,7 @@ QDF_STATUS sap_cac_end_notify(mac_handle_t mac_handle,
 	 * All APs are done with CAC timer, all APs should start beaconing.
 	 * Lets assume AP1 and AP2 started beaconing on DFS channel, Now lets
 	 * say AP1 goes down and comes back on same DFS channel. In this case
-	 * AP1 shouldn't start CAC timer and start beacon immediately beacause
+	 * AP1 shouldn't start CAC timer and start beacon immediately because
 	 * AP2 is already beaconing on this channel. This case will be handled
 	 * by checking against eSAP_DFS_SKIP_CAC while starting the timer.
 	 */
@@ -2975,10 +3045,11 @@ static QDF_STATUS sap_validate_dfs_nol(struct sap_context *sap_ctx,
 		if (sap_phymode_is_eht(sap_ctx->phyMode))
 			wlan_reg_set_create_punc_bitmap(&sap_ctx->ch_params,
 							true);
-		wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
-						     sap_ctx->chan_freq,
-						     sap_ctx->sec_ch_freq,
-						     &sap_ctx->ch_params);
+		wlan_reg_set_channel_params_for_pwrmode(mac_ctx->pdev,
+							sap_ctx->chan_freq,
+							sap_ctx->sec_ch_freq,
+							&sap_ctx->ch_params,
+							REG_CURRENT_PWR_MODE);
 	}
 
 	return QDF_STATUS_SUCCESS;
@@ -3008,17 +3079,19 @@ static void sap_validate_chanmode_and_chwidth(struct mac_context *mac_ctx,
 	     sap_ctx->phyMode == eCSR_DOT11_MODE_11g ||
 	     sap_ctx->phyMode == eCSR_DOT11_MODE_11b)) {
 		sap_ctx->ch_params.ch_width = CH_WIDTH_20MHZ;
-		wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
+		wlan_reg_set_channel_params_for_pwrmode(mac_ctx->pdev,
 					       sap_ctx->chan_freq,
 					       sap_ctx->ch_params.sec_ch_offset,
-					       &sap_ctx->ch_params);
+					       &sap_ctx->ch_params,
+					       REG_CURRENT_PWR_MODE);
 	} else if (sap_ctx->ch_params.ch_width > CH_WIDTH_40MHZ &&
 		   sap_ctx->phyMode == eCSR_DOT11_MODE_11n) {
 		sap_ctx->ch_params.ch_width = CH_WIDTH_40MHZ;
-		wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
+		wlan_reg_set_channel_params_for_pwrmode(mac_ctx->pdev,
 					       sap_ctx->chan_freq,
 					       sap_ctx->ch_params.sec_ch_offset,
-					       &sap_ctx->ch_params);
+					       &sap_ctx->ch_params,
+					       REG_CURRENT_PWR_MODE);
 	}
 
 	if (orig_ch_width != sap_ctx->ch_params.ch_width ||
@@ -3145,10 +3218,11 @@ static QDF_STATUS sap_goto_starting(struct sap_context *sap_ctx,
 			if (sap_phymode_is_eht(sap_ctx->phyMode))
 				wlan_reg_set_create_punc_bitmap(
 					&sap_ctx->ch_params, true);
-			wlan_reg_set_channel_params_for_freq(
+			wlan_reg_set_channel_params_for_pwrmode(
 						    mac_ctx->pdev,
 						    con_ch_freq, 0,
-						    &sap_ctx->ch_params);
+						    &sap_ctx->ch_params,
+						    REG_CURRENT_PWR_MODE);
 		}
 	}
 
@@ -3235,7 +3309,7 @@ static QDF_STATUS sap_goto_starting(struct sap_context *sap_ctx,
 	/* Reset radar found flag before start sap, the flag will
 	 * be set when radar found in CAC wait.
 	 */
-	mac_ctx->sap.SapDfsInfo.sap_radar_found_status = false;
+	sap_ctx->sap_radar_found_status = false;
 
 	sap_debug("session: %d", sap_ctx->sessionId);
 
@@ -3341,9 +3415,9 @@ static QDF_STATUS sap_fsm_handle_radar_during_cac(struct sap_context *sap_ctx,
 		if (sap_phymode_is_eht(sap_ctx->phyMode))
 			wlan_reg_set_create_punc_bitmap(&sap_ctx->ch_params,
 							true);
-		wlan_reg_set_channel_params_for_freq(mac_ctx->pdev,
+		wlan_reg_set_channel_params_for_pwrmode(mac_ctx->pdev,
 				    mac_ctx->sap.SapDfsInfo.target_chan_freq, 0,
-				    &sap_ctx->ch_params);
+				    &sap_ctx->ch_params, REG_CURRENT_PWR_MODE);
 	} else {
 		sap_err("Invalid target channel freq %d",
 			 mac_ctx->sap.SapDfsInfo.target_chan_freq);
@@ -3400,7 +3474,7 @@ static QDF_STATUS sap_fsm_handle_start_failure(struct sap_context *sap_ctx,
 		/*
 		 * Stop the CAC timer only in following conditions
 		 * single AP: if there is a single AP then stop timer
-		 * mulitple APs: incase of multiple APs, make sure that
+		 * multiple APs: incase of multiple APs, make sure that
 		 * all APs are down.
 		 */
 		if (!sap_find_valid_concurrent_session(mac_handle)) {
@@ -3494,6 +3568,102 @@ static void sap_check_and_update_vdev_ch_params(struct sap_context *sap_ctx)
 		  sap_ctx->ch_params.ch_width);
 }
 
+static qdf_freq_t sap_get_safe_channel_freq(struct sap_context *sap_ctx)
+{
+	qdf_freq_t freq;
+
+	freq = wlan_pre_cac_get_freq_before_pre_cac(sap_ctx->vdev);
+	if (!freq)
+		freq = wlansap_get_safe_channel_from_pcl_and_acs_range(
+								sap_ctx);
+
+	sap_debug("new selected freq %d as target chan as current freq unsafe %d",
+		  freq, sap_ctx->chan_freq);
+
+	return freq;
+}
+
+/**
+ * sap_fsm_send_csa_restart_req() - send csa start event
+ * @mac_ctx: mac ctx
+ * @sap_ctx: SAP context
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS
+sap_fsm_send_csa_restart_req(struct mac_context *mac_ctx,
+			     struct sap_context *sap_ctx)
+{
+	QDF_STATUS status;
+
+	status = policy_mgr_check_and_set_hw_mode_for_channel_switch(
+				mac_ctx->psoc, sap_ctx->sessionId,
+				mac_ctx->sap.SapDfsInfo.target_chan_freq,
+				POLICY_MGR_UPDATE_REASON_CHANNEL_SWITCH_SAP);
+
+	/*
+	 * If hw_mode_status is QDF_STATUS_E_FAILURE, mean HW
+	 * mode change was required but driver failed to set HW
+	 * mode so ignore CSA for the channel.
+	 */
+	if (status == QDF_STATUS_E_FAILURE) {
+		sap_err("HW change required but failed to set hw mode");
+		return status;
+	}
+
+	/*
+	 * If hw_mode_status is QDF_STATUS_SUCCESS mean HW mode
+	 * change was required and was successfully requested so
+	 * the channel switch will continue after HW mode change
+	 * completion.
+	 */
+	if (QDF_IS_STATUS_SUCCESS(status)) {
+		sap_info("Channel change will continue after HW mode change");
+		return QDF_STATUS_SUCCESS;
+	}
+
+	return sme_csa_restart(mac_ctx, sap_ctx->sessionId);
+}
+
+/**
+ * sap_fsm_handle_check_safe_channel() - handle channel Avoid event event during
+ *                                       cac
+ * @mac_ctx: global MAC context
+ *
+ * Return: QDF_STATUS
+ */
+static void sap_fsm_handle_check_safe_channel(struct mac_context *mac_ctx,
+					      struct sap_context *sap_ctx)
+{
+	qdf_freq_t target_chan_freq;
+	struct ch_params ch_params = {0};
+	QDF_STATUS status;
+	enum phy_ch_width target_bw = sap_ctx->ch_params.ch_width;
+
+	if (((!sap_ctx->acs_cfg || !sap_ctx->acs_cfg->acs_mode) &&
+	     target_psoc_get_sap_coex_fixed_chan_cap(
+				wlan_psoc_get_tgt_if_handle(mac_ctx->psoc))) ||
+	    policy_mgr_is_sap_freq_allowed(mac_ctx->psoc, sap_ctx->chan_freq))
+		return;
+
+	/*
+	 * The selected channel is not safe channel. Hence,
+	 * change the sap channel to a safe channel.
+	 */
+	target_chan_freq = sap_get_safe_channel_freq(sap_ctx);
+	ch_params.ch_width = target_bw;
+	target_bw = wlansap_get_csa_chanwidth_from_phymode(
+			sap_ctx, target_chan_freq, &ch_params);
+	sap_debug("sap vdev %d change to safe ch freq %d bw %d from unsafe %d",
+		  sap_ctx->sessionId, target_chan_freq, target_bw,
+		  sap_ctx->chan_freq);
+	status = wlansap_set_channel_change_with_csa(
+			sap_ctx, target_chan_freq, target_bw, false);
+	if (QDF_IS_STATUS_ERROR(status))
+		sap_err("SAP set channel failed for freq: %d, bw: %d",
+			target_chan_freq, target_bw);
+}
+
 /**
  * sap_fsm_state_starting() - utility function called from sap fsm
  * @sap_ctx: SAP context
@@ -3562,17 +3732,26 @@ static QDF_STATUS sap_fsm_state_starting(struct sap_context *sap_ctx,
 		 * CAC is done if the operating channel is DFS
 		 */
 		if (sap_ctx->ch_params.ch_width == CH_WIDTH_160MHZ) {
-			is_dfs = wlan_reg_get_5g_bonded_channel_state_for_freq(
-					mac_ctx->pdev, sap_chan_freq,
-					CH_WIDTH_160MHZ) == CHANNEL_STATE_DFS;
+			struct ch_params ch_params = {0};
+
+			wlan_reg_set_create_punc_bitmap(&ch_params, true);
+			ch_params.ch_width = CH_WIDTH_160MHZ;
+			is_dfs =
+			wlan_reg_get_5g_bonded_channel_state_for_pwrmode(mac_ctx->pdev,
+									 sap_chan_freq,
+									 &ch_params,
+									 REG_CURRENT_PWR_MODE) ==
+			CHANNEL_STATE_DFS;
 		} else if (sap_ctx->ch_params.ch_width == CH_WIDTH_80P80MHZ) {
-			if (wlan_reg_get_channel_state_for_freq(
+			if (wlan_reg_get_channel_state_for_pwrmode(
 							mac_ctx->pdev,
-							sap_chan_freq) ==
+							sap_chan_freq,
+							REG_CURRENT_PWR_MODE) ==
 			    CHANNEL_STATE_DFS ||
-			    wlan_reg_get_channel_state_for_freq(
+			    wlan_reg_get_channel_state_for_pwrmode(
 							mac_ctx->pdev,
-							ch_cfreq1) ==
+							ch_cfreq1,
+							REG_CURRENT_PWR_MODE) ==
 					CHANNEL_STATE_DFS)
 				is_dfs = true;
 		} else {
@@ -3602,7 +3781,7 @@ static QDF_STATUS sap_fsm_state_starting(struct sap_context *sap_ctx,
 							       mac_handle);
 			} else {
 				sap_debug("skip cac timer");
-				mac_ctx->sap.SapDfsInfo.sap_radar_found_status = false;
+				sap_ctx->sap_radar_found_status = false;
 				/*
 				 * If hostapd starts AP on dfs channel,
 				 * hostapd will wait for CAC START/CAC END
@@ -3616,6 +3795,13 @@ static QDF_STATUS sap_fsm_state_starting(struct sap_context *sap_ctx,
 				wlansap_start_beacon_req(sap_ctx);
 			}
 		}
+		/*
+		 * During CSA, it might be possible that ch avoidance event to
+		 * avoid the sap frequency is received. So, check after CSA,
+		 * whether sap frequency is safe if not restart sap to a safe
+		 * channel.
+		 */
+		sap_fsm_handle_check_safe_channel(mac_ctx, sap_ctx);
 	} else if (msg == eSAP_MAC_START_FAILS ||
 		 msg == eSAP_HDD_STOP_INFRA_BSS) {
 			qdf_status = sap_fsm_handle_start_failure(sap_ctx, msg,
@@ -3648,48 +3834,6 @@ static QDF_STATUS sap_fsm_state_starting(struct sap_context *sap_ctx,
 	}
 
 	return qdf_status;
-}
-
-/**
- * sap_fsm_send_csa_restart_req() - send csa start event
- * @mac_ctx: mac ctx
- * @sap_ctx: SAP context
- *
- * Return: QDF_STATUS
- */
-static inline QDF_STATUS
-sap_fsm_send_csa_restart_req(struct mac_context *mac_ctx,
-			     struct sap_context *sap_ctx)
-{
-	QDF_STATUS status;
-
-	status = policy_mgr_check_and_set_hw_mode_for_channel_switch(
-				mac_ctx->psoc, sap_ctx->sessionId,
-				mac_ctx->sap.SapDfsInfo.target_chan_freq,
-				POLICY_MGR_UPDATE_REASON_CHANNEL_SWITCH_SAP);
-
-	/*
-	 * If hw_mode_status is QDF_STATUS_E_FAILURE, mean HW
-	 * mode change was required but driver failed to set HW
-	 * mode so ignore CSA for the channel.
-	 */
-	if (status == QDF_STATUS_E_FAILURE) {
-		sap_err("HW change required but failed to set hw mode");
-		return status;
-	}
-
-	/*
-	 * If hw_mode_status is QDF_STATUS_SUCCESS mean HW mode
-	 * change was required and was successfully requested so
-	 * the channel switch will continue after HW mode change
-	 * completion.
-	 */
-	if (QDF_IS_STATUS_SUCCESS(status)) {
-		sap_info("Channel change will continue after HW mode change");
-		return QDF_STATUS_SUCCESS;
-	}
-
-	return sme_csa_restart(mac_ctx, sap_ctx->sessionId);
 }
 
 /**
@@ -3749,9 +3893,10 @@ static QDF_STATUS sap_fsm_state_started(struct sap_context *sap_ctx,
 					sap_debug("vdev %d freq %d (state %d) is not DFS or disabled so continue",
 						  temp_sap_ctx->sessionId,
 						  temp_sap_ctx->chan_freq,
-						  wlan_reg_get_channel_state_for_freq(
+						  wlan_reg_get_channel_state_for_pwrmode(
 						  mac_ctx->pdev,
-						  temp_sap_ctx->chan_freq));
+						  temp_sap_ctx->chan_freq,
+						  REG_CURRENT_PWR_MODE));
 					continue;
 				}
 				sap_debug("vdev %d switch freq %d -> %d",
@@ -3999,7 +4144,7 @@ void sap_remove_mac_from_acl(struct qdf_mac_addr *macList,
 		qdf_mem_copy((macList + i)->bytes, (macList + i + 1)->bytes,
 			     QDF_MAC_ADDR_SIZE);
 	}
-	/* The last space should be made empty since all mac addesses moved one step up */
+	/* The last space should be made empty since all mac addresses moved one step up */
 	qdf_mem_zero((macList + (*size) - 1)->bytes, QDF_MAC_ADDR_SIZE);
 	/* reduce the list size by 1 */
 	(*size)--;
@@ -4073,7 +4218,7 @@ void sap_dump_acs_channel(struct sap_acs_cfg *acs_cfg)
 	uint8_t *chan_buff = NULL;
 
 	/*
-	 * Buffer of (num channl * 5) + 1  to consider the 4 char freq
+	 * Buffer of (num channel * 5) + 1  to consider the 4 char freq
 	 * and 1 space after it for each channel and 1 to end the string
 	 * with NULL.
 	 */
@@ -4380,7 +4525,7 @@ qdf_freq_t sap_indicate_radar(struct sap_context *sap_ctx)
 		return sap_ctx->chan_freq;
 
 	/* set the Radar Found flag in SapDfsInfo */
-	mac->sap.SapDfsInfo.sap_radar_found_status = true;
+	sap_ctx->sap_radar_found_status = true;
 
 	chan_freq = wlan_pre_cac_get_freq_before_pre_cac(sap_ctx->vdev);
 	if (chan_freq) {
@@ -4661,7 +4806,7 @@ bool is_concurrent_sap_ready_for_channel_change(mac_handle_t mac_handle,
  * check if other beaconing entity's channel is same DFS channel. If they are
  * same then concurrent sap is doing SCC DFS.
  *
- * Return: true if two or more beaconing entitity doing SCC DFS else false
+ * Return: true if two or more beaconing entities doing SCC DFS else false
  */
 bool sap_is_conc_sap_doing_scc_dfs(mac_handle_t mac_handle,
 				   struct sap_context *given_sapctx)

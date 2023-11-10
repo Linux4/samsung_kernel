@@ -148,6 +148,10 @@ public:
                                 Stream* streamHandle);
     void removeStreamDeviceAttr(Stream* streamHandle);
     int getTopPriorityDeviceAttr(struct pal_device *deviceAttr, uint32_t *streamPrio);
+
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    virtual void dump(int fd) { return; };
+#endif
 };
 
 

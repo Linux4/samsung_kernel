@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -168,7 +169,7 @@ enum htt_ofdm_datarate {		/* Value    MBPS    Modulation  Coding*/
  * When sending an OCB packet, the user application has
  * the option of including the following struct following an ethernet header
  * with the proto field set to 0x8151. This struct includes various TX
- * paramaters including the TX power and MCS.
+ * parameters including the TX power and MCS.
  */
 PREPACK struct ocb_tx_ctrl_hdr_t {
 	uint16_t version;
@@ -389,7 +390,7 @@ static inline int htt_tx_frag_alloc(htt_pdev_handle pdev,
 /**
  * @brief Discard all tx frames in the process of being downloaded.
  * @details
- * This function dicards any tx frames queued in HTT or the layers
+ * This function discards any tx frames queued in HTT or the layers
  * under HTT.
  * The download completion callback is invoked on these frames.
  *

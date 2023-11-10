@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/soc/qcom,ipcc.h>
 #include <linux/soc/qcom/msm_hw_fence.h>
+#include <soc/qcom/msm_performance.h>
 
 #include "adreno.h"
 #include "adreno_hfi.h"
@@ -130,9 +131,14 @@ static void _retire_timestamp_only(struct kgsl_drawobj *drawobj)
 		KGSL_MEMSTORE_OFFSET(context->id, eoptimestamp),
 		drawobj->timestamp);
 
+	msm_perf_events_update(MSM_PERF_GFX, MSM_PERF_RETIRED,
+		pid_nr(context->proc_priv->pid),
+		context->id, drawobj->timestamp,
+		!!(drawobj->flags & KGSL_DRAWOBJ_END_OF_FRAME));
+
 	if (drawobj->flags & KGSL_DRAWOBJ_END_OF_FRAME) {
 		atomic64_inc(&drawobj->context->proc_priv->frame_count);
-		atomic_inc(&drawobj->context->proc_priv->period.frames);
+		atomic_inc(&drawobj->context->proc_priv->period->frames);
 	}
 
 	/* Retire pending GPU events for the object */
@@ -720,6 +726,13 @@ void adreno_hwsched_trigger(struct adreno_device *adreno_dev)
 	kthread_queue_work(hwsched->worker, &hwsched->work);
 }
 
+static inline void _decrement_submit_now(struct kgsl_device *device)
+{
+	spin_lock(&device->submit_lock);
+	device->submit_now--;
+	spin_unlock(&device->submit_lock);
+}
+
 /**
  * adreno_hwsched_issuecmds() - Issue commmands from pending contexts
  * @adreno_dev: Pointer to the adreno device struct
@@ -729,19 +742,27 @@ void adreno_hwsched_trigger(struct adreno_device *adreno_dev)
 static void adreno_hwsched_issuecmds(struct adreno_device *adreno_dev)
 {
 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+
+	spin_lock(&device->submit_lock);
+	/* If GPU state is not ACTIVE, schedule the work for later */
+	if (device->skip_inline_submit) {
+		spin_unlock(&device->submit_lock);
+		goto done;
+	}
+	device->submit_now++;
+	spin_unlock(&device->submit_lock);
 
 	/* If the dispatcher is busy then schedule the work for later */
 	if (!mutex_trylock(&hwsched->mutex)) {
-		adreno_hwsched_trigger(adreno_dev);
-		return;
+		_decrement_submit_now(device);
+		goto done;
 	}
 
 	if (!hwsched_in_fault(hwsched))
 		hwsched_issuecmds(adreno_dev);
 
 	if (hwsched->inflight > 0) {
-		struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-
 		mutex_lock(&device->mutex);
 		kgsl_pwrscale_update(device);
 		kgsl_start_idle_timer(device);
@@ -749,6 +770,11 @@ static void adreno_hwsched_issuecmds(struct adreno_device *adreno_dev)
 	}
 
 	mutex_unlock(&hwsched->mutex);
+	_decrement_submit_now(device);
+	return;
+
+done:
+	adreno_hwsched_trigger(adreno_dev);
 }
 
 /**
@@ -832,11 +858,17 @@ static unsigned int _check_context_state_to_queue_cmds(
 static void _queue_drawobj(struct adreno_context *drawctxt,
 	struct kgsl_drawobj *drawobj)
 {
+	struct kgsl_context *context = drawobj->context;
+
 	/* Put the command into the queue */
 	drawctxt->drawqueue[drawctxt->drawqueue_tail] = drawobj;
 	drawctxt->drawqueue_tail = (drawctxt->drawqueue_tail + 1) %
 			ADRENO_CONTEXT_DRAWQUEUE_SIZE;
 	drawctxt->queued++;
+	msm_perf_events_update(MSM_PERF_GFX, MSM_PERF_QUEUE,
+		pid_nr(context->proc_priv->pid),
+		context->id, drawobj->timestamp,
+		!!(drawobj->flags & KGSL_DRAWOBJ_END_OF_FRAME));
 	trace_adreno_cmdbatch_queued(drawobj, drawctxt->queued);
 }
 
@@ -1004,6 +1036,23 @@ static int adreno_hwsched_queue_cmds(struct kgsl_device_private *dev_priv,
 
 	user_ts = *timestamp;
 
+	/*
+	 * If there is only one drawobj in the array and it is of
+	 * type SYNCOBJ_TYPE, skip comparing user_ts as it can be 0
+	 */
+	if (!(count == 1 && drawobj[0]->type == SYNCOBJ_TYPE) &&
+		(drawctxt->base.flags & KGSL_CONTEXT_USER_GENERATED_TS)) {
+		/*
+		 * User specified timestamps need to be greater than the last
+		 * issued timestamp in the context
+		 */
+		if (timestamp_cmp(drawctxt->timestamp, user_ts) >= 0) {
+			spin_unlock(&drawctxt->lock);
+			kmem_cache_free(jobs_cache, job);
+			return -ERANGE;
+		}
+	}
+
 	for (i = 0; i < count; i++) {
 
 		switch (drawobj[i]->type) {
@@ -1070,14 +1119,19 @@ static int adreno_hwsched_queue_cmds(struct kgsl_device_private *dev_priv,
 void adreno_hwsched_retire_cmdobj(struct adreno_hwsched *hwsched,
 	struct kgsl_drawobj_cmd *cmdobj)
 {
-	struct kgsl_drawobj *drawobj;
+	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
 	struct kgsl_mem_entry *entry;
 	struct kgsl_drawobj_profiling_buffer *profile_buffer;
+	struct kgsl_context *context = drawobj->context;
 
-	drawobj = DRAWOBJ(cmdobj);
+	msm_perf_events_update(MSM_PERF_GFX, MSM_PERF_RETIRED,
+		pid_nr(context->proc_priv->pid),
+		context->id, drawobj->timestamp,
+		!!(drawobj->flags & KGSL_DRAWOBJ_END_OF_FRAME));
+
 	if (drawobj->flags & KGSL_DRAWOBJ_END_OF_FRAME) {
 		atomic64_inc(&drawobj->context->proc_priv->frame_count);
-		atomic_inc(&drawobj->context->proc_priv->period.frames);
+		atomic_inc(&drawobj->context->proc_priv->period->frames);
 	}
 
 	entry = cmdobj->profiling_buf_entry;
@@ -1166,41 +1220,6 @@ void adreno_hwsched_start(struct adreno_device *adreno_dev)
 	adreno_hwsched_trigger(adreno_dev);
 }
 
-static int _skipsaverestore_store(struct adreno_device *adreno_dev, bool val)
-{
-	return adreno_power_cycle_bool(adreno_dev,
-		&adreno_dev->preempt.skipsaverestore, val);
-}
-
-static bool _skipsaverestore_show(struct adreno_device *adreno_dev)
-{
-	return adreno_dev->preempt.skipsaverestore;
-}
-
-static int _usesgmem_store(struct adreno_device *adreno_dev, bool val)
-{
-	return adreno_power_cycle_bool(adreno_dev,
-		&adreno_dev->preempt.usesgmem, val);
-}
-
-static bool _usesgmem_show(struct adreno_device *adreno_dev)
-{
-	return adreno_dev->preempt.usesgmem;
-}
-
-static int _preempt_level_store(struct adreno_device *adreno_dev,
-		unsigned int val)
-{
-	return adreno_power_cycle_u32(adreno_dev,
-		&adreno_dev->preempt.preempt_level,
-		min_t(unsigned int, val, 2));
-}
-
-static unsigned int _preempt_level_show(struct adreno_device *adreno_dev)
-{
-	return adreno_dev->preempt.preempt_level;
-}
-
 static void change_preemption(struct adreno_device *adreno_dev, void *priv)
 {
 	change_bit(ADRENO_DEVICE_PREEMPTION, &adreno_dev->priv);
@@ -1249,17 +1268,11 @@ static bool _ft_long_ib_detect_show(struct adreno_device *adreno_dev)
 }
 
 static ADRENO_SYSFS_BOOL(preemption);
-static ADRENO_SYSFS_U32(preempt_level);
-static ADRENO_SYSFS_BOOL(usesgmem);
-static ADRENO_SYSFS_BOOL(skipsaverestore);
 static ADRENO_SYSFS_RO_U32(preempt_count);
 static ADRENO_SYSFS_BOOL(ft_long_ib_detect);
 
 static const struct attribute *_hwsched_attr_list[] = {
 	&adreno_attr_preemption.attr.attr,
-	&adreno_attr_preempt_level.attr.attr,
-	&adreno_attr_usesgmem.attr.attr,
-	&adreno_attr_skipsaverestore.attr.attr,
 	&adreno_attr_preempt_count.attr.attr,
 	&adreno_attr_ft_long_ib_detect.attr.attr,
 	NULL,
@@ -1726,10 +1739,10 @@ static void adreno_hwsched_reset_and_snapshot(struct adreno_device *adreno_dev, 
 
 	if (drawobj) {
 		force_retire_timestamp(device, drawobj);
-		if ((context->flags & KGSL_CONTEXT_INVALIDATE_ON_FAULT) ||
+		if (context && ((context->flags & KGSL_CONTEXT_INVALIDATE_ON_FAULT) ||
 			(context->flags & KGSL_CONTEXT_NO_FAULT_TOLERANCE) ||
 			(cmd->error == GMU_GPU_SW_HANG) ||
-			context_is_throttled(device, context))
+			context_is_throttled(device, context)))
 			adreno_drawctxt_set_guilty(device, context);
 		/*
 		 * Put back the reference which we incremented while trying to find
@@ -1740,10 +1753,10 @@ static void adreno_hwsched_reset_and_snapshot(struct adreno_device *adreno_dev, 
 
 	if (drawobj_lpac) {
 		force_retire_timestamp(device, drawobj_lpac);
-		if ((context_lpac->flags & KGSL_CONTEXT_INVALIDATE_ON_FAULT) ||
+		if (context_lpac && ((context_lpac->flags & KGSL_CONTEXT_INVALIDATE_ON_FAULT) ||
 			(context_lpac->flags & KGSL_CONTEXT_NO_FAULT_TOLERANCE) ||
 			(cmd->error == GMU_GPU_SW_HANG) ||
-			context_is_throttled(device, context_lpac))
+			context_is_throttled(device, context_lpac)))
 			adreno_drawctxt_set_guilty(device, context_lpac);
 		/*
 		 * Put back the reference which we incremented while trying to find
@@ -1872,10 +1885,12 @@ static bool is_tx_slot_available(struct adreno_device *adreno_dev)
 		(ptr + sizeof(struct msm_hw_fence_hfi_queue_table_header));
 	u32 queue_size_dwords = hdr->queue_size / sizeof(u32);
 	u32 payload_size_dwords = hdr->pkt_size / sizeof(u32);
-	u32 free_dwords = hdr->read_index <= hdr->write_index ?
-		queue_size_dwords - (hdr->write_index - hdr->read_index) :
-		hdr->read_index - hdr->write_index;
+	u32 free_dwords, write_idx = hdr->write_index, read_idx = hdr->read_index;
 	u32 reserved_dwords = adreno_dev->hwsched.hw_fence_count * payload_size_dwords;
+
+	free_dwords = read_idx <= write_idx ?
+		queue_size_dwords - (write_idx - read_idx) :
+		read_idx - write_idx;
 
 	if (free_dwords - reserved_dwords <= payload_size_dwords)
 		return false;
@@ -1998,7 +2013,9 @@ static void hwsched_lsr_check(struct work_struct *work)
 {
 	struct adreno_hwsched *hwsched = container_of(work,
 		struct adreno_hwsched, lsr_check_ws);
-	struct kgsl_device *device = kgsl_get_device(0);
+	struct adreno_device *adreno_dev = container_of(hwsched,
+		struct adreno_device, hwsched);
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
 	mutex_lock(&device->mutex);
 	kgsl_pwrscale_update_stats(device);
@@ -2288,4 +2305,54 @@ void adreno_hwsched_trigger_hw_fence_cpu(struct adreno_device *adreno_dev,
 
 	msm_hw_fence_trigger_signal(kfence->hw_fence_handle, IPCC_CLIENT_GPU,
 		IPCC_CLIENT_APSS, 0);
+}
+
+int adreno_hwsched_wait_ack_completion(struct adreno_device *adreno_dev,
+	struct device *dev, struct pending_cmd *ack,
+	void (*process_msgq)(struct adreno_device *adreno_dev))
+{
+	int rc;
+	/* Only allow a single log in a second */
+	static DEFINE_RATELIMIT_STATE(_rs, HZ, 1);
+	static u32 unprocessed, processed;
+	const struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
+	u64 start, end;
+
+	start = gpudev->read_alwayson(adreno_dev);
+	rc = wait_for_completion_timeout(&ack->complete,
+		msecs_to_jiffies(HFI_RSP_TIMEOUT));
+	/*
+	 * A non-zero return value means the completion is complete, whereas zero indicates
+	 * timeout
+	 */
+	if (rc) {
+		/*
+		 * If an ack goes unprocessed, keep track of processed and unprocessed acks
+		 * because we may not log each unprocessed ack due to ratelimiting
+		 */
+		if (unprocessed)
+			processed++;
+		return 0;
+	}
+
+	/*
+	 * It is possible the ack came, but due to HLOS latencies in processing hfi interrupt
+	 * and/or the f2h daemon, the ack isn't processed yet. Hence, process the msgq one last
+	 * time.
+	 */
+	process_msgq(adreno_dev);
+	end = gpudev->read_alwayson(adreno_dev);
+	if (completion_done(&ack->complete)) {
+		unprocessed++;
+		if (__ratelimit(&_rs))
+			dev_err(dev, "Ack unprocessed for id:%d sequence=%d count=%d/%d ticks=%llu/%llu\n",
+				MSG_HDR_GET_ID(ack->sent_hdr), MSG_HDR_GET_SEQNUM(ack->sent_hdr),
+				unprocessed, processed, start, end);
+		return 0;
+	}
+
+	dev_err(dev, "Ack timeout for id:%d sequence=%d ticks=%llu/%llu\n",
+		MSG_HDR_GET_ID(ack->sent_hdr), MSG_HDR_GET_SEQNUM(ack->sent_hdr), start, end);
+	gmu_core_fault_snapshot(KGSL_DEVICE(adreno_dev));
+	return -ETIMEDOUT;
 }

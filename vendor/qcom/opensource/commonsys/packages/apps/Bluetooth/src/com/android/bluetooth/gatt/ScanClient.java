@@ -32,7 +32,8 @@ import java.util.Objects;
 /* package */class ScanClient {
     public int scannerId;
     public ScanSettings settings;
-    public ScanSettings passiveSettings;
+    public int scanModeApp;
+    public boolean started = false;
     public int appUid;
     public List<ScanFilter> filters;
     // App associated with the scan client died.
@@ -61,7 +62,7 @@ import java.util.Objects;
     ScanClient(int scannerId, ScanSettings settings, List<ScanFilter> filters) {
         this.scannerId = scannerId;
         this.settings = settings;
-        this.passiveSettings = null;
+        this.scanModeApp = settings.getScanMode();
         this.filters = filters;
         this.appUid = Binder.getCallingUid();
     }
@@ -81,5 +82,41 @@ import java.util.Objects;
     @Override
     public int hashCode() {
         return Objects.hash(scannerId);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(" [ScanClient")
+                .append(" scanModeApp ").append(scanModeApp)
+                .append(" scanModeUsed ").append(settings.getScanMode());
+        if (stats != null && stats.appName != null) {
+            sb.append(" [appScanStats ").append(stats.appName).append("]");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    /**
+     * Update scan settings with the new scan mode.
+     * @param newScanMode
+     * @return true if scan settings are updated, false otherwise.
+     */
+    public boolean updateScanMode(int newScanMode) {
+        if (settings.getScanMode() == newScanMode) {
+            return false;
+        }
+
+        ScanSettings.Builder builder = new ScanSettings.Builder();
+        settings = builder.setScanMode(newScanMode)
+                .setCallbackType(settings.getCallbackType())
+                .setScanResultType(settings.getScanResultType())
+                .setReportDelay(settings.getReportDelayMillis())
+                .setNumOfMatches(settings.getNumOfMatches())
+                .setMatchMode(settings.getMatchMode())
+                .setLegacy(settings.getLegacy())
+                .setPhy(settings.getPhy())
+                .build();
+        return true;
     }
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -832,16 +833,6 @@ wlan_serialization_find_cmd(qdf_list_t *queue,
 		case WLAN_SER_MATCH_VDEV:
 			if (wlan_serialization_match_cmd_vdev(
 					nnode, vdev, node_type))
-				node_found = 1;
-			break;
-		case WLAN_SER_MATCH_CMD_TYPE:
-			if (wlan_serialization_match_cmd_type(
-					nnode, cmd_type, node_type))
-				node_found = 1;
-			break;
-		case WLAN_SER_MATCH_CMD_ID:
-			if (wlan_serialization_match_cmd_id_type(
-					nnode, cmd, node_type))
 				node_found = 1;
 			break;
 		case WLAN_SER_MATCH_CMD_TYPE_VDEV:

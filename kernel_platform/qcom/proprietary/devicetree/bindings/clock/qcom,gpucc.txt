@@ -11,12 +11,15 @@ Required properties :
 		"qcom,diwali-gpucc",
 		"qcom,kalama-gpucc"
 		"qcom,sm8150-gpucc",
+		"qcom,sm8250-gpucc",
 		"qcom,sa8155-gpucc",
 		"qcom,khaje-gpucc",
 		"qcom,sc8180x-gpucc".
 		"qcom,monaco-gpucc",
 		"qcom,scuba-gpucc"
 		"qcom,lemans-gpucc"
+		"qcom,crow-gpucc"
+		"qcom,monaco_auto-gpucc"
 
 - reg: shall contain base register offset and size.
 - reg-names: names of registers listed in the same order as in the reg property.

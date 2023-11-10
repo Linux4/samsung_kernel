@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -34,6 +34,7 @@
 #define NUM_CHAINS_FW_TO_HOST(n) ((1 << ((n) + 1)) - 1)
 
 #define CFR_INVALID_SNR 0x80
+#define CHAIN_SHIFT_INDEX_PINE_SCAN 2
 
 static u_int32_t end_magic = 0xBEAFDEAD;
 
@@ -716,7 +717,8 @@ static QDF_STATUS check_dma_length(struct look_up_table *lut,
 		    lut->payload_length <= PINE_MAX_DATA_LENGTH_BYTES) {
 			return QDF_STATUS_SUCCESS;
 		}
-	} else if (target_type == TARGET_TYPE_QCN6122) {
+	} else if (target_type == TARGET_TYPE_QCN6122 ||
+		   target_type == TARGET_TYPE_QCN9160) {
 		if (lut->header_length <= SPRUCE_MAX_HEADER_LENGTH_WORDS &&
 		    lut->payload_length <= SPRUCE_MAX_DATA_LENGTH_BYTES) {
 			return QDF_STATUS_SUCCESS;
@@ -1045,6 +1047,11 @@ void target_if_cfr_rx_tlv_process(struct wlan_objmgr_pdev *pdev, void *nbuf)
 	 * Do not derive the chain phase when capability is not set Or
 	 * when an invalid gain table index is reported by Hardware.
 	 */
+	if (wlan_vdev_mlme_is_special_vdev(vdev)) {
+		for (i = 0; i < pcfr->max_aoa_chains; i++)
+			meta->chain_phase[i] = INVALID_PHASE_DELTA;
+	}
+
 	if (pcfr->is_aoa_for_rcc_support && !invalid_gain_table_idx) {
 		for (i = 0; i < pcfr->max_aoa_chains; i++) {
 			/**
@@ -1067,11 +1074,25 @@ void target_if_cfr_rx_tlv_process(struct wlan_objmgr_pdev *pdev, void *nbuf)
 			 * is in the range of 0 - 1024 indicating 0 - 360
 			 * degrees
 			 */
-			if (pdelta == INVALID_PHASE_DELTA)
+			if (pdelta == INVALID_PHASE_DELTA) {
+				if (wlan_vdev_mlme_is_special_vdev(vdev) &&
+				    i == CHAIN_SHIFT_INDEX_PINE_SCAN) {
+					meta->chain_phase[i - 1] =
+							INVALID_PHASE_DELTA;
+					break;
+				}
 				meta->chain_phase[i] = INVALID_PHASE_DELTA;
-			else
+			} else {
+				if (wlan_vdev_mlme_is_special_vdev(vdev) &&
+				    i == CHAIN_SHIFT_INDEX_PINE_SCAN) {
+					meta->chain_phase[i - 1] =
+						((pcfr->ibf_cal_val[i] +
+						  pdelta) & 0x3FF);
+					break;
+				}
 				meta->chain_phase[i] = ((pcfr->ibf_cal_val[i] +
 							pdelta) & 0x3FF);
+			}
 		}
 	} else if (pcfr->is_aoa_for_rcc_support) {
 		/**
@@ -1080,6 +1101,11 @@ void target_if_cfr_rx_tlv_process(struct wlan_objmgr_pdev *pdev, void *nbuf)
 		 * set the chain_phase to 0xFFFF indicating an error.
 		 */
 		for (i = 0; i < pcfr->max_aoa_chains; i++) {
+			if (wlan_vdev_mlme_is_special_vdev(vdev) &&
+			    i == CHAIN_SHIFT_INDEX_PINE_SCAN) {
+				meta->chain_phase[i - 1] = INVALID_PHASE_DELTA;
+				break;
+			}
 			meta->chain_phase[i] = INVALID_PHASE_DELTA;
 		}
 	}
@@ -1143,7 +1169,7 @@ static uint8_t freeze_reason_to_capture_type(void *freeze_tlv)
 {
 	/*
 	 * Capture_reason field position is common between freeze_tlv v1
-	 * and v2, hence typcasting to any one is fine
+	 * and v2, hence typecasting to any one is fine
 	 */
 	struct macrx_freeze_capture_channel *freeze =
 		(struct macrx_freeze_capture_channel *)freeze_tlv;
@@ -1835,7 +1861,7 @@ target_if_register_phase_delta_for_rcc_event_handler(struct wlan_objmgr_psoc
 
 	/*
 	 * Event registration is called per pdev
-	 * Ignore erorr if event is alreday registred.
+	 * Ignore error if event is already registered.
 	 */
 	if (ret == QDF_STATUS_E_FAILURE)
 		ret = QDF_STATUS_SUCCESS;
@@ -1896,7 +1922,7 @@ target_if_register_tx_completion_enh_event_handler(struct wlan_objmgr_psoc
 						 WMI_RX_UMAC_CTX);
 	/*
 	 * Event registration is called per pdev
-	 * Ignore erorr if event is alreday registred.
+	 * Ignore error if event is already registered.
 	 */
 	if (ret == QDF_STATUS_E_FAILURE)
 		ret = QDF_STATUS_SUCCESS;
@@ -2200,7 +2226,8 @@ QDF_STATUS cfr_enh_init_pdev(struct wlan_objmgr_psoc *psoc,
 		pcfr->num_subbufs = STREAMFS_NUM_SUBBUF_MAPLE;
 		pcfr->chip_type = CFR_CAPTURE_RADIO_MAPLE;
 		pcfr->max_mu_users = MAPLE_CFR_MU_USERS;
-	} else if (target_type == TARGET_TYPE_QCN6122) {
+	} else if (target_type == TARGET_TYPE_QCN6122 ||
+		   target_type == TARGET_TYPE_QCN9160) {
 		pcfr->subbuf_size = STREAMFS_MAX_SUBBUF_SPRUCE;
 		pcfr->num_subbufs = STREAMFS_NUM_SUBBUF_SPRUCE;
 		pcfr->chip_type = CFR_CAPTURE_RADIO_SPRUCE;

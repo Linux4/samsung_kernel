@@ -322,6 +322,21 @@ QDF_STATUS ucfg_fwol_get_ani_enabled(struct wlan_objmgr_psoc *psoc,
 	return QDF_STATUS_SUCCESS;
 }
 
+QDF_STATUS ucfg_fwol_get_pcie_config(struct wlan_objmgr_psoc *psoc,
+				     bool *pcie_config)
+{
+	struct wlan_fwol_psoc_obj *fwol_obj;
+
+	fwol_obj = fwol_get_psoc_obj(psoc);
+	if (!fwol_obj) {
+		fwol_err("Failed to get FWOL obj");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	*pcie_config = fwol_obj->cfg.pcie_config;
+	return QDF_STATUS_SUCCESS;
+}
+
 static QDF_STATUS ucfg_fwol_get_ilp_config(struct wlan_objmgr_psoc *psoc,
 					   uint32_t *enable_ilp)
 {
@@ -701,6 +716,23 @@ QDF_STATUS ucfg_fwol_get_tsf_sync_enable(struct wlan_objmgr_psoc *psoc,
 	*tsf_sync_enable = fwol_obj->cfg.tsf_sync_enable;
 	return QDF_STATUS_SUCCESS;
 }
+
+#ifdef WLAN_FEATURE_TSF_ACCURACY
+QDF_STATUS ucfg_fwol_get_tsf_accuracy_configs(struct wlan_objmgr_psoc *psoc,
+					      struct wlan_fwol_tsf_accuracy_configs **config)
+{
+	struct wlan_fwol_psoc_obj *fwol_obj;
+
+	fwol_obj = fwol_get_psoc_obj(psoc);
+	if (!fwol_obj) {
+		fwol_err("Failed to get FWOL obj");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	*config = &fwol_obj->cfg.tsf_accuracy_configs;
+	return QDF_STATUS_SUCCESS;
+}
+#endif
 
 #ifdef WLAN_FEATURE_TSF_PLUS_EXT_GPIO_IRQ
 QDF_STATUS

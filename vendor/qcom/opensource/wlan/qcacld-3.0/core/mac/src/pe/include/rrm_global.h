@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2012, 2014-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -63,7 +64,7 @@ typedef struct sSirBeaconReportReqInd {
 	tSirMacAddr macaddrBssid;
 	/* 0:Passive, 1: Active, 2: table mode */
 	uint8_t fMeasurementtype[SIR_ESE_MAX_MEAS_IE_REQS];
-	tAniSSID ssId;          /* May be wilcard. */
+	tAniSSID ssId;          /* May be wildcard. */
 	uint16_t uDialogToken;
 	struct report_channel_list channel_list; /* From AP channel report. */
 	tRrmMsgReqSource msgSource;

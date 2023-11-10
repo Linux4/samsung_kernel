@@ -659,8 +659,31 @@ static int msm_vidc_adjust_dynamic_property(struct msm_vidc_inst *inst,
 	if (rc)
 		goto error;
 
-	/* add children only if cap value modified */
-	if (capability->cap[cap_id].value == prev_value)
+	/* Add children only if cap value modified except EARLY_NOTIFY_LINE_COUNT cap ID
+	 *
+	 * Allow to invoke EARLY_NOTIFY_LINE_COUNT cap ID child(EARLY_NOTIFY_FENCE_COUNT)
+	 * adjust function even if parent cap value is not modified, otherwise Early notify
+	 * use-case will fail in some scenario.
+	 *
+	 * Ex: When client requesting two interrupt per frame
+	 * Before IPSC:
+	 *      HEIGHT: 240 (This is default value initialized for new session)
+	 *      adjusted_value(Line count): 256(This should be multiple of 256)
+	 *      Fence count: 1
+	 * After IPSC:
+	 *      HEIGHT: 480 (Height is updated after IPSC)
+	 *      adjusted_value(Line count): 256 (This will remain same because client is expecting
+	 *      two interrupt notification for 480p resolution)
+	 *      Fence count: 1
+	 *
+	 * After IPSC, Fence count should be updated as 2 for 480p resolution
+	 * But this is not happening because Line count(parent) does't change, so corresponding
+	 * child(EARLY_NOTIFY_FENCE_COUNT) adjust function will not be invoked.
+	 *
+	 * To handle this use-case need to call child adjust function
+	 * even if parent cap value does't changed.
+	 */
+	if (capability->cap[cap_id].value == prev_value && cap_id != EARLY_NOTIFY_LINE_COUNT)
 		return 0;
 
 	rc = msm_vidc_add_children(inst, cap_id);
@@ -764,7 +787,7 @@ void msm_vidc_add_volatile_flag(struct v4l2_ctrl *ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 }
 
-int msm_vidc_ctrl_deinit(struct msm_vidc_inst *inst)
+int msm_vidc_ctrl_handler_deinit(struct msm_vidc_inst *inst)
 {
 	if (!inst) {
 		d_vpr_e("%s: invalid parameters\n", __func__);
@@ -779,7 +802,48 @@ int msm_vidc_ctrl_deinit(struct msm_vidc_inst *inst)
 	return 0;
 }
 
-int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
+int msm_vidc_ctrl_handler_update(struct msm_vidc_inst *inst) {
+	int rc = 0;
+	struct v4l2_ctrl_ref *ref, *next_ref;
+	struct v4l2_ctrl *ctrl, *next_ctrl;
+	struct v4l2_subscribed_event *sev, *next_sev;
+	struct v4l2_ctrl_handler *inst_hdl = &inst->ctrl_handler;
+
+	mutex_lock(inst_hdl->lock);
+	/* Free all nodes */
+	list_for_each_entry_safe(ref, next_ref, &inst_hdl->ctrl_refs, node) {
+		list_del(&ref->node);
+		kfree(ref);
+	}
+	/* Free all controls owned by the handler */
+	list_for_each_entry_safe(ctrl, next_ctrl, &inst_hdl->ctrls, node) {
+		list_del(&ctrl->node);
+		list_for_each_entry_safe(sev, next_sev, &ctrl->ev_subs, node)
+			list_del(&sev->node);
+		kvfree(ctrl);
+	}
+	inst_hdl->cached = NULL;
+	inst_hdl->error = 0;
+	INIT_LIST_HEAD(&inst_hdl->ctrls);
+	INIT_LIST_HEAD(&inst_hdl->ctrl_refs);
+	memset(inst_hdl->buckets, 0, (inst_hdl->nr_of_buckets * sizeof(inst_hdl->buckets[0])));
+	mutex_unlock(inst_hdl->lock);
+
+	/* free the previous codec inst controls memory*/
+	msm_vidc_vmem_free((void **)&inst->ctrls);
+	inst->ctrls = NULL;
+
+	/* update the ctrl handler with new codec controls*/
+	rc = msm_vidc_ctrl_handler_init(inst, false);
+	if (rc)
+		return rc;
+
+	return rc;
+
+
+}
+
+int msm_vidc_ctrl_handler_init(struct msm_vidc_inst *inst, bool init)
 {
 	int rc = 0;
 	struct msm_vidc_inst_capability *capability;
@@ -814,11 +878,13 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 	if (rc)
 		return rc;
 
-	rc = v4l2_ctrl_handler_init(&inst->ctrl_handler, num_ctrls);
-	if (rc) {
-		i_vpr_e(inst, "control handler init failed, %d\n",
-				inst->ctrl_handler.error);
-		goto error;
+	if (init) {
+		rc = v4l2_ctrl_handler_init(&inst->ctrl_handler, num_ctrls);
+		if (rc) {
+			i_vpr_e(inst, "control handler init failed, %d\n",
+					inst->ctrl_handler.error);
+			goto error;
+		}
 	}
 
 	for (idx = 0; idx < INST_CAP_MAX; idx++) {
@@ -939,7 +1005,7 @@ int msm_vidc_ctrl_init(struct msm_vidc_inst *inst)
 
 	return 0;
 error:
-	msm_vidc_ctrl_deinit(inst);
+	msm_vidc_ctrl_handler_deinit(inst);
 
 	return rc;
 }
@@ -3074,6 +3140,113 @@ int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+int msm_vidc_adjust_early_notify_enable(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	u32 adjusted_value = 0;
+	s32 low_latency = -1;
+	s32 picture_order = -1;
+	s32 outbuf_fence = V4L2_MPEG_VIDC_META_DISABLE;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[EARLY_NOTIFY_ENABLE].value;
+
+	if (msm_vidc_get_parent_value(inst, EARLY_NOTIFY_ENABLE, LOWLATENCY_MODE,
+		&low_latency, __func__) ||
+	    msm_vidc_get_parent_value(inst, EARLY_NOTIFY_ENABLE, OUTPUT_ORDER,
+		&picture_order, __func__) ||
+	    msm_vidc_get_parent_value(inst, EARLY_NOTIFY_ENABLE, META_OUTBUF_FENCE,
+		&outbuf_fence, __func__))
+		return -EINVAL;
+
+	if (!low_latency || !picture_order ||
+	    !is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE))
+		adjusted_value = V4L2_MPEG_MSM_VIDC_DISABLE;
+
+	msm_vidc_update_cap_value(inst, EARLY_NOTIFY_ENABLE,
+		adjusted_value, __func__);
+
+	return 0;
+}
+
+int msm_vidc_adjust_early_notify_line_count(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	u32 early_notify = 0, adjusted_value = 0;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[EARLY_NOTIFY_LINE_COUNT].value;
+
+	if (msm_vidc_get_parent_value(inst, EARLY_NOTIFY_LINE_COUNT, EARLY_NOTIFY_ENABLE,
+		&early_notify, __func__))
+		return -EINVAL;
+
+	/* check if early notify feature is enabled */
+	if (!early_notify)
+		adjusted_value = 0;
+
+	msm_vidc_update_cap_value(inst, EARLY_NOTIFY_LINE_COUNT,
+		adjusted_value, __func__);
+
+	return 0;
+}
+
+int msm_vidc_adjust_early_notify_fence_count(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	u32 height = 0, line_cnt = 0, adjusted_value = 0;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[EARLY_NOTIFY_FENCE_COUNT].value;
+
+	if (msm_vidc_get_parent_value(inst, EARLY_NOTIFY_FENCE_COUNT, EARLY_NOTIFY_LINE_COUNT,
+		&line_cnt, __func__))
+		return -EINVAL;
+
+	if (!is_early_notify_enabled(inst)) {
+		adjusted_value = 0;
+		goto set_fence_count;
+	}
+
+	height = inst->fmts[INPUT_PORT].fmt.pix_mp.height;
+
+	if (!line_cnt)
+		adjusted_value = 1;
+	else
+		adjusted_value = (height % line_cnt == 0) ?
+			(height/line_cnt) : (height/line_cnt + 1);
+
+	if (adjusted_value > MAX_FENCE_COUNT) {
+		i_vpr_e(inst, "%s: invalid fence count %d, line count %d\n",
+			__func__, adjusted_value, line_cnt);
+		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+	}
+
+set_fence_count:
+	msm_vidc_update_cap_value(inst, EARLY_NOTIFY_FENCE_COUNT,
+		adjusted_value, __func__);
+
+	return 0;
+}
+
 int msm_vidc_adjust_delivery_mode(void *instance, struct v4l2_ctrl *ctrl)
 {
 	struct msm_vidc_inst_capability *capability;
@@ -3331,7 +3504,7 @@ int msm_vidc_set_header_mode(void *instance,
 	else
 		hfi_value = HFI_SEQ_HEADER_SEPERATE_FRAME;
 
-	if (is_meta_rx_inp_enabled(inst, META_SEQ_HDR_NAL))
+	if (is_meta_rx_out_enabled(inst, META_SEQ_HDR_NAL))
 		hfi_value |= HFI_SEQ_HEADER_METADATA;
 
 	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_U32_ENUM,

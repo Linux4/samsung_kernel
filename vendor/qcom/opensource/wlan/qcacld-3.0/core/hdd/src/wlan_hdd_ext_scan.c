@@ -416,26 +416,13 @@ wlan_hdd_cfg80211_extscan_cached_results_ind(struct hdd_context *hdd_ctx,
 			 * BSSID was cached.
 			 */
 			ap->ts += hdd_ctx->ext_scan_start_since_boot;
-			hdd_debug("Timestamp %llu "
-				"Ssid: %s "
-				"Bssid (" QDF_MAC_ADDR_FMT ") "
-				"Channel %u "
-				"Rssi %d "
-				"RTT %u "
-				"RTT_SD %u "
-				"Beacon Period %u "
-				"Capability 0x%x "
-				"Ie length %d",
-				ap->ts,
-				ap->ssid,
-				QDF_MAC_ADDR_REF(ap->bssid.bytes),
-				ap->channel,
-				ap->rssi,
-				ap->rtt,
-				ap->rtt_sd,
-				ap->beaconPeriod,
-				ap->capability,
-				ap->ieLength);
+			hdd_debug("Timestamp %llu Ssid: " QDF_SSID_FMT " Bssid (" QDF_MAC_ADDR_FMT ") Channel %u Rssi %d RTT %u RTT_SD %u Beacon Period %u Capability 0x%x Ie length %d",
+				  ap->ts,
+				  QDF_SSID_REF(WLAN_SSID_MAX_LEN, ap->ssid),
+				  QDF_MAC_ADDR_REF(ap->bssid.bytes),
+				  ap->channel, ap->rssi, ap->rtt, ap->rtt_sd,
+				  ap->beaconPeriod, ap->capability,
+				  ap->ieLength);
 			ap++;
 		}
 		result++;
@@ -579,21 +566,12 @@ wlan_hdd_cfg80211_extscan_hotlist_match_ind(struct hdd_context *hdd_ctx,
 
 	for (i = 0; i < data->numOfAps; i++) {
 		data->ap[i].ts = qdf_get_monotonic_boottime();
-
-		hdd_debug("[i=%d] Timestamp %llu "
-		       "Ssid: %s "
-		       "Bssid (" QDF_MAC_ADDR_FMT ") "
-		       "Channel %u "
-		       "Rssi %d "
-		       "RTT %u "
-		       "RTT_SD %u",
-		       i,
-		       data->ap[i].ts,
-		       data->ap[i].ssid,
-		       QDF_MAC_ADDR_REF(data->ap[i].bssid.bytes),
-		       data->ap[i].channel,
-		       data->ap[i].rssi,
-		       data->ap[i].rtt, data->ap[i].rtt_sd);
+		hdd_debug("[i=%d] Timestamp %llu Ssid: " QDF_SSID_FMT " Bssid (" QDF_MAC_ADDR_FMT ") Channel %u Rssi %d RTT %u RTT_SD %u",
+			  i, data->ap[i].ts,
+			  QDF_SSID_REF(WLAN_SSID_MAX_LEN, data->ap[i].ssid),
+			  QDF_MAC_ADDR_REF(data->ap[i].bssid.bytes),
+			  data->ap[i].channel, data->ap[i].rssi,
+			  data->ap[i].rtt, data->ap[i].rtt_sd);
 	}
 
 	if (nla_put_u32(skb,
@@ -844,26 +822,14 @@ wlan_hdd_cfg80211_extscan_full_scan_result_event(struct hdd_context *hdd_ctx,
 	 */
 	data->ap.ts = qdf_get_monotonic_boottime();
 
-	hdd_debug("Req Id %u More Data %u", data->requestId,
-		  data->moreData);
-	hdd_debug("AP Info: Timestamp %llu Ssid: %s "
-	       "Bssid (" QDF_MAC_ADDR_FMT ") "
-	       "Channel %u "
-	       "Rssi %d "
-	       "RTT %u "
-	       "RTT_SD %u "
-	       "Bcn Period %d "
-	       "Capability 0x%X "
-	       "IE Length %d",
-	       data->ap.ts,
-	       data->ap.ssid,
-	       QDF_MAC_ADDR_REF(data->ap.bssid.bytes),
-	       data->ap.channel,
-	       data->ap.rssi,
-	       data->ap.rtt,
-	       data->ap.rtt_sd,
-	       data->ap.beaconPeriod,
-	       data->ap.capability, data->ap.ieLength);
+	hdd_debug("Req Id %u More Data %u", data->requestId, data->moreData);
+	hdd_debug("AP Info: Timestamp %llu Ssid: " QDF_SSID_FMT " Bssid (" QDF_MAC_ADDR_FMT ") Channel %u Rssi %d RTT %u RTT_SD %u Bcn Period %d Capability 0x%X IE Length %d",
+		  data->ap.ts,
+		  QDF_SSID_REF(WLAN_SSID_MAX_LEN, data->ap.ssid),
+		  QDF_MAC_ADDR_REF(data->ap.bssid.bytes),
+		  data->ap.channel, data->ap.rssi, data->ap.rtt,
+		  data->ap.rtt_sd, data->ap.beaconPeriod,
+		  data->ap.capability, data->ap.ieLength);
 
 	if (nla_put_u32(skb,
 		QCA_WLAN_VENDOR_ATTR_EXTSCAN_RESULTS_REQUEST_ID,
@@ -1123,25 +1089,14 @@ wlan_hdd_cfg80211_extscan_epno_match_found(struct hdd_context *hdd_ctx,
 		data->request_id, data->more_data, data->num_results);
 	for (i = 0; i < data->num_results; i++) {
 		data->ap[i].channel = cds_chan_to_freq(data->ap[i].channel);
-		hdd_debug("AP Info: Timestamp %llu) Ssid: %s "
-					"Bssid (" QDF_MAC_ADDR_FMT ") "
-					"Channel %u "
-					"Rssi %d "
-					"RTT %u "
-					"RTT_SD %u "
-					"Bcn Period %d "
-					"Capability 0x%X "
-					"IE Length %d",
-					data->ap[i].ts,
-					data->ap[i].ssid,
-					QDF_MAC_ADDR_REF(data->ap[i].bssid.bytes),
-					data->ap[i].channel,
-					data->ap[i].rssi,
-					data->ap[i].rtt,
-					data->ap[i].rtt_sd,
-					data->ap[i].beaconPeriod,
-					data->ap[i].capability,
-					data->ap[i].ieLength);
+		hdd_debug("AP Info: Timestamp %llu) Ssid: " QDF_SSID_FMT " Bssid (" QDF_MAC_ADDR_FMT ") Channel %u Rssi %d RTT %u RTT_SD %u Bcn Period %d Capability 0x%X IE Length %d",
+			  data->ap[i].ts,
+			  QDF_SSID_REF(WLAN_SSID_MAX_LEN, data->ap[i].ssid),
+			  QDF_MAC_ADDR_REF(data->ap[i].bssid.bytes),
+			  data->ap[i].channel, data->ap[i].rssi,
+			  data->ap[i].rtt, data->ap[i].rtt_sd,
+			  data->ap[i].beaconPeriod, data->ap[i].capability,
+			  data->ap[i].ieLength);
 	}
 
 	if (nla_put_u32(skb, QCA_WLAN_VENDOR_ATTR_EXTSCAN_RESULTS_REQUEST_ID,
@@ -1180,7 +1135,7 @@ fail:
 
 /**
  * wlan_hdd_cfg80211_passpoint_match_found() - passpoint match found
- * @hddctx: HDD context
+ * @ctx: HDD context
  * @data: matched network data
  *
  * This function reads the match network %data and fill in the skb with
@@ -1229,25 +1184,13 @@ wlan_hdd_cfg80211_passpoint_match_found(void *ctx,
 	hdd_debug("Req Id %u Id %u ANQP length %u num_matches %u",
 		data->request_id, data->id, data->anqp_len, num_matches);
 	for (i = 0; i < num_matches; i++) {
-		hdd_debug("AP Info: Timestamp %llu Ssid: %s "
-					"Bssid (" QDF_MAC_ADDR_FMT ") "
-					"Channel %u "
-					"Rssi %d "
-					"RTT %u "
-					"RTT_SD %u "
-					"Bcn Period %d "
-					"Capability 0x%X "
-					"IE Length %d",
-					data->ap.ts,
-					data->ap.ssid,
-					QDF_MAC_ADDR_REF(data->ap.bssid.bytes),
-					data->ap.channel,
-					data->ap.rssi,
-					data->ap.rtt,
-					data->ap.rtt_sd,
-					data->ap.beaconPeriod,
-					data->ap.capability,
-					data->ap.ieLength);
+		hdd_debug("AP Info: Timestamp %llu Ssid: " QDF_SSID_FMT " Bssid (" QDF_MAC_ADDR_FMT ") Channel %u Rssi %d RTT %u RTT_SD %u Bcn Period %d Capability 0x%X IE Length %d",
+			  data->ap.ts,
+			  QDF_SSID_REF(WLAN_SSID_MAX_LEN, data->ap.ssid),
+			  QDF_MAC_ADDR_REF(data->ap.bssid.bytes),
+			  data->ap.channel, data->ap.rssi, data->ap.rtt,
+			  data->ap.rtt_sd, data->ap.beaconPeriod,
+			  data->ap.capability, data->ap.ieLength);
 	}
 
 	if (nla_put_u32(skb, QCA_WLAN_VENDOR_ATTR_EXTSCAN_RESULTS_REQUEST_ID,
@@ -1312,7 +1255,7 @@ fail:
 /**
  * wlan_hdd_cfg80211_extscan_generic_rsp() -
  *	Handle a generic ExtScan Response message
- * @ctx: HDD context registered with SME
+ * @hdd_ctx: HDD context registered with SME
  * @response: The ExtScan response from firmware
  *
  * This function will handle a generic ExtScan response message from
@@ -2539,8 +2482,9 @@ static int hdd_extscan_start_fill_bucket_channel_spec(
 
 				channel->channel = chan_list[j];
 				channel->channel_class = 0;
-				if ((wlan_reg_get_channel_state_for_freq(
-				     hdd_ctx->pdev, chan_list[j])) !=
+				if ((wlan_reg_get_channel_state_for_pwrmode(
+				     hdd_ctx->pdev, chan_list[j],
+				     REG_CURRENT_PWR_MODE)) !=
 				    CHANNEL_STATE_ENABLE) {
 					channel->passive = 1;
 					channel->dwell_time_ms =
@@ -2677,8 +2621,9 @@ static int hdd_extscan_start_fill_bucket_channel_spec(
 				hdd_debug("WiFi band is unspecified, dwellTime:%d",
 						channel->dwell_time_ms);
 
-				if ((wlan_reg_get_channel_state_for_freq(
-				     hdd_ctx->pdev, channel->channel)) !=
+				if ((wlan_reg_get_channel_state_for_pwrmode(
+				     hdd_ctx->pdev, channel->channel,
+				     REG_CURRENT_PWR_MODE)) !=
 				    CHANNEL_STATE_ENABLE) {
 					channel->dwell_time_ms =
 						max_dwell_time_passive_bucket;
@@ -2691,8 +2636,9 @@ static int hdd_extscan_start_fill_bucket_channel_spec(
 			hdd_debug("New Dwell time %u ms",
 				channel->dwell_time_ms);
 
-			if ((wlan_reg_get_channel_state_for_freq(
-			     hdd_ctx->pdev, channel->channel)) !=
+			if ((wlan_reg_get_channel_state_for_pwrmode(
+			     hdd_ctx->pdev, channel->channel,
+			     REG_CURRENT_PWR_MODE)) !=
 			    CHANNEL_STATE_ENABLE) {
 				if (min_dwell_time_passive_bucket >
 						channel->dwell_time_ms) {
@@ -2729,9 +2675,10 @@ static int hdd_extscan_start_fill_bucket_channel_spec(
 			hdd_debug("Chnl spec passive %u",
 				channel->passive);
 			/* Override scan type if required */
-			if ((wlan_reg_get_channel_state_for_freq(
+			if ((wlan_reg_get_channel_state_for_pwrmode(
 							hdd_ctx->pdev,
-							channel->channel))
+							channel->channel,
+							REG_CURRENT_PWR_MODE))
 			    != CHANNEL_STATE_ENABLE) {
 				channel->passive = true;
 			} else {
@@ -3416,7 +3363,8 @@ hdd_extscan_epno_fill_network(struct nlattr *network,
 	hdd_debug("network ssid length %d", ssid_len);
 	ssid = nla_data(tb[id]);
 	qdf_mem_copy(nw->ssid.ssid, ssid, ssid_len);
-	hdd_debug("Ssid (%.*s)", nw->ssid.length, nw->ssid.ssid);
+	hdd_debug("Ssid (" QDF_SSID_FMT ")",
+		  QDF_SSID_REF(nw->ssid.length, nw->ssid.ssid));
 
 	/* Parse and fetch epno flags */
 	id = QCA_WLAN_VENDOR_ATTR_PNO_SET_LIST_PARAM_EPNO_NETWORK_FLAGS;

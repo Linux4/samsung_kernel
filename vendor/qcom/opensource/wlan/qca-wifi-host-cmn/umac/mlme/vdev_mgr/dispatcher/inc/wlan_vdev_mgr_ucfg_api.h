@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -243,4 +243,15 @@ QDF_STATUS ucfg_vdev_mgr_cdp_vdev_attach(struct wlan_objmgr_vdev *vdev);
  */
 QDF_STATUS ucfg_vdev_mgr_cdp_vdev_detach(struct wlan_objmgr_vdev *vdev);
 #endif
+
+/**
+ * ucfg_util_vdev_mgr_set_acs_mode_for_vdev() - ucfg API to set SAP start mode
+ * @vdev: pointer to vdev object
+ * @is_acs_mode: Carries true if SAP is started in ACS
+ *
+ * Return: None
+ */
+void
+ucfg_util_vdev_mgr_set_acs_mode_for_vdev(struct wlan_objmgr_vdev *vdev,
+					 bool is_acs_mode);
 #endif /* __WLAN_VDEV_MLME_UCFG_H__ */

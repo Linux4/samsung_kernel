@@ -89,7 +89,7 @@ void csr_roam_complete(struct mac_context *mac, uint8_t session_id);
 /**
  * csr_issue_set_context_req_helper  - Function to fill unicast/broadcast keys
  * request to set the keys to fw
- * @mac:         Poiner to mac context
+ * @mac:         Pointer to mac context
  * @vdev_id:     vdev id
  * @bssid:       Connected BSSID
  * @addkey:      Is add key request to crypto
@@ -126,7 +126,7 @@ QDF_STATUS csr_send_assoc_cnf_msg(struct mac_context *mac,
  * csr_get_cfg_valid_channels() - Get valid channel frequency list
  * @mac: mac context
  * @ch_freq_list: valid channel frequencies
- * @num_ch_freq: valid channel nummber
+ * @num_ch_freq: valid channel number
  *
  * This function returns the valid channel frequencies.
  *

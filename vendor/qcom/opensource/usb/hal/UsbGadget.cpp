@@ -107,6 +107,8 @@ UsbGadget::UsbGadget(const char* const gadget)
 
 Return<void> UsbGadget::getCurrentUsbFunctions(
     const sp<V1_0::IUsbGadgetCallback> &callback) {
+  if (!callback) return Void();
+
   Return<void> ret = callback->getCurrentUsbFunctionsCb(
       mCurrentUsbFunctions, mCurrentUsbFunctionsApplied
                                 ? Status::FUNCTIONS_APPLIED

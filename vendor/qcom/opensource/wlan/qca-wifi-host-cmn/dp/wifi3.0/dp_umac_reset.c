@@ -313,6 +313,8 @@ static int dp_umac_reset_rx_event_handler(void *dp_ctx)
 		goto exit;
 
 	case UMAC_RESET_RX_EVENT_DO_PRE_RESET:
+		umac_reset_ctx->ts.pre_reset_start =
+						qdf_get_log_timestamp_usecs();
 		status = dp_umac_reset_validate_n_update_state_machine_on_rx(
 			umac_reset_ctx, rx_event,
 			UMAC_RESET_STATE_WAIT_FOR_DO_PRE_RESET,
@@ -322,6 +324,8 @@ static int dp_umac_reset_rx_event_handler(void *dp_ctx)
 		break;
 
 	case UMAC_RESET_RX_EVENT_DO_POST_RESET_START:
+		umac_reset_ctx->ts.post_reset_start =
+						qdf_get_log_timestamp_usecs();
 		status = dp_umac_reset_validate_n_update_state_machine_on_rx(
 			umac_reset_ctx, rx_event,
 			UMAC_RESET_STATE_WAIT_FOR_DO_POST_RESET_START,
@@ -331,6 +335,8 @@ static int dp_umac_reset_rx_event_handler(void *dp_ctx)
 		break;
 
 	case UMAC_RESET_RX_EVENT_DO_POST_RESET_COMPELTE:
+		umac_reset_ctx->ts.post_reset_complete_start =
+						qdf_get_log_timestamp_usecs();
 		status = dp_umac_reset_validate_n_update_state_machine_on_rx(
 			umac_reset_ctx, rx_event,
 			UMAC_RESET_STATE_WAIT_FOR_DO_POST_RESET_COMPLETE,
@@ -482,16 +488,25 @@ dp_umac_reset_post_tx_cmd_via_shmem(
 	case UMAC_RESET_TX_CMD_PRE_RESET_DONE:
 		HTT_UMAC_HANG_RECOVERY_MSG_SHMEM_PRE_RESET_DONE_SET(
 			shmem_vaddr->h2t_msg, 1);
+
+		umac_reset_ctx->ts.pre_reset_done =
+						qdf_get_log_timestamp_usecs();
 		break;
 
 	case UMAC_RESET_TX_CMD_POST_RESET_START_DONE:
 		HTT_UMAC_HANG_RECOVERY_MSG_SHMEM_POST_RESET_START_DONE_SET(
 			shmem_vaddr->h2t_msg, 1);
+
+		umac_reset_ctx->ts.post_reset_done =
+						qdf_get_log_timestamp_usecs();
 		break;
 
 	case UMAC_RESET_TX_CMD_POST_RESET_COMPLETE_DONE:
 		HTT_UMAC_HANG_RECOVERY_MSG_SHMEM_POST_RESET_COMPLETE_DONE_SET(
 			shmem_vaddr->h2t_msg, 1);
+
+		umac_reset_ctx->ts.post_reset_complete_done =
+						qdf_get_log_timestamp_usecs();
 		break;
 
 	default:

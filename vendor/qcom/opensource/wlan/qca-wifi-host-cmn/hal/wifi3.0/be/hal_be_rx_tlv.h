@@ -29,21 +29,381 @@
 
 #define HAL_RX_BE_PKT_HDR_TLV_LEN		112
 
-#ifndef CONFIG_WORD_BASED_TLV
-typedef struct rx_mpdu_start hal_rx_mpdu_start_t;
-typedef struct rx_msdu_end hal_rx_msdu_end_t;
-#endif
-
-#define RX_BE_PADDING0_BYTES 8
-/*
- * Each RX descriptor TLV is preceded by 1 QWORD "tag"
- */
-
 struct rx_pkt_hdr_tlv {
 	uint64_t tag;					/* 8 B */
 	uint64_t phy_ppdu_id;				/* 8 B */
 	char rx_pkt_hdr[HAL_RX_BE_PKT_HDR_TLV_LEN];		/* 112 B */
 };
+
+#ifdef CONFIG_WORD_BASED_TLV
+#ifndef BIG_ENDIAN_HOST
+struct rx_msdu_end_compact {
+	uint32_t sa_sw_peer_id				: 16,
+		 sa_idx_timeout				:  1,
+		 da_idx_timeout				:  1,
+		 to_ds					:  1,
+		 tid					:  4,
+		 sa_is_valid				:  1,
+		 da_is_valid				:  1,
+		 da_is_mcbc				:  1,
+		 l3_header_padding			:  2,
+		 first_msdu				:  1,
+		 last_msdu				:  1,
+		 fr_ds					:  1,
+		 ip_chksum_fail_copy			:  1;
+	uint32_t sa_idx					: 16,
+		 da_idx_or_sw_peer_id			: 16;
+	uint32_t msdu_drop				:  1,
+		 reo_destination_indication		:  5,
+		 flow_idx				: 20,
+		 use_ppe				:  1,
+		 mesh_sta				:  2,
+		 vlan_ctag_stripped			:  1,
+		 vlan_stag_stripped			:  1,
+		 fragment_flag				:  1;
+	uint32_t fse_metadata				: 32;
+	uint32_t cce_metadata				: 16,
+		 tcp_udp_chksum				: 16;
+	uint32_t aggregation_count			:  8,
+		 flow_aggregation_continuation		:  1,
+		 fisa_timeout				:  1,
+		 tcp_udp_chksum_fail_copy		:  1,
+		 msdu_limit_error			:  1,
+		 flow_idx_timeout			:  1,
+		 flow_idx_invalid			:  1,
+		 cce_match				:  1,
+		 amsdu_parser_error			:  1,
+		 cumulative_ip_length			: 16;
+	uint32_t key_id_octet				:  8,
+		 reserved_8a				: 24;
+	uint32_t reserved_9a				:  6,
+		 service_code				:  9,
+		 priority_valid				:  1,
+		 intra_bss				:  1,
+		 dest_chip_id				:  2,
+		 multicast_echo				:  1,
+		 wds_learning_event			:  1,
+		 wds_roaming_event			:  1,
+		 wds_keep_alive_event			:  1,
+		 reserved_9b				:  9;
+	uint32_t msdu_length				: 14,
+		 stbc					:  1,
+		 ipsec_esp				:  1,
+		 l3_offset				:  7,
+		 ipsec_ah				:  1,
+		 l4_offset				:  8;
+	uint32_t msdu_number				:  8,
+		 decap_format				:  2,
+		 ipv4_proto				:  1,
+		 ipv6_proto				:  1,
+		 tcp_proto				:  1,
+		 udp_proto				:  1,
+		 ip_frag				:  1,
+		 tcp_only_ack				:  1,
+		 da_is_bcast_mcast			:  1,
+		 toeplitz_hash_sel			:  2,
+		 ip_fixed_header_valid			:  1,
+		 ip_extn_header_valid			:  1,
+		 tcp_udp_header_valid			:  1,
+		 mesh_control_present			:  1,
+		 ldpc					:  1,
+		 ip4_protocol_ip6_next_header		:  8;
+	uint32_t vlan_ctag_ci				: 16,
+		 vlan_stag_ci				: 16;
+	uint32_t peer_meta_data				: 32;
+	uint32_t user_rssi				:  8,
+		 pkt_type				:  4,
+		 sgi					:  2,
+		 rate_mcs				:  4,
+		 receive_bandwidth			:  3,
+		 reception_type				:  3,
+		 mimo_ss_bitmap				:  7,
+		 msdu_done_copy				:  1;
+	uint32_t flow_id_toeplitz			: 32;
+	uint32_t ppdu_start_timestamp_63_32;
+	uint32_t sw_phy_meta_data			: 32;
+	uint32_t first_mpdu				:  1,
+		 reserved_16a				:  1,
+		 mcast_bcast				:  1,
+		 ast_index_not_found			:  1,
+		 ast_index_timeout			:  1,
+		 power_mgmt				:  1,
+		 non_qos				:  1,
+		 null_data				:  1,
+		 mgmt_type				:  1,
+		 ctrl_type				:  1,
+		 more_data				:  1,
+		 eosp					:  1,
+		 a_msdu_error				:  1,
+		 reserved_16b				:  1,
+		 order					:  1,
+		 wifi_parser_error			:  1,
+		 overflow_err				:  1,
+		 msdu_length_err			:  1,
+		 tcp_udp_chksum_fail			:  1,
+		 ip_chksum_fail				:  1,
+		 sa_idx_invalid				:  1,
+		 da_idx_invalid				:  1,
+		 amsdu_addr_mismatch			:  1,
+		 rx_in_tx_decrypt_byp			:  1,
+		 encrypt_required			:  1,
+		 directed				:  1,
+		 buffer_fragment			:  1,
+		 mpdu_length_err			:  1,
+		 tkip_mic_err				:  1,
+		 decrypt_err				:  1,
+		 unencrypted_frame_err			:  1,
+		 fcs_err				:  1;
+	uint32_t reserved_17a				: 10,
+		 decrypt_status_code			:  3,
+		 rx_bitmap_not_updated			:  1,
+		 reserved_17b				: 17,
+		 msdu_done				:  1;
+};
+
+struct rx_mpdu_start_compact {
+	uint32_t rx_reo_queue_desc_addr_39_32		:  8,
+		 receive_queue_number			: 16,
+		 pre_delim_err_warning			:  1,
+		 first_delim_err			:  1,
+		 reserved_0				:  6;
+	uint32_t pn_31_0				: 32;
+	uint32_t pn_63_32				: 32;
+	uint32_t pn_95_64				: 32;
+	uint32_t ast_index				: 16,
+		 sw_peer_id				: 16;
+	uint32_t mpdu_frame_control_valid		:  1,
+		 mpdu_duration_valid			:  1,
+		 mac_addr_ad1_valid			:  1,
+		 mac_addr_ad2_valid			:  1,
+		 mac_addr_ad3_valid			:  1,
+		 mac_addr_ad4_valid			:  1,
+		 mpdu_sequence_control_valid		:  1,
+		 mpdu_qos_control_valid			:  1,
+		 mpdu_ht_control_valid			:  1,
+		 frame_encryption_info_valid		:  1,
+		 mpdu_fragment_number			:  4,
+		 more_fragment_flag			:  1,
+		 reserved_7a				:  1,
+		 fr_ds					:  1,
+		 to_ds					:  1,
+		 encrypted				:  1,
+		 mpdu_retry				:  1,
+		 mpdu_sequence_number			: 12;
+	uint32_t mpdu_frame_control_field		: 16,
+		 mpdu_duration_field			: 16;
+	uint32_t mac_addr_ad1_31_0			: 32;
+	uint32_t mac_addr_ad1_47_32			: 16,
+		 mac_addr_ad2_15_0			: 16;
+	uint32_t mac_addr_ad2_47_16			: 32;
+	uint32_t mac_addr_ad3_31_0			: 32;
+	uint32_t mac_addr_ad3_47_32			: 16,
+		 mpdu_sequence_control_field		: 16;
+};
+#else
+struct rx_msdu_end_compact {
+	uint32_t ip_chksum_fail_copy			:  1,
+		 fr_ds					:  1,
+		 last_msdu				:  1,
+		 first_msdu				:  1,
+		 l3_header_padding			:  2,
+		 da_is_mcbc				:  1,
+		 da_is_valid				:  1,
+		 sa_is_valid				:  1,
+		 tid					:  4,
+		 to_ds					:  1,
+		 da_idx_timeout				:  1,
+		 sa_idx_timeout				:  1,
+		 sa_sw_peer_id				: 16;
+	uint32_t da_idx_or_sw_peer_id			: 16,
+		 sa_idx					: 16;
+	uint32_t fragment_flag				:  1,
+		 vlan_stag_stripped			:  1,
+		 vlan_ctag_stripped			:  1,
+		 mesh_sta				:  2,
+		 use_ppe				:  1,
+		 flow_idx				: 20,
+		 reo_destination_indication		:  5,
+		 msdu_drop				:  1;
+	uint32_t fse_metadata				: 32;
+	uint32_t tcp_udp_chksum				: 16,
+		 cce_metadata				: 16;
+	uint32_t cumulative_ip_length			: 16,
+		 amsdu_parser_error			:  1,
+		 cce_match				:  1,
+		 flow_idx_invalid			:  1,
+		 flow_idx_timeout			:  1,
+		 msdu_limit_error			:  1,
+		 tcp_udp_chksum_fail_copy		:  1,
+		 fisa_timeout				:  1,
+		 flow_aggregation_continuation		:  1,
+		 aggregation_count			:  8;
+	uint32_t reserved_8a				: 24,
+		 key_id_octet				:  8;
+	uint32_t reserved_9b				:  9,
+		 wds_keep_alive_event			:  1,
+		 wds_roaming_event			:  1,
+		 wds_learning_event			:  1,
+		 multicast_echo				:  1,
+		 dest_chip_id				:  2,
+		 intra_bss				:  1,
+		 priority_valid				:  1,
+		 service_code				:  9,
+		 reserved_9a				:  6;
+	uint32_t l4_offset				:  8,
+		 ipsec_ah				:  1,
+		 l3_offset				:  7,
+		 ipsec_esp				:  1,
+		 stbc					:  1,
+		 msdu_length				: 14;
+	uint32_t ip4_protocol_ip6_next_header		:  8,
+		 ldpc					:  1,
+		 mesh_control_present			:  1,
+		 tcp_udp_header_valid			:  1,
+		 ip_extn_header_valid			:  1,
+		 ip_fixed_header_valid			:  1,
+		 toeplitz_hash_sel			:  2,
+		 da_is_bcast_mcast			:  1,
+		 tcp_only_ack				:  1,
+		 ip_frag				:  1,
+		 udp_proto				:  1,
+		 tcp_proto				:  1,
+		 ipv6_proto				:  1,
+		 ipv4_proto				:  1,
+		 decap_format				:  2,
+		 msdu_number				:  8;
+	uint32_t vlan_stag_ci				: 16,
+		 vlan_ctag_ci				: 16;
+	uint32_t peer_meta_data				: 32;
+	uint32_t msdu_done_copy				:  1,
+		 mimo_ss_bitmap				:  7,
+		 reception_type				:  3,
+		 receive_bandwidth			:  3,
+		 rate_mcs				:  4,
+		 sgi					:  2,
+		 pkt_type				:  4,
+		 user_rssi				:  8;
+	uint32_t flow_id_toeplitz			: 32;
+	uint32_t ppdu_start_timestamp_63_32;
+	uint32_t sw_phy_meta_data			: 32;
+	uint32_t fcs_err				:  1,
+		 unencrypted_frame_err			:  1,
+		 decrypt_err				:  1,
+		 tkip_mic_err				:  1,
+		 mpdu_length_err			:  1,
+		 buffer_fragment			:  1,
+		 directed				:  1,
+		 encrypt_required			:  1,
+		 rx_in_tx_decrypt_byp			:  1,
+		 amsdu_addr_mismatch			:  1,
+		 da_idx_invalid				:  1,
+		 sa_idx_invalid				:  1,
+		 ip_chksum_fail				:  1,
+		 tcp_udp_chksum_fail			:  1,
+		 msdu_length_err			:  1,
+		 overflow_err				:  1,
+		 wifi_parser_error			:  1,
+		 order					:  1,
+		 reserved_16b				:  1,
+		 a_msdu_error				:  1,
+		 eosp					:  1,
+		 more_data				:  1,
+		 ctrl_type				:  1,
+		 mgmt_type				:  1,
+		 null_data				:  1,
+		 non_qos				:  1,
+		 power_mgmt				:  1,
+		 ast_index_timeout			:  1,
+		 ast_index_not_found			:  1,
+		 mcast_bcast				:  1,
+		 reserved_16a				:  1,
+		 first_mpdu				:  1;
+	uint32_t msdu_done				:  1,
+		 reserved_17b				: 17,
+		 rx_bitmap_not_updated			:  1,
+		 decrypt_status_code			:  3,
+		 reserved_17a				: 10;
+};
+
+struct rx_mpdu_start_compact {
+	uint32_t reserved_0				:  6,
+		 first_delim_err			:  1,
+		 pre_delim_err_warning			:  1,
+		 receive_queue_number			: 16,
+		 rx_reo_queue_desc_addr_39_32		:  8;
+	uint32_t pn_31_0				: 32;
+	uint32_t pn_63_32				: 32;
+	uint32_t pn_95_64				: 32;
+	uint32_t sw_peer_id				: 16,
+		 ast_index				: 16;
+	uint32_t mpdu_sequence_number			: 12,
+		 mpdu_retry				:  1,
+		 encrypted				:  1,
+		 to_ds					:  1,
+		 fr_ds					:  1,
+		 reserved_7a				:  1,
+		 more_fragment_flag			:  1,
+		 mpdu_fragment_number			:  4,
+		 frame_encryption_info_valid		:  1,
+		 mpdu_ht_control_valid			:  1,
+		 mpdu_qos_control_valid			:  1,
+		 mpdu_sequence_control_valid		:  1,
+		 mac_addr_ad4_valid			:  1,
+		 mac_addr_ad3_valid			:  1,
+		 mac_addr_ad2_valid			:  1,
+		 mac_addr_ad1_valid			:  1,
+		 mpdu_duration_valid			:  1,
+		 mpdu_frame_control_valid		:  1;
+	uint32_t mpdu_duration_field			: 16,
+		 mpdu_frame_control_field		: 16;
+	uint32_t mac_addr_ad1_31_0			: 32;
+	uint32_t mac_addr_ad2_15_0			: 16,
+		 mac_addr_ad1_47_32			: 16;
+	uint32_t mac_addr_ad2_47_16			: 32;
+	uint32_t mac_addr_ad3_31_0			: 32;
+	uint32_t mpdu_sequence_control_field		: 16,
+		 mac_addr_ad3_47_32			: 16;
+};
+#endif
+#define RX_BE_PADDING0_BYTES 4
+
+typedef struct rx_mpdu_start_compact hal_rx_mpdu_start_t;
+typedef struct rx_msdu_end_compact hal_rx_msdu_end_t;
+
+struct rx_mpdu_start_tlv {
+	hal_rx_mpdu_start_t rx_mpdu_start;
+};
+
+struct rx_msdu_end_tlv {
+	uint64_t tag;					/* 8 B */
+	hal_rx_msdu_end_t rx_msdu_end;
+};
+
+struct rx_pkt_tlvs {
+	struct rx_msdu_end_tlv   msdu_end_tlv;		/*  80 bytes */
+	struct rx_mpdu_start_tlv mpdu_start_tlv;	/*  48 bytes */
+};
+
+#define HAL_RX_MSDU_END(_rx_pkt_tlv)		\
+	(((struct rx_pkt_tlvs *)_rx_pkt_tlv)->msdu_end_tlv.rx_msdu_end)
+
+#define HAL_RX_MPDU_START(_rx_pkt_tlv)	\
+	(((struct rx_pkt_tlvs *)_rx_pkt_tlv)->mpdu_start_tlv.	\
+			rx_mpdu_start)
+
+#define HAL_RX_TLV_TID_GET(_rx_pkt_tlv) \
+	HAL_RX_MSDU_END(_rx_pkt_tlv).tid
+
+#define HAL_RX_TLV_FIRST_MPDU_GET(_rx_pkt_tlv)          \
+	HAL_RX_MSDU_END(_rx_pkt_tlv).first_mpdu
+#else /* CONFIG_WORD_BASED_TLV */
+typedef struct rx_mpdu_start hal_rx_mpdu_start_t;
+typedef struct rx_msdu_end hal_rx_msdu_end_t;
+
+#define RX_BE_PADDING0_BYTES 8
+/*
+ * Each RX descriptor TLV is preceded by 1 QWORD "tag"
+ */
 
 #ifndef CONFIG_NO_TLV_TAGS
 struct rx_mpdu_start_tlv {
@@ -57,9 +417,9 @@ struct rx_msdu_end_tlv {
 };
 
 struct rx_pkt_tlvs {
-	struct rx_msdu_end_tlv   msdu_end_tlv;	/*  120 bytes */
+	struct rx_msdu_end_tlv   msdu_end_tlv;	/*  136 bytes */
 	uint8_t rx_padding0[RX_BE_PADDING0_BYTES];	/*  8 bytes */
-	struct rx_mpdu_start_tlv mpdu_start_tlv;	/*  120 bytes */
+	struct rx_mpdu_start_tlv mpdu_start_tlv;	/*  128 bytes */
 #ifndef NO_RX_PKT_HDR_TLV
 	struct rx_pkt_hdr_tlv	pkt_hdr_tlv;		/* 128 bytes */
 #endif
@@ -82,7 +442,46 @@ struct rx_pkt_tlvs {
 	struct rx_pkt_hdr_tlv	 pkt_hdr_tlv;		/* 128 bytes */
 #endif
 };
-#endif
+#endif /*CONFIG_NO_TLV_TAGS */
+
+#define HAL_RX_MSDU_END(_rx_pkt_tlv)		\
+	(((struct rx_pkt_tlvs *)_rx_pkt_tlv)->msdu_end_tlv.rx_msdu_end)
+
+#define HAL_RX_MPDU_START(_rx_pkt_tlv)	\
+	(((struct rx_pkt_tlvs *)_rx_pkt_tlv)->mpdu_start_tlv.	\
+	   rx_mpdu_start.rx_mpdu_info_details)
+
+#define HAL_RX_REO_QUEUE_DESC_ADDR_31_0_GET(_rx_pkt_tlv)	\
+	HAL_RX_MPDU_START(_rx_pkt_tlv).rx_reo_queue_desc_addr_31_0
+
+#define HAL_RX_TLV_AMPDU_FLAG_GET(_rx_pkt_tlv)		\
+	HAL_RX_MPDU_START(_rx_pkt_tlv).ampdu_flag
+
+#define HAL_RX_TLV_MPDU_PN_127_96_GET(_rx_pkt_tlv)	\
+	HAL_RX_MPDU_START(_rx_pkt_tlv).pn_127_96
+
+#define HAL_RX_TLV_TID_GET(_rx_pkt_tlv) \
+	HAL_RX_MPDU_START(_rx_pkt_tlv).tid
+
+#define HAL_RX_TLV_FIRST_MPDU_GET(_rx_pkt_tlv)		\
+	HAL_RX_MPDU_START(_rx_pkt_tlv).first_mpdu
+
+#define HAL_RX_TLV_L3_TYPE_GET(_rx_pkt_tlv)	\
+	HAL_RX_MSDU_END(_rx_pkt_tlv).l3_type
+
+#define HAL_RX_GET_PPDU_ID(_rx_pkt_tlv)	\
+	HAL_RX_MPDU_START(_rx_pkt_tlv).phy_ppdu_id
+
+#define HAL_RX_TLV_PHY_PPDU_ID_GET(_rx_pkt_tlv)		\
+	HAL_RX_MSDU_END(_rx_pkt_tlv).phy_ppdu_id
+
+#define HAL_RX_GET_FILTER_CATEGORY(_rx_pkt_tlv) \
+	HAL_RX_MPDU_START(_rx_pkt_tlv).rxpcu_mpdu_filter_in_category
+
+#define HAL_RX_TLV_SW_FRAME_GROUP_ID_GET(_rx_pkt_tlv)	\
+	HAL_RX_MPDU_START(_rx_pkt_tlv).sw_frame_group_id
+
+#endif /* CONFIG_WORD_BASED_TLV */
 
 /**
  * struct rx_mon_pkt_tlvs - RX packet data structure for DEST ring in the
@@ -106,23 +505,6 @@ struct rx_mon_pkt_tlvs {
 #define MON_RX_PKT_TLVS_LEN	SIZE_OF_MON_DATA_RX_TLV
 
 #define RX_PKT_TLV_OFFSET(field) qdf_offsetof(struct rx_pkt_tlvs, field)
-
-#ifndef CONFIG_WORD_BASED_TLV
-#define HAL_RX_MSDU_END(_rx_pkt_tlv)		\
-	(((struct rx_pkt_tlvs *)_rx_pkt_tlv)->msdu_end_tlv.rx_msdu_end)
-
-#define HAL_RX_MPDU_START(_rx_pkt_tlv)	\
-	(((struct rx_pkt_tlvs *)_rx_pkt_tlv)->mpdu_start_tlv.	\
-	   rx_mpdu_start.rx_mpdu_info_details)
-
-#else /* CONFIG_WORD_BASED_TLV */
-#define HAL_RX_MSDU_END(_rx_pkt_tlv)		\
-	(((struct rx_pkt_tlvs *)_rx_pkt_tlv)->msdu_end_tlv.rx_msdu_end)
-
-#define HAL_RX_MPDU_START(_rx_pkt_tlv)	\
-	(((struct rx_pkt_tlvs *)_rx_pkt_tlv)->mpdu_start_tlv.	\
-			rx_mpdu_start)
-#endif	/* CONFIG_WORD_BASED_TLV */
 
 #define HAL_RX_TLV_MSDU_DONE_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).msdu_done
@@ -158,9 +540,6 @@ struct rx_mon_pkt_tlvs {
 
 #define HAL_RX_TLV_CCE_MATCH_GET(_rx_pkt_tlv)		\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).cce_match
-
-#define HAL_RX_TLV_PHY_PPDU_ID_GET(_rx_pkt_tlv)		\
-	HAL_RX_MSDU_END(_rx_pkt_tlv).phy_ppdu_id
 
 #define HAL_RX_TLV_BW_GET(_rx_pkt_tlv)     \
 	HAL_RX_MSDU_END(_rx_pkt_tlv).receive_bandwidth
@@ -219,14 +598,6 @@ struct rx_mon_pkt_tlvs {
 #define HAL_RX_TLV_IS_MCAST_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).mcast_bcast
 
-#ifndef CONFIG_WORD_BASED_TLV
-#define HAL_RX_TLV_FIRST_MPDU_GET(_rx_pkt_tlv)		\
-	HAL_RX_MPDU_START(_rx_pkt_tlv).first_mpdu
-#else
-#define HAL_RX_TLV_FIRST_MPDU_GET(_rx_pkt_tlv)          \
-	HAL_RX_MSDU_END(_rx_pkt_tlv).first_mpdu
-#endif
-
 #ifdef RECEIVE_OFFLOAD
 /**
 * LRO information needed from the TLVs
@@ -252,20 +623,8 @@ struct rx_mon_pkt_tlvs {
 	HAL_RX_MSDU_END(_rx_pkt_tlv).peer_meta_data
 #endif
 
-#define HAL_RX_GET_FILTER_CATEGORY(_rx_pkt_tlv) \
-	HAL_RX_MPDU_START(_rx_pkt_tlv).rxpcu_mpdu_filter_in_category
-
-#define HAL_RX_GET_PPDU_ID(_rx_pkt_tlv)	\
-	HAL_RX_MPDU_START(_rx_pkt_tlv).phy_ppdu_id
-
 #define HAL_RX_TLV_PEER_META_DATA_GET(_rx_pkt_tlv)	\
 	HAL_RX_MPDU_START(_rx_pkt_tlv).peer_meta_data
-
-#define HAL_RX_TLV_AMPDU_FLAG_GET(_rx_pkt_tlv)		\
-	HAL_RX_MPDU_START(_rx_pkt_tlv).ampdu_flag
-
-#define HAL_RX_TLV_SW_FRAME_GROUP_ID_GET(_rx_pkt_tlv)	\
-	HAL_RX_MPDU_START(_rx_pkt_tlv).sw_frame_group_id
 
 #define HAL_RX_TLV_KEYID_OCTET_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).key_id_octet
@@ -291,12 +650,6 @@ struct rx_mon_pkt_tlvs {
 #define HAL_RX_TLV_LAST_MSDU_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).last_msdu
 
-/*
- * Get tid from RX_MPDU_START
- */
-#define HAL_RX_TLV_TID_GET(_rx_pkt_tlv) \
-	HAL_RX_MPDU_START(_rx_pkt_tlv).tid
-
 #define HAL_RX_TLV_DA_IS_MCBC_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).da_is_mcbc
 
@@ -317,9 +670,6 @@ struct rx_mon_pkt_tlvs {
 
 #define HAL_RX_TLV_MPDU_PN_95_64_GET(_rx_pkt_tlv)		\
 	HAL_RX_MPDU_START(_rx_pkt_tlv).pn_95_64
-
-#define HAL_RX_TLV_MPDU_PN_127_96_GET(_rx_pkt_tlv)	\
-	HAL_RX_MPDU_START(_rx_pkt_tlv).pn_127_96
 
 #define HAL_RX_TLV_DA_IS_VALID_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).da_is_valid
@@ -432,9 +782,6 @@ struct rx_mon_pkt_tlvs {
 #define HAL_RX_MSDU_END_SA_SW_PEER_ID_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).sa_sw_peer_id
 
-#define HAL_RX_REO_QUEUE_DESC_ADDR_31_0_GET(_rx_pkt_tlv)	\
-	HAL_RX_MPDU_START(_rx_pkt_tlv).rx_reo_queue_desc_addr_31_0
-
 #define HAL_RX_REO_QUEUE_DESC_ADDR_39_32_GET(_rx_pkt_tlv)	\
 	HAL_RX_MPDU_START(_rx_pkt_tlv).rx_reo_queue_desc_addr_39_32
 
@@ -488,6 +835,222 @@ static inline bool hal_rx_msdu_cce_match_get_be(uint8_t *buf)
 	return HAL_RX_TLV_CCE_MATCH_GET(rx_pkt_tlvs);
 }
 
+#ifdef RX_MSDU_END_PEER_META_DATA_OFFSET
+/*
+ * Get peer_meta_data from RX_MSDU_END
+ */
+
+static inline uint32_t hal_rx_msdu_peer_meta_data_get_be(uint8_t *buf)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+
+	return HAL_RX_TLV_MSDU_PEER_META_DATA_GET(rx_pkt_tlvs);
+}
+#endif
+
+/*
+ * hal_rx_mpdu_get_addr1_be(): API to check get address1 of the mpdu
+ *
+ * @buf: pointer to the start of RX PKT TLV headera
+ * @mac_addr: pointer to mac address
+ * Return: success/failure
+ */
+static inline QDF_STATUS hal_rx_mpdu_get_addr1_be(uint8_t *buf,
+						  uint8_t *mac_addr)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+	struct __attribute__((__packed__)) hal_addr1 {
+		uint32_t ad1_31_0;
+		uint16_t ad1_47_32;
+	};
+	struct hal_addr1 *addr = (struct hal_addr1 *)mac_addr;
+	uint32_t mac_addr_ad1_valid;
+
+	mac_addr_ad1_valid = HAL_RX_TLV_MPDU_MAC_ADDR_AD1_VALID_GET(
+								rx_pkt_tlvs);
+
+	if (mac_addr_ad1_valid) {
+		addr->ad1_31_0 = HAL_RX_TLV_MPDU_AD1_31_0_GET(rx_pkt_tlvs);
+		addr->ad1_47_32 = HAL_RX_TLV_MPDU_AD1_47_32_GET(rx_pkt_tlvs);
+		return QDF_STATUS_SUCCESS;
+	}
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+#ifndef CONFIG_WORD_BASED_TLV
+/**
+ * hal_rx_mpdu_info_ampdu_flag_get_be(): get ampdu flag bit
+ * from rx mpdu info
+ * @buf: pointer to rx_pkt_tlvs
+ *
+ * Return: ampdu flag
+ */
+static inline bool hal_rx_mpdu_info_ampdu_flag_get_be(uint8_t *buf)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+
+	return !!HAL_RX_TLV_AMPDU_FLAG_GET(rx_pkt_tlvs);
+}
+
+/**
+ * hal_rx_get_qdesc_addr_be(): API to get qdesc address of reo
+ * entrance ring desc
+ *
+ * @dst_ring_desc: reo dest ring descriptor (used for Lithium DP)
+ * @buf: pointer to the start of RX PKT TLV headers
+ * Return: qdesc address in reo destination ring buffer
+ */
+static inline uint64_t hal_rx_get_qdesc_addr_be(uint8_t *dst_ring_desc,
+						uint8_t *buf)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+
+	return (uint64_t)HAL_RX_REO_QUEUE_DESC_ADDR_31_0_GET(rx_pkt_tlvs);
+}
+
+/*
+ * @ hal_rx_print_pn_be: Prints the PN of rx packet.
+ *
+ * @ buf: rx_tlv_hdr of the received packet
+ * @ Return: void
+ */
+static inline void hal_rx_print_pn_be(uint8_t *buf)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+
+	uint32_t pn_31_0 = HAL_RX_TLV_MPDU_PN_31_0_GET(rx_pkt_tlvs);
+	uint32_t pn_63_32 = HAL_RX_TLV_MPDU_PN_63_32_GET(rx_pkt_tlvs);
+	uint32_t pn_95_64 = HAL_RX_TLV_MPDU_PN_95_64_GET(rx_pkt_tlvs);
+	uint32_t pn_127_96 = HAL_RX_TLV_MPDU_PN_127_96_GET(rx_pkt_tlvs);
+
+	hal_debug("PN number pn_127_96 0x%x pn_95_64 0x%x pn_63_32 0x%x pn_31_0 0x%x ",
+		  pn_127_96, pn_95_64, pn_63_32, pn_31_0);
+}
+
+static inline void hal_rx_tlv_get_pn_num_be(uint8_t *buf, uint64_t *pn_num)
+{
+	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+
+	pn_num[0] = HAL_RX_TLV_MPDU_PN_31_0_GET(pkt_tlvs);
+	pn_num[0] |= ((uint64_t)HAL_RX_TLV_MPDU_PN_63_32_GET(pkt_tlvs) << 32);
+
+	pn_num[1] = HAL_RX_TLV_MPDU_PN_95_64_GET(pkt_tlvs);
+	pn_num[1] |= ((uint64_t)HAL_RX_TLV_MPDU_PN_127_96_GET(pkt_tlvs) << 32);
+}
+
+/*
+ * hal_rx_mpdu_get_addr4_be(): API to get address4 of the mpdu
+ * in the packet
+ *
+ * @buf: pointer to the start of RX PKT TLV header
+ * @mac_addr: pointer to mac address
+ * Return: success/failure
+ */
+static inline QDF_STATUS hal_rx_mpdu_get_addr4_be(uint8_t *buf,
+						  uint8_t *mac_addr)
+{
+	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+	struct __attribute__((__packed__)) hal_addr4 {
+		uint32_t ad4_31_0;
+		uint16_t ad4_47_32;
+	};
+	struct hal_addr4 *addr = (struct hal_addr4 *)mac_addr;
+	uint32_t mac_addr_ad4_valid;
+
+	mac_addr_ad4_valid = HAL_RX_TLV_MPDU_MAC_ADDR_AD4_VALID_GET(pkt_tlvs);
+
+	if (mac_addr_ad4_valid) {
+		addr->ad4_31_0 = HAL_RX_TLV_MPDU_AD4_31_0_GET(pkt_tlvs);
+		addr->ad4_47_32 = HAL_RX_TLV_MPDU_AD4_47_32_GET(pkt_tlvs);
+		return QDF_STATUS_SUCCESS;
+	}
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+/**
+ * hal_rx_priv_info_set_in_tlv_be(): Save the private info to
+ *                             the reserved bytes of rx_tlv_hdr
+ * @buf: start of rx_tlv_hdr
+ * @priv_data: hal_wbm_err_desc_info structure
+ * @len: length of the private data
+ * Return: void
+ */
+static inline void hal_rx_priv_info_set_in_tlv_be(uint8_t *buf,
+						  uint8_t *priv_data,
+						  uint32_t len)
+{
+	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+	uint32_t copy_len = (len > RX_BE_PADDING0_BYTES) ?
+			    RX_BE_PADDING0_BYTES : len;
+
+	qdf_mem_copy(pkt_tlvs->rx_padding0, priv_data, copy_len);
+}
+
+/**
+ * hal_rx_priv_info_get_from_tlv_be(): retrieve the private data from
+ *                             the reserved bytes of rx_tlv_hdr.
+ * @buf: start of rx_tlv_hdr
+ * @priv_data: Handle to get the private data, output parameter.
+ * @len: length of the private data
+ * Return: void
+ */
+static inline void hal_rx_priv_info_get_from_tlv_be(uint8_t *buf,
+						    uint8_t *priv_data,
+						    uint32_t len)
+{
+	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+	uint32_t copy_len = (len > RX_BE_PADDING0_BYTES) ?
+			    RX_BE_PADDING0_BYTES : len;
+
+	qdf_mem_copy(priv_data, pkt_tlvs->rx_padding0, copy_len);
+}
+
+/**
+ * hal_rx_tlv_l3_type_get_be(): API to get the l3 type
+ * from rx_msdu_start TLV
+ *
+ * @buf: pointer to the start of RX PKT TLV headers
+ * Return: uint32_t(l3 type)
+ */
+static inline uint32_t hal_rx_tlv_l3_type_get_be(uint8_t *buf)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+
+	return HAL_RX_TLV_L3_TYPE_GET(rx_pkt_tlvs);
+}
+
+/**
+ * hal_rx_hw_desc_get_ppduid_get_be(): retrieve ppdu id
+ * @rx_tlv_hdr: start address of rx_pkt_tlvs
+ * @rxdma_dst_ring_desc: Rx HW descriptor
+ *
+ * Return: ppdu id
+ */
+static inline uint32_t
+hal_rx_hw_desc_get_ppduid_get_be(void *rx_tlv_hdr, void *rxdma_dst_ring_desc)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs =
+					(struct rx_pkt_tlvs *)rx_tlv_hdr;
+
+	return HAL_RX_TLV_PHY_PPDU_ID_GET(rx_pkt_tlvs);
+}
+
+/*
+ * hal_rx_tlv_phy_ppdu_id_get(): get phy_ppdu_id value
+ * from rx attention
+ * @buf: pointer to rx_pkt_tlvs
+ *
+ * Return: phy_ppdu_id
+ */
+static inline uint16_t hal_rx_tlv_phy_ppdu_id_get_be(uint8_t *buf)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+
+	return HAL_RX_TLV_PHY_PPDU_ID_GET(rx_pkt_tlvs);
+}
+
 /*
  * hal_rx_attn_phy_ppdu_id_get(): get phy_ppdu_id value
  * from rx attention
@@ -505,18 +1068,12 @@ static inline uint16_t hal_rx_attn_phy_ppdu_id_get_be(uint8_t *buf)
 	return phy_ppdu_id;
 }
 
-/*
- * hal_rx_tlv_phy_ppdu_id_get(): get phy_ppdu_id value
- * from rx attention
- * @buf: pointer to rx_pkt_tlvs
- *
- * Return: phy_ppdu_id
- */
-static inline uint16_t hal_rx_tlv_phy_ppdu_id_get_be(uint8_t *buf)
+static inline uint32_t
+hal_rx_get_ppdu_id_be(uint8_t *buf)
 {
 	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
 
-	return HAL_RX_TLV_PHY_PPDU_ID_GET(rx_pkt_tlvs);
+	return HAL_RX_GET_PPDU_ID(rx_pkt_tlvs);
 }
 
 /*
@@ -545,32 +1102,115 @@ static inline uint32_t hal_rx_mpdu_peer_meta_data_get_be(uint8_t *buf)
 	return HAL_RX_TLV_PEER_META_DATA_GET(rx_pkt_tlvs);
 }
 
-#ifdef RX_MSDU_END_PEER_META_DATA_OFFSET
-/*
- * Get peer_meta_data from RX_MSDU_END
- */
-
-static inline uint32_t hal_rx_msdu_peer_meta_data_get_be(uint8_t *buf)
+static inline uint8_t hal_rx_get_filter_category_be(uint8_t *buf)
 {
 	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
 
-	return HAL_RX_TLV_MSDU_PEER_META_DATA_GET(rx_pkt_tlvs);
+	return HAL_RX_GET_FILTER_CATEGORY(rx_pkt_tlvs);
 }
-#endif
 
 /**
- * hal_rx_mpdu_info_ampdu_flag_get_be(): get ampdu flag bit
- * from rx mpdu info
- * @buf: pointer to rx_pkt_tlvs
+ * hal_rx_is_unicast_be: check packet is unicast frame or not.
  *
- * Return: ampdu flag
+ * @ buf: pointer to rx pkt TLV.
+ * Return: true on unicast.
  */
-static inline bool hal_rx_mpdu_info_ampdu_flag_get_be(uint8_t *buf)
+static inline bool hal_rx_is_unicast_be(uint8_t *buf)
+{
+	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+	uint32_t grp_id;
+
+	grp_id = HAL_RX_TLV_SW_FRAME_GROUP_ID_GET(rx_pkt_tlvs);
+
+	return (HAL_MPDU_SW_FRAME_GROUP_UNICAST_DATA == grp_id) ? true : false;
+}
+
+#else
+#define IS_ADDR_MULTICAST(_a)  (*(_a) & 0x01)
+/**
+ * hal_rx_is_unicast_be: check packet is unicast frame or not.
+ *
+ * @ buf: pointer to rx pkt TLV.
+ * Return: true on unicast.
+ */
+static inline bool hal_rx_is_unicast_be(uint8_t *buf)
+{
+	uint8_t mac[QDF_MAC_ADDR_SIZE] = {0};
+
+	hal_rx_mpdu_get_addr1_be(buf, &mac[0]);
+
+	return !IS_ADDR_MULTICAST(mac);
+}
+
+/**
+ * hal_rx_priv_info_set_in_tlv_be(): Save the private info to
+ *                             the reserved bytes of rx_tlv_hdr
+ * @buf: start of rx_tlv_hdr
+ * @priv_data: hal_wbm_err_desc_info structure
+ * @len: length of the private data
+ * Return: void
+ */
+static inline void hal_rx_priv_info_set_in_tlv_be(uint8_t *buf,
+						  uint8_t *priv_data,
+						  uint32_t len)
+{
+	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+	uint32_t copy_len = (len > RX_BE_PADDING0_BYTES) ?
+			    RX_BE_PADDING0_BYTES : len;
+
+	qdf_mem_copy(&(HAL_RX_MSDU_END(pkt_tlvs).ppdu_start_timestamp_63_32),
+		     priv_data, copy_len);
+}
+
+/**
+ * hal_rx_priv_info_get_from_tlv_be(): retrieve the private data from
+ *                             the reserved bytes of rx_tlv_hdr.
+ * @buf: start of rx_tlv_hdr
+ * @priv_data: Handle to get the private data, output parameter.
+ * @len: length of the private data
+ * Return: void
+ */
+static inline void hal_rx_priv_info_get_from_tlv_be(uint8_t *buf,
+						    uint8_t *priv_data,
+						    uint32_t len)
+{
+	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+	uint32_t copy_len = (len > RX_BE_PADDING0_BYTES) ?
+			    RX_BE_PADDING0_BYTES : len;
+
+	qdf_mem_copy(priv_data,
+		     &(HAL_RX_MSDU_END(pkt_tlvs).ppdu_start_timestamp_63_32),
+		     copy_len);
+}
+
+/*
+ * @ hal_rx_print_pn_be: Prints the PN of rx packet.
+ *
+ * @ buf: rx_tlv_hdr of the received packet
+ * @ Return: void
+ */
+static inline void hal_rx_print_pn_be(uint8_t *buf)
 {
 	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
 
-	return !!HAL_RX_TLV_AMPDU_FLAG_GET(rx_pkt_tlvs);
+	uint32_t pn_31_0 = HAL_RX_TLV_MPDU_PN_31_0_GET(rx_pkt_tlvs);
+	uint32_t pn_63_32 = HAL_RX_TLV_MPDU_PN_63_32_GET(rx_pkt_tlvs);
+	uint32_t pn_95_64 = HAL_RX_TLV_MPDU_PN_95_64_GET(rx_pkt_tlvs);
+
+	hal_debug("PN number pn_95_64 0x%x pn_63_32 0x%x pn_31_0 0x%x ",
+		  pn_95_64, pn_63_32, pn_31_0);
 }
+
+static inline void hal_rx_tlv_get_pn_num_be(uint8_t *buf, uint64_t *pn_num)
+{
+	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
+
+	pn_num[0] = HAL_RX_TLV_MPDU_PN_31_0_GET(pkt_tlvs);
+	pn_num[0] |= ((uint64_t)HAL_RX_TLV_MPDU_PN_63_32_GET(pkt_tlvs) << 32);
+
+	pn_num[1] = HAL_RX_TLV_MPDU_PN_95_64_GET(pkt_tlvs);
+}
+#endif
 
 /**
  * hal_rx_tlv_msdu_len_get(): API to get the MSDU length
@@ -631,7 +1271,7 @@ static inline uint32_t hal_rx_tlv_toeplitz_get_be(uint8_t *buf)
 }
 
 /**
- * hal_rx_tlv_msdu_sgi_get(): API to get the Short Gaurd
+ * hal_rx_tlv_msdu_sgi_get(): API to get the Short Guard
  * Interval from rx_msdu_start TLV
  *
  * @buf: pointer to the start of RX PKT TLV headers
@@ -780,27 +1420,11 @@ static inline uint32_t hal_rx_tlv_mic_err_get_be(uint8_t *buf)
  * entrance ring desc
  *
  * @desc: reo entrance ring descriptor
- * Return: qdesc adrress
+ * Return: qdesc address
  */
 static inline uint8_t *hal_get_reo_ent_desc_qdesc_addr_be(uint8_t *desc)
 {
 	return desc + REO_ENTRANCE_RING_RX_REO_QUEUE_DESC_ADDR_31_0_OFFSET;
-}
-
-/**
- * hal_rx_get_qdesc_addr_be(): API to get qdesc address of reo
- * entrance ring desc
- *
- * @dst_ring_desc: reo dest ring descriptor (used for Lithium DP)
- * @buf: pointer to the start of RX PKT TLV headers
- * Return: qdesc adrress in reo destination ring buffer
- */
-static inline uint64_t hal_rx_get_qdesc_addr_be(uint8_t *dst_ring_desc,
-						uint8_t *buf)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-
-	return (uint64_t)HAL_RX_REO_QUEUE_DESC_ADDR_31_0_GET(rx_pkt_tlvs);
 }
 
 /**
@@ -1103,36 +1727,6 @@ static inline uint32_t hal_rx_encryption_info_valid_be(uint8_t *buf)
 	return encryption_info;
 }
 
-/*
- * @ hal_rx_print_pn_be: Prints the PN of rx packet.
- *
- * @ buf: rx_tlv_hdr of the received packet
- * @ Return: void
- */
-static inline void hal_rx_print_pn_be(uint8_t *buf)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-
-	uint32_t pn_31_0 = HAL_RX_TLV_MPDU_PN_31_0_GET(rx_pkt_tlvs);
-	uint32_t pn_63_32 = HAL_RX_TLV_MPDU_PN_63_32_GET(rx_pkt_tlvs);
-	uint32_t pn_95_64 = HAL_RX_TLV_MPDU_PN_95_64_GET(rx_pkt_tlvs);
-	uint32_t pn_127_96 = HAL_RX_TLV_MPDU_PN_127_96_GET(rx_pkt_tlvs);
-
-	hal_debug_rl("PN number pn_127_96 0x%x pn_95_64 0x%x pn_63_32 0x%x pn_31_0 0x%x ",
-		     pn_127_96, pn_95_64, pn_63_32, pn_31_0);
-}
-
-static inline void hal_rx_tlv_get_pn_num_be(uint8_t *buf, uint64_t *pn_num)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-
-	pn_num[0] = HAL_RX_TLV_MPDU_PN_31_0_GET(rx_pkt_tlvs);
-	pn_num[0] |= ((uint64_t)HAL_RX_TLV_MPDU_PN_63_32_GET(rx_pkt_tlvs) << 32);
-
-	pn_num[1] = HAL_RX_TLV_MPDU_PN_95_64_GET(rx_pkt_tlvs);
-	pn_num[1] |= ((uint64_t)HAL_RX_TLV_MPDU_PN_127_96_GET(rx_pkt_tlvs) << 32);
-}
-
 /**
  * hal_rx_tlv_first_msdu_get_be: API to get first msdu status
  * from rx_msdu_end TLV
@@ -1256,35 +1850,6 @@ static inline uint8_t hal_rx_get_mpdu_frame_control_valid_be(uint8_t *buf)
 }
 
 /*
- * hal_rx_mpdu_get_addr1_be(): API to check get address1 of the mpdu
- *
- * @buf: pointer to the start of RX PKT TLV headera
- * @mac_addr: pointer to mac address
- * Return: success/failure
- */
-static inline QDF_STATUS hal_rx_mpdu_get_addr1_be(uint8_t *buf,
-						  uint8_t *mac_addr)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-	struct __attribute__((__packed__)) hal_addr1 {
-		uint32_t ad1_31_0;
-		uint16_t ad1_47_32;
-	};
-	struct hal_addr1 *addr = (struct hal_addr1 *)mac_addr;
-	uint32_t mac_addr_ad1_valid;
-
-	mac_addr_ad1_valid = HAL_RX_TLV_MPDU_MAC_ADDR_AD1_VALID_GET(rx_pkt_tlvs);
-
-	if (mac_addr_ad1_valid) {
-		addr->ad1_31_0 = HAL_RX_TLV_MPDU_AD1_31_0_GET(rx_pkt_tlvs);
-		addr->ad1_47_32 = HAL_RX_TLV_MPDU_AD1_47_32_GET(rx_pkt_tlvs);
-		return QDF_STATUS_SUCCESS;
-	}
-
-	return QDF_STATUS_E_FAILURE;
-}
-
-/*
  * hal_rx_mpdu_get_addr2_be(): API to check get address2 of the mpdu
  * in the packet
  *
@@ -1345,36 +1910,6 @@ static inline QDF_STATUS hal_rx_mpdu_get_addr3_be(uint8_t *buf,
 }
 
 /*
- * hal_rx_mpdu_get_addr4_be(): API to get address4 of the mpdu
- * in the packet
- *
- * @buf: pointer to the start of RX PKT TLV header
- * @mac_addr: pointer to mac address
- * Return: success/failure
- */
-static inline QDF_STATUS hal_rx_mpdu_get_addr4_be(uint8_t *buf,
-						  uint8_t *mac_addr)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-	struct __attribute__((__packed__)) hal_addr4 {
-		uint32_t ad4_31_0;
-		uint16_t ad4_47_32;
-	};
-	struct hal_addr4 *addr = (struct hal_addr4 *)mac_addr;
-	uint32_t mac_addr_ad4_valid;
-
-	mac_addr_ad4_valid = HAL_RX_TLV_MPDU_MAC_ADDR_AD4_VALID_GET(rx_pkt_tlvs);
-
-	if (mac_addr_ad4_valid) {
-		addr->ad4_31_0 = HAL_RX_TLV_MPDU_AD4_31_0_GET(rx_pkt_tlvs);
-		addr->ad4_47_32 = HAL_RX_TLV_MPDU_AD4_47_32_GET(rx_pkt_tlvs);
-		return QDF_STATUS_SUCCESS;
-	}
-
-	return QDF_STATUS_E_FAILURE;
-}
-
-/*
  * hal_rx_get_mpdu_sequence_control_valid_be(): Get mpdu
  * sequence control valid
  *
@@ -1428,53 +1963,6 @@ static inline uint8_t hal_rx_get_mac_addr2_valid_be(uint8_t *buf)
 	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
 
 	return HAL_RX_TLV_MPDU_MAC_ADDR_AD2_VALID_GET(rx_pkt_tlvs);
-}
-
-/**
- * hal_rx_is_unicast_be: check packet is unicast frame or not.
- *
- * @ buf: pointer to rx pkt TLV.
- * Return: true on unicast.
- */
-static inline bool hal_rx_is_unicast_be(uint8_t *buf)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-	uint32_t grp_id;
-
-	grp_id = HAL_RX_TLV_SW_FRAME_GROUP_ID_GET(rx_pkt_tlvs);
-
-	return (HAL_MPDU_SW_FRAME_GROUP_UNICAST_DATA == grp_id) ? true : false;
-}
-
-static inline uint8_t hal_rx_get_filter_category_be(uint8_t *buf)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-
-	return HAL_RX_GET_FILTER_CATEGORY(rx_pkt_tlvs);
-}
-
-/**
- * hal_rx_hw_desc_get_ppduid_get_be(): retrieve ppdu id
- * @rx_tlv_hdr: start address of rx_pkt_tlvs
- * @rxdma_dst_ring_desc: Rx HW descriptor
- *
- * Return: ppdu id
- */
-static inline uint32_t
-hal_rx_hw_desc_get_ppduid_get_be(void *rx_tlv_hdr, void *rxdma_dst_ring_desc)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs =
-					(struct rx_pkt_tlvs *)rx_tlv_hdr;
-
-	return HAL_RX_TLV_PHY_PPDU_ID_GET(rx_pkt_tlvs);
-}
-
-static inline uint32_t
-hal_rx_get_ppdu_id_be(uint8_t *buf)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-
-	return HAL_RX_GET_PPDU_ID(rx_pkt_tlvs);
 }
 
 /**
@@ -1724,7 +2212,7 @@ bool hal_rx_get_fisa_timeout_be(uint8_t *buf)
  *
  *@rx_tlv_hdr: start address of rx_pkt_tlvs
  *
- * Return: true if RX_MPDU_START is valied, else false.
+ * Return: true if RX_MPDU_START is valid, else false.
  */
 static inline uint8_t hal_rx_mpdu_start_tlv_tag_valid_be(void *rx_tlv_hdr)
 {
@@ -1764,6 +2252,31 @@ static inline uint32_t hal_rx_mpdu_start_offset_get_generic(void)
 static inline  uint32_t hal_rx_pkt_tlv_offset_get_generic(void)
 {
 	return RX_PKT_TLV_OFFSET(pkt_hdr_tlv);
+}
+#endif
+
+#ifdef CONFIG_WORD_BASED_TLV
+#define MPDU_START_WMASK 0x074C
+#define MSDU_END_WMASK 0x13FC1
+
+/**
+ * hal_rx_mpdu_start_wmask_get_be(): API to get the mpdu_start_tlv word mask
+ *
+ * return: Word mask for MPDU start tlv
+ */
+static inline uint32_t hal_rx_mpdu_start_wmask_get_be(void)
+{
+	return MPDU_START_WMASK;
+}
+
+/**
+ * hal_rx_msdu_end_wmask_get_be(): API to get the msdu_end_tlv word mask
+ *
+ * return: Word mask for MSDU end tlv
+ */
+static inline uint32_t hal_rx_msdu_end_wmask_get_be(void)
+{
+	return MSDU_END_WMASK;
 }
 #endif
 
@@ -1898,44 +2411,6 @@ static inline uint8_t *hal_rx_pkt_hdr_get_be(uint8_t *buf)
 #endif
 
 /**
- * hal_rx_priv_info_set_in_tlv_be(): Save the private info to
- *				the reserved bytes of rx_tlv_hdr
- * @buf: start of rx_tlv_hdr
- * @priv_data: hal_wbm_err_desc_info structure
- * @len: length of the private data
- * Return: void
- */
-static inline void hal_rx_priv_info_set_in_tlv_be(uint8_t *buf,
-						  uint8_t *priv_data,
-						  uint32_t len)
-{
-	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-	uint32_t copy_len = (len > RX_BE_PADDING0_BYTES) ?
-			    RX_BE_PADDING0_BYTES : len;
-
-	qdf_mem_copy(pkt_tlvs->rx_padding0, priv_data, copy_len);
-}
-
-/**
- * hal_rx_priv_info_get_from_tlv_be(): retrieve the private data from
- *				the reserved bytes of rx_tlv_hdr.
- * @buf: start of rx_tlv_hdr
- * @priv_data: Handle to get the private data, output parameter.
- * @len: length of the private data
- * Return: void
- */
-static inline void hal_rx_priv_info_get_from_tlv_be(uint8_t *buf,
-						    uint8_t *priv_data,
-						    uint32_t len)
-{
-	struct rx_pkt_tlvs *pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-	uint32_t copy_len = (len > RX_BE_PADDING0_BYTES) ?
-			    RX_BE_PADDING0_BYTES : len;
-
-	qdf_mem_copy(priv_data, pkt_tlvs->rx_padding0, copy_len);
-}
-
-/**
  * hal_rx_tlv_csum_err_get_be() - Get IP and tcp-udp checksum fail flag
  * @rx_tlv_hdr: start address of rx_tlv_hdr
  * @ip_csum_err: buffer to return ip_csum_fail flag
@@ -2050,19 +2525,5 @@ hal_rx_msdu_end_sa_sw_peer_id_get_be(uint8_t *buf)
 	hal_rx_msdu_end_t *msdu_end = &pkt_tlvs->msdu_end_tlv.rx_msdu_end;
 
 	return HAL_RX_MSDU_END_SA_SW_PEER_ID_GET(msdu_end);
-}
-
-/**
- * hal_rx_tlv_l3_type_get_be(): API to get the l3 type
- * from rx_msdu_start TLV
- *
- * @buf: pointer to the start of RX PKT TLV headers
- * Return: uint32_t(l3 type)
- */
-static inline uint32_t hal_rx_tlv_l3_type_get_be(uint8_t *buf)
-{
-	struct rx_pkt_tlvs *rx_pkt_tlvs = (struct rx_pkt_tlvs *)buf;
-
-	return HAL_RX_TLV_L3_TYPE_GET(rx_pkt_tlvs);
 }
 #endif /* _HAL_BE_RX_TLV_H_ */

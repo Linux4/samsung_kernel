@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -104,6 +104,8 @@ void dp_mon_filter_show_filter(struct dp_mon_pdev *mon_pdev,
 	DP_MON_FILTER_PRINT("phy_err_mask_cont: 0x%x",
 			    tlv_filter->phy_err_mask_cont);
 #endif
+	DP_MON_FILTER_PRINT("mon_mac_filter: %d",
+			    tlv_filter->enable_mon_mac_filter);
 }
 
 #ifdef QCA_UNDECODED_METADATA_SUPPORT
@@ -137,7 +139,7 @@ dp_mon_set_fp_phy_err_filter(struct htt_rx_ring_tlv_filter *tlv_filter,
  * dp_mon_filter_h2t_setup() - Setup the filter for the Target setup
  * @soc: DP soc handle
  * @pdev: DP pdev handle
- * @srng_type: The srng type for which filter wll be set
+ * @srng_type: The srng type for which filter will be set
  * @tlv_filter: tlv filter
  */
 void dp_mon_filter_h2t_setup(struct dp_soc *soc, struct dp_pdev *pdev,
@@ -260,6 +262,8 @@ void dp_mon_filter_h2t_setup(struct dp_soc *soc, struct dp_pdev *pdev,
 		DP_MON_FILTER_SET(tlv_filter, FILTER_MD_CTRL, dst_filter);
 
 		dp_mon_set_fp_phy_err_filter(tlv_filter, mon_filter);
+		tlv_filter->enable_mon_mac_filter =
+				mon_filter->tlv_filter.enable_mon_mac_filter;
 	}
 
 	dp_mon_filter_show_filter(mon_pdev, 0, filter);
@@ -433,6 +437,15 @@ void dp_mon_filter_reset_smart_monitor(struct dp_pdev *pdev)
 		mon_ops->mon_filter_reset_smart_monitor(pdev);
 }
 #endif /* ATH_SUPPORT_NAC_RSSI || ATH_SUPPORT_NAC */
+
+void dp_mon_filter_set_reset_mon_mac_filter(struct dp_pdev *pdev, bool val)
+{
+	struct dp_mon_ops *mon_ops = NULL;
+
+	mon_ops = dp_mon_ops_get(pdev->soc);
+	if (mon_ops && mon_ops->mon_filter_set_reset_mon_mac_filter)
+		mon_ops->mon_filter_set_reset_mon_mac_filter(pdev, val);
+}
 
 #ifdef WLAN_RX_PKT_CAPTURE_ENH
 void dp_mon_filter_setup_rx_enh_capture(struct dp_pdev *pdev)
@@ -610,14 +623,41 @@ dp_mon_filter_reset_mon_srng(struct dp_soc *soc, struct dp_pdev *pdev,
 
 	if (dp_mon_ht2_rx_ring_cfg(soc, pdev, mon_srng_type,
 				   &tlv_filter) != QDF_STATUS_SUCCESS) {
-		dp_mon_filter_err("%pK: Monitor destinatin ring filter setting failed",
+		dp_mon_filter_err("%pK: Monitor destination ring filter setting failed",
 				  soc);
 	}
 }
 
-void dp_mon_filter_set_mon_cmn(struct dp_mon_pdev *mon_pdev,
+/**
+ * dp_mon_filter_adjust() - adjust the mon filters per target basis
+ * @pdev: DP pdev handle
+ * @filter: DP mon filter
+ *
+ * Return: None
+ */
+static inline
+void dp_mon_filter_adjust(struct dp_pdev *pdev, struct dp_mon_filter *filter)
+{
+	struct dp_soc *soc = pdev->soc;
+
+	switch (hal_get_target_type(soc->hal_soc)) {
+	case TARGET_TYPE_KIWI:
+	case TARGET_TYPE_MANGO:
+		filter->tlv_filter.msdu_start = 0;
+		filter->tlv_filter.mpdu_end = 0;
+		filter->tlv_filter.packet_header = 0;
+		filter->tlv_filter.attention = 0;
+		break;
+	default:
+		break;
+	}
+}
+
+void dp_mon_filter_set_mon_cmn(struct dp_pdev *pdev,
 			       struct dp_mon_filter *filter)
 {
+	struct dp_mon_pdev *mon_pdev = pdev->monitor_pdev;
+
 	filter->tlv_filter.mpdu_start = 1;
 	filter->tlv_filter.msdu_start = 1;
 	filter->tlv_filter.packet = 1;
@@ -643,6 +683,7 @@ void dp_mon_filter_set_mon_cmn(struct dp_mon_pdev *mon_pdev,
 	filter->tlv_filter.mo_ctrl_filter = mon_pdev->mo_ctrl_filter;
 	filter->tlv_filter.mo_data_filter = mon_pdev->mo_data_filter;
 	filter->tlv_filter.offset_valid = false;
+	dp_mon_filter_adjust(pdev, filter);
 }
 
 void dp_mon_filter_set_status_cmn(struct dp_mon_pdev *mon_pdev,
@@ -741,7 +782,7 @@ void dp_mon_filter_dealloc(struct dp_mon_pdev *mon_pdev)
 	 * Check if the monitor filters are already allocated to the mon_pdev.
 	 */
 	if (!mon_filter) {
-		dp_mon_filter_err("Found NULL memmory for the Monitor filter");
+		dp_mon_filter_err("Found NULL memory for the Monitor filter");
 		return;
 	}
 

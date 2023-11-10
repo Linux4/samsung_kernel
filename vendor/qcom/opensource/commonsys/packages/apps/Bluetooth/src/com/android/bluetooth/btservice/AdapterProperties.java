@@ -12,6 +12,11 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  */
 
 package com.android.bluetooth.btservice;
@@ -160,6 +165,7 @@ class AdapterProperties {
     private boolean mBroadcastAudioTxwithEC_3_9;
     private boolean mBroadcastAudioRxwithEC_2_5;
     private boolean mBroadcastAudioRxwithEC_3_9;
+    private boolean mISOCIGParameterCalculator;
     private boolean mAddonFeaturesSupported;
     private boolean mHostAdvAudioUnicastFeatureSupported;
     private boolean mHostAdvAudioBCAFeatureSupported;
@@ -317,13 +323,22 @@ class AdapterProperties {
     private static void invalidateIsOffloadedFilteringSupportedCache() {
         BluetoothAdapter.invalidateIsOffloadedFilteringSupportedCache();
     }
+    private static void invalidateBluetoothGetConnectionStateCache() {
+        BluetoothMap.invalidateBluetoothGetConnectionStateCache();
+        BluetoothSap.invalidateBluetoothGetConnectionStateCache();
+    }
+    private static void invalidateGetConnectionStateCache() {
+        BluetoothAdapter.invalidateGetAdapterConnectionStateCache();
+    }
     private static void invalidateGetBondStateCache() {
         BluetoothDevice.invalidateBluetoothGetBondStateCache();
     }
     private static void invalidateBluetoothCaches() {
         invalidateGetProfileConnectionStateCache();
         invalidateIsOffloadedFilteringSupportedCache();
+        invalidateGetConnectionStateCache();
         invalidateGetBondStateCache();
+        invalidateBluetoothGetConnectionStateCache();
     }
 
     @Override
@@ -465,6 +480,7 @@ class AdapterProperties {
      */
     void setConnectionState(int connectionState) {
         mConnectionState = connectionState;
+        invalidateGetConnectionStateCache();
     }
 
     /**
@@ -807,6 +823,13 @@ class AdapterProperties {
      */
     boolean isBroadcastAudioRxwithEC_3_9() {
         return mBroadcastAudioRxwithEC_3_9;
+    }
+
+    /**
+     * @return ISO CIG Parameter Calculator status
+     */
+    boolean isISOCIGParameterCalculator() {
+        return mISOCIGParameterCalculator;
     }
 
     /**
@@ -1413,7 +1436,7 @@ class AdapterProperties {
             mBroadcastAudioTxwithEC_3_9 = ((0x02 & ((int) val[4])) != 0);
             mBroadcastAudioRxwithEC_2_5 = ((0x04 & ((int) val[4])) != 0);
             mBroadcastAudioRxwithEC_3_9 = ((0x08 & ((int) val[4])) != 0);
-
+            mISOCIGParameterCalculator = ((0x10 & ((int) val[4])) != 0);
 
             Log.d(TAG, "BT_PROPERTY_ADD_ON_FEATURES: update from BT controller"
                     + "\n mWiPowerFastbootEnabled = "
@@ -1445,7 +1468,8 @@ class AdapterProperties {
                     + mBroadcastAudioTxwithEC_2_5 + "\n mBroadcastAudioTxwithEC_3_9 = "
                     + mBroadcastAudioTxwithEC_3_9 + "\n mBroadcastAudioRxwithEC_2_5 = "
                     + mBroadcastAudioRxwithEC_2_5 + "\n mBroadcastAudioRxwithEC_3_9= "
-                    + mBroadcastAudioRxwithEC_3_9);
+                    + mBroadcastAudioRxwithEC_3_9 + "\n mISOCIGParameterCalculator= "
+                    + mISOCIGParameterCalculator);
          }
     }
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,8 +41,8 @@
 int hdd_sysfs_mem_stats_create(struct kobject *wlan_kobject);
 
 /**
- * hdd_sysfs_mem_stats_destroy() - API to destroy
- * wlan_mem_stats
+ * hdd_sysfs_mem_stats_destroy() - API to destroy wlan_mem_stats
+ * @wlan_kobject: sysfs wlan kobject
  *
  * Return: none
  */

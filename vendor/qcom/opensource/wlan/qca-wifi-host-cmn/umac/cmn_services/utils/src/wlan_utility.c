@@ -28,6 +28,7 @@
 #include <wlan_vdev_mlme_api.h>
 #include "cfg_ucfg_api.h"
 #include <wlan_serialization_api.h>
+#include "wlan_cm_api.h"
 
 /* CRC polynomial 0xedb88320 */
 static unsigned long const wlan_shortssid_table[] = {
@@ -549,7 +550,7 @@ wlan_create_elemsubelem_fragseq(bool inline_frag,
 	 /* used for inline copy, the extra bytes needed in the payload buffer
 	  * due to difference in destination and source.
 	  * Note that the caller should ensure there is enough bytes beyond
-	  * valid data untill payloadbuff_maxsize*/
+	  * valid data until payloadbuff_maxsize*/
 	qdf_size_t payloadbuff_shiftsize;
 
 	/* Miscellaneous variables */
@@ -1790,11 +1791,14 @@ static void wlan_get_connected_vdev_handler(struct wlan_objmgr_psoc *psoc,
 
 	if (context->connected)
 		return;
+
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);
 	if (op_mode != QDF_STA_MODE && op_mode != QDF_P2P_CLIENT_MODE)
 		return;
-	if (wlan_vdev_is_up(vdev) != QDF_STATUS_SUCCESS)
+
+	if (wlan_cm_is_vdev_disconnected(vdev))
 		return;
+
 	if (wlan_vdev_get_bss_peer_mac(vdev, &bss_peer_mac) !=
 	    QDF_STATUS_SUCCESS)
 		return;

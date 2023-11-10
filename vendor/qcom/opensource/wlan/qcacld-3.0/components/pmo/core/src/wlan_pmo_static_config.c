@@ -382,7 +382,7 @@ set_action_id_drop_pattern_for_block_ack(uint32_t *action_category_map)
 
 /**
  * set_action_id_drop_pattern_for_spec_mgmt() - Set action id of action
- * frames for spectrum mgmt frames to be droppped in fw.
+ * frames for spectrum mgmt frames to be dropped in fw.
  *
  * @action_id_per_category: Pointer to action id bitmaps.
  */
@@ -395,7 +395,7 @@ static void set_action_id_drop_pattern_for_spec_mgmt(
 
 /**
  * set_action_id_drop_pattern_for_public_action() - Set action id of action
- * frames for public action frames to be droppped in fw.
+ * frames for public action frames to be dropped in fw.
  *
  * @action_id_per_category: Pointer to action id bitmaps.
  */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -220,37 +220,28 @@ static void hif_print_napi_latency_stats(struct HIF_CE_state *hif_state)
 
 	cur_tstamp = qdf_ktime_to_ms(qdf_ktime_get());
 
-	QDF_TRACE(QDF_MODULE_ID_HIF, QDF_TRACE_LEVEL_FATAL,
+	QDF_TRACE(QDF_MODULE_ID_HIF, QDF_TRACE_LEVEL_INFO_HIGH,
 		  "Current timestamp: %lld", cur_tstamp);
 
 	for (i = 0; i < hif_state->hif_num_extgroup; i++) {
 		if (hif_state->hif_ext_group[i]) {
 			hif_ext_group = hif_state->hif_ext_group[i];
 
-			QDF_TRACE(QDF_MODULE_ID_HIF, QDF_TRACE_LEVEL_FATAL,
-				  "Interrupts in the HIF Group");
+			QDF_TRACE(QDF_MODULE_ID_HIF, QDF_TRACE_LEVEL_INFO_HIGH,
+				  "ext grp %d Last serviced timestamp: %lld",
+				  i, hif_ext_group->tstamp);
 
-			for (j = 0; j < hif_ext_group->numirq; j++) {
-				QDF_TRACE(QDF_MODULE_ID_HIF,
-					  QDF_TRACE_LEVEL_FATAL,
-					  "  %s",
-					  hif_ext_group->irq_name
-					  (hif_ext_group->irq[j]));
-			}
-
-			QDF_TRACE(QDF_MODULE_ID_HIF, QDF_TRACE_LEVEL_FATAL,
-				  "Last serviced timestamp: %lld",
-				  hif_ext_group->tstamp);
-
-			QDF_TRACE(QDF_MODULE_ID_HIF, QDF_TRACE_LEVEL_FATAL,
+			QDF_TRACE(QDF_MODULE_ID_HIF, QDF_TRACE_LEVEL_INFO_HIGH,
 				  "Latency Bucket     | Time elapsed");
 
 			for (j = 0; j < HIF_SCHED_LATENCY_BUCKETS; j++) {
-				QDF_TRACE(QDF_MODULE_ID_HIF,
-					  QDF_TRACE_LEVEL_FATAL,
-					  "%s     |    %lld", time_str[j],
-					  hif_ext_group->
-					  sched_latency_stats[j]);
+				if (hif_ext_group->sched_latency_stats[j])
+					QDF_TRACE(QDF_MODULE_ID_HIF,
+						  QDF_TRACE_LEVEL_INFO_HIGH,
+						  "%s     |    %lld",
+						  time_str[j],
+						  hif_ext_group->
+						  sched_latency_stats[j]);
 			}
 		}
 	}
@@ -612,6 +603,32 @@ hif_is_force_napi_complete_required(struct hif_exec_context *hif_ext_group)
 #endif
 
 /**
+ * hif_irq_disabled_time_limit_reached() - determine if irq disabled limit
+ * reached for single MSI
+ * @hif_ext_group: hif exec context
+ *
+ * Return: true if reached, else false.
+ */
+static bool
+hif_irq_disabled_time_limit_reached(struct hif_exec_context *hif_ext_group)
+{
+	unsigned long long irq_disabled_duration_ns;
+
+	if (hif_ext_group->type != HIF_EXEC_NAPI_TYPE)
+		return false;
+
+	irq_disabled_duration_ns = qdf_time_sched_clock() -
+					hif_ext_group->irq_disabled_start_time;
+	if (irq_disabled_duration_ns >= IRQ_DISABLED_MAX_DURATION_NS) {
+		hif_record_event(hif_ext_group->hif, hif_ext_group->grp_id,
+				 0, 0, 0, HIF_EVENT_IRQ_DISABLE_EXPIRED);
+		return true;
+	}
+
+	return false;
+}
+
+/**
  * hif_exec_poll() - napi poll
  * napi: napi struct
  * budget: budget for napi
@@ -629,6 +646,7 @@ static int hif_exec_poll(struct napi_struct *napi, int budget)
 	int actual_dones;
 	int shift = hif_ext_group->scale_bin_shift;
 	int cpu = smp_processor_id();
+	bool force_complete = false;
 
 	hif_record_event(hif_ext_group->hif, hif_ext_group->grp_id,
 			 0, 0, 0, HIF_EVENT_BH_SCHED);
@@ -646,8 +664,16 @@ static int hif_exec_poll(struct napi_struct *napi, int budget)
 
 	actual_dones = work_done;
 
-	if (hif_is_force_napi_complete_required(hif_ext_group) ||
-	    (!hif_ext_group->force_break && work_done < normalized_budget)) {
+	if (hif_is_force_napi_complete_required(hif_ext_group)) {
+		force_complete = true;
+		if (work_done >= normalized_budget)
+			work_done = normalized_budget - 1;
+	}
+
+	if (qdf_unlikely(force_complete) ||
+	    (!hif_ext_group->force_break && work_done < normalized_budget) ||
+	    ((pld_is_one_msi(scn->qdf_dev->dev) &&
+	    hif_irq_disabled_time_limit_reached(hif_ext_group)))) {
 		hif_record_event(hif_ext_group->hif, hif_ext_group->grp_id,
 				 0, 0, 0, HIF_EVENT_BH_COMPLETE);
 		napi_complete(napi);
@@ -696,7 +722,7 @@ static void hif_exec_napi_kill(struct hif_exec_context *ctx)
 	int irq_ind;
 
 	if (ctx->inited) {
-		napi_disable(&n_ctx->napi);
+		qdf_napi_disable(&n_ctx->napi);
 		ctx->inited = 0;
 	}
 
@@ -704,7 +730,7 @@ static void hif_exec_napi_kill(struct hif_exec_context *ctx)
 		hif_irq_affinity_remove(ctx->os_irq[irq_ind]);
 
 	hif_core_ctl_set_boost(false);
-	netif_napi_del(&(n_ctx->napi));
+	qdf_netif_napi_del(&(n_ctx->napi));
 }
 
 struct hif_execution_ops napi_sched_ops = {
@@ -729,9 +755,9 @@ static struct hif_exec_context *hif_exec_napi_create(uint32_t scale)
 	ctx->exec_ctx.inited = true;
 	ctx->exec_ctx.scale_bin_shift = scale;
 	qdf_net_if_create_dummy_if((struct qdf_net_if *)&ctx->netdev);
-	netif_napi_add(&(ctx->netdev), &(ctx->napi), hif_exec_poll,
-		       QCA_NAPI_BUDGET);
-	napi_enable(&ctx->napi);
+	qdf_netif_napi_add(&(ctx->netdev), &(ctx->napi), hif_exec_poll,
+			   QCA_NAPI_BUDGET);
+	qdf_napi_enable(&ctx->napi);
 
 	return &ctx->exec_ctx;
 }
@@ -927,7 +953,7 @@ hif_check_and_trigger_sys_resume(struct hif_softc *scn, int irq)
  * @irq: irq number of the interrupt
  * @context: the associated hif_exec_group context
  *
- * This callback function takes care of dissabling the associated interrupts
+ * This callback function takes care of disabling the associated interrupts
  * and scheduling the expected bottom half for the exec_context.
  * This callback function also helps keep track of the count running contexts.
  */
@@ -943,6 +969,10 @@ irqreturn_t hif_ext_group_interrupt_handler(int irq, void *context)
 				 0, 0, 0, HIF_EVENT_IRQ_TRIGGER);
 
 		hif_ext_group->irq_disable(hif_ext_group);
+
+		if (pld_is_one_msi(scn->qdf_dev->dev))
+			hif_ext_group->irq_disabled_start_time =
+							qdf_time_sched_clock();
 		/*
 		 * if private ioctl has issued fake suspend command to put
 		 * FW in D0-WOW state then here is our chance to bring FW out

@@ -600,6 +600,12 @@ int device_close(struct device_obj *dev_obj)
             AGM_LOGE("PCM device %u close failed, ret = %d\n",
                      obj->pcm_id, ret);
         }
+// { SEC_AUDIO_ADD_FOR_DEBUG
+        else {
+            AGM_LOGI("PCM device %u closed\n", obj->pcm_id);
+        }
+// } SEC_AUDIO_ADD_FOR_DEBUG
+
         obj->state = DEV_CLOSED;
         obj->refcnt.prepare = 0;
         obj->refcnt.start = 0;
@@ -744,6 +750,10 @@ int device_set_metadata(struct device_obj *dev_obj, uint32_t size,
    pthread_mutex_lock(&dev_obj->lock);
    metadata_free(&dev_obj->metadata);
    ret = metadata_copy(&(dev_obj->metadata), size, metadata);
+#ifdef AGM_DEBUG_METADATA
+   AGM_LOGI("Setting device metadata for %s\n", dev_obj->name);
+   metadata_print(&(dev_obj->metadata));
+#endif
    pthread_mutex_unlock(&dev_obj->lock);
 
    return ret;

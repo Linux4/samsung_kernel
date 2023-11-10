@@ -729,7 +729,7 @@ void ol_target_failure(void *instance, QDF_STATUS status)
 	enum hif_target_status target_status = hif_get_target_status(scn);
 
 	if (hif_get_bus_type(scn) == QDF_BUS_TYPE_SNOC) {
-		BMI_ERR("SNOC doesn't suppor this code path!");
+		BMI_ERR("SNOC doesn't support this code path!");
 		return;
 	}
 

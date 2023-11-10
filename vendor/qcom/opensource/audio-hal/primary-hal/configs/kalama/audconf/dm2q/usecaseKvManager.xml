@@ -793,6 +793,14 @@
                 <!-- BT_FORMAT - LC3 -->
                 <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_RVP">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - SCO -->
+                <graph_kv key="0xB4000000" value="0xB4000001"/>
+                <!-- BT_FORMAT - SS_RVP -->
+                <graph_kv key="0xB5000000" value="0x0B500003"/>
+            </keys_and_values>
         </device>
         <!-- BT SCO In Headset Device -->
         <device id="PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET">
@@ -817,6 +825,14 @@
                 <graph_kv key="0xB4000000" value="0xB4000001"/>
                 <!-- BT_FORMAT - LC3 -->
                 <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_RVP">
+                <!-- DEVICERX - BT_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- BT_PROFILE - SCO -->
+                <graph_kv key="0xB4000000" value="0xB4000001"/>
+                <!-- BT_FORMAT - SS_RVP -->
+                <graph_kv key="0xB5000000" value="0x0B500003"/>
             </keys_and_values>
         </device>
         <!-- Echo Ref Device -->
@@ -1152,6 +1168,12 @@
                 <graph_kv key="0xA2000000" value="0xA2000006"/>
                 <!-- DEVICEPP_RX - DEVICEPP_RX_DEFAULT -->
                 <graph_kv key="0xAC000000" value="0xAC000001"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOIP_RX">
+                <!-- DEVICERX - HDMI_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000006"/>
+                <!-- DEVICEPP_RX - DEVICEPP_RX_VOIP_DIAMONDVOICE -->
+                <graph_kv key="0xAC000000" value="0x0AC00021"/>
             </keys_and_values>
         </devicepp>
         <!-- OUT USB device and USB Headset DevicePPs -->
@@ -1543,6 +1565,12 @@
                 <graph_kv key="0xA3000000" value="0xA3000001"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_ECNS_TV -->
                 <graph_kv key="0xAD000000" value="0x0AD00047"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOIP_TX" CustomConfig="voip_smonitor">
+                <!-- DEVICETX - SPEAKER_MIC -->
+                <graph_kv key="0xA3000000" value="0xA3000001"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_ECNS_SMONITOR -->
+                <graph_kv key="0xAD000000" value="0x0AD0004C"/>
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_VOIP_TX" CustomConfig="wifi_call">
                 <!-- DEVICETX - SPEAKER_MIC -->

@@ -58,11 +58,11 @@ QDF_STATUS pmo_core_del_wow_pattern(struct wlan_objmgr_vdev *vdev)
 
 	vdev_ctx = pmo_vdev_get_priv(vdev);
 	pattern_count = pmo_get_wow_default_ptrn(vdev_ctx);
-	/* clear all default patterns cofigured by pmo */
+	/* clear all default patterns configured by pmo */
 	for (id = 0; id < pattern_count; id++)
 		status = pmo_tgt_del_wow_pattern(vdev, id, false);
 
-	/* clear all user patterns cofigured by pmo */
+	/* clear all user patterns configured by pmo */
 	pattern_count = pmo_get_wow_user_ptrn(vdev_ctx);
 	for (id = 0; id < pattern_count; id++)
 		status = pmo_tgt_del_wow_pattern(vdev, id, true);
@@ -87,7 +87,7 @@ QDF_STATUS pmo_core_add_wow_user_pattern(struct wlan_objmgr_vdev *vdev,
 
 	vdev_ctx = pmo_vdev_get_priv(vdev);
 
-	/* clear all default patterns cofigured by pmo */
+	/* clear all default patterns configured by pmo */
 	for (id = 0; id < pmo_get_wow_default_ptrn(vdev_ctx); id++)
 		pmo_tgt_del_wow_pattern(vdev, id, false);
 
@@ -401,7 +401,7 @@ void pmo_set_sta_wow_bitmask(uint32_t *bitmask, uint32_t wow_bitmap_size)
 				 bitmask);
 	/*
 	 * WPA3 roaming offloads SAE authentication to wpa_supplicant
-	 * Firmware will send WMI_ROAM_PREAUTH_STATUS_CMDID
+	 * Firmware will send WMI_ROAM_PREAUTH_START_EVENTID
 	 */
 	pmo_set_wow_event_bitmap(WOW_ROAM_PREAUTH_START_EVENT,
 				 wow_bitmap_size,
@@ -461,6 +461,8 @@ void pmo_set_sap_wow_bitmask(uint32_t *bitmask, uint32_t wow_bitmap_size)
 				 wow_bitmap_size,
 				 bitmask);
 	pmo_set_wow_event_bitmap(WOW_RTT_11AZ_EVENT,
+				 wow_bitmap_size, bitmask);
+	pmo_set_wow_event_bitmap(WOW_XGAP_EVENT,
 				 wow_bitmap_size, bitmask);
 }
 

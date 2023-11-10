@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "icnss2_qmi: " fmt
@@ -55,6 +55,9 @@
 #define DMS_MAC_NOT_PROVISIONED		16
 #define BDWLAN_SIZE			6
 #define UMC_CHIP_ID                    0x4320
+#define MAX_SHADOW_REG_RESERVED		2
+#define MAX_NUM_SHADOW_REG_V3		(QMI_WLFW_MAX_NUM_SHADOW_REG_V3_USAGE_V01 - \
+					MAX_SHADOW_REG_RESERVED)
 
 #ifdef CONFIG_ICNSS2_DEBUG
 bool ignore_fw_timeout;
@@ -546,7 +549,8 @@ int wlfw_ind_register_send_sync_msg(struct icnss_priv *priv)
 			req->rejuvenate_enable_valid = 1;
 			req->rejuvenate_enable = 1;
 		}
-	} else if (priv->device_id == WCN6750_DEVICE_ID) {
+	} else if (priv->device_id == WCN6750_DEVICE_ID ||
+		   priv->device_id == WCN6450_DEVICE_ID) {
 		req->fw_init_done_enable_valid = 1;
 		req->fw_init_done_enable = 1;
 		req->cal_done_enable_valid = 1;
@@ -917,7 +921,7 @@ int icnss_wlfw_wlan_mac_req_send_sync(struct icnss_priv *priv,
 	}
 
 	if (resp.resp.result != QMI_RESULT_SUCCESS_V01) {
-		icnss_pr_err("WLAN mac req failed, result: %d, err: %d\n",
+		icnss_pr_err("WLAN mac req failed, result: %d\n",
 			     resp.resp.result);
 		ret = -resp.resp.result;
 	}
@@ -1271,7 +1275,8 @@ int icnss_wlfw_qdss_data_send_sync(struct icnss_priv *priv, char *file_name,
 		     resp->total_size == total_size) &&
 		    (resp->seg_id_valid == 1 && resp->seg_id == req->seg_id) &&
 		    (resp->data_valid == 1 &&
-		     resp->data_len <= QMI_WLFW_MAX_DATA_SIZE_V01)) {
+		     resp->data_len <= QMI_WLFW_MAX_DATA_SIZE_V01) &&
+		    resp->data_len <= remaining) {
 			memcpy(p_qdss_trace_data_temp,
 			       resp->data, resp->data_len);
 		} else {
@@ -1466,6 +1471,13 @@ int wlfw_wlan_mode_send_sync_msg(struct icnss_priv *priv,
 	req->mode = mode;
 	req->hw_debug_valid = 1;
 	req->hw_debug = !!test_bit(HW_DEBUG_ENABLE, &priv->ctrl_params.quirks);
+
+	if (priv->wlan_en_delay_ms >= 100) {
+		icnss_pr_dbg("Setting WLAN_EN delay: %d ms\n",
+			     priv->wlan_en_delay_ms);
+		req->wlan_en_delay_valid = 1;
+		req->wlan_en_delay = priv->wlan_en_delay_ms;
+	}
 
 	priv->stats.mode_req++;
 
@@ -2158,7 +2170,7 @@ int wlfw_qdss_trace_mem_info_send_sync(struct icnss_priv *priv)
 
 	req->mem_seg_len = priv->qdss_mem_seg_len;
 
-	if (priv->qdss_mem_seg_len > QMI_WLFW_MAX_NUM_MEM_SEG) {
+	if (priv->qdss_mem_seg_len >  QMI_WLFW_MAX_NUM_MEM_SEG_V01) {
 		icnss_pr_err("Invalid seg len %u\n",
 			     priv->qdss_mem_seg_len);
 		ret = -EINVAL;
@@ -2557,7 +2569,7 @@ static void wlfw_qdss_trace_req_mem_ind_cb(struct qmi_handle *qmi,
 
 	priv->qdss_mem_seg_len = ind_msg->mem_seg_len;
 
-	if (priv->qdss_mem_seg_len > QMI_WLFW_MAX_NUM_MEM_SEG) {
+	if (priv->qdss_mem_seg_len > QMI_WLFW_MAX_NUM_MEM_SEG_V01) {
 		icnss_pr_err("Invalid seg len %u\n",
 			     priv->qdss_mem_seg_len);
 		return;
@@ -2961,7 +2973,8 @@ int icnss_register_fw_service(struct icnss_priv *priv)
 	if (ret < 0)
 		return ret;
 
-	if (priv->device_id == WCN6750_DEVICE_ID)
+	if (priv->device_id == WCN6750_DEVICE_ID ||
+	    priv->device_id == WCN6450_DEVICE_ID)
 		ret = qmi_add_lookup(&priv->qmi, WLFW_SERVICE_ID_V01,
 				     WLFW_SERVICE_VERS_V01,
 				     WLFW_SERVICE_WCN_INS_ID_V01);
@@ -3052,6 +3065,17 @@ int icnss_send_wlan_enable_to_fw(struct icnss_priv *priv,
 
 		memcpy(req.shadow_reg, config->shadow_reg_cfg,
 		       sizeof(struct wlfw_msi_cfg_s_v01) * req.shadow_reg_len);
+	} else if (priv->device_id == WCN6450_DEVICE_ID) {
+		req.shadow_reg_v3_valid = 1;
+		if (config->num_shadow_reg_v3_cfg >
+			MAX_NUM_SHADOW_REG_V3)
+			req.shadow_reg_v3_len = MAX_NUM_SHADOW_REG_V3;
+		else
+			req.shadow_reg_v3_len = config->num_shadow_reg_v3_cfg;
+
+		memcpy(req.shadow_reg_v3, config->shadow_reg_v3_cfg,
+		       sizeof(struct wlfw_shadow_reg_v3_cfg_s_v01)
+		       * req.shadow_reg_v3_len);
 	}
 
 	ret = wlfw_wlan_cfg_send_sync_msg(priv, &req);
@@ -3447,5 +3471,72 @@ int icnss_send_vbatt_update(struct icnss_priv *priv, uint64_t voltage_uv)
 out:
 	kfree(resp);
 	kfree(req);
+	return ret;
+}
+
+int wlfw_wlan_hw_init_cfg_msg(struct icnss_priv *penv,
+			      enum wlfw_wlan_rf_subtype_v01 type)
+{
+	int ret;
+	struct wlfw_wlan_hw_init_cfg_req_msg_v01 *req;
+	struct wlfw_wlan_hw_init_cfg_resp_msg_v01 *resp;
+	struct qmi_txn txn;
+
+	if (!penv)
+		return -ENODEV;
+
+	icnss_pr_dbg("Sending hw init cfg, rf_subtype: 0x%x\n", type);
+
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
+
+	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
+	if (!resp) {
+		kfree(req);
+		return -ENOMEM;
+	}
+
+	req->rf_subtype_valid = 1;
+	req->rf_subtype = type;
+
+	ret = qmi_txn_init(&penv->qmi, &txn,
+			   wlfw_wlan_hw_init_cfg_resp_msg_v01_ei, resp);
+	if (ret < 0) {
+		icnss_pr_err("Fail to init txn for hw init cfg, resp %d\n",
+			     ret);
+		goto out;
+	}
+
+	ret = qmi_send_request(&penv->qmi, NULL, &txn,
+			       QMI_WLFW_WLAN_HW_INIT_CFG_REQ_V01,
+			       WLFW_WLAN_HW_INIT_CFG_REQ_MSG_V01_MAX_MSG_LEN,
+			       wlfw_wlan_hw_init_cfg_req_msg_v01_ei, req);
+	if (ret < 0) {
+		qmi_txn_cancel(&txn);
+		icnss_pr_err("Fail to send hw init cfg %d\n", ret);
+		goto out;
+	}
+
+	ret = qmi_txn_wait(&txn, penv->ctrl_params.qmi_timeout);
+	if (ret < 0) {
+		icnss_pr_err("HW init cfg timed out with ret %d\n",
+			     ret);
+		goto out;
+
+	} else if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
+		icnss_pr_err("HW init cfg request rejected,result:%d error:%d\n",
+			     resp->resp.result, resp->resp.error);
+		ret = -resp->resp.result;
+		goto out;
+	}
+
+	kfree(resp);
+	kfree(req);
+	return 0;
+
+out:
+	kfree(req);
+	kfree(resp);
 	return ret;
 }

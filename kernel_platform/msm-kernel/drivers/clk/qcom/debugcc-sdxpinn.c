@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "clk: %s: " fmt, __func__
@@ -139,6 +139,7 @@ static const char *const gcc_debug_mux_parent_names[] = {
 	"gcc_sdcc2_ahb_clk",
 	"gcc_sdcc2_apps_clk",
 	"gcc_sys_noc_mvmss_clk",
+	"gcc_tlmm_125_clk",
 	"gcc_usb30_master_clk",
 	"gcc_usb30_mock_utmi_clk",
 	"gcc_usb30_mstr_axi_clk",
@@ -149,6 +150,14 @@ static const char *const gcc_debug_mux_parent_names[] = {
 	"gcc_usb_phy_cfg_ahb2phy_clk",
 	"gcc_xo_div4_clk",
 	"mc_cc_debug_mux",
+	"measure_only_emac0_sgmiiphy_mac_rclk",
+	"measure_only_emac0_sgmiiphy_mac_tclk",
+	"measure_only_emac0_sgmiiphy_rclk",
+	"measure_only_emac0_sgmiiphy_tclk",
+	"measure_only_emac1_sgmiiphy_mac_rclk",
+	"measure_only_emac1_sgmiiphy_mac_tclk",
+	"measure_only_emac1_sgmiiphy_rclk",
+	"measure_only_emac1_sgmiiphy_tclk",
 	"measure_only_gcc_ahb_pcie_link_clk",
 	"measure_only_gcc_xo_pcie_link_clk",
 	"measure_only_ipa_2x_clk",
@@ -156,6 +165,9 @@ static const char *const gcc_debug_mux_parent_names[] = {
 	"measure_only_pcie_1_pipe_clk",
 	"measure_only_pcie_2_pipe_clk",
 	"measure_only_pcie_pipe_clk",
+	"measure_only_qpic_ahb_clk",
+	"measure_only_qpic_clk",
+	"measure_only_qpic_system_clk",
 	"measure_only_snoc_clk",
 	"measure_only_usb3_phy_wrapper_gcc_usb30_pipe_clk",
 };
@@ -238,6 +250,7 @@ static int gcc_debug_mux_sels[] = {
 	0x42,		/* gcc_sdcc2_ahb_clk */
 	0x41,		/* gcc_sdcc2_apps_clk */
 	0x19,		/* gcc_sys_noc_mvmss_clk */
+	0x11E,		/* gcc_tlmm_125_clk */
 	0x35,		/* gcc_usb30_master_clk */
 	0x39,		/* gcc_usb30_mock_utmi_clk */
 	0x36,		/* gcc_usb30_mstr_axi_clk */
@@ -248,6 +261,14 @@ static int gcc_debug_mux_sels[] = {
 	0x40,		/* gcc_usb_phy_cfg_ahb2phy_clk */
 	0x74,		/* gcc_xo_div4_clk */
 	0x77,		/* mc_cc_debug_mux */
+	0x147,		/* measure_only_emac0_sgmiiphy_mac_rclk */
+	0x145,		/* measure_only_emac0_sgmiiphy_mac_tclk */
+	0xE8,		/* measure_only_emac0_sgmiiphy_rclk */
+	0xE7,		/* measure_only_emac0_sgmiiphy_tclk */
+	0x141,		/* measure_only_emac1_sgmiiphy_mac_rclk */
+	0x146,		/* measure_only_emac1_sgmiiphy_mac_tclk */
+	0xF1,		/* measure_only_emac1_sgmiiphy_rclk */
+	0xF0,		/* measure_only_emac1_sgmiiphy_tclk */
 	0x71,		/* measure_only_gcc_ahb_pcie_link_clk */
 	0x72,		/* measure_only_gcc_xo_pcie_link_clk */
 	0xC8,		/* measure_only_ipa_2x_clk */
@@ -255,6 +276,9 @@ static int gcc_debug_mux_sels[] = {
 	0xB0,		/* measure_only_pcie_1_pipe_clk */
 	0xBA,		/* measure_only_pcie_2_pipe_clk */
 	0xA7,		/* measure_only_pcie_pipe_clk */
+	0xFB,		/* measure_only_qpic_ahb_clk */
+	0x109,		/* measure_only_qpic_clk */
+	0xFC,		/* measure_only_qpic_system_clk */
 	0xA,		/* measure_only_snoc_clk */
 	0x3C,		/* measure_only_usb3_phy_wrapper_gcc_usb30_pipe_clk */
 };
@@ -311,6 +335,70 @@ static struct clk_dummy measure_only_apcs_silver_post_acd_clk = {
 	.rrate = 1000,
 	.hw.init = &(const struct clk_init_data){
 		.name = "measure_only_apcs_silver_post_acd_clk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_emac0_sgmiiphy_mac_rclk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_emac0_sgmiiphy_mac_rclk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_emac0_sgmiiphy_mac_tclk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_emac0_sgmiiphy_mac_tclk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_emac0_sgmiiphy_rclk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_emac0_sgmiiphy_rclk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_emac0_sgmiiphy_tclk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_emac0_sgmiiphy_tclk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_emac1_sgmiiphy_mac_rclk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_emac1_sgmiiphy_mac_rclk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_emac1_sgmiiphy_mac_tclk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_emac1_sgmiiphy_mac_tclk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_emac1_sgmiiphy_rclk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_emac1_sgmiiphy_rclk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_emac1_sgmiiphy_tclk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_emac1_sgmiiphy_tclk",
 		.ops = &clk_dummy_ops,
 	},
 };
@@ -379,6 +467,30 @@ static struct clk_dummy measure_only_pcie_pipe_clk = {
 	},
 };
 
+static struct clk_dummy measure_only_qpic_ahb_clk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_qpic_ahb_clk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_qpic_clk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_qpic_clk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
+static struct clk_dummy measure_only_qpic_system_clk = {
+	.rrate = 1000,
+	.hw.init = &(const struct clk_init_data){
+		.name = "measure_only_qpic_system_clk",
+		.ops = &clk_dummy_ops,
+	},
+};
+
 static struct clk_dummy measure_only_snoc_clk = {
 	.rrate = 1000,
 	.hw.init = &(const struct clk_init_data){
@@ -398,6 +510,14 @@ static struct clk_dummy measure_only_usb3_phy_wrapper_gcc_usb30_pipe_clk = {
 static struct clk_hw *debugcc_sdxpinn_hws[] = {
 	&measure_only_apcs_l3_post_acd_clk.hw,
 	&measure_only_apcs_silver_post_acd_clk.hw,
+	&measure_only_emac0_sgmiiphy_mac_rclk.hw,
+	&measure_only_emac0_sgmiiphy_mac_tclk.hw,
+	&measure_only_emac0_sgmiiphy_rclk.hw,
+	&measure_only_emac0_sgmiiphy_tclk.hw,
+	&measure_only_emac1_sgmiiphy_mac_rclk.hw,
+	&measure_only_emac1_sgmiiphy_mac_tclk.hw,
+	&measure_only_emac1_sgmiiphy_rclk.hw,
+	&measure_only_emac1_sgmiiphy_tclk.hw,
 	&measure_only_gcc_ahb_pcie_link_clk.hw,
 	&measure_only_gcc_xo_pcie_link_clk.hw,
 	&measure_only_ipa_2x_clk.hw,
@@ -406,6 +526,9 @@ static struct clk_hw *debugcc_sdxpinn_hws[] = {
 	&measure_only_pcie_1_pipe_clk.hw,
 	&measure_only_pcie_2_pipe_clk.hw,
 	&measure_only_pcie_pipe_clk.hw,
+	&measure_only_qpic_ahb_clk.hw,
+	&measure_only_qpic_clk.hw,
+	&measure_only_qpic_system_clk.hw,
 	&measure_only_snoc_clk.hw,
 	&measure_only_usb3_phy_wrapper_gcc_usb30_pipe_clk.hw,
 };

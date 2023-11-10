@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -702,6 +702,9 @@ static void dp_ctrl_set_clock_rate(struct dp_ctrl_private *ctrl,
 	u32 num = ctrl->parser->mp[clk_type].num_clk;
 	struct dss_clk *cfg = ctrl->parser->mp[clk_type].clk_config;
 
+	/* convert to HZ for byte2 ops */
+	rate *= 1000;
+
 	while (num && strcmp(cfg->clk_name, name)) {
 		num--;
 		cfg++;
@@ -1237,7 +1240,7 @@ static void dp_ctrl_mst_calculate_rg(struct dp_ctrl_private *ctrl,
 
 	lclk = drm_dp_bw_code_to_link_rate(ctrl->link->link_params.bw_code);
 	if (panel->pinfo.comp_info.enabled)
-		bpp = DSC_BPP(panel->pinfo.comp_info.dsc_info.config);
+		bpp = panel->pinfo.comp_info.tgt_bpp;
 
 	/* min_slot_cnt */
 	numerator = pclk * bpp * 64 * 1000;
@@ -1511,10 +1514,10 @@ static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 		goto end;
 
 	min_link_rate = dp_panel->get_min_req_link_rate(dp_panel);
+	if (!min_link_rate)
+		DP_INFO("timing not found\n");
 
-	if (min_link_rate == 0)
-		DP_INFO("timing not found, set default\n");
-	else if (min_link_rate <= 162000)
+	if (min_link_rate <= 162000)
 		calc_link_rate = 162000;
 	else if (min_link_rate <= 270000)
 		calc_link_rate = 270000;

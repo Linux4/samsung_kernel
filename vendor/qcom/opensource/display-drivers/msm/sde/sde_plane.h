@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -74,10 +74,6 @@ struct sde_plane {
 	struct sde_mdss_cfg *catalog;
 	bool revalidate;
 	bool xin_halt_forced_clk;
-
-	struct sde_csc_cfg csc_cfg;
-	struct sde_csc_cfg *csc_usr_ptr;
-	struct sde_csc_cfg *csc_ptr;
 
 	uint32_t cached_lut_flag;
 	struct sde_hw_scaler3_cfg scaler3_cfg;
@@ -164,6 +160,9 @@ enum sde_plane_sclcheck_state {
  * @ubwc_stats_roi: cached roi for ubwc stats
  * @line_insertion_cfg: line insertion configuration
  * @lineinsertion_feature:	panel line insertion feature
+ * @csc_cfg: csc configuration for pipe
+ * @csc_usr_ptr: valid user override configuration for csc
+ * @csc_ptr: default csc configuration
  */
 struct sde_plane_state {
 	struct drm_plane_state base;
@@ -202,6 +201,10 @@ struct sde_plane_state {
 	struct sde_drm_ubwc_stats_roi ubwc_stats_roi;
 	struct sde_hw_pipe_line_insertion_cfg line_insertion_cfg;
 	bool lineinsertion_feature;
+
+	struct sde_csc_cfg csc_cfg;
+	struct sde_csc_cfg *csc_usr_ptr;
+	struct sde_csc_cfg *csc_ptr;
 };
 
 /**
@@ -415,4 +418,17 @@ void sde_plane_static_img_control(struct drm_plane *plane,
 		enum sde_sys_cache_state state, enum sde_sys_cache_type type);
 
 void sde_plane_add_data_to_minidump_va(struct drm_plane *plane);
+
+/**
+ * sde_plane_dump_input_fence - dumps plane input fence info
+ * @plane: Pointer to drm plane structure with the input fence we want to dump
+ */
+void sde_plane_dump_input_fence(struct drm_plane *plane);
+
+/**
+ * sde_plane_is_sw_fence_signaled - determine if the sw input dma-fence is signaled
+ * @plane: Pointer to drm plane structure with the input fence to check
+ * Returns: true if the input sw fence is signaled, otherwise false.
+ */
+bool sde_plane_is_sw_fence_signaled(struct drm_plane *plane);
 #endif /* _SDE_PLANE_H_ */

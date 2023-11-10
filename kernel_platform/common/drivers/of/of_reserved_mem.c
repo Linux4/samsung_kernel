@@ -47,8 +47,9 @@ static int __init early_init_dt_alloc_reserved_memory_arch(phys_addr_t size,
 		err = memblock_mark_nomap(base, size);
 		if (err)
 			memblock_free(base, size);
-		kmemleak_ignore_phys(base);
 	}
+
+	kmemleak_ignore_phys(base);
 
 	return err;
 }
@@ -299,10 +300,11 @@ void __init fdt_init_reserved_mem(void)
 		int len;
 		const __be32 *prop;
 		int err = 0;
-		bool nomap, reusable;
+		bool nomap, reusable, nomemsize;
 
 		nomap = of_get_flat_dt_prop(node, "no-map", NULL) != NULL;
 		reusable = of_get_flat_dt_prop(node, "reusable", NULL) != NULL;
+		nomemsize = of_get_flat_dt_prop(node, "no-memsize", NULL) != NULL;
 		prop = of_get_flat_dt_prop(node, "phandle", &len);
 		if (!prop)
 			prop = of_get_flat_dt_prop(node, "linux,phandle", &len);
@@ -328,9 +330,10 @@ void __init fdt_init_reserved_mem(void)
 					reusable = true;
 				}
 #endif
-				memblock_memsize_record(rmem->name, rmem->base,
-							rmem->size, nomap,
-							reusable);
+				if (!nomemsize)
+					memblock_memsize_record(rmem->name,
+							rmem->base, rmem->size,
+							nomap, reusable);
 			}
 		}
 	}

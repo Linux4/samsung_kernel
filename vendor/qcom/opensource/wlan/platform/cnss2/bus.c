@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "bus.h"
@@ -22,18 +22,39 @@ enum cnss_dev_bus_type cnss_get_dev_bus_type(struct device *dev)
 		return CNSS_BUS_NONE;
 }
 
-enum cnss_dev_bus_type cnss_get_bus_type(unsigned long device_id)
+enum cnss_dev_bus_type cnss_get_bus_type(struct cnss_plat_data *plat_priv)
 {
-	switch (device_id) {
+	int ret;
+	struct device *dev;
+	u32 bus_type_dt = CNSS_BUS_NONE;
+
+	if (plat_priv->dt_type == CNSS_DTT_MULTIEXCHG) {
+		dev = &plat_priv->plat_dev->dev;
+		ret = of_property_read_u32(dev->of_node, "qcom,bus-type",
+					   &bus_type_dt);
+		if (!ret)
+			if (bus_type_dt < CNSS_BUS_MAX)
+				cnss_pr_dbg("Got bus type[%u] from dt\n",
+					    bus_type_dt);
+			else
+				bus_type_dt = CNSS_BUS_NONE;
+		else
+			cnss_pr_err("No bus type for multi-exchg dt\n");
+
+		return bus_type_dt;
+	}
+
+	switch (plat_priv->device_id) {
 	case QCA6174_DEVICE_ID:
 	case QCA6290_DEVICE_ID:
 	case QCA6390_DEVICE_ID:
 	case QCA6490_DEVICE_ID:
 	case KIWI_DEVICE_ID:
 	case MANGO_DEVICE_ID:
+	case PEACH_DEVICE_ID:
 		return CNSS_BUS_PCI;
 	default:
-		cnss_pr_err("Unknown device_id: 0x%lx\n", device_id);
+		cnss_pr_err("Unknown device_id: 0x%lx\n", plat_priv->device_id);
 		return CNSS_BUS_NONE;
 	}
 }
@@ -582,6 +603,21 @@ int cnss_bus_get_iova_ipa(struct cnss_plat_data *plat_priv, u64 *addr,
 	}
 }
 
+bool cnss_bus_is_smmu_s1_enabled(struct cnss_plat_data *plat_priv)
+{
+	if (!plat_priv)
+		return false;
+
+	switch (plat_priv->bus_type) {
+	case CNSS_BUS_PCI:
+		return cnss_pci_is_smmu_s1_enabled(plat_priv->bus_priv);
+	default:
+		cnss_pr_err("Unsupported bus type: %d\n",
+			    plat_priv->bus_type);
+		return false;
+	}
+}
+
 int cnss_bus_update_time_sync_period(struct cnss_plat_data *plat_priv,
 				     unsigned int time_sync_period)
 {
@@ -595,6 +631,24 @@ int cnss_bus_update_time_sync_period(struct cnss_plat_data *plat_priv,
 	default:
 		cnss_pr_err("Unsupported bus type: %d\n",
 			    plat_priv->bus_type);
+		return -EINVAL;
+	}
+}
+
+int cnss_bus_set_therm_cdev_state(struct cnss_plat_data *plat_priv,
+				  unsigned long thermal_state,
+				  int tcdev_id)
+{
+	if (!plat_priv)
+		return -ENODEV;
+
+	switch (plat_priv->bus_type) {
+	case CNSS_BUS_PCI:
+		return cnss_pci_set_therm_cdev_state(plat_priv->bus_priv,
+						     thermal_state,
+						     tcdev_id);
+	default:
+		cnss_pr_err("Unsupported bus type: %d\n", plat_priv->bus_type);
 		return -EINVAL;
 	}
 }

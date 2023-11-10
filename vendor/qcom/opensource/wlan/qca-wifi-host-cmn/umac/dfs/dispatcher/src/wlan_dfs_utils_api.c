@@ -345,10 +345,12 @@ bool utils_dfs_is_spruce_spur_war_applicable(struct wlan_objmgr_pdev *pdev)
 	target_type = lmac_get_target_type(dfs->dfs_pdev_obj);
 
 	/* Is the target Spruce? */
-	if (!tgt_tx_ops->tgt_is_tgt_type_qcn6122)
+	if (!tgt_tx_ops->tgt_is_tgt_type_qcn6122 ||
+	    !tgt_tx_ops->tgt_is_tgt_type_qcn9160)
 		return false;
 
-	if (!tgt_tx_ops->tgt_is_tgt_type_qcn6122(target_type))
+	if (!tgt_tx_ops->tgt_is_tgt_type_qcn6122(target_type) ||
+	    !tgt_tx_ops->tgt_is_tgt_type_qcn9160(target_type))
 		return false;
 
 	cur_freq = dfs->dfs_curchan->dfs_ch_freq;
@@ -1547,7 +1549,7 @@ QDF_STATUS utils_dfs_get_chan_dfs_state(struct wlan_objmgr_pdev *pdev,
 qdf_export_symbol(utils_dfs_get_chan_dfs_state);
 
 /**
- * convert_event_to_state() - Coverts the dfs events WLAN_DFS_EVENTS to dfs
+ * convert_event_to_state() - Converts the dfs events WLAN_DFS_EVENTS to dfs
  * states channel_dfs_state.
  * @event: Input DFS event.
  * @state: Output DFS state.

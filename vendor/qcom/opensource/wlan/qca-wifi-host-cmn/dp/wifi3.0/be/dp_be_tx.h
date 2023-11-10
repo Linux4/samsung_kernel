@@ -41,13 +41,40 @@ struct __attribute__((__packed__)) dp_tx_comp_peer_id {
 #define DP_TX_HLOS_TID_GET(_var) \
 	(((_var) & 0x0e) >> 1)
 #define DP_TX_FLOW_OVERRIDE_GET(_var) \
-	((_var) & 0x1)
+	((_var >> 3) & 0x1)
 #define DP_TX_WHO_CLFY_INF_SEL_GET(_var) \
 	(((_var) & 0x30) >> 4)
 #define DP_TX_FLOW_OVERRIDE_ENABLE 0x1
 
 #define DP_TX_FAST_DESC_SIZE	24
 #define DP_TX_L3_L4_CSUM_ENABLE	0x1f
+
+#ifdef DP_USE_REDUCED_PEER_ID_FIELD_WIDTH
+/**
+ * dp_tx_comp_get_peer_id_be() - Get peer ID from TX Comp Desc
+ * @soc: Handle to DP Soc structure
+ * @tx_comp_hal_desc: TX comp ring descriptor
+ *
+ * Return: Peer ID
+ */
+static inline uint16_t dp_tx_comp_get_peer_id_be(struct dp_soc *soc,
+						 void *tx_comp_hal_desc)
+{
+	uint16_t peer_id = hal_tx_comp_get_peer_id(tx_comp_hal_desc);
+	struct dp_tx_comp_peer_id *tx_peer_id =
+			(struct dp_tx_comp_peer_id *)&peer_id;
+
+	return (tx_peer_id->peer_id |
+		(tx_peer_id->ml_peer_valid << soc->peer_id_shift));
+}
+#else
+static inline uint16_t dp_tx_comp_get_peer_id_be(struct dp_soc *soc,
+						 void *tx_comp_hal_desc)
+{
+	return hal_tx_comp_get_peer_id(tx_comp_hal_desc);
+
+}
+#endif
 
 /**
  * dp_tx_hw_enqueue_be() - Enqueue to TCL HW for transmit for BE target
@@ -70,6 +97,7 @@ QDF_STATUS dp_tx_hw_enqueue_be(struct dp_soc *soc, struct dp_vdev *vdev,
 				struct cdp_tx_exception_metadata *metadata,
 				struct dp_tx_msdu_info_s *msdu_info);
 
+#ifdef QCA_DP_TX_NBUF_LIST_FREE
 /**
  * dp_tx_hw_enqueue_be() - This is a fast send API to directly enqueue to HW
  * @soc: DP Soc Handle
@@ -82,9 +110,15 @@ QDF_STATUS dp_tx_hw_enqueue_be(struct dp_soc *soc, struct dp_vdev *vdev,
  * Return: NULL for success
  *         nbuf for failure
  */
-
 qdf_nbuf_t dp_tx_fast_send_be(struct cdp_soc_t *soc, uint8_t vdev_id,
 			      qdf_nbuf_t nbuf);
+#else
+static inline qdf_nbuf_t dp_tx_fast_send_be(struct cdp_soc_t *soc, uint8_t vdev_id,
+					    qdf_nbuf_t nbuf)
+{
+	return NULL;
+}
+#endif
 
 /**
  * dp_tx_comp_get_params_from_hal_desc_be() - Get TX desc from HAL comp desc
@@ -184,6 +218,16 @@ void dp_tx_desc_pool_deinit_be(struct dp_soc *soc,
 			       struct dp_tx_desc_pool_s *tx_desc_pool,
 			       uint8_t pool_id);
 
+#ifdef WLAN_SUPPORT_PPEDS
+/**
+ * dp_ppeds_tx_comp_handler()- Handle tx completions for ppe2tcl ring
+ * @soc: Handle to DP Soc structure
+ * @quota: Max number of tx completions to process
+ *
+ * Return: Number of tx completions processed
+ */
+int dp_ppeds_tx_comp_handler(struct dp_soc_be *be_soc, uint32_t quota);
+#endif
 #ifdef WLAN_FEATURE_11BE_MLO
 /**
  * dp_tx_mlo_mcast_handler_be() - Tx handler for Mcast packets
@@ -196,6 +240,17 @@ void dp_tx_desc_pool_deinit_be(struct dp_soc *soc,
 void dp_tx_mlo_mcast_handler_be(struct dp_soc *soc,
 				struct dp_vdev *vdev,
 				qdf_nbuf_t nbuf);
+
+/**
+ * dp_tx_mlo_is_mcast_primary_be() - Function to check for primary mcast vdev
+ * @soc: Handle to DP Soc structure
+ * @vdev: DP vdev handle
+ *
+ * Return: True if vdev is mcast primary
+ *         False for all othercase
+ */
+bool dp_tx_mlo_is_mcast_primary_be(struct dp_soc *soc,
+				   struct dp_vdev *vdev);
 #ifdef WLAN_MCAST_MLO
 #ifdef WLAN_MLO_MULTI_CHIP
 /**
@@ -209,15 +264,6 @@ void dp_tx_mlo_mcast_handler_be(struct dp_soc *soc,
 void dp_tx_mlo_mcast_pkt_send(struct dp_vdev_be *be_vdev,
 			      struct dp_vdev *ptnr_vdev,
 			      void *arg);
-
-/**
- * dp_tx_mcast_mlo_reinject_routing_set() - mlo mcast reinject routing handler
- * @be_vdev: Handle to DP be_vdev structure
- * @cmd: cmd to set TQM/FW based reinjection
- *
- * Return: None
- */
-void dp_tx_mcast_mlo_reinject_routing_set(struct dp_soc *soc, void *arg);
 #endif
 #endif
 #endif

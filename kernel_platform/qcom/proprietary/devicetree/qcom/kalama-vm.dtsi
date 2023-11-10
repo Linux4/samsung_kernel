@@ -5,7 +5,7 @@
 / {
 	#address-cells = <0x2>;
 	#size-cells = <0x2>;
-	qcom,msm-id = <519 0x10000>, <536 0x10000>, <519 0x20000>, <536 0x20000>;
+	qcom,msm-id = <519 0x10000>, <536 0x10000>, <519 0x20000>, <536 0x20000>, <604 0x20000>;
 	interrupt-parent = <&vgic>;
 
 	logbuf: qcom,logbuf-vendor-hooks {
@@ -106,7 +106,7 @@
 		vendor = "QTI";
 		image-name = "qcom,trustedvm";
 		qcom,pasid = <0x0 0x1c>;
-		qcom,qtee-config-info = "p=77,78,7C,8F,97,159,199,47E,7F1;";
+		qcom,qtee-config-info = "p=39,77,78,7C,8F,97,FE,159,199,47E,7F1;";
 		qcom,secdomain-ids = <45>;
 		qcom,primary-vm-index = <0>;
 		vm-uri = "vmuid/trusted-ui";
@@ -147,7 +147,7 @@
 		vcpus {
 			config = "/cpus";
 			affinity = "proxy";
-			affinity-map = <0x5 0x6>;
+			affinity-map = <0 0>;
 			sched-priority = <0>;       /* relative to PVM */
 			sched-timeslice = <2000>;   /* in ms */
 		};
@@ -373,7 +373,7 @@
 		interrupt-controller;
 		#interrupt-cells = <2>;
 		/* Valid pins */
-		gpios = /bits/ 16 <86 87 133 125 137 44 45 46 47 24 25 91 56 57 58 59 13 48>;
+		gpios = /bits/ 16 <86 87 133 125 137 44 45 46 47 24 25 19 91 56 57 58 59 13 48 42 2 3 118 119 55 14>;
 
 	};
 
@@ -383,8 +383,9 @@
 		pinctrl-0 = <&qupv3_se1_7i2c_active>;
 		pinctrl-1 = <&qupv3_se1_7i2c_sleep>;
 		tlmm-vm-gpio-list = <&tlmm 86 0 &tlmm 87 0 &tlmm 133 0 &tlmm 125 0 &tlmm 137 0 &tlmm 44 0 &tlmm 45 0
-					&tlmm 46 0 &tlmm 47 0 &tlmm 24 0 &tlmm 25 0 &tlmm 91 0
-					 &tlmm 56 0 &tlmm 57 0 &tlmm 58 0 &tlmm 59 0 &tlmm 13 0 &tlmm 48 0>;
+					&tlmm 46 0 &tlmm 47 0 &tlmm 24 0 &tlmm 25 0 &tlmm 19 0 &tlmm 91 0
+					&tlmm 56 0 &tlmm 57 0 &tlmm 58 0 &tlmm 59 0 &tlmm 13 0 &tlmm 48 0 &tlmm 42 0
+					&tlmm 2 0 &tlmm 3 0 &tlmm 118 0 &tlmm 119 0 &tlmm 55 0 &tlmm 14 0>;
 	};
 
 	pinctrl@f000000 {
@@ -427,8 +428,9 @@
 	tlmm-vm-mem-access {
 		compatible = "qcom,tlmm-vm-mem-access";
 		tlmm-vm-gpio-list = <&tlmm 86 0 &tlmm 87 0 &tlmm 133 0 &tlmm 125 0 &tlmm 137 0 &tlmm 44 0 &tlmm 45 0
-					&tlmm 46 0 &tlmm 47 0 &tlmm 24 0 &tlmm 25 0 &tlmm 91 0
-					 &tlmm 56 0 &tlmm 57 0 &tlmm 58 0 &tlmm 59 0 &tlmm 13 0 &tlmm 48 0>;
+					&tlmm 46 0 &tlmm 47 0 &tlmm 24 0 &tlmm 25 0 &tlmm 19 0 &tlmm 91 0
+					&tlmm 56 0 &tlmm 57 0 &tlmm 58 0 &tlmm 59 0 &tlmm 13 0 &tlmm 48 0 &tlmm 42 0
+					&tlmm 2 0 &tlmm 3 0 &tlmm 118 0 &tlmm 119 0 &tlmm 55 0 &tlmm 14 0>;
 	};
 
 	vgic: interrupt-controller@17100000 {
@@ -583,7 +585,6 @@
 			qcom,le-vm;
 			status = "disabled";
 		};
-
 		qupv3_se8_spi: spi@880000 {
 			compatible = "qcom,spi-geni";
 			reg = <0x880000 0x4000>;
@@ -592,6 +593,29 @@
 			#size-cells = <0>;
 			dmas = <&gpi_dma2 0 0 1 64 0>,
 				<&gpi_dma2 1 0 1 64 0>;
+			dma-names = "tx", "rx";
+			spi-max-frequency = <50000000>;
+			qcom,le-vm;
+			status = "disabled";
+		};
+		qupv3_se12_i2c: i2c@890000 {
+			compatible = "qcom,i2c-geni";
+			reg = <0x890000 0x4000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			dmas = <&gpi_dma2 0 4 3 64 0>,
+				<&gpi_dma2 1 4 3 64 0>;
+			dma-names = "tx", "rx";
+			qcom,le-vm;
+			status = "disabled";
+		};
+		qupv3_se12_spi: spi@890000 {
+			compatible = "qcom,spi-geni";
+			reg = <0x890000 0x4000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			dmas = <&gpi_dma2 0 4 1 64 0>,
+			<&gpi_dma2 1 4 1 64 0>;
 			dma-names = "tx", "rx";
 			spi-max-frequency = <50000000>;
 			qcom,le-vm;
@@ -646,6 +670,11 @@
 		compatible = "qcom,gunyah-vsock";
 		qcom,master;
 		msgq-label = <3>;
+	};
+
+	qrtr-genpool {
+		compatible = "qcom,qrtr-genpool";
+		gen-pool = <&fastrpc_compute_cb1>;
 	};
 
 	qcom_smcinvoke {

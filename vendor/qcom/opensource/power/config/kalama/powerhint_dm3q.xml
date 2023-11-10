@@ -345,7 +345,7 @@
             Resources="0x4183C000, 0x10, 0x43034000, 0x10,
             0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
             0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x17BA38,
-            0x40CE0000, 0x001E0014"/>
+            0x40CE0000, 0x001E0014, 0x40800000, 1056"/>
 
         <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_FRONT -->
         <Config
@@ -378,7 +378,7 @@
             Resources="0x4183C000, 0x10, 0x43034000, 0x10,
             0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
             0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x17BA38,
-            0x40CE0000, 0x001E0014"/>
+            0x40CE0000, 0x001E0014, 0x40800000, 1056"/>
 
         <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_PRO -->
         <Config
@@ -419,7 +419,7 @@
             Resources="0x4183C000, 0x10, 0x43034000, 0x10,
             0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
             0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x17BA38,
-            0x40CE0000, 0x001E0014"/>
+            0x40CE0000, 0x001E0014, 0x40800000, 1056"/>
 
         <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_120FPS_PRO -->
         <!-- MPCTLV3_ALL_CPUS_PWR_CLPS_DIS                : 0x40400000 : 1    -->
@@ -466,7 +466,7 @@
             Resources="0x4183C000, 0x10, 0x43034000, 0x10,
             0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
             0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x17BA38,
-            0x40CE0000, 0x001E0014"/>
+            0x40CE0000, 0x001E0014, 0x40800000, 1056"/>
 
         <!-- POWER_HINT_ID_VIDEO_ENCODE_HFR -->
         <Config
@@ -498,14 +498,13 @@
             0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
             0x40CE0000, 0x001E0014"/>
 
-        <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_60FPS_BEAUTY -->
+        <!-- POWER_HINT_ID_VIDEO_ENCODE_UHD_60FPS_EISOFF -->
         <Config
             Id="0x0000134A" Enable="true" Target="kalama" Timeout="0"
             Resources="0x4183C000, 0x10, 0x43034000, 0x10,
-            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000,  1,
-            0x41000100, 3, 0x41000000, 4, 0x41000200, 1,
-            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x858B8,
-            0x40CE0000, 0x001E0014, 0x40800100, 1267, 0x40800000, 1324"/>
+            0x43434000, 1, 0x43438000, 1, 0x43420000, 1, 0x43424000, 1,
+            0x41444100, 0, 0x41444000, 0, 0x41440000, 99, 0x4303C000, 0x17BA38,
+            0x40CE0000, 0x001E0014, 0x40800000, 1286"/>
 
         <!-- POWER_HINT_ID_VIDEO_ENCODE_FHD_30FPS_BEAUTY_FRONT -->
         <Config
@@ -901,18 +900,20 @@
         <!-- MPCTLV3_SCHEDUTIL_PREDICTIVE_LOAD_CLUSTER_LITTLE, 0 -->
         <!-- MPCTLV3_SCHED_CONSERVATIVE_PL, 1 -->
         <!-- MPCTLV3_SCHED_GROUP_UP_DOWN_MIGRATE, 130 / 85 -->
+        <!-- MPCTLV3_FPS_HYST_OPCODE , 1 -->
         <Config
             Id="0X00001502" Enable="true" Timeout="0" Target="kalama"
-            Resources="0x40800000, 0XA, 0x41444100, 0, 0x40CBC000, 1, 0x40CF4000, 0x00820055"/>
+            Resources="0x40800000, 0XA, 0x41444100, 0, 0x40CBC000, 1, 0x40CF4000, 0x00820055, 0x42C24000, 1"/>
 
         <!-- video decode 30 fps secure content tunings-->
         <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0, 0XA -->
         <!-- MPCTLV3_SCHEDUTIL_PREDICTIVE_LOAD_CLUSTER_LITTLE, 0 -->
         <!-- MPCTLV3_SCHED_CONSERVATIVE_PL, 1 -->
         <!-- MPCTLV3_SCHED_GROUP_UP_DOWN_MIGRATE, 130 / 85 -->
+        <!-- MPCTLV3_FPS_HYST_OPCODE , 1 -->
         <Config
             Id="0X00001504" Enable="true" Timeout="0" Target="kalama"
-            Resources="0x40800000, 0XA, 0x41444100, 0, 0x40CBC000, 1, 0x40CF4000, 0x00820055"/>
+            Resources="0x40800000, 0XA, 0x41444100, 0, 0x40CBC000, 1, 0x40CF4000, 0x00820055, 0x42C24000, 1"/>
 
         <!-- psm light mode power hint-->
         <!-- MPCTLV3_MIN_FREQ_CLUSTER_BIG_CORE_0, 0XA -->

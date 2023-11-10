@@ -18,7 +18,7 @@
  */
 
 /**
- * DOC : wlan_hdd_memdump.c
+ * DOC: wlan_hdd_memdump.c
  *
  * WLAN Host Device Driver file for dumping firmware memory
  *
@@ -37,6 +37,14 @@
 #define PROCFS_DRIVER_DUMP_NAME "driverdump"
 #define PROCFS_DRIVER_DUMP_PERM 0444
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0))
+/*
+ * Commit 359745d78351 ("proc: remove PDE_DATA() completely")
+ * Replaced PDE_DATA() with pde_data()
+ */
+#define pde_data(inode) PDE_DATA(inode)
+#endif
+
 static struct proc_dir_entry *proc_file_driver, *proc_dir_driver;
 
 /** memdump_get_file_data() - get data available in proc file
@@ -52,7 +60,7 @@ static void *memdump_get_file_data(struct file *file)
 {
 	void *hdd_ctx;
 
-	hdd_ctx = PDE_DATA(file_inode(file));
+	hdd_ctx = pde_data(file_inode(file));
 	return hdd_ctx;
 }
 
@@ -74,10 +82,10 @@ void hdd_driver_mem_cleanup(void)
 /**
  * __hdd_driver_memdump_read() - perform read operation in driver
  * memory dump proc file
- * @file  - handle for the proc file.
- * @buf   - pointer to user space buffer.
- * @count - number of bytes to be read.
- * @pos   - offset in the from buffer.
+ * @file:  handle for the proc file.
+ * @buf:   pointer to user space buffer.
+ * @count: number of bytes to be read.
+ * @pos:   offset in the from buffer.
  *
  * This function performs read operation for the driver memory dump proc file.
  *
@@ -167,10 +175,10 @@ static ssize_t __hdd_driver_memdump_read(struct file *file, char __user *buf,
 /**
  * hdd_driver_memdump_read() - perform read operation in driver
  * memory dump proc file
- * @file  - handle for the proc file.
- * @buf   - pointer to user space buffer.
- * @count - number of bytes to be read.
- * @pos   - offset in the from buffer.
+ * @file:  handle for the proc file.
+ * @buf:   pointer to user space buffer.
+ * @count: number of bytes to be read.
+ * @pos:   offset in the from buffer.
  *
  * This function performs read operation for the driver memory dump proc file.
  *
@@ -195,13 +203,6 @@ static ssize_t hdd_driver_memdump_read(struct file *file, char __user *buf,
 	return err_size;
 }
 
-/**
- * struct driver_dump_fops - file operations for driver dump feature
- * @read - read function for driver dump operation.
- *
- * This structure initialize the file operation handle for memory
- * dump feature
- */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
 static const struct proc_ops driver_dump_fops = {
 	.proc_read = hdd_driver_memdump_read,
@@ -215,7 +216,7 @@ static const struct file_operations driver_dump_fops = {
 
 /**
  * hdd_driver_memdump_procfs_init() - Initialize procfs for driver memory dump
- * @hdd_ctx Pointer to hdd context
+ * @hdd_ctx: Pointer to hdd context
  *
  * This function create file under proc file system to be used later for
  * processing driver memory dump
@@ -267,7 +268,7 @@ static void hdd_driver_memdump_procfs_remove(void)
 }
 
 /**
- * hdd_driver_memdump_init() - Intialization function for driver
+ * hdd_driver_memdump_init() - Initialization function for driver
  * memory dump feature
  *
  * This function creates proc file for driver memdump feature

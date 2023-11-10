@@ -38,6 +38,27 @@ module_param(vib_le_est, uint, 0444);
 MODULE_PARM_DESC(vib_le_est, "sec_vib_inputff_le_est value");
 #endif
 
+__visible_for_testing char *sec_vib_inputff_get_i2c_test(
+	struct sec_vib_inputff_drvdata *ddata)
+{
+	if (ddata->vib_ops->get_i2c_test) {
+		if (ddata->vib_ops->get_i2c_test(ddata->input))
+			return "PASS";
+		else
+			return "FAIL";
+	} else
+		return "NONE";
+}
+
+static ssize_t i2c_test_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct sec_vib_inputff_drvdata *ddata = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", sec_vib_inputff_get_i2c_test(ddata));
+}
+static DEVICE_ATTR_RO(i2c_test);
+
 __visible_for_testing int sec_vib_inputff_get_i2s_test(
 	struct sec_vib_inputff_drvdata *ddata)
 {
@@ -560,6 +581,15 @@ static ssize_t lra_resistance_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(lra_resistance);
 
+static ssize_t f0_cal_way_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct sec_vib_inputff_drvdata *ddata = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", ddata->pdata->f0_cal_way);
+}
+static DEVICE_ATTR_RO(f0_cal_way);
+
 #if defined(CONFIG_SEC_VIB_FOLD_MODEL)
 static const char sec_vib_event_cmd[EVENT_CMD_MAX][MAX_STR_LEN_EVENT_CMD] = {
 	[EVENT_CMD_NONE]					= "NONE",
@@ -665,6 +695,7 @@ void sec_vib_inputff_event_cmd(struct sec_vib_inputff_drvdata *ddata)
 #endif //CONFIG_SEC_VIB_FOLD_MODEL
 
 static struct attribute *vib_inputff_sys_attr[] = {
+	&dev_attr_i2c_test.attr,
 	&dev_attr_i2s_test.attr,
 	&dev_attr_firmware_load.attr,
 	&dev_attr_current_temp.attr,
@@ -680,6 +711,7 @@ static struct attribute *vib_inputff_sys_attr[] = {
 #if defined(CONFIG_SEC_VIB_FOLD_MODEL)
 	&dev_attr_event_cmd.attr,
 #endif
+	&dev_attr_f0_cal_way.attr,
 	NULL,
 };
 
@@ -726,6 +758,8 @@ int sec_vib_inputff_sysfs_init(struct sec_vib_inputff_drvdata *ddata)
 	if (ddata->support_fw) {
 		sec_vib_inputff_vib_param_init(ddata);
 		sec_vib_inputff_fw_init(ddata);
+	} else {
+		ddata->fw.stat = FW_LOAD_SUCCESS;
 	}
 
 	ddata->sec_vib_inputff_class = class_create(THIS_MODULE, "sec_vib_inputff");

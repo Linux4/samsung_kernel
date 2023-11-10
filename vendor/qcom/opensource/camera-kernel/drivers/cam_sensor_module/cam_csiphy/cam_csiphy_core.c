@@ -20,6 +20,9 @@
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
 #include "cam_sensor_mipi.h"
 #endif
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include "cam_clock_data_recovery.h"
+#endif
 
 #define SCM_SVC_CAMERASS 0x18
 #define SECURE_SYSCALL_ID 0x6
@@ -41,11 +44,6 @@ static DEFINE_MUTEX(main_aon_selection);
 
 static int csiphy_onthego_reg_count;
 static unsigned int csiphy_onthego_regs[150];
-#if defined(CONFIG_CAMERA_CDR_TEST)
-extern int cdr_value_exist;
-extern char cdr_value[50];
-extern char cdr_result[40];
-#endif
 
 module_param_array(csiphy_onthego_regs, uint, &csiphy_onthego_reg_count, 0644);
 MODULE_PARM_DESC(csiphy_onthego_regs, "Functionality to let csiphy registers program on the fly");
@@ -196,92 +194,6 @@ static inline void cam_csiphy_apply_onthego_reg_values(void __iomem *csiphybase,
 			csiphy_onthego_regs[i+2]);
 	}
 }
-
-#if defined(CONFIG_CAMERA_CDR_TEST)
-static int cam_csiphy_apply_cdr_reg_values(void __iomem *csiphybase, uint8_t csiphy_idx)
-{
-	int i, j, k;
-	int len = 0;
-	int count[10] = { 0, };
-	int count_idx = 0;
-	int cdr_num[10][10] = { 0, };
-	int final_num[10] = { 0, };
-
-	len = strlen(cdr_value);
-
-	CAM_INFO(CAM_CSIPHY, "[CDR_DBG] input: %s", cdr_value);
-	sprintf(cdr_result, "%s\n", "");
-
-	for (i = 0; i < len - 1; i++)
-	{
-		if (count_idx > 9)
-		{
-			CAM_ERR(CAM_CSIPHY, "[CDR_DBG] input value overflow");
-			return 0;
-		}
-
-		if (cdr_value[i] != ',')
-		{
-			if (count[count_idx] > 9)
-			{
-				CAM_ERR(CAM_CSIPHY, "[CDR_DBG] input value overflow");
-				return 0;
-			}
-
-			if (cdr_value[i] >= 'a' && cdr_value[i] <= 'f')
-			{
-				cdr_num[count_idx][count[count_idx]] = cdr_value[i] - 'W';
-				count[count_idx]++;
-			}
-			else if (cdr_value[i] >= 'A' && cdr_value[i] <= 'F')
-			{
-				cdr_num[count_idx][count[count_idx]] = cdr_value[i] - '7';
-				count[count_idx]++;
-			}
-			else if (cdr_value[i] >= '0' && cdr_value[i] <= '9')
-			{
-				cdr_num[count_idx][count[count_idx]] = cdr_value[i] - '0';
-				count[count_idx]++;
-			}
-			else
-			{
-				CAM_ERR(CAM_CSIPHY, "[CDR_DBG] invalid input value");
-				return 0;
-			}
-		}
-		else
-		{
-			count_idx++;
-		}
-	}
-
-	for (i = 0; i <= count_idx; i++)
-	{
-		for (j = 0; j < count[i]; j++)
-		{
-			int temp = 1;
-			for (k = count[i] - 1; k > j; k--)
-				temp = temp * 16;
-			final_num[i] += temp * cdr_num[i][j];
-		}
-	}
-
-	for (i = 0; i < 9; i += 3) {
-		cam_io_w_mb(final_num[i+1],
-			csiphybase + final_num[i]);
-
-		if (final_num[i+2])
-			usleep_range(final_num[i+2], final_num[i+2] + 5);
-
-		CAM_INFO(CAM_CSIPHY, "[CDR_DBG] Offset: 0x%x, Val: 0x%x Delay(us): %u",
-			final_num[i],
-			cam_io_r_mb(csiphybase + final_num[i]),
-			final_num[i+2]);
-	}
-
-	return 0;
-}
-#endif
 
 static inline int cam_csiphy_release_from_reset_state(struct csiphy_device *csiphy_dev,
 	void __iomem *csiphybase, int32_t instance)
@@ -1233,7 +1145,7 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 				if (g_phy_data[phy_idx].data_rate_aux_mask &
 					BIT_ULL(data_rate_idx)) {
 					cam_io_w_mb(reg_data, csiphybase + reg_addr);
-					CAM_DBG(CAM_CSIPHY,
+					CAM_INFO(CAM_CSIPHY,
 						"CSIPHY: %u configuring new aux setting reg_addr: 0x%x reg_val: 0x%x",
 						csiphy_device->soc_info.index, reg_addr, reg_data);
 				}
@@ -2640,9 +2552,9 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			cam_csiphy_apply_onthego_reg_values(csiphybase, soc_info->index);
 
 #if defined(CONFIG_CAMERA_CDR_TEST)
-		if (cdr_value_exist) {
-			cam_csiphy_apply_cdr_reg_values(csiphybase, soc_info->index);
-			cdr_value_exist = 0;
+		if (cam_clock_data_recovery_is_requested()) {
+			cam_clock_data_recovery_write_register(csiphybase);
+			cam_clock_data_recovery_reset_request();
 		}
 #endif
 

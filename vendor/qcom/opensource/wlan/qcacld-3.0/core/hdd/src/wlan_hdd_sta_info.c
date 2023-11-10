@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -190,7 +190,8 @@ struct hdd_station_info *hdd_get_sta_info_by_mac(
 {
 	struct hdd_station_info *sta_info = NULL;
 
-	if (!mac_addr || !sta_info_container) {
+	if (!mac_addr || !sta_info_container ||
+	    qdf_is_macaddr_zero((struct qdf_mac_addr *)mac_addr)) {
 		hdd_err("Parameter(s) null");
 		return NULL;
 	}
@@ -199,6 +200,8 @@ struct hdd_station_info *hdd_get_sta_info_by_mac(
 
 	qdf_list_for_each(&sta_info_container->sta_obj, sta_info, sta_node) {
 		if (qdf_is_macaddr_equal(&sta_info->sta_mac,
+					 (struct qdf_mac_addr *)mac_addr) ||
+		    qdf_is_macaddr_equal(&sta_info->mld_addr,
 					 (struct qdf_mac_addr *)mac_addr)) {
 			hdd_take_sta_info_ref(sta_info_container,
 					      sta_info, false, sta_info_dbgid);

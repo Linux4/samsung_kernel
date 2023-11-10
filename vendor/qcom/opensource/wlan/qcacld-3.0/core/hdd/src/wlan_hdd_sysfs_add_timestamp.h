@@ -45,8 +45,8 @@
 int hdd_sysfs_dp_pkt_add_ts_create(struct kobject *driver_kobject);
 
 /**
- * hdd_sysfs_dp_pkt_add_ts_destroy() -
- *   API to destroy dp trace related files
+ * hdd_sysfs_dp_pkt_add_ts_destroy() - API to destroy dp trace related files
+ * @driver_kobject: sysfs driver kobject
  *
  * Return: none
  */

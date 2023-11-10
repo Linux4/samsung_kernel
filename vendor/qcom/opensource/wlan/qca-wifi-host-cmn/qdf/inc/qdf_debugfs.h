@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -102,7 +103,7 @@ qdf_dentry_t qdf_debugfs_create_file(const char *name, uint16_t mode,
 				     struct qdf_debugfs_fops *fops);
 
 /**
- * qdf_debugfs_printf() - print formated string into debugfs file
+ * qdf_debugfs_printf() - print formatted string into debugfs file
  * @file: debugfs file handle passed in fops->show() function
  * @f: the format string to use
  * @...: arguments for the format string
@@ -264,7 +265,7 @@ qdf_dentry_t qdf_debugfs_create_file_simplified(const char *name, uint16_t mode,
 						struct qdf_debugfs_fops *fops);
 
 /**
- * qdf_debugfs_printer() - Print formated string into debugfs file
+ * qdf_debugfs_printer() - Print formatted string into debugfs file
  * @priv: The private data
  * @fmt: Format string
  * @...: arguments for the format string

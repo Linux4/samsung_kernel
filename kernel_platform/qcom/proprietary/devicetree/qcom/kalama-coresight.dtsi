@@ -4,7 +4,7 @@
 
 		coresight-name = "coresight-audio-etm0";
 		qcom,inst-id = <5>;
-		atid = <40>;
+		atid = <40 41>;
 
 		out-ports {
 			port {
@@ -4086,6 +4086,12 @@
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		trig-conns {
+			cpu = <&CPU0>;
+			arm,trig-in-sigs = <0 1 2 3 4 5 6 7 8 9>;
+			arm,trig-out-sigs = <0 1 2 3 4 5 6 7 8 9>;
+		};
 	};
 
 	spss_cti: cti@10881000 {
@@ -4110,6 +4116,12 @@
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		trig-conns {
+			cpu = <&CPU1>;
+			arm,trig-in-sigs = <0 1 2 3 4 5 6 7 8 9>;
+			arm,trig-out-sigs = <0 1 2 3 4 5 6 7 8 9>;
+		};
 	};
 
 	cpu2: cti@12030000 {
@@ -4121,6 +4133,12 @@
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		trig-conns {
+			cpu = <&CPU2>;
+			arm,trig-in-sigs = <0 1 2 3 4 5 6 7 8 9>;
+			arm,trig-out-sigs = <0 1 2 3 4 5 6 7 8 9>;
+		};
 	};
 
 	cpu3: cti@12040000 {
@@ -4132,6 +4150,12 @@
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		trig-conns {
+			cpu = <&CPU3>;
+			arm,trig-in-sigs = <0 1 2 3 4 5 6 7 8 9>;
+			arm,trig-out-sigs = <0 1 2 3 4 5 6 7 8 9>;
+		};
 	};
 
 	cpu4: cti@12050000 {
@@ -4143,6 +4167,12 @@
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		trig-conns {
+			cpu = <&CPU4>;
+			arm,trig-in-sigs = <0 1 2 3 4 5 6 7 8 9>;
+			arm,trig-out-sigs = <0 1 2 3 4 5 6 7 8 9>;
+		};
 	};
 
 	cpu5: cti@112060000 {
@@ -4154,6 +4184,12 @@
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		trig-conns {
+			cpu = <&CPU5>;
+			arm,trig-in-sigs = <0 1 2 3 4 5 6 7 8 9>;
+			arm,trig-out-sigs = <0 1 2 3 4 5 6 7 8 9>;
+		};
 	};
 
 	cpu6: cti@12070000 {
@@ -4165,6 +4201,12 @@
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		trig-conns {
+			cpu = <&CPU6>;
+			arm,trig-in-sigs = <0 1 2 3 4 5 6 7 8 9>;
+			arm,trig-out-sigs = <0 1 2 3 4 5 6 7 8 9>;
+		};
 	};
 
 	cpu7: cti@12080000 {
@@ -4176,6 +4218,12 @@
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		trig-conns {
+			cpu = <&CPU7>;
+			arm,trig-in-sigs = <0 1 2 3 4 5 6 7 8 9>;
+			arm,trig-out-sigs = <0 1 2 3 4 5 6 7 8 9>;
+		};
 	};
 
 	ipcb_tgu: tgu@10b0e000 {
@@ -4197,6 +4245,7 @@
 	ete0 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU0>;
+		phy-cpu = <0>;
 
 		coresight-name = "coresight-ete0";
 		qcom,skip-power-up;
@@ -4213,6 +4262,7 @@
 	ete1 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU1>;
+		phy-cpu = <1>;
 
 		coresight-name = "coresight-ete1";
 		qcom,skip-power-up;
@@ -4229,6 +4279,7 @@
 	ete2 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU2>;
+		phy-cpu = <2>;
 
 		coresight-name = "coresight-ete2";
 		qcom,skip-power-up;
@@ -4245,6 +4296,7 @@
 	ete3 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU3>;
+		phy-cpu = <3>;
 
 		coresight-name = "coresight-ete3";
 		qcom,skip-power-up;
@@ -4261,6 +4313,7 @@
 	ete4 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU4>;
+		phy-cpu = <4>;
 
 		coresight-name = "coresight-ete4";
 		qcom,skip-power-up;
@@ -4277,6 +4330,7 @@
 	ete5 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU5>;
+		phy-cpu = <5>;
 
 		coresight-name = "coresight-ete5";
 		qcom,skip-power-up;
@@ -4293,6 +4347,7 @@
 	ete6 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU6>;
+		phy-cpu = <6>;
 
 		coresight-name = "coresight-ete6";
 		qcom,skip-power-up;
@@ -4309,6 +4364,7 @@
 	ete7 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU7>;
+		phy-cpu = <7>;
 
 		coresight-name = "coresight-ete7";
 		qcom,skip-power-up;
@@ -4403,5 +4459,41 @@
 				};
 			};
 		};
+	};
+
+	spmi_tgu0: tgu@10b0f000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0x000bb999>;
+
+		reg = <0x10b0f000 0x1000>;
+		reg-names = "tgu-base";
+
+		tgu-steps = <3>;
+		tgu-conditions = <4>;
+		tgu-regs = <9>;
+		tgu-timer-counters = <8>;
+
+		coresight-name = "coresight-tgu-spmi0";
+
+		clocks = <&aoss_qmp>;
+		clock-names = "apb_pclk";
+	};
+
+	spmi_tgu1: tgu@10b10000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0x000bb999>;
+
+		reg = <0x10b10000 0x1000>;
+		reg-names = "tgu-base";
+
+		tgu-steps = <3>;
+		tgu-conditions = <4>;
+		tgu-regs = <9>;
+		tgu-timer-counters = <8>;
+
+		coresight-name = "coresight-tgu-spmi1";
+
+		clocks = <&aoss_qmp>;
+		clock-names = "apb_pclk";
 	};
 };

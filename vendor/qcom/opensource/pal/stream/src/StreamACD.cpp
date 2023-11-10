@@ -1683,6 +1683,16 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             TransitTo(ACD_STATE_SSR);
             break;
         }
+        case ACD_EV_RESUME: {
+            acd_stream_.paused_ = false;
+            if (false == acd_stream_.engine_->isEngActive()) {
+                // Possible if ACD was paused by another
+                // ST stream while in detected state.
+                TransitTo(ACD_STATE_LOADED);
+                status = acd_stream_.ProcessInternalEvent(ev_cfg);
+            }
+            break;
+        }
         default: {
             PAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;

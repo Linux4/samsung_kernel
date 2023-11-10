@@ -611,6 +611,7 @@ int32_t pal_gef_rw_param_acdb(uint32_t param_id, void *param_payload,
                       uint32_t instance_id, uint32_t dir, bool is_play);
 
 #ifdef SEC_AUDIO_COMMON
+int32_t pal_active_device_count(pal_device_id_t deviceId);
 void pal_dump(int fd);
 #endif
 

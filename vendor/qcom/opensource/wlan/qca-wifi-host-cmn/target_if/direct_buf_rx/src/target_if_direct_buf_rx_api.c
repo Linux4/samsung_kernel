@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -263,6 +264,38 @@ QDF_STATUS target_if_dbr_update_pdev_for_hw_mode_change(
 	/* Update DBR object in pdev */
 	pdev->pdev_comp_priv_obj[WLAN_TARGET_IF_COMP_DIRECT_BUF_RX] =
 		(void *)dbr_psoc_obj->dbr_pdev_obj[phy_idx];
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS target_if_dbr_set_event_handler_ctx(
+		struct wlan_objmgr_psoc *psoc,
+		enum wmi_rx_exec_ctx event_handler_ctx)
+{
+	struct direct_buf_rx_psoc_obj *dbr_psoc_obj;
+
+	if (!psoc) {
+		direct_buf_rx_err("psoc is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (event_handler_ctx != WMI_RX_UMAC_CTX &&
+	    event_handler_ctx != WMI_RX_WORK_CTX) {
+		qdf_err("DBR handler context: Invalid context");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	dbr_psoc_obj = wlan_objmgr_psoc_get_comp_private_obj(
+			psoc, WLAN_TARGET_IF_COMP_DIRECT_BUF_RX);
+	if (!dbr_psoc_obj) {
+		direct_buf_rx_err("dir buf rx psoc object is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	dbr_psoc_obj->handler_ctx = event_handler_ctx;
+
+	direct_buf_rx_info("DBR handler context: %d",
+			   dbr_psoc_obj->handler_ctx);
 
 	return QDF_STATUS_SUCCESS;
 }

@@ -1095,6 +1095,8 @@ static int dfc_update_fc_map(struct net_device *dev, struct qos_info *qos,
 				ancillary);
 			rc = dfc_bearer_flow_ctl(dev, itm, qos);
 		}
+	} else {
+		net_log("no match bearer_map! m=%d b=%d\n", fc_info->mux_id, fc_info->bearer_id);
 	}
 
 	return rc;

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,18 +27,6 @@
 #include <wlan_reg_ucfg_api.h>
 #include <target_if.h>
 #include <os_if_spectral_netlink.h>
-
-#define LOW_2GHZ_FREQ 2312
-#define HIGH_2GHZ_FREQ 2732
-#define LOW_5GHZ_FREQ  4912
-
-#ifdef CONFIG_BAND_6GHZ
-#define HIGH_5GHZ_FREQ 7200
-#else
-#define HIGH_5GHZ_FREQ 5920
-#endif
-
-#define HIGH_5GHZ_FREQ_NO_6GHZ 5920
 
 static void hdd_init_pdev_os_priv(struct hdd_context *hdd_ctx,
 	struct pdev_osif_priv *os_priv)
@@ -137,6 +125,8 @@ static int hdd_check_internal_netdev_state(struct net_device *netdev)
 	if (!adapter)
 		return false;
 
+	hdd_debug("netdev name %s, netdev flags 0x%x, event_flags %lu",
+		  netdev->name, netdev->flags, adapter->event_flags);
 	if (test_bit(DEVICE_IFACE_OPENED, &adapter->event_flags) &&
 	    (netdev->flags & IFF_UP))
 		return true;
@@ -151,6 +141,10 @@ int hdd_objmgr_create_and_store_pdev(struct hdd_context *hdd_ctx)
 	struct wlan_objmgr_pdev *pdev;
 	struct pdev_osif_priv *priv;
 	struct wlan_psoc_host_hal_reg_capabilities_ext *reg_cap_ptr;
+	uint32_t low_2ghz_chan = 0;
+	uint32_t high_2ghz_chan = 0;
+	uint32_t low_5ghz_chan = 0;
+	uint32_t high_5ghz_chan = 0;
 
 	if (!psoc) {
 		hdd_err("Psoc NULL");
@@ -167,17 +161,17 @@ int hdd_objmgr_create_and_store_pdev(struct hdd_context *hdd_ctx)
 		status = QDF_STATUS_E_INVAL;
 		goto free_priv;
 	}
+	ucfg_mlme_get_phy_max_freq_range(psoc, &low_2ghz_chan,
+					 &high_2ghz_chan, &low_5ghz_chan,
+					 &high_5ghz_chan);
 	reg_cap_ptr->phy_id = 0;
-	reg_cap_ptr->low_2ghz_chan = LOW_2GHZ_FREQ;
-	reg_cap_ptr->high_2ghz_chan = HIGH_2GHZ_FREQ;
-	reg_cap_ptr->low_5ghz_chan = LOW_5GHZ_FREQ;
-	reg_cap_ptr->high_5ghz_chan = HIGH_5GHZ_FREQ;
-
-	if (!wlan_reg_is_6ghz_supported(psoc)) {
-		hdd_debug("disabling 6ghz channels");
-		reg_cap_ptr->high_5ghz_chan = HIGH_5GHZ_FREQ_NO_6GHZ;
-	}
-
+	reg_cap_ptr->low_2ghz_chan = low_2ghz_chan;
+	reg_cap_ptr->high_2ghz_chan = high_2ghz_chan;
+	reg_cap_ptr->low_5ghz_chan = low_5ghz_chan;
+	reg_cap_ptr->high_5ghz_chan = high_5ghz_chan;
+	hdd_debug("pdev freq range %d %d %d %d", reg_cap_ptr->low_2ghz_chan,
+		  reg_cap_ptr->high_2ghz_chan, reg_cap_ptr->low_5ghz_chan,
+		  reg_cap_ptr->high_5ghz_chan);
 	priv->osif_check_netdev_state = hdd_check_internal_netdev_state;
 	pdev = wlan_objmgr_pdev_obj_create(psoc, priv);
 	if (!pdev) {

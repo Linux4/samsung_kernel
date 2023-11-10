@@ -27,6 +27,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #ifndef __QTIGRALLOC_H__
@@ -53,6 +57,7 @@ enum {
   PRIV_FLAGS_NEEDS_FLUSH = 0x00000020,
   PRIV_FLAGS_NON_CPU_WRITER = 0x00000080,
   PRIV_FLAGS_CACHED = 0x00000200,
+  PRIV_FLAGS_FINGERPRINT_MASK = 0x00002000,  // Samsung Fingerprint Mask Feature
   PRIV_FLAGS_SECURE_BUFFER = 0x00000400,
   PRIV_FLAGS_VIDEO_ENCODER = 0x00010000,
   PRIV_FLAGS_CAMERA_WRITE = 0x00020000,
@@ -100,6 +105,9 @@ static const MetadataType MetadataType_VideoTranscodeStats = {VENDOR_QTI,
                                                               QTI_VIDEO_TRANSCODE_STATS};
 
 static const MetadataType MetadataType_VideoTimestampInfo = {VENDOR_QTI, QTI_VIDEO_TS_INFO};
+
+static const MetadataType MetadataType_VideoEarlyNotifyLineCount = {VENDOR_QTI,
+                                                                    QTI_EARLYNOTIFY_LINECOUNT};
 
 static const MetadataType MetadataType_FD = {VENDOR_QTI, QTI_FD};
 

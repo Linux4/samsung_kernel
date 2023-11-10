@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -25,7 +25,7 @@
 /**
  * wlan_objmgr_global_obj_init() - global object initialization
  *
- * Creates global object, intializes with default values
+ * Creates global object, initializes with default values
  *
  * Return: SUCCESS  on successful creation,
  *         FAILURE  on Mem alloc failure or allocated already
@@ -526,7 +526,7 @@ typedef void (*wlan_objmgr_psoc_handler)(struct wlan_objmgr_psoc *psoc,
  *
  * @handler: the handler will be called for each psoc
  *           the handler should be implemented to perform required operation
- * @arg:     agruments passed by caller
+ * @arg:     arguments passed by caller
  * @dbg_id: id of the caller
  *
  * API to be used for performing the operations on all psoc

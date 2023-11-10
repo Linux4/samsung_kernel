@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1507,6 +1507,46 @@ end:
 	return;
 } /*** end lim_handle80211_frames() ***/
 
+QDF_STATUS lim_handle_frame_genby_mbssid(uint8_t *frame, uint32_t frame_len,
+					 uint8_t frm_subtype, char *bssid)
+{
+	struct mac_context *mac_ctx;
+	struct pe_session *session;
+	uint8_t sessionid;
+	t_packetmeta meta_data;
+
+	mac_ctx = cds_get_context(QDF_MODULE_ID_PE);
+	if (!mac_ctx) {
+		pe_err("mac ctx is null");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	session = pe_find_session_by_bssid(mac_ctx, bssid, &sessionid);
+	if (!session)
+		return QDF_STATUS_E_INVAL;
+
+	meta_data.mpdu_hdr_ptr = frame;
+	meta_data.mpdu_data_ptr = frame + sizeof(struct wlan_frame_hdr);
+	meta_data.mpdu_data_len = frame_len - sizeof(struct wlan_frame_hdr);
+
+	if (frm_subtype == MGMT_SUBTYPE_BEACON) {
+		pe_debug("Gen beacon frame for critical update feature");
+		if (session->limSmeState == eLIM_SME_LINK_EST_STATE ||
+		    session->limSmeState == eLIM_SME_NORMAL_STATE)
+			sch_beacon_process(mac_ctx, (uint8_t *)&meta_data,
+					   session);
+		else
+			lim_process_beacon_frame(mac_ctx, (uint8_t *)&meta_data,
+						 session);
+	} else if (frm_subtype == MGMT_SUBTYPE_PROBE_RESP) {
+		pe_debug("Gen Probe rsp frame for critical update feature");
+		lim_process_probe_rsp_frame(mac_ctx, (uint8_t *)&meta_data,
+						      session);
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+
 void lim_process_abort_scan_ind(struct mac_context *mac_ctx,
 	uint8_t vdev_id, uint32_t scan_id, uint32_t scan_requestor_id)
 {
@@ -1685,7 +1725,7 @@ static void lim_process_messages(struct mac_context *mac_ctx,
 			}
 		} else {
 			/* PE is not deferring this 802.11 frame so we need to
-			 * call cds_pkt_return. Asumption here is when Rx mgmt
+			 * call cds_pkt_return. Assumption here is when Rx mgmt
 			 * frame processing is done, cds packet could be
 			 * freed here.
 			 */
@@ -1929,7 +1969,7 @@ static void lim_process_messages(struct mac_context *mac_ctx,
 				(uint8_t)msg->bodyval;
 			/*
 			 * if message comes for DFS channel, no need to update:
-			 * 1) We wont have MCC with DFS channels. so no need to
+			 * 1) We won't have MCC with DFS channels. so no need to
 			 *    add Q2Q IE
 			 * 2) We cannot end up in DFS channel SCC by channel
 			 *    switch from non DFS MCC scenario, so no need to
@@ -1939,9 +1979,10 @@ static void lim_process_messages(struct mac_context *mac_ctx,
 			 *    restart, in such a case, beacon params will be
 			 *    reset and thus will not contain Q2Q IE, by default
 			 */
-			if (wlan_reg_get_channel_state_for_freq(
+			if (wlan_reg_get_channel_state_for_pwrmode(
 				mac_ctx->pdev,
-				session_entry->curr_op_freq) !=
+				session_entry->curr_op_freq,
+				REG_CURRENT_PWR_MODE) !=
 				CHANNEL_STATE_DFS) {
 				beacon_params.bss_idx = session_entry->vdev_id;
 				beacon_params.beaconInterval =
@@ -2022,6 +2063,11 @@ static void lim_process_messages(struct mac_context *mac_ctx,
 		break;
 	case eWNI_SME_SET_HE_BSS_COLOR:
 		lim_process_set_he_bss_color(mac_ctx, msg->bodyptr);
+		qdf_mem_free((void *)msg->bodyptr);
+		msg->bodyptr = NULL;
+		break;
+	case eWNI_SME_RECONFIG_OBSS_SCAN_PARAM:
+		lim_reconfig_obss_scan_param(mac_ctx, msg->bodyptr);
 		qdf_mem_free((void *)msg->bodyptr);
 		msg->bodyptr = NULL;
 		break;
@@ -2179,7 +2225,7 @@ static void lim_process_normal_hdd_msg(struct mac_context *mac_ctx,
 		 * 1. If we are in learn mode and we receive any of these
 		 * messages, you have to come out of scan and process the
 		 * message, hence dont defer the message here. In handler,
-		 * these message could be defered till we actually come out of
+		 * these message could be deferred till we actually come out of
 		 * scan mode.
 		 * 2. If radar is detected, you might have to defer all of
 		 * these messages except Stop BSS request/ Switch channel
@@ -2211,7 +2257,7 @@ static void lim_process_normal_hdd_msg(struct mac_context *mac_ctx,
 	} else {
 		/*
 		 * These messages are from HDD.Since these requests may also be
-		 * generated internally within LIM module, need to distinquish
+		 * generated internally within LIM module, need to distinguish
 		 * and send response to host
 		 */
 		if (rsp_reqd)

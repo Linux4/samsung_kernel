@@ -150,8 +150,17 @@ int lpi_pinctrl_runtime_suspend(struct device *dev);
 static int lpi_gpio_read(struct lpi_gpio_pad *pad, unsigned int addr)
 {
 	int ret = 0;
-	struct lpi_gpio_state *state = dev_get_drvdata(lpi_dev);
+	struct lpi_gpio_state *state = NULL;
 	static DEFINE_RATELIMIT_STATE(rtl, 1 * HZ, 1);
+
+	if (!lpi_dev) {
+		if (__ratelimit(&rtl))
+			pr_err_ratelimited("%s: lpi_dev is NULL, return\n",
+							__func__);
+		return -EINVAL;
+	}
+
+	state = dev_get_drvdata(lpi_dev);
 
 	if (!lpi_dev_up) {
 		if (__ratelimit(&rtl))
@@ -183,9 +192,18 @@ err:
 static int lpi_gpio_write(struct lpi_gpio_pad *pad, unsigned int addr,
 			  unsigned int val)
 {
-	struct lpi_gpio_state *state = dev_get_drvdata(lpi_dev);
+	struct lpi_gpio_state *state = NULL;
 	int ret = 0;
 	static DEFINE_RATELIMIT_STATE(rtl, 1 * HZ, 1);
+
+	if (!lpi_dev) {
+		if (__ratelimit(&rtl))
+			pr_err_ratelimited("%s: lpi_dev is NULL, return\n",
+							__func__);
+		return -EINVAL;
+	}
+
+	state = dev_get_drvdata(lpi_dev);
 
 	if (!lpi_dev_up) {
 		return 0;
@@ -488,12 +506,11 @@ static int lpi_notifier_service_cb(struct notifier_block *this,
 		lpi_dev_up = false;
 		break;
 	case AUDIO_NOTIFIER_SERVICE_UP:
-		if (initial_boot) {
+		if (initial_boot)
 			initial_boot = false;
 
-			lpi_dev_up = true;
-			snd_event_notify(lpi_dev, SND_EVENT_UP);
-		}
+		lpi_dev_up = true;
+		snd_event_notify(lpi_dev, SND_EVENT_UP);
 		break;
 	default:
 		break;
@@ -549,8 +566,15 @@ static void lpi_pinctrl_ssr_disable(struct device *dev, void *data)
 
 static int lpi_pinctrl_ssr_enable(struct device *dev, void *data)
 {
-	struct lpi_gpio_state *state = dev_get_drvdata(lpi_dev);
+	struct lpi_gpio_state *state = NULL;
 	dev_dbg(dev, "%s: enter\n", __func__);
+
+	if (!lpi_dev) {
+		dev_err(dev, "%s: lpi_dev is NULL, return\n", __func__);
+		return -EINVAL;
+	}
+
+	state = dev_get_drvdata(lpi_dev);
 
 	if (!initial_boot) {
 		TRACE_PRINTK("%s: enter\n", __func__);
@@ -731,7 +755,7 @@ static int lpi_pinctrl_probe(struct platform_device *pdev)
 	} else {
 		slew_base = NULL;
 		dev_dbg(dev, "error in reading lpi slew register: %d\n",
-			__func__, ret);
+			ret);
 	}
 
 	pindesc = devm_kcalloc(dev, npins, sizeof(*pindesc), GFP_KERNEL);

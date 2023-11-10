@@ -148,6 +148,7 @@ typedef enum {
 #define DEVICEPP_UNMUTE 46
 #define ORIENTATION_TAG 47
 #define HANDSET_PROT_ENABLE 48
+#define MUX_DEMUX_CHANNELS 49
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
@@ -315,7 +316,7 @@ public:
     virtual int32_t DisconnectDevice(pal_device_id_t device_id) { return 0; }
     virtual int32_t ConnectDevice(pal_device_id_t device_id) { return 0; }
     static void handleSoftPauseCallBack(uint64_t hdl, uint32_t event_id, void *data,
-                                                           uint32_t event_size);
+                                                           uint32_t event_size, uint32_t miid);
     static void handleStreamException(struct pal_stream_attributes *attributes,
                                       pal_stream_callback cb, uint64_t cookie);
     void lockStreamMutex() {

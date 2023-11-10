@@ -13,6 +13,17 @@
 };
 
 &soc {
+	dcc: dcc_v2@40ff000 {
+		compatible = "qcom,dcc-v2";
+		reg = <0x040ff000 0x1000>,
+			<0x040b8800 0x7000>;
+		reg-names = "dcc-base", "dcc-ram-base";
+		qcom,transaction_timeout = <0>;
+		dcc-ram-offset = <0x0>;
+
+		status = "okay";
+	};
+
 	mem_dump {
 		compatible = "qcom,mem-dump";
 		memory-region = <&dump_mem>;

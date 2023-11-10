@@ -575,7 +575,7 @@ void wlan_objmgr_debug_info_init(void)
 		       wlan_objmgr_iterate_log_del_obj_handler,
 		       NULL, QDF_TIMER_TYPE_WAKE_APPS);
 
-	/* Initialze the node_count to 0 and create list*/
+	/* Initialize the node_count to 0 and create list*/
 	qdf_list_create(&debug_info->obj_list,
 			LOG_DEL_OBJ_LIST_MAX_COUNT);
 

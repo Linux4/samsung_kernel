@@ -1277,6 +1277,7 @@ struct sde_sspp_cfg {
  * @dspp:              ID of connected DSPP, DSPP_MAX if unsupported
  * @pingpong:          ID of connected PingPong, PINGPONG_MAX if unsupported
  * @ds:                ID of connected DS, DS_MAX if unsupported
+ * @merge_3d:          ID of connected 3d MUX
  * @dummy_mixer:       identifies dcwb mixer is considered dummy
  * @lm_pair_mask:      Bitmask of LMs that can be controlled by same CTL
  */
@@ -1286,6 +1287,7 @@ struct sde_lm_cfg {
 	u32 dspp;
 	u32 pingpong;
 	u32 ds;
+	u32 merge_3d;
 	bool dummy_mixer;
 	unsigned long lm_pair_mask;
 };
@@ -1854,6 +1856,7 @@ struct sde_perf_cfg {
  * @dnsc_blur_filters        supported filters for downscale blur
  * @dnsc_blur_filter_count   supported filter count for downscale blur
  * @ipcc_protocol_id    ipcc protocol id for the hw
+ * @ipcc_client_phys_id dpu ipcc client id for the hw, physical client id if supported
  */
 struct sde_mdss_cfg {
 	/* Block Revisions */
@@ -1973,6 +1976,7 @@ struct sde_mdss_cfg {
 	u32 dnsc_blur_filter_count;
 
 	u32 ipcc_protocol_id;
+	u32 ipcc_client_phys_id;
 };
 
 struct sde_mdss_hw_cfg_handler {

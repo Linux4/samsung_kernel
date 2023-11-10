@@ -32,18 +32,18 @@
  * @hdd_ctx: Pointer to HDD context
  *
  * This function checks the state of the sar unsolicited timer, if the
- * sar_unsolicited_timer is not runnig, it starts the timer.
+ * sar_unsolicited_timer is not running, it starts the timer.
  *
  * Return: None
  */
 void wlan_hdd_sar_unsolicited_timer_start(struct hdd_context *hdd_ctx);
 
 /**
- * wlan_hdd_sar_safety_timer_reset() - Reset SAR sefety timer
+ * wlan_hdd_sar_timers_reset() - Reset SAR timers
  * @hdd_ctx: Pointer to HDD context
  *
  * This function checks the state of the sar safety timer, if the
- * sar_safety_timer is not runnig, it starts the timer else it stops
+ * sar_safety_timer is not running, it starts the timer else it stops
  * the timer and start the timer again.
  *
  * Return: None
@@ -211,7 +211,8 @@ void hdd_store_sar_config(struct hdd_context *hdd_ctx,
 			  struct sar_limit_cmd_params *sar_limit_cmd);
 
 /**
- * hdd_free_sar_config() - Free the resources allocated while storing SAR config
+ * wlan_hdd_free_sar_config() - Free the resources allocated while storing
+ *                              SAR config
  * @hdd_ctx: HDD context
  *
  * The driver stores the SAR config values in HDD context so that it can be

@@ -49,7 +49,7 @@
 				"", __func__, ##__VA_ARGS__); \
 } while (0)
 
-const char * const mhi_log_level_str[MHI_MSG_LVL_MAX] = {
+const char * const mhi_netdev_log_level_str[MHI_MSG_LVL_MAX] = {
 	[MHI_MSG_LVL_VERBOSE] = "Verbose",
 	[MHI_MSG_LVL_INFO] = "Info",
 	[MHI_MSG_LVL_ERROR] = "Error",
@@ -57,8 +57,8 @@ const char * const mhi_log_level_str[MHI_MSG_LVL_MAX] = {
 	[MHI_MSG_LVL_MASK_ALL] = "Mask all",
 };
 #define MHI_NETDEV_LOG_LEVEL_STR(level) ((level >= MHI_MSG_LVL_MAX || \
-					 !mhi_log_level_str[level]) ? \
-					 "Mask all" : mhi_log_level_str[level])
+					 !mhi_netdev_log_level_str[level]) ? \
+					 "Mask all" : mhi_netdev_log_level_str[level])
 
 struct mhi_net_chain {
 	struct sk_buff *head, *tail; /* chained skb */
@@ -610,7 +610,8 @@ static int mhi_netdev_ioctl_extended(struct net_device *dev, struct ifreq *ifr)
 	return rc;
 }
 
-static int mhi_netdev_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
+static int mhi_netdev_ioctl(struct net_device *dev, struct ifreq *ifr,
+					void __user *data, int cmd)
 {
 	int rc = 0;
 	struct rmnet_ioctl_data_s ioctl_data;
@@ -656,7 +657,7 @@ static int mhi_netdev_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 static const struct net_device_ops mhi_netdev_ops_ip = {
 	.ndo_open = mhi_netdev_open,
 	.ndo_start_xmit = mhi_netdev_xmit,
-	.ndo_do_ioctl = mhi_netdev_ioctl,
+	.ndo_siocdevprivate = mhi_netdev_ioctl,
 	.ndo_change_mtu = mhi_netdev_change_mtu,
 	.ndo_set_mac_address = 0,
 	.ndo_validate_addr = 0,
@@ -1054,6 +1055,8 @@ static int mhi_netdev_probe(struct mhi_device *mhi_dev,
 		if (!rsc_parent_netdev || !rsc_parent_netdev->ndev)
 			return -ENODEV;
 
+		rsc_parent_netdev->rsc_dev = mhi_netdev;
+
 		/* this device is shared with parent device. so we won't be
 		 * creating a new network interface. Clone parent
 		 * information to child node
@@ -1138,12 +1141,30 @@ static const struct mhi_netdev_driver_data hw0_308_data = {
 	.mru = 0x8000,
 	.chain_skb = true,
 	.is_rsc_chan = false,
+	.has_rsc_child = true,
+	.interface_name = "rmnet_mhi",
+};
+
+static const struct mhi_netdev_driver_data hw1_308_data = {
+	.mru = 0x4000,
+	.chain_skb = false,
+	.is_rsc_chan = false,
+	.has_rsc_child = false,
+	.interface_name = "mhi_swip",
+};
+
+static const struct mhi_netdev_driver_data hw0_rsc_308_data = {
+	.mru = 0x8000,
+	.chain_skb = true,
+	.is_rsc_chan = true,
 	.has_rsc_child = false,
 	.interface_name = "rmnet_mhi",
 };
 
 static const struct mhi_device_id mhi_netdev_match_table[] = {
 	{ .chan = "IP_HW0", .driver_data = (kernel_ulong_t)&hw0_308_data },
+	{ .chan = "IP_HW0_RSC", .driver_data = (kernel_ulong_t)&hw0_rsc_308_data },
+	{ .chan = "IP_SW0", .driver_data = (kernel_ulong_t)&hw1_308_data },
 	{},
 };
 

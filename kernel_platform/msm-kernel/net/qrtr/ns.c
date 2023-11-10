@@ -19,7 +19,7 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/qrtr.h>
 
-#define NS_LOG_PAGE_CNT 4
+#define NS_LOG_PAGE_CNT 8
 static void *ns_ilc;
 #define NS_INFO(x, ...) ipc_log_string(ns_ilc, x, ##__VA_ARGS__)
 
@@ -93,7 +93,10 @@ static struct qrtr_node *node_get(unsigned int node_id)
 	node->id = node_id;
 	xa_init(&node->servers);
 
-	xa_store(&nodes, node_id, node, GFP_ATOMIC);
+	if(xa_is_err(xa_store(&nodes, node_id, node, GFP_ATOMIC))){
+		kfree(node);
+		return NULL;
+	}
 
 	return node;
 }
@@ -737,7 +740,7 @@ static void qrtr_ns_data_ready(struct sock *sk)
 int qrtr_ns_init(void)
 {
 	struct sockaddr_qrtr sq;
-	int rx_buf_sz = INT_MAX;
+	int rx_buf_sz = SZ_1M;
 	int ret;
 
 	INIT_LIST_HEAD(&qrtr_ns.lookups);
@@ -776,7 +779,7 @@ int qrtr_ns_init(void)
 		goto err_wq;
 	}
 
-	sock_setsockopt(qrtr_ns.sock, SOL_SOCKET, SO_RCVBUF,
+	sock_setsockopt(qrtr_ns.sock, SOL_SOCKET, SO_RCVBUFFORCE,
 			KERNEL_SOCKPTR((void *)&rx_buf_sz), sizeof(rx_buf_sz));
 
 	qrtr_ns.bcast_sq.sq_family = AF_QIPCRTR;

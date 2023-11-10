@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -230,7 +231,7 @@ void tgt_p2p_scan_event_cb(struct wlan_objmgr_vdev *vdev,
 QDF_STATUS tgt_p2p_mgmt_download_comp_cb(void *context,
 	qdf_nbuf_t buf, bool free)
 {
-	p2p_debug("conext:%pK, buf:%pK, free:%d", context,
+	p2p_debug("context:%pK, buf:%pK, free:%d", context,
 		qdf_nbuf_data(buf), free);
 
 	qdf_nbuf_free(buf);

@@ -25,6 +25,7 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 	memory { device_type = "memory"; reg = <0 0 0 0>; };
+	ddr-regions { };
 
 	aliases {
 		mmc1 = &sdhc_2; /* SDC2 SD card slot */
@@ -350,7 +351,7 @@
 	};
 
 	chosen: chosen {
-		bootargs = "qcom_dma_heaps.enable_bitstream_contig_heap=y";
+		bootargs = "qcom_dma_heaps.enable_bitstream_contig_heap=y kpti=0 ssbd=force-off rcupdate.rcu_expedited=1";
 	};
 
 	soc: soc { };
@@ -413,9 +414,9 @@
 			reg = <0x0 0x8be00000 0x0 0x1a00000>;
 		};
 
-		pil_modem_mem: modem_region {
+		rproc_modem_mem: rproc_modem_region {
 			no-map;
-			reg = <0x0 0x8d800000 0x0 0x9600000>;
+			reg = <0x0 0x8d800000 0x0 0x4c1c000>;
 		};
 
 		pil_video_mem: pil_video_region {
@@ -455,10 +456,8 @@
 
 		qseecom_mem: qseecom_region {
 			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x1400000>;
+			no-map;
+			reg = <0x0 0x9e400000 0x0 0x1400000>;
 		};
 
 		cdsp_sec_mem: cdsp_sec_regions {
@@ -466,17 +465,20 @@
 			reg = <0x0 0xa4c00000 0x0 0x3c00000>;
 		};
 
-		cont_splash_memory: cont_splash_region {
+		cont_splash_memory: splash_region {
 			reg = <0x0 0x9c000000 0x0 0x2400000>;
 			label = "cont_splash_region";
 		};
 
-		disp_rdump_memory: disp_rdump_region {
-			reg = <0x0 0x9c000000 0x0 0x02400000>;
-			label = "disp_rdump_region";
+		adsp_mem: adsp_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+			reusable;
+			alignment = <0x0 0x400000>;
+			size = <0x0 0x1000000>;
 		};
 
-		adsp_mem: adsp_region {
+		audio_cma_mem: audio_cma_region {
 			compatible = "shared-dma-pool";
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
 			reusable;
@@ -490,6 +492,14 @@
 			reusable;
 			alignment = <0x0 0x400000>;
 			size = <0x0 0x400000>;
+		};
+
+		mdsp_mem: mdsp_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+			reusable;
+			alignment = <0x0 0x400000>;
+			size = <0x0 0x1000000>;
 		};
 
 		user_contig_mem: user_contig_region {
@@ -506,6 +516,13 @@
 			reusable;
 			alignment = <0x0 0x400000>;
 			size = <0x0 0x1000000>;
+		};
+
+		va_md_mem: va_md_mem_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+			reusable;
+			size = <0 0x1000000>;
 		};
 
 		sp_mem: sp_region {  /* SPSS-HLOS ION shared mem */
@@ -539,6 +556,12 @@
 			size = <0x0 0x2800000>;
 			linux,cma-default;
 		};
+	};
+
+	va_mini_dump {
+		compatible = "qcom,va-minidump";
+		memory-region = <&va_md_mem>;
+		status = "ok";
 	};
 
 	clocks {
@@ -690,10 +713,16 @@
 			compatible = "qcom,msm-imem-diag-dload";
 			reg = <0xc8 0xc8>;
 		};
+
+		pil@94c {
+			compatible = "qcom,pil-reloc-info";
+			reg = <0x94c 0xc8>;
+		};
 	};
 
 	cpu_pmu: cpu-pmu {
 		compatible = "arm,armv8-pmuv3";
+		qcom,irq-is-percpu;
 		interrupts = <GIC_PPI 5 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
@@ -792,6 +821,12 @@
 				qcom,tcs-wait = <QCOM_ICC_TAG_AMC>;
 			};
 		};
+	};
+
+	ddr_bwprofiler {
+		compatible = "qcom,ddr_bwprofiler";
+		clocks = <&aoss_qmp QDSS_CLK>;
+		clock-names = "qdss_clk";
 	};
 
 	gcc: clock-controller@100000 {
@@ -1224,9 +1259,8 @@
 		reset-names = "rst";
 
 		iommus = <&apps_smmu 0x300 0x0>;
-		qcom,iommu-dma = "bypass";
+		qcom,iommu-dma = "fastmap";
 		dma-coherent;
-		qcom,disable-lpm;
 
 		status = "disabled";
 		qos0 {
@@ -1481,7 +1515,7 @@
 		memory-region = <&rproc_adsp_mem>;
 
 		/* Inputs from ssc */
-		interrupts-extended = <&pdc 6 IRQ_TYPE_EDGE_RISING>,
+		interrupts-extended = <&intc GIC_SPI 162 IRQ_TYPE_LEVEL_HIGH>,
 					<&adsp_smp2p_in 0 0>,
 					<&adsp_smp2p_in 2 0>,
 					<&adsp_smp2p_in 1 0>,
@@ -1615,9 +1649,82 @@
 		};
 	};
 
+	modem_pas: remoteproc-modem@4080000 {
+		compatible = "qcom,sm8150-mpss-pas";
+		reg = <0x4080000 0x00100>;
+		status = "ok";
+
+		cx-supply = <&VDD_CX_LEVEL>;
+		cx-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 100000>;
+		mx-supply = <&VDD_MX_LEVEL>;
+		mx-uV-uA = <RPMH_REGULATOR_LEVEL_TURBO 100000>;
+		reg-names = "cx", "mx";
+
+		clocks = <&rpmhcc RPMH_CXO_CLK>;
+		clock-names = "xo";
+
+		qcom,qmp = <&aoss_qmp>;
+
+		interconnects = <&aggre2_noc MASTER_CRYPTO &mc_virt SLAVE_EBI1>;
+		interconnect-names = "crypto_ddr";
+
+		memory-region = <&rproc_modem_mem>;
+
+		/* Inputs from mss */
+		interrupts-extended = <&intc GIC_SPI 266 IRQ_TYPE_LEVEL_HIGH>,
+					<&modem_smp2p_in 0 0>,
+					<&modem_smp2p_in 2 0>,
+					<&modem_smp2p_in 1 0>,
+					<&modem_smp2p_in 3 0>,
+					<&modem_smp2p_in 7 0>;
+
+		interrupt-names = "wdog",
+				"fatal",
+				"handover",
+				"ready",
+				"stop-ack",
+				"shutdown-ack";
+
+		/* Outputs to mss */
+		qcom,smem-states = <&modem_smp2p_out 0>;
+		qcom,smem-state-names = "stop";
+
+		glink_edge_modem: glink-edge {
+			qcom,remote-pid = <1>;
+			transport = "smem";
+			mboxes = <&apss_shared 12>;
+			mbox-names = "mpss_smem";
+			interrupts = <GIC_SPI 449 IRQ_TYPE_EDGE_RISING>;
+
+			label = "modem";
+			qcom,glink-label = "mpss";
+
+			qcom,modem_qrtr {
+				qcom,glink-channels = "IPCRTR";
+				qcom,intents = <0x800  5
+						0x2000 3
+						0x4400 2>;
+			};
+
+			qcom,msm_fastrpc_rpmsg {
+				compatible = "qcom,msm-fastrpc-rpmsg";
+				qcom,glink-channels = "fastrpcglink-apps-dsp";
+				qcom,intents = <0x64 64>;
+			};
+
+			qcom,modem_glink_ssr {
+				qcom,glink-channels = "glink_ssr";
+			};
+
+			qcom,modem_ds {
+				qcom,glink-channels = "DS";
+				qcom,intents = <0x4000 0x2>;
+			};
+		};
+	};
+
 	qcom,pmu {
 		compatible = "qcom,pmu";
-		qcom,long-counter;
 		qcom,pmu-events-tbl =
 			< 0x0008 0xFF 0xFF 0xFF >,
 			< 0x0011 0xFF 0xFF 0xFF >,
@@ -1810,7 +1917,8 @@
 						< 1152000  768000 >,
 						< 1344000  960000 >,
 						< 1689600 1228800 >,
-						< 2016000 1344000 >;
+						< 2016000 1344000 >,
+						< 2131200 1612800 >;
 				qcom,sampling-enabled;
 			};
 
@@ -1823,7 +1931,8 @@
 						< 1152000  768000 >,
 						< 1344000  960000 >,
 						< 1689600 1228800 >,
-						< 2016000 1344000 >;
+						< 2016000 1344000 >,
+						< 2419200 1612800 >;
 				qcom,sampling-enabled;
 			};
 		};
@@ -1853,10 +1962,14 @@
 	qcom,chd {
 		compatible = "qcom,core-hang-detect";
 		label = "core";
-		qcom,threshold-arr = <0x18000058 0x18010058 0x18020058 0x18030058
-				0x18040058 0x18050058 0x18060058 0x18070058>;
-		qcom,config-arr = <0x18000060 0x18010060 0x18020060 0x18030060
-				0x18040060 0x18050060 0x18060060 0x18070060>;
+		qcom,chd-percpu-info = <&CPU0 0x18000058 0x18000060>,
+					<&CPU1 0x18010058 0x18010060>,
+					<&CPU2 0x18020058 0x18020060>,
+					<&CPU3 0x18030058 0x18030060>,
+					<&CPU4 0x18040058 0x18040060>,
+					<&CPU5 0x18050058 0x18050060>,
+					<&CPU6 0x18060058 0x18060060>,
+					<&CPU7 0x18070058 0x18070060>;
 	};
 
 	qtee_shmbridge {
@@ -1954,6 +2067,11 @@
 	qcom,msm-adsprpc-mem {
 		compatible = "qcom,msm-adsprpc-mem-region";
 		memory-region = <&adsp_mem>;
+	};
+
+	qcom,msm-mdsprpc-mem {
+		compatible = "qcom,msm-mdsprpc-mem-region";
+		memory-region = <&mdsp_mem>;
 	};
 
 	msm_fastrpc: qcom,msm_fastrpc {
@@ -2083,6 +2201,8 @@
 				"l3-scu-errirq",
 				"l3-scu-faultirq";
 	};
+
+	msm_gpu: qcom,kgsl-3d0@2c00000 { };
 };
 
 &firmware {
@@ -2122,6 +2242,7 @@
 #include "sm8150-slpi-pinctrl.dtsi"
 #include "sm8150-gdsc.dtsi"
 #include "msm-arm-smmu-sm8150.dtsi"
+#include "sm8150-coresight.dtsi"
 #include "sm8150-smp2p.dtsi"
 #include "sm8150-usb.dtsi"
 #include "sm8150-debug.dtsi"
@@ -2295,3 +2416,4 @@
 };
 
 #include "sm8150-thermal.dtsi"
+#include "sm8150-npu.dtsi"

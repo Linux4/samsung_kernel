@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -149,17 +150,13 @@ enum serialization_vdev_queue_type {
  * enum wlan_serialization_match_type - Comparison options for a command
  * @WLAN_SER_MATCH_VDEV: Compare vdev
  * @WLAN_SER_MATCH_PDEV: Compare pdev
- * @WLAN_SER_MATCH_CMD_TYPE: Compare command type
  * @WLAN_SER_MATCH_CMD_TYPE_VDEV: Compare command type and vdev
- * @WLAN_SER_MATCH_CMD_ID: Compare command id
  * @WLAN_SER_MATCH_CMD_ID_VDEV: Compare command id and vdev
  */
 enum wlan_serialization_match_type {
 	WLAN_SER_MATCH_VDEV,
 	WLAN_SER_MATCH_PDEV,
-	WLAN_SER_MATCH_CMD_TYPE,
 	WLAN_SER_MATCH_CMD_TYPE_VDEV,
-	WLAN_SER_MATCH_CMD_ID,
 	WLAN_SER_MATCH_CMD_ID_VDEV,
 	WLAN_SER_MATCH_MAX,
 };
@@ -561,7 +558,7 @@ bool wlan_serialization_match_cmd_blocking(
 		enum wlan_serialization_node node_type);
 
 /**
- * wlan_serialization_find_cmd() - Find the cmd matching the given criterias
+ * wlan_serialization_find_cmd() - Find the cmd matching the given criteria
  * @cmd: Serialization command information
  * @cmd_type: Command type to be matched
  * @pdev: pdev object that needs to be matched

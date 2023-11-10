@@ -17,7 +17,7 @@
  */
 
 /**
- * DOC : osif_twt_ext_req.h
+ * DOC: osif_twt_ext_req.h
  *
  * WLAN Host Device Driver file for TWT (Target Wake Time) support.
  *
@@ -213,7 +213,7 @@ int osif_twt_clear_session_traffic_stats(struct wlan_objmgr_vdev *vdev,
 
 /**
  * osif_twt_set_param() - pdev TWT param send
- * @psoc: Pointer to psoc object
+ * @vdev: Pointer to vdev object
  * @twt_param_attr: nlattr for TWT access category
  *
  * Return: QDF Status

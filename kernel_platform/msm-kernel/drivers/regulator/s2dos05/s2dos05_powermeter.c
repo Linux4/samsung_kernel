@@ -15,7 +15,9 @@
 #include <linux/slab.h>
 #include <linux/regulator/s2dos05.h>
 #include <linux/platform_device.h>
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 #include <linux/regulator/pmic_class.h>
+#endif
 
 #define CURRENT_METER		1
 #define POWER_METER		2

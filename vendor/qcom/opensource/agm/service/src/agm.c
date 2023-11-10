@@ -675,6 +675,9 @@ int agm_session_aif_connect(uint32_t session_id,
     struct session_obj *obj = NULL;
     int ret = 0;
 
+    AGM_LOGI("%sconnecting aifid:%d with session id=%d\n",
+                                      (state ? "": "dis"), aif_id, session_id);
+
     ret = session_obj_get(session_id, &obj);
     if (ret) {
         AGM_LOGE("Error:%d retrieving session obj with session id=%d\n",

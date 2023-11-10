@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -554,6 +555,27 @@
 					1, \
 					"enable dynamic nss chain config")
 
+/*
+ * <ini>
+ * restart_sap_on_dynamic_nss_chains_config - Decide whether SAP needs to be
+ * restarted on dynamic nss chains update
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * Related: SAP/P2P.
+ *
+ * Supported Feature: Dynamic chainmask
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_RESTART_SAP_ON_DYNAMIC_NSS_CHAINS_CONFIG CFG_INI_BOOL( \
+				"restart_sap_on_dynamic_nss_chains_config", \
+				0, \
+				"Restart SAP on dynamic nss chain config")
+
 #define CFG_NSS_CHAINS_ALL \
 	CFG(CFG_NUM_TX_CHAINS_2G) \
 	CFG(CFG_NUM_TX_CHAINS_5G) \
@@ -570,7 +592,8 @@
 	CFG(CFG_DISABLE_RX_MRC_2G) \
 	CFG(CFG_DISABLE_TX_MRC_5G) \
 	CFG(CFG_DISABLE_RX_MRC_5G) \
-	CFG(CFG_ENABLE_DYNAMIC_NSS_CHAIN_CONFIG)
+	CFG(CFG_ENABLE_DYNAMIC_NSS_CHAIN_CONFIG) \
+	CFG(CFG_RESTART_SAP_ON_DYNAMIC_NSS_CHAINS_CONFIG)
 
 #endif /* __CFG_MLME_NSS_CHAINS */
 

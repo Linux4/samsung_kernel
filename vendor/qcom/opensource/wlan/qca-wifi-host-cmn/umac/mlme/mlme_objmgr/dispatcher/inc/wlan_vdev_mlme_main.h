@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -110,7 +110,7 @@ enum wlan_vdev_state {
  * @WLAN_VDEV_SM_EV_DFS_CAC_COMPLETED:   Notifies on CAC completion
  * @WLAN_VDEV_SM_EV_DOWN:                Invokes VDEV DOWN operation
  * @WLAN_VDEV_SM_EV_CONNECTION_FAIL:     Notifications for UP/connection failure
- * @WLAN_VDEV_SM_EV_STOP_RESP:           Notifcation of stop response
+ * @WLAN_VDEV_SM_EV_STOP_RESP:           Notification of stop response
  * @WLAN_VDEV_SM_EV_STOP_FAIL:           Notification of stop req failure
  * @WLAN_VDEV_SM_EV_DOWN_FAIL:           Notification of down failure
  * @WLAN_VDEV_SM_EV_DISCONNECT_COMPLETE: Notification of Peer cleanup complete

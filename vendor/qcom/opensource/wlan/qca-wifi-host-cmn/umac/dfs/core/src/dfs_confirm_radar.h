@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,7 +26,7 @@
 #include "dfs_internal.h"
 
 #define DFS_INVALID_PRI_LIMIT 100  /* should we use 135? */
-/* The time interval between two sucessive pulses
+/* The time interval between two successive pulses
  * in case of w53 chirp type can be as low as 50us.
  * Experimentally the PRI limit was found to be as
  * low as 15us.
@@ -51,7 +52,7 @@ bool dfs_is_real_radar(struct wlan_dfs *dfs,
 /**
  * dfs_get_ext_filter() - This function gets the external radar filter table.
  * @domain: The dfs domain for which the external radar table is needed.
- * @num_radars: Output agrument. Stores the numbers of filters in the filter.
+ * @num_radars: Output argument. Stores the numbers of filters in the filter.
  * table.
  *
  * Return: Pointer to the radar table.

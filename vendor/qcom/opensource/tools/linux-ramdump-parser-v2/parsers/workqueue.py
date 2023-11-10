@@ -1,4 +1,5 @@
 # Copyright (c) 2012-2015, 2017 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -218,7 +219,7 @@ class Workqueues(RamParser):
         for a in range(0, 64):
             s = s + 'I'
 
-        for i in range(0, cpus):
+        for i in ram_dump.iter_cpus():
             busy_hash = []
             if per_cpu_offset_addr is None:
                 offset = 0

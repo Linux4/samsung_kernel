@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -259,19 +259,10 @@ osif_cm_disconnect_complete_cb(struct wlan_objmgr_vdev *vdev,
 
 #ifdef CONN_MGR_ADV_FEATURE
 void osif_cm_unlink_bss(struct wlan_objmgr_vdev *vdev,
-			struct vdev_osif_priv *osif_priv,
-			struct qdf_mac_addr *bssid,
-			uint8_t *ssid, uint8_t ssid_len)
+			struct qdf_mac_addr *bssid)
 {
-	struct wiphy *wiphy = osif_priv->wdev->wiphy;
 	struct scan_filter *filter;
-	QDF_STATUS status;
 
-	status = __wlan_cfg80211_unlink_bss_list(wiphy, wlan_vdev_get_pdev(vdev),
-					bssid->bytes, ssid_len ? ssid : NULL,
-					ssid_len);
-	if (QDF_IS_STATUS_ERROR(status))
-		return;
 	filter = qdf_mem_malloc(sizeof(*filter));
 	if (!filter)
 		return;
@@ -323,6 +314,25 @@ osif_pmksa_candidate_notify_cb(struct wlan_objmgr_vdev *vdev,
 			       int index, bool preauth)
 {
 	return osif_pmksa_candidate_notify(vdev, bssid, index, preauth);
+}
+
+/**
+ * osif_cm_send_keys_cb() - Send keys callback
+ * @vdev: vdev pointer
+ *
+ * This callback indicates os_if that
+ * so that os_if can stop all the activity on this connection
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+osif_cm_send_keys_cb(struct wlan_objmgr_vdev *vdev, uint8_t key_index,
+		     bool pairwise, enum wlan_crypto_cipher_type cipher_type)
+{
+	return osif_cm_send_vdev_keys(vdev,
+				       key_index,
+				       pairwise,
+				       cipher_type);
 }
 #else
 static inline QDF_STATUS
@@ -400,6 +410,50 @@ osif_cm_roam_cmpl_cb(struct wlan_objmgr_vdev *vdev)
 {
 	return osif_cm_napi_serialize(false);
 }
+
+/**
+ * osif_cm_get_scan_ie_params() - Function to get scan ie params
+ * @vdev: vdev pointer
+ * @scan_ie: Pointer to scan_ie
+ * @dot11mode_filter: Pointer to dot11mode_filter
+ *
+ * Get scan IE params from adapter corresponds to given vdev
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+osif_cm_get_scan_ie_params(struct wlan_objmgr_vdev *vdev,
+			   struct element_info *scan_ie,
+			   enum dot11_mode_filter *dot11mode_filter)
+{
+	osif_cm_get_scan_ie_params_cb cb = NULL;
+
+	if (osif_cm_legacy_ops)
+		cb = osif_cm_legacy_ops->get_scan_ie_params_cb;
+	if (cb)
+		return cb(vdev, scan_ie, dot11mode_filter);
+
+	return QDF_STATUS_E_FAILURE;
+}
+
+/**
+ * osif_cm_get_scan_ie_info_cb() - Roam get scan ie params callback
+ * @vdev: vdev pointer
+ * @scan_ie: pointer to scan ie
+ * @dot11mode_filter: pointer to dot11 mode filter
+ *
+ * This callback gets scan ie params from os_if
+ *
+ * Return: QDF_STATUS
+ */
+
+static QDF_STATUS
+osif_cm_get_scan_ie_info_cb(struct wlan_objmgr_vdev *vdev,
+			    struct element_info *scan_ie,
+			    enum dot11_mode_filter *dot11mode_filter)
+{
+	return osif_cm_get_scan_ie_params(vdev, scan_ie, dot11mode_filter);
+}
 #endif
 
 #ifdef WLAN_FEATURE_PREAUTH_ENABLE
@@ -468,11 +522,13 @@ static struct mlme_cm_ops cm_ops = {
 #ifdef CONN_MGR_ADV_FEATURE
 	.mlme_cm_roam_sync_cb = osif_cm_roam_sync_cb,
 	.mlme_cm_pmksa_candidate_notify_cb = osif_pmksa_candidate_notify_cb,
+	.mlme_cm_send_keys_cb = osif_cm_send_keys_cb,
 #endif
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
 	.mlme_cm_roam_start_cb = osif_cm_roam_start_cb,
 	.mlme_cm_roam_abort_cb = osif_cm_roam_abort_cb,
 	.mlme_cm_roam_cmpl_cb = osif_cm_roam_cmpl_cb,
+	.mlme_cm_roam_get_scan_ie_cb = osif_cm_get_scan_ie_info_cb,
 #endif
 #ifdef WLAN_FEATURE_PREAUTH_ENABLE
 	.mlme_cm_ft_preauth_cmpl_cb = osif_cm_ft_preauth_cmpl_cb,
@@ -624,6 +680,22 @@ QDF_STATUS osif_cm_save_gtk(struct wlan_objmgr_vdev *vdev,
 		ret = cb(vdev, rsp);
 
 	return ret;
+}
+
+QDF_STATUS
+osif_cm_send_vdev_keys(struct wlan_objmgr_vdev *vdev,
+		       uint8_t key_index,
+		       bool pairwise,
+		       enum wlan_crypto_cipher_type cipher_type)
+{
+	osif_cm_send_vdev_keys_cb cb = NULL;
+
+	if (osif_cm_legacy_ops)
+		cb = osif_cm_legacy_ops->send_vdev_keys_cb;
+	if (cb)
+		return cb(vdev, key_index, pairwise, cipher_type);
+
+	return QDF_STATUS_E_FAILURE;
 }
 #endif
 

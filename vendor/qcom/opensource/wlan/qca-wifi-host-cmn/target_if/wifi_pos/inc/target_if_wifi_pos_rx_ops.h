@@ -104,15 +104,6 @@ int target_if_wifi_pos_pasn_peer_delete_ev_handler(ol_scn_t scn,
 						   uint8_t *buf,
 						   uint32_t len);
 
-/**
- * target_if_wifi_pos_register_rx_ops() - Register wifi pos module target_if
- * RX ops
- * @rx_ops: RX ops pointer
- *
- * Return: None
- */
-void target_if_wifi_pos_register_rx_ops(struct wlan_lmac_if_rx_ops *rx_ops);
-
 #else
 static inline
 int target_if_wifi_pos_pasn_peer_create_ev_handler(ol_scn_t scn,
@@ -129,9 +120,5 @@ int target_if_wifi_pos_pasn_peer_delete_ev_handler(ol_scn_t scn,
 {
 	return 0;
 }
-
-static inline
-void target_if_wifi_pos_register_rx_ops(struct wlan_lmac_if_rx_ops *rx_ops)
-{}
 #endif /* WIFI_POS_CONVERGED && WLAN_FEATURE_RTT_11AZ_SUPPORT */
 #endif /* _WIFI_POS_TGT_IF_RX_OPS_H_ */

@@ -292,6 +292,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(mst_en),
 	SEC_BATTERY_ATTR(spsn_test),
 	SEC_BATTERY_ATTR(chg_soc_lim),
+	SEC_BATTERY_ATTR(err_wthm),
 };
 
 static struct device_attribute sec_pogo_attrs[] = {
@@ -1995,6 +1996,9 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			battery->pdata->store_mode_charging_min,
 			battery->pdata->store_mode_charging_max);
 		break;
+	case ERR_WTHM:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->error_wthm);
+		break;
 	default:
 		i = -EINVAL;
 		break;
@@ -2135,7 +2139,7 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case BATT_SLATE_MODE:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (x == 2) {
+			if (x == SEC_SMART_SWITCH_SLATE) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 				sec_bat_set_mfc_off(battery, WPC_EN_SLATE, false);
@@ -2144,18 +2148,23 @@ ssize_t sec_bat_store_attrs(
 #endif
 				dev_info(battery->dev,
 					"%s: enable smart switch slate mode : %d\n", __func__, x);
-			} else if (x == 1) {
+			} else if (x == SEC_SLATE_MODE) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 				dev_info(battery->dev,
 					"%s: enable slate mode : %d\n", __func__, x);
-			} else if (x == 0) {
+			} else if (x == SEC_SLATE_OFF) {
 				sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, false, 0);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, false, 0);
 				sec_bat_set_mfc_on(battery, WPC_EN_SLATE);
+				/* recover smart switch src cap max current to 500mA */
+				sec_bat_smart_sw_src(battery, false, 500);
 				dev_info(battery->dev,
 					"%s: disable slate mode : %d\n", __func__, x);
+			} else if (x == SEC_SMART_SWITCH_SRC) {
+				/* reduce smart switch src cap max current */
+				sec_bat_smart_sw_src(battery, true, 0);
 			} else {
 				dev_info(battery->dev,
 					"%s: SLATE MODE unknown command\n", __func__);
@@ -4226,6 +4235,17 @@ ssize_t sec_bat_store_attrs(
 #endif
 		break;
 	}
+	case ERR_WTHM:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			pr_info("%s: update ERR_WTHM(%d)\n", __func__, x);
+			if (x) {
+				battery->error_wthm = true;
+			} else {
+				battery->error_wthm = false;
+			}
+			ret = count;
+		}
+		break;
 	default:
 		ret = -EINVAL;
 		break;

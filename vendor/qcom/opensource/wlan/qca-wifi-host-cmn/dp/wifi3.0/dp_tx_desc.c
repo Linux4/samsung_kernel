@@ -246,7 +246,7 @@ void dp_tx_desc_pool_deinit(struct dp_soc *soc, uint8_t pool_id)
 }
 
 /**
- * dp_tx_ext_desc_pool_alloc() - allocate Tx extenstion Descriptor pool(s)
+ * dp_tx_ext_desc_pool_alloc() - allocate Tx extension Descriptor pool(s)
  * @soc: Handle to DP SoC structure
  * @num_pool: Number of pools to allocate
  * @num_elem: Number of descriptor elements per pool
@@ -335,7 +335,7 @@ fail_exit:
 }
 
 /**
- * dp_tx_ext_desc_pool_init() - initialize Tx extenstion Descriptor pool(s)
+ * dp_tx_ext_desc_pool_init() - initialize Tx extension Descriptor pool(s)
  * @soc: Handle to DP SoC structure
  * @num_pool: Number of pools to initialize
  * @num_elem: Number of descriptor elements per pool
@@ -422,7 +422,7 @@ fail:
 }
 
 /**
- * dp_tx_ext_desc_pool_free() -  free Tx extenstion Descriptor pool(s)
+ * dp_tx_ext_desc_pool_free() -  free Tx extension Descriptor pool(s)
  * @soc: Handle to DP SoC structure
  * @num_pool: Number of pools to free
  *
@@ -450,7 +450,7 @@ void dp_tx_ext_desc_pool_free(struct dp_soc *soc, uint8_t num_pool)
 }
 
 /**
- * dp_tx_ext_desc_pool_deinit() -  deinit Tx extenstion Descriptor pool(s)
+ * dp_tx_ext_desc_pool_deinit() -  deinit Tx extension Descriptor pool(s)
  * @soc: Handle to DP SoC structure
  * @num_pool: Number of pools to de-initialize
  *

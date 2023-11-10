@@ -92,6 +92,7 @@
 #define QCN9000_DEVICE_ID (0x1104)
 #define QCN9224_DEVICE_ID (0x1109)
 #define QCN6122_DEVICE_ID (0xFFFB)
+#define QCN9160_DEVICE_ID (0xFFF8)
 #define QCA6390_EMULATION_DEVICE_ID (0x0108)
 #define QCA6390_DEVICE_ID (0x1101)
 /* TODO: change IDs for HastingsPrime */
@@ -219,10 +220,12 @@ void hif_record_latest_evt(struct ce_desc_hist *ce_hist,
  * struct hif_cfg() - store ini config parameters in hif layer
  * @ce_status_ring_timer_threshold: ce status ring timer threshold
  * @ce_status_ring_batch_count_threshold: ce status ring batch count threshold
+ * @disable_wake_irq: disable wake irq
  */
 struct hif_cfg {
 	uint16_t ce_status_ring_timer_threshold;
 	uint8_t ce_status_ring_batch_count_threshold;
+	bool disable_wake_irq;
 };
 
 #ifdef DP_UMAC_HW_RESET_SUPPORT
@@ -306,7 +309,6 @@ struct hif_softc {
 	struct hif_ut_suspend_context ut_suspend_ctx;
 	uint32_t hif_attribute;
 	int wake_irq;
-	int disable_wake_irq;
 	hif_pm_wake_irq_type wake_irq_type;
 	void (*initial_wakeup_cb)(void *);
 	void *initial_wakeup_priv;

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,10 +34,13 @@ static uint32_t cm_get_prefix_for_cm_id(enum wlan_cm_source source) {
 	switch (source) {
 	case CM_OSIF_CONNECT:
 	case CM_OSIF_CFG_CONNECT:
+	case CM_MLO_LINK_VDEV_CONNECT:
 		return CONNECT_REQ_PREFIX;
 	case CM_ROAMING_HOST:
 	case CM_ROAMING_FW:
 	case CM_ROAMING_NUD_FAILURE:
+	case CM_ROAMING_LINK_REMOVAL:
+	case CM_ROAMING_USER:
 		return ROAM_REQ_PREFIX;
 	default:
 		return DISCONNECT_REQ_PREFIX;
@@ -784,6 +787,119 @@ static void cm_zero_and_free_memory(uint8_t *ptr, uint32_t len)
 	qdf_mem_free(ptr);
 }
 
+#ifdef CONN_MGR_ADV_FEATURE
+#ifdef WLAN_FEATURE_ROAM_OFFLOAD
+/**
+ * cm_free_roaming_info() - Function to free all params in roaming info
+ * @connect_rsp: pointer to connect response
+ *
+ * Function to free up all the memory in connect response
+ *
+ * Return: void
+ */
+static
+void cm_free_roaming_info(struct wlan_cm_connect_resp *connect_rsp)
+{
+	cm_zero_and_free_memory((uint8_t *)connect_rsp->roaming_info,
+				sizeof(*connect_rsp->roaming_info));
+}
+#else
+static inline
+void cm_free_roaming_info(struct wlan_cm_connect_resp *connect_rsp)
+{
+}
+#endif
+
+#ifdef WLAN_FEATURE_FILS_SK
+/**
+ * cm_free_fils_ie() - function to free all params in fils ie
+ * @connect_ie: ptr to connect ies
+ *
+ * Function to free up all the memory in fils ies response.
+ *
+ * Return: void
+ */
+static
+void cm_free_fils_ie(struct wlan_connect_rsp_ies *connect_ie)
+{
+	if (!connect_ie->fils_ie)
+		return;
+
+	if (connect_ie->fils_ie->fils_pmk)
+		cm_zero_and_free_memory(connect_ie->fils_ie->fils_pmk,
+					connect_ie->fils_ie->fils_pmk_len);
+
+	cm_zero_and_free_memory((uint8_t *)connect_ie->fils_ie,
+				sizeof(*connect_ie->fils_ie));
+}
+#else
+static inline
+void cm_free_fils_ie(struct wlan_connect_rsp_ies *connect_ie)
+{
+}
+#endif
+
+/**
+ * cm_free_connect_ies() - Function to free all params in coonect ies
+ * @connect_ie: ptr to connect ies
+ *
+ * Function to free up all the memory in connect ies response
+ *
+ * Return: void
+ */
+static
+void cm_free_connect_ies(struct wlan_connect_rsp_ies *connect_ie)
+{
+	cm_zero_and_free_memory(connect_ie->assoc_req.ptr,
+				connect_ie->assoc_req.len);
+	connect_ie->assoc_req.len = 0;
+
+	cm_zero_and_free_memory(connect_ie->bcn_probe_rsp.ptr,
+				connect_ie->bcn_probe_rsp.len);
+	connect_ie->bcn_probe_rsp.len = 0;
+
+	cm_zero_and_free_memory(connect_ie->link_bcn_probe_rsp.ptr,
+				connect_ie->link_bcn_probe_rsp.len);
+	connect_ie->link_bcn_probe_rsp.len = 0;
+
+	cm_zero_and_free_memory(connect_ie->assoc_rsp.ptr,
+				connect_ie->assoc_rsp.len);
+	connect_ie->assoc_rsp.len = 0;
+}
+
+void cm_free_connect_rsp_ies(struct wlan_cm_connect_resp *connect_rsp)
+{
+	cm_free_connect_ies(&connect_rsp->connect_ies);
+	cm_free_fils_ie(&connect_rsp->connect_ies);
+	cm_free_roaming_info(connect_rsp);
+}
+
+/**
+ * cm_free_first_connect_rsp() - Function to free all params in connect rsp
+ * @req: pointer to connect req struct
+ *
+ * Function to free up all the memory in connect rsp.
+ *
+ * Return: void
+ */
+static
+void cm_free_first_connect_rsp(struct cm_connect_req *req)
+{
+	struct wlan_cm_connect_resp *connect_rsp = req->first_candidate_rsp;
+
+	if (!connect_rsp)
+		return;
+
+	cm_free_connect_rsp_ies(connect_rsp);
+	cm_zero_and_free_memory((uint8_t *)connect_rsp, sizeof(*connect_rsp));
+}
+#else
+static inline
+void cm_free_first_connect_rsp(struct cm_connect_req *req)
+{
+}
+#endif /* CONN_MGR_ADV_FEATURE */
+
 void cm_free_connect_req_mem(struct cm_connect_req *connect_req)
 {
 	struct wlan_cm_connect_req *req;
@@ -800,6 +916,8 @@ void cm_free_connect_req_mem(struct cm_connect_req *connect_req)
 				req->crypto.wep_keys.key_len);
 	cm_zero_and_free_memory(req->crypto.wep_keys.seq,
 				req->crypto.wep_keys.seq_len);
+
+	cm_free_first_connect_rsp(connect_req);
 
 	qdf_mem_zero(connect_req, sizeof(*connect_req));
 }
@@ -1256,6 +1374,46 @@ void cm_fill_ml_partner_info(struct wlan_cm_connect_req *req,
 }
 #endif
 
+bool cm_find_bss_from_candidate_list(qdf_list_t *candidate_list,
+				     struct qdf_mac_addr *bssid,
+				     struct scan_cache_node **entry_found)
+{
+	struct scan_cache_node *scan_entry;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct qdf_mac_addr *bssid2;
+
+	if (qdf_is_macaddr_zero(bssid) ||
+	    qdf_is_macaddr_broadcast(bssid))
+		return false;
+
+	if (qdf_list_peek_front(candidate_list, &cur_node) !=
+					QDF_STATUS_SUCCESS) {
+		mlme_err("failed to peer front of candidate_list");
+		return false;
+	}
+
+	while (cur_node) {
+		qdf_list_peek_next(candidate_list, cur_node, &next_node);
+
+		scan_entry = qdf_container_of(cur_node, struct scan_cache_node,
+					      node);
+		bssid2 = &scan_entry->entry->bssid;
+		if (qdf_is_macaddr_zero(bssid2))
+			goto next;
+
+		if (qdf_is_macaddr_equal(bssid, bssid2)) {
+			if (entry_found)
+				*entry_found = scan_entry;
+			return true;
+		}
+next:
+		cur_node = next_node;
+		next_node = NULL;
+	}
+
+	return false;
+}
+
 bool cm_is_connect_req_reassoc(struct wlan_cm_connect_req *req)
 {
 	if (!qdf_is_macaddr_zero(&req->prev_bssid) &&
@@ -1445,7 +1603,9 @@ void cm_calculate_scores(struct cnx_mgr *cm_ctx,
 			pcl_lst = NULL;
 		}
 	}
-	wlan_cm_calculate_bss_score(pdev, pcl_lst, list, &filter->bssid_hint);
+	wlan_cm_calculate_bss_score(pdev, pcl_lst, list, &filter->bssid_hint,
+				    (struct qdf_mac_addr *)
+				    wlan_vdev_mlme_get_macaddr(cm_ctx->vdev));
 	if (pcl_lst)
 		qdf_mem_free(pcl_lst);
 }
@@ -1455,7 +1615,8 @@ void cm_calculate_scores(struct cnx_mgr *cm_ctx,
 			 struct wlan_objmgr_pdev *pdev,
 			 struct scan_filter *filter, qdf_list_t *list)
 {
-	wlan_cm_calculate_bss_score(pdev, NULL, list, &filter->bssid_hint);
+	wlan_cm_calculate_bss_score(pdev, NULL, list, &filter->bssid_hint,
+				    NULL);
 
 	/*
 	 * Custom sorting if enabled
@@ -1602,3 +1763,208 @@ void cm_set_candidate_custom_sort_cb(
 	cm_ctx->cm_candidate_list_custom_sort = sort_fun;
 }
 #endif
+
+#ifdef CONN_MGR_ADV_FEATURE
+#define CM_MIN_CANDIDATE_NUM 1
+
+/**
+ * cm_fill_connect_ies_from_rsp() - fill connect ies from response structure
+ * @first_cand_rsp: first candidate connect failure response
+ * @rsp: connect response
+ *
+ * This API fills roaming info for first candidate failure response from the
+ * provided response.
+ *
+ * Return: void
+ */
+static
+void cm_fill_connect_ies_from_rsp(struct wlan_cm_connect_resp *first_cand_rsp,
+				  struct wlan_cm_connect_resp *rsp)
+{
+	struct wlan_connect_rsp_ies *connect_ies;
+
+	connect_ies = &first_cand_rsp->connect_ies;
+
+	connect_ies->bcn_probe_rsp.ptr = NULL;
+	connect_ies->link_bcn_probe_rsp.ptr = NULL;
+	connect_ies->assoc_req.ptr = NULL;
+	connect_ies->assoc_rsp.ptr = NULL;
+
+	/* Beacon/Probe Rsp frame */
+	if (rsp->connect_ies.bcn_probe_rsp.ptr &&
+	    rsp->connect_ies.bcn_probe_rsp.len) {
+		connect_ies->bcn_probe_rsp.ptr =
+			qdf_mem_malloc(rsp->connect_ies.bcn_probe_rsp.len);
+		if (connect_ies->bcn_probe_rsp.ptr)
+			qdf_mem_copy(connect_ies->bcn_probe_rsp.ptr,
+				     rsp->connect_ies.bcn_probe_rsp.ptr,
+				     rsp->connect_ies.bcn_probe_rsp.len);
+		else
+			connect_ies->bcn_probe_rsp.len = 0;
+	}
+
+	/* Link Beacon/Probe Rsp frame */
+	if (rsp->connect_ies.link_bcn_probe_rsp.ptr &&
+	    rsp->connect_ies.link_bcn_probe_rsp.len) {
+		connect_ies->link_bcn_probe_rsp.ptr =
+			qdf_mem_malloc(rsp->connect_ies.link_bcn_probe_rsp.len);
+		if (connect_ies->link_bcn_probe_rsp.ptr)
+			qdf_mem_copy(connect_ies->link_bcn_probe_rsp.ptr,
+				     rsp->connect_ies.link_bcn_probe_rsp.ptr,
+				     rsp->connect_ies.link_bcn_probe_rsp.len);
+		else
+			connect_ies->link_bcn_probe_rsp.len = 0;
+	}
+
+	/* Assoc Req IE data */
+	if (rsp->connect_ies.assoc_req.ptr &&
+	    rsp->connect_ies.assoc_req.len) {
+		connect_ies->assoc_req.ptr =
+				qdf_mem_malloc(rsp->connect_ies.assoc_req.len);
+		if (connect_ies->assoc_req.ptr)
+			qdf_mem_copy(connect_ies->assoc_req.ptr,
+				     rsp->connect_ies.assoc_req.ptr,
+				     rsp->connect_ies.assoc_req.len);
+		else
+			connect_ies->assoc_req.len = 0;
+	}
+
+	/* Assoc Rsp IE data */
+	if (rsp->connect_ies.assoc_rsp.ptr &&
+	    rsp->connect_ies.assoc_rsp.len) {
+		connect_ies->assoc_rsp.ptr =
+				qdf_mem_malloc(rsp->connect_ies.assoc_rsp.len);
+		if (connect_ies->assoc_rsp.ptr)
+			qdf_mem_copy(connect_ies->assoc_rsp.ptr,
+				     rsp->connect_ies.assoc_rsp.ptr,
+				     rsp->connect_ies.assoc_rsp.len);
+		else
+			connect_ies->assoc_rsp.len = 0;
+	}
+}
+
+/**
+ * cm_copy_rsp_from_rsp() - copy response from other response
+ * @destination_rsp: destination connect response
+ * @source_rsp: source connect response
+ *
+ * This API copies source response to destination response.
+ *
+ * Return: void
+ */
+static
+void cm_copy_rsp_from_rsp(struct wlan_cm_connect_resp *destination_rsp,
+			  struct wlan_cm_connect_resp *source_rsp)
+{
+	*destination_rsp = *source_rsp;
+	cm_fill_connect_ies_from_rsp(destination_rsp, source_rsp);
+}
+
+void cm_store_first_candidate_rsp(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
+				  struct wlan_cm_connect_resp *resp)
+{
+	struct wlan_cm_connect_resp *first_candid_rsp;
+	uint8_t num_candidates;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct cm_req *cm_req;
+	uint32_t prefix = CM_ID_GET_PREFIX(cm_id);
+
+	if (prefix != CONNECT_REQ_PREFIX)
+		return;
+
+	cm_req_lock_acquire(cm_ctx);
+	qdf_list_peek_front(&cm_ctx->req_list, &cur_node);
+	while (cur_node) {
+		qdf_list_peek_next(&cm_ctx->req_list, cur_node, &next_node);
+		cm_req = qdf_container_of(cur_node, struct cm_req, node);
+
+		if (cm_req->cm_id == cm_id) {
+			/*
+			 * Do not cache response if first candidate response is
+			 * already stored. "first_candidate_rsp" pointer is
+			 * freed once connect request is completed and freed.
+			 */
+			if (cm_req->connect_req.first_candidate_rsp)
+				break;
+
+			/* only cached for more than one candidate */
+			num_candidates = qdf_list_size(
+					cm_req->connect_req.candidate_list);
+			if (num_candidates <= CM_MIN_CANDIDATE_NUM)
+				break;
+
+			first_candid_rsp = qdf_mem_malloc(
+						sizeof(*first_candid_rsp));
+			if (!first_candid_rsp)
+				break;
+
+			cm_copy_rsp_from_rsp(first_candid_rsp, resp);
+			cm_req->connect_req.first_candidate_rsp =
+							first_candid_rsp;
+			mlme_debug(CM_PREFIX_FMT " " QDF_MAC_ADDR_FMT " with reason %d",
+				   CM_PREFIX_REF(first_candid_rsp->vdev_id,
+						 cm_id),
+				QDF_MAC_ADDR_REF(first_candid_rsp->bssid.bytes),
+				first_candid_rsp->reason);
+			break;
+		}
+
+		cur_node = next_node;
+		next_node = NULL;
+	}
+
+	cm_req_lock_release(cm_ctx);
+}
+
+QDF_STATUS
+cm_get_first_candidate_rsp(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id,
+			   struct wlan_cm_connect_resp *first_candid_rsp)
+{
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct cm_req *cm_req;
+	uint32_t prefix = CM_ID_GET_PREFIX(cm_id);
+
+	if (prefix != CONNECT_REQ_PREFIX)
+		return QDF_STATUS_E_INVAL;
+
+	cm_req_lock_acquire(cm_ctx);
+	qdf_list_peek_front(&cm_ctx->req_list, &cur_node);
+	while (cur_node) {
+		qdf_list_peek_next(&cm_ctx->req_list, cur_node, &next_node);
+		cm_req = qdf_container_of(cur_node, struct cm_req, node);
+
+		if (cm_req->cm_id == cm_id) {
+			if (!cm_req->connect_req.first_candidate_rsp)
+				break;
+
+			cm_copy_rsp_from_rsp(first_candid_rsp,
+				cm_req->connect_req.first_candidate_rsp);
+
+			mlme_debug(CM_PREFIX_FMT " " QDF_MAC_ADDR_FMT "with reason %d",
+				   CM_PREFIX_REF(first_candid_rsp->vdev_id,
+						 cm_id),
+				QDF_MAC_ADDR_REF(first_candid_rsp->bssid.bytes),
+				first_candid_rsp->reason);
+
+			cm_req_lock_release(cm_ctx);
+			return QDF_STATUS_SUCCESS;
+		}
+
+		cur_node = next_node;
+		next_node = NULL;
+	}
+
+	cm_req_lock_release(cm_ctx);
+	return QDF_STATUS_E_FAILURE;
+}
+
+void cm_store_n_send_failed_candidate(struct cnx_mgr *cm_ctx, wlan_cm_id cm_id)
+{
+	struct wlan_cm_connect_resp resp = {0};
+
+	cm_fill_failure_resp_from_cm_id(cm_ctx, &resp, cm_id,
+					CM_VALID_CANDIDATE_CHECK_FAIL);
+	cm_store_first_candidate_rsp(cm_ctx, cm_id, &resp);
+	mlme_cm_osif_failed_candidate_ind(cm_ctx->vdev, &resp);
+}
+#endif /* CONN_MGR_ADV_FEATURE */

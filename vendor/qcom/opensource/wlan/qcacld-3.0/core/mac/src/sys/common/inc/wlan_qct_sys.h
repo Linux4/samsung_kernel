@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -47,7 +48,7 @@ struct mac_context;
    -------------------------------------------------------------------------*/
 
 /**
- * sys_rsp_cb() - SYS async resonse callback
+ * sys_rsp_cb() - SYS async response callback
  * @user_data: context data for callback
  *
  * This is a protype for the callback function that SYS makes to various

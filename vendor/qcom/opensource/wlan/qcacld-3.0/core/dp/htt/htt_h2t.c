@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -328,7 +328,7 @@ QDF_STATUS htt_h2t_rx_ring_rfs_cfg_msg_ll(struct htt_pdev_t *pdev)
 	struct cds_config_info *cds_cfg;
 
 	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_INFO_LOW,
-		  "Receive flow steering configuration, disable gEnableFlowSteering(=0) in ini if FW doesnot support it\n");
+		  "Receive flow steering configuration, disable gEnableFlowSteering(=0) in ini if FW does not support it\n");
 	pkt = htt_htc_pkt_alloc(pdev);
 	if (!pkt)
 		return QDF_STATUS_E_NOMEM; /* failure */
@@ -403,7 +403,7 @@ QDF_STATUS htt_h2t_rx_ring_rfs_cfg_msg_ll(struct htt_pdev_t *pdev)
 QDF_STATUS htt_h2t_rx_ring_rfs_cfg_msg_ll(struct htt_pdev_t *pdev)
 {
 	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_INFO,
-		  "Doesnot support receive flow steering configuration\n");
+		  "Does not support receive flow steering configuration\n");
 	return QDF_STATUS_SUCCESS;
 }
 #endif /* HELIUMPLUS */
@@ -776,7 +776,7 @@ htt_h2t_rx_ring_cfg_msg_hl(struct htt_pdev_t *pdev)
 QDF_STATUS htt_h2t_rx_ring_rfs_cfg_msg_hl(struct htt_pdev_t *pdev)
 {
 	QDF_TRACE(QDF_MODULE_ID_HTT, QDF_TRACE_LEVEL_INFO,
-		  "Doesnot support Receive flow steering configuration\n");
+		  "Does not support Receive flow steering configuration\n");
 	return QDF_STATUS_SUCCESS;
 }
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -38,6 +38,7 @@
 #include "wlan_hdd_hostapd.h"
 #include "osif_psoc_sync.h"
 #include "wlan_osif_features.h"
+#include "wlan_p2p_ucfg_api.h"
 
 #define REG_RULE_2412_2462    REG_RULE(2412-10, 2462+10, 40, 0, 20, 0)
 
@@ -255,6 +256,38 @@ void hdd_update_coex_unsafe_chan_reg_disable(
 }
 #endif
 
+#if defined(CONFIG_AFC_SUPPORT) && defined(CONFIG_BAND_6GHZ)
+static inline
+void hdd_update_afc_config(struct hdd_context *hdd_ctx,
+			   struct reg_config_vars *config_vars)
+{
+	bool enable_6ghz_sp_pwrmode_supp = false;
+	bool afc_disable_timer_check = false;
+	bool afc_disable_request_id_check = false;
+	bool is_afc_reg_noaction = false;
+
+	ucfg_mlme_get_enable_6ghz_sp_mode_support(hdd_ctx->psoc,
+						  &enable_6ghz_sp_pwrmode_supp);
+	config_vars->enable_6ghz_sp_pwrmode_supp = enable_6ghz_sp_pwrmode_supp;
+	ucfg_mlme_get_afc_disable_timer_check(hdd_ctx->psoc,
+					      &afc_disable_timer_check);
+	config_vars->afc_disable_timer_check = afc_disable_timer_check;
+	ucfg_mlme_get_afc_disable_request_id_check(
+				hdd_ctx->psoc, &afc_disable_request_id_check);
+	config_vars->afc_disable_request_id_check =
+				afc_disable_request_id_check;
+	ucfg_mlme_get_afc_reg_noaction(hdd_ctx->psoc,
+				       &is_afc_reg_noaction);
+	config_vars->is_afc_reg_noaction = is_afc_reg_noaction;
+}
+#else
+static inline
+void hdd_update_afc_config(struct hdd_context *hdd_ctx,
+			   struct reg_config_vars *config_vars)
+{
+}
+#endif
+
 static void reg_program_config_vars(struct hdd_context *hdd_ctx,
 				    struct reg_config_vars *config_vars)
 {
@@ -322,8 +355,11 @@ static void reg_program_config_vars(struct hdd_context *hdd_ctx,
 						enable_5dot9_ghz_chan;
 	hdd_update_coex_unsafe_chan_nb_user_prefer(hdd_ctx, config_vars);
 	hdd_update_coex_unsafe_chan_reg_disable(hdd_ctx, config_vars);
+	hdd_update_afc_config(hdd_ctx, config_vars);
 	config_vars->sta_sap_scc_on_indoor_channel =
 		ucfg_policy_mgr_get_sta_sap_scc_on_indoor_chnl(hdd_ctx->psoc);
+	config_vars->p2p_indoor_ch_support =
+		ucfg_p2p_get_indoor_ch_support(hdd_ctx->psoc);
 }
 
 /**
@@ -473,7 +509,8 @@ static void hdd_modify_wiphy(struct wiphy  *wiphy,
 
 /**
  * hdd_set_dfs_region() - set the dfs_region
- * @dfs_region: the dfs_region to set
+ * @hdd_ctx: HDD context
+ * @dfs_reg: the dfs_region to set
  *
  * Return: void
  */
@@ -668,8 +705,11 @@ static int hdd_regulatory_init_no_offload(struct hdd_context *hdd_ctx,
 
 /**
  * hdd_modify_indoor_channel_state_flags() - modify wiphy flags and cds state
+ * @hdd_ctx: HDD context
  * @wiphy_chan: wiphy channel number
  * @cds_chan: cds channel structure
+ * @chan_enum: enumerated value of the channel
+ * @chan_num: channel number
  * @disable: Disable/enable the flags
  *
  * Modify wiphy flags and cds state if channel is indoor.
@@ -966,6 +1006,7 @@ static void hdd_restore_custom_reg_settings(struct wiphy *wiphy,
 
 /**
  * hdd_restore_reg_flags() - restore regulatory flags
+ * @wiphy: device wiphy
  * @flags: regulatory flags
  *
  * Return: void
@@ -1237,8 +1278,9 @@ static void fill_wiphy_band_channels(struct wiphy *wiphy,
 #ifdef FEATURE_WLAN_CH_AVOID
 /**
  * hdd_ch_avoid_ind() - Avoid notified channels from FW handler
- * @adapter:	HDD adapter pointer
- * @indParam:	Channel avoid notification parameter
+ * @hdd_ctxt: HDD context
+ * @unsafe_chan_list: Channels that are unsafe
+ * @avoid_freq_list: Frequencies to avoid
  *
  * Avoid channel notification from FW handler.
  * FW will send un-safe channel list to avoid over wrapping.
@@ -1375,6 +1417,7 @@ static enum nl80211_dfs_regions dfs_reg_to_nl80211_dfs_regions(
 
 /**
  * hdd_set_dfs_pri_multiplier() - Set dfs_pri_multiplier for ETSI region
+ * @hdd_ctx: HDD context
  * @dfs_region: DFS region
  *
  * Return: none
@@ -1598,8 +1641,10 @@ static void hdd_country_change_update_sta(struct hdd_context *hdd_ctx)
 		width_changed = false;
 		oper_freq = hdd_get_adapter_home_channel(adapter);
 		if (oper_freq)
-			freq_changed = wlan_reg_is_disable_for_freq(pdev,
-								    oper_freq);
+			freq_changed = wlan_reg_is_disable_for_pwrmode(
+							pdev,
+							oper_freq,
+							REG_CURRENT_PWR_MODE);
 		else
 			freq_changed = false;
 
@@ -1622,15 +1667,23 @@ static void hdd_country_change_update_sta(struct hdd_context *hdd_ctx)
 								    adapter,
 								    oper_freq);
 
-			if (hdd_is_vdev_in_conn_state(adapter) &&
-			    (phy_changed || freq_changed || width_changed)) {
-				hdd_debug("changed: phy %d, freq %d, width %d",
-					  phy_changed, freq_changed,
-					  width_changed);
-				wlan_hdd_cm_issue_disconnect(adapter,
+			if (hdd_is_vdev_in_conn_state(adapter)) {
+				if (phy_changed || freq_changed ||
+				    width_changed) {
+					hdd_debug("changed: phy %d, freq %d, width %d",
+						  phy_changed, freq_changed,
+						  width_changed);
+					wlan_hdd_cm_issue_disconnect(
+							adapter,
 							REASON_UNSPEC_FAILURE,
 							false);
-				sta_ctx->reg_phymode = csr_phy_mode;
+					sta_ctx->reg_phymode = csr_phy_mode;
+				} else {
+					hdd_debug("Remain on current channel but update tx power");
+					wlan_reg_update_tx_power_on_ctry_change(
+							pdev,
+							adapter->vdev_id);
+				}
 			}
 			break;
 		default:
@@ -1766,6 +1819,10 @@ static void hdd_country_change_update_sap(struct hdd_context *hdd_ctx)
 			else
 				policy_mgr_check_sap_restart(hdd_ctx->psoc,
 							     adapter->vdev_id);
+				hdd_debug("Update tx power due to ctry change");
+				wlan_reg_update_tx_power_on_ctry_change(
+							pdev,
+							adapter->vdev_id);
 			break;
 		default:
 			break;
@@ -1856,16 +1913,26 @@ static void hdd_regulatory_dyn_cbk(struct wlan_objmgr_psoc *psoc,
 	struct hdd_context *hdd_ctx;
 	enum country_src cc_src;
 	uint8_t alpha2[REG_ALPHA2_LEN + 1];
+	bool nb_flag;
+	bool reg_flag;
 
 	pdev_priv = wlan_pdev_get_ospriv(pdev);
 	wiphy = pdev_priv->wiphy;
 	hdd_ctx = wiphy_priv(wiphy);
+
+	nb_flag = ucfg_mlme_get_coex_unsafe_chan_nb_user_prefer(hdd_ctx->psoc);
+	reg_flag = ucfg_mlme_get_coex_unsafe_chan_reg_disable(hdd_ctx->psoc);
+
+	if (avoid_freq_ind && nb_flag && reg_flag)
+		goto sync_chanlist;
 
 	if (avoid_freq_ind) {
 		hdd_ch_avoid_ind(hdd_ctx, &avoid_freq_ind->chan_list,
 				 &avoid_freq_ind->freq_list);
 		return;
 	}
+
+sync_chanlist:
 
 	hdd_debug("process channel list update from regulatory");
 	hdd_regulatory_chanlist_dump(chan_list);

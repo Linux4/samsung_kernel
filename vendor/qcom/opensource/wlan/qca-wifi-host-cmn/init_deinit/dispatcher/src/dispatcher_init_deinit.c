@@ -705,7 +705,7 @@ static QDF_STATUS dispatcher_dfs_psoc_disable(struct wlan_objmgr_psoc *psoc)
 }
 #endif
 
-#if defined(WLAN_SUPPORT_TWT) && defined(WLAN_TWT_CONV_SUPPORTED)
+#if defined(WLAN_SUPPORT_TWT)
 static QDF_STATUS dispatcher_twt_psoc_enable(struct wlan_objmgr_psoc *psoc)
 {
 	return twt_psoc_enable(psoc);

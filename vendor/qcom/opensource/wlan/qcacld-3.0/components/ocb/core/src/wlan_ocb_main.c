@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -35,10 +36,10 @@
 #include "target_if_ocb.h"
 
 /**
- * ocb_get_cmd_type_str() - parse cmd to string
- * @cmd_type: ocb cmd type
+ * ocb_get_evt_type_str() - parse event to string
+ * @evt_type: ocb event type
  *
- * This function parse ocb cmd to string.
+ * This function parse ocb event to string.
  *
  * Return: command string
  */
@@ -185,7 +186,7 @@ exit:
 
 /**
  * ocb_tsf_timer() - Process get TSF timer response
- * @evt: repsonse event
+ * @evt: response event
  *
  * Return: QDF_STATUS_SUCCESS on success
  */
@@ -224,7 +225,7 @@ static QDF_STATUS ocb_tsf_timer(struct ocb_rx_event *evt)
 
 /**
  * ocb_dcc_stats_response() - Process get DCC stats response
- * @evt: repsonse event
+ * @evt: response event
  *
  * Return: QDF_STATUS_SUCCESS on success
  */
@@ -262,7 +263,7 @@ static QDF_STATUS ocb_dcc_stats_response(struct ocb_rx_event *evt)
 
 /**
  * ocb_ndl_response() - Process NDL update response
- * @evt: repsonse event
+ * @evt: response event
  *
  * Return: QDF_STATUS_SUCCESS on success
  */
@@ -299,7 +300,7 @@ static QDF_STATUS ocb_ndl_response(struct ocb_rx_event *evt)
 
 /**
  * ocb_dcc_indication() - Process DCC stats indication
- * @evt: repsonse event
+ * @evt: response event
  *
  * Return: QDF_STATUS_SUCCESS on success
  */
@@ -554,7 +555,7 @@ QDF_STATUS ocb_pdev_obj_destroy_notification(struct wlan_objmgr_pdev *pdev,
 						       WLAN_UMAC_COMP_OCB,
 						       ocb_obj);
 	if (QDF_IS_STATUS_ERROR(status))
-		ocb_err("Failed to detatch ocb pdev object");
+		ocb_err("Failed to detach ocb pdev object");
 
 	qdf_mem_free(ocb_obj);
 

@@ -3,6 +3,7 @@ adsp_factory_module-$(CONFIG_ADSP_FACTORY) := adsp_factory.o ssc_core.o
 adsp_factory_module-$(CONFIG_LSM6DSO_FACTORY) += lsm6dso_accel.o lsm6dso_gyro.o
 adsp_factory_module-$(CONFIG_AK09918_FACTORY) += ak09918_mag.o
 adsp_factory_module-$(CONFIG_LPS22HH_FACTORY) += lps22hh_pressure.o
+adsp_factory_module-$(CONFIG_PRESSURE_FACTORY) += pressure_factory.o
 adsp_factory_module-$(CONFIG_LIGHT_FACTORY) += light_factory.o
 adsp_factory_module-$(CONFIG_PROX_FACTORY) += prox_factory.o
 adsp_factory_module-$(CONFIG_SUPPORT_DUAL_6AXIS) += lsm6dso_sub_accel.o lsm6dso_sub_gyro.o

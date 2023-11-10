@@ -108,7 +108,7 @@
 #include "cfg_mlme_threshold.h"
 #include "wlan_pmo_cfg.h"
 #include "wlan_pmo_ucfg_api.h"
-#include "dp_txrx.h"
+#include "wlan_dp_rx_thread.h"
 #include "wlan_fwol_ucfg_api.h"
 #include "wlan_hdd_unit_test.h"
 #include "wlan_hdd_thermal.h"
@@ -607,7 +607,7 @@
  * @OUTPUT: rssi
  *  wlan0	rssi_chk:56
  *
- * This IOTCL used to chek rssi
+ * This IOTCL used to check rssi
  *
  * @E.g: iwpriv wlan0 rssi_chk <value>
  *
@@ -2988,7 +2988,7 @@ static int hdd_we_dump_stats(struct hdd_adapter *adapter, int value)
 }
 
 /**
- * iw_get_linkspeed() - Get current link speed ioctl
+ * __iw_get_linkspeed() - Get current link speed ioctl
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -3037,6 +3037,15 @@ static int __iw_get_linkspeed(struct net_device *dev,
 	return 0;
 }
 
+/**
+ * iw_get_linkspeed() - Get current link speed ioctl
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: extra ioctl buffer
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_get_linkspeed(struct net_device *dev,
 			    struct iw_request_info *info,
 			    union iwreq_data *wrqu, char *extra)
@@ -3414,15 +3423,13 @@ static int hdd_we_set_power(struct hdd_adapter *adapter, int value)
 	switch (value) {
 	case 1:
 		/* Enable PowerSave */
-		ucfg_mlme_set_user_ps(hdd_ctx->psoc, adapter->vdev_id, true);
-		sme_ps_enable_disable(mac_handle, adapter->vdev_id,
-				      SME_PS_ENABLE);
+		sme_ps_set_powersave(hdd_ctx->mac_handle, adapter->vdev_id,
+				     true, 0, true);
 		return 0;
 	case 2:
 		/* Disable PowerSave */
-		sme_ps_enable_disable(mac_handle, adapter->vdev_id,
-				      SME_PS_DISABLE);
-		ucfg_mlme_set_user_ps(hdd_ctx->psoc, adapter->vdev_id, false);
+		sme_ps_set_powersave(hdd_ctx->mac_handle, adapter->vdev_id,
+				     false, 0, true);
 		return 0;
 	case 3:
 		/* Enable UASPD */
@@ -4799,7 +4806,7 @@ static setint_getnone_fn hdd_get_setint_getnone_cb(int param)
 }
 
 /**
- * iw_setint_getnone() - Generic "set integer" private ioctl handler
+ * __iw_setint_getnone() - Generic "set integer" private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -4843,6 +4850,15 @@ static int __iw_setint_getnone(struct net_device *dev,
 	return ret;
 }
 
+/**
+ * iw_setint_getnone() - Generic "set integer" private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_setint_getnone(struct net_device *dev,
 			     struct iw_request_info *info,
 			     union iwreq_data *wrqu,
@@ -4935,8 +4951,9 @@ static int iw_setnone_get_threeint(struct net_device *dev,
 
 	return errno;
 }
+
 /**
- * iw_setchar_getnone() - Generic "set string" private ioctl handler
+ * __iw_setchar_getnone() - Generic "set string" private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -5076,6 +5093,15 @@ static int __iw_setchar_getnone(struct net_device *dev,
 	return ret;
 }
 
+/**
+ * iw_setchar_getnone() - Generic "set string" private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_setchar_getnone(struct net_device *dev,
 			      struct iw_request_info *info,
 			      union iwreq_data *wrqu, char *extra)
@@ -5095,7 +5121,7 @@ static int iw_setchar_getnone(struct net_device *dev,
 }
 
 /**
- * iw_setnone_getint() - Generic "get integer" private ioctl handler
+ * __iw_setnone_getint() - Generic "get integer" private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -5586,6 +5612,15 @@ static int __iw_setnone_getint(struct net_device *dev,
 	return ret;
 }
 
+/**
+ * iw_setnone_getint() - Generic "get integer" private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_setnone_getint(struct net_device *dev,
 			     struct iw_request_info *info,
 			     union iwreq_data *wrqu, char *extra)
@@ -5645,7 +5680,7 @@ static int hdd_set_fwtest(int argc, int cmd, int value)
 }
 
 /**
- * iw_set_three_ints_getnone() - Generic "set 3 params" private ioctl handler
+ * __iw_set_three_ints_getnone() - Generic "set 3 params" private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -5723,6 +5758,15 @@ static int __iw_set_three_ints_getnone(struct net_device *dev,
 	return ret;
 }
 
+/**
+ * iw_set_three_ints_getnone() - Generic "set 3 params" private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 int iw_set_three_ints_getnone(struct net_device *dev,
 			      struct iw_request_info *info,
 			      union iwreq_data *wrqu, char *extra)
@@ -5823,7 +5867,7 @@ static int hdd_get_sta_cxn_info(struct hdd_context *hdd_ctx,
 #endif
 
 /**
- * iw_get_char_setnone() - Generic "get string" private ioctl handler
+ * __iw_get_char_setnone() - Generic "get string" private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -6321,6 +6365,15 @@ static int __iw_get_char_setnone(struct net_device *dev,
 	return ret;
 }
 
+/**
+ * iw_get_char_setnone() - Generic "get string" private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_get_char_setnone(struct net_device *dev,
 			       struct iw_request_info *info,
 			       union iwreq_data *wrqu, char *extra)
@@ -6340,7 +6393,7 @@ static int iw_get_char_setnone(struct net_device *dev,
 }
 
 /**
- * iw_setnone_getnone() - Generic "action" private ioctl handler
+ * __iw_setnone_getnone() - Generic "action" private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -6408,7 +6461,7 @@ static int __iw_setnone_getnone(struct net_device *dev,
 					    &target_bssid);
 		ucfg_wlan_cm_roam_invoke(hdd_ctx->pdev, adapter->vdev_id,
 					 &target_bssid, chan_freq,
-					 CM_ROAMING_HOST);
+					 CM_ROAMING_USER);
 		return 0;
 	}
 
@@ -6416,7 +6469,7 @@ static int __iw_setnone_getnone(struct net_device *dev,
 		/*
 		 * 1.OBSS Scan is mandatory while operating in 2.4GHz
 		 * 2.OBSS scan is stopped by Firmware during the disassociation
-		 * 3.OBSS stop comamnd is added for debugging purpose
+		 * 3.OBSS stop command is added for debugging purpose
 		 */
 		if (!mac_handle) {
 			hdd_err("mac_handle context is NULL");
@@ -6433,6 +6486,15 @@ static int __iw_setnone_getnone(struct net_device *dev,
 	return ret;
 }
 
+/**
+ * iw_setnone_getnone() - Generic "action" private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_setnone_getnone(struct net_device *dev,
 			      struct iw_request_info *info,
 			      union iwreq_data *wrqu, char *extra)
@@ -6900,7 +6962,7 @@ static int __iw_set_var_ints_getnone(struct net_device *dev,
  * @dev: pointer to net_device structure
  * @info: pointer to iw_request_info structure
  * @wrqu: pointer to iwreq_data
- * @extra; extra
+ * @extra: extra
  *
  * Return: 0 on success, error number otherwise
  *
@@ -6982,7 +7044,7 @@ int iw_set_var_ints_getnone(struct net_device *dev,
 }
 
 /**
- * iw_add_tspec - Add TSpec private ioctl handler
+ * __iw_add_tspec - Add TSpec private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -7013,7 +7075,7 @@ static int __iw_add_tspec(struct net_device *dev, struct iw_request_info *info,
 	if (0 != ret)
 		return ret;
 
-	/* make sure the application is sufficiently priviledged */
+	/* make sure the application is sufficiently privileged */
 	/* note that the kernel will do this for "set" ioctls, but since */
 	/* this ioctl wants to return status to user space it must be */
 	/* defined as a "get" ioctl */
@@ -7144,6 +7206,15 @@ static int __iw_add_tspec(struct net_device *dev, struct iw_request_info *info,
 	return 0;
 }
 
+/**
+ * iw_add_tspec - Add TSpec private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_add_tspec(struct net_device *dev,
 			struct iw_request_info *info,
 			union iwreq_data *wrqu, char *extra)
@@ -7163,7 +7234,7 @@ static int iw_add_tspec(struct net_device *dev,
 }
 
 /**
- * iw_del_tspec - Delete TSpec private ioctl handler
+ * __iw_del_tspec - Delete TSpec private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -7192,7 +7263,7 @@ static int __iw_del_tspec(struct net_device *dev, struct iw_request_info *info,
 	if (0 != ret)
 		return ret;
 
-	/* make sure the application is sufficiently priviledged */
+	/* make sure the application is sufficiently privileged */
 	/* note that the kernel will do this for "set" ioctls, but since */
 	/* this ioctl wants to return status to user space it must be */
 	/* defined as a "get" ioctl */
@@ -7216,6 +7287,15 @@ static int __iw_del_tspec(struct net_device *dev, struct iw_request_info *info,
 	return 0;
 }
 
+/**
+ * iw_del_tspec - Delete TSpec private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_del_tspec(struct net_device *dev,
 			struct iw_request_info *info,
 			union iwreq_data *wrqu, char *extra)
@@ -7235,7 +7315,7 @@ static int iw_del_tspec(struct net_device *dev,
 }
 
 /**
- * iw_get_tspec - Get TSpec private ioctl handler
+ * __iw_get_tspec - Get TSpec private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -7281,6 +7361,15 @@ static int __iw_get_tspec(struct net_device *dev, struct iw_request_info *info,
 	return 0;
 }
 
+/**
+ * iw_get_tspec - Get TSpec private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_get_tspec(struct net_device *dev,
 			struct iw_request_info *info,
 			union iwreq_data *wrqu, char *extra)
@@ -7300,7 +7389,7 @@ static int iw_get_tspec(struct net_device *dev,
 }
 
 /**
- * iw_set_fties - Set FT IEs private ioctl handler
+ * __iw_set_fties - Set FT IEs private ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -7353,6 +7442,19 @@ static int __iw_set_fties(struct net_device *dev, struct iw_request_info *info,
 	return 0;
 }
 
+/**
+ * iw_set_fties - Set FT IEs private ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Each time the supplicant has the auth_request or reassoc request
+ * IEs ready they are pushed to the driver. The driver will in turn
+ * use it to send out the auth req and reassoc req for 11r FT Assoc.
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_set_fties(struct net_device *dev,
 			struct iw_request_info *info,
 			union iwreq_data *wrqu, char *extra)
@@ -7400,7 +7502,7 @@ static int iw_set_dynamic_mcbc_filter(struct net_device *dev,
 }
 
 /**
- * iw_set_host_offload - Set host offload ioctl handler
+ * __iw_set_host_offload - Set host offload ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -7484,6 +7586,15 @@ static int __iw_set_host_offload(struct net_device *dev,
 	return 0;
 }
 
+/**
+ * iw_set_host_offload - Set host offload ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_set_host_offload(struct net_device *dev,
 			       struct iw_request_info *info,
 			       union iwreq_data *wrqu, char *extra)
@@ -7503,7 +7614,7 @@ static int iw_set_host_offload(struct net_device *dev,
 }
 
 /**
- * iw_set_keepalive_params - Set keepalive params ioctl handler
+ * __iw_set_keepalive_params - Set keepalive params ioctl handler
  * @dev: device upon which the ioctl was received
  * @info: ioctl request information
  * @wrqu: ioctl request data
@@ -7580,6 +7691,15 @@ static int __iw_set_keepalive_params(struct net_device *dev,
 	return 0;
 }
 
+/**
+ * iw_set_keepalive_params - Set keepalive params ioctl handler
+ * @dev: device upon which the ioctl was received
+ * @info: ioctl request information
+ * @wrqu: ioctl request data
+ * @extra: ioctl extra data
+ *
+ * Return: 0 on success, non-zero on error
+ */
 static int iw_set_keepalive_params(struct net_device *dev,
 				   struct iw_request_info *info,
 				   union iwreq_data *wrqu,
@@ -7602,8 +7722,8 @@ static int iw_set_keepalive_params(struct net_device *dev,
 #ifdef WLAN_FEATURE_PACKET_FILTERING
 /**
  * validate_packet_filter_params_size() - Validate the size of the params rcvd
- * @priv_data: Pointer to the priv data from user space
  * @request: Pointer to the struct containing the copied data from user space
+ * @length: length of the request
  *
  * Return: False on invalid length, true otherwise
  */
@@ -8131,10 +8251,9 @@ static int __iw_set_pno(struct net_device *dev,
 			goto exit;
 		}
 
-		hdd_debug("PNO len %d ssid %.*s auth %d encry %d channel count %d offset %d",
-			  req.networks_list[i].ssid.length,
-			  req.networks_list[i].ssid.length,
-			  req.networks_list[i].ssid.ssid,
+		hdd_debug("PNO ssid " QDF_SSID_FMT " auth %d encry %d channel count %d offset %d",
+			  QDF_SSID_REF(req.networks_list[i].ssid.length,
+				       req.networks_list[i].ssid.ssid),
 			  req.networks_list[i].authentication,
 			  req.networks_list[i].encryption,
 			  req.networks_list[i].pno_chan_list.num_chan, offset);

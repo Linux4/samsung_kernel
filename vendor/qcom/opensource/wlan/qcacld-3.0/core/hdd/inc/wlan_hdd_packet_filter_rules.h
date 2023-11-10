@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -28,7 +29,7 @@
 
 #define MAX_NUM_PACKET_FILTERS 6
 
-/**
+/*
  * @filter_action: Filter action, set/clear the filter
  * Ex: filter_action = 1 set the filter
  *     filter_action = 2 clear the filter

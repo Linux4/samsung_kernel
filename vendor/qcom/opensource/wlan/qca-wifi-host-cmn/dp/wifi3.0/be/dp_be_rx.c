@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -332,7 +332,6 @@ more_data:
 					&tail[rx_desc->chip_id][rx_desc->pool_id],
 					rx_desc);
 			}
-			hal_srng_dst_get_next(hal_soc, hal_ring_hdl);
 			continue;
 		}
 
@@ -349,9 +348,6 @@ more_data:
 			dp_info_rl("Reaping rx_desc not in use!");
 			dp_rx_dump_info_and_assert(soc, hal_ring_hdl,
 						   ring_desc, rx_desc);
-			/* ignore duplicate RX desc and continue to process */
-			/* Pop out the descriptor */
-			hal_srng_dst_get_next(hal_soc, hal_ring_hdl);
 			continue;
 		}
 
@@ -362,7 +358,6 @@ more_data:
 			dp_rx_dump_info_and_assert(soc, hal_ring_hdl,
 						   ring_desc, rx_desc);
 			rx_desc->in_err_state = 1;
-			hal_srng_dst_get_next(hal_soc, hal_ring_hdl);
 			continue;
 		}
 
@@ -590,6 +585,12 @@ done:
 
 		/* Get TID from struct cb->tid_val, save to tid */
 		tid = qdf_nbuf_get_tid_val(nbuf);
+		if (qdf_unlikely(tid >= CDP_MAX_DATA_TIDS)) {
+			DP_STATS_INC(soc, rx.err.rx_invalid_tid_err, 1);
+			dp_rx_nbuf_free(nbuf);
+			nbuf = next;
+			continue;
+		}
 
 		if (qdf_unlikely(!txrx_peer)) {
 			txrx_peer = dp_rx_get_txrx_peer_and_vdev(soc, nbuf,
@@ -723,12 +724,15 @@ done:
 							      rx.raw, 1,
 							      msdu_len);
 			} else {
-				dp_rx_nbuf_free(nbuf);
 				DP_STATS_INC(soc, rx.err.scatter_msdu, 1);
-				dp_info_rl("scatter msdu len %d, dropped",
-					   msdu_len);
-				nbuf = next;
-				continue;
+
+				if (!dp_rx_is_sg_supported()) {
+					dp_rx_nbuf_free(nbuf);
+					dp_info_rl("sg msdu len %d, dropped",
+						   msdu_len);
+					nbuf = next;
+					continue;
+				}
 			}
 		} else {
 			msdu_len = QDF_NBUF_CB_RX_PKT_LEN(nbuf);
@@ -1209,6 +1213,14 @@ bool dp_rx_mlo_igmp_handler(struct dp_soc *soc,
 	      qdf_nbuf_is_ipv6_igmp_pkt(nbuf)))
 		return false;
 
+	if (qdf_unlikely(vdev->multipass_en)) {
+		if (dp_rx_multipass_process(peer, nbuf, tid) == false) {
+			DP_PEER_PER_PKT_STATS_INC(peer,
+						  rx.multipass_rx_pkt_drop, 1);
+			return false;
+		}
+	}
+
 	if (!peer->bss_peer) {
 		if (dp_rx_intrabss_mcbc_fwd(soc, peer, NULL, nbuf, tid_stats))
 			dp_rx_err("forwarding failed");
@@ -1339,7 +1351,7 @@ dp_rx_intrabss_fwd_mlo_allow(struct dp_txrx_peer *ta_peer,
 /**
  * dp_rx_intrabss_ucast_check_be() - Check if intrabss is allowed
 				     for unicast frame
- * @soc: SOC hanlde
+ * @soc: SOC handle
  * @nbuf: RX packet buffer
  * @ta_peer: transmitter DP peer handle
  * @msdu_metadata: MSDU meta data info
@@ -1525,6 +1537,52 @@ rel_da_peer:
 #endif /* WLAN_MLO_MULTI_CHIP */
 #endif /* INTRA_BSS_FWD_OFFLOAD */
 
+#if defined(QCA_MONITOR_2_0_SUPPORT) || defined(CONFIG_WORD_BASED_TLV)
+void dp_rx_word_mask_subscribe_be(struct dp_soc *soc,
+				  uint32_t *msg_word,
+				  void *rx_filter)
+{
+	struct htt_rx_ring_tlv_filter *tlv_filter =
+				(struct htt_rx_ring_tlv_filter *)rx_filter;
+
+	if (!msg_word || !tlv_filter)
+		return;
+
+	/* if word mask is zero, FW will set the default values */
+	if (!(tlv_filter->rx_mpdu_start_wmask > 0 &&
+	      tlv_filter->rx_msdu_end_wmask > 0)) {
+		msg_word += 4;
+		*msg_word = 0;
+		goto config_mon;
+	}
+
+	HTT_RX_RING_SELECTION_CFG_WORD_MASK_COMPACTION_ENABLE_SET(*msg_word, 1);
+
+	/* word 14 */
+	msg_word += 3;
+	*msg_word = 0;
+
+	HTT_RX_RING_SELECTION_CFG_RX_MPDU_START_WORD_MASK_SET(
+				*msg_word,
+				tlv_filter->rx_mpdu_start_wmask);
+
+	/* word 15 */
+	msg_word++;
+	*msg_word = 0;
+	HTT_RX_RING_SELECTION_CFG_RX_MSDU_END_WORD_MASK_SET(
+				*msg_word,
+				tlv_filter->rx_msdu_end_wmask);
+config_mon:
+	msg_word--;
+	dp_mon_rx_wmask_subscribe(soc, msg_word, tlv_filter);
+}
+#else
+void dp_rx_word_mask_subscribe_be(struct dp_soc *soc,
+				  uint32_t *msg_word,
+				  void *rx_filter)
+{
+}
+#endif
 /*
  * dp_rx_intrabss_handle_nawds_be() - Forward mcbc intrabss pkts in nawds case
  * @soc: core txrx main context
@@ -1617,3 +1675,72 @@ bool dp_rx_intrabss_fwd_be(struct dp_soc *soc, struct dp_txrx_peer *ta_peer,
 	return ret;
 }
 #endif
+
+bool dp_rx_chain_msdus_be(struct dp_soc *soc, qdf_nbuf_t nbuf,
+			  uint8_t *rx_tlv_hdr, uint8_t mac_id)
+{
+	bool mpdu_done = false;
+	qdf_nbuf_t curr_nbuf = NULL;
+	qdf_nbuf_t tmp_nbuf = NULL;
+
+	struct dp_pdev *dp_pdev = dp_get_pdev_for_lmac_id(soc, mac_id);
+
+	if (!dp_pdev) {
+		dp_rx_debug("%pK: pdev is null for mac_id = %d", soc, mac_id);
+		return mpdu_done;
+	}
+	/* if invalid peer SG list has max values free the buffers in list
+	 * and treat current buffer as start of list
+	 *
+	 * current logic to detect the last buffer from attn_tlv is not reliable
+	 * in OFDMA UL scenario hence add max buffers check to avoid list pile
+	 * up
+	 */
+	if (!dp_pdev->first_nbuf ||
+	    (dp_pdev->invalid_peer_head_msdu &&
+	    QDF_NBUF_CB_RX_NUM_ELEMENTS_IN_LIST
+	    (dp_pdev->invalid_peer_head_msdu) >= DP_MAX_INVALID_BUFFERS)) {
+		qdf_nbuf_set_rx_chfrag_start(nbuf, 1);
+		dp_pdev->first_nbuf = true;
+
+		/* If the new nbuf received is the first msdu of the
+		 * amsdu and there are msdus in the invalid peer msdu
+		 * list, then let us free all the msdus of the invalid
+		 * peer msdu list.
+		 * This scenario can happen when we start receiving
+		 * new a-msdu even before the previous a-msdu is completely
+		 * received.
+		 */
+		curr_nbuf = dp_pdev->invalid_peer_head_msdu;
+		while (curr_nbuf) {
+			tmp_nbuf = curr_nbuf->next;
+			dp_rx_nbuf_free(curr_nbuf);
+			curr_nbuf = tmp_nbuf;
+		}
+
+		dp_pdev->invalid_peer_head_msdu = NULL;
+		dp_pdev->invalid_peer_tail_msdu = NULL;
+
+		dp_monitor_get_mpdu_status(dp_pdev, soc, rx_tlv_hdr);
+	}
+
+	if (qdf_nbuf_is_rx_chfrag_end(nbuf) &&
+	    hal_rx_attn_msdu_done_get(soc->hal_soc, rx_tlv_hdr)) {
+		qdf_assert_always(dp_pdev->first_nbuf);
+		dp_pdev->first_nbuf = false;
+		mpdu_done = true;
+	}
+
+	/*
+	 * For MCL, invalid_peer_head_msdu and invalid_peer_tail_msdu
+	 * should be NULL here, add the checking for debugging purpose
+	 * in case some corner case.
+	 */
+	DP_PDEV_INVALID_PEER_MSDU_CHECK(dp_pdev->invalid_peer_head_msdu,
+					dp_pdev->invalid_peer_tail_msdu);
+	DP_RX_LIST_APPEND(dp_pdev->invalid_peer_head_msdu,
+			  dp_pdev->invalid_peer_tail_msdu,
+			  nbuf);
+
+	return mpdu_done;
+}

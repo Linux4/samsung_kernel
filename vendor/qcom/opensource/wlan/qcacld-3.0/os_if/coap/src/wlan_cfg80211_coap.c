@@ -188,6 +188,8 @@ wlan_cfg80211_coap_offload_reply_enable(struct wlan_objmgr_vdev *vdev,
 		return -EINVAL;
 	}
 
+	params.pattern_id = req_id;
+	params.vdev_id = wlan_vdev_get_id(vdev);
 	params.src_ip_v4 = nla_get_u32(attr);
 
 	attr = tb[COAP_ATTR(REPLY_FILTER)];
@@ -275,7 +277,7 @@ wlan_cfg80211_coap_offload_fill_tx_ipv4(struct nlattr *attr_ipv4,
  * periodic transmitting
  * @vdev: pointer to vdev object
  * @req_id: request id
- * @attr_reply: pointer to CoAP offload periodic TX attribute
+ * @attr_periodic_tx: pointer to CoAP offload periodic TX attribute
  *
  * Return: 0 on success; error number otherwise
  */
@@ -327,7 +329,7 @@ wlan_cfg80211_coap_offload_periodic_tx_enable(struct wlan_objmgr_vdev *vdev,
 }
 
 /**
- * wlan_cfg80211_coap_offload_periodic_tx_enable() - disable CoAP offload
+ * wlan_cfg80211_coap_offload_periodic_tx_disable() - disable CoAP offload
  * periodic transmitting
  * @vdev: pointer to vdev object
  * @req_id: request id

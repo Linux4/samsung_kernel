@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -134,7 +134,7 @@ wlan_register_spectral_tgt_ops(struct wlan_objmgr_psoc *psoc,
  * @vdev_get_chan_freq:          Get channel frequency
  * @vdev_get_chan_freq_seg2:     Get secondary 80 center frequency
  * @vdev_get_ch_width:           Get channel width
- * @vdev_get_sec20chan_freq_mhz: Get seconadry 20 frequency
+ * @vdev_get_sec20chan_freq_mhz: Get secondary 20 frequency
  */
 struct spectral_legacy_cbacks {
 	int16_t (*vdev_get_chan_freq)(struct wlan_objmgr_vdev *vdev);

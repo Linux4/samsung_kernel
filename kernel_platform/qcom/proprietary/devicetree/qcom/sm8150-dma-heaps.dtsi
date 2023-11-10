@@ -33,6 +33,7 @@
 			qcom,dma-heap-name = "qcom,qseecom";
 			qcom,dma-heap-type = <HEAP_TYPE_CMA>;
 			memory-region = <&qseecom_mem>;
+			qcom,uncached-heap;
 		};
 
 		qcom,qseecom_ta {
@@ -46,6 +47,12 @@
 			qcom,dma-heap-type = <HEAP_TYPE_CMA>;
 			qcom,max-align = <9>;
 			memory-region = <&secure_display_memory>;
+		};
+
+		qcom,audio-ml {
+			qcom,dma-heap-name = "qcom,audio-ml";
+			qcom,dma-heap-type = <HEAP_TYPE_CMA>;
+			memory-region = <&audio_cma_mem>;
 		};
 
 	};

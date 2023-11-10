@@ -383,9 +383,14 @@ void cam_hw_cdm_dump_core_debug_registers(struct cam_hw_info *cdm_hw,
 		}
 
 		core_dbg &= ~(CAM_CDM_CORE_DBG_TEST_BUS_EN_MASK |
-			CAM_CDM_CORE_DBG_TEST_BUS_SEL_MASK);
+			CAM_CDM_CORE_DBG_TEST_BUS_SEL_MASK) |
+			CAM_CDM_CORE_DBG_LOG_AHB_MASK |
+			CAM_CDM_CORE_DBG_FIFO_RB_EN_MASK;
 		cam_hw_cdm_enable_core_dbg(cdm_hw, core_dbg);
-	} else {
+	}
+
+	if (core_dbg & CAM_CDM_CORE_DBG_LOG_AHB_MASK ||
+			core_dbg & CAM_CDM_CORE_DBG_FIFO_RB_EN_MASK){
 		cam_hw_cdm_enable_core_dbg(cdm_hw, core_dbg);
 
 		cam_cdm_read_hw_reg(cdm_hw, core->offsets->cmn_reg->debug_status,

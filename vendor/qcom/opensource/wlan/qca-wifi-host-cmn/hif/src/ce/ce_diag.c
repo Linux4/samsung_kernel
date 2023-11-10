@@ -322,7 +322,7 @@ QDF_STATUS hif_diag_read_access(struct hif_opaque_softc *hif_ctx,
  * @hif_ctx: hif context
  * @address: soc virtual address
  * @data: data to copy into the soc address
- * @nbytes: number of bytes to coppy
+ * @nbytes: number of bytes to copy
  */
 QDF_STATUS hif_diag_write_mem(struct hif_opaque_softc *hif_ctx,
 			      uint32_t address, uint8_t *data, int nbytes)

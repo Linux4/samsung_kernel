@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -740,7 +740,12 @@ util_scan_copy_beacon_data(struct scan_cache_entry *new_entry,
 	ie_lst->ehtop = conv_ptr(ie_lst->ehtop, old_ptr, new_ptr);
 #endif
 #ifdef WLAN_FEATURE_11BE_MLO
-	ie_lst->multi_link = conv_ptr(ie_lst->multi_link, old_ptr, new_ptr);
+	ie_lst->multi_link_bv =
+			conv_ptr(ie_lst->multi_link_bv, old_ptr, new_ptr);
+	ie_lst->multi_link_rv =
+			conv_ptr(ie_lst->multi_link_rv, old_ptr, new_ptr);
+	for (i = 0; i < WLAN_MAX_T2LM_IE; i++)
+		ie_lst->t2lm[i] = conv_ptr(ie_lst->t2lm[i], old_ptr, new_ptr);
 #endif
 	ie_lst->qcn = conv_ptr(ie_lst->qcn, old_ptr, new_ptr);
 
@@ -1585,6 +1590,20 @@ util_scan_entry_ehtop(struct scan_cache_entry *scan_entry)
 
 static inline uint8_t*
 util_scan_entry_ehtcap(struct scan_cache_entry *scan_entry)
+{
+	return NULL;
+}
+#endif
+
+#ifdef WLAN_FEATURE_11BE_MLO
+static inline uint8_t*
+util_scan_entry_t2lm(struct scan_cache_entry *scan_entry)
+{
+	return scan_entry->ie_list.t2lm[0];
+}
+#else
+static inline uint8_t*
+util_scan_entry_t2lm(struct scan_cache_entry *scan_entry)
 {
 	return NULL;
 }

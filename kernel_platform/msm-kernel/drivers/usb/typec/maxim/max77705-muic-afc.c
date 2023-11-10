@@ -533,9 +533,14 @@ void max77705_muic_handle_detect_dev_afc(struct max77705_muic_data *muic_data, u
 		if (muic_data->afc_retry++ < RETRY_COUNT) {
 			pr_info("%s:%s Retry(%d)\n", MUIC_DEV_NAME, __func__, muic_data->afc_retry);
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-			/* Charging TG's request, send PREPARE noti */
-			if (!muic_data->is_usb_fail)
-				muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC);
+			/* Charging TG's request, send PREPARE noti(in 9V, do not send PREPARE noti) */
+			if (!muic_data->is_usb_fail) {
+					if(vbadc < MAX77705_VBADC_6_5V_TO_7_5V)
+						muic_notifier_attach_attached_dev(ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC);
+					else {
+						pr_info("%s:%s vbadc is about 9V, don't send prepare noti\n", MUIC_DEV_NAME, __func__);
+					}
+			}
 #endif /* CONFIG_MUIC_NOTIFIER */
 			max77705_muic_afc_hv_set(muic_data, muic_data->hv_voltage);
 		} else {

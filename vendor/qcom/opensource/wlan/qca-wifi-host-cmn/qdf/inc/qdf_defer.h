@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,7 +28,7 @@
 #include <qdf_types.h>
 #include <i_qdf_defer.h>
 
-/**
+/*
  * TODO This implements work queues (worker threads, kernel threads etc.).
  * Note that there is no cancel on a scheduled work. You cannot free a work
  * item if its queued. You cannot know if a work item is queued or not unless
@@ -61,7 +62,7 @@ void
 qdf_create_bh(qdf_bh_t  *bh, qdf_defer_fn_t  func, void  *arg);
 
 /**
- * qdf_sched - schedule a bottom half (DPC)
+ * qdf_sched_bh - schedule a bottom half (DPC)
  * @bh: pointer to bottom
  * Return: none
  */
@@ -165,7 +166,7 @@ QDF_STATUS qdf_create_work(qdf_handle_t hdl, qdf_work_t  *work,
  * @hdl: OS handle
  * @work: pointer to work
  *
- * Retrun: none
+ * Return: none
  */
 void qdf_sched_work(qdf_handle_t hdl, qdf_work_t *work);
 
@@ -197,6 +198,23 @@ void qdf_flush_workqueue(qdf_handle_t hdl, qdf_workqueue_t *wqueue);
  * Return: none
  */
 void qdf_destroy_work(qdf_handle_t hdl, qdf_work_t *work);
+
+/**
+ * qdf_local_bh_disable - Disables softirq and tasklet processing
+ * on the local processor
+ *
+ * Return: none
+ */
+void qdf_local_bh_disable(void);
+
+/**
+ * qdf_local_bh_enable - Disables softirq and tasklet processing
+ * on the local processor
+ *
+ * Return: none
+ */
+void qdf_local_bh_enable(void);
+
 #else
 /**
  * qdf_create_bh - creates the bottom half deferred handler
@@ -212,7 +230,7 @@ qdf_create_bh(qdf_bh_t  *bh, qdf_defer_fn_t  func, void  *arg)
 }
 
 /**
- * qdf_sched - schedule a bottom half (DPC)
+ * qdf_sched_bh - schedule a bottom half (DPC)
  * @bh: pointer to bottom
  * Return: none
  */
@@ -229,6 +247,28 @@ static inline void qdf_sched_bh(qdf_bh_t *bh)
 static inline void qdf_destroy_bh(qdf_bh_t *bh)
 {
 	__qdf_disable_bh(bh);
+}
+
+/**
+ * qdf_local_bh_disable - Disables softirq and tasklet processing
+ * on the local processor
+ *
+ * Return: none
+ */
+static inline void qdf_local_bh_disable(void)
+{
+	__qdf_local_bh_disable();
+}
+
+/**
+ * qdf_local_bh_enable - Enables softirq and tasklet processing
+ * on the local processor
+ *
+ * Return: none
+ */
+static inline void qdf_local_bh_enable(void)
+{
+	__qdf_local_bh_enable();
 }
 
 /*********************Non-Interrupt Context deferred Execution***************/
@@ -339,7 +379,7 @@ static inline void qdf_destroy_workqueue(qdf_handle_t hdl,
  * qdf_sched_work - Schedule a deferred task on non-interrupt context
  * @hdl: OS handle
  * @work: pointer to work
- * Retrun: none
+ * Return: none
  */
 static inline void qdf_sched_work(qdf_handle_t hdl, qdf_work_t *work)
 {

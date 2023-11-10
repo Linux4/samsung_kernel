@@ -24,7 +24,7 @@
 
 #ifndef WLAN_CONFIG_TX_DELAY
 /*
- * dp_hist_sw_enq_dbucket: Sofware enqueue delay bucket in ms
+ * dp_hist_sw_enq_dbucket: Software enqueue delay bucket in ms
  * @index_0 = 0_1 ms
  * @index_1 = 1_2 ms
  * @index_2 = 2_3 ms
@@ -62,7 +62,7 @@ static uint16_t dp_hist_fw2hw_dbucket[CDP_HIST_BUCKET_MAX] = {
 	0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 250, 500};
 #else
 /*
- * dp_hist_sw_enq_dbucket: Sofware enqueue delay bucket in us
+ * dp_hist_sw_enq_dbucket: Software enqueue delay bucket in us
  * @index_0 = 0_250 us
  * @index_1 = 250_500 us
  * @index_2 = 500_750 us

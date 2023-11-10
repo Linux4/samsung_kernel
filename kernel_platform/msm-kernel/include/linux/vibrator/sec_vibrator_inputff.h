@@ -38,6 +38,9 @@ enum EVENT_CMD {
 
 #define MAX_COMPOSE_EFFECT (32)
 
+#define SEC_VIBRATOR_INPUTFF_DEFAULT_HIGH_TEMP_REF INT_MAX
+#define SEC_VIBRATOR_INPUTFF_DEFAULT_HIGH_TEMP_RATIO 100
+
 struct sec_vib_inputff_ops {
 	int (*upload)(struct input_dev *dev,
 		struct ff_effect *effect, struct ff_effect *old);
@@ -45,6 +48,7 @@ struct sec_vib_inputff_ops {
 	int (*playback)(struct input_dev *dev,
 		int effect_id, int val);
 	void (*set_gain)(struct input_dev *dev, u16 gain);
+	int (*get_i2c_test)(struct input_dev *dev);
 	int (*get_i2s_test)(struct input_dev *dev);
 	int (*fw_load)(struct input_dev *dev, unsigned int fw_id);
 	int (*set_trigger_cal)(struct input_dev *dev, u32 val);
@@ -104,6 +108,7 @@ struct sec_vib_inputff_pdata  {
 	int tent_close_ratio;
 	const char *fold_cmd;
 #endif
+	const char *f0_cal_way;
 };
 
 struct sec_vib_inputff_drvdata {

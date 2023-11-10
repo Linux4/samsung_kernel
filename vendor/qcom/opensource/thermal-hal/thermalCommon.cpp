@@ -107,6 +107,7 @@ static std::unordered_map<std::string, cdevType> cdev_map = {
 	{"cdsp", cdevType::NPU},
 	{"cdsp_hw", cdevType::NPU},
 	{"battery", cdevType::BATTERY},
+	{"fan-max31760", cdevType::FAN},
 };
 
 ThermalCommon::ThermalCommon()
@@ -644,10 +645,10 @@ int ThermalCommon::get_cpu_usages(hidl_vec<CpuUsage>& list) {
 		}
 		fclose(cpu_file);
 
-		list[cpu_num].name = std::string("CPU") + std::to_string(cpu_num);
-		list[cpu_num].active = active;
-		list[cpu_num].total = total;
-		list[cpu_num].isOnline = online;
+		list[cpu].name = std::string("CPU") + std::to_string(cpu_num);
+		list[cpu].active = active;
+		list[cpu].total = total;
+		list[cpu].isOnline = online;
 		cpu++;
 	}
 	fclose(file);

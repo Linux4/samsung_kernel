@@ -9,6 +9,7 @@
 	};
 
 	/* DISP_CC_0 GDSCs */
+	disp_cc_mdss_core_gdsc:
 	disp0_cc_mdss_core_gdsc: qcom,gdsc@af09000 {
 		compatible = "qcom,gdsc";
 		reg = <0xaf09000 0x4>;
@@ -20,6 +21,7 @@
 		status = "disabled";
 	};
 
+	disp_cc_mdss_core_int2_gdsc:
 	disp0_cc_mdss_core_int2_gdsc: qcom,gdsc@af0d000 {
 		compatible = "qcom,gdsc";
 		reg = <0xaf0d000 0x4>;
@@ -107,6 +109,7 @@
 		compatible = "qcom,gdsc";
 		reg = <0x181004 0x4>;
 		regulator-name = "gcc_ufs_card_gdsc";
+		qcom,gds-timeout = <1500>;
 		qcom,retain-regs;
 		status = "disabled";
 	};

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -113,6 +113,7 @@
 
 #define CDP_MAX_RX_RINGS 8  /* max rx rings */
 #define CDP_MAX_TX_COMP_RINGS 5 /* max tx/completion rings */
+#define CDP_MAX_TX_COMP_PPE_RING (CDP_MAX_TX_COMP_RINGS - 1)
 #define CDP_MAX_RX_WBM_RINGS 1 /* max rx wbm rings */
 
 #define CDP_MAX_TX_TQM_STATUS 9  /* max tx tqm completion status */
@@ -859,7 +860,7 @@ struct cdp_tidq_stats {
  *    6: 18 Mbps
  *    7: 9 Mbps
  *
- * @gi_type: Indicates the gaurd interval.
+ * @gi_type: Indicates the guard interval.
  *    0: 0.8 us
  *    1: 0.4 us
  *    2: 1.6 us
@@ -1002,7 +1003,7 @@ struct cdp_tid_tx_stats {
 /*
  * cdp_reo_error_stats
  * @err_src_reo_code_inv: Wireless Buffer Manager source receive reorder ring reason unknown
- * @err_reo_codes: Receive reoder error codes
+ * @err_reo_codes: Receive reorder error codes
  */
 struct cdp_reo_error_stats {
 	uint64_t err_src_reo_code_inv;
@@ -1012,7 +1013,7 @@ struct cdp_reo_error_stats {
 /*
  * cdp_rxdma_error_stats
  * @err_src_rxdma_code_inv: DMA reason unknown count
- * @err_reo_codes: Receive reoder error codes count
+ * @err_reo_codes: Receive reorder error codes count
  */
 struct cdp_rxdma_error_stats {
 	uint64_t err_src_rxdma_code_inv;
@@ -1080,7 +1081,7 @@ struct cdp_tid_stats_intf {
 /*
  * struct cdp_delay_tx_stats: Tx delay stats
  * @tx_swq_delay: software enqueue delay
- * @hwtx_delay: HW enque to completion delay
+ * @hwtx_delay: HW enqueue to completion delay
  * @nwdelay_avg: Network delay average
  * @swdelay_avg: Wifi SW Delay Average
  * @hwdelay_avg: Wifi HW delay Average
@@ -1426,6 +1427,10 @@ struct protocol_trace_count {
  * @release_src_not_tqm: Counter to keep track of release source is not TQM
  *			 in TX completion status processing
  * @per: Packet error ratio
+ * @rts_success: RTS success count
+ * @rts_failure: RTS failure count
+ * @bar_cnt: Block ACK Request frame count
+ * @ndpa_cnt: NDP announcement frame count
  */
 struct cdp_tx_stats {
 	struct cdp_pkt_info comp_pkt;
@@ -1509,7 +1514,7 @@ struct cdp_tx_stats {
 	struct cdp_pkt_info is_tx_no_ack;
 	uint16_t tx_ratecode;
 
-	/*add for peer and upadted from ppdu*/
+	/*add for peer and updated from ppdu*/
 	uint32_t ampdu_cnt;
 	uint32_t non_ampdu_cnt;
 	uint32_t failed_retry_count;
@@ -1545,6 +1550,10 @@ struct cdp_tx_stats {
 #endif
 	uint32_t release_src_not_tqm;
 	uint32_t per;
+	uint32_t rts_success;
+	uint32_t rts_failure;
+	uint32_t bar_cnt;
+	uint32_t ndpa_cnt;
 };
 
 /* struct cdp_rx_stats - rx Level Stats
@@ -1634,6 +1643,8 @@ struct cdp_tx_stats {
  * @su_be_ppdu_cnt: SU Rx packet count for BE
  * @mu_be_ppdu_cnt: MU rx packet count for BE
  * @punc_bw[MAX_PUNCTURED_MODE]: MSDU count for punctured BW
+ * @bar_cnt: Block ACK Request frame count
+ * @ndpa_cnt: NDP announcement frame count
  */
 struct cdp_rx_stats {
 	struct cdp_pkt_info to_stack;
@@ -1723,6 +1734,8 @@ struct cdp_rx_stats {
 	uint32_t punc_bw[MAX_PUNCTURED_MODE];
 #endif
 	uint32_t mcast_3addr_drop;
+	uint32_t bar_cnt;
+	uint32_t ndpa_cnt;
 };
 
 /* struct cdp_tx_ingress_stats - Tx ingress Stats
@@ -1733,7 +1746,7 @@ struct cdp_rx_stats {
  * @bcast: Number of broadcast packets
  * @raw_pkt: Total Raw packets
  * @dma_map_error: DMA map error
- * @num_frags_overflow_err: msdu's nbuf count exceeds num of segemnts
+ * @num_frags_overflow_err: msdu's nbuf count exceeds num of segments
  * @num_seg: No of segments in TSO packets
  * @tso_pkt:total no of TSO packets
  * @non_tso_pkts: non - TSO packets
@@ -1827,6 +1840,7 @@ struct cdp_tx_ingress_stats {
 		uint32_t fail_per_pkt_vdev_id_check;
 		uint32_t drop_ingress;
 		uint32_t invalid_peer_id_in_exc_path;
+		uint32_t tx_mcast_drop;
 	} dropped;
 
 	/* Mesh packets info */
@@ -1929,6 +1943,7 @@ struct cdp_peer_stats {
 };
 
 /* struct cdp_peer_tid_stats - Per peer and per TID stats
+ * @tx_prev_delay: tx previous delay
  * @tx_avg_jitter: tx average jitter
  * @tx_avg_delay: tx average delay
  * @tx_avg_err: tx average error
@@ -1937,6 +1952,7 @@ struct cdp_peer_stats {
  */
 struct cdp_peer_tid_stats {
 #ifdef WLAN_PEER_JITTER
+	uint32_t tx_prev_delay;
 	uint32_t tx_avg_jitter;
 	uint32_t tx_avg_delay;
 	uint64_t tx_avg_err;
@@ -2245,6 +2261,116 @@ struct cdp_htt_tx_pdev_stats_cmn_tlv {
 	uint32_t tx_active_dur_us_high;
 };
 
+#define DP_NUM_AC_WMM 4
+
+struct cdp_pdev_obss_pd_stats_tlv {
+	struct cdp_htt_tlv_hdr tlv_hdr;
+
+	uint32_t num_obss_tx_ppdu_success;
+	uint32_t num_obss_tx_ppdu_failure;
+	/** num_sr_tx_transmissions:
+	 * Counter of TX done by aborting other BSS RX with spatial reuse
+	 * (for cases where rx RSSI from other BSS is below the packet-detection
+	 * threshold for doing spatial reuse)
+	 */
+	uint32_t num_sr_tx_transmissions;
+	/**
+	 * Count the number of times the RSSI from an other-BSS signal
+	 * is below the spatial reuse power threshold, thus providing an
+	 * opportunity for spatial reuse since OBSS interference will be
+	 * inconsequential.
+	 */
+	uint32_t num_spatial_reuse_opportunities;
+	/**
+	 * Count of number of times OBSS frames were aborted and non-SRG
+	 * opportunities were created. Non-SRG opportunities are created when
+	 * incoming OBSS RSSI is lesser than the global configured non-SRG RSSI
+	 * threshold and non-SRG OBSS color / non-SRG OBSS BSSID registers
+	 * allow non-SRG TX.
+	 */
+	uint32_t num_non_srg_opportunities;
+	/**
+	 * Count of number of times TX PPDU were transmitted using non-SRG
+	 * opportunities created. Incoming OBSS frame RSSI is compared with per
+	 * PPDU non-SRG RSSI threshold configured in each PPDU. If incoming OBSS
+	 * RSSI < non-SRG RSSI threshold configured in each PPDU, then non-SRG
+	 * transmission happens.
+	 */
+	uint32_t num_non_srg_ppdu_tried;
+	/**
+	 * Count of number of times non-SRG based TX transmissions were
+	 * successful
+	 */
+	uint32_t num_non_srg_ppdu_success;
+	/**
+	 * Count of number of times OBSS frames were aborted and SRG
+	 * opportunities were created. Srg opportunities are created when
+	 * incoming OBSS RSSI is less than the global configured SRG RSSI
+	 * threshold and SRC OBSS color / SRG OBSS BSSID / SRG partial bssid /
+	 * SRG BSS color bitmap registers allow SRG TX.
+	 */
+	uint32_t num_srg_opportunities;
+	/**
+	 * Count of number of times TX PPDU were transmitted using SRG
+	 * opportunities created.
+	 * Incoming OBSS frame RSSI is compared with per PPDU SRG RSSI
+	 * threshold configured in each PPDU.
+	 * If incoming OBSS RSSI < SRG RSSI threshold configured in each PPDU,
+	 * then SRG transmission happens.
+	 */
+	uint32_t num_srg_ppdu_tried;
+	/**
+	 * Count of number of times SRG based TX transmissions were successful
+	 */
+	uint32_t num_srg_ppdu_success;
+	/**
+	 * Count of number of times PSR opportunities were created by aborting
+	 * OBSS UL OFDMA HE-TB PPDU frame. HE-TB ppdu frames are aborted if the
+	 * spatial reuse info in the OBSS trigger common field is set to allow
+	 * PSR based spatial reuse.
+	 */
+	uint32_t num_psr_opportunities;
+	/**
+	 * Count of number of times TX PPDU were transmitted using PSR
+	 * opportunities created.
+	 */
+	uint32_t num_psr_ppdu_tried;
+	/**
+	 * Count of number of times PSR based TX transmissions were successful.
+	 */
+	uint32_t num_psr_ppdu_success;
+	/**
+	 * Count of number of times TX PPDU per access category were transmitted
+	 * using non-SRG opportunities created.
+	 */
+	uint32_t num_non_srg_ppdu_tried_per_ac[DP_NUM_AC_WMM];
+	/**
+	 * Count of number of times non-SRG based TX transmissions per access
+	 * category were successful
+	 */
+	uint32_t num_non_srg_ppdu_success_per_ac[DP_NUM_AC_WMM];
+	/**
+	 * Count of number of times TX PPDU per access category were transmitted
+	 * using SRG opportunities created.
+	 */
+	uint32_t num_srg_ppdu_tried_per_ac[DP_NUM_AC_WMM];
+	/**
+	 * Count of number of times SRG based TX transmissions per access
+	 * category were successful
+	 */
+	uint32_t num_srg_ppdu_success_per_ac[DP_NUM_AC_WMM];
+	/**
+	 * Count of number of times ppdu was flushed due to ongoing OBSS
+	 * frame duration value lesser than minimum required frame duration.
+	 */
+	uint32_t num_obss_min_duration_check_flush_cnt;
+	/**
+	 * Count of number of times ppdu was flushed due to ppdu duration
+	 * exceeding aborted OBSS frame duration
+	 */
+	uint32_t num_sr_ppdu_abort_flush_cnt;
+};
+
 struct cdp_htt_tx_pdev_stats_urrn_tlv_v {
     struct cdp_htt_tlv_hdr tlv_hdr;
     uint32_t urrn_stats[1]; /* HTT_TX_PDEV_MAX_URRN_STATS */
@@ -2376,6 +2502,7 @@ struct cdp_htt_tx_pdev_stats {
     struct cdp_htt_tx_pdev_stats_sifs_tlv_v sifs_tlv;
     struct cdp_htt_tx_pdev_stats_flush_tlv_v flush_tlv;
     struct cdp_htt_tx_pdev_stats_phy_err_tlv_v phy_err_tlv;
+	struct cdp_pdev_obss_pd_stats_tlv obss_pd_stats_tlv;
 };
 
 struct cdp_htt_rx_soc_stats_t {
@@ -2508,6 +2635,7 @@ struct cdp_per_cpu_packets {
  * @tx.desc_in_use: Descriptors in use at soc
  * @tx.dropped_fw_removed: HW_release_reason == FW removed
  * @tx.invalid_release_source: tx completion release_src != HW or FW
+ * @tx.invalid_tx_comp_desc: TX Desc from completion ring Desc is not valid
  * @tx.wifi_internal_error: tx completion wifi_internal_error
  * @tx.non_wifi_internal_err: tx completion non_wifi_internal_error
  * @tx.tx_comp_loop_pkt_limit_hit: TX Comp loop packet limit hit
@@ -2591,6 +2719,7 @@ struct cdp_soc_stats {
 		uint32_t desc_in_use;
 		uint32_t dropped_fw_removed;
 		uint32_t invalid_release_source;
+		uint32_t invalid_tx_comp_desc;
 		uint32_t wifi_internal_error[CDP_MAX_WIFI_INT_ERROR_REASONS];
 		uint32_t non_wifi_internal_err;
 		uint32_t tx_comp_loop_pkt_limit_hit;
@@ -2689,8 +2818,8 @@ struct cdp_soc_stats {
  * @link_airtime: pdev airtime usage per ac per sec
  */
 struct cdp_pdev_telemetry_stats {
-	uint32_t tx_mpdu_failed;
-	uint32_t tx_mpdu_total;
+	uint32_t tx_mpdu_failed[WME_AC_MAX];
+	uint32_t tx_mpdu_total[WME_AC_MAX];
 	uint32_t link_airtime[WME_AC_MAX];
 };
 
@@ -2793,6 +2922,7 @@ struct cdp_pdev_stats {
 		uint32_t ip_csum_err;
 		uint32_t tcp_udp_csum_err;
 		uint32_t rxdma_error;
+		uint32_t fw_reported_rxdma_error;
 		uint32_t reo_error;
 	} err;
 
@@ -2820,6 +2950,26 @@ struct cdp_pdev_stats {
 		uint32_t data_rx_ppdu;
 		uint32_t data_users[OFDMA_NUM_USERS];
 	} ul_ofdma;
+
+	/**
+	 * struct eap_drop_stats: EAPOL packet drop stats information
+	 * @tx_desc_error: Total number EAPOL packets dropped due to TX
+	 *		   descriptor error
+	 * @tx_hal_ring_access_err: Total EAPOL packets dropped due to
+	 *			     HAL ring access failure
+	 * @tx_dma_map_err: EAPOL packets dropped due to error in DMA map
+	 * @tx_hw_enqueue: EAPOL packets dropped by the host due to failure
+	 *		   in HW enqueue
+	 * @tx_sw_enqueue: EAPOL packets dropped by the host due to failure
+	 *		   in SW enqueue
+	 */
+	struct {
+		uint8_t tx_desc_err;
+		uint8_t tx_hal_ring_access_err;
+		uint8_t tx_dma_map_err;
+		uint8_t tx_hw_enqueue;
+		uint8_t tx_sw_enqueue;
+	} eap_drop_stats;
 
 	struct cdp_tso_stats tso_stats;
 	struct cdp_cfr_rcc_stats rcc;
@@ -2941,7 +3091,7 @@ enum CDP_PEER_MPDU_DESC {
 
 /**
  * struct cdp_tid_q_len - Structure to hold consolidated queue length
- * @defer_msdu_len: Defered MSDU queue length
+ * @defer_msdu_len: Deferred MSDU queue length
  * @tasklet_msdu_len: MSDU complete queue length
  * @pending_q_len: MSDU pending queue length
  */
@@ -2953,7 +3103,7 @@ struct cdp_tid_q_len {
 
 /**
  * struct cdp_peer_tx_capture_stats - Structure to hold peer tx capture stats
- * @len_stats: Per TID defered, pending and completed msdu queue length
+ * @len_stats: Per TID deferred, pending and completed msdu queue length
  * @mpdu: Mpdu success and restich count
  * @msdu: Msdu success and restich count
  */
@@ -2970,7 +3120,7 @@ struct cdp_peer_tx_capture_stats {
  * @peer_mismatch: Peer mismatched
  * @last_rcv_ppdu: Last received PPDU stats in ms
  * @ppdu_stats_queue_depth: PPDU stats queue depth
- * @ppdu_stats_defer_queue_depth: PPDU stats defered queue depth
+ * @ppdu_stats_defer_queue_depth: PPDU stats deferred queue depth
  * @ppdu_dropped: PPDU dropped count
  * @pend_ppdu_dropped: Pending PPDU dropped count
  * @ppdu_flush_count: PPDU flush count

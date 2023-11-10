@@ -24,11 +24,15 @@
  *
  */
 
+#include <net/cfg80211.h>
 #include <wlan_hdd_green_ap.h>
 #include <wlan_hdd_main.h>
 #include <wlan_policy_mgr_api.h>
 #include <wlan_green_ap_ucfg_api.h>
 #include "wlan_mlme_ucfg_api.h"
+#include <osif_vdev_sync.h>
+#include "wlan_osif_priv.h"
+#include "wlan_lmac_if_def.h"
 
 /**
  * hdd_green_ap_check_enable() - to check whether to enable green ap or not
@@ -187,3 +191,205 @@ int hdd_green_ap_start_state_mc(struct hdd_context *hdd_ctx,
 	}
 	return ret;
 }
+
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+const struct nla_policy
+wlan_hdd_sap_low_pwr_mode[QCA_WLAN_VENDOR_ATTR_DOZED_AP_MAX + 1] = {
+	[QCA_WLAN_VENDOR_ATTR_DOZED_AP_STATE] = {.type = NLA_U8},
+};
+
+/**
+ * __wlan_hdd_enter_sap_low_pwr_mode() - Green AP low latency power
+ * save mode
+ * vendor command
+ * @wiphy: wiphy device pointer
+ * @wdev: wireless device pointer
+ * @data: Vendor command data buffer
+ * @data_len: Buffer length
+ *
+ * Return: 0 for Success and negative value for failure
+ */
+static int
+__wlan_hdd_enter_sap_low_pwr_mode(struct wiphy *wiphy,
+				  struct wireless_dev *wdev,
+				  const void *data, int data_len)
+{
+	uint8_t lp_flags, len;
+	uint64_t cookie_id;
+	QDF_STATUS status;
+	struct hdd_context *hdd_ctx = wiphy_priv(wiphy);
+	struct hdd_adapter *adapter = WLAN_HDD_GET_PRIV_PTR(wdev->netdev);
+	struct nlattr *tb[QCA_WLAN_VENDOR_ATTR_DOZED_AP_MAX + 1];
+	struct sk_buff *skb;
+
+	hdd_enter_dev(wdev->netdev);
+
+	if (wlan_cfg80211_nla_parse(tb,
+				    QCA_WLAN_VENDOR_ATTR_DOZED_AP_MAX,
+				    data, data_len,
+				    wlan_hdd_sap_low_pwr_mode)) {
+		hdd_err("Invalid ATTR");
+		return -EINVAL;
+	}
+
+	if (!tb[QCA_WLAN_VENDOR_ATTR_DOZED_AP_STATE]) {
+		hdd_err("low power flag is not present");
+		return -EINVAL;
+	}
+
+	lp_flags =
+		nla_get_u8(tb[QCA_WLAN_VENDOR_ATTR_DOZED_AP_STATE]);
+
+	if (lp_flags > QCA_WLAN_DOZED_AP_ENABLE) {
+		hdd_err("Invalid state received");
+		return -EINVAL;
+	}
+
+	hdd_debug("state: %s",
+		  lp_flags == QCA_WLAN_DOZED_AP_ENABLE ? "ENABLE" : "DISABLE");
+
+	status = ucfg_green_ap_ll_ps(hdd_ctx->pdev, adapter->vdev, lp_flags,
+				     adapter->session.ap.sap_config.beacon_int,
+				     &cookie_id);
+	if (status != QDF_STATUS_SUCCESS) {
+		hdd_err("unable to send low latency power save cmd");
+		return -EINVAL;
+	}
+
+	hdd_debug("Cookie id received : %u", cookie_id);
+
+	len = NLMSG_HDRLEN;
+	/*QCA_WLAN_VENDOR_ATTR_DOZED_AP_COOKIE*/
+	len += nla_total_size(sizeof(u64));
+
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, len);
+	if (!skb) {
+		hdd_err("skb allocation failed");
+		return -ENOMEM;
+	}
+
+	if (wlan_cfg80211_nla_put_u64(skb, QCA_WLAN_VENDOR_ATTR_DOZED_AP_COOKIE,
+				      cookie_id)) {
+		hdd_err("nla_put for cookie id failed");
+		goto fail;
+	}
+
+	cfg80211_vendor_cmd_reply(skb);
+
+	hdd_exit();
+
+	return 0;
+fail:
+	wlan_cfg80211_vendor_free_skb(skb);
+	return 0;
+}
+
+int
+wlan_hdd_enter_sap_low_pwr_mode(struct wiphy *wiphy,
+				struct wireless_dev *wdev,
+				const void *data, int data_len)
+{
+	int errno;
+	struct osif_vdev_sync *vdev_sync;
+
+	errno = osif_vdev_sync_op_start(wdev->netdev, &vdev_sync);
+	if (errno)
+		return errno;
+
+	errno = __wlan_hdd_enter_sap_low_pwr_mode(wiphy, wdev,
+						  data, data_len);
+
+	osif_vdev_sync_op_stop(vdev_sync);
+
+	return 0;
+}
+
+QDF_STATUS wlan_hdd_send_green_ap_ll_ps_event(
+					struct wlan_objmgr_vdev *vdev,
+					struct wlan_green_ap_ll_ps_event_param
+					*ll_ps_param)
+{
+	int index = QCA_NL80211_VENDOR_SUBCMD_DOZED_AP_INDEX;
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	uint32_t len;
+	struct vdev_osif_priv *osif_priv;
+	struct sk_buff *skb;
+
+	osif_priv = wlan_vdev_get_ospriv(vdev);
+	if (!osif_priv) {
+		hdd_err("OSIF priv is NULL");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	hdd_enter_dev(osif_priv->wdev->netdev);
+
+	len = NLMSG_HDRLEN;
+	/*QCA_WLAN_VENDOR_ATTR_DOZED_AP_NEXT_TSF*/
+	len += nla_total_size(sizeof(u64));
+	/*QCA_WLAN_VENDOR_ATTR_DOZED_AP_COOKIE*/
+	len += nla_total_size(sizeof(u64));
+	/*QCA_WLAN_VENDOR_ATTR_DOZED_AP_BI_MULTIPLIER*/
+	len += nla_total_size(sizeof(u16));
+
+	skb = wlan_cfg80211_vendor_event_alloc(osif_priv->wdev->wiphy,
+					       osif_priv->wdev, len,
+					       index, qdf_mem_malloc_flags());
+	if (!skb) {
+		hdd_err("skb allocation failed");
+		return QDF_STATUS_E_NOMEM;
+	}
+
+	if (wlan_cfg80211_nla_put_u64(skb, QCA_WLAN_VENDOR_ATTR_DOZED_AP_COOKIE,
+				      ll_ps_param->dialog_token)) {
+		hdd_err("nla_put failed");
+		status = QDF_STATUS_E_FAILURE;
+		goto nla_put_failure;
+	}
+
+	if (wlan_cfg80211_nla_put_u64(skb, QCA_WLAN_VENDOR_ATTR_DOZED_AP_NEXT_TSF,
+				      ll_ps_param->next_tsf)) {
+		hdd_err("nla_put failed for next tsf");
+		status = QDF_STATUS_E_FAILURE;
+		goto nla_put_failure;
+	}
+
+	if (nla_put_u16(skb, QCA_WLAN_VENDOR_ATTR_DOZED_AP_BI_MULTIPLIER,
+			ll_ps_param->bcn_mult)) {
+		hdd_err("nla_put for BI multiplier failed");
+		status = QDF_STATUS_E_FAILURE;
+		goto nla_put_failure;
+	}
+
+	hdd_debug("next_tsf : %llu, cookie: %llu beacon multiplier: %u",
+		  ll_ps_param->next_tsf, ll_ps_param->dialog_token,
+		  ll_ps_param->bcn_mult);
+
+	wlan_cfg80211_vendor_event(skb, qdf_mem_malloc_flags());
+
+	hdd_exit();
+
+	return status;
+
+nla_put_failure:
+	wlan_cfg80211_vendor_free_skb(skb);
+	return status;
+}
+
+QDF_STATUS green_ap_register_hdd_callback(struct wlan_objmgr_pdev *pdev,
+					  struct green_ap_hdd_callback *hdd_cback)
+{
+	struct wlan_pdev_green_ap_ctx *green_ap_ctx;
+
+	green_ap_ctx = wlan_objmgr_pdev_get_comp_private_obj(
+			pdev, WLAN_UMAC_COMP_GREEN_AP);
+
+	if (!green_ap_ctx) {
+		hdd_err("green ap context obtained is NULL");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	green_ap_ctx->hdd_cback = *hdd_cback;
+
+	return QDF_STATUS_SUCCESS;
+}
+#endif

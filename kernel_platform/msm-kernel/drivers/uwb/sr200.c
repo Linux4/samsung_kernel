@@ -29,7 +29,11 @@
 /* Cold reset Feature in case of Secure Element tx timeout */
 #define ESE_COLD_RESET 1
 #if ESE_COLD_RESET
+#ifdef CONFIG_NFC_NXP_COMBINED
+#include "../nfc/nxp_combined/common_ese.h"
+#else
 #include "../nfc/common_ese.h"
+#endif
 /*Invoke cold reset if no response from eSE*/
 extern int perform_ese_cold_reset(unsigned long source);
 #endif
@@ -839,6 +843,34 @@ err_exit:
   SR200_DBG_MSG("ERROR: exit : %s ret %d\n", __FUNCTION__, ret);
   return ret;
 }
+
+#if KERNEL_VERSION(5, 18, 0) <= LINUX_VERSION_CODE
+static void sr200_remove(struct spi_device *spi) {
+  struct sr200_dev *sr200_dev = sr200_get_data(spi);
+  SR200_DBG_MSG("entry : %s\n", __FUNCTION__);
+  if (sr200_dev != NULL) {
+    sr200_regulator_onoff(&spi->dev, sr200_dev, false);
+    gpio_free(sr200_dev->reset_gpio);
+    mutex_destroy(&sr200_dev->sr200_access_lock);
+    free_irq(sr200_dev->spi->irq, sr200_dev);
+    gpio_free(sr200_dev->irq_gpio);
+    if((int)sr200_dev->ant_connection_status_gpio > 0) {
+      gpio_free(sr200_dev->ant_connection_status_gpio);
+    }
+    misc_deregister(&sr200_dev->sr200_device);
+
+    if (sr200_dev->tx_buffer != NULL)
+      kfree(sr200_dev->tx_buffer);
+    if (sr200_dev->rx_buffer != NULL)
+      kfree(sr200_dev->rx_buffer);
+    if(sr200_dev->rx_dir_byte_buff != NULL)
+      kfree(sr200_dev->rx_dir_byte_buff);
+    kfree(sr200_dev);
+  }
+  SR200_DBG_MSG("exit : %s\n", __FUNCTION__);
+  return;
+}
+#else
 /******************************************************************************
  * Function    : sr200_remove
  *
@@ -874,6 +906,8 @@ static int sr200_remove(struct spi_device *spi) {
   SR200_DBG_MSG("exit : %s\n", __FUNCTION__);
   return 0;
 }
+#endif
+
 static struct of_device_id sr200_dt_match[] = {{
                                                    .compatible = "nxp,sr200",
                                                },
