@@ -1716,3 +1716,33 @@ void kbase_gpu_dump_slots(struct kbase_device *kbdev)
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 }
+void kbase_backend_slot_kctx_purge_locked(struct kbase_device *kbdev, struct kbase_context *kctx)
+{
+	int js;
+	bool tracked = false;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	for (js = 0; js < kbdev->gpu_props.num_job_slots; js++) {
+		u64 tagged_kctx = kbdev->hwaccess.backend.slot_rb[js].last_kctx_tagged;
+
+		if (tagged_kctx == SLOT_RB_TAG_KCTX(kctx)) {
+			/* Marking the slot kctx tracking field is purged */
+			kbdev->hwaccess.backend.slot_rb[js].last_kctx_tagged = SLOT_RB_TAG_PURGED;
+			tracked = true;
+		}
+	}
+
+	if (tracked) {
+		/* The context had run some jobs before the purge, other slots
+		 * in SLOT_RB_NULL_TAG_VAL condition needs to be marked as
+		 * purged as well.
+		 */
+		for (js = 0; js < kbdev->gpu_props.num_job_slots; js++) {
+			if (kbdev->hwaccess.backend.slot_rb[js].last_kctx_tagged ==
+			    SLOT_RB_NULL_TAG_VAL)
+				kbdev->hwaccess.backend.slot_rb[js].last_kctx_tagged =
+					SLOT_RB_TAG_PURGED;
+		}
+	}
+}
