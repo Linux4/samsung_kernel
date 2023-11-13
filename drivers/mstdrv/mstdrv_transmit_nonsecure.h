@@ -20,6 +20,7 @@
 #include <linux/gpio.h>
 #include <linux/spinlock.h>
 #include <linux/module.h>
+#include <linux/device.h>
 
 /* defines */
 #define	ON				1	// On state
@@ -35,7 +36,10 @@
 #define	PWR_EN_WAIT_TIME		11	// time (mS) to wait after MST+PER_EN signal sent
 #define	MST_DATA_TIME_DURATION		300	// time (uS) duration for transferring MST bit
 
+void init_spin_lock(void);
+int init_mst_en_gpio(struct device *dev);
+int init_mst_data_gpio(struct device *dev);
 int mst_change(int mst_val, int mst_stat, int mst_data);
-int transmit_mst_data(int trackint, int mst_en, int mst_data, spinlock_t event_lock);
+int transmit_mst_data(int track_num);
 
 #endif /* MST_DRV_H */
