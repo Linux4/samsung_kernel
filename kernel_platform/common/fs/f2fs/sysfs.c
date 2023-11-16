@@ -897,7 +897,6 @@ out:
 
 	if (!strcmp(a->attr.name, "gc_urgent_high_remaining")) {
 		spin_lock(&sbi->gc_urgent_high_lock);
-		sbi->gc_urgent_high_limited = t != 0;
 		sbi->gc_urgent_high_remaining = t;
 		spin_unlock(&sbi->gc_urgent_high_lock);
 
@@ -1221,6 +1220,7 @@ F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_capacity_apps_kb, s_sec_capacity_apps_k
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_defrag_stat, s_sec_part_best_extents);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_hqm_preserve, sec_hqm_preserve);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_fua_mode, s_sec_cond_fua_mode);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_truncate_wq_threshold, s_sec_truncate_wq_threshold);
 #ifdef CONFIG_F2FS_ML_BASED_STREAM_SEPARATION
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, mp_uid, mp_uid);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, streamid_attr, logistic_scale);
@@ -1376,6 +1376,7 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(sec_defrag_stat),
 	ATTR_LIST(sec_hqm_preserve),
 	ATTR_LIST(sec_fua_mode),
+	ATTR_LIST(sec_truncate_wq_threshold),
 	ATTR_LIST(dirty_segments),
 	ATTR_LIST(free_segments),
 	ATTR_LIST(ovp_segments),

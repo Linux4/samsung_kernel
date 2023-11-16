@@ -78,9 +78,8 @@ static int gh_dbl_validate_params(struct gh_dbl_desc *client_desc,
 			goto err;
 		}
 
-		if ((cap_table_entry->rx_cap_id == GH_CAPID_INVAL) &&
-			(flags & GH_DBL_NONBLOCK)) {
-			ret = -EAGAIN;
+		if (flags & GH_DBL_NONBLOCK) {
+			ret = cap_table_entry->rx_cap_id == GH_CAPID_INVAL ? -EAGAIN : 0;
 			goto err;
 		}
 
@@ -96,9 +95,8 @@ static int gh_dbl_validate_params(struct gh_dbl_desc *client_desc,
 			goto err;
 		}
 
-		if ((cap_table_entry->tx_cap_id == GH_CAPID_INVAL) &&
-			(flags & GH_DBL_NONBLOCK)) {
-			ret = -EAGAIN;
+		if (flags & GH_DBL_NONBLOCK) {
+			ret = cap_table_entry->tx_cap_id == GH_CAPID_INVAL ? -EAGAIN : 0;
 			goto err;
 		}
 

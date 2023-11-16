@@ -64,12 +64,28 @@ struct qcom_scm_mem_map_info {
 	__le64 mem_size;
 };
 
+/**
+ * struct arm_smccc_args
+ * @args: The array of values used in registers in smc instruction
+ */
+struct arm_smccc_args {
+	unsigned long args[8];
+};
+
 enum qcom_scm_ice_cipher {
 	QCOM_SCM_ICE_CIPHER_AES_128_XTS = 0,
 	QCOM_SCM_ICE_CIPHER_AES_128_CBC = 1,
 	QCOM_SCM_ICE_CIPHER_AES_256_XTS = 3,
 	QCOM_SCM_ICE_CIPHER_AES_256_CBC = 4,
 };
+
+enum qcom_scm_custom_reset_type {
+	QCOM_SCM_RST_NONE,
+	QCOM_SCM_RST_SHUTDOWN_TO_RTC_MODE = 0x80000005,
+	QCOM_SCM_RST_SHUTDOWN_TO_TWM_MODE,
+	QCOM_SCM_RST_MAX
+};
+extern enum qcom_scm_custom_reset_type qcom_scm_custom_reset_type;
 
 #define QCOM_SCM_VMID_HLOS       0x3
 #define QCOM_SCM_VMID_MSS_MSA    0xF
@@ -116,6 +132,7 @@ extern void qcom_scm_disable_sdi(void);
 extern int qcom_scm_set_remote_state(u32 state, u32 id);
 extern int qcom_scm_spin_cpu(void);
 extern void qcom_scm_set_download_mode(enum qcom_download_mode mode, phys_addr_t tcsr_boot_misc);
+extern int qcom_scm_get_download_mode(unsigned int *mode, phys_addr_t tcsr_boot_misc);
 extern int qcom_scm_config_cpu_errata(void);
 
 extern int qcom_scm_pas_init_image(u32 peripheral, dma_addr_t metadata);
@@ -269,5 +286,16 @@ extern int qcom_scm_lmh_dcvsh(u32 payload_fn, u32 payload_reg, u32 payload_val,
 			      u64 limit_node, u32 node_id, u64 version);
 extern int qcom_scm_lmh_profile_change(u32 profile_id);
 extern bool qcom_scm_lmh_dcvsh_available(void);
+
+static inline int qcom_scm_paravirt_smmu_attach(u64 sid, u64 asid, u64 ste_pa,
+			u64 ste_size, u64 cd_pa, u64 cd_size)
+		{ return -ENODEV; }
+
+static inline int qcom_scm_paravirt_smmu_detach(u64 sid)
+		{ return -ENODEV; }
+
+static inline int qcom_scm_paravirt_tlb_inv(u64 asid)
+		{ return -ENODEV; }
+
 
 #endif

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2015, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __QCOM_TSENS_H__
@@ -164,6 +164,15 @@ struct tsens_ops {
 		dev_dbg((priv)->dev, "%s:" msg, __func__, args);	\
 		if ((priv) && (priv)->ipc_log1) {		\
 			ipc_log_string((priv)->ipc_log1,	\
+			"%s: " msg " [%s]\n",		\
+			__func__, args, current->comm);	\
+		}					\
+	} while (0)
+
+#define TSENS_DBG_2(priv, msg, args...) do {		\
+		dev_dbg((priv)->dev, "%s:" msg, __func__, args);	\
+		if ((priv) && (priv)->ipc_log2) {		\
+			ipc_log_string((priv)->ipc_log2,	\
 			"%s: " msg " [%s]\n",		\
 			__func__, args, current->comm);	\
 		}					\
@@ -577,6 +586,7 @@ struct tsens_context {
  * @debug: pointer to debugfs dentry for tsens controller
  * @ipc_log: pointer for first ipc log context id
  * @ipc_log1: pointer for second ipc log context id
+ * @ipc_log2: pointer for third ipc log context id
  * @sensor: list of sensors attached to this device
  */
 struct tsens_priv {
@@ -599,6 +609,10 @@ struct tsens_priv {
 	struct dentry			*debug;
 	void				*ipc_log;
 	void				*ipc_log1;
+	void				*ipc_log2;
+
+	/* add for save tsens data into minidump */
+	struct minidump_data		*tsens_md;
 
 	struct tsens_sensor		sensor[];
 };

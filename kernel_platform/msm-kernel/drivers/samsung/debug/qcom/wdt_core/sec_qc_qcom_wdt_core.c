@@ -34,6 +34,15 @@ struct qc_wdt_core_drvdata {
 	struct force_err_handle force_err_wp;
 };
 
+#if IS_ENABLED(CONFIG_CPU_IDLE_GOV_QCOM_LPM)
+/* NOTE: see 'drivers/cpuidle/governors/qcom-lpm-sec-extra.c'  */
+extern void qcom_lpm_set_sleep_disabled(void);
+extern void qcom_lpm_unset_sleep_disabled(void);
+#else
+static inline void qcom_lpm_set_sleep_disabled(void) {}
+static inline void qcom_lpm_unset_sleep_disabled(void) {}
+#endif
+
 static int __qc_wdt_core_parse_dt_qcom_wdt_core_dev_name(struct builder *bd,
 		struct device_node *np)
 {
@@ -187,6 +196,8 @@ static void __qc_wdt_force_watchdog_bark(struct force_err_handle *h)
 			container_of(h, struct qc_wdt_core_drvdata, force_err_dp);
 	struct msm_watchdog_data *wdog_dd = drvdata->wdog_dd;
 	struct device *dev = drvdata->bd.dev;
+
+	qcom_lpm_set_sleep_disabled();
 
 	wdog_dd->bark_time = 3000;
 	wdog_dd->ops->set_bark_time(wdog_dd->bark_time, wdog_dd);

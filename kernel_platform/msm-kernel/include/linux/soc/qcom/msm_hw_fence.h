@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MSM_HW_FENCE_H
@@ -19,6 +19,15 @@
 #define MSM_HW_FENCE_FLAG_ENABLED_BIT    31
 
 /**
+ * MSM_HW_FENCE_FLAG_SIGNALED_BIT - Hw-fence is signaled for the dma_fence.
+ *
+ * This flag is set by hw-fence driver when a client wants to add itself as
+ * a waiter for this hw-fence. The client uses this flag to avoid adding itself
+ * as a waiter for a fence that is already retired.
+ */
+#define MSM_HW_FENCE_FLAG_SIGNALED_BIT    30
+
+/**
  * MSM_HW_FENCE_ERROR_RESET - Hw-fence flagged as error due to forced reset from producer.
  */
 #define MSM_HW_FENCE_ERROR_RESET    BIT(0)
@@ -30,6 +39,11 @@
  */
 #define MSM_HW_FENCE_RESET_WITHOUT_ERROR    BIT(0)
 #define MSM_HW_FENCE_RESET_WITHOUT_DESTROY  BIT(1)
+
+/**
+ * MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT - Maximum number of signals per client
+ */
+#define MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT 64
 
 /**
  * struct msm_hw_fence_create_params - Creation parameters.
@@ -135,6 +149,16 @@ struct msm_hw_fence_mem_addr {
  * @HW_FENCE_CLIENT_ID_VAL4: debug Validation client 4.
  * @HW_FENCE_CLIENT_ID_VAL5: debug Validation client 5.
  * @HW_FENCE_CLIENT_ID_VAL6: debug Validation client 6.
+ * @HW_FENCE_CLIENT_ID_IPE: IPE Client.
+ * @HW_FENCE_CLIENT_ID_VPU: VPU Client.
+ * @HW_FENCE_CLIENT_ID_IFE0: IFE0 Client 0.
+ * @HW_FENCE_CLIENT_ID_IFE1: IFE1 Client 0.
+ * @HW_FENCE_CLIENT_ID_IFE2: IFE2 Client 0.
+ * @HW_FENCE_CLIENT_ID_IFE3: IFE3 Client 0.
+ * @HW_FENCE_CLIENT_ID_IFE4: IFE4 Client 0.
+ * @HW_FENCE_CLIENT_ID_IFE5: IFE5 Client 0.
+ * @HW_FENCE_CLIENT_ID_IFE6: IFE6 Client 0.
+ * @HW_FENCE_CLIENT_ID_IFE7: IFE7 Client 0.
  * @HW_FENCE_CLIENT_MAX: Max number of clients, any client must be added
  *                       before this enum.
  */
@@ -153,7 +177,17 @@ enum hw_fence_client_id {
 	HW_FENCE_CLIENT_ID_VAL4,
 	HW_FENCE_CLIENT_ID_VAL5,
 	HW_FENCE_CLIENT_ID_VAL6,
-	HW_FENCE_CLIENT_MAX
+	HW_FENCE_CLIENT_ID_IPE,
+	HW_FENCE_CLIENT_ID_VPU = HW_FENCE_CLIENT_ID_IPE + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_ID_IFE0 = HW_FENCE_CLIENT_ID_VPU + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_ID_IFE1 = HW_FENCE_CLIENT_ID_IFE0 + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_ID_IFE2 = HW_FENCE_CLIENT_ID_IFE1 + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_ID_IFE3 = HW_FENCE_CLIENT_ID_IFE2 + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_ID_IFE4 = HW_FENCE_CLIENT_ID_IFE3 + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_ID_IFE5 = HW_FENCE_CLIENT_ID_IFE4 + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_ID_IFE6 = HW_FENCE_CLIENT_ID_IFE5 + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_ID_IFE7 = HW_FENCE_CLIENT_ID_IFE6 + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT,
+	HW_FENCE_CLIENT_MAX = HW_FENCE_CLIENT_ID_IFE7 + MSM_HW_FENCE_MAX_SIGNAL_PER_CLIENT
 };
 
 #if IS_ENABLED(CONFIG_QTI_HW_FENCE)
@@ -220,12 +254,83 @@ int msm_hw_fence_create(void *client_handle,
  * @fence: Sw dma-fence to destroy its associated hw-fence.
  *
  * The fence destroyed by this function, is a fence that must have been
- * registered with the fence driver through 'msm_hw_fence_create' call.
+ * created by the hw fence driver through 'msm_hw_fence_create' call.
  *
  * Return: 0 on success or negative errno (-EINVAL)
  */
 int msm_hw_fence_destroy(void *client_handle,
 	struct dma_fence *fence);
+
+/**
+ * msm_hw_fence_destroy_with_handle() - Destroys a hw fence through its handle.
+ * @client_handle: Hw fence driver client handle, this handle was returned
+ *                 during the call 'msm_hw_fence_register' to register the
+ *                 client.
+ * @handle: handle for hw-fence to destroy
+ *
+ * The fence destroyed by this function, is a fence that must have been
+ * created by the hw fence driver through 'msm_hw_fence_create' call.
+ *
+ * Return: 0 on success or negative errno (-EINVAL)
+ */
+int msm_hw_fence_destroy_with_handle(void *client_handle, u64 handle);
+
+/**
+ * msm_hw_fence_wait_update_v2() - Register or unregister the Client with the
+ *                           Fence Controller as a waiting-client of the
+ *                           list of fences received as parameter.
+ * @client_handle: Hw fence driver client handle, this handle was returned
+ *                 during the call 'msm_hw_fence_register' to register the
+ *                 client.
+ * @fences: Pointer to an array of pointers containing the fences to
+ *          'wait-on' for this client. If a 'fence-array' fence is passed,
+ *          driver will iterate through the individual 'fences' which are
+ *          part of the 'fence-array' and will register to wait-for-all the
+ *          individual fences of the fence-array.
+ *          A 'fence-array' passed as parameter can only have 'individual'
+ *          fences and cannot have another nested 'fence-array',
+ *          otherwise this API will return failure.
+ *          Also, all the 'fences' in this list must have a corresponding
+ *          hw-fence that was registered by the producer of the fence,
+ *          otherwise, this API will return failure.
+ * @handles: Optional pointer to an array of handles of 'fences'.
+ *           If non-null, these handles are filled by the function.
+ *           This list must have the same size as 'fences' if present.
+ * @client_data_list: Optional pointer to an array of u64 client_data
+ *                    values for each fence in 'fences'.
+ *                    If non-null, this list must have the same size as
+ *                    the 'fences' list. This client registers each fence
+ *                    with the client_data value at the same index so that
+ *                    this value is returned to the client upon signaling
+ *                    of the fence.
+ *                    If a null pointer is provided, a default value of
+ *                    zero is registered as the client_data of each fence.
+ * @num_fences: Number of elements in the 'fences' list (and 'handles' and
+ *              'client_data_list' if either or both are present).
+ * @reg: Boolean to indicate if register or unregister for waiting on
+ *            the hw-fence.
+ *
+ * If the 'register' boolean is set as true, this API will register with
+ * the Fence Controller the Client as a consumer (i.e. 'wait-client') of
+ * the fences received as parameter.
+ * Function will return immediately after the client was registered
+ * (i.e this function does not wait for the fences to be signaled).
+ * When any of the Fences received as parameter is signaled (or all the
+ * fences in case of a fence-array), Fence controller will trigger the hw
+ * signal to notify the Client hw-core about the signaled fence (or fences
+ * in case of a fence array). i.e. signalization of the hw fence it is a
+ * hw to hw communication between Fence Controller and the Client hw-core,
+ * and this API is only the interface to allow the Client Driver to
+ * register its Client hw-core for the hw-to-hw notification.
+ * If the 'register' boolean is set as false, this API will unregister
+ * with the Fence Controller the Client as a consumer, this is used for
+ * cases where a Timeout waiting for a fence occurs and client drivers want
+ * to unregister for signal.
+ *
+ * Return: 0 on success or negative errno (-EINVAL)
+ */
+int msm_hw_fence_wait_update_v2(void *client_handle,
+	struct dma_fence **fences, u64 *handles, u64 *client_data_list, u32 num_fences, bool reg);
 
 /**
  * msm_hw_fence_wait_update() - Register or unregister the Client with the
@@ -291,6 +396,24 @@ int msm_hw_fence_wait_update(void *client_handle,
 int msm_hw_fence_reset_client(void *client_handle, u32 reset_flags);
 
 /**
+ * msm_hw_fence_reset_client_by_id() - Resets the HW Fence Client through
+ *                                     its id.
+ * @client_id: id of client to reset
+ * @reset_flags: Flags to choose the reset type. See MSM_HW_FENCE_RESET_*
+ *               definitions.
+ *
+ * This function iterates through the HW Fences and removes the client
+ * from the waiting-client mask in any of the HW Fences and signal the
+ * fences owned by that client.
+ * This function should only be called by clients upon error, when clients
+ * did a HW reset, to make sure any HW Fence where the client was register
+ * for wait are removed, and any Fence owned by the client are signaled.
+ *
+ * Return: 0 on success or negative errno (-EINVAL)
+ */
+int msm_hw_fence_reset_client_by_id(enum hw_fence_client_id client_id, u32 reset_flags);
+
+/**
  * msm_hw_fence_update_txq() - Updates Client Tx Queue with the Fence info.
  * @client_handle: Hw fence driver client handle, this handle was returned
  *                 during the call 'msm_hw_fence_register' to register the
@@ -343,6 +466,17 @@ static inline int msm_hw_fence_destroy(void *client_handle, struct dma_fence *fe
 	return -EINVAL;
 }
 
+static inline int msm_hw_fence_destroy_with_handle(void *client_handle, u64 handle)
+{
+	return -EINVAL;
+}
+
+static inline int msm_hw_fence_wait_update_v2(void *client_handle,
+	struct dma_fence **fences, u64 *handles, u64 *client_data_list, u32 num_fences, bool reg)
+{
+	return -EINVAL;
+}
+
 static inline int msm_hw_fence_wait_update(void *client_handle,
 	struct dma_fence **fences, u32 num_fences, bool reg)
 {
@@ -350,6 +484,12 @@ static inline int msm_hw_fence_wait_update(void *client_handle,
 }
 
 static inline int msm_hw_fence_reset_client(void *client_handle, u32 reset_flags)
+{
+	return -EINVAL;
+}
+
+static inline int msm_hw_fence_reset_client_by_id(enum hw_fence_client_id client_id,
+	u32 reset_flags)
 {
 	return -EINVAL;
 }

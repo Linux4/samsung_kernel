@@ -5043,7 +5043,11 @@ static int pca9481_preset_dcmode(struct pca9481_charger *pca9481)
 		/* Set TA maximum voltage to 9V */
 		pca9481->ta_max_vol = 9000000;
 		/* Set IIN_CC to iin_cfg */
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		pca9481->iin_cc = pca9481->pdata->fpdo_dc_iin_lowest_limit;
+#else
 		pca9481->iin_cc = pca9481->iin_cfg;
+#endif
 		/* Set TA operating current and maximum current to iin_cc */
 		pca9481->ta_cur = pca9481->iin_cc;
 		pca9481->ta_max_cur = pca9481->iin_cc;

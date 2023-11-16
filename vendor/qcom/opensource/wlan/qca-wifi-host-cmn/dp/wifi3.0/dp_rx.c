@@ -1045,16 +1045,18 @@ bool dp_rx_intrabss_mcbc_fwd(struct dp_soc *soc, struct dp_txrx_peer *ta_peer,
 						      tid_stats))
 		return false;
 
-	if (dp_tx_send((struct cdp_soc_t *)soc,
-		       ta_peer->vdev->vdev_id, nbuf_copy)) {
+	/* Don't send packets if tx is paused */
+	if (!soc->is_tx_pause &&
+	    !dp_tx_send((struct cdp_soc_t *)soc,
+			ta_peer->vdev->vdev_id, nbuf_copy)) {
+		DP_PEER_PER_PKT_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1,
+					      len);
+		tid_stats->intrabss_cnt++;
+	} else {
 		DP_PEER_PER_PKT_STATS_INC_PKT(ta_peer, rx.intra_bss.fail, 1,
 					      len);
 		tid_stats->fail_cnt[INTRABSS_DROP]++;
 		dp_rx_nbuf_free(nbuf_copy);
-	} else {
-		DP_PEER_PER_PKT_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1,
-					      len);
-		tid_stats->intrabss_cnt++;
 	}
 	return false;
 }
@@ -1105,8 +1107,9 @@ bool dp_rx_intrabss_ucast_fwd(struct dp_soc *soc, struct dp_txrx_peer *ta_peer,
 	qdf_mem_set(nbuf->cb, 0x0, sizeof(nbuf->cb));
 	dp_classify_critical_pkts(soc, ta_peer->vdev, nbuf);
 
-	if (!dp_tx_send((struct cdp_soc_t *)soc,
-			tx_vdev_id, nbuf)) {
+	/* Don't send packets if tx is paused */
+	if (!soc->is_tx_pause && !dp_tx_send((struct cdp_soc_t *)soc,
+					     tx_vdev_id, nbuf)) {
 		DP_PEER_PER_PKT_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1,
 					      len);
 	} else {
@@ -1464,6 +1467,7 @@ uint8_t dp_rx_process_invalid_peer(struct dp_soc *soc, qdf_nbuf_t mpdu,
 	struct dp_pdev *pdev;
 	struct dp_vdev *vdev = NULL;
 	struct ieee80211_frame *wh;
+	struct dp_peer *peer = NULL;
 	uint8_t *rx_tlv_hdr = qdf_nbuf_data(mpdu);
 	uint8_t *rx_pkt_hdr = hal_rx_pkt_hdr_get(soc->hal_soc, rx_tlv_hdr);
 
@@ -1502,6 +1506,21 @@ uint8_t dp_rx_process_invalid_peer(struct dp_soc *soc, qdf_nbuf_t mpdu,
 	}
 
 out:
+	if (vdev->opmode == wlan_op_mode_ap) {
+		peer = dp_peer_find_hash_find(soc, wh->i_addr2, 0,
+					      vdev->vdev_id,
+					      DP_MOD_ID_RX_ERR);
+		/* If SA is a valid peer in vdev,
+		 * don't send disconnect
+		 */
+		if (peer) {
+			dp_peer_unref_delete(peer, DP_MOD_ID_RX_ERR);
+			DP_STATS_INC(soc, rx.err.decrypt_err_drop, 1);
+			dp_err_rl("invalid peer frame with correct SA/RA is freed");
+			goto free;
+		}
+	}
+
 	if (soc->cdp_soc.ol_ops->rx_invalid_peer)
 		soc->cdp_soc.ol_ops->rx_invalid_peer(vdev->vdev_id, wh);
 free:

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef LINUX_MMC_CQHCI_H
 #define LINUX_MMC_CQHCI_H
@@ -94,6 +95,12 @@
 /* send status config 2 */
 #define CQHCI_SSC2			0x44
 
+/*
+ * Value n means CQE would send CMD13 during the transfer of data block
+ * BLOCK_CNT-n
+ */
+#define SEND_QSR_INTERVAL 0x70001
+
 /* response for dcmd */
 #define CQHCI_CRDCT			0x48
 
@@ -121,6 +128,8 @@
  * register address for SDHC v5.0 onwards.
  */
 #define CQE_V5_VENDOR_CFG		0x900
+#define CQHCI_VENDOR_CFG		0x100
+#define CMDQ_SEND_STATUS_TRIGGER (1 << 31)
 
 /* crypto capabilities */
 #define CQHCI_CCAP			0x100
@@ -285,7 +294,7 @@ struct cqhci_host {
 #if IS_ENABLED(CONFIG_MMC_CRYPTO_QTI)
 	struct platform_device *pdev;
 #endif
-#if IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER)
+#if (IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER) || IS_ENABLED(CONFIG_QTI_HW_KEY_MANAGER_V1))
 	void __iomem *ice_hwkm_mmio;
 #endif
 };

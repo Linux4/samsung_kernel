@@ -13260,7 +13260,7 @@ QDF_STATUS sme_set_del_pmkid_cache(struct wlan_objmgr_psoc *psoc,
 	qdf_mem_zero(pmk_cache, sizeof(*pmk_cache));
 
 	pmk_cache->vdev_id = session_id;
-
+	sme_debug("QCDEBUG vdev id %d add %d", session_id, is_add);
 	if (!pmk_cache_info) {
 		pmk_cache->is_flush_all = true;
 		csr_clear_sae_single_pmk(psoc, session_id, NULL);

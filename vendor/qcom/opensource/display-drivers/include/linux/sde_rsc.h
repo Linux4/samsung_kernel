@@ -194,6 +194,8 @@ int sde_rsc_client_state_update(struct sde_rsc_client *client,
 	struct sde_rsc_cmd_config *config, int crtc_id,
 	int *wait_vblank_crtc_id);
 
+void sde_rsc_log_debug_info(void);
+
 /**
  * sde_rsc_client_get_vsync_refcount() - returns the status of the vsync
  * refcount, to signal if the client needs to reset the refcounting logic

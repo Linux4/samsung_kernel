@@ -278,7 +278,7 @@ int USB::init(pal_param_device_connection_t device_conn)
         else
             ret = sp->getCapability(USB_CAPTURE, device_conn.device_config.usb_addr);
 
-        if (ret != -ENOENT) {
+        if (ret == 0) {
 #ifdef SEC_AUDIO_USB_GAIN_CONTROL
             sp->USBAudioGainControl(device_conn.device_config.usb_addr, device_conn.id);
 #endif
@@ -533,6 +533,7 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
              addr.card_id);
     if(ret < 0) {
         PAL_ERR(LOG_TAG, "failed on snprintf (%d) to path %s\n", ret, path);
+        ret = -EINVAL;
         goto done;
     }
 #ifdef SEC_AUDIO_QUICK_USB_DETECTION

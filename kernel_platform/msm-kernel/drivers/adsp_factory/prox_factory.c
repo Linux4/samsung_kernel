@@ -17,8 +17,8 @@
 #include "adsp.h"
 #if IS_ENABLED(CONFIG_SUPPORT_CONTROL_PROX_LED_GPIO)
 #include <linux/gpio.h>
-#include <linux/sec-pinmux.h>
-
+#include <linux/of.h>
+#include <linux/of_gpio.h>
 #define PROX_LED_EN_GPIO 113
 #endif
 #define PROX_AVG_COUNT 40
@@ -69,23 +69,65 @@ static struct prox_data *pdata;
 static int get_prox_sidx(struct adsp_data *data)
 {
 	int ret = MSG_PROX;
-
+#if defined(CONFIG_SUPPORT_DUAL_OPTIC) && !defined(CONFIG_SUPPORT_DUAL_OPTIC_BUT_SUPPORT_SINGLE_PROX)
+	switch (data->fac_fstate) {
+	case FSTATE_INACTIVE:
+	case FSTATE_FAC_INACTIVE:
+		ret = MSG_PROX;
+		break;
+	case FSTATE_ACTIVE:
+	case FSTATE_FAC_ACTIVE:
+	case FSTATE_FAC_INACTIVE_2:
+		ret = MSG_PROX_SUB;
+		break;
+	default:
+		break;
+	}
+#endif
 	return ret;
 }
 
 #if IS_ENABLED(CONFIG_SUPPORT_PROX_CALIBRATION)
-void prox_send_cal_data(struct adsp_data *data, bool fac_cal)
+void prox_send_cal_data(struct adsp_data *data, uint16_t prox_idx, bool fac_cal)
 {
-	uint16_t prox_idx = get_prox_sidx(data);
-	int32_t msg = -1, cnt = 0;
+	int32_t msg = -1, cnt = 0, prox_cal;
 #if IS_ENABLED(CONFIG_SUPPORT_CONTROL_PROX_LED_GPIO)
-	int led_gpio, ret;
-#endif
+	if (prox_idx == MSG_PROX) {
+		int led_gpio, ret;
+		struct device_node *np = of_find_node_by_name(NULL, "ssc_prox_led_en_gpio");
 
-	if (!fac_cal || (data->prox_cal == 0)) {
+		if (np == NULL) {
+			pr_info("[SSC_FAC] %s: ssc_prox_led_en_gpio is NULL\n", __func__);
+		} else {
+			led_gpio = of_get_named_gpio_flags(np, "qcom,prox_led-en-gpio",
+					0, NULL);
+			if (led_gpio >= 0) {
+				ret = gpio_request(led_gpio, NULL);
+				if (ret >= 0) {
+					pr_info("[SSC_FAC] %s: prox_led_en_gpio set\n",
+						__func__);
+					gpio_direction_output(led_gpio, 1);
+					gpio_free(led_gpio);
+				} else {
+					pr_err("[SSC_FAC] %s - gpio_request fail(%d)\n",
+						__func__, ret);
+				}
+			} else {
+				pr_err("[SSC_FAC] %s: prox_led_en_gpio fail(%d)\n",
+					__func__, led_gpio);
+			}
+		}
+	}
+#endif
+	if (prox_idx == MSG_PROX)
+		prox_cal = data->prox_cal;
+	else
+		prox_cal = data->prox_sub_cal;
+
+	if (!fac_cal || (prox_cal == 0)) {
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-		pr_info("[SSC_FAC] %s: No cal data (%d)\n",
-			__func__, data->prox_cal);
+		pr_info("[SSC_FAC] %s[%d]: No cal data (%d)\n",
+			__func__, (int)prox_idx - MSG_PROX, prox_cal);
 #else
 		mutex_lock(&data->prox_factory_mutex);
 		adsp_unicast(&msg, sizeof(int32_t),
@@ -94,48 +136,38 @@ void prox_send_cal_data(struct adsp_data *data, bool fac_cal)
 			1 << prox_idx) && cnt++ < TIMEOUT_CNT)
 			usleep_range(500, 550);
 		if (cnt >= TIMEOUT_CNT)
-			pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
+			pr_err("[SSC_FAC] %s[%d]: Timeout!!!\n",
+				__func__, prox_idx);
 		data->ready_flag[MSG_TYPE_SET_CAL_DATA] &= ~(1 << prox_idx);
 		mutex_unlock(&data->prox_factory_mutex);
-		pr_info("[SSC_FAC] %s: Excute in-use cal\n", __func__);
+		pr_info("[SSC_FAC] %s[%d]: Excute in-use cal\n",
+			__func__, (int)prox_idx - MSG_PROX);
 #endif
-	} else if (data->prox_cal > 0) {
+	} else if (prox_cal > 0) {
 		mutex_lock(&data->prox_factory_mutex);
-		msg = data->prox_cal;
+		msg = prox_cal;
 		adsp_unicast(&msg, sizeof(int32_t),
 			prox_idx, 0, MSG_TYPE_SET_CAL_DATA);
 		while (!(data->ready_flag[MSG_TYPE_SET_CAL_DATA] &
 			1 << prox_idx) && cnt++ < TIMEOUT_CNT)
 			usleep_range(500, 550);
 		if (cnt >= TIMEOUT_CNT)
-			pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
+			pr_err("[SSC_FAC] %s[%d]: Timeout!!!\n",
+				__func__, (int)prox_idx - MSG_PROX);
 		data->ready_flag[MSG_TYPE_SET_CAL_DATA] &= ~(1 << prox_idx);
 		mutex_unlock(&data->prox_factory_mutex);
-		pr_info("[SSC_FAC] %s: Cal data: %d\n", __func__, msg);
+		pr_info("[SSC_FAC] %s[%d]: Cal data: %d\n", __func__,
+			(int)prox_idx - MSG_PROX, msg);
 	} else {
-		pr_info("[SSC_FAC] %s: No cal data\n", __func__);
+		pr_info("[SSC_FAC] %s[%d]: No cal data\n",
+			__func__, (int)prox_idx - MSG_PROX);
 	}
-
-#if IS_ENABLED(CONFIG_SUPPORT_CONTROL_PROX_LED_GPIO)
-#if IS_ENABLED(CONFIG_SEC_PM)
-	led_gpio = PROX_LED_EN_GPIO + get_msm_gpio_chip_base();
-#else
-	led_gpio = PROX_LED_EN_GPIO + 308;
-#endif
-	ret = gpio_request(led_gpio, NULL);
-	if (ret < 0) {
-		pr_err("[SSC_FAC] %s - gpio_request fail (%d)\n",
-			__func__, ret);
-		return;
-	}
-	gpio_direction_output(led_gpio, 1);
-	gpio_free(led_gpio);
-#endif
 }
 
 void prox_cal_init_work(struct adsp_data *data)
 {
 	data->prox_cal = 0;
+	data->prox_sub_cal = 0;
 }
 #endif
 
@@ -144,8 +176,10 @@ static ssize_t prox_vendor_show(struct device *dev,
 {
 #if IS_ENABLED(CONFIG_LIGHT_FACTORY)
 	struct adsp_data *data = dev_get_drvdata(dev);
+	int32_t display_idx = (get_prox_sidx(data) == MSG_PROX) ? 0 : 1;
 
-	return snprintf(buf, PAGE_SIZE, "%s\n", data->light_device_vendor);
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		data->light_device_vendor[display_idx]);
 #else
 	return snprintf(buf, PAGE_SIZE, "UNKNOWN\n");
 #endif
@@ -156,11 +190,40 @@ static ssize_t prox_name_show(struct device *dev,
 {
 #if IS_ENABLED(CONFIG_LIGHT_FACTORY)
 	struct adsp_data *data = dev_get_drvdata(dev);
+	int32_t display_idx = (get_prox_sidx(data) == MSG_PROX) ? 0 : 1;
 
-	return snprintf(buf, PAGE_SIZE, "%s\n", data->light_device_name);
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		data->light_device_name[display_idx]);
 #else
 	return snprintf(buf, PAGE_SIZE, "UNKNOWN\n");
 #endif
+}
+
+int get_prox_raw_data(struct adsp_data *data, int *raw_data, int *offset)
+{
+	uint8_t cnt = 0;
+	uint16_t prox_idx = get_prox_sidx(data);
+
+	mutex_lock(&data->prox_factory_mutex);
+	adsp_unicast(NULL, 0, prox_idx, 0, MSG_TYPE_GET_RAW_DATA);
+
+	while (!(data->ready_flag[MSG_TYPE_GET_RAW_DATA] & 1 << prox_idx) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_GET_RAW_DATA] &= ~(1 << prox_idx);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		mutex_unlock(&data->prox_factory_mutex);
+		return -1;
+	}
+
+	*raw_data = data->msg_buf[prox_idx][0];
+	*offset = data->msg_buf[prox_idx][1];
+	mutex_unlock(&data->prox_factory_mutex);
+
+	return 0;
 }
 
 static ssize_t prox_raw_data_show(struct device *dev,
@@ -168,14 +231,8 @@ static ssize_t prox_raw_data_show(struct device *dev,
 {
 	struct adsp_data *data = dev_get_drvdata(dev);
 
-	if (pdata->avgwork_check == 0) {
-		if (get_prox_sidx(data) == MSG_PROX)
-			get_prox_raw_data(&pdata->val, &pdata->offset);
-#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
-		else
-			get_sub_prox_raw_data(&pdata->val, &pdata->offset);
-#endif
-	}
+	if (pdata->avgwork_check == 0)
+		get_prox_raw_data(data, &pdata->val, &pdata->offset);
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", pdata->val);
 }
@@ -225,12 +282,7 @@ static void prox_work_func(struct work_struct *work)
 	for (i = 0; i < PROX_AVG_COUNT; i++) {
 		msleep(20);
 
-		if (get_prox_sidx(pdata->dev_data) == MSG_PROX)
-			get_prox_raw_data(&pdata->val, &pdata->offset);
-#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
-		else
-			get_sub_prox_raw_data(&pdata->val, &pdata->offset);
-#endif
+		get_prox_raw_data(pdata->dev_data, &pdata->val, &pdata->offset);
 		avg += pdata->val;
 
 		if (!i)
@@ -289,16 +341,16 @@ static ssize_t prox_led_test_show(struct device *dev,
 
 	prox_led_control(data, 0);
 	msleep(200);
-	ret = get_prox_raw_data(&data_buf[0], &offset);
+	ret = get_prox_raw_data(data, &data_buf[0], &offset);
 	prox_led_control(data, 1);
 	msleep(200);
-	ret += get_prox_raw_data(&data_buf[1], &offset);
+	ret += get_prox_raw_data(data, &data_buf[1], &offset);
 	prox_led_control(data, 2);
 	msleep(200);
-	ret += get_prox_raw_data(&data_buf[2], &offset);
+	ret += get_prox_raw_data(data, &data_buf[2], &offset);
 	prox_led_control(data, 3);
 	msleep(200);
-	ret += get_prox_raw_data(&data_buf[3], &offset);
+	ret += get_prox_raw_data(data, &data_buf[3], &offset);
 	prox_led_control(data, 4);
 
 	if (ret != 0)
@@ -378,7 +430,10 @@ static ssize_t prox_cal_show(struct device *dev,
 #if IS_ENABLED(CONFIG_SUPPORT_PROX_CALIBRATION)
 	struct adsp_data *data = dev_get_drvdata(dev);
 
-	return snprintf(buf, PAGE_SIZE, "%d,0,0\n", data->prox_cal);
+	if (get_prox_sidx(data) == MSG_PROX)
+		return snprintf(buf, PAGE_SIZE, "%d,0,0\n", data->prox_cal);
+	else
+		return snprintf(buf, PAGE_SIZE, "%d,0,0\n", data->prox_sub_cal);
 #else
 	return snprintf(buf, PAGE_SIZE, "0,0,0\n");
 #endif
@@ -401,7 +456,8 @@ static ssize_t prox_cal_store(struct device *dev,
 		return size;
 	}
 
-	pr_info("[SSC_FAC] %s: msg %d\n", __func__, cmd);
+	pr_info("[SSC_FAC] %s[%d]: msg %d\n",
+		__func__, (int)prox_idx - MSG_PROX, cmd);
 
 	mutex_lock(&data->prox_factory_mutex);
 	adsp_unicast(&cmd, sizeof(int32_t), prox_idx, 0, MSG_TYPE_GET_CAL_DATA);
@@ -414,17 +470,25 @@ static ssize_t prox_cal_store(struct device *dev,
 	mutex_unlock(&data->prox_factory_mutex);
 
 	if (cnt >= TIMEOUT_CNT) {
-		pr_err("[SSC_FAC] %s: Timeout!!!\n", __func__);
+		pr_err("[SSC_FAC] %s[%d]: Timeout!!!\n", __func__,
+			(int)prox_idx - MSG_PROX);
 		return size;
 	} else if (data->msg_buf[prox_idx][0] < 0) {
-		pr_err("[SSC_FAC] %s: fail! %d\n", __func__,
+		pr_err("[SSC_FAC] %s[%d]: fail! %d\n", __func__,
+			(int)prox_idx - MSG_PROX,
 			data->msg_buf[prox_idx][0]);
 		return size;
 	}
 
 	cnt = 0;
 	msg_buf[0] = PROX_CMD_TYPE_SAVE_CAL_DATA;
-	msg_buf[1] = data->prox_cal = data->msg_buf[prox_idx][0];
+	msg_buf[1] = data->msg_buf[prox_idx][0];
+
+	if (prox_idx == MSG_PROX)
+		data->prox_cal = data->msg_buf[prox_idx][0];
+	else
+		data->prox_sub_cal = data->msg_buf[prox_idx][0];
+
 	mutex_lock(&data->prox_factory_mutex);
 	adsp_unicast(msg_buf, sizeof(msg_buf), prox_idx, 0,
 		MSG_TYPE_SET_TEMPORARY_MSG);
@@ -432,12 +496,18 @@ static ssize_t prox_cal_store(struct device *dev,
 		cnt++ < TIMEOUT_CNT)
 		msleep(20);
 	if (cnt >= TIMEOUT_CNT)
-		pr_err("[SSC_FAC] %s: SAVE_CAL_DATA Timeout!!!\n", __func__);
+		pr_err("[SSC_FAC] %s[%d]: SAVE_CAL_DATA Timeout!!!\n",
+			__func__, (int)prox_idx - MSG_PROX);
 
 	data->ready_flag[MSG_TYPE_SET_TEMPORARY_MSG] &= ~(1 << prox_idx);
 	mutex_unlock(&data->prox_factory_mutex);
-	if (data->prox_cal > 0)
-		prox_send_cal_data(data, true);
+	if ((prox_idx == MSG_PROX) && (data->prox_cal > 0))
+		prox_send_cal_data(data, prox_idx, true);
+#if IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
+	else if ((prox_idx == MSG_PROX_SUB) && (data->prox_sub_cal > 0))
+		prox_send_cal_data(data, prox_idx, true);
+#endif
+
 #else
 	pr_info("[SSC_FAC] %s: unsupported prox cal!\n", __func__);
 #endif
@@ -566,7 +636,12 @@ static ssize_t prox_cancel_pass_show(struct device *dev,
 #if IS_ENABLED(CONFIG_SUPPORT_PROX_CALIBRATION)
 	struct adsp_data *data = dev_get_drvdata(dev);
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", (data->prox_cal > 0) ? 1 : 0);
+	if (get_prox_sidx(data) == MSG_PROX)
+		return snprintf(buf, PAGE_SIZE, "%d\n",
+			(data->prox_cal > 0) ? 1 : 0);
+	else
+		return snprintf(buf, PAGE_SIZE, "%d\n",
+			(data->prox_sub_cal > 0) ? 1 : 0);
 #else
 	return snprintf(buf, PAGE_SIZE, "1\n");
 #endif

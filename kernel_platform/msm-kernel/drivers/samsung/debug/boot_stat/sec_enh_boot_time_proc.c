@@ -14,23 +14,13 @@
 
 static const char *h_line = "-----------------------------------------------------------------------------------";
 
-static __always_inline u32 __ehb_boot_time_hash(const char *val)
-{
-	u32 hash = 0;
-
-	while (*val++)
-		hash += (u32)*val;
-
-	return hash;
-}
-
 static __always_inline struct enh_boot_time_entry *__enh_boot_time_find_entry_locked(
 		struct enh_boot_time_proc *enh_boot_time,
 		const char *message)
 {
 	struct enh_boot_time_entry *h;
 	size_t msg_len = strlen(message);
-	u32 key = __ehb_boot_time_hash(message);
+	u32 key = __boot_stat_hash(message);
 
 	hash_for_each_possible(enh_boot_time->boot_time_htbl, h, hlist, key) {
 		size_t len = strnlen(h->buf, msg_len + 1);
@@ -70,7 +60,7 @@ static __always_inline void __enh_boot_time_record_locked(
 	list_add(&entry->list, &enh_boot_time->boot_time_head);
 
 	INIT_HLIST_NODE(&entry->hlist);
-	key = __ehb_boot_time_hash(entry->buf);
+	key = __boot_stat_hash(entry->buf);
 	hash_add(enh_boot_time->boot_time_htbl, &entry->hlist, key);
 }
 
@@ -123,7 +113,7 @@ static __always_inline void __enh_boot_time_add_boot_event_locked(
 
 	log_head = (void *)log;
 	if (log_head->colon == ':') {
-		const size_t offset = 12; /* strlen("!@Boot_EBS: ") */
+		const size_t offset = sizeof("!@Boot_EBS: ") - 1;
 		__enh_boot_time_record_locked(enh_boot_time, &log[offset]);
 	} else if (log_head->colon == '_') {
 		__enh_boot_time_record_locked(enh_boot_time, log);

@@ -6,7 +6,6 @@
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
 #include <linux/device.h>
-#include <linux/kdebug.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -17,10 +16,11 @@
 #include <linux/platform_device.h>
 #include <linux/sched/clock.h>
 
-#include <linux/samsung/sec_of.h>
+#include <linux/samsung/sec_kunit.h>
 #include <linux/samsung/debug/sec_crashkey.h>
 #include <linux/samsung/debug/sec_log_buf.h>
 #include <linux/samsung/debug/qcom/sec_qc_dbg_partition.h>
+#include <linux/samsung/sec_of.h>
 
 #include "sec_qc_rst_exinfo.h"
 
@@ -115,6 +115,18 @@ static int __rst_exinfo_parse_dt_partial_reserved_mem(struct builder *bd,
 	return 0;
 }
 
+static void *__rst_exinfo_ioremap(struct rst_exinfo_drvdata *drvdata)
+{
+	struct device *dev = drvdata->bd.dev;
+
+#if IS_ENABLED(CONFIG_HAS_IOMEM)
+	return devm_ioremap_wc(dev, drvdata->paddr, drvdata->size);
+#else
+	dev = dev;
+	return ioremap(drvdata->paddr, drvdata->size);
+#endif
+}
+
 static int __rst_exinfo_parse_dt_test_no_map(struct builder *bd,
 		struct device_node *np)
 {
@@ -131,7 +143,7 @@ static int __rst_exinfo_parse_dt_test_no_map(struct builder *bd,
 	if (!of_property_read_bool(mem_np, "no-map"))
 		rst_exinfo = phys_to_virt(drvdata->paddr);
 	else
-		rst_exinfo = devm_ioremap_wc(dev, drvdata->paddr, drvdata->size);
+		rst_exinfo = __rst_exinfo_ioremap(drvdata);
 
 	drvdata->rst_exinfo = rst_exinfo;
 
@@ -141,7 +153,7 @@ static int __rst_exinfo_parse_dt_test_no_map(struct builder *bd,
 	return 0;
 }
 
-static int __rst_exinfo_dt_die_notifier_priority(struct builder *bd,
+__ss_static int __rst_exinfo_dt_die_notifier_priority(struct builder *bd,
 		struct device_node *np)
 {
 	struct rst_exinfo_drvdata *drvdata =
@@ -159,7 +171,7 @@ static int __rst_exinfo_dt_die_notifier_priority(struct builder *bd,
 	return 0;
 }
 
-static int __rst_exinfo_dt_panic_notifier_priority(struct builder *bd,
+__ss_static int __rst_exinfo_dt_panic_notifier_priority(struct builder *bd,
 		struct device_node *np)
 {
 	struct rst_exinfo_drvdata *drvdata =
@@ -191,7 +203,7 @@ static int __rst_exinfo_parse_dt(struct builder *bd)
 			ARRAY_SIZE(__rst_exinfo_dt_builder));
 }
 
-static int __rst_exinfo_init_panic_extra_info(struct builder *bd)
+__ss_static int __rst_exinfo_init_panic_extra_info(struct builder *bd)
 {
 	struct rst_exinfo_drvdata *drvdata =
 			container_of(bd, struct rst_exinfo_drvdata, bd);
@@ -209,7 +221,7 @@ static int __rst_exinfo_init_panic_extra_info(struct builder *bd)
 	return 0;
 }
 
-static void __rst_exinfo_store_extc_idx(struct rst_exinfo_drvdata *drvdata,
+void __qc_rst_exinfo_store_extc_idx(struct rst_exinfo_drvdata *drvdata,
 		bool prefix)
 {
 	rst_exinfo_t *rst_exinfo = drvdata->rst_exinfo;
@@ -229,15 +241,15 @@ static void __rst_exinfo_store_extc_idx(struct rst_exinfo_drvdata *drvdata,
 		kern_ex_info->extc_idx += SEC_DEBUG_RESET_EXTRC_SIZE;
 }
 
-void __qc_rst_exinfo_store_extc_idx(bool prefix)
+void sec_qc_rst_exinfo_store_extc_idx(bool prefix)
 {
 	if (!__qc_rst_exinfo_is_probed())
 		return;
 
-	__rst_exinfo_store_extc_idx(qc_rst_exinfo, prefix);
+	__qc_rst_exinfo_store_extc_idx(qc_rst_exinfo, prefix);
 }
 
-static void __rst_exinfo_save_dying_msg(struct rst_exinfo_drvdata *drvdata,
+void __qc_rst_exinfo_save_dying_msg(struct rst_exinfo_drvdata *drvdata,
 		const char *str, const void *pc, const void *lr)
 {
 	rst_exinfo_t *rst_exinfo = drvdata->rst_exinfo;
@@ -261,18 +273,19 @@ static void __rst_exinfo_save_dying_msg(struct rst_exinfo_drvdata *drvdata,
 		msg[len - 1] = '\0';
 }
 
+void __weak __qc_arch_rst_exinfo_die_handler(struct rst_exinfo_drvdata *drvdata,
+		struct die_args *args)
+{
+}
+
 static int sec_qc_rst_exinfo_die_handler(struct notifier_block *this,
 		unsigned long l, void *data)
 {
 	struct rst_exinfo_drvdata *drvdata =
 			container_of(this, struct rst_exinfo_drvdata, nb_die);
 	struct die_args *args = data;
-	struct pt_regs *regs = args->regs;
 
-	__rst_exinfo_store_extc_idx(drvdata, false);
-	__rst_exinfo_save_dying_msg(drvdata, args->str,
-			(void *)instruction_pointer(regs),
-			(void *)regs->regs[30]);
+	__qc_arch_rst_exinfo_die_handler(drvdata, args);
 
 	return NOTIFY_OK;
 }
@@ -308,8 +321,8 @@ static int sec_qc_rst_exinfo_panic_handler(struct notifier_block *this,
 	lr = __builtin_return_address(3);
 	str = data;
 
-	__rst_exinfo_store_extc_idx(drvdata, false);
-	__rst_exinfo_save_dying_msg(drvdata, str, pc, lr);
+	__qc_rst_exinfo_store_extc_idx(drvdata, false);
+	__qc_rst_exinfo_save_dying_msg(drvdata, str, pc, lr);
 
 	return NOTIFY_OK;
 }
@@ -359,11 +372,11 @@ static const struct dev_builder __rst_exinfo_dev_builder[] = {
 		       __rst_exinfo_unregister_die_notifier),
 	DEVICE_BUILDER(__rst_exinfo_register_panic_notifier,
 		       __rst_exinfo_unregister_panic_notifier),
-	DEVICE_BUILDER(__qc_rst_exinfo_vh_init, NULL),
-	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_do_mem_abort, NULL),
-	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_do_sp_pc_abort, NULL),
-	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_report_bug, NULL),
-	DEVICE_BUILDER(__qc_rst_exinfo_register_rvh_die_kernel_fault, NULL),
+	DEVICE_BUILDER(__qc_arch_rst_exinfo_vh_init, NULL),
+	DEVICE_BUILDER(__qc_arch_rst_exinfo_register_rvh_do_mem_abort, NULL),
+	DEVICE_BUILDER(__qc_arch_rst_exinfo_register_rvh_do_sp_pc_abort, NULL),
+	DEVICE_BUILDER(__qc_arch_rst_exinfo_register_rvh_report_bug, NULL),
+	DEVICE_BUILDER(__qc_arch_rst_exinfo_register_rvh_die_kernel_fault, NULL),
 	DEVICE_BUILDER(__rst_exinfo_probe_epilog, __rst_exinfo_remove_prolog),
 };
 

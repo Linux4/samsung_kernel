@@ -2826,7 +2826,7 @@ static void dsi_ctrl_handle_error_status(struct dsi_ctrl *dsi_ctrl,
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
 		if (sec_debug_is_enabled() && ss_panel_attach_get(vdd)) {
-			pr_err("dsi FIFO UNDERFLOW error: 0x%lx\n", error);
+			pr_err("dsi FIFO OVERFLOW error: 0x%lx\n", error);
 			SDE_DBG_DUMP_WQ(SDE_DBG_BUILT_IN_ALL, "panic");
 		}
 #endif
@@ -2845,7 +2845,7 @@ static void dsi_ctrl_handle_error_status(struct dsi_ctrl *dsi_ctrl,
 	/* DSI FIFO UNDERFLOW error */
 	if (error & 0xF00000) {
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
-		if (sec_debug_is_enabled() && ss_panel_attach_get(vdd)) {
+		if (sec_debug_is_enabled() && ss_panel_attach_get(vdd) && !vdd->panel_dead) { // check panel dead
 			pr_err("dsi FIFO UNDERFLOW error: 0x%lx\n", error);
 			SDE_DBG_DUMP_WQ(SDE_DBG_BUILT_IN_ALL, "panic");
 		}

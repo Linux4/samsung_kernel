@@ -1086,6 +1086,15 @@ QDF_STATUS lim_sta_handle_connect_fail(join_params *param);
 void lim_join_result_callback(struct mac_context *mac,
 			      uint8_t vdev_id);
 
+/**
+ * lim_update_lost_link_rssi() - API to update lost link rssi in lim session
+ * @mac: Pointer to Global MAC structure
+ * @rssi: rssi at disconnect time
+ *
+ * Return: None
+ */
+void lim_update_lost_link_rssi(struct mac_context *mac, uint32_t rssi);
+
 #ifdef WLAN_FEATURE_HOST_ROAM
 QDF_STATUS lim_sta_reassoc_error_handler(struct reassoc_params *param);
 #else

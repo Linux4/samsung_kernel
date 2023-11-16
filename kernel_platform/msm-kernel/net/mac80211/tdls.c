@@ -1723,6 +1723,7 @@ ieee80211_process_tdls_channel_switch_resp(struct ieee80211_sub_if_data *sdata,
 		ret = -ENOMEM;
 		goto out;
 	}
+
 	if (elems->parse_error) {
 		tdls_dbg(sdata, "Invalid IEs in TDLS channel switch resp\n");
 		ret = -EINVAL;
@@ -1834,6 +1835,7 @@ ieee80211_process_tdls_channel_switch_req(struct ieee80211_sub_if_data *sdata,
 				       skb->len - baselen, false, NULL, NULL);
 	if (!elems)
 		return -ENOMEM;
+
 	if (elems->parse_error) {
 		tdls_dbg(sdata, "Invalid IEs in TDLS channel switch req\n");
 		ret = -EINVAL;

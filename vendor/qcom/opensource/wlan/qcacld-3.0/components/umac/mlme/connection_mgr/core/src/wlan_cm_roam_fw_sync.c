@@ -449,6 +449,43 @@ cm_fill_bssid_freq_info(uint8_t vdev_id,
 }
 #endif
 
+static void
+cm_update_assoc_btm_cap(struct wlan_objmgr_vdev *vdev,
+			struct cm_vdev_join_rsp *rsp)
+{
+	struct wlan_connect_rsp_ies *connect_ies;
+	const uint8_t *ext_cap_ie;
+	struct s_ext_cap *extcap;
+	uint8_t offset;
+
+	connect_ies = &rsp->connect_rsp.connect_ies;
+	/*
+	 * Retain the btm cap from initial assoc if
+	 * there is no assoc request
+	 */
+	if (!connect_ies->assoc_req.ptr ||
+	    !connect_ies->assoc_req.len)
+		return;
+
+	if (rsp->connect_rsp.is_assoc)
+		offset = WLAN_ASSOC_REQ_IES_OFFSET;
+	else
+		offset = WLAN_REASSOC_REQ_IES_OFFSET;
+
+	ext_cap_ie =
+		wlan_get_ie_ptr_from_eid(WLAN_ELEMID_XCAPS,
+					 connect_ies->assoc_req.ptr + offset,
+					 connect_ies->assoc_req.len - offset);
+
+	if (!ext_cap_ie) {
+		mlme_debug("Ext cap is not present, disable btm");
+		wlan_cm_set_assoc_btm_cap(vdev, false);
+		return;
+	}
+	extcap = (struct s_ext_cap *)&ext_cap_ie[2];
+	wlan_cm_set_assoc_btm_cap(vdev, extcap->bss_transition);
+}
+
 static QDF_STATUS
 cm_fill_roam_info(struct wlan_objmgr_vdev *vdev,
 		  struct roam_offload_synch_ind *roam_synch_data,
@@ -533,6 +570,7 @@ cm_fill_roam_info(struct wlan_objmgr_vdev *vdev,
 	roaming_info->next_erp_seq_num = roam_synch_data->next_erp_seq_num;
 
 	cm_fils_update_erp_seq_num(vdev, roaming_info->next_erp_seq_num, cm_id);
+	cm_update_assoc_btm_cap(vdev, rsp);
 
 	return status;
 }

@@ -5252,7 +5252,8 @@ static struct sk_buff *handle_skb_completion(
 
 	/* Check added for handling LAN consumer packet without EOT flag */
 	if (notify->evt_id == GSI_CHAN_EVT_EOT ||
-		sys->ep->client == IPA_CLIENT_APPS_LAN_CONS) {
+		sys->ep->client == IPA_CLIENT_APPS_LAN_CONS ||
+		sys->ep->client == IPA_CLIENT_APPS_LAN_COAL_CONS) {
 		/* go over the list backward to save computations on updating length */
 		list_for_each_entry_safe_reverse(rx_pkt, tmp, head, link) {
 			rx_skb = rx_pkt->data.skb;

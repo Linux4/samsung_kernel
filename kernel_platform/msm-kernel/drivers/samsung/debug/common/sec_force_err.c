@@ -91,7 +91,7 @@ int sec_force_err_add_custom_handle(struct force_err_handle *h)
 
 	return __force_err_add_custom_handle(&sec_debug->force_err, h);
 }
-EXPORT_SYMBOL(sec_force_err_add_custom_handle);
+EXPORT_SYMBOL_GPL(sec_force_err_add_custom_handle);
 
 static inline __force_err_del_custom_handle(struct force_err *force_err,
 		struct force_err_handle *h)
@@ -123,7 +123,7 @@ int sec_force_err_del_custom_handle(struct force_err_handle *h)
 
 	return __force_err_del_custom_handle(&sec_debug->force_err, h);
 }
-EXPORT_SYMBOL(sec_force_err_del_custom_handle);
+EXPORT_SYMBOL_GPL(sec_force_err_del_custom_handle);
 
 /* timeout for dog bark/bite */
 #define DELAY_TIME 20000
@@ -142,6 +142,16 @@ static void __simulate_apps_wdog_bark(struct force_err_handle *h)
 	local_irq_enable();
 	/* if we reach here, simulation failed */
 	pr_emerg("Simulation of apps watch dog bark failed\n");
+}
+
+static void __simulate_bug(struct force_err_handle *h)
+{
+	BUG();
+}
+
+static void __simulate_bug_on(struct force_err_handle *h)
+{
+	BUG_ON(true);
 }
 
 static void __simulate_apps_wdog_bite(struct force_err_handle *h)
@@ -258,6 +268,10 @@ static struct force_err_handle __force_err_default[] = {
 			__simulate_dabort),
 	FORCE_ERR_HANDLE("DP", NULL,
 			__simulate_apps_wdog_bark),
+	FORCE_ERR_HANDLE("bug", "call BUG()",
+			__simulate_bug),
+	FORCE_ERR_HANDLE("bug_on", "call BUG_ON()",
+			__simulate_bug_on),
 };
 
 static long __force_error(struct force_err *force_err, const char *val)

@@ -215,7 +215,7 @@ typedef union {
 #ifdef CONFIG_USB_CONFIGFS_F_MBIM
 #define BOOT_USB_DWORK_TIME 9000
 #else
-#define BOOT_USB_DWORK_TIME 12000
+#define BOOT_USB_DWORK_TIME 18000
 #endif
 
 /* Timeout for USB off when Vbus is in LOW state */

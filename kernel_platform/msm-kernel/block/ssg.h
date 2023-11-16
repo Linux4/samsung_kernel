@@ -59,6 +59,11 @@ struct ssg_data {
 	spinlock_t lock;
 	spinlock_t zone_lock;
 	struct list_head dispatch;
+
+	/*
+	 * Write booster
+	 */
+	void *wb_data;
 };
 
 /* ssg-stat.c */
@@ -133,4 +138,38 @@ static inline void ssg_blkcg_dec_rq(struct blkcg_gq *blkg)
 }
 #endif
 
+/* ssg-wb.c */
+#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
+extern void ssg_wb_ctrl(struct ssg_data *ssg);
+extern void ssg_wb_init(struct ssg_data *ssg);
+extern void ssg_wb_exit(struct ssg_data *ssg);
+extern ssize_t ssg_wb_off_delay_msecs_show(struct elevator_queue *e, char *page);
+extern ssize_t ssg_wb_off_delay_msecs_store(struct elevator_queue *e, const char *page, size_t count);
+extern ssize_t ssg_wb_on_threshold_rqs_show(struct elevator_queue *e, char *page);
+extern ssize_t ssg_wb_on_threshold_rqs_store(struct elevator_queue *e, const char *page, size_t count);
+extern ssize_t ssg_wb_on_threshold_bytes_show(struct elevator_queue *e, char *page);
+extern ssize_t ssg_wb_on_threshold_bytes_store(struct elevator_queue *e, const char *page, size_t count);
+extern ssize_t ssg_wb_off_threshold_rqs_show(struct elevator_queue *e, char *page);
+extern ssize_t ssg_wb_off_threshold_rqs_store(struct elevator_queue *e, const char *page, size_t count);
+extern ssize_t ssg_wb_off_threshold_bytes_show(struct elevator_queue *e, char *page);
+extern ssize_t ssg_wb_off_threshold_bytes_store(struct elevator_queue *e, const char *page, size_t count);
+extern ssize_t ssg_wb_on_threshold_sync_write_bytes_show(struct elevator_queue *e, char *page);
+extern ssize_t ssg_wb_on_threshold_sync_write_bytes_store(struct elevator_queue *e, const char *page, size_t count);
+extern ssize_t ssg_wb_off_threshold_sync_write_bytes_show(struct elevator_queue *e, char *page);
+extern ssize_t ssg_wb_off_threshold_sync_write_bytes_store(struct elevator_queue *e, const char *page, size_t count);
+extern ssize_t ssg_wb_trigger_show(struct elevator_queue *e, char *page);
+#else
+static inline void ssg_wb_ctrl(struct ssg_data *ssg)
+{
+	return;
+}
+static inline void ssg_wb_init(struct ssg_data *ssg)
+{
+	return;
+}
+static inline void ssg_wb_exit(struct ssg_data *ssg)
+{
+	return;
+}
+#endif
 #endif // SSG_H

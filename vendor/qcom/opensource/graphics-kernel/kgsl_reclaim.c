@@ -7,6 +7,10 @@
 #include <linux/kthread.h>
 #include <linux/notifier.h>
 #include <linux/shmem_fs.h>
+#include <linux/proc_fs.h>
+#include <linux/vmalloc.h>
+#include <linux/sched/clock.h>
+#include <linux/sched/cputime.h>
 
 #include "kgsl_reclaim.h"
 #include "kgsl_sharedmem.h"
@@ -27,6 +31,106 @@ static u32 kgsl_nr_to_scan;
 struct work_struct reclaim_work;
 
 static atomic_t kgsl_nr_to_reclaim;
+
+struct swap_stat {
+	pid_t pid;
+	int nr_pages;
+	u64 nsec_start;
+	u64 nsec_end;
+	u64 nsec_cputime;	// use the highest bit for in or out
+};
+
+#define SWAP_STAT_HISTORY_SIZE (128)
+static struct swap_stat swap_stat_hist[SWAP_STAT_HISTORY_SIZE];
+static unsigned int swap_stat_new_idx;
+struct mutex swap_stat_lock;
+
+static void *swap_hist_buf;
+static bool swap_hist_enabled;
+
+#define SWAP_HIST_BUF_SIZE	(16 << 10)	/* 16 KB */
+
+static int graphics_swap_proc_init(void)
+{
+	swap_hist_buf = vmalloc(SWAP_HIST_BUF_SIZE);
+	if (!swap_hist_buf)
+		return -ENOMEM;
+
+	mutex_init(&swap_stat_lock);
+	swap_hist_enabled = true;
+	return 0;
+}
+
+static void swap_stat_save(struct swap_stat *swap_stat)
+{
+	unsigned int stat_idx;
+
+	if (!swap_hist_enabled)
+		return;
+
+	mutex_lock(&swap_stat_lock);
+	stat_idx = swap_stat_new_idx;
+	swap_stat_new_idx = (swap_stat_new_idx + 1) % SWAP_STAT_HISTORY_SIZE;
+	mutex_unlock(&swap_stat_lock);
+
+	swap_stat_hist[stat_idx] = *swap_stat;
+}
+
+#define SWAP_STAT_SWAPIN_BIT	63
+#define SWAP_STAT_SWAPIN	(1UL << SWAP_STAT_SWAPIN_BIT)
+
+static int graphics_swap_proc_show(struct seq_file *m, void *v)
+{
+	unsigned int stat_idx;
+	struct swap_stat *swap_stat;
+
+	int cnt;
+	u64 wtime_s, wtime_e, wtime_d, cputime_in, cputime;
+	u64 wtime_first = 0;
+	unsigned long wtime_s_rem, wtime_e_rem;
+	int nr_pages;
+	pid_t pid;
+	bool is_swapin;
+
+	stat_idx = swap_stat_new_idx;
+
+	for (cnt = 1; cnt <= SWAP_STAT_HISTORY_SIZE; cnt++) {
+		if (!stat_idx)
+			stat_idx = SWAP_STAT_HISTORY_SIZE - 1;
+		else
+			stat_idx--;
+		swap_stat = &swap_stat_hist[stat_idx];
+
+		wtime_s = swap_stat->nsec_start;
+		if (!wtime_first)
+			wtime_first = wtime_s;
+		if (!wtime_s) /* no data in it */
+			break;
+		if (wtime_first < wtime_s) /* newer data after read */
+			break;
+		wtime_e = swap_stat->nsec_end;
+		wtime_d = wtime_e - wtime_s;
+		wtime_s_rem = do_div(wtime_s, 1000000000);
+		wtime_e_rem = do_div(wtime_e, 1000000000);
+
+		cputime_in = swap_stat->nsec_cputime;
+		cputime = cputime_in & ~SWAP_STAT_SWAPIN;
+		pid = swap_stat->pid;
+		is_swapin = !!(cputime_in & SWAP_STAT_SWAPIN);
+		nr_pages = swap_stat->nr_pages;
+
+		seq_printf(m, "[%03d] [%5lu.%06lu] [%5lu.%06lu] %6u %s %6lu %6lu %6d\n",
+			  cnt,
+			  (unsigned long)wtime_s, wtime_s_rem / 1000,
+			  (unsigned long)wtime_e, wtime_e_rem / 1000,
+			  pid, is_swapin ? "IN " : "OUT",
+			  (unsigned long)wtime_d / 1000000,
+			  cputime / NSEC_PER_MSEC,
+			  nr_pages << (PAGE_SHIFT - 10));
+	}
+
+	return 0;
+}
 
 static int kgsl_memdesc_get_reclaimed_pages(struct kgsl_mem_entry *entry)
 {
@@ -76,11 +180,18 @@ int kgsl_reclaim_to_pinned_state(
 {
 	struct kgsl_mem_entry *entry, *valid_entry;
 	int next = 0, ret = 0, count = 0;
+	unsigned long jiffies_s = jiffies;
+	u64 utime, stime_s, stime_e, stime_d;
+	pid_t pid;
+	struct swap_stat swap_stat;
 
 	mutex_lock(&process->reclaim_lock);
 
 	if (test_bit(KGSL_PROC_PINNED_STATE, &process->state))
 		goto done;
+
+	swap_stat.nsec_start = local_clock();
+	task_cputime(current, &utime, &stime_s);
 
 	count = atomic_read(&process->unpinned_page_count);
 
@@ -93,8 +204,7 @@ int kgsl_reclaim_to_pinned_state(
 			break;
 		}
 
-		if (!entry->pending_free &&
-				(entry->memdesc.priv & KGSL_MEMDESC_RECLAIMED))
+		if (entry->memdesc.priv & KGSL_MEMDESC_RECLAIMED)
 			valid_entry = kgsl_mem_entry_get(entry);
 		spin_unlock(&process->mem_lock);
 
@@ -110,9 +220,24 @@ int kgsl_reclaim_to_pinned_state(
 
 	trace_kgsl_reclaim_process(process, count, false);
 	set_bit(KGSL_PROC_PINNED_STATE, &process->state);
+
+	task_cputime(current, &utime, &stime_e);
+	stime_d = stime_e - stime_s;
+	pid = pid_nr(process->pid);
+	swap_stat.nsec_end = local_clock();
+	swap_stat.nsec_cputime = stime_d | SWAP_STAT_SWAPIN;
+	swap_stat.pid = pid;
+	swap_stat.nr_pages = count;
+
+	pr_info("kgsl swapin timeJS(ms):%u|%llu tgid:%u nr_unpinned_page:%d->%d\n",
+		jiffies_to_msecs(jiffies - jiffies_s),
+		stime_d / NSEC_PER_MSEC, pid, count,
+		atomic_read(&process->unpinned_page_count));
+
+	swap_stat_save(&swap_stat);
+
 done:
 	mutex_unlock(&process->reclaim_lock);
-
 	return ret;
 }
 
@@ -314,14 +439,29 @@ static u32 kgsl_reclaim_process(struct kgsl_process_private *process,
 
 static void ppr_kgsl_reclaim_background_work(struct work_struct *work)
 {
-	// TODO : it can be changed in the userspace in the future.
-	// u32 nr_pages = atomic_read(&kgsl_nr_to_reclaim);
+	u64 utime, stime_s, stime_e, stime_d;
 	u64 nr_reclaimed;
+	pid_t pid;
 	struct kgsl_process_private *process =
 		container_of(work, struct kgsl_process_private, bg_work);
 
-	if (!test_bit(KGSL_PROC_STATE, &process->state))
+	if (!test_bit(KGSL_PROC_STATE, &process->state)) {
+		struct swap_stat swap_stat;
+
+		swap_stat.nsec_start = local_clock();
+		task_cputime(current, &utime, &stime_s);
+
 		nr_reclaimed = kgsl_reclaim_process(process, kgsl_reclaim_max_page_limit);
+
+		task_cputime(current, &utime, &stime_e);
+		stime_d = stime_e - stime_s;
+		pid = pid_nr(process->pid);
+		swap_stat.nsec_end = local_clock();
+		swap_stat.nsec_cputime = stime_d;
+		swap_stat.pid = pid;
+		swap_stat.nr_pages = nr_reclaimed;
+		swap_stat_save(&swap_stat);
+	}
 
 	kgsl_process_private_put(process);
 }
@@ -421,11 +561,16 @@ int kgsl_reclaim_init(void)
 
 	/* Initialize shrinker */
 	ret = register_shrinker(&kgsl_reclaim_shrinker);
-	if (ret)
+	if (ret) {
 		pr_err("kgsl: reclaim: Failed to register shrinker\n");
-	else
-		INIT_WORK(&reclaim_work, kgsl_reclaim_background_work);
+		return ret;
+	}
 
+	INIT_WORK(&reclaim_work, kgsl_reclaim_background_work);
+
+	if (!graphics_swap_proc_init())
+		proc_create_single("graphics_swap", 0444, NULL,
+				   graphics_swap_proc_show);
 	return ret;
 }
 

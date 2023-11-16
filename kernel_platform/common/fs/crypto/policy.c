@@ -16,6 +16,11 @@
 #include <linux/mount.h>
 #include "fscrypt_private.h"
 
+#ifdef CONFIG_DDAR
+extern int fscrypt_set_ddar_context(struct inode *inode, struct fscrypt_info *ci,
+		union fscrypt_context *ctx, int ctxsize, void *fs_data);
+#endif
+
 /**
  * fscrypt_policies_equal() - check whether two encryption policies are the same
  * @policy1: the first policy
@@ -40,7 +45,7 @@ fscrypt_get_dummy_policy(struct super_block *sb)
 	return sb->s_cop->get_dummy_policy(sb);
 }
 
-static bool fscrypt_valid_enc_modes(u32 contents_mode, u32 filenames_mode)
+static bool fscrypt_valid_enc_modes_v1(u32 contents_mode, u32 filenames_mode)
 {
 	if (contents_mode == FSCRYPT_MODE_AES_256_XTS &&
 	    filenames_mode == FSCRYPT_MODE_AES_256_CTS)
@@ -55,6 +60,14 @@ static bool fscrypt_valid_enc_modes(u32 contents_mode, u32 filenames_mode)
 		return true;
 
 	return false;
+}
+
+static bool fscrypt_valid_enc_modes_v2(u32 contents_mode, u32 filenames_mode)
+{
+	if (contents_mode == FSCRYPT_MODE_AES_256_XTS &&
+	    filenames_mode == FSCRYPT_MODE_AES_256_HCTR2)
+		return true;
+	return fscrypt_valid_enc_modes_v1(contents_mode, filenames_mode);
 }
 
 static bool supported_direct_key_modes(const struct inode *inode,
@@ -130,7 +143,7 @@ static bool supported_iv_ino_lblk_policy(const struct fscrypt_policy_v2 *policy,
 static bool fscrypt_supported_v1_policy(const struct fscrypt_policy_v1 *policy,
 					const struct inode *inode)
 {
-	if (!fscrypt_valid_enc_modes(policy->contents_encryption_mode,
+	if (!fscrypt_valid_enc_modes_v1(policy->contents_encryption_mode,
 				     policy->filenames_encryption_mode)) {
 		fscrypt_warn(inode,
 			     "Unsupported encryption modes (contents %d, filenames %d)",
@@ -166,7 +179,7 @@ static bool fscrypt_supported_v2_policy(const struct fscrypt_policy_v2 *policy,
 {
 	int count = 0;
 
-	if (!fscrypt_valid_enc_modes(policy->contents_encryption_mode,
+	if (!fscrypt_valid_enc_modes_v2(policy->contents_encryption_mode,
 				     policy->filenames_encryption_mode)) {
 		fscrypt_warn(inode,
 			     "Unsupported encryption modes (contents %d, filenames %d)",
@@ -279,7 +292,7 @@ static int fscrypt_new_context(union fscrypt_context *ctx_u,
 		       sizeof(ctx->master_key_descriptor));
 		memcpy(ctx->nonce, nonce, FSCRYPT_FILE_NONCE_SIZE);
 
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 		BUILD_BUG_ON((sizeof(*ctx) - sizeof(ctx->knox_flags))
 				!= offsetof(struct fscrypt_context_v1, knox_flags));
 		ctx->knox_flags = 0;
@@ -303,7 +316,7 @@ static int fscrypt_new_context(union fscrypt_context *ctx_u,
 		       sizeof(ctx->master_key_identifier));
 		memcpy(ctx->nonce, nonce, FSCRYPT_FILE_NONCE_SIZE);
 
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 		BUILD_BUG_ON((sizeof(*ctx) - sizeof(ctx->knox_flags))
 				!= offsetof(struct fscrypt_context_v2, knox_flags));
 		ctx->knox_flags = 0;
@@ -399,7 +412,7 @@ static int fscrypt_get_policy(struct inode *inode, union fscrypt_policy *policy)
 	if (ret < 0)
 		return (ret == -ERANGE) ? -EINVAL : ret;
 
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 	switch (ctx.version) {
 	case FSCRYPT_CONTEXT_V1: {
 		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
@@ -595,7 +608,7 @@ int fscrypt_ioctl_get_nonce(struct file *filp, void __user *arg)
 	if (ret < 0)
 		return ret;
 
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+#ifdef CONFIG_DDAR
 	switch (ctx.version) {
 	case FSCRYPT_CONTEXT_V1: {
 		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
@@ -734,6 +747,9 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 	struct fscrypt_info *ci = inode->i_crypt_info;
 	union fscrypt_context ctx;
 	int ctxsize;
+#ifdef CONFIG_DDAR
+	int res;
+#endif
 
 	/* fscrypt_prepare_new_inode() should have set up the key already. */
 	if (WARN_ON_ONCE(!ci))
@@ -747,49 +763,13 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 	 * delayed key setup that requires the inode number.
 	 */
 	if (ci->ci_policy.version == FSCRYPT_POLICY_V2 &&
-	    (ci->ci_policy.v2.flags & FSCRYPT_POLICY_FLAG_IV_INO_LBLK_32)) {
-		const struct fscrypt_master_key *mk =
-			ci->ci_master_key->payload.data[0];
+	    (ci->ci_policy.v2.flags & FSCRYPT_POLICY_FLAG_IV_INO_LBLK_32))
+		fscrypt_hash_inode_number(ci, ci->ci_master_key);
 
-		fscrypt_hash_inode_number(ci, mk);
-	}
-
-#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
-	if (fscrypt_has_dar_info(inode)) {
-		int res = 0;
 #ifdef CONFIG_DDAR
-		if (ci->ci_dd_info) {
-			res = fscrypt_set_knox_ddar_flags(&ctx, ci);
-			if (res) {
-				dd_error("failed to set knox ddar flag\n");
-				return res;
-			}
-
-			switch (ctx.version) {
-			case FSCRYPT_CONTEXT_V1: {
-				if (ctx.v1.knox_flags != 0)
-					ctxsize = sizeof(ctx.v1);
-				break;
-			}
-			case FSCRYPT_CONTEXT_V2: {
-				if (ctx.v2.knox_flags != 0)
-					ctxsize = sizeof(ctx.v2);
-				break;
-			}
-			}
-
-			res = inode->i_sb->s_cop->set_context(inode, &ctx, ctxsize, fs_data);
-			if (res) {
-				dd_error("failed to set context (%ld)\n", inode->i_ino);
-				return res;
-			}
-
-			res = dd_write_crypt_context(inode, &ci->ci_dd_info->crypt_context, fs_data);
-			dd_verbose("%s - ino : %ld, policy.flag:%x, res : %d", __func__, inode->i_ino, ci->ci_dd_info->policy.flags, res);
-		}
-#endif
+	res = fscrypt_set_ddar_context(inode, ci, &ctx, ctxsize, fs_data);
+	if (res != -EAGAIN)
 		return res;
-	}
 #endif
 	return inode->i_sb->s_cop->set_context(inode, &ctx, ctxsize, fs_data);
 }

@@ -219,8 +219,7 @@ QDF_STATUS osif_disconnect_handler(struct wlan_objmgr_vdev *vdev,
 	/* Unlink bss if disconnect is from peer or south bound */
 	if (rsp->req.req.source == CM_PEER_DISCONNECT ||
 	    rsp->req.req.source == CM_SB_DISCONNECT)
-		osif_cm_unlink_bss(vdev, osif_priv, &rsp->req.req.bssid,
-				   NULL, 0);
+		osif_cm_unlink_bss(vdev, &rsp->req.req.bssid);
 
 	status = osif_validate_disconnect_and_reset_src_id(osif_priv, rsp);
 	if (QDF_IS_STATUS_ERROR(status)) {

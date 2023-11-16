@@ -16,6 +16,10 @@
 #define RT_BASE_IDX                                    2
 #define CAM_ISP_MAX_PATHS                              8
 
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING_REC)
+#define CAM_ISP_CSID_SOF_TIMING_REC_DEBUG_MASK (0x1000)
+#endif
+
 /**
  * enum cam_ife_csid_input_core_type - Specify the csid input core
  */

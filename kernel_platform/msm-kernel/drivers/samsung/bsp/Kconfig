@@ -2,6 +2,8 @@ menu "Samsung Factory Feature"
 config SEC_FACTORY
 	bool "when it comes to sec factory mode"
 	default n
+	select SEC_PANIC_PCIE_ERR
+	select SEC_PCIE_KEEP_LINKBW
 	select SEC_FORCE_ERR
 	select EDAC_KYRO_ARM64_PANIC_ON_CE
 	help

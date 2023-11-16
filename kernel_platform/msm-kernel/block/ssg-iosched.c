@@ -492,6 +492,7 @@ static void ssg_exit_queue(struct elevator_queue *e)
 	BUG_ON(!list_empty(&ssg->fifo_list[WRITE]));
 
 	ssg_stat_exit(ssg);
+	ssg_wb_exit(ssg);
 	blk_sec_stat_account_exit(e);
 
 	kfree(ssg->rq_info);
@@ -545,7 +546,9 @@ static int ssg_init_queue(struct request_queue *q, struct elevator_type *e)
 	q->elevator = eq;
 
 	ssg_stat_init(ssg);
+	blk_stat_enable_accounting(q);
 	blk_sec_stat_account_init(q);
+	ssg_wb_init(ssg);
 
 	return 0;
 }
@@ -663,6 +666,8 @@ static void ssg_prepare_request(struct request *rq)
 	struct ssg_request_info *rqi;
 
 	atomic_inc(&ssg->allocated_rqs);
+
+	ssg_wb_ctrl(ssg);
 
 	rqi = ssg_rq_info(ssg, rq);
 	if (likely(rqi)) {
@@ -813,6 +818,17 @@ static struct elv_fs_entry ssg_attrs[] = {
 	SSG_STAT_ATTR_RO(discard_latency),
 	SSG_STAT_ATTR_RO(inflight),
 	SSG_STAT_ATTR_RO(rqs_info),
+
+#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
+	SSG_ATTR(wb_off_delay_msecs),
+	SSG_ATTR(wb_on_threshold_rqs),
+	SSG_ATTR(wb_on_threshold_bytes),
+	SSG_ATTR(wb_on_threshold_sync_write_bytes),
+	SSG_ATTR(wb_off_threshold_sync_write_bytes),
+	SSG_ATTR(wb_off_threshold_rqs),
+	SSG_ATTR(wb_off_threshold_bytes),
+	SSG_ATTR_RO(wb_trigger),
+#endif
 
 	__ATTR_NULL
 };

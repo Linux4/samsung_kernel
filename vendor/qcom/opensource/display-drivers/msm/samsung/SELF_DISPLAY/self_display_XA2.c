@@ -159,6 +159,8 @@ void make_mass_self_display_img_cmds_XA2(struct samsung_display_driver_data *vdd
 
 	payload_len = data_size + (data_size + MASS_CMD_ALIGN - 2) / (MASS_CMD_ALIGN - 1);
 	cmd_cnt = (payload_len + payload_len - 1) / payload_len;
+	cmd_cnt = 1 + cmd_cnt; /* add level1 key */
+	
 	LCD_INFO(vdd, "[%d] total data size [%d], total cmd len[%d], cmd count [%d]\n",
 					cmd, data_size, payload_len, cmd_cnt);
 
@@ -180,10 +182,26 @@ void make_mass_self_display_img_cmds_XA2(struct samsung_display_driver_data *vdd
 		LCD_ERR(vdd, "tcmds is NULL \n");
 		return;
 	}
-	/* fill image data */
 
+	/* pack level1 key: [0xF0, 0x5A, 0x5A] */
+	tcmds[0].msg.type = MIPI_DSI_GENERIC_LONG_WRITE;
+	tcmds[0].last_command = 1;
+	if (tcmds[0].ss_txbuf == NULL) {
+		tcmds[0].ss_txbuf = kzalloc(3, GFP_KERNEL);
+		if (!tcmds[0].ss_txbuf) {
+			LCD_ERR(vdd, "fail to allocate self_mask ss_txbuf\n");
+			return;
+		}
+	}
+	tcmds[0].msg.tx_len = 3;
+	tcmds[0].ss_txbuf[0] = 0xF0;
+	tcmds[0].ss_txbuf[1] = 0x5A;
+	tcmds[0].ss_txbuf[2] = 0x5A;
+	ss_alloc_ss_txbuf(&tcmds[0], tcmds[0].ss_txbuf);
+	
+	/* fill image data */
 	SDE_ATRACE_BEGIN("mass_cmd_generation");
-	for (c_cnt = 0; c_cnt < pcmds->count ; c_cnt++) {
+	for (c_cnt = 1; c_cnt < pcmds->count ; c_cnt++) {
 		tcmds[c_cnt].msg.type = MIPI_DSI_GENERIC_LONG_WRITE;
 		tcmds[c_cnt].last_command = 1;
 
@@ -202,7 +220,7 @@ void make_mass_self_display_img_cmds_XA2(struct samsung_display_driver_data *vdd
 			if (p_len % MASS_CMD_ALIGN)
 				tcmds[c_cnt].ss_txbuf[p_len] = data[data_idx++];
 			else
-				tcmds[c_cnt].ss_txbuf[p_len] = (p_len == 0 && c_cnt == 0) ? 0x4C : 0x5C;
+				tcmds[c_cnt].ss_txbuf[p_len] = (p_len == 0 && c_cnt == 1) ? 0x4C : 0x5C;
 
 		}
 		tcmds[c_cnt].msg.tx_len = p_len;
@@ -923,8 +941,6 @@ static void self_blinking_on(struct samsung_display_driver_data *vdd, int enable
 
 static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 {
-	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
-
 	if (!vdd->self_disp.is_support) {
 		LCD_ERR(vdd, "self display is not supported..(%d) \n",
 						vdd->self_disp.is_support);
@@ -933,33 +949,23 @@ static void self_mask_img_write(struct samsung_display_driver_data *vdd)
 
 	LCD_INFO(vdd, "++\n");
 
-	mutex_lock(&vdd->exclusive_tx.ex_tx_lock);
-	vdd->exclusive_tx.enable = 1;
-	while (!list_empty(&vdd->cmd_lock.wait_list) && --wait_cnt)
-		usleep_range(500, 500);
+	LCD_INFO(vdd, "block commit\n");
+	atomic_inc(&vdd->block_commit_cnt);
+	ss_wait_for_kickoff_done(vdd);
 
-	ss_set_exclusive_tx_packet(vdd, TX_LEVEL1_KEY_ENABLE, 1);
-	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_SET_PRE, 1);
-	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_IMAGE, 1);
-	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_SET_POST, 1);
-	ss_set_exclusive_tx_packet(vdd, TX_LEVEL1_KEY_DISABLE, 1);
+	LCD_INFO(vdd, "tx self mask ++: cur_rr: %d\n", vdd->vrr.cur_refresh_rate);
 
-	ss_send_cmd(vdd, TX_LEVEL1_KEY_ENABLE);
 	ss_send_cmd(vdd, TX_SELF_MASK_SET_PRE);
 	usleep_range(1000, 1000);
 	ss_send_cmd(vdd, TX_SELF_MASK_IMAGE);
 	usleep_range(1000, 1000);
 	ss_send_cmd(vdd, TX_SELF_MASK_SET_POST);
-	ss_send_cmd(vdd, TX_LEVEL1_KEY_DISABLE);
 
-	ss_set_exclusive_tx_packet(vdd, TX_LEVEL1_KEY_ENABLE, 0);
-	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_SET_PRE, 0);
-	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_IMAGE, 0);
-	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_SET_POST, 0);
-	ss_set_exclusive_tx_packet(vdd, TX_LEVEL1_KEY_DISABLE, 0);
-	vdd->exclusive_tx.enable = 0;
-	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
-	mutex_unlock(&vdd->exclusive_tx.ex_tx_lock);
+	LCD_INFO(vdd, "tx self mask --\n");
+
+	LCD_INFO(vdd, "release commit\n");
+	atomic_add_unless(&vdd->block_commit_cnt, -1, 0);
+	wake_up_all(&vdd->block_commit_wq);
 
 	LCD_INFO(vdd, "--\n");
 }
@@ -1034,8 +1040,7 @@ static int self_mask_udc_on(struct samsung_display_driver_data *vdd, int enable)
 static int self_mask_check(struct samsung_display_driver_data *vdd)
 {
 	int i, ret = 1;
-	int fps, wait_time;
-	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
+
 
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "vdd is null or error\n");
@@ -1067,42 +1072,19 @@ static int self_mask_check(struct samsung_display_driver_data *vdd)
 
 	ss_send_cmd(vdd, TX_SELF_MASK_CHECK_PRE1);
 
-	/* Do not permit image update (2C, 3C) during sending self mask image (4C, 5C) */
-	mutex_lock(&vdd->exclusive_tx.ex_tx_lock);
-	vdd->exclusive_tx.enable = 1;
-	while (!list_empty(&vdd->cmd_lock.wait_list) && --wait_cnt)
-		usleep_range(500, 500);
-
-	ss_set_exclusive_tx_packet(vdd, TX_LEVEL1_KEY_ENABLE, 1);
-	ss_set_exclusive_tx_packet(vdd, TX_LEVEL1_KEY_DISABLE, 1);
-	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_IMAGE_CRC, 1);
-
-	usleep_range(1000, 1000);
-
-	/* self mask data write (4C, 5C) */
-	ss_send_cmd(vdd, TX_LEVEL1_KEY_ENABLE);
-	ss_send_cmd(vdd, TX_SELF_MASK_IMAGE_CRC);
-	ss_send_cmd(vdd, TX_LEVEL1_KEY_DISABLE);
-
-	ss_set_exclusive_tx_packet(vdd, TX_LEVEL1_KEY_DISABLE, 0);
-	ss_set_exclusive_tx_packet(vdd, TX_LEVEL1_KEY_ENABLE, 0);
-	ss_set_exclusive_tx_packet(vdd, TX_SELF_MASK_IMAGE_CRC, 0);
-	vdd->exclusive_tx.enable = 0;
-	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
-	mutex_unlock(&vdd->exclusive_tx.ex_tx_lock);
-
-	usleep_range(1000, 1000);
-
-	ss_send_cmd(vdd, TX_SELF_MASK_CHECK_PRE2);
-
+	usleep_range(33300, 33400); /* delay 33.3ms 2frame delay*/
+#if 0 /* Need fps dependent delay? */
 	/*
 	 * +1 means padding.
 	 * WAIT_FRAME means wait 2 frame for exact frame update locking.
 	 * TE-> frame tx -> frame flush -> lock exclusive_tx -> max wait 16ms -> TE -> frame tx.
 	 */
+	int fps, wait_time;
+	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 	fps = vdd->vrr.cur_refresh_rate;
 	wait_time = ((1000 / fps) + 1) * WAIT_FRAME;
 	usleep_range(wait_time * 1000, wait_time * 1000);
+#endif
 
 	ss_panel_data_read(vdd, RX_SELF_MASK_CHECK, vdd->self_disp.mask_crc_read_data, LEVEL1_KEY | LEVEL2_KEY);
 
@@ -1193,39 +1175,29 @@ static int self_partial_hlpm_scan_set(struct samsung_display_driver_data *vdd)
 
 static int self_display_debug(struct samsung_display_driver_data *vdd)
 {
-	char buf[64];
+	int rx_len;
+	char buf[4];
 
-	if (ss_get_cmds(vdd, RX_SELF_DISP_DEBUG)->count) {
-
-		ss_panel_data_read(vdd, RX_SELF_DISP_DEBUG, buf, LEVEL1_KEY);
-
-		vdd->self_disp.debug.SI_X_O = ((buf[14] & 0x07) << 8);
-		vdd->self_disp.debug.SI_X_O |= (buf[15] & 0xFF);
-
-		vdd->self_disp.debug.SI_Y_O = ((buf[16] & 0x0F) << 8);
-		vdd->self_disp.debug.SI_Y_O |= (buf[17] & 0xFF);
-
-		vdd->self_disp.debug.SM_SUM_O = ((buf[6] & 0xFF) << 24);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[7] & 0xFF) << 16);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[8] & 0xFF) << 8);
-		vdd->self_disp.debug.SM_SUM_O |= (buf[9] & 0xFF);
-
-		vdd->self_disp.debug.MEM_SUM_O = ((buf[10] & 0xFF) << 24);
-		vdd->self_disp.debug.MEM_SUM_O |= ((buf[11] & 0xFF) << 16);
-		vdd->self_disp.debug.MEM_SUM_O |= ((buf[12] & 0xFF) << 8);
-		vdd->self_disp.debug.MEM_SUM_O |= (buf[13] & 0xFF);
-
-		LCD_INFO(vdd, "SI_X_O(%u) SI_Y_O(%u) MEM_SUM_O(0x%X) SM_SUM_O(0x%X)\n",
-			vdd->self_disp.debug.SI_X_O,
-			vdd->self_disp.debug.SI_Y_O,
-			vdd->self_disp.debug.MEM_SUM_O,
-			vdd->self_disp.debug.SM_SUM_O);
-
-		if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum !=
-					vdd->self_disp.debug.SM_SUM_O) {
-			LCD_ERR(vdd, "self mask img checksum fail!!\n");
-			return -1;
+	if (is_ss_style_cmd(vdd, RX_SELF_DISP_DEBUG)) {
+		rx_len = ss_send_cmd_get_rx(vdd, RX_SELF_DISP_DEBUG, buf);
+		if (rx_len < 0) {
+			LCD_ERR(vdd, "invalid rx_len(%d)\n", rx_len);
+			return false;
 		}
+	} else {
+		ss_panel_data_read(vdd, RX_SELF_DISP_DEBUG, buf, LEVEL1_KEY);
+	}
+
+	vdd->self_disp.debug.SM_SUM_O = ((buf[0] & 0xFF) << 24);
+	vdd->self_disp.debug.SM_SUM_O |= ((buf[1] & 0xFF) << 16);
+	vdd->self_disp.debug.SM_SUM_O |= ((buf[2] & 0xFF) << 8);
+	vdd->self_disp.debug.SM_SUM_O |= (buf[3] & 0xFF);
+
+	if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum != vdd->self_disp.debug.SM_SUM_O) {
+		LCD_ERR(vdd, "self mask img checksum fail!! %X %X\n",
+			vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum, vdd->self_disp.debug.SM_SUM_O);
+		SS_XLOG(vdd->self_disp.debug.SM_SUM_O);
+		return -1;
 	}
 
 	return 0;
@@ -1650,6 +1622,8 @@ int self_display_init_XA2(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.self_partial_hlpm_scan_set = self_partial_hlpm_scan_set;
 	vdd->self_disp.self_blinking_on = self_blinking_on;
 	vdd->self_disp.self_display_debug = self_display_debug;
+
+	vdd->self_disp.debug.SM_SUM_O = 0xFF; /* initial value */
 
 	ret = ss_wrapper_misc_register(vdd, &vdd->self_disp.dev);
 	if (ret) {

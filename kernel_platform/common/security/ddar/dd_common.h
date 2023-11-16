@@ -222,4 +222,6 @@ void dd_hex_key_dump(const char *tag, uint8_t *data, unsigned int data_len);
 
 int fscrypt_ddar_get_storage_type(struct dentry *target_dentry);
 
+extern void fscrypt_dd_trace_inode(const struct inode *inode);
+
 #endif /* SECURITY_DDAR_DD_COMMON_H_ */

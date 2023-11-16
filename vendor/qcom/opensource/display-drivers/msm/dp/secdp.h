@@ -47,7 +47,6 @@
 /*#define SECDP_HDCP_DISABLE*/
 /*#define SECDP_TEST_HDCP2P2_REAUTH*/
 /*#define NOT_SUPPORT_DEX_RES_CHANGE*/
-/*#define SECDP_IGNORE_PREFER*/	 /* ignore prefer timing if dex timing exists */
 
 #define DPCD_IEEE_OUI			0x500
 #define DPCD_DEVID_STR			0x503
@@ -348,8 +347,6 @@ struct secdp_prefer {
 	enum mon_aspect_ratio_t	ratio;
 
 	bool exist;   /* true if preferred resolution */
-	bool ignore;  /* true if larger refresh rate exists */
-
 	int  hdisp;   /* horizontal pixel of preferred resolution */
 	int  vdisp;   /* vertical pixel of preferred resolution */
 	int  refresh; /* refresh rate of preferred resolution */
@@ -374,10 +371,6 @@ struct secdp_dex {
 	enum DEX_STATUS status; /* previously known as "dex_node_status" */
 
 	bool reconnecting; /* true if dex is under reconnecting */
-
-#ifdef SECDP_IGNORE_PREFER
-	bool res_exist;    /* true if dex resolution exists */
-#endif
 };
 
 struct secdp_display_timing {
@@ -389,6 +382,7 @@ struct secdp_display_timing {
 	enum dex_support_res_t dex_res;    /* dex supported resolution */
 	enum mon_aspect_ratio_t mon_ratio; /* monitor aspect ratio */
 	int  supported;                    /* for unit test */
+	u64  total;
 };
 
 struct secdp_mst {
@@ -506,7 +500,7 @@ bool secdp_check_reconnect(void);
 bool secdp_check_dex_mode(void);
 
 void secdp_clear_link_status_cnt(struct dp_link *dp_link);
-void secdp_reset_link_status(struct dp_link *dp_link);
+void secdp_read_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
 void secdp_link_backoff_start(void);
 void secdp_link_backoff_stop(void);

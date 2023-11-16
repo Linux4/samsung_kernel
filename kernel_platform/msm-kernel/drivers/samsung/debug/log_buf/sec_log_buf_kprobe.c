@@ -27,14 +27,8 @@ static int log_buf_logger_kprobe_probe(struct log_buf_drvdata *drvdata)
 	if (err)
 		goto err_failed_to_register;
 
-	err = enable_kprobe(kp);
-	if (err)
-		goto err_failed_to_enable;
-
 	return 0;
 
-err_failed_to_enable:
-	unregister_kprobe(kp);
 err_failed_to_register:
 	return err;
 }
@@ -43,7 +37,6 @@ static void log_buf_logger_kprobe_remove(struct log_buf_drvdata *drvdata)
 {
 	struct kprobe *kp = &drvdata->probe;
 
-	disable_kprobe(kp);
 	unregister_kprobe(kp);
 }
 

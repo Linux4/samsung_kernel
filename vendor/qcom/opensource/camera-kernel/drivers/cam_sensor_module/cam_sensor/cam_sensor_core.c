@@ -16,6 +16,7 @@
 
 #define CAM_SENSOR_PIPELINE_DELAY_MASK        0xFF
 #define CAM_SENSOR_MODESWITCH_DELAY_SHIFT     8
+#define CAM_SENSOR_WAIT_STREAMON_TIMES   (20)   // 20 * 5 = 100 ms
 
 #if defined(CONFIG_CAMERA_CDR_TEST)
 #include <linux/ktime.h>
@@ -48,7 +49,7 @@ module_param(frame_cnt_dbg, int, 0644);
 static int disable_sensor_retention;
 module_param(disable_sensor_retention, int, 0644);
 
-static int check_stream_on;
+static int check_stream_on = -1;
 #endif
 
 #if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
@@ -63,6 +64,7 @@ extern int to_do_print_vc__sen_id;
 extern int to_dump_when_sof_freeze__sen_id;
 
 void cam_sensor_dbg_regdump(struct cam_sensor_ctrl_t* s_ctrl);
+void cam_sensor_dbg_regdump_stream_on_fail(struct cam_sensor_ctrl_t* s_ctrl);
 void cam_sensor_dbg_detect_vc_change(
 	struct cam_sensor_ctrl_t* s_ctrl,
 	struct i2c_settings_list* i2c_list);
@@ -180,6 +182,7 @@ int cam_sensor_read_frame_count(
 	return rc;
 }
 
+
 int cam_sensor_wait_stream_on(
 	struct cam_sensor_ctrl_t *s_ctrl,
 	int retry_cnt)
@@ -205,6 +208,9 @@ int cam_sensor_wait_stream_on(
 	} while ((frame_cnt < 0x01 || frame_cnt == 0xFF) && (retry_cnt > 0));
 
 	CAM_INFO(CAM_SENSOR, "[CNT_DBG] wait fail rc %d retry cnt : %d, frame_cnt : 0x%x sensor: 0x%x", rc, retry_cnt, frame_cnt,s_ctrl->sensordata->slave_info.sensor_id);
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+		cam_sensor_dbg_regdump_stream_on_fail(s_ctrl);
+#endif
 
 	CAM_DBG(CAM_SENSOR, "X");
 
@@ -567,12 +573,19 @@ int cam_sensor_write_retention_setting(
 void cam_sensor_read_retention_status(struct cam_sensor_ctrl_t *s_ctrl, uint32_t expect_value)
 {
 	uint32_t read_value = 0xBEEF;
-	camera_io_dev_read(&s_ctrl->io_master_info, 0x6F12, &read_value,
+	int32_t rc = 0;
+
+	rc = camera_io_dev_read(&s_ctrl->io_master_info, 0x6F12, &read_value,
 		CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_WORD, false);
-	if (read_value == expect_value) {
-		CAM_INFO(CAM_SENSOR, "[RET_DBG] Pass retention status : 0x%x", expect_value);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "read failed rc %d", rc);
 	} else {
-		CAM_WARN(CAM_SENSOR, "[RET_DBG] Fail retention status (0x%x != 0x%x)", expect_value, read_value);
+		if (read_value == expect_value) {
+			CAM_INFO(CAM_SENSOR, "[RET_DBG] Pass retention status : 0x%x", expect_value);
+		} else {
+			CAM_WARN(CAM_SENSOR, "[RET_DBG] Fail retention status (0x%x != 0x%x)", expect_value, read_value);
+		}
 	}
 }
 
@@ -807,7 +820,7 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-		cam_sensor_wait_stream_on(s_ctrl, 1000);
+		cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 #endif
 
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] stream off");
@@ -877,7 +890,7 @@ void cam_sensor_write_enable_crc(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to additional stream on for seamless mode change (rc = %d)", rc);
 
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-	cam_sensor_wait_stream_on(s_ctrl, 1000);
+	cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 #endif
 #endif
 
@@ -994,7 +1007,7 @@ int cam_sensor_apply_hyperlapse_settings(
 			CAM_INFO(CAM_SENSOR, "[RET_DBG] stream on size = %d", size);
 		}
 
-		rc = cam_sensor_wait_stream_on(s_ctrl, 20);
+		rc = cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 		if (rc < 0)
 			CAM_ERR(CAM_SENSOR, "[RET_DBG] failed wait 1");
 
@@ -1043,7 +1056,7 @@ int cam_sensor_pre_apply_settings(
 			cam_sensor_apply_hyperlapse_settings(s_ctrl);
 #endif
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-			rc = cam_sensor_wait_stream_on(s_ctrl, 20);
+			rc = cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 #endif
 #if defined(CONFIG_SENSOR_RETENTION)
 			cam_sensor_write_enable_crc(s_ctrl);
@@ -1302,7 +1315,8 @@ static int cam_sensor_handle_res_info(struct cam_sensor_res_info *res_info,
 
 	/* If request id is 0, it will be during an initial config/acquire */
 	CAM_DBG(CAM_SENSOR,
-		"Feature: 0x%x updated for request id: %lu, res index: %u, width: 0x%x, height: 0x%x, capability: %s, fps: %u",
+		"Sensor[%s-%d] Feature: 0x%x updated for request id: %lu, res index: %u, width: 0x%x, height: 0x%x, capability: %s, fps: %u",
+		s_ctrl->sensor_name, s_ctrl->soc_info.index,
 		s_ctrl->sensor_res[idx].feature_mask,
 		s_ctrl->sensor_res[idx].request_id, s_ctrl->sensor_res[idx].res_index,
 		s_ctrl->sensor_res[idx].width, s_ctrl->sensor_res[idx].height,
@@ -1312,18 +1326,20 @@ static int cam_sensor_handle_res_info(struct cam_sensor_res_info *res_info,
 	{
 		static uint32_t old_shoot_md = 0;
 		static uint16_t old_res_idx = 0;
-		uint32_t curr_ts = ktime_to_us(ktime_get());
+		struct timespec64 curr_ts = { 0, };
+
+		CAM_GET_BOOT_TIMESTAMP(curr_ts);
 
 		s_ctrl->camera_shooting_mode = res_info->shooting_mode;
 		if ((s_ctrl->camera_shooting_mode != old_shoot_md) ||
 			(s_ctrl->sensor_res[idx].res_index != old_res_idx)) {
-			CAM_INFO(CAM_SENSOR, "[SEN_DBG]%s SHOOTING_MODE_%s res_id(%u) %d*%d fps(%d) ts(%d.%d)",
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG]%s SHOOTING_MODE_%s res_id(%u) %d*%d fps(%d) ts(%llu.%llu)",
 				s_ctrl->sensor_name,
 				res_info->shooting_mode_name,
 				s_ctrl->sensor_res[idx].res_index,
 				s_ctrl->sensor_res[idx].width, s_ctrl->sensor_res[idx].height,
 				s_ctrl->sensor_res[idx].fps,
-				curr_ts / 1000, (curr_ts / 10000) % 10);
+				curr_ts.tv_sec, curr_ts.tv_nsec / NSEC_PER_USEC);
 			old_shoot_md = s_ctrl->camera_shooting_mode;
 			old_res_idx = s_ctrl->sensor_res[idx].res_index;
 		}
@@ -1368,7 +1384,7 @@ static int32_t cam_sensor_generic_blob_handler(void *user_data,
 	return rc;
 }
 
-static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
+static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	void *arg)
 {
 	int32_t rc = 0;
@@ -1444,7 +1460,6 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 		s_ctrl->last_flush_req = 0;
 
 	prev_updated_req = s_ctrl->last_updated_req;
-	s_ctrl->last_updated_req = csl_packet->header.request_id;
 	s_ctrl->is_res_info_updated = false;
 
 	i2c_data = &(s_ctrl->i2c_data);
@@ -1492,7 +1507,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 			check_stream_on = 0;
 		}
 #endif
-		break;
+		goto end;
 	}
 	case CAM_SENSOR_PACKET_OPCODE_SENSOR_READ: {
 		i2c_reg_settings = &(i2c_data->read_settings);
@@ -1630,6 +1645,7 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 			goto end;
 		}
 
+		s_ctrl->last_updated_req = csl_packet->header.request_id;
 		idx = s_ctrl->last_updated_req % MAX_PER_FRAME_ARRAY;
 		s_ctrl->sensor_res[idx].request_id = csl_packet->header.request_id;
 
@@ -1655,10 +1671,20 @@ static int32_t cam_sensor_i2c_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	/*
 	 * If no res info in current request, then we pick previous
 	 * resolution info as current resolution info.
+	 * Don't copy the sensor resolution info when the request id
+	 * is invalid.
 	 */
-	if (!s_ctrl->is_res_info_updated)
+	if ((!s_ctrl->is_res_info_updated) && (csl_packet->header.request_id != 0)) {
+		/*
+		 * Update the last updated req at two places.
+		 * 1# Got generic blob: The req id can be zero for the initial res info updating
+		 * 2# Copy previous res info: The req id can't be zero, in case some queue info
+		 * are override by slot0.
+		 */
+		s_ctrl->last_updated_req = csl_packet->header.request_id;
 		s_ctrl->sensor_res[s_ctrl->last_updated_req % MAX_PER_FRAME_ARRAY] =
 			s_ctrl->sensor_res[prev_updated_req % MAX_PER_FRAME_ARRAY];
+	}
 
 	if ((csl_packet->header.op_code & 0xFFFFFF) ==
 		CAM_SENSOR_PACKET_OPCODE_SENSOR_UPDATE) {
@@ -2162,7 +2188,7 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 			CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention additional stream on (rc = %d)", rc);
 
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-		cam_sensor_wait_stream_on(s_ctrl, 20);
+		cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 #endif
 #endif
 		cam_sensor_write_enable_crc(s_ctrl);
@@ -2337,6 +2363,11 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 
 	switch (cmd->op_code) {
 	case CAM_SENSOR_PROBE_CMD: {
+#if defined(CONFIG_SENSOR_RETENTION)
+		if (s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) {
+			check_stream_on = -1;
+		}
+#endif
 		if (s_ctrl->is_probe_succeed == 1) {
 			CAM_WARN(CAM_SENSOR,
 				"Sensor %s already Probed in the slot",
@@ -2706,7 +2737,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				CAM_ERR(CAM_SENSOR, "[RET_DBG] Failed to retention additional stream on (rc = %d)", rc);
 
 #if defined(CONFIG_CAMERA_FRAME_CNT_CHECK)
-			cam_sensor_wait_stream_on(s_ctrl, 20);
+			cam_sensor_wait_stream_on(s_ctrl, CAM_SENSOR_WAIT_STREAMON_TIMES);
 #endif
 #endif
 			cam_sensor_write_enable_crc(s_ctrl);
@@ -2885,15 +2916,15 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	}
 		break;
 	case CAM_CONFIG_DEV: {
-		rc = cam_sensor_i2c_pkt_parse(s_ctrl, arg);
+		rc = cam_sensor_pkt_parse(s_ctrl, arg);
 		if (rc < 0) {
 			if (rc == -EBADR)
 				CAM_INFO(CAM_SENSOR,
-					"%s:Failed i2c pkt parse. rc: %d, it has been flushed",
+					"%s:Failed pkt parse. rc: %d, it has been flushed",
 					s_ctrl->sensor_name, rc);
 			else
 				CAM_ERR(CAM_SENSOR,
-					"%s:Failed i2c pkt parse. rc: %d",
+					"%s:Failed pkt parse. rc: %d",
 					s_ctrl->sensor_name, rc);
 			goto release_mutex;
 		}

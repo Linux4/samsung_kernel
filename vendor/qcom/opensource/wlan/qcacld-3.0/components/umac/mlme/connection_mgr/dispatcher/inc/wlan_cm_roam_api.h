@@ -1696,4 +1696,24 @@ QDF_STATUS
 wlan_cm_get_sae_auth_ta(struct wlan_objmgr_pdev *pdev,
 			uint8_t vdev_id,
 			struct qdf_mac_addr *sae_auth_ta);
+
+/**
+ * wlan_cm_set_assoc_btm_cap() - Set the assoc BTM capability
+ * @vdev: pointer to vdev
+ * @val: BTM cap
+ *
+ * Return: None
+ */
+void
+wlan_cm_set_assoc_btm_cap(struct wlan_objmgr_vdev *vdev, bool val);
+
+/**
+ * wlan_cm_get_assoc_btm_cap() - Get the assoc BTM capability
+ * @vdev: pointer to vdev
+ *
+ * Return: BTM cap
+ */
+bool
+wlan_cm_get_assoc_btm_cap(struct wlan_objmgr_vdev *vdev);
+
 #endif  /* WLAN_CM_ROAM_API_H__ */

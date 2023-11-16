@@ -582,6 +582,8 @@ static int sde_rsc_switch_to_clk(struct sde_rsc_priv *rsc,
 		if (!rc)
 			rpmh_mode_solver_set(rsc->rpmh_dev, false);
 	}
+	if (rsc->hw_ops.hw_vsync)
+		rsc->hw_ops.hw_vsync(rsc, VSYNC_ENABLE, NULL, 0, 0);
 
 	/* indicate wait for vsync for cmd/vid to clk state switch */
 	if (!rc && rsc->primary_client &&
@@ -731,6 +733,8 @@ static int sde_rsc_switch_to_idle(struct sde_rsc_priv *rsc,
 		pr_debug("client state:%d type:%d\n",
 			client->current_state, client->client_type);
 	}
+	if (rsc->hw_ops.hw_vsync)
+		rsc->hw_ops.hw_vsync(rsc, VSYNC_DISABLE, NULL, 0, 0);
 
 	pr_debug("multi_display:%d clk_client:%d vid_display:%d cmd_display:%d\n",
 		multi_display_active, clk_client_active, vid_display_active,
@@ -995,6 +999,15 @@ end:
 }
 EXPORT_SYMBOL(sde_rsc_client_state_update);
 
+void sde_rsc_log_debug_info(void)
+{
+	struct sde_rsc_priv *rsc;
+
+	rsc = rsc_prv_list[0];
+	if (rsc->hw_ops.debug_log)
+		rsc->hw_ops.debug_log(rsc);
+}
+EXPORT_SYMBOL(sde_rsc_log_debug_info);
 /**
  * sde_rsc_client_vote() - ab/ib vote from rsc client
  *
