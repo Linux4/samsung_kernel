@@ -1,0 +1,152 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "sdm450-sec-j8y18lte_common.dtsi"
+#include "sdm450-sec-j8y18lte_ltn_open-pinctrl-r01.dtsi"
+#include "sdm450-sec-j8y18-display-r00.dtsi"
+#include "sdm450-sec-j8y18lte-sensor-r01.dtsi"
+#include "sdm450-sec-j8y18lte-fingerprint-sensor-r00.dtsi"
+#include "sdm450-sm5708-r00.dtsi"
+#include "sdm450-camera-sensor-j8y18lte-r00.dtsi"
+
+/ {
+	model = "Samsung J8Y18- LTE LTN OPEN Rev01";
+	compatible = "qcom,sdm450-mtp", "qcom,sdm450", "qcom,mtp";
+	qcom,board-id = <8 1>;
+
+	aliases {
+		smd0 = &smdtty_ds;
+		i2c1 = &i2c_2;
+		i2c3 = &i2c_3;
+		i2c5 = &i2c_5;
+	};
+};
+
+&soc {
+	qcom,iris-fm {
+		status = "okay";
+		compatible = "qcom,iris_fm";
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&lna_en_default>;
+		pinctrl-1 = <&lna_en_sleep>;
+
+		qcom,radio-lna-en = <&tlmm 134 0>;
+	};
+
+	sec_pmov {
+		compatible = "sec,pmov";
+
+		/* pinctrl-names = "default";*/
+		/*pinctrl-0 = <&nc_gpio_default>; */
+
+		ldo-num = <0>;
+		/*ldo0-supply = <&pm8953_l17>;*/
+		/* ldo1-supply = <&pm8953_lx>; */
+	};
+
+	qcom,msm-imem@8600000 {
+		upload_cause@66c { /* CONFIG_SEC_DEBUG */
+			compatible = "qcom,msm-imem-upload_cause";
+			reg = <0x66c 4>;
+		};
+	};
+
+	msm_vibrator {
+		compatible = "vibrator";
+		pinctrl-names = "tlmm_motor_active", "tlmm_motor_suspend";
+		pinctrl-0 = <&vibrator_enable_active>;
+		pinctrl-1 = <&vibrator_enable_suspend>;
+		motor-vdd_type = <0>; /* 0: gpio, 1: pmic */
+		motor-en = <&tlmm 132 0>;
+	};
+};
+
+&blsp1_uart0 {
+	status = "ok";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart_console_active>;
+};
+
+&sdhc_1 {
+	/* device core power supply */
+	vdd-supply = <&pm8953_l8>;
+	qcom,vdd-always-on;
+	qcom,vdd-lpm-sup;
+	qcom,vdd-voltage-level = <2900000 2900000>;
+	qcom,vdd-current-level = <200 570000>;
+
+	/* device communication power supply */
+	vdd-io-supply = <&pm8953_l5>;
+	qcom,vdd-io-always-on;
+	qcom,vdd-io-lpm-sup;
+	qcom,vdd-io-voltage-level = <1800000 1800000>;
+	qcom,vdd-io-current-level = <200 325000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc1_clk_on &sdc1_cmd_on &sdc1_data_on  &sdc1_rclk_on>;
+	pinctrl-1 = <&sdc1_clk_off &sdc1_cmd_off &sdc1_data_off &sdc1_rclk_off>;
+
+	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000 192000000
+		384000000>;
+	qcom,nonremovable;
+	qcom,bus-speed-mode = "HS400_1p8v", "HS200_1p8v", "DDR_1p8v";
+
+	status = "ok";
+};
+
+&sdhc_2 {
+	/* device core power supply */
+	vdd-supply = <&pm8953_l11>;
+	qcom,vdd-voltage-level = <2950000 2950000>;
+	qcom,vdd-current-level = <15000 800000>;
+
+	/* device communication power supply */
+	vdd-io-supply = <&pm8953_l12>;
+	qcom,vdd-io-voltage-level = <1800000 2950000>;
+	qcom,vdd-io-current-level = <200 22000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
+	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
+
+	#address-cells = <0>;
+	interrupt-parent = <&sdhc_2>;
+	interrupts = <0 1 2>;
+	#interrupt-cells = <1>;
+	interrupt-map-mask = <0xffffffff>;
+	interrupt-map = <0 &intc 0 125 0
+		1 &intc 0 221 0
+		2 &tlmm 133 0>;
+	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
+	cd-gpios = <&tlmm 133 0x1>;
+
+	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000
+		192000000>;
+	qcom,bus-speed-mode = "SDR12", "SDR25", "SDR50", "DDR50", "SDR104";
+
+	status = "ok";
+};
+
+&pm8953_gpios {
+	/* GPIO 2 (NFC_CLK_REQ) */
+	gpio@c100 {
+		qcom,mode = <0>; /* Input */
+		qcom,pull = <4>; /* PD */
+		qcom,vin-sel = <3>;	/* 1.8V*/
+		qcom,src-sel = <0>; /*src-sel has no matter when mode is input*/
+		qcom,master-en = <1>; /* Enable GPIO */
+		status = "okay";
+	};
+};

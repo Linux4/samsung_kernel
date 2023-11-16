@@ -1,0 +1,184 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	tlmm: pinctrl@1000000 {
+		acc_int: acc_int {
+			mux {
+				pins = "gpio42";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio42";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		sensor_i2c: sensor_i2c {
+			mux {
+				pins = "gpio64", "gpio65";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio64", "gpio65";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		prox_int: prox_int {
+			mux {
+				pins = "gpio43";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio43";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		prox_ldo_en: prox_ldo_en {
+			mux {
+				pins = "gpio127";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio127";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		prox_i2c: prox_i2c {
+			mux {
+				pins = "gpio16", "gpio17";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio16", "gpio17";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_int: grip_int {
+			mux {
+				pins = "gpio86";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio86";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		grip_i2c: grip_i2c {
+			mux {
+				pins = "gpio128", "gpio131";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio128", "gpio131";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+
+	i2c_24: i2c@24 { /* SW I2C */
+		cell-index = <24>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 64 0 /* sda */
+			&tlmm 65 0 /* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		lsm6dsl@6b {
+			compatible = "st,lsm6dsl";
+			reg = <0x6b>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&acc_int &sensor_i2c>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <42 0>;
+			st,orientation = <1 2 1 0 1 1 1 1 2>;
+			st,drdy-int-pin = <1>;
+			st,irq_gpio = <&tlmm 42 0x00>;
+		};
+
+		yas539@2e {
+			compatible = "yas_magnetometer";
+			reg = <0x2e>;
+			yas,orientation = <6>;
+			yas,softiron = <9260 100 133 100 10327 190 133 190 10413>;
+			yas,softiron_sign = <2 0 0 0 2 0 0 0 2>;
+		};
+	};
+
+	i2c_25: i2c@25 { /* SW I2C */
+		cell-index = <25>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 16 0/* sda */
+			&tlmm 17 0/* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cm36657@60 {
+			compatible = "cm36657";
+			reg = <0x60>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int &prox_ldo_en &prox_i2c>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <43 0>;
+			cm36657,irq_gpio = <&tlmm 43 0>;
+			cm36657,led_ldo_pin = <&tlmm 127 0>;
+			cm36657,thresh_high = <120>;
+			cm36657,thresh_low = <100>;
+			cm36657,thresh_detect_high = <4000>;
+			cm36657,thresh_detect_low = <600>;
+			cm36657,ps_conf1_reg = <0x88a8>;
+			cm36657,ps_conf3_reg = <0x0108>;
+		};
+	};
+
+	i2c_26: i2c@26 { /* SW I2C */
+		cell-index = <26>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 131 0/* sda */
+			&tlmm 128 0/* scl */
+		>;
+		#i2c-gpio,delay-us = <2>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		a96t3x6@20 {
+			compatible = "a96t3x6";
+			pinctrl-names = "default";
+			pinctrl-0 = <&grip_int &grip_i2c>;
+			reg = <0x20>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <86 0>;
+			a96t3x6,irq_gpio = <&tlmm 86 0>;
+			a96t3x6,ldo_en = <&tlmm 87 0>;
+			a96t3x6,fw_path = "abov/a96t326_j8plte.fw";
+			a96t3x6,chipid = "A96T326";
+			a96t3x6,firmup_cmd = <0x32>;
+			a96t3x6,earjack_noise = <1>;
+		};
+	};
+};
