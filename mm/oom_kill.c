@@ -961,17 +961,22 @@ bool oom_killer_disable(signed long timeout)
 	ret = wait_event_interruptible_timeout(oom_victims_wait,
 			!atomic_read(&oom_victims), timeout);
 	if (ret <= 0) {
-		struct task_struct *p;
+		struct task_struct *p, *t, *child;
+		int nr_victims = 0;
 
 		read_lock(&tasklist_lock);
-		for_each_process(p)
-			if (test_tsk_thread_flag(p, TIF_MEMDIE))
-				pr_info("%s process with TIF_MEMDIE %d %s\n",
-					__func__, p->pid, p->comm);
+		for_each_process_thread(p, t)
+			list_for_each_entry(child, &t->children, sibling)
+				if (test_tsk_thread_flag(child, TIF_MEMDIE))
+					pr_info("%s process with TIF_MEMDIE %d %s %d\n",
+						__func__, child->pid, child->comm, ++nr_victims);
 		read_unlock(&tasklist_lock);
 		pr_info("%s failed oom_victims %d last_oom_jiffies %ld current %ld\n",
 			__func__, atomic_read(&oom_victims),
 			atomic64_read(&last_oom_jiffies), jiffies);
+
+		if (!nr_victims)
+			atomic_set(&oom_victims, 0);
 
 		oom_killer_enable();
 		return false;
