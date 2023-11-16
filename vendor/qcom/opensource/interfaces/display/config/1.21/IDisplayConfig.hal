@@ -1,0 +1,118 @@
+/*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+package vendor.display.config@1.21;
+
+import @1.20::IDisplayConfig;
+import @1.0::IDisplayConfig;
+
+interface IDisplayConfig extends @1.20::IDisplayConfig {
+
+    enum transform_t : int32_t {
+      /* flip source image horizontally */
+      TRANSFORM_FLIP_H = 1,
+      /* flip source image vertically */
+      TRANSFORM_FLIP_V = 2,
+      /* rotate source image 90 degrees clock-wise */
+      TRANSFORM_ROT_90 = 4,
+      /* rotate source image 180 degrees */
+      TRANSFORM_ROT_180 = 3,
+      /* rotate source image 270 degrees clock-wise */
+      TRANSFORM_ROT_270 = 7,
+      /* flip source image horizontally, the rotate 90 degrees clock-wise */
+      TRANSFORM_FLIP_H_ROT_90 = 5,
+      /* flip source image vertically, the rotate 90 degrees clock-wise */
+      TRANSFORM_FLIP_V_ROT_90 = 6,
+    };
+
+    struct rect_t {
+      int32_t left;
+      int32_t top;
+      int32_t right;
+      int32_t bottom;
+    };
+
+    enum blend_mode : int32_t{
+      BLEND_MODE_INVALID = 0,
+
+      /* colorOut = colorSrc */
+      BLEND_MODE_NONE = 1,
+
+      /* colorOut = colorSrc + colorDst * (1 - alphaSrc) */
+      BLEND_MODE_PREMULTIPLIED = 2,
+
+      /* colorOut = colorSrc * alphaSrc + colorDst * (1 - alphaSrc) */
+      BLEND_MODE_COVERAGE = 3,
+    };
+
+    struct LayerInfo {
+      uint32_t z_order;
+      int32_t dataspace;
+      transform_t layer_transform;
+      rect_t  dst_rect;
+      rect_t  src_rect;
+      int32_t buffer_fd;
+      uint32_t width;
+      uint32_t height;
+      uint32_t unaligned_width;
+      uint32_t unaligned_height;
+      int32_t format;
+      uint8_t plane_alpha;
+      blend_mode blending;
+    };
+
+    /*
+     * call function to start tunnelling
+     *
+     * @return error as NONE if vendor.display.enable_tunnelling is set to true
+     * @return relevant error code otherwise
+     */
+    @callflow(next="*")
+    tunnellingInit() generates (int32_t error);
+
+    /*
+     * take LayerInfo as input and creates layer
+     *
+     * @return error as NONE if layer creation is successful
+     * @return relevant error code otherwise
+     */
+    @callflow(next="*")
+    createTunnelledLayer(LayerInfo layer) generates (int32_t error);
+
+    /*
+     * dequeue the buffer
+     * @return the release_fence_handle corresponding to the input buffer handle
+     * @return relevant error code if ion_fd is not present
+     */
+    @callflow(next="*")
+    dequeueTunnelledBuffer(handle buffer_handle)
+                           generates (int32_t error, handle release_fence_handle);
+
+    /*
+     * validate display and show the content of the buffer on screen
+     *
+     * @return error as NONE on success
+     * @return relevant error code otherwise
+     */
+    @callflow(next="*")
+    queueTunnelledBuffer(handle buffer_handle, handle acquire_fence_handle)
+                         generates (int32_t error);
+
+    /*
+     * destroy the layer
+     *
+     * @return error as NONE if vendor.display.enable_tunnelling is set to true
+     * @return relevant error code otherwise
+     */
+    @callflow(next="*")
+    destroyTunnelledLayer() generates (int32_t error);
+
+    /*
+     * deinit tunnelling
+     *
+     * @return error as NONE always
+     */
+    @callflow(next="*")
+    tunnellingDeinit() generates (int32_t error);
+};

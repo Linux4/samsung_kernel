@@ -1,0 +1,11 @@
+&max17333_main {
+	max17333-charger {
+		limiter,main_bat_det_gpio = <SEC_GPIO_REF(PM,pm8550vs_d_gpios,5) 0>;
+	};
+};
+
+&max17333_sub {
+	max17333-charger-sub {
+		limiter,sub_bat_det_gpio = <SEC_GPIO_REF(PM,pm8550vs_d_gpios,6) 0>;
+	};
+};

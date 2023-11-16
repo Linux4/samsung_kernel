@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="pbap_session_key_dialog_title" msgid="3580996574333882561">"Escreva a chave de sessão para %1$s"</string>
+    <string name="pbap_session_key_dialog_header" msgid="2772472422782758981">"Necessária chave de sessão Bluetooth"</string>
+    <string name="pbap_acceptance_timeout_message" msgid="1107401415099814293">"Foi excedido o tempo para aceitar a ligação com %1$s"</string>
+    <string name="pbap_authentication_timeout_message" msgid="4166979525521902687">"Foi excedido o tempo para introduzir a chave de sessão com %1$s"</string>
+    <string name="auth_notif_ticker" msgid="1575825798053163744">"Pedido de autenticação OBEX"</string>
+    <string name="auth_notif_title" msgid="7599854855681573258">"Chave de sessão"</string>
+    <string name="auth_notif_message" msgid="6667218116427605038">"Escreva a chave de sessão para %1$s"</string>
+    <string name="defaultname" msgid="4821590500649090078">"Kit para carro"</string>
+    <string name="unknownName" msgid="2841414754740600042">"Nome desconhecido"</string>
+    <string name="localPhoneName" msgid="2349001318925409159">"O meu nome"</string>
+    <string name="defaultnumber" msgid="8520116145890867338">"000000"</string>
+    <string name="pbap_notification_group" msgid="8487669554703627168">"Partilha de contactos por Bluetooth"</string>
+    <string name="remote_pbap_version_change">Alteração remota da versão do perfil da lista telefônica</string>
+    <string name="phonebook_advance_feature_support">Recurso Avançado da Lista Telefônica Suportado</string>
+    <string name="remote_phonebook_feature_downgrade">Downgrade do Recurso da Lista Telefônica Remota</string>
+    <string name="repair_for_adv_phonebook_feature">Re-par para Recurso Avançado Agenda</string>
+    <string name="repair_for_phonebook_access_version_comp">Re-par para compatibilidade de versão de acesso à lista telefônica</string>
+</resources>
