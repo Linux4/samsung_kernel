@@ -191,8 +191,7 @@ void panic(const char *fmt, ...)
 	if (vendor_panic_cb)
 		vendor_panic_cb(0);
 	pr_emerg("Kernel panic - not syncing: %s\n", buf);
-	/* bug 407890, wanghui2.wt, 2019/11/08, add show panic log when into dump */
-	wt_btreason_log_save("Kernel panic - not syncing: %s\n", buf);
+        wt_btreason_log_save("Kernel panic - not syncing: %s\n", buf);
 #ifdef CONFIG_DEBUG_BUGVERBOSE
 	/*
 	 * Avoid nested stack-dumping if a panic occurs during oops processing

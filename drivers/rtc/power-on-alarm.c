@@ -26,8 +26,14 @@
 #include <linux/alarmtimer.h>
 #include <linux/ioctl.h>
 
+struct alarm_timespec {
+	char alarm[14];
+};
+
 #define ANDROID_ALARM_BASE_CMD(cmd)         (cmd & ~(_IOC(0, 0, 0xf0, 0)))
 #define ANDROID_ALARM_SET_ALARM_BOOT	    _IOW('a', 7, struct timespec)
+
+#define ANDROID_ALARM_SET_ALARM_BOOT_NEW    _IOW('a', 7, struct alarm_timespec)
 
 static long power_on_alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -38,6 +44,7 @@ static long power_on_alarm_ioctl(struct file *file, unsigned int cmd, unsigned l
 
 	switch (ANDROID_ALARM_BASE_CMD(cmd)) {
 	case ANDROID_ALARM_SET_ALARM_BOOT:
+	case ANDROID_ALARM_SET_ALARM_BOOT_NEW:
 		if (copy_from_user(bootalarm_data, (void __user *)arg, 14)) {
 			rv = -EFAULT;
 			return rv;

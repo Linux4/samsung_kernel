@@ -37,7 +37,11 @@
 /******************************************************************************
 * Private constant and macro definitions using #define
 *****************************************************************************/
-#define KEY_GESTURE_U                           KEY_HOMEPAGE    //KEY_U //guoyan1 for DOUBLECLICK input key follow ss 20210119
+/*#define KEY_GESTURE_U                           KEY_HOMEPAGE    //KEY_U //guoyan1 for DOUBLECLICK input key follow ss 20210119*/
+//+bug614711, xiechongchong01.wt, add, 2021/06/01, TP focal KEY_HOMEPAGE to KEY_WAKEUP
+#define KEY_GESTURE_U                           KEY_WAKEUP
+//-bug614711, xiechongchong01.wt, add, 2021/06/01, TP focal KEY_HOMEPAGE to KEY_WAKEUP
+
 #define KEY_GESTURE_UP                          KEY_UP
 #define KEY_GESTURE_DOWN                        KEY_DOWN
 #define KEY_GESTURE_LEFT                        KEY_LEFT

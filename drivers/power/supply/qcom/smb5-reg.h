@@ -106,10 +106,10 @@ enum {
 #define JEITA_EN_COLD_SL_FCV_BIT		BIT(2)
 #define JEITA_EN_HOT_SL_CCC_BIT			BIT(1)
 #define JEITA_EN_COLD_SL_CCC_BIT		BIT(0)
-/* +Bug594012,gudi.wt,20201023,Bringup:mofify jieta AFP */
+/* +Bug594012,taohuayi.wt,20220103,Bringup:mofify jieta AFP */
 #define JEITA_EN_AFP_HOT			BIT(7)
 #define JEITA_EN_AFP_COLF			BIT(6)
-/* -Bug594012,gudi.wt,20201023,Bringup:mofify jieta AFP */
+/* -Bug594012,taohuayi.wt,20220103,Bringup:mofify jieta AFP */
 
 #define JEITA_CCCOMP_CFG_HOT_REG		(CHGR_BASE + 0x92)
 #define JEITA_CCCOMP_CFG_COLD_REG		(CHGR_BASE + 0x93)
@@ -135,12 +135,12 @@ enum {
 
 #define AICL_STATUS_REG				(DCDC_BASE + 0x0A)
 #define SOFT_ILIMIT_BIT				BIT(6)
-/* +Bug594012,gudi.wt,20201023,Bringup:Add for AFC, Begin +++  */
+/* +Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, Begin +++  */
 #if defined(CONFIG_AFC)
 #define USBIN_CH_COLLAPSE			BIT(4)
-#define ICL_IMIN					BIT(2)
+#define ICL_IMIN				BIT(2)
 #endif
-/* -Bug594012,gudi.wt,20201023,Bringup:Add for AFC, End --- */
+/* -Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, End ---  */
 #define AICL_DONE_BIT				BIT(0)
 
 #define POWER_PATH_STATUS_REG			(DCDC_BASE + 0x0B)
@@ -536,7 +536,7 @@ enum {
 
 #define AICL_RERUN_TIME_CFG_REG			(MISC_BASE + 0x61)
 #define AICL_RERUN_TIME_12S_VAL			0x01
-//Bug594012,gudi.wt,20201023,Bringup:poweroff charger current drop.
+//Bug594012,taohauyi.wt,20220103,Bringup:poweroff charger current drop.
 #define MISC_AICL_TIME_MASK                      GENMASK(1, 0)
 
 

@@ -142,6 +142,7 @@ menu "DOS/FAT/NT Filesystems"
 source "fs/fat/Kconfig"
 source "fs/sdfat/Kconfig"
 source "fs/ntfs/Kconfig"
+source "fs/exfat/Kconfig"   #chk106583, linaiyu@wt, 20211201, sdcard support exfat file system, add
 
 endmenu
 endif # BLOCK

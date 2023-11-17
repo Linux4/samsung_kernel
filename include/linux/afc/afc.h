@@ -4,10 +4,8 @@
 #include <linux/kernel.h>
 
 #define AFC_COMM_CNT 3
-//bug537103,gudi.wt,20200612,AFC modify udelay for some fail charge
 #define AFC_RETRY_MAX 20
 #define VBUS_RETRY_MAX 5
-//bug537103,gudi.wt,20200608,AFC modify for udelay
 #define UI 160
 #define WAIT_SPING_COUNT 5
 #define RECV_SPING_RETRY 5

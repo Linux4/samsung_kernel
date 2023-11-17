@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/kthread.h>
@@ -11,6 +11,7 @@
 #include "kgsl_sharedmem.h"
 
 static struct notifier_block kgsl_reclaim_nb;
+static bool kgsl_reclaim;
 
 /*
  * Reclaiming excessive number of pages from a process will impact launch
@@ -67,6 +68,9 @@ int kgsl_reclaim_to_pinned_state(
 {
 	struct kgsl_mem_entry *entry;
 	int next = 0, valid_entry, ret = 0;
+
+	if (!kgsl_reclaim)
+		return 0;
 
 	mutex_lock(&process->reclaim_lock);
 
@@ -164,13 +168,17 @@ static const struct attribute *proc_reclaim_attrs[] = {
 
 void kgsl_reclaim_proc_sysfs_init(struct kgsl_process_private *process)
 {
-	WARN_ON(sysfs_create_files(&process->kobj, proc_reclaim_attrs));
+	if (kgsl_reclaim)
+		WARN_ON(sysfs_create_files(&process->kobj, proc_reclaim_attrs));
 }
 
 ssize_t kgsl_proc_max_reclaim_limit_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	int ret;
+
+	if (!kgsl_reclaim)
+		return -EINVAL;
 
 	ret = kstrtou32(buf, 0, &kgsl_reclaim_max_page_limit);
 	return ret ? ret : count;
@@ -179,18 +187,30 @@ ssize_t kgsl_proc_max_reclaim_limit_store(struct device *dev,
 ssize_t kgsl_proc_max_reclaim_limit_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	if (!kgsl_reclaim)
+		return 0;
+
 	return scnprintf(buf, PAGE_SIZE, "%d\n", kgsl_reclaim_max_page_limit);
 }
 
 static int kgsl_reclaim_callback(struct notifier_block *nb,
 		unsigned long pid, void *data)
 {
-	struct kgsl_process_private *process;
+	struct kgsl_process_private *p, *process = NULL;
 	struct kgsl_mem_entry *entry;
 	struct kgsl_memdesc *memdesc;
 	int valid_entry, next = 0, ret;
 
-	process = kgsl_process_private_find(pid);
+	spin_lock(&kgsl_driver.proclist_lock);
+	list_for_each_entry(p, &kgsl_driver.process_list, list) {
+		if ((unsigned long)p->pid == pid) {
+			if (kgsl_process_private_get(p))
+				process = p;
+			break;
+		}
+	}
+	spin_unlock(&kgsl_driver.proclist_lock);
+
 	if (!process)
 		return NOTIFY_OK;
 
@@ -258,8 +278,7 @@ static int kgsl_reclaim_callback(struct notifier_block *nb,
 			memdesc->priv |= KGSL_MEMDESC_RECLAIMED;
 
 			ret = reclaim_address_space
-				(memdesc->shmem_filp->f_mapping,
-				data, memdesc->vma);
+				(memdesc->shmem_filp->f_mapping, data);
 
 			memdesc->reclaimed_page_count += memdesc->page_count;
 			atomic_add(memdesc->page_count,
@@ -283,14 +302,22 @@ done:
 
 void kgsl_reclaim_proc_private_init(struct kgsl_process_private *process)
 {
+	if (!kgsl_reclaim)
+		return;
+
 	mutex_init(&process->reclaim_lock);
 	INIT_WORK(&process->fg_work, kgsl_reclaim_foreground_work);
 	set_bit(KGSL_PROC_PINNED_STATE, &process->state);
 	set_bit(KGSL_PROC_STATE, &process->state);
 }
 
-int kgsl_reclaim_init(void)
+int kgsl_reclaim_init(struct kgsl_device *device)
 {
+	if (!(device->flags & KGSL_FLAG_PROCESS_RECLAIM))
+		return 0;
+
+	kgsl_reclaim = true;
+
 	kgsl_reclaim_nb.notifier_call = kgsl_reclaim_callback;
 	return proc_reclaim_notifier_register(&kgsl_reclaim_nb);
 }

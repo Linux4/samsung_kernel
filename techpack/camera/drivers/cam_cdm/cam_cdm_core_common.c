@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2022, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -49,6 +49,7 @@ bool cam_cdm_set_cam_hw_version(
 	case CAM_CDM110_VERSION:
 	case CAM_CDM120_VERSION:
 	case CAM_CDM200_VERSION:
+	case CAM_CDM210_VERSION:
 		cam_version->major    = (ver & 0xF0000000);
 		cam_version->minor    = (ver & 0xFFF0000);
 		cam_version->incr     = (ver & 0xFFFF);
@@ -81,6 +82,7 @@ struct cam_cdm_utils_ops *cam_cdm_get_ops(
 		case CAM_CDM110_VERSION:
 		case CAM_CDM120_VERSION:
 		case CAM_CDM200_VERSION:
+		case CAM_CDM210_VERSION:
 			return &CDM170_ops;
 		default:
 			CAM_ERR(CAM_CDM, "CDM Version=%x not supported in util",
@@ -215,7 +217,7 @@ void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 		if ((!client) || (client->handle != node->client_hdl)) {
 			CAM_ERR(CAM_CDM, "Invalid client %pK hdl=%x", client,
 				node->client_hdl);
-				return;
+			return;
 		}
 		cam_cdm_get_client_refcount(client);
 		mutex_lock(&client->lock);
@@ -318,35 +320,34 @@ int cam_cdm_stream_ops_internal(void *hw_priv,
 		return -EINVAL;
 
 	core = (struct cam_cdm *)cdm_hw->core_info;
+	mutex_lock(&cdm_hw->hw_mutex);
 	client_idx = CAM_CDM_GET_CLIENT_IDX(*handle);
 	client = core->clients[client_idx];
 	if (!client) {
 		CAM_ERR(CAM_CDM, "Invalid client %pK hdl=%x", client, *handle);
+		mutex_unlock(&cdm_hw->hw_mutex);
 		return -EINVAL;
 	}
 	cam_cdm_get_client_refcount(client);
 	if (*handle != client->handle) {
 		CAM_ERR(CAM_CDM, "client id given handle=%x invalid", *handle);
-		cam_cdm_put_client_refcount(client);
-		return -EINVAL;
+		rc = -EINVAL;
+		goto end;
 	}
 	if (operation == true) {
 		if (true == client->stream_on) {
 			CAM_ERR(CAM_CDM,
 				"Invalid CDM client is already streamed ON");
-			cam_cdm_put_client_refcount(client);
-			return rc;
+			goto end;
 		}
 	} else {
 		if (client->stream_on == false) {
 			CAM_ERR(CAM_CDM,
 				"Invalid CDM client is already streamed Off");
-			cam_cdm_put_client_refcount(client);
-			return rc;
+			goto end;
 		}
 	}
 
-	mutex_lock(&cdm_hw->hw_mutex);
 	if (operation == true) {
 		if (!cdm_hw->open_count) {
 			struct cam_ahb_vote ahb_vote;
@@ -815,6 +816,22 @@ int cam_cdm_process_cmd(void *hw_priv,
 		}
 
 		rc = cam_hw_cdm_hang_detect(cdm_hw, *handle);
+		break;
+	}
+	case CAM_CDM_HW_INTF_DUMP_DBG_REGS:
+	{
+		uint32_t *handle = cmd_args;
+
+		if (sizeof(uint32_t) != arg_size) {
+			CAM_ERR(CAM_CDM,
+				"Invalid CDM cmd %d size=%x for handle=0x%x",
+				cmd, arg_size, *handle);
+				return -EINVAL;
+		}
+
+		mutex_lock(&cdm_hw->hw_mutex);
+		cam_hw_cdm_dump_core_debug_registers(cdm_hw, true);
+		mutex_unlock(&cdm_hw->hw_mutex);
 		break;
 	}
 	default:

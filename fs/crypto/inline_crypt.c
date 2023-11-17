@@ -182,6 +182,9 @@ int fscrypt_prepare_inline_crypt_key(struct fscrypt_prepared_key *prep_key,
 	struct fscrypt_blk_crypto_key *blk_key;
 	int err;
 	int i;
+#ifdef CONFIG_FSCRYPT_SDP
+	bool is_sdp = false;
+#endif
 
 	num_devs = fscrypt_get_num_devices(sb);
 	if (WARN_ON(num_devs < 1))
@@ -190,7 +193,10 @@ int fscrypt_prepare_inline_crypt_key(struct fscrypt_prepared_key *prep_key,
 	blk_key = kzalloc(struct_size(blk_key, devs, num_devs), GFP_NOFS);
 	if (!blk_key)
 		return -ENOMEM;
-
+#ifdef CONFIG_FSCRYPT_SDP
+	if (fscrypt_sdp_is_classified(ci))
+		is_sdp = true;
+#endif
 	blk_key->num_devs = num_devs;
 	fscrypt_get_devices(sb, num_devs, blk_key->devs);
 
@@ -200,7 +206,11 @@ int fscrypt_prepare_inline_crypt_key(struct fscrypt_prepared_key *prep_key,
 		     BLK_CRYPTO_MAX_WRAPPED_KEY_SIZE);
 
 	err = blk_crypto_init_key(&blk_key->base, raw_key, raw_key_size,
+#ifdef CONFIG_FSCRYPT_SDP
+				  is_hw_wrapped, is_sdp, crypto_mode, dun_bytes,
+#else
 				  is_hw_wrapped, crypto_mode, dun_bytes,
+#endif
 				  sb->s_blocksize);
 	if (err) {
 		fscrypt_err(inode, "error %d initializing blk-crypto key", err);
@@ -225,6 +235,9 @@ int fscrypt_prepare_inline_crypt_key(struct fscrypt_prepared_key *prep_key,
 		err = blk_crypto_start_using_mode(crypto_mode, dun_bytes,
 						  sb->s_blocksize,
 						  is_hw_wrapped,
+#ifdef CONFIG_FSCRYPT_SDP
+						  is_sdp,
+#endif
 						  blk_key->devs[i]);
 		if (err) {
 			fscrypt_err(inode,
@@ -313,13 +326,28 @@ static void fscrypt_generate_dun(const struct fscrypt_info *ci, u64 lblk_num,
 {
 	union fscrypt_iv iv;
 	int i;
+#ifdef CONFIG_FSCRYPT_SDP
+	unsigned int flags = fscrypt_policy_flags(&ci->ci_policy);
+	bool old_dun;
+#endif
 
 	fscrypt_generate_iv(&iv, lblk_num, ci);
 
 	BUILD_BUG_ON(FSCRYPT_MAX_IV_SIZE > BLK_CRYPTO_MAX_IV_SIZE);
 	memset(dun, 0, BLK_CRYPTO_MAX_IV_SIZE);
+#ifdef CONFIG_FSCRYPT_SDP
+	old_dun = fscrypt_sdp_is_classified(ci) && !(flags & FSCRYPT_POLICY_FLAG_IV_INO_LBLK_32);
+	for (i = 0; i < ci->ci_mode->ivsize/sizeof(dun[0]); i++) {
+		if (old_dun) {
+			dun[i] = le64_to_cpu(iv.dun[i]) & 0xffffffff;
+		} else {
+			dun[i] = le64_to_cpu(iv.dun[i]);
+		}
+	}
+#else
 	for (i = 0; i < ci->ci_mode->ivsize/sizeof(dun[0]); i++)
 		dun[i] = le64_to_cpu(iv.dun[i]);
+#endif
 }
 
 /**

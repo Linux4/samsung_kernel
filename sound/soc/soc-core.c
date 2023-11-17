@@ -51,13 +51,13 @@ EXPORT_SYMBOL_GPL(snd_soc_debugfs_root);
 #endif
 
 static DEFINE_MUTEX(client_mutex);
-//+bug 595600, wangchengqiang@wingtech.com, 20201019 add mmitest and smartpa info
+//+Bug702114, qiuyonghui.wt, 20211129 add mmitest and smartpa info
 static DEFINE_MUTEX(smartpa_mutex);
 int smartpa_type=INVALD;
 EXPORT_SYMBOL(smartpa_type);
 module_param(smartpa_type, int, 0664);
 MODULE_PARM_DESC(smartpa_type, "show smartpa type");
-//-bug 595600, wangchengqiang@wingtech.com, 20201019 add mmitest and smartpa info
+//-Bug702114, qiuyonghui.wt, 20211129 add mmitest and smartpa info
 static LIST_HEAD(component_list);
 
 /*
@@ -2799,6 +2799,7 @@ int snd_soc_register_card(struct snd_soc_card *card)
 	mutex_init(&card->mutex);
 	mutex_init(&card->dapm_mutex);
 	mutex_init(&card->dapm_power_mutex);
+	spin_lock_init(&card->dpcm_lock);
 
 	ret = snd_soc_instantiate_card(card);
 	if (ret != 0)
@@ -3006,7 +3007,7 @@ err:
 
 	return ret;
 }
-//+bug 595600, wangchengqiang@wingtech.com, 20201019 add mmitest and smartpa info
+//+Bug702114, qiuyonghui.wt, 20211129 add mmitest and smartpa info
 struct device *audio_device = NULL;
 int snd_soc_set_smartpa_type(const char * name, int pa_type)
 {
@@ -3034,7 +3035,7 @@ int snd_soc_set_smartpa_type(const char * name, int pa_type)
 	return smartpa_type;
 }
 EXPORT_SYMBOL_GPL(snd_soc_set_smartpa_type);
-//-bug 595600, wangchengqiang@wingtech.com, 20201019 add mmitest and smartpa info
+//-Bug702114, qiuyonghui.wt, 20211129 add mmitest and smartpa info
 /**
  * snd_soc_register_dai - Register a DAI dynamically & create its widgets
  *

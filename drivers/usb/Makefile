@@ -64,6 +64,7 @@ obj-$(CONFIG_USB_COMMON)	+= common/
 
 obj-$(CONFIG_USBIP_CORE)	+= usbip/
 
+#bug707489, linaiyu@wt, 20211217, add usb disable node
 #bug596217, guodandan@wt, 20201026, add usb disable node
 obj-$(CONFIG_USB_NOTIFIER)	+= notify/
 #bug545925, zhaobeilong@wt, 20200410, add usb disable node

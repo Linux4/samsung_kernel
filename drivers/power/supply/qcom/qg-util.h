@@ -6,9 +6,7 @@
 #ifndef __QG_UTIL_H__
 #define __QG_UTIL_H__
 
-/*+Bug594012,gudi.wt,20201023,Bringup:[CW2017] Use soc of CW2017.*/
 #define USING_CW2017_BATT
-/*-Bug594012,gudi.wt,20201023,Bringup:[CW2017] Use soc of CW2017.*/
 
 int qg_read(struct qpnp_qg *chip, u32 addr, u8 *val, int len);
 int qg_write(struct qpnp_qg *chip, u32 addr, u8 *val, int len);

@@ -1,64 +1,1329 @@
-// SPDX-License-Identifier: GPL-2.0
-/*
- * SDM845 MTP board device tree source
- *
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
- */
-
 /dts-v1/;
 
-#include "sdm845.dtsi"
-
 / {
+	interrupt-parent = <0x1>;
+	#address-cells = <0x2>;
+	#size-cells = <0x2>;
 	model = "Qualcomm Technologies, Inc. SDM845 MTP";
 	compatible = "qcom,sdm845-mtp";
 
 	aliases {
-		serial0 = &uart9;
+		i2c0 = "/soc/geniqup@8c0000/i2c@880000";
+		i2c1 = "/soc/geniqup@8c0000/i2c@884000";
+		i2c2 = "/soc/geniqup@8c0000/i2c@888000";
+		i2c3 = "/soc/geniqup@8c0000/i2c@88c000";
+		i2c4 = "/soc/geniqup@8c0000/i2c@890000";
+		i2c5 = "/soc/geniqup@8c0000/i2c@894000";
+		i2c6 = "/soc/geniqup@8c0000/i2c@898000";
+		i2c7 = "/soc/geniqup@8c0000/i2c@89c000";
+		i2c8 = "/soc/geniqup@ac0000/i2c@a80000";
+		i2c9 = "/soc/geniqup@ac0000/i2c@a84000";
+		i2c10 = "/soc/geniqup@ac0000/i2c@a88000";
+		i2c11 = "/soc/geniqup@ac0000/i2c@a8c000";
+		i2c12 = "/soc/geniqup@ac0000/i2c@a90000";
+		i2c13 = "/soc/geniqup@ac0000/i2c@a94000";
+		i2c14 = "/soc/geniqup@ac0000/i2c@a98000";
+		i2c15 = "/soc/geniqup@ac0000/i2c@a9c000";
+		spi0 = "/soc/geniqup@8c0000/spi@880000";
+		spi1 = "/soc/geniqup@8c0000/spi@884000";
+		spi2 = "/soc/geniqup@8c0000/spi@888000";
+		spi3 = "/soc/geniqup@8c0000/spi@88c000";
+		spi4 = "/soc/geniqup@8c0000/spi@890000";
+		spi5 = "/soc/geniqup@8c0000/spi@894000";
+		spi6 = "/soc/geniqup@8c0000/spi@898000";
+		spi7 = "/soc/geniqup@8c0000/spi@89c000";
+		spi8 = "/soc/geniqup@ac0000/spi@a80000";
+		spi9 = "/soc/geniqup@ac0000/spi@a84000";
+		spi10 = "/soc/geniqup@ac0000/spi@a88000";
+		spi11 = "/soc/geniqup@ac0000/spi@a8c000";
+		spi12 = "/soc/geniqup@ac0000/spi@a90000";
+		spi13 = "/soc/geniqup@ac0000/spi@a94000";
+		spi14 = "/soc/geniqup@ac0000/spi@a98000";
+		spi15 = "/soc/geniqup@ac0000/spi@a9c000";
+		serial0 = "/soc/geniqup@ac0000/serial@a84000";
 	};
 
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
-};
 
-&i2c10 {
-	status = "okay";
-	clock-frequency = <400000>;
-};
-
-&qupv3_id_1 {
-	status = "okay";
-};
-
-&tlmm {
-	gpio-reserved-ranges = <0 4>, <81 4>;
-};
-
-&uart9 {
-	status = "okay";
-};
-
-/* PINCTRL - additions to nodes defined in sdm845.dtsi */
-
-&qup_i2c10_default {
-	pinconf {
-		pins = "gpio55", "gpio56";
-		drive-strength = <2>;
-		bias-disable;
-	};
-};
-
-&qup_uart9_default {
-	pinconf-tx {
-		pins = "gpio4";
-		drive-strength = <2>;
-		bias-disable;
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x0>;
 	};
 
-	pinconf-rx {
-		pins = "gpio5";
-		drive-strength = <2>;
-		bias-pull-up;
+	reserved-memory {
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		ranges;
+
+		memory@85fc0000 {
+			reg = <0x0 0x85fc0000 0x0 0x20000>;
+			no-map;
+		};
+
+		memory@85fe0000 {
+			compatible = "qcom,cmd-db";
+			reg = <0x0 0x85fe0000 0x0 0x20000>;
+			no-map;
+		};
+
+		memory@86000000 {
+			reg = <0x0 0x86000000 0x0 0x200000>;
+			no-map;
+			phandle = <0xc>;
+		};
+
+		memory@86200000 {
+			reg = <0x0 0x86200000 0x0 0x2d00000>;
+			no-map;
+		};
+	};
+
+	cpus {
+		#address-cells = <0x2>;
+		#size-cells = <0x0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "qcom,kryo385";
+			reg = <0x0 0x0>;
+			enable-method = "psci";
+			next-level-cache = <0x2>;
+			phandle = <0x30>;
+
+			l2-cache {
+				compatible = "cache";
+				next-level-cache = <0x3>;
+				phandle = <0x2>;
+
+				l3-cache {
+					compatible = "cache";
+					phandle = <0x3>;
+				};
+			};
+		};
+
+		cpu@100 {
+			device_type = "cpu";
+			compatible = "qcom,kryo385";
+			reg = <0x0 0x100>;
+			enable-method = "psci";
+			next-level-cache = <0x4>;
+			phandle = <0x31>;
+
+			l2-cache {
+				compatible = "cache";
+				next-level-cache = <0x3>;
+				phandle = <0x4>;
+			};
+		};
+
+		cpu@200 {
+			device_type = "cpu";
+			compatible = "qcom,kryo385";
+			reg = <0x0 0x200>;
+			enable-method = "psci";
+			next-level-cache = <0x5>;
+			phandle = <0x32>;
+
+			l2-cache {
+				compatible = "cache";
+				next-level-cache = <0x3>;
+				phandle = <0x5>;
+			};
+		};
+
+		cpu@300 {
+			device_type = "cpu";
+			compatible = "qcom,kryo385";
+			reg = <0x0 0x300>;
+			enable-method = "psci";
+			next-level-cache = <0x6>;
+			phandle = <0x33>;
+
+			l2-cache {
+				compatible = "cache";
+				next-level-cache = <0x3>;
+				phandle = <0x6>;
+			};
+		};
+
+		cpu@400 {
+			device_type = "cpu";
+			compatible = "qcom,kryo385";
+			reg = <0x0 0x400>;
+			enable-method = "psci";
+			next-level-cache = <0x7>;
+			phandle = <0x34>;
+
+			l2-cache {
+				compatible = "cache";
+				next-level-cache = <0x3>;
+				phandle = <0x7>;
+			};
+		};
+
+		cpu@500 {
+			device_type = "cpu";
+			compatible = "qcom,kryo385";
+			reg = <0x0 0x500>;
+			enable-method = "psci";
+			next-level-cache = <0x8>;
+			phandle = <0x35>;
+
+			l2-cache {
+				compatible = "cache";
+				next-level-cache = <0x3>;
+				phandle = <0x8>;
+			};
+		};
+
+		cpu@600 {
+			device_type = "cpu";
+			compatible = "qcom,kryo385";
+			reg = <0x0 0x600>;
+			enable-method = "psci";
+			next-level-cache = <0x9>;
+			phandle = <0x36>;
+
+			l2-cache {
+				compatible = "cache";
+				next-level-cache = <0x3>;
+				phandle = <0x9>;
+			};
+		};
+
+		cpu@700 {
+			device_type = "cpu";
+			compatible = "qcom,kryo385";
+			reg = <0x0 0x700>;
+			enable-method = "psci";
+			next-level-cache = <0xa>;
+			phandle = <0x37>;
+
+			l2-cache {
+				compatible = "cache";
+				next-level-cache = <0x3>;
+				phandle = <0xa>;
+			};
+		};
+	};
+
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <0x1 0x5 0x4>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <0x1 0x1 0x8 0x1 0x2 0x8 0x1 0x3 0x8 0x1 0x0 0x8>;
+	};
+
+	clocks {
+
+		xo-board {
+			compatible = "fixed-clock";
+			#clock-cells = <0x0>;
+			clock-frequency = <0x249f000>;
+			clock-output-names = "xo_board";
+			phandle = <0x38>;
+		};
+
+		sleep-clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0x0>;
+			clock-frequency = <0x7ffc>;
+			phandle = <0x39>;
+		};
+	};
+
+	hwlock {
+		compatible = "qcom,tcsr-mutex";
+		syscon = <0xb 0x0 0x1000>;
+		#hwlock-cells = <0x1>;
+		phandle = <0xd>;
+	};
+
+	smem {
+		compatible = "qcom,smem";
+		memory-region = <0xc>;
+		hwlocks = <0xd 0x3>;
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
+	soc {
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		ranges = <0x0 0x0 0x0 0xffffffff>;
+		compatible = "simple-bus";
+		phandle = <0x3a>;
+
+		clock-controller@100000 {
+			compatible = "qcom,gcc-sdm845";
+			reg = <0x100000 0x1f0000>;
+			#clock-cells = <0x1>;
+			#reset-cells = <0x1>;
+			#power-domain-cells = <0x1>;
+			phandle = <0xe>;
+		};
+
+		geniqup@8c0000 {
+			compatible = "qcom,geni-se-qup";
+			reg = <0x8c0000 0x6000>;
+			clock-names = "m-ahb", "s-ahb";
+			clocks = <0xe 0x64 0xe 0x65>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			ranges;
+			status = "disabled";
+			phandle = <0x3b>;
+
+			i2c@880000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0x880000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x44>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0xf>;
+				interrupts = <0x0 0x259 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x3c>;
+			};
+
+			spi@880000 {
+				compatible = "qcom,geni-spi";
+				reg = <0x880000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x44>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x10>;
+				interrupts = <0x0 0x259 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x3d>;
+			};
+
+			i2c@884000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0x884000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x46>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x11>;
+				interrupts = <0x0 0x25a 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x3e>;
+			};
+
+			spi@884000 {
+				compatible = "qcom,geni-spi";
+				reg = <0x884000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x46>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x12>;
+				interrupts = <0x0 0x25a 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x3f>;
+			};
+
+			i2c@888000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0x888000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x48>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x13>;
+				interrupts = <0x0 0x25b 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x40>;
+			};
+
+			spi@888000 {
+				compatible = "qcom,geni-spi";
+				reg = <0x888000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x48>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x14>;
+				interrupts = <0x0 0x25b 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x41>;
+			};
+
+			i2c@88c000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0x88c000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x4a>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x15>;
+				interrupts = <0x0 0x25c 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x42>;
+			};
+
+			spi@88c000 {
+				compatible = "qcom,geni-spi";
+				reg = <0x88c000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x4a>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x16>;
+				interrupts = <0x0 0x25c 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x43>;
+			};
+
+			i2c@890000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0x890000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x4c>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x17>;
+				interrupts = <0x0 0x25d 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x44>;
+			};
+
+			spi@890000 {
+				compatible = "qcom,geni-spi";
+				reg = <0x890000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x4c>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x18>;
+				interrupts = <0x0 0x25d 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x45>;
+			};
+
+			i2c@894000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0x894000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x4e>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x19>;
+				interrupts = <0x0 0x25e 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x46>;
+			};
+
+			spi@894000 {
+				compatible = "qcom,geni-spi";
+				reg = <0x894000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x4e>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x1a>;
+				interrupts = <0x0 0x25e 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x47>;
+			};
+
+			i2c@898000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0x898000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x50>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x1b>;
+				interrupts = <0x0 0x25f 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x48>;
+			};
+
+			spi@898000 {
+				compatible = "qcom,geni-spi";
+				reg = <0x898000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x50>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x1c>;
+				interrupts = <0x0 0x25f 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x49>;
+			};
+
+			i2c@89c000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0x89c000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x52>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x1d>;
+				interrupts = <0x0 0x260 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x4a>;
+			};
+
+			spi@89c000 {
+				compatible = "qcom,geni-spi";
+				reg = <0x89c000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x52>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x1e>;
+				interrupts = <0x0 0x260 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x4b>;
+			};
+		};
+
+		geniqup@ac0000 {
+			compatible = "qcom,geni-se-qup";
+			reg = <0xac0000 0x6000>;
+			clock-names = "m-ahb", "s-ahb";
+			clocks = <0xe 0x66 0xe 0x67>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			ranges;
+			status = "okay";
+			phandle = <0x4c>;
+
+			i2c@a80000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa80000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x54>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x1f>;
+				interrupts = <0x0 0x161 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x4d>;
+			};
+
+			spi@a80000 {
+				compatible = "qcom,geni-spi";
+				reg = <0xa80000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x54>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x20>;
+				interrupts = <0x0 0x161 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x4e>;
+			};
+
+			i2c@a84000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa84000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x56>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x21>;
+				interrupts = <0x0 0x162 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x4f>;
+			};
+
+			spi@a84000 {
+				compatible = "qcom,geni-spi";
+				reg = <0xa84000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x56>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x22>;
+				interrupts = <0x0 0x162 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x50>;
+			};
+
+			serial@a84000 {
+				compatible = "qcom,geni-debug-uart";
+				reg = <0xa84000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x56>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x23>;
+				interrupts = <0x0 0x162 0x4>;
+				status = "okay";
+				phandle = <0x51>;
+			};
+
+			i2c@a88000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa88000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x58>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x24>;
+				interrupts = <0x0 0x163 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "okay";
+				clock-frequency = <0x61a80>;
+				phandle = <0x52>;
+			};
+
+			spi@a88000 {
+				compatible = "qcom,geni-spi";
+				reg = <0xa88000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x58>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x25>;
+				interrupts = <0x0 0x163 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x53>;
+			};
+
+			i2c@a8c000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa8c000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x5a>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x26>;
+				interrupts = <0x0 0x164 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x54>;
+			};
+
+			spi@a8c000 {
+				compatible = "qcom,geni-spi";
+				reg = <0xa8c000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x5a>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x27>;
+				interrupts = <0x0 0x164 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x55>;
+			};
+
+			i2c@a90000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa90000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x5c>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x28>;
+				interrupts = <0x0 0x165 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x56>;
+			};
+
+			spi@a90000 {
+				compatible = "qcom,geni-spi";
+				reg = <0xa90000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x5c>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x29>;
+				interrupts = <0x0 0x165 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x57>;
+			};
+
+			i2c@a94000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa94000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x5e>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x2a>;
+				interrupts = <0x0 0x166 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x58>;
+			};
+
+			spi@a94000 {
+				compatible = "qcom,geni-spi";
+				reg = <0xa94000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x5e>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x2b>;
+				interrupts = <0x0 0x166 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x59>;
+			};
+
+			i2c@a98000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa98000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x60>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x2c>;
+				interrupts = <0x0 0x167 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x5a>;
+			};
+
+			spi@a98000 {
+				compatible = "qcom,geni-spi";
+				reg = <0xa98000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x60>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x2d>;
+				interrupts = <0x0 0x167 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x5b>;
+			};
+
+			i2c@a9c000 {
+				compatible = "qcom,geni-i2c";
+				reg = <0xa9c000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x62>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x2e>;
+				interrupts = <0x0 0x168 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x5c>;
+			};
+
+			spi@a9c000 {
+				compatible = "qcom,geni-spi";
+				reg = <0xa9c000 0x4000>;
+				clock-names = "se";
+				clocks = <0xe 0x62>;
+				pinctrl-names = "default";
+				pinctrl-0 = <0x2f>;
+				interrupts = <0x0 0x168 0x4>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				status = "disabled";
+				phandle = <0x5d>;
+			};
+		};
+
+		syscon@1f40000 {
+			compatible = "syscon";
+			reg = <0x1f40000 0x40000>;
+			phandle = <0xb>;
+		};
+
+		pinctrl@3400000 {
+			compatible = "qcom,sdm845-pinctrl";
+			reg = <0x3400000 0xc00000>;
+			interrupts = <0x0 0xd0 0x4>;
+			gpio-controller;
+			#gpio-cells = <0x2>;
+			interrupt-controller;
+			#interrupt-cells = <0x2>;
+			gpio-reserved-ranges = <0x0 0x4 0x51 0x4>;
+			phandle = <0x5e>;
+
+			qup-i2c0-default {
+				phandle = <0xf>;
+
+				pinmux {
+					pins = "gpio0", "gpio1";
+					function = "qup0";
+				};
+			};
+
+			qup-i2c1-default {
+				phandle = <0x11>;
+
+				pinmux {
+					pins = "gpio17", "gpio18";
+					function = "qup1";
+				};
+			};
+
+			qup-i2c2-default {
+				phandle = <0x13>;
+
+				pinmux {
+					pins = "gpio27", "gpio28";
+					function = "qup2";
+				};
+			};
+
+			qup-i2c3-default {
+				phandle = <0x15>;
+
+				pinmux {
+					pins = "gpio41", "gpio42";
+					function = "qup3";
+				};
+			};
+
+			qup-i2c4-default {
+				phandle = <0x17>;
+
+				pinmux {
+					pins = "gpio89", "gpio90";
+					function = "qup4";
+				};
+			};
+
+			qup-i2c5-default {
+				phandle = <0x19>;
+
+				pinmux {
+					pins = "gpio85", "gpio86";
+					function = "qup5";
+				};
+			};
+
+			qup-i2c6-default {
+				phandle = <0x1b>;
+
+				pinmux {
+					pins = "gpio45", "gpio46";
+					function = "qup6";
+				};
+			};
+
+			qup-i2c7-default {
+				phandle = <0x1d>;
+
+				pinmux {
+					pins = "gpio93", "gpio94";
+					function = "qup7";
+				};
+			};
+
+			qup-i2c8-default {
+				phandle = <0x1f>;
+
+				pinmux {
+					pins = "gpio65", "gpio66";
+					function = "qup8";
+				};
+			};
+
+			qup-i2c9-default {
+				phandle = <0x21>;
+
+				pinmux {
+					pins = "gpio6", "gpio7";
+					function = "qup9";
+				};
+			};
+
+			qup-i2c10-default {
+				phandle = <0x24>;
+
+				pinmux {
+					pins = "gpio55", "gpio56";
+					function = "qup10";
+				};
+
+				pinconf {
+					pins = "gpio55", "gpio56";
+					drive-strength = <0x2>;
+					bias-disable;
+				};
+			};
+
+			qup-i2c11-default {
+				phandle = <0x26>;
+
+				pinmux {
+					pins = "gpio31", "gpio32";
+					function = "qup11";
+				};
+			};
+
+			qup-i2c12-default {
+				phandle = <0x28>;
+
+				pinmux {
+					pins = "gpio49", "gpio50";
+					function = "qup12";
+				};
+			};
+
+			qup-i2c13-default {
+				phandle = <0x2a>;
+
+				pinmux {
+					pins = "gpio105", "gpio106";
+					function = "qup13";
+				};
+			};
+
+			qup-i2c14-default {
+				phandle = <0x2c>;
+
+				pinmux {
+					pins = "gpio33", "gpio34";
+					function = "qup14";
+				};
+			};
+
+			qup-i2c15-default {
+				phandle = <0x2e>;
+
+				pinmux {
+					pins = "gpio81", "gpio82";
+					function = "qup15";
+				};
+			};
+
+			qup-spi0-default {
+				phandle = <0x10>;
+
+				pinmux {
+					pins = "gpio0", "gpio1", "gpio2", "gpio3";
+					function = "qup0";
+				};
+			};
+
+			qup-spi1-default {
+				phandle = <0x12>;
+
+				pinmux {
+					pins = "gpio17", "gpio18", "gpio19", "gpio20";
+					function = "qup1";
+				};
+			};
+
+			qup-spi2-default {
+				phandle = <0x14>;
+
+				pinmux {
+					pins = "gpio27", "gpio28", "gpio29", "gpio30";
+					function = "qup2";
+				};
+			};
+
+			qup-spi3-default {
+				phandle = <0x16>;
+
+				pinmux {
+					pins = "gpio41", "gpio42", "gpio43", "gpio44";
+					function = "qup3";
+				};
+			};
+
+			qup-spi4-default {
+				phandle = <0x18>;
+
+				pinmux {
+					pins = "gpio89", "gpio90", "gpio91", "gpio92";
+					function = "qup4";
+				};
+			};
+
+			qup-spi5-default {
+				phandle = <0x1a>;
+
+				pinmux {
+					pins = "gpio85", "gpio86", "gpio87", "gpio88";
+					function = "qup5";
+				};
+			};
+
+			qup-spi6-default {
+				phandle = <0x1c>;
+
+				pinmux {
+					pins = "gpio45", "gpio46", "gpio47", "gpio48";
+					function = "qup6";
+				};
+			};
+
+			qup-spi7-default {
+				phandle = <0x1e>;
+
+				pinmux {
+					pins = "gpio93", "gpio94", "gpio95", "gpio96";
+					function = "qup7";
+				};
+			};
+
+			qup-spi8-default {
+				phandle = <0x20>;
+
+				pinmux {
+					pins = "gpio65", "gpio66", "gpio67", "gpio68";
+					function = "qup8";
+				};
+			};
+
+			qup-spi9-default {
+				phandle = <0x22>;
+
+				pinmux {
+					pins = "gpio6", "gpio7", "gpio4", "gpio5";
+					function = "qup9";
+				};
+			};
+
+			qup-spi10-default {
+				phandle = <0x25>;
+
+				pinmux {
+					pins = "gpio55", "gpio56", "gpio53", "gpio54";
+					function = "qup10";
+				};
+			};
+
+			qup-spi11-default {
+				phandle = <0x27>;
+
+				pinmux {
+					pins = "gpio31", "gpio32", "gpio33", "gpio34";
+					function = "qup11";
+				};
+			};
+
+			qup-spi12-default {
+				phandle = <0x29>;
+
+				pinmux {
+					pins = "gpio49", "gpio50", "gpio51", "gpio52";
+					function = "qup12";
+				};
+			};
+
+			qup-spi13-default {
+				phandle = <0x2b>;
+
+				pinmux {
+					pins = "gpio105", "gpio106", "gpio107", "gpio108";
+					function = "qup13";
+				};
+			};
+
+			qup-spi14-default {
+				phandle = <0x2d>;
+
+				pinmux {
+					pins = "gpio33", "gpio34", "gpio31", "gpio32";
+					function = "qup14";
+				};
+			};
+
+			qup-spi15-default {
+				phandle = <0x2f>;
+
+				pinmux {
+					pins = "gpio81", "gpio82", "gpio83", "gpio84";
+					function = "qup15";
+				};
+			};
+
+			qup-uart9-default {
+				phandle = <0x23>;
+
+				pinmux {
+					pins = "gpio4", "gpio5";
+					function = "qup9";
+				};
+
+				pinconf-tx {
+					pins = "gpio4";
+					drive-strength = <0x2>;
+					bias-disable;
+				};
+
+				pinconf-rx {
+					pins = "gpio5";
+					drive-strength = <0x2>;
+					bias-pull-up;
+				};
+			};
+		};
+
+		thermal-sensor@c263000 {
+			compatible = "qcom,sdm845-tsens", "qcom,tsens-v2";
+			reg = <0xc263000 0x1ff 0xc222000 0x1ff>;
+			#qcom,sensors = <0xd>;
+			#thermal-sensor-cells = <0x1>;
+			phandle = <0x5f>;
+		};
+
+		thermal-sensor@c265000 {
+			compatible = "qcom,sdm845-tsens", "qcom,tsens-v2";
+			reg = <0xc265000 0x1ff 0xc223000 0x1ff>;
+			#qcom,sensors = <0x8>;
+			#thermal-sensor-cells = <0x1>;
+			phandle = <0x60>;
+		};
+
+		spmi@c440000 {
+			compatible = "qcom,spmi-pmic-arb";
+			reg = <0xc440000 0x1100 0xc600000 0x2000000 0xe600000 0x100000 0xe700000 0xa0000 0xc40a000 0x26000>;
+			reg-names = "core", "chnls", "obsrvr", "intr", "cnfg";
+			interrupt-names = "periph_irq";
+			interrupts = <0x0 0x1e1 0x4>;
+			qcom,ee = <0x0>;
+			qcom,channel = <0x0>;
+			#address-cells = <0x2>;
+			#size-cells = <0x0>;
+			interrupt-controller;
+			#interrupt-cells = <0x4>;
+			cell-index = <0x0>;
+			phandle = <0x61>;
+		};
+
+		mailbox@17990000 {
+			compatible = "qcom,sdm845-apss-shared";
+			reg = <0x17990000 0x1000>;
+			#mbox-cells = <0x1>;
+			phandle = <0x62>;
+		};
+
+		rsc@179c0000 {
+			label = "apps_rsc";
+			compatible = "qcom,rpmh-rsc";
+			reg = <0x179c0000 0x10000 0x179d0000 0x10000 0x179e0000 0x10000>;
+			reg-names = "drv-0", "drv-1", "drv-2";
+			interrupts = <0x0 0x3 0x4 0x0 0x4 0x4 0x0 0x5 0x4>;
+			qcom,tcs-offset = <0xd00>;
+			qcom,drv-id = <0x2>;
+			qcom,tcs-config = <0x2 0x2 0x0 0x3 0x1 0x3 0x3 0x1>;
+			phandle = <0x63>;
+
+			clock-controller {
+				compatible = "qcom,sdm845-rpmh-clk";
+				#clock-cells = <0x1>;
+				phandle = <0x64>;
+			};
+		};
+
+		interrupt-controller@17a00000 {
+			compatible = "arm,gic-v3";
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			ranges;
+			#interrupt-cells = <0x3>;
+			interrupt-controller;
+			reg = <0x17a00000 0x10000 0x17a60000 0x100000>;
+			interrupts = <0x1 0x9 0x4>;
+			phandle = <0x1>;
+
+			gic-its@17a40000 {
+				compatible = "arm,gic-v3-its";
+				msi-controller;
+				#msi-cells = <0x1>;
+				reg = <0x17a40000 0x20000>;
+				status = "disabled";
+			};
+		};
+
+		timer@17c90000 {
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			ranges;
+			compatible = "arm,armv7-timer-mem";
+			reg = <0x17c90000 0x1000>;
+
+			frame@17ca0000 {
+				frame-number = <0x0>;
+				interrupts = <0x0 0x7 0x4 0x0 0x6 0x4>;
+				reg = <0x17ca0000 0x1000 0x17cb0000 0x1000>;
+			};
+
+			frame@17cc0000 {
+				frame-number = <0x1>;
+				interrupts = <0x0 0x8 0x4>;
+				reg = <0x17cc0000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@17cd0000 {
+				frame-number = <0x2>;
+				interrupts = <0x0 0x9 0x4>;
+				reg = <0x17cd0000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@17ce0000 {
+				frame-number = <0x3>;
+				interrupts = <0x0 0xa 0x4>;
+				reg = <0x17ce0000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@17cf0000 {
+				frame-number = <0x4>;
+				interrupts = <0x0 0xb 0x4>;
+				reg = <0x17cf0000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@17d00000 {
+				frame-number = <0x5>;
+				interrupts = <0x0 0xc 0x4>;
+				reg = <0x17d00000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@17d10000 {
+				frame-number = <0x6>;
+				interrupts = <0x0 0xd 0x4>;
+				reg = <0x17d10000 0x1000>;
+				status = "disabled";
+			};
+		};
+	};
+
+	__symbols__ {
+		smem_mem = "/reserved-memory/memory@86000000";
+		CPU0 = "/cpus/cpu@0";
+		L2_0 = "/cpus/cpu@0/l2-cache";
+		L3_0 = "/cpus/cpu@0/l2-cache/l3-cache";
+		CPU1 = "/cpus/cpu@100";
+		L2_100 = "/cpus/cpu@100/l2-cache";
+		CPU2 = "/cpus/cpu@200";
+		L2_200 = "/cpus/cpu@200/l2-cache";
+		CPU3 = "/cpus/cpu@300";
+		L2_300 = "/cpus/cpu@300/l2-cache";
+		CPU4 = "/cpus/cpu@400";
+		L2_400 = "/cpus/cpu@400/l2-cache";
+		CPU5 = "/cpus/cpu@500";
+		L2_500 = "/cpus/cpu@500/l2-cache";
+		CPU6 = "/cpus/cpu@600";
+		L2_600 = "/cpus/cpu@600/l2-cache";
+		CPU7 = "/cpus/cpu@700";
+		L2_700 = "/cpus/cpu@700/l2-cache";
+		xo_board = "/clocks/xo-board";
+		sleep_clk = "/clocks/sleep-clk";
+		tcsr_mutex = "/hwlock";
+		soc = "/soc";
+		gcc = "/soc/clock-controller@100000";
+		qupv3_id_0 = "/soc/geniqup@8c0000";
+		i2c0 = "/soc/geniqup@8c0000/i2c@880000";
+		spi0 = "/soc/geniqup@8c0000/spi@880000";
+		i2c1 = "/soc/geniqup@8c0000/i2c@884000";
+		spi1 = "/soc/geniqup@8c0000/spi@884000";
+		i2c2 = "/soc/geniqup@8c0000/i2c@888000";
+		spi2 = "/soc/geniqup@8c0000/spi@888000";
+		i2c3 = "/soc/geniqup@8c0000/i2c@88c000";
+		spi3 = "/soc/geniqup@8c0000/spi@88c000";
+		i2c4 = "/soc/geniqup@8c0000/i2c@890000";
+		spi4 = "/soc/geniqup@8c0000/spi@890000";
+		i2c5 = "/soc/geniqup@8c0000/i2c@894000";
+		spi5 = "/soc/geniqup@8c0000/spi@894000";
+		i2c6 = "/soc/geniqup@8c0000/i2c@898000";
+		spi6 = "/soc/geniqup@8c0000/spi@898000";
+		i2c7 = "/soc/geniqup@8c0000/i2c@89c000";
+		spi7 = "/soc/geniqup@8c0000/spi@89c000";
+		qupv3_id_1 = "/soc/geniqup@ac0000";
+		i2c8 = "/soc/geniqup@ac0000/i2c@a80000";
+		spi8 = "/soc/geniqup@ac0000/spi@a80000";
+		i2c9 = "/soc/geniqup@ac0000/i2c@a84000";
+		spi9 = "/soc/geniqup@ac0000/spi@a84000";
+		uart9 = "/soc/geniqup@ac0000/serial@a84000";
+		i2c10 = "/soc/geniqup@ac0000/i2c@a88000";
+		spi10 = "/soc/geniqup@ac0000/spi@a88000";
+		i2c11 = "/soc/geniqup@ac0000/i2c@a8c000";
+		spi11 = "/soc/geniqup@ac0000/spi@a8c000";
+		i2c12 = "/soc/geniqup@ac0000/i2c@a90000";
+		spi12 = "/soc/geniqup@ac0000/spi@a90000";
+		i2c13 = "/soc/geniqup@ac0000/i2c@a94000";
+		spi13 = "/soc/geniqup@ac0000/spi@a94000";
+		i2c14 = "/soc/geniqup@ac0000/i2c@a98000";
+		spi14 = "/soc/geniqup@ac0000/spi@a98000";
+		i2c15 = "/soc/geniqup@ac0000/i2c@a9c000";
+		spi15 = "/soc/geniqup@ac0000/spi@a9c000";
+		tcsr_mutex_regs = "/soc/syscon@1f40000";
+		tlmm = "/soc/pinctrl@3400000";
+		qup_i2c0_default = "/soc/pinctrl@3400000/qup-i2c0-default";
+		qup_i2c1_default = "/soc/pinctrl@3400000/qup-i2c1-default";
+		qup_i2c2_default = "/soc/pinctrl@3400000/qup-i2c2-default";
+		qup_i2c3_default = "/soc/pinctrl@3400000/qup-i2c3-default";
+		qup_i2c4_default = "/soc/pinctrl@3400000/qup-i2c4-default";
+		qup_i2c5_default = "/soc/pinctrl@3400000/qup-i2c5-default";
+		qup_i2c6_default = "/soc/pinctrl@3400000/qup-i2c6-default";
+		qup_i2c7_default = "/soc/pinctrl@3400000/qup-i2c7-default";
+		qup_i2c8_default = "/soc/pinctrl@3400000/qup-i2c8-default";
+		qup_i2c9_default = "/soc/pinctrl@3400000/qup-i2c9-default";
+		qup_i2c10_default = "/soc/pinctrl@3400000/qup-i2c10-default";
+		qup_i2c11_default = "/soc/pinctrl@3400000/qup-i2c11-default";
+		qup_i2c12_default = "/soc/pinctrl@3400000/qup-i2c12-default";
+		qup_i2c13_default = "/soc/pinctrl@3400000/qup-i2c13-default";
+		qup_i2c14_default = "/soc/pinctrl@3400000/qup-i2c14-default";
+		qup_i2c15_default = "/soc/pinctrl@3400000/qup-i2c15-default";
+		qup_spi0_default = "/soc/pinctrl@3400000/qup-spi0-default";
+		qup_spi1_default = "/soc/pinctrl@3400000/qup-spi1-default";
+		qup_spi2_default = "/soc/pinctrl@3400000/qup-spi2-default";
+		qup_spi3_default = "/soc/pinctrl@3400000/qup-spi3-default";
+		qup_spi4_default = "/soc/pinctrl@3400000/qup-spi4-default";
+		qup_spi5_default = "/soc/pinctrl@3400000/qup-spi5-default";
+		qup_spi6_default = "/soc/pinctrl@3400000/qup-spi6-default";
+		qup_spi7_default = "/soc/pinctrl@3400000/qup-spi7-default";
+		qup_spi8_default = "/soc/pinctrl@3400000/qup-spi8-default";
+		qup_spi9_default = "/soc/pinctrl@3400000/qup-spi9-default";
+		qup_spi10_default = "/soc/pinctrl@3400000/qup-spi10-default";
+		qup_spi11_default = "/soc/pinctrl@3400000/qup-spi11-default";
+		qup_spi12_default = "/soc/pinctrl@3400000/qup-spi12-default";
+		qup_spi13_default = "/soc/pinctrl@3400000/qup-spi13-default";
+		qup_spi14_default = "/soc/pinctrl@3400000/qup-spi14-default";
+		qup_spi15_default = "/soc/pinctrl@3400000/qup-spi15-default";
+		qup_uart9_default = "/soc/pinctrl@3400000/qup-uart9-default";
+		tsens0 = "/soc/thermal-sensor@c263000";
+		tsens1 = "/soc/thermal-sensor@c265000";
+		spmi_bus = "/soc/spmi@c440000";
+		apss_shared = "/soc/mailbox@17990000";
+		apps_rsc = "/soc/rsc@179c0000";
+		rpmhcc = "/soc/rsc@179c0000/clock-controller";
+		intc = "/soc/interrupt-controller@17a00000";
 	};
 };

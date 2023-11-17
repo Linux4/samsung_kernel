@@ -261,7 +261,9 @@ enum cell_type {
 };
 
 #if defined(HX_SMART_WAKEUP)
-#define HX_KEY_DOUBLE_CLICK		KEY_HOMEPAGE
+//+bug614711, xiechongchong01.wt, add, 2021/06/01, TP himax KEY_HOMEPAGE to KEY_WAKEUP
+#define HX_KEY_DOUBLE_CLICK				KEY_WAKEUP	//KEY_HOMEPAGE
+//-bug614711, xiechongchong01.wt, add, 2021/06/01, TP himax KEY_HOMEPAGE to KEY_WAKEUP
 #define HX_KEY_UP							KEY_UP
 #define HX_KEY_DOWN						KEY_DOWN
 #define HX_KEY_LEFT						KEY_LEFT
@@ -519,6 +521,12 @@ struct himax_ts_data {
 #ifdef SEC_TSP_FACTORY_TEST
 	struct sec_cmd_data sec;
 #endif
+//+bug614711, guoyan1.wt, add, 2021/05/12, TP HIMAX gesture panic
+#ifdef CONFIG_PM
+	bool dev_pm_suspend;
+	struct completion dev_pm_resume_completion;
+#endif
+//-bug614711, guoyan1.wt, add, 2021/05/12, TP HIMAX gesture panic
 };
 
 struct himax_debug {

@@ -2314,13 +2314,13 @@ static void xhci_add_in_port(struct xhci_hcd *xhci, unsigned int num_ports,
 		xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 				"xHCI 1.0: support USB2 software lpm");
 		xhci->sw_lpm_support = 1;
-	//bug542108, zhaobeilong.wt, 20200324, mod, disable usb lpm for lost package issue, start
+	//bug702115, linaiyu.wt, 20211221, mod, disable usb lpm for lost package issue, start
 	/*	if (temp & XHCI_HLC) {
 			xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 					"xHCI 1.0: support USB2 hardware lpm");
 			xhci->hw_lpm_support = 1;
 		} */
-	//bug542108, zhaobeilong.wt, 20200324, mod, disable usb lpm for lost package issue, end
+	//bug702115, linaiyu.wt, 20211221, mod, disable usb lpm for lost package issue, end
 	}
 
 	port_offset--;

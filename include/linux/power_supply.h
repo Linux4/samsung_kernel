@@ -47,7 +47,7 @@ enum {
 	POWER_SUPPLY_CHARGE_TYPE_TRICKLE,
 	POWER_SUPPLY_CHARGE_TYPE_FAST,
 	POWER_SUPPLY_CHARGE_TYPE_TAPER,
-/* Bug596586 gudi.wt,MODIFIY,20201021,P85946 , Add SS-node */
+	/* Bug707468,lizhou02,wt.20211216,Add SS-node */
 	POWER_SUPPLY_CHARGE_TYPE_SLOW,
 };
 
@@ -312,6 +312,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_PD_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_PD_VOLTAGE_MIN,
 	POWER_SUPPLY_PROP_SDP_CURRENT_MAX,
+	POWER_SUPPLY_PROP_FG_RESET_CLOCK,
 	POWER_SUPPLY_PROP_CONNECTOR_TYPE,
 	POWER_SUPPLY_PROP_PARALLEL_BATFET_MODE,
 	POWER_SUPPLY_PROP_PARALLEL_FCC_MAX,
@@ -350,9 +351,11 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_SKIN_HEALTH,
 	POWER_SUPPLY_PROP_AICL_DONE,
 	POWER_SUPPLY_PROP_VOLTAGE_STEP,
-/* +Bug596586 gudi.wt,MODIFIY,20201021,P85946 , add for Charger FTM test and SS-node */
+	/* Bug 538582, zhangbin2.wt, 20200311, Add for Charger FTM test */
 	POWER_SUPPLY_PROP_STOPCHARGING_TEST,
 	POWER_SUPPLY_PROP_STARTCHARGING_TEST,
+	/* +Bug 538062, zhangbin2.wt, 20200309, Add for AFC, Begin +++  */
+	/* +Bug707468,lizhou02,wt.20211216,Add SS-node */
 	POWER_SUPPLY_PROP_STORE_MODE,//store_mode node to control capacity
 	POWER_SUPPLY_PROP_HV_CHARGER_STATUS,//battery node for customer
 	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
@@ -360,19 +363,17 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_BATT_MISC_EVENT,
 	POWER_SUPPLY_PROP_NEW_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_BATT_CURRENT_UA_NOW,
-/* -Bug596586 gudi.wt,MODIFIY,20201021,P85946 , add for Charger FTM test and SS-node */
-	/* +Bug594012,gudi.wt,20201023,Bringup:Add for AFC, Begin +++  */
+	/* -Bug707468,lizhou02,wt.20211216,Add SS-node */
+	/* +Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, Begin +++  */
 #if defined(CONFIG_AFC)
 	POWER_SUPPLY_PROP_AFC_RESULT,
 	POWER_SUPPLY_PROP_HV_DISABLE,
 	POWER_SUPPLY_PROP_AFC_FLAG,
 #endif
-	/* -Bug594012,gudi.wt,20201023,Bringup:Add for AFC, End --- */
-	/* +EXTB P200521-06425 caijiaqi.wt,20200814, Add, battery protect */
+	/* -Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, End ---  */
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
 #endif
-	/* -EXTB P200521-06425 caijiaqi.wt,20200814, Add, battery protect */
 	POWER_SUPPLY_PROP_APSD_RERUN,
 	POWER_SUPPLY_PROP_APSD_TIMEOUT,
 	/* Charge pump properties */
@@ -430,13 +431,13 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_UFP,			/* Type-C UFP */
 	POWER_SUPPLY_TYPE_DFP,			/* Type-C DFP */
 	POWER_SUPPLY_TYPE_CHARGE_PUMP,		/* Charge Pump */
-/* Bug596586 gudi.wt,MODIFIY,20201021,P85946, SS-node add otg node */
+	/* Bug707468,lizhou02,wt.20211216,add SS-node + "OTG" */
 	POWER_SUPPLY_TYPE_USB_OTG,	/* USB OTG */
-	/* +Bug594012,gudi.wt,20201023,Bringup: Add for AFC, Begin +++  */
+	/* +Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, Begin +++  */
 #if defined(CONFIG_AFC)
 	POWER_SUPPLY_TYPE_AFC,
 #endif
-	/* -Bug594012,gudi.wt,20201023,Bringup: Add for AFC, End --- */
+	/* -Bug707480,lizhou02.wt,20211209,Bringup:Add for AFC, End ---  */
 };
 
 enum power_supply_usb_type {
@@ -553,7 +554,7 @@ struct power_supply {
 	const struct power_supply_desc *desc;
 
 #ifdef CONFIG_USB_NOTIFIER
-	int usb_host_flag;        //bug596217, guodandan@wt, 20201026, add usb control node
+	int usb_host_flag;        //bug707489, linaiyu@wt, 20211217, add usb control node
 #endif
 
 	char **supplied_to;

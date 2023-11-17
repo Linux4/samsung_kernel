@@ -35,10 +35,7 @@
 #include <linux/wakeup_reason.h>
 
 #include "power.h"
-
-//+Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
 #include <linux/rtc.h>
-//-Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
 
 const char * const pm_labels[] = {
 	[PM_SUSPEND_TO_IDLE] = "freeze",
@@ -625,19 +622,18 @@ static int enter_state(suspend_state_t state)
 	return error;
 }
 
-//+Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
+//+Chk106693, madongyu.wt, add, 20211125, add suspend time marker
 static void pm_suspend_marker(char *annotation)
 {
-     struct timespec ts;
-     struct rtc_time tm;
+	struct timespec ts;
+	struct rtc_time tm;
 
-     getnstimeofday(&ts);
-     rtc_time_to_tm(ts.tv_sec, &tm);
-     pr_info("suspend %s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
-            annotation, tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
-            tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+	getnstimeofday(&ts);
+	rtc_time_to_tm(ts.tv_sec, &tm);
+	pr_info("suspend %s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
+		annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
 }
-//-Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
 
 /**
  * pm_suspend - Externally visible function for suspending the system.
@@ -652,11 +648,8 @@ int pm_suspend(suspend_state_t state)
 
 	if (state <= PM_SUSPEND_ON || state >= PM_SUSPEND_MAX)
 		return -EINVAL;
-
-	//+Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
-	pm_suspend_marker("enter");
-	//-Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
-
+	
+	pm_suspend_marker("entry");
 	pr_info("suspend entry (%s)\n", mem_sleep_labels[state]);
 	error = enter_state(state);
 	if (error) {
@@ -665,11 +658,9 @@ int pm_suspend(suspend_state_t state)
 	} else {
 		suspend_stats.success++;
 	}
-	//+Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
-	pm_suspend_marker("exit");
-	//-Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
-
 	pr_info("suspend exit\n");
+	pm_suspend_marker("exit");
 	return error;
 }
+//+Chk106693, madongyu.wt, add, 20211125, add suspend time marker
 EXPORT_SYMBOL(pm_suspend);

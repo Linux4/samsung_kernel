@@ -55,6 +55,9 @@ struct blk_crypto_key {
 	unsigned int hash;
 
 	bool is_hw_wrapped;
+#ifdef CONFIG_FSCRYPT_SDP
+	bool is_sdp;
+#endif
 	u8 raw[BLK_CRYPTO_MAX_WRAPPED_KEY_SIZE];
 };
 

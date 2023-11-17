@@ -64,7 +64,7 @@ int fscrypt_sdp_store_fek(struct inode *inode,
 int fscrypt_sdp_update_sdp_info(struct inode *inode,
 						const union fscrypt_context *ctx,
 						struct fscrypt_info *crypt_info);
-int fscrypt_sdp_is_classified(struct fscrypt_info *crypt_info);
+int fscrypt_sdp_is_classified(const struct fscrypt_info *crypt_info);
 int fscrypt_sdp_is_uninitialized(struct fscrypt_info *crypt_info);
 int fscrypt_sdp_is_native(struct fscrypt_info *crypt_info);
 int fscrypt_sdp_is_sensitive(struct fscrypt_info *crypt_info);

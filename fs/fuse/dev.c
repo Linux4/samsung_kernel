@@ -328,12 +328,16 @@ static u64 fuse_get_unique(struct fuse_iqueue *fiq)
 	return ++fiq->reqctr;
 }
 
-static void queue_request(struct fuse_iqueue *fiq, struct fuse_req *req)
+static void queue_request(struct fuse_iqueue *fiq, struct fuse_req *req,
+				bool sync)
 {
 	req->in.h.len = sizeof(struct fuse_in_header) +
 		len_args(req->in.numargs, (struct fuse_arg *) req->in.args);
 	list_add_tail(&req->list, &fiq->pending);
-	wake_up(&fiq->waitq);
+	if (sync)
+		wake_up_sync(&fiq->waitq);
+	else
+		wake_up(&fiq->waitq);
 	kill_fasync(&fiq->fasync, SIGIO, POLL_IN);
 }
 
@@ -369,7 +373,7 @@ static void flush_bg_queue(struct fuse_conn *fc)
 		fc->active_background++;
 		spin_lock(&fiq->lock);
 		req->in.h.unique = fuse_get_unique(fiq);
-		queue_request(fiq, req);
+		queue_request(fiq, req, 0);
 		spin_unlock(&fiq->lock);
 	}
 }
@@ -498,7 +502,7 @@ static void __fuse_request_send(struct fuse_conn *fc, struct fuse_req *req)
 		req->out.h.error = -ENOTCONN;
 	} else {
 		req->in.h.unique = fuse_get_unique(fiq);
-		queue_request(fiq, req);
+		queue_request(fiq, req, 1);
 		/* acquire extra reference, since request is still needed
 		   after request_end() */
 		__fuse_get_request(req);
@@ -575,6 +579,7 @@ ssize_t fuse_simple_request(struct fuse_conn *fc, struct fuse_args *args)
 	req->out.numargs = args->out.numargs;
 	memcpy(req->out.args, args->out.args,
 	       args->out.numargs * sizeof(struct fuse_arg));
+	req->out.canonical_path = args->out.canonical_path;
 	fuse_request_send(fc, req);
 	ret = req->out.h.error;
 	if (!ret && args->out.argvar) {
@@ -637,7 +642,7 @@ static int fuse_request_send_notify_reply(struct fuse_conn *fc,
 	req->in.h.unique = unique;
 	spin_lock(&fiq->lock);
 	if (fiq->connected) {
-		queue_request(fiq, req);
+		queue_request(fiq, req, 0);
 		err = 0;
 	}
 	spin_unlock(&fiq->lock);
@@ -1939,13 +1944,14 @@ static ssize_t fuse_dev_do_write(struct fuse_dev *fud,
 		cs->move_pages = 0;
 
 	err = copy_out_args(cs, &req->out, nbytes);
-	if (req->in.h.opcode == FUSE_CANONICAL_PATH) {
+	fuse_copy_finish(cs);
+
+	if (!err && req->in.h.opcode == FUSE_CANONICAL_PATH) {
 		char *path = (char *)req->out.args[0].value;
 
 		path[req->out.args[0].size - 1] = 0;
-		req->out.h.error = kern_path(path, 0, req->canonical_path);
+		req->out.h.error = kern_path(path, 0, req->out.canonical_path);
 	}
-	fuse_copy_finish(cs);
 
 	spin_lock(&fpq->lock);
 	clear_bit(FR_LOCKED, &req->flags);

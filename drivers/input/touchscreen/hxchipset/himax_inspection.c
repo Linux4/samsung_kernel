@@ -1985,13 +1985,16 @@ static int himax_self_test_data_init(void)
 	uint8_t panel_id = 0;
 
 	panel_id = himax_get_panel_info();
-#if 1	//guoyan for tianma 20210305
-	if(panel_id == 7)
-	{
+	//guoyan for tianma 20210305
+	if(panel_id == 7){
 		file_name_1 = "hx_criteria_auo.dri";
 		file_name_2 = "hx_criteria_tianma.csv";
 	}
-#endif
+	//xiechongchong01 for djn 20210630
+	else if(panel_id == 8){
+		file_name_1 = "hx_criteria_auo.dri";
+		file_name_2 = "hx_criteria_djn.csv";
+	}
 	else if(panel_id == 3 || panel_id == 4 || panel_id == 5) {
 		file_name_1 = "hx_criteria_auo.dri";
 		file_name_2 = "hx_criteria_auo.csv";

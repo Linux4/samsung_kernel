@@ -1880,6 +1880,8 @@ static int f2fs_setflags_common(struct inode *inode, u32 iflags, u32 mask)
 		if (iflags & F2FS_COMPR_FL) {
 			if (!f2fs_may_compress(inode))
 				return -EINVAL;
+			if (S_ISREG(inode->i_mode) && inode->i_size)
+				return -EINVAL;
 
 			set_compress_context(inode);
 		}
@@ -2821,6 +2823,9 @@ static int f2fs_move_file_range(struct file *file_in, loff_t pos_in,
 
 	if (IS_ENCRYPTED(src) || IS_ENCRYPTED(dst))
 		return -EOPNOTSUPP;
+
+	if (pos_out < 0 || pos_in < 0)
+		return -EINVAL;
 
 	if (src == dst) {
 		if (pos_in == pos_out)

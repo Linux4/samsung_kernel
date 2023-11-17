@@ -53,21 +53,11 @@
 * Global variable or extern global variabls/functions
 *****************************************************************************/
 u8 fw_file[] = {
-#include FTS_UPGRADE_FW_FILE
-};
-
-u8 fw_file2[] = {
-#include FTS_UPGRADE_FW2_FILE
-};
-
-u8 fw_file3[] = {
-#include FTS_UPGRADE_FW3_FILE
+0,
 };
 
 struct upgrade_module module_list[] = {
     {FTS_MODULE_ID, FTS_MODULE_NAME, fw_file, sizeof(fw_file)},
-    {FTS_MODULE2_ID, FTS_MODULE2_NAME, fw_file2, sizeof(fw_file2)},
-    {FTS_MODULE3_ID, FTS_MODULE3_NAME, fw_file3, sizeof(fw_file3)},
 };
 
 struct upgrade_setting_nf upgrade_setting_list[] = {
@@ -888,9 +878,8 @@ int fts_fw_resume(bool need_reset)
     }
 
     if (FTS_FW_REQUEST_SUPPORT) {
-        snprintf(fwname, FILE_NAME_LENGTH, "%s%s.bin", \
-                 FTS_FW_NAME_PREX_WITH_REQUEST, upg->module_info->vendor_name);
-        ret = request_firmware(&fw, fwname, upg->ts_data->dev);
+		snprintf(fwname, FILE_NAME_LENGTH, "%s", BOOT_UPDATE_FIRMWARE_NAME);//guoyan1 for fw upg 20210112
+		ret = request_firmware(&fw, fwname, upg->ts_data->dev);
         if (ret == 0) {
             FTS_INFO("firmware(%s) request successfully", fwname);
             fw_buf = fw->data;

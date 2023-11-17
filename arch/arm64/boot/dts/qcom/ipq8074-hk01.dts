@@ -1,27 +1,444 @@
 /dts-v1/;
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
-#include "ipq8074.dtsi"
 
 / {
-	#address-cells = <0x2>;
-	#size-cells = <0x2>;
 	model = "Qualcomm Technologies, Inc. IPQ8074-HK01";
 	compatible = "qcom,ipq8074-hk01", "qcom,ipq8074";
-	interrupt-parent = <&intc>;
+	#address-cells = <0x2>;
+	#size-cells = <0x2>;
+	interrupt-parent = <0x1>;
+
+	soc {
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		ranges = <0x0 0x0 0x0 0xffffffff>;
+		compatible = "simple-bus";
+		phandle = <0xe>;
+
+		pinctrl@1000000 {
+			compatible = "qcom,ipq8074-pinctrl";
+			reg = <0x1000000 0x300000>;
+			interrupts = <0x0 0xd0 0x4>;
+			gpio-controller;
+			#gpio-cells = <0x2>;
+			interrupt-controller;
+			#interrupt-cells = <0x2>;
+			phandle = <0xb>;
+
+			serial4-pinmux {
+				pins = "gpio23", "gpio24";
+				function = "blsp4_uart1";
+				drive-strength = <0x8>;
+				bias-disable;
+				phandle = <0x3>;
+			};
+
+			i2c-0-pinmux {
+				pins = "gpio42", "gpio43";
+				function = "blsp1_i2c";
+				drive-strength = <0x8>;
+				bias-disable;
+				phandle = <0x7>;
+			};
+
+			spi-0-pins {
+				pins = "gpio38", "gpio39", "gpio40", "gpio41";
+				function = "blsp0_spi";
+				drive-strength = <0x8>;
+				bias-disable;
+				phandle = <0x6>;
+			};
+
+			hsuart-pins {
+				pins = "gpio46", "gpio47", "gpio48", "gpio49";
+				function = "blsp2_uart";
+				drive-strength = <0x8>;
+				bias-disable;
+				phandle = <0x5>;
+			};
+
+			qpic-pins {
+				pins = "gpio1", "gpio3", "gpio4", "gpio5", "gpio6", "gpio7", "gpio8", "gpio10", "gpio11", "gpio12", "gpio13", "gpio14", "gpio15", "gpio16", "gpio17";
+				function = "qpic";
+				drive-strength = <0x8>;
+				bias-disable;
+				phandle = <0x9>;
+			};
+		};
+
+		interrupt-controller@b000000 {
+			compatible = "qcom,msm-qgic2";
+			interrupt-controller;
+			#interrupt-cells = <0x3>;
+			reg = <0xb000000 0x1000 0xb002000 0x1000>;
+			phandle = <0x1>;
+		};
+
+		timer {
+			compatible = "arm,armv8-timer";
+			interrupts = <0x1 0x2 0xf08 0x1 0x3 0xf08 0x1 0x4 0xf08 0x1 0x1 0xf08>;
+		};
+
+		timer@b120000 {
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			ranges;
+			compatible = "arm,armv7-timer-mem";
+			reg = <0xb120000 0x1000>;
+			clock-frequency = <0x124f800>;
+
+			frame@b120000 {
+				frame-number = <0x0>;
+				interrupts = <0x0 0x8 0x4 0x0 0x7 0x4>;
+				reg = <0xb121000 0x1000 0xb122000 0x1000>;
+			};
+
+			frame@b123000 {
+				frame-number = <0x1>;
+				interrupts = <0x0 0x9 0x4>;
+				reg = <0xb123000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@b124000 {
+				frame-number = <0x2>;
+				interrupts = <0x0 0xa 0x4>;
+				reg = <0xb124000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@b125000 {
+				frame-number = <0x3>;
+				interrupts = <0x0 0xb 0x4>;
+				reg = <0xb125000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@b126000 {
+				frame-number = <0x4>;
+				interrupts = <0x0 0xc 0x4>;
+				reg = <0xb126000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@b127000 {
+				frame-number = <0x5>;
+				interrupts = <0x0 0xd 0x4>;
+				reg = <0xb127000 0x1000>;
+				status = "disabled";
+			};
+
+			frame@b128000 {
+				frame-number = <0x6>;
+				interrupts = <0x0 0xe 0x4>;
+				reg = <0xb128000 0x1000>;
+				status = "disabled";
+			};
+		};
+
+		gcc@1800000 {
+			compatible = "qcom,gcc-ipq8074";
+			reg = <0x1800000 0x80000>;
+			#clock-cells = <0x1>;
+			#reset-cells = <0x1>;
+			phandle = <0x2>;
+		};
+
+		serial@78b3000 {
+			compatible = "qcom,msm-uartdm-v1.4", "qcom,msm-uartdm";
+			reg = <0x78b3000 0x200>;
+			interrupts = <0x0 0x134 0x4>;
+			clocks = <0x2 0x26 0x2 0x15>;
+			clock-names = "core", "iface";
+			pinctrl-0 = <0x3>;
+			pinctrl-names = "default";
+			status = "ok";
+			phandle = <0xf>;
+		};
+
+		dma@7884000 {
+			compatible = "qcom,bam-v1.7.0";
+			reg = <0x7884000 0x2b000>;
+			interrupts = <0x0 0xee 0x4>;
+			clocks = <0x2 0x15>;
+			clock-names = "bam_clk";
+			#dma-cells = <0x1>;
+			qcom,ee = <0x0>;
+			phandle = <0x4>;
+		};
+
+		serial@78af000 {
+			compatible = "qcom,msm-uartdm-v1.4", "qcom,msm-uartdm";
+			reg = <0x78af000 0x200>;
+			interrupts = <0x0 0x6b 0x4>;
+			clocks = <0x2 0x22 0x2 0x15>;
+			clock-names = "core", "iface";
+			status = "disabled";
+			phandle = <0x10>;
+		};
+
+		serial@78b1000 {
+			compatible = "qcom,msm-uartdm-v1.4", "qcom,msm-uartdm";
+			reg = <0x78b1000 0x200>;
+			interrupts = <0x0 0x132 0x4>;
+			clocks = <0x2 0x24 0x2 0x15>;
+			clock-names = "core", "iface";
+			dmas = <0x4 0x4 0x4 0x5>;
+			dma-names = "tx", "rx";
+			pinctrl-0 = <0x5>;
+			pinctrl-names = "default";
+			status = "ok";
+			phandle = <0x11>;
+		};
+
+		spi@78b5000 {
+			compatible = "qcom,spi-qup-v2.2.1";
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			reg = <0x78b5000 0x600>;
+			interrupts = <0x0 0x5f 0x4>;
+			spi-max-frequency = <0x2faf080>;
+			clocks = <0x2 0x17 0x2 0x15>;
+			clock-names = "core", "iface";
+			dmas = <0x4 0xc 0x4 0xd>;
+			dma-names = "tx", "rx";
+			pinctrl-0 = <0x6>;
+			pinctrl-names = "default";
+			status = "ok";
+			phandle = <0x12>;
+
+			m25p80@0 {
+				#address-cells = <0x1>;
+				#size-cells = <0x1>;
+				compatible = "jedec,spi-nor";
+				reg = <0x0>;
+				spi-max-frequency = <0x2faf080>;
+			};
+		};
+
+		i2c@78b6000 {
+			compatible = "qcom,i2c-qup-v2.2.1";
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			reg = <0x78b6000 0x600>;
+			interrupts = <0x0 0x60 0x4>;
+			clocks = <0x2 0x15 0x2 0x18>;
+			clock-names = "iface", "core";
+			clock-frequency = <0x61a80>;
+			dmas = <0x4 0xf 0x4 0xe>;
+			dma-names = "rx", "tx";
+			pinctrl-0 = <0x7>;
+			pinctrl-names = "default";
+			status = "ok";
+			phandle = <0x13>;
+		};
+
+		i2c@78b7000 {
+			compatible = "qcom,i2c-qup-v2.2.1";
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			reg = <0x78b7000 0x600>;
+			interrupts = <0x0 0x61 0x4>;
+			clocks = <0x2 0x15 0x2 0x1a>;
+			clock-names = "iface", "core";
+			clock-frequency = <0x186a0>;
+			dmas = <0x4 0x11 0x4 0x10>;
+			dma-names = "rx", "tx";
+			status = "disabled";
+			phandle = <0x14>;
+		};
+
+		dma@7984000 {
+			compatible = "qcom,bam-v1.7.0";
+			reg = <0x7984000 0x1a000>;
+			interrupts = <0x0 0x92 0x4>;
+			clocks = <0x2 0x29>;
+			clock-names = "bam_clk";
+			#dma-cells = <0x1>;
+			qcom,ee = <0x0>;
+			status = "ok";
+			phandle = <0x8>;
+		};
+
+		nand@79b0000 {
+			compatible = "qcom,ipq8074-nand";
+			reg = <0x79b0000 0x10000>;
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			clocks = <0x2 0x2a 0x2 0x29>;
+			clock-names = "core", "aon";
+			dmas = <0x8 0x0 0x8 0x1 0x8 0x2>;
+			dma-names = "tx", "rx", "cmd";
+			pinctrl-0 = <0x9>;
+			pinctrl-names = "default";
+			status = "ok";
+			phandle = <0x15>;
+
+			nand@0 {
+				reg = <0x0>;
+				nand-ecc-strength = <0x4>;
+				nand-ecc-step-size = <0x200>;
+				nand-bus-width = <0x8>;
+			};
+		};
+
+		phy@86000 {
+			compatible = "qcom,ipq8074-qmp-pcie-phy";
+			reg = <0x86000 0x1000>;
+			#phy-cells = <0x0>;
+			clocks = <0x2 0x73>;
+			clock-names = "pipe_clk";
+			clock-output-names = "pcie20_phy0_pipe_clk";
+			resets = <0x2 0x4e 0x2 0x4f>;
+			reset-names = "phy", "common";
+			status = "ok";
+			phandle = <0xa>;
+		};
+
+		pci@20000000 {
+			compatible = "qcom,pcie-ipq8074";
+			reg = <0x20000000 0xf1d 0x20000f20 0xa8 0x80000 0x2000 0x20100000 0x1000>;
+			reg-names = "dbi", "elbi", "parf", "config";
+			device_type = "pci";
+			linux,pci-domain = <0x0>;
+			bus-range = <0x0 0xff>;
+			num-lanes = <0x1>;
+			#address-cells = <0x3>;
+			#size-cells = <0x2>;
+			phys = <0xa>;
+			phy-names = "pciephy";
+			ranges = <0x81000000 0x0 0x20200000 0x20200000 0x0 0x100000 0x82000000 0x0 0x20300000 0x20300000 0x0 0xd00000>;
+			interrupts = <0x0 0x34 0x4>;
+			interrupt-names = "msi";
+			#interrupt-cells = <0x1>;
+			interrupt-map-mask = <0x0 0x0 0x0 0x7>;
+			interrupt-map = <0x0 0x0 0x0 0x1 0x1 0x0 0x4b 0x4 0x0 0x0 0x0 0x2 0x1 0x0 0x4e 0x4 0x0 0x0 0x0 0x3 0x1 0x0 0x4f 0x4 0x0 0x0 0x0 0x4 0x1 0x0 0x53 0x4>;
+			clocks = <0x2 0x74 0x2 0x71 0x2 0x72 0x2 0x6f 0x2 0x70>;
+			clock-names = "iface", "axi_m", "axi_s", "ahb", "aux";
+			resets = <0x2 0x75 0x2 0x76 0x2 0x77 0x2 0x78 0x2 0x79 0x2 0x7a 0x2 0x7b>;
+			reset-names = "pipe", "sleep", "sticky", "axi_m", "axi_s", "ahb", "axi_m_sticky";
+			status = "ok";
+			perst-gpio = <0xb 0x3a 0x1>;
+			phandle = <0x16>;
+		};
+
+		phy@8e000 {
+			compatible = "qcom,ipq8074-qmp-pcie-phy";
+			reg = <0x8e000 0x1000>;
+			#phy-cells = <0x0>;
+			clocks = <0x2 0x79>;
+			clock-names = "pipe_clk";
+			clock-output-names = "pcie20_phy1_pipe_clk";
+			resets = <0x2 0x52 0x2 0x53>;
+			reset-names = "phy", "common";
+			status = "ok";
+			phandle = <0xc>;
+		};
+
+		pci@10000000 {
+			compatible = "qcom,pcie-ipq8074";
+			reg = <0x10000000 0xf1d 0x10000f20 0xa8 0x88000 0x2000 0x10100000 0x1000>;
+			reg-names = "dbi", "elbi", "parf", "config";
+			device_type = "pci";
+			linux,pci-domain = <0x1>;
+			bus-range = <0x0 0xff>;
+			num-lanes = <0x1>;
+			#address-cells = <0x3>;
+			#size-cells = <0x2>;
+			phys = <0xc>;
+			phy-names = "pciephy";
+			ranges = <0x81000000 0x0 0x10200000 0x10200000 0x0 0x100000 0x82000000 0x0 0x10300000 0x10300000 0x0 0xd00000>;
+			interrupts = <0x0 0x55 0x4>;
+			interrupt-names = "msi";
+			#interrupt-cells = <0x1>;
+			interrupt-map-mask = <0x0 0x0 0x0 0x7>;
+			interrupt-map = <0x0 0x0 0x0 0x1 0x1 0x0 0x8e 0x4 0x0 0x0 0x0 0x2 0x1 0x0 0x8f 0x4 0x0 0x0 0x0 0x3 0x1 0x0 0x90 0x4 0x0 0x0 0x0 0x4 0x1 0x0 0x91 0x4>;
+			clocks = <0x2 0x7a 0x2 0x77 0x2 0x78 0x2 0x75 0x2 0x76>;
+			clock-names = "iface", "axi_m", "axi_s", "ahb", "aux";
+			resets = <0x2 0x7c 0x2 0x7d 0x2 0x7e 0x2 0x7f 0x2 0x80 0x2 0x81 0x2 0x82>;
+			reset-names = "pipe", "sleep", "sticky", "axi_m", "axi_s", "ahb", "axi_m_sticky";
+			status = "ok";
+			perst-gpio = <0xb 0x3d 0x1>;
+			phandle = <0x17>;
+		};
+	};
+
+	cpus {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			reg = <0x0>;
+			next-level-cache = <0xd>;
+			enable-method = "psci";
+			phandle = <0x18>;
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			enable-method = "psci";
+			reg = <0x1>;
+			next-level-cache = <0xd>;
+			phandle = <0x19>;
+		};
+
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			enable-method = "psci";
+			reg = <0x2>;
+			next-level-cache = <0xd>;
+			phandle = <0x1a>;
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53", "arm,armv8";
+			enable-method = "psci";
+			reg = <0x3>;
+			next-level-cache = <0xd>;
+			phandle = <0x1b>;
+		};
+
+		l2-cache {
+			compatible = "cache";
+			cache-level = <0x2>;
+			phandle = <0xd>;
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <0x1 0x7 0xf04>;
+	};
+
+	clocks {
+
+		sleep_clk {
+			compatible = "fixed-clock";
+			clock-frequency = <0x7d00>;
+			#clock-cells = <0x0>;
+			phandle = <0x1c>;
+		};
+
+		xo {
+			compatible = "fixed-clock";
+			clock-frequency = <0x124f800>;
+			#clock-cells = <0x0>;
+			phandle = <0x1d>;
+		};
+	};
 
 	aliases {
-		serial0 = &blsp1_uart5;
-		serial1 = &blsp1_uart3;
+		serial0 = "/soc/serial@78b3000";
+		serial1 = "/soc/serial@78b1000";
 	};
 
 	chosen {
@@ -33,62 +450,35 @@
 		reg = <0x0 0x40000000 0x0 0x20000000>;
 	};
 
-	soc {
-		serial@78b3000 {
-			status = "ok";
-		};
-
-		spi@78b5000 {
-			status = "ok";
-
-			m25p80@0 {
-				  #address-cells = <1>;
-				  #size-cells = <1>;
-				  compatible = "jedec,spi-nor";
-				  reg = <0>;
-				  spi-max-frequency = <50000000>;
-			};
-		};
-
-		serial@78b1000 {
-			 status = "ok";
-		};
-
-		i2c@78b6000 {
-			 status = "ok";
-		};
-
-		dma@7984000 {
-			 status = "ok";
-		};
-
-		nand@79b0000 {
-			status = "ok";
-
-			nand@0 {
-				reg = <0>;
-				nand-ecc-strength = <4>;
-				nand-ecc-step-size = <512>;
-				nand-bus-width = <8>;
-			};
-		};
-
-		phy@86000 {
-			status = "ok";
-		};
-
-		phy@8e000 {
-			status = "ok";
-		};
-
-		pci@20000000 {
-			status = "ok";
-			perst-gpio = <&tlmm 58 0x1>;
-		};
-
-		pci@10000000 {
-			status = "ok";
-			perst-gpio = <&tlmm 61 0x1>;
-		};
+	__symbols__ {
+		soc = "/soc";
+		tlmm = "/soc/pinctrl@1000000";
+		serial_4_pins = "/soc/pinctrl@1000000/serial4-pinmux";
+		i2c_0_pins = "/soc/pinctrl@1000000/i2c-0-pinmux";
+		spi_0_pins = "/soc/pinctrl@1000000/spi-0-pins";
+		hsuart_pins = "/soc/pinctrl@1000000/hsuart-pins";
+		qpic_pins = "/soc/pinctrl@1000000/qpic-pins";
+		intc = "/soc/interrupt-controller@b000000";
+		gcc = "/soc/gcc@1800000";
+		blsp1_uart5 = "/soc/serial@78b3000";
+		blsp_dma = "/soc/dma@7884000";
+		blsp1_uart1 = "/soc/serial@78af000";
+		blsp1_uart3 = "/soc/serial@78b1000";
+		blsp1_spi1 = "/soc/spi@78b5000";
+		blsp1_i2c2 = "/soc/i2c@78b6000";
+		blsp1_i2c3 = "/soc/i2c@78b7000";
+		qpic_bam = "/soc/dma@7984000";
+		qpic_nand = "/soc/nand@79b0000";
+		pcie_phy0 = "/soc/phy@86000";
+		pcie0 = "/soc/pci@20000000";
+		pcie_phy1 = "/soc/phy@8e000";
+		pcie1 = "/soc/pci@10000000";
+		CPU0 = "/cpus/cpu@0";
+		CPU1 = "/cpus/cpu@1";
+		CPU2 = "/cpus/cpu@2";
+		CPU3 = "/cpus/cpu@3";
+		L2_0 = "/cpus/l2-cache";
+		sleep_clk = "/clocks/sleep_clk";
+		xo = "/clocks/xo";
 	};
 };

@@ -121,7 +121,7 @@ extern char fts_mp_name[64];
 /*
  * For commnication error in PM(deep sleep) state
  */
-#define FTS_PATCH_COMERR_PM                     0
+#define FTS_PATCH_COMERR_PM                     1   //0 //+bug614711, guoyan1.wt, add, 2021/04/22, focal double-click panic
 #define FTS_TIMEOUT_COMERR_PM                   700
 
 #define FTS_HIGH_REPORT                         0

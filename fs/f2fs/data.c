@@ -380,7 +380,6 @@ static void f2fs_write_end_io(struct bio *bio)
 			mapping_set_error(page->mapping, -EIO);
 			if (type == F2FS_WB_CP_DATA) {
 				f2fs_stop_checkpoint(sbi, true);
-				f2fs_bug_on_endio(sbi, 1);
 			}
 		}
 
@@ -1734,9 +1733,12 @@ skip:
 
 sync_out:
 
-	if (flag == F2FS_GET_BLOCK_DIO && map->m_flags & F2FS_MAP_MAPPED)
+	if (flag == F2FS_GET_BLOCK_DIO && map->m_flags & F2FS_MAP_MAPPED) {
 		f2fs_wait_on_block_writeback_range(inode,
 						map->m_pblk, map->m_len);
+		invalidate_mapping_pages(META_MAPPING(sbi),
+						map->m_pblk, map->m_pblk);
+	}
 
 	if (flag == F2FS_GET_BLOCK_PRECACHE) {
 		if (map->m_flags & F2FS_MAP_MAPPED) {

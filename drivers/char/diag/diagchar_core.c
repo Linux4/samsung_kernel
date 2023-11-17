@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2008-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -376,6 +376,8 @@ static int diagchar_open(struct inode *inode, struct file *file)
 		if (driver->ref_count == 0)
 			diag_mempool_init();
 		driver->ref_count++;
+		DIAG_LOG(DIAG_DEBUG_USERSPACE,
+		"diag: open successful for client pid: %d\n", current->tgid);
 		mutex_unlock(&driver->diagchar_mutex);
 		return 0;
 	}
@@ -739,10 +741,10 @@ int diag_cmd_add_reg(struct diag_cmd_reg_entry_t *new_entry, uint8_t proc,
 		     int pid)
 {
 	struct diag_cmd_reg_t *new_item = NULL;
-	//+bug539071 huzhiqiang add 2020/3/13 for repairing BT secondary coupling fail
+	//+Bug702117 modify liuwei.wt 20211221 porting-bug539071 -repairing BT secondary coupling fail
 	struct diag_cmd_reg_t *temp_item = NULL;
 	struct diag_cmd_reg_entry_t *temp_entry = NULL;
-	//-bug539071 huzhiqiang add 2020/3/13 for repairing BT secondary coupling fail
+	//-Bug702117 modify liuwei.wt 20211221 porting-bug539071 -repairing BT secondary coupling fail
 
 	if (!new_entry) {
 		pr_err("diag: In %s, invalid new entry\n", __func__);
@@ -769,7 +771,7 @@ int diag_cmd_add_reg(struct diag_cmd_reg_entry_t *new_entry, uint8_t proc,
 	INIT_LIST_HEAD(&new_item->link);
 
 	mutex_lock(&driver->cmd_reg_mutex);
-	//+bug539071 huzhiqiang add 2020/3/13 for repairing BT secondary coupling fail
+	//+Bug702117 modify liuwei.wt 20211221 porting-bug539071 -repairing BT secondary coupling fail
 	if(proc > 0){
 		temp_entry = diag_cmd_search(new_entry, proc);
 		if (temp_entry) {
@@ -782,7 +784,7 @@ int diag_cmd_add_reg(struct diag_cmd_reg_entry_t *new_entry, uint8_t proc,
 			}
 		}
 	}
-	//-bug539071 huzhiqiang add 2020/3/13 for repairing BT secondary coupling fail
+	//-Bug702117 modify liuwei.wt 20211221 porting-bug539071 -repairing BT secondary coupling fail
 	list_add_tail(&new_item->link, &driver->cmd_reg_list);
 	driver->cmd_reg_count++;
 	diag_cmd_invalidate_polling(DIAG_CMD_ADD);
@@ -2408,6 +2410,8 @@ int diag_query_pd(char *process_name)
 		return PERIPHERAL_CDSP;
 	if (diag_query_pd_name(process_name, "npu/root_pd"))
 		return PERIPHERAL_NPU;
+	if (diag_query_pd_name(process_name, "wpss/root_pd"))
+		return PERIPHERAL_WCNSS;
 	if (diag_query_pd_name(process_name, "wlan_pd"))
 		return UPD_WLAN;
 	if (diag_query_pd_name(process_name, "audio_pd"))
@@ -3810,6 +3814,9 @@ static ssize_t diagchar_read(struct file *file, char __user *buf, size_t count,
 
 	if (driver->data_ready[index] & MSG_MASKS_TYPE) {
 		/*Copy the type of data being passed*/
+		DIAG_LOG(DIAG_DEBUG_MASKS,
+		"diag: msg masks update to client pid: %d\n", current->tgid);
+
 		data_type = driver->data_ready[index] & MSG_MASKS_TYPE;
 		mutex_unlock(&driver->diagchar_mutex);
 		mutex_lock(&driver->md_session_lock);
@@ -3831,11 +3838,19 @@ static ssize_t diagchar_read(struct file *file, char __user *buf, size_t count,
 		mutex_lock(&driver->diagchar_mutex);
 		driver->data_ready[index] ^= MSG_MASKS_TYPE;
 		atomic_dec(&driver->data_ready_notif[index]);
+
+		DIAG_LOG(DIAG_DEBUG_MASKS,
+		"diag: msg masks update complete for client pid: %d\n",
+		current->tgid);
+
 		goto exit;
 	}
 
 	if (driver->data_ready[index] & EVENT_MASKS_TYPE) {
 		/*Copy the type of data being passed*/
+		DIAG_LOG(DIAG_DEBUG_MASKS,
+		"diag: event masks update to client pid: %d\n", current->tgid);
+
 		data_type = driver->data_ready[index] & EVENT_MASKS_TYPE;
 		mutex_unlock(&driver->diagchar_mutex);
 		mutex_lock(&driver->md_session_lock);
@@ -3868,11 +3883,19 @@ static ssize_t diagchar_read(struct file *file, char __user *buf, size_t count,
 		mutex_lock(&driver->diagchar_mutex);
 		driver->data_ready[index] ^= EVENT_MASKS_TYPE;
 		atomic_dec(&driver->data_ready_notif[index]);
+
+		DIAG_LOG(DIAG_DEBUG_MASKS,
+		"diag: %s: event masks update complete for client pid: %d\n",
+		current->tgid);
+
 		goto exit;
 	}
 
 	if (driver->data_ready[index] & LOG_MASKS_TYPE) {
 		/*Copy the type of data being passed*/
+		DIAG_LOG(DIAG_DEBUG_MASKS,
+		"diag: log masks update to client pid: %d\n", current->tgid);
+
 		data_type = driver->data_ready[index] & LOG_MASKS_TYPE;
 		mutex_unlock(&driver->diagchar_mutex);
 		mutex_lock(&driver->md_session_lock);
@@ -3894,6 +3917,11 @@ static ssize_t diagchar_read(struct file *file, char __user *buf, size_t count,
 		mutex_lock(&driver->diagchar_mutex);
 		driver->data_ready[index] ^= LOG_MASKS_TYPE;
 		atomic_dec(&driver->data_ready_notif[index]);
+
+		DIAG_LOG(DIAG_DEBUG_MASKS,
+		"diag: log masks update complete for client pid: %d\n",
+		current->tgid);
+
 		goto exit;
 	}
 

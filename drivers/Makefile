@@ -192,6 +192,6 @@ obj-$(CONFIG_UNISYS_VISORBUS)	+= visorbus/
 obj-$(CONFIG_SIOX)		+= siox/
 obj-$(CONFIG_GNSS)		+= gnss/
 obj-$(CONFIG_SENSORS_SSC)	+= sensors/
+# Bug 702116,zhanghao3.wt,mod,20211125,for GuardianM bring up
 obj-$(CONFIG_GUARDIANM_SEC)       += guardianm/
-obj-y				+= wt_sys/
 obj-y				+= samsung/

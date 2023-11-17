@@ -128,7 +128,6 @@ static int queue_delayed_work_time = 30000; //8000
 /*+bug536193,gudi,20200429,update SCUD-LISHEN battery profile.*/
 /*+bug536193,gudi,20200609,update SCUD-ATL battery profile.*/
 /*+bug536193,gudi,20200706,update SCUD and ATL battery profile for 3.6V cut off in temp 50.*/
-/*+bug573878,gudi,20200717,update SCUD and ATL battery profile for 3.3V cut off in temp -10.*/
 /*battery type enum
   * Type1:SUCD-ATL , ID: 12K
   * Type2:SUCD-LISHEN  , ID: 348K
@@ -564,7 +563,7 @@ static int cw_get_capacity(struct cw_battery *cw_bat)
 	if(UI_SOC >= 100){
 		UI_SOC = 100;
 	}else{
-		/* case 1 : aviod swing */ 	//EXTB P210227-01167,xujianbang.wt 20210302 [70,30] ->[90,10].
+		/* case 1 : aviod swing */	//EXTB P210227-01167,taohuayi.wt 20211228 [70,30] ->[90,10].
 		if((UI_SOC >= cw_bat->capacity - 1) && (UI_SOC <= cw_bat->capacity + 1)
 			&& (remainder > 90 || remainder < 10) ){
 			UI_SOC = cw_bat->capacity;
@@ -1372,7 +1371,7 @@ static int cw2017_probe(struct i2c_client *client, const struct i2c_device_id *i
 #ifdef CW2017_INTERRUPT
 	INIT_DELAYED_WORK(&cw_bat->interrupt_work, interrupt_work_do_wakeup);
 
-	cw_bat->cw2017_ws = wakeup_source_register(NULL, "qcom-cw2017_battery");
+	cw_bat->cw2017_ws = wakeup_source_register(&client->dev,"qcom-cw2017_battery");
 	if (!cw_bat->cw2017_ws) {
 		cw_printk("cw2017_ws not success!\n");
 		wakeup_source_unregister(cw_bat->cw2017_ws);

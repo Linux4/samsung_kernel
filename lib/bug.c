@@ -197,15 +197,14 @@ enum bug_trap_type report_bug(unsigned long bugaddr, struct pt_regs *regs)
 
 	if (file) {
 		pr_crit("kernel BUG at %s:%u!\n", file, line);
-		/* bug 407890, wanghui2.wt, 2019/11/08, add show panic log when into dump */
-		wt_btreason_log_save("kernel BUG at %s:%u!\n", file, line);
-	} else {
+                // CHK, douyingnan.wt, ADD, 20211222, dump display
+                wt_btreason_log_save("kernel BUG at %s:%u!\n", file, line);
+        } else {
 		pr_crit("Kernel BUG at %pB [verbose debug info unavailable]\n",
 			(void *)bugaddr);
-		/* bug 407890, wanghui2.wt, 2019/11/08, add show panic log when into dump */
-		wt_btreason_log_save("Kernel BUG at %pB \n", (void *)bugaddr);
-	}
-
+                // CHK, douyingnan.wt, ADD, 20211222, dump display
+                wt_btreason_log_save("Kernel BUG at %pB \n", (void *)bugaddr);
+        }
 	return BUG_TRAP_TYPE_BUG;
 }
 

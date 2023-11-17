@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -33,7 +33,7 @@
 #define DEFAULT_PANEL_PREFILL_LINES	25
 #define MIN_PREFILL_LINES      35
 #define DSI_READ_WRITE_PANEL_DEBUG 1
-/*bug536291,sijun.wt,2020/0415,add read panel register function begin*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function begin*/
 #if DSI_READ_WRITE_PANEL_DEBUG
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
@@ -43,8 +43,8 @@ static struct proc_dir_entry *mipi_proc_entry = NULL;
 static struct dsi_read_config read_reg;
 extern int dsi_display_read_panel(struct dsi_panel *panel, struct dsi_read_config *read_config);
 #endif
-/*bug536291,sijun.wt,2020/0415,add read panel register function end*/
-volatile bool tpgesture_to_lcd = 0;//bug536291,sijun.wt,2020/0415,add tp gesture function
+/*bug702116, liuchunyang.wt,20211127,add read panel register function end*/
+volatile bool tpgesture_to_lcd = 0;//bug702116, liuchunyang.wt,20211127,add tp gesture function
 
 enum dsi_dsc_ratio_type {
 	DSC_8BPC_8BPP,
@@ -458,7 +458,7 @@ static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 
 	return rc;
 }
-/*bug556955,sijun.wt,2020/0515,add quick load firmware notification chain begin*/
+/*bug702116, liuchunyang.wt,20211127,add quick load firmware notification chain begin*/
 static void update_tpfw_notifier_call_chain(struct dsi_panel *panel)
 {
 int new_mode = DRM_PANEL_BLANK_UNBLANK;
@@ -468,7 +468,7 @@ notifier_data.refresh_rate = 60;
 notifier_data.id = 29;
 drm_panel_notifier_call_chain(&panel->drm_panel,DRM_PANEL_EVENT_BLANK, &notifier_data);
 }
-/*bug556955,sijun.wt,2020/0515,add quick load firmware notification chain end*/
+/*bug702116, liuchunyang.wt,20211127,add quick load firmware notification chain end*/
 static int dsi_panel_power_on(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -476,7 +476,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	if (gpio_is_valid(panel->reset_config.reset_gpio))
 	gpio_set_value(panel->reset_config.reset_gpio, 0);
 	usleep_range(5000,5000);
-	//+bug616968,wangcong.wt,modify,2021/02/04,modify ft8201ab vsp vsn not pull down
+	//+bug702116, liuchunyang.wt,20211127,modify ft8201ab vsp vsn not pull down
 	if(panel->ft8201ab_flag) {
 		//DSI_ERR("vsp vsn do not pull down\n");
 	} else {
@@ -527,7 +527,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		}
 	}
 }
-	//+bug616968,wangcong.wt,modify,2021/01/27,modify 1.8v pull down
+	//+bug702116, liuchunyang.wt,20211127,modify 1.8v pull down
 	rc = dsi_pwr_enable_regulator(&panel->power_info, true);
 	if (rc) {
 		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
@@ -542,7 +542,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	}
 
 	rc = dsi_panel_reset(panel);
-	update_tpfw_notifier_call_chain(panel);//bug556955,sijun.wt,2020/0515,add quick load firmware notification chain
+	update_tpfw_notifier_call_chain(panel);//bug702116, liuchunyang.wt,20211127,add quick load firmware notification chain
 	if (rc) {
 		DSI_ERR("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
 		goto error_disable_gpio;
@@ -586,10 +586,10 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 				 rc);
 	}
 
-/*bug536291 ,sijun.wt,2020/0511,tp gesture not power down begin*/
+/*bug702116, liuchunyang.wt,20211127,tp gesture not power down begin*/
 	if(tpgesture_to_lcd == 0)
 	{
-/*bug536291 ,sijun.wt,2020/0511,tp gesture not power down end*/
+/*bug702116, liuchunyang.wt,20211127,tp gesture not power down end*/
 
 	rc = dsi_panel_set_pinctrl_state(panel, false);
 	if (rc) {
@@ -601,7 +601,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	if (rc)
 	DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
 	panel->name, rc);
-	}  //bug536291 ,sijun.wt,2020/0511,tp gesture not power down
+	}  //bug702116, liuchunyang.wt,20211127,tp gesture not power down
 	pr_info("LCD_LOG: %s --- \n", __func__);
 	return rc;
 }
@@ -719,12 +719,29 @@ static int dsi_panel_wled_register(struct dsi_panel *panel,
 	bl->raw_bd = bd;
 	return 0;
 }
+/* liuchunyang.wt ,modify 2021 11 27
+static int dsi_panel_dcs_set_display_brightness_c2(struct mipi_dsi_device *dsi,
+			u32 bl_lvl)
+{
+	u16 brightness = (u16)bl_lvl;
+	u8 first_byte = brightness & 0xff;
+	u8 second_byte = brightness >> 8;
+	u8 payload[8] = {second_byte, first_byte,
+		second_byte, first_byte,
+		second_byte, first_byte,
+		second_byte, first_byte};
+
+	return mipi_dsi_dcs_write(dsi, 0xC2, payload, sizeof(payload));
+}*/
+
+
 
 static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	u32 bl_lvl)
 {
 	int rc = 0;
 	struct mipi_dsi_device *dsi;
+	//struct dsi_backlight_config *bl;
 
 	if (!panel || (bl_lvl > 0xffff)) {
 		DSI_ERR("invalid params\n");
@@ -732,8 +749,8 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	}
 
 	dsi = &panel->mipi_device;
-
-	//+bug616968,wangcong.wt,modify,2021/01/21,modify lcd ft8201ab lide hsd backlight
+	//bl = &panel->bl_config;
+	//+bug702116, liuchunyang.wt,20211127,modify lcd ft8201ab lide hsd backlight
 	if (panel->bl_config.bl_ft8201ab_dbv) {
 		bl_lvl = ((bl_lvl & 0x0f) | ((bl_lvl & 0xff0) << 4));
 		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
@@ -742,9 +759,10 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	if (panel->bl_config.bl_inverted_dbv) {
 		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
 	}
-	//-bug616968,wangcong.wt,modify,2021/01/21,modify lcd ft8201ab lide hsd backlight
+	//-bug702116, liuchunyang.wt,20211127,modify lcd ft8201ab lide hsd backlight
 
 	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
+
 	if (rc < 0)
 		DSI_ERR("failed to update dcs backlight:%d\n", bl_lvl);
 
@@ -1898,18 +1916,19 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command",
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
-/*bug536291,sijun.wt,2020/0505,lcd esd check begin*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check begin*/
 	"qcom,mdss-dsi-hx83102e-master-command",
 	"qcom,mdss-dsi-hx83102e-client-command",
 	"qcom,mdss-dsi-nt36523-master-command",
 	"qcom,mdss-dsi-nt36523-client-command",
-	//+bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+	//+bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 	"qcom,mdss-dsi-ft8201ab-master-command",
+	"qcom,mdss-dsi-ft8201ab-slave-command",
 	"qcom,mdss-dsi-ft8201ab-client-command",
-	//-bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+	//-bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 	"qcom,mdss-dsi-dstb-command",//bug536291,sijun.wt,2020/0415,add tp gesture function
 	"qcom,mdss-dsi-diming-off-command",
-/*bug536291,sijun.wt,2020/0505,lcd esd check begin*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check begin*/
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -1936,20 +1955,21 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
-/*bug536291,sijun.wt,2020/0505,lcd esd check begin*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check begin*/
 	"qcom,mdss-dsi-hx83102e-master-command-state",
 	"qcom,mdss-dsi-hx83102e-client-command-state",
 	"qcom,mdss-dsi-nt36523-master-command-state",
 	"qcom,mdss-dsi-nt36523-client-command-state",
-	//+bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+	//+bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 	"qcom,mdss-dsi-ft8201ab-master-command-state",
+	"qcom,mdss-dsi-ft8201ab-slave-command-state",
 	"qcom,mdss-dsi-ft8201ab-client-command-state",
-	//-bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+	//-bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 	"qcom,mdss-dsi-dstb-command-state",//bug536291,sijun.wt,2020/0415,add tp gesture function
 	"qcom,mdss-dsi-diming-off-command-state",
-/*bug536291,sijun.wt,2020/0505,lcd esd check end*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check end*/
 };
-/*bug536291,sijun.wt,2020/0505,lcd esd check begin*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check begin*/
 void dsi_panel_hx83102e_master(struct dsi_panel *panel)
 {
     int rc = 0;
@@ -1968,7 +1988,7 @@ void dsi_panel_hx83102e_client(struct dsi_panel *panel)
 			panel->name, rc);
 	}
 }
-/*bug536291,sijun.wt,2020/0512,add nt36523 ic esd check begin*/
+/*bug702116, liuchunyang.wt,20211127,add nt36523 ic esd check begin*/
 void dsi_panel_nt36523_master(struct dsi_panel *panel)
 {
     int rc = 0;
@@ -1987,13 +2007,22 @@ void dsi_panel_nt36523_client(struct dsi_panel *panel)
 			panel->name, rc);
 	}
 }
-//+bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+//+bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 void dsi_panel_ft8201ab_master(struct dsi_panel *panel)
 {
     int rc = 0;
     rc=dsi_panel_tx_cmd_set(panel,DSI_CMD_SET_FT8201AB_MASTER);
 	if (rc) {
 		DSI_ERR("[%s] failed to send dsi_panel_ft8201ab_master cmds, rc=%d\n",
+			panel->name, rc);
+	}
+}
+void dsi_panel_ft8201ab_slave(struct dsi_panel *panel)
+{
+    int rc = 0;
+    rc=dsi_panel_tx_cmd_set(panel,DSI_CMD_SET_FT8201AB_SLAVE);
+	if (rc) {
+		DSI_ERR("[%s] failed to send dsi_panel_ft8201ab_slave cmds, rc=%d\n",
 			panel->name, rc);
 	}
 }
@@ -2006,9 +2035,9 @@ void dsi_panel_ft8201ab_client(struct dsi_panel *panel)
 			panel->name, rc);
 	}
 }
-//-bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
-/*bug536291,sijun.wt,2020/0512,add nt36523 ic esd check end*/
-/*bug536291,sijun.wt,2020/0505,lcd esd check end*/
+//-bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
+/*bug702116, liuchunyang.wt,20211127,add nt36523 ic esd check end*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check end*/
 static int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
 {
 	const u32 cmd_set_min_size = 7;
@@ -2048,7 +2077,7 @@ static int dsi_panel_create_cmd_packets(const char *data,
 		cmd[i].msg.type = data[0];
 		cmd[i].last_command = (data[1] == 1);
 		cmd[i].msg.channel = data[2];
-		cmd[i].msg.flags |= (data[3] == 1 ? MIPI_DSI_MSG_REQ_ACK : 0);
+		cmd[i].msg.flags |= data[3];
 		cmd[i].msg.ctrl = 0;
 		cmd[i].post_wait_ms = cmd[i].msg.wait_ms = data[4];
 		cmd[i].msg.tx_len = ((data[5] << 8) | (data[6]));
@@ -2303,16 +2332,18 @@ static int dsi_panel_parse_misc_features(struct dsi_panel *panel)
 
 	panel->lp11_init = utils->read_bool(utils->data,
 			"qcom,mdss-dsi-lp11-init");
-	/*bug536291,sijun.wt,2020/0415,add tp gesture function begin*/
+	/*bug702116, liuchunyang.wt,20211127,add tp gesture function begin*/
 	panel->hx83102e_flag = utils->read_bool(utils->data,
 			"qcom,mdss-dsi-hx83102e-flag");
 	panel->hxlide_flag = utils->read_bool(utils->data,
 			"qcom,mdss-dsi-hxlide-flag");
-	/*bug536291,sijun.wt,2020/0415,add tp gesture function end*/
-	//+bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+	/*bug702116, liuchunyang.wt,20211127,add tp gesture function end*/
+	//+bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 	panel->ft8201ab_flag = utils->read_bool(utils->data,
 			"qcom,mdss-dsi-ft8201ab-flag");
-	//-bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+	panel->ft8201ab_tianma_flag = utils->read_bool(utils->data,
+			"qcom,mdss-dsi-ft8201ab-tianma-flag");
+	//-bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 
 	panel->reset_gpio_always_on = utils->read_bool(utils->data,
 			"qcom,platform-reset-gpio-always-on");
@@ -2428,7 +2459,7 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 				 panel->name, rc);
 		}
 	}
-
+/* liuchunyang.wt add 2021 11 27
 	panel->reset_config.vcc = utils->get_named_gpio(utils->data,
 						"qcom,platform-vcc-gpio",
 						0);
@@ -2443,6 +2474,7 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 				 panel->name, rc);
 		}
 	}
+	*/
 	panel->reset_config.lcd_mode_sel_gpio = utils->get_named_gpio(
 		utils->data, mode_set_gpio_name, 0);
 	if (!gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
@@ -2580,6 +2612,7 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 	} else {
 		panel->bl_config.brightness_max_level = val;
 	}
+//liuchunyang.wt,20211127,modify
 	rc = utils->read_u32(utils->data, "qcom,mdss-brightness-default-level",
 			&val);
 		if (rc) {
@@ -2589,12 +2622,13 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 		} else {
 			panel->bl_config.brightness_default_level = val;
 		}
+//liuchunyang.wt,20211127,modify
 	panel->bl_config.bl_inverted_dbv = utils->read_bool(utils->data,
 		"qcom,mdss-dsi-bl-inverted-dbv");
-	//+bug616968,wangcong.wt,modify,2021/01/21,modify lcd ft8201ab lide hsd backlight
+	//+bug702116, liuchunyang.wt,20211127,modify lcd ft8201ab lide hsd backlight
 	panel->bl_config.bl_ft8201ab_dbv = utils->read_bool(utils->data,
 		"qcom,mdss-dsi-bl-ft8201ab-dbv");
-	//-bug616968,wangcong.wt,modify,2021/01/21,modify lcd ft8201ab lide hsd backlight
+	//-bug702116, liuchunyang.wt,20211127,modify lcd ft8201ab lide hsd backlight
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(panel);
@@ -3657,11 +3691,11 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 		goto error;
 
 	mutex_init(&panel->panel_lock);
-/*bug536291,sijun.wt,2020/0415,add read panel register function begin*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function begin*/
 #if DSI_READ_WRITE_PANEL_DEBUG
 	  g_panel = panel;
 #endif
-/*bug536291,sijun.wt,2020/0415,add read panel register function end*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function end*/
 
 	return panel;
 error:
@@ -3678,7 +3712,7 @@ void dsi_panel_put(struct dsi_panel *panel)
 
 	kfree(panel);
 }
-/*bug536291,sijun.wt,2020/0415,add read panel register function begin*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function begin*/
 #if DSI_READ_WRITE_PANEL_DEBUG
 static char string_to_hex(const char *str)
 {
@@ -3964,7 +3998,7 @@ const struct file_operations mipi_reg_proc_fops = {
 	.release = single_release,
 };
 #endif
-/*bug536291,sijun.wt,2020/0415,add read panel register function end*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function end*/
 int dsi_panel_drv_init(struct dsi_panel *panel,
 		       struct mipi_dsi_host *host)
 {
@@ -4018,13 +4052,13 @@ int dsi_panel_drv_init(struct dsi_panel *panel,
 			       panel->name, rc);
 		goto error_gpio_release;
 	}
-/*bug536291,sijun.wt,2020/0415,add read panel register function begin*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function begin*/
 #if DSI_READ_WRITE_PANEL_DEBUG
 	mipi_proc_entry = proc_create(MIPI_PROC_NAME, 0, NULL, &mipi_reg_proc_fops);
 	if (!mipi_proc_entry)
 		printk(KERN_WARNING "mipi_reg: unable to create proc entry.\n");
 #endif
-/*bug536291,sijun.wt,2020/0415,add read panel register function end*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function end*/
 	goto exit;
 
 error_gpio_release:
@@ -4070,14 +4104,14 @@ int dsi_panel_drv_deinit(struct dsi_panel *panel)
 
 	panel->host = NULL;
 	memset(&panel->mipi_device, 0x0, sizeof(panel->mipi_device));
-/*bug536291,sijun.wt,2020/0415,add read panel register function begin*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function begin*/
 #if DSI_READ_WRITE_PANEL_DEBUG
 	if (mipi_proc_entry) {
 		remove_proc_entry(MIPI_PROC_NAME, NULL);
 		mipi_proc_entry = NULL;
 	}
 #endif
-/*bug536291,sijun.wt,2020/0415,add read panel register function end*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function end*/
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -4429,7 +4463,7 @@ done:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
-extern u64 flag_node;//bug536291,sijun.wt,2020/0307, add clk node for lcd
+extern u64 flag_node;//bug702116, liuchunyang.wt,20211127, add clk node for lcd
 int dsi_panel_get_host_cfg_for_mode(struct dsi_panel *panel,
 				    struct dsi_display_mode *mode,
 				    struct dsi_host_config *config)
@@ -4467,10 +4501,10 @@ int dsi_panel_get_host_cfg_for_mode(struct dsi_panel *panel,
 		config->bit_clk_rate_hz_override = mode->timing.clk_rate_hz;
 	else
 		config->bit_clk_rate_hz_override = mode->priv_info->clk_rate_hz;
-	/*bug536291,sijun.wt,2020/0307, add clk node for lcd begin*/
+	/*bug702116, liuchunyang.wt,20211127, add clk node for lcd begin*/
 	if(flag_node)
 		config->bit_clk_rate_hz_override=flag_node;
-	/*bug536291,sijun.wt,2020/0307, add clk node for lcd end*/
+	/*bug702116, liuchunyang.wt,20211127, add clk node for lcd end*/
 	config->esc_clk_rate_hz = 19200000;
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -4990,12 +5024,14 @@ int dsi_panel_pre_disable(struct dsi_panel *panel)
 	}
 
 	mutex_lock(&panel->panel_lock);
+	//+liuchunyang.wt add 2021 11 27
 	if(panel->hxlide_flag)
 		{
 	pr_info("LCD_LOG: lide_himax enter DIMING OFF\n");
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DIMING_OFF);
 		}
 	else
+	//-liuchunyang.wt add 2021 11 27
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PRE_OFF);
 	if (rc) {
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_PRE_OFF cmds, rc=%d\n",
@@ -5038,7 +5074,6 @@ int dsi_panel_disable(struct dsi_panel *panel)
 			}
 		else
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
-		/*bug536291,sijun.wt,2020/0415,add tp gesture function end*/
 		if (rc) {
 			/*
 			 * Sending panel off commands may fail when  DSI

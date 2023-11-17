@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -166,10 +166,10 @@ struct qusb_phy {
 	int			tune2_efuse_bit_pos;
 	int			tune2_efuse_num_of_bits;
 	int			tune2_efuse_correction;
-	//bug594012, guodandan@wt, 20201015, add usb host eye tune para, start
+	//CHK106563, linaiyu@wt, 20211201, add usb host eye tune para, start
 	u32			tune2_val_host;
 	int			tune2_efuse_correction_host;
-	//bug594012, guodandan@wt, 20201015, add usb host eye tune para, end
+	//CHK106563, linaiyu@wt, 20211201, add usb host eye tune para, end
 
 	bool			cable_connected;
 	bool			suspended;
@@ -311,8 +311,10 @@ static int qusb_phy_enable_power(struct qusb_phy *qphy, bool on)
 	dev_dbg(qphy->phy.dev, "%s turn %s regulators\n",
 			__func__, on ? "on" : "off");
 
-	if (!on)
-		goto disable_vdda33;
+	if (!on) {
+		dev_err(qphy->phy.dev, "%s turn off regulators skip!!!\n",__func__);
+		return ret;
+	}
 
 	ret = qusb_phy_config_vdd(qphy, true);
 	if (ret) {
@@ -371,11 +373,6 @@ static int qusb_phy_enable_power(struct qusb_phy *qphy, bool on)
 	pr_debug("%s(): QUSB PHY's regulators are turned ON.\n", __func__);
 	return ret;
 
-disable_vdda33:
-	ret = regulator_disable(qphy->vdda33);
-	if (ret)
-		dev_err(qphy->phy.dev, "Unable to disable vdda33:%d\n", ret);
-
 unset_vdd33:
 	ret = regulator_set_voltage(qphy->vdda33, 0, QUSB2PHY_3P3_VOL_MAX);
 	if (ret)
@@ -420,7 +417,7 @@ err_vdd:
 	return ret;
 }
 
-//bug594012, guodandan@wt, 20201015, add usb host eye tune para, start
+//CHK106563, linaiyu@wt, 20211201, add usb host eye tune para, start
 static void qusb_phy_get_tune2_param(struct qusb_phy *qphy)
 {
 	u32 bit_mask = 1,usb_tune2_val= 0;
@@ -483,7 +480,7 @@ static void qusb_phy_get_tune2_param(struct qusb_phy *qphy)
 	else
 		qphy->tune2_val = reg_val;
 }
-//bug594012, guodandan@wt, 20201015, add usb host eye tune para, end
+//CHK106563, linaiyu@wt, 20211201, add usb host eye tune para, end
 static void qusb_phy_set_tcsr_clamp(struct qusb_phy *qphy)
 {
 	if (!qphy->tcsr_clamp_dig_n)
@@ -518,10 +515,25 @@ static void qusb_phy_write_seq(void __iomem *base, u32 *seq, int cnt,
 	}
 }
 
+static void qusb_phy_reset(struct qusb_phy *qphy)
+{
+	int ret = 0;
+
+	ret = reset_control_assert(qphy->phy_reset);
+	if (ret)
+		dev_err(qphy->phy.dev, "%s: phy_reset assert failed\n",
+				__func__);
+	usleep_range(100, 150);
+	ret = reset_control_deassert(qphy->phy_reset);
+	if (ret)
+		dev_err(qphy->phy.dev, "%s: phy_reset deassert failed\n",
+				__func__);
+}
+
 static int qusb_phy_init(struct usb_phy *phy)
 {
 	struct qusb_phy *qphy = container_of(phy, struct qusb_phy, phy);
-	int ret, reset_val = 0;
+	int reset_val = 0;
 	u8 reg;
 	bool pll_lock_fail = false;
 
@@ -550,13 +562,7 @@ static int qusb_phy_init(struct usb_phy *phy)
 	}
 
 	/* Perform phy reset */
-	ret = reset_control_assert(qphy->phy_reset);
-	if (ret)
-		dev_err(phy->dev, "%s: phy_reset assert failed\n", __func__);
-	usleep_range(100, 150);
-	ret = reset_control_deassert(qphy->phy_reset);
-	if (ret)
-		dev_err(phy->dev, "%s: phy_reset deassert failed\n", __func__);
+	qusb_phy_reset(qphy);
 
 	/* Disable the PHY */
 	if (qphy->major_rev < 2)
@@ -584,7 +590,7 @@ static int qusb_phy_init(struct usb_phy *phy)
 	 * and try to read EFUSE value only once i.e. not every USB
 	 * cable connect case.
 	 */
-	//bug594012, guodandan@wt, 20201015, add usb host eye tune para, start
+	//CHK106563, linaiyu@wt, 20211201, add usb host eye tune para, start
 	if (qphy->tune2_efuse_reg && !qphy->tune2) {
 		if(qphy->phy.flags & PHY_HOST_MODE) {
 			if (!qphy->tune2_val_host)
@@ -599,7 +605,7 @@ static int qusb_phy_init(struct usb_phy *phy)
 			writel_relaxed(qphy->tune2_val, qphy->base + QUSB2PHY_PORT_TUNE2);
 		}
 	}
-	//bug594012, guodandan@wt, 20201015, add usb host eye tune para, end
+	//CHK106563, linaiyu@wt, 20211201, add usb host eye tune para, end
 
 	/* If tune modparam set, override tune value */
 	if (qphy->tune1) {
@@ -927,15 +933,7 @@ static int qusb_phy_drive_dp_pulse(struct usb_phy *phy,
 	}
 	qusb_phy_gdsc(qphy, true);
 	qusb_phy_enable_clocks(qphy, true);
-
-	ret = reset_control_assert(qphy->phy_reset);
-	if (ret)
-		dev_err(qphy->phy.dev, "phyassert failed\n");
-	usleep_range(100, 150);
-	ret = reset_control_deassert(qphy->phy_reset);
-	if (ret)
-		dev_err(qphy->phy.dev, "deassert failed\n");
-
+	qusb_phy_reset(qphy);
 	/* Configure PHY to enable control on DP/DM lines */
 	writel_relaxed(CLAMP_N_EN | FREEZIO_N | POWER_DOWN,
 				qphy->base + QUSB2PHY_PORT_POWERDOWN);
@@ -1022,13 +1020,7 @@ static int qusb_phy_dpdm_regulator_enable(struct regulator_dev *rdev)
 			qusb_phy_enable_clocks(qphy, true);
 
 			dev_dbg(qphy->phy.dev, "RESET QUSB PHY\n");
-			ret = reset_control_assert(qphy->phy_reset);
-			if (ret)
-				dev_err(qphy->phy.dev, "phyassert failed\n");
-			usleep_range(100, 150);
-			ret = reset_control_deassert(qphy->phy_reset);
-			if (ret)
-				dev_err(qphy->phy.dev, "deassert failed\n");
+			qusb_phy_reset(qphy);
 
 			/*
 			 * Phy in non-driving mode leaves Dp and Dm
@@ -1076,6 +1068,13 @@ static int qusb_phy_dpdm_regulator_disable(struct regulator_dev *rdev)
 		if (!qphy->cable_connected)
 			qusb_phy_clear_tcsr_clamp(qphy, false);
 
+		/*
+		 * Phy reset is needed in case multiple instances
+		 * of HSPHY exists with shared power supplies. This
+		 * reset is to bring out the PHY from high-Z state
+		 * and avoid extra current consumption.
+		 */
+		qusb_phy_reset(qphy);
 		ret = qusb_phy_enable_power(qphy, false);
 		if (ret < 0) {
 			dev_dbg(qphy->phy.dev,
@@ -1411,18 +1410,7 @@ static int qusb_phy_prepare_chg_det(struct qusb_phy *qphy)
 
 static void qusb_phy_unprepare_chg_det(struct qusb_phy *qphy)
 {
-	int ret;
-
-	ret = reset_control_assert(qphy->phy_reset);
-	if (ret)
-		dev_err(qphy->phy.dev, "phyassert failed\n");
-
-	usleep_range(100, 150);
-
-	ret = reset_control_deassert(qphy->phy_reset);
-	if (ret)
-		dev_err(qphy->phy.dev, "deassert failed\n");
-
+	qusb_phy_reset(qphy);
 	qusb_phy_enable_clocks(qphy, false);
 	qusb_phy_clear_tcsr_clamp(qphy, false);
 	qusb_phy_enable_power(qphy, false);
@@ -1654,11 +1642,11 @@ static int qusb_phy_probe(struct platform_device *pdev)
 						"qcom,tune2-efuse-correction",
 						&qphy->tune2_efuse_correction);
 
-			//bug594012, guodandan@wt, 20201015, add usb host eye tune para, start
+			//CHK106563, linaiyu@wt, 20211201, add usb host eye tune para, start
 			of_property_read_u32(dev->of_node,
 						"qcom,tune2-efuse-correction-host",
 						&qphy->tune2_efuse_correction_host);
-			//bug594012, guodandan@wt, 20201015, add usb host eye tune para, end
+			//CHK106563, linaiyu@wt, 20211201, add usb host eye tune para, end
 			if (ret) {
 				dev_err(dev, "DT Value for tune2 efuse is invalid.\n");
 				return -EINVAL;

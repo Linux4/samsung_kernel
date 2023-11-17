@@ -4486,7 +4486,7 @@ static int hub_set_address(struct usb_device *udev, int devnum)
  * device says it supports the new USB 2.0 Link PM errata by setting the BESL
  * support bit in the BOS descriptor.
  */
-/*bug542108, zhaobeilong.wt, 20200324, mod, disable usb lpm for lost package issue, start*/
+/*bug702115, linaiyu.wt, 20211221, mod, disable usb lpm for lost package issue, start*/
 #if 0
 static void hub_set_initial_usb2_lpm_policy(struct usb_device *udev)
 {
@@ -4506,7 +4506,7 @@ static void hub_set_initial_usb2_lpm_policy(struct usb_device *udev)
 	}
 }
 #endif
-/*bug542108, zhaobeilong.wt, 20200324, mod, disable usb lpm for lost package issue, end*/
+/*bug702115, linaiyu.wt, 20211221, mod, disable usb lpm for lost package issue, end*/
 static int hub_enable_device(struct usb_device *udev)
 {
 	struct usb_hcd *hcd = bus_to_hcd(udev->bus);
@@ -4869,7 +4869,7 @@ hub_port_init(struct usb_hub *hub, struct usb_device *udev, int port1,
 	/* notify HCD that we have a device connected and addressed */
 	if (hcd->driver->update_device)
 		hcd->driver->update_device(hcd, udev);
-	//hub_set_initial_usb2_lpm_policy(udev); //bug542108, zhaobeilong.wt, 20200324, mod, disable usb lpm for lost package issue
+	//hub_set_initial_usb2_lpm_policy(udev); //bug702115, linaiyu.wt, 20211221, mod, disable usb lpm for lost package issue
 fail:
 	if (retval) {
 		hub_port_disable(hub, port1, 0);

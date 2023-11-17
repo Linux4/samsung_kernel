@@ -873,8 +873,8 @@ MMC_DEV_ATTR(pre_eol_info, "0x%02x\n", card->ext_csd.pre_eol_info);
 MMC_DEV_ATTR(life_time, "0x%02x 0x%02x\n",
 	card->ext_csd.device_life_time_est_typ_a,
 	card->ext_csd.device_life_time_est_typ_b);
-MMC_DEV_ATTR(life_time_est_typ_a, "0x%02x\n",card->ext_csd.device_life_time_est_typ_a);//bug594030,guodandan@wt,20201015,add life_time_a node
-MMC_DEV_ATTR(life_time_est_typ_b, "0x%02x\n",card->ext_csd.device_life_time_est_typ_b);//bug594030,guodandan@wt,20201015,add life_time_b node
+MMC_DEV_ATTR(life_time_est_typ_a, "0x%02x\n",card->ext_csd.device_life_time_est_typ_a);//bug702115,linaiyu@wt,2021/11/25,add life_time_a node
+MMC_DEV_ATTR(life_time_est_typ_b, "0x%02x\n",card->ext_csd.device_life_time_est_typ_b);//bug702115,linaiyu@wt,2021/11/25,add life_time_b node
 MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
 		card->ext_csd.enhanced_area_offset);
@@ -904,7 +904,7 @@ static ssize_t mmc_fwrev_show(struct device *dev,
 static DEVICE_ATTR(unique_number, (S_IRUSR|S_IRGRP), mmc_gen_unique_number_show, NULL);
 static DEVICE_ATTR(fwrev, S_IRUGO, mmc_fwrev_show, NULL);
 
-//bug594030,guodandan@wt,add,20200311,add flash_name node,start
+//+++bug702115,linaiyu@wt,2021/11/25,add,add flash_name node
 static int calc_mem_size(void)
 {
 	int temp_size;
@@ -995,7 +995,7 @@ static ssize_t flash_name_show(struct device *dev,
 }
 
 static DEVICE_ATTR(flash_name, S_IRUGO, flash_name_show, NULL);
-//bug594030,guodandan@wt,add,20200311,add flash_name node,end
+//---bug702115,linaiyu@wt,2021/11/25,add,add flash_name node
 
 static ssize_t mmc_dsr_show(struct device *dev,
 			    struct device_attribute *attr,
@@ -1029,8 +1029,8 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_rev.attr,
 	&dev_attr_pre_eol_info.attr,
 	&dev_attr_life_time.attr,
-	&dev_attr_life_time_est_typ_a.attr,      //bug594030,guodandan@wt,20201015,add life_time_a node
-	&dev_attr_life_time_est_typ_b.attr,      //bug594030,guodandan@wt,20201015,add life_time_b node
+	&dev_attr_life_time_est_typ_a.attr,      //bug702115,linaiyu@wt,2021/11/25,add,add life_time_a node
+	&dev_attr_life_time_est_typ_b.attr,      //bug702115,linaiyu@wt,2021/11/25,add,add life_time_b node
 	&dev_attr_serial.attr,
 	&dev_attr_enhanced_area_offset.attr,
 	&dev_attr_enhanced_area_size.attr,
@@ -1040,7 +1040,7 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_ocr.attr,
 	&dev_attr_rca.attr,
 	&dev_attr_dsr.attr,
-	&dev_attr_flash_name.attr, //bug594030,guodandan@wt,add,20201015,add flash_name node
+	&dev_attr_flash_name.attr, //bug702115,linaiyu@wt,2021/11/25,add,add flash_name node
 	&dev_attr_cmdq_en.attr,
 	&dev_attr_unique_number.attr,
 	NULL,

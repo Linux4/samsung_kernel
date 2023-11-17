@@ -183,7 +183,8 @@
  * show debug log info
  * enable it for debug, disable it for release
  */
-#define FTS_DEBUG_EN                            1
+//chk60258,fangzhihua.wt,20220315,close debug log for MP
+#define FTS_DEBUG_EN                            0//1
 
 /*
  * Linux MultiTouch Protocol

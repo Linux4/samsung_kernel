@@ -102,6 +102,11 @@ static void blk_mq_check_inflight(struct blk_mq_hw_ctx *hctx,
 	 */
 	if (rq->part == mi->part)
 		mi->inflight[0]++;
+
+	/* XXX We can safely remove this 'if condition-check' due to the
+	 * change in blk_mq_in_flight function. It will be called
+	 * only when * mi->part->partno is not 0.
+	 */
 	if (mi->part->partno)
 		mi->inflight[1]++;
 }
@@ -149,7 +154,7 @@ static void blk_mq_check_disk_inflight_rw(struct blk_mq_hw_ctx *hctx,
 {
 	struct mq_inflight *mi = priv;
 
-	/* This function sholud be called only when mi->part is a whole disk */
+	/* This function should be called only when mi->part is a whole disk */
 	mi->inflight[rq_data_dir(rq)]++;
 }
 

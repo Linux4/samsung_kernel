@@ -26,8 +26,8 @@
 #include <soc/qcom/restart.h>
 #include <soc/qcom/watchdog.h>
 #include <soc/qcom/minidump.h>
-#include <wt_sys/wt_boot_reason.h>
 
+#include <wt_sys/wt_boot_reason.h>
 #include <linux/sec_debug.h>
 
 #define EMERGENCY_DLOAD_MAGIC1    0x322A4F99
@@ -76,7 +76,12 @@ static void scm_disable_sdi(void);
  * There is no API from TZ to re-enable the registers.
  * So the SDI cannot be re-enabled when it already by-passed.
  */
+/* Chk106451,zhaizhenhong.wt,ADD, 20211130, bringup checklist - add wt final release control download_mode  */
+#ifdef WT_FINAL_RELEASE
+static int download_mode = 0;
+#else
 static int download_mode = 1;
+#endif
 static struct kobject dload_kobj;
 
 static int in_panic;
@@ -530,11 +535,14 @@ static void msm_restart_prepare(const char *cmd)
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
 
 	if (cmd != NULL) {
-		wt_btreason_set_reset_magic(RESET_MAGIC_CMD_REBOOT);
+                // CHK, douyingnan.wt, ADD, 20211222, dump display
+                wt_btreason_set_reset_magic(RESET_MAGIC_CMD_REBOOT);
 		if (!strncmp(cmd, "bootloader", 10)) {
+		//+ Chk106706,zhaizhenhong.wt,ADD,add for reboot dm-verity/bootloader warm reset
 		#ifndef WT_FINAL_RELEASE
 			qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 		#endif
+		//- Chk106706,zhaizhenhong.wt,ADD,add for reboot dm-verity/bootloader warm reset
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_BOOTLOADER);
 			__raw_writel(0x77665500, restart_reason);
@@ -547,9 +555,11 @@ static void msm_restart_prepare(const char *cmd)
 				PON_RESTART_REASON_RTC);
 			__raw_writel(0x77665503, restart_reason);
 		} else if (!strcmp(cmd, "dm-verity device corrupted")) {
+		//+ Chk106706,zhaizhenhong.wt,ADD,add for reboot dm-verity/bootloader warm reset
 		#ifndef WT_FINAL_RELEASE
 			qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 		#endif
+		//- Chk106706,zhaizhenhong.wt,ADD,add for reboot dm-verity/bootloader warm reset
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_DMVERITY_CORRUPTED);
 			__raw_writel(0x77665508, restart_reason);

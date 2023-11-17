@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2011-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt) "subsys-restart: %s(): " fmt, __func__
@@ -33,9 +33,9 @@
 #include <linux/of.h>
 #include <asm/current.h>
 #include <linux/timer.h>
-#include <wt_sys/wt_boot_reason.h>
 
 #include "peripheral-loader.h"
+#include <wt_sys/wt_boot_reason.h>
 
 #include <linux/sec_debug.h>
 
@@ -52,11 +52,6 @@ static bool silent_ssr;
 /* The maximum shutdown timeout is the product of MAX_LOOPS and DELAY_MS. */
 #define SHUTDOWN_ACK_MAX_LOOPS	100
 #define SHUTDOWN_ACK_DELAY_MS	100
-/*zhaoqingfeng_wt add for the maximum of subsystem modem start up count 20191003. */
-#define SUBSYS_MODEM_POWERUP_MAX_COUNT 5
-int modem_powerup_failed_time = 0;
-int modem_powerup_failed_count = 0;
-int modem_subsys_powerup_failed_count = 0;
 
 #ifdef CONFIG_SETUP_SSR_NOTIF_TIMEOUTS
 /* Timeout used for detection of notification hangs. In seconds.*/
@@ -733,15 +728,6 @@ static int wait_for_err_ready(struct subsys_device *subsys)
 					  msecs_to_jiffies(10000));
 	if (!ret) {
 		pr_err("[%s]: Error ready timed out\n", subsys->desc->name);
-                //+zhaoqingfeng_wt add only for factory version when modem startup abnormal 20190919
-                #ifdef WT_COMPILE_FACTORY_VERSION
-                if ((strcmp(subsys->desc->name, "modem") == 0) &&
-                    ((modem_powerup_failed_count == SUBSYS_MODEM_POWERUP_MAX_COUNT) ||
-                    (modem_subsys_powerup_failed_count == SUBSYS_MODEM_POWERUP_MAX_COUNT))) {
-                    panic("[%s]: wt factory Error ready timed out\n", subsys->desc->name);
-                }
-                #endif
-                //-zhaoqingfeng_wt add only for factory version when modem startup abnormal 20190919
 		return -ETIMEDOUT;
 	}
 
@@ -799,7 +785,7 @@ static int subsystem_powerup(struct subsys_device *dev, void *data)
 	pr_info("[%s:%d]: Powering up %s\n", current->comm, current->pid, name);
 	reinit_completion(&dev->err_ready);
 
-    func_start:
+	enable_all_irqs(dev);
 	ret = dev->desc->powerup(dev->desc);
 	if (ret < 0) {
 		notify_each_subsys_device(&dev, 1, SUBSYS_POWERUP_FAILURE,
@@ -815,7 +801,6 @@ static int subsystem_powerup(struct subsys_device *dev, void *data)
 			pr_err("Powerup failure on %s\n", name);
 		return ret;
 	}
-	enable_all_irqs(dev);
 
 	ret = wait_for_err_ready(dev);
 	if (ret) {
@@ -825,18 +810,7 @@ static int subsystem_powerup(struct subsys_device *dev, void *data)
 			panic("[%s:%d]: Timed out waiting for error ready: %s!",
 				current->comm, current->pid, name);
 		else
-                /*zhaoqingfeng_wt add for the maximum of subsystem modem start up count 20191003. start*/
-                {
-                    if((modem_subsys_powerup_failed_count < SUBSYS_MODEM_POWERUP_MAX_COUNT) && (strcmp(dev->desc->name, "modem") == 0)) {
-                        modem_subsys_powerup_failed_count++;
-                        //msleep(200);
-                        pr_err("[%s]: wt subsystem_powerup failed count is %d .\n", dev->desc->name, modem_subsys_powerup_failed_count);
-                        goto func_start;
-                    }
-                    return ret;
-                }
-                //return ret;
-                /*zhaoqingfeng_wt add for the maximum of subsystem modem start up count 20191003. end */
+			return ret;
 	}
 	subsys_set_state(dev, SUBSYS_ONLINE);
 	subsys_set_crash_status(dev, CRASH_STATUS_NO_CRASH);
@@ -868,28 +842,12 @@ static int subsys_start(struct subsys_device *subsys)
 {
 	int ret;
 
-func_start:
 	notify_each_subsys_device(&subsys, 1, SUBSYS_BEFORE_POWERUP,
 								NULL);
 
 	reinit_completion(&subsys->err_ready);
 	ret = subsys->desc->powerup(subsys->desc);
 	if (ret) {
-            /*zhaoqingfeng_wt add for the maximum of subsystem modem start up count 20191003. start*/
-            if(strcmp(subsys->desc->name, "modem") == 0) {
-                if(modem_powerup_failed_time < SUBSYS_MODEM_POWERUP_MAX_COUNT) {
-                    modem_powerup_failed_time++;
-                    pr_err("[%s]: wt subsys_start failed time is %d .\n", subsys->desc->name, modem_powerup_failed_time);
-                    goto func_start;
-                }
-                else if (modem_powerup_failed_time == SUBSYS_MODEM_POWERUP_MAX_COUNT) {
-                    pr_err("[%s]: wt subsys_start power up failed \n", subsys->desc->name);
-                    #ifdef WT_COMPILE_FACTORY_VERSION
-                    panic("[%s]: wt subsys_start power up failed ret : %d \n", subsys->desc->name, ret);
-                    #endif
-                }
-            }
-            /*zhaoqingfeng_wt add for the maximum of subsystem modem start up count 20191003. ends*/
 		notify_each_subsys_device(&subsys, 1, SUBSYS_POWERUP_FAILURE,
 									NULL);
 		return ret;
@@ -910,14 +868,6 @@ func_start:
 									NULL);
 		subsys->desc->shutdown(subsys->desc, false);
 		disable_all_irqs(subsys);
-                 /*zhaoqingfeng_wt add for the maximum of subsystem modem start up count 20191003. start*/
-                if((modem_powerup_failed_count < SUBSYS_MODEM_POWERUP_MAX_COUNT) && (strcmp(subsys->desc->name, "modem") == 0)) {
-                    modem_powerup_failed_count++;
-                    msleep(200);
-                    pr_err("[%s]: wt subsys_start failed count is %d .\n", subsys->desc->name, modem_powerup_failed_count);
-                    goto func_start;
-                }
-                /*zhaoqingfeng_wt add for the maximum of subsystem modem start up count 20191003. end */
 		return ret;
 	}
 	subsys_set_state(subsys, SUBSYS_ONLINE);
@@ -1338,9 +1288,8 @@ int subsystem_restart_dev(struct subsys_device *dev)
 									name);
 		return 0;
 	}
-
-	/* bug 407890, wanghui2.wt, 2019/11/08, add show panic log when into dump */
-	wt_btreason_set_subsystem_magic(name, dev->restart_level);
+        // CHK, douyingnan.wt, ADD, 20211222, dump display
+        wt_btreason_set_subsystem_magic(name, dev->restart_level);
 
 	switch (dev->restart_level) {
 
@@ -1985,6 +1934,13 @@ struct subsys_device *subsys_register(struct subsys_desc *desc)
 	subsys->desc->state = NULL;
 	strlcpy(subsys->desc->fw_name, desc->name,
 			sizeof(subsys->desc->fw_name));
+/*+ Chk 106452,Chk 106451,zhaizhenhong.wt, ADD,20211130, bringup checklist - add wt final release control restart level */
+#ifdef WT_FINAL_RELEASE
+	subsys->restart_level = RESET_SUBSYS_COUPLED;
+#else
+	subsys->restart_level = RESET_SOC;
+#endif
+/*- Chk 106452,Chk 106451,zhaizhenhong.wt, ADD,20211130, bringup checklist - add wt final release control restart level */
 
 	subsys->notify = subsys_notif_add_subsys(desc->name);
 	subsys->early_notify = subsys_get_early_notif_info(desc->name);

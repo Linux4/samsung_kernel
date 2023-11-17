@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/jiffies.h>
@@ -3074,7 +3074,6 @@ static int msm_comm_init_core(struct msm_vidc_inst *inst)
 	core->state = VIDC_CORE_INIT;
 	core->smmu_fault_handled = false;
 	core->trigger_ssr = false;
-	core->resources.max_inst_count = MAX_SUPPORTED_INSTANCES;
 	core->resources.max_secure_inst_count =
 		core->resources.max_secure_inst_count ?
 		core->resources.max_secure_inst_count :
@@ -6186,10 +6185,12 @@ int msm_vidc_check_session_supported(struct msm_vidc_inst *inst)
 				width_min, height_min);
 			rc = -ENOTSUPP;
 		}
-		if (!rc && output_width > width_max) {
+		if (!rc && (output_width > width_max ||
+				output_height > height_max)) {
 			s_vpr_e(sid,
-				"Unsupported width = %u supported max width = %u\n",
-				output_width, width_max);
+				"Unsupported WxH (%u)x(%u), max supported is (%u)x(%u)\n",
+				output_width, output_height,
+				width_max, height_max);
 				rc = -ENOTSUPP;
 		}
 

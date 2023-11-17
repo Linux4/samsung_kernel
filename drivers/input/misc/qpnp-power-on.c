@@ -25,7 +25,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
-#include <linux/hardware_info.h>	//bug537051, zhaobeilong@wt, 20200311, ADD, add hardware board id info
+#include <linux/hardware_info.h>//bug702115,linaiyu@wt,2021/11/23,ADD,add hardware board id info
 
 #include <linux/sec_debug.h>
 
@@ -2279,7 +2279,7 @@ static int qpnp_pon_parse_dt_power_off_config(struct qpnp_pon *pon)
 	return 0;
 }
 
-//bug537051, zhaobeilong@wt, 20200311, ADD, add hardware board id info,start
+//+++bug702115,linaiyu@wt,2021/11/23,ADD,add hardware board id info
 extern char board_id[HARDWARE_MAX_ITEM_LONGTH];
 void probe_board_and_set(void)
 {
@@ -2323,8 +2323,7 @@ void probe_hardware_and_set(void)
 	}
 	strlcpy(hardware_id, hw_id_info, HARDWARE_MAX_ITEM_LONGTH);
 }
-//bug537051, zhaobeilong@wt, 20200311, ADD, add hardware board id info,end
-
+//---bug702115,linaiyu@wt,2021/11/23,ADD,add hardware board id info
 
 static int qpnp_pon_probe(struct platform_device *pdev)
 {
@@ -2457,10 +2456,10 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 
 	qpnp_pon_debugfs_init(pon);
 
-	//bug537051, zhaobeilong@wt, 20200311, ADD, add hardware board id info,start
+	//+++bug702115,linaiyu@wt,2021/11/23,ADD,add hardware board id info
 	probe_board_and_set();
 	probe_hardware_and_set();
-	//bug537051, zhaobeilong@wt, 20200311, ADD, add hardware board id info,end
+	//---bug702115,linaiyu@wt,2021/11/23,ADD,add hardware board id info
 
 	return 0;
 }

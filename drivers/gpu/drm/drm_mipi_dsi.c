@@ -1060,12 +1060,7 @@ int mipi_dsi_dcs_set_display_brightness(struct mipi_dsi_device *dsi,
 {
 	u8 payload[2] = { brightness & 0xff, brightness >> 8 };
 	ssize_t err;
-    //+bug616968, wangcong.wt, add, 2021/01/21, modify lcd ft8201ab lide hsd backlight
-	/*bug536291,sijun.wt,2020/0229,lcd bringup begin*/
-	//payload[0]=(brightness >> 8)& 0xf;
-    //payload[1]=brightness & 0xff;
-	/*bug536291,sijun.wt,2020/0229,lcd bringup end*/
-	//-bug616968, wangcong.wt, add, 2021/01/21, modify lcd ft8201ab lide hsd backlight
+
 	err = mipi_dsi_dcs_write(dsi, MIPI_DCS_SET_DISPLAY_BRIGHTNESS,
 				 payload, sizeof(payload));
 	if (err < 0)

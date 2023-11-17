@@ -278,9 +278,8 @@ static int __die(const char *str, int err, struct pt_regs *regs)
 		 TASK_COMM_LEN, tsk->comm, task_pid_nr(tsk),
 		 end_of_stack(tsk));
 	show_regs(regs);
-	/* bug 407890, wanghui2.wt, 2019/11/08, add for show panic log when into dump */
-	wt_btreason_log_save("Process %.*s (pid: %d)\n", TASK_COMM_LEN, tsk->comm, task_pid_nr(tsk));
-
+        // CHK, douyingnan.wt, ADD, 20211222, dump display
+        wt_btreason_log_save("Process %.*s (pid: %d)\n", TASK_COMM_LEN, tsk->comm, task_pid_nr(tsk));
 	if (!user_mode(regs)) {
 #ifdef CONFIG_SEC_DEBUG
 		unsigned long bottom = regs->sp;
@@ -324,11 +323,6 @@ void die(const char *str, struct pt_regs *regs, int err)
 
 	console_verbose();
 	bust_spinlocks(1);
-/* bug 407890, wanghui2.wt, 2019/11/08, add show panic log when into dump, begin */
-	wt_btreason_set_oops(1);
-	wt_btreason_log_save(str);
-	wt_btreason_log_save("\n");
-/* bug 407890, wanghui2.wt, 2019/11/08, add show panic log when into dump, end */
 	ret = __die(str, err, regs);
 
 	if (regs && kexec_should_crash(current))

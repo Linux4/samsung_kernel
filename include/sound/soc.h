@@ -1070,6 +1070,8 @@ struct snd_soc_card {
 	struct mutex dapm_mutex;
 	struct mutex dapm_power_mutex;
 
+	spinlock_t dpcm_lock;
+
 	bool instantiated;
 	bool topology_shortname_created;
 
@@ -1549,7 +1551,7 @@ extern struct dentry *snd_soc_debugfs_root;
 #endif
 
 extern const struct dev_pm_ops snd_soc_pm_ops;
-//+bug 595600, wangchengqiang@wingtech.com, 20201019 add mmitest and smartpa info
+//+Bug702114, qiuyonghui.wt, 20211129 add mmitest and smartpa info
 enum{
    INVALD = -1,
    FS16XX,
@@ -1561,7 +1563,7 @@ enum{
 int snd_soc_register_info(const char * name);
 void snd_soc_unregister_info(void);
 int snd_soc_set_smartpa_type(const char * name,int pa_type);
-//-bug 595600, wangchengqiang@wingtech.com, 20201019 add mmitest and smartpa info
+//-Bug702114, qiuyonghui.wt, 20211129 add mmitest and smartpa info
 /* Helper functions */
 static inline void snd_soc_dapm_mutex_lock(struct snd_soc_dapm_context *dapm)
 {

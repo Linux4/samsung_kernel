@@ -62,22 +62,22 @@ static int Read_N19_S5K4H7yx_back_helitai_Otp(struct cam_eeprom_ctrl_t *e_ctrl,
 	struct cam_sensor_i2c_reg_array    i2c_reg_array = {0};
 	struct cam_eeprom_memory_map_t    *emap = block->map;
 	uint8_t                           *memptr = block->mapdata;
-        struct eeprom_memory_map_init_write_params *pWriteParams_back, *pWriteParams_after= NULL;
-        uint32_t count_write;
-        //bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
-        uint32_t read_complete_result,streamon_complete_result = 0xff;
-        uint32_t read_status,k = 0;
+	struct eeprom_memory_map_init_write_params *pWriteParams_back, *pWriteParams_after= NULL;
+	uint32_t count_write;
+	//bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
+	uint32_t read_complete_result,streamon_complete_result = 0xff;
+	uint32_t read_status,k = 0;
 
-        //step1 init write params
-        pWriteParams_back = &n19_s5k4h7yx_back_helitai_eeprom;
+	//step1 init write params
+	pWriteParams_back = &n19_s5k4h7yx_back_helitai_eeprom;
 	if(pWriteParams_back == NULL || pWriteParams_back->memory_map_size == 0) {
 		CAM_ERR(CAM_EEPROM, "invalid init write params , ");
 	} else {
 		CAM_DBG(CAM_EEPROM, "write init params , size : %d	", pWriteParams_back->memory_map_size);
 		for(i = 0;i <  N19_S5K4H7YX_BACK_HElLITAI_PAGE_NUM;i++){
 		    if(i >12 && i <21){//skip invalid page
-		        CAM_ERR(CAM_EEPROM,"skip page=%d",i);
-                          continue;
+			    CAM_ERR(CAM_EEPROM,"skip page=%d",i);
+			    continue;
 		    }
 		    for(count_write=0;count_write< pWriteParams_back->memory_map_size; count_write++)
 		    {
@@ -85,7 +85,7 @@ static int Read_N19_S5K4H7yx_back_helitai_Otp(struct cam_eeprom_ctrl_t *e_ctrl,
 			    i2c_reg_settings.data_type = pWriteParams_back->mem_settings[count_write].data_type;
 			    i2c_reg_settings.size = 1;
 			    i2c_reg_array.reg_addr = pWriteParams_back->mem_settings[count_write].reg_addr;
-                            if(1 == count_write) {//set page
+			    if(1 == count_write) {//set page
 			        i2c_reg_array.reg_data = (i<<8)&0xff00;//set page
 			    }else {
 			        i2c_reg_array.reg_data = pWriteParams_back->mem_settings[count_write].reg_data;
@@ -96,91 +96,91 @@ static int Read_N19_S5K4H7yx_back_helitai_Otp(struct cam_eeprom_ctrl_t *e_ctrl,
 			    if (rc) {
 				    CAM_ERR(CAM_EEPROM, "write init params failed rc %d", rc);
 				    return rc;
-		            }
-                            //+bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
-                            if(0 == count_write){
-                                for(k = 0;k < MAX_STREAMON_CHECKTIMES;k++) { //check stream on status,test 100 times
-                                    rc = camera_io_dev_read(&e_ctrl->io_master_info,
-                                0x0005, &streamon_complete_result,
-                                CAMERA_SENSOR_I2C_TYPE_WORD,
-                                CAMERA_SENSOR_I2C_TYPE_BYTE);
-                                    if(0xff == (uint8_t)streamon_complete_result){
-                                        if(99 == k)
-                                            CAM_ERR(CAM_EEPROM, "stream on error,excee MAX_STREAMON_CHECKTIMES");
-                                        else
-                                            CAM_DBG(CAM_EEPROM, "stream on no complete,k=%d",k);
-                                    }else{
-                                        CAM_DBG(CAM_EEPROM, "stream on is complete");
-                                        break;
-                                    }
-                                }
-                            }
-                            //-bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
+			    }
+			    //+bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
+			    if(0 == count_write){
+				    for(k = 0;k < MAX_STREAMON_CHECKTIMES;k++) { //check stream on status,test 100 times
+					rc = camera_io_dev_read(&e_ctrl->io_master_info,
+								0x0005, &streamon_complete_result,
+								CAMERA_SENSOR_I2C_TYPE_WORD,
+								CAMERA_SENSOR_I2C_TYPE_BYTE);
+						if(0xff == (uint8_t)streamon_complete_result){
+							if(99 == k)
+								CAM_ERR(CAM_EEPROM, "stream on error,excee MAX_STREAMON_CHECKTIMES");
+							else
+								CAM_DBG(CAM_EEPROM, "stream on no complete,k=%d",k);
+						}else{
+							CAM_DBG(CAM_EEPROM, "stream on is complete");
+							break;
+						}
+				    }
+			    }
+			    //-bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
 		    }
 
-                    //step2: read ready status
-                    //+bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
-                    for(k = 0;k < MAX_RAED_STATUS_CHECKTIMES;k++){//test 10 times
-                         rc = camera_io_dev_read(&e_ctrl->io_master_info,
-                      0x0A01, &read_complete_result,
-                      CAMERA_SENSOR_I2C_TYPE_WORD,
-                      CAMERA_SENSOR_I2C_TYPE_BYTE);
-                         if (rc) {
-                               CAM_ERR(CAM_EEPROM, "read failed rc %d", rc);
-                               return rc;
-                         }
-		         CAM_DBG(CAM_EEPROM,"complete_result=%x",read_complete_result);
-                         if(0x1 == (((uint8_t)read_complete_result)&0x01)) {//read if ready
-                         //-bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
-                                read_status = 1;
-                                CAM_ERR(CAM_EEPROM,"read READY!!");
-                                 break;
-                         }else{
-                                read_status = -1;
-                                CAM_ERR(CAM_EEPROM,"read no ready!!,k=%d",k);
-                         }
-			 if(k == 9)
-			    return  -1;
-                    }
+		    //step2: read ready status
+		    //+bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
+		    for(k = 0;k < MAX_RAED_STATUS_CHECKTIMES;k++){//test 10 times
+			    rc = camera_io_dev_read(&e_ctrl->io_master_info,
+						0x0A01, &read_complete_result,
+						CAMERA_SENSOR_I2C_TYPE_WORD,
+						CAMERA_SENSOR_I2C_TYPE_BYTE);
+			    if (rc) {
+				    CAM_ERR(CAM_EEPROM, "read failed rc %d", rc);
+				    return rc;
+			    }
+			    CAM_DBG(CAM_EEPROM,"complete_result=%x",read_complete_result);
+			    if(0x1 == (((uint8_t)read_complete_result)&0x01)) {//read if ready
+				    //-bug535065,zhouyikuan.wt,ADD,2020/03/27,add s5k4h7yx lsc otp data sometime can't read
+				    read_status = 1;
+				    CAM_ERR(CAM_EEPROM,"read READY!!");
+				    break;
+			    }else{
+				    read_status = -1;
+				    CAM_ERR(CAM_EEPROM,"read no ready!!,k=%d",k);
+			    }
+			    if(k == 9)
+				    return  -1;
+		    }
 
-                    //step3: start read sensor otp data
-                    if(1 == read_status){//start read
-		        CAM_DBG(CAM_EEPROM, "addr=%x,data_size=%d",emap[map_num].mem.addr,N19_S5K4H7YX_BACK_HElLITAI_PAGE_BLOCK_SIZE);
-                        rc = camera_io_dev_read_seq(&e_ctrl->io_master_info,
-				emap[map_num].mem.addr, memptr,
-				emap[map_num].mem.addr_type,
-				emap[map_num].mem.data_type,
-				N19_S5K4H7YX_BACK_HElLITAI_PAGE_BLOCK_SIZE);
-		        if (rc) {
-				CAM_ERR(CAM_EEPROM, "read failed rc %d",rc);
-				return rc;
-			}
+		    //step3: start read sensor otp data
+		    if(1 == read_status){//start read
+			    CAM_DBG(CAM_EEPROM, "addr=%x,data_size=%d",emap[map_num].mem.addr,N19_S5K4H7YX_BACK_HElLITAI_PAGE_BLOCK_SIZE);
+			    rc = camera_io_dev_read_seq(&e_ctrl->io_master_info,
+				    emap[map_num].mem.addr, memptr,
+				    emap[map_num].mem.addr_type,
+				    emap[map_num].mem.data_type,
+				    N19_S5K4H7YX_BACK_HElLITAI_PAGE_BLOCK_SIZE);
+			    if (rc) {
+					CAM_ERR(CAM_EEPROM, "read failed rc %d",rc);
+					return rc;
+			    }
 
-			memptr += N19_S5K4H7YX_BACK_HElLITAI_PAGE_BLOCK_SIZE;
-	              }
+			    memptr += N19_S5K4H7YX_BACK_HElLITAI_PAGE_BLOCK_SIZE;
+		    }
 
-		     //step4: uinit read mode
-		     pWriteParams_after = &n19_s5k4h7yx_back_helitai_eeprom_after_read;
-	              if(pWriteParams_after == NULL || pWriteParams_after->memory_map_size == 0) {
-			 CAM_ERR(CAM_EEPROM, "invalid uninit write params , ");
-		      } else {
-		          CAM_DBG(CAM_EEPROM, "write uninit params , size : %d  ", pWriteParams_after->memory_map_size);
-			 for(count_write=0;count_write< pWriteParams_after->memory_map_size; count_write++)
-			 {
-				i2c_reg_settings.addr_type = pWriteParams_after->mem_settings[count_write].addr_type;
-				i2c_reg_settings.data_type = pWriteParams_after->mem_settings[count_write].data_type;
-				i2c_reg_settings.size = 1;
-				i2c_reg_array.reg_addr = pWriteParams_after->mem_settings[count_write].reg_addr;
-				i2c_reg_array.reg_data = pWriteParams_after->mem_settings[count_write].reg_data;
-				i2c_reg_array.delay = pWriteParams_after->mem_settings[count_write].delay;
-				i2c_reg_settings.reg_setting = &i2c_reg_array;
-				CAM_ERR(CAM_EEPROM, " after i2c_reg_array.reg_data= %d,i2c_reg_array.reg_addr=%x",i2c_reg_array.reg_data,i2c_reg_array.reg_addr);
-				rc = camera_io_dev_write(&e_ctrl->io_master_info, &i2c_reg_settings);
-				if (rc) {
-					CAM_ERR(CAM_EEPROM, "write init params failed rc %d", rc);
-				return rc;
-				}
-			  }
+		    //step4: uinit read mode
+		    pWriteParams_after = &n19_s5k4h7yx_back_helitai_eeprom_after_read;
+		    if(pWriteParams_after == NULL || pWriteParams_after->memory_map_size == 0) {
+			    CAM_ERR(CAM_EEPROM, "invalid uninit write params , ");
+		    } else {
+			    CAM_DBG(CAM_EEPROM, "write uninit params , size : %d  ", pWriteParams_after->memory_map_size);
+			    for(count_write=0;count_write< pWriteParams_after->memory_map_size; count_write++)
+			    {
+				    i2c_reg_settings.addr_type = pWriteParams_after->mem_settings[count_write].addr_type;
+				    i2c_reg_settings.data_type = pWriteParams_after->mem_settings[count_write].data_type;
+				    i2c_reg_settings.size = 1;
+				    i2c_reg_array.reg_addr = pWriteParams_after->mem_settings[count_write].reg_addr;
+				    i2c_reg_array.reg_data = pWriteParams_after->mem_settings[count_write].reg_data;
+				    i2c_reg_array.delay = pWriteParams_after->mem_settings[count_write].delay;
+				    i2c_reg_settings.reg_setting = &i2c_reg_array;
+				    CAM_ERR(CAM_EEPROM, " after i2c_reg_array.reg_data= %d,i2c_reg_array.reg_addr=%x",i2c_reg_array.reg_data,i2c_reg_array.reg_addr);
+				    rc = camera_io_dev_write(&e_ctrl->io_master_info, &i2c_reg_settings);
+				    if (rc) {
+						CAM_ERR(CAM_EEPROM, "write init params failed rc %d", rc);
+						return rc;
+				    }
+			    }
 		     }
 		}
 	}
@@ -207,12 +207,12 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 	struct cam_eeprom_soc_private     *eb_info = NULL;
 	uint8_t                           *memptr = block->mapdata;
 	uint16_t                          sensor_id;//bug535065,qinduilin.wt,ADD,2021/01/08,bring up gc8034 otp,Get GC sensor id
-        //+bug535065, Chris.wt, MODIFY, 20200317, write params before read cali data via kernel code params.
-        #if NEED_WRITE_INIT_PARAMS_BEFORE_READ_CALI_DATA_VIA_KERNEL
-        uint32_t count_write;
-        struct eeprom_memory_map_init_write_params *pWriteParams = NULL;
-        #endif
-        //-bug535065, Chris.wt, MODIFY, 20200317, write params before read cali data via kernel code params.
+	//+bug535065, Chris.wt, MODIFY, 20200317, write params before read cali data via kernel code params.
+	#if NEED_WRITE_INIT_PARAMS_BEFORE_READ_CALI_DATA_VIA_KERNEL
+	uint32_t count_write;
+	struct eeprom_memory_map_init_write_params *pWriteParams = NULL;
+	#endif
+	//-bug535065, Chris.wt, MODIFY, 20200317, write params before read cali data via kernel code params.
 
 	if (!e_ctrl) {
 		CAM_ERR(CAM_EEPROM, "e_ctrl is NULL");
@@ -223,7 +223,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 
 	sensor_id = cam_eeprom_get_gcsensor_id(e_ctrl);//bug535065,qinduilin.wt,ADD,2021/01/08,bring up gc8034 otp,Get GC sensor id
 	for (j = 0; j < block->num_map; j++) {
-		//CAM_DBG(CAM_EEPROM, "slave-addr = 0x%X", emap[j].saddr);
+		CAM_DBG(CAM_EEPROM, "slave-addr = 0x%X", emap[j].saddr);
 		if (emap[j].saddr) {
 			eb_info->i2c_info.slave_addr = emap[j].saddr;
 			rc = cam_eeprom_update_i2c_info(e_ctrl,
@@ -237,7 +237,6 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 		}
 
 		if (emap[j].page.valid_size) {
-                            //CAM_DBG(CAM_EEPROM, "page write, index %d :slave-addr:0x%x  , reg_addr:0x%x, reg_data:0x%x", j, emap[j].saddr, emap[j].page.addr, emap[j].page.data);
 			i2c_reg_settings.addr_type = emap[j].page.addr_type;
 			i2c_reg_settings.data_type = emap[j].page.data_type;
 			i2c_reg_settings.size = 1;
@@ -285,39 +284,39 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 		}
 
 		if (emap[j].mem.valid_size) {
-                        //+bug535065, Chris.wt, MODIFY, 20200324, modified get slave_addr method.
-                        uint16_t slaveIdTemp = eb_info->i2c_info.slave_addr; //get slave i2c addr
-                        //CAM_DBG(CAM_EEPROM, "cam_eeprom_read_memory read start~~");
-                        //CAM_DBG(CAM_EEPROM, "mem read, index %d :slave-addr:0x%x  , reg_addr:0x%x, valid_size:0x%x", j, slaveIdTemp, emap[j].mem.addr, emap[j].mem.valid_size);
-                        //+bug535065,zhouyikuan.wt,ADD,2020/03/26,bring up s5k4h7 otp
-		        if (emap[j].saddr == n19_s5k4h7yx_back_helitai_i2c_slave_addr) {
+			//+bug535065, Chris.wt, MODIFY, 20200324, modified get slave_addr method.
+			uint16_t slaveIdTemp = eb_info->i2c_info.slave_addr; //get slave i2c addr
+			//CAM_DBG(CAM_EEPROM, "cam_eeprom_read_memory read start~~");
+			//CAM_DBG(CAM_EEPROM, "mem read, index %d :slave-addr:0x%x  , reg_addr:0x%x, valid_size:0x%x", j, slaveIdTemp, emap[j].mem.addr, emap[j].mem.valid_size);
+			//+bug535065,zhouyikuan.wt,ADD,2020/03/26,bring up s5k4h7 otp
+			if (emap[j].saddr == n19_s5k4h7yx_back_helitai_i2c_slave_addr) {
                             rc = Read_N19_S5K4H7yx_back_helitai_Otp(e_ctrl,&e_ctrl->cal_data,j);
                             if (rc) {
                                 CAM_ERR(CAM_EEPROM, "read n19_s5k4h7yx_back_helitai failed ,rc %d", rc);
                                 return rc;
                             }
-                        }
-                        //-bug535065,zhouyikuan.wt,ADD,2020/03/26,bring up s5k4h7 otp
-                        //-bug535065, Chris.wt, MODIFY, 20200324, modified get slave_addr method.
-                        //+bug535065, Chris.wt, MODIFY, 20200317, write params before read cali data via kernel code params.
-                        #if NEED_WRITE_INIT_PARAMS_BEFORE_READ_CALI_DATA_VIA_KERNEL
-                        //step1:write params  before read cali data via kernel code params
-                        //uint32_t count_write;
-                        //struct eeprom_memory_map_init_write_params *pWriteParams;
+			}
+			//-bug535065,zhouyikuan.wt,ADD,2020/03/26,bring up s5k4h7 otp
+			//-bug535065, Chris.wt, MODIFY, 20200324, modified get slave_addr method.
+			//+bug535065, Chris.wt, MODIFY, 20200317, write params before read cali data via kernel code params.
+			#if NEED_WRITE_INIT_PARAMS_BEFORE_READ_CALI_DATA_VIA_KERNEL
+			//step1:write params  before read cali data via kernel code params
+			//uint32_t count_write;
+			//struct eeprom_memory_map_init_write_params *pWriteParams;
 
-                        //select eeprom_memory_map_init_write_params.
-                         if (slaveIdTemp == n19_hi556_front_shengtai_i2c_slave_addr ) { //0x50:n19_hi556_front_shengtai
+			//select eeprom_memory_map_init_write_params.
+			if (slaveIdTemp == n19_hi556_front_shengtai_i2c_slave_addr ) { //0x50:n19_hi556_front_shengtai
                             pWriteParams = &n19_hi556_front_shengtai_eeprom;
                            //+bug535065, Chris.wt, MODIFY, 20200324, n19_hi846_back_txd_eeprom read otp cali data via v4l2 IOCTRL from userspace xml config.
-                         } //else if (slaveIdTemp == n19_hi846_back_txd_i2c_slave_addr) { //0x40:n19_hi846_back_txd_eeprom
+			} //else if (slaveIdTemp == n19_hi846_back_txd_i2c_slave_addr) { //0x40:n19_hi846_back_txd_eeprom
                             //pWriteParams = &n19_hi846_back_txd_eeprom;
                          //}
                          //-bug535065, Chris.wt, MODIFY, 20200324, n19_hi846_back_txd_eeprom read otp cali data via v4l2 IOCTRL from userspace xml config.
 
-                         //write n19_hi556_front_shengtai_eeprom params via kernel code params.
-                        if(pWriteParams == NULL /*&& pWriteParams->memory_map_size == 0 */) {
+			//write n19_hi556_front_shengtai_eeprom params via kernel code params.
+			if(pWriteParams == NULL /*&& pWriteParams->memory_map_size == 0 */) {
                             CAM_ERR(CAM_EEPROM, "invalid init write params , ");
-                        } else {
+			} else {
                             CAM_DBG(CAM_EEPROM, "write init params , size : %d  ", pWriteParams->memory_map_size);
                             for(count_write=0;count_write< pWriteParams->memory_map_size; count_write++)
                             {
@@ -334,14 +333,14 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
                                 return rc;
                                 }
                             }
-                        }
-                    #endif
-                    //-bug535065, Chris.wt, MODIFY, 20200317, write params before read cali data via kernel code params.
+			}
+			#endif
+			//-bug535065, Chris.wt, MODIFY, 20200317, write params before read cali data via kernel code params.
 
-                            //step2: read memory data via user cmd,
-                            //+bug535065, Chris.wt, MODIFY, 20200312, add loop read for hi846 otp.
-                             //+bug535065, Chris.wt, MODIFY, 20200324, modified get slave_addr method.
-                            if (slaveIdTemp == n19_hi556_front_shengtai_i2c_slave_addr ||slaveIdTemp == n19_hi846_back_txd_i2c_slave_addr ) { //0x40:n19_hi846_back_txd, 0x50:n19_hi556_front_shengtai
+			//step2: read memory data via user cmd,
+			//+bug535065, Chris.wt, MODIFY, 20200312, add loop read for hi846 otp.
+			//+bug535065, Chris.wt, MODIFY, 20200324, modified get slave_addr method.
+			if (slaveIdTemp == n19_hi556_front_shengtai_i2c_slave_addr ||slaveIdTemp == n19_hi846_back_txd_i2c_slave_addr ) { //0x40:n19_hi846_back_txd, 0x50:n19_hi556_front_shengtai
                                 uint32_t countLoop, tempMemData;
                                 //CAM_DBG(CAM_EEPROM, "loop read eeprom data, i2cAddr: 0x%x , emap[j].mem.valid_size:%d ", emap[j].saddr, emap[j].mem.valid_size);
                                 //-bug535065, Chris.wt, MODIFY, 20200324, modified get slave_addr method.
@@ -375,7 +374,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 				}
 			//-bug535065,qinduilin.wt,ADD,2021/01/08,bring up gc8034 otp
                             //+bug535065,zhouyikuan.wt,ADD,2020/03/26,bring up s5k4h7 otp
-                            } else if(emap[j].saddr != n19_s5k4h7yx_back_helitai_i2c_slave_addr){
+			} else if(emap[j].saddr != n19_s5k4h7yx_back_helitai_i2c_slave_addr){
                             //-bug535065,zhouyikuan.wt,ADD,2020/03/26,bring up s5k4h7 otp
                                if((slaveIdTemp == n19_gc5035_front_qunhui_i2c_slave_addr) || (slaveIdTemp == n19_gc5035_front_cxt_i2c_slave_addr))  //bug535065,huangzheng1.wt,ADD,2021/01/13,bring up gc5035 otp
 			         emap[j].mem.addr = 0xc0+(emap[j].mem.addr/8);
@@ -409,7 +408,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 			    {
 				for( i = 0; i < emap[j].mem.valid_size; i++)
 				{
-			    	     gc5035_update_register_value[i] = memptr[i];
+				     gc5035_update_register_value[i] = memptr[i];
 				     CAM_DBG(CAM_EEPROM, "gc5035 read update register value: [%d]: 0x%02x", i, gc5035_update_register_value[i]);
 				}
 			    }
@@ -417,7 +416,7 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 			    {
 				for(; i < 26; i++)
 				{
-			    	     gc5035_update_register_value[i] = memptr[i];
+				     gc5035_update_register_value[i] = memptr[i];
 				     CAM_DBG(CAM_EEPROM, "gc5035 read update register value: [%d]: 0x%02x", i, gc5035_update_register_value[i]);
 				}
 			    }
@@ -809,7 +808,6 @@ static int32_t cam_eeprom_parse_memory_map(
 			CAM_ERR(CAM_EEPROM, "Not enough buffer remaining");
 			return -EINVAL;
 		}
-
 		for (cnt = 0; cnt < (i2c_random_wr->header.count);
 			cnt++) {
 			map[*num_map + cnt].page.addr =

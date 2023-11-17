@@ -46,9 +46,9 @@
 #include <asm/tlbflush.h>
 #include <asm/traps.h>
 #include <soc/qcom/scm.h>
-#include <wt_sys/wt_boot_reason.h>
 
 #include <acpi/ghes.h>
+#include <wt_sys/wt_boot_reason.h>
 
 #include <linux/sec_debug.h>
 
@@ -297,8 +297,9 @@ static void die_kernel_fault(const char *msg, unsigned long addr,
 
 	mem_abort_decode(esr);
 
-	/* bug 407890, wanghui2.wt, 2019/11/08, add show panic log when into dump */
-	wt_btreason_log_save("Unable to handle kernel %s at virtual address %016lx\n", msg, addr);
+        // CHK, douyingnan.wt, ADD, 20211222, dump display
+        wt_btreason_log_save("Unable to handle kernel %s at virtual address %016lx\n", msg, addr);
+
 	show_pte(addr);
 	die("Oops", regs, esr);
 	bust_spinlocks(0);

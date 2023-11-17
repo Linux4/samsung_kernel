@@ -32,6 +32,9 @@
 #ifdef CONFIG_DISABLE_TEMP_PROTECT
 #include <linux/reboot.h>
 #endif
+#if defined(CONFIG_USB_HOST_NOTIFY)
+#include <linux/host_notify.h>
+#endif
 
 extern struct smb_charger *wt_smbchip;
 //-Bug594012,gudi.wt,20201023,Bringup:add period log
@@ -387,6 +390,34 @@ void smblib_notify_usb_host(struct smb_charger *chg, bool enable)
 	extcon_set_state_sync(chg->extcon, EXTCON_USB_HOST, enable);
 }
 //bug596217, guodandan@wt, 20201026, add usb disable end
+
+//+  bug707503 tankaikun.wt,20220218, add, otg online conctrol
+void smblib_regulator_vbus_enable(struct smb_charger *chg, bool enable)
+{
+	int rc = 0;
+
+	if (enable) {
+		smblib_dbg(chg, PR_OTG, "enabling VBUS in OTG mode\n");
+		rc = smblib_masked_write(chg, DCDC_CMD_OTG_REG,
+					OTG_EN_BIT, OTG_EN_BIT);
+		if (rc < 0) {
+			smblib_err(chg,
+				"Couldn't enable VBUS in OTG mode rc=%d\n", rc);
+			return;
+		}
+	} else {
+		smblib_dbg(chg, PR_OTG, "disabling VBUS in OTG mode\n");
+		rc = smblib_masked_write(chg, DCDC_CMD_OTG_REG,
+					OTG_EN_BIT, 0);
+		if (rc < 0) {
+			smblib_err(chg,
+				"Couldn't disable VBUS in OTG mode rc=%d\n",
+				rc);
+			return;
+		}
+	}
+}
+//- bug707503 tankaikun.wt,20220218, add, otg online conctrol
 
 /********************
  * REGISTER GETTERS *
@@ -2091,12 +2122,29 @@ int smblib_get_prop_batt_capacity(struct smb_charger *chg,
 {
 	int rc = -EINVAL;
 
+	/* +EXTB P220407-02580 taohuayi.wt,20220415,restrain soc  increase whe unpluged cable*/
+	int usb_present;
+	union power_supply_propval usb_pval;
+
 	if (chg->fake_capacity >= 0) {
 		val->intval = chg->fake_capacity;
 		return 0;
 	}
 
 	rc = smblib_get_prop_from_bms(chg, POWER_SUPPLY_PROP_CAPACITY, val);
+
+	smblib_get_prop_usb_present(chg, &usb_pval);
+	usb_present = usb_pval.intval;
+	smblib_err(chg, "usb_present++: %d, pre_soc++ : %d, soc++: %d\n",
+						usb_present, chg->pre_soc, val->intval);
+	if ((chg->pre_soc  <  val->intval) && (usb_present  !=  true)) {   // usb are not present
+		smblib_err(chg, "usb not present: %d, pre_soc : %d, soc: %d\n",
+					usb_present, chg->pre_soc, rc);
+		val->intval = chg->pre_soc;
+	} else {
+		chg->pre_soc = val->intval;
+	}
+	/* -EXTB P220407-02580 taohuayi.wt,20220415,restrain soc  increase whe unpluged cable*/
 
 	return rc;
 }
@@ -3898,6 +3946,30 @@ int smblib_get_prop_charger_temp(struct smb_charger *chg,
 
 	return rc;
 }
+
+//+ Chk 109526 tankaikun.wt,20220218, add, battery temp test
+#define FAKE_BATTERY_TEMP 250
+int smblib_get_prop_batt_temp(struct smb_charger *chg,
+			      union power_supply_propval *val)
+{
+	int rc = -EINVAL;
+
+	if (chg->batt_temp_debug_flag == true) {
+		val->intval = chg->batt_debug_temp;
+		return 0;
+	}
+
+	rc = smblib_get_prop_from_bms(chg,
+				POWER_SUPPLY_PROP_TEMP, val);
+	if (rc < 0) {
+		val->intval = FAKE_BATTERY_TEMP;
+		smblib_err(chg, "Couldn't read battery temp,use fake battery temp,rc=%d\n",rc);
+		return 0;
+	}
+
+	return rc;
+}
+//- Chk 109526 tankaikun.wt,20220218, add, battery temp test
 
 int smblib_get_prop_typec_cc_orientation(struct smb_charger *chg,
 					 union power_supply_propval *val)
@@ -6993,6 +7065,10 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 			//bug596217, guodandan@wt, 20201026, add usb control node, start
 			#ifdef CONFIG_USB_NOTIFIER
 			if(chg->usb_psy->usb_host_flag) {
+#if defined(CONFIG_USB_HOST_NOTIFY)
+				msm_host_block_state_notify();
+				pr_info("%s : host is blocked\n", __func__);
+#endif
 				chg->otg_block = 1;
 				return IRQ_HANDLED;
 			}
@@ -8121,9 +8197,12 @@ static void period_update(struct work_struct *work)
 	rc = smblib_get_prop_from_bms(chip,
 			POWER_SUPPLY_PROP_VOLTAGE_NOW, &val);
 	v_batt = val.intval / 1000;
-	rc = smblib_get_prop_from_bms(chip,
-			POWER_SUPPLY_PROP_TEMP, &val);
+	//+ Chk 109526 tankaikun.wt,20220218,modify, battery temp test
+	//rc = smblib_get_prop_from_bms(chip,
+	//		POWER_SUPPLY_PROP_TEMP, &val);
+	smblib_get_prop_batt_temp(chip, &val);
 	temp = val.intval;
+	//- Chk 109526 tankaikun.wt,20220218, modify, battery temp test
 	rc = smblib_get_prop_from_bms(chip,
 			POWER_SUPPLY_PROP_CURRENT_NOW, &val);
 	c_batt = val.intval / 1000;
@@ -9246,6 +9325,9 @@ int smblib_init(struct smb_charger *chg)
 		smblib_err(chg, "Failed to initialize dcin aicl alarm\n");
 		return -ENODEV;
 	}
+
+	// Chk 109526 tankaikun.wt,20220218, add, battery temp test
+	chg->batt_temp_debug_flag = false;
 
 	chg->fake_capacity = -EINVAL;
 	chg->fake_input_current_limited = -EINVAL;

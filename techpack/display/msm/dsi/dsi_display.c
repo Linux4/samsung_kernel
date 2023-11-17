@@ -32,11 +32,11 @@
 
 #define DSI_CLOCK_BITRATE_RADIX 10
 #define MAX_TE_SOURCE_ID  2
-#define DSI_READ_WRITE_PANEL_DEBUG 1  //bug536291,sijun.wt,2020/0415,add read panel register function
-/*bug536291,sijun.wt,2020/0307,add panel name begin*/
+#define DSI_READ_WRITE_PANEL_DEBUG 1  //bug702116, liuchunyang.wt,20211127,add read panel register function
+/*bug702116, liuchunyang.wt,20211127,add panel name begin*/
 #include <linux/hardware_info.h>
 extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
-/*bug536291,sijun.wt,2020/0307,add panel name end*/
+/*bug702116, liuchunyang.wt,20211127,add panel name end*/
 
 static char dsi_display_primary[MAX_CMDLINE_PARAM_LEN];
 static char dsi_display_secondary[MAX_CMDLINE_PARAM_LEN];
@@ -195,7 +195,7 @@ void dsi_rect_intersect(const struct dsi_rect *r1,
 	}
 }
 
-//bug536193 gudi.wt,MODIFIY,2020420,P85943 limit lcd on current
+//bug536193 taohuayi.wt, MODIFIY, 0220118,P85943 limit lcd on current.
 extern bool usbchg_lcd_is_on;
 int dsi_display_set_backlight(struct drm_connector *connector,
 		void *display, u32 bl_lvl)
@@ -236,7 +236,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		goto error;
 	}
 
-//bug536193 gudi.wt,MODIFIY,2020420,P85943 limit lcd on current
+//bug536193 taohuayi.wt, MODIFIY,20220118, P85943 limit lcd on current.
 	usbchg_lcd_is_on = (bl_temp > 0) ? 1 : 0;
 
 	rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
@@ -582,10 +582,10 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
 		for (i = 0; i < len; ++i) {
 			if (config->return_buf[i] !=
 				config->status_value[group + i]) {
-/* bug 556296, xuxinyu.wt, 20200603, add esd LOG start */
+/* bug702116, liuchunyang.wt,20211127, add esd LOG start */
 				DRM_ERROR("mismatch: 0x%x:0x%x\n",
 						config->status_value[group + i],config->return_buf[i]);
-/* bug 556296, xuxinyu.wt, 20200603, add esd LOG end*/
+/* bug702116, liuchunyang.wt,20211127, add esd LOG end*/
 				break;
 			}
 		}
@@ -708,16 +708,17 @@ static int dsi_display_validate_status(struct dsi_display_ctrl *ctrl,
 exit:
 	return rc;
 }
-/*bug536291,sijun.wt,2020/0505,lcd esd check begin*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check begin*/
 extern void dsi_panel_hx83102e_master(struct dsi_panel *panel);
 extern void dsi_panel_hx83102e_client(struct dsi_panel *panel);
 extern void dsi_panel_nt36523_master(struct dsi_panel *panel);
 extern void dsi_panel_nt36523_client(struct dsi_panel *panel);
-/*bug536291,sijun.wt,2020/0505,lcd esd check end*/
-//+bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+/*bug702116, liuchunyang.wt,20211127,lcd esd check end*/
+//+bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 extern void dsi_panel_ft8201ab_master(struct dsi_panel *panel);
+extern void dsi_panel_ft8201ab_slave(struct dsi_panel *panel);
 extern void dsi_panel_ft8201ab_client(struct dsi_panel *panel);
-//-bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+//-bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 static int dsi_display_status_reg_read(struct dsi_display *display)
 {
 	int rc = 0, i;
@@ -740,27 +741,36 @@ static int dsi_display_status_reg_read(struct dsi_display *display)
 		DSI_ERR("cmd engine enable failed\n");
 		return -EPERM;
 	}
-/*bug536291,sijun.wt,2020/0505,lcd esd check begin*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check begin*/
     if(display->panel->hx83102e_flag)
     {
 	dsi_panel_hx83102e_master(display->panel);
-	/*bug536291,sijun.wt,2020/0512,add nt36523 ic esd check begin*/
-	//+bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+	/*bug702116, liuchunyang.wt,20211127,add nt36523 ic esd check begin*/
+	//+bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
 	} else if(display->panel->ft8201ab_flag) {
 		dsi_panel_ft8201ab_master(display->panel);
 	} else {
 		dsi_panel_nt36523_master(display->panel);
 	}
-	//-bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
-	/*bug536291,sijun.wt,2020/0512,add nt36523 ic esd check end*/
-/*bug536291,sijun.wt,2020/0505,lcd esd check end*/
+	//-bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
+	/*bug702116, liuchunyang.wt,20211127,add nt36523 ic esd check end*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check end*/
 	rc = dsi_display_validate_status(m_ctrl, display->panel);
 	if (rc <= 0) {
 		DSI_ERR("[%s] read status failed on master,rc=%d\n",
 		       display->name, rc);
 		goto exit;
 	}
-/*bug536291,sijun.wt,2020/0505,lcd esd check begin*/
+	if(display->panel->ft8201ab_tianma_flag) {
+		dsi_panel_ft8201ab_slave(display->panel);
+		rc = dsi_display_validate_status(m_ctrl, display->panel);
+		if (rc <= 0) {
+			DSI_ERR("[%s] read status failed on master,rc=%d\n",
+			       display->name, rc);
+			goto exit;
+		}
+	}
+/*bug702116, liuchunyang.wt,20211127,lcd esd check begin*/
 	if(display->panel->hx83102e_flag) {
 		dsi_panel_hx83102e_client(display->panel);
 	/*bug536291,sijun.wt,2020/0512,add nt36523 ic esd check begin*/
@@ -768,9 +778,9 @@ static int dsi_display_status_reg_read(struct dsi_display *display)
 	} else if (display->panel->ft8201ab_flag) {
 		dsi_panel_ft8201ab_client(display->panel);
 	} else {
-/*bug556296,xuxinyu.wt,2020/0608,lcd esd check only nt36523 begin*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check only nt36523 begin*/
 		dsi_panel_nt36523_client(display->panel);
-	/*bug536291,sijun.wt,2020/0512,add nt36523 ic esd check end*/
+	/*bug702116, liuchunyang.wt,20211127,add nt36523 ic esd check end*/
 		rc = dsi_display_validate_status(m_ctrl, display->panel);
 		if (rc <= 0) {
 			DSI_ERR("[%s] read status failed on client,rc=%d\n",
@@ -778,9 +788,9 @@ static int dsi_display_status_reg_read(struct dsi_display *display)
 			goto exit;
 		}
 	}
-	//-bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
-/*bug556296,xuxinyu.wt,2020/0608,lcd esd check only nt36523 end*/
-/*bug536291,sijun.wt,2020/0505,lcd esd check end*/
+	//-bug702116, liuchunyang.wt,20211127,add ft8201ab esd check
+/*bug702116, liuchunyang.wt,20211127,lcd esd check only nt36523 end*/
+/*bug702116, liuchunyang.wt,20211127,lcd esd check end*/
 	if (!display->panel->sync_broadcast_en)
 		goto exit;
 
@@ -917,7 +927,7 @@ release_panel_lock:
 
 	return rc;
 }
-/*bug536291,sijun.wt,2020/0415,add read panel register function begin*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function begin*/
 #if DSI_READ_WRITE_PANEL_DEBUG
 int dsi_display_read_panel(struct dsi_panel *panel, struct dsi_read_config *read_config)
 {
@@ -1000,7 +1010,7 @@ exit_ctrl:
 	return rc;
 }
 #endif
-/*bug536291,sijun.wt,2020/0415,add read panel register function end*/
+/*bug702116, liuchunyang.wt,20211127,add read panel register function end*/
 static int dsi_display_cmd_prepare(const char *cmd_buf, u32 cmd_buf_len,
 		struct dsi_cmd_desc *cmd, u8 *payload, u32 payload_len)
 {
@@ -5323,7 +5333,7 @@ static int dsi_display_bind(struct device *dev,
 			       display->name, rc);
 		goto error_host_deinit;
 	}
-	strlcpy(Lcm_name,display->name,HARDWARE_MAX_ITEM_LONGTH);//bug536291,sijun.wt,2020/0307,add panel name
+	strlcpy(Lcm_name,display->name,HARDWARE_MAX_ITEM_LONGTH);//bug702116, liuchunyang.wt,20211127,add panel name
 	DSI_INFO("Successfully bind display panel '%s'\n", display->name);
 	display->drm_dev = drm;
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  *
  * drivers/mmc/host/sdhci-msm.c - Qualcomm Technologies, Inc. MSM SDHCI Platform
  * driver source file
@@ -38,7 +38,7 @@
 #include "sdhci-pltfm.h"
 #include "cqhci.h"
 #include "cqhci-crypto-qti.h"
-#include <linux/proc_fs.h>		//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node
+#include <linux/proc_fs.h>		//bug702115, linaiyu@wt, 20211217, add sdcard slot check node
 
 #define QOS_REMOVE_DELAY_MS	10
 #define CORE_POWER		0x0
@@ -344,7 +344,7 @@ static const u32 tuning_block_128[] = {
 /* global to hold each slot instance for debug */
 static struct sdhci_msm_host *sdhci_slot[2];
 
-static int sdhci_irq_gpio = 0;		//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node
+static int sdhci_irq_gpio = 0;		//bug702115, linaiyu@wt, 20211217, add sdcard slot check node
 
 static int disable_slots;
 static int bus_mode;
@@ -1346,11 +1346,8 @@ void sdhci_msm_enter_dbg_mode(struct sdhci_host *host)
 	struct sdhci_msm_host *msm_host = pltfm_host->priv;
 	struct platform_device *pdev = msm_host->pdev;
 	u32 enable_dbg_feature = 0;
-	u32 minor;
 
-	minor = IPCAT_MINOR_MASK(readl_relaxed(host->ioaddr +
-				SDCC_IP_CATALOG));
-	if (minor < 2 || msm_host->debug_mode_enabled)
+	if (msm_host->minor < 2 || msm_host->debug_mode_enabled)
 		return;
 	if (!(host->quirks2 & SDHCI_QUIRK2_USE_DBG_FEATURE))
 		return;
@@ -1364,7 +1361,7 @@ void sdhci_msm_enter_dbg_mode(struct sdhci_host *host)
 			SDCC_TESTBUS_CONFIG) | TESTBUS_EN),
 			host->ioaddr + SDCC_TESTBUS_CONFIG);
 
-	if (minor >= 2)
+	if (msm_host->minor >= 2)
 		enable_dbg_feature |= FSM_HISTORY |
 			AUTO_RECOVERY_DISABLE |
 			MM_TRIGGER_DISABLE |
@@ -1391,11 +1388,8 @@ void sdhci_msm_exit_dbg_mode(struct sdhci_host *host)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = pltfm_host->priv;
 	struct platform_device *pdev = msm_host->pdev;
-	u32 minor;
 
-	minor = IPCAT_MINOR_MASK(readl_relaxed(host->ioaddr +
-				SDCC_IP_CATALOG));
-	if (minor < 2 || !msm_host->debug_mode_enabled)
+	if (msm_host->minor  < 2 || !msm_host->debug_mode_enabled)
 		return;
 	if (!(host->quirks2 & SDHCI_QUIRK2_USE_DBG_FEATURE))
 		return;
@@ -2211,6 +2205,23 @@ skip_hsr:
 	return ret;
 }
 
+int sdhci_msm_parse_reset_data(struct device *dev,
+			struct sdhci_msm_host *msm_host)
+{
+	int ret = 0;
+
+	msm_host->core_reset = devm_reset_control_get(dev,
+					"core_reset");
+	if (IS_ERR(msm_host->core_reset)) {
+		ret = PTR_ERR(msm_host->core_reset);
+		dev_err(dev, "core_reset unavailable,err = %d\n",
+				ret);
+		msm_host->core_reset = NULL;
+	}
+
+	return ret;
+}
+
 static int sdhci_msm_parse_regulator_info(struct device *dev,
 					struct sdhci_msm_pltfm_data *pdata)
 {
@@ -2236,32 +2247,9 @@ static int sdhci_msm_parse_regulator_info(struct device *dev,
 		goto out;
 	}
 
-	if (sdhci_msm_dt_parse_vreg_info(dev,
-					 &pdata->vreg_data->vdd_io_bias_data,
-					 "vdd-io-bias")) {
-		dev_err(dev, "No vdd-io-bias regulator data\n");
-	}
-
 	return ret;
 out:
 	return -EINVAL;
-}
-
-int sdhci_msm_parse_reset_data(struct device *dev,
-			struct sdhci_msm_host *msm_host)
-{
-	int ret = 0;
-
-	msm_host->core_reset = devm_reset_control_get(dev,
-					"core_reset");
-	if (IS_ERR(msm_host->core_reset)) {
-		ret = PTR_ERR(msm_host->core_reset);
-		dev_err(dev, "core_reset unavailable,err = %d\n",
-				ret);
-		msm_host->core_reset = NULL;
-	}
-
-	return ret;
 }
 
 /* Parse platform data */
@@ -2289,7 +2277,7 @@ struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 
 	pdata->status_gpio = of_get_named_gpio_flags(np, "cd-gpios", 0, &flags);
 
-	sdhci_irq_gpio = pdata->status_gpio;			//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node
+	sdhci_irq_gpio = pdata->status_gpio;			//bug702115, linaiyu@wt, 20211217, add sdcard slot check node
 
 	if (gpio_is_valid(pdata->status_gpio) && !(flags & OF_GPIO_ACTIVE_LOW))
 		pdata->caps2 |= MMC_CAP2_CD_ACTIVE_HIGH;
@@ -2362,6 +2350,7 @@ struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 					MMC_SCALING_LOWER_DDR52_MODE;
 	}
 
+	/* Add func to avoid merge warnings*/
 	if (sdhci_msm_parse_regulator_info(dev, pdata))
 		goto out;
 
@@ -2404,6 +2393,9 @@ struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 
 	pdata->largeaddressbus =
 		of_property_read_bool(np, "qcom,large-address-bus");
+
+	msm_host->vbias_skip_wa =
+		of_property_read_bool(np, "qcom,vbias-skip-wa");
 
 	sdhci_msm_pm_qos_parse(dev, pdata);
 
@@ -2566,10 +2558,46 @@ void sdhci_msm_cqe_sdhci_dumpregs(struct mmc_host *mmc)
 	sdhci_dumpregs(host);
 }
 
+/*
+ * sdhci_msm_enhanced_strobe_mask :-
+ * Before running CMDQ transfers in HS400 Enhanced Strobe mode,
+ * SW should write 3 to
+ * HC_VENDOR_SPECIFIC_FUNC3.CMDEN_HS400_INPUT_MASK_CNT register.
+ * The default reset value of this register is 2.
+ */
+static void sdhci_msm_enhanced_strobe_mask(struct mmc_host *mmc, bool set)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = pltfm_host->priv;
+	const struct sdhci_msm_offset *msm_host_offset =
+					msm_host->offset;
+
+	if (!msm_host->enhanced_strobe ||
+			!mmc_card_strobe(msm_host->mmc->card)) {
+		pr_debug("%s: host/card does not support hs400 enhanced strobe\n",
+				mmc_hostname(host->mmc));
+		return;
+	}
+
+	if (set) {
+		writel_relaxed((readl_relaxed(host->ioaddr +
+			msm_host_offset->CORE_VENDOR_SPEC3)
+			| CORE_CMDEN_HS400_INPUT_MASK_CNT),
+			host->ioaddr + msm_host_offset->CORE_VENDOR_SPEC3);
+	} else {
+		writel_relaxed((readl_relaxed(host->ioaddr +
+			msm_host_offset->CORE_VENDOR_SPEC3)
+			& ~CORE_CMDEN_HS400_INPUT_MASK_CNT),
+			host->ioaddr + msm_host_offset->CORE_VENDOR_SPEC3);
+	}
+}
+
 static const struct cqhci_host_ops sdhci_msm_cqhci_ops = {
 	.enable		= sdhci_msm_cqe_enable,
 	.disable	= sdhci_msm_cqe_disable,
 	.dumpregs		= sdhci_msm_cqe_sdhci_dumpregs,
+	.enhanced_strobe_mask = sdhci_msm_enhanced_strobe_mask,
 };
 
 #ifdef CONFIG_MMC_CQHCI
@@ -2876,7 +2904,7 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_pltfm_data *pdata,
 {
 	int ret = 0, i;
 	struct sdhci_msm_slot_reg_data *curr_slot;
-	struct sdhci_msm_reg_data *vreg_table[3];
+	struct sdhci_msm_reg_data *vreg_table[2];
 
 	curr_slot = pdata->vreg_data;
 	if (!curr_slot) {
@@ -2887,7 +2915,6 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_pltfm_data *pdata,
 
 	vreg_table[0] = curr_slot->vdd_data;
 	vreg_table[1] = curr_slot->vdd_io_data;
-	vreg_table[2] = curr_slot->vdd_io_bias_data;
 
 	for (i = 0; i < ARRAY_SIZE(vreg_table); i++) {
 		if (vreg_table[i]) {
@@ -2910,8 +2937,7 @@ static int sdhci_msm_vreg_init(struct device *dev,
 {
 	int ret = 0;
 	struct sdhci_msm_slot_reg_data *curr_slot;
-	struct sdhci_msm_reg_data *curr_vdd_reg, *curr_vdd_io_reg,
-				  *curr_vdd_io_bias_reg;
+	struct sdhci_msm_reg_data *curr_vdd_reg, *curr_vdd_io_reg;
 
 	curr_slot = pdata->vreg_data;
 	if (!curr_slot)
@@ -2919,11 +2945,10 @@ static int sdhci_msm_vreg_init(struct device *dev,
 
 	curr_vdd_reg = curr_slot->vdd_data;
 	curr_vdd_io_reg = curr_slot->vdd_io_data;
-	curr_vdd_io_bias_reg = curr_slot->vdd_io_bias_data;
 
 	if (!is_init)
 		/* Deregister all regulators from regulator framework */
-		goto vdd_io_bias_reg_deinit;
+		goto vdd_io_reg_deinit;
 
 	/*
 	 * Get the regulator handle from voltage regulator framework
@@ -2939,19 +2964,11 @@ static int sdhci_msm_vreg_init(struct device *dev,
 		if (ret)
 			goto vdd_reg_deinit;
 	}
-	if (curr_vdd_io_bias_reg) {
-		ret = sdhci_msm_vreg_init_reg(dev, curr_vdd_io_bias_reg);
-		if (ret)
-			goto vdd_io_reg_deinit;
-	}
 
 	if (ret)
 		dev_err(dev, "vreg reset failed (%d)\n", ret);
 	goto out;
 
-vdd_io_bias_reg_deinit:
-	if (curr_vdd_io_bias_reg)
-		sdhci_msm_vreg_deinit_reg(curr_vdd_io_bias_reg);
 vdd_io_reg_deinit:
 	if (curr_vdd_io_reg)
 		sdhci_msm_vreg_deinit_reg(curr_vdd_io_reg);
@@ -3123,6 +3140,45 @@ static int sdhci_msm_clear_pwrctl_status(struct sdhci_host *host, u8 value)
 	return ret;
 }
 
+static void sdhci_msm_vbias_bypass_wa(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = pltfm_host->priv;
+	const struct sdhci_msm_offset *msm_host_offset =
+					msm_host->offset;
+	struct mmc_host *mmc = host->mmc;
+	u32 config;
+	int card_detect = 0;
+
+	if (mmc->ops->get_cd)
+		card_detect = mmc->ops->get_cd(mmc);
+
+	config = readl_relaxed(host->ioaddr +
+			msm_host_offset->CORE_VENDOR_SPEC);
+	/*
+	 * Following cases are covered.
+	 * 1. Card Probe
+	 * 2. Card suspend
+	 * 3. Card Resume
+	 * 4. Card remove
+	 */
+	if ((mmc->card == NULL) && card_detect &&
+		(mmc->ios.power_mode == MMC_POWER_UP))
+		config &= ~CORE_IO_PAD_PWR_SWITCH;
+	else if (mmc->card && card_detect &&
+			(mmc->ios.power_mode == MMC_POWER_OFF))
+		config |= CORE_IO_PAD_PWR_SWITCH;
+	else if (mmc->card && card_detect &&
+			(mmc->ios.power_mode == MMC_POWER_UP))
+		config &= ~CORE_IO_PAD_PWR_SWITCH;
+	else if (mmc->card == NULL && !card_detect &&
+			(mmc->ios.power_mode == MMC_POWER_OFF))
+		config |= CORE_IO_PAD_PWR_SWITCH;
+
+	writel_relaxed(config, host->ioaddr +
+				msm_host_offset->CORE_VENDOR_SPEC);
+}
+
 static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
 {
 	struct sdhci_host *host = (struct sdhci_host *)data;
@@ -3135,8 +3191,6 @@ static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
 	int ret = 0;
 	int pwr_state = 0, io_level = 0;
 	unsigned long flags;
-	struct sdhci_msm_reg_data *vreg_io_bias =
-			msm_host->pdata->vreg_data->vdd_io_bias_data;
 
 	irq_status = sdhci_msm_readb_relaxed(host,
 		msm_host_offset->CORE_PWRCTL_STATUS);
@@ -3183,8 +3237,6 @@ static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
 	if (irq_status & CORE_PWRCTL_IO_LOW) {
 		/* Switch voltage Low */
 		ret = sdhci_msm_set_vdd_io_vol(msm_host->pdata, VDD_IO_LOW, 0);
-		if (!ret && vreg_io_bias)
-			ret = sdhci_msm_vreg_disable(vreg_io_bias);
 		if (ret)
 			irq_ack |= CORE_PWRCTL_IO_FAIL;
 		else
@@ -3215,17 +3267,21 @@ static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
 	mb();
 	if ((io_level & REQ_IO_HIGH) &&
 			(msm_host->caps_0 & CORE_3_0V_SUPPORT) &&
-			!msm_host->core_3_0v_support)
-		writel_relaxed((readl_relaxed(host->ioaddr +
-				msm_host_offset->CORE_VENDOR_SPEC) &
-				~CORE_IO_PAD_PWR_SWITCH), host->ioaddr +
-				msm_host_offset->CORE_VENDOR_SPEC);
-	else if ((io_level & REQ_IO_LOW) ||
-			(msm_host->caps_0 & CORE_1_8V_SUPPORT))
+			!msm_host->core_3_0v_support) {
+		if (msm_host->vbias_skip_wa)
+			sdhci_msm_vbias_bypass_wa(host);
+		else
+			writel_relaxed((readl_relaxed(host->ioaddr +
+					msm_host_offset->CORE_VENDOR_SPEC) &
+					~CORE_IO_PAD_PWR_SWITCH), host->ioaddr +
+					msm_host_offset->CORE_VENDOR_SPEC);
+	} else if ((io_level & REQ_IO_LOW) ||
+			(msm_host->caps_0 & CORE_1_8V_SUPPORT)) {
 		writel_relaxed((readl_relaxed(host->ioaddr +
 				msm_host_offset->CORE_VENDOR_SPEC) |
 				CORE_IO_PAD_PWR_SWITCH), host->ioaddr +
 				msm_host_offset->CORE_VENDOR_SPEC);
+	}
 	/*
 	 * SDHC has core_mem and hc_mem device memory and these memory
 	 * addresses do not fall within 1KB region. Hence, any update to
@@ -4373,40 +4429,6 @@ static void sdhci_msm_reset(struct sdhci_host *host, u8 mask)
 		cqhci_suspend(host->mmc);
 }
 
-/*
- * sdhci_msm_enhanced_strobe_mask :-
- * Before running CMDQ transfers in HS400 Enhanced Strobe mode,
- * SW should write 3 to
- * HC_VENDOR_SPECIFIC_FUNC3.CMDEN_HS400_INPUT_MASK_CNT register.
- * The default reset value of this register is 2.
- */
-static void sdhci_msm_enhanced_strobe_mask(struct sdhci_host *host, bool set)
-{
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	struct sdhci_msm_host *msm_host = pltfm_host->priv;
-	const struct sdhci_msm_offset *msm_host_offset =
-					msm_host->offset;
-
-	if (!msm_host->enhanced_strobe ||
-			!mmc_card_strobe(msm_host->mmc->card)) {
-		pr_debug("%s: host/card does not support hs400 enhanced strobe\n",
-				mmc_hostname(host->mmc));
-		return;
-	}
-
-	if (set) {
-		writel_relaxed((readl_relaxed(host->ioaddr +
-			msm_host_offset->CORE_VENDOR_SPEC3)
-			| CORE_CMDEN_HS400_INPUT_MASK_CNT),
-			host->ioaddr + msm_host_offset->CORE_VENDOR_SPEC3);
-	} else {
-		writel_relaxed((readl_relaxed(host->ioaddr +
-			msm_host_offset->CORE_VENDOR_SPEC3)
-			& ~CORE_CMDEN_HS400_INPUT_MASK_CNT),
-			host->ioaddr + msm_host_offset->CORE_VENDOR_SPEC3);
-	}
-}
-
 static void sdhci_msm_clear_set_dumpregs(struct sdhci_host *host, bool set)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
@@ -5072,7 +5094,6 @@ static struct sdhci_ops sdhci_msm_ops = {
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = sdhci_msm_reset,
 	.clear_set_dumpregs = sdhci_msm_clear_set_dumpregs,
-	.enhanced_strobe_mask = sdhci_msm_enhanced_strobe_mask,
 	.reset_workaround = sdhci_msm_reset_workaround,
 	.init = sdhci_msm_init,
 	.pre_req = sdhci_msm_pre_req,
@@ -5161,7 +5182,7 @@ static void sdhci_set_default_hw_caps(struct sdhci_msm_host *msm_host,
 	 * starts coming.
 	 */
 	if ((major == 1) && ((minor == 0x42) || (minor == 0x46) ||
-				(minor == 0x49) || (minor >= 0x6b)))
+			(minor == 0x49) || (minor == 0x4D) || (minor >= 0x6b)))
 		msm_host->use_14lpp_dll = true;
 
 	/* Fake 3.0V support for SDIO devices which requires such voltage */
@@ -5245,7 +5266,7 @@ static int sdhci_msm_setup_ice_clk(struct sdhci_msm_host *msm_host,
 	return ret;
 }
 
-//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node, start
+//bug702115, linaiyu@wt, 20211217, add sdcard slot check node, start
 static int sim_card_status_show(struct seq_file *m, void *v)
 {
 	int gpio_value;
@@ -5286,7 +5307,7 @@ static void sim_card_tray_remove_proc(void)
 {
 	remove_proc_entry("sd_tray_gpio_value", NULL);
 }
-//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node, end
+//bug702115, linaiyu@wt, 20211217, add sdcard slot check node, end
 
 /*
  * Changes the bus speed mode for eMMC only as per the
@@ -5326,6 +5347,25 @@ static void sdhci_msm_select_bus_mode(struct sdhci_host *host)
 		pr_info("%s: %s: bus_mode=%d set using kernel command line\n",
 			mmc_hostname(host->mmc), __func__, bus_mode);
 	}
+}
+
+/* SYSFS about SD Card Detection */
+static struct device *t_flash_detect_dev;
+static ssize_t t_flash_detect_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+
+	if (!mmc_gpio_get_cd(msm_host->mmc)) {
+		pr_debug("SD slot tray Removed.\n");
+		return sprintf(buf, "Notray\n");
+	}
+	if (msm_host->mmc->card) {
+		pr_debug("External sd: card inserted.\n");
+		return sprintf(buf, "Insert\n");
+	}
+	pr_debug("External sd: card removed.\n");
+	return sprintf(buf, "Remove\n");
 }
 
 /* SYSFS for service center support */
@@ -5413,6 +5453,7 @@ out:
 	return len;
 }
 
+static DEVICE_ATTR(status, 0444, t_flash_detect_show, NULL);
 static DEVICE_ATTR(sd_count, S_IRUGO, sd_count_show, NULL);
 static DEVICE_ATTR(data, 0444, sd_cid_show, NULL);
 static DEVICE_ATTR(fc, 0444, sd_health_show, NULL);
@@ -5432,7 +5473,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	void __iomem *tlmm_mem;
 	unsigned long flags;
 	bool force_probe;
-	u32 minor;
 
 	pr_debug("%s: Enter %s\n", dev_name(&pdev->dev), __func__);
 	msm_host = devm_kzalloc(&pdev->dev, sizeof(struct sdhci_msm_host),
@@ -5712,11 +5752,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	 * in GIC.
 	 */
 	mb();
-	//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node, start
+	//bug702115, linaiyu@wt, 20211217, add sdcard slot check node, start
 	if(!strcmp(mmc_hostname(host->mmc), "mmc1")){
 		sim_card_tray_create_proc();
 	}
-	//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node, end
+	//bug702115, linaiyu@wt, 20211217, add sdcard slot check node, end
 
 	/*
 	 * Following are the deviations from SDHC spec v3.0 -
@@ -5738,7 +5778,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	if (host->quirks2 & SDHCI_QUIRK2_ALWAYS_USE_BASE_CLOCK)
 		host->quirks2 |= SDHCI_QUIRK2_DIVIDE_TOUT_BY_4;
 
-	minor = IPCAT_MINOR_MASK(readl_relaxed(host->ioaddr +
+	msm_host->minor = IPCAT_MINOR_MASK(readl_relaxed(host->ioaddr +
 				SDCC_IP_CATALOG));
 
 	host_version = readw_relaxed((host->ioaddr + SDHCI_HOST_VERSION));
@@ -5789,7 +5829,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	msm_host->mmc->caps2 |= msm_host->pdata->caps2;
 	msm_host->mmc->caps2 |= MMC_CAP2_BOOTPART_NOACC;
 	msm_host->mmc->caps2 |= MMC_CAP2_HS400_POST_TUNING;
-	//msm_host->mmc->caps2 |= MMC_CAP2_CLK_SCALE;	//bug596218,guodandan@wt, 20201027, modify, disable mmc clk scale feature
+	//msm_host->mmc->caps2 |= MMC_CAP2_CLK_SCALE; //bug707490,linaiyu@wt,20211208,modify,disable mmc clk scale
 	msm_host->mmc->caps2 |= MMC_CAP2_SANITIZE;
 	msm_host->mmc->caps2 |= MMC_CAP2_MAX_DISCARD_SIZE;
 	msm_host->mmc->caps2 |= MMC_CAP2_SLEEP_AWAKE;
@@ -5825,6 +5865,23 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 					__func__, ret);
 			goto vreg_deinit;
 		}
+	}
+
+#if defined(CONFIG_NO_DETECT_PIN)
+	if (t_flash_detect_dev == NULL && !strcmp(host->hw_name, "4784000.sdhci")) {
+#else
+	if (t_flash_detect_dev == NULL && gpio_is_valid(msm_host->pdata->status_gpio)) {
+#endif
+		t_flash_detect_dev = sec_device_create(NULL, "sdcard");
+		if (IS_ERR(t_flash_detect_dev))
+			pr_err("%s : Failed to create device!\n", __func__);
+
+		if (device_create_file(t_flash_detect_dev,
+					&dev_attr_status) < 0)
+			pr_err("%s : Failed to create device file(%s)!\n",
+					__func__, dev_attr_status.attr.name);
+
+		dev_set_drvdata(t_flash_detect_dev, msm_host);
 	}
 
 #if defined(CONFIG_NO_DETECT_PIN)
@@ -5967,7 +6024,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		device_remove_file(&pdev->dev, &msm_host->auto_cmd21_attr);
 	}
 
-	if (minor >= 2) {
+	if (msm_host->minor >= 2) {
 		msm_host->mask_and_match.show = show_mask_and_match;
 		msm_host->mask_and_match.store = store_mask_and_match;
 		sysfs_attr_init(&msm_host->mask_and_match.attr);
@@ -6085,11 +6142,11 @@ static int sdhci_msm_remove(struct platform_device *pdev)
 		sdhci_msm_bus_unregister(msm_host);
 
 	sdhci_pltfm_free(pdev);
-	//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node, start
+	//bug702115, linaiyu@wt, 20211217, add sdcard slot check node, start
 	if(!strcmp(mmc_hostname(host->mmc), "mmc1")){
 		sim_card_tray_remove_proc();
 	}
-	//bug542878, zhaobeilong@wt, 20200327, add sdcard slot check node, end
+	//bug702115, linaiyu@wt, 20211217, add sdcard slot check node, end
 
 	return 0;
 }

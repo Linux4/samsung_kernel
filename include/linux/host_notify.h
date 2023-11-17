@@ -53,12 +53,14 @@ struct host_notify_dev {
 extern int host_state_notify(struct host_notify_dev *ndev, int state);
 extern int host_notify_dev_register(struct host_notify_dev *ndev);
 extern void host_notify_dev_unregister(struct host_notify_dev *ndev);
+extern void msm_host_block_state_notify(void);
 #else
 static inline int host_state_notify(struct host_notify_dev *ndev, int state)
 	{return 0; }
 static inline int host_notify_dev_register(struct host_notify_dev *ndev)
 	{return 0; }
 static inline void host_notify_dev_unregister(struct host_notify_dev *ndev) {}
+static inline void msm_host_block_state_notify(void) {}
 #endif
 
 #endif /* __LINUX_HOST_NOTIFY_H__ */

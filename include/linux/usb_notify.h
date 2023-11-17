@@ -55,6 +55,7 @@ enum u_interface_class_type {
 struct usb_notify_dev {
 	const char *name;
 	struct device *dev;
+	unsigned long usb_data_enabled;
 	char state_cmd[CMD_STATE_LEN];
 	char whitelist_str[MAX_WHITELIST_STR_LEN];
 	int whitelist_array_for_mdm[MAX_CLASS_TYPE_NUM+1];

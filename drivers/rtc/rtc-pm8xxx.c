@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2010-2011, 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010-2011, 2020-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -95,7 +95,7 @@ struct pm8xxx_rtc {
 	struct rtc_wkalrm   sapa;
 	struct alarm        check_poll;
 	struct work_struct  check_func;
-	struct wakeup_source wakesource;
+	struct wakeup_source *wakesource;
 	int                 lpm_mode;
 	unsigned char       triggered;
 #endif
@@ -526,7 +526,7 @@ sapa_check_func(struct work_struct *work)
 		alarm_start_relative(&rtc_dd->check_poll, kt);
 		pr_info("%s: next %lu s\n", __func__, remain);
 	} else if (res == SAPA_EXPIRED) {
-		__pm_stay_awake(&rtc_dd->wakesource);
+		__pm_stay_awake(rtc_dd->wakesource);
 		rtc_dd->triggered = 1;
 	}
 }
@@ -583,7 +583,7 @@ sapa_init(struct pm8xxx_rtc *rtc_dd)
 	rtc_dd->triggered = 0;
 	
 	if (rtc_dd->lpm_mode && rtc_dd->sapa.enabled) {
-		wakeup_source_init(&rtc_dd->wakesource,"SAPA");
+		rtc_dd->wakesource=wakeup_source_register(NULL,"SAPA");
 
 		alarm_init(&rtc_dd->check_poll, ALARM_REALTIME, sapa_check_callback);
 		INIT_WORK(&rtc_dd->check_func, sapa_check_func);
@@ -605,7 +605,7 @@ sapa_exit(struct pm8xxx_rtc *rtc_dd)
 	if (rtc_dd->lpm_mode && rtc_dd->sapa.enabled) {
 		cancel_work_sync(&rtc_dd->check_func);
 		alarm_cancel(&rtc_dd->check_poll);
-		wakeup_source_remove(&rtc_dd->wakesource);
+		wakeup_source_unregister(rtc_dd->wakesource);
 	}
 
 	if (!rtc_dd->triggered) {
@@ -762,6 +762,16 @@ static const struct pm8xxx_rtc_regs pmk8350_regs = {
 	.alarm_en	= BIT(7),
 };
 
+static const struct pm8xxx_rtc_regs pm8916_regs = {
+	.ctrl		= 0x6046,
+	.write		= 0x6040,
+	.read		= 0x6048,
+	.alarm_rw	= 0x6140,
+	.alarm_ctrl	= 0x6146,
+	.alarm_ctrl2	= 0x6148,
+	.alarm_en	= BIT(7),
+};
+
 /*
  * Hardcoded RTC bases until IORESOURCE_REG mapping is figured out
  */
@@ -771,6 +781,7 @@ static const struct of_device_id pm8xxx_id_table[] = {
 	{ .compatible = "qcom,pm8058-rtc", .data = &pm8058_regs },
 	{ .compatible = "qcom,pm8941-rtc", .data = &pm8941_regs },
 	{ .compatible = "qcom,pmk8350-rtc", .data = &pmk8350_regs },
+	{ .compatible = "qcom,pm8916-rtc", .data = &pm8916_regs },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, pm8xxx_id_table);

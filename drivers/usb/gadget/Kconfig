@@ -135,7 +135,14 @@ config U_SERIAL_CONSOLE
 	depends on USB_U_SERIAL
 	help
 	   It supports the serial gadget can be used as a console.
-
+config USB_CONFIGFS_F_SS_MON_GADGET
+	bool "F_SAMSUNG gadget"
+	depends on USB_CONFIGFS
+	select USB_F_SS_MON_GADGET
+	help
+	 Driver for control to Samsung Usb device layer
+	 For Samung working scenario and saving debug log, etc
+	 
 config USB_G_ANDROID
 	bool "Android Composite Gadget"
 	help
@@ -278,6 +285,9 @@ config USB_F_PTP
 
 config USB_F_RMNET_BAM
         tristate
+
+config USB_F_SS_MON_GADGET
+	tristate
 
 # this first set of drivers all depend on bulk-capable hardware.
 

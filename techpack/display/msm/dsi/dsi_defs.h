@@ -316,6 +316,7 @@ enum dsi_cmd_set_type {
 /*bug536291,sijun.wt,2020/0512,add nt36523 ic esd check end*/
 //+bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
 	DSI_CMD_SET_FT8201AB_MASTER,
+	DSI_CMD_SET_FT8201AB_SLAVE,
 	DSI_CMD_SET_FT8201AB_CLIENT,
 //-bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
 	DSI_CMD_SET_DSTB,//bug536291,sijun.wt,2020/0415,add tp gesture function

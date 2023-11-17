@@ -28,6 +28,7 @@
 
 #define SDE_ERROR_CONN(c, fmt, ...) SDE_ERROR("conn%d " fmt,\
 		(c) ? (c)->base.base.id : -1, ##__VA_ARGS__)
+//+bug702116,liuchunyang.wt.add,2021/11/29 ,lcd tp bringup start
 #define WINGTECH_LINEAR_FUNC(out, v, y_min, y_max, x_min, x_max) do {\
 						out = (((int)y_max - (int)y_min)*v + \
 						((int)x_max*(int)y_min - (int)x_min*(int)y_max)) \
@@ -36,6 +37,7 @@
 #define WINGTECH_MDSS_BRIGHT_TO_BL(out, v, bl_min, bl_max, min_bright, max_bright) \
 			WINGTECH_LINEAR_FUNC(out, v, bl_min, bl_max, min_bright, max_bright)
 #define BRIGHTNESS_MIN 10
+//-bug702116,liuchunyang.wt.add,2021/11/29 ,lcd tp bringup end
 static u32 dither_matrix[DITHER_MATRIX_SZ] = {
 	15, 7, 13, 5, 3, 11, 1, 9, 12, 4, 14, 6, 0, 8, 2, 10
 };
@@ -94,7 +96,7 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 	display = (struct dsi_display *) c_conn->display;
 	if (brightness > display->panel->bl_config.bl_max_level)
 		brightness = display->panel->bl_config.bl_max_level;
-
+//+bug702116,liuchunyang.wt.add,2021/11/29 ,lcd tp bringup start
 	/* map UI brightness into driver backlight level with rounding */
 	WINGTECH_MDSS_BRIGHT_TO_BL(bl_lvl, brightness,
 				display->panel->bl_config.bl_min_level, display->panel->bl_config.bl_max_level, BRIGHTNESS_MIN, display->panel->bl_config.brightness_max_level);
@@ -106,9 +108,9 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 	else
 		bl_lvl = 0;
 	}
-
+//-bug702116,liuchunyang.wt.add,2021/11/29 ,lcd tp bringup end
 	if (!bl_lvl && brightness)
-		bl_lvl = 45 ;
+		bl_lvl = 45 ;//bug702116,liuchunyang.wt.modify,2021/11/29 ,lcd tp bringup
 
 	if (!c_conn->allow_bl_update) {
 		c_conn->unset_bl_level = bl_lvl;
@@ -164,7 +166,7 @@ static int sde_backlight_setup(struct sde_connector *c_conn,
 	display = (struct dsi_display *) c_conn->display;
 	bl_config = &display->panel->bl_config;
 	props.max_brightness = bl_config->brightness_max_level;
-	props.brightness = bl_config->brightness_default_level;
+	props.brightness = bl_config->brightness_default_level;//bug702116,liuchunyang.wt.add,2021/11/29 ,lcd tp bringup
 	snprintf(bl_node_name, BL_NODE_NAME_SIZE, "panel%u-backlight",
 							display_count);
 	c_conn->bl_device = backlight_device_register(bl_node_name, dev->dev,

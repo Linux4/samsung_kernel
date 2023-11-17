@@ -1,5 +1,5 @@
 /**
- * @file wt_boot_reason.h
+ * file wt_boot_reason.h
  *
  * Add for wt boot reason feature
  *
@@ -64,3 +64,4 @@ static inline int wt_btreason_log_save(const char *fmt, ...) { return 0; }
 #endif
 
 #endif
+

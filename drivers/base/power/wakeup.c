@@ -861,9 +861,9 @@ void pm_print_active_wakeup_sources(void)
 	srcuidx = srcu_read_lock(&wakeup_srcu);
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
 		if (ws->active) {
-			//+Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
+			//+Chk106693, madongyu.wt, modify, 20211125, add active wakeup source log
 			pr_info("active wakeup source: %s\n", ws->name);
-			//-Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
+			//-Chk106693, madongyu.wt, modify, 20211125, add active wakeup source log
 			active = 1;
 		} else if (!active &&
 			   (!last_activity_ws ||
@@ -874,10 +874,10 @@ void pm_print_active_wakeup_sources(void)
 	}
 
 	if (!active && last_activity_ws)
-		//+Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
-		pr_info("last active wakeup source: %s\n",
+		//+Chk106693, madongyu.wt, modify, 20211125, add active wakeup source log
+		pr_info("last active wakeup source: %s\n",		
 			last_activity_ws->name);
-		//-Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
+		//-Chk106693, madongyu.wt, modify, 20211125, add active wakeup source log
 	srcu_read_unlock(&wakeup_srcu, srcuidx);
 }
 EXPORT_SYMBOL_GPL(pm_print_active_wakeup_sources);

@@ -2628,13 +2628,12 @@ static void himax_mcu_touch_information(void)
 	/*replace 3 with AUO pannel id,  if AUO pannel set TX NUM = 328*/
 	panel_id = himax_get_panel_info();
 #if 1	//guoyan for tianma 20210305
-	if(panel_id == 7)
-	{
+	if(panel_id == 7 || panel_id == 8){
 		ic_data->HX_RX_NUM = 50;
 	}
 #endif
 	//if(panel_id == 3 || panel_id == 4 || panel_id == 5)
-	if(panel_id == 3 || panel_id == 4 || panel_id == 5 || panel_id == 7)
+	if(panel_id == 3 || panel_id == 4 || panel_id == 5 || panel_id == 7 || panel_id == 8)
 		ic_data->HX_TX_NUM = FIX_HX_TX_NUM_AUO;
 	else
 		ic_data->HX_TX_NUM = FIX_HX_TX_NUM;

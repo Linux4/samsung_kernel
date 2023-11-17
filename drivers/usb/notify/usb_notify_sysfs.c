@@ -83,6 +83,32 @@ err:
 	return ret;
 }
 
+ssize_t usb_notify_gadget_disable_usb_data(struct gadget_info *gi)
+{
+	int ret = 0;
+
+	mutex_lock(&gi->lock);
+
+	if (!gi->composite.gadget_driver.udc_name) {
+		ret = -ENODEV;
+		goto err;
+	}
+
+	ret = usb_gadget_unregister_driver(&gi->composite.gadget_driver);
+	if (ret)
+		goto err;
+
+	kfree(gi->composite.gadget_driver.udc_name);
+	gi->composite.gadget_driver.udc_name = NULL;
+
+	mutex_unlock(&gi->lock);
+	return 0;
+
+err:
+	mutex_unlock(&gi->lock);
+	return ret;
+}
+
 ssize_t usb_notify_gadget_enable(struct gadget_info *gi, char *name)
 {
 	int ret = 0;
@@ -92,7 +118,7 @@ ssize_t usb_notify_gadget_enable(struct gadget_info *gi, char *name)
 	if (gi->composite.gadget_driver.udc_name) {
 			ret = -EBUSY;
 			goto err;
-		}
+	}
 
 	gi->composite.gadget_driver.udc_name = name;
 	ret = usb_gadget_probe_driver(&gi->composite.gadget_driver);
@@ -213,6 +239,88 @@ error1:
 	kfree(disable);
 error:
 	return size;
+}
+
+static ssize_t usb_data_enabled_show(
+    struct device *dev, struct device_attribute *attr, char *buf)
+{
+    struct usb_notify_dev *udev = (struct usb_notify_dev *)
+        dev_get_drvdata(dev);
+
+    pr_info("Read usb_data_enabled %lu\n", udev->usb_data_enabled);
+
+    return sprintf(buf, "%lu\n", udev->usb_data_enabled);
+}
+
+static ssize_t usb_data_enabled_store(
+        struct device *dev, struct device_attribute *attr,
+        const char *buf, size_t size)
+{
+    struct usb_notify_dev *udev = (struct usb_notify_dev *)
+        dev_get_drvdata(dev);
+
+    struct usb_notify* u_notify = container_of(udev, struct usb_notify, notify_dev);
+    size_t ret = -ENOMEM;
+    int sret = -EINVAL;
+    char *usb_data_enabled;
+
+    if (size > PAGE_SIZE) {
+        pr_err("%s: size(%zu) is too long.\n", __func__, size);
+
+        goto error;
+    }
+
+    usb_data_enabled = kzalloc(size+1, GFP_KERNEL);
+
+    if (!usb_data_enabled)
+      goto error;
+
+    sret = sscanf(buf, "%s", usb_data_enabled);
+
+    if (sret != 1)
+        goto error1;
+    u_notify->udc_name = kzalloc(UDC_CMD_LEN, GFP_KERNEL);
+    if (!u_notify->udc_name)
+        goto error1;
+
+    if (strcmp(usb_data_enabled, "0") == 0) {
+        udev->usb_data_enabled = 0;
+        u_notify->usb_host_flag = 1;
+        u_notify->usb_device_flag = 1;
+
+        ret = usb_notify_gadget_disable_usb_data(u_notify->usb_gi);
+ 
+        if(ret)
+            pr_err("usb_notify_gadget_disable fail or already disable!\n");
+
+        kfree(u_notify->udc_name);
+    } else if (strcmp(usb_data_enabled, "1") == 0) {
+        udev->usb_data_enabled = 1;
+        u_notify->usb_host_flag = 0;
+        u_notify->usb_device_flag = 0;
+        strcpy(u_notify->udc_name,u_notify->gi_name);
+
+        ret = usb_notify_gadget_enable(u_notify->usb_gi,u_notify->udc_name);
+
+        if(ret)
+            pr_err("usb_notify_gadget_enable fail or already config!\n");
+    } else {
+        pr_err("%s: usb_data_enabled(%s) error.\n",
+            __func__, usb_data_enabled);
+
+        goto error1;
+    }
+    pr_info("%s: usb_data_enabled=%s\n",
+        __func__, usb_data_enabled);
+
+    raw_notifier_call_chain(&usb_otg_notifier,0,u_notify);
+    ret = size;
+
+error1:
+    kfree(usb_data_enabled);
+
+error:
+    return ret;
 }
 
 int get_class_index(int ch9_class_num)
@@ -467,11 +575,13 @@ error:
 	return ret;
 }
 
+static DEVICE_ATTR(usb_data_enabled, 0664, usb_data_enabled_show, usb_data_enabled_store);
 static DEVICE_ATTR(disable, 0664, disable_show, disable_store);
 static DEVICE_ATTR(whitelist_for_mdm, 0664,
 	whitelist_for_mdm_show, whitelist_for_mdm_store);
 
 static struct attribute *usb_notify_attrs[] = {
+	&dev_attr_usb_data_enabled.attr,
 	&dev_attr_disable.attr,
 	&dev_attr_whitelist_for_mdm.attr,
 	NULL,

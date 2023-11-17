@@ -756,7 +756,22 @@ static void himax_ts_isr_func(struct himax_ts_data *ts)
 
 irqreturn_t himax_ts_thread(int irq, void *ptr)
 {
-	himax_ts_isr_func((struct himax_ts_data *)ptr);
+	struct himax_ts_data *ts = (struct himax_ts_data *)ptr;
+	int32_t ret = -1;
+//+bug614711, guoyan1.wt, add, 2021/05/12, TP HIMAX gesture panic
+#ifdef CONFIG_PM
+		//E("this is gesture test_gy\n");
+		if (ts->dev_pm_suspend) {
+			ret = wait_for_completion_timeout(&ts->dev_pm_resume_completion, msecs_to_jiffies(700));
+			if (!ret) {
+				E("system(bus) can't finished resuming procedure, skip it\n");
+				return IRQ_HANDLED;
+			}
+		}
+#endif /* #ifdef CONFIG_PM */
+//-bug614711, guoyan1.wt, add, 2021/05/12, TP HIMAX gesture panic
+	//himax_ts_isr_func((struct himax_ts_data *)ptr);
+	himax_ts_isr_func(ts);
 
 	return IRQ_HANDLED;
 }
@@ -1003,7 +1018,7 @@ struct panel_info{
 	uint8_t panel_id;
 	char * panel_dsc;
 } himax_panel_info[] = {{0,"NULL"}, {1,"inx_fhd"}, {2,"txd_inx"}, {3, "hlt_auo"},
-				{4, "txd_auo_al"}, {5, "txd_auo"}, {6, "lide_hsd"}, {7, "tianma_tianma"}};
+				{4, "txd_auo_al"}, {5, "txd_auo"}, {6, "lide_hsd"}, {7, "tianma_tianma"}, {8, "djn_jdi"}};
 //+bug616968, guoyan1.wt, add, 2021/03/04, TP hx83102e tianma_tianma bringup
 //+bug616968, guoyan1.wt, add, 2021/03/04, TP hx83102e tianma_tianma bringup
 #define NO_PANEL 0
@@ -1200,7 +1215,12 @@ int himax_chip_common_probe(struct spi_device *spi)
 	tid_ops->open_short_test = tid_open_short_test;
 #endif
 	tid_ops->get_version = tid_get_version;
-
+//gest
+#ifdef CONFIG_PM
+	ts->dev_pm_suspend = false;
+	init_completion(&ts->dev_pm_resume_completion);
+#endif
+//
 	private_ts = ts;
 	spi->bits_per_word = 8;
 	spi->mode = SPI_MODE_3;
@@ -1250,6 +1270,39 @@ err_alloc_gbuffer_failed:
 	return ret;
 }
 
+//gesture
+#ifdef CONFIG_PM
+static int himax_ts_pm_suspend(struct device *dev)
+{
+	struct himax_ts_data *ts = private_ts;
+	printk("%s:++\n", __func__);
+
+	ts->dev_pm_suspend = true;
+	reinit_completion(&ts->dev_pm_resume_completion);
+
+	printk("%s:--\n", __func__);
+	return 0;
+}
+
+static int himax_ts_pm_resume(struct device *dev)
+{
+	struct himax_ts_data *ts = private_ts;
+	printk("%s:++\n", __func__);
+
+	ts->dev_pm_suspend = false;
+	complete(&ts->dev_pm_resume_completion);
+
+	printk("%s:--\n", __func__);
+	return 0;
+}
+
+static const struct dev_pm_ops himax_ts_dev_pm_ops = {
+	.suspend = himax_ts_pm_suspend,
+	.resume = himax_ts_pm_resume,
+};
+#endif /* #ifdef CONFIG_PM */
+
+//
 int himax_chip_common_remove(struct spi_device *spi)
 {
 	struct himax_ts_data *ts = spi_get_drvdata(spi);
@@ -1287,6 +1340,9 @@ static struct spi_driver himax_common_driver = {
 	.driver = {
 		.name =		HIMAX_common_NAME,
 		.owner =	THIS_MODULE,
+#ifdef CONFIG_PM
+		.pm = &himax_ts_dev_pm_ops,
+#endif
 		.of_match_table = himax_match_table,
 	},
 	.probe =	himax_chip_common_probe,

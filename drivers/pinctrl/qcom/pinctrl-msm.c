@@ -572,12 +572,12 @@ static void msm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 	unsigned i;
 
 	for (i = 0; i < chip->ngpio; i++, gpio++) {
-        /* -chk47331, zhaobeilong@wt, 20200318, ADD, remove some of the GPIOs are protected by TZ,start */
+        /* bug702115, linaiyu@wt, 20211227, ADD, remove some of the GPIOs are protected by TZ,start */
         if (i != 14 && i != 15 && i != 16 && i != 17) {
 			msm_gpio_dbg_show_one(s, NULL, chip, i, gpio);
 			seq_puts(s, "\n");
 		}
-		/* -chk47331, zhaobeilong@wt, 20200318, ADD, remove some of the GPIOs are protected by TZ,end */
+		/* bug702115, linaiyu@wt, 20211227, ADD, remove some of the GPIOs are protected by TZ,end */
 	}
 }
 

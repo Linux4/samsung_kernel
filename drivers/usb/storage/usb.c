@@ -62,7 +62,7 @@
 
 #define DRV_NAME "usb-storage"
 
-extern void msm_cpuidle_lpm_disable(bool disable);	//Req200520-04403,zhaobeilong@wt,20200622,modify,optimize performance when otg device copy file
+extern void msm_cpuidle_lpm_disable(bool disable);	//bug702115,linaiyu@wt,20211222,modify,optimize performance when otg device copy file
 
 /* Some informational data */
 MODULE_AUTHOR("Matthew Dharm <mdharm-usb@one-eyed-alien.net>");
@@ -1069,7 +1069,7 @@ int usb_stor_probe2(struct us_data *us)
 		dev_dbg(dev, "waiting for device to settle before scanning\n");
 	queue_delayed_work(system_freezable_wq, &us->scan_dwork,
 			delay_use * HZ);
-	msm_cpuidle_lpm_disable(true);		//Req200526-06375,zhaobeilong@wt,20200622,modify,disable lpm when connect usb storage
+	msm_cpuidle_lpm_disable(true);		//bug702115,linaiyu@wt,20211222,modify,disable lpm when connect usb storage
 	return 0;
 
 	/* We come here if there are any problems */
@@ -1089,7 +1089,7 @@ void usb_stor_disconnect(struct usb_interface *intf)
 
 	quiesce_and_remove_host(us);
 	release_everything(us);
-	msm_cpuidle_lpm_disable(false);		//Req200526-06375,zhaobeilong@wt,20200622,modify,disable lpm when connect usb storage
+	msm_cpuidle_lpm_disable(false);		//bug702115,linaiyu@wt,20211222,modify,disable lpm when connect usb storage
 }
 EXPORT_SYMBOL_GPL(usb_stor_disconnect);
 

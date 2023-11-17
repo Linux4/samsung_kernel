@@ -876,15 +876,15 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 	if (devkmsg_log & DEVKMSG_LOG_MASK_OFF)
 		return len;
 
-/* bug 492666 wanghui2.wt 2020.03.04 bringup checklist - add wt final release control init log print */
+//Chk106709, zhaizhenhong.wt 20211124,add log avoid init log loss
 #ifdef WT_FINAL_RELEASE
 	/* Ratelimit when not explicitly enabled. */
 	if (!(devkmsg_log & DEVKMSG_LOG_MASK_ON)) {
 		if (!___ratelimit(&user->rs, current->comm))
 			return ret;
 	}
+//Chk106709, zhaizhenhong.wt 20211124,add log avoid init log loss
 #endif
-
 	buf = kmalloc(len+1, GFP_KERNEL);
 	if (buf == NULL)
 		return -ENOMEM;

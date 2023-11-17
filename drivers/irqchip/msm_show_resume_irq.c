@@ -7,9 +7,9 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-//+Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
-int msm_show_resume_irq_mask=1;
-//-Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
+//+Chk106693, madongyu.wt, modify, 20211125, turn on mask
+int msm_show_resume_irq_mask = 1;
+//-Chk106693, madongyu.wt, modify, 20211125, turn on mask
 
 module_param_named(
 	debug_mask, msm_show_resume_irq_mask, int, 0664);

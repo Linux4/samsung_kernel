@@ -107,7 +107,11 @@ int blk_crypto_submit_bio(struct bio **bio_ptr)
 	}
 
 	/* Get device keyslot if supported */
+#ifdef CONFIG_FSCRYPT_SDP
+	if (!bc->bc_key->is_sdp && keyslot_manager_crypto_mode_supported(q->ksm,
+#else
 	if (keyslot_manager_crypto_mode_supported(q->ksm,
+#endif
 				bc->bc_key->crypto_mode,
 				blk_crypto_key_dun_bytes(bc->bc_key),
 				bc->bc_key->data_unit_size,
@@ -191,6 +195,9 @@ bool blk_crypto_endio(struct bio *bio)
 int blk_crypto_init_key(struct blk_crypto_key *blk_key,
 			const u8 *raw_key, unsigned int raw_key_size,
 			bool is_hw_wrapped,
+#ifdef CONFIG_FSCRYPT_SDP
+			bool is_sdp,
+#endif
 			enum blk_crypto_mode_num crypto_mode,
 			unsigned int dun_bytes,
 			unsigned int data_unit_size)
@@ -227,6 +234,9 @@ int blk_crypto_init_key(struct blk_crypto_key *blk_key,
 	blk_key->data_unit_size_bits = ilog2(data_unit_size);
 	blk_key->size = raw_key_size;
 	blk_key->is_hw_wrapped = is_hw_wrapped;
+#ifdef CONFIG_FSCRYPT_SDP
+	blk_key->is_sdp = is_sdp;
+#endif
 	memcpy(blk_key->raw, raw_key, raw_key_size);
 
 	/*
@@ -262,9 +272,16 @@ int blk_crypto_start_using_mode(enum blk_crypto_mode_num crypto_mode,
 				unsigned int dun_bytes,
 				unsigned int data_unit_size,
 				bool is_hw_wrapped_key,
+#ifdef CONFIG_FSCRYPT_SDP
+				bool is_sdp,
+#endif
 				struct request_queue *q)
 {
+#ifdef CONFIG_FSCRYPT_SDP
+	if (!is_sdp && keyslot_manager_crypto_mode_supported(q->ksm, crypto_mode,
+#else
 	if (keyslot_manager_crypto_mode_supported(q->ksm, crypto_mode,
+#endif
 						  dun_bytes, data_unit_size,
 						  is_hw_wrapped_key))
 		return 0;
@@ -294,7 +311,11 @@ EXPORT_SYMBOL_GPL(blk_crypto_start_using_mode);
 int blk_crypto_evict_key(struct request_queue *q,
 			 const struct blk_crypto_key *key)
 {
+#ifdef CONFIG_FSCRYPT_SDP
+	if (q->ksm && !key->is_sdp &&
+#else
 	if (q->ksm &&
+#endif
 	    keyslot_manager_crypto_mode_supported(q->ksm, key->crypto_mode,
 						  blk_crypto_key_dun_bytes(key),
 						  key->data_unit_size,

@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef CAM_OPE_HW_H
 #define CAM_OPE_HW_H
 
 #define OPE_HW_VER_1_0_0 0x10000000
+#define OPE_HW_VER_1_1_0 0x10010000
 
 #define OPE_DEV_OPE  0
 #define OPE_DEV_MAX  1
@@ -72,6 +73,7 @@ struct cam_ope_top_reg {
 	uint32_t violation_status;
 	uint32_t throttle_cnt_cfg;
 	uint32_t debug_cfg;
+	uint32_t scratch_reg;
 	uint32_t num_debug_registers;
 	struct cam_ope_debug_register *debug_regs;
 };

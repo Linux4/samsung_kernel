@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _CAM_CDM_CORE_COMMON_H_
@@ -12,6 +12,7 @@
 #define CAM_CDM110_VERSION 0x10010000
 #define CAM_CDM120_VERSION 0x10020000
 #define CAM_CDM200_VERSION 0x20000000
+#define CAM_CDM210_VERSION 0x20010000
 
 #define CAM_CDM_AHB_BURST_LEN_1  (BIT(1) - 1)
 #define CAM_CDM_AHB_BURST_LEN_4  (BIT(2) - 1)
@@ -55,5 +56,7 @@ struct cam_cdm_bl_cb_request_entry *cam_cdm_find_request_by_bl_tag(
 	uint32_t tag, struct list_head *bl_list);
 void cam_cdm_notify_clients(struct cam_hw_info *cdm_hw,
 	enum cam_cdm_cb_status status, void *data);
+void cam_hw_cdm_dump_core_debug_registers(
+	struct cam_hw_info *cdm_hw, bool pause_core);
 
 #endif /* _CAM_CDM_CORE_COMMON_H_ */

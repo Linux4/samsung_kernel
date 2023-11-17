@@ -50,10 +50,10 @@
 #include <linux/syscalls.h>
 #include <linux/of.h>
 #include <linux/rcupdate.h>
-#include <wt_sys/wt_boot_reason.h>
 
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
+#include <wt_sys/wt_boot_reason.h>
 
 #include <linux/notifier.h>
 
@@ -139,9 +139,9 @@ static void sysrq_handle_crash(int key)
 {
 	/* release the RCU read lock before crashing */
 	rcu_read_unlock();
-	/* bug 407890, wanghui2.wt, 2019/11/08, add show panic log when into dump */
+#ifdef CONFIG_WT_BOOT_REASON
 	wt_btreason_log_save("Sysrq: Trigger a crash\n");
-
+#endif
 	panic("sysrq triggered crash\n");
 }
 static struct sysrq_key_op sysrq_crash_op = {

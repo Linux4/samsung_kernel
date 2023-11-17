@@ -120,7 +120,6 @@ config QPNP_QG
 	  to determine the battery state-of-charge (SOC) and supports other
 	  battery management features.
 
-#Bug594012,gudi.wt,20201023,Bringup:Add CW2017 driver
 config FUELGAUGE_CW2017
         tristate "CW2017 fuelgauge driver"
         depends on I2C
@@ -154,7 +153,6 @@ config BATTERY_AGE_FORECAST
 	help
 	  Say Y here to enable a function which enable Battery protect...
 	  WARNNING:Only SCM could open it.
-
 config SMB1398_CHARGER
 	tristate "SMB1398 power supply framework based driver"
 	depends on MFD_I2C_PMIC

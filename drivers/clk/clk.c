@@ -3228,9 +3228,9 @@ EXPORT_SYMBOL_GPL(clk_set_flags);
 
 static struct dentry *rootdir;
 static int inited = 0;
-//+Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
-static u32 debug_suspend=1;
-//-Bug 537413,jiangyanjun.wt,MODIFY,20200306,add important power debug log
+//+Chk106693, madongyu.wt, modify, 20211125, add kernel debug log
+static u32 debug_suspend = 1;
+//-Chk106693, madongyu.wt, modify, 20211125, add kernel debug log
 static DEFINE_MUTEX(clk_debug_lock);
 static HLIST_HEAD(clk_debug_list);
 

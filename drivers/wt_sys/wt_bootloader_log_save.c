@@ -176,3 +176,4 @@ static int __init wt_bootloader_log_init(void)
 
 module_init(wt_bootloader_log_init);
 MODULE_LICENSE("GPL");
+

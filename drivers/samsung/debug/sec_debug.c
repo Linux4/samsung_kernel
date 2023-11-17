@@ -251,6 +251,20 @@ static enum pon_restart_reason __pon_restart_dump_sink(
 	return PON_RESTART_REASON_UNKNOWN;
 }
 
+static enum pon_restart_reason __pon_restart_cdsp_signoff(
+				unsigned long opt_code)
+{
+	switch (opt_code) {
+	case CDSP_SIGNOFF_ON:
+		return PON_RESTART_REASON_CDSP_ON;
+	case CDSP_SIGNOFF_BLOCK:
+		return PON_RESTART_REASON_CDSP_BLOCK;
+	}
+
+	return PON_RESTART_REASON_UNKNOWN;
+}
+
+
 #ifdef CONFIG_MUIC_SUPPORT_RUSTPROOF
 static enum pon_restart_reason __pon_restart_swsel(
 				unsigned long opt_code)
@@ -386,10 +400,16 @@ void sec_debug_update_restart_reason(const char *cmd, const int in_panic,
 		{ "dump_sink",
 			PON_RESTART_REASON_UNKNOWN,
 			RESTART_REASON_NORMAL, __pon_restart_dump_sink},
+		{ "signoff",
+			PON_RESTART_REASON_UNKNOWN,
+			RESTART_REASON_NORMAL, __pon_restart_cdsp_signoff},
 		{ "cross_fail",
 			PON_RESTART_REASON_CROSS_FAIL,
 			RESTART_REASON_NORMAL, NULL},
 		{ "from_fastboot",
+			PON_RESTART_REASON_NORMALBOOT,
+			RESTART_REASON_NOT_HANDLE, NULL},
+		{ "disallow,fastboot",
 			PON_RESTART_REASON_NORMALBOOT,
 			RESTART_REASON_NOT_HANDLE, NULL},
 #ifdef CONFIG_MUIC_SUPPORT_RUSTPROOF
@@ -520,6 +540,9 @@ void sec_peripheral_secure_check_fail(void)
 {
 	if (!sec_debug_is_enabled()) {
 		sec_debug_set_qc_dload_magic(0);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)                                           
+		sec_debug_update_restart_reason("peripheral_hw_reset", 0, RESTART_NORMAL);
+#endif                                                                                    
 		sec_debug_pm_restart("peripheral_hw_reset");
 		/* never reach here */
 	}
@@ -623,7 +646,8 @@ struct __upload_cause upload_cause_st[] = {
 	{ "qdaf_fail", UPLOAD_CAUSE_QUEST_QDAF_FAIL, SEC_STRNCMP },
 	{ "zip_unzip_test", UPLOAD_CAUSE_QUEST_ZIP_UNZIP, SEC_STRNCMP },
 	{ "quest_fail", UPLOAD_CAUSE_QUEST_FAIL, SEC_STRNCMP },
-	{ "aoss_thermal_diff", UPLOAD_CAUSE_QUEST_AOSSTHERMALDIFF, SEC_STRNCMP },		
+	{ "aoss_thermal_diff", UPLOAD_CAUSE_QUEST_AOSSTHERMALDIFF, SEC_STRNCMP },
+	{ "stressapptest_test", UPLOAD_CAUSE_QUEST_STRESSAPPTEST, SEC_STRNCMP },	
 #endif
 };
 
@@ -788,15 +812,17 @@ static int __init __sec_debug_dt_addr_init(void)
 		return -ENODEV;
 	}
 
-	watchdog_base = of_iomap(np, 0);
-	if (unlikely(!watchdog_base)) {
-		pr_err("unable to map watchdog_base offset\n");
-		return -ENODEV;
-	}
+	if (of_device_is_available(np)) {
+		watchdog_base = of_iomap(np, 0);
+		if (unlikely(!watchdog_base)) {
+			pr_err("unable to map watchdog_base offset\n");
+			return -ENODEV;
+		}
 
-	/* check upload_cause here */
-	pr_emerg("watchdog_base addr : 0x%p(0x%llx)\n", watchdog_base,
-			(unsigned long long)virt_to_phys(watchdog_base));
+		/* check upload_cause here */
+		pr_emerg("watchdog_base addr : 0x%p(0x%llx)\n", watchdog_base,
+				(unsigned long long)virt_to_phys(watchdog_base));
+	}
 #endif
 
 	return 0;
@@ -841,7 +867,7 @@ static int __init sec_debug_init(void)
 	case ANDROID_DEBUG_LEVEL_MID:
 #endif
 
-#if defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT)
+#if defined(CONFIG_ARCH_ATOLL) || defined(CONFIG_ARCH_SEC_SM7150)
 		if (!force_upload)
 			qcom_scm_disable_sdi();
 #endif

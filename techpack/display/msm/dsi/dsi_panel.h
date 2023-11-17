@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _DSI_PANEL_H_
@@ -118,7 +118,7 @@ struct dsi_backlight_config {
 	u32 bl_min_level;
 	u32 bl_max_level;
 	u32 brightness_max_level;
-        u32 brightness_default_level;
+        u32 brightness_default_level;//liuchunyang.wt add 2021 11 27
 	u32 bl_level;
 	u32 bl_scale;
 	u32 bl_scale_sv;
@@ -147,7 +147,7 @@ struct dsi_panel_reset_config {
 	u32 count;
 
 	int reset_gpio;
-	int vcc;
+	int vcc;//liuchunyang.wt add 2021 11 27
 	int disp_en_gpio;
 	int lcd_mode_sel_gpio;
 	u32 mode_sel_state;
@@ -219,8 +219,9 @@ struct dsi_panel {
 
 	bool lp11_init;
 	bool hx83102e_flag;
-	//bug616968,wangcong.wt,add,2021/01/21,add ft8201ab esd check
+	//bug702116, liuchunyang.wt,20211127,add,2021/01/21,add ft8201ab esd check
 	bool ft8201ab_flag;
+	bool ft8201ab_tianma_flag;
 	bool hxlide_flag;
 	bool ulps_feature_enabled;
 	bool ulps_suspend_enabled;

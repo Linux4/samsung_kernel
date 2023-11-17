@@ -233,9 +233,8 @@ source "drivers/gpu/msm/Kconfig"
 
 source "drivers/energy_model/Kconfig"
 
+# Bug 702116,zhanghao3.wt,mod,20211125,for GuardianM bring up
 source "drivers/guardianm/Kconfig"
-
-source "drivers/wt_sys/Kconfig"
 
 source "drivers/samsung/Kconfig"
 endmenu

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2016-2017, Linaro Ltd
- * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/idr.h>
@@ -41,12 +41,20 @@ do {									     \
 			       ch->lcid, ch->rcid, __func__, ##__VA_ARGS__); \
 } while (0)
 
-
 #define GLINK_ERR(ctxt, x, ...)						  \
 do {									  \
 	pr_err_ratelimited("[%s]: "x, __func__, ##__VA_ARGS__);		  \
 	if (ctxt)							  \
 		ipc_log_string(ctxt, "[%s]: "x, __func__, ##__VA_ARGS__); \
+
+#define CH_ERR(ch, x, ...)						     \
+do {									     \
+	if (ch->glink) {						     \
+		ipc_log_string(ch->glink->ilc, "%s[%d:%d] %s: "x, ch->name,  \
+			       ch->lcid, ch->rcid, __func__, ##__VA_ARGS__); \
+		dev_err_ratelimited(ch->glink->dev, "[%s]: "x, __func__,     \
+							##__VA_ARGS__);      \
+	}								     \
 } while (0)
 
 #define GLINK_NAME_SIZE		32
@@ -639,8 +647,8 @@ static void qcom_glink_rx_done(struct qcom_glink *glink,
 
 	/* We don't send RX_DONE to intentless systems */
 	if (glink->intentless) {
-		kfree(intent->data);
-		kfree(intent);
+
+
 		return;
 	}
 
@@ -946,6 +954,9 @@ static int qcom_glink_rx_defer(struct qcom_glink *glink, size_t extra)
 
 	return 0;
 }
+#define RPM_REQ_DATA_LEN 256
+static struct glink_core_rx_intent g_rpm_request_intent;
+static char g_rpm_request_data[RPM_REQ_DATA_LEN];
 
 static int qcom_glink_rx_data(struct qcom_glink *glink, size_t avail)
 {
@@ -1000,18 +1011,19 @@ static int qcom_glink_rx_data(struct qcom_glink *glink, size_t avail)
 	if (glink->intentless) {
 		/* Might have an ongoing, fragmented, message to append */
 		if (!channel->buf) {
-			intent = kzalloc(sizeof(*intent), GFP_ATOMIC);
-			if (!intent)
-				return -ENOMEM;
-
-			intent->data = kmalloc(chunk_size + left_size,
-					       GFP_ATOMIC);
-			if (!intent->data) {
-				kfree(intent);
-				return -ENOMEM;
-			}
-
-			intent->id = 0xbabababa;
+			intent = &g_rpm_request_intent;
+			memset((void *)intent, 0, sizeof(*intent));
+			intent->data = &g_rpm_request_data[0];
+			memset((void *)intent->data, 0, RPM_REQ_DATA_LEN);
+			
+			
+			
+			
+			
+			
+			
+			
+			intent->id = 0xdeadbead;
 			intent->size = chunk_size + left_size;
 			intent->offset = 0;
 
@@ -1054,12 +1066,14 @@ static int qcom_glink_rx_data(struct qcom_glink *glink, size_t avail)
 					intent->offset,
 					channel->ept.priv,
 					RPMSG_ADDR_ANY);
-			if (ret < 0)
-				CH_INFO(channel,
-					"glink:callback error ret = %d\n", ret);
+
+			if (ret < 0 && ret != -ENODEV) {
+				CH_ERR(channel,
+					"callback error ret = %d\n", ret);
+				ret = 0;
+			}
 		} else {
-			CH_INFO(channel, "callback not present\n");
-			dev_err(glink->dev, "glink:callback not present\n");
+			CH_ERR(channel, "callback not present\n");
 		}
 		spin_unlock(&channel->recv_lock);
 
