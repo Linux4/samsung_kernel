@@ -121,6 +121,9 @@ struct cam_sensor_ctrl_t {
 	struct task_struct *sensor_thread;
 	bool is_thread_started;
 #endif
+#if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
+	uint32_t                       shooting_mode;
+#endif
 };
 
 /**
