@@ -299,7 +299,7 @@ bool secdp_check_if_lpm_mode(void)
 	return retval;
 }
 
-static void secdp_send_poor_connection_event(bool edid_fail)
+__visible_for_testing void secdp_send_poor_connection_event(bool edid_fail)
 {
 	struct dp_display_private *dp = g_secdp_priv;
 
@@ -3187,7 +3187,7 @@ void secdp_self_test_hdcp_off(void)
 }
 #endif
 
-static enum mon_aspect_ratio_t secdp_get_aspect_ratio(struct drm_display_mode *mode)
+__visible_for_testing enum mon_aspect_ratio_t secdp_get_aspect_ratio(struct drm_display_mode *mode)
 {
 	enum mon_aspect_ratio_t aspect_ratio = MON_RATIO_NA;
 	int hdisplay = mode->hdisplay;
@@ -3255,7 +3255,7 @@ static bool secdp_update_max_timing(struct secdp_display_timing *target,
 		return true;
 	}
 
-	mode_total = mode->hdisplay * mode->vdisplay;
+	mode_total = (u64)mode->hdisplay * (u64)mode->vdisplay;
 	if (mode_total < target->total)
 		return false;
 
@@ -3320,7 +3320,6 @@ static void secdp_pdic_connect_init(struct dp_display_private *dp,
 
 	secdp_clear_branch_info(dp);
 	secdp_clear_link_status_cnt(dp->link);
-	secdp_logger_set_max_count(300);
 
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	if (connect) {
@@ -3399,7 +3398,6 @@ static void secdp_pdic_handle_hpd(struct dp_display_private *dp,
 	struct secdp_misc *sec = &dp->sec;
 
 	if (noti->sub1 == PDIC_NOTIFY_HIGH) {
-		secdp_logger_set_max_count(300);
 		atomic_set(&sec->hpd.val, 1);
 		dp->hpd->hpd_high = true;
 	} else/* if (noti->sub1 == PDIC_NOTIFY_LOW)*/ {
@@ -3427,6 +3425,7 @@ static int secdp_pdic_noti_cb(struct notifier_block *nb, unsigned long action,
 		break;
 
 	case PDIC_NOTIFY_ID_DP_CONNECT:
+		secdp_logger_set_max_count(300);
 		DP_INFO("PDIC_NOTIFY_ID_DP_CONNECT <%d>\n", noti.sub1);
 
 		if (noti.sub1 == PDIC_NOTIFY_ATTACH) {
@@ -3451,6 +3450,8 @@ static int secdp_pdic_noti_cb(struct notifier_block *nb, unsigned long action,
 		break;
 
 	case PDIC_NOTIFY_ID_DP_HPD:
+		if (!secdp_is_hpd_irq(&noti))
+			secdp_logger_set_max_count(300);
 		DP_INFO("PDIC_NOTIFY_ID_DP_HPD sub1 <%s> sub2 <%s>\n",
 			(noti.sub1 == PDIC_NOTIFY_HIGH) ? "high" :
 				((noti.sub1 == PDIC_NOTIFY_LOW) ? "low" : "??"),
