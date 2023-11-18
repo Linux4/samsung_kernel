@@ -97,41 +97,18 @@ static void bss_free(struct cfg80211_internal_bss *bss)
 	kfree(bss);
 }
 
-static bool is_bss(struct cfg80211_bss *a, const u8 *bssid,
-		   const u8 *ssid, size_t ssid_len)
-{
-	const struct cfg80211_bss_ies *ies;
-	const u8 *ssidie;
-
-	if (bssid && !ether_addr_equal(a->bssid, bssid))
-		return false;
-
-	if (!ssid)
-		return true;
-
-	ies = rcu_access_pointer(a->ies);
-	if (!ies)
-		return false;
-	ssidie = cfg80211_find_ie(WLAN_EID_SSID, ies->data, ies->len);
-	if (!ssidie)
-		return false;
-	if (ssidie[1] != ssid_len)
-		return false;
-	return memcmp(ssidie + 2, ssid, ssid_len) == 0;
-}
-
 static inline void bss_ref_get(struct cfg80211_registered_device *rdev,
 			       struct cfg80211_internal_bss *bss)
 {
 	lockdep_assert_held(&rdev->bss_lock);
 
 	bss->refcount++;
-
-	if (bss->pub.hidden_beacon_bss)
-		bss_from_pub(bss->pub.hidden_beacon_bss)->refcount++;
-
-	if (bss->pub.transmitted_bss)
-		bss_from_pub(bss->pub.transmitted_bss)->refcount++;
+	if (bss->pub.hidden_beacon_bss) {
+		bss = container_of(bss->pub.hidden_beacon_bss,
+				   struct cfg80211_internal_bss,
+				   pub);
+		bss->refcount++;
+	}
 }
 
 static inline void bss_ref_put(struct cfg80211_registered_device *rdev,
@@ -546,7 +523,28 @@ const u8 *cfg80211_find_vendor_ie(unsigned int oui, int oui_type,
 }
 EXPORT_SYMBOL(cfg80211_find_vendor_ie);
 
+static bool is_bss(struct cfg80211_bss *a, const u8 *bssid,
+		   const u8 *ssid, size_t ssid_len)
+{
+	const struct cfg80211_bss_ies *ies;
+	const u8 *ssidie;
 
+	if (bssid && !ether_addr_equal(a->bssid, bssid))
+		return false;
+
+	if (!ssid)
+		return true;
+
+	ies = rcu_access_pointer(a->ies);
+	if (!ies)
+		return false;
+	ssidie = cfg80211_find_ie(WLAN_EID_SSID, ies->data, ies->len);
+	if (!ssidie)
+		return false;
+	if (ssidie[1] != ssid_len)
+		return false;
+	return memcmp(ssidie + 2, ssid, ssid_len) == 0;
+}
 
 /**
  * enum bss_compare_mode - BSS compare mode
@@ -882,13 +880,6 @@ static bool cfg80211_combine_bsses(struct cfg80211_registered_device *rdev,
 	return true;
 }
 
-struct cfg80211_non_tx_bss {
-	struct cfg80211_bss *tx_bss;
-	u8 max_bssid_indicator;
-	u8 bssid_index;
-};
-
-
 /* Returned bss is reference counted and must be cleaned up appropriately. */
 static struct cfg80211_internal_bss *
 cfg80211_bss_update(struct cfg80211_registered_device *rdev,
@@ -1013,10 +1004,6 @@ cfg80211_bss_update(struct cfg80211_registered_device *rdev,
 		memcpy(new, tmp, sizeof(*new));
 		new->refcount = 1;
 		INIT_LIST_HEAD(&new->hidden_list);
- 		INIT_LIST_HEAD(&new->pub.nontrans_list);
-
-		/* we'll set this later if it was non-NULL */
-		new->pub.transmitted_bss = NULL;
 
 		if (rcu_access_pointer(tmp->pub.proberesp_ies)) {
 			hidden = rb_find_bss(rdev, tmp, BSS_CMP_HIDE_ZLEN);
@@ -1137,8 +1124,6 @@ cfg80211_get_bss_channel(struct wiphy *wiphy, const u8 *ie, size_t ielen,
 	return alt_channel;
 }
 
-
-
 /* Returned bss is reference counted and must be cleaned up appropriately. */
 struct cfg80211_bss *
 cfg80211_inform_bss_data(struct wiphy *wiphy,
@@ -1224,8 +1209,6 @@ cfg80211_inform_bss_data(struct wiphy *wiphy,
 	return &res->pub;
 }
 EXPORT_SYMBOL(cfg80211_inform_bss_data);
-
-
 
 /* cfg80211_inform_bss_width_frame helper */
 struct cfg80211_bss *

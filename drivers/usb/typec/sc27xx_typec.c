@@ -175,6 +175,7 @@ struct sc27xx_typec {
 	bool usb20_only;
 	u8 dr_mode;
 	u8 pr_mode;
+	u8 pd_swap_evt;
 
 	enum sc27xx_typec_connection_state state;
 	enum sc27xx_typec_connection_state pre_state;
@@ -182,7 +183,9 @@ struct sc27xx_typec {
 	struct typec_partner *partner;
 	struct typec_capability typec_cap;
 	const struct sprd_typec_variant_data *var_data;
-	struct work_struct work;
+	struct delayed_work typec_work;
+	/* delayed work for handling dr swap */
+	struct delayed_work swap_work;
 	bool use_pdhub_c2c;
 };
 
@@ -368,6 +371,7 @@ static void sc27xx_typec_disconnect(struct sc27xx_typec *sc, u32 status)
 	typec_set_pwr_role(sc->port, TYPEC_SINK);
 	typec_set_data_role(sc->port, TYPEC_DEVICE);
 	typec_set_vconn_role(sc->port, TYPEC_SINK);
+	sc->pd_swap_evt = TYPEC_NO_SWAP;
 
 	if (sc->use_pdhub_c2c)
 		sc27xx_disconnect_set_status_use_pdhubc2c(sc);
@@ -605,6 +609,31 @@ static void sc27xx_typec_work(struct work_struct *work)
 	sc27xx_set_typec_int_enable();
 }
 
+static void sc27xx_typec_swap_work(struct work_struct *work)
+{
+	struct sc27xx_typec *sc = typec_sc;
+
+	dev_info(sc->dev, "%s pd_swap_evt:%d!\n", __func__, sc->pd_swap_evt);
+
+	switch (sc->pd_swap_evt) {
+	case TYPEC_HOST_TO_DEVICE:
+		sc27xx_set_dr_swap_flag(true);
+		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, false);
+		extcon_set_state_sync(sc->edev, EXTCON_USB, true);
+		typec_set_data_role(sc->port, TYPEC_DEVICE);
+		break;
+	case TYPEC_DEVICE_TO_HOST:
+		sc27xx_set_dr_swap_flag(true);
+		extcon_set_state_sync(sc->edev, EXTCON_USB, false);
+		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, true);
+		typec_set_data_role(sc->port, TYPEC_HOST);
+		break;
+	default:
+		return;
+	}
+}
+
+
 static int sc27xx_typec_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -705,7 +734,10 @@ static int sc27xx_typec_probe(struct platform_device *pdev)
 	if (ret)
 		goto error;
 
-	INIT_WORK(&sc->work, sc27xx_typec_work);
+	sc->pd_swap_evt = TYPEC_NO_SWAP;
+	INIT_DELAYED_WORK(&sc->swap_work, sc27xx_typec_swap_work);
+	INIT_DELAYED_WORK(&sc->typec_work, sc27xx_typec_work);
+
 	platform_set_drvdata(pdev, sc);
 	return 0;
 
@@ -740,7 +772,9 @@ int sc27xx_set_typec_int_clear(void)
 
 	regmap_write(sc->regmap, sc->base + sc->var_data->int_clr, event);
 
-	queue_work(system_unbound_wq, &sc->work);
+	/* pd swap,cc need debounce to report interrupt */
+	queue_delayed_work(system_unbound_wq, &sc->typec_work,
+						msecs_to_jiffies(200));
 
 	return 0;
 }
@@ -753,6 +787,16 @@ int sc27xx_set_typec_int_disable(void)
 	u32 val;
 
 	dev_info(sc->dev, "%s entered!\n", __func__);
+	if (!cancel_delayed_work_sync(&sc->typec_work)) {
+		ret = regmap_read(sc->regmap,
+				sc->base + sc->var_data->int_en, &val);
+		if (ret)
+			return ret;
+
+		ret = val & (sc->var_data->attach_en | sc->var_data->detach_en);
+		if (!ret)
+			msleep(20);
+	}
 
 	/* disable typec interrupt for attach/detach */
 	ret = regmap_read(sc->regmap, sc->base + sc->var_data->int_en, &val);
@@ -846,16 +890,16 @@ int sc27xx_typec_set_pd_swap_event(u8 pd_swap_flag)
 		typec_set_pwr_role(sc->port, TYPEC_SOURCE);
 		break;
 	case TYPEC_HOST_TO_DEVICE:
-		sc27xx_set_dr_swap_flag(true);
-		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, false);
-		extcon_set_state_sync(sc->edev, EXTCON_USB, true);
-		typec_set_data_role(sc->port, TYPEC_DEVICE);
-		break;
 	case TYPEC_DEVICE_TO_HOST:
-		sc27xx_set_dr_swap_flag(true);
-		extcon_set_state_sync(sc->edev, EXTCON_USB, false);
-		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, true);
-		typec_set_data_role(sc->port, TYPEC_HOST);
+		if (pd_swap_flag != sc->pd_swap_evt) {
+			sc->pd_swap_evt = pd_swap_flag;
+			/* delay one jiffies for scheduling purpose */
+			schedule_delayed_work(&sc->swap_work,
+						msecs_to_jiffies(5));
+		} else {
+			dev_err(sc->dev, "%s igore pd_swap_flag:%d!\n",
+						__func__, pd_swap_flag);
+		}
 		break;
 	default:
 		return -EINVAL;

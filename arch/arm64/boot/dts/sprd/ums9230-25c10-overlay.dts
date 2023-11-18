@@ -885,6 +885,7 @@
 &usb {
 	extcon = <&extcon_gpio>;
 	vbus-supply = <&vddvbus>;
+	sprd,usb-data-enable = <1>;
 	status = "okay";
 };
 

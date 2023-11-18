@@ -111,6 +111,7 @@ static ssize_t reg_read_show(struct device *dev,
 				input_param[0] + i * reg_stride,
 				read_buf[i]);
 	}
+
 	return ret;
 }
 static DEVICE_ATTR_RW(reg_read);

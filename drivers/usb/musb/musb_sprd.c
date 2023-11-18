@@ -103,6 +103,8 @@ struct sprd_glue {
 	bool		dr_swap_dev_to_host;
 	bool		dr_swap_host_to_dev;
 	bool		is_audiooffload;
+	int		is_data_disabled;
+	enum usb_dr_mode		last_mode;
 };
 
 static int boot_charging;
@@ -114,6 +116,7 @@ static const bool is_slave;
 #endif
 
 extern bool sc27xx_get_dr_swap_flag(void);
+static void musb_sprd_release_all_request(struct musb *musb);
 
 static void sprd_musb_enable(struct musb *musb)
 {
@@ -992,7 +995,7 @@ static void sprd_musb_work(struct work_struct *work)
 	dev_info(glue->dev, "%s enter!\n", __func__);
 	spin_lock_irqsave(&glue->lock, flags);
 	current_mode = glue->wq_mode;
-	current_state = glue->vbus_active;
+	current_state = (glue->vbus_active && (!glue->is_data_disabled));
 	glue->wq_mode = USB_DR_MODE_UNKNOWN;
 	spin_unlock_irqrestore(&glue->lock, flags);
 	if (current_mode == USB_DR_MODE_UNKNOWN)
@@ -1004,11 +1007,10 @@ static void sprd_musb_work(struct work_struct *work)
 	 * is consistent with the last time,maintain the last state,otherwise
 	 * wait for musb controller enter suspend failed will appear
 	*/
-	if ((glue->pre_mode == current_mode) &&
-		(glue->pre_vbus_active == current_state))
-	{
-		dev_info(glue->dev,
-		 "The status is the same as last time\n");
+	if (glue->pre_vbus_active == current_state) {
+		/* Same mode value may cause function exception */
+		dev_err(glue->dev, "Same vbus_active: mode(%d %d), state(%d %d)\n",
+			glue->pre_mode, current_mode, glue->pre_vbus_active, current_state);
 		return;
 	}
 
@@ -1036,6 +1038,7 @@ static void sprd_musb_work(struct work_struct *work)
 		musb_host_start(musb);
 
 	glue->dr_mode = current_mode;
+	glue->last_mode = glue->dr_mode;
 	dev_err(musb->controller, "%s enter: vbus = %d mode = %d\n",
 			__func__, current_state, current_mode);
 
@@ -1044,6 +1047,13 @@ static void sprd_musb_work(struct work_struct *work)
 		if ((musb->g.state != USB_STATE_NOTATTACHED) &&
 		    pm_runtime_active(musb->controller)) {
 			dev_info(glue->dev, "musb device is resumed!\n");
+			/* we know pm_runtime_get_sync will fail here
+			 * but we need to make sure the usage_count will add
+			 * 1, if not, device will enter suspend  when we call
+			 * pm_runtime_put_autosuspend and 500ms pass
+			 */
+			if (glue->dr_mode == USB_DR_MODE_PERIPHERAL)
+				pm_runtime_get_noresume(musb->controller);
 			goto end;
 		}
 
@@ -1185,6 +1195,8 @@ static void sprd_musb_work(struct work_struct *work)
 
 			musb_writeb(musb->mregs, MUSB_DEVCTL,
 				devctl & ~MUSB_DEVCTL_SESSION);
+			/* release request and disable ep before controller suspend */
+			musb_sprd_release_all_request(musb);
 			musb->shutdowning = 1;
 			usb_phy_post_init(glue->xceiv);
 			cnt = 10;
@@ -1233,6 +1245,7 @@ static void sprd_musb_work(struct work_struct *work)
 		glue->charging_mode = false;
 		musb->xceiv->otg->default_a = 0;
 		musb->xceiv->otg->state = OTG_STATE_B_IDLE;
+		glue->last_mode = glue->dr_mode;
 		glue->dr_mode = USB_DR_MODE_UNKNOWN;
 		if (glue->use_pdhub_c2c) {
 			if (glue->dr_swap_dev_to_host)
@@ -1443,6 +1456,117 @@ end:
 	return false;
 }
 
+
+static struct class *usb_notify_class;
+static struct device *usb_notify_dev;
+
+static ssize_t usb_data_disabled_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct sprd_glue *glue = dev_get_drvdata(dev);
+	int usb_data_enabled_flag = glue->is_data_disabled;
+
+	return sprintf(buf, "%d\n", !usb_data_enabled_flag);
+}
+
+static ssize_t usb_data_disabled_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t count)
+{
+	int value = 0;
+	int ret = 0;
+	unsigned long flags;
+	struct sprd_glue *glue = dev_get_drvdata(dev);
+
+	ret = kstrtoint(buf, 10, &value);
+	if (ret) {
+		dev_err(dev, "input err:%d\n", ret);
+		return count;
+	}
+	spin_lock_irqsave(&glue->lock, flags);
+	dev_info(dev, "input value:%d\n", value);
+	if (glue->is_data_disabled == !!value) {
+		if (glue->last_mode == USB_DR_MODE_UNKNOWN) {
+			dev_warn(dev, "last_mode=:%d to %d\n",
+						glue->last_mode, glue->dr_mode);
+			glue->last_mode = glue->dr_mode;
+		}
+		glue->is_data_disabled = !value;
+		glue->wq_mode = glue->last_mode;
+		queue_work(system_unbound_wq, &glue->work);
+	} else {
+		dev_info(dev, "ingnored:%d %d\n",
+					glue->is_data_disabled, value);
+	}
+	dev_dbg(dev, "disable:%d mode:%d vbus:%d\n",
+				glue->is_data_disabled,
+				glue->wq_mode,
+				glue->vbus_active);
+	spin_unlock_irqrestore(&glue->lock, flags);
+
+	return count;
+}
+
+static  DEVICE_ATTR(usb_data_enabled, 0640,
+			       usb_data_disabled_show, usb_data_disabled_store);
+
+static struct attribute *usb_data_control_attrs[] = {
+	&dev_attr_usb_data_enabled.attr,
+	NULL
+};
+
+static const struct attribute_group usb_data_control_group = {
+	.attrs = usb_data_control_attrs,
+};
+
+static int musb_sprd_usb_notify_init(struct platform_device *pdev, void *data)
+{
+	int ret = 0;
+
+	usb_notify_class = class_create(THIS_MODULE, "usb_notify");
+	if (IS_ERR_OR_NULL(usb_notify_class)) {
+		dev_err(&pdev->dev, "usb_notify class create err.\n");
+		ret = PTR_ERR(usb_notify_class);
+		goto out;
+	}
+
+	usb_notify_dev =
+		device_create(usb_notify_class, &pdev->dev, 0, NULL, "usb_control");
+	if (IS_ERR_OR_NULL(usb_notify_dev)) {
+		dev_err(&pdev->dev, "usb_notify class create err.\n");
+		ret = PTR_ERR(usb_notify_dev);
+		class_destroy(usb_notify_class);
+		goto out;
+	}
+
+	ret = sysfs_create_group(&usb_notify_dev->kobj, &usb_data_control_group);
+	if (ret) {
+		dev_err(&pdev->dev, "sysfs create err. ret:%d\n", ret);
+		device_destroy(usb_notify_class, usb_notify_dev->devt);
+		class_destroy(usb_notify_class);
+		goto out;
+	}
+
+	dev_set_drvdata(usb_notify_dev, data);
+	dev_info(&pdev->dev, "[%s] --\n", __func__);
+
+out:
+	return ret;
+}
+
+static void musb_sprd_usb_notify_exit(struct platform_device *pdev)
+{
+	if (usb_notify_dev) {
+		sysfs_remove_group(&usb_notify_dev->kobj, &usb_data_control_group);
+		device_destroy(usb_notify_class, usb_notify_dev->devt);
+	}
+
+	if (usb_notify_class)
+		class_destroy(usb_notify_class);
+
+	dev_info(&pdev->dev, "[%s] --\n", __func__);
+}
+
 static int musb_sprd_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1452,6 +1576,7 @@ static int musb_sprd_probe(struct platform_device *pdev)
 	struct sprd_glue *glue;
 	u32 buf[2];
 	int ret;
+	u32 is_data_enable = 0;
 
 	if (sprd_usbmux_check_mode() == MUX_MODE) {
 		dev_info(&pdev->dev, "musb driver stop probe since usb mux jtag\n");
@@ -1602,6 +1727,19 @@ static int musb_sprd_probe(struct platform_device *pdev)
 		}
 	}
 
+	ret = of_property_read_u32(node, "sprd,usb-data-enable", &is_data_enable);
+	if (!ret && is_data_enable) {
+		ret = musb_sprd_usb_notify_init(pdev, glue);
+		if (ret)
+			dev_warn(&pdev->dev, "usb_notify_init err. %d\n", ret);
+
+		glue->is_data_disabled = 0;
+		glue->last_mode = USB_DR_MODE_UNKNOWN;
+	} else {
+		dev_info(&pdev->dev, "not support usb data control.ret:%d %d\n",
+					ret, is_data_enable);
+	}
+
 	glue->audio_nb.notifier_call = musb_sprd_audio_notifier;
 	ret = register_sprd_usbm_notifier(&glue->audio_nb, SPRD_USBM_EVENT_HOST_MUSB);
 	if (ret) {
@@ -1647,6 +1785,8 @@ static int musb_sprd_remove(struct platform_device *pdev)
 {
 	struct sprd_glue *glue = platform_get_drvdata(pdev);
 	struct musb *musb = platform_get_drvdata(glue->musb);
+
+	musb_sprd_usb_notify_exit(pdev);
 
 	/* this gets called on rmmod.
 	 *  - Host mode: host may still be active
@@ -1811,8 +1951,6 @@ static int musb_sprd_runtime_suspend(struct device *dev)
 	int ret;
 
 	usb_phy_vbus_off(glue->xceiv);
-	if (glue->dr_mode == USB_DR_MODE_PERIPHERAL)
-		musb_sprd_release_all_request(musb);
 
 	if (glue->dr_mode == USB_DR_MODE_HOST) {
 		ret = wait_event_timeout(controller->wait,

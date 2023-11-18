@@ -730,10 +730,10 @@ static int monitor_hang_proc_open(struct inode *inode, struct file *file)
 
 static ssize_t monitor_hang_proc_write(struct file *filp, const char *buf, size_t count, loff_t *data)
 {
-	char write_buf[5] = {0};
+	char write_buf[SYSDUMP_PROC_BUF_LEN] = {0};
 
 	pr_debug("%s in!!\n", __func__);
-	if (count) {
+	if (count && (count < SYSDUMP_PROC_BUF_LEN)) {
 		if (copy_from_user(write_buf, buf, count)) {
 			pr_err("%s copy_from_user fail !!\n", __func__);
 			return -1;

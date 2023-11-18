@@ -1264,7 +1264,7 @@ static ssize_t jadard_ts_suspend_show(struct device  *dev,
 	struct jadard_ts_data *ts = pjadard_ts_data;
 	int cnt = -EINVAL;
 
-	cnt += snprintf(buf, PAGE_SIZE, "ts->suspended:%s\n", ts->suspended);
+	cnt = snprintf(buf, PAGE_SIZE, "ts->suspended:%s\n", ts->suspended?"true":"false");
 	return cnt;
 }
 

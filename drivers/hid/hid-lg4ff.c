@@ -880,11 +880,16 @@ static ssize_t lg4ff_alternate_modes_store(struct device *dev, struct device_att
 		return -ENOMEM;
 
 	i = strlen(lbuf);
+
 /*
 *Modified for code scaning. SI-23341[ANDROID][A3CORE] Heap buffer overflow in lg4ff_alternate_modes_store.
 *Jira:KSG_M168_A01-2995
 *	if (lbuf[i-1] == '\n') {
 */
+
+    if (i == 0)
+            return -ENOMEM;
+
 	if (i > 0 && lbuf[i-1] == '\n') {
 		if (i == 1) {
 			kfree(lbuf);

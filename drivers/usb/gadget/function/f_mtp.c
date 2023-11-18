@@ -40,7 +40,9 @@
 
 #include "configfs.h"
 
-#define MTP_BULK_BUFFER_SIZE       65536
+#define MTP_BULK_BUFFER_TX_SIZE		65536
+/* sprd musb DMA receive buffer shall not exceed 0xfffc */
+#define MTP_BULK_BUFFER_RX_SIZE		64512
 #define MTP_MINIMUM_BUFFER_SIZE		16384
 #define INTR_BUFFER_SIZE           28
 #define MAX_INST_NAME_LEN          40
@@ -478,11 +480,11 @@ static void mtp_complete_intr(struct usb_ep *ep, struct usb_request *req)
 static int mtp_request_tx(struct mtp_dev *dev)
 {
 	struct usb_request *req = NULL;
-	uint32_t tx_buf_sz = MTP_BULK_BUFFER_SIZE;
+	uint32_t tx_buf_sz = MTP_BULK_BUFFER_TX_SIZE;
 	int i;
 
 retry:
-	if (tx_buf_sz != MTP_BULK_BUFFER_SIZE)
+	if (tx_buf_sz != MTP_BULK_BUFFER_TX_SIZE)
 		DBG(dev->cdev, "retry tx_buf_sz:(%d)\n", tx_buf_sz);
 	for (i = 0; i < TX_REQ_MAX; i++) {
 		req = mtp_request_new(dev->ep_in, tx_buf_sz);
@@ -507,11 +509,11 @@ retry:
 static int mtp_request_rx(struct mtp_dev *dev)
 {
 	struct usb_request *req = NULL;
-	uint32_t rx_buf_sz = MTP_BULK_BUFFER_SIZE;
+	uint32_t rx_buf_sz = MTP_BULK_BUFFER_RX_SIZE;
 	int i, j;
 
 retry:
-	if (rx_buf_sz != MTP_BULK_BUFFER_SIZE)
+	if (rx_buf_sz != MTP_BULK_BUFFER_RX_SIZE)
 		DBG(dev->cdev, "retry rx_buf_sz:(%d)\n", rx_buf_sz);
 	for (i = 0; i < RX_REQ_MAX; i++) {
 		req = mtp_request_new(dev->ep_out, rx_buf_sz);
@@ -1392,7 +1394,7 @@ mtp_function_bind(struct usb_configuration *c, struct usb_function *f)
 		unsigned int max_burst;
 
 		/* Calculate bMaxBurst, we know packet size is 1024 */
-		max_burst = min_t(unsigned int, MTP_BULK_BUFFER_SIZE / 1024, 15);
+		max_burst = min_t(unsigned int, MTP_MINIMUM_BUFFER_SIZE / 1024, 15);
 		mtp_ss_in_desc.bEndpointAddress =
 			mtp_fullspeed_in_desc.bEndpointAddress;
 		mtp_ss_in_comp_desc.bMaxBurst = max_burst;

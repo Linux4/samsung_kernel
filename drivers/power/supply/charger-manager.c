@@ -3653,7 +3653,7 @@ static void cm_jeita_temp_goes_down(struct charger_desc *desc, int status,
 		return;
 	}
 
-	if (desc->jeita_tab[status].temp < desc->jeita_tab[status].recovery_temp)
+	if (*jeita_status >= status)
 		*jeita_status = status;
 }
 
@@ -3661,7 +3661,8 @@ static void cm_jeita_temp_goes_up(struct charger_desc *desc, int status,
 				  int recovery_status, int *jeita_status)
 {
 	if (recovery_status == desc->jeita_tab_size) {
-		*jeita_status = status;
+		if (*jeita_status <= status)
+			*jeita_status = status;
 		return;
 	}
 
@@ -3671,14 +3672,14 @@ static void cm_jeita_temp_goes_up(struct charger_desc *desc, int status,
 		return;
 	}
 
-	if (desc->jeita_tab[status].temp > desc->jeita_tab[status].recovery_temp)
+	if (*jeita_status <= status)
 		*jeita_status = status;
 }
 
 static int cm_manager_get_jeita_status(struct charger_manager *cm, int cur_temp)
 {
 	struct charger_desc *desc = cm->desc;
-	static int jeita_status, last_temp;
+	static int jeita_status, last_temp = -200;
 	int i, temp_status, recovery_temp_status = -1;
 
 	for (i = desc->jeita_tab_size - 1; i >= 0; i--) {
@@ -3692,9 +3693,11 @@ static int cm_manager_get_jeita_status(struct charger_manager *cm, int cur_temp)
 
 	if (temp_status == desc->jeita_tab_size) {
 		jeita_status = desc->jeita_tab_size;
+		recovery_temp_status = desc->jeita_tab_size;
 		goto out;
 	} else if (temp_status == 0) {
 		jeita_status = 0;
+		recovery_temp_status = 0;
 		goto out;
 	}
 
@@ -3708,7 +3711,7 @@ static int cm_manager_get_jeita_status(struct charger_manager *cm, int cur_temp)
 	recovery_temp_status = i + 1;
 
 	/* temperature goes down */
-	if (last_temp >= cur_temp)
+	if (last_temp > cur_temp)
 		cm_jeita_temp_goes_down(desc, temp_status, recovery_temp_status, &jeita_status);
 	/* temperature goes up */
 	else
@@ -3792,6 +3795,36 @@ out:
 		return -EAGAIN;
 
 	return 0;
+}
+
+/**
+ * cm_use_typec_charger_type_polling - Polling charger type if use typec extcon.
+ * @cm: the Charger Manager representing the battery.
+ */
+static int cm_use_typec_charger_type_polling(struct charger_manager *cm)
+{
+	int ret;
+	u32 type;
+
+	if (cm->desc->is_fast_charge)
+		return 0;
+
+	if (cm->desc->charger_type != POWER_SUPPLY_USB_TYPE_UNKNOWN)
+		return 0;
+
+	ret = get_usb_charger_type(cm, &type);
+	if (!ret && type != POWER_SUPPLY_USB_TYPE_UNKNOWN)
+		cm->desc->charger_type_cnt++;
+
+	if (cm->desc->charger_type_cnt > 1) {
+		dev_info(cm->dev, "%s: update charger type:%d\n", __func__, type);
+		cm->desc->charger_type = type;
+		cm_update_charge_info(cm, (CM_CHARGE_INFO_CHARGE_LIMIT |
+					   CM_CHARGE_INFO_INPUT_LIMIT |
+					   CM_CHARGE_INFO_JEITA_LIMIT));
+	}
+
+	return ret;
 }
 
 /**
@@ -3879,6 +3912,7 @@ static bool _cm_monitor(struct charger_manager *cm)
 		cm->emergency_stop = 0;
 		cm->charging_status = 0;
 		try_charger_enable(cm, true);
+		cm_use_typec_charger_type_polling(cm);
 
 		if (!cm->desc->cp.cp_running && !cm_check_primary_charger_enabled(cm)
 		    && !cm->desc->force_set_full) {
@@ -4213,6 +4247,7 @@ static void misc_event_handler(struct charger_manager *cm, enum cm_event_types t
 		cm->desc->wl_charge_en = 0;
 		cm->desc->usb_charge_en = 0;
 		cm->desc->pd_port_partner = 0;
+		cm->desc->charger_type_cnt = 0;
 		cm->cm_charge_vote->vote(cm->cm_charge_vote, false,
 					 SPRD_VOTE_TYPE_ALL, 0, 0, 0, cm);
 	}
@@ -5864,6 +5899,9 @@ static struct charger_desc *of_cm_parse_desc(struct device *dev)
 	of_property_read_u32(np, "cm-poll-mode", &poll_mode);
 	desc->polling_mode = poll_mode;
 
+	desc->uvlo_shutdown_mode = CM_SHUTDOWN_MODE_ANDROID;
+	of_property_read_u32(np, "cm-uvlo-shutdown-mode", &desc->uvlo_shutdown_mode);
+
 	of_property_read_u32(np, "cm-poll-interval",
 				&desc->polling_interval_ms);
 
@@ -6203,7 +6241,25 @@ static void cm_uvlo_check_work(struct work_struct *work)
 	if (cm->desc->uvlo_trigger_cnt >= CM_UVLO_CALIBRATION_CNT_THRESHOLD) {
 		dev_err(cm->dev, "WARN: batt_uV less than uvlo, will shutdown\n");
 		set_batt_cap(cm, 0);
-		orderly_poweroff(true);
+		switch (cm->desc->uvlo_shutdown_mode) {
+		case CM_SHUTDOWN_MODE_ORDERLY:
+			orderly_poweroff(true);
+			break;
+
+		case CM_SHUTDOWN_MODE_KERNEL:
+			kernel_power_off();
+			break;
+
+		case CM_SHUTDOWN_MODE_ANDROID:
+			cancel_delayed_work_sync(&cm->cap_update_work);
+			cm->desc->cap = 0;
+			power_supply_changed(cm->charger_psy);
+			break;
+
+		default:
+			dev_warn(cm->dev, "Incorrect uvlo_shutdown_mode (%d)\n",
+				 cm->desc->uvlo_shutdown_mode);
+		}
 	}
 
 	if (batt_uV < CM_UVLO_CALIBRATION_VOLTAGE_THRESHOLD)

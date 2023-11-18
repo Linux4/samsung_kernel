@@ -30,7 +30,6 @@
 #define READ_BUFF_SIZE				128
 #define SERIAL_READ_BUFFER_MAX	128
 
-
 /* MUST equal to the iio total channel bytes size */
 #define MAX_CM4_MSG_SIZE			40
 #define SYNC_TIME_DELAY_MS		10000

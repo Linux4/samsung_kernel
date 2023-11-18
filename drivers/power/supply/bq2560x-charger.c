@@ -116,7 +116,6 @@ enum charge_ic_id {
 	VENDOR_SD155,
 	VENDOR_SC89601,
 	VENDOR_SD7601,
-	VENDOR_ETA6963,
 	VENDOR_SC89601D,
 	VENDOR_MAX
 };
@@ -795,13 +794,8 @@ static int bq2560x_charger_get_version_id(struct bq2560x_charger_info *info)
 
 	if(bq2560x_id == 0x03)
 		info->version_id = VENDOR_SC89601D;
-	else if(bq2560x_id == 0x07) {
-		if (info->version_id == 0x1) {
-			info->version_id = VENDOR_ETA6963;
-		} else {
-			info->version_id = VENDOR_SD7601;
-		}
-	}
+	else if(bq2560x_id == 0x07)
+		info->version_id = VENDOR_SD7601;
 	else if((bq2560x_id == 0x02) && (info->version_id ==1))
 		info->version_id = VENDOR_SD155;
 	else
@@ -1782,12 +1776,6 @@ static int bq2560x_charger_enable_otg(struct regulator_dev *dev)
 		goto out;
 	}
 
-	if (info->version_id == VENDOR_SC89601D) { //disable charger
-        	ret = bq2560x_update_bits(info, BQ2560X_REG_1,
-        				  BQ2560X_REG_CHG_MASK,
-        				  0x0 << BQ2560X_REG_CHG_SHIFT);
-	}
-
 	ret = bq2560x_update_bits(info, BQ2560X_REG_1,
 				  BQ2560X_REG_OTG_MASK,
 				  BQ2560X_REG_OTG_MASK);
@@ -2077,12 +2065,8 @@ static int bq2560x_charger_probe(struct i2c_client *client,
 	if(bq2560x_id == 0x03)
 		info->version_id = VENDOR_SC89601D;
 	else if(bq2560x_id == 0x07) {
-		if (info->version_id == 0x1) {
-			info->version_id = VENDOR_ETA6963;
-		} else {
-			info->version_id = VENDOR_SD7601;
-			sd7601_charge_enable_func(info);
-		}
+		info->version_id = VENDOR_SD7601;
+		sd7601_charge_enable_func(info);
 	} else if((bq2560x_id == 0x02) && (info->version_id ==1))
 		info->version_id = VENDOR_SD155;
 	else

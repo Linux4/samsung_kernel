@@ -222,8 +222,6 @@ static int gnss_ring_write(struct gnss_ring_t *pring, char *buf, int len)
 		GNSS_DEBUG("Ring overloop.");
 		len1 = pend - pring->wp + 1;
 		len2 = len - len1;
-		if (len2 > pring->size)
-			len2 = pring->size;
 		pring->memcpy_wr(pring->wp, buf, len1);
 		pring->memcpy_wr(pstart, (buf + len1), len2);
 		pring->wp = (char *)((u_long)pstart + len2);

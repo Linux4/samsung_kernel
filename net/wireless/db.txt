@@ -41,7 +41,7 @@ country AF: DFS-ETSI
 # Source:
 # http://pucanguilla.org/Downloads/January2005-Anguilla%20Table%20of%20Allocations.pdf
 country AI: DFS-ETSI
-	(2402 - 2472 @ 40), (20)
+	(2402 - 2472 @ 40), (30)
 	(5170 - 5250 @ 80), (20), AUTO-BW
 	(5250 - 5330 @ 80), (20), DFS, AUTO-BW
 	(5490 - 5710 @ 160), (27), DFS
@@ -212,12 +212,27 @@ country BR: DFS-FCC
 	(5735 - 5835 @ 80), (30)
 
 country BS: DFS-FCC
-	(2402 - 2472 @ 40), (20)
+	(2402 - 2472 @ 40), (30)
+	(2402 - 2472 @ 40), (30)
 	(5170 - 5250 @ 80), (24), AUTO-BW
 	(5250 - 5330 @ 80), (24), DFS, AUTO-BW
 	(5490 - 5730 @ 160), (24), DFS
 	(5735 - 5835 @ 80), (30)
 
+country SX: DFS-FCC
+	(2402 - 2472 @ 40), (30)
+	(5170 - 5250 @ 80), (24), AUTO-BW
+	(5250 - 5330 @ 80), (24), DFS, AUTO-BW
+	(5490 - 5730 @ 160), (24), DFS
+	(5735 - 5835 @ 80), (30)
+	
+country UM: DFS-FCC
+	(2402 - 2472 @ 40), (30)
+	(5170 - 5250 @ 80), (24), AUTO-BW
+	(5250 - 5330 @ 80), (24), DFS, AUTO-BW
+	(5490 - 5730 @ 160), (24), DFS
+	(5735 - 5835 @ 80), (30)
+	
 # Source:
 # http://www.bicma.gov.bt/paper/publication/nrrpart4.pdf
 country BT: DFS-ETSI
@@ -305,7 +320,7 @@ country CR: DFS-FCC
 # - Redes Informáticas
 # Resolución 127, 2011 - Reglamento Banda 2,4 GHz.
 country CU: DFS-FCC
-	(2400 - 2472 @ 40), (200 mW)
+	(2402 - 2472 @ 40), (30)
 
 country CX: DFS-FCC
 	(2402 - 2482 @ 40), (20)
@@ -468,14 +483,6 @@ country FR: DFS-ETSI
 	# 60 GHz band channels 1-4, ref: Etsi En 302 567
 	(57000 - 66000 @ 2160), (40)
 
-country SX: DFS-ETSI
-	(2402 - 2472 @ 40), (20)
-	(5170 - 5250 @ 80), (20), AUTO-BW
-	(5250 - 5330 @ 80), (20), DFS, AUTO-BW
-	(5490 - 5710 @ 160), (27), DFS
-	# 60 GHz band channels 1-4, ref: Etsi En 302 567
-	(57000 - 66000 @ 2160), (40)
-
 country GB: DFS-ETSI
 	(2402 - 2482 @ 40), (20)
 	(5170 - 5250 @ 80), (20), AUTO-BW
@@ -556,7 +563,7 @@ country HK: DFS-ETSI
 	(5735 - 5835 @ 80), (30)
 
 country HN: DFS-FCC
-	(2402 - 2472 @ 40), (20)
+	(2402 - 2472 @ 40), (30)
 	(5170 - 5250 @ 80), (17), AUTO-BW
 	(5250 - 5330 @ 80), (24), DFS, AUTO-BW
 	(5490 - 5730 @ 160), (24), DFS
@@ -667,7 +674,7 @@ country KH: DFS-ETSI
 # Source
 # http://ntrc.kn/?page_id=7
 country KN: DFS-ETSI
-	(2402 - 2472 @ 40), (20)
+	(2402 - 2472 @ 40), (30)
 	(5170 - 5250 @ 80), (20), AUTO-BW
 	(5250 - 5330 @ 80), (20), DFS, AUTO-BW
 	(5490 - 5710 @ 160), (30), DFS
@@ -696,7 +703,7 @@ country KW: DFS-ETSI
 	(5250 - 5330 @ 80), (20), DFS, AUTO-BW
 
 country KY: DFS-FCC
-	(2402 - 2472 @ 40), (20)
+	(2402 - 2472 @ 40), (30)
 	(5170 - 5250 @ 80), (24), AUTO-BW
 	(5250 - 5330 @ 80), (24), DFS, AUTO-BW
 	(5490 - 5730 @ 160), (24), DFS
@@ -721,7 +728,7 @@ country LB: DFS-FCC
 # Source:
 # http://www.ntrc.org.lc/operational_structures.htm
 country LC: DFS-ETSI
-	(2402 - 2472 @ 40), (20)
+	(2402 - 2472 @ 40), (30)
 	(5170 - 5250 @ 80), (20), AUTO-BW
 	(5250 - 5330 @ 80), (20), DFS, AUTO-BW
 	(5490 - 5710 @ 160), (30), DFS
@@ -1209,7 +1216,7 @@ country TT: DFS-FCC
 #   http://www.ncc.gov.tw/english/show_file.aspx?table_name=news&file_sn=681
 country TW: DFS-FCC
 	# 2.4g band, LP0002 section 3.10.1
-	(2400 - 2472 @ 40), (30)
+	(2402 - 2472 @ 40), (30)
 	# 5g U-NII band, LP0002 section 4.7
 	# 5.15 ~ 5.25 GHz: 30 dBm for master mode, 23 dBm for clients
 	(5150 - 5250 @ 80), (23), AUTO-BW
@@ -1258,19 +1265,6 @@ country US: DFS-FCC
 	# channels 1,2,3, EIRP=40dBm(43dBm peak)
 	(57240 - 63720 @ 2160), (40)
 
-country UM: DFS-FCC
-	(2402 - 2472 @ 40), (30)
-	# 5.15 ~ 5.25 GHz: 30 dBm for master mode, 23 dBm for clients
-	(5170 - 5250 @ 80), (23), AUTO-BW
-	(5250 - 5330 @ 80), (23), DFS, AUTO-BW
-	(5490 - 5730 @ 160), (23), DFS
-	(5735 - 5835 @ 80), (30)
-	# 60g band
-	# reference: http://cfr.regstoday.com/47cfr15.aspx#47_CFR_15p255
-	# channels 1,2,3, EIRP=40dBm(43dBm peak)
-	(57240 - 63720 @ 2160), (40)
-
-
 country UY: DFS-FCC
 	(2402 - 2482 @ 40), (20)
 	(5170 - 5250 @ 80), (23), AUTO-BW
@@ -1287,7 +1281,7 @@ country UZ: DFS-ETSI
 # Source:
 # http://www.ntrc.vc/regulations/Jun_2006_Spectrum_Managment_Regulations.pdf
 country VC: DFS-ETSI
-	(2402 - 2472 @ 40), (20)
+	(2402 - 2472 @ 40), (30)
 	(5170 - 5250 @ 80), (20), AUTO-BW
 	(5250 - 5330 @ 80), (20), DFS, AUTO-BW
 	(5490 - 5710 @ 160), (27), DFS

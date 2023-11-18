@@ -15,11 +15,13 @@
 #include <linux/uaccess.h>
 
 #define MAP_USER_MINOR MISC_DYNAMIC_MINOR
+
 struct reserved_mem_cfg {
 	bool no_reserved;
 	unsigned long reserved_mem_addr;
 	size_t reserved_mem_size;
 };
+
 static struct reserved_mem_cfg mem_cfg;
 
 static int map_user_open(struct inode *inode, struct file *file)
@@ -87,10 +89,10 @@ static long map_user_ioctl(struct file *file,
 			pr_err("%s, PHYS copy_from_user error!\n", __func__);
 			return -EFAULT;
 		}
-
+		
 		if ((data.phy_addr < mem_cfg.reserved_mem_addr) ||
-				((data.phy_addr + data.size) > (mem_cfg.reserved_mem_addr +
-								mem_cfg.reserved_mem_size))) {
+			((data.phy_addr + data.size) > (mem_cfg.reserved_mem_addr +
+                                                        mem_cfg.reserved_mem_size))) {
 			pr_err("%s, user use mem out of reserved memory size!\n", __func__);
 			return -EFAULT;
 		}
