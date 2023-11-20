@@ -229,6 +229,7 @@ enum {
 	PERF_AXI_BUS_WIDTH,
 	PERF_CDP_SETTING,
 	PERF_CPU_MASK,
+	CPU_MASK_PERF,
 	PERF_CPU_DMA_LATENCY,
 	PERF_CPU_IRQ_LATENCY,
 	PERF_PROP_MAX,
@@ -552,6 +553,8 @@ static struct sde_prop_type sde_perf_prop[] = {
 	{PERF_CDP_SETTING, "qcom,sde-cdp-setting", false,
 			PROP_TYPE_U32_ARRAY},
 	{PERF_CPU_MASK, "qcom,sde-qos-cpu-mask", false, PROP_TYPE_U32},
+	{CPU_MASK_PERF, "qcom,sde-qos-cpu-mask-performance", false,
+			PROP_TYPE_U32},
 	{PERF_CPU_DMA_LATENCY, "qcom,sde-qos-cpu-dma-latency", false,
 			PROP_TYPE_U32},
 	{PERF_CPU_IRQ_LATENCY, "qcom,sde-qos-cpu-irq-latency", false,
@@ -3845,6 +3848,10 @@ static int _sde_perf_parse_dt_cfg(struct device_node *np,
 			prop_exists[PERF_CPU_MASK] ?
 			PROP_VALUE_ACCESS(prop_value, PERF_CPU_MASK, 0) :
 			DEFAULT_CPU_MASK;
+	cfg->perf.cpu_mask_perf =
+			prop_exists[CPU_MASK_PERF] ?
+			PROP_VALUE_ACCESS(prop_value, CPU_MASK_PERF, 0) :
+			DEFAULT_CPU_MASK;
 	cfg->perf.cpu_dma_latency =
 			prop_exists[PERF_CPU_DMA_LATENCY] ?
 			PROP_VALUE_ACCESS(prop_value, PERF_CPU_DMA_LATENCY, 0) :
@@ -4297,6 +4304,7 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->has_vig_p010 = true;
 		sde_cfg->true_inline_rot_rev = SDE_INLINE_ROT_VERSION_1_0_0;
 		sde_cfg->uidle_cfg.uidle_rev = SDE_UIDLE_VERSION_1_0_0;
+		sde_cfg->uidle_cfg.uidle_rev = 0; /* case 05834850: disable uidle */
 	} else if (IS_SAIPAN_TARGET(hw_rev)) {
 		sde_cfg->has_cwb_support = true;
 		sde_cfg->has_wb_ubwc = true;

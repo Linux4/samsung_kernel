@@ -47,7 +47,6 @@ extern unsigned int lpcharge;
 /*#define SECDP_SUPPORT_ODYSSEY*/
 /*#define SECDP_TEST_HDCP2P2_REAUTH*/
 #define SECDP_OPTIMAL_LINK_RATE		/* use optimum link_rate, not max link_rate*/
-/*#define SECDP_IGNORE_PREFER_IF_DEX_RES_EXIST*/
 #define SECDP_EVENT_THREAD
 
 #define SECDP_WIDE_21_9_SUPPORT		/* support ultra-wide 21:9 resolution*/
@@ -136,6 +135,7 @@ enum dex_support_res_t {
 #define DEX_RES_MAX	DEX_RES_3440X1440   /* DeX max resolution */
 #define DEX_FPS_MIN	50                  /* DeX min refresh rate */
 #define DEX_FPS_MAX	60                  /* DeX max refresh rate */
+#define MIRROR_REFRESH_MIN	24
 
 static inline char *secdp_dex_res_to_string(int res)
 {
@@ -170,6 +170,11 @@ enum DEX_STATUS {
 struct secdp_adapter {
 	uint ven_id;
 	uint prod_id;
+	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
+
+	bool ss_genuine;
+	bool ss_legacy;
+	enum dex_support_res_t dex_type;
 };
 
 #define MON_NAME_LEN	14	/*monitor name length, max 13 chars + null*/
@@ -200,12 +205,7 @@ struct secdp_dex {
 	enum DEX_STATUS status; /*previously known as "dex_node_status"*/
 
 	enum dex_support_res_t res;	/*dex supported resolution*/
-	char fw_ver[10];      /*firmware ver, 0:h/w, 1:s/w major, 2:s/w minor*/
 	bool reconnecting;    /* true if dex is under reconnecting */
-
-#ifdef SECDP_IGNORE_PREFER_IF_DEX_RES_EXIST
-	bool res_exist;		/*true if dex resolution exists*/
-#endif
 };
 
 struct secdp_debug {
@@ -221,6 +221,8 @@ struct secdp_misc {
 	struct delayed_work	hpd_noti_work;
 	struct delayed_work	hdcp_start_work;
 	struct delayed_work	link_status_work;
+	struct delayed_work	link_backoff_work;
+	bool			backoff_start;
 	struct delayed_work	poor_discon_work;
 
 	bool is_mst_receiver;	/*true if MST receiver, false otherwise(SST)*/
@@ -257,7 +259,6 @@ struct secdp_misc {
 	int  hdcp_retry;	/*count if dp link is unstable during hdcp*/
 
 	bool has_prefer;	/*true if preferred resolution*/
-	bool ignore_prefer;	/*true if larger refresh rate exists*/
 	int  prefer_hdisp;	/*horizontal pixel of preferred resolution*/
 	int  prefer_vdisp;	/*vertical pixel of preferred resolution*/
 	int  prefer_refresh;	/*refresh rate of preferred resolution*/
@@ -301,7 +302,6 @@ struct secdp_attention_node {
 bool secdp_check_if_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
 bool secdp_get_clk_status(enum dp_pm_type type);
-void secdp_send_poor_connection_event(void);
 
 int  secdp_ccic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_get_power_status(void);
@@ -361,6 +361,8 @@ enum dex_support_res_t secdp_get_dex_res(void);
 void secdp_clear_link_status_update_cnt(struct dp_link *dp_link);
 void secdp_reset_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+void secdp_link_backoff_start(void);
+void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
 
