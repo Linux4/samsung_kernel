@@ -1,0 +1,5 @@
+# to add sprd jpg configs in the future
+config SPRD_JPG
+	tristate "SPRD jpg driver"
+	depends on ARCH_SCX35
+	default y

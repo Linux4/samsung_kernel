@@ -1,0 +1,28 @@
+config SPRDWL
+	tristate "SPRD Wireless LAN Support"
+	depends on CFG80211 && SIPC
+	---help---
+	  Say Y to enable built-in wireless MAC controller in the
+	  Spreadtrum SC88xx based System-on-Chip devices.
+
+config SPRDWL_FW_ZEROCOPY
+	depends on SPRDWL
+	bool "Enable WLAN zerocopy"
+	default n
+	help
+	  Say Y to enable WLAN zerocopy.
+
+config SPRDWL_WIFI_DIRECT
+	depends on SPRDWL && PM
+	bool "Wi-Fi Direct"
+	help
+	  Say Y to enable Wi-Fi Direct.
+
+config SPRDWL_ENHANCED_PM
+	depends on SPRDWL && HAS_EARLYSUSPEND
+	bool "Enhanced Power Management"
+	default y if HAS_EARLYSUSPEND=y
+	help
+	  Say Y to enable enhanced power management. This feature
+	  will put a limit on downloading when screen goes off, and
+	  will restore when screen goes on.

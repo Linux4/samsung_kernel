@@ -1,0 +1,7 @@
+config SC2331
+	tristate "SPRDWL Wireless Network Support"
+	depends on CFG80211
+	---help---
+	  Say Y to enable built-in wireless MAC controller in the
+	  Spreadtrum SC88xx based System-on-Chip devices.
+
