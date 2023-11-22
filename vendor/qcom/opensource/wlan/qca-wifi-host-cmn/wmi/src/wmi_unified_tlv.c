@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -10489,12 +10489,21 @@ QDF_STATUS save_ext_service_bitmap_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 		return QDF_STATUS_SUCCESS;
 	}
 
-	if (!soc->wmi_ext2_service_bitmap) {
+	if (!soc->wmi_ext2_service_bitmap ||
+	    (param_buf->num_wmi_service_ext_bitmap >
+	     soc->wmi_ext2_service_bitmap_len)) {
+		if (soc->wmi_ext2_service_bitmap) {
+			qdf_mem_free(soc->wmi_ext2_service_bitmap);
+			soc->wmi_ext2_service_bitmap = NULL;
+		}
 		soc->wmi_ext2_service_bitmap =
 			qdf_mem_malloc(param_buf->num_wmi_service_ext_bitmap *
 				       sizeof(uint32_t));
 		if (!soc->wmi_ext2_service_bitmap)
 			return QDF_STATUS_E_NOMEM;
+
+		soc->wmi_ext2_service_bitmap_len =
+			param_buf->num_wmi_service_ext_bitmap;
 	}
 
 	qdf_mem_copy(soc->wmi_ext2_service_bitmap,
@@ -15969,6 +15978,7 @@ extract_roam_scan_stats_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 	dst->type = src_data->roam_scan_type;
 	dst->num_chan = src_data->roam_scan_channel_count;
 	dst->next_rssi_threshold = src_data->next_rssi_trigger_threshold;
+	dst->is_btcoex_active = WMI_GET_BTCONNECT_STATUS(src_data->flags);
 	dst->frame_info_count = src_data->frame_info_count;
 	if (dst->frame_info_count >  WLAN_ROAM_MAX_FRAME_INFO)
 		dst->frame_info_count =  WLAN_ROAM_MAX_FRAME_INFO;
@@ -15980,6 +15990,15 @@ extract_roam_scan_stats_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 			dst->num_chan = MAX_ROAM_SCAN_CHAN;
 
 		src_chan = &param_buf->roam_scan_chan_info[chan_idx];
+
+		if ((dst->num_chan + chan_idx) >
+		    param_buf->num_roam_scan_chan_info) {
+			wmi_err("Invalid TLV. num_chan %d chan_idx %d num_roam_scan_chan_info %d",
+				dst->num_chan, chan_idx,
+				param_buf->num_roam_scan_chan_info);
+			return QDF_STATUS_SUCCESS;
+		}
+
 		for (i = 0; i < dst->num_chan; i++) {
 			dst->chan_freq[i] = src_chan->channel;
 			src_chan++;
@@ -16089,6 +16108,14 @@ extract_roam_11kv_stats_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 
 	if (dst->num_freq > MAX_ROAM_SCAN_CHAN)
 		dst->num_freq = MAX_ROAM_SCAN_CHAN;
+
+	if ((dst->num_freq + rpt_idx) >
+	    param_buf->num_roam_neighbor_report_chan_info) {
+		wmi_err("Invalid TLV. num_freq %d rpt_idx %d num_roam_neighbor_report_chan_info %d",
+			dst->num_freq, rpt_idx,
+			param_buf->num_roam_scan_chan_info);
+		return QDF_STATUS_SUCCESS;
+	}
 
 	for (i = 0; i < dst->num_freq; i++) {
 		dst->freq[i] = src_freq->channel;

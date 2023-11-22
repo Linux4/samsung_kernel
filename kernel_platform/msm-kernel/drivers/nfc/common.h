@@ -21,12 +21,17 @@
 #define _COMMON_H_
 
 #include <linux/cdev.h>
+#include <linux/fs.h>
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #include <linux/clk.h>
 #include "nfc_wakelock.h"
 #ifdef CONFIG_SEC_NFC_LOGGER
+#ifdef CONFIG_NFC_NXP_COMBINED
+#include "../nfc_logger/nfc_logger.h"
+#else
 #include "nfc_logger/nfc_logger.h"
+#endif
 #endif
 #endif
 
@@ -87,6 +92,7 @@
 #define NFC_SET_PWR			_IOW(NFC_MAGIC, 0x01, uint64_t)
 #define ESE_SET_PWR			_IOW(NFC_MAGIC, 0x02, uint64_t)
 #define ESE_GET_PWR			_IOR(NFC_MAGIC, 0x03, uint64_t)
+#define NFC_GET_GPIO_STATUS		_IOR(NFC_MAGIC, 0x05, uint64_t)
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #define CONFIG_SAMSUNG_NFC_DEBUG
@@ -115,9 +121,15 @@ enum lpm_status {
 #define DTS_FWDN_GPIO_STR		"nxp,sn-dwl-req"
 #endif
 
+/* Each GPIO occupies consecutive two bits */
+#define GPIO_POS_SHIFT_VAL 2
+/* Two bits to indicate GPIO status (Invalid(-2), Set(1) or Reset(0)) */
+#define GPIO_STATUS_MASK_BITS 3
+
 #ifndef CONFIG_SEC_NFC_LOGGER
 #define NFC_LOG_ERR(fmt, ...)		pr_err("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_INFO(fmt, ...)		pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
+#define NFC_LOG_INFO_WITH_DATE(fmt, ...) pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_DBG(fmt, ...)		pr_debug("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_REC(fmt, ...)		do { } while (0)
 
@@ -181,6 +193,9 @@ enum gpio_values {
 	GPIO_IRQ = 0x4,
 };
 
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+#define PLATFORM_DEFAULT_GPIO_CNT 3
+#endif
 /* NFC GPIO variables */
 struct platform_gpio {
 	int irq;
@@ -204,6 +219,7 @@ struct platform_configs {
 	struct regulator *nfc_pvdd;
 	struct clk *nfc_clock;
 	bool late_pvdd_en;
+	bool disable_clk_irq_during_wakeup;
 #endif
 };
 
@@ -245,8 +261,13 @@ struct nfc_dev {
 	struct cold_reset cold_reset;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	struct nfc_wake_lock nfc_wake_lock;
 	struct nfc_wake_lock nfc_clk_wake_lock;
 	bool clk_req_wakelock;
+	bool screen_cfg;
+	bool screen_on_cmd;
+	bool screen_off_cmd;
+	int screen_off_rsp_count;
 #endif
 
 	/* function pointers for the common i2c functionality */

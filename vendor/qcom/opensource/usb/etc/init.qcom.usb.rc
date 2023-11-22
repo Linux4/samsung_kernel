@@ -44,6 +44,38 @@ on init
     chown system usb /sys/class/usb_notify/usb_control/whitelist_for_mdm
     chmod 0664 /sys/class/usb_notify/usb_control/whitelist_for_mdm
 
+on boot
+	setprop sys.usb.certification 0
+
+on property:sys.usb.certification=1
+    mount debugfs /sys/kernel/debug /sys/kernel/debug
+    chown system system /sys/bus/platform/devices/a600000.ssusb/orientation
+    chmod 0664 /sys/bus/platform/devices/a600000.ssusb/orientation
+    chown system system /sys/class/host_notify/usb_otg/mode
+    chmod 0664 /sys/class/host_notify/usb_otg/mode
+    chown system system /sys/bus/usb/drivers/hub/unbind
+    chmod 0664 /sys/bus/usb/drivers/hub/unbind
+    chown system system /sys/bus/usb/drivers/lvs/new_id
+    chmod 0664 /sys/bus/usb/drivers/lvs/new_id
+    chown system system /sys/bus/usb/drivers/lvs/bind
+    chmod 0664 /sys/bus/usb/drivers/lvs/bind
+    chown system system /sys/kernel/debug
+    chmod 0755 /sys/kernel/debug
+
+on property:sys.usb.certification=2
+    chown system system /sys/bus/usb/devices/usb3/power/control
+    chmod 0664 /sys/bus/usb/devices/usb3/power/control
+    chown system system /sys/bus/usb/drivers/lvs/2-0:1.0/test_mode
+    chmod 0664 /sys/bus/usb/drivers/lvs/2-0:1.0/test_mode
+    chown system system /sys/bus/usb/drivers/lvs/2-0:1.0/get_dev_desc
+    chmod 0664 /sys/bus/usb/drivers/lvs/2-0:1.0/get_dev_desc
+    chown system system /sys/bus/usb/drivers/lvs/3-0:1.0/test_mode
+    chmod 0664 /sys/bus/usb/drivers/lvs/3-0:1.0/test_mode
+    chown system system /sys/bus/usb/drivers/lvs/3-0:1.0/get_dev_desc
+    chmod 0664 /sys/bus/usb/drivers/lvs/3-0:1.0/get_dev_desc
+    chown system system /d/usb/xhci/xhci-hcd.2.auto/ports/port02/portsc
+    chmod 0664 /d/usb/xhci/xhci-hcd.2.auto/ports/port02/portsc
+
 on charger && property:ro.debuggable=1
     mkdir /dev/usb-ffs 0770 shell shell
     mkdir /dev/usb-ffs/adb 0770 shell shell
@@ -293,7 +325,7 @@ on property:sys.usb.config=audio_source && property:sys.usb.configfs=1
     rm /config/usb_gadget/g1/configs/b.1/f9
     write /config/usb_gadget/g1/idVendor 0x18d1
     write /config/usb_gadget/g1/idProduct 0x2d02
-    symlink /config/usb_gadget/g1/functions/audio_source.gs2 /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/audio_source.gs3 /config/usb_gadget/g1/configs/b.1/f1
     symlink /config/usb_gadget/g1/functions/ss_mon.etc /config/usb_gadget/g1/configs/b.1/f2
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
     setprop sys.usb.state ${sys.usb.config}
@@ -315,7 +347,7 @@ on property:sys.usb.ffs.ready=1 && property:sys.usb.config=audio_source,adb && p
     symlink /config/usb_gadget/g1/configs/b.1 /config/usb_gadget/g1/os_desc/b.1
     write /config/usb_gadget/g1/idVendor 0x18d1
     write /config/usb_gadget/g1/idProduct 0x2d03
-    symlink /config/usb_gadget/g1/functions/audio_source.gs2 /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/audio_source.gs3 /config/usb_gadget/g1/configs/b.1/f1
     symlink /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f2
     symlink /config/usb_gadget/g1/functions/ss_mon.etc /config/usb_gadget/g1/configs/b.1/f3
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}

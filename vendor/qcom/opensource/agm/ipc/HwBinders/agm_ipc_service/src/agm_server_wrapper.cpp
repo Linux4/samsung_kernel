@@ -963,6 +963,12 @@ Return<int32_t> AGM::ipc_agm_session_flush(uint64_t hndl) {
     return agm_session_flush(hndl);
 }
 
+Return<int32_t> AGM::ipc_agm_sessionid_flush(uint32_t session_id) {
+    ALOGV("%s called with session id = %d", __func__, session_id);
+
+    return agm_sessionid_flush(session_id);
+}
+
 Return<int32_t> AGM::ipc_agm_session_resume(uint64_t hndl) {
     ALOGV("%s called with handle = %llx \n", __func__, (unsigned long long) hndl);
 

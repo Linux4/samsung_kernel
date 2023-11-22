@@ -46,6 +46,9 @@ SRC_WIDE_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adap
 SRC_UW_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_imx563.h
 SRC_TELE_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_s5k3k1.h
 SRC_FRONT_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_imx374.h
+else ifeq ($(CONFIG_SEC_R11Q_PROJECT), y)
+SRC_WIDE_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_s5kgn3.h
+SRC_FRONT_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_s5k3j1.h
 else ifeq ($(CONFIG_SEC_G0Q_PROJECT), y)
 SRC_WIDE_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_s5kgn3.h
 SRC_UW_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_imx563.h

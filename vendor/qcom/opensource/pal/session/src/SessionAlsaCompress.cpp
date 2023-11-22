@@ -1779,20 +1779,18 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, uint64_t cookie)
 int SessionAlsaCompress::flush()
 {
     int status = 0;
-
-    if (!compress) {
-        PAL_ERR(LOG_TAG, "Compress is invalid");
-        return -EINVAL;
-    }
-    if (playback_started) {
-        PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-        status = compress_stop(compress);
-        if (!status) {
-            playback_started = false;
+    PAL_VERBOSE(LOG_TAG, "Enter flush");
+ 
+     if (playback_started) {
+        if (compressDevIds.size() > 0) {
+            status = SessionAlsaUtils::flush(rm, compressDevIds.at(0));
+        } else {
+            PAL_ERR(LOG_TAG, "DevIds size is invalid");
+            return -EINVAL;
         }
     }
-    PAL_VERBOSE(LOG_TAG, "playback_started %d status %d\n", playback_started,
-            status);
+
+    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 

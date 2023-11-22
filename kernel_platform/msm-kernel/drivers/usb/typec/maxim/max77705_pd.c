@@ -54,6 +54,7 @@ module_param(factory_mode, int, 0444);
 
 extern struct max77705_usbc_platform_data *g_usbc_data;
 extern void max77705_set_CCForceError(struct max77705_usbc_platform_data *usbpd_data);
+void max77705_set_enable_pps(bool bPPS_on, bool enable, int ppsVol, int ppsCur);
 
 #if defined(CONFIG_SEC_FACTORY)
 static int max77705_get_facmode(void) { return factory_mode; }
@@ -141,6 +142,8 @@ void max77705_select_pdo(int num)
 		return;
 	}
 
+	max77705_set_enable_pps(pd_data->bPPS_on, false, 0, 0);
+
 	init_usbc_cmd_data(&value);
 	pr_info("%s : NUM(%d)\n", __func__, num);
 
@@ -194,9 +197,12 @@ void max77705_response_pdo_request(struct max77705_usbc_platform_data *usbc_data
 	}
 }
 
-void max77705_set_enable_pps(bool enable, int ppsVol, int ppsCur)
+void max77705_set_enable_pps(bool bPPS_on, bool enable, int ppsVol, int ppsCur)
 {
 	usbc_cmd_data value;
+
+	if (bPPS_on == enable)
+		return;
 
 	init_usbc_cmd_data(&value);
 	value.opcode = OPCODE_SET_PPS;
@@ -209,7 +215,6 @@ void max77705_set_enable_pps(bool enable, int ppsVol, int ppsCur)
 		value.read_length = 1;
 		pr_info("%s : PPS_On (Vol:%dmV, Cur:%dmA)\n", __func__, ppsVol, ppsCur);
 	} else {
-		g_usbc_data->pd_data->bPPS_on = false;
 		value.write_data[0] = 0x0; //PPS_ON Off
 		value.write_length = 1;
 		value.read_length = 1;
@@ -325,8 +330,7 @@ int max77705_select_pps(int num, int ppsVol, int ppsCur)
 	pr_info(" %s : PPS PDO(%d), voltage(%d), current(%d) is selected to change\n",
 		__func__, pd_data->pd_noti.sink_status.selected_pdo_num, ppsVol, ppsCur);
 
-	if (!pd_data->bPPS_on)
-		max77705_set_enable_pps(true, 5000, 1000); /* request as default 5V when enable first */
+	max77705_set_enable_pps(pd_data->bPPS_on, true, 5000, 1000); /* request as default 5V when enable first */
 
 	init_usbc_cmd_data(&value);
 
@@ -923,9 +927,21 @@ void max77705_current_pdo(struct max77705_usbc_platform_data *usbc_data, unsigne
 
 	usbc_data->pd_data->pdo_list = true;
 	if (is_abnormal_pdo) {
-		if (!delayed_work_pending(&usbc_data->pd_data->abnormal_pdo_work))
+		if (!delayed_work_pending(&usbc_data->pd_data->abnormal_pdo_work)) {
+			union power_supply_propval val = {0,};
+
+			for (i = 0; i < num_of_pdo; ++i) {
+				pdo_obj.data = (data[2 + (i * 4)]
+					| (data[3 + (i * 4)] << 8)
+					| (data[4 + (i * 4)] << 16)
+					| (data[5 + (i * 4)] << 24));
+				val.intval = (int)pdo_obj.data;
+				psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_ABNORMAL_SRCCAP, val);
+			}
 			queue_delayed_work(usbc_data->pd_data->wqueue,
 				&usbc_data->pd_data->abnormal_pdo_work, 0);
+		}
 	} else {
 		max77705_process_pd(usbc_data);
 	}
@@ -949,7 +965,7 @@ void max77705_detach_pd(struct max77705_usbc_platform_data *usbc_data)
 		pd_data->pd_noti.sink_status.pps_voltage = 0;
 		pd_data->pd_noti.sink_status.pps_current = 0;
  		pd_data->pd_noti.sink_status.has_apdo = false;
-		max77705_set_enable_pps(false, 0, 0);
+		max77705_set_enable_pps(pd_data->bPPS_on, false, 0, 0);
 		pd_data->pd_noti.event = PDIC_NOTIFY_EVENT_DETACH;
 		usbc_data->pd_data->psrdy_received = false;
 		usbc_data->pd_data->pdo_list = false;
@@ -1098,6 +1114,9 @@ static void max77705_pd_check_pdmsg(struct max77705_usbc_platform_data *usbc_dat
 #if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	struct power_supply *psy;
+#endif
 
 	VDM_MSG_IRQ_State.DATA = 0x0;
 	init_usbc_cmd_data(&value);
@@ -1191,8 +1210,19 @@ static void max77705_pd_check_pdmsg(struct max77705_usbc_platform_data *usbc_dat
 		if (usbc_data->cc_data->current_pr == SRC) {
 			max77705_vbus_turn_on_ctrl(usbc_data, OFF, false);
 			schedule_delayed_work(&usbc_data->vbus_hard_reset_work, msecs_to_jiffies(760));
-		} else if (usbc_data->cc_data->current_pr == SNK)
+		} else if (usbc_data->cc_data->current_pr == SNK) {
 			usbc_data->detach_done_wait = 1;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+			psy = power_supply_get_by_name("battery");
+			if (psy) {
+				val.intval = 0;
+				psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_HARDRESET_OCCUR, val);
+			} else {
+				pr_err("%s: Fail to get psy battery\n", __func__);
+			}
+#endif
+		}
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 		event = NOTIFY_EXTRA_HARDRESET_RECEIVED;
 		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
@@ -1210,8 +1240,19 @@ static void max77705_pd_check_pdmsg(struct max77705_usbc_platform_data *usbc_dat
 		if (usbc_data->cc_data->current_pr == SRC) {
 			max77705_vbus_turn_on_ctrl(usbc_data, OFF, false);
 			schedule_delayed_work(&usbc_data->vbus_hard_reset_work, msecs_to_jiffies(760));
-		} else if (usbc_data->cc_data->current_pr == SNK)
+		} else if (usbc_data->cc_data->current_pr == SNK) {
 			usbc_data->detach_done_wait = 1;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+			psy = power_supply_get_by_name("battery");
+			if (psy) {
+				val.intval = 1;
+				psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_HARDRESET_OCCUR, val);
+			} else {
+				pr_err("%s: Fail to get psy battery\n", __func__);
+			}
+#endif
+		}
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
 		event = NOTIFY_EXTRA_HARDRESET_SENT;
 		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);

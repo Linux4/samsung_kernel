@@ -160,6 +160,13 @@ void agm_compress_event_cb(uint32_t session_id __unused,
         priv->bytes_received += priv->buffer_config.size;
     } else if (event_params->event_id == AGM_EVENT_EOS_RENDERED) {
         AGM_LOGD("%s: EOS event received \n", __func__);
+        /* Unblock early eos wait if early eos event cb has not been called */
+        pthread_mutex_lock(&priv->early_eos_lock);
+        if (priv->early_eos) {
+            priv->early_eos = false;
+            pthread_cond_signal(&priv->early_eos_cond);
+        }
+        pthread_mutex_unlock(&priv->early_eos_lock);
         /* Unblock eos wait if all the buffers are rendered */
         pthread_mutex_lock(&priv->eos_lock);
         if (priv->eos) {

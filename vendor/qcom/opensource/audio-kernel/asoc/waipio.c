@@ -132,6 +132,7 @@ static struct snd_soc_card snd_soc_card_waipio_msm;
 static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
 static int dmic_4_5_gpio_cnt;
+static int sub_pcb_conn;
 
 static void *def_wcd_mbhc_cal(void);
 
@@ -2006,6 +2007,10 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 		return NULL;
 	}
 
+#if IS_ENABLED(CONFIG_SEC_FACTORY_INTERPOSER) && IS_ENABLED(CONFIG_SEC_SND_INTERPOSER)
+	sub_pcb_conn = true;
+#endif
+
 	if (!strcmp(match->data, "codec")) {
 		card = &snd_soc_card_waipio_msm;
 
@@ -2082,7 +2087,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 		}
 
 		rc = of_property_read_u32(dev->of_node, "qcom,wcn-bt", &val);
-		if (!rc && val) {
+		if (!rc && val && !sub_pcb_conn) {
 			dev_dbg(dev, "%s(): WCN BT support present\n",
 				__func__);
 			memcpy(msm_waipio_dai_links + total_links,

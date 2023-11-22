@@ -190,6 +190,10 @@ Optional properties:
 			  switch node are controlled symmetrically. This needs
 			  to be specified if a group of flash LED channels are
 			  connected to a single LED.
+- qcom,use-qti-battery-interface	: Boolean property to explicitly select the QTI battery charger driver
+					for reading battery properties needed for max current calculations.
+					This property is only required for ADSP charger designs and should not
+					be added otherwise.
 Example:
 	qcom,leds@d300 {
 		compatible = "qcom,pm6150l-flash-led-v2";

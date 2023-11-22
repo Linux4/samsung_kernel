@@ -34,6 +34,10 @@
 #include <linux/sched/task.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#include "../security/integrity/integrity.h"
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 
 inline ssize_t __vfs_read(struct file *file, char __user *buf,
@@ -63,28 +67,41 @@ inline ssize_t __vfs_read(struct file *file, char __user *buf,
 struct file *local_fopen(const char *fname, int flags, umode_t mode)
 {
 	struct file *f;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	mm_segment_t old_fs;
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	old_fs = get_fs();
 	set_fs(GET_KERNEL_DS);
+#endif
 	f = filp_open(fname, flags, mode);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	set_fs(old_fs);
+#endif
 	return f;
 }
 
 int local_fread(struct file *f, loff_t offset, void *ptr, unsigned long bytes)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	mm_segment_t old_fs;
 	char __user *buf = (char __user *)ptr;
+#endif
 	ssize_t ret;
 
 	if (!(f->f_mode & FMODE_READ))
 		return -EBADF;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	old_fs = get_fs();
 	set_fs(GET_KERNEL_DS);
 	ret = vfs_read(f, buf, bytes, &offset);
 	set_fs(old_fs);
+#else
+	ret = (ssize_t)integrity_kernel_read(f, offset, ptr, bytes);
+#endif
+
 	return (int)ret;
 }
 
@@ -102,8 +119,6 @@ __visible_for_testing bool check_slab_ptr(void *ptr)
 
 int init_defex_context(struct defex_context *dc, int syscall, struct task_struct *p, struct file *f)
 {
-	const struct cred *cred_ptr;
-
 	memset(dc, 0, offsetof(struct defex_context, cred));
 	if (check_slab_ptr(f)) {
 		get_file(f);
@@ -112,13 +127,9 @@ int init_defex_context(struct defex_context *dc, int syscall, struct task_struct
 	dc->syscall_no = syscall;
 	dc->task = p;
 	if (p == current)
-		cred_ptr = get_current_cred();
-	else
-		cred_ptr = get_task_cred(p);
-	if (!cred_ptr)
+		dc->cred = (struct cred *)current_cred();
+	if (!dc->cred)
 		return 0;
-	memcpy(&dc->cred, cred_ptr, sizeof(struct cred));
-	put_cred(cred_ptr);
 	return 1;
 }
 

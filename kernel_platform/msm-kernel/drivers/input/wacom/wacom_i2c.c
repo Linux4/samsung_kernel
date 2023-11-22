@@ -1569,12 +1569,6 @@ static void wacom_i2c_coord_handler(struct wacom_i2c *wac_i2c, char *data)
 #endif
 			wac_i2c->p_x = wac_i2c->p_y = wac_i2c->hi_x = wac_i2c->hi_y = 0;
 
-		} else {
-			input_info(true, &client->dev,
-					"unexpected data : %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x\n",
-					data[0], data[1], data[2], data[3], data[4], data[5],
-					data[6], data[7], data[8], data[9], data[10], data[11],
-					data[12], data[13], data[14], data[15]);
 		}
 
 		wac_i2c->pen_prox = 0;

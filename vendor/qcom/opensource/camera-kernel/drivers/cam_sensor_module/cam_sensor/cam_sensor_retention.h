@@ -13,7 +13,7 @@
 #ifndef _CAM_SENSOR_RETENTION_H_
 #define _CAM_SENSOR_RETENTION_H_
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 struct cam_sensor_i2c_reg_array stream_on_setting[] = {
 	{ 0x0100,	0x0103, 0x00,	0x00 },
 };
@@ -32,7 +32,7 @@ struct cam_sensor_i2c_reg_setting stream_on_settings[] =  {
 	},
 };
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 struct cam_sensor_i2c_reg_array stream_off_setting[] = {
 	{ 0x010E,	0x0100, 0x00,	0x00 },
 	{ 0x0100,	0x0003, 0x00,	0x00 },
@@ -73,7 +73,7 @@ struct cam_sensor_i2c_reg_setting aeb_off_settings[] = {
 };
 
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 struct cam_sensor_i2c_reg_array retention_enable_setting[] = {
 	{ 0xFCFC,	0x4000, 0x00,	0x00 },
 	{ 0x6000,	0x0005, 0x00,	0x00 },
@@ -97,7 +97,7 @@ struct cam_sensor_i2c_reg_setting retention_enable_settings[] =  {
 	},
 };
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 struct cam_sensor_i2c_reg_array retention_prepare_setting[] = {
 	{ 0xFCFC,	0x4000, 0x00,	0x00 },
 	{ 0x6000,	0x0005, 0x00,	0x00 },

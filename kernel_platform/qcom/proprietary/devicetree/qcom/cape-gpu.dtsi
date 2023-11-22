@@ -12,8 +12,11 @@
 		reg-names = "kgsl_3d0_reg_memory", "cx_dbgc", "rscc",
 			"isense_cntl", "cx_misc", "qdss_gfx",
 			"rdpm_cx";
-		interrupts = <0 300 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "kgsl_3d0_irq";
+		interrupts = <0 300 IRQ_TYPE_LEVEL_HIGH>, <0 286 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "kgsl_3d0_irq", "freq_limiter_irq";
+
+		resets = <&clock_gpucc GPUCC_GPU_CC_FREQUENCY_LIMITER_IRQ_CLEAR>;
+		reset-names = "freq_limiter_irq_clear";
 
 		clocks = <&clock_gcc GCC_GPU_MEMNOC_GFX_CLK>,
 			<&clock_gcc GCC_GPU_SNOC_DVM_GFX_CLK>,

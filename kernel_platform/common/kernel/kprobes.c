@@ -43,6 +43,10 @@
 #include <asm/errno.h>
 #include <linux/uaccess.h>
 
+#ifdef CONFIG_RKP
+#include <linux/rkp.h>
+#endif
+
 #define KPROBE_HASH_BITS 6
 #define KPROBE_TABLE_SIZE (1 << KPROBE_HASH_BITS)
 
@@ -118,6 +122,9 @@ void __weak *alloc_insn_page(void)
 
 void __weak free_insn_page(void *page)
 {
+#ifdef CONFIG_RKP
+	uh_call(UH_APP_RKP, RKP_KPROBE_PAGE, (u64)page, 4096, 1, 0);
+#endif
 	module_memfree(page);
 }
 
@@ -2136,6 +2143,9 @@ int register_kretprobe(struct kretprobe *rp)
 				return -EINVAL;
 		}
 	}
+
+	if (rp->data_size > KRETPROBE_MAX_DATA_SIZE)
+		return -E2BIG;
 
 	rp->kp.pre_handler = pre_handler_kretprobe;
 	rp->kp.post_handler = NULL;

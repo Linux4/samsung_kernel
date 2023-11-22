@@ -621,6 +621,10 @@ void wlan_cm_set_psk_pmk(struct wlan_objmgr_pdev *pdev,
 	if (psk_pmk)
 		qdf_mem_copy(rso_cfg->psk_pmk, psk_pmk, pmk_len);
 	rso_cfg->pmk_len = pmk_len;
+
+	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_MLME, QDF_TRACE_LEVEL_DEBUG,
+			   rso_cfg->psk_pmk, WLAN_MAX_PMK_DUMP_BYTES);
+
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_CM_ID);
 }
 
@@ -787,6 +791,9 @@ QDF_STATUS wlan_cm_roam_cfg_get_value(struct wlan_objmgr_psoc *psoc,
 		break;
 	case HI_RSSI_SCAN_RSSI_DELTA:
 		dst_config->uint_value = src_cfg->hi_rssi_scan_rssi_delta;
+		break;
+	case ROAM_CONFIG_ENABLE:
+		dst_config->bool_value = rso_cfg->roam_control_enable;
 		break;
 	default:
 		mlme_err("Invalid roam config requested:%d", roam_cfg_type);

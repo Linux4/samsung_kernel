@@ -21,6 +21,10 @@
 static struct cam_req_mgr_core_device *g_crm_core_dev;
 static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_PER_SESSION];
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+extern int cdr_value_exist;
+#endif
+
 #define INC_HEAD(head, max_entries, ret) \
 	div_u64_rem(atomic64_add_return(1, head),\
 	max_entries, (ret))
@@ -4734,6 +4738,10 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 				"Activate link: 0x%x init_timeout: %d ms",
 				link->link_hdl, control->init_timeout[i]);
 			/* Start SOF watchdog timer */
+#if defined(CONFIG_CAMERA_CDR_TEST)
+			if (cdr_value_exist)
+				init_timeout = 1800;
+#endif
 			rc = crm_timer_init(&link->watchdog,
 				(init_timeout + CAM_REQ_MGR_WATCHDOG_TIMEOUT),
 				link, &__cam_req_mgr_sof_freeze);

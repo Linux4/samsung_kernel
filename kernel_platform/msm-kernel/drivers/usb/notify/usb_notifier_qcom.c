@@ -19,8 +19,8 @@
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 #include <linux/vbus_notifier.h>

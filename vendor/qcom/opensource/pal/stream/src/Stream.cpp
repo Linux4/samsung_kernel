@@ -1064,8 +1064,9 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
         if (dev_id == mDevices[i]->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
-            if (currentState != STREAM_STOPPED)
+            if (currentState != STREAM_STOPPED && rm->isDeviceActive_l(mDevices[i], this)) {
                 rm->deregisterDevice(mDevices[i], this);
+            }
             rm->lockGraph();
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
             if (0 != status) {
@@ -1191,8 +1192,9 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto dev_stop;
     }
     rm->unlockGraph();
-    if (currentState != STREAM_STOPPED)
+    if (currentState != STREAM_STOPPED && !rm->isDeviceActive_l(dev, this)) {
         rm->registerDevice(dev, this);
+    }
     goto exit;
 
 dev_stop:
@@ -1813,8 +1815,13 @@ bool Stream::checkStreamEffectMatch(pal_device_id_t pal_device_id,
     }
 
     if (param_id == PARAM_ID_PP_SB_PARAMS_VOLUME &&
-            (mStreamAttr->type != PAL_STREAM_DEEP_BUFFER &&
-            mStreamAttr->type != PAL_STREAM_COMPRESSED &&
+            (mStreamAttr->type != PAL_STREAM_COMPRESSED &&
+#ifdef SEC_AUDIO_PREVOLUME_SOUNDBOOSTER
+            mStreamAttr->type != PAL_STREAM_ULTRA_LOW_LATENCY &&
+            mStreamAttr->type != PAL_STREAM_GENERIC &&
+#else
+            mStreamAttr->type != PAL_STREAM_DEEP_BUFFER &&
+#endif
             mStreamAttr->type != PAL_STREAM_LOOPBACK)) {
         return false;
     }

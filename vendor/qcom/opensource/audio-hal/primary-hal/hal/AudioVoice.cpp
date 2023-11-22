@@ -53,6 +53,11 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
 
     AHAL_DBG("Enter: mode: %d", mode);
     if (mode_ != mode) {
+#ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
+        if((mode != AUDIO_MODE_NORMAL) && adevice->sec_device_->listenback_on) {
+            adevice->sec_device_->SetListenbackMode(false);
+        }
+#endif
 #ifdef SEC_AUDIO_CALL
         if (mode == AUDIO_MODE_IN_CALL) {
             voice_session_t *session = NULL;
@@ -153,7 +158,12 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
     if (!parms)
        return  -EINVAL;
 
+#ifdef SEC_AUDIO_DUMP
     AHAL_DBG("Enter params: %s", kvpairs);
+#else
+    AHAL_DBG("Enter");
+#endif
+
 #ifdef SEC_AUDIO_CALL
     ret = sec_voice_->VoiceSetParameters(adevice, parms);
 #endif
@@ -555,6 +565,14 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
         rx_devices.find(AUDIO_DEVICE_NONE) != rx_devices.end()) {
         AHAL_ERR("Invalid Tx/Rx device");
         ret = 0;
+#ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
+        if (adevice->sec_device_->aas_on && adevice->sec_device_->isAASActive()
+                && (rx_devices.find(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) != rx_devices.end())
+                && (adevice->sec_device_->pal_aas_out_device == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
+            AHAL_ERR("Invalid SCO device state");
+            adevice->sec_device_->SetAASMode(false);
+        }
+#endif
         goto exit;
     }
 
@@ -588,6 +606,8 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     pal_voice_rx_device_id_ = pal_rx_device;
     pal_voice_tx_device_id_ = pal_tx_device;
 
+    voice_mutex_.lock();
+
 #ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
     if (adevice->sec_device_->aas_on) {
         if (adevice->sec_device_->isAASActive() &&
@@ -599,7 +619,6 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     }
 #endif
 
-    voice_mutex_.lock();
     if (!IsAnyCallActive()) {
         if (mode_ == AUDIO_MODE_IN_CALL || mode_ == AUDIO_MODE_CALL_SCREEN) {
             voice_.in_call = true;
@@ -646,6 +665,11 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
                 if (session && session->pal_voice_handle &&
                         session->pal_vol_data && sec_voice_->volume != -1.0f) {
                     session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
+#ifdef SEC_AUDIO_SUPPORT_BT_RVC
+                    if (adevice->effect_->SetScoVolume(session->pal_vol_data->volume_pair[0].vol) == 0) {
+                        AHAL_DBG("sco volume applied on voice session %d", i);
+                    } else
+#endif
                     ret = pal_stream_set_volume(session->pal_voice_handle,
                             session->pal_vol_data);
                     if (ret)
@@ -704,6 +728,10 @@ int AudioVoice::UpdateCallState(uint32_t vsid, int call_state) {
             ret = UpdateCalls(voice_.session);
         }
     } else {
+#ifdef SEC_AUDIO_CALL
+        AHAL_DBG("max sessions:%d vsid:0x%x, session[0].vsid:0x%x, session[1].vsid:0x%x",
+                    max_voice_sessions_, vsid, voice_.session[0].vsid, voice_.session[1].vsid);
+#endif
         ret = -EINVAL;
     }
     voice_mutex_.unlock();
@@ -1069,6 +1097,11 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
                         sec_voice_->volume, session->pal_vol_data->volume_pair[0].vol);
             session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
         }
+#endif
+#ifdef SEC_AUDIO_SUPPORT_BT_RVC
+        if (adevice->effect_->SetScoVolume(session->pal_vol_data->volume_pair[0].vol) == 0) {
+            AHAL_DBG("sco volume applied on voice session");
+        } else
 #endif
         ret = pal_stream_set_volume(session->pal_voice_handle, session->pal_vol_data);
         if (ret)
@@ -1566,7 +1599,9 @@ AudioVoice::~AudioVoice() {
     voice_.session[MMODE2_SESS_IDX].vsid = VOICEMMODE2_VSID;
 
     stream_out_primary_ = NULL;
+#ifndef SEC_AUDIO_CALL
     max_voice_sessions_ = 0;
+#endif
 }
 
 #ifdef SEC_AUDIO_CALL

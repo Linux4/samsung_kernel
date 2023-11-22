@@ -105,14 +105,16 @@ static ssize_t proc_cpu_capacity_fixup_target_write(struct file *file,
 		const char __user *buf, size_t count, loff_t *offs)
 {
 	char temp[TASK_COMM_LEN];
-	const size_t maxlen = sizeof(temp) - 1;
+
+	if (!count || count > ARRAY_SIZE(temp) - 1)
+		return -EINVAL;
 
 	memset(temp, 0, sizeof(temp));
-	if (copy_from_user(temp, buf, count > maxlen ? maxlen : count))
+	if (copy_from_user(temp, buf, count))
 		return -EFAULT;
 
-	if (temp[strlen(temp) - 1] == '\n')
-		temp[strlen(temp) - 1] = '\0';
+	if (temp[count - 1] == '\n')
+		temp[count - 1] = '\0';
 
 	strlcpy(cpu_cap_fixup_target, temp, sizeof(cpu_cap_fixup_target));
 
@@ -594,7 +596,7 @@ void update_siblings_masks(unsigned int cpuid)
 	for_each_online_cpu(cpu) {
 		cpu_topo = &cpu_topology[cpu];
 
-		if (cpuid_topo->llc_id == cpu_topo->llc_id) {
+		if (cpu_topo->llc_id != -1 && cpuid_topo->llc_id == cpu_topo->llc_id) {
 			cpumask_set_cpu(cpu, &cpuid_topo->llc_sibling);
 			cpumask_set_cpu(cpuid, &cpu_topo->llc_sibling);
 		}
