@@ -487,6 +487,7 @@
 					goodix,gpio_irq = <0xffffffff 0x05 0x00>;
 					goodix,chip_id = "GW36T1";
 					goodix,orient = <0x01>;
+					goodix,position = "${fps_position}";
 
 					controller-data {
 						cs-gpio = <0xffffffff 0x01 0x00>;
@@ -964,6 +965,7 @@
 			#size-cells = <0x00>;
 			status = "okay";
 			clock-frequency = <0x61a80>;
+			samsung,i2c-max-bus-freq = <0x61a80>;
 
 			sm5714@49 {
 				status = "okay";
@@ -986,6 +988,7 @@
 			#size-cells = <0x00>;
 			status = "okay";
 			clock-frequency = <0x61a80>;
+			samsung,i2c-max-bus-freq = <0x61a80>;
 
 			usbpd-sm5714@33 {
 				status = "okay";

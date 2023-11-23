@@ -397,6 +397,11 @@ config SOC_EXYNOS3830_ANDROID_VERSION_S
         help
           This enables support for Android version S of EXYNOS3830
 
+config SOC_EXYNOS3830_ANDROID_VERSION_T
+        bool "Samsung EXYNOS3830 Android version T"
+        help
+          This enables support for Android version T of EXYNOS3830
+
 endmenu
 
 endmenu

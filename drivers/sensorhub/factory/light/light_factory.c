@@ -22,6 +22,7 @@
 #include "../../utility/shub_dev_core.h"
 #include "../../utility/shub_utility.h"
 #include "../../utility/shub_file_manager.h"
+#include "../../sensor/hub_debugger.h"
 
 #include <linux/device.h>
 #include <linux/of.h>
@@ -32,7 +33,11 @@
 /* factory Sysfs                                                         */
 /*************************************************************************/
 static struct device *light_sysfs_device;
-static u32 light_position[6];
+static s32 light_position[12];
+
+#define DUAL_CHECK_MODE 13
+static u8 fstate;
+static struct light_cal_data sub_cal_data;
 
 static ssize_t name_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -69,9 +74,18 @@ static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, 
 
 static ssize_t light_circle_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%u.%u %u.%u %u.%u\n", light_position[0], light_position[1],
-		       light_position[2], light_position[3], light_position[4],
-		       light_position[5]);
+	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
+
+	if (data->light_dual) {
+		return sprintf(buf, "%d.%d %d.%d %d.%d %d.%d %d.%d %d.%d\n",
+			   light_position[0], light_position[1], light_position[2], light_position[3],
+			   light_position[4], light_position[5], light_position[6], light_position[7],
+			   light_position[8], light_position[9], light_position[10], light_position[11]);
+	} else {
+		return sprintf(buf, "%u.%u %u.%u %u.%u\n",
+			   (u32)light_position[0], (u32)light_position[1], (u32)light_position[2],
+			   (u32)light_position[3], (u32)light_position[4], (u32)light_position[5]);
+	}
 }
 
 static ssize_t hall_ic_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
@@ -211,7 +225,6 @@ retry:
 
 static ssize_t copr_roix_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-
 	int ret = 0;
 	int retries = 0;
 	char *buffer = NULL;
@@ -240,7 +253,7 @@ retry:
 	}
 	memcpy(&copr, buffer, sizeof(copr));
 
-	shub_infof("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", __func__, copr[0], copr[1], copr[2],
+	shub_infof("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", copr[0], copr[1], copr[2],
 		copr[3], copr[4], copr[5], copr[6], copr[7], copr[8], copr[9], copr[10],
 		copr[11]);
 
@@ -254,7 +267,14 @@ static ssize_t light_cal_show(struct device *dev, struct device_attribute *attr,
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
 	struct light_data *data = sensor->data;
 
-	return snprintf(buf, PAGE_SIZE, "%u, %u, %u\n", data->cal_data.cal, data->cal_data.max, data->cal_data.lux);
+	if (fstate == DUAL_CHECK_MODE) {
+		return snprintf(buf, PAGE_SIZE, "%u, %u, %u, %u, %u, %u\n",
+				data->cal_data.cal, data->cal_data.max, data->cal_data.lux,
+				sub_cal_data.cal, sub_cal_data.max, sub_cal_data.lux);
+	} else {
+		return snprintf(buf, PAGE_SIZE, "%u, %u, %u\n",
+				data->cal_data.cal, data->cal_data.max, data->cal_data.lux);
+	}
 }
 
 static ssize_t light_cal_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
@@ -263,6 +283,7 @@ static ssize_t light_cal_store(struct device *dev, struct device_attribute *attr
 	bool init, update, file_write = false;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
 	struct light_data *data = sensor->data;
+	int cal_data_size = sizeof(data->cal_data);
 
 	if (!get_sensor_probe_state(SENSOR_TYPE_LIGHT))
 		return -ENOENT;
@@ -271,6 +292,8 @@ static ssize_t light_cal_store(struct device *dev, struct device_attribute *attr
 
 	init = sysfs_streq(buf, "0");
 	update = sysfs_streq(buf, "1");
+	if (fstate == DUAL_CHECK_MODE)
+		cal_data_size = sizeof(data->cal_data) * 2;
 
 	if (init) {
 		char send_buf = 1;
@@ -282,6 +305,8 @@ static ssize_t light_cal_store(struct device *dev, struct device_attribute *attr
 		}
 
 		memset(&data->cal_data, 0, sizeof(data->cal_data));
+		memset(&sub_cal_data, 0, sizeof(sub_cal_data));
+
 		file_write = true;
 	} else if (update) {
 		char *buffer = NULL;
@@ -295,9 +320,10 @@ static ssize_t light_cal_store(struct device *dev, struct device_attribute *attr
 			return ret;
 		}
 
-		if (buffer_length == sizeof(data->cal_data)) {
+		if (buffer_length == cal_data_size) {
 			memcpy(&(data->cal_data), buffer, sizeof(data->cal_data));
-
+			if (fstate == DUAL_CHECK_MODE)
+				memcpy(&sub_cal_data, &buffer[sizeof(data->cal_data)], sizeof(sub_cal_data));
 			file_write = true;
 		}
 	} else {
@@ -307,6 +333,9 @@ static ssize_t light_cal_store(struct device *dev, struct device_attribute *attr
 	if (file_write) {
 		ret = shub_file_write_no_wait(LIGHT_CALIBRATION_FILE_PATH, (u8 *)&(data->cal_data),
 									  sizeof(data->cal_data), 0);
+		if (fstate == DUAL_CHECK_MODE)
+			shub_infof("Skip saving sub_cal_data");
+
 		if (ret != sizeof(data->cal_data))
 			shub_errf("Can't write light cal to file");
 	}
@@ -333,9 +362,10 @@ static ssize_t factory_fstate_store(struct device *dev,
 		return ret;
 	}
 
+	fstate = send_buf;
+
 	return size;
 }
-
 
 static ssize_t trim_check_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -361,7 +391,7 @@ static ssize_t trim_check_show(struct device *dev, struct device_attribute *attr
 	memcpy(&trim_check, buffer, sizeof(trim_check));
 	kfree(buffer);
 
-	shub_infof("%d", __func__, trim_check);
+	shub_infof("%d", trim_check);
 
 	if (trim_check != 0 && trim_check != 1) {
 		shub_errf("hub read trim NG");
@@ -412,6 +442,11 @@ static ssize_t debug_info_show(struct device *dev, struct device_attribute *attr
 			debug_info.mode, debug_info.brightness, debug_info.min_div_max, debug_info.lux);
 }
 
+static ssize_t fifo_data_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%s\n", get_hub_debugger_fifo_data());
+}
+
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(lux);
@@ -426,6 +461,7 @@ static DEVICE_ATTR_RW(light_cal);
 static DEVICE_ATTR(fac_fstate, 0220, NULL, factory_fstate_store);
 static DEVICE_ATTR_RO(trim_check);
 static DEVICE_ATTR_RO(debug_info);
+static DEVICE_ATTR_RO(fifo_data);
 
 static struct device_attribute *light_attrs[] = {
 	&dev_attr_name,
@@ -435,6 +471,7 @@ static struct device_attribute *light_attrs[] = {
 	&dev_attr_hall_ic,
 	&dev_attr_light_cal,
 	&dev_attr_debug_info,
+	&dev_attr_fifo_data,
 	NULL,
 	NULL,
 	NULL,
@@ -451,15 +488,37 @@ static void check_light_dev_attr(void)
 	struct light_data *data = sensor->data;
 	struct device_node *np = get_shub_device()->of_node;
 	int index = 0;
+	int light_position_size = 0;
 
-	while (light_attrs[index] != NULL)
+	while (light_attrs[index] != NULL) 
 		index++;
 
-	if (!of_property_read_u32_array(np, "light-position", light_position, ARRAY_SIZE(light_position))) {
+	if (of_property_read_bool(np, "light-dual")) {
+		if (index < ARRAY_SIZE(light_attrs))
+			light_attrs[index++] = &dev_attr_fac_fstate;
+		data->light_dual = true;
+		shub_info("support light_dual");
+	}
+
+	if (data->light_dual)
+		light_position_size = ARRAY_SIZE(light_position);
+	else
+		light_position_size = ARRAY_SIZE(light_position)/2;
+
+	if (!of_property_read_u32_array(np, "light-position", (s32 *)light_position, light_position_size)) {
 		if (index < ARRAY_SIZE(light_attrs))
 			light_attrs[index++] = &dev_attr_light_circle;
-		shub_info("light-position - %u.%u %u.%u %u.%u", light_position[0], light_position[1],
-			   light_position[2], light_position[3], light_position[4], light_position[5]);
+
+		if (data->light_dual) {
+			shub_info("light-position - %d.%d %d.%d %d.%d %d.%d %d.%d %d.%d",
+				   light_position[0], light_position[1], light_position[2], light_position[3],
+				   light_position[4], light_position[5], light_position[6], light_position[7],
+				   light_position[8], light_position[9], light_position[10], light_position[11]);
+		} else {
+			shub_info("light-position - %u.%u %u.%u %u.%u",
+				   (u32)light_position[0], (u32)light_position[1], (u32)light_position[2],
+				   (u32)light_position[3], (u32)light_position[4], (u32)light_position[5]);
+		}
 	}
 
 	if (data->light_coef && index < ARRAY_SIZE(light_attrs))
@@ -471,13 +530,9 @@ static void check_light_dev_attr(void)
 		light_attrs[index++] = &dev_attr_copr_roix;
 	}
 
-	if (of_property_read_bool(np, "light-dual")) {
-		if (index < ARRAY_SIZE(light_attrs))
-			light_attrs[index++] = &dev_attr_fac_fstate;
-		shub_info("support light_dual");
-	}
-
-	if (sensor->spec.vendor == VENDOR_AMS || sensor->spec.vendor == VENDOR_SITRONIX) {
+	if (sensor->spec.vendor == VENDOR_AMS
+	|| sensor->spec.vendor == VENDOR_CAPELLA
+	|| sensor->spec.vendor == VENDOR_SITRONIX) {
 		if (index < ARRAY_SIZE(light_attrs))
 			light_attrs[index++] = &dev_attr_trim_check;
 	}

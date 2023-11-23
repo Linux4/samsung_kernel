@@ -335,7 +335,7 @@ static ssize_t axis_threshold_setting_store(struct device *dev,
 {
 	struct flip_cover_detector_data *data = get_sensor(SENSOR_TYPE_FLIP_COVER_DETECTOR)->data;
 	int ret;
-	int8_t axis;
+	int axis;
 	int threshold;
 	int8_t shub_data[5] = {0};
 

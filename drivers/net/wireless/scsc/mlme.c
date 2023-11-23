@@ -3738,7 +3738,7 @@ int slsi_mlme_set_packet_filter(struct slsi_dev *sdev, struct net_device *dev,
 	struct sk_buff    *cfm;
 	int               r = 0, i = 0, j = 0;
 	u8                *p;
-	u8                index = 0;
+	int               index = 0;
 
 	if (WARN_ON(!ndev_vif->activated))
 		return -EINVAL;

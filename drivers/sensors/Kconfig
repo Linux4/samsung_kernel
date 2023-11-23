@@ -136,3 +136,7 @@ config SENSORS_DUMP_DATA
 	  Enable grip dump log data
 	  This option activates log output of grip error data using sensordump_notifier.
 
+config SENSORS_GRIP_FAILURE_DEBUG
+	bool "Grip failure debug"
+	help
+	  Say Y here, Enable Grip failure debug flag.

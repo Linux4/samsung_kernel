@@ -298,6 +298,13 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 	struct gadget_info *gi = to_gadget_info(item);
 	char *name;
 	int ret;
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	struct usb_configuration *c;
+	struct config_usb_cfg *cfg;
+	struct usb_function *f, *tmp;
+	char usb_mode[50] = {0,};
+	int length = 0, f_name_length;
+#endif
 
 	pr_info("%s: +++\n", __func__);
 
@@ -324,6 +331,31 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 			ret = -EBUSY;
 			goto err;
 		}
+
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+		list_for_each_entry(c, &gi->cdev.configs, list) {
+			cfg = container_of(c, struct config_usb_cfg, c);
+			list_for_each_entry_safe(f, tmp, &cfg->func_list, list) {
+				f_name_length = strlen(f->name);
+				if (f_name_length > 3)
+					f_name_length = 3;
+				if ((length + f_name_length + 1) > sizeof(usb_mode)) {
+					pr_info("usb: overflow usb mode buffer\n", __func__);
+					break;
+				}
+				if (!strncmp(f->name, "ss_mon", 6))
+					continue;
+				length += f_name_length;
+				strncat(usb_mode, f->name, f_name_length);
+				length += 1;
+				strcat(usb_mode, ",");
+			}
+			usb_mode[length-1] = 0;
+			pr_info("usb: %s : usb_mode = %s\n", __func__, usb_mode);
+			store_usblog_notify(NOTIFY_USBMODE_EXTRA, (void *)usb_mode, NULL);
+		}
+#endif
+
 		gi->composite.gadget_driver.udc_name = name;
 		ret = usb_gadget_probe_driver(&gi->composite.gadget_driver);
 		if (ret) {

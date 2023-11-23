@@ -979,7 +979,7 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	}
 
 #ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
-	if (slsi_is_rf_test_mode_enabled()) {
+	if (slsi_is_rf_test_mode_enabled() && !slsi_is_test_mode_enabled()) {
 		if (sysfs_antenna == SLSI_ANTENNA_NOT_SET)
 			SLSI_INFO(sdev, "antenna not set. Set /sys/wifi/ant to modify antenna\n");
 		else
@@ -1641,7 +1641,7 @@ static int slsi_mib_open_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *m
 #if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	spin_lock(&sdev->collect_mib.in_collection);
 	memset(&sdev->collect_mib.file[index].file_name, 0, 32);
-	memcpy(&sdev->collect_mib.file[index].file_name, mib_file_name, 32);
+	snprintf(&sdev->collect_mib.file[index].file_name[0], 32, "%s", mib_file_name);
 	sdev->collect_mib.file[index].len = mib_info->mib_len;
 	data = kmalloc(mib_info->mib_len, GFP_ATOMIC);
 	if (!data) {
@@ -3965,7 +3965,7 @@ static void slsi_create_packet_filter_element(u8                               f
 					      u8                               num_pattern_desc,
 					      struct slsi_mlme_pattern_desc    *pattern_desc,
 					      struct slsi_mlme_pkt_filter_elem *pkt_filter_elem,
-					      u8                               *pkt_filters_len)
+					      int                              *pkt_filters_len)
 {
 	u8 pkt_filter_hdr[SLSI_PKT_FILTER_ELEM_HDR_LEN] = { 0xdd,             /* vendor ie*/
 							    0x00,             /*Length to be filled*/
@@ -3974,7 +3974,8 @@ static void slsi_create_packet_filter_element(u8                               f
 							    filterid,         /*filter id to be filled*/
 							    pkt_filter_mode   /* pkt filter mode to be filled */
 	};
-	u8 i, pattern_desc_len = 0;
+	u8 i;
+	int pattern_desc_len = 0;
 
 	WARN_ON(num_pattern_desc > SLSI_MAX_PATTERN_DESC);
 
@@ -4000,7 +4001,8 @@ static int slsi_set_common_packet_filters(struct slsi_dev *sdev, struct net_devi
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 
 	/*Opt out all broadcast and multicast packets (filter on I/G bit)*/
 	pattern_desc.offset = 0;
@@ -4019,7 +4021,8 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[2];
 	int ret;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -4028,7 +4031,7 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	if (slsi_is_proxy_arp_supported_on_ap(peer->assoc_resp_ie))
@@ -4163,7 +4166,7 @@ int slsi_set_enhanced_pkt_filter(struct net_device *dev, char *command, int buf_
 static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4186,7 +4189,7 @@ static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct 
 static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4219,7 +4222,7 @@ static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net
 static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4252,7 +4255,8 @@ static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net
 int  slsi_set_multicast_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[3];
-	u8 pkt_filters_len = 0, i, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 i, num_filters = 0;
 	u8 num_pattern_desc = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem = NULL;
@@ -4367,7 +4371,8 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_peer *peer = slsi_get_peer_from_qs(sdev, dev, SLSI_STA_PEER_QUEUESET);
 
-	u8 i, pkt_filters_len = 0;
+	u8 i;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem;
@@ -4378,7 +4383,7 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "Clear filters on Screen on");
@@ -4501,7 +4506,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[SLSI_ON_CONNECT_FILTERS_COUNT];
@@ -4515,10 +4520,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return;
 
-	if (WARN_ON(!peer))
-		return;
-
-	if (WARN_ON(!peer->assoc_resp_ie))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return;
 
 #if !(IS_ENABLED(CONFIG_IPV6))
@@ -4637,7 +4639,7 @@ int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be3
 		struct slsi_mlme_pattern_desc pattern_desc[1];
 		u8 num_patterns = 0;
 		struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-		u8 pkt_filters_len = 0;
+		int pkt_filters_len = 0;
 		u8 num_filters = 0;
 #endif
 
