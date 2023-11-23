@@ -967,6 +967,10 @@ void gsp_core_suspend(struct gsp_core *core)
 	gsp_core_state_set(core, CORE_STATE_SUSPEND);
 
 	reinit_completion(&core->suspend_done);
+	/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 start*/
+	if (core->ops->suspend)
+		core->ops->suspend(core);
+	/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 end*/
 }
 
 void gsp_core_resume(struct gsp_core *core)
@@ -978,6 +982,10 @@ void gsp_core_resume(struct gsp_core *core)
 	 */
 	core->force_calc = 1;
 	gsp_core_state_set(core, CORE_STATE_IDLE);
+	/*TAB A8_T code for P230607-04686 by piaocanxi at 2023/06/23 start*/
+	if (core->ops->resume)
+		core->ops->resume(core);
+	/*TAB A8_T code for P230607-04686 by piaocanxi at 2023/06/23 end*/
 }
 
 int gsp_core_stop(struct gsp_core *core)

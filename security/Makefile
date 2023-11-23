@@ -10,6 +10,9 @@ subdir-$(CONFIG_SECURITY_TOMOYO)        += tomoyo
 subdir-$(CONFIG_SECURITY_APPARMOR)	+= apparmor
 subdir-$(CONFIG_SECURITY_YAMA)		+= yama
 subdir-$(CONFIG_SECURITY_LOADPIN)	+= loadpin
+subdir-$(CONFIG_FIVE)	+= samsung/five
+subdir-$(CONFIG_PROCA)	+= samsung/proca
+subdir-$(CONFIG_GAF_V6)	+= samsung/proca/gaf
 
 # always enable default capabilities
 obj-y					+= commoncap.o
@@ -26,6 +29,9 @@ obj-$(CONFIG_SECURITY_APPARMOR)		+= apparmor/
 obj-$(CONFIG_SECURITY_YAMA)		+= yama/
 obj-$(CONFIG_SECURITY_LOADPIN)		+= loadpin/
 obj-$(CONFIG_CGROUP_DEVICE)		+= device_cgroup.o
+obj-$(CONFIG_FIVE)	+= samsung/five/
+obj-$(CONFIG_PROCA)	+= samsung/proca/
+obj-$(CONFIG_GAF_V6)	+= samsung/proca/gaf/
 
 # Object integrity file lists
 subdir-$(CONFIG_INTEGRITY)		+= integrity
