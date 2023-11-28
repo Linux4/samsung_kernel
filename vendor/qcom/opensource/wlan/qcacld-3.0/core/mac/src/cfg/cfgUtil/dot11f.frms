@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2006-2007, 2014-2018, 2020-2021 The Linux Foundation.
  * All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1202,7 +1202,7 @@ TLV VendorExtension ( TLV_VENDOR_EXTENSION ) ( 2 : 2 ) MSB
     vendorId[ 3 ];
 
     /**
-     * \breif Version2
+     * \brief Version2
      *
      * The Version2 field specifies the version Wi-Fi Simple
      * Configuration implemented by the device sending this attribute.
@@ -2737,6 +2737,10 @@ IE TimeAdvertisement (EID_TIME_ADVERTISEMENT)   // 8.4.2.63
     time_error[5];
 }
 
+/**
+ * This all attributes are defined under qcn_attribute_id enum of
+ * cmn code in wlan_cmn_ieee80211.h file.
+ */
 const TLV_VERSION_ATTR_ID                 = 1;
 const TLV_VHT_MCS_10_11_ATTR_ID           = 2;
 const TLV_HE_400NS_SGI_SUPP_ATTR_ID       = 3;
@@ -2746,6 +2750,7 @@ const TLV_TRANSITION_REASONP_ATTR_ID      = 6;
 const TLV_TRANSITION_REJECTIONP_ATTR_ID   = 7;
 const TLV_HE_DL_MUMIMO_SUPPP_ATTR_ID      = 8;
 const TLV_HE_MCS_11_12_ATTR_ID            = 9;
+const TLV_EDCA_PIFS_PARAM_ATTR_ID         = 13;
 
 TLV qcn_version(TLV_VERSION_ATTR_ID) ( 1 : 1 ) LSB
 {
@@ -2794,6 +2799,13 @@ TLV he_mcs13_attr (TLV_HE_MCS_11_12_ATTR_ID) ( 1 : 1 ) LSB
    he_mcs_12_13_supp_160, 1;
 }
 
+TLV edca_pifs_param_attr (TLV_EDCA_PIFS_PARAM_ATTR_ID) ( 1 : 1 ) LSB
+{
+   // Configure EDCA or PIFS param based on edca_param_type
+   edca_param_type, 1;
+   data[3..4];
+}
+
 MULTIIE qcn_ie (EID_VENDOR_SPECIFIC) OUI ( 0x8C, 0xFD, 0xF0, 0x01 )
 {
    OPTIONALTLV qcn_version;
@@ -2805,6 +2817,7 @@ MULTIIE qcn_ie (EID_VENDOR_SPECIFIC) OUI ( 0x8C, 0xFD, 0xF0, 0x01 )
    OPTIONALTLV trans_rejectp_attr;
    OPTIONALTLV he_dl_mumimo_attr;
    OPTIONALTLV he_mcs13_attr;
+   OPTIONALTLV edca_pifs_param_attr;
 }
 
 IE esp_information (EID_EXTN_ID_ELEMENT) OUI ( 0x0B )
@@ -3052,7 +3065,7 @@ IE mscs_status (EID_MSCS_STATUS)
      status_code,        1;
 }
 
-IE decriptor_element (EID_EXTN_ID_ELEMENT) OUI (0x58)
+IE descriptor_element (EID_EXTN_ID_ELEMENT) OUI (0x58)
 {
      request_type,                1;
      user_priority_control,       2;
@@ -3609,7 +3622,7 @@ MULTIIE WscProbeReq ( EID_VENDOR_SPECIFIC ) OUI( 0x00, 0x50, 0xF2, 0x04 )
 
     OPTIONALTLV  RequestDeviceType;              // When a device receives a Probe
                                                  // Request containing this type,
-                                                 // It will only reponse if Primary
+                                                 // It will only respond if Primary
                                                  // or Secondary Device Type matches.
 
 } // End Multi-IE WscProbeReq.
@@ -3828,6 +3841,11 @@ IE mlo_ie (EID_EXTN_ID_ELEMENT) OUI (0x6B)
     data[9..255];
 }
 
+IE t2lm_ie (EID_EXTN_ID_ELEMENT) OUI (0x6D)
+{
+    data[3..255];
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Frames
 
@@ -3887,6 +3905,7 @@ FRAME Beacon                              // C.f. Sec. 7.2.3.1
     OPTIE  eht_cap;
     OPTIE  eht_op;
     OPTIE  mlo_ie;
+    OPTIE  t2lm_ie[0..2];
 
     OPTIE  WPA;
     OPTIE  WMMInfoAp;
@@ -3992,6 +4011,7 @@ FRAME Beacon2
     OPTIE  eht_cap;
     OPTIE  eht_op;
     OPTIE  mlo_ie;
+    OPTIE  t2lm_ie[0..2];
 
     OPTIE  WPA;
     OPTIE  WMMInfoAp;
@@ -4071,6 +4091,7 @@ FRAME BeaconIEs
     OPTIE  eht_cap;
     OPTIE  eht_op;
     OPTIE  mlo_ie;
+    OPTIE  t2lm_ie[0..2];
 
     OPTIE  WPA;
     OPTIE  WMMInfoAp;
@@ -4131,6 +4152,7 @@ FRAME AssocRequest                        // 7.2.3.4
     OPTIE  dh_parameter_element;
     OPTIE  eht_cap;
     OPTIE  mlo_ie;
+    OPTIE  t2lm_ie;
 
     OPTIE  WPAOpaque;
     OPTIE  WMMCaps;
@@ -4188,6 +4210,7 @@ FRAME AssocResponse                       // 7.2.3.5
     OPTIE  eht_cap;
     OPTIE  eht_op;
     OPTIE  mlo_ie;
+    OPTIE  t2lm_ie;
 
     OPTIE  WPA;
     OPTIE  WMMParams;
@@ -4234,6 +4257,7 @@ FRAME ReAssocRequest                      // 7.2.3.6
     OPTIE  ESECckmOpaque;
     OPTIE  eht_cap;
     OPTIE  mlo_ie;
+    OPTIE  t2lm_ie;
 
     OPTIE  WPAOpaque;
     OPTIE  WMMCaps;
@@ -4285,6 +4309,7 @@ FRAME ReAssocResponse                     // 7.2.3.7
     OPTIE  eht_cap;
     OPTIE  eht_op;
     OPTIE  mlo_ie;
+    OPTIE  t2lm_ie;
 
     OPTIE  WPA;
     OPTIE  WMMParams;
@@ -4373,6 +4398,7 @@ FRAME ProbeResponse                       // 7.2.3.9
     OPTIE  eht_cap;
     OPTIE  eht_op;
     OPTIE  mlo_ie;
+    OPTIE  t2lm_ie[0..2];
 
     OPTIE  WPA;
     OPTIE  WMMInfoAp;
@@ -4849,6 +4875,28 @@ FRAME delba_req
     FF    Reason;
 }
 
+FRAME t2lm_neg_req
+{
+    FF    Category;
+    FF    Action;
+    FF    DialogToken;
+    OPTIE t2lm_ie[0..2];
+}
+
+FRAME t2lm_neg_rsp
+{
+    FF    Category;
+    FF    Action;
+    FF    DialogToken;
+    FF    Status;
+}
+
+FRAME t2lm_teardown
+{
+    FF    Category;
+    FF    Action;
+}
+
 FRAME vendor_action_frame
 {
     FF    Category;
@@ -4861,7 +4909,7 @@ FRAME mscs_request_action_frame
     FF     Category;
     FF     Action;
     FF     DialogToken;
-    MANDIE decriptor_element;
+    MANDIE descriptor_element;
 }
 
 // Local Variables:

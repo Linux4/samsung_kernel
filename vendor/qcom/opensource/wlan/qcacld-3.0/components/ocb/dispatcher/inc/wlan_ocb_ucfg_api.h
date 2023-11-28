@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -114,7 +115,7 @@ QDF_STATUS ucfg_ocb_dcc_clear_stats(struct wlan_objmgr_vdev *vdev,
  * ucfg_ocb_dcc_update_ndl() - ucfg API to update NDL
  * @vdev: vdev handle
  * @request: request parameters
- * @dcc_update_ndl_cb: callback for update resposne
+ * @dcc_update_ndl_cb: callback for update response
  * @arg: argument for the callback
  *
  * Return: QDF_STATUS_SUCCESS on success

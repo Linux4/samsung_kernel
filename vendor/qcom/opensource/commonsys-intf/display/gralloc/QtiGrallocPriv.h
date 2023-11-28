@@ -145,6 +145,7 @@ struct MetaData_t {
   uint32_t timedRendering;
   /* Video transcode stat populated by video decoder */
   struct VideoTranscodeStatsMetadata video_transcode_stats;
+  int32_t videoEarlyNotifyLineCount;
 };
 
 namespace qtigralloc {

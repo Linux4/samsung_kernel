@@ -166,34 +166,34 @@ int wlan_cfg80211_tdls_get_all_peers(struct wlan_objmgr_vdev *vdev,
 
 /**
  * wlan_cfg80211_tdls_is_fw_wideband_capable() - Check whether fw supports
- *                                                wideband
+ *                                               wideband TDLS
  * @vdev:     Pointer to vdev
  *
- * Return: true if fw supports 6ghz tdls connection
+ * Return: true if fw supports wideband TDLS connection
  */
 bool wlan_cfg80211_tdls_is_fw_wideband_capable(struct wlan_objmgr_vdev *vdev);
 
 #ifdef WLAN_FEATURE_11AX
 /**
- * hdd_tdls_is_fw_6ghz_capable() - Check whether fw supports 6ghz band tdls
+ * wlan_cfg80211_tdls_is_fw_6ghz_capable() - Check whether fw supports 6 GHz
+ *                                           band TDLS
  * @vdev:     Pointer to vdev
  *
- * Return: true if fw supports 6ghz tdls connection
+ * Return: true if fw supports 6 GHz TDLS connection
  */
 bool wlan_cfg80211_tdls_is_fw_6ghz_capable(struct wlan_objmgr_vdev *vdev);
 #endif
 
 /**
- * wlan_cfg80211_tdls_mgmt() - process tdls management frames from the supplicant
+ * wlan_cfg80211_tdls_mgmt() - process TDLS management frames from the supplicant
  * @vdev: vdev object
  * @peer: MAC address of the TDLS peer
  * @action_code: type of TDLS mgmt frame to be sent
  * @dialog_token: dialog token used in the frame
- * @status_code: status to be incuded in the frame
+ * @status_code: status to be included in the frame
  * @peer_capability: peer capability information
  * @buf: additional IEs to be included
  * @len: length of additional Ies
- * @oper: cfg80211 TDLS operation
  *
  * Return: 0 on success; negative errno otherwise
  */
@@ -204,7 +204,7 @@ int wlan_cfg80211_tdls_mgmt(struct wlan_objmgr_vdev *vdev,
 			    const uint8_t *buf, size_t len);
 
 /**
- * wlan_tdls_antenna_switch() - process tdls antenna switch
+ * wlan_tdls_antenna_switch() - process TDLS antenna switch
  * @vdev: vdev object
  * @mode: antenna mode
  *
@@ -213,7 +213,7 @@ int wlan_cfg80211_tdls_mgmt(struct wlan_objmgr_vdev *vdev,
 int wlan_tdls_antenna_switch(struct wlan_objmgr_vdev *vdev, uint32_t mode);
 
 /**
- * wlan_cfg80211_tdls_event_callback() - callback for tdls module
+ * wlan_cfg80211_tdls_event_callback() - callback for TDLS module
  * @userdata: user data
  * @type: request callback type
  * @param: passed parameter

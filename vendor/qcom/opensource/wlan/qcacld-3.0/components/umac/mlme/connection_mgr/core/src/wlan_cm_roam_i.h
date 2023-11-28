@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,7 +42,7 @@
  *
  * This function adds dummy blocking command with high priority to avoid
  * any other vdev command till roam is completed.Any NB operations will be
- * blocked in serailization until roam logic completes execution.
+ * blocked in serialization until roam logic completes execution.
  *
  * Return: QDF_STATUS
  */

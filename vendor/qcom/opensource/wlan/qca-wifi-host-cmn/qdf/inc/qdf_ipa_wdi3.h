@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2019, 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -88,6 +88,8 @@ typedef __qdf_ipa_wdi_init_out_params_t qdf_ipa_wdi_init_out_params_t;
 	__QDF_IPA_WDI_INIT_OUT_PARAMS_IS_SMMU_ENABLED(out_params)
 #define QDF_IPA_WDI_INIT_OUT_PARAMS_HANDLE(out_params)	\
 	__QDF_IPA_WDI_INIT_OUT_PARAMS_HANDLE(out_params)
+#define QDF_IPA_WDI_INIT_OUT_PARAMS_OPT_WIFI_DP(out_params)   \
+	__QDF_IPA_WDI_INIT_OUT_PARAMS_OPT_WIFI_DP(out_params)
 
 /**
  * qdf_ipa_wdi_pipe_setup_info_smmu_t - WDI TX/Rx configuration
@@ -215,7 +217,6 @@ typedef __qdf_ipa_wdi_reg_intf_in_params_t qdf_ipa_wdi_reg_intf_in_params_t;
 #define QDF_IPA_WDI_REG_INTF_IN_PARAMS_IS_RX1_USED(in)	\
 	__QDF_IPA_WDI_REG_INTF_IN_PARAMS_IS_RX1_USED(in)
 #endif
-
 
 /**
  * qdf_ipa_wdi_pipe_setup_info_t - WDI TX/Rx configuration
@@ -507,7 +508,62 @@ static inline int qdf_ipa_uc_bw_monitor(qdf_ipa_wdi_bw_info_t *bw_info)
 {
 	return __qdf_ipa_uc_bw_monitor(bw_info);
 }
+
 #endif
 
+#ifdef IPA_OPT_WIFI_DP
+/**
+ * qdf_ipa_wdi_register_flt_cb() - register cb functions with IPA
+ * for optional wifi datapath
+ * @hdl: ipa hdl
+ * @flt_rsrv_cb: cb for filter reservation
+ * @flt_rsrv_rel_cb: cb for filter release
+ * @flt_add_cb: cb for filter addition
+ * @flt_rem_cb: cb for filter removal
+ *
+ * Return: 0 on success, negative on failure
+ */
+static inline int qdf_ipa_wdi_register_flt_cb(
+			ipa_wdi_hdl_t hdl,
+			ipa_wdi_opt_dpath_flt_rsrv_cb flt_rsrv_cb,
+			ipa_wdi_opt_dpath_flt_rsrv_rel_cb flt_rsrv_rel_cb,
+			ipa_wdi_opt_dpath_flt_add_cb flt_add_cb,
+			ipa_wdi_opt_dpath_flt_rem_cb flt_rem_cb)
+{
+	return __qdf_ipa_wdi_register_flt_cb((__qdf_ipa_wdi_hdl_t)hdl,
+					     flt_rsrv_cb, flt_rsrv_rel_cb,
+					     flt_add_cb, flt_rem_cb);
+}
+
+/**
+ * ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst() - notify IPA with filter
+ * reserve response for optional wifi datapath
+ * @hdl: ipa hdl
+ * @is_succes: true for success, false or failure
+ *
+ * Return: 0 on success, negative on failure
+ */
+static inline int qdf_ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst(
+					    ipa_wdi_hdl_t hdl, bool is_success)
+{
+	return __qdf_ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst(hdl,
+								is_success);
+}
+
+/**
+ * qdf_ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst() - notify IPA with filter
+ * release response for optional wifi datapath
+ * @hdl: ipa hdl
+ * @is_succes: true for success, false or failure
+ *
+ * Return: 0 on success, negative on failure
+ */
+static inline int qdf_ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(
+				ipa_wdi_hdl_t hdl, bool is_success)
+{
+	return __qdf_ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(hdl,
+								is_success);
+}
+#endif /* IPA_OPT_WIFI_DP  */
 #endif /* IPA_OFFLOAD */
-#endif /* _QDF_IPA_WDI3_H */
+#endif /* QDF_IPA_WDI3_H */

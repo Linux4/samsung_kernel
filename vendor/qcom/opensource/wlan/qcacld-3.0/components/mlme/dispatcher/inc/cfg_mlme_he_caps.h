@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -200,7 +201,7 @@
 #define CFG_HE_DYNAMIC_SMPS CFG_BOOL( \
 				"he_dynamic_smps", \
 				0, \
-				"He Dyanmic SMPS")
+				"He Dynamic SMPS")
 
 #define CFG_HE_PUNCTURED_SOUNDING CFG_BOOL( \
 				"he_punctured_sounding", \
@@ -748,7 +749,7 @@
 #define CFG_ENABLE_UL_MIMO CFG_INI_BOOL( \
 				"enable_ul_mimo", \
 				1, \
-				"He Enble Ul Mimo Name")
+				"He Enable Ul Mimo Name")
 
 /*
  * <ini>

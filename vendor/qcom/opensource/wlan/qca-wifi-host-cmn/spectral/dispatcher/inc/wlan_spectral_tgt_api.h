@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -226,7 +226,7 @@ QDF_STATUS tgt_get_spectral_diagstats(struct wlan_objmgr_pdev *pdev,
 
 /**
  * tgt_register_spectral_wmi_ops() - Register Spectral WMI operations
- * @psoc: Pointer to psoc bject
+ * @psoc: Pointer to psoc object
  * @wmi_ops: Pointer to the structure having Spectral WMI operations
  *
  * Implementation to register Spectral WMI operations in spectral
@@ -239,7 +239,7 @@ QDF_STATUS tgt_register_spectral_wmi_ops(struct wlan_objmgr_psoc *psoc,
 
 /**
  * tgt_register_spectral_tgt_ops() - Register Spectral target operations
- * @psoc: Pointer to psoc bject
+ * @psoc: Pointer to psoc object
  * @tgt_ops: Pointer to the structure having Spectral target operations
  *
  * Implementation to register Spectral target operations in spectral

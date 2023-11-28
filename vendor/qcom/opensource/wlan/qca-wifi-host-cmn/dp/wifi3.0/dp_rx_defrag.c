@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1048,6 +1048,7 @@ dp_rx_defrag_nwifi_to_8023(struct dp_soc *soc, struct dp_txrx_peer *txrx_peer,
 	union dp_align_mac_addr mac_addr;
 	uint8_t *rx_desc_info = qdf_mem_malloc(soc->rx_pkt_tlv_size);
 	struct dp_rx_tid_defrag *rx_tid = &txrx_peer->rx_tid[tid];
+	struct ieee80211_frame_addr4 wh = {0};
 
 	hal_rx_tlv_get_pn_num(soc->hal_soc, qdf_nbuf_data(nbuf), rx_tid->pn128);
 
@@ -1059,6 +1060,11 @@ dp_rx_defrag_nwifi_to_8023(struct dp_soc *soc, struct dp_txrx_peer *txrx_peer,
 		QDF_ASSERT(0);
 		return;
 	}
+
+	qdf_mem_zero(&wh, sizeof(struct ieee80211_frame_addr4));
+	if (hal_rx_get_mpdu_mac_ad4_valid(soc->hal_soc, qdf_nbuf_data(nbuf)))
+		qdf_mem_copy(&wh, qdf_nbuf_data(nbuf) + soc->rx_pkt_tlv_size,
+			     hdrsize);
 
 	qdf_mem_copy(rx_desc_info, qdf_nbuf_data(nbuf), soc->rx_pkt_tlv_size);
 
@@ -1115,10 +1121,8 @@ dp_rx_defrag_nwifi_to_8023(struct dp_soc *soc, struct dp_txrx_peer *txrx_peer,
 				      &mac_addr.raw[0]);
 		qdf_mem_copy(eth_hdr->dest_addr, &mac_addr.raw[0],
 			QDF_MAC_ADDR_SIZE);
-		hal_rx_mpdu_get_addr4(soc->hal_soc, rx_desc_info,
-				      &mac_addr.raw[0]);
-		qdf_mem_copy(eth_hdr->src_addr, &mac_addr.raw[0],
-			QDF_MAC_ADDR_SIZE);
+		qdf_mem_copy(eth_hdr->src_addr, &wh.i_addr4[0],
+			     QDF_MAC_ADDR_SIZE);
 		break;
 
 	default:
@@ -1339,8 +1343,13 @@ static QDF_STATUS dp_rx_defrag_reo_reinject(struct dp_txrx_peer *txrx_peer,
 	dp_ipa_handle_rx_buf_smmu_mapping(soc, head, rx_desc_pool->buf_size,
 					  true, __func__, __LINE__);
 
+	dp_audio_smmu_map(soc->osdev,
+			  qdf_mem_paddr_from_dmaaddr(soc->osdev,
+						     QDF_NBUF_CB_PADDR(head)),
+			  QDF_NBUF_CB_PADDR(head), rx_desc_pool->buf_size);
+
 	/*
-	 * As part of rx frag handler bufffer was unmapped and rx desc
+	 * As part of rx frag handler buffer was unmapped and rx desc
 	 * unmapped is set to 1. So again for defrag reinject frame reset
 	 * it back to 0.
 	 */
@@ -1394,9 +1403,11 @@ static QDF_STATUS dp_rx_defrag_reo_reinject(struct dp_txrx_peer *txrx_peer,
 	ent_qdesc_addr = hal_get_reo_ent_desc_qdesc_addr(soc->hal_soc,
 						(uint8_t *)ent_ring_desc);
 
-	dst_qdesc_addr = hal_rx_get_qdesc_addr(soc->hal_soc,
-					       (uint8_t *)dst_ring_desc,
-					       qdf_nbuf_data(head));
+	dst_qdesc_addr = soc->arch_ops.get_reo_qdesc_addr(
+						soc->hal_soc,
+						(uint8_t *)dst_ring_desc,
+						qdf_nbuf_data(head),
+						txrx_peer, tid);
 
 	qdf_mem_copy(ent_qdesc_addr, &dst_qdesc_addr, 5);
 
@@ -1641,6 +1652,7 @@ void dp_rx_defrag_cleanup(struct dp_txrx_peer *txrx_peer, unsigned int tid)
 
 /*
  * dp_rx_defrag_save_info_from_ring_desc(): Save info from REO ring descriptor
+ * @soc: Pointer to the SOC data structure
  * @ring_desc: Pointer to the dst ring descriptor
  * @txrx_peer: Pointer to the peer
  * @tid: Transmit Identifier
@@ -1648,13 +1660,16 @@ void dp_rx_defrag_cleanup(struct dp_txrx_peer *txrx_peer, unsigned int tid)
  * Returns: None
  */
 static QDF_STATUS
-dp_rx_defrag_save_info_from_ring_desc(hal_ring_desc_t ring_desc,
+dp_rx_defrag_save_info_from_ring_desc(struct dp_soc *soc,
+				      hal_ring_desc_t ring_desc,
 				      struct dp_rx_desc *rx_desc,
 				      struct dp_txrx_peer *txrx_peer,
 				      unsigned int tid)
 {
-	void *dst_ring_desc = qdf_mem_malloc(
-			sizeof(struct reo_destination_ring));
+	void *dst_ring_desc;
+
+	dst_ring_desc = qdf_mem_malloc(hal_srng_get_entrysize(soc->hal_soc,
+							      REO_DST));
 
 	if (!dst_ring_desc) {
 		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_ERROR,
@@ -1664,13 +1679,80 @@ dp_rx_defrag_save_info_from_ring_desc(hal_ring_desc_t ring_desc,
 	}
 
 	qdf_mem_copy(dst_ring_desc, ring_desc,
-		       sizeof(struct reo_destination_ring));
+		     hal_srng_get_entrysize(soc->hal_soc, REO_DST));
 
 	txrx_peer->rx_tid[tid].dst_ring_desc = dst_ring_desc;
 	txrx_peer->rx_tid[tid].head_frag_desc = rx_desc;
 
 	return QDF_STATUS_SUCCESS;
 }
+
+#ifdef DP_RX_DEFRAG_ADDR1_CHECK_WAR
+#ifdef WLAN_FEATURE_11BE_MLO
+/*
+ * dp_rx_defrag_vdev_mac_addr_cmp() - function to check whether mac address
+ *				matches VDEV mac
+ * @vdev: dp_vdev object of the VDEV on which this data packet is received
+ * @mac_addr: Address to compare
+ *
+ * Return: 1 if the mac matching,
+ *         0 if this frame is not correctly destined to this VDEV/MLD
+ */
+static int dp_rx_defrag_vdev_mac_addr_cmp(struct dp_vdev *vdev,
+					  uint8_t *mac_addr)
+{
+	return ((qdf_mem_cmp(mac_addr, &vdev->mac_addr.raw[0],
+			     QDF_MAC_ADDR_SIZE) == 0) ||
+		(qdf_mem_cmp(mac_addr, &vdev->mld_mac_addr.raw[0],
+			     QDF_MAC_ADDR_SIZE) == 0));
+}
+
+#else
+static int dp_rx_defrag_vdev_mac_addr_cmp(struct dp_vdev *vdev,
+					  uint8_t *mac_addr)
+{
+	return (qdf_mem_cmp(mac_addr, &vdev->mac_addr.raw[0],
+			    QDF_MAC_ADDR_SIZE) == 0);
+}
+#endif
+
+static bool dp_rx_defrag_addr1_check(struct dp_soc *soc,
+				     struct dp_vdev *vdev,
+				     uint8_t *rx_tlv_hdr)
+{
+	union dp_align_mac_addr mac_addr;
+
+	/* If address1 is not valid discard the fragment */
+	if (hal_rx_mpdu_get_addr1(soc->hal_soc, rx_tlv_hdr,
+				  &mac_addr.raw[0]) != QDF_STATUS_SUCCESS) {
+		DP_STATS_INC(soc, rx.err.defrag_ad1_invalid, 1);
+		return false;
+	}
+
+	/* WAR suggested by HW team to avoid crashing incase of packet
+	 * corruption issue
+	 *
+	 * recipe is to compare VDEV mac or MLD mac address with ADDR1
+	 * in case of mismatch consider it as corrupted packet and do
+	 * not process further
+	 */
+	if (!dp_rx_defrag_vdev_mac_addr_cmp(vdev,
+					    &mac_addr.raw[0])) {
+		DP_STATS_INC(soc, rx.err.defrag_ad1_invalid, 1);
+		return false;
+	}
+
+	return true;
+}
+#else
+static inline bool dp_rx_defrag_addr1_check(struct dp_soc *soc,
+					    struct dp_vdev *vdev,
+					    uint8_t *rx_tlv_hdr)
+{
+
+	return true;
+}
+#endif
 
 /*
  * dp_rx_defrag_store_fragment(): Store incoming fragments
@@ -1746,6 +1828,12 @@ dp_rx_defrag_store_fragment(struct dp_soc *soc,
 	if (tid >= DP_MAX_TIDS) {
 		dp_info("TID out of bounds: %d", tid);
 		qdf_assert_always(0);
+		goto discard_frag;
+	}
+
+	if (!dp_rx_defrag_addr1_check(soc, txrx_peer->vdev,
+				      rx_desc->rx_buf_start)) {
+		dp_info("Invalid address 1");
 		goto discard_frag;
 	}
 
@@ -1873,8 +1961,9 @@ dp_rx_defrag_store_fragment(struct dp_soc *soc,
 	if ((fragno == 0) && (status == QDF_STATUS_SUCCESS) &&
 			(rx_reorder_array_elem->head == frag)) {
 
-		status = dp_rx_defrag_save_info_from_ring_desc(ring_desc,
-					rx_desc, txrx_peer, tid);
+		status = dp_rx_defrag_save_info_from_ring_desc(soc, ring_desc,
+							       rx_desc,
+							       txrx_peer, tid);
 
 		if (status != QDF_STATUS_SUCCESS) {
 			QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_ERROR,

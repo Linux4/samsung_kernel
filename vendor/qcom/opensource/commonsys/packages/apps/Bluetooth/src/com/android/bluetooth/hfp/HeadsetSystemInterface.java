@@ -206,15 +206,18 @@ public class HeadsetSystemInterface {
             return;
         }
         BluetoothInCallService bluetoothInCallService = getBluetoothInCallServiceInstance();
+        Log.w(TAG, "device: " + device + ", profile: " + profile);
         if (bluetoothInCallService != null) {
-            if((ApmConstIntf.getQtiLeAudioEnabled()) || (ApmConstIntf.getAospLeaEnabled())) {
-               Log.w(TAG, "LEA enabled: calling setActiveDeviceBlocking");
-               ActiveDeviceManagerServiceIntf mActiveDeviceManager =
-                                    ActiveDeviceManagerServiceIntf.get();
-               mActiveDeviceManager.setActiveDeviceBlocking(device,
-                                      ApmConstIntf.AudioFeatures.CALL_AUDIO);
-            } else {
-               mHeadsetService.setActiveDevice(device);
+            if (profile == ApmConstIntf.AudioProfiles.HFP) {
+                if((ApmConstIntf.getQtiLeAudioEnabled()) || (ApmConstIntf.getAospLeaEnabled())) {
+                   Log.w(TAG, "LEA enabled: calling setActiveDeviceBlocking");
+                   ActiveDeviceManagerServiceIntf mActiveDeviceManager =
+                                         ActiveDeviceManagerServiceIntf.get();
+                   mActiveDeviceManager.setActiveDeviceBlocking(device,
+                                          ApmConstIntf.AudioFeatures.CALL_AUDIO);
+                } else {
+                  mHeadsetService.setActiveDevice(device);
+                }
             }
             if (mAnswerCallDelay > 0) {
                 Log.w(TAG, "Delay " + mAnswerCallDelay + " msec before calling answerCall");

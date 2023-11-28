@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -46,9 +46,6 @@
 #include <cdp_txrx_host_stats.h>
 #include <osif_cm_util.h>
 
-#ifdef WLAN_FEATURE_TSF_UPLINK_DELAY
-#include <cdp_txrx_ctrl.h>
-#endif
 #include "wlan_hdd_stats.h"
 
 /*
@@ -152,7 +149,7 @@
 
 /*
  * MSB of rx_mc_bc_cnt indicates whether FW supports rx_mc_bc_cnt
- * feature or not, if first bit is 1 it indictes that FW supports this
+ * feature or not, if first bit is 1 it indicates that FW supports this
  * feature, if it is 0 it indicates FW doesn't support this feature
  */
 #define HDD_STATION_INFO_RX_MC_BC_COUNT (1 << 31)
@@ -194,7 +191,7 @@ static int hdd_get_sta_congestion(struct hdd_adapter *adapter,
 /**
  * hdd_get_station_assoc_fail() - Handle get station assoc fail
  * @hdd_ctx: HDD context within host driver
- * @wdev: wireless device
+ * @adapter: pointer to adapter
  *
  * Handles QCA_NL80211_VENDOR_SUBCMD_GET_STATION_ASSOC_FAIL.
  * Validate cmd attributes and send the station info to upper layers.
@@ -244,11 +241,11 @@ fail:
 }
 
 /**
- * hdd_map_auth_type() - transform auth type specific to
+ * hdd_convert_auth_type() - transform auth type specific to
  * vendor command
  * @auth_type: csr auth type
  *
- * Return: Success(0) or reason code for failure
+ * Return: vendor command auth type
  */
 static int hdd_convert_auth_type(uint32_t auth_type)
 {
@@ -347,11 +344,11 @@ static int hdd_convert_auth_type(uint32_t auth_type)
 }
 
 /**
- * hdd_map_dot_11_mode() - transform dot11mode type specific to
+ * hdd_convert_dot11mode() - transform dot11mode type specific to
  * vendor command
- * @dot11mode: dot11mode
+ * @dot11mode: CSR dot11 mode
  *
- * Return: Success(0) or reason code for failure
+ * Return: vendor command dot11 mode
  */
 static int hdd_convert_dot11mode(uint32_t dot11mode)
 {
@@ -390,7 +387,7 @@ static int hdd_convert_dot11mode(uint32_t dot11mode)
 /**
  * hdd_add_tx_bitrate() - add tx bitrate attribute
  * @skb: pointer to sk buff
- * @hdd_sta_ctx: pointer to hdd station context
+ * @adapter: pointer to adapter
  * @idx: attribute index
  *
  * Return: Success(0) or reason code for failure
@@ -458,7 +455,8 @@ fail:
 /**
  * hdd_add_sta_info() - add station info attribute
  * @skb: pointer to sk buff
- * @hdd_sta_ctx: pointer to hdd station context
+ * @hdd_ctx: pointer to hdd station context
+ * @adapter: pointer to adapter
  * @idx: attribute index
  *
  * Return: Success(0) or reason code for failure
@@ -535,7 +533,8 @@ fail:
 /**
  * hdd_add_link_standard_info() - add link info attribute
  * @skb: pointer to sk buff
- * @hdd_sta_ctx: pointer to hdd station context
+ * @hdd_ctx: pointer to hdd context
+ * @adapter: pointer to adapter
  * @idx: attribute index
  *
  * Return: Success(0) or reason code for failure
@@ -794,7 +793,7 @@ static int hdd_get_station_info(struct hdd_context *hdd_ctx,
 
 	if (nla_put_u32(skb, DISCONNECT_REASON,
 			adapter->last_disconnect_reason)) {
-		hdd_err("Failed to put disconect reason");
+		hdd_err("Failed to put disconnect reason");
 		goto fail;
 	}
 
@@ -804,10 +803,11 @@ static int hdd_get_station_info(struct hdd_context *hdd_ctx,
 	}
 
 	hdd_nofl_debug(
-		"STA Info:: SSID:%s, BSSID:" QDF_MAC_ADDR_FMT ", freq:%d, "
+		"STA Info:: SSID:" QDF_SSID_FMT ", BSSID:" QDF_MAC_ADDR_FMT ", freq:%d, "
 		"Noise:%d, signal:%d, roam_count:%d, last_auth_type:%d, "
 		"dot11mode:%d, disconnect_reason:%d, ",
-		hdd_sta_ctx->cache_conn_info.last_ssid.SSID.ssId,
+		QDF_SSID_REF(WLAN_SSID_MAX_LEN,
+			hdd_sta_ctx->cache_conn_info.last_ssid.SSID.ssId),
 		QDF_MAC_ADDR_REF(hdd_sta_ctx->cache_conn_info.bssid.bytes),
 		hdd_sta_ctx->cache_conn_info.chan_freq,
 		(hdd_sta_ctx->cache_conn_info.noise + 100),
@@ -855,7 +855,7 @@ static uint32_t hdd_add_survey_info_sap_get_len(void)
 }
 
 /**
- * hdd_add_survey_info - add survey info attribute
+ * hdd_add_survey_info_sap() - add survey info attribute
  * @skb: pointer to response skb buffer
  * @stainfo: station information
  * @idx: attribute type index for nla_next_start()
@@ -953,6 +953,7 @@ static uint32_t hdd_add_sta_info_sap_get_len(void)
 /**
  * hdd_add_sta_info_sap - add sta signal info attribute
  * @skb: pointer to response skb buffer
+ * @rssi: station RSSI
  * @stainfo: station information
  * @idx: attribute type index for nla_next_start()
  *
@@ -1002,12 +1003,13 @@ static uint32_t hdd_add_link_standard_info_sap_get_len(void)
 }
 
 /**
- * hdd_add_link_standard_info_sap - add add link info attribut
+ * hdd_add_link_standard_info_sap - add add link info attribute
  * @skb: pointer to response skb buffer
+ * @rssi: station RSSI
  * @stainfo: station information
  * @idx: attribute type index for nla_next_start()
  *
- * This function adds link info attribut to response skb buffer
+ * This function adds link info attribute to response skb buffer
  *
  * Return : 0 on success and errno on failure
  */
@@ -1287,10 +1289,11 @@ fail:
 }
 
 /**
- * hdd_get_cached_station_remote() - get connected peer's info
+ * hdd_get_connected_station_info() - get connected peer's info
  * @hdd_ctx: hdd context
  * @adapter: hostapd interface
  * @mac_addr: mac address of requested peer
+ * @stainfo: location to store peer info
  *
  * This function collect and indicate the connected peer's info
  *
@@ -1436,7 +1439,6 @@ static int hdd_get_station_remote(struct hdd_context *hdd_ctx,
 				  struct qdf_mac_addr mac_addr)
 {
 	int status = 0;
-	bool is_associated = false;
 	struct hdd_station_info *stainfo =
 			hdd_get_sta_info_by_mac(
 					&adapter->sta_info_list,
@@ -1446,15 +1448,6 @@ static int hdd_get_station_remote(struct hdd_context *hdd_ctx,
 	if (!stainfo) {
 		status = hdd_get_cached_station_remote(hdd_ctx, adapter,
 						       mac_addr);
-		return status;
-	}
-
-	is_associated = hdd_is_peer_associated(adapter, &mac_addr);
-	if (!is_associated) {
-		status = hdd_get_cached_station_remote(hdd_ctx, adapter,
-						       mac_addr);
-		hdd_put_sta_info_ref(&adapter->sta_info_list, &stainfo, true,
-				     STA_INFO_HDD_GET_STATION_REMOTE);
 		return status;
 	}
 
@@ -2088,52 +2081,6 @@ fail:
 	return -EINVAL;
 }
 
-#ifdef WLAN_FEATURE_TSF_UPLINK_DELAY
-static uint32_t hdd_get_uplink_delay_len(struct hdd_adapter *adapter)
-{
-	if (adapter->device_mode != QDF_STA_MODE)
-		return 0;
-
-	return nla_total_size(sizeof(uint32_t));
-}
-
-static QDF_STATUS hdd_add_uplink_delay(struct hdd_adapter *adapter,
-				       struct sk_buff *skb)
-{
-	void *soc = cds_get_context(QDF_MODULE_ID_SOC);
-	QDF_STATUS status;
-	uint32_t ul_delay;
-
-	if (adapter->device_mode != QDF_STA_MODE)
-		return QDF_STATUS_SUCCESS;
-
-	if (qdf_atomic_read(&adapter->tsf_auto_report)) {
-		status = cdp_get_uplink_delay(soc, adapter->vdev_id, &ul_delay);
-		if (QDF_IS_STATUS_ERROR(status))
-			ul_delay = 0;
-	} else {
-		ul_delay = 0;
-	}
-
-	if (nla_put_u32(skb, QCA_WLAN_VENDOR_ATTR_GET_STA_INFO_UPLINK_DELAY,
-			ul_delay))
-		return QDF_STATUS_E_FAILURE;
-
-	return QDF_STATUS_SUCCESS;
-}
-#else /* !WLAN_FEATURE_TSF_UPLINK_DELAY */
-static inline uint32_t hdd_get_uplink_delay_len(struct hdd_adapter *adapter)
-{
-	return 0;
-}
-
-static inline QDF_STATUS hdd_add_uplink_delay(struct hdd_adapter *adapter,
-					      struct sk_buff *skb)
-{
-	return QDF_STATUS_SUCCESS;
-}
-#endif /* WLAN_FEATURE_TSF_UPLINK_DELAY */
-
 /**
  * hdd_get_connected_station_info_ex() - get connected peer's info
  * @hdd_ctx: hdd context
@@ -2152,6 +2099,7 @@ static int hdd_get_connected_station_info_ex(struct hdd_context *hdd_ctx,
 	uint32_t nl_buf_len, guard_interval;
 	bool sap_get_peer_info;
 	struct nl80211_sta_flag_update sta_flags = {0};
+	const uint8_t *mac_addr;
 	QDF_STATUS status;
 
 	if (hdd_get_peer_stats(adapter, stainfo)) {
@@ -2180,8 +2128,13 @@ static int hdd_get_connected_station_info_ex(struct hdd_context *hdd_ctx,
 		goto fail;
 	}
 
+	if (qdf_is_macaddr_zero(&stainfo->mld_addr))
+		mac_addr = &stainfo->sta_mac.bytes[0];
+	else
+		mac_addr = &stainfo->mld_addr.bytes[0];
+
 	if (nla_put(skb, QCA_WLAN_VENDOR_ATTR_GET_STA_INFO_MAC,
-		    QDF_MAC_ADDR_SIZE, stainfo->sta_mac.bytes)) {
+		    QDF_MAC_ADDR_SIZE, mac_addr)) {
 		hdd_err_rl("Failed to put MAC address");
 		goto fail;
 	}
@@ -2259,7 +2212,6 @@ static int hdd_get_station_remote_ex(struct hdd_context *hdd_ctx,
 				     struct hdd_adapter *adapter,
 				     struct qdf_mac_addr mac_addr)
 {
-	bool is_associated = false;
 	struct hdd_station_info *stainfo =
 				hdd_get_sta_info_by_mac(&adapter->sta_info_list,
 					       mac_addr.bytes,
@@ -2271,15 +2223,6 @@ static int hdd_get_station_remote_ex(struct hdd_context *hdd_ctx,
 		hdd_err_rl("Failed to get peer STA " QDF_MAC_ADDR_FMT,
 			   QDF_MAC_ADDR_REF(mac_addr.bytes));
 		return -ENXIO;
-	}
-
-	is_associated = hdd_is_peer_associated(adapter, &mac_addr);
-	if (!is_associated) {
-		hdd_err_rl("Peer STA is not associated " QDF_MAC_ADDR_FMT,
-			   QDF_MAC_ADDR_REF(mac_addr.bytes));
-		hdd_put_sta_info_ref(&adapter->sta_info_list, &stainfo, true,
-				     STA_INFO_HDD_GET_STATION_REMOTE);
-		return -EINVAL;
 	}
 
 	status = hdd_get_connected_station_info_ex(hdd_ctx, adapter, stainfo);

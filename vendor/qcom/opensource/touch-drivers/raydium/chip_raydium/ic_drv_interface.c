@@ -29,7 +29,7 @@
 #include <string.h>
 #endif
 #include "ic_drv_interface.h"
-#include "drv_interface.h"
+#include "../drv_interface.h"
 #include "ic_drv_global.h"
 #if SELFTEST_2X
 #include "f302_ic_control.h"

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -170,6 +170,7 @@ static int hif_rtpm_debugfs_show(struct seq_file *s, void *data)
 		seq_puts(s, " ");
 	}
 	qdf_spin_unlock_bh(&gp_hif_rtpm_ctx->prevent_list_lock);
+	seq_puts(s, "\n");
 
 	return 0;
 }
@@ -226,7 +227,7 @@ static void hif_rtpm_debugfs_remove(void)
 /**
  * hif_rtpm_init() - Initialize Runtime PM
  * @dev: device structure
- * @delay: delay to be confgured for auto suspend
+ * @delay: delay to be configured for auto suspend
  *
  * This function will init all the Runtime PM config.
  *
@@ -257,6 +258,35 @@ static void hif_rtpm_exit(struct device *dev)
 	pm_runtime_forbid(dev);
 }
 
+static void hif_rtpm_alloc_last_busy_hist(void)
+{
+	int i;
+
+	for (i = 0; i < CE_COUNT_MAX; i++) {
+		if (i != CE_ID_1 && i != CE_ID_2 && i != CE_ID_7) {
+			gp_hif_rtpm_ctx->busy_hist[i] = NULL;
+			continue;
+		}
+
+		gp_hif_rtpm_ctx->busy_hist[i] =
+			qdf_mem_malloc(sizeof(struct hif_rtpm_last_busy_hist));
+		if (!gp_hif_rtpm_ctx->busy_hist[i])
+			return;
+	}
+}
+
+static void hif_rtpm_free_last_busy_hist(void)
+{
+	int i;
+
+	for (i = 0; i < CE_COUNT_MAX; i++) {
+		if (i != CE_ID_1 && i != CE_ID_2 && i != CE_ID_7)
+			continue;
+
+		qdf_mem_free(gp_hif_rtpm_ctx->busy_hist[i]);
+	}
+}
+
 void hif_rtpm_open(struct hif_softc *scn)
 {
 	gp_hif_rtpm_ctx = &g_hif_rtpm_ctx;
@@ -272,6 +302,7 @@ void hif_rtpm_open(struct hif_softc *scn)
 	gp_hif_rtpm_ctx->pending_job = 0;
 	hif_rtpm_register(HIF_RTPM_ID_CE, NULL);
 	hif_rtpm_register(HIF_RTPM_ID_FORCE_WAKE, NULL);
+	hif_rtpm_alloc_last_busy_hist();
 	hif_info_high("Runtime PM attached");
 }
 
@@ -340,6 +371,7 @@ static void hif_rtpm_sanitize_ssr_exit(void)
 
 void hif_rtpm_close(struct hif_softc *scn)
 {
+	hif_rtpm_free_last_busy_hist();
 	hif_rtpm_deregister(HIF_RTPM_ID_CE);
 	hif_rtpm_deregister(HIF_RTPM_ID_FORCE_WAKE);
 
@@ -374,6 +406,8 @@ void hif_rtpm_start(struct hif_softc *scn)
 
 	qdf_atomic_set(&gp_hif_rtpm_ctx->pm_state, HIF_RTPM_STATE_ON);
 	hif_rtpm_init(gp_hif_rtpm_ctx->dev, scn->hif_config.runtime_pm_delay);
+	gp_hif_rtpm_ctx->cfg_delay = scn->hif_config.runtime_pm_delay;
+	gp_hif_rtpm_ctx->delay = gp_hif_rtpm_ctx->cfg_delay;
 	hif_rtpm_debugfs_create();
 }
 
@@ -457,6 +491,41 @@ QDF_STATUS hif_rtpm_deregister(uint32_t id)
 	gp_hif_rtpm_ctx->clients[id] = NULL;
 
 	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS hif_rtpm_set_autosuspend_delay(int delay)
+{
+	if (delay < HIF_RTPM_DELAY_MIN || delay > HIF_RTPM_DELAY_MAX) {
+		hif_err("Invalid delay value %d ms", delay);
+		return QDF_STATUS_E_INVAL;
+	}
+
+	__hif_rtpm_set_autosuspend_delay(gp_hif_rtpm_ctx->dev, delay);
+	gp_hif_rtpm_ctx->delay = delay;
+	hif_info_high("RTPM delay set: %d ms", delay);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS hif_rtpm_restore_autosuspend_delay(void)
+{
+	if (gp_hif_rtpm_ctx->delay == gp_hif_rtpm_ctx->cfg_delay) {
+		hif_info_rl("RTPM delay already default: %d",
+			    gp_hif_rtpm_ctx->delay);
+		return QDF_STATUS_E_ALREADY;
+	}
+
+	__hif_rtpm_set_autosuspend_delay(gp_hif_rtpm_ctx->dev,
+					 gp_hif_rtpm_ctx->cfg_delay);
+	gp_hif_rtpm_ctx->delay = gp_hif_rtpm_ctx->cfg_delay;
+	hif_info_rl("RTPM delay set: %d ms", gp_hif_rtpm_ctx->delay);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+int hif_rtpm_get_autosuspend_delay(void)
+{
+	return gp_hif_rtpm_ctx->delay;
 }
 
 int hif_runtime_lock_init(qdf_runtime_lock_t *lock, const char *name)
@@ -657,7 +726,6 @@ QDF_STATUS hif_rtpm_put(uint8_t type, uint32_t id)
 	gp_hif_rtpm_ctx->stats.last_busy_ts = client->put_ts;
 
 	return QDF_STATUS_SUCCESS;
-
 }
 
 /**
@@ -738,7 +806,6 @@ static int __hif_pm_runtime_allow_suspend(struct hif_pm_runtime_lock *lock)
 	gp_hif_rtpm_ctx->stats.allow_suspend++;
 	return ret;
 }
-
 
 int hif_pm_runtime_prevent_suspend(struct hif_pm_runtime_lock *lock)
 {
@@ -898,6 +965,68 @@ int hif_rtpm_get_monitor_wake_intr(void)
 void hif_rtpm_set_monitor_wake_intr(int val)
 {
 	qdf_atomic_set(&gp_hif_rtpm_ctx->monitor_wake_intr, val);
+}
+
+void hif_rtpm_display_last_busy_hist(struct hif_opaque_softc *hif_ctx)
+{
+	struct hif_softc *scn;
+	struct hif_rtpm_ctx *rtpm_ctx = gp_hif_rtpm_ctx;
+	struct hif_rtpm_last_busy_hist *hist;
+	unsigned long cur_idx;
+	int i;
+
+	scn = HIF_GET_SOFTC(hif_ctx);
+	if (!scn)
+		return;
+
+	hif_info_high("RTPM last busy ts:%llu client:%s from:%ps",
+		      rtpm_ctx->stats.last_busy_ts,
+		      hif_rtpm_id_to_string(rtpm_ctx->stats.last_busy_id),
+		      rtpm_ctx->stats.last_busy_marker);
+
+	/*Display CE and DP clients RTPM stats*/
+	for (i = 0; i < HIF_RTPM_ID_MAX; i++) {
+		if (!rtpm_ctx->clients[i] ||
+		    (i != HIF_RTPM_ID_CE && i != HIF_RTPM_ID_DP))
+			continue;
+		hif_info_high("RTPM client:%s busy_ts:%llu get_ts:%llu put_ts:%llu get_cnt:%d put_cnt:%d",
+			      hif_rtpm_id_to_string(i),
+			      rtpm_ctx->clients[i]->last_busy_ts,
+			      rtpm_ctx->clients[i]->get_ts,
+			      rtpm_ctx->clients[i]->put_ts,
+			      qdf_atomic_read(&rtpm_ctx->clients[i]->get_count),
+			      qdf_atomic_read(&rtpm_ctx->clients[i]->put_count));
+	}
+
+	for (i = 0; i < CE_COUNT_MAX; i++) {
+		hist = gp_hif_rtpm_ctx->busy_hist[i];
+		if (!hist)
+			continue;
+		cur_idx = hist->last_busy_idx;
+
+		hif_info_high("RTPM CE-%u last busy_cnt:%lu cur_idx:%lu ts1:%llu ts2:%llu ts3:%llu ts4:%llu",
+			      i, hist->last_busy_cnt, cur_idx,
+			      hist->last_busy_ts[cur_idx & HIF_RTPM_BUSY_HIST_MASK],
+			      hist->last_busy_ts[(cur_idx + 4) & HIF_RTPM_BUSY_HIST_MASK],
+			      hist->last_busy_ts[(cur_idx + 8) & HIF_RTPM_BUSY_HIST_MASK],
+			      hist->last_busy_ts[(cur_idx + 12) & HIF_RTPM_BUSY_HIST_MASK]);
+	}
+}
+
+void hif_rtpm_record_ce_last_busy_evt(struct hif_softc *scn,
+				      unsigned long ce_id)
+{
+	struct hif_rtpm_last_busy_hist *hist;
+	unsigned long idx;
+
+	if (!scn || !gp_hif_rtpm_ctx->busy_hist[ce_id])
+		return;
+
+	hist = gp_hif_rtpm_ctx->busy_hist[ce_id];
+	hist->last_busy_cnt++;
+	hist->last_busy_idx++;
+	idx = hist->last_busy_idx & HIF_RTPM_BUSY_HIST_MASK;
+	hist->last_busy_ts[idx] = qdf_get_log_timestamp();
 }
 
 void hif_rtpm_mark_last_busy(uint32_t id)

@@ -1,11 +1,13 @@
 TARGET_DISABLE_IPACM := false
 
 ifneq ($(TARGET_BOARD_SUFFIX),_au)
+ifneq ($(TARGET_BOARD_SUFFIX),_gvmq)
 #IPACM_DATA
 IPACM_DATA += IPACM_cfg.xml
 IPACM_DATA += IPACM_Filter_cfg.xml
 IPACM_DATA += ipacm
 IPACM_DATA += ipacm.rc
+endif
 endif
 
 ifeq ($(TARGET_USES_QMAA),true)
@@ -15,6 +17,7 @@ endif #TARGET_USES_QMAA_OVERRIDE_DATA
 endif #TARGET_USES_QMAA
 
 BOARD_IPA_LOW_RAM_EXCP_LIST := bengal
+BOARD_IPA_LOW_RAM_EXCP_LIST += monaco
 
 ifeq ($(TARGET_HAS_LOW_RAM),true)
 ifneq ($(call is-board-platform-in-list,$(BOARD_IPA_LOW_RAM_EXCP_LIST)),true)
@@ -31,6 +34,10 @@ BOARD_PLATFORM_LIST += msm8937
 ifeq ($(TARGET_BOARD_SUFFIX),_au)
 BOARD_PLATFORM_LIST += msmnile
 endif
+ifeq ($(TARGET_BOARD_SUFFIX),_gvmq)
+BOARD_PLATFORM_LIST += msmnile
+endif
+
 BOARD_IPAv3_LIST := msm8998
 BOARD_IPAv3_LIST += sdm845
 BOARD_IPAv3_LIST += sdm710

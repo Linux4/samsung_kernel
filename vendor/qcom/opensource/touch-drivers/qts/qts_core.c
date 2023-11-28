@@ -177,7 +177,7 @@ static int qts_populate_vm_info(struct qts_data *qts_data)
 	rc = of_property_read_string(np, "qts,trusted-touch-type",
 						&vm_info->trusted_touch_type);
 	if (rc) {
-		pr_warn("%s: No trusted touch type selection made\n");
+		pr_warn("No trusted touch type selection mode\n");
 		vm_info->mem_tag = GH_MEM_NOTIFIER_TAG_TOUCH_PRIMARY;
 		vm_info->irq_label = GH_IRQ_LABEL_TRUSTED_TOUCH_PRIMARY;
 		rc = 0;
@@ -674,6 +674,7 @@ static void qts_trusted_touch_abort_tvm(struct qts_data *qts_data)
 	switch (vm_state) {
 	case TVM_INTERRUPT_ENABLED:
 		qts_irq_enable(qts_data, false);
+		fallthrough;
 	case TVM_IRQ_ACCEPTED:
 	case TVM_INTERRUPT_DISABLED:
 		rc = gh_irq_release(qts_data->vm_info->irq_label);
@@ -682,6 +683,7 @@ static void qts_trusted_touch_abort_tvm(struct qts_data *qts_data)
 		rc = gh_irq_release_notify(qts_data->vm_info->irq_label);
 		if (rc)
 			pr_err("Failed to notify irq release rc:%d\n", rc);
+		fallthrough;
 	case TVM_I2C_SESSION_ACQUIRED:
 	case TVM_IOMEM_ACCEPTED:
 	case TVM_IRQ_RELEASED:
@@ -689,10 +691,12 @@ static void qts_trusted_touch_abort_tvm(struct qts_data *qts_data)
 			pm_runtime_put_sync(qts_data->client->adapter->dev.parent);
 		else
 			pm_runtime_put_sync(qts_data->spi->master->dev.parent);
+		fallthrough;
 	case TVM_I2C_SESSION_RELEASED:
 		rc = qts_vm_mem_release(qts_data);
 		if (rc)
 			pr_err("Failed to release mem rc:%d\n", rc);
+		fallthrough;
 	case TVM_IOMEM_RELEASED:
 	case TVM_ALL_RESOURCES_LENT_NOTIFIED:
 	case TRUSTED_TOUCH_TVM_INIT:
@@ -730,6 +734,7 @@ static void qts_trusted_touch_abort_pvm(struct qts_data *qts_data)
 			pr_err("failed to reclaim irq on pvm rc:%d\n", rc);
 			return;
 		}
+		fallthrough;
 	case PVM_IRQ_RECLAIMED:
 	case PVM_IOMEM_LENT:
 	case PVM_IOMEM_LENT_NOTIFIED:
@@ -741,13 +746,16 @@ static void qts_trusted_touch_abort_pvm(struct qts_data *qts_data)
 			return;
 		}
 		qts_data->vm_info->vm_mem_handle = 0;
+		fallthrough;
 	case PVM_IOMEM_RECLAIMED:
 	case PVM_INTERRUPT_DISABLED:
 		if (qts_data->vendor_ops.enable_touch_irq)
 			qts_data->vendor_ops.enable_touch_irq(qts_data->vendor_data, true);
+		fallthrough;
 	case PVM_I2C_RESOURCE_ACQUIRED:
 	case PVM_INTERRUPT_ENABLED:
 		qts_bus_put(qts_data);
+		fallthrough;
 	case TRUSTED_TOUCH_PVM_INIT:
 	case PVM_I2C_RESOURCE_RELEASED:
 		atomic_set(&qts_data->trusted_touch_enabled, 0);
@@ -1777,4 +1785,3 @@ qts_register_end:
 	return rc;
 }
 EXPORT_SYMBOL(qts_client_register);
-

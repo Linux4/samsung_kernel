@@ -507,6 +507,7 @@ int msm_vidc_scale_power(struct msm_vidc_inst *inst, bool scale_buses)
 	struct msm_vidc_core *core;
 	struct msm_vidc_buffer *vbuf;
 	u32 data_size = 0;
+	u32 cnt = 0;
 	u32 fps;
 	u32 frame_rate, operating_rate;
 	u32 timestamp_rate = 0, input_rate = 0;
@@ -523,8 +524,22 @@ int msm_vidc_scale_power(struct msm_vidc_inst *inst, bool scale_buses)
 		inst->active = true;
 	}
 
-	list_for_each_entry(vbuf, &inst->buffers.input.list, list)
-		data_size = max(data_size, vbuf->data_size);
+	/*
+	 * consider avg. filled length in decode batching case
+	 * to avoid overvoting for the entire batch due to single
+	 * frame with huge filled length
+	 */
+	if (inst->decode_batch.enable) {
+		list_for_each_entry(vbuf, &inst->buffers.input.list, list) {
+			data_size += vbuf->data_size;
+			cnt++;
+		}
+		if (cnt)
+			data_size /= cnt;
+	} else {
+		list_for_each_entry(vbuf, &inst->buffers.input.list, list)
+			data_size = max(data_size, vbuf->data_size);
+	}
 	inst->max_input_data_size = data_size;
 
 	frame_rate = msm_vidc_get_frame_rate(inst);

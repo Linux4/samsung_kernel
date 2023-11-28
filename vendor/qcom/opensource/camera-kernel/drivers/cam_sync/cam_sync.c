@@ -1904,7 +1904,7 @@ static int cam_sync_component_bind(struct device *dev,
 	int idx;
 	struct platform_device *pdev = to_platform_device(dev);
 
-	sync_dev = kzalloc(sizeof(*sync_dev), GFP_KERNEL);
+	sync_dev = vzalloc(sizeof(*sync_dev));
 	if (!sync_dev)
 		return -ENOMEM;
 
@@ -2001,7 +2001,7 @@ mcinit_fail:
 	video_device_release(sync_dev->vdev);
 vdev_fail:
 	mutex_destroy(&sync_dev->table_lock);
-	kfree(sync_dev);
+	vfree(sync_dev);
 	return rc;
 }
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -101,7 +102,7 @@ tgt_ocb_channel_config_status(struct wlan_objmgr_psoc *psoc,
  * @psoc: psoc handle
  * @response: TSF timer response
  *
- * Return: QDF_STATUS_SUCCESS on succcess
+ * Return: QDF_STATUS_SUCCESS on success
  */
 static QDF_STATUS
 tgt_ocb_get_tsf_timer(struct wlan_objmgr_psoc *psoc,

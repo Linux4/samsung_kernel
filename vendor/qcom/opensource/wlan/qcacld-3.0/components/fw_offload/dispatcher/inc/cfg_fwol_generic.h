@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -414,7 +414,7 @@
 	0, \
 	FW_MODULE_LOG_LEVEL_STRING_LENGTH, \
 	"1,1,2,1,3,1,4,1,5,1,11,1,9,1,13,1,14,1,17,1,18,1,19,1,22,1,26,1,28,1,"\
-	"29,1,31,1,36,1,38,1,46,1,47,1,50,1,52,1,53,1,56,1,60,1,61,1", \
+	"29,1,31,1,36,1,38,1,46,1,47,1,50,1,52,1,53,1,56,1,60,1,61,1,113,1", \
 	"Set modulized firmware debug log level")
 
 /*
@@ -617,6 +617,45 @@
 		CFG(CFG_TSF_SYNC_ENABLE)
 #else
 #define __CFG_SET_TSF_PTP_OPT
+#endif
+
+#if defined(WLAN_FEATURE_TSF_ACCURACY)
+/* <ini>
+ * g_tsf_accuracy_configs: Enable TSF Accuracy Feature config parameters
+ * @Min: N/A
+ * @Max: N/A
+ * @Default: N/A
+ *
+ * This ini is to configure TSF Accuracy parameters.
+ * The list of mandate CFG_TSF_ACCURACY_CONFIG_LEN elements of type integer are
+ * specified with (,) delimiter.
+ * Param1: Enable/Disable TSF Accuracy Feature.
+ * Param2: GPIO to toggle on TSF sync done
+ * Param3: GPIO to raise pulse on specified period(TSF time domain)
+ * Param4: Periodicity of TSF pulse in milli seconds
+ * For example:
+ * g_tsf_accuracy_configs=1,430,431,100
+ *
+ * Related: None
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_TSF_ACCURACY_CONFIG_LEN 4
+#define CFG_TSF_ACCURACY_CONFIG_STR_LEN 128
+#define CFG_TSF_ACCURACY_CONFIGS_DEF "0, -1, -1, 0"
+#define CFG_TSF_ACCURACY_CONFIGS CFG_INI_STRING( \
+		"g_tsf_accuracy_configs", \
+		0, \
+		CFG_TSF_ACCURACY_CONFIG_STR_LEN, \
+		CFG_TSF_ACCURACY_CONFIGS_DEF, \
+		"Configure TSF Accuracy parameters")
+
+#define __CFG_TSF_ACCURACY_CONFIGS \
+		CFG(CFG_TSF_ACCURACY_CONFIGS)
+#else
+#define __CFG_TSF_ACCURACY_CONFIGS
 #endif
 
 #ifdef DHCP_SERVER_OFFLOAD
@@ -890,6 +929,33 @@
 		1, \
 		"enable pci gen")
 
+/*
+ * <ini>
+ * pcie_config - Ini to control pcie gen and lane params
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to control to pcie gen and lane params
+ * 0 - FW controlled
+ * 1 - Force PCIe Gen and lane to max supported value
+ *
+ * Related: g_enable_pci_gen
+ *
+ * Supported Feature: PCI
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_PCIE_CONFIG CFG_INI_UINT( \
+				"pcie_config", \
+				0, \
+				1, \
+				0, \
+				CFG_VALUE_OR_DEFAULT, \
+				"to control pcie gen and lane")
+
 #define CFG_FWOL_GENERIC_ALL \
 	CFG_FWOL_DHCP \
 	CFG(CFG_ENABLE_ANI) \
@@ -911,6 +977,7 @@
 	__CFG_SET_TSF_IRQ_HOST_GPIO_PIN \
 	__CFG_SET_TSF_SYNC_HOST_GPIO_PIN \
 	__CFG_SET_TSF_PTP_OPT \
+	__CFG_TSF_ACCURACY_CONFIGS \
 	__CFG_IS_SAE_ENABLED \
 	CFG(CFG_ENABLE_GCMP) \
 	CFG(CFG_TX_SCH_DELAY) \
@@ -921,6 +988,7 @@
 	CFG(CFG_SAP_SHO_CONFIG) \
 	CFG(CFG_DISABLE_HW_ASSIST) \
 	CFG(CFG_ENABLE_PCI_GEN) \
+	CFG(CFG_PCIE_CONFIG) \
 	ENABLE_OFDM_SCRAMBLER_SEED
 
 #endif

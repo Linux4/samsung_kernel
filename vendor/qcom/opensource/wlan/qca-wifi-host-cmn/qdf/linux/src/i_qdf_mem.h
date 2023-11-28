@@ -86,7 +86,7 @@ typedef struct mempool_elem {
  * @mem_size: Total size of the pool in bytes
  * @free_list: free pool list
  * @lock: spinlock object
- * @max_elem: Maximum number of elements in tha pool
+ * @max_elem: Maximum number of elements in the pool
  * @free_cnt: Number of free elements available
  */
 typedef struct __qdf_mempool_ctxt {
@@ -150,7 +150,7 @@ enum dma_data_direction __qdf_dma_dir_to_os(qdf_dma_dir_t qdf_dir)
  * @buf: pointer to memory to be dma mapped
  * @dir: DMA map direction
  * @nbytes: number of bytes to be mapped.
- * @phy_addr: ponter to recive physical address.
+ * @phy_addr: pointer to receive physical address.
  *
  * Return: success/failure
  */
@@ -441,7 +441,7 @@ __qdf_mem_paddr_from_dmaaddr(qdf_device_t osdev,
 
 /**
  * __qdf_os_mem_dma_get_sgtable() - Returns DMA memory scatter gather table
- * @dev: device instace
+ * @dev: device instance
  * @sgt: scatter gather table pointer
  * @cpu_addr: HLOS virtual address
  * @dma_addr: dma/iova

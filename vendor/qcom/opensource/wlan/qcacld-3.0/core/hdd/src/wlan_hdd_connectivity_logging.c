@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1221,6 +1221,7 @@ wlan_hdd_fill_connectivity_logging_data(struct sk_buff *skb,
  * wlan_hdd_send_connectivity_log_to_user  - Send the connectivity log buffer
  * to userspace
  * @rec: Pointer to the log record
+ * @hdd_context: HDD global context
  * @num_records: Number of records
  *
  * Return: QDF_STATUS

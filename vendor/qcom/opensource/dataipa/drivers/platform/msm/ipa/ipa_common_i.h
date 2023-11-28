@@ -133,7 +133,7 @@
  * Printing one warning message in 5 seconds if multiple warning messages
  * are coming back to back.
  */
-
+#ifdef CONFIG_IPA_DEBUG
 #define WARN_ON_RATELIMIT_IPA(condition)				\
 ({								\
 	static DEFINE_RATELIMIT_STATE(_rs,			\
@@ -144,6 +144,9 @@
 	if (unlikely(rtn && __ratelimit(&_rs)))			\
 		WARN_ON(rtn);					\
 })
+#else
+#define WARN_ON_RATELIMIT_IPA(condition)
+#endif
 
 /*
  * Printing one error message in 5 seconds if multiple error messages
@@ -189,8 +192,8 @@ do {\
 	 (x == ipa3_get_ep_mapping(IPA_CLIENT_AQC_ETHERNET_PROD)) || \
 	 (x == ipa3_get_ep_mapping(IPA_CLIENT_RTK_ETHERNET_PROD)))
 
-#define IPA_GSI_CHANNEL_STOP_SLEEP_MIN_USEC (3000)
-#define IPA_GSI_CHANNEL_STOP_SLEEP_MAX_USEC (5000)
+#define IPA_GSI_CHANNEL_STOP_SLEEP_MIN_USEC (1000)
+#define IPA_GSI_CHANNEL_STOP_SLEEP_MAX_USEC (2000)
 
 #define STR_ETH_IFACE "eth"
 #define STR_ETH0_IFACE "eth0"

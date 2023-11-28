@@ -76,8 +76,12 @@ static inline
 void __qdf_hrtimer_start(__qdf_hrtimer_data_t *timer, ktime_t interval,
 			 enum qdf_hrtimer_mode mode)
 {
-	enum hrtimer_mode hrt_mode = __qdf_hrtimer_get_mode(mode);
+	enum hrtimer_mode hrt_mode;
 
+	if (timer->ctx == QDF_CONTEXT_TASKLET)
+		mode |= HRTIMER_MODE_SOFT;
+
+	hrt_mode = __qdf_hrtimer_get_mode(mode);
 	hrtimer_start(&timer->u.hrtimer, interval, hrt_mode);
 }
 #else
@@ -107,10 +111,7 @@ void __qdf_hrtimer_start(__qdf_hrtimer_data_t *timer, ktime_t interval,
 static inline
 int __qdf_hrtimer_cancel(__qdf_hrtimer_data_t *timer)
 {
-	if (timer->ctx == QDF_CONTEXT_HARDWARE)
-		return hrtimer_cancel(&timer->u.hrtimer);
-
-	return 0;
+	return hrtimer_cancel(&timer->u.hrtimer);
 }
 #else
 static inline
@@ -152,18 +153,18 @@ static inline void  __qdf_hrtimer_init(__qdf_hrtimer_data_t *timer,
 				       enum qdf_context_mode ctx)
 {
 	struct hrtimer *hrtimer = &timer->u.hrtimer;
-	enum hrtimer_mode hrt_mode = __qdf_hrtimer_get_mode(mode);
+	enum hrtimer_mode hrt_mode;
 
 	timer->ctx = ctx;
 	timer->callback = cback;
 	timer->cb_ctx = timer;
 
-	if (timer->ctx == QDF_CONTEXT_HARDWARE) {
-		hrtimer_init(hrtimer, clock, hrt_mode);
-		hrtimer->function = __qdf_hrtimer_cb;
-	} else if (timer->ctx == QDF_CONTEXT_TASKLET) {
-		QDF_BUG(0);
-	}
+	if (timer->ctx == QDF_CONTEXT_TASKLET)
+		mode |= HRTIMER_MODE_SOFT;
+
+	hrt_mode = __qdf_hrtimer_get_mode(mode);
+	hrtimer_init(hrtimer, clock, hrt_mode);
+	hrtimer->function = __qdf_hrtimer_cb;
 }
 #else
 static inline void  __qdf_hrtimer_init(__qdf_hrtimer_data_t *timer,
@@ -377,6 +378,7 @@ static inline uint64_t __qdf_hrtimer_forward(__qdf_hrtimer_data_t *timer,
 
 	return hrtimer_forward(hrtimer, now, interval);
 }
+
 #else
 static inline uint64_t __qdf_hrtimer_forward(__qdf_hrtimer_data_t *timer,
 					     ktime_t now,
@@ -392,4 +394,18 @@ static inline uint64_t __qdf_hrtimer_forward(__qdf_hrtimer_data_t *timer,
 }
 #endif
 
+/**
+ * __qdf_hrtimer_add_expires() - Add expiry to hrtimer with given interval
+ * @timer: pointer to the __qdf_hrtimer_data_t object
+ * @interval: interval to add as ktime_t object
+ *
+ * Add the timer expiry so it will expire in the future
+ *
+ * Return: None
+ */
+static inline
+void __qdf_hrtimer_add_expires(__qdf_hrtimer_data_t *timer, ktime_t interval)
+{
+	hrtimer_add_expires(&timer->u.hrtimer, interval);
+}
 #endif /* _I_QDF_HRTIMER_H */

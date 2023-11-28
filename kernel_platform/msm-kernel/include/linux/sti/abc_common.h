@@ -91,6 +91,12 @@ enum abc_enable_cmd {
 	ABC_ENABLE_CMD_MAX,
 };
 
+enum abc_event_group {
+	ABC_GROUP_NONE = -1,
+	ABC_GROUP_CAMERA_MIPI_ERROR_ALL = 0,
+	ABC_GROUP_MAX,
+};
+
 struct registered_abc_event_struct {
 	char module_name[ABC_EVENT_STR_MAX];
 	char error_name[ABC_EVENT_STR_MAX];
@@ -98,6 +104,19 @@ struct registered_abc_event_struct {
 	bool enabled;
 	bool singular_spec;
 	int error_count;
+	enum abc_event_group group;
+};
+
+struct abc_event_group_struct {
+	enum abc_event_group group;
+	char module[ABC_EVENT_STR_MAX];
+	char name[ABC_EVENT_STR_MAX];
+};
+
+struct abc_spec_cmd {
+	char module[ABC_EVENT_STR_MAX];
+	char name[ABC_EVENT_STR_MAX];
+	char spec[ABC_EVENT_STR_MAX];
 };
 
 struct abc_enable_cmd_struct {
@@ -153,6 +172,7 @@ struct spec_data_type1 {
 	int threshold_cnt;
 	int threshold_time;
 	int default_count;
+	bool default_enabled;
 	struct list_head node;
 	struct abc_common_spec_data common_spec;
 	struct abc_event_buffer buffer;

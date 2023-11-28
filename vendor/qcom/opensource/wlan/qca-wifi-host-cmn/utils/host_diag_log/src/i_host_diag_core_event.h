@@ -113,7 +113,7 @@ enum auth_timeout_type {
  * @DIAG_ROAM_REASON_DISCONNECTION: Roam triggered due to
  * deauthentication or disassociation frames received from the connected AP.
  * @DIAG_ROAM_REASON_PERIODIC_TIMER: Roam triggered as part of the periodic
- * scan that happens when there is no candiate AP found during the poor
+ * scan that happens when there is no candidate AP found during the poor
  * RSSI scan trigger.
  * @DIAG_ROAM_REASON_BACKGROUND_SCAN: Roam triggered based on the scan
  * results obtained from an external scan (not aimed at roaming).
@@ -176,7 +176,7 @@ enum diag_roam_sub_reason {
 #endif
 
 /*-------------------------------------------------------------------------
-   Function declarations and documenation
+   Function declarations and documentation
    ------------------------------------------------------------------------*/
 #ifdef FEATURE_WLAN_DIAG_SUPPORT
 void host_diag_log_wlock(uint32_t reason, const char *wake_lock_name,

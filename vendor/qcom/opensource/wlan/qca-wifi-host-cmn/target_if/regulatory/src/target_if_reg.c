@@ -33,6 +33,10 @@
 #include <target_if_reg_11d.h>
 #include <target_if_reg_lte.h>
 #include <wlan_reg_ucfg_api.h>
+#include <wlan_utility.h>
+#ifdef CONFIG_REG_CLIENT
+#include <wlan_dcs_tgt_api.h>
+#endif
 
 /**
  * get_chan_list_cc_event_id() - Get chan_list_cc event i
@@ -658,19 +662,29 @@ static QDF_STATUS tgt_if_regulatory_set_country_code(
 static QDF_STATUS tgt_if_regulatory_set_user_country_code(
 	struct wlan_objmgr_psoc *psoc, uint8_t pdev_id, struct cc_regdmn_s *rd)
 {
-	wmi_unified_t wmi_handle = get_wmi_unified_hdl_from_psoc(psoc);
+	struct wlan_objmgr_pdev *pdev;
+	wmi_unified_t wmi_handle;
+	QDF_STATUS status;
 
-	if (!wmi_handle)
-		return QDF_STATUS_E_FAILURE;
+	pdev = wlan_objmgr_get_pdev_by_id(psoc, pdev_id,
+					  WLAN_REGULATORY_NB_ID);
 
-	if (wmi_unified_set_user_country_code_cmd_send(
-				wmi_handle, pdev_id, rd) != QDF_STATUS_SUCCESS
-			) {
-		target_if_err("Set user country code failed");
-		return QDF_STATUS_E_FAILURE;
+	wmi_handle = get_wmi_unified_hdl_from_pdev(pdev);
+
+	if (!wmi_handle) {
+		status = QDF_STATUS_E_FAILURE;
+		goto free_pdevref;
 	}
 
-	return QDF_STATUS_SUCCESS;
+	status = wmi_unified_set_user_country_code_cmd_send(wmi_handle,
+							    pdev_id, rd);
+	if (QDF_IS_STATUS_ERROR(status))
+		target_if_err("Set user country code failed,status %d",
+			      status);
+free_pdevref:
+	wlan_objmgr_pdev_release_ref(pdev, WLAN_REGULATORY_NB_ID);
+
+	return status;
 }
 
 QDF_STATUS tgt_if_regulatory_modify_freq_range(struct wlan_objmgr_psoc *psoc)
@@ -838,11 +852,19 @@ static void target_if_register_afc_event_handler(
 		tgt_if_regulatory_unregister_afc_event_handler;
 }
 
+#ifdef CONFIG_REG_CLIENT
+static void target_if_register_acs_trigger_for_afc
+				(struct wlan_lmac_if_reg_tx_ops *reg_ops)
+{
+	reg_ops->trigger_acs_for_afc = tgt_afc_trigger_dcs;
+}
+#else
 static void target_if_register_acs_trigger_for_afc
 				(struct wlan_lmac_if_reg_tx_ops *reg_ops)
 {
 	reg_ops->trigger_acs_for_afc = NULL;
 }
+#endif
 #else
 static void target_if_register_afc_event_handler(
 				struct wlan_lmac_if_reg_tx_ops *reg_ops)
@@ -876,12 +898,31 @@ tgt_if_regulatory_set_tpc_power(struct wlan_objmgr_psoc *psoc,
 				uint8_t vdev_id,
 				struct reg_tpc_power_info *param)
 {
-	wmi_unified_t wmi_handle = get_wmi_unified_hdl_from_psoc(psoc);
+	wmi_unified_t wmi_handle;
+	uint8_t pdev_id;
+	struct wlan_objmgr_pdev *pdev;
+	QDF_STATUS status;
 
-	if (!wmi_handle)
-		return QDF_STATUS_E_FAILURE;
+	pdev_id = wlan_get_pdev_id_from_vdev_id(psoc,
+						vdev_id, WLAN_REGULATORY_NB_ID);
 
-	return wmi_unified_send_set_tpc_power_cmd(wmi_handle, vdev_id, param);
+	pdev = wlan_objmgr_get_pdev_by_id(psoc, pdev_id,
+					  WLAN_REGULATORY_NB_ID);
+
+	wmi_handle = get_wmi_unified_hdl_from_pdev(pdev);
+
+	if (!wmi_handle) {
+		status = QDF_STATUS_E_FAILURE;
+		goto free_pdevref;
+	}
+	status = wmi_unified_send_set_tpc_power_cmd(wmi_handle, vdev_id, param);
+	if (QDF_IS_STATUS_ERROR(status))
+		target_if_err("send tpc power cmd failed, status: %d", status);
+
+free_pdevref:
+	wlan_objmgr_pdev_release_ref(pdev, WLAN_REGULATORY_NB_ID);
+
+	return status;
 }
 
 #ifdef CONFIG_AFC_SUPPORT
@@ -899,18 +940,36 @@ tgt_if_regulatory_send_afc_cmd(struct wlan_objmgr_psoc *psoc,
 			       uint8_t pdev_id,
 			       struct reg_afc_resp_rx_ind_info *param)
 {
-	wmi_unified_t wmi_handle = get_wmi_unified_hdl_from_psoc(psoc);
+	struct wlan_objmgr_pdev *pdev;
+	wmi_unified_t wmi_handle;
+	QDF_STATUS status;
 
-	if (!wmi_handle)
-		return QDF_STATUS_E_FAILURE;
+	pdev = wlan_objmgr_get_pdev_by_id(psoc, pdev_id,
+					  WLAN_REGULATORY_NB_ID);
 
-	return wmi_unified_send_afc_cmd(wmi_handle, pdev_id, param);
+	wmi_handle = get_wmi_unified_hdl_from_pdev(pdev);
+
+	if (!wmi_handle) {
+		status = QDF_STATUS_E_FAILURE;
+		goto free_pdevref;
+	}
+
+	status = wmi_unified_send_afc_cmd(wmi_handle, pdev_id, param);
+
+	if (QDF_IS_STATUS_ERROR(status))
+		target_if_err("send afc  cmd failed, status: %d", status);
+
+free_pdevref:
+	wlan_objmgr_pdev_release_ref(pdev, WLAN_REGULATORY_NB_ID);
+
+	return status;
 }
 
 static void
 tgt_if_register_afc_callback(struct wlan_lmac_if_reg_tx_ops *reg_ops)
 {
 	reg_ops->send_afc_ind = tgt_if_regulatory_send_afc_cmd;
+	reg_ops->reg_get_min_psd = NULL;
 }
 #else
 static void
@@ -956,6 +1015,32 @@ QDF_STATUS target_if_regulatory_set_ext_tpc(struct wlan_objmgr_psoc *psoc)
 
 	return QDF_STATUS_SUCCESS;
 }
+
+#if defined(CONFIG_BAND_6GHZ) && defined(CONFIG_AFC_SUPPORT)
+void tgt_if_set_reg_afc_configure(struct target_psoc_info *tgt_hdl,
+				  struct wlan_objmgr_psoc *psoc)
+{
+	struct tgt_info *info;
+	wmi_unified_t wmi_handle = get_wmi_unified_hdl_from_psoc(psoc);
+
+	if (!wmi_handle || !tgt_hdl)
+		return;
+
+	if (!wmi_service_enabled(wmi_handle, wmi_service_afc_support)) {
+		target_if_err("service afc support not enable");
+		return;
+	}
+
+	info = (&tgt_hdl->info);
+
+	info->wlan_res_cfg.is_6ghz_sp_pwrmode_supp_enabled =
+		ucfg_reg_get_enable_6ghz_sp_mode_support(psoc);
+	info->wlan_res_cfg.afc_timer_check_disable =
+		ucfg_reg_get_afc_disable_timer_check(psoc);
+	info->wlan_res_cfg.afc_req_id_check_disable =
+		ucfg_reg_get_afc_disable_request_id_check(psoc);
+}
+#endif
 
 #if defined(CONFIG_BAND_6GHZ)
 /**
@@ -1092,6 +1177,45 @@ target_if_reg_get_afc_dev_type(struct wlan_objmgr_psoc *psoc,
 		reg_rx_ops->reg_get_afc_dev_type(
 			psoc,
 			reg_afc_dev_type);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * tgt_if_regulatory_is_eirp_preferred_support() - Check if FW prefers EIRP
+ * support for TPC power command.
+ *
+ * @psoc: Pointer to psoc
+ *
+ * Return: true if FW prefers EIRP format for TPC, else false
+ */
+static bool
+target_if_regulatory_is_eirp_preferred_support(struct wlan_objmgr_psoc *psoc)
+{
+	wmi_unified_t wmi_handle = get_wmi_unified_hdl_from_psoc(psoc);
+
+	if (!wmi_handle)
+		return false;
+
+	return wmi_service_enabled(wmi_handle,
+				   wmi_service_eirp_preferred_support);
+}
+
+QDF_STATUS
+target_if_set_regulatory_eirp_preferred_support(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_lmac_if_reg_rx_ops *reg_rx_ops;
+
+	reg_rx_ops = target_if_regulatory_get_rx_ops(psoc);
+	if (!reg_rx_ops) {
+		target_if_err("reg_rx_ops is NULL");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (reg_rx_ops->reg_set_eirp_preferred_support)
+		reg_rx_ops->reg_set_eirp_preferred_support(
+			psoc,
+			target_if_regulatory_is_eirp_preferred_support(psoc));
 
 	return QDF_STATUS_SUCCESS;
 }

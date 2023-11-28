@@ -172,7 +172,7 @@ return false;
 QDF_STATUS ucfg_tdls_psoc_enable(struct wlan_objmgr_psoc *psoc);
 
 /**
- * ucfg_tdls_psoc_disable() - TDLS moudle disable API
+ * ucfg_tdls_psoc_disable() - TDLS module disable API
  * @psoc: psoc object
  *
  * Return: QDF_STATUS

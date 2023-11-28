@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -216,7 +217,7 @@ int epping_tx_send(qdf_nbuf_t skb, epping_adapter_t *adapter)
 
 	if (!IS_EPPING_PACKET(eppingHdr)) {
 		EPPING_LOG(QDF_TRACE_LEVEL_FATAL,
-			   "%s: Recived non endpoint ping packets\n", __func__);
+			   "%s: Received non endpoint ping packets\n", __func__);
 		/* no packet to send, cleanup */
 		qdf_nbuf_free(skb);
 		return -ENOMEM;

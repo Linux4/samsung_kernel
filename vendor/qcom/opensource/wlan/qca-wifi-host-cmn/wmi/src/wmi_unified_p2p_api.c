@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -54,22 +55,6 @@ QDF_STATUS wmi_extract_p2p_noa_ev_param(wmi_unified_t wmi_handle,
 	if (wmi_handle->ops->extract_p2p_noa_ev_param)
 		return wmi_handle->ops->extract_p2p_noa_ev_param(
 				wmi_handle, evt_buf, param);
-
-	return QDF_STATUS_E_FAILURE;
-}
-
-QDF_STATUS
-wmi_send_set_mac_addr_rx_filter_cmd(wmi_unified_t wmi_handle,
-				    struct p2p_set_mac_filter *param)
-{
-	if (!wmi_handle) {
-		wmi_err("wmi handle is null");
-		return QDF_STATUS_E_INVAL;
-	}
-
-	if (wmi_handle->ops->set_mac_addr_rx_filter)
-		return wmi_handle->ops->set_mac_addr_rx_filter(
-				wmi_handle, param);
 
 	return QDF_STATUS_E_FAILURE;
 }

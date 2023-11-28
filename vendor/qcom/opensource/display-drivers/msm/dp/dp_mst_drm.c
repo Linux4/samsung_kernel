@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -1168,6 +1168,7 @@ static int dp_mst_connector_atomic_check(struct drm_connector *connector,
 		void *display, struct drm_atomic_state *state)
 {
 	int rc = 0, slots, i;
+	bool vcpi_released = false;
 	struct drm_connector_state *old_conn_state;
 	struct drm_connector_state *new_conn_state;
 	struct drm_crtc *old_crtc;
@@ -1207,6 +1208,7 @@ static int dp_mst_connector_atomic_check(struct drm_connector *connector,
 				bridge->num_slots);
 	}
 
+	/*attempt to release vcpi slots on a modeset change for crtc state*/
 	if (drm_atomic_crtc_needs_modeset(crtc_state)) {
 		if (WARN_ON(!old_conn_state->best_encoder)) {
 			rc = -EINVAL;
@@ -1241,6 +1243,7 @@ static int dp_mst_connector_atomic_check(struct drm_connector *connector,
 						slots, rc);
 				goto end;
 			}
+			vcpi_released = true;
 		}
 
 		bridge_state->num_slots = 0;
@@ -1283,6 +1286,15 @@ mode_set:
 
 		if (WARN_ON(bridge_state->connector != connector)) {
 			rc = -EINVAL;
+			goto end;
+		}
+
+		/*
+		 * check if vcpi slots are trying to get allocated in same phase
+		 * as deallocation. If so, go to end to avoid allocation.
+		 */
+		if (vcpi_released) {
+			DP_WARN("skipping allocation since vcpi was released in the same state \n");
 			goto end;
 		}
 

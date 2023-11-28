@@ -588,7 +588,7 @@ QDF_STATUS qdf_spinlock_release(qdf_spinlock_t *lock);
  * @QDF_RTPM_GET: Increment usage count and when system is suspended
  *               schedule resume process, return depends on pm state.
  * @QDF_RTPM_GET_FORCE: Increment usage count and when system is suspended
- *                     shedule resume process, returns success irrespective of
+ *                     schedule resume process, returns success irrespective of
  *                     pm_state.
  * @QDF_RTPM_GET_SYNC: Increment usage count and when system is suspended,
  *                    wait till process is resumed.

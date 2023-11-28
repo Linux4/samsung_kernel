@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -53,8 +54,8 @@
 int hdd_sysfs_dp_trace_create(struct kobject *driver_kobject);
 
 /**
- * hdd_sysfs_dp_trace_destroy() -
- *   API to destroy dp trace related files
+ * hdd_sysfs_dp_trace_destroy() - API to destroy dp trace related files
+ * @driver_kobject: sysfs driver kobject
  *
  * Return: none
  */

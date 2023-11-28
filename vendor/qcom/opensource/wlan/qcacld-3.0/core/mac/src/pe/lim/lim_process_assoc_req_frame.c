@@ -351,12 +351,11 @@ static bool lim_chk_ssid(struct mac_context *mac_ctx, tSirMacAddr sa,
 	if (!lim_cmp_ssid(&assoc_req->ssId, session))
 		return true;
 
-	pe_err("%s Req with ssid wrong(Rcvd: %.*s self: %.*s) from "
-			QDF_MAC_ADDR_FMT,
-		(LIM_ASSOC == sub_type) ? "Assoc" : "ReAssoc",
-		assoc_req->ssId.length, assoc_req->ssId.ssId,
-		session->ssId.length, session->ssId.ssId,
-		QDF_MAC_ADDR_REF(sa));
+	pe_err("%s Req with ssid wrong(Rcvd: " QDF_SSID_FMT " self: " QDF_SSID_FMT ") from " QDF_MAC_ADDR_FMT,
+	       (LIM_ASSOC == sub_type) ? "Assoc" : "ReAssoc",
+	       QDF_SSID_REF(assoc_req->ssId.length, assoc_req->ssId.ssId),
+	       QDF_SSID_REF(session->ssId.length, session->ssId.ssId),
+	       QDF_MAC_ADDR_REF(sa));
 
 	/*
 	 * Received Re/Association Request with either Broadcast SSID OR with
@@ -408,7 +407,7 @@ static bool lim_chk_rates(struct mac_context *mac_ctx, tSirMacAddr sa,
 	if (lim_check_rx_basic_rates(mac_ctx, basic_rates, session) == true)
 		return true;
 
-	pe_warn("Assoc Req rejected: unsupported rates, soruce addr: %s"
+	pe_warn("Assoc Req rejected: unsupported rates, source addr: %s"
 			QDF_MAC_ADDR_FMT,
 		(LIM_ASSOC == sub_type) ? "Assoc" : "ReAssoc",
 		QDF_MAC_ADDR_REF(sa));
@@ -2669,6 +2668,14 @@ void lim_process_assoc_req_frame(struct mac_context *mac_ctx,
 			sub_type, GET_LIM_SYSTEM_ROLE(session),
 			QDF_MAC_ADDR_REF(hdr->sa));
 			return;
+		} else if (sta_ds->mlmStaContext.akm_type == ANI_AKM_TYPE_FT_RSN_PSK) {
+			pe_debug("FT Assoc Req, delete STA hash entry");
+			lim_release_peer_idx(mac_ctx, sta_ds->assocId, session);
+			if (dph_delete_hash_entry(mac_ctx, hdr->sa,
+						  sta_ds->assocId,
+						  &session->dph.dphHashTable)
+			    != QDF_STATUS_SUCCESS)
+				pe_err("error deleting hash entry");
 		} else if (!sta_ds->rmfEnabled && (sub_type == LIM_REASSOC)) {
 			/*
 			 * SAP should send reassoc response with reject code
@@ -2702,7 +2709,7 @@ void lim_process_assoc_req_frame(struct mac_context *mac_ctx,
 			return;
 		} else if (sta_ds->rmfEnabled && !sta_ds->is_key_installed) {
 			/* When PMF enabled, SA Query will be triggered
-			 * unexpectly if duplicated assoc_req received -
+			 * unexpectedly if duplicated assoc_req received -
 			 * 1) after pre_auth node deleted and
 			 * 2) before key installed.
 			 * Here drop such duplicated assoc_req frame.
@@ -3412,9 +3419,10 @@ QDF_STATUS lim_send_mlm_assoc_ind(struct mac_context *mac_ctx,
 	else
 		sub_type = LIM_ASSOC;
 
-	pe_debug("Sessionid: %d ssid: %s sub_type: %d Associd: %d staAddr: "
+	pe_debug("Sessionid: %d ssid: " QDF_SSID_FMT " sub_type: %d Associd: %d staAddr: "
 		 QDF_MAC_ADDR_FMT, session_entry->peSessionId,
-		 assoc_req->ssId.ssId, sub_type, sta_ds->assocId,
+		 QDF_SSID_REF(assoc_req->ssId.length, assoc_req->ssId.ssId),
+		 sub_type, sta_ds->assocId,
 		 QDF_MAC_ADDR_REF(sta_ds->staAddr));
 
 	wlan_son_ind_assoc_req_frm(session_entry->vdev, sta_ds->staAddr,
@@ -3441,6 +3449,15 @@ QDF_STATUS lim_send_mlm_assoc_ind(struct mac_context *mac_ctx,
 						   sta_ds, session_entry)) {
 			qdf_mem_free(assoc_ind);
 			return QDF_STATUS_E_INVAL;
+		}
+
+		pe_debug("assoc_ind->akm_type:%d ", assoc_ind->akm_type);
+		if (assoc_ind->akm_type == ANI_AKM_TYPE_FT_RSN_PSK) {
+			lim_send_sme_mgmt_frame_ind(mac_ctx, sub_type,
+			   qdf_nbuf_data(assoc_req->assoc_req_buf),
+			   qdf_nbuf_len(assoc_req->assoc_req_buf),
+			   session_entry->smeSessionId,
+			   0, 0, RXMGMT_FLAG_NONE);
 		}
 		lim_post_sme_message(mac_ctx, LIM_MLM_ASSOC_IND,
 				     (uint32_t *)assoc_ind);

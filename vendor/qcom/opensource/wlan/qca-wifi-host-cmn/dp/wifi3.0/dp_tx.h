@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -60,6 +60,14 @@
 #define DP_TX_DESC_FLAG_TX_COMP_ERR	0x1000
 #define DP_TX_DESC_FLAG_FLUSH		0x2000
 #define DP_TX_DESC_FLAG_TRAFFIC_END_IND	0x4000
+#define DP_TX_DESC_FLAG_RMNET		0x8000
+/*
+ * Since the Tx descriptor flag is of only 16-bit and no more bit is free for
+ * any new flag, therefore for time being overloading PPEDS flag with that of
+ * FLUSH flag and FLAG_FAST with TDLS which is not enabled for WIN.
+ */
+#define DP_TX_DESC_FLAG_PPEDS		0x2000
+#define DP_TX_DESC_FLAG_FAST		0x100
 
 #define DP_TX_EXT_DESC_FLAG_METADATA_VALID 0x1
 
@@ -112,7 +120,7 @@ do {                                                           \
 
 /**
  * struct dp_tx_frag_info_s
- * @vaddr: hlos vritual address for buffer
+ * @vaddr: hlos virtual address for buffer
  * @paddr_lo: physical address lower 32bits
  * @paddr_hi: physical address higher bits
  * @len: length of the buffer
@@ -218,6 +226,10 @@ struct dp_tx_msdu_info_s {
 #ifdef WLAN_DP_FEATURE_SW_LATENCY_MGR
 	uint8_t skip_hp_update;
 #endif
+#ifdef QCA_DP_TX_RMNET_OPTIMIZATION
+	uint16_t buf_len;
+	uint8_t *payload_addr;
+#endif
 };
 
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
@@ -236,6 +248,9 @@ struct dp_tx_msdu_info_s {
 void dp_tx_deinit_pair_by_index(struct dp_soc *soc, int index);
 #endif /* QCA_HOST_MODE_WIFI_DISABLED */
 
+void
+dp_tx_comp_process_desc_list(struct dp_soc *soc,
+			     struct dp_tx_desc_s *comp_head, uint8_t ring_id);
 void dp_tx_tso_cmn_desc_pool_deinit(struct dp_soc *soc, uint8_t num_pool);
 void dp_tx_tso_cmn_desc_pool_free(struct dp_soc *soc, uint8_t num_pool);
 void dp_tx_tso_cmn_desc_pool_deinit(struct dp_soc *soc, uint8_t num_pool);
@@ -279,6 +294,14 @@ qdf_nbuf_t dp_tx_drop(struct cdp_soc_t *soc, uint8_t vdev_id, qdf_nbuf_t nbuf);
 qdf_nbuf_t dp_tx_exc_drop(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
 			  qdf_nbuf_t nbuf,
 			  struct cdp_tx_exception_metadata *tx_exc_metadata);
+#endif
+#ifdef WLAN_SUPPORT_PPEDS
+void dp_ppeds_tx_desc_free(struct dp_soc *soc, struct dp_tx_desc_s *tx_desc);
+#else
+static inline
+void dp_ppeds_tx_desc_free(struct dp_soc *soc, struct dp_tx_desc_s *tx_desc)
+{
+}
 #endif
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
 /**
@@ -1253,4 +1276,25 @@ dp_tx_outstanding_dec(struct dp_pdev *pdev)
 	dp_update_tx_desc_stats(pdev);
 }
 #endif //QCA_TX_LIMIT_CHECK
+/**
+ * dp_tx_get_pkt_len() - Get the packet length of a msdu
+ * @tx_desc: tx descriptor
+ *
+ * Return: Packet length of a msdu. If the packet is fragmented,
+ * it will return the single fragment length.
+ *
+ * In TSO mode, the msdu from stack will be fragmented into small
+ * fragments and each of these new fragments will be transmitted
+ * as an individual msdu.
+ *
+ * Please note that the length of a msdu from stack may be smaller
+ * than the length of the total length of the fragments it has been
+ * fragmentted because each of the fragments has a nbuf header.
+ */
+static inline uint32_t dp_tx_get_pkt_len(struct dp_tx_desc_s *tx_desc)
+{
+	return tx_desc->frm_type == dp_tx_frm_tso ?
+		tx_desc->msdu_ext_desc->tso_desc->seg.total_len :
+		qdf_nbuf_len(tx_desc->nbuf);
+}
 #endif

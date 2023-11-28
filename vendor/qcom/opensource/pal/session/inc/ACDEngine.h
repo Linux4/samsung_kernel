@@ -66,7 +66,7 @@ public:
 private:
     static void EventProcessingThread(ACDEngine *engine);
     static void HandleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
-                                      uint32_t event_size);
+                                      uint32_t event_size,uint32_t miid);
 
     int32_t LoadSoundModel() override;
     int32_t UnloadSoundModel() override;

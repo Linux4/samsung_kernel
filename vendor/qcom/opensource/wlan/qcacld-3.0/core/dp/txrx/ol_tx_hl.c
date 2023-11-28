@@ -58,7 +58,7 @@
 #include "qdf_hrtimer.h"
 
 /* High/Low tx resource count in percentage */
-/* Set default high threashold to 15% */
+/* Set default high threshold to 15% */
 #ifndef TX_RESOURCE_HIGH_TH_IN_PER
 #define TX_RESOURCE_HIGH_TH_IN_PER 15
 #endif
@@ -128,7 +128,7 @@ ol_tx_desc_pool_size_hl(struct cdp_cfg *ctrl_pdev)
  * @msdu: the tx frame
  * @msdu_info: the tx meta data
  *
- * Return: the tx decriptor
+ * Return: the tx descriptor
  */
 static inline
 struct ol_tx_desc_t *ol_tx_hl_desc_alloc(struct ol_txrx_pdev_t *pdev,
@@ -373,7 +373,7 @@ static bool parse_ocb_tx_header(qdf_nbuf_t msdu,
  * @tx_mgmt_frm: the tx management frame
  * @tx_msdu_info: the tx meta data
  *
- * Return: the tx decriptor
+ * Return: the tx descriptor
  */
 struct ol_tx_desc_t *
 ol_txrx_mgmt_tx_desc_alloc(
@@ -429,7 +429,7 @@ int ol_txrx_mgmt_send_frame(
 	/* Initialize the HTT tx desc l2 header offset field.
 	 * Even though tx encap does not apply to mgmt frames,
 	 * htt_tx_desc_mpdu_header still needs to be called,
-	 * to specifiy that there was no L2 header added by tx encap,
+	 * to specify that there was no L2 header added by tx encap,
 	 * so the frame's length does not need to be adjusted to account for
 	 * an added L2 header.
 	 */

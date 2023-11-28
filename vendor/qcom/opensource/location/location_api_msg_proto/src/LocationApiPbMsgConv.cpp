@@ -29,7 +29,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -1447,6 +1447,33 @@ uint64_t LocationApiPbMsgConv::getPBMaskForLocationCapabilitiesMask(
         pbLocCapabMask |= PB_LOCATION_CAPS_ANTENNA_INFO;
         LOC_LOGi("PB_LOCATION_CAPS_ANTENNA_INFO");
     }
+    if (locCapabMask & LOCATION_CAPABILITIES_GNSS_MSB_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_GNSS_MSB_BIT;
+    }
+    if (locCapabMask & LOCATION_CAPABILITIES_GNSS_MSA_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_GNSS_MSA_BIT;
+    }
+    if (locCapabMask & LOCATION_CAPABILITIES_DEBUG_DATA_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_DEBUG_DATA_BIT;
+    }
+    if (locCapabMask & LOCATION_CAPABILITIES_AGPM_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_AGPM_BIT;
+    }
+    if (locCapabMask & LOCATION_CAPABILITIES_PRIVACY_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_PRIVACY_BIT;
+    }
+    if (locCapabMask & LOCATION_CAPABILITIES_MEASUREMENTS_CORRECTION_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_MEASUREMENTS_CORRECTION_BIT;
+    }
+    if (locCapabMask & LOCATION_CAPABILITIES_CONFORMITY_INDEX_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_CONFORMITY_INDEX_BIT;
+    }
+    if (locCapabMask & LOCATION_CAPABILITIES_EDGNSS_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_EDGNSS_BIT;
+    }
+    if (locCapabMask & LOCATION_CAPABILITIES_QWES_SV_EPHEMERIS_BIT) {
+        pbLocCapabMask |= PB_LOCATION_CAPABILITIES_QWES_SV_EPHEMERIS_BIT;
+    }
     LOC_LOGi("LocApiPB: locCapabMask:0x%" PRIx64", pbLocCapabMask:0x%" PRIx64,
             locCapabMask, pbLocCapabMask);
     return pbLocCapabMask;
@@ -1667,6 +1694,10 @@ uint32_t LocationApiPbMsgConv::getPBMaskForLocationTechnologyMask(
     if (locTechMask & LOCATION_TECHNOLOGY_VIS_BIT) {
         pbLocTechMask |= PB_LOCATION_TECHNOLOGY_VIS_BIT;
     }
+    if (locTechMask & LOCATION_TECHNOLOGY_PROPAGATED_BIT) {
+        pbLocTechMask |= PB_LOCATION_TECHNOLOGY_PROPAGATED_BIT;
+    }
+
     LocApiPb_LOGv("LocApiPB: locTechMask:%x, pbLocTechMask:%x", locTechMask, pbLocTechMask);
     return pbLocTechMask;
 }
@@ -1674,96 +1705,94 @@ uint32_t LocationApiPbMsgConv::getPBMaskForLocationTechnologyMask(
 uint32_t LocationApiPbMsgConv::getPBMaskForGnssLocationInfoFlagMask(
         const uint64_t &gnssLocInfoFlagMask) const {
     uint32_t pbGnssLocInfoFlagMask = 0;
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT) {
+    // (1ULL<<0) to (1ULL<<31)
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_DOP_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_DOP_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_DOP_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_VER_RELIABILITY_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_VER_RELIABILITY_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_VER_RELIABILITY_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT;
     }
-    // GNSS_LOCATION_INFO_SV_SOURCE_INFO_BIT field is deprecated.
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT) {
+    // LDT_GNSS_LOCATION_INFO_SV_SOURCE_INFO_BIT field is deprecated.
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_EXT_DOP_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_EXT_DOP_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_EXT_DOP_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_EAST_STD_DEV_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_EAST_STD_DEV_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_EAST_STD_DEV_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_NORTH_VEL_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_NORTH_VEL_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_NORTH_VEL_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_EAST_VEL_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_EAST_VEL_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_EAST_VEL_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_UP_VEL_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_UP_VEL_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_UP_VEL_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_UP_VEL_UNC_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_UP_VEL_UNC_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_UP_VEL_UNC_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_LEAP_SECONDS_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_LEAP_SECONDS_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_LEAP_SECONDS_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_PERCENT_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT;
     }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT;
-    }
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT) {
-        pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT;
     }
     LocApiPb_LOGv("LocApiPB: gnssLocInfoFlagMask:%" PRIx64", pbGnssLocInfoFlagMask:%x",
             gnssLocInfoFlagMask, pbGnssLocInfoFlagMask);
@@ -1774,31 +1803,36 @@ uint32_t LocationApiPbMsgConv::getPBMaskForGnssLocationInfoExtFlagMask(
         const uint64_t &gnssLocInfoFlagMask) const {
 
     uint32_t pbGnssLocInfoFlagMask = 0;
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT) {
+    // (1ULL<<32) and onwards
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT) {
+        pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT;
+    }
+
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT;
     }
 
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_SESSION_STATUS_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_SESSION_STATUS_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_SESSION_STATUS_BIT;
     }
 
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT;
     }
 
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT;
     }
 
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT;
     }
 
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT;
     }
 
-    if (gnssLocInfoFlagMask & GNSS_LOCATION_INFO_DGNSS_STATION_ID_BIT) {
+    if (gnssLocInfoFlagMask & LDT_GNSS_LOCATION_INFO_DGNSS_STATION_ID_BIT) {
         pbGnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_DGNSS_STATION_ID_MASK_BIT;
     }
 
@@ -2382,6 +2416,33 @@ uint64_t LocationApiPbMsgConv::getLocationCapabilitiesMaskFromPB(
         locCapabMask |= LOCATION_CAPABILITIES_ANTENNA_INFO;
         LOC_LOGi("LOCATION_CAPABILITIES_ANTENNA_INFO");
     }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_GNSS_MSB_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_GNSS_MSB_BIT;
+    }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_GNSS_MSA_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_GNSS_MSA_BIT;
+    }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_DEBUG_DATA_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_DEBUG_DATA_BIT;
+    }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_AGPM_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_AGPM_BIT;
+    }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_PRIVACY_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_PRIVACY_BIT;
+    }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_MEASUREMENTS_CORRECTION_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_MEASUREMENTS_CORRECTION_BIT;
+    }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_CONFORMITY_INDEX_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_CONFORMITY_INDEX_BIT;
+    }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_EDGNSS_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_EDGNSS_BIT;
+    }
+    if (pbLocCapabMask & PB_LOCATION_CAPABILITIES_QWES_SV_EPHEMERIS_BIT) {
+        locCapabMask |= LOCATION_CAPABILITIES_QWES_SV_EPHEMERIS_BIT;
+    }
     LOC_LOGi("LocApiPB: pbLocCapabMask:0x%" PRIx64", locCapabMask:0x%" PRIx64,
             pbLocCapabMask, locCapabMask);
     return locCapabMask;
@@ -2781,6 +2842,9 @@ uint32_t LocationApiPbMsgConv::getLocationTechnologyMaskFromPB(
     if (pbLocTechMask & PB_LOCATION_TECHNOLOGY_VIS_BIT) {
         locTechMask |= LOCATION_TECHNOLOGY_VIS_BIT;
     }
+    if (pbLocTechMask & PB_LOCATION_TECHNOLOGY_PROPAGATED_BIT) {
+        locTechMask |= LOCATION_TECHNOLOGY_PROPAGATED_BIT;
+    }
     LocApiPb_LOGv("LocApiPB: pbLocTechMask:%x, locTechMask:%x", pbLocTechMask, locTechMask);
     return locTechMask;
 }
@@ -2922,116 +2986,116 @@ uint64_t LocationApiPbMsgConv::getGnssLocationInfoFlagMaskFromPB(
 
     uint64_t gnssLocInfoFlagMask = 0;
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_ALTITUDE_MEAN_SEA_LEVEL_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_DOP_BIT) {
-        gnssLocInfoFlagMask |= PB_GNSS_LOCATION_INFO_DOP_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_DOP_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_MAGNETIC_DEVIATION_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_HOR_RELIABILITY_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_VER_RELIABILITY_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_VER_RELIABILITY_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_VER_RELIABILITY_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MAJOR_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_SEMI_MINOR_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_HOR_ACCURACY_ELIP_AZIMUTH_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_GNSS_SV_USED_DATA_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_NAV_SOLUTION_MASK_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_POS_DYNAMICS_DATA_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_EXT_DOP_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_EXT_DOP_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_EXT_DOP_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_NORTH_STD_DEV_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_EAST_STD_DEV_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_EAST_STD_DEV_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_EAST_STD_DEV_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_NORTH_VEL_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_NORTH_VEL_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_NORTH_VEL_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_EAST_VEL_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_EAST_VEL_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_EAST_VEL_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_UP_VEL_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_UP_VEL_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_UP_VEL_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_NORTH_VEL_UNC_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_EAST_VEL_UNC_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_UP_VEL_UNC_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_UP_VEL_UNC_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_UP_VEL_UNC_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_LEAP_SECONDS_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_LEAP_SECONDS_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_LEAP_SECONDS_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_NUM_SV_USED_IN_POSITION_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_PERCENT_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_CALIBRATION_CONFIDENCE_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_CALIBRATION_STATUS_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_OUTPUT_ENG_TYPE_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_OUTPUT_ENG_MASK_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_CONFORMITY_INDEX_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_LLA_VRP_BASED_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_ENU_VELOCITY_VRP_BASED_BIT;
     }
     if (pbGnssLocInfoFlagMask & PB_GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_DR_SOLUTION_STATUS_MASK_BIT;
     }
     if (pbGnssLocInfoExtFlagMask & PB_GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_ALTITUDE_ASSUMED_BIT;
     }
     if (pbGnssLocInfoExtFlagMask & PB_GNSS_LOCATION_INFO_SESSION_STATUS_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_SESSION_STATUS_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_SESSION_STATUS_BIT;
     }
 
     if (pbGnssLocInfoExtFlagMask & PB_GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_INTEGRITY_RISK_USED_BIT;
     }
     if (pbGnssLocInfoExtFlagMask & PB_GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT ) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT ;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_PROTECT_ALONG_TRACK_BIT ;
     }
     if (pbGnssLocInfoExtFlagMask & PB_GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_PROTECT_CROSS_TRACK_BIT;
     }
     if (pbGnssLocInfoExtFlagMask & PB_GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_PROTECT_VERTICAL_BIT;
     }
     if (pbGnssLocInfoExtFlagMask & PB_GNSS_LOCATION_INFO_DGNSS_STATION_ID_MASK_BIT) {
-        gnssLocInfoFlagMask |= GNSS_LOCATION_INFO_DGNSS_STATION_ID_BIT;
+        gnssLocInfoFlagMask |= LDT_GNSS_LOCATION_INFO_DGNSS_STATION_ID_BIT;
     }
     LocApiPb_LOGv("LocApiPB: pbGnssLocInfoFlagMask:0x%x, pbGnssLocInfoExtFlagMask:0x%x, "
                   "gnssLocInfoFlagMask:0x%" PRIu64"", pbGnssLocInfoFlagMask,
@@ -5243,7 +5307,8 @@ int LocationApiPbMsgConv::pbConvertToGnssLocInfoNotif(
     }
     gnssLocInfoNotif.numOfDgnssStationId = i;
 
-    LOC_LOGv("LocApiPB: pbGnssLocInfoNotif -GLocInfoFlgMask:%u, pdop:%f, hdop:%f, vdop:%f",
+    LOC_LOGv("LocApiPB: pbGnssLocInfoNotif -GLocInfoFlgMask:0x%" PRIx64 ", pdop:%f, "
+            "hdop:%f, vdop:%f",
             gnssLocInfoNotif.flags, gnssLocInfoNotif.pdop, gnssLocInfoNotif.hdop,
             gnssLocInfoNotif.vdop);
     LOC_LOGv("HorReliab:%d, VerReliab:%d, HorUncElps-SemiMajor:%f SemiMinor:%f, NumSvUsedInPos:%u",

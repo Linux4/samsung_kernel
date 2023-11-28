@@ -437,7 +437,7 @@ int ol_tx_deduct_one_credit(struct ol_txrx_pdev_t *pdev)
 				   _lcl_freelist, _tx_desc_last)	\
 	do {								\
 		qdf_atomic_init(&(_tx_desc)->ref_cnt);			\
-		/* restore orginal hdr offset */			\
+		/* restore original hdr offset */			\
 		OL_TX_RESTORE_HDR((_tx_desc), (_netbuf));		\
 		qdf_nbuf_unmap((_pdev)->osdev, (_netbuf), QDF_DMA_TO_DEVICE); \
 		qdf_nbuf_free((_netbuf));				\
@@ -453,7 +453,7 @@ int ol_tx_deduct_one_credit(struct ol_txrx_pdev_t *pdev)
 #define ol_tx_msdu_complete_single(_pdev, _tx_desc, _netbuf,\
 				   _lcl_freelist, _tx_desc_last)	\
 	do {								\
-		/* restore orginal hdr offset */			\
+		/* restore original hdr offset */			\
 		OL_TX_RESTORE_HDR((_tx_desc), (_netbuf));		\
 		qdf_nbuf_unmap((_pdev)->osdev, (_netbuf), QDF_DMA_TO_DEVICE); \
 		qdf_nbuf_free((_netbuf));				\

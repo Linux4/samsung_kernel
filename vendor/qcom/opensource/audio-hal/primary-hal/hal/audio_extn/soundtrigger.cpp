@@ -74,6 +74,7 @@
 
 #include "AudioDevice.h"
 #include "audio_extn.h"
+#include "AudioExtn.h"
 
 /*-------------------- Begin: AHAL-STHAL Interface ---------------------------*/
 /*
@@ -261,6 +262,11 @@ get_sound_trigger_info(int capture_handle)
             return st_ses_info;
     }
     return NULL;
+}
+
+extern "C" void check_init_audio_extension()
+{
+    AudioExtn::audio_extn_hidl_init();
 }
 
 extern "C" void audio_hw_call_back(sound_trigger_event_type_t event,

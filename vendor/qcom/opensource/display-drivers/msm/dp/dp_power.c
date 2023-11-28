@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -30,7 +30,7 @@
 #endif/*CONFIG_SECDP*/
 
 #define DP_CLIENT_NAME_SIZE	20
-#define XO_CLK_KHZ	19200
+#define XO_CLK_HZ	19200000
 
 struct dp_power_private {
 	struct dp_parser *parser;
@@ -40,6 +40,8 @@ struct dp_power_private {
 	struct clk *pixel_parent;
 	struct clk *pixel1_clk_rcg;
 	struct clk *xo_clk;
+	struct clk *link_clk_rcg;
+	struct clk *link_parent;
 
 	struct dp_power dp_power;
 
@@ -376,6 +378,24 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 				goto err_pixel1_clk_rcg;
 			}
 		}
+
+		power->link_clk_rcg = clk_get(dev, "link_clk_src");
+		if (IS_ERR(power->link_clk_rcg)) {
+			DP_DEBUG("Unable to get DP link clk RCG: %ld\n",
+					PTR_ERR(power->link_clk_rcg));
+			rc = PTR_ERR(power->link_clk_rcg);
+			power->link_clk_rcg = NULL;
+			goto err_link_clk_rcg;
+		}
+
+		power->link_parent = clk_get(dev, "link_parent");
+		if (IS_ERR(power->link_parent)) {
+			DP_DEBUG("Unable to get DP link parent: %ld\n",
+					PTR_ERR(power->link_parent));
+			rc = PTR_ERR(power->link_parent);
+			power->link_parent = NULL;
+			goto err_link_parent;
+		}
 	} else {
 		if (power->pixel1_clk_rcg)
 			clk_put(power->pixel1_clk_rcg);
@@ -386,10 +406,21 @@ static int dp_power_clk_init(struct dp_power_private *power, bool enable)
 		if (power->pixel_clk_rcg)
 			clk_put(power->pixel_clk_rcg);
 
+		if (power->link_parent)
+			clk_put(power->link_parent);
+
+		if (power->link_clk_rcg)
+			clk_put(power->link_clk_rcg);
+
 		dp_power_clk_put(power);
 	}
 
 	return rc;
+
+err_link_parent:
+	clk_put(power->link_clk_rcg);
+err_link_clk_rcg:
+	clk_put(power->pixel1_clk_rcg);
 err_pixel1_clk_rcg:
 	clk_put(power->xo_clk);
 err_xo_clk:
@@ -441,7 +472,7 @@ static int dp_power_park_module(struct dp_power_private *power, enum dp_pm_type 
 		goto exit;
 	}
 
-	mp->clk_config->rate = XO_CLK_KHZ;
+	mp->clk_config->rate = XO_CLK_HZ;
 	rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
 	if (rc) {
 		DP_ERR("failed to set clk rate.\n");
@@ -585,6 +616,14 @@ static int dp_power_clk_enable(struct dp_power *dp_power,
 		}
 	}
 #endif
+
+	if (pm_type == DP_LINK_PM && enable && power->link_parent) {
+		rc = clk_set_parent(power->link_clk_rcg, power->link_parent);
+		if (rc) {
+			DP_ERR("failed to set link parent\n");
+			goto error;
+		}
+	}
 
 	rc = dp_power_clk_set_rate(power, pm_type, enable);
 	if (rc) {
@@ -1122,32 +1161,6 @@ enum dp_hpd_plug_orientation secdp_get_plug_orientation(void)
 
 	/*cannot be here*/
 	return ORIENTATION_NONE;
-}
-
-bool secdp_get_clk_status(enum dp_pm_type type)
-{
-	struct dp_power_private *power = g_secdp_power;
-	bool ret = false;
-
-	switch (type) {
-	case DP_CORE_PM:
-		ret = power->core_clks_on;
-		break;
-	case DP_STREAM0_PM:
-		ret = power->strm0_clks_on;
-		break;
-	case DP_STREAM1_PM:
-		ret = power->strm1_clks_on;
-		break;
-	case DP_LINK_PM:
-		ret = power->link_clks_on;
-		break;
-	default:
-		DP_ERR("invalid type:%d\n", type);
-		break;
-	}
-
-	return ret;
 }
 #endif
 

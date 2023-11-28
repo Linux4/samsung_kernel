@@ -1,6 +1,6 @@
 /**
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -60,6 +60,8 @@
 		     CFG_VALUE_OR_DEFAULT, \
 		     "CE Status ring timer threshold")
 
+#define CFG_RING_TIMER_THRESHOLD CFG(CFG_CE_STATUS_RING_TIMER_THRESHOLD)
+
 /**
  * <ini>
  * ce_status_ring_batch_count_thresh - ce status srng batch count threshold
@@ -85,10 +87,42 @@
 		     CFG_VALUE_OR_DEFAULT, \
 		     "CE Status ring batch count threshold")
 
-#define CFG_HIF \
-	CFG(CFG_CE_STATUS_RING_TIMER_THRESHOLD) \
-	CFG(CFG_CE_STATUS_RING_BATCH_COUNT_THRESHOLD)
+#define CFG_BATCH_COUNT_THRESHOLD CFG(CFG_CE_STATUS_RING_BATCH_COUNT_THRESHOLD)
+
 #else
-#define CFG_HIF
+#define CFG_RING_TIMER_THRESHOLD
+#define CFG_BATCH_COUNT_THRESHOLD
 #endif /* WLAN_CE_INTERRUPT_THRESHOLD_CONFIG */
+
+/*
+ * <ini>
+ * gDisableWakeIrq - Disable wake IRQ or not
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini controls driver to disable wake IRQ or not.
+ * Disable wake IRQ for one MSI mode.
+ * If you want to support wake IRQ. Please allocate at least
+ * 2 MSI vector. The first is for wake IRQ while the others
+ * share the second vector.
+ *
+ * Related: None.
+ *
+ * Supported Feature: wake IRQ
+ *
+ * Usage: Internal/External
+ *
+ * </ini>
+ */
+#define CFG_DISABLE_WAKE_IRQ CFG_INI_BOOL( \
+	"gDisableWakeIrq", \
+	0, \
+	"Disable wake IRQ")
+
+#define CFG_HIF \
+	CFG_RING_TIMER_THRESHOLD \
+	CFG_BATCH_COUNT_THRESHOLD \
+	CFG(CFG_DISABLE_WAKE_IRQ)
+
 #endif /* _CFG_HIF_H_ */

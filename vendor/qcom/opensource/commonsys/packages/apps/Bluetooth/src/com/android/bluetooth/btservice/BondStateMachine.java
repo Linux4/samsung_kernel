@@ -16,6 +16,12 @@
  * limitations under the License.
  */
 
+/*
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
 package com.android.bluetooth.btservice;
 
 import static android.Manifest.permission.BLUETOOTH_CONNECT;
@@ -196,6 +202,10 @@ final class BondStateMachine extends StateMachine {
                     break;
                  case ADD_DEVICE_BOND_QUEUE:
                     int groupIdentifer = msg.arg1;
+                    OobData m192Data = (msg.getData() != null)
+                            ? msg.getData().getParcelable(OOBDATAP192) : null;
+                    OobData m256Data = (msg.getData() != null)
+                            ? msg.getData().getParcelable(OOBDATAP256) : null;
                     Log.i(TAG, "Adding to bonding queue in stableState, " + dev +
                         ", mDevices.size()=" + mDevices.size() +
                         ", mPendingBondedDevices.size()=" + mPendingBondedDevices.size());
@@ -205,7 +215,7 @@ final class BondStateMachine extends StateMachine {
 
                     if (mDevices.size() == 0 && mPendingBondedDevices.isEmpty()) {
                         if (mAdapterService.isSdpCompleted(dev)) {
-                            boolean status = createBond(dev, 0, null, null, true);
+                            boolean status = createBond(dev, 0, m192Data, m256Data, true);
                             if (status)
                                 mBondingDevStatus.put(dev, 1);
                         }
@@ -321,6 +331,8 @@ final class BondStateMachine extends StateMachine {
                     break;
                 case PIN_REQUEST:
                     BluetoothClass btClass = dev.getBluetoothClass();
+                    int new_state = mAdapterService.getState();
+                    if (new_state != BluetoothAdapter.STATE_ON) return false;
                     int btDeviceClass = btClass.getDeviceClass();
                     if (devProp == null)
                     {
@@ -355,6 +367,10 @@ final class BondStateMachine extends StateMachine {
                     break;
                 case ADD_DEVICE_BOND_QUEUE:
                     int groupIdentifer = msg.arg1;
+                    OobData m192Data = (msg.getData() != null)
+                            ? msg.getData().getParcelable(OOBDATAP192) : null;
+                    OobData m256Data = (msg.getData() != null)
+                            ? msg.getData().getParcelable(OOBDATAP256) : null;
                     Log.i(TAG, "Adding to bonding queue in pendingState " + dev +
                         ", mDevices.size()=" + mDevices.size() +
                         ", mPendingBondedDevices.size()=" + mPendingBondedDevices.size());
@@ -365,7 +381,7 @@ final class BondStateMachine extends StateMachine {
 
                     if (mDevices.size() == 0 && mPendingBondedDevices.isEmpty()) {
                         if (mAdapterService.isSdpCompleted(dev)) {
-                            boolean status = createBond(dev, 0, null, null, true);
+                            boolean status = createBond(dev, 0, m192Data, m256Data, true);
                             if (status)
                                 mBondingDevStatus.put(dev, 1);
                         }

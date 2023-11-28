@@ -28,7 +28,7 @@ extern struct sock *cesium_nl_srv_sock;
 
 /**
  * hdd_ioctl() - ioctl handler (wrapper) for wlan network interfaces
- * @net_dev: device upon which the ioctl was received
+ * @dev: device upon which the ioctl was received
  * @ifr: ioctl request information
  * @cmd: ioctl command
  *
@@ -41,7 +41,7 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd);
 
 /**
  * hdd_dev_private_ioctl() - private ioctl handler for wlan network interfaces
- * @net_dev: device upon which the ioctl was received
+ * @dev: device upon which the ioctl was received
  * @ifr: ioctl request information
  * @data: pointer to the raw command data in the ioctl request
  * @cmd: ioctl command
@@ -70,7 +70,7 @@ QDF_STATUS hdd_update_smps_antenna_mode(struct hdd_context *hdd_ctx, int mode);
  * hdd_set_antenna_mode() - SET ANTENNA MODE command handler
  * @adapter: Pointer to network adapter
  * @hdd_ctx: Pointer to hdd context
- * @mode: new anteena mode
+ * @mode: new antenna mode
  */
 int hdd_set_antenna_mode(struct hdd_adapter *adapter,
 			  struct hdd_context *hdd_ctx, int mode);
@@ -85,7 +85,7 @@ int hdd_set_antenna_mode(struct hdd_adapter *adapter,
  * Callback function to processes roam scan chaanel list event. If
  * command response field in the response message is set that means
  * event received as a response of GETROAMSCANCHANNELS command else
- * event was rasied by firmware upon disconnection.
+ * event was raised by firmware upon disconnection.
  *
  * Return: none
  */

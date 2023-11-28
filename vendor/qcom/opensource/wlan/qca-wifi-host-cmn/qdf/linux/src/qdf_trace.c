@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -30,6 +30,7 @@
 #include <qdf_module.h>
 #include <qdf_util.h>
 #include <qdf_mem.h>
+#include <qdf_list.h>
 
 /* macro to map qdf trace levels into the bitmask */
 #define QDF_TRACE_LEVEL_TO_MODULE_BITMASK(_level) ((1 << (_level)))
@@ -396,7 +397,7 @@ void qdf_trace(uint8_t module, uint16_t code, uint16_t session, uint32_t data)
 		return;
 
 	qdf_get_time_of_the_day_in_hr_min_sec_usec(time, sizeof(time));
-	/* Aquire the lock so that only one thread at a time can fill the ring
+	/* Acquire the lock so that only one thread at a time can fill the ring
 	 * buffer
 	 */
 	spin_lock_irqsave(&ltrace_lock, flags);
@@ -508,7 +509,7 @@ qdf_export_symbol(qdf_trace_register);
  * @session: Session id of log
  * @count: Number of lines to dump starting from tail to head
  *
- * This function will be called up on issueing ioctl call as mentioned following
+ * This function will be called up on issuing ioctl call as mentioned following
  * [iwpriv wlan0 dumplog 0 0 <n> <bitmask_of_module>]
  *
  * <n> - number lines to dump starting from tail to head.
@@ -537,7 +538,7 @@ void qdf_trace_dump_all(void *p_mac, uint8_t code, uint8_t session,
 		  g_qdf_trace_data.num, g_qdf_trace_data.head,
 		  g_qdf_trace_data.tail);
 
-	/* aquire the lock so that only one thread at a time can read
+	/* acquire the lock so that only one thread at a time can read
 	 * the ring buffer
 	 */
 	spin_lock(&ltrace_lock);
@@ -1236,6 +1237,24 @@ static const char *qdf_dp_subtype_to_str(enum qdf_proto_subtype subtype)
 		return "ROAM COMP";
 	case QDF_ROAM_EVENTID:
 		return "ROAM EVENTID";
+	case QDF_PROTO_EAP_REQUEST:
+		return "EAP REQ";
+	case QDF_PROTO_EAP_RESPONSE:
+		return "EAP RSP";
+	case QDF_PROTO_EAP_SUCCESS:
+		return "EAP SUC";
+	case QDF_PROTO_EAP_FAILURE:
+		return "EAP FAIL";
+	case QDF_PROTO_EAP_INITIATE:
+		return "EAP INIT";
+	case QDF_PROTO_EAP_FINISH:
+		return "EAP FINISH";
+	case QDF_PROTO_EAPOL_START:
+		return "START";
+	case QDF_PROTO_EAPOL_LOGOFF:
+		return "LOGOFF";
+	case QDF_PROTO_EAPOL_ASF:
+		return "ASF";
 	default:
 		return "invalid";
 	}
@@ -1518,6 +1537,24 @@ uint8_t *qdf_get_pkt_type_string(uint8_t type, uint8_t subtype)
 		return "DNS_Q";
 	case QDF_PROTO_DNS_RES:
 		return "DNS_RS";
+	case QDF_PROTO_EAP_REQUEST:
+		return "EAP_REQ";
+	case QDF_PROTO_EAP_RESPONSE:
+		return "EAP-RSP";
+	case QDF_PROTO_EAP_SUCCESS:
+		return "EAP-SUCCESS";
+	case QDF_PROTO_EAP_FAILURE:
+		return "EAP-FAIL";
+	case QDF_PROTO_EAP_INITIATE:
+		return "EAP-INIT";
+	case QDF_PROTO_EAP_FINISH:
+		return "EAP-FINISH";
+	case QDF_PROTO_EAPOL_START:
+		return "EAPOL-START";
+	case QDF_PROTO_EAPOL_LOGOFF:
+		return "EAPOL-LOGOFF";
+	case QDF_PROTO_EAPOL_ASF:
+		return "EAPOL-ASF";
 	default:
 		switch (type) {
 		case QDF_PROTO_TYPE_EAPOL:
@@ -1774,6 +1811,16 @@ static int qdf_subtype_to_wlan_main_tag(enum qdf_proto_subtype subtype)
 		return WLAN_CONN_DIAG_EAPOL_M3_EVENT;
 	case QDF_PROTO_EAPOL_M4:
 		return WLAN_CONN_DIAG_EAPOL_M4_EVENT;
+	case QDF_PROTO_EAP_REQUEST:
+		return WLAN_CONN_DIAG_EAP_REQ_EVENT;
+	case QDF_PROTO_EAP_RESPONSE:
+		return WLAN_CONN_DIAG_EAP_RESP_EVENT;
+	case QDF_PROTO_EAP_SUCCESS:
+		return WLAN_CONN_DIAG_EAP_SUCC_EVENT;
+	case QDF_PROTO_EAP_FAILURE:
+		return WLAN_CONN_DIAG_EAP_FAIL_EVENT;
+	case QDF_PROTO_EAPOL_START:
+		return WLAN_CONN_DIAG_EAP_START_EVENT;
 	default:
 		return WLAN_CONN_DIAG_MAX;
 	}
@@ -3356,7 +3403,7 @@ void qdf_dp_trace_dump_all(uint32_t count, uint8_t pdev_id)
 		      g_qdf_dp_trace_data.num, g_qdf_dp_trace_data.head,
 		      g_qdf_dp_trace_data.tail);
 
-	/* aquire the lock so that only one thread at a time can read
+	/* acquire the lock so that only one thread at a time can read
 	 * the ring buffer
 	 */
 	spin_lock_bh(&l_dp_trace_lock);
@@ -3622,6 +3669,7 @@ struct category_name_info g_qdf_category_name[MAX_SUPPORTED_CATEGORY] = {
 	[QDF_MODULE_ID_FTM_TIME_SYNC] = {"Time Sync"},
 	[QDF_MODULE_ID_WIFI_RADAR] = {"WIFI RADAR"},
 	[QDF_MODULE_ID_CDP] =  {"CDP"},
+	[QDF_MODULE_ID_QMI] = {"QMI"},
 	[QDF_MODULE_ID_ANY] = {"ANY"},
 };
 qdf_export_symbol(g_qdf_category_name);
@@ -3665,7 +3713,7 @@ static qdf_time_t __log_window_end;
 static qdf_atomic_t __log_window_count;
 uint32_t qdf_rl_print_count = WLAN_MAX_LOGS_PER_SEC;
 uint32_t qdf_rl_print_time = 1;
-uint32_t qdf_rl_print_supressed;
+uint32_t qdf_rl_print_suppressed;
 
 /**
  * qdf_detected_excessive_logging() - Excessive logging detected
@@ -3714,32 +3762,32 @@ void qdf_rl_print_time_set(uint32_t rl_print_time)
 
 qdf_export_symbol(qdf_rl_print_time_set);
 
-void qdf_rl_print_supressed_log(void)
+void qdf_rl_print_suppressed_log(void)
 {
-	if (qdf_rl_print_supressed) {
-		pr_err("QDF Ratelimiting: %d prints supressed",
-		       qdf_rl_print_supressed);
-		qdf_rl_print_supressed = 0;
+	if (qdf_rl_print_suppressed) {
+		pr_err("QDF Ratelimiting: %d prints suppressed",
+		       qdf_rl_print_suppressed);
+		qdf_rl_print_suppressed = 0;
 	}
 }
 
-void qdf_rl_print_supressed_inc(void)
+void qdf_rl_print_suppressed_inc(void)
 {
-	qdf_rl_print_supressed++;
+	qdf_rl_print_suppressed++;
 }
 #else
-#define qdf_rl_print_supressed_log()
-#define qdf_rl_print_supressed_inc()
+#define qdf_rl_print_suppressed_log()
+#define qdf_rl_print_suppressed_inc()
 #endif /* WLAN_MAX_LOGS_PER_SEC */
 
 #ifdef QDF_TRACE_PRINT_ENABLE
 static inline void print_to_console(char *str_buffer)
 {
 	if (qdf_in_interrupt() && qdf_detected_excessive_logging()) {
-		qdf_rl_print_supressed_inc();
+		qdf_rl_print_suppressed_inc();
 		return;
 	}
-	qdf_rl_print_supressed_log();
+	qdf_rl_print_suppressed_log();
 	pr_err("%s\n", str_buffer);
 }
 #else
@@ -3748,12 +3796,12 @@ static inline void print_to_console(char *str_buffer)
 #endif
 
 #ifdef MULTI_IF_NAME
-static char *qdf_trace_wlan_modname(void)
+static const char *qdf_trace_wlan_modname(void)
 {
 	return MULTI_IF_NAME;
 }
 #else
-static char *qdf_trace_wlan_modname(void)
+static const char *qdf_trace_wlan_modname(void)
 {
 	return "wlan";
 }
@@ -4206,6 +4254,7 @@ static void set_default_trace_levels(struct category_info *cinfo)
 		[QDF_MODULE_ID_AFC] = QDF_TRACE_LEVEL_NONE,
 		[QDF_MODULE_ID_WIFI_RADAR] = QDF_TRACE_LEVEL_NONE,
 		[QDF_MODULE_ID_TARGET] = QDF_TRACE_LEVEL_NONE,
+		[QDF_MODULE_ID_QMI] = QDF_TRACE_LEVEL_ERROR,
 		[QDF_MODULE_ID_ANY] = QDF_TRACE_LEVEL_INFO,
 	};
 

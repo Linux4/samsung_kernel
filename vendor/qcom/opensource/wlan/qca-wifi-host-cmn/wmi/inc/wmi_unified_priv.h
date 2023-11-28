@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -291,10 +291,10 @@ struct wmi_command_header {
 
 /**
  * struct wmi_log_buf_t - WMI log buffer information type
- * @buf - Refernce to WMI log buffer
+ * @buf - Reference to WMI log buffer
  * @ length - length of buffer
  * @ buf_tail_idx - Tail index of buffer
- * @ p_buf_tail_idx - refernce to buffer tail index. It is added to accommodate
+ * @ p_buf_tail_idx - reference to buffer tail index. It is added to accommodate
  * unified design since MCL uses global variable for buffer tail index
  * @ size - the size of the buffer in number of entries
  */
@@ -321,9 +321,9 @@ struct wmi_log_buf_t {
  * @wmi_diag_event_log_buf_info - Buffer info for WMI diag event log
  * @wmi_record_lock - Lock WMI recording
  * @wmi_logging_enable - Enable/Disable state for WMI logging
- * @wmi_id_to_name - Function refernce to API to convert Command id to
+ * @wmi_id_to_name - Function reference to API to convert Command id to
  * string name
- * @wmi_log_debugfs_dir - refernce to debugfs directory
+ * @wmi_log_debugfs_dir - reference to debugfs directory
  * @filtered_wmi_cmds - Buffer to save inputs from user on
  * which WMI commands to record
  * @filtered_wmi_cmds_idx - target cmd index
@@ -549,6 +549,16 @@ QDF_STATUS (*send_green_ap_ps_cmd)(wmi_unified_t wmi_handle,
 QDF_STATUS (*extract_green_ap_egap_status_info)(
 		uint8_t *evt_buf,
 		struct wlan_green_ap_egap_status_info *egap_status_info_params);
+#if defined(WLAN_SUPPORT_GAP_LL_PS_MODE)
+QDF_STATUS (*send_green_ap_ll_ps_cmd)(wmi_unified_t wmi_handle,
+				      struct green_ap_ll_ps_cmd_param *ll_ps_params);
+#endif
+#endif
+
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+QDF_STATUS (*extract_green_ap_ll_ps_param)(
+		uint8_t *evt_buf,
+		struct wlan_green_ap_ll_ps_event_param *ll_ps_params);
 #endif
 
 QDF_STATUS
@@ -1977,13 +1987,14 @@ QDF_STATUS (*extract_p2p_lo_stop_ev_param)(wmi_unified_t wmi_handle,
 QDF_STATUS (*extract_p2p_noa_ev_param)(wmi_unified_t wmi_handle,
 	void *evt_buf, struct p2p_noa_info *param);
 
-QDF_STATUS (*set_mac_addr_rx_filter)(wmi_unified_t wmi_handle,
-				     struct p2p_set_mac_filter *param);
 QDF_STATUS
 (*extract_mac_addr_rx_filter_evt_param)(wmi_unified_t wmi_handle,
 					void *evt_buf,
 					struct p2p_set_mac_filter_evt *param);
 #endif
+
+QDF_STATUS (*set_mac_addr_rx_filter)(wmi_unified_t wmi_handle,
+				     struct set_rx_mac_filter *param);
 
 #ifdef WLAN_FEATURE_INTEROP_ISSUES_AP
 QDF_STATUS
@@ -2856,6 +2867,11 @@ QDF_STATUS (*extract_smart_monitor_event)(
 QDF_STATUS (*multisoc_tbtt_sync_cmd)(wmi_unified_t wmi_handle,
 				     struct rnr_tbtt_multisoc_sync_param *param);
 
+#ifdef WLAN_FEATURE_SR
+QDF_STATUS (*vdev_param_sr_prohibit_send)(wmi_unified_t wmi_handle,
+					  struct sr_prohibit_param *param);
+#endif
+
 #ifdef FEATURE_WLAN_TIME_SYNC_FTM
 QDF_STATUS (*send_wlan_time_sync_ftm_trigger_cmd)(wmi_unified_t wmi_handle,
 						  uint32_t vdev_id,
@@ -3025,6 +3041,30 @@ QDF_STATUS
 (*extract_mlo_link_set_active_resp)(wmi_unified_t wmi_handle,
 				    void *evt_buf,
 				    struct mlo_link_set_active_resp *resp);
+QDF_STATUS
+(*extract_mgmt_rx_ml_cu_params)(wmi_unified_t wmi_handle,
+				void *evt_buf,
+				struct mlo_mgmt_ml_info *cu_params);
+
+QDF_STATUS (*send_mlo_link_removal_cmd)(
+		wmi_unified_t wmi_handle,
+		const struct mlo_link_removal_cmd_params *params);
+
+QDF_STATUS (*extract_mlo_link_removal_evt_fixed_param)(
+		struct wmi_unified *wmi_handle,
+		void *buf,
+		struct mlo_link_removal_evt_params *params);
+
+QDF_STATUS (*extract_mlo_link_removal_tbtt_update)(
+		struct wmi_unified *wmi_handle,
+		void *buf,
+		struct mlo_link_removal_tbtt_info *tbtt_info);
+
+QDF_STATUS (*extract_mgmt_rx_mlo_link_removal_info)(
+		struct wmi_unified *wmi_handle,
+		void *buf,
+		struct mgmt_rx_mlo_link_removal_info *link_removal_info,
+		int num_link_removal_info);
 #endif
 
 #ifdef WLAN_FEATURE_SON
@@ -3082,8 +3122,32 @@ QDF_STATUS
 
 #ifdef WLAN_FEATURE_11BE
 QDF_STATUS (*send_mlo_peer_tid_to_link_map)(
-		wmi_unified_t wmi_handle,
-		struct wmi_host_tid_to_link_map_params *params);
+			wmi_unified_t wmi_handle,
+			struct wmi_host_tid_to_link_map_params *params);
+
+QDF_STATUS (*send_mlo_vdev_tid_to_link_map)(
+			wmi_unified_t wmi_handle,
+			struct wmi_host_tid_to_link_map_ap_params *params);
+
+QDF_STATUS (*send_mlo_link_state_request)(
+			wmi_unified_t wmi_handle,
+			struct wmi_host_link_state_params *params);
+
+QDF_STATUS (*extract_mlo_vdev_tid_to_link_map_event)(
+		struct wmi_unified *wmi_handle,
+		uint8_t *buf,
+		struct mlo_vdev_host_tid_to_link_map_resp *params);
+
+QDF_STATUS (*extract_mlo_vdev_bcast_tid_to_link_map_event)(
+			struct wmi_unified *wmi_handle,
+			void *buf,
+			struct mlo_bcast_t2lm_info *bcast_info);
+
+QDF_STATUS (*extract_mlo_link_state_event)(
+			struct wmi_unified *wmi_handle,
+			void *buf,
+			struct ml_link_state_info_event *params);
+
 #endif /* WLAN_FEATURE_11BE */
 
 QDF_STATUS
@@ -3143,9 +3207,17 @@ QDF_STATUS
 					   void *evt_buf,
 					   struct wmi_health_mon_params *param);
 #endif /* HEALTH_MON_SUPPORT */
+
+QDF_STATUS (*send_update_edca_pifs_param_cmd)(
+			wmi_unified_t wmi_handle,
+			struct edca_pifs_vparam *edca_pifs_param);
+
+QDF_STATUS (*extract_sap_coex_cap_service_ready_ext2)(
+			wmi_unified_t wmi_handle, uint8_t *event,
+			struct wmi_host_coex_fix_chan_cap *cap);
 };
 
-/* Forward declartion for psoc*/
+/* Forward declaration for psoc*/
 struct wlan_objmgr_psoc;
 
 /**
@@ -3291,6 +3363,7 @@ struct wmi_soc {
 	/* WMI service bitmap received from target */
 	uint32_t *wmi_service_bitmap;
 	uint32_t *wmi_ext_service_bitmap;
+	uint32_t wmi_ext2_service_bitmap_len;
 	uint32_t *wmi_ext2_service_bitmap;
 	uint32_t services[wmi_services_max];
 	uint16_t wmi_max_cmds;

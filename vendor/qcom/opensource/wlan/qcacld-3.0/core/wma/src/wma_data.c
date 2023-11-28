@@ -319,7 +319,7 @@ static QDF_STATUS wma_fill_ofdm_cck_mcast_rate(int32_t mbpsx10_rate,
 
 /**
  * wma_set_ht_vht_mcast_rate() - set ht/vht mcast rate
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @mbpsx10_rate: mbps rates
  * @sgi_idx: shortgi index
  * @sgi_rate: shortgi rate
@@ -348,7 +348,7 @@ static void wma_set_ht_vht_mcast_rate(uint32_t shortgi, int32_t mbpsx10_rate,
 
 /**
  * wma_fill_ht20_mcast_rate() - fill ht20 mcast rate
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @mbpsx10_rate: mbps rates
  * @nss: nss
  * @rate: rate
@@ -387,7 +387,7 @@ static QDF_STATUS wma_fill_ht20_mcast_rate(uint32_t shortgi,
 
 /**
  * wma_fill_ht40_mcast_rate() - fill ht40 mcast rate
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @mbpsx10_rate: mbps rates
  * @nss: nss
  * @rate: rate
@@ -426,7 +426,7 @@ static QDF_STATUS wma_fill_ht40_mcast_rate(uint32_t shortgi,
 
 /**
  * wma_fill_vht20_mcast_rate() - fill vht20 mcast rate
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @mbpsx10_rate: mbps rates
  * @nss: nss
  * @rate: rate
@@ -466,7 +466,7 @@ static QDF_STATUS wma_fill_vht20_mcast_rate(uint32_t shortgi,
 
 /**
  * wma_fill_vht40_mcast_rate() - fill vht40 mcast rate
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @mbpsx10_rate: mbps rates
  * @nss: nss
  * @rate: rate
@@ -507,7 +507,7 @@ static QDF_STATUS wma_fill_vht40_mcast_rate(uint32_t shortgi,
 
 /**
  * wma_fill_vht80_mcast_rate() - fill vht80 mcast rate
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @mbpsx10_rate: mbps rates
  * @nss: nss
  * @rate: rate
@@ -547,7 +547,7 @@ static QDF_STATUS wma_fill_vht80_mcast_rate(uint32_t shortgi,
 
 /**
  * wma_fill_ht_mcast_rate() - fill ht mcast rate
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @chwidth: channel width
  * @chanmode: channel mode
  * @mhz: frequency
@@ -579,7 +579,7 @@ static QDF_STATUS wma_fill_ht_mcast_rate(uint32_t shortgi,
 
 /**
  * wma_fill_vht_mcast_rate() - fill vht mcast rate
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @chwidth: channel width
  * @chanmode: channel mode
  * @mhz: frequency
@@ -616,7 +616,7 @@ static QDF_STATUS wma_fill_vht_mcast_rate(uint32_t shortgi,
 #define WMA_MCAST_1X1_CUT_OFF_RATE 2000
 /**
  * wma_encode_mc_rate() - fill mc rates
- * @shortgi: short gaurd interval
+ * @shortgi: short guard interval
  * @chwidth: channel width
  * @chanmode: channel mode
  * @mhz: frequency
@@ -1650,7 +1650,7 @@ QDF_STATUS wma_set_peer_rate_report_condition(WMA_HANDLE handle,
  *
  * This function initializes the bad peer tx control data structure in WMA,
  * sends down the initial configuration to the firmware and configures
- * the peer status update seeting in the tx_rx module.
+ * the peer status update setting in the tx_rx module.
  *
  * Return: QDF_STATUS based on procedure status
  */
@@ -2598,7 +2598,7 @@ QDF_STATUS wma_tx_packet(void *wma_context, void *tx_frame, uint16_t frmLen,
 	}
 
 	/*
-	 * If Dowload Complete is required
+	 * If Download Complete is required
 	 * Wait for download complete
 	 */
 	if (downld_comp_required) {
@@ -2676,7 +2676,7 @@ QDF_STATUS wma_tx_packet(void *wma_context, void *tx_frame, uint16_t frmLen,
 	mgmt_param.use_6mbps = use_6mbps;
 	mgmt_param.tx_type = tx_frm_index;
 	mgmt_param.peer_rssi = peer_rssi;
-	if (wlan_vdev_mlme_get_opmode(iface->vdev) == QDF_STA_MODE &&
+	if (iface && wlan_vdev_mlme_get_opmode(iface->vdev) == QDF_STA_MODE &&
 	    wlan_vdev_mlme_is_mlo_vdev(iface->vdev) &&
 	    frmType == TXRX_FRM_802_11_MGMT &&
 	    pFc->subType != SIR_MAC_MGMT_PROBE_REQ &&
@@ -2903,7 +2903,7 @@ void ol_rx_aggregation_hole(uint32_t hole_info)
 /*
  * Local prototype added to temporarily address warning caused by
  * -Wmissing-prototypes. A more correct solution will come later
- * as a solution to IR-196435 at whihc point this prototype will
+ * as a solution to IR-196435 at which point this prototype will
  * be removed.
  */
 void ol_rx_err(void *pdev, uint8_t vdev_id,

@@ -25,11 +25,10 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -203,14 +202,15 @@ void TrackingSessCbHandler::initializeCommonCbs(LocationClientApiImpl *pClientAp
     }
     if (gnssDataCallback) {
         mCallbackOptions.gnssDataCb =
-                [pClientApiImpl, gnssDataCallback] (::GnssDataNotification n) {
+                [pClientApiImpl, gnssDataCallback] (const ::GnssDataNotification& n) {
             GnssData gnssData = LocationClientApiImpl::parseGnssData(n);
             gnssDataCallback(gnssData);
        };
     }
     if (gnssMeasurementsCallback) {
         mCallbackOptions.gnssMeasurementsCb =
-                [pClientApiImpl, gnssMeasurementsCallback](::GnssMeasurementsNotification n) {
+                [pClientApiImpl, gnssMeasurementsCallback](
+                    const ::GnssMeasurementsNotification &n) {
             GnssMeasurements gnssMeasurements =
                         LocationClientApiImpl::parseGnssMeasurements(n);
             gnssMeasurementsCallback(gnssMeasurements);
@@ -223,7 +223,7 @@ void TrackingSessCbHandler::initializeCommonCbs(LocationClientApiImpl *pClientAp
         } else {
             mCallbackOptions.gnssNHzMeasurementsCb =
                     [pClientApiImpl, gnssNHzMeasurementsCallback](
-                    ::GnssMeasurementsNotification n) {
+                    const ::GnssMeasurementsNotification &n) {
                 GnssMeasurements gnssMeasurements =
                         LocationClientApiImpl::parseGnssMeasurements(n);
                 gnssNHzMeasurementsCallback(gnssMeasurements);
@@ -246,13 +246,18 @@ void TrackingSessCbHandler::initializeCommonCbs(LocationClientApiImpl *pClientAp
 LocationClientApi
 ******************************************************************************/
 LocationClientApi::LocationClientApi(CapabilitiesCb capaCb) {
-    capabilitiesCallback capabilitiesCb = [capaCb] (LocationCapabilitiesMask capabilitiesMask) {
-        LocationCapabilitiesMask capsMask =
+    capabilitiesCallback capabilitiesCb = nullptr;
+    if (capaCb) {
+        capabilitiesCb = [capaCb] (LocationCapabilitiesMask capabilitiesMask) {
+           LocationCapabilitiesMask capsMask =
                 LocationClientApiImpl::parseCapabilitiesMask(capabilitiesMask);
-        capaCb(capsMask);
-    };
-
+           capaCb(capsMask);
+        };
+    }
     mApiImpl = new LocationClientApiImpl(capabilitiesCb);
+    if (!mApiImpl) {
+        LOC_LOGe ("mApiImpl creation failed.");
+    }
 }
 
 LocationClientApi::~LocationClientApi() {
@@ -293,7 +298,7 @@ bool LocationClientApi::startPositionSession(
         };
     }
 
-    callbacksOption.trackingCb = [this, locationCallback](::Location loc) {
+    callbacksOption.trackingCb = [this, locationCallback](const ::Location& loc) {
         Location location = LocationClientApiImpl::parseLocation(loc);
         locationCallback(location);
         mApiImpl->logLocation(location, LOC_REPORT_TRIGGER_SIMPLE_TRACKING_SESSION);
@@ -527,7 +532,7 @@ void LocationClientApi::addGeofences(std::vector<Geofence>& geofences,
     }
 
     callbacksOption.geofenceBreachCb =
-            [this, gfBreachCb](GeofenceBreachNotification geofenceBreachNotification) {
+            [this, gfBreachCb](const GeofenceBreachNotification& geofenceBreachNotification) {
         std::vector<Geofence> geofences;
         int gfBreachCnt = geofenceBreachNotification.count;
         for (int i=0; i < gfBreachCnt; i++) {
@@ -911,7 +916,10 @@ DECLARE_TBL(LocationTechnologyMask) = {
     {LOCATION_TECHNOLOGY_INJECTED_COARSE_POSITION_BIT, "CPI"},
     {LOCATION_TECHNOLOGY_AFLT_BIT, "AFLT"},
     {LOCATION_TECHNOLOGY_HYBRID_BIT, "HYBRID"},
-    {LOCATION_TECHNOLOGY_PPE_BIT, "PPE"}
+    {LOCATION_TECHNOLOGY_PPE_BIT, "PPE"},
+    {LOCATION_TECHNOLOGY_VEH_BIT, "VEH"},
+    {LOCATION_TECHNOLOGY_VIS_BIT, "VIS"},
+    {LOCATION_TECHNOLOGY_PROPAGATED_BIT, "PROPAGATED"}
 };
 // GnssLocationNavSolutionMask
 DECLARE_TBL(GnssLocationNavSolutionMask) = {

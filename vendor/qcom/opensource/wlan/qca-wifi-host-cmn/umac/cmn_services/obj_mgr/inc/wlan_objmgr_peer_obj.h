@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -215,7 +215,7 @@ struct wlan_objmgr_peer {
  * @peer_type: peer type (AP/STA)
  * @macaddr: MAC address
  *
- * Creates Peer object, intializes with default values
+ * Creates Peer object, initializes with default values
  * Attaches to psoc and vdev objects
  * Invokes the registered notifiers to create component object
  *

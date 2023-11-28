@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -122,7 +123,7 @@ static uint32_t __qdf_ptr_hash_test_for_each(struct qdf_ptr_hash *ht)
 	}
 	QDF_BUG(count == qdf_ptr_hash_entry_count);
 
-	/* ... be able to interate by hash value */
+	/* ... be able to iterate by hash value */
 	count = 0;
 	for (i = 0; i < qdf_ptr_hash_entry_count; i++) {
 		qdf_ptr_hash_for_each_by_hash(ht, i, item, entry) {
@@ -132,7 +133,7 @@ static uint32_t __qdf_ptr_hash_test_for_each(struct qdf_ptr_hash *ht)
 	}
 	QDF_BUG(count >= qdf_ptr_hash_entry_count);
 
-	/* ... be able to interate by key value */
+	/* ... be able to iterate by key value */
 	for (i = 0; i < qdf_ptr_hash_entry_count; i++) {
 		count = 0;
 		qdf_ptr_hash_for_each_by_key(ht, i, item, entry) {

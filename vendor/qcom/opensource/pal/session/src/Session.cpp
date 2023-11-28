@@ -59,6 +59,11 @@
  * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define LOG_TAG "PAL: Session"
@@ -664,7 +669,6 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
     int status = 0;
     struct pal_stream_attributes sAttr;
     struct pal_device dAttr;
-    struct sessionToPayloadParam deviceData;
     uint32_t miid = 0;
     uint8_t* alsaParamData = NULL;
     size_t alsaPayloadSize = 0;
@@ -696,13 +700,6 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                  /* This has to be done after sending all mixer controls and
                   * before connect
                   */
-                if (sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
-                    /* ULL playback don't have PP module. Thus we need to swap
-                       channels in PSPD MFC
-                    */
-                    mfc_tag = TAG_DEVICE_MFC_SR;
-                    PAL_INFO(LOG_TAG, "Speake Swap in ULL use case");
-                }
                 status =
                         SessionAlsaUtils::getModuleInstanceId(mixer,
                                                               device,
@@ -716,18 +713,13 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                     device, rxAifBackEnds[i].second.data(), dAttr.id);
 
                 if (rm->activeGroupDevConfig) {
-                    if (rm->activeGroupDevConfig->devpp_mfc_cfg.sample_rate)
-                        dAttr.config.sample_rate = rm->activeGroupDevConfig->devpp_mfc_cfg.sample_rate;
                     if (rm->activeGroupDevConfig->devpp_mfc_cfg.channels)
-                        dAttr.config.ch_info.channels = rm->activeGroupDevConfig->devpp_mfc_cfg.channels;
+                        dAttr.config.ch_info.channels =rm->activeGroupDevConfig->devpp_mfc_cfg.channels;
                 }
-                deviceData.bitWidth = dAttr.config.bit_width;
-                deviceData.sampleRate = dAttr.config.sample_rate;
-                deviceData.numChannel = dAttr.config.ch_info.channels;
-                deviceData.rotation_type = rotation_type;
-                deviceData.ch_info = nullptr;
-                builder->payloadMFCConfig((uint8_t **)&alsaParamData,
-                                           &alsaPayloadSize, miid, &deviceData);
+                builder->payloadMFCMixerCoeff((uint8_t **)&alsaParamData,
+                                            &alsaPayloadSize, miid,
+                                            dAttr.config.ch_info.channels,
+                                            rotation_type);
 
                 if (alsaPayloadSize) {
                     status = updateCustomPayload(alsaParamData, alsaPayloadSize);
@@ -880,7 +872,6 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
                 mfcData.numChannel = rm->activeGroupDevConfig->devpp_mfc_cfg.channels;
             else
                 mfcData.numChannel = dAttr.config.ch_info.channels;
-            mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
             mfcData.ch_info = nullptr;
 
             builder->payloadMFCConfig((uint8_t**)&payload, &payloadSize, miid, &mfcData);
@@ -934,7 +925,6 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
             mfcData.bitWidth = codecConfig.bit_width;
             mfcData.sampleRate = codecConfig.sample_rate;
             mfcData.numChannel = codecConfig.ch_info.channels;
-            mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
             mfcData.ch_info = nullptr;
 #ifdef SEC_AUDIO_BLE_OFFLOAD
             PAL_DBG(LOG_TAG, "getCodecConfig sampleRate %d bitWidth %d numChannel %d\n",
@@ -950,19 +940,9 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
                 mfcData.numChannel = rm->activeGroupDevConfig->devpp_mfc_cfg.channels;
             else
                 mfcData.numChannel = dAttr.config.ch_info.channels;
-            mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
             mfcData.ch_info = nullptr;
         }
 
-        if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-            (2 == dAttr.config.ch_info.channels) &&
-            (strcmp(dAttr.custom_config.custom_key, "mspp"))) {
-            // Stereo Speakers. Check for the rotation type
-            if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
-                // Rotation is of RL, so need to swap the channels
-                mfcData.rotation_type = PAL_SPEAKER_ROTATION_RL;
-            }
-        }
         if (dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL ||
             dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL_1 ||
             dAttr.id == PAL_DEVICE_OUT_HDMI)
@@ -1008,7 +988,6 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
                 preMfcData.bitWidth = BIT_WIDTH_24;
                 preMfcData.sampleRate = DEFAULT_SAMPLING_RATE;
                 preMfcData.numChannel = DEFAULT_CHANNEL_COUNT;
-                preMfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
                 preMfcData.ch_info = nullptr;
             }
 
@@ -1099,6 +1078,9 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
 
             rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
             pcmEcTx = NULL;
+            extECMutex.unlock();
+            rm->restoreInternalECRefs();
+            extECMutex.lock();
         }
         rm->ssrStarted = false;
     }
@@ -1122,6 +1104,9 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
 
                 rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
                 pcmEcTx = NULL;
+                extECMutex.unlock();
+                rm->restoreInternalECRefs();
+                extECMutex.lock();
             }
         }
     } else {

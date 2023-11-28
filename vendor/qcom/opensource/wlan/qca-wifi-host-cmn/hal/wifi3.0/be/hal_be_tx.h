@@ -84,7 +84,7 @@ enum hal_tx_notify_frame_type {
  * @encrypt_type: encrypt type
  * @src_buffer_swap: big-endia switch for packet buffer
  * @link_meta_swap: big-endian switch for link metadata
- * @index_lookup_enable: Enabel index lookup
+ * @index_lookup_enable: Enable index lookup
  * @addrx_en: Address-X search
  * @addry_en: Address-Y search
  * @mesh_enable:mesh enable flag
@@ -140,12 +140,12 @@ union hal_tx_cmn_config_ppe {
  * hal_tx_ppe_vp_config - SW config PPE VP table
  * @vp_num - Virtual port number
  * @pmac_id - Lmac ID
- * @bank_id: Bank ID correspondig to this I/F.
+ * @bank_id: Bank ID corresponding to this I/F.
  * @vdev_id: VDEV ID of the I/F.
  * @search_idx_reg_num: Register number of this SI.
  * @use_ppe_int_pri: Use the PPE INT_PRI to TID table
  * @to_fw: Use FW
- * @drop_prec_enable: Enable precendance drop.
+ * @drop_prec_enable: Enable precedence drop.
  */
 union hal_tx_ppe_vp_config {
 	struct {
@@ -571,6 +571,20 @@ static inline uint8_t hal_tx_comp_get_cookie_convert_done(void *hal_desc)
 #endif
 
 /**
+ * hal_tx_comp_set_desc_va_63_32() - Set bit 32~63 value for 64 bit VA
+ * @hal_desc: completion ring descriptor pointer
+ * @val: value to be set
+ *
+ * Return: None
+ */
+static inline void hal_tx_comp_set_desc_va_63_32(void *hal_desc, uint32_t val)
+{
+	HAL_SET_FLD(hal_desc,
+		    WBM2SW_COMPLETION_RING_TX,
+		    BUFFER_VIRT_ADDR_63_32) = val;
+}
+
+/**
  * hal_tx_comp_get_desc_va() - Get Desc virtual address within completion Desc
  * @hal_desc: completion ring descriptor pointer
  *
@@ -578,7 +592,7 @@ static inline uint8_t hal_tx_comp_get_cookie_convert_done(void *hal_desc)
  *
  * Return: TX desc virtual address
  */
-static inline uintptr_t hal_tx_comp_get_desc_va(void *hal_desc)
+static inline uint64_t hal_tx_comp_get_desc_va(void *hal_desc)
 {
 	uint64_t va_from_desc;
 
@@ -590,7 +604,7 @@ static inline uintptr_t hal_tx_comp_get_desc_va(void *hal_desc)
 					WBM2SW_COMPLETION_RING_TX,
 					BUFFER_VIRT_ADDR_63_32)) << 32);
 
-	return (uintptr_t)va_from_desc;
+	return va_from_desc;
 }
 
 /*---------------------------------------------------------------------------

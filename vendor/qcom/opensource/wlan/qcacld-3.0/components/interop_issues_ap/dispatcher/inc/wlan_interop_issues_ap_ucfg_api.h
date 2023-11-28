@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -62,6 +63,7 @@ QDF_STATUS ucfg_interop_issues_ap_deinit(void);
 
 /**
  * ucfg_register_interop_issues_ap_callback() - API to register callback
+ * @pdev: the pointer of pdev object
  * @cbs: pointer to callback structure
  *
  * Return: none

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021, 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -518,17 +518,6 @@ wlan_serialization_vdev_scan_status(struct wlan_objmgr_vdev *vdev);
  */
 enum wlan_serialization_cmd_status
 wlan_serialization_pdev_scan_status(struct wlan_objmgr_pdev *pdev);
-
-/**
- * wlan_serialization_non_scan_cmd_status() - Return status of pdev non-scan cmd
- * @pdev: PDEV Object
- * @cmd_id: ID of the command for which the status has to be checked
- *
- * Return: Status of the command for the corresponding pdev
- */
-enum wlan_serialization_cmd_status
-wlan_serialization_non_scan_cmd_status(struct wlan_objmgr_pdev *pdev,
-				       enum wlan_serialization_cmd_type cmd_id);
 
 /**
  * wlan_serialization_is_cmd_present_in_pending_queue() - Return if the command

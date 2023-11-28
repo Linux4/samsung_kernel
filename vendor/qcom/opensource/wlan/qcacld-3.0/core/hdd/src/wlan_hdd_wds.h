@@ -17,7 +17,7 @@
  */
 
 /**
- * DOC : wlan_hdd_wds.h
+ * DOC: wlan_hdd_wds.h
  *
  * WLAN Host Device Driver file for wds (4 address format in mac header when
  * SA and TA are not same) support.

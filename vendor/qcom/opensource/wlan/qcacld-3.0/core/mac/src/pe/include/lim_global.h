@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -136,6 +136,7 @@ typedef enum eLimMlmStates {
 	eLIM_MLM_WT_ADD_BSS_RSP_FT_REASSOC_STATE,
 	eLIM_MLM_WT_FT_REASSOC_RSP_STATE,
 	eLIM_MLM_WT_SAE_AUTH_STATE,
+	eLIM_MLM_WT_FT_AUTH_STATE,
 } tLimMlmStates;
 
 /* 11h channel switch states */
@@ -219,6 +220,9 @@ typedef struct tLimPreAuthNode {
 	 */
 	struct lim_assoc_data assoc_req;
 	bool is_mlo_ie_present;
+#ifdef WLAN_FEATURE_11BE_MLO
+	tSirMacAddr peer_mld;
+#endif
 } tLimPreAuthNode, *tpLimPreAuthNode;
 
 /* Pre-authentication table definition */
@@ -246,6 +250,8 @@ typedef struct tLimPreAuthTable {
  * @he_capable:     802.11ax HE capability
  * @owe_ie:         Pointer to OWE IE
  * @owe_ie_len:     Length of OWE IE
+ * @ft_ie:         Pointer to FT related IE
+ * @ft_ie_len:     Length of FT related IE
  * @eht_capable:     802.11be EHT capability
  */
 struct lim_sta_context {
@@ -272,6 +278,8 @@ struct lim_sta_context {
 	bool force_1x1;
 	uint8_t *owe_ie;
 	uint32_t owe_ie_len;
+	uint8_t *ft_ie;
+	uint32_t ft_ie_len;
 #ifdef WLAN_FEATURE_11BE
 	bool eht_capable;
 #endif
@@ -352,6 +360,9 @@ typedef struct sLimChannelSwitchInfo {
 	uint8_t ch_center_freq_seg1;
 	uint8_t sec_ch_offset;
 	enum phy_ch_width ch_width;
+#ifdef WLAN_FEATURE_11BE
+	uint16_t puncture_bitmap;
+#endif
 	int8_t switchCount;
 	uint32_t switchTimeoutValue;
 	uint8_t switchMode;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -34,7 +35,7 @@
  *
  * @disa_rx_ops: rx operations for disa
  * @disa_tx_ops: tx operations for disa
- * @disa_psoc_lock: spin lock for disa psoc priv ctx
+ * @lock: spin lock for disa psoc priv ctx
  */
 struct disa_psoc_priv_obj {
 	struct wlan_disa_rx_ops disa_rx_ops;
@@ -47,6 +48,7 @@ struct disa_psoc_priv_obj {
  *
  * @callback: hdd callback for disa encrypt/decrypt resp
  * @callback_context: context for the callback
+ * @request_active: true if a request is active
  * @lock: spin lock for disa context
  */
 struct wlan_disa_ctx {

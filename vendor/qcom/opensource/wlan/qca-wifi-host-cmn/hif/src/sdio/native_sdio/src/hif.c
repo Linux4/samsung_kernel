@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -156,7 +157,7 @@ ATH_DEBUG_INSTANTIATE_MODULE_VAR(hif,
 #endif
 
 /**
- * add_to_async_list() - add bus reqest to async task list
+ * add_to_async_list() - add bus request to async task list
  * @device: pointer to hif device
  * @busrequest: pointer to type of bus request
  *
@@ -876,7 +877,7 @@ int hif_device_resume(struct hif_softc *ol_sc, struct device *dev)
 
 /**
  * hif_sdio_remove() - remove sdio device
- * @conext: sdio device context
+ * @context: sdio device context
  * @hif_handle: pointer to sdio function
  *
  * Return: 0 for success and non-zero for failure

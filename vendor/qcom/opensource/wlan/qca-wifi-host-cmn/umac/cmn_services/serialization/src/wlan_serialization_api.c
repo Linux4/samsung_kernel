@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -287,54 +287,6 @@ error:
 }
 
 enum wlan_serialization_cmd_status
-wlan_serialization_non_scan_cmd_status(
-		struct wlan_objmgr_pdev *pdev,
-		enum wlan_serialization_cmd_type cmd_type)
-{
-	bool cmd_in_active = 0;
-	bool cmd_in_pending = 0;
-	struct wlan_ser_pdev_obj *ser_pdev_obj =
-		wlan_serialization_get_pdev_obj(pdev);
-	enum wlan_serialization_cmd_status cmd_status = WLAN_SER_CMD_NOT_FOUND;
-	struct wlan_serialization_pdev_queue *pdev_q;
-	qdf_list_node_t *node = NULL;
-	qdf_list_t *queue = NULL;
-
-	pdev_q = &ser_pdev_obj->pdev_q[SER_PDEV_QUEUE_COMP_NON_SCAN];
-
-	/* Look in the pdev non scan active queue */
-	queue = &pdev_q->active_list;
-
-	wlan_serialization_acquire_lock(&pdev_q->pdev_queue_lock);
-
-	node = wlan_serialization_find_cmd(
-			queue, WLAN_SER_MATCH_CMD_TYPE,
-			NULL, cmd_type, NULL, NULL,  WLAN_SER_PDEV_NODE);
-
-	if (node)
-		cmd_in_active = true;
-
-	node = NULL;
-
-	/* Look in the pdev non scan pending queue */
-	queue = &pdev_q->pending_list;
-
-	node = wlan_serialization_find_cmd(
-			queue, WLAN_SER_MATCH_CMD_TYPE,
-			NULL, cmd_type, NULL, NULL,  WLAN_SER_PDEV_NODE);
-
-	if (node)
-		cmd_in_pending = true;
-
-	cmd_status = wlan_serialization_is_cmd_in_active_pending(
-			cmd_in_active, cmd_in_pending);
-
-	wlan_serialization_release_lock(&pdev_q->pdev_queue_lock);
-
-	return cmd_status;
-}
-
-enum wlan_serialization_cmd_status
 wlan_serialization_cancel_request(
 		struct wlan_serialization_queued_cmd_info *req)
 {
@@ -364,9 +316,10 @@ wlan_serialization_cancel_request(
 	cmd.source = req->requestor;
 	cmd.vdev = req->vdev;
 
-	ser_debug("Type %d id %d source %d req type %d queue type %d",
-		  cmd.cmd_type, cmd.cmd_id, cmd.source, req->req_type,
-		  req->queue_type);
+	ser_debug("Type %d id %d vdev %d source %d req type %d queue type %d",
+		  cmd.cmd_type, cmd.cmd_id,
+		  cmd.vdev ? wlan_vdev_get_id(cmd.vdev) : WLAN_INVALID_VDEV_ID,
+		  cmd.source, req->req_type, req->queue_type);
 	pdev = wlan_serialization_get_pdev_from_cmd(&cmd);
 	if (!pdev) {
 		ser_err("pdev is invalid");

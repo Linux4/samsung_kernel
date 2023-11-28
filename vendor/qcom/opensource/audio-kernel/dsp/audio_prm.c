@@ -86,12 +86,12 @@ static int prm_gpr_send_pkt(struct gpr_pkt *pkt, wait_queue_head_t *wait)
 	int ret = 0;
 	int retry;
 
+	mutex_lock(&g_prm.lock);
+	pr_debug("%s: enter",__func__);
+
 	if (wait)
 		atomic_set(&g_prm.state, 1);
 	atomic_set(&g_prm.status, 0);
-
-	mutex_lock(&g_prm.lock);
-	pr_debug("%s: enter",__func__);
 
 	if (g_prm.adev == NULL) {
 		pr_err("%s: apr is unregistered\n", __func__);
@@ -196,6 +196,59 @@ int audio_prm_set_lpass_hw_core_req(struct clk_cfg *cfg, uint32_t hw_core_id, ui
         return ret;
 }
 EXPORT_SYMBOL(audio_prm_set_lpass_hw_core_req);
+
+/**
+ */
+int audio_prm_set_lpass_core_clk_req(struct clk_cfg *cfg, uint32_t hw_core_id, uint8_t enable)
+{
+	struct gpr_pkt *pkt;
+	prm_cmd_request_hw_core_t prm_rsc_request;
+	int ret = 0;
+	uint32_t size;
+
+	size = GPR_HDR_SIZE + sizeof(prm_cmd_request_hw_core_t);
+	pkt = kzalloc(size,  GFP_KERNEL);
+	if (!pkt)
+		return -ENOMEM;
+
+	pkt->hdr.header = GPR_SET_FIELD(GPR_PKT_VERSION, GPR_PKT_VER) |
+			GPR_SET_FIELD(GPR_PKT_HEADER_SIZE, GPR_PKT_HEADER_WORD_SIZE_V) |
+			GPR_SET_FIELD(GPR_PKT_PACKET_SIZE, size);
+
+	pkt->hdr.src_port = GPR_SVC_ASM;
+	pkt->hdr.dst_port = PRM_MODULE_INSTANCE_ID;
+	pkt->hdr.dst_domain_id = GPR_IDS_DOMAIN_ID_ADSP_V;
+	pkt->hdr.src_domain_id = GPR_IDS_DOMAIN_ID_APPS_V;
+	pkt->hdr.token = 0; /* TBD */
+	if (enable)
+		pkt->hdr.opcode = PRM_CMD_REQUEST_HW_RSC;
+	else
+		pkt->hdr.opcode = PRM_CMD_RELEASE_HW_RSC;
+
+	//pr_err("%s: clk_id %d size of cmd_req %ld \n",__func__, cfg->clk_id, sizeof(prm_cmd_request_hw_core_t));
+
+	prm_rsc_request.payload_header.payload_address_lsw = 0;
+	prm_rsc_request.payload_header.payload_address_msw = 0;
+	prm_rsc_request.payload_header.mem_map_handle = 0;
+	prm_rsc_request.payload_header.payload_size = sizeof(prm_cmd_request_hw_core_t) - sizeof(apm_cmd_header_t);
+
+	/** Populate the param payload */
+	prm_rsc_request.module_payload_0.module_instance_id = PRM_MODULE_INSTANCE_ID;
+	prm_rsc_request.module_payload_0.error_code = 0;
+	prm_rsc_request.module_payload_0.param_id = PARAM_ID_RSC_LPASS_CORE;
+	prm_rsc_request.module_payload_0.param_size =
+		sizeof(prm_cmd_request_hw_core_t) - sizeof(apm_cmd_header_t) - sizeof(apm_module_param_data_t);
+
+	prm_rsc_request.hw_core_id = hw_core_id; // HW_CORE_ID_LPASS;
+
+	memcpy(&pkt->payload, &prm_rsc_request, sizeof(prm_cmd_request_hw_core_t));
+
+	ret = prm_gpr_send_pkt(pkt, &g_prm.wait);
+
+	kfree(pkt);
+	return ret;
+}
+EXPORT_SYMBOL(audio_prm_set_lpass_core_clk_req);
 
 /**
  * prm_set_lpass_clk_cfg() - Set PRM clock
@@ -507,9 +560,13 @@ static int audio_prm_probe(struct gpr_device *adev)
 				__func__);
 		return -EPROBE_DEFER;
 	}
-
+#ifdef CONFIG_AUDIO_GPR_DOMAIN_MODEM
+	ret = audio_notifier_register("audio_prm", AUDIO_NOTIFIER_MODEM_DOMAIN,
+					&service_nb);
+#else
 	ret = audio_notifier_register("audio_prm", AUDIO_NOTIFIER_ADSP_DOMAIN,
 				      &service_nb);
+#endif
 	if (ret < 0) {
 		if (ret != -EPROBE_DEFER)
 			pr_err("%s: Audio notifier register failed ret = %d\n",

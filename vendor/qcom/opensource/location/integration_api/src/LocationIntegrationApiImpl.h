@@ -75,13 +75,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <LocationApiMsg.h>
 #include <LocationApiPbMsgConv.h>
 #include <queue>
-
-#ifdef NO_UNORDERED_SET_OR_MAP
-    #include <map>
-    #define unordered_map map
-#else
-    #include <unordered_map>
-#endif
+#include <unordered_map>
 
 using namespace std;
 using namespace loc_util;
@@ -206,7 +200,7 @@ private:
     void processHalReadyMsg();
 
     void addConfigReq(LocConfigTypeEnum configType);
-    void processQueuedReqs();
+    bool processQueuedReqs(); // return true indicates queue is note empty
     void flushConfigReqs();
     void processConfigRespCb(const LocAPIGenericRespMsg* pRespMsg);
     void processGetRobustLocationConfigRespCb(

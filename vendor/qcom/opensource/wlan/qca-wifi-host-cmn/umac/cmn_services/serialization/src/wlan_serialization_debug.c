@@ -215,7 +215,7 @@ QDF_STATUS wlan_ser_print_history(
 		}
 		break;
 	default:
-		ser_err("Invalid pramater for queue type(scan/non_scan");
+		ser_err("Invalid parameter for queue type(scan/non_scan");
 		goto error;
 	}
 

@@ -699,10 +699,12 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto err_free_gpio;
 	}
 	client->irq = ret;
-	ret = configure_gpio(nfc_gpio->dwl_req, GPIO_OUTPUT);
-	if (ret) {
-		NFC_LOG_ERR("%s: unable to request nfc firm downl gpio [%d]\n",
-			__func__, nfc_gpio->dwl_req);
+	if (gpio_is_valid(nfc_gpio->dwl_req)) {
+		ret = configure_gpio(nfc_gpio->dwl_req, GPIO_OUTPUT);
+		if (ret) {
+			NFC_LOG_ERR("%s: unable to request nfc firm downl gpio [%d]\n",
+				__func__, nfc_gpio->dwl_req);
+		}
 	}
 	/* init mutex and queues */
 	init_waitqueue_head(&nfc_dev->read_wq);

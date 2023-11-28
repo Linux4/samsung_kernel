@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,6 +33,9 @@
 #endif
 #include <cdp_txrx_cmn.h>
 #include "cdp_txrx_handle.h"
+#ifdef IPA_OPT_WIFI_DP
+#include <target_if.h>
+#endif
 
 /**
  * cdp_ipa_get_resource() - Get allocated WLAN resources for IPA data path
@@ -740,6 +743,50 @@ cdp_ipa_tx_buf_smmu_unmapping(ol_txrx_soc_handle soc, uint8_t pdev_id,
 	return QDF_STATUS_SUCCESS;
 }
 
+#ifdef IPA_OPT_WIFI_DP
+/*
+ * cdp_ipa_pcie_link_up() - Send request to hold PCIe link in L0
+ * @soc - cdp soc handle
+ *
+ * Return: 0 for success, negative for failure
+ */
+static inline int
+cdp_ipa_pcie_link_up(ol_txrx_soc_handle soc)
+{
+	if (!soc || !soc->ops || !soc->ops->ipa_ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
+			  "%s invalid instance", __func__);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (soc->ops->ipa_ops->ipa_pcie_link_up)
+		return soc->ops->ipa_ops->ipa_pcie_link_up(soc);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+/*
+ * cdp_ipa_pcie_link_down() - Release request to hold PCIe link in L0
+ * @soc - cdp soc handle
+ *
+ * Return: 0 for success, negative for failure
+ */
+static inline int
+cdp_ipa_pcie_link_down(ol_txrx_soc_handle soc)
+{
+	if (!soc || !soc->ops || !soc->ops->ipa_ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
+			  "%s invalid instance", __func__);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (soc->ops->ipa_ops->ipa_pcie_link_down)
+		soc->ops->ipa_ops->ipa_pcie_link_down(soc);
+
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
 #ifdef IPA_WDS_EASYMESH_FEATURE
 /**
  * cdp_ipa_ast_create() - Create/update AST entry in AST table
@@ -767,6 +814,103 @@ cdp_ipa_ast_create(ol_txrx_soc_handle soc, qdf_ipa_ast_info_type_t *data)
 }
 #endif
 
-#endif /* IPA_OFFLOAD */
+#ifdef IPA_OPT_WIFI_DP
+#define RX_CCE_SUPER_RULE_SETUP_NUM 2
+struct addr_params {
+	uint8_t valid;
+	uint8_t src_ipv4_addr[4];
+	uint8_t dst_ipv4_addr[4];
+	uint8_t src_ipv6_addr[16];
+	uint8_t dst_ipv6_addr[16];
+	uint8_t l4_type;
+	uint16_t l3_type;
+	uint16_t src_port;
+	uint16_t dst_port;
+	uint32_t flt_hdl;
+	uint8_t ipa_flt_evnt_required;
+	bool ipa_flt_in_use;
+};
 
+struct wifi_dp_flt_setup {
+	uint8_t pdev_id;
+	uint8_t op;
+	uint8_t num_filters;
+	uint32_t ipa_flt_evnt_response;
+	struct addr_params flt_addr_params[RX_CCE_SUPER_RULE_SETUP_NUM];
+};
+
+static inline QDF_STATUS
+cdp_ipa_rx_cce_super_rule_setup(ol_txrx_soc_handle soc,
+				void *flt_params)
+{
+	if (!soc || !soc->ops || !soc->ops->ipa_ops) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
+			  "%s invalid instance", __func__);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (soc->ops->ipa_ops->ipa_rx_super_rule_setup)
+		return soc->ops->ipa_ops->ipa_rx_super_rule_setup(soc,
+								  flt_params);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+cdp_ipa_opt_dp_enable_disable_low_power_mode(struct wlan_objmgr_pdev *pdev,
+					     uint32_t pdev_id, int param_val)
+{
+	wmi_unified_t wmi_handle;
+	struct wmi_unified *pdev_wmi_handle = NULL;
+	struct wlan_objmgr_psoc *psoc;
+	struct pdev_params pparam;
+	uint32_t vdev_id, val;
+	QDF_STATUS status;
+
+	psoc = wlan_pdev_get_psoc(pdev);
+	wmi_handle = get_wmi_unified_hdl_from_psoc(psoc);
+	pdev_wmi_handle = pdev->tgt_if_handle->wmi_handle;
+	qdf_mem_set(&pparam, sizeof(pparam), 0);
+	pparam.is_host_pdev_id = false;
+
+	/* Enable-disable IMPS */
+	pparam.param_id = WMI_PDEV_PARAM_IDLE_PS_CONFIG;
+	pparam.param_value = param_val;
+	status =  wmi_unified_pdev_param_send(wmi_handle,
+					      &pparam, pdev_id);
+	if (status != QDF_STATUS_SUCCESS) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
+			  "%s Unable to enable/disable:(%d) IMPS", __func__,
+			  param_val);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	/* Enable-disable ILP */
+	pparam.param_id = WMI_PDEV_PARAM_PCIE_HW_ILP;
+	pparam.param_value = param_val;
+	status =  wmi_unified_pdev_param_send(pdev_wmi_handle,
+					      &pparam, pdev_id);
+	if (status != QDF_STATUS_SUCCESS) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
+			  "%s Unable to enable/disable:(%d) ILP", __func__,
+			  param_val);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	/* Enable-disable BMPS */
+	val = param_val;
+	vdev_id = 0; //TODO fix vdev_id
+	status = wmi_unified_set_sta_ps_mode(wmi_handle, vdev_id, val);
+	if (status != QDF_STATUS_SUCCESS) {
+		QDF_TRACE(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_FATAL,
+			  "%s Unable to enable/disable:(%d) BMPS", __func__,
+			  param_val);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return status;
+}
+#endif /* IPA_OPT_WIFI_DP */
+
+#endif /* IPA_OFFLOAD */
 #endif /* _CDP_TXRX_IPA_H_ */

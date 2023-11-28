@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,6 +31,7 @@
 #include "wlan_pdev_mlme_api.h"
 #include "wlan_vdev_mgr_tgt_if_tx_api.h"
 #include "wlan_policy_mgr_public_struct.h"
+#include "spatial_reuse_api.h"
 
 QDF_STATUS ucfg_mlme_global_init(void)
 {
@@ -362,6 +363,67 @@ ucfg_mlme_set_vdev_traffic_type(struct wlan_objmgr_psoc *psoc,
 	param.param_value = mlme_priv->vdev_traffic_type;
 	status = tgt_vdev_mgr_set_param_send(vdev_mlme, &param);
 	policy_mgr_handle_ml_sta_link_on_traffic_type_change(psoc, vdev);
+
+	return status;
+}
+
+void ucfg_mlme_connected_chan_stats_request(struct wlan_objmgr_psoc *psoc,
+					    uint8_t vdev_id)
+{
+	mlme_connected_chan_stats_request(psoc, vdev_id);
+}
+
+bool
+ucfg_mlme_is_chwidth_with_notify_supported(struct wlan_objmgr_psoc *psoc)
+{
+	return wlan_psoc_nif_fw_ext2_cap_get(psoc,
+				WLAN_VDEV_PARAM_CHWIDTH_WITH_NOTIFY_SUPPORT);
+}
+
+QDF_STATUS ucfg_mlme_update_bss_rate_flags(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id,
+					   enum phy_ch_width ch_width,
+					   uint8_t eht_present,
+					   uint8_t he_present,
+					   uint8_t vht_present,
+					   uint8_t ht_present)
+{
+	return wlan_mlme_update_bss_rate_flags(psoc, vdev_id, ch_width,
+					       eht_present, he_present,
+					       vht_present, ht_present);
+}
+
+QDF_STATUS
+ucfg_mlme_send_ch_width_update_with_notify(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id,
+					   enum phy_ch_width ch_width)
+{
+	struct wlan_objmgr_vdev *vdev;
+	QDF_STATUS status;
+	enum QDF_OPMODE op_mode;
+	bool is_mlo_vdev;
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
+						    WLAN_MLME_OBJMGR_ID);
+	if (!vdev) {
+		mlme_legacy_err("vdev %d: vdev not found", vdev_id);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	op_mode = wlan_vdev_mlme_get_opmode(vdev);
+	is_mlo_vdev = wlan_vdev_mlme_is_mlo_vdev(vdev);
+	if (op_mode != QDF_STA_MODE || is_mlo_vdev) {
+		mlme_legacy_debug("vdev %d: op mode %d, is_mlo_vdev:%d, CW update not supported",
+				  vdev_id, op_mode, is_mlo_vdev);
+		status = QDF_STATUS_E_NOSUPPORT;
+		goto release;
+	}
+
+	status = wlan_mlme_send_ch_width_update_with_notify(psoc, vdev,
+							    vdev_id, ch_width);
+
+release:
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_OBJMGR_ID);
 
 	return status;
 }
@@ -1181,19 +1243,8 @@ QDF_STATUS
 ucfg_mlme_stats_get_periodic_display_time(struct wlan_objmgr_psoc *psoc,
 					  uint32_t *periodic_display_time)
 {
-	struct wlan_mlme_psoc_ext_obj *mlme_obj;
-
-	mlme_obj = mlme_get_psoc_ext_obj(psoc);
-	if (!mlme_obj) {
-		*periodic_display_time =
-			cfg_default(CFG_PERIODIC_STATS_DISPLAY_TIME);
-		return QDF_STATUS_E_INVAL;
-	}
-
-	*periodic_display_time =
-		mlme_obj->cfg.stats.stats_periodic_display_time;
-
-	return QDF_STATUS_SUCCESS;
+	return wlan_mlme_stats_get_periodic_display_time(psoc,
+							 periodic_display_time);
 }
 
 QDF_STATUS
@@ -1834,6 +1885,67 @@ bool ucfg_mlme_get_coex_unsafe_chan_reg_disable(
 }
 #endif
 
+#if defined(CONFIG_AFC_SUPPORT) && defined(CONFIG_BAND_6GHZ)
+QDF_STATUS
+ucfg_mlme_get_enable_6ghz_sp_mode_support(struct wlan_objmgr_psoc *psoc,
+					  bool *value)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*value = mlme_obj->cfg.reg.enable_6ghz_sp_pwrmode_supp;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_mlme_get_afc_disable_timer_check(struct wlan_objmgr_psoc *psoc,
+				      bool *value)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*value = mlme_obj->cfg.reg.afc_disable_timer_check;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_mlme_get_afc_disable_request_id_check(struct wlan_objmgr_psoc *psoc,
+					   bool *value)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*value = mlme_obj->cfg.reg.afc_disable_request_id_check;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+ucfg_mlme_get_afc_reg_noaction(struct wlan_objmgr_psoc *psoc, bool *value)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
+	*value = mlme_obj->cfg.reg.is_afc_reg_noaction;
+
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
 #ifdef CONNECTION_ROAMING_CFG
 QDF_STATUS
 ucfg_mlme_set_connection_roaming_ini_present(struct wlan_objmgr_psoc *psoc,
@@ -1893,4 +2005,32 @@ done:
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_OBJMGR_ID);
 
 	return phymode;
+}
+
+QDF_STATUS
+ucfg_mlme_get_valid_channels(struct wlan_objmgr_psoc *psoc,
+			     uint32_t *ch_freq_list, uint32_t *list_len)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+	uint32_t num_valid_chan;
+	uint8_t i;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj) {
+		*list_len = 0;
+		mlme_legacy_err("Failed to get MLME Obj");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	num_valid_chan =  mlme_obj->cfg.reg.valid_channel_list_num;
+	if (num_valid_chan > *list_len) {
+		mlme_err("list len size %d less than expected %d", *list_len,
+			 num_valid_chan);
+		num_valid_chan = *list_len;
+	}
+	*list_len = num_valid_chan;
+	for (i = 0; i < *list_len; i++)
+		ch_freq_list[i] = mlme_obj->cfg.reg.valid_channel_freq_list[i];
+
+	return QDF_STATUS_SUCCESS;
 }

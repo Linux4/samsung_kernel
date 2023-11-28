@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -146,10 +146,13 @@ util_gen_link_probe_rsp(uint8_t *frame, qdf_size_t frame_len,
  * returns error, or if the function indicates that the element or element
  * fragment sequence was not found by providing a starting address of NULL.
  *
- * Find the first Multi-Link element or the start of the first
- * Multi-Link element fragment sequence in a given buffer containing elements,
- * if a Multi-Link element or element fragment sequence exists in the given
- * buffer.
+ * Find the first Multi-Link element or the start of the first Multi-Link
+ * element fragment sequence in a given buffer containing elements, if a
+ * Multi-Link element or element fragment sequence exists in the given buffer.
+ * The buffer should contain only 802.11 Information elements, and thus should
+ * not contain other information like 802.11 header, 802.11 frame body
+ * components like fields that are not elements (e.g. Capability Information
+ * field, Beacon Interval field), etc.
  *
  * Return: QDF_STATUS_SUCCESS in the case of success, QDF_STATUS value giving
  * the reason for error in the case of failure
@@ -157,6 +160,46 @@ util_gen_link_probe_rsp(uint8_t *frame, qdf_size_t frame_len,
 QDF_STATUS
 util_find_mlie(uint8_t *buf, qdf_size_t buflen, uint8_t **mlieseq,
 	       qdf_size_t *mlieseqlen);
+
+/**
+ * util_find_mlie_by_variant - Find the first Multi-Link element or the start of
+ * the first Multi-Link element fragment sequence in a given buffer containing
+ * elements based on variant, if a Multi-Link element or element fragment
+ * sequence exists in the given buffer.
+ *
+ * @buf: Buffer to be searched for the Multi-Link element or the start of the
+ * Multi-Link element fragment sequence
+ * @buflen: Length of the buffer
+ * @mlieseq: Based on the variant, pointer to location where the starting
+ * address of the Multi-Link element or Multi-Link element fragment sequence
+ * should be updated if found in the given buffer. The value NULL will be
+ * updated to this location if the element or element fragment sequence is not
+ * found. This should be ignored by the caller if the function returns error.
+ * @mlieseqlen: Pointer to location where the total length of the Multi-Link
+ * element or Multi-Link element fragment sequence should be updated if found
+ * in the given buffer. This should be ignored by the caller if the function
+ * returns error, or if the function indicates that the element or element
+ * fragment sequence was not found by providing a starting address of NULL.
+ * @variant: Multi-Link element variant.  The value should be interpreted by the
+ * caller as a member of enum wlan_ml_variant. (This enum is not directly used
+ * as an argument, so that non-MLO code that happens to call this function does
+ * not need to be aware of the definition of the enum, though such a call would
+ * ultimately result in an error).
+ *
+ * Based on variant, find the Multi-Link element or the start of the Multi-Link
+ * element fragment sequence in a given buffer containing elements, if a
+ * Multi-Link element or element fragment sequence exists in the given buffer.
+ * The buffer should contain only 802.11 Information elements, and thus should
+ * not contain other information like 802.11 header, 802.11 frame body
+ * components like fields that are not elements (e.g. Capability Information
+ * field, Beacon Interval field), etc.
+ *
+ * Return: QDF_STATUS_SUCCESS in the case of success, QDF_STATUS value giving
+ * the reason for error in the case of failure
+ */
+QDF_STATUS
+util_find_mlie_by_variant(uint8_t *buf, qdf_size_t buflen, uint8_t **mlieseq,
+			  qdf_size_t *mlieseqlen, int variant);
 
 /**
  * util_get_mlie_variant() - Get ML IE variant
@@ -187,8 +230,8 @@ util_get_mlie_variant(uint8_t *mlieseq, qdf_size_t mlieseqlen,
  * fragment sequence
  * @mlieseqlen: Total length of the Multi-Link element or Multi-Link element
  * fragment sequence
- * @linkid: Pointer to the location where the MLD MAC address should be updated.
- * This should be ignored by the caller if the function returns error.
+ * @mldmacaddr: Pointer to the location where the MLD MAC address should be
+ * updated. This should be ignored by the caller if the function returns error.
  *
  * Get the MLD MAC address from a given Basic variant Multi-Link element
  * or element fragment sequence.
@@ -421,6 +464,51 @@ util_get_prvmlie_persta_link_id(uint8_t *mlieseq,
 				qdf_size_t mlieseqlen,
 				struct mlo_probereq_info *probereq_info);
 
+/**
+ * util_get_rvmlie_mldmacaddr() - Get the MLD MAC address from a given Reconfig
+ * variant Multi-Link element.
+ *
+ * @mlieseq: Starting address of the Multi-Link element or Multi-Link element
+ * fragment sequence
+ * @mlieseqlen: Total length of the Multi-Link element or Multi-Link element
+ * fragment sequence
+ * @mldmacaddr: Pointer to the location where the MLD MAC address should be
+ * updated. This should be ignored by the caller if the function returns error.
+ *
+ * Get the MLD MAC address from a given Reconfig variant Multi-Link element
+ * or element fragment sequence.
+ *
+ * Return: QDF_STATUS_SUCCESS in the case of success, QDF_STATUS value giving
+ * the reason for error in the case of failure
+ */
+QDF_STATUS
+util_get_rvmlie_mldmacaddr(uint8_t *mlieseq, qdf_size_t mlieseqlen,
+			   struct qdf_mac_addr *mldmacaddr);
+
+/**
+ * util_get_rvmlie_persta_link_info() - Get per-STA reconfig link information
+ *
+ * @mlieseq: Starting address of the Multi-Link element or Multi-Link element
+ * fragment sequence
+ * @mlieseqlen: Total length of the Multi-Link element or Multi-Link element
+ * fragment sequence
+ * @reconfig_info: Pointer to the location where the reconfig link information
+ * should be updated. This should be ignored by the caller if the function
+ * returns error. Note that success will be returned and the number of links in
+ * this structure will be reported as 0, if no Link Info is found, or no per-STA
+ * profile is found.
+ *
+ * Get reconfig link information in the per-STA profiles present in a Reconfig
+ * variant Multi-Link element.
+ *
+ * Return: QDF_STATUS_SUCCESS in the case of success, QDF_STATUS value giving
+ * the reason for error in the case of failure.
+ */
+QDF_STATUS
+util_get_rvmlie_persta_link_info(uint8_t *mlieseq,
+				 qdf_size_t mlieseqlen,
+				 struct ml_rv_info *reconfig_info);
+
 #else
 static inline QDF_STATUS
 util_gen_link_assoc_req(uint8_t *frame, qdf_size_t frame_len, bool isreassoc,
@@ -447,6 +535,13 @@ util_find_mlie(uint8_t *buf, qdf_size_t buflen, uint8_t **mlieseq,
 	       qdf_size_t *mlieseqlen)
 {
 	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline QDF_STATUS
+util_find_mlie_by_variant(uint8_t *buf, qdf_size_t buflen, uint8_t **mlieseq,
+			  qdf_size_t *mlieseqlen)
+{
+	return QDF_STATUS_E_FAILURE;
 }
 
 static inline QDF_STATUS
@@ -524,5 +619,19 @@ util_get_prvmlie_mldid(uint8_t *mlieseq, qdf_size_t mlieseqlen,
 	return QDF_STATUS_E_NOSUPPORT;
 }
 
+static inline QDF_STATUS
+util_get_rvmlie_mldmacaddr(uint8_t *mlieseq, qdf_size_t mlieseqlen,
+			   struct qdf_mac_addr *mldmacaddr)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+
+static inline QDF_STATUS
+util_get_rvmlie_persta_link_info(uint8_t *mlieseq,
+				 qdf_size_t mlieseqlen,
+				 struct ml_rv_info *reconfig_info)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
 #endif /* WLAN_FEATURE_11BE_MLO */
 #endif /* _WLAN_UTILS_MLO_H_ */

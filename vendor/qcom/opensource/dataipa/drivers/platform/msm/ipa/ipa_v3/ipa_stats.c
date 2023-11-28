@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -51,7 +51,7 @@ static struct cdev ipa_lnx_stats_ioctl_cdev;
 static struct class *class;
 static dev_t device;
 
-struct ipa_lnx_stats_spearhead_ctx ipa_lnx_agent_ctx;
+struct ipa_lnx_stats_tlpd_ctx ipa_lnx_agent_ctx;
 static DEFINE_MUTEX(ipa_lnx_ctx_mutex);
 
 struct wlan_intf_mode_cnt {
@@ -126,52 +126,6 @@ static int ipa_stats_ioctl_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static bool ipa_stats_struct_mismatch()
-{
-	if (IPA_LNX_EACH_INST_ALLOC_INFO_STRUCT_LEN_INT != IPA_LNX_EACH_INST_ALLOC_INFO_STRUCT_LEN ||
-		IPA_LNX_STATS_ALL_INFO_STRUCT_LEN_INT != IPA_LNX_STATS_ALL_INFO_STRUCT_LEN ||
-		IPA_LNX_STATS_SPEARHEAD_CTX_STRUCT_LEN_INT != IPA_LNX_STATS_SPEARHEAD_CTX_STRUCT_LEN) {
-			IPA_STATS_ERR("IPA_LNX_CMD_GET_ALLOC_INFO structure size mismatch\n");
-			return true;
-	} else if (IPA_LNX_CONSOLIDATED_STATS_STRUCT_LEN_INT != IPA_LNX_CONSOLIDATED_STATS_STRUCT_LEN) {
-			IPA_STATS_ERR("IPA_LNX_CMD_GET_CONSOLIDATED_STATS structure size mismatch\n");
-			return true;
-	} else if (IPA_LNX_PG_RECYCLE_STATS_STRUCT_LEN_INT != IPA_LNX_PG_RECYCLE_STATS_STRUCT_LEN ||
-		IPA_LNX_EXCEPTION_STATS_STRUCT_LEN_INT != IPA_LNX_EXCEPTION_STATS_STRUCT_LEN ||
-		IPA_LNX_ODL_EP_STATS_STRUCT_LEN_INT != IPA_LNX_ODL_EP_STATS_STRUCT_LEN ||
-		IPA_LNX_HOLB_DISCARD_STATS_STRUCT_LEN_INT != IPA_LNX_HOLB_DISCARD_STATS_STRUCT_LEN ||
-		IPA_LNX_HOLB_MONITOR_STATS_STRUCT_LEN_INT != IPA_LNX_HOLB_MONITOR_STATS_STRUCT_LEN ||
-		IPA_LNX_HOLB_DROP_AND_MON_STATS_STRUCT_LEN_INT != IPA_LNX_HOLB_DROP_AND_MON_STATS_STRUCT_LEN ||
-		IPA_LNX_GENERIC_STATS_STRUCT_LEN_INT != IPA_LNX_GENERIC_STATS_STRUCT_LEN) {
-			IPA_STATS_ERR("IPA_LNX_CMD_GENERIC_STATS structure size mismatch\n");
-			return true;
-	} else if (IPA_LNX_PM_CLIENT_STATS_STRUCT_LEN_INT != IPA_LNX_PM_CLIENT_STATS_STRUCT_LEN ||
-		IPA_LNX_CLOCK_STATS_STRUCT_LEN_INT != IPA_LNX_CLOCK_STATS_STRUCT_LEN) {
-			IPA_STATS_ERR("IPA_LNX_CMD_CLOCK_STATS structure size mismatch\n");
-			return true;
-	} else if (IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN_INT != IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN ||
-		IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN_INT != IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN ||
-		IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN_INT != IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN ||
-		IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN_INT != IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN ||
-		IPA_LNX_WLAN_INSTANCE_INFO_STRUCT_LEN_INT != IPA_LNX_WLAN_INSTANCE_INFO_STRUCT_LEN ||
-		IPA_LNX_WLAN_INST_STATS_STRUCT_LEN_INT != IPA_LNX_WLAN_INST_STATS_STRUCT_LEN) {
-			IPA_STATS_ERR("IPA_LNX_CMD_WLAN_INST_STATS structure size mismatch\n");
-			return true;
-	} else if (IPA_LNX_ETH_INSTANCE_INFO_STRUCT_LEN_INT != IPA_LNX_ETH_INSTANCE_INFO_STRUCT_LEN ||
-		IPA_LNX_ETH_INST_STATS_STRUCT_LEN_INT != IPA_LNX_ETH_INST_STATS_STRUCT_LEN) {
-			IPA_STATS_ERR("IPA_LNX_CMD_ETH_INST_STATS structure size mismatch\n");
-			return true;
-	} else if (IPA_LNX_USB_INSTANCE_INFO_STRUCT_LEN_INT != IPA_LNX_USB_INSTANCE_INFO_STRUCT_LEN ||
-		IPA_LNX_USB_INST_STATS_STRUCT_LEN_INT != IPA_LNX_USB_INST_STATS_STRUCT_LEN) {
-			IPA_STATS_ERR("IPA_LNX_CMD_USB_INST_STATS structure size mismatch\n");
-			return true;
-	} else if (IPA_LNX_MHIP_INSTANCE_INFO_STRUCT_LEN_INT != IPA_LNX_MHIP_INSTANCE_INFO_STRUCT_LEN ||
-		IPA_LNX_MHIP_INST_STATS_STRUCT_LEN_INT != IPA_LNX_MHIP_INST_STATS_STRUCT_LEN) {
-			IPA_STATS_ERR("IPA_LNX_CMD_MHIP_INST_STATS structure size mismatch\n");
-			return true;
-	} else return false;
-}
-
 static int ipa_get_generic_stats(unsigned long arg)
 {
 	int res;
@@ -183,6 +137,11 @@ static int ipa_get_generic_stats(unsigned long arg)
 	struct ipa_uc_holb_client_info *holb_client;
 	struct holb_discard_stats *holb_disc_stats_ptr;
 	struct holb_monitor_stats *holb_mon_stats_ptr;
+
+	if(ipa_lnx_agent_ctx.log_type_mask == 0) {
+		IPA_STATS_ERR("log_type_mask is not defined");
+		return -EPERM;
+	}
 
 	alloc_size = sizeof(struct ipa_lnx_generic_stats) +
 		(sizeof(struct holb_discard_stats) *
@@ -338,6 +297,11 @@ static int ipa_get_clock_stats(unsigned long arg)
 	int i;
 	int alloc_size;
 	struct pm_client_stats *pm_stats_ptr;
+
+	if(ipa_lnx_agent_ctx.log_type_mask == 0) {
+		IPA_STATS_ERR("log_type_mask is not defined");
+		return -EPERM;
+	}
 
 	alloc_size = sizeof(struct ipa_lnx_clock_stats) +
 		(sizeof(struct pm_client_stats) *
@@ -651,6 +615,11 @@ static int ipa_get_wlan_inst_stats(unsigned long arg)
 	struct wlan_instance_info *instance_ptr = NULL;
 	struct ipa_uc_dbg_ring_stats stats;
 
+	if(ipa_lnx_agent_ctx.log_type_mask == 0) {
+		IPA_STATS_ERR("log_type_mask is not defined");
+		return -EPERM;
+	}
+
 	alloc_size = sizeof(struct ipa_lnx_wlan_inst_stats) +
 			(ipa_lnx_agent_ctx.alloc_info.num_wlan_instances *
 			sizeof(struct wlan_instance_info));
@@ -830,6 +799,11 @@ static int ipa_get_eth_inst_stats(unsigned long arg)
 	struct ipa_lnx_gsi_rx_debug_stats *rx_instance_ptr_local = NULL;
 	struct eth_instance_info *instance_ptr = NULL;
 	struct ipa_uc_dbg_ring_stats stats;
+
+	if(ipa_lnx_agent_ctx.log_type_mask == 0) {
+		IPA_STATS_ERR("log_type_mask is not defined");
+		return -EPERM;
+	}
 
 	alloc_size = sizeof(struct ipa_lnx_eth_inst_stats) +
 			(ipa_lnx_agent_ctx.alloc_info.num_eth_instances *
@@ -1138,6 +1112,11 @@ static int ipa_get_usb_inst_stats(unsigned long arg)
 	struct usb_instance_info *instance_ptr = NULL;
 	struct ipa_uc_dbg_ring_stats stats;
 
+	if(ipa_lnx_agent_ctx.log_type_mask == 0) {
+		IPA_STATS_ERR("log_type_mask is not defined");
+		return -EPERM;
+	}
+
 	alloc_size = sizeof(struct ipa_lnx_usb_inst_stats) +
 			(ipa_lnx_agent_ctx.alloc_info.num_usb_instances *
 				sizeof(struct usb_instance_info));
@@ -1312,6 +1291,11 @@ static int ipa_get_mhip_inst_stats(unsigned long arg)
 	struct ipa_lnx_gsi_rx_debug_stats *rx_instance_ptr_local = NULL;
 	struct mhip_instance_info *instance_ptr = NULL;
 	struct ipa_uc_dbg_ring_stats stats;
+
+	if(ipa_lnx_agent_ctx.log_type_mask == 0) {
+		IPA_STATS_ERR("log_type_mask is not defined");
+		return -EPERM;
+	}
 
 	alloc_size = sizeof(struct ipa_lnx_mhip_inst_stats) +
 			(ipa_lnx_agent_ctx.alloc_info.num_mhip_instances *
@@ -1521,14 +1505,14 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 	int eth_instance_id;
 
 	if (copy_from_user(&ipa_lnx_agent_ctx, u64_to_user_ptr((u64) arg),
-		sizeof(struct ipa_lnx_stats_spearhead_ctx))) {
+		sizeof(struct ipa_lnx_stats_tlpd_ctx))) {
 		IPA_STATS_ERR("copy from user failed");
 		return -EFAULT;
 	}
 
 	/* For generic stats */
 	if (ipa_lnx_agent_ctx.log_type_mask &
-		SPRHD_IPA_LOG_TYPE_GENERIC_STATS) {
+		TLPD_IPA_LOG_TYPE_GENERIC_STATS) {
 		for (i = 0; i < IPA_CLIENT_MAX; i++) {
 			int ep_idx = ipa3_get_ep_mapping(i);
 
@@ -1551,12 +1535,12 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 	}
 
 	/* For clock stats */
-	if (ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_CLOCK_STATS)
+	if (ipa_lnx_agent_ctx.log_type_mask & TLPD_IPA_LOG_TYPE_CLOCK_STATS)
 		ipa_lnx_agent_ctx.alloc_info.num_pm_clients =
 			ipa3_get_max_num_pipes();
 
 	/* For WLAN instance */
-	if (ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_WLAN_STATS) {
+	if (ipa_lnx_agent_ctx.log_type_mask & TLPD_IPA_LOG_TYPE_WLAN_STATS) {
 		ipa_ep_idx_tx = ipa3_get_ep_mapping(IPA_CLIENT_WLAN2_CONS);
 		ipa_ep_idx_rx = ipa3_get_ep_mapping(IPA_CLIENT_WLAN2_PROD);
 		if ((ipa_ep_idx_tx == -1) || (ipa_ep_idx_rx == -1) ||
@@ -1588,7 +1572,7 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 	}
 
 	/* For ETH instance */
-	if (ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_ETH_STATS) {
+	if (ipa_lnx_agent_ctx.log_type_mask & TLPD_IPA_LOG_TYPE_ETH_STATS) {
 		ipa_lnx_agent_ctx.alloc_info.num_eth_instances = 0;
 		for (i = 0; i < IPA_ETH_INST_ID_MAX; i++) {
 			ipa_lnx_agent_ctx.alloc_info.eth_inst_info[i].num_pipes = 0;
@@ -1599,7 +1583,7 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 				= 0;
 			k = 0;
 			for (j = 0; (j < IPA_ETH_CLIENT_MAX) &&
-				(k < SPEARHEAD_NUM_MAX_TX_INSTANCES); j++) {
+				(k < TLPD_NUM_MAX_TX_INSTANCES); j++) {
 				if (ipa_eth_client_exist(j, i) &&
 					(ipa_lnx_agent_ctx.alloc_info.num_eth_instances < 2)) {
 					eth_instance_id = ipa_lnx_agent_ctx.alloc_info.num_eth_instances;
@@ -1644,13 +1628,13 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 	}
 
 	/* For USB instance */
-	if (ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_USB_STATS) {
+	if (ipa_lnx_agent_ctx.log_type_mask & TLPD_IPA_LOG_TYPE_USB_STATS) {
 		ipa_lnx_agent_ctx.alloc_info.num_usb_instances = 0;
 		index = 0;
 		for (i = 0; (i < IPA_USB_MAX_TETH_PROT_SIZE) &&
-			(index < SPEARHEAD_NUM_MAX_INSTANCES); i++) {
+			(index < TLPD_NUM_MAX_INSTANCES); i++) {
 			if(ipa_usb_is_teth_prot_connected(i)) {
-				if (index == SPEARHEAD_NUM_MAX_INSTANCES) {
+				if (index == TLPD_NUM_MAX_INSTANCES) {
 					IPA_STATS_ERR("USB alloc info max size reached\n");
 					break;
 				}
@@ -1698,7 +1682,7 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 	}
 
 	/* For MHIP instance */
-	if (ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_MHIP_STATS) {
+	if (ipa_lnx_agent_ctx.log_type_mask & TLPD_IPA_LOG_TYPE_MHIP_STATS) {
 #if IS_ENABLED(CONFIG_IPA3_MHI_PRIME_MANAGER)
 		if (!ipa3_ctx->mhip_ctx.dbg_stats.uc_dbg_stats_mmio) {
 			ipa_lnx_agent_ctx.alloc_info.num_mhip_instances = 0;
@@ -1736,13 +1720,13 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 	}
 
 	/* For Page recycling stats for default, coal and Low lat pipes */
-	if (ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_RECYCLE_STATS)
+	if (ipa_lnx_agent_ctx.log_type_mask & TLPD_IPA_LOG_TYPE_RECYCLE_STATS)
 		ipa_lnx_agent_ctx.alloc_info.num_page_rec_interval =
 			IPA_LNX_PIPE_PAGE_RECYCLING_INTERVAL_COUNT;
 
 	if(copy_to_user((u8 *)arg,
 		&ipa_lnx_agent_ctx,
-		sizeof(struct ipa_lnx_stats_spearhead_ctx))) {
+		sizeof(struct ipa_lnx_stats_tlpd_ctx))) {
 		IPA_STATS_ERR("copy to user failed");
 		return -EFAULT;
 	}
@@ -1816,42 +1800,42 @@ static long ipa_lnx_stats_ioctl(struct file *filp,
 			return -ENOMEM;
 		}
 
-		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_GENERIC_STATS) {
+		if (consolidated_stats->log_type_mask & TLPD_IPA_LOG_TYPE_GENERIC_STATS) {
 			retval = ipa_get_generic_stats((unsigned long) consolidated_stats->generic_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get generic stats fail");
 				break;
 			}
 		}
-		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_CLOCK_STATS) {
+		if (consolidated_stats->log_type_mask & TLPD_IPA_LOG_TYPE_CLOCK_STATS) {
 			retval = ipa_get_clock_stats((unsigned long) consolidated_stats->clock_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get clock stats fail");
 				break;
 			}
 		}
-		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_WLAN_STATS) {
+		if (consolidated_stats->log_type_mask & TLPD_IPA_LOG_TYPE_WLAN_STATS) {
 			retval = ipa_get_wlan_inst_stats((unsigned long) consolidated_stats->wlan_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get wlan inst stats fail");
 				break;
 			}
 		}
-		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_ETH_STATS) {
+		if (consolidated_stats->log_type_mask & TLPD_IPA_LOG_TYPE_ETH_STATS) {
 			retval = ipa_get_eth_inst_stats((unsigned long) consolidated_stats->eth_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get eth inst stats fail");
 				break;
 			}
 		}
-		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_USB_STATS) {
+		if (consolidated_stats->log_type_mask & TLPD_IPA_LOG_TYPE_USB_STATS) {
 			retval = ipa_get_usb_inst_stats((unsigned long) consolidated_stats->usb_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get usb inst stats fail");
 				break;
 			}
 		}
-		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_MHIP_STATS) {
+		if (consolidated_stats->log_type_mask & TLPD_IPA_LOG_TYPE_MHIP_STATS) {
 #if IS_ENABLED(CONFIG_IPA3_MHI_PRIME_MANAGER)
 			retval = ipa_get_mhip_inst_stats((unsigned long) consolidated_stats->mhip_stats);
 			if (retval) {
@@ -1860,7 +1844,7 @@ static long ipa_lnx_stats_ioctl(struct file *filp,
 			}
 #endif
 		}
-		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_RECYCLE_STATS) {
+		if (consolidated_stats->log_type_mask & TLPD_IPA_LOG_TYPE_RECYCLE_STATS) {
 			retval = ipa_get_page_recycle_stats((unsigned long) consolidated_stats->recycle_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get page recycle stats fail\n");
@@ -1882,7 +1866,7 @@ const struct file_operations ipa_stats_fops = {
 	.unlocked_ioctl = ipa_lnx_stats_ioctl,
 };
 
-static int ipa_spearhead_stats_ioctl_init(void)
+static int ipa_tlpd_stats_ioctl_init(void)
 {
 	unsigned int ipa_lnx_stats_ioctl_major = 0;
 	int ret;
@@ -1931,16 +1915,11 @@ dev_alloc_err:
 	return -ENODEV;
 }
 
-int ipa_spearhead_stats_init()
+int ipa_tlpd_stats_init()
 {
 	int ret;
 
-	if (ipa_stats_struct_mismatch()) {
-		IPA_STATS_ERR("ipa stats structure mismatch\n");
-		return -1;
-	}
-
-	ret = ipa_spearhead_stats_ioctl_init();
+	ret = ipa_tlpd_stats_ioctl_init();
 	if(ret) {
 		IPA_STATS_ERR("IPA_LNX_STATS_IOCTL init failure = %d\n", ret);
 		return -1;

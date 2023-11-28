@@ -21,6 +21,14 @@
 #endif
 
 /**
+ * enum cam_ife_csid_hw_irq_regs - Specify the top irq reg
+ */
+enum cam_ife_csid_hw_irq_regs {
+	CAM_IFE_CSID_IRQ_TOP_REG_STATUS0,
+	CAM_IFE_CSID_IRQ_REGISTERS_MAX,
+};
+
+/**
  * enum cam_ife_csid_input_core_type - Specify the csid input core
  */
 enum cam_ife_csid_input_core_type {

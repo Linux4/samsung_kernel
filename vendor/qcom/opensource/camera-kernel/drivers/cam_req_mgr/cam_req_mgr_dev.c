@@ -1100,15 +1100,21 @@ static int cam_req_mgr_probe(struct platform_device *pdev)
 	int rc = 0, i;
 	struct component_match *match_list = NULL;
 	struct device *dev = &pdev->dev;
-	struct device_node *np = NULL;
+	struct device_node *np = NULL, *np_master = NULL;;
+
+	CAM_ERR(CAM_CRM, "ENTER: CRM PROBE");
 
 	for (i = 0; i < ARRAY_SIZE(cam_component_i2c_drivers); i++) {
+		CAM_ERR(CAM_CRM, "I2C driver[%d]:%s", i,
+			cam_component_i2c_drivers[i]->driver.of_match_table->compatible);
 		while ((np = of_find_compatible_node(np, NULL,
 			cam_component_i2c_drivers[i]->driver.of_match_table->compatible))) {
+			np_master = of_get_parent(np);
 			if (of_device_is_available(np) && !(of_find_i2c_device_by_node(np))) {
 				CAM_INFO_RATE_LIMIT(CAM_CRM,
-					"I2C device: %s not available, deferring probe",
-					np->full_name);
+					"I2C device: %s not available, master device: %s, deferring probe",
+					np->full_name,
+					(np_master) ? np_master->full_name : "NULL");
 				rc = -EPROBE_DEFER;
 				goto end;
 			}
@@ -1177,5 +1183,6 @@ void cam_req_mgr_exit(void)
 	platform_driver_unregister(&cam_req_mgr_driver);
 }
 
+MODULE_SOFTDEP("pre: i2c-msm-geni");
 MODULE_DESCRIPTION("Camera Request Manager");
 MODULE_LICENSE("GPL v2");

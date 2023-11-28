@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -146,20 +147,26 @@ qdf_export_symbol(qld_register);
 int qld_unregister(void *addr)
 {
 	struct qld_node *qld  = NULL;
+	struct qld_node *cur_entry;
 
 	if (!qld_handle || !addr) {
 		qld_err("Handle or address is NULL");
 		return -EINVAL;
 	}
-
 	qdf_spinlock_acquire(&qld_handle->qld_lock);
-	qdf_list_for_each(&qld_handle->qld_list, qld, node) {
-		if (qld->entry.addr == (uintptr_t)addr)
+	qdf_list_for_each(&qld_handle->qld_list, cur_entry, node) {
+		if (cur_entry->entry.addr == (uintptr_t)addr) {
+			qld = cur_entry;
 			break;
+		}
 	}
-	qdf_list_remove_node(&qld_handle->qld_list, &qld->node);
-	qld_debug("Delete name=%s, size=%zu", qld->entry.name, qld->entry.size);
-	qdf_mem_free(qld);
+
+	if (qld) {
+		qdf_list_remove_node(&qld_handle->qld_list, &qld->node);
+		qld_debug("Delete name=%s, size=%zu", qld->entry.name,
+			  qld->entry.size);
+		qdf_mem_free(qld);
+	}
 	qdf_spinlock_release(&qld_handle->qld_lock);
 	return 0;
 }

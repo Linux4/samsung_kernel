@@ -23,6 +23,7 @@
  * @CLD80211_ATTR_CMD_TAG_DATA: cld80211 vendor subcommand data is present in
  * this attribute. It is a nested attribute with sub attributes of specified
  * vendor sub command.
+ * @CLD80211_ATTR_IFINDEX: Embed Intrerface indx in this attribute
  *
  * Any new message in future can be added as another attribute
  */
@@ -32,6 +33,7 @@ enum cld80211_attr {
 	CLD80211_ATTR_META_DATA,
 	CLD80211_ATTR_CMD,
 	CLD80211_ATTR_CMD_TAG_DATA,
+	CLD80211_ATTR_IFINDEX,
 	/* add new attributes above here */
 
 	__CLD80211_ATTR_AFTER_LAST,

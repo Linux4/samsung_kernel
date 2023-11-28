@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -157,7 +157,7 @@ void wlan_cm_set_max_connect_timeout(struct wlan_objmgr_vdev *vdev,
 				     uint32_t max_connect_timeout);
 
 /**
- * wlan_cm_is_vdev_connecting() - check if vdev is in conneting state
+ * wlan_cm_is_vdev_connecting() - check if vdev is in connecting state
  * @vdev: vdev pointer
  *
  * Return: bool
@@ -165,7 +165,7 @@ void wlan_cm_set_max_connect_timeout(struct wlan_objmgr_vdev *vdev,
 bool wlan_cm_is_vdev_connecting(struct wlan_objmgr_vdev *vdev);
 
 /**
- * wlan_cm_is_vdev_connected() - check if vdev is in conneted state
+ * wlan_cm_is_vdev_connected() - check if vdev is in connected state
  * @vdev: vdev pointer
  *
  * Return: bool
@@ -173,7 +173,7 @@ bool wlan_cm_is_vdev_connecting(struct wlan_objmgr_vdev *vdev);
 bool wlan_cm_is_vdev_connected(struct wlan_objmgr_vdev *vdev);
 
 /**
- * wlan_cm_is_vdev_active() - check if vdev is in active state ie conneted or
+ * wlan_cm_is_vdev_active() - check if vdev is in active state ie connected or
  * roaming state
  * @vdev: vdev pointer
  *
@@ -182,7 +182,7 @@ bool wlan_cm_is_vdev_connected(struct wlan_objmgr_vdev *vdev);
 bool wlan_cm_is_vdev_active(struct wlan_objmgr_vdev *vdev);
 
 /**
- * wlan_cm_is_vdev_disconnecting() - check if vdev is in disconneting state
+ * wlan_cm_is_vdev_disconnecting() - check if vdev is in disconnecting state
  * @vdev: vdev pointer
  *
  * Return: bool
@@ -273,7 +273,7 @@ bool wlan_cm_is_vdev_roam_reassoc_state(struct wlan_objmgr_vdev *vdev)
  * @vdev: vdev pointer
  * @req: pointer to the copy of the active connect request
  * *
- * Context: Should be called only in the conext of the
+ * Context: Should be called only in the context of the
  * cm request activation
  *
  * Return: true and connect req if any request is active
@@ -287,7 +287,7 @@ bool wlan_cm_get_active_connect_req(struct wlan_objmgr_vdev *vdev,
  * @vdev: vdev pointer
  * @req: pointer to the copy of the active reassoc request
  * *
- * Context: Should be called only in the conext of the
+ * Context: Should be called only in the context of the
  * cm request activation
  *
  * Return: true and reassoc req if any request is active
@@ -308,7 +308,7 @@ bool wlan_cm_get_active_reassoc_req(struct wlan_objmgr_vdev *vdev,
  * @vdev: vdev pointer
  * @req: pointer to the copy of the active disconnect request
  * *
- * Context: Should be called only in the conext of the
+ * Context: Should be called only in the context of the
  * cm request activation
  *
  * Return: true and disconnect req if any request is active
@@ -478,6 +478,31 @@ wlan_cm_disc_cont_after_rso_stop(struct wlan_objmgr_vdev *vdev,
 
 #ifdef WLAN_FEATURE_11BE
 /**
+ * wlan_cm_sta_set_chan_param() - set channel parameters for 802.11be sta
+ *
+ * @vdev: vdev
+ * @ch_freq: operating channel frequency
+ * @ori_bw: bandwidth information according to EHT operation IE
+ * @ori_punc: original puncture bitmap from EHT operation IE
+ * @ccfs0: EHT channel center frequency segment0 information
+ * @ccfs1: EHT channel center frequency segment1 information
+ * @chan_param: chan_param to be set
+ *
+ * ori_bw, ori_punc, ccfs0, ccfs1 are information from AP EHT operation IE
+ * chan_param->ch_width is the intersected channel width based on STA's
+ * capability. Complete chan_param including puncture will be set if
+ * it returns success.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_cm_sta_set_chan_param(struct wlan_objmgr_vdev *vdev,
+				      qdf_freq_t ch_freq,
+				      enum phy_ch_width ori_bw,
+				      uint16_t ori_punc,
+				      uint8_t ccfs0, uint8_t ccfs1,
+				      struct ch_params *chan_param);
+
+/**
  * wlan_cm_sta_update_puncture() - update puncture and channel width for sta
  * @vdev: vdev
  * @peer_mac: peer mac address
@@ -494,4 +519,24 @@ QDF_STATUS wlan_cm_sta_update_bw_puncture(struct wlan_objmgr_vdev *vdev,
 					  uint8_t ccfs0, uint8_t ccfs1,
 					  enum phy_ch_width new_bw);
 #endif /* WLAN_FEATURE_11BE */
+
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_FEATURE_11BE_MLO_ADV_FEATURE)
+
+/**
+ * wlan_cm_check_mlo_roam_auth_status - api to check roam auth status on link
+ * @vdev: vdev corresponds to given link
+ *
+ * This api will be called to check if roam auth status is connected
+ *
+ * Return: boolean true or false
+ */
+bool
+wlan_cm_check_mlo_roam_auth_status(struct wlan_objmgr_vdev *vdev);
+#else
+static inline bool
+wlan_cm_check_mlo_roam_auth_status(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+#endif
 #endif /* __WLAN_CM_UCFG_API_H */

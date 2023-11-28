@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -34,10 +34,44 @@
 #include "wlan_dp_nud_tracking.h"
 #include "wlan_dp_txrx.h"
 #include "wlan_nlink_common.h"
-#include "wlan_pkt_capture_ucfg_api.h"
+#include "wlan_pkt_capture_api.h"
 #include <cdp_txrx_ctrl.h>
 #include <qdf_net_stats.h>
 #include "wlan_dp_prealloc.h"
+#include "wlan_dp_rx_thread.h"
+
+#ifdef FEATURE_DIRECT_LINK
+/**
+ * wlan_dp_set_vdev_direct_link_cfg() - Set direct link config in DP vdev
+ * @psoc: objmgr psoc handle
+ * @dp_intf: pointer to DP component interface handle
+ *
+ * Return: direct link configuration
+ */
+static inline
+QDF_STATUS wlan_dp_set_vdev_direct_link_cfg(struct wlan_objmgr_psoc *psoc,
+					    struct wlan_dp_intf *dp_intf)
+{
+	cdp_config_param_type vdev_param = {0};
+
+	if (dp_intf->device_mode != QDF_SAP_MODE ||
+	    !dp_intf->dp_ctx->dp_direct_link_ctx)
+		return QDF_STATUS_SUCCESS;
+
+	vdev_param.cdp_vdev_tx_to_fw = dp_intf->direct_link_config.config_set;
+
+	return cdp_txrx_set_vdev_param(wlan_psoc_get_dp_handle(psoc),
+				       dp_intf->intf_id, CDP_VDEV_TX_TO_FW,
+				       vdev_param);
+}
+#else
+static inline
+QDF_STATUS wlan_dp_set_vdev_direct_link_cfg(struct wlan_objmgr_psoc *psoc,
+					    struct wlan_dp_intf *dp_intf)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
 
 void ucfg_dp_update_inf_mac(struct wlan_objmgr_psoc *psoc,
 			    struct qdf_mac_addr *cur_mac,
@@ -51,15 +85,18 @@ void ucfg_dp_update_inf_mac(struct wlan_objmgr_psoc *psoc,
 	dp_intf = dp_get_intf_by_macaddr(dp_ctx, cur_mac);
 	if (!dp_intf) {
 		dp_err("DP interface not found addr:" QDF_MAC_ADDR_FMT,
-		       QDF_MAC_ADDR_REF(cur_mac));
+		       QDF_MAC_ADDR_REF(cur_mac->bytes));
 		QDF_BUG(0);
 		return;
 	}
 
 	dp_info("MAC update from " QDF_MAC_ADDR_FMT " to " QDF_MAC_ADDR_FMT "",
-		QDF_MAC_ADDR_REF(cur_mac), QDF_MAC_ADDR_REF(new_mac));
+		QDF_MAC_ADDR_REF(cur_mac->bytes),
+		QDF_MAC_ADDR_REF(new_mac->bytes));
 
 	qdf_copy_macaddr(&dp_intf->mac_addr, new_mac);
+
+	wlan_dp_set_vdev_direct_link_cfg(psoc, dp_intf);
 }
 
 QDF_STATUS
@@ -73,12 +110,12 @@ ucfg_dp_create_intf(struct wlan_objmgr_psoc *psoc,
 	dp_ctx =  dp_get_context();
 
 	dp_info("DP interface create addr:" QDF_MAC_ADDR_FMT,
-		QDF_MAC_ADDR_REF(intf_addr));
+		QDF_MAC_ADDR_REF(intf_addr->bytes));
 
 	dp_intf = __qdf_mem_malloc(sizeof(*dp_intf), __func__, __LINE__);
 	if (!dp_intf) {
 		dp_err("DP intf memory alloc failed addr:" QDF_MAC_ADDR_FMT,
-		       QDF_MAC_ADDR_REF(intf_addr));
+		       QDF_MAC_ADDR_REF(intf_addr->bytes));
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -112,14 +149,17 @@ ucfg_dp_destroy_intf(struct wlan_objmgr_psoc *psoc,
 	dp_ctx =  dp_get_context();
 
 	dp_info("DP interface destroy addr:" QDF_MAC_ADDR_FMT,
-		QDF_MAC_ADDR_REF(intf_addr));
+		QDF_MAC_ADDR_REF(intf_addr->bytes));
 
 	dp_intf = dp_get_intf_by_macaddr(dp_ctx, intf_addr);
 	if (!dp_intf) {
 		dp_err("DP interface not found addr:" QDF_MAC_ADDR_FMT,
-		       QDF_MAC_ADDR_REF(intf_addr));
+		       QDF_MAC_ADDR_REF(intf_addr->bytes));
 		return QDF_STATUS_E_FAILURE;
 	}
+
+	if (dp_intf->device_mode == QDF_SAP_MODE)
+		dp_config_direct_link(dp_intf, false, false);
 
 	dp_periodic_sta_stats_mutex_destroy(dp_intf);
 	dp_nud_deinit_tracking(dp_intf);
@@ -312,7 +352,7 @@ QDF_STATUS ucfg_dp_deinit(void)
 }
 
 /**
- * ucfg_dp_suspend_handler() - suspend handler regsitered with PMO component
+ * ucfg_dp_suspend_handler() - suspend handler registered with PMO component
  * @psoc: psoc handle
  * @arg: Arguments passed by the suspend handler.
  *
@@ -326,13 +366,21 @@ ucfg_dp_suspend_handler(struct wlan_objmgr_psoc *psoc, void *arg)
 	struct wlan_dp_psoc_context *dp_ctx;
 	struct wlan_dp_intf *dp_intf, *dp_intf_next = NULL;
 	void *soc = cds_get_context(QDF_MODULE_ID_SOC);
+	QDF_STATUS status;
 
 	dp_ctx = dp_psoc_get_priv(psoc);
 	if (!dp_ctx) {
 		dp_err("DP context not found");
 		return QDF_STATUS_E_FAILURE;
 	}
+	if (dp_ctx->enable_dp_rx_threads) {
+		status = dp_txrx_suspend(cds_get_context(QDF_MODULE_ID_SOC));
 
+		if (status != QDF_STATUS_SUCCESS) {
+			dp_txrx_resume(cds_get_context(QDF_MODULE_ID_SOC));
+			return status;
+			}
+	}
 	dp_ctx->is_suspend = true;
 	cdp_set_tx_pause(soc, true);
 	dp_for_each_intf_held_safe(dp_ctx, dp_intf, dp_intf_next) {
@@ -342,7 +390,7 @@ ucfg_dp_suspend_handler(struct wlan_objmgr_psoc *psoc, void *arg)
 }
 
 /**
- * ucfg_dp_resume_handler() - resume handler regsitered with PMO component
+ * ucfg_dp_resume_handler() - resume handler registered with PMO component
  * @psoc: psoc handle
  * @arg: Arguments passed by the resume handler.
  *
@@ -368,6 +416,8 @@ ucfg_dp_resume_handler(struct wlan_objmgr_psoc *psoc, void *arg)
 	dp_for_each_intf_held_safe(dp_ctx, dp_intf, dp_intf_next) {
 		dp_intf->sap_tx_block_mask &= ~WLAN_DP_SUSPEND;
 	}
+	if (dp_ctx->enable_dp_rx_threads)
+		dp_txrx_resume(cds_get_context(QDF_MODULE_ID_SOC));
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -603,7 +653,7 @@ void ucfg_dp_update_dhcp_state_on_disassoc(struct wlan_objmgr_vdev *vdev,
 					   WLAN_DP_ID);
 	if (!peer) {
 		dp_err("Peer object not found mac:" QDF_MAC_ADDR_FMT,
-		       QDF_MAC_ADDR_REF(mac_addr));
+		       QDF_MAC_ADDR_REF(mac_addr->bytes));
 		return;
 	}
 
@@ -881,8 +931,6 @@ ucfg_dp_get_rx_softirq_yield_duration(struct wlan_objmgr_psoc *psoc)
 /**
  * dp_rx_register_fisa_ops() - FISA callback functions
  * @txrx_ops: operations handle holding callback functions
- * @dp_rx_fisa_cbk: callback for fisa aggregation handle function
- * @dp_rx_fisa_flush: callback function to flush fisa aggregation
  *
  * Return: None
  */
@@ -1132,7 +1180,7 @@ QDF_STATUS ucfg_dp_register_pkt_capture_callbacks(struct wlan_objmgr_vdev *vdev)
 		return QDF_STATUS_E_INVAL;
 	}
 
-	return ucfg_pkt_capture_register_callbacks(vdev,
+	return wlan_pkt_capture_register_callbacks(vdev,
 						   dp_mon_rx_packet_cbk,
 						   dp_intf);
 }
@@ -1328,6 +1376,18 @@ ucfg_dp_is_roam_after_nud_enabled(struct wlan_objmgr_psoc *psoc)
 
 	if (dp_cfg->enable_nud_tracking == DP_ROAM_AFTER_NUD_FAIL ||
 	    dp_cfg->enable_nud_tracking == DP_DISCONNECT_AFTER_ROAM_FAIL)
+		return true;
+
+	return false;
+}
+
+bool
+ucfg_dp_is_disconect_after_roam_fail(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_dp_psoc_context *dp_ctx = dp_psoc_get_priv(psoc);
+	struct wlan_dp_psoc_cfg *dp_cfg = &dp_ctx->dp_cfg;
+
+	if (dp_cfg->enable_nud_tracking == DP_DISCONNECT_AFTER_ROAM_FAIL)
 		return true;
 
 	return false;
@@ -1927,6 +1987,8 @@ void ucfg_dp_register_hdd_callbacks(struct wlan_objmgr_psoc *psoc,
 
 	dp_ctx->dp_ops.dp_nbuf_push_pkt = cb_obj->dp_nbuf_push_pkt;
 	dp_ctx->dp_ops.dp_rx_napi_gro_flush = cb_obj->dp_rx_napi_gro_flush;
+	dp_ctx->dp_ops.dp_rx_thread_napi_gro_flush =
+	    cb_obj->dp_rx_thread_napi_gro_flush;
 	dp_ctx->dp_ops.dp_rx_napi_gro_receive = cb_obj->dp_rx_napi_gro_receive;
 	dp_ctx->dp_ops.dp_lro_rx_cb = cb_obj->dp_lro_rx_cb;
 	dp_ctx->dp_ops.dp_register_rx_offld_flush_cb =
@@ -2311,5 +2373,102 @@ void ucfg_dp_prealloc_put_consistent_mem_unaligned(void *va_unaligned)
 {
 	dp_prealloc_put_consistent_mem_unaligned(va_unaligned);
 }
-
 #endif
+
+#if defined(WLAN_SUPPORT_RX_FISA)
+void ucfg_dp_rx_skip_fisa(uint32_t value)
+{
+	void *dp_soc;
+
+	dp_soc = cds_get_context(QDF_MODULE_ID_SOC);
+
+	if (dp_soc)
+		dp_rx_skip_fisa(dp_soc, value);
+}
+#endif
+
+#ifdef FEATURE_DIRECT_LINK
+QDF_STATUS ucfg_dp_direct_link_init(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_dp_psoc_context *dp_ctx = dp_psoc_get_priv(psoc);
+
+	if (!dp_ctx) {
+		dp_err("DP context not found");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return dp_direct_link_init(dp_ctx);
+}
+
+void ucfg_dp_direct_link_deinit(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_dp_psoc_context *dp_ctx = dp_psoc_get_priv(psoc);
+
+	if (!dp_ctx) {
+		dp_err("DP context not found");
+		return;
+	}
+
+	dp_direct_link_deinit(dp_ctx);
+}
+
+void
+ucfg_dp_wfds_handle_request_mem_ind(struct wlan_qmi_wfds_mem_ind_msg *mem_msg)
+{
+	dp_wfds_handle_request_mem_ind(mem_msg);
+}
+
+void
+ucfg_dp_wfds_handle_ipcc_map_n_cfg_ind(struct wlan_qmi_wfds_ipcc_map_n_cfg_ind_msg *ipcc_msg)
+{
+	dp_wfds_handle_ipcc_map_n_cfg_ind(ipcc_msg);
+}
+
+QDF_STATUS ucfg_dp_wfds_new_server(void)
+{
+	return dp_wfds_new_server();
+}
+
+void ucfg_dp_wfds_del_server(void)
+{
+	dp_wfds_del_server();
+}
+
+QDF_STATUS ucfg_dp_config_direct_link(struct wlan_objmgr_vdev *vdev,
+				      bool config_direct_link,
+				      bool enable_low_latency)
+{
+	struct wlan_dp_intf *dp_intf = dp_get_vdev_priv_obj(vdev);
+
+	if (!dp_intf) {
+		dp_err("Unable to get DP interface");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	return dp_config_direct_link(dp_intf, config_direct_link,
+				     enable_low_latency);
+}
+#endif
+
+QDF_STATUS ucfg_dp_txrx_init(ol_txrx_soc_handle soc, uint8_t pdev_id,
+			     struct dp_txrx_config *config)
+{
+	return dp_txrx_init(soc, pdev_id, config);
+}
+
+QDF_STATUS ucfg_dp_txrx_deinit(ol_txrx_soc_handle soc)
+{
+	return dp_txrx_deinit(soc);
+}
+
+QDF_STATUS ucfg_dp_txrx_ext_dump_stats(ol_txrx_soc_handle soc,
+				       uint8_t stats_id)
+{
+	return dp_txrx_ext_dump_stats(soc, stats_id);
+}
+
+QDF_STATUS ucfg_dp_txrx_set_cpu_mask(ol_txrx_soc_handle soc,
+				     qdf_cpu_mask *new_mask)
+{
+	return dp_txrx_set_cpu_mask(soc, new_mask);
+}

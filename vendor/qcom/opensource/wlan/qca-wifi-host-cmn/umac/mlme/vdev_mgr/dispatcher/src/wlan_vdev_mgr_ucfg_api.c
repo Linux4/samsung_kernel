@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021,2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -30,28 +30,14 @@
 #include <wlan_vdev_mgr_utils_api.h>
 #include <wlan_vdev_mlme_api.h>
 #include <qdf_module.h>
+#include <wlan_vdev_mgr_api.h>
 
 void ucfg_wlan_vdev_mgr_get_param_bssid(
 				struct wlan_objmgr_vdev *vdev,
 				uint8_t *bssid)
 {
-	struct vdev_mlme_mgmt *mlme_mgmt;
-	struct vdev_mlme_obj *vdev_mlme;
-
-	vdev_mlme = wlan_objmgr_vdev_get_comp_private_obj(
-						vdev, WLAN_UMAC_COMP_MLME);
-
-	if (!vdev_mlme) {
-		mlme_err("VDEV_MLME is NULL");
-		return;
-	}
-
-	mlme_mgmt = &vdev_mlme->mgmt;
-
-	qdf_mem_copy(bssid, mlme_mgmt->generic.bssid,
-		     QDF_MAC_ADDR_SIZE);
+	wlan_vdev_mgr_get_param_bssid(vdev, bssid);
 }
-
 qdf_export_symbol(ucfg_wlan_vdev_mgr_get_param_bssid);
 
 void ucfg_wlan_vdev_mgr_get_param_ssid(
@@ -220,3 +206,10 @@ QDF_STATUS ucfg_vdev_mgr_cdp_vdev_detach(struct wlan_objmgr_vdev *vdev)
 
 qdf_export_symbol(ucfg_vdev_mgr_cdp_vdev_detach);
 #endif
+
+void
+ucfg_util_vdev_mgr_set_acs_mode_for_vdev(struct wlan_objmgr_vdev *vdev,
+					 bool is_acs_mode)
+{
+	wlan_util_vdev_mgr_set_acs_mode_for_vdev(vdev, is_acs_mode);
+}

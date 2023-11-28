@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,7 +33,7 @@
 #define WLAN_WAIT_TIME_FIPS 5000
 
 /**
- * hdd_fips_context - hdd fips context
+ * struct hdd_fips_context - hdd fips context
  * @status: status of response. 0: no error, -ENOMEM: unable to allocate
  *   memory for the response payload
  * @request: fips request

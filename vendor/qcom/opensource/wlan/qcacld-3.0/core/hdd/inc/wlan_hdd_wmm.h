@@ -72,9 +72,9 @@
  * @HDD_WMM_USER_MODE_AUTO: STA can associate with any AP, & HDD looks at
  *	the SME notification after association to find out if associated
  *	with QAP and acts accordingly
- * @HDD_WMM_USER_MODE_QBSS_ONLY - SME will add the extra logic to make sure
+ * @HDD_WMM_USER_MODE_QBSS_ONLY: SME will add the extra logic to make sure
  *	STA associates with a QAP only
- * @HDD_WMM_USER_MODE_NO_QOS - Join any AP, but uapsd is disabled
+ * @HDD_WMM_USER_MODE_NO_QOS: Join any AP, but uapsd is disabled
  */
 enum hdd_wmm_user_mode {
 	HDD_WMM_USER_MODE_AUTO = 0,
@@ -92,6 +92,11 @@ enum hdd_wmm_user_mode {
 /**
  * enum hdd_wmm_linuxac: AC/Queue Index values for Linux Qdisc to
  * operate on different traffic.
+ * @HDD_LINUX_AC_VO: voice priority
+ * @HDD_LINUX_AC_VI: video priority
+ * @HDD_LINUX_AC_BE: best effort priority
+ * @HDD_LINUX_AC_BK: background priority
+ * @HDD_LINUX_AC_HI_PRIO: unclassified high priority
  */
 enum hdd_wmm_linuxac {
 	HDD_LINUX_AC_VO = 0,
@@ -105,7 +110,7 @@ enum hdd_wmm_linuxac {
  * struct hdd_wmm_qos_context - HDD WMM QoS Context
  *
  * This structure holds the context for a single flow which has either
- * been confgured explicitly from userspace or implicitly via the
+ * been configured explicitly from userspace or implicitly via the
  * Implicit QoS feature.
  *
  * @node: list node which can be used to put the context into a list
@@ -119,6 +124,7 @@ enum hdd_wmm_linuxac {
  *	from softirq context to thread context
  * @magic: magic number used to verify that this is a valid context when
  *	referenced anonymously
+ * @is_inactivity_timer_running: true if inactivity timer is running
  */
 struct hdd_wmm_qos_context {
 	struct list_head node;
@@ -134,25 +140,25 @@ struct hdd_wmm_qos_context {
 
 /**
  * struct hdd_wmm_ac_status - WMM related per-AC state & status info
- * @is_access_required - does the AP require access to this AC?
- * @is_access_needed - does the worker thread need to acquire access to
+ * @is_access_required: does the AP require access to this AC?
+ * @is_access_needed: does the worker thread need to acquire access to
  *	this AC?
- * @is_access_pending - is implicit QoS negotiation currently taking place?
- * @has_access_failed - has implicit QoS negotiation already failed?
- * @was_access_granted - has implicit QoS negotiation already succeeded?
- * @is_access_allowed - is access to this AC allowed, either because we
+ * @is_access_pending: is implicit QoS negotiation currently taking place?
+ * @has_access_failed: has implicit QoS negotiation already failed?
+ * @was_access_granted: has implicit QoS negotiation already succeeded?
+ * @is_access_allowed: is access to this AC allowed, either because we
  *	are not doing WMM, we are not doing implicit QoS, implicit QoS has
  *	completed, or explicit QoS has completed?
- * @is_tspec_valid - is the tspec valid?
- * @is_uapsd_info_valid - are the UAPSD-related fields valid?
- * @tspec - current (possibly aggregate) Tspec for this AC
- * @is_uapsd_enabled - is UAPSD enabled on this AC?
- * @uapsd_service_interval - service interval for this AC
- * @uapsd_suspension_interval - suspension interval for this AC
- * @uapsd_direction - direction for this AC
- * @inactivity_time - inactivity time for this AC
- * @last_traffic_count - TX counter used for inactivity detection
- * @inactivity_timer - timer used for inactivity detection
+ * @is_tspec_valid: is the tspec valid?
+ * @is_uapsd_info_valid: are the UAPSD-related fields valid?
+ * @tspec: current (possibly aggregate) Tspec for this AC
+ * @is_uapsd_enabled: is UAPSD enabled on this AC?
+ * @uapsd_service_interval: service interval for this AC
+ * @uapsd_suspension_interval: suspension interval for this AC
+ * @uapsd_direction: direction for this AC
+ * @inactivity_time: inactivity time for this AC
+ * @last_traffic_count: TX counter used for inactivity detection
+ * @inactivity_timer: timer used for inactivity detection
  */
 struct hdd_wmm_ac_status {
 	bool is_access_required;
@@ -178,11 +184,11 @@ struct hdd_wmm_ac_status {
 
 /**
  * struct hdd_wmm_status - WMM status maintained per-adapter
- * @context_list - list of WMM contexts active on the adapter
- * @mutex - mutex used for exclusive access to this adapter's WMM status
- * @ac_status - per-AC WMM status
- * @qap - is this connected to a QoS-enabled AP?
- * @qos_connection - is this a QoS connection?
+ * @context_list: list of WMM contexts active on the adapter
+ * @mutex: mutex used for exclusive access to this adapter's WMM status
+ * @ac_status: per-AC WMM status
+ * @qap: is this connected to a QoS-enabled AP?
+ * @qos_connection: is this a QoS connection?
  */
 struct hdd_wmm_status {
 	struct list_head context_list;
@@ -242,7 +248,7 @@ QDF_STATUS hdd_wmm_dscp_initial_state(struct hdd_adapter *adapter);
 QDF_STATUS hdd_wmm_adapter_init(struct hdd_adapter *adapter);
 
 /**
- * hdd_wmm_close() - WMM close function
+ * hdd_wmm_adapter_close() - WMM close function
  * @adapter: [in]  pointer to adapter context
  *
  * Function which will perform any necessary work to to clean up the
@@ -256,6 +262,7 @@ QDF_STATUS hdd_wmm_adapter_close(struct hdd_adapter *adapter);
  * hdd_select_queue() - Return queue to be used.
  * @dev:	Pointer to the WLAN device.
  * @skb:	Pointer to OS packet (sk_buff).
+ * @sb_dev:     Pointer to subordinate device (unused)
  *
  * This function is registered with the Linux OS for network
  * core to decide which queue to use for the skb.
@@ -440,7 +447,7 @@ int wlan_hdd_cfg80211_config_tspec(struct wiphy *wiphy,
  * QDF_NBUF_CB_TX_EXTRA_IS_CRITICAL is marked 1 for such packets.
  * The function also populates sb->priority for these packets.
  * skb->priority is used as TID for these frames during TX.
-
+ *
  * Return: None
  */
 void hdd_wmm_classify_pkt_cb(void *adapter,

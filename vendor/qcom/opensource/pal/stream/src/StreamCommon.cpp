@@ -214,13 +214,6 @@ int32_t  StreamCommon::open()
     }
 
     if (currentState == STREAM_IDLE) {
-        status = session->open(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Error:session open failed with status %d", status);
-            goto exit;
-        }
-        PAL_VERBOSE(LOG_TAG, "session open successful");
-
         for (int32_t i = 0; i < mDevices.size(); i++) {
             status = mDevices[i]->open();
             if (0 != status) {
@@ -228,6 +221,13 @@ int32_t  StreamCommon::open()
                 goto exit;
             }
         }
+
+        status = session->open(this);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Error:session open failed with status %d", status);
+            goto exit;
+        }
+        PAL_VERBOSE(LOG_TAG, "session open successful");
         currentState = STREAM_INIT;
         PAL_DBG(LOG_TAG, "streamLL opened. state %d", currentState);
     } else if (currentState == STREAM_INIT) {
@@ -333,8 +333,7 @@ int32_t StreamCommon::start()
         rm->lockActiveStream();
         mStreamMutex.lock();
         for (int i = 0; i < mDevices.size(); i++) {
-            if (!rm->isDeviceActive_l(mDevices[i], this))
-                rm->registerDevice(mDevices[i], this);
+            rm->registerDevice(mDevices[i], this);
         }
         rm->unlockActiveStream();
         rm->checkAndSetDutyCycleParam();
@@ -416,8 +415,7 @@ int32_t StreamCommon::stop()
         mStreamMutex.lock();
         currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
-            if (rm->isDeviceActive_l(mDevices[i], this))
-                rm->deregisterDevice(mDevices[i], this);
+            rm->deregisterDevice(mDevices[i], this);
         }
         rm->unlockActiveStream();
         PAL_VERBOSE(LOG_TAG, "In %s, device count - %zu",
@@ -541,7 +539,7 @@ exit:
 
 int32_t StreamCommon::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     /* Updating cached state here only if it's STREAM_IDLE,
@@ -590,7 +588,7 @@ exit :
 
 int32_t StreamCommon::ssrUpHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",

@@ -200,6 +200,13 @@ int32_t StreamSensorPCMData::start()
             mDevices.clear();
             mDevices.push_back(device);
 
+            status = device->open();
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Error: device [%d] open failed with status %d",
+                        device->getSndDeviceId(), status);
+                goto exit;
+            }
+
             status = session->open(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Error:session open failed with status %d", status);
@@ -218,13 +225,6 @@ int32_t StreamSensorPCMData::start()
                 if (status)
                     PAL_ERR(LOG_TAG, "Error:%d Failed to start other Detection streams", status);
             }
-        }
-
-        status = device->open();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Error: device [%d] open failed with status %d",
-                    device->getSndDeviceId(), status);
-            goto exit;
         }
 
         status = device->start();
@@ -520,6 +520,13 @@ int32_t StreamSensorPCMData::HandleConcurrentStream(bool active)
 
     if (active == false)
         mStreamMutex.lock();
+
+    if (currentState != STREAM_STARTED) {
+        PAL_INFO(LOG_TAG, "Stream is not in started state");
+        if (active == true)
+            mStreamMutex.unlock();
+        return status;
+    }
 
     new_cap_prof = GetCurrentCaptureProfile();
     if (new_cap_prof && cap_prof_ != new_cap_prof) {

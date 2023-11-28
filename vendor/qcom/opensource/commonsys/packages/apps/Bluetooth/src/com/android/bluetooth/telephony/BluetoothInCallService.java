@@ -62,7 +62,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
@@ -96,8 +95,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Used to receive updates about calls from the Telecom component. This service is bound to Telecom
@@ -132,8 +129,6 @@ public class BluetoothInCallService extends InCallService {
     // Indicates that no BluetoothCall is ringing
     private static final int DEFAULT_RINGING_ADDRESS_TYPE = 128;
 
-    private static final int DISCONNECT_TONE_TIMEOUT_SECONDS = 1;
-
     private int mNumActiveCalls = 0;
     private int mNumHeldCalls = 0;
     private int mNumChildrenOfActiveCall = 0;
@@ -147,9 +142,6 @@ public class BluetoothInCallService extends InCallService {
     private static final Object LOCK = new Object();
     private BluetoothHeadsetProxy mBluetoothHeadset;
 
-    private Semaphore mDisconnectionToneSemaphore = new Semaphore(0);
-    private int mAudioMode = AudioManager.MODE_INVALID;
-    private final Object mAudioModeLock = new Object();
 
     public static final String ACTION_DSDA_CALL_STATE_CHANGE =
             "android.bluetooth.dsda.action.DSDA_CALL_STATE_CHANGED";
@@ -161,9 +153,6 @@ public class BluetoothInCallService extends InCallService {
     public static final int LIST_CLCC   = 5;
     public static final int QUERY_PHONE_STATE = 6;
     public static final int CLEAN_UP = 7;
-
-    @VisibleForTesting
-    public AudioManager mAudioManager;
 
     @VisibleForTesting
     public TelephonyManager mTelephonyManager;
@@ -183,6 +172,8 @@ public class BluetoothInCallService extends InCallService {
     private static BluetoothInCallService sInstance;
 
     public CallInfo mCallInfo = new CallInfo();
+
+    protected boolean mServiceCreated = false;
 
     /**
      * Listens to connections and disconnections of bluetooth headsets.  We need to save the current
@@ -367,19 +358,6 @@ public class BluetoothInCallService extends InCallService {
                     getBluetoothCallsByIds(BluetoothCall.getIds(children)));
         }
     }
-
-    class BluetoothOnModeChangedListener implements AudioManager.OnModeChangedListener {
-        @Override
-        public void onModeChanged(int mode) {
-            synchronized (mAudioModeLock) {
-                mAudioMode = mode;
-            }
-            if (mode == AudioManager.MODE_NORMAL) {
-                mDisconnectionToneSemaphore.release();
-            }
-        }
-    }
-    private BluetoothOnModeChangedListener mBluetoothOnModeChangedListener;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -576,6 +554,10 @@ public class BluetoothInCallService extends InCallService {
 
     @RequiresPermission(android.Manifest.permission.MODIFY_PHONE_STATE)
     public boolean listCurrentCalls(int profile) {
+        if (mServiceCreated == false) {
+            Log.w(TAG, "listCurrentCalls called when service is not created");
+            return false;
+        }
         if (ApmConstIntf.AudioProfiles.HFP == profile) {
             Log.d(TAG, "listCurrentCalls: hfp");
             Intent DsdaIntent = new Intent(ACTION_DSDA_CALL_STATE_CHANGE);
@@ -716,26 +698,6 @@ public class BluetoothInCallService extends InCallService {
             return;
         }
         Log.d(TAG, "onCallRemoved");
-        BluetoothCall heldCall = mCallInfo.getHeldCall();
-        if (mCallInfo.isNullCall(heldCall)) {
-            // current call is the only call
-
-            mDisconnectionToneSemaphore.drainPermits();
-            boolean isAudioModeNormal = false;
-            synchronized (mAudioModeLock) {
-                isAudioModeNormal = (mAudioMode == AudioManager.MODE_NORMAL);
-            }
-            if (!isAudioModeNormal) {
-                Log.d(TAG, "Acquiring mDisconnectionToneSemaphore");
-                try {
-                  boolean result = mDisconnectionToneSemaphore.tryAcquire(
-                    DISCONNECT_TONE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                  Log.d(TAG, "Acquiring mDisconnectionToneSemaphore result " + result);
-                } catch (InterruptedException e) {
-                  Log.w(TAG, "Failed to acquire mDisconnectionToneSemaphore");
-                }
-            }
-        }
         CallStateCallback callback = getCallback(call);
         if (callback != null) {
             call.unregisterCallback(callback);
@@ -776,27 +738,23 @@ public class BluetoothInCallService extends InCallService {
         mBluetoothAdapterReceiver = new BluetoothAdapterReceiver();
         IntentFilter intentFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
         registerReceiver(mBluetoothAdapterReceiver, intentFilter);
-        mBluetoothOnModeChangedListener = new BluetoothOnModeChangedListener();
-        mAudioManager = getSystemService(AudioManager.class);
-        mAudioManager.addOnModeChangedListener(
-                Executors.newSingleThreadExecutor(), mBluetoothOnModeChangedListener);
+        mServiceCreated = true;
     }
 
     @Override
     public void onDestroy() {
         Log.d(TAG, "onDestroy");
-        if (mBluetoothOnModeChangedListener != null) {
-            mAudioManager.removeOnModeChangedListener(mBluetoothOnModeChangedListener);
-            mBluetoothOnModeChangedListener = null;
-        }
-        if (mBluetoothAdapterReceiver != null) {
-            unregisterReceiver(mBluetoothAdapterReceiver);
-            mBluetoothAdapterReceiver = null;
-        }
-        if (mBluetoothHeadset != null) {
-            mBluetoothHeadset.closeBluetoothHeadsetProxy(this);
-            mBluetoothHeadset = null;
-         }
+        synchronized (LOCK) {
+          if (mBluetoothAdapterReceiver != null) {
+              unregisterReceiver(mBluetoothAdapterReceiver);
+              mBluetoothAdapterReceiver = null;
+          }
+          if (mBluetoothHeadset != null) {
+              mBluetoothHeadset.closeBluetoothHeadsetProxy(this);
+              mBluetoothHeadset = null;
+          }
+        }//synchronized (LOCK)
+        mServiceCreated = false;
         super.onDestroy();
     }
 
@@ -903,7 +861,7 @@ public class BluetoothInCallService extends InCallService {
         String subsNum = getSubscriberNumber();
         if (subsNum != null && address != null) {
             Log.d(TAG, "subscriber number " + subsNum + " address " + address);
-            if (subsNum.contains(address)) {
+            if (subsNum.equals(address)) {
                 Log.w(TAG, "return without sending host call in CLCC");
                   return;
             }
@@ -1055,7 +1013,8 @@ public class BluetoothInCallService extends InCallService {
                 heldCall.unhold();
                 return true;
             } else if (!mCallInfo.isNullCall(activeCall)
-                    && activeCall.can(Connection.CAPABILITY_HOLD)) {
+                    && (activeCall.can(Connection.CAPABILITY_HOLD)
+                    ||  activeCall.can(Connection.CAPABILITY_SUPPORT_HOLD))) {
                 activeCall.hold();
                 return true;
             }
@@ -1143,8 +1102,8 @@ public class BluetoothInCallService extends InCallService {
                 }
             }
         }
-
-        if (mBluetoothHeadset != null
+        synchronized (LOCK) {
+          if (mBluetoothHeadset != null
                 && (force
                     || (!callsPendingSwitch
                         && (numActiveCalls != mNumActiveCalls
@@ -1200,7 +1159,8 @@ public class BluetoothInCallService extends InCallService {
                     ringingName);
 
             mHeadsetUpdatedRecently = true;
-        }
+          }
+        }//synchronized (LOCK)
     }
 
     private int getBluetoothCallStateForUpdate() {

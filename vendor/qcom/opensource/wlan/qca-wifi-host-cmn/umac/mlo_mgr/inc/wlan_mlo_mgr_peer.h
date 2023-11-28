@@ -186,12 +186,17 @@ void wlan_mlo_partner_peer_assoc_post(struct wlan_objmgr_peer *assoc_peer);
 /**
  * wlan_mlo_peer_deauth_init() - Initiate Deauth of MLO peer
  * @ml_peer: MLO peer
+ * @src_peer: Source peer, if this pointer is valid, send deauth on other link
+ * @is_disassoc: to indicate, whether Disassoc to be sent instead of deauth
  *
  * This function initiates deauth on MLO peer and its links peers
  *
  * Return: void
  */
-void wlan_mlo_peer_deauth_init(struct wlan_mlo_peer_context *ml_peer);
+void
+wlan_mlo_peer_deauth_init(struct wlan_mlo_peer_context *ml_peer,
+			  struct wlan_objmgr_peer *src_peer,
+			  uint8_t is_disassoc);
 
 /**
  * wlan_mlo_partner_peer_create_failed_notify() - Notify peer creation fail
@@ -382,7 +387,7 @@ typedef QDF_STATUS (*wlan_mlo_op_handler)(struct wlan_mlo_dev_context *ml_dev,
  * @ml_dev: MLO DEV object
  * @handler: the handler will be called for each ml peer
  *            the handler should be implemented to perform required operation
- * @arg:     agruments passed by caller
+ * @arg:     arguments passed by caller
  *
  * API to be used for performing the operations on all ML PEER objects
  *
@@ -405,6 +410,20 @@ QDF_STATUS wlan_mlo_iterate_ml_peerlist(struct wlan_mlo_dev_context *ml_dev,
 struct wlan_mlo_peer_context *wlan_mlo_get_mlpeer_by_linkmac(
 				struct wlan_mlo_dev_context *ml_dev,
 				struct qdf_mac_addr *link_mac);
+
+/**
+ * wlan_mlo_get_mlpeer_by_mld_mac() - find ML peer by MLD MAC address
+ * @ml_dev: MLO DEV object
+ * @mld_mac:  Peer MLD MAC address
+ *
+ * API to get ML peer using link MAC address
+ *
+ * Return: ML peer object, if it is found
+ *         otherwise, returns NULL
+ */
+struct wlan_mlo_peer_context *wlan_mlo_get_mlpeer_by_mld_mac(
+				struct wlan_mlo_dev_context *ml_dev,
+				struct qdf_mac_addr *mld_mac);
 
 /**
  * wlan_mlo_get_mlpeer_by_aid() - find ML peer by AID
@@ -534,6 +553,22 @@ static inline void wlan_peer_clear_mlo(struct wlan_objmgr_peer *peer)
 	return wlan_peer_mlme_flag_ext_clear(peer, WLAN_PEER_FEXT_MLO);
 }
 
+#if defined(MESH_MODE_SUPPORT) && defined(WLAN_FEATURE_11BE_MLO)
+/**
+ * wlan_mlo_peer_is_mesh() - Check if ml_peer is configured to operate as MESH
+ * @ml_peer: MLO peer
+ *
+ * Return: TRUE if ml peer is configured as MESH
+ */
+bool wlan_mlo_peer_is_mesh(struct wlan_mlo_peer_context *ml_peer);
+#else
+static inline
+bool wlan_mlo_peer_is_mesh(struct wlan_mlo_peer_context *ml_peer)
+{
+	return false;
+}
+#endif
+
 #ifdef UMAC_SUPPORT_MLNAWDS
 /**
  * wlan_mlo_peer_is_nawds() - Check if ml_peer is configured to operate as NAWDS
@@ -580,4 +615,15 @@ mlo_peer_free_auth_param(struct mlpeer_auth_params *auth_params)
 {
 }
 #endif
+
+/**
+ * wlan_mlo_partner_peer_delete_is_allowed() - Checks MLO peer delete is allowed
+ * @src_peer: Link peer
+ *
+ * This function checks whether MLO peer can be deleted along with link peer
+ * delete in link removal cases
+ *
+ * Return: true, if MLO peer can be deleted
+ */
+bool wlan_mlo_partner_peer_delete_is_allowed(struct wlan_objmgr_peer *src_peer);
 #endif

@@ -26,6 +26,7 @@
 #include <wlan_vdev_mlme_api.h>
 #include <include/wlan_mlme_cmn.h>
 #include <qdf_module.h>
+#include "wlan_objmgr_vdev_obj.h"
 
 struct vdev_mlme_obj *wlan_vdev_mlme_get_cmpt_obj(struct wlan_objmgr_vdev *vdev)
 {
@@ -234,10 +235,11 @@ QDF_STATUS wlan_vdev_is_mlo_peer_create_allowed(struct wlan_objmgr_vdev *vdev)
 	enum wlan_vdev_state substate;
 	bool acs_in_progress;
 	QDF_STATUS ret;
+	QDF_STATUS status = QDF_STATUS_E_FAILURE;
 
 	if (!vdev) {
 		mlme_err("vdev is null");
-		return QDF_STATUS_E_FAILURE;
+		return status;
 	}
 
 	state = wlan_vdev_mlme_get_state(vdev);
@@ -247,7 +249,7 @@ QDF_STATUS wlan_vdev_is_mlo_peer_create_allowed(struct wlan_objmgr_vdev *vdev)
 	ret = mlme_ext_hdl_get_acs_in_progress(vdev, &acs_in_progress);
 	if (ret != QDF_STATUS_SUCCESS) {
 		mlme_err("Unable to get ACS in progress status");
-		return QDF_STATUS_E_FAILURE;
+		return status;
 	}
 
 	if (!acs_in_progress)
@@ -255,9 +257,15 @@ QDF_STATUS wlan_vdev_is_mlo_peer_create_allowed(struct wlan_objmgr_vdev *vdev)
 		    ((state == WLAN_VDEV_S_SUSPEND) &&
 		     (substate == WLAN_VDEV_SS_SUSPEND_CSA_RESTART)) ||
 		    (state == WLAN_VDEV_S_DFS_CAC_WAIT))
-			return QDF_STATUS_SUCCESS;
+			status = QDF_STATUS_SUCCESS;
 
-	return QDF_STATUS_E_FAILURE;
+	/* with link rejection feature, this check can be removed */
+	if (wlan_vdev_mlme_op_flags_get(vdev, WLAN_VDEV_OP_MLO_STOP_LINK_DEL) ||
+	    wlan_vdev_mlme_op_flags_get(vdev,
+					WLAN_VDEV_OP_MLO_LINK_TBTT_COMPLETE))
+		status = QDF_STATUS_E_FAILURE;
+
+	return status;
 }
 
 QDF_STATUS wlan_vdev_is_restart_progress(struct wlan_objmgr_vdev *vdev)
@@ -394,5 +402,72 @@ wlan_vdev_mlme_get_is_mlo_vdev(struct wlan_objmgr_psoc *psoc,
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_OBJMGR_ID);
 
 	return is_mlo_vdev;
+}
+#endif
+#ifdef WLAN_FEATURE_SR
+void
+wlan_mlme_update_sr_data(struct wlan_objmgr_vdev *vdev, int *val,
+			 int32_t srg_pd_threshold, int32_t non_srg_pd_threshold,
+			 bool is_sr_enable)
+{
+	uint8_t ap_non_srg_pd_threshold = 0;
+	uint8_t ap_srg_min_pd_threshold_offset = 0;
+	uint8_t ap_srg_max_pd_threshold_offset = 0;
+	uint8_t sr_ctrl;
+
+	sr_ctrl = wlan_vdev_mlme_get_sr_ctrl(vdev);
+	if (!(sr_ctrl & NON_SRG_PD_SR_DISALLOWED) &&
+	    (sr_ctrl & NON_SRG_OFFSET_PRESENT)) {
+		ap_non_srg_pd_threshold =
+			wlan_vdev_mlme_get_non_srg_pd_offset(vdev) +
+			SR_PD_THRESHOLD_MIN;
+		/*
+		 * Update non_srg_pd_threshold with provide
+		 * non_srg_pd_threshold for non-srg, if pd threshold is
+		 * with in the range else keep the same as
+		 * advertised by AP.
+		 */
+		if (!non_srg_pd_threshold ||
+		    (non_srg_pd_threshold > ap_non_srg_pd_threshold))
+			non_srg_pd_threshold = ap_non_srg_pd_threshold;
+
+		/* 31st BIT - Enable/Disable Non-SRG based spatial reuse. */
+		*val |= is_sr_enable << NON_SRG_SPR_ENABLE_POS;
+	}
+
+	if (sr_ctrl & SRG_INFO_PRESENT) {
+		wlan_vdev_mlme_get_srg_pd_offset(
+					vdev, &ap_srg_max_pd_threshold_offset,
+					&ap_srg_min_pd_threshold_offset);
+		/*
+		 * Update srg_pd_threshold with provide
+		 * srg_pd_threshold, if pd threshold is with in the
+		 * SRG range else keep the max of advertised by AP.
+		 */
+		if (!srg_pd_threshold ||
+		    (srg_pd_threshold > (ap_srg_max_pd_threshold_offset +
+					SR_PD_THRESHOLD_MIN) ||
+		    srg_pd_threshold < (ap_srg_min_pd_threshold_offset +
+					SR_PD_THRESHOLD_MIN)))
+			srg_pd_threshold = ap_srg_max_pd_threshold_offset +
+					   SR_PD_THRESHOLD_MIN;
+
+		/* 30th BIT - Enable/Disable SRG based spatial reuse. */
+		*val |= is_sr_enable << SRG_SPR_ENABLE_POS;
+	}
+	/* bit    | purpose
+	 * -----------------
+	 * 0  - 7 | Param Value for non-SRG based Spatial Reuse
+	 * 8  - 15| Param value for SRG based Spatial Reuse
+	 * 29     | Param value is in dBm units rather than dB units
+	 */
+	QDF_SET_BITS(*val, NON_SRG_MAX_PD_OFFSET_POS, SR_PADDING_BYTE,
+		     (uint8_t)non_srg_pd_threshold);
+	QDF_SET_BITS(*val, SRG_THRESHOLD_MAX_PD_POS, SR_PADDING_BYTE,
+		     (uint8_t)srg_pd_threshold);
+	*val |= SR_PARAM_VAL_DBM_UNIT << SR_PARAM_VAL_DBM_POS;
+	wlan_vdev_mlme_set_current_non_srg_pd_threshold(vdev,
+							non_srg_pd_threshold);
+	wlan_vdev_mlme_set_current_srg_pd_threshold(vdev, srg_pd_threshold);
 }
 #endif

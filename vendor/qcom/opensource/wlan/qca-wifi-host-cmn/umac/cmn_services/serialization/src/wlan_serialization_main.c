@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -50,7 +51,7 @@ QDF_STATUS wlan_serialization_psoc_disable(struct wlan_objmgr_psoc *psoc)
 	/* clean up all timers before exiting */
 	status = wlan_serialization_cleanup_all_timers(ser_soc_obj);
 	if (status != QDF_STATUS_SUCCESS)
-		ser_err("ser cleanning up all timer failed");
+		ser_err("ser cleaning up all timer failed");
 
 	/* Use lock to free to avoid any race where timer is still in use */
 	wlan_serialization_acquire_lock(&ser_soc_obj->timer_lock);

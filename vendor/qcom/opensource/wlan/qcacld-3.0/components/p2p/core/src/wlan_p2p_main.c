@@ -727,7 +727,7 @@ QDF_STATUS p2p_psoc_object_open(struct wlan_objmgr_psoc *soc)
 	p2p_soc_obj = wlan_objmgr_psoc_get_comp_private_obj(soc,
 			WLAN_UMAC_COMP_P2P);
 	if (!p2p_soc_obj) {
-		p2p_err("p2p soc priviate object is NULL");
+		p2p_err("p2p soc private object is NULL");
 		return QDF_STATUS_E_FAILURE;
 	}
 

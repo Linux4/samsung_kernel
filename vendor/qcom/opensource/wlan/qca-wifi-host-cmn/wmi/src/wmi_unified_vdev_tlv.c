@@ -424,6 +424,57 @@ static QDF_STATUS extract_muedca_params_tlv(wmi_unified_t wmi_hdl,
 	return QDF_STATUS_SUCCESS;
 }
 
+#ifdef WLAN_FEATURE_SR
+static QDF_STATUS
+vdev_param_sr_prohibit_send_tlv(struct wmi_unified *wmi_handle,
+				struct sr_prohibit_param *param)
+{
+	wmi_vdev_param_enable_sr_prohibit_fixed_param *cmd;
+	wmi_buf_t buf;
+	int32_t len = sizeof(*cmd);
+
+	buf = wmi_buf_alloc(wmi_handle, len);
+	if (!buf) {
+		wmi_err("wmi_buf_alloc failed");
+		return QDF_STATUS_E_FAILURE;
+	}
+	cmd = (wmi_vdev_param_enable_sr_prohibit_fixed_param *)
+	      wmi_buf_data(buf);
+	WMITLV_SET_HDR
+		(&cmd->tlv_header,
+		WMITLV_TAG_STRUC_wmi_vdev_param_enable_sr_prohibit_fixed_param,
+		WMITLV_GET_STRUCT_TLVLEN
+		(wmi_vdev_param_enable_sr_prohibit_fixed_param));
+	cmd->vdev_id = param->vdev_id;
+	cmd->tidmap = 0;
+	cmd->prohibit_enable = param->sr_he_siga_val15_allowed;
+	wmi_debug("SR Prohibit enabled: %d", cmd->prohibit_enable);
+
+	wmi_mtrace(WMI_VDEV_PARAM_ENABLE_SR_PROHIBIT_CMDID, cmd->vdev_id, 0);
+	if (wmi_unified_cmd_send(wmi_handle, buf, len,
+				 WMI_VDEV_PARAM_ENABLE_SR_PROHIBIT_CMDID)) {
+		wmi_err("Failed to set neighbour rx param");
+		wmi_buf_free(buf);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+
+static void wmi_vdev_attach_sr_cmds_tlv(struct wmi_ops *wmi_ops)
+{
+	if (!wmi_ops)
+		return;
+
+	wmi_ops->vdev_param_sr_prohibit_send =
+				vdev_param_sr_prohibit_send_tlv;
+}
+#else
+static inline void wmi_vdev_attach_sr_cmds_tlv(struct wmi_ops *wmi_ops)
+{
+}
+#endif
+
 void wmi_vdev_attach_tlv(struct wmi_unified *wmi_handle)
 {
 	struct wmi_ops *wmi_ops;
@@ -455,4 +506,5 @@ void wmi_vdev_attach_tlv(struct wmi_unified *wmi_handle)
 	wmi_ops->send_vdev_config_ratemask_cmd =
 				send_vdev_config_ratemask_cmd_tlv;
 	wmi_ops->send_peer_filter_set_tx_cmd = send_peer_filter_set_tx_cmd_tlv;
+	wmi_vdev_attach_sr_cmds_tlv(wmi_ops);
 }

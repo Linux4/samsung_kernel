@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -98,6 +99,7 @@ wlan_serialization_enqueue_cmd(struct wlan_serialization_command *cmd,
 	struct wlan_ser_vdev_obj *ser_vdev_obj;
 	struct wlan_serialization_vdev_queue *vdev_queue;
 	bool active_queue;
+	uint8_t vdev_id;
 
 	/* Enqueue process
 	 * 1) peek through command structure and see what is the command type
@@ -142,6 +144,7 @@ wlan_serialization_enqueue_cmd(struct wlan_serialization_command *cmd,
 		ser_err("pdev is invalid");
 		goto error;
 	}
+	vdev_id = wlan_vdev_get_id(cmd->vdev);
 
 	ser_pdev_obj =
 		wlan_objmgr_pdev_get_comp_private_obj(
@@ -200,8 +203,8 @@ wlan_serialization_enqueue_cmd(struct wlan_serialization_command *cmd,
 		if (vdev_queue->queue_disable) {
 			wlan_serialization_release_lock(
 				&pdev_queue->pdev_queue_lock);
-			ser_err_rl("VDEV queue is disabled, reject cmd id %d type %d",
-				   cmd->cmd_id, cmd->cmd_type);
+			ser_err_rl("VDEV %d queue is disabled, reject cmd id %d type %d",
+				   vdev_id, cmd->cmd_id, cmd->cmd_type);
 			status = WLAN_SER_CMD_QUEUE_DISABLED;
 			goto error;
 		}
@@ -211,8 +214,8 @@ wlan_serialization_enqueue_cmd(struct wlan_serialization_command *cmd,
 
 	if (wlan_serialization_is_cmd_present_queue(cmd, active_queue)) {
 		wlan_serialization_release_lock(&pdev_queue->pdev_queue_lock);
-		ser_err("duplicate command, reject cmd id %d type %d",
-			cmd->cmd_id, cmd->cmd_type);
+		ser_err("duplicate command, reject cmd id %d type %d vdev %d",
+			cmd->cmd_id, cmd->cmd_type, vdev_id);
 		goto error;
 	}
 
@@ -220,14 +223,14 @@ wlan_serialization_enqueue_cmd(struct wlan_serialization_command *cmd,
 				&pdev_queue->cmd_pool_list,
 				&nnode) != QDF_STATUS_SUCCESS) {
 		wlan_serialization_release_lock(&pdev_queue->pdev_queue_lock);
-		ser_err("Failed to get cmd buffer from global pool cmd id %d type %d",
-			cmd->cmd_id, cmd->cmd_type);
+		ser_err("Failed to get cmd buffer from global pool cmd id %d type %d vdev %d",
+			cmd->cmd_id, cmd->cmd_type, vdev_id);
 		status = WLAN_SER_CMD_DENIED_LIST_FULL;
 		goto error;
 	}
 
-	ser_debug("Type %d id %d high_priority %d blocking %d timeout %d allowed %d",
-		  cmd->cmd_type, cmd->cmd_id, cmd->is_high_priority,
+	ser_debug("Type %d id %d vdev %d high_priority %d blocking %d timeout %d allowed %d",
+		  cmd->cmd_type, cmd->cmd_id, vdev_id, cmd->is_high_priority,
 		  cmd->is_blocking, cmd->cmd_timeout_duration, active_queue);
 
 	cmd_list =
@@ -288,6 +291,7 @@ QDF_STATUS wlan_serialization_activate_cmd(
 	QDF_STATUS status = QDF_STATUS_E_FAILURE;
 	struct wlan_objmgr_psoc *psoc = NULL;
 	struct wlan_serialization_pdev_queue *pdev_queue;
+	uint8_t vdev_id;
 
 	pdev_queue = wlan_serialization_get_pdev_queue_obj(
 			ser_pdev_obj, cmd_list->cmd.cmd_type);
@@ -297,6 +301,7 @@ QDF_STATUS wlan_serialization_activate_cmd(
 		ser_err("invalid psoc");
 		goto error;
 	}
+	vdev_id = wlan_vdev_get_id(cmd_list->cmd.vdev);
 
 	/*
 	 * command is already pushed to active queue above
@@ -306,10 +311,9 @@ QDF_STATUS wlan_serialization_activate_cmd(
 	status = wlan_serialization_find_and_start_timer(psoc, &cmd_list->cmd,
 							 ser_reason);
 	if (QDF_IS_STATUS_ERROR(status)) {
-		ser_err("Failed to start timer cmd type[%d] id[%d] vdev[%d]",
+		ser_err("Failed to start timer cmd type %d id %d vdev %d",
 			cmd_list->cmd.cmd_type,
-			cmd_list->cmd.cmd_id,
-			wlan_vdev_get_id(cmd_list->cmd.vdev));
+			cmd_list->cmd.cmd_id, vdev_id);
 		goto timer_failed;
 	}
 
@@ -321,8 +325,8 @@ QDF_STATUS wlan_serialization_activate_cmd(
 	 * and releasing its own lock appropriately.
 	 */
 
-	ser_debug("Activate type %d id %d", cmd_list->cmd.cmd_type,
-		  cmd_list->cmd.cmd_id);
+	ser_debug("Activate type %d id %d vdev %d", cmd_list->cmd.cmd_type,
+		  cmd_list->cmd.cmd_id, vdev_id);
 
 	cmd_list->cmd.activation_reason = ser_reason;
 
@@ -463,9 +467,9 @@ wlan_serialization_dequeue_cmd(struct wlan_serialization_command *cmd,
 	pdev_queue = wlan_serialization_get_pdev_queue_obj(
 			ser_pdev_obj, cmd->cmd_type);
 
-	ser_debug("Type %d id %d blocking %d reason %d active %d",
-		  cmd->cmd_type, cmd->cmd_id, cmd->is_blocking,
-		  ser_reason, active_cmd);
+	ser_debug("Type %d id %d vdev %d blocking %d reason %d active %d",
+		  cmd->cmd_type, cmd->cmd_id, wlan_vdev_get_id(cmd->vdev),
+		  cmd->is_blocking, ser_reason, active_cmd);
 
 	wlan_serialization_acquire_lock(&pdev_queue->pdev_queue_lock);
 
@@ -523,8 +527,9 @@ wlan_serialization_dequeue_cmd(struct wlan_serialization_command *cmd,
 	/* Call cmd cb for remove request*/
 	if (cmd_bkup.cmd_cb) {
 		/* caller should release the memory */
-		ser_debug("Release memory for type %d id %d",
-			  cmd_bkup.cmd_type, cmd_bkup.cmd_id);
+		ser_debug("Release memory for type %d id %d vdev %d",
+			  cmd_bkup.cmd_type, cmd_bkup.cmd_id,
+			  wlan_vdev_get_id(cmd_bkup.vdev));
 		cmd_bkup.cmd_cb(&cmd_bkup, WLAN_SER_CB_RELEASE_MEM_CMD);
 	}
 
@@ -589,9 +594,15 @@ free:
 	qdf_mem_free(timeout_cmd);
 }
 
-static QDF_STATUS wlan_serialization_mc_flush_noop(struct scheduler_msg *msg)
+static QDF_STATUS wlan_serialization_mc_flush(struct scheduler_msg *msg)
 {
-	struct wlan_serialization_command *timeout_cmd = msg->bodyptr;
+	struct wlan_serialization_command *timeout_cmd =
+		scheduler_qdf_mc_timer_deinit_return_data_ptr(msg->bodyptr);
+
+	if (!timeout_cmd) {
+		ser_err("Error failed to release reference for vdev objmgr");
+		return QDF_STATUS_E_FAILURE;
+	}
 
 	wlan_objmgr_vdev_release_ref(timeout_cmd->vdev, WLAN_SERIALIZATION_ID);
 	qdf_mem_free(timeout_cmd);
@@ -604,6 +615,7 @@ wlan_serialization_timer_cb_mc_ctx(struct wlan_serialization_command *cmd)
 {
 	struct scheduler_msg msg = {0};
 	struct wlan_serialization_command *timeout_cmd;
+	struct sched_qdf_mc_timer_cb_wrapper *mc_timer_wrapper;
 	QDF_STATUS status;
 
 	msg.type = SYS_MSG_ID_MC_TIMER;
@@ -624,17 +636,19 @@ wlan_serialization_timer_cb_mc_ctx(struct wlan_serialization_command *cmd)
 
 	qdf_mem_copy(timeout_cmd, cmd, sizeof(*timeout_cmd));
 
-	/* msg.callback will explicitly cast back to qdf_mc_timer_callback_t
-	 * in scheduler_timer_q_mq_handler.
-	 * but in future we do not want to introduce more this kind of
-	 * typecast by properly using QDF MC timer for MCC from get go in
-	 * common code.
-	 */
-	msg.callback =
-		(scheduler_msg_process_fn_t)wlan_serialization_generic_timer_cb;
-	msg.bodyptr = timeout_cmd;
+	mc_timer_wrapper =
+		scheduler_qdf_mc_timer_init(wlan_serialization_generic_timer_cb,
+					    timeout_cmd);
+
+	if (!mc_timer_wrapper) {
+		ser_err("failed to allocate sched_qdf_mc_timer_cb_wrapper");
+		goto failed_mc_allocation;
+	}
+
+	msg.callback = scheduler_qdf_mc_timer_callback_t_wrapper;
+	msg.bodyptr = mc_timer_wrapper;
 	msg.bodyval = 0;
-	msg.flush_callback = wlan_serialization_mc_flush_noop;
+	msg.flush_callback = wlan_serialization_mc_flush;
 
 	if (scheduler_post_message(QDF_MODULE_ID_SERIALIZATION,
 				   QDF_MODULE_ID_SERIALIZATION,
@@ -643,6 +657,8 @@ wlan_serialization_timer_cb_mc_ctx(struct wlan_serialization_command *cmd)
 		return;
 
 	ser_err("Could not enqueue timer to timer queue");
+	qdf_mem_free(mc_timer_wrapper);
+failed_mc_allocation:
 	/* free mem and release ref on error */
 	wlan_objmgr_vdev_release_ref(timeout_cmd->vdev, WLAN_SERIALIZATION_ID);
 	qdf_mem_free(timeout_cmd);

@@ -90,7 +90,7 @@
  *
  * @min: 0
  * @max: 3
- * @defalut: 0
+ * @default: 0
  *
  * 0 - normal
  * 1 - xr
@@ -161,7 +161,7 @@
  * bit 8-9: Reserve for roaming
  * bit 10: Disable css power collapse if setting
  * bit 11: Disable sys sleep if setting
- * bit 12-31: Reserve for future useage
+ * bit 12-31: Reserve for future usage
  *
  * |63  50|  49  |  48    |47        40|39   33|    32     |
  * +------+------+--------+------------+-------+-----------+
@@ -221,7 +221,7 @@
  * bit 8-9: Reserve for roaming
  * bit 10: Disable css power collapse if setting
  * bit 11: Disable sys sleep if setting
- * bit 12-31: Reserve for future useage
+ * bit 12-31: Reserve for future usage
  *
  * |63  50|  49  |  48    |47        40|39   33|    32     |
  * +------+------+--------+------------+-------+-----------+
@@ -281,7 +281,7 @@
  * bit 8-9: Reserve for roaming
  * bit 10: Disable css power collapse if setting
  * bit 11: Disable sys sleep if setting
- * bit 12-31: Reserve for future useage
+ * bit 12-31: Reserve for future usage
  *
  * |63  50|  49  |  48    |47        40|39   33|    32     |
  * +------+------+--------+------------+-------+-----------+
@@ -340,7 +340,7 @@
  * bit 8-9: Reserve for roaming
  * bit 10: Disable css power collapse if setting
  * bit 11: Disable sys sleep if setting
- * bit 12-31: Reserve for future useage
+ * bit 12-31: Reserve for future usage
  *
  * |63  50|  49  |  48    |47        40|39   33|    32     |
  * +------+------+--------+------------+-------+-----------+
