@@ -1273,6 +1273,7 @@ void report_auto_rotation_data(struct ssp_data *data, int sensor_type, struct se
 void report_flip_cover_detector_data(struct ssp_data *data, int sensor_type, struct sensor_value *flip_cover_detector_data);
 #endif
 void report_sar_backoff_motion_data(struct ssp_data *data, int sensor_type, struct sensor_value *sar_backoff_motion_data);
+void report_seq_step_data(struct ssp_data *data, int sensor_type, struct sensor_value *seq_step_data);
 unsigned int get_module_rev(struct ssp_data *data);
 void reset_mcu(struct ssp_data *data);
 int sensors_register(struct device *dev, void *drvdata,

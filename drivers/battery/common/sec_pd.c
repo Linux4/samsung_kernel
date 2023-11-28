@@ -178,6 +178,24 @@ void sec_pd_manual_ccopen_req(int is_on)
 }
 EXPORT_SYMBOL(sec_pd_manual_ccopen_req);
 
+int sec_pd_change_src(int max_cur)
+{
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return -1;
+	}
+
+	if (!g_psink_status->fp_sec_pd_change_src) {
+		pr_err("%s: not exist\n", __func__);
+		return -1;
+	}
+
+	g_psink_status->fp_sec_pd_change_src(max_cur);
+
+	return 0;
+}
+EXPORT_SYMBOL(sec_pd_change_src);
+
 static int __init sec_pd_init(void)
 {
 	pr_info("%s: \n", __func__);

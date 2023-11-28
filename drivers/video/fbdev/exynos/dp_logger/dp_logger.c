@@ -169,6 +169,7 @@ static ssize_t dp_logger_read(struct file *file, char __user *buf, size_t len, l
 static const struct file_operations dp_logger_ops = {
 	.owner = THIS_MODULE,
 	.read = dp_logger_read,
+	.llseek = default_llseek,
 };
 
 int dp_logger_init(void)

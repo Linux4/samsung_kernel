@@ -146,7 +146,13 @@ static void sec_input_handler_wait_resume_work(struct work_struct *work)
 		desc->action->thread_fn(irq, desc->action->dev_id);
 	}
 out:
-	enable_irq(irq);
+	if (!desc)
+		return;
+
+	while (desc->depth > 0) {
+		enable_irq(irq);
+		input_info(true, pdata->dev, "%s: depth: %d\n", __func__, desc->depth);
+	}
 }
 
 int sec_input_handler_start(struct device *dev)
@@ -764,7 +770,7 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 	}
 }
 
-void sec_input_coord_event(struct device *dev, int t_id)
+void sec_input_coord_event_fill_slot(struct device *dev, int t_id)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 
@@ -820,9 +826,20 @@ void sec_input_coord_event(struct device *dev, int t_id)
 		}
 	}
 
-	input_sync(pdata->input_dev);
+	pdata->fill_slot = true;
+
 }
-EXPORT_SYMBOL(sec_input_coord_event);
+EXPORT_SYMBOL(sec_input_coord_event_fill_slot);
+
+void sec_input_coord_event_sync_slot(struct device *dev)
+{
+	struct sec_ts_plat_data *pdata = dev->platform_data;
+
+	if (pdata->fill_slot)
+		input_sync(pdata->input_dev);
+	pdata->fill_slot = false;
+}
+EXPORT_SYMBOL(sec_input_coord_event_sync_slot);
 
 void sec_input_release_all_finger(struct device *dev)
 {
