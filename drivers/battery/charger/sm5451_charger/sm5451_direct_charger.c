@@ -442,14 +442,14 @@ static inline int _try_to_adjust_cc_up(struct sm_dc_info *sm_dc)
 
 	if ((sm_dc->wq.cc_cnt % 2) && (sm_dc->ta.c <= sm_dc->wq.ci_gl + (PPS_C_STEP * 4))
 		&& (sm_dc->ta.c != sm_dc->ta.c_max)) {
-		if ((sm_dc->ta.v * (sm_dc->ta.c + PPS_C_STEP) <= (sm_dc->ta.p_max * 107) / 100)) {
+		if ((sm_dc->ta.v * (sm_dc->ta.c + PPS_C_STEP) <= (sm_dc->ta.p_max / 100) * 107)) {
 			sm_dc->ta.c += PPS_C_STEP;
 			if (sm_dc->ta.c > sm_dc->ta.c_max)
 				sm_dc->ta.c = sm_dc->ta.c_max;
 		}
 	} else {
 		/* TA P_MAX + 7% */
-		if ((sm_dc->ta.v + (PPS_V_STEP * 2)) * sm_dc->ta.c <= (sm_dc->ta.p_max * 107) / 100) {
+		if ((sm_dc->ta.v + (PPS_V_STEP * 2)) * sm_dc->ta.c <= (sm_dc->ta.p_max / 100) * 107) {
 			sm_dc->ta.v += PPS_V_STEP * 2;
 			if (sm_dc->ta.v > MIN(sm_dc->ta.v_max, sm_dc->config.dc_vbus_ovp_th - 350))
 				sm_dc->ta.v = pps_v(MIN(sm_dc->ta.v_max, sm_dc->config.dc_vbus_ovp_th - 350));

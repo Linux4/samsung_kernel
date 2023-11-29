@@ -702,6 +702,7 @@ struct synaptics_ts_data {
 	u8 scan_mode;
 
 	bool support_immediate_cmd;
+	bool do_set_up_report;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;
@@ -1592,6 +1593,7 @@ int set_nvm_data_by_size(struct synaptics_ts_data *ts, u8 offset, int length, u8
 int synaptics_ts_set_touch_function(struct synaptics_ts_data *ts);
 void synaptics_ts_get_touch_function(struct work_struct *work);
 int synaptics_ts_detect_protocol(struct synaptics_ts_data *ts, unsigned char *data, unsigned int data_len);
+int synaptics_ts_set_up_report(struct synaptics_ts_data *ts);
 int synaptics_ts_set_up_app_fw(struct synaptics_ts_data *ts);
 inline unsigned int synaptics_ts_pal_le2_to_uint(const unsigned char *src);
 inline unsigned int synaptics_ts_pal_le4_to_uint(const unsigned char *src);

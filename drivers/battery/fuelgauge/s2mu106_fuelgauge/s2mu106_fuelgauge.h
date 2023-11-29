@@ -92,20 +92,9 @@ static char *mode_to_str[] = {
 struct fg_info {
 	/* battery info */
 	int soc;
-#if !defined(CONFIG_BATTERY_AGE_FORECAST)
-	/* copy from platform data */
-	/* DTS or update by shell script */
-	int battery_table3[88]; // evt2
-	int battery_table4[22]; // evt2
-	int soc_arr_val[22];
-	int ocv_arr_val[22];
-
-	int batcap[4];
-	int accum[2];
-#endif
 };
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
-struct fg_age_data_info {
+
+typedef struct fg_age_data_info {
 	int battery_table3[88]; // evt2
 	int battery_table4[22]; // evt2
 	int batcap[4];
@@ -113,11 +102,8 @@ struct fg_age_data_info {
 	int soc_arr_val[22];
 	int ocv_arr_val[22];
 	int volt_mode_tuning;
-};
+} fg_age_data_info_t;
 
-#define	fg_age_data_info_t \
-	struct fg_age_data_info
-#endif
 
 /* Need to be increased if there are more than 2 BAT ID GPIOs */
 #define BAT_GPIO_NO	2
@@ -169,14 +155,12 @@ struct s2mu106_fuelgauge_data {
 
 	u8 battery_id;
 	struct fg_info info;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	fg_age_data_info_t *age_data_info;
 	int fg_num_age_step;
 	int fg_age_step;
 	int age_reset_status;
 	struct mutex fg_reset_lock;
 	int change_step;
-#endif
 	bool is_fuel_alerted;
 	struct wakeup_source *fuel_alert_ws;
 
@@ -260,6 +244,8 @@ struct s2mu106_fuelgauge_data {
 	int val_0x5C;
 	int low_voltage_limit_cnt;
 	char d_buf[FG_BATT_DUMP_SIZE];
+	int bd_vfocv;
+	int bd_raw_soc;
 };
 
 #if (BATCAP_LEARN)

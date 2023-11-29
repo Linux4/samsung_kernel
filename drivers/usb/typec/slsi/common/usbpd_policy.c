@@ -36,6 +36,14 @@
 		return ret;\
 	} while (0);
 
+#define CHECK_VDM(pd, msg, ret) do {\
+	if (pd->phy_ops.get_status(pd, msg)) {\
+		policy->got_ufp_vdm = 1;\
+		return ret;\
+	}\
+	} while (0);
+
+
 #define CHECK_CMD(pd, event, ret) do {\
 		if (pd->manager.cmd & event && ms >= 5) {\
 			pd->manager.cmd &= ~event; \
@@ -495,6 +503,52 @@ policy_state usbpd_policy_src_ready(struct policy_data *policy)
 		CHECK_MSG(pd_data, MSG_SOFTRESET, PE_SRC_Soft_Reset);
 
 		/* Wait VDM */
+#if IS_ENABLED(CONFIG_S2M_SUPPORT_DELAYED_REQUEST_MESSAGE_UFP)
+		if (data_role == USBPD_UFP) {
+			CHECK_VDM(pd_data, VDM_DISCOVER_IDENTITY, PE_UFP_VDM_Get_Identity);
+			CHECK_VDM(pd_data, VDM_DISCOVER_SVID, PE_UFP_VDM_Get_SVIDs);
+			CHECK_VDM(pd_data, VDM_DISCOVER_MODE, PE_UFP_VDM_Get_Modes);
+			CHECK_VDM(pd_data, VDM_ENTER_MODE, PE_UFP_VDM_Evaluate_Mode_Entry);
+			CHECK_VDM(pd_data, VDM_EXIT_MODE, PE_UFP_VDM_Mode_Exit);
+			CHECK_VDM(pd_data, VDM_ATTENTION, PE_DFP_VDM_Attention_Request);
+			CHECK_VDM(pd_data, VDM_DP_STATUS_UPDATE, PE_UFP_VDM_Evaluate_Status);
+			CHECK_VDM(pd_data, VDM_DP_CONFIGURE, PE_UFP_VDM_Evaluate_Configure);
+			CHECK_VDM(pd_data, UVDM_MSG, PE_DFP_UVDM_Receive_Message);
+		} else {
+			CHECK_MSG(pd_data, VDM_DISCOVER_IDENTITY, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_DISCOVER_SVID, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_DISCOVER_MODE, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_ENTER_MODE, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_EXIT_MODE, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_ATTENTION, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_DP_STATUS_UPDATE, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_DP_CONFIGURE, PE_DFP_VDM_EVALUATE);
+		}
+
+		/* Command Check from AP */
+		if ((policy->got_ufp_vdm && ms >= tStartAmsMargin) || (!policy->got_ufp_vdm)) {
+			policy->got_ufp_vdm = 0;
+			if (pd_data->source_get_sink_obj.object == 0)
+				CHECK_CMD(pd_data, MANAGER_REQ_GET_SNKCAP, PE_SRC_Get_Sink_Cap);
+			CHECK_CMD(pd_data, MANAGER_REQ_GOTOMIN, PE_SRC_Transition_Supply);
+			CHECK_CMD(pd_data, MANAGER_REQ_SRCCAP_CHANGE, PE_SRC_Send_Capabilities);
+			CHECK_CMD(pd_data, MANAGER_REQ_PR_SWAP, PE_PRS_SRC_SNK_Send_Swap);
+			CHECK_CMD(pd_data, MANAGER_REQ_DR_SWAP, PE_DRS_Evaluate_Send_Port);
+			CHECK_CMD(pd_data, MANAGER_REQ_VCONN_SWAP, PE_VCS_Send_Swap);
+
+			CHECK_CMD(pd_data, MANAGER_REQ_UVDM_SEND_MESSAGE, PE_DFP_UVDM_Send_Message);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_DISCOVER_IDENTITY, PE_DFP_VDM_Identity_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_DISCOVER_SVID, PE_DFP_VDM_SVIDs_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_DISCOVER_MODE, PE_DFP_VDM_Modes_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_ENTER_MODE, PE_DFP_VDM_Mode_Entry_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_EXIT_MODE, PE_DFP_VDM_Mode_Exit_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_STATUS_UPDATE, PE_DFP_VDM_Status_Update);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_DisplayPort_Configure, PE_DFP_VDM_DisplayPort_Configure);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_ATTENTION, PE_UFP_VDM_Attention_Request);
+		}
+		if (ms >= (policy->got_ufp_vdm ? tStartAmsMargin : 0) + 20)
+			break;
+#else
 		if (data_role == USBPD_UFP) {
 			CHECK_MSG(pd_data, VDM_DISCOVER_IDENTITY, PE_UFP_VDM_Get_Identity);
 			CHECK_MSG(pd_data, VDM_DISCOVER_SVID, PE_UFP_VDM_Get_SVIDs);
@@ -516,7 +570,7 @@ policy_state usbpd_policy_src_ready(struct policy_data *policy)
 			CHECK_MSG(pd_data, VDM_DP_CONFIGURE, PE_DFP_VDM_EVALUATE);
 		}
 
-	    	/* Command Check from AP */
+		/* Command Check from AP */
 		if (pd_data->source_get_sink_obj.object == 0)
 			CHECK_CMD(pd_data, MANAGER_REQ_GET_SNKCAP, PE_SRC_Get_Sink_Cap);
 		CHECK_CMD(pd_data, MANAGER_REQ_GOTOMIN, PE_SRC_Transition_Supply);
@@ -537,6 +591,7 @@ policy_state usbpd_policy_src_ready(struct policy_data *policy)
 
 		if (ms >= 20)
 			break;
+#endif /* CONFIG_S2M_SUPPORT_DELAYED_REQUEST_MESSAGE_UFP */
 	}
 
 	if (data_role == USBPD_DFP)
@@ -1481,6 +1536,49 @@ policy_state usbpd_policy_snk_ready(struct policy_data *policy)
 		CHECK_MSG(pd_data, MSG_SOFTRESET, PE_SNK_Soft_Reset);
 
 		/* Wait VDM */
+#if IS_ENABLED(CONFIG_S2M_SUPPORT_DELAYED_REQUEST_MESSAGE_UFP)
+		if (data_role == USBPD_UFP) {
+			CHECK_VDM(pd_data, VDM_DISCOVER_IDENTITY, PE_UFP_VDM_Get_Identity);
+			CHECK_VDM(pd_data, VDM_DISCOVER_SVID, PE_UFP_VDM_Get_SVIDs);
+			CHECK_VDM(pd_data, VDM_DISCOVER_MODE, PE_UFP_VDM_Get_Modes);
+			CHECK_VDM(pd_data, VDM_ENTER_MODE, PE_UFP_VDM_Evaluate_Mode_Entry);
+			CHECK_VDM(pd_data, VDM_EXIT_MODE, PE_UFP_VDM_Mode_Exit);
+			CHECK_VDM(pd_data, VDM_ATTENTION, PE_DFP_VDM_Attention_Request);
+			CHECK_VDM(pd_data, VDM_DP_STATUS_UPDATE, PE_UFP_VDM_Evaluate_Status);
+			CHECK_VDM(pd_data, VDM_DP_CONFIGURE, PE_UFP_VDM_Evaluate_Configure);
+			CHECK_VDM(pd_data, UVDM_MSG, PE_DFP_UVDM_Receive_Message);
+		} else {
+			CHECK_MSG(pd_data, VDM_DISCOVER_IDENTITY, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_DISCOVER_SVID, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_DISCOVER_MODE, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_ENTER_MODE, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_EXIT_MODE, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_ATTENTION, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_DP_STATUS_UPDATE, PE_DFP_VDM_EVALUATE);
+			CHECK_MSG(pd_data, VDM_DP_CONFIGURE, PE_DFP_VDM_EVALUATE);
+		}
+
+		/* Command Check from AP */
+		if ((policy->got_ufp_vdm && ms >= tStartAmsMargin) || (!policy->got_ufp_vdm)) {
+			policy->got_ufp_vdm = 0;
+			CHECK_CMD(pd_data, MANAGER_REQ_NEW_POWER_SRC, PE_SNK_Select_Capability);
+			CHECK_CMD(pd_data, MANAGER_REQ_GET_SRC_CAP, PE_SNK_Get_Source_Cap);
+			CHECK_CMD(pd_data, MANAGER_REQ_PR_SWAP, PE_PRS_SNK_SRC_Send_Swap);
+			CHECK_CMD(pd_data, MANAGER_REQ_DR_SWAP, PE_DRS_Evaluate_Send_Port);
+			CHECK_CMD(pd_data, MANAGER_REQ_VCONN_SWAP, PE_VCS_Send_Swap);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_DISCOVER_IDENTITY, PE_DFP_VDM_Identity_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_DISCOVER_SVID, PE_DFP_VDM_SVIDs_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_DISCOVER_MODE, PE_DFP_VDM_Modes_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_ATTENTION, PE_UFP_VDM_Attention_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_ENTER_MODE, PE_DFP_VDM_Mode_Entry_Request);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_STATUS_UPDATE, PE_DFP_VDM_Status_Update);
+			CHECK_CMD(pd_data, MANAGER_REQ_VDM_DisplayPort_Configure, PE_DFP_VDM_DisplayPort_Configure);
+			CHECK_CMD(pd_data, MANAGER_REQ_UVDM_SEND_MESSAGE, PE_DFP_UVDM_Send_Message);
+		}
+
+		if (ms >= (policy->got_ufp_vdm ? tStartAmsMargin : 0) + 20)
+			break;
+#else
 		if (data_role == USBPD_UFP) {
 			CHECK_MSG(pd_data, VDM_DISCOVER_IDENTITY, PE_UFP_VDM_Get_Identity);
 			CHECK_MSG(pd_data, VDM_DISCOVER_SVID, PE_UFP_VDM_Get_SVIDs);
@@ -1519,6 +1617,7 @@ policy_state usbpd_policy_snk_ready(struct policy_data *policy)
 
 		if (ms >= 20)
 			break;
+#endif /* CONFIG_S2M_SUPPORT_DELAYED_REQUEST_MESSAGE_UFP */
 	}
 
 	if (data_role == USBPD_DFP)
@@ -6268,6 +6367,7 @@ void usbpd_init_policy(struct usbpd_data *pd_data)
 	policy->selected_pdo_num = 0;
 	policy->requested_pdo_type = 0;
 	policy->requested_pdo_num = 0;
+	policy->got_ufp_vdm = 0;
 #if IS_ENABLED(CONFIG_PDIC_PD30)
 	policy->pps_enable = 0;
 #endif
