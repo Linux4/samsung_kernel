@@ -3076,6 +3076,11 @@ bool is_96hs_based_fps(struct panel_device *panel)
 	return false;
 }
 
+bool is_display_on(struct panel_device *panel)
+{
+	return panel->state.disp_on == PANEL_DISPLAY_ON;
+}
+
 int s6e3hae_getidx_ffc_table(struct maptbl *tbl)
 {
 	int idx;

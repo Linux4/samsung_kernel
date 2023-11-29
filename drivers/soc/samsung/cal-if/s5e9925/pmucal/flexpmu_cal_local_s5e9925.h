@@ -714,6 +714,7 @@ struct pmucal_seq allcsis_cmu_init[] = {
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "BUS_COMPONENT_DRCG_EN", 0x17020000, 0x0104, (0xffffffff << 0), (0xffffffff << 0), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "BUS_COMPONENT_DRCG_EN_1", 0x17020000, 0x0400, (0xffffffff << 0), (0xffffffff << 0), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "MEMCLK", 0x17020000, 0x0108, (0x1 << 0), (0x0 << 0), 0, 0, 0xffffffff, 0),
+	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "QCH_CON_OIS_MCU_TOP_QCH", 0x170e0000, 0x3090, (0x7 << 0), (0x6 << 0), 0, 0, 0xffffffff, 0),
 };
 
 struct pmucal_seq allcsis_on[] = {
@@ -869,6 +870,7 @@ struct pmucal_seq allcsis_status[] = {
 };
 
 struct pmucal_seq allcsis_off[] = {
+	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "QCH_CON_OIS_MCU_TOP_QCH", 0x170e0000, 0x3090, (0x7 << 0), (0x4 << 0), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CSIS_CMU_CSIS_CONTROLLER_OPTION", 0x17000000, 0x0800, (0x1 << 24), (0x0 << 24), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "ALLCSIS_CMU_ALLCSIS_CONTROLLER_OPTION", 0x170e0000, 0x0800, (0x1 << 24), (0x0 << 24), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "ALLCSIS_CONFIGURATION", 0x15860000, 0x2000, (0x1 << 0), (0x0 << 0), 0, 0, 0xffffffff, 0),

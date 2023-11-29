@@ -1360,6 +1360,7 @@ bool is_support_lfd(struct panel_device *panel);
 bool is_first_set_bl(struct panel_device *panel);
 bool is_wait_vsync_needed(struct panel_device *panel);
 bool is_96hs_based_fps(struct panel_device *panel);
+bool is_display_on(struct panel_device *panel);
 
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 int s6e3hae_getidx_brightdot_aor_table(struct maptbl *tbl);

@@ -534,7 +534,6 @@ int is_devicemgr_shot_done(struct is_group *group,
 
 void is_devicemgr_late_shot_handle(struct is_group *group, struct is_frame *frame, u32 status)
 {
-	u32 vc0_dma = 0;
 	unsigned long flags;
 	struct is_framemgr *framemgr;
 	unsigned long framemgr_flag;
@@ -568,12 +567,7 @@ void is_devicemgr_late_shot_handle(struct is_group *group, struct is_frame *fram
 	if (status) {
 		mginfo("[F%d] Start CANCEL Other subdev frame\n", group->device, group, ldr_frame->fcount);
 		flags = is_group_lock(group, group->device_type, false);
-		is_group_subdev_check(group, &vc0_dma);
-		if (vc0_dma)
-			is_group_subdev_cancel(group, ldr_frame, group->device_type, FS_PROCESS, false);
-		else
-			is_group_subdev_cancel(group, ldr_frame, group->device_type, FS_REQUEST, false);
-
+		is_group_subdev_cancel(group, ldr_frame, group->device_type, FS_REQUEST, false);
 		is_group_unlock(group, flags, group->device_type, false);
 		mginfo("[F%d] End CANCEL Other subdev frame\n", group->device, group, ldr_frame->fcount);
 	}

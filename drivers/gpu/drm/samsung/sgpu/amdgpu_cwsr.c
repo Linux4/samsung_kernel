@@ -194,22 +194,22 @@ static int amdgpu_cwsr_static_unmap(struct amdgpu_device *adev,
 	return r;
 }
 
-void amdgpu_cwsr_wb_free(struct amdgpu_fpriv *fpriv, u32 wb)
+static void amdgpu_cwsr_wb_free(struct amdgpu_fpriv *fpriv, u32 wb)
 {
 	wb >>= 3;
-	if (wb < fpriv->cwsr_wb.num_wb)
-		__clear_bit(wb, fpriv->cwsr_wb.used);
+	if (wb < fpriv->wb.num_wb)
+		__clear_bit(wb, fpriv->wb.used);
 }
 
-int amdgpu_cwsr_wb_get(struct amdgpu_fpriv *fpriv, u32 *wb)
+static int amdgpu_cwsr_wb_get(struct amdgpu_fpriv *fpriv, u32 *wb)
 {
 	unsigned long offset;
 
-	offset = find_first_zero_bit(fpriv->cwsr_wb.used,
-				     fpriv->cwsr_wb.num_wb);
+	offset = find_first_zero_bit(fpriv->wb.used,
+				     fpriv->wb.num_wb);
 
-	if (offset < fpriv->cwsr_wb.num_wb) {
-		__set_bit(offset, fpriv->cwsr_wb.used);
+	if (offset < fpriv->wb.num_wb) {
+		__set_bit(offset, fpriv->wb.used);
 		*wb = offset << 3; /* convert to dw offset */
 
 		return 0;
@@ -224,7 +224,7 @@ static int amdgpu_cwsr_init_wb(struct amdgpu_device *adev,
 	int r;
 	u32 wb_size;
 
-	if (fpriv->cwsr_wb.wb_obj)
+	if (fpriv->wb.wb_obj)
 		return 0;
 
 	/* AMDGPU_MAX_WB * sizeof(uint32_t) * 8
@@ -233,35 +233,35 @@ static int amdgpu_cwsr_init_wb(struct amdgpu_device *adev,
 	wb_size = AMDGPU_MAX_WB * sizeof(uint32_t) * 8;
 	r = amdgpu_bo_create_kernel(adev, wb_size,
 				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GTT,
-				    &fpriv->cwsr_wb.wb_obj,
+				    &fpriv->wb.wb_obj,
 				    NULL,
-				    (void **)&fpriv->cwsr_wb.wb);
+				    (void **)&fpriv->wb.wb);
 	if (r) {
 		DRM_ERROR("create WB bo failed(%d)\n", r);
 		return r;
 	}
 
-	fpriv->cwsr_wb.num_wb = AMDGPU_MAX_WB;
-	memset(&fpriv->cwsr_wb.used, 0, sizeof(fpriv->cwsr_wb.used));
+	fpriv->wb.num_wb = AMDGPU_MAX_WB;
+	memset(&fpriv->wb.used, 0, sizeof(fpriv->wb.used));
 
 	/* clear wb memory */
-	memset((char *)fpriv->cwsr_wb.wb, 0, wb_size);
+	memset((char *)fpriv->wb.wb, 0, wb_size);
 
 	r = amdgpu_cwsr_static_map(adev, &fpriv->vm,
-				   fpriv->cwsr_wb.wb_obj,
-				   &fpriv->cwsr_wb_va,
-				   AMDGPU_CWSR_WB_OFFSET,
+				   fpriv->wb.wb_obj,
+				   &fpriv->wb_va,
+				   AMDGPU_PRIV_WB_OFFSET,
 				   wb_size);
 
 	if (r) {
 		DRM_ERROR("map cwsr wb failed(%d)\n", r);
-		amdgpu_bo_free_kernel(&fpriv->cwsr_wb.wb_obj,
-				      &fpriv->cwsr_wb.gpu_addr,
-				      (void **)&fpriv->cwsr_wb.wb);
+		amdgpu_bo_free_kernel(&fpriv->wb.wb_obj,
+				      &fpriv->wb.gpu_addr,
+				      (void **)&fpriv->wb.wb);
 		return r;
 	}
 
-	fpriv->cwsr_wb.gpu_addr = AMDGPU_CWSR_WB_OFFSET;
+	fpriv->wb.gpu_addr = AMDGPU_PRIV_WB_OFFSET;
 
 	return 0;
 }
@@ -269,18 +269,18 @@ static int amdgpu_cwsr_init_wb(struct amdgpu_device *adev,
 static void amdgpu_cwsr_deinit_wb(struct amdgpu_device *adev,
 				  struct amdgpu_fpriv *fpriv)
 {
-	if (fpriv->cwsr_wb.wb_obj) {
+	if (fpriv->wb.wb_obj) {
 		amdgpu_cwsr_static_unmap(adev,
 					 &fpriv->vm,
-					 fpriv->cwsr_wb.wb_obj,
-					 fpriv->cwsr_wb_va,
-					 fpriv->cwsr_wb.gpu_addr);
+					 fpriv->wb.wb_obj,
+					 fpriv->wb_va,
+					 fpriv->wb.gpu_addr);
 
-		fpriv->cwsr_wb_va = NULL;
+		fpriv->wb_va = NULL;
 
-		amdgpu_bo_free_kernel(&fpriv->cwsr_wb.wb_obj,
-				      &fpriv->cwsr_wb.gpu_addr,
-				      (void **)&fpriv->cwsr_wb.wb);
+		amdgpu_bo_free_kernel(&fpriv->wb.wb_obj,
+				      &fpriv->wb.gpu_addr,
+				      (void **)&fpriv->wb.wb);
 	}
 }
 
@@ -290,28 +290,28 @@ static int amdgpu_cwsr_init_hqd_eop(struct amdgpu_device *adev,
 	int r;
 	size_t mec_hqd_size;
 
-	if (fpriv->cwsr_hqd_eop_obj)
+	if (fpriv->hqd_eop_obj)
 		return 0;
 
-	mec_hqd_size = AMDGPU_CWSR_MEC_HQD_EOP_SIZE * 8;
+	mec_hqd_size = AMDGPU_PRIV_MEC_HQD_EOP_SIZE * 8;
 
 	r = amdgpu_bo_create_kernel(adev, mec_hqd_size, PAGE_SIZE,
 				    AMDGPU_GEM_DOMAIN_GTT,
-				    &fpriv->cwsr_hqd_eop_obj,
-				    NULL, &fpriv->cwsr_hqd_cpu_addr);
+				    &fpriv->hqd_eop_obj,
+				    NULL, &fpriv->hqd_cpu_addr);
 	if (r)
 		return r;
 
-	memset(fpriv->cwsr_hqd_cpu_addr, 0, mec_hqd_size);
+	memset(fpriv->hqd_cpu_addr, 0, mec_hqd_size);
 
 	r = amdgpu_cwsr_static_map(adev, &fpriv->vm,
-				   fpriv->cwsr_hqd_eop_obj,
-				   &fpriv->cwsr_hqd_eop_va,
-				   AMDGPU_CWSR_HQD_EOP_OFFSET,
+				   fpriv->hqd_eop_obj,
+				   &fpriv->hqd_eop_va,
+				   AMDGPU_PRIV_HQD_EOP_OFFSET,
 				   mec_hqd_size);
 	if (r) {
 		DRM_ERROR("map cwsr hqd failed(%d)\n", r);
-		amdgpu_bo_free_kernel(&fpriv->cwsr_hqd_eop_obj, NULL, NULL);
+		amdgpu_bo_free_kernel(&fpriv->hqd_eop_obj, NULL, NULL);
 	}
 
 	return r;
@@ -320,17 +320,17 @@ static int amdgpu_cwsr_init_hqd_eop(struct amdgpu_device *adev,
 static void amdgpu_cwsr_deinit_hqd_eop(struct amdgpu_device *adev,
 				       struct amdgpu_fpriv *fpriv)
 {
-	if (fpriv->cwsr_hqd_eop_obj) {
+	if (fpriv->hqd_eop_obj) {
 		amdgpu_cwsr_static_unmap(adev,
 					 &fpriv->vm,
-					 fpriv->cwsr_hqd_eop_obj,
-					 fpriv->cwsr_hqd_eop_va,
-					 AMDGPU_CWSR_HQD_EOP_OFFSET);
+					 fpriv->hqd_eop_obj,
+					 fpriv->hqd_eop_va,
+					 AMDGPU_PRIV_HQD_EOP_OFFSET);
 
-		fpriv->cwsr_hqd_eop_va = NULL;
+		fpriv->hqd_eop_va = NULL;
 
-		amdgpu_bo_free_kernel(&fpriv->cwsr_hqd_eop_obj, NULL,
-				      &fpriv->cwsr_hqd_cpu_addr);
+		amdgpu_bo_free_kernel(&fpriv->hqd_eop_obj, NULL,
+				      &fpriv->hqd_cpu_addr);
 	}
 }
 
@@ -344,7 +344,7 @@ static int amdgpu_cwsr_init_mqd(struct amdgpu_device *adev,
 		return 0;
 
 	r = amdgpu_bo_create_kernel(adev,
-				    AMDGPU_CWSR_MQD_SIZE,
+				    AMDGPU_PRIV_MQD_SIZE,
 				    PAGE_SIZE,
 				    AMDGPU_GEM_DOMAIN_GTT,
 				    &ring->mqd_obj,
@@ -354,15 +354,15 @@ static int amdgpu_cwsr_init_mqd(struct amdgpu_device *adev,
 		return r;
 	}
 
-	memset(ring->mqd_ptr, 0, AMDGPU_CWSR_MQD_SIZE);
+	memset(ring->mqd_ptr, 0, AMDGPU_PRIV_MQD_SIZE);
 
 	r = amdgpu_cwsr_static_map(adev, &fpriv->vm,
 				   ring->mqd_obj,
-				   &ring->cwsr_mqd_va,
-				   AMDGPU_CWSR_MQD_OFFSET +
-				   ring->cwsr_slot_idx *
-				   AMDGPU_CWSR_MQD_SIZE,
-				   AMDGPU_CWSR_MQD_SIZE);
+				   &ring->mqd_va,
+				   AMDGPU_PRIV_MQD_OFFSET +
+				   ring->resv_slot_idx *
+				   AMDGPU_PRIV_MQD_SIZE,
+				   AMDGPU_PRIV_MQD_SIZE);
 	if (r) {
 		DRM_ERROR("failed to map cwsr ring mqd bo (%d)", r);
 		amdgpu_bo_free_kernel(&ring->mqd_obj,
@@ -381,12 +381,12 @@ static void amdgpu_cwsr_deinit_mqd(struct amdgpu_device *adev,
 		amdgpu_cwsr_static_unmap(adev,
 					 &fpriv->vm,
 					 ring->mqd_obj,
-					 ring->cwsr_mqd_va,
-					 AMDGPU_CWSR_MQD_OFFSET +
-					 ring->cwsr_slot_idx *
-					 AMDGPU_CWSR_MQD_SIZE);
+					 ring->mqd_va,
+					 AMDGPU_PRIV_MQD_OFFSET +
+					 ring->resv_slot_idx *
+					 AMDGPU_PRIV_MQD_SIZE);
 
-		ring->cwsr_mqd_va = NULL;
+		ring->mqd_va = NULL;
 
 		amdgpu_bo_free_kernel(&ring->mqd_obj,
 				      NULL,
@@ -404,7 +404,7 @@ static int amdgpu_cwsr_init_ring_bo(struct amdgpu_device *adev,
 		return 0;
 
 	r = amdgpu_bo_create_kernel(adev,
-				    AMDGPU_CWSR_RING_BUF_SIZE,
+				    AMDGPU_PRIV_RING_BUF_SIZE,
 				    PAGE_SIZE,
 				    AMDGPU_GEM_DOMAIN_GTT,
 				    &ring->ring_obj,
@@ -417,11 +417,11 @@ static int amdgpu_cwsr_init_ring_bo(struct amdgpu_device *adev,
 
 	r = amdgpu_cwsr_static_map(adev, &fpriv->vm,
 				   ring->ring_obj,
-				   &ring->cwsr_ring_va,
-				   AMDGPU_CWSR_RING_BUF_OFFSET +
-				   ring->cwsr_slot_idx *
-				   AMDGPU_CWSR_RING_BUF_SIZE,
-				   AMDGPU_CWSR_RING_BUF_SIZE);
+				   &ring->ring_va,
+				   AMDGPU_PRIV_RING_BUF_OFFSET +
+				   ring->resv_slot_idx *
+				   AMDGPU_PRIV_RING_BUF_SIZE,
+				   AMDGPU_PRIV_RING_BUF_SIZE);
 	if (r) {
 		dev_err(adev->dev, "map cwsr ring bo failed(%d)\n", r);
 		amdgpu_bo_free_kernel(&ring->mqd_obj,
@@ -440,12 +440,12 @@ static void amdgpu_cwsr_deinit_ring_bo(struct amdgpu_device *adev,
 		amdgpu_cwsr_static_unmap(adev,
 					 &fpriv->vm,
 					 ring->ring_obj,
-					 ring->cwsr_ring_va,
-					 AMDGPU_CWSR_RING_BUF_OFFSET +
-					 ring->cwsr_slot_idx *
-					 AMDGPU_CWSR_RING_BUF_SIZE);
+					 ring->ring_va,
+					 AMDGPU_PRIV_RING_BUF_OFFSET +
+					 ring->resv_slot_idx *
+					 AMDGPU_PRIV_RING_BUF_SIZE);
 
-		ring->cwsr_ring_va = NULL;
+		ring->ring_va = NULL;
 
 		amdgpu_bo_free_kernel(&ring->ring_obj,
 				      NULL,
@@ -465,10 +465,10 @@ static int amdgpu_cwsr_init_ring_wb(struct amdgpu_device *adev,
 		return r;
 	}
 
-	ring->cwsr_rptr_gpu_addr =
-		fpriv->cwsr_wb.gpu_addr + (ring->rptr_offs * 4);
-	ring->cwsr_rptr_cpu_addr = &fpriv->cwsr_wb.wb[ring->rptr_offs];
-	*ring->cwsr_rptr_cpu_addr = 0;
+	ring->rptr_gpu_addr =
+		fpriv->wb.gpu_addr + (ring->rptr_offs * 4);
+	ring->rptr_cpu_addr = &fpriv->wb.wb[ring->rptr_offs];
+	*ring->rptr_cpu_addr = 0;
 
 	r = amdgpu_cwsr_wb_get(fpriv, &ring->wptr_offs);
 	if (r) {
@@ -476,20 +476,20 @@ static int amdgpu_cwsr_init_ring_wb(struct amdgpu_device *adev,
 		goto err1;
 	}
 
-	ring->cwsr_wptr_gpu_addr =
-		fpriv->cwsr_wb.gpu_addr + (ring->wptr_offs * 4);
-	ring->cwsr_wptr_cpu_addr = &fpriv->cwsr_wb.wb[ring->wptr_offs];
-	*ring->cwsr_wptr_cpu_addr = 0;
+	ring->wptr_gpu_addr =
+		fpriv->wb.gpu_addr + (ring->wptr_offs * 4);
+	ring->wptr_cpu_addr = &fpriv->wb.wb[ring->wptr_offs];
+	*ring->wptr_cpu_addr = 0;
 
 	r = amdgpu_cwsr_wb_get(fpriv, &ring->fence_offs);
 	if (r) {
 		dev_err(adev->dev, "(%d) ring fence_offs wb alloc failed\n", r);
 		goto err2;
 	}
-	ring->cwsr_fence_gpu_addr =
-		fpriv->cwsr_wb.gpu_addr + (ring->fence_offs * 4);
-	ring->cwsr_fence_cpu_addr = &fpriv->cwsr_wb.wb[ring->fence_offs];
-	*ring->cwsr_fence_cpu_addr = 0;
+	ring->fence_gpu_addr =
+		fpriv->wb.gpu_addr + (ring->fence_offs * 4);
+	ring->fence_cpu_addr = &fpriv->wb.wb[ring->fence_offs];
+	*ring->fence_cpu_addr = 0;
 
 	r = amdgpu_cwsr_wb_get(fpriv, &ring->trail_fence_offs);
 	if (r) {
@@ -498,8 +498,8 @@ static int amdgpu_cwsr_init_ring_wb(struct amdgpu_device *adev,
 		goto err3;
 	}
 	ring->trail_fence_gpu_addr =
-		fpriv->cwsr_wb.gpu_addr + (ring->trail_fence_offs * 4);
-	ring->trail_fence_cpu_addr = &fpriv->cwsr_wb.wb[ring->trail_fence_offs];
+		fpriv->wb.gpu_addr + (ring->trail_fence_offs * 4);
+	ring->trail_fence_cpu_addr = &fpriv->wb.wb[ring->trail_fence_offs];
 	*ring->trail_fence_cpu_addr = 0;
 
 	r = amdgpu_cwsr_wb_get(fpriv, &ring->cond_exe_offs);
@@ -508,9 +508,9 @@ static int amdgpu_cwsr_init_ring_wb(struct amdgpu_device *adev,
 			r);
 		goto err4;
 	}
-	ring->cond_exe_gpu_addr = fpriv->cwsr_wb.gpu_addr
+	ring->cond_exe_gpu_addr = fpriv->wb.gpu_addr
 				  + (ring->cond_exe_offs * 4);
-	ring->cond_exe_cpu_addr = &fpriv->cwsr_wb.wb[ring->cond_exe_offs];
+	ring->cond_exe_cpu_addr = &fpriv->wb.wb[ring->cond_exe_offs];
 	*ring->cond_exe_cpu_addr = 1;
 
 	return 0;
@@ -553,15 +553,15 @@ static int amdgpu_cwsr_init_ring(struct amdgpu_device *adev,
 	ring->use_doorbell = true;
 	ring->use_pollfence = amdgpu_poll_eop;
 
-	ring->eop_gpu_addr = AMDGPU_CWSR_HQD_EOP_OFFSET +
-		ctx->cwsr_slot_idx * AMDGPU_CWSR_MEC_HQD_EOP_SIZE;
-	memset(fpriv->cwsr_hqd_cpu_addr +
-	       ctx->cwsr_slot_idx * AMDGPU_CWSR_MEC_HQD_EOP_SIZE,
-	       0, AMDGPU_CWSR_MEC_HQD_EOP_SIZE);
+	ring->eop_gpu_addr = AMDGPU_PRIV_HQD_EOP_OFFSET +
+		ctx->resv_slot_idx * AMDGPU_PRIV_MEC_HQD_EOP_SIZE;
+	memset(fpriv->hqd_cpu_addr +
+	       ctx->resv_slot_idx * AMDGPU_PRIV_MEC_HQD_EOP_SIZE,
+	       0, AMDGPU_PRIV_MEC_HQD_EOP_SIZE);
 
 	ring->adev = adev;
 
-	ring->cwsr_slot_idx = ctx->cwsr_slot_idx;
+	ring->resv_slot_idx = ctx->resv_slot_idx;
 
 	r = amdgpu_cwsr_init_ring_wb(adev, ring, fpriv);
 	if (r) {
@@ -570,7 +570,7 @@ static int amdgpu_cwsr_init_ring(struct amdgpu_device *adev,
 	}
 
 	// get ring buffer object
-	ring->ring_size = AMDGPU_CWSR_RING_BUF_SIZE;
+	ring->ring_size = AMDGPU_PRIV_RING_BUF_SIZE;
 	ring->buf_mask = (ring->ring_size / 4) - 1;
 	ring->ptr_mask = ring->funcs->support_64bit_ptrs ?
 			0xffffffffffffffff : ring->buf_mask;
@@ -581,16 +581,16 @@ static int amdgpu_cwsr_init_ring(struct amdgpu_device *adev,
 	}
 	amdgpu_ring_clear_ring(ring);
 
-	ring->gpu_addr = AMDGPU_CWSR_RING_BUF_OFFSET +
-			 ring->cwsr_slot_idx *
-			 AMDGPU_CWSR_RING_BUF_SIZE;
+	ring->gpu_addr = AMDGPU_PRIV_RING_BUF_OFFSET +
+			 ring->resv_slot_idx *
+			 AMDGPU_PRIV_RING_BUF_SIZE;
 
-	ring->max_dw = AMDGPU_CWSR_RING_MAX_DW;
+	ring->max_dw = AMDGPU_PRIV_RING_MAX_DW;
 	ring->priority = DRM_SCHED_PRIORITY_NORMAL;
 	mutex_init(&ring->priority_mutex);
 
-	ring->cwsr_tba_gpu_addr = AMDGPU_CWSR_TBA_OFFSET;
-	ring->cwsr_tma_gpu_addr = AMDGPU_CWSR_TMA_OFFSET;
+	ring->cwsr_tba_gpu_addr = AMDGPU_PRIV_TBA_OFFSET;
+	ring->cwsr_tma_gpu_addr = AMDGPU_PRIV_TMA_OFFSET;
 
 	return 0;
 
@@ -634,7 +634,7 @@ static int amdgpu_cwsr_init_trap(struct amdgpu_device *adev,
 	if (fpriv->cwsr_trap_obj)
 		return 0;
 
-	r = amdgpu_bo_create_kernel(adev, AMDGPU_CWSR_TBA_TMA_SIZE,
+	r = amdgpu_bo_create_kernel(adev, AMDGPU_PRIV_TBA_TMA_SIZE,
 				    PAGE_SIZE, AMDGPU_GEM_DOMAIN_GTT,
 				    &fpriv->cwsr_trap_obj,
 				    NULL,
@@ -645,7 +645,7 @@ static int amdgpu_cwsr_init_trap(struct amdgpu_device *adev,
 	}
 
 	/* clear memory */
-	memset((char *)fpriv->cwsr_trap_cpu_addr, 0, AMDGPU_CWSR_TBA_TMA_SIZE);
+	memset((char *)fpriv->cwsr_trap_cpu_addr, 0, AMDGPU_PRIV_TBA_TMA_SIZE);
 
 	if (adev->asic_type == CHIP_VANGOGH_LITE)
 		memcpy(fpriv->cwsr_trap_cpu_addr,
@@ -657,8 +657,8 @@ static int amdgpu_cwsr_init_trap(struct amdgpu_device *adev,
 	r = amdgpu_cwsr_static_map(adev, &fpriv->vm,
 				   fpriv->cwsr_trap_obj,
 				   &fpriv->cwsr_trap_va,
-				   AMDGPU_CWSR_TBA_OFFSET,
-				   AMDGPU_CWSR_TBA_TMA_SIZE);
+				   AMDGPU_PRIV_TBA_OFFSET,
+				   AMDGPU_PRIV_TBA_TMA_SIZE);
 	if (r) {
 		DRM_ERROR("map cwsr trap failed(%d)\n", r);
 		amdgpu_bo_free_kernel(&fpriv->cwsr_trap_obj,
@@ -678,7 +678,7 @@ static void amdgpu_cwsr_deinit_trap(struct amdgpu_device *adev,
 					 &fpriv->vm,
 					 fpriv->cwsr_trap_obj,
 					 fpriv->cwsr_trap_va,
-					 AMDGPU_CWSR_TBA_OFFSET);
+					 AMDGPU_PRIV_TBA_OFFSET);
 
 		fpriv->cwsr_trap_va = NULL;
 		amdgpu_bo_free_kernel(&fpriv->cwsr_trap_obj,
@@ -703,13 +703,13 @@ static int amdgpu_cwsr_init_sr_res(struct amdgpu_device *adev,
 		 adev->gfx.config.max_shader_engines;
 
 	//8 + 16 bytes are for header of ctl stack
-	ctl_stack_size = cu_num * AMDGPU_CWSR_WAVES_PER_CU *
-			 AMDGPU_CWSR_CNTL_STACK_BYTES_PER_WAVE + 8 + 16;
+	ctl_stack_size = cu_num * AMDGPU_PRIV_WAVES_PER_CU *
+			 AMDGPU_PRIV_CNTL_STACK_BYTES_PER_WAVE + 8 + 16;
 	ctl_stack_size = round_up(ctl_stack_size, 1 << 12);
 	ring->cwsr_sr_ctl_size = ctl_stack_size;
 
 	wg_data_size = cu_num *
-		AMDGPU_CWSR_WG_CONTEXT_DATA_SIZE_PER_CU(adev->asic_type);
+		AMDGPU_PRIV_WG_CONTEXT_DATA_SIZE_PER_CU(adev->asic_type);
 	wg_data_size = round_up(wg_data_size, 1 << 12);
 	ring->cwsr_sr_size = wg_data_size + ctl_stack_size;
 
@@ -729,8 +729,8 @@ static int amdgpu_cwsr_init_sr_res(struct amdgpu_device *adev,
 	r = amdgpu_cwsr_static_map(adev, vm,
 				   ring->cwsr_sr_obj,
 				   &ring->cwsr_sr_va,
-				   AMDGPU_CWSR_SR_OFFSET +
-				   ring->cwsr_slot_idx *
+				   AMDGPU_PRIV_SR_OFFSET +
+				   ring->resv_slot_idx *
 				   ring->cwsr_sr_size,
 				   ring->cwsr_sr_size);
 	if (r) {
@@ -741,8 +741,8 @@ static int amdgpu_cwsr_init_sr_res(struct amdgpu_device *adev,
 		return r;
 	}
 
-	ring->cwsr_sr_gpu_addr = AMDGPU_CWSR_SR_OFFSET +
-				ring->cwsr_slot_idx * ring->cwsr_sr_size;
+	ring->cwsr_sr_gpu_addr = AMDGPU_PRIV_SR_OFFSET +
+				ring->resv_slot_idx * ring->cwsr_sr_size;
 
 	return 0;
 }
@@ -756,8 +756,8 @@ static void amdgpu_cwsr_deinit_sr_res(struct amdgpu_device *adev,
 					 vm,
 					 ring->cwsr_sr_obj,
 					 ring->cwsr_sr_va,
-					 AMDGPU_CWSR_SR_OFFSET +
-					 ring->cwsr_slot_idx *
+					 AMDGPU_PRIV_SR_OFFSET +
+					 ring->resv_slot_idx *
 					 ring->cwsr_sr_size);
 
 		ring->cwsr_sr_va = NULL;
@@ -835,8 +835,8 @@ static void amdgpu_cwsr_fence_driver_start_ring(struct amdgpu_ring *ring,
 		   + ((ring->me - 1) * adev->gfx.mec.num_pipe_per_mec)
 		   + ring->pipe;
 
-	ring->fence_drv.cpu_addr = &fpriv->cwsr_wb.wb[ring->fence_offs];
-	ring->fence_drv.gpu_addr = fpriv->cwsr_wb.gpu_addr
+	ring->fence_drv.cpu_addr = &fpriv->wb.wb[ring->fence_offs];
+	ring->fence_drv.gpu_addr = fpriv->wb.gpu_addr
 				   + (ring->fence_offs * 4);
 	seq = atomic_read(&ring->fence_drv.last_seq);
 	*ring->fence_drv.cpu_addr = cpu_to_le32(seq);
@@ -859,23 +859,23 @@ static int amdgpu_cwsr_init_ctx(struct amdgpu_device *adev,
 	if (!fpriv->cwsr_ready)
 		return 0;
 
-	r = ida_simple_get(&fpriv->cwsr_res_slots, 0,
-			   AMDGPU_CWSR_MAX_RING, GFP_KERNEL);
+	r = ida_simple_get(&fpriv->res_slots, 0,
+			   AMDGPU_PRIV_MAX_RING, GFP_KERNEL);
 	if (r < 0) {
 		DRM_DEBUG_DRIVER("no valid solt for CWSR\n");
 		return -EINVAL;
 	}
-	ctx->cwsr_slot_idx = r;
+	ctx->resv_slot_idx = r;
 	DRM_DEBUG_DRIVER("get cwsr slot idx:%u\n", r);
 
 	r = amdgpu_sws_early_init_ctx(ctx);
 	if (r) {
-		ida_simple_remove(&fpriv->cwsr_res_slots, ctx->cwsr_slot_idx);
+		ida_simple_remove(&fpriv->res_slots, ctx->resv_slot_idx);
 		DRM_WARN("failed to do early ring init\n");
 		return r;
 	}
 
-	ring = ctx->cwsr_ring;
+	ring = ctx->resv_ring;
 	r = amdgpu_cwsr_init_ring(adev, ring, ctx, fpriv);
 	if (r) {
 		DRM_ERROR("failed to init cwsr ring\n");
@@ -900,7 +900,7 @@ static int amdgpu_cwsr_init_ctx(struct amdgpu_device *adev,
 		goto err4;
 	}
 
-	entity = &ctx->cwsr_entities->entity;
+	entity = &ctx->priv_entities->entity;
 	sched = &ring->sched;
 	r = drm_sched_entity_init(entity,
 				  ctx->init_priority,
@@ -944,7 +944,7 @@ err2:
 	amdgpu_cwsr_deinit_ring(ring, fpriv);
 err1:
 	amdgpu_sws_late_deinit_ctx(ctx);
-	ida_simple_remove(&fpriv->cwsr_res_slots, ctx->cwsr_slot_idx);
+	ida_simple_remove(&fpriv->res_slots, ctx->resv_slot_idx);
 	return r;
 }
 
@@ -959,7 +959,7 @@ static void amdgpu_cwsr_deinit_ctx(struct amdgpu_device *adev,
 
 	fpriv = ctx->fpriv;
 	ctx->cwsr = false;
-	ring = ctx->cwsr_ring;
+	ring = ctx->resv_ring;
 
 	amdgpu_debugfs_ring_fini(ring);
 
@@ -971,7 +971,7 @@ static void amdgpu_cwsr_deinit_ctx(struct amdgpu_device *adev,
 	amdgpu_cwsr_deinit_mqd(adev, fpriv, ring);
 	amdgpu_cwsr_deinit_ring(ring, fpriv);
 	amdgpu_sws_late_deinit_ctx(ctx);
-	ida_simple_remove(&fpriv->cwsr_res_slots, ctx->cwsr_slot_idx);
+	ida_simple_remove(&fpriv->res_slots, ctx->resv_slot_idx);
 }
 
 int amdgpu_cwsr_init_queue(struct amdgpu_ring *ring)
@@ -985,9 +985,9 @@ int amdgpu_cwsr_init_queue(struct amdgpu_ring *ring)
 
 	adev = ring->adev;
 
-	ring->mqd_gpu_addr = AMDGPU_CWSR_MQD_OFFSET +
-			 ring->cwsr_slot_idx *
-			 AMDGPU_CWSR_MQD_SIZE;
+	ring->mqd_gpu_addr = AMDGPU_PRIV_MQD_OFFSET +
+			 ring->resv_slot_idx *
+			 AMDGPU_PRIV_MQD_SIZE;
 
 	//init mqd
 	r = amdgpu_ring_compute_mqd_init(ring);
@@ -997,7 +997,7 @@ int amdgpu_cwsr_init_queue(struct amdgpu_ring *ring)
 	}
 
 	//map queue
-	r = adev->gfx.mec.map_cwsr_queue(ring);
+	r = adev->gfx.mec.map_priv_queue(ring);
 	if (r) {
 		DRM_ERROR("failed to map queue for cwsr\n");
 		goto err1;
@@ -1021,7 +1021,7 @@ void amdgpu_cwsr_deinit_queue(struct amdgpu_ring *ring)
 		return;
 
 	//unmap queue
-	adev->gfx.mec.unmap_cwsr_queue(ring, AMDGPU_CP_HQD_DEQUEUE_MODE_STD);
+	adev->gfx.mec.unmap_priv_queue(ring, AMDGPU_CP_HQD_DEQUEUE_MODE_STD);
 
 	ring->sws_ctx.queue_state = AMDGPU_SWS_QUEUE_DISABLED;
 }
@@ -1038,31 +1038,31 @@ int amdgpu_cwsr_init(struct amdgpu_ctx *ctx)
 	if (cwsr_enable == 0)
 		return 0;
 
-	mutex_lock(&fpriv->cwsr_lock);
+	mutex_lock(&fpriv->lock);
 	ctx->cwsr_init = true;
 
 	r = amdgpu_cwsr_init_res(adev, fpriv);
 	if (r) {
 		DRM_WARN("failed to init cwsr res\n");
-		mutex_unlock(&fpriv->cwsr_lock);
+		mutex_unlock(&fpriv->lock);
 		return r;
 	}
 
 	r = amdgpu_cwsr_init_ctx(adev, fpriv, ctx);
 	if (r == AMDGPU_SWS_HW_RES_BUSY) {
-		mutex_unlock(&fpriv->cwsr_lock);
+		mutex_unlock(&fpriv->lock);
 		return AMDGPU_SWS_HW_RES_BUSY;
 	} else if (r < 0) {
 		DRM_DEBUG_DRIVER("failed to init cwsr ctx\n");
 		goto err1;
 	}
 
-	mutex_unlock(&fpriv->cwsr_lock);
+	mutex_unlock(&fpriv->lock);
 	return r;
 
 err1:
 	amdgpu_cwsr_deinit_res(adev, fpriv);
-	mutex_unlock(&fpriv->cwsr_lock);
+	mutex_unlock(&fpriv->lock);
 	return r;
 }
 
@@ -1077,12 +1077,12 @@ void amdgpu_cwsr_deinit(struct amdgpu_ctx *ctx)
 	if (cwsr_enable == 0)
 		return;
 
-	mutex_lock(&fpriv->cwsr_lock);
+	mutex_lock(&fpriv->lock);
 	if (ctx->cwsr) {
 		amdgpu_cwsr_deinit_ctx(adev, ctx);
 		amdgpu_cwsr_deinit_res(adev, fpriv);
 	}
-	mutex_unlock(&fpriv->cwsr_lock);
+	mutex_unlock(&fpriv->lock);
 }
 
 int amdgpu_cwsr_dequeue(struct amdgpu_ring *ring)
@@ -1094,7 +1094,7 @@ int amdgpu_cwsr_dequeue(struct amdgpu_ring *ring)
 	if (ring->sws_ctx.queue_state != AMDGPU_SWS_QUEUE_ENABLED)
 		return 0;
 
-	r = adev->gfx.mec.unmap_cwsr_queue(ring,
+	r = adev->gfx.mec.unmap_priv_queue(ring,
 					   AMDGPU_CP_HQD_DEQUEUE_MODE_SSSD);
 	if (r)
 		ring->sws_ctx.queue_state = AMDGPU_SWS_QUEUE_DISABLED;
@@ -1113,7 +1113,7 @@ int amdgpu_cwsr_relaunch(struct amdgpu_ring *ring)
 		return 0;
 
 	//relaunch queue
-	r = adev->gfx.mec.map_cwsr_queue(ring);
+	r = adev->gfx.mec.map_priv_queue(ring);
 	if (r) {
 		DRM_ERROR("failed to map queue for cwsr\n");
 

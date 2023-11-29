@@ -27,25 +27,6 @@ static reset_timer_t sResetTimer;
 
 /*!
  * \ingroup		spi_driver
- * \brief		Initialising mutex
- */
-void ese_reset_init(void)
-{
-	mutex_init(&sResetTimer.reset_mutex);
-
-}
-
-/*!
- * \ingroup		spi_driver
- * \brief		Deinitialising mutex
- */
-void ese_reset_deinit(void)
-{
-	mutex_destroy(&sResetTimer.reset_mutex);
-
-}
-/*!
- * \ingroup		spi_driver
  * \brief		Function getting invoked after eSE reset guard time
  * \n			expiry
  * \param[in]	struct timer_list *
@@ -61,6 +42,26 @@ static void gpio_reset_guard_timer_callback(struct timer_list *t)
 
 /*!
  * \ingroup		spi_driver
+ * \brief		Initialising mutex
+ */
+void ese_reset_init(void)
+{
+	mutex_init(&sResetTimer.reset_mutex);
+	timer_setup(&sResetTimer.timer, gpio_reset_guard_timer_callback, 0);
+}
+
+/*!
+ * \ingroup		spi_driver
+ * \brief		Deinitialising mutex
+ */
+void ese_reset_deinit(void)
+{
+	mutex_destroy(&sResetTimer.reset_mutex);
+	del_timer(&sResetTimer.timer);
+}
+
+/*!
+ * \ingroup		spi_driver
  * \brief		Setting the timer on
  * \return		long 0 for inactive timer 1 for active timer
  */
@@ -69,11 +70,6 @@ static long start_gpio_reset_guard_timer(void)
 	long ret;
 
 	NFC_LOG_INFO("%s: entry\n", __func__);
-	if (timer_pending(&sResetTimer.timer) == 1) {
-		NFC_LOG_INFO("%s: delete pending timer\n", __func__);
-		del_timer(&sResetTimer.timer); /* delete timer if pending*/
-	}
-	timer_setup(&sResetTimer.timer, gpio_reset_guard_timer_callback, 0);
 	ret = mod_timer(&sResetTimer.timer,
 			jiffies + msecs_to_jiffies(ESE_GPIO_RST_GUARD_TIME_MS));
 	if (!ret)

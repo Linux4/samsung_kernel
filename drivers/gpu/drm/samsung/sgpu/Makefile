@@ -128,6 +128,7 @@ sgpu-y += \
 	gfx_v9_4.o \
 	gfx_v10_0.o \
 	amdgpu_cwsr.o \
+	amdgpu_tmz.o \
 	amdgpu_sws.o
 
 # add async DMA block

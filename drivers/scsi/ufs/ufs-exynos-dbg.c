@@ -712,6 +712,11 @@ void exynos_ufs_cmd_log_end(struct ufs_vs_handle *handle,
 	if (mgr->active == 0)
 		return;
 
+	if (!cmd_info->pdata[tag]) {
+		pr_err("%s: there is no cmd logging inform about tag: %d\n",
+				__func__, tag);
+		return;
+	}
 	cmd_info->pdata[tag]->end_time = cpu_clock(cpu);
 }
 

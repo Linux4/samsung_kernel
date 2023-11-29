@@ -581,6 +581,20 @@ static inline void clear_lv2_page_table(sysmmu_pte_t *ent, int n)
 	memset(ent, 0, sizeof(*ent) * n);
 }
 
+static bool lv2_is_all_zero(sysmmu_pte_t *sent)
+{
+	int i;
+	sysmmu_pte_t *pent = page_entry(sent, 0);
+
+	for (i = 0; i < NUM_LV2ENTRIES; i++) {
+		if (*pent != 0)
+			return false;
+		pent++;
+	}
+
+	return true;
+}
+
 #define IOMMU_PRIV_PROT_TO_PBHA(val)	(((val) >> IOMMU_PRIV_SHIFT) & 0x3)
 static int lv1set_section(struct samsung_sysmmu_domain *domain,
 			  sysmmu_pte_t *sent, sysmmu_iova_t iova,
@@ -597,8 +611,13 @@ static int lv1set_section(struct samsung_sysmmu_domain *domain,
 
 	if (lv1ent_page(sent)) {
 		if (WARN_ON(atomic_read(pgcnt) != 0)) {
-			WARN(1, "Trying mapping 1MB@%#08x on valid SLPD", iova);
-			return -EADDRINUSE;
+			if (lv2_is_all_zero(sent)) {
+				pr_info("Found mismatch count(%d) @%#10x, but ignored\n",
+					atomic_read(pgcnt), iova);
+			} else {
+				WARN(1, "Trying mapping 1MB@%#08x on valid SLPD", iova);
+				return -EADDRINUSE;
+			}
 		}
 
 		kmem_cache_free(slpt_cache, page_entry(sent, 0));

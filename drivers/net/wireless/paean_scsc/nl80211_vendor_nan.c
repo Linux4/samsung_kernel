@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "mgt.h"
 #include "mlme.h"
+#include "ba.h"
 #ifdef CONFIG_SCSC_WLAN_TX_API
 #include "tx_api.h"
 #endif
@@ -2272,7 +2273,7 @@ void slsi_nan_data_interface_create_wq(struct work_struct *work)
 	u32 reply_status = SLSI_HAL_NAN_STATUS_SUCCESS;
 	bool is_cfg80211 = true;
 	int ret = 0;
-	struct list_head  *data_intf_pos, *data_intf_q;
+	struct slsi_nan_data_interface_create_info *aware_intf_create, *tmp;
 	int transaction_id = 0;
 	int err;
 
@@ -2280,10 +2281,7 @@ void slsi_nan_data_interface_create_wq(struct work_struct *work)
 	mutex_lock(&sdev->wiphy->mtx);
 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
 	SLSI_ERR(sdev, "In Data Interface create Work Queue\n");
-	list_for_each_safe(data_intf_pos, data_intf_q, &sdev->nan_data_interface_create_data) {
-		struct slsi_nan_data_interface_create_info *aware_intf_create;
-
-		aware_intf_create = list_entry(data_intf_pos, struct slsi_nan_data_interface_create_info, list);
+	list_for_each_entry_safe(aware_intf_create, tmp, &sdev->nan_data_interface_create_data, list) {
 		if (!aware_intf_create)  {
 			SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 			mutex_unlock(&sdev->wiphy->mtx);
@@ -2330,7 +2328,7 @@ void slsi_nan_data_interface_create_wq(struct work_struct *work)
 			ndev_data_vif->vif_type = SLSI_NAN_VIF_TYPE_NDP;
 			SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
 		}
-		list_del(data_intf_pos);
+		list_del(&aware_intf_create->list);
 		kfree(aware_intf_create);
 		slsi_vendor_nan_event_create_delete(sdev, SLSI_NL80211_NAN_INTERFACE_CREATED_EVENT, transaction_id, 0);
 	}
@@ -2349,17 +2347,14 @@ void slsi_nan_data_interface_delete_wq(struct work_struct *work)
 	u32 reply_status = SLSI_HAL_NAN_STATUS_SUCCESS;
 	bool is_cfg80211 = true;
 	int if_idx;
-	struct list_head  *data_intf_pos, *data_intf_q;
+	struct slsi_nan_data_interface_delete_info *aware_intf_delete, *tmp;
 	int transaction_id = 0;
 
 	rtnl_lock();
 	mutex_lock(&sdev->wiphy->mtx);
 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
 	SLSI_INFO(sdev, "In Nan Interface Delete Work\n");
-	list_for_each_safe(data_intf_pos, data_intf_q, &sdev->nan_data_interface_delete_data) {
-		struct slsi_nan_data_interface_delete_info *aware_intf_delete;
-
-		aware_intf_delete = list_entry(data_intf_pos, struct slsi_nan_data_interface_delete_info, list);
+	list_for_each_entry_safe(aware_intf_delete, tmp, &sdev->nan_data_interface_delete_data, list) {
 		if (!aware_intf_delete)  {
 			SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
 			mutex_unlock(&sdev->wiphy->mtx);
@@ -2379,7 +2374,7 @@ void slsi_nan_data_interface_delete_wq(struct work_struct *work)
 			slsi_netif_remove_locked(sdev, dev_ndp, is_cfg80211);
 			SLSI_INFO(sdev, "Success transId:%d ifaceName:%s\n", transaction_id, aware_intf_delete->ifname);
 		}
-		list_del(data_intf_pos);
+		list_del(&aware_intf_delete->list);
 		kfree(aware_intf_delete);
 
 		slsi_vendor_nan_event_create_delete(sdev, SLSI_NL80211_NAN_INTERFACE_DELETED_EVENT, transaction_id, reply_status);
@@ -3439,6 +3434,7 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 		slsi_lbm_netdev_activate(sdev, data_dev);
 #endif
+		slsi_rx_ba_update_timer(sdev, data_dev, SLSI_RX_BA_EVENT_VIF_CONNECTED);
 		ndev_data_vif->activated = true;
 		peer = slsi_get_peer_from_mac(sdev, data_dev, peer_ndi);
 		if (peer) {
@@ -3649,8 +3645,10 @@ void slsi_nan_ndp_termination_handler(struct slsi_dev *sdev, struct net_device *
 
 	if (data_dev) {
 		SLSI_MUTEX_LOCK(ndev_data_vif->vif_mutex);
-		if (!ndev_data_vif->activated)
+		if (!ndev_data_vif->activated) {
 			slsi_release_dp_resources(sdev, data_dev, ndev_data_vif);
+			slsi_rx_ba_update_timer(sdev, data_dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
+		}
 		SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
 	}
 

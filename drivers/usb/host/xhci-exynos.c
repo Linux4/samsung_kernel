@@ -1865,18 +1865,23 @@ skip_uram:
 	if (ret)
 		goto disable_usb_phy;
 
-	/* Set port_dev quirks for reduce port initialize time */
-	hdev = xhci->main_hcd->self.root_hub;
-	hub = usb_get_intfdata(hdev->actconfig->interface[0]);
-	port_dev = hub->ports[0];
-	port_dev->quirks |= USB_PORT_QUIRK_FAST_ENUM;
-
 	if (HCC_MAX_PSA(xhci->hcc_params) >= 4)
 		xhci->shared_hcd->can_do_streams = 1;
 
 	ret = usb_add_hcd(xhci->shared_hcd, irq, IRQF_SHARED);
 	if (ret)
 		goto dealloc_usb2_hcd;
+
+        /* Set port_dev quirks for reduce port initialize time */
+        hdev = xhci->main_hcd->self.root_hub;
+        hub = usb_get_intfdata(hdev->actconfig->interface[0]);
+        port_dev = hub->ports[0];
+        port_dev->quirks |= USB_PORT_QUIRK_FAST_ENUM;
+	/* Set port_dev quirks for reduce port initialize time */
+	hdev = xhci->main_hcd->self.root_hub;
+	hub = usb_get_intfdata(hdev->actconfig->interface[0]);
+	port_dev = hub->ports[0];
+	port_dev->quirks |= USB_PORT_QUIRK_FAST_ENUM;
 
 	/* Set port_dev quirks for reduce port initialize time */
 	hdev = xhci->shared_hcd->self.root_hub;

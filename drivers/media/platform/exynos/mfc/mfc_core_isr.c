@@ -312,7 +312,7 @@ static struct mfc_buf *__mfc_handle_frame_output_del(struct mfc_core *core,
 	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->hdr10_plus_full))
 		is_hdr10_plus_full = mfc_core_get_sei_nal_meta_status();
 
-	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->av1_film_grain) && dec->av1_film_grain_present)
+	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->av1_film_grain))
 		is_av1_film_grain_sei = mfc_core_get_sei_avail_film_grain();
 
 	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->black_bar) && (dec->detect_black_bar ||
@@ -1588,11 +1588,6 @@ static int __mfc_handle_seq_dec(struct mfc_core *core, struct mfc_ctx *ctx)
 		dec->av1_film_grain_present = mfc_core_get_av1_filmgrain_present();
 		mfc_debug(2, "[FILMGR] AV1 Film Grain presented in header: %d\n",
 			dec->av1_film_grain_present);
-	}
-
-	if (ctx->is_drm && dec->av1_film_grain_present) {
-		dec->av1_film_grain_present = 0;
-		mfc_debug(2, "[FILMGR] AV1 Film Grain was disabled for DRM\n");
 	}
 
 	if (ctx->img_width == 0 || ctx->img_height == 0) {

@@ -4125,6 +4125,11 @@ static int __init cnss_initialize(void)
 	if (!cnss_is_valid_dt_node_found())
 		return -ENODEV;
 
+#ifdef CONFIG_SEC_FACTORY_INTERPOSER
+	cnss_pr_err("SEC_FACTORY_INTERPOSER is enabled. Just return");
+	return 0;
+#endif
+
 	cnss_debug_init();
 	ret = platform_driver_register(&cnss_platform_driver);
 	if (ret)

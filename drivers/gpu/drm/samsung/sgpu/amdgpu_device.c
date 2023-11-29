@@ -4930,6 +4930,27 @@ static int amdgpu_device_fault_detect_fini(struct amdgpu_device *adev)
 	return 0;
 }
 
+void amdgpu_device_skip_compute_job(struct amdgpu_device *adev, struct amdgpu_ring *ring)
+{
+	struct drm_sched_job *s_job, *tmp;
+	struct amdgpu_job *amd_job = NULL;
+	struct drm_gpu_scheduler *sched = &ring->sched;
+
+	spin_lock(&sched->job_list_lock);
+	list_for_each_entry_safe(s_job, tmp, &sched->ring_mirror_list, node) {
+		struct drm_sched_fence *s_fence = s_job->s_fence;
+		amd_job = to_amdgpu_job(s_job);
+
+		if (amd_job && (ring->me == 1)) {
+			dma_fence_set_error(&s_fence->finished, -ECANCELED);
+			DRM_INFO("set_error for compute job: pid %d compute job %d vmid %d ring %s finished %016x\n",
+					amd_job->vm->task_info.tgid, s_job->id, amd_job->vmid, ring->name,
+					&s_job->s_fence->finished);
+		}
+	}
+	spin_unlock(&sched->job_list_lock);
+
+}
 void amdgpu_device_skip_page_faulted_job(struct amdgpu_device *adev,
 				struct amdgpu_ring *ring, signed int page_faulted_vmid)
 {
@@ -5124,6 +5145,7 @@ skip_hw_reset:
 		if (!adev->asic_reset_res && !job_signaled) {
 			/* increase page faulted jobs' karma in mirror list */
 			amdgpu_device_skip_page_faulted_job(adev, ring, page_faulted_vmid);
+			amdgpu_device_skip_compute_job(adev, ring);
 			drm_sched_resubmit_jobs(&ring->sched);
 		}
 

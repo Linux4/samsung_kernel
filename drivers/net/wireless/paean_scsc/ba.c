@@ -21,6 +21,11 @@ static uint ba_mpdu_reorder_age_timeout = 100; /* 100 milliseconds */
 module_param(ba_mpdu_reorder_age_timeout, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(ba_mpdu_reorder_age_timeout, "Timeout (in ms) before a BA frame in Reorder buffer is passed to upper layers");
 
+static uint ba_mpdu_reorder_age_timeout_mvif = 300; /* 300 milliseconds */
+module_param(ba_mpdu_reorder_age_timeout_mvif, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(ba_mpdu_reorder_age_timeout_mvif, "Timeout (in ms), in multi VIF scenario, before a buffered BA frame is flushed");
+
+
 static bool ba_out_of_range_delba_enable = 1;
 module_param(ba_out_of_range_delba_enable, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(ba_out_of_range_delba_enable, "Option to trigger DELBA on out of range frame (1: enable (default), 0: disable)");
@@ -370,8 +375,8 @@ static void slsi_ba_aging_timeout_handler(unsigned long data)
 		/* Check for next hole in the buffer, if hole exists create the timer for next missing frame */
 		/* do not rearm the timer if BA session is going down */
 		if (ba_session_rx->active && ba_session_rx->occupied_slots) {
-			SLSI_NET_DBG3(dev, SLSI_RX_BA, "Timer start\n");
-			mod_timer(&ba_session_rx->ba_age_timer, jiffies + msecs_to_jiffies(ba_mpdu_reorder_age_timeout));
+			SLSI_NET_DBG3(dev, SLSI_RX_BA, "Timer start (%d)\n", ndev_vif->timeout_in_ms);
+			mod_timer(&ba_session_rx->ba_age_timer, jiffies + msecs_to_jiffies(ndev_vif->timeout_in_ms));
 			ba_session_rx->timer_on = true;
 		}
 		/* Process the data now marked as completed */
@@ -382,6 +387,54 @@ static void slsi_ba_aging_timeout_handler(unsigned long data)
 #endif
 	}
 	slsi_spinlock_unlock(&ndev_vif->ba_lock);
+}
+
+void slsi_rx_ba_update_timer(struct slsi_dev *sdev, struct net_device *dev,
+			  enum slsi_rx_ba_event ba_event)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	u32 ba_timeout_in_ms = 0;
+	u16 num_vifs = 0;
+	int bit;
+	u16 i;
+
+	slsi_spinlock_lock(&sdev->rx_ba_buffer_pool_lock);
+	/* Consider STATION and NDP VIF as of now.
+	 * We might remove this condition in future.
+	 */
+	if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION || ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START){
+		switch (ba_event) {
+			case SLSI_RX_BA_EVENT_VIF_CONNECTED:
+				set_bit(ndev_vif->ifnum, sdev->rx_ba_bitmap);
+				break;
+			case SLSI_RX_BA_EVENT_VIF_TERMINATED:
+				clear_bit(ndev_vif->ifnum, sdev->rx_ba_bitmap);
+				break;
+			default:
+				break;
+		}
+	}
+
+	for_each_set_bit(bit, sdev->rx_ba_bitmap, CONFIG_SCSC_WLAN_MAX_INTERFACES) {
+		num_vifs++;
+	}
+
+	if (num_vifs > 1)
+		ba_timeout_in_ms = ba_mpdu_reorder_age_timeout_mvif;
+	else
+		ba_timeout_in_ms = ba_mpdu_reorder_age_timeout;
+
+	/* update aging timer in all VIFs */
+	for (i = 1; i <= CONFIG_SCSC_WLAN_MAX_INTERFACES; i++) {
+		if (sdev->netdev[i]) {
+			ndev_vif = netdev_priv(sdev->netdev[i]);
+			if (ndev_vif) {
+				ndev_vif->timeout_in_ms = ba_timeout_in_ms;
+				SLSI_NET_DBG3(sdev->netdev[i], SLSI_RX_BA, "timeout update (%d ms)\n", ndev_vif->timeout_in_ms);
+			}
+		}
+	}
+	slsi_spinlock_unlock(&sdev->rx_ba_buffer_pool_lock);
 }
 
 int slsi_ba_process_frame(struct net_device *dev, struct slsi_peer *peer,
@@ -454,16 +507,16 @@ int slsi_ba_process_frame(struct net_device *dev, struct slsi_peer *peer,
 	if (!ba_session_rx->timer_on) {
 		if (ba_session_rx->occupied_slots) {
 			stop_timer = false;
-			SLSI_NET_DBG3(dev, SLSI_RX_BA, "Timer start\n");
-			mod_timer(&ba_session_rx->ba_age_timer, jiffies + msecs_to_jiffies(ba_mpdu_reorder_age_timeout));
+			SLSI_NET_DBG3(dev, SLSI_RX_BA, "timer start (%d ms)\n", ndev_vif->timeout_in_ms);
+			mod_timer(&ba_session_rx->ba_age_timer, jiffies + msecs_to_jiffies(ndev_vif->timeout_in_ms));
 			ba_session_rx->timer_on = true;
 		}
 	} else if (!ba_session_rx->occupied_slots) {
 		stop_timer = true;
 	} else if (stop_timer) {
 		stop_timer = false;
-		SLSI_NET_DBG3(dev, SLSI_RX_BA, "Timer restart\n");
-		mod_timer(&ba_session_rx->ba_age_timer, jiffies + msecs_to_jiffies(ba_mpdu_reorder_age_timeout));
+		SLSI_NET_DBG3(dev, SLSI_RX_BA, "timer restart (%d ms)\n", ndev_vif->timeout_in_ms);
+		mod_timer(&ba_session_rx->ba_age_timer, jiffies + msecs_to_jiffies(ndev_vif->timeout_in_ms));
 		ba_session_rx->timer_on = true;
 	}
 
@@ -665,8 +718,10 @@ void slsi_handle_blockack(struct net_device *dev, struct slsi_peer *peer,
 		if (peer->ba_session_rx[user_priority]) {
 			if (slsi_rx_ba_start(dev, peer, peer->ba_session_rx[user_priority], user_priority, buffer_size, sequence_number) != 0)
 				slsi_rx_ba_free_buffer(dev, peer, user_priority);
-			else
+			else {
 				slsi_rx_buffered_frames(ndev_vif->sdev, dev, peer, user_priority);
+				slsi_rx_ba_update_timer(ndev_vif->sdev, dev, SLSI_RX_BA_EVENT_DEFAULT);
+			}
 		}
 		break;
 	case FAPI_REASONCODE_END:

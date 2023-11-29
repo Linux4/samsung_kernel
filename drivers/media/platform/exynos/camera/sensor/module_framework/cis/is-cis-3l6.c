@@ -441,6 +441,18 @@ int sensor_3l6_cis_stream_on(struct v4l2_subdev *subdev)
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
+#ifdef USE_CAMERA_MCD_SW_DUAL_SYNC
+	if (cis->cis_data->is_data.scene_mode == AA_SCENE_MODE_LIVE_OUTFOCUS) {
+		info("[%s] s/w dual sync slave\n", __func__);
+		cis->dual_sync_mode = DUAL_SYNC_SLAVE;
+		cis->dual_sync_type = DUAL_SYNC_TYPE_SW;
+	} else {
+		info("[%s] s/w dual sync none\n", __func__);
+		cis->dual_sync_mode = DUAL_SYNC_NONE;
+		cis->dual_sync_type = DUAL_SYNC_TYPE_MAX;
+	}
+#endif
+
 	/* Sensor stream on */
 	ret = is_sensor_write16(cis->client, SENSOR_3L6_PLL_POWER_CONTROL_ADDR, 0x0100);
 	if (ret < 0)

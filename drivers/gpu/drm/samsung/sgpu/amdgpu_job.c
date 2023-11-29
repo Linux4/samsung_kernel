@@ -27,6 +27,7 @@
 #include <linux/pm_runtime.h>
 #include "amdgpu.h"
 #include "amdgpu_trace.h"
+#include "amdgpu_sws.h"
 #include "sgpu_bpmd.h"
 
 #ifdef CONFIG_DRM_SGPU_EXYNOS
@@ -387,6 +388,21 @@ static void amdgpu_job_free_cb(struct drm_sched_job *s_job)
 	}
 
 
+	if (ring->sws_ctx.ctx && ring->sws_ctx.ctx->secure_mode && amdgpu_tmz) {
+
+		if (adev->runpm) {
+			pm_runtime_get_sync(adev->ddev.dev);
+			vangogh_lite_ifpo_power_on(adev);
+		}
+		amdgpu_sws_put_tmz_queue(ring->sws_ctx.ctx,
+				&job->base.s_fence->finished);
+
+		if (adev->runpm) {
+			atomic_dec(&adev->in_ifpo);
+			pm_runtime_put_autosuspend(adev->ddev.dev);
+		}
+	}
+
 	drm_sched_job_cleanup(s_job);
 	atomic_dec(&ring->num_jobs);
 
@@ -482,6 +498,7 @@ static struct dma_fence *amdgpu_job_dependency(struct drm_sched_job *sched_job,
 	struct amdgpu_job *job = to_amdgpu_job(sched_job);
 	struct amdgpu_vm *vm = job->vm;
 	struct dma_fence *fence;
+	struct amdgpu_device *adev = ring->adev;
 	int r;
 
 	fence = amdgpu_sync_get_fence(&job->sync);
@@ -497,6 +514,25 @@ static struct dma_fence *amdgpu_job_dependency(struct drm_sched_job *sched_job,
 				     job);
 		if (r)
 			DRM_ERROR("Error getting VM ID (%d)\n", r);
+
+		fence = amdgpu_sync_get_fence(&job->sync);
+	}
+
+	/* get fence on tmz queue after vmid is ready */
+	if (!fence && vm && job->vmid && job->ctx->secure_mode && amdgpu_tmz) {
+		if (adev->runpm) {
+			pm_runtime_get_sync(adev->ddev.dev);
+			vangogh_lite_ifpo_power_on(adev);
+		}
+		r = amdgpu_sws_get_tmz_queue(ring,
+					     &job->base.s_fence->finished,
+					     job);
+		if (r)
+			DRM_ERROR("Error getting tmz queue (%d)\n", r);
+		if (adev->runpm) {
+			atomic_dec(&adev->in_ifpo);
+			pm_runtime_put_autosuspend(adev->ddev.dev);
+		}
 
 		fence = amdgpu_sync_get_fence(&job->sync);
 	}

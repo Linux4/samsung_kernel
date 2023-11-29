@@ -2103,6 +2103,7 @@ static DEFINE_PANEL_MDELAY(rainbow_b0_wait_5msec, 5);
 static DEFINE_PANEL_MDELAY(rainbow_b0_wait_10msec, 10);
 static DEFINE_PANEL_UDELAY(rainbow_b0_wait_16p7msec, 16700);
 static DEFINE_PANEL_MDELAY(rainbow_b0_wait_20msec, 20);
+static DEFINE_PANEL_MDELAY(rainbow_b0_wait_34msec, 34);
 static DEFINE_PANEL_MDELAY(rainbow_b0_wait_100msec, 100);
 static DEFINE_PANEL_MDELAY(rainbow_b0_wait_124msec, 124);
 static DEFINE_PANEL_MDELAY(rainbow_b0_wait_200msec, 200);
@@ -2372,6 +2373,7 @@ static u8 RAINBOW_B0_SPSRAM_GAMMA_120HS_11_ADDR[] = { 0x71, 0x86, 0x09, 0x92, 0x
 static DEFINE_STATIC_PACKET(rainbow_b0_spsram_gamma_120hs_11_addr, DSI_PKT_TYPE_WR, RAINBOW_B0_SPSRAM_GAMMA_120HS_11_ADDR, 0);
 
 static DEFINE_COND(rainbow_b0_cond_is_first_set_bl, is_first_set_bl);
+static DEFINE_COND(rainbow_b0_cond_is_display_on, is_display_on);
 static DEFINE_COND(rainbow_b0_cond_is_wait_vsync_needed, is_wait_vsync_needed);
 static DEFINE_COND(rainbow_b0_cond_is_96hs_based_fps, is_96hs_based_fps);
 
@@ -2675,7 +2677,6 @@ static void *rainbow_b0_init_cmdtbl[] = {
 	&PKTINFO(rainbow_b0_dia_onoff),
 	&SEQINFO(rainbow_b0_err_fg_seq),
 	&PKTINFO(rainbow_b0_ecc_on),
-	&PKTINFO(rainbow_b0_smooth_dimming_init),
 
 	/* set brightness & fps */
 	&SEQINFO(rainbow_b0_set_bl_param_seq),
@@ -2796,7 +2797,11 @@ static void *rainbow_b0_set_bl_param_cmdtbl[] = {
 	&PKTINFO(rainbow_b0_aor_manual_value),
 	&PKTINFO(rainbow_b0_aor_manual_cycle_1),
 #endif
-	&PKTINFO(rainbow_b0_smooth_dimming),
+	&CONDINFO_IF(rainbow_b0_cond_is_display_on),
+		&PKTINFO(rainbow_b0_smooth_dimming),
+	&CONDINFO_EL(rainbow_b0_cond_is_display_on),
+		&PKTINFO(rainbow_b0_smooth_dimming_init),
+	&CONDINFO_FI(rainbow_b0_cond_is_display_on),
 	&PKTINFO(rainbow_b0_dimming_transition),
 	&PKTINFO(rainbow_b0_sync_control),
 	&PKTINFO(rainbow_b0_elvss_control),
@@ -2918,7 +2923,11 @@ static void *rainbow_b0_display_mode_cmdtbl[] = {
 		&PKTINFO(rainbow_b0_aor_manual_cycle_1),
 #endif
 		&PKTINFO(rainbow_b0_glut_ctrl),
-		&PKTINFO(rainbow_b0_smooth_dimming),
+		&CONDINFO_IF(rainbow_b0_cond_is_display_on),
+			&PKTINFO(rainbow_b0_smooth_dimming),
+		&CONDINFO_EL(rainbow_b0_cond_is_display_on),
+			&PKTINFO(rainbow_b0_smooth_dimming_init),
+		&CONDINFO_FI(rainbow_b0_cond_is_display_on),
 		&PKTINFO(rainbow_b0_dimming_transition),
 		&PKTINFO(rainbow_b0_sync_control),
 		&PKTINFO(rainbow_b0_tsp_sync),
@@ -2976,6 +2985,7 @@ static void *rainbow_b0_display_on_cmdtbl[] = {
 	&KEYINFO(rainbow_b0_level1_key_enable),
 	&PKTINFO(rainbow_b0_display_on),
 	&KEYINFO(rainbow_b0_level1_key_disable),
+	&DLYINFO(rainbow_b0_wait_1_frame),
 };
 
 static void *rainbow_b0_display_off_cmdtbl[] = {
@@ -3018,7 +3028,7 @@ static void *rainbow_b0_alpm_enter_delay_cmdtbl[] = {
 	&DLYINFO(rainbow_b0_wait_124msec),
 };
 
-static void *rainbow_b0_alpm_set_bl_cmdtbl[] = {
+static void *rainbow_b0_alpm_init_cmdtbl[] = {
 	&KEYINFO(rainbow_b0_level1_key_enable),
 	&KEYINFO(rainbow_b0_level2_key_enable),
 	/* === W/A for TE Operation Error : Begin === */
@@ -3048,9 +3058,31 @@ static void *rainbow_b0_alpm_set_bl_cmdtbl[] = {
 
 	&PKTINFO(rainbow_b0_lpm_on),
 	&PKTINFO(rainbow_b0_gamma_update_enable),
-	&DLYINFO(rainbow_b0_wait_1_vsync),
+	&DLYINFO(rainbow_b0_wait_34msec),
 	&PKTINFO(rainbow_b0_lpm_nit),
 	&PKTINFO(rainbow_b0_lpm_wrdisbv),
+	&KEYINFO(rainbow_b0_level2_key_disable),
+	&KEYINFO(rainbow_b0_level1_key_disable),
+};
+
+static void *rainbow_b0_alpm_set_bl_cmdtbl[] = {
+	&KEYINFO(rainbow_b0_level1_key_enable),
+	&KEYINFO(rainbow_b0_level2_key_enable),
+	&CONDINFO_IF(rainbow_b0_cond_is_support_lpm_lfd),
+		&PKTINFO(rainbow_b0_lpm_fps),
+		&PKTINFO(rainbow_b0_lpm_lfd_min),
+		&PKTINFO(rainbow_b0_lpm_lfd_max),
+		&PKTINFO(rainbow_b0_lpm_lfd_frame_insertion),
+		&PKTINFO(rainbow_b0_lpm_lfd_on),
+		&PKTINFO(rainbow_b0_lpm_ltps_1),
+		&PKTINFO(rainbow_b0_lpm_ltps_2),
+	&CONDINFO_EL(rainbow_b0_cond_is_support_lpm_lfd),
+		&PKTINFO(rainbow_b0_lfd_max_lfd_off_ns),
+		&PKTINFO(rainbow_b0_lfd_max_lfd_off_hs),
+	&CONDINFO_FI(rainbow_b0_cond_is_support_lpm_lfd),
+	&PKTINFO(rainbow_b0_lpm_nit),
+	&PKTINFO(rainbow_b0_lpm_wrdisbv),
+	&PKTINFO(rainbow_b0_gamma_update_enable),
 	&KEYINFO(rainbow_b0_level2_key_disable),
 	&KEYINFO(rainbow_b0_level1_key_disable),
 };
@@ -3065,7 +3097,8 @@ static void *rainbow_b0_alpm_exit_cmdtbl[] = {
 	&PKTINFO(rainbow_b0_sync_control),
 	&PKTINFO(rainbow_b0_dimming_transition),
 	&PKTINFO(rainbow_b0_wrdisbv),
-	&DLYINFO(rainbow_b0_wait_1_vsync),
+	&PKTINFO(rainbow_b0_gamma_update_enable),
+	&DLYINFO(rainbow_b0_wait_34msec),
 	&PKTINFO(rainbow_b0_lpm_exit_control),
 	&PKTINFO(rainbow_b0_irc_mode_0),
 	&PKTINFO(rainbow_b0_irc_mode_1),
@@ -3126,7 +3159,11 @@ static void *rainbow_b0_alpm_exit_after_cmdtbl[] = {
 	&PKTINFO(rainbow_b0_aor_manual_cycle_1),
 #endif
 	&PKTINFO(rainbow_b0_glut_ctrl),
-	&PKTINFO(rainbow_b0_smooth_dimming),
+	&CONDINFO_IF(rainbow_b0_cond_is_display_on),
+		&PKTINFO(rainbow_b0_smooth_dimming),
+	&CONDINFO_EL(rainbow_b0_cond_is_display_on),
+		&PKTINFO(rainbow_b0_smooth_dimming_init),
+	&CONDINFO_FI(rainbow_b0_cond_is_display_on),
 	&PKTINFO(rainbow_b0_dimming_transition),
 	&PKTINFO(rainbow_b0_sync_control),
 	&PKTINFO(rainbow_b0_tsp_sync),
@@ -3479,6 +3516,7 @@ static struct seqinfo rainbow_b0_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_MCD_ON_SEQ] = SEQINFO_INIT("mcd-on-seq", rainbow_b0_mcd_on_cmdtbl),
 	[PANEL_MCD_OFF_SEQ] = SEQINFO_INIT("mcd-off-seq", rainbow_b0_mcd_off_cmdtbl),
 	[PANEL_DIA_ONOFF_SEQ] = SEQINFO_INIT("dia-onoff-seq", rainbow_b0_dia_onoff_cmdtbl),
+	[PANEL_ALPM_INIT_SEQ] = SEQINFO_INIT("alpm-init-seq", rainbow_b0_alpm_init_cmdtbl),
 	[PANEL_ALPM_SET_BL_SEQ] = SEQINFO_INIT("alpm-set-bl-seq", rainbow_b0_alpm_set_bl_cmdtbl),
 	[PANEL_ALPM_DELAY_SEQ] = SEQINFO_INIT("alpm-enter-delay-seq", rainbow_b0_alpm_enter_delay_cmdtbl),
 	[PANEL_ALPM_EXIT_SEQ] = SEQINFO_INIT("alpm-exit-seq", rainbow_b0_alpm_exit_cmdtbl),

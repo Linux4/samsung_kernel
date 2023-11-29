@@ -84,10 +84,11 @@ static int is_module_regulator_ctrl(struct is_module_regulator *imr,
 				struct device *dev)
 {
 	char* name = pin_ctrls->name;
-	u32 delay = pin_ctrls->delay;
 	u32 value = pin_ctrls->value;
 	u32 vol = pin_ctrls->voltage;
-	int ret;
+	int ret = 0;
+
+	mutex_lock(&imr->regulator_lock);
 
 	if (value) {
 		if (!imr->regulator)
@@ -99,14 +100,13 @@ static int is_module_regulator_ctrl(struct is_module_regulator *imr,
 
 			ret = PTR_ERR(imr->regulator);
 			imr->regulator = NULL;
-			return ret;
+			goto regulator_err;
 		}
 
 		if (regulator_is_enabled(imr->regulator)) {
 			mwarn("[%s] regulator(%s) is already enabled\n",
 					module, module->sensor_name, name);
-			udelay(delay);
-			return 0;
+			goto regulator_err;
 		}
 
 		if (vol > 0) {
@@ -131,13 +131,14 @@ static int is_module_regulator_ctrl(struct is_module_regulator *imr,
 					module, module->sensor_name, name);
 			regulator_put(imr->regulator);
 			imr->regulator = NULL;
-			return ret;
+			goto regulator_err;
 		}
 	} else {
 		if (IS_ERR_OR_NULL(imr->regulator)) {
 			merr("[%s] regulator(%s) get failed\n",
 					module, module->sensor_name, name);
-			return PTR_ERR(imr->regulator);
+			ret = PTR_ERR(imr->regulator);
+			goto regulator_err;
 		}
 
 #ifdef CAMERA_RETENTION_SHARE_POWER
@@ -147,8 +148,7 @@ static int is_module_regulator_ctrl(struct is_module_regulator *imr,
 			mwarn("[%s] regulator(%s) is retention IO pin\n",
 						module, module->sensor_name, name);
 			imr->regulator = NULL;
-			udelay(delay);
-			return 0;
+			goto regulator_err;
 		}
 #endif
 
@@ -157,8 +157,7 @@ static int is_module_regulator_ctrl(struct is_module_regulator *imr,
 					module, module->sensor_name, name);
 			regulator_put(imr->regulator);
 			imr->regulator = NULL;
-			udelay(delay);
-			return 0;
+			goto regulator_err;
 		}
 
 		ret = regulator_disable(imr->regulator);
@@ -167,16 +166,17 @@ static int is_module_regulator_ctrl(struct is_module_regulator *imr,
 					module, module->sensor_name, name);
 			regulator_put(imr->regulator);
 			imr->regulator = NULL;
-			return ret;
+			goto regulator_err;
 		}
 
 		regulator_put(imr->regulator);
 		imr->regulator = NULL;
 	}
 
-	udelay(delay);
+regulator_err:
+	mutex_unlock(&imr->regulator_lock);
 
-	return 0;
+	return ret;
 }
 
 static int is_module_regulator_opt(struct exynos_sensor_pin *pin_ctrls,
@@ -184,7 +184,6 @@ static int is_module_regulator_opt(struct exynos_sensor_pin *pin_ctrls,
 				struct device *dev)
 {
 	char* name = pin_ctrls->name;
-	u32 delay = pin_ctrls->delay;
 	u32 value = pin_ctrls->value;
 	struct regulator *regulator;
 	int ret;
@@ -212,7 +211,6 @@ static int is_module_regulator_opt(struct exynos_sensor_pin *pin_ctrls,
 		}
 	}
 
-	udelay(delay);
 	regulator_put(regulator);
 
 	return 0;
@@ -223,7 +221,6 @@ static int is_module_mclk_ctrl(struct exynos_sensor_pin *pin_ctrls,
 				struct is_device_sensor *ids,
 				u32 scenario)
 {
-	u32 delay = pin_ctrls->delay;
 	u32 value = pin_ctrls->value;
 	int ret;
 
@@ -270,8 +267,6 @@ static int is_module_mclk_ctrl(struct exynos_sensor_pin *pin_ctrls,
 		return ret;
 	}
 
-	udelay(delay);
-
 	return 0;
 }
 
@@ -314,7 +309,6 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 
 	switch (act) {
 	case PIN_NONE:
-		udelay(delay);
 		break;
 	case PIN_OUTPUT:
 		if (gpio_is_valid(pin)) {
@@ -322,7 +316,6 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 				gpio_request_one(pin, GPIOF_OUT_INIT_HIGH, "CAM_GPIO_OUTPUT_HIGH");
 			else
 				gpio_request_one(pin, GPIOF_OUT_INIT_LOW, "CAM_GPIO_OUTPUT_LOW");
-			udelay(delay);
 			gpio_free(pin);
 		}
 		break;
@@ -351,9 +344,7 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 			if (ret < 0) {
 				merr("[%s] pinctrl_select_state(%s) is fail(%d)\n",
 					module, module->sensor_name, name, ret);
-				return ret;
 			}
-			udelay(delay);
 		}
 		break;
 	case PIN_REGULATOR:
@@ -367,24 +358,28 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 			if (IS_ERR_OR_NULL(imr)) {
 				merr("[%s] failed to get is_module_regulator",
 					module, module->sensor_name);
-				return -EINVAL;
+				ret = -EINVAL;
+				break;
 			}
 
-			return is_module_regulator_ctrl(imr, pin_ctrls, module, dev);
+			ret = is_module_regulator_ctrl(imr, pin_ctrls, module, dev);
 		}
 		break;
 	case PIN_REGULATOR_OPTION:
-		return is_module_regulator_opt(pin_ctrls, module, dev);
+		ret = is_module_regulator_opt(pin_ctrls, module, dev);
+		break;
 	case PIN_I2C:
 		ret = is_i2c_pin_control(module, scenario, value);
-		udelay(delay);
 		break;
 	case PIN_MCLK:
-		return is_module_mclk_ctrl(pin_ctrls, module, sensor, scenario);
+		ret = is_module_mclk_ctrl(pin_ctrls, module, sensor, scenario);
+		break;
 	default:
 		merr("[%s] unknown act for pin\n", module, module->sensor_name);
 		break;
 	}
+
+	udelay(delay);
 
 	return ret;
 }

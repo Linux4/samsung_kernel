@@ -1040,10 +1040,13 @@ static int is_hw_mcsc_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	}
 
 	spin_lock_irqsave(&mcsc_out_slock, flag);
-
-	is_hw_mcsc_update_param(hw_ip, mcs_param, instance);
-
+	ret = is_hw_mcsc_update_param(hw_ip, mcs_param, instance);
 	spin_unlock_irqrestore(&mcsc_out_slock, flag);
+	if (ret) {
+		mserr_hw("[F:%d]mcsc update_param failed\n",
+				instance, hw_ip, frame->fcount);
+		return ret;
+	}
 
 	msdbg_hw(2, "[F:%d]shot [T:%d]\n", instance, hw_ip, frame->fcount, frame->type);
 
@@ -1165,14 +1168,14 @@ int is_hw_mcsc_update_register(struct is_hw_ip *hw_ip,
 	int ret = 0;
 
 	hw_mcsc_check_size(hw_ip, input, output, instance, output_id);
-	ret = is_hw_mcsc_poly_phase(hw_ip, input,
+	ret |= is_hw_mcsc_poly_phase(hw_ip, input,
 			output, stripe_input, output_id, instance);
-	ret = is_hw_mcsc_post_chain(hw_ip, input,
+	ret |= is_hw_mcsc_post_chain(hw_ip, input,
 			output, stripe_input, output_id, instance);
-	ret = is_hw_mcsc_flip(hw_ip, output, output_id, instance);
-	ret = is_hw_mcsc_dma_output(hw_ip, output, output_id, instance);
-	ret = is_hw_mcsc_output_yuvrange(hw_ip, output, output_id, instance);
-	ret = is_hw_mcsc_hwfc_output(hw_ip, output, output_id, instance);
+	ret |= is_hw_mcsc_flip(hw_ip, output, output_id, instance);
+	ret |= is_hw_mcsc_dma_output(hw_ip, output, output_id, instance);
+	ret |= is_hw_mcsc_output_yuvrange(hw_ip, output, output_id, instance);
+	ret |= is_hw_mcsc_hwfc_output(hw_ip, output, output_id, instance);
 
 	return ret;
 }

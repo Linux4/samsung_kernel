@@ -771,8 +771,8 @@ static void nv_init_doorbell_index(struct amdgpu_device *adev)
 	adev->doorbell_index.first_non_cp = AMDGPU_NAVI10_DOORBELL64_FIRST_NON_CP;
 	adev->doorbell_index.last_non_cp = AMDGPU_NAVI10_DOORBELL64_LAST_NON_CP;
 
-	adev->doorbell_index.first_cwsr = AMDGPU_NAVI10_DOORBELL64_FIRST_CWSR;
-	adev->doorbell_index.last_cwsr = AMDGPU_NAVI10_DOORBELL64_LAST_CWSR;
+	adev->doorbell_index.first_resv = AMDGPU_NAVI10_DOORBELL64_FIRST_RESV;
+	adev->doorbell_index.last_resv = AMDGPU_NAVI10_DOORBELL64_LAST_RESV;
 
 	adev->doorbell_index.max_assignment = AMDGPU_NAVI10_DOORBELL_MAX_ASSIGNMENT << 1;
 	adev->doorbell_index.sdma_doorbell_range = 20;

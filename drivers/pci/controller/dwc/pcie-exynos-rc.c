@@ -2470,7 +2470,8 @@ void exynos_pcie_rc_dislink_work(struct work_struct *work)
 	}
 #endif
 
-	if (exynos_pcie->ep_device_type == EP_BCM_WIFI) {
+	if (exynos_pcie->ep_device_type == EP_BCM_WIFI ||
+			exynos_pcie->ep_device_type == EP_QC_WIFI) {
 		exynos_pcie->linkdown_cnt++;
 		dev_info(dev, "link down and recovery cnt: %d\n",
 				exynos_pcie->linkdown_cnt);
@@ -2512,12 +2513,8 @@ void exynos_pcie_rc_cpl_timeout_work(struct work_struct *work)
 	exynos_pcie_rc_register_dump(exynos_pcie->ch_num);
 	pm_runtime_put_sync(dev);
 
-	if (exynos_pcie->ep_device_type == EP_QC_WIFI) {
-		exynos_pcie->state = STATE_LINK_DOWN_TRY;
-	} else {
-		dev_info(dev, "[%s] call PCIE_CPL_TIMEOUT callback func.\n", __func__);
-		exynos_pcie_notify_callback(pp, EXYNOS_PCIE_EVENT_CPL_TIMEOUT);
-	}
+	dev_info(dev, "[%s] call PCIE_CPL_TIMEOUT callback func.\n", __func__);
+	exynos_pcie_notify_callback(pp, EXYNOS_PCIE_EVENT_CPL_TIMEOUT);
 }
 
 void exynos_pcie_work_l1ss(struct work_struct *work)
@@ -2546,13 +2543,13 @@ static void exynos_pcie_rc_use_ia(struct exynos_pcie *exynos_pcie)
 {
 	if (exynos_pcie->use_ia) {
 		pr_info("[%s] ep type : %d, speed : %d \n", __func__, exynos_pcie->ep_device_type, exynos_pcie->max_link_speed);
-		if (exynos_pcie->max_link_speed == 1 && exynos_pcie->ep_device_type == EP_QC_WIFI) {
+		if (exynos_pcie->max_link_speed == 1) {
 			pr_info("[%s] Set I/A for refclk common voltage off ver.9\n", __func__);
 
 			//Release NOTE: Pamir_PCIE_GEN2_ERIO_control_IA_code_ver. 9
-			//(ver.6) Release NOTE: Use PMA register PMA, offset:0x 1814, bit[2] ?�ln0_mon_tx_drv_cm_keeper_en?? which is kept high only at L1.1 & L1.2
+			//(ver.6) Release NOTE: Use PMA register PMA, offset:0x 1814, bit[2] ‘ln0_mon_tx_drv_cm_keeper_en’ which is kept high only at L1.1 & L1.2
 			//(ver.6) Release NOTE: Minimize the number of polling keeper_en at L1 exit by using l1sub_exit interrupt
-			//(ver.7) Move code which releases PMA ERIO overriding control from ?�after l1 exit?? to ?�before l1 exit??
+			//(ver.7) Move code which releases PMA ERIO overriding control from ‘after l1 exit’ to ‘before l1 exit’
 			//======================================================================
 			// Please insert below PCIE_IA code before LTSSM_EN is set.
 			//======================================================================
@@ -2643,15 +2640,15 @@ static void exynos_pcie_rc_use_ia(struct exynos_pcie *exynos_pcie)
 
 			/* PCIE_IA Enable */
 			exynos_ia_write(exynos_pcie, 0x1, 0x0);
-		} else if (exynos_pcie->max_link_speed == 2 || exynos_pcie->ep_device_type == EP_BCM_WIFI) {
+		} else if (exynos_pcie->max_link_speed == 2) {
 			pr_info("[%s] Set I/A for refclk common voltage off ver.13\n", __func__);
 
 			//Release NOTE: Pamir_PCIE_GEN2_ERIO_control_IA_code_ver. 9
-			//(ver.6) Use PMA register PMA, offset:0x 1814, bit[2] ?�ln0_mon_tx_drv_cm_keeper_en?? which is kept high only at L1.1 & L1.2
+			//(ver.6) Use PMA register PMA, offset:0x 1814, bit[2] ‘ln0_mon_tx_drv_cm_keeper_en’ which is kept high only at L1.1 & L1.2
 			//(ver.6) Minimize the number of polling keeper_en at L1 exit by using l1sub_exit interrupt
-			//(ver.7) Move code which releases PMA ERIO overriding control from ?�after l1 exit?? to ?�before l1 exit??
-			//(ver.8) Change condition from ??(cm_keeper_en==0)?? to ?�i_mon_pll_lock?? at L1substate exit.
-			//(ver.9) Change condition from ??(cm_keeper_en==0)?? to ?�pcs_pm_state[2]==1(which means L1.N) ?? at L1substate exit. Change scheme to start polling exit condition (IRQ trigger -> Keep polling)
+			//(ver.7) Move code which releases PMA ERIO overriding control from ‘after l1 exit’ to ‘before l1 exit’
+			//(ver.8) Change condition from ‘(cm_keeper_en==0)’ to ‘i_mon_pll_lock’ at L1substate exit.
+			//(ver.9) Change condition from ‘(cm_keeper_en==0)’ to ‘pcs_pm_state[2]==1(which means L1.N) ’ at L1substate exit. Change scheme to start polling exit condition (IRQ trigger -> Keep polling)
 			//(ver.10) This version is dropped.
 			//(ver.11) Insert deskew fifo reset when pll_lock is detected in L1ss exit scenario.
 			//(ver.12) Edit deskew fifo reset de-assertion timing.
@@ -2990,14 +2987,6 @@ static irqreturn_t exynos_pcie_rc_irq_handler(int irq, void *arg)
 			exynos_pcie->sudden_linkdown = 1;
 			exynos_pcie->state = STATE_LINK_DOWN_TRY;
 
-			if (exynos_pcie->ep_device_type == EP_QC_WIFI) {
-				exynos_pcie->linkdown_cnt++;
-				dev_info(pci->dev, "link down and recovery cnt: %d\n",
-						exynos_pcie->linkdown_cnt);
-
-				exynos_pcie_notify_callback_wifi(pp, EXYNOS_PCIE_EVENT_LINKDOWN);
-			}
-
 			queue_work(exynos_pcie->pcie_wq,
 					&exynos_pcie->dislink_work.work);
 		}
@@ -3014,9 +3003,6 @@ static irqreturn_t exynos_pcie_rc_irq_handler(int irq, void *arg)
 			if (exynos_pcie->cpl_timeout_recovery == 0) {
 				exynos_pcie->state = STATE_LINK_DOWN_TRY;
 				exynos_pcie->cpl_timeout_recovery = 1;
-
-				if (exynos_pcie->ep_device_type == EP_QC_WIFI)
-					exynos_pcie_notify_callback_wifi(pp, EXYNOS_PCIE_EVENT_CPL_TIMEOUT);
 
 				dev_info(dev, "!!!call cpl_timeout work\n");
 				queue_work(exynos_pcie->pcie_wq,
@@ -3268,6 +3254,7 @@ static int exynos_pcie_rc_establish_link(struct pcie_port *pp)
 	u32 val, busdev;
 	int count = 0, try_cnt = 0;
 	u32 speed_recovery_cnt = 0;
+	u32 val1, val2, val3;
 
 retry:
 	/* avoid checking rx elecidle when access DBI */
@@ -3277,6 +3264,12 @@ retry:
 				exynos_pcie->ch_num);
 
 	exynos_pcie_rc_assert_phy_reset(pp);
+
+	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1);
+	regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
+	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3);
+	dev_info(dev, "[%s] 2) PMU+0x71C: 0x%x, PMU+0x3A20: 0x%x, PMU+0xAB0: %x\n", __func__, val1, val2, val3);
+
 
 	/* Q-ch disable */
 	exynos_elbi_write(exynos_pcie, 0x0, 0x3A8);
@@ -3297,6 +3290,11 @@ retry:
 				exynos_pcie->pmu_offset1,
 				PCIE_PHY_CONTROL_MASK1, (0x1 << 5));
 	}
+
+	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1);
+	regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
+	regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3);
+	dev_info(dev, "[%s] 3) PMU+0x71C: 0x%x, PMU+0x3A20: 0x%x, PMU+0xAB0: %x\n", __func__, val1, val2, val3);
 
 	if (exynos_pcie->ep_device_type == EP_QC_WIFI)
 		usleep_range(10000, 12000);
@@ -3356,6 +3354,19 @@ retry:
 		//usleep_range(18000, 20000);
 		usleep_range(48000, 50000);
 	}
+
+	/* Enable history buffer */
+	val = exynos_elbi_read(exynos_pcie, PCIE_STATE_HISTORY_CHECK);
+	val &= ~(HISTORY_BUFFER_CONDITION_SEL);
+	exynos_elbi_write(exynos_pcie, val, PCIE_STATE_HISTORY_CHECK);
+
+	exynos_elbi_write(exynos_pcie, 0xffffffff, PCIE_STATE_POWER_S);
+
+	exynos_elbi_write(exynos_pcie, 0xffffffff, PCIE_STATE_POWER_M);
+
+	val = exynos_elbi_read(exynos_pcie, PCIE_STATE_HISTORY_CHECK);
+	val |= HISTORY_BUFFER_ENABLE;
+	exynos_elbi_write(exynos_pcie, val, PCIE_STATE_HISTORY_CHECK);
 
 	/* assert LTSSM enable */
 	exynos_elbi_write(exynos_pcie, PCIE_ELBI_LTSSM_ENABLE,
@@ -3680,9 +3691,9 @@ int exynos_pcie_rc_poweron(int ch_num)
 	struct dw_pcie *pci;
 	struct pcie_port *pp;
 	struct device *dev;
-	u32 val;
 	int ret;
 	struct irq_desc *exynos_pcie_desc;
+	u32 val1, val2, val3;
 	//unsigned long flags;
 
 	if (exynos_pcie->probe_done != 1) {
@@ -3749,6 +3760,11 @@ int exynos_pcie_rc_poweron(int ch_num)
 				   exynos_pcie->pmu_offset,
 				   PCIE_PHY_CONTROL_MASK, 1);
 
+		regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1);
+		regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
+		regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3);
+		dev_info(dev, "[%s] 1) PMU+0x71C: 0x%x, PMU+0x3A20: 0x%x, PMU+0xAB0: %x\n", __func__, val1, val2, val3);
+
 		/* phy all power down clear */
 		if (exynos_pcie->phy_ops.phy_all_pwrdn_clear != NULL) {
 			exynos_pcie->phy_ops.phy_all_pwrdn_clear(exynos_pcie,
@@ -3767,19 +3783,6 @@ int exynos_pcie_rc_poweron(int ch_num)
 			dev_err(dev, "pcie link up fail\n");
 			goto poweron_fail;
 		}
-
-		/* Enable history buffer */
-		val = exynos_elbi_read(exynos_pcie, PCIE_STATE_HISTORY_CHECK);
-		val &= ~(HISTORY_BUFFER_CONDITION_SEL);
-		exynos_elbi_write(exynos_pcie, val, PCIE_STATE_HISTORY_CHECK);
-
-		exynos_elbi_write(exynos_pcie, 0xffffffff, PCIE_STATE_POWER_S);
-
-		exynos_elbi_write(exynos_pcie, 0xffffffff, PCIE_STATE_POWER_M);
-
-		val = exynos_elbi_read(exynos_pcie, PCIE_STATE_HISTORY_CHECK);
-		val |= HISTORY_BUFFER_ENABLE;
-		exynos_elbi_write(exynos_pcie, val, PCIE_STATE_HISTORY_CHECK);
 
 		exynos_pcie->state = STATE_LINK_UP;
 
@@ -3945,8 +3948,9 @@ void exynos_pcie_rc_poweroff(int ch_num)
 			pcie_sysmmu_disable(ch_num);
 
 		if (exynos_pcie->chip_ver == 1) {
-			if (exynos_pcie->ep_device_type == EP_BCM_WIFI) {
+			if (exynos_pcie->max_link_speed == 2) {
 				//IA disable
+				dev_info(dev, "%s, IA ver13 disable\n", __func__);
 				exynos_ia_write(exynos_pcie, 0x0, 0x60);
 				exynos_ia_write(exynos_pcie, 0x0, 0x0);
 				exynos_ia_write(exynos_pcie, 0xD0000004, 0x100);
@@ -5057,13 +5061,26 @@ static int exynos_pcie_rc_power_mode_event(struct notifier_block *nb,
 #endif
 #endif
 static int exynos_pcie_msi_set_affinity(struct irq_data *irq_data,
-				   const struct cpumask *mask, bool force)
+		const struct cpumask *mask, bool force)
 {
 	struct pcie_port *pp = irq_data->parent_data->domain->host_data;
+	struct dw_pcie *pci;
+	struct exynos_pcie *exynos_pcie;
+	struct irq_data *idata;
 
-	irq_set_affinity_hint(pp->irq, mask);
+	if (pp == NULL)
+		return -EINVAL;
 
-	return 0;
+	pci = to_dw_pcie_from_pp(pp);
+	exynos_pcie = to_exynos_pcie(pci);
+
+	if (!exynos_pcie->probe_ok)
+		return IRQ_SET_MASK_OK;
+
+	idata = irq_get_irq_data(pp->irq);
+	idata->chip->irq_set_affinity(idata, mask, force);
+
+	return IRQ_SET_MASK_OK;
 }
 
 #if IS_ENABLED(CONFIG_EXYNOS_ITMON)
@@ -5074,6 +5091,7 @@ int exynos_pcie_rc_itmon_notifier(struct notifier_block *nb,
 	struct device *dev = exynos_pcie->pci->dev;
 	struct itmon_notifier *itmon_info = nb_data;
 	unsigned int val;
+	u32 val1, val2, val3;
 
 	if (IS_ERR_OR_NULL(itmon_info))
 		return NOTIFY_DONE;
@@ -5087,6 +5105,15 @@ int exynos_pcie_rc_itmon_notifier(struct notifier_block *nb,
 
 			exynos_pcie_rc_register_dump(exynos_pcie->ch_num);
 		}
+	} else if (exynos_pcie->ip_ver == 0x992500) {
+		if ((itmon_info->port && !strcmp(itmon_info->port, "HSI1_P")) ||
+				(itmon_info->dest && !strcmp(itmon_info->dest, "HSI1_P"))) {
+			regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset, &val1);
+			regmap_read(exynos_pcie->pmureg, 0x3A20, &val2);
+			regmap_read(exynos_pcie->pmureg, exynos_pcie->pmu_offset1, &val3);
+			dev_info(dev, "[%s] PMU+0x71C: 0x%x, PMU+0x3A20: 0x%x, PMU+0xAB0: %x\n", __func__, val1, val2, val3);
+		}
+
 	} else {
 		dev_dbg(dev, "skip register dump(ip_ver = 0x%x)\n", exynos_pcie->ip_ver);
 	}

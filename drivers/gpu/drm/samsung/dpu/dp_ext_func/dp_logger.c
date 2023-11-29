@@ -168,6 +168,7 @@ static ssize_t dp_logger_read(struct file *file, char __user *buf, size_t len, l
 
 static const struct proc_ops dp_logger_ops = {
 	.proc_read = dp_logger_read,
+	.proc_lseek = default_llseek,
 };
 
 int dp_logger_init(void)

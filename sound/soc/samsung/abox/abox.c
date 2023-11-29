@@ -61,6 +61,10 @@
 #include "abox_vss.h"
 #include "abox.h"
 
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#include <sound/samsung/sec_audio_sysfs.h>
+#endif
+
 #ifdef CONFIG_SOC_EXYNOS8895
 #define ABOX_PAD_NORMAL				(0x3048)
 #define ABOX_PAD_NORMAL_MASK			(0x10000000)
@@ -2528,6 +2532,9 @@ void abox_silent_reset(struct abox_data *data, bool reset)
 		if (reset) {
 			abox_info(data->dev, "silent reset\n");
 			exynos_pmu_write(ABOX_OPTION, ABOX_OPTION_MASK);
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+			send_adsp_silent_reset_ev();
+#endif
 		} else {
 			exynos_pmu_write(ABOX_OPTION, 0x0);
 		}

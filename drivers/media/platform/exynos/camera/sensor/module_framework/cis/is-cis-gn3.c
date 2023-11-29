@@ -2465,6 +2465,17 @@ int sensor_gn3_cis_stream_on(struct v4l2_subdev *subdev)
 #endif
 #endif
 
+	if (cis->cis_data->is_data.scene_mode == AA_SCENE_MODE_HYPERLAPSE
+		|| cis->cis_data->is_data.scene_mode == AA_SCENE_MODE_PRO_MODE) {
+		is_sensor_write16(cis->client, 0x6028, 0x2002);
+		is_sensor_write16(cis->client, 0x602A, 0x812A);
+		is_sensor_write16(cis->client, 0x6F12, 0x0101);
+	} else {
+		is_sensor_write16(cis->client, 0x6028, 0x2002);
+		is_sensor_write16(cis->client, 0x602A, 0x812A);
+		is_sensor_write16(cis->client, 0x6F12, 0x0001);
+	}
+
 	is_sensor_read16(client, 0x0B30, &fast_change_idx);
 
 #if IS_ENABLED(USE_CAMERA_SENSOR_RETENTION)

@@ -595,28 +595,6 @@ void is_group_unlock(struct is_group *group, unsigned long flags,
 		framemgr_x_barrier_irqr(ldr_framemgr, FMGR_IDX_20, flags);
 }
 
-void is_group_subdev_check(struct is_group *group, u32 *vc0_dma)
-{
-	struct is_device_sensor *sensor;
-	struct is_device_csi *csi;
-	struct v4l2_subdev		*subdev_csi;
-	u32 vc;
-
-	FIMC_BUG_VOID(!group);
-	sensor = group->sensor;
-	subdev_csi = sensor->subdev_csi;
-	csi = v4l2_get_subdevdata(subdev_csi);
-	if (!csi) {
-		merr("CSI is NULL", sensor);
-		return;
-	}
-	vc = CSI_VIRTUAL_CH_0;
-	if (csi->cur_dma_enable[vc]) {
-		*vc0_dma = 1;
-		mginfo("CSI_VIRTUAL_CH_0 DMA on, should cancel subdev FS_PROCESS!\n", group, group);
-	}
-}
-
 void is_group_subdev_cancel(struct is_group *group,
 		struct is_frame *ldr_frame,
 		enum is_device_type device_type,
@@ -687,6 +665,41 @@ void is_group_subdev_cancel(struct is_group *group,
 	}
 }
 
+int is_group_immediately_standby_done(struct is_groupmgr *groupmgr,
+               struct is_group *group){
+	int ret = 0;
+	int frame_count = 0;
+	int i = 0;
+	unsigned long flags;
+	struct is_framemgr *framemgr;
+	struct is_group *head;
+	struct is_video_ctx *ldr_vctx;
+	struct is_frame *frame;
+
+	FIMC_BUG(!groupmgr);
+	FIMC_BUG(!group);
+
+	head = group->head;
+	framemgr = GET_HEAD_GROUP_FRAMEMGR(group, 0);
+	ldr_vctx = group->head->leader.vctx;
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame_count = framemgr->queued_count[FS_COMPLETE];
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	for (i = 0; i < frame_count; i++) {
+		framemgr_e_barrier_irqs(framemgr, 0, flags);
+		frame = peek_frame(framemgr, FS_COMPLETE);
+		if (frame->fcount == 0) {
+			mrinfo("%s: frame index(%d)\n", group, frame, __func__, frame->index);
+			CALL_VOPS(ldr_vctx, done, frame->index, VB2_BUF_STATE_ERROR);
+		}
+		clear_bit(group->leader.id, &frame->out_flag);
+		trans_frame(framemgr, frame, FS_FREE);
+		framemgr_x_barrier_irqr(framemgr, 0, flags);
+	}
+	return ret;
+
+}
+
 static void is_group_cancel(struct is_group *group,
 	struct is_frame *ldr_frame)
 {
@@ -695,6 +708,7 @@ static void is_group_cancel(struct is_group *group,
 	struct is_video_ctx *ldr_vctx;
 	struct is_framemgr *ldr_framemgr;
 	struct is_frame *prev_frame, *next_frame;
+	int setfile;
 
 	FIMC_BUG_VOID(!group);
 	FIMC_BUG_VOID(!ldr_frame);
@@ -735,6 +749,7 @@ p_retry:
 	}
 
 	prev_frame = peek_frame(ldr_framemgr, FS_PROCESS);
+	setfile = group->device->setfile & IS_SETFILE_MASK;
 	if (wait_count && prev_frame && prev_frame->bak_flag != prev_frame->out_flag) {
 		mginfo("prev frame(F%d) is on process(%lX %lX), waiting...\n", group, group,
 			prev_frame->fcount, prev_frame->bak_flag, prev_frame->out_flag);
@@ -742,8 +757,16 @@ p_retry:
 		usleep_range(1000, 1000);
 		wait_count--;
 		goto p_retry;
+	} else if(CHK_PIP_SAT_SCN(setfile) && prev_frame && prev_frame->bak_flag == prev_frame->out_flag) {
+		trans_frame(ldr_framemgr, ldr_frame, FS_COMPLETE);
+		mgrinfo("[ERR] CANCEL(i%d)(R%d, P%d, C%d) only for standby\n", group, group, ldr_frame,
+		ldr_frame->index,
+		ldr_framemgr->queued_count[FS_REQUEST],
+		ldr_framemgr->queued_count[FS_PROCESS],
+		ldr_framemgr->queued_count[FS_COMPLETE]);
+		is_group_unlock(group, flags, IS_DEVICE_MAX, true);
+		return;
 	}
-
 	if (ldr_frame->state == FS_COMPLETE || ldr_frame->state == FS_FREE) {
 		mgrwarn("Can't cancel this frame because state(%s) is invalid, skip buffer done",
 			group, group, ldr_frame,
@@ -1211,14 +1234,14 @@ static int is_group_path_dmsg(struct is_device_ischain *device,
 	u32 *_path = path->group;
 
 	if (test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
-		is_dmsg_init();
-		is_dmsg_concate("STM(R) PH:");
+		is_dmsg_init(device->instance);
+		is_dmsg_concate(device->instance, "STM(R) PH:");
 	} else if (test_bit(IS_GROUP_USE_MULTI_CH, &leader_group->state)) {
-		is_dmsg_concate("STM(N:2) PH:");
+		is_dmsg_concate(device->instance, "STM(N:2) PH:");
 		_path = path->group_2nd;
 	} else {
-		is_dmsg_init();
-		is_dmsg_concate("STM(N) PH:");
+		is_dmsg_init(device->instance);
+		is_dmsg_concate(device->instance, "STM(N) PH:");
 	}
 
 	/*
@@ -1234,13 +1257,13 @@ static int is_group_path_dmsg(struct is_device_ischain *device,
 	 */
 	if (test_bit(IS_GROUP_OTF_INPUT, &leader_group->state)) {
 		if (test_bit(IS_GROUP_VOTF_INPUT, &leader_group->state))
-			is_dmsg_concate(" %02d *> ", leader_group->source_vid);
+			is_dmsg_concate(device->instance, " %02d *> ", leader_group->source_vid);
 		else if (test_bit(IS_GROUP_USE_MULTI_CH, &leader_group->state))
-			is_dmsg_concate(" %02d ^> ", leader_group->source_vid);
+			is_dmsg_concate(device->instance, " %02d ^> ", leader_group->source_vid);
 		else
-			is_dmsg_concate(" %02d -> ", leader_group->source_vid);
+			is_dmsg_concate(device->instance, " %02d -> ", leader_group->source_vid);
 	} else {
-		is_dmsg_concate(" %02d => ", leader_group->source_vid);
+		is_dmsg_concate(device->instance, " %02d => ", leader_group->source_vid);
 	}
 
 	group = leader_group;
@@ -1256,7 +1279,7 @@ static int is_group_path_dmsg(struct is_device_ischain *device,
 			_path[group->slot] = group->logical_id;
 		}
 
-		is_dmsg_concate("GP%s ( ", group_id_name[group->id]);
+		is_dmsg_concate(device->instance, "GP%s ( ", group_id_name[group->id]);
 		list_for_each_entry(subdev, &group->subdev_list, list) {
 			vctx = subdev->vctx;
 			if (!vctx)
@@ -1270,17 +1293,17 @@ static int is_group_path_dmsg(struct is_device_ischain *device,
 
 			/* connection check */
 			if (video->id == source_vid) {
-				is_dmsg_concate("*%02d ", video->id);
+				is_dmsg_concate(device->instance, "*%02d ", video->id);
 				group->junction = subdev;
 				_path[group->slot] = group->logical_id;
 				if (next)
 					_path[next->slot] = next->logical_id;
 			} else {
-				is_dmsg_concate("%02d ", video->id);
+				is_dmsg_concate(device->instance, "%02d ", video->id);
 			}
 
 		}
-		is_dmsg_concate(")");
+		is_dmsg_concate(device->instance, ")");
 
 		if (next && !group->junction) {
 			mgerr("junction subdev can NOT be found", device, group);
@@ -1302,18 +1325,18 @@ static int is_group_path_dmsg(struct is_device_ischain *device,
 
 				if (test_bit(IS_GROUP_VOTF_INPUT, &next->state)) {
 					set_bit(IS_GROUP_VOTF_OUTPUT, &group->state);
-					is_dmsg_concate(" *> ");
+					is_dmsg_concate(device->instance, " *> ");
 				} else {
-					is_dmsg_concate(" -> ");
+					is_dmsg_concate(device->instance, " -> ");
 				}
 			} else {
-				is_dmsg_concate(" => ");
+				is_dmsg_concate(device->instance, " => ");
 			}
 		}
 
 		group = next;
 	}
-	is_dmsg_concate("\n");
+	is_dmsg_concate(device->instance, "\n");
 
 	return 0;
 }
@@ -1529,7 +1552,7 @@ int is_groupmgr_init(struct is_groupmgr *groupmgr,
 
 p_err:
 	minfo(" =STM CFG===============\n", device);
-	minfo(" %s", device, is_dmsg_print());
+	minfo(" %s", device, is_dmsg_print(device->instance));
 	minfo(" DEVICE GRAPH :", device);
 	for (slot = 0; slot < GROUP_SLOT_MAX; ++slot)
 		printk(KERN_CONT " %d(%s),",

@@ -1046,7 +1046,7 @@ bool amdgpu_vm_need_pipeline_sync(struct amdgpu_ring *ring,
 {
 	bool vm_flush_needed = job->vm_needs_flush || ring->has_compute_vm_bug;
 
-	if (ring->cwsr)
+	if (ring->cwsr || ring->tmz)
 		return true;
 
 	if (job->vmid == 0)
@@ -1106,7 +1106,7 @@ int amdgpu_vm_flush(struct amdgpu_ring *ring, struct amdgpu_job *job,
 		}
 	}
 
-	if (ring->cwsr)
+	if (ring->cwsr || ring->tmz)
 		vm_flush_needed = true;
 
 	if (vm && vm->reserved_vmid[vmhub] &&

@@ -235,7 +235,7 @@ static struct sk_buff *slsi_mlme_tx_rx(struct slsi_dev *sdev,
 	spin_unlock_bh(&sig_wait->send_signal_lock);
 
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-	if (scsc_mx_service_claim(sdev->service)) {
+	if (scsc_mx_service_claim(sdev->service, WLAN_MLME_REQ_CFM_IND)) {
 		SLSI_ERR(sdev, "Failed to get the PCIe link\n");
 		kfree_skb(skb);
 		goto clean_exit;
@@ -245,6 +245,9 @@ static struct sk_buff *slsi_mlme_tx_rx(struct slsi_dev *sdev,
 	if (err != 0) {
 		SLSI_ERR(sdev, "Failed to send mlme signal:0x%.4X, err=%d\n", req_id, err);
 		kfree_skb(skb);
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+		scsc_mx_service_release(sdev->service, WLAN_MLME_REQ_CFM_IND);
+#endif
 		goto clean_exit;
 	}
 	if (cfm_id) {
@@ -267,10 +270,10 @@ static struct sk_buff *slsi_mlme_tx_rx(struct slsi_dev *sdev,
 	WLBT_WARN_ON(sig_wait->ind_id);
 	WLBT_WARN_ON(sig_wait->cfm);
 	WLBT_WARN_ON(sig_wait->ind);
-clean_exit:
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-	scsc_mx_service_release(sdev->service);
+	scsc_mx_service_release(sdev->service, WLAN_MLME_REQ_CFM_IND);
 #endif
+clean_exit:
 	spin_lock_bh(&sig_wait->send_signal_lock);
 
 	sig_wait->req_id = 0;
@@ -314,7 +317,7 @@ int slsi_mlme_req(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff 
 	spin_unlock_bh(&sig_wait->send_signal_lock);
 
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-	if (scsc_mx_service_claim(sdev->service)) {
+	if (scsc_mx_service_claim(sdev->service, WLAN_MLME_REQ)) {
 		SLSI_ERR(sdev, "Failed to get the PCIe link\n");
 		kfree_skb(skb);
 		goto exit;
@@ -324,8 +327,8 @@ int slsi_mlme_req(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff 
 	if (ret)
 		kfree_skb(skb);
 #if defined(CONFIG_SCSC_PCIE_CHIP)
+	scsc_mx_service_release(sdev->service, WLAN_MLME_REQ);
 exit:
-	scsc_mx_service_release(sdev->service);
 #endif
 	return ret;
 }

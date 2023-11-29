@@ -138,9 +138,8 @@ struct amdgpu_gmc_funcs {
 	/* get GART/VM status */
 	size_t (*get_gmc_status)(struct amdgpu_device *adev,
 				 char *buf, size_t len);
-
-	void (*cwsr_flush_gpu_tlb)(u32 vmid, struct amdgpu_bo *root_bo,
-				   struct amdgpu_ring *ring);
+	void (*sws_flush_gpu_tlb)(u32 vmid, struct amdgpu_bo *root_bo,
+				  struct amdgpu_ring *ring);
 };
 
 struct amdgpu_xgmi {
@@ -262,6 +261,8 @@ struct amdgpu_gmc {
 #define amdgpu_gmc_get_vbios_fb_size(adev) (adev)->gmc.gmc_funcs->get_vbios_fb_size((adev))
 #define amdgpu_gmc_cwsr_flush_gpu_tlb(vmid, bo, ring) \
 		(adev)->gmc.gmc_funcs->cwsr_flush_gpu_tlb((vmid), (bo), (ring))
+#define amdgpu_gmc_sws_flush_gpu_tlb(vmid, bo, ring) \
+	(adev)->gmc.gmc_funcs->sws_flush_gpu_tlb((vmid), (bo), (ring))
 
 /**
  * amdgpu_gmc_vram_full_visible - Check if full VRAM is visible through the BAR

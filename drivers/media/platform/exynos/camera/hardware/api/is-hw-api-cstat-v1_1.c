@@ -1624,11 +1624,13 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 	struct cstat_ds_cfg cfg;
 	void (*func_ds_cfg)(void __iomem *base, bool en, struct cstat_ds_cfg *cfg);
 	u32 in_w, in_h, total_w, total_h, max_w, max_h;
+	bool ds_en;
 
 	switch (dma_id) {
 	case CSTAT_W_LMEDS0:
 		dma_out = &p_set->dma_output_lme_ds0;
 		func_ds_cfg = cstat_hw_s_ds_lme0;
+		ds_en = (dma_out->cmd || p_set->dma_output_lme_ds1.cmd) ? true : false;
 		in_w = size_cfg->bns.w;
 		in_h = size_cfg->bns.h;
 		max_w = CSTAT_LMEDS0_OUT_MAX_W;
@@ -1638,6 +1640,7 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 		lmeds0_out = &p_set->dma_output_lme_ds0;
 		dma_out = &p_set->dma_output_lme_ds1;
 		func_ds_cfg = cstat_hw_s_ds_lme1;
+		ds_en = dma_out->cmd ? true : false;
 		in_w = lmeds0_out->width;
 		in_h = lmeds0_out->height;
 		max_w = CSTAT_LMEDS1_OUT_MAX_W;
@@ -1646,6 +1649,7 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 	case CSTAT_W_FDPIG:
 		dma_out = &p_set->dma_output_fdpig;
 		func_ds_cfg = cstat_hw_s_ds_fdpig;
+		ds_en = dma_out->cmd ? true : false;
 		in_w = size_cfg->bns.w;
 		in_h = size_cfg->bns.h;
 		max_w = CSTAT_FDPIG_OUT_MAX_W;
@@ -1654,6 +1658,7 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 	case CSTAT_W_CDS0:
 		dma_out = &p_set->dma_output_cds;
 		func_ds_cfg = cstat_hw_s_ds_cds;
+		ds_en = dma_out->cmd ? true : false;
 		in_w = size_cfg->bns.w;
 		in_h = size_cfg->bns.h;
 		max_w = CSTAT_CDS_OUT_MAX_W;
@@ -1690,7 +1695,7 @@ int cstat_hw_s_ds_cfg(void __iomem *base, enum cstat_dma_id dma_id,
 		return 0;
 	}
 
-	if (!dma_out->cmd) {
+	if (!ds_en) {
 		func_ds_cfg(base, false, NULL);
 		return 0;
 	}
@@ -2454,9 +2459,6 @@ void cstat_hw_s_dma_cfg(struct cstat_param_set *p_set, struct is_cstat_config *c
 	if (p_set->dma_output_lme_ds1.cmd && conf->lmeds_bypass) {
 		p_set->dma_output_lme_ds1.cmd = DMA_OUTPUT_COMMAND_DISABLE;
 		warn_hw("[%d][CSTAT][F%d] bypass LMEDS1", p_set->instance_id, p_set->fcount);
-	} else if (p_set->dma_output_lme_ds1.cmd && !p_set->dma_output_lme_ds0.cmd) {
-		p_set->dma_output_lme_ds1.cmd = DMA_OUTPUT_COMMAND_DISABLE;
-		warn_hw("[%d][CSTAT][F%d] Cannot enable LMEDS1", p_set->instance_id, p_set->fcount);
 	} else if (!conf->lmeds_bypass) {
 		p_set->dma_output_lme_ds1.width = conf->lmeds1_w;
 		p_set->dma_output_lme_ds1.height = conf->lmeds1_h;

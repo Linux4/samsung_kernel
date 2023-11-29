@@ -222,6 +222,8 @@
 					battery,tx_stop_capacity = <0x1e>;
 					battery,tx_minduty_default = <0x14>;
 					battery,tx_minduty_5V = <0x32>;
+					battery,tx_ping_duty_default = <0x28>;
+					battery,tx_ping_duty_no_ta = <0x28>;
 					battery,tx_uno_iout = <0x5dc>;
 					battery,tx_mfc_iout_gear = <0x5dc>;
 					battery,tx_mfc_iout_phone = <0x44c>;
@@ -230,6 +232,7 @@
 					battery,tx_5v_disable;
 					battery,phm_vout_ctrl_dev = <0x08>;
 					battery,nv_wc_headroom = <0x06>;
+					battery,wpc_warm_fod;
 					battery,ttf_hv_charge_current = <0xa84>;
 					battery,ttf_dc25_charge_current = <0x1151>;
 					battery,ttf_dc45_charge_current = <0x14f0>;
@@ -5967,7 +5970,7 @@
 				status = "okay";
 				compatible = "samsung,exynos-gnss";
 				interrupt-parent = <0xffffffff>;
-				interrupts = <0x00 0x22 0x04 0x00 0x00 0x1de 0x01 0x00 0x00 0x1dd 0x04 0x00 0x00 0x1dc 0x01 0x00>;
+				interrupts = <0x00 0x22 0x04 0x00 0x00 0x1de 0x04 0x00 0x00 0x1dd 0x04 0x00 0x00 0x1dc 0x01 0x00>;
 				interrupt-names = "ACTIVE\0WATCHDOG\0WAKEUP\0SW_INIT";
 				shmem,name = "KEPLER";
 				device_node_name = "gnss_ipc";

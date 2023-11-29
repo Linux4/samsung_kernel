@@ -2556,6 +2556,15 @@ static int is_hw_cstat_change_chain(struct is_hw_ip *hw_ip, u32 instance,
 	((struct is_hw_cstat *)(next_hw_ip->priv_info))->param_set[instance]
 		= hw->param_set[instance];
 
+	if(hw->sensor_itf[instance]) {
+		((struct is_hw_cstat *)(next_hw_ip->priv_info))->sensor_itf[instance]
+			= hw->sensor_itf[instance];
+	} else {
+		((struct is_hw_cstat *)(next_hw_ip->priv_info))->sensor_itf[instance]
+			= is_sensor_get_sensor_interface(hw_ip->group[instance]->device->sensor);
+
+	}
+
 	next_hw_ip->group[instance] = hw_ip->group[instance];
 	next_hw_ip->region[instance] = hw_ip->region[instance];
 
@@ -2898,7 +2907,7 @@ static void cstat_hw_g_prfi(struct is_hw_ip *hw_ip, int instance,
 
 	sensor_itf = hw->sensor_itf[instance];
 	if (!sensor_itf) {
-		mserr_hw("sensor_interface is NULL", instance, hw_ip);
+		mswarn_hw("sensor_interface is NULL", instance, hw_ip);
 		return;
 	}
 

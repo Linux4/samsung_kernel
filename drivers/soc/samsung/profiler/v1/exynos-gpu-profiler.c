@@ -204,7 +204,7 @@ static int register_export_fn(u32 *max_freq, u32 *min_freq, u32 *cur_freq)
 	*max_freq = exynos_profiler_get_max_locked_freq();
 	*min_freq = exynos_profiler_get_min_locked_freq();
 	*cur_freq = exynos_profiler_get_cur_clock();
- 
+
 	profiler.table_cnt = exynos_profiler_get_step();
 	profiler.fc.time[CS_ACTIVE] = exynos_profiler_get_time_in_state();
 

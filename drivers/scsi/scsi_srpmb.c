@@ -202,7 +202,7 @@ int srpmb_scsi_ioctl(struct scsi_device *sdev, Rpmb_Req *req)
 	for (count = 0; count < MAX_RETRY; count++) {
 		ret = srpmb_ioctl_secu_prot_command(sdev, scsi_cmd,
 			req, &sshdr,
-			START_STOP_TIMEOUT, NORMAL_RETRIES);
+			RPMB_REQ_TIMEOUT, NORMAL_RETRIES);
 
 		if (sshdr.sense_key == UNIT_ATTENTION)
 			dev_warn(&sr_pdev->dev, "RPMB UAC detected: Retry! (count = %d)\n", count + 1);
