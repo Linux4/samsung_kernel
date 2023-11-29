@@ -488,17 +488,25 @@ void lb_newidle_balance(struct rq *dst_rq, struct rq_flags *rf,
 
 	rq_unpin_lock(dst_rq, rf);
 
+	/* to check ttwu_pending */
+	if (!llist_empty(&dst_rq->wake_list))
+		goto out;
+
 	if (dst_rq->nr_running)
 		goto out;
 
 	if (frt_idle_pull_tasks(dst_rq))
 		goto out;
 
+	/* sanity check again after drop rq lock during RT balance */
+	if (dst_rq->nr_running)
+		goto out;
+
 	if (!READ_ONCE(dst_rq->rd->overload))
-		goto repin;
+		goto out;
 
 	if (atomic_read(&dst_rq->nr_iowait) && short_idle)
-		goto repin;
+		goto out;
 
 	raw_spin_unlock(&dst_rq->lock);
 
@@ -526,7 +534,6 @@ out:
 	if (*pulled_task)
 		dst_rq->idle_stamp = 0;
 
-repin:
 	rq_repin_lock(dst_rq, rf);
 
 	trace_lb_newidle_balance(dst_cpu, src_cpu, *pulled_task, short_idle);

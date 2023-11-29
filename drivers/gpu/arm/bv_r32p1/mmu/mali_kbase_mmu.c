@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1315,6 +1315,7 @@ page_fault_retry:
 		kbase_gpu_vm_unlock(kctx);
 	} else {
 		int ret = -ENOMEM;
+		const u8 group_id = region->gpu_alloc->group_id;
 
 		kbase_gpu_vm_unlock(kctx);
 
@@ -1326,23 +1327,21 @@ page_fault_retry:
 			if (grow_2mb_pool) {
 				/* Round page requirement up to nearest 2 MB */
 				struct kbase_mem_pool *const lp_mem_pool =
-					&kctx->mem_pools.large[
-					region->gpu_alloc->group_id];
+					&kctx->mem_pools.large[group_id];
 
 				pages_to_grow = (pages_to_grow +
 					((1 << lp_mem_pool->order) - 1))
 						>> lp_mem_pool->order;
 
 				ret = kbase_mem_pool_grow(lp_mem_pool,
-					pages_to_grow);
+					pages_to_grow, kctx->task);
 			} else {
 #endif
 				struct kbase_mem_pool *const mem_pool =
-					&kctx->mem_pools.small[
-					region->gpu_alloc->group_id];
+					&kctx->mem_pools.small[group_id];
 
 				ret = kbase_mem_pool_grow(mem_pool,
-					pages_to_grow);
+					pages_to_grow, kctx->task);
 #ifdef CONFIG_MALI_2MB_ALLOC
 			}
 #endif
@@ -1756,7 +1755,7 @@ int kbase_mmu_insert_single_page(struct kbase_context *kctx, u64 vpfn,
 				&kbdev->mem_pools.small[
 #endif
 					kctx->mmu.group_id],
-				MIDGARD_MMU_BOTTOMLEVEL);
+				MIDGARD_MMU_BOTTOMLEVEL,kctx->task);
 			mutex_lock(&kctx->mmu.mmu_lock);
 		} while (!err);
 		if (err) {
@@ -1950,7 +1949,7 @@ int kbase_mmu_insert_pages_no_flush(struct kbase_device *kbdev,
 #else
 				&kbdev->mem_pools.small[mmut->group_id],
 #endif
-				cur_level);
+				cur_level,mmut->kctx ? mmut->kctx->task : NULL);
 			mutex_lock(&mmut->mmu_lock);
 		} while (!err);
 
@@ -2690,7 +2689,7 @@ int kbase_mmu_init(struct kbase_device *const kbdev,
 #else
 			&kbdev->mem_pools.small[mmut->group_id],
 #endif
-			MIDGARD_MMU_BOTTOMLEVEL);
+			MIDGARD_MMU_BOTTOMLEVEL,kctx ? kctx->task : NULL);
 		if (err) {
 			kbase_mmu_term(kbdev, mmut);
 			return -ENOMEM;
