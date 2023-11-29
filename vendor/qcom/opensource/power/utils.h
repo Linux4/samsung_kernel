@@ -29,6 +29,10 @@
 
 #include <cutils/properties.h>
 
+typedef struct {
+    char value[PROP_VALUE_MAX];
+} PropVal;
+
 int sysfs_read(char *path, char *s, int num_bytes);
 int sysfs_write(char *path, char *s);
 int get_scaling_governor(char governor[], int size);
@@ -45,3 +49,4 @@ void undo_hint_action(int hint_id);
 void release_request(int lock_handle);
 int interaction_with_handle(int lock_handle, int duration, int num_args, int opt_list[]);
 int perf_hint_enable(int hint_id, int duration);
+PropVal perf_get_property(const char *prop , const char *def_val);

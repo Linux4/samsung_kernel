@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,4 +33,28 @@
  * Return: bool
  */
 bool wlan_pkt_capture_is_tx_mgmt_enable(struct wlan_objmgr_pdev *pdev);
+
+#ifdef WLAN_FEATURE_PKT_CAPTURE
+/**
+ * wlan_pkt_capture_register_callbacks - Register packet capture callbacks
+ * @vdev: pointer to wlan vdev object manager
+ * @mon_cb: callback to call
+ * @context: callback context
+ *
+ * Return: 0 in case of success, invalid in case of failure.
+ */
+QDF_STATUS
+wlan_pkt_capture_register_callbacks(struct wlan_objmgr_vdev *vdev,
+				    QDF_STATUS (*mon_cb)(void *, qdf_nbuf_t),
+				    void *context);
+
+#else
+static inline QDF_STATUS
+wlan_pkt_capture_register_callbacks(struct wlan_objmgr_vdev *vdev,
+				    QDF_STATUS (*mon_cb)(void *, qdf_nbuf_t),
+				    void *context)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif /* WLAN_FEATURE_PKT_CAPTURE */
 #endif /* _WLAN_PKT_CAPTURE_API_H_ */

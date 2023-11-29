@@ -55,6 +55,7 @@
 
 package com.android.bluetooth.gatt;
 
+import static com.android.bluetooth.Utils.checkCallerTargetSdk;
 import static com.android.bluetooth.Utils.enforceBluetoothPrivilegedPermission;
 
 import android.annotation.RequiresPermission;
@@ -118,6 +119,7 @@ import com.android.bluetooth.R;
 import com.android.bluetooth.Utils;
 import com.android.bluetooth.btservice.AbstractionLayer;
 import com.android.bluetooth.btservice.AdapterService;
+import com.android.bluetooth.btservice.BluetoothAdapterProxy;
 import com.android.bluetooth.btservice.ProfileService;
 import com.android.bluetooth.util.NumberUtils;
 import com.android.internal.annotations.VisibleForTesting;
@@ -258,12 +260,13 @@ public class GattService extends ProfileService {
 
     /**
      * HashMap used to synchronize writeCharacteristic calls mapping remote device address to
-     * available permit (either 1 or 0).
+     * available permit (connectId or -1).
      */
-    private final HashMap<String, AtomicBoolean> mPermits = new HashMap<>();
+    private final HashMap<String, Integer> mPermits = new HashMap<>();
 
     private BluetoothAdapter mAdapter;
     private AdapterService mAdapterService;
+    private BluetoothAdapterProxy mBluetoothAdapterProxy;
     private AdvertiseManager mAdvertiseManager;
     private PeriodicScanManager mPeriodicScanManager;
     private ScanManager mScanManager;
@@ -355,13 +358,14 @@ public class GattService extends ProfileService {
         mNativeAvailable = true;
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdapterService = AdapterService.getAdapterService();
+        mBluetoothAdapterProxy = BluetoothAdapterProxy.getInstance();
         mCompanionManager = ICompanionDeviceManager.Stub.asInterface(
                 ServiceManager.getService(Context.COMPANION_DEVICE_SERVICE));
         mAppOps = getSystemService(AppOpsManager.class);
         mAdvertiseManager = new AdvertiseManager(this, AdapterService.getAdapterService());
         mAdvertiseManager.start();
 
-        mScanManager = new ScanManager(this, mAdapterService);
+        mScanManager = new ScanManager(this, mAdapterService, mBluetoothAdapterProxy);
         mScanManager.start();
 
         mPeriodicScanManager = new PeriodicScanManager(AdapterService.getAdapterService());
@@ -487,6 +491,15 @@ public class GattService extends ProfileService {
             return null;
         }
         return sGattService;
+    }
+
+    @VisibleForTesting
+    ScanManager getScanManager() {
+        if (mScanManager == null) {
+            Log.w(TAG, "getScanManager(): scan manager is null");
+            return null;
+        }
+        return mScanManager;
     }
 
     private static synchronized void setGattService(GattService instance) {
@@ -2148,7 +2161,7 @@ public class GattService extends ProfileService {
             synchronized (mPermits) {
                 Log.d(TAG, "onConnected() - adding permit for address="
                     + address);
-                mPermits.putIfAbsent(address, new AtomicBoolean(true));
+                mPermits.putIfAbsent(address, -1);
             }
         }
         ClientMap.App app = mClientMap.getById(clientIf);
@@ -2175,6 +2188,13 @@ public class GattService extends ProfileService {
                 Log.d(TAG, "onDisconnected() - removing permit for address="
                     + address);
                 mPermits.remove(address);
+            }
+        } else {
+            synchronized (mPermits) {
+                if (mPermits.get(address) == connId) {
+                    Log.d(TAG, "onDisconnected() - set permit -1 for address=" + address);
+                    mPermits.put(address, -1);
+                }
             }
         }
 
@@ -2484,8 +2504,8 @@ public class GattService extends ProfileService {
             try {
                 permissionCheck(connId, handle);
             } catch (SecurityException ex) {
-                // Only throws on T+ as this is an older API and did not throw prior to T
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Only throws on apps with target SDK T+ as this old API did not throw prior to T
+                if (checkCallerTargetSdk(this, app.name, Build.VERSION_CODES.TIRAMISU)) {
                     throw ex;
                 }
                 Log.w(TAG, "onNotify() - permission check failed!");
@@ -2516,7 +2536,7 @@ public class GattService extends ProfileService {
         synchronized (mPermits) {
             Log.d(TAG, "onWriteCharacteristic() - increasing permit for address="
                     + address);
-            mPermits.get(address).set(true);
+            mPermits.put(address, -1);
         }
 
         if (VDBG) {
@@ -3152,7 +3172,7 @@ public class GattService extends ProfileService {
                 callingPackage.equals(mExposureNotificationPackage);
         scanClient.hasDisavowedLocation =
                 Utils.hasDisavowedLocationForScan(this, attributionSource, isTestModeEnabled());
-        scanClient.isQApp = Utils.isQApp(this, callingPackage);
+        scanClient.isQApp = checkCallerTargetSdk(this, callingPackage, Build.VERSION_CODES.Q);
         if (!scanClient.hasDisavowedLocation) {
             if (scanClient.isQApp) {
                 scanClient.hasLocationPermission = Utils.checkCallerHasFineLocation(
@@ -3235,10 +3255,9 @@ public class GattService extends ProfileService {
         app.mHasDisavowedLocation =
                 Utils.hasDisavowedLocationForScan(this, attributionSource, isTestModeEnabled());
 
-        app.mIsQApp = Utils.isQApp(this, callingPackage);
         if (!app.mHasDisavowedLocation) {
             try {
-                if (app.mIsQApp) {
+                if (checkCallerTargetSdk(this, callingPackage, Build.VERSION_CODES.Q)) {
                     app.hasLocationPermission = Utils.checkCallerHasFineLocation(
                             this, attributionSource, app.mUserHandle);
                 } else {
@@ -3266,7 +3285,7 @@ public class GattService extends ProfileService {
                 new ScanClient(scannerId, piInfo.settings, piInfo.filters);
         scanClient.hasLocationPermission = app.hasLocationPermission;
         scanClient.userHandle = app.mUserHandle;
-        scanClient.isQApp = app.mIsQApp;
+        scanClient.isQApp = checkCallerTargetSdk(this, app.name, Build.VERSION_CODES.Q);
         scanClient.eligibleForSanitizedExposureNotification =
                 app.mEligibleForSanitizedExposureNotification;
         scanClient.hasNetworkSettingsPermission = app.mHasNetworkSettingsPermission;
@@ -3471,6 +3490,9 @@ public class GattService extends ProfileService {
         if (!Utils.checkAdvertisePermissionForDataDelivery(
                 this, attributionSource, "GattService startAdvertisingSet")) {
             return;
+        }
+        if (parameters.getOwnAddressType() != AdvertisingSetParameters.ADDRESS_TYPE_DEFAULT) {
+            Utils.enforceBluetoothPrivilegedPermission(this);
         }
         mAdvertiseManager.startAdvertisingSet(parameters, advertiseData, scanResponse,
                 periodicParameters, periodicData, duration, maxExtAdvEvents, callback);
@@ -3782,8 +3804,9 @@ public class GattService extends ProfileService {
         try {
             permissionCheck(connId, handle);
         } catch (SecurityException ex) {
-            // Only throws on T+ as this is an older API and did not throw prior to T
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            String callingPackage = attributionSource.getPackageName();
+            // Only throws on apps with target SDK T+ as this old API did not throw prior to T
+            if (checkCallerTargetSdk(this, callingPackage, Build.VERSION_CODES.TIRAMISU)) {
                 throw ex;
             }
             Log.w(TAG, "readCharacteristic() - permission check failed!");
@@ -3814,8 +3837,9 @@ public class GattService extends ProfileService {
         try {
             permissionCheck(uuid);
         } catch (SecurityException ex) {
-            // Only throws on T+ as this is an older API and did not throw prior to T
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            String callingPackage = attributionSource.getPackageName();
+            // Only throws on apps with target SDK T+ as this old API did not throw prior to T
+            if (checkCallerTargetSdk(this, callingPackage, Build.VERSION_CODES.TIRAMISU)) {
                 throw ex;
             }
             Log.w(TAG, "readUsingCharacteristicUuid() - permission check failed!");
@@ -3852,18 +3876,18 @@ public class GattService extends ProfileService {
         Log.d(TAG, "writeCharacteristic() - trying to acquire permit.");
         // Lock the thread until onCharacteristicWrite callback comes back.
         synchronized (mPermits) {
-            AtomicBoolean atomicBoolean = mPermits.get(address);
-            if (atomicBoolean == null) {
+            Integer permit = mPermits.get(address);
+            if (permit == null) {
                 Log.d(TAG, "writeCharacteristic() -  atomicBoolean uninitialized!");
                 return BluetoothStatusCodes.ERROR_UNKNOWN;
             }
 
-            boolean success = atomicBoolean.get();
+            boolean success = (permit == -1);
             if (!success) {
                  Log.d(TAG, "writeCharacteristic() - no permit available.");
                  return BluetoothStatusCodes.ERROR_GATT_WRITE_REQUEST_BUSY;
             }
-            atomicBoolean.set(false);
+            mPermits.put(address, connId);
         }
 
         gattClientWriteCharacteristicNative(connId, handle, writeType, authReq, value);
@@ -3891,8 +3915,9 @@ public class GattService extends ProfileService {
         try {
             permissionCheck(connId, handle);
         } catch (SecurityException ex) {
-            // Only throws on T+ as this is an older API and did not throw prior to T
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            String callingPackage = attributionSource.getPackageName();
+            // Only throws on apps with target SDK T+ as this old API did not throw prior to T
+            if (checkCallerTargetSdk(this, callingPackage, Build.VERSION_CODES.TIRAMISU)) {
                 throw ex;
             }
             Log.w(TAG, "readDescriptor() - permission check failed!");
@@ -3979,8 +4004,9 @@ public class GattService extends ProfileService {
         try {
             permissionCheck(connId, handle);
         } catch (SecurityException ex) {
-            // Only throws on T+ as this is an older API and did not throw prior to T
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            String callingPackage = attributionSource.getPackageName();
+            // Only throws on apps with target SDK T+ as this old API did not throw prior to T
+            if (checkCallerTargetSdk(this, callingPackage, Build.VERSION_CODES.TIRAMISU)) {
                 throw ex;
             }
             Log.w(TAG, "registerForNotification() - permission check failed!");

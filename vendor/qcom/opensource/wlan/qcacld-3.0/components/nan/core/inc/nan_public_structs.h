@@ -215,11 +215,11 @@ enum nan_datapath_end_reason_code {
 /**
  * enum nan_datapath_state - NAN datapath states
  * @NAN_DATA_NDI_CREATING_STATE: NDI create is in progress
- * @NAN_DATA_NDI_CREATED_STATE: NDI successfully crated
+ * @NAN_DATA_NDI_CREATED_STATE: NDI successfully created
  * @NAN_DATA_NDI_DELETING_STATE: NDI delete is in progress
  * @NAN_DATA_NDI_DELETED_STATE: NDI delete is in progress
  * @NAN_DATA_PEER_CREATE_STATE: Peer create is in progress
- * @NAN_DATA_PEER_DELETE_STATE: Peer delete is in progrss
+ * @NAN_DATA_PEER_DELETE_STATE: Peer delete is in progress
  * @NAN_DATA_CONNECTING_STATE: Data connection in progress
  * @NAN_DATA_CONNECTED_STATE: Data connection successful
  * @NAN_DATA_END_STATE: NDP end is in progress

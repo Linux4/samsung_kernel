@@ -461,6 +461,10 @@ int agm_get_aif_info_list(struct aif_info *aif_list, size_t *num_aif_info) {
         uint32_t num = (uint32_t) *num_aif_info;
         int ret = -EINVAL;
         android::sp<IAGM> agm_client = get_agm_server();
+
+        if (!agm_client) {
+            goto error_exit_fn;
+        }
         auto status = agm_client->ipc_agm_get_aif_info_list(num,[&](int32_t _ret,
                                             hidl_vec<AifInfo> aif_list_ret_hidl,
                                             uint32_t num_aif_info_hidl )
@@ -485,6 +489,7 @@ int agm_get_aif_info_list(struct aif_info *aif_list, size_t *num_aif_info) {
         }
         return ret;
     }
+error_exit_fn:
     return -EINVAL;
 }
 

@@ -817,6 +817,9 @@
     <path name="usb-headset">
     </path>
 
+    <path name="usb-headset-mic">
+    </path>
+
     <path name="speaker-and-usb-headphones">
         <path name="speaker" />
         <path name="usb-headphones" />

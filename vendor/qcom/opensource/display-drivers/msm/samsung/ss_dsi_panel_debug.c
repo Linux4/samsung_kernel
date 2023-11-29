@@ -455,6 +455,8 @@ static int debug_display_read_once(struct samsung_display_driver_data *vdd,
 			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB",
 			vddp->self_disp.debug.SM_SUM_O, vddp->self_disp.operation[FLAG_SELF_MASK].img_checksum);
 
+		if (vddp->panel_func.debug_gamma_comp)
+			vddp->panel_func.debug_gamma_comp(vdd);
 	}
 
 	len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "VRR: adj: %d%s\n",
@@ -1719,4 +1721,10 @@ void ss_xlog_vrr_change_in_drm_ioctl(int vrefresh, int sot_hs_mode, int phs_mode
 				vdd->vrr.adjusted_phs_mode,
 				vrefresh, sot_hs_mode, phs_mode);
 	}
+}
+
+bool ss_is_panel_dead(int ndx)
+{
+	struct samsung_display_driver_data *vdd = ss_get_vdd(ndx);
+	return vdd ? vdd->panel_dead : false;
 }

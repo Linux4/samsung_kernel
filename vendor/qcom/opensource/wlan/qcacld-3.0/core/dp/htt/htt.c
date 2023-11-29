@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, 2014-2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -557,7 +558,7 @@ htt_attach(struct htt_pdev_t *pdev, int desc_pool_size)
 		 * here will have to be adjusted accordingly.
 		 * NOTE: for HL, because fw rx desc is in ind msg,
 		 * not in rx desc, so the
-		 * offset should be negtive value
+		 * offset should be negative value
 		 */
 		pdev->rx_fw_desc_offset =
 			HTT_ENDIAN_BYTE_IDX_SWAP(

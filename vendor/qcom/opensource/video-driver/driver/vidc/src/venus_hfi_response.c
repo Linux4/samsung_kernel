@@ -15,6 +15,10 @@
 #include "msm_vidc_memory.h"
 #include "msm_vidc_fence.h"
 
+#if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_SEC_FACTORY)
+#include <linux/sti/abc_common.h>
+#endif
+
 #define in_range(range, val) (((range.begin) < (val)) && ((range.end) > (val)))
 
 extern struct msm_vidc_core *g_core;
@@ -335,6 +339,10 @@ static int handle_session_info(struct msm_vidc_inst *inst,
 	case HFI_INFO_DATA_CORRUPT:
 		info = "data corrupt";
 		inst->hfi_frame_info.data_corrupt = 1;
+#if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_SEC_FACTORY)
+		i_vpr_e(inst, "session info (%#x): %s\n", pkt->type, info);
+		sec_abc_send_event("MODULE=mm@INFO=venus_data_corrupt");
+#endif
 		break;
 	case HFI_INFO_BUFFER_OVERFLOW:
 		info = "buffer overflow";
@@ -857,7 +865,8 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 	msm_vidc_update_stats(inst, buf, MSM_VIDC_DEBUGFS_EVENT_EBD);
 
 	/* etd: update end timestamp and flags in stats entry */
-	msm_vidc_remove_buffer_stats(inst, buf);
+	if (!msm_vidc_is_super_buffer(inst))
+		msm_vidc_remove_buffer_stats(inst, buf);
 
 	return rc;
 }
@@ -865,7 +874,7 @@ static int handle_input_buffer(struct msm_vidc_inst *inst,
 static int handle_output_buffer(struct msm_vidc_inst *inst,
 	struct hfi_buffer *buffer)
 {
-	int rc = 0;
+	int cnt, rc = 0;
 	struct msm_vidc_buffers *buffers;
 	struct msm_vidc_buffer *buf;
 	bool found, fatal = false;
@@ -993,16 +1002,29 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	buf->flags = get_driver_buffer_flags(inst, buffer->flags);
 
 	/* fence signalling */
-	if (inst->hfi_frame_info.fence_id) {
-		if (buf->data_size) {
-			/* signal fence */
-			msm_vidc_fence_signal(inst,
-				inst->hfi_frame_info.fence_id);
+	for (cnt = 0; cnt < inst->hfi_frame_info.fence_count; cnt++) {
+		if (inst->hfi_frame_info.fence_id[cnt] > inst->prev_fence_id) {
+			if (buf->data_size)
+				msm_vidc_fence_signal(inst, inst->hfi_frame_info.fence_id[cnt]);
+			else
+				msm_vidc_fence_destroy(inst, inst->hfi_frame_info.fence_id[cnt]);
+			inst->fences_per_output_counter++;
+			inst->prev_fence_id = inst->hfi_frame_info.fence_id[cnt];
 		} else {
-			/* destroy fence */
-			msm_vidc_fence_destroy(inst,
-				inst->hfi_frame_info.fence_id);
+			i_vpr_e(inst, "%s: invalid fence id %u, prev fence id %u\n",
+				__func__, inst->hfi_frame_info.fence_id[cnt], inst->prev_fence_id);
+			msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
 		}
+	}
+
+	/* validate firmware returned all the fences or not */
+	if (inst->fences_per_output_counter >= buf->fence_count) {
+		/* reset fence_count value after FBD handling */
+		inst->fences_per_output_counter -= buf->fence_count;
+	} else {
+		i_vpr_e(inst, "%s: fence count mismatch. value %d, min expected %d\n",
+			__func__, inst->fences_per_output_counter, buf->fence_count);
+		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
 	}
 
 	if (is_decode_session(inst)) {
@@ -1023,7 +1045,8 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 	msm_vidc_update_stats(inst, buf, MSM_VIDC_DEBUGFS_EVENT_FBD);
 
 	/* fbd: print stats and remove entry */
-	msm_vidc_remove_buffer_stats(inst, buf);
+	if (!msm_vidc_is_super_buffer(inst))
+		msm_vidc_remove_buffer_stats(inst, buf);
 
 	return rc;
 }
@@ -1538,6 +1561,54 @@ static int handle_session_stability(struct msm_vidc_inst *inst,
 	return 0;
 }
 
+static int handle_session_early_notify_partial_frame(struct msm_vidc_inst *inst,
+	struct hfi_packet *pkt)
+{
+	u32 port;
+	u64 fence_id = 0;
+	int rc = 0;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: Invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	port = vidc_port_from_hfi(inst, pkt->port);
+	if (port >= MAX_PORT) {
+		i_vpr_e(inst,
+			"%s: invalid port: %d\n", __func__, pkt->port);
+		return -EINVAL;
+	}
+
+	if (!check_for_packet_payload(inst, pkt, __func__)) {
+		i_vpr_e(inst, "%s: invalid packet\n", __func__);
+		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+		return 0;
+	}
+
+	fence_id = *(u64 *)((u8 *)pkt + sizeof(struct hfi_packet));
+	if (fence_id < inst->prev_fence_id) {
+		i_vpr_e(inst, "%s: invalid fence id %u, prev fence id %u\n",
+			__func__, fence_id, inst->prev_fence_id);
+		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+		return -EINVAL;
+	}
+	rc = msm_vidc_fence_signal(inst, fence_id);
+	if (rc) {
+		i_vpr_e(inst,
+			"%s: fence signal failed. invalid fence_id %llu, count %d\n",
+			__func__, fence_id, inst->fences_per_output_counter);
+		return rc;
+	}
+	inst->fences_per_output_counter++;
+	inst->prev_fence_id = fence_id;
+
+	i_vpr_l(inst, "%s: received fence id %llu, count %d\n",
+		__func__, fence_id, inst->fences_per_output_counter);
+
+	return 0;
+}
+
 static int handle_session_command(struct msm_vidc_inst *inst,
 	struct hfi_packet *pkt)
 {
@@ -1555,6 +1626,8 @@ static int handle_session_command(struct msm_vidc_inst *inst,
 		{HFI_CMD_PAUSE,             handle_session_pause              },
 		{HFI_CMD_RESUME,            handle_session_resume             },
 		{HFI_CMD_STABILITY,         handle_session_stability          },
+		{HFI_CMD_EARLY_NOTIFY_PARTIAL_FRAME,
+		    handle_session_early_notify_partial_frame                 },
 	};
 
 	/* handle session pkt */
@@ -1593,6 +1666,7 @@ static int handle_dpb_list_property(struct msm_vidc_inst *inst,
 			"%s: dpb list payload size %d exceeds expected max size %d\n",
 			__func__, payload_size, MAX_DPB_LIST_PAYLOAD_SIZE);
 		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+		return -EINVAL;
 	}
 	memcpy(inst->dpb_list_payload, payload_start, payload_size);
 
@@ -1602,6 +1676,49 @@ static int handle_dpb_list_property(struct msm_vidc_inst *inst,
 			__func__, inst->dpb_list_payload[i], inst->dpb_list_payload[i + 1],
 			inst->dpb_list_payload[i + 2], inst->dpb_list_payload[i + 3]);
 	}
+
+	return 0;
+}
+
+static int handle_property_fence_array(struct msm_vidc_inst *inst,
+	struct hfi_packet *pkt)
+{
+	u64 cur_fence_id = 0, prev_fence_id = 0;
+	int i = 0, fence_count = 0;
+	u32 payload_size;
+	u8 *payload_start;
+
+	if (!inst || !pkt || !inst->capabilities) {
+		i_vpr_e(inst, "%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	payload_size = pkt->size - sizeof(struct hfi_packet);
+	fence_count = payload_size / sizeof(u64);
+	payload_start = (u8 *)((u8 *)pkt + sizeof(struct hfi_packet));
+
+	if (payload_size > sizeof(inst->hfi_frame_info.fence_id)) {
+		i_vpr_e(inst,
+			"%s: fence list payload size %d exceeds expected max size %d\n",
+			__func__, payload_size, sizeof(inst->hfi_frame_info.fence_id));
+		msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+	}
+
+	for (i = 0; i < fence_count; i++) {
+		cur_fence_id = *((u64 *)payload_start + i);
+		if (prev_fence_id > cur_fence_id) {
+			i_vpr_e(inst, "%s: invalid fence id %llu, prev %llu\n",
+				__func__, cur_fence_id, prev_fence_id);
+			msm_vidc_change_state(inst, MSM_VIDC_ERROR, __func__);
+			return -EINVAL;
+		}
+		inst->hfi_frame_info.fence_id[i] = cur_fence_id;
+		inst->hfi_frame_info.fence_count++;
+		prev_fence_id = cur_fence_id;
+	}
+	i_vpr_l(inst, "%s: fence_id[0] %llu, received %d, expected %d\n", __func__,
+		inst->hfi_frame_info.fence_id[0], inst->fences_per_output_counter,
+		inst->hfi_frame_info.fence_count);
 
 	return 0;
 }
@@ -1724,7 +1841,9 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 				__func__,  payload_ptr[0], inst->capabilities->cap[PIPE].value);
 		break;
 	case HFI_PROP_FENCE:
-		inst->hfi_frame_info.fence_id = payload_ptr[0];
+		rc = handle_property_fence_array(inst, pkt);
+		if (rc)
+			break;
 		break;
 	default:
 		i_vpr_e(inst, "%s: invalid property %#x\n",

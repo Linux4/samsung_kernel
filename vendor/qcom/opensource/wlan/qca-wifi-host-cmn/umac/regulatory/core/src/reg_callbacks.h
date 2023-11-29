@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
- *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -44,6 +44,22 @@ void reg_unregister_chan_change_callback(struct wlan_objmgr_psoc *psoc,
 					 reg_chan_change_callback cbk);
 
 /**
+ * reg_register_ctry_change_callback() - Register country change callbacks
+ * @psoc: Pointer to psoc
+ * @cbk: Pointer to callback function
+ */
+void reg_register_ctry_change_callback(struct wlan_objmgr_psoc *psoc,
+				       reg_ctry_change_callback cbk);
+
+/**
+ * reg_unregister_ctry_change_callback() - Unregister country change callbacks
+ * @psoc: Pointer to psoc
+ * @cbk: Pointer to callback function
+ */
+void reg_unregister_ctry_change_callback(struct wlan_objmgr_psoc *psoc,
+					 reg_ctry_change_callback cbk);
+
+/**
  * reg_notify_sap_event() - Notify regulatory domain for sap event
  * @pdev: The physical dev to set the band for
  * @sap_state: true for sap start else false
@@ -80,6 +96,16 @@ static inline void reg_register_chan_change_callback(
 
 static inline void reg_unregister_chan_change_callback(
 		struct wlan_objmgr_psoc *psoc, reg_chan_change_callback cbk)
+{
+}
+
+static inline void reg_register_ctry_change_callback(
+		struct wlan_objmgr_psoc *psoc, reg_ctry_change_callback cbk)
+{
+}
+
+static inline void reg_unregister_ctry_change_callback(
+		struct wlan_objmgr_psoc *psoc, reg_ctry_change_callback cbk)
 {
 }
 

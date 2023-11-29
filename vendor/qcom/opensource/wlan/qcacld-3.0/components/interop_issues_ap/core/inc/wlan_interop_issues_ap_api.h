@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -58,7 +59,7 @@ struct interop_issues_ap_psoc_priv_obj {
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS wlan_interop_issues_ap_psoc_enable(struct wlan_objmgr_psoc *soc);
+QDF_STATUS wlan_interop_issues_ap_psoc_enable(struct wlan_objmgr_psoc *psoc);
 
 /**
  * wlan_interop_issues_ap_psoc_disable() - interop issues ap psoc disable
@@ -66,7 +67,7 @@ QDF_STATUS wlan_interop_issues_ap_psoc_enable(struct wlan_objmgr_psoc *soc);
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS wlan_interop_issues_ap_psoc_disable(struct wlan_objmgr_psoc *soc);
+QDF_STATUS wlan_interop_issues_ap_psoc_disable(struct wlan_objmgr_psoc *psoc);
 
 /**
  * wlan_interop_issues_ap_init() - API to init component

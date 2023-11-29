@@ -71,6 +71,50 @@ wlan_cm_roam_send_set_vdev_pcl(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS wlan_cm_tgt_send_roam_rt_stats_config(struct wlan_objmgr_psoc *psoc,
 						 struct roam_disable_cfg *req);
 
+/**
+ * wlan_cm_tgt_send_roam_ho_delay_config() - Send roam HO delay config command
+ * to FW
+ * @psoc: psoc pointer
+ * @vdev_id: vdev id
+ * @roam_ho_delay: roam hand-off delay value
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_cm_tgt_send_roam_ho_delay_config(struct wlan_objmgr_psoc *psoc,
+						 uint8_t vdev_id,
+						 uint16_t roam_ho_delay);
+
+/**
+ * wlan_cm_tgt_exclude_rm_partial_scan_freq() - Exclude the channels in roam
+ * full scan that are already scanned as part of partial scan.
+ * @psoc: psoc pointer
+ * @vdev_id: vdev id
+ * @exclude_rm_partial_scan_freq: Exclude the channels in roam full scan that
+ * are already scanned as part of partial scan.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_cm_tgt_exclude_rm_partial_scan_freq(struct wlan_objmgr_psoc *psoc,
+					 uint8_t vdev_id,
+					 uint8_t exclude_rm_partial_scan_freq);
+
+/**
+ * wlan_cm_tgt_send_roam_full_scan_6ghz_on_disc() - Include the 6 GHz channels
+ * in roam full scan only on prior discovery of any 6 GHz support in the
+ * environment.
+ * @psoc: PSOC pointer
+ * @roam_inc_6ghz_if_disc: Include the 6 GHz channels in roam full scan:
+ * 1 - Include only on prior discovery of any 6 GHz support in the environment
+ * 0 - Include all the supported 6 GHz channels by default
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_cm_tgt_send_roam_full_scan_6ghz_on_disc(
+					struct wlan_objmgr_psoc *psoc,
+					uint8_t vdev_id,
+					uint8_t roam_full_scan_6ghz_on_disc);
+
 #ifdef FEATURE_RX_LINKSPEED_ROAM_TRIGGER
 /**
  * wlan_cm_tgt_send_roam_linkspeed_state() - Send roam link speed state
@@ -104,6 +148,30 @@ QDF_STATUS wlan_cm_tgt_send_roam_mlo_config(struct wlan_objmgr_psoc *psoc,
 					    struct wlan_roam_mlo_config *req)
 {
 	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+wlan_cm_tgt_send_roam_ho_delay_config(struct wlan_objmgr_psoc *psoc,
+				      uint8_t vdev_id, uint16_t roam_ho_delay)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline QDF_STATUS
+wlan_cm_tgt_exclude_rm_partial_scan_freq(struct wlan_objmgr_psoc *psoc,
+					 uint8_t vdev_id,
+					 uint8_t exclude_rm_partial_scan_freq)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline QDF_STATUS
+wlan_cm_tgt_send_roam_full_scan_6ghz_on_disc(
+					struct wlan_objmgr_psoc *psoc,
+					uint8_t vdev_id,
+					uint8_t roam_full_scan_6ghz_on_disc)
+{
+	return QDF_STATUS_E_FAILURE;
 }
 #endif /* WLAN_FEATURE_ROAM_OFFLOAD */
 

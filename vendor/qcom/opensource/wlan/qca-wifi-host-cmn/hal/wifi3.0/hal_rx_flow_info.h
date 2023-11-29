@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,12 +33,18 @@
  * @reo_destination_handler: REO destination for this flow
  * @reo_destination_indication: REO indication for this flow
  * @fse_metadata: Flow metadata or tag passed to HW for marking packets
+ * @use_ppe_ds: send the pkt to REO2PPE instead of REO2HOST
+ * @priority_vld: field used by DS
+ * @service_code: field used by DS
  */
 struct hal_rx_flow {
 	struct hal_flow_tuple_info tuple_info;
 	uint8_t reo_destination_handler;
 	uint8_t reo_destination_indication;
 	uint32_t fse_metadata;
+	uint8_t use_ppe_ds;
+	uint8_t priority_vld;
+	uint16_t service_code;
 };
 
 /**

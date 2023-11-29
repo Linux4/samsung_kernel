@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -49,6 +49,21 @@ typedef QDF_STATUS (*dcs_switch_chan_cb)(struct wlan_objmgr_vdev *vdev,
 					 qdf_freq_t tgt_freq,
 					 enum phy_ch_width tgt_width);
 
+/**
+ * typedef dcs_afc_select_chan_cb() - DCS callback for AFC channel selection
+ * @arg: pointer to argument
+ * @vdev_id: vdev id
+ * @cur_freq: current channel frequency
+ * @cur_bw: current channel bandwidth
+ * @pref_bw: pointer to bandwidth of prefer bandwidth when input, and target
+ *           bandwidth switch to when output
+ */
+typedef qdf_freq_t (*dcs_afc_select_chan_cb)(void *arg,
+					     uint32_t vdev_id,
+					     qdf_freq_t cur_freq,
+					     enum phy_ch_width cur_bw,
+					     enum phy_ch_width *pref_bw);
+
 #ifdef DCS_INTERFERENCE_DETECTION
 /**
  * ucfg_dcs_register_cb() - API to register dcs callback
@@ -90,6 +105,18 @@ void ucfg_dcs_register_user_cb(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS ucfg_dcs_register_awgn_cb(struct wlan_objmgr_psoc *psoc,
 				     dcs_switch_chan_cb cb);
 
+/**
+ * ucfg_dcs_register_afc_sel_chan_cb() - API to register SAP channel selection
+ *                                       callback for AFC DCS
+ * @psoc: pointer to psoc object
+ * @cb: dcs user callback to be registered
+ * @arg: argument
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS ucfg_dcs_register_afc_sel_chan_cb(struct wlan_objmgr_psoc *psoc,
+					     dcs_afc_select_chan_cb cb,
+					     void *arg);
 /**
  * ucfg_wlan_dcs_cmd(): API to send dcs command
  * @psoc: pointer to psoc object
@@ -201,7 +228,17 @@ void ucfg_dcs_set_user_request(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
  */
 QDF_STATUS ucfg_dcs_get_ch_util(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
 				struct wlan_host_dcs_ch_util_stats *dcs_stats);
-
+/**
+ * ucfg_dcs_switch_chan() - switch channel for vdev
+ * @vdev: vdev ptr
+ * @tgt_freq: target frequency
+ * @tgt_width: target channel width
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_dcs_switch_chan(struct wlan_objmgr_vdev *vdev, qdf_freq_t tgt_freq,
+		     enum phy_ch_width tgt_width);
 #else
 static inline void
 ucfg_dcs_register_cb(struct wlan_objmgr_psoc *psoc, dcs_callback cbk, void *arg)
@@ -270,5 +307,13 @@ ucfg_dcs_get_ch_util(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
 {
 	return QDF_STATUS_SUCCESS;
 }
+
+static inline QDF_STATUS
+ucfg_dcs_switch_chan(struct wlan_objmgr_vdev *vdev, qdf_freq_t tgt_freq,
+		     enum phy_ch_width tgt_width)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
 #endif
 #endif /* _WLAN_DCS_UCFG_API_H_ */

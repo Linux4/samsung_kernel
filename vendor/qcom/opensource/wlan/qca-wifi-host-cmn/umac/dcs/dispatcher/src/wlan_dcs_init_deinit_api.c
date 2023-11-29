@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,7 +25,7 @@
 #include "cfg_ucfg_api.h"
 
 /**
- * wlan_dcs_psoc_obj_create_notification() - dcs psoc cretae handler
+ * wlan_dcs_psoc_obj_create_notification() - dcs psoc create handler
  * @psoc: psoc object
  * @arg_list: Argument list
  *

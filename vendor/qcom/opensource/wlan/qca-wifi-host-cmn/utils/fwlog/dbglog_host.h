@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, 2014-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -110,7 +111,7 @@ int
 dbglog_set_timestamp_resolution(wmi_unified_t wmi_handle,
 				uint16_t tsr);
 
-/** Enable reporting. If it is set to false then Target wont deliver
+/** Enable reporting. If it is set to false then Target won't deliver
  * any debug information
  */
 int
@@ -130,7 +131,7 @@ dbglog_set_log_lvl(wmi_unified_t wmi_handle, DBGLOG_LOG_LVL log_lvl);
  *    module_id =  mod_id_lvl/10;
  *    log_level =  mod_id_lvl%10;
  * example : mod_id_lvl is 153. then module id is 15 and log level is 3.
- *           this format allows user to pass a sinlge value
+ *           this format allows user to pass a single value
  *           (which is the most convenient way for most of the OSs)
  *           to be passed from user to the driver.
  */
@@ -143,7 +144,7 @@ dbglog_set_mod_log_lvl(wmi_unified_t wmi_handle, uint32_t mod_id_lvl);
  *    module_id =  mod_id_lvl/10;
  *    log_level =  mod_id_lvl%10;
  * example : mod_id_lvl is 153. then module id is 15 and log level is 3.
- *           this format allows user to pass a sinlge value
+ *           this format allows user to pass a single value
  *           (which is the most convenient way for most of the OSs)
  *           to be passed from user to the driver.
  */

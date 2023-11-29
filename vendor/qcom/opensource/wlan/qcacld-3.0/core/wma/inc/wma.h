@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -720,7 +720,7 @@ struct wma_txrx_node {
 	uint8_t rmfEnabled;
 	uint32_t uapsd_cached_val;
 	void *del_staself_req;
-	bool is_del_sta_defered;
+	bool is_del_sta_deferred;
 	qdf_atomic_t bss_status;
 	enum tx_rate_info rate_flags;
 	uint8_t nss;
@@ -829,7 +829,7 @@ struct wma_wlm_stats_data {
  * @reg_cap: regulatory capabilities
  * @scan_id: scan id
  * @interfaces: txrx nodes(per vdev)
- * @pdevconfig: pdev related configrations
+ * @pdevconfig: pdev related configurations
  * @wma_hold_req_queue: Queue use to serialize requests to firmware
  * @wma_hold_req_q_lock: Mutex for @wma_hold_req_queue
  * @vht_supp_mcs: VHT supported MCS
@@ -999,7 +999,8 @@ typedef struct {
 
 	QDF_STATUS (*csr_roam_auth_event_handle_cb)(struct mac_context *mac,
 						    uint8_t vdev_id,
-						    struct qdf_mac_addr bssid);
+						    struct qdf_mac_addr bssid,
+						    uint32_t akm);
 	QDF_STATUS (*pe_roam_synch_cb)(struct mac_context *mac,
 		uint8_t vdev_id,
 		struct roam_offload_synch_ind *roam_synch_data,
@@ -1167,8 +1168,8 @@ struct wma_set_key_params {
 
 /**
  * struct t_thermal_cmd_params - thermal command parameters
- * @minTemp: minimum temprature
- * @maxTemp: maximum temprature
+ * @minTemp: minimum temperature
+ * @maxTemp: maximum temperature
  * @thermalEnable: thermal enable
  * @thermal_action: thermal action
  */
@@ -1677,13 +1678,15 @@ QDF_STATUS wma_create_peer(tp_wma_handle wma,
  * @vdev_id: vdev id
  * @peer_addr: peer mac address
  * @wma_peer_type: peer type of enum wmi_peer_type
+ * @peer_mld: peer mld address
  *
  * Return: Pointer to objmgr_peer
  */
 struct wlan_objmgr_peer *wma_create_objmgr_peer(tp_wma_handle wma,
 						uint8_t vdev_id,
 						uint8_t *peer_addr,
-						uint32_t wma_peer_type);
+						uint32_t wma_peer_type,
+						uint8_t *peer_mld);
 
 /**
  * wma_remove_objmgr_peer() - Remove Object manager peer
@@ -2378,7 +2381,7 @@ bool wma_is_roam_in_progress(uint32_t vdev_id);
 struct wlan_objmgr_psoc *wma_get_psoc_from_scn_handle(void *scn_handle);
 
 /**
- * wma_set_peer_ucast_cipher() - Update unicast cipher fof the peer
+ * wma_set_peer_ucast_cipher() - Update unicast cipher of the peer
  * @mac_addr: peer mac address
  * @cipher: peer cipher bits
  * @cipher_cap: cipher cap
@@ -2429,7 +2432,7 @@ int wma_motion_det_base_line_host_event_handler(void *handle, u_int8_t *event,
 #endif /* WLAN_FEATURE_MOTION_DETECTION */
 
 /**
- * wma_add_bss_peer_sta() - creat bss peer when sta connect
+ * wma_add_bss_peer_sta() - create bss peer when sta connect
  * @vdev_id: vdev id
  * @bssid: AP bssid
  * @roam_sync: if roam sync is in progress
@@ -2536,6 +2539,25 @@ QDF_STATUS wma_post_chan_switch_setup(uint8_t vdev_id);
  * Return: QDF_STATUS
  */
 QDF_STATUS wma_vdev_pre_start(uint8_t vdev_id, bool restart);
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * wma_delete_peer_mlo() - Remove the MLO peer and detach link peer
+ * @psoc: PSOC objmgr pointer
+ * @macaddr: MAC address of objmgr peer
+ *
+ * The API will remove the ML peer with objmgr peer fetched from
+ * psoc peer list using the @macaddr.
+ *
+ * Return: void
+ */
+void wma_delete_peer_mlo(struct wlan_objmgr_psoc *psoc, uint8_t *macaddr);
+#else
+static inline
+void wma_delete_peer_mlo(struct wlan_objmgr_psoc *psoc, uint8_t *macaddr)
+{
+}
+#endif
 
 /**
  * wma_remove_bss_peer_on_failure() - remove the bss peers in case of

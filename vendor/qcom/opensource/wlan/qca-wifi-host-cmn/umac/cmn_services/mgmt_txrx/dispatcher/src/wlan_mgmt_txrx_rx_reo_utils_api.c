@@ -190,6 +190,18 @@ wlan_mgmt_rx_reo_pdev_obj_destroy_notification(
 }
 
 QDF_STATUS
+wlan_mgmt_rx_reo_psoc_obj_create_notification(struct wlan_objmgr_psoc *psoc)
+{
+	return mgmt_rx_reo_psoc_obj_create_notification(psoc);
+}
+
+QDF_STATUS
+wlan_mgmt_rx_reo_psoc_obj_destroy_notification(struct wlan_objmgr_psoc *psoc)
+{
+	return mgmt_rx_reo_psoc_obj_destroy_notification(psoc);
+}
+
+QDF_STATUS
 wlan_mgmt_rx_reo_attach(struct wlan_objmgr_pdev *pdev)
 {
 	return mgmt_rx_reo_attach(pdev);
@@ -209,6 +221,28 @@ uint16_t
 wlan_mgmt_rx_reo_get_pkt_ctr_delta_thresh(struct wlan_objmgr_psoc *psoc)
 {
 	return cfg_get(psoc, CFG_MGMT_RX_REO_PKT_CTR_DELTA_THRESH);
+}
+
+uint16_t
+wlan_mgmt_rx_reo_get_ingress_frame_debug_list_size(struct wlan_objmgr_psoc *psoc)
+{
+	if (!psoc) {
+		mgmt_rx_reo_err("psoc is NULL!");
+		return 0;
+	}
+
+	return cfg_get(psoc, CFG_MGMT_RX_REO_INGRESS_FRAME_DEBUG_LIST_SIZE);
+}
+
+uint16_t
+wlan_mgmt_rx_reo_get_egress_frame_debug_list_size(struct wlan_objmgr_psoc *psoc)
+{
+	if (!psoc) {
+		mgmt_rx_reo_err("psoc is NULL!");
+		return 0;
+	}
+
+	return cfg_get(psoc, CFG_MGMT_RX_REO_EGRESS_FRAME_DEBUG_LIST_SIZE);
 }
 
 #ifndef WLAN_MGMT_RX_REO_SIM_SUPPORT

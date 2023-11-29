@@ -205,3 +205,16 @@ QDF_STATUS wmi_unified_multisoc_tbtt_sync_cmd(wmi_unified_t wmi_handle,
 
 	return QDF_STATUS_E_FAILURE;
 }
+
+#ifdef WLAN_FEATURE_SR
+QDF_STATUS
+wmi_unified_vdev_param_sr_prohibit_send(wmi_unified_t wmi_hdl,
+					struct sr_prohibit_param *srp_param)
+{
+	if (wmi_hdl->ops->vdev_param_sr_prohibit_send)
+		return wmi_hdl->ops->vdev_param_sr_prohibit_send(wmi_hdl,
+								 srp_param);
+
+	return QDF_STATUS_E_FAILURE;
+}
+#endif

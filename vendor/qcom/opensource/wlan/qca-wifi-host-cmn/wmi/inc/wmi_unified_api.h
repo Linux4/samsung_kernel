@@ -156,7 +156,6 @@ enum wmi_target_type {
  * @WMI_RX_UMAC_CTX: execution context provided by umac layer
  * @WMI_RX_SERIALIZER_CTX: Execution context is serialized thread context
  * @WMI_RX_DIAG_WORK_CTX: work queue execution context for FW diag events
- *
  */
 enum wmi_rx_exec_ctx {
 	WMI_RX_WORK_CTX,
@@ -296,7 +295,7 @@ wmi_buf_t wmi_buf_alloc_fl(wmi_unified_t wmi_handle, uint32_t len,
 /**
  * generic function frees WMI net buffer
  *
- *  @param net_buf : Pointer ot net_buf to be freed
+ *  @param net_buf : Pointer to net_buf to be freed
  */
 void wmi_buf_free(wmi_buf_t net_buf);
 
@@ -359,6 +358,19 @@ static inline int wmi_process_qmi_fw_event(void *wmi_cb_ctx, void *buf, int len)
 }
 #endif
 
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+/**
+ * wmi_unified_green_ap_ll_ps_send() - Send unified WMI command to
+ * enable/disable green ap low latency power save mode
+ * @wmi_handle: handle to WMI.
+ * @green_ap_ll_ps_params: low latency power save mode parameter
+ *
+ * Return: None
+ */
+QDF_STATUS wmi_unified_green_ap_ll_ps_send(wmi_unified_t wmi_handle,
+					   struct green_ap_ll_ps_cmd_param *green_ap_ll_ps_params);
+#endif
+
 /**
  * wmi_unified_cmd_send_pm_chk() - send unified WMI command with PM check,
  * if target is in suspended state, WMI command will be sent over QMI.
@@ -409,7 +421,7 @@ wmi_unified_register_event_handler(wmi_unified_t wmi_handle,
 
 /**
  * wmi_unified_unregister_event() - WMI event handler unregister function
- * for converged componets
+ * for converged components
  * @wmi_handle:    handle to WMI.
  * @event_id:      WMI event ID
  *
@@ -904,6 +916,16 @@ wmi_unified_multiple_vdev_param_send(wmi_unified_t wmi_handle,
 				     struct set_multiple_pdev_vdev_param *params);
 
 /**
+ * wmi_unified_set_mac_addr_rx_filter() - set mac addr rx filter cmd
+ * @wmi_handle: wmi handle
+ * @param: Pointer to set mac filter struct
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS
+wmi_unified_set_mac_addr_rx_filter(wmi_unified_t wmi_handle,
+				   struct set_rx_mac_filter *param);
+/**
  * wmi_unified_multiple_pdev_param_send() - sends multiple pdev set params
  * @wmi_handle: handle to WMI.
  * @params: pointer to hold set_multiple_pdev_vdev_param info
@@ -1343,7 +1365,7 @@ QDF_STATUS wmi_unified_set_sta_ps_mode(wmi_unified_t wmi_handle,
 /**
  * wmi_unified_set_sta_uapsd_auto_trig_cmd() - set uapsd auto trigger command
  * @wmi_handle: wmi handle
- * @param: uapsd cmd parameter strcture
+ * @param: uapsd cmd parameter structure
  *
  * This function sets the trigger
  * uapsd params such as service interval, delay interval
@@ -1940,7 +1962,7 @@ QDF_STATUS wmi_unified_send_apf_read_work_memory_cmd(wmi_unified_t wmi,
 				struct wmi_apf_read_memory_params *read_params);
 
 /**
- * wmi_extract_apf_read_memory_resp_event() - exctract read mem resp event
+ * wmi_extract_apf_read_memory_resp_event() - extract read mem resp event
  * @wmi: wmi handle
  * @evt_buf: Pointer to the event buffer
  * @resp: pointer to memory to extract event parameters into
@@ -4052,6 +4074,21 @@ QDF_STATUS wmi_extract_green_ap_egap_status_info(
 	struct wlan_green_ap_egap_status_info *egap_status_info_params);
 #endif
 
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+/**
+ * wmi_unified_extract_green_ap_ll_ps_param() - API to extract Green AP low
+ * latency power save event parameter
+ * @wmi_handle: wmi handle
+ * @evt_buf: pointer to the event buffer
+ * @green_ap_ll_ps_event_param: Event parameter
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wmi_unified_extract_green_ap_ll_ps_param(
+	wmi_unified_t wmi_hdl, uint8_t *evt_buf,
+	struct wlan_green_ap_ll_ps_event_param *green_ap_ll_ps_event_param);
+#endif
+
 /**
  * wmi_unified_send_roam_scan_stats_cmd() - Wrapper to request roam scan stats
  * @wmi_handle: wmi handle
@@ -4371,7 +4408,7 @@ QDF_STATUS wmi_unified_extract_measreq_chan_info(
  *  color change enable to FW.
  * @wmi_handle: wmi handle
  * @vdev_id: vdev ID
- * @enable: enable or disable color change handeling within firmware
+ * @enable: enable or disable color change handling within firmware
  *
  * Send WMI_BSS_COLOR_CHANGE_ENABLE_CMDID parameters to fw,
  * thereby firmware updates bss color when AP announces bss color change.
@@ -4992,4 +5029,32 @@ QDF_STATUS wmi_extract_health_mon_event(
 		void *ev,
 		struct wmi_health_mon_params *param);
 #endif /* HEALTH_MON_SUPPORT */
+
+/**
+ * wmi_unified__update_edca_pifs_param() - update EDCA/PIFS params
+ * @wmi_handle: wmi handle
+ * @edca_pifs_param: pointer to edca_pifs_vparam struct
+ *
+ * This function updates EDCA/PIFS parameters to the target
+ *
+ * Return: QDF_STATUS_SUCCESS on success and QDF_STATUS_E_FAILURE for failure
+ */
+QDF_STATUS
+wmi_unified_update_edca_pifs_param(
+			wmi_unified_t wmi_handle,
+			struct edca_pifs_vparam *edca_pifs_param);
+
+/**
+ * wmi_extract_sap_coex_cap_service_ready_ext2() - extract sap coex capability
+ * @wmi_handle: wmi handle
+ * @evt_buf: pointer to event buffer
+ * @cap: It's set to 1 if fixed chan SAP is supported by firmware even when the
+ *       channel is unsafe due to coex.
+ *
+ * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_** on error
+ */
+QDF_STATUS wmi_extract_sap_coex_cap_service_ready_ext2(
+			wmi_unified_t wmi_handle,
+			uint8_t *evt_buf,
+			struct wmi_host_coex_fix_chan_cap *cap);
 #endif /* _WMI_UNIFIED_API_H_ */

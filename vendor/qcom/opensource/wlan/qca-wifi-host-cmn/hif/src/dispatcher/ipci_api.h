@@ -62,7 +62,7 @@ int hif_ipci_bus_suspend(struct hif_softc *scn);
  * @scn: hif context
  *
  * Ensure that if we received the wakeup message before the irq
- * was disabled that the message is pocessed before suspending.
+ * was disabled that the message is processed before suspending.
  *
  * Return: -EBUSY if we fail to flush the tasklets.
  */
@@ -81,7 +81,7 @@ int hif_ipci_bus_resume(struct hif_softc *scn);
  * @scn: hif context
  *
  * Ensure that if we received the wakeup message before the irq
- * was disabled that the message is pocessed before suspending.
+ * was disabled that the message is processed before suspending.
  *
  * Return: -EBUSY if we fail to flush the tasklets.
  */

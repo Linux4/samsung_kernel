@@ -197,7 +197,7 @@ next:
 
 /**
  * dp_reo_cmdlist_destroy - Free REO commands in the queue
- * @soc: DP SoC hanle
+ * @soc: DP SoC handle
  *
  */
 void dp_reo_cmdlist_destroy(struct dp_soc *soc)
@@ -223,7 +223,7 @@ void dp_reo_cmdlist_destroy(struct dp_soc *soc)
 #ifdef DP_UMAC_HW_RESET_SUPPORT
 /**
  * dp_cleanup_reo_cmd_module - Clean up the reo cmd module
- * @soc: DP SoC hanle
+ * @soc: DP SoC handle
  *
  */
 void dp_cleanup_reo_cmd_module(struct dp_soc *soc)

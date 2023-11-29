@@ -309,8 +309,9 @@ wlan_ser_cancel_scan_cmd(
 		 * it is being removed
 		 */
 		if (cmd_bkup.cmd_cb) {
-			ser_debug("Cancel command: type %d id %d and Release memory",
-				  cmd_bkup.cmd_type, cmd_bkup.cmd_id);
+			ser_debug("Cancel command: type %d id %d vdev %d and Release memory",
+				  cmd_bkup.cmd_type, cmd_bkup.cmd_id,
+				  wlan_vdev_get_id(cmd_bkup.vdev));
 			cmd_bkup.cmd_cb(&cmd_bkup, WLAN_SER_CB_CANCEL_CMD);
 			cmd_bkup.cmd_cb(&cmd_bkup, WLAN_SER_CB_RELEASE_MEM_CMD);
 		}

@@ -1,4 +1,5 @@
 # Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -195,7 +196,7 @@ class RTB(RamParser):
             print_out_str('RTB dump looks corrupt! Got step_size=%s' %
                           hex(step_size) if step_size is not None else None)
             return
-        for i in range(0, step_size):
+        for i in self.ramdump.iter_cpus():
             rtb_out = self.ramdump.open_file('msm_rtb{0}.txt'.format(i))
             gdb_cmd = NamedTemporaryFile(mode='w+t', delete=False)
             gdb_out = NamedTemporaryFile(mode='w+t', delete=False)
@@ -210,7 +211,7 @@ class RTB(RamParser):
                         self.ramdump.address_of('msm_rtb_idx'))
                 else:
                     last = self.ramdump.read_int(self.ramdump.address_of(
-                        'msm_rtb_idx_cpu'), cpu=i )
+                        'msm_rtb_idx_cpu'), cpu=i)
             last = last & mask
             last_ptr = 0
             next_ptr = 0

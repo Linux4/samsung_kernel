@@ -1056,6 +1056,7 @@ Return<void>PAL::ipc_pal_stream_get_mmap_position(PalStreamHandle streamHandle,
     mmap_position_hidl.resize(sizeof(struct pal_mmap_position));
     ret = pal_stream_get_mmap_position((pal_stream_handle_t *)streamHandle, &mmap_position);
     memcpy(mmap_position_hidl.data(), &mmap_position, sizeof(struct pal_mmap_position));
+    _hidl_cb(ret, mmap_position_hidl);
     return Void();
 }
 

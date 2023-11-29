@@ -465,7 +465,7 @@ struct wmi_twt_del_dialog_param {
  * @WMI_HOST_DEL_TWT_STATUS_PEER_INIT_TEARDOWN: Peer initiated TWT teardown
  * @WMI_HOST_DEL_TWT_STATUS_ROAMING: TWT teardown due to roaming.
  * @WMI_HOST_DEL_TWT_STATUS_CONCURRENCY: TWT session teardown due to
- * concurrent session comming up.
+ * concurrent session coming up.
  * @WMI_HOST_DEL_TWT_STATUS_CHAN_SW_IN_PROGRESS: Channel switch in progress
  * @WMI_HOST_DEL_TWT_STATUS_SCAN_IN_PROGRESS: Scan is in progress
  * @WMI_HOST_DEL_TWT_STATUS_PS_DISABLE_TEARDOWN: PS disable TWT teardown

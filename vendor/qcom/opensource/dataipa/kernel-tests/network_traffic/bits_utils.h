@@ -98,7 +98,7 @@ static vector<bool> bitsetToVector(const bitset<N>& bits){
     vector<bool> outVec;
 
     for(int i = N-1; i >= 0; i--){
-	    outVect.push_back(bits[i]);
+	    outVec.push_back(bits[i]);
     }
     return outVec;
 }

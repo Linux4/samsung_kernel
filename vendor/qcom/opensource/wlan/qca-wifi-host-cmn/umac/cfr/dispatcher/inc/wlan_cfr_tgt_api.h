@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -153,7 +154,7 @@ uint32_t tgt_cfr_info_send(struct wlan_objmgr_pdev *pdev, void *head,
  * @pdev: pointer to pdev_object
  * @rcc_param: rcc configurations
  *
- * Return: succcess / failure
+ * Return: success / failure
  */
 QDF_STATUS tgt_cfr_config_rcc(struct wlan_objmgr_pdev *pdev,
 			      struct cfr_rcc_param *rcc_param);

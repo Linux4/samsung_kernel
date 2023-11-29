@@ -291,14 +291,16 @@ bool wlan_twt_is_command_in_progress(struct wlan_objmgr_psoc *psoc,
 /**
  * wlan_twt_set_work_params() - Set TWT work params
  * @vdev: vdev pointer
- * @params: TWT add dialog params
+ * @peer_mac: mac address of peer
+ * @dialog_id: dialog_id of TWT session
  * @twt_next_action: Set next action to do before work scheduled
  *
  * Return: None
  */
 void wlan_twt_set_work_params(
 			struct wlan_objmgr_vdev *vdev,
-			struct twt_add_dialog_complete_event_param *params,
+			struct qdf_mac_addr *peer_mac,
+			uint8_t dialog_id,
 			uint32_t twt_next_action);
 
 /**

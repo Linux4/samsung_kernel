@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,6 +42,11 @@
 #define PM_5_GHZ_CH_FREQ_36   (5180)
 #define CHANNEL_SWITCH_COMPLETE_TIMEOUT   (2000)
 #define MAX_NOA_TIME (3000)
+
+/* Defer SAP force SCC check by 2000ms due to another SAP/GO start AP in
+ * progress
+ */
+#define SAP_CONC_CHECK_DEFER_TIMEOUT_MS (2000)
 
 /**
  * Policy Mgr hardware mode list bit-mask definitions.
@@ -270,6 +275,9 @@ extern enum policy_mgr_conc_next_action
  * @sbs_enable: To enable/disable SBS
  * @multi_sap_allowed_on_same_band: Enable/Disable multi sap started
  *                                  on same band
+ * @sr_in_same_mac_conc: Enable/Disable SR in same MAC concurrency
+ * @use_sap_original_bw: Enable/Disable sap original BW as default
+ *                       BW when do restart
  */
 struct policy_mgr_cfg {
 	uint8_t mcc_to_scc_switch;
@@ -295,6 +303,10 @@ struct policy_mgr_cfg {
 	enum policy_mgr_pcl_band_priority pcl_band_priority;
 	bool sbs_enable;
 	bool multi_sap_allowed_on_same_band;
+#ifdef WLAN_FEATURE_SR
+	bool sr_in_same_mac_conc;
+#endif
+	bool use_sap_original_bw;
 };
 
 /**
@@ -442,6 +454,25 @@ union conc_ext_flag {
 
 	uint32_t value;
 };
+#endif
+
+#ifdef WLAN_FEATURE_SR
+/**
+ * policy_mgr_get_same_mac_conc_sr_status() - Function returns value of INI
+ * g_enable_sr_in_same_mac_conc
+ *
+ * @psoc: Pointer to PSOC
+ *
+ * Return: Returns True / False
+ */
+bool policy_mgr_get_same_mac_conc_sr_status(struct wlan_objmgr_psoc *psoc);
+
+#else
+static inline
+bool policy_mgr_get_same_mac_conc_sr_status(struct wlan_objmgr_psoc *psoc)
+{
+	return true;
+}
 #endif
 
 struct policy_mgr_psoc_priv_obj *policy_mgr_get_context(
@@ -616,20 +647,6 @@ policy_mgr_dump_disabled_ml_links(struct policy_mgr_psoc_priv_obj *pm_ctx) {}
 #endif
 
 void policy_mgr_dump_current_concurrency(struct wlan_objmgr_psoc *psoc);
-
-/**
- * policy_mgr_pdev_get_pcl() - GET PCL channel list
- * @psoc: PSOC object information
- * @mode: Adapter mode
- * @pcl: the pointer of pcl list
- *
- * Fetches the PCL.
- *
- * Return: QDF_STATUS
- */
-QDF_STATUS policy_mgr_pdev_get_pcl(struct wlan_objmgr_psoc *psoc,
-				   enum QDF_OPMODE mode,
-				   struct policy_mgr_pcl_list *pcl);
 void pm_dbs_opportunistic_timer_handler(void *data);
 enum policy_mgr_con_mode policy_mgr_get_mode(uint8_t type,
 		uint8_t subtype);

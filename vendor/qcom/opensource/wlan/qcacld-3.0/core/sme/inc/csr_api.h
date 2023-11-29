@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -72,6 +72,8 @@ enum csr_akm_type {
 	eCSR_AUTH_TYPE_OSEN,
 	eCSR_AUTH_TYPE_FT_SAE,
 	eCSR_AUTH_TYPE_FT_SUITEB_EAP_SHA384,
+	eCSR_AUTH_TYPE_SAE_EXT_KEY,
+	eCSR_AUTH_TYPE_FT_SAE_EXT_KEY,
 	eCSR_NUM_OF_SUPPORT_AUTH_TYPE,
 	eCSR_AUTH_TYPE_FAILED = 0xff,
 	eCSR_AUTH_TYPE_UNKNOWN = eCSR_AUTH_TYPE_FAILED,
@@ -182,8 +184,6 @@ typedef enum {
 	eCSR_INI_QUADRUPLE_CHANNEL_20MHZ_HIGH_40MHZ_HIGH = 10,
 	eCSR_INI_CHANNEL_BONDING_STATE_MAX = 11
 } eIniChanBondState;
-
-#define CSR_RSN_MAX_PMK_LEN         48
 
 typedef struct tagCsrChannelInfo {
 	uint8_t numOfChannels;
@@ -593,6 +593,8 @@ struct csr_roam_info {
 	struct sir_sae_info *sae_info;
 #endif
 	struct assoc_ind *owe_pending_assoc_ind;
+	struct assoc_ind *ft_pending_assoc_ind;
+
 	struct qdf_mac_addr peer_mld;
 #ifdef WLAN_FEATURE_SAP_ACS_OPTIMIZE
 	uint32_t chan_info_freq;
@@ -858,6 +860,17 @@ static inline void csr_packetdump_timer_start(void) {}
  */
 QDF_STATUS csr_update_owe_info(struct mac_context *mac,
 			       struct assoc_ind *assoc_ind);
+
+/**
+ * csr_update_ft_info() - Update FT info
+ * @mac: mac context
+ * @assoc_ind: assoc ind
+ *
+ * Return: QDF_STATUS
+ */
+
+QDF_STATUS csr_update_ft_info(struct mac_context *mac,
+			      struct assoc_ind *assoc_ind);
 
 typedef void (*csr_ani_callback)(int8_t *ani, void *context);
 

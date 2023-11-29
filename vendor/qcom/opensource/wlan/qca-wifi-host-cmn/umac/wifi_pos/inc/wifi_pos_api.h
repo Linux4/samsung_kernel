@@ -32,6 +32,10 @@
 struct wlan_objmgr_psoc;
 struct wifi_pos_driver_caps;
 
+#ifdef WIFI_POS_CONVERGED
+struct wifi_pos_osif_ops;
+#endif
+
 /**
  * enum RTT_FIELD_ID - identifies which field is being specified
  * @META_DATA_SUB_TYPE: oem data req sub type
@@ -422,12 +426,10 @@ struct wlan_objmgr_psoc *wifi_pos_get_psoc(void);
 
 /**
  * wifi_pos_get_legacy_ops() - Get wifi pos legacy ops
- * @psoc: PSOC pointer
  *
  * Return: Pointer to legacy ops
  */
-struct wifi_pos_legacy_ops *
-wifi_pos_get_legacy_ops(struct wlan_objmgr_psoc *psoc);
+struct wifi_pos_legacy_ops *wifi_pos_get_legacy_ops(void);
 
 /**
  * wifi_pos_set_legacy_ops() - Set Wifi Pos legacy ops
@@ -651,23 +653,18 @@ wifi_pos_get_peer_private_object(struct wlan_objmgr_peer *peer);
 
 /**
  * wifi_pos_register_osif_callbacks() - Register OSIF callbacks
- * @psoc: Pointer to psoc object
  * @ops: Osif callbacks pointer
  *
  * Return: QDF_STATUS
  */
-QDF_STATUS
-wifi_pos_register_osif_callbacks(struct wlan_objmgr_psoc *psoc,
-				 struct wifi_pos_osif_ops *ops);
+QDF_STATUS wifi_pos_register_osif_callbacks(struct wifi_pos_osif_ops *ops);
 
 /**
  * wifi_pos_get_osif_callbacks() - Get OS IF callbacks
- * @psoc: Pointer to PSOC object
  *
  * Return: struct wifi_pos_osif_ops pointer
  */
-struct wifi_pos_osif_ops *
-wifi_pos_get_osif_callbacks(struct wlan_objmgr_psoc *psoc);
+struct wifi_pos_osif_ops *wifi_pos_get_osif_callbacks(void);
 #endif /* WIFI_POS_CONVERGED */
 
 #if defined(WIFI_POS_CONVERGED) && defined(WLAN_FEATURE_RTT_11AZ_SUPPORT)

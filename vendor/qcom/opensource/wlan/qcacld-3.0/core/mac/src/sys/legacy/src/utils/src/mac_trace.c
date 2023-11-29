@@ -550,6 +550,7 @@ uint8_t *mac_trace_get_wma_msg_string(uint16_t wma_msg)
 		CASE_RETURN_STRING(WMA_SET_THERMAL_THROTTLE_CFG);
 		CASE_RETURN_STRING(WMA_SET_THERMAL_MGMT);
 #endif /* FW_THERMAL_THROTTLE_SUPPORT */
+		CASE_RETURN_STRING(WMA_UPDATE_EDCA_PIFS_PARAM_IND);
 	default:
 		return (uint8_t *) "UNKNOWN";
 		break;

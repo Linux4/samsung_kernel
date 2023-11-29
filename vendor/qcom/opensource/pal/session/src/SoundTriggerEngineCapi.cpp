@@ -768,7 +768,6 @@ SoundTriggerEngineCapi::~SoundTriggerEngineCapi()
         cv_.notify_one();
         lck.unlock();
         buffer_thread_handler_.join();
-        lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
     }
     if (buffer_) {

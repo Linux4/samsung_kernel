@@ -28,7 +28,7 @@
 #ifndef _I_QDF_NBUF_W_H
 #define _I_QDF_NBUF_W_H
 
-/* ext_cb accesor macros and internal API's */
+/* ext_cb accessor macros and internal API's */
 
 #define QDF_NBUF_CB_EXT_CB(skb) \
 	(((struct qdf_nbuf_cb *)((skb)->cb))->u.tx.dev.priv_cb_w.ext_cb_ptr)
@@ -41,7 +41,7 @@
 #define __qdf_nbuf_get_ext_cb(skb) \
 	QDF_NBUF_CB_EXT_CB((skb))
 
-/* fctx accesor macros and internal API's*/
+/* fctx accessor macros and internal API's*/
 
 #define QDF_NBUF_CB_RX_FCTX(skb) \
 	(((struct qdf_nbuf_cb *)((skb)->cb))->u.rx.dev.priv_cb_w.fctx)

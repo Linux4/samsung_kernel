@@ -70,7 +70,7 @@ void qdf_register_mc_timer_callback(void (*callback) (qdf_mc_timer_t *))
 
 qdf_export_symbol(qdf_register_mc_timer_callback);
 
-/* Function declarations and documenation */
+/* Function declarations and documentation */
 
 /**
  * qdf_try_allowing_sleep() - clean up timer states after it has been deactivated
@@ -675,7 +675,7 @@ QDF_STATUS qdf_mc_timer_start(qdf_mc_timer_t *timer, uint32_t expiration_time)
 		return QDF_STATUS_E_INVAL;
 	}
 
-	/* make sure the remainer of the logic isn't interrupted */
+	/* make sure the remainder of the logic isn't interrupted */
 	qdf_spin_lock_irqsave(&timer->platform_info.spinlock);
 
 	/* ensure if the timer can be started */

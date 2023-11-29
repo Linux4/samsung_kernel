@@ -310,7 +310,7 @@ QDF_STATUS wlan_objmgr_psoc_component_obj_attach(
 	if (psoc->obj_state != WLAN_OBJ_STATE_PARTIALLY_CREATED)
 		return QDF_STATUS_SUCCESS;
 	/* If PSOC object status is partially created means, this API is
-	 * invoked with differnt context, this block should be executed for
+	 * invoked with different context, this block should be executed for
 	 * async components only
 	 */
 	/* Derive status */
@@ -327,7 +327,7 @@ QDF_STATUS wlan_objmgr_psoc_component_obj_attach(
 	/* Notify components about the CREATION success/failure */
 	if ((obj_status == QDF_STATUS_SUCCESS) ||
 	    (obj_status == QDF_STATUS_E_FAILURE)) {
-		/* nofity object status */
+		/* notify object status */
 		for (i = 0; i < WLAN_UMAC_MAX_COMPONENTS; i++) {
 			stat_handler = g_umac_glb_obj->psoc_status_handler[i];
 			arg = g_umac_glb_obj->psoc_status_handler_arg[i];
@@ -364,7 +364,7 @@ QDF_STATUS wlan_objmgr_psoc_component_obj_detach(
 	wlan_psoc_obj_unlock(psoc);
 
 	/* If PSOC object status is partially created means, this API is
-	 * invoked with differnt context, this block should be executed for
+	 * invoked with different context, this block should be executed for
 	 * async components only
 	 */
 	if ((psoc->obj_state == WLAN_OBJ_STATE_PARTIALLY_DELETED) ||
@@ -495,7 +495,7 @@ QDF_STATUS wlan_objmgr_iterate_obj_list_all(
 	struct wlan_objmgr_peer *peer_next;
 	uint16_t max_vdev_cnt;
 
-	/* If caller requests for lock free opeation, do not acquire,
+	/* If caller requests for lock free operation, do not acquire,
 	 * handler will handle the synchronization
 	 */
 
@@ -557,7 +557,7 @@ qdf_export_symbol(wlan_objmgr_iterate_obj_list_all);
  * @obj_type: PDEV_OP/VDEV_OP/PEER_OP
  * @handler: the handler will be called for each object of requested type
  *            the handler should be implemented to perform required operation
- * @arg:     agruments passed by caller
+ * @arg:     arguments passed by caller
  *
  * API to be used for performing the operations on all PDEV/VDEV/PEER objects
  * of psoc with lock protected
@@ -581,7 +581,7 @@ static QDF_STATUS wlan_objmgr_iterate_obj_list_all_noref(
 	struct wlan_objmgr_peer *peer_next;
 	uint16_t max_vdev_cnt;
 
-	/* If caller requests for lock free opeation, do not acquire,
+	/* If caller requests for lock free operation, do not acquire,
 	 * handler will handle the synchronization
 	 */
 	wlan_psoc_obj_lock(psoc);
@@ -1192,7 +1192,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_opmode_from_psoc(
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_psoc_debug(
 		struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-		uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
+		const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line)
 {
 	struct wlan_objmgr_vdev *vdev;
@@ -1222,7 +1222,7 @@ qdf_export_symbol(wlan_objmgr_get_vdev_by_macaddr_from_psoc_debug);
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_psoc(
 		struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-		uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id)
+		const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id)
 {
 	struct wlan_objmgr_vdev *vdev;
 	struct wlan_objmgr_pdev *pdev;
@@ -1252,7 +1252,7 @@ qdf_export_symbol(wlan_objmgr_get_vdev_by_macaddr_from_psoc);
 struct wlan_objmgr_vdev
 	*wlan_objmgr_get_vdev_by_macaddr_from_psoc_no_state_debug(
 		struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-		uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
+		const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line)
 {
 	struct wlan_objmgr_vdev *vdev;
@@ -1284,7 +1284,7 @@ qdf_export_symbol(wlan_objmgr_get_vdev_by_macaddr_from_psoc_no_state_debug);
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_psoc_no_state(
 		struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
-		uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id)
+		const uint8_t *macaddr, wlan_objmgr_ref_dbgid dbg_id)
 {
 	struct wlan_objmgr_vdev *vdev;
 	struct wlan_objmgr_pdev *pdev;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -47,7 +48,7 @@ uint8_t target_if_mc_cp_get_mac_id(struct vdev_mlme_obj *vdev_mlme);
 /**
  * tgt_mc_cp_stats_process_stats_event(): API to process stats event
  * @psoc: pointer to psoc object
- * @event: event parameters
+ * @ev: event parameters
  *
  * Return: QDF_STATUS_SUCCESS on Success, other QDF_STATUS error codes on
  * failure
@@ -59,7 +60,7 @@ tgt_mc_cp_stats_process_stats_event(struct wlan_objmgr_psoc *psoc,
 #ifdef WLAN_SUPPORT_INFRA_CTRL_PATH_STATS
 /**
  * tgt_mc_cp_stats_process_infra_stats_event(): API to process event from
- * cp stats infrastrucure
+ * cp stats infrastructure
  * @psoc: pointer to psoc object
  * @infra_event: infra cp stats event parameters
  *
@@ -101,6 +102,7 @@ QDF_STATUS tgt_send_cp_big_data_stats_req(struct wlan_objmgr_psoc *psoc,
 /**
  * tgt_send_mc_cp_stats_req(): API to send stats request to lmac
  * @psoc: pointer to psoc object
+ * @type: specific type of stats requested
  * @req: pointer to stats request
  *
  * Return: status of operation

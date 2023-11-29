@@ -444,7 +444,7 @@ static QDF_STATUS target_if_p2p_register_macaddr_rx_filter_evt_handler(
 }
 
 static QDF_STATUS target_if_p2p_set_mac_addr_rx_filter_cmd(
-	struct wlan_objmgr_psoc *psoc, struct p2p_set_mac_filter *param)
+	struct wlan_objmgr_psoc *psoc, struct set_rx_mac_filter *param)
 {
 	wmi_unified_t wmi_handle = lmac_get_wmi_unified_hdl(psoc);
 
@@ -453,7 +453,7 @@ static QDF_STATUS target_if_p2p_set_mac_addr_rx_filter_cmd(
 		return QDF_STATUS_E_INVAL;
 	}
 
-	return wmi_send_set_mac_addr_rx_filter_cmd(wmi_handle, param);
+	return wmi_unified_set_mac_addr_rx_filter(wmi_handle, param);
 }
 
 void target_if_p2p_register_tx_ops(struct wlan_lmac_if_tx_ops *tx_ops)

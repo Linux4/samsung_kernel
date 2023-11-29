@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -100,7 +100,7 @@
 
 /* Max number of chips that can participate in MLO */
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
-#define WLAN_MAX_MLO_CHIPS 3
+#define WLAN_MAX_MLO_CHIPS 4
 #define WLAN_MAX_MLO_LINKS_PER_SOC 2
 #else
 #define WLAN_MAX_MLO_CHIPS 1
@@ -110,10 +110,10 @@ struct wlan_cfg_dp_pdev_ctxt;
 
 /**
  * struct wlan_cfg_tcl_wbm_ring_num_map - TCL WBM Ring number mapping
- * @tcl_ring_num - TCL Ring number
- * @wbm_ring_num - WBM Ring number
- * @wbm_ring_num - WBM RBM ID to be used when enqueuing to TCL
- * @for_ipa - whether this TCL/WBM for IPA use or not
+ * @tcl_ring_num: TCL Ring number
+ * @wbm_ring_num: WBM Ring number
+ * @wbm_rbm_id: WBM RBM ID to be used when enqueuing to TCL
+ * @for_ipa: whether this TCL/WBM for IPA use or not
  */
 struct wlan_cfg_tcl_wbm_ring_num_map {
 	uint8_t tcl_ring_num;
@@ -145,8 +145,12 @@ struct wlan_srng_cfg {
  *		       1: Each TCL ring is mapped to one radio/pdev
  * @num_tx_comp_rings: Number of Tx comp rings supported by device
  * @num_tcl_data_rings: Number of TCL Data rings supported by device
+ * @num_nss_tcl_data_rings:
  * @per_pdev_rx_ring: 0: REO ring is not mapped per radio
  *		       1: Each REO ring is mapped to one radio/pdev
+ * @per_pdev_lmac_ring:
+ * @num_reo_dest_rings:
+ * @num_nss_reo_dest_rings:
  * @num_tx_desc_pool: Number of Tx Descriptor pools
  * @num_tx_ext_desc_pool: Number of Tx MSDU extension Descriptor pools
  * @num_tx_desc: Number of Tx Descriptors per pool
@@ -156,14 +160,30 @@ struct wlan_srng_cfg {
  * @htt_packet_type: Default 802.11 encapsulation type for any VAP created
  * @int_tx_ring_mask: Bitmap of Tx interrupts mapped to each NAPI/Intr context
  * @int_rx_ring_mask: Bitmap of Rx interrupts mapped to each NAPI/Intr context
+ * @int_batch_threshold_ppe2tcl:
+ * @int_timer_threshold_ppe2tcl:
+ * @int_batch_threshold_tx:
+ * @int_timer_threshold_tx:
+ * @int_batch_threshold_rx:
+ * @int_timer_threshold_rx:
+ * @int_batch_threshold_other:
+ * @int_timer_threshold_other:
+ * @int_timer_threshold_mon:
+ * @tx_ring_size:
+ * @time_control_bp:
+ * @tx_comp_ring_size:
+ * @tx_comp_ring_size_nss:
  * @int_rx_mon_ring_mask: Bitmap of Rx monitor ring interrupts mapped to each
  *			  NAPI/Intr context
  * @int_tx_mon_ring_mask: Bitmap of Tx monitor ring interrupts mapped to each
  *			  NAPI/Intr context
+ * @int_host2rxdma_mon_ring_mask:
+ * @int_rxdma2host_mon_ring_mask:
+ * @int_ce_ring_mask: Bitmap of CE interrupts mapped to each NAPI/Intr context
  * @int_rx_err_ring_mask: Bitmap of Rx err ring interrupts mapped to each
  *			  NAPI/Intr context
- * @int_wbm_rel_ring_mask: Bitmap of wbm rel ring interrupts mapped to each
- *			  NAPI/Intr context
+ * @int_rx_wbm_rel_ring_mask: Bitmap of wbm rel ring interrupts mapped to each
+ *			      NAPI/Intr context
  * @int_reo_status_ring_mask: Bitmap of reo status ring interrupts mapped to
  *                            each NAPI/Intr context
  * @int_rxdma2host_ring_mask:
@@ -176,10 +196,14 @@ struct wlan_srng_cfg {
  *				interrupt mapped to each NAPI/INTR context
  * @int_host2txmon_ring_mask: Bitmap of Tx monitor source ring interrupt
  *				mapped to each NAPI/INTR context
+ * @int_ppeds_wbm_release_ring_mask:
+ * @int_ppe2tcl_ring_mask:
+ * @int_reo2ppe_ring_mask:
  * @int_umac_reset_intr_mask: Bitmap of UMAC reset interrupt mapped to each
  * NAPI/INTR context
- * @int_ce_ring_mask: Bitmap of CE interrupts mapped to each NAPI/Intr context
- * @lro_enabled: enable/disable lro feature
+ * @hw_macid:
+ * @hw_macid_pdev_id_map:
+ * @base_hw_macid:
  * @rx_hash: Enable hash based steering of rx packets
  * @tso_enabled: enable/disable tso feature
  * @lro_enabled: enable/disable LRO feature
@@ -196,8 +220,13 @@ struct wlan_srng_cfg {
  * @p2p_tcp_udp_checksumoffload: enable/disable checksum offload for P2P mode
  * @nan_tcp_udp_checksumoffload: enable/disable checksum offload for NAN mode
  * @tcp_udp_checksumoffload: enable/disable checksum offload
+ * @legacy_mode_checksumoffload_disable:
+ * @defrag_timeout_check:
  * @nss_cfg: nss configuration
+ * @tx_flow_stop_queue_threshold:
+ * @tx_flow_start_queue_offset:
  * @rx_defrag_min_timeout: rx defrag minimum timeout
+ * @reo_dst_ring_size:
  * @wbm_release_ring: wbm release ring size
  * @tcl_cmd_credit_ring: tcl command/credit ring size
  * @tcl_status_ring: tcl status ring size
@@ -207,17 +236,21 @@ struct wlan_srng_cfg {
  * @reo_cmd_ring: reo cmd ring size
  * @reo_status_ring: reo status ting size
  * @rxdma_refill_ring: rxdma refill ring size
- * @rxdma_err_dst_ring: rxdma error detination ring size
+ * @rxdma_refill_lt_disable: rxdma refill low threshold disable
+ * @rxdma_err_dst_ring: rxdma error destination ring size
+ * @per_pkt_trace:
  * @raw_mode_war: enable/disable raw mode war
  * @enable_data_stall_detection: enable/disable specific data stall detection
  * @disable_intra_bss_fwd: flag to disable intra bss forwarding
  * @rxdma1_enable: flag to indicate if rxdma1 is enabled
  * @delay_mon_replenish: delay monitor buffer replenish
- * @tx_desc_limit_0: tx_desc limit for 5G H
- * @tx_desc_limit_1: tx_desc limit for 2G
- * @tx_desc_limit_2: tx_desc limit for 5G L
+ * @max_ast_idx:
+ * @tx_desc_limit_0: tx_desc limit for 5 GHz High
+ * @tx_desc_limit_1: tx_desc limit for 2 GHz
+ * @tx_desc_limit_2: tx_desc limit for 5 GHz Low
  * @tx_device_limit: tx device limit
  * @tx_sw_internode_queue: tx sw internode queue
+ * @mon_drop_thresh:
  * @tx_comp_loop_pkt_limit: Max # of packets to be processed in 1 tx comp loop
  * @rx_reap_loop_pkt_limit: Max # of packets to be processed in 1 rx reap loop
  * @rx_hp_oos_update_limit: Max # of HP OOS (out of sync) updates
@@ -226,6 +259,7 @@ struct wlan_srng_cfg {
  * @tx_comp_enable_eol_data_check: flag to enable/disable checking for more data
  *                                at end of tx_comp_handler loop.
  * @rx_sw_desc_weight: rx sw descriptor weight configuration
+ * @rx_sw_desc_num:
  * @is_rx_mon_protocol_flow_tag_enabled: flag to enable/disable RX protocol or
  *                                       flow tagging in monitor/mon-lite mode
  * @is_rx_flow_tag_enabled: flag to enable/disable RX flow tagging using FSE
@@ -238,6 +272,10 @@ struct wlan_srng_cfg {
  *                        5 tuple flow entry
  * @pktlog_buffer_size: packet log buffer size
  * @is_rx_fisa_enabled: flag to enable/disable FISA Rx
+ * @is_rx_fisa_lru_del_enabled:
+ * @is_tso_desc_attach_defer:
+ * @delayed_replenish_entries:
+ * @reo_rings_mapping:
  * @pext_stats_enabled: Flag to enable and disabled peer extended stats
  * @is_rx_buff_pool_enabled: flag to enable/disable emergency RX buffer
  *                           pool support
@@ -245,29 +283,52 @@ struct wlan_srng_cfg {
  *                           pool support
  * @rx_pending_high_threshold: threshold of starting pkt drop
  * @rx_pending_low_threshold: threshold of stopping pkt drop
+ * @is_poll_mode_enabled:
  * @is_swlm_enabled: flag to enable/disable SWLM
+ * @fst_in_cmem:
  * @tx_per_pkt_vdev_id_check: Enable tx perpkt vdev id check
+ * @radio0_rx_default_reo:
+ * @radio1_rx_default_reo:
+ * @radio2_rx_default_reo:
  * @wow_check_rx_pending_enable: Enable RX frame pending check in WoW
+ * @jitter_stats_enabled: true if jitter stats are enabled
  * @ipa_tx_ring_size: IPA tx ring size
  * @ipa_tx_comp_ring_size: IPA tx completion ring size
  * @ipa_tx_alt_ring_size: IPA tx alt ring size
  * @ipa_tx_alt_comp_ring_size: IPA tx alt completion ring size
- * @hw_cc_conv_enabled: cookie conversion enabled
+ * @hw_cc_enabled: cookie conversion enabled
  * @tcl_wbm_map_array: TCL-WBM map array
+ * @ppeds_enable: Enable PPE Direct Switch feature
+ * @reo2ppe_ring: REO2PPE ring size
+ * @ppe2tcl_ring: PPE2TCL ring size
+ * @ppeds_num_tx_desc: Number of tx descs for PPE DS
+ * @ppeds_tx_comp_napi_budget: Napi budget for tx completions
  * @pkt_capture_mode: Packet capture mode config
  * @rx_mon_buf_ring_size: Rx monitor buf ring size
  * @tx_mon_buf_ring_size: Tx monitor buf ring size
+ * @rx_rel_wbm2sw_ring_id: Rx WBM2SW ring id
  * @tx_rings_grp_bitmap: bitmap of group intr contexts which have
- *  non-zero tx ring mask
+ *                       non-zero tx ring mask
  * @mlo_chip_rx_ring_map: map of chip_id to rx ring map
  * @vdev_stats_hw_offload_config: HW vdev stats config
  * @vdev_stats_hw_offload_timer: HW vdev stats timer duration
+ * @num_rxdma_dst_rings_per_pdev: Number of Rx DMA rings per pdev
  * @txmon_hw_support: TxMON HW support
+ * @txmon_sw_peer_filtering: TxMON sw peer filtering support
  * @num_rxdma_status_rings_per_pdev: Num RXDMA status rings
+ * @tx_capt_max_mem_allowed: Max memory for Tx packet capture
+ * @sawf_enabled:  Is SAWF enabled
+ * @sawf_stats: SAWF Statistics
  * @mpdu_retry_threshold_1: MPDU retry threshold 1 to increment tx bad count
  * @mpdu_retry_threshold_2: MPDU retry threshold 2 to increment tx bad count
- * napi_scale_factor: scaling factor to be used for napi polls
+ * @napi_scale_factor: scaling factor to be used for napi polls
  * @notify_frame_support: flag indicating capability to mark notify frames
+ * @is_handle_invalid_decap_type_disabled: flag to indicate if invalid decap
+ *                                         type handling is disabled
+ * @tx_pkt_inspect_for_ilp: flag to indicate if TX packet inspection for HW
+ *			    based ILP feature is enabled
+ * @pointer_timer_threshold_rx: RX REO2SW ring pointer update timer threshold
+ * @pointer_num_threshold_rx: RX REO2SW ring pointer update entries threshold
  */
 struct wlan_cfg_dp_soc_ctxt {
 	int num_int_ctxts;
@@ -288,6 +349,8 @@ struct wlan_cfg_dp_soc_ctxt {
 	int num_tx_ext_desc;
 	int max_peer_id;
 	int htt_packet_type;
+	int int_batch_threshold_ppe2tcl;
+	int int_timer_threshold_ppe2tcl;
 	int int_batch_threshold_tx;
 	int int_timer_threshold_tx;
 	int int_batch_threshold_rx;
@@ -315,6 +378,9 @@ struct wlan_cfg_dp_soc_ctxt {
 	uint8_t int_rx_ring_near_full_irq_2_mask[WLAN_CFG_INT_NUM_CONTEXTS];
 	uint8_t int_tx_ring_near_full_irq_mask[WLAN_CFG_INT_NUM_CONTEXTS];
 	uint8_t int_host2txmon_ring_mask[WLAN_CFG_INT_NUM_CONTEXTS];
+	uint8_t int_ppeds_wbm_release_ring_mask[WLAN_CFG_INT_NUM_CONTEXTS];
+	uint8_t int_ppe2tcl_ring_mask[WLAN_CFG_INT_NUM_CONTEXTS];
+	uint8_t int_reo2ppe_ring_mask[WLAN_CFG_INT_NUM_CONTEXTS];
 	uint8_t int_umac_reset_intr_mask[WLAN_CFG_INT_NUM_CONTEXTS];
 	int hw_macid[MAX_PDEV_CNT];
 	int hw_macid_pdev_id_map[MAX_NUM_LMAC_HW];
@@ -351,6 +417,7 @@ struct wlan_cfg_dp_soc_ctxt {
 	int reo_cmd_ring;
 	int reo_status_ring;
 	int rxdma_refill_ring;
+	bool rxdma_refill_lt_disable;
 	int rxdma_err_dst_ring;
 	uint32_t per_pkt_trace;
 	bool raw_mode_war;
@@ -399,6 +466,7 @@ struct wlan_cfg_dp_soc_ctxt {
 	uint8_t radio1_rx_default_reo;
 	uint8_t radio2_rx_default_reo;
 	bool wow_check_rx_pending_enable;
+	bool jitter_stats_enabled;
 #ifdef IPA_OFFLOAD
 	uint32_t ipa_tx_ring_size;
 	uint32_t ipa_tx_comp_ring_size;
@@ -410,10 +478,11 @@ struct wlan_cfg_dp_soc_ctxt {
 	bool hw_cc_enabled;
 	struct wlan_cfg_tcl_wbm_ring_num_map *tcl_wbm_map_array;
 #ifdef WLAN_SUPPORT_PPEDS
-	bool ppe_enable;
+	bool ppeds_enable;
 	int reo2ppe_ring;
 	int ppe2tcl_ring;
-	int ppe_release_ring;
+	int ppeds_num_tx_desc;
+	int ppeds_tx_comp_napi_budget;
 #endif
 #ifdef WLAN_FEATURE_PKT_CAPTURE_V2
 	uint32_t pkt_capture_mode;
@@ -431,6 +500,7 @@ struct wlan_cfg_dp_soc_ctxt {
 #endif
 	uint8_t num_rxdma_dst_rings_per_pdev;
 	bool txmon_hw_support;
+	bool txmon_sw_peer_filtering;
 	uint8_t num_rxdma_status_rings_per_pdev;
 #ifdef WLAN_TX_PKT_CAPTURE_ENH
 	uint32_t tx_capt_max_mem_allowed;
@@ -438,21 +508,32 @@ struct wlan_cfg_dp_soc_ctxt {
 #ifdef CONFIG_SAWF
 	bool sawf_enabled;
 #endif
+#ifdef CONFIG_SAWF_STATS
+	uint8_t sawf_stats;
+#endif
 	uint8_t mpdu_retry_threshold_1;
 	uint8_t mpdu_retry_threshold_2;
 	uint8_t napi_scale_factor;
 	uint8_t notify_frame_support;
+	bool is_handle_invalid_decap_type_disabled;
+#ifdef DP_TX_PACKET_INSPECT_FOR_ILP
+	bool tx_pkt_inspect_for_ilp;
+#endif
+	uint16_t pointer_timer_threshold_rx;
+	uint8_t pointer_num_threshold_rx;
 };
 
 /**
  * struct wlan_cfg_dp_pdev_ctxt - Configuration parameters for pdev (radio)
- * @rx_dma_buf_ring_size - Size of RxDMA buffer ring
- * @dma_mon_buf_ring_size - Size of RxDMA Monitor buffer ring
- * @dma_rx_mon_dest_ring_size - Size of RxDMA Monitor Destination ring
- * @dma_tx_mon_dest_ring_size - Size of Tx Monitor Destination ring
- * @dma_mon_status_ring_size - Size of RxDMA Monitor Status ring
- * @rxdma_monitor_desc_ring - rxdma monitor desc ring size
- * @dma_tx_mon_buf_ring_size - Tx monitor BUF Ring size
+ * @rx_dma_buf_ring_size: Size of RxDMA buffer ring
+ * @dma_mon_buf_ring_size: Size of RxDMA Monitor buffer ring
+ * @dma_rx_mon_dest_ring_size: Size of RxDMA Monitor Destination ring
+ * @dma_tx_mon_dest_ring_size: Size of Tx Monitor Destination ring
+ * @dma_mon_status_ring_size: Size of RxDMA Monitor Status ring
+ * @rxdma_monitor_desc_ring: rxdma monitor desc ring size
+ * @num_mac_rings: Number of mac rings
+ * @nss_enabled: 1 - NSS enabled, 0 - NSS disabled
+ * @dma_tx_mon_buf_ring_size: Tx monitor BUF Ring size
  */
 struct wlan_cfg_dp_pdev_ctxt {
 	int rx_dma_buf_ring_size;
@@ -477,6 +558,9 @@ struct wlan_cfg_dp_pdev_ctxt {
  * @num_tx_ext_desc: num of tx ext descriptors
  * @num_reo_dst_ring_entries: Number of entries in REO destination ring
  * @num_rxdma_buf_ring_entries: Number of entries in rxdma buf ring
+ * @num_rxdma_refill_ring_entries: Number of entries in rxdma refill ring
+ * @num_reo_status_ring_entries: Number of entries in REO status ring
+ * @num_mon_status_ring_entries: Number of entries in monitor status ring
  */
 struct wlan_dp_prealloc_cfg {
 	int num_tx_ring_entries;
@@ -488,11 +572,14 @@ struct wlan_dp_prealloc_cfg {
 	int num_tx_ext_desc;
 	int num_reo_dst_ring_entries;
 	int num_rxdma_buf_ring_entries;
+	int num_rxdma_refill_ring_entries;
+	int num_reo_status_ring_entries;
+	int num_mon_status_ring_entries;
 };
 
 /**
  * wlan_cfg_soc_attach() - Attach configuration interface for SoC
- * @ctrl_obj - PSOC object
+ * @psoc: PSOC object
  *
  * Allocates context for Soc configuration parameters,
  * Read configuration information from device tree/ini file and
@@ -501,7 +588,7 @@ struct wlan_dp_prealloc_cfg {
  * Return: Handle to configuration context
  */
 struct wlan_cfg_dp_soc_ctxt *
-wlan_cfg_soc_attach(struct cdp_ctrl_objmgr_psoc *ctrl_obj);
+wlan_cfg_soc_attach(struct cdp_ctrl_objmgr_psoc *psoc);
 
 /**
  * wlan_cfg_soc_detach() - Detach soc configuration handle
@@ -514,8 +601,8 @@ wlan_cfg_soc_attach(struct cdp_ctrl_objmgr_psoc *ctrl_obj);
 void wlan_cfg_soc_detach(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
 /**
- * wlan_cfg_pdev_attach() Attach configuration interface for pdev
- * @ctrl_obj - PSOC object
+ * wlan_cfg_pdev_attach() - Attach configuration interface for pdev
+ * @ctrl_obj: PSOC object
  *
  * Allocates context for pdev configuration parameters,
  * Read configuration information from device tree/ini file and
@@ -527,8 +614,8 @@ struct wlan_cfg_dp_pdev_ctxt *
 wlan_cfg_pdev_attach(struct cdp_ctrl_objmgr_psoc *ctrl_obj);
 
 /**
- * wlan_cfg_pdev_detach() Detach and free pdev configuration handle
- * @wlan_cfg_pdev_ctx - PDEV Configuration Handle
+ * wlan_cfg_pdev_detach() - Detach and free pdev configuration handle
+ * @wlan_cfg_pdev_ctx: PDEV Configuration Handle
  *
  * Return: void
  */
@@ -559,8 +646,8 @@ int wlan_cfg_set_reo_status_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_set_mon_delayed_replenish_entries() - number of buffers to replenish
  *				for monitor buffer ring at initialization
- * @wlan_cfg_ctx - Configuration Handle
- * @replenish_entries - number of entries to replenish at initialization
+ * @wlan_cfg_ctx: Configuration Handle
+ * @replenish_entries: number of entries to replenish at initialization
  *
  */
 void wlan_cfg_set_mon_delayed_replenish_entries(struct wlan_cfg_dp_soc_ctxt
@@ -570,8 +657,7 @@ void wlan_cfg_set_mon_delayed_replenish_entries(struct wlan_cfg_dp_soc_ctxt
 /**
  * wlan_cfg_get_mon_delayed_replenish_entries() - get num of buffer to replenish
  *				for monitor buffer ring at initialization
- * @wlan_cfg_ctx - Configuration Handle
- * @replenish_entries - number of entries to replenish at initialization
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: delayed_replenish_entries;
  */
@@ -579,7 +665,7 @@ int wlan_cfg_get_mon_delayed_replenish_entries(struct wlan_cfg_dp_soc_ctxt
 					       *wlan_cfg_ctx);
 /**
  * wlan_cfg_get_num_contexts() - Number of interrupt contexts to be registered
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * For WIN,  DP_NUM_INTERRUPT_CONTEXTS will be equal to  number of CPU cores.
  * Each context (for linux it is a NAPI context) will have a tx_ring_mask,
@@ -593,8 +679,8 @@ int wlan_cfg_get_num_contexts(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 /**
  * wlan_cfg_get_tx_ring_mask() - Return Tx interrupt mask mapped to an
  *				 interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @wlan_cfg_ctx: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_tx_ring_mask[context]
  */
@@ -603,7 +689,7 @@ int wlan_cfg_get_tx_ring_mask(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx,
 
 /**
  * wlan_cfg_get_tcl_wbm_ring_num_for_index() - Get TCL/WBM ring number for index
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  * @index: index for which TCL/WBM ring numbers are needed
  * @tcl: pointer to TCL ring number, to be filled
  * @wbm: pointer to WBM ring number to be filled
@@ -626,7 +712,7 @@ void wlan_cfg_get_tcl_wbm_ring_num_for_index(struct wlan_cfg_dp_soc_ctxt *wlan_c
 
 /**
  * wlan_cfg_get_wbm_ring_num_for_index() - Get WBM ring number for index
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  * @index: index for which WBM ring numbers is needed
  *
  * Return: WBM Ring number for the index
@@ -640,7 +726,7 @@ int wlan_cfg_get_wbm_ring_num_for_index(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ct
 
 /**
  * wlan_cfg_get_rbm_id_for_index() - Get WBM RBM ID for TX ring index
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  * @index: TCL index for which WBM rbm value is needed
  *
  * The function fills in wbm rbm value corresponding to a TX ring index in
@@ -660,8 +746,8 @@ int wlan_cfg_get_rbm_id_for_index(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx, int
 /**
  * wlan_cfg_get_rx_ring_mask() - Return Rx interrupt mask mapped to an
  *				 interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @wlan_cfg_ctx: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_rx_ring_mask[context]
  */
@@ -671,8 +757,8 @@ int wlan_cfg_get_rx_ring_mask(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx,
 /**
  * wlan_cfg_get_rx_mon_ring_mask() - Return Rx monitor ring interrupt mask
  *				   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @wlan_cfg_ctx: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_rx_mon_ring_mask[context]
  */
@@ -682,8 +768,8 @@ int wlan_cfg_get_rx_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx,
 /**
  * wlan_cfg_set_tx_mon_ring_mask() - Set Tx monitor ring interrupt mask
  *				   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  * @mask: Interrupt mask
  *
  * Return: None
@@ -694,8 +780,8 @@ void wlan_cfg_set_tx_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_get_tx_mon_ring_mask() - Return Tx monitor ring interrupt mask
  *				   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @wlan_cfg_ctx: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_tx_mon_ring_mask[context]
  */
@@ -705,50 +791,52 @@ int wlan_cfg_get_tx_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx,
 /**
  * wlan_cfg_set_rxdma2host_ring_mask() - Set rxdma2host ring interrupt mask
  *				   for the given interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
+ * @mask: Interrupt mask
  *
  */
 void wlan_cfg_set_rxdma2host_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
-	int context, int mask);
+				       int context, int mask);
 
 /**
  * wlan_cfg_get_rxdma2host_ring_mask() - Return rxdma2host ring interrupt mask
  *				   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_rxdma2host_ring_mask[context]
  */
 int wlan_cfg_get_rxdma2host_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
-	int context);
+				      int context);
 
 /**
  * wlan_cfg_set_host2rxdma_ring_mask() - Set host2rxdma ring interrupt mask
  *				   for the given interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
+ * @mask: Interrupt mask
  *
  */
 void wlan_cfg_set_host2rxdma_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
-	int context, int mask);
+				       int context, int mask);
 
 /**
  * wlan_cfg_get_host2rxdma_ring_mask() - Return host2rxdma ring interrupt mask
  *				   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_host2rxdma_ring_mask[context]
  */
 int wlan_cfg_get_host2rxdma_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
-	int context);
+				      int context);
 
 /**
  * wlan_cfg_get_rx_near_full_grp_1_mask() - Return REO near full interrupt mask
  *					mapped to an interrupt context
  * @cfg: Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: REO near full interrupt mask[context]
  */
@@ -759,7 +847,7 @@ int wlan_cfg_get_rx_near_full_grp_1_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
  * wlan_cfg_get_rx_near_full_grp_2_mask() - Return REO near full interrupt mask
  *					mapped to an interrupt context
  * @cfg: Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: REO near full interrupt mask[context]
  */
@@ -770,7 +858,7 @@ int wlan_cfg_get_rx_near_full_grp_2_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
  * wlan_cfg_get_tx_ring_near_full_mask() - Return tx completion ring near full
  *				interrupt mask mapped to an interrupt context
  * @cfg: Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: tx completion near full interrupt mask[context]
  */
@@ -779,8 +867,9 @@ int wlan_cfg_get_tx_ring_near_full_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_set_host2rxdma_mon_ring_mask() - Set host2rxdma monitor ring
  *                                interrupt mask for the given interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
+ * @mask: Interrupt mask
  *
  */
 void wlan_cfg_set_host2rxdma_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
@@ -789,8 +878,8 @@ void wlan_cfg_set_host2rxdma_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_get_host2rxdma_mon_ring_mask() - Return host2rxdma monitoe ring
  *                               interrupt mask mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_host2rxdma_mon_ring_mask[context]
  */
@@ -801,8 +890,9 @@ int wlan_cfg_get_host2rxdma_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
  * wlan_cfg_set_rxdma2host_mon_ring_mask() - Set rxdma2host monitor
  *				   destination ring interrupt mask
  *				   for the given interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
+ * @mask: Interrupt mask
  *
  */
 void wlan_cfg_set_rxdma2host_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
@@ -812,8 +902,8 @@ void wlan_cfg_set_rxdma2host_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
  * wlan_cfg_get_rxdma2host_mon_ring_mask() - Return rxdma2host monitor
  *				   destination ring interrupt mask
  *				   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_rxdma2host_mon_ring_mask[context]
  */
@@ -821,22 +911,22 @@ int wlan_cfg_get_rxdma2host_mon_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
 					  int context);
 
 /**
- * wlan_cfg_set_hw_macidx() - Set HW MAC Idx for the given PDEV index
+ * wlan_cfg_set_hw_mac_idx() - Set HW MAC Idx for the given PDEV index
  *
- * @wlan_cfg_ctx - Configuration Handle
- * @pdev_idx - Index of SW PDEV
- * @hw_macid - HW MAC Id
+ * @cfg: Configuration Handle
+ * @pdev_idx: Index of SW PDEV
+ * @hw_macid: HW MAC Id
  *
  */
-void wlan_cfg_set_hw_mac_idx
-	(struct wlan_cfg_dp_soc_ctxt *cfg, int pdev_idx, int hw_macid);
+void wlan_cfg_set_hw_mac_idx(struct wlan_cfg_dp_soc_ctxt *cfg,
+			     int pdev_idx, int hw_macid);
 
 /**
  * wlan_cfg_get_hw_mac_idx() - Get 0 based HW MAC index for the given
  * PDEV index
  *
- * @wlan_cfg_ctx - Configuration Handle
- * @pdev_idx - Index of SW PDEV
+ * @cfg: Configuration Handle
+ * @pdev_idx: Index of SW PDEV
  *
  * Return: HW MAC index
  */
@@ -845,8 +935,8 @@ int wlan_cfg_get_hw_mac_idx(struct wlan_cfg_dp_soc_ctxt *cfg, int pdev_idx);
 /**
  * wlan_cfg_get_target_pdev_id() - Get target PDEV ID for HW MAC ID
  *
- * @wlan_cfg_ctx - Configuration Handle
- * @hw_macid - Index of hw mac
+ * @cfg: Configuration Handle
+ * @hw_macid: Index of hw mac
  *
  * Return: PDEV ID
  */
@@ -857,9 +947,9 @@ wlan_cfg_get_target_pdev_id(struct wlan_cfg_dp_soc_ctxt *cfg, int hw_macid);
  * wlan_cfg_set_pdev_idx() - Set 0 based host PDEV index for the given
  * hw mac index
  *
- * @wlan_cfg_ctx - Configuration Handle
- * @pdev_idx - Index of SW PDEV
- * @hw_macid - Index of hw mac
+ * @cfg: Configuration Handle
+ * @pdev_idx: Index of SW PDEV
+ * @hw_macid: Index of hw mac
  *
  * Return: PDEV index
  */
@@ -870,8 +960,8 @@ void wlan_cfg_set_pdev_idx
  * wlan_cfg_get_pdev_idx() - Get 0 based PDEV index for the given
  * hw mac index
  *
- * @wlan_cfg_ctx - Configuration Handle
- * @hw_macid - Index of hw mac
+ * @cfg: Configuration Handle
+ * @hw_macid: Index of hw mac
  *
  * Return: PDEV index
  */
@@ -880,8 +970,8 @@ int wlan_cfg_get_pdev_idx(struct wlan_cfg_dp_soc_ctxt *cfg, int hw_macid);
 /**
  * wlan_cfg_get_rx_err_ring_mask() - Return Rx monitor ring interrupt mask
  *					   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_rx_err_ring_mask[context]
  */
@@ -891,8 +981,8 @@ int wlan_cfg_get_rx_err_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg, int
 /**
  * wlan_cfg_get_rx_wbm_rel_ring_mask() - Return Rx monitor ring interrupt mask
  *					   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_wbm_rel_ring_mask[context]
  */
@@ -902,8 +992,8 @@ int wlan_cfg_get_rx_wbm_rel_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg, int
 /**
  * wlan_cfg_get_reo_status_ring_mask() - Return Rx monitor ring interrupt mask
  *					   mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_reo_status_ring_mask[context]
  */
@@ -913,8 +1003,8 @@ int wlan_cfg_get_reo_status_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg, int
 /**
  * wlan_cfg_get_ce_ring_mask() - Return CE ring interrupt mask
  *				mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @wlan_cfg_ctx: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_ce_ring_mask[context]
  */
@@ -924,8 +1014,8 @@ int wlan_cfg_get_ce_ring_mask(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx,
 /**
  * wlan_cfg_get_umac_reset_intr_mask() - Get UMAC reset interrupt mask
  * mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_umac_reset_intr_mask[context]
  */
@@ -934,7 +1024,7 @@ int wlan_cfg_get_umac_reset_intr_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_get_max_clients() - Return maximum number of peers/stations
  *				supported by device
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: max_clients
  */
@@ -943,200 +1033,201 @@ uint32_t wlan_cfg_get_max_clients(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 /**
  * wlan_cfg_max_alloc_size() - Return Maximum allocation size for any dynamic
  *			    memory allocation request for this device
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: max_alloc_size
  */
 uint32_t wlan_cfg_max_alloc_size(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_per_pdev_tx_ring() - Return true if Tx rings are mapped as
  *			       one per radio
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: per_pdev_tx_ring
  */
 int wlan_cfg_per_pdev_tx_ring(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_num_tx_comp_rings() - Number of Tx comp rings (HOST mode)
- * @wlan_cfg_ctx
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_tx_comp_rings
  */
 int wlan_cfg_num_tx_comp_rings(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_num_tcl_data_rings() - Number of TCL Data rings (HOST mode)
- * @wlan_cfg_ctx
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_tcl_data_rings
  */
 int wlan_cfg_num_tcl_data_rings(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_num_nss_tcl_data_rings() - Number of TCL Data rings (NSS offload)
- * @wlan_cfg_ctx
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_tcl_data_rings
  */
 int wlan_cfg_num_nss_tcl_data_rings(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_per_pdev_rx_ring() - Return true if Rx rings are mapped as
  *                              one per radio
- * @wlan_cfg_ctx
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: per_pdev_rx_ring
  */
 int wlan_cfg_per_pdev_rx_ring(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_per_pdev_lmac_ring() - Return true if error rings are mapped as
  *                              one per radio
- * @wlan_cfg_ctx
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: return 1 if per pdev error ring else 0
  */
 int wlan_cfg_per_pdev_lmac_ring(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_num_reo_dest_rings() - Number of REO Data rings (HOST mode)
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_reo_dest_rings
  */
 int wlan_cfg_num_reo_dest_rings(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_num_nss_reo_dest_rings() - Number of REO Data rings (NSS offload)
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_reo_dest_rings
  */
 int wlan_cfg_num_nss_reo_dest_rings(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_pkt_type() - Default 802.11 encapsulation type
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: htt_pkt_type_ethernet
  */
 int wlan_cfg_pkt_type(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_get_num_tx_desc_pool() - Number of Tx Descriptor pools for the
  *					device
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_tx_desc_pool
  */
 int wlan_cfg_get_num_tx_desc_pool(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_set_num_tx_desc_pool() - Set the number of Tx Descriptor pools for the
  *					device
- * @wlan_cfg_ctx - Configuration Handle
- * @num_pool - Number of pool
+ * @cfg: Configuration Handle
+ * @num_pool: Number of pool
  */
 void wlan_cfg_set_num_tx_desc_pool(struct wlan_cfg_dp_soc_ctxt *cfg, int num_pool);
 
-/*
+/**
  * wlan_cfg_get_num_tx_ext_desc_pool() -  Number of Tx MSDU ext Descriptor
  *					pools
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_tx_ext_desc_pool
  */
 int wlan_cfg_get_num_tx_ext_desc_pool(
 		struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_get_reo_dst_ring_size() - Get REO destination ring size
  *
- * @wlan_cfg_ctx - Configuration Handle
+ * @cfg: Configuration Handle
  *
  * Return: reo_dst_ring_size
  */
 int wlan_cfg_get_reo_dst_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
- * wlan_cfg_set_num_tx_desc_pool() - Set the REO Destination ring size
+/**
+ * wlan_cfg_set_reo_dst_ring_size() - Set the REO Destination ring size
  *
- * @wlan_cfg_ctx - Configuration Handle
- * @reo_dst_ring_size - REO Destination ring size
+ * @cfg: Configuration Handle
+ * @reo_dst_ring_size: REO Destination ring size
  */
 void wlan_cfg_set_reo_dst_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg,
 				    int reo_dst_ring_size);
 
-/*
+/**
  * wlan_cfg_set_raw_mode_war() - Set raw mode war configuration
  *
- * @wlan_cfg_ctx - Configuration Handle
- * @raw_mode_war - raw mode war configuration
+ * @cfg: Configuration Handle
+ * @raw_mode_war: raw mode war configuration
  */
 void wlan_cfg_set_raw_mode_war(struct wlan_cfg_dp_soc_ctxt *cfg,
 			       bool raw_mode_war);
 
-/*
+/**
  * wlan_cfg_get_raw_mode_war() - Get raw mode war configuration
  *
- * @wlan_cfg_ctx - Configuration Handle
+ * @cfg: Configuration Handle
  *
  * Return: reo_dst_ring_size
  */
 bool wlan_cfg_get_raw_mode_war(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_set_num_tx_ext_desc_pool() -  Set the number of Tx MSDU ext Descriptor
  *					pools
- * @wlan_cfg_ctx - Configuration Handle
- * @num_pool - Number of pool
+ * @cfg: Configuration Handle
+ * @num_pool: Number of pool
  */
 void wlan_cfg_set_num_tx_ext_desc_pool(struct wlan_cfg_dp_soc_ctxt *cfg, int num_pool);
 
-/*
+/**
  * wlan_cfg_get_num_tx_desc() - Number of Tx Descriptors per pool
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_tx_desc
  */
 int wlan_cfg_get_num_tx_desc(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_get_min_tx_desc() - Minimum number of Tx Descriptors per pool
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_tx_desc
  */
 int wlan_cfg_get_min_tx_desc(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
+/**
  * wlan_cfg_set_num_tx_desc() - Set the number of Tx Descriptors per pool
  *
- * @wlan_cfg_ctx - Configuration Handle
+ * @cfg: Configuration Handle
  * @num_desc: Number of descriptor
  */
 void wlan_cfg_set_num_tx_desc(struct wlan_cfg_dp_soc_ctxt *cfg, int num_desc);
 
-/*
+/**
  * wlan_cfg_get_num_tx_ext_desc() - Number of Tx MSDU extension Descriptors
  *					per pool
- * @wlan_cfg_ctx - Configuration Handle
+ * @wlan_cfg_ctx: Configuration Handle
  *
  * Return: num_tx_ext_desc
  */
 int wlan_cfg_get_num_tx_ext_desc(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx);
 
-/*
- * wlan_cfg_set_num_tx_ext_desc() - Set the number of Tx MSDU extension Descriptors
- *					per pool
- * @wlan_cfg_ctx - Configuration Handle
- * @num_desc: Number of descriptor
+/**
+ * wlan_cfg_set_num_tx_ext_desc() - Set the number of Tx MSDU extension
+ *                                  Descriptors per pool
+ * @cfg: Configuration Handle
+ * @num_ext_desc: Number of descriptor
  */
-void wlan_cfg_set_num_tx_ext_desc(struct wlan_cfg_dp_soc_ctxt *cfg, int num_ext_desc);
+void wlan_cfg_set_num_tx_ext_desc(struct wlan_cfg_dp_soc_ctxt *cfg,
+				  int num_ext_desc);
 
-/*
+/**
  * wlan_cfg_max_peer_id() - Get maximum peer ID
  * @cfg: Configuration Handle
  *
@@ -1144,398 +1235,428 @@ void wlan_cfg_set_num_tx_ext_desc(struct wlan_cfg_dp_soc_ctxt *cfg, int num_ext_
  */
 uint32_t wlan_cfg_max_peer_id(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
- * wlan_cfg_get_dma_mon_buf_ring_size() - Return Size of monitor buffer ring
- * @wlan_cfg_pdev_ctx
+/**
+ * wlan_cfg_get_dma_mon_buf_ring_size(): Return Size of monitor buffer ring
+ * @wlan_cfg_pdev_ctx: pdev configuration context
  *
  * Return: dma_mon_buf_ring_size
  */
 int wlan_cfg_get_dma_mon_buf_ring_size(
 		struct wlan_cfg_dp_pdev_ctxt *wlan_cfg_pdev_ctx);
 
-/*
+/**
  * wlan_cfg_get_dma_mon_stat_ring_size() - Return size of Monitor Status ring
- * @wlan_cfg_pdev_ctx
+ * @wlan_cfg_pdev_ctx: pdev configuration context
  *
  * Return: dma_mon_stat_ring_size
  */
 int wlan_cfg_get_dma_mon_stat_ring_size(
 		struct wlan_cfg_dp_pdev_ctxt *wlan_cfg_pdev_ctx);
 
-/*
+/**
  * wlan_cfg_get_dma_mon_desc_ring_size - Get rxdma monitor size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: rxdma monitor desc ring size
  */
 int
 wlan_cfg_get_dma_mon_desc_ring_size(struct wlan_cfg_dp_pdev_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_rx_dma_buf_ring_size() - Return Size of RxDMA buffer ring
- * @wlan_cfg_pdev_ctx
+ * @wlan_cfg_pdev_ctx: pdev configuration context
  *
  * Return: rx_dma_buf_ring_size
  */
 int wlan_cfg_get_rx_dma_buf_ring_size(
 		struct wlan_cfg_dp_pdev_ctxt *wlan_cfg_pdev_ctx);
 
-/*
+/**
  * wlan_cfg_rx_pending_hl_threshold() - Return high threshold of rx pending
- * @wlan_cfg_pdev_ctx
+ * @cfg: pdev configuration context
  *
  * Return: rx_pending_high_threshold
  */
 uint32_t
 wlan_cfg_rx_pending_hl_threshold(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_rx_pending_lo_threshold() - Return low threshold of rx pending
- * @wlan_cfg_pdev_ctx
+ * @cfg: soc configuration context
  *
  * Return: rx_pending_low_threshold
  */
 uint32_t
 wlan_cfg_rx_pending_lo_threshold(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_num_mac_rings() - Return the number of MAC RX DMA rings
  * per pdev
- * @wlan_cfg_pdev_ctx
+ * @cfg: pdev configuration context
  *
  * Return: number of mac DMA rings per pdev
  */
 int wlan_cfg_get_num_mac_rings(struct wlan_cfg_dp_pdev_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_is_lro_enabled - Return LRO enabled/disabled
- * @wlan_cfg_dp_soc_ctxt
+ * @cfg: soc configuration context
  *
  * Return: true - LRO enabled false - LRO disabled
  */
 bool wlan_cfg_is_lro_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_is_gro_enabled - Return GRO enabled/disabled
- * @wlan_cfg_dp_soc_ctxt
+ * @cfg: soc configuration context
  *
  * Return: true - GRO enabled false - GRO disabled
  */
 bool wlan_cfg_is_gro_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_is_rx_hash_enabled - Return RX hash enabled/disabled
- * @wlan_cfg_dp_soc_ctxt
+ * @cfg: soc configuration context
  *
  * Return: true - enabled false - disabled
  */
 bool wlan_cfg_is_rx_hash_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_is_ipa_enabled - Return IPA enabled/disabled
- * @wlan_cfg_dp_soc_ctxt
+ * @cfg: soc configuration context
  *
  * Return: true - enabled false - disabled
  */
 bool wlan_cfg_is_ipa_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_set_rx_hash - set rx hash enabled/disabled
- * @wlan_cfg_soc_ctx
- * @rx_hash
+ * @cfg: soc configuration context
+ * @rx_hash: true - enabled false - disabled
  */
 void wlan_cfg_set_rx_hash(struct wlan_cfg_dp_soc_ctxt *cfg, bool rx_hash);
 
-/*
+/**
  * wlan_cfg_get_dp_pdev_nss_enabled - Return pdev nss enabled/disabled
- * @wlan_cfg_pdev_ctx
+ * @cfg: pdev configuration context
  *
  * Return: 1 - enabled 0 - disabled
  */
 int wlan_cfg_get_dp_pdev_nss_enabled(struct wlan_cfg_dp_pdev_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_set_dp_pdev_nss_enabled - set pdev nss enabled/disabled
- * @wlan_cfg_pdev_ctx
+ * @cfg: pdev configuration context
+ * @nss_enabled: 1 - enabled 0 - disabled
  */
-void wlan_cfg_set_dp_pdev_nss_enabled(struct wlan_cfg_dp_pdev_ctxt *cfg, int nss_enabled);
+void wlan_cfg_set_dp_pdev_nss_enabled(struct wlan_cfg_dp_pdev_ctxt *cfg,
+				      int nss_enabled);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_nss_cfg - Return soc nss config
- * @wlan_cfg_pdev_ctx
+ * @cfg: soc configuration context
  *
  * Return: nss_cfg
  */
 int wlan_cfg_get_dp_soc_nss_cfg(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_set_dp_soc_nss_cfg - set soc nss config
- * @wlan_cfg_pdev_ctx
+ * @cfg: soc configuration context
+ * @nss_cfg: NSS configuration
  *
  */
 void wlan_cfg_set_dp_soc_nss_cfg(struct wlan_cfg_dp_soc_ctxt *cfg, int nss_cfg);
 
-/*
+/**
+ * wlan_cfg_get_int_timer_threshold_ppe2tcl - Get intr mitigation for ppe2tcl
+ * @cfg: soc configuration context
+ *
+ * Return: Timer threshold
+ */
+int wlan_cfg_get_int_timer_threshold_ppe2tcl(struct wlan_cfg_dp_soc_ctxt *cfg);
+
+/**
+ * wlan_cfg_get_int_batch_threshold_ppe2tcl - Get intr mitigation for ppe2tcl
+ * @cfg: soc configuration context
+ *
+ * Return: Batch threshold
+ */
+int wlan_cfg_get_int_batch_threshold_ppe2tcl(struct wlan_cfg_dp_soc_ctxt *cfg);
+
+/**
  * wlan_cfg_get_int_batch_threshold_tx - Get interrupt mitigation cfg for Tx
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Batch threshold
  */
 int wlan_cfg_get_int_batch_threshold_tx(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_int_timer_threshold_tx - Get interrupt mitigation cfg for Tx
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Timer threshold
  */
 int wlan_cfg_get_int_timer_threshold_tx(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_int_batch_threshold_rx - Get interrupt mitigation cfg for Rx
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Batch threshold
  */
 int wlan_cfg_get_int_batch_threshold_rx(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
- * wlan_cfg_get_int_batch_threshold_rx - Get interrupt mitigation cfg for Rx
- * @wlan_cfg_soc_ctx
+/**
+ * wlan_cfg_get_int_timer_threshold_rx - Get interrupt mitigation cfg for Rx
+ * @cfg: soc configuration context
  *
  * Return: Timer threshold
  */
 int wlan_cfg_get_int_timer_threshold_rx(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
- * wlan_cfg_get_int_batch_threshold_tx - Get interrupt mitigation cfg for other srngs
- * @wlan_cfg_soc_ctx
+/**
+ * wlan_cfg_get_int_batch_threshold_other - Get interrupt mitigation cfg for
+ *                                          other srngs
+ * @cfg: soc configuration context
  *
  * Return: Batch threshold
  */
 int wlan_cfg_get_int_batch_threshold_other(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
- * wlan_cfg_get_int_batch_threshold_tx - Get interrupt mitigation cfg for other srngs
- * @wlan_cfg_soc_ctx
+/**
+ * wlan_cfg_get_int_timer_threshold_other - Get interrupt mitigation cfg for
+ *                                          other srngs
+ * @cfg: soc configuration context
  *
  * Return: Timer threshold
  */
 int wlan_cfg_get_int_timer_threshold_other(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_int_timer_threshold_mon - Get int mitigation cfg for mon srngs
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Timer threshold
  */
 int wlan_cfg_get_int_timer_threshold_mon(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_checksum_offload - Get checksum offload enable or disable status
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Checksum offload enable or disable
  */
 int wlan_cfg_get_checksum_offload(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_nan_checksum_offload - Get checksum offload enable/disable val
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Checksum offload enable or disable value for NAN mode
  */
 int wlan_cfg_get_nan_checksum_offload(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_p2p_checksum_offload - Get checksum offload enable/disable val
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Checksum offload enable or disable value for P2P mode
  */
 int wlan_cfg_get_p2p_checksum_offload(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_tx_ring_size - Get Tx DMA ring size (TCL Data Ring)
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Tx Ring Size
  */
 int wlan_cfg_tx_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_time_control_bp - Get time for interval in bp prints
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: interval time
  */
 int wlan_cfg_time_control_bp(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_tx_comp_ring_size - Get Tx completion ring size (WBM Ring)
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: Tx Completion ring size
  */
 int wlan_cfg_tx_comp_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_wbm_release_ring_size - Get wbm_release_ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: wbm_release_ring size
  */
 int
 wlan_cfg_get_dp_soc_wbm_release_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_tcl_cmd_credit_ring_size - Get command/credit ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: tcl_cmd_credit_ring size
  */
 int
 wlan_cfg_get_dp_soc_tcl_cmd_credit_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_tcl_status_ring_size - Get tcl_status_ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: tcl_status_ring size
  */
 int
 wlan_cfg_get_dp_soc_tcl_status_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_reo_reinject_ring_size - Get reo_reinject_ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: reo_reinject_ring size
  */
 int
 wlan_cfg_get_dp_soc_reo_reinject_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_rx_release_ring_size - Get rx_release_ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: rx_release_ring size
  */
 int
 wlan_cfg_get_dp_soc_rx_release_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_reo_exception_ring_size - Get reo_exception_ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: reo_exception_ring size
  */
 int
 wlan_cfg_get_dp_soc_reo_exception_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_reo_cmd_ring_size - Get reo_cmd_ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: reo_cmd_ring size
  */
 int
 wlan_cfg_get_dp_soc_reo_cmd_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_reo_status_ring_size - Get reo_status_ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: reo_status_ring size
  */
 int
 wlan_cfg_get_dp_soc_reo_status_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_tx_desc_limit_0 - Get tx desc limit for 5G H
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: tx desc limit for 5G H
  */
 int
 wlan_cfg_get_dp_soc_tx_desc_limit_0(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_tx_desc_limit_1 - Get tx desc limit for 2G
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: tx desc limit for 2G
  */
 int
 wlan_cfg_get_dp_soc_tx_desc_limit_1(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_tx_desc_limit_2 - Get tx desc limit for 5G L
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: tx desc limit for 5G L
  */
 int
 wlan_cfg_get_dp_soc_tx_desc_limit_2(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_tx_device_limit - Get tx device limit
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: tx device limit
  */
 int
 wlan_cfg_get_dp_soc_tx_device_limit(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_tx_sw_internode_queue - Get tx sw internode queue
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: tx sw internode queue
  */
 int
 wlan_cfg_get_dp_soc_tx_sw_internode_queue(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_rxdma_refill_ring_size - Get rxdma refill ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: rxdma refill ring size
  */
 int
 wlan_cfg_get_dp_soc_rxdma_refill_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
+ * wlan_cfg_get_dp_soc_rxdma_refill_lt_disable - Get RxDMA refill LT status
+ * @cfg: soc configuration context
+ *
+ * Return: true if Low threshold disable else false
+ */
+bool
+wlan_cfg_get_dp_soc_rxdma_refill_lt_disable(struct wlan_cfg_dp_soc_ctxt *cfg);
+
+/**
  * wlan_cfg_get_dp_soc_rxdma_err_dst_ring_size - Get rxdma dst ring size
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: rxdma error dst ring size
  */
 int
 wlan_cfg_get_dp_soc_rxdma_err_dst_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_rx_sw_desc_weight - Get rx sw desc weight
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: rx_sw_desc_weight
  */
 int
 wlan_cfg_get_dp_soc_rx_sw_desc_weight(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_rx_sw_desc_num - Get rx sw desc num
- * @wlan_cfg_soc_ctx
+ * @cfg: soc configuration context
  *
  * Return: rx_sw_desc_num
  */
 int
 wlan_cfg_get_dp_soc_rx_sw_desc_num(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
- * wlan_cfg_get_dp_caps - Get dp capablities
- * @wlan_cfg_soc_ctx
- * @dp_caps: enum for dp capablities
+/**
+ * wlan_cfg_get_dp_caps - Get dp capabilities
+ * @cfg: soc configuration context
+ * @dp_caps: enum for dp capabilities
  *
  * Return: bool if a dp capabilities is enabled
  */
@@ -1565,7 +1686,7 @@ int wlan_cfg_get_defrag_timeout_check(struct wlan_cfg_dp_soc_ctxt *cfg);
  * wlan_cfg_get_rx_flow_search_table_size() - Return the size of Rx FST
  *                                            in number of entries
  *
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: rx_fst_size
  */
@@ -1575,7 +1696,7 @@ wlan_cfg_get_rx_flow_search_table_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 /**
  * wlan_cfg_rx_fst_get_max_search() - Return the max skid length for FST search
  *
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: max_search
  */
@@ -1585,7 +1706,7 @@ uint8_t wlan_cfg_rx_fst_get_max_search(struct wlan_cfg_dp_soc_ctxt *cfg);
  * wlan_cfg_rx_fst_get_hash_key() - Return Toeplitz Hash Key used for FST
  *                                  search
  *
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: 320-bit Hash Key
  */
@@ -1594,7 +1715,7 @@ uint8_t *wlan_cfg_rx_fst_get_hash_key(struct wlan_cfg_dp_soc_ctxt *cfg);
 /**
  * wlan_cfg_set_rx_flow_tag_enabled() - set rx flow tag enabled flag in
  *                                      DP soc context
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  * @val: Rx flow tag feature flag value
  *
  * Return: None
@@ -1605,7 +1726,7 @@ void wlan_cfg_set_rx_flow_tag_enabled(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_is_rx_flow_tag_enabled() - get rx flow tag enabled flag from
  *                                     DP soc context
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: true if feature is enabled, else false
  */
@@ -1614,7 +1735,7 @@ bool wlan_cfg_is_rx_flow_tag_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 /**
  * wlan_cfg_set_rx_flow_search_table_per_pdev() - Set flag to indicate that
  *                                                Rx FST is per pdev
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  * @val: boolean flag indicating Rx FST per pdev or per SOC
  *
  * Return: None
@@ -1625,7 +1746,7 @@ wlan_cfg_set_rx_flow_search_table_per_pdev(struct wlan_cfg_dp_soc_ctxt *cfg,
 
 /**
  * wlan_cfg_is_rx_flow_search_table_per_pdev() - get RX FST flag for per pdev
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: true if Rx FST is per pdev, else false
  */
@@ -1634,7 +1755,7 @@ wlan_cfg_is_rx_flow_search_table_per_pdev(struct wlan_cfg_dp_soc_ctxt *cfg);
 
 /**
  * wlan_cfg_set_rx_flow_search_table_size() - set RX FST size in DP SoC context
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  * @val: Rx FST size in number of entries
  *
  * Return: None
@@ -1646,7 +1767,7 @@ wlan_cfg_set_rx_flow_search_table_size(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_set_rx_mon_protocol_flow_tag_enabled() - set mon rx tag enabled flag
  *                                                   in DP soc context
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  * @val: Rx protocol or flow tag feature flag value in monitor mode from INI
  *
  * Return: None
@@ -1658,7 +1779,7 @@ wlan_cfg_set_rx_mon_protocol_flow_tag_enabled(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_is_rx_mon_protocol_flow_tag_enabled() - get mon rx tag enabled flag
  *                                                  from DP soc context
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: true if feature is enabled in monitor mode for protocol or flow
  * tagging in INI, false otherwise
@@ -1669,7 +1790,7 @@ wlan_cfg_is_rx_mon_protocol_flow_tag_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 /**
  * wlan_cfg_set_tx_per_pkt_vdev_id_check() - set flag to enable perpkt
  *                                              vdev id check in tx.
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  * @val: feature flag value
  *
  * Return: None
@@ -1681,7 +1802,7 @@ wlan_cfg_set_tx_per_pkt_vdev_id_check(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_is_tx_per_pkt_vdev_id_check_enabled() - get flag to check if
  *                              perpkt vdev id check is enabled in tx.
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: true if feature is enabled, false otherwise
  */
@@ -1691,7 +1812,7 @@ wlan_cfg_is_tx_per_pkt_vdev_id_check_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 /**
  * wlan_cfg_fill_interrupt_mask() - set interrupt mask
  *
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @wlan_cfg_ctx: soc configuration context
  * @num_dp_msi: Number of DP interrupts available (0 for integrated)
  * @interrupt_mode: Type of interrupt
  * @is_monitor_mode: is monitor mode enabled
@@ -1761,7 +1882,7 @@ uint32_t wlan_cfg_get_reo_rings_mapping(struct wlan_cfg_dp_soc_ctxt *cfg);
 /**
  * wlan_cfg_set_peer_ext_stats() - set peer extended stats
  *
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  * @val: Flag value read from INI
  *
  * Return: void
@@ -1771,10 +1892,22 @@ wlan_cfg_set_peer_ext_stats(struct wlan_cfg_dp_soc_ctxt *cfg,
 			    bool val);
 
 /**
+ * wlan_cfg_set_peer_jitter_stats() - set peer jitter stats
+ *
+ * @cfg: soc configuration context
+ * @val: Flag value read from INI
+ *
+ * Return: bool
+ */
+void
+wlan_cfg_set_peer_jitter_stats(struct wlan_cfg_dp_soc_ctxt *cfg,
+			       bool val);
+
+/**
  * wlan_cfg_is_peer_ext_stats_enabled() - Check if peer extended
  *                                        stats are enabled
  *
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: bool
  */
@@ -1782,9 +1915,19 @@ bool
 wlan_cfg_is_peer_ext_stats_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 
 /**
+ * wlan_cfg_is_peer_jitter_stats_enabled() - check if jitter stats are enabled
+ *
+ * @cfg: soc configuration context
+ *
+ * Return: bool
+ */
+bool
+wlan_cfg_is_peer_jitter_stats_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
+
+/**
  * wlan_cfg_is_poll_mode_enabled() - Check if poll mode is enabled
  *
- * @wlan_cfg_dp_soc_ctxt: soc configuration context
+ * @cfg: soc configuration context
  *
  * Return: bool
  */
@@ -1808,34 +1951,34 @@ bool wlan_cfg_is_fst_in_cmem_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 bool wlan_cfg_is_swlm_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 
 #ifdef IPA_OFFLOAD
-/*
+/**
  * wlan_cfg_ipa_tx_ring_size - Get Tx DMA ring size (TCL Data Ring)
- * @wlan_cfg_soc_ctx: dp cfg context
+ * @cfg: dp cfg context
  *
  * Return: IPA Tx Ring Size
  */
 uint32_t wlan_cfg_ipa_tx_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_ipa_tx_comp_ring_size - Get Tx completion ring size (WBM Ring)
- * @wlan_cfg_soc_ctx: dp cfg context
+ * @cfg: dp cfg context
  *
  * Return: IPA Tx Completion ring size
  */
 uint32_t wlan_cfg_ipa_tx_comp_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_ipa_tx_alt_ring_size - Get Tx alt DMA ring size (TCL Data Ring)
- * @wlan_cfg_soc_ctx: dp cfg context
+ * @cfg: dp cfg context
  *
  * Return: IPA Tx alt Ring Size
  */
 int wlan_cfg_ipa_tx_alt_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_ipa_tx_alt_comp_ring_size - Get Tx alt comp DMA ring size
  *  (TCL Data Ring)
- * @wlan_cfg_soc_ctx: dp cfg context
+ * @cfg: dp cfg context
  *
  * Return: IPA Tx alt comp Ring Size
  */
@@ -1882,7 +2025,7 @@ uint8_t wlan_cfg_radio2_default_reo_get(struct wlan_cfg_dp_soc_ctxt *cfg);
 
 /**
  * wlan_cfg_set_rxdma1_enable() - Enable rxdma1
- * @cfg: soc configuration context
+ * @wlan_cfg_ctx: soc configuration context
  *
  * Return: None
  */
@@ -1917,44 +2060,53 @@ wlan_cfg_set_delay_mon_replenish(struct wlan_cfg_dp_soc_ctxt *cfg, bool val);
 void wlan_cfg_dp_soc_ctx_dump(struct wlan_cfg_dp_soc_ctxt *cfg);
 
 #ifdef WLAN_SUPPORT_PPEDS
-/*
- * wlan_cfg_get_dp_soc_is_ppe_enabled() - API to get ppe enable flag
- * @wlan_cfg_ctx - Configuration Handle
+/**
+ * wlan_cfg_get_dp_soc_is_ppeds_enabled() - API to get ppe enable flag
+ * @cfg: Configuration Handle
  *
  * Return: true if ppe is enabled else return false
  */
 bool
-wlan_cfg_get_dp_soc_is_ppe_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
+wlan_cfg_get_dp_soc_is_ppeds_enabled(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_reo2ppe_ring_size() - get ppe rx ring size
- * @wlan_cfg_ctx - Configuration Handle
+ * @cfg: Configuration Handle
  *
  * Return: size of reo2ppe ring
  */
 int
 wlan_cfg_get_dp_soc_reo2ppe_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_dp_soc_ppe2tcl_ring_size() - get ppe tx ring size
- * @wlan_cfg_ctx - Configuration Handle
+ * @cfg: Configuration Handle
  *
  * Return: size of ppe2tcl ring
  */
 int
 wlan_cfg_get_dp_soc_ppe2tcl_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
 
-/*
- * wlan_cfg_get_dp_soc_ppe_release_ring_size() - get ppe tx comp ring size
- * @wlan_cfg_ctx - Configuration Handle
+/**
+ * wlan_cfg_get_dp_soc_ppeds_num_tx_desc() - Number of ppeds tx Descriptors
+ * @cfg: Configuration Handle
  *
- * Return: size of ppe release ring
+ * Return: num_tx_desc
  */
 int
-wlan_cfg_get_dp_soc_ppe_release_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg);
+wlan_cfg_get_dp_soc_ppeds_num_tx_desc(struct wlan_cfg_dp_soc_ctxt *cfg);
+
+/**
+ * wlan_cfg_get_dp_soc_ppeds_tx_comp_napi_budget() - ppeds Tx comp napi budget
+ * @cfg: Configuration Handle
+ *
+ * Return: napi budget
+ */
+int
+wlan_cfg_get_dp_soc_ppeds_tx_comp_napi_budget(struct wlan_cfg_dp_soc_ctxt *cfg);
 #else
 static inline bool
-wlan_cfg_get_dp_soc_is_ppe_enabled(struct wlan_cfg_dp_soc_ctxt *cfg)
+wlan_cfg_get_dp_soc_is_ppeds_enabled(struct wlan_cfg_dp_soc_ctxt *cfg)
 {
 	return false;
 }
@@ -1972,7 +2124,13 @@ wlan_cfg_get_dp_soc_ppe2tcl_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg)
 }
 
 static inline int
-wlan_cfg_get_dp_soc_ppe_release_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg)
+wlan_cfg_get_dp_soc_ppeds_num_tx_desc(struct wlan_cfg_dp_soc_ctxt *cfg)
+{
+	return 0;
+}
+
+static inline int
+wlan_cfg_get_dp_soc_ppeds_tx_comp_napi_budget(struct wlan_cfg_dp_soc_ctxt *cfg)
 {
 	return 0;
 }
@@ -1980,8 +2138,8 @@ wlan_cfg_get_dp_soc_ppe_release_ring_size(struct wlan_cfg_dp_soc_ctxt *cfg)
 
 /**
  * wlan_cfg_get_prealloc_cfg() - Get dp prealloc related cfg param
- * @ctrl_psoc - PSOC object
- * @cfg - cfg ctx where values will be populated
+ * @ctrl_psoc: PSOC object
+ * @cfg: cfg ctx where values will be populated
  *
  * Return: None
  */
@@ -2038,9 +2196,9 @@ int wlan_cfg_get_dma_rx_mon_dest_ring_size(struct wlan_cfg_dp_pdev_ctxt *cfg);
  */
 int wlan_cfg_get_dma_tx_mon_dest_ring_size(struct wlan_cfg_dp_pdev_ctxt *cfg);
 
-/*
+/**
  * wlan_cfg_get_rx_rel_ring_id() - get wbm2sw ring id for Rx release ring
- * @wlan_cfg_ctx - Configuration Handle
+ * @cfg: Configuration Handle
  *
  * Return: wbm2sw ring id
  */
@@ -2050,6 +2208,7 @@ wlan_cfg_get_rx_rel_ring_id(struct wlan_cfg_dp_soc_ctxt *cfg);
 /**
  * wlan_cfg_set_rx_rel_ring_id() - set wbm2sw ring id for Rx release ring
  * @cfg: soc configuration context
+ * @wbm2sw_ring_id: wbm2sw ring id
  *
  * Return: None
  */
@@ -2106,6 +2265,25 @@ wlan_cfg_set_sawf_config(struct wlan_cfg_dp_soc_ctxt *cfg, bool value);
 bool
 wlan_cfg_get_sawf_config(struct wlan_cfg_dp_soc_ctxt *cfg);
 
+/**
+ * wlan_cfg_set_sawf_stats_config() - Set SAWF stats config
+ * @cfg: config context
+ * @value: value to be set
+ *
+ * Return: void
+ */
+void
+wlan_cfg_set_sawf_stats_config(struct wlan_cfg_dp_soc_ctxt *cfg, uint8_t value);
+
+/**
+ * wlan_cfg_get_sawf_stats_config() - Get SAWF stats config
+ * @cfg: config context
+ *
+ * Return: value for sawf_stats_config
+ */
+uint8_t
+wlan_cfg_get_sawf_stats_config(struct wlan_cfg_dp_soc_ctxt *cfg);
+
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
 /**
  * wlan_cfg_mlo_rx_ring_map_get() - get rx ring map
@@ -2117,10 +2295,12 @@ uint8_t
 wlan_cfg_mlo_rx_ring_map_get(struct wlan_cfg_dp_soc_ctxt *cfg);
 #endif
 
-/*
+/**
  * wlan_cfg_set_host2txmon_ring_mask() - Set host2txmon ring
  *                               interrupt mask mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
+ * @cfg: Configuration Handle
+ * @context: interrupt context
+ * @mask: interrupt mask
  *
  * Return: None
  */
@@ -2129,8 +2309,8 @@ void wlan_cfg_set_host2txmon_ring_mask(struct wlan_cfg_dp_soc_ctxt *cfg,
 /**
  * wlan_cfg_get_host2txmon_ring_mask() - Return host2txmon ring
  *                               interrupt mask mapped to an interrupt context
- * @wlan_cfg_ctx - Configuration Handle
- * @context - Numerical ID identifying the Interrupt/NAPI context
+ * @cfg: Configuration Handle
+ * @context: Numerical ID identifying the Interrupt/NAPI context
  *
  * Return: int_host2txmon_ring_mask[context]
  */
@@ -2154,10 +2334,14 @@ void wlan_cfg_set_txmon_hw_support(struct wlan_cfg_dp_soc_ctxt *cfg,
  */
 bool wlan_cfg_get_txmon_hw_support(struct wlan_cfg_dp_soc_ctxt *cfg);
 
+void wlan_cfg_set_txmon_sw_peer_filtering(struct wlan_cfg_dp_soc_ctxt *cfg,
+					  bool txmon_sw_peer_filtering);
+bool wlan_cfg_get_txmon_sw_peer_filtering(struct wlan_cfg_dp_soc_ctxt *cfg);
+
 #ifdef WLAN_TX_PKT_CAPTURE_ENH
-/*
+/**
  * wlan_cfg_get_tx_capt_max_mem - Get max memory allowed for TX capture feature
- * @wlan_cfg_soc_ctx
+ * @cfg: Configuration Handle
  *
  * Return: user given size in bytes
  */
@@ -2170,8 +2354,6 @@ wlan_cfg_get_tx_capt_max_mem(struct wlan_cfg_dp_soc_ctxt *cfg)
 
 /**
  * wlan_cfg_get_napi_scale_factor() - Get napi scale factor
- *
- *
  * @cfg: soc configuration context
  *
  * Return: napi scale factor
@@ -2180,12 +2362,33 @@ uint8_t wlan_cfg_get_napi_scale_factor(struct wlan_cfg_dp_soc_ctxt *cfg);
 
 /**
  * wlan_cfg_soc_update_tgt_params() - Update band specific params
- * @wlan_cfg_ctx - SOC cfg context
- * @ctrl_obj - PSOC object
+ * @wlan_cfg_ctx: SOC cfg context
+ * @ctrl_obj: PSOC object
  *
  * Return: void
  */
 void
 wlan_cfg_soc_update_tgt_params(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx,
 			       struct cdp_ctrl_objmgr_psoc *ctrl_obj);
+
+/**
+ * wlan_cfg_get_pointer_timer_threshold_rx() - Get timer threshold for RX
+ *                                             pointer update
+ * @cfg: soc configuration context
+ *
+ * Return: timer threshold for RX REO Dest ring  pointer update
+ */
+uint16_t
+wlan_cfg_get_pointer_timer_threshold_rx(struct wlan_cfg_dp_soc_ctxt *cfg);
+
+/**
+ * wlan_cfg_get_pointer_num_threshold_rx() - Get number threshold for RX
+ *                                           pointer update
+ * @cfg: soc configuration context
+ *
+ * Return: entries number threshold for RX REO Dest ring  pointer update
+ */
+uint8_t
+wlan_cfg_get_pointer_num_threshold_rx(struct wlan_cfg_dp_soc_ctxt *cfg);
+
 #endif /*__WLAN_CFG_H*/

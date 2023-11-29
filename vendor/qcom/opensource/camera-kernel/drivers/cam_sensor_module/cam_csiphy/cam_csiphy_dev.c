@@ -20,26 +20,12 @@
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 #include "cam_sensor_cmn_header.h"
 #endif
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include "cam_clock_data_recovery.h"
+#endif
 
 #define CSIPHY_DEBUGFS_NAME_MAX_SIZE 10
 static struct dentry *root_dentry;
-
-#if defined(CONFIG_CAMERA_CDR_TEST)
-#include <linux/ktime.h>
-extern char cdr_result[40];
-extern uint64_t cdr_start_ts;
-extern uint64_t cdr_end_ts;
-#endif
-
-#if defined(CONFIG_CAMERA_CDR_TEST)
-static void cam_csiphy_cdr_store_result()
-{
-	cdr_end_ts	= ktime_get();
-	cdr_end_ts = cdr_end_ts / 1000 / 1000;
-	sprintf(cdr_result, "%d,%lld\n", 0, cdr_end_ts-cdr_start_ts);
-	CAM_INFO(CAM_CSIPHY, "[CDR_DBG] mipi_overflow, time(ms): %llu", cdr_end_ts-cdr_start_ts);
-}
-#endif
 
 static inline void cam_csiphy_trigger_reg_dump(struct csiphy_device *csiphy_dev)
 {
@@ -183,7 +169,7 @@ static void cam_csiphy_subdev_handle_message(struct v4l2_subdev *sd,
 #endif
 		cam_csiphy_trigger_reg_dump(csiphy_dev);
 #if defined(CONFIG_CAMERA_CDR_TEST)
-		cam_csiphy_cdr_store_result();
+		cam_clock_data_recovery_set_result(CDR_ERROR_MIPI);
 #endif
 		break;
 	}

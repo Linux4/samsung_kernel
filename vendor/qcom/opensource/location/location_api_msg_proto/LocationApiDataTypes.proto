@@ -28,7 +28,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -79,8 +79,8 @@ enum LocationApiDataTypesVersion {
     LOCAPI_DATA_TYPES_VER_MAJOR = 1;
     // Minor - New features / API addition, new message/elemtent addition.
     // Bump the last byte of version i.e. x.2 to x.3
-    // Minor version 24: Add Geodetic datum type
-    LOCAPI_DATA_TYPES_VER_MINOR = 24;
+    // Minor version 27: Add PRN field in DC report
+    LOCAPI_DATA_TYPES_VER_MINOR = 27;
 }
 
 // ============================================================================
@@ -571,10 +571,12 @@ enum PBLocationTechnologyMask {
     PB_LOCATION_TECHNOLOGY_VEH_BIT      = 0x000000200;
     // Visual data
     PB_LOCATION_TECHNOLOGY_VIS_BIT      = 0x000000400;
+    // location was calculated using propagation
+    PB_LOCATION_TECHNOLOGY_PROPAGATED_BIT = 0x000000800;
 }
 
 enum PBLocationCapabilitiesMask {
-    PB_LOCATION_CAPS_INVALID                           = 0;
+    PB_LOCATION_CAPS_INVALID                                   = 0x00000000;
     /** LocationClientApi can support time-based tracking session
      *  via LocationClientApi::startPositionSession(uint32_t,
      *  LocReqEngineTypeMask, const EngineReportCbs&, ResponseCb)
@@ -583,80 +585,102 @@ enum PBLocationCapabilitiesMask {
      *  LocationClientApi::startPositionSession(uint32_t, uint32_t,
      *  LocationCb, ResponseCb) with distanceInMeters set to 0.
      *  <br/> */
-    PB_LOCATION_CAPS_TIME_BASED_TRACKING_BIT           = 1;
+    PB_LOCATION_CAPS_TIME_BASED_TRACKING_BIT                   = 0x00000001;
     /** LocationClientApi can support time-based batching session
      *  via LocationClientApi::startRoutineBatchingSession() with
      *  minInterval specified. <br/> */
-    PB_LOCATION_CAPS_TIME_BASED_BATCHING_BIT           = 2;
+    PB_LOCATION_CAPS_TIME_BASED_BATCHING_BIT                   = 0x00000002;
     /** LocationClientApi can support distance based tracking
      *  session via
      *  LocationClientApi::startPositionSession(uint32_t, uint32_t,
      *  LocationCb, ResponseCb) with distanceInMeters specified.
      *  <br/> */
-    PB_LOCATION_CAPS_DISTANCE_BASED_TRACKING_BIT       = 4;
+    PB_LOCATION_CAPS_DISTANCE_BASED_TRACKING_BIT               = 0x00000004;
     /** LocationClientApi can support distance-based batching via
      *  LocationClientApi::startRoutineBatchingSession() with
      *  minDistance set to none-zero value. <br/> */
-    PB_LOCATION_CAPS_DISTANCE_BASED_BATCHING_BIT       = 8;
+    PB_LOCATION_CAPS_DISTANCE_BASED_BATCHING_BIT               = 0x00000008;
     /** LocationClientApi can support geo fence via
      *  LocationClientApi::addGeofences(). <br/>   */
-    PB_LOCATION_CAPS_GEOFENCE_BIT                      = 16;
+    PB_LOCATION_CAPS_GEOFENCE_BIT                              = 0x00000010;
     /** LocationClientApi can support trip batching via
      *  LocationClientApi::startTripBatchingSession(). <br/>   */
-    PB_LOCATION_CAPS_OUTDOOR_TRIP_BATCHING_BIT         = 32;
+    PB_LOCATION_CAPS_OUTDOOR_TRIP_BATCHING_BIT                 = 0x00000020;
     /** LocationClientApi can support receiving GnssMeasurements
      *  data in GnssMeasurementsCb when LocationClientApi is in
      *  a positioning session.. <br/>   */
-    PB_LOCATION_CAPS_GNSS_MEASUREMENTS_BIT             = 64;
+    PB_LOCATION_CAPS_GNSS_MEASUREMENTS_BIT                     = 0x00000040;
     /** LocationIntegrationApi can support configure constellations
      *  via LocationIntegrationApi::configConstellations.  <br/>   */
-    PB_LOCATION_CAPS_CONSTELLATION_ENABLEMENT_BIT      = 128;
+    PB_LOCATION_CAPS_CONSTELLATION_ENABLEMENT_BIT              = 0x00000080;
     /** Modem supports Carrier Phase for Precise Positioning
      *  Measurement Engine (PPME).
      *  This is a Standalone Feature.  <br/>   */
-    PB_LOCATION_CAPS_QWES_CARRIER_PHASE_BIT                 = 256;
+    PB_LOCATION_CAPS_QWES_CARRIER_PHASE_BIT                    = 0x00000100;
     /** Modem supports SV Polynomial for tightly coupled
      *  external DR support.
      *  This is a Standalone Feature.  <br/>   */
-    PB_LOCATION_CAPS_QWES_SV_POLYNOMIAL_BIT                 = 512;
+    PB_LOCATION_CAPS_QWES_SV_POLYNOMIAL_BIT                    = 0x00000200;
     /** Modem supports GNSS Single Frequency feature.
      *  This is a Standalone Feature.  <br/>   */
-    PB_LOCATION_CAPS_QWES_GNSS_SINGLE_FREQUENCY        = 1024;
+    PB_LOCATION_CAPS_QWES_GNSS_SINGLE_FREQUENCY                = 0x00000400;
     /** Modem supports GNSS Multi Frequency feature. Multi
      *  Frequency enables Single frequency also.  <br/>   */
-    PB_LOCATION_CAPS_QWES_GNSS_MULTI_FREQUENCY         = 2048;
+    PB_LOCATION_CAPS_QWES_GNSS_MULTI_FREQUENCY                 = 0x00000800;
     /** This mask indicates VEPP license bundle is enabled.
      *  VEPP bundle include Carrier Phase and SV Polynomial
      *  features.  <br/>   */
-    PB_LOCATION_CAPS_QWES_VPE                          = 4096;
+    PB_LOCATION_CAPS_QWES_VPE                                  = 0x00001000;
     /** This mask indicates support for CV2X Location basic
      *  features. This bundle includes features for GTS Time
      *  & Freq, C-TUNC (Constrained Time uncertainity.
      *  LocationIntegrationApi can support setting of C-TUNC
      *  via configConstrainedTimeUncertainty. <br/> */
-    PB_LOCATION_CAPS_QWES_CV2X_LOCATION_BASIC          = 8192;
+    PB_LOCATION_CAPS_QWES_CV2X_LOCATION_BASIC                  = 0x00002000;
     /** This mask indicates support for CV2X Location premium
      *  features. This bundle includes features for CV2X Location
      *  Basic features, QDR3 feature, and PACE. (Position
      *  Assisted Clock Estimator.
      *  LocationIntegrationApi can support setting of C-TUNC
      *  via configPositionAssistedClockEstimator. <br/> */
-    PB_LOCATION_CAPS_QWES_CV2X_LOCATION_PREMIUM        = 16384;
+    PB_LOCATION_CAPS_QWES_CV2X_LOCATION_PREMIUM                = 0x00004000;
     /** This mask indicates that PPE (Precise Positioning Engine)
      *  library is enabled or Precise Positioning Framework (PPF)
      *  is available. This bundle includes features for Carrier
      *  Phase and SV Ephermeris.  <br/>   */
-    PB_LOCATION_CAPS_QWES_PPE                          = 32768;
+    PB_LOCATION_CAPS_QWES_PPE                                  = 0x00008000;
     /** This mask indicates QDR2_C license bundle is enabled.
      *  This bundle includes features for SV Polynomial. <br/> */
-    PB_LOCATION_CAPS_QWES_QDR2                         = 65536;
+    PB_LOCATION_CAPS_QWES_QDR2                                 = 0x00010000;
     /** This mask indicates QDR3_C license bundle is enabled.
      *  This bundle includes features for SV Polynomial. <br/> */
-    PB_LOCATION_CAPS_QWES_QDR3                         = 131072;
+    PB_LOCATION_CAPS_QWES_QDR3                                 = 0x00020000;
     /** This mask indicates DGNSS license bundle is enabled. <br/> */
-    PB_LOCATION_CAPS_QWES_DGNSS                        = 262144;
+    PB_LOCATION_CAPS_QWES_DGNSS                                = 0x00040000;
     /** This mask indicates Antenna info is enabled. <br/> */
-    PB_LOCATION_CAPS_ANTENNA_INFO                      = 524288;
+    PB_LOCATION_CAPS_ANTENNA_INFO                              = 0x00080000;
+    /** This mask indicates startTracking/startBatching API with
+     * LocationOptions.mode of MSB (Ms Based) . <br/> */
+    PB_LOCATION_CAPABILITIES_GNSS_MSB_BIT                      = 0x00100000;
+    /**This mask indicates supports startTracking/startBatching API
+     * with LocationOptions.mode of MSA (MS Assisted) . <br/> */
+    PB_LOCATION_CAPABILITIES_GNSS_MSA_BIT                      = 0x00200000;
+    /** This mask indicates support for debug nmea sentences
+     * in the debugNmeaCallback. <br/> */
+    PB_LOCATION_CAPABILITIES_DEBUG_DATA_BIT                    = 0x00400000;
+    /** This mask indicates support agpm .  <br/>   */
+    PB_LOCATION_CAPABILITIES_AGPM_BIT                          = 0x00800000;
+    /** This mask indicates support for location privacy.  <br/>   */
+    PB_LOCATION_CAPABILITIES_PRIVACY_BIT                       = 0x01000000;
+    /** This mask indicates support measurement corrections.  <br/>   */
+    PB_LOCATION_CAPABILITIES_MEASUREMENTS_CORRECTION_BIT       = 0x02000000;
+    /** This mask indicates support Robust Location.  <br/>   */
+    PB_LOCATION_CAPABILITIES_CONFORMITY_INDEX_BIT              = 0x04000000;
+    /** This mask indicates support precise location edgnss .  <br/>   */
+    PB_LOCATION_CAPABILITIES_EDGNSS_BIT                        = 0x08000000;
+    /** This mask indicates supports SV Ephemeris for tightly coupled external
+     * PPE engines. This is a Standalone Feature..  <br/>   */
+    PB_LOCATION_CAPABILITIES_QWES_SV_EPHEMERIS_BIT             = 0x10000000;
 }
 
 enum PBGnssDataMask {
@@ -1278,6 +1302,10 @@ message PBGnssDcReportInfo {
     uint32              numValidBits = 2;
     // dc report data, packed into uint8_t
     repeated uint32     dcReportData = 3;
+     // SV's Pseudo-Random Number valid
+    bool              prnValid = 4;
+    // SV's Pseudo-Random Number
+    uint32              prn = 5;
 };
 
 message PBGnssConfigRobustLocationVersion {

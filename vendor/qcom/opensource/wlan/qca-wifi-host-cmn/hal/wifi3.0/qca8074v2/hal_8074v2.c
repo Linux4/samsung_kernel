@@ -1036,7 +1036,7 @@ static inline qdf_iomem_t hal_get_window_address_8074v2(struct hal_soc *hal_soc,
  *
  * @rx_tlv_hdr: start address of rx_pkt_tlvs
  *
- * Return: true if RX_MPDU_START is valied, else false.
+ * Return: true if RX_MPDU_START is valid, else false.
  */
 uint8_t hal_rx_mpdu_start_tlv_tag_valid_8074v2(void *rx_tlv_hdr)
 {

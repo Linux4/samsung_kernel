@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -202,57 +203,6 @@ static QDF_STATUS extract_p2p_noa_ev_param_tlv(
 			param->noa_desc[i].duration,
 			param->noa_desc[i].interval,
 			param->noa_desc[i].start_time);
-	}
-
-	return QDF_STATUS_SUCCESS;
-}
-
-static QDF_STATUS
-send_set_mac_addr_rx_filter_cmd_tlv(wmi_unified_t wmi_handle,
-				    struct p2p_set_mac_filter *param)
-{
-	wmi_vdev_add_mac_addr_to_rx_filter_cmd_fixed_param *cmd;
-	uint32_t len;
-	wmi_buf_t buf;
-	int ret;
-
-	if (!wmi_handle) {
-		wmi_err("WMA context is invald!");
-		return QDF_STATUS_E_INVAL;
-	}
-
-	len = sizeof(*cmd);
-	buf = wmi_buf_alloc(wmi_handle, len);
-	if (!buf) {
-		wmi_err("Failed allocate wmi buffer");
-		return QDF_STATUS_E_NOMEM;
-	}
-
-	cmd = (wmi_vdev_add_mac_addr_to_rx_filter_cmd_fixed_param *)
-		wmi_buf_data(buf);
-
-	WMITLV_SET_HDR(
-	   &cmd->tlv_header,
-	   WMITLV_TAG_STRUC_wmi_vdev_add_mac_addr_to_rx_filter_cmd_fixed_param,
-	WMITLV_GET_STRUCT_TLVLEN(
-			wmi_vdev_add_mac_addr_to_rx_filter_cmd_fixed_param));
-
-	cmd->vdev_id = param->vdev_id;
-	cmd->freq = param->freq;
-	WMI_CHAR_ARRAY_TO_MAC_ADDR(param->mac, &cmd->mac_addr);
-	if (param->set)
-		cmd->enable = 1;
-	else
-		cmd->enable = 0;
-	wmi_debug("set random mac rx vdev %d freq %d set %d "QDF_MAC_ADDR_FMT,
-		 param->vdev_id, param->freq, param->set,
-		 QDF_MAC_ADDR_REF(param->mac));
-	ret = wmi_unified_cmd_send(wmi_handle, buf, len,
-				   WMI_VDEV_ADD_MAC_ADDR_TO_RX_FILTER_CMDID);
-	if (ret) {
-		wmi_err("Failed to send action frame random mac cmd");
-		wmi_buf_free(buf);
-		return QDF_STATUS_E_FAILURE;
 	}
 
 	return QDF_STATUS_SUCCESS;
@@ -474,7 +424,6 @@ void wmi_p2p_attach_tlv(wmi_unified_t wmi_handle)
 	ops->send_set_p2pgo_oppps_req_cmd = send_set_p2pgo_oppps_req_cmd_tlv;
 	ops->send_set_p2pgo_noa_req_cmd = send_set_p2pgo_noa_req_cmd_tlv;
 	ops->extract_p2p_noa_ev_param = extract_p2p_noa_ev_param_tlv;
-	ops->set_mac_addr_rx_filter = send_set_mac_addr_rx_filter_cmd_tlv,
 	ops->extract_mac_addr_rx_filter_evt_param =
 				extract_mac_addr_rx_filter_evt_param_tlv,
 	wmi_p2p_listen_offload_attach_tlv(wmi_handle);

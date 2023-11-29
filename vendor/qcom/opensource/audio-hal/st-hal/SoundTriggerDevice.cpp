@@ -470,7 +470,6 @@ int SoundTriggerDevice::Init(hw_device_t **device, const hw_module_t *module)
     /* Register LSM Lib HIDL service */
     ALOGD("%s: Register LSM HIDL service", __func__);
     sp<IListenSoundModel> service = new ListenSoundModel();
-    configureRpcThreadpool(48, false /*callerWillJoin*/);
     if(android::OK !=  service->registerAsService())
         ALOGW("Could not register LSM HIDL service");
 #endif
@@ -531,6 +530,7 @@ int SoundTriggerDevice::LoadAudioHal()
     int status = 0;
     char audio_hal_lib[100];
     void *apiVersion = nullptr;
+    audio_extn_hidl_init initAudioExtn = nullptr;
 
     ALOGD("%s: Enter", __func__);
 
@@ -578,6 +578,14 @@ int SoundTriggerDevice::LoadAudioHal()
         }
         ALOGD("%s: ahal is using API version 0x%04x", __func__,
               sthal_prop_api_version_);
+    }
+
+    initAudioExtn = (audio_extn_hidl_init)dlsym(ahal_handle_, "check_init_audio_extension");
+    if (!initAudioExtn) {
+        ALOGW("%s: error, failed to get symbol for initAudioExtn",
+              __func__);
+    } else {
+        initAudioExtn();
     }
     return status;
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -823,6 +824,35 @@
 		CFG_VALUE_OR_DEFAULT, \
 		"default Aifs value for QCA_WLAN_AC_BE")
 
+/*
+ * <ini>
+ * edca_param_type - Edca param type
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to configure edca or pifs param for low latency SAP.
+ * If edca_param_type is set to 0 then host configures edca param and
+ * send it to firmware via WMI cmd and earbud via OTA frame. If it set to
+ * to 1 then host configures pifs param and send it to firmware via WMI
+ * cmd and earbud via OTA frame.
+ *
+ * Related: None
+ *
+ * Supported Feature: STA
+ *
+ * Usage: Internal/External
+ *
+ * </ini>
+ */
+#define CFG_EDCA_PIFS_PARAM_TYPE CFG_INI_UINT( \
+		"edca_param_type", \
+		0, \
+		1, \
+		0, \
+		CFG_VALUE_OR_DEFAULT, \
+		"Edca param type")
+
 #define CFG_EDCA_PARAMS_ALL \
 	CFG(CFG_EDCA_ANI_ACBK_LOCAL) \
 	CFG(CFG_EDCA_ANI_ACBE_LOCAL) \
@@ -861,6 +891,7 @@
 	CFG(CFG_EDCA_BE_CWMIN) \
 	CFG(CFG_EDCA_BE_CWMAX) \
 	CFG(CFG_ENABLE_WMM_TXOP) \
-	CFG(CFG_EDCA_BE_AIFS)
+	CFG(CFG_EDCA_BE_AIFS) \
+	CFG(CFG_EDCA_PIFS_PARAM_TYPE)
 
 #endif  /* __CFG_MLME_EDCA__PARAM_H */

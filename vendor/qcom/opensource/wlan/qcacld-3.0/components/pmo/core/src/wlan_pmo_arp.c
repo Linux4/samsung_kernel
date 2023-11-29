@@ -231,6 +231,13 @@ QDF_STATUS pmo_core_arp_check_offload(struct wlan_objmgr_psoc *psoc,
 		return QDF_STATUS_E_INVAL;
 	}
 
+	if (wlan_vdev_mlme_get_is_mlo_link(psoc, vdev_id)) {
+		pmo_debug("ARP offload not supported for MLO partner link "
+			  "with vdev_id[%d]", vdev_id);
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_PMO_ID);
+		return QDF_STATUS_E_INVAL;
+	}
+
 	vdev_ctx = pmo_vdev_get_priv(vdev);
 	psoc_ctx = vdev_ctx->pmo_psoc_ctx;
 

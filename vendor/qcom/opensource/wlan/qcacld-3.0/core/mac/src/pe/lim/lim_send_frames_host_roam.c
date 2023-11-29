@@ -102,7 +102,7 @@ void lim_send_reassoc_req_with_ft_ies_mgmt_frame(struct mac_context *mac_ctx,
 
 	vdev_id = pe_session->vdev_id;
 
-	/* check this early to avoid unncessary operation */
+	/* check this early to avoid unnecessary operation */
 	if (!pe_session->pLimReAssocReq)
 		return;
 
@@ -588,7 +588,7 @@ end:
 	}
 	mlmReassocCnf.resultCode = eSIR_SME_FT_REASSOC_FAILURE;
 	mlmReassocCnf.protStatusCode = STATUS_UNSPECIFIED_FAILURE;
-	/* Update PE sessio Id */
+	/* Update PE session Id */
 	mlmReassocCnf.sessionId = pe_session->peSessionId;
 
 	lim_post_sme_message(mac, LIM_MLM_REASSOC_CNF,

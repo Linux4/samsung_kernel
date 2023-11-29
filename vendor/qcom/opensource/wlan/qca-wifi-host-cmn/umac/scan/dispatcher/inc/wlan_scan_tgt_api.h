@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017,2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -39,7 +40,7 @@
  * @frm_type: frame type
  *
  * The callbeack registered to tx/rx module and is called when beacon
- * or probe resp is recived. This will post a msg to target_if queue.
+ * or probe resp is received. This will post a msg to target_if queue.
  *
  * Return: success or error code.
  */

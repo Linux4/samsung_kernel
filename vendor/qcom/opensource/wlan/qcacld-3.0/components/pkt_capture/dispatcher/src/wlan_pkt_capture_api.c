@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -26,4 +26,12 @@
 bool wlan_pkt_capture_is_tx_mgmt_enable(struct wlan_objmgr_pdev *pdev)
 {
 	return pkt_capture_is_tx_mgmt_enable(pdev);
+}
+
+QDF_STATUS
+wlan_pkt_capture_register_callbacks(struct wlan_objmgr_vdev *vdev,
+				    QDF_STATUS (*mon_cb)(void *, qdf_nbuf_t),
+				    void *context)
+{
+	return pkt_capture_register_callbacks(vdev, mon_cb, context);
 }

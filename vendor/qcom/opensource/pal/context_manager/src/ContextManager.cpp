@@ -525,15 +525,17 @@ void ContextManager::CommandThreadRunner(ContextManager& cm)
             }
         }
 
-        request_command = cm.request_cmd_queue.front();
-        cm.request_cmd_queue.pop();
+        if (!cm.request_cmd_queue.empty()) {
+            request_command = cm.request_cmd_queue.front();
+            cm.request_cmd_queue.pop();
 
-        rc = request_command->Process(cm);
-        if (rc) {
-            PAL_ERR(LOG_TAG, "Error:%d failed to process request", rc);
+            rc = request_command->Process(cm);
+            if (rc) {
+                PAL_ERR(LOG_TAG, "Error:%d failed to process request", rc);
+            }
+
+            free(request_command);
         }
-
-        free(request_command);
     }
     PAL_VERBOSE(LOG_TAG, "Exiting CommandThreadRunner");
 }

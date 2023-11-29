@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -551,21 +551,27 @@ qdf_freq_t wlan_get_conc_freq(void);
 #ifdef WLAN_FEATURE_11BE_MLO
 /**
  * wlan_handle_emlsr_sta_concurrency() - Handle concurrency scenarios with
- * existing eMLSR connection when a new cktn request is received.
+ * EMLSR STA.
+ * @vdev: pointer to vdev
+ * @ap_coming_up: Check if the new connection request is SAP/P2P GO/NAN
+ * @sta_coming_up: Check if the new connection request is STA/P2P Client
+ * @emlsr_sta_coming_up: Check if the new connection request is EMLSR STA
  *
- * @vdev: pointer to vdev on which new connection is coming up
- * @ap_coming_up: Check if the new cktn request is SAP/P2P GO/NAN
- * @sta_coming_up: Check if the new cktn request is STA/P2P Client
+ * The API handles concurrency scenarios with existing EMLSR connection when a
+ * new connection request is received OR with an existing legacy connection when
+ * an EMLSR sta comes up.
  *
  * Return: none
  */
 void
 wlan_handle_emlsr_sta_concurrency(struct wlan_objmgr_vdev *vdev,
-				  bool ap_coming_up, bool sta_coming_up);
+				  bool ap_coming_up, bool sta_coming_up,
+				  bool emlsr_sta_coming_up);
 #else
 static inline void
 wlan_handle_emlsr_sta_concurrency(struct wlan_objmgr_vdev *vdev,
-				  bool ap_coming_up, bool sta_coming_up)
+				  bool ap_coming_up, bool sta_coming_up,
+				  bool emlsr_sta_coming_up)
 {
 }
 #endif

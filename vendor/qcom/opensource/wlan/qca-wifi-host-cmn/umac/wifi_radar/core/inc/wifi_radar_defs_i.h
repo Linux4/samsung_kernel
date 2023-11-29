@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
 
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -95,7 +95,7 @@ struct wlan_objmgr_peer *peer, void *arg);
  * @peer - pointer to peer object
  * @args - void pointer in case it needs arguments
  *
- * Return: status ofi destry object
+ * Return: status ofi destroy object
  */
 QDF_STATUS
 wlan_wifi_radar_peer_obj_destroy_handler(

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -18,7 +18,7 @@
  */
 
 /*
- * DOC: contains scan structure definations
+ * DOC: contains scan structure definitions
  */
 
 #ifndef _WLAN_SCAN_STRUCTS_H_
@@ -30,6 +30,9 @@
 #include <wlan_cmn_ieee80211.h>
 #include <wlan_mgmt_txrx_utils_api.h>
 #include <reg_services_public_struct.h>
+#ifdef WLAN_FEATURE_11BE_MLO
+#include "wlan_mlo_mgr_public_structs.h"
+#endif
 
 typedef uint16_t wlan_scan_requester;
 typedef uint32_t wlan_scan_id;
@@ -202,7 +205,9 @@ struct channel_info {
  * @rsnxe: Pointer to rsnxe IE
  * @ehtcap: pointer to ehtcap ie
  * @ehtop: pointer to eht op ie
- * @multi_link: pointer to multi lik IE
+ * @multi_link_bv: pointer to multi link basic variant IE
+ * @multi_link_rv: pointer to multi link reconfig IE
+ * @t2lm: array of pointers to t2lm op ie
  * @bwnss_map: pointer to NSS map IE
  * @secchanoff: pointer to secondary chan IE
  * @mdie: pointer to md IE
@@ -269,12 +274,14 @@ struct ie_list {
 	uint8_t *ehtop;
 #endif
 #ifdef WLAN_FEATURE_11BE_MLO
-	uint8_t *multi_link;
+	uint8_t *multi_link_bv;
+	uint8_t *multi_link_rv;
+	uint8_t *t2lm[WLAN_MAX_T2LM_IE];
 #endif
 	uint8_t *qcn;
 
 /**
- * For any new IEs in this structre, add handling in
+ * For any new IEs in this structure, add handling in
  * util_scan_copy_beacon_data API.
  */
 };
@@ -408,22 +415,6 @@ struct non_inheritance_ie {
 	bool non_inh_ie_found;
 };
 
-#ifdef WLAN_FEATURE_11BE_MLO
-/**
- * struct rnr_mld_info - Reduced Neighbor Report MLD information
- * @mld_id: MLD ID
- * @link_id: Link ID
- * @bss_param_change_cnt: BSS parameters change count
- * @all_updates_included: All Updates Included
- */
-struct rnr_mld_info {
-	uint8_t mld_id;
-	uint16_t link_id: 4,
-		 bss_param_change_cnt: 8,
-		 all_updates_included: 1,
-		 reserved: 3;
-};
-#endif
 /**
  * struct rnr_bss_info - Reduced Neighbor Report BSS information
  * @neighbor_ap_tbtt_offset: Neighbor AP TBTT offset
@@ -448,21 +439,6 @@ struct rnr_bss_info {
 	bool mld_info_valid;
 	struct rnr_mld_info mld_info;
 #endif
-};
-
-/**
- * struct tbtt_information_header - TBTT information header
- * @tbbt_info_fieldtype: TBTT information field type
- * @filter_neighbor_ap: filtered neighbor ap
- * @tbbt_info_count: TBTT information count
- * @tbtt_info_length: TBTT informaiton length
- */
-struct tbtt_information_header {
-	uint16_t tbbt_info_fieldtype:2;
-	uint16_t filtered_neighbor_ap:1;
-	uint16_t reserved:1;
-	uint16_t tbtt_info_count:4;
-	uint16_t tbtt_info_length:8;
 };
 
 /**
@@ -599,7 +575,7 @@ struct ml_info {
  * @rnr: Reduced neighbor report information
  * @channel: channel info on which AP is present
  * @channel_mismatch: if channel received in metadata
- *                    doesnot match the one in beacon
+ *                    doesn't match the one in beacon
  * @tsf_delta: TSF delta
  * @bss_score: bss score calculated on basis of RSSI/caps etc.
  * @neg_sec_info: negotiated security info
@@ -703,12 +679,14 @@ typedef struct filter_arg *bss_filter_arg_t;
  * @ALLOW_11N_ONLY: allow only 11n AP
  * @ALLOW_11AC_ONLY: allow only 11ac AP
  * @ALLOW_11AX_ONLY: allow only 11ax AP
+ * @ALLOW_11BE_ONLY: allow only 11be AP
  */
 enum dot11_mode_filter {
 	ALLOW_ALL,
 	ALLOW_11N_ONLY,
 	ALLOW_11AC_ONLY,
 	ALLOW_11AX_ONLY,
+	ALLOW_11BE_ONLY,
 };
 
 /**
@@ -1011,7 +989,7 @@ enum scan_request_type {
  * @scan_ev_completed: notify scan completed event
  * @scan_ev_bss_chan: notify bss chan event
  * @scan_ev_foreign_chan: notify foreign chan event
- * @scan_ev_dequeued: notify scan request dequed event
+ * @scan_ev_dequeued: notify scan request dequeued event
  * @scan_ev_preempted: notify scan preempted event
  * @scan_ev_start_failed: notify scan start failed event
  * @scan_ev_restarted: notify scan restarted event
@@ -1044,11 +1022,11 @@ enum scan_request_type {
  * @scan_f_chan_stat_evnt: enable indication of chan load and noise floor
  * @scan_f_filter_prb_req: filter Probe request frames
  * @scan_f_bypass_dfs_chn: when set, do not scan DFS channels
- * @scan_f_continue_on_err:continue scan even if few certain erros have occurred
+ * @scan_f_continue_on_err:continue scan even if few certain errors have occurred
  * @scan_f_offchan_mgmt_tx: allow mgmt transmission during off channel scan
  * @scan_f_offchan_data_tx: allow data transmission during off channel scan
  * @scan_f_promisc_mode: scan with promiscuous mode
- * @scan_f_capture_phy_err: enable capture ppdu with phy errrors
+ * @scan_f_capture_phy_err: enable capture ppdu with phy errors
  * @scan_f_strict_passive_pch: do passive scan on passive channels
  * @scan_f_half_rate: enable HALF (10MHz) rate support
  * @scan_f_quarter_rate: set Quarter (5MHz) rate support
@@ -1062,6 +1040,10 @@ enum scan_request_type {
  * @scan_f_2ghz: scan 2.4 GHz channels
  * @scan_f_5ghz: scan 5 GHz channels
  * @scan_f_wide_band: scan in 40 MHz or higher bandwidth
+ * @scan_f_pause_home_channel: To pause home channel in FW when scan channel is
+ * same as home channel
+ * @scan_f_report_cca_busy_for_each_20mhz: Allow FW to report CCA busy for each
+ * possible 20Mhz subbands of the wideband scan channel
  * @scan_flags: variable to read and set scan_f_* flags in one shot
  *              can be used to dump all scan_f_* flags for debug
  * @burst_duration: burst duration
@@ -1082,7 +1064,6 @@ enum scan_request_type {
  * @hint_s_ssid: short SSID hints
  * @hint_bssid: BSSID hints
  */
-
 struct scan_req_params {
 	uint32_t scan_id;
 	uint32_t scan_req_id;
@@ -1148,7 +1129,9 @@ struct scan_req_params {
 				 scan_f_forced:1,
 				 scan_f_2ghz:1,
 				 scan_f_5ghz:1,
-				 scan_f_wide_band:1;
+				 scan_f_wide_band:1,
+				 scan_f_pause_home_channel:1,
+				 scan_f_report_cca_busy_for_each_20mhz:1;
 		};
 		uint32_t scan_flags;
 	};
@@ -1289,12 +1272,12 @@ enum scan_event_type {
  * @SCAN_REASON_COMPLETED: scan successfully completed
  * @SCAN_REASON_CANCELLED: scan got cancelled
  * @SCAN_REASON_PREEMPTED: scan got preempted
- * @SCAN_REASON_TIMEDOUT: couldnt complete within specified time
+ * @SCAN_REASON_TIMEDOUT: couldn't complete within specified time
  * @SCAN_REASON_INTERNAL_FAILURE: cancelled because of some failure
  * @SCAN_REASON_SUSPENDED: scan suspended
  * @SCAN_REASON_RUN_FAILED: run failed
  * @SCAN_REASON_TERMINATION_FUNCTION: termination function
- * @SCAN_REASON_MAX_OFFCHAN_RETRIES: max retries exceeded thresold
+ * @SCAN_REASON_MAX_OFFCHAN_RETRIES: max retries exceeded threshold
  * @SCAN_REASON_DFS_VIOLATION: Scan start failure due to DFS violation.
  * @SCAN_REASON_MAX: invalid completion reason marker
  */
@@ -1375,8 +1358,8 @@ typedef void (*scan_event_handler) (struct wlan_objmgr_vdev *vdev,
 
 /**
  * enum scan_cb_type - update beacon cb type
- * @SCAN_CB_TYPE_INFORM_BCN: Calback to indicate beacon to OS
- * @SCAN_CB_TYPE_UPDATE_BCN: Calback to indicate beacon
+ * @SCAN_CB_TYPE_INFORM_BCN: Callback to indicate beacon to OS
+ * @SCAN_CB_TYPE_UPDATE_BCN: Callback to indicate beacon
  * @SCAN_CB_TYPE_UNLINK_BSS: cb to unlink bss entry
  *                    to MLME and update MLME info
  *
@@ -1540,6 +1523,20 @@ struct scan_user_cfg {
  */
 typedef void (*update_beacon_cb) (struct wlan_objmgr_pdev *pdev,
 	struct scan_cache_entry *scan_entry);
+
+/**
+ * typedef update_mbssid_bcn_prb_rsp() - cb to inform mbssid beacon or prob resp
+ * @frame: the pointer of frame data
+ * @frame_len: the length of frame data
+ * @frm_subtype: frame type
+ * @bssid: the pointer of bssid
+ *
+ * Return: QDF_STATUS
+ */
+typedef QDF_STATUS (*update_mbssid_bcn_prb_rsp)(uint8_t *frame,
+						uint32_t frame_len,
+						uint8_t frm_subtype,
+						char *bssid);
 
 /**
  * scan_iterator_func() - function prototype of scan iterator function

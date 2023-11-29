@@ -51,7 +51,7 @@ static void *target_if_wifi_pos_vaddr_lookup(
 QDF_STATUS
 target_if_wifi_pos_replenish_ring(struct wifi_pos_psoc_priv_obj *priv,
 				  uint8_t ring_idx,
-				  void *alinged_vaddr, uint32_t cookie)
+				  void *aligned_vaddr, uint32_t cookie)
 {
 	uint64_t *ring_entry;
 	uint32_t dw_lo, dw_hi = 0, map_status;
@@ -59,12 +59,12 @@ target_if_wifi_pos_replenish_ring(struct wifi_pos_psoc_priv_obj *priv,
 	void *srng = priv->dma_cfg[ring_idx].srng;
 	void *paddr;
 
-	if (!alinged_vaddr) {
-		target_if_debug("NULL alinged_vaddr provided");
+	if (!aligned_vaddr) {
+		target_if_debug("NULL aligned_vaddr provided");
 		return QDF_STATUS_SUCCESS;
 	}
 
-	map_status = qdf_mem_map_nbytes_single(NULL, alinged_vaddr,
+	map_status = qdf_mem_map_nbytes_single(NULL, aligned_vaddr,
 			QDF_DMA_FROM_DEVICE,
 			priv->dma_cap[ring_idx].min_buf_size,
 			(qdf_dma_addr_t *)&paddr);

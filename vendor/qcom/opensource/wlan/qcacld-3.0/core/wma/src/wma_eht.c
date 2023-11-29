@@ -26,6 +26,7 @@
 #include "service_ready_param.h"
 #include "target_if.h"
 #include "wma_internal.h"
+#include <wlan_psoc_mlme_api.h>
 
 #if defined(WLAN_FEATURE_11BE)
 /* MCS Based EHT rate table */
@@ -285,13 +286,21 @@ static void wma_convert_eht_cap(tDot11fIEeht_cap *eht_cap, uint32_t *mac_cap,
 void wma_eht_update_tgt_services(struct wmi_unified *wmi_handle,
 				 struct wma_tgt_services *cfg)
 {
-	if (wmi_service_enabled(wmi_handle, wmi_service_11be)) {
+	bool eht_ini_capab = 0, eht_fw_capab;
+	struct wlan_objmgr_psoc *psoc;
+
+	psoc = wmi_handle->soc->wmi_psoc;
+	wlan_psoc_mlme_get_11be_capab(psoc, &eht_ini_capab);
+	eht_fw_capab = wmi_service_enabled(wmi_handle, wmi_service_11be);
+
+	if (eht_fw_capab && eht_ini_capab) {
 		cfg->en_11be = true;
 		wma_set_fw_wlan_feat_caps(DOT11BE);
 		wma_debug("11be is enabled");
 	} else {
 		cfg->en_11be = false;
-		wma_debug("11be is not enabled");
+		wma_debug("11be is not enabled INI: %d, FW_CAP: %d",
+			  eht_ini_capab, eht_fw_capab);
 	}
 }
 

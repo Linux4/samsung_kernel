@@ -3963,7 +3963,8 @@ int cam_vfe_bus_ver2_init(
 		rc = cam_vfe_bus_init_comp_grp(i, bus_priv, bus_hw_info,
 			&bus_priv->comp_grp[i]);
 		if (rc < 0) {
-			CAM_ERR(CAM_ISP, "Init Comp Grp failed rc=%d", rc);
+			CAM_ERR(CAM_ISP, "Init Comp Grp failed for client:%d, rc=%d",
+				i, rc);
 			goto deinit_comp_grp;
 		}
 	}
@@ -4007,8 +4008,6 @@ deinit_vfe_out:
 		cam_vfe_bus_deinit_vfe_out_resource(&bus_priv->vfe_out[i]);
 
 deinit_comp_grp:
-	if (i < 0)
-		i = CAM_VFE_BUS_VER2_COMP_GRP_MAX;
 	for (--i; i >= 0; i--)
 		cam_vfe_bus_deinit_comp_grp(&bus_priv->comp_grp[i]);
 

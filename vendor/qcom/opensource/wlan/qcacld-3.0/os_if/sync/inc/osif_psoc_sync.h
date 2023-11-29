@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -23,7 +24,7 @@
 #include "wlan_dsc_driver.h"
 #include "qdf_types.h"
 
-/**
+/*
  * struct osif_psoc_sync - opaque synchronization handle for a psoc
  */
 struct osif_psoc_sync;
@@ -124,7 +125,7 @@ int osif_psoc_sync_trans_resume(struct device *dev,
 
 /**
  * osif_psoc_sync_trans_stop() - stop a transition associated with @psoc_sync
- * @psoc_sync: the synchonization context tracking the transition
+ * @psoc_sync: the synchronization context tracking the transition
  *
  * Return: none
  */
@@ -157,7 +158,7 @@ __osif_psoc_sync_op_start(struct device *dev,
 
 /**
  * osif_psoc_sync_op_stop() - stop an operation associated with @psoc_sync
- * @psoc_sync: the synchonization context tracking the operation
+ * @psoc_sync: the synchronization context tracking the operation
  *
  * Return: none
  */
@@ -169,7 +170,7 @@ void __osif_psoc_sync_op_stop(struct osif_psoc_sync *psoc_sync,
 
 /**
  * osif_psoc_sync_wait_for_ops() - wait until all @psoc_sync operations complete
- * @psoc_sync: the synchonization context tracking the operations
+ * @psoc_sync: the synchronization context tracking the operations
  *
  * Return: None
  */

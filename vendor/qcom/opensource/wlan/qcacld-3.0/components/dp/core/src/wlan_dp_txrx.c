@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -30,17 +30,17 @@
 #include <cdp_txrx_peer_ops.h>
 #include <cdp_txrx_misc.h>
 #include <cdp_txrx_flow_ctrl_v2.h>
-#include "dp_txrx.h"
+#include "wlan_dp_rx_thread.h"
 #if defined(WLAN_SUPPORT_RX_FISA)
-#include "dp_fisa_rx.h"
+#include "wlan_dp_fisa_rx.h"
 #endif
 #include "nan_public_structs.h"
-#include "nan_ucfg_api.h"
-#include <wlan_cm_ucfg_api.h>
+#include "wlan_nan_api_i.h"
+#include <wlan_cm_api.h>
 #include <enet.h>
 #include <cds_utils.h>
 #include <wlan_dp_bus_bandwidth.h>
-#include <wlan_tdls_ucfg_api.h>
+#include "wlan_tdls_api.h"
 #include <qdf_trace.h>
 #include <qdf_net_stats.h>
 
@@ -55,6 +55,15 @@ uint32_t wlan_dp_intf_get_pkt_type_bitmap_value(void *intf_ctx)
 
 	return dp_intf->pkt_type_bitmap;
 }
+
+#if defined(WLAN_SUPPORT_RX_FISA)
+void dp_rx_skip_fisa(struct cdp_soc_t *cdp_soc, uint32_t value)
+{
+	struct dp_soc *soc = (struct dp_soc *)cdp_soc;
+
+	qdf_atomic_set(&soc->skip_fisa_param.skip_fisa, !value);
+}
+#endif
 
 #ifdef QCA_LL_LEGACY_TX_FLOW_CONTROL
 void dp_get_tx_resource(struct wlan_dp_intf *dp_intf,
@@ -72,7 +81,6 @@ void dp_get_tx_resource(struct wlan_dp_intf *dp_intf,
  * dp_event_eapol_log() - send event to wlan diag
  * @nbuf: Network buffer ptr
  * @dir: direction
- * @eapol_key_info: eapol key info
  *
  * Return: None
  */
@@ -134,7 +142,7 @@ static int dp_intf_is_tx_allowed(qdf_nbuf_t nbuf,
  * name or not
  *
  * @nbuf: Network buffer pointer
- * @dp_intf: DP interface poniter
+ * @dp_intf: DP interface pointer
  *
  * Returns: true if matches else false
  */
@@ -414,7 +422,7 @@ void dp_get_transmit_mac_addr(struct wlan_dp_intf *dp_intf,
 
 	switch (dp_intf->device_mode) {
 	case QDF_NDI_MODE:
-		state = ucfg_nan_get_ndi_state(dp_intf->vdev);
+		state = wlan_nan_get_ndi_state(dp_intf->vdev);
 		if (state == NAN_DATA_NDI_CREATED_STATE ||
 		    state == NAN_DATA_CONNECTED_STATE ||
 		    state == NAN_DATA_CONNECTING_STATE ||
@@ -432,7 +440,7 @@ void dp_get_transmit_mac_addr(struct wlan_dp_intf *dp_intf,
 		break;
 	case QDF_STA_MODE:
 	case QDF_P2P_CLIENT_MODE:
-		if (ucfg_cm_is_vdev_active(dp_intf->vdev))
+		if (wlan_cm_is_vdev_active(dp_intf->vdev))
 			qdf_copy_macaddr(mac_addr_tx_allowed,
 					 &dp_intf->conn_info.bssid);
 		break;
@@ -788,7 +796,8 @@ void dp_sta_notify_tx_comp_cb(qdf_nbuf_t nbuf, void *ctx, uint16_t flag)
 	case QDF_NBUF_CB_PACKET_TYPE_EAPOL:
 		subtype = qdf_nbuf_get_eapol_subtype(nbuf);
 		if (!(flag & BIT(QDF_TX_RX_STATUS_OK)) &&
-		    subtype != QDF_PROTO_INVALID)
+		    subtype != QDF_PROTO_INVALID &&
+		    subtype <= QDF_PROTO_EAPOL_M4)
 			++dp_intf->dp_stats.eapol_stats.
 				tx_noack_cnt[subtype - QDF_PROTO_EAPOL_M1];
 		break;
@@ -807,7 +816,7 @@ void dp_sta_notify_tx_comp_cb(qdf_nbuf_t nbuf, void *ctx, uint16_t flag)
 	/* Since it is TDLS call took TDLS vdev ref*/
 	status = wlan_objmgr_vdev_try_get_ref(dp_intf->vdev, WLAN_TDLS_SB_ID);
 	if (QDF_IS_STATUS_SUCCESS(status)) {
-		ucfg_tdls_update_tx_pkt_cnt(dp_intf->vdev, dest_mac_addr);
+		wlan_tdls_update_tx_pkt_cnt(dp_intf->vdev, dest_mac_addr);
 		wlan_objmgr_vdev_release_ref(dp_intf->vdev, WLAN_TDLS_SB_ID);
 	}
 }
@@ -942,6 +951,7 @@ static void dp_resolve_rx_ol_mode(struct wlan_dp_psoc_context *dp_ctx)
 #ifdef WLAN_FEATURE_DYNAMIC_RX_AGGREGATION
 /**
  * dp_gro_rx_bh_disable() - GRO RX/flush function.
+ * @dp_intf: DP interface pointer
  * @napi_to_use: napi to be used to give packets to the stack, gro flush
  * @nbuf: pointer to n/w buff
  *
@@ -990,6 +1000,7 @@ static QDF_STATUS dp_gro_rx_bh_disable(struct wlan_dp_intf *dp_intf,
 
 /**
  * dp_gro_rx_bh_disable() - GRO RX/flush function.
+ * @dp_intf: DP interface pointer
  * @napi_to_use: napi to be used to give packets to the stack, gro flush
  * @nbuf: pointer to nbuff
  *
@@ -1169,8 +1180,8 @@ out:
 }
 
 /**
- * dp_register_rx_ol() - Register LRO/GRO rx processing callbacks
- * @hdd_ctx: pointer to hdd_ctx
+ * dp_register_rx_ol_cb() - Register LRO/GRO rx processing callbacks
+ * @dp_ctx: pointer to dp_ctx
  * @wifi3_0_target: whether its a lithium/beryllium arch based target or not
  *
  * Return: none
@@ -1653,6 +1664,9 @@ QDF_STATUS dp_rx_packet_cbk(void *dp_intf_context,
 		} else if (qdf_nbuf_is_ipv4_eapol_pkt(nbuf)) {
 			subtype = qdf_nbuf_get_eapol_subtype(nbuf);
 			send_over_nl = true;
+
+			/* Mac address check between RX packet DA and dp_intf's */
+			dp_rx_pkt_da_check(dp_intf, nbuf);
 			if (subtype == QDF_PROTO_EAPOL_M1) {
 				++dp_intf->dp_stats.eapol_stats.
 						eapol_m1_count;
@@ -1717,7 +1731,7 @@ QDF_STATUS dp_rx_packet_cbk(void *dp_intf_context,
 		status = wlan_objmgr_vdev_try_get_ref(dp_intf->vdev,
 						      WLAN_TDLS_SB_ID);
 		if (QDF_IS_STATUS_SUCCESS(status)) {
-			ucfg_tdls_update_rx_pkt_cnt(dp_intf->vdev, mac_addr,
+			wlan_tdls_update_rx_pkt_cnt(dp_intf->vdev, mac_addr,
 						    dest_mac_addr);
 			wlan_objmgr_vdev_release_ref(dp_intf->vdev,
 						     WLAN_TDLS_SB_ID);

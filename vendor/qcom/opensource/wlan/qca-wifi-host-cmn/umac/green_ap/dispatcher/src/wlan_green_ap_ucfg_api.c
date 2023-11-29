@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -48,7 +49,7 @@ QDF_STATUS ucfg_green_ap_enable_egap(struct wlan_objmgr_pdev *pdev)
 	}
 
 	if (!green_ap_tx_ops->enable_egap) {
-		green_ap_err("tx op for sending enbale/disable green ap is NULL");
+		green_ap_err("tx op for sending enable/disable green ap is NULL");
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -88,6 +89,61 @@ QDF_STATUS ucfg_green_ap_set_ps_config(struct wlan_objmgr_pdev *pdev,
 
 	return QDF_STATUS_SUCCESS;
 }
+
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+#define MAX_COOKIE_ID 256
+
+QDF_STATUS ucfg_green_ap_ll_ps(struct wlan_objmgr_pdev *pdev,
+			       struct wlan_objmgr_vdev *vdev,
+			       enum wlan_green_ap_ll_ps_state state,
+			       uint32_t bcn_interval,
+			       uint64_t *cookie_id)
+{
+	struct wlan_pdev_green_ap_ctx *green_ap_ctx;
+	struct wlan_lmac_if_green_ap_tx_ops *green_ap_tx_ops;
+	struct green_ap_ll_ps_cmd_param green_ap_ll_ps_params;
+
+	if (!pdev) {
+		green_ap_err("pdev context passed is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	green_ap_ctx = wlan_objmgr_pdev_get_comp_private_obj(
+			pdev, WLAN_UMAC_COMP_GREEN_AP);
+	if (!green_ap_ctx) {
+		green_ap_err("green ap context obtained is NULL");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	green_ap_tx_ops = wlan_psoc_get_green_ap_tx_ops(green_ap_ctx);
+	if (!green_ap_tx_ops) {
+		green_ap_err("green ap tx ops obtained are NULL");
+		return  QDF_STATUS_E_FAILURE;
+	}
+
+	if (!green_ap_tx_ops->ll_ps) {
+		green_ap_err("tx op for sending green ap ll pwr save is NULL");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	green_ap_ctx->vdev = vdev;
+	green_ap_ll_ps_params.state = state;
+	green_ap_ll_ps_params.bcn_interval = bcn_interval;
+
+	if (state)
+		green_ap_ll_ps_params.bcn_interval *=
+			green_ap_ctx->bcn_mult;
+
+	green_ap_ll_ps_params.cookie =
+		wlan_green_ap_get_cookie_id(
+				green_ap_ctx,
+				(enum wlan_green_ap_ll_ps_state)state);
+
+	*cookie_id = green_ap_ll_ps_params.cookie;
+
+	return green_ap_tx_ops->ll_ps(vdev, &green_ap_ll_ps_params);
+}
+#endif
 
 QDF_STATUS ucfg_green_ap_get_ps_config(struct wlan_objmgr_pdev *pdev,
 				       uint8_t *ps_enable)

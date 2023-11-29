@@ -83,9 +83,9 @@ static void hif_init_rx_thread_napi(struct qca_napi_info *napii)
 	struct qdf_net_if *nd = (struct qdf_net_if *)&napii->rx_thread_netdev;
 
 	qdf_net_if_create_dummy_if(nd);
-	netif_napi_add(&napii->rx_thread_netdev, &napii->rx_thread_napi,
-		       hif_rxthread_napi_poll, 64);
-	napi_enable(&napii->rx_thread_napi);
+	qdf_netif_napi_add(&napii->rx_thread_netdev, &napii->rx_thread_napi,
+			   hif_rxthread_napi_poll, 64);
+	qdf_napi_enable(&napii->rx_thread_napi);
 }
 
 /**
@@ -96,7 +96,7 @@ static void hif_init_rx_thread_napi(struct qca_napi_info *napii)
  */
 static void hif_deinit_rx_thread_napi(struct qca_napi_info *napii)
 {
-	netif_napi_del(&napii->rx_thread_napi);
+	qdf_netif_napi_del(&napii->rx_thread_napi);
 }
 #else /* RECEIVE_OFFLOAD */
 static void hif_init_rx_thread_napi(struct qca_napi_info *napii)
@@ -207,7 +207,8 @@ int hif_napi_create(struct hif_opaque_softc   *hif_ctx,
 
 		NAPI_DEBUG("adding napi=%pK to netdev=%pK (poll=%pK, bdgt=%d)",
 			   &(napii->napi), &(napii->netdev), poll, budget);
-		netif_napi_add(&(napii->netdev), &(napii->napi), poll, budget);
+		qdf_netif_napi_add(&(napii->netdev), &(napii->napi),
+				   poll, budget);
 
 		NAPI_DEBUG("after napi_add");
 		NAPI_DEBUG("napi=0x%pK, netdev=0x%pK",
@@ -365,7 +366,7 @@ int hif_napi_destroy(struct hif_opaque_softc *hif_ctx,
 
 		if (hif->napi_data.state == HIF_NAPI_CONF_UP) {
 			if (force) {
-				napi_disable(&(napii->napi));
+				qdf_napi_disable(&(napii->napi));
 				hif_debug("NAPI entry %d force disabled", id);
 				NAPI_DEBUG("NAPI %d force disabled", id);
 			} else {
@@ -383,7 +384,7 @@ int hif_napi_destroy(struct hif_opaque_softc *hif_ctx,
 				   napii->netdev.napi_list.next);
 
 			qdf_lro_deinit(napii->lro_ctx);
-			netif_napi_del(&(napii->napi));
+			qdf_netif_napi_del(&(napii->napi));
 			hif_deinit_rx_thread_napi(napii);
 
 			napid->ce_map &= ~(0x01 << ce);
@@ -652,7 +653,7 @@ int hif_napi_event(struct hif_opaque_softc *hif_ctx, enum qca_napi_event event,
 	} /* switch denylist_pending */
 
 	/* we want to perform the comparison in lock:
-	 * there is a possiblity of hif_napi_event get called
+	 * there is a possibility of hif_napi_event get called
 	 * from two different contexts (driver unload and cpu hotplug
 	 * notification) and napid->state get changed
 	 * in driver unload context and can lead to race condition
@@ -671,7 +672,7 @@ int hif_napi_event(struct hif_opaque_softc *hif_ctx, enum qca_napi_event event,
 					napi = &(napii->napi);
 					NAPI_DEBUG("%s: enabling NAPI %d",
 						   __func__, i);
-					napi_enable(napi);
+					qdf_napi_enable(napi);
 				}
 			}
 		} else {
@@ -682,7 +683,7 @@ int hif_napi_event(struct hif_opaque_softc *hif_ctx, enum qca_napi_event event,
 					napi = &(napii->napi);
 					NAPI_DEBUG("%s: disabling NAPI %d",
 						   __func__, i);
-					napi_disable(napi);
+					qdf_napi_disable(napi);
 					/* in case it is affined, remove it */
 					qdf_dev_set_irq_affinity(napii->irq,
 								 NULL);
@@ -1243,7 +1244,7 @@ static void hnc_cpu_online_cb(void *context, uint32_t cpu)
  * @context: the associated HIF context
  * @cpu: the CPU Id of the CPU the event happened on
  *
- * On transtion to offline, we act on PREP events, because we may need to move
+ * On transition to offline, we act on PREP events, because we may need to move
  * the irqs/NAPIs to another CPU before it is actually off-lined.
  *
  * Return: None
@@ -1488,7 +1489,7 @@ static int hncm_migrate_to(struct qca_napi_data *napid,
  * @napid: pointer to NAPI block
  * @act  : RELOCATE | COLLAPSE | DISPERSE
  *
- * Finds the designated destionation for the next IRQ.
+ * Finds the designated destination for the next IRQ.
  * RELOCATE: translated to either COLLAPSE or DISPERSE based
  *           on napid->napi_mode (throughput state)
  * COLLAPSE: All have the same destination: the first online CPU in lilcl
@@ -1542,7 +1543,7 @@ retry_disperse:
 			}
 			i = napid->napi_cpu[i].cluster_nxt;
 		}
-		/* Check if matches with user sepecified CPU mask */
+		/* Check if matches with user specified CPU mask */
 		smallidx = ((1 << smallidx) & napid->user_cpu_affin_mask) ?
 								smallidx : -1;
 

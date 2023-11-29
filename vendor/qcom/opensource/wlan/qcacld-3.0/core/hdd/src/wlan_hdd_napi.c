@@ -263,6 +263,9 @@ int hdd_napi_event(enum qca_napi_event event, void *data)
 }
 
 #if defined HELIUMPLUS && defined MSM_PLATFORM
+
+static int napi_tput_policy_delay;
+
 /**
  * hdd_napi_perfd_cpufreq() - set/reset min CPU freq for cores
  * @req_state:  high/low
@@ -349,7 +352,6 @@ hnpc_ret:
  * Return: 0 : no action taken, or action return code
  *         !0: error, or action error code
  */
-static int napi_tput_policy_delay;
 int hdd_napi_apply_throughput_policy(struct hdd_context *hddctx,
 				     uint64_t tx_packets,
 				     uint64_t rx_packets)
@@ -477,7 +479,7 @@ int hdd_display_napi_stats(void)
 	 * Expecting each NAPI bucket item to need at max 5 numerals + space for
 	 * formatting. For example "10000 " Thus the array needs to have
 	 * (5 + 1) * QCA_NAPI_NUM_BUCKETS bytes of space. Leaving one space at
-	 * the end of the "buf" arrary for end of string char.
+	 * the end of the "buf" array for end of string char.
 	 */
 	char buf[6 * QCA_NAPI_NUM_BUCKETS + 1] = {'\0'};
 

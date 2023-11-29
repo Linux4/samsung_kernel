@@ -305,43 +305,28 @@ bool csr_is_conn_state_wds(struct mac_context *mac, uint32_t sessionId)
 
 enum csr_cfgdot11mode
 csr_get_vdev_dot11_mode(struct mac_context *mac,
-			enum QDF_OPMODE device_mode,
+			uint8_t vdev_id,
 			enum csr_cfgdot11mode curr_dot11_mode)
 {
+	struct wlan_objmgr_vdev *vdev;
+	struct vdev_mlme_obj *vdev_mlme;
 	enum mlme_vdev_dot11_mode vdev_dot11_mode;
-	uint8_t dot11_mode_indx;
 	enum csr_cfgdot11mode dot11_mode = curr_dot11_mode;
-	uint32_t vdev_type_dot11_mode =
-				mac->mlme_cfg->dot11_mode.vdev_type_dot11_mode;
 
-	sme_debug("curr_dot11_mode %d, vdev_dot11 %08X, dev_mode %d",
-		  curr_dot11_mode, vdev_type_dot11_mode, device_mode);
+	vdev = wlan_objmgr_get_vdev_by_id_from_pdev(mac->pdev, vdev_id,
+						    WLAN_MLME_OBJMGR_ID);
+	if (!vdev)
+		return curr_dot11_mode;
 
-	switch (device_mode) {
-	case QDF_STA_MODE:
-		dot11_mode_indx = STA_DOT11_MODE_INDX;
-		break;
-	case QDF_P2P_CLIENT_MODE:
-	case QDF_P2P_DEVICE_MODE:
-		dot11_mode_indx = P2P_DEV_DOT11_MODE_INDX;
-		break;
-	case QDF_TDLS_MODE:
-		dot11_mode_indx = TDLS_DOT11_MODE_INDX;
-		break;
-	case QDF_NAN_DISC_MODE:
-		dot11_mode_indx = NAN_DISC_DOT11_MODE_INDX;
-		break;
-	case QDF_NDI_MODE:
-		dot11_mode_indx = NDI_DOT11_MODE_INDX;
-		break;
-	case QDF_OCB_MODE:
-		dot11_mode_indx = OCB_DOT11_MODE_INDX;
-		break;
-	default:
-		return dot11_mode;
+	vdev_mlme = wlan_vdev_mlme_get_cmpt_obj(vdev);
+	if (!vdev_mlme) {
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_OBJMGR_ID);
+		return curr_dot11_mode;
 	}
-	vdev_dot11_mode = QDF_GET_BITS(vdev_type_dot11_mode,
-				       dot11_mode_indx, 4);
+
+	vdev_dot11_mode = vdev_mlme->proto.vdev_dot11_mode;
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_OBJMGR_ID);
+
 	if (vdev_dot11_mode == MLME_VDEV_DOT11_MODE_AUTO)
 		dot11_mode = curr_dot11_mode;
 
@@ -631,6 +616,13 @@ uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 
 	if (mac_ctx->roam.configParam.cc_switch_mode ==
 			QDF_MCC_TO_SCC_SWITCH_DISABLE)
+		return 0;
+
+	op_mode = wlan_get_opmode_vdev_id(mac_ctx->pdev, vdev_id);
+	if (policy_mgr_is_ll_sap_present(
+			mac_ctx->psoc,
+			policy_mgr_convert_device_mode_to_qdf_type(op_mode),
+			vdev_id))
 		return 0;
 
 	if (sap_ch_freq != 0) {

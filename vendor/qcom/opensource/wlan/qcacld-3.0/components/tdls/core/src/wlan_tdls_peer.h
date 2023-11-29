@@ -124,11 +124,11 @@ struct tdls_peer *tdls_is_progress(struct tdls_vdev_priv_obj *vdev_obj,
 				   const uint8_t *macaddr, uint8_t skip_self);
 
 /**
- * tdls_get_offchan_freq() - Get preffered offchannel frequency
+ * tdls_get_offchan_freq() - Get preferred offchannel frequency
  * @vdev: Pointer to vdev
  * @soc_obj: TDLS SOC object
  *
- * This function gets preffered offchannel frequency.
+ * This function gets preferred offchannel frequency.
  *
  * Return: Preferred offchannel frequency
  */
@@ -136,13 +136,13 @@ qdf_freq_t tdls_get_offchan_freq(struct wlan_objmgr_vdev *vdev,
 				 struct tdls_soc_priv_obj *soc_obj);
 
 /**
- * tdls_get_offchan_freq() - Get preffered offchannel bandwidth on basis of
+ * tdls_get_offchan_freq() - Get preferred offchannel bandwidth on basis of
  *                           frequency
  * @soc_obj: TDLS SOC object
  * @off_chan_freq: Offchannel frequency
  *
  *
- * This function gets preffered offchannel bandwidth on basis of frequency.
+ * This function gets preferred offchannel bandwidth on basis of frequency.
  *
  * Return: Preferred offchannel bw
  */

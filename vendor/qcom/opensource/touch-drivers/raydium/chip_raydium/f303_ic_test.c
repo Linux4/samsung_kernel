@@ -31,7 +31,7 @@
 #endif
 
 #define RM_F303_MAX_STR_LENGTH		8
-#include "drv_interface.h"
+#include "../drv_interface.h"
 #include "ic_drv_global.h"
 #include "ic_drv_interface.h"
 #include "f303_ic_control.h"
@@ -1193,7 +1193,7 @@ STATUS ft_raw_data_checksum_check_3x(unsigned short *u16_buffer)
 
 	if (u16_buffer[48] != 0x55AA) {
 		DEBUGOUT("u16_buffer[34]:%x\r\n", u16_buffer[48]);
-		DEBUGOUT("[RDCSC] Pattern NG! [0x%x](0x%x)\r\n", (int)u16_buffer, u16_buffer[48]);
+		DEBUGOUT("[RDCSC] Pattern NG! [0x%p](0x%x)\n", u16_buffer, u16_buffer[48]);
 		return ERROR;
 	}
 
@@ -1202,7 +1202,7 @@ STATUS ft_raw_data_checksum_check_3x(unsigned short *u16_buffer)
 		u16_sum += u16_buffer[u8_i];
 
 	if (u16_buffer[49] != u16_sum) {
-		DEBUGOUT("[RDCSC] Check SUM NG! [0x%x](0x%x:0x%x)\r\n", (int)u16_buffer, u16_sum, u16_buffer[49]);
+		DEBUGOUT("[RDCSC] Check SUM NG! [0x%p](0x%x:0x%x)\n", u16_buffer, u16_sum, u16_buffer[49]);
 		return ERROR;
 	}
 
@@ -1217,7 +1217,7 @@ STATUS ft_test_result_checksum_check_3x(unsigned char *u8_buffer)
 	unsigned char u8_sum = 0;
 
 	if (u8_buffer[48] != 0x5A) {
-		DEBUGOUT("[TRCSC] Pattern NG! [0x%x](0x%x:0x%x)\r\n", (int)u8_buffer, u8_buffer[48], u8_buffer[49]);
+		DEBUGOUT("[TRCSC] Pattern NG! [0x%p](0x%x:0x%x)\n", u8_buffer, u8_buffer[48], u8_buffer[49]);
 		return ERROR;
 	}
 
@@ -1226,7 +1226,7 @@ STATUS ft_test_result_checksum_check_3x(unsigned char *u8_buffer)
 		u8_sum += u8_buffer[u8_i];
 
 	if (u8_buffer[49] != u8_sum) {
-		DEBUGOUT("[TRCSC] Check SUM NG! [0x%x](0x%x:0x%x)\r\n", (int)u8_buffer, u8_sum, u8_buffer[49]);
+		DEBUGOUT("[TRCSC] Check SUM NG! [0x%p](0x%x:0x%x)\n", u8_buffer, u8_sum, u8_buffer[49]);
 		return ERROR;
 	}
 

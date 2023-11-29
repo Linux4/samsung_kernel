@@ -23,6 +23,7 @@ struct traffic {
 
 	struct gendisk *gd;
 	struct work_struct update_work;
+	struct delayed_work notify_work;
 };
 
 static DEFINE_PER_CPU(u64, transferred_bytes);
@@ -32,8 +33,12 @@ static unsigned int interval_ms = 1000;
 static unsigned int interval_bytes = 100 * 1024 * 1024;
 static struct traffic traffic;
 
-#define WORK_TO_TRAFFIC(work) \
+#define TL0_UEVENT_DELAY_MS 2000
+
+#define UPDATE_WORK_TO_TRAFFIC(work) \
 	container_of(work, struct traffic, update_work)
+#define NOTIFY_WORK_TO_TRAFFIC(work) \
+	container_of(to_delayed_work(work), struct traffic, notify_work)
 
 static u64 get_transferred_bytes(void)
 {
@@ -85,11 +90,12 @@ static void notify_traffic_level(struct traffic *traffic)
 
 static void update_traffic(struct work_struct *work)
 {
-	struct traffic *traffic = WORK_TO_TRAFFIC(work);
+	struct traffic *traffic = UPDATE_WORK_TO_TRAFFIC(work);
 	struct traffic old = *traffic;
 	unsigned int duration_ms;
 	u64 amount;
 	int tput;
+	int delay = 0;
 
 	traffic->transferred_bytes = get_transferred_bytes();
 	traffic->timestamp = jiffies_to_msecs(jiffies);
@@ -99,8 +105,20 @@ static void update_traffic(struct work_struct *work)
 	tput = MB(amount) * 1000 / duration_ms;
 	traffic->level = tp2level(tput);
 
-	if (traffic->level != old.level)
-		notify_traffic_level(traffic);
+	if (!!traffic->level == !!old.level)
+		return;
+
+	if (traffic->level == 0) /* level !0 -> 0 */
+		delay = msecs_to_jiffies(TL0_UEVENT_DELAY_MS);
+
+	cancel_delayed_work_sync(&traffic->notify_work);
+	schedule_delayed_work(&traffic->notify_work, delay);
+}
+
+static void send_uevent(struct work_struct *work)
+{
+	struct traffic *traffic = NOTIFY_WORK_TO_TRAFFIC(work);
+	notify_traffic_level(traffic);
 }
 
 void blk_sec_stat_traffic_update(struct request *rq, unsigned int data_size)
@@ -130,6 +148,7 @@ static void init_traffic(struct traffic *traffic)
 	traffic->timestamp = jiffies_to_msecs(jiffies);
 	traffic->gd = NULL;
 	INIT_WORK(&traffic->update_work, update_traffic);
+	INIT_DELAYED_WORK(&traffic->notify_work, send_uevent);
 }
 
 static void allow_cpu_lpm(bool enable)
@@ -258,6 +277,7 @@ void blk_sec_stat_traffic_exit(struct kobject *kobj)
 
 	allow_cpu_lpm(true);
 	cpu_latency_qos_remove_request(&cpu_pm_req);
+	cancel_delayed_work_sync(&traffic.notify_work);
 
 	sysfs_remove_files(kobj, blk_sec_stat_traffic_attrs);
 }

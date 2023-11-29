@@ -28,7 +28,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
@@ -82,6 +82,7 @@ static void *batt_listener_lib_handle;
 static bool audio_extn_kpi_optimize_feature_enabled = false;
 //TODO make this mutex part of class
 std::mutex reconfig_wait_mutex_;
+std::mutex AudioExtn::sLock;
 
 std::atomic<bool> AudioExtn::sServicesRegistered = false;
 
@@ -549,9 +550,9 @@ static int reconfig_cb (tSESSION_TYPE session_type, int state)
     pal_param_bta2dp_t param_bt_a2dp;
 
 #ifdef SEC_AUDIO_ADD_FOR_DEBUG
-    AHAL_INFO("reconfig_cb enter. session_type: %d suspend %s", 
+    AHAL_INFO("reconfig_cb enter. session_type: %d suspend %s",
             session_type, (state == 0) ? "true" : "false");
-#else  
+#else
     AHAL_DBG("reconfig_cb enter");
 #endif
     if (session_type == LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH) {
@@ -671,18 +672,18 @@ feature_disabled:
 // END: A2DP
 
 // START: DEVICE UTILS =============================================================
-bool AudioExtn::audio_devices_cmp(const std::set<audio_devices_t>& devs, audio_device_cmp_fn_t fn){
+bool AudioExtn::audio_devices_cmp(const std::set<audio_devices_t>& devs, audio_device_cmp_fn_t fn) {
     for(auto dev : devs)
-        if(!fn(dev))
-            return false;
-    return true;
+        if(fn(dev))
+            return true;
+    return false;
 }
 
-bool AudioExtn::audio_devices_cmp(const std::set<audio_devices_t>& devs, audio_devices_t dev){
+bool AudioExtn::audio_devices_cmp(const std::set<audio_devices_t>& devs, audio_devices_t dev) {
     for(auto d : devs)
-        if(d != dev)
-            return false;
-    return true;
+        if(d == dev)
+            return true;
+    return false;
 }
 
 audio_devices_t AudioExtn::get_device_types(const std::set<audio_devices_t>& devs){
@@ -861,16 +862,15 @@ void AudioExtn::karaoke_init() {
 // START: PAL HIDL =================================================
 
 int AudioExtn::audio_extn_hidl_init() {
+    std::lock_guard<std::mutex> lock(AudioExtn::sLock);
+    if (sServicesRegistered) {
+        AHAL_DBG("HIDLs are already registered");
+        return 0;
+    }
 
-    int num_threads = 48;
 #ifdef PAL_HIDL_ENABLED
    /* register audio PAL HIDL */
     sp<IPAL> service = new PAL();
-    /*
-     *We request for more threads as the same number of threads would be divided
-     *between PAL and audio HAL HIDL
-     */
-    configureRpcThreadpool(num_threads, false /*callerWillJoin*/);
     if(android::OK !=  service->registerAsService()) {
         AHAL_ERR("Could not register PAL service");
         return -EINVAL;
@@ -883,7 +883,6 @@ int AudioExtn::audio_extn_hidl_init() {
    /* register AGM HIDL */
     sp<IAGM> agm_service = new AGM();
     AGM *temp = static_cast<AGM *>(agm_service.get());
-    configureRpcThreadpool(num_threads, false /*callerWillJoin*/);
     if (temp->is_agm_initialized()) {
         if(android::OK != agm_service->registerAsService()) {
             AHAL_ERR("Could not register AGM service");
@@ -1032,7 +1031,6 @@ void AudioExtn::audio_extn_perf_lock_release(int *handle)
 
 //END: KPI_OPTIMIZE =============================================================================
 
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
 // START: compress_capture =====================================================
 
 std::vector<uint32_t> CompressCapture::sAacSampleRates = {
@@ -1089,9 +1087,9 @@ bool CompressCapture::getAACMinBitrateValue(uint32_t sampleRate,
                                             uint32_t channelCount,
                                             int32_t &minValue) {
     if (channelCount == 1) {
-        minValue = 4000;
+        minValue = kAacMonoMinSupportedBitRate;
     } else if (channelCount == 2) {
-        minValue = 8000;
+        minValue = kAacStereoMinSupportedBitRate;
     } else {
         return false;
     }
@@ -1102,9 +1100,11 @@ bool CompressCapture::getAACMaxBitrateValue(uint32_t sampleRate,
                                             uint32_t channelCount,
                                             int32_t &maxValue) {
     if (channelCount == 1) {
-        maxValue = (int32_t)std::min((uint32_t)192000, 6 * sampleRate);
+        maxValue = (int32_t)std::min((uint32_t)kAacMonoMaxSupportedBitRate,
+                                     6 * sampleRate);
     } else if (channelCount == 2) {
-        maxValue = (int32_t)std::min((uint32_t)384000, 12 * sampleRate);
+        maxValue = (int32_t)std::min((uint32_t)kAacStereoMaxSupportedBitRate,
+                                     12 * sampleRate);
     } else {
         return false;
     }
@@ -1140,4 +1140,130 @@ bool CompressCapture::getAACMaxBufferSize(struct audio_config *config,
 }
 
 // END: compress_capture =======================================================
+
+#ifdef SEC_AUDIO_DSM_AMP
+// START: FEEDBACK =======================================================
+void AudioSpeakerFeedback::init()
+{
+#ifdef SEC_AUDIO_DUMP
+    char property_value[PROPERTY_VALUE_MAX] = {0};
+#endif
+#ifdef SEC_AUDIO_VI_FEEDBACK
+    // use vi feedback stream for vi sensing
+    enable_stream = true;
+#else
+    enable_stream = false;
+#ifdef SEC_AUDIO_DUMP
+    if (property_get("vendor.audio.vifeedback.dump", property_value, NULL) > 0) {
+        enable_stream = atoi(property_value);
+    }
+#endif // SEC_AUDIO_DUMP
+#endif // SEC_AUDIO_VI_FEEDBACK
+
+    feedback_stream_handle = NULL;
+}
+
+int AudioSpeakerFeedback::open(pal_stream_callback pal_callback) {
+    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+
+    int ret = 0;
+    struct pal_channel_info out_ch_info = {0, {0}};
+
+    struct pal_device* feedbackDevice;
+
+    if (feedback_stream_handle != NULL) {
+        AHAL_DBG("AudioSpeakerFeedback is already opened");
+        return ret;
+    }
+    feedback_stream_handle = NULL;
+
+    out_ch_info.channels = 2;
+    out_ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
+    out_ch_info.ch_map[1] = PAL_CHMAP_CHANNEL_FR;
+
+    feedback_sattr.type = PAL_STREAM_LOOPBACK;
+    feedback_sattr.flags = (pal_stream_flags_t)0;
+    feedback_sattr.direction = PAL_AUDIO_INPUT_OUTPUT;
+    feedback_sattr.out_media_config.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+    feedback_sattr.out_media_config.bit_width = CODEC_BACKEND_FEEDBACK_BIT_WIDTH;
+    feedback_sattr.out_media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    feedback_sattr.out_media_config.ch_info = out_ch_info;
+    feedback_sattr.info.opt_stream_info.loopback_type = PAL_STREAM_LOOPBACK_CAPTURE_ONLY;
+
+    feedbackDevice = new pal_device;
+    feedbackDevice->id = PAL_DEVICE_IN_VI_FEEDBACK;
+    memset(feedbackDevice->custom_config.custom_key, 0, PAL_MAX_CUSTOM_KEY_SIZE);
+
+    ret = pal_stream_open(&feedback_sattr,
+                            1/* Single device */,
+                            feedbackDevice,
+                            0,
+                            NULL,
+                            pal_callback,
+                            (uint64_t) this,
+                            &feedback_stream_handle);
+    if (ret) {
+        AHAL_ERR("Pal Feedback Stream Open Error (%x)", ret);
+        // Not fatal so ignoring the error.
+        ret = 0;
+    } else {
+        AHAL_DBG("AudioSpeakerFeedback is opend");
+    }
+    return ret;
+}
+
+int AudioSpeakerFeedback::start()
+{
+    int ret = 0;
+    if (feedback_stream_handle) {
+        ret = pal_stream_start(feedback_stream_handle);
+        if (ret) {
+            AHAL_ERR("failed to start feedback stream. ret=%d", ret);
+            pal_stream_close(feedback_stream_handle);
+            feedback_stream_handle = NULL;
+            ret = 0; // Not fatal error
+        } else {
+            AHAL_DBG("AudioSpeakerFeedback is started");
+        }
+    } else {
+        AHAL_DBG("AudioSpeakerFeedback is not active");
+    }
+    return ret;
+}
+
+int AudioSpeakerFeedback::stop()
+{
+    int ret = 0;
+    if (feedback_stream_handle) {
+        ret = pal_stream_stop(feedback_stream_handle);
+        if (ret) {
+            AHAL_ERR("failed to stop feedback path");
+            ret = 0;
+        } else {
+            AHAL_DBG("AudioSpeakerFeedback is stopped");
+        }
+    } else {
+        AHAL_DBG("AudioSpeakerFeedback is not active");
+    }
+    return ret;
+}
+
+int AudioSpeakerFeedback::close()
+{
+    int ret = 0;
+    if (feedback_stream_handle) {
+        ret = pal_stream_close(feedback_stream_handle);
+        if (ret) {
+            AHAL_ERR("failed to close feedback path");
+            ret = 0;
+        } else {
+            AHAL_DBG("AudioSpeakerFeedback is closed");
+            feedback_stream_handle = NULL;
+        }
+    } else {
+        AHAL_DBG("AudioSpeakerFeedback is not active");
+    }
+    return ret;
+}
+// END: FEEDBACK =======================================================
 #endif

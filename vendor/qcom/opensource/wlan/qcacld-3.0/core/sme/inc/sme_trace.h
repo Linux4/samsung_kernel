@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -106,7 +107,6 @@ enum smecodetype {
 	TRACE_CODE_SME_RX_HDD_RESET_PW5G,
 	TRACE_CODE_SME_RX_HDD_UPDATE_RP5G,
 	TRACE_CODE_SME_RX_HDD_SET_ROAMIBAND,
-	TRACE_CODE_SME_RX_HDD_GET_ROAMIBAND,
 	TRACE_CODE_SME_RX_HDD_UPDATE_RSSIDIFF,
 	TRACE_CODE_SME_RX_HDD_UPDATE_IMMRSSIDIFF,
 	TRACE_CODE_SME_RX_HDD_UPDATE_FTENABLED,

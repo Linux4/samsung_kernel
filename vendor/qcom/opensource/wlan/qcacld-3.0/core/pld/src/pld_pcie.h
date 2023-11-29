@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -412,6 +412,11 @@ static inline int pld_pcie_get_msi_irq(struct device *dev, unsigned int vector)
 	return 0;
 }
 
+static inline bool pld_pcie_is_one_msi(struct device *dev)
+{
+	return false;
+}
+
 static inline void pld_pcie_get_msi_address(struct device *dev,
 					    uint32_t *msi_addr_low,
 					    uint32_t *msi_addr_high)
@@ -428,7 +433,61 @@ static inline bool pld_pcie_platform_driver_support(void)
 {
 	return false;
 }
+
+static inline bool pld_pcie_is_direct_link_supported(struct device *dev)
+{
+	return false;
+}
+
+static inline
+int pld_pcie_audio_smmu_map(struct device *dev, phys_addr_t paddr,
+			    dma_addr_t iova, size_t size)
+{
+	return 0;
+}
+
+static inline
+void pld_pcie_audio_smmu_unmap(struct device *dev, dma_addr_t iova, size_t size)
+{
+}
+
+static inline int pld_pcie_set_wfc_mode(struct device *dev,
+					enum pld_wfc_mode wfc_mode)
+{
+	return 0;
+}
+
+static inline int pld_pci_thermal_register(struct device *dev,
+					   unsigned long max_state,
+					   int mon_id)
+{
+	return 0;
+}
+
+static inline void pld_pci_thermal_unregister(struct device *dev,
+					      int mon_id)
+{
+}
+
+static inline int pld_pci_get_thermal_state(struct device *dev,
+					    unsigned long *thermal_state,
+					    int mon_id)
+{
+	return 0;
+}
+
 #else
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+int pld_pcie_set_wfc_mode(struct device *dev,
+			  enum pld_wfc_mode wfc_mode);
+#else
+static inline int pld_pcie_set_wfc_mode(struct device *dev,
+					enum pld_wfc_mode wfc_mode)
+{
+	return 0;
+}
+#endif
+
 int pld_pcie_get_fw_files_for_target(struct device *dev,
 				     struct pld_fw_files *pfw_files,
 				     u32 target_type, u32 target_version);
@@ -702,6 +761,18 @@ static inline int pld_pcie_get_msi_irq(struct device *dev, unsigned int vector)
 	return cnss_get_msi_irq(dev, vector);
 }
 
+#ifdef WLAN_ONE_MSI_VECTOR
+static inline bool pld_pcie_is_one_msi(struct device *dev)
+{
+	return cnss_is_one_msi(dev);
+}
+#else
+static inline bool pld_pcie_is_one_msi(struct device *dev)
+{
+	return false;
+}
+#endif
+
 static inline void pld_pcie_get_msi_address(struct device *dev,
 					    uint32_t *msi_addr_low,
 					    uint32_t *msi_addr_high)
@@ -718,5 +789,62 @@ static inline bool pld_pcie_platform_driver_support(void)
 {
 	return true;
 }
+
+static inline int pld_pci_thermal_register(struct device *dev,
+					   unsigned long max_state,
+					   int mon_id)
+{
+	return cnss_thermal_cdev_register(dev, max_state, mon_id);
+}
+
+static inline void pld_pci_thermal_unregister(struct device *dev,
+					      int mon_id)
+{
+	cnss_thermal_cdev_unregister(dev, mon_id);
+}
+
+static inline int pld_pci_get_thermal_state(struct device *dev,
+					    unsigned long *thermal_state,
+					    int mon_id)
+{
+	return cnss_get_curr_therm_cdev_state(dev, thermal_state, mon_id);
+}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+static inline bool pld_pcie_is_direct_link_supported(struct device *dev)
+{
+	return cnss_get_fw_cap(dev, CNSS_FW_CAP_DIRECT_LINK_SUPPORT);
+}
+
+static inline
+int pld_pcie_audio_smmu_map(struct device *dev, phys_addr_t paddr,
+			    dma_addr_t iova, size_t size)
+{
+	return cnss_audio_smmu_map(dev, paddr, iova, size);
+}
+
+static inline
+void pld_pcie_audio_smmu_unmap(struct device *dev, dma_addr_t iova, size_t size)
+{
+	cnss_audio_smmu_unmap(dev, iova, size);
+}
+#else
+static inline bool pld_pcie_is_direct_link_supported(struct device *dev)
+{
+	return false;
+}
+
+static inline
+int pld_pcie_audio_smmu_map(struct device *dev, phys_addr_t paddr,
+			    dma_addr_t iova, size_t size)
+{
+	return 0;
+}
+
+static inline
+void pld_pcie_audio_smmu_unmap(struct device *dev, dma_addr_t iova, size_t size)
+{
+}
+#endif
 #endif
 #endif

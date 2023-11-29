@@ -231,16 +231,15 @@ static unsigned long damon_pa_apply_scheme(struct damon_ctx *ctx,
 
 		ClearPageReferenced(page);
 		test_and_clear_page_young(page);
-		if (isolate_lru_page(page)) {
-			put_page(page);
-			continue;
-		}
-		if (PageUnevictable(page)) {
+		if (isolate_lru_page(page))
+			goto put_page;
+		if (PageUnevictable(page))
 			putback_lru_page(page);
-		} else {
+		else
 			list_add(&page->lru, &page_list);
-			put_page(page);
-		}
+
+put_page:
+		put_page(page);
 	}
 	applied = reclaim_pages(&page_list);
 	cond_resched();

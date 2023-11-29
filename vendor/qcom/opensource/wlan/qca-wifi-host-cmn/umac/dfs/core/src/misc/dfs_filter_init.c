@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2002-2006, Atheros Communications Inc.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
@@ -292,7 +293,7 @@ int dfs_main_attach(struct wlan_dfs *dfs)
 	 * is available.
 	 */
 	if (dfs_init_radar_filters(dfs, &radar_info)) {
-		dfs_err(dfs, WLAN_DEBUG_DFS_ALWAYS,  "Radar Filter Intialization Failed");
+		dfs_err(dfs, WLAN_DEBUG_DFS_ALWAYS,  "Radar Filter Initialization Failed");
 		return 1;
 	}
 

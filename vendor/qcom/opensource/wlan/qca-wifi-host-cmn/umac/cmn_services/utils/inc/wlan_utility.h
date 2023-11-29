@@ -854,8 +854,8 @@ bool wlan_get_connected_vdev_by_mld_addr(struct wlan_objmgr_psoc *psoc,
  * @rssi: rssi
  *
  * This function gets the rssi based on db2dbm support. If this feature is
- * present in hw then it means firmware directly sends rssi and no converstion
- * is required. If this capablity is not present then host needs to convert
+ * present in hw then it means firmware directly sends rssi and no conversion
+ * is required. If this capability is not present then host needs to convert
  * snr to rssi
  *
  * Return: None
@@ -940,6 +940,7 @@ uint16_t wlan_util_get_peer_count_for_mode(struct wlan_objmgr_pdev *pdev,
  * @WLAN_MD_DP_SRNG_REO2PPE- dp_srng type PPE rx ring
  * @WLAN_MD_DP_SRNG_PPE2TCL - dp_srng type for PPE tx ring
  * @WLAN_MD_DP_SRNG_PPE_RELEASE - dp_srng type for PPE tx com ring
+ * @WLAN_MD_DP_SRNG_PPE_WBM2SW_RELEASE - dp_srng type for PPE2TCL tx com ring
  * @WLAN_MD_MAX - Max value
  */
 enum wlan_minidump_host_data {
@@ -980,6 +981,7 @@ enum wlan_minidump_host_data {
 	WLAN_MD_DP_SRNG_REO2PPE,
 	WLAN_MD_DP_SRNG_PPE2TCL,
 	WLAN_MD_DP_SRNG_PPE_RELEASE,
+	WLAN_MD_DP_SRNG_PPE_WBM2SW_RELEASE,
 	WLAN_MD_MAX
 };
 

@@ -97,8 +97,36 @@ enum CMEM_MEM_CLIENTS {
 #define WBM2SW_REL_ERR_RING_NUM 5
 #endif
 
+#ifdef WLAN_SUPPORT_PPEDS
+/* The MAX PPE PRI2TID */
+#define DP_TX_INT_PRI2TID_MAX 15
+
+#define DP_TX_PPEDS_POOL_ID 0
+
+/* size of CMEM needed for a ppeds tx desc pool */
+#define DP_TX_PPEDS_DESC_POOL_CMEM_SIZE \
+	((WLAN_CFG_NUM_PPEDS_TX_DESC_MAX / DP_CC_SPT_PAGE_MAX_ENTRIES) * \
+	 DP_CC_PPT_ENTRY_SIZE_4K_ALIGNED)
+
+/* Offset of ppeds tx descripotor pool */
+#define DP_TX_PPEDS_DESC_CMEM_OFFSET 0
+
+#define PEER_ROUTING_USE_PPE 1
+#define PEER_ROUTING_ENABLED 1
+#define DP_PPE_INTR_STRNG_LEN 32
+#define DP_PPE_INTR_MAX 3
+
+#else
+#define DP_TX_PPEDS_DESC_CMEM_OFFSET 0
+#define DP_TX_PPEDS_DESC_POOL_CMEM_SIZE 0
+
+#define DP_PPE_INTR_STRNG_LEN 0
+#define DP_PPE_INTR_MAX 0
+#endif
+
 /* tx descriptor are programmed at start of CMEM region*/
-#define DP_TX_DESC_CMEM_OFFSET	0
+#define DP_TX_DESC_CMEM_OFFSET \
+	(DP_TX_PPEDS_DESC_CMEM_OFFSET + DP_TX_PPEDS_DESC_POOL_CMEM_SIZE)
 
 /* size of CMEM needed for a tx desc pool*/
 #define DP_TX_DESC_POOL_CMEM_SIZE \
@@ -117,11 +145,6 @@ enum CMEM_MEM_CLIENTS {
 /* get ppt_id from CMEM_OFFSET */
 #define DP_CMEM_OFFSET_TO_PPT_ID(offset) \
 	((offset) / DP_CC_PPT_ENTRY_SIZE_4K_ALIGNED)
-
-/* The MAX PPE PRI2TID */
-#ifdef WLAN_SUPPORT_PPEDS
-#define DP_TX_INT_PRI2TID_MAX 15
-#endif
 
 /**
  * struct dp_spt_page_desc - secondary page table page descriptors
@@ -211,7 +234,37 @@ struct dp_ppe_vp_profile {
 	uint8_t to_fw;
 	uint8_t use_ppe_int_pri;
 };
+
+/**
+ * struct dp_ppeds_tx_desc_pool_s - PPEDS Tx Descriptor Pool
+ * @elem_size: Size of each descriptor
+ * @num_allocated: Number of used descriptors
+ * @freelist: Chain of free descriptors
+ * @desc_pages: multiple page allocation information for actual descriptors
+ * @elem_count: Number of descriptors in the pool
+ * @num_free: Number of free descriptors
+ * @lock- Lock for descriptor allocation/free from/to the pool
+ */
+struct dp_ppeds_tx_desc_pool_s {
+	uint16_t elem_size;
+	uint32_t num_allocated;
+	struct dp_tx_desc_s *freelist;
+	struct qdf_mem_multi_page_t desc_pages;
+	uint16_t elem_count;
+	uint32_t num_free;
+	qdf_spinlock_t lock;
+};
 #endif
+
+/**
+ * struct dp_ppeds_napi - napi parameters for ppe ds
+ * @napi: napi structure to register with napi infra
+ * @ndev: net_dev structure
+ */
+struct dp_ppeds_napi {
+	struct napi_struct napi;
+	struct net_device ndev;
+};
 
 /**
  * struct dp_soc_be - Extended DP soc for BE targets
@@ -230,13 +283,16 @@ struct dp_ppe_vp_profile {
  * @mld_peer_hash: peer hash table for ML peers
  *           Associated peer with this MAC address)
  * @mld_peer_hash_lock: lock to protect mld_peer_hash
+ * @ppe_ds_int_mode_enabled: PPE DS interrupt mode enabled
  * @reo2ppe_ring: REO2PPE ring
  * @ppe2tcl_ring: PPE2TCL ring
- * @ppe_release_ring: PPE release ring
  * @ppe_vp_tbl: PPE VP table
  * @ppe_vp_tbl_lock: PPE VP table lock
  * @num_ppe_vp_entries : Number of PPE VP entries
  * @ipa_bank_id: TCL bank id used by IPA
+ * @ppeds_tx_cc_ctx: Cookie conversion context for ppeds tx desc pool
+ * @ppeds_tx_desc: PPEDS tx desc pool
+ * @ppeds_handle: PPEDS soc instance handle
  */
 struct dp_soc_be {
 	struct dp_soc soc;
@@ -252,12 +308,19 @@ struct dp_soc_be {
 	struct dp_hw_cookie_conversion_t tx_cc_ctx[MAX_TXDESC_POOLS];
 	struct dp_hw_cookie_conversion_t rx_cc_ctx[MAX_RXDESC_POOLS];
 #ifdef WLAN_SUPPORT_PPEDS
+	uint8_t ppeds_int_mode_enabled:1,
+		ppeds_stopped:1;
 	struct dp_srng reo2ppe_ring;
 	struct dp_srng ppe2tcl_ring;
-	struct dp_srng ppe_release_ring;
+	struct dp_srng ppeds_wbm_release_ring;
 	struct dp_ppe_vp_tbl_entry *ppe_vp_tbl;
+	struct dp_hw_cookie_conversion_t ppeds_tx_cc_ctx;
+	struct dp_ppeds_tx_desc_pool_s ppeds_tx_desc;
+	struct dp_ppeds_napi ppeds_napi_ctxt;
+	void *ppeds_handle;
 	qdf_mutex_t ppe_vp_tbl_lock;
 	uint8_t num_ppe_vp_entries;
+	char irq_name[DP_PPE_INTR_MAX][DP_PPE_INTR_STRNG_LEN];
 #endif
 #ifdef WLAN_FEATURE_11BE_MLO
 #ifdef WLAN_MLO_MULTI_CHIP
@@ -336,6 +399,9 @@ struct dp_vdev_be {
  */
 struct dp_peer_be {
 	struct dp_peer peer;
+#ifdef WLAN_SUPPORT_PPEDS
+	uint8_t priority_valid;
+#endif
 };
 
 /**
@@ -530,6 +596,9 @@ struct dp_peer_be *dp_get_be_peer_from_dp_peer(struct dp_peer *peer)
 {
 	return (struct dp_peer_be *)peer;
 }
+
+void dp_ppeds_disable_irq(struct dp_soc *soc, struct dp_srng *srng);
+void dp_ppeds_enable_irq(struct dp_soc *soc, struct dp_srng *srng);
 
 QDF_STATUS
 dp_hw_cookie_conversion_attach(struct dp_soc_be *be_soc,
@@ -752,6 +821,8 @@ uint32_t dp_desc_pool_get_cmem_base(uint8_t chip_id, uint8_t desc_pool_id,
 		return (DP_RX_DESC_CMEM_OFFSET +
 			((chip_id * MAX_RXDESC_POOLS) + desc_pool_id) *
 			DP_RX_DESC_POOL_CMEM_SIZE);
+	case DP_TX_PPEDS_DESC_TYPE:
+		return DP_TX_PPEDS_DESC_CMEM_OFFSET;
 	default:
 			QDF_BUG(0);
 	}
@@ -781,19 +852,4 @@ void dp_mlo_update_link_to_pdev_unmap(struct dp_soc *soc, struct dp_pdev *pdev)
 {
 }
 #endif
-
-/*
- * dp_txrx_set_vdev_param_be: target specific ops while setting vdev params
- * @soc : DP soc handle
- * @vdev: pointer to vdev structure
- * @param: parameter type to get value
- * @val: value
- *
- * return: QDF_STATUS
- */
-QDF_STATUS dp_txrx_set_vdev_param_be(struct dp_soc *soc,
-				     struct dp_vdev *vdev,
-				     enum cdp_vdev_param_type param,
-				     cdp_config_param_type val);
-
 #endif

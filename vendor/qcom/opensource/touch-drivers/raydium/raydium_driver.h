@@ -262,12 +262,16 @@
 #define CONFIG_DRM
 #endif
 
+#if IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER)
+#define CONFIG_PANEL_NOTIFIER
+#endif
+
 #include <linux/device.h>
 #include <linux/fb.h>
 #include <linux/notifier.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
-#elif defined(CONFIG_DRM)
+#elif defined(CONFIG_DRM) || defined(CONFIG_PANEL_NOTIFIER)
 #include <drm/drm_panel.h>
 #endif
 
@@ -303,7 +307,7 @@ struct raydium_ts_data {
 	bool irq_enabled;
 	bool irq_wake;
 
-#if defined(CONFIG_FB) || defined(CONFIG_DRM)
+#if defined(CONFIG_FB) || defined(CONFIG_DRM) || defined(CONFIG_PANEL_NOTIFIER)
 	struct notifier_block fb_notif;
 	int blank;
 	enum raydium_fb_state fb_state;

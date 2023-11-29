@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -87,12 +88,16 @@ struct action_oui_priv {
 /**
  * struct action_oui_psoc_priv - Private object to be stored in psoc
  * @psoc: pointer to psoc object
+ * @action_oui_enable: action oui enable
+ * @action_oui_str: oui configuration strings
  * @total_extensions: total count of extensions from all actions
  * @oui_priv: array of pointers used to refer each action info
  * @tx_ops: call-back functions to send OUIs to firmware
  */
 struct action_oui_psoc_priv {
 	struct wlan_objmgr_psoc *psoc;
+	bool action_oui_enable;
+	uint8_t action_oui_str[ACTION_OUI_MAXIMUM_ID][ACTION_OUI_MAX_STR_LEN];
 	uint32_t total_extensions;
 	struct action_oui_priv *oui_priv[ACTION_OUI_MAXIMUM_ID];
 	struct action_oui_tx_ops tx_ops;
@@ -102,7 +107,7 @@ struct action_oui_psoc_priv {
  * action_oui_parse() - Parse action oui string
  * @psoc_priv: pointer to action_oui psoc priv obj
  * @oui_string: string to be parsed
- * @ation_id: type of the action to be parsed
+ * @action_id: type of the action to be parsed
  *
  * This function parses the action oui string, extracts extensions and
  * stores them @action_oui_priv using list data structure.
@@ -115,9 +120,26 @@ action_oui_parse(struct action_oui_psoc_priv *psoc_priv,
 		 uint8_t *oui_string, enum action_oui_id action_id);
 
 /**
+ * action_oui_parse_string() - Parse action oui string
+ * @psoc: psoc object
+ * @in_str: string to be parsed
+ * @action_id: type of the action to be parsed
+ *
+ * This function will validate the input string and call action_oui_parse
+ * to parse it.
+ *
+ * Return: QDF_STATUS
+ *
+ */
+QDF_STATUS
+action_oui_parse_string(struct wlan_objmgr_psoc *psoc,
+			const uint8_t *in_str,
+			enum action_oui_id action_id);
+
+/**
  * action_oui_send() - Send action oui extensions to target_if.
  * @psoc_priv: pointer to action_oui psoc priv obj
- * @ation_id: type of the action to be send
+ * @action_id: type of the action to send
  *
  * This function sends action oui extensions to target_if.
  *
@@ -144,4 +166,16 @@ action_oui_search(struct action_oui_psoc_priv *psoc_priv,
 		  struct action_oui_search_attr *attr,
 		  enum action_oui_id action_id);
 
+/**
+ * action_oui_is_empty() - Check action oui present or not
+ * @psoc_priv: action psoc private object
+ * @action_id: action oui id
+ *
+ * This function will check action oui present or not for specific action type.
+ *
+ * Return: True if no action oui for the action type.
+ */
+bool
+action_oui_is_empty(struct action_oui_psoc_priv *psoc_priv,
+		    enum action_oui_id action_id);
 #endif /* End  of _WLAN_ACTION_OUI_PRIV_STRUCT_H_ */

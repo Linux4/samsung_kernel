@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -179,6 +180,18 @@ QDF_STATUS target_if_dbr_buf_release(struct wlan_objmgr_pdev *pdev,
  */
 QDF_STATUS target_if_dbr_update_pdev_for_hw_mode_change(
 		struct wlan_objmgr_pdev *pdev, int phy_idx);
+
+/**
+ * target_if_dbr_set_event_handler_ctx() - Set the context for
+ *                                         DBR event execution
+ * @psoc: Pointer to psoc object
+ * @dbr_handler_ctx: DBR event handler context
+ *
+ * Return: QDF status of operation
+ */
+QDF_STATUS target_if_dbr_set_event_handler_ctx(
+		struct wlan_objmgr_psoc *psoc,
+		enum wmi_rx_exec_ctx dbr_handler_ctx);
 #else /* DIRECT_BUF_RX_ENABLE*/
 
 static inline QDF_STATUS
@@ -200,6 +213,14 @@ target_if_dbr_buf_release(struct wlan_objmgr_pdev *pdev,
 static inline QDF_STATUS
 target_if_dbr_update_pdev_for_hw_mode_change(
 		struct wlan_objmgr_pdev *pdev, int phy_idx)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+target_if_dbr_set_event_handler_ctx(
+		struct wlan_objmgr_psoc *psoc,
+		enum wmi_rx_exec_ctx dbr_handler_ctx)
 {
 	return QDF_STATUS_SUCCESS;
 }

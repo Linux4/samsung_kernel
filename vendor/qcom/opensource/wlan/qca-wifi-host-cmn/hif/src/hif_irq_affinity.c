@@ -18,9 +18,9 @@
  */
 
 /**
- * DOC: hif_irq_afinity.c
+ * DOC: hif_irq_affinity.c
  *
- * This irq afinity implementation is os dependent, so this can be treated as
+ * This irq affinity implementation is os dependent, so this can be treated as
  * an abstraction layer...  Should this be moved into a /linux folder?
  */
 
@@ -286,7 +286,7 @@ static int hncm_exec_migrate_to(struct qca_napi_data *napid, uint8_t ctx_id,
  * @napid: pointer to NAPI block
  * @act  : RELOCATE | COLLAPSE | DISPERSE
  *
- * Finds the designated destionation for the next IRQ.
+ * Finds the designated destination for the next IRQ.
  * RELOCATE: translated to either COLLAPSE or DISPERSE based
  *           on napid->napi_mode (throughput state)
  * COLLAPSE: All have the same destination: the first online CPU in lilcl

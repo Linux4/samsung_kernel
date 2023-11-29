@@ -28,7 +28,7 @@
 #include "blk-mq-tag.h"
 #include "blk-mq-sched.h"
 #include "ssg.h"
-#include "blk-sec-stats.h"
+#include "blk-sec.h"
 
 #define MAX_ASYNC_WRITE_RQS	8
 
@@ -403,7 +403,7 @@ static void ssg_depth_updated(struct blk_mq_hw_ctx *hctx)
 	ssg->congestion_threshold_rqs = depth * congestion_threshold / 100U;
 
 	kfree(ssg->rq_info);
-	ssg->rq_info = kmalloc(depth * sizeof(struct ssg_request_info),
+	ssg->rq_info = kmalloc_array(depth, sizeof(struct ssg_request_info),
 			GFP_KERNEL | __GFP_ZERO);
 	if (ZERO_OR_NULL_PTR(ssg->rq_info))
 		ssg->rq_info = NULL;
@@ -413,6 +413,7 @@ static void ssg_depth_updated(struct blk_mq_hw_ctx *hctx)
 			ssg->async_write_shallow_depth);
 
 	ssg_blkcg_depth_updated(hctx);
+	ssg_wb_depth_updated(hctx);
 }
 
 static inline bool ssg_op_is_async_write(unsigned int op)
@@ -532,7 +533,8 @@ static int ssg_init_queue(struct request_queue *q, struct elevator_type *e)
 	atomic_set(&ssg->async_write_rqs, 0);
 	ssg->congestion_threshold_rqs =
 		q->nr_requests * congestion_threshold / 100U;
-	ssg->rq_info = kmalloc(q->nr_requests * sizeof(struct ssg_request_info),
+	ssg->rq_info = kmalloc_array(q->nr_requests,
+			sizeof(struct ssg_request_info),
 			GFP_KERNEL | __GFP_ZERO);
 	if (ZERO_OR_NULL_PTR(ssg->rq_info))
 		ssg->rq_info = NULL;
@@ -753,9 +755,10 @@ static ssize_t ssg_var_show(int var, char *page)
 
 static void ssg_var_store(int *var, const char *page)
 {
-	char *p = (char *) page;
+	long val;
 
-	*var = simple_strtol(p, &p, 10);
+	if (!kstrtol(page, 10, &val))
+		*var = val;
 }
 
 #define SHOW_FUNCTION(__FUNC, __VAR, __CONV)				\
@@ -820,14 +823,14 @@ static struct elv_fs_entry ssg_attrs[] = {
 	SSG_STAT_ATTR_RO(rqs_info),
 
 #if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
+	SSG_ATTR(wb_on_rqs),
+	SSG_ATTR(wb_off_rqs),
+	SSG_ATTR(wb_on_write_bytes),
+	SSG_ATTR(wb_off_write_bytes),
+	SSG_ATTR(wb_on_sync_write_bytes),
+	SSG_ATTR(wb_off_sync_write_bytes),
 	SSG_ATTR(wb_off_delay_msecs),
-	SSG_ATTR(wb_on_threshold_rqs),
-	SSG_ATTR(wb_on_threshold_bytes),
-	SSG_ATTR(wb_on_threshold_sync_write_bytes),
-	SSG_ATTR(wb_off_threshold_sync_write_bytes),
-	SSG_ATTR(wb_off_threshold_rqs),
-	SSG_ATTR(wb_off_threshold_bytes),
-	SSG_ATTR_RO(wb_trigger),
+	SSG_ATTR_RO(wb_triggered),
 #endif
 
 	__ATTR_NULL

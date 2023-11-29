@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,6 +31,7 @@
 #ifdef WLAN_POLICY_MGR_ENABLE
 #include "wlan_policy_mgr_api.h"
 #endif
+#include <wlan_reg_services_api.h>
 
 struct dcs_pdev_priv_obj *
 wlan_dcs_get_pdev_private_obj(struct wlan_objmgr_psoc *psoc, uint32_t pdev_id)
@@ -713,15 +714,7 @@ static void wlan_dcs_frequency_control(struct wlan_objmgr_psoc *psoc,
 	}
 }
 
-/**
- * wlan_dcs_switch_chan() - switch channel for vdev
- * @vdev: vdev ptr
- * @tgt_freq: target frequency
- * @tgt_width: target channel width
- *
- * Return: QDF_STATUS
- */
-static QDF_STATUS
+QDF_STATUS
 wlan_dcs_switch_chan(struct wlan_objmgr_vdev *vdev, qdf_freq_t tgt_freq,
 		     enum phy_ch_width tgt_width)
 {
@@ -940,7 +933,7 @@ wlan_dcs_get_chan_width_for_seg(enum wlan_dcs_chan_seg seg_idx)
  * @awgn_info: pointer to awgn info
  * @width: pointer to channel width
  *
- * This function trys to get max no interference band width according to
+ * This function tries to get max no interference band width according to
  * awgn event.
  *
  * Return: true if valid no interference band width is found, false otherwise.
@@ -1045,7 +1038,8 @@ wlan_dcs_get_available_chan_for_bw(struct wlan_objmgr_pdev *pdev,
 
 		state = wlan_reg_get_5g_bonded_channel_and_state_for_pwrmode(
 				pdev, freq, bw, &bonded_chan_ptr,
-				REG_CURRENT_PWR_MODE);
+				REG_CURRENT_PWR_MODE,
+				NO_SCHANS_PUNC);
 		if (state != CHANNEL_STATE_ENABLE)
 			continue;
 
@@ -1101,7 +1095,7 @@ wlan_dcs_get_available_chan_for_bw(struct wlan_objmgr_pdev *pdev,
  * @tgt_width: band width of the selected channel
  * @random: request for random channel
  *
- * This function trys to get no-interference chan with max possible bandwidth
+ * This function tries to get no-interference chan with max possible bandwidth
  * from pcl for sap according to awgn info.
  *
  * Return: true if available channel is found, false otherwise.
@@ -1370,6 +1364,485 @@ wlan_dcs_awgn_process(struct wlan_objmgr_psoc *psoc, uint8_t pdev_id,
 	wlan_objmgr_pdev_release_ref(pdev, WLAN_DCS_ID);
 }
 
+#ifdef CONFIG_AFC_SUPPORT
+/**
+ * wlan_dcs_afc_sel_chan() - Select SAP new channel/bandwidth when AFC updated
+ * @psoc: pointer to soc
+ * @vdev_id: vdev id
+ * @cur_freq: current channel frequency
+ * @cur_bw: current channel bandwidth
+ * @pref_bw: pointer to bandwidth of prefer to switch to when input, and target
+ *           bandwidth decided to switch to
+ *
+ * Return: target channel frequency to switch to
+ */
+static qdf_freq_t wlan_dcs_afc_sel_chan(struct wlan_objmgr_psoc *psoc,
+					uint32_t vdev_id,
+					qdf_freq_t cur_freq,
+					enum phy_ch_width cur_bw,
+					enum phy_ch_width *pref_bw)
+{
+	struct dcs_psoc_priv_obj *dcs_psoc_priv;
+	dcs_afc_select_chan_cb afc_sel_chan_cb;
+
+	if (!psoc)
+		return 0;
+
+	dcs_psoc_priv = wlan_objmgr_psoc_get_comp_private_obj(
+			psoc,
+			WLAN_UMAC_COMP_DCS);
+	if (!dcs_psoc_priv)
+		return 0;
+
+	afc_sel_chan_cb = dcs_psoc_priv->afc_sel_chan_cbk.cbk;
+	if (!afc_sel_chan_cb)
+		return 0;
+
+	return afc_sel_chan_cb(dcs_psoc_priv->afc_sel_chan_cbk.arg,
+			       vdev_id, cur_freq, cur_bw, pref_bw);
+}
+
+/**
+ * wlan_dcs_afc_get_conn_info() - Iterate function to get connection channel
+ *                                information of every vdev
+ * @pdev: pointer to pdev
+ * @object: pointer to iteration object
+ * @arg: pointer to iteration argument
+ *
+ * Return: void
+ */
+static void
+wlan_dcs_afc_get_conn_info(struct wlan_objmgr_pdev *pdev,
+			   void *object, void *arg)
+{
+	struct wlan_objmgr_vdev *vdev = object;
+	struct wlan_dcs_conn_info *conn_info = arg;
+	enum QDF_OPMODE op_mode;
+	struct wlan_channel *chan;
+	uint8_t vdev_id;
+
+	if (!vdev || !pdev || !conn_info)
+		return;
+
+	if (conn_info->exit_condition)
+		return;
+
+	if (wlan_vdev_mlme_is_active(vdev) != QDF_STATUS_SUCCESS)
+		return;
+
+	vdev_id = wlan_vdev_get_id(vdev);
+	op_mode = wlan_vdev_mlme_get_opmode(vdev);
+	chan = wlan_vdev_get_active_channel(vdev);
+	if (!chan)
+		return;
+
+	switch (op_mode) {
+	case QDF_STA_MODE:
+		if (conn_info->sta_cnt >= WLAN_DCS_MAX_STA_NUM) {
+			dcs_debug("too many STAs");
+			conn_info->exit_condition = true;
+			break;
+		}
+		conn_info->sta[conn_info->sta_cnt].freq = chan->ch_freq;
+		conn_info->sta[conn_info->sta_cnt].bw = chan->ch_width;
+		conn_info->sta[conn_info->sta_cnt].vdev_id = vdev_id;
+		conn_info->sta_cnt++;
+		break;
+	case QDF_SAP_MODE:
+		if (WLAN_REG_IS_5GHZ_CH_FREQ(chan->ch_freq)) {
+			if (conn_info->sap_5ghz_cnt >= WLAN_DCS_MAX_SAP_NUM) {
+				dcs_debug("too many 5 GHz SAPs");
+				conn_info->exit_condition = true;
+			}
+			conn_info->sap_5ghz[conn_info->sap_5ghz_cnt].freq =
+				chan->ch_freq;
+			conn_info->sap_5ghz[conn_info->sap_5ghz_cnt].bw =
+				chan->ch_width;
+			conn_info->sap_5ghz[conn_info->sap_5ghz_cnt].vdev_id =
+				vdev_id;
+			conn_info->sap_5ghz_cnt++;
+		} else if (WLAN_REG_IS_6GHZ_CHAN_FREQ(chan->ch_freq)) {
+			if (conn_info->sap_6ghz_cnt >= WLAN_DCS_MAX_SAP_NUM) {
+				dcs_debug("too many 6 GHz SAPs");
+				conn_info->exit_condition = true;
+			}
+			conn_info->sap_6ghz[conn_info->sap_6ghz_cnt].freq =
+				chan->ch_freq;
+			conn_info->sap_6ghz[conn_info->sap_6ghz_cnt].bw =
+				chan->ch_width;
+			conn_info->sap_6ghz[conn_info->sap_6ghz_cnt].vdev_id =
+				vdev_id;
+			conn_info->sap_6ghz_cnt++;
+		}
+		break;
+	default:
+		dcs_debug("not support op mode %d", op_mode);
+		conn_info->exit_condition = true;
+		break;
+	}
+}
+
+/**
+ * wlan_dcs_afc_reduce_bw() - Get target bandwidth with fixed channel frequency
+ * @pdev: pointer to pdev
+ * @freq: channel frequency which is fixed because SCC with STA
+ * @input_bw: SAP current channel bandwidth
+ *
+ * This function check every sub 20 MHz channel state which update by AFC, and
+ * reduce channel bandwidth if sub channel is disable.
+ *
+ * Return: Reduced channel bandwidth
+ */
+static enum phy_ch_width wlan_dcs_afc_reduce_bw(struct wlan_objmgr_pdev *pdev,
+						qdf_freq_t freq,
+						enum phy_ch_width input_bw)
+{
+	const struct bonded_channel_freq *bonded_chan_ptr = NULL;
+	enum channel_state state;
+	qdf_freq_t start_freq;
+	bool find;
+
+	if (input_bw <= CH_WIDTH_20MHZ)
+		return input_bw;
+
+	while (input_bw > CH_WIDTH_20MHZ) {
+		state = wlan_reg_get_5g_bonded_channel_and_state_for_freq(
+				pdev, freq, input_bw, &bonded_chan_ptr);
+		if (state != CHANNEL_STATE_ENABLE) {
+			input_bw = wlan_reg_get_next_lower_bandwidth(input_bw);
+			continue;
+		}
+		find = false;
+		start_freq = bonded_chan_ptr->start_freq;
+		while (start_freq <= bonded_chan_ptr->end_freq) {
+			if (wlan_reg_is_disable_in_secondary_list_for_freq(
+					pdev, start_freq)) {
+				find = true;
+				break;
+			}
+			start_freq += 20;
+		}
+		if (find)
+			input_bw = wlan_reg_get_next_lower_bandwidth(input_bw);
+		else
+			return input_bw;
+	}
+	return input_bw;
+}
+
+/**
+ * wlan_sap_update_tpc_on_channel() - Update vdev channel TPC parameters and
+ *                                    send TPC command
+ * @pdev: pointer to pdev
+ * @vdev_id: vdev id
+ * @freq: SAP 6 GHz channel frequency
+ * @bw: SAP 6 GHz channel bandwidth
+ *
+ * Return: void
+ */
+static void
+wlan_sap_update_tpc_on_channel(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
+			       qdf_freq_t freq, enum phy_ch_width bw)
+{
+	struct wlan_objmgr_psoc *psoc = wlan_pdev_get_psoc(pdev);
+	struct wlan_lmac_if_reg_tx_ops *tx_ops;
+	struct vdev_mlme_obj *mlme_obj;
+	struct wlan_objmgr_vdev *vdev;
+	struct reg_tpc_power_info *tpc;
+	bool is_psd;
+	uint32_t i;
+	uint16_t tx_power;
+	int16_t psd_eirp;
+	enum reg_6g_ap_type power_type;
+
+	if (!wlan_reg_is_ext_tpc_supported(psoc))
+		return;
+
+	if (wlan_reg_decide_6ghz_power_within_bw_for_freq(
+		pdev, freq, bw, &is_psd, &tx_power, &psd_eirp, &power_type) !=
+	    QDF_STATUS_SUCCESS)
+		return;
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id, WLAN_DCS_ID);
+	if (!vdev)
+		return;
+
+	tx_ops = wlan_reg_get_tx_ops(psoc);
+
+	mlme_obj = wlan_vdev_mlme_get_cmpt_obj(vdev);
+	if (!mlme_obj) {
+		dcs_err("vdev mlme obj is NULL");
+		goto release_vdev;
+	}
+
+	tpc = &mlme_obj->reg_tpc_obj;
+	if (tpc->is_psd_power != is_psd) {
+		dcs_debug("psd flag changed");
+		goto release_vdev;
+	}
+	tpc->eirp_power = tx_power;
+	tpc->power_type_6g = power_type;
+	for (i = 0; i < tpc->num_pwr_levels; i++) {
+		if (is_psd)
+			tpc->chan_power_info[i].tx_power = (uint8_t)psd_eirp;
+		else
+			tpc->chan_power_info[i].tx_power = (uint8_t)tx_power;
+	}
+
+	dcs_debug("6 GHz pwr type %d, is psd %d, pwr %d, psd %d, num pwr %d",
+		  power_type, is_psd, tx_power, psd_eirp, tpc->num_pwr_levels);
+
+	if (tx_ops->set_tpc_power)
+		tx_ops->set_tpc_power(psoc, vdev_id, tpc);
+
+release_vdev:
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_DCS_ID);
+}
+
+/**
+ * wlan_dcs_afc_sap_dcs_with_sta() - SAP channel switch when coexist with STA
+ * @pdev: pointer to pdev handle
+ * @conn_info: pointer to connection context of AFC DCS
+ *
+ * This function update TPC or restart SAP if doing SCC on 6 GHz with STA
+ *
+ * Return: void
+ */
+static void
+wlan_dcs_afc_sap_dcs_with_sta(struct wlan_objmgr_pdev *pdev,
+			      struct wlan_dcs_conn_info *conn_info)
+{
+	uint32_t i;
+	qdf_freq_t target_freq = conn_info->sta[0].freq;
+	enum phy_ch_width target_bw = CH_WIDTH_20MHZ;
+	struct wlan_objmgr_vdev *vdev;
+
+	if (!WLAN_REG_IS_6GHZ_CHAN_FREQ(conn_info->sta[0].freq))
+		return;
+
+	for (i = 0; i < conn_info->sap_6ghz_cnt; i++) {
+		if (conn_info->sap_6ghz[i].freq ==
+		    conn_info->sta[0].freq) {
+			/*
+			 * sta operate under control of ap, if stop sap,
+			 * cannot start by itself, so just update tpc as sta,
+			 * if tx power is minimum of SCC tpc commands, no
+			 * need to update sap tpc command.
+			 * assume sta will move to safe channel by ap and
+			 * sap can move channel accordingly.
+			 */
+			if (wlan_reg_is_disable_in_secondary_list_for_freq(
+					pdev, conn_info->sta[0].freq))
+				continue;
+
+			target_bw = wlan_dcs_afc_reduce_bw(
+					pdev,
+					conn_info->sap_6ghz[i].freq,
+					conn_info->sap_6ghz[i].bw);
+
+			if (target_bw == conn_info->sap_6ghz[i].bw) {
+				wlan_sap_update_tpc_on_channel(
+					pdev,
+					conn_info->sap_6ghz[i].vdev_id,
+					conn_info->sap_6ghz[i].freq,
+					target_bw);
+				continue;
+			}
+
+			vdev = wlan_objmgr_get_vdev_by_id_from_pdev(
+					pdev,
+					conn_info->sap_6ghz[i].vdev_id,
+					WLAN_DCS_ID);
+			if (!vdev)
+				continue;
+
+			/* tpc update once csa complete */
+			wlan_dcs_switch_chan(vdev, target_freq, target_bw);
+			wlan_objmgr_vdev_release_ref(vdev, WLAN_DCS_ID);
+		}
+	}
+}
+
+#ifdef WLAN_POLICY_MGR_ENABLE
+/**
+ * wlan_dcs_afc_6ghz_capable() - API to check SAP configure is able to operate
+ *                               on 6 GHz
+ * @psoc: pointer to SOC
+ * @vdev_id: vdev id
+ *
+ * Return: Return true if SAP is able to operate on 6 GHz
+ */
+static inline bool
+wlan_dcs_afc_6ghz_capable(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id)
+{
+	return policy_mgr_get_ap_6ghz_capable(psoc, vdev_id, NULL);
+}
+#else
+static inline bool
+wlan_dcs_afc_6ghz_capable(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id)
+{
+	return false;
+}
+#endif
+
+/**
+ * wlan_dcs_afc_5ghz6ghz_sap_dcs() - SAP on 5 GHz or 6 GHz channel to do
+ * channel switch.
+ * @pdev: pointer to pdev handle
+ * @conn_info: pointer to connection context for AFC DCS
+ *
+ * This function is trigger by AFC event and 6 GHz channels' state has been
+ * updated, restart SAP to SP channel if possible, gain better performance.
+ *
+ * Return: void
+ */
+static void
+wlan_dcs_afc_5ghz6ghz_sap_dcs(struct wlan_objmgr_pdev *pdev,
+			      struct wlan_dcs_conn_info *conn_info)
+{
+	uint32_t i;
+	struct wlan_objmgr_vdev *vdev;
+	uint8_t max_bw_vdev_id;
+	qdf_freq_t max_bw_freq, target_freq;
+	enum phy_ch_width max_bw = CH_WIDTH_20MHZ;
+	enum phy_ch_width pref_bw;
+
+	if (conn_info->sap_5ghz_cnt) {
+		max_bw = conn_info->sap_5ghz[0].bw;
+		max_bw_vdev_id = conn_info->sap_5ghz[0].vdev_id;
+		max_bw_freq = conn_info->sap_5ghz[0].freq;
+		for (i = 1; i < conn_info->sap_5ghz_cnt; i++) {
+			if (conn_info->sap_5ghz[i].bw > max_bw) {
+				max_bw = conn_info->sap_5ghz[i].bw;
+				max_bw_vdev_id = conn_info->sap_5ghz[i].vdev_id;
+				max_bw_freq = conn_info->sap_5ghz[i].freq;
+			}
+		}
+	} else if (conn_info->sap_6ghz_cnt) {
+		max_bw = conn_info->sap_6ghz[0].bw;
+		max_bw_vdev_id = conn_info->sap_6ghz[0].vdev_id;
+		max_bw_freq = conn_info->sap_6ghz[0].freq;
+		for (i = 1; i < conn_info->sap_6ghz_cnt; i++) {
+			if (conn_info->sap_6ghz[i].bw > max_bw) {
+				max_bw = conn_info->sap_6ghz[i].bw;
+				max_bw_vdev_id = conn_info->sap_6ghz[i].vdev_id;
+				max_bw_freq = conn_info->sap_6ghz[i].freq;
+			}
+		}
+	} else {
+		return;
+	}
+
+	/*
+	 * After several AFC event update, if maximum bandwidth shrink to
+	 * 20 MHz, set prefer bandwidth to pre-defined value like 80 MHz,
+	 * so it can expand bandwidth and gain better performance.
+	 */
+	if (max_bw == CH_WIDTH_20MHZ)
+		pref_bw = WLAN_DCS_AFC_PREFER_BW;
+	else
+		pref_bw = max_bw;
+
+	target_freq = wlan_dcs_afc_sel_chan(
+			wlan_pdev_get_psoc(pdev),
+			max_bw_vdev_id,
+			max_bw_freq, max_bw, &pref_bw);
+
+	if (!target_freq)
+		return;
+
+	if (WLAN_REG_IS_6GHZ_CHAN_FREQ(target_freq) &&
+	    conn_info->sap_5ghz_cnt) {
+		for (i = 0; i < conn_info->sap_5ghz_cnt; i++) {
+			if (!wlan_dcs_afc_6ghz_capable(
+			    wlan_pdev_get_psoc(pdev),
+			    conn_info->sap_5ghz[i].vdev_id)) {
+				dcs_debug("vdev %d has no 6 GHz capability",
+					  conn_info->sap_5ghz[i].vdev_id);
+				return;
+			}
+		}
+	}
+
+	if (conn_info->sap_5ghz_cnt) {
+		for (i = 0; i < conn_info->sap_5ghz_cnt; i++) {
+			if (target_freq == conn_info->sap_5ghz[i].freq &&
+			    pref_bw == conn_info->sap_5ghz[i].bw)
+				continue;
+			vdev = wlan_objmgr_get_vdev_by_id_from_pdev(
+					pdev,
+					conn_info->sap_5ghz[i].vdev_id,
+					WLAN_DCS_ID);
+			if (!vdev)
+				continue;
+
+			wlan_dcs_switch_chan(vdev, target_freq, pref_bw);
+			wlan_objmgr_vdev_release_ref(vdev, WLAN_DCS_ID);
+		}
+	} else if (conn_info->sap_6ghz_cnt) {
+		for (i = 0; i < conn_info->sap_6ghz_cnt; i++) {
+			if (target_freq == conn_info->sap_6ghz[i].freq &&
+			    pref_bw == conn_info->sap_6ghz[i].bw)
+				continue;
+			vdev = wlan_objmgr_get_vdev_by_id_from_pdev(
+					pdev,
+					conn_info->sap_6ghz[i].vdev_id,
+					WLAN_DCS_ID);
+			if (!vdev)
+				continue;
+
+			wlan_dcs_switch_chan(vdev, target_freq, pref_bw);
+			wlan_objmgr_vdev_release_ref(vdev, WLAN_DCS_ID);
+		}
+	}
+}
+
+/**
+ * wlan_dcs_afc_process() - Dynamic SAP channel switch after AFC update
+ * @psoc: psoc handle
+ * @pdev_id: pdev id
+ *
+ * Return: void
+ */
+static void
+wlan_dcs_afc_process(struct wlan_objmgr_psoc *psoc, uint8_t pdev_id)
+{
+	struct wlan_objmgr_pdev *pdev;
+	struct wlan_dcs_conn_info conn_info = {0};
+
+	pdev = wlan_objmgr_get_pdev_by_id(psoc, pdev_id, WLAN_DCS_ID);
+	if (!pdev) {
+		dcs_err("Invalid pdev id %d", pdev_id);
+		return;
+	}
+
+	wlan_objmgr_pdev_iterate_obj_list(pdev, WLAN_VDEV_OP,
+					  wlan_dcs_afc_get_conn_info,
+					  &conn_info, 0, WLAN_DCS_ID);
+	if (conn_info.exit_condition)
+		goto pdev_release;
+
+	if ((conn_info.sap_5ghz_cnt && conn_info.sap_6ghz_cnt) ||
+	    (!conn_info.sap_5ghz_cnt && !conn_info.sap_6ghz_cnt)) {
+		dcs_debug("NA for %d 5 GHz SAP, %d 6 GHz SAP",
+			  conn_info.sap_5ghz_cnt, conn_info.sap_6ghz_cnt);
+		goto pdev_release;
+	}
+
+	if (conn_info.sta_cnt &&
+	    !WLAN_REG_IS_24GHZ_CH_FREQ(conn_info.sta[0].freq))
+		wlan_dcs_afc_sap_dcs_with_sta(pdev, &conn_info);
+	else
+		wlan_dcs_afc_5ghz6ghz_sap_dcs(pdev, &conn_info);
+
+pdev_release:
+	wlan_objmgr_pdev_release_ref(pdev, WLAN_DCS_ID);
+}
+#else
+static inline void
+wlan_dcs_afc_process(struct wlan_objmgr_psoc *psoc, uint8_t pdev_id) {}
+#endif
+
 QDF_STATUS
 wlan_dcs_process(struct wlan_objmgr_psoc *psoc,
 		 struct wlan_host_dcs_event *event)
@@ -1426,6 +1899,9 @@ wlan_dcs_process(struct wlan_objmgr_psoc *psoc,
 		wlan_dcs_awgn_process(psoc, event->dcs_param.pdev_id,
 				      &event->awgn_info);
 		break;
+	case WLAN_HOST_DCS_AFC:
+		wlan_dcs_afc_process(psoc, event->dcs_param.pdev_id);
+		break;
 	default:
 		dcs_err("unidentified interference type reported");
 		break;
@@ -1472,7 +1948,7 @@ void wlan_dcs_set_algorithm_process(struct wlan_objmgr_psoc *psoc,
 	}
 
 	if (dcs_pdev_priv->dcs_host_params.force_disable_algorithm) {
-		dcs_debug("dcs alorithm is disabled forcely");
+		dcs_debug("dcs algorithm is disabled forcely");
 		dcs_pdev_priv->dcs_host_params.dcs_algorithm_process = false;
 		return;
 	}

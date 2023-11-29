@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -181,7 +182,8 @@ static void __dsc_dbg_trans_timeout(void *opaque_trans)
 
 	qdf_print_thread_trace(trans->thread);
 
-	if (cds_is_fw_down())
+	if (cds_is_fw_down() &&
+	    !qdf_str_eq(trans->active_desc, "hdd_soc_recovery_shutdown"))
 		dsc_err("fw is down avoid panic");
 	else
 		QDF_DEBUG_PANIC("Transition '%s' exceeded %ums",

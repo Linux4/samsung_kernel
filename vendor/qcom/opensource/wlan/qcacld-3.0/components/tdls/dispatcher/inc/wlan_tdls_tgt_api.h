@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -59,7 +60,7 @@ QDF_STATUS tgt_tdls_set_offchan_mode(struct wlan_objmgr_psoc *psoc,
 
 /**
  * tgt_tdls_send_mgmt_rsp() - process tdls mgmt response
- * @pmsg: sheduler msg
+ * @pmsg: scheduler msg
  *
  * Return: QDF_STATUS
  */
@@ -67,7 +68,7 @@ QDF_STATUS tgt_tdls_send_mgmt_rsp(struct scheduler_msg *pmsg);
 
 /**
  * tgt_tdls_send_mgmt_tx_completion() -process tx completion message
- * @pmsg: sheduler msg
+ * @pmsg: scheduler msg
  *
  * Return: QDF_STATUS
  */
@@ -75,7 +76,7 @@ QDF_STATUS tgt_tdls_send_mgmt_tx_completion(struct scheduler_msg *pmsg);
 
 /**
  * tgt_tdls_del_peer_rsp() - handle TDLS del peer response
- * @pmsg: sheduler msg
+ * @pmsg: scheduler msg
  *
  * Return: QDF_STATUS
  */
@@ -83,7 +84,7 @@ QDF_STATUS tgt_tdls_del_peer_rsp(struct scheduler_msg *pmsg);
 
 /**
  * tgt_tdls_add_peer_rsp() - handle TDLS add peer response
- * @pmsg: sheduler msg
+ * @pmsg: scheduler msg
  *
  * Return: QDF_STATUS
  */

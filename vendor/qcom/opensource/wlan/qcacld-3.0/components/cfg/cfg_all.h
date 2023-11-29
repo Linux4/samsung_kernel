@@ -51,6 +51,7 @@
 #include "cfg_legacy_dp.h"
 #include "cfg_dlm.h"
 #include "cfg_pkt_capture.h"
+#include "wlan_action_oui_cfg.h"
 
 /* Maintain Alphabetic order here while adding components */
 #define CFG_ALL \
@@ -68,4 +69,6 @@
 	CFG_PMO_ALL \
 	CFG_TDLS_ALL \
 	CFG_PKT_CAPTURE_MODE_ALL \
-	CFG_TIME_SYNC_FTM_ALL
+	CFG_TIME_SYNC_FTM_ALL \
+	CFG_ACTION_OUI
+

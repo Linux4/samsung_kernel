@@ -71,7 +71,7 @@
 #define NUM_PROPS(x)                    *((uint32_t *) PTR_TO_NUM_PROPS(x))
 #define PTR_TO_PROPS(x)                 (PTR_TO_NUM_PROPS(x) + sizeof(uint32_t))
 
-#define MAX_KVPAIR 48
+#define MAX_KVPAIR_PROPS 48
 
 void metadata_print(struct agm_meta_data_gsl* metadata)
 {
@@ -203,9 +203,10 @@ struct agm_meta_data_gsl* metadata_merge(int num, ...)
     }
     va_end(valist);
 
-    if ((merged->gkv.num_kvs > MAX_KVPAIR) || (merged->ckv.num_kvs > MAX_KVPAIR)) {
-        AGM_LOGE("Num GKVs %d Num CKVs %d more than expected: %d", merged->gkv.num_kvs,
-                                                      merged->ckv.num_kvs, MAX_KVPAIR);
+    if ((merged->gkv.num_kvs > MAX_KVPAIR_PROPS) || (merged->ckv.num_kvs > MAX_KVPAIR_PROPS)
+                                             || (merged->sg_props.num_values > MAX_KVPAIR_PROPS)) {
+        AGM_LOGE("Num GKVs %d Num CKVs %d Num Props %d more than expected: %d", merged->gkv.num_kvs,
+                                merged->ckv.num_kvs, merged->sg_props.num_values, MAX_KVPAIR_PROPS);
         free(merged);
         return NULL;
     }
@@ -270,57 +271,112 @@ struct agm_meta_data_gsl* metadata_merge(int num, ...)
     return merged;
 }
 
-int metadata_copy(struct agm_meta_data_gsl *dest, uint32_t size __unused,
+int metadata_copy(struct agm_meta_data_gsl *dest, uint32_t size,
                                               uint8_t *metadata)
 {
 
     int ret = 0;
+    int min_req_len = 0;
 
     if (!metadata) {
         AGM_LOGI("NULL metadata passed, ignoring\n");
-        return ret;
+        goto done;
     }
 
-    if ((NUM_GKV(metadata) > MAX_KVPAIR) || (NUM_CKV(metadata) > MAX_KVPAIR)) {
-        AGM_LOGE("Num GKVs %d Num CKVs %d more than expected: %d", NUM_GKV(metadata),
-                                                      NUM_CKV(metadata), MAX_KVPAIR);
+    min_req_len += sizeof(uint32_t);
+    if (size < min_req_len) {
+        AGM_LOGE("size should be atleast %d size for GKV\n", sizeof(uint32_t));
         ret = -EINVAL;
-        return ret;
+        goto done;
+
     }
 
     dest->gkv.num_kvs = NUM_GKV(metadata);
+    if (dest->gkv.num_kvs > MAX_KVPAIR_PROPS) {
+        AGM_LOGE("Num GKVs %d more than expected: %d",dest->gkv.num_kvs, MAX_KVPAIR_PROPS);
+        ret = -EINVAL;
+        goto free_metadata;
+    }
     dest->gkv.kv =  calloc(dest->gkv.num_kvs, sizeof(struct agm_key_value));
     if (!dest->gkv.kv) {
         AGM_LOGE("Memory allocation failed to copy GKV\n");
         ret = -ENOMEM;
-        return ret;
+        goto free_metadata;
+    }
+
+    min_req_len += (dest->gkv.num_kvs * sizeof(struct agm_key_value));
+    if (size < min_req_len) {
+        AGM_LOGE("Invalid GKV passed\n");
+        ret = -EINVAL;
+        goto free_metadata;
     }
     memcpy(dest->gkv.kv, PTR_TO_GKV(metadata), dest->gkv.num_kvs *
                                     sizeof(struct agm_key_value));
 
+    min_req_len += sizeof(uint32_t);
+    if (size < min_req_len) {
+        goto done;
+    }
     dest->ckv.num_kvs = NUM_CKV(metadata);
+    if (dest->ckv.num_kvs > MAX_KVPAIR_PROPS) {
+        AGM_LOGE("Num CKVs %d more than expected: %d",dest->ckv.num_kvs, MAX_KVPAIR_PROPS);
+        ret = -EINVAL;
+        goto free_metadata;
+    }
     dest->ckv.kv =  calloc(dest->ckv.num_kvs, sizeof(struct agm_key_value));
     if (!dest->ckv.kv) {
         AGM_LOGE("Memory allocation failed to copy CKV\n");
-        metadata_free(dest);
         ret = -ENOMEM;
-        return ret;
+        goto free_metadata;
+    }
+    min_req_len += (dest->ckv.num_kvs * sizeof(struct agm_key_value));
+    if (size < min_req_len) {
+        AGM_LOGE("Invalid CKV passed\n");
+        ret = -EINVAL;
+        goto free_metadata;
     }
     memcpy(dest->ckv.kv, PTR_TO_CKV(metadata), dest->ckv.num_kvs *
                                     sizeof(struct agm_key_value));
 
+    min_req_len += sizeof(uint32_t);
+    if (size < min_req_len) {
+        goto done;
+    }
     dest->sg_props.prop_id = PROP_ID(metadata);
+
+    min_req_len += sizeof(uint32_t);
+    if (size < min_req_len) {
+        AGM_LOGE("Invalid properties passed\n");
+        ret = -EINVAL;
+        goto free_metadata;
+    }
     dest->sg_props.num_values = NUM_PROPS(metadata);
+    if (dest->sg_props.num_values > MAX_KVPAIR_PROPS) {
+        AGM_LOGE("Num Props %d more than expected: %d",dest->sg_props.num_values, MAX_KVPAIR_PROPS);
+        ret = -EINVAL;
+        goto free_metadata;
+    }
+
     dest->sg_props.values =  calloc(dest->sg_props.num_values, sizeof(uint32_t));
     if (!dest->sg_props.values) {
         AGM_LOGE("Memory allocation failed to copy properties\n");
-        metadata_free(dest);
         ret = -ENOMEM;
-        return ret;
+        goto free_metadata;
+    }
+    min_req_len += (dest->sg_props.num_values * sizeof(uint32_t));
+    if (size < min_req_len) {
+        AGM_LOGE("Invalid properties passed\n");
+        ret = -EINVAL;
+        goto free_metadata;
     }
     memcpy(dest->sg_props.values, PTR_TO_PROPS(metadata),
            dest->sg_props.num_values * sizeof(uint32_t));
+    goto done;
 
+free_metadata:
+    metadata_free(dest);
+
+done:
     return ret;
 
 }

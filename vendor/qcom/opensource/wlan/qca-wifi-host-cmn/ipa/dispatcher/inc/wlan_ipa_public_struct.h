@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -79,6 +79,20 @@ enum wlan_ipa_wlan_event {
 	WLAN_IPA_CLIENT_CONNECT_EX,
 	WLAN_IPA_WLAN_EVENT_MAX
 };
+
+#ifdef IPA_OPT_WIFI_DP
+/**
+ * enum wlan_ipa_cce_super_rule_flt_hdl - Filter hdl values for cce super rules
+ * @WLAN_HDL_FILTER1 : Handle for filter1
+ * @WLAN_HDL_FILTER2 : Handle for filter 2
+ * @WLAN_HDL_MAX_FILTER : Max value for filter handle
+ */
+enum wlan_ipa_cce_super_rule_flt_hdl {
+	WLAN_HDL_FILTER1 = 0xC,
+	WLAN_HDL_FILTER2 = 0xD,
+	WLAN_HDL_MAX_FILTER
+};
+#endif
 
 /**
  * struct ipa_uc_offload_control_params - ipa offload control params
