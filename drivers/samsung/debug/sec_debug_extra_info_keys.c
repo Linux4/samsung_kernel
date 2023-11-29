@@ -12,7 +12,7 @@ static char key32[][MAX_ITEM_KEY_LEN] = {
 	"SPCNT", "LEV", "ASB", "PSITE",
 	"DDRID", "RST", "INFO2", "INFO3",
 	"RSTCNT", "HLCPU", "UP", "DOWN",
-	"WDGT",
+	"WDGT", "SCI",
 };
 
 static char key64[][MAX_ITEM_KEY_LEN] = {
@@ -45,9 +45,9 @@ static char akeys[][MAX_ITEM_KEY_LEN] = {
 	"FAULT", "BUG", "BUS", "DSSBUS",
 	"FPMU", "PC", "LR", "PANIC", "UFS",
 	"SMU", "EPD", "ESR", "UP",
-	"DOWN", "SPCNT", "FREQ", "LFRQ", "STACK",
-	"KLG", "EHLD", "UNFZ", "HLTYPE", "HLDATA",
-	"HLFREQ", "HLEHLD", "HLCPU",
+	"DOWN", "SCI", "SPCNT", "FREQ", "LFRQ",
+	"STACK", "KLG", "EHLD", "UNFZ", "HLTYPE",
+	"HLDATA", "HLFREQ", "HLEHLD", "HLCPU",
 };
 
 static char bkeys[][MAX_ITEM_KEY_LEN] = {

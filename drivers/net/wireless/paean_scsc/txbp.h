@@ -45,6 +45,8 @@ struct txbp_data {
 	u32 peers;
 };
 
+#define MX_CLAIM_STATE_DEFERRED (0x1)
+#define MX_CLAIM_STATE_CLAIMED (0x2)
 struct tx_struct {
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 	unsigned long lbm_bh_state;
@@ -57,7 +59,10 @@ struct tx_struct {
 	struct sk_buff_head *assigned_q[SLSI_TX_DATA_QUEUE_NUM];
 	struct slsi_dev *sdev;
 	struct net_device *ndev;
-	bool mx_claim;
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	spinlock_t mx_claim_lock;
+	u8 mx_claim;
+#endif
 };
 
 struct tx_netdev_data {

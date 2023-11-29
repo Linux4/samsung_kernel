@@ -2493,12 +2493,16 @@
 			};
 
 			qup-spi2-default {
-				drive-strength = <0x10>;
 				phandle = <0x38>;
 
 				pinmux {
 					pins = "gpio27\0gpio28\0gpio29\0gpio30";
 					function = "qup2";
+				};
+
+				pinconf {
+					pins = "gpio27\0gpio28\0gpio29\0gpio30";
+					drive-strength = <0x10>;
 				};
 			};
 
@@ -3094,7 +3098,7 @@
 			};
 
 			wcd_intr_default {
-				pins = <0x36>;
+				pins = "gpio54";
 				function = "gpio";
 				input-enable;
 				bias-pull-down;

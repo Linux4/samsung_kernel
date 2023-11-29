@@ -223,6 +223,8 @@
 					battery,tx_stop_capacity = <0x1e>;
 					battery,tx_minduty_default = <0x14>;
 					battery,tx_minduty_5V = <0x32>;
+					battery,tx_ping_duty_default = <0x28>;
+					battery,tx_ping_duty_no_ta = <0x28>;
 					battery,tx_uno_iout = <0x5dc>;
 					battery,tx_mfc_iout_gear = <0x5dc>;
 					battery,tx_mfc_iout_phone = <0x44c>;
@@ -233,6 +235,7 @@
 					battery,nv_wc_headroom = <0x06>;
 					battery,wpc_vout_ctrl_lcd_on;
 					battery,wpc_flicker_wa_input_limit_current = <0x1f4>;
+					battery,wpc_warm_fod;
 					battery,ttf_hv_charge_current = <0xaa8>;
 					battery,ttf_dc25_charge_current = <0xfff>;
 					battery,ttf_dc45_charge_current = <0x1336>;
@@ -4536,11 +4539,11 @@
 				battery,wireless20_max_power_list = <0x02 0x03 0x03 0x03 0x03>;
 				battery,oc_fod1 = <0x44c>;
 				battery,phone_fod_thresh1 = <0xdac>;
+				battery,buds_fod_thresh1 = <0xdac>;
 				battery,wpc_vout_ctrl_full = <0x0d>;
 				battery,tx_gear_min_op_freq_delay = <0xfa0>;
 				battery,mis_align_guide;
 				battery,mis_align_target_vout = <0x1388>;
-				battery,fw_ver = <0x2032>;
 				phandle = <0x117>;
 
 				fod_list {
@@ -4552,6 +4555,23 @@
 						cv = <0x0b 0xce 0x0b 0xba 0x0b 0xb7 0x11 0xae 0x11 0x96 0x11 0x92 0x11 0x91 0x11 0x91 0x11 0x91 0x11 0x91>;
 						full = <0x33 0xff 0x33 0xff 0x33 0xff 0x33 0xff 0x33 0xff 0x33 0xff 0x33 0xff 0x33 0xff 0x33 0xff 0x33 0xff>;
 					};
+				};
+
+				iec_data {
+					reg_56 = <0x2e>;
+					reg_57 = <0x1e>;
+					reg_5B = <0x1e>;
+					reg_84 = <0x5a>;
+					reg_85 = <0x1b>;
+					reg_86 = <0x09>;
+					reg_87 = <0x0c>;
+					reg_88 = <0xc6>;
+					reg_89 = <0x32>;
+					reg_8A = <0x6e>;
+					reg_8B = <0x5f>;
+					reg_800 = <0x32>;
+					reg_801 = <0x3c>;
+					reg_802 = <0x82>;
 				};
 			};
 		};
@@ -5877,7 +5897,7 @@
 				status = "okay";
 				compatible = "samsung,exynos-gnss";
 				interrupt-parent = <0xffffffff>;
-				interrupts = <0x00 0x22 0x04 0x00 0x00 0x1de 0x01 0x00 0x00 0x1dd 0x04 0x00 0x00 0x1dc 0x01 0x00>;
+				interrupts = <0x00 0x22 0x04 0x00 0x00 0x1de 0x04 0x00 0x00 0x1dd 0x04 0x00 0x00 0x1dc 0x01 0x00>;
 				interrupt-names = "ACTIVE\0WATCHDOG\0WAKEUP\0SW_INIT";
 				shmem,name = "KEPLER";
 				device_node_name = "gnss_ipc";
@@ -8231,8 +8251,6 @@
 
 						option {
 							votf = <0x00>;
-							vvalid_time = <0xb7e>;
-							req_vvalid_time = <0x2ee0>;
 						};
 					};
 				};

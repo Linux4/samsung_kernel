@@ -54,7 +54,7 @@ int profiler_set_freq_margin(int id, int freq_margin)
 static int profiler_get_current_cpuid(void)
 {
 	int id;
-	unsigned int core = smp_processor_id();
+	unsigned int core = get_cpu();
 
 	if (core >= BIG_BASE_ID)
 		id = PROFILER_CL2;
@@ -62,6 +62,8 @@ static int profiler_get_current_cpuid(void)
 		id = PROFILER_CL1;
 	else
 		id = PROFILER_CL0;
+	
+	put_cpu();
 
 	return id;
 }
@@ -134,39 +136,44 @@ static bool profiler_get_is_profiler_governor(struct devfreq *df)
 
 void profiler_set_profiler_governor(int mode)
 {
-	char *profiler_gpu_governor = "profiler";
+	char *profiler_governor = "profiler";
 	const int gpu_profiler_polling_interval = 16;
-	static char *saved_gpu_governor;
+	static char saved_governor[DEVFREQ_NAME_LEN + 1] = {0};
 	static int saved_polling_interval;
+	char *cur_gpu_governor;
 	int ret = 0;
 
 	if ((mode == 1) && (saved_polling_interval == 0)) {
-		/* enable gpu profiler governor */
-		saved_gpu_governor = gpu_dvfs_get_governor();
-		ret = gpu_dvfs_set_governor(profiler_gpu_governor);
-		if (ret == 0) {
-			saved_polling_interval = gpu_dvfs_get_polling_interval();
-			gpu_dvfs_set_polling_interval(gpu_profiler_polling_interval);
-			gpu_dvfs_set_autosuspend_delay(1000);
-			profiler_init_pmqos();
-		} else {
-			SGPU_LOG(profiler_adev, DMSG_WARNING, DMSG_ETC,
-				"cannot change GPU governor for PROFILER, err:%d",
-				ret);
-			saved_gpu_governor = NULL;
+		cur_gpu_governor = gpu_dvfs_get_governor();
+		/* change gpu governor to profiler if not set */
+		if (strncmp(cur_gpu_governor, profiler_governor, strlen(profiler_governor))) {
+			strncpy(saved_governor, cur_gpu_governor, DEVFREQ_NAME_LEN);
+			ret = gpu_dvfs_set_governor(profiler_governor);
+			if (!ret) {
+				saved_polling_interval = gpu_dvfs_get_polling_interval();
+				gpu_dvfs_set_polling_interval(gpu_profiler_polling_interval);
+				gpu_dvfs_set_autosuspend_delay(1000);
+				profiler_init_pmqos();
+			} else {
+				SGPU_LOG(profiler_adev, DMSG_WARNING, DMSG_ETC,
+					"cannot change GPU governor for PROFILER, err:%d", ret);
+			}
 		}
-	} else if ((mode == 0) && (saved_polling_interval > 0) && (saved_gpu_governor != NULL)) {
-		ret = gpu_dvfs_set_governor(saved_gpu_governor);
-		if (ret == 0) {
-			gpu_dvfs_set_polling_interval(saved_polling_interval);
-			saved_polling_interval = 0;
-			gpu_dvfs_set_autosuspend_delay(50);
-
-			profiler_reset_next_minlock();
-		} else {
-			SGPU_LOG(profiler_adev, DMSG_WARNING, DMSG_ETC,
-				"cannot change GPU governor back to normal, err:%d",
-				ret);
+	} else if ((mode == 0) && (saved_polling_interval > 0) && saved_governor[0] != 0) {
+		cur_gpu_governor = gpu_dvfs_get_governor();
+		/* change gpu governor to previous value if profiler */
+		if (!strncmp(cur_gpu_governor, profiler_governor, strlen(profiler_governor))) {
+			ret = gpu_dvfs_set_governor(saved_governor);
+			if (!ret) {
+				gpu_dvfs_set_polling_interval(saved_polling_interval);
+				saved_polling_interval = 0;
+				gpu_dvfs_set_autosuspend_delay(50);
+				profiler_reset_next_minlock();
+				memset(saved_governor, 0, DEVFREQ_NAME_LEN + 1);
+			} else {
+				SGPU_LOG(profiler_adev, DMSG_WARNING, DMSG_ETC,
+					"cannot change GPU governor back to %s, err:%d", saved_governor, ret);
+			}
 		}
 	} else {
 		SGPU_LOG(profiler_adev, DMSG_WARNING, DMSG_ETC,
@@ -522,7 +529,7 @@ void profiler_interframe_sw_update(ktime_t start, ktime_t end, ktime_t total)
 
 	list_tail_pos = atomic_read(&pid.list_top);
 	if (list_tail_pos < NUM_OF_PID) {
-		u8 coreid = (u8)smp_processor_id();
+		u8 coreid = (u8)get_cpu();
 		u64 mpid = (u64)current->tgid;
 		u64 hash = ((mpid >> 32) ^ mpid) & 0xffff;
 
@@ -533,6 +540,7 @@ void profiler_interframe_sw_update(ktime_t start, ktime_t end, ktime_t total)
 		pid.core_list[list_tail_pos] = coreid;
 		pid.list[list_tail_pos] = (u32)hash;
 		atomic_inc(&pid.list_top);
+		put_cpu();
 	}
 
 	profiler_pbooster(dst);

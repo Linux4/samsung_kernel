@@ -116,9 +116,9 @@ static int amdgpu_sched_context_priority_override(struct amdgpu_device *adev,
 
 	amdgpu_ctx_priority_override(ctx, priority);
 
-	if (ctx->cwsr && ctx->cwsr_ring
+	if (ctx->cwsr && ctx->resv_ring
 	    && ctx_priority <= ctx->ctx_priority) {
-		sws_ctx = &ctx->cwsr_ring->sws_ctx;
+		sws_ctx = &ctx->resv_ring->sws_ctx;
 		switch (ctx_priority) {
 		case AMDGPU_CTX_PRIORITY_HIGH:
 			sws_ctx->priority = SWS_SCHED_PRIORITY_HIGH;

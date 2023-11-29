@@ -28,6 +28,7 @@
 #include "amdgpu_rlc.h"
 #include "amdgpu_ras.h"
 #include "amdgpu_cwsr.h"
+#include "amdgpu_tmz.h"
 
 /* delay 0.1 second to enable gfx off feature */
 #define GFX_OFF_DELAY_ENABLE         msecs_to_jiffies(100)
@@ -236,6 +237,12 @@ void amdgpu_gfx_compute_queue_acquire(struct amdgpu_device *adev)
 			if (cwsr_enable && (mec > 0 || pipe > 0 || queue >= 2))
 				continue;
 
+			/* 1.0.3 is reserved for tmz */
+			if (mec == AMDGPU_TMZ_MEC &&
+			    pipe == AMDGPU_TMZ_PIPE &&
+			    queue == AMDGPU_TMZ_QUEUE)
+				continue;
+
 			/* policy: amdgpu owns the first two queues of the
 			 * first pipe of mec0: one for ACE dispatch tunnel and
 			 * second one for CWSR as mentioned above.
@@ -248,8 +255,21 @@ void amdgpu_gfx_compute_queue_acquire(struct amdgpu_device *adev)
 			max_queues_per_mec = 2;
 
 		/* policy: amdgpu owns all queues in the given pipe */
-		for (i = 0; i < max_queues_per_mec; ++i)
+		for (i = 0; i < max_queues_per_mec; ++i) {
+			queue = i % adev->gfx.mec.num_queue_per_pipe;
+			pipe = (i / adev->gfx.mec.num_queue_per_pipe)
+				% adev->gfx.mec.num_pipe_per_mec;
+			mec = (i / adev->gfx.mec.num_queue_per_pipe)
+				/ adev->gfx.mec.num_pipe_per_mec;
+
+			/* 1.0.3 is reserved for tmz */
+			if (mec == AMDGPU_TMZ_MEC &&
+			    pipe == AMDGPU_TMZ_PIPE &&
+			    queue == AMDGPU_TMZ_QUEUE)
+				continue;
+
 			set_bit(i, adev->gfx.mec.queue_bitmap);
+		}
 	}
 
         /* update the number of active compute rings */

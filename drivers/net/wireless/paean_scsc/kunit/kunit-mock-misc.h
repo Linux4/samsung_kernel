@@ -144,7 +144,7 @@ static void *kunit_mock_scsc_mx_service_mif_addr_to_ptr(struct scsc_service *ser
 
 static int kunit_mock_scsc_service_mifintrbit_register_tohost(struct scsc_service *service,
 							      void (*handler)(int irq, void *data),
-							      void *data, enum scsc_mifintr_target dir)
+							      void *data, enum scsc_mifintr_target dir, enum IRQ_TYPE irq_type)
 {
 	return 0;
 }

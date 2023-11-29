@@ -66,6 +66,9 @@
 #include "dpui.h"
 #endif
 #endif
+#if IS_ENABLED(CONFIG_USDM_PANEL)
+#include "abd.h"
+#endif
 
 struct decon_device *decon_drvdata[MAX_DECON_CNT];
 
@@ -180,6 +183,9 @@ void log_decon_bigdata(struct decon_device *decon)
 	int len;
 
 	len = mcd_drm_decon_snprintf_disp_panic(decon, buf, MAX_DECON_BIGDATA_BUF);
+#if IS_ENABLED(CONFIG_USDM_PANEL)
+	usdm_abd_simple_print(NULL, NULL, NULL);
+#endif
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
 	secdbg_exin_set_decon(buf);

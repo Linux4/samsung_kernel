@@ -1741,8 +1741,20 @@ static int slsi_start_keepalive_offload(struct wiphy *wiphy, struct wireless_dev
 	ip_send_check(ip_hdr(skb));
 
 	host_tag = slsi_tx_mgmt_host_tag(sdev);
+
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	if (scsc_mx_service_claim(sdev->service, WLAN_MLME_SEND_FRAME)) {
+		SLSI_ERR(sdev, "failed to claim the MX service\n");
+		kfree_skb(skb);
+		r = -EIO;
+		goto exit;
+	}
+#endif
 	r = slsi_mlme_send_frame_data(sdev, net_dev, skb, FAPI_MESSAGETYPE_ANY_OTHER, host_tag,
 				      0, (period * 1000));
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	scsc_mx_service_release(sdev->service, WLAN_MLME_SEND_FRAME);
+#endif
 	if (r == 0)
 		ndev_vif->sta.keepalive_host_tag[index - 1] = host_tag;
 	else
@@ -1952,14 +1964,17 @@ void slsi_lls_debug_dump_stats(struct slsi_dev *sdev, struct slsi_lls_radio_stat
 			     (sizeof(struct slsi_lls_channel_stat) * radio_stat->num_channels));
 	}
 	SLSI_DBG3(sdev, SLSI_GSCAN, "iface_stat====\n");
-	SLSI_DBG3(sdev, SLSI_GSCAN, "\tiface %p info : (mode : %d, mac_addr : %pM, state : %d, roaming : %d,"
-		  " capabilities : %d, ssid : %s, bssid : %pM, ap_country_str : [%d%d%d])\trssi_data : %d, rssi_mgmt : %d\n",
-		  iface_stat->iface, iface_stat->info.mode, iface_stat->info.mac_addr, iface_stat->info.state,
-		  iface_stat->info.roaming, iface_stat->info.capabilities, iface_stat->info.ssid,
-		  iface_stat->info.bssid, iface_stat->info.ap_country_str[0], iface_stat->info.ap_country_str[1],
-		  iface_stat->info.ap_country_str[2], iface_stat->rssi_data, iface_stat->rssi_mgmt);
-
+	SLSI_DBG3(sdev, SLSI_GSCAN, "\tiface %p\n", iface_stat->iface);
+	SLSI_DBG3(sdev, SLSI_GSCAN, "info : (mode : %d, mac_addr : %pM, state : %d, roaming : %d\n",
+		  iface_stat->info.mode, iface_stat->info.mac_addr, iface_stat->info.state, iface_stat->info.roaming);
+	SLSI_DBG3(sdev, SLSI_GSCAN, "\tcapabilities : %d, ssid : %s, bssid : %pM, ap_country_str : [%d%d%d]\n",
+		  iface_stat->info.capabilities, iface_stat->info.ssid, iface_stat->info.bssid,
+		  iface_stat->info.ap_country_str[0], iface_stat->info.ap_country_str[1],
+		  iface_stat->info.ap_country_str[2]);
+	SLSI_DBG3(sdev, SLSI_GSCAN, "\ttime_slicing_duty_cycle_percent: %d)\trssi_data : %d, rssi_mgmt : %d\n",
+		  iface_stat->time_slicing_duty_cycle_percent, iface_stat->rssi_data, iface_stat->rssi_mgmt);
 	SLSI_DBG3(sdev, SLSI_GSCAN, "\tnum_peers %d\n", iface_stat->num_peers);
+
 	for (i = 0; i < iface_stat->num_peers; i++) {
 		SLSI_DBG3(sdev, SLSI_GSCAN, "\t\tpeer_mac_address %pM\n", iface_stat->peer_info[i].peer_mac_address);
 	}
@@ -2264,6 +2279,8 @@ static void slsi_lls_iface_stat_fill(struct slsi_dev *sdev,
 	iface_stat->info.country_str[1] = sdev->device_config.domain_info.regdomain->alpha2[1];
 	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
 	iface_stat->info.country_str[2] = ' '; /* 3rd char of our country code is ASCII<space> */
+	/* Set time_slicing_duty_cycle_percent to 100 temporarily until added fw interface */
+	iface_stat->info.time_slicing_duty_cycle_percent = 100;
 
 	for (i = 0; i < SLSI_LLS_AC_MAX; i++)
 		iface_stat->ac[i].ac = SLSI_LLS_AC_MAX;

@@ -386,6 +386,7 @@ struct hip_priv {
 	atomic_t                     in_rx;
 	atomic_t                     in_suspend;
 	u32                          storm_count;
+	u32                          th_w_idx_err_count;
 
 	/*minor*/
 	u32                          minor;

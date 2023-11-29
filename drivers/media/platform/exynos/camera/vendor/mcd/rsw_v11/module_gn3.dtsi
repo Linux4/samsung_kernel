@@ -324,7 +324,7 @@
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_RAW10_POTF 2032 286	/* out */ HW_FORMAT_RAW10_POTF VC_TAILPDAF 2032 286>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
-						option { votf = <0>; vvalid_time = <2942>; req_vvalid_time = <12000>;};
+						option { votf = <0>; };
 					};
 				};
 

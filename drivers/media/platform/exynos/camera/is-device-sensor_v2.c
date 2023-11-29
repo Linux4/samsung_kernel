@@ -3542,13 +3542,18 @@ static int is_sensor_back_stop(void *device, struct is_queue *iq)
 	int ret = 0;
 	int vc;
 	struct is_device_sensor *ids = device;
+	struct is_device_ischain *idi;
 	struct is_groupmgr *groupmgr;
 	struct is_group *group;
+	int setfile = 0;
 
 	FIMC_BUG(!ids);
 
 	groupmgr = ids->groupmgr;
 	group = &ids->group_sensor;
+	idi = ids->ischain;
+	if (idi)
+		setfile = idi->setfile & IS_SETFILE_MASK;
 
 	if (!test_bit(IS_SENSOR_BACK_START, &ids->state)) {
 		mwarn("already back stop", ids);
@@ -3564,6 +3569,8 @@ static int is_sensor_back_stop(void *device, struct is_queue *iq)
 	ret = is_group_stop(groupmgr, group);
 	if (ret)
 		merr("is_group_stop is fail(%d)", ids, ret);
+	if (CHK_PIP_SAT_SCN(setfile))
+		ret = is_group_immediately_standby_done(ids->groupmgr, group);
 
 	for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++) {
 		struct is_device_csi *csi;
@@ -3606,6 +3613,7 @@ int is_sensor_standby_flush(struct is_device_sensor *device)
 {
 	struct is_group *ss_grp, *group, *child;
 	int ret = 0;
+	int setfile;
 
 	group = ss_grp = &device->group_sensor;
 
@@ -3613,6 +3621,9 @@ int is_sensor_standby_flush(struct is_device_sensor *device)
 	set_bit(IS_GROUP_STANDBY, &group->state);
 	set_bit(IS_GROUP_REQUEST_FSTOP, &group->state);
 	ret = is_group_stop(device->groupmgr, group);
+	setfile = device->ischain->setfile & IS_SETFILE_MASK;
+	if(CHK_PIP_SAT_SCN(setfile))
+		ret = is_group_immediately_standby_done(device->groupmgr, group);
 	if (ret == -EPERM) {
 		mgerr("group is already stop(%d), skip start sequence",
 				group, group, ret);

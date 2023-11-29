@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 Advanced Micro Devices, Inc.
+ * Copyright 2020-2022 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -27,6 +27,7 @@
 #include <linux/pm_runtime.h>
 #include "amdgpu.h"
 #include "amdgpu_cwsr.h"
+#include "amdgpu_tmz.h"
 
 static u32 amdgpu_sws_get_vmid_candidate(struct amdgpu_device *adev)
 {
@@ -63,18 +64,18 @@ static int amdgpu_sws_get_vmid(struct amdgpu_ring *ring,
 	id_mgr = &adev->vm_manager.id_mgr[AMDGPU_GFXHUB_0];
 
 	if (vm->reserved_vmid[AMDGPU_GFXHUB_0]) {
-		if (ring->cwsr_vmid !=
+		if (ring->priv_vmid !=
 		    vm->reserved_vmid[AMDGPU_GFXHUB_0]->cwsr_vmid) {
-			ring->cwsr_vmid =
+			ring->priv_vmid =
 				vm->reserved_vmid[AMDGPU_GFXHUB_0]->cwsr_vmid;
-			bit = ring->cwsr_vmid - AMDGPU_SWS_VMID_BEGIN;
+			bit = ring->priv_vmid - AMDGPU_SWS_VMID_BEGIN;
 			ring->vm_inv_eng = sws->inv_eng[bit];
 		} else {
-			bit = ring->cwsr_vmid - AMDGPU_SWS_VMID_BEGIN;
+			bit = ring->priv_vmid - AMDGPU_SWS_VMID_BEGIN;
 		}
 
 		DRM_DEBUG_DRIVER("%s reuse vmid:%u and invalidate eng:%u\n",
-				 ring->name, ring->cwsr_vmid, ring->vm_inv_eng);
+				 ring->name, ring->priv_vmid, ring->vm_inv_eng);
 
 		if (test_bit(bit, sws->vmid_bitmap) &&
 		    refcount_read(&vm->reserved_vmid_ref[AMDGPU_GFXHUB_0]) == 0)
@@ -87,8 +88,8 @@ static int amdgpu_sws_get_vmid(struct amdgpu_ring *ring,
 		else
 			refcount_inc(&vm->reserved_vmid_ref[AMDGPU_GFXHUB_0]);
 
-		amdgpu_gmc_cwsr_flush_gpu_tlb(ring->cwsr_vmid,
-					      vm->root.base.bo, ring);
+		amdgpu_gmc_sws_flush_gpu_tlb(ring->priv_vmid,
+					     vm->root.base.bo, ring);
 		return 0;
 	}
 
@@ -111,17 +112,17 @@ static int amdgpu_sws_get_vmid(struct amdgpu_ring *ring,
 	}
 
 	ring->vm_inv_eng = sws->inv_eng[bit];
-	ring->cwsr_vmid = bit + AMDGPU_SWS_VMID_BEGIN;
-	vmid->cwsr_vmid = ring->cwsr_vmid;
+	ring->priv_vmid = bit + AMDGPU_SWS_VMID_BEGIN;
+	vmid->cwsr_vmid = ring->priv_vmid;
 	vm->reserved_vmid[AMDGPU_GFXHUB_0] = vmid;
 
 	//set and flush VM table
 	if (!r)
-		amdgpu_gmc_cwsr_flush_gpu_tlb(ring->cwsr_vmid,
-					      vm->root.base.bo, ring);
+		amdgpu_gmc_sws_flush_gpu_tlb(ring->priv_vmid,
+					     vm->root.base.bo, ring);
 
 	DRM_DEBUG_DRIVER("%s get vmid:%u and invalidate eng:%u\n",
-			 ring->name, ring->cwsr_vmid, ring->vm_inv_eng);
+			 ring->name, ring->priv_vmid, ring->vm_inv_eng);
 	return r;
 }
 
@@ -153,8 +154,8 @@ static void amdgpu_sws_put_vmid(struct amdgpu_ring *ring,
 	if (refcount_dec_and_test(&vm->reserved_vmid_ref[AMDGPU_GFXHUB_0])) {
 		clear_bit(bit, sws->vmid_bitmap);
 
-		amdgpu_gmc_cwsr_flush_gpu_tlb(ring->cwsr_vmid,
-					      vm->root.base.bo, ring);
+		amdgpu_gmc_sws_flush_gpu_tlb(ring->priv_vmid,
+					     vm->root.base.bo, ring);
 		sws->vmid_res_state = AMDGPU_SWS_HW_RES_AVAILABLE;
 		DRM_DEBUG_DRIVER("put vmid %u\n",
 				 vm->reserved_vmid[AMDGPU_GFXHUB_0]->cwsr_vmid);
@@ -246,28 +247,29 @@ static void amdgpu_sws_put_queue(struct amdgpu_ring *ring)
 int amdgpu_sws_early_init_ctx(struct amdgpu_ctx *ctx)
 {
 	int r;
-	unsigned long flags;
 	struct amdgpu_sws *sws;
 	struct amdgpu_device *adev;
+	struct amdgpu_ring *ring;
+	struct amdgpu_sws_ctx *sws_ctx;
 
 	adev = ctx->adev;
 	sws = &adev->sws;
 
-	ctx->cwsr_ring = kzalloc(sizeof(struct amdgpu_ring), GFP_KERNEL);
-	if (ctx->cwsr_ring == NULL)
+	ctx->resv_ring = kzalloc(sizeof(struct amdgpu_ring), GFP_KERNEL);
+	if (ctx->resv_ring == NULL)
 		return -ENOMEM;
 
-	ctx->cwsr_ring->funcs = adev->gfx.compute_ring[0].funcs;
+	ctx->resv_ring->funcs = adev->gfx.compute_ring[0].funcs;
 
-	spin_lock_irqsave(&sws->lock, flags);
+	mutex_lock(&sws->lock);
 	r = ida_simple_get(&sws->doorbell_ida,
-			   adev->doorbell_index.first_cwsr,
-			   adev->doorbell_index.last_cwsr + 1,
+			   adev->doorbell_index.first_resv,
+			   adev->doorbell_index.last_resv + 1,
 			   GFP_KERNEL);
 	if (r < 0)
 		goto err1;
 
-	ctx->cwsr_ring->doorbell_index = r << 1;
+	ctx->resv_ring->doorbell_index = r << 1;
 
 	r = ida_simple_get(&sws->ring_idx_ida,
 			   adev->num_rings,
@@ -276,30 +278,35 @@ int amdgpu_sws_early_init_ctx(struct amdgpu_ctx *ctx)
 	if (r < 0)
 		goto err2;
 
-	ctx->cwsr_ring->idx = r;
+	ctx->resv_ring->idx = r;
 	if (adev->rings[r] == NULL)
-		adev->rings[r] = ctx->cwsr_ring;
+		adev->rings[r] = ctx->resv_ring;
 	else
 		goto err3;
 
-	sprintf(ctx->cwsr_ring->name, "comp_cwsr_%d", r);
+	ring = ctx->resv_ring;
+	sws_ctx = &ring->sws_ctx;
+	if (ctx->secure_mode)
+		sprintf(ring->name, "comp_tmz_%d", r);
+	else
+		sprintf(ring->name, "comp_cwsr_%d", r);
 
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
 
 	return 0;
 
 err3:
 	ida_simple_remove(&sws->ring_idx_ida,
-			  ctx->cwsr_ring->idx);
+			  ctx->resv_ring->idx);
 
 err2:
 	ida_simple_remove(&sws->doorbell_ida,
-			  ctx->cwsr_ring->doorbell_index >> 1);
+			  ctx->resv_ring->doorbell_index >> 1);
 err1:
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
 
-	kfree(ctx->cwsr_ring);
-	ctx->cwsr_ring = NULL;
+	kfree(ctx->resv_ring);
+	ctx->resv_ring = NULL;
 	DRM_WARN("failed to do early init\n");
 
 	return r;
@@ -307,23 +314,22 @@ err1:
 
 void amdgpu_sws_late_deinit_ctx(struct amdgpu_ctx *ctx)
 {
-	unsigned long flags;
 	struct amdgpu_sws *sws;
 	struct amdgpu_device *adev;
 
 	adev = ctx->adev;
 	sws = &adev->sws;
 
-	spin_lock_irqsave(&sws->lock, flags);
+	mutex_lock(&sws->lock);
 	ida_simple_remove(&sws->ring_idx_ida,
-			  ctx->cwsr_ring->idx);
+			  ctx->resv_ring->idx);
 	ida_simple_remove(&sws->doorbell_ida,
-			  ctx->cwsr_ring->doorbell_index >> 1);
-	adev->rings[ctx->cwsr_ring->idx] = NULL;
+			  ctx->resv_ring->doorbell_index >> 1);
+	adev->rings[ctx->resv_ring->idx] = NULL;
 
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
 
-	kfree(ctx->cwsr_ring);
+	kfree(ctx->resv_ring);
 }
 
 int amdgpu_sws_init_ctx(struct amdgpu_ctx *ctx, struct amdgpu_fpriv *fpriv)
@@ -334,20 +340,31 @@ int amdgpu_sws_init_ctx(struct amdgpu_ctx *ctx, struct amdgpu_fpriv *fpriv)
 	struct amdgpu_ring *ring;
 	struct amdgpu_sws_ctx *sws_ctx;
 	int r, b;
-	unsigned long flags;
 
 	adev = ctx->adev;
 	sws = &adev->sws;
 	vm = &fpriv->vm;
 
-	ring = ctx->cwsr_ring;
+	ring = ctx->resv_ring;
 	sws_ctx = &ring->sws_ctx;
 
-	spin_lock_irqsave(&sws->lock, flags);
+	mutex_lock(&sws->lock);
 	INIT_LIST_HEAD(&sws_ctx->list);
 
 	sws_ctx->ring = ring;
 	sws_ctx->ctx = ctx;
+
+	r = 0;
+	if (ctx->secure_mode) {
+		list_del_init(&sws_ctx->list);
+		list_add_tail(&sws_ctx->list, &sws->tmz_list);
+
+		sws_ctx->queue_state = AMDGPU_SWS_QUEUE_DISABLED;
+
+		ring->vm_inv_eng = sws->tmz_inv_eng;
+
+		goto out;
+	}
 
 	switch (ctx->ctx_priority) {
 	case AMDGPU_CTX_PRIORITY_HIGH:
@@ -366,22 +383,23 @@ int amdgpu_sws_init_ctx(struct amdgpu_ctx *ctx, struct amdgpu_fpriv *fpriv)
 
 	default:
 		DRM_WARN("SWS does not handle tunnel priority ctx\n");
-		spin_unlock_irqrestore(&sws->lock, flags);
+		mutex_unlock(&sws->lock);
 		return -EINVAL;
 	}
 
-	ring->cwsr_vmid = AMDGPU_SWS_NO_VMID;
 	r = amdgpu_sws_get_vmid(ring, vm);
 	if (r < 0) {
-		spin_unlock_irqrestore(&sws->lock, flags);
+		mutex_unlock(&sws->lock);
 		return -EINVAL;
 	} else if (r == AMDGPU_SWS_HW_RES_BUSY) {
-		goto out;
+		goto out1;
 	}
 
 	r = amdgpu_sws_get_queue(ring);
-	if (r)
-		goto out;
+	if (r) {
+		amdgpu_sws_put_vmid(ring, vm);
+		goto out1;
+	}
 
 	pm_runtime_mark_last_busy(adev->dev);
 	r = amdgpu_cwsr_init_queue(ring);
@@ -397,15 +415,16 @@ int amdgpu_sws_init_ctx(struct amdgpu_ctx *ctx, struct amdgpu_fpriv *fpriv)
 		ring->cwsr_queue_broken = true;
 
 		DRM_WARN("failed to init cwsr queue\n");
-		spin_unlock_irqrestore(&sws->lock, flags);
+		mutex_unlock(&sws->lock);
 		return -EINVAL;
 	}
 
 	sws_ctx->sched_round_begin = sws->sched_round;
-out:
-	sws->vmid_usage[ring->cwsr_vmid - AMDGPU_SWS_VMID_BEGIN]++;
+out1:
+	sws->vmid_usage[ring->priv_vmid - AMDGPU_SWS_VMID_BEGIN]++;
 	sws->ctx_num++;
-	spin_unlock_irqrestore(&sws->lock, flags);
+out:
+	mutex_unlock(&sws->lock);
 	return r;
 }
 
@@ -416,15 +435,21 @@ void amdgpu_sws_deinit_ctx(struct amdgpu_ctx *ctx,
 	struct amdgpu_ring *ring;
 	struct amdgpu_device *adev;
 	struct amdgpu_vm *vm;
-	unsigned long flags;
 
 	adev = ctx->adev;
 	sws = &adev->sws;
 	vm = &fpriv->vm;
 
-	ring = ctx->cwsr_ring;
-	spin_lock_irqsave(&sws->lock, flags);
+	ring = ctx->resv_ring;
 	pm_runtime_mark_last_busy(adev->dev);
+
+	mutex_lock(&sws->lock);
+	if (ctx->secure_mode) {
+		list_del_init(&ring->sws_ctx.list);
+		mutex_unlock(&sws->lock);
+		return;
+	}
+
 	if (ring->sws_ctx.queue_state == AMDGPU_SWS_QUEUE_ENABLED) {
 		amdgpu_cwsr_deinit_queue(ring);
 		amdgpu_sws_put_queue(ring);
@@ -432,10 +457,10 @@ void amdgpu_sws_deinit_ctx(struct amdgpu_ctx *ctx,
 	}
 
 	list_del_init(&ring->sws_ctx.list);
-	sws->vmid_usage[ring->cwsr_vmid - AMDGPU_SWS_VMID_BEGIN]--;
+	sws->vmid_usage[ring->priv_vmid - AMDGPU_SWS_VMID_BEGIN]--;
 	memset(&ring->sws_ctx, 0, sizeof(struct amdgpu_sws_ctx));
 	sws->ctx_num--;
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
 }
 
 static int amdgpu_sws_map(struct amdgpu_sws_ctx *sws_ctx)
@@ -490,15 +515,6 @@ static int amdgpu_sws_map(struct amdgpu_sws_ctx *sws_ctx)
 
 		sws_ctx->sched_round_begin = sws->sched_round;
 	} else if (ring->sws_ctx.queue_state == AMDGPU_SWS_QUEUE_DISABLED) {
-		if (ring->cwsr_vmid == AMDGPU_SWS_NO_VMID) {
-			r = amdgpu_sws_get_vmid(ring, vm);
-			if (r) {
-				DRM_WARN("failed to get vmid for ring:%s\n",
-					 ring->name);
-				return r;
-			}
-		}
-
 		r = amdgpu_sws_get_queue(ring);
 		if (r) {
 			DRM_WARN("failed to get queue for ring:%s\n",
@@ -648,14 +664,13 @@ static void amdgpu_sws_sched_fn(struct work_struct *work)
 	struct amdgpu_sws *sws;
 	struct amdgpu_sws_ctx *sws_ctx, *tmp;
 	struct amdgpu_ring *ring;
-	unsigned long flags;
 	struct amdgpu_device *adev;
 	u32 running_queue, running_vmid, pending_ctx;
 
 	sws = container_of(work, struct amdgpu_sws, sched_work);
 	adev = container_of(sws, struct amdgpu_device, sws);
 
-	spin_lock_irqsave(&sws->lock, flags);
+	mutex_lock(&sws->lock);
 	sws->sched_round++;
 
 	//go to unmap directly if any pending job on gfx ring
@@ -735,7 +750,7 @@ map:
 	}
 
 out:
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
 }
 
 static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
@@ -747,7 +762,6 @@ static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
 	struct amdgpu_sws_ctx *sws_ctx;
 	char *buf = NULL;
 	struct amdgpu_device *adev = file_inode(f)->i_private;
-	unsigned long flags;
 	int ret_ignore = 0;
 
 	sws = &adev->sws;
@@ -773,7 +787,7 @@ static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
 		return size;
 	}
 
-	spin_lock_irqsave(&sws->lock, flags);
+	mutex_lock(&sws->lock);
 	r = sprintf(buf, "sws general info:\n");
 	r += sprintf(&buf[r], "\tquantum granularity:%llu ms\n",
 		     sws->quantum / NSEC_PER_MSEC);
@@ -800,7 +814,7 @@ static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
 			goto out;
 		}
 
-		ring = sws_ctx->ctx->cwsr_ring;
+		ring = sws_ctx->ctx->resv_ring;
 		r += sprintf(&buf[r],
 			     "\tring name: %s; doorbel idx:%u; priority: %u;",
 			     ring->name, ring->doorbell_index,
@@ -808,7 +822,7 @@ static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
 
 		r += sprintf(&buf[r],
 			     " vmid: %u; sched times:%u; queue:%u.%u.%u\n",
-			     ring->cwsr_vmid, sws_ctx->sched_num, ring->me,
+			     ring->priv_vmid, sws_ctx->sched_num, ring->me,
 			     ring->pipe, ring->queue);
 	}
 	if (list_empty(&sws->run_list))
@@ -821,7 +835,7 @@ static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
 			goto out;
 		}
 
-		ring = sws_ctx->ctx->cwsr_ring;
+		ring = sws_ctx->ctx->resv_ring;
 		r += sprintf(&buf[r],
 			     "\tring name: %s; doorbell idx: %d; priority: %u;",
 			     ring->name,
@@ -830,7 +844,7 @@ static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
 
 		r += sprintf(&buf[r],
 			     " vmid: %u; sched times:%u last queue:%u.%u.%u\n",
-			     ring->cwsr_vmid, sws_ctx->sched_num, ring->me,
+			     ring->priv_vmid, sws_ctx->sched_num, ring->me,
 			     ring->pipe, ring->queue);
 	}
 
@@ -844,7 +858,7 @@ static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
 			goto out;
 		}
 
-		ring = sws_ctx->ctx->cwsr_ring;
+		ring = sws_ctx->ctx->resv_ring;
 		r += sprintf(&buf[r],
 			     "\tring name: %s; doorbell idx: %d; priority: %u;",
 			     ring->name,
@@ -853,14 +867,37 @@ static ssize_t amdgpu_sws_read_debugfs(struct file *f, char __user *ubuf,
 
 		r += sprintf(&buf[r],
 			     " vmid: %u; sched times:%u last queue:%u.%u.%u\n",
-			     ring->cwsr_vmid, sws_ctx->sched_num, ring->me,
+			     ring->priv_vmid, sws_ctx->sched_num, ring->me,
 			     ring->pipe, ring->queue);
 	}
 
 	if (list_empty(&sws->broken_list))
 		r += sprintf(&buf[r], "\tN/A\n");
+
 out:
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
+
+	mutex_lock(&sws->qlock);
+	r += sprintf(&buf[r], "\n\ntmz list:\n");
+	list_for_each_entry(sws_ctx, &sws->tmz_list, list) {
+		if (AMDGPU_SWS_DEBUGFS_SIZE - r < 200) {
+			r = sprintf(&buf[r], "skip too much ring status\n");
+			goto out;
+		}
+
+		ring = sws_ctx->ctx->resv_ring;
+		r += sprintf(&buf[r],
+			     "\tring name: %s; doorbell idx: %d; priority: %u;",
+			     ring->name,
+			     ring->doorbell_index,
+			     sws_ctx->priority);
+
+		r += sprintf(&buf[r],
+			     " vmid: %u; queue map times:%u last queue:%u.%u.%u\n",
+			     ring->priv_vmid, sws_ctx->sched_num, ring->me,
+			     ring->pipe, ring->queue);
+	}
+	mutex_unlock(&sws->qlock);
 
 	ret_ignore = copy_to_user(ubuf, buf, r);
 	kfree(buf);
@@ -877,7 +914,6 @@ static ssize_t amdgpu_sws_write_debugfs(struct file *file,
 	u32 val;
 	size_t size;
 	char local_buf[256];
-	unsigned long flags;
 	struct amdgpu_sws *sws;
 	struct amdgpu_sws_ctx *sws_ctx, *tmp;
 	struct amdgpu_device *adev = file_inode(file)->i_private;
@@ -894,7 +930,7 @@ static ssize_t amdgpu_sws_write_debugfs(struct file *file,
 	if (r)
 		return r;
 
-	spin_lock_irqsave(&sws->lock, flags);
+	mutex_lock(&sws->lock);
 	switch (val) {
 	/* pause scheduler */
 	case 0:
@@ -969,7 +1005,7 @@ static ssize_t amdgpu_sws_write_debugfs(struct file *file,
 		DRM_WARN("command is not supported\n");
 	}
 
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
 	return len;
 }
 
@@ -1017,20 +1053,195 @@ int amdgpu_sws_deinit_debugfs(struct amdgpu_device *adev)
 	return 0;
 }
 
+int amdgpu_sws_get_tmz_queue(struct amdgpu_ring *ring, struct dma_fence *fence,
+			     struct amdgpu_job *job)
+{
+	int r;
+	struct amdgpu_sws *sws;
+	struct amdgpu_device *adev;
+	struct amdgpu_ring *last_ring;
+
+	r = 0;
+	adev = ring->adev;
+	sws = &adev->sws;
+
+	mutex_lock(&sws->qlock);
+	if (sws->qfence && !dma_fence_is_signaled(sws->qfence)) {
+		r = amdgpu_sync_fence(&job->sync, sws->qfence);
+		goto out;
+	}
+
+	/* fence is signaled but queue does not unmap */
+	if (sws->last_ctx) {
+		last_ring = sws->last_ctx->resv_ring;
+		r = amdgpu_tmz_unmap_queue(last_ring);
+		if (r)
+			goto out;
+
+		amdgpu_vmid_unhide_id(adev,
+				      last_ring->funcs->vmhub,
+				      last_ring->priv_vmid);
+	}
+
+	ring->priv_vmid = job->vmid;
+	/* swith new VM to tmz_shared_vmid */
+	amdgpu_gmc_sws_flush_gpu_tlb(sws->tmz_shared_vmid,
+				     job->vm->root.base.bo, ring);
+	r = amdgpu_tmz_map_queue(ring);
+	if (r)
+		goto out;
+	ring->sws_ctx.sched_num++;
+
+	sws->qfence = fence;
+	sws->last_ctx = job->ctx;
+
+	/* make sure vmid is not freed before tmz queue unmap */
+	amdgpu_vmid_hide_id(adev, ring->funcs->vmhub, job->vmid);
+
+out:
+	mutex_unlock(&sws->qlock);
+	return r;
+}
+
+int amdgpu_sws_put_tmz_queue(struct amdgpu_ctx *ctx, struct dma_fence *fence)
+{
+	int r;
+	struct amdgpu_sws *sws;
+	struct amdgpu_ring *ring;
+	struct amdgpu_device *adev;
+
+	r = 0;
+	ring = ctx->resv_ring;
+	adev = ring->adev;
+	sws = &adev->sws;
+
+	mutex_lock(&sws->qlock);
+	if (sws->last_ctx == ctx && sws->qfence == fence) {
+		sws->qfence = NULL;
+		sws->last_ctx = NULL;
+
+		r = amdgpu_tmz_unmap_queue(ring);
+		amdgpu_vmid_unhide_id(adev, ring->funcs->vmhub,
+				      ring->priv_vmid);
+	}
+	mutex_unlock(&sws->qlock);
+
+	return r;
+}
+
+static void amdgpu_sws_eop_fn(struct work_struct *work)
+{
+	bool job_done;
+	struct amdgpu_sws *sws;
+	struct amdgpu_sws_ctx *sws_ctx, *tmp;
+	struct amdgpu_ring *ring;
+	struct amdgpu_device *adev;
+
+	sws = container_of(work, struct amdgpu_sws, eop_work);
+	adev = container_of(sws, struct amdgpu_device, sws);
+
+retry:
+	job_done = false;
+	mutex_lock(&sws->qlock);
+	if (amdgpu_tmz) {
+		list_for_each_entry_safe(sws_ctx, tmp,
+					 &sws->tmz_list, list) {
+			ring = sws_ctx->ctx->resv_ring;
+			if (ring->sws_ctx.queue_state ==
+			    AMDGPU_SWS_QUEUE_ENABLED)
+				job_done |= amdgpu_fence_process(ring);
+		}
+	}
+	mutex_unlock(&sws->qlock);
+
+	mutex_lock(&sws->lock);
+	if (cwsr_enable && sws->ctx_num) {
+		list_for_each_entry_safe(sws_ctx, tmp,
+					 &sws->run_list, list) {
+			ring = sws_ctx->ctx->resv_ring;
+			job_done |= amdgpu_fence_process(ring);
+		}
+
+		list_for_each_entry_safe(sws_ctx, tmp,
+					 &sws->idle_list, list) {
+			ring = sws_ctx->ctx->resv_ring;
+			job_done |= amdgpu_fence_process(ring);
+		}
+	}
+	mutex_unlock(&sws->lock);
+
+	if (job_done)
+		goto retry;
+}
+
+static void amdgpu_sws_tmz_fault_fn(struct work_struct *work)
+{
+	struct amdgpu_sws *sws;
+	struct amdgpu_sws_ctx *sws_ctx, *tmp;
+	struct amdgpu_ring *ring;
+	struct amdgpu_device *adev;
+
+	sws = container_of(work, struct amdgpu_sws, tmz_fault_work);
+	adev = container_of(sws, struct amdgpu_device, sws);
+
+	mutex_lock(&sws->lock);
+	if (amdgpu_tmz) {
+		list_for_each_entry_safe(sws_ctx, tmp,
+					 &sws->tmz_list, list) {
+			ring = sws_ctx->ctx->resv_ring;
+			drm_sched_fault(&ring->sched);
+		}
+	}
+
+	mutex_unlock(&sws->lock);
+}
+
+static void amdgpu_sws_cwsr_fault_fn(struct work_struct *work)
+{
+	struct amdgpu_sws *sws;
+	struct amdgpu_sws_ctx *sws_ctx, *tmp;
+	struct amdgpu_ring *ring;
+	struct amdgpu_device *adev;
+
+	sws = container_of(work, struct amdgpu_sws, cwsr_fault_work);
+	adev = container_of(sws, struct amdgpu_device, sws);
+
+	mutex_lock(&sws->lock);
+	if (cwsr_enable && sws->ctx_num) {
+		list_for_each_entry_safe(sws_ctx, tmp,
+					 &sws->run_list, list) {
+			ring = sws_ctx->ctx->resv_ring;
+			drm_sched_fault(&ring->sched);
+		}
+
+		list_for_each_entry_safe(sws_ctx, tmp,
+					 &sws->idle_list, list) {
+			ring = sws_ctx->ctx->resv_ring;
+			drm_sched_fault(&ring->sched);
+		}
+	}
+	mutex_unlock(&sws->lock);
+}
+
 int amdgpu_sws_init(struct amdgpu_device *adev)
 {
 	int i;
 	u32 queue, pipe, mec;
 	struct amdgpu_sws *sws;
 
-	if (!cwsr_enable)
+	if (!cwsr_enable && !amdgpu_tmz)
 		return 0;
 
 	sws = &adev->sws;
 	INIT_LIST_HEAD(&sws->run_list);
+	INIT_LIST_HEAD(&sws->tmz_list);
 	INIT_LIST_HEAD(&sws->idle_list);
 	INIT_LIST_HEAD(&sws->broken_list);
-	spin_lock_init(&sws->lock);
+	mutex_init(&sws->qlock);
+	mutex_init(&sws->lock);
+
+	sws->qfence = NULL;
+	sws->last_ctx = NULL;
 
 	for (i = 0; i < AMDGPU_MAX_COMPUTE_QUEUES; ++i) {
 		queue = i % adev->gfx.mec.num_queue_per_pipe;
@@ -1041,6 +1252,13 @@ int amdgpu_sws_init(struct amdgpu_device *adev)
 
 		if (mec  >= 1)
 			break;
+
+		/* reserve 1.0.3 for TMZ */
+		if (queue == AMDGPU_TMZ_QUEUE &&
+		    pipe == AMDGPU_TMZ_PIPE &&
+		    mec == AMDGPU_TMZ_MEC &&
+		    amdgpu_tmz)
+			continue;
 
 		if (test_bit(i, adev->gfx.mec.queue_bitmap))
 			continue;
@@ -1060,6 +1278,10 @@ int amdgpu_sws_init(struct amdgpu_device *adev)
 	for (i = 0; i < AMDGPU_SWS_MAX_VMID_NUM; ++i)
 		sws->inv_eng[i] = AMDGPU_SWS_NO_INV_ENG;
 
+	//reserve VMID8 for TMZ ring
+	set_bit(0, sws->vmid_bitmap);
+	sws->tmz_shared_vmid = AMDGPU_SWS_VMID_BEGIN;
+
 	sws->sched = alloc_workqueue("sws_sched", WQ_UNBOUND,
 				     WQ_UNBOUND_MAX_ACTIVE);
 	if (IS_ERR(sws->sched)) {
@@ -1068,6 +1290,9 @@ int amdgpu_sws_init(struct amdgpu_device *adev)
 	}
 
 	INIT_WORK(&sws->sched_work, amdgpu_sws_sched_fn);
+	INIT_WORK(&sws->eop_work, amdgpu_sws_eop_fn);
+	INIT_WORK(&sws->tmz_fault_work, amdgpu_sws_tmz_fault_fn);
+	INIT_WORK(&sws->cwsr_fault_work, amdgpu_sws_cwsr_fault_fn);
 
 	if (amdgpu_sws_quantum == -1) {
 		sws->quantum = AMDGPU_SWS_TIMER * NSEC_PER_MSEC;
@@ -1079,8 +1304,9 @@ int amdgpu_sws_init(struct amdgpu_device *adev)
 
 	hrtimer_init(&sws->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	sws->timer.function = amdgpu_sws_sched_timer_fn;
-	hrtimer_start(&sws->timer, ns_to_ktime(sws->quantum),
-		      HRTIMER_MODE_REL);
+	if (cwsr_enable)
+		hrtimer_start(&sws->timer, ns_to_ktime(sws->quantum),
+			      HRTIMER_MODE_REL);
 
 	ida_init(&sws->doorbell_ida);
 	ida_init(&sws->ring_idx_ida);
@@ -1091,31 +1317,27 @@ int amdgpu_sws_init(struct amdgpu_device *adev)
 
 void amdgpu_sws_deinit(struct amdgpu_device *adev)
 {
-	unsigned long flags;
 	struct amdgpu_sws *sws;
 	struct amdgpu_sws_ctx *sws_ctx, *tmp;
 
-	if (!cwsr_enable)
+	if (!cwsr_enable && !amdgpu_tmz)
 		return;
 
 	sws = &adev->sws;
 
-	if (!cwsr_enable)
-		return;
-
 	amdgpu_sws_deinit_debugfs(adev);
 	ida_destroy(&sws->doorbell_ida);
-	hrtimer_cancel(&sws->timer);
+	if (cwsr_enable)
+		hrtimer_cancel(&sws->timer);
 	destroy_workqueue(sws->sched);
-	spin_lock_irqsave(&sws->lock, flags);
+	mutex_lock(&sws->lock);
 	list_for_each_entry_safe(sws_ctx, tmp, &sws->run_list, list)
 		amdgpu_sws_unmap(sws_ctx);
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
 }
 
 void amdgpu_sws_clear_broken_queue(struct amdgpu_device *adev)
 {
-	unsigned long flags;
 	struct amdgpu_sws *sws;
 	struct amdgpu_sws_ctx *sws_ctx, *tmp;
 
@@ -1124,12 +1346,12 @@ void amdgpu_sws_clear_broken_queue(struct amdgpu_device *adev)
 
 	sws = &adev->sws;
 
-	spin_lock_irqsave(&sws->lock, flags);
+	mutex_lock(&sws->lock);
 	list_for_each_entry_safe(sws_ctx, tmp, &sws->broken_list, list) {
 		list_del_init(&sws_ctx->list);
 		list_add_tail(&sws_ctx->list, &sws->idle_list);
 	}
 
 	bitmap_zero(sws->broken_queue_bitmap, AMDGPU_MAX_COMPUTE_QUEUES);
-	spin_unlock_irqrestore(&sws->lock, flags);
+	mutex_unlock(&sws->lock);
 }

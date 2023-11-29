@@ -813,6 +813,14 @@ else
 	WLAN_WARN_ON_ASSERT := n
 endif
 
+# Case 05940062 : SS request add disable PANIC_ON_BUG in USER build as SS specific.
+CONFIG_WLAN_SAMSUNG_FEATURE=y
+ifeq ($(CONFIG_WLAN_SAMSUNG_FEATURE), y)
+     ifeq ($(TARGET_BUILD_VARIANT),user)
+         PANIC_ON_BUG := n
+     endif
+endif
+
 # Compile all log levels by default
 CONFIG_WLAN_LOG_FATAL := y
 CONFIG_WLAN_LOG_ERROR := y
@@ -1185,7 +1193,7 @@ CONFIG_WLAN_DYNAMIC_CVM := y
 #Flag to enable SAR Safety Feature
 CONFIG_SAR_SAFETY_FEATURE := y
 
-CONFIG_CONNECTION_ROAMING_CFG := n
+CONFIG_CONNECTION_ROAMING_CFG := y
 
 CONFIG_FEATURE_SET := y
 

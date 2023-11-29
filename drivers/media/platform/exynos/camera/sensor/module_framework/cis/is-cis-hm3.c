@@ -1326,7 +1326,7 @@ int sensor_hm3_cis_check_cropped_remosaic(cis_shared_data *cis_data,
 
 	zoom_ratio = cis_data->cur_remosaic_zoom_ratio;
 
-	if (zoom_ratio < 200 || zoom_ratio > 290) {
+	if (zoom_ratio != 17) {
 		ret = -1; //goto default
 		goto EXIT;
 	}
@@ -1477,7 +1477,7 @@ int sensor_hm3_cis_check_aeb(struct v4l2_subdev *subdev)
 	}
 
 	if (cis->cis_data->cur_hdr_mode == SENSOR_HDR_MODE_2AEB_2VC) {
-		info("%s : enable 2AEB 2VC\n", __func__);
+		info("[%s] enable 2AEB 2VC\n", __func__);
 
 		//lut_1_long
 		ret = is_sensor_write16(cis->client, AEB_HM3_LUT0 + AEB_HM3_OFFSET_CIT, 0x0100); // Coarse Integration Time
@@ -1501,7 +1501,7 @@ int sensor_hm3_cis_check_aeb(struct v4l2_subdev *subdev)
 		ret = is_sensor_write16(cis->client, 0xFCFC, 0x4000);
 		ret = is_sensor_write16(cis->client, 0x0B30, 0x0110); // AEB enable fast change idx
 	} else {
-		info("%s : disable AEB\n", __func__);
+		info("[%s] disable AEB\n", __func__);
 
 		if (is_aeb_on) {
 			//Fast CM apply frame N+1
@@ -1517,6 +1517,8 @@ int sensor_hm3_cis_check_aeb(struct v4l2_subdev *subdev)
 	}
 
 	cis->cis_data->pre_hdr_mode = cis->cis_data->cur_hdr_mode;
+
+	info("[%s] done\n", __func__);
 
 	sensor_hm3_cis_data_calculation(sensor_hm3_pllinfos[mode], cis->cis_data);
 
@@ -3230,8 +3232,7 @@ int sensor_hm3_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_agai
 #if IS_ENABLED(USE_CAMERA_SENSOR_RETENTION)
 	aeb_on = sensor_hm3_spec_mode_attr[mode].aeb_support && (cis_data->cur_hdr_mode == SENSOR_HDR_MODE_2AEB_2VC);
 	if (!aeb_on) {
-		if (cis_data->cur_remosaic_zoom_ratio >= 200
-			&& cis_data->cur_remosaic_zoom_ratio <= 290) {
+		if (cis_data->cur_remosaic_zoom_ratio == 17) {
 			mode = sensor_hm3_mode_groups[SENSOR_HM3_MODE_ABS];
 		} else if (cis_data->cur_12bit_mode == SENSOR_12BIT_STATE_REAL_12BIT) {
 			mode = sensor_hm3_mode_groups[SENSOR_HM3_MODE_IDCG];

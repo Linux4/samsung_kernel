@@ -2407,13 +2407,13 @@
 			};
 
 			qup-i2c12-default {
-				drive-strength = <0x02>;
-				bias-disable;
 				phandle = <0x5d>;
 
 				pinmux {
 					pins = "gpio49\0gpio50";
 					function = "qup12";
+					drive-strength = <0x02>;
+					bias-disable;
 				};
 			};
 

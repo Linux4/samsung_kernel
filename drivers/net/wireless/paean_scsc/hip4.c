@@ -66,7 +66,7 @@ MODULE_PARM_DESC(hip4_qos_enable, "enable HIP4 PM QoS. (default: Y)");
 
 #if defined(CONFIG_SOC_S5E9925)
 static int hip4_qos_max_tput_in_mbps = 150;
-#elif defined(CONFIG_SOC_S5E8835)
+#elif defined(CONFIG_SOC_S5E8835) || defined(CONFIG_SOC_S5E8845)
 static int hip4_qos_max_tput_in_mbps = 50;
 #else
 static int hip4_qos_max_tput_in_mbps = 250;
@@ -76,7 +76,7 @@ MODULE_PARM_DESC(hip4_qos_max_tput_in_mbps, "throughput (in Mbps) to apply Max P
 
 #if defined(CONFIG_SOC_S5E9925)
 static int hip4_qos_med_tput_in_mbps = 50;
-#elif defined(CONFIG_SOC_S5E8835)
+#elif defined(CONFIG_SOC_S5E8835) || defined(CONFIG_SOC_S5E8845)
 static int hip4_qos_med_tput_in_mbps = 30;
 #else
 static int hip4_qos_med_tput_in_mbps = 150;
@@ -2541,15 +2541,15 @@ int slsi_hip_init(struct slsi_hip *hip)
 	hip->hip_priv->intr_tohost_mul[HIP4_MIF_Q_TH_RFB] = MIF_NO_IRQ;
 	/* Q2 FH FB */
 	hip->hip_priv->intr_tohost_mul[HIP4_MIF_Q_FH_RFB] =
-		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler_fb, hip, SCSC_MIFINTR_TARGET_WLAN);
+		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler_fb, hip, SCSC_MIFINTR_TARGET_WLAN, HIP4_IRQ_HANDLER_FB_TYPE);
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_tohost_mul[HIP4_MIF_Q_FH_RFB]);
 	/* Q3 TH CTRL */
 	hip->hip_priv->intr_tohost_mul[HIP4_MIF_Q_TH_CTRL] =
-		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler_ctrl, hip, SCSC_MIFINTR_TARGET_WLAN);
+		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler_ctrl, hip, SCSC_MIFINTR_TARGET_WLAN, HIP4_IRQ_HANDLER_CTRL_TYPE);
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_tohost_mul[HIP4_MIF_Q_TH_CTRL]);
 	/* Q4 TH DAT */
 	hip->hip_priv->intr_tohost_mul[HIP4_MIF_Q_TH_DAT] =
-		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler_dat, hip, SCSC_MIFINTR_TARGET_WLAN);
+		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler_dat, hip, SCSC_MIFINTR_TARGET_WLAN, HIP4_IRQ_HANDLER_DATA_TYPE);
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_tohost_mul[HIP4_MIF_Q_TH_DAT]);
 
 	rcu_read_lock();
@@ -2589,7 +2589,7 @@ int slsi_hip_init(struct slsi_hip *hip)
 #else
 	/* TOHOST Handler allocator */
 	hip->hip_priv->intr_tohost =
-		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler, hip, SCSC_MIFINTR_TARGET_WLAN);
+		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler, hip, SCSC_MIFINTR_TARGET_WLAN, HIP4_IRQ_HANDLER_TYPE);
 
 	/* Mask the interrupt to prevent intr been kicked during start */
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_tohost);
@@ -2602,7 +2602,7 @@ int slsi_hip_init(struct slsi_hip *hip)
 #ifdef CONFIG_SCSC_WLAN_HOST_DPD
 	/* TOHOST interrupt for DPD */
 	hip->hip_priv->intr_to_host_dpd =
-		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler_dpd, hip, SCSC_MIFINTR_TARGET_WLAN);
+		scsc_service_mifintrbit_register_tohost(service, hip4_irq_handler_dpd, hip, SCSC_MIFINTR_TARGET_WLAN, HIP4_IRQ_HANDLER_DPD_TYPE);
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_to_host_dpd);
 
 	/* FROMHOST interrupt for DPD */

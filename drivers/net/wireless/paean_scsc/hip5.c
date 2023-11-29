@@ -122,6 +122,7 @@ static int q_idx_layout[24][2] = {
 /* Timeout for Wakelocks in HIP  */
 #define SLSI_HIP_WAKELOCK_TIME_OUT_IN_MS   (1000)
 
+#define HIP5_TH_IDX_ERR_NUM_RETRY    4
 #define FB_NO_SPC_NUM_RET    100
 #define FB_NO_SPC_SLEEP_MS   10
 #define FB_NO_SPC_DELAY_US   1000
@@ -447,6 +448,8 @@ static int hip5_opt_hip_signal_to_skb(struct slsi_dev *sdev,
 			mem = scsc_mx_service_mif_addr_to_ptr(service, bulk_desc->buf_addr);
 			if (!mem) {
 				SLSI_ERR_NODEV("bulk_desc->buf_addr NULL\n");
+				SLSI_ERR_NODEV("T-H stall due to un-recoverable BD; trigger Panic\n");
+				queue_work(sdev->device_wq, &sdev->trigger_wlan_fail_work);
 				consume_skb(skb);
 				return -EFAULT;
 			}
@@ -514,7 +517,6 @@ static int hip5_opt_hip_signal_to_skb(struct slsi_dev *sdev,
 			do {
 				bd_temp = bulk_desc;
 				SLSI_DBG4(sdev, SLSI_HIP, "BD chain: buf_addr:0x%X, offset:%d, data_len:%d, flag:%d\n",
-					num_bd,
 					bulk_desc->buf_addr,
 					bulk_desc->offset,
 					bulk_desc->data_len,
@@ -523,6 +525,8 @@ static int hip5_opt_hip_signal_to_skb(struct slsi_dev *sdev,
 				mem = scsc_mx_service_mif_addr_to_ptr(service, bulk_desc->buf_addr);
 				if (!mem) {
 					SLSI_ERR_NODEV("bulk_desc->buf_addr NULL\n");
+					SLSI_ERR_NODEV("T-H stall due to un-recoverable chained BD; trigger Panic\n");
+					queue_work(sdev->device_wq, &sdev->trigger_wlan_fail_work);
 					consume_skb(skb);
 					return -EFAULT;
 				}
@@ -1066,7 +1070,7 @@ static void hip5_wq_ctrl(struct work_struct *data)
 	}
 
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-	if (scsc_mx_service_claim(sdev->service)) {
+	if (scsc_mx_service_claim(sdev->service, WLAN_RX_CTRL)) {
 		SLSI_ERR(sdev, "failed to claim the MX service\n");
 		return;
 	}
@@ -1085,7 +1089,7 @@ static void hip5_wq_ctrl(struct work_struct *data)
 		bh_end_ctrl = ktime_get();
 		spin_unlock_bh(&hip_priv->rx_lock);
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-		scsc_mx_service_release(sdev->service);
+		scsc_mx_service_release(sdev->service, WLAN_RX_CTRL);
 #endif
 		return;
 	}
@@ -1198,7 +1202,7 @@ consume_ctl_mbulk:
 	bh_end_ctrl = ktime_get();
 	spin_unlock_bh(&hip_priv->rx_lock);
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-	scsc_mx_service_release(sdev->service);
+	scsc_mx_service_release(sdev->service, WLAN_RX_CTRL);
 #endif
 }
 
@@ -1331,7 +1335,7 @@ static void hip5_tl_fb(unsigned long data)
 	service = sdev->service;
 #if defined(CONFIG_SCSC_PCIE_CHIP)
 	if (!hip_priv->mx_pci_claim_fb) {
-		if (scsc_mx_service_claim_deferred(sdev->service, hip5_fb_mx_claim_complete_cb, (void *)hip_priv)) {
+		if (scsc_mx_service_claim_deferred(sdev->service, hip5_fb_mx_claim_complete_cb, (void *)hip_priv, WLAN_RB)) {
 			spin_unlock_bh(&hip_priv->rx_lock);
 			return;
 		}
@@ -1348,7 +1352,7 @@ static void hip5_tl_fb(unsigned long data)
 #if defined(CONFIG_SCSC_PCIE_CHIP)
 		if (hip->hip_priv->mx_pci_claim_fb) {
 			hip->hip_priv->mx_pci_claim_fb = false;
-			scsc_mx_service_release(sdev->service);
+			scsc_mx_service_release(sdev->service, WLAN_RB);
 		}
 #endif
 		bh_end_fb = ktime_get();
@@ -1427,7 +1431,7 @@ consume_fb_mbulk:
 #if defined(CONFIG_SCSC_PCIE_CHIP)
 	if (hip->hip_priv->mx_pci_claim_fb) {
 		hip->hip_priv->mx_pci_claim_fb = false;
-		scsc_mx_service_release(sdev->service);}
+		scsc_mx_service_release(sdev->service, WLAN_RB);}
 #endif
 	bh_end_fb = ktime_get();
 	spin_unlock_bh(&hip_priv->rx_lock);
@@ -1472,7 +1476,7 @@ static void hip5_napi_complete(struct slsi_dev *sdev, struct napi_struct *napi, 
 #if defined(CONFIG_SCSC_PCIE_CHIP)
 	if (hip->hip_priv->mx_pci_claim_data) {
 		hip->hip_priv->mx_pci_claim_data = false;
-		scsc_mx_service_release(sdev->service);}
+		scsc_mx_service_release(sdev->service, WLAN_RX_DATA);}
 #endif
 }
 
@@ -1510,7 +1514,7 @@ static int hip5_napi_poll(struct napi_struct *napi, int budget)
 	scsc_mifram_ref         ref;
 	struct hip5_hip_entry   *hip_entry;
 	u8                      retry;
-	u8                      todo = 0;
+	u16                     todo = 0;
 	int                     work_done = 0;
 
 	if (!hip_priv || !hip_priv->hip) {
@@ -1544,7 +1548,7 @@ static int hip5_napi_poll(struct napi_struct *napi, int budget)
 
 #if defined(CONFIG_SCSC_PCIE_CHIP)
 	if (!hip_priv->mx_pci_claim_data) {
-		if (scsc_mx_service_claim_deferred(sdev->service, hip5_napi_mx_claim_complete_cb, (void *)hip_priv)) {
+		if (scsc_mx_service_claim_deferred(sdev->service, hip5_napi_mx_claim_complete_cb, (void *)hip_priv, WLAN_RX_DATA)) {
 			hip5_napi_complete(sdev, napi, hip);
 			return 0;
 		}
@@ -1578,7 +1582,7 @@ static int hip5_napi_poll(struct napi_struct *napi, int budget)
 	SCSC_HIP4_SAMPLER_Q(hip_priv->minor, HIP5_MIF_Q_TH_DAT0, widx, idx_w, 1);
 
 	todo = ((idx_w - idx_r) & (MAX_NUM - 1));
-	SLSI_DBG2(sdev, SLSI_RX, "r:%d w:%d todo:%hhu\n", idx_r, idx_w, todo);
+	SLSI_DBG2(sdev, SLSI_RX, "r:%d w:%d todo:%d\n", idx_r, idx_w, todo);
 
 	/* The write index written by firmware may arrive out of order
 	 * at Host. This can cause the Host to read from wrong indexes.
@@ -1593,11 +1597,24 @@ static int hip5_napi_poll(struct napi_struct *napi, int budget)
 	 * than half of the size of circular buffer.
 	 */
 	if (todo > (MAX_NUM >> 1)) {
-		SLSI_WARN(sdev, "out-of-order to-host data queue write index\n");
+		hip_priv->th_w_idx_err_count++;
+		SLSI_WARN(sdev, "Out of order write index (r:%d, w:%d, retry: %d/%d)\n",
+			idx_r,
+			idx_w,
+			hip_priv->th_w_idx_err_count,
+			HIP5_TH_IDX_ERR_NUM_RETRY);
+
+		if (hip_priv->th_w_idx_err_count >= HIP5_TH_IDX_ERR_NUM_RETRY) {
+			SLSI_ERR_NODEV("T-H data stall due to invalid Write index; trigger Panic\n");
+			queue_work(sdev->device_wq, &sdev->trigger_wlan_fail_work);
+			hip5_napi_complete(sdev, napi, hip);
+			goto end;
+		}
 		/* set work_done equal to budget to keep polling */
 		work_done = budget;
 		goto end;
 	}
+	hip_priv->th_w_idx_err_count = 0;
 
 	while (idx_r != idx_w) {
 		struct sk_buff *skb;
@@ -2146,7 +2163,7 @@ int slsi_hip_init(struct slsi_hip *hip)
 	rcu_read_unlock();
 
 	/* TOHOST Handler allocator */
-	ret = scsc_service_mifintrbit_register_tohost(service, hip5_irq_handler_ctrl, hip, SCSC_MIFINTR_TARGET_WLAN);
+	ret = scsc_service_mifintrbit_register_tohost(service, hip5_irq_handler_ctrl, hip, SCSC_MIFINTR_TARGET_WLAN, HIP5_IRQ_HANDLER_CTRL_TYPE);
 	if (ret < 0) {
 		SLSI_ERR_NODEV("Error allocating intr_to_host_ctrl\n");
 		return ret;
@@ -2157,7 +2174,7 @@ int slsi_hip_init(struct slsi_hip *hip)
 	/* Mask the interrupt to prevent intr been kicked during start */
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_to_host_ctrl);
 
-	ret = scsc_service_mifintrbit_register_tohost(service, hip5_irq_handler_fb, hip, SCSC_MIFINTR_TARGET_WLAN);
+	ret = scsc_service_mifintrbit_register_tohost(service, hip5_irq_handler_fb, hip, SCSC_MIFINTR_TARGET_WLAN, HIP5_IRQ_HANDLER_FB_TYPE);
 	if (ret < 0) {
 		SLSI_ERR_NODEV("Error allocating intr_to_host_ctrl_fb\n");
 		scsc_service_mifintrbit_unregister_tohost(service, hip->hip_priv->intr_to_host_ctrl, SCSC_MIFINTR_TARGET_WLAN);
@@ -2169,7 +2186,7 @@ int slsi_hip_init(struct slsi_hip *hip)
 	/* Mask the interrupt to prevent intr been kicked during start */
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_to_host_ctrl_fb);
 
-	ret = scsc_service_mifintrbit_register_tohost(service, hip5_irq_handler_dat, hip, SCSC_MIFINTR_TARGET_WLAN);
+	ret = scsc_service_mifintrbit_register_tohost(service, hip5_irq_handler_dat, hip, SCSC_MIFINTR_TARGET_WLAN, HIP5_IRQ_HANDLER_DAT_TYPE);
 	if (ret < 0) {
 		SLSI_ERR_NODEV("Error allocating intr_to_host_data1\n");
 		scsc_service_mifintrbit_unregister_tohost(service, hip->hip_priv->intr_to_host_ctrl, SCSC_MIFINTR_TARGET_WLAN);
@@ -2182,7 +2199,7 @@ int slsi_hip_init(struct slsi_hip *hip)
 	/* Mask the interrupt to prevent intr been kicked during start */
 	scsc_service_mifintrbit_bit_mask(service, hip->hip_priv->intr_to_host_data1);
 
-	ret = scsc_service_mifintrbit_register_tohost(service, hip5_irq_handler_stub, hip, SCSC_MIFINTR_TARGET_WLAN);
+	ret = scsc_service_mifintrbit_register_tohost(service, hip5_irq_handler_stub, hip, SCSC_MIFINTR_TARGET_WLAN, HIP5_IRQ_HANDLER_STUB_TYPE);
 	if (ret < 0) {
 		SLSI_ERR_NODEV("Error allocating intr_to_host_data2\n");
 		scsc_service_mifintrbit_unregister_tohost(service, hip->hip_priv->intr_to_host_ctrl, SCSC_MIFINTR_TARGET_WLAN);

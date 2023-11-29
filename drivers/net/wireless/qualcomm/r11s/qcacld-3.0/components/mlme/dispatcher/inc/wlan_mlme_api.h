@@ -4254,4 +4254,13 @@ wlan_mlme_is_bcn_prot_disabled_for_sap(struct wlan_objmgr_psoc *psoc);
  */
 uint8_t *
 wlan_mlme_get_src_addr_from_frame(struct element_info *frame);
+
+/**
+ * wlan_mlme_get_max_bw() - Get max supported bandwidth
+ * Extract max supported bandwidth
+ *
+ * Return: enum phy_ch_width
+ *
+ */
+enum phy_ch_width wlan_mlme_get_max_bw(void);
 #endif /* _WLAN_MLME_API_H_ */

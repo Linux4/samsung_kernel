@@ -2260,6 +2260,12 @@ int is_vender_vidioc_s_ctrl(struct is_video_ctx *vctx, struct v4l2_control *ctrl
 		else
 			specific->zoom_running = false;
 		break;
+	case V4L2_CID_IS_REMOSAIC_CROP_ZOOM_RATIO:
+		ctrl->id = VENDER_S_CTRL;
+		head->intent_ctl.vendor_remosaicCropZoomRatio = ctrl->value;
+		head->remainIntentCount = INTENT_RETRY_CNT;
+		mvinfo("[VENDOR] s_ctrl remosaic crop zoom ratio(%d)\n", device, video, ctrl->value);
+		break;
 	case V4L2_CID_IS_FORCE_FLASH_MODE:
 		if (device->sensor != NULL) {
 			struct v4l2_subdev *subdev_flash;

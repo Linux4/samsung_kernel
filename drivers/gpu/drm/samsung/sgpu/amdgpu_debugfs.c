@@ -1648,7 +1648,7 @@ int amdgpu_debugfs_init(struct amdgpu_device *adev)
 	if (sgpu_instance_data_debugfs_init(adev) != 0)
 		return -EIO;
 
-	if (cwsr_enable)
+	if (cwsr_enable || amdgpu_tmz)
 		amdgpu_sws_init_debugfs(adev);
 #if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_DRM_SGPU_EXYNOS)
 	return amdgpu_debugfs_add_files(adev, amdgpu_debugfs_list,

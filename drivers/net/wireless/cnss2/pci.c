@@ -1729,7 +1729,11 @@ int cnss_pci_link_down(struct device *dev)
 		return -EBUSY;
 	}
 
+#ifdef CONFIG_SOC_S5E9925
+	if ((pci_priv->pci_link_state == PCI_LINK_DOWN) &&
+#else
 	if (pci_priv->drv_connected_last &&
+#endif
 	    of_property_read_bool(plat_priv->plat_dev->dev.of_node,
 				  "cnss-enable-self-recovery"))
 		plat_priv->ctrl_params.quirks |= BIT(LINK_DOWN_SELF_RECOVERY);

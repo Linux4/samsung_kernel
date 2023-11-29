@@ -609,7 +609,7 @@
 					pins = "gpio17\0gpio18\0gpio19";
 					function = "gpio";
 					drive-strength = <0x02>;
-					bias-no-pull;
+					bias-disable;
 				};
 			};
 

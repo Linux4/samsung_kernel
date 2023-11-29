@@ -4866,4 +4866,14 @@ uint32_t policy_mgr_get_connection_count_with_ch_freq(uint32_t ch_freq);
 bool policy_mgr_is_sap_allowed_on_indoor(struct wlan_objmgr_pdev *pdev,
 					 uint8_t vdev_id, qdf_freq_t ch_freq);
 
+/**
+ * policy_mgr_get_nan_sap_scc_on_lte_coex_chnl() -Get if NAN + SAP SCC on
+ * lte coex channel is allowed on lte coex channel or not
+ * @psoc: psoc pointer
+ *
+ * Return: cfg value of nan sap scc is allowed or not on lte coex channel
+ */
+
+bool policy_mgr_get_nan_sap_scc_on_lte_coex_chnl(struct wlan_objmgr_psoc *psoc);
+
 #endif /* __WLAN_POLICY_MGR_API_H */

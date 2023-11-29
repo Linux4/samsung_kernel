@@ -107,7 +107,6 @@ struct ois_mcu_dev {
 	bool			need_reset_mcu;
 	bool			need_af_delay;
 	bool			is_mcu_active;
-				
 };
 
 enum is_efs_state {

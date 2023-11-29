@@ -5210,17 +5210,17 @@ static void wma_add_sta_req_sta_mode(tp_wma_handle wma, tpAddStaParams params)
 	} else {
 		wma_debug("listen interval offload is not set");
 	}
-
-	iface->aid = params->assocId;
 	params->nss = iface->nss;
 out:
+	iface->aid = params->assocId;
+
 	/* Do not send add stat resp when peer assoc cnf is enabled */
 	if (peer_assoc_cnf)
 		return;
 
 	params->status = status;
 	wma_debug("vdev_id %d aid %d sta mac " QDF_MAC_ADDR_FMT " status %d",
-		  params->smesessionId, params->assocId,
+		  params->smesessionId, iface->aid,
 		  QDF_MAC_ADDR_REF(params->bssId), params->status);
 
 	/* Don't send a response during roam sync operation */

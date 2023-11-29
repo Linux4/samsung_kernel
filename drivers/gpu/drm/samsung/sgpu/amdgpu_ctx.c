@@ -27,7 +27,9 @@
 #include "amdgpu_sched.h"
 #include "amdgpu_ras.h"
 #include "amdgpu_cwsr.h"
+#include "amdgpu_tmz.h"
 #include <linux/nospec.h>
+#include <linux/pm_runtime.h>
 
 #define to_amdgpu_ctx_entity(e)	\
 	container_of((e), struct amdgpu_ctx_entity, entity)
@@ -128,11 +130,11 @@ static int amdgpu_ctx_init_entity(struct amdgpu_ctx *ctx, u32 hw_ip,
 
 	hw_ip = array_index_nospec(hw_ip, AMDGPU_HW_IP_NUM);
 
-	/* Ring0 is resevred for ACE tunnel. Assign only Ring0 scheduler
-	 * to AMDGPU_CTX_PRIORITY_VERY_HIGH ctx.
-	 */
 	if (hw_ip == AMDGPU_HW_IP_COMPUTE &&
 	    ctx->ctx_priority == AMDGPU_CTX_PRIORITY_VERY_HIGH) {
+		/* Ring0 is resevred for ACE tunnel. Assign only Ring0 scheduler
+		 * to AMDGPU_CTX_PRIORITY_VERY_HIGH ctx.
+		 */
 		sched = &adev->gfx.compute_ring[0].sched;
 		scheds = &sched;
 		num_scheds = 1;
@@ -191,19 +193,6 @@ static int amdgpu_ctx_init(struct amdgpu_device *adev,
 	ctx->vram_lost_counter = atomic_read(&adev->vram_lost_counter);
 	ctx->init_priority = priority;
 	ctx->override_priority = DRM_SCHED_PRIORITY_UNSET;
-
-	if (cwsr_enable) {
-		ctx->cwsr_entities =
-			kzalloc(offsetof(typeof(*ctx->cwsr_entities),
-				fences[amdgpu_sched_jobs]),
-				GFP_KERNEL);
-
-		if (!ctx->cwsr_entities)
-			return -ENOMEM;
-
-		ctx->cwsr_entities->sequence = 1;
-	}
-
 	ctx->fpriv = fpriv;
 	ctx->mem_size = 0;
 
@@ -219,7 +208,8 @@ static void amdgpu_ctx_fini_entity(struct amdgpu_ctx_entity *entity)
 		return;
 
 	for (i = 0; i < amdgpu_sched_jobs; ++i)
-		dma_fence_put(entity->fences[i]);
+		if (entity->fences[i])
+			dma_fence_put(entity->fences[i]);
 
 	kfree(entity);
 }
@@ -240,14 +230,15 @@ static void amdgpu_ctx_fini(struct kref *ref)
 		}
 	}
 
-	if (cwsr_enable) {
-		amdgpu_ctx_fini_entity(ctx->cwsr_entities);
-		ctx->cwsr_entities = NULL;
+	if (cwsr_enable || ctx->secure_mode) {
+		amdgpu_ctx_fini_entity(ctx->priv_entities);
+		ctx->priv_entities = NULL;
 	}
 	mutex_destroy(&ctx->lock);
 
 #ifndef CONFIG_HSA_AMD
 	amdgpu_cwsr_deinit(ctx);
+	amdgpu_tmz_deinit(ctx);
 #endif
 	kfree(ctx);
 }
@@ -258,13 +249,13 @@ int amdgpu_ctx_get_entity(struct amdgpu_ctx *ctx, u32 hw_ip, u32 instance,
 	int r;
 	struct amdgpu_ring *rq_ring;
 
-        /* In case of MCBP for Gfx IP we ignore the RING ID passed and always
-         * operate on RING 0 so that GPU scheduler can choose the RING ID based
-         * on priority and load on each scheduler
+	/* In case of MCBP for Gfx IP we ignore the RING ID passed and always
+	 * operate on RING 0 so that GPU scheduler can choose the RING ID based
+	 * on priority and load on each scheduler
 	 */
-        if ((amdgpu_mcbp == 1) && (hw_ip == AMDGPU_HW_IP_GFX)) {
-                ring = 0;
-        }
+	if ((amdgpu_mcbp == 1) && (hw_ip == AMDGPU_HW_IP_GFX)) {
+		ring = 0;
+	}
 
 	if (hw_ip >= AMDGPU_HW_IP_NUM) {
 		DRM_ERROR("unknown HW IP type: %d\n", hw_ip);
@@ -283,15 +274,33 @@ int amdgpu_ctx_get_entity(struct amdgpu_ctx *ctx, u32 hw_ip, u32 instance,
 	}
 
 #ifndef CONFIG_HSA_AMD
+	if (amdgpu_tmz && ctx->secure_mode && !ctx->tmz &&
+	    hw_ip == AMDGPU_HW_IP_COMPUTE) {
+		pm_runtime_get_sync(ctx->adev->ddev.dev);
+		vangogh_lite_ifpo_power_on(ctx->adev);
+		r = amdgpu_tmz_init(ctx);
+		atomic_dec(&ctx->adev->in_ifpo);
+		pm_runtime_put_autosuspend(ctx->adev->ddev.dev);
+		if (r)
+			return r;
+	}
+
+	if (amdgpu_tmz && ctx->secure_mode && ctx->tmz) {
+		*entity = &ctx->priv_entities->entity;
+
+		return 0;
+	}
+
 	if (cwsr_enable && hw_ip == AMDGPU_HW_IP_COMPUTE && !ctx->cwsr_init &&
-	    ctx->ctx_priority != AMDGPU_CTX_PRIORITY_VERY_HIGH) {
+	    ctx->ctx_priority != AMDGPU_CTX_PRIORITY_VERY_HIGH &&
+	    !ctx->secure_mode) {
 		if (amdgpu_cwsr_init(ctx) < 0)
 			goto out;
 	}
 
 	if (cwsr_enable && hw_ip == AMDGPU_HW_IP_COMPUTE && ctx->cwsr &&
 	    ctx->ctx_priority != AMDGPU_CTX_PRIORITY_VERY_HIGH) {
-		*entity = &ctx->cwsr_entities->entity;
+		*entity = &ctx->priv_entities->entity;
 
 		if ((*entity)->rq) {
 			rq_ring = to_amdgpu_ring((*entity)->rq->sched);
@@ -319,7 +328,8 @@ static int amdgpu_ctx_alloc(struct amdgpu_device *adev,
 			    enum drm_sched_priority priority,
 			    int ctx_priority,
 			    uint32_t *id,
-			    bool ifh_mode)
+			    bool ifh_mode,
+			    bool secure_mode)
 {
 	struct amdgpu_ctx_mgr *mgr = &fpriv->ctx_mgr;
 	struct amdgpu_ctx *ctx;
@@ -345,6 +355,19 @@ static int amdgpu_ctx_alloc(struct amdgpu_device *adev,
 		kfree(ctx);
 	}
 
+	if (cwsr_enable || secure_mode) {
+		ctx->priv_entities =
+			kzalloc(offsetof(typeof(*ctx->priv_entities),
+				fences[amdgpu_sched_jobs]),
+				GFP_KERNEL);
+
+		if (!ctx->priv_entities)
+			return -ENOMEM;
+
+		ctx->priv_entities->sequence = 1;
+	}
+
+	ctx->secure_mode = secure_mode;
 	ctx->ifh_mode = ifh_mode;
 	ctx->ctx_priority = ctx_priority;
 	mutex_unlock(&mgr->lock);
@@ -389,8 +412,8 @@ static void amdgpu_ctx_do_release(struct kref *ref)
 		}
 	}
 
-	if (cwsr_enable) {
-		drm_sched_entity_destroy(&ctx->cwsr_entities->entity);
+	if (cwsr_enable || ctx->secure_mode) {
+		drm_sched_entity_destroy(&ctx->priv_entities->entity);
 	}
 
 	if (ctx->adev->asic_type == CHIP_VANGOGH_LITE)
@@ -508,6 +531,7 @@ int amdgpu_ctx_ioctl(struct drm_device *dev, void *data,
 	enum drm_sched_priority priority;
 
 	union drm_amdgpu_ctx *args = data;
+	bool secure_mode = !!(args->in.flags & AMDGPU_CTX_FLAGS_SECURE);
 	struct amdgpu_device *adev = drm_to_adev(dev);
 	struct amdgpu_fpriv *fpriv = filp->driver_priv;
 
@@ -529,7 +553,7 @@ int amdgpu_ctx_ioctl(struct drm_device *dev, void *data,
 	switch (args->in.op) {
 	case AMDGPU_CTX_OP_ALLOC_CTX:
 		r = amdgpu_ctx_alloc(adev, fpriv, filp, priority,
-				     ctx_priority, &id, ifh_mode);
+				     ctx_priority, &id, ifh_mode, secure_mode);
 		args->out.alloc.ctx_id = id;
 		break;
 	case AMDGPU_CTX_OP_FREE_CTX:
@@ -824,6 +848,9 @@ void amdgpu_ctx_mgr_entity_fini(struct amdgpu_ctx_mgr *mgr)
 							  ctx);
 			}
 		}
+
+		if (cwsr_enable || ctx->secure_mode)
+			drm_sched_entity_fini(&ctx->priv_entities->entity);
 	}
 }
 

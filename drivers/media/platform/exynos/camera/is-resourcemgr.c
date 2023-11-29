@@ -908,7 +908,11 @@ int is_heap_mem_alloc_dynamic(struct is_resourcemgr *resourcemgr,
 
 #if defined(USE_CAMERA_HEAP)
 		if (IS_ENABLED(DISABLE_DDK_HEAP_FREE))
+#if defined(USE_CAMERA_HEAP_FOR_ALL)
+			minfo->pb_heap_ddk = CALL_PTR_MEMOP(mem, alloc, mem->priv, heap_size, CAMERA_HEAP_NAME, 0);
+#else
 			minfo->pb_heap_ddk = CALL_PTR_MEMOP(mem, alloc, mem->priv, heap_size, NULL, 0);
+#endif
 		else
 			minfo->pb_heap_ddk = CALL_PTR_MEMOP(mem, alloc, mem->priv, heap_size, CAMERA_HEAP_NAME, 0);
 #else
@@ -928,7 +932,11 @@ int is_heap_mem_alloc_dynamic(struct is_resourcemgr *resourcemgr,
 			return 0;
 		}
 
+#if defined(USE_CAMERA_HEAP_FOR_ALL)
+		minfo->pb_heap_rta = CALL_PTR_MEMOP(mem, alloc, mem->priv, heap_size, CAMERA_HEAP_NAME, 0);
+#else
 		minfo->pb_heap_rta = CALL_PTR_MEMOP(mem, alloc, mem->priv, heap_size, NULL, 0);
+#endif
 		if (IS_ERR_OR_NULL(minfo->pb_heap_rta)) {
 			err("failed to allocate buffer for RTA HEAP");
 			return -ENOMEM;

@@ -1339,17 +1339,16 @@ void dp_off_by_hpd_low(struct dp_device *dp)
 			dp_set_switch_hpd_state(0);
 #endif
 
-			timeout = dp_wait_state_change(dp, 3000, DP_STATE_OFF);
+			timeout = dp_wait_state_change(dp, 7500, DP_STATE_OFF);
 
 			if (timeout <= 0) {
 				dp_err(dp, "disable timeout\n");
 
 				decon = get_decon_drvdata(CONNETED_DECON_ID);
 
-				if (dp->state == DP_STATE_INIT) {
-					dp_info(dp, "not enabled\n");
-				} else if (decon->state == DECON_STATE_OFF &&
-						dp->state == DP_STATE_ON) {
+				if (dp->state == DP_STATE_INIT || dp->state == DP_STATE_OFF) {
+					dp_info(dp, "not enabled %d\n", dp->state);
+				} else if (dp->state == DP_STATE_ON) {
 					dp_err(dp, "abnormal state: decon%d:%d, dp:%d\n",
 							decon->id, decon->state, dp->state);
 					dp_disable(&dp->encoder);

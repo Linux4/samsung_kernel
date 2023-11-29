@@ -212,7 +212,7 @@ u32 mifpro_update_profile(int user)
 
 #if defined(CONFIG_SOC_S5E9925_EVT0) || defined(CONFIG_SOC_S5E8825)
 	// Update time in state and get tables from DVFS driver
-
+	
 	exynos_devfreq_get_profile(profiler.devfreq_type, fc->time, profiler.freq_stats);
 
 	// calculate delta from previous status
@@ -229,6 +229,7 @@ u32 mifpro_update_profile(int user)
 	diff_ccnt = ccnt - prev_ccnt;
 	prev_ccnt = ccnt;
 #else
+
 	profile_in_state = kzalloc(sizeof(struct exynos_wow_profile) * profiler.table_cnt, GFP_KERNEL);
 	exynos_devfreq_get_profile(profiler.devfreq_type, fc->time, profile_in_state);
 
@@ -256,6 +257,10 @@ u32 mifpro_update_profile(int user)
 	result->freq_stats1_sum = 0;
 	fc_result->dyn_power = 0;
 
+	/* To resolve Static Analysis prevent (Divide by zero) */
+	if (fc_result->profile_time == 0)
+		fc_result->profile_time = 1;
+
 	for (i = 0; i < profiler.table_cnt; i++) {
 		result->freq_stats0_sum += result->freq_stats[0][i];
 		result->freq_stats1_sum += result->freq_stats[1][i];
@@ -268,9 +273,20 @@ u32 mifpro_update_profile(int user)
 
 	result->freq_stats0_sum = result->freq_stats0_sum * 1000000000 / fc_result->profile_time;
 	result->freq_stats1_sum = result->freq_stats1_sum * 1000000000 / fc_result->profile_time;
-	result->freq_stats0_avg = result->freq_stats0_avg / total_active_time;
-	result->freq_stats_ratio = fc_result->profile_time * freq_stats3_sum / freq_stats2_sum / diff_ccnt;
+
+	/* To resolve Static Analysis prevent (Divide by zero) */
+	if (total_active_time)
+		result->freq_stats0_avg = result->freq_stats0_avg / total_active_time;
+	else
+		result->freq_stats0_avg = 0;
+
+	if ((diff_ccnt == 0) || (freq_stats2_sum == 0))
+		result->freq_stats_ratio = 0;
+	else
+		result->freq_stats_ratio = fc_result->profile_time * freq_stats3_sum / freq_stats2_sum / diff_ccnt;
+
 	result->llc_status = llc_get_en();
+
 	if (profiler.tz) {
 		int temp = get_temp(profiler.tz);
 		profiler.result[user].avg_temp = (temp + profiler.result[user].cur_temp) >> 1;
@@ -424,7 +440,7 @@ static int exynos_mif_profiler_probe(struct platform_device *pdev)
 	if (profiler.prev_wow_profile == NULL) {
 		return -ENOMEM;
 	}
-
+	
 	/* get thermal-zone to get temperature */
 	if (profiler.tz_name)
 		profiler.tz = init_temp(profiler.tz_name);

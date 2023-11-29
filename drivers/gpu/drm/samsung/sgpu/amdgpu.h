@@ -535,19 +535,6 @@ struct amdgpu_fpriv {
 	struct amdgpu_bo_va	*prt_va;
 	struct amdgpu_bo_va	*csa_va;
 
-	struct amdgpu_wb	cwsr_wb;
-	struct amdgpu_bo_va	*cwsr_wb_va;
-
-	struct amdgpu_bo_va     *cwsr_hqd_eop_va;
-	struct amdgpu_bo        *cwsr_hqd_eop_obj;
-	void			*cwsr_hqd_cpu_addr;
-
-	struct amdgpu_bo_va     *cwsr_mqd_va;
-	struct amdgpu_bo        *cwsr_mqd_obj;
-
-	struct amdgpu_bo_va     *cwsr_ring_va;
-	struct amdgpu_bo        *cwsr_ring_obj;
-
 	struct amdgpu_bo        *cwsr_trap_obj;
 	struct amdgpu_bo_va     *cwsr_trap_va;
 	void			*cwsr_trap_cpu_addr;
@@ -558,10 +545,18 @@ struct amdgpu_fpriv {
 
 	bool			cwsr_ready;
 	atomic_t                cwsr_ctx_ref;
-	struct ida              cwsr_res_slots;
+	bool                    tmz_ready;
+	atomic_t                tmz_ctx_ref;
 
-	/* protect cwsr init and deinit */
-	struct mutex            cwsr_lock;
+	/* reused by cwsr and compute tmz */
+	struct amdgpu_wb        wb;
+	struct amdgpu_bo_va     *wb_va;
+	struct amdgpu_bo_va     *hqd_eop_va;
+	struct amdgpu_bo        *hqd_eop_obj;
+	void                    *hqd_cpu_addr;
+	/* protect cwsr and tmz init and deinit */
+	struct mutex            lock;
+	struct ida              res_slots;
 
 	struct mutex		memory_lock;
 	size_t			total_pages;
@@ -860,13 +855,24 @@ struct amdgpu_sws {
 	struct hrtimer timer;
 	struct workqueue_struct *sched;
 	struct work_struct sched_work;
+	struct work_struct eop_work;
+	struct work_struct tmz_fault_work;
+	struct work_struct cwsr_fault_work;
 	u32 queue_num;
 	u64 quantum; //nanosecond
+
+	/* TMZ */
+	struct mutex qlock;
+	struct dma_fence *qfence;
+	struct amdgpu_ctx *last_ctx;
+	struct list_head tmz_list;
+	u32 tmz_inv_eng;
+	u32 tmz_shared_vmid; /* reserved VMID as queue res */
 
 	/* protect below parameters and some parameters
 	 * in amdgpu_ring for sws
 	 */
-	spinlock_t lock;
+	struct mutex lock;
 	u32 vmid_res_state;
 	u32 queue_res_state;
 

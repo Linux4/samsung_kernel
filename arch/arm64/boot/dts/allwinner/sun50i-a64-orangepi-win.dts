@@ -1708,7 +1708,7 @@
 	leds {
 		compatible = "gpio-leds";
 
-		status {
+		led-0 {
 			label = "orangepi:green:status";
 			gpios = <0x23 0x07 0x0b 0x00>;
 		};

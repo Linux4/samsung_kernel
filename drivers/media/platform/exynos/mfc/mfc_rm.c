@@ -917,6 +917,7 @@ static void __mfc_rm_rearrange_cpb(struct mfc_core *maincore, struct mfc_core_ct
 
 static int __mfc_rm_switch_to_multi_mode(struct mfc_ctx *ctx)
 {
+	struct mfc_dev *dev = ctx->dev;
 	struct mfc_core *maincore;
 	struct mfc_core *subcore;
 	struct mfc_core_ctx *core_ctx;
@@ -925,6 +926,18 @@ static int __mfc_rm_switch_to_multi_mode(struct mfc_ctx *ctx)
 	maincore = mfc_get_main_core(ctx->dev, ctx);
 	if (!maincore) {
 		mfc_ctx_err("[RM] There is no main core\n");
+		return -EINVAL;
+	}
+
+	core_ctx = maincore->core_ctx[ctx->num];
+	if (!core_ctx) {
+		mfc_ctx_err("[RM] There is no main core_ctx\n");
+		return -EINVAL;
+	}
+
+	if (!mfc_ctx_ready_set_bit(core_ctx, &maincore->work_bits)) {
+		mfc_debug(2, "[RM] there is no work to do after switch_to_multi\n");
+		MFC_TRACE_RM("no work after swith to multi\n");
 		return -EINVAL;
 	}
 
@@ -961,7 +974,6 @@ static int __mfc_rm_switch_to_multi_mode(struct mfc_ctx *ctx)
 		mfc_debug(2, "[RMLB] just go to mode2\n");
 	} else {
 		mfc_change_op_mode(ctx, MFC_OP_SWITCHING);
-		core_ctx = maincore->core_ctx[ctx->num];
 		__mfc_rm_rearrange_cpb(maincore, core_ctx);
 	}
 
@@ -1547,25 +1559,27 @@ static void __mfc_rm_inst_dec_src_stop(struct mfc_dev *dev, struct mfc_ctx *ctx)
 		core->core_ops->instance_csd_parsing(core, ctx);
 
 		/* reset original stream mode */
-		mutex_lock(&ctx->op_mode_mutex);
-		mfc_rm_set_core_num(ctx, MFC_DEC_DEFAULT_CORE);
-		mfc_change_op_mode(ctx, ctx->stream_op_mode);
-		maincore = mfc_get_main_core(ctx->dev, ctx);
-		if (!maincore) {
-			mfc_ctx_err("[RM] There is no main core\n");
+		if (!need_to_special_parsing_nal(core->core_ctx[ctx->num])) {
+			mutex_lock(&ctx->op_mode_mutex);
+			mfc_rm_set_core_num(ctx, MFC_DEC_DEFAULT_CORE);
+			mfc_change_op_mode(ctx, ctx->stream_op_mode);
+			maincore = mfc_get_main_core(ctx->dev, ctx);
+			if (!maincore) {
+				mfc_ctx_err("[RM] There is no main core\n");
+				mutex_unlock(&ctx->op_mode_mutex);
+				goto err_src_stop;
+			}
+			subcore = mfc_get_sub_core(dev, ctx);
+			if (!subcore) {
+				mfc_ctx_err("[RM] There is no sub core\n");
+				mutex_unlock(&ctx->op_mode_mutex);
+				goto err_src_stop;
+			}
 			mutex_unlock(&ctx->op_mode_mutex);
-			goto err_src_stop;
-		}
-		subcore = mfc_get_sub_core(dev, ctx);
-		if (!subcore) {
-			mfc_ctx_err("[RM] There is no sub core\n");
-			mutex_unlock(&ctx->op_mode_mutex);
-			goto err_src_stop;
-		}
-		mutex_unlock(&ctx->op_mode_mutex);
 
-		mfc_core_qos_on(maincore, ctx);
-		mfc_core_qos_on(subcore, ctx);
+			mfc_core_qos_on(maincore, ctx);
+			mfc_core_qos_on(subcore, ctx);
+		}
 	} else {
 		core = mfc_get_main_core(dev, ctx);
 		if (!core) {

@@ -296,7 +296,7 @@ qdf_export_symbol(wlan_objmgr_vdev_obj_create);
 
 static QDF_STATUS wlan_objmgr_vdev_obj_destroy(struct wlan_objmgr_vdev *vdev)
 {
-	uint8_t id;
+	int8_t id;
 	wlan_objmgr_vdev_destroy_handler handler;
 	QDF_STATUS obj_status;
 	void *arg;
@@ -322,8 +322,8 @@ static QDF_STATUS wlan_objmgr_vdev_obj_destroy(struct wlan_objmgr_vdev *vdev)
 	wlan_minidump_remove(vdev, sizeof(*vdev), wlan_vdev_get_psoc(vdev),
 			     WLAN_MD_OBJMGR_VDEV, "wlan_objmgr_vdev");
 
-	/* Invoke registered destroy handlers */
-	for (id = 0; id < WLAN_UMAC_MAX_COMPONENTS; id++) {
+	/* Invoke registered destroy handlers in reverse order of creation */
+	for (id = WLAN_UMAC_COMP_ID_MAX - 1; id >= 0; id--) {
 		handler = g_umac_glb_obj->vdev_destroy_handler[id];
 		arg = g_umac_glb_obj->vdev_destroy_handler_arg[id];
 		if (handler &&

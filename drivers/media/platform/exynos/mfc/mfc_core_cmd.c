@@ -186,10 +186,6 @@ void mfc_core_cmd_dpb_flush(struct mfc_core *core, struct mfc_ctx *ctx)
 				core_ctx->state);
 
 	mutex_lock(&ctx->op_mode_mutex);
-	if (ctx->op_mode == MFC_OP_SWITCH_BUT_MODE2) {
-		mfc_change_op_mode(ctx, MFC_OP_SWITCH_TO_SINGLE);
-		mfc_debug(2, "[2CORE] change op_mode: %d for dpb_flush\n", ctx->op_mode);
-	}
 
 	/*
 	 * NAL_START_OPTIONS[4] should set when every NAL_START/DPB_FLUSH,
@@ -197,7 +193,7 @@ void mfc_core_cmd_dpb_flush(struct mfc_core *core, struct mfc_ctx *ctx)
 	 */
 	reg = MFC_CORE_READL(MFC_REG_D_NAL_START_OPTIONS);
 	reg &= ~(0x1 << MFC_REG_D_NAL_START_OPT_TWO_MFC_ENABLE_SHIFT);
-	if (IS_MULTI_MODE(ctx))
+	if (IS_MULTI_MODE(ctx) || ctx->op_mode == MFC_OP_SWITCH_BUT_MODE2)
 		reg |= (1 << MFC_REG_D_NAL_START_OPT_TWO_MFC_ENABLE_SHIFT);
 	else
 		reg |= (0 << MFC_REG_D_NAL_START_OPT_TWO_MFC_ENABLE_SHIFT);

@@ -6,3 +6,5 @@
   wait_on_page_bit
  # required by drivers/samsung/pm/sec_pm_debug.ko
   pm_get_active_wakeup_sources
+  # required by drivers/usb/notify/usb_notify_layer.ko
+  usb_set_configuration
