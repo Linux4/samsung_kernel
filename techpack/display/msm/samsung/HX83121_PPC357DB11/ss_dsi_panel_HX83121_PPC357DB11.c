@@ -546,6 +546,9 @@ void HX83121_PPC357DB11_WQXGA_init(struct samsung_display_driver_data *vdd)
 
 	vdd->debug_data->print_cmds = false;
 
+	/* Do not support single tx*/
+	vdd->not_support_single_tx = true;
+
 	/* Call blic, buck, boost init */
 	ss_blic_lp8558_init();
 	ss_boost_max77816_init();

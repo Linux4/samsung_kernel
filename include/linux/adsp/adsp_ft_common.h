@@ -117,6 +117,7 @@ enum {
 	OPTION_TYPE_SSC_AOD_LIGHT_CIRCLE,    // for AOD
 	OPTION_TYPE_SSC_LIGHT_SEAMLESS,      // for Light seamless
 	OPTION_TYPE_SSC_AUTO_ROTATION_MODE,  // for auto rotation
+	OPTION_TYPE_SSC_SBM_INIT,            // for sar backoff motion
 	OPTION_TYPE_SSC_MAX
 };
 

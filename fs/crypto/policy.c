@@ -253,9 +253,13 @@ static int fscrypt_new_context_from_policy(union fscrypt_context *ctx_u,
 		get_random_bytes(ctx->nonce, sizeof(ctx->nonce));
 
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+		BUILD_BUG_ON((sizeof(*ctx) - sizeof(ctx->knox_flags))
+				!= offsetof(struct fscrypt_context_v1, knox_flags));
 		ctx->knox_flags = 0;
-#endif
+		return offsetof(struct fscrypt_context_v1, knox_flags);
+#else
 		return sizeof(*ctx);
+#endif
 	}
 	case FSCRYPT_POLICY_V2: {
 		const struct fscrypt_policy_v2 *policy = &policy_u->v2;
@@ -273,9 +277,13 @@ static int fscrypt_new_context_from_policy(union fscrypt_context *ctx_u,
 		get_random_bytes(ctx->nonce, sizeof(ctx->nonce));
 
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+		BUILD_BUG_ON((sizeof(*ctx) - sizeof(ctx->knox_flags))
+				!= offsetof(struct fscrypt_context_v2, knox_flags));
 		ctx->knox_flags = 0;
-#endif
+		return offsetof(struct fscrypt_context_v2, knox_flags);
+#else
 		return sizeof(*ctx);
+#endif
 	}
 	}
 	BUG();
@@ -363,6 +371,25 @@ static int fscrypt_get_policy(struct inode *inode, union fscrypt_policy *policy)
 	ret = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (ret < 0)
 		return (ret == -ERANGE) ? -EINVAL : ret;
+
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			ret = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (ret == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			ret = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
 
 	return fscrypt_policy_from_context(policy, &ctx, ret);
 }
@@ -538,6 +565,26 @@ int fscrypt_ioctl_get_nonce(struct file *filp, void __user *arg)
 	ret = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (ret < 0)
 		return ret;
+
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			ret = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (ret == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			ret = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
+
 	if (!fscrypt_context_is_valid(&ctx, ret))
 		return -EINVAL;
 	if (copy_to_user(arg, fscrypt_context_nonce(&ctx),
@@ -653,6 +700,19 @@ int fscrypt_inherit_context(struct inode *parent, struct inode *child,
 		printk_once(KERN_WARNING
 				"%s: Failed to set sensitive ongoing flag (err:%d)\n", __func__, res);
 		return res;
+	}
+
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (ctx.v1.knox_flags != 0)
+			ctxsize = sizeof(ctx.v1);
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (ctx.v2.knox_flags != 0)
+			ctxsize = sizeof(ctx.v2);
+		break;
+	}
 	}
 #endif
 

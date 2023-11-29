@@ -1527,9 +1527,26 @@ static int fts_gpio_configure(struct fts_ts_data *data)
 		}
 	}
 
+	if (gpio_is_valid(data->pdata->cs_gpio)) {
+		ret = gpio_request(data->pdata->cs_gpio, "fts_cs_gpio");
+		if (ret) {
+			FTS_ERROR("[GPIO]cs gpio request failed");
+			goto err_reset_gpio_dir;
+		}
+
+		ret = gpio_direction_output(data->pdata->cs_gpio, 1);
+		if (ret) {
+			FTS_ERROR("[GPIO]set_direction for cs gpio failed");
+			goto err_cs_gpio_dir;
+		}
+	}
+
 	FTS_FUNC_EXIT();
 	return 0;
 
+err_cs_gpio_dir:
+	if (gpio_is_valid(data->pdata->cs_gpio))
+		gpio_free(data->pdata->cs_gpio);
 err_reset_gpio_dir:
 	if (gpio_is_valid(data->pdata->reset_gpio))
 		gpio_free(data->pdata->reset_gpio);
@@ -1664,6 +1681,12 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 	if (pdata->irq_gpio < 0)
 		FTS_ERROR("Unable to get irq_gpio");
 
+	pdata->cs_gpio = of_get_named_gpio(np, "focaltech,cs-gpio", 0);
+	if (!gpio_is_valid(pdata->cs_gpio)) {
+		pdata->cs_gpio = -1;
+		FTS_ERROR(" DT:cs_gpio value is not valid");
+	}
+
 	pdata->gpio_vendor_check = of_get_named_gpio(np, "focaltech,vendor_check-gpio", 0);
 	if (gpio_is_valid(pdata->gpio_vendor_check)) {
 		ret = of_property_read_u32(np, "focaltech,vendor_check_enable_value", &temp_val);
@@ -1695,8 +1718,8 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 
 	of_property_read_string(np, "sec,firmware_name", &pdata->firmware_name);
 
-	FTS_INFO("max touch number:%d, irq gpio:%d, reset gpio:%d",
-			pdata->max_touch_number, pdata->irq_gpio, pdata->reset_gpio);
+	FTS_INFO("max touch number:%d, irq gpio:%d, reset gpio:%d, cs gpio:%d",
+			pdata->max_touch_number, pdata->irq_gpio, pdata->reset_gpio, pdata->cs_gpio);
 
 	pdata->enable_settings_aot = of_property_read_bool(np, "enable_settings_aot");
 	pdata->enable_sysinput_enabled = of_property_read_bool(np, "enable_sysinput_enabled");
@@ -1789,17 +1812,17 @@ int fts_vbus_notification(struct notifier_block *nb,
 	switch (vbus_type) {
 	case STATUS_VBUS_HIGH:
 		FTS_INFO("%s : attach\n", __func__);
-		ts_data->ta_stsatus = true;
+		ts_data->ta_status = true;
 		break;
 	case STATUS_VBUS_LOW:
 		FTS_INFO("%s : detach\n", __func__);
-		ts_data->ta_stsatus = false;
+		ts_data->ta_status = false;
 		break;
 	default:
 		break;
 	}
 
-	fts_charger_attached(ts_data, ts_data->ta_stsatus);
+	fts_charger_attached(ts_data, ts_data->ta_status);
 	return 0;
 }
 #endif
@@ -1991,6 +2014,8 @@ err_power_init:
 		gpio_free(ts_data->pdata->reset_gpio);
 	if (gpio_is_valid(ts_data->pdata->irq_gpio))
 		gpio_free(ts_data->pdata->irq_gpio);
+	if (gpio_is_valid(ts_data->pdata->cs_gpio))
+		gpio_free(ts_data->pdata->cs_gpio);
 err_gpio_config:
 err_report_buffer:
 err_input_init:
@@ -2055,6 +2080,9 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 
 	if (gpio_is_valid(ts_data->pdata->irq_gpio))
 		gpio_free(ts_data->pdata->irq_gpio);
+
+	if (gpio_is_valid(ts_data->pdata->cs_gpio))
+		gpio_free(ts_data->pdata->cs_gpio);
 
 #if FTS_POWER_SOURCE_CUST_EN
 	fts_power_source_exit(ts_data);

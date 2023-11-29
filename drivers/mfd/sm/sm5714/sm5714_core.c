@@ -319,14 +319,14 @@ static int sm5714_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *
 	sm5714->suspended = false;
 	init_waitqueue_head(&sm5714->suspend_wait);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
-	wakeup_source_init(sm5714->irq_ws, "irq_wake");   // 4.19 R
+	wakeup_source_init(sm5714->irq_ws, "sm5714_mfd");   // 4.19 R
 	if (!(sm5714->irq_ws)) {
-		sm5714->irq_ws = wakeup_source_create("irq_wake"); // 4.19 Q
+		sm5714->irq_ws = wakeup_source_create("sm5714_mfd"); // 4.19 Q
 		if (sm5714->irq_ws)
 			wakeup_source_add(sm5714->irq_ws);
 	}
 #else
-	sm5714->irq_ws = wakeup_source_register(NULL, "irq_wake"); // 5.4 R
+	sm5714->irq_ws = wakeup_source_register(NULL, "sm5714_mfd"); // 5.4 R
 #endif
 
 	if (pdata) {
@@ -458,9 +458,6 @@ static int sm5714_suspend(struct device *dev)
 	struct sm5714_dev *sm5714 = i2c_get_clientdata(i2c);
 
 	sm5714->suspended =  true;
-#if defined(CONFIG_ARCH_QCOM) || defined(CONFIG_ARCH_MEDIATEK)
-	wake_up(&sm5714->suspend_wait);
-#endif
 
 	if (device_may_wakeup(dev))
 		enable_irq_wake(sm5714->irq);
@@ -482,6 +479,9 @@ static int sm5714_resume(struct device *dev)
 #endif /* CONFIG_SAMSUNG_PRODUCT_SHIP */
 
 	sm5714->suspended =  false;
+#if defined(CONFIG_ARCH_QCOM) || defined(CONFIG_ARCH_MEDIATEK)
+	wake_up(&sm5714->suspend_wait);
+#endif
 
 	if (device_may_wakeup(dev))
 		disable_irq_wake(sm5714->irq);

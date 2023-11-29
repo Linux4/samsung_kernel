@@ -683,6 +683,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		AOT disable on factory binary.
 	*/
 	if (!vdd->aot_enable || vdd->is_factory_mode) {
+		DSI_INFO("timing_check: panel power on\n");
 		rc = dsi_pwr_enable_regulator(&panel->power_info, true);
 		if (rc) {
 			DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
@@ -836,6 +837,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		AOT disable on factory binary.
 	*/
 	if (!vdd->aot_enable || vdd->is_factory_mode)  {
+		DSI_INFO("timing_check: panel power off\n");
 		rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 		if (rc)
 			DSI_ERR("[%s] failed to enable vregs, rc=%d\n",

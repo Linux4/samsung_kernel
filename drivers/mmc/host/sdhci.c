@@ -1961,7 +1961,8 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	 * Check SDcard busy signal by DAT0 before sending CMD13
 	 * about 10ms : 100us * 100 times
 	 */
-	if (present && (mrq->cmd->opcode == MMC_SEND_STATUS)) {
+	if (present && (mrq->cmd->opcode == MMC_SEND_STATUS) &&
+			mmc_can_retune(mmc)) {
 		int tries = 100;
 		while (sdhci_card_busy(mmc) && --tries)
 			usleep_range(95, 105);
@@ -4011,6 +4012,10 @@ struct sdhci_host *sdhci_alloc_host(struct device *dev,
 	host->tuning_delay = -1;
 
 	host->sdma_boundary = SDHCI_DEFAULT_BOUNDARY_ARG;
+
+#if defined(CONFIG_HDM)
+	mmc->trigger_card_event = true;
+#endif
 
 	spin_lock_init(&host->lock);
 	ratelimit_state_init(&host->dbg_dump_rs, SDHCI_DBG_DUMP_RS_INTERVAL,

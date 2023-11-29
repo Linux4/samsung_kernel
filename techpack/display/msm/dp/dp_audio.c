@@ -460,6 +460,13 @@ static int dp_audio_get_edid_blk(struct platform_device *pdev,
 
 	blk->audio_data_blk = edid->audio_data_block;
 	blk->audio_data_blk_size = edid->adb_size;
+#if defined(CONFIG_SEC_DISPLAYPORT)
+	print_hex_dump(KERN_DEBUG, "AUDIO_BLK: ",
+			DUMP_PREFIX_NONE, 16, 1, blk->audio_data_blk,
+			blk->audio_data_blk_size, false);
+	secdp_logger_hex_dump(blk->audio_data_blk, "AUDIO_BLK:",
+			blk->audio_data_blk_size);
+#endif
 
 	blk->spk_alloc_data_blk = edid->spkr_alloc_data_block;
 	blk->spk_alloc_data_blk_size = edid->sadb_size;
@@ -771,7 +778,7 @@ static int dp_audio_on(struct dp_audio *dp_audio)
 	if (rc)
 		goto end;
 
-	DP_INFO("success\n");
+	DP_INFO("[AUDIO_ON]success\n");
 end:
 	return rc;
 }
@@ -814,7 +821,7 @@ static int dp_audio_off(struct dp_audio *dp_audio)
 	if (rc)
 		goto end;
 
-	DP_INFO("success\n");
+	DP_INFO("[AUDIO_OFF]success\n");
 end:
 	dp_audio_config(audio, EXT_DISPLAY_CABLE_DISCONNECT);
 

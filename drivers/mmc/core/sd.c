@@ -1397,7 +1397,6 @@ static int _mmc_sd_deferred_resume(struct mmc_host *host)
 	} else if (err) {
 		goto out;
 	}
-	mmc_card_clr_suspended(host->card);
 	err = mmc_resume_clk_scaling(host);
 	if (err) {
 		pr_err("%s: %s: fail to resume clock scaling (%d)\n",
@@ -1405,6 +1404,7 @@ static int _mmc_sd_deferred_resume(struct mmc_host *host)
 		goto out;
 	}
 out:
+	mmc_card_clr_suspended(host->card);
 	mmc_log_string(host, "Exit err: %d\n", err);
 	return err;
 }

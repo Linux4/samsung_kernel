@@ -18,6 +18,12 @@
 
 #include "ss_blic_ktz8864b_i2c.h"
 
+struct ss_blic_info {
+	struct i2c_client *client;
+};
+
+static struct ss_blic_info backlight_pinfo;
+
 static int ss_backlight_i2c_read(struct i2c_client *client, u8 addr,  u8 *value)
 {
 	int retry = 3;
@@ -76,31 +82,10 @@ static int ss_backlight_i2c_write(struct i2c_client *client, u8 addr,  u8 value)
 	return ret;
 }
 
-enum {
-	BLIC_ADDR = 0,
-	BLIC_VAL,
-	BLIC_MAX,
-};
-
-static int ss_blic_ktz8864b_configure(struct i2c_client *client)
+int ss_blic_ktz8864b_configure(u8 data[][2], int size)
 {
+	struct i2c_client *client = backlight_pinfo.client;
 	u8 check;
-
-	u8 data[][BLIC_MAX] = {
-		/* addr value */
-		{0x0C, 0x23},
-		{0x0D, 0x1E},
-		{0x0E, 0x1E},
-		{0x09, 0x99},
-		{0x02, 0x6B},
-		{0x03, 0x0D},
-		{0x11, 0x74},
-		{0x04, 0x03},
-		{0x05, 0xC2},
-		{0x10, 0x66},
-		{0x08, 0x13},
-	};
-	int size = ARRAY_SIZE(data);
 	int ret = 0;
 	int i;
 
@@ -110,13 +95,19 @@ static int ss_blic_ktz8864b_configure(struct i2c_client *client)
 	}
 
 	for (i = 0; i < size; i++) {
-		ss_backlight_i2c_write(client, data[i][BLIC_ADDR], data[i][BLIC_VAL]);
-		ss_backlight_i2c_read(client, data[i][BLIC_ADDR], &check);
+		u8 addr = data[i][0];
+		u8 val = data[i][1];
 
-		if (check != data[i][BLIC_VAL]) {
-			dev_err(&client->dev, "fail: add: %x, val: %x, %x\n",
-					data[i][BLIC_ADDR], data[i][BLIC_VAL], check);
+		ss_backlight_i2c_write(client, addr, val);
+		ss_backlight_i2c_read(client, addr, &check);
+
+		if (check != val) {
+			dev_err(&client->dev, "fail: addr: %x, val: %x, %x\n",
+							addr, val, check);
 			ret = -EINVAL;
+		} else {
+			dev_info(&client->dev, "pass: addr: %x, val: %x\n",
+							addr, val);
 		}
 	}
 
@@ -137,7 +128,7 @@ static int ss_blic_ktz8864b_probe(struct i2c_client *client,
 		return -EIO;
 	}
 
-	ss_blic_ktz8864b_configure(client);
+	backlight_pinfo.client = client;
 
 	dev_info(&client->dev, "%s: ---\n", __func__);
 
@@ -191,9 +182,3 @@ void ss_blic_ktz8864b_exit(void)
 {
 	i2c_del_driver(&ss_blic_ktz8864b_driver);
 }
-
-module_init(ss_blic_ktz8864b_init);
-module_exit(ss_blic_ktz8864b_exit);
-
-MODULE_DESCRIPTION("ss_blic_ktz8864b_i2c driver");
-MODULE_LICENSE("GPL");

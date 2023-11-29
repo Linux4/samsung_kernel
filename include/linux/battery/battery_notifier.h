@@ -87,6 +87,7 @@ typedef enum {
 	PDIC_NOTIFY_EVENT_PD_SOURCE,
 	PDIC_NOTIFY_EVENT_PD_SINK_CAP,
 	PDIC_NOTIFY_EVENT_PD_PRSWAP_SNKTOSRC,
+	PDIC_NOTIFY_EVENT_PD_PRSWAP_SRCTOSNK,
 } pdic_notifier_event_t;
 
 typedef enum
@@ -95,6 +96,12 @@ typedef enum
 	APDO_TYPE,
 	VPDO_TYPE,
 } PDO_TYPE_T;
+
+typedef enum {
+	AUTH_NONE = 0,
+	AUTH_LOW_PWR,
+	AUTH_HIGH_PWR,
+} AUTH_TYPE_T;
 
 typedef struct _power_list {
 	int accept;

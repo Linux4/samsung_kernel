@@ -13,6 +13,10 @@
 
 #include "sec_direct_charger.h"
 
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
+
 char *sec_direct_chg_mode_str[] = {
 	"OFF", //SEC_DIRECT_CHG_MODE_DIRECT_OFF
 	"CHECK_VBAT", //SEC_DIRECT_CHG_MODE_DIRECT_CHECK_VBAT
@@ -298,7 +302,11 @@ static int sec_direct_chg_set_charging_current(struct sec_direct_charger_info *c
 	union power_supply_propval value = {0,};
 	int charging_source;
 
-	pr_info("%s: called(%dmA)\n", __func__, charging_current);
+	psy_do_property("battery", get,
+				POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_MODE, value);
+	charger->now_isApdo = value.intval;
+
+	pr_info("%s: called(%dmA) now_isApdo(%d)\n", __func__, charging_current, charger->now_isApdo);
 
 	/* main charger */
 	value.intval = charging_current;
@@ -317,11 +325,15 @@ static int sec_direct_chg_set_charging_current(struct sec_direct_charger_info *c
 
 		charging_source = sec_direct_chg_check_charging_source(charger);
 		if (charging_source == SEC_DIRECT_CHG_CHARGING_SOURCE_DIRECT) {
+#if IS_ENABLED(CONFIG_SEC_ABC)
+			if(charger->now_isApdo && charger->dc_input_current < (SEC_DIRECT_CHG_MIN_IOUT / 2))
+				sec_abc_send_event("MODULE=battery@WARN=dc_current");
+#endif
 			value.intval = charger->dc_input_current;
 			psy_do_property(charger->pdata->direct_charger_name, set,
 				POWER_SUPPLY_PROP_CURRENT_MAX, value);
 		}
-		sec_direct_chg_set_charging_source(charger, charger->charger_mode, charging_source);		
+		sec_direct_chg_set_charging_source(charger, charger->charger_mode, charging_source);
 	}
 
 	return 0;
@@ -642,24 +654,29 @@ static int sec_direct_charger_parse_dt(struct device *dev,
 		}
 		pr_info("%s: charger,dchg_min_current is %d\n", __func__, charger->pdata->dchg_min_current);
 
-		ret = of_property_read_u32(np, "charger,dchg_temp_low_threshold",
-			&charger->pdata->dchg_temp_low_threshold);
-		if (ret) {
-			pr_err("%s : charger,dchg_temp_low_threshold is Empty\n", __func__);
-			charger->pdata->dchg_temp_low_threshold = 180;
-		}
-		pr_info("%s: charger,dchg_temp_low_threshold is %d\n", __func__, charger->pdata->dchg_temp_low_threshold);
-
-		ret = of_property_read_u32(np, "charger,dchg_temp_high_threshold",
-			&charger->pdata->dchg_temp_high_threshold);
-		if (ret) {
-			pr_err("%s : charger,dchg_temp_high_threshold is Empty\n", __func__);
-			charger->pdata->dchg_temp_high_threshold = 420;
-		}
-		pr_info("%s: charger,dchg_temp_high_threshold is %d\n", __func__, charger->pdata->dchg_temp_high_threshold);
-
 		charger->ta_alert_wa = of_property_read_bool(np, "charger,ta_alert_wa");
 	}
+
+	np = of_find_node_by_name(NULL, "battery");
+	if (!np) {
+		pr_info("%s: np NULL\n", __func__);
+		return 1;
+	} else {
+		ret = of_property_read_u32(np, "battery,wire_normal_warm_thresh",
+				&charger->pdata->dchg_temp_high_threshold);
+		if (ret) {
+			pr_info("%s : dchg_temp_high_threshold is Empty\n", __func__);
+			charger->pdata->dchg_temp_high_threshold = 420;
+		}
+
+		ret = of_property_read_u32(np, "battery,wire_cool1_normal_thresh",
+				&charger->pdata->dchg_temp_low_threshold);
+		if (ret) {
+			pr_info("%s : dchg_temp_low_threshold is Empty\n", __func__);
+			charger->pdata->dchg_temp_low_threshold = 180;
+		}
+	}
+
 	return 0;
 }
 #else

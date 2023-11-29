@@ -147,6 +147,9 @@ int get_device_type(int *device_type, unsigned int *keyId,
 			case KEY_VOLUMEUP:
 			case KEY_VOLUMEDOWN:
 			case KEY_POWER:
+#if IS_ENABLED(CONFIG_SOC_S5E5515) // watch - lower key(back key) Code : 0x244(580)
+			case KEY_APPSELECT:
+#endif
 				dev_type = KEY;
 				break;
 			default:
@@ -291,8 +294,11 @@ void input_booster(struct ib_event_data *ib_ev_data)
 
 static int __init ev_boost_init(void)
 {
+	int err;
+
 	pr_info(ITAG" Input Booster Module Init\n");
 	input_booster_init();
+	pr_info(ITAG" Input Booster Module Init End\n");
 	spin_lock_init(&ib_ev_lock);
 	ib_notifier_register(&ib_event_notifier);
 	ev_unbound_wq =
@@ -301,7 +307,9 @@ static int __init ev_boost_init(void)
 	evbst_dev = kzalloc(sizeof(struct device), GFP_KERNEL);
 	dev_set_name(evbst_dev, "evdev_booster_dev");
 	evbst_dev->release = NULL;
-	device_register(evbst_dev);
+	err = device_register(evbst_dev);
+	if (err)
+		pr_err(ITAG" evdev device register failed");
 
 	return 0;
 }

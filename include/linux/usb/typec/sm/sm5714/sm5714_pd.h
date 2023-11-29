@@ -788,6 +788,7 @@ struct sm5714_policy_data {
 	u8				origin_message;
 	bool			sink_cap_received;
 	bool			send_sink_cap;
+	bool			skip_ufp_svid_ack;
 };
 
 struct sm5714_protocol_data {
@@ -888,7 +889,7 @@ struct sm5714_usbpd_data {
 	struct sm5714_protocol_data	protocol_rx;
 	struct sm5714_policy_data	policy;
 	msg_header_type		source_msg_header;
-	data_obj_type           source_data_obj;
+	data_obj_type           source_data_obj[2];
 	data_obj_type		source_request_obj;
 	struct sm5714_usbpd_manager_data	manager;
 	struct work_struct	worker;
@@ -896,6 +897,9 @@ struct sm5714_usbpd_data {
 	struct completion	pd_completion;
 	unsigned int            wait_for_msg_arrived;
 	int			specification_revision;
+	int			thermal_state;
+	int			auth_type;
+	int			d2d_type;
 	struct pdic_notifier_struct pd_noti;
 };
 
@@ -984,8 +988,13 @@ extern void (*fp_select_pdo)(int num);
 extern int (*fp_sec_pd_select_pps)(int num, int ppsVol, int ppsCur);
 extern int (*fp_sec_pd_get_apdo_max_power)(unsigned int *pdo_pos,
 		unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr);
+extern void (*fp_sec_pd_vpdo_auth)(int auth, int d2d_type);
 extern int (*fp_count_cisd_pd_data)(unsigned short vid, unsigned short pid);
 #if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
+#if !defined(CONFIG_USB_MTK_OTG)
 extern int dwc3_restart_usb_host_mode_hs(void);
 #endif
+#endif
+void sm5714_usbpd_turn_on_reverse_booster(struct sm5714_usbpd_data *pd_data);
+void sm5714_usbpd_turn_off_reverse_booster(struct sm5714_usbpd_data *pd_data);
 #endif

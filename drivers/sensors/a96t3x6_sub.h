@@ -27,12 +27,21 @@
 #define VENDOR_NAME	"ABOV"
 #define MODEL_NAME	"A96T3X6_SUB"
 #define MODULE_NAME	"grip_sensor_sub"
+#define MODULE_NOTIFIER_NAME	"grip_notifier"
 
 #define NOTIFY_CABLE_USB_FAST	0x01
 #define NOTIFY_CABLE_OTG	0x03
 #define NOTIFY_CABLE_USB_NORMAL	0x04
 #define NOTIFY_CABLE_TA		0x25
 #define NOTIFY_CABLE_TA_FAC	0x27
+
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
+#define TYPE_USB   1
+#define TYPE_HALL  2
+#define TYPE_BOOT  3
+#define TYPE_FORCE 4
 
 /* registers */
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
@@ -158,5 +167,9 @@ enum {
 	BUILT_IN = 0,
 	SDCARD,
 };
-
+#ifdef CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER
+extern int hall_notifier_register(struct notifier_block *n);
+extern int hall_notifier_unregister(struct notifier_block *nb);
+extern int hall_notifier_notify(const char *hall_name, int hall_value);
+#endif
 #endif /* LINUX_A96T3X6_H */

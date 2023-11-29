@@ -537,18 +537,6 @@ typedef enum {
 	HIMAX_STATE_LPM,
 } TOUCH_POWER_MODE;
 
-enum {
-	LCD_NONE = 0,
-	LCD_OFF,
-	LCD_ON,
-	LCD_DOZE,
-	LCD_DOZE_SUSPEND,
-};
-
-enum {
-	LCD_EARLY_EVENT = 0,
-	LCD_LATE_EVENT
-};
 
 enum AP_MODE {
 	GAME_MODE,
