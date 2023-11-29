@@ -90,7 +90,7 @@
 		};
 
 		memory@86000000 {
-			reg = <0x00 0x86000000 0x00 0x8c00000>;
+			reg = <0x00 0x86000000 0x00 0x2000000>;
 			no-map;
 			phandle = <0x7e>;
 		};
@@ -3785,8 +3785,8 @@
 			interrupts-extended = <0x78 0x01 0x04>;
 			qcom,ee = <0x00>;
 			qcom,channel = <0x00>;
-			#address-cells = <0x01>;
-			#size-cells = <0x01>;
+			#address-cells = <0x02>;
+			#size-cells = <0x00>;
 			interrupt-controller;
 			#interrupt-cells = <0x04>;
 			cell-index = <0x00>;

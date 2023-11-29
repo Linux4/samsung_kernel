@@ -391,6 +391,11 @@ struct ldi_reg_desc {
 	bool dirty;
 };
 
+struct freq_hop_param {
+	u32 dsi_freq;
+	u32 osc_freq;
+};
+
 #define MAX_LDI_REG		(0x100)
 #define LDI_REG_DESC(_addr_, _name_, _mode_, _level_)	\
 [(_addr_)] = {											\
@@ -755,6 +760,9 @@ enum PANEL_SEQ {
 	PANEL_ECC_TEST_SEQ,
 #endif
 	PANEL_DECODER_TEST_SEQ,
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+	PANEL_VCOM_TRIM_TEST_SEQ,
+#endif
 	PANEL_DUMMY_SEQ,
 	MAX_PANEL_SEQ,
 };
@@ -933,6 +941,9 @@ struct ddi_ops {
 	int (*ecc_test)(struct panel_device *panel, void *data, u32 size);
 #endif
 	int (*decoder_test)(struct panel_device *panel, void *data, u32 size);
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+	int (*vcom_trim_test)(struct panel_device *panel, void *data, u32 size);
+#endif
 };
 
 struct rcd_region {
@@ -1298,8 +1309,6 @@ struct panel_properties {
 struct panel_info {
 	const char *ldi_name;
 	unsigned char id[PANEL_ID_LEN];
-	unsigned char date[PANEL_DATE_LEN];
-	unsigned char coordinate[PANEL_COORD_LEN];
 	unsigned char vendor[PANEL_ID_LEN];
 	struct panel_properties props;
 	struct ddi_properties ddi_props;
@@ -1411,6 +1420,14 @@ enum decoder_test_result {
 	MAX_PANEL_DECODER_TEST
 };
 
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+enum vcom_trim_test_result {
+	PANEL_VCOM_TRIM_TEST_FAIL = 0,
+	PANEL_VCOM_TRIM_TEST_PASS = 1,
+	MAX_PANEL_VCOM_TRIM_TEST
+};
+#endif
+
 static inline int search_table_u32(u32 *tbl, u32 sz_tbl, u32 value)
 {
 	int i;
@@ -1500,7 +1517,7 @@ int panel_wake_lock(struct panel_device *panel, unsigned long timeout);
 int panel_wake_unlock(struct panel_device *panel);
 int panel_emergency_off(struct panel_device *panel);
 #if defined(CONFIG_PANEL_FREQ_HOP)
-int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_elem *elem);
+int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_param *param);
 #endif
 int panel_parse_ap_vendor_node(struct panel_device *panel, struct device_node *node);
 int panel_flush_image(struct panel_device *panel);

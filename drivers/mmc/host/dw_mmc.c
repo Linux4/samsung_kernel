@@ -2612,6 +2612,7 @@ static bool dw_mci_clear_pending_cmd_complete(struct dw_mci *host)
 	 */
 	WARN_ON(del_timer_sync(&host->cto_timer));
 	clear_bit(EVENT_CMD_COMPLETE, &host->pending_events);
+	dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, host->state);
 
 	return true;
 }
@@ -2871,8 +2872,9 @@ static void dw_mci_tasklet_func(unsigned long priv)
 				break;
 
 			set_bit(EVENT_XFER_COMPLETE, &host->completed_events);
-			set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
+			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, state);
 			set_bit(EVENT_DATA_COMPLETE, &host->pending_events);
+			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_TASKLET, state);
 
 			state = STATE_DATA_BUSY;
 			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_DATA_PROCESS, state);
@@ -3302,6 +3304,7 @@ static void dw_mci_cmd_interrupt(struct dw_mci *host, u32 status)
 	smp_wmb(); /* drain writebuffer */
 
 	set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
+	dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_ISR, host->state);
 	tasklet_schedule(&host->tasklet);
 }
 
@@ -3362,6 +3365,7 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 
 			smp_wmb();	/* drain writebuffer */
 			set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
+			dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_ISR, host->state);
 
 			spin_unlock_irqrestore(&host->irq_lock, irqflags);
 		}
@@ -3882,6 +3886,7 @@ static void dw_mci_cmd11_timer(struct timer_list *t)
 
 	host->cmd_status = SDMMC_INT_RTO;
 	set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
+	dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_CMD11, host->state);
 	tasklet_schedule(&host->tasklet);
 }
 
@@ -3928,6 +3933,7 @@ static void dw_mci_cto_timer(struct timer_list *t)
 		 */
 		host->cmd_status = SDMMC_INT_RTO;
 		set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
+		dw_mci_debug_req_log(host, host->mrq, STATE_REQ_CMD_COMPLETE_CTO, host->state);
 		tasklet_schedule(&host->tasklet);
 		break;
 	default:

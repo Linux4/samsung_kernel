@@ -940,10 +940,12 @@ int slsi_mlme_del_vif(struct slsi_dev *sdev, struct net_device *dev)
 
 	if (((ndev_vif->iftype == NL80211_IFTYPE_P2P_CLIENT) || (ndev_vif->iftype == NL80211_IFTYPE_STATION)) &&
 	    (ndev_vif->delete_probe_req_ies)) {
+		SLSI_MUTEX_LOCK(ndev_vif->scan_mutex);
 		kfree(ndev_vif->probe_req_ies);
 		ndev_vif->probe_req_ies = NULL;
 		ndev_vif->probe_req_ie_len = 0;
 		ndev_vif->delete_probe_req_ies = false;
+		SLSI_MUTEX_UNLOCK(ndev_vif->scan_mutex);
 	}
 	if (SLSI_IS_VIF_INDEX_P2P(ndev_vif))
 		ndev_vif->drv_in_p2p_procedure = false;
@@ -4042,7 +4044,6 @@ int slsi_mlme_set_acl(struct slsi_dev *sdev, struct net_device *dev, u16 ifnum,
 	int               n_acl_entries       = 0;
 	u8                zero_addr[ETH_ALEN] = {0};
 
-
 	if (ifnum > 0 && WLBT_WARN_ON(!ndev_vif->activated))
 		return -EINVAL;
 
@@ -4191,59 +4192,27 @@ exit:
 int slsi_mlme_tdls_action(struct slsi_dev *sdev, struct net_device *dev, const u8 *peer, int action)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct slsi_mlme_parameters req_header;
 	struct sk_buff    *req;
 	struct sk_buff    *cfm;
 	int               r = 0;
-	int               result_code = 0;
-	int               alloc_data_size = 0;
-	int               mac_count = ndev_vif->sta.tdls_candidate_setup_count - 1;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_tdls_action_req(action:%u)\n", action);
-
-	if (action == FAPI_TDLSACTION_CANDIDATE_SETUP && ndev_vif->sta.tdls_candidate_setup_count > 1)
-		alloc_data_size = (mac_count * ETH_ALEN) + sizeof(req_header);
-
-	req = fapi_alloc(mlme_tdls_action_req, MLME_TDLS_ACTION_REQ, ndev_vif->ifnum, alloc_data_size);
+	req = fapi_alloc(mlme_tdls_action_req, MLME_TDLS_ACTION_REQ, ndev_vif->ifnum, 0);
 	if (!req)
 		return -ENOMEM;
 
 	fapi_set_memcpy(req, u.mlme_tdls_action_req.peer_sta_address, peer);
 	fapi_set_u16(req, u.mlme_tdls_action_req.tdls_action, action);
 
-	if (alloc_data_size) {
-		req_header.element_id = SLSI_WLAN_EID_VENDOR_SPECIFIC;
-		req_header.length = SLSI_MLME_PARAM_HEADER_SIZE + (mac_count * ETH_ALEN);
-		slsi_mlme_put_oui(req_header.oui, SLSI_MLME_SAMSUNG_OUI);
-		slsi_mlme_put_oui_type(&req_header, SLSI_MLME_TYPE_MAC_ADDRESS, SLSI_MLME_SUBTYPE_RESERVED);
-		fapi_append_data(req, (u8 *)&req_header, sizeof(req_header));
-	}
-
-	if (action == FAPI_TDLSACTION_CANDIDATE_SETUP) {
-		if (!list_empty(&ndev_vif->sta.tdls_candidate_setup_list)) {
-			struct sorted_peer_entry *tdls_entry, *tdls_tmp;
-
-			list_for_each_entry_safe(tdls_entry, tdls_tmp, &ndev_vif->sta.tdls_candidate_setup_list, list) {
-				if (is_broadcast_ether_addr(peer)) {
-					fapi_set_memcpy(req, u.mlme_tdls_action_req.peer_sta_address, tdls_entry->peer->mac_addr);
-					peer = tdls_entry->peer->mac_addr;
-				} else {
-					fapi_append_data(req, (const u8 *)tdls_entry->peer->mac_addr, ETH_ALEN);
-				}
-			}
-		}
-	}
-
 	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_TDLS_ACTION_CFM);
 	if (!cfm)
 		return -EIO;
 
-	result_code = fapi_get_u16(cfm, u.mlme_tdls_action_cfm.result_code);
-
-	if (result_code == FAPI_RESULTCODE_NOT_SUPPORTED)
-		r = -EOPNOTSUPP;
-	else if (result_code != FAPI_RESULTCODE_SUCCESS)
+	if (fapi_get_u16(cfm, u.mlme_tdls_action_cfm.result_code) != FAPI_RESULTCODE_SUCCESS) {
+		SLSI_NET_ERR(dev, "mlme_tdls_action_cfm(result:0x%04x) ERROR\n",
+			     fapi_get_u16(cfm, u.mlme_tdls_action_cfm.result_code));
 		r = -EINVAL;
+	}
 
 	kfree_skb(cfm);
 

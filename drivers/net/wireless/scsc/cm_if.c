@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2022 Samsung Electronics Co., Ltd. All rights reserved
  *
  *       Chip Manager interface
  *
@@ -257,7 +257,7 @@ void slsi_wlan_service_probe(struct scsc_mx_module_client *module_client, struct
 
 	SLSI_INFO_NODEV("WLAN service probe\n");
 
-	memset((void *) &mx_wlan_client, 0, (size_t) sizeof(mx_wlan_client));
+	memset((void *)&mx_wlan_client, 0, (size_t)sizeof(mx_wlan_client));
 	mutex_lock(&slsi_start_mutex);
 
 	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && !recovery_in_progress)
@@ -737,6 +737,7 @@ int slsi_sm_recovery_service_start(struct slsi_dev *sdev)
 	sdev->wlan_service_on = 1;
 	sprintf(log_to_sys_error_buffer, "%s: wlan_service_on[1]\n", __func__);
 	slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+	sdev->require_service_close = false;
 	mutex_unlock(&slsi_start_mutex);
 	return err;
 }
@@ -911,6 +912,7 @@ int slsi_sm_wlan_service_start(struct slsi_dev *sdev)
 	}
 	atomic_set(&sdev->cm_if.cm_if_state, SCSC_WIFI_CM_IF_STATE_STARTED);
 	sdev->wlan_service_on = 1;
+	sdev->require_service_close = false;
 	mutex_unlock(&slsi_start_mutex);
 	return 0;
 }
@@ -1067,12 +1069,12 @@ void slsi_sm_wlan_service_close(struct slsi_dev *sdev)
 		goto exit;
 	}
 
-	SLSI_INFO_NODEV("Closing WLAN service. Service is %d\n",sdev->service);
+	SLSI_INFO_NODEV("Closing WLAN service. Service is %d\n", sdev->service);
 
 	sprintf(log_to_sys_error_buffer, "%s: Closing WLAN service. Service is %d\n", __func__, sdev->service);
 	slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
 
-	if (sdev->service){
+	if (sdev->service) {
 		scsc_mx_service_mifram_free(sdev->service, sdev->hip4_inst.hip_ref);
 		r = scsc_mx_service_close(sdev->service);
 		if (r == -EIO) {

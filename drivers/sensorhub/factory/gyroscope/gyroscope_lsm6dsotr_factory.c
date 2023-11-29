@@ -237,7 +237,7 @@ static ssize_t selftest_show(struct device *dev, struct device_attribute *attr, 
 
 	for (j = 0; j < 3; j++) {
 		if (unlikely(abs(avg[j]) > bias_thresh)) {
-			shub_errf("Gyro bias (%ld) exceeded threshold (threshold = %d LSB)\n",
+			shub_errf("Gyro bias %s(%ld) exceeded threshold (threshold = %d LSB)\n",
 				  a_name[j], avg[j], bias_thresh);
 			ret_val |= 1 << (3 + j);
 		}

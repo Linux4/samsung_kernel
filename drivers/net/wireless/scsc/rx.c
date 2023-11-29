@@ -32,7 +32,6 @@
 #if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 #include <scsc/scsc_log_collector.h>
 #endif
-#include "tdls_manager.h"
 
 static int slsi_freq_to_band(u32 freq)
 {
@@ -2353,9 +2352,17 @@ exit_with_lock:
 static void slsi_tdls_event_discovered(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
 {
 	struct netdev_vif     *ndev_vif = netdev_priv(dev);
+	struct ieee80211_mgmt *mgmt = fapi_get_mgmt(skb);
+	int                   len = fapi_get_mgmtlen(skb);
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
-	slsi_tdls_manager_event_discovered(sdev, dev, skb);
+
+	SLSI_INFO(sdev, "\n");
+
+	if (len != 0) {
+		cfg80211_rx_mgmt(&ndev_vif->wdev, ndev_vif->chan->center_freq, 0, (const u8 *)mgmt, len, GFP_ATOMIC);
+	}
+
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 
 	kfree_skb(skb);
@@ -2363,13 +2370,72 @@ static void slsi_tdls_event_discovered(struct slsi_dev *sdev, struct net_device 
 
 static void slsi_tdls_event_connected(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
 {
+	struct slsi_peer  *peer = NULL;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	u16               flow_id = fapi_get_u16(skb, u.mlme_tdls_peer_ind.flow_id);
+//	u16               tdls_event = fapi_get_u16(skb, u.mlme_tdls_peer_ind.tdls_event);
+	u16               peer_index = (flow_id >> 8);
 
 	rtnl_lock();
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-	slsi_tdls_manager_event_connected(sdev, dev, skb);
+	ndev_vif->sta.tdls_enabled = true;
 
+	SLSI_INFO(sdev, "(vif:%d, peer_index:%d mac[" MACSTR "])\n",
+		  fapi_get_vif(skb), peer_index, MAC2STR(fapi_get_buff(skb, u.mlme_tdls_peer_ind.peer_sta_address)));
+
+	if (!ndev_vif->activated) {
+		SLSI_NET_DBG1(dev, SLSI_MLME, "VIF not activated\n");
+		goto exit_with_lock;
+	}
+
+	if (WARN(ndev_vif->vif_type != FAPI_VIFTYPE_STATION, "STA VIF"))
+		goto exit_with_lock;
+
+	if (peer_index < SLSI_TDLS_PEER_INDEX_MIN || peer_index > SLSI_TDLS_PEER_INDEX_MAX) {
+		SLSI_NET_ERR(dev, "Received incorrect peer_index: %d\n", peer_index);
+		goto exit_with_lock;
+	}
+
+	/* slsi_tdls_move_packets() accesses netdev_vif->ack_suppression records which is protected
+	 * by (&ndev_vif->tcp_ack_lock), but due to order dependency it can NOT take (&ndev_vif->tcp_ack_lock)
+	 * after (&ndev_vif->peer_lock).
+	 * so acquire (&ndev_vif->tcp_ack_lock) first and then (&ndev_vif->peer_lock)
+	 */
+	slsi_spinlock_lock(&ndev_vif->tcp_ack_lock);
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
+	/* Check for MAX client */
+	if (ndev_vif->sta.tdls_peer_sta_records + 1 > SLSI_TDLS_PEER_CONNECTIONS_MAX) {
+		SLSI_NET_ERR(dev, "MAX TDLS peer limit reached. Ignore ind for peer_index:%d\n", peer_index);
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
+		slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
+		goto exit_with_lock;
+	}
+
+	peer = slsi_peer_add(sdev, dev, fapi_get_buff(skb, u.mlme_tdls_peer_ind.peer_sta_address), peer_index);
+
+	if (!peer) {
+		SLSI_NET_ERR(dev, "Peer NOT Created\n");
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
+		slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
+		goto exit_with_lock;
+	}
+
+	/* QoS is mandatory for TDLS - enable QoS for TDLS peer by default */
+	peer->qos_enabled = true;
+
+	slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_CONNECTED);
+
+#ifdef CONFIG_SCSC_WLAN_TX_API
+	slsi_tx_tdls_update(sdev, dev, ndev_vif->peer_sta_record[SLSI_STA_PEER_QUEUESET], peer, true);
+#else
+	/* Move TDLS packets from STA_Q to TDLS_Q */
+	slsi_tdls_move_packets(sdev, dev, ndev_vif->peer_sta_record[SLSI_STA_PEER_QUEUESET], peer, true);
+#endif
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
+	slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
+
+exit_with_lock:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	rtnl_unlock();
 	kfree_skb(skb);
@@ -2377,12 +2443,61 @@ static void slsi_tdls_event_connected(struct slsi_dev *sdev, struct net_device *
 
 static void slsi_tdls_event_disconnected(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
 {
+	struct slsi_peer  *peer = NULL;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
+//	u16               tdls_event =  fapi_get_u16(skb, u.mlme_tdls_peer_ind.tdls_event);
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
-	slsi_tdls_manager_event_disconnected(sdev, dev, skb);
+	if (WARN_ON(!dev))
+		goto exit;
 
+	SLSI_INFO(sdev, "(vif:%d, MAC:" MACSTR ")\n", ndev_vif->ifnum,
+		  MAC2STR(fapi_get_buff(skb, u.mlme_tdls_peer_ind.peer_sta_address)));
+
+	if (!ndev_vif->activated) {
+		SLSI_NET_DBG1(dev, SLSI_MLME, "VIF not activated\n");
+		goto exit;
+	}
+
+	/* slsi_tdls_move_packets() accesses netdev_vif->ack_suppression records which is protected
+	 * by (&ndev_vif->tcp_ack_lock), but due to order dependency it can NOT take (&ndev_vif->tcp_ack_lock)
+	 * after (&ndev_vif->peer_lock).
+	 * so acquire (&ndev_vif->tcp_ack_lock) first and then (&ndev_vif->peer_lock)
+	 */
+	slsi_spinlock_lock(&ndev_vif->tcp_ack_lock);
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
+	peer = slsi_get_peer_from_mac(sdev, dev, fapi_get_buff(skb, u.mlme_tdls_peer_ind.peer_sta_address));
+
+	if (!peer || peer->aid == 0) {
+		WARN_ON(!peer || (peer->aid == 0));
+		SLSI_NET_DBG1(dev, SLSI_MLME, "peer NOT found by MAC address\n");
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
+		slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
+		goto exit;
+	}
+
+	slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_DISCONNECTED);
+
+#ifdef CONFIG_SCSC_WLAN_TX_API
+	slsi_tx_tdls_update(sdev, dev, ndev_vif->peer_sta_record[SLSI_STA_PEER_QUEUESET], peer, false);
+#else
+	/* Move TDLS packets from TDLS_Q to STA_Q */
+	slsi_tdls_move_packets(sdev, dev, ndev_vif->peer_sta_record[SLSI_STA_PEER_QUEUESET], peer, false);
+#endif
+	/* unlock tcp_ack_lock here as slsi_peer_remove can call transmit in same context
+	* that will deadlock on tcp_ack_lock. While unlocking, maintain order between peer_lock
+	* and tcp_ack_lock
+	*/
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
+	slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
+
+	/* take peer_lock again as, it is a prerequisite for slsi_peer_remove */
+	slsi_spinlock_lock(&ndev_vif->peer_lock);
+	slsi_peer_remove(sdev, dev, peer);
+	slsi_spinlock_unlock(&ndev_vif->peer_lock);
+
+exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	kfree_skb(skb);
 }

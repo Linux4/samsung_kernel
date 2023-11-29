@@ -13,7 +13,9 @@
 #include "panel_debug.h"
 #include <linux/panel_notify.h>
 #include "panel_freq_hop.h"
+#if defined(CONFIG_PANEL_FREQ_HOP)
 #include <linux/dev_ril_bridge.h>
+#endif
 
 #define MAX_NAME_SIZE       32
 
@@ -126,7 +128,7 @@ static int panel_debug_fake_radio_noti(struct panel_device *panel, char *buf)
 	if (!buf)
 		return -EINVAL;
 
-	rc = sscanf(buf, "%d %d %d",
+	rc = sscanf(buf, "%hhd %d %d",
 			&rf_info.rat, &rf_info.band, &rf_info.channel);
 	if (rc < 3) {
 		panel_err("check your input. rc:(%d)\n", rc);

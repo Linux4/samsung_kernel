@@ -120,6 +120,7 @@ enum OFFLOAD_IPTYPE {
 	COMPR_MP3 = 0x0,
 	COMPR_AAC = 0x1,
 	COMPR_FLAC = 0x2,
+	COMPR_OPUS = 0x3,
 };
 
 enum OFFLOAD_STREAM_FORMAT {
@@ -133,11 +134,12 @@ static const struct snd_compr_caps abox_rdma_compr_caps = {
 	.max_fragment_size	= SZ_64K,
 	.min_fragments		= 1,
 	.max_fragments		= 5,
-	.num_codecs		= 3,
+	.num_codecs		= 4,
 	.codecs			= {
 		SND_AUDIOCODEC_MP3,
 		SND_AUDIOCODEC_AAC,
-		SND_AUDIOCODEC_FLAC
+		SND_AUDIOCODEC_FLAC,
+		SND_AUDIOCODEC_BESPOKE /*use BESPOKE for OPUS*/
 	},
 };
 
@@ -816,6 +818,9 @@ static int abox_rdma_compr_set_params(struct snd_soc_component *component,
 		break;
 	case SND_AUDIOCODEC_FLAC:
 		data->codec_id = COMPR_FLAC;
+		break;
+	case SND_AUDIOCODEC_BESPOKE:
+		data->codec_id = COMPR_OPUS;
 		break;
 	default:
 		abox_err(dev, "%s: unknown codec id %d\n", __func__,

@@ -832,7 +832,7 @@ config MMC_DW_EXYNOS
 	  for platforms based on Exynos4 and Exynos5 SoC's.
 
 config MMC_DW_DEBUG
-	bool "Samsung DWMCI debug feature"
+	tristate "Samsung DWMCI debug feature"
 	depends on MMC_DW
 	help
 	This selects support for infomation logging for debugging.
@@ -1087,9 +1087,10 @@ config MMC_SDHCI_OMAP
 
 config MMC_SDHCI_AM654
 	tristate "Support for the SDHCI Controller in TI's AM654 SOCs"
-	depends on MMC_SDHCI_PLTFM && OF && REGMAP_MMIO
+	depends on MMC_SDHCI_PLTFM && OF
 	select MMC_SDHCI_IO_ACCESSORS
 	select MMC_CQHCI
+	select REGMAP_MMIO
 	help
 	  This selects the Secure Digital Host Controller Interface (SDHCI)
 	  support present in TI's AM654 SOCs. The controller supports

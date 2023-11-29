@@ -256,6 +256,7 @@ int exynos_drm_cmdset_cleanup(struct exynos_panel *ctx)
 		ctx->msg[i].tx_buf = NULL;
 		ctx->msg[i].type = 0;
 		ctx->msg[i].tx_len = 0;
+		ctx->msg[i].flags = 0;
 	}
 	ctx->cmdset_msg_total = 0;
 	ctx->cmdset_payload_total = 0;
@@ -2288,7 +2289,7 @@ static int mcd_drm_panel_set_ffc(struct exynos_panel *ctx, u32 frequency)
 }
 
 __visible_for_testing int mcd_drm_set_freq_hop(void *_ctx,
-		struct freq_hop_elem *elem)
+		struct freq_hop_param *param)
 {
 	struct mipi_dsi_device *dsi;
 	struct dsim_device *dsim;
@@ -2307,24 +2308,24 @@ __visible_for_testing int mcd_drm_set_freq_hop(void *_ctx,
 	}
 
 	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
-	ret = mcd_dsim_update_dsi_freq(dsim, elem->dsi_freq);
+	ret = mcd_dsim_update_dsi_freq(dsim, param->dsi_freq);
 	if (ret < 0) {
 		pr_err("%s: failed to update dsi_freq(%d)\n",
-				__func__, elem->dsi_freq);
+				__func__, param->dsi_freq);
 		return ret;
 	}
 
-	ret = mcd_drm_panel_set_ffc(ctx, elem->dsi_freq);
+	ret = mcd_drm_panel_set_ffc(ctx, param->dsi_freq);
 	if (ret < 0) {
 		pr_err("%s: failed to set ffc(%d)\n",
-				__func__, elem->dsi_freq);
+				__func__, param->dsi_freq);
 		return ret;
 	}
 
-	ret = mcd_drm_panel_set_osc(ctx, elem->osc_freq);
+	ret = mcd_drm_panel_set_osc(ctx, param->osc_freq);
 	if (ret < 0) {
-		pr_err("%s: failed to set ffc(%d)\n",
-				__func__, elem->dsi_freq);
+		pr_err("%s: failed to set osc(%d)\n",
+				__func__, param->osc_freq);
 		return ret;
 	}
 

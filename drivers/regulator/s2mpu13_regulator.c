@@ -1084,6 +1084,39 @@ int s2mpu13_set_instacok(void)
 }
 EXPORT_SYMBOL_GPL(s2mpu13_set_instacok);
 
+#if IS_ENABLED(CONFIG_SEC_PM_DEBUG)
+static u8 pmic_onsrc;
+static u8 pmic_offsrc[2];
+
+static ssize_t pwr_on_off_src_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "ONSRC:0x%02X OFFSRC:0x%02X,0x%02X\n",
+			pmic_onsrc,
+			pmic_offsrc[0], pmic_offsrc[1]);
+}
+
+static DEVICE_ATTR_RO(pwr_on_off_src);
+
+static struct attribute *sec_pm_debug_attrs[] = {
+	&dev_attr_pwr_on_off_src.attr,
+	NULL
+};
+ATTRIBUTE_GROUPS(sec_pm_debug);
+
+int main_pmic_init_debug_sysfs(struct device *sec_pm_dev)
+{
+	int ret;
+
+	ret = sysfs_create_groups(&sec_pm_dev->kobj, sec_pm_debug_groups);
+	if (ret)
+		pr_err("%s: failed to create sysfs groups(%d)\n", __func__, ret);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(main_pmic_init_debug_sysfs);
+#endif /* CONFIG_SEC_PM_DEBUG */
+
 static void s2mpu13_set_regulator_vol(struct s2mpu13_info *s2mpu13)
 {
 //	s2mpu13_write_reg(s2mpu13->i2c, S2MPU13_PMIC_REG_B4M_OUT1, 0x20);
@@ -1159,7 +1192,9 @@ static int s2mpu13_pmic_probe(struct platform_device *pdev)
 	struct s2mpu13_info *s2mpu13;
 	int irq_base, ret;
 	u32 i;
-
+#if IS_ENABLED(CONFIG_SEC_PM_DEBUG)
+	u8 offsrc_val[2] = {0, };
+#endif
 	pr_info("[PMIC] %s: start\n", __func__);
 
 	if (iodev->dev->of_node) {
@@ -1243,6 +1278,24 @@ static int s2mpu13_pmic_probe(struct platform_device *pdev)
 	s2mpu13_set_dropout_vol(s2mpu13);
 
 	exynos_reboot_register_pmic_ops(s2mpu13_power_off_wa, NULL, NULL, s2mpu13_read_pwron_status);
+
+#if IS_ENABLED(CONFIG_SEC_PM_DEBUG)
+	ret = s2mpu13_read_reg(s2mpu13->i2c, S2MPU13_PMIC_REG_PWRONSRC,
+			&pmic_onsrc);
+	if (ret)
+		dev_err(&pdev->dev, "failed to read PWRONSRC\n");
+
+	ret = s2mpu13_bulk_read(s2mpu13->i2c, S2MPU13_PMIC_REG_OFFSRC1, 2,
+			pmic_offsrc);
+	if (ret)
+		dev_err(&pdev->dev, "failed to read OFFSRC\n");
+
+	/* Clear OFFSRC1, OFFSRC2 register */
+	ret = s2mpu13_bulk_write(s2mpu13->i2c, S2MPU13_PMIC_REG_OFFSRC1, 2,
+			offsrc_val);
+	if (ret)
+		dev_err(&pdev->dev, "failed to write OFFSRC\n");
+#endif /* CONFIG_SEC_PM_DEBUG */
 
 	pr_info("[PMIC] %s: end\n", __func__);
 

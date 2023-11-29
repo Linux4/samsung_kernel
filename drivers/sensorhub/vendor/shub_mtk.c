@@ -106,7 +106,7 @@ void shub_dump_write_file(void *dump_data, int dump_size)
 	write_shub_dump_file((char *)dump_data, dump_size, dump_type, 4);
 }
 
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 static int shub_dump_notifier(struct notifier_block *nb, unsigned long val, void *data)
 {
 	struct shub_data_t *shub_data = get_shub_data();
@@ -121,12 +121,15 @@ static int shub_dump_notifier(struct notifier_block *nb, unsigned long val, void
 struct notifier_block shub_dump_nb = {
 	.notifier_call = shub_dump_notifier,
 };
+#endif
 
 int sensorhub_probe(void)
 {
 	scp_ipi_registration(IPI_SHUB, sensorhub_IPI_handler, "shub_sensorhub");
 	scp_A_register_notify(&scp_state_notifier);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
 	shub_dump_notifier_register(&shub_dump_nb);
+#endif
 	return 0;
 }
 

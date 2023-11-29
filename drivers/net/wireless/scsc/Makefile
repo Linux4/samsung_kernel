@@ -63,8 +63,6 @@ scsc_wlan-$(CONFIG_SCSC_WLAN) += reg_info.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += log2us.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += ini_config.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += scsc_wlan_mmap.o
-scsc_wlan-$(CONFIG_SCSC_WLAN) += tdls_manager.o
-
 
 # ----------------------------------------------------------------------------
 # CPU Hotplug Monitor
@@ -72,6 +70,7 @@ scsc_wlan-$(CONFIG_SCSC_WLAN) += tdls_manager.o
 ifeq ($(CONFIG_SCSC_WLAN_CPUHP_MONITOR),y)
 scsc_wlan-$(CONFIG_SCSC_WLAN) += slsi_cpuhp_monitor.o
 endif
+scsc_wlan-$(CONFIG_SCSC_WLAN) += qsfs.o
 
 # ----------------------------------------------------------------------------
 # Wifi Logger Files

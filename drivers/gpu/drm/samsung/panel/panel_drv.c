@@ -575,7 +575,7 @@ bool panel_power_control_exists(struct panel_device *panel, const char *name)
 		if (PTR_ERR(pctrl) == -ENODEV)
 			panel_dbg("not found %s\n", name);
 		else
-			panel_err("error occurred when find %s, %d\n", name, PTR_ERR(pctrl));
+			panel_err("error occurred when find %s, %ld\n", name, PTR_ERR(pctrl));
 		return false;
 	}
 	return true;
@@ -597,7 +597,7 @@ int panel_power_control_execute(struct panel_device *panel, const char *name)
 			panel_dbg("%s not found\n", name);
 			return -ENODATA;
 		}
-		panel_err("error occurred when find %s, %d\n", name, PTR_ERR(pctrl));
+		panel_err("error occurred when find %s, %ld\n", name, PTR_ERR(pctrl));
 		return PTR_ERR(pctrl);
 	}
 	return panel_power_ctrl_helper_execute(pctrl);
@@ -1535,37 +1535,12 @@ static int panel_prepare(struct panel_device *panel, struct common_panel_info *i
 	return 0;
 }
 
-static int panel_update_mandatory_data(struct panel_device *panel)
-{
-	struct panel_info *panel_data;
-	const char *mandatory_resources[] = { "date", "coordinate" };
-	size_t i;
-	int ret;
-
-	if (!panel)
-		return -EINVAL;
-
-	panel_data = &panel->panel_data;
-
-	for (i = 0; i < ARRAY_SIZE(mandatory_resources); i++) {
-		ret = resource_copy_by_name(panel_data, panel_data->date, "date");
-		if (ret < 0) {
-			panel_err("failed to update panel_data from resource(%s)\n",
-					mandatory_resources[i]);
-			return ret;
-		}
-	}
-
-	return 0;
-}
-
 static int panel_resource_init(struct panel_device *panel)
 {
 	if (!panel)
 		return -EINVAL;
 
 	__panel_seq_res_init(panel);
-	panel_update_mandatory_data(panel);
 
 	return 0;
 }
@@ -1601,43 +1576,6 @@ static int panel_maptbl_init(struct panel_device *panel)
 			panel_err("maptbl[%d] init failed\n", i);
 	}
 	mutex_unlock(&panel->op_lock);
-
-	return 0;
-}
-
-int panel_is_changed(struct panel_device *panel)
-{
-	struct panel_info *panel_data = &panel->panel_data;
-	u8 date[7] = { 0, }, coordinate[4] = { 0, };
-	int ret;
-
-	ret = resource_copy_by_name(panel_data, date, "date");
-	if (ret < 0)
-		return ret;
-
-	ret = resource_copy_by_name(panel_data, coordinate, "coordinate");
-	if (ret < 0)
-		return ret;
-
-	panel_info("cell_id(old) : %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
-			panel_data->date[0], panel_data->date[1],
-			panel_data->date[2], panel_data->date[3], panel_data->date[4],
-			panel_data->date[5], panel_data->date[6], panel_data->coordinate[0],
-			panel_data->coordinate[1], panel_data->coordinate[2],
-			panel_data->coordinate[3]);
-
-	panel_info("cell_id(new) : %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n",
-			date[0], date[1], date[2], date[3], date[4], date[5],
-			date[6], coordinate[0], coordinate[1], coordinate[2],
-			coordinate[3]);
-
-	if (memcmp(panel_data->date, date, sizeof(panel_data->date)) ||
-		memcmp(panel_data->coordinate, coordinate, sizeof(panel_data->coordinate))) {
-		memcpy(panel_data->date, date, sizeof(panel_data->date));
-		memcpy(panel_data->coordinate, coordinate, sizeof(panel_data->coordinate));
-		panel_info("panel is changed\n");
-		return 1;
-	}
 
 	return 0;
 }
@@ -1731,6 +1669,22 @@ bool check_panel_decoder_test_exists(struct panel_device *panel)
 	}
 	return true;
 }
+
+#ifdef CONFIG_SUPPORT_PANEL_VCOM_TRIM_TEST
+/*
+ * panel_vcom_trim_test - call vcom_trim test function defined in ddi.
+ * Do not use op_lock in the function defined in ddi. A deadlock may occur.
+ */
+int panel_vcom_trim_test(struct panel_device *panel, u8 *buf, int len)
+{
+	struct ddi_ops *ops = &panel->panel_data.ddi_ops;
+
+	if (!ops->vcom_trim_test)
+		return -ENOENT;
+
+	return ops->vcom_trim_test(panel, buf, len);
+}
+#endif
 
 int panel_ddi_init(struct panel_device *panel)
 {
@@ -2323,7 +2277,7 @@ __visible_for_testing int panel_create_lcd_device(struct panel_device *panel, un
 				"%s-%d", PANEL_DEV_NAME, id);
 
 	panel->lcd_dev = device_create(lcd_class,
-			panel->dev, 0, panel, name);
+			panel->dev, 0, panel, "%s", name);
 	if (IS_ERR_OR_NULL(panel->lcd_dev)) {
 		panel_err("failed to create lcd device\n");
 		return PTR_ERR(panel->lcd_dev);
@@ -4170,7 +4124,7 @@ static int panel_parse_pinctrl(struct panel_device *panel)
 	}
 
 	if (pinctrl_select_state(panel->pinctrl, panel->default_gpio_pinctrl)) {
-		panel_err("%s failed to set default pinctrl\n");
+		panel_err("%s failed to set default pinctrl\n", __func__);
 		goto exit_parse_pinctrl;
 	}
 
@@ -4589,12 +4543,12 @@ static int panel_parse_panel_lookup(struct panel_device *panel)
 		}
 
 		if (sz % 2 > 0) {
-			panel_err("id-mask value must be pair\n", sz);
+			panel_err("id-mask value must be pair (sz:%d)\n", sz);
 			return -EINVAL;
 		}
 
 		if (sz > ARRAY_SIZE(tmparr)) {
-			panel_warn("id mask size exceeded %d %d\n", sz, ARRAY_SIZE(tmparr));
+			panel_warn("id mask size exceeded (sz:%d arr-size:%ld)\n", sz, ARRAY_SIZE(tmparr));
 			sz = ARRAY_SIZE(tmparr);
 		}
 

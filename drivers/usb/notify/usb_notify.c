@@ -1799,7 +1799,8 @@ static void extra_notify_state(struct otg_notify *n,
 				&& !u_notify->typec_status.doing_drswap) {
 			u_notify->gadget_status.bus_state
 					= NOTIFY_USB_SUSPENDED;
-			if (u_notify->gadget_status.usb_cable_connect) {
+			if (u_notify->gadget_status.usb_cable_connect
+				&& u_notify->typec_status.power_role != HNOTIFY_SOURCE) {
 				if (n->set_chg_current)
 					n->set_chg_current
 						(NOTIFY_USB_SUSPENDED);

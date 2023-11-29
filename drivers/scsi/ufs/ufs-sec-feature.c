@@ -13,6 +13,7 @@
 #include <asm/unaligned.h>
 #include <scsi/scsi_proto.h>
 #include <trace/hooks/ufshcd.h>
+#include <linux/reboot.h>
 #include <linux/sec_debug.h>
 
 #include "ufs-sec-feature.h"
@@ -22,8 +23,12 @@ struct ufs_vendor_dev_info ufs_vdi;
 
 struct ufs_sec_err_info ufs_err_info;
 struct ufs_sec_err_info ufs_err_info_backup;
+struct ufs_sec_err_info ufs_err_hist;
 
 struct ufs_sec_wb_info ufs_wb;
+struct ufs_sec_feature_info ufs_sec_features;
+
+#define NOTI_WORK_DELAY_MS 500
 
 #define set_wb_state(wb, s) \
 	({(wb)->state = (s); (wb)->state_ts = jiffies; })
@@ -543,6 +548,105 @@ wb_disabled:
 	ufs_wb.wb_support = false;
 }
 
+/* SEC cmd log : begin */
+static void __ufs_sec_log_cmd(struct ufs_hba *hba, int str_idx,
+		unsigned int tag, u8 cmd_id, u8 idn, u8 lun, u32 lba,
+		int transfer_len)
+{
+	struct ufs_sec_cmd_log_info *ufs_cmd_log =
+		ufs_sec_features.ufs_cmd_log;
+	struct ufs_sec_cmd_log_entry *entry =
+		&ufs_cmd_log->entries[ufs_cmd_log->pos];
+
+	int cpu = raw_smp_processor_id();
+
+	entry->lun = lun;
+	entry->str = ufs_sec_log_str[str_idx];
+	entry->cmd_id = cmd_id;
+	entry->lba = lba;
+	entry->transfer_len = transfer_len;
+	entry->idn = idn;
+	entry->tag = tag;
+	entry->tstamp = cpu_clock(cpu);
+	entry->outstanding_reqs = hba->outstanding_reqs;
+	ufs_cmd_log->pos =
+		(ufs_cmd_log->pos + 1) % UFS_SEC_CMD_LOGGING_MAX;
+}
+
+static void ufs_sec_log_cmd(struct ufs_hba *hba, struct ufshcd_lrb *lrbp,
+		int str_t, struct ufs_sec_cmd_info *ufs_cmd, u8 cmd_id)
+{
+	u8 opcode = 0;
+	u8 idn = 0;
+
+	if (!ufs_sec_features.ufs_cmd_log)
+		return;
+
+	switch (str_t) {
+	case UFS_SEC_CMD_SEND:
+	case UFS_SEC_CMD_COMP:
+		__ufs_sec_log_cmd(hba, str_t, lrbp->task_tag, ufs_cmd->opcode,
+				0, lrbp->lun, ufs_cmd->lba,
+				ufs_cmd->transfer_len);
+		break;
+	case UFS_SEC_QUERY_SEND:
+	case UFS_SEC_QUERY_COMP:
+		opcode = hba->dev_cmd.query.request.upiu_req.opcode;
+		idn = hba->dev_cmd.query.request.upiu_req.idn;
+		__ufs_sec_log_cmd(hba, str_t, lrbp->task_tag, opcode,
+				idn, lrbp->lun, 0, 0);
+		break;
+	case UFS_SEC_NOP_SEND:
+	case UFS_SEC_NOP_COMP:
+		__ufs_sec_log_cmd(hba, str_t, lrbp->task_tag, 0,
+				0, lrbp->lun, 0, 0);
+		break;
+	case UFS_SEC_TM_SEND:
+	case UFS_SEC_TM_COMP:
+	case UFS_SEC_TM_ERR:
+	case UFS_SEC_UIC_SEND:
+	case UFS_SEC_UIC_COMP:
+		__ufs_sec_log_cmd(hba, str_t, 0, cmd_id, 0, 0, 0, 0);
+		break;
+	default:
+		break;
+	}
+}
+
+static void ufs_sec_init_cmd_logging(struct device *dev)
+{
+	struct ufs_sec_cmd_log_info *ufs_cmd_log = NULL;
+
+	ufs_cmd_log = devm_kzalloc(dev, sizeof(struct ufs_sec_cmd_log_info),
+			GFP_KERNEL);
+	if (!ufs_cmd_log) {
+		dev_err(dev, "%s: Failed allocating ufs_cmd_log(%lu)",
+				__func__,
+				sizeof(struct ufs_sec_cmd_log_info));
+		return;
+	}
+
+	ufs_cmd_log->entries = devm_kcalloc(dev, UFS_SEC_CMD_LOGGING_MAX,
+			sizeof(struct ufs_sec_cmd_log_entry), GFP_KERNEL);
+	if (!ufs_cmd_log->entries) {
+		dev_err(dev, "%s: Failed allocating cmd log entry(%lu)",
+				__func__,
+				sizeof(struct ufs_sec_cmd_log_entry)
+				* UFS_SEC_CMD_LOGGING_MAX);
+		devm_kfree(dev, ufs_cmd_log);
+		return;
+	}
+
+	pr_info("SEC UFS cmd logging is initialized.\n");
+
+	ufs_sec_features.ufs_cmd_log = ufs_cmd_log;
+
+	ufs_sec_features.ucmd_complete = true;
+	ufs_sec_features.qcmd_complete = true;
+
+}
+/* SEC cmd log : end */
+
 /*stream id*/
 inline bool streamid_is_enabled(void)
 {
@@ -713,6 +817,24 @@ static void ufs_sec_print_evt_hist(struct ufs_hba *hba)
 	ufs_sec_print_evt(hba, UFS_EVT_ABORT, "task_abort");
 }
 
+/*
+ * ufs_sec_check_and_is_err - Check and compare UFS Error counts
+ * @buf: has to be filled by using SEC_UFS_ERR_SUM() or SEC_UFS_ERR_HIST_SUM()
+ *
+ * Returns
+ *  0     - If the buf has no error counts
+ *  other - If the buf is invalid or has error count value
+ */
+static int ufs_sec_check_and_is_err(char *buf)
+{
+	const char *no_err = "U0I0H0L0X0Q0R0W0F0SM0SH0";
+
+	if (!buf || strlen(buf) < strlen(no_err))
+		return -EINVAL;
+
+	return strncmp(buf, no_err, strlen(no_err));
+}
+
 /**
  * ufs_sec_panic_callback - Print and Send UFS Error Information to AP
  * Format : U0I0H0L0X0Q0R0W0F0SM0SH0
@@ -731,44 +853,19 @@ static void ufs_sec_print_evt_hist(struct ufs_hba *hba)
 static int ufs_sec_panic_callback(struct notifier_block *nfb,
 		unsigned long event, void *panic_msg)
 {
-	char buf[25];
+	char err_buf[ERR_SUM_SIZE];
+	char hist_buf[ERR_HIST_SUM_SIZE];
 	char *str = (char *)panic_msg;
 	bool is_FS_panic = !strncmp(str, "F2FS", 4) || !strncmp(str, "EXT4", 4);
 
-	// if it's not FS panic, return immediately.
-	if (!is_FS_panic)
-		return NOTIFY_OK;
+	SEC_UFS_ERR_SUM(err_buf);
+	SEC_UFS_ERR_HIST_SUM(hist_buf);
+	pr_info("ufs: %s hist: %s", err_buf, hist_buf);
 
-	sprintf(buf, "U%uI%uH%uL%uX%uQ%uR%uW%uF%uSM%uSH%u",
-			/* UTP Error */
-			min_t(unsigned int, 9, SEC_UFS_ERR_INFO_GET_VALUE(UTP_count, UTP_err)),
-			/* UIC Error */
-			min_t(unsigned int, 9, SEC_UFS_ERR_INFO_GET_VALUE(UIC_err_count, UIC_err)),
-			/* HW reset */
-			min_t(unsigned int, 9, SEC_UFS_ERR_INFO_GET_VALUE(op_count, HW_RESET_count)),
-			/* Link Startup fail */
-			min_t(unsigned int, 9, SEC_UFS_ERR_INFO_GET_VALUE(op_count, link_startup_count)),
-			/* Link Lost */
-			min_t(u8, 9, SEC_UFS_ERR_INFO_GET_VALUE(Fatal_err_count, LLE)),
-			/* Query task */
-			min_t(u8, 9, SEC_UFS_ERR_INFO_GET_VALUE(UTP_count, UTMR_query_task_count)),
-			/* UTRR */
-			min_t(u8, 9, SEC_UFS_ERR_INFO_GET_VALUE(UTP_count, UTR_read_err)),
-			/* UTRW */
-			min_t(u8, 9, SEC_UFS_ERR_INFO_GET_VALUE(UTP_count, UTR_write_err)),
-			/* Device Fatal Error */
-			min_t(u8, 9, SEC_UFS_ERR_INFO_GET_VALUE(Fatal_err_count, DFE)),
-			/* Medium Error */
-			min_t(unsigned int, 9, SEC_UFS_ERR_INFO_GET_VALUE(sense_count, scsi_medium_err)),
-			/* Hardware Error */
-			min_t(unsigned int, 9, SEC_UFS_ERR_INFO_GET_VALUE(sense_count, scsi_hw_err)));
+	secdbg_exin_set_ufs(err_buf);
 
-	pr_err("%s: Send UFS information to AP : %s\n", __func__, buf);
-
-#if IS_ENABLED(CONFIG_SEC_USER_RESET_DEBUG)
-	sec_debug_store_additional_dbg(DBG_1_UFS_ERR, 0, "%s", buf);
-#endif
-	ufs_sec_print_evt_hist(ufs_vdi.hba);
+	if (ufs_vdi.hba && is_FS_panic && ufs_sec_check_and_is_err(err_buf))
+		ufs_sec_print_evt_hist(ufs_vdi.hba);
 
 	return NOTIFY_OK;
 }
@@ -777,7 +874,106 @@ static struct notifier_block ufs_sec_panic_notifier = {
 	.notifier_call = ufs_sec_panic_callback,
 	.priority = 1,
 };
+
 /* panic notifier : end */
+
+/* reboot notifier : begin */
+static int ufs_sec_reboot_notify(struct notifier_block *notify_block,
+		unsigned long event, void *unused)
+{
+	char buf[ERR_HIST_SUM_SIZE];
+
+	SEC_UFS_ERR_HIST_SUM(buf);
+	pr_info("%s: UFS Info : %s", __func__, buf);
+
+	return NOTIFY_OK;
+}
+/* reboot notifier : end */
+
+/* I/O error uevent : begin */
+static int ufs_sec_check_no_err(char *buf)
+{
+	const char *no_err = "U0I0H0L0X0Q0R0W0F0SM0SH0";
+
+	if (!buf || !strncmp(buf, no_err, sizeof(no_err) - 1))
+		return -EINVAL;
+
+	return 0;
+}
+
+void ufs_sec_print_err(void)
+{
+	char err_buf[ERR_SUM_SIZE];
+	char hist_buf[ERR_HIST_SUM_SIZE];
+
+	SEC_UFS_ERR_SUM(err_buf);
+	SEC_UFS_ERR_HIST_SUM(hist_buf);
+
+	if (!ufs_sec_check_no_err(hist_buf))
+		pr_info("ufs: %s, hist : %s", err_buf, hist_buf);
+}
+
+static void ufs_sec_err_noti_work(struct work_struct *work)
+{
+	int ret;
+	char buf[ERR_SUM_SIZE];
+
+	SEC_UFS_ERR_SUM(buf);
+	pr_info("%s: UFS Info: %s\n", __func__, buf);
+
+	ret = kobject_uevent(&sec_ufs_cmd_dev->kobj, KOBJ_CHANGE);
+	if (ret)
+		pr_err("%s: Failed to send uevent with err %d\n", __func__, ret);
+}
+
+static int ufs_sec_err_uevent(struct device *dev, struct kobj_uevent_env *env)
+{
+	char buf[ERR_SUM_SIZE];
+
+	add_uevent_var(env, "DEVNAME=%s", dev->kobj.name);
+	add_uevent_var(env, "NAME=UFSINFO");
+
+	SEC_UFS_ERR_SUM(buf);
+	return add_uevent_var(env, "DATA=%s", buf);
+}
+
+static struct device_type ufs_type = {
+	.uevent = ufs_sec_err_uevent,
+};
+
+static inline bool ufs_sec_is_uevent_condition(u32 hw_rst_count)
+{
+	return ((hw_rst_count == 1) || !(hw_rst_count % 10));
+}
+
+static void ufs_sec_trigger_err_noti_uevent(struct ufs_hba *hba)
+{
+	const char *no_err = "U0I0H0L0X0Q0R0W0F0SM0SH0";
+	u32 hw_rst_count = SEC_UFS_ERR_INFO_GET_VALUE(op_count, HW_RESET_count);
+	char buf[ERR_SUM_SIZE];
+
+	/* eh_flags is only set during error handling */
+	if (!hba->eh_flags)
+		return;
+
+	SEC_UFS_ERR_SUM(buf);
+
+	if (!strncmp(buf, no_err, sizeof(buf) - 1))
+		return;
+
+	if (!ufs_sec_is_uevent_condition(hw_rst_count))
+		return;
+
+	if (sec_ufs_cmd_dev)
+		schedule_delayed_work(&ufs_sec_features.noti_work,
+				msecs_to_jiffies(NOTI_WORK_DELAY_MS));
+}
+/* I/O error uevent : end */
+
+void ufs_sec_init_logging(struct device *dev)
+{
+	ufs_sec_init_cmd_logging(dev);
+}
 
 void ufs_set_sec_features(struct ufs_hba *hba)
 {
@@ -817,6 +1013,11 @@ void ufs_set_sec_features(struct ufs_hba *hba)
 	atomic_notifier_chain_register(&panic_notifier_list,
 			&ufs_sec_panic_notifier);
 
+	ufs_sec_features.reboot_notify.notifier_call = ufs_sec_reboot_notify;
+	register_reboot_notifier(&ufs_sec_features.reboot_notify);
+	sec_ufs_cmd_dev->type = &ufs_type;
+	INIT_DELAYED_WORK(&ufs_sec_features.noti_work, ufs_sec_err_noti_work);
+
 out:
 	if (desc_buf)
 		kfree(desc_buf);
@@ -825,6 +1026,7 @@ out:
 void ufs_sec_feature_config(struct ufs_hba *hba)
 {
 	ufs_sec_wb_config(hba, true);
+	ufs_sec_trigger_err_noti_uevent(hba);
 
 	if (contextid_is_allowed() && streamid_is_enabled())
 		ufs_sec_streamid_ctrl(hba, false);
@@ -837,6 +1039,7 @@ void ufs_sec_feature_config(struct ufs_hba *hba)
 void ufs_remove_sec_features(struct ufs_hba *hba)
 {
 	ufs_sysfs_remove_sec_nodes(hba);
+	unregister_reboot_notifier(&ufs_sec_features.reboot_notify);
 }
 
 /* check error info : begin */
@@ -891,13 +1094,18 @@ static void ufs_sec_check_medium_error_region(struct ufs_sec_cmd_info *ufs_cmd)
 	sense_err_log->issue_region_map |= ((u64)1 << region_bit);
 }
 
-static void ufs_sec_uic_cmd_error_check(struct ufs_hba *hba, u32 cmd)
+static void ufs_sec_uic_cmd_error_check(struct ufs_hba *hba, u32 cmd,
+		bool timeout)
+
 {
 	struct SEC_UFS_UIC_cmd_count *uic_cmd_cnt = &ufs_err_info.UIC_cmd_count;
 	struct SEC_UFS_op_count *op_cnt = &ufs_err_info.op_count;
+	int uic_cmd_result;
+
+	uic_cmd_result = hba->active_uic_cmd->argument2 & MASK_UIC_COMMAND_RESULT;
 
 	/* check UIC CMD result */
-	if ((hba->active_uic_cmd->argument2 & MASK_UIC_COMMAND_RESULT) == UIC_CMD_RESULT_SUCCESS)
+	if (!timeout && (uic_cmd_result == UIC_CMD_RESULT_SUCCESS))
 		return;
 
 	switch (cmd & COMMAND_OPCODE_MASK) {
@@ -1061,6 +1269,14 @@ void ufs_sec_check_device_stuck(void)
 		panic("UFS TM ERROR\n");
 	}
 #endif
+
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+	if (ufs_vdi.hba && ufs_vdi.hba->eh_flags)
+		/* do not recover system if test mode is enabled */
+		/* 1. reset recovery is in progress from ufshcd_err_handler */
+		/* 2. exynos_ufs_init_host has been succeeded */
+		BUG();
+#endif
 }
 
 static void ufs_sec_utp_error_check(struct ufs_hba *hba, int tag)
@@ -1102,16 +1318,25 @@ static void ufs_sec_utp_error_check(struct ufs_hba *hba, int tag)
 	SEC_UFS_ERR_COUNT_INC(utp_err->UTP_err, UINT_MAX);
 }
 
-static void ufs_sec_query_error_check(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
+static void ufs_sec_query_error_check(struct ufs_hba *hba, struct ufshcd_lrb *lrbp,
+		bool timeout)
 {
 	struct SEC_UFS_QUERY_count *query_cnt = &ufs_err_info.query_count;
 	struct ufs_query_req *request = &hba->dev_cmd.query.request;
 	enum query_opcode opcode = request->upiu_req.opcode;
 	enum dev_cmd_type cmd_type = hba->dev_cmd.type;
+	int ocs;
+
+	ocs = le32_to_cpu(lrbp->utr_descriptor_ptr->header.dword_2) & MASK_OCS;
 
 	/* check Overall Command Status */
-	if ((le32_to_cpu(lrbp->utr_descriptor_ptr->header.dword_2) & MASK_OCS) == OCS_SUCCESS)
+	if (!timeout && (ocs == OCS_SUCCESS))
 		return;
+
+	if (timeout) {
+		opcode = ufs_sec_features.last_qcmd;
+		cmd_type = ufs_sec_features.qcmd_type;
+	}
 
 	if (cmd_type == DEV_CMD_TYPE_NOP) {
 		SEC_UFS_ERR_COUNT_INC(query_cnt->NOP_err, U8_MAX);
@@ -1286,10 +1511,14 @@ static void sec_android_vh_ufs_send_command(void *data, struct ufs_hba *hba, str
 	struct ufs_sec_cmd_info ufs_cmd = { 0, };
 	bool is_scsi_cmd = false;
 	unsigned long flags;
+	struct ufs_query_req *request = NULL;
+	enum dev_cmd_type cmd_type;
+	enum query_opcode opcode;
 
 	is_scsi_cmd = ufs_sec_get_scsi_cmd_info(lrbp, &ufs_cmd);
 
 	if (is_scsi_cmd) {
+		ufs_sec_log_cmd(hba, lrbp, UFS_SEC_CMD_SEND, &ufs_cmd, 0);
 		if (ufs_sec_is_wb_allowed() && (ufs_cmd.opcode == WRITE_10)) {
 			spin_lock_irqsave(hba->host->host_lock, flags);
 
@@ -1300,6 +1529,23 @@ static void sec_android_vh_ufs_send_command(void *data, struct ufs_hba *hba, str
 
 			spin_unlock_irqrestore(hba->host->host_lock, flags);
 		}
+	} else {
+		if (hba->dev_cmd.type == DEV_CMD_TYPE_NOP)
+			ufs_sec_log_cmd(hba, lrbp, UFS_SEC_NOP_SEND, NULL, 0);
+		else if (hba->dev_cmd.type == DEV_CMD_TYPE_QUERY)
+			ufs_sec_log_cmd(hba, lrbp, UFS_SEC_QUERY_SEND, NULL, 0);
+
+		/* in timeout error case, last cmd is not completed */
+		if (!ufs_sec_features.qcmd_complete)
+			ufs_sec_query_error_check(hba, lrbp, true);
+
+		request = &hba->dev_cmd.query.request;
+		opcode = request->upiu_req.opcode;
+		cmd_type = hba->dev_cmd.type;
+
+		ufs_sec_features.last_qcmd = opcode;
+		ufs_sec_features.qcmd_type = cmd_type;
+		ufs_sec_features.qcmd_complete = false;
 	}
 }
 
@@ -1312,6 +1558,7 @@ static void sec_android_vh_ufs_compl_command(void *data, struct ufs_hba *hba, st
 	is_scsi_cmd = ufs_sec_get_scsi_cmd_info(lrbp, &ufs_cmd);
 
 	if (is_scsi_cmd) {
+		ufs_sec_log_cmd(hba, lrbp, UFS_SEC_CMD_COMP, &ufs_cmd, 0);
 		ufs_sec_sense_err_check(lrbp, &ufs_cmd);
 
 		if (ufs_sec_is_wb_allowed() && (ufs_cmd.opcode == WRITE_10)) {
@@ -1337,8 +1584,15 @@ static void sec_android_vh_ufs_compl_command(void *data, struct ufs_hba *hba, st
 		if (hba->req_abort_count > 0)
 			ufs_sec_utp_error_check(hba, lrbp->task_tag);
 	} else {
-		/* in timeout error case, can not be logging */
-		ufs_sec_query_error_check(hba, lrbp);
+		if (hba->dev_cmd.type == DEV_CMD_TYPE_NOP)
+			ufs_sec_log_cmd(hba, lrbp, UFS_SEC_NOP_COMP, NULL, 0);
+		else if (hba->dev_cmd.type == DEV_CMD_TYPE_QUERY)
+			ufs_sec_log_cmd(hba, lrbp, UFS_SEC_QUERY_COMP, NULL, 0);
+
+		ufs_sec_features.qcmd_complete = true;
+
+		/* check and count error, except timeout */
+		ufs_sec_query_error_check(hba, lrbp, false);
 	}
 }
 
@@ -1348,29 +1602,64 @@ static void sec_android_vh_ufs_send_uic_command(void *data, struct ufs_hba *hba,
 	u32 cmd;
 	u8 cmd_id = 0;
 
-	if (!strcmp(str, "send"))
+	if (!strcmp(str, "send")) {
+		/* in timeout error case, last cmd is not completed */
+		if (!ufs_sec_features.ucmd_complete) {
+			ufs_sec_uic_cmd_error_check(hba,
+					ufs_sec_features.last_ucmd, true);
+		}
+
 		cmd = ucmd->command;
-	else {
+		ufs_sec_features.last_ucmd = cmd;
+		ufs_sec_features.ucmd_complete = false;
+
+		cmd_id = (u8)(cmd & COMMAND_OPCODE_MASK);
+		ufs_sec_log_cmd(hba, NULL, UFS_SEC_UIC_SEND, NULL, cmd_id);
+	} else {
 		cmd = ufshcd_readl(hba, REG_UIC_COMMAND);
 
-		/* in timeout error case, can not be logging */
-		ufs_sec_uic_cmd_error_check(hba, cmd);
-	}
+		ufs_sec_features.ucmd_complete = true;
 
-	cmd_id = (u8)(cmd & COMMAND_OPCODE_MASK);
+		/* check and count error, except timeout */
+		ufs_sec_uic_cmd_error_check(hba, cmd, false);
+
+		cmd_id = (u8)(cmd & COMMAND_OPCODE_MASK);
+		ufs_sec_log_cmd(hba, NULL, UFS_SEC_UIC_COMP, NULL, cmd_id);
+	}
 }
 
 static void sec_android_vh_ufs_send_tm_command(void *data, struct ufs_hba *hba, int tag, const char *str)
 {
 	struct utp_task_req_desc treq = { { 0 }, };
 	u8 tm_func = 0;
+	int sec_log_str_t = 0;
 
 	memcpy(&treq, hba->utmrdl_base_addr + tag, sizeof(treq));
 
 	tm_func = (be32_to_cpu(treq.req_header.dword_1) >> 16) & 0xFF;
 
-	if (!strncmp(str, "tm_complete_err", sizeof("tm_complete_err")))
+	if (!strncmp(str, "tm_send", sizeof("tm_send")))
+		sec_log_str_t = UFS_SEC_TM_SEND;
+	else if (!strncmp(str, "tm_complete", sizeof("tm_complete")))
+		sec_log_str_t = UFS_SEC_TM_COMP;
+	else if (!strncmp(str, "tm_complete_err", sizeof("tm_complete_err"))) {
 		ufs_sec_tm_error_check(tm_func);
+		sec_log_str_t = UFS_SEC_TM_ERR;
+	} else {
+		dev_err(hba->dev, "%s: undefind ufs tm cmd\n", __func__);
+		return;
+	}
+
+	ufs_sec_log_cmd(hba, NULL, sec_log_str_t, NULL, tm_func);
+
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+	if (!strncmp(str, "tm_complete", sizeof("tm_complete"))) {
+		dev_err(hba->dev,
+			"%s: ufs tm cmd is succeeded and forced BUG called\n", __func__);
+		ssleep(2);
+		BUG();
+	}
+#endif
 }
 
 static void sec_android_vh_ufs_check_int_errors(void *data, struct ufs_hba *hba, bool queue_eh_work)

@@ -26,7 +26,7 @@
 
 #include <linux/leds-s2mf301.h>
 
-static struct device *camera_flash_dev;
+extern int s2mf301_create_sysfs(struct class *);
 
 #define CAPTURE_MAX_TOTAL_CURRENT	(1500)
 #define TORCH_MAX_TOTAL_CURRENT		(150)
@@ -90,7 +90,7 @@ static int flash_s2mf301_adj_current(struct is_flash *flash, enum flash_mode mod
 	led_num = 0;
 
 	if (flash->flash_data.led_cal_en == false) {
-	/* flash or torch set by ddk */
+		/* flash or torch set by ddk */
 		adj_current = ((max_current * intensity) / MAX_FLASH_INTENSITY);
 
 		if (adj_current > max_current) {
@@ -117,7 +117,7 @@ static int flash_s2mf301_adj_current(struct is_flash *flash, enum flash_mode mod
 			}
 		}
 	} else {
-	/* flash or torch set by hal */
+		/* flash or torch set by hal */
 		for (i = 0; i < FLASH_LED_CH_MAX; i++) {
 			if (flash->led_ch[i] != -1) {
 				led_num++;
@@ -200,7 +200,7 @@ static int flash_s2mf301_control(struct v4l2_subdev *subdev, enum flash_mode mod
 			}
 			break;
 		case CAM2_FLASH_MODE_SINGLE:
-			ret = s2mf301_fled_set_curr(flash->led_ch[i], CAM_FLASH_MODE_SINGLE, adj_current);
+			ret = s2mf301_fled_set_curr(flash->led_ch[i], CAM_FLASH_MODE_SINGLE);
 			if (ret < 0) {
 				err("capture flash set current fail(led_ch:%d)", flash->led_ch[i]);
 				ret = -EINVAL;
@@ -213,7 +213,7 @@ static int flash_s2mf301_control(struct v4l2_subdev *subdev, enum flash_mode mod
 			}
 			break;
 		case CAM2_FLASH_MODE_TORCH:
-			ret = s2mf301_fled_set_curr(flash->led_ch[i], CAM_FLASH_MODE_TORCH, adj_current);
+			ret = s2mf301_fled_set_curr(flash->led_ch[i], CAM_FLASH_MODE_TORCH);
 			if (ret < 0) {
 				err("torch flash set current fail(led_ch:%d)", flash->led_ch[i]);
 				ret = -EINVAL;
@@ -345,50 +345,6 @@ static const struct v4l2_subdev_ops subdev_ops = {
 	.core = &core_ops,
 };
 
-static ssize_t rear_flash_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "max torch intensity: %d\n",
-			TORCH_MAX_TOTAL_CURRENT);
-}
-
-static ssize_t rear_flash_store(struct device *dev,
-		struct device_attribute *attr, const char *buf,
-		size_t count)
-{
-	struct is_flash *flash;
-	struct v4l2_subdev *subdev_flash;
-	int value = 0;
-
-	if (!buf || kstrtouint(buf, 10, &value))
-		return -1;
-
-	flash = (struct is_flash *)dev_get_drvdata(dev);
-	if (!flash) {
-		dev_err(dev, "flash is NULL");
-		return -1;
-	}
-
-	subdev_flash = flash->subdev;
-	if (!subdev_flash) {
-		dev_err(dev, "subdev_flash is NULL");
-		return -1;
-	}
-
-	dev_info(dev, "flash_control: val(%d)\n", value);
-	if (value)
-		flash_s2mf301_control(subdev_flash,
-				CAM2_FLASH_MODE_TORCH,
-				TORCH_MAX_TOTAL_CURRENT);
-	else
-		flash_s2mf301_control(subdev_flash,
-				CAM2_FLASH_MODE_OFF, 0);
-
-	return count;
-}
-
-static DEVICE_ATTR_RW(rear_flash);
-
 static int flash_s2mf301_probe(struct device *dev, struct i2c_client *client)
 {
 	int ret = 0;
@@ -396,20 +352,15 @@ static int flash_s2mf301_probe(struct device *dev, struct i2c_client *client)
 	struct v4l2_subdev *subdev_flash;
 	struct is_device_sensor *device;
 	struct is_flash *flash;
-	u32 sensor_id = 0;
+	const u32 *sensor_id_spec;
+	u32 sensor_id_len;
+	u32 sensor_id[IS_SENSOR_COUNT];
 	struct device_node *dnode;
-	int i, elements;
-	struct class *camera_class;
+	int i, elements, led_ch_num;
 
 	FIMC_BUG(!dev);
 
 	dnode = dev->of_node;
-
-	ret = of_property_read_u32(dnode, "id", &sensor_id);
-	if (ret) {
-		err("id read is fail(%d)", ret);
-		goto p_err;
-	}
 
 	core = is_get_is_core();
 	if (!core) {
@@ -418,16 +369,37 @@ static int flash_s2mf301_probe(struct device *dev, struct i2c_client *client)
 		goto p_err;
 	}
 
-	device = &core->sensor[sensor_id];
+	sensor_id_spec = of_get_property(dnode, "id", &sensor_id_len);
+	if (!sensor_id_spec) {
+		err("sensor_id num read is fail(%d)", ret);
+		goto p_err;
+	}
 
-	flash = kzalloc(sizeof(struct is_flash), GFP_KERNEL);
+	sensor_id_len /= (unsigned int)sizeof(*sensor_id_spec);
+
+	ret = of_property_read_u32_array(dnode, "id", sensor_id, sensor_id_len);
+	if (ret) {
+		err("sensor_id read is fail(%d)", ret);
+		goto p_err;
+	}
+
+	for (i = 0; i < sensor_id_len; i++) {
+		device = &core->sensor[sensor_id[i]];
+		if (!device) {
+			err("sensor device is NULL");
+			ret = -EPROBE_DEFER;
+			goto p_err;
+		}
+	}
+
+	flash = kzalloc(sizeof(struct is_flash) * sensor_id_len, GFP_KERNEL);
 	if (!flash) {
 		err("flash is NULL");
 		ret = -ENOMEM;
 		goto p_err;
 	}
 
-	subdev_flash = kzalloc(sizeof(struct v4l2_subdev), GFP_KERNEL);
+	subdev_flash = kzalloc(sizeof(struct v4l2_subdev) * sensor_id_len, GFP_KERNEL);
 	if (!subdev_flash) {
 		err("subdev_flash is NULL");
 		ret = -ENOMEM;
@@ -435,65 +407,64 @@ static int flash_s2mf301_probe(struct device *dev, struct i2c_client *client)
 		goto p_err;
 	}
 
-	flash->id = FLADRV_NAME_S2MF301;
-	flash->subdev = subdev_flash;
-	flash->client = client;
 
-	flash->flash_data.mode = CAM2_FLASH_MODE_OFF;
-	flash->flash_data.intensity = 100; /* TODO: Need to figure out min/max range */
-	flash->flash_data.firing_time_us = 1 * 1000 * 1000; /* Max firing time is 1sec */
+	for (i = 0; i < sensor_id_len; i++) {
+		probe_info("%s sensor_id %d\n", __func__, sensor_id[i]);
+		flash[i].id = FLADRV_NAME_S2MF301;
+		flash[i].subdev = &subdev_flash[i];
+		flash[i].client = client;
+		// flash[i].ixc_ops = pablo_get_i2c();
 
-	/* get flash_led ch by dt */
-	for (i = 0; i < FLASH_LED_CH_MAX; i++)
-		flash->led_ch[i] = -1;
+		flash[i].flash_data.mode = CAM2_FLASH_MODE_OFF;
+		flash[i].flash_data.intensity = 100; /* TODO: Need to figure out min/max range */
+		flash[i].flash_data.firing_time_us = 1 * 1000 * 1000; /* Max firing time is 1sec */
 
-	elements = of_property_count_u32_elems(dnode, "led_ch");
-	if (elements < 0 || elements > FLASH_LED_CH_MAX) {
-		warn("flash led elements is too much or wrong(%d), set to max(%d)\n",
-			elements, FLASH_LED_CH_MAX);
-		elements = FLASH_LED_CH_MAX;
-	}
+		/* get flash_led ch by dt */
+		for (led_ch_num = 0; led_ch_num < FLASH_LED_CH_MAX; led_ch_num++)
+			flash[i].led_ch[led_ch_num] = -1;
 
-	if (elements) {
-		if (of_property_read_u32_array(dnode, "led_ch", flash->led_ch, elements)) {
-			err("cannot get flash led_ch, set only ch1\n");
-			flash->led_ch[0] = 1;
+		elements = of_property_count_u32_elems(dnode, "led_ch");
+		if (elements < 0 || elements > FLASH_LED_CH_MAX) {
+			warn("flash led elements is too much or wrong(%d), set to max(%d)\n",
+				elements, FLASH_LED_CH_MAX);
+			elements = FLASH_LED_CH_MAX;
 		}
-	} else {
-		probe_info("set flash_ch as default(only ch1)\n");
-		flash->led_ch[0] = 1;
+
+		if (elements) {
+			if (of_property_read_u32_array(dnode, "led_ch", flash[i].led_ch, elements)) {
+				err("cannot get flash led_ch, set only ch1\n");
+				flash[i].led_ch[0] = 1;
+			}
+		} else {
+			probe_info("set flash_ch as default(only ch1)\n");
+			flash[i].led_ch[0] = 1;
+		}
+
+		device = &core->sensor[sensor_id[i]];
+		device->subdev_flash = &subdev_flash[i];
+		device->flash = &flash[i];
+
+		if (client)
+			v4l2_i2c_subdev_init(&subdev_flash[i], client, &subdev_ops);
+		else
+			v4l2_subdev_init(&subdev_flash[i], &subdev_ops);
+
+		v4l2_set_subdevdata(&subdev_flash[i], &flash[i]);
+		v4l2_set_subdev_hostdata(&subdev_flash[i], device);
+		snprintf(subdev_flash[i].name, V4L2_SUBDEV_NAME_SIZE, "flash-subdev.%d", flash[i].id);
+
+		probe_info("%s done\n", __func__);
 	}
-
-	device->subdev_flash = subdev_flash;
-	device->flash = flash;
-
-	v4l2_subdev_init(subdev_flash, &subdev_ops);
-
-	v4l2_set_subdevdata(subdev_flash, flash);
-	v4l2_set_subdev_hostdata(subdev_flash, device);
-	snprintf(subdev_flash->name, V4L2_SUBDEV_NAME_SIZE, "flash-subdev.%d", flash->id);
-
-	camera_class = is_get_camera_class();
-	camera_flash_dev = device_create(camera_class, NULL, 3, flash, "flash");
-	if (IS_ERR(camera_flash_dev)) {
-		dev_err(dev, "failed to create flash device\n");
-		goto p_err;
-	}
-
-	ret = device_create_file(camera_flash_dev, &dev_attr_rear_flash);
-	if (ret)
-		dev_err(camera_flash_dev,
-			"failed to create device file %s\n",
-			dev_attr_rear_flash.attr.name);
 
 p_err:
 	return ret;
 }
 
-static int flash_s2mf301_platform_probe(struct platform_device *pdev)
+static int flash_s2mf301_platform_probe_i2c(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct device *dev;
+	struct class *camera_class;
 
 	FIMC_BUG(!pdev);
 
@@ -504,6 +475,9 @@ static int flash_s2mf301_platform_probe(struct platform_device *pdev)
 		probe_err("flash gpio probe fail(%d)\n", ret);
 		goto p_err;
 	}
+
+	camera_class = is_get_camera_class();
+	s2mf301_create_sysfs(camera_class);
 
 	probe_info("%s done\n", __func__);
 
@@ -521,7 +495,7 @@ MODULE_DEVICE_TABLE(of, exynos_is_sensor_flash_s2mf301_match);
 
 /* register platform driver */
 static struct platform_driver sensor_flash_s2mf301_platform_driver = {
-	.probe = flash_s2mf301_platform_probe,
+	.probe = flash_s2mf301_platform_probe_i2c,
 	.driver = {
 		.name   = "IS-SENSOR-FLASH-S2MF301-PLATFORM",
 		.owner  = THIS_MODULE,
@@ -532,19 +506,19 @@ static struct platform_driver sensor_flash_s2mf301_platform_driver = {
 #ifdef MODULE
 builtin_platform_driver(sensor_flash_s2mf301_platform_driver);
 #else
-static int __init sensor_flash_s2mf301_init(void)
+static int __init sensor_flash_s2mf301_init_i2c(void)
 {
 	int ret;
 
 	ret = platform_driver_probe(&sensor_flash_s2mf301_platform_driver,
-				flash_s2mf301_platform_probe);
+				flash_s2mf301_platform_probe_i2c);
 	if (ret)
 		err("failed to probe %s driver: %d\n",
 			sensor_flash_s2mf301_platform_driver.driver.name, ret);
 
 	return ret;
 }
-late_initcall_sync(sensor_flash_s2mf301_init);
+late_initcall_sync(sensor_flash_s2mf301_init_i2c);
 #endif
 
 MODULE_LICENSE("GPL");

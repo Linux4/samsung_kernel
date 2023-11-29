@@ -74,6 +74,13 @@ int is_ois_i2c_read(struct i2c_client *client, u16 addr, u8 *data);
 int is_ois_i2c_write(struct i2c_client *client ,u16 addr, u8 data);
 int is_ois_i2c_write_multi(struct i2c_client *client ,u16 addr, u8 *data, size_t size);
 int is_ois_i2c_read_multi(struct i2c_client *client, u16 addr, u8 *data, size_t size);
+int is_ois_get_reg(struct i2c_client *client, int cmd, u8 *data);
+int is_ois_get_reg_u16(struct i2c_client *client, int cmd, u8 *data);
+int is_ois_get_reg_multi(struct i2c_client *client, int cmd, u8 *data, size_t size);
+int is_ois_set_reg(struct i2c_client *client, int cmd, u8 data);
+int is_ois_set_reg_u16(struct i2c_client *client, int cmd, u8 *data);
+int is_ois_set_reg_multi(struct i2c_client *client, int cmd, u8 *data, size_t size);
+
 void is_ois_enable(struct is_core *core);
 bool is_ois_offset_test(struct is_core *core, long *raw_data_x, long *raw_data_y, long *raw_data_z);
 int is_ois_self_test(struct is_core *core);

@@ -58,6 +58,18 @@ config CAMERA_USE_MCU
         default n
         help
           Use Camera mcu
+config CAMERA_USE_AOIS
+        bool "Use Camera AOIS"
+        depends on CAMERA_VENDER_MCD_V2
+        default n
+        help
+          Use Camera AOIS
+config CAMERA_AAW_A25X
+        bool "This camera is aaw_a25x"
+        depends on CAMERA_VENDER_MCD_V2
+        default n
+        help
+          This camera is aaw_a25x
 config CAMERA_AAV_A53X
         bool "This camera is aav_a53x"
         depends on CAMERA_VENDER_MCD_V2
@@ -76,3 +88,9 @@ config CAMERA_MMV_M33X
         default n
         help
           This camera is mmv_m33x
+config CAMERA_MMW_M34X
+        bool "This camera is mmw_m34x"
+        depends on CAMERA_VENDER_MCD_V2
+        default n
+        help
+          This camera is mmw_m34x

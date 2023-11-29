@@ -49,6 +49,7 @@
 #include "cfg80211_ops.h"
 #include "nl80211_vendor.h"
 
+
 #ifdef CONFIG_SCSC_WLBTD
 #include "../../../misc/samsung/scsc/scsc_wlbtd.h"
 #endif
@@ -71,10 +72,10 @@
 #define SLSI_2_4_BAND_SUPPORT BIT(0)
 #define SLSI_5_BAND_SUPPORT   BIT(1)
 #define SLSI_6_BAND_SUPPORT   BIT(2)
-#include "tdls_manager.h"
+
+#include "qsfs.h"
 
 #define CSR_WIFI_SME_MIB2_HOST_PSID_MASK    0x8000
-#define SLSI_DEFAULT_HW_MAC_ADDR    "\x00\x00\x0F\x11\x22\x33"
 #define MX_WLAN_FILE_PATH_LEN_MAX (128)
 #define SLSI_MIB_REG_RULES_MAX (50)
 #define SLSI_MIB_MAX_CLIENT (10)
@@ -141,6 +142,7 @@ static ssize_t sysfs_show_debugdump(struct kobject *kobj, struct kobj_attribute 
 static ssize_t sysfs_store_debugdump(struct kobject *kobj, struct kobj_attribute *attr,
 				     const char *buf, size_t count);
 #endif
+
 static ssize_t sysfs_show_pm(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
 static ssize_t sysfs_store_pm(struct kobject *kobj, struct kobj_attribute *attr,
 			      const char *buf, size_t count);
@@ -955,6 +957,9 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	SLSI_INFO(sdev, "HW Version : 0x%.4X (%u)\n", sdev->chip_info_mib.chip_version, sdev->chip_info_mib.chip_version);
 	SLSI_INFO(sdev, "Platform : 0x%.4X (%u)\n", sdev->plat_info_mib.plat_build, sdev->plat_info_mib.plat_build);
 	slsi_cfg80211_update_wiphy(sdev);
+	/* Get feature set from FW if it is already not present */
+	if (sdev->qsf_feature_set_len <= (SLSI_QSF_FEATURE_VER_LEN + SLSI_QSF_SOLUTION_PROVIDER))
+		slsi_get_qsfs_feature_set(sdev);
 
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 
@@ -2450,76 +2455,6 @@ int slsi_mib_get_rtt_cap(struct slsi_dev *sdev, struct net_device *dev, struct s
 	return 0;
 }
 
-int slsi_mib_get_sta_tdls_activated(struct slsi_dev *sdev, struct net_device *dev, bool *tdls_supported)
-{
-	struct slsi_mib_data mibrsp = { 0, NULL };
-	struct slsi_mib_value *values = NULL;
-	struct slsi_mib_get_entry get_values[] = { { SLSI_PSID_UNIFI_TDLS_ACTIVATED, { 0, 0 } }, };
-
-	mibrsp.dataLength = 16;
-	mibrsp.data = kmalloc(mibrsp.dataLength, GFP_KERNEL);
-	if (!mibrsp.data) {
-		SLSI_ERR(sdev, "Cannot kmalloc %d bytes\n", mibrsp.dataLength);
-		return -ENOMEM;
-	}
-
-	values = slsi_read_mibs(sdev, dev, get_values, 1, &mibrsp);
-	if (!values) {
-		SLSI_NET_DBG1(dev, SLSI_MLME, "mib decode list failed\n");
-		kfree(mibrsp.data);
-		return -EINVAL;
-	}
-
-	if (values[0].type != SLSI_MIB_TYPE_UINT) {
-		SLSI_ERR(sdev, "Invalid type (%d) for SLSI_PSID_UNIFI_TDLS_ACTIVATED", values[0].type);
-		kfree(mibrsp.data);
-		kfree(values);
-		return -EINVAL;
-	}
-
-	*tdls_supported = (bool)values[0].u.boolValue;
-
-	kfree(values);
-	kfree(mibrsp.data);
-
-	return 0;
-}
-
-int slsi_mib_get_sta_tdls_max_peer(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif)
-{
-	struct slsi_mib_data mibrsp = { 0, NULL };
-	struct slsi_mib_value *values = NULL;
-	struct slsi_mib_get_entry get_values[] = { { SLSI_PSID_UNIFI_MAX_TDLS_CLIENT, { 0, 0 } }, };
-
-	mibrsp.dataLength = 16;
-	mibrsp.data = kmalloc(mibrsp.dataLength, GFP_KERNEL);
-	if (!mibrsp.data) {
-		SLSI_ERR(sdev, "Cannot kmalloc %d bytes\n", mibrsp.dataLength);
-		return -ENOMEM;
-	}
-
-	values = slsi_read_mibs(sdev, dev, get_values, 1, &mibrsp);
-	if (!values) {
-		SLSI_NET_DBG1(dev, SLSI_MLME, "mib decode list failed\n");
-		kfree(mibrsp.data);
-		return -EINVAL;
-	}
-
-	if (values[0].type != SLSI_MIB_TYPE_UINT) {
-		SLSI_ERR(sdev, "Invalid type (%d) for SLSI_PSID_UNIFI_MAX_TDLS_CLIENT", values[0].type);
-		kfree(mibrsp.data);
-		kfree(values);
-		return -EINVAL;
-	}
-
-	ndev_vif->sta.tdls_max_peer = (int)values[0].u.uintValue;
-
-	kfree(values);
-	kfree(mibrsp.data);
-
-	return 0;
-}
-
 struct slsi_peer *slsi_peer_add(struct slsi_dev *sdev, struct net_device *dev, u8 *peer_address, u16 aid)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -3156,16 +3091,13 @@ int slsi_vif_activated(struct slsi_dev *sdev, struct net_device *dev)
 	if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION) {
 		/* MUST have cleared any tdls peer records previously */
 		WARN_ON(ndev_vif->sta.tdls_peer_sta_records);
-		INIT_LIST_HEAD(&ndev_vif->sta.tdls_candidate_setup_list);
+
 		ndev_vif->sta.tdls_peer_sta_records = 0;
-		ndev_vif->sta.tdls_candidate_setup_count = 0;
-		ndev_vif->sta.tdls_max_peer = 0;
 		ndev_vif->sta.tdls_enabled = false;
 		ndev_vif->sta.roam_in_progress = false;
 		ndev_vif->sta.nd_offload_enabled = true;
-		memset(ndev_vif->sta.keepalive_host_tag, 0, sizeof(ndev_vif->sta.keepalive_host_tag));
 
-		slsi_tdls_manager_on_vif_activated(sdev, dev, ndev_vif);
+		memset(ndev_vif->sta.keepalive_host_tag, 0, sizeof(ndev_vif->sta.keepalive_host_tag));
 	}
 
 	ndev_vif->cfg80211_sinfo_generation = 0;
@@ -3209,7 +3141,6 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			ndev_vif->sta.sta_bss = NULL;
 		}
 		ndev_vif->sta.tdls_enabled = false;
-
 #if defined(CONFIG_SLSI_WLAN_STA_FWD_BEACON) && (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 10)
 		ndev_vif->is_wips_running = false;
 #endif
@@ -3219,19 +3150,6 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			ndev_vif->sta.rsn_ie = NULL;
 		}
 #endif
-		slsi_tdls_manager_on_vif_deactivated(sdev, dev, ndev_vif);
-
-		if (!list_empty(&ndev_vif->sta.tdls_candidate_setup_list)) {
-			struct sorted_peer_entry *entry;
-			struct sorted_peer_entry *tmp;
-
-			list_for_each_entry_safe(entry, tmp, &ndev_vif->sta.tdls_candidate_setup_list, list) {
-				list_del(&entry->list);
-				kfree(entry);
-			}
-		}
-		ndev_vif->sta.tdls_candidate_setup_count = 0;
-
 		slsi_clear_low_latency_state(dev);
 	}
 
@@ -3293,7 +3211,6 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			ndev_vif->sta.sta_bss = NULL;
 		}
 		ndev_vif->sta.tdls_enabled = false;
-		slsi_tdls_manager_on_vif_deactivated(sdev, dev, ndev_vif);
 	}
 #ifdef CONFIG_SCSC_WLAN_TX_API
 	slsi_vif_deactivated_post(sdev, dev, ndev_vif);
@@ -4330,7 +4247,7 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	if (slsi_is_proxy_arp_supported_on_ap(peer->assoc_resp_ie))
@@ -4682,7 +4599,7 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "Clear filters on Screen on");
@@ -4818,10 +4735,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return;
 
-	if (WARN_ON(!peer))
-		return;
-
-	if (WARN_ON(!peer->assoc_resp_ie))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return;
 
 #if !(IS_ENABLED(CONFIG_IPV6))
@@ -6215,6 +6129,8 @@ static u32 slsi_remap_reg_rule_flags(u8 flags)
 		remapped_flags |= NL80211_RRF_NO_INDOOR;
 	if (flags & SLSI_REGULATORY_NO_OUTDOOR)
 		remapped_flags |= NL80211_RRF_NO_OUTDOOR;
+	if (flags & SLSI_REGULATORY_NO_IR)
+		remapped_flags |= NL80211_RRF_NO_IR;
 
 	return remapped_flags;
 }
@@ -8080,9 +7996,11 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	total_header = sizeof(build_id_fw) + sizeof(build_id_drv);
 
+	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 	if (!sdev || !sdev->service) {
 		SLSI_ERR(sdev, "sdev/service is NULL\n");
 		dump_in_progress = 0;
+		SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 		return;
 	}
 
@@ -8092,6 +8010,7 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	if (size < total_header) {
 		SLSI_INFO(sdev, "Not enough space, size %zu header %zu\n", size, total_header);
+		SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 		return;
 	}
 
@@ -8100,7 +8019,6 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	SLSI_INFO(sdev, "SCSC_LOG_CHUNK_UDI chunk size %zu\n", size);
 
-	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 	if (sdev->device_state != SLSI_DEVICE_STATE_STARTED) {
 		SLSI_INFO(sdev, "Skip chipset_log in off state\n");
 		goto done;
