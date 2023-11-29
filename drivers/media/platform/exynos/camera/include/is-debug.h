@@ -98,8 +98,8 @@ struct is_debug {
 	struct is_minfo	*minfo;
 
 	/* debug message */
-	size_t			dsentence_pos;
-	char			dsentence[DEBUG_SENTENCE_MAX];
+	size_t			dsentence_pos[IS_STREAM_COUNT];
+	char			dsentence[IS_STREAM_COUNT][DEBUG_SENTENCE_MAX];
 
 	struct memlog			*memlog_desc;
 	struct memlog_obj		*mobj_printf_drv;
@@ -172,9 +172,9 @@ struct is_sysfs_eeprom *is_get_sysfs_eeprom(void);
 
 unsigned int is_get_digit_ctrl(void);
 
-void is_dmsg_init(void);
-void is_dmsg_concate(const char *fmt, ...);
-char *is_dmsg_print(void);
+void is_dmsg_init(u32 instance);
+void is_dmsg_concate(u32 instance, const char *fmt, ...);
+char *is_dmsg_print(u32 instance);
 void is_print_buffer(char *buffer, size_t len);
 int is_dbg_dma_dump(struct is_queue *queue, u32 instance, u32 index, u32 vid, u32 type);
 int is_dbg_dma_dump_by_frame(struct is_frame *queue, u32 vid, u32 type);

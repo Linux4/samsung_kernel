@@ -2572,6 +2572,10 @@ void is_sensor_peri_compensate_duration_for_frame_sync(struct is_device_sensor *
 		return;
 	}
 	vsync_count_m = atomic_read(&csi_master->fcount);
+	if (vsync_count_m == 0) {
+		 err("vsync_count_m is zero");
+		 return;
+	}
 
 	sensor_peri_m = get_sensor_peri(device_master->subdev_module);
 	if (!sensor_peri_m) {

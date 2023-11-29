@@ -33,6 +33,68 @@ struct device;
 struct firmware;
 struct scsc_mx;
 
+enum CLAIM_TYPE{
+	DEFAULT_CLAIM_TYPE,
+	WLAN_RX_CTRL,
+	WLAN_RB,
+	WLAN_RX_DATA,
+	WLAN_TX_DATA,
+	WLAN_TX_CTRL,
+	WLAN_MLME_SEND_FRAME,
+	WLAN_MLME_REQ_CFM_IND,
+	WLAN_MLME_REQ,
+	WLAN_UDI,
+	MX_GDB,
+	MX_RAMRP,
+	MXLOGGER_GENERATE_SYNC_RECORD,
+	MXLOGGER_COLLECT,
+	MXLOGGER_UNREGISTER_OBSERVER,
+	MXMAN_FAILURE_WORK_WLAN,
+	MXMAN_FAILURE_WORK_WPAN,
+	MXMAN_FAILURE_WORK,
+	MXMAN_FREEZE,
+	MXMAN_FORCE_PANIC,
+	SCSC_LERNA,
+	SERVICE_START,
+	SERVICE_STOP,
+	SERVICE_CLOSE,
+	SERVICE_OPEN,
+	LAST_CLAIM_TYPE
+};
+
+enum IRQ_TYPE{
+	DEFAULT_IRQ_TYPE,
+	MIFINTRBIT_RESERVED_PANIC_WLAN_TYPE,
+	MIFINTRBIT_RESERVED_PANIC_WPAN_TYPE,
+	SCSC_MIF_ABS_TARGET_FXM_1_TYPE,
+	SCSC_MIF_ABS_TARGET_FXM_2_TYPE,
+	SCSC_MIF_ABS_TARGET_FXM_3_TYPE,
+	SCSC_MIF_ABS_TARGET_WPAN_TYPE,
+	SCSC_MIF_ABS_TARGET_PMU_TYPE,
+	SCSC_MIF_ABS_TARGET_WLAN_TYPE,
+	SCSC_MIF_ABS_TARGET_WLAN_2_TYPE,
+	SCSC_MIF_ABS_TARGET_WLAN_3_TYPE,
+	SCSC_MIF_ABS_TARGET_WLAN_4_TYPE,
+	MXLOG_SCSC_MIF_ABS_TARGET_WLAN_TYPE,
+	MXLOG_SCSC_MIF_ABS_TARGET_WPAN_TYPE,
+	MXMGMT_SCSC_MIF_ABS_TARGET_WLAN_TYPE,
+	MXMGMT_SCSC_MIF_ABS_TARGET_WPAN_TYPE,
+	MX_DBG_SAMPLER_TYPE,
+	SCSC_ANT_SHM_IRQ_TYPE,
+	SCSC_BT_SHM_IRQ_TYPE,
+	HIP4_SMAPPER_REFILL_TYPE,
+	HIP4_IRQ_HANDLER_FB_TYPE,
+	HIP4_IRQ_HANDLER_CTRL_TYPE,
+	HIP4_IRQ_HANDLER_DATA_TYPE,
+	HIP4_IRQ_HANDLER_TYPE,
+	HIP4_IRQ_HANDLER_DPD_TYPE,
+	HIP5_IRQ_HANDLER_CTRL_TYPE,
+	HIP5_IRQ_HANDLER_FB_TYPE,
+	HIP5_IRQ_HANDLER_DAT_TYPE,
+	HIP5_IRQ_HANDLER_STUB_TYPE,
+	LAST_IRQ_TYPE
+};
+
 enum scsc_service_id {
 	SCSC_SERVICE_ID_NULL = 0,
 	SCSC_SERVICE_ID_WLAN = 1,
@@ -275,6 +337,7 @@ int scsc_mx_service_mif_ptr_to_addr(struct scsc_service *service, void *mem_ptr,
 #if defined(CONFIG_SCSC_PCIE_CHIP)
 __iomem void *scsc_mx_service_get_scoreboard(struct scsc_service *service);
 int scsc_mx_service_get_scoreboard_ref(struct scsc_service *service, __iomem void *addr, uintptr_t *addr_ref);
+void pcie_users_print(void);
 #endif
 
 int scsc_mx_service_start(struct scsc_service *service, scsc_mifram_ref ref);
@@ -282,9 +345,9 @@ int scsc_mx_service_stop(struct scsc_service *service);
 int scsc_mx_service_close(struct scsc_service *service);
 int scsc_mx_service_mif_dump_registers(struct scsc_service *service);
 /* PCIe claim/release API for chips with PCIE (for SOC chips nop) */
-int scsc_mx_service_claim(struct scsc_service *service);
-int scsc_mx_service_claim_deferred(struct scsc_service *service, int (*claim_complete)(void *service, void *data), void *dev);
-int scsc_mx_service_release(struct scsc_service *service);
+int scsc_mx_service_claim(struct scsc_service *service, enum CLAIM_TYPE claim_type);
+int scsc_mx_service_claim_deferred(struct scsc_service *service, int (*claim_complete)(void *service, void *data), void *dev, enum CLAIM_TYPE claim_type);
+int scsc_mx_service_release(struct scsc_service *service, enum CLAIM_TYPE claim_type);
 /** Signal a failure detected by the Client. This will trigger the systemwide
  * MX_SYSERR_LEVEL_7 failure handling procedure: _All_ Clients will be called back via
  * their stop_on_failure() handler as a side-effect. */
@@ -334,7 +397,7 @@ void scsc_service_mifintrbit_bit_set(struct scsc_service *service, int which_bit
 
 /* Register an interrupt handler -TOHOST direction.
  * Function returns the IRQ associated , -EIO if all interrupts have been assigned */
-int scsc_service_mifintrbit_register_tohost(struct scsc_service *service, void (*handler)(int irq, void *data), void *data, enum scsc_mifintr_target dir);
+int scsc_service_mifintrbit_register_tohost(struct scsc_service *service, void (*handler)(int irq, void *data), void *data, enum scsc_mifintr_target dir, enum IRQ_TYPE irq_type);
 /* Unregister an interrupt handler associated with a bit -TOHOST direction */
 int scsc_service_mifintrbit_unregister_tohost(struct scsc_service *service, int which_bit, enum scsc_mifintr_target dir);
 

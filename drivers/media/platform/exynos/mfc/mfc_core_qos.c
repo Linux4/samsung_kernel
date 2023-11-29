@@ -16,6 +16,7 @@
 
 #include "mfc_core_qos.h"
 #include "base/mfc_utils.h"
+#include "base/mfc_queue.h"
 
 #ifdef CONFIG_MFC_USE_BUS_DEVFREQ
 #define MFC_THROUGHPUT_OFFSET	(PM_QOS_MFC1_THROUGHPUT - PM_QOS_MFC_THROUGHPUT)
@@ -1209,7 +1210,7 @@ void mfc_core_qos_idle_worker(struct work_struct *work)
 	struct mfc_core *core;
 	struct mfc_core_ctx *core_ctx;
 	struct mfc_ctx *ctx;
-	int is_idle = 0;
+	int is_idle = 0, qos_num_inst = 0;
 
 	core = container_of(work, struct mfc_core, mfc_idle_work);
 
@@ -1219,6 +1220,7 @@ void mfc_core_qos_idle_worker(struct work_struct *work)
 	mutex_lock(&core->qos_mutex);
 	list_for_each_entry(core_ctx, &core->qos_queue, qos_list) {
 		ctx = core_ctx->ctx;
+		qos_num_inst++;
 		if (((atomic_read(&core->hw_run_bits) & (1 << ctx->num)) == 0) &&
 				((atomic_read(&core->dev->queued_bits) & (1 << ctx->num)) == 0)) {
 			mfc_ctx_change_idle_mode(ctx, MFC_IDLE_MODE_IDLE);
@@ -1244,7 +1246,17 @@ void mfc_core_qos_idle_worker(struct work_struct *work)
 #ifdef CONFIG_MFC_USE_BUS_DEVFREQ
 	__mfc_core_qos_off_all(core);
 #endif
-	mfc_core_info("[QoS][MFCIDLE] MFC go to QoS idle mode\n");
+	if (qos_num_inst == 1) {
+		mfc_core_info("[QoS][MFCIDLE] go to idle mode (src %d(ready %d), dst %d, src_nal %d, dst_nal %d, framecnt %d)\n",
+				mfc_get_queue_count(&ctx->buf_queue_lock, &core_ctx->src_buf_queue),
+				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->src_buf_ready_queue),
+				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->dst_buf_queue),
+				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->src_buf_nal_queue),
+				mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->dst_buf_nal_queue),
+				ctx->frame_cnt);
+	} else {
+		mfc_core_info("[QoS][MFCIDLE] go to idle mode\n");
+	}
 
 	mfc_core_change_idle_mode(core, MFC_IDLE_MODE_IDLE);
 	mutex_unlock(&core->idle_qos_mutex);

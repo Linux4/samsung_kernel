@@ -106,9 +106,8 @@ int slsi_tx_ps_port_control(struct slsi_dev *sdev, struct net_device *dev, struc
 bool slsi_tx_tdls_update(struct slsi_dev *sdev, struct net_device *dev, struct slsi_peer *sta_peer, struct slsi_peer *tdls_peer, bool connection);
 
 /**
- * Lock:
- * - Mutex: vif_mutex
- * Context: Process with BHs disabled or BH
+ * Lock: N/A
+ * Context: Process or interrupt
  * Description: This function should return tx q index for skb.
  */
 #if (KERNEL_VERSION(5, 2, 0) <= LINUX_VERSION_CODE)

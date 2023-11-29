@@ -71,8 +71,8 @@ struct amdgpu_mec {
 	int (*pio_map_queue)(struct amdgpu_ring *ring);
 	int (*pio_unmap_queue)(struct amdgpu_ring *ring, u32 dequeue_type);
 
-	int (*map_cwsr_queue)(struct amdgpu_ring *ring);
-	int (*unmap_cwsr_queue)(struct amdgpu_ring *ring, u32 dequeue_type);
+	int (*map_priv_queue)(struct amdgpu_ring *ring);
+	int (*unmap_priv_queue)(struct amdgpu_ring *ring, u32 dequeue_type);
 	/* These are the resources for which amdgpu takes ownership */
 	DECLARE_BITMAP(queue_bitmap, AMDGPU_MAX_COMPUTE_QUEUES);
 };

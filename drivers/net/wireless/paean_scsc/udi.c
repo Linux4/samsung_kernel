@@ -421,7 +421,7 @@ static ssize_t slsi_cdev_write(struct file *filp, const char *p, size_t len, lof
 	/* In WlanLite test mode req signals IDs are 0x1000, 0x1002, 0x1004 */
 	if (slsi_is_test_mode_enabled() || fapi_is_req(skb) || fapi_is_res(skb)) {
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-		if (scsc_mx_service_claim(sdev->service)) {
+		if (scsc_mx_service_claim(sdev->service, WLAN_UDI)) {
 			SLSI_ERR(sdev, "Failed to get the PCIe link\n");
 			return -EFAULT;
 		}
@@ -438,19 +438,19 @@ static ssize_t slsi_cdev_write(struct file *filp, const char *p, size_t len, lof
 			if (slsi_tx_data_lower(sdev, skb)) {
 				kfree_skb(skb);
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-				scsc_mx_service_release(sdev->service);
+				scsc_mx_service_release(sdev->service, WLAN_UDI);
 #endif
 				return -EINVAL;
 			}
 		} else if (slsi_tx_control(sdev, NULL, skb)) {
 			kfree_skb(skb);
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-			scsc_mx_service_release(sdev->service);
+			scsc_mx_service_release(sdev->service, WLAN_UDI);
 #endif
 			return -EINVAL;
 		}
 #if defined(CONFIG_SCSC_PCIE_CHIP)
-		scsc_mx_service_release(sdev->service);
+		scsc_mx_service_release(sdev->service, WLAN_UDI);
 #endif
 	} else if (slsi_hip_rx(sdev, skb)) {
 		kfree_skb(skb);

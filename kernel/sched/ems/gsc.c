@@ -151,7 +151,7 @@ static void _gsc_decision_activate(struct gsc_group *grp)
 		if (!(rq->clock_update_flags & RQCF_UPDATED))
 			update_rq_clock(rq);
 
-		curr = cfs_rq_clock_pelt(cfs_rq_of(se));
+		curr = cfs_rq_clock_pelt(&rq->cfs);
 		raw_spin_unlock(&rq->lock);
 
 

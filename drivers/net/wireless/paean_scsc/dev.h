@@ -469,8 +469,9 @@ struct slsi_ba_session_rx {
 #define SLSI_RX_SYNCH_IND_DELAY        50
 #define MAX_FREQUENCY_COUNT            60
 
-#ifdef CONFIG_SCSC_WLAN_SUPPORT_6G
 #define SLSI_RSNX_H2E	BIT(5)
+
+#if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11) || defined(CONFIG_SCSC_WLAN_SUPPORT_6G)
 enum slsi_bss_sec_ie_type {
 	SLSI_BSS_NO_IE = BIT(0),
 	SLSI_BSS_WPA_IE = BIT(1),
@@ -800,6 +801,7 @@ struct slsi_vif_sta {
 	int                     tdls_peer_sta_records;
 	int                     tdls_max_peer;
 	bool                    tdls_enabled;
+	u8                      tdls_dgw_macaddr[ETH_ALEN];
 	struct list_head        tdls_candidate_setup_list;
 	int                     tdls_candidate_setup_count;
 	struct cfg80211_bss     *sta_bss;
@@ -1176,6 +1178,7 @@ struct netdev_vif {
 	struct slsi_spinlock        ba_lock;
 	struct sk_buff_head         ba_complete;
 	atomic_t                    ba_flush;
+	u32                         timeout_in_ms;
 
 	u64                         mgmt_tx_cookie; /* Cookie id for mgmt tx */
 	struct slsi_vif_mgmt_tx     mgmt_tx_data;
@@ -1241,7 +1244,10 @@ struct netdev_vif {
 	int                     delayed_wakeup_enabled;
 	int                     delayed_wakeup_timeout;
 #ifdef CONFIG_SCSC_WLAN_TX_API
+#if defined(CONFIG_SCSC_PCIE_CHIP)
+	spinlock_t                mx_claim_tx_ctrl_lock;
 	bool                      mx_claim_tx_ctrl;
+#endif
 	void                      *tx_netdev_data;
 #endif
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
@@ -1662,6 +1668,7 @@ struct slsi_dev {
 #ifdef CONFIG_SCSC_WLAN_HIP4_PROFILING
 	int                        minor_prof;
 #endif
+	DECLARE_BITMAP(rx_ba_bitmap, CONFIG_SCSC_WLAN_MAX_INTERFACES);
 	struct slsi_ba_session_rx  rx_ba_buffer_pool[SLSI_MAX_RX_BA_SESSIONS];
 	struct slsi_spinlock       rx_ba_buffer_pool_lock;
 	bool			   fail_reported;

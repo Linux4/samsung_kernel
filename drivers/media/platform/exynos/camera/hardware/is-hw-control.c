@@ -1145,9 +1145,9 @@ int is_hw_otf_grp_shot(struct is_hardware *hardware, u32 instance,
 	}
 
 	if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
-		msinfo_hw("grp_shot [F:%d][G:0x%lx][B:0x%lx][O:0x%lx][dva:%pad]\n",
+		msinfo_hw("grp_shot [F:%d][I:%d][G:0x%lx][B:0x%lx][O:0x%lx][dva:%pad]\n",
 			instance, hw_ip,
-			frame->fcount, GROUP_ID(head->id),
+			frame->fcount, frame->index, GROUP_ID(head->id),
 			frame->bak_flag, frame->out_flag, &frame->dvaddr_buffer[0]);
 
 	hw_ip->framemgr = &hardware->framemgr[hw_ip->id];
@@ -1349,10 +1349,11 @@ int is_hardware_config_lock(struct is_hw_ip *hw_ip, u32 instance, u32 framenum)
 	struct is_framemgr *framemgr;
 	struct is_hardware *hardware;
 	struct is_device_sensor *sensor;
-	u32 sensor_fcount;
+	u32 sensor_fcount, hw_fcount, shot_fcount;
 	struct is_group *group, *head, *dev_head;
 	struct is_hw_ip *hw_ip_ldr;
 	u32 shot_timeout = 0;
+	struct is_device_csi *csi;
 
 	FIMC_BUG(!hw_ip);
 
@@ -1361,17 +1362,26 @@ int is_hardware_config_lock(struct is_hw_ip *hw_ip, u32 instance, u32 framenum)
 	dev_head = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, group);
 
 
-	msdbgs_hw(2, "[F:%d]C.L\n", instance, hw_ip, framenum);
-
 	framemgr = hw_ip->framemgr;
 	hardware = hw_ip->hardware;
 	sensor = group->device->sensor;
 	sensor_fcount = sensor->fcount;
+	hw_fcount = atomic_read(&hw_ip->fcount);
+	if (sensor_fcount > hw_fcount)
+		shot_fcount = sensor_fcount + 1;
+	else
+		shot_fcount = hw_fcount + 1;
+	csi = (struct is_device_csi *)v4l2_get_subdevdata(sensor->subdev_csi);
+	if (csi)
+		atomic_set(&csi->chain_fcount, shot_fcount);
+	msdbg_hw(1, "C.L [SF:%d][HF:%d]->[F:%d]\n", instance, hw_ip,
+		sensor_fcount, hw_fcount, shot_fcount);
+
 
 	/* leader shot timer set in OTF used HW */
 	hw_ip_ldr = is_get_hw_ip(dev_head->id, hw_ip->hardware);
 	if (!hw_ip_ldr) {
-		mserr_hw("[F%d] Failed to get leader hw_ip", instance, hw_ip, framenum);
+		mserr_hw("[F%d] Failed to get leader hw_ip", instance, hw_ip, shot_fcount);
 		return -EINVAL;
 	}
 
@@ -1390,7 +1400,7 @@ retry_get_frame:
 		if (!frame) {
 			framemgr_x_barrier(framemgr, 0);
 			mserr_hw("[F%d] Failed to get main frame. aeb_state 0x%lx",
-					instance, hw_ip, framenum,
+					instance, hw_ip, shot_fcount,
 					sensor->aeb_state);
 			return -EINVAL;
 		}
@@ -1404,7 +1414,7 @@ retry_get_frame:
 
 		/* There is no request. Generate internal shot. */
 		for (buf_index = 0; buf_index < num_buffers; buf_index++) {
-			ret = make_internal_shot(hw_ip_ldr, instance, framenum + 1, framemgr,
+			ret = make_internal_shot(hw_ip_ldr, instance, shot_fcount, framemgr,
 						buf_index);
 			if (ret == INTERNAL_SHOT_EXIST) {
 				framemgr_x_barrier(framemgr, 0);
@@ -1433,13 +1443,12 @@ retry_get_frame:
 			msinfo_hw("config_lock: INTERNAL_SHOT [F:%d](%d) count(%d)\n",
 					instance, hw_ip,
 					frame->fcount, frame->index, log_count);
-	} else if ((framemgr->queued_count[FS_HW_REQUEST] / framemgr->batch_num) > head->asyn_shots &&
-			frame->fcount < (sensor_fcount + 1)) {
+	} else if (frame->fcount < shot_fcount) {
 		/* It's too old frame. Flush it */
-		msinfo_hw("LATE_SHOT (%d)[F:%d][G:0x%lx][B:0x%lx][O:0x%lx][C:0x%lx]\n",
+		msinfo_hw("LATE_SHOT (%d)[F:%d][SF:%d][HF:%d]->[F:%d][C:0x%lx]\n",
 				instance, hw_ip,
-				hw_ip->internal_fcount[instance], frame->fcount, GROUP_ID(dev_head->id),
-				frame->bak_flag, frame->out_flag, frame->core_flag);
+				hw_ip->internal_fcount[instance], frame->fcount,
+				sensor_fcount, hw_fcount, shot_fcount, frame->core_flag);
 
 		frame->type = SHOT_TYPE_LATE;
 		is_devicemgr_late_shot_handle(&sensor->group_sensor, frame, frame->type);

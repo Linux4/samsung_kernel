@@ -251,7 +251,9 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
 			continue;
 
 		if (job && ring->funcs->emit_frame_cntl) {
-			if (secure != !!(ib->flags & AMDGPU_IB_FLAGS_SECURE)) {
+			/* Compute rings are completely TMZ or not at all, cannot be set by a KMD frame */
+			if (ring->funcs->type != AMDGPU_RING_TYPE_COMPUTE &&
+			    secure != !!(ib->flags & AMDGPU_IB_FLAGS_SECURE)) {
 				amdgpu_ring_emit_frame_cntl(ring, false, secure);
 				secure = !secure;
 				amdgpu_ring_emit_frame_cntl(ring, true, secure);

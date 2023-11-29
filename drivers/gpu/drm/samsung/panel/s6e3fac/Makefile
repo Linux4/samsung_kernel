@@ -13,6 +13,6 @@ subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
 	-Wno-format
 
 
-mcd-panel-s6e3fac_rainbow_r0-y += s6e3fac.o s6e3fac_rainbow_r0.o
-mcd-panel-s6e3fac_rainbow_r0-$(CONFIG_EXTEND_LIVE_CLOCK) += s6e3fac_aod.o
-obj-$(CONFIG_EXYNOS_DECON_LCD_S6E3FAC) += mcd-panel-s6e3fac_rainbow_r0.o
+mcd-panel-s6e3fac_rainbow_g0-y += s6e3fac.o s6e3fac_rainbow_g0.o
+mcd-panel-s6e3fac_rainbow_g0-$(CONFIG_EXTEND_LIVE_CLOCK) += s6e3fac_aod.o
+obj-$(CONFIG_EXYNOS_DECON_LCD_S6E3FAC) += mcd-panel-s6e3fac_rainbow_g0.o

@@ -20,8 +20,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/stable/suwon_2111/charger/pca9481/pca9481_charger.r0[qs].dtsi */
-
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/stable/suwon_2111/charger/pca9481/pca9481_charger.g0[qs].dtsi */
 &pca9481_charger {
 		pca9481,input-itopoff = <400000>; /* 400mA */
 };

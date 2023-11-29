@@ -891,10 +891,10 @@ void dp_reg_phy_set_link_bw(struct dp_cal_res *cal_res, u8 link_rate)
 		dp_phy_write_mask(DP_CONFIG7, 0x0, DP_MPLLB_WORD_DIV2_EN);
 
 		dp_phy_write_mask(DP_CONFIG7, 0x1, DP_REF_CLK_EN);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX0_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX1_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX2_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX3_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX0_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX1_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX2_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX3_DCC_BYP_AC_CAP);
 		break;
 	case LINK_RATE_5_4Gbps:
 		cal_log_debug(0, "PHY init setting for LINK_RATE_5_4Gbps\n");
@@ -925,10 +925,10 @@ void dp_reg_phy_set_link_bw(struct dp_cal_res *cal_res, u8 link_rate)
 		dp_phy_write_mask(DP_CONFIG7, 0x0, DP_MPLLB_WORD_DIV2_EN);
 
 		dp_phy_write_mask(DP_CONFIG7, 0x1, DP_REF_CLK_EN);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX0_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX1_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX2_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX3_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX0_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX1_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX2_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX3_DCC_BYP_AC_CAP);
 		break;
 	case LINK_RATE_2_7Gbps:
 		cal_log_debug(0, "PHY init setting for LINK_RATE_2_7Gbps\n");
@@ -959,10 +959,10 @@ void dp_reg_phy_set_link_bw(struct dp_cal_res *cal_res, u8 link_rate)
 		dp_phy_write_mask(DP_CONFIG7, 0x0, DP_MPLLB_WORD_DIV2_EN);
 
 		dp_phy_write_mask(DP_CONFIG7, 0x1, DP_REF_CLK_EN);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX0_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX1_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX2_DCC_BYP_AC_CAP);
-		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX3_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX0_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX1_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX2_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x1, DP_TX3_DCC_BYP_AC_CAP);
 		break;
 	case LINK_RATE_1_62Gbps:
 		cal_log_debug(0, "PHY init setting for LINK_RATE_1_62Gbps\n");
@@ -2363,6 +2363,7 @@ void dp_reg_phy_post_init(struct dp_cal_res *cal_res)
 	u32 req_status_val = 0, req_status_mask = 0;
 	u32 pstate_val = 0, pstate_mask = 0;
 	u32 datapath_control_val[3] = {0, 0, 0};
+	u32 link_rate = dp_reg_phy_get_link_bw(cal_res);
 
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	switch (cal_res->pdic_notify_dp_conf) {
@@ -2436,8 +2437,21 @@ void dp_reg_phy_post_init(struct dp_cal_res *cal_res)
 	dp_reg_phy_update(req_status_val, req_status_mask);
 	dp_write(PCS_SNPS_PHY_DATAPATH_CONTROL, datapath_control_val[1]);
 	dp_phy_formal_write_mask(DP_CONFIG11, pstate_val, pstate_mask);
-
 	dp_reg_phy_update(req_status_val, req_status_mask);
+
+	if (link_rate > LINK_RATE_1_62Gbps) {
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX0_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX1_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX2_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX3_DCC_BYP_AC_CAP);
+	}
+
+	if (link_rate > LINK_RATE_1_62Gbps) {
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX0_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX1_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX2_DCC_BYP_AC_CAP);
+		dp_phy_write_mask(DP_CONFIG17, 0x0, DP_TX3_DCC_BYP_AC_CAP);
+	}
 	dp_write(PCS_SNPS_PHY_DATAPATH_CONTROL, datapath_control_val[2]);
 }
 

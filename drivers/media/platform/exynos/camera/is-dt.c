@@ -1405,6 +1405,7 @@ static int parse_power_seq_data(struct exynos_platform_is_module *pdata, struct 
 					}
 
 					is_module_regulator->name = pin->name;
+					mutex_init(&is_module_regulator->regulator_lock);
 					list_add_tail(&is_module_regulator->list, &core->resourcemgr.regulator_list);
 					dbg("%s is registered in regulator_list", is_module_regulator->name);
 

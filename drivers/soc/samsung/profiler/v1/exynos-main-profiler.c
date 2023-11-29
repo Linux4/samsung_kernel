@@ -917,8 +917,16 @@ static ssize_t control_profile_store(struct device *dev,
 				profiler.disable_llc_way = (bool)value;
 				break;
 			case CONTROL_CMD_CHANGE_GPU_GOVERNOR:
-				if (profiler.disable_gfx)
+				if (profiler.disable_gfx) {
 					value = 0;
+				}
+				if (!value && profiler.dm_dynamic) {
+					exynos_dm_dynamic_disable(0);
+					profiler.dm_dynamic = 0;
+				} else if (value && psd.enable_gfx && !profiler.dm_dynamic) {
+					exynos_dm_dynamic_disable(1);
+					profiler.dm_dynamic = 1;
+				}
 				exynos_profiler_set_profiler_governor(value);
 				break;
 			default:
@@ -1030,8 +1038,7 @@ static s32 init_domain_data(struct device_node *root,
 		}
 		private->num_of_cpu = cpumask_weight(policy->related_cpus);
 
-		if (of_property_read_s32(dn, "pm-qos-min-freq", &private->pm_qos_min_freq))
-			private->pm_qos_min_freq = PM_QOS_DEFAULT_VALUE;
+		private->pm_qos_min_freq = PM_QOS_DEFAULT_VALUE;
 
 		if (of_property_read_s32(dn, "pid-util-max", &private->pid_util_max))
 			private->pid_util_max = 800;
@@ -1058,8 +1065,7 @@ static s32 init_domain_data(struct device_node *root,
 
 		ret |= of_property_read_s32(dn, "pm-qos-min-class",
 				&private->pm_qos_min_class);
-		if (of_property_read_s32(dn, "pm-qos-min-freq", &private->pm_qos_min_freq))
-			private->pm_qos_min_freq = PM_QOS_MIN_FREQUENCY_DEFAULT_VALUE;
+		private->pm_qos_min_freq = PM_QOS_MIN_FREQUENCY_DEFAULT_VALUE;
 
 		if (!ret) {
 			/* gpu use negative value for unlock */
@@ -1081,8 +1087,7 @@ static s32 init_domain_data(struct device_node *root,
 
 		ret |= of_property_read_s32(dn, "pm-qos-min-class", &private->pm_qos_min_class);
 
-		if (of_property_read_s32(dn, "pm-qos-min-freq", &private->pm_qos_min_freq))
-			private->pm_qos_min_freq = PM_QOS_MIN_FREQUENCY_DEFAULT_VALUE;
+		private->pm_qos_min_freq = PM_QOS_MIN_FREQUENCY_DEFAULT_VALUE;
 
 		if (of_property_read_s32(dn, "pid-util-max", &private->pid_util_max))
 			private->pid_util_max = 980;

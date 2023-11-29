@@ -1330,19 +1330,16 @@ int slsi_set_sta_bss_info(struct wiphy *wiphy, struct net_device *dev, struct sl
 
 #if !(defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION < 11)
 	if (!sme->bssid && !sme->bssid_hint && !ndev_vif->sta.sta_bss) {
-		struct list_head *pos;
+		struct slsi_ssid_info *ssid_info;
 
-		list_for_each(pos, &ndev_vif->sta.ssid_info) {
-			struct slsi_ssid_info *ssid_info = list_entry(pos, struct slsi_ssid_info, list);
-			struct list_head *pos_bssid;
+		list_for_each_entry(ssid_info, &ndev_vif->sta.ssid_info, list) {
+			struct slsi_bssid_info *bssid_info;
 
 			if (ssid_info->ssid.ssid_len != ndev_vif->sta.ssid_len ||
 			    memcmp(ssid_info->ssid.ssid, &ndev_vif->sta.ssid, ndev_vif->sta.ssid_len) != 0 ||
 			    !(ssid_info->akm_type & ndev_vif->sta.akm_type))
 				continue;
-			list_for_each(pos_bssid, &ssid_info->bssid_list) {
-				struct slsi_bssid_info *bssid_info = list_entry(pos_bssid, struct slsi_bssid_info, list);
-
+			list_for_each_entry(bssid_info, &ssid_info->bssid_list, list) {
 				if (*bssid && !memcmp(bssid_info->bssid, *bssid, ETH_ALEN))
 					continue;
 				ndev_vif->sta.sta_bss = cfg80211_get_bss(wiphy,
@@ -3339,7 +3336,9 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 
 	r = slsi_mlme_start(sdev, dev, dev->dev_addr, settings, wpa_ie_pos, wmm_ie_pos, append_vht_ies);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 22))
+        cfg80211_ch_switch_notify(dev, &settings->chandef, 0, 0);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
 	cfg80211_ch_switch_notify(dev, &settings->chandef, 0);
 #else
 	cfg80211_ch_switch_notify(dev, &settings->chandef);

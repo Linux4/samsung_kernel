@@ -1428,8 +1428,8 @@ void cac_update_roam_traffic_params(struct slsi_dev *sdev, struct net_device *de
 	 */
 	cac_deactivate_tspecs(sdev);
 
-	if (!peer) {
-		SLSI_ERR(sdev, "AP peer entry not found\n");
+	if (!peer || !peer->assoc_resp_ie) {
+		SLSI_ERR(sdev, "AP peer entry or assoc_resp_ie not found\n");
 		return;
 	}
 

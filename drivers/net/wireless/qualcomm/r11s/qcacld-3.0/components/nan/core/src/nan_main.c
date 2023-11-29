@@ -986,7 +986,7 @@ static QDF_STATUS nan_handle_schedule_update(
 }
 
 /**
- * nan_handle_host_update() - extract the vdev from host event
+ * nan_handle_host_update() - extract the host event
  * @evt: Event data received from firmware
  * @vdev: pointer to vdev
  *

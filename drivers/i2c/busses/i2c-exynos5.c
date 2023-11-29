@@ -673,6 +673,12 @@ static irqreturn_t exynos5_i2c_irq(int irqno, void *dev_id)
 		goto out;
 	}
 
+	if (!i2c->msg->buf) {
+		pr_err("invalid irq with null buffer (irqno:%d)\n", irqno);
+		reg_val = readl(i2c->regs + HSI2C_INT_STATUS);
+		goto out;
+	}
+
 	if (i2c->msg->flags & I2C_M_RD) {
 		while ((readl(i2c->regs + HSI2C_FIFO_STATUS) &
 			0x1000000) == 0) {
@@ -773,6 +779,16 @@ static int exynos5_i2c_xfer_msg(struct exynos5_i2c *i2c,
 	i2c->msg = msgs;
 	i2c->msg_ptr = 0;
 	i2c->trans_done = 0;
+
+	if (!i2c->msg) {
+		dev_err(i2c->dev, "i2c message is null ptr!\n");
+		return -EINVAL;
+	}
+
+	if (!i2c->msg->buf) {
+		dev_err(i2c->dev, "i2c message buffer is null ptr!\n");
+		return -EINVAL;
+	}
 
 	/* (length * (bits + ack) * (s/ms) * / freq) * (tolerance) */
 	timeout_max = (i2c->msg->len * 9 * 1000 / i2c->clock_frequency) * 4;

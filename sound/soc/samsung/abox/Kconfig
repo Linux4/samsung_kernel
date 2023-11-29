@@ -112,6 +112,11 @@ config SEC_SND_SYNCHRONIZED_IPC
 	  the Samsung SoC ABOX interface. You will also need to
 	  select the audio interfaces to support below.
 
+config SND_SOC_TPLG_USAGE_CHECK
+	bool "Check TPLG usage for pipeline control"
+	depends on SND_SOC_SAMSUNG_ABOX
+	default n
+
 config SND_SOC_SAMSUNG_ABOX_CHANGE_RMEM_SIZE
 	tristate "Release some reserved memory"
 	depends on SND_SOC_SAMSUNG_ABOX

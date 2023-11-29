@@ -467,6 +467,15 @@ int sensor_hi847_cis_stream_on(struct v4l2_subdev *subdev)
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
 	ktime_t st = ktime_get();
+#ifdef USE_CAMERA_MCD_SW_DUAL_SYNC
+	struct is_core *core;
+
+	core = is_get_is_core();
+	if (!core) {
+		err("core is NULL");
+		return -EINVAL;
+	}
+#endif
 
 	FIMC_BUG(!subdev);
 
@@ -528,6 +537,24 @@ int sensor_hi847_cis_stream_on(struct v4l2_subdev *subdev)
 	is_sensor_write16(client, 0x1004, 0x2BB0);
 	is_sensor_write16(client, 0x1038, 0x0000);
 	is_sensor_write16(client, 0x1042, 0x0008);
+#endif
+
+#ifdef USE_CAMERA_MCD_SW_DUAL_SYNC
+	if (cis->cis_data->is_data.scene_mode == AA_SCENE_MODE_LIVE_OUTFOCUS) {
+		if (test_bit(IS_SENSOR_OPEN, &(core->sensor[0].state))) {
+			info("[%s] s/w dual sync master\n", __func__);
+			cis->dual_sync_mode = DUAL_SYNC_MASTER;
+			cis->dual_sync_type = DUAL_SYNC_TYPE_SW;
+		} else {
+			info("[%s] s/w dual sync slave\n", __func__);
+			cis->dual_sync_mode = DUAL_SYNC_SLAVE;
+			cis->dual_sync_type = DUAL_SYNC_TYPE_SW;
+		}
+	} else {
+		info("[%s] s/w dual sync none\n", __func__);
+		cis->dual_sync_mode = DUAL_SYNC_NONE;
+		cis->dual_sync_type = DUAL_SYNC_TYPE_MAX;
+	}
 #endif
 
 	/* Sensor stream on */

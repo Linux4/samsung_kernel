@@ -298,6 +298,14 @@ static int sensor_ak737x_soft_landing_on_recording(struct v4l2_subdev *subdev)
 
 		pr_info("[%s][%d] X\n", __func__, actuator->device);
 	}
+#if defined(AK737X_SOFT_LANDING_DELAY_ON_DIRECTORS_VIEW)
+	else {
+		if (actuator->sensor_peri->cis.cis_data->is_data.scene_mode == AA_SCENE_MODE_DIRECTORS_VIEW) {
+			info("[%s] delay before sleep mode\n", __func__);
+			msleep(AK737X_SOFT_LANDING_DELAY_ON_DIRECTORS_VIEW);
+		}
+	}
+#endif
 
 p_err:
 	I2C_MUTEX_UNLOCK(actuator->i2c_lock);

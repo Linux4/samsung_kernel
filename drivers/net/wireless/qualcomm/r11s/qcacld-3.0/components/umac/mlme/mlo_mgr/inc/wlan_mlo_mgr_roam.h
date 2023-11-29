@@ -551,6 +551,9 @@ static inline uint32_t
 mlo_roam_get_link_freq_from_mac_addr(struct roam_offload_synch_ind *sync_ind,
 				     uint8_t *link_mac_addr)
 {
+	if (sync_ind)
+		return sync_ind->chan_freq;
+
 	return 0;
 }
 

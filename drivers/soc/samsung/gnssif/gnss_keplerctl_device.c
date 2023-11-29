@@ -96,6 +96,8 @@ static irqreturn_t kepler_wdt_isr(int irq, void *arg)
 
 	gif_err_limited("WDT Interrupt occurred!\n");
 
+	gif_disable_irq_nosync(&gc->irq_gnss_wdt);
+
 	if (!gnssif_wake_lock_active(gc->gc_fault_ws))
 		gnssif_wake_lock_timeout(gc->gc_fault_ws, HZ);
 
@@ -320,6 +322,8 @@ static int kepler_release_reset(struct gnss_ctl *gc)
 		return ret;
 	}
 	gc->pmu_ops->req_baaw();
+
+	gif_enable_irq(&gc->irq_gnss_wdt);
 
 	gc->reset_count++;
 

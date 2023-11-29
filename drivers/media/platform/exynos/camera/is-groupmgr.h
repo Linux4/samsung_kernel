@@ -259,9 +259,10 @@ void is_group_subdev_cancel(struct is_group *group,
 		enum is_device_type device_type,
 		enum is_frame_state frame_state,
 		bool flush);
-void is_group_subdev_check(struct is_group *group, u32 *vc0_dma);
-int is_group_change_chain(struct is_groupmgr *groupmgr, struct is_group *group, u32 next_id);
 
+int is_group_change_chain(struct is_groupmgr *groupmgr, struct is_group *group, u32 next_id);
+int is_group_immediately_standby_done(struct is_groupmgr *groupmgr,
+               struct is_group *group);
 /* get head group's subdev framemgr */
 struct is_framemgr *is_group_get_head_framemgr(struct is_group *group,
 						u32 shot_idx);

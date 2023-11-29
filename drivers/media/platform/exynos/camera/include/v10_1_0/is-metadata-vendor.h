@@ -56,7 +56,8 @@ struct rational {
 #define SHOT_MAGIC_NUMBER			0x56789234
 
 #define CHK_UPDATE_EXP_BY_RTA_CAPTURE_SCN(captureIntent) 0
-
+#define CHK_PIP_SAT_SCN(setfile)   \
+       ((setfile == ISS_SUB_SCENARIO_MULTIVIEW_RECORDING) ? 1 : 0)
 struct is_cap_meta_info {
 	u32 frame_count;
 	u32 dma_buf_fd;
@@ -741,7 +742,11 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_REPEATED_MULTI_FRAME_LIST               = 167,  /* multiFrameEv, Iso, Exposure List */
 	AA_CAPTURE_INTENT_STILL_CAPTURE_HIGHRES_TNR                             = 168,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_HYBRID_NNHDR_DYNAMIC_SHOT               = 169,
-
+	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_ZOOM_NORMAL                          = 170,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_ZOOM_NEON                            = 171,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_ZOOM_NEON_AEB                        = 172,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_ZOOM_SR_NEON                         = 173,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_ZOOM_SR_BRIGHT_MOON                  = 174,
 	AA_CAPTURE_INTENT_VIDEO_RECORD_CHANGE_FPS                               = 500,
 
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL0 = 90000,
@@ -1366,7 +1371,9 @@ struct camera2_aa_dm {
 	uint32_t			vendor_touchBvChange;
 	float				vendor_objectDistanceCm;
 	int32_t				vendor_colorTempKelvin;
-	int32_t				vendor_dynamicShotValue[3];
+	int32_t				vendor_dynamicShotValue;        // DS Value
+	int32_t				vendor_dynamicShotDeviceLSB;    // DS Device Info LSB 32bit
+	int32_t				vendor_dynamicShotDeviceMSB;    // DS Device Info MSB 32bit
 	int32_t				vendor_lightConditionValue;
 	int32_t				vendor_dynamicShotExtraInfo;
 	struct aa_apexInfo		vendor_apexInfo;

@@ -34,7 +34,25 @@
 static int flash_aw36518_init(struct v4l2_subdev *subdev, u32 val)
 {
 	int ret = 0;
+	struct is_flash *flash;
 
+	FIMC_BUG(!subdev);
+
+	flash = (struct is_flash *)v4l2_get_subdevdata(subdev);
+
+	FIMC_BUG(!flash);
+
+	flash->flash_data.mode = CAM2_FLASH_MODE_OFF;
+	flash->flash_data.intensity = 100; /* TODO: Need to figure out min/max range */
+	flash->flash_data.firing_time_us = 1 * 1000 * 1000; /* Max firing time is 1sec */
+	flash->flash_data.flash_fired = false;
+	gpio_request_one(flash->flash_gpio, GPIOF_OUT_INIT_LOW, "CAM_FLASH_OUTPUT");
+	gpio_free(flash->flash_gpio);
+#if IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+	ret = aw36518_fled_mode_ctrl(AW36518_FLED_MODE_OFF, 0);
+#else
+	ret = control_flash_gpio(flash->flash_gpio, 0);
+#endif
 	return ret;
 }
 

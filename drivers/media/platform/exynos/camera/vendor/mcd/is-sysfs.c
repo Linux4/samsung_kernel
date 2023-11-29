@@ -810,6 +810,20 @@ err_moduleid:
 	return sprintf(buf, "%s\n", "0000000000");
 }
 
+static const char *is_cam_info_type_list[CAM_INFO_MAX] = {
+	[CAM_INFO_REAR] = "rear_wide",
+	[CAM_INFO_FRONT] = "front_wide",
+	[CAM_INFO_REAR2] = "rear_ultra_wide",
+	[CAM_INFO_FRONT2] = "front_ultra_wide",
+	[CAM_INFO_REAR3] = "rear_tele",
+	[CAM_INFO_REAR4] = "rear_super_tele",
+};
+
+static ssize_t camera_module_type_show(char *buf, enum is_cam_info_index cam_index)
+{
+	return sprintf(buf, "%s\n", is_cam_info_type_list[cam_index]);
+}
+
 static ssize_t camera_afcal_show(char *buf, enum is_cam_info_index cam_index)
 {
 	struct is_rom_info *finfo;
@@ -1440,6 +1454,12 @@ static ssize_t camera_front2_moduleid_show(struct device *dev,
 {
 	return camera_moduleid_show(buf, CAM_INFO_FRONT2);
 }
+
+static ssize_t camera_front2_module_type_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return camera_module_type_show(buf, CAM_INFO_FRONT2);
+}
 #endif
 
 #ifdef CAMERA_FRONT2_TILT
@@ -1695,6 +1715,12 @@ static ssize_t camera_rear2_moduleid_show(struct device *dev,
 {
 	return camera_moduleid_show(buf, CAM_INFO_REAR2);
 }
+
+static ssize_t camera_rear2_module_type_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return camera_module_type_show(buf, CAM_INFO_REAR2);
+}
 #endif
 
 #ifdef CAMERA_REAR2_AFCAL
@@ -1789,6 +1815,12 @@ static ssize_t camera_rear3_moduleid_show(struct device *dev,
 {
 	return camera_moduleid_show(buf, CAM_INFO_REAR3);
 }
+
+static ssize_t camera_rear3_module_type_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return camera_module_type_show(buf, CAM_INFO_REAR3);
+}
 #endif
 
 #ifdef CAMERA_REAR3_AFCAL
@@ -1863,6 +1895,12 @@ static ssize_t camera_rear4_moduleid_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	return camera_moduleid_show(buf, CAM_INFO_REAR4);
+}
+
+static ssize_t camera_rear4_module_type_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return camera_module_type_show(buf, CAM_INFO_REAR4);
 }
 #endif
 
@@ -4200,6 +4238,12 @@ static ssize_t camera_rear_moduleid_show(struct device *dev,
 	return camera_moduleid_show(buf, CAM_INFO_REAR);
 }
 
+static ssize_t camera_rear_module_type_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return camera_module_type_show(buf, CAM_INFO_REAR);
+}
+
 #if defined(CAMERA_EEPROM_SUPPORT_FRONT)
 #ifndef CAMERA_FRONT_FIXED_FOCUS
 static ssize_t camera_front_afcal_show(struct device *dev,
@@ -4220,6 +4264,12 @@ static ssize_t camera_front_moduleid_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	return camera_moduleid_show(buf, CAM_INFO_FRONT);
+}
+
+static ssize_t camera_front_module_type_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return camera_module_type_show(buf, CAM_INFO_FRONT);
 }
 
 static ssize_t camera_front_mtf_exif_show(struct device *dev,
@@ -4826,8 +4876,9 @@ static DEVICE_ATTR(rear_mtf_exif, S_IRUGO, camera_rear_mtf_exif_show, NULL);
 static DEVICE_ATTR(rear_afcal, S_IRUGO, camera_rear_afcal_show, NULL);
 static DEVICE_ATTR(rear_paf_cal_check, S_IRUGO, camera_rear_paf_cal_check_show, NULL);
 static DEVICE_ATTR(rear_moduleid, S_IRUGO, camera_rear_moduleid_show, NULL);
-static DEVICE_ATTR(rear_phy_tune, S_IRUGO, camera_rear_phy_tune_show, NULL);
 static DEVICE_ATTR(SVC_rear_module, S_IRUGO, camera_rear_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_rear_module_type, S_IRUGO, camera_rear_module_type_show, NULL);
+static DEVICE_ATTR(rear_phy_tune, S_IRUGO, camera_rear_phy_tune_show, NULL);
 static DEVICE_ATTR(rear_af_hall, S_IRUSR|S_IRGRP, camera_rear_af_hall_show, NULL);
 
 #ifdef CAMERA_REAR_DUAL_CAL
@@ -4860,6 +4911,7 @@ static DEVICE_ATTR(rear2_tilt, S_IRUGO, camera_rear2_tilt_show, NULL);
 #ifdef CAMERA_REAR2_MODULEID
 static DEVICE_ATTR(rear2_moduleid, S_IRUGO, camera_rear2_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module2, S_IRUGO, camera_rear2_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_rear_module2_type, S_IRUGO, camera_rear2_module_type_show, NULL);
 #endif
 #endif
 #ifdef CAMERA_REAR3
@@ -4884,6 +4936,7 @@ static DEVICE_ATTR(rear3_tilt, S_IRUGO, camera_rear3_tilt_show, NULL);
 #ifdef CAMERA_REAR3_MODULEID
 static DEVICE_ATTR(rear3_moduleid, S_IRUGO, camera_rear3_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module3, S_IRUGO, camera_rear3_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_rear_module3_type, S_IRUGO, camera_rear3_module_type_show, NULL);
 #endif
 #endif
 
@@ -4906,6 +4959,7 @@ static DEVICE_ATTR(rear4_tilt, S_IRUGO, camera_rear4_tilt_show, NULL);
 #ifdef CAMERA_REAR3_MODULEID
 static DEVICE_ATTR(rear4_moduleid, S_IRUGO, camera_rear4_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module4, S_IRUGO, camera_rear4_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_rear_module4_type, S_IRUGO, camera_rear4_module_type_show, NULL);
 #endif
 #endif
 
@@ -4969,6 +5023,7 @@ static DEVICE_ATTR(front_mtf_exif, S_IRUGO, camera_front_mtf_exif_show, NULL);
 static DEVICE_ATTR(front_sensorid_exif, S_IRUGO, camera_front_sensorid_exif_show, NULL);
 static DEVICE_ATTR(front_moduleid, S_IRUGO, camera_front_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_front_module, S_IRUGO, camera_front_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_front_module_type, S_IRUGO, camera_front_module_type_show, NULL);
 #endif
 #ifdef CAMERA_FRONT2
 static DEVICE_ATTR(front2_caminfo, S_IRUGO, camera_front2_info_show, NULL);
@@ -4983,6 +5038,7 @@ static DEVICE_ATTR(front2_tilt, S_IRUGO, camera_front2_tilt_show, NULL);
 #ifdef CAMERA_FRONT2_MODULEID
 static DEVICE_ATTR(front2_moduleid, S_IRUGO, camera_front2_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_front_module2, S_IRUGO, camera_front2_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_front_module2_type, S_IRUGO, camera_front2_module_type_show, NULL);
 #endif
 #endif
 
@@ -5113,19 +5169,25 @@ static DEVICE_ATTR(iris_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 
 static struct attribute *svc_cam_attrs[] = {
 	&dev_attr_SVC_rear_module.attr,
+	&dev_attr_SVC_rear_module_type.attr,
 #ifdef CAMERA_REAR2_MODULEID
 	&dev_attr_SVC_rear_module2.attr,
+	&dev_attr_SVC_rear_module2_type.attr,
 #endif
 #ifdef CAMERA_REAR3_MODULEID
 	&dev_attr_SVC_rear_module3.attr,
+	&dev_attr_SVC_rear_module3_type.attr,
 #endif
 #ifdef CAMERA_REAR4_MODULEID
 	&dev_attr_SVC_rear_module4.attr,
+	&dev_attr_SVC_rear_module4_type.attr,
 #endif
 #if defined(CAMERA_EEPROM_SUPPORT_FRONT)
 	&dev_attr_SVC_front_module.attr,
+	&dev_attr_SVC_front_module_type.attr,
 #ifdef CAMERA_FRONT2_MODULEID
 	&dev_attr_SVC_front_module2.attr,
+	&dev_attr_SVC_front_module2_type.attr,
 #endif
 #endif
 	NULL,

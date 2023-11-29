@@ -63,6 +63,7 @@
 #define UFS_SENSE_SIZE				18
 
 #define MAX_RETRY				0x100
+#define RPMB_REQ_TIMEOUT                       (10 * HZ)
 
 struct rpmb_irq_ctx {
 	struct device *dev;

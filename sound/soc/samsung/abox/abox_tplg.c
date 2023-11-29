@@ -75,6 +75,16 @@ struct abox_tplg_pipelines {
 	struct abox_tplg_pipeline *pl;
 };
 
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+struct abox_tplg_kcontrol_data;
+
+struct abox_tplg_kcontrol_usage {
+	unsigned int count;
+	unsigned int size;
+	struct abox_tplg_kcontrol_data **user;
+};
+#endif
+
 struct abox_tplg_kcontrol_data {
 	struct list_head list;
 	int gid;
@@ -86,6 +96,9 @@ struct abox_tplg_kcontrol_data {
 	bool force_restore;
 	unsigned int addr;
 	unsigned int *kaddr;
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+	struct abox_tplg_kcontrol_usage usage;
+#endif
 	struct abox_tplg_pipelines pls;
 	struct snd_soc_component *cmpnt;
 	struct snd_kcontrol_new *kcontrol_new;
@@ -896,6 +909,136 @@ static int abox_tplg_put_pipeline_item(struct abox_tplg_pipeline_item *item, boo
 	return ret;
 }
 
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+static int abox_tplg_kcontrol_remove_usage(struct abox_tplg_kcontrol_data *kdata,
+		struct abox_tplg_kcontrol_data *user)
+{
+	struct device *dev = kdata->cmpnt->dev;
+	struct abox_tplg_kcontrol_usage *usage = &kdata->usage;
+	unsigned int i;
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kdata->hdr->name, user->hdr->name);
+
+	for (i = 0; i < usage->count; i++) {
+		if (usage->user[i] == user) {
+			for (; i < usage->count; i++)
+				usage->user[i] = (i + 1 < usage->count) ? usage->user[i + 1] : NULL;
+			usage->count--;
+			return 0;
+		}
+	}
+
+	abox_err(dev, "%s, %s: odd usage remove\n", kdata->hdr->name, user->hdr->name);
+	return -EINVAL;
+}
+
+static bool abox_tplg_kcontrol_check_usage(struct abox_tplg_kcontrol_data *kdata,
+		struct abox_tplg_kcontrol_data *user)
+{
+	struct device *dev = kdata->cmpnt->dev;
+	struct abox_tplg_kcontrol_usage *usage = &kdata->usage;
+
+	if (usage->count > 0)
+		abox_warn(dev, "%s, %s: overlapped usage\n", kdata->hdr->name, user->hdr->name);
+
+	return (usage->count <= 0);
+}
+
+static int abox_tplg_kcontrol_alloc_usage(struct abox_tplg_kcontrol_data *kdata)
+{
+	struct device *dev = kdata->cmpnt->dev;
+	struct abox_tplg_kcontrol_usage *usage = &kdata->usage;
+	struct abox_tplg_kcontrol_data **new_user;
+	size_t new_size;
+
+	if (usage->size - usage->count > 0)
+		return 0;
+
+	new_size = (usage->size > 0) ? (usage->size * 2) : 2;
+	new_user = devm_krealloc(dev, usage->user, sizeof(*new_user) * new_size, GFP_KERNEL);
+	if (!new_user)
+		return -ENOMEM;
+
+	usage->user = new_user;
+	usage->size = new_size;
+	return 0;
+}
+
+static int abox_tplg_kcontrol_add_usage(struct abox_tplg_kcontrol_data *kdata,
+		struct abox_tplg_kcontrol_data *user)
+{
+	struct device *dev = kdata->cmpnt->dev;
+	struct abox_tplg_kcontrol_usage *usage = &kdata->usage;
+	unsigned int i;
+	int ret;
+
+	abox_dbg(dev, "%s(%s, %s)\n", __func__, kdata->hdr->name, user->hdr->name);
+
+	abox_tplg_kcontrol_check_usage(kdata, user);
+
+	ret = abox_tplg_kcontrol_alloc_usage(kdata);
+	if (ret < 0) {
+		abox_warn(dev, "%s, %s: no memory for new usage\n", kdata->hdr->name, user->hdr->name);
+		return ret;
+	}
+
+	for (i = 0; i < usage->count; i++) {
+		if (usage->user[i] == user) {
+			abox_dbg(dev, "%s, %s: sustain usage\n", kdata->hdr->name, user->hdr->name);
+			return 0;
+		}
+	}
+
+	usage->user[usage->count++] = user;
+
+	return 0;
+}
+
+static int abox_tplg_reset_pipeline_item(struct abox_tplg_pipeline_item *item,
+		struct abox_tplg_kcontrol_data *user)
+{
+	struct snd_soc_component *cmpnt = user->cmpnt;
+	struct device *dev = cmpnt->dev;
+	unsigned int usage_count;
+	int ret;
+
+	abox_dbg(dev, "pipeline item reset: %s\n", item->name);
+
+	abox_tplg_kcontrol_remove_usage(item->kdata, user);
+
+	usage_count = item->kdata->usage.count;
+	if (usage_count > 0) {
+		abox_info(dev, "pipeline item reset skip: %s usage count=%d\n",
+				item->name, usage_count);
+		return -EBUSY;
+	}
+
+	ret = abox_tplg_put_pipeline_item(item, true);
+	if (ret < 0)
+		abox_err(dev, "pipeline item reset fail: %s %d\n", item->name, ret);
+
+	return ret;
+}
+
+static int abox_tplg_apply_pipeline_item(struct abox_tplg_pipeline_item *item,
+		struct abox_tplg_kcontrol_data *user)
+{
+	struct snd_soc_component *cmpnt = user->cmpnt;
+	struct device *dev = cmpnt->dev;
+	int ret;
+
+	abox_dbg(dev, "pipeline item apply: %s\n", item->name);
+
+	ret = abox_tplg_put_pipeline_item(item, false);
+	if (ret < 0)
+		abox_err(dev, "pipeline item apply fail: %s %d\n", item->name, ret);
+
+	abox_tplg_kcontrol_add_usage(item->kdata, user);
+
+	return ret;
+}
+#endif
+
 static int abox_tplg_put_pipeline(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
@@ -932,6 +1075,15 @@ static int abox_tplg_put_pipeline(struct snd_kcontrol *kcontrol,
 	for (item = pl->items; item - pl->items < pl->count; item++)
 		list_move_tail(&item->work, &list_apply);
 
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+	/* reset previous */
+	list_for_each_entry(item, &list_reset, work)
+		abox_tplg_reset_pipeline_item(item, kdata);
+
+	/* apply current */
+	list_for_each_entry(item, &list_apply, work)
+		abox_tplg_apply_pipeline_item(item, kdata);
+#else
 	/* reset previous */
 	list_for_each_entry(item, &list_reset, work) {
 		abox_dbg(dev, "pipeline item reset: %s\n", item->name);
@@ -949,6 +1101,7 @@ static int abox_tplg_put_pipeline(struct snd_kcontrol *kcontrol,
 			abox_err(dev, "pipeline item apply fail: %s %d\n",
 					item->name, ret);
 	}
+#endif
 
 	kdata->value[0] = value;
 
@@ -992,6 +1145,10 @@ static int abox_tplg_dapm_put_mux_virt(struct snd_kcontrol *kcontrol,
 
 	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
 			e->texts[value]);
+
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+	abox_tplg_kcontrol_check_usage(kdata, kdata);
+#endif
 
 	kdata->value[0] = value;
 
@@ -1042,6 +1199,10 @@ static int abox_tplg_dapm_put_mux(struct snd_kcontrol *kcontrol,
 
 	abox_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
 			e->texts[value]);
+
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+	abox_tplg_kcontrol_check_usage(kdata, kdata);
+#endif
 
 	kdata->value[0] = value;
 	if (!pm_runtime_suspended(dev_abox)) {
@@ -1125,6 +1286,10 @@ static int abox_tplg_put_mixer(struct snd_kcontrol *kcontrol,
 
 	abox_dbg(dev, "%s(%s, %ld)\n", __func__, kcontrol->id.name, value[0]);
 
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+	abox_tplg_kcontrol_check_usage(kdata, kdata);
+#endif
+
 	for (i = 0; i < kdata->count; i++) {
 		if (value[i] < mc->min || value[i] > mc->max) {
 			abox_err(dev, "%s: value[%d]=%d, min=%d, max=%d\n",
@@ -1190,6 +1355,9 @@ static int abox_tplg_dapm_put_mixer(struct snd_kcontrol *kcontrol,
 				kcontrol->id.name, value, mc->min, mc->max);
 		return -EINVAL;
 	}
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+	abox_tplg_kcontrol_check_usage(kdata, kdata);
+#endif
 
 	kdata->value[0] = value;
 	if (!pm_runtime_suspended(dev_abox)) {
@@ -1254,6 +1422,10 @@ static int abox_tplg_dapm_put_pin(struct snd_kcontrol *kcontrol,
 				kcontrol->id.name, value, mc->min, mc->max);
 		return -EINVAL;
 	}
+
+#ifdef CONFIG_SND_SOC_TPLG_USAGE_CHECK
+	abox_tplg_kcontrol_check_usage(kdata, kdata);
+#endif
 
 	kdata->value[0] = !!value;
 	if (!pm_runtime_suspended(dev_abox)) {

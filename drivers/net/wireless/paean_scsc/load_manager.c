@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /******************************************************************************
  *
- * Copyright (c) 2014 - 2020 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2023 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 
@@ -177,8 +177,7 @@ static void lbm_ctrl_work_func(struct work_struct *data)
 		break;
 		case CPU_AFFINITY_T:
 		{
-			struct bh_struct *bh, *tmp;
-			struct list_head *pos, *n;
+			struct bh_struct *bh, *bh_node, *tmp;
 			struct slsi_dev *sdev = load_man.sdev;
 			bool skip = true;
 
@@ -192,10 +191,8 @@ static void lbm_ctrl_work_func(struct work_struct *data)
 
 			mutex_lock(&sdev->hip.hip_mutex);
 			read_lock_bh(&load_man.bh_list_lock);
-			list_for_each_safe(pos, n, &load_man.bh_list) {
-				tmp = list_entry(pos, struct bh_struct, list);
-
-				if (bh == tmp) {
+			list_for_each_entry_safe(bh_node, tmp, &load_man.bh_list, list) {
+				if (bh == bh_node) {
 					skip = false;
 					break;
 				}
@@ -322,8 +319,7 @@ int slsi_lbm_netdev_activate(struct slsi_dev *sdev, struct net_device *dev)
 
 int slsi_lbm_netdev_deactivate(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif)
 {
-	struct list_head *pos, *n;
-	struct bh_struct *bh;
+	struct bh_struct *bh, *tmp;
 	bool perf_in_use = false;
 #if IS_ENABLED(CONFIG_SCSC_WLAN_RX_NAPI_GRO)
 	int i;
@@ -349,9 +345,7 @@ int slsi_lbm_netdev_deactivate(struct slsi_dev *sdev, struct net_device *dev, st
 
 	/* If all activated interface is in LOW state, change CPU affinity to LOW. */
 	read_lock_bh(&load_man.bh_list_lock);
-	list_for_each_safe(pos, n, &load_man.bh_list) {
-		bh = list_entry(pos, struct bh_struct, list);
-
+	list_for_each_entry_safe(bh, tmp, &load_man.bh_list, list) {
 		if (!bh->cpu_affinity)
 			continue;
 
@@ -591,8 +585,7 @@ struct rps_ctrl_info *slsi_lbm_register_rps_control(struct net_device *dev, cons
 
 int slsi_lbm_unregister_bh(struct bh_struct *bh)
 {
-	struct list_head *pos, *n;
-	struct ctrl_event *event;
+	struct ctrl_event *event, *tmp;
 	int i;
 	int err = -ENOENT;
 
@@ -626,10 +619,9 @@ int slsi_lbm_unregister_bh(struct bh_struct *bh)
 	}
 
 	spin_lock_bh(&load_man.ctrl_event_list_lock);
-	list_for_each_safe(pos, n, &load_man.ctrl_event_list) {
-		event = list_entry(pos, struct ctrl_event, list);
+	list_for_each_entry_safe(event, tmp, &load_man.ctrl_event_list, list) {
 		if (event->type == CPU_AFFINITY_T && event->event.cpu_affinity.bh == bh) {
-			list_del(pos);
+			list_del(&event->list);
 			kfree(event);
 		}
 	}
@@ -677,8 +669,7 @@ void slsi_lbm_unregister_io_saturation_control(struct bh_struct *bh)
 void slsi_lbm_unregister_rps_control(struct net_device *dev)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct ctrl_event *event;
-	struct list_head  *pos, *n;
+	struct ctrl_event *event, *tmp;
 
 	if (!ndev_vif->rps)
 		return;
@@ -687,10 +678,9 @@ void slsi_lbm_unregister_rps_control(struct net_device *dev)
 	slsi_traffic_mon_client_unregister(ndev_vif->sdev, dev);
 
 	spin_lock_bh(&load_man.ctrl_event_list_lock);
-	list_for_each_safe(pos, n, &load_man.ctrl_event_list) {
-		event = list_entry(pos, struct ctrl_event, list);
+	list_for_each_entry_safe(event, tmp, &load_man.ctrl_event_list, list) {
 		if (event->type == RPS_T && event->event.rps.dev == dev) {
-			list_del(pos);
+			list_del(&event->list);
 			kfree(event);
 		}
 	}
@@ -942,17 +932,15 @@ int slsi_lbm_cpuhp_online_cb(int cpu, void *data)
 	struct slsi_dev *sdev = (struct slsi_dev *)data;
 	struct net_device *dev;
 	struct netdev_vif *ndev_vif;
-	struct list_head *pos, *n;
-	struct bh_struct *bh;
+	struct bh_struct *bh, *tmp;
 	int ifnum, state;
 
 	SLSI_INFO_NODEV("CPU%d is online\n", cpu);
 	load_man.cpu_avail[cpu] = true;
 
 	write_lock_bh(&load_man.bh_list_lock);
-	list_for_each_safe(pos, n, &load_man.bh_list) {
+	list_for_each_entry_safe(bh, tmp, &load_man.bh_list, list) {
 		for (state = TRAFFIC_MON_CLIENT_STATE_LOW; state < TRAFFIC_MON_CLIENT_MAX_NUM_OF_STATE; state++) {
-			bh = list_entry(pos, struct bh_struct, list);
 			if (!bh->cpu_affinity)
 				continue;
 			cpu_status_change_for_affinity(bh, state, cpu, true);
@@ -981,17 +969,15 @@ int slsi_lbm_cpuhp_offline_cb(int cpu, void *data)
 	struct slsi_dev *sdev = (struct slsi_dev *)data;
 	struct net_device *dev;
 	struct netdev_vif *ndev_vif;
-	struct list_head *pos, *n;
-	struct bh_struct *bh;
+	struct bh_struct *bh, *tmp;
 	int ifnum, state;
 
 	SLSI_INFO_NODEV("CPU%d is offline\n", cpu);
 	load_man.cpu_avail[cpu] = false;
 
 	write_lock_bh(&load_man.bh_list_lock);
-	list_for_each_safe(pos, n, &load_man.bh_list) {
+	list_for_each_entry_safe(bh, tmp, &load_man.bh_list, list) {
 		for (state = TRAFFIC_MON_CLIENT_STATE_LOW; state < TRAFFIC_MON_CLIENT_MAX_NUM_OF_STATE; state++) {
-			bh = list_entry(pos, struct bh_struct, list);
 			if (!bh->cpu_affinity)
 				continue;
 			cpu_status_change_for_affinity(bh, state, cpu, false);
@@ -1028,15 +1014,14 @@ void slsi_lbm_state_change_for_affinity(struct bh_struct *bh, u32 state, int for
 	}
 
 	target_cpu = (force_cpu >= 0) ? force_cpu : napi_cpu[idx][state];
-	if (bh->cpu_affinity->cpu[state] == target_cpu)
-		return;
+
 	if (load_man.cpu_avail[target_cpu]) {
 		/* if target_cpu is available, use target_cpu */
 		bh->cpu_affinity->cpu[state] = target_cpu;
 		load_man.cpu_avail[bh->cpu_affinity->curr_cpu] = true;
 		load_man.cpu_avail[target_cpu] = false;
 		push_cpu_affinity_event(bh, state);
-	} else if (bh->cpu_affinity->curr_cpu == target_cpu) {
+	} else if (bh->cpu_affinity->curr_cpu == target_cpu || idx >= NP_TX_0) {
 		/* if target cpu is same as previous state cpu, use target_cpu */
 		bh->cpu_affinity->cpu[state] = target_cpu;
 		push_cpu_affinity_event(bh, state);
@@ -1124,25 +1109,22 @@ static int slsi_lbm_rps_map_set(struct net_device *dev, char *buf, size_t len)
 
 void slsi_lbm_freeze(void)
 {
-	struct list_head *pos, *n;
-	struct bh_struct *tmp;
+	struct bh_struct *bh, *tmp;
 	int i;
 
 	SLSI_DBG3_NODEV(SLSI_LBM, "cancel all bh in load balance manager list\n");
-	list_for_each_safe(pos, n, &load_man.bh_list) {
-		tmp = list_entry(pos, struct bh_struct, list);
-
-		switch (tmp->type) {
+	list_for_each_entry_safe(bh, tmp, &load_man.bh_list, list) {
+		switch (bh->type) {
 		case NP_T:
-			if (test_and_clear_bit(SLSI_HIP_NAPI_STATE_ENABLED, &tmp->bh_priv.napi.napi_state))
+			if (test_and_clear_bit(SLSI_HIP_NAPI_STATE_ENABLED, &bh->bh_priv.napi.napi_state))
 				for (i = 0; i < SLSI_NR_CPUS; i++)
-					napi_disable(&tmp->bh_priv.napi.cpu_info[i].napi_instance);
+					napi_disable(&bh->bh_priv.napi.cpu_info[i].napi_instance);
 			break;
 		case WQ_T:
-			cancel_work_sync(&tmp->bh_priv.work.bh);
+			cancel_work_sync(&bh->bh_priv.work.bh);
 			break;
 		case TL_T:
-			tasklet_kill(&tmp->bh_priv.tasklet.bh);
+			tasklet_kill(&bh->bh_priv.tasklet.bh);
 			break;
 		default:
 			break;

@@ -593,30 +593,35 @@ unsigned int is_get_digit_ctrl(void)
 	return dbg_draw_digit_ctrl;
 }
 
-void is_dmsg_init(void)
+void is_dmsg_init(u32 instance)
 {
-	is_debug.dsentence_pos = 0;
-	memset(is_debug.dsentence, 0x0, DEBUG_SENTENCE_MAX);
+	is_debug.dsentence_pos[instance] = 0;
+	memset(is_debug.dsentence[instance], 0x0, DEBUG_SENTENCE_MAX);
 }
 
-void is_dmsg_concate(const char *fmt, ...)
+void is_dmsg_concate(u32 instance, const char *fmt, ...)
 {
 	va_list ap;
 	char term[50];
 	u32 copy_len;
+	size_t dsentence_len = 0;
 
 	va_start(ap, fmt);
 	vsnprintf(term, sizeof(term), fmt, ap);
 	va_end(ap);
 
-	copy_len = (u32)min((DEBUG_SENTENCE_MAX - is_debug.dsentence_pos), strlen(term));
-	strncpy(is_debug.dsentence + is_debug.dsentence_pos, term, copy_len);
-	is_debug.dsentence_pos += copy_len;
+	dsentence_len = abs(DEBUG_SENTENCE_MAX - is_debug.dsentence_pos[instance]);
+
+	copy_len = (u32)min(dsentence_len, strlen(term));
+	if (is_debug.dsentence_pos[instance] + copy_len <= DEBUG_SENTENCE_MAX) {
+		strncpy(is_debug.dsentence[instance] + is_debug.dsentence_pos[instance], term, copy_len);
+		is_debug.dsentence_pos[instance] += copy_len;
+	}
 }
 
-char *is_dmsg_print(void)
+char *is_dmsg_print(u32 instance)
 {
-	return is_debug.dsentence;
+	return is_debug.dsentence[instance];
 }
 
 void is_print_buffer(char *buffer, size_t len)
@@ -703,6 +708,8 @@ void is_debug_memlog_dump_cr_all(int log_level)
 int is_debug_probe(struct device *dev)
 {
 	int ret = 0;
+	int its = 0;
+
 	struct exynos_platform_is *pdata;
 
 	is_debug.read_vptr = 0;
@@ -711,8 +718,10 @@ int is_debug_probe(struct device *dev)
 	spin_lock_init(&is_debug.slock_cdump);
 	is_debug.cdump_ptr = 0;
 
-	is_debug.dsentence_pos = 0;
-	memset(is_debug.dsentence, 0x0, DEBUG_SENTENCE_MAX);
+	for (its = 0; its < IS_STREAM_COUNT; its++) {
+		is_debug.dsentence_pos[its] = 0;
+		memset(is_debug.dsentence[its], 0x0, DEBUG_SENTENCE_MAX);
+	}
 
 
 #ifdef ENABLE_DBG_FS

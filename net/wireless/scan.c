@@ -143,6 +143,7 @@ static inline void bss_ref_get(struct cfg80211_registered_device *rdev,
 	lockdep_assert_held(&rdev->bss_lock);
 
 	bss->refcount++;
+
 	if (bss->pub.hidden_beacon_bss)
 		bss_from_pub(bss->pub.hidden_beacon_bss)->refcount++;
 
@@ -261,21 +262,6 @@ bool cfg80211_is_element_inherited(const struct element *elem,
 }
 EXPORT_SYMBOL(cfg80211_is_element_inherited);
 
-static size_t oui_header_len(const u8 *oui)
-{
-
-	/* For vendor ie, compare OUI + type + subType to determine if they are
-	 * the same ie. However, few specific OUIs have OUI + type fields only
-	 * in the header.
-	 */
-
-	/* Cisco OUI (00-40-96) whose header length is 4 bytes - OUI + type */
-	if (oui[0] == 0x00 && oui[1] == 0x40 && oui[2] == 0x96)
-		return 4;
-
-	return 5;
-}
-
 static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
 				  const u8 *subelement, size_t subie_len,
 				  u8 *new_ie, gfp_t gfp)
@@ -311,10 +297,9 @@ static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
 	 */
 	tmp_old = cfg80211_find_ie(WLAN_EID_SSID, ie, ielen);
 	tmp_old = (tmp_old) ? tmp_old + tmp_old[1] + 2 : ie;
-	
-	while (tmp_old + 2 - ie <= ielen &&
-		   tmp_old + tmp_old[1] + 2 - ie <= ielen) {
 
+	while (tmp_old + 2 - ie <= ielen &&
+	       tmp_old + tmp_old[1] + 2 - ie <= ielen) {
 		if (tmp_old[0] == 0) {
 			tmp_old++;
 			continue;
@@ -341,9 +326,12 @@ static size_t cfg80211_gen_new_ie(const u8 *ie, size_t ielen,
 			 * copy from subelement and flag the ie in subelement
 			 * as copied (by setting eid field to WLAN_EID_SSID,
 			 * which is skipped anyway).
+			 * For vendor ie, compare OUI + type + subType to
+			 * determine if they are the same ie.
 			 */
 			if (tmp_old[0] == WLAN_EID_VENDOR_SPECIFIC) {
-				if (!memcmp(tmp_old + 2, tmp + 2, oui_header_len(tmp + 2))) {
+				if (tmp_old[1] >= 5 && tmp[1] >= 5 &&
+				    !memcmp(tmp_old + 2, tmp + 2, 5)) {
 					/* same vendor ie, copy from
 					 * subelement
 					 */
@@ -1632,7 +1620,6 @@ static void cfg80211_update_hidden_bsses(struct cfg80211_internal_bss *known,
 	}
 }
 
-
 static bool
 cfg80211_update_known_bss(struct cfg80211_registered_device *rdev,
 			  struct cfg80211_internal_bss *known,
@@ -1682,8 +1669,10 @@ cfg80211_update_known_bss(struct cfg80211_registered_device *rdev,
 		/* Override IEs if they were from a beacon before */
 		if (old == rcu_access_pointer(known->pub.ies))
 			rcu_assign_pointer(known->pub.ies, new->pub.beacon_ies);
-		
-		cfg80211_update_hidden_bsses(known, new->pub.beacon_ies, old);
+
+		cfg80211_update_hidden_bsses(known,
+					     rcu_access_pointer(new->pub.beacon_ies),
+					     old);
 
 		if (old)
 			kfree_rcu((struct cfg80211_bss_ies *)old, rcu_head);
@@ -2478,10 +2467,15 @@ cfg80211_inform_bss_frame_data(struct wiphy *wiphy,
 	const struct cfg80211_bss_ies *ies1, *ies2;
 	size_t ielen = len - offsetof(struct ieee80211_mgmt,
 				      u.probe_resp.variable);
-	struct cfg80211_non_tx_bss non_tx_data;
+	struct cfg80211_non_tx_bss non_tx_data = {};
 
 	res = cfg80211_inform_single_bss_frame_data(wiphy, data, mgmt,
 						    len, gfp);
+
+	/* don't do any further MBSSID handling for S1G */
+	if (ieee80211_is_s1g_beacon(mgmt->frame_control))
+		return res;
+
 	if (!res || !wiphy->support_mbssid ||
 	    !cfg80211_find_ie(WLAN_EID_MULTIPLE_BSSID, ie, ielen))
 		return res;

@@ -368,8 +368,19 @@ int amdgpu_gmc_allocate_vm_inv_eng(struct amdgpu_device *adev)
 	}
 
 #ifndef CONFIG_HSA_AMD
+	sws = &adev->sws;
+	if (amdgpu_tmz) {
+		inv_eng = ffs(adev->vm_inv_engs[AMDGPU_GFXHUB_0]);
+		if (!inv_eng) {
+			dev_warn(adev->dev, "no VM inv eng for tmz_inv_eng\n");
+			return 0;
+		}
+		sws->tmz_inv_eng = inv_eng - 1;
+		adev->vm_inv_engs[AMDGPU_GFXHUB_0] &=
+						~(1 << sws->tmz_inv_eng);
+	}
+
 	if (cwsr_enable) {
-		sws = &adev->sws;
 		for (i = 0; i < AMDGPU_SWS_MAX_VMID_NUM; ++i) {
 			inv_eng = ffs(adev->vm_inv_engs[AMDGPU_GFXHUB_0]);
 			if (!inv_eng)

@@ -440,7 +440,7 @@ int hip4_smapper_init(struct slsi_dev *sdev, struct slsi_hip *hip)
 
 	/* Allocate Maxwell resources */
 	control->th_req =
-		scsc_service_mifintrbit_register_tohost(sdev->service, hip4_smapper_refill_isr, hip, SCSC_MIFINTR_TARGET_WLAN);
+		scsc_service_mifintrbit_register_tohost(sdev->service, hip4_smapper_refill_isr, hip, SCSC_MIFINTR_TARGET_WLAN, HIP4_SMAPPER_REFILL_TYPE);
 	control->fh_ind =
 		scsc_service_mifintrbit_alloc_fromhost(sdev->service, SCSC_MIFINTR_TARGET_WLAN);
 

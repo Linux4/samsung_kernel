@@ -709,7 +709,7 @@ struct v10_compute_mqd {
 	uint32_t compute_misc_reserved;
 	uint32_t compute_dispatch_id;
 	uint32_t compute_threadgroup_id;
-	uint32_t compute_relaunch;
+	uint32_t compute_req_ctrl;
 	uint32_t compute_wave_restore_addr_lo;
 	uint32_t compute_wave_restore_addr_hi;
 	uint32_t compute_wave_restore_control;
@@ -834,8 +834,8 @@ struct v10_compute_mqd {
 	uint32_t cp_hqd_atomic0_preop_hi;
 	uint32_t cp_hqd_atomic1_preop_lo;
 	uint32_t cp_hqd_atomic1_preop_hi;
-	uint32_t cp_hqd_hq_scheduler0;
-	uint32_t cp_hqd_hq_scheduler1;
+	uint32_t cp_hqd_hq_status0;
+	uint32_t cp_hqd_hq_control0;
 	uint32_t cp_mqd_control;
 	uint32_t cp_hqd_hq_status1;
 	uint32_t cp_hqd_hq_control1;

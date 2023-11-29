@@ -561,7 +561,7 @@ static inline void csi_trigger_gtask(struct is_device_sensor *sensor, struct is_
 inline void csi_frame_start_inline(struct is_device_csi *csi)
 {
 	u32 inc = 1;
-	u32 fcount, hw_fcount;
+	u32 fcount, chain_fcount;
 	struct v4l2_subdev *sd;
 	struct is_device_sensor *sensor;
 	u32 hashkey, hashkey_1, hashkey_2;
@@ -574,33 +574,28 @@ inline void csi_frame_start_inline(struct is_device_csi *csi)
 	csi->sw_checker = EXPECT_FRAME_END;
 
 	if (!csi->f_id_dec) {
-		hw_fcount = csi_hw_g_fcount(csi->base_reg, CSI_VIRTUAL_CH_0);
-		inc = hw_fcount - csi->hw_fcount;
-		csi->hw_fcount = hw_fcount;
+		chain_fcount = atomic_read(&csi->chain_fcount);
+		fcount = atomic_read(&csi->fcount);
+		if (chain_fcount > fcount)
+			inc = chain_fcount - fcount;
 
-		if (unlikely(inc != 1)) {
-			if (inc > 1) {
-				mcwarn(" interrupt lost(%d)", csi, inc);
-			} else if (inc == 0) {
-				mcwarn(" hw_fcount(%d) is not incresed",
-					csi, hw_fcount);
-				inc = 1;
-			}
-		}
+		if (unlikely(inc != 1))
+			mcwarn("fcount is increased (%d->%d)", csi, fcount, chain_fcount);
 
 		/* SW FRO: start interrupt have to be called only once per batch number  */
+		csi->hw_fcount = csi_hw_g_fcount(csi->base_reg, CSI_VIRTUAL_CH_0);
 		if (csi->otf_batch_num > 1) {
-			if ((hw_fcount % csi->otf_batch_num) != 1)
+			if ((csi->hw_fcount % csi->otf_batch_num) != 1)
 				return;
 		}
 	}
 
 	fcount = atomic_add_return(inc, &csi->fcount);
-	sd = *csi->subdev;
 
 	dbg_isr(1, "[F%d] S\n", csi, fcount);
 	atomic_set(&csi->vvalid, 1);
 
+	sd = *csi->subdev;
 	sensor = v4l2_get_subdev_hostdata(sd);
 	if (!sensor) {
 		err("sensor is NULL");
@@ -2803,6 +2798,7 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 
 	base_reg = csi->base_reg;
 	csi->hw_fcount = csi_hw_s_fcount(base_reg, CSI_VIRTUAL_CH_0, 0);
+	atomic_set(&csi->chain_fcount, 0);
 	csi->error_count = 0;
 	csi->error_count_vc_overlap = 0;
 	csi->tasklet_csis_end_count = 0;

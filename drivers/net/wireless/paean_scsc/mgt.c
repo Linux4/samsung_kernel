@@ -389,7 +389,7 @@ void slsi_purge_scan_results(struct netdev_vif *ndev_vif, u16 scan_id)
 
 void slsi_purge_blacklist(struct netdev_vif *ndev_vif)
 {
-	struct list_head *blacklist_pos, *blacklist_q;
+	struct slsi_bssid_blacklist_info *blacklist_info, *tmp;
 
 	kfree(ndev_vif->acl_data_supplicant);
 	ndev_vif->acl_data_supplicant = NULL;
@@ -397,20 +397,14 @@ void slsi_purge_blacklist(struct netdev_vif *ndev_vif)
 	kfree(ndev_vif->acl_data_hal);
 	ndev_vif->acl_data_hal = NULL;
 
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
-		struct slsi_bssid_blacklist_info *blacklist_info = list_entry(blacklist_pos,
-			struct slsi_bssid_blacklist_info, list);
-
-		list_del(blacklist_pos);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_fw_list, list) {
+		list_del(&blacklist_info->list);
 		kfree(blacklist_info);
 	}
 	INIT_LIST_HEAD(&ndev_vif->acl_data_fw_list);
 
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_ioctl_list) {
-		struct slsi_ioctl_blacklist_info *blacklist_info = list_entry(blacklist_pos,
-			struct slsi_ioctl_blacklist_info, list);
-
-		list_del(blacklist_pos);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_ioctl_list, list) {
+		list_del(&blacklist_info->list);
 		kfree(blacklist_info);
 	}
 	INIT_LIST_HEAD(&ndev_vif->acl_data_ioctl_list);
@@ -1200,6 +1194,7 @@ void slsi_ndl_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw
 	slsi_spinlock_unlock(&ndev_vif->peer_lock);
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "nan.ndp_count: %d , vif_activated:%d\n", ndev_vif->nan.ndp_count, ndev_vif->activated);
 	slsi_release_dp_resources(sdev, dev, ndev_vif);
+	slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 }
 #endif
 
@@ -1358,6 +1353,41 @@ void slsi_scan_cleanup(struct slsi_dev *sdev, struct net_device *dev)
 	SLSI_MUTEX_UNLOCK(ndev_vif->scan_mutex);
 }
 
+static void slsi_clear_host_state(struct net_device *dev)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+	int               ret = 0;
+	u16               host_state;
+
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+	host_state = sdev->device_config.host_state;
+
+	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {
+		host_state &= (SLSI_HOSTSTATE_LCD_ACTIVE | SLSI_HOSTSTATE_CELLULAR_ACTIVE);
+		if (sdev->device_config.host_state_sub6_band)
+			sdev->device_config.host_state_sub6_band = false;
+	}
+#if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+	else if (SLSI_IS_VIF_INDEX_MHS(sdev, ndev_vif) || SLSI_IS_VIF_INDEX_MHS_DUALSTA(sdev, ndev_vif)) {
+			host_state &= ~SLSI_HOSTSTATE_MHS_SAR_ACTIVE;
+	}
+#endif
+	else {
+		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+		return;
+	}
+
+	ret = slsi_mlme_set_host_state(sdev, dev, host_state);
+	if (ret != 0) {
+		SLSI_NET_ERR(dev, "Error in setting the Host State, ret=%d\n", ret);
+		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+		return;
+	}
+	sdev->device_config.host_state = host_state;
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+}
+
 static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *dev, bool hw_available)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -1376,9 +1406,9 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 		if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START && ndev_vif->activated) {
 			ndev_vif->activated = false;
 			slsi_release_dp_resources(sdev, dev, ndev_vif);
+			slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 		}
 #endif
-
 		return;
 	}
 
@@ -1414,6 +1444,7 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 #endif
 #endif
 
+	slsi_clear_host_state(dev);
 	slsi_scan_cleanup(sdev, dev);
 
 	cancel_work_sync(&ndev_vif->set_multicast_filter_work);
@@ -3277,7 +3308,6 @@ int slsi_vif_activated(struct slsi_dev *sdev, struct net_device *dev)
 		ndev_vif->sta.roam_in_progress = false;
 		ndev_vif->sta.nd_offload_enabled = true;
 		memset(ndev_vif->sta.keepalive_host_tag, 0, sizeof(ndev_vif->sta.keepalive_host_tag));
-
 		slsi_tdls_manager_on_vif_activated(sdev, dev, ndev_vif);
 	}
 
@@ -3296,6 +3326,7 @@ int slsi_vif_activated(struct slsi_dev *sdev, struct net_device *dev)
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 		slsi_lbm_netdev_activate(sdev, dev);
 #endif
+		slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_CONNECTED);
 	}
 
 #ifdef CONFIG_SCSC_WLAN_SAP_POWER_SAVE
@@ -3418,6 +3449,7 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 	}
 
 	slsi_release_dp_resources(sdev, dev, ndev_vif);
+	slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 }
 
 int slsi_sta_ieee80211_mode(struct net_device *dev, u16 current_bss_channel_frequency)
@@ -5127,6 +5159,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be32 ipaddress)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	u8 broadcast_mac[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	int ret = 0;
 
 	/* Store the IP address outside the check for vif being active
@@ -5172,6 +5205,7 @@ int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be3
 			return -EINVAL;
 
 		ndev_vif->ipaddress = ipaddress;
+		ether_addr_copy(ndev_vif->sta.tdls_dgw_macaddr, broadcast_mac);
 		ret = slsi_mlme_set_ip_address(sdev, dev);
 		if (ret != 0)
 			SLSI_NET_ERR(dev, "slsi_mlme_set_ip_address ERROR. ret=%d", ret);
@@ -6207,14 +6241,12 @@ static void slsi_roam_channel_cache_add_channel(struct slsi_roaming_network_map_
 void slsi_roam_channel_cache_add_entry(struct slsi_dev *sdev, struct net_device *dev, const u8 *ssid,
 				       const u8 *bssid, u8 channel, enum nl80211_band band)
 {
-	struct list_head *pos;
+	struct slsi_roaming_network_map_entry *network_map;
 	int found = 0;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int idx;
 
-	list_for_each(pos, &ndev_vif->sta.network_map) {
-		struct slsi_roaming_network_map_entry *network_map = list_entry(pos, struct slsi_roaming_network_map_entry, list);
-
+	list_for_each_entry(network_map, &ndev_vif->sta.network_map, list) {
 		if (network_map->ssid.ssid_len == ssid[1] &&
 		    memcmp(network_map->ssid.ssid, &ssid[2], ssid[1]) == 0) {
 			found = 1;
@@ -6312,26 +6344,23 @@ void slsi_roam_channel_cache_add(struct slsi_dev *sdev, struct net_device *dev, 
 
 void slsi_roam_channel_cache_prune(struct net_device *dev, int seconds, char *ssid)
 {
-	struct slsi_roaming_network_map_entry *network_map;
+	struct slsi_roaming_network_map_entry *network_map, *tmp;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_dev *sdev = ndev_vif->sdev;
-	struct list_head *pos, *q;
 	unsigned long now = jiffies;
 	int i = 0, base_6g_idx = 0;
 
 	if (ssid) {
-		list_for_each_safe(pos, q, &ndev_vif->sta.network_map) {
-			network_map = list_entry(pos, struct slsi_roaming_network_map_entry, list);
+		list_for_each_entry_safe(network_map, tmp, &ndev_vif->sta.network_map, list) {
 			if (ssid && (memcmp(network_map->ssid.ssid, ssid, network_map->ssid.ssid_len) == 0)) {
 				SLSI_ERR_NODEV("Pruning network map entry for ssid %s\n", ssid);
-				list_del(pos);
+				list_del(&network_map->list);
 				kfree(network_map);
 				break;
 			}
 		}
 	} else {
-		list_for_each_safe(pos, q, &ndev_vif->sta.network_map) {
-			network_map = list_entry(pos, struct slsi_roaming_network_map_entry, list);
+		list_for_each_entry_safe(network_map, tmp, &ndev_vif->sta.network_map, list) {
 			for (i = 1; i <= (SLSI_NUM_2P4GHZ_CHANNELS + SLSI_NUM_5GHZ_CHANNELS); i++) {
 				if (time_after_eq(now, network_map->channel_jiffies[i] + (seconds * HZ))) {
 					if (i <= SLSI_NUM_2P4GHZ_CHANNELS)
@@ -6345,7 +6374,7 @@ void slsi_roam_channel_cache_prune(struct net_device *dev, int seconds, char *ss
 
 			if (!sdev->band_6g_supported) {
 				if (!network_map->channels_24_ghz && !network_map->channels_5_ghz) {
-					list_del(pos);
+					list_del(&network_map->list);
 					kfree(network_map);
 				}
 				continue;
@@ -6364,7 +6393,7 @@ void slsi_roam_channel_cache_prune(struct net_device *dev, int seconds, char *ss
 			}
 			if (!network_map->channels_24_ghz && !network_map->channels_5_ghz &&
 			    !network_map->channels_6_ghz.unii5_6 && !network_map->channels_6_ghz.unii7_8) {
-				list_del(pos);
+				list_del(&network_map->list);
 				kfree(network_map);
 			}
 		}
@@ -6436,13 +6465,11 @@ struct slsi_roaming_network_map_entry *slsi_roam_channel_cache_get(struct net_de
 {
 	struct slsi_roaming_network_map_entry *network_map = NULL;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct list_head *pos;
 
 	if (WLBT_WARN_ON(!ssid))
 		return NULL;
 
-	list_for_each(pos, &ndev_vif->sta.network_map) {
-		network_map = list_entry(pos, struct slsi_roaming_network_map_entry, list);
+	list_for_each_entry(network_map, &ndev_vif->sta.network_map, list) {
 		if (network_map->ssid.ssid_len == ssid[1] &&
 		    memcmp(network_map->ssid.ssid, &ssid[2], ssid[1]) == 0)
 			break;
@@ -7477,6 +7504,7 @@ int slsi_wlan_unsync_vif_activate(struct slsi_dev *sdev, struct net_device *dev,
 			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 
 		slsi_release_dp_resources(sdev, dev, ndev_vif);
+		slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 		goto exit_with_error;
 	}
 	sdev->wlan_unsync_vif_state = WLAN_UNSYNC_VIF_ACTIVE;
@@ -7509,20 +7537,17 @@ bool slsi_select_ap_for_connection(struct slsi_dev *sdev, struct net_device *dev
 				   struct ieee80211_channel **channel, bool retry)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct list_head *pos;
+	struct slsi_ssid_info *ssid_info;
 
-	list_for_each(pos, &ndev_vif->sta.ssid_info) {
-		struct slsi_ssid_info *ssid_info = list_entry(pos, struct slsi_ssid_info, list);
-		struct list_head *pos_bssid;
+	list_for_each_entry(ssid_info, &ndev_vif->sta.ssid_info, list) {
+		struct slsi_bssid_info *bssid_info;
 
 		if (ssid_info->ssid.ssid_len != ndev_vif->sta.ssid_len ||
 		    memcmp(ssid_info->ssid.ssid, &ndev_vif->sta.ssid, ndev_vif->sta.ssid_len) != 0 ||
 		    !(ssid_info->akm_type & ndev_vif->sta.akm_type))
 			continue;
 
-		list_for_each(pos_bssid, &ssid_info->bssid_list) {
-			struct slsi_bssid_info *bssid_info = list_entry(pos_bssid, struct slsi_bssid_info, list);
-
+		list_for_each_entry(bssid_info, &ssid_info->bssid_list, list) {
 			if (slsi_is_bssid_in_blacklist(sdev, dev, bssid_info->bssid) ||
 			    bssid_info->connect_attempted)
 					continue;
@@ -7563,18 +7588,15 @@ bool slsi_select_ap_for_connection(struct slsi_dev *sdev, struct net_device *dev
 void slsi_set_reset_connect_attempted_flag(struct slsi_dev *sdev, struct net_device *dev, const u8 *bssid)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct list_head  *pos;
+	struct slsi_ssid_info *ssid_info;
 
-	list_for_each(pos, &ndev_vif->sta.ssid_info) {
-		struct slsi_ssid_info *ssid_info = list_entry(pos, struct slsi_ssid_info, list);
-		struct list_head    *pos_bssid;
+	list_for_each_entry(ssid_info, &ndev_vif->sta.ssid_info, list) {
+		struct slsi_bssid_info *bssid_info;
 
 		if (ssid_info->ssid.ssid_len == ndev_vif->sta.ssid_len &&
 		    memcmp(ssid_info->ssid.ssid, &ndev_vif->sta.ssid, ndev_vif->sta.ssid_len) == 0  &&
 		    (ssid_info->akm_type & ndev_vif->sta.akm_type)) {
-			list_for_each(pos_bssid, &ssid_info->bssid_list) {
-				struct slsi_bssid_info *bssid_info = list_entry(pos_bssid, struct slsi_bssid_info, list);
-
+			list_for_each_entry(bssid_info, &ssid_info->bssid_list, list) {
 				if (bssid && !memcmp(ndev_vif->sta.connected_bssid, bssid_info->bssid, ETH_ALEN)) {
 					bssid_info->connect_attempted = true;
 					return;
@@ -7591,13 +7613,10 @@ bool slsi_is_bssid_in_blacklist(struct slsi_dev *sdev, struct net_device *dev, u
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int i, imax;
-	struct list_head *blacklist_pos, *blacklist_q;
+	struct slsi_bssid_blacklist_info *blacklist_info, *tmp;
 
 	/* Check if mac is present , if present then return true */
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
-		struct slsi_bssid_blacklist_info *blacklist_info;
-
-		blacklist_info = list_entry(blacklist_pos, struct slsi_bssid_blacklist_info, list);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_fw_list, list) {
 		if (blacklist_info && SLSI_ETHER_EQUAL(blacklist_info->bssid, bssid) &&
 		    (jiffies_to_msecs(jiffies) < blacklist_info->end_time)) {
 			return true;
@@ -7635,13 +7654,10 @@ bool slsi_is_bssid_in_hal_blacklist(struct net_device *dev, u8 *bssid)
 bool slsi_is_bssid_in_ioctl_blacklist(struct net_device *dev, u8 *bssid)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
-	struct list_head *blacklist_pos, *blacklist_q;
+	struct slsi_ioctl_blacklist_info *blacklist_info, *tmp;
 
 	/* Check if mac is present , if present then return true */
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_ioctl_list) {
-		struct slsi_ioctl_blacklist_info *blacklist_info;
-
-		blacklist_info = list_entry(blacklist_pos, struct slsi_ioctl_blacklist_info, list);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_ioctl_list, list) {
 		if (blacklist_info && SLSI_ETHER_EQUAL(blacklist_info->bssid, bssid))
 			return true;
 	}
@@ -7672,7 +7688,7 @@ int slsi_add_ioctl_blacklist(struct slsi_dev *sdev, struct net_device *dev, u8 *
 
 int slsi_remove_bssid_blacklist(struct slsi_dev *sdev, struct net_device *dev, u8 *addr)
 {
-	struct list_head  *blacklist_pos, *blacklist_q;
+	struct slsi_ioctl_blacklist_info *blacklist_info, *tmp;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int               ret = 0;
 	int               i, imax;
@@ -7681,24 +7697,18 @@ int slsi_remove_bssid_blacklist(struct slsi_dev *sdev, struct net_device *dev, u
 		      MAC2STR(addr));
 
 	/* Check if BSSID is present and remove from all lists */
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_ioctl_list) {
-		struct slsi_ioctl_blacklist_info *blacklist_info;
-
-		blacklist_info = list_entry(blacklist_pos, struct slsi_ioctl_blacklist_info, list);
-
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_ioctl_list, list) {
 		if (blacklist_info && SLSI_ETHER_EQUAL(blacklist_info->bssid, addr)) {
-			list_del(blacklist_pos);
+			list_del(&blacklist_info->list);
 			kfree(blacklist_info);
 			ret = 1;
 			break;
 		}
 	}
 
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
-		struct slsi_bssid_blacklist_info *blacklist_info = list_entry(blacklist_pos,
-			struct slsi_bssid_blacklist_info, list);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_fw_list, list) {
 		if (blacklist_info && SLSI_ETHER_EQUAL(blacklist_info->bssid, addr)) {
-			list_del(blacklist_pos);
+			list_del(&blacklist_info->list);
 			kfree(blacklist_info);
 			ret = 1;
 			break;
@@ -7790,6 +7800,7 @@ void slsi_wlan_unsync_vif_deactivate(struct slsi_dev *sdev, struct net_device *d
 
 	(void)slsi_set_mgmt_tx_data(ndev_vif, 0, 0, NULL, 0);
 	slsi_release_dp_resources(sdev, dev, ndev_vif);
+	slsi_rx_ba_update_timer(sdev, dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
 }
 
 void slsi_scan_ind_timeout_handle(struct work_struct *work)
@@ -7819,7 +7830,7 @@ void slsi_blacklist_del_work_handle(struct work_struct *work)
 	struct netdev_vif *ndev_vif = container_of((struct delayed_work *)work, struct netdev_vif, blacklist_del_work);
 	struct slsi_dev *sdev = ndev_vif->sdev;
 	struct net_device *dev;
-	struct list_head  *blacklist_pos, *blacklist_q;
+	struct slsi_bssid_blacklist_info *blacklist_info, *tmp;
 	u32 retention_time = 0;
 	int deleted = 0;
 
@@ -7830,12 +7841,9 @@ void slsi_blacklist_del_work_handle(struct work_struct *work)
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		return;
 	}
-	list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->acl_data_fw_list) {
-		struct slsi_bssid_blacklist_info *blacklist_info;
-
-		blacklist_info = list_entry(blacklist_pos, struct slsi_bssid_blacklist_info, list);
+	list_for_each_entry_safe(blacklist_info, tmp, &ndev_vif->acl_data_fw_list, list) {
 		if (jiffies_to_msecs(jiffies) > blacklist_info->end_time) {
-			list_del(blacklist_pos);
+			list_del(&blacklist_info->list);
 			kfree(blacklist_info);
 			deleted = 1;
 			continue;

@@ -234,8 +234,9 @@ void exynos_pcie_rc_pcie_phy_config(struct exynos_pcie *exynos_pcie, int ch_num)
 
 	if (exynos_pcie->ch_num == 0) {
 		if (exynos_pcie->chip_ver == 1) {
-			if (exynos_pcie->ep_device_type == EP_BCM_WIFI) {
+			if (exynos_pcie->max_link_speed == 2) {
 				//IA disable
+				printk("IA ver13 disable");
 				exynos_ia_write(exynos_pcie, 0x0, 0x60);
 				exynos_ia_write(exynos_pcie, 0x0, 0x0);
 				exynos_ia_write(exynos_pcie, 0xD0000004, 0x100);

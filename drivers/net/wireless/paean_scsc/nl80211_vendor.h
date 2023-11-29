@@ -912,6 +912,11 @@ struct slsi_lls_interface_link_layer_info {
 	u8 bssid[6];                       /* bssid*/
 	u8 ap_country_str[3];              /* country string advertised by AP*/
 	u8 country_str[3];                 /* country string for this association*/
+	u8 time_slicing_duty_cycle_percent;/* if this iface is being served using time slicing
+					    * on a radio with one or more ifaces (i.e MCC),
+					    * then the duty cycle assigned to this iface in %.
+					    * If not using time slicing (i.e SCC or DBS), set to 100.
+					    */
 };
 
 /* per peer statistics */
