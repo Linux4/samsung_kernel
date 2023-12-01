@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config SAMSUNG_IOMMU
+	tristate "Samsung IOMMU Support"
+	select ARM_DMA_USE_IOMMU
+	select IOMMU_DMA
+	select SAMSUNG_IOMMU_GROUP
+	help
+	  Support for IOMMU on Samsung Exynos SoCs.
+
+config SAMSUNG_IOMMU_GROUP
+	tristate "Samsung IOMMU Group Support"
+	help
+	  Support for IOMMU group on Samsung Exynos SoCs.
+
+config SAMSUNG_SECURE_IOVA
+	tristate "Samsung Secure IOVA Support"
+	help
+	  Support secure device virtual address management for Samsung Exynos SoCs.
+
+config SAMSUNG_IOMMU_V9
+	tristate "Samsung IOMMU V9 Support"
+	select ARM_DMA_USE_IOMMU
+	select IOMMU_DMA
+	select SAMSUNG_IOMMU_GROUP_V9
+	help
+	  Support for IOMMU V9 on Samsung Exynos SoCs.
+
+config SAMSUNG_IOMMU_GROUP_V9
+	tristate "Samsung IOMMU Group V9 Support"
+	help
+	  Support for IOMMU group on Samsung Exynos SoCs.

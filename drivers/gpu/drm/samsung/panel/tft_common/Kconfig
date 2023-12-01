@@ -1,0 +1,27 @@
+menuconfig USDM_PANEL_TFT_COMMON
+	tristate "TFT_COMMON DDI Panel Driver"
+	depends on USDM_PANEL
+	default n
+	help
+		This enables TFT_COMMON DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the TFT_COMMON DDI.
+
+
+menuconfig USDM_PANEL_HX83122A_GTS9FEP_CSOT
+	tristate "HX83122A_GTS9FEP_CSOT DDI Panel Driver"
+	depends on USDM_PANEL_TFT_COMMON
+	default n
+	help
+		This enables HX83122A_GTS9FEP_CSOT DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the HX83122A_GTS9FEP_CSOT DDI.
+
+menuconfig USDM_PANEL_HX83122A_GTS9FEP_BOE
+	tristate "HX83122A_GTS9FEP_BOE DDI Panel Driver"
+	depends on USDM_PANEL_TFT_COMMON
+	default n
+	help
+		This enables HX83122A_GTS9FEP_BOE DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the HX83122A_GTS9FEP_BOE DDI.

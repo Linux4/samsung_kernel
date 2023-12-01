@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0
+
+source "drivers/if-pmic/maxim/usb/typec/manager/Kconfig"
+source "drivers/if-pmic/maxim/usb/typec/common/Kconfig"
+source "drivers/if-pmic/maxim/usb/typec/maxim/Kconfig"

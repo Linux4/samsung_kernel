@@ -1,0 +1,62 @@
+config SLSI_BT
+	tristate "SLSI MX BT support"
+	depends on (SCSC_CORE || KUNIT_SLSI_BT_TEST)
+
+choice
+	prompt "Data transport interface"
+	depends on SLSI_BT
+		default SLSI_BT_USE_UART_INTERFACE
+config SLSI_BT_USE_UART_INTERFACE
+		bool "UART interface"
+config SLSI_BT_USE_MIF_INTERFACE
+		bool "MIF interface"
+endchoice
+
+config SLSI_BT_TTY_DEVICE_NAME
+	string "TTY device filename"
+	default "ttySAC1"
+	depends on SLSI_BT_USE_UART_INTERFACE
+	help
+	  Select the tty device file.
+
+config SLSI_BT_TTY_BAUD
+	int "Baud rate"
+	default 4800000
+	depends on SLSI_BT_USE_UART_INTERFACE
+	help
+	  Select baud rate for serial interface.
+
+config SLSI_BT_H4
+	default N
+	tristate "Enable Part D. Uart Transport Layer Protocol(H4) driver"
+	depends on SLSI_BT
+	help
+	  Select the SLSI BT UTLP (H4) driver.
+
+config SLSI_BT_BCSP
+	default N
+	tristate "Enable BCSP driver"
+	depends on SLSI_BT
+	help
+	  Select the SLSI BT BCSP driver.
+
+config SLSI_BT_3WUTL
+	default N
+	tristate "Enable 3-Wire Uart Trasnport Layer driver instead of BCSP"
+	depends on SLSI_BT_BCSP
+	help
+	  Select the SLSI BT 3WUTL driver.
+
+config SLSI_BT_ADDRESS_IN_FILE
+	default N
+	tristate "SCSC MX BT support"
+	depends on SCSC_CORE
+	help
+	  Allow BT address to be read from a file
+
+config SLSI_BT_ADDRESS_FILENAME
+	string "BT address filename"
+	depends on SCSC_CORE
+	default "/mnt/vendor/efs/bluetooth/bt_addr"
+	help
+	  Select the named BT address override file.
