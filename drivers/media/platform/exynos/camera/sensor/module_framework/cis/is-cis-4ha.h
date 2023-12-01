@@ -1,0 +1,98 @@
+/*
+ * Samsung Exynos5 SoC series Sensor driver
+ *
+ *
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef IS_CIS_4HA_H
+#define IS_CIS_4HA_H
+
+#include "is-cis.h"
+
+/********* S5K4HA OTP *********/
+#define S5K4HA_STREAM_ON_ADDR                       0x0100
+#define S5K4HA_OTP_R_W_MODE_ADDR                    0x0A00
+#define S5K4HA_OTP_CHECK_ADDR                       0x0A01
+#define S5K4HA_OTP_PAGE_SELECT_ADDR                 0x0A02
+#define S5K4HA_OTP_USED_CAL_SIZE                    (0x0A43 + 0x0440 - 0x0A08 + 0x1)
+#define S5K4HA_OTP_PAGE_ADDR_L                      0x0A04
+#define S5K4HA_OTP_PAGE_ADDR_H                      0x0A43
+#define S5K4HA_OTP_BANK_SELECT                      0x0A04
+#define S5K4HA_OTP_START_PAGE_BANK1                 0x11
+#define S5K4HA_OTP_START_PAGE_BANK2                 0x24
+#define S5K4HA_OTP_START_PAGE_BANK3                 0x37
+#define S5K4HA_OTP_START_PAGE_BANK4                 0x4A
+#define S5K4HA_OTP_START_PAGE_BANK5                 0x5D
+#define S5K4HA_OTP_START_ADDR                       0x0A08
+
+static const u32 sensor_otp_4ha_global[] = {
+	0x0100, 0x00, 0x01,
+	0x0A02, 0x7F, 0x01,
+	0x3B45, 0x01, 0x01,
+	0x3264, 0x01, 0x01,
+	0x3290, 0x10, 0x01,
+	0x0B05, 0x01, 0x01,
+	0x3069, 0xC7, 0x01,
+	0x3074, 0x06, 0x01,
+	0x3075, 0x32, 0x01,
+	0x3068, 0xF7, 0x01,
+	0x30C6, 0x01, 0x01,
+	0x301F, 0x20, 0x01,
+	0x306B, 0x9A, 0x01,
+	0x3091, 0x1F, 0x01,
+	0x306E, 0x71, 0x01,
+	0x306F, 0x28, 0x01,
+	0x306D, 0x08, 0x01,
+	0x3084, 0x16, 0x01,
+	0x3070, 0x0F, 0x01,
+	0x306A, 0x79, 0x01,
+	0x30B0, 0xFF, 0x01,
+	0x30C2, 0x05, 0x01,
+	0x30C4, 0x06, 0x01,
+	0x3081, 0x07, 0x01,
+	0x307B, 0x85, 0x01,
+	0x307A, 0x0A, 0x01,
+	0x3079, 0x0A, 0x01,
+	0x308A, 0x20, 0x01,
+	0x308B, 0x08, 0x01,
+	0x308C, 0x0B, 0x01,
+	0x392F, 0x01, 0x01,
+	0x3930, 0x00, 0x01,
+	0x3924, 0x7F, 0x01,
+	0x3925, 0xFD, 0x01,
+	0x3C08, 0xFF, 0x01,
+	0x3C09, 0xFF, 0x01,
+	0x3C31, 0xFF, 0x01,
+	0x3C32, 0xFF, 0x01,
+};
+
+enum sensor_4ha_mode_enum {
+	SENSOR_4HA_3264X2448_30FPS = 0,
+	SENSOR_4HA_3264X1836_30FPS,
+	SENSOR_4HA_2880X1980_30FPS,
+	SENSOR_4HA_2640X1980_30FPS,
+	SENSOR_4HA_2608X1956_30FPS,
+	SENSOR_4HA_1632X1224_30FPS,
+	SENSOR_4HA_1632X916_30FPS,
+	SENSOR_4HA_800X600_120FPS,
+	SENSOR_4HA_MODE_MAX
+};
+
+struct sensor_4ha_private_data {
+	const struct sensor_regs global;
+};
+
+static const struct sensor_reg_addr sensor_4ha_reg_addr = {
+	.fll = 0x0340,
+	.cit = 0x0202,
+	.again = 0x0204,
+	.dgain = 0x020E,
+	.group_param_hold = 0x0104,
+};
+
+#endif

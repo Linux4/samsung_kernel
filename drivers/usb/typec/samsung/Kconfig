@@ -1,0 +1,80 @@
+#
+# PDIC devices
+#
+
+comment "PDIC configs"
+
+config TYPEC_SAMSUNG_IFPMIC
+	tristate "Using common USBPD device driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you will get support for
+	  the common USB PD(Power Delivery) device driver.
+
+config USE_S2M_PDIC
+	tristate "Using USBPD device driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you will get support for
+	  the USB PD(Power Delivery) device driver.
+
+config PDIC_S2MU106
+	bool "Using S2MU106 USB PD"
+	depends on USE_S2M_PDIC
+	default n
+	help
+		If you say yes here you will get support for
+		the S2MU106 USBPD chip
+
+config PDIC_S2MF301
+	bool "Using S2MF301 USB PD"
+	depends on USE_S2M_PDIC
+	default n
+	help
+		If you say yes here you will get support for
+		the S2MF301 USBPD chip
+
+config PDIC_SYSFS
+	bool "Using PDIC SYSFS System"
+	depends on USE_S2M_PDIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  sysfs system.
+
+config PDIC_AUDIO_ACC
+	bool "Using PDIC Audio accessory support(Ra-Ra)"
+	depends on USE_S2M_PDIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  Audio Accessory support (need usb audio switch device)
+
+config CHECK_CTYPE_SIDE
+	bool "Using Check Side of Type-C PLUG"
+	help
+		This Config for function that check side of Type-C PLUG for USB
+
+config SUPPORT_USB_TYPEC_OPS
+	bool "Using USB_TYPEC_OPS for GKI"
+	help
+		This config for support typec_ops for GKI
+
+config USB_SW_MAX20328B
+	bool "MAX20328B USB Switch driver"
+	help
+		This driver is for MAX20328B USB switch that use I2C interface
+		To compile this driver as a module, choose M here: the
+		module will be called max20328b
+
+config PDIC_SUPPORT_DP
+	tristate "Support booting with DP"
+	help
+		This Config for function that support DP
+
+config PDIC_PD30
+	bool "Support PD30"
+	help
+		This Config for function that support PD30
