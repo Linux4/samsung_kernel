@@ -1,0 +1,11 @@
+config PABLO_ICPU_ADT_V2
+	bool "Use icpu adt v2"
+	default n
+	help
+	  Use icpu adt v2.
+
+config PABLO_SENSOR_ADT
+	bool "Use sensor adt"
+	default n
+	help
+	  Use sensor adt.

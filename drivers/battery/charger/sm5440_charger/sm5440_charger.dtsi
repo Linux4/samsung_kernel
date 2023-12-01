@@ -1,0 +1,16 @@
+&hsi2c_13 {
+	status = "okay";
+
+	sm5440_charger: sm5440@63 {
+		compatible = "siliconmitus,sm5440";
+		reg = <0x63>;
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5440/sm5440_charger.gts9fe.dtsi */
+&sm5440_charger {
+	sm5440,freq = <850>;
+	sm5440,r_ttl = <520000>;
+	sm5440,freq_siop = <450 650>;
+	sm5440,en_vbatreg = <0>;
+};

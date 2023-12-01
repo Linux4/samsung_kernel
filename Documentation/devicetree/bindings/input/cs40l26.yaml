@@ -1,0 +1,411 @@
+# SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+%YAML 0.2
+---
+$id: http://devicetree.org/schemas/bindings/input/cs40l26.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Cirrus Logic CS40L26 Boosted Haptic Amplifier
+
+maintainers:
+  - fred.treven@cirrus.com
+
+description: |
+  CS40L26 is a Boosted Haptic Driver with Integrated DSP and Waveform Memory
+  with Advanced Closed Loop Algorithms and LRA protection
+
+properties:
+  compatible:
+    enum:
+      - cirrus,cs40l26a
+      - cirrus,cs40l26b
+      - cirrus,cs40l27a
+      - cirrus,cs40l27b
+
+  reg:
+    maxItems: 1
+
+  cirrus,basic-config:
+    description:
+      Boolean which, if present, will launch the device in basic (ROM) mode.
+      If this property is not included, the device will boot into full
+      featured (RAM) mode.
+      (Default) RAM mode
+    type: boolean
+
+  cirrus,vbbr-enable:
+    description:
+      Boolean to determine whether or not VBST brownout prevention is enabled.
+      (Default) Disabled
+    type: boolean
+
+  cirrus,vbbr-thld-mv:
+    description:
+      Boost converter brownout prevention delta voltage threshold represented
+      in milivolts. Brownout prevention mode is entered if the condition
+      "VBST(target) - VBST(actual) <= VBBR_THLD" is met.
+      The possible VBST threshold values range from 109 mV to 3445 mV
+      in increments of 55 mV.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 109
+    maximum: 3445
+    default: 273
+
+  cirrus,vbbr-max-att-db:
+    description:
+      Maximum attenuation that the reactive VBST brownout can apply to the
+      signal. Accepted values range from 0 dB to 15 dB with a 1 dB step size.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0xF
+    default: 0x9
+
+  cirrus,vbbr-atk-step:
+    description:
+      VBST brownout prevention attack step size. Configures the VBST brownout
+      prevention attacking attenuation step size when operating in either
+      digital volume or analog gain modes. There are 8 possible attack step
+      values; they are relative to triggering VBBR_1/VBBR_2/VBBR_3.
+      The potential values are as follows
+      0x0 = 0.0625 dB / 0.125 dB / 0.250 dB
+      0x1 = 0.125 dB / 0.250 dB / 0.500 dB (default)
+      0x2 = 0.250 dB / 0.500 dB / 1.000 dB
+      0x3 = 0.500 dB / 1.000 dB / 2.000 dB
+      0x4 = 0.750 dB / 1.500 dB / 3.000 dB
+      0x5 = 1.000 dB / 2.000 dB / 4.000 dB
+      0x6 = 1.250 dB / 2.500 dB / 5.000 dB
+      0x7 = 1.500 dB / 3.000 dB / 6.000 dB
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0x7
+    default: 0x1
+
+  cirrus,vbbr-atk-rate:
+    description:
+      Attenuation attack step rate. Configures the amount of delay between
+      consecutive volume attenuation steps when a brownout condition is
+      present and the VBST brownout condition is in an attacking state. The
+      attack rate can be configured to 8 discrete values.
+      0x0 = 2.5 us
+      0x1 = 5 us
+      0x2 = 10 us (default)
+      0x3 = 25 us
+      0x4 = 50 us
+      0x5 = 100 us
+      0x6 = 250 us
+      0x7 = 500 us
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0x7
+    default: 0x2
+
+  cirrus,vbbr-wait:
+    description:
+      Configures the delay between a brownout condition no longer being
+      present and the VBST brownout prevention entering an attenuation release
+      state. The parameter can be set to 4 discrete values.
+      0x0 = 10 ms
+      0x1 = 100 ms (default)
+      0x2 = 250 ms
+      0x3 = 500 ms
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0x3
+    default: 0x1
+
+  cirrus,vbbr-rel-rate:
+    description:
+      Attenuation release step rate. Configures the delay between consecutive
+      volume attenuation release steps when a brownout condition is no longer
+      present and the VBST brownout prevention is in an attenuation release
+      state. The parameter can be set to 8 discrete values.
+      0x0 = 5 ms
+      0x1 = 10 ms
+      0x2 = 25 ms
+      0x3 = 50 ms
+      0x4 = 100 ms
+      0x5 = 250 ms (default)
+      0x6 = 500 ms
+      0x7 = 1000 ms
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0x7
+    default: 0x5
+
+  cirrus,vpbr-enable:
+    description:
+      Boolean to determine whether or not VP brownout prevention is enabled.
+      (Default) Disabled
+    type: boolean
+
+  cirrus,vpbr-thld-mv:
+    description:
+      Battery voltage (VP) brownout prevention threshold represented in
+      milivolts. Brownout prevention mode is entered if VP falls below
+      VPBR_THLD. The possible VP threshold values range from 2497 mV
+      to 3874 mV in increments of 47 mV.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 2497
+    maximum: 3874
+    default: 2639
+
+  cirrus,vpbr-max-att-db:
+    description:
+      Maximum attenuation that the VP brownout prevention can apply to the
+      signal. Accepted values range from 0 dB to 15 dB with a 1 dB step size.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0xF
+    default: 0x9
+
+  cirrus,vpbr-atk-step:
+    description:
+      VP brownout prevention attack step size. Configures the VP brownout
+      prevention attacking attenuation step size when operating in either
+      digital volume or analog gain modes. There are 8 possible attack step
+      values; they are relative to triggering VPBR_1/VPBR_2/VPBR_3.
+      The potential values are as follows
+      0x0 = 0.0625 dB / 0.125 dB / 0.250 dB
+      0x1 = 0.125 dB / 0.250 dB / 0.500 dB (default)
+      0x2 = 0.250 dB / 0.500 dB / 1.000 dB
+      0x3 = 0.500 dB / 1.000 dB / 2.000 dB
+      0x4 = 0.750 dB / 1.500 dB / 3.000 dB
+      0x5 = 1.000 dB / 2.000 dB / 4.000 dB
+      0x6 = 1.250 dB / 2.500 dB / 5.000 dB
+      0x7 = 1.500 dB / 3.000 dB / 6.000 dB
+    minimum: 0x0
+    maximum: 0x7
+    default: 0x1
+
+  cirrus,vpbr-atk-rate:
+    description:
+      Attenuation attack step rate. Configures the amount of delay between
+      consecutive volume attenuation steps when a brownout condition is
+      present and the VP brownout condition is in an attacking state. The
+      attack rate can be configured to 8 discrete values.
+      0x0 = 2.5 us
+      0x1 = 5 us
+      0x2 = 10 us (default)
+      0x3 = 25 us
+      0x4 = 50 us
+      0x5 = 100 us
+      0x6 = 250 us
+      0x7 = 500 us
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0x7
+    default: 0x2
+
+  cirrus,vpbr-wait:
+    description:
+      Configures the delay between a brownout condition no longer being
+      present and the VP brownout prevention entering an attenuation release
+      state. The parameter can be set to 4 discrete values.
+      0x0 = 10 ms
+      0x1 = 100 ms (default)
+      0x2 = 250 ms
+      0x3 = 500 ms
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0x3
+    default: 0x1
+
+  cirrus,vpbr-rel-rate:
+    description:
+      Attenuation release step rate. Configures the delay between consecutive
+      volume attenuation release steps when a brownout condition is no longer
+      present and the VP brownout prevention is in an attenuation release
+      state. The parameter can be set to 8 discrete values.
+      0x0 = 5 ms
+      0x1 = 10 ms
+      0x2 = 25 ms
+      0x3 = 50 ms
+      0x4 = 100 ms
+      0x5 = 250 ms (default)
+      0x6 = 500 ms
+      0x7 = 1000 ms
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0x0
+    maximum: 0x7
+    default: 0x5
+
+  cirrus,bst-dcm-en:
+    description:
+      Boost converter automatic DCM Mode enable. This enables the digital
+      boost converter to operate in a low power (DCM) mode during low loading
+      conditions.
+      0 = Boost converter automatic low power mode disabled (DISABLED)
+      1 = Boost converter automatic low power mode enabled  (ENABLED)
+    type: boolean
+
+  cirrus,bst-ipk-microamp:
+    description:
+      Maximum amount of current that can be drawn by the device's boost
+      converter in uA. Accepted values are between 1600000 uA and 4800000 uA in
+      50000 uA increments.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 1600000
+    maximum: 4800000
+    default: 4500000
+
+  cirrus,boost-ctl-microvolt:
+    description:
+      Maximum target voltage to which the class H algorithm may increase the
+      VBST supply, expressed in uV. Valid values range from 2550000 to 11000000
+      (inclusive) in steps of 50000. If this value is specified as zero or VP
+      rises above this value, VBST is bypassed to VP. If this value is omitted,
+      the maximum target voltage remains at 11 V.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 2550000
+    maximum: 11000000
+    default: 11000000
+
+  cirrus,f0-default:
+    description:
+      Default LRA resonant frequency (f0), expressed as follows
+      cirrus,f0-default = f0 (Hz) * 2^14.
+      This value represents the frequency used during playback of PWLE segments
+      specified with frequency equal to f0; it also serves as the unit-specific
+      f0 input to the click compensation algorithm. It can be overwritten at a
+      later time by writing to the f0_stored sysfs control.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 819200
+    maximum: 8372224
+    default: 2621440
+
+  cirrus,redc-default:
+    description:
+      Default LRA series resistance (ReDC), expressed as follows
+      cirrus,redc-default = ReDC (ohms) / 5.857 * 2^17.
+      This value represents the unit-specific ReDC input to the click compensation
+      algorithm. It can be overwritten at a later time by writing to the redc_stored
+      sysfs control.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0
+    maximum: 16777215
+    default: 340787
+
+  cirrus,q-default:
+    description:
+      Default LRA Q factor (silicon revision B1 only), expressed as follows
+      cirrus,q-default = Q * 2^16.
+      This value represents the unit-specific Q factor used to select the correct
+      sub-waveform for Q-dependent wavetable indexes. It can be overwritten at a
+      later time by writing to the q_stored sysfs control. If this value is omitted
+      or specified as zero, a default value of 27 is used.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0
+    maximum: 8388607
+    default: 1769472
+
+  cirrus,asp-gain-scale-pct:
+    description:
+      Scaling applied to gain for ASP streaming if present and less or equal to
+      100.
+      The value given is in percent between 0 - 100 with 100 being full scale
+      and 0 being mute.
+    $ref: "/schemas/types.yaml#/definitions/uint32"
+    minimum: 0
+    maximum: 100
+    default: 100
+
+  svc-le:
+    description:
+      Range of LE values, defined by "cirrus,min" and "cirrus,max" in Henries
+      using Q0.23 number format, that determines which SVC and Wavetable tuning
+      files should be loaded by the driver. The files must be named
+      "cs40l26-svcX.bin" for SVC tunings and "cs40l26-wtX.bin" for wavetables,
+      where 'X' corresponds to the value given to "cirrus,index".
+      The optional property "cirrus,gain-adjust" is used to alter the global
+      digital gain based on which LRA is being used. This value has a range of
+      -100 to +100 and will change the digital gain percentage by this amount.
+      Note that the full gain value must still be valid, the maximum is 100% and
+      the minimum is 0%.
+      If the LE value found for the attached LRA does not match a provided
+      range, or if these properties are omitted/malformed, the default tunings
+      ("cs40l26-svc.bin" and "cs40l26.bin") will be loaded.
+      See examples section for how to use these controls.
+
+  cirrus,pm-active-timeout-ms:
+    description:
+      Time (in milliseconds) it takes for the DSP to transition from active
+      mode to standby mode.
+    $ref: "/schemas/type.yaml#/definitions/uint32"
+    minimum: 100
+    maximum: 4880
+    default: 250
+
+  cirrus,pm-stdby-timeout-ms:
+    description:
+      Time (in milliseconds) it takes for the DSP to transition from standby
+      mode to hibernate mode.
+    $ref: "/schemas/type.yaml#/definitions/uint32"
+    minimum: 100
+    maximum: 4880
+    default: 100
+
+  cirrus,vibe-state:
+    description:
+      Enable the driver to report the device's state: Active [3], Standby [2],
+      Shutdown [1], Hibernate [0]. This can only be enabled for firmware types
+      which support the "CP_TRIGGER" DSP to host mailbox message.
+
+      If this control is present, vibe_state tracking is enabled and the driver
+      will report the current state via the "vibe_state" sysfs control.
+      (Default) Disabled
+    type: boolean
+
+  cirrus,bst-expl-mode-disable:
+    description:
+      Disable boost exploratory mode if this boolean is present in the
+      devicetree. Boost exploratory mode allows the device to overshoot
+      the set peak current limit. This has potential to damage the boost
+      inductor. Disabling this mode will prevent this from happening; it will
+      also prevent the device from detecting boost inductor short errors.
+      (Default) Enabled
+    type: boolean
+
+required:
+  - compatible
+
+unevaluatedProperties: false
+
+examples:
+  - |
+
+  &i2c0 {
+    cs40l26: cs40l26@58 {
+      compatible = "cirrus,cs40l26";
+      reg = <0x58>;
+      interrupt-parent = <&gpio0>;
+      interrupts = <57 8>;
+      reset-gpios = <&gpio0 54 0>;
+      VA-supply = <&dummy_vreg>;
+      VP-supply = <&dummy_vreg>;
+
+      cirrus,vbbr-enable;
+      cirrus,vbbr-thld-mv = <300>;
+      cirrus,vpbr-enable;
+      cirrus,vpbr-thld-mv = <2592>;
+
+      cirrus,asp-gain-scale-pct = <30>;
+
+      svc-le1 {
+        cirrus,min = <500>; //59.6 uH
+        cirrus,max = <750>; //89.4 uH
+        cirrus,index = <1>;
+        cirrus,gain-adjust = "-5";
+      };
+      svc-le2 {
+        cirrus,min = <1000>; //119.2 uH
+        cirrus,max = <1500>; //178.8 uH
+        cirrus,index = <2>;
+        cirrus,gain-adjust = "10";
+      };
+      svc-le3 {
+        cirrus,min = <2000>; //238.4 uH
+        cirrus,max = <2400>; //286.1 uH
+        cirrus,index = <3>;
+        cirrus,gain-adjust = "20";
+      };
+    };
+};
