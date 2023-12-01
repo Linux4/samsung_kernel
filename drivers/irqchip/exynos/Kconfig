@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config ARM_GIC_V3_VENDORHOOK
+	tristate "Vendor hook for ARM GIC V3"
+	depends on ARM_GIC_V3 && EXYNOS_GIC
+	help
+	  Support GIC V3 Vendor hook for multitarget irq action
+	  Exynos SOC with GIC-600 device can support multi-target irqaction
+	  with VendorHook implementation.
+
+config ARM_GIC_VENDORHOOK
+	tristate "Vendor hook for ARM GIC"
+	depends on ARM_GIC
+	help
+	  Support GIC 400 vendor hook for multitarget irq action
+	  This is not agreed by Kernel gic mainltainer.
+	  He recommend to assign only one CPU, not to multi CPU.
+	  If not unsure, say N
