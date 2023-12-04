@@ -930,7 +930,13 @@ static int mfc_dec_get_buf_ctrls_val_nal_q(struct mfc_ctx *ctx,
 	return 0;
 }
 
-static int mfc_dec_recover_buf_ctrls_nal_q(struct mfc_ctx *ctx, struct list_head *head)
+/*
+ * This function is used when you want to restore buffer ctrls.
+ * 1) NAL_Q stop: It is enqueued in the NAL_Q queue,
+ *    but it must be restored because HW is not used.
+ * 2) DRC: The input buffer that caused the DRC was used for HW, but it must be reused.
+ */
+static int mfc_dec_restore_buf_ctrls(struct mfc_ctx *ctx, struct list_head *head)
 {
 	struct mfc_buf_ctrl *buf_ctrl;
 
@@ -941,7 +947,7 @@ static int mfc_dec_recover_buf_ctrls_nal_q(struct mfc_ctx *ctx, struct list_head
 
 		buf_ctrl->has_new = 1;
 		buf_ctrl->updated = 0;
-		mfc_debug(6, "[NALQ][CTRLS] Recover buffer control id: 0x%08x, val: %d\n",
+		mfc_debug(6, "[CTRLS] Recover buffer control id: 0x%08x, val: %d\n",
 				buf_ctrl->id, buf_ctrl->val);
 	}
 
@@ -964,5 +970,5 @@ const struct mfc_ctrls_ops decoder_ctrls_ops = {
 	.core_recover_buf_ctrls_val	= mfc_core_dec_recover_buf_ctrls_val,
 	.set_buf_ctrls_val_nal_q_dec	= mfc_dec_set_buf_ctrls_val_nal_q,
 	.get_buf_ctrls_val_nal_q_dec	= mfc_dec_get_buf_ctrls_val_nal_q,
-	.recover_buf_ctrls_nal_q	= mfc_dec_recover_buf_ctrls_nal_q,
+	.restore_buf_ctrls		= mfc_dec_restore_buf_ctrls,
 };

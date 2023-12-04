@@ -234,7 +234,7 @@ static int debug_mem_open(struct inode *i, struct file *file)
 	struct debug_mem_data *mem_data;
 	int ret;
 
-	if (get_file_rcu(kctx->filp) == 0)
+	if (!kbase_file_inc_fops_count_unless_closed(kctx->kfile))
 		return -ENOENT;
 
 	/* Check if file was opened in write mode. GPU memory contents
@@ -316,7 +316,7 @@ out:
 	}
 	seq_release(i, file);
 open_fail:
-	fput(kctx->filp);
+	kbase_file_dec_fops_count(kctx->kfile);
 
 	return ret;
 }
@@ -346,7 +346,7 @@ static int debug_mem_release(struct inode *inode, struct file *file)
 		kfree(mem_data);
 	}
 
-	fput(kctx->filp);
+	kbase_file_dec_fops_count(kctx->kfile);
 
 	return 0;
 }

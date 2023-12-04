@@ -268,6 +268,8 @@ static unsigned int tzdev_virq_to_hwirq(unsigned int virq)
 	struct irq_desc *desc = irq_to_desc(virq);
 	struct irq_data *data = irq_desc_get_irq_data(desc);
 
+	data = data->parent_data ? : data;
+
 	return irqd_to_hwirq(data);
 }
 

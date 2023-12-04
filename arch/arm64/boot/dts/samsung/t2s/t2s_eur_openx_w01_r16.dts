@@ -4854,21 +4854,21 @@
 
 				kallsyms {
 					_stext = <0xffffffc0 0x10081000>;
-					_etext = <0xffffffc0 0x10f60000>;
-					kallsyms_offsets = <0xffffffc0 0x11350d80>;
-					kallsyms_relative_base = <0xffffffc0 0x113d1660>;
-					kallsyms_num_syms = <0xffffffc0 0x113d1668>;
-					kallsyms_names = <0xffffffc0 0x113d1670>;
-					kallsyms_markers = <0xffffffc0 0x1168e4c0>;
-					kallsyms_token_table = <0xffffffc0 0x1168ecd0>;
-					kallsyms_token_index = <0xffffffc0 0x1168f028>;
-					_sinittext = <0xffffffc0 0x11a20000>;
-					_einittext = <0xffffffc0 0x11a9d988>;
-					_end = <0xffffffc0 0x120e8000>;
+					_etext = <0xffffffc0 0x10f50000>;
+					kallsyms_offsets = <0xffffffc0 0x11342c50>;
+					kallsyms_relative_base = <0xffffffc0 0x113c36b8>;
+					kallsyms_num_syms = <0xffffffc0 0x113c36c0>;
+					kallsyms_names = <0xffffffc0 0x113c36c8>;
+					kallsyms_markers = <0xffffffc0 0x11681128>;
+					kallsyms_token_table = <0xffffffc0 0x11681938>;
+					kallsyms_token_index = <0xffffffc0 0x11681c90>;
+					_sinittext = <0xffffffc0 0x11a10000>;
+					_einittext = <0xffffffc0 0x11a8da24>;
+					_end = <0xffffffc0 0x120d8000>;
 				};
 
 				kconstants {
-					swapper_pg_dir = <0xffffffc0 0x11a1c000>;
+					swapper_pg_dir = <0xffffffc0 0x11a0f000>;
 				};
 			};
 		};
