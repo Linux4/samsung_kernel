@@ -343,7 +343,7 @@ unsigned long kbase_context_get_unmapped_area(struct kbase_context *const kctx,
 #ifndef CONFIG_64BIT
 	} else {
 		return current->mm->get_unmapped_area(
-			kctx->filp, addr, len, pgoff, flags);
+			kctx->kfile->filp, addr, len, pgoff, flags);
 #endif
 	}
 

@@ -3979,9 +3979,11 @@ static enum hrtimer_restart sbd_print(struct hrtimer *timer)
 			memcpy(p_rwpointer, c_rwpointer, sizeof(u32)*4);
 
 			spin_lock_irqsave(&rb[TX]->iod->msd->active_list_lock, flags);
-			list_for_each_entry(iod, &rb[TX]->iod->msd->activated_ndev_list, node_ndev) {
-				len += snprintf(buf + len, BUFF_SIZE - len, "%s: %lu/%lu ", iod->name,
-								iod->ndev->stats.tx_packets, iod->ndev->stats.rx_packets);
+			list_for_each_entry(iod, &rb[TX]->iod->msd->activated_ndev_list,
+					    node_ndev) {
+				len += snprintf(buf + len, BUFF_SIZE - len, "%s: %lu/%lu ",
+						iod->name, iod->ndev->stats.tx_packets,
+						iod->ndev->stats.rx_packets);
 			}
 			spin_unlock_irqrestore(&rb[TX]->iod->msd->active_list_lock, flags);
 

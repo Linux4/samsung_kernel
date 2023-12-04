@@ -1299,6 +1299,7 @@ struct camera2_aa_dm {
 	int32_t				vendor_gfHdrEv[2];
 	uint32_t			ispHwTargetFpsRange[2];
 	uint32_t			vendor_aeDarkBoostGain;
+	uint32_t 			vendor_skipAFStateCapture;       // Skip checking af state before capturing. (0 / 1)
 	uint32_t			vendor_nightModeSuggest;    // 0(off), 1(on)
 	enum				aa_night_indicator vendor_nightIndicator;
 	uint32_t			vendor_reserved[30];
