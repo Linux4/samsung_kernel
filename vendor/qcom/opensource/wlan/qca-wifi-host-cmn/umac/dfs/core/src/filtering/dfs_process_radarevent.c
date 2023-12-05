@@ -611,7 +611,7 @@ static inline void dfs_radarfound_reset_vars(
 
 	/*
 	 * TODO: Instead of discarding the radar, create a workqueue
-	 * if the channel change is happenning through userspace and
+	 * if the channel change is happening through userspace and
 	 * process the radar event once the channel change is completed.
 	 */
 
@@ -1121,7 +1121,7 @@ static inline void  dfs_calculate_timestamps(
 		 * entirely on the latency. If the latency is high, it
 		 * possibly can split two consecutive pulses in the
 		 * same burst so far away (the same amount of latency)
-		 * that make them look like they are from differenct
+		 * that make them look like they are from different
 		 * bursts. It is observed to happen too often. It sure
 		 * makes the detection fail.
 		 * 2)Even if the latency is not that bad, it simply

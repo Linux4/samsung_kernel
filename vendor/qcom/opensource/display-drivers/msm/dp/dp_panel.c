@@ -429,7 +429,7 @@ static void dp_panel_update_tu_timings(struct dp_tu_calc_input *in,
 	tu->orig_lwidth          = in->hactive;
 	tu->hbp_relative_to_pclk_fp = drm_fixp_from_fraction(in->hporch, 1);
 	tu->orig_hbp             = in->hporch;
-	tu->rb2                  = (in->hporch <= 80) ? 1 : 0;
+	tu->rb2                  = (in->hporch < 160) ? 1 : 0;
 
 	if (tu->pixelEnc == 420) {
 		temp1_fp = drm_fixp_from_fraction(2, 1);
@@ -459,6 +459,8 @@ static void dp_panel_update_tu_timings(struct dp_tu_calc_input *in,
 
 	if (!in->dsc_en)
 		goto fec_check;
+
+	tu->bpp = 24; // hardcode to 24 if DSC is enabled.
 
 	temp1_fp = drm_fixp_from_fraction(in->compress_ratio, 100);
 	temp2_fp = drm_fixp_from_fraction(in->bpp, 1);
@@ -2156,7 +2158,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 #else
 		if (!secdp_get_hpd_status() || !secdp_get_cable_status()) {
 			DP_INFO("hpd_low or cable_lost\n");
-			rc = -EIO;
+			rc = -ETIMEDOUT;
 			goto end;
 		}
 #endif
@@ -2165,7 +2167,7 @@ static int dp_panel_read_sink_caps(struct dp_panel *dp_panel,
 
 #if defined(CONFIG_SECDP)
 		if (rc < 0) {
-			rc = -EIO;
+			rc = -ETIMEDOUT;
 			goto end;
 		}
 #endif
@@ -2779,7 +2781,7 @@ bool secdp_panel_hdr_supported(void)
 
 	hdr = dp_panel_hdr_supported(dp_panel);
 
-	DP_DEBUG("dsp_type:%s, hdr_support: %d\n",
+	DP_INFO("dsp_type:%s, hdr:%d\n",
 		mdss_dp_dsp_type_to_string(dp_panel->dsp_type), hdr);
 
 	return ((dp_panel->dsp_type == DSP_TYPE_DP) && hdr);

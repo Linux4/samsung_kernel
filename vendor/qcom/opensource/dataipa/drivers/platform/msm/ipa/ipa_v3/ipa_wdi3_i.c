@@ -13,6 +13,7 @@
 #define IPA_WLAN_AGGR_BYTE_LIMIT 2 /*2 Kbytes Agger hard byte limit*/
 
 #define IPA_WDI3_GSI_EVT_RING_INT_MODT 32
+#define IPA_WDI3_MAX_VALUE_OF_BANK_ID 63
 
 static void ipa3_wdi3_gsi_evt_ring_err_cb(struct gsi_evt_err_notify *notify)
 {
@@ -80,9 +81,20 @@ static int ipa3_setup_wdi3_gsi_channel(u8 is_smmu_enabled,
 		IPAERR("invalid input\n");
 		return -EINVAL;
 	}
-	/* setup event ring */
 	memset(&gsi_evt_ring_props, 0, sizeof(gsi_evt_ring_props));
-	gsi_evt_ring_props.intf = GSI_EVT_CHTYPE_WDI3_EV;
+	memset(&gsi_channel_props, 0, sizeof(gsi_channel_props));
+
+	if(ipa_get_wdi_version() == IPA_WDI_3_V2) {
+		gsi_channel_props.prot = GSI_CHAN_PROT_WDI3_V2;
+		gsi_evt_ring_props.intf = GSI_EVT_CHTYPE_WDI3_V2_EV;
+	}
+	else {
+		gsi_channel_props.prot = GSI_CHAN_PROT_WDI3;
+		gsi_evt_ring_props.intf = GSI_EVT_CHTYPE_WDI3_EV;
+	}
+
+	/* setup event ring */
+
 	if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_9) {
 		gsi_evt_ring_props.intr = GSI_INTR_MSI;
 		/* 32 (for Tx) and 8 (for Rx) */
@@ -166,8 +178,6 @@ static int ipa3_setup_wdi3_gsi_channel(u8 is_smmu_enabled,
 		gsi_evt_ring_props.ring_base_addr;
 
 	/* setup channel ring */
-	memset(&gsi_channel_props, 0, sizeof(gsi_channel_props));
-	gsi_channel_props.prot = GSI_CHAN_PROT_WDI3;
 	if ((dir == IPA_WDI3_TX_DIR) || (dir == IPA_WDI3_TX1_DIR) ||
 		(dir == IPA_WDI3_TX2_DIR))
 		gsi_channel_props.dir = GSI_CHAN_DIR_FROM_GSI;
@@ -185,13 +195,19 @@ static int ipa3_setup_wdi3_gsi_channel(u8 is_smmu_enabled,
 
 	gsi_channel_props.db_in_bytes = 0;
 	gsi_channel_props.evt_ring_hdl = ep->gsi_evt_ring_hdl;
+
 	if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_9) {
 		/* 32 (for Tx) and 64 (for Rx) */
 		if ((dir == IPA_WDI3_TX_DIR) || (dir == IPA_WDI3_TX1_DIR) ||
 			(dir == IPA_WDI3_TX2_DIR))
 			gsi_channel_props.re_size = GSI_CHAN_RE_SIZE_32B;
-		else
-			gsi_channel_props.re_size = GSI_CHAN_RE_SIZE_64B;
+		else {
+			if (gsi_channel_props.prot == GSI_CHAN_PROT_WDI3_V2)
+				gsi_channel_props.re_size = GSI_CHAN_RE_SIZE_32B;
+			else 
+				gsi_channel_props.re_size = GSI_CHAN_RE_SIZE_64B;
+		}
+
 	} else
 		gsi_channel_props.re_size = GSI_CHAN_RE_SIZE_16B;
 
@@ -519,6 +535,48 @@ static int ipa3_setup_wdi3_gsi_channel(u8 is_smmu_enabled,
 			(1 << 8));
 	}
 
+	if(ipa_get_wdi_version() == IPA_WDI_3_V2) {
+
+		ch_scratch.wdi3_v2.wifi_rp_address_high =
+			ch_scratch.wdi3.wifi_rp_address_high;
+
+		ch_scratch.wdi3_v2.wifi_rp_address_low =
+			ch_scratch.wdi3.wifi_rp_address_low;
+
+		ch_scratch.wdi3_v2.update_rp_moderation_threshold =
+			ch_scratch.wdi3.update_rp_moderation_threshold;
+
+
+		if ( dir == IPA_WDI3_RX_DIR) {
+
+			ch_scratch.wdi3_v2.rx_pkt_offset = ch_scratch.wdi3.rx_pkt_offset;
+			ch_scratch.wdi3_v2.endp_metadata_reg_offset =
+						ch_scratch.wdi3.endp_metadata_reg_offset;
+		} else {
+
+
+				if(is_smmu_enabled) {
+					if(info_smmu->rx_bank_id > IPA_WDI3_MAX_VALUE_OF_BANK_ID) {
+						IPAERR("Incorrect bank id value %d Exceeding the 6bit range\n", info_smmu->rx_bank_id);
+						goto fail_write_scratch;
+					}
+					ch_scratch.wdi3_v2.bank_id = info_smmu->rx_bank_id;
+				}
+				else {
+					if(info->rx_bank_id > IPA_WDI3_MAX_VALUE_OF_BANK_ID) {
+						IPAERR("Incorrect bank id value %d Exceeding the 6bit range\n", info->rx_bank_id);
+						goto fail_write_scratch;
+					}
+
+					ch_scratch.wdi3_v2.bank_id = info->rx_bank_id;
+				}
+		}
+
+		ch_scratch.wdi3_v2.qmap_id = 0;
+		ch_scratch.wdi3_v2.reserved1 = 0;
+		ch_scratch.wdi3_v2.reserved2 = 0;
+	}
+
 	result = gsi_write_channel_scratch(ep->gsi_chan_hdl, ch_scratch);
 	if (result != GSI_STATUS_SUCCESS) {
 		IPAERR("failed to write evt ring scratch\n");
@@ -557,7 +615,7 @@ int ipa3_conn_wdi3_pipes(struct ipa_wdi_conn_in_params *in,
 	u8 rx_dir, tx_dir;
 
 	/* wdi3 only support over gsi */
-	if (ipa_get_wdi_version() != IPA_WDI_3) {
+	if (ipa_get_wdi_version() < IPA_WDI_3) {
 		IPAERR("wdi3 over uc offload not supported");
 		WARN_ON(1);
 		return -EFAULT;
@@ -870,12 +928,12 @@ int ipa3_disconn_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx,
 	int ipa_ep_idx_tx1)
 {
 	struct ipa3_ep_context *ep_tx, *ep_rx, *ep_tx1;
-	int result = 0;
 	enum ipa_client_type rx_client;
 	enum ipa_client_type tx_client;
+	int result = 0;
 
 	/* wdi3 only support over gsi */
-	if (ipa_get_wdi_version() != IPA_WDI_3) {
+	if (ipa_get_wdi_version() < IPA_WDI_3) {
 		IPAERR("wdi3 over uc offload not supported");
 		WARN_ON(1);
 		return -EFAULT;
@@ -988,7 +1046,7 @@ int ipa3_enable_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx,
 	u32 holb_max_cnt = ipa3_ctx->uc_ctx.holb_monitor.max_cnt_wlan;
 
 	/* wdi3 only support over gsi */
-	if (ipa_get_wdi_version() != IPA_WDI_3) {
+	if (ipa_get_wdi_version() < IPA_WDI_3) {
 		IPAERR("wdi3 over uc offload not supported");
 		WARN_ON(1);
 		return -EFAULT;
@@ -1133,7 +1191,7 @@ int ipa3_disable_wdi3_pipes(int ipa_ep_idx_tx, int ipa_ep_idx_rx,
 	struct ipahal_ep_cfg_ctrl_scnd ep_ctrl_scnd = { 0 };
 
 	/* wdi3 only support over gsi */
-	if (ipa_get_wdi_version() != IPA_WDI_3) {
+	if (ipa_get_wdi_version() < IPA_WDI_3) {
 		IPAERR("wdi3 over uc offload not supported");
 		WARN_ON(1);
 		return -EFAULT;

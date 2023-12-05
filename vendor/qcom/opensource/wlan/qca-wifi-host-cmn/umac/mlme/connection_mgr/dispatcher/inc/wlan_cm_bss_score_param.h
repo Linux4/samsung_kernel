@@ -94,6 +94,7 @@ struct weight_cfg {
  * @good_rssi_bucket_size: Channel band weightage
  * @bad_rssi_bucket_size: NSS weightage
  * @rssi_pref_5g_rssi_thresh: Beamforming caps weightage
+ * @con_non_hint_target_rssi_threshold: RSSI threshold value
  */
 struct rssi_config_score  {
 	uint8_t best_rssi_threshold;
@@ -104,31 +105,32 @@ struct rssi_config_score  {
 	uint8_t good_rssi_bucket_size;
 	uint8_t bad_rssi_bucket_size;
 	uint8_t rssi_pref_5g_rssi_thresh;
+	int8_t con_non_hint_target_rssi_threshold;
 };
 
 /**
- * struct per_slot_score - define % score for differents slots for a
+ * struct per_slot_score - define % score for different slots for a
  *                               scoring param.
  * num_slot: number of slots in which the param will be divided.
  *           Max 15. index 0 is used for 'not_present. Num_slot will
  *           equally divide 100. e.g, if num_slot = 4 slot 0 = 0-25%, slot
  *           1 = 26-50% slot 2 = 51-75%, slot 3 = 76-100%
- * score_pcnt3_to_0: Conatins score percentage for slot 0-3
+ * score_pcnt3_to_0: Contains score percentage for slot 0-3
  *             BITS 0-7   :- the scoring pcnt when not present
  *             BITS 8-15  :- SLOT_1
  *             BITS 16-23 :- SLOT_2
  *             BITS 24-31 :- SLOT_3
- * score_pcnt7_to_4: Conatins score percentage for slot 4-7
+ * score_pcnt7_to_4: Contains score percentage for slot 4-7
  *             BITS 0-7   :- SLOT_4
  *             BITS 8-15  :- SLOT_5
  *             BITS 16-23 :- SLOT_6
  *             BITS 24-31 :- SLOT_7
- * score_pcnt11_to_8: Conatins score percentage for slot 8-11
+ * score_pcnt11_to_8: Contains score percentage for slot 8-11
  *             BITS 0-7   :- SLOT_8
  *             BITS 8-15  :- SLOT_9
  *             BITS 16-23 :- SLOT_10
  *             BITS 24-31 :- SLOT_11
- * score_pcnt15_to_12: Conatins score percentage for slot 12-15
+ * score_pcnt15_to_12: Contains score percentage for slot 12-15
  *             BITS 0-7   :- SLOT_12
  *             BITS 8-15  :- SLOT_13
  *             BITS 16-23 :- SLOT_14
@@ -224,7 +226,7 @@ enum cm_security_idx {
  * @rssi_score: Rssi related config for scoring config
  * @esp_qbss_scoring: esp and qbss related scoring config
  * @oce_wan_scoring: oce related scoring config
- * @bandwidth_weight_per_index: BW wight per index
+ * @bandwidth_weight_per_index: BW weight per index
  * @nss_weight_per_index: nss weight per index
  * @band_weight_per_index: band weight per index
  * @is_bssid_hint_priority: True if bssid_hint is given priority
@@ -326,13 +328,15 @@ wlan_denylist_action_on_bssid(struct wlan_objmgr_pdev *pdev,
  * @scan_list: scan list, contains the input list and after the
  *             func it will have sorted list
  * @bssid_hint: bssid hint
+ * @self_mac: connecting vdev self mac address
  *
  * Return: void
  */
 void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 				 struct pcl_freq_weight_list *pcl_lst,
 				 qdf_list_t *scan_list,
-				 struct qdf_mac_addr *bssid_hint);
+				 struct qdf_mac_addr *bssid_hint,
+				 struct qdf_mac_addr *self_mac);
 
 /**
  * wlan_cm_init_score_config() - Init score INI and config
@@ -372,7 +376,7 @@ void wlan_cm_set_check_6ghz_security(struct wlan_objmgr_psoc *psoc,
 				     bool value);
 
 /**
- * wlan_cm_reset_check_6ghz_security() - reset check 6Ghz security to orignal
+ * wlan_cm_reset_check_6ghz_security() - reset check 6Ghz security to original
  * value
  * @psoc: pointer to psoc object
  *
@@ -381,7 +385,7 @@ void wlan_cm_set_check_6ghz_security(struct wlan_objmgr_psoc *psoc,
 void wlan_cm_reset_check_6ghz_security(struct wlan_objmgr_psoc *psoc);
 
 /**
- * wlan_cm_get_check_6ghz_security() - Get 6Ghz allowe AKM mask
+ * wlan_cm_get_check_6ghz_security() - Get 6Ghz allowed AKM mask
  * @psoc: pointer to psoc object
  * @value: value to be set
  *
@@ -390,7 +394,7 @@ void wlan_cm_reset_check_6ghz_security(struct wlan_objmgr_psoc *psoc);
 bool wlan_cm_get_check_6ghz_security(struct wlan_objmgr_psoc *psoc);
 
 /**
- * wlan_cm_set_6ghz_key_mgmt_mask() - Set 6Ghz allowe AKM mask
+ * wlan_cm_set_6ghz_key_mgmt_mask() - Set 6Ghz allowed AKM mask
  * @psoc: pointer to psoc object
  *
  * Return: void
@@ -399,7 +403,7 @@ void wlan_cm_set_6ghz_key_mgmt_mask(struct wlan_objmgr_psoc *psoc,
 				    uint32_t value);
 
 /**
- * wlan_cm_get_6ghz_key_mgmt_mask() - Get 6Ghz allowe AKM mask
+ * wlan_cm_get_6ghz_key_mgmt_mask() - Get 6Ghz allowed AKM mask
  * @psoc: pointer to psoc object
  *
  * Return: value

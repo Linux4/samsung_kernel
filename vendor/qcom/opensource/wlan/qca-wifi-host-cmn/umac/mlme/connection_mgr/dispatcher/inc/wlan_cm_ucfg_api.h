@@ -88,7 +88,7 @@ bool ucfg_cm_is_vdev_connected(struct wlan_objmgr_vdev *vdev);
 bool ucfg_cm_is_vdev_active(struct wlan_objmgr_vdev *vdev);
 
 /**
- * ucfg_cm_is_vdev_disconnecting() - check if vdev is in disconneting state
+ * ucfg_cm_is_vdev_disconnecting() - check if vdev is in disconnecting state
  * @vdev: vdev pointer
  *
  * Return: bool

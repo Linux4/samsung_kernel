@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -220,8 +220,7 @@ static void populate_dot11f_tdls_offchannel_params(
 	uint8_t nss_5g;
 	qdf_freq_t ch_freq;
 	bool is_vlp_country;
-	uint8_t band_mask;
-	uint8_t *ap_cc;
+	uint8_t ap_cc[REG_ALPHA2_LEN + 1];
 	uint8_t reg_cc[REG_ALPHA2_LEN + 1];
 
 	numChans = mac->mlme_cfg->reg.valid_channel_list_num;
@@ -236,7 +235,7 @@ static void populate_dot11f_tdls_offchannel_params(
 	nss_2g = QDF_MIN(mac->vdev_type_nss_2g.tdls,
 			 mac->user_configured_nss);
 
-	ap_cc = mac->scan.countryCodeCurrent;
+	wlan_cm_get_country_code(mac->pdev, pe_session->vdev_id, ap_cc);
 	wlan_reg_read_current_country(mac->psoc, reg_cc);
 	is_vlp_country = wlan_reg_ctry_support_vlp(ap_cc) &&
 			 wlan_reg_ctry_support_vlp(reg_cc);
@@ -315,9 +314,8 @@ static void populate_dot11f_tdls_offchannel_params(
 	wlan_reg_dmn_get_curr_opclasses(&numClasses, &classes[0]);
 
 	for (i = 0; i < numClasses; i++) {
-		band_mask = wlan_reg_get_band_cap_from_op_class(reg_cc, 1,
-								&classes[i]);
-		if ((band_mask & BIT(REG_BAND_6G)) && !is_vlp_country)
+		if (wlan_reg_is_6ghz_op_class(mac->pdev, classes[i]) &&
+		    !is_vlp_country)
 			continue;
 
 		suppOperClasses->classes[count_opclss] = classes[i];
@@ -437,7 +435,7 @@ static uint32_t lim_prepare_tdls_frame_header(struct mac_context *mac, uint8_t *
 
 	/*
 	 * if TDLS frame goes through the AP link, it follows normal address
-	 * pattern, if TDLS frame goes thorugh the direct link, then
+	 * pattern, if TDLS frame goes through the direct link, then
 	 * A1--> Peer STA addr, A2-->Self STA address, A3--> BSSID
 	 */
 	(tdlsLinkType == TDLS_LINK_AP) ? ((addr1 = (link_iden->bssid)),
@@ -539,7 +537,7 @@ static QDF_STATUS lim_mgmt_tdls_tx_complete(void *context,
 
 /*
  * This function can be used for bacst or unicast discovery request
- * We are not differentiating it here, it will all depnds on peer MAC address,
+ * We are not differentiating it here, it will all depend on peer MAC address,
  */
 static QDF_STATUS lim_send_tdls_dis_req_frame(struct mac_context *mac,
 					      struct qdf_mac_addr peer_mac,
@@ -3109,6 +3107,12 @@ static void lim_tdls_fill_session_vht_width(struct pe_session *pe_session,
 				pe_session->ch_width;
 }
 
+static inline enum phy_ch_width
+lim_reg_bw_to_ht_ch_width(uint16_t reg_max_bw)
+{
+	return reg_max_bw > 20 ? CH_WIDTH_40MHZ : CH_WIDTH_20MHZ;
+}
+
 /*
  * update HASH node entry info
  */
@@ -3124,6 +3128,8 @@ static void lim_tdls_update_hash_node_info(struct mac_context *mac,
 	tDot11fIEVHTCaps vhtCap;
 	uint8_t cbMode, selfDot11Mode;
 	bool wide_band_peer = false;
+	uint16_t reg_max_bw = 0;
+	uint16_t reg_ch_width = 0;
 
 	if (add_sta_req->tdls_oper == TDLS_OPER_ADD) {
 		populate_dot11f_ht_caps(mac, pe_session, &htCap);
@@ -3132,6 +3138,9 @@ static void lim_tdls_update_hash_node_info(struct mac_context *mac,
 						 add_sta_req, &htCap);
 		sta->rmfEnabled = add_sta_req->is_pmf;
 	}
+
+	reg_max_bw = wlan_reg_get_max_chwidth(mac->pdev,
+					      pe_session->curr_op_freq);
 
 	wide_band_peer = lim_is_wide_band_set(add_sta_req->extn_capability) &&
 		    wlan_cfg80211_tdls_is_fw_wideband_capable(pe_session->vdev);
@@ -3151,20 +3160,34 @@ static void lim_tdls_update_hash_node_info(struct mac_context *mac,
 		 * Since, now wideband is supported, bw should be restricted
 		 * only in case of dfs channel
 		 */
-		pe_debug("supportedChannelWidthSet: 0x%x htSupportedChannelWidthSet: 0x%x",
+		pe_debug("peer htSupportedChannelWidthSet: 0x%x "
+				"pe session htSupportedChannelWidthSet: 0x%x",
 				htCaps->supportedChannelWidthSet,
 				pe_session->htSupportedChannelWidthSet);
+
 		if (!wide_band_peer ||
 		    wlan_reg_is_dfs_for_freq(mac->pdev,
-					     pe_session->curr_op_freq))
+					     pe_session->curr_op_freq) ||
+		    wlan_reg_is_24ghz_ch_freq(pe_session->curr_op_freq)) {
 			sta->htSupportedChannelWidthSet =
 				(htCaps->supportedChannelWidthSet <
 				 pe_session->htSupportedChannelWidthSet) ?
 				htCaps->supportedChannelWidthSet :
 				pe_session->htSupportedChannelWidthSet;
-		else
+		} else {
+			reg_ch_width = lim_reg_bw_to_ht_ch_width(reg_max_bw);
+
+			pe_debug("regulatory max bw %d MHz ch_width 0x%x",
+					reg_max_bw,
+					reg_ch_width);
+
 			sta->htSupportedChannelWidthSet =
-				htCaps->supportedChannelWidthSet;
+				(htCaps->supportedChannelWidthSet <
+				 reg_ch_width) ?
+				htCaps->supportedChannelWidthSet :
+				reg_ch_width;
+		}
+
 		pe_debug("sta->htSupportedChannelWidthSet: 0x%x",
 			 sta->htSupportedChannelWidthSet);
 
@@ -3204,6 +3227,7 @@ static void lim_tdls_update_hash_node_info(struct mac_context *mac,
 			    VHT_CAP_NO_160M_SUPP)
 				sta->vhtSupportedChannelWidthSet =
 						WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ;
+
 			if (wlan_reg_is_dfs_for_freq(mac->pdev,
 						    pe_session->curr_op_freq)) {
 				lim_tdls_fill_session_vht_width(pe_session,
@@ -3891,7 +3915,7 @@ void lim_update_tdls_2g_bw(struct pe_session *session)
 	 * For 2.4 GHz band, if AP switches its BW from 40 MHz to 20 Mhz, it
 	 * changes its beacon respectivily with ch_width 20 Mhz without STA
 	 * disconnection.
-	 * This will result in TDLS remaining on 40 MHz and not follwoing APs BW
+	 * This will result in TDLS remaining on 40 MHz and not following APs BW
 	 * on 2.4 GHz.
 	 * Better Teardown the link here and with traffic going on between peers
 	 * the tdls connection will again be restablished with the new BW

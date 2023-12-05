@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/cdev.h>
@@ -17,6 +17,7 @@
 #include <linux/uaccess.h>
 #include <soc/qcom/soc_sleep_stats.h>
 #include <soc/qcom/subsystem_sleep_stats.h>
+#include <asm/arch_timer.h>
 
 #define STATS_BASEMINOR				0
 #define STATS_MAX_MINOR				1
@@ -130,7 +131,7 @@ static struct system_data subsystem_stats[] = {
 	{ "apss", APSS, QCOM_SMEM_HOST_ANY },
 	{ "modem", MPSS, PID_MPSS },
 	{ "adsp", ADSP, PID_ADSP },
-	{ "adsp_island", PID_ADSP, SLPI_ISLAND },
+	{ "adsp_island", SLPI_ISLAND, PID_ADSP },
 	{ "cdsp", CDSP, PID_CDSP },
 	{ "slpi", SLPI, PID_SLPI },
 	{ "slpi_island", SLPI_ISLAND, PID_SLPI },
@@ -153,6 +154,7 @@ static struct sleep_stats *b_system_stats;
 static struct sleep_stats *a_system_stats;
 static bool ddr_freq_update;
 static DEFINE_MUTEX(sleep_stats_mutex);
+static const struct stats_config *config;
 
 static int stats_data_open(struct inode *inode, struct file *file)
 {
@@ -174,11 +176,9 @@ void ddr_stats_sleep_stat(struct sleep_stats_data *stats_data, struct sleep_stat
 
 	reg = stats_data->ddr_reg + DDR_STATS_NUM_MODES_ADDR + 0x4;
 	for (i = 0; i < stats_data->ddr_entry_count; i++) {
-		(ddr_stats + i)->version = readl_relaxed(reg + DDR_STATS_NAME_ADDR);
-		(ddr_stats + i)->count = readl_relaxed(reg + DDR_STATS_COUNT_ADDR);
+		memcpy_fromio(&ddr_stats[i], reg, sizeof(*ddr_stats));
 		(ddr_stats + i)->last_entered_at = 0xDEADDEAD;
 		(ddr_stats + i)->last_exited_at = 0xDEADDEAD;
-		(ddr_stats + i)->accumulated = readq_relaxed(reg + DDR_STATS_DURATION_ADDR);
 		reg += sizeof(struct sleep_stats) - 2 * sizeof(u64);
 	}
 }
@@ -187,6 +187,12 @@ static int subsystem_sleep_stats(struct sleep_stats_data *stats_data, struct sle
 					unsigned int pid, unsigned int idx)
 {
 	struct sleep_stats *subsystem_stats_data;
+
+	if (!config)
+		return -ENODEV;
+
+	if (idx == DDR && !config->ddr_offset_addr)
+		return -EINVAL;
 
 	if (pid == SUBSYSTEM_STATS_OTHERS_NUM)
 		memcpy_fromio(stats, stats_data->reg[idx], sizeof(*stats));
@@ -210,14 +216,17 @@ bool has_system_slept(void)
 	int i;
 	bool sleep_flag = true;
 
-	for (i = 0; i < ARRAY_SIZE(system_stats); i++) {
+	if (!config)
+		return -ENODEV;
+
+	for (i = 0; i < config->num_records; i++) {
 #if IS_ENABLED(CONFIG_SEC_PM)
 		/* Note: aosd, ddr is not our concern */
 		if ((strcmp("cxsd", system_stats[i].name)))
 			continue;
 #endif
 		if (b_system_stats[i].count == a_system_stats[i].count) {
-			pr_info("System %s has not entered sleep\n", system_stats[i].name);
+			pr_warn("System %s has not entered sleep\n", system_stats[i].name);
 			sleep_flag = false;
 		}
 	}
@@ -231,14 +240,17 @@ bool has_subsystem_slept(void)
 	int i;
 	bool sleep_flag = true;
 
-	for (i = 0; i < ARRAY_SIZE(subsystem_stats); i++) {
+	if (!config)
+		return sleep_flag;
+
+	for (i = 0; i < config->num_records; i++) {
 		if (subsystem_stats[i].not_present)
 			continue;
 
 		if ((b_subsystem_stats[i].count == a_subsystem_stats[i].count) &&
 			(a_subsystem_stats[i].last_exited_at >
 				a_subsystem_stats[i].last_entered_at)) {
-			pr_info("Subsystem %s has not entered sleep\n", subsystem_stats[i].name);
+			pr_warn("Subsystem %s has not entered sleep\n", subsystem_stats[i].name);
 			sleep_flag = false;
 		}
 	}
@@ -353,6 +365,16 @@ static long stats_data_ioctl(struct file *file, unsigned int cmd,
 	} else {
 		int modes = DDR_STATS_MAX_NUM_MODES;
 
+		if (!config) {
+			ret = -ENODEV;
+			goto out_free;
+		}
+
+		if (!config->ddr_offset_addr) {
+			ret = -EINVAL;
+			goto out_free;
+		}
+
 		if (ddr_freq_update) {
 			ret = ddr_stats_freq_sync_send_msg();
 			if (ret < 0)
@@ -397,7 +419,6 @@ static const struct file_operations stats_data_fops = {
 static int subsystem_stats_probe(struct platform_device *pdev)
 {
 	struct sleep_stats_data *stats_data;
-	const struct stats_config *config;
 	struct resource *res;
 	void __iomem *offset_addr;
 	phys_addr_t stats_base;
@@ -481,6 +502,9 @@ static int subsystem_stats_probe(struct platform_device *pdev)
 		stats_data->reg[i] = stats_data->reg_base + offset;
 	}
 
+	if (!config->ddr_offset_addr)
+		goto skip_ddr_stats;
+
 	offset_addr = devm_ioremap(&pdev->dev, res->start + config->ddr_offset_addr, sizeof(u32));
 	if (IS_ERR(offset_addr)) {
 		ret = PTR_ERR(offset_addr);
@@ -506,6 +530,7 @@ static int subsystem_stats_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+skip_ddr_stats:
 	subsystem_stats_debug_on = false;
 	b_subsystem_stats = devm_kcalloc(&pdev->dev, ARRAY_SIZE(subsystem_stats),
 					 sizeof(struct sleep_stats), GFP_KERNEL);
@@ -624,8 +649,14 @@ static const struct stats_config rpmh_data = {
 	.num_records = 3,
 };
 
+static const struct stats_config rpm_data = {
+	.offset_addr = 0x14,
+	.num_records = 2,
+};
+
 static const struct of_device_id subsystem_stats_table[] = {
 	{ .compatible = "qcom,subsystem-sleep-stats", .data = &rpmh_data},
+	{ .compatible = "qcom,subsystem-sleep-stats-v2", .data = &rpm_data},
 	{},
 };
 

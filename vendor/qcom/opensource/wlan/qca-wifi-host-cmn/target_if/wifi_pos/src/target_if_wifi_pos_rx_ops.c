@@ -154,6 +154,20 @@ int wifi_pos_oem_err_rpt_ev_handler(ol_scn_t scn, uint8_t *buf,
 }
 
 #if defined(WIFI_POS_CONVERGED) && defined(WLAN_FEATURE_RTT_11AZ_SUPPORT)
+static struct wlan_lmac_if_wifi_pos_rx_ops *
+target_if_wifi_pos_get_rx_ops(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_lmac_if_rx_ops *rx_ops;
+
+	rx_ops = wlan_psoc_get_lmac_if_rxops(psoc);
+	if (!rx_ops) {
+		wifi_pos_err("rx_ops is NULL");
+		return NULL;
+	}
+
+	return &rx_ops->wifi_pos_rx_ops;
+}
+
 int target_if_wifi_pos_pasn_peer_create_ev_handler(ol_scn_t scn,
 						   uint8_t *buf,
 						   uint32_t len)
@@ -201,7 +215,7 @@ int target_if_wifi_pos_pasn_peer_create_ev_handler(ol_scn_t scn,
 		return -EINVAL;
 	}
 
-	rx_ops = wifi_pos_get_rx_ops(psoc);
+	rx_ops = target_if_wifi_pos_get_rx_ops(psoc);
 	if (!rx_ops || !rx_ops->wifi_pos_ranging_peer_create_cb) {
 		wifi_pos_err("%s is null",
 			     !rx_ops ? "rx_ops" : "rx_ops_cb");
@@ -259,7 +273,7 @@ int target_if_wifi_pos_pasn_peer_delete_ev_handler(ol_scn_t scn,
 		return QDF_STATUS_E_NULL_VALUE;
 	}
 
-	rx_ops = wifi_pos_get_rx_ops(psoc);
+	rx_ops = target_if_wifi_pos_get_rx_ops(psoc);
 	if (!rx_ops || !rx_ops->wifi_pos_ranging_peer_delete_cb) {
 		wifi_pos_err("%s is null",
 			     !rx_ops ? "rx_ops" : "rx_ops_cb");
@@ -276,21 +290,6 @@ int target_if_wifi_pos_pasn_peer_delete_ev_handler(ol_scn_t scn,
 	qdf_mem_free(data);
 
 	return 0;
-}
-
-void target_if_wifi_pos_register_rx_ops(struct wlan_lmac_if_rx_ops *rx_ops)
-{
-	struct wlan_lmac_if_wifi_pos_rx_ops *wifi_pos_rx_ops =
-					&rx_ops->wifi_pos_rx_ops;
-
-	wifi_pos_rx_ops->wifi_pos_ranging_peer_create_cb =
-			wifi_pos_handle_ranging_peer_create;
-	wifi_pos_rx_ops->wifi_pos_ranging_peer_create_rsp_cb =
-			wifi_pos_handle_ranging_peer_create_rsp;
-	wifi_pos_rx_ops->wifi_pos_ranging_peer_delete_cb =
-			wifi_pos_handle_ranging_peer_delete;
-	wifi_pos_rx_ops->wifi_pos_vdev_delete_all_ranging_peers_rsp_cb =
-			wifi_pos_vdev_delete_all_ranging_peers_rsp;
 }
 #endif
 

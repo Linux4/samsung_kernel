@@ -1880,7 +1880,7 @@ static int diag_fw_handler(ol_scn_t scn, uint8_t *data, uint32_t datalen)
 		AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("NULL Pointer assigned\n"));
 		return A_ERROR;
 	}
-	/* when fw asser occurs,host can't use TLV format. */
+	/* when fw assert occurs,host can't use TLV format. */
 	if (wma->is_fw_assert) {
 		datap = data;
 		len = datalen;
@@ -2002,7 +2002,7 @@ int dbglog_parse_debug_logs(ol_scn_t scn, uint8_t *data, uint32_t datalen)
 		AR_DEBUG_PRINTF(ATH_DEBUG_ERR, ("NULL Pointer assigned\n"));
 		return A_ERROR;
 	}
-	/*when fw asser occurs,host can't use TLV format. */
+	/*when fw assert occurs,host can't use TLV format. */
 	if (wma->is_fw_assert) {
 		datap = data;
 		len = datalen;

@@ -90,7 +90,7 @@ QDF_STATUS cm_reassoc_complete(struct cnx_mgr *cm_ctx,
  * @vdev: vdev pointer
  * @req: pointer to the copy of the active reassoc request
  * *
- * Context: Should be called only in the conext of the
+ * Context: Should be called only in the context of the
  * cm request activation
  *
  * Return: true and reassoc req if any request is active

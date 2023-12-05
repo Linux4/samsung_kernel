@@ -42,6 +42,11 @@
 
 #ifdef __KERNEL__
 #include <generated/autoconf.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#include <linux/stdarg.h>
+#else
+#include <stdarg.h>
+#endif
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/types.h>
@@ -151,7 +156,7 @@ typedef unsigned long __sgtable_t;
 #define __bool_already_defined__
 
 /**
- * bool - This is an enum for boolean
+ * typedef bool - This is an enum for boolean
  * @false: zero
  * @true: one
  */
@@ -165,7 +170,7 @@ typedef enum bool {
 #define __qdf_packed    __attribute__((packed))
 
 typedef int (*__qdf_os_intr)(void *);
-/**
+/*
  * Private definitions of general data types
  */
 typedef dma_addr_t __qdf_dma_addr_t;
@@ -181,6 +186,7 @@ typedef __le64 __qdf_le64_t;
 typedef __be16 __qdf_be16_t;
 typedef __be32 __qdf_be32_t;
 typedef __be64 __qdf_be64_t;
+typedef struct net_device __qdf_dummy_netdev_t;
 
 #if defined(IPA_OFFLOAD) && defined(__KERNEL__)
 typedef struct ipa_wdi_buffer_info __qdf_mem_info_t;
@@ -204,7 +210,7 @@ typedef struct __qdf_shared_mem_info {
 #define qdf_get_dma_mem_context(var, field)   ((qdf_dma_context_t)(var->field))
 
 /**
- * typedef struct __qdf_resource_t - qdf resource type
+ * typedef struct __qdf_resource - qdf resource type
  * @paddr: Physical address
  * @paddr: Virtual address
  * @len: Length
@@ -226,6 +232,7 @@ struct __qdf_mempool_ctxt;
  * @QDF_BUS_TYPE_AHB: AHB Bus
  * @QDF_BUS_TYPE_SNOC: SNOC Bus
  * @QDF_BUS_TYPE_SIM: Simulator
+ * @QDF_BUS_TYPE_SDIO: SDIO
  * @QDF_BUS_TYPE_USB: USB Bus
  * @QDF_BUS_TYPE_IPCI: IPCI Bus
  */
@@ -254,6 +261,7 @@ enum qdf_bus_type {
  * @bus_type: Bus type
  * @bid: Bus ID
  * @smmu_s1_enabled: SMMU S1 enabled or not
+ * @domain: domain type
  * @iommu_mapping: DMA iommu mapping pointer
  */
 struct __qdf_device {
@@ -296,7 +304,7 @@ typedef struct __qdf_segment {
 } __qdf_segment_t;
 
 /**
- * __qdf_dma_map - dma map of memory
+ * struct __qdf_dma_map: dma map of memory
  * @mapped: mapped address
  * @nsegs: number of segments
  * @coherent: coherency status
@@ -311,7 +319,7 @@ struct __qdf_dma_map {
 typedef struct  __qdf_dma_map  *__qdf_dma_map_t;
 
 /**
- * __qdf_net_wireless_evcode - enum for event code
+ * enum __qdf_net_wireless_evcode: enum for event code
  * @__QDF_IEEE80211_ASSOC: association event code
  * @__QDF_IEEE80211_REASSOC: reassociation event code
  * @__QDF_IEEE80211_DISASSOC: disassociation event code

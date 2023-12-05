@@ -57,7 +57,7 @@ void sec_boot_stat_add(const char *log)
 
 	__boot_stat_add(sec_boot_stat, log);
 }
-EXPORT_SYMBOL(sec_boot_stat_add);
+EXPORT_SYMBOL_GPL(sec_boot_stat_add);
 
 int sec_boot_stat_register_soc_ops(struct sec_boot_stat_soc_operations *soc_ops)
 {
@@ -80,7 +80,7 @@ __arleady_registered:
 	mutex_unlock(&sec_boot_stat->soc_ops_lock);
 	return ret;
 }
-EXPORT_SYMBOL(sec_boot_stat_register_soc_ops);
+EXPORT_SYMBOL_GPL(sec_boot_stat_register_soc_ops);
 
 int sec_boot_stat_unregister_soc_ops(struct sec_boot_stat_soc_operations *soc_ops)
 {
@@ -101,7 +101,7 @@ __invalid_soc_ops:
 	mutex_unlock(&sec_boot_stat->soc_ops_lock);
 	return ret;
 }
-EXPORT_SYMBOL(sec_boot_stat_unregister_soc_ops);
+EXPORT_SYMBOL_GPL(sec_boot_stat_unregister_soc_ops);
 
 unsigned long long sec_boot_stat_ktime_to_time(unsigned long long ktime)
 {

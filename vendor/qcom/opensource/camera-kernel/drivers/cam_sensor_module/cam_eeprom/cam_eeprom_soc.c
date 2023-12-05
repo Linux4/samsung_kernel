@@ -394,11 +394,18 @@ int cam_eeprom_parse_dt(struct cam_eeprom_ctrl_t *e_ctrl)
 		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
 					soc_info->rgltr_name[i]);
 		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
+#if defined(CONFIG_SEC_Q5Q_PROJECT)
+			CAM_WARN(CAM_EEPROM,"get failed for regulator %s",
+				soc_info->rgltr_name[i]);
+			soc_info->rgltr[i] = NULL;		
+#else
+
 			rc = PTR_ERR(soc_info->rgltr[i]);
 			rc = rc ? rc : -EINVAL;
 			CAM_ERR(CAM_EEPROM, "get failed for regulator %s",
 				 soc_info->rgltr_name[i]);
 			return rc;
+#endif
 		}
 		CAM_DBG(CAM_EEPROM, "get for regulator %s",
 			soc_info->rgltr_name[i]);

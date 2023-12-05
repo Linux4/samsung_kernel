@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -248,7 +248,7 @@ enum mgmt_bss_type {
  * @WLAN_STATUS_RESET_FAIL: Reset Fail
  * @WLAN_STATUS_RESET_SUCCESS: Reset Success
  * @WLAN_STATUS_DEVICE_REMOVED: Device Removed
- * @WLAN_STATUS_DEVICE_INSERTED: Devide Inserted
+ * @WLAN_STATUS_DEVICE_INSERTED: Device Inserted
  * @WLAN_STATUS_DRIVER_UNLOADED: Driver Unloaded
  * @WLAN_STATUS_DRIVER_LOADED: Driver Loaded
  * @WLAN_STATUS_BUS_EXCEPTION: bus/link exception
@@ -751,7 +751,7 @@ struct host_event_wlan_ssr_shutdown {
 
 
 /*-------------------------------------------------------------------------
-   Function declarations and documenation
+   Function declarations and documentation
    ------------------------------------------------------------------------*/
 /**
  * enum host_sta_kickout_events - Enum containing sta kickout subtype
@@ -776,7 +776,7 @@ enum host_sta_kickout_events {
 };
 
 /*-------------------------------------------------------------------------
-   Function declarations and documenation
+   Function declarations and documentation
    ------------------------------------------------------------------------*/
 /**
  * enum host_datastall_events - Enum containing datastall subtype
@@ -809,7 +809,7 @@ enum host_datastall_events {
 };
 
 /*-------------------------------------------------------------------------
-  Function declarations and documenation
+  Function declarations and documentation
   ------------------------------------------------------------------------*/
 /**
  * enum host_ssr_events - Enum containing ssr subtype
@@ -904,7 +904,7 @@ struct host_event_tdls_tx_rx_mgmt {
 };
 
 /*-------------------------------------------------------------------------
-   Function declarations and documenation
+   Function declarations and documentation
    ------------------------------------------------------------------------*/
 /**
  * enum wifi_connectivity_events - Enum containing EAPOL sub type
@@ -947,9 +947,10 @@ enum wifi_connectivity_events {
  * @WIFI_POWER_EVENT_WAKELOCK_DRIVER_IDLE_SHUTDOWN: Wakelock for Idle Shutdown
  * @WIFI_POWER_EVENT_WAKELOCK_TDLS: Wakelock for TDLS
  * @WIFI_POWER_EVENT_WAKELOCK_CFR: Wakelock for CFR
- * @WIFI_POWER_EVENT_WAKELOCK_SAP_D3_WOW: Wakelock for SAP D3 WOW max clinets
+ * @WIFI_POWER_EVENT_WAKELOCK_SAP_D3_WOW: Wakelock for SAP D3 WOW max clients
  * @WIFI_POWER_EVENT_WAKELOCK_GO_D3_WOW: Wakelock for GO D3 WOW max clients
  * @WIFI_POWER_EVENT_WAKELOCK_RTPM_TPUT_POLICY: Wakelock for RTPM Tput policy
+ * @WIFI_POWER_EVENT_WAKELOCK_DYN_MAC_ADDR_UPDATE: Dynamic mac addr update
  *
  * Indicates the reason for which the wakelock was taken/released
  */
@@ -984,6 +985,7 @@ enum wake_lock_reason {
 	WIFI_POWER_EVENT_WAKELOCK_SAP_D3_WOW,
 	WIFI_POWER_EVENT_WAKELOCK_GO_D3_WOW,
 	WIFI_POWER_EVENT_WAKELOCK_RTPM_TPUT_POLICY,
+	WIFI_POWER_EVENT_WAKELOCK_DYN_MAC_ADDR_UPDATE,
 };
 
 /* The length of interface name should >= IFNAMSIZ */

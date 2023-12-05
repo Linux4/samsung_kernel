@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -22,10 +22,13 @@
 #include <drm/drm_damage_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_probe_helper.h>
+#include <linux/mem-buf.h>
+#include <soc/qcom/secure_buffer.h>
 
 #include "msm_drv.h"
 #include "msm_kms.h"
 #include "msm_gem.h"
+#include "sde_dbg.h"
 
 struct msm_framebuffer {
 	struct drm_framebuffer base;
@@ -315,4 +318,54 @@ int  msm_framebuffer_get_cache_hint(struct drm_framebuffer *fb,
 	*wr_type = msm_fb->cache_wr_type;
 
 	return 0;
+}
+
+int msm_fb_obj_get_attrs(struct drm_gem_object *obj, int *fb_ns,
+		int *fb_sec, int *fb_sec_dir)
+{
+	struct msm_gem_object *msm_obj = to_msm_bo(obj);
+	struct dma_buf *dma_buf;
+	int *vmid_list, *perms_list;
+	int nelems = 0;
+	int i, ret = 0;
+
+	if (!(msm_obj->flags & MSM_BO_EXTBUF))
+		return 0;
+
+	if (!obj->import_attach) {
+		DRM_DEBUG("NULL attachment in drm gem object flags:0x%x\n",
+			msm_obj->flags);
+		return -EINVAL;
+	}
+
+	dma_buf = obj->import_attach->dmabuf;
+	if (!dma_buf) {
+		DRM_DEBUG("dma_buf NULL in drm gem object\n");
+		return -EINVAL;
+	}
+
+	ret = mem_buf_dma_buf_copy_vmperm(dma_buf, &vmid_list,
+			&perms_list, &nelems);
+	if (ret) {
+		DRM_ERROR("mem_buf_dma_buf_copy_vmperm failure, err=%d\n", ret);
+		return ret;
+	}
+
+	/* obtain the VMIDs of a buffer */
+	if (mem_buf_dma_buf_exclusive_owner(dma_buf))
+		*fb_ns = 1;
+	else {
+		for (i = 0; i < nelems; i++) {
+			if (vmid_list[i] == VMID_CP_PIXEL)
+				*fb_sec = 1;
+			else if (vmid_list[i] & (VMID_CP_SEC_DISPLAY |
+					VMID_CP_CAMERA_PREVIEW))
+				*fb_sec_dir = 1;
+		}
+	}
+
+	kfree(vmid_list);
+	kfree(perms_list);
+
+	return ret;
 }

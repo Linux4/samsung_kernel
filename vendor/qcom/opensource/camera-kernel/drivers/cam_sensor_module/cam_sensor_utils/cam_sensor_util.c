@@ -2373,7 +2373,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 						rc);
 
 					soc_info->rgltr[vreg_idx] = NULL;
+#if !defined(CONFIG_SEC_Q5Q_PROJECT)
 					goto power_up_failed;
+#endif
 				}
 
 				if (power_setting->valid_config) {
@@ -2395,7 +2397,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					CAM_ERR(CAM_SENSOR,
 						"Reg Enable failed for %s",
 						soc_info->rgltr_name[vreg_idx]);
+#if !defined(CONFIG_SEC_Q5Q_PROJECT)
 					goto power_up_failed;
+#endif
 				}
 				power_setting->data[0] =
 						soc_info->rgltr[vreg_idx];
@@ -2410,7 +2414,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
 					"Error in handling VREG GPIO");
+#if !defined(CONFIG_SEC_Q5Q_PROJECT)
 				goto power_up_failed;
+#endif
 			}
 			break;
 		default:
@@ -2747,6 +2753,7 @@ enum {
 	e_vc_addr_260_264,
 	e_vc_addr_110_264,
 	e_vc_addr_110_30b0,
+	e_vc_addr_602a_6f12,
 	e_vc_addr_max
 };
 
@@ -2757,7 +2764,8 @@ struct st_vc_addr {
 } vc_addr_info[e_vc_addr_max] = {
 	{ 0x0260, 0x0264, CAMERA_SENSOR_I2C_TYPE_BYTE },
 	{ 0x0110, 0x0264, CAMERA_SENSOR_I2C_TYPE_WORD },
-	{ 0x0110, 0x30B0, CAMERA_SENSOR_I2C_TYPE_BYTE }
+	{ 0x0110, 0x30B0, CAMERA_SENSOR_I2C_TYPE_BYTE },
+	{ 0x602A, 0x6F12, CAMERA_SENSOR_I2C_TYPE_BYTE }
 };
 
 const uint32_t reg_addr_aeb_on = 0xe00;
@@ -2806,6 +2814,9 @@ inline int32_t get_vc_pick_idx(uint32_t sensor_id)
 	case SENSOR_ID_IMX754:
 		return e_vc_addr_110_30b0;
 		break;
+	case SENSOR_ID_S5K2LD:
+		return e_vc_addr_602a_6f12;
+		break;
 	}
 	return -1;
 }
@@ -2848,7 +2859,7 @@ void cam_sensor_dbg_print_vc(struct cam_sensor_ctrl_t* s_ctrl)
 	int	rc = 0;
 	uint32_t vc_img	= 0, vc_pd_h = 0, vc_pd_v = 0;
 	uint32_t vc_pick_idx = 0;
-	const uint32_t reg_addr_aeb_ctrl = 0xe00;
+	uint32_t reg_addr_aeb_ctrl = 0xe00;
 	bool is_aeb_activated = false;
 	uint32_t val_aeb_ctrl = 0;
 	bool is_fcm_debugging = false;
@@ -2862,6 +2873,10 @@ void cam_sensor_dbg_print_vc(struct cam_sensor_ctrl_t* s_ctrl)
 		CAM_ERR(CAM_SENSOR,	" failed: %pK",
 			slave_info);
 		return;
+	}
+
+	if(SENSOR_ID_S5K2LD == s_ctrl->sensordata->slave_info.sensor_id) {
+		reg_addr_aeb_ctrl = 0xe0a;
 	}
 
 	rc = camera_io_dev_read(
@@ -2895,15 +2910,20 @@ void cam_sensor_dbg_print_vc(struct cam_sensor_ctrl_t* s_ctrl)
 	case SENSOR_ID_IMX754:
 		vc_pick_idx = e_vc_addr_110_30b0;
 		break;
+	case SENSOR_ID_S5K2LD:
+		is_aeb_activated = ((val_aeb_ctrl & 0xf) == 0x2) ? true : false;
+		vc_pick_idx = e_vc_addr_602a_6f12;
+		break;
 	default:
 		return;
 	}
 
 	if (is_aeb_activated)
 	{
-		CAM_INFO(CAM_SENSOR, "[AEB_DBG]%s[%s] AEB switched on (0xe00:0x%x) odd vc",
+		CAM_INFO(CAM_SENSOR, "[AEB_DBG]%s[%s] AEB switched on (0x%x:0x%x) odd vc",
 			s_ctrl->is_bubble_packet == true ? "[BUBBLE]":"",
 			s_ctrl->sensor_name,
+			reg_addr_aeb_ctrl,
 			val_aeb_ctrl);
 	} else {
 		rc = camera_io_dev_read(
@@ -3124,9 +3144,9 @@ void cam_sensor_dbg_regdump_imx564_754(struct cam_sensor_ctrl_t* s_ctrl)
 			imx564_754_exp_addr_info[i].data_sz, false);
 
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[REG_DUMP] read fail");
+			CAM_ERR(CAM_SENSOR, "[SEN_DBG] read fail");
 		else {
-			CAM_INFO(CAM_SENSOR, "[REG_DUMP] addr:0x%4x  val:0x%4x //%s(%dB)",
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG] addr:0x%4x  val:0x%4x //%s(%dB)",
 				imx564_754_exp_addr_info[i].addr, val,
 				imx564_754_exp_addr_info[i].addr_name,
 				imx564_754_exp_addr_info[i].data_sz);
@@ -3192,7 +3212,7 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 	 */
 	rc = camera_io_dev_write(&s_ctrl->io_master_info, &dbg_reg_setting_p4000);
 	if (rc < 0)
-		CAM_ERR(CAM_SENSOR, "[REG_DUMP] Failed to write dbg_write_setting_4000 %d", rc);
+		CAM_ERR(CAM_SENSOR, "[SEN_DBG] Failed to write dbg_write_setting_4000 %d", rc);
 
 	for (i = 0; i < sizeof(hp2_exp_addr_info) / sizeof(struct st_exposure_reg_dump_addr); i++)
 	{
@@ -3203,9 +3223,9 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 			hp2_exp_addr_info[i].data_sz, false);
 
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[REG_DUMP] read fail");
+			CAM_ERR(CAM_SENSOR, "[SEN_DBG] read fail");
 		else {
-			CAM_INFO(CAM_SENSOR, "[REG_DUMP] addr: 0x%4x  val: 0x%4x //%s",
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG] addr: 0x%4x  val: 0x%4x //%s",
 				hp2_exp_addr_info[i].addr, val, hp2_exp_addr_info[i].addr_name);
 		}
 	}
@@ -3220,9 +3240,9 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 			CAMERA_SENSOR_I2C_TYPE_WORD, false);
 
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[REG_DUMP] read fail");
+			CAM_ERR(CAM_SENSOR, "[SEN_DBG] read fail");
 		else {
-			CAM_INFO(CAM_SENSOR, "[REG_DUMP] PAGE_4000 addr:0x%4x  val:0x%4x",
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG] PAGE_4000 addr:0x%4x  val:0x%4x",
 				dump_addr_page4000[i], val);
 		}
 	}
@@ -3233,7 +3253,7 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 	 */
 	rc = camera_io_dev_write(&s_ctrl->io_master_info, &dbg_reg_setting_p1001);
 	if (rc < 0)
-		CAM_ERR(CAM_SENSOR, "[REG_DUMP] Failed to write dbg_write_setting_1001 %d", rc);
+		CAM_ERR(CAM_SENSOR, "[SEN_DBG] Failed to write dbg_write_setting_1001 %d", rc);
 
 	for (i = 0; i < sizeof(dump_addr_page1001) / sizeof(uint32_t); i++)
 	{
@@ -3244,9 +3264,9 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 			CAMERA_SENSOR_I2C_TYPE_WORD, false);
 
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[REG_DUMP] read fail");
+			CAM_ERR(CAM_SENSOR, "[SEN_DBG] read fail");
 		else {
-			CAM_INFO(CAM_SENSOR, "[REG_DUMP] PAGE_1001 addr:0x%4x  val:0x%4x",
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG] PAGE_1001 addr:0x%4x  val:0x%4x",
 				dump_addr_page1001[i], val);
 		}
 	}
@@ -3256,7 +3276,7 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 	 */
 	rc = camera_io_dev_write(&s_ctrl->io_master_info, &dbg_reg_setting_p1000);
 	if (rc < 0)
-		CAM_ERR(CAM_SENSOR, "[REG_DUMP] Failed to write dbg_write_setting_1000 %d", rc);
+		CAM_ERR(CAM_SENSOR, "[SEN_DBG] Failed to write dbg_write_setting_1000 %d", rc);
 
 	for (i = 0; i < sizeof(dump_addr_page1000) / sizeof(uint32_t); i++)
 	{
@@ -3267,9 +3287,9 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 			CAMERA_SENSOR_I2C_TYPE_WORD, false);
 
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[REG_DUMP] read fail");
+			CAM_ERR(CAM_SENSOR, "[SEN_DBG] read fail");
 		else {
-			CAM_INFO(CAM_SENSOR, "[REG_DUMP] PAGE_1000 addr:0x%4x  val:0x%4x",
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG] PAGE_1000 addr:0x%4x  val:0x%4x",
 				dump_addr_page1000[i], val);
 		}
 	}
@@ -3279,7 +3299,7 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 	 */
 	rc = camera_io_dev_write(&s_ctrl->io_master_info, &dbg_reg_setting_p1003);
 	if (rc < 0)
-		CAM_ERR(CAM_SENSOR, "[REG_DUMP] Failed to write dbg_write_setting_1003 %d", rc);
+		CAM_ERR(CAM_SENSOR, "[SEN_DBG] Failed to write dbg_write_setting_1003 %d", rc);
 
 	for (i = 0; i < sizeof(dump_addr_page1003) / sizeof(uint32_t); i++)
 	{
@@ -3290,9 +3310,9 @@ void cam_sensor_dbg_regdump_hp2(struct cam_sensor_ctrl_t* s_ctrl)
 			CAMERA_SENSOR_I2C_TYPE_WORD, false);
 
 		if (rc < 0)
-			CAM_ERR(CAM_SENSOR, "[REG_DUMP] read fail");
+			CAM_ERR(CAM_SENSOR, "[SEN_DBG] read fail");
 		else {
-			CAM_INFO(CAM_SENSOR, "[REG_DUMP] PAGE_1003 addr:0x%4x  val:0x%4x",
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG] PAGE_1003 addr:0x%4x  val:0x%4x",
 				dump_addr_page1003[i], val);
 		}
 	}
@@ -3330,8 +3350,93 @@ void cam_sensor_dbg_regdump(struct cam_sensor_ctrl_t* s_ctrl)
 		cam_sensor_dbg_regdump_imx564_754(s_ctrl);
 		break;
 	default:
-		CAM_ERR(CAM_SENSOR, "[REG_DUMP] not supported %d", s_ctrl->sensordata->slave_info.sensor_id);
+		CAM_ERR(CAM_SENSOR, "[SEN_DBG] not supported %d", s_ctrl->sensordata->slave_info.sensor_id);
 		break;
+	}
+}
+
+
+const uint32_t dump_addr_when_stream_on_fail_hp2[] = {
+	0xA200, 0xA202, 0xA204, 0xA206, 0xA20A,
+};
+
+void cam_sensor_dbg_regdump_stream_on_fail_hp2(struct cam_sensor_ctrl_t* s_ctrl)
+{
+	struct cam_sensor_i2c_reg_setting dbg_reg_page4000;
+	struct cam_sensor_i2c_reg_setting dbg_reg_page1001;
+	uint32_t i;
+
+	int32_t rc = 0;
+	uint32_t val = 0;
+	uint32_t size = 0;
+
+	size = ARRAY_SIZE(page_4000_reg_array);
+	dbg_reg_page4000.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
+	if (dbg_reg_page4000.reg_setting != NULL) {
+		dbg_reg_page4000.size = size;
+		dbg_reg_page4000.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+		dbg_reg_page4000.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+		dbg_reg_page4000.delay = 0;
+		memcpy(dbg_reg_page4000.reg_setting, &page_4000_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
+	}
+
+	size = ARRAY_SIZE(page_1001_reg_array);
+	dbg_reg_page1001.reg_setting = kmalloc(sizeof(struct cam_sensor_i2c_reg_array) * size, GFP_KERNEL);
+	if (dbg_reg_page1001.reg_setting != NULL) {
+		dbg_reg_page1001.size = size;
+		dbg_reg_page1001.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+		dbg_reg_page1001.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+		dbg_reg_page1001.delay = 0;
+		memcpy(dbg_reg_page1001.reg_setting, &page_1001_reg_array, sizeof(struct cam_sensor_i2c_reg_array) * size);
+	}
+
+	// page 1001
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &dbg_reg_page1001);
+	if (rc < 0)
+		CAM_ERR(CAM_SENSOR, "[SEN_DBG] Failed to write dbg_write_setting_1001 %d", rc);
+
+	for (i = 0; i < sizeof(dump_addr_when_stream_on_fail_hp2) / sizeof(uint32_t); i++)
+	{
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			dump_addr_when_stream_on_fail_hp2[i],
+			&val, CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_WORD, false);
+
+		if (rc < 0)
+			CAM_ERR(CAM_SENSOR, "[SEN_DBG] read fail");
+		else {
+			CAM_INFO(CAM_SENSOR, "[SEN_DBG] addr:0x%4x val:0x%4x",
+				dump_addr_when_stream_on_fail_hp2[i], val);
+		}
+	}
+
+	// page 4000
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &dbg_reg_page4000);
+	if (rc < 0)
+		CAM_ERR(CAM_SENSOR, "[SEN_DBG] Failed to write dbg_write_setting_4000 %d", rc);
+
+	if (dbg_reg_page4000.reg_setting != NULL) {
+		kfree(dbg_reg_page4000.reg_setting);
+		dbg_reg_page4000.reg_setting = NULL;
+	}
+	if (dbg_reg_page1001.reg_setting != NULL) {
+		kfree(dbg_reg_page1001.reg_setting);
+		dbg_reg_page1001.reg_setting = NULL;
+	}
+}
+
+
+void cam_sensor_dbg_regdump_stream_on_fail(struct cam_sensor_ctrl_t* s_ctrl)
+{
+	switch (s_ctrl->sensordata->slave_info.sensor_id)
+	{
+	case SENSOR_ID_S5KHP2:
+		cam_sensor_dbg_regdump_stream_on_fail_hp2(s_ctrl);
+		break;
+	default:
+		CAM_DBG(CAM_SENSOR, "[SEN_DBG] not supported 0x%x", s_ctrl->sensordata->slave_info.sensor_id);
+		return;
 	}
 }
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -113,7 +114,7 @@ void htt_set_checksum_result_hl(qdf_nbuf_t msdu,
  * htt_rx_fill_ring_count() - replenish rx msdu buffer
  * @pdev: Handle (pointer) to HTT pdev.
  *
- * This funciton will replenish the rx buffer to the max number
+ * This function will replenish the rx buffer to the max number
  * that can be kept in the ring
  *
  * Return: None

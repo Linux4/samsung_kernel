@@ -72,9 +72,61 @@
 		0, 0xFFFF, 0,\
 		CFG_VALUE_OR_DEFAULT, "Packet counter delta threshold")
 
+/*
+ * <ini>
+ * mgmt_rx_reo_ingress_frame_debug_list_size - Size of the list which logs the
+ * incoming management frames
+ * @Min: 0
+ * @Max: WLAN_MGMT_RX_REO_INGRESS_FRAME_DEBUG_LIST_SIZE_MAX
+ * @Default: WLAN_MGMT_RX_REO_INGRESS_FRAME_DEBUG_LIST_SIZE_DEFAULT
+ *
+ * This ini is used to configure the size of the list which logs the incoming
+ * management frames.
+ *
+ * Related: None
+ *
+ * Supported Feature: MGMT Rx REO
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_MGMT_RX_REO_INGRESS_FRAME_DEBUG_LIST_SIZE CFG_INI_UINT(\
+		"mgmt_rx_reo_ingress_frame_debug_list_size",\
+		0, WLAN_MGMT_RX_REO_INGRESS_FRAME_DEBUG_LIST_SIZE_MAX,\
+		WLAN_MGMT_RX_REO_INGRESS_FRAME_DEBUG_LIST_SIZE_DEFAULT,\
+		CFG_VALUE_OR_CLAMP, "Size of ingress frame debug list")
+
+/*
+ * <ini>
+ * mgmt_rx_reo_egress_frame_debug_list_size - Size of the list which logs the
+ * outgoing management frames
+ * @Min: 0
+ * @Max: WLAN_MGMT_RX_REO_EGRESS_FRAME_DEBUG_LIST_SIZE_MAX
+ * @Default: WLAN_MGMT_RX_REO_EGRESS_FRAME_DEBUG_LIST_SIZE_DEFAULT
+ *
+ * This ini is used to configure the size of the list which logs the outgoing
+ * management frames.
+ *
+ * Related: None
+ *
+ * Supported Feature: MGMT Rx REO
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_MGMT_RX_REO_EGRESS_FRAME_DEBUG_LIST_SIZE CFG_INI_UINT(\
+		"mgmt_rx_reo_egress_frame_debug_list_size",\
+		0, WLAN_MGMT_RX_REO_EGRESS_FRAME_DEBUG_LIST_SIZE_MAX,\
+		WLAN_MGMT_RX_REO_EGRESS_FRAME_DEBUG_LIST_SIZE_DEFAULT,\
+		CFG_VALUE_OR_CLAMP, "Size of egress frame debug list")
+
 #define CFG_MGMT_RX_REO_ALL \
 	CFG(CFG_MGMT_RX_REO_ENABLE) \
-	CFG(CFG_MGMT_RX_REO_PKT_CTR_DELTA_THRESH)
+	CFG(CFG_MGMT_RX_REO_PKT_CTR_DELTA_THRESH) \
+	CFG(CFG_MGMT_RX_REO_INGRESS_FRAME_DEBUG_LIST_SIZE) \
+	CFG(CFG_MGMT_RX_REO_EGRESS_FRAME_DEBUG_LIST_SIZE)
 #else
 
 #define CFG_MGMT_RX_REO_ALL

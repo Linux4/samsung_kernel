@@ -51,7 +51,7 @@ private:
    void ParseASPSEventPayload(uint32_t event_id,
                               uint32_t event_size, void *data);
    static void HandleCallBack(uint64_t hdl, uint32_t event_id, void *data,
-                              uint32_t event_size);
+                              uint32_t event_size, uint32_t miid);
 };
 
 #endif//STREAMCONTEXTPROXY_H_

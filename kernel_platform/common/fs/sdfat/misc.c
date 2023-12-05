@@ -71,7 +71,11 @@ static struct kobject sdfat_uevent_kobj;
 int sdfat_uevent_init(struct kset *sdfat_kset)
 {
 	int err;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+	const struct kobj_type *ktype = get_ktype(&sdfat_kset->kobj);
+#else
 	struct kobj_type *ktype = get_ktype(&sdfat_kset->kobj);
+#endif
 
 	sdfat_uevent_kobj.kset = sdfat_kset;
 	err = kobject_init_and_add(&sdfat_uevent_kobj, ktype, NULL, "uevent");

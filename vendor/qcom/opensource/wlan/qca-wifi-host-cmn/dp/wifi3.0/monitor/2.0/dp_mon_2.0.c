@@ -472,7 +472,7 @@ QDF_STATUS dp_vdev_set_monitor_mode_buf_rings_rx_2_0(struct dp_pdev *pdev)
 	rx_mon_max_entries = wlan_cfg_get_dp_soc_rx_mon_buf_ring_size(soc_cfg_ctx);
 
 	hal_set_low_threshold(soc->rxdma_mon_buf_ring[0].hal_srng,
-			      rx_mon_max_entries >> 2);
+			      MON_BUF_MIN_ENTRIES << 2);
 	status = htt_srng_setup(soc->htt_handle, 0,
 				soc->rxdma_mon_buf_ring[0].hal_srng,
 				RXDMA_MONITOR_BUF);
@@ -782,7 +782,8 @@ QDF_STATUS dp_mon_soc_htt_srng_setup_2_0(struct dp_soc *soc)
 	struct dp_mon_soc_be *mon_soc_be = dp_get_be_mon_soc_from_dp_mon_soc(mon_soc);
 	QDF_STATUS status;
 
-	hal_set_low_threshold(soc->rxdma_mon_buf_ring[0].hal_srng, 0);
+	hal_set_low_threshold(soc->rxdma_mon_buf_ring[0].hal_srng,
+			      MON_BUF_MIN_ENTRIES << 2);
 	status = htt_srng_setup(soc->htt_handle, 0,
 				soc->rxdma_mon_buf_ring[0].hal_srng,
 				RXDMA_MONITOR_BUF);
@@ -884,7 +885,7 @@ QDF_STATUS dp_rx_mon_refill_buf_ring_2_0(struct dp_intr *int_ctx)
 	struct dp_intr_stats *intr_stats = &int_ctx->intr_stats;
 	struct dp_mon_soc_be *mon_soc_be = dp_get_be_mon_soc_from_dp_mon_soc(mon_soc);
 	uint32_t num_entries_avail;
-	int sync_hw_ptr = 1;
+	int sync_hw_ptr = 1, hp = 0, tp = 0, num_entries;
 	void *hal_srng;
 
 	rx_mon_buf_ring = &soc->rxdma_mon_buf_ring[0];
@@ -896,12 +897,17 @@ QDF_STATUS dp_rx_mon_refill_buf_ring_2_0(struct dp_intr *int_ctx)
 	num_entries_avail = hal_srng_src_num_avail(soc->hal_soc,
 						   hal_srng,
 						   sync_hw_ptr);
+	hal_get_sw_hptp(soc->hal_soc, (hal_ring_handle_t)hal_srng, &tp, &hp);
 	hal_srng_access_end(soc->hal_soc, hal_srng);
 
-	if (num_entries_avail)
+	num_entries = num_entries_avail;
+	if (mon_soc_be->rx_mon_ring_fill_level < rx_mon_buf_ring->num_entries)
+		num_entries = num_entries_avail - mon_soc_be->rx_mon_ring_fill_level;
+
+	if (num_entries)
 		dp_mon_buffers_replenish(soc, rx_mon_buf_ring,
 					 &mon_soc_be->rx_desc_mon,
-					 num_entries_avail, &desc_list, &tail,
+					 num_entries, &desc_list, &tail,
 					 NULL);
 
 	return QDF_STATUS_SUCCESS;
@@ -1216,6 +1222,11 @@ dp_tx_mon_process_2_0(struct dp_soc *soc, struct dp_intr *int_ctx,
 	return 0;
 }
 
+static void
+dp_tx_mon_print_ring_stat_2_0(struct dp_pdev *pdev)
+{
+}
+
 static inline
 QDF_STATUS dp_mon_soc_attach_2_0(struct dp_soc *soc)
 {
@@ -1294,7 +1305,7 @@ static void dp_mon_register_intr_ops_2_0(struct dp_soc *soc)
 	struct dp_mon_soc *mon_soc = soc->monitor_soc;
 
 	mon_soc->mon_ops->rx_mon_refill_buf_ring =
-			NULL,
+			dp_rx_mon_refill_buf_ring_2_0,
 	mon_soc->mon_ops->tx_mon_refill_buf_ring =
 			NULL,
 	mon_soc->mon_rx_process = dp_rx_mon_process_2_0;
@@ -1331,6 +1342,7 @@ dp_mon_register_feature_ops_2_0(struct dp_soc *soc)
 	mon_ops->mon_neighbour_peer_add_ast = NULL;
 #ifndef DISABLE_MON_CONFIG
 	mon_ops->mon_tx_process = dp_tx_mon_process_2_0;
+	mon_ops->print_txmon_ring_stat = dp_tx_mon_print_ring_stat_2_0;
 #endif
 #ifdef WLAN_TX_PKT_CAPTURE_ENH_BE
 	mon_ops->mon_peer_tid_peer_id_update = NULL;
@@ -1438,6 +1450,7 @@ dp_mon_register_feature_ops_2_0(struct dp_soc *soc)
 	mon_ops->rx_enable_fpmo = dp_rx_mon_enable_fpmo;
 	mon_ops->mon_rx_print_advanced_stats =
 		dp_mon_rx_print_advanced_stats_2_0;
+	mon_ops->mon_mac_filter_set = NULL;
 }
 
 struct dp_mon_ops monitor_ops_2_0 = {
@@ -1490,6 +1503,7 @@ struct dp_mon_ops monitor_ops_2_0 = {
 	.mon_filter_reset_tx_mon_mode = dp_mon_filter_reset_tx_mon_mode_2_0,
 	.tx_mon_filter_update = dp_tx_mon_filter_update_2_0,
 	.rx_mon_filter_update = dp_rx_mon_filter_update_2_0,
+	.set_mon_mode_buf_rings_tx = dp_vdev_set_monitor_mode_buf_rings_tx_2_0,
 	.tx_mon_filter_alloc = dp_mon_filter_alloc_2_0,
 	.tx_mon_filter_dealloc = dp_mon_filter_dealloc_2_0,
 	.mon_rings_alloc = dp_pdev_mon_rings_alloc_2_0,

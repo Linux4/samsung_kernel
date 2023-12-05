@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2016, Linaro Limited
  * Copyright (c) 2014, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk-provider.h>
@@ -18,6 +18,9 @@
 #include <linux/soc/qcom/smd-rpm.h>
 #include <soc/qcom/rpm-smd.h>
 #include <linux/clk.h>
+#include <linux/pm.h>
+#include <linux/pm_runtime.h>
+#include <linux/suspend.h>
 
 #include <dt-bindings/clock/qcom,rpmcc.h>
 #include <dt-bindings/mfd/qcom-rpm.h>
@@ -830,11 +833,16 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8996 = {
 	.num_clks = ARRAY_SIZE(msm8996_clks),
 };
 
+/* QCS404 */
+DEFINE_CLK_SMD_RPM_BRANCH(qcs404, bi_tcxo, bi_tcxo_ao,
+					QCOM_SMD_RPM_MISC_CLK, 0, 19200000);
 DEFINE_CLK_SMD_RPM(qcs404, bimc_gpu_clk, bimc_gpu_a_clk, QCOM_SMD_RPM_MEM_CLK, 2);
 DEFINE_CLK_SMD_RPM(qcs404, qpic_clk, qpic_a_clk, QCOM_SMD_RPM_QPIC_CLK, 0);
 DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(qcs404, ln_bb_clk_pin, ln_bb_clk_a_pin, 8);
 
 static struct clk_hw *qcs404_clks[] = {
+	[RPM_SMD_XO_CLK_SRC] = &qcs404_bi_tcxo.hw,
+	[RPM_SMD_XO_A_CLK_SRC] = &qcs404_bi_tcxo_ao.hw,
 	[RPM_SMD_QDSS_CLK] = &msm8916_qdss_clk.hw,
 	[RPM_SMD_QDSS_A_CLK] = &msm8916_qdss_a_clk.hw,
 	[RPM_SMD_PNOC_CLK] = &msm8916_pcnoc_clk.hw,
@@ -1234,6 +1242,7 @@ DEFINE_CLK_SMD_RPM(monaco, bimc_gpu_clk, bimc_gpu_a_clk,
 
 DEFINE_CLK_SMD_RPM_XO_BUFFER(monaco, ln_bb_clk2, ln_bb_clk2_a, 0x2);
 DEFINE_CLK_SMD_RPM_XO_BUFFER(monaco, rf_clk3, rf_clk3_a, 6);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(monaco, cxo_d0, cxo_d0_a, 0);
 
 static struct clk_hw *monaco_clks[] = {
 	[RPM_SMD_XO_CLK_SRC] = &holi_bi_tcxo.hw,
@@ -1272,6 +1281,8 @@ static struct clk_hw *monaco_clks[] = {
 	[RPM_SMD_BIMC_GPU_A_CLK] = &monaco_bimc_gpu_a_clk.hw,
 	[RPM_SMD_CPUSS_GNOC_CLK] = &monaco_cpuss_gnoc_clk.hw,
 	[RPM_SMD_CPUSS_GNOC_A_CLK] = &monaco_cpuss_gnoc_a_clk.hw,
+	[RPM_SMD_CXO_D0] = &monaco_cxo_d0.hw,
+	[RPM_SMD_CXO_D0_A] = &monaco_cxo_d0_a.hw,
 };
 
 static const struct rpm_smd_clk_desc rpm_clk_monaco = {
@@ -1372,11 +1383,107 @@ static struct clk_hw *qcom_smdrpm_clk_hw_get(struct of_phandle_args *clkspec,
 	return rpmcc->clks[idx];
 }
 
+static int clk_smd_rpm_suspend(void)
+{
+	clk_set_rate(holi_cnoc_a_clk.hw.clk, 0);
+	clk_disable_unprepare(holi_cnoc_a_clk.hw.clk);
+
+	clk_set_rate(holi_snoc_a_clk.hw.clk, 0);
+	clk_disable_unprepare(holi_snoc_a_clk.hw.clk);
+
+	clk_set_rate(holi_qup_a_clk.hw.clk, 0);
+	clk_disable_unprepare(holi_qup_a_clk.hw.clk);
+
+	clk_disable_unprepare(holi_bi_tcxo_ao.hw.clk);
+
+	return 0;
+}
+
+static int clk_smd_rpm_pm_suspend(struct device *dev)
+{
+#ifdef CONFIG_DEEPSLEEP
+	if (pm_suspend_via_firmware())
+		clk_smd_rpm_suspend();
+#endif
+
+	return 0;
+}
+
+static int clk_smd_rpm_pm_freeze(struct device *dev)
+{
+	clk_smd_rpm_suspend();
+	return 0;
+}
+
+static int clk_smd_rpm_resume(void)
+{
+	int ret;
+
+	ret = clk_vote_bimc(&holi_bimc_clk.hw, INT_MAX);
+	if (ret < 0)
+		return ret;
+
+	clk_prepare_enable(holi_bi_tcxo_ao.hw.clk);
+
+	clk_prepare_enable(holi_cnoc_a_clk.hw.clk);
+	clk_set_rate(holi_cnoc_a_clk.hw.clk, 19200000);
+
+	clk_prepare_enable(holi_snoc_a_clk.hw.clk);
+	clk_set_rate(holi_snoc_a_clk.hw.clk, 19200000);
+
+	clk_prepare_enable(holi_qup_a_clk.hw.clk);
+	clk_set_rate(holi_qup_a_clk.hw.clk, 19200000);
+
+	return 0;
+}
+
+static int clk_smd_rpm_pm_resume(struct device *dev)
+{
+#ifdef CONFIG_DEEPSLEEP
+	if (pm_suspend_via_firmware())
+		return clk_smd_rpm_resume();
+#endif
+	return 0;
+}
+
+static int clk_smd_rpm_pm_restore(struct device *dev)
+{
+	return clk_smd_rpm_resume();
+}
+
+static int clk_smd_rpm_pm_notifier(struct notifier_block *nb,
+				unsigned long event, void *unused)
+{
+	switch (event) {
+	case PM_POST_SUSPEND:
+#ifdef CONFIG_DEEPSLEEP
+		if (pm_suspend_via_firmware())
+			return clk_smd_rpm_enable_scaling();
+#endif
+	case PM_POST_HIBERNATION:
+		return clk_smd_rpm_enable_scaling();
+	}
+
+	return 0;
+}
+
+static const struct dev_pm_ops clk_smd_rpm_pm_ops = {
+	.suspend_late =  clk_smd_rpm_pm_suspend,
+	.freeze_late = clk_smd_rpm_pm_freeze,
+	.resume_early = clk_smd_rpm_pm_resume,
+	.restore_early = clk_smd_rpm_pm_restore,
+};
+
+static struct notifier_block rpm_pm_nb = {
+	.notifier_call = clk_smd_rpm_pm_notifier,
+};
+
 static int rpm_smd_clk_probe(struct platform_device *pdev)
 {
 	struct clk_hw **hw_clks;
 	const struct rpm_smd_clk_desc *desc;
 	int ret, i, is_holi, is_khaje, hw_clk_handoff = false, is_monaco, is_scuba;
+	int is_qcs404;
 
 	desc = of_device_get_match_data(&pdev->dev);
 	if (!desc)
@@ -1391,10 +1498,13 @@ static int rpm_smd_clk_probe(struct platform_device *pdev)
 	is_monaco = of_device_is_compatible(pdev->dev.of_node,
 						"qcom,rpmcc-monaco");
 
+	is_qcs404 = of_device_is_compatible(pdev->dev.of_node,
+						"qcom,rpmcc-qcs404");
+
 	is_scuba = of_device_is_compatible(pdev->dev.of_node,
 						"qcom,rpmcc-scuba");
 
-	if (is_holi || is_khaje || is_monaco || is_scuba) {
+	if (is_holi || is_khaje || is_monaco || is_scuba || is_qcs404) {
 		ret = clk_vote_bimc(&holi_bimc_clk.hw, INT_MAX);
 		if (ret < 0)
 			return ret;
@@ -1458,6 +1568,28 @@ static int rpm_smd_clk_probe(struct platform_device *pdev)
 		clk_set_rate(holi_qup_a_clk.hw.clk, 19200000);
 	}
 
+	if (is_qcs404) {
+		/*
+		 * Keep an active vote on CXO in case no other driver
+		 * votes for it.
+		 */
+		clk_prepare_enable(qcs404_bi_tcxo_ao.hw.clk);
+
+		/* Hold an active set vote for the pnoc_keepalive_a_clk */
+		clk_prepare_enable(msm8916_pcnoc_a_clk.hw.clk);
+		clk_set_rate(msm8916_pcnoc_a_clk.hw.clk, 19200000);
+
+		/* Hold an active set vote for the snoc_keepalive_a_clk */
+		clk_prepare_enable(msm8916_snoc_a_clk.hw.clk);
+		clk_set_rate(msm8916_snoc_a_clk.hw.clk, 19200000);
+	}
+
+	if (is_monaco) {
+		ret = register_pm_notifier(&rpm_pm_nb);
+		if (ret)
+			return ret;
+	}
+
 	dev_info(&pdev->dev, "Registered RPM clocks\n");
 
 	return 0;
@@ -1476,6 +1608,7 @@ static struct platform_driver rpm_smd_clk_driver = {
 	.driver = {
 		.name = "qcom-clk-smd-rpm",
 		.of_match_table = rpm_smd_clk_match_table,
+		.pm = &clk_smd_rpm_pm_ops,
 	},
 	.probe = rpm_smd_clk_probe,
 	.remove = rpm_smd_clk_remove,

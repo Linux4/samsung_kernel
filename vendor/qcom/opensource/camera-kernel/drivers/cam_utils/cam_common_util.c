@@ -39,6 +39,10 @@ void cam_check_error_sensor_type(int csiphy_num) {
 		CAM_INFO(CAM_ISP, "[MIPI_DBG] TELE2_CAM mipi error!! (csiphy %d)", csiphy_num);
 	else if (csiphy_num == FRONT_CAM)
 		CAM_INFO(CAM_ISP, "[MIPI_DBG] FRONT_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else if (csiphy_num == COVER_CAM)
+                CAM_INFO(CAM_ISP, "[MIPI_DBG] COVER_CAM mipi error!! (csiphy %d)", csiphy_num);
+	else if (csiphy_num == FRONT_AUX)
+                CAM_INFO(CAM_ISP, "[MIPI_DBG] COVER_CAM mipi error!! (csiphy %d)", csiphy_num);
 	else
 		CAM_INFO(CAM_ISP, "[MIPI_DBG] Unknown camera mipi error!! (csiphy %d)", csiphy_num);
 }

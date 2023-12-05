@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -57,13 +57,23 @@
 # define RoamIdle_TriggerBand_default 3
 # define RoamIdle_MinRSSI_min -70
 # define RoamIdle_MinRSSI_max -50
-# define RoamIdle_MinRSSI_default -60
+# define RoamIdle_MinRSSI_default -65
 # define RoamIdle_RSSIVariation_min 0
 # define RoamIdle_RSSIVariation_max 10
-# define RoamIdle_RSSIVariation_default 5
+# define RoamIdle_RSSIVariation_default 8
 # define RoamIdle_InactivePacketCount_min 0
 # define RoamIdle_InactivePacketCount_max 20
 # define RoamIdle_InactivePacketCount_default 5
+# define CONBEACONLOSS_TIMEOUTONWAKEUP_MIN 0
+# define CONBEACONLOSS_TIMEOUTONWAKEUP_MAX 20
+# define CONBEACONLOSS_TIMEOUTONWAKEUP_DEFAULT 6
+# define CONBEACONLOSS_TIMEOUTONSLEEP_MIN 0
+# define CONBEACONLOSS_TIMEOUTONSLEEP_MAX 20
+# define CONBEACONLOSS_TIMEOUTONSLEEP_DEFAULT 10
+# define ROAMCU_6GRSSIRANGE_MIN -70
+# define ROAMCU_6GRSSIRANGE_MAX -50
+# define ROAMCU_6GRSSIRANGE_DEFAULT -70
+# define RoamIdle_InactiveTime_default 5
 #else
 # define RoamScan_ActiveCH_DwellTime_min 3
 # define RoamScan_ActiveCH_DwellTime_max 300
@@ -104,6 +114,16 @@
 # define RoamIdle_InactivePacketCount_min 0
 # define RoamIdle_InactivePacketCount_max 0xFFFFFFFF
 # define RoamIdle_InactivePacketCount_default 10
+# define CONBEACONLOSS_TIMEOUTONWAKEUP_MIN 0
+# define CONBEACONLOSS_TIMEOUTONWAKEUP_MAX 20
+# define CONBEACONLOSS_TIMEOUTONWAKEUP_DEFAULT 3
+# define CONBEACONLOSS_TIMEOUTONSLEEP_MIN 0
+# define CONBEACONLOSS_TIMEOUTONSLEEP_MAX 20
+# define CONBEACONLOSS_TIMEOUTONSLEEP_DEFAULT 5
+# define ROAMCU_6GRSSIRANGE_MIN -120
+# define ROAMCU_6GRSSIRANGE_MAX 0
+# define ROAMCU_6GRSSIRANGE_DEFAULT -70
+# define RoamIdle_InactiveTime_default 10
 #endif
 
 /*
@@ -1358,6 +1378,35 @@
 
 /*
  * <ini>
+ * RoamRssiDiff6GHz - Enable roam to 6 GHz AP based on rssi
+ * @Min: 0
+ * @Max: 100
+ * @Default: 5
+ *
+ * This INI is used to decide whether to roam to 6 GHz AP or not based on RSSI.
+ * AP1 is the currently associated AP(2.4 GHz / 5 GHz) and AP2(6 GHz) is chosen
+ * for roaming. The Roaming will happen only if AP2 has better Signal Quality
+ * and it has a RSSI better than AP1. RoamRssiDiff6GHz is the number of units
+ * (typically measured in dB) AP2 is better than AP1.
+ *
+ * Related: None
+ *
+ * Supported Feature: Roaming
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_LFR_ROAM_RSSI_DIFF_6GHZ CFG_INI_UINT( \
+	"RoamRssiDiff6GHz", \
+	0, \
+	100, \
+	5, \
+	CFG_VALUE_OR_DEFAULT, \
+	"Enable 6 GHz roam based on rssi")
+
+/*
+ * <ini>
  * bg_rssi_threshold - To set RSSI Threshold for BG scan roaming
  * @Min: 0
  * @Max: 100
@@ -1366,7 +1415,7 @@
  * This INI is used to set the value of rssi threshold to trigger roaming
  * after background scan. To trigger roam after bg scan, value of rssi of
  * candidate AP should be higher by this threshold than the rssi of the
- * currrently associated AP.
+ * currently associated AP.
  *
  * Related: RoamRssiDiff
  *
@@ -1461,7 +1510,7 @@
  * @Default: 100
  *
  * This ini is used to set the timer period in secs after
- * which neighbor scan is trigerred.
+ * which neighbor scan is triggered.
  *
  * Related: None
  *
@@ -1819,11 +1868,30 @@
  *
  * </ini>
  */
+
+/*
+ * <ini>
+ * BeaconLoss_TimeoutOnWakeUp - Consecutive Beaconloss timeout on wakeup to
+ * trigger timeout
+ * @Min: 0
+ * @Max: 20
+ * @Default: 6
+ *
+ * This ini is used to control the beacon miss timeout when the system is awake.
+ * On the timeout, BMISS event will be triggered by FW.
+ * The units of this timeout is in seconds.
+ *
+ * Related: None
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
 #define CFG_LFR_BEACONLOSS_TIMEOUT_ON_WAKEUP CFG_INI_UINT( \
 	"ConBeaconLoss_TimeoutOnWakeUp", \
-	0, \
-	20, \
-	3, \
+	CONBEACONLOSS_TIMEOUTONWAKEUP_MIN, \
+	CONBEACONLOSS_TIMEOUTONWAKEUP_MAX, \
+	CONBEACONLOSS_TIMEOUTONWAKEUP_DEFAULT, \
 	CFG_VALUE_OR_DEFAULT, \
 	"ConBeaconloss timeout on wakeup")
 
@@ -1846,11 +1914,31 @@
  *
  * </ini>
  */
+
+/*
+ * <ini>
+ * BeaconLoss_TimeoutOnSleep - Consecutive Beaconloss timeout on sleep to
+ * trigger timeout
+ * @Min: 0
+ * @Max: 20
+ * @Default: 10
+ *
+ * This ini is used to control the beacon miss timeout
+ * when the system is in sleep.
+ * On the timeout, BMISS event will be triggered by FW.
+ * The units of this timeout is in seconds.
+ *
+ * Related: None
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
 #define CFG_LFR_BEACONLOSS_TIMEOUT_ON_SLEEP CFG_INI_UINT( \
 	"ConBeaconLoss_TimeoutOnSleep", \
-	0, \
-	20, \
-	5, \
+	CONBEACONLOSS_TIMEOUTONSLEEP_MIN, \
+	CONBEACONLOSS_TIMEOUTONSLEEP_MAX, \
+	CONBEACONLOSS_TIMEOUTONSLEEP_DEFAULT, \
 	CFG_VALUE_OR_DEFAULT, \
 	"ConBeaconloss timeout on sleep")
 
@@ -1908,8 +1996,8 @@
  * <ini>
  * gRoamScanHiRssiDelta - Sets RSSI Delta for scan trigger
  * @Min: 0
- * @Max: 16
- * @Default: 10
+ * @Max: 40
+ * @Default: 23
  *
  * This INI is used to set change in RSSI at which scan is triggered
  * in 5GHz.
@@ -1925,8 +2013,8 @@
 #define CFG_LFR_ROAM_SCAN_HI_RSSI_DELTA CFG_INI_UINT( \
 	"gRoamScanHiRssiDelta", \
 	0, \
-	16, \
-	10, \
+	40, \
+	23, \
 	CFG_VALUE_OR_DEFAULT, \
 	"RSSI Delta for scan trigger")
 
@@ -2132,7 +2220,7 @@
  * @Max: 100
  * @Default: 70
  *
- * When the bss laod value that is sampled exceeds this threshold, firmware
+ * When the bss load value that is sampled exceeds this threshold, firmware
  * will trigger roaming if bss load trigger is enabled.
  *
  * Related: None
@@ -2220,11 +2308,33 @@
  *
  * </ini>
  */
+
+/*
+ * <ini>
+ * bss_load_trigger_6g_rssi_threshold/RoamCU_6GRSSIRange -
+ * Current AP minimum RSSI in dBm below
+ * which roaming can be triggered if BSS load exceeds bss_load_threshold.
+ * @Min: -70
+ * @Max: -50
+ * @Default: -70
+ *
+ * If connected AP is in 6Ghz, then consider bss load roam triggered only if
+ * load % > bss_load_threshold && connected AP rssi is worse than
+ * bss_load_trigger_6g_rssi_threshold
+ *
+ * Related: "bss_load_threshold"
+ *
+ * Supported Feature: Roaming
+ *
+ * Usage: Internal/External
+ *
+ * </ini>
+ */
 #define CFG_BSS_LOAD_TRIG_6G_RSSI_THRES CFG_INI_INT( \
 	"bss_load_trigger_6g_rssi_threshold RoamCU_6GRSSIRange", \
-	-120, \
-	0, \
-	-70, \
+	ROAMCU_6GRSSIRANGE_MIN, \
+	ROAMCU_6GRSSIRANGE_MAX, \
+	ROAMCU_6GRSSIRANGE_DEFAULT, \
 	CFG_VALUE_OR_DEFAULT, \
 	"Minimum RSSI of current AP in 6GHz band for BSS load roam trigger")
 
@@ -2563,7 +2673,7 @@
 
 /*
  * <ini>
- * idle_roam_inactive_time - Time duration in millseconds for which the
+ * idle_roam_inactive_time - Time duration in milliseconds for which the
  * connection is idle.
  * @Min: 0
  * @Max: 0xFFFFFFFF
@@ -2613,7 +2723,7 @@
 	"RoamIdle_InactiveTime", \
 	0, \
 	20, \
-	10, \
+	RoamIdle_InactiveTime_default, \
 	CFG_VALUE_OR_DEFAULT, \
 	"Configure RSSI delta to start idle roam")
 
@@ -3242,6 +3352,7 @@
 	CFG(CFG_LFR_MAWC_FEATURE_ENABLED) \
 	CFG(CFG_LFR_FAST_TRANSITION_ENABLED) \
 	CFG(CFG_LFR_ROAM_RSSI_DIFF) \
+	CFG(CFG_LFR_ROAM_RSSI_DIFF_6GHZ) \
 	CFG(CFG_LFR_ROAM_BG_RSSI_TH) \
 	CFG(CFG_LFR_ENABLE_WES_MODE) \
 	CFG(CFG_LFR_ROAM_SCAN_OFFLOAD_ENABLED) \

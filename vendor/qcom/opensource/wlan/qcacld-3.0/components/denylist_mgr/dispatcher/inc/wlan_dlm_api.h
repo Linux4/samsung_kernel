@@ -50,7 +50,7 @@ wlan_dlm_add_bssid_to_reject_list(struct wlan_objmgr_pdev *pdev,
  * disconnect with the current AP.
  * @pdev: pdev object
  * @bssid: BSSID of the AP
- * @con_state: Connection stae (connected/disconnected)
+ * @con_state: Connection state (connected/disconnected)
  *
  * This API will inform the DLM about the state with the AP so that if the AP
  * is selected, and the connection went through, and the connection did not
@@ -92,6 +92,21 @@ wlan_dlm_get_bssid_reject_list(struct wlan_objmgr_pdev *pdev,
 }
 
 /**
+ * wlan_dlm_is_bssid_in_reject_list() - Check whether a BSSID is present in
+ * reject list or not
+ * @pdev: pdev object
+ * @bssid: bssid to check
+ *
+ * Return: true if BSSID is present in reject list
+ */
+static inline bool
+wlan_dlm_is_bssid_in_reject_list(struct wlan_objmgr_pdev *pdev,
+				 struct qdf_mac_addr *bssid)
+{
+	return dlm_is_bssid_in_reject_list(pdev, bssid);
+}
+
+/**
  * wlan_dlm_dump_denylist_bssid() - dump the denylisted BSSIDs from DLM
  * @pdev: pdev object
  *
@@ -119,6 +134,12 @@ wlan_dlm_get_rssi_denylist_threshold(struct wlan_objmgr_pdev *pdev)
 }
 
 #else
+static inline bool
+wlan_dlm_is_bssid_in_reject_list(struct wlan_objmgr_pdev *pdev,
+				 struct qdf_mac_addr *bssid)
+{
+	return false;
+}
 
 static inline QDF_STATUS
 wlan_dlm_add_bssid_to_reject_list(struct wlan_objmgr_pdev *pdev,

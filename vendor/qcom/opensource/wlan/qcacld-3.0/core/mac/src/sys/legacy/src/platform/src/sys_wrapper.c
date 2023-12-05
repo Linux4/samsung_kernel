@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -45,7 +46,7 @@
    11/20/08    sho    Renamed this to VosWrapper.c; remove all dependencies on
 			WM platform and allow this to work on all VOSS enabled
 			platform
-   06/24/08    tbh    Modified the file to remove the dependecy on HDD files as
+   06/24/08    tbh    Modified the file to remove the dependency on HDD files as
 			part of Gen6 bring up process.
    10/29/02 Neelay Das Created file.
 

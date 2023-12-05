@@ -119,8 +119,6 @@ struct hdd_config {
 	uint16_t sap_tx_leakage_threshold;
 	bool sap_internal_restart;
 	bool is_11k_offload_supported;
-	bool action_oui_enable;
-	uint8_t action_oui_str[ACTION_OUI_MAXIMUM_ID][ACTION_OUI_MAX_STR_LEN];
 	bool is_unit_test_framework_enabled;
 	bool disable_channel;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -176,6 +176,30 @@
 		10000, \
 		CFG_VALUE_OR_DEFAULT, \
 		"Bus bandwidth very high threshold")
+
+/*
+ * <ini>
+ * gBusBandwidthMidHighThreshold - bus bandwidth high HE cases threshold
+ *
+ * @Min: 0
+ * @Max: 4294967295UL
+ * @Default: 0
+ *
+ * This ini specifies the bus bandwidth high HE cases threshold
+ *
+ * Usage: Internal
+ *
+ * </ini>
+ */
+#define CFG_DP_BUS_BANDWIDTH_MID_HIGH_THRESHOLD \
+		CFG_INI_UINT( \
+		"gBusBandwidthMidHighThreshold", \
+		0, \
+		4294967295UL, \
+		0, \
+		CFG_VALUE_OR_DEFAULT, \
+		"Bus bandwidth high threshold")
+
 /*
  * <ini>
  * gBusBandwidthDBSThreshold - bus bandwidth for DBS mode threshold
@@ -992,7 +1016,7 @@
  * <ini>
  *
  * Enable/disable DPTRACE
- * Enabling this might have performace impact.
+ * Enabling this might have performance impact.
  *
  * Config DPTRACE
  * The sequence of params is important. If some param is missing, defaults are
@@ -1174,6 +1198,25 @@
 		    CFG_VALUE_OR_DEFAULT, \
 		    "Interval to mark ICMP Request packets to be sent to FW")
 
+/*
+ * <ini>
+ * enable_direct_link_ut_cmd - Enable direct link unit testing
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to enable direct link unit test
+ *
+ * Supported feature: Direct link
+ *
+ * Usage: Internal
+ *
+ * </ini>
+ */
+#define CFG_ENABLE_DIRECT_LINK_UT_CMD \
+	CFG_INI_BOOL("enable_direct_link_ut_cmd", false, \
+		     "enable/disable direct link unit test")
+
 /*TODO Flow control part to be moved to DP later*/
 
 #ifdef WLAN_FEATURE_DP_BUS_BANDWIDTH
@@ -1181,6 +1224,7 @@
 	CFG(CFG_DP_BUS_BANDWIDTH_SUPER_HIGH_THRESHOLD) \
 	CFG(CFG_DP_BUS_BANDWIDTH_ULTRA_HIGH_THRESHOLD) \
 	CFG(CFG_DP_BUS_BANDWIDTH_VERY_HIGH_THRESHOLD) \
+	CFG(CFG_DP_BUS_BANDWIDTH_MID_HIGH_THRESHOLD) \
 	CFG(CFG_DP_BUS_BANDWIDTH_DBS_THRESHOLD) \
 	CFG(CFG_DP_BUS_BANDWIDTH_HIGH_THRESHOLD) \
 	CFG(CFG_DP_BUS_BANDWIDTH_MEDIUM_THRESHOLD) \
@@ -1238,6 +1282,7 @@
 	CFG(CFG_DP_RX_WAKELOCK_TIMEOUT) \
 	CFG(CFG_DP_NUM_DP_RX_THREADS) \
 	CFG(CFG_DP_ICMP_REQ_TO_FW_MARK_INTERVAL) \
+	CFG(CFG_ENABLE_DIRECT_LINK_UT_CMD) \
 	CFG_DP_ENABLE_FASTPATH_ALL \
 	CFG_DP_BUS_BANDWIDTH \
 	CFG_DP_DRIVER_TCP_DELACK \

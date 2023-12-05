@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011,2013-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -645,7 +646,7 @@ int32_t cds_fill_some_regulatory_info(struct regulatory *reg)
 
 	reg->regpair = get_reg_dmn_pair(reg_dmn);
 	if (!reg->regpair) {
-		cds_err("no regpair is found, can not proceeed");
+		cds_err("no regpair is found, can not proceed");
 		return -EINVAL;
 	}
 

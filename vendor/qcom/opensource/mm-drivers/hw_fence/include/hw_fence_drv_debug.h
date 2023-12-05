@@ -18,6 +18,7 @@ enum hw_fence_drv_prio {
 	HW_FENCE_QUEUE = 0x000010,	/* Queue logs */
 	HW_FENCE_LUT = 0x000020,	/* Look-up and algorithm logs */
 	HW_FENCE_IRQ = 0x000040,	/* Interrupt-related messages */
+	HW_FENCE_LOCK = 0x000080,	/* Lock-related messages */
 	HW_FENCE_PRINTK = 0x010000,
 };
 
@@ -56,6 +57,9 @@ extern u32 msm_hw_fence_debug_level;
 #define HWFNC_DBG_IRQ(fmt, ...) \
 	dprintk(HW_FENCE_IRQ, "[hwfence:%s:%d][dbgirq]"fmt, __func__, __LINE__, ##__VA_ARGS__)
 
+#define HWFNC_DBG_LOCK(fmt, ...) \
+	dprintk(HW_FENCE_LOCK, "[hwfence:%s:%d][dbglock]"fmt, __func__, __LINE__, ##__VA_ARGS__)
+
 #define HWFNC_WARN(fmt, ...) \
 	pr_warn("[hwfence:%s:%d][warn][%pS] "fmt, __func__, __LINE__, \
 	__builtin_return_address(0), ##__VA_ARGS__)
@@ -69,7 +73,8 @@ int process_validation_client_loopback(struct hw_fence_driver_data *drv_data, in
 extern const struct file_operations hw_sync_debugfs_fops;
 
 struct hw_fence_out_clients_map {
-	int ipc_client_id; /* ipc client id for the hw fence client */
+	int ipc_client_id_vid; /* ipc client virtual id for the hw fence client */
+	int ipc_client_id_pid; /* ipc client physical id for the hw fence client */
 	int ipc_signal_id; /* ipc signal id for the hw fence client */
 };
 
@@ -80,22 +85,22 @@ struct hw_fence_out_clients_map {
  * The index of this struct must match the enum hw_fence_client_id
  */
 static const struct hw_fence_out_clients_map
-			dbg_out_clients_signal_map_no_dpu[HW_FENCE_CLIENT_MAX] = {
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 0},  /* CTRL_LOOPBACK */
-	{HW_FENCE_IPC_CLIENT_ID_GPU, 0},  /* CTX0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 2},  /* CTL0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 4},  /* CTL1 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 6},  /* CTL2 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 8},  /* CTL3 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 10}, /* CTL4 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 12}, /* CTL5 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 21}, /* VAL0 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 22}, /* VAL1 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 23}, /* VAL2 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 24}, /* VAL3 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 25}, /* VAL4 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 26}, /* VAL5 */
-	{HW_FENCE_IPC_CLIENT_ID_APPS, 27}, /* VAL6 */
+			dbg_out_clients_signal_map_no_dpu[HW_FENCE_CLIENT_ID_VAL6 + 1] = {
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 0},  /* CTRL_LOOPBACK */
+	{HW_FENCE_IPC_CLIENT_ID_GPU_VID, HW_FENCE_IPC_CLIENT_ID_GPU_VID, 0},  /* CTX0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 2},  /* CTL0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 4},  /* CTL1 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 6},  /* CTL2 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 8},  /* CTL3 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 10}, /* CTL4 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 12}, /* CTL5 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 21}, /* VAL0 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 22}, /* VAL1 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 23}, /* VAL2 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 24}, /* VAL3 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 25}, /* VAL4 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 26}, /* VAL5 */
+	{HW_FENCE_IPC_CLIENT_ID_APPS_VID, HW_FENCE_IPC_CLIENT_ID_APPS_VID, 27}, /* VAL6 */
 };
 
 /**

@@ -42,7 +42,7 @@
 #include "cfg_ucfg_api.h"
 #include "cdp_txrx_bus.h"
 #include "wlan_pmo_ucfg_api.h"
-
+#include "hif.h"
 /**
  * pmo_core_get_vdev_dtim_period() - Get vdev dtim period
  * @vdev: objmgr vdev handle
@@ -496,7 +496,7 @@ static QDF_STATUS pmo_core_psoc_configure_suspend(struct wlan_objmgr_psoc *psoc,
 		pmo_core_apply_lphb(psoc);
 		/*
 		 * Dynamic wake events should not be needed for runtime PM.
-		 * Any wake events can be configed by default if they are
+		 * Any wake events can be configured by default if they are
 		 * really needed for runtime PM. In fact, most of them are
 		 * only needed for system suspend.
 		 */
@@ -883,6 +883,9 @@ pmo_core_enable_wow_in_fw(struct wlan_objmgr_psoc *psoc,
 		host_credits, wmi_pending_cmds);
 
 	hif_latency_detect_timer_stop(pmo_core_psoc_get_hif_handle(psoc));
+
+	if (hif_rtpm_get_autosuspend_delay() == WOW_LARGE_RX_RTPM_DELAY)
+		hif_rtpm_restore_autosuspend_delay();
 
 	pmo_core_update_wow_enable_cmd_sent(psoc_ctx, true);
 

@@ -606,7 +606,7 @@ ce_send_nolock_legacy(struct CE_handle *copyeng,
 		}
 
 		/* src_ring->write index hasn't been updated event though
-		 * the register has allready been written to.
+		 * the register has already been written to.
 		 */
 		hif_record_ce_desc_event(scn, CE_state->id, event_type,
 			(union ce_desc *)shadow_src_desc, per_transfer_context,

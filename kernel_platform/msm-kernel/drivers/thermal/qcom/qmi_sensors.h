@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022,2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __QMI_SENSORS_H__
@@ -84,6 +84,25 @@ enum qmi_ts_sensor {
 	QMI_TS_EPM7,
 	QMI_TS_SDR0_PA,
 	QMI_TS_SDR1_PA,
+	QMI_TS_SDR2_PA,
+	QMI_TS_SDR3_PA,
+	QMI_TS_SDR4_PA,
+	QMI_TS_SDR5_PA,
+	QMI_TS_SDR6_PA,
+	QMI_TS_SDR7_PA,
+	QMI_TS_SDR2,
+	QMI_TS_SDR3,
+	QMI_TS_SDR4,
+	QMI_TS_SDR5,
+	QMI_TS_SDR6,
+	QMI_TS_SDR7,
+	QMI_TS_RF_CAL,
+	QMI_TS_MODEM_CFG,
+	QMI_TS_LTE_CC,
+	QMI_TS_MCG_FR1_CC,
+	QMI_TS_MCG_FR2_CC,
+	QMI_TS_SCG_FR1_CC,
+	QMI_TS_SCG_FR2_CC,
 	QMI_TS_MAX_NR
 };
 
@@ -162,6 +181,25 @@ static char sensor_clients[QMI_TS_MAX_NR][QMI_CLIENT_NAME_LENGTH] = {
 	{"epm7"},
 	{"sdr0_pa"},
 	{"sdr1_pa"},
+	{"sdr2_pa"},
+	{"sdr3_pa"},
+	{"sdr4_pa"},
+	{"sdr5_pa"},
+	{"sdr6_pa"},
+	{"sdr7_pa"},
+	{"sdr2"},
+	{"sdr3"},
+	{"sdr4"},
+	{"sdr5"},
+	{"sdr6"},
+	{"sdr7"},
+	{"rf_cal"},
+	{"modem_cfg"},
+	{"lte_cc"},
+	{"mcg_fr1_cc"},
+	{"mcg_fr2_cc"},
+	{"scg_fr1_cc"},
+	{"scg_fr2_cc"},
 };
 
 #endif /* __QMI_SENSORS_H__ */

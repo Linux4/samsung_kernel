@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022,2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _WALT_H
@@ -13,6 +13,8 @@
 #include <linux/jump_label.h>
 
 #include <linux/cgroup.h>
+
+#define MSEC_TO_NSEC (1000 * 1000)
 
 #ifdef CONFIG_HZ_300
 /*
@@ -32,6 +34,28 @@
 
 /* MAX_MARGIN_LEVELS should be one less than MAX_CLUSTERS */
 #define MAX_MARGIN_LEVELS (MAX_CLUSTERS - 1)
+
+struct debug_clock {
+	unsigned int idx;
+	int cpu;
+	int type;
+	u64 rq_clock;
+	u64 sched_clock;
+	u64 ktime;
+	u64 rq_clock_after;
+	u64 window_start;
+	u64 suspend_clock;
+	u64 latest_clock;
+	u64 end;
+	u64 ret;
+	u64 caller0;
+	u64 caller1;
+	u64 caller2;
+	u64 caller3;
+	u32 update_flags;
+	bool lock;
+	bool suspend;
+};
 
 extern bool walt_disabled;
 
@@ -53,6 +77,9 @@ enum migrate_types {
 #define WALT_LOW_LATENCY_PROCFS		BIT(0)
 #define WALT_LOW_LATENCY_BINDER		BIT(1)
 #define WALT_LOW_LATENCY_PIPELINE	BIT(2)
+#define WALT_LOW_LATENCY_HEAVY		BIT(3)
+
+#define WALT_LOW_LATENCY_MASK		(WALT_LOW_LATENCY_PIPELINE|WALT_LOW_LATENCY_HEAVY)
 
 struct walt_cpu_load {
 	unsigned long	nl;
@@ -127,9 +154,6 @@ struct walt_rq {
 	struct list_head	mvp_tasks;
 	int                     num_mvp_tasks;
 	u64			latest_clock;
-	u32			latest_clock_update_cpu;
-	u32			latest_clock_update_ts;
-	void		*latest_clock_update_caller[2];
 	u32			enqueue_counter;
 };
 
@@ -154,6 +178,7 @@ extern struct walt_sched_cluster *sched_cluster[WALT_NR_CPUS];
 /*END SCHED.H PORT*/
 
 extern int num_sched_clusters;
+extern int nr_big_cpus;
 extern unsigned int sched_capacity_margin_up[WALT_NR_CPUS];
 extern unsigned int sched_capacity_margin_down[WALT_NR_CPUS];
 extern cpumask_t asym_cap_sibling_cpus;
@@ -180,13 +205,14 @@ extern int sched_boost_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *lenp, loff_t *ppos);
 extern int sched_busy_hyst_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *lenp, loff_t *ppos);
-extern u64 walt_sched_clock(void);
+extern u64 walt_sched_clock(struct rq *rq, bool log);
 extern void walt_init_tg(struct task_group *tg);
 extern void walt_init_topapp_tg(struct task_group *tg);
 extern void walt_init_foreground_tg(struct task_group *tg);
 extern int register_walt_callback(void);
 extern int input_boost_init(void);
 extern int core_ctl_init(void);
+extern void rebuild_sched_domains(void);
 
 extern atomic64_t walt_irq_work_lastq_ws;
 extern unsigned int __read_mostly sched_ravg_window;
@@ -227,6 +253,7 @@ extern unsigned int sysctl_sched_long_running_rt_task_ms;
 extern unsigned int sysctl_ed_boost_pct;
 extern unsigned int sysctl_em_inflate_pct;
 extern unsigned int sysctl_em_inflate_thres;
+extern unsigned int sysctl_sched_heavy_nr;
 
 extern int cpufreq_walt_set_adaptive_freq(unsigned int cpu, unsigned int adaptive_low_freq,
 					  unsigned int adaptive_high_freq);
@@ -400,7 +427,7 @@ static inline void waltgov_run_callback(struct rq *rq, unsigned int flags)
 
 	cb = rcu_dereference_sched(*per_cpu_ptr(&waltgov_cb_data, cpu_of(rq)));
 	if (cb)
-		cb->func(cb, walt_sched_clock(), flags);
+		cb->func(cb, walt_sched_clock(NULL, 0), flags);
 }
 
 extern unsigned long cpu_util_freq_walt(int cpu, struct walt_cpu_load *walt_load,
@@ -447,8 +474,14 @@ static inline bool walt_low_latency_task(struct task_struct *p)
 {
 	struct walt_task_struct *wts = (struct walt_task_struct *) p->android_vendor_data1;
 
-	return wts->low_latency &&
-		(task_util(p) < sysctl_walt_low_latency_task_threshold);
+	if (!wts->low_latency)
+		return false;
+
+	if (wts->low_latency & WALT_LOW_LATENCY_MASK)
+		return true;
+
+	/* WALT_LOW_LATENCY_BINDER and WALT_LOW_LATENCY_PROCFS remain */
+	return (task_util(p) < sysctl_walt_low_latency_task_threshold);
 }
 
 static inline bool walt_binder_low_latency_task(struct task_struct *p)
@@ -471,7 +504,7 @@ static inline bool walt_pipeline_low_latency_task(struct task_struct *p)
 {
 	struct walt_task_struct *wts = (struct walt_task_struct *) p->android_vendor_data1;
 
-	return wts->low_latency & WALT_LOW_LATENCY_PIPELINE;
+	return wts->low_latency & WALT_LOW_LATENCY_MASK;
 }
 
 static inline unsigned int walt_get_idle_exit_latency(struct rq *rq)
@@ -646,7 +679,7 @@ static inline int per_task_boost(struct task_struct *p)
 	struct walt_task_struct *wts = (struct walt_task_struct *) p->android_vendor_data1;
 
 	if (wts->boost_period) {
-		if (walt_sched_clock() > wts->boost_expires) {
+		if (walt_sched_clock(NULL, 0) > wts->boost_expires) {
 			wts->boost_period = 0;
 			wts->boost_expires = 0;
 			wts->boost = 0;
@@ -779,17 +812,17 @@ static inline bool task_fits_capacity(struct task_struct *p,
 		margin = sched_capacity_margin_down[cpu];
 		if (task_in_related_thread_group(p)) {
 			if (is_min_cluster_cpu(cpu))
-				margin = sysctl_sched_early_down[0];
+				margin = max(margin, sysctl_sched_early_down[0]);
 			else if (!is_max_cluster_cpu(cpu))
-				margin = sysctl_sched_early_down[1];
+				margin = max(margin, sysctl_sched_early_down[1]);
 		}
 	} else {
 		margin = sched_capacity_margin_up[task_cpu(p)];
 		if (task_in_related_thread_group(p)) {
 			if (is_min_cluster_cpu(task_cpu(p)))
-				margin = sysctl_sched_early_up[0];
+				margin = max(margin, sysctl_sched_early_up[0]);
 			else if (!is_max_cluster_cpu(task_cpu(p)))
-				margin = sysctl_sched_early_up[1];
+				margin = max(margin, sysctl_sched_early_up[1]);
 		}
 	}
 
@@ -1065,6 +1098,66 @@ static inline int walt_find_and_choose_cluster_packing_cpu(int start_cpu, struct
 	/* the packing cpu can be used, so pack! */
 	return packing_cpu;
 }
+
+struct cluster_freq_relation {
+	int src_freq_scale;
+	int dst_cpu;
+	int tgt_freq_scale;
+};
+
+extern struct cluster_freq_relation cluster_arr[3][6];
+extern int sched_ignore_cluster_handler(struct ctl_table *table, int write,
+			void __user *buffer, size_t *lenp, loff_t *ppos);
+
+/* To ensure if we can ignore cluster for process p */
+static inline bool ignore_cluster_valid(struct task_struct *p, struct rq *rq)
+{
+	cpumask_t tmp;
+	int i;
+	struct walt_rq *wrq = (struct walt_rq *)rq->android_vendor_data1;
+	int cluster = wrq->cluster->id;
+	int src_cpu = cpumask_first(&wrq->cluster->cpus);
+	int src_freq_scale = arch_scale_freq_capacity(src_cpu);
+	int tgt_scale, tgt_cpu;
+
+	/* if src cluster has no relationship */
+	if (cluster_arr[cluster][0].src_freq_scale <= 0)
+		return false;
+
+	/* if src cluster is below its threshold frequency */
+	if (src_freq_scale < cluster_arr[cluster][0].src_freq_scale)
+		return false;
+
+	/* if p is only affine to src cluster */
+	if (p) {
+		cpumask_andnot(&tmp, cpu_active_mask, &wrq->cluster->cpus);
+		if (!cpumask_intersects(&tmp, &p->cpus_mask))
+			return false;
+	}
+
+	for (i = 0; i < 5; i++)
+		if (cluster_arr[cluster][i].src_freq_scale > src_freq_scale)
+			break;
+	tgt_cpu = cpumask_first(&sched_cluster[cluster_arr[cluster][i - 1].dst_cpu]->cpus);
+	tgt_scale = cluster_arr[cluster][i - 1].tgt_freq_scale;
+
+	/*
+	 * In case target cluster is frequency limited to a frequency below target
+	 * scale then skip ignoring src cluster.
+	 */
+	if (capacity_orig_of(tgt_cpu) < tgt_scale)
+		return false;
+
+	/* Target cluster is above target scale */
+	if (arch_scale_freq_capacity(tgt_cpu) >= tgt_scale)
+		return false;
+
+	/* We reach here, means we need to ignore src cluster for placement */
+	return true;
+}
+
+extern int add_pipeline(struct walt_task_struct *wts);
+extern int remove_pipeline(struct walt_task_struct *wts);
 
 extern void walt_task_dump(struct task_struct *p);
 extern void walt_rq_dump(int cpu);

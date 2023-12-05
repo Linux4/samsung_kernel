@@ -67,5 +67,9 @@ void vl53l8_k_store_error(struct vl53l8_k_module_t *p_module,
 			     int32_t vl53l8_k_error);
 
 int32_t vl53l8_k_convert_error_to_linux_error(int32_t vl53l8_k_error);
-
+#ifdef STM_VL53L5_SUPPORT_SEC_CODE
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+void vl53l8_last_error_counter(struct vl53l8_k_module_t *p_module, int err);
+#endif
+#endif
 #endif

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,7 +26,7 @@
 
 #if defined(WLAN_SYSFS) && defined(CONFIG_WLAN_GTX_BW_MASK)
 /**
- * wlan_hdd_sysfs_gtx_bw_mask_create() - API to create gtx_bw_mask
+ * hdd_sysfs_gtx_bw_mask_create() - API to create gtx_bw_mask
  * @adapter: hdd adapter
  *
  * this file is created per adapter.
@@ -40,8 +41,7 @@
 int hdd_sysfs_gtx_bw_mask_create(struct hdd_adapter *adapter);
 
 /**
- * hdd_sysfs_gtx_bw_mask_destroy() -
- *   API to destroy gtx_bw_mask
+ * hdd_sysfs_gtx_bw_mask_destroy() - API to destroy gtx_bw_mask
  * @adapter: pointer to adapter
  *
  * Return: none

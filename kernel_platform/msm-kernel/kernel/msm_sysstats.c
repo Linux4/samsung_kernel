@@ -26,12 +26,34 @@ struct tgid_iter {
 
 static struct genl_family family;
 
+static u64 (*sysstats_kgsl_get_stats)(pid_t pid);
+
 static DEFINE_PER_CPU(__u32, sysstats_seqnum);
 #define SYSSTATS_CMD_ATTR_MAX 3
 static const struct nla_policy sysstats_cmd_get_policy[SYSSTATS_CMD_ATTR_MAX + 1] = {
 	[SYSSTATS_TASK_CMD_ATTR_PID]  = { .type = NLA_U32 },
 	[SYSSTATS_TASK_CMD_ATTR_FOREACH]  = { .type = NLA_U32 },
 	[SYSSTATS_TASK_CMD_ATTR_PIDS_OF_NAME] = { .type = NLA_NUL_STRING}};
+/*
+ * The below dummy function is a means to get rid of calling
+ * callbacks with out any external sync.
+ */
+static u64 sysstats_kgsl_stats(pid_t pid)
+{
+	return 0;
+}
+
+void sysstats_register_kgsl_stats_cb(u64 (*cb)(pid_t pid))
+{
+	sysstats_kgsl_get_stats = cb;
+}
+EXPORT_SYMBOL(sysstats_register_kgsl_stats_cb);
+
+void sysstats_unregister_kgsl_stats_cb(void)
+{
+	sysstats_kgsl_get_stats = sysstats_kgsl_stats;
+}
+EXPORT_SYMBOL(sysstats_unregister_kgsl_stats_cb);
 
 static int sysstats_pre_doit(const struct genl_ops *ops, struct sk_buff *skb,
 			      struct genl_info *info)
@@ -164,12 +186,17 @@ static unsigned long get_task_unreclaimable_info(struct task_struct *task)
 	int ret = 0;
 
 	for_each_thread(task, thread) {
+		/* task is already locked don't lock/unlock again. */
+		if (task != thread)
+			task_lock(thread);
 		if (unlikely(!group_leader_files))
 			group_leader_files = task->group_leader->files;
 		files = thread->files;
 		if (files && (group_leader_files != files ||
 			thread == task->group_leader))
 			ret = iterate_fd(files, 0, get_dma_info, &size);
+		if (task != thread)
+			task_unlock(thread);
 		if (ret)
 			break;
 	}
@@ -189,6 +216,9 @@ static unsigned long get_system_unreclaimble_info(void)
 		task_unlock(task);
 	}
 	rcu_read_unlock();
+
+	/* Account the kgsl information. */
+	size += sysstats_kgsl_get_stats(-1) >> PAGE_SHIFT;
 
 	return size;
 }
@@ -265,6 +295,8 @@ static int sysstats_task_cmd_attr_pid(struct genl_info *info)
 #undef K
 		task_unlock(p);
 	}
+
+	stats->unreclaimable += sysstats_kgsl_get_stats(stats->pid) >> 10;
 
 	task_cputime(tsk, &utime, &stime);
 	stats->utime = div_u64(utime, NSEC_PER_USEC);
@@ -350,6 +382,8 @@ static int sysstats_all_pids_of_name(struct sk_buff *skb, struct netlink_callbac
 		goto out;
 
 	comm = nla_strdup_cust(nla, GFP_KERNEL);
+	if (!comm)
+		goto out;
 
 	iter.tgid = cb->args[0];
 	iter.task = NULL;
@@ -638,6 +672,7 @@ static int __init sysstats_init(void)
 	if (rc)
 		return rc;
 
+	sysstats_register_kgsl_stats_cb(sysstats_kgsl_stats);
 	pr_info("registered sysstats version %d\n", SYSSTATS_GENL_VERSION);
 	return 0;
 }

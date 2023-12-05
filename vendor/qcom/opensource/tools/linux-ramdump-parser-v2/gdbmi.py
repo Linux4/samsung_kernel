@@ -1,5 +1,5 @@
 # Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
-# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+# Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -29,11 +29,12 @@ def gdb_hex_to_dec(val):
 
 class GdbSymbol(object):
 
-    def __init__(self, symbol, section, addr):
+    def __init__(self, symbol, section, addr, offset=None):
         self.symbol = symbol
         self.section = section
         self.addr = addr
-
+        if offset is not None:
+            self.offset = offset
 
 class GdbMIResult(object):
 
@@ -67,6 +68,7 @@ class GdbMI(object):
         self._cache = {}
         self._gdbmi = None
         self.mod_table = None
+        self.gdbmi_aslr_offset = 0
 
     def open(self):
         """Open the connection to the ``gdbmi`` backend. Not needed if using
@@ -121,7 +123,9 @@ class GdbMI(object):
         for mod in self.mod_table.module_table:
             if not mod.get_sym_path():
                 continue
-            load_mod_sym_cmd = ['add-symbol-file', mod.get_sym_path().replace('\\', '\\\\'), '0x{:x}'.format(mod.module_offset - self.kaslr_offset)]
+            load_mod_sym_cmd = ['add-symbol-file', mod.get_sym_path().replace('\\', '\\\\')]
+            if ".text" not in mod.section_offsets.keys():
+                load_mod_sym_cmd += ['0x{:x}'.format(mod.module_offset - self.kaslr_offset)]
             for segment, offset in mod.section_offsets.items():
                 load_mod_sym_cmd += ['-s', segment, '0x{:x}'.format(offset - self.kaslr_offset) ]
             self._run(' '.join(load_mod_sym_cmd))
@@ -195,15 +199,44 @@ class GdbMI(object):
     def _run_for_first(self, cmd):
         return self._run(cmd).lines[0]
 
+    def _run_for_multi(self, cmd):
+        result = self._run(cmd)
+        return result.lines
+
     def version(self):
         """Return GDB version"""
         return self._run_for_first('show version')
+
+    def set_gdbmi_aslr_offset(self):
+        """set gdb aslr offset"""
+        try:
+            lines = self._run('maintenance info sections').lines
+            for line in lines:
+                if re.search(".head.text ALLOC", line):
+                    text_addr = int(self._run_for_one('print /x &_text').split(' ')[-1], 16)
+                    if len(line.split("->")[0]) > 1 :
+                        head_text_addr =  int(line.split("->")[0].split() [-1], 16)
+                    else:
+                        head_text_addr = int(line.split("->")[0], 16)
+                    aslr_offset = head_text_addr - text_addr
+                    if aslr_offset != 0:
+                        self.gdbmi_aslr_offset = aslr_offset
+                    print_out_str("gdbmi_aslr_offset : 0x{0:x}".format(self.gdbmi_aslr_offset))
+                    break
+        except Exception as err:
+            print (err)
+            self.gdbmi_aslr_offset = 0
 
     def setup_aarch(self,type):
         self.aarch_set = True
         cmd = 'set architecture ' + type
         result = self._run_for_one(cmd)
         return
+
+    def getStructureData(self, the_type):
+        cmd = 'ptype /o {0}'.format(the_type)
+        result = self._run_for_multi(cmd)
+        return result
 
     def frame_field_offset(self, frame_name, the_type, field):
         """Returns the offset of a field in a struct or type of selected frame
@@ -286,7 +319,7 @@ class GdbMI(object):
         '0xc0b0006a'
         """
         result = self._run_for_one('print /x &{0}'.format(symbol))
-        return int(result.split(' ')[-1], 16) + self.kaslr_offset
+        return int(result.split(' ')[-1], 16) + self.kaslr_offset + self.gdbmi_aslr_offset
 
     def get_symbol_info(self, address):
         """Returns a GdbSymbol representing the nearest symbol found at
@@ -297,7 +330,11 @@ class GdbMI(object):
             raise GdbMIException('Output looks bogus...', result)
         symbol = parts[0]
         section = parts[-1]
-        return GdbSymbol(symbol, section, address)
+        try:
+            offset = int(parts[1] + parts[2])
+        except ValueError:
+            offset = 0
+        return GdbSymbol(symbol, section, address, offset)
 
     def symbol_at(self, address):
         """Get the symbol at the given address (using ``get_symbol_info``)"""
@@ -369,8 +406,11 @@ class GdbMI(object):
         elif match_1:
             return match_1.group(1)
         elif match_2:
-             return match_2.group(1).replace('\\\\n\\"', "")
-        return None
+            return match_2.group(1).replace('\\\\n\\"', "")
+        elif result.lines[0] != None:
+            return result.lines[0]
+        else:
+            return None
 
     def read_memory(self, start, end):
         """Reads memory from within elf (e.g. const data). start and end should be kaslr-offset values"""

@@ -426,6 +426,32 @@ config TI_K3_R5_REMOTEPROC
 	  It's safe to say N here if you're not interested in utilizing
 	  a slave processor.
 
+config QCOM_RPROC_SLATE
+	tristate "QCOM Slate remoteproc support"
+	depends on OF && ARCH_QCOM
+	select QCOM_PIL_INFO
+	select QCOM_MDT_LOADER
+	select QCOM_RPROC_COMMON
+	select QCOM_SCM
+	help
+	  Say y here to support the TrustZone based Peripheral Image Loader
+	  for the QCOM Slate.
+
+	  It's safe to say N here if you're not intereseted in utilizing
+	  a aon processor slate.
+
+config MSM_QUIN_SUBSYSTEM_NOTIF_VIRT
+	tristate "MSM QUIN Subsystem Notif Virt"
+	depends on RPMSG_QCOM_GLINK || RPMSG_QCOM_GLINK=n
+	select QCOM_RPROC_COMMON
+	help
+	  This option enables the virtual MSM subsystem notification
+	  framework for the QUIN platform.
+
+	  The virtual MSM subsystem notif framework provides support for
+	  a subsystem to notify its clients of its state, when the clients
+	  are in a different virtual machine domain than the subsystem.
+
 config SEC_SENSORS_SSC
 	bool "Enable Sensors Driver Support SEC features for SSC"
 	depends on ADSP_FACTORY

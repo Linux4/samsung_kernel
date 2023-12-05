@@ -78,8 +78,14 @@ enum vidc_msg_prio {
 	FW_PRINTK       = 0x10000000,
 	FW_FTRACE       = 0x20000000,
 };
-#define FW_LOGSHIFT    16
-#define FW_LOGMASK     0x0FFF0000
+
+#define DRV_LOG        (VIDC_ERR | VIDC_PRINTK)
+#define DRV_LOGSHIFT   (0)
+#define DRV_LOGMASK    (0x0FFF)
+
+#define FW_LOG         (FW_ERROR | FW_FATAL | FW_PRINTK)
+#define FW_LOGSHIFT    (16)
+#define FW_LOGMASK     (0x0FFF0000)
 
 #define dprintk_inst(__level, __level_str, inst, __fmt, ...) \
 	do { \

@@ -68,6 +68,21 @@ struct hif_rtpm_state_stats {
 	uint32_t runtime_get_err;
 };
 
+#define HIF_RTPM_BUSY_HIST_MAX  16
+#define HIF_RTPM_BUSY_HIST_MASK (HIF_RTPM_BUSY_HIST_MAX - 1)
+
+/**
+ * struct hif_rtpm_last_busy_hist - Runtime last busy hist
+ * @last_busy_cnt: count of last busy mark
+ * @last_busy_idx: last busy history index
+ * @last_busy_ts: last busy marked timestamp
+ */
+struct hif_rtpm_last_busy_hist {
+	unsigned long last_busy_cnt;
+	unsigned long last_busy_idx;
+	uint64_t last_busy_ts[HIF_RTPM_BUSY_HIST_MAX];
+};
+
 /**
  * struct hif_rtpm_client - Runtime PM client structure
  * @hif_rtpm_cbk: Callback during resume if get called at suspend and failed
@@ -118,7 +133,13 @@ struct hif_rtpm_ctx {
 	qdf_atomic_t monitor_wake_intr;
 	struct hif_rtpm_state_stats stats;
 	struct dentry *pm_dentry;
+	int cfg_delay;
+	int delay;
+	struct hif_rtpm_last_busy_hist *busy_hist[CE_COUNT_MAX];
 };
+
+#define HIF_RTPM_DELAY_MIN 100
+#define HIF_RTPM_DELAY_MAX 10000
 
 /**
  * __hif_rtpm_enabled() - Check if runtime pm is enabled from kernel
@@ -202,6 +223,19 @@ static inline void __hif_rtpm_put_noidle(struct device *dev)
 static inline int __hif_rtpm_put_sync_suspend(struct device *dev)
 {
 	return pm_runtime_put_sync_suspend(dev);
+}
+
+/**
+ * __hif_rtpm_set_autosuspend_delay() - Set delay to trigger RTPM suspend
+ * @dev: device structure
+ * @delay: delay in ms to be set
+ *
+ * Return: None
+ */
+static inline
+void __hif_rtpm_set_autosuspend_delay(struct device *dev, int delay)
+{
+	pm_runtime_set_autosuspend_delay(dev, delay);
 }
 
 /**

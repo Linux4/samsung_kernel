@@ -27,8 +27,8 @@ Required properties:
   - clkreq-gpio: CLKREQ GPIO specified by PCIe spec.
   - <supply-name>-supply: phandle to the regulator device tree node.
     Refer to the schematics for the corresponding voltage regulators.
-    vreg-1.8-supply: phandle to the analog supply for the PCIe controller.
-    vreg-0.9-supply: phandle to the analog supply for the PCIe controller.
+    vreg-1p2-supply: phandle to the analog supply for the PCIe controller.
+    vreg-0p9-supply: phandle to the analog supply for the PCIe controller.
 
 Optional Properties:
   - qcom,<supply-name>-voltage-level: specifies voltage levels for supply.
@@ -47,6 +47,10 @@ Optional Properties:
   - reset-names: reset signal names sorted in the same order as the property
     of resets.
   - qcom,pcie-phy-ver: version of PCIe PHY.
+  - qcom,tcsr-perst-separation-enable-offset: Offset for TCSR perst seperation enable.
+  - qcom,tcsr-reset-separation-offset: Offset for TCSR reset seperation.
+  - qcom,tcsr-perst-enable-offset: Offset for TCSR perst enable.
+  - qcom,perst-raw-rst-status-b: Bit for perset raw reset status.
   - qcom,phy-init: The initialization sequence to bring up the PCIe PHY.
     Should be specified in groups (offset, value, delay, direction).
   - qcom,phy-status-reg: Register offset for PHY status.
@@ -63,6 +67,7 @@ Optional Properties:
   - qcom,pcie-edma: boolean type; edma usage for PCIe.
   - qcom,pcie-aggregated-irq: boolean type; interrupts are aggregated.
   - qcom,pcie-mhi-a7-irq: boolean type; MHI a7 has separate irq.
+  - qcom,pcie-cesta-clkreq-offset: Offset from PCIe PARF base to PCIe CESTA CLKREQ register
   - qcom,pcie-perst-enum: Link enumeration will be triggered by PERST
     deassertion.
   - qcom,tcsr-not-supported: TCSR pcie perst is not supported.
@@ -75,6 +80,15 @@ Optional Properties:
 	- qcom,msm-bus,vectors-KBps
   - qcom,pcie-m2-autonomous: Enable L1ss sleep/exit to support M2 autonomous mode.
   - qcom,mhi-soc-reset-offset: AXI register offset to initiate a SOC reset.
+  - qcom,override-disable-sriov: Set to report as SRIOV capability disable with client (MHI) driver.
+  - nvmem-cells: Phandle of nvmem cell containing the address for boot_config.
+  - nvmem-cell-names: nvmem cell name for boot_config.
+  - qcom,fast-boot-mask: Bitmask to read fast_boot value from boot_config cell.
+  - qcom,host-bypass-mask: Bitmask to read host_bypass value from boot_config cell.
+	Will work only when host_bypass is 1 bit in boot_config.
+  - qcom,fast-boot-values: fast_boot values to check against boot_config based value for confirming
+	that host-interface is PCIe.
+  - qcom,no-path-from-ipa-to-pcie: boolean type; No direct path from the IPA to PCIe.
 
 Example:
 

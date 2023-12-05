@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -18,6 +18,7 @@
 #include "clk-alpha-pll.h"
 #include "clk-branch.h"
 #include "clk-pll.h"
+#include "clk-pm.h"
 #include "clk-rcg.h"
 #include "clk-regmap.h"
 #include "clk-regmap-divider.h"
@@ -1377,6 +1378,7 @@ static struct clk_rcg2 gcc_qupv3_wrap2_s7_clk_src = {
 };
 
 static const struct freq_tbl ftbl_gcc_sdcc2_apps_clk_src[] = {
+	F(300000, P_BI_TCXO, 32, 1, 2),
 	F(400000, P_BI_TCXO, 12, 1, 4),
 	F(25000000, P_GCC_GPLL0_OUT_EVEN, 12, 0, 0),
 	F(37500000, P_GCC_GPLL0_OUT_EVEN, 8, 0, 0),
@@ -1387,6 +1389,7 @@ static const struct freq_tbl ftbl_gcc_sdcc2_apps_clk_src[] = {
 };
 
 static const struct freq_tbl ftbl_gcc_sdcc2_apps_clk_src_kalama_v2[] = {
+	F(300000, P_BI_TCXO, 32, 1, 2),
 	F(400000, P_BI_TCXO, 12, 1, 4),
 	F(25000000, P_GCC_GPLL0_OUT_EVEN, 12, 0, 0),
 	F(37500000, P_GCC_GPLL0_OUT_EVEN, 8, 0, 0),
@@ -3574,6 +3577,27 @@ static struct clk_branch gcc_video_xo_clk = {
 	},
 };
 
+/*
+ * FORCE_MEM_CORE_ON for ufs phy ice core clocks
+ * gcc_camera_ahb_clk
+ * gcc_camera_xo_clk
+ * gcc_disp_ahb_clk
+ * gcc_disp_xo_clk
+ * gcc_gpu_cfg_ahb_clk
+ * gcc_video_ahb_clk
+ * gcc_video_xo_clk
+ */
+static struct critical_clk_offset critical_clk_list[] = {
+	{ .offset = 0x77074, .mask = BIT(14) },
+	{ .offset = 0x26004, .mask = BIT(0) },
+	{ .offset = 0x26028, .mask = BIT(0) },
+	{ .offset = 0x27004, .mask = BIT(0) },
+	{ .offset = 0x27018, .mask = BIT(0) },
+	{ .offset = 0x71004, .mask = BIT(0) },
+	{ .offset = 0x32004, .mask = BIT(0) },
+	{ .offset = 0x32030, .mask = BIT(0) },
+};
+
 static struct clk_regmap *gcc_kalama_clocks[] = {
 	[GCC_AGGRE_NOC_PCIE_AXI_CLK] = &gcc_aggre_noc_pcie_axi_clk.clkr,
 	[GCC_AGGRE_UFS_PHY_AXI_CLK] = &gcc_aggre_ufs_phy_axi_clk.clkr,
@@ -3813,7 +3837,7 @@ static const struct regmap_config gcc_kalama_regmap_config = {
 	.fast_io = true,
 };
 
-static const struct qcom_cc_desc gcc_kalama_desc = {
+static struct qcom_cc_desc gcc_kalama_desc = {
 	.config = &gcc_kalama_regmap_config,
 	.clks = gcc_kalama_clocks,
 	.num_clks = ARRAY_SIZE(gcc_kalama_clocks),
@@ -3821,6 +3845,8 @@ static const struct qcom_cc_desc gcc_kalama_desc = {
 	.num_resets = ARRAY_SIZE(gcc_kalama_resets),
 	.clk_regulators = gcc_kalama_regulators,
 	.num_clk_regulators = ARRAY_SIZE(gcc_kalama_regulators),
+	.critical_clk_en = critical_clk_list,
+	.num_critical_clk = ARRAY_SIZE(critical_clk_list),
 };
 
 static const struct of_device_id gcc_kalama_match_table[] = {
@@ -3870,12 +3896,17 @@ static int gcc_kalama_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	/* FORCE_MEM_CORE_ON for ufs phy ice core clocks */
-	regmap_update_bits(regmap, gcc_ufs_phy_ice_core_clk.halt_reg,
-			   BIT(14), BIT(14));
-
 	/* Clear GDSC_SLEEP_ENA_VOTE to stop votes being auto-removed in sleep. */
 	regmap_write(regmap, 0x52024, 0x0);
+
+	ret = register_qcom_clks_pm(pdev, false, &gcc_kalama_desc);
+	if (ret)
+		dev_err(&pdev->dev, "Failed to register for pm ops\n");
+
+	/* Enabling always ON clocks
+	 * FORCE_MEM_CORE_ON for ufs phy ice core clocks
+	 */
+	clk_restore_critical_clocks(&pdev->dev);
 
 	ret = qcom_cc_really_probe(pdev, &gcc_kalama_desc, regmap);
 	if (ret) {

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
+#include <linux/cdev.h>
+#include <linux/interconnect.h>
 #include <linux/io.h>
 #include <linux/ipc_logging.h>
 #include <linux/i2c.h>
@@ -148,7 +150,7 @@ static void i2c_slave_write_fifo(struct i2c_slave *i2c_slave)
 	int i;
 
 	if (i2c_slave->tx_count == 0) {
-		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+		I2C_SLAVE_ERR(i2c_slave->ipcl, false, i2c_slave->dev,
 			      "TX FIFO write count is zero\n");
 		return;
 	}
@@ -164,10 +166,10 @@ static void i2c_slave_write_fifo(struct i2c_slave *i2c_slave)
 }
 
 /**
- * i2c_slave_read_fifo: This function will write data to RX FIFO.
+ * i2c_slave_read_fifo: This function will read data to RX FIFO.
  * @i2c_slave: Pointer to Main Structure.
  *
- * This function will write data to RX FIFO.
+ * This function will read data to RX FIFO.
  *
  * Return: None.
  */
@@ -178,10 +180,10 @@ static void i2c_slave_read_fifo(struct i2c_slave *i2c_slave)
 
 	rx_data_count = read_rx_fifo_byte_count(i2c_slave);
 	if (rx_data_count == 0) {
-		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+		I2C_SLAVE_ERR(i2c_slave->ipcl, false, i2c_slave->dev,
 			      "RX FIFO empty\n");
 	} else if (i2c_slave->rx_count >= I2C_SLAVE_MAX_MSG_SIZE) {
-		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+		I2C_SLAVE_ERR(i2c_slave->ipcl, false, i2c_slave->dev,
 			      "RX data buffer full\n");
 	} else {
 		for (i = 0; i < rx_data_count &&
@@ -193,6 +195,7 @@ static void i2c_slave_read_fifo(struct i2c_slave *i2c_slave)
 				      i2c_slave->rx_msg_buf[i2c_slave->rx_count]);
 			i2c_slave->rx_count++;
 		}
+		wake_up_interruptible(&i2c_slave->readq);
 	}
 }
 
@@ -291,46 +294,6 @@ static irqreturn_t i2c_slave_irq(int irq, void *dev)
 	I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev,
 		      "irq status: 0x%x\n", irq_stat);
 
-	if (irq_stat & (1 << CLOCK_LOW_TIMEOUT)) {
-		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
-			      irq_log[CLOCK_LOW_TIMEOUT]);
-		i2c_slave_clear_irq(i2c_slave, ALL_IRQ);
-	}
-
-	if (irq_stat & (1 << STRCH_RD)) {
-		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
-			      irq_log[STRCH_RD]);
-		i2c_slave->tx_count = read_tx_fifo_byte_count(i2c_slave);
-		if (i2c_slave->tx_count > 0) {
-			i2c_slave_send_ack(i2c_slave);
-		} else {
-			I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
-				      "TX FIFO empty\n");
-			i2c_slave_send_nack(i2c_slave);
-		}
-		i2c_slave_clear_irq(i2c_slave, STRCH_RD);
-	}
-
-	if (irq_stat & (1 << RX_DATA_AVAIL)) {
-		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
-			      irq_log[RX_DATA_AVAIL]);
-		i2c_slave_read_fifo(i2c_slave);
-		i2c_slave_clear_irq(i2c_slave, RX_DATA_AVAIL);
-	}
-
-	if (irq_stat & (1 << STOP_DETECTED)) {
-		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
-			      irq_log[STOP_DETECTED]);
-		i2c_slave_clear_irq(i2c_slave, STOP_DETECTED);
-	}
-
-	if (irq_stat & (1 << STRCH_WR)) {
-		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
-			      irq_log[STRCH_WR]);
-		i2c_slave_clear_irq(i2c_slave, STRCH_WR);
-		i2c_slave_send_ack(i2c_slave);
-	}
-
 	if (irq_stat & (1 << ERR_CONDITION)) {
 		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
 			      irq_log[ERR_CONDITION]);
@@ -345,10 +308,51 @@ static irqreturn_t i2c_slave_irq(int irq, void *dev)
 		i2c_slave_send_nack(i2c_slave);
 	}
 
+	if (irq_stat & (1 << CLOCK_LOW_TIMEOUT)) {
+		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
+			      irq_log[CLOCK_LOW_TIMEOUT]);
+		i2c_slave_clear_irq(i2c_slave, ALL_IRQ);
+	}
+
+	if (irq_stat & (1 << STOP_DETECTED)) {
+		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
+			      irq_log[STOP_DETECTED]);
+		i2c_slave_clear_irq(i2c_slave, STOP_DETECTED);
+		i2c_slave_read_fifo(i2c_slave);
+	}
+
 	if (irq_stat & (1 << RX_FIFO_FULL)) {
 		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
 			      irq_log[RX_FIFO_FULL]);
+		i2c_slave_send_nack(i2c_slave);
 		i2c_slave_clear_irq(i2c_slave, RX_FIFO_FULL);
+	}
+
+	if (irq_stat & (1 << STRCH_RD)) {
+		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
+			      irq_log[STRCH_RD]);
+		i2c_slave->tx_count = read_tx_fifo_byte_count(i2c_slave);
+		if (i2c_slave->tx_count > 0) {
+			i2c_slave_send_ack(i2c_slave);
+		} else {
+			I2C_SLAVE_ERR(i2c_slave->ipcl, false, i2c_slave->dev,
+				      "TX FIFO empty\n");
+			i2c_slave_send_nack(i2c_slave);
+		}
+		i2c_slave_clear_irq(i2c_slave, STRCH_RD);
+	}
+
+	if (irq_stat & (1 << RX_DATA_AVAIL)) {
+		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
+			      irq_log[RX_DATA_AVAIL]);
+		i2c_slave_clear_irq(i2c_slave, RX_DATA_AVAIL);
+	}
+
+	if (irq_stat & (1 << STRCH_WR)) {
+		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
+			      irq_log[STRCH_WR]);
+		i2c_slave_clear_irq(i2c_slave, STRCH_WR);
+		i2c_slave_send_ack(i2c_slave);
 	}
 
 	if (irq_stat & (1 << TX_FIFO_EMPTY)) {
@@ -362,12 +366,14 @@ static irqreturn_t i2c_slave_irq(int irq, void *dev)
 	if (irq_stat & (1 << GCA_DETECTED)) {
 		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
 			      irq_log[GCA_DETECTED]);
+		i2c_slave_send_nack(i2c_slave);
 		i2c_slave_clear_irq(i2c_slave, GCA_DETECTED);
 	}
 
 	if (irq_stat & (1 << RESTART_DETECTED)) {
 		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev, "%s\n",
 			      irq_log[RESTART_DETECTED]);
+		i2c_slave_send_ack(i2c_slave);
 		i2c_slave_clear_irq(i2c_slave, RESTART_DETECTED);
 	}
 
@@ -405,7 +411,7 @@ static int i2c_slave_write(struct i2c_slave *i2c_slave, uint8_t *buf, size_t cou
 	}
 
 	if (!count) {
-		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+		I2C_SLAVE_ERR(i2c_slave->ipcl, false, i2c_slave->dev,
 			      "Write count is zero\n");
 		return -EINVAL;
 	}
@@ -438,7 +444,7 @@ static int i2c_slave_read(struct i2c_slave *i2c_slave, uint8_t *buf, size_t coun
 	}
 
 	if (count == 0) {
-		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+		I2C_SLAVE_ERR(i2c_slave->ipcl, false, i2c_slave->dev,
 			      "Read count is zero\n");
 		return -EINVAL;
 	}
@@ -490,7 +496,13 @@ static int i2c_slave_xfer(struct i2c_adapter *adap, u16 addr,
 	u8 buf[I2C_SMBUS_BLOCK_MAX];
 	int ret = 0, count, i;
 
-	if (addr != i2c_slave->slave_addr) {
+	/* Every open/close of i2c device node, i2c framework will set
+	 * slave address variable to 0 in i2c client structure and
+	 * client has to run IOCTL on every open/close opration.
+	 * So, to avoid slave address to be set to zero, added
+	 * check for non-zero slave address.
+	 */
+	if (addr && addr != i2c_slave->slave_addr) {
 		i2c_slave->slave_addr = addr;
 		writel_relaxed(addr, i2c_slave->base + I2C_S_DEVICE_ADDR);
 	}
@@ -603,6 +615,166 @@ err_on_xo:
 }
 
 /**
+ * i2c_slave_icc_init: Enable ICB voting.
+ * @i2c_slave: Pointer to Main Structure.
+ *
+ * This function will enable ICB voting for i2c slave.
+ *
+ * Return: 0 for success, negative number for error condition.
+ */
+static int i2c_slave_icc_init(struct i2c_slave *i2c_slave)
+{
+	int ret = 0;
+
+	i2c_slave->icc_path = devm_of_icc_get(i2c_slave->dev, "i2c-slave-config");
+	if (IS_ERR(i2c_slave->icc_path)) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "devm_of_icc_get failed: %d:\n", ret);
+		return -EINVAL;
+	}
+
+	i2c_slave->bw = APPS_PROC_TO_I2C_SLAVE_VOTE;
+	icc_set_bw(i2c_slave->icc_path, i2c_slave->bw, i2c_slave->bw);
+
+	ret = icc_enable(i2c_slave->icc_path);
+	if (ret) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "ICC enable failed err: %d\n", ret);
+		devres_free(&i2c_slave->icc_path);
+		return ret;
+	}
+
+	return 0;
+}
+
+/*
+ * i2c_slave_open: open function for dev node.
+ * @inode: Pointer to inode.
+ * @file: Pointer to file descriptor.
+ *
+ * This function will be called when we open the dev node
+ * from user-space application.
+ *
+ * Return: 0 for success.
+ */
+static int i2c_slave_open(struct inode *inode, struct file *file)
+{
+	struct cdev *cdev = inode->i_cdev;
+	struct i2c_slave *i2c_slave = container_of(cdev, struct i2c_slave, cdev);
+
+	file->private_data = i2c_slave;
+	return 0;
+}
+
+/*
+ * i2c_slave_release: close function for dev node.
+ * @inode: pointer to inode.
+ * @file: Pointer to file descriptor.
+ *
+ * This function will be called when we close the dev node
+ * from user-space application.
+ *
+ * Return: 0 for success.
+ */
+static int i2c_slave_release(struct inode *inode, struct file *file)
+{
+	file->private_data = NULL;
+	return 0;
+}
+
+/**
+ * i2c_slave_poll: poll() syscall for I2C slave.
+ * @f: Pointer to the file structure.
+ * @wait: Pointer to Poll table.
+ *
+ * This function is used to poll on the I2C slave device.
+ * when userspace client do a poll() system call.
+ *
+ * Return: POLLIN if RX data available else 0.
+ */
+static __poll_t i2c_slave_poll(struct file *file, struct poll_table_struct *wait)
+{
+	struct i2c_slave *i2c_slave = file->private_data;
+	__poll_t mask = 0;
+
+	poll_wait(file, &i2c_slave->readq, wait);
+	if (i2c_slave->rx_count > 0) {
+		I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev,
+			      "%s: RX data available\n", __func__);
+		mask |= POLLIN;
+	}
+
+	return mask;
+}
+
+static const struct file_operations fops = {
+	.owner          = THIS_MODULE,
+	.open           = i2c_slave_open,
+	.poll           = i2c_slave_poll,
+	.release        = i2c_slave_release,
+};
+
+/**
+ * i2c_slave_create_dev_node: Create dev node for poll
+ * @i2c_slave: Pointer to Main Structure.
+ *
+ * This function will create user-space dev node to support
+ * poll function on the I2C slave device.
+ *
+ * Return: 0 for success, negative number for error condition.
+ */
+
+static int i2c_slave_create_dev_node(struct i2c_slave *i2c_slave)
+{
+	struct device *dev_ret;
+	struct class *i2c_slave_class;
+	dev_t i2c_slave_dev;
+	int ret = 0;
+
+	ret = alloc_chrdev_region(&i2c_slave_dev, 0, 1, I2C_SLAVE_DEV);
+	if (ret  < 0) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "%s: failed in alloc_chrdev_region ret:%d\n", ret);
+		goto err_alloc;
+	}
+	cdev_init(&i2c_slave->cdev, &fops);
+
+	ret = cdev_add(&i2c_slave->cdev, i2c_slave_dev, 1);
+	if (ret < 0) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "%s: failed in cdev_add ret:%d\n", ret);
+		goto err_cdev_add;
+	}
+
+	i2c_slave_class = class_create(THIS_MODULE, I2C_SLAVE_DEV);
+	if (IS_ERR_OR_NULL(i2c_slave_class)) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "%s: failed in class_create:%d\n", ret);
+		ret = PTR_ERR(i2c_slave_class);
+		goto err_class_create;
+	}
+
+	dev_ret = device_create(i2c_slave_class, NULL, i2c_slave_dev, NULL, I2C_SLAVE_DEV);
+	if (IS_ERR_OR_NULL(dev_ret)) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "%s: failed in device_create:%d\n", ret);
+		ret = PTR_ERR(dev_ret);
+		goto err_device_create;
+	}
+
+	return ret;
+
+err_device_create:
+	class_destroy(i2c_slave_class);
+err_class_create:
+	cdev_del(&i2c_slave->cdev);
+err_cdev_add:
+	unregister_chrdev_region(i2c_slave_dev, 1);
+err_alloc:
+	return ret;
+}
+
+/**
  * i2c_slave_func: To check supported i2c functionality.
  * @adap: I2C driver adapter.
  *
@@ -667,6 +839,13 @@ static int i2c_slave_probe(struct platform_device *pdev)
 		goto err_ipc;
 	}
 
+	ret = i2c_slave_create_dev_node(i2c_slave);
+	if (ret < 0) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "failed to create dev node ret: %d:\n", ret);
+		goto err_ipc;
+	}
+
 	ret = i2c_slave_enable_clk(i2c_slave);
 	if (ret)
 		goto err_ipc;
@@ -687,8 +866,14 @@ static int i2c_slave_probe(struct platform_device *pdev)
 		goto err_irq;
 	}
 
-	i2c_slave->adap.algo = &i2c_slave_algo;
+	ret = i2c_slave_icc_init(i2c_slave);
+	if (ret) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "ICC init failed ret: %d\n", ret);
+		goto err_icc;
+	}
 
+	i2c_slave->adap.algo = &i2c_slave_algo;
 	i2c_slave->rx_count = 0;
 
 	/* Enable IRQ */
@@ -708,6 +893,7 @@ static int i2c_slave_probe(struct platform_device *pdev)
 		goto err_adap;
 	}
 
+	init_waitqueue_head(&i2c_slave->readq);
 	i2c_set_adapdata(&i2c_slave->adap, i2c_slave);
 	platform_set_drvdata(pdev, i2c_slave);
 	i2c_slave->adap.dev.parent = i2c_slave->dev;
@@ -723,11 +909,14 @@ static int i2c_slave_probe(struct platform_device *pdev)
 		      "I2C Slave probed\n");
 	return 0;
 
+err_adap:
+	icc_disable(i2c_slave->icc_path);
+	devres_free(&i2c_slave->icc_path);
+err_icc:
+	disable_irq(i2c_slave->irq);
 err_irq:
 	clk_disable_unprepare(i2c_slave->ahb_clk);
 	clk_disable_unprepare(i2c_slave->xo_clk);
-err_adap:
-	disable_irq(i2c_slave->irq);
 err_ipc:
 	if (i2c_slave->ipcl)
 		ipc_log_context_destroy(i2c_slave->ipcl);
@@ -744,7 +933,6 @@ err:
  *
  * Return: 0 for success.
  */
-
 static int i2c_slave_remove(struct platform_device *pdev)
 {
 	struct i2c_slave *i2c_slave = platform_get_drvdata(pdev);
@@ -752,6 +940,8 @@ static int i2c_slave_remove(struct platform_device *pdev)
 	clk_disable_unprepare(i2c_slave->ahb_clk);
 	clk_disable_unprepare(i2c_slave->xo_clk);
 	disable_irq(i2c_slave->irq);
+	icc_disable(i2c_slave->icc_path);
+	devres_free(&i2c_slave->icc_path);
 	i2c_del_adapter(&i2c_slave->adap);
 
 	if (i2c_slave->ipcl)
@@ -759,6 +949,97 @@ static int i2c_slave_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+/**
+ * i2c_slave_suspend: driver suspend function.
+ * @dev: Pointer to device structure.
+ *
+ * This function will put driver into suspend state by releasing
+ * icc, irq and core clock.
+ *
+ * Return: 0 for success.
+ */
+#ifdef I2C_SLAVE_SUSPEND_RESUME
+static int i2c_slave_suspend(struct device *dev)
+{
+	struct i2c_slave *i2c_slave = dev_get_drvdata(dev);
+
+	disable_irq(i2c_slave->irq);
+	icc_disable(i2c_slave->icc_path);
+	clk_disable_unprepare(i2c_slave->ahb_clk);
+	clk_disable_unprepare(i2c_slave->xo_clk);
+	I2C_SLAVE_DBG(i2c_slave->ipcl, false, i2c_slave->dev,
+		      "%s\n", __func__);
+	return 0;
+}
+
+/**
+ * i2c_slave_resume: driver resume function.
+ * @dev: Pointer to device structure.
+ *
+ * This function will resume the driver by enabling icc, irq
+ * and core clock.
+ *
+ * Return: 0 for success, negative number for error condition.
+ */
+static int i2c_slave_resume(struct device *dev)
+{
+	struct i2c_slave *i2c_slave = dev_get_drvdata(dev);
+	int ret = 0;
+
+	enable_irq(i2c_slave->irq);
+
+	ret = icc_enable(i2c_slave->icc_path);
+	if (ret) {
+		I2C_SLAVE_ERR(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "ICC enable failed err: %d\n", ret);
+		goto err_icc;
+	}
+
+	ret = clk_prepare_enable(i2c_slave->ahb_clk);
+	if (ret) {
+		I2C_SLAVE_DBG(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "%s: failing at ahb clk prepare enable ret=%d\n",
+			      __func__, ret);
+		goto err_ahb_clk;
+	}
+
+	ret = clk_prepare_enable(i2c_slave->xo_clk);
+	if (ret) {
+		I2C_SLAVE_DBG(i2c_slave->ipcl, true, i2c_slave->dev,
+			      "%s: failing at xo clk prepare enable ret=%d\n",
+			       __func__, ret);
+		clk_disable_unprepare(i2c_slave->ahb_clk);
+		goto err_xo_clk;
+	}
+
+	I2C_SLAVE_DBG(i2c_slave->ipcl, true, i2c_slave->dev,
+		      "%s:\n", __func__);
+	return 0;
+
+err_xo_clk:
+	clk_disable_unprepare(i2c_slave->ahb_clk);
+err_ahb_clk:
+	icc_disable(i2c_slave->icc_path);
+err_icc:
+	return ret;
+}
+#else
+static int i2c_slave_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int i2c_slave_resume(struct device *dev)
+{
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops i2c_slave_pm_ops = {
+	.suspend = i2c_slave_suspend,
+	.resume = i2c_slave_resume,
+};
 
 static const struct of_device_id i2c_slave_dt_match[] = {
 	{.compatible = "qcom,i2c-slave" },
@@ -769,6 +1050,7 @@ MODULE_DEVICE_TABLE(of, i2c_slave_dt_match);
 static struct platform_driver i2c_slave_driver = {
 	.driver = {
 		.name = "i2c_slave",
+		.pm = &i2c_slave_pm_ops,
 		.of_match_table = i2c_slave_dt_match,
 	},
 	.probe  = i2c_slave_probe,

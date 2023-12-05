@@ -268,3 +268,16 @@ void wlan_tdls_get_features_info(struct wlan_objmgr_psoc *psoc,
 	}
 }
 #endif
+
+void wlan_tdls_update_tx_pkt_cnt(struct wlan_objmgr_vdev *vdev,
+				 struct qdf_mac_addr *mac_addr)
+{
+	tdls_update_tx_pkt_cnt(vdev, mac_addr);
+}
+
+void wlan_tdls_update_rx_pkt_cnt(struct wlan_objmgr_vdev *vdev,
+				 struct qdf_mac_addr *mac_addr,
+				 struct qdf_mac_addr *dest_mac_addr)
+{
+	tdls_update_rx_pkt_cnt(vdev, mac_addr, dest_mac_addr);
+}

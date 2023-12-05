@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -55,7 +55,7 @@ const struct nla_policy cfg80211_scan_policy[
 /**
  * wlan_cfg80211_is_colocated_6ghz_scan_supported() - Check whether colocated
  * 6ghz scan flag present in scan request or not
- * @scan_flag: Flags bitmap comming from kernel
+ * @scan_flag: Flags bitmap coming from kernel
  *
  * Return: True if colocated 6ghz scan flag present in scan req
  */
@@ -631,9 +631,10 @@ int wlan_cfg80211_sched_scan_start(struct wlan_objmgr_vdev *vdev,
 		   req->band_rssi_pref.rssi);
 
 	for (i = 0; i < req->networks_cnt; i++)
-		osif_debug("[%d] ssid: %.*s, RSSI th %d bc NW type %u",
-			   i, req->networks_list[i].ssid.length,
-			   req->networks_list[i].ssid.ssid,
+		osif_debug("[%d] ssid: " QDF_SSID_FMT ", RSSI th %d bc NW type %u",
+			   i,
+			   QDF_SSID_REF(req->networks_list[i].ssid.length,
+					req->networks_list[i].ssid.ssid),
 			   req->networks_list[i].rssi_thresh,
 			   req->networks_list[i].bc_new_type);
 
@@ -1442,6 +1443,42 @@ enum scan_priority convert_nl_scan_priority_to_internal(
 	}
 }
 
+bool wlan_is_scan_allowed(struct wlan_objmgr_vdev *vdev)
+{
+	struct wlan_objmgr_pdev *pdev = wlan_vdev_get_pdev(vdev);
+	struct pdev_osif_priv *osif_priv;
+	struct wlan_objmgr_psoc *psoc;
+	enum QDF_OPMODE opmode = wlan_vdev_mlme_get_opmode(vdev);
+
+	psoc = wlan_pdev_get_psoc(pdev);
+	if (!psoc) {
+		osif_err("Invalid psoc object");
+		return false;
+	}
+
+	osif_priv = wlan_pdev_get_ospriv(pdev);
+	if (!osif_priv) {
+		osif_err("Invalid osif priv object");
+		return false;
+	}
+	/*
+	 * For a non-SAP vdevs, if a scan is already going on i.e the scan queue
+	 * is not empty, and the simultaneous scan is disabled, dont allow 2nd
+	 * scan.
+	 */
+	qdf_mutex_acquire(&osif_priv->osif_scan->scan_req_q_lock);
+	if (!wlan_cfg80211_allow_simultaneous_scan(psoc) &&
+	    !qdf_list_empty(&osif_priv->osif_scan->scan_req_q) &&
+	    opmode != QDF_SAP_MODE) {
+		qdf_mutex_release(&osif_priv->osif_scan->scan_req_q_lock);
+		osif_err_rl("Simultaneous scan disabled, reject scan");
+		return false;
+	}
+	qdf_mutex_release(&osif_priv->osif_scan->scan_req_q_lock);
+
+	return true;
+}
+
 int wlan_cfg80211_scan(struct wlan_objmgr_vdev *vdev,
 		       struct cfg80211_scan_request *request,
 		       struct scan_params *params)
@@ -1473,27 +1510,14 @@ int wlan_cfg80211_scan(struct wlan_objmgr_vdev *vdev,
 	osif_debug("%s(vdev%d): mode %d", request->wdev->netdev->name,
 		   wlan_vdev_get_id(vdev), opmode);
 
-	/* Get NL global context from objmgr*/
+	if (!wlan_is_scan_allowed(vdev))
+		return -EBUSY;
+
 	osif_priv = wlan_pdev_get_ospriv(pdev);
 	if (!osif_priv) {
 		osif_err("Invalid osif priv object");
 		return -EINVAL;
 	}
-
-	/*
-	 * For a non-SAP vdevs, if a scan is already going on i.e the scan queue
-	 * is not empty, and the simultaneous scan is disabled, dont allow 2nd
-	 * scan.
-	 */
-	qdf_mutex_acquire(&osif_priv->osif_scan->scan_req_q_lock);
-	if (!wlan_cfg80211_allow_simultaneous_scan(psoc) &&
-	    !qdf_list_empty(&osif_priv->osif_scan->scan_req_q) &&
-	    opmode != QDF_SAP_MODE) {
-		qdf_mutex_release(&osif_priv->osif_scan->scan_req_q_lock);
-		osif_err("Simultaneous scan disabled, reject scan");
-		return -EBUSY;
-	}
-	qdf_mutex_release(&osif_priv->osif_scan->scan_req_q_lock);
 
 	req = qdf_mem_malloc(sizeof(*req));
 	if (!req)
@@ -1954,54 +1978,6 @@ wlan_get_ieee80211_channel(struct wiphy *wiphy,
 	return chan;
 }
 
-#ifdef WLAN_ENABLE_AGEIE_ON_SCAN_RESULTS
-static inline int wlan_get_frame_len(struct scan_cache_entry *scan_params)
-{
-	return util_scan_entry_frame_len(scan_params) + sizeof(qcom_ie_age);
-}
-
-static inline void wlan_add_age_ie(uint8_t *mgmt_frame,
-	struct scan_cache_entry *scan_params)
-{
-	qcom_ie_age *qie_age = NULL;
-
-	/* GPS Requirement: need age ie per entry. Using vendor specific. */
-	/* Assuming this is the last IE, copy at the end */
-	qie_age = (qcom_ie_age *) (mgmt_frame +
-		   util_scan_entry_frame_len(scan_params));
-	qie_age->element_id = QCOM_VENDOR_IE_ID;
-	qie_age->len = QCOM_VENDOR_IE_AGE_LEN;
-	qie_age->oui_1 = QCOM_OUI1;
-	qie_age->oui_2 = QCOM_OUI2;
-	qie_age->oui_3 = QCOM_OUI3;
-	qie_age->type = QCOM_VENDOR_IE_AGE_TYPE;
-	/*
-	 * Lowi expects the timestamp of bss in units of 1/10 ms. In driver
-	 * all bss related timestamp is in units of ms. Due to this when scan
-	 * results are sent to lowi the scan age is high.To address this,
-	 * send age in units of 1/10 ms.
-	 */
-	qie_age->age =
-		(uint32_t)(qdf_mc_timer_get_system_time() -
-		  scan_params->scan_entry_time)/10;
-	qie_age->tsf_delta = scan_params->tsf_delta;
-	memcpy(&qie_age->beacon_tsf, scan_params->tsf_info.data,
-		  sizeof(qie_age->beacon_tsf));
-	memcpy(&qie_age->seq_ctrl, &scan_params->seq_num,
-	       sizeof(qie_age->seq_ctrl));
-}
-#else
-static inline int wlan_get_frame_len(struct scan_cache_entry *scan_params)
-{
-	return util_scan_entry_frame_len(scan_params);
-}
-
-static inline void wlan_add_age_ie(uint8_t *mgmt_frame,
-	struct scan_cache_entry *scan_params)
-{
-}
-#endif /* WLAN_ENABLE_AGEIE_ON_SCAN_RESULTS */
-
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)) || \
 	defined(CFG80211_INFORM_BSS_FRAME_DATA)
 /**
@@ -2098,7 +2074,7 @@ void wlan_cfg80211_inform_bss_frame(struct wlan_objmgr_pdev *pdev,
 
 	wiphy = pdev_ospriv->wiphy;
 
-	bss_data.frame_len = wlan_get_frame_len(scan_params);
+	bss_data.frame_len = ucfg_scan_get_entry_frame_len(scan_params);
 	bss_data.mgmt = qdf_mem_malloc_atomic(bss_data.frame_len);
 	if (!bss_data.mgmt) {
 		osif_err("bss mem alloc failed for seq %d",
@@ -2113,7 +2089,6 @@ void wlan_cfg80211_inform_bss_frame(struct wlan_objmgr_pdev *pdev,
 	 * Instead it wants a monotonic increasing value
 	 */
 	bss_data.mgmt->u.probe_resp.timestamp = qdf_get_monotonic_boottime();
-	wlan_add_age_ie((uint8_t *)bss_data.mgmt, scan_params);
 	/*
 	 * Based on .ini configuration, raw rssi can be reported for bss.
 	 * Raw rssi is typically used for estimating power.
@@ -2198,8 +2173,9 @@ QDF_STATUS  __wlan_cfg80211_unlink_bss_list(struct wiphy *wiphy,
 		osif_info("BSS "QDF_MAC_ADDR_FMT" not found",
 			  QDF_MAC_ADDR_REF(bssid));
 	} else {
-		osif_debug("unlink entry for ssid:%.*s and BSSID "QDF_MAC_ADDR_FMT,
-			   ssid_len, ssid, QDF_MAC_ADDR_REF(bssid));
+		osif_debug("unlink entry for ssid:" QDF_SSID_FMT " and BSSID " QDF_MAC_ADDR_FMT,
+			   QDF_SSID_REF(ssid_len, ssid),
+			   QDF_MAC_ADDR_REF(bssid));
 		cfg80211_unlink_bss(wiphy, bss);
 		wlan_cfg80211_put_bss(wiphy, bss);
 	}
@@ -2215,11 +2191,13 @@ QDF_STATUS  __wlan_cfg80211_unlink_bss_list(struct wiphy *wiphy,
 	 */
 	bss = wlan_cfg80211_get_bss(wiphy, NULL, bssid, NULL, 0);
 	if (!bss) {
-		osif_debug("Hidden bss not found for Ssid:%.*s BSSID: "QDF_MAC_ADDR_FMT" sid_len %d",
-			   ssid_len, ssid, QDF_MAC_ADDR_REF(bssid), ssid_len);
+		osif_debug("Hidden bss not found for ssid:" QDF_SSID_FMT " BSSID: " QDF_MAC_ADDR_FMT " sid_len %d",
+			   QDF_SSID_REF(ssid_len, ssid),
+			   QDF_MAC_ADDR_REF(bssid), ssid_len);
 	} else {
-		osif_debug("unlink entry for Hidden ssid:%.*s and BSSID "QDF_MAC_ADDR_FMT,
-			   ssid_len, ssid, QDF_MAC_ADDR_REF(bssid));
+		osif_debug("unlink entry for Hidden ssid:" QDF_SSID_FMT " and BSSID " QDF_MAC_ADDR_FMT,
+			   QDF_SSID_REF(ssid_len, ssid),
+			   QDF_MAC_ADDR_REF(bssid));
 
 		cfg80211_unlink_bss(wiphy, bss);
 		/* cfg80211_get_bss get bss with ref count so release it */

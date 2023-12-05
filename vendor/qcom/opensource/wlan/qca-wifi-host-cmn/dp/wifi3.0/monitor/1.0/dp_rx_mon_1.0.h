@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -54,7 +54,7 @@ void dp_rx_pdev_mon_desc_pool_free(struct dp_pdev *pdev);
 /**
  * dp_rx_mon_dest_process() - Brain of the Rx processing functionality
  *	Called from the bottom half (tasklet/NET_RX_SOFTIRQ)
- * @soc: core txrx main contex
+ * @soc: core txrx main context
  * @int_ctx: interrupt context
  * @hal_ring: opaque pointer to the HAL Rx Ring, which will be serviced
  * @quota: No. of units (packets) that can be serviced in one shot.
@@ -122,7 +122,7 @@ dp_mon_dest_srng_drop_for_mac(struct dp_pdev *pdev, uint32_t mac_id);
 
 /**
  * dp_rxdma_err_process() - RxDMA error processing functionality
- * @soc: core txrx main contex
+ * @soc: core txrx main context
  * @mac_id: mac id which is one of 3 mac_ids
  * @hal_ring: opaque pointer to the HAL Rx Ring, which will be serviced
  * @quota: No. of units (packets) that can be serviced in one shot.
@@ -749,7 +749,7 @@ dp_rx_mon_parse_desc_buffer(struct dp_soc *dp_soc,
 		*is_frag_p = true;
 		*frag_len_p = (RX_MONITOR_BUFFER_SIZE - rx_pkt_tlv_len -
 			       *l2_hdr_offset_p) &
-			      (RXDMA_DATA_DMA_BLOCK_SIZE - 1);
+			      ~(RXDMA_DATA_DMA_BLOCK_SIZE - 1);
 		*total_frag_len_p += *frag_len_p;
 	} else {
 		if (hal_rx_tlv_decap_format_get(dp_soc->hal_soc, rx_desc_tlv) ==

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -249,4 +250,22 @@ QDF_STATUS dfs_inject_synthetic_pulse_sequence(struct wlan_dfs *dfs,
 	return QDF_STATUS_SUCCESS;
 }
 #endif /* WLAN_DFS_PARTIAL_OFFLOAD && WLAN_DFS_SYNTHETIC_RADAR */
+
+/**
+ * dfs_disable_radar_and_flush_pulses() - Disable radar detect and flush
+ * the pulses to avoid false radar detects
+ * @dfs: Pointer to struct wlan_dfs
+ *
+ * Return: None
+ */
+#if defined(WLAN_DFS_PARTIAL_OFFLOAD) && defined(HOST_DFS_SPOOF_TEST)
+void
+dfs_disable_radar_and_flush_pulses(struct wlan_dfs *dfs);
+#else
+static inline void
+dfs_disable_radar_and_flush_pulses(struct wlan_dfs *dfs)
+{
+}
+#endif
+
 #endif /*  _DFS_PARTIAL_OFFLOAD_RADAR_H_ */

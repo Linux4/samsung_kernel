@@ -174,7 +174,7 @@ struct hal_reo_cmd_params_std {
 /**
  * struct hal_reo_cmd_get_queue_stats_params: Parameters to
  *	CMD_GET_QUEUE_STATScommand
- * @clear: Clear stats after retreiving
+ * @clear: Clear stats after retrieving
  */
 struct hal_reo_cmd_get_queue_stats_params {
 	bool clear;
@@ -375,7 +375,7 @@ struct hal_reo_status_header {
  * @last_rx_deq_tstamp: Last dequeue timestamp
  * @rx_bitmap_31_0, rx_bitmap_63_32, rx_bitmap_95_64
  * @rx_bitmap_127_96, rx_bitmap_159_128, rx_bitmap_191_160
- * @rx_bitmap_223_192, rx_bitmap_255_224: Each bit corresonds to a frame
+ * @rx_bitmap_223_192, rx_bitmap_255_224: Each bit corresponds to a frame
  *	held in re-order queue
  * @curr_mpdu_cnt, curr_msdu_cnt: Number of MPDUs and MSDUs in the queue
  * @fwd_timeout_cnt: Frames forwarded due to timeout
@@ -441,7 +441,7 @@ struct hal_reo_flush_cache_status {
  * struct hal_reo_unblk_cache_status: UNBLOCK_CACHE status structure
  * @header: Common REO status header
  * @error: error detected
- * unblock_type: resoure or cache
+ * unblock_type: resource or cache
  */
 struct hal_reo_unblk_cache_status {
 	struct hal_reo_status_header header;
@@ -551,7 +551,7 @@ static inline uint8_t hal_find_zero_bit(uint8_t x)
 /* REO command ring routines */
 
 /**
- * hal_uniform_desc_hdr_setup - setup reo_queue_ext descritpro
+ * hal_uniform_desc_hdr_setup - setup reo_queue_ext descriptor
  * @owner - owner info
  * @buffer_type - buffer type
  */

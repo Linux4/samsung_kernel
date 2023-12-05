@@ -368,6 +368,11 @@ static struct cvp_dsp_fastrpc_driver_entry *pop_frpc_node(void)
 
 search_again:
 	ptr = &me->fastrpc_driver_list.list;
+	if (!ptr) {
+		frpc_node = NULL;
+		goto exit;
+	}
+
 	mutex_lock(&me->fastrpc_driver_list.lock);
 	list_for_each_safe(ptr, next, &me->fastrpc_driver_list.list) {
 		frpc_node = list_entry(ptr,
@@ -565,6 +570,9 @@ static void cvp_remove_dsp_sessions(void)
 
 	while ((frpc_node = pop_frpc_node())) {
 		s = &frpc_node->dsp_sessions.list;
+		if (!s)
+			return;
+
 		list_for_each_safe(s, next_s,
 				&frpc_node->dsp_sessions.list) {
 			inst = list_entry(s, struct msm_cvp_inst,

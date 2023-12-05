@@ -568,6 +568,11 @@ struct rproc {
 	u16 elf_machine;
 	struct cdev cdev;
 	bool cdev_put_on_release;
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+	bool prev_recovery_disabled;
+	bool fssr;
+	bool fssr_dump;
+#endif
 };
 
 /**

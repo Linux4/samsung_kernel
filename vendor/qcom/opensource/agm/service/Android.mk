@@ -14,6 +14,10 @@ LOCAL_MODULE_OWNER  := qti
 LOCAL_MODULE_TAGS   := optional
 LOCAL_VENDOR_MODULE := true
 
+# { SEC_AUDIO_COMMON
+# if you need to print metadata, add -DAGM_DEBUG_METADATA
+# LOCAL_CFLAGS        := -D_ANDROID_ -DAGM_DEBUG_METADATA
+# } SEC_AUDIO_COMMON
 LOCAL_CFLAGS        := -D_ANDROID_
 LOCAL_CFLAGS        += -Wno-tautological-compare -Wno-macro-redefined -Wall
 LOCAL_CFLAGS        += -D_GNU_SOURCE -DACDB_PATH=\"/vendor/etc/acdbdata/\"

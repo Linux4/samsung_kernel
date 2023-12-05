@@ -40,6 +40,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define __CLASS__ "PropertyParserImpl"
 
+#define PERSIST_PROPERTY_FILE_PATH "/persist/display/vendor_display_build.prop"
 #define PROPERTY_FILE_PATH "/usr/data/display/vendor_display_build.prop"
 
 PropertyParserImpl *PropertyParserImpl::property_parser_impl_ = nullptr;
@@ -61,8 +62,21 @@ int PropertyParserImpl::Init() {
     return 0;
   }
 
-  std::fstream prop_file(PROPERTY_FILE_PATH, std::fstream::in);
+  bool prop_file_found = false;
+  std::fstream prop_file;
+  prop_file.open(PERSIST_PROPERTY_FILE_PATH, std::fstream::in);
   if (prop_file.is_open()) {
+    prop_file_found = true;
+    DLOGI("found prop file %s", PERSIST_PROPERTY_FILE_PATH);
+  } else {
+    prop_file.open(PROPERTY_FILE_PATH, std::fstream::in);
+    if (prop_file.is_open()) {
+      DLOGI("found prop file %s", PROPERTY_FILE_PATH);
+      prop_file_found = true;
+    }
+  }
+
+  if (prop_file_found) {
     std::string line = {};
     while (std::getline(prop_file, line)) {
       auto pos = line.find('=');

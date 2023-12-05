@@ -188,8 +188,9 @@ uint32_t wlan_son_get_chan_flag(struct wlan_objmgr_pdev *pdev,
 		    CHANNEL_STATE_INVALID) {
 			if (!flag_160) {
 				chan_params->ch_width = CH_WIDTH_80P80MHZ;
-				wlan_reg_set_channel_params_for_freq(
-					pdev, freq, 0, chan_params);
+				wlan_reg_set_channel_params_for_pwrmode(
+					pdev, freq, 0, chan_params,
+					REG_CURRENT_PWR_MODE);
 			}
 			if (is_he_enabled)
 				flags |= VENDOR_CHAN_FLAG2(
@@ -204,8 +205,9 @@ uint32_t wlan_son_get_chan_flag(struct wlan_objmgr_pdev *pdev,
 		    CHANNEL_STATE_INVALID) {
 			if (flag_160) {
 				chan_params->ch_width = CH_WIDTH_160MHZ;
-				wlan_reg_set_channel_params_for_freq(
-					pdev, freq, 0, chan_params);
+				wlan_reg_set_channel_params_for_pwrmode(
+					pdev, freq, 0, chan_params,
+					REG_CURRENT_PWR_MODE);
 			}
 			if (is_he_enabled)
 				flags |= VENDOR_CHAN_FLAG2(
@@ -221,8 +223,9 @@ uint32_t wlan_son_get_chan_flag(struct wlan_objmgr_pdev *pdev,
 			if (!flag_160 &&
 			    chan_params->ch_width != CH_WIDTH_80P80MHZ) {
 				chan_params->ch_width = CH_WIDTH_80MHZ;
-				wlan_reg_set_channel_params_for_freq(
-					pdev, freq, 0, chan_params);
+				wlan_reg_set_channel_params_for_pwrmode(
+					pdev, freq, 0, chan_params,
+					REG_CURRENT_PWR_MODE);
 			}
 			if (is_he_enabled)
 				flags |= VENDOR_CHAN_FLAG2(
@@ -233,8 +236,9 @@ uint32_t wlan_son_get_chan_flag(struct wlan_objmgr_pdev *pdev,
 		fallthrough;
 	case CH_WIDTH_40MHZ:
 		ch_width40_ch_params.ch_width = bandwidth;
-		wlan_reg_set_channel_params_for_freq(pdev, freq, 0,
-						     &ch_width40_ch_params);
+		wlan_reg_set_channel_params_for_pwrmode(pdev, freq, 0,
+							&ch_width40_ch_params,
+							REG_CURRENT_PWR_MODE);
 
 		if (ch_width40_ch_params.sec_ch_offset == LOW_PRIMARY_CH)
 			sec_freq = freq + 20;

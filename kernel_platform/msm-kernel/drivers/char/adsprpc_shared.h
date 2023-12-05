@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef ADSPRPC_SHARED_H
 #define ADSPRPC_SHARED_H
@@ -91,6 +91,9 @@
 
 /* Set FastRPC session ID to 1 */
 #define FASTRPC_MODE_SESSION     4
+
+/* Retrieves method index from the scalars parameter */
+#define REMOTE_SCALARS_METHOD(sc)        (((sc) >> 24) & 0x1f)
 
 /* Retrives number of input buffers from the scalars parameter */
 #define REMOTE_SCALARS_INBUFS(sc)        (((sc) >> 16) & 0x0ff)
@@ -491,8 +494,8 @@ enum fastrpc_control_type {
 /* Clean process on DSP */
 	FASTRPC_CONTROL_DSPPROCESS_CLEAN	=	6,
 	FASTRPC_CONTROL_RPC_POLL = 7,
-	FASTRPC_CONTROL_ASYNC_EXIT = 8,
-	FASTRPC_CONTROL_NOTIF_EXIT = 9,
+	FASTRPC_CONTROL_ASYNC_WAKE = 8,
+	FASTRPC_CONTROL_NOTIF_WAKE = 9,
 };
 
 struct fastrpc_ctrl_latency {
@@ -689,6 +692,7 @@ enum fastrpc_msg_type {
 
 #define SS_MEM_PROFILE
 #define SS_MEM_DEBUG
+#define SS_FASTRPC_SYNC
 
 struct secure_vm {
 	int *vmid;
@@ -699,11 +703,6 @@ struct secure_vm {
 struct gid_list {
 	unsigned int *gids;
 	unsigned int gidcount;
-};
-
-struct qos_cores {
-	int *coreno;
-	int corecount;
 };
 
 struct fastrpc_file;
@@ -898,7 +897,7 @@ struct fastrpc_channel_ctx {
 	int in_hib;
 	void *handle;
 	uint64_t prevssrcount;
-	int issubsystemup;
+	int subsystemstate;
 	int vmid;
 	struct secure_vm rhvm;
 	void *rh_dump_dev;
@@ -947,13 +946,16 @@ struct fastrpc_apps {
 	/* Non-secure subsystem like CDSP will use regular client */
 	struct wakeup_source *wake_source;
 	uint32_t duplicate_rsp_err_cnt;
-	struct qos_cores silvercores;
 	uint32_t max_size_limit;
 	struct hlist_head frpc_devices;
 	struct hlist_head frpc_drivers;
 	struct mutex mut_uid;
 	/* Indicates cdsp device status */
-	int remote_cdsp_status;
+	int fastrpc_cdsp_status;
+	/* Number of lowest capacity cores for given platform */
+	unsigned int lowest_capacity_core_count;
+	/* Flag to check if PM QoS vote needs to be done for only one core */
+	bool single_core_latency_vote;
 };
 
 struct fastrpc_mmap {
@@ -981,6 +983,8 @@ struct fastrpc_mmap {
 	struct timespec64 map_end_time;
 	/* Mapping for fastrpc shell */
 	bool is_filemap;
+	char *servloc_name;			/* Indicate which daemon mapped this */
+	unsigned int ctx_refs; /* Indicates reference count for context map */
 
 #if defined(SS_MEM_DEBUG)
 	uint32_t pid;           /* alloc real pid */
@@ -1086,6 +1090,10 @@ struct fastrpc_file {
 	struct completion work;
 	/* Flag to indicate ram dump collection status*/
 	bool is_ramdump_pend;
+	/* Process kill will wait on bus driver invoke thread to complete its process */
+	struct completion dma_invoke;
+	/* Flag to indicate invoke pending */
+	bool is_dma_invoke_pend;
 	/* Flag to indicate type of process (static, dynamic) */
 	uint32_t proc_flags;
 	/* If set, threads will poll for DSP response instead of glink wait */
@@ -1101,7 +1109,9 @@ struct fastrpc_file {
 	struct fastrpc_dspsignal *signal_groups[DSPSIGNAL_NUM_SIGNALS / DSPSIGNAL_GROUP_SIZE];
 	spinlock_t dspsignals_lock;
 	struct mutex signal_create_mutex;
-
+	struct completion shutdown;
+	/* Flag to indicate Notif feature to be enabled or no */
+	bool init_notif;
 	/* Flag to indicate notif thread exit requested*/
 	bool exit_notif;
 	/* Flag to indicate async thread exit requested*/
@@ -1156,7 +1166,10 @@ int fastrpc_internal_mem_unmap(struct fastrpc_file *fl,
 				struct fastrpc_ioctl_mem_unmap *ud);
 
 int fastrpc_internal_mmap(struct fastrpc_file *fl,
-				 struct fastrpc_ioctl_mmap *ud);
+		struct fastrpc_ioctl_mmap *ud);
+
+int fastrpc_internal_munmap_fd(struct fastrpc_file *fl,
+				struct fastrpc_ioctl_munmap_fd *ud);
 
 int fastrpc_init_process(struct fastrpc_file *fl,
 				struct fastrpc_ioctl_init_attrs *uproc);

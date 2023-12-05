@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -255,3 +255,70 @@ QDF_STATUS qdf_ini_section_parse(const char *ini_path, void *context,
 
 qdf_export_symbol(qdf_ini_section_parse);
 
+static bool is_valid_key(char **main_cursor)
+{
+	char *cursor = *main_cursor;
+
+	while (*cursor != '\0') {
+		unsigned char *val = (unsigned char *)cursor;
+
+		switch (*cursor) {
+		case '\r':
+		case '\n':
+			cursor++;
+			break;
+		case '\0':
+			break;
+		case '=':
+		case '#':
+		case ']':
+		case '[':
+		case '_':
+		case '-':
+		case ' ':
+		case ':':
+			cursor++;
+			break;
+
+		default:
+			if (!isalnum(*val)) {
+				qdf_err("Found invalid character %c", *cursor);
+				return false;
+			}
+			cursor++;
+			break;
+		}
+	}
+	return true;
+}
+
+bool qdf_valid_ini_check(const char  *ini_path)
+{
+	QDF_STATUS status;
+	char *fbuf;
+	char *cursor;
+	bool is_valid = false;
+
+	if (qdf_str_eq(QDF_WIFI_MODULE_PARAMS_FILE, ini_path))
+		status = qdf_module_param_file_read(ini_path, &fbuf);
+	else
+		status = qdf_file_read(ini_path, &fbuf);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		qdf_err("Failed to read *.ini file @ %s", ini_path);
+		return false;
+	}
+
+	/* foreach line */
+	cursor = fbuf;
+
+	is_valid = is_valid_key(&cursor);
+
+	if (qdf_str_eq(QDF_WIFI_MODULE_PARAMS_FILE, ini_path))
+		qdf_module_param_file_free(fbuf);
+	else
+		qdf_file_buf_free(fbuf);
+
+	return is_valid;
+}
+
+qdf_export_symbol(qdf_valid_ini_check);

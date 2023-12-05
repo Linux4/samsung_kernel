@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -33,6 +33,7 @@
 #define MISR_BUFF_SIZE	256
 #define ESD_MODE_STRING_MAX_LEN 256
 #define ESD_TRIGGER_STRING_MAX_LEN 10
+#define CMD_SCHED_PARAM_MAX_BUFF_SIZE 256
 
 #define MAX_NAME_SIZE	64
 #define MAX_TE_RECHECKS 5
@@ -716,7 +717,7 @@ static void dsi_display_parse_te_data(struct dsi_display *display)
 			"qcom,panel-te-source", &val);
 
 	if (rc || (val  > MAX_TE_SOURCE_ID)) {
-		DSI_ERR("invalid vsync source selection\n");
+		DSI_ERR("invalid vsync source (%d) selection, rc = %d\n", val, rc);
 		val = 0;
 	}
 
@@ -1922,11 +1923,11 @@ static ssize_t debugfs_update_cmd_scheduling_params(struct file *file,
 	if (*ppos)
 		return 0;
 
-	buf = kzalloc(256, GFP_KERNEL);
+	buf = kzalloc(CMD_SCHED_PARAM_MAX_BUFF_SIZE, GFP_KERNEL);
 	if (ZERO_OR_NULL_PTR(buf))
 		return -ENOMEM;
 
-	len = min_t(size_t, user_len, 255);
+	len = min_t(size_t, user_len, CMD_SCHED_PARAM_MAX_BUFF_SIZE - 1);
 	if (copy_from_user(buf, user_buf, len)) {
 		rc = -EINVAL;
 		goto error;
@@ -2934,7 +2935,7 @@ int dsi_display_phy_configure(void *priv, bool commit)
 	struct dsi_display *display = priv;
 	struct dsi_display_ctrl *m_ctrl;
 	struct dsi_pll_resource *pll_res;
-	struct dsi_ctrl *ctrl;
+	struct link_clk_freq link_freq;
 
 	if (!display) {
 		DSI_ERR("invalid arguments\n");
@@ -2956,9 +2957,15 @@ int dsi_display_phy_configure(void *priv, bool commit)
 		return -EINVAL;
 	}
 
-	ctrl = m_ctrl->ctrl;
-	pll_res->byteclk_rate = ctrl->clk_freq.byte_clk_rate;
-	pll_res->pclk_rate = ctrl->clk_freq.pix_clk_rate;
+	rc = dsi_clk_get_link_frequencies(&link_freq, display->dsi_clk_handle,
+						display->clk_master_idx);
+	if (rc) {
+		DSI_ERR("Failed to get link frequencies\n");
+		return rc;
+	}
+
+	pll_res->byteclk_rate = link_freq.byte_clk_rate;
+	pll_res->pclk_rate = link_freq.pix_clk_rate;
 
 	rc = dsi_phy_configure(m_ctrl->phy, commit);
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
@@ -3501,7 +3508,7 @@ int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 	struct samsung_display_driver_data *vdd;
 #endif
 	struct dsi_display *display;
-	struct dsi_ctrl *ctrl;
+	struct dsi_display_ctrl *ctrl;
 	int i, rc = 0;
 
 	if (!host || !cmd) {
@@ -3515,11 +3522,13 @@ int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 	if (atomic_read(&display->panel->esd_recovery_pending)) {
 		DSI_DEBUG("ESD recovery pending\n");
 		display_for_each_ctrl(i, display) {
-			ctrl = display->ctrl[i].ctrl;
-			if ((ctrl->pending_cmd_flags & DSI_CTRL_CMD_FETCH_MEMORY) &&
-				ctrl->cmd_len!=0) {
-				dsi_ctrl_cmd_transfer_cleanup(ctrl);
-				ctrl->cmd_len = 0;
+			ctrl = &display->ctrl[i];
+			if ((!ctrl) || (!ctrl->ctrl))
+				continue;
+			if ((ctrl->ctrl->pending_cmd_flags & DSI_CTRL_CMD_FETCH_MEMORY) &&
+				ctrl->ctrl->cmd_len != 0) {
+				dsi_ctrl_transfer_cleanup(ctrl->ctrl);
+				ctrl->ctrl->cmd_len = 0;
 			}
 		}
 		return 0;
@@ -3565,7 +3574,7 @@ int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 		vdd = display->panel->panel_private;
 		if (((cmd->ctrl_flags & DSI_CTRL_CMD_READ) && rc <= 0) ||
 				(!(cmd->ctrl_flags & DSI_CTRL_CMD_READ) && rc)) {
-			LCD_ERR(vdd, "[%s] cmd transfer failed, rc=%d, cmd_flags=%x cmd = %x\n",
+			LCD_INFO(vdd, "[%s] cmd transfer failed, rc=%d, cmd_flags=%x cmd = %x\n",
 				   ss_get_cmd_name(vdd->cmd_type), rc, cmd->ctrl_flags, (u8 *)cmd->msg.tx_buf + 0);
 			rc = -EINVAL;
 		}
@@ -4607,6 +4616,29 @@ void dsi_display_update_byte_intf_div(struct dsi_display *display)
 	config->byte_intf_clk_div = 2;
 }
 
+static int dsi_display_set_link_frequencies(struct dsi_display *display)
+{
+	int rc = 0, i = 0;
+
+	dsi_clk_acquire_mngr_lock(display->dsi_clk_handle);
+	display_for_each_ctrl(i, display) {
+		struct dsi_display_ctrl *ctrl = &display->ctrl[i];
+
+		rc = dsi_clk_set_link_frequencies(display->dsi_clk_handle,
+							ctrl->ctrl->clk_freq,
+							ctrl->ctrl->cell_index);
+		if (rc) {
+			DSI_ERR("Failed to update link frequencies of ctrl_%d, rc=%d\n",
+							ctrl->ctrl->cell_index, rc);
+			dsi_clk_release_mngr_lock(display->dsi_clk_handle);
+			return rc;
+		}
+	}
+	dsi_clk_release_mngr_lock(display->dsi_clk_handle);
+
+	return rc;
+}
+
 static int dsi_display_update_dsi_bitrate(struct dsi_display *display,
 					  u32 bit_clk_rate)
 {
@@ -4689,12 +4721,6 @@ static int dsi_display_update_dsi_bitrate(struct dsi_display *display,
 		ctrl->clk_freq.byte_clk_rate = byte_clk_rate;
 		ctrl->clk_freq.byte_intf_clk_rate = byte_intf_clk_rate;
 		ctrl->clk_freq.pix_clk_rate = pclk_rate;
-		rc = dsi_clk_set_link_frequencies(display->dsi_clk_handle,
-			ctrl->clk_freq, ctrl->cell_index);
-		if (rc) {
-			DSI_ERR("Failed to update link frequencies\n");
-			goto error;
-		}
 
 		ctrl->host_config.bit_clk_rate_hz = bit_clk_rate;
 error:
@@ -4703,6 +4729,12 @@ error:
 		/* TODO: recover ctrl->clk_freq in case of failure */
 		if (rc)
 			return rc;
+	}
+
+	rc = dsi_display_set_link_frequencies(display);
+	if (rc) {
+		DSI_ERR("Failed to set display link frequencies\n");
+		return rc;
 	}
 
 	return 0;
@@ -5373,6 +5405,15 @@ static int dsi_display_set_mode_sub(struct dsi_display *display,
 		}
 	}
 
+	if (!(mode->dsi_mode_flags & (DSI_MODE_FLAG_SEAMLESS | DSI_MODE_FLAG_VRR |
+		       DSI_MODE_FLAG_DYN_CLK))) {
+		rc = dsi_display_set_link_frequencies(display);
+		if (rc) {
+			DSI_ERR("Failed to set display link frequencies\n");
+			goto error;
+		}
+	}
+
 	if ((mode->dsi_mode_flags & DSI_MODE_FLAG_DMS) &&
 			(display->panel->panel_mode == DSI_OP_CMD_MODE)) {
 		u64 cur_bitclk = display->panel->cur_mode->timing.clk_rate_hz;
@@ -5386,7 +5427,12 @@ static int dsi_display_set_mode_sub(struct dsi_display *display,
 		dsi_display_validate_dms_fps(display->panel->cur_mode, mode);
 	}
 
-	if (priv_info->phy_timing_len) {
+	if (priv_info->phy_timing_len &&
+		!atomic_read(&display->clkrate_change_pending)) {
+		/*
+		 * In case of clkrate change, the PHY timing update will happen
+		 * together with the clock update.
+		 */
 		display_for_each_ctrl(i, display) {
 			ctrl = &display->ctrl[i];
 			 rc = dsi_phy_set_timing_params(ctrl->phy,
@@ -5437,7 +5483,7 @@ static int _dsi_display_dev_init(struct dsi_display *display)
 	rc = dsi_display_res_init(display);
 	if (rc) {
 		DSI_ERR("[%s] failed to initialize resources, rc=%d\n",
-		       display->name, rc);
+			display->name, rc);
 		goto error;
 	}
 error:
@@ -6162,6 +6208,52 @@ static const struct component_ops dsi_display_comp_ops = {
 	.unbind = dsi_display_unbind,
 };
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+/* check display core clock in pm suspend */
+static int dsi_display_suspend(struct device *dev)
+{
+	struct dsi_display *display = dev_get_drvdata(dev);
+	struct samsung_display_driver_data *vdd = NULL;
+	int is_core_clk_on;
+
+	if (!display) {
+		DSI_ERR("%s: fail to get display\n", __func__);
+		return 0;
+	}
+
+	if (!display->panel) {
+		DSI_DEBUG("No panel\n", __func__);
+		return 0;
+	}
+
+	vdd = display->panel->panel_private;
+	if (IS_ERR_OR_NULL(vdd)) {
+		DSI_ERR("%s: fail to get vdd\n", __func__);
+		return 0;
+	}
+
+	/*
+	 * Flush sde_normal_clk_work does not mean clock is off.
+	 * This function should be called before msm_pm_suspend -> sde_kms_pm_suspend.
+	 * sde_kms_pm_suspend can gaurantee all the SDE resource off.
+	 */
+	flush_delayed_work(&vdd->sde_normal_clk_work);
+
+	LCD_INFO(vdd, "dsi_display_suspend\n");
+
+	is_core_clk_on = dsi_display_is_core_clk_on(display->dsi_clk_handle);
+
+	if (is_core_clk_on == 1)
+		DSI_ERR("SDE: %s: display core clock is on in suspend\n", __func__);
+
+	return 0;
+}
+
+static const struct dev_pm_ops dsi_display_pm_ops = {
+	.suspend = dsi_display_suspend,
+};
+#endif
+
 static struct platform_driver dsi_display_driver = {
 	.probe = dsi_display_dev_probe,
 	.remove = dsi_display_dev_remove,
@@ -6169,6 +6261,9 @@ static struct platform_driver dsi_display_driver = {
 		.name = "msm-dsi-display",
 		.of_match_table = dsi_display_dt_match,
 		.suppress_bind_attrs = true,
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		.pm = &dsi_display_pm_ops
+#endif
 	},
 };
 
@@ -6181,7 +6276,7 @@ static int dsi_display_init(struct dsi_display *display)
 
 	rc = _dsi_display_dev_init(display);
 	if (rc) {
-		DSI_ERR("device init failed, rc=%d\n", rc);
+		DSI_ERR("device init failed for %s, rc=%d\n", display->display_type, rc);
 		goto end;
 	}
 
@@ -7722,6 +7817,13 @@ int dsi_display_update_transfer_time(void *display, u32 transfer_time)
 			return rc;
 		}
 	}
+
+	rc = dsi_display_set_link_frequencies(disp);
+	if (rc) {
+		DSI_ERR("Failed to set display link frequencies\n");
+		return rc;
+	}
+
 	atomic_set(&disp->clkrate_change_pending, 1);
 
 	return 0;
@@ -8342,9 +8444,13 @@ static void dsi_display_handle_lp_rx_timeout(struct work_struct *work)
 			return;
 		}
 
-		vdd->panel_recovery_cnt++;
-		SS_XLOG(vdd->panel_recovery_cnt);
-		inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
+		/* Increase feild cnt only once because we retry 5 times for one mipi fail */
+		if (++vdd->lp_rx_fail_cnt == 1) {
+			if (vdd->ndx == PRIMARY_DISPLAY_NDX)
+				inc_dpui_u32_field(DPUI_KEY_QCT_MAIN_RX_FAIL_CNT, 1);
+			else
+				inc_dpui_u32_field(DPUI_KEY_QCT_SUB_RX_FAIL_CNT, 1);
+		}
 
 		if (display->enabled == false) { // dsi_bridge_enable, dsi_bridge_disable
 			LCD_INFO(vdd, "Skip Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
@@ -8354,6 +8460,11 @@ static void dsi_display_handle_lp_rx_timeout(struct work_struct *work)
 
 		vdd->esd_recovery.esd_irq_enable(false, true, (void *)vdd, ESD_MASK_DEFAULT);
 		vdd->panel_lpm.esd_recovery = true;
+
+		vdd->panel_recovery_cnt++;
+		SS_XLOG(vdd->panel_recovery_cnt);
+		inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
+
 		schedule_work(&conn->status_work.work);
 		return;
 	}
@@ -8749,11 +8860,12 @@ static int dsi_display_qsync(struct dsi_display *display, bool enable)
 	int rc = 0;
 
 	mutex_lock(&display->display_lock);
+	display->queue_cmd_waits = true;
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	SDE_ATRACE_BEGIN(enable ? "qsync_on" : "qsync_off");
-	display->queue_cmd_waits = true;
 #endif
+
 	display_for_each_ctrl(i, display) {
 		if (enable) {
 			/* send the commands to enable qsync */
@@ -8775,10 +8887,12 @@ static int dsi_display_qsync(struct dsi_display *display, bool enable)
 	}
 
 exit:
+
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	display->queue_cmd_waits = false;
 	SDE_ATRACE_END(enable ? "qsync_on" : "qsync_off");
 #endif
+
+	display->queue_cmd_waits = false;
 	SDE_EVT32(enable, display->panel->qsync_caps.qsync_min_fps, rc);
 	mutex_unlock(&display->display_lock);
 	return rc;
@@ -8845,11 +8959,14 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 		struct dsi_display *display,
 		struct msm_display_kickoff_params *params)
 {
+	struct dsi_display_mode *mode;
 	int rc = 0, ret = 0;
 	int i;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
 #endif
+
+	mode = display->panel->cur_mode;
 
 	/* check and setup MISR */
 	if (display->misr_enable)
@@ -8858,8 +8975,6 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	/* SAMSUNG_FINGERPRINT */
 	vdd = display->panel->panel_private;
-	if (vdd->finger_mask_updated)
-		ss_send_hbm_fingermask_image_tx(vdd, vdd->finger_mask);
 
 	mutex_lock(&vdd->dyn_mipi_clk.dyn_mipi_lock);
 	/* configure dynamic clk rate */
@@ -8896,6 +9011,24 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 			ret = dsi_ctrl_wait_for_cmd_mode_mdp_idle(ctrl);
 			if (ret)
 				goto wait_failure;
+		}
+
+		if (mode->priv_info->phy_timing_len) {
+			display_for_each_ctrl(i, display) {
+				struct dsi_display_ctrl *ctrl;
+				bool commit_phy_timing = false;
+
+				if (mode->dsi_mode_flags & DSI_MODE_FLAG_DMS)
+					commit_phy_timing = true;
+
+				ctrl = &display->ctrl[i];
+				ret = dsi_phy_set_timing_params(ctrl->phy,
+						mode->priv_info->phy_timing_val,
+						mode->priv_info->phy_timing_len,
+						commit_phy_timing);
+				if (ret)
+					DSI_ERR("failed to add DSI PHY timing params\n");
+			}
 		}
 
 		/*

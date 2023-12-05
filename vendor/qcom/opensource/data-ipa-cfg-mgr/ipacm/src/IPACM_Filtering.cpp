@@ -155,8 +155,6 @@ bool IPACM_Filtering::AddFilteringRule(struct ipa_ioc_add_flt_rule const *ruleTa
 bool IPACM_Filtering::AddFilteringRule_v2(struct ipa_ioc_add_flt_rule_v2 const *ruleTable)
 {
 	int retval = 0;
-	int i;
-	int num_rules = ruleTable->num_rules;
 	int cnt;
 
 	IPACMDBG_H("Printing filter add attributes\n");

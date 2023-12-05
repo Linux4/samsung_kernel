@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -88,6 +88,8 @@ enum ani_akm_type {
 	ANI_AKM_TYPE_DPP_RSN,
 	ANI_AKM_TYPE_WPA,
 	ANI_AKM_TYPE_WPA_PSK,
+	ANI_AKM_TYPE_SAE_EXT_KEY,
+	ANI_AKM_TYPE_FT_SAE_EXT_KEY,
 	ANI_NUM_OF_SUPPORT_AKM_TYPE,
 	ANI_AKM_TYPE_UNKNOWN = 0xff,
 };

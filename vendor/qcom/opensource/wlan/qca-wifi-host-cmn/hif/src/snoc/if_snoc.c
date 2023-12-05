@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -19,7 +20,7 @@
 /**
  * DOC: if_snoc.c
  *
- * c file for snoc specif implementations.
+ * c file for snoc specific implementations.
  */
 
 #include "hif.h"
@@ -298,7 +299,7 @@ QDF_STATUS hif_snoc_enable_bus(struct hif_softc *ol_sc,
 	hif_register_tbl_attach(ol_sc, hif_type);
 	hif_target_register_tbl_attach(ol_sc, target_type);
 
-	/* the bus should remain on durring suspend for snoc */
+	/* the bus should remain on during suspend for snoc */
 	hif_vote_link_up(GET_HIF_OPAQUE_HDL(ol_sc));
 
 	hif_debug("X - hif_type = 0x%x, target_type = 0x%x",
@@ -420,7 +421,7 @@ int hif_snoc_bus_suspend(struct hif_softc *scn)
  * @scn: hif context
  *
  * Clear wakeup interrupt configuration.
- * Reenable ce interrupts
+ * Re-enable ce interrupts
  *
  * Return: 0 on success
  */
@@ -437,7 +438,7 @@ int hif_snoc_bus_resume(struct hif_softc *scn)
  * @scn: hif context
  *
  * Ensure that if we received the wakeup message before the irq
- * was disabled that the message is pocessed before suspending.
+ * was disabled that the message is processed before suspending.
  *
  * Return: -EBUSY if we fail to flush the tasklets.
  */

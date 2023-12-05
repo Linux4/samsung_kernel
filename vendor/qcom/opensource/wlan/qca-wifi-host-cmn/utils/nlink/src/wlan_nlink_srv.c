@@ -58,7 +58,7 @@ static bool logger_initialized;
  *
  * The cnss_logger_device_register() use to register the driver with the
  * wiphy structure and the module name (debug purpose) and then return the
- * radio_index depending on the availibility.
+ * radio_index depending on the availability.
  *
  * Return: radio index for success and -EINVAL for failure
  */
@@ -259,7 +259,7 @@ qdf_export_symbol(nl_srv_is_initialized);
  * If MULTI_IF_NAME is not defined, then this is the primary instance of the
  * driver and the diagnostics netlink socket will be available. If
  * MULTI_IF_NAME is defined then this is not the primary instance of the driver
- * and the diagnotics netlink socket will not be available since this
+ * and the diagnostics netlink socket will not be available since this
  * diagnostics netlink socket can only be exposed by one instance of the driver.
  */
 #elif defined(CNSS_GENL)

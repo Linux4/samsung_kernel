@@ -85,7 +85,26 @@ static LIST_HEAD(qce50_bam_list);
 #define TOTAL_IOVEC_SPACE_PER_PIPE (QCE_MAX_NUM_DSCR * sizeof(struct sps_iovec))
 
 #define AES_CTR_IV_CTR_SIZE	64
-#define STATUS1_ERR_INTR_MASK	0x10
+
+#define QCE_STATUS1_NO_ERROR	0x2000006
+
+// Crypto Engines 5.7 and below
+// Key timer expiry for pipes 1-15 (Status3)
+#define CRYPTO5_LEGACY_TIMER_EXPIRED_STATUS3	0x0000FF00
+// Key timer expiry for pipes 16-19 (Status6)
+#define CRYPTO5_LEGACY_TIMER_EXPIRED_STATUS6	0x00000300
+// Key pause for pipes 1-15 (Status3)
+#define CRYPTO5_LEGACY_KEY_PAUSE_STATUS3		0xFF000000
+// Key pause for pipes 16-19 (Status6)
+#define CRYPTO5_LEGACY_KEY_PAUSE_STATUS6		0x3000000
+
+// Crypto Engines 5.8 and above
+// Key timer expiry for all pipes (Status3)
+#define CRYPTO58_TIMER_EXPIRED		0x00000010
+// Key pause for all pipes (Status3)
+#define CRYPTO58_KEY_PAUSE			0x00001000
+// Key index for Status3 (Timer and Key Pause)
+#define KEY_INDEX_SHIFT				16
 
 enum qce_owner {
 	QCE_OWNER_NONE   = 0,
@@ -201,36 +220,72 @@ static uint32_t qce_get_config_be(struct qce_device *pce_dev,
 		pipe_pair << CRYPTO_PIPE_SET_SELECT);
 }
 
-static void dump_status_regs(unsigned int s1, unsigned int s2,unsigned int s3,
-			unsigned int s4, unsigned int s5,unsigned int s6)
+static void dump_status_regs(unsigned int *status)
 {
-	pr_info("%s: CRYPTO_STATUS_REG = 0x%x\n", __func__, s1);
-	pr_info("%s: CRYPTO_STATUS2_REG = 0x%x\n", __func__, s2);
-	pr_info("%s: CRYPTO_STATUS3_REG = 0x%x\n", __func__, s3);
-	pr_info("%s: CRYPTO_STATUS4_REG = 0x%x\n", __func__, s4);
-	pr_info("%s: CRYPTO_STATUS5_REG = 0x%x\n", __func__, s5);
-	pr_info("%s: CRYPTO_STATUS6_REG = 0x%x\n", __func__, s6);
+	pr_info("%s: CRYPTO_STATUS_REG = 0x%x\n", __func__, status[0]);
+	pr_info("%s: CRYPTO_STATUS2_REG = 0x%x\n", __func__, status[1]);
+	pr_info("%s: CRYPTO_STATUS3_REG = 0x%x\n", __func__, status[2]);
+	pr_info("%s: CRYPTO_STATUS4_REG = 0x%x\n", __func__, status[3]);
+	pr_info("%s: CRYPTO_STATUS5_REG = 0x%x\n", __func__, status[4]);
+	pr_info("%s: CRYPTO_STATUS6_REG = 0x%x\n", __func__, status[5]);
 }
 
-void qce_get_crypto_status(void *handle, unsigned int *s1, unsigned int *s2,
-			   unsigned int *s3, unsigned int *s4,
-			   unsigned int *s5, unsigned int *s6)
+void qce_get_crypto_status(void *handle, struct qce_error *error)
 {
 	struct qce_device *pce_dev = (struct qce_device *) handle;
+	unsigned int status[6] = {0};
 
-	*s1 = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS_REG);
-	*s2 = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS2_REG);
-	*s3 = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS3_REG);
-	*s4 = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS4_REG);
-	*s5 = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS5_REG);
-	*s6 = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS6_REG);
+	status[0] = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS_REG);
+	status[1] = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS2_REG);
+	status[2] = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS3_REG);
+	status[3] = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS4_REG);
+	status[4] = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS5_REG);
+	status[5] = readl_relaxed(pce_dev->iobase + CRYPTO_STATUS6_REG);
 
 #ifdef QCE_DEBUG
-	dump_status_regs(*s1, *s2, *s3, *s4, *s5, *s6);
-#else
-	if (*s1 & STATUS1_ERR_INTR_MASK)
-		dump_status_regs(*s1, *s2, *s3, *s4, *s5, *s6);
+	dump_status_regs(&status[0]);
 #endif
+
+	if (status[0] == QCE_STATUS1_NO_ERROR) {
+		error->no_error = true;
+		pr_err("%s: No crypto error, status1 = 0x%x\n",
+			__func__, status[0]);
+	} else {
+		if (pce_dev->ce_bam_info.minor_version >= 8) {
+			if (status[2] & CRYPTO58_TIMER_EXPIRED) {
+				error->timer_error = true;
+				pr_err("%s: timer expired, index = 0x%x\n",
+					__func__, (status[2] >> KEY_INDEX_SHIFT));
+			} else if (status[2] & CRYPTO58_KEY_PAUSE) {
+				error->key_paused = true;
+				pr_err("%s: key paused, index = 0x%x\n",
+					__func__, (status[2] >> KEY_INDEX_SHIFT));
+			} else {
+				pr_err("%s: generic error, refer all status\n",
+					__func__);
+				error->generic_error = true;
+			}
+		} else {
+			if ((status[2] & CRYPTO5_LEGACY_TIMER_EXPIRED_STATUS3) ||
+				(status[5] & CRYPTO5_LEGACY_TIMER_EXPIRED_STATUS6)) {
+				error->timer_error = true;
+				pr_err("%s: timer expired, refer status 3 and 6\n",
+					__func__);
+			}
+			else if ((status[2] & CRYPTO5_LEGACY_KEY_PAUSE_STATUS3) ||
+					(status[5] & CRYPTO5_LEGACY_KEY_PAUSE_STATUS6)) {
+				error->key_paused = true;
+				pr_err("%s: key paused, reder status 3 and 6\n",
+					__func__);
+			} else {
+				pr_err("%s: generic error, refer all status\n",
+					__func__);
+				error->generic_error = true;
+			}
+		}
+		dump_status_regs(&status[0]);
+	}
+
 	return;
 }
 EXPORT_SYMBOL(qce_get_crypto_status);
@@ -414,6 +469,7 @@ static int _probe_ce_engine(struct qce_device *pce_dev)
 		pce_dev->no_ccm_mac_status_get_around = false;
 
 	pce_dev->ce_bam_info.minor_version = min_rev;
+	pce_dev->ce_bam_info.major_version = maj_rev;
 
 	pce_dev->engines_avail = readl_relaxed(pce_dev->iobase +
 					CRYPTO_ENGINES_AVAIL);
@@ -3516,7 +3572,7 @@ static void _sps_producer_callback(struct sps_event_notify *notify)
 		preq_info->xfer_type == QCE_XFER_AEAD) &&
 			pce_sps_data->producer_state == QCE_PIPE_STATE_IDLE) {
 		pce_sps_data->producer_state = QCE_PIPE_STATE_COMP;
-		if (!is_offload_op(op)) {
+		if (!is_offload_op(op) && (op < QCE_OFFLOAD_OPER_LAST)) {
 			pce_sps_data->out_transfer.iovec_count = 0;
 			_qce_sps_add_data(GET_PHYS_ADDR(
 					pce_sps_data->result_dump),
@@ -5318,6 +5374,8 @@ static int _qce_resume(void *handle)
 	struct sps_pipe *sps_pipe_info;
 	struct sps_connect *sps_connect_info;
 	int rc, i;
+
+        rc = -ENODEV;
 
 	if (handle == NULL)
 		return -ENODEV;

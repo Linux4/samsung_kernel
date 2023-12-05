@@ -97,9 +97,6 @@ import java.util.UUID;
         /** The user handle of the app that started the scan */
         UserHandle mUserHandle;
 
-        /** Whether the calling app is targeting Q or better */
-        boolean mIsQApp;
-
         /** Whether the calling app has the network settings permission */
         boolean mHasNetworkSettingsPermission;
 

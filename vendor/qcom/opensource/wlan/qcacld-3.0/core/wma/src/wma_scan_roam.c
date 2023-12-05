@@ -1,6 +1,6 @@
  /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -90,11 +90,12 @@
 #include <../../core/src/wlan_cm_roam_i.h>
 #include "wlan_cm_roam_api.h"
 #include "wlan_mlo_mgr_roam.h"
+#include "lim_mlo.h"
 #ifdef FEATURE_WLAN_EXTSCAN
 #define WMA_EXTSCAN_CYCLE_WAKE_LOCK_DURATION WAKELOCK_DURATION_RECOMMENDED
 
 /*
- * Maximum number of entires that could be present in the
+ * Maximum number of entries that could be present in the
  * WMI_EXTSCAN_HOTLIST_MATCH_EVENT buffer from the firmware
  */
 #define WMA_EXTSCAN_MAX_HOTLIST_ENTRIES 10
@@ -226,9 +227,10 @@ QDF_STATUS wma_update_channel_list(WMA_HANDLE handle,
 
 		wma_update_ch_list_11be_params(&ch_params);
 
-		wlan_reg_set_channel_params_for_freq(wma_handle->pdev,
-						     chan_p->mhz, 0,
-						     &ch_params);
+		wlan_reg_set_channel_params_for_pwrmode(wma_handle->pdev,
+							chan_p->mhz, 0,
+							&ch_params,
+							REG_CURRENT_PWR_MODE);
 
 		chan_p->max_bw_supported =
 		     wma_map_phy_ch_bw_to_wmi_channel_width(ch_params.ch_width);
@@ -295,7 +297,8 @@ cm_handle_auth_offload(struct auth_offload_event *auth_event)
 				auth_event->vdev_id,
 				auth_event->ta);
 	status = wma->csr_roam_auth_event_handle_cb(mac_ctx, auth_event->vdev_id,
-						    auth_event->ap_bssid);
+						    auth_event->ap_bssid,
+						    auth_event->akm);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		wma_err_rl("Trigger pre-auth failed");
 		return QDF_STATUS_E_FAILURE;
@@ -534,6 +537,77 @@ wma_send_roam_preauth_status(tp_wma_handle wma_handle,
 #endif
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * wma_delete_all_peers() - Delete all bss peer/s
+ * @wma: Global WMA Handle
+ * @vdev_id: vdev id
+ * @del_sta_params: parameters required for del sta request
+ *
+ * This function will perform deleting of all the link peers
+ * after self roaming.
+ *
+ * Return: None
+ */
+static QDF_STATUS
+wma_delete_all_peers(tp_wma_handle wma,
+		     uint8_t vdev_id)
+{
+	struct wlan_objmgr_vdev *vdev;
+	struct wlan_mlo_dev_context *mlo_dev_ctx;
+	uint8_t i;
+	uint8_t link_vdev_id;
+	tDeleteStaParams *del_sta_params;
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(wma->psoc, vdev_id,
+						    WLAN_MLME_OBJMGR_ID);
+	if (!vdev) {
+		mlme_err("vdev object is NULL for vdev %d", vdev_id);
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	mlo_dev_ctx = vdev->mlo_dev_ctx;
+	if (!mlo_dev_ctx) {
+		mlme_err("mlo_dev_ctx object is NULL for vdev %d", vdev_id);
+		status = QDF_STATUS_E_NULL_VALUE;
+		goto end;
+	}
+
+	for (i = 0; i < WLAN_UMAC_MLO_MAX_VDEVS; i++) {
+		if (!mlo_dev_ctx->wlan_vdev_list[i])
+			continue;
+
+		del_sta_params = qdf_mem_malloc(sizeof(*del_sta_params));
+		if (!del_sta_params) {
+			status = QDF_STATUS_E_NOMEM;
+			goto end;
+		}
+		lim_mlo_roam_peer_disconn_del(mlo_dev_ctx->wlan_vdev_list[i]);
+		qdf_mem_zero(del_sta_params, sizeof(*del_sta_params));
+		link_vdev_id = wlan_vdev_get_id(mlo_dev_ctx->wlan_vdev_list[i]);
+		if (link_vdev_id == WLAN_INVALID_VDEV_ID) {
+			mlme_err("invalid vdev id");
+			status = QDF_STATUS_E_INVAL;
+			goto end;
+		}
+		del_sta_params->smesessionId = link_vdev_id;
+		wma_delete_sta(wma, del_sta_params);
+		wma_delete_bss(wma, link_vdev_id);
+	}
+
+end:
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_OBJMGR_ID);
+	return status;
+}
+#else
+static inline  QDF_STATUS
+wma_delete_all_peers(tp_wma_handle wma,
+		     uint8_t vdev_id)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+#endif
 /**
  * wma_roam_update_vdev() - Update the STA and BSS
  * @wma: Global WMA Handle
@@ -556,23 +630,24 @@ wma_roam_update_vdev(tp_wma_handle wma,
 	int32_t uc_cipher, cipher_cap;
 	bool is_assoc_peer = false;
 	struct qdf_mac_addr mac_addr;
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
 	vdev_id = roamed_vdev_id;
 	wma->interfaces[vdev_id].nss = roam_synch_ind_ptr->nss;
-	/* update freq and channel width */
-	wma->interfaces[vdev_id].ch_freq =
-		roam_synch_ind_ptr->chan_freq;
+
+	/* update channel width */
 	wma->interfaces[vdev_id].chan_width =
 		roam_synch_ind_ptr->chan_width;
-
-	del_sta_params = qdf_mem_malloc(sizeof(*del_sta_params));
-	if (!del_sta_params) {
-		return;
-	}
+	/* Fill link freq from roam_synch_ind */
+	if (is_multi_link_roam(roam_synch_ind_ptr))
+		wma->interfaces[vdev_id].ch_freq =
+			mlo_roam_get_chan_freq(vdev_id, roam_synch_ind_ptr);
+	else
+		wma->interfaces[vdev_id].ch_freq =
+			roam_synch_ind_ptr->chan_freq;
 
 	add_sta_params = qdf_mem_malloc(sizeof(*add_sta_params));
 	if (!add_sta_params) {
-		qdf_mem_free(del_sta_params);
 		return;
 	}
 
@@ -582,14 +657,35 @@ wma_roam_update_vdev(tp_wma_handle wma,
 	else
 		mac_addr = roam_synch_ind_ptr->bssid;
 
-	qdf_mem_zero(del_sta_params, sizeof(*del_sta_params));
 	qdf_mem_zero(add_sta_params, sizeof(*add_sta_params));
 
-	del_sta_params->smesessionId = vdev_id;
+	/* With self roaming on multi link AP, as the same
+	 * peer already exists, new peer creation fails
+	 * To handle this delete all link peers,
+	 * while doing roam sync on first link.
+	 */
+	if (is_multi_link_roam(roam_synch_ind_ptr)) {
+		if (wlan_vdev_mlme_get_is_mlo_link(wma->psoc, vdev_id) ||
+		    mlo_roam_get_num_of_setup_links(roam_synch_ind_ptr) == 1) {
+			status = wma_delete_all_peers(wma, vdev_id);
+			if (QDF_IS_STATUS_ERROR(status))
+				goto end;
+		}
+	} else {
+		del_sta_params = qdf_mem_malloc(sizeof(*del_sta_params));
+		if (!del_sta_params)
+			goto end;
+
+		qdf_mem_zero(del_sta_params, sizeof(*del_sta_params));
+		del_sta_params->smesessionId = vdev_id;
+		wma_delete_sta(wma, del_sta_params);
+		wma_delete_bss(wma, vdev_id);
+	}
+
 	add_sta_params->staType = STA_ENTRY_SELF;
 	add_sta_params->smesessionId = vdev_id;
 	qdf_mem_copy(&add_sta_params->bssId, &mac_addr,
-		     QDF_MAC_ADDR_SIZE);
+			 QDF_MAC_ADDR_SIZE);
 	add_sta_params->assocId = roam_synch_ind_ptr->aid;
 
 	bssid = wma_get_vdev_bssid(wma->interfaces[vdev_id].vdev);
@@ -598,8 +694,6 @@ wma_roam_update_vdev(tp_wma_handle wma,
 		return;
 	}
 
-	wma_delete_sta(wma, del_sta_params);
-	wma_delete_bss(wma, vdev_id);
 	is_assoc_peer = wlan_vdev_mlme_get_is_mlo_vdev(wma->psoc, vdev_id);
 	if (is_multi_link_roam(roam_synch_ind_ptr)) {
 		wma_create_peer(wma, mac_addr.bytes,
@@ -633,6 +727,7 @@ wma_roam_update_vdev(tp_wma_handle wma,
 		     QDF_MAC_ADDR_SIZE);
 	lim_fill_roamed_peer_twt_caps(wma->mac_context, vdev_id,
 				      roam_synch_ind_ptr);
+end:
 	qdf_mem_free(add_sta_params);
 }
 
@@ -680,9 +775,10 @@ static void wma_update_phymode_on_roam(tp_wma_handle wma,
 			else
 				sec_ch_2g_freq = des_chan->ch_freq - 20;
 		}
-		wlan_reg_set_channel_params_for_freq(pdev, des_chan->ch_freq,
-						     sec_ch_2g_freq,
-						     &ch_params);
+		wlan_reg_set_channel_params_for_pwrmode(pdev, des_chan->ch_freq,
+							sec_ch_2g_freq,
+							&ch_params,
+							REG_CURRENT_PWR_MODE);
 		if (ch_params.ch_width != des_chan->ch_width ||
 		    ch_params.mhz_freq_seg0 != chan->band_center_freq1 ||
 		    ch_params.mhz_freq_seg1 != chan->band_center_freq2)
@@ -1517,7 +1613,7 @@ int wma_extscan_hotlist_match_event_handler(void *handle,
 		return -ENOMEM;
 
 	dest_ap = &dest_hotlist->ap[0];
-	dest_hotlist->numOfAps = event->total_entries;
+	dest_hotlist->numOfAps = numap;
 	dest_hotlist->requestId = event->config_request_id;
 
 	if (event->first_entry_index +
@@ -1683,6 +1779,7 @@ static int wma_group_num_bss_to_scan_id(const u_int8_t *cmd_param_info,
 	struct extscan_cached_scan_results *t_cached_result;
 	struct extscan_cached_scan_result *t_scan_id_grp;
 	int i, j;
+	uint32_t total_scan_num_results = 0;
 	tSirWifiScanResult *ap;
 
 	param_buf = (WMI_EXTSCAN_CACHED_RESULTS_EVENTID_param_tlvs *)
@@ -1693,16 +1790,19 @@ static int wma_group_num_bss_to_scan_id(const u_int8_t *cmd_param_info,
 	t_cached_result = cached_result;
 	t_scan_id_grp = &t_cached_result->result[0];
 
-	if ((t_cached_result->num_scan_ids *
-	     QDF_MIN(t_scan_id_grp->num_results,
-		     param_buf->num_bssid_list)) > param_buf->num_bssid_list) {
-		wma_err("num_scan_ids %d, num_results %d num_bssid_list %d",
-			 t_cached_result->num_scan_ids,
-			 t_scan_id_grp->num_results,
-			 param_buf->num_bssid_list);
+	for (i = 0; i < t_cached_result->num_scan_ids; i++) {
+		total_scan_num_results += t_scan_id_grp->num_results;
+		t_scan_id_grp++;
+	}
+
+	if (total_scan_num_results > param_buf->num_bssid_list) {
+		wma_err("total_scan_num_results %d, num_bssid_list %d",
+			total_scan_num_results,
+			param_buf->num_bssid_list);
 		return -EINVAL;
 	}
 
+	t_scan_id_grp = &t_cached_result->result[0];
 	wma_debug("num_scan_ids:%d",
 			t_cached_result->num_scan_ids);
 	for (i = 0; i < t_cached_result->num_scan_ids; i++) {
@@ -1713,8 +1813,7 @@ static int wma_group_num_bss_to_scan_id(const u_int8_t *cmd_param_info,
 			return -ENOMEM;
 
 		ap = &t_scan_id_grp->ap[0];
-		for (j = 0; j < QDF_MIN(t_scan_id_grp->num_results,
-					param_buf->num_bssid_list); j++) {
+		for (j = 0; j < t_scan_id_grp->num_results; j++) {
 			ap->channel = src_hotlist->channel;
 			ap->ts = WMA_MSEC_TO_USEC(src_rssi->tstamp);
 			ap->rtt = src_hotlist->rtt;
@@ -2834,7 +2933,7 @@ QDF_STATUS wma_set_gateway_params(tp_wma_handle wma,
 
 /**
  * wma_ht40_stop_obss_scan() - ht40 obss stop scan
- * @wma: WMA handel
+ * @wma: WMA handle
  * @vdev_id: vdev identifier
  *
  * Return: Return QDF_STATUS, otherwise appropriate failure code
@@ -2869,7 +2968,7 @@ QDF_STATUS wma_ht40_stop_obss_scan(tp_wma_handle wma, int32_t vdev_id)
 
 /**
  * wma_send_ht40_obss_scanind() - ht40 obss start scan indication
- * @wma: WMA handel
+ * @wma: WMA handle
  * @req: start scan request
  *
  * Return: Return QDF_STATUS, otherwise appropriate failure code
@@ -2998,6 +3097,7 @@ cm_roam_pe_sync_callback(struct roam_offload_synch_ind *sync_ind,
 {
 	tp_wma_handle wma = cds_get_context(QDF_MODULE_ID_WMA);
 	struct pe_session *pe_session;
+	bool new_link_session = false;
 	QDF_STATUS status;
 
 	if (!wma)
@@ -3005,6 +3105,7 @@ cm_roam_pe_sync_callback(struct roam_offload_synch_ind *sync_ind,
 
 	pe_session = pe_find_session_by_vdev_id(wma->mac_context, vdev_id);
 	if (!pe_session) {
+		new_link_session = true;
 		/* Legacy to MLO roaming: create new pe session */
 		status = lim_create_and_fill_link_session(wma->mac_context,
 							  vdev_id,
@@ -3020,6 +3121,13 @@ cm_roam_pe_sync_callback(struct roam_offload_synch_ind *sync_ind,
 				vdev_id, sync_ind, ie_len,
 				SIR_ROAM_SYNCH_PROPAGATION);
 
+	/* delete newly added pe session in case of failure */
+	if (new_link_session && QDF_IS_STATUS_ERROR(status)) {
+		pe_session = pe_find_session_by_vdev_id(wma->mac_context,
+							vdev_id);
+		if (pe_session)
+			pe_delete_session(wma->mac_context, pe_session);
+	}
 	return status;
 }
 

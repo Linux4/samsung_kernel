@@ -16,7 +16,7 @@
  */
 
 /**
- * DOC : contains son hdd API implementation
+ * DOC: contains son hdd API implementation
  */
 
 #ifndef WLAN_HDD_SON_H
@@ -118,7 +118,7 @@ int hdd_son_send_get_wifi_generic_command(struct wiphy *wiphy,
  * @vdev: vdev object
  * @peer: peer obj
  *
- * Return: number of max mcs on succes or 0 on failure
+ * Return: number of max mcs on success or 0 on failure
  */
 uint32_t hdd_son_get_peer_max_mcs_idx(struct wlan_objmgr_vdev *vdev,
 				      struct wlan_objmgr_peer *peer);

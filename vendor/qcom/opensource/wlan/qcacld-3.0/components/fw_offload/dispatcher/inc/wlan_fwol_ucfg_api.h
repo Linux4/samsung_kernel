@@ -78,7 +78,7 @@ QDF_STATUS ucfg_fwol_init(void);
 /**
  * ucfg_fwol_deinit() - De initialize fwol_ctx context.
  *
- * This function De initializes fwol contex.
+ * This function De initializes fwol context.
  *
  * Return: QDF_STATUS_SUCCESS - in case of success else return error
  */
@@ -215,6 +215,16 @@ ucfg_fwol_get_all_allowlist_params(struct wlan_objmgr_psoc *psoc,
  */
 QDF_STATUS ucfg_fwol_get_ani_enabled(struct wlan_objmgr_psoc *psoc,
 				     bool *ani_enabled);
+
+/**
+ * ucfg_fwol_get_pcie_config() - Assigns the pcie_config value
+ * @psoc: pointer to the psoc object
+ * @pcie_config: pointer to return pcie_config value
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS ucfg_fwol_get_pcie_config(struct wlan_objmgr_psoc *psoc,
+				     bool *pcie_config);
 
 /**
  * ucfg_fwol_get_ani_enabled() - Assigns the enable_rts_sifsbursting value
@@ -455,6 +465,18 @@ QDF_STATUS ucfg_fwol_get_dhcp_max_num_clients(struct wlan_objmgr_psoc *psoc,
  */
 QDF_STATUS ucfg_fwol_get_tsf_sync_enable(struct wlan_objmgr_psoc *psoc,
 					 bool *tsf_sync_enable);
+
+#ifdef WLAN_FEATURE_TSF_ACCURACY
+/**
+ * ucfg_fwol_get_tsf_accuracy_configs() - Get TSF accuracy configs
+ * @psoc: pointer to the psoc object
+ * @config: Pointer to hold TSF Accuracy Feature configs
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS ucfg_fwol_get_tsf_accuracy_configs(struct wlan_objmgr_psoc *psoc,
+					      struct wlan_fwol_tsf_accuracy_configs **config);
+#endif
 
 /**
  * ucfg_fwol_get_tsf_ptp_options() - Get TSF Plus feature options
@@ -830,6 +852,13 @@ ucfg_fwol_get_all_allowlist_params(struct wlan_objmgr_psoc *psoc,
 static inline QDF_STATUS
 ucfg_fwol_get_ani_enabled(struct wlan_objmgr_psoc *psoc,
 			  bool *ani_enabled)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline QDF_STATUS
+ucfg_fwol_get_pcie_config(struct wlan_objmgr_psoc *psoc,
+			  bool *pcie_config)
 {
 	return QDF_STATUS_E_FAILURE;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -508,6 +508,7 @@ struct sde_line_insertion_param {
  * @input_fence_timeout_ns : Cached input fence timeout, in ns
  * @num_dim_layers: Number of dim layers
  * @cwb_enc_mask  : encoder mask populated during atomic_check if CWB is enabled
+ * @cached_cwb_enc_mask  : cached encoder mask populated during atomic_check if CWB is enabled
  * @dim_layer: Dim layer configs
  * @num_ds: Number of destination scalers to be configured
  * @num_ds_enabled: Number of destination scalers enabled
@@ -546,6 +547,7 @@ struct sde_crtc_state {
 	uint64_t input_fence_timeout_ns;
 	uint32_t num_dim_layers;
 	uint32_t cwb_enc_mask;
+	uint32_t cached_cwb_enc_mask;
 	struct sde_hw_dim_layer dim_layer[SDE_MAX_DIM_LAYERS];
 	uint32_t num_ds;
 	uint32_t num_ds_enabled;
@@ -644,6 +646,22 @@ static inline void sde_crtc_set_needs_hw_reset(struct drm_crtc *crtc)
  */
 int sde_crtc_reset_hw(struct drm_crtc *crtc, struct drm_crtc_state *old_state,
 	bool recovery_events);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+int sde_crtc_enable_vblank(struct drm_crtc *crtc);
+void sde_crtc_disable_vblank(struct drm_crtc *crtc);
+#endif
+/**
+ * sde_crtc_dump_fences - dump info for input fences of each crtc plane
+ * @crtc: Pointer to DRM crtc instance
+ */
+void sde_crtc_dump_fences(struct drm_crtc *crtc);
+
+/**
+ * sde_crtc_is_fence_signaled - check if all fences have been signaled
+ * @crtc: Pointer to DRM crtc instance
+ * Returns: true if all fences are signaled, otherwise false.
+ */
+bool sde_crtc_is_fence_signaled(struct drm_crtc *crtc);
 
 /**
  * sde_crtc_request_frame_reset - requests for next frame reset
@@ -654,6 +672,9 @@ static inline int sde_crtc_request_frame_reset(struct drm_crtc *crtc,
 		struct drm_encoder *encoder)
 {
 	struct sde_crtc *sde_crtc = to_sde_crtc(crtc);
+
+	if (test_bit(HW_FENCE_IN_FENCES_ENABLE, sde_crtc->hwfence_features_mask))
+		sde_crtc_dump_fences(crtc);
 
 	if (sde_crtc->frame_trigger_mode == FRAME_DONE_WAIT_POSTED_START ||
 			!sde_encoder_is_dsi_display(encoder))
@@ -937,16 +958,6 @@ static inline bool sde_crtc_state_in_clone_mode(struct drm_encoder *encoder,
 		return true;
 
 	return false;
-}
-
-static inline bool _is_crtc_intf_mode_wb(struct drm_crtc *crtc)
-{
-	enum sde_intf_mode intf_mode = sde_crtc_get_intf_mode(crtc, crtc->state);
-
-	if ((intf_mode != INTF_MODE_WB_BLOCK) && (intf_mode != INTF_MODE_WB_LINE))
-		return false;
-
-	return true;
 }
 
 /**

@@ -6455,18 +6455,39 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 
 		if (cfg->init_packet || hw_update_data->mup_en ||
 			(ctx->ctx_config & CAM_IFE_CTX_CFG_SW_SYNC_ON)) {
+			ctx->timeout_count = 0;
 			rem_jiffies = cam_common_wait_for_completion_timeout(
 				&ctx->config_done_complete,
 				msecs_to_jiffies(60));
 			if (rem_jiffies == 0) {
+				ctx->timeout_count++;
 				CAM_ERR(CAM_ISP,
-					"config done completion timeout for req_id=%llu ctx_index %d",
-					cfg->request_id, ctx->ctx_index);
+					"config done completion timeout for req_id=%llu ctx_index %d count:%d",
+					cfg->request_id, ctx->ctx_index, ctx->timeout_count);
 				rc = cam_cdm_detect_hang_error(ctx->cdm_handle);
 				if (rc < 0) {
-					cam_cdm_dump_debug_registers(
-						ctx->cdm_handle);
-					rc = -ETIMEDOUT;
+					if (ctx->timeout_count < 2) {
+						/* there is a possibility of cdm irq delay, hence wait for some more time */
+						rem_jiffies = cam_common_wait_for_completion_timeout(
+							&ctx->config_done_complete,
+							msecs_to_jiffies(60));
+						if (rem_jiffies == 0) {
+							ctx->timeout_count++;
+							CAM_ERR(CAM_ISP,
+							"config done completion timeout for req_id=%llu ctx_index %d count:%d",
+							cfg->request_id, ctx->ctx_index, ctx->timeout_count);
+							rc = cam_cdm_detect_hang_error(ctx->cdm_handle);
+							if (rc < 0) {
+								cam_cdm_dump_debug_registers(
+								ctx->cdm_handle);
+								rc = -ETIMEDOUT;
+							}
+						}
+					} else {
+						cam_cdm_dump_debug_registers(
+							ctx->cdm_handle);
+						rc = -ETIMEDOUT;
+					}
 				} else {
 					CAM_DBG(CAM_ISP,
 						"Wq delayed but IRQ CDM done");
@@ -6490,6 +6511,7 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 						CAM_ISP_PACKET_META_REG_DUMP_PER_REQUEST,
 						NULL, false);
 			}
+			ctx->timeout_count = 0;
 		}
 
 		cam_ife_mgr_send_frame_event(cfg->request_id, ctx->ctx_index);
@@ -7190,6 +7212,13 @@ static int cam_ife_mgr_start_hw(void *hw_mgr_priv, void *start_hw_args)
 					CAM_ISP_HW_CMD_SET_CAMIF_DEBUG,
 					&camif_debug,
 					sizeof(camif_debug));
+				if (rc) {
+					CAM_ERR(CAM_ISP,
+						"VFE process cmd failed for rsrc_id:%d, rc:%d",
+						rsrc_node->res_id, rc);
+					rc = -EFAULT;
+					goto tasklet_stop;
+				}
 			}
 		}
 	}
@@ -8523,7 +8552,7 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 	ctx = prepare->ctxt_to_hw_map;
 	ife_hw_mgr = ctx->hw_mgr;
 
-	CAM_INFO(CAM_ISP,
+	CAM_DBG(CAM_ISP,
                 "csid mup value=%u req: %lld ctx: %u",
                 mup_config->mup, prepare->packet->header.request_id, ctx->ctx_index);
 
@@ -8557,6 +8586,18 @@ static int cam_isp_blob_csid_dynamic_switch_update(
 				sizeof(struct cam_ife_csid_mode_switch_update_args));
 			if (rc)
 				CAM_ERR(CAM_ISP, "Dynamic switch update failed");
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_TIMING_REC)
+			if (rc == 0 && 
+				(g_ife_hw_mgr.debug_cfg.csid_dbg_fps == CAM_ISP_CSID_SOF_TIMING_REC_DEBUG_MASK)) {
+				uint32_t sof_irq_en = 1;
+				rc = hw_intf->hw_ops.process_cmd(
+					hw_intf->hw_priv,
+					CAM_IFE_CSID_SOF_IRQ_DEBUG_FOR_MODESWITCH,
+					&sof_irq_en,
+					sizeof(uint32_t));
+			}
+#endif
 		}
 	}
 

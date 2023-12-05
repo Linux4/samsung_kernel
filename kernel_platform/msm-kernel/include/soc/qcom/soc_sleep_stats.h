@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  */
 
@@ -18,6 +18,10 @@ struct ddr_stats_ss_vote_info {
 	u32 ib; /* vote_y */
 };
 
+#ifdef CONFIG_MSM_BOOT_TIME_MARKER
+uint64_t get_aosd_sleep_exit_time(void);
+#endif
+
 #if IS_ENABLED(CONFIG_QCOM_SOC_SLEEP_STATS) && IS_ENABLED(CONFIG_MSM_QMP)
 int ddr_stats_freq_sync_send_msg(void);
 int ddr_stats_get_freq_count(void);
@@ -26,19 +30,19 @@ int ddr_stats_get_ss_count(void);
 int ddr_stats_get_ss_vote_info(int ss_count,
 			       struct ddr_stats_ss_vote_info *vote_info);
 #else
-int ddr_stats_freq_sync_send_msg(void)
+static inline int ddr_stats_freq_sync_send_msg(void)
 { return -ENODEV; }
 
-int ddr_stats_get_freq_count(void)
+static inline int ddr_stats_get_freq_count(void)
 { return -ENODEV; }
 
-int ddr_stats_get_residency(int freq_count, struct ddr_freq_residency *data)
+static inline int ddr_stats_get_residency(int freq_count, struct ddr_freq_residency *data)
 { return -ENODEV; }
 
-int ddr_stats_get_ss_count(void)
+static inline int ddr_stats_get_ss_count(void)
 { return -ENODEV; }
 
-int ddr_stats_get_ss_vote_info(int ss_count,
+static inline int ddr_stats_get_ss_vote_info(int ss_count,
 			       struct ddr_stats_ss_vote_info *vote_info)
 { return -ENODEV; }
 #endif

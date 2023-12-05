@@ -3,7 +3,7 @@
 
 """
 This script is needed for buildtime integrity routine.
-It calculates and embeds HMAC and other needed stuff for in terms of FIPS 140-2
+It calculates and embeds HMAC and other needed stuff for in terms of FIPS 140-3
 """
 import os
 import sys
@@ -18,43 +18,37 @@ __maintainer__ = "Vadym Stupakov"
 __email__ = "v.stupakov@samsung.com"
 __status__ = "Production"
 
+"""
+The following lists contain object files as the module components within
+crypto boundary according to FIPS 140-3 requirements. The components will
+be verified in the frame of the integrity check.
+The fingerprint value is embedded into fips140_out.o. To save integrity
+the content of the object file will be skipped immediately at the fingerprint
+calculation.
+"""
+
+fingerprint_obj_file = "fips140_out.o"
+
 list_obj_files_skc = [
     "fips140_integrity.o",
     "fips140_post.o",
     "fips140_test.o",
-    "ghash-generic.o",
+    "fips140_3_services.o",
     "api.o",
     "cipher.o",
-    "compress.o",
-    "memneq.o",
-    "proc.o",
     "algapi.o",
     "scatterwalk.o",
-    "aead.o",
     "skcipher.o",
-    "seqiv.o",
-    "echainiv.o",
     "ahash.o",
     "shash.o",
-    "algboss.o",
-    "testmgr.o",
     "hmac.o",
     "sha1_generic.o",
     "sha256_generic.o",
     "sha512_generic.o",
     "ecb.o",
     "cbc.o",
-    "ctr.o",
-    "gcm.o",
     "aes_generic.o",
-    "authenc.o",
-    "authencesn.o",
-    "rng.o",
-    "drbg.o",
-    "jitterentropy.o",
-    "jitterentropy-kcapi.o",
-    "../lib/crypto/aes.o",
-    "../lib/crypto/sha256.o"
+    fingerprint_obj_file
 ]
 
 list_obj_files_skc_ce = [
@@ -99,6 +93,7 @@ if __name__ == "__main__":
     utils = Utils()
     utils.paths_exists([elf_file])
 
+    list_obj_files_skc.remove(fingerprint_obj_file)
     obj_files_full_path = [
                            [relative_path_to_skc_obj, list_obj_files_skc],
                            [relative_path_to_skc_ce_obj, list_obj_files_skc_ce]

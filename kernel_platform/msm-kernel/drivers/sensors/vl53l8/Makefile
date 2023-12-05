@@ -62,7 +62,7 @@
 
 # Parameters
 MODULE := stmvl53l8
-CONFIG_STMVL53L8 := m
+CONFIG_STMVL53L8 := $(CONFIG_SENSORS_VL53L8)
 
 # Configure the build type : RELEASE, DEBUG
 BUILD_TYPE = RELEASE

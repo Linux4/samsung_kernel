@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  */
 
@@ -14,6 +14,8 @@
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <linux/pm.h>
+#include <linux/suspend.h>
 
 #include <linux/soc/qcom/smd-rpm.h>
 #include <soc/qcom/rpm-smd.h>
@@ -1507,6 +1509,77 @@ qcom_icc_map(struct platform_device *pdev, const struct qcom_icc_desc *desc)
 	return devm_regmap_init_mmio(dev, base, &icc_regmap_config);
 }
 
+static int qnoc_monaco_reconfiguration(struct device *dev)
+{
+	const struct qcom_icc_desc *desc;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct qcom_icc_provider *qp = platform_get_drvdata(pdev);
+	struct qcom_icc_node **qnodes;
+	int ret, i;
+
+	desc = of_device_get_match_data(dev);
+	qnodes = desc->nodes;
+	ret = clk_bulk_prepare_enable(qp->num_qos_clks, qp->qos_clks);
+	if (ret) {
+		pr_err("Clock enable failed during restore\n");
+		return ret;
+	}
+
+	for (i = 0; i < desc->num_nodes; i++) {
+		if (!qnodes[i])
+			continue;
+
+		if (qnodes[i]->qosbox) {
+			qnodes[i]->noc_ops->set_qos(qnodes[i]);
+			qnodes[i]->qosbox->initialized = true;
+		}
+	}
+
+	clk_bulk_disable_unprepare(qp->num_qos_clks, qp->qos_clks);
+
+	list_for_each_entry(qp, &qnoc_probe_list, probe_list) {
+		if (!qp->keepalive)
+			continue;
+
+		for (i = 0; i < RPM_NUM_CXT; i++) {
+			if (i == RPM_ACTIVE_CXT) {
+				if (qp->bus_clk_cur_rate[i] == 0)
+					ret = clk_set_rate(qp->bus_clks[i].clk,
+							RPM_CLK_MIN_LEVEL);
+				else
+					ret = clk_set_rate(qp->bus_clks[i].clk,
+							qp->bus_clk_cur_rate[i]);
+			} else {
+				ret = clk_set_rate(qp->bus_clks[i].clk,
+						qp->bus_clk_cur_rate[i]);
+			}
+
+			if (ret)
+				pr_err("%s clk_set_rate error: %d\n",
+						qp->bus_clks[i].id, ret);
+		}
+	}
+	return 0;
+}
+
+static int qnoc_monaco_resume(struct device *dev)
+{
+	if (pm_suspend_via_firmware())
+		return qnoc_monaco_reconfiguration(dev);
+
+	return 0;
+}
+
+static int qnoc_monaco_restore(struct device *dev)
+{
+	return qnoc_monaco_reconfiguration(dev);
+}
+
+static const struct dev_pm_ops qnoc_monaco_pm_ops = {
+	.restore = qnoc_monaco_restore,
+	.resume = qnoc_monaco_resume,
+};
+
 static int qnoc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1554,6 +1627,7 @@ static int qnoc_probe(struct platform_device *pdev)
 	provider->set = qcom_icc_rpm_set;
 	provider->pre_aggregate = qcom_icc_rpm_pre_aggregate;
 	provider->aggregate = qcom_icc_rpm_aggregate;
+	provider->get_bw = qcom_icc_get_bw_stub;
 	provider->xlate = of_icc_xlate_onecell;
 	INIT_LIST_HEAD(&provider->nodes);
 	provider->data = data;
@@ -1702,11 +1776,14 @@ static void qnoc_sync_state(struct device *dev)
 				else
 					ret = clk_set_rate(qp->bus_clks[i].clk,
 						qp->bus_clk_cur_rate[i]);
-
-				if (ret)
-					pr_err("%s clk_set_rate error: %d\n",
-						qp->bus_clks[i].id, ret);
+			} else {
+				ret = clk_set_rate(qp->bus_clks[i].clk,
+						qp->bus_clk_cur_rate[i]);
 			}
+
+			if (ret)
+				pr_err("%s clk_set_rate error: %d\n",
+						qp->bus_clks[i].id, ret);
 		}
 	}
 
@@ -1721,6 +1798,7 @@ static struct platform_driver qnoc_driver = {
 	.driver = {
 		.name = "qnoc-monaco",
 		.of_match_table = qnoc_of_match,
+		.pm = &qnoc_monaco_pm_ops,
 		.sync_state = qnoc_sync_state,
 	},
 };
@@ -1730,12 +1808,6 @@ static int __init qnoc_driver_init(void)
 	return platform_driver_register(&qnoc_driver);
 }
 core_initcall(qnoc_driver_init);
-
-static void __exit qnoc_driver_exit(void)
-{
-	platform_driver_unregister(&qnoc_driver);
-}
-module_exit(qnoc_driver_exit);
 
 MODULE_DESCRIPTION("Monaco NoC driver");
 MODULE_LICENSE("GPL v2");

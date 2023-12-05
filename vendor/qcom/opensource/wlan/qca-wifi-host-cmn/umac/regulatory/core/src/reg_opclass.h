@@ -488,7 +488,7 @@ uint16_t reg_dmn_get_chanwidth_from_opclass_auto(uint8_t *country,
  * reg_dmn_get_6g_opclasses_and_channels()- Get the following from the
  * operating class table for 6Ghz band: number of operating classes, list of
  * opclasses, list channel sizes, list of channel lists.
- * @p_frange_lst: Pointer to frequencey range list (AFC)
+ * @p_frange_lst: Pointer to frequency range list (AFC)
  * @pdev: Pointer to pdev.
  * @num_opclasses: Pointer to number of operating classes. This is the number
  * of elements in the list array arguments

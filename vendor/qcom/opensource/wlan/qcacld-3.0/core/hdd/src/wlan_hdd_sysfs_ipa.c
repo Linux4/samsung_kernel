@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,6 +21,7 @@
 #include <wlan_hdd_sysfs.h>
 #include "osif_sync.h"
 
+#ifdef IPA_OFFLOAD
 #define MAX_USER_COMMAND_SIZE_IPAUCSTAT 4
 
 static ssize_t __hdd_sysfs_ipaucstate_store(struct net_device *net_dev,
@@ -122,3 +124,4 @@ void hdd_sysfs_ipa_destroy(struct hdd_adapter *adapter)
 {
 	device_remove_file(&adapter->dev->dev, &dev_attr_ipaucstat);
 }
+#endif

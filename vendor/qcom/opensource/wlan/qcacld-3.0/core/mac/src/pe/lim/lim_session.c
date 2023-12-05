@@ -775,6 +775,28 @@ struct pe_session
 	return NULL;
 }
 
+struct pe_session *
+pe_find_session_by_bssid_and_vdev_id(struct mac_context *mac,
+				     uint8_t *bssid,
+				     uint8_t vdev_id,
+				     uint8_t *sessionId)
+{
+	uint8_t i;
+
+	for (i = 0; i < mac->lim.maxBssId; i++) {
+		/* If BSSID matches return corresponding tables address */
+		if ((mac->lim.gpSession[i].valid) &&
+		    (mac->lim.gpSession[i].vdev_id == vdev_id) &&
+		    (sir_compare_mac_addr(mac->lim.gpSession[i].bssId,
+					    bssid))) {
+			*sessionId = i;
+			return &mac->lim.gpSession[i];
+		}
+	}
+
+	return NULL;
+}
+
 /*--------------------------------------------------------------------------
    \brief pe_find_session_by_session_id() - looks up the PE session given the session ID.
 

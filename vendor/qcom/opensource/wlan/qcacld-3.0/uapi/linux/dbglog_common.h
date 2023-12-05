@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, 2014-2015 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -87,7 +88,8 @@ enum wlan_diag_frame_type {
 };
 
 /* log/event are always 32-bit aligned. Padding is inserted after
- * optional payload to satisify this requirement */
+ * optional payload to satisfy this requirement
+ */
 struct wlan_diag_data {
 	unsigned int word0;             /* type, length */
 	unsigned int target_time;

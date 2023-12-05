@@ -53,7 +53,7 @@ void hdd_close_pre_cac_adapter(struct hdd_context *hdd_ctx);
 QDF_STATUS hdd_pre_cac_register_cb(void);
 
 /**
- * void hdd_pre_cac_unregister_cb(void)() - Resets legacy callbacks to osif
+ * hdd_pre_cac_unregister_cb() - Resets legacy callbacks to osif
  *
  * API to reset legacy callbacks to osif
  *

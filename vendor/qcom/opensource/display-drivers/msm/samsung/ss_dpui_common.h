@@ -91,6 +91,8 @@ enum dpui_key {
 	DPUI_KEY_QCT_NO_TE,	/* display controller no TE response  count */
 	DPUI_KEY_QCT_RCV_CNT,	/* display controller ESD recovery count */
 	DPUI_KEY_QCT_SSLOG,	/* display controller ss debugging log */
+	DPUI_KEY_QCT_MAIN_RX_FAIL_CNT, /* main display mipi rx fail count */
+	DPUI_KEY_QCT_SUB_RX_FAIL_CNT, /* sub display mipi rx fail count */
 
 	/* GPU */
 	DPUI_KEY_QCT_GPU_PF,	/* GPU Page Fault Count */
@@ -177,6 +179,8 @@ static const char * const dpui_key_name[] = {
 	[DPUI_KEY_QCT_NO_TE] = "QCT_NO_TE",
 	[DPUI_KEY_QCT_RCV_CNT] = "QCT_RCV_CNT",
 	[DPUI_KEY_QCT_SSLOG] = "QCT_SSLOG",
+	[DPUI_KEY_QCT_MAIN_RX_FAIL_CNT] = "QCT_MAIN_RX_FAIL_CNT",
+	[DPUI_KEY_QCT_SUB_RX_FAIL_CNT] = "QCT_SUB_RX_FAIL_CNT",
 
 	/* GPU */
 	[DPUI_KEY_QCT_GPU_PF] = "QCT_GPU_PF",
@@ -278,6 +282,10 @@ static struct dpui_info dpui = {
 			DPUI_VAR_U32, DPUI_AUTO_CLEAR_ON, "0", DPUI_KEY_QCT_RCV_CNT),
 		DPUI_FIELD_INIT(DPUI_LOG_LEVEL_INFO, DPUI_TYPE_CTRL,
 			DPUI_VAR_U32, DPUI_AUTO_CLEAR_OFF, "0", DPUI_KEY_QCT_SSLOG),
+		DPUI_FIELD_INIT(DPUI_LOG_LEVEL_INFO, DPUI_TYPE_CTRL,
+			DPUI_VAR_U32, DPUI_AUTO_CLEAR_ON, "0", DPUI_KEY_QCT_MAIN_RX_FAIL_CNT),
+		DPUI_FIELD_INIT(DPUI_LOG_LEVEL_INFO, DPUI_TYPE_CTRL,
+			DPUI_VAR_U32, DPUI_AUTO_CLEAR_ON, "0", DPUI_KEY_QCT_SUB_RX_FAIL_CNT),
 
 		/* GPU */
 		DPUI_FIELD_INIT(DPUI_LOG_LEVEL_INFO, DPUI_TYPE_CTRL,

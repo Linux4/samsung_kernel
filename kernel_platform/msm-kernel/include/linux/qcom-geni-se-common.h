@@ -43,12 +43,10 @@ if (print) { \
 
 /* In KHz */
 #define DEFAULT_SE_CLK	19200
-#define SPI_CORE2X_VOTE	100000
+#define SPI_CORE2X_VOTE	51000
 #define I2C_CORE2X_VOTE	19200
 #define I3C_CORE2X_VOTE	19200
-#define UART_CORE2X_VOTE	100000
-#define UART_CONSOLE_CORE2X_VOTE	19200
-#define APPS_PROC_TO_QUP_VOTE	1190000
+#define APPS_PROC_TO_QUP_VOTE	590000
 /* SE_DMA_GENERAL_CFG */
 #define SE_DMA_DEBUG_REG0		(0xE40)
 
@@ -71,6 +69,8 @@ if (print) { \
 #define SE_DMA_RX_IRQ_EN_SET	(0xD4C)
 #define SE_DMA_RX_IRQ_EN_CLR	(0xD50)
 
+#define SE_HW_PARAM_2                   (0xE2C)
+
 #define TX_GENI_CANCEL_IRQ		(BIT(14))
 
 /* DMA DEBUG Register fields */
@@ -91,7 +91,10 @@ if (print) { \
 /* GENI_OUTPUT_CTRL fields */
 #define GENI_CFG_REG80		0x240
 #define GENI_IO_MUX_0_EN	BIT(0)
-#define GENI_IO_MUX_1_EN	BIT(2)
+#define GENI_IO_MUX_1_EN	BIT(1)
+
+/* SE_HW_PARAM_2 fields */
+#define GEN_HW_FSM_I2C			(BIT(15))
 
 /* GENI_CFG_REG80 fields */
 #define IO1_SEL_TX		BIT(2)
@@ -107,6 +110,13 @@ if (print) { \
 #define HW_VER_MINOR_MASK GENMASK(27, 16)
 #define HW_VER_MINOR_SHFT 16
 #define HW_VER_STEP_MASK GENMASK(15, 0)
+
+#define OTHER_IO_OE		BIT(12)
+#define IO2_DATA_IN_SEL		BIT(11)
+#define RX_DATA_IN_SEL		BIT(8)
+#define IO_MACRO_IO3_SEL	(GENMASK(7, 6))
+#define IO_MACRO_IO2_SEL	BIT(5)
+#define IO_MACRO_IO0_SEL_BIT	BIT(0)
 
 static inline int geni_se_common_resources_init(struct geni_se *se, u32 geni_to_core,
 			 u32 cpu_to_geni, u32 geni_to_ddr)

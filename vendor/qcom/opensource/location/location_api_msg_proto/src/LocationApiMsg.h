@@ -921,7 +921,7 @@ struct LocAPILocationIndMsg: LocAPIMsgHeader
     Location locationNotification;
 
     inline LocAPILocationIndMsg(const char* name,
-        Location& location, const LocationApiPbMsgConv *pbMsgConv) :
+        const Location& location, const LocationApiPbMsgConv *pbMsgConv) :
         LocAPIMsgHeader(name, E_LOCAPI_LOCATION_MSG_ID, pbMsgConv),
         locationNotification(location) { }
     LocAPILocationIndMsg(const char* name, const PBLocAPILocationIndMsg &pbLocApiLocIndMsg,
@@ -973,7 +973,7 @@ struct LocAPILocationInfoIndMsg: LocAPIMsgHeader
     GnssLocationInfoNotification gnssLocationInfoNotification;
 
     inline LocAPILocationInfoIndMsg(const char* name,
-        GnssLocationInfoNotification& locationInfo,
+        const GnssLocationInfoNotification& locationInfo,
         const LocationApiPbMsgConv *pbMsgConv) :
         LocAPIMsgHeader(name, E_LOCAPI_LOCATION_INFO_MSG_ID, pbMsgConv),
         gnssLocationInfoNotification(locationInfo) { }
@@ -1024,7 +1024,7 @@ struct LocAPISatelliteVehicleIndMsg: LocAPIMsgHeader
     GnssSvNotification gnssSvNotification;
 
     inline LocAPISatelliteVehicleIndMsg(const char* name,
-        GnssSvNotification& svNotification,
+        const GnssSvNotification& svNotification,
         const LocationApiPbMsgConv *pbMsgConv) :
         LocAPIMsgHeader(name, E_LOCAPI_SATELLITE_VEHICLE_MSG_ID, pbMsgConv),
         gnssSvNotification(svNotification) { }
@@ -1054,7 +1054,7 @@ struct LocAPIDataIndMsg : LocAPIMsgHeader
     GnssDataNotification gnssDataNotification;
 
     inline LocAPIDataIndMsg(const char* name,
-        GnssDataNotification& dataNotification,
+        const GnssDataNotification& dataNotification,
         const LocationApiPbMsgConv *pbMsgConv) :
         LocAPIMsgHeader(name, E_LOCAPI_DATA_MSG_ID, pbMsgConv),
         gnssDataNotification(dataNotification) { }
@@ -1070,7 +1070,7 @@ struct LocAPIMeasIndMsg : LocAPIMsgHeader
     GnssMeasurementsNotification gnssMeasurementsNotification;
 
     inline LocAPIMeasIndMsg(const char* name,
-        GnssMeasurementsNotification& measurementsNotification,
+        const GnssMeasurementsNotification& measurementsNotification,
         const LocationApiPbMsgConv *pbMsgConv) :
         LocAPIMsgHeader(name, E_LOCAPI_MEAS_MSG_ID, pbMsgConv),
         gnssMeasurementsNotification(measurementsNotification) { }

@@ -281,6 +281,7 @@ static int max77705_fg_read_vfocv(struct max77705_fuelgauge_data *fuelgauge)
 	max77705_fg_periodic_read_power(fuelgauge);
 
 	check_learncfg(fuelgauge);
+	fuelgauge->vfocv = vfocv;
 	return vfocv;
 }
 
@@ -1070,6 +1071,7 @@ int max77705_get_fuelgauge_value(struct max77705_fuelgauge_data *fuelgauge,
 		break;
 	case FG_RAW_SOC:
 		ret = max77705_fg_read_rawsoc(fuelgauge);
+		fuelgauge->raw_soc = ret;
 		break;
 	case FG_VF_SOC:
 		ret = max77705_fg_read_vfsoc(fuelgauge);
@@ -2074,10 +2076,10 @@ static void max77705_fg_bd_log(struct max77705_fuelgauge_data *fuelgauge)
 {
 	memset(fuelgauge->d_buf, 0x0, sizeof(fuelgauge->d_buf));
 
-	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf),
+	snprintf(fuelgauge->d_buf, sizeof(fuelgauge->d_buf),
 		"%d,%d,%d",
-		max77705_fg_read_vfocv(fuelgauge),
-		max77705_get_fuelgauge_value(fuelgauge, FG_RAW_SOC),
+		fuelgauge->vfocv,
+		fuelgauge->raw_soc,
 		fuelgauge->capacity_max);
 }
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -112,7 +112,7 @@ void htt_htc_pkt_pool_free(struct htt_soc *soc);
 
 /*
  * Set the base misclist size to HTT copy engine source ring size
- * to guarantee that a packet on the misclist wont be freed while it
+ * to guarantee that a packet on the misclist won't be freed while it
  * is sitting in the copy engine.
  */
 #define DP_HTT_HTC_PKT_MISCLIST_SIZE          2048
@@ -195,6 +195,10 @@ void htt_htc_pkt_pool_free(struct htt_soc *soc);
 #define dp_htt_tx_stats_debug(params...) QDF_TRACE_DEBUG(QDF_MODULE_ID_DP_HTT_TX_STATS, params)
 
 #define RXMON_GLOBAL_EN_SHIFT 28
+#ifdef IPA_OPT_WIFI_DP
+#define MAX_RESERVE_FAIL_ATTEMPT 5
+#endif
+
 /**
  * enum dp_full_mon_config - enum to enable/disable full monitor mode
  *
@@ -259,6 +263,8 @@ struct htt_soc {
 		int fail_count;
 		/* rtpm put skip count for ver req msg */
 		int htt_ver_req_put_skip;
+		int reserve_fail_cnt;
+		int abort_count;
 	} stats;
 
 	HTT_TX_MUTEX_TYPE htt_tx_mutex;
@@ -522,7 +528,7 @@ struct dp_tx_mon_wordmask_config {
  * enable/disable.
  * @dtlvs: enable/disable downstream TLVs
  * @utlvs: enable/disable upstream TLVs
- * @wmask: enable/disbale word mask subscription
+ * @wmask: enable/disable word mask subscription
  * @mgmt_filter: enable/disable mgmt packets
  * @data_filter: enable/disable data packets
  * @ctrl_filter: enable/disable ctrl packets
@@ -629,6 +635,7 @@ struct htt_tx_ring_tlv_filter {
  * @fpmo_data_filter: FPMO mode data filter
  * @fpmo_mgmt_filter: FPMO mode mgmt filter
  * @fpmo_ctrl_filter: FPMO mode ctrl filter
+ * @enable_mon_mac_filter: enable/disable mac based filter on scan radio
  *
  * NOTE: Do not change the layout of this structure
  */
@@ -675,10 +682,10 @@ struct htt_rx_ring_tlv_filter {
 	u_int32_t phy_err_mask;
 	u_int32_t phy_err_mask_cont;
 #endif
-#ifdef QCA_MONITOR_2_0_SUPPORT
+#if defined(QCA_MONITOR_2_0_SUPPORT) || defined(CONFIG_WORD_BASED_TLV)
 	uint16_t rx_mpdu_start_wmask;
 	uint16_t rx_mpdu_end_wmask;
-	uint16_t rx_msdu_end_wmask;
+	uint32_t rx_msdu_end_wmask;
 	uint16_t rx_pkt_tlv_offset;
 	uint16_t mgmt_dma_length:3,
 		 ctrl_dma_length:3,
@@ -693,6 +700,7 @@ struct htt_rx_ring_tlv_filter {
 	u_int16_t fpmo_mgmt_filter;
 	u_int16_t fpmo_ctrl_filter;
 #endif
+	bool enable_mon_mac_filter;
 };
 
 /**
@@ -798,7 +806,7 @@ htt_htc_misc_pkt_list_add(struct htt_soc *soc, struct dp_htt_htc_pkt *pkt);
  * @soc : HTT SOC handle
  * @pkt: pkt to be send
  * @cmd : command to be recorded in dp htt logger
- * @buf : Pointer to buffer needs to be recored for above cmd
+ * @buf : Pointer to buffer needs to be recorded for above cmd
  *
  * Return: None
  */
@@ -1003,7 +1011,7 @@ dp_htt_rx_flow_fse_operation(struct dp_pdev *pdev,
 			     struct dp_htt_rx_flow_fst_operation *op_info);
 
 /**
- * htt_h2t_full_mon_cfg() - Send full monitor configuarion msg to FW
+ * htt_h2t_full_mon_cfg() - Send full monitor configuration msg to FW
  *
  * @htt_soc: HTT Soc handle
  * @pdev_id: Radio id
@@ -1064,4 +1072,17 @@ dp_htt_get_mon_htt_ring_id(struct dp_soc *soc,
 
 	return htt_srng_id;
 }
+
+#ifdef IPA_OPT_WIFI_DP
+/**
+ * htt_h2t_rx_cce_super_rule_setup() - htt message to set cce super rules
+ *
+ * @htt_soc: HTT Soc handle
+ * @flt_params: Filter tuple
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS htt_h2t_rx_cce_super_rule_setup(struct htt_soc *htt_soc,
+					   void *flt_params);
+#endif
 #endif /* _DP_HTT_H_ */

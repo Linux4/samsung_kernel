@@ -107,6 +107,9 @@ SoCs:
 - KAKA
   compatible = "qcom,kaka"
 
+- CROW
+  compatible = "qcom,crow"
+
 - CINDER
   compatible = "qcom,cinder"
 
@@ -127,6 +130,12 @@ SoCs:
 
 - SDXBAAGHA
   compatible = "qcom,sdxbaagha"
+
+- MONACO_AUTO
+  compatible = "qcom,monaco_auto"
+
+- TRINKET
+  compatible = "qcom,trinket", "qcom,trinket-iot"
 
 Generic board variants:
 
@@ -186,6 +195,9 @@ Generic board variants:
 
 - CCARD device:
   compatible = "qcom,ccard"
+
+- QAM device:
+  compatible = "qcom,qam"
 
 Boards (SoC type + board variant):
 
@@ -247,6 +259,9 @@ compatible = "qcom,kona-rumi"
 compatible = "qcom,kona-mtp"
 compatible = "qcom,kona-cdp"
 compatible = "qcom,kona-qrd"
+compatible = "qcom,kona-iot"
+compatible = "qcom,kona-iot-qrd"
+compatible = "qcom,kona-hdk"
 compatible = "qcom,lahaina-rumi"
 compatible = "qcom,lahaina-atp"
 compatible = "qcom,lahaina-mtp"
@@ -278,6 +293,7 @@ compatible = "qcom,sm6150-qrd"
 compatible = "qcom,sm6150-idp"
 compatible = "qcom,qcs405-rumi"
 compatible = "qcom,qcs405-iot"
+compatible = "qcom,qcs407-iot"
 compatible = "qcom,qcs403-iot"
 compatible = "qcom,sa8150-adp-star"
 compatible = "qcom,adp-star"
@@ -316,7 +332,12 @@ compatible = "qcom,kalamap-cdp"
 compatible = "qcom,kalamap-qrd"
 compatible = "qcom,kalamap-hdk"
 compatible = "qcom,kalamap-hhg"
+compatible = "qcom,kalamap-iot"
 compatible = "qcom,kaka-rumi"
+compatible = "qcom,crow-rumi"
+compatible = "qcom,crow-atp"
+compatible = "qcom,crow-idp"
+compatible = "qcom,crow-qrd"
 compatible = "qcom,cinder-rumi"
 compatible = "qcom,cinder-idp"
 compatible = "qcom,cinder-x100"
@@ -348,10 +369,21 @@ compatible = "qcom,sdxbaagha-cdp"
 compatible = "qcom,sa410m-idp"
 compatible = "qcom,sa410m-qrd"
 compatible = "qcom,sa410m-ccard"
+compatible = "qcom,qam-star"
 compatible = "qcom,lemans-rumi"
 compatible = "qcom,lemans-ivi"
+compatible = "qcom,lemans-ivi-adas"
 compatible = "qcom,lemans-ivi-adp-air"
 compatible = "qcom,lemans-ivi-adp-star"
+compatible = "qcom,lemans-ivi-qam-star"
 compatible = "qcom,lemans-adas-high"
 compatible = "qcom,lemans-adas-high-adp-air"
 compatible = "qcom,lemans-adas-high-adp-star"
+compatible = "qcom,lemans-adas-high-qam-star"
+compatible = "qcom,lemans-ivi-adas-adp-star"
+compatible = "qcom,lemans-ivi-adas-qam-star"
+compatible = "qcom,monaco_auto-rumi"
+compatible = "qcom,trinket-iot"
+compatible = "qcom,trinketp-iot"
+compatible = "qcom,trinket-iot-idp"
+compatible = "qcom,trinketp-iot-idp"

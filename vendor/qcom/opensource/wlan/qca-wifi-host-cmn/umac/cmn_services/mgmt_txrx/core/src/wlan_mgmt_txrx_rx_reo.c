@@ -26,9 +26,10 @@
 #include <qdf_util.h>
 #include <wlan_mlo_mgr_cmn.h>
 
-static struct mgmt_rx_reo_context g_rx_reo_ctx;
+static struct mgmt_rx_reo_context *g_rx_reo_ctx;
 
-#define mgmt_rx_reo_get_context()        (&g_rx_reo_ctx)
+#define mgmt_rx_reo_get_context()        (g_rx_reo_ctx)
+#define mgmt_rx_reo_set_context(c)       (g_rx_reo_ctx = c)
 
 #define MGMT_RX_REO_PKT_CTR_HALF_RANGE (0x8000)
 #define MGMT_RX_REO_PKT_CTR_FULL_RANGE (MGMT_RX_REO_PKT_CTR_HALF_RANGE << 1)
@@ -709,6 +710,21 @@ mgmt_rx_reo_invalidate_stale_snapshots
 	if (!mac_hw_ss->valid)
 		return QDF_STATUS_SUCCESS;
 
+	if (host_ss->valid) {
+		if (!mgmt_rx_reo_compare_global_timestamps_gte
+					(mac_hw_ss->global_timestamp,
+					 host_ss->global_timestamp) ||
+		    !mgmt_rx_reo_compare_pkt_ctrs_gte
+					(mac_hw_ss->mgmt_pkt_ctr,
+					 host_ss->mgmt_pkt_ctr)) {
+			mgmt_rx_reo_print_snapshots(mac_hw_ss, fw_forwarded_ss,
+						    fw_consumed_ss, host_ss);
+			mgmt_rx_reo_debug("Invalidate host snapshot, link %u",
+					  link);
+			host_ss->valid = false;
+		}
+	}
+
 	if (fw_forwarded_ss->valid) {
 		if (!mgmt_rx_reo_compare_global_timestamps_gte
 					(mac_hw_ss->global_timestamp,
@@ -716,6 +732,20 @@ mgmt_rx_reo_invalidate_stale_snapshots
 		    !mgmt_rx_reo_compare_pkt_ctrs_gte
 					(mac_hw_ss->mgmt_pkt_ctr,
 					 fw_forwarded_ss->mgmt_pkt_ctr)) {
+			mgmt_rx_reo_print_snapshots(mac_hw_ss, fw_forwarded_ss,
+						    fw_consumed_ss, host_ss);
+			mgmt_rx_reo_debug("Invalidate FW forwarded SS, link %u",
+					  link);
+			fw_forwarded_ss->valid = false;
+		}
+
+		if (host_ss->valid && fw_forwarded_ss->valid &&
+		    (mgmt_rx_reo_compare_global_timestamps_gte
+					(host_ss->global_timestamp,
+					 fw_forwarded_ss->global_timestamp) !=
+		     mgmt_rx_reo_compare_pkt_ctrs_gte
+					(host_ss->mgmt_pkt_ctr,
+					 fw_forwarded_ss->mgmt_pkt_ctr))) {
 			mgmt_rx_reo_print_snapshots(mac_hw_ss, fw_forwarded_ss,
 						    fw_consumed_ss, host_ss);
 			mgmt_rx_reo_debug("Invalidate FW forwarded SS, link %u",
@@ -737,20 +767,19 @@ mgmt_rx_reo_invalidate_stale_snapshots
 					  link);
 			fw_consumed_ss->valid = false;
 		}
-	}
 
-	if (host_ss->valid) {
-		if (!mgmt_rx_reo_compare_global_timestamps_gte
-					(mac_hw_ss->global_timestamp,
-					 host_ss->global_timestamp) ||
-		    !mgmt_rx_reo_compare_pkt_ctrs_gte
-					(mac_hw_ss->mgmt_pkt_ctr,
-					 host_ss->mgmt_pkt_ctr)) {
+		if (host_ss->valid && fw_consumed_ss->valid &&
+		    (mgmt_rx_reo_compare_global_timestamps_gte
+					(host_ss->global_timestamp,
+					 fw_consumed_ss->global_timestamp) !=
+		     mgmt_rx_reo_compare_pkt_ctrs_gte
+					(host_ss->mgmt_pkt_ctr,
+					 fw_consumed_ss->mgmt_pkt_ctr))) {
 			mgmt_rx_reo_print_snapshots(mac_hw_ss, fw_forwarded_ss,
 						    fw_consumed_ss, host_ss);
-			mgmt_rx_reo_debug("Invalidate host snapshot, link %u",
+			mgmt_rx_reo_debug("Invalidate FW consumed SS, link %u",
 					  link);
-			host_ss->valid = false;
+			fw_consumed_ss->valid = false;
 		}
 	}
 
@@ -1093,7 +1122,7 @@ wlan_mgmt_rx_reo_algo_calculate_wait_count(
 		mac_hw_ss = &snapshot_params
 				[MGMT_RX_REO_SHARED_SNAPSHOT_MAC_HW];
 		fw_forwarded_ss = &snapshot_params
-				[MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWADED];
+				[MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWARDED];
 		fw_consumed_ss = &snapshot_params
 				[MGMT_RX_REO_SHARED_SNAPSHOT_FW_CONSUMED];
 
@@ -1109,7 +1138,7 @@ wlan_mgmt_rx_reo_algo_calculate_wait_count(
 
 		desc->shared_snapshots[link][MGMT_RX_REO_SHARED_SNAPSHOT_MAC_HW] =
 								*mac_hw_ss;
-		desc->shared_snapshots[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWADED] =
+		desc->shared_snapshots[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWARDED] =
 								*fw_forwarded_ss;
 		desc->shared_snapshots[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_CONSUMED] =
 								*fw_consumed_ss;
@@ -1447,6 +1476,20 @@ mgmt_rx_reo_list_display(struct mgmt_rx_reo_list *reo_list)
 
 #ifdef WLAN_MGMT_RX_REO_DEBUG_SUPPORT
 /**
+ * mgmt_rx_reo_egress_frame_debug_info_enabled() - API to check whether egress
+ * frame info debug feaure is enabled
+ * @egress_frame_debug_info: Pointer to egress frame debug info object
+ *
+ * Return: true or false
+ */
+static bool
+mgmt_rx_reo_egress_frame_debug_info_enabled
+			(struct reo_egress_debug_info *egress_frame_debug_info)
+{
+	return egress_frame_debug_info->frame_list_size;
+}
+
+/**
  * mgmt_rx_reo_debug_print_egress_frame_stats() - API to print the stats
  * related to frames going out of the reorder module
  * @reo_ctx: Pointer to reorder context
@@ -1585,11 +1628,20 @@ mgmt_rx_reo_log_egress_frame_before_delivery(
 
 	egress_frame_debug_info = &reo_ctx->egress_frame_debug_info;
 
+	stats = &egress_frame_debug_info->stats;
+	link_id = mgmt_rx_reo_get_link_id(entry->rx_params);
+	stats->delivery_attempts_count[link_id]++;
+	if (entry->is_premature_delivery)
+		stats->premature_delivery_count[link_id]++;
+
+	if (!mgmt_rx_reo_egress_frame_debug_info_enabled
+						(egress_frame_debug_info))
+		return QDF_STATUS_SUCCESS;
+
 	cur_frame_debug_info = &egress_frame_debug_info->frame_list
 			[egress_frame_debug_info->next_index];
 
-	cur_frame_debug_info->link_id =
-				mgmt_rx_reo_get_link_id(entry->rx_params);
+	cur_frame_debug_info->link_id = link_id;
 	cur_frame_debug_info->mgmt_pkt_ctr =
 				mgmt_rx_reo_get_pkt_counter(entry->rx_params);
 	cur_frame_debug_info->global_timestamp =
@@ -1612,12 +1664,6 @@ mgmt_rx_reo_log_egress_frame_before_delivery(
 						entry->is_premature_delivery;
 	cur_frame_debug_info->cpu_id = qdf_get_smp_processor_id();
 
-	stats = &egress_frame_debug_info->stats;
-	link_id = cur_frame_debug_info->link_id;
-	stats->delivery_attempts_count[link_id]++;
-	if (entry->is_premature_delivery)
-		stats->premature_delivery_count[link_id]++;
-
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -1633,16 +1679,29 @@ mgmt_rx_reo_log_egress_frame_before_delivery(
 static QDF_STATUS
 mgmt_rx_reo_log_egress_frame_after_delivery(
 					struct mgmt_rx_reo_context *reo_ctx,
-					struct mgmt_rx_reo_list_entry *entry)
+					struct mgmt_rx_reo_list_entry *entry,
+					uint8_t link_id)
 {
 	struct reo_egress_debug_info *egress_frame_debug_info;
 	struct reo_egress_debug_frame_info *cur_frame_debug_info;
 	struct reo_egress_frame_stats *stats;
 
-	if (!reo_ctx)
+	if (!reo_ctx || !entry)
 		return QDF_STATUS_E_NULL_VALUE;
 
 	egress_frame_debug_info = &reo_ctx->egress_frame_debug_info;
+
+	stats = &egress_frame_debug_info->stats;
+	if (entry->is_delivered) {
+		uint8_t release_reason = entry->release_reason;
+
+		stats->delivery_count[link_id][release_reason]++;
+		stats->delivery_success_count[link_id]++;
+	}
+
+	if (!mgmt_rx_reo_egress_frame_debug_info_enabled
+						(egress_frame_debug_info))
+		return QDF_STATUS_SUCCESS;
 
 	cur_frame_debug_info = &egress_frame_debug_info->frame_list
 			[egress_frame_debug_info->next_index];
@@ -1653,18 +1712,9 @@ mgmt_rx_reo_log_egress_frame_after_delivery(
 
 	egress_frame_debug_info->next_index++;
 	egress_frame_debug_info->next_index %=
-				MGMT_RX_REO_EGRESS_FRAME_DEBUG_ENTRIES_MAX;
+				egress_frame_debug_info->frame_list_size;
 	if (egress_frame_debug_info->next_index == 0)
 		egress_frame_debug_info->wrap_aroud = true;
-
-	stats = &egress_frame_debug_info->stats;
-	if (entry->is_delivered) {
-		uint8_t link_id = cur_frame_debug_info->link_id;
-		uint8_t release_reason = cur_frame_debug_info->release_reason;
-
-		stats->delivery_count[link_id][release_reason]++;
-		stats->delivery_success_count[link_id]++;
-	}
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1697,7 +1747,7 @@ mgmt_rx_reo_debug_print_egress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 	egress_frame_debug_info = &reo_ctx->egress_frame_debug_info;
 
 	if (egress_frame_debug_info->wrap_aroud)
-		num_valid_entries = MGMT_RX_REO_EGRESS_FRAME_DEBUG_ENTRIES_MAX;
+		num_valid_entries = egress_frame_debug_info->frame_list_size;
 	else
 		num_valid_entries = egress_frame_debug_info->next_index;
 
@@ -1713,11 +1763,11 @@ mgmt_rx_reo_debug_print_egress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 
 		start_index = (egress_frame_debug_info->next_index -
 			       num_entries_to_print +
-			       MGMT_RX_REO_EGRESS_FRAME_DEBUG_ENTRIES_MAX)
-			      % MGMT_RX_REO_EGRESS_FRAME_DEBUG_ENTRIES_MAX;
+			       egress_frame_debug_info->frame_list_size)
+			      % egress_frame_debug_info->frame_list_size;
 
 		qdf_assert_always(start_index >= 0 &&
-				  start_index < MGMT_RX_REO_EGRESS_FRAME_DEBUG_ENTRIES_MAX);
+				  start_index < egress_frame_debug_info->frame_list_size);
 	}
 
 	mgmt_rx_reo_alert_no_fl("Egress Frame Info:-");
@@ -1787,7 +1837,7 @@ mgmt_rx_reo_debug_print_egress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 		for (link = 0; link < MAX_MLO_LINKS; link++) {
 			char mac_hw[MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
 			char fw_consumed[MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
-			char fw_forwaded[MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
+			char fw_forwarded[MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
 			char host[MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
 			struct mgmt_rx_reo_snapshot_params *mac_hw_ss;
 			struct mgmt_rx_reo_snapshot_params *fw_consumed_ss;
@@ -1799,7 +1849,7 @@ mgmt_rx_reo_debug_print_egress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 			fw_consumed_ss = &info->shared_snapshots
 				[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_CONSUMED];
 			fw_forwarded_ss = &info->shared_snapshots
-				[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWADED];
+				[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWARDED];
 			host_ss = &info->host_snapshot[link];
 
 			snprintf(mac_hw, sizeof(mac_hw), "(%1u, %5u, %10u)",
@@ -1810,7 +1860,7 @@ mgmt_rx_reo_debug_print_egress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 				 fw_consumed_ss->valid,
 				 fw_consumed_ss->mgmt_pkt_ctr,
 				 fw_consumed_ss->global_timestamp);
-			snprintf(fw_forwaded, sizeof(fw_forwaded),
+			snprintf(fw_forwarded, sizeof(fw_forwarded),
 				 "(%1u, %5u, %10u)",
 				 fw_forwarded_ss->valid,
 				 fw_forwarded_ss->mgmt_pkt_ctr,
@@ -1821,7 +1871,7 @@ mgmt_rx_reo_debug_print_egress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 				 host_ss->global_timestamp);
 			snprintf(snapshots[link], sizeof(snapshots[link]),
 				 "%22s, %22s, %22s, %22s", mac_hw, fw_consumed,
-				 fw_forwaded, host);
+				 fw_forwarded, host);
 		}
 
 		mgmt_rx_reo_alert_no_fl("|%3u|%5d|%4u|%5u|%10u|%11llu|%11llu|%11llu|%11llu|%5llu|%7llu|%5s|%4x|%69s|%69s|%94s|%94s|%94s|%94s|%94s|%94s|",
@@ -1841,7 +1891,7 @@ mgmt_rx_reo_debug_print_egress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 		mgmt_rx_reo_alert_no_fl("%s", boarder);
 
 		index++;
-		index %= MGMT_RX_REO_EGRESS_FRAME_DEBUG_ENTRIES_MAX;
+		index %= egress_frame_debug_info->frame_list_size;
 	}
 
 	return QDF_STATUS_SUCCESS;
@@ -2018,7 +2068,8 @@ mgmt_rx_reo_list_entry_send_up(struct mgmt_rx_reo_list *reo_list,
 	status = QDF_STATUS_SUCCESS;
 
 exit_log:
-	temp = mgmt_rx_reo_log_egress_frame_after_delivery(reo_context, entry);
+	temp = mgmt_rx_reo_log_egress_frame_after_delivery(reo_context, entry,
+							   link_id);
 	if (QDF_IS_STATUS_ERROR(temp))
 		status = temp;
 exit:
@@ -2490,6 +2541,9 @@ mgmt_rx_reo_update_list(struct mgmt_rx_reo_list *reo_list,
 			break;
 		}
 
+		qdf_assert_always(!frame_desc->is_stale ||
+				  cur_entry->is_parallel_rx);
+
 		list_insertion_pos++;
 
 		status = mgmt_rx_reo_update_wait_count(
@@ -2502,9 +2556,6 @@ mgmt_rx_reo_update_list(struct mgmt_rx_reo_list *reo_list,
 			cur_entry->status &=
 			      ~MGMT_RX_REO_STATUS_WAIT_FOR_FRAME_ON_OTHER_LINKS;
 	}
-
-	if (frame_desc->is_stale)
-		qdf_assert_always(!list_insertion_pos);
 
 	if (frame_desc->type == MGMT_RX_REO_FRAME_DESC_HOST_CONSUMED_FRAME &&
 	    !frame_desc->is_stale && frame_desc->reo_required) {
@@ -2768,6 +2819,20 @@ failure_debug:
 
 #ifdef WLAN_MGMT_RX_REO_DEBUG_SUPPORT
 /**
+ * mgmt_rx_reo_ingress_frame_debug_info_enabled() - API to check whether ingress
+ * frame info debug feaure is enabled
+ * @ingress_frame_debug_info: Pointer to ingress frame debug info object
+ *
+ * Return: true or false
+ */
+static bool
+mgmt_rx_reo_ingress_frame_debug_info_enabled
+		(struct reo_ingress_debug_info *ingress_frame_debug_info)
+{
+	return ingress_frame_debug_info->frame_list_size;
+}
+
+/**
  * mgmt_rx_reo_debug_print_ingress_frame_stats() - API to print the stats
  * related to frames going into the reorder module
  * @reo_ctx: Pointer to reorder context
@@ -2945,11 +3010,28 @@ mgmt_rx_reo_log_ingress_frame(struct mgmt_rx_reo_context *reo_ctx,
 
 	ingress_frame_debug_info = &reo_ctx->ingress_frame_debug_info;
 
+	stats = &ingress_frame_debug_info->stats;
+	link_id = mgmt_rx_reo_get_link_id(desc->rx_params);
+	stats->ingress_count[link_id][desc->type]++;
+	if (is_queued)
+		stats->queued_count[link_id]++;
+	if (desc->zero_wait_count_rx)
+		stats->zero_wait_count_rx_count[link_id]++;
+	if (desc->immediate_delivery)
+		stats->immediate_delivery_count[link_id]++;
+	if (is_error)
+		stats->error_count[link_id][desc->type]++;
+	if (desc->is_stale)
+		stats->stale_count[link_id][desc->type]++;
+
+	if (!mgmt_rx_reo_ingress_frame_debug_info_enabled
+						(ingress_frame_debug_info))
+		return QDF_STATUS_SUCCESS;
+
 	cur_frame_debug_info = &ingress_frame_debug_info->frame_list
 			[ingress_frame_debug_info->next_index];
 
-	cur_frame_debug_info->link_id =
-				mgmt_rx_reo_get_link_id(desc->rx_params);
+	cur_frame_debug_info->link_id = link_id;
 	cur_frame_debug_info->mgmt_pkt_ctr =
 				mgmt_rx_reo_get_pkt_counter(desc->rx_params);
 	cur_frame_debug_info->global_timestamp =
@@ -2989,23 +3071,9 @@ mgmt_rx_reo_log_ingress_frame(struct mgmt_rx_reo_context *reo_ctx,
 
 	ingress_frame_debug_info->next_index++;
 	ingress_frame_debug_info->next_index %=
-				MGMT_RX_REO_INGRESS_FRAME_DEBUG_ENTRIES_MAX;
+				ingress_frame_debug_info->frame_list_size;
 	if (ingress_frame_debug_info->next_index == 0)
 		ingress_frame_debug_info->wrap_aroud = true;
-
-	stats = &ingress_frame_debug_info->stats;
-	link_id = cur_frame_debug_info->link_id;
-	stats->ingress_count[link_id][desc->type]++;
-	if (is_queued)
-		stats->queued_count[link_id]++;
-	if (desc->zero_wait_count_rx)
-		stats->zero_wait_count_rx_count[link_id]++;
-	if (desc->immediate_delivery)
-		stats->immediate_delivery_count[link_id]++;
-	if (is_error)
-		stats->error_count[link_id][desc->type]++;
-	if (desc->is_stale)
-		stats->stale_count[link_id][desc->type]++;
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -3038,7 +3106,7 @@ mgmt_rx_reo_debug_print_ingress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 	ingress_frame_debug_info = &reo_ctx->ingress_frame_debug_info;
 
 	if (ingress_frame_debug_info->wrap_aroud)
-		num_valid_entries = MGMT_RX_REO_INGRESS_FRAME_DEBUG_ENTRIES_MAX;
+		num_valid_entries = ingress_frame_debug_info->frame_list_size;
 	else
 		num_valid_entries = ingress_frame_debug_info->next_index;
 
@@ -3054,11 +3122,11 @@ mgmt_rx_reo_debug_print_ingress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 
 		start_index = (ingress_frame_debug_info->next_index -
 			       num_entries_to_print +
-			       MGMT_RX_REO_INGRESS_FRAME_DEBUG_ENTRIES_MAX)
-			      % MGMT_RX_REO_INGRESS_FRAME_DEBUG_ENTRIES_MAX;
+			       ingress_frame_debug_info->frame_list_size)
+			      % ingress_frame_debug_info->frame_list_size;
 
 		qdf_assert_always(start_index >= 0 &&
-				  start_index < MGMT_RX_REO_INGRESS_FRAME_DEBUG_ENTRIES_MAX);
+				  start_index < ingress_frame_debug_info->frame_list_size);
 	}
 
 	mgmt_rx_reo_alert_no_fl("Ingress Frame Info:-");
@@ -3146,7 +3214,7 @@ mgmt_rx_reo_debug_print_ingress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 		for (link = 0; link < MAX_MLO_LINKS; link++) {
 			char mac_hw[MGMT_RX_REO_INGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
 			char fw_consumed[MGMT_RX_REO_INGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
-			char fw_forwaded[MGMT_RX_REO_INGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
+			char fw_forwarded[MGMT_RX_REO_INGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
 			char host[MGMT_RX_REO_INGRESS_FRAME_DEBUG_INFO_SNAPSHOT_MAX_SIZE + 1] = {'\0'};
 			struct mgmt_rx_reo_snapshot_params *mac_hw_ss;
 			struct mgmt_rx_reo_snapshot_params *fw_consumed_ss;
@@ -3158,7 +3226,7 @@ mgmt_rx_reo_debug_print_ingress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 			fw_consumed_ss = &info->shared_snapshots
 				[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_CONSUMED];
 			fw_forwarded_ss = &info->shared_snapshots
-				[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWADED];
+				[link][MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWARDED];
 			host_ss = &info->host_snapshot[link];
 
 			snprintf(mac_hw, sizeof(mac_hw), "(%1u, %5u, %10u)",
@@ -3169,7 +3237,7 @@ mgmt_rx_reo_debug_print_ingress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 				 fw_consumed_ss->valid,
 				 fw_consumed_ss->mgmt_pkt_ctr,
 				 fw_consumed_ss->global_timestamp);
-			snprintf(fw_forwaded, sizeof(fw_forwaded),
+			snprintf(fw_forwarded, sizeof(fw_forwarded),
 				 "(%1u, %5u, %10u)",
 				 fw_forwarded_ss->valid,
 				 fw_forwarded_ss->mgmt_pkt_ctr,
@@ -3180,7 +3248,7 @@ mgmt_rx_reo_debug_print_ingress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 				 host_ss->global_timestamp);
 			snprintf(snapshots[link], sizeof(snapshots[link]),
 				 "%22s, %22s, %22s, %22s", mac_hw, fw_consumed,
-				 fw_forwaded, host);
+				 fw_forwarded, host);
 		}
 
 		mgmt_rx_reo_alert_no_fl("|%5u|%5d|%6u|%6x|%9x|%4u|%5u|%10u|%10u|%10u|%5u|%10lld|%11llu|%13s|%11llu|%4d|%3d|%69s|%70s|%70s|%70s|%70s|%70s|%70s|",
@@ -3203,7 +3271,7 @@ mgmt_rx_reo_debug_print_ingress_frame_info(struct mgmt_rx_reo_context *reo_ctx,
 		mgmt_rx_reo_alert_no_fl("%s", boarder);
 
 		index++;
-		index %= MGMT_RX_REO_INGRESS_FRAME_DEBUG_ENTRIES_MAX;
+		index %= ingress_frame_debug_info->frame_list_size;
 	}
 
 	return QDF_STATUS_SUCCESS;
@@ -4121,7 +4189,7 @@ mgmt_rx_reo_sim_frame_handler_fw(void *arg)
 
 	snapshot_id = is_consumed_by_fw ?
 		      MGMT_RX_REO_SHARED_SNAPSHOT_FW_CONSUMED :
-		      MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWADED;
+		      MGMT_RX_REO_SHARED_SNAPSHOT_FW_FORWARDED;
 
 	snapshot_value = mgmt_rx_reo_sim_get_snapshot_value(
 					frame_hw->params.global_timestamp,
@@ -4904,6 +4972,318 @@ mgmt_rx_reo_sim_get_snapshot_address(
 }
 #endif /* WLAN_MGMT_RX_REO_SIM_SUPPORT */
 
+#ifdef WLAN_MGMT_RX_REO_DEBUG_SUPPORT
+/**
+ * mgmt_rx_reo_ingress_debug_info_init() - Initialize the management rx-reorder
+ * ingress frame debug info
+ * @psoc: Pointer to psoc
+ * @ingress_debug_info_init_count: Initialization count
+ * @ingress_frame_debug_info: Ingress frame debug info object
+ *
+ * API to initialize the management rx-reorder ingress frame debug info.
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+mgmt_rx_reo_ingress_debug_info_init
+		(struct wlan_objmgr_psoc *psoc,
+		 qdf_atomic_t *ingress_debug_info_init_count,
+		 struct reo_ingress_debug_info *ingress_frame_debug_info)
+{
+	if (!psoc) {
+		mgmt_rx_reo_err("psoc is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!ingress_frame_debug_info) {
+		mgmt_rx_reo_err("Ingress frame debug info is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	/* We need to initialize only for the first invocation */
+	if (qdf_atomic_read(ingress_debug_info_init_count))
+		goto success;
+
+	ingress_frame_debug_info->frame_list_size =
+		wlan_mgmt_rx_reo_get_ingress_frame_debug_list_size(psoc);
+
+	if (ingress_frame_debug_info->frame_list_size) {
+		ingress_frame_debug_info->frame_list = qdf_mem_malloc
+			(ingress_frame_debug_info->frame_list_size *
+			 sizeof(*ingress_frame_debug_info->frame_list));
+
+		if (!ingress_frame_debug_info->frame_list) {
+			mgmt_rx_reo_err("Failed to allocate debug info");
+			return QDF_STATUS_E_NOMEM;
+		}
+	}
+
+	/* Initialize the string for storing the debug info table boarder */
+	qdf_mem_set(ingress_frame_debug_info->boarder,
+		    MGMT_RX_REO_INGRESS_FRAME_DEBUG_INFO_BOARDER_MAX_SIZE, '-');
+
+success:
+	qdf_atomic_inc(ingress_debug_info_init_count);
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * mgmt_rx_reo_egress_debug_info_init() - Initialize the management rx-reorder
+ * egress frame debug info
+ * @psoc: Pointer to psoc
+ * @egress_debug_info_init_count: Initialization count
+ * @egress_frame_debug_info: Egress frame debug info object
+ *
+ * API to initialize the management rx-reorder egress frame debug info.
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+mgmt_rx_reo_egress_debug_info_init
+		(struct wlan_objmgr_psoc *psoc,
+		 qdf_atomic_t *egress_debug_info_init_count,
+		 struct reo_egress_debug_info *egress_frame_debug_info)
+{
+	if (!psoc) {
+		mgmt_rx_reo_err("psoc is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!egress_frame_debug_info) {
+		mgmt_rx_reo_err("Egress frame debug info is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	/* We need to initialize only for the first invocation */
+	if (qdf_atomic_read(egress_debug_info_init_count))
+		goto success;
+
+	egress_frame_debug_info->frame_list_size =
+		wlan_mgmt_rx_reo_get_egress_frame_debug_list_size(psoc);
+
+	if (egress_frame_debug_info->frame_list_size) {
+		egress_frame_debug_info->frame_list = qdf_mem_malloc
+				(egress_frame_debug_info->frame_list_size *
+				 sizeof(*egress_frame_debug_info->frame_list));
+
+		if (!egress_frame_debug_info->frame_list) {
+			mgmt_rx_reo_err("Failed to allocate debug info");
+			return QDF_STATUS_E_NOMEM;
+		}
+	}
+
+	/* Initialize the string for storing the debug info table boarder */
+	qdf_mem_set(egress_frame_debug_info->boarder,
+		    MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_BOARDER_MAX_SIZE, '-');
+
+success:
+	qdf_atomic_inc(egress_debug_info_init_count);
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * mgmt_rx_reo_debug_info_init() - Initialize the management rx-reorder debug
+ * info
+ * @pdev: pointer to pdev object
+ *
+ * API to initialize the management rx-reorder debug info.
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+mgmt_rx_reo_debug_info_init(struct wlan_objmgr_pdev *pdev)
+{
+	struct mgmt_rx_reo_context *reo_context;
+	QDF_STATUS status;
+	struct wlan_objmgr_psoc *psoc;
+
+	psoc = wlan_pdev_get_psoc(pdev);
+
+	if (!wlan_mgmt_rx_reo_is_feature_enabled_at_psoc(psoc))
+		return QDF_STATUS_SUCCESS;
+
+	reo_context = mgmt_rx_reo_get_context();
+	if (!reo_context) {
+		mgmt_rx_reo_err("reo context is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	status = mgmt_rx_reo_ingress_debug_info_init
+			(psoc, &reo_context->ingress_debug_info_init_count,
+			 &reo_context->ingress_frame_debug_info);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mgmt_rx_reo_err("Failed to initialize ingress debug info");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	status = mgmt_rx_reo_egress_debug_info_init
+			(psoc, &reo_context->egress_debug_info_init_count,
+			 &reo_context->egress_frame_debug_info);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mgmt_rx_reo_err("Failed to initialize egress debug info");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * mgmt_rx_reo_ingress_debug_info_deinit() - De initialize the management
+ * rx-reorder ingress frame debug info
+ * @psoc: Pointer to psoc
+ * @ingress_debug_info_init_count: Initialization count
+ * @ingress_frame_debug_info: Ingress frame debug info object
+ *
+ * API to de initialize the management rx-reorder ingress frame debug info.
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+mgmt_rx_reo_ingress_debug_info_deinit
+		(struct wlan_objmgr_psoc *psoc,
+		 qdf_atomic_t *ingress_debug_info_init_count,
+		 struct reo_ingress_debug_info *ingress_frame_debug_info)
+{
+	if (!psoc) {
+		mgmt_rx_reo_err("psoc is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!ingress_frame_debug_info) {
+		mgmt_rx_reo_err("Ingress frame debug info is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!qdf_atomic_read(ingress_debug_info_init_count)) {
+		mgmt_rx_reo_err("Ingress debug info ref cnt is 0");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	/* We need to de-initialize only for the last invocation */
+	if (qdf_atomic_dec_and_test(ingress_debug_info_init_count))
+		goto success;
+
+	if (ingress_frame_debug_info->frame_list) {
+		qdf_mem_free(ingress_frame_debug_info->frame_list);
+		ingress_frame_debug_info->frame_list = NULL;
+	}
+	ingress_frame_debug_info->frame_list_size = 0;
+
+	qdf_mem_zero(ingress_frame_debug_info->boarder,
+		     MGMT_RX_REO_INGRESS_FRAME_DEBUG_INFO_BOARDER_MAX_SIZE + 1);
+
+success:
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * mgmt_rx_reo_egress_debug_info_deinit() - De initialize the management
+ * rx-reorder egress frame debug info
+ * @psoc: Pointer to psoc
+ * @egress_debug_info_init_count: Initialization count
+ * @egress_frame_debug_info: Egress frame debug info object
+ *
+ * API to de initialize the management rx-reorder egress frame debug info.
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+mgmt_rx_reo_egress_debug_info_deinit
+		(struct wlan_objmgr_psoc *psoc,
+		 qdf_atomic_t *egress_debug_info_init_count,
+		 struct reo_egress_debug_info *egress_frame_debug_info)
+{
+	if (!psoc) {
+		mgmt_rx_reo_err("psoc is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!egress_frame_debug_info) {
+		mgmt_rx_reo_err("Egress frame debug info is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!qdf_atomic_read(egress_debug_info_init_count)) {
+		mgmt_rx_reo_err("Egress debug info ref cnt is 0");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	/* We need to de-initialize only for the last invocation */
+	if (qdf_atomic_dec_and_test(egress_debug_info_init_count))
+		goto success;
+
+	if (egress_frame_debug_info->frame_list) {
+		qdf_mem_free(egress_frame_debug_info->frame_list);
+		egress_frame_debug_info->frame_list = NULL;
+	}
+	egress_frame_debug_info->frame_list_size = 0;
+
+	qdf_mem_zero(egress_frame_debug_info->boarder,
+		     MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_BOARDER_MAX_SIZE + 1);
+
+success:
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * mgmt_rx_reo_debug_info_deinit() - De initialize the management rx-reorder
+ * debug info
+ * @pdev: Pointer to pdev object
+ *
+ * API to de initialize the management rx-reorder debug info.
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+mgmt_rx_reo_debug_info_deinit(struct wlan_objmgr_pdev *pdev)
+{
+	struct mgmt_rx_reo_context *reo_context;
+	QDF_STATUS status;
+	struct wlan_objmgr_psoc *psoc;
+
+	psoc = wlan_pdev_get_psoc(pdev);
+
+	if (!wlan_mgmt_rx_reo_is_feature_enabled_at_psoc(psoc))
+		return QDF_STATUS_SUCCESS;
+
+	reo_context = mgmt_rx_reo_get_context();
+	if (!reo_context) {
+		mgmt_rx_reo_err("reo context is null");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	status = mgmt_rx_reo_ingress_debug_info_deinit
+			(psoc, &reo_context->ingress_debug_info_init_count,
+			 &reo_context->ingress_frame_debug_info);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mgmt_rx_reo_err("Failed to deinitialize ingress debug info");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	status = mgmt_rx_reo_egress_debug_info_deinit
+			(psoc, &reo_context->egress_debug_info_init_count,
+			 &reo_context->egress_frame_debug_info);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mgmt_rx_reo_err("Failed to deinitialize egress debug info");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+#else
+static QDF_STATUS
+mgmt_rx_reo_debug_info_init(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static QDF_STATUS
+mgmt_rx_reo_debug_info_deinit(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif /* WLAN_MGMT_RX_REO_DEBUG_SUPPORT */
+
 /**
  * mgmt_rx_reo_flush_reorder_list() - Flush all entries in the reorder list
  * @reo_list: Pointer to reorder list
@@ -4992,14 +5372,18 @@ mgmt_rx_reo_deinit_context(void)
 	status = mgmt_rx_reo_sim_deinit(reo_context);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		mgmt_rx_reo_err("Failed to de initialize reo sim context");
+		qdf_mem_free(reo_context);
 		return QDF_STATUS_E_FAILURE;
 	}
 
 	status = mgmt_rx_reo_list_deinit(&reo_context->reo_list);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		mgmt_rx_reo_err("Failed to de-initialize mgmt Rx reo list");
+		qdf_mem_free(reo_context);
 		return status;
 	}
+
+	qdf_mem_free(reo_context);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -5011,12 +5395,12 @@ mgmt_rx_reo_init_context(void)
 	QDF_STATUS temp;
 	struct mgmt_rx_reo_context *reo_context;
 
-	reo_context = mgmt_rx_reo_get_context();
+	reo_context = qdf_mem_malloc(sizeof(*reo_context));
 	if (!reo_context) {
-		mgmt_rx_reo_err("reo context is null");
+		mgmt_rx_reo_err("Failed to allocate reo context");
 		return QDF_STATUS_E_NULL_VALUE;
 	}
-	qdf_mem_zero(reo_context, sizeof(*reo_context));
+	mgmt_rx_reo_set_context(reo_context);
 
 	status = mgmt_rx_reo_list_init(&reo_context->reo_list);
 	if (QDF_IS_STATUS_ERROR(status)) {
@@ -5034,11 +5418,6 @@ mgmt_rx_reo_init_context(void)
 
 	qdf_timer_mod(&reo_context->reo_list.ageout_timer,
 		      MGMT_RX_REO_AGEOUT_TIMER_PERIOD_MS);
-
-	qdf_mem_set(reo_context->ingress_frame_debug_info.boarder,
-		    MGMT_RX_REO_INGRESS_FRAME_DEBUG_INFO_BOARDER_MAX_SIZE, '-');
-	qdf_mem_set(reo_context->egress_frame_debug_info.boarder,
-		    MGMT_RX_REO_EGRESS_FRAME_DEBUG_INFO_BOARDER_MAX_SIZE, '-');
 
 	return QDF_STATUS_SUCCESS;
 
@@ -5318,6 +5697,13 @@ mgmt_rx_reo_pdev_obj_create_notification(
 
 	mgmt_txrx_pdev_ctx->mgmt_rx_reo_pdev_ctx = mgmt_rx_reo_pdev_ctx;
 
+	status = mgmt_rx_reo_debug_info_init(pdev);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mgmt_rx_reo_err("Failed to initialize debug info");
+		status = QDF_STATUS_E_NOMEM;
+		goto failure;
+	}
+
 	return QDF_STATUS_SUCCESS;
 
 failure:
@@ -5339,6 +5725,12 @@ mgmt_rx_reo_pdev_obj_destroy_notification(
 	if (!wlan_mgmt_rx_reo_is_feature_enabled_at_pdev(pdev))
 		return QDF_STATUS_SUCCESS;
 
+	status = mgmt_rx_reo_debug_info_deinit(pdev);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mgmt_rx_reo_err("Failed to de-initialize debug info");
+		return status;
+	}
+
 	qdf_mem_free(mgmt_txrx_pdev_ctx->mgmt_rx_reo_pdev_ctx);
 	mgmt_txrx_pdev_ctx->mgmt_rx_reo_pdev_ctx = NULL;
 
@@ -5348,6 +5740,18 @@ mgmt_rx_reo_pdev_obj_destroy_notification(
 		return status;
 	}
 
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+mgmt_rx_reo_psoc_obj_create_notification(struct wlan_objmgr_psoc *psoc)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+mgmt_rx_reo_psoc_obj_destroy_notification(struct wlan_objmgr_psoc *psoc)
+{
 	return QDF_STATUS_SUCCESS;
 }
 

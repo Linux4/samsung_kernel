@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -282,7 +282,6 @@ void hdd_set_hif_init_phase(struct hif_opaque_softc *hif_ctx,
 #endif /* FORCE_WAKE */
 
 /**
-
  * hdd_hif_set_attribute() - API to set CE attribute if memory is limited
  * @hif_ctx: hif context
  *
@@ -313,7 +312,6 @@ hdd_hif_register_shutdown_notifier(struct hif_opaque_softc *hif_ctx)
 }
 
 /**
-
  * hdd_hif_set_ce_max_yield_time() - Wrapper API to set CE max yield time
  * @hif_ctx: hif context
  * @bus_type: underlying bus type
@@ -322,12 +320,13 @@ hdd_hif_register_shutdown_notifier(struct hif_opaque_softc *hif_ctx)
  * Return: None
  */
 #if defined(CONFIG_SLUB_DEBUG_ON)
-#define CE_SNOC_MAX_YIELD_TIME_US 2000
 
 static void hdd_hif_set_ce_max_yield_time(struct hif_opaque_softc *hif_ctx,
 					  enum qdf_bus_type bus_type,
 					  uint32_t ce_service_max_yield_time)
 {
+#define CE_SNOC_MAX_YIELD_TIME_US 2000
+
 	if (bus_type == QDF_BUS_TYPE_SNOC &&
 	    ce_service_max_yield_time < CE_SNOC_MAX_YIELD_TIME_US)
 		ce_service_max_yield_time = CE_SNOC_MAX_YIELD_TIME_US;
@@ -749,8 +748,14 @@ static int __hdd_soc_recovery_reinit(struct device *dev,
 				     enum qdf_bus_type bus_type)
 {
 	int errno;
+	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 
 	hdd_info("re-probing driver");
+
+	if (!hdd_ctx) {
+		hdd_err("hdd_ctx is null!");
+		return qdf_status_to_os_return(QDF_STATUS_E_RESOURCES);
+	}
 
 	hdd_soc_load_lock(dev);
 	cds_set_driver_in_bad_state(false);
@@ -778,6 +783,11 @@ static int __hdd_soc_recovery_reinit(struct device *dev,
 	if (!qdf_is_fw_down()) {
 		cds_set_recovery_in_progress(false);
 		hdd_handle_cached_commands();
+	}
+
+	if (!hdd_is_any_interface_open(hdd_ctx)) {
+		hdd_debug("restarting idle shutdown timer");
+		hdd_psoc_idle_timer_start(hdd_ctx);
 	}
 
 	hdd_soc_load_unlock(dev);
@@ -916,6 +926,7 @@ static inline void hdd_wlan_ssr_shutdown_event(void) { }
 /**
  * hdd_send_hang_data() - Send hang data to userspace
  * @data: Hang data
+ * @data_len: Length of @data
  *
  * Return: None
  */
@@ -941,6 +952,7 @@ static void hdd_send_hang_data(uint8_t *data, size_t data_len)
  */
 static void hdd_psoc_shutdown_notify(struct hdd_context *hdd_ctx)
 {
+	hdd_enter();
 	wlan_cfg80211_cleanup_scan_queue(hdd_ctx->pdev, NULL);
 
 	if (ucfg_ipa_is_enabled()) {
@@ -955,13 +967,14 @@ static void hdd_psoc_shutdown_notify(struct hdd_context *hdd_ctx)
 	cds_shutdown_notifier_purge();
 
 	hdd_wlan_ssr_shutdown_event();
+	hdd_exit();
 }
 
 /**
  * hdd_soc_recovery_cleanup() - Perform SSR related cleanup activities.
  *
  * This function will perform cleanup activities related to when driver
- * undergoes SSR. Activities inclues stopping idle timer and invoking shutdown
+ * undergoes SSR. Activities include stopping idle timer and invoking shutdown
  * notifier.
  *
  * Return: None
@@ -970,6 +983,7 @@ static void hdd_soc_recovery_cleanup(void)
 {
 	struct hdd_context *hdd_ctx;
 
+	hdd_enter();
 	hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 	if (!hdd_ctx)
 		return;
@@ -990,6 +1004,7 @@ static void hdd_soc_recovery_cleanup(void)
 	}
 
 	hdd_psoc_shutdown_notify(hdd_ctx);
+	hdd_exit();
 }
 
 static void __hdd_soc_recovery_shutdown(void)
@@ -1014,7 +1029,7 @@ static void __hdd_soc_recovery_shutdown(void)
 		qdf_atomic_set(&is_recovery_cleanup_done, 0);
 
 	if (!hdd_wait_for_debugfs_threads_completion())
-		hdd_err("Debufs threads are still pending, attempting SSR anyway");
+		hdd_err("Debugfs threads are still pending, attempting SSR anyway");
 
 	hif_ctx = cds_get_context(QDF_MODULE_ID_HIF);
 	if (!hif_ctx)
@@ -1089,7 +1104,7 @@ static void wlan_hdd_crash_shutdown(void)
 	 * send crash_inject to FW directly, because we are now
 	 * in an atomic context, and preempt has been disabled,
 	 * MCThread won't be scheduled at the moment, at the same
-	 * time, TargetFailure event wont't be received after inject
+	 * time, TargetFailure event won't be received after inject
 	 * crash due to the same reason.
 	 */
 	ret = wma_crash_inject(wma_handle, RECOVERY_SIM_ASSERT, 0);
@@ -1189,11 +1204,11 @@ hdd_to_pmo_wow_enable_params(struct wow_enable_params *in_params,
 }
 
 /**
- * __wlan_hdd_bus_suspend() - handles platform supsend
+ * __wlan_hdd_bus_suspend() - handles platform suspend
  * @wow_params: collection of wow enable override parameters
  * @type: WoW suspend type
  *
- * Does precondtion validation. Ensures that a subsystem restart isn't in
+ * Does precondition validation. Ensures that a subsystem restart isn't in
  * progress. Ensures that no load or unload is in progress. Does:
  *	data path suspend
  *	component (pmo) suspend
@@ -1298,7 +1313,7 @@ static int __wlan_hdd_bus_suspend(struct wow_enable_params wow_params,
 
 	if (hif_try_prevent_ep_vote_access(hif_ctx)) {
 		hdd_debug("Prevent suspend, ep work pending");
-		err = QDF_STATUS_E_BUSY;
+		err = -EBUSY;
 		goto resume_txrx;
 	}
 
@@ -1428,12 +1443,12 @@ done:
  *
  * @type: WoW suspend type
  *
- * Does precondtion validation. Ensures that a subsystem restart isn't in
+ * Does precondition validation. Ensures that a subsystem restart isn't in
  * progress.  Ensures that no load or unload is in progress.  Ensures that
  * it has valid pointers for the required contexts.
  * Calls into hif to resume the bus operation.
  * Calls into wma to handshake with firmware and notify it that the bus is up.
- * Calls into ol_txrx for symetry.
+ * Calls into ol_txrx for symmetry.
  * Failures are treated as catastrophic.
  *
  * return: error code or 0 for success
@@ -1616,6 +1631,7 @@ static int hdd_pld_runtime_suspend_cb(void)
 
 /**
  * wlan_hdd_runtime_suspend() - suspend the wlan bus without apps suspend
+ * @dev: Driver device instance
  *
  * Each layer is responsible for its own suspend actions.  wma_runtime_suspend
  * takes care of the parts of the 802.11 suspend that we want to do for runtime
@@ -1701,6 +1717,7 @@ static int hdd_pld_runtime_resume_cb(void)
 
 /**
  * wlan_hdd_runtime_resume() - resume the wlan bus from runtime suspend
+ * @dev: Driver device instance
  *
  * Sets the runtime pm state and coordinates resume between hif wma and
  * ol_txrx.
@@ -1789,7 +1806,7 @@ static int wlan_hdd_pld_probe(struct device *dev,
 /**
  * wlan_hdd_pld_remove() - remove function registered to PLD
  * @dev: device to remove
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: void
  */
@@ -1816,9 +1833,9 @@ static void hdd_soc_idle_shutdown_unlock(void)
 
 /**
  * wlan_hdd_pld_idle_shutdown() - wifi module idle shutdown after interface
- *                                inactivity timeout has trigerred idle shutdown
+ *                                inactivity timeout has triggered idle shutdown
  * @dev: device to remove
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: 0 for success and negative error code for failure
  */
@@ -1839,7 +1856,7 @@ static int wlan_hdd_pld_idle_shutdown(struct device *dev,
 /**
  * wlan_hdd_pld_idle_restart() - wifi module idle restart after idle shutdown
  * @dev: device to remove
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: 0 for success and negative error code for failure
  */
@@ -1852,7 +1869,7 @@ static int wlan_hdd_pld_idle_restart(struct device *dev,
 /**
  * wlan_hdd_pld_shutdown() - shutdown function registered to PLD
  * @dev: device to shutdown
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: void
  */
@@ -1893,7 +1910,7 @@ static int wlan_hdd_pld_reinit(struct device *dev,
 /**
  * wlan_hdd_pld_crash_shutdown() - crash_shutdown function registered to PLD
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: void
  */
@@ -1906,7 +1923,7 @@ static void wlan_hdd_pld_crash_shutdown(struct device *dev,
 /**
  * wlan_hdd_pld_suspend() - suspend function registered to PLD
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  * @state: PM state
  *
  * Return: 0 on success
@@ -1954,7 +1971,7 @@ static int wlan_hdd_pld_suspend(struct device *dev,
 /**
  * wlan_hdd_pld_resume() - resume function registered to PLD
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: 0 on success
  */
@@ -1978,7 +1995,7 @@ static int wlan_hdd_pld_resume(struct device *dev,
 /**
  * wlan_hdd_pld_suspend_noirq() - handle suspend no irq
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Complete the actions started by suspend().  Carry out any
  * additional operations required for suspending the device that might be
@@ -2008,7 +2025,7 @@ static int wlan_hdd_pld_suspend_noirq(struct device *dev,
 /**
  * wlan_hdd_pld_resume_noirq() - handle resume no irq
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Prepare for the execution of resume() by carrying out any
  * operations required for resuming the device that might be racing with
@@ -2038,7 +2055,7 @@ static int wlan_hdd_pld_resume_noirq(struct device *dev,
 /**
  * wlan_hdd_pld_reset_resume() - reset resume function registered to PLD
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: 0 on success
  */
@@ -2062,7 +2079,7 @@ static int wlan_hdd_pld_reset_resume(struct device *dev,
 /**
  * wlan_hdd_pld_notify_handler() - notify_handler function registered to PLD
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  * @state: Modem power state
  *
  * Return: void
@@ -2169,7 +2186,7 @@ wlan_hdd_pld_uevent(struct device *dev, struct pld_uevent_data *event_data)
 /**
  * wlan_hdd_pld_runtime_suspend() - runtime suspend function registered to PLD
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: 0 on success
  */
@@ -2201,7 +2218,7 @@ out:
 /**
  * wlan_hdd_pld_runtime_resume() - runtime resume function registered to PLD
  * @dev: device
- * @pld_bus_type: PLD bus type
+ * @bus_type: PLD bus type
  *
  * Return: 0 on success
  */

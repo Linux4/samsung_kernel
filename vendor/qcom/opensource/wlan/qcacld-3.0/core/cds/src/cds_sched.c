@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,8 +18,6 @@
  */
 
 /**
- *  File: cds_sched.c
- *
  *  DOC: CDS Scheduler Implementation
  */
 
@@ -32,12 +31,26 @@
 #include "cds_sched.h"
 #include <wlan_hdd_power.h>
 #include "wma_types.h"
-#include <dp_txrx.h>
 #include <linux/spinlock.h>
 #include <linux/kthread.h>
 #include <linux/cpu.h>
 #ifdef RX_PERFORMANCE
 #include <linux/sched/types.h>
+#endif
+#include "wlan_dp_ucfg_api.h"
+
+/*
+ * The following commit was introduced in v5.17:
+ * cead18552660 ("exit: Rename complete_and_exit to kthread_complete_and_exit")
+ * Use the old name for kernels before 5.17
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0))
+/**
+ * kthread_complete_and_exit - completes the thread and exit
+ * @c: thread or task to be completed
+ * @s: exit code
+ */
+#define kthread_complete_and_exit(c, s) complete_and_exit(c, s)
 #endif
 
 static spinlock_t ssr_protect_lock;
@@ -57,7 +70,7 @@ enum notifier_state {
 
 static p_cds_sched_context gp_cds_sched_context;
 
-#ifdef QCA_CONFIG_SMP
+#ifdef WLAN_DP_LEGACY_OL_RX_THREAD
 static int cds_ol_rx_thread(void *arg);
 static uint32_t affine_cpu;
 static QDF_STATUS cds_alloc_ol_rx_pkt_freeq(p_cds_sched_context pSchedContext);
@@ -204,8 +217,8 @@ static int cds_sched_find_attach_cpu(p_cds_sched_context pSchedContext,
 		cds_cfg = cds_get_ini_config();
 		cpumask_copy(&pSchedContext->rx_thread_cpu_mask, &new_mask);
 		if (cds_cfg && cds_cfg->enable_dp_rx_threads)
-			dp_txrx_set_cpu_mask(cds_get_context(QDF_MODULE_ID_SOC),
-					     &new_mask);
+			ucfg_dp_txrx_set_cpu_mask(cds_get_context(QDF_MODULE_ID_SOC),
+						  &new_mask);
 		else
 			cds_set_cpus_allowed_ptr_with_mask(pSchedContext->ol_rx_thread,
 							   &new_mask);
@@ -451,7 +464,7 @@ static void cds_cpu_before_offline_cb(void *context, uint32_t cpu)
 {
 	cds_cpu_hotplug_notify(cpu, false);
 }
-#endif /* QCA_CONFIG_SMP */
+#endif /* WLAN_DP_LEGACY_OL_RX_THREAD */
 
 /**
  * cds_sched_open() - initialize the CDS Scheduler
@@ -484,7 +497,7 @@ QDF_STATUS cds_sched_open(void *p_cds_context,
 		return QDF_STATUS_E_INVAL;
 	}
 	qdf_mem_zero(pSchedContext, sizeof(cds_sched_context));
-#ifdef QCA_CONFIG_SMP
+#ifdef WLAN_DP_LEGACY_OL_RX_THREAD
 	spin_lock_init(&pSchedContext->ol_rx_thread_lock);
 	init_waitqueue_head(&pSchedContext->ol_rx_wait_queue);
 	init_completion(&pSchedContext->ol_rx_start_event);
@@ -511,7 +524,7 @@ QDF_STATUS cds_sched_open(void *p_cds_context,
 #endif
 	gp_cds_sched_context = pSchedContext;
 
-#ifdef QCA_CONFIG_SMP
+#ifdef WLAN_DP_LEGACY_OL_RX_THREAD
 	pSchedContext->ol_rx_thread = kthread_create(cds_ol_rx_thread,
 						       pSchedContext,
 						       "cds_ol_rx_thread");
@@ -529,10 +542,8 @@ QDF_STATUS cds_sched_open(void *p_cds_context,
 	/* We're good now: Let's get the ball rolling!!! */
 	cds_debug("CDS Scheduler successfully Opened");
 	return QDF_STATUS_SUCCESS;
-#ifdef QCA_CONFIG_SMP
+#ifdef WLAN_DP_LEGACY_OL_RX_THREAD
 OL_RX_THREAD_START_FAILURE:
-#endif
-#ifdef QCA_CONFIG_SMP
 	qdf_cpuhp_unregister(&pSchedContext->cpuhp_event_handle);
 	cds_free_ol_rx_pkt_freeq(gp_cds_sched_context);
 pkt_freeqalloc_failure:
@@ -543,10 +554,10 @@ pkt_freeqalloc_failure:
 
 } /* cds_sched_open() */
 
-#ifdef QCA_CONFIG_SMP
+#ifdef WLAN_DP_LEGACY_OL_RX_THREAD
 /**
  * cds_free_ol_rx_pkt_freeq() - free cds buffer free queue
- * @pSchedContext - pointer to the global CDS Sched Context
+ * @pSchedContext: pointer to the global CDS Sched Context
  *
  * This API does mem free of the buffers available in free cds buffer
  * queue which is used for Data rx processing.
@@ -571,7 +582,7 @@ void cds_free_ol_rx_pkt_freeq(p_cds_sched_context pSchedContext)
 
 /**
  * cds_alloc_ol_rx_pkt_freeq() - Function to allocate free buffer queue
- * @pSchedContext - pointer to the global CDS Sched Context
+ * @pSchedContext: pointer to the global CDS Sched Context
  *
  * This API allocates CDS_MAX_OL_RX_PKT number of cds message buffers
  * which are used for Rx data processing.
@@ -654,7 +665,7 @@ struct cds_ol_rx_pkt *cds_alloc_ol_rx_pkt(p_cds_sched_context pSchedContext)
 
 /**
  * cds_indicate_rxpkt() - indicate rx data packet
- * @Arg: Pointer to the global CDS Sched Context
+ * @pSchedContext: Pointer to the global CDS Sched Context
  * @pkt: CDS data message buffer
  *
  * This api enqueues the rx packet into ol_rx_thread_queue and notifies
@@ -791,7 +802,7 @@ static void cds_rx_from_queue(p_cds_sched_context pSchedContext)
 
 /**
  * cds_ol_rx_thread() - cds main tlshim rx thread
- * @Arg: pointer to the global CDS Sched Context
+ * @arg: pointer to the global CDS Sched Context
  *
  * This api is the thread handler for Tlshim Data packet processing.
  *
@@ -862,7 +873,7 @@ static int cds_ol_rx_thread(void *arg)
 	}
 
 	cds_debug("Exiting CDS OL rx thread");
-	complete_and_exit(&pSchedContext->ol_rx_shutdown, 0);
+	kthread_complete_and_exit(&pSchedContext->ol_rx_shutdown, 0);
 
 	return 0;
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -57,7 +58,7 @@
  * in the user space, define a set of messages they recognize.
  * Each of this message will have an header of type tAniMsgHdr defined below.
  * Each Netlink message to/from a kernel module will contain only one
- * message which is preceded by a tAniMsgHdr. The maximun size (in bytes) of
+ * message which is preceded by a tAniMsgHdr. The maximum size (in bytes) of
  * a netlink message is assumed to be MAX_PAYLOAD bytes.
  *
  *         +------------+-------+----------+----------+
@@ -176,7 +177,7 @@ struct wlan_dfs_info {
 };
 
 /*
- * Maximim number of queues supported by WLAN driver. Setting an upper
+ * Maximum number of queues supported by WLAN driver. Setting an upper
  * limit. Actual number of queues may be smaller than this value.
  */
 #define WLAN_SVC_IFACE_NUM_QUEUES 6

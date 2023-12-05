@@ -528,7 +528,10 @@ static int32_t cm_calculate_security_score(struct scoring_cfg *score_config,
 		    QDF_HAS_PARAM(key_mgmt, WLAN_CRYPTO_KEY_MGMT_OWE) ||
 		    QDF_HAS_PARAM(key_mgmt, WLAN_CRYPTO_KEY_MGMT_DPP) ||
 		    QDF_HAS_PARAM(key_mgmt,
-				  WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384)) {
+				  WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384) ||
+		    QDF_HAS_PARAM(key_mgmt, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY) ||
+		    QDF_HAS_PARAM(key_mgmt,
+				  WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY)) {
 			/*If security is WPA3, consider score_pct = 100%*/
 			score_pct = CM_GET_SCORE_PERCENTAGE(
 					score_config->security_weight_per_index,
@@ -1394,7 +1397,7 @@ cm_calculate_etp_score(struct wlan_objmgr_psoc *psoc,
 #endif
 
 /**
- * cm_get_band_score() - Get band prefernce weightage
+ * cm_get_band_score() - Get band preference weightage
  * freq: Operating frequency of the AP
  * @score_config: Score configuration
  *
@@ -1700,7 +1703,7 @@ static enum MLO_TYPE  cm_bss_mlo_type(struct wlan_objmgr_psoc *psoc,
 	bool multi_link = false;
 
 	mlo_link_num = cm_get_sta_mlo_conn_max_num(psoc);
-	if (!entry->ie_list.multi_link)
+	if (!entry->ie_list.multi_link_bv)
 		return SLO;
 	else if (!entry->ml_info.num_links)
 		return SLO;
@@ -1913,7 +1916,7 @@ static int cm_calculate_mlo_bss_score(struct wlan_objmgr_psoc *psoc,
 						    score_params);
 
 		total_score[i] = rssi_score[i] + bandwidth_score[i] +
-				   congestion_score[i];
+				 cong_total_score[i];
 		if (total_score[i] > best_total_score) {
 			best_total_score = total_score[i];
 			best_partner_index = i;
@@ -2122,7 +2125,7 @@ static int cm_calculate_bss_score(struct wlan_objmgr_psoc *psoc,
 	if (congestion_pct < CM_CONGESTION_THRSHOLD_FOR_BAND_OCE_SCORE) {
 		/*
 		 * If AP is on 5/6 GHZ channel , extra weigtage is added to BSS
-		 * score. if RSSI is greater tha 5g rssi threshold or fall in
+		 * score. if RSSI is greater than 5g rssi threshold or fall in
 		 * same bucket else give weigtage to 2.4 GHZ AP.
 		 */
 		if ((entry->rssi_raw > rssi_pref_5g_rssi_thresh) &&
@@ -2231,10 +2234,96 @@ static void cm_list_insert_sorted(qdf_list_t *scan_list,
 		qdf_list_insert_back(scan_list, &scan_entry->node);
 }
 
+#ifdef CONN_MGR_ADV_FEATURE
+/**
+ * cm_is_bad_rssi_entry() - check the entry have rssi value, if rssi is lower
+ * than threshold limit, then it is considered ad bad rssi value.
+ * @scan_entry: pointer to scan cache entry
+ * @score_config: pointer to score config structure
+ * @bssid_hint: bssid hint
+ *
+ * Return: true if rssi is lower than threshold
+ */
+static
+bool cm_is_bad_rssi_entry(struct scan_cache_entry *scan_entry,
+			  struct scoring_cfg *score_config,
+			  struct qdf_mac_addr *bssid_hint)
+{
+	int8_t rssi_threshold =
+		score_config->rssi_score.con_non_hint_target_rssi_threshold;
+
+	 /* do not need to consider BSSID hint if it is invalid entry(zero) */
+	if (qdf_is_macaddr_zero(bssid_hint))
+		return false;
+
+	if (score_config->is_bssid_hint_priority &&
+	    !qdf_is_macaddr_equal(bssid_hint, &scan_entry->bssid) &&
+	    scan_entry->rssi_raw < rssi_threshold) {
+		mlme_nofl_debug("Candidate(  " QDF_MAC_ADDR_FMT "  freq %d): remove entry, rssi %d lower than rssi_threshold %d",
+				QDF_MAC_ADDR_REF(scan_entry->bssid.bytes),
+				scan_entry->channel.chan_freq,
+				scan_entry->rssi_raw, rssi_threshold);
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * cm_update_bss_score_for_mac_addr_matching() - boost score based on mac
+ * address matching
+ * @scan_entry: pointer to scan cache entry
+ * @self_mac: pointer to bssid to be matched
+ *
+ * Some IOT APs only allow to connect if last 3 bytes of BSSID
+ * and self MAC is same. They create a new bssid on receiving
+ * unicast probe/auth req from STA and allow STA to connect to
+ * this matching BSSID only. So boost the matching BSSID to try
+ * to connect to this BSSID.
+ *
+ * Return: void
+ */
+static void
+cm_update_bss_score_for_mac_addr_matching(struct scan_cache_node *scan_entry,
+					  struct qdf_mac_addr *self_mac)
+{
+	struct qdf_mac_addr *scan_entry_bssid;
+
+	if (!self_mac)
+		return;
+	scan_entry_bssid = &scan_entry->entry->bssid;
+	if (QDF_IS_LAST_3_BYTES_OF_MAC_SAME(
+		self_mac, scan_entry_bssid)) {
+		mlme_nofl_debug("Candidate("QDF_MAC_ADDR_FMT" freq %d): boost bss score due to same last 3 byte match",
+				QDF_MAC_ADDR_REF(
+				scan_entry_bssid->bytes),
+				scan_entry->entry->channel.chan_freq);
+		scan_entry->entry->bss_score =
+			CM_BEST_CANDIDATE_MAX_BSS_SCORE;
+	}
+}
+#else
+static inline
+bool cm_is_bad_rssi_entry(struct scan_cache_entry *scan_entry,
+			  struct scoring_cfg *score_config,
+			  struct qdf_mac_addr *bssid_hint)
+
+{
+	return false;
+}
+
+static void
+cm_update_bss_score_for_mac_addr_matching(struct scan_cache_node *scan_entry,
+					  struct qdf_mac_addr *self_mac)
+{
+}
+#endif
+
 void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 				 struct pcl_freq_weight_list *pcl_lst,
 				 qdf_list_t *scan_list,
-				 struct qdf_mac_addr *bssid_hint)
+				 struct qdf_mac_addr *bssid_hint,
+				 struct qdf_mac_addr *self_mac)
 {
 	struct scan_cache_node *scan_entry;
 	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
@@ -2248,6 +2337,7 @@ void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 	bool assoc_allowed;
 	struct scan_cache_node *force_connect_candidate = NULL;
 	bool are_all_candidate_denylisted = true;
+	bool is_rssi_bad = false;
 
 	psoc = wlan_pdev_get_psoc(pdev);
 
@@ -2286,10 +2376,13 @@ void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 		scan_entry = qdf_container_of(cur_node, struct scan_cache_node,
 					      node);
 
+		is_rssi_bad = cm_is_bad_rssi_entry(scan_entry->entry,
+						   score_config, bssid_hint);
+
 		assoc_allowed = cm_is_assoc_allowed(mlme_psoc_obj,
 						    scan_entry->entry);
 
-		if (assoc_allowed)
+		if (assoc_allowed && !is_rssi_bad)
 			denylist_action = wlan_denylist_action_on_bssid(pdev,
 							scan_entry->entry);
 		else
@@ -2327,8 +2420,14 @@ void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 					scan_entry->entry->channel.chan_freq,
 					scan_entry->entry->rssi_raw,
 					scan_entry->entry->bss_score);
+		} else {
+			mlme_nofl_debug("Candidate("QDF_MAC_ADDR_FMT" freq %d): denylist_action %d",
+					QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes),
+					scan_entry->entry->channel.chan_freq,
+					denylist_action);
 		}
 
+		cm_update_bss_score_for_mac_addr_matching(scan_entry, self_mac);
 		/*
 		 * The below logic is added to select the best candidate
 		 * amongst the denylisted candidates. This is done to
@@ -2376,7 +2475,7 @@ void wlan_cm_calculate_bss_score(struct wlan_objmgr_pdev *pdev,
 		 */
 		if (denylist_action == CM_DLM_REMOVE ||
 		    denylist_action == CM_DLM_FORCE_REMOVE) {
-			if (assoc_allowed)
+			if (assoc_allowed && !is_rssi_bad)
 				mlme_nofl_debug("Candidate( " QDF_MAC_ADDR_FMT " freq %d): rssi %d, dlm action %d is in Denylist, remove entry",
 					QDF_MAC_ADDR_REF(scan_entry->entry->bssid.bytes),
 					scan_entry->entry->channel.chan_freq,
@@ -2465,7 +2564,7 @@ bool wlan_cm_6ghz_allowed_for_akm(struct wlan_objmgr_psoc *psoc,
 		 * Check if any AKM is allowed as per user 6Ghz allowed AKM mask
 		 */
 		if (!(config->key_mgmt_mask_6ghz & key_mgmt)) {
-			mlme_debug("user configured mask %x didnt match AKM %x",
+			mlme_debug("user configured mask %x didn't match AKM %x",
 				   config->key_mgmt_mask_6ghz , key_mgmt);
 			return false;
 		}
@@ -2488,7 +2587,9 @@ bool wlan_cm_6ghz_allowed_for_akm(struct wlan_objmgr_psoc *psoc,
 
 	/* for SAE we need to check H2E support */
 	if (!(QDF_HAS_PARAM(key_mgmt, WLAN_CRYPTO_KEY_MGMT_SAE) ||
-	    QDF_HAS_PARAM(key_mgmt, WLAN_CRYPTO_KEY_MGMT_FT_SAE)))
+	    QDF_HAS_PARAM(key_mgmt, WLAN_CRYPTO_KEY_MGMT_FT_SAE) ||
+	    QDF_HAS_PARAM(key_mgmt, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY) ||
+	    QDF_HAS_PARAM(key_mgmt, WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY)))
 		return true;
 
 	return (cm_check_h2e_support(rsnxe) ||
@@ -2895,6 +2996,9 @@ void wlan_cm_init_score_config(struct wlan_objmgr_psoc *psoc,
 
 	score_cfg->rssi_score.rssi_pref_5g_rssi_thresh =
 		cfg_get(psoc, CFG_SCORING_RSSI_PREF_5G_THRESHOLD);
+
+	score_cfg->rssi_score.con_non_hint_target_rssi_threshold =
+		cfg_get(psoc, CFG_CON_NON_HINT_TARGET_MIN_RSSI);
 
 	score_cfg->esp_qbss_scoring.num_slot =
 		cfg_get(psoc, CFG_SCORING_NUM_ESP_QBSS_SLOTS);

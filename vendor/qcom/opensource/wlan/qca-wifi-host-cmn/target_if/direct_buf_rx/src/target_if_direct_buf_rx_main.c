@@ -823,6 +823,8 @@ QDF_STATUS target_if_direct_buf_rx_psoc_create_handler(
 		goto attach_error;
 	}
 
+	dbr_psoc_obj->handler_ctx = WMI_RX_UMAC_CTX;
+
 	return status;
 
 attach_error:
@@ -1389,7 +1391,7 @@ static QDF_STATUS target_if_dbr_fill_ring(struct wlan_objmgr_pdev *pdev,
 	struct direct_buf_rx_buf_info *dbr_buf_pool;
 	void *buf_vaddr_unaligned, *buf_vaddr_aligned;
 	QDF_STATUS status;
-	uint8_t offset;
+	uint8_t offset = 0;
 
 	direct_buf_rx_enter();
 
@@ -2358,18 +2360,28 @@ QDF_STATUS target_if_direct_buf_rx_register_events(
 				struct wlan_objmgr_psoc *psoc)
 {
 	QDF_STATUS ret;
+	struct direct_buf_rx_psoc_obj *dbr_psoc_obj;
 
 	if (!psoc || !GET_WMI_HDL_FROM_PSOC(psoc)) {
 		direct_buf_rx_err("psoc or psoc->tgt_if_handle is null");
 		return QDF_STATUS_E_INVAL;
+	}
+	dbr_psoc_obj = wlan_objmgr_psoc_get_comp_private_obj(
+			psoc,
+			WLAN_TARGET_IF_COMP_DIRECT_BUF_RX);
+
+	if (!dbr_psoc_obj) {
+		direct_buf_rx_err("dir buf rx psoc object is null");
+		return QDF_STATUS_E_FAILURE;
 	}
 
 	ret = wmi_unified_register_event_handler(
 			get_wmi_unified_hdl_from_psoc(psoc),
 			wmi_dma_buf_release_event_id,
 			target_if_direct_buf_rx_rsp_event_handler,
-			WMI_RX_UMAC_CTX);
+			dbr_psoc_obj->handler_ctx);
 
+	direct_buf_rx_info("DBR Handler Context %d", dbr_psoc_obj->handler_ctx);
 	if (QDF_IS_STATUS_ERROR(ret))
 		direct_buf_rx_debug("event handler not supported, ret=%d", ret);
 

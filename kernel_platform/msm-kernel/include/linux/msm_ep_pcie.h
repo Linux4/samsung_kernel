@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2015, 2017, 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -70,6 +70,11 @@ enum ep_pcie_options {
 	EP_PCIE_OPT_ALL = 0xFFFFFFFF,
 };
 
+enum ep_pcie_msi_type {
+	MSI = 0,
+	MSIX = 0x1,
+};
+
 struct ep_pcie_notify {
 	enum ep_pcie_event event;
 	void *user;
@@ -89,10 +94,10 @@ struct ep_pcie_register_event {
 };
 
 struct ep_pcie_iatu {
-	u32 start;
-	u32 end;
-	u32 tgt_lower;
-	u32 tgt_upper;
+	u64 start;
+	u64 end;
+	u64 tgt_lower;
+	u64 tgt_upper;
 };
 
 struct ep_pcie_msi_config {
@@ -100,6 +105,7 @@ struct ep_pcie_msi_config {
 	u32 upper;
 	u32 data;
 	u32 msg_num;
+	enum ep_pcie_msi_type msi_type;
 };
 
 struct ep_pcie_db_config {
@@ -111,6 +117,12 @@ struct ep_pcie_db_config {
 struct ep_pcie_inactivity {
 	bool enable;
 	uint32_t timer_us;
+};
+
+struct ep_pcie_cap {
+	bool sriov_enabled;
+	bool msix_enabled;
+	u32  num_vfs;
 };
 
 struct ep_pcie_hw {
@@ -133,6 +145,7 @@ struct ep_pcie_hw {
 	int (*mask_irq_event)(enum ep_pcie_irq_event event,
 				bool enable);
 	int (*configure_inactivity_timer)(struct ep_pcie_inactivity *param);
+	int (*get_capability)(struct ep_pcie_cap *ep_cap);
 };
 
 /*
@@ -323,6 +336,16 @@ int ep_pcie_configure_inactivity_timer(struct ep_pcie_hw *phandle,
  * Return: 0 on success, negative value on error
  */
 int ep_pcie_core_l1ss_sleep_config_enable(void);
+
+/*
+ * ep_pcie_core_get_capability - Exposes EP PCIE capability.
+ * @phandle:    PCIe endpoint HW driver handle
+ * @ep_cap:	Structure member to have capabilities
+ *
+ * Return: 0 on success, negative value on error
+ */
+int ep_pcie_core_get_capability(struct ep_pcie_hw *phandle,
+		struct ep_pcie_cap *ep_cap);
 
 #if IS_ENABLED(CONFIG_QCOM_PCI_EDMA)
 int qcom_edma_init(struct device *dev);

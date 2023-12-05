@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -452,6 +453,33 @@ target_if_scan_cancel(struct wlan_objmgr_pdev *pdev,
 	return wmi_unified_scan_stop_cmd_send(pdev_wmi_handle, req);
 }
 
+#if defined(WLAN_FEATURE_11BE) && defined(WLAN_FEATURE_11BE_MLO_MBSSID)
+bool target_if_is_platform_eht_capable(struct wlan_objmgr_psoc *psoc,
+				       uint8_t pdev_id)
+{
+	struct wlan_psoc_host_mac_phy_caps *mac_phy_cap_arr, *mac_phy_cap;
+
+	if (psoc->tgt_if_handle) {
+		mac_phy_cap_arr =
+			target_psoc_get_mac_phy_cap(psoc->tgt_if_handle);
+		if (!mac_phy_cap_arr)
+			return false;
+
+		mac_phy_cap = &mac_phy_cap_arr[pdev_id];
+		if (mac_phy_cap && mac_phy_cap->supports_11be)
+			return true;
+	}
+
+	return false;
+}
+#else
+bool target_if_is_platform_eht_capable(struct wlan_objmgr_psoc *psoc,
+				       uint8_t pdev_id)
+{
+	return false;
+}
+#endif
+
 QDF_STATUS
 target_if_scan_tx_ops_register(struct wlan_lmac_if_tx_ops *tx_ops)
 {
@@ -470,6 +498,7 @@ target_if_scan_tx_ops_register(struct wlan_lmac_if_tx_ops *tx_ops)
 	scan->obss_disable = target_if_obss_scan_disable;
 	scan->scan_reg_ev_handler = target_if_scan_register_event_handler;
 	scan->scan_unreg_ev_handler = target_if_scan_unregister_event_handler;
+	scan->is_platform_eht_capable = target_if_is_platform_eht_capable;
 
 	return QDF_STATUS_SUCCESS;
 }

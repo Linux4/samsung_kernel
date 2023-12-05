@@ -93,7 +93,7 @@ tgt_send_coap_offload_periodic_tx_disable(struct wlan_objmgr_vdev *vdev,
 					  uint32_t req_id);
 
 /**
- * wlan_coap_offload_cache_get() - get cached CoAP messages
+ * tgt_send_coap_offload_cache_get() - get cached CoAP messages
  * @vdev: pointer to vdev object
  * @req_id: request id
  *

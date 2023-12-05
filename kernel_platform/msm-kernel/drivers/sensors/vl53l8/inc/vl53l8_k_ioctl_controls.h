@@ -105,6 +105,9 @@ int vl53l8_ioctl_set_power_mode(struct vl53l8_k_module_t *p_module,
 				void __user *p);
 #endif
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+void vl53l8_last_error_counter(struct vl53l8_k_module_t *p_module, int err);
+#endif
 int vl53l8_ioctl_set_power_mode(struct vl53l8_k_module_t *p_module,
 				void __user *p, enum vl53l5_power_states state);
 #endif
@@ -146,8 +149,18 @@ int vl53l8_ioctl_set_transfer_speed_hz(struct vl53l8_k_module_t *p_module,
 #ifdef STM_VL53L5_SUPPORT_SEC_CODE
 #define IOVDD	0
 #define AVDD	1
-
-
+#define COREVDD	2
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
+#define ALL_VDD_ENABLED 0x7
+#else
+#define ALL_VDD_ENABLED 0x3
+#endif
+#ifdef CONFIG_SENSORS_LAF_FAILURE_DEBUG
+int vl53l8_check_ldo_onoff(struct vl53l8_k_module_t *data);
+#endif
+#ifdef CONFIG_SEPARATE_IO_CORE_POWER
+int vl53l8_regulator_init_state(struct vl53l8_k_module_t *data);
+#endif
 int vl53l8_set_asz_tuning(struct vl53l8_k_module_t *p_module, struct vl53l8_k_asz_tuning_t *asz_layout);
 void vl53l8_power_onoff(struct vl53l8_k_module_t *p_module, bool on);
 int vl53l8_ldo_onoff(struct vl53l8_k_module_t *p_module, int io, bool on);
@@ -158,6 +171,8 @@ int vl53l8_ioctl_read_open_cal_p2p_calibration(struct vl53l8_k_module_t *p_modul
 int vl53l8_ioctl_read_open_cal_shape_calibration(struct vl53l8_k_module_t *p_module);
 
 int vl53l8_ioctl_get_cal_data(struct vl53l8_k_module_t *p_module, void __user *p);
+
+int vl53l8_ioctl_get_status(struct vl53l8_k_module_t *p_module, void __user *p);
 
 int vl53l8_ioctl_set_cal_data(struct vl53l8_k_module_t *p_module, void __user *p);
 
@@ -174,6 +189,7 @@ int vl53l8_set_transfer_speed_hz(struct vl53l8_k_module_t *p_module, unsigned in
 
 int vl53l8_load_factory_calibration(struct vl53l8_k_module_t *p_module);
 int vl53l8_load_open_calibration(struct vl53l8_k_module_t *p_module);
+void vl53l8_load_calibration(struct vl53l8_k_module_t *p_module);
 #ifdef VL53L5_GET_DATA_ROTATION
 void vl53l8_rotate_report_data_u16(u16 *raw_data, int rotation);
 void vl53l8_rotate_report_data_u32(u32 *raw_data, int rotation);

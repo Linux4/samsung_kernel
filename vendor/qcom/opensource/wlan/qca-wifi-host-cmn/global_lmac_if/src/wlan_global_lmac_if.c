@@ -161,7 +161,7 @@ wlan_global_lmac_if_rx_ops_register(struct wlan_lmac_if_rx_ops *rx_ops)
 		qdf_err("lmac if rx ops pointer is NULL");
 		return QDF_STATUS_E_INVAL;
 	}
-	/* Registeration for UMAC componets */
+	/* Registration for UMAC components */
 	wlan_lmac_if_umac_rx_ops_register(rx_ops);
 
 	/* spectral rx_ops registration*/

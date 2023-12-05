@@ -133,11 +133,12 @@ public:
     int getSampleRates(int type, char *rates_str);
     bool isRateSupported(int requested_rate);
     int getBestRate(int requested_rate, int candidate_rate, unsigned int *best_rate);
+    void usb_find_sample_rate_candidate(int base, int requested_rate,
+                                    int cur_rate, int candidate_rate, unsigned int *best_rate);
     int updateBestChInfo(struct pal_channel_info *requested_ch_info,
                          struct pal_channel_info *best);
     int getServiceInterval(const char *interval_str_start);
     static const unsigned int supported_sample_rates_[MAX_SAMPLE_RATE_SIZE];
-    int isCustomRateSupported(int requested_rate, unsigned int *best_rate);
     void setJackStatus(bool jack_status);
     bool getJackStatus();
     unsigned int getSRMask(usb_usecase_type_t type) {return supported_sample_rates_mask_[type];} ;

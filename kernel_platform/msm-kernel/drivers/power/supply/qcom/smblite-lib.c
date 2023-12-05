@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/device.h>
@@ -13,6 +13,7 @@
 #include <linux/irq.h>
 #include <linux/iio/consumer.h>
 #include <dt-bindings/iio/qti_power_supply_iio.h>
+#include <linux/nvmem-consumer.h>
 #include <linux/pmic-voter.h>
 #include <linux/ktime.h>
 #include <linux/usb/typec.h>
@@ -192,7 +193,14 @@ static void smblite_lib_notify_extcon_props(struct smb_charger *chg, int id)
 		extcon_set_property(chg->extcon, id,
 				EXTCON_PROP_USB_SS, val);
 	} else if (chg->connector_type == QTI_POWER_SUPPLY_CONNECTOR_MICRO_USB) {
-		val.intval = false;
+		/*
+		 * To send extcon notification for SS mode for 10pin
+		 * Micro AB 3.0 connector type.
+		 */
+		if (chg->uusb_ss_mode_extcon_enable)
+			val.intval = true;
+		else
+			val.intval = false;
 		extcon_set_property(chg->extcon, id,
 				EXTCON_PROP_USB_SS, val);
 	}
@@ -856,7 +864,7 @@ static int smblite_lib_icl_irq_disable_vote_callback(struct votable *votable,
 {
 	struct smb_charger *chg = data;
 
-	if (!chg->irq_info[USBIN_ICL_CHANGE_IRQ].irq)
+	if (!chg->irq_info[USBIN_ICL_CHANGE_IRQ].is_requested)
 		return 0;
 
 	if (chg->irq_info[USBIN_ICL_CHANGE_IRQ].enabled) {
@@ -882,7 +890,7 @@ static int smblite_lib_temp_change_irq_disable_vote_callback(
 {
 	struct smb_charger *chg = data;
 
-	if (!chg->irq_info[TEMP_CHANGE_IRQ].irq)
+	if (!chg->irq_info[TEMP_CHANGE_IRQ].is_requested)
 		return 0;
 
 	if (chg->irq_info[TEMP_CHANGE_IRQ].enabled && disable) {
@@ -963,6 +971,29 @@ static bool is_charging_paused(struct smb_charger *chg)
 	return val & CHARGING_PAUSE_CMD_BIT;
 }
 
+#define PERCENT_TO_10NANO_RATIO		1000000
+static int smblite_lib_read_soc(struct smb_charger *chg)
+{
+	ssize_t len;
+	u16 *val;
+	int soc;
+
+	if (!chg->soc_nvmem)
+		return -EINVAL;
+
+	val = nvmem_cell_read(chg->soc_nvmem, &len);
+	if (IS_ERR(val)) {
+		smblite_lib_err(chg, "Failed to read charger msoc from SDAM\n");
+		return PTR_ERR(val);
+	}
+
+	soc = (int)*val;
+	soc = (soc << 16) / PERCENT_TO_10NANO_RATIO;
+	kfree(val);
+
+	return soc;
+}
+
 #define CUTOFF_COUNT		3
 int smblite_lib_get_prop_batt_status(struct smb_charger *chg,
 				union power_supply_propval *val)
@@ -970,7 +1001,7 @@ int smblite_lib_get_prop_batt_status(struct smb_charger *chg,
 	union power_supply_propval pval = {0, };
 	bool usb_online;
 	u8 stat;
-	int rc, input_present = 0;
+	int rc, input_present = 0, count = 4, data = 0;
 
 	if (chg->fake_chg_status_on_debug_batt) {
 		rc = smblite_lib_get_prop_from_bms(chg,
@@ -1044,8 +1075,29 @@ int smblite_lib_get_prop_batt_status(struct smb_charger *chg,
 		val->intval = POWER_SUPPLY_STATUS_CHARGING;
 		break;
 	case TERMINATE_CHARGE:
-	case INHIBIT_CHARGE:
 		val->intval = POWER_SUPPLY_STATUS_FULL;
+		break;
+	case INHIBIT_CHARGE:
+		data = smblite_lib_read_soc(chg);
+		if (data < 0) {
+			smblite_lib_err(chg, "Failed to read msoc rc = %d\n", data);
+			return data;
+		}
+
+		smblite_lib_dbg(chg, PR_MISC, "Read soc = %d\n", data);
+		/*
+		 * Write msoc value to charger SOC_PCT register 4 times after entered
+		 * inhibit mode.
+		 */
+		while (count--) {
+			rc = smblite_lib_set_prop_batt_sys_soc(chg, data);
+			if (rc < 0) {
+				smblite_lib_err(chg, "Failed to set battery system soc rc=%d\n",
+						rc);
+				return rc;
+			}
+		}
+
 		break;
 	case DISABLE_CHARGE:
 	case PAUSE_CHARGE:
@@ -3292,7 +3344,7 @@ void smblite_lib_rerun_apsd(struct smb_charger *chg)
 		smblite_lib_err(chg, "Couldn't re-run APSD rc=%d\n", rc);
 }
 
-static int smblite_lib_rerun_apsd_if_required(struct smb_charger *chg)
+int smblite_lib_rerun_apsd_if_required(struct smb_charger *chg)
 {
 	union power_supply_propval val;
 	int rc;
@@ -4213,8 +4265,8 @@ static void jeita_update_work(struct work_struct *work)
 		goto out;
 	}
 
-	/* if BMS is not ready, defer the work */
-	if (IS_ERR_OR_NULL(chg->iio_chan_list_qg))
+	/* if BMS is not ready and remote FG does not exist, defer the work */
+	if ((IS_ERR_OR_NULL(chg->iio_chan_list_qg)) && (!chg->is_fg_remote))
 		return;
 
 	rc = smblite_lib_get_prop_from_bms(chg,

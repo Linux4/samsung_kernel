@@ -39,8 +39,6 @@ struct wireless_dev;
 
 #ifdef WLAN_FEATURE_NAN
 
-#define MAX_NDI_ADAPTERS 2
-
 #define WLAN_HDD_IS_NDI(adapter) ((adapter)->device_mode == QDF_NDI_MODE)
 
 #define WLAN_HDD_IS_NDI_CONNECTED(adapter) ( \
@@ -59,7 +57,7 @@ int hdd_init_nan_data_mode(struct hdd_adapter *adapter);
 void hdd_ndp_session_end_handler(struct hdd_adapter *adapter);
 
 /**
- * hdd_cleanup_ndi(): Cleanup NDI state/resources
+ * hdd_cleanup_ndi() - Cleanup NDI state/resources
  * @hdd_ctx: HDD context
  * @adapter: Pointer to the NDI adapter
  *
@@ -72,7 +70,7 @@ void hdd_cleanup_ndi(struct hdd_context *hdd_ctx,
 		     struct hdd_adapter *adapter);
 
 /**
- * hdd_ndi_start(): Start NDI adapter and create NDI vdev
+ * hdd_ndi_start() - Start NDI adapter and create NDI vdev
  * @iface_name: NDI interface name
  * @transaction_id: Transaction id given by framework to start the NDI.
  *                  Framework expects this in the immediate response when
@@ -88,7 +86,7 @@ enum nan_datapath_state;
 struct nan_datapath_inf_create_rsp;
 
 /**
- * hdd_ndi_open(): Open NDI interface
+ * hdd_ndi_open() - Open NDI interface
  * @iface_name: NDI interface name
  * @is_add_virtual_iface: is this interface getting created through add virtual
  * interface
@@ -98,7 +96,7 @@ struct nan_datapath_inf_create_rsp;
 int hdd_ndi_open(const char *iface_name, bool is_add_virtual_iface);
 
 /**
- * hdd_ndi_delete(): Delete NDI interface
+ * hdd_ndi_delete() - Delete NDI interface
  * @vdev_id: vdev id of the NDI interface
  * @iface_name: NDI interface name
  * @transaction_id: Transaction id
@@ -109,7 +107,7 @@ int hdd_ndi_delete(uint8_t vdev_id, const char *iface_name,
 		   uint16_t transaction_id);
 
 /**
- * hdd_ndi_close(): Close NDI interface
+ * hdd_ndi_close() - Close NDI interface
  * @vdev_id: vdev id of the NDI interface
  *
  * Return: None
@@ -117,7 +115,7 @@ int hdd_ndi_delete(uint8_t vdev_id, const char *iface_name,
 void hdd_ndi_close(uint8_t vdev_id);
 
 /**
- * hdd_ndi_drv_ndi_create_rsp_handler(): ndi create response handler
+ * hdd_ndi_drv_ndi_create_rsp_handler() - ndi create response handler
  * @vdev_id: vdev id of the NDI interface
  * @ndi_rsp: NDI create response
  *
@@ -127,7 +125,7 @@ void hdd_ndi_drv_ndi_create_rsp_handler(uint8_t vdev_id,
 					struct nan_datapath_inf_create_rsp *ndi_rsp);
 
 /**
- * hdd_ndi_drv_ndi_create_rsp_handler(): ndi delete response handler
+ * hdd_ndi_drv_ndi_delete_rsp_handler() - ndi delete response handler
  * @vdev_id: vdev id of the NDI interface
  *
  * Return: None
@@ -135,7 +133,7 @@ void hdd_ndi_drv_ndi_create_rsp_handler(uint8_t vdev_id,
 void hdd_ndi_drv_ndi_delete_rsp_handler(uint8_t vdev_id);
 
 /**
- * hdd_ndp_new_peer_handler(): NDP new peer indication handler
+ * hdd_ndp_new_peer_handler() - NDP new peer indication handler
  * @vdev_id: vdev id
  * @sta_id: STA ID
  * @peer_mac_addr: MAC address of the peer
@@ -148,11 +146,11 @@ int hdd_ndp_new_peer_handler(uint8_t vdev_id, uint16_t sta_id,
 			     bool first_peer);
 
 /**
- * hdd_ndp_peer_departed_handler(): Handle NDP peer departed indication
+ * hdd_ndp_peer_departed_handler() - Handle NDP peer departed indication
  * @vdev_id: vdev id
  * @sta_id: STA ID
  * @peer_mac_addr: MAC address of the peer
- * @first_peer: Indicates if it is last peer
+ * @last_peer: Indicates if it is last peer
  *
  * Return: None
  */
@@ -162,7 +160,7 @@ void hdd_ndp_peer_departed_handler(uint8_t vdev_id, uint16_t sta_id,
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0))
 /**
- * hdd_ndi_set_mode(): set the adapter mode to NDI
+ * hdd_ndi_set_mode() - set the adapter mode to NDI
  * @iface_name: NDI interface name
  *
  * The adapter mode is STA while creating virtual interface.

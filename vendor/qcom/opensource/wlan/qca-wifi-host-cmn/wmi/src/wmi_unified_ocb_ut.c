@@ -78,7 +78,7 @@ static QDF_STATUS fake_vdev_delete_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: pointer to the wmi handle
  * @utc: pointer to the UTC time struct
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS fake_ocb_set_utc_time_cmd_tlv(wmi_unified_t wmi_handle,
 				struct ocb_utc_param *utc)
@@ -92,7 +92,7 @@ static QDF_STATUS fake_ocb_set_utc_time_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: pointer to the wmi handle
  * @request: pointer to the request
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS fake_ocb_get_tsf_timer_cmd_tlv(wmi_unified_t wmi_handle,
 			  uint8_t vdev_id)
@@ -133,7 +133,7 @@ static QDF_STATUS fake_ocb_get_tsf_timer_cmd_tlv(wmi_unified_t wmi_handle,
  * @vdev_id: vdev id
  * @dcc_stats_bitmap: dcc status bitmap
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS fake_dcc_clear_stats_cmd_tlv(wmi_unified_t wmi_handle,
 				uint32_t vdev_id, uint32_t dcc_stats_bitmap)
@@ -164,7 +164,7 @@ wmi_dcc_ndl_stats_per_channel chan1_info[2] = {
  * @wmi_handle: pointer to the wmi handle
  * @get_stats_param: pointer to the dcc stats
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS fake_dcc_get_stats_cmd_tlv(wmi_unified_t wmi_handle,
 		     struct ocb_dcc_get_stats_param *get_stats_param)
@@ -329,7 +329,7 @@ static QDF_STATUS fake_ocb_set_config_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: pointer to the wmi handle
  * @timing_advert: pointer to the timing advertisement struct
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS fake_ocb_stop_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,
 	struct ocb_timing_advert_param *timing_advert)
@@ -344,7 +344,7 @@ static QDF_STATUS fake_ocb_stop_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,
  * @wmi_handle: pointer to the wmi handle
  * @timing_advert: pointer to the timing advertisement struct
  *
- * Return: 0 on succes
+ * Return: 0 on success
  */
 static QDF_STATUS
 fake_ocb_start_timing_advert_cmd_tlv(wmi_unified_t wmi_handle,

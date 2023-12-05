@@ -96,6 +96,11 @@ void ucfg_pre_cac_set_osif_cb(struct pre_cac_ops *osif_pre_cac_ops)
 	pre_cac_set_osif_cb(osif_pre_cac_ops);
 }
 
+void ucfg_pre_cac_clear_work(struct wlan_objmgr_psoc *psoc)
+{
+	return pre_cac_clear_work(psoc);
+}
+
 QDF_STATUS ucfg_pre_cac_init(void)
 {
 	return pre_cac_init();

@@ -671,7 +671,7 @@ struct spectral_samp_msg {
  * @bin_pwr:                  Contains FFT magnitudes
  * @bin_pwr_sec80:            Contains FFT magnitudes for the secondary 80
  *                            segment
- * @interf_list:              List of interfernce sources
+ * @interf_list:              List of interference sources
  * @noise_floor:              Indicates the current noise floor
  * @noise_floor_sec80:        Indicates the current noise floor for secondary 80
  *                            segment

@@ -64,6 +64,8 @@ on init
     chown system usb /sys/class/usb_notify/usb_control/usb_maximum_speed
     chmod 0664 /sys/class/usb_notify/usb_control/usb_maximum_speed
 
+	exec u:r:vendor-qti-testscripts:s0 -- /vendor/bin/sh /vendor/bin/init.qti.usb.debug.sh
+
 # usb hw param
     chown system usb /sys/class/usb_notify/usb_control/usb_hw_param
     chmod 0664 /sys/class/usb_notify/usb_control/usb_hw_param
@@ -267,6 +269,7 @@ on property:sys.usb.config=* && property:sys.usb.configfs=1
     rm /config/usb_gadget/g1/os_desc/b.1
 
 on property:sys.usb.config=none && property:sys.usb.configfs=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "super-speed"
     write /config/usb_gadget/g1/UDC "none"
     stop adbd
     setprop sys.usb.ffs.ready 0
@@ -301,6 +304,9 @@ on property:sys.usb.ffs.ready=1 && property:sys.usb.config=adb && property:sys.u
     setprop sys.usb.state ${sys.usb.config}
 
 # USB Accessory, Audio Accessory configuraion for Google USB Driver
+on property:sys.boot_completed=1 && property:sys.usb.config=accessory && property:sys.usb.configfs=1 && property:persist.sys.usb.speed_limit=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "full-speed"
+
 on property:sys.boot_completed=1 && property:sys.usb.config=accessory && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "acc"
     rm /config/usb_gadget/g1/configs/b.1/f1
@@ -318,6 +324,9 @@ on property:sys.boot_completed=1 && property:sys.usb.config=accessory && propert
     symlink /config/usb_gadget/g1/functions/ss_mon.etc /config/usb_gadget/g1/configs/b.1/f2
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
     setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.boot_completed=1 && property:sys.usb.config=accessory,adb && property:sys.usb.configfs=1 && property:persist.sys.usb.speed_limit=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "full-speed"
 
 on property:sys.boot_completed=1 && property:sys.usb.config=accessory,adb && property:sys.usb.configfs=1
     start adbd
@@ -383,6 +392,9 @@ on property:sys.boot_completed=1 && property:sys.usb.ffs.ready=1 && property:sys
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
     setprop sys.usb.state ${sys.usb.config}
 
+on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_source && property:sys.usb.configfs=1 && property:persist.sys.usb.speed_limit=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "full-speed"
+
 on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_source && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "acc_audio"
     rm /config/usb_gadget/g1/configs/b.1/f1
@@ -401,6 +413,9 @@ on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_sour
     symlink /config/usb_gadget/g1/functions/ss_mon.etc /config/usb_gadget/g1/configs/b.1/f3
     write /config/usb_gadget/g1/UDC ${sys.usb.controller}
     setprop sys.usb.state ${sys.usb.config}
+
+on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_source,adb && property:sys.usb.configfs=1 && property:persist.sys.usb.speed_limit=1
+    write /sys/class/usb_notify/usb_control/usb_maximum_speed "full-speed"
 
 on property:sys.boot_completed=1 && property:sys.usb.config=accessory,audio_source,adb && property:sys.usb.configfs=1
     start adbd
@@ -2687,3 +2702,48 @@ on property:vendor.usb.eud=0
     write /sys/kernel/debug/pmic-votable/USB_ICL/force_val 0
     write /config/usb_gadget/g1/configs/b.1/MaxPower 0
     write /sys/module/eud/parameters/enable 0
+
+on property:vendor.usb.uvc.function.init=1
+    write /config/usb_gadget/g1/functions/uvc.0/streaming_maxpacket 3072
+    write /config/usb_gadget/g1/functions/uvc.0/streaming_maxburst 1
+    mkdir /config/usb_gadget/g1/functions/uvc.0/control/header/h
+    symlink /config/usb_gadget/g1/functions/uvc.0/control/header/h /config/usb_gadget/g1/functions/uvc.0/control/class/fs/h
+    symlink /config/usb_gadget/g1/functions/uvc.0/control/header/h /config/usb_gadget/g1/functions/uvc.0/control/class/ss/h
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/360p
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/360p/dwFrameInterval "666666\n1000000\n5000000\n"
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/720p
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/720p/wWidth 1280
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/720p/wHeight 720
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/720p/dwMinBitRate 29491200
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/720p/dwMaxBitRate 29491200
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/720p/dwMaxVideoFrameBufferSize 1843200
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/720p/dwDefaultFrameInterval 5000000
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u/720p/dwFrameInterval "5000000\n"
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/360p
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/360p/dwFrameInterval "666666\n1000000\n5000000\n"
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/720p
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/720p/wWidth 1280
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/720p/wHeight 720
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/720p/dwMinBitRate 29491200
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/720p/dwMaxBitRate 29491200
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/720p/dwMaxVideoFrameBufferSize 1843200
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/720p/dwDefaultFrameInterval 5000000
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/720p/dwFrameInterval "5000000\n"
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m/bmaControls 0x04
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h/960p
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h/960p/wWidth 1920
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h/960p/wHeight 960
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h/960p/bLevelIDC 40
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h/960p/dwFrameInterval "333667\n"
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h/1920p
+    write /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h/1920p/dwFrameInterval "333667\n"
+    mkdir /config/usb_gadget/g1/functions/uvc.0/streaming/header/h
+    symlink /config/usb_gadget/g1/functions/uvc.0/streaming/uncompressed/u /config/usb_gadget/g1/functions/uvc.0/streaming/header/h/u
+    symlink /config/usb_gadget/g1/functions/uvc.0/streaming/mjpeg/m /config/usb_gadget/g1/functions/uvc.0/streaming/header/h/m
+    symlink /config/usb_gadget/g1/functions/uvc.0/streaming/h264/h /config/usb_gadget/g1/functions/uvc.0/streaming/header/h
+    symlink /config/usb_gadget/g1/functions/uvc.0/streaming/header/h /config/usb_gadget/g1/functions/uvc.0/streaming/class/fs/h
+    symlink /config/usb_gadget/g1/functions/uvc.0/streaming/header/h /config/usb_gadget/g1/functions/uvc.0/streaming/class/hs/h
+    symlink /config/usb_gadget/g1/functions/uvc.0/streaming/header/h /config/usb_gadget/g1/functions/uvc.0/streaming/class/ss/h

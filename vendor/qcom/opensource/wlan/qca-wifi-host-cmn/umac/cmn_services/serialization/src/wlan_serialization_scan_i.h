@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -36,7 +37,7 @@
 
 /**
  * wlan_serialization_active_scan_cmd_count_handler() - count active scan cmds
- * @psoc: pointer to soc strucutre
+ * @psoc: pointer to soc structure
  * @obj : pointer to pdev object
  * @arg: pointer to argument
  *

@@ -250,7 +250,7 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 
 		/* scale bitrate if operating rate is larger than frame rate */
 		frame_rate = msm_vidc_get_frame_rate(inst);
-		operating_rate = msm_vidc_get_frame_rate(inst);
+		operating_rate = inst->max_rate;
 		if (frame_rate && operating_rate && operating_rate > frame_rate)
 			vote_data->bitrate = (vote_data->bitrate / frame_rate) * operating_rate;
 
@@ -507,6 +507,7 @@ int msm_vidc_scale_power(struct msm_vidc_inst *inst, bool scale_buses)
 	struct msm_vidc_core *core;
 	struct msm_vidc_buffer *vbuf;
 	u32 data_size = 0;
+	u32 cnt = 0;
 	u32 fps;
 	u32 frame_rate, operating_rate;
 	u32 timestamp_rate = 0, input_rate = 0;
@@ -523,14 +524,37 @@ int msm_vidc_scale_power(struct msm_vidc_inst *inst, bool scale_buses)
 		inst->active = true;
 	}
 
-	list_for_each_entry(vbuf, &inst->buffers.input.list, list)
-		data_size = max(data_size, vbuf->data_size);
+	/*
+	 * consider avg. filled length in decode batching case
+	 * to avoid overvoting for the entire batch due to single
+	 * frame with huge filled length
+	 */
+	if (inst->decode_batch.enable) {
+		list_for_each_entry(vbuf, &inst->buffers.input.list, list) {
+			data_size += vbuf->data_size;
+			cnt++;
+		}
+		if (cnt)
+			data_size /= cnt;
+	} else {
+		list_for_each_entry(vbuf, &inst->buffers.input.list, list)
+			data_size = max(data_size, vbuf->data_size);
+	}
 	inst->max_input_data_size = data_size;
 
 	frame_rate = msm_vidc_get_frame_rate(inst);
 	operating_rate = msm_vidc_get_operating_rate(inst);
 	fps = max(frame_rate, operating_rate);
-	if (is_decode_session(inst)) {
+	/*
+	 * Consider input queuing rate power scaling in below scenarios
+	 * decoder: non-realtime and realtime as well because client
+	 *          may not set the frame rate / operating rate and
+	 *          we need to rely on input queue rate
+	 * encoder: non-realtime only, for realtime client is expected to
+	 *          queue input buffers at the set frame rate / operating rate
+	 */
+	if (is_decode_session(inst) ||
+		(is_encode_session(inst) && !is_realtime_session(inst))) {
 		/*
 		 * when buffer detected fps is more than client set value by 12.5%,
 		 * utilize buffer detected fps to scale clock.

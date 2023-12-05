@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -37,8 +38,8 @@ tgt_interop_issues_ap_info_callback(struct wlan_objmgr_psoc *psoc,
 				    struct wlan_interop_issues_ap_event *rap);
 
 /**
- * tgt_set_interop_issues_ap_req(): API to set interop issues ap to lmac
- * @rx_ops: rx ops struct
+ * tgt_set_interop_issues_ap_req() - API to set interop issues ap to lmac
+ * @psoc: the pointer to psoc object manager
  * @rap: the pointer to interop issues ap info
  *
  * Return: status of operation

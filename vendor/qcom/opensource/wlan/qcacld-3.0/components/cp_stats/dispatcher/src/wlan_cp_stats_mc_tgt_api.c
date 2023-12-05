@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1128,6 +1128,9 @@ tgt_mc_cp_stats_prepare_n_send_raw_station_stats(struct wlan_objmgr_psoc *psoc,
 
 	for (i = 0; i < last_req->ml_vdev_info.ml_vdev_count; i++) {
 		last_req->vdev_id = last_req->ml_vdev_info.ml_vdev_id[i];
+		qdf_mem_copy(last_req->peer_mac_addr,
+			     &(last_req->ml_peer_mac_addr[i][0]),
+			     QDF_MAC_ADDR_SIZE);
 		cp_stats_nofl_debug("Invoking get_station_cb for vdev_id[%d]",
 				    last_req->vdev_id);
 		tgt_mc_cp_stats_send_raw_station_stats(psoc, last_req);

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1389,6 +1389,7 @@ QDF_STATUS wlan_crypto_getkey(struct wlan_objmgr_vdev *vdev,
 		if (get_pn_enable) {
 			if (WLAN_CRYPTO_TX_OPS_GETPN(tx_ops))
 				WLAN_CRYPTO_TX_OPS_GETPN(tx_ops)(vdev, mac_addr,
+								 req_key->keyix,
 								 req_key->type);
 			if (WLAN_CRYPTO_RX_OPS_GET_RXPN(&rx_ops->crypto_rx_ops))
 				WLAN_CRYPTO_RX_OPS_GET_RXPN(&rx_ops->crypto_rx_ops)(
@@ -2226,7 +2227,7 @@ uint8_t *wlan_crypto_add_mmie(struct wlan_objmgr_vdev *vdev,
 				uint32_t len) {
 	struct wlan_crypto_key *key;
 	struct wlan_crypto_mmie *mmie;
-	uint8_t *pn, *aad, *buf, *efrm, nounce[12];
+	uint8_t *pn, *aad, *buf, *efrm, nonce[12];
 	struct wlan_frame_hdr *hdr;
 	uint32_t i, hdrlen, mic_len, aad_len;
 	uint8_t mic[16];
@@ -2330,10 +2331,10 @@ uint8_t *wlan_crypto_add_mmie(struct wlan_objmgr_vdev *vdev,
 			|| (crypto_priv->igtk_key_type
 					== WLAN_CRYPTO_CIPHER_AES_GMAC_256)) {
 
-		qdf_mem_copy(nounce, hdr->i_addr2, QDF_MAC_ADDR_SIZE);
-		wlan_crypto_gmac_pn_swap(nounce + 6, pn);
-		ret = wlan_crypto_aes_gmac(key->keyval, key->keylen, nounce,
-					sizeof(nounce), buf,
+		qdf_mem_copy(nonce, hdr->i_addr2, QDF_MAC_ADDR_SIZE);
+		wlan_crypto_gmac_pn_swap(nonce + 6, pn);
+		ret = wlan_crypto_aes_gmac(key->keyval, key->keylen, nonce,
+					sizeof(nonce), buf,
 					len + aad_len - hdrlen, mmie->mic);
 	}
 	qdf_mem_free(buf);
@@ -2360,7 +2361,7 @@ bool wlan_crypto_is_mmie_valid(struct wlan_objmgr_vdev *vdev,
 					uint8_t *frm,
 					uint8_t *efrm){
 	struct wlan_crypto_mmie   *mmie = NULL;
-	uint8_t *ipn, *aad, *buf, *mic, nounce[12];
+	uint8_t *ipn, *aad, *buf, *mic, nonce[12];
 	struct wlan_crypto_key *key;
 	struct wlan_frame_hdr *hdr;
 	uint16_t mic_len, hdrlen, len;
@@ -2470,10 +2471,10 @@ bool wlan_crypto_is_mmie_valid(struct wlan_objmgr_vdev *vdev,
 	} else if ((crypto_priv->igtk_key_type == WLAN_CRYPTO_CIPHER_AES_GMAC)
 			|| (crypto_priv->igtk_key_type
 					== WLAN_CRYPTO_CIPHER_AES_GMAC_256)) {
-		qdf_mem_copy(nounce, hdr->i_addr2, QDF_MAC_ADDR_SIZE);
-		wlan_crypto_gmac_pn_swap(nounce + 6, ipn);
-		ret = wlan_crypto_aes_gmac(key->keyval, key->keylen, nounce,
-					sizeof(nounce), buf,
+		qdf_mem_copy(nonce, hdr->i_addr2, QDF_MAC_ADDR_SIZE);
+		wlan_crypto_gmac_pn_swap(nonce + 6, ipn);
+		ret = wlan_crypto_aes_gmac(key->keyval, key->keylen, nonce,
+					sizeof(nonce), buf,
 					len + aad_len - hdrlen, mic);
 	}
 
@@ -2481,7 +2482,7 @@ bool wlan_crypto_is_mmie_valid(struct wlan_objmgr_vdev *vdev,
 
 	if (ret < 0) {
 		qdf_mem_free(mic);
-		crypto_err("genarate mmie failed");
+		crypto_err("generate mmie failed");
 		return false;
 	}
 
@@ -2597,6 +2598,10 @@ wlan_crypto_rsn_keymgmt_to_suite(uint32_t keymgmt)
 		return RSN_AUTH_KEY_MGMT_DPP;
 	case WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384:
 		return RSN_AUTH_KEY_MGMT_FT_802_1X_SUITE_B_384;
+	case WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY:
+		return RSN_AUTH_KEY_MGMT_SAE_EXT_KEY;
+	case WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY:
+		return RSN_AUTH_KEY_MGMT_FT_SAE_EXT_KEY;
 	}
 
 	return status;
@@ -2755,6 +2760,10 @@ static int32_t wlan_crypto_rsn_suite_to_keymgmt(const uint8_t *sel)
 		return WLAN_CRYPTO_KEY_MGMT_FT_PSK_SHA384;
 	case RSN_AUTH_KEY_MGMT_PSK_SHA384:
 		return WLAN_CRYPTO_KEY_MGMT_PSK_SHA384;
+	case RSN_AUTH_KEY_MGMT_SAE_EXT_KEY:
+		return WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY;
+	case RSN_AUTH_KEY_MGMT_FT_SAE_EXT_KEY:
+		return WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY;
 	}
 
 	return status;
@@ -3249,12 +3258,21 @@ uint8_t *wlan_crypto_build_rsnie_with_pmksa(struct wlan_objmgr_vdev *vdev,
 		selcnt[0]++;
 		RSN_ADD_KEYMGMT_TO_SUITE(frm, WLAN_CRYPTO_KEY_MGMT_OSEN);
 	}
+	if (HAS_KEY_MGMT(crypto_params, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY)) {
+		selcnt[0]++;
+		RSN_ADD_KEYMGMT_TO_SUITE(frm, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY);
+	}
 	if (HAS_KEY_MGMT(crypto_params,
 			 WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384)) {
 		uint32_t kmgmt = WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384;
 
 		selcnt[0]++;
 		RSN_ADD_KEYMGMT_TO_SUITE(frm, kmgmt);
+	}
+	if (HAS_KEY_MGMT(crypto_params, WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY)) {
+		selcnt[0]++;
+		RSN_ADD_KEYMGMT_TO_SUITE(frm,
+					 WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY);
 	}
 add_rsn_caps:
 	WLAN_CRYPTO_ADDSHORT(frm, crypto_params->rsn_caps);
@@ -3727,7 +3745,7 @@ exit:
  * wlan_crypto_register_crypto_rx_ops - set crypto_rx_ops
  * @crypto_rx_ops: crypto_rx_ops
  *
- * This function gets called by object manger to register crypto rx ops.
+ * This function gets called by object manager to register crypto rx ops.
  *
  * Return: QDF_STATUS
  */

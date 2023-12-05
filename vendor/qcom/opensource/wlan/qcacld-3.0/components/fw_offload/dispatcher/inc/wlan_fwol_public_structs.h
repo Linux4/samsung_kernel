@@ -18,7 +18,7 @@
  */
 
 /**
- * DOC: contains fw offload structure definations
+ * DOC: contains fw offload structure definitions
  */
 
 #ifndef _WLAN_FWOL_PUBLIC_STRUCTS_H_

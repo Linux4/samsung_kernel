@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/utsname.h>
@@ -710,7 +710,7 @@ static size_t snapshot_ib(struct kgsl_device *device, u8 *buf,
 	size_t remain, void *priv)
 {
 	struct kgsl_snapshot_ib_v2 *header = (struct kgsl_snapshot_ib_v2 *)buf;
-	struct snapshot_ib_meta *meta = priv;
+	struct snapshot_ib_meta *metadata = priv;
 	unsigned int *src;
 	unsigned int *dst = (unsigned int *)(buf + sizeof(*header));
 	struct adreno_ib_object_list *ib_obj_list;
@@ -718,12 +718,12 @@ static size_t snapshot_ib(struct kgsl_device *device, u8 *buf,
 	struct kgsl_snapshot_object *obj;
 	struct kgsl_memdesc *memdesc;
 
-	if (meta == NULL || meta->snapshot == NULL || meta->obj == NULL) {
+	if (metadata == NULL || metadata->snapshot == NULL || metadata->obj == NULL) {
 		dev_err(device->dev, "snapshot: bad metadata\n");
 		return 0;
 	}
-	snapshot = meta->snapshot;
-	obj = meta->obj;
+	snapshot = metadata->snapshot;
+	obj = metadata->obj;
 	memdesc = &obj->entry->memdesc;
 
 	/* If size is zero get it from the medesc size */
@@ -744,7 +744,7 @@ static size_t snapshot_ib(struct kgsl_device *device, u8 *buf,
 	}
 
 	/* only do this for IB1 because the IB2's are part of IB1 objects */
-	if (meta->ib1base == obj->gpuaddr) {
+	if (metadata->ib1base == obj->gpuaddr) {
 
 		snapshot->ib1dumped = active_ib_is_parsed(obj->gpuaddr,
 					obj->size, obj->entry->priv);
@@ -764,11 +764,11 @@ static size_t snapshot_ib(struct kgsl_device *device, u8 *buf,
 	}
 
 
-	if (meta->ib2base == obj->gpuaddr)
+	if (metadata->ib2base == obj->gpuaddr)
 		snapshot->ib2dumped = active_ib_is_parsed(obj->gpuaddr,
 					obj->size, obj->entry->priv);
 
-	if (meta->ib1base_lpac == obj->gpuaddr) {
+	if (metadata->ib1base_lpac == obj->gpuaddr) {
 
 		snapshot->ib1dumped_lpac = active_ib_is_parsed(obj->gpuaddr,
 					obj->size, obj->entry->priv);
@@ -787,7 +787,7 @@ static size_t snapshot_ib(struct kgsl_device *device, u8 *buf,
 		}
 	}
 
-	if (meta->ib2base_lpac == obj->gpuaddr)
+	if (metadata->ib2base_lpac == obj->gpuaddr)
 		snapshot->ib2dumped_lpac = active_ib_is_parsed(obj->gpuaddr,
 					obj->size, obj->entry->priv);
 
@@ -808,21 +808,21 @@ static size_t snapshot_ib(struct kgsl_device *device, u8 *buf,
 static void dump_object(struct kgsl_device *device, int obj,
 		struct kgsl_snapshot *snapshot)
 {
-	struct snapshot_ib_meta meta;
+	struct snapshot_ib_meta metadata;
 
-	meta.snapshot = snapshot;
-	meta.obj = &objbuf[obj];
-	meta.ib1base = snapshot->ib1base;
-	meta.ib1size = snapshot->ib1size;
-	meta.ib2base = snapshot->ib2base;
-	meta.ib2size = snapshot->ib2size;
-	meta.ib1base_lpac = snapshot->ib1base_lpac;
-	meta.ib1size_lpac = snapshot->ib1size_lpac;
-	meta.ib2base_lpac = snapshot->ib2base_lpac;
-	meta.ib2size_lpac = snapshot->ib2size_lpac;
+	metadata.snapshot = snapshot;
+	metadata.obj = &objbuf[obj];
+	metadata.ib1base = snapshot->ib1base;
+	metadata.ib1size = snapshot->ib1size;
+	metadata.ib2base = snapshot->ib2base;
+	metadata.ib2size = snapshot->ib2size;
+	metadata.ib1base_lpac = snapshot->ib1base_lpac;
+	metadata.ib1size_lpac = snapshot->ib1size_lpac;
+	metadata.ib2base_lpac = snapshot->ib2base_lpac;
+	metadata.ib2size_lpac = snapshot->ib2size_lpac;
 
 	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_IB_V2,
-			snapshot, snapshot_ib, &meta);
+			snapshot, snapshot_ib, &metadata);
 	if (objbuf[obj].entry) {
 		kgsl_memdesc_unmap(&(objbuf[obj].entry->memdesc));
 		kgsl_mem_entry_put(objbuf[obj].entry);
@@ -900,7 +900,7 @@ size_t adreno_snapshot_global(struct kgsl_device *device, u8 *buf,
 
 	u8 *ptr = buf + sizeof(*header);
 
-	if (!memdesc || memdesc->size == 0)
+	if (IS_ERR_OR_NULL(memdesc) || memdesc->size == 0)
 		return 0;
 
 	if (remain < (memdesc->size + sizeof(*header))) {

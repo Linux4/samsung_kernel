@@ -1,4 +1,5 @@
 # Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -163,7 +164,7 @@ class TimerList(RamParser) :
                 self.print_vec(vec)
 
         tvec_bases_addr = self.ramdump.address_of(self.tvec_bases)
-        for cpu in range(0, self.ramdump.get_num_cpus()):
+        for cpu in self.ramdump.iter_cpus():
             title = "CPU {0}".format(cpu)
 
             base_addr = tvec_bases_addr + self.ramdump.per_cpu_offset(cpu)

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -33,6 +34,8 @@
 #if defined(WLAN_FEATURE_MIB_STATS) && defined(WLAN_DEBUGFS)
 /**
  * hdd_debugfs_process_mib_stats() - Process mib stats from fw
+ * @adapter: interface adapter pointer
+ * @stats: mib stats
  *
  * This function is used to store mib stats to global variable mib_stats.
  *

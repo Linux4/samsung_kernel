@@ -1574,6 +1574,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	kfree(buf);
 	va_disable = adsp_var_idx;
 
+	/* change card status to ONLINE */
+	dev_dbg(&pdev->dev, "%s: setting snd_card to ONLINE\n", __func__);
+	snd_card_set_card_status(SND_CARD_STATUS_ONLINE);
+
 ret:
 	return 0;
 err:

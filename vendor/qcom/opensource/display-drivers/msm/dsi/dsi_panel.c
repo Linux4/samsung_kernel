@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -506,6 +506,9 @@ static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 {
 	int rc = 0;
 	struct pinctrl_state *state;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd = panel->panel_private;
+#endif
 
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
@@ -517,6 +520,11 @@ static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 		state = panel->pinctrl.active;
 	else
 		state = panel->pinctrl.suspend;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	if (enable && vdd->is_factory_pretest && !IS_ERR_OR_NULL(panel->pinctrl.pretest))
+		state = panel->pinctrl.pretest;
+#endif
 
 	rc = pinctrl_select_state(panel->pinctrl.pinctrl, state);
 	if (rc)
@@ -544,7 +552,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 			vdd->ub_con_det.current_wakeup_context_gpio_status = ss_gpio_get_value(vdd, vdd->ub_con_det.gpio);
 			if (vdd->ub_con_det.current_wakeup_context_gpio_status) {
-				LCD_ERR(vdd, "Do not panel power on..\n");
+				LCD_INFO(vdd, "Do not panel power on\n");
 				return 0;
 			}
 		}
@@ -552,6 +560,11 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 	if (!ss_panel_attach_get(panel->panel_private)) {
 		LCD_INFO(vdd, "PBA booting, skip to power on panel\n");
+
+		if (gpio_is_valid(vdd->ub_con_det.gpio) &&
+				!ss_gpio_get_value(vdd, vdd->ub_con_det.gpio))
+			LCD_ERR(vdd, "PBA booting but UB connected (mipi error)\n");
+
 		return 0;
 	}
 
@@ -625,7 +638,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	if (gpio_is_valid(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
-		LCD_ERR(vdd, "skip panel reset while panel power on sequence \n");
+		LCD_INFO(vdd, "skip panel reset while panel power on sequence \n");
 		goto exit;
 	}
 
@@ -678,6 +691,11 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 
 	if (!ss_panel_attach_get(vdd)) {
 		LCD_INFO(vdd, "PBA booting, skip to power off panel\n");
+
+		if (gpio_is_valid(vdd->ub_con_det.gpio) &&
+				!ss_gpio_get_value(vdd, vdd->ub_con_det.gpio))
+			LCD_ERR(vdd, "PBA booting but UB connected (mipi error)\n");
+
 		return 0;
 	}
 #endif
@@ -960,6 +978,9 @@ static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 			else
 				DSI_ERR("Skip dump register in ESD\n");
 		}
+
+		/* reset lp_rx_fail_cnt if mipi read is successful */
+		vdd->lp_rx_fail_cnt = 0;
 #endif
 
 		if (cmds->post_wait_ms)
@@ -1008,6 +1029,14 @@ static int dsi_panel_pinctrl_init(struct dsi_panel *panel)
 		DSI_ERR("failed to get pinctrl active state, rc=%d\n", rc);
 		goto error;
 	}
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	panel->pinctrl.pretest = pinctrl_lookup_state(panel->pinctrl.pinctrl,
+							   "panel_pretest");
+	if (IS_ERR_OR_NULL(panel->pinctrl.pretest)) {
+		DSI_ERR("failed to get pinctrl pretest state, rc=%d\n", rc);
+	}
+#endif
 
 	panel->pinctrl.suspend =
 		pinctrl_lookup_state(panel->pinctrl.pinctrl, "panel_suspend");
@@ -1298,7 +1327,7 @@ static int dsi_panel_parse_timing(struct dsi_mode_info *mode,
 
 	rc = utils->read_u64(utils->data,
 			"qcom,mdss-dsi-panel-clockrate", &tmp64);
-	if (rc == -EOVERFLOW) {
+	if (rc == -EOVERFLOW || rc == -ERANGE) {
 		tmp64 = 0;
 		rc = utils->read_u32(utils->data,
 			"qcom,mdss-dsi-panel-clockrate", (u32 *)&tmp64);
@@ -1621,13 +1650,13 @@ static int dsi_panel_parse_triggers(struct dsi_host_common_cfg *host,
 		} else if (!strcmp(trig, "trigger_sw_te")) {
 			host->dma_cmd_trigger = DSI_TRIGGER_SW_TE;
 		} else {
-			DSI_ERR("[%s] Unrecognized mdp trigger type (%s)\n",
+			DSI_ERR("[%s] Unrecognized cmd dma trigger type (%s)\n",
 			       name, trig);
 			rc = -EINVAL;
 		}
 
 	} else {
-		DSI_DEBUG("[%s] Falling back to default MDP trigger\n", name);
+		DSI_DEBUG("[%s] Falling back to default cmd dma trigger\n", name);
 		host->dma_cmd_trigger = DSI_TRIGGER_SW;
 	}
 
@@ -2972,7 +3001,7 @@ static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 	 */
 	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") && !pba_regulator_control_ss) ||
 		(!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1") && !pba_regulator_control_ss_sub)) {
-		LCD_ERR(vdd, "PBA booting, skip to parse vreg\n");
+		LCD_INFO(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
 	}
 #endif
@@ -3211,13 +3240,13 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 	panel->bl_config.bl_inverted_dbv = utils->read_bool(utils->data,
 		"qcom,mdss-dsi-bl-inverted-dbv");
 
-	state = utils->get_property(utils->data, "qcom,bl-dsc-cmd-state", NULL);
+	state = utils->get_property(utils->data, "qcom,bl-dcs-cmd-state", NULL);
 	if (!state || !strcmp(state, "dsi_hs_mode"))
 		panel->bl_config.lp_mode = false;
 	else if (!strcmp(state, "dsi_lp_mode"))
 		panel->bl_config.lp_mode = true;
 	else
-		DSI_ERR("bl-dsc-cmd-state command state unrecognized-%s\n",
+		DSI_ERR("bl-dcs-cmd-state command state unrecognized-%s\n",
 			state);
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
@@ -4158,7 +4187,7 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 		} else if (!strcmp(string, "irq_check")) {
 			esd_config->status_mode = ESD_MODE_PANEL_IRQ;
-			DSI_ERR("%s : irq_check!!\n", __func__);
+			DSI_INFO("%s : irq_check!!\n", __func__);
 #endif
 		} else if (!strcmp(string, "te_signal_check")) {
 			if (panel->panel_mode == DSI_OP_CMD_MODE) {
@@ -4213,6 +4242,7 @@ static void dsi_panel_update_util(struct dsi_panel *panel,
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct dsi_parser_utils *self_disp_utils = &panel->self_display_utils;
 	struct dsi_parser_utils *mafpc_utils = &panel->mafpc_utils;
+	struct dsi_parser_utils *fw_update_utils = &panel->fw_update_utils;
 	struct dsi_parser_utils *test_mode_utils = &panel->test_mode_utils;
 #endif
 
@@ -4237,6 +4267,9 @@ end:
 	*mafpc_utils = *dsi_parser_get_of_utils();
 	mafpc_utils->data = panel->mafpc_of_node;
 	mafpc_utils->node = panel->mafpc_of_node;
+	*fw_update_utils = *dsi_parser_get_of_utils();
+	fw_update_utils->data = panel->fw_update_of_node;
+	fw_update_utils->node = panel->fw_update_of_node;
 	*test_mode_utils = *dsi_parser_get_of_utils();
 	test_mode_utils->data = panel->test_mode_of_node;
 	test_mode_utils->node = panel->test_mode_of_node;
@@ -4287,6 +4320,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct device_node *self_display_node = of_parse_phandle(of_node, "ss,self_display", 0);
 	struct device_node *mafpc_node = of_parse_phandle(of_node, "ss,mafpc", 0);
+	struct device_node *fw_update_node = of_parse_phandle(of_node, "ss,fw_update", 0);
 	struct device_node *test_mode_node = of_parse_phandle(of_node, "ss,test_mode", 0);
 #endif
 
@@ -4300,6 +4334,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	panel->self_display_of_node = self_display_node;
 	panel->mafpc_of_node = mafpc_node;
+	panel->fw_update_of_node = fw_update_node;
 	panel->test_mode_of_node = test_mode_node;
 #endif
 	panel->parent = parent;
@@ -4724,6 +4759,7 @@ void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 	u32 jitter_numer, jitter_denom, prefill_lines;
 	u32 default_prefill_lines, actual_prefill_lines, vtotal;
 	u32 min_threshold_us, prefill_time_us, max_transfer_us, packet_overhead;
+	u32 bits_per_symbol = 16, num_of_symbols = 7; /* For Cphy */
 	u16 bpp;
 
 	/* Packet overhead in bits,
@@ -4768,6 +4804,11 @@ void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 	}
 
 	timing->min_dsi_clk_hz = min_bitclk_hz;
+
+	if (config->phy_type == DSI_PHY_TYPE_CPHY) {
+		do_div(timing->min_dsi_clk_hz, bits_per_symbol);
+		timing->min_dsi_clk_hz *= num_of_symbols;
+	}
 
 	/*
 	 * Apart from prefill line time, we need to take into account RSCC mode threshold time. In
@@ -5219,18 +5260,21 @@ int wait_tcon_ready(struct dsi_panel *panel)
 	struct samsung_display_driver_data *vdd = panel->panel_private;
 
 	int i;
-	int max_wait_cnt = 300; /* max 500ms for PV2 */
+	int max_wait_cnt = 500; /* max 1000ms */
+	static ktime_t elapsed_time;
 
 	LCD_INFO(vdd, "ANAPASS DDI: +: tcon_rdy val: %d\n", gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio));
-	msleep(200);
+	elapsed_time = ktime_get();
 	for (i = 0; i < max_wait_cnt; i++) {
 		if (gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
 			LCD_INFO(vdd, "ANAPASS DDI: tcon_rdy becomes level high!!!\n");
 			break;
 		}
-		usleep_range(1000, 1010);
+		usleep_range(2000, 2010);
 	}
-	LCD_INFO(vdd, "ANAPASS DDI: -: tcon_rdy val: %d, wait_time: %d[cnt/ms]\n", gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio), i+200);
+	elapsed_time = ktime_get() - elapsed_time;
+	LCD_INFO(vdd, "ANAPASS DDI: -: tcon_rdy val: %d, elapsed_time: %d[ms]\n",
+		gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio), ktime_to_ms(elapsed_time));
 
 	if (vdd->dtsi_data.samsung_delay_after_tcon_rdy) {
 		LCD_INFO(vdd, "Reset after Tcon Ready (%d)\n", vdd->dtsi_data.samsung_delay_after_tcon_rdy);
@@ -5256,7 +5300,9 @@ void tcon_prepare(void)
 		return;
 
 	if (display->is_cont_splash_enabled) {
-		LCD_INFO(vdd, "splashed enabled yet\n");
+		LCD_INFO(vdd, "splashed enabled yet. tcon_rdy gpio status=%d\n",
+			gpio_is_valid(vdd->dtsi_data.samsung_tcon_rdy_gpio) ?
+			gpio_get_value(vdd->dtsi_data.samsung_tcon_rdy_gpio) : -1);
 		return;
 	}
 
@@ -5825,7 +5871,7 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	/* 3FA7 IC : display off, sleep in cmds should be sent befor sleep out in case2 */
 	if (vdd->poc_driver.read_case == READ_CASE2 && vdd->poc_driver.need_sleep_in) {
-		LCD_ERR(vdd, "display off, sleep in cmds should be sent befor sleep out in case2..\n");
+		LCD_INFO(vdd, "display off, sleep in cmds should be sent befor sleep out in case2\n");
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_OFF);
 		if (rc) {
 			LCD_ERR(vdd, "[%s] failed to send DSI_CMD_SET_OFF cmds, rc=%d\n",

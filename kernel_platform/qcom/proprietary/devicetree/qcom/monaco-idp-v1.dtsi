@@ -2,32 +2,7 @@
 #include <dt-bindings/iio/qcom,spmi-adc5-gen3-pm5100.h>
 #include <dt-bindings/iio/qti_power_supply_iio.h>
 #include <dt-bindings/clock/qcom,rpmcc.h>
-
-&sdhc_1 {
-	status = "ok";
-
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&sdc1_on>;
-	pinctrl-1 = <&sdc1_off>;
-
-	vdd-supply = <&L25A>;
-	qcom,vdd-voltage-level = <3080000 3080000>;
-	qcom,vdd-current-level = <0 250000>;
-
-	vdd-io-supply = <&L15A>;
-	qcom,vdd-io-always-on;
-	qcom,vdd-io-lpm-sup;
-	qcom,vdd-io-voltage-level = <1800000 1800000>;
-	qcom,vdd-io-current-level = <0 250000>;
-};
-
-&soc {
-	bluetooth: bt_wcn3990 {
-		compatible = "qcom,qcc5100";
-
-		status = "ok";
-	};
-};
+#include "slate.dtsi"
 
 &pm5100_charger {
 	qcom,remote-fg;
@@ -49,6 +24,15 @@
 			   "batt-id",
 			   "batt-temp",
 			   "batt-volt";
+};
+
+&spmi_bus {
+	qcom,pm5100@0 {
+		pmic_lpm: qti,pmic-lpm@7200 {
+			compatible = "qti,pmic-lpm";
+			reg = <0x7200>;
+		};
+	};
 };
 
 &pm5100_gpios {

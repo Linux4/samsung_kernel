@@ -24,6 +24,7 @@
 #define IPA_MAX_ENTRY_STRING_LEN 500
 #define IPA_MAX_MSG_LEN 4096
 #define IPA_DBG_MAX_RULE_IN_TBL 128
+#define IPA_TSP_OPTION_LEN 16
 #define IPA_DBG_ACTIVE_CLIENT_BUF_SIZE ((IPA3_ACTIVE_CLIENTS_LOG_LINE_LEN \
 	* IPA3_ACTIVE_CLIENTS_LOG_BUFFER_SIZE_LINES) + IPA_MAX_MSG_LEN)
 
@@ -49,6 +50,7 @@ static const char * const ipa_eth_clients_strings[] = {
 	__stringify(NTN),
 	__stringify(NTN3),
 	__stringify(EMAC),
+	__stringify(IEMAC),
 };
 
 const char *ipa3_event_name[IPA_EVENT_MAX_NUM] = {
@@ -1612,6 +1614,11 @@ static ssize_t ipa3_read_odlstats(struct file *file, char __user *ubuf,
 	int nbytes;
 	int cnt = 0;
 
+	if (!ipa3_odl_ctx) {
+                IPADBG("ODL stats not supported\n");
+                return 0;
+	}
+
 	nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
 			"ODL received pkt =%u\n"
 			"ODL processed pkt to DIAG=%u\n"
@@ -3071,6 +3078,9 @@ static void ipa_dump_status(struct ipahal_pkt_status *status)
 	IPA_DUMP_STATUS_FIELD(frag_hit);
 	IPA_DUMP_STATUS_FIELD(frag_rule);
 	IPA_DUMP_STATUS_FIELD(ttl_dec);
+	IPA_DUMP_STATUS_FIELD(tsp);
+	IPA_DUMP_STATUS_FIELD(ingress_tc);
+	IPA_DUMP_STATUS_FIELD(egress_tc);
 }
 
 static ssize_t ipa_status_stats_read(struct file *file, char __user *ubuf,
@@ -3328,12 +3338,25 @@ static ssize_t ipa3_read_tsp(struct file *file, char __user *buf, size_t count, 
 	struct ipa_ioc_tsp_ingress_class_params ingr_tc;
 	struct ipa_ioc_tsp_egress_prod_params egr_ep;
 	struct ipa_ioc_tsp_egress_class_params egr_tc;
+	u32 ingr_tc_base, egr_tc_base, prod_base;
+	void *ingr_tc_mmio, *egr_tc_mmio, *prod_mmio;
+
+
+	/* map IPA SRAM */
 
 	/* Print the global TSP state flags */
 	IPA_ACTIVE_CLIENTS_INC_SIMPLE();
+	ingr_tc_base = ipahal_read_reg(IPA_RAM_INGRESS_POLICER_DB_BASE_ADDR);
+	egr_tc_base = ipahal_read_reg(IPA_RAM_EGRESS_SHAPING_TC_DB_BASE_ADDR);
+	prod_base = ipahal_read_reg(IPA_RAM_EGRESS_SHAPING_PROD_DB_BASE_ADDR);
 	ipahal_read_reg_fields(IPA_STATE_TSP, &state_tsp);
 	ipahal_read_reg_fields(IPA_STATE_QMNGR_QUEUE_NONEMPTY, &qm_non_empty);
-	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
+	ingr_tc_mmio = ioremap(ipa3_ctx->ipa_wrapper_base + ingr_tc_base,
+		ipa3_ctx->tsp.ingr_tc_tbl.size);
+	egr_tc_mmio = ioremap(ipa3_ctx->ipa_wrapper_base + egr_tc_base,
+		ipa3_ctx->tsp.egr_tc_tbl.size);
+	prod_mmio = ioremap(ipa3_ctx->ipa_wrapper_base + prod_base,
+		ipa3_ctx->tsp.egr_ep_tbl.size);
 
 	if (state_tsp.traffic_shaper_idle)
 		nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
@@ -3366,7 +3389,7 @@ static ssize_t ipa3_read_tsp(struct file *file, char __user *buf, size_t count, 
 	nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
 			"TC Index\tMax Rate\tMax Burst\tInclude L2\n");
 	for (i = 1; i <= ipa3_ctx->tsp.ingr_tc_max; i++) {
-		ipahal_tsp_parse_hw_ingr_tc(ipa3_ctx->tsp.ingr_tc_tbl.base, i, &ingr_tc);
+		ipahal_tsp_parse_hw_ingr_tc(ingr_tc_mmio, i, &ingr_tc);
 		nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
 			"%02d:\t\t%u\t\t%u\t\t%u\n",
 			i, ingr_tc.max_rate, ingr_tc.max_burst, ingr_tc.include_l2_len);
@@ -3375,12 +3398,15 @@ static ssize_t ipa3_read_tsp(struct file *file, char __user *buf, size_t count, 
 	nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
 			"Egress Producer Table:\n");
 	nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
-			"EP Index\tClient\tMax Rate\tMax Burst\n");
+		"EP Index\tClient\tMax Rate\tMax Burst\tTC low\tTC high\tMaxOut B\t\tMaxOut EN\n");
 	for (i = 0; i < ipa3_ctx->tsp.egr_ep_max; i++) {
-		ipahal_tsp_parse_hw_egr_ep(ipa3_ctx->tsp.egr_ep_tbl.base, i, &egr_ep);
+		ipa_tsp_get_egr_ep(i, &egr_ep);
 		nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
-			"%d:\t\t%d\t%u\t\t%u\n",
-			i, ipa3_ctx->tsp.egr_ep_config[i], egr_ep.max_rate, egr_ep.max_burst);
+			"%d:\t\t%d\t%u\t\t%u\t\t%u\t%u\t%u\t\t%u\n",
+			i, ipa3_ctx->tsp.egr_ep_config[i], egr_ep.max_rate, egr_ep.max_burst,
+			egr_ep.tc_lo, egr_ep.tc_hi,
+			egr_ep.max_out_bytes, egr_ep.policing_by_max_out);
+
 	}
 
 	nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
@@ -3388,30 +3414,275 @@ static ssize_t ipa3_read_tsp(struct file *file, char __user *buf, size_t count, 
 	nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
 			"TC Index\tMax Rate\tMax Burst\tG. Rate\tG. Burst\n");
 	for (i = 1; i <= ipa3_ctx->tsp.egr_tc_max; i++) {
-		ipahal_tsp_parse_hw_egr_tc(ipa3_ctx->tsp.egr_tc_tbl.base, i, &egr_tc);
+		ipahal_tsp_parse_hw_egr_tc(egr_tc_mmio, i, &egr_tc);
 		nbytes += scnprintf(dbg_buff + nbytes, IPA_MAX_MSG_LEN - nbytes,
 			"%02d:\t\t%u\t\t%u\t\t%u\t%u\n",
 			i, egr_tc.max_rate, egr_tc.max_burst,
 			egr_tc.guaranteed_rate, egr_tc.guaranteed_burst);
 	}
+	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
+	if (ingr_tc_mmio)
+		iounmap(ingr_tc_mmio);
+	if (egr_tc_mmio)
+		iounmap(egr_tc_mmio);
+	if (prod_mmio)
+		iounmap(prod_mmio);
 
 	return simple_read_from_buffer(buf, count, ppos, dbg_buff, nbytes);
+}
+
+static int ipa3_tsp_ingress_config_commit(char *sptr)
+{
+	struct ipa_ioc_tsp_ingress_class_params tsp_in_tc;
+	char *token;
+	int ret;
+	u8 index;
+	u16 max_rate, max_burst;
+	u32 include_l2_len;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou8(token, 0, &index) || index == 0 || index > ipa3_ctx->tsp.ingr_tc_max)
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &max_rate))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &max_burst))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou32(token, 0, &include_l2_len) || include_l2_len > 1)
+		return -EINVAL;
+
+	tsp_in_tc.max_rate = max_rate;
+	tsp_in_tc.max_burst = max_burst;
+	tsp_in_tc.include_l2_len = include_l2_len;
+
+	ret = ipa_tsp_set_ingr_tc(index, &tsp_in_tc);
+	if (ret) {
+		IPAERR("Failed to set ingress Traffic class\n");
+		return ret;
+	}
+
+	ret = ipa_tsp_commit();
+	if (ret) {
+		IPAERR("Failed to commit TSP\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int ipa3_tsp_egress_config_commit(char *sptr)
+{
+	struct ipa_ioc_tsp_egress_class_params tsp_e_tc;
+	char *token;
+	int ret;
+	u8 index;
+	u16 max_rate, max_burst ,guaranteed_rate, guaranteed_burst;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou8(token, 0, &index) || index == 0 || index > ipa3_ctx->tsp.egr_tc_max)
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &max_rate))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &max_burst))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &guaranteed_rate))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &guaranteed_burst))
+		return -EINVAL;
+
+	tsp_e_tc.max_rate = max_rate;
+	tsp_e_tc.max_burst = max_burst;
+	tsp_e_tc.guaranteed_rate = guaranteed_rate;
+	tsp_e_tc.guaranteed_burst = guaranteed_burst;
+
+	ret = ipa_tsp_set_egr_tc(index, &tsp_e_tc);
+	if (ret) {
+		IPAERR("Failed to set egress Traffic class\n");
+		return ret;
+	}
+
+	ret = ipa_tsp_commit();
+	if (ret) {
+		IPAERR("Failed to commit TSP\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int ipa3_tsp_producer_config_commit(char *sptr)
+{
+	struct ipa_ioc_tsp_egress_prod_params tsp_ep;
+	char *token;
+	int ret;
+	u8 index;
+	u16 max_rate, max_burst;
+	u32 max_out_bytes, client_num;
+	u8 tc_lo, tc_hi, policing_by_max_out;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou32(token, 0, &client_num))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou8(token, 0, &index) || index == 0 || index > ipa3_ctx->tsp.egr_ep_max)
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &max_rate))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou16(token, 0, &max_burst))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou32(token, 0, &max_out_bytes))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou8(token, 0, &tc_lo))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou8(token, 0, &tc_hi))
+		return -EINVAL;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+	if (kstrtou8(token, 0, &policing_by_max_out) || policing_by_max_out > 1)
+		return -EINVAL;
+
+	tsp_ep.client = client_num;
+	tsp_ep.max_rate = max_rate;
+	tsp_ep.max_burst = max_burst;
+	tsp_ep.max_out_bytes = max_out_bytes;
+	tsp_ep.tc_lo = tc_lo;
+	tsp_ep.tc_hi = tc_hi;
+	tsp_ep.policing_by_max_out = policing_by_max_out;
+
+	ret = ipa_tsp_set_egr_ep(index, &tsp_ep);
+	if (ret) {
+		IPAERR("Failed to set TSP Producer\n");
+		return ret;
+	}
+
+	ret = ipa_tsp_commit();
+	if (ret) {
+		IPAERR("Failed to commit TSP\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static ssize_t ipa3_write_tsp(struct file *file, const char __user *buf,
 			      size_t count, loff_t *ppos) {
 
+	unsigned long missing;
+	char *sptr, *token;
+	char option[IPA_TSP_OPTION_LEN];
 	int ret;
-	u8 option = 0;
 
 	if (count >= sizeof(dbg_buff))
 		return -EFAULT;
 
-	ret = kstrtou8_from_user(buf, count, 0, &option);
-	if(ret)
-		return ret;
+	missing = copy_from_user(dbg_buff, buf, count);
+	if (missing) {
+		IPAERR("Failed to copy data from user\n");
+		return -EFAULT;
+	}
 
-	pr_err("TSP write is not implemented.\n");
+	dbg_buff[count] = '\0';
+
+	sptr = dbg_buff;
+
+	token = strsep(&sptr, " ");
+	if (!token)
+		return -EINVAL;
+
+	strlcpy(option, token, IPA_TSP_OPTION_LEN);
+	if (strnstr(option, "ingress", IPA_TSP_OPTION_LEN)) {
+		ret = ipa3_tsp_ingress_config_commit(sptr);
+		if (ret) {
+			IPAERR("Failed to config and commit Ingress Traffic class");
+			return ret;
+		}
+		IPADBG("Ingress Traffic Class config and commit done.");
+	} else if (strnstr(option, "egress", IPA_TSP_OPTION_LEN)) {
+		ret = ipa3_tsp_egress_config_commit(sptr);
+		if (ret) {
+			IPAERR("Failed to config and commit Egress Traffic class");
+			return ret;
+		}
+		IPADBG("Egress Traffic Class config and commit done.");
+	} else if (strnstr(option, "producer", IPA_TSP_OPTION_LEN)) {
+		ret = ipa3_tsp_producer_config_commit(sptr);
+		if (ret) {
+			IPAERR("Failed to config and commit TSP Producer");
+			return ret;
+		}
+		IPADBG("TSP Producer config and commit done.");
+	} else if (strnstr(option, "reset", IPA_TSP_OPTION_LEN)) {
+		ret = ipa_tsp_reset();
+		if (ret) {
+			IPAERR("Failed to reset TSP");
+			return ret;
+		}
+		IPADBG("Reset TSP done.");
+	} else {
+		IPAERR("TSP command format should be one of the following:\n \
+			ingress <index> <max_rate> <max_burst> <include_l2_len>\n \
+			egress <index> <max rate> <max_burst> <guaranteed_rate> <guaranteed_burst>\n \
+			producer <client num> <index> <max rate> <max_burst> <max_out_bytes> <tc_lo> <tc_hi> <policing_by_max_out>\n \
+			reset\n");
+	}
 
 	return count;
 }

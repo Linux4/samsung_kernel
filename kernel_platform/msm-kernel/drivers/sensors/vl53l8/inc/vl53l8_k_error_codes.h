@@ -133,6 +133,16 @@
 #define VL53L8_DELAYED_LOAD_FIRMWARE						((int32_t) -1002)
 #define VL53L8_SUSPEND_IOCTL_STOP_ERROR						((int32_t) -1003)
 #define VL53L8_RESUME_INIT_ERROR							((int32_t) -1004)
+#define VL53L8_OPENCAL_ERROR								((int32_t) -1006)
+#define VL53L8_CALFILE_LOAD_ERROR							((int32_t) -1007)
+
+#define VL53L8_LDO_AVDD_ERROR								((int32_t) -1011)
+#define VL53L8_LDO_IOVDD_ERROR								((int32_t) -1012)
+#define VL53L8_LDO_AVDD_IOVDD_ERROR							((int32_t) -1013)
+#define VL53L8_LDO_COREVDD_ERROR							((int32_t) -1014)
+#define VL53L8_LDO_AVDD_COREVDD_ERROR						((int32_t) -1015)
+#define VL53L8_LDO_IOVDD_COREVDD_ERROR						((int32_t) -1016)
+#define VL53L8_LDO_AVDD_IOVDD_COREVDD_ERROR					((int32_t) -1017)
 
 #endif
 

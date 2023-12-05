@@ -31,12 +31,15 @@
 #include <linux/of_gpio.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+#include <linux/version.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/s2dos05.h>
 #include <linux/regulator/of_regulator.h>
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 #include <linux/regulator/pmic_class.h>
+#endif
 #if IS_ENABLED(CONFIG_REGULATOR_DEBUG_CONTROL)
 #include <linux/regulator/debug-regulator.h>
 #endif
@@ -598,6 +601,7 @@ static irqreturn_t s2dos05_irq_thread(int irq, void *irq_data)
 	struct s2dos05_data *s2dos05 = irq_data;
 	u8 val = 0;
 #if IS_ENABLED(CONFIG_SEC_PM)
+	u8 scp_val[2] = { 0, };
 	const char *irq_bit[] = { "ocd", "uvlo", "scp", "ssd", "tsd", "pwrmt" };
 	char irq_name[32];
 	ssize_t ret = 0;
@@ -615,6 +619,20 @@ static irqreturn_t s2dos05_irq_thread(int irq, void *irq_data)
 	}
 
 	pr_info("%s: irq:%s\n", __func__, irq_name);
+
+	/* Show which regulator's SCP occurs */
+	if (0x04 & val) {
+		if (s2dos05->iodev->is_sm3080) {
+			/* SM3080 */
+			s2dos05_read_reg(s2dos05->iodev->i2c, INT_STATUS1, &scp_val[0]);
+			pr_info("%s:INT_STATUS1(0x%02hhx)\n", __func__, scp_val[0]);
+		} else {
+			/* S2DOS05 */
+			s2dos05_read_reg(s2dos05->iodev->i2c, FAULT_STATUS1, &scp_val[0]);
+			s2dos05_read_reg(s2dos05->iodev->i2c, FAULT_STATUS2, &scp_val[1]);
+			pr_info("%s:FAULT_STATUS1(0x%02hhx), FAULT_STATUS2(0x%02hhx)\n", __func__, scp_val[0], scp_val[1]);
+		}
+	}
 #endif /* CONFIG_SEC_PM */
 
 #if IS_ENABLED(CONFIG_SEC_PM)
@@ -665,6 +683,15 @@ static int s2dos05_pmic_dt_parse_pdata(struct device *dev,
 	if (ret)
 		return -EINVAL;
 	pdata->adc_sync_mode = val;
+
+#if IS_ENABLED(CONFIG_SEC_PM)
+	pdata->ocl_elvss = -1;
+	ret = of_property_read_u32(pmic_np, "ocl_elvss", &val);
+	if (!ret) {
+		pdata->ocl_elvss = val;
+		dev_info(dev, "get ocl elvss value: %d\n", pdata->ocl_elvss);
+	}
+#endif
 
 	regulators_np = of_find_node_by_name(pmic_np, "regulators");
 	if (!regulators_np) {
@@ -1296,6 +1323,12 @@ static int s2dos05_pmic_probe(struct i2c_client *i2c,
 		dev_info(&i2c->dev, "SM3080 DEVICE ID: 0x%02X\n", val);
 	}
 
+	/* set OCL_ELVSS */
+	if (pdata->ocl_elvss > -1) {
+		s2dos05_update_reg(i2c, S2DOS05_REG_OCL, pdata->ocl_elvss, S2DOS05_OCL_ELVSS_MASK);
+		pr_info("%s: set ocl elvss: %d\n", __func__, pdata->ocl_elvss);
+	}
+
 	ret = s2dos05_sec_pm_init(s2dos05);
 	if (ret < 0)
 		goto err_s2dos05_data;
@@ -1363,7 +1396,7 @@ static struct of_device_id s2dos05_i2c_dt_ids[] = {
 };
 #endif /* CONFIG_OF */
 
-static int s2dos05_pmic_remove(struct i2c_client *i2c)
+static int __s2dos05_pmic_remove(struct i2c_client *i2c)
 {
 	struct s2dos05_data *info = i2c_get_clientdata(i2c);
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
@@ -1388,6 +1421,18 @@ static int s2dos05_pmic_remove(struct i2c_client *i2c)
 
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static void s2dos05_pmic_remove(struct i2c_client *i2c)
+{
+	__s2dos05_pmic_remove(i2c);
+}
+#else
+static int s2dos05_pmic_remove(struct i2c_client *i2c)
+{
+	return __s2dos05_pmic_remove(i2c);
+}
+#endif
 
 #if IS_ENABLED(CONFIG_PM)
 static int s2dos05_pmic_suspend(struct device *dev)

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -17,7 +18,7 @@
  */
 
 /**
- * DOC : wlan_hdd_he.h
+ * DOC: wlan_hdd_he.h
  *
  * WLAN Host Device Driver file for 802.11ax (High Efficiency) support.
  *
@@ -33,19 +34,18 @@ struct sap_config;
 
 #ifdef WLAN_FEATURE_11AX
 /**
- * enum qca_wlan_vendor_attr_get_he_capabilities - attributes for HE caps.
- *						  vendor command.
- * @QCA_WLAN_VENDOR_ATTR_HE_CAPABILITIES_INVALID - invalid
- * @QCA_WLAN_VENDOR_ATTR_HE_SUPPORTED - to check if HE capabilities is supported
- * @QCA_WLAN_VENDOR_ATTR_PHY_CAPAB - to get HE PHY capabilities
- * @QCA_WLAN_VENDOR_ATTR_MAC_CAPAB - to get HE MAC capabilities
- * @QCA_WLAN_VENDOR_ATTR_HE_MCS - to get HE MCS
- * @QCA_WLAN_VENDOR_ATTR_NUM_SS - to get NUM SS
- * @QCA_WLAN_VENDOR_ATTR_RU_IDX_MASK - to get RU index mask
- * @QCA_WLAN_VENDOR_ATTR_RU_COUNT - to get RU count,
- * @QCA_WLAN_VENDOR_ATTR_PPE_THRESHOLD - to get PPE Threshold,
- * @QCA_WLAN_VENDOR_ATTR_HE_CAPABILITIES_AFTER_LAST - next to last valid enum
- * @QCA_WLAN_VENDOR_ATTR_HE_CAPABILITIES_MAX - max value supported
+ * enum qca_wlan_vendor_attr_get_he_capabilities - attributes for HE caps
+ *						   vendor command.
+ * @QCA_WLAN_VENDOR_ATTR_HE_CAPABILITIES_INVALID: invalid
+ * @QCA_WLAN_VENDOR_ATTR_HE_SUPPORTED: to check if HE capabilities is supported
+ * @QCA_WLAN_VENDOR_ATTR_PHY_CAPAB: to get HE PHY capabilities
+ * @QCA_WLAN_VENDOR_ATTR_MAC_CAPAB: to get HE MAC capabilities
+ * @QCA_WLAN_VENDOR_ATTR_HE_MCS: to get HE MCS
+ * @QCA_WLAN_VENDOR_ATTR_NUM_SS: to get NUM SS
+ * @QCA_WLAN_VENDOR_ATTR_RU_IDX_MASK: to get RU index mask
+ * @QCA_WLAN_VENDOR_ATTR_PPE_THRESHOLD: to get PPE Threshold,
+ * @QCA_WLAN_VENDOR_ATTR_HE_CAPABILITIES_AFTER_LAST: next to last valid enum
+ * @QCA_WLAN_VENDOR_ATTR_HE_CAPABILITIES_MAX: max value supported
  *
  * enum values are used for NL attributes for data used by
  * QCA_NL80211_VENDOR_SUBCMD_GET_HE_CAPABILITIES sub command.
@@ -66,10 +66,14 @@ enum qca_wlan_vendor_attr_get_he_capabilities {
 	QCA_WLAN_VENDOR_ATTR_HE_CAPABILITIES_AFTER_LAST - 1,
 };
 
+/* QCA_NL80211_VENDOR_SUBCMD_SR policy*/
+extern const struct nla_policy
+wlan_hdd_sr_policy[QCA_WLAN_VENDOR_ATTR_SR_MAX + 1];
+
 /**
  * hdd_update_tgt_he_cap() - Update HE related capabilities
  * @hdd_ctx: HDD context
- * @he_cap: Target HE capabilities
+ * @cfg: Target capabilities
  *
  * This function updaates WNI CFG with Target capabilities received as part of
  * Default values present in WNI CFG are the values supported by FW/HW.
@@ -116,6 +120,42 @@ int hdd_update_he_cap_in_cfg(struct hdd_context *hdd_ctx);
 int wlan_hdd_cfg80211_get_he_cap(struct wiphy *wiphy,
 				 struct wireless_dev *wdev, const void *data,
 				 int data_len);
+#ifdef WLAN_FEATURE_SR
+/**
+ * wlan_hdd_cfg80211_sr_operations() - Spatial Reuse Operations
+ * @wiphy:   pointer to wireless wiphy structure.
+ * @wdev:    pointer to wireless_dev structure.
+ * @data:    Pointer to the data to be passed via vendor interface
+ * @data_len:Length of the data to be passed
+ *
+ * Return:   Return the Success or Failure code.
+ */
+int wlan_hdd_cfg80211_sr_operations(struct wiphy *wiphy,
+				    struct wireless_dev *wdev,
+				    const void *data, int data_len);
+
+/**
+ * hdd_sr_register_callbacks() - register hdd callback for sr
+ * @hdd_ctx: hdd context
+ *
+ * Return: void
+ */
+void hdd_sr_register_callbacks(struct hdd_context *hdd_ctx);
+
+#else
+static inline
+int wlan_hdd_cfg80211_sr_operations(struct wiphy *wiphy,
+				    struct wireless_dev *wdev,
+				    const void *data, int data_len)
+{
+	return 0;
+}
+
+static inline void hdd_sr_register_callbacks(struct hdd_context *hdd_ctx)
+{
+}
+#endif
+
 #define FEATURE_11AX_VENDOR_COMMANDS                                    \
 {                                                                       \
 	.info.vendor_id = QCA_NL80211_VENDOR_ID,                        \
@@ -124,6 +164,16 @@ int wlan_hdd_cfg80211_get_he_cap(struct wiphy *wiphy,
 		 WIPHY_VENDOR_CMD_NEED_NETDEV,                          \
 	.doit = wlan_hdd_cfg80211_get_he_cap,                           \
 	vendor_command_policy(VENDOR_CMD_RAW_DATA, 0)                   \
+},									\
+{                                                                       \
+	.info.vendor_id = QCA_NL80211_VENDOR_ID,                        \
+	.info.subcmd = QCA_NL80211_VENDOR_SUBCMD_SR,			\
+	.flags = WIPHY_VENDOR_CMD_NEED_WDEV |                           \
+		 WIPHY_VENDOR_CMD_NEED_NETDEV |                         \
+		 WIPHY_VENDOR_CMD_NEED_RUNNING,				\
+	.doit = wlan_hdd_cfg80211_sr_operations,			\
+	vendor_command_policy(wlan_hdd_sr_policy,			\
+			      QCA_WLAN_VENDOR_ATTR_SR_MAX)		\
 },
 
 #else
@@ -140,6 +190,10 @@ static inline void wlan_hdd_check_11ax_support(struct hdd_beacon_data *beacon,
 static inline int hdd_update_he_cap_in_cfg(struct hdd_context *hdd_ctx)
 {
 	return 0;
+}
+
+static inline void hdd_sr_register_callbacks(struct hdd_context *hdd_ctx)
+{
 }
 
 /* dummy definition */

@@ -41,6 +41,8 @@ ucfg_coap_offload_reply_enable(struct wlan_objmgr_vdev *vdev,
  * ucfg_coap_offload_reply_disable() - API to disable CoAP offload reply
  * @vdev: pointer to vdev object
  * @req_id: request id
+ * @cbk: callback function to invoke with cached data
+ * @context: caller-supplied context
  *
  * Return: status of operation
  */

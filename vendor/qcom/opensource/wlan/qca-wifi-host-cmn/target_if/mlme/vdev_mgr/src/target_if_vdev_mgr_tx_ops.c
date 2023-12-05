@@ -499,19 +499,99 @@ static QDF_STATUS target_if_vdev_mgr_start_send(
 }
 
 static QDF_STATUS target_if_vdev_mgr_delete_response_send(
-				struct wlan_objmgr_vdev *vdev,
+				struct wlan_objmgr_psoc *psoc,
+				uint8_t vdev_id,
 				struct wlan_lmac_if_mlme_rx_ops *rx_ops)
 {
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	struct wlan_objmgr_psoc *psoc = wlan_vdev_get_psoc(vdev);
 	struct vdev_delete_response rsp = {0};
 
-	rsp.vdev_id = wlan_vdev_get_id(vdev);
+	rsp.vdev_id = vdev_id;
 	status = rx_ops->vdev_mgr_delete_response(psoc, &rsp);
 	target_if_wake_lock_timeout_release(psoc, DELETE_WAKELOCK);
 
 	return status;
 }
+
+#ifdef SERIALIZE_VDEV_RESP
+static QDF_STATUS
+target_if_vdev_mgr_del_rsp_post_flush_cb(struct scheduler_msg *msg)
+{
+	/* Dummy */
+	return QDF_STATUS_SUCCESS;
+}
+
+static QDF_STATUS
+target_if_vdev_mgr_del_rsp_post_cb(struct scheduler_msg *msg)
+{
+	struct wlan_objmgr_psoc *psoc;
+	struct wlan_lmac_if_mlme_rx_ops *rx_ops;
+	uint8_t vdev_id;
+
+	if (!msg || !msg->bodyptr) {
+		mlme_err("Msg or Msg bodyptr is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	psoc = msg->bodyptr;
+
+	vdev_id = msg->bodyval;
+	if (vdev_id >= WLAN_UMAC_PSOC_MAX_VDEVS) {
+		mlme_err("Invalid VDEV_ID %d", vdev_id);
+		return QDF_STATUS_E_INVAL;
+	}
+
+	rx_ops = target_if_vdev_mgr_get_rx_ops(psoc);
+	if (!rx_ops) {
+		mlme_err("No Rx Ops");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	/* Don't try to get vdev as it's already deleted */
+	target_if_vdev_mgr_delete_response_send(psoc, vdev_id, rx_ops);
+
+	return QDF_STATUS_SUCCESS;
+}
+
+static void target_if_vdev_mgr_delete_rsp_post_ctx(
+				struct wlan_objmgr_psoc *psoc,
+				uint8_t vdev_id)
+{
+	struct scheduler_msg msg = {0};
+
+	msg.callback = target_if_vdev_mgr_del_rsp_post_cb;
+	msg.bodyptr = psoc;
+	msg.bodyval = vdev_id;
+	msg.flush_callback =
+			target_if_vdev_mgr_del_rsp_post_flush_cb;
+
+	if (scheduler_post_message(QDF_MODULE_ID_TARGET_IF,
+				   QDF_MODULE_ID_TARGET_IF,
+				   QDF_MODULE_ID_TARGET_IF, &msg) ==
+				   QDF_STATUS_SUCCESS)
+		return;
+
+	mlme_err("Failed to enqueue vdev delete response");
+}
+
+static void
+target_if_vdev_mgr_delete_rsp_handler(
+				struct wlan_objmgr_psoc *psoc,
+				uint8_t vdev_id,
+				struct wlan_lmac_if_mlme_rx_ops *rx_ops)
+{
+	target_if_vdev_mgr_delete_rsp_post_ctx(psoc, vdev_id);
+}
+#else
+static void
+target_if_vdev_mgr_delete_rsp_handler(
+				struct wlan_objmgr_psoc *psoc,
+				uint8_t vdev_id,
+				struct wlan_lmac_if_mlme_rx_ops *rx_ops)
+{
+	target_if_vdev_mgr_delete_response_send(psoc, vdev_id, rx_ops);
+}
+#endif
 
 static QDF_STATUS target_if_vdev_mgr_delete_send(
 					struct wlan_objmgr_vdev *vdev,
@@ -567,7 +647,8 @@ static QDF_STATUS target_if_vdev_mgr_delete_send(
 					       WLAN_SOC_F_TESTMODE_ENABLE)) {
 			target_if_vdev_mgr_rsp_timer_stop(psoc, vdev_rsp,
 							  DELETE_RESPONSE_BIT);
-			target_if_vdev_mgr_delete_response_send(vdev, rx_ops);
+			target_if_vdev_mgr_delete_rsp_handler(psoc, vdev_id,
+							      rx_ops);
 		}
 	} else {
 		vdev_rsp->expire_time = 0;

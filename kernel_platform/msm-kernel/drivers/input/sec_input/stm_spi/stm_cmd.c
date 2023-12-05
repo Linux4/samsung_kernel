@@ -1786,6 +1786,7 @@ static void fw_update(void *device_data)
 	if (retval < 0)
 		return;
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 #if IS_ENABLED(CONFIG_GH_RM_DRV)
 	if (atomic_read(&ts->trusted_touch_enabled)) {
 		input_info(true, &ts->client->dev, "%s trusted touch is enabled. skip\n", __func__);
@@ -1795,7 +1796,7 @@ static void fw_update(void *device_data)
 		return;
 	}
 #endif
-
+#endif
 	mutex_lock(&ts->modechange);
 	retval = stm_ts_fw_update_on_hidden_menu(ts, sec->cmd_param[0]);
 	if (retval < 0) {
@@ -3017,6 +3018,8 @@ static void run_cs_raw_read_all(void *device_data)
 	}
 
 	enter_factory_mode(ts, false);
+
+	stm_ts_reinit(ts);
 
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	sec_cmd_set_cmd_result(sec, all_strbuff, strlen(all_strbuff));
@@ -5169,6 +5172,50 @@ autotune_fail:
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 }
 
+static void run_interrupt_gpio_test(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN];
+	u8 drv_data[3] = { 0xA4, 0x01, 0x01 };
+	u8 irq_data[3] = { 0xA4, 0x01, 0x00 };
+	int drv_value = -1;
+	int irq_value = -1;
+
+	sec_cmd_set_default_result(sec);
+
+	disable_irq(ts->irq);
+
+	ts->stm_ts_write(ts, drv_data, 3, NULL, 0);
+	sec_delay(50);
+	drv_value = gpio_get_value(ts->plat_data->irq_gpio);
+
+	ts->stm_ts_write(ts, irq_data, 3, NULL, 0);
+	sec_delay(50);
+	irq_value = gpio_get_value(ts->plat_data->irq_gpio);
+
+	input_info(true, &ts->client->dev, "%s: drv_value:%d, irq_value:%d\n", __func__, drv_value, irq_value);
+
+	if (drv_value == 0 && irq_value == 1) {
+		snprintf(buff, sizeof(buff), "0");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	} else {
+		if (drv_value != 0)
+			snprintf(buff, sizeof(buff), "1:HIGH");
+		else if (irq_value != 1)
+			snprintf(buff, sizeof(buff), "1:LOW");
+		else
+			snprintf(buff, sizeof(buff), "1:FAIL");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+
+	stm_ts_reinit(ts);
+	enable_irq(ts->irq);
+}
+
 static void set_factory_level(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -5246,6 +5293,7 @@ static void factory_cmd_result_all(void *device_data)
 	run_factory_miscalibration(sec);
 	run_sram_test(sec);
 	run_polarity_test(sec);
+	run_interrupt_gpio_test(sec);
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
 
@@ -5859,6 +5907,7 @@ static void fod_enable(void *device_data)
 			ts->plat_data->fod_data.press_prop & 2 ? "on" : "off",
 			ts->plat_data->lowpower_mode);
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 #if IS_ENABLED(CONFIG_GH_RM_DRV)
 	if (atomic_read(&ts->trusted_touch_enabled)) {
 		input_info(true, &ts->client->dev, "%s trusted touch is enabled. skip\n", __func__);
@@ -5869,7 +5918,7 @@ static void fod_enable(void *device_data)
 		return;
 	}
 #endif
-
+#endif
 	mutex_lock(&ts->modechange);
 
 	if (!ts->plat_data->enabled && !ts->plat_data->lowpower_mode && !ts->plat_data->pocket_mode
@@ -6360,6 +6409,7 @@ static void low_sensitivity_mode_enable(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 #if IS_ENABLED(CONFIG_GH_RM_DRV)
 	if (atomic_read(&ts->trusted_touch_enabled)) {
 		input_info(true, &ts->client->dev, "%s trusted touch is enabled. skip\n", __func__);
@@ -6370,7 +6420,7 @@ static void low_sensitivity_mode_enable(void *device_data)
 		return;
 	}
 #endif
-
+#endif
 	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 3) {
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -6590,6 +6640,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_sram_test", run_sram_test),},
 	{SEC_CMD("run_polarity_test", run_polarity_test),},
 	{SEC_CMD("run_force_calibration", run_force_calibration),},
+	{SEC_CMD("run_interrupt_gpio_test", run_interrupt_gpio_test),},
 	{SEC_CMD("set_factory_level", set_factory_level),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("factory_cmd_result_all_imagetest", factory_cmd_result_all_imagetest),},

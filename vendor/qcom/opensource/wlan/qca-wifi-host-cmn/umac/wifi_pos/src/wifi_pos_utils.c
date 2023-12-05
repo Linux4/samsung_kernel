@@ -27,6 +27,8 @@
 #include "wlan_objmgr_psoc_obj.h"
 #include <wlan_lmac_if_def.h>
 #include "wifi_pos_utils_i.h"
+#include "wlan_objmgr_vdev_obj.h"
+
 
 /* lock to protect use of psoc global pointer variable */
 static qdf_spinlock_t psoc_ptr_lock;
@@ -39,6 +41,9 @@ static qdf_spinlock_t psoc_ptr_lock;
  * was created for all its internal usage.
  */
 static struct wlan_objmgr_psoc *wifi_pos_psoc_obj;
+
+struct wlan_objmgr_vdev;
+struct wifi_pos_psoc_priv_obj;
 
 void wifi_pos_lock_init(void)
 {
@@ -102,8 +107,8 @@ struct wifi_pos_psoc_priv_obj *wifi_pos_get_psoc_priv_obj(
 {
 	struct wifi_pos_psoc_priv_obj *obj;
 
-	obj = wlan_objmgr_psoc_get_comp_private_obj(psoc,
-						    WLAN_UMAC_COMP_WIFI_POS);
+	obj = (struct wifi_pos_psoc_priv_obj *)wlan_objmgr_psoc_get_comp_private_obj(psoc,
+					       WLAN_UMAC_COMP_WIFI_POS);
 
 	return obj;
 }
@@ -115,8 +120,9 @@ wifi_pos_get_vdev_priv_obj(struct wlan_objmgr_vdev *vdev)
 {
 	struct wifi_pos_vdev_priv_obj *vdev_obj;
 
-	vdev_obj = wlan_objmgr_vdev_get_comp_private_obj(
-					vdev, WLAN_UMAC_COMP_WIFI_POS);
+	vdev_obj = (struct wifi_pos_vdev_priv_obj *)wlan_objmgr_vdev_get_comp_private_obj(
+						    vdev,
+						    WLAN_UMAC_COMP_WIFI_POS);
 
 	return vdev_obj;
 }

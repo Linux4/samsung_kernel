@@ -164,7 +164,7 @@ void StreamUltraSound::HandleEvent(uint32_t event_id, void *data, uint32_t event
 }
 
 void StreamUltraSound::HandleCallBack(uint64_t hdl, uint32_t event_id,
-                                      void *data, uint32_t event_size) {
+                                      void *data, uint32_t event_size, uint32_t miid __unused) {
     StreamUltraSound *StreamUPD = nullptr;
     PAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x, event size =%d",
                       event_id, event_size);

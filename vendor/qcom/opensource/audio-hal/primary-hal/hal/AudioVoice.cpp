@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -56,6 +56,11 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
 
     AHAL_DBG("Enter: mode: %d", mode);
     if (mode_ != mode) {
+#ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
+        if((mode != AUDIO_MODE_NORMAL) && adevice->sec_device_->listenback_on) {
+            adevice->sec_device_->SetListenbackMode(false);
+        }
+#endif
 #ifdef SEC_AUDIO_CALL
         if (mode == AUDIO_MODE_IN_CALL) {
             voice_session_t *session = NULL;
@@ -125,6 +130,7 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
                     }
                     /* duo mt call : voicestream > mode 3, hac custom key setting error */
                     astream_out->ForceRouteStream({AUDIO_DEVICE_NONE});
+                    avoice->sec_voice_->SetVideoCallEffect();
                 }
             }
 #endif
@@ -159,7 +165,7 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
     if (!parms)
        return  -EINVAL;
 
-#ifdef SEC_AUDIO_DUMP 
+#ifdef SEC_AUDIO_DUMP
     AHAL_DBG("Enter params: %s", kvpairs);
 #else
     AHAL_DBG("Enter");
@@ -550,6 +556,13 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
 #endif
 
+    pal_param_bta2dp_t *param_bt_a2dp = nullptr;
+    size_t bt_param_size = 0;
+    bool a2dp_suspended = false;
+    bool a2dp_capture_suspended = false;
+    int retry_cnt = 20;
+    const int retry_period_ms = 100;
+
     AHAL_DBG("Enter");
 
     if (AudioExtn::audio_devices_empty(rx_devices)){
@@ -567,6 +580,14 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
         rx_devices.find(AUDIO_DEVICE_NONE) != rx_devices.end()) {
         AHAL_ERR("Invalid Tx/Rx device");
         ret = 0;
+#ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
+        if (adevice->sec_device_->aas_on && adevice->sec_device_->isAASActive()
+                && (rx_devices.find(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) != rx_devices.end())
+                && (adevice->sec_device_->pal_aas_out_device == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
+            AHAL_ERR("Invalid SCO device state");
+            adevice->sec_device_->SetAASMode(false);
+        }
+#endif
         goto exit;
     }
 
@@ -639,17 +660,47 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     } else {
         // do device switch here
         for (int i = 0; i < max_voice_sessions_; i++) {
-             {
-                /* already in call, and now if BLE is connected send metadata
-                 * so that BLE can be configured for call and then switch to
-                 * BLE device
-                 */
-                updateVoiceMetadataForBT(true);
-                // dont start the call, until we get suspend from BLE
-                std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
-             }
-             ret = VoiceSetDevice(&voice_.session[i]);
-             if (ret) {
+             /* already in call, and now if BLE is connected send metadata
+            * so that BLE can be configured for call and then switch to
+            * BLE device
+            */
+            updateVoiceMetadataForBT(true);
+
+            if ((pal_voice_rx_device_id_ == PAL_DEVICE_OUT_BLUETOOTH_BLE) &&
+                (pal_voice_tx_device_id_ == PAL_DEVICE_IN_BLUETOOTH_BLE)) {
+                do {
+                    std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
+                    ret = pal_get_param(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
+                                        (void **)&param_bt_a2dp, &bt_param_size, nullptr);
+                    if (!ret && param_bt_a2dp)
+                        a2dp_suspended = param_bt_a2dp->a2dp_suspended;
+                    else
+                        AHAL_ERR("getparam for PAL_PARAM_ID_BT_A2DP_SUSPENDED failed");
+                    param_bt_a2dp = nullptr;
+                    bt_param_size = 0;
+                    ret = pal_get_param(PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED,
+                                        (void **)&param_bt_a2dp, &bt_param_size, nullptr);
+                    if (!ret && param_bt_a2dp)
+                        a2dp_capture_suspended = param_bt_a2dp->a2dp_capture_suspended;
+                    else
+                        AHAL_ERR("getparam for BT_A2DP_CAPTURE_SUSPENDED failed");
+                    param_bt_a2dp = nullptr;
+                    bt_param_size = 0;
+                } while ((a2dp_suspended || a2dp_capture_suspended) && retry_cnt-- &&
+                         !usleep(retry_period_ms * 1000));
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+                AHAL_INFO("a2dp_suspended status %d and a2dp_capture_suspended status %d (retry_cnt %d)",
+                       a2dp_suspended, a2dp_capture_suspended, retry_cnt);
+#else
+                AHAL_INFO("a2dp_suspended status %d and a2dp_capture_suspended status %d",
+                       a2dp_suspended, a2dp_capture_suspended);
+#endif
+            }
+
+            // dont start the call, if suspend is in progress for BLE
+            std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
+            ret = VoiceSetDevice(&voice_.session[i]);
+            if (ret) {
                  AHAL_ERR("Device switch failed for session[%d]", i);
              }
 #ifdef SEC_AUDIO_CALL
@@ -719,6 +770,10 @@ int AudioVoice::UpdateCallState(uint32_t vsid, int call_state) {
             ret = UpdateCalls(voice_.session);
         }
     } else {
+#ifdef SEC_AUDIO_CALL
+        AHAL_DBG("max sessions:%d vsid:0x%x, session[0].vsid:0x%x, session[1].vsid:0x%x",
+                    max_voice_sessions_, vsid, voice_.session[0].vsid, voice_.session[1].vsid);
+#endif
         ret = -EINVAL;
     }
     voice_mutex_.unlock();
@@ -730,6 +785,12 @@ int AudioVoice::UpdateCalls(voice_session_t *pSession) {
     int i, ret = 0;
     voice_session_t *session = NULL;
 
+    pal_param_bta2dp_t *param_bt_a2dp = nullptr;
+    size_t bt_param_size = 0;
+    bool a2dp_suspended = false;
+    bool a2dp_capture_suspended = false;
+    int retry_cnt = 20;
+    const int retry_period_ms = 100;
 
     for (i = 0; i < max_voice_sessions_; i++) {
         session = &pSession[i];
@@ -745,15 +806,48 @@ int AudioVoice::UpdateCalls(voice_session_t *pSession) {
                 AHAL_DBG("INACTIVE -> ACTIVE vsid:%x", session->vsid);
                 {
                     updateVoiceMetadataForBT(true);
-                    // dont start the call, until we get suspend from BLE
-                    std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
-                }
 
-                ret = VoiceStart(session);
-                if (ret < 0) {
-                    AHAL_ERR("VoiceStart() failed");
-                } else {
-                    session->state.current_ = session->state.new_;
+                    if ((pal_voice_rx_device_id_ == PAL_DEVICE_OUT_BLUETOOTH_BLE) &&
+                        (pal_voice_tx_device_id_ == PAL_DEVICE_IN_BLUETOOTH_BLE)) {
+                        do {
+                            std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
+                            ret = pal_get_param(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
+                                                (void **)&param_bt_a2dp, &bt_param_size, nullptr);
+                            if (!ret && param_bt_a2dp)
+                                a2dp_suspended = param_bt_a2dp->a2dp_suspended;
+                            else
+                                AHAL_ERR("getparam for PAL_PARAM_ID_BT_A2DP_SUSPENDED failed");
+                            param_bt_a2dp = nullptr;
+                            bt_param_size = 0;
+                            ret = pal_get_param(PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED,
+                                                (void **)&param_bt_a2dp, &bt_param_size, nullptr);
+                            if (!ret && param_bt_a2dp)
+                                a2dp_capture_suspended = param_bt_a2dp->a2dp_capture_suspended;
+                            else
+                                AHAL_ERR("getparam for BT_A2DP_CAPTURE_SUSPENDED failed");
+                            param_bt_a2dp = nullptr;
+                            bt_param_size = 0;
+                        } while ((a2dp_suspended || a2dp_capture_suspended) && retry_cnt-- &&
+                                 !usleep(retry_period_ms * 1000));
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+                        AHAL_INFO("a2dp_suspended status %d and a2dp_capture_suspended status %d (retry_cnt %d)",
+                                  a2dp_suspended, a2dp_capture_suspended, retry_cnt);
+#else
+                        AHAL_INFO("a2dp_suspended status %d and a2dp_capture_suspended status %d",
+                                  a2dp_suspended, a2dp_capture_suspended);
+#endif
+                    }
+
+                    // dont start the call, if suspend is in progress for BLE
+                    std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
+
+                    ret = VoiceStart(session);
+                    if (ret < 0) {
+                        AHAL_ERR("VoiceStart() failed");
+                    }
+                    else {
+                        session->state.current_ = session->state.new_;
+                    }
                 }
                 break;
             default:
@@ -942,7 +1036,6 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
 #ifdef SEC_AUDIO_DUAL_SPEAKER
     if (adevice->sec_device_->speaker_left_amp_off &&
         adevice->factory_->factory.state & (FACTORY_LOOPBACK_ACTIVE | FACTORY_ROUTE_ACTIVE)) {
-        adevice->sec_device_->speaker_status_change = true;
         pal_param_speaker_status_t param_speaker_status;
         param_speaker_status.mute_status = PAL_DEVICE_UPPER_SPEAKER_UNMUTE;
         pal_set_param(PAL_PARAM_ID_SPEAKER_STATUS,
@@ -1106,6 +1199,7 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
 
 #ifdef SEC_AUDIO_CALL
     if (adevice->factory_->factory.loopback_type == LOOPBACK_OFF) {
+        sec_voice_->SetRingbackGain();
         sec_voice_->SetNBQuality(adevice->voice_->sec_voice_->nb_quality);
 #ifdef SEC_AUDIO_ADAPT_SOUND
         sec_voice_->SetDHAData(adevice, NULL, DHA_SET);
@@ -1114,6 +1208,21 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
             sec_voice_->SetCNGForEchoRefMute(true);
         }
         sec_voice_->SetDeviceInfo(palDevices[1].id);
+    }
+#endif
+
+#if defined (SEC_AUDIO_LOOPBACK_TEST) && defined(SEC_AUDIO_DSM_AMP)
+    //open and start feedback when VoiceStart For Loopback
+    if (adevice->use_feedback_stream) {
+        adevice->feedback_mutex.lock();
+        if (!adevice->feedback.HasFeedbackStreamHandle() &&
+            (adevice->factory_->factory.loopback_type != LOOPBACK_OFF) &&
+            (palDevices[1].id == PAL_DEVICE_OUT_SPEAKER)) {
+            AHAL_DBG("Open and start feedback stream for speaker");
+            adevice->feedback.open(nullptr);
+            adevice->feedback.start();
+        }
+        adevice->feedback_mutex.unlock();
     }
 #endif
 
@@ -1170,10 +1279,32 @@ int AudioVoice::VoiceStop(voice_session_t *session) {
         ret = pal_stream_stop(session->pal_voice_handle);
         if (ret)
             AHAL_ERR("Pal Stream stop failed %x", ret);
+#ifdef SEC_AUDIO_DSM_AMP
+        //stop feedback when VoiceStop
+        if (adevice->use_feedback_stream) {
+            adevice->feedback_mutex.lock();
+            if (adevice->feedback.HasFeedbackStreamHandle() &&
+                pal_active_device_count(PAL_DEVICE_OUT_SPEAKER) == 0) {
+                adevice->feedback.stop();
+            }
+        }
+#endif
         ret = pal_stream_close(session->pal_voice_handle);
         if (ret)
             AHAL_ERR("Pal Stream close failed %x", ret);
         session->pal_voice_handle = NULL;
+
+#ifdef SEC_AUDIO_DSM_AMP
+        //close feedback when VoiceStop
+        if (adevice->use_feedback_stream) {
+            if (adevice->feedback.HasFeedbackStreamHandle() &&
+                pal_active_device_count(PAL_DEVICE_OUT_SPEAKER) == 0) {
+                AHAL_DBG("close feedback stream for speaker");
+                adevice->feedback.close();
+            }
+            adevice->feedback_mutex.unlock();
+        }
+#endif
     }
 
 #ifdef SEC_AUDIO_CALL
@@ -1445,8 +1576,6 @@ void AudioVoice::updateVoiceMetadataForBT(bool call_active)
     Sinktracks.resize(track_count);
     int32_t ret = 0;
 
-    AHAL_INFO("track count is %d", track_count);
-
     source_metadata_t btSourceMetadata;
     sink_metadata_t btSinkMetadata;
 
@@ -1477,17 +1606,21 @@ void AudioVoice::updateVoiceMetadataForBT(bool call_active)
          * and sink metadata separately to BT.
          */
         if (stream_out_primary_) {
+            stream_out_primary_->sourceMetadata_mutex_.lock();
             ret = stream_out_primary_->SetAggregateSourceMetadata(false);
             if (ret != 0) {
                 AHAL_ERR("Set PAL_PARAM_ID_SET_SOURCE_METADATA for %d failed", ret);
             }
+            stream_out_primary_->sourceMetadata_mutex_.unlock();
         }
 
         if (stream_in_primary_) {
+            stream_in_primary_->sinkMetadata_mutex_.lock();
             ret = stream_in_primary_->SetAggregateSinkMetadata(false);
             if (ret != 0) {
                 AHAL_ERR("Set PAL_PARAM_ID_SET_SINK_METADATA for %d failed", ret);
             }
+            stream_in_primary_->sinkMetadata_mutex_.unlock();
         }
     }
 }
@@ -1559,7 +1692,9 @@ AudioVoice::~AudioVoice() {
     voice_.session[MMODE2_SESS_IDX].vsid = VOICEMMODE2_VSID;
 
     stream_out_primary_ = NULL;
+#ifndef SEC_AUDIO_CALL
     max_voice_sessions_ = 0;
+#endif
 }
 
 #ifdef SEC_AUDIO_CALL

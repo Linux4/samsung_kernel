@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -20,7 +20,7 @@
 /*
  *
  * This file lim_process_disassoc_frame.cc contains the code
- * for processing Disassocation Frame.
+ * for processing Disassociation Frame.
  * Author:        Chandra Modumudi
  * Date:          03/24/02
  * History:-
@@ -97,6 +97,13 @@ lim_process_disassoc_frame(struct mac_context *mac, uint8_t *pRxPacketInfo,
 	if (!lim_validate_received_frame_a1_addr(mac,
 			pHdr->da, pe_session)) {
 		pe_err("rx frame doesn't have valid a1 address, drop it");
+		return;
+	}
+
+	if (LIM_IS_STA_ROLE(pe_session) &&
+	    wlan_drop_mgmt_frame_on_link_removal(pe_session->vdev)) {
+		pe_debug("Received Disassoc Frame when link removed on vdev %d",
+			 wlan_vdev_get_id(pe_session->vdev));
 		return;
 	}
 

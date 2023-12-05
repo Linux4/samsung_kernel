@@ -101,6 +101,10 @@ void sec_wireless_otg_control(struct sec_battery_info *battery, int enable)
 		POWER_SUPPLY_EXT_PROP_CHARGE_OTG_CONTROL, value);
 
 	if (is_wireless_type(battery->cable_type)) {
+		if (enable) {
+			set_wireless_otg_input_current(battery);
+			msleep(1500);
+		}
 		pr_info("%s: wireless vout %s with OTG(%d)\n",
 			__func__, (enable) ? "4.7V" : "5.5V or HV", enable);
 		mutex_lock(&battery->voutlock);
@@ -122,8 +126,8 @@ void sec_wireless_otg_control(struct sec_battery_info *battery, int enable)
 					break;
 				}
 			}
-		}
-		sec_vote(battery->input_vote, VOTER_AICL, false, 0);
+		} else
+			set_wireless_otg_input_current(battery);
 	} else if (battery->wc_tx_enable && enable) {
 		/* TX power should turn off during otg on */
 		pr_info("@Tx_Mode %s: OTG is going to work, TX power should off\n", __func__);
@@ -131,8 +135,6 @@ void sec_wireless_otg_control(struct sec_battery_info *battery, int enable)
 		sec_bat_set_tx_event(battery, BATT_TX_EVENT_WIRELESS_TX_OTG_ON, BATT_TX_EVENT_WIRELESS_TX_OTG_ON);
 		sec_wireless_set_tx_enable(battery, false);
 	}
-	queue_delayed_work(battery->monitor_wqueue,
-		&battery->otg_work, msecs_to_jiffies(0));
 }
 
 unsigned int get_wc20_vout_idx(unsigned int vout)
@@ -240,17 +242,13 @@ void sec_bat_set_wc20_current(struct sec_battery_info *battery, int info_idx)
 
 void set_wireless_otg_input_current(struct sec_battery_info *battery)
 {
-	union power_supply_propval value = {0, };
+	pr_info("%s: is_otg_on=%s\n", __func__, battery->is_otg_on ? "ON" : "OFF");
 
-	if (!is_wireless_type(battery->cable_type))
-		return;
-
-	psy_do_property(battery->pdata->charger_name, get,
-			POWER_SUPPLY_EXT_PROP_CHARGE_OTG_CONTROL, value);
-	if (value.intval)
+	if (battery->is_otg_on)
 		sec_vote(battery->input_vote, VOTER_OTG, true, battery->pdata->wireless_otg_input_current);
 	else
 		sec_vote(battery->input_vote, VOTER_OTG, false, 0);
+	sec_vote(battery->input_vote, VOTER_AICL, false, 0);
 }
 
 void sec_bat_set_mfc_off(struct sec_battery_info *battery, char flag, bool need_ept)
@@ -401,6 +399,7 @@ int sec_bat_choose_cable_type(struct sec_battery_info *battery)
 	int cur_ct = wr_sts;
 	int prev_ct = battery->cable_type;
 	int wrl_sts = battery->wc_status;
+	union power_supply_propval value = {0, };
 
 	if (wrl_sts != SEC_BATTERY_CABLE_NONE) {
 		cur_ct = wrl_sts;
@@ -415,8 +414,27 @@ int sec_bat_choose_cable_type(struct sec_battery_info *battery)
 					__func__, wrl_pwr, wr_pwr, wrl_sts, wr_sts, cur_ct);
 			if (is_wireless_type(cur_ct))
 				sec_bat_switch_to_wrl(battery, wr_sts, prev_ct);
-			else
+			else {
+				if (is_hv_wireless_type(wrl_sts)) {
+					value.intval = WIRELESS_VOUT_FORCE_9V;
+					psy_do_property(battery->pdata->wireless_charger_name, set,
+						POWER_SUPPLY_EXT_PROP_INPUT_VOLTAGE_REGULATION, value);
+				}
+				if (is_wireless_fake_type(prev_ct)) {
+					msleep(200);
+					sec_vote(battery->fcc_vote, VOTER_WL_TO_W, true, 300);
+					msleep(200);
+					sec_vote(battery->fcc_vote, VOTER_WL_TO_W, true, 100);
+					msleep(200);
+					sec_vote(battery->chgen_vote, VOTER_WL_TO_W, true, SEC_BAT_CHG_MODE_BUCK_OFF);
+					value.intval = WL_TO_W;
+					psy_do_property(battery->pdata->charger_name, set,
+						POWER_SUPPLY_EXT_PROP_CHGINSEL, value);
+				}
 				sec_bat_switch_to_wr(battery, wrl_sts, prev_ct);
+				sec_vote(battery->fcc_vote, VOTER_WL_TO_W, false, 0);
+				sec_vote(battery->chgen_vote, VOTER_WL_TO_W, false, 0);
+			}
 		} else {
 			if (battery->wc_need_ldo_on)
 				sec_bat_mfc_ldo_cntl(battery, MFC_LDO_ON);
@@ -645,8 +663,23 @@ void sec_bat_wireless_minduty_cntl(struct sec_battery_info *battery, unsigned in
 		psy_do_property(battery->pdata->wireless_charger_name, set,
 				POWER_SUPPLY_EXT_PROP_WIRELESS_MIN_DUTY, value);
 
-		pr_info("@Tx_Mode %s: Min duty chagned (%d -> %d)\n", __func__, battery->tx_minduty, duty_val);
+		pr_info("@Tx_Mode %s: Min duty changed (%d -> %d)\n", __func__, battery->tx_minduty, duty_val);
 		battery->tx_minduty = duty_val;
+	}
+}
+
+void sec_bat_wireless_set_ping_duty(struct sec_battery_info *battery, unsigned int ping_duty_val)
+{
+	union power_supply_propval value = {0, };
+
+	if (ping_duty_val != battery->tx_ping_duty) {
+		value.intval = ping_duty_val;
+		psy_do_property(battery->pdata->wireless_charger_name, set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_PING_DUTY, value);
+
+		pr_info("@Tx_Mode %s: Ping duty changed (%d -> %d)\n",
+			__func__, battery->tx_ping_duty, ping_duty_val);
+		battery->tx_ping_duty = ping_duty_val;
 	}
 }
 
@@ -813,7 +846,7 @@ static void sec_bat_check_tx_switch_mode(struct sec_battery_info *battery)
 				battery->tx_switch_mode_change = true;
 		}
 	}
-	pr_info("@Tx_mode Tx mode(%d) tx_switch_mode_chage(%d) start soc(%d) now soc(%d.%d)\n",
+	pr_info("@Tx_mode Tx mode(%d) tx_switch_mode_change(%d) start soc(%d) now soc(%d.%d)\n",
 		battery->tx_switch_mode, battery->tx_switch_mode_change,
 		battery->tx_switch_start_soc, battery->capacity, value.intval);
 }
@@ -1227,6 +1260,14 @@ static void sec_bat_tx_work_with_nv_charger(struct sec_battery_info *battery)
 	}
 }
 
+void sec_bat_wireless_proc_ping_duty(struct sec_battery_info *battery, int wr_sts)
+{
+	if (wr_sts != SEC_BATTERY_CABLE_NONE)
+		sec_bat_wireless_set_ping_duty(battery, battery->pdata->tx_ping_duty_default);
+	else
+		sec_bat_wireless_set_ping_duty(battery, battery->pdata->tx_ping_duty_no_ta);
+}
+
 void sec_bat_wpc_tx_work_content(struct sec_battery_info *battery)
 {
 	int wr_sts = battery->wire_status;
@@ -1249,9 +1290,14 @@ void sec_bat_wpc_tx_work_content(struct sec_battery_info *battery)
 		goto end_of_tx_work;
 	}
 
+	if (battery->uno_en) {
+		sec_bat_wireless_proc_ping_duty(battery, wr_sts);
+	}
+
 	switch (battery->wc_rx_type) {
 	case NO_DEV:
 		sec_bat_tx_work_nodev(battery);
+		sec_bat_wireless_proc_ping_duty(battery, wr_sts);
 		sb_tx_init_aov();
 		break;
 	case SS_GEAR:
@@ -1439,6 +1485,7 @@ void sec_bat_wpc_tx_en_work_content(struct sec_battery_info *battery)
 	battery->tx_switch_mode = TX_SWITCH_MODE_OFF;
 	battery->tx_switch_start_soc = 0;
 	battery->tx_switch_mode_change = false;
+	battery->tx_ping_duty = 0;
 
 	if (battery->wc_tx_enable) {
 		/* set tx event */
