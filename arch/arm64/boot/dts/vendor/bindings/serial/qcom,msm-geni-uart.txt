@@ -13,16 +13,15 @@ Required properties:
 - interrupts: Should contain UART core interrupts.
 - clocks: clocks needed for UART, includes the core and AHB clock.
 - pinctrl-names/pinctrl-0/1/2: The GPIOs assigned to this core. The names
-  Should be "default", "active" and "sleep" for the pin confuguration.
+  should be "default", "active" and "sleep" for the pin confuguration.
   It should be in "default" for the default pin configuration during probe,
   in "active" when core is active or in "sleep" when entering in sleep state.
 - qcom,wrapper-core: Wrapper QUPv3 core containing this UART controller.
 
 Optional properties:
 - qcom,wakeup-byte: Byte to be injected in the tty layer during wakeup isr.
-- qcom,change-sampling-rate: This is a boolean parameter and use this to decide
-  the samping rate at which sequencer engine runs.
-
+- qcom,auto-suspend-disable: Disable PM runtime API's and make vote clock on/off
+		    optional and rely on system suspend/resume.
 Example:
 qupv3_uart11: qcom,qup_uart@0xa88000 {
 	compatible = "qcom,msm-geni-uart";
@@ -38,6 +37,5 @@ qupv3_uart11: qcom,qup_uart@0xa88000 {
 	pinctrl-2 = <&qup_1_uart_3_sleep>;
 	interrupts = <0 355 0>;
 	qcom,wrapper-core = <&qupv3_0>;
-	qcom,change-sampling-rate;
 	qcom,wakeup-byte = <0xFF>;
 };

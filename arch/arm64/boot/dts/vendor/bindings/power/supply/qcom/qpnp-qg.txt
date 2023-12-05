@@ -1,4 +1,4 @@
-Qualcomm Technologies, Inc. QPNP PMIC QGAUGE (QG) Device
+Qualcomm Techonologies, Inc. QPNP PMIC QGAUGE (QG) Device
 
 QPNP PMIC QGAUGE device provides the ability to gauge the State-of-Charge
 of the battery. It provides an interface to the clients to read various
@@ -263,15 +263,15 @@ First Level Node - QGAUGE device
 		    the default value is 0. Unit is in decipercentage.
 
 - qcom,cl-min-delta-batt-soc
-	Usage:      optional
-	Value type: <u32>
-	Definition: Minimum change in battery SOC to qualify for capacity
-		    learning. If this is not specified, then the default
-		    value is 10. Unit is in percentage.
+        Usage:      optional
+        Value type: <u32>
+        Definition: Minimum change in battery SOC to qualify for capacity
+                    learning. If this is not specified, then the default
+                    value is 10. Unit is in percentage.
 
 - qcom,cl-wt-enable
 	Usage:      optional
-	Value type: <bool>
+	Value type: <empty>
 	Definition: A boolean property to enable weighted capacity learning
 		    based on change in battery SOC during a charging cycle.
 		    If this is specified, then "qcom,cl-min-start-soc" and
@@ -448,19 +448,6 @@ First Level Node - QGAUGE device
 		    allows monotonic-SOC scaling at low-temperatures
 		    when there is variation in system-SOC due to
 		    changes in the load.
-
-	Usage:      optional
-	Value type: bool
-	Definition: Enable Battery SOC based SOC scaling. This logic
-		    allows monotonic-SOC scaling at low-temperatures
-		    when there is variation in system-SOC due to
-		    changes in the load.
-
-- qcom,esr-low-temp-threshold
-	Usage:      optional
-	Value type: <int>
-	Definition: Battery temperature threshold below which ESR is ignored.
-		    The default value is 10degC.
 
 ==========================================================
 Second Level Nodes - Peripherals managed by QGAUGE driver

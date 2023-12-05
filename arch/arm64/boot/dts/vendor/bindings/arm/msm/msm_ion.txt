@@ -29,6 +29,7 @@ Optional properties for Ion heaps
 
 - memory-region: phandle to memory region associated with heap.
 
+
 Example:
 	qcom,ion {
                  compatible = "qcom,msm-ion";

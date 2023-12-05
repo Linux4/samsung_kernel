@@ -107,8 +107,8 @@ get assigned to trip points of the zone. The cooling devices are expected
 to be loaded in the target system.
 
 Required properties:
-- cooling-device:	A list of phandles of cooling devices with their specifiers,
-  Type: phandle +	referring to which cooling devices are used in this
+- cooling-device:	A phandle of a cooling device with its specifier,
+  Type: phandle +	referring to which cooling device is used in this
     cooling specifier	binding. In the cooling specifier, the first cell
 			is the minimum cooling state and the second cell
 			is the maximum cooling state used in this map.
@@ -243,10 +243,10 @@ cpus {
 	 * A simple fan controller which supports 10 speeds of operation
 	 * (represented as 0-9).
 	 */
-	fan0: fan@48 {
+	fan0: fan@0x48 {
 		...
-		cooling-max-level = <9>;
 		cooling-min-level = <0>;
+		cooling-max-level = <9>;
 		#cooling-cells = <2>; /* min followed by max */
 	};
 };
@@ -256,7 +256,7 @@ ocp {
 	/*
 	 * A simple IC with a single bandgap temperature sensor.
 	 */
-	bandgap0: bandgap@0000ed00 {
+	bandgap0: bandgap@0x0000ED00 {
 		...
 		#thermal-sensor-cells = <0>;
 	};
@@ -294,7 +294,12 @@ thermal-zones {
 			};
 			map1 {
 				trip = <&cpu_alert1>;
-				cooling-device = <&fan0 5 THERMAL_NO_LIMIT>, <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				cooling-device = <&fan0 5 THERMAL_NO_LIMIT>;
+			};
+			map2 {
+				trip = <&cpu_alert1>;
+				cooling-device =
+				    <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 			};
 		};
 	};
@@ -329,7 +334,7 @@ ocp {
 	/*
 	 * A simple IC with several bandgap temperature sensors.
 	 */
-	bandgap0: bandgap@0000ed00 {
+	bandgap0: bandgap@0x0000ED00 {
 		...
 		#thermal-sensor-cells = <1>;
 	};
@@ -446,7 +451,7 @@ one thermal zone.
 	/*
 	 * A simple IC with a single temperature sensor.
 	 */
-	adc: sensor@49 {
+	adc: sensor@0x49 {
 		...
 		#thermal-sensor-cells = <0>;
 	};
@@ -457,7 +462,7 @@ ocp {
 	/*
 	 * A simple IC with a single bandgap temperature sensor.
 	 */
-	bandgap0: bandgap@0000ed00 {
+	bandgap0: bandgap@0x0000ED00 {
 		...
 		#thermal-sensor-cells = <0>;
 	};
@@ -515,7 +520,7 @@ with many sensors and many cooling devices.
 	/*
 	 * An IC with several temperature sensor.
 	 */
-	adc_dummy: sensor@50 {
+	adc_dummy: sensor@0x50 {
 		...
 		#thermal-sensor-cells = <1>; /* sensor internal ID */
 	};

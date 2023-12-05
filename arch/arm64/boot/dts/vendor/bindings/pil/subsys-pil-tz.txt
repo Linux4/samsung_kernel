@@ -70,6 +70,8 @@ Optional properties:
 - qcom,ignore-ssr-failure: Boolean. If set, SSR failures are not considered fatal.
 - qcom,signal-aop: Boolean. If set, when subsystem is brought up, pil will send a notification
 			to AOP through qmp mailbox driver.
+
+- qcom,mas-crypto: phandle to the bus master of crypto core.
 - qcom,minidump-id: ID that is used to index into the global minidump table of
 			contents to access a subsystem's minidump table of
 			contents.
@@ -77,6 +79,7 @@ Optional properties:
 			of contents to access the table of contents for
 			additional minidump entries that should be collected
 			along with the subsystem's minidump.
+
 - qcom,pon-depends-on: String that indicates the name of the subsystem that has
 			to be powered-on before this subsystem is powered-on.
 			If the dependednt subsystem is already powered-on,
@@ -90,8 +93,6 @@ Optional properties:
 			explicitly, the framework won't try to power it off again.
 
 - qcom,minidump-as-elf32: Boolean. If set, minidump is collected in ELF32 format.
-
-- qcom,mas-crypto: phandle to the bus master of crypto core.
 
 Example:
 	qcom,venus@fdce0000 {

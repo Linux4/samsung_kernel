@@ -1,8 +1,8 @@
 Qualcomm Technologies, Inc. CPR3 Regulator - Platform Independent Bindings
 
-Core Power Reduction (CPR) version 3 controllers are used by some
-Qualcomm Technologies, Inc. (QTI) SoCs to manage important voltage regulators.
-CPR3 controllers are capable of monitoring several ring oscillator sensing loops
+Core Power Reduction (CPR) version 3 controllers are used by some Qualcomm
+Technologies, Inc. (QTI) SoCs to manage important voltage regulators.  CPR3
+controllers are capable of monitoring several ring oscillator sensing loops
 simultaneously.  The CPR3 controller informs software when the silicon
 conditions require the supply voltage to be increased or decreased.  On certain
 supply rails, the CPR3 controller is able to propagate the voltage increase
@@ -208,6 +208,15 @@ Platform independent properties:
 	Definition: Address names. Must be specified in the same order
 		    as the corresponding addresses are specified in
 		    the qcom,cpr-panic-reg-addr-list property.
+
+- qcom,cpr-reset-step-quot-loop-en
+	Usage:      optional; only meaningful for CPR4 and CPRh controllers
+	Value type: <empty>
+	Definition: Boolean value which indicates that the CPR controller should
+		    be configured to reset step_quot on each loop_en = 0
+		    transition. This configuration allows the CPR controller to
+		    first use the default step_quot and then later switch to the
+		    run-time calibrated step_quot.
 
 =================================================
 Second Level Nodes - CPR Threads for a Controller

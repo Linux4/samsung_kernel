@@ -1,6 +1,6 @@
 Qualcomm Technologies, Inc. CDSP Loader Driver
 
-msm-cdsp-loader driver implements a mechanism to load the Compute DSP firmware images.
+msm-cdsp-loader driver implements the mechanism that allows to load CDSP firmware images.
 
 Required properties:
 
@@ -8,7 +8,7 @@ Required properties:
  - qcom,proc-img-to-load: CDSP firmware name, must be "cdsp".
 
 Example:
- The following is an example:
+ The following for sdm660.
 
 	qcom,msm-cdsp-loader {
 		compatible = "qcom,cdsp-loader";

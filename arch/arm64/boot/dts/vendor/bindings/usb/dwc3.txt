@@ -7,26 +7,6 @@ Required properties:
  - compatible: must be "snps,dwc3"
  - reg : Address and length of the register set for the device
  - interrupts: Interrupts used by the dwc3 controller.
- - clock-names: should contain "ref", "bus_early", "suspend"
- - clocks: list of phandle and clock specifier pairs corresponding to
-           entries in the clock-names property.
-
-Exception for clocks:
-  clocks are optional if the parent node (i.e. glue-layer) is compatible to
-  one of the following:
-    "amlogic,meson-axg-dwc3"
-    "amlogic,meson-gxl-dwc3"
-    "cavium,octeon-7130-usb-uctl"
-    "qcom,dwc3"
-    "samsung,exynos5250-dwusb3"
-    "samsung,exynos7-dwusb3"
-    "sprd,sc9860-dwc3"
-    "st,stih407-dwc3"
-    "ti,am437x-dwc3"
-    "ti,dwc3"
-    "ti,keystone-dwc3"
-    "rockchip,rk3399-dwc3"
-    "xlnx,zynqmp-dwc3"
 
 Optional properties:
  - usb-phy : array of phandle for the PHY device.  The first element
@@ -35,7 +15,6 @@ Optional properties:
  - phys: from the *Generic PHY* bindings
  - phy-names: from the *Generic PHY* bindings; supported names are "usb2-phy"
 	or "usb3-phy".
- - resets: a single pair of phandle and reset specifier
  - tx-fifo-resize: determines if the FIFO *has* to be reallocated.
  - snps,usb3_lpm_capable: determines if platform is USB3 LPM capable
  - snps,disable_scramble_quirk: true when SW should disable data scrambling.
@@ -69,10 +48,12 @@ Optional properties:
 			from P0 to P1/P2/P3 without delay.
  - snps,dis-tx-ipgap-linecheck-quirk: when set, disable u2mac linestate check
 			during HS transmit.
- - snps,dis_metastability_quirk: when set, disable metastability workaround.
-			CAUTION: use only if you are absolutely sure of it.
  - snps,ssp-u3-u0-quirk: when set, core always changes PHY power state
                         to P2, before attempting a U3 exit handshake.
+ - snps,parkmode-disable-ss-quirk: when set, all SuperSpeed bus instances in
+			park mode are disabled.
+ - snps,dis_metastability_quirk: when set, disable metastability workaround.
+			CAUTION: use only if you are absolutely sure of it.
  - snps,is-utmi-l1-suspend: true when DWC3 asserts output signal
 			utmi_l1_suspend_n, false when asserts utmi_sleep_n
  - snps,hird-threshold: HIRD threshold
@@ -81,22 +62,6 @@ Optional properties:
  - snps,quirk-frame-length-adjustment: Value for GFLADJ_30MHZ field of GFLADJ
 	register for post-silicon frame length adjustment when the
 	fladj_30mhz_sdbnd signal is invalid or incorrect.
- - snps,rx-thr-num-pkt-prd: periodic ESS RX packet threshold count - host mode
-			only. Set this and rx-max-burst-prd to a valid,
-			non-zero value 1-16 (DWC_usb31 programming guide
-			section 1.2.4) to enable periodic ESS RX threshold.
- - snps,rx-max-burst-prd: max periodic ESS RX burst size - host mode only. Set
-			this and rx-thr-num-pkt-prd to a valid, non-zero value
-			1-16 (DWC_usb31 programming guide section 1.2.4) to
-			enable periodic ESS RX threshold.
- - snps,tx-thr-num-pkt-prd: periodic ESS TX packet threshold count - host mode
-			only. Set this and tx-max-burst-prd to a valid,
-			non-zero value 1-16 (DWC_usb31 programming guide
-			section 1.2.3) to enable periodic ESS TX threshold.
- - snps,tx-max-burst-prd: max periodic ESS TX burst size - host mode only. Set
-			this and tx-thr-num-pkt-prd to a valid, non-zero value
-			1-16 (DWC_usb31 programming guide section 1.2.3) to
-			enable periodic ESS TX threshold.
  - snps,xhci-imod-value: Interrupt moderation interval for host mode
 	(in increments of 250nsec).
  - usb-core-id: Differentiates between different controllers present on a device.
@@ -105,21 +70,7 @@ Optional properties:
  - snps,usb3-u1u2-disable: If present, disable U1U2 low power modes in Superspeed mode
  - snps,disable-clk-gating: If present, disable controller's internal clock gating.
    Default it is enabled.
-
- - <DEPRECATED> tx-fifo-resize: determines if the FIFO *has* to be reallocated.
- - snps,incr-burst-type-adjustment: Value for INCR burst type of GSBUSCFG0
-			register, undefined length INCR burst type enable and INCRx type.
-			When just one value, which means INCRX burst mode enabled. When
-			more than one value, which means undefined length INCR burst type
-			enabled. The values can be 1, 4, 8, 16, 32, 64, 128 and 256.
- - snps,gen2-tx-de-emph: This register is for setting TX deemphasis used in
-			normal operation in gen2.
- - snps,gen2-tx-de-emph1: This register is for setting TX deemphasis used in
-			compliance mode, pattern 13.
- - snps,gen2-tx-de-emph2: This register is for setting TX deemphasis used in
-			compliance mode, pattern 14.
- - snps,gen2-tx-de-emph3: This register is for setting TX deemphasis used in
-			compliance mode, pattern 16.
+ - num-gsi-eps: Number of GSI based hardware accelerated endpoints
 
  - in addition all properties from usb-xhci.txt from the current directory are
    supported as well
@@ -134,5 +85,4 @@ dwc3@4a030000 {
 	usb-phy = <&usb2_phy>, <&usb3,phy>;
 	tx-fifo-resize;
 	snps,xhci-imod-value = <4000>;
-	snps,incr-burst-type-adjustment = <1>, <4>, <8>, <16>;
 };

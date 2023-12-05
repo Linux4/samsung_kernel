@@ -12,7 +12,7 @@ Required properties:
 Optional properties:
 - qcom,guard-memory:	If this dtsi property is set, then the shared memory
 			region will be guarded by SZ_4K at the start and at the end.
-			This is needed to overcome the XPU limitation on some MSM HW,
+			This is needed to overcome the XPU limitation on few MSM HW,
 			so as to make this memory not contiguous with other allocations
 			that may possibly happen from other clients.
 - qcom,vm-nav-path:     If this dtsi property is set, then the shared memory region

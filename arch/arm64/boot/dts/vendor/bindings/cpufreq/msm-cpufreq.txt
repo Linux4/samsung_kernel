@@ -1,4 +1,4 @@
-Qualcomm Technologies, Inc. CPUfreq device
+Qualcomm MSM CPUfreq device
 
 msm-cpufreq is a device that represents the list of usable CPU frequencies
 and provides a device handle for the CPUfreq driver to get the CPU and cache

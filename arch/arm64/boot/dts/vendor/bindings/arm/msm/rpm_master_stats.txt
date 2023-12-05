@@ -16,9 +16,9 @@ PROPERTIES
 	Usage: required
 	Value type: <prop-encoded-array>
 	Definition: The address on the RPM RAM from where the stats are read
-	            should be provided as "phys_addr_base". The offset
-		    from which the stats are available should be provided as
-		    "offset_addr".
+	            should be provided as "phys_addr_base". The offset from
+	            which the stats are available should be provided as
+	            "offset_addr".
 
 - reg-names:
 	Usage: required
@@ -39,8 +39,8 @@ EXAMPLE:
 
 qcom,rpm-master-stats@60150 {
 		compatible = "qcom,rpm-master-stats";
-		reg = <0x45f0150 0x5000>;
-		qcom,masters = "APSS", "MPSS", "ADSP", "CDSP", "TZ";
+		reg = <0x60150 0x5000>;
+		qcom,masters = "APSS", "MPSS", "PRONTO", "TZ", "LPASS";
 		qcom,master-stats-version = <2>;
 		qcom,master-offset = <4096>;
 	};

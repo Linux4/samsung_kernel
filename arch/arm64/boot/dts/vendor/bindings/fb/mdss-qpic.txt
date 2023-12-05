@@ -1,4 +1,4 @@
-Qualcomm Technologies, Inc. mdss-qpic
+Qualcomm Technolgies, Inc.  mdss-qpic
 
 mdss-qpic is a qpic controller device which supports dma transmission to MIPI
 and LCDC panel.

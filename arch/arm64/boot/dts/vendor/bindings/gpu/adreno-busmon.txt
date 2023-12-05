@@ -2,7 +2,7 @@ Adreno bus monitor device
 
 kgsl-busmon is a psedo device that represents a devfreq bus bandwidth
 governor. If this device is present then two different governors are used
-for GPU DCVS and bus DCVS.
+for  GPU DCVS and bus DCVS.
 
 Required properties:
 - compatible:	Must be "qcom,kgsl-busmon"
@@ -10,7 +10,7 @@ Required properties:
 
 Example:
 
-qcom,kgsl-busmon {
-	compatible = "qcom,kgsl-busmon";
-	label = "kgsl-busmon";
-};
+	qcom,kgsl-busmon {
+		compatible = "qcom,kgsl-busmon";
+		label = "kgsl-busmon";
+	};

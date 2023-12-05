@@ -13,33 +13,33 @@ Required properties:
 
 Optional properties:
 - qcom,usb-bam-fifo-baseaddr: base address for bam pipe's data and descriptor
-	fifos. This can be on chip memory (ocimem). This
-	property is required if sub-node's mem-type is ocimem or usb private mem.
+  fifos. This can be on chip memory (ocimem). This
+  property is required if sub-node's mem-type is ocimem or usb private mem.
 - qcom,disable-clk-gating: If present then disable BAM clock gating.
 - qcom,usb-bam-override-threshold: If present then the default 512 byte threshold
-	is overridden. This threshold configures the threshold value for Read/Write
-	event generation by the BAM towards another BAM.
+		is overridden. This threshold configures the threshold value for Read/Write
+		event generation by the BAM towards another BAM.
 - qcom,usb-bam-max-mbps-highspeed: max mbps in high speed connection
-	for either rx or tx direction.
+            for either rx or tx direction.
 - qcom,usb-bam-max-mbps-superspeed: max mbps in super speed connection
-	for either rx or tx direction.
+            for either rx or tx direction.
 - qcom,reset-bam-on-connect: If present then BAM is RESET before connecting
-	pipe. This may be required if BAM peripheral is also reset before connect.
+  pipe. This may be required if BAM peripheral is also reset before connect.
 - qcom,reset-bam-on-disconnect: If present then BAM is RESET after disconnecting pipes.
 
 A number of USB BAM pipe parameters are represented as sub-nodes:
 
 Subnode Required:
 - label: a string describing uniquely the usb bam pipe. The string can be
-	constracted as follows: <core>-<peer>-<direction>-<pipe num>.
+  constracted as follows: <core>-<peer>-<direction>-<pipe num>.
 	core options: hsusb, ssusb/dwc3, hsic
 	peer options: qdss, ipa
 	direction options: in (from peer to usb), out (from usb to peer)
 	pipe num options: 0..127
 - qcom,usb-bam-mem-type: Type of memory used by this PIPE. Can be one of
-	0 - Uses SPS's dedicated pipe memory
-	1 - System RAM allocated by driver
-	2 - OCI memory residing @ 'qcom,usb-bam-fifo-baseaddr'
+            0 - Uses SPS's dedicated pipe memory
+            1 - System RAM allocated by driver
+	    2 - OCI memory residing @ 'qcom,usb-bam-fifo-baseaddr'
 - qcom,dir: pipe direction
 	0 - from usb (out)
 	1 - to usb (in)
@@ -100,3 +100,4 @@ Example USB BAM controller device node:
 			qcom,descriptor-fifo-size = <0x300>;
 		};
 	};
+

@@ -18,9 +18,6 @@ Optional properties:
  - qcom,retain-periph: Presence denotes a hardware requirement to leave the
 		     forced periph memory retention signal in the core's clock
 		     branch control registers asserted.
- - qcom,retain-regs: Presence denotes a hardware requirement to enable the
-		     usage of retention registers which maintain their state
-		     after the GDSC is disabled and re-enabled.
  - qcom,skip-logic-collapse: Presence denotes a requirement to leave power to
                              the core's logic enabled.
  - qcom,support-hw-trigger: Presence denotes a hardware feature to switch
@@ -46,6 +43,12 @@ Optional properties:
 			Ex. "base", "domain-addr", "sw-reset", "hw-ctrl-addr".
  - qcom,no-status-check-on-disable: Do not poll the status bit when GDSC
 			is disabled.
+ - qcom,skip-disable:	Boolean flag indicating that the GDSC must not be
+			physically disabled upon a software disable request.
+			Instead, the GDSC will be disabled by the always-on
+			processor (AOP) upon entering system sleep.  The AOP
+			will also perform a special reset sequence for the GDSC
+			upon resuming from system sleep.
  - qcom,disallow-clear: Presence denotes the periph & core memory will not be
 			cleared, unless the required subsystem does not invoke
 			the api which will allow clearing the bits.
@@ -73,7 +76,11 @@ Optional properties:
 			[1] for details.
  - qcom,msm-bus,vectors-KBps: Required if qcom,msm-bus,name is specified.  See
 			[1] for an explanation of the data format.
- - qcom,skip-disable-before-sw-enable : Presence denotes a hardware requirement
+ - mboxes:		Mailbox tuple containing QMP mailbox phandle and channel
+			identifier.  If this is specified, then a QMP message
+			should be sent to enable the GDSC instead of setting
+			SW_COLLAPSE=0.
+ - qcom,skip-disable-before-sw-enable: Presence denotes a hardware requirement
 					to leave the GDSC on that has been
 					enabled by an entity external to HLOS.
 

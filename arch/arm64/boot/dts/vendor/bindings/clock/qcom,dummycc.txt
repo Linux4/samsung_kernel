@@ -1,4 +1,4 @@
-Qualcomm Technologies, Inc. Dummy Clock Controller Binding
+Qualcomm Technologies, Inc. Dummy Clock controller
 
 Qualcomm Technologies, Inc. dummy clock controller devices provide
 clock API support for driver development during pre-silicon stage.

@@ -2,7 +2,6 @@ Fixed Voltage regulators
 
 Required properties:
 - compatible: Must be "regulator-fixed";
-- regulator-name: Defined in regulator.txt as optional, but required here.
 
 Optional properties:
 - gpio: gpio to use for enable control

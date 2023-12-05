@@ -7,8 +7,7 @@ to FW are communicated thru this interface. This driver also listens to
 WLAN PD restart notifications.
 
 Required properties:
-  - compatible: "qcom,icnss" for ADRASTEA architecture
-                "qcom,wcn6750" for iWCN architecture
+  - compatible: "qcom,icnss"
   - reg: Memory regions defined as starting address and size
   - reg-names: Names of the memory regions defined in reg entry
   - interrupts: Copy engine interrupt table
@@ -33,6 +32,7 @@ Optional properties:
   - qcom,smmu-s1-bypass: Boolean context flag to set SMMU to S1 bypass
   - qcom,wlan-msa-fixed-region: phandle, specifier pairs to children of /reserved-memory
   - qcom,hyp_disabled: Boolean context flag to disable hyperviser
+  - qcom,clk-monitor-enable: Boolean context flag to enable monitoring external clock
 
 WLAN SMP2P sub nodes
 

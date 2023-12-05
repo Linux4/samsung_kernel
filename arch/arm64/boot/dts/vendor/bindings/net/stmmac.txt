@@ -1,17 +1,18 @@
-* STMicroelectronics 10/100/1000/2500/10000 Ethernet (GMAC/XGMAC)
+* STMicroelectronics 10/100/1000 Ethernet driver (GMAC)
 
 Required properties:
-- compatible: Should be "snps,dwmac-<ip_version>", "snps,dwmac" or
-	"snps,dwxgmac-<ip_version>", "snps,dwxgmac".
+- compatible: Should be "snps,dwmac-<ip_version>", "snps,dwmac"
 	For backwards compatibility: "st,spear600-gmac" is also supported.
 - reg: Address and length of the register set for the device
+- interrupt-parent: Should be the phandle for the interrupt controller
+  that services interrupts for this device
 - interrupts: Should contain the STMMAC interrupts
 - interrupt-names: Should contain a list of interrupt names corresponding to
 	the interrupts in the interrupts property, if available.
 	Valid interrupt names are:
   - "macirq" (combined signal for various interrupt events)
   - "eth_wake_irq" (the interrupt to manage the remote wake-up packet detection)
-  - "eth_lpi" (the interrupt that occurs when Rx exits the LPI state)
+  - "eth_lpi" (the interrupt that occurs when Tx or Rx enters/exits LPI state)
 - phy-mode: See ethernet.txt file in the same directory.
 - snps,reset-gpio 	gpio number for phy reset.
 - snps,reset-active-low boolean flag to indicate if phy reset is active low.
@@ -34,6 +35,8 @@ Optional properties:
   this clock is used for programming the Timestamp Addend Register. If not
   passed then the system clock will be used and this is fine on some
   platforms.
+- snps,ptp-ref-clk-rate: PTP reference clock rate.
+- snps,ptp-req-clk-rate: PTP clock rate for required accuracy.
 - tx-fifo-depth: See ethernet.txt file in the same directory
 - rx-fifo-depth: See ethernet.txt file in the same directory
 - snps,pbl		Programmable Burst Length (tx and rx)
@@ -113,6 +116,10 @@ Optional properties:
 			- snps,high_credit: max write outstanding req. limit
 			- snps,low_credit: max read outstanding req. limit
 		- snps,priority: TX queue priority (Range: 0x0 to 0xF)
+- snps,crc_strip: this enables the CRC stripping feature in the hardware and the
+		  last four bytes of the ethernet packet type is stripped and
+		  dropped before forwarding.
+
 Examples:
 
 	stmmac_axi_setup: stmmac-axi-config {

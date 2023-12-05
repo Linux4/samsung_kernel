@@ -26,6 +26,8 @@ Required properties:
                          See Documentation/devicetree/bindings/interrupt-controller/arm,gic.txt
                          for details about the GIC Device Tree binding.
 
+- interrupt-parent     : Reference to the parent interrupt controller.
+
 Example:
 
 	odmi: odmi@300000 {

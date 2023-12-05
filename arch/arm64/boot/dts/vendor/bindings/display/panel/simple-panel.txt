@@ -1,11 +1,7 @@
 Simple display panel
-====================
-
-panel node
-----------
 
 Required properties:
-- power-supply: See panel-common.txt
+- power-supply: regulator to provide the supply voltage
 
 Optional properties:
 - ddc-i2c-bus: phandle of an I2C controller used for DDC EDID probing

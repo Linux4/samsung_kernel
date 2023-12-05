@@ -87,6 +87,11 @@ Profile data node optional properties:
 			If yes, the low and high thresholds defined in
 			"qcom,step-chg-ranges" tuples should be assigned as
 			OCV values in microvolts.
+- qcom,vbat-avg-based-step-chg: A bool property to indicate if the battery will
+			perform average VBAT (Battery Voltage) based step charging.
+			If yes, the low and high thresholds defined in
+			"qcom,step-chg-ranges" tuples should be assigned as
+			VBAT values in microvolts.
 - qcom,step-chg-ranges: Array of tuples in which a tuple describes a range
 			data of step charging setting.
 			A range contains following 3 integer elements:
@@ -119,6 +124,31 @@ Profile data node optional properties:
 			     the low and high thresholds.
 			The threshold values in range should be in ascending
 			and shouldn't overlap. It support 8 ranges at max.
+- qcom,qg-batt-aging-enable: A bool property to indicate if the max voltage of
+			the battery and recharge voltage will be updated based
+			on charge cycle count.
+			If yes, the low and high thresholds defined in
+			"qcom,vfloat-ranges" tuples should be assigned as
+			max battery voltage and "qcom,vbat-rechg-ranges" tuples
+			should be assigned as recharge voltage.
+- qcom,vfloat-ranges: Array of tuples in which a tuple describes a range
+			data of max FV (float voltage) setting based on cycle count.
+			A range contains following 3 integer elements:
+			[0]: the low threshold of charge cycle count;
+			[1]: the high threshold of charge cycle count;
+			[3]: the FV in uV when charge cycle count falls between
+			     the low and high thresholds.
+			The threshold values in range should be in ascending
+			and shouldn't overlap. It support 8 ranges at max.
+- qcom,vbat-rechg-ranges: Array of tuples in which a tuple describes a range
+			data of recharge battery voltage setting based on cycle count.
+			A range contains following 3 integer elements:
+			[0]: the low threshold of charge cycle count;
+			[1]: the high threshold of charge cycle count;
+			[3]: the recharge battery voltage in uV when charge cycle
+			     count falls between the low and high thresholds.
+			The threshold values in range should be in ascending
+			and shouldn't overlap. It support 8 ranges at max.
 - qcom,jeita-soft-thresholds: A tuple entry to specify ADC code for battery's soft JEITA
 			threshold. <SOFT_COLD_ADC_CODE, SOFT_HOT_ADC_CODE>.
 - qcom,jeita-hard-thresholds: A tuple entry to specify ADC code for battery's hard JEITA
@@ -147,12 +177,9 @@ Profile data node optional properties:
 			proper functionality.
 			Element 0 - SOH minimum level.
 			Element 1 - SOH maximum level.
-- qcom,step-jeita-hysteresis: A tuple entry to allow configuring the rising
-			and falling hysteresis for better fine tuning of the
-			charge current across battery temperature thresholds.
-			This should be in decidegree and if not specified
-			default select value is 10 DeciDegC.
-			<RISE_HYS_DECIDEG_C, FALL_HYS_DECIDEG_C>
+- qcom,taper-fcc: A bool property to enable gradual reduction in FCC in steps
+			of pre-configured value, whenever step charging
+			thresholds are crossed-over.
 Profile data node required subnodes:
 - qcom,fcc-temp-lut : An 1-dimensional lookup table node that encodes
 			temperature to fcc lookup. The units for this lookup

@@ -14,9 +14,9 @@ Required Node Structure
 =======================
 
 RPMh regulators must be described in two levels of device nodes.  The first
-level describes the interface with RPMh (resource) and must reside within an
-RPMh device node.  The second level describes properties of one regulator
-framework interface (of potentially many) for the regulator resource.
+level describes the interface with RPMh (mailbox and resource).  The second
+level describes properties of one regulator framework interface (of potentially
+many) for the regulator resource.
 
 ==================================
 First Level Nodes - RPMh Interface
@@ -29,6 +29,12 @@ First Level Nodes - RPMh Interface
 		    or "qcom,rpmh-xob-regulator" depending upon the hardware
 		    type, VRM, ARC or XOB, of the RPMh managed regulator
 		    resource.
+
+- mboxes
+	Usage:      required
+	Value type: <prop-encoded-array>
+	Definition: RPMh mailbox phandle and channel indentifiers.  The channel
+		    should always be 0.
 
 - qcom,resource-name
 	Usage:      required
@@ -47,6 +53,13 @@ First Level Nodes - RPMh Interface
 		    "pmic4-ldo", "pmic4-hfsmps", "pmic4-ftsmps", "pmic4-bob",
 		    "pmic5-ldo", "pmic5-hfsmps", "pmic5-ftsmps", and
 		    "pmic5-bob".
+
+- qcom,use-awake-state
+	Usage:      optional
+	Value type: <empty>
+	Definition: Boolean flag indicating that active set requests should be
+		    made using the awake state instead of the active-only state.
+		    This should be used for RSC's which do not have an AMC.
 
 - qcom,always-wait-for-ack
 	Usage:      optional
@@ -184,102 +197,100 @@ Second Level Nodes - Regulator Interfaces
 Examples
 ========
 
-#include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
-
-&apps_rsc {
-	rpmh-regulator-cxlvl {
-		compatible = "qcom,rpmh-arc-regulator";
-		qcom,resource-name = "cx.lvl";
-		qcom,send-defaults;
-		pm8998_s9_level: regulator-s9-level {
-			regulator-name = "pm8998_s9_level";
-			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt =
-					<RPMH_REGULATOR_LEVEL_RETENTION>;
-			regulator-max-microvolt = <RPMH_REGULATOR_LEVEL_MAX>;
-			qcom,init-voltage-level = <RPMH_REGULATOR_LEVEL_TURBO>;
-		};
-
-		pm8998_s9_level_ao: regulator-s9-level-ao {
-			regulator-name = "pm8998_s9_level_ao";
-			qcom,set = <RPMH_REGULATOR_SET_ACTIVE>;
-			regulator-min-microvolt =
-					<RPMH_REGULATOR_LEVEL_RETENTION>;
-			regulator-max-microvolt = <RPMH_REGULATOR_LEVEL_MAX>;
-		};
+rpmh-regulator-cxlvl {
+	compatible = "qcom,rpmh-arc-regulator";
+	mboxes = <&apps_rsc 0>;
+	qcom,resource-name = "cx.lvl";
+	qcom,send-defaults;
+	pm8998_s9_level: regulator-s9-level {
+		regulator-name = "pm8998_s9_level";
+		qcom,set = <RPMH_REGULATOR_SET_ALL>;
+		regulator-min-microvolt = <RPMH_REGULATOR_LEVEL_OFF>;
+		regulator-max-microvolt = <RPMH_REGULATOR_LEVEL_MAX>;
+		qcom,init-voltage-level = <RPMH_REGULATOR_LEVEL_TURBO>;
 	};
 
-	rpmh-regulator-smpa2 {
-		compatible = "qcom,rpmh-vrm-regulator";
-		qcom,resource-name = "smpa2";
-		qcom,regulator-type = "pmic4-smps";
-		qcom,supported-modes =
-			<RPMH_REGULATOR_MODE_AUTO
-			 RPMH_REGULATOR_MODE_HPM>;
-		qcom,mode-threshold-currents = <0 2000000>;
-		pm8998_s2: regulator-s2 {
-			regulator-name = "pm8998_s2";
-			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <1100000>;
-			regulator-max-microvolt = <1200000>;
-			regulator-enable-ramp-delay = <200>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_AUTO>;
-			qcom,init-voltage = <1150000>;
-		};
-	};
-
-	rpmh-regulator-ldoa4 {
-		compatible = "qcom,rpmh-vrm-regulator";
-		qcom,resource-name = "ldoa4";
-		qcom,regulator-type = "pmic4-ldo";
-		pm8998_l4-parent-supply = <&pm8998_s2>;
-		pm8998_l4: regulator-l4 {
-			regulator-name = "pm8998_l4";
-			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <1000000>;
-			regulator-max-microvolt = <1000000>;
-			qcom,init-voltage = <1000000>;
-		};
-	};
-
-	rpmh-regulator-ldoc1 {
-		compatible = "qcom,rpmh-xob-regulator";
-		qcom,resource-name = "ldoc1";
-		pm8150l_l1: regulator-pm8150l-l1 {
-			regulator-name = "pm8150l_l1";
-			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <1800000>;
-			regulator-max-microvolt = <1800000>;
-		};
+	pm8998_s9_level_ao: regulator-s9-level-ao {
+		regulator-name = "pm8998_s9_level_ao";
+		qcom,set = <RPMH_REGULATOR_SET_ACTIVE>;
+		regulator-min-microvolt = <RPMH_REGULATOR_LEVEL_OFF>;
+		regulator-max-microvolt = <RPMH_REGULATOR_LEVEL_MAX>;
 	};
 };
 
-&disp_rsc {
-	rpmh-regulator-ldoa3-disp {
-		compatible = "qcom,rpmh-vrm-regulator";
-		qcom,resource-name = "ldoa3";
-		qcom,regulator-type = "pmic4-ldo";
-		qcom,supported-modes =
-			<RPMH_REGULATOR_MODE_LPM
-			 RPMH_REGULATOR_MODE_HPM>;
-		qcom,mode-threshold-currents = <0 10000>;
-		qcom,always-wait-for-ack;
-		pm8998_l3_disp_ao: regulator-l3-ao {
-			regulator-name = "pm8998_l3_disp_ao";
-			qcom,set = <RPMH_REGULATOR_SET_ACTIVE>;
-			regulator-min-microvolt = <1000000>;
-			regulator-max-microvolt = <1200000>;
-			qcom,init-voltage = <1000000>;
-			qcom,init-headroom-voltage = <60000>;
-		};
-		pm8998_l3_disp_so: regulator-l3-so {
-			regulator-name = "pm8998_l3_disp_so";
-			qcom,set = <RPMH_REGULATOR_SET_SLEEP>;
-			regulator-min-microvolt = <1000000>;
-			regulator-max-microvolt = <1200000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
-			qcom,init-voltage = <1000000>;
-			qcom,init-enable = <0>;
-		};
+rpmh-regulator-smpa2 {
+	compatible = "qcom,rpmh-vrm-regulator";
+	mboxes = <&apps_rsc 0>;
+	qcom,resource-name = "smpa2";
+	qcom,regulator-type = "pmic4-smps";
+	qcom,supported-modes =
+		<RPMH_REGULATOR_MODE_AUTO
+		 RPMH_REGULATOR_MODE_HPM>;
+	qcom,mode-threshold-currents = <0 2000000>;
+	pm8998_s2: regulator-s2 {
+		regulator-name = "pm8998_s2";
+		qcom,set = <RPMH_REGULATOR_SET_ALL>;
+		regulator-min-microvolt = <1100000>;
+		regulator-max-microvolt = <1200000>;
+		regulator-enable-ramp-delay = <200>;
+		qcom,init-mode = <RPMH_REGULATOR_MODE_AUTO>;
+		qcom,init-voltage = <1150000>;
+	};
+};
+
+rpmh-regulator-ldoa3-disp {
+	compatible = "qcom,rpmh-vrm-regulator";
+	mboxes = <&disp_rsc 0>;
+	qcom,use-awake-state;
+	qcom,resource-name = "ldoa3";
+	qcom,regulator-type = "pmic4-ldo";
+	qcom,supported-modes =
+		<RPMH_REGULATOR_MODE_LPM
+		 RPMH_REGULATOR_MODE_HPM>;
+	qcom,mode-threshold-currents = <0 10000>;
+	qcom,always-wait-for-ack;
+	pm8998_l3_disp_ao: regulator-l3-ao {
+		regulator-name = "pm8998_l3_disp_ao";
+		qcom,set = <RPMH_REGULATOR_SET_ACTIVE>;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1200000>;
+		qcom,init-voltage = <1000000>;
+		qcom,init-headroom-voltage = <60000>;
+	};
+	pm8998_l3_disp_so: regulator-l3-so {
+		regulator-name = "pm8998_l3_disp_so";
+		qcom,set = <RPMH_REGULATOR_SET_SLEEP>;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1200000>;
+		qcom,init-mode = <RPMH_REGULATOR_MODE_LPM>;
+		qcom,init-voltage = <1000000>;
+		qcom,init-enable = <0>;
+	};
+};
+
+rpmh-regulator-ldoa4 {
+	compatible = "qcom,rpmh-vrm-regulator";
+	mboxes = <&apps_rsc 0>;
+	qcom,resource-name = "ldoa4";
+	qcom,regulator-type = "pmic4-ldo";
+	pm8998_l4-parent-supply = <&pm8998_s2>;
+	pm8998_l4: regulator-l4 {
+		regulator-name = "pm8998_l4";
+		qcom,set = <RPMH_REGULATOR_SET_ALL>;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1000000>;
+		qcom,init-voltage = <1000000>;
+	};
+};
+
+rpmh-regulator-ldoc1 {
+	compatible = "qcom,rpmh-xob-regulator";
+	mboxes = <&apps_rsc 0>;
+	qcom,resource-name = "ldoc1";
+	pm8150l_l1: regulator-pm8150l-l1 {
+		regulator-name = "pm8150l_l1";
+		qcom,set = <RPMH_REGULATOR_SET_ALL>;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
 	};
 };

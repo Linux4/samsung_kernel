@@ -1,9 +1,9 @@
 Qualcomm GLINK edge binding
 
 This binding describes a Qualcomm GLINK edge, a fifo based mechanism for
-communication between subsystem-pairs on various Qualcomm platforms. Two types
-of edges can be described by the binding; the GLINK RPM edge and a SMEM based
-edge.
+communication between subsystem-pairs on various Qualcomm platforms. Three types
+of edges can be described by the binding; the GLINK RPM edge, a SMEM based edge,
+a GLINK SPSS edge and a SPI based edge.
 
 - compatible:
 	Usage: required for glink-rpm

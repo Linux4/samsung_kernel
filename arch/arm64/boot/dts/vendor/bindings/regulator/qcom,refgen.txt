@@ -7,9 +7,7 @@ Supported properties:
 - compatible
 	Usage:      required
 	Value type: <string>
-	Definition: Must be one of: "qcom,refgen-regulator",
-		    "qcom,refgen-sdm845-regulator", or
-		    "qcom,refgen-kona-regulator".
+	Definition: Must be "qcom,refgen-regulator".
 
 - reg
 	Usage:      required

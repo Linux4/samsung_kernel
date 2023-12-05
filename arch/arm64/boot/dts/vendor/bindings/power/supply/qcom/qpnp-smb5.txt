@@ -286,13 +286,15 @@ Charger specific properties:
 - qcom,usb-pd-disable
   Usage:      optional
   Value type: bool
-  Definition: Boolean flag which when present disables USB-PD operation.
+  Definition: Boolean flag which when present disables USB-PD operation. Not
+		applicable for PMI632, where PD is not supported.
 
 - qcom,lpd-disable
   Usage:      optional
   Value type: bool
   Definition: Boolean flag which when present disables liquid presence
-		detection.
+		detection. Not applicable for PMI632, which does not
+		support Type-C port.
 
 - qcom,hw-die-temp-mitigation
   Usage:      optional
@@ -322,14 +324,14 @@ Charger specific properties:
   Usage:      optional
   Value type: <u32>
   Definition: Specifies internal pull-up configuration to be applied to
-		connector THERM. The only valid values are (0/30/100/400).
+		connector THERM, only valid values are (0/30/100/400).
 		If not specified 100K is used as default pull-up.
 
 - qcom,smb-internal-pull-kohm
   Usage:      optional
   Value type: <u32>
   Definition: Specifies internal pull-up configuration to be applied to
-		connector THERM, only valid values are (0/30/100/400).
+		smb THERM, only valid values are (0/30/100/400).
 		If not specified 100K is used as default pull-up.
 
 - qcom,wd-snarl-time-config
@@ -345,57 +347,23 @@ Charger specific properties:
   Value type: bool
   Definition: Boolean flag which when present enables ADC based AICL.
 
-- qcom,wls-current-max-ua
-  Usage:      optional
-  Value type: <u32>
-  Definition: Upper limit of charging current supplied by the wireless charger.
-		If left unspecified, the HW min value of 1.5 A is applied by
-		default.
-
-- qcom,fcc-step-delay-ms
-  Usage:      optional
-  Value type: <u32>
-  Definition: Specifies the delay between each step of FCC stepper algorithm.
-		If left unspecified, the default value is 1 Sec.
-
-- qcom,fcc-step-size-ua
-  Usage:      optional
-  Value type: <u32>
-  Definition: Specifies the step size of each step of FCC stepper algorithm.
-		If left unspecified, the default value is 100mA.
-
-- qcom,hvdcp2-max-icl-ua
-  Usage:      optional
-  Value type: <u32>
-  Definition: Specifies the maximum input current limit that can be configured
-		for HVDCP2 adapter.
-		If left unspecified, the default value is 3000mA.
-
-- qcom,hvdcp3-max-icl-ua
-  Usage:      optional
-  Value type: <u32>
-  Definition: Specifies the maximum input current limit that can be configured
-		for HVDCP3 adapter.
-		If left unspecified, the default value is 3000mA.
-
-- qcom,hvdcp3-standalone-config
+- qcom,disable-sw-thermal-regulation
   Usage:      optional
   Value type: bool
-  Definition: Boolean flag which when present indicates that the charging is
-		only done by the main charger (standalone, no CP) with a QC 3.0
-		adapter.
+  Definition: Boolean flag which when present disables the software thermal
+		regulation.
 
 - qcom,disable-fcc-restriction
   Usage:      optional
   Value type: bool
   Definition: Boolean flag which when present disables FCC restriction.
 
-- qcom,qc4-max-icl-ua
+- qcom,wls-current-max-ua
   Usage:      optional
   Value type: <u32>
-  Definition: Specifies the maximum input current limit that can be configured
-		for PPS adapter in CV mode.
-		If left unspecified, the default value is 4000mA.
+  Definition: Upper limit of charging current supplied by the wireless
+		charger. If left unspecified, the HW min value of 1.5 A is
+		applied by default.
 
 =============================================
 Second Level Nodes - SMB5 Charger Peripherals

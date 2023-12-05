@@ -104,6 +104,7 @@ Optional properties:
 - qcom,sde-dspp-size:		A u32 value indicates the address range for each dspp.
 - qcom,sde-intf-size:		A u32 value indicates the address range for each intf.
 - qcom,sde-dsc-size:		A u32 value indicates the address range for each dsc.
+- qcom,sde-roi-misr-size:	A u32 value indicates the address range for each roi misr.
 - qcom,sde-cdm-size:		A u32 value indicates the address range for each cdm.
 - qcom,sde-pp-size:		A u32 value indicates the address range for each pingpong.
 - qcom,sde-merge-3d-size:	A u32 value indicates the address range for each merge 3d.
@@ -112,7 +113,6 @@ Optional properties:
 - qcom,sde-intf-max-prefetch-lines:	Array of u32 values for max prefetch lines on
 				each interface.
 - qcom,sde-sspp-linewidth:	A u32 value indicates the max sspp line width.
-- qcom,sde-vig-sspp-linewidth:  A u32 value indicates the max vig sspp line width.
 - qcom,sde-mixer-linewidth:	A u32 value indicates the max mixer line width.
 - qcom,sde-wb-linewidth:	A u32 value indicates the max writeback line width.
 - qcom,sde-sspp-scale-size:	A u32 value indicates the scaling block size on sspp.
@@ -141,12 +141,16 @@ Optional properties:
 				0xd - align at start of line
 - qcom,sde-panic-per-pipe:	Boolean property to indicate if panic signal
 				control feature is available on each source pipe.
+- qcom,sde-has-roi-misr:	Boolean property to indicate if roi misr
+				feature is available or not.
 - qcom,sde-has-src-split:	Boolean property to indicate if source split
 				feature is available or not.
 - qcom,sde-has-dim-layer:	Boolean property to indicate if mixer has dim layer
 				feature is available or not.
 - qcom,sde-has-idle-pc:		Boolean property to indicate if target has idle
 				power collapse feature available or not.
+- qcom,fullsize-va-map:		Boolean property to indicate smmu mapping range
+				for mdp should be full range (4GB).
 - qcom,sde-has-mixer-gc:	Boolean property to indicate if mixer has gamma correction
 				feature available or not.
 - qcom,sde-has-dest-scaler: 	Boolean property to indicate if destination scaler
@@ -201,15 +205,13 @@ Optional properties:
 				vbif blocks. These offsets will be calculated from
 				register "vbif_phys" defined in reg property.
 - qcom,sde-vbif-size:		A u32 value indicates the vbif block address range.
-- qcom,sde-uidle-off:           A u32 value with the offset for the uidle
-                                block, from the "mdp_phys".
-- qcom,sde-uidle-size:          A u32 value indicates the uidle block address range.
 - qcom,sde-te-off:		A u32 offset indicates the te block offset on pingpong.
 				This offset is 0x0 by default.
 - qcom,sde-te2-off:		A u32 offset indicates the te2 block offset on pingpong.
 - qcom,sde-te-size:		A u32 value indicates the te block address range.
 - qcom,sde-te2-size:		A u32 value indicates the te2 block address range.
 - qcom,sde-dsc-off:	 	A u32 offset indicates the dsc block offset on pingpong.
+- qcom,sde-roi-misr-off:	A u32 offset indicates the roi misr block offset on pingpong.
 - qcom,sde-qdss-off:		A u32 offset indicates the qdss block offset.
 - qcom,sde-dither-off:		A u32 offset indicates the dither block offset on pingpong.
 - qcom,sde-dither-version:	A u32 value indicates the dither block version.
@@ -265,6 +267,7 @@ Optional properties:
 				-- qcom,sde-dspp-dither: offset and version of dither hardware
 				-- qcom,sde-dspp-hist: offset and version of histogram hardware
 				-- qcom,sde-dspp-vlut: offset and version of PA vLUT hardware
+				-- qcom,sde-dspp-roi-misr: offset and version of roi misr hardware
 - qcom,sde-mixer-blocks:	A node that lists the blocks inside the layer mixer hardware. The
 				block entries will contain the offset and version (if needed)
 				of each feature block. The presence of a block entry
@@ -276,12 +279,6 @@ Optional properties:
 				DSPP block, the AD offsets must be offset from the
 				corresponding DSPP base.
 - qcom,sde-dspp-ad-version	A u32 value indicating the version of the AD hardware
-- qcom,sde-dspp-ltm-version	A u32 value indicating the major(upper 16 bits) and minor(lower 16 bits)
-				version of the LTM hardware
-- qcom,sde-dspp-ltm-off:	Array of u32 offsets indicate the LTM block offsets from the
-				DSPP offsets. Since LTM hardware is represented as part of
-				DSPP block, the LTM offsets are calculated based on the
-				corresponding DSPP base.
 - qcom,sde-vbif-id:		Array of vbif ids corresponding to the
 				offsets defined in property: qcom,sde-vbif-off.
 - qcom,sde-vbif-default-ot-rd-limit:	A u32 value indicates the default read OT limit
@@ -310,15 +307,6 @@ Optional properties:
 - qcom,sde-reg-dma-version:	Version of the reg dma hardware block.
 - qcom,sde-reg-dma-trigger-off: Offset of the lut dma trigger reg from "mdp_phys"
 				defined in reg property.
-- qcom,sde-reg-dma-broadcast-disabled: Boolean property to indicate if broadcast
-				functionality in the register dma hardware block should be used.
-- qcom,sde-reg-dma-xin-id:	VBIF clients id (xin) corresponding
-				to the LUTDMA block.
-- qcom,sde-reg-dma-clk-ctrl:	Array of 2 cell property describing clk control
-				offsets for dynamic clock gating. 1st value
-				in the array represents offset of the control
-				register. 2nd value represents bit offset within
-				control register.
 - qcom,sde-dram-channels:	This represents the number of channels in the
 				Bus memory controller.
 - qcom,sde-num-nrt-paths:	Integer property represents the number of non-realtime
@@ -334,8 +322,7 @@ Optional properties:
 				underflows when unable to satisfy bandwidth
 				requirements.
 - qcom,sde-max-bw-high-kbps:	This value indicates the max bandwidth in Kbps
-				that can be supported without underflow in the
-				event where there is no VFE.
+				that can be supported without underflow.
 				This is a high bandwidth threshold which can be
 				applied in scenarios where panel interface can
 				be more tolerant to memory latency such as
@@ -379,55 +366,48 @@ Optional properties:
 				priority for realtime clients.
 - qcom,sde-vbif-qos-nrt-remap:	This array is used to program vbif qos remapper register
 				priority for non-realtime clients.
-- qcom,sde-vbif-qos-cwb-remap:	This array is used to program vbif qos remapper register
-				priority for concurrent writeback clients.
-- qcom,sde-vbif-qos-lutdma-remap:	This array is used to program vbif qos remapper register
-				priority for lutdma client.
-- qcom,sde-qos-refresh-rates:	A u32 array, indicating the different refresh rates for
-				danger, safe and creq luts on sspp and wb. All luts will be
-				multidimensional values when multiple refresh rate qos is present.
-- qcom,sde-danger-lut:		A u32 array of 5 cell property, with a format of
+- qcom,sde-danger-lut:		Array of 5 cell property, with a format of
 				<linear, tile, nrt, cwb, tile-qseed>,
-				indicating the danger luts on sspp and wb.
-- qcom,sde-safe-lut-linear:	A u32 array of 2 cell property, with a format of
+				indicating the danger luts on sspp.
+- qcom,sde-safe-lut-linear:	Array of 2 cell property, with a format of
 				<fill level, lut> in ascending fill level
 				indicating the safe luts for linear format on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-safe-lut-macrotile:	A u32 array of 2 cell property, with a format of
+- qcom,sde-safe-lut-macrotile:	Array of 2 cell property, with a format of
 				<fill level, lut> in ascending fill level
 				indicating the safe luts for macrotile format on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-safe-lut-macrotile-qseed: A u32 array of 2 cell property, with a format of
+- qcom,sde-safe-lut-macrotile-qseed: Array of 2 cell property, with a format of
 				<fill level, lut> in ascending fill level
 				indicating the safe luts for macrotile format
 				with qseed3 on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-safe-lut-nrt:	A u32 array of 2 cell property, with a format of
+- qcom,sde-safe-lut-nrt:	Array of 2 cell property, with a format of
 				<fill level, lut> in ascending fill level
 				indicating the safe luts for nrt (e.g wfd) on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-safe-lut-cwb:	A u32 array of 2 cell property, with a format of
+- qcom,sde-safe-lut-cwb:	Array of 2 cell property, with a format of
 				<fill level, lut> in ascending fill level
 				indicating the safe luts for cwb on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-qos-lut-linear:	A u64 array of 3 cell property, with a format of
+- qcom,sde-qos-lut-linear:	Array of 3 cell property, with a format of
 				<fill level, lut hi, lut lo> in ascending fill level
 				indicating the qos luts for linear format on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-qos-lut-macrotile:	A u64 array of 3 cell property, with a format of
+- qcom,sde-qos-lut-macrotile:	Array of 3 cell property, with a format of
 				<fill level, lut hi, lut lo> in ascending fill level
 				indicating the qos luts for macrotile format on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-qos-lut-macrotile-qseed: A u64 array of 3 cell property, with a format of
+- qcom,sde-qos-lut-macrotile-qseed: Array of 3 cell property, with a format of
 				<fill level, lut hi, lut lo> in ascending fill level
 				indicating the qos luts for macrotile format
 				with qseed3 enabled on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-qos-lut-nrt:		A u64 array of 3 cell property, with a format of
+- qcom,sde-qos-lut-nrt:		Array of 3 cell property, with a format of
 				<fill level, lut hi, lut lo> in ascending fill level
 				indicating the qos luts for nrt (e.g wfd) on sspp.
 				Zero fill level on the last entry identifies the default lut.
-- qcom,sde-qos-lut-cwb:		A u64 array of 3 cell property, with a format of
+- qcom,sde-qos-lut-cwb:		Array of 3 cell property, with a format of
 				<fill level, lut hi, lut lo> in ascending fill level
 				indicating the qos luts for cwb on sspp.
 				Zero fill level on the last entry identifies the default lut.
@@ -436,8 +416,6 @@ Optional properties:
 				order of <real_time>, and <non_real_time>.
 - qcom,sde-qos-cpu-mask:	A u32 value indicating desired PM QoS CPU affine mask.
 - qcom,sde-qos-cpu-dma-latency:	A u32 value indicating desired PM QoS CPU DMA latency in usec.
-- qcom,sde-qos-cpu-irq-latency:	A u32 value indicating desired PM QoS CPU irq latency in usec
-				for 120 fps based targets.
 - qcom,sde-inline-rot-xin:	An integer array of xin-ids related to inline
 				rotation.
 - qcom,sde-inline-rot-xin-type:	A string array indicating the type of xin,
@@ -471,6 +449,10 @@ Optional properties:
 				ordering block
 				0: lower priority pipe has to be on the left for a given pair of pipes.
 				1: priority have to be explicitly configured for a given pair of pipes.
+- qcom,sde-num-mnoc-ports:	A u32 property to indicate the number of mnoc ports
+- qcom,sde-axi-bus-width:	A u32 property to indicate the axi bus width value in bytes
+- qcom,sde-mixer-stage-base-layer: A boolean property to indicate if a layer can be staged on base
+				stage instead of border fill
 - qcom,sde-limits:		A node that lists the limits for different properties. This node
 				can have multiple child nodes. Each child node represents a
 				specific usecase limit. The usecase can be defined for properties like
@@ -480,8 +462,6 @@ Optional properties:
 				-- qcom,sde-limit-cases: different usecases to be considered
 				-- qcom,sde-limit-ids: respective ids for the above usecases
 				-- qcom,sde-limit-values: usecase and value for different combinations
-- qcom,sde-mixer-stage-base-layer: A boolean property to indicate if a layer can be staged on base
-				stage instead of border fill
 
 Bus Scaling Subnodes:
 - qcom,sde-reg-bus:		Property to provide Bus scaling for register access for
@@ -591,13 +571,13 @@ Example:
     qcom,sde-pp-slave = <0x0 0x0 0x0 0x0>;
     qcom,sde-cdm-off = <0x0007a200>;
     qcom,sde-dsc-off = <0x00081000 0x00081400>;
+    qcom,sde-roi-misr-off = <0x00082820 0x00082880>;
     qcom,sde-intf-max-prefetch-lines = <0x15 0x15 0x15 0x15>;
 
     qcom,sde-mixer-pair-mask = <2 1 6 0 0 3>;
     qcom,sde-mixer-blend-op-off = <0x20 0x38 0x50 0x68 0x80 0x98
 				    0xb0 0xc8 0xe0 0xf8 0x110>;
 
-    qcom,sde-qdss-off = <0x81a00>;
 
     qcom,sde-sspp-type = "vig", "vig", "vig",
 			      "vig", "rgb", "rgb",
@@ -633,6 +613,7 @@ Example:
     qcom,sde-ubwc-bw-calc-version = <0x1>;
     qcom,sde-smart-panel-align-mode = <0xd>;
     qcom,sde-panic-per-pipe;
+    qcom,sde-has-roi-misr;
     qcom,sde-has-src-split;
     qcom,sde-pipe-order-version = <0x1>;
     qcom,sde-has-dim-layer;
@@ -643,6 +624,7 @@ Example:
     qcom,sde-dspp-size = <0x100>;
     qcom,sde-intf-size = <0x100>;
     qcom,sde-dsc-size = <0x100>;
+    qcom,sde-roi-misr-size = <0x100>;
     qcom,sde-cdm-size = <0x100>;
     qcom,sde-pp-size = <0x100>;
     qcom,sde-wb-size = <0x100>;
@@ -682,29 +664,40 @@ Example:
     qcom,sde-wb-id = <2>;
     qcom,sde-wb-clk-ctrl = <0x2bc 16>;
 
-    qcom,sde-danger-lut = <0x0000ffff 0x0000ffff
-	0x00000000 0x00000000 0x0000ffff>, <0x0003ffff
-	0x0003ffff 0x00000000 0x00000000 0x0003ffff>;
+    qcom,sde-danger-lut = <0x0000000f 0x0000ffff 0x00000000
+            0x00000000 0x0000ffff>;
+    qcom,sde-safe-lut-linear = <0 0xfff8>;
+    qcom,sde-safe-lut-macrotile = <0 0xf000>;
+    qcom,sde-safe-lut-macrotile-qseed = <0 0xf000>;
+    qcom,sde-safe-lut-nrt = <0 0xffff>;
+    qcom,sde-safe-lut-cwb = <0 0xffff>;
 
-
-    qcom,sde-safe-lut-linear = <0 0xff00>, <0 0xfe00>;
-    qcom,sde-safe-lut-macrotile = <0 0xff00>, <0 0xfe00>;
-    qcom,sde-safe-lut-macrotile-qseed = <0 0xff00>, <0 0xfe00>;
-    qcom,sde-safe-lut-nrt = <0 0xffff>, <0 0xffff>;
-    qcom,sde-safe-lut-cwb = <0 0x3ff>, <0x3ff>;
-
-
-    qcom,sde-qos-lut-linear = <0 0x00112233 0x44556677>,
-			 <0 0x00112234 0x45566777>;
-    qcom,sde-qos-lut-macrotile = <0 0x00112233 0x44556677>,
-			 <0 0x00112234 0x45566777>;
-    qcom,sde-qos-lut-macrotile-qseed = <0 0x00112233 0x66777777>,
-			 <0 0x00112236 0x67777777>;
-    qcom,sde-qos-lut-nrt = <0 0x00000000 0x00000000>,
-			 <0 0x00000000 0x00000000>;
-    qcom,sde-qos-lut-cwb = <0 0x66666541 0x00000000>,
-			 <0 0x66666541 0x00000000>;
-    qcom,sde-qos-refresh-rates = <60 120>;
+    qcom,sde-qos-lut-linear =
+            <4 0x00000000 0x00000357>,
+            <5 0x00000000 0x00003357>,
+            <6 0x00000000 0x00023357>,
+            <7 0x00000000 0x00223357>,
+            <8 0x00000000 0x02223357>,
+            <9 0x00000000 0x22223357>,
+            <10 0x00000002 0x22223357>,
+            <11 0x00000022 0x22223357>,
+            <12 0x00000222 0x22223357>,
+            <13 0x00002222 0x22223357>,
+            <14 0x00012222 0x22223357>,
+            <0 0x00112222 0x22223357>;
+    qcom,sde-qos-lut-macrotile =
+            <10 0x00000003 0x44556677>,
+            <11 0x00000033 0x44556677>,
+            <12 0x00000233 0x44556677>,
+            <13 0x00002233 0x44556677>,
+            <14 0x00012233 0x44556677>,
+            <0 0x00112233 0x44556677>;
+    qcom,sde-qos-lut-macrotile-qseed =
+            <0 0x00112233 0x66777777>;
+    qcom,sde-qos-lut-nrt =
+            <0 0x00000000 0x00000000>;
+    qcom,sde-qos-lut-cwb =
+            <0 0x75300000 0x00000000>;
 
     qcom,sde-cdp-setting = <1 1>, <1 0>;
 
@@ -721,9 +714,6 @@ Example:
         <124416000 4>, <248832000 16>;
     qcom,sde-vbif-memtype-0 = <3 3 3 3 3 3 3 3>;
     qcom,sde-vbif-memtype-1 = <3 3 3 3 3 3>;
-
-    qcom,sde-uidle-off = <0x80000>;
-    qcom,sde-uidle-size = <0x70>;
 
     qcom,sde-dram-channels = <2>;
     qcom,sde-num-nrt-paths = <1>;
@@ -752,15 +742,6 @@ Example:
 
     qcom,sde-vbif-qos-rt-remap = <3 3 4 4 5 5 6 6>;
     qcom,sde-vbif-qos-nrt-remap = <3 3 3 3 3 3 3 3>;
-    qcom,sde-vbif-qos-cwb-remap = <3 3 4 4 5 5 6 3>;
-    qcom,sde-vbif-qos-lutdma-remap = <3 3 3 3 4 4 4 4>;
-
-    qcom,sde-reg-dma-off = <0>;
-    qcom,sde-reg-dma-version = <0x00010002>;
-    qcom,sde-reg-dma-trigger-off = <0x119c>;
-    qcom,sde-reg-dma-broadcast-disabled = <0>;
-    qcom,sde-reg-dma-xin-id = <7>;
-    qcom,sde-reg-dma-clk-ctrl = <0x2bc 20>;
 
     qcom,sde-sspp-vig-blocks {
         qcom,sde-vig-csc-off = <0x320>;
@@ -805,9 +786,10 @@ Example:
         qcom,sde-dspp-dither = <0x0 0x00010000>;
         qcom,sde-dspp-hist = <0x0 0x00010000>;
         qcom,sde-dspp-vlut = <0x0 0x00010000>;
+        qcom,sde-dspp-roi-misr = <0x1200 0x00010000>;
     };
 
-    qcom,sde-limits {
+   qcom,sde-limits {
 	qcom,sde-linewidth-limits{
 		qcom,sde-limit-cases = "vig", "dma", "scaling", "inline_rot";
 		qcom,sde-limit-ids= <0x1 0x2 0x4 0x8>;
@@ -835,7 +817,6 @@ Example:
 					<0xe 3900000>;
 	};
     };
-
     qcom,sde-mixer-blocks {
         qcom,sde-mixer-gc = <0x3c0 0x00010000>;
     };

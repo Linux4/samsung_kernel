@@ -110,6 +110,13 @@ PROPERTIES
 		Usage: required
 		Definition: See soc/fsl/qman.txt and soc/fsl/bman.txt
 
+- fsl,erratum-a050385
+		Usage: optional
+		Value type: boolean
+		Definition: A boolean property. Indicates the presence of the
+		erratum A050385 which indicates that DMA transactions that are
+		split can result in a FMan lock.
+
 =============================================================================
 FMan MURAM Node
 
@@ -238,7 +245,7 @@ PROPERTIES
 		Must include one of the following:
 		- "fsl,fman-dtsec" for dTSEC MAC
 		- "fsl,fman-xgec" for XGEC MAC
-		- "fsl,fman-memac" for mEMAC MAC
+		- "fsl,fman-memac for mEMAC MAC
 
 - cell-index
 		Usage: required
@@ -356,7 +363,30 @@ ethernet@e0000 {
 ============================================================================
 FMan IEEE 1588 Node
 
-Refer to Documentation/devicetree/bindings/ptp/ptp-qoriq.txt
+DESCRIPTION
+
+The FMan interface to support IEEE 1588
+
+
+PROPERTIES
+
+- compatible
+		Usage: required
+		Value type: <stringlist>
+		Definition: A standard property.
+		Must include "fsl,fman-ptp-timer".
+
+- reg
+		Usage: required
+		Value type: <prop-encoded-array>
+		Definition: A standard property.
+
+EXAMPLE
+
+ptp-timer@fe000 {
+	compatible = "fsl,fman-ptp-timer";
+	reg = <0xfe000 0x1000>;
+};
 
 =============================================================================
 FMan MDIO Node

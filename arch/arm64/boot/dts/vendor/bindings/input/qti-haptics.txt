@@ -59,12 +59,31 @@ Properties:
 		specified in the LRA actuator datasheet. Allowed values are:
 		0 to 20475. If this is not specified, 5715us play rate is used.
 
+- qcom,external-waveform-source
+  Usage:      optional
+  Value type: <string>
+  Definition: The haptics module supports to play with internal constant
+		Vmax strength or play with patterns specified in its internal
+		8-bytes waveform buffer. It can also play with the audio
+		LINE-IN signal or PWM waveform coming from LINE-IN/PWM pin.
+		This property specify the kind of the waveform resources
+		on the LINE-IN/PWM pins. Allowed values are: "audio", "pwm".
+		If this is not specified, internal signals (Vmax or buffer)
+		will be selected according to the requriement of the playing
+		waveforms.
+
 - vdd-supply
   Usage:      optional
   Value type: <phandle>
   Definition: Specifies the phandle of the regulator device which supplies
 		haptics module through VDD_HAP pin. This is only needed if VDD_HAP
 		is supplied from an external boost regulator instead of VPH_PWR.
+
+- qcom,haptics-ext-pin-twm
+  Usage:      optional
+  Value type: <empty>
+  Definition: A boolean property which configures haptics into external-pin
+		control during TWM entry.
 
 Following properties are specific only when LRA actuator is used:
 
@@ -101,7 +120,7 @@ waveforms/effects:
 		notification event.
 
 - qcom,wf-pattern
-  Usage:      optional
+  Usage:      required
   Value type: <prop-encoded-array>
   Definition: Specifies the waveform pattern in a byte array that will be
 		played for the effect-id. The bit fields of each byte are:
@@ -159,19 +178,6 @@ waveforms/effects:
   Definition: If specified, the hardware feature of LRA auto resonance detection
 		is disabled.
 
-- qcom,wf-line-in-audio
-  Usage:      optional
-  Value type: <empty>
-  Definition: Boolean flag to indicate if the effect is playing the audio signal
-		comes into LINE-IN pin. If this is specified, the pattern
-		specified in "qcom,wf-pattern" will be ignored.
-
-- qcom,wf-line-in-pwm
-  Usage:      optional
-  Value type: <empty>
-  Definition: Boolean flag to indicate if the effect is playing the PWM signal
-		comes into LINE-IN pin. If this is specified, the pattern
-		specified in "qcom,wf-pattern" will be ignored.
 Example:
   qcom,haptics@c000 {
 	compatible = "qcom,haptics";
@@ -199,11 +205,5 @@ Example:
 		qcom,effect-id = <5>;
 		qcom,wf-play-rate-us = <6250>;
 		qcom,wf-pattern = [7e 7e 7e];
-	};
-
-	wf_6 {
-		/* RINGTONE_x effect */
-		qcom,effect-id = <6>;
-		qcom,wf-line-in-audio;
 	};
   };

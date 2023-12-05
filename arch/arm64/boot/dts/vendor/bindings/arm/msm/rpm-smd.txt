@@ -4,9 +4,9 @@ RPM is a dedicated hardware engine for managing shared SoC resources,
 which includes buses, clocks, power rails, etc.  The goal of RPM is
 to achieve the maximum power savings while satisfying the SoC's
 operational and performance requirements.  RPM accepts resource
-requests from multiple RPM masters.  It arbitrates and aggregates
-the requests, and configures the shared resources. The RPM masters
-are the application processor, the modem processor, as well as hardware
+requests from multiple RPM masters.  It arbitrates and aggregates the
+requests, and configures the shared resources.  The RPM masters are
+the application processor, the modem processor, as well as hardware
 accelerators. The RPM driver communicates with the hardware engine using
 SMD.
 
@@ -31,10 +31,11 @@ Optional properties
 
 Example:
 
-	qcom,rpm-smd {
+	qcom,rpm-smd@68150 {
 		compatible = "qcom,rpm-smd";
-		interrupts = <GIC_SPI 194 IRQ_TYPE_EDGE_RISING>;
+		reg = <0x68150 0x3200>;
+		interrupts = <GIC_SPI 168 IRQ_TYPE_EDGE_RISING>;
 		qcom,rpm-channel-name = "rpm_requests";
-		qcom,rpm-channel-type = 15; /* APPS_RPM_SMD */
+		qcom,rpm-channel-type = 15; /* SMD_APPS_RPM */
 	}
 }

@@ -10,9 +10,9 @@ Optional properties:
   - qcom,enable-ice-clk 	: should enable clocks for ICE HW
   - clocks              	: List of phandle and clock specifier pairs
   - clock-names         	: List of clock input name strings sorted in the same
-				  order as the clocks property.
+                          	  order as the clocks property.
   - qocm,op-freq-hz     	: max clock speed sorted in the same order as the clocks
-				  property.
+                          	  property.
   - qcom,instance-type  	: describe the storage type for which ICE node is defined
 			 	  currently, only "ufs" and "sdcc" are supported storage type
   - vdd-hba-supply		: regulated supply to be used by ICE HW

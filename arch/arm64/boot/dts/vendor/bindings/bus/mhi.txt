@@ -38,7 +38,8 @@ Main node properties:
   Value type: <string>
   Definition: Name assigned to the controller for cases where caller is not an
 	MHI client.
-	Use "esoc0" for qcom modems such as SDX*.
+	Use "esoc" followed by numbers starting from 0 for external SOC's or
+	any other relevant names.
 
 - mhi,sfr-support
   Usage: optional
@@ -64,14 +65,6 @@ mhi channel node properties:
   Usage: optional
   Value type: <u32>
   Definition: Number of elements transfer ring support
-
-- mhi,local-elements
-  Usage: optional
-  Value type: <u32>
-  Definition: Number of elements local ring should allocate. In most cases this
-	should be left empty. For channels such as RSC, number of elements
-	should be large enough such that next element in the ring should be
-	free to queue.
 
 - mhi,event-ring
   Usage: required
@@ -326,19 +319,6 @@ MHI netdev properties
   Definition: mhi net_device should have numbered alias in the alias node,
 	in the form of mhi_netdevN, N = 0, 1..n for each network interface.
 
-- mhi,disable-chain-skb
-  Usage: optional
-  Value type: <bool>
-  Definition: If true, netdev will not chain skbs. Set this flag to true
-	if netdev used as a standalone device. For example, for software IP
-	path, chaining should be disabled.
-
-- mhi,rsc-parent
-  Usage: required for rsc device
-  Value type: <phandle>
-  Definition: RSC channel operate together with IP_HW0 device. If it's a rsc
-	device, assign phandle of parent device (IP_HW0).
-
 ========
 Example:
 ========
@@ -351,10 +331,4 @@ mhi_netdev_0: mhi_rmnet@0 {
 	mhi,chan = "IP_HW0";
 	mhi,interface-name = "rmnet_mhi";
 	mhi,mru = <0x4000>;
-};
-
-mhi_rmnet@1 {
-	mhi,chan = "IP_HW0_RSC";
-	mhi,rsc-parent = <&mhi_netdev_0>;
-	mhi,mru = <0x8000>;
 };

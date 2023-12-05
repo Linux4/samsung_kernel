@@ -1,4 +1,4 @@
-Qualcomm Technologies, Inc. I2C controller
+Qualcomm I2C controller
 
 Required properties:
  - reg : Offset and length of the register region for the device named in

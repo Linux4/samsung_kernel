@@ -1,5 +1,4 @@
-GENI based Qualcomm Technologies Inc Universal Peripheral version 3 (QUPv3)
-					Serial Peripheral Interface (SPI)
+GENI based Qualcomm Universal Peripheral (QUP) Serial Peripheral Interface (SPI)
 
 The QUP v3 core is a GENI based AHB slave that provides a common data path
 (an output FIFO and an input FIFO) for serial peripheral interface (SPI)
@@ -30,13 +29,8 @@ Optional properties:
 - qcom,rt:	Specifies if the framework worker thread for this
 		controller device should have "real-time" priority.
 - qcom,disable-autosuspend: Specifies to disable runtime PM auto suspend.
-- qcom,shared_ee: 	Specifies that this serial engine is shared between
-			execution environments.
-- qcom,set-cs-sb-delay:	Specifies the SB PIPE delay value in cycles which can be
-			used to achieve CS delay in minicore based targets.
-  Note: Use this property to introduce cs_clk_delay only for minicore QUPs with
-	inter words delay as 0 and CS toggle as 0. For other cases, use the
-	conventional method of using spi_cs_clk_dly register.
+- qcom,set-miso-sampling: Specifies to set miso sampling rate.
+- qcom,miso-sampling-ctrl-val: Specifies the value of miso sampling rate.
 
 SPI slave nodes must be children of the SPI master node and can contain
 the following properties.
@@ -54,6 +48,13 @@ Optional properties:
                   shifted clock phase (CPHA) mode.
 
 - qcom,slv-ctrl : Set this flag to configure QUPV3 as SPI slave controller.
+
+- qcom,disable-dma : Set this flag to ensure only fifo mode is used for
+			transfers. FIFO mode does not work when FW of SE
+			is configured in GSI mode.
+
+- slv-cross-connected : Set this flag only when SPI-Slave MISO pin is connected
+			to SPI-Master MOSI and vice-versa .
 
 Other optional properties described in
 Documentation/devicetree/bindings/spi/spi-bus.txt

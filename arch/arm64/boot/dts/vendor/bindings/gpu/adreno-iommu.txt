@@ -25,11 +25,21 @@ Required properties:
 		  is a separate aperture for CP to program context banks.
 
 Optional properties:
+- qcom,micro-mmu-control : Some targets provide an implementation defined
+		  register for blocking translation requests during GPU side
+		  programming.  This property specifies the offset of this
+		  register within the iommu register space.
 - qcom,retention :  A boolean specifying if retention is supported on this target
 - qcom,global_pt :  A boolean specifying if global pagetable should be used.
 		  When not set we use per process pagetables
 - qcom,hyp_secure_alloc : A bool specifying if the hypervisor is used on this target
 		  for secure buffer allocation
+- qcom,secure_align_mask: A mask for determining how secure buffers need to
+		  be aligned
+- qcom,unmap_fast :  A boolean specifying if iommu unmap fast is supported on
+			this target.
+- qcom,secure-size : Specifies the size of gpu address region to be used for
+			secure memory mapping.
 
 - List of sub nodes, one for each of the translation context banks supported.
   The driver uses the names of these nodes to determine how they are used,
@@ -37,7 +47,6 @@ Optional properties:
   - gfx3d_user : Used for the 'normal' GPU address space.
   - gfx3d_secure : Used for the content protection address space.
   - gfx3d_secure_alt : Used for the content protection address space for alternative SID.
-
   Each sub node has the following required properties:
 
 	- compatible : "qcom,smmu-kgsl-cb"
@@ -47,35 +56,41 @@ Optional properties:
 		   defined in iommu device tree. On targets where the msm iommu
 		   driver is used rather than the arm smmu driver, this property
 		   may be absent.
+	- qcom,gpu-offset :  Offset into the GPU register space for accessing
+		   this context bank. On some targets the iommu registers are not
+		   part of the GPU's register space, and a separate register aperture
+		   is used. Otherwise the same register offsets may be used for CPU
+		   or GPU side programming.
 
 Example:
 
-msm_iommu: qcom,kgsl-iommu@2ca0000 {
-	compatible = "qcom,kgsl-smmu-v2";
-	reg = <0x2ca0000 0x10000>;
-	qcom,protect = <0xa0000 0xc000>;
-	clocks = <&clock_mmss clk_gpu_ahb_clk>,
-		<&clock_gcc clk_gcc_mmss_bimc_gfx_clk>,
-		<&clock_mmss clk_mmss_mmagic_ahb_clk>,
-		<&clock_mmss clk_mmss_mmagic_cfg_ahb_clk>;
-	clock-names = "gpu_ahb_clk", "bimc_gfx_clk", "mmagic_ahb_clk", "mmagic_cfg_ahb_clk";
-	qcom,secure_align_mask = <0xfff>;
-	qcom,retention;
-	qcom,global_pt;
+	msm_iommu: qcom,kgsl-iommu {
+		compatible = "qcom,kgsl-smmu-v2";
+		reg = <0xb40000 0x20000>;
+		qcom,protect = <0x40000 0x20000>;
+		clocks = <&clock_mmss clk_gpu_ahb_clk>,
+			<&clock_gcc clk_gcc_mmss_bimc_gfx_clk>,
+			<&clock_mmss clk_mmss_mmagic_ahb_clk>,
+			<&clock_mmss clk_mmss_mmagic_cfg_ahb_clk>;
+		clock-names = "gpu_ahb_clk", "bimc_gfx_clk", "mmagic_ahb_clk", "mmagic_cfg_ahb_clk";
+		qcom,secure_align_mask = <0xfff>;
+		qcom,retention;
+		qcom,global_pt;
 
-	gfx3d_user: gfx3d_user {
-		compatible = "qcom,smmu-kgsl-cb";
-		iommus = <&kgsl_smmu 0>,
-			 <&kgsl_smmu 1>;
-	};
+		gfx3d_user: gfx3d_user {
+			compatible = "qcom,smmu-kgsl-cb";
+			iommus = <&kgsl_smmu 0>,
+				 <&kgsl_smmu 1>;
+			qcom,gpu-offset = <0x48000>;
+		};
 
-	gfx3d_secure: gfx3d_secure {
-		compatible = "qcom,smmu-kgsl-cb";
-		iommus = <&kgsl_smmu 2>;
-	};
+		gfx3d_secure: gfx3d_secure {
+			compatible = "qcom,smmu-kgsl-cb";
+			iommus = <&kgsl_smmu 2>;
+		};
 
-	gfx3d_secure_alt: gfx3d_secure_alt {
-		compatible = "qcom,smmu-kgsl-cb";
-		iommus = <&kgsl_smmu 2>, <&kgsl_smmu 1>;
+		gfx3d_secure_alt: gfx3d_secure_alt {
+			compatible = "qcom,smmu-kgsl-cb";
+			iommus = <&kgsl_smmu 2>, <&kgsl_smmu 1>;
+		};
 	};
-};

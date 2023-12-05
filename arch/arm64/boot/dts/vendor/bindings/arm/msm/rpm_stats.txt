@@ -37,4 +37,3 @@ EXAMPLE:
 		reg-names = "phys_addr_base", "offset_addr";
 		qcom,num-records = <3>;
 	};
-

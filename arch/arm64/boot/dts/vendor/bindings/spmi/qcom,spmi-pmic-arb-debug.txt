@@ -68,7 +68,7 @@ Example:
 
 qcom,spmi-debug@6b22000 {
 	compatible = "qcom,spmi-pmic-arb-debug";
-	reg = <0x6b22000 0x60>, <0x7820a8 4>;
+	reg = <0x6b22000 0x60>, <0x7820A8 4>;
 	reg-names = "core", "fuse";
 	clocks = <&clock_aop QDSS_CLK>;
 	clock-names = "core_clk";

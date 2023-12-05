@@ -4,7 +4,7 @@ msm-ssc-sensors driver implements the mechanism that allows to load SLPI firmwar
 
 Required properties:
 
- - compatible:  This must be "qcom,msm-ssc-sensors".
+ - compatible:  This must be "qcom,msm-ssc-sensors"
 
 Optional properties:
 

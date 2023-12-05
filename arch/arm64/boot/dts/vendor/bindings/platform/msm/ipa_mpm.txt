@@ -4,7 +4,7 @@ This module enables IPA Modem to IPA  APQ communication using
 MHI Prime.
 
 Required properties:
-- compatible:		Must be "qcom,ipa-mpm".
+- compatible:		Must be "qcom,ipa-mpm"
 - qcom,mhi-chdb-base:	MHI channel doorbell base address in MMIO space.
 - qcom,mhi-erdb-base:	MHI event doorbell base address in MMIO space.
 

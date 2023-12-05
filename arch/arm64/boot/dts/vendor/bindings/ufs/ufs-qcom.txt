@@ -12,19 +12,16 @@ Required properties:
 			"qcom,ufs-phy-qmp-v3" for V3 ufs phy present
 			 on msmcobalt platform,
 			"qcom,ufs-phy-qmp-v4" for V4 ufs phy present
-			 on Kona platform,
-			"qcom,ufs-phy-qmp-v4-card" for V4 ufs card phy present
-			 on Kona platform,
-			"qcom,ufs-phy-qmp-v4-lito" for V4 ufs phy present
-			 on lito platform,
+			 on sm8150 platform,
 			"qcom,ufs-phy-qrbtc-sdm845" for phy support
-			 for sdm845 emulation,
+			 for sdm845 emulation
 		        "qcom,ufs-phy-qmp-v3-falcon" for phy support
-			 for msmfalcon,
-			"qcom,ufs-phy-qmp-v3-660" for V3 ufs phy present
-			 on SDM660 platform,
+			 for msmfalcon
 			"qcom,msm8996-ufs-phy-qmp-14nm" for 14nm ufs phy
-			 present on MSM8996 chipset.
+			 present on MSM8996 chipset
+			"qcom,ufs-phy-qmp-v3-660" for V3 phy support on
+			 sm6150 platform
+
 - reg               : should contain PHY register address space (mandatory),
 - reg-names         : indicates various resources passed to driver (via reg proptery) by name.
                       Required "reg-names" is "phy_mem".
@@ -48,11 +45,10 @@ Optional properties:
   (limit link to PWM Gear-1, 1-lane slow mode; disable hibernate, and avoid suspend/resume)
 - vccq-parent-supply   : phandle to UFS device's VCCQ parent power supply
 - vccq-parent-max-microamp : specifies max. load that can be drawn from the VCCQ's parent supply
-- qcom,rpmh-resource-name : Specifies the RPMH resource name
 
 Example:
 
-	ufsphy1: ufsphy@fc597000 {
+	ufsphy1: ufsphy@0xfc597000 {
 		compatible = "qcom,ufs-phy-qmp-14nm";
 		reg = <0xfc597000 0x800>;
 		reg-names = "phy_mem";
@@ -74,7 +70,7 @@ Example:
 			<&clock_gcc clk_gcc_ufs_rx_cfg_clk>;
 	};
 
-	ufshc@fc598000 {
+	ufshc@0xfc598000 {
 		...
 		phys = <&ufsphy1>;
 		phy-names = "ufsphy";
