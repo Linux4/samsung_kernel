@@ -1,0 +1,47 @@
+#
+# Jadard Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_JADARD_MODULE
+    tristate "Jadard chipset module fuction"
+    depends on TOUCHSCREEN_JADARD_CHIPSET_O22
+    help
+      This switch whether to compile into a kernel module.
+
+config TOUCHSCREEN_JADARD_IC_JD9522T
+    tristate "Jadard chipset of JD9522T"
+    depends on TOUCHSCREEN_JADARD_MODULE
+    help
+      This enables support for Jadard chipset of JD9522T.
+
+config JD_FB
+    tristate "Jadard driver suspend/resume event by system FB"
+    depends on TOUCHSCREEN_JADARD_COMMON
+    help
+      This enables support for Jadard driver suspend/resume event by system FB.
+
+config TOUCHSCREEN_JADARD_COMMON
+    tristate "Jadard chipset common fuction"
+    depends on TOUCHSCREEN_JADARD_CHIPSET_O22
+    help
+      This enables support for Jadard chipset common function.
+
+config TOUCHSCREEN_JADARD_DEBUG
+    tristate "Jadard chipset debug function"
+    depends on TOUCHSCREEN_JADARD_COMMON
+    help
+      This enables support for Jadard chipset debug function.
+
+config TOUCHSCREEN_JADARD_SORTING
+    tristate "Jadard chipset sorting function"
+    depends on TOUCHSCREEN_JADARD_COMMON
+    help
+      This enables support for Jadard chipset sorting function.
+
+# hs14 code for SR-AL6528A-01-482 by hehaoran5 at 20220910 start
+config TOUCHSCREEN_JADARD_SEC
+    tristate "Jadard chipset sec function"
+    depends on TOUCHSCREEN_JADARD_COMMON
+    help
+      This enables support for Jadard chipset sec function.
+# hs14 code for SR-AL6528A-01-482 by hehaoran5 at 20220910 end

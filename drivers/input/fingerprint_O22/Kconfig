@@ -1,0 +1,26 @@
+menu "O22 Fingerprint support"
+    depends on INPUT
+
+# hs14 code for SR-AL6528A-01-282|SR-AL6528A-01-292 by xiongxiaoliang at 2022/10/10 start
+config MTK_FINGERPRINT_SUPPORT
+    bool "O22 Fingerprint support"
+    default n
+    help
+        Fingerprint mtk driver enable/disable
+        in the kernel.Say Y here if you want to
+        use mediatek fingerprint driver,fingerprint
+        driver will support fingerprint function
+
+config MTK_FINGERPRINT_SELECT
+    string "sensor type"
+    default "GF318M"
+
+source "drivers/input/fingerprint_O22/silead/Kconfig"
+# hs14 code added for SR-AL6528A-01-272 by Wentao at 2022/10/09 start
+source "drivers/input/fingerprint_O22/focaltech/Kconfig"
+# hs14 code added for SR-AL6528A-01-272 by Wentao at 2022/10/09 end
+source "drivers/input/fingerprint_O22/cdfinger/Kconfig"
+# hs14 code for SR-AL6528A-01-282|SR-AL6528A-01-292 by xiongxiaoliang at 2022/10/10 end
+
+endmenu
+
