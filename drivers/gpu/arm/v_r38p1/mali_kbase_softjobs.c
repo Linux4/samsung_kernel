@@ -314,6 +314,10 @@ static void kbase_fence_debug_check_atom(struct kbase_jd_atom *katom)
 	}
 }
 
+/* MALI_SEC_INTEGRATION */
+#ifdef CONFIG_MALI_SEC_JOB_STATUS_CHECK
+int gpu_job_fence_status_dump(struct dma_fence *guilty_fence);
+#endif
 static void kbase_fence_debug_wait_timeout(struct kbase_jd_atom *katom)
 {
 	struct kbase_context *kctx = katom->kctx;
@@ -321,6 +325,11 @@ static void kbase_fence_debug_wait_timeout(struct kbase_jd_atom *katom)
 	int timeout_ms = atomic_read(&kctx->kbdev->js_data.soft_job_timeout_ms);
 	unsigned long lflags;
 	struct kbase_sync_fence_info info;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
+        struct fence *fence;
+#else
+        struct dma_fence *fence;
+#endif
 
 	spin_lock_irqsave(&kctx->waiting_soft_jobs_lock, lflags);
 
@@ -330,18 +339,34 @@ static void kbase_fence_debug_wait_timeout(struct kbase_jd_atom *katom)
 		return;
 	}
 
-	dev_warn(dev, "ctx %d_%d: Atom %d still waiting for fence [%pK] after %dms\n",
-		 kctx->tgid, kctx->id,
-		 kbase_jd_atom_id(kctx, katom),
-		 info.fence, timeout_ms);
+        fence = info.fence;
+	dev_warn(dev, "ctx %d_%d: Atom %d still waiting for fence [%p] after %dms\n",
+                kctx->tgid, kctx->id,
+                kbase_jd_atom_id(kctx, katom),
+                fence, timeout_ms);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
 	dev_warn(dev, "\tGuilty fence [%pK] %s: %s\n",
-		 info.fence, info.name,
+		 fence, info.name,
 		 kbase_sync_status_string(info.status));
+#else
+	dev_warn(dev, "\tGuilty fence [%pK] %s: %s\n",
+		 fence, fence->ops->get_driver_name(info.fence),
+		 kbase_sync_status_string(info.status));
+
+#endif
 
 	/* Search for blocked trigger atoms */
 	kbase_fence_debug_check_atom(katom);
 
 	spin_unlock_irqrestore(&kctx->waiting_soft_jobs_lock, lflags);
+
+/* MALI_SEC_INTEGRATION */
+#ifdef CONFIG_MALI_SEC_JOB_STATUS_CHECK
+        spin_lock_irqsave(&kctx->waiting_soft_jobs_lock, lflags);
+	gpu_job_fence_status_dump(info.fence);
+	mali_exynos_debug_print_info(kctx->kbdev);
+        spin_unlock_irqrestore(&kctx->waiting_soft_jobs_lock, lflags);
+#endif
 
 	kbase_sync_fence_in_dump(katom);
 }
@@ -419,6 +444,12 @@ void kbasep_soft_job_timeout_worker(struct timer_list *timer)
 			break;
 #ifdef CONFIG_MALI_FENCE_DEBUG
 		case BASE_JD_REQ_SOFT_FENCE_WAIT:
+			dev_warn(kctx->kbdev->dev, "timeout fence is wait_fence");
+			kbase_fence_debug_timeout(katom);
+			break;
+		/* MALI_SEC_INTEGRATION */
+		case BASE_JD_REQ_SOFT_FENCE_TRIGGER:
+			dev_warn(kctx->kbdev->dev, "timeout fence is trigger_fence");
 			kbase_fence_debug_timeout(katom);
 			break;
 #endif
@@ -972,6 +1003,13 @@ static int kbase_jit_allocate_prepare(struct kbase_jd_atom *katom)
 	jit_info_user_copy_size =
 			jit_info_copy_size_for_jit_version[kctx->jit_version];
 	WARN_ON(jit_info_user_copy_size > sizeof(*info));
+
+	if (!kbase_mem_allow_alloc(kctx)) {
+		dev_dbg(kbdev->dev, "Invalid attempt to allocate JIT memory by %s/%d for ctx %d_%d",
+			current->comm, current->pid, kctx->tgid, kctx->id);
+		ret = -EINVAL;
+		goto fail;
+	}
 
 	/* For backwards compatibility, and to prevent reading more than 1 jit
 	 * info struct on jit version 1

@@ -67,11 +67,13 @@
 #define CIRRUS_CAL_NUM_ATTRS_AMP	7
 
 extern struct cirrus_cal_ops cirrus_cspl_cal_ops;
+extern struct cirrus_cal_ops cirrus_cs35l43_cal_ops;
 
 /* needs to match ops container struct in cirrus-amp.c */
 enum cirrus_cal_ops_idx {
 	CIRRUS_CAL_OPS_INVALID,
 	CIRRUS_CAL_CSPL_CAL_OPS_IDX,
+	CIRRUS_CAL_CS35L43_CAL_OPS_IDX,
 };
 
 int cirrus_cal_read_temp(const char *mfd_suffix);

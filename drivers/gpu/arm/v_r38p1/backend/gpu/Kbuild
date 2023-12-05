@@ -32,7 +32,8 @@ mali_kbase-y += \
     backend/gpu/mali_kbase_pm_policy.o \
     backend/gpu/mali_kbase_time.o \
     backend/gpu/mali_kbase_l2_mmu_config.o \
-    backend/gpu/mali_kbase_clk_rate_trace_mgr.o
+    backend/gpu/mali_kbase_clk_rate_trace_mgr.o \
+    backend/gpu/gpu_job_fence_debug.o
 
 ifeq ($(MALI_USE_CSF),0)
     mali_kbase-y += \

@@ -376,6 +376,19 @@ fail_enc_init:
 	return 0;
 }
 
+void mfc_open_time_checker(struct timer_list *t)
+{
+	struct mfc_dev *dev = from_timer(dev, t, open_timer);
+
+	mfc_dev_err("MFC open takes too long time(%dsec), sequence: %#lx\n",
+			MFC_OPEN_INTERVAL / 1000, dev->open_sequence);
+
+	if (timer_pending(&dev->open_timer))
+		del_timer(&dev->open_timer);
+
+	BUG();
+}
+
 /* Open an MFC node */
 static int mfc_open(struct file *file)
 {
@@ -559,6 +572,9 @@ static int mfc_open(struct file *file)
 	}
 #endif
 
+	timer_setup(&dev->open_timer, mfc_open_time_checker, 0);
+	mod_timer(&dev->open_timer, jiffies + msecs_to_jiffies(MFC_OPEN_INTERVAL));
+
 	/* Mark context as idle */
 	dev->ctx[ctx->num] = ctx;
 	for (i = 0; i < MFC_NUM_CORE; i++)
@@ -578,6 +594,10 @@ static int mfc_open(struct file *file)
 	}
 #endif
 
+	if (timer_pending(&dev->open_timer))
+		del_timer(&dev->open_timer);
+	dev->open_sequence = 0;
+
 	mfc_ctx_info("MFC open completed [%d:%d] version = %d\n",
 			dev->num_drm_inst, dev->num_inst, MFC_DRIVER_INFO);
 	MFC_TRACE_CTX_LT("[INFO] %s %s opened (ctx:%d, total:%d)\n", ctx->is_drm ? "DRM" : "Normal",
@@ -590,6 +610,8 @@ static int mfc_open(struct file *file)
 
 	/* Deinit when failure occured */
 err_drm_start:
+	if (timer_pending(&dev->open_timer))
+		del_timer(&dev->open_timer);
 	call_cop(ctx, cleanup_ctx_ctrls, ctx);
 
 err_ctx_ctrls:
@@ -1043,6 +1065,9 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 	/* Scheduler */
 	of_property_read_u32(np, "scheduler", &pdata->scheduler);
 	of_property_read_u32(np, "pbs_num_prio", &pdata->pbs_num_prio);
+
+	/* Encoder RGB CSC formula by VUI from F/W */
+	of_property_read_u32(np, "enc_rgb_csc_by_fw", &pdata->enc_rgb_csc_by_fw);
 
 	return 0;
 }

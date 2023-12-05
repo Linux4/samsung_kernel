@@ -1846,7 +1846,7 @@ void kbase_gpu_dump_slots(struct kbase_device *kbdev)
 
 			if (katom)
 				dev_info(kbdev->dev,
-				"  js%d idx%d : katom=%pK gpu_rb_state=%d\n",
+				"  js%d idx%d : katom=%p gpu_rb_state=%d\n",
 				js, idx, katom, katom->gpu_rb_state);
 			else
 				dev_info(kbdev->dev, "  js%d idx%d : empty\n",

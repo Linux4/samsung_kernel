@@ -55,25 +55,25 @@
 
 				power_seq {
 					scenario_normal_on {
-						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 1000>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_normal_off {
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_vision_on {
-						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_vision_off {
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_ois_factory_on {
-						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 500>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_ois_factory_off {
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 500>; share = <SRT_RELEASE SHARED_PIN0 0>; };
 					};
 					scenario_read_rom_on {
-						10 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
+						10 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 2500>; share = <SRT_ACQUIRE SHARED_PIN0 1>; };
 					};
 					scenario_read_rom_off {
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 0 0>; share = <SRT_RELEASE SHARED_PIN0 0>; };

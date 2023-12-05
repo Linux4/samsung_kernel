@@ -2717,23 +2717,17 @@ p_err:
 int is_sensor_s_ext_ctrls(struct is_device_sensor *device,
 	struct v4l2_ext_controls *ctrls)
 {
-	int ret = 0;
-	struct v4l2_subdev *subdev_module;
+	int ret;
+	struct v4l2_subdev *subdev_module = device->subdev_module;
 
-	WARN_ON(!device);
-	WARN_ON(!device->subdev_module);
-	WARN_ON(!device->subdev_csi);
-	WARN_ON(!ctrls);
-
-	subdev_module = device->subdev_module;
+	FIMC_BUG(!subdev_module);
 
 	ret = v4l2_subdev_call(subdev_module, core, ioctl, SENSOR_IOCTL_MOD_S_EXT_CTRL, ctrls);
 	if (ret) {
 		err("s_ext_ctrls is fail(%d)", ret);
-		goto p_err;
+		return ret;
 	}
 
-p_err:
 	return ret;
 }
 KUNIT_EXPORT_SYMBOL(is_sensor_s_ext_ctrls);
@@ -3762,8 +3756,11 @@ int is_sensor_front_start(struct is_device_sensor *device,
 
 	/* Actuator Init because actuator init use cal data */
 	ret = v4l2_subdev_call(device->subdev_module, core, ioctl, V4L2_CID_SENSOR_NOTIFY_ACTUATOR_INIT, 0);
-	if (ret)
-		mwarn("Actuator init fail after first init done\n", device);
+	if (ret) {
+		merr("Actuator init fail **after first init done**\n", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
 
 	ret = is_sensor_wait_asyncshot(device);
 	if (ret) {

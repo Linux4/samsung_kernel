@@ -199,8 +199,10 @@ static int scale_fastpath(struct exynos_cpufreq_domain *domain,
 	int ret = 0;
 
 	/* target is same as current, skip scaling */
-	if (domain->old == target_freq)
+	if (domain->last == target_freq)
 		return -EINVAL;
+
+	domain->last = target_freq;
 
 	debug_pre_scale(domain, target_freq);
 

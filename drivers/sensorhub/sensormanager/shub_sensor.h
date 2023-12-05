@@ -20,8 +20,15 @@
 #include "shub_vendor_type.h"
 
 #include <linux/rtc.h>
+#include <linux/slab.h>
 
 #define SENSOR_NAME_MAX 40
+
+#define kfree_and_clear(buffer) \
+	do { \
+        kfree(buffer);  \
+        buffer = NULL;  \
+	} while (0)
 
 struct sensor_event {
 	u64 received_timestamp;
@@ -96,12 +103,14 @@ struct shub_sensor {
 
 	bool hal_sensor;
 
+	u64 change_timestamp;
 	u64 enable_timestamp;
 	u64 disable_timestamp;
 	struct rtc_time enable_time;
 	struct rtc_time disable_time;
 
 	struct sensor_event event_buffer;
+	struct sensor_event last_event_buffer;
 
 	void *data;
 	struct sensor_funcs *funcs;
@@ -111,4 +120,6 @@ struct shub_sensor {
 typedef int (*init_sensor)(bool en);
 
 int init_shub_sensor(struct shub_sensor *sensor);
+int init_default_func(struct shub_sensor *sensor, const char *name, int receive_size, int report_size, int buffer_size);
+void destroy_default_func(struct shub_sensor *sensor);
 #endif /* __SHUB_SENSOR_H_ */

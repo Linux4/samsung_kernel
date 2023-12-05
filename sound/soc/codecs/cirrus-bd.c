@@ -26,6 +26,7 @@
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
 #include <linux/power_supply.h>
+#include <linux/pm_runtime.h>
 #include <linux/fs.h>
 #include <linux/ktime.h>
 
@@ -33,6 +34,7 @@
 #include <sound/cirrus/big_data.h>
 
 #include "wmfw.h"
+#include "wm_adsp.h"
 
 #define CIRRUS_BD_VERSION	"5.01.18"
 #define CIRRUS_BD_DIR_NAME	"cirrus_bd"
@@ -81,6 +83,9 @@ void cirrus_bd_store_values(const char *mfd_suffix)
 	if (!amp)
 		return;
 
+	if (amp->runtime_pm)
+		pm_runtime_get_sync(amp->component->dev);
+
 	regmap = amp->regmap;
 
 	cirrus_bd_read_ctl(amp, "MAX_TEMP", WMFW_ADSP2_XM,
@@ -94,7 +99,9 @@ void cirrus_bd_store_values(const char *mfd_suffix)
 	cirrus_bd_read_ctl(amp, "ABNORMAL_MUTE", WMFW_ADSP2_XM,
 			    amp->bd.bd_alg_id, &abnm_mute);
 
-	if (max_temp > (amp->bd.max_temp_limit * (1 << CIRRUS_BD_TEMP_RADIX))
+	if (abnm_mute)
+		max_temp = CIRRUS_BD_ERR_TEMP;
+	else if (max_temp > (amp->bd.max_temp_limit * (1 << CIRRUS_BD_TEMP_RADIX))
 	    && over_temp_count == 0)
 		max_temp = (amp->bd.max_temp_limit *
 			    (1 << CIRRUS_BD_TEMP_RADIX));
@@ -139,6 +146,11 @@ void cirrus_bd_store_values(const char *mfd_suffix)
 			     amp->bd.bd_alg_id, 0);
 	cirrus_bd_write_ctl(amp, "ABNORMAL_MUTE", WMFW_ADSP2_XM,
 			     amp->bd.bd_alg_id, 0);
+
+	if (amp->runtime_pm) {
+		pm_runtime_mark_last_busy(amp->component->dev);
+		pm_runtime_put_autosuspend(amp->component->dev);
+	}
 }
 EXPORT_SYMBOL_GPL(cirrus_bd_store_values);
 

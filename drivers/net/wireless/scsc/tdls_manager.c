@@ -6,6 +6,9 @@
 
 #include <linux/list_sort.h>
 #include <linux/ktime.h>
+#include <linux/netdevice.h>
+#include <net/neighbour.h>
+#include <net/route.h>
 #include <scsc/scsc_warn.h>
 #include "debug.h"
 #include "mlme.h"
@@ -30,9 +33,41 @@ static int tdls_manager_discovery_threshold = 100;
 module_param(tdls_manager_discovery_threshold, int, 0644);
 MODULE_PARM_DESC(tdls_manager_discovery_threshold, "The number of packets to trigger TDLS dicovery");
 
+void slsi_tdls_manager_address_changed(struct net_device *dev)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct rtable *rt;
+	struct neighbour *neigh;
+	struct flowi4 flow4 = {};
+	__be32 gw_addr;
+
+	flow4.flowi4_oif = dev->ifindex;
+	flow4.daddr = 10 | (1 << 24); /* any ip address for obtaining gateway ip */
+
+	rt = ip_route_output_key(dev_net(dev), &flow4);
+	if (!rt)
+		return;
+#if (KERNEL_VERSION(5, 2, 0) <= LINUX_VERSION_CODE)
+	gw_addr = rt->rt_gw4;
+#else
+	gw_addr = rt->rt_gateway;
+#endif
+	neigh = neigh_lookup(&arp_tbl, &gw_addr, dev);
+	if (!neigh)
+		goto out;
+	SLSI_ETHER_COPY(ndev_vif->sta.tdls_dgw_macaddr, neigh->ha);
+	SLSI_NET_DBG1(dev, SLSI_TDLS, "The patcket sent to %pM is ignored.\n", ndev_vif->sta.tdls_dgw_macaddr);
+	neigh_release(neigh);
+out:
+	ip_rt_put(rt);
+}
+
 static int slsi_tdls_manager_add_peer_to_candidate_list(struct netdev_vif *ndev_vif, struct tdls_manager *manager, struct tdls_peer *t_peer)
 {
 	struct sorted_peer_entry *entry;
+
+	if (ether_addr_equal(ndev_vif->sta.tdls_dgw_macaddr, t_peer->mac_addr))
+		return 0;
 
 	WLBT_WARN_ON(!mutex_is_locked(&manager->state_transition_queue_mutex));
 
@@ -252,20 +287,19 @@ static void slsi_tdls_manager_connected_ind(struct tdls_manager *manager, struct
 	struct slsi_peer *peer;
 	u16 peer_index = (flow_id >> 8);
 
-	rtnl_lock();
 	ndev_vif->sta.tdls_enabled = true;
 
 	if (!ndev_vif->activated) {
 		SLSI_NET_ERR(dev, "VIF not activated\n");
-		goto exit_with_lock;
+		return;
 	}
 
 	if (WLBT_WARN(ndev_vif->vif_type != FAPI_VIFTYPE_STATION, "STA VIF"))
-		goto exit_with_lock;
+		return;
 
 	if (peer_index < SLSI_TDLS_PEER_INDEX_MIN || peer_index > SLSI_TDLS_PEER_INDEX_MAX) {
 		SLSI_NET_ERR(dev, "Received incorrect peer_index: %d\n", peer_index);
-		goto exit_with_lock;
+		return;
 	}
 	SLSI_NET_DBG1(dev, SLSI_MLME, "TDLS session connected\n");
 	slsi_lock_tdls_tcp_ack_lock(ndev_vif);
@@ -273,7 +307,7 @@ static void slsi_tdls_manager_connected_ind(struct tdls_manager *manager, struct
 	if (ndev_vif->sta.tdls_peer_sta_records + 1 > ndev_vif->sta.tdls_max_peer) {
 		SLSI_NET_ERR(dev, "MAX TDLS peer limit reached. Ignore ind for peer_index:%d\n", peer_index);
 		slsi_lock_tdls_tcp_ack_unlock(ndev_vif);
-		goto exit_with_lock;
+		return;
 	}
 
 	peer = slsi_peer_add(ndev_vif->sdev, dev, t_peer->mac_addr, peer_index);
@@ -281,7 +315,7 @@ static void slsi_tdls_manager_connected_ind(struct tdls_manager *manager, struct
 	if (!peer) {
 		SLSI_NET_ERR(dev, "Peer NOT Created\n");
 		slsi_lock_tdls_tcp_ack_unlock(ndev_vif);
-		goto exit_with_lock;
+		return;
 	}
 
 	/* QoS is mandatory for TDLS - enable QoS for TDLS peer by default */
@@ -297,9 +331,6 @@ static void slsi_tdls_manager_connected_ind(struct tdls_manager *manager, struct
 	slsi_tdls_move_packets(ndev_vif->sdev, dev, ndev_vif->peer_sta_record[SLSI_STA_PEER_QUEUESET], peer, true);
 #endif
 	slsi_lock_tdls_tcp_ack_unlock(ndev_vif);
-
-exit_with_lock:
-	rtnl_unlock();
 }
 
 static void slsi_tdls_manager_disconnected_ind(struct tdls_manager *manager, struct tdls_peer *t_peer, u16 reason_code)
@@ -309,11 +340,9 @@ static void slsi_tdls_manager_disconnected_ind(struct tdls_manager *manager, str
 	struct net_device *dev = (struct net_device *)((void *)ndev_vif - netdev_priv((struct net_device *)0));
 	struct slsi_peer *peer;
 
-	rtnl_lock();
-
 	if (!ndev_vif->activated) {
 		SLSI_NET_ERR(dev, "VIF not activated\n");
-		goto exit_with_lock;
+		return;
 	}
 
 	SLSI_NET_DBG1(dev, SLSI_MLME, "TDLS session disconnected\n");
@@ -323,7 +352,7 @@ static void slsi_tdls_manager_disconnected_ind(struct tdls_manager *manager, str
 	peer = slsi_get_peer_from_mac(ndev_vif->sdev, dev, t_peer->mac_addr);
 	if (WLBT_WARN(!peer || peer->aid == 0, "peer NOT found by MAC address\n")) {
 		slsi_lock_tdls_tcp_ack_unlock(ndev_vif);
-		goto exit_with_lock;
+		return;
 	}
 
 	slsi_ps_port_control(ndev_vif->sdev, dev, peer, SLSI_STA_CONN_STATE_DISCONNECTED);
@@ -363,9 +392,6 @@ static void slsi_tdls_manager_disconnected_ind(struct tdls_manager *manager, str
 		SLSI_NET_DBG1(dev, SLSI_MLME, "reason_code:%x\n", reason_code);
 		break;
 	}
-
-exit_with_lock:
-	rtnl_unlock();
 }
 
 static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *work)
@@ -387,6 +413,7 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 	 * state transition with holding state_transition_queue_mutex.
 	 * Peer is removed from hash table when peer is in SLSI_TDLS_PEER_INACTIVE.
 	 */
+	rtnl_lock();
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	mutex_lock(&manager->state_transition_queue_mutex);
 
@@ -573,6 +600,7 @@ static void slsi_tdls_manager_peer_state_transition_handler(struct work_struct *
 	}
 	mutex_unlock(&manager->state_transition_queue_mutex);
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+	rtnl_unlock();
 }
 
 static void slsi_tdls_manager_active_peer_mgmt(struct work_struct *work)
@@ -601,6 +629,9 @@ static void slsi_tdls_manager_active_peer_mgmt(struct work_struct *work)
 
 	mutex_lock(&manager->state_transition_queue_mutex);
 	spin_lock_bh(&manager->peer_hash_lock);
+
+	if (ether_addr_equal(ndev_vif->sta.tdls_dgw_macaddr, broadcast_mac))
+		slsi_tdls_manager_address_changed(dev);
 
 	for (i = 0 ; i < TDLS_PEER_HASH_TABLE_SIZE ; i++) {
 		if (hlist_empty(&manager->peer_hash_table[i]))
@@ -785,6 +816,8 @@ void slsi_tdls_manager_event_tx(struct slsi_dev *sdev, struct net_device *dev, s
 		return;
 	if (ether_addr_equal(peer_mac, ndev_vif->sta.sta_bss->bssid))
 		return;
+	if (ether_addr_equal(peer_mac, ndev_vif->sta.tdls_dgw_macaddr))
+		return;
 
 	cb = slsi_skb_cb_get(skb);
 	spin_lock_bh(&ndev_vif->sta.tdls_manager.peer_hash_lock);
@@ -840,6 +873,7 @@ int slsi_tdls_manager_on_vif_activated(struct slsi_dev *sdev, struct net_device 
 		slsi_tdls_manager_active_peer_mgmt);
 
 	ndev_vif->sta.tdls_manager.active = 1;
+	SLSI_ETHER_COPY(ndev_vif->sta.tdls_dgw_macaddr, broadcast_mac);
 
 	schedule_delayed_work(&ndev_vif->sta.tdls_manager.active_peer_manager, msecs_to_jiffies(1000));
 
@@ -856,6 +890,7 @@ void slsi_tdls_manager_on_vif_deactivated(struct slsi_dev *sdev, struct net_devi
 	if (!ndev_vif->sta.tdls_manager.active)
 		return;
 	ndev_vif->sta.tdls_manager.active = 0;
+	SLSI_ETHER_COPY(ndev_vif->sta.tdls_dgw_macaddr, broadcast_mac);
 
 	if (delayed_work_pending(&ndev_vif->sta.tdls_manager.active_peer_manager))
 		cancel_delayed_work_sync(&ndev_vif->sta.tdls_manager.active_peer_manager);

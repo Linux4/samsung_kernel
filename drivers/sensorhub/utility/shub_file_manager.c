@@ -198,7 +198,7 @@ ssize_t shub_file_show(struct device *dev, struct device_attribute *attr, char *
 ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
 	if (size < 1) {
-		shub_errf("error %d", size);
+		shub_errf("error %d", (int)size);
 		return -EINVAL;
 	}
 
@@ -208,7 +208,7 @@ ssize_t shub_file_store(struct device *dev, struct device_attribute *attr, const
 
 	} else {
 		if (size < 5) {
-			shub_errf("error %d", size);
+			shub_errf("error %d", (int)size);
 			return -EINVAL;
 		}
 

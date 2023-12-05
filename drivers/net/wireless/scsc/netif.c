@@ -1743,10 +1743,12 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 				SLSI_NET_ERR(dev, "Could not allocate memory for peer entry (queueset:%d)\n", queueset);
 
 				/* Free previously allocated peer database memory till current queueset */
+				slsi_spinlock_lock(&ndev_vif->peer_lock);
 				for (j = 0; j < queueset; j++) {
 					kfree(ndev_vif->peer_sta_record[j]);
 					ndev_vif->peer_sta_record[j] = NULL;
 				}
+				slsi_spinlock_unlock(&ndev_vif->peer_lock);
 
 				ret = -ENOMEM;
 				goto exit_with_error;
@@ -2057,10 +2059,12 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev, boo
 	if (!SLSI_IS_VIF_INDEX_P2P(ndev_vif)) {
 		int queueset;
 
+		slsi_spinlock_lock(&ndev_vif->peer_lock);
 		for (queueset = 0; queueset < SLSI_ADHOC_PEER_CONNECTIONS_MAX; queueset++) {
 			kfree(ndev_vif->peer_sta_record[queueset]);
 			ndev_vif->peer_sta_record[queueset] = NULL;
 		}
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 	}
 
 	if (SLSI_IS_VIF_INDEX_P2P(ndev_vif)) {

@@ -259,16 +259,6 @@ static void ems_hook_arch_set_freq_scale(void *data, const struct cpumask *cpus,
 	ems_arch_set_freq_scale(cpus, freq, max, scale);
 }
 
-static void ems_hook_new_task_stats(void *data, struct task_struct *p)
-{
-	ems_last_waked(p) = ktime_get_ns();
-}
-
-static void ems_hook_try_to_wake_up(void *data, struct task_struct *p)
-{
-	ems_last_waked(p) = ktime_get_ns();
-}
-
 static void ems_hook_syscall_prctl_finished(void *data, int option, struct task_struct *p)
 {
 	if (option != PR_SET_NAME)
@@ -281,6 +271,16 @@ static void ems_hook_syscall_prctl_finished(void *data, int option, struct task_
 		return;
 
 	ems_render(p) = 1;
+}
+
+static void ems_hook_new_task_stats(void *data, struct task_struct *p)
+{
+	ems_last_waked(p) = ktime_get_ns();
+}
+
+static void ems_hook_try_to_wake_up(void *data, struct task_struct *p)
+{
+	ems_last_waked(p) = ktime_get_ns();
 }
 
 int hook_init(void)

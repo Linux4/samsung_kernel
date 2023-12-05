@@ -48,7 +48,7 @@ static void fw_update(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		return;
 	}
-
+	mutex_lock(&core_data->modechange_mutex);
 	update_type = sec->cmd_param[0];
 
 	switch (update_type) {
@@ -84,6 +84,7 @@ static void fw_update(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_OK;
 	}
 	ts_info("%s", buff);
+	mutex_unlock(&core_data->modechange_mutex);
 }
 
 static void get_chip_vendor(void *device_data)
@@ -2861,7 +2862,7 @@ static void fod_enable(void *device_data)
 
 	if (!ts->plat_data->enabled && !ts->plat_data->lowpower_mode && !ts->plat_data->pocket_mode
 			&& !ts->plat_data->ed_enable && !ts->plat_data->fod_lp_mode) {
-		if (device_may_wakeup(ts->bus->dev) && ts->plat_data->power_state == SEC_INPUT_STATE_LPM)
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM)
 			disable_irq_wake(ts->irq);
 		ts->hw_ops->irq_enable(ts, false);
 		goodix_ts_power_off(ts);

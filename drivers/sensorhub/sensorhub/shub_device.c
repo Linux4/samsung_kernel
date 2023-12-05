@@ -132,6 +132,21 @@ struct shub_system_info *get_shub_system_info(void)
 	return &shub_data->system_info;
 }
 
+
+void set_model_name_to_hub(void)
+{
+	struct device_node *np = shub_data->pdev->dev.of_node;
+	const char *model_name_string;
+
+	if (of_property_read_string(np, "model-name", &model_name_string) >= 0) {
+		shub_infof("model_name_string: %s", model_name_string);
+		strcpy(shub_data->model_name, model_name_string);
+		shub_send_command(CMD_SETVALUE, TYPE_HUB, MODEL_NAME_INFO, shub_data->model_name, MODEL_NAME_MAX);
+	} else {
+		shub_infof("model name dt doesn't exsist");
+	}
+}
+
 static int send_pm_state(u8 pm_state)
 {
 	int ret;
@@ -153,6 +168,8 @@ static int init_sensorhub(void)
 	if (ret < 0)
 		return ret;
 
+	set_model_name_to_hub();
+
 	send_pm_state(shub_data->pm_status);
 	shub_send_status(shub_data->lcd_status);
 
@@ -162,6 +179,7 @@ static int init_sensorhub(void)
 void init_others(void)
 {
 	sync_motor_state();
+	sync_panel_state();
 }
 
 struct reset_info_t get_reset_info(void)
@@ -414,6 +432,9 @@ int init_sensorhub_device(void)
 
 		for (type = 0; type <= RESET_TYPE_MAX; type++)
 			shub_data->cnt_shub_reset[type] = 0;
+
+		for (type = 0; type < MINI_DUMP_LENGTH; type++)
+			shub_data->mini_dump[type] = 0;
 	}
 
 	shub_data->pm_status = PM_COMPLETE;
@@ -517,7 +538,15 @@ int shub_probe(struct platform_device *pdev)
 		goto err_init_file_manager;
 	}
 
+	if (initialize_indio_dev(&shub_data->pdev->dev) < 0) {
+		shub_errf("failed to init initialize_indio_dev");
+		goto err_initialize_indio_dev;
+	}
+
 	init_shub_panel();
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SHUB_PANEL_NOTIFY)
+	init_shub_panel_callback();
+#endif
 #ifdef CONFIG_SHUB_DEBUG
 	shub_system_checker_init();
 #endif
@@ -532,6 +561,8 @@ int shub_probe(struct platform_device *pdev)
 
 	return ret;
 
+err_initialize_indio_dev:
+	remove_indio_dev();
 err_init_file_manager:
 	remove_shub_debug_sysfs();
 err_init_debug_sysfs:
@@ -563,6 +594,9 @@ void shub_shutdown(struct platform_device *pdev)
 
 	sensorhub_shutdown();
 	remove_shub_panel();
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2) && IS_ENABLED(CONFIG_SHUB_PANEL_NOTIFY)
+	remove_shub_panel_callback();
+#endif
 	remove_shub_dump();
 	remove_shub_motor_callback();
 	remove_factory();

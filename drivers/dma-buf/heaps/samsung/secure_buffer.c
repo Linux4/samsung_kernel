@@ -55,7 +55,7 @@ static int buffer_unprotect_hvc(struct device *dev,
 	int unique_id = SECURE_BUFID_TO_UID(protdesc->dma_addr);
 
 	ida_free(&secure_unique_id, unique_id);
-	
+
 	ret = ppmp_hvc(HVC_DRM_TZMP2_UNPROT, virt_to_phys(protdesc), 0, 0, 0);
 	if (ret) {
 		perr("%s: UNPROT %#x (err=%#lx,dva=%#x,size=%#lx,cnt=%u,flg=%u)",

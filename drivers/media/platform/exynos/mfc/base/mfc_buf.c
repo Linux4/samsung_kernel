@@ -842,6 +842,7 @@ err_reserve_iova:
 int mfc_load_firmware(struct mfc_core *core, struct mfc_special_buf *fw_buf,
 		const u8 *fw_data, size_t fw_size)
 {
+	core->dev->open_sequence |= (1 << 10);
 	mfc_core_debug(2, "[MEMINFO][F/W] loaded %s F/W Size: %zu\n",
 			fw_buf->buftype == MFCBUF_NORMAL_FW ? "normal" : "secure", fw_size);
 
@@ -924,11 +925,13 @@ int mfc_request_load_firmware(struct mfc_core *core, struct mfc_special_buf *fw_
 	if (fw_buf->buftype == MFCBUF_NORMAL_FW) {
 		mfc_core_debug(4, "[F/W] Requesting imgloader boot for F/W\n");
 
+		core->dev->open_sequence |= (1 << 9);
 		ret = imgloader_boot(&core->mfc_imgloader_desc);
 		if (ret) {
 			mfc_core_err("[F/W] imgloader boot failed.\n");
 			return -EINVAL;
 		}
+		core->dev->open_sequence |= (1 << 13);
 		/* Imageloader verifies the FW directly after mem_setup() */
 		mfc_core_change_fw_state(core, 0, MFC_FW_VERIFIED, 1);
 	} else if (fw_buf->buftype == MFCBUF_DRM_FW) {

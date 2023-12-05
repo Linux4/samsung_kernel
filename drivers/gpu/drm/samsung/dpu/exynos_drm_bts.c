@@ -39,6 +39,26 @@ static int dpu_bts_log_level = 6;
 module_param(dpu_bts_log_level, int, 0600);
 MODULE_PARM_DESC(dpu_bts_log_level, "log level for dpu bts [default : 6]");
 
+#if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
+/* Workaround min lock for LPM & Recovery Scenario */
+static int boot_mode;
+module_param(boot_mode, int, 0444);
+/* bootm value definitions.
+ * #define SYS_BOOTM_NORMAL	(0x0<<16)
+ * #define SYS_BOOTM_UP		(0x1<<16)
+ * #define SYS_BOOTM_DOWN		(0x2<<16)
+ * #define SYS_BOOTM_LPM		(0x4<<16)
+ * #define SYS_BOOTM_RECOVERY	(0x8<<16)
+ * #define SYS_BOOTM_FASTBOOT	(0x10<<16)
+ */
+#define MIF_MINLOCK_FOR_LPM_RECOVERY (676 * 1000)
+
+static inline bool dpu_bts_is_normal_boot(void)
+{
+	return (boot_mode >> 16) ? false : true;
+}
+#endif
+
 #define DPU_DEBUG_BTS(decon, fmt, ...)	\
 	dpu_pr_debug("BTS", (decon)->id, dpu_bts_log_level, fmt, ##__VA_ARGS__)
 
@@ -944,14 +964,13 @@ static void dpu_bts_calc_overlap_bw(struct decon_device *decon)
 	struct dpu_bts_win_config *config = bts->win_config;
 	struct dpu_bts_overlap line_bw[BTS_DPP_MAX*2];
 	unsigned int cur_total = 0;
-	int pos = 0;
 	unsigned int cur_port[MAX_PORT_CNT];
-	unsigned int pos_port[MAX_PORT_CNT];
+	unsigned int disp_ch_bw[MAX_PORT_CNT];
 	int cnt = 0;
 
 	memset(&line_bw, 0, sizeof(struct dpu_bts_overlap)*BTS_DPP_MAX*2);
 	memset(&cur_port, 0, sizeof(int)*MAX_PORT_CNT);
-	memset(&pos_port, 0, sizeof(int)*MAX_PORT_CNT);
+	memset(&disp_ch_bw, 0, sizeof(int)*MAX_PORT_CNT);
 
 	for (i = 0; i < decon->win_cnt; ++i) {
 		if (config[i].state != DPU_WIN_STATE_BUFFER)
@@ -960,8 +979,7 @@ static void dpu_bts_calc_overlap_bw(struct decon_device *decon)
 		idx = config[i].dpp_ch;
 		line_bw[cnt].pos =
 			bts_info->dpp[idx].dst.y1 > WIN_START_TIME ?
-				(bts_info->dpp[idx].dst.y1 - WIN_START_TIME) :
-				0;
+				(bts_info->dpp[idx].dst.y1 - WIN_START_TIME) : 0;
 		line_bw[cnt].bw = bts_info->dpp[idx].bw;
 		line_bw[cnt].port = decon->bts.bw[idx].ch_num;
 		cnt++;
@@ -982,14 +1000,16 @@ static void dpu_bts_calc_overlap_bw(struct decon_device *decon)
 		cur_total += line_bw[i].bw;
 		cur_port[port] += line_bw[i].bw;
 
-		pos = line_bw[i].pos;
-		pos_port[port] = line_bw[i].pos;
-
 		bts->overlay_bw = max(bts->overlay_bw, cur_total);
-		bts->overlay_peak = max(bts->overlay_peak, cur_port[port]);
+		disp_ch_bw[port] = max(disp_ch_bw[port], cur_port[port]);
 	}
 
 	bts->overlay_bw += decon->bts.write_bw;
+	bts->overlay_bw += decon->bts.bus_overhead;
+
+	dpu_bts_sum_all_decon_bw(decon, disp_ch_bw);
+	for (i = 0; i < MAX_PORT_CNT; i++)
+		bts->overlay_peak = max(bts->overlay_peak, disp_ch_bw[i]);
 
 	if (decon->config.rcd_en)
 		bts->overlay_bw += bts_info->vclk;
@@ -1351,6 +1371,7 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 		DPU_DEBUG_BTS(decon, "additional BW for RCD\n");
 		read_bw += bts_info.vclk;
 	}
+	read_bw += decon->bts.bus_overhead;
 
 	/* write bw calculation */
 	config = &decon->bts.wb_config;
@@ -1467,6 +1488,13 @@ void dpu_bts_update_bw(struct exynos_drm_crtc *exynos_crtc, bool shadow_updated)
 		if (new_exynos_crtc_state->wb_type == EXYNOS_WB_CWB)
 			DPU_DEBUG_BTS(decon, "\tCWB: "FREQ_FMT"\n", FREQ_ARG(&decon->bts));
 	}
+#if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
+	/* Workaround min lock for LPM / Recovery Scenario */
+	if (!dpu_bts_is_normal_boot()) {
+		if (exynos_pm_qos_request_active(&decon->bts.mif_qos))
+			exynos_pm_qos_update_request(&decon->bts.mif_qos, MIF_MINLOCK_FOR_LPM_RECOVERY);
+	}
+#endif
 
 	DPU_EVENT_LOG("BTS_UPDATE_BW", exynos_crtc, 0, FREQ_FMT, FREQ_ARG(&decon->bts));
 
@@ -1502,6 +1530,16 @@ void dpu_bts_release_bw(struct exynos_drm_crtc *exynos_crtc)
 			exynos_pm_qos_update_request(&decon->bts.disp_qos, 0);
 		else
 			DPU_ERR_BTS(decon, "disp qos setting error\n");
+#if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
+		/* Workaround min lock for LPM / Recovery Scenario */
+		if (!dpu_bts_is_normal_boot()) {
+			if (exynos_pm_qos_request_active(&decon->bts.mif_qos))
+				exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
+			else
+				DPU_ERR_BTS(decon, "mif qos setting error\n");
+		}
+#endif
+
 		decon->bts.prev_max_disp_freq = 0;
 	} else if (decon->config.out_type & DECON_OUT_DP) {
 		decon->bts.prev_total_bw = 0;
@@ -1594,6 +1632,12 @@ void dpu_bts_init(struct exynos_drm_crtc *exynos_crtc)
 	}
 
 	decon->bts.enabled = true;
+#if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
+	/* Workaround min lock for LPM / Recovery Scenario */
+	if (!dpu_bts_is_normal_boot() && (decon->config.out_type & DECON_OUT_DSI))
+		DPU_INFO_BTS(decon, "decon%d boot_mode:0x%02X. MIF minlock(%d) will work.\n",
+			decon->id, boot_mode >> 16, MIF_MINLOCK_FOR_LPM_RECOVERY);
+#endif
 
 	DPU_INFO_BTS(decon, "bts feature is enabled\n");
 }

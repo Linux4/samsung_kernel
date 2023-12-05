@@ -516,6 +516,16 @@ static void alloc_tx_buffer(struct eth_dev *dev)
 	}
 }
 
+static int alloc_req_buffer(struct usb_request *req)
+{
+	req->buf = kmalloc(g_rndis_mp.tx_req_bufsize, GFP_ATOMIC);
+
+	if (!req->buf)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static int tx_task(struct eth_dev *dev, struct usb_request *req)
 {
 	struct usb_ep *in = dev->port_usb->in_ep;
@@ -708,6 +718,19 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 				goto multiframe;
 			goto drop;
 		}
+	}
+
+	if (!req->buf) {
+	 	if (alloc_req_buffer(req)) {
+			dev_kfree_skb_any(skb);
+			dev->net->stats.tx_dropped++;
+			if (list_empty(&dev->tx_reqs))
+				netif_start_queue(net);
+			spin_lock_irqsave(&dev->req_lock, flags);
+			list_add(&req->list, &dev->tx_reqs);
+			spin_unlock_irqrestore(&dev->req_lock, flags);
+			return NETDEV_TX_OK;
+ 		}
 	}
 
 	spin_lock_irqsave(&dev->req_lock, flags);
@@ -1361,7 +1384,8 @@ void gether_disconnect(struct gether *link)
 
 		spin_unlock(&dev->req_lock);
 		if (g_rndis_mp.multi_pkt_xfer)
-			kfree(req->buf);
+			if (req->buf != NULL)
+				kfree(req->buf);
 		usb_ep_free_request(link->in_ep, req);
 		spin_lock(&dev->req_lock);
 	}

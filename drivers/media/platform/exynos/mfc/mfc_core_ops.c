@@ -418,6 +418,7 @@ int __mfc_core_instance_init(struct mfc_core *core, struct mfc_ctx *ctx)
 	INIT_LIST_HEAD(&core_ctx->mb_list);
 
 	mfc_create_queue(&core_ctx->src_buf_queue);
+	core->dev->open_sequence |= (1 << 6);
 
 	if (core->num_inst == 1) {
 		mfc_debug(2, "it is first instance in to core-%d\n", core->id);
@@ -445,10 +446,13 @@ int __mfc_core_instance_init(struct mfc_core *core, struct mfc_ctx *ctx)
 		fw_status = core->fw.status;
 	}
 
+	core->dev->open_sequence |= (1 << 7);
 	if (!(fw_status & MFC_FW_LOADED)) {
+		core->dev->open_sequence |= (1 << 8);
 		ret = mfc_request_load_firmware(core, fw_buf);
 		if (ret)
 			goto err_fw_load;
+		core->dev->open_sequence |= (1 << 14);
 	}
 
 #if !IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)
@@ -530,6 +534,7 @@ int mfc_core_instance_init(struct mfc_core *core, struct mfc_ctx *ctx)
 
 	mfc_core_debug_enter();
 
+	core->dev->open_sequence |= (1 << 5);
 	ret = mfc_core_get_hwlock_dev(core);
 	if (ret < 0) {
 		mfc_core_err("Failed to get hwlock\n");
@@ -1040,7 +1045,6 @@ void mfc_core_instance_csd_parsing(struct mfc_core *core, struct mfc_ctx *ctx)
 	}
 
 	dec->consumed = 0;
-	dec->remained_size = 0;
 	core_ctx->check_dump = 0;
 	ctx->curr_src_index = -1;
 
@@ -1291,6 +1295,7 @@ int mfc_imgloader_verify_fw(struct imgloader_desc *desc, phys_addr_t fw_phys_bas
 	int ret = 0;
 
 	mfc_core_debug_enter();
+	core->dev->open_sequence |= (1 << 11);
 
 	if (!mfc_core_get_pwr_ref_cnt(core)) {
 		mfc_core_debug(2, "power on\n");
@@ -1310,6 +1315,7 @@ int mfc_imgloader_verify_fw(struct imgloader_desc *desc, phys_addr_t fw_phys_bas
 		return -EINVAL;
 	}
 
+	core->dev->open_sequence |= (1 << 12);
 #if IS_ENABLED(CONFIG_EXYNOS_S2MPU)
 	ret = __mfc_verify_fw(core, fw_buf);
 #endif

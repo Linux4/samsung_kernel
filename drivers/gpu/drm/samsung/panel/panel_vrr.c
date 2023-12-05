@@ -78,7 +78,7 @@ int find_vrr_lfd_scope_name(const char *name)
 	return i;
 }
 
-int update_vrr_lfd(struct vrr_lfd_info *vrr_lfd_info)
+int update_vrr_lfd(struct panel_device *panel, struct vrr_lfd_info *vrr_lfd_info)
 {
 	int i, scope;
 	u32 lfd_fix, lfd_min, lfd_max, lfd_scalability;
@@ -102,7 +102,7 @@ int update_vrr_lfd(struct vrr_lfd_info *vrr_lfd_info)
 			}
 		}
 
-		vrr_lfd_info->cur[scope].fix = lfd_fix;
+		panel_set_property(panel, &vrr_lfd_info->cur[scope].fix, lfd_fix);
 		if (old_vrr_lfd_info.cur[scope].fix != vrr_lfd_info->cur[scope].fix) {
 			panel_info("scope:%s fix:%d->%d\n",
 					get_vrr_lfd_scope_name(scope),

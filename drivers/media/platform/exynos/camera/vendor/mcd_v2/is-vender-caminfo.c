@@ -678,6 +678,7 @@ EXIT:
 	return ret;
 }
 
+#ifdef CONFIG_OIS_USE
 static int is_vender_caminfo_cmd_get_ois_hall_data(void __user *user_data)
 {
 	struct is_core *core = NULL;
@@ -685,9 +686,7 @@ static int is_vender_caminfo_cmd_get_ois_hall_data(void __user *user_data)
 
 	core = is_get_is_core();
 
-#ifdef CONFIG_OIS_USE
 	is_ois_get_hall_data(core, &halldata);
-#endif
 
 	if (copy_to_user(user_data, (void *)&halldata, sizeof(struct is_ois_hall_data))) {
 		err("%s : failed to copy data to user", __func__);
@@ -696,6 +695,7 @@ static int is_vender_caminfo_cmd_get_ois_hall_data(void __user *user_data)
 
 	return 0;
 }
+#endif
 
 static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -743,9 +743,11 @@ static long is_vender_caminfo_ioctl(struct file *file, unsigned int cmd, unsigne
 	case CAMINFO_CMD_ID_GET_AWB_DATA_ADDR:
 		ret = is_vender_caminfo_cmd_get_awb_data_addr(ioctl_cmd.data);
 		break;
+#ifdef CONFIG_OIS_USE
 	case CAMINFO_CMD_ID_GET_OIS_HALL_DATA:
 		ret = is_vender_caminfo_cmd_get_ois_hall_data(ioctl_cmd.data);
 		break;
+#endif
 #ifdef CONFIG_SEC_CAL_ENABLE
 	case CAMINFO_CMD_ID_GET_MODULE_INFO:
 		ret = is_vender_caminfo_sec2lsi_cmd_get_module_info(ioctl_cmd.data);
@@ -806,4 +808,3 @@ module_exit(is_vender_caminfo_exit);
 
 MODULE_DESCRIPTION("Exynos Caminfo driver");
 MODULE_LICENSE("GPL v2");
-

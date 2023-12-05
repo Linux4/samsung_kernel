@@ -268,6 +268,7 @@ struct gdc_m2m_device {
 	struct video_device	*vfd;
 	struct v4l2_m2m_dev	*m2m_dev;
 	atomic_t		in_use;
+	struct mutex		lock;
 };
 
 struct gdc_wdt {

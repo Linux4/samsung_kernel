@@ -96,7 +96,6 @@
 #include <linux/posix-timers.h>
 #include <linux/time_namespace.h>
 #include <linux/resctrl.h>
-#include <linux/cn_proc.h>
 #include <linux/task_integrity.h>
 #include <linux/proca.h>
 #include <linux/cpufreq_times.h>
@@ -1737,10 +1736,8 @@ static ssize_t comm_write(struct file *file, const char __user *buf,
 	if (!p)
 		return -ESRCH;
 
-	if (same_thread_group(current, p)) {
+	if (same_thread_group(current, p))
 		set_task_comm(p, buffer);
-		proc_comm_connector(p);
-	}
 	else
 		count = -EINVAL;
 

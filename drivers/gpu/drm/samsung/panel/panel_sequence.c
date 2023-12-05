@@ -1,6 +1,7 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include "panel.h"
+#include "panel_drv.h"
 #include "panel_debug.h"
 #include "panel_obj.h"
 #include "panel_sequence.h"
@@ -22,6 +23,27 @@ bool is_valid_sequence(struct seqinfo *seq)
 char *get_sequence_name(struct seqinfo *seq)
 {
 	return get_pnobj_name(&seq->base);
+}
+
+int snprintf_sequence(char *buf, size_t size, struct seqinfo *seq)
+{
+	int i, len;
+
+	if (!seq)
+		return 0;
+
+	len = snprintf(buf, size, "%s\n", get_sequence_name(seq));
+	len += snprintf(buf + len, size - len, "commands: %d\n", seq->size);
+	for (i = 0; i < seq->size; i++) {
+		if (!seq->cmdtbl[i])
+			break;
+		len += snprintf(buf + len, size - len, "[%d]: type: %8s, name: %s",
+				i, cmd_type_to_string(get_pnobj_cmd_type(seq->cmdtbl[i])),
+				get_pnobj_name(seq->cmdtbl[i]));
+		if (i + 1 != seq->size)
+			len += snprintf(buf + len, size - len, "\n");
+	}
+	return len;
 }
 
 /**
@@ -77,19 +99,30 @@ void destroy_sequence(struct seqinfo *seq)
 	if (!seq)
 		return;
 
-	free_pnobj_name(&seq->base);
+	pnobj_deinit(&seq->base);
 	kfree(seq->cmdtbl);
 	kfree(seq);
 }
 EXPORT_SYMBOL(destroy_sequence);
 
-__visible_for_testing void add_edge(struct list_head *head, int vertex)
+__visible_for_testing int add_edge(struct list_head *head, int vertex)
 {
 	struct command_node *node;
 
+	if (!head)
+		return -EINVAL;
+
+	if (vertex < 0)
+		return -EINVAL;
+
 	node = kmalloc(sizeof(*node), GFP_KERNEL);
+	if (!node)
+		return -ENOMEM;
+
 	node->vertex = vertex;
 	list_add_tail(&node->list, head);
+
+	return 0;
 }
 
 /* TODO: need depth limit */
@@ -125,8 +158,8 @@ __visible_for_testing bool check_cycle(struct list_head adj_list[],
 			}
 		}
 	}
-
 	kfree(order);
+
 	return false;
 }
 
@@ -159,7 +192,7 @@ __visible_for_testing bool is_cyclic(struct list_head *adj_list, int n)
 	int i;
 
 	visited = kzalloc(sizeof(*visited) * n, GFP_KERNEL);
-	recur_stack = kzalloc(sizeof(*visited) * n, GFP_KERNEL);
+	recur_stack = kzalloc(sizeof(*recur_stack) * n, GFP_KERNEL);
 
 	for (i = 0; i < n; i++) {
 		if (!visited[i] &&
@@ -228,13 +261,17 @@ int sequence_sort(struct list_head *seq_list)
 	stack = kzalloc(sizeof(*stack) * num_seq, GFP_KERNEL);
 	seq_array = kmalloc_array(num_seq, sizeof(struct seqinfo *), GFP_KERNEL);
 
+	for (i = 0; i < num_seq; i++)
+		INIT_LIST_HEAD(&adj_list[i]);
+
 	/* add_edge */
 	list_for_each_entry(pos, seq_list, list) {
-		INIT_LIST_HEAD(&adj_list[iseq]);
-
 		sequence = pnobj_container_of(pos, struct seqinfo);
-		if (!is_valid_sequence(sequence))
-			continue;
+		if (!is_valid_sequence(sequence)) {
+			panel_err("invalid sequence(%s)\n", get_sequence_name(sequence));
+			ret = -EINVAL;
+			goto err;
+		}
 
 		seq_array[iseq] = sequence;
 		for (i = 0; i < sequence->size && sequence->cmdtbl[i]; i++) {
@@ -245,13 +282,18 @@ int sequence_sort(struct list_head *seq_list)
 			index = get_index_of_sequence(seq_list,
 					pnobj_container_of(command, struct seqinfo));
 			if (index < 0) {
-				panel_err("failed to get index_of_sequnece(%s)\n",
-						get_pnobj_name(command));
+				panel_err("failed to get index_of_sequnece(%s:%d:%s)\n",
+						get_sequence_name(sequence), index, get_pnobj_name(command));
 				ret = -EINVAL;
 				goto err;
 			}
 
-			add_edge(&adj_list[iseq], index);
+			ret = add_edge(&adj_list[iseq], index);
+			if (ret < 0) {
+				panel_err("failed to add_edge(%s:%d:%s)\n",
+						get_sequence_name(sequence), index, get_pnobj_name(command));
+				goto err;
+			}
 		}
 		iseq++;
 	}
@@ -280,6 +322,7 @@ int sequence_sort(struct list_head *seq_list)
 		list_add_tail(get_pnobj_list(&seq_array[stack[i]]->base),
 				seq_list);
 
+err:
 	/* free command_node */
 	for (i = 0; i < num_seq; i++) {
 		struct command_node *pos, *next;
@@ -288,11 +331,164 @@ int sequence_sort(struct list_head *seq_list)
 			kfree(pos);
 	}
 
-err:
 	kfree(adj_list);
 	kfree(visited);
 	kfree(stack);
 	kfree(seq_array);
 
 	return ret;
+}
+
+struct pnobj_refs *sequence_to_pnobj_refs(struct seqinfo *seq)
+{
+	struct pnobj_refs *pnobj_refs;
+	struct pnobj *pnobj;
+	int i, ret;
+
+	if (!seq)
+		return NULL;
+
+	pnobj_refs = create_pnobj_refs();
+	if (!pnobj_refs)
+		return NULL;
+
+	for (i = 0; i < seq->size; i++) {
+		pnobj = (struct pnobj *)seq->cmdtbl[i];
+		if (!pnobj)
+			break;
+
+		if (!is_valid_panel_obj(pnobj)) {
+			panel_warn("invalid pnobj(%s)\n",
+					get_pnobj_name(pnobj));
+			break;
+		}
+
+		ret = add_pnobj_ref(pnobj_refs, pnobj);
+		if (ret < 0)
+			goto err;
+	}
+
+	return pnobj_refs;
+
+err:
+	remove_pnobj_refs(pnobj_refs);
+	return NULL;
+}
+
+struct pnobj_refs *sequence_filter(bool (*f)(struct pnobj *), struct seqinfo *seq)
+{
+	struct pnobj_refs *cmd_refs;
+	struct pnobj_refs *filtered_refs;
+
+	if (!f || !seq)
+		return NULL;
+
+	cmd_refs = sequence_to_pnobj_refs(seq);
+	if (!cmd_refs)
+		return NULL;
+
+	filtered_refs = pnobj_refs_filter(f, cmd_refs);
+	remove_pnobj_refs(cmd_refs);
+
+	return filtered_refs;
+}
+
+static bool check_skip_condition(u32 type, int *cond_skip_count)
+{
+	bool skip = true;
+
+	if (type == CMD_TYPE_COND_IF)
+		(*cond_skip_count)++;
+	else if (type == CMD_TYPE_COND_EL)
+		skip = (*cond_skip_count > 0);
+	else if (type == CMD_TYPE_COND_FI)
+		(*cond_skip_count)--;
+
+	return skip;
+}
+
+struct pnobj_refs *sequence_condition_filter(struct panel_device *panel, struct seqinfo *seq)
+{
+	struct pnobj_refs *orig_refs;
+	struct pnobj_refs *filtered_refs;
+	struct pnobj_ref *ref;
+	struct pnobj *pnobj;
+	bool condition = true;
+	int ret, cond_skip_count = 0;
+	u32 type;
+
+	orig_refs = sequence_to_pnobj_refs(seq);
+	if (!orig_refs)
+		return NULL;
+
+	filtered_refs = create_pnobj_refs();
+	if (!filtered_refs)
+		return NULL;
+
+	list_for_each_entry(ref, &orig_refs->list, list) {
+		pnobj = ref->pnobj;
+		type = get_pnobj_cmd_type(pnobj);
+
+		if (!condition && check_skip_condition(type, &cond_skip_count))
+			continue;
+
+		if (type == CMD_TYPE_COND_IF) {
+			condition = panel_do_condition(panel,
+					pnobj_container_of(pnobj, struct condinfo));
+		} else if (type == CMD_TYPE_COND_EL) {
+			condition = !condition;
+		} else if (type == CMD_TYPE_COND_FI) {
+			condition = true;
+		} else {
+			ret = add_pnobj_ref(filtered_refs, pnobj);
+			if (ret < 0)
+				goto err;
+		}
+	}
+
+	remove_pnobj_refs(orig_refs);
+	return filtered_refs;
+
+err:
+	remove_pnobj_refs(filtered_refs);
+	remove_pnobj_refs(orig_refs);
+	return NULL;
+}
+
+int get_packet_refs_from_sequence(struct panel_device *panel,
+		char *seqname, struct pnobj_refs *pnobj_refs)
+{
+	struct pnobj_refs *cmd_refs;
+	struct pnobj_refs *pkt_refs;
+	struct seqinfo *seq;
+
+	if (!panel || !seqname)
+		return -EINVAL;
+
+	if (!pnobj_refs) {
+		panel_err("null pnobj_refs\n");
+		return -EINVAL;
+	}
+
+	if (!check_seqtbl_exist(panel, seqname)) {
+		panel_info("seq name: %s does not exists\n", seqname);
+		return 0;
+	}
+
+	seq = find_panel_seq_by_name(panel, seqname);
+	if (!seq) {
+		panel_err("sequence(%s) not found\n", seqname);
+		return -EINVAL;
+	}
+
+	cmd_refs = sequence_condition_filter(panel, seq);
+	pkt_refs = pnobj_refs_filter(is_tx_packet, cmd_refs);
+
+	list_replace_init(get_pnobj_refs_list(pkt_refs),
+			get_pnobj_refs_list(pnobj_refs));
+
+	remove_pnobj_refs(cmd_refs);
+	remove_pnobj_refs(pkt_refs);
+
+	return 0;
 }

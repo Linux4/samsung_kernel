@@ -178,10 +178,16 @@ int is_sec_get_sysfs_finfo(struct is_rom_info **finfo, int rom_id)
 		rear3_dualized_rom_probe = false;
 	}
 	else {
-		*finfo = &sysfs_finfo[rom_id];
+		if (rom_id < ROM_ID_MAX)
+			*finfo = &sysfs_finfo[rom_id];
+		else
+			*finfo = 0;
 	}
 #else
-	*finfo = &sysfs_finfo[rom_id];
+	if (rom_id < ROM_ID_MAX)
+		*finfo = &sysfs_finfo[rom_id];
+	else
+		*finfo = 0;
 #endif
 	return 0;
 }
@@ -1748,7 +1754,7 @@ int is_sec_readcal_eeprom(int rom_id)
 	rom_type = module->pdata->rom_type;
 
 /* to do check : Do not use a specific sensor id in common code. */
-	if (!(sensor_id == SENSOR_NAME_IMX616))	//put all dualized sensor names here
+	if (!(sensor_id == SENSOR_NAME_IMX616 || sensor_id == SENSOR_NAME_IMX882))	//put all dualized sensor names here
 		finfo->is_read_dualized_values = true;
 	if (!(finfo->is_read_dualized_values)){
 		is_sec_readcal_eeprom_dualized(rom_id); // call this function only once for EEPROM dualized sensors

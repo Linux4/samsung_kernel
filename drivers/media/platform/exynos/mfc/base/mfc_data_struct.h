@@ -1015,6 +1015,8 @@ struct mfc_platdata {
 
 	unsigned int scheduler;
 	unsigned int pbs_num_prio;
+
+	unsigned int enc_rgb_csc_by_fw;
 };
 
 struct mfc_core_platdata {
@@ -1464,6 +1466,9 @@ struct mfc_dev {
 
 	struct mutex mfc_mutex;
 	struct mutex mfc_migrate_mutex;
+
+	struct timer_list open_timer;
+	unsigned long open_sequence;
 
 	struct mfc_ctx *ctx[MFC_NUM_CONTEXTS];
 	struct mfc_ctx *move_ctx[MFC_NUM_CONTEXTS];
@@ -2329,8 +2334,7 @@ struct mfc_dec {
 	unsigned int *crc;
 	int crc_idx;
 
-	unsigned long consumed;
-	unsigned long remained_size;
+	unsigned int consumed;
 	dma_addr_t y_addr_for_pb;
 
 	int sei_parse;

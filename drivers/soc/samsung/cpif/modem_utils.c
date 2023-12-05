@@ -30,8 +30,9 @@
 #include <linux/delay.h>
 #include <linux/bitops.h>
 #include <soc/samsung/exynos-modem-ctrl.h>
-
 #include <soc/samsung/acpm_ipc_ctrl.h>
+#include <soc/samsung/exynos-bcm_dbg.h>
+
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "cpif_version.h"
@@ -665,6 +666,12 @@ EXPORT_SYMBOL(mif_gpio_toggle_value);
 void mif_stop_logging(void)
 {
 	acpm_stop_log();
+}
+
+void mif_stop_ap_ppmu_logging(void)
+{
+	mif_info("stop ap ppmu logging");
+	exynos_bcm_dbg_stop(0);
 }
 
 const char *get_cpif_driver_version(void)

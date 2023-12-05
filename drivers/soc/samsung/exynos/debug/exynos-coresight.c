@@ -317,6 +317,28 @@ int exynos_cs_stop_cpus(void)
 }
 EXPORT_SYMBOL(exynos_cs_stop_cpus);
 
+int exynos_cs_stop_cpu(unsigned int cpu)
+{
+	if (!ecs_info) {
+		pr_err("exynos-coresight disabled\n");
+		return -ENODEV;
+	}
+
+	if (dbg_snapshot_get_sjtag_status())
+		return -EACCES;
+
+	pr_info("%s: cpu%d\n", __func__, cpu);
+	__raw_writel(OSLOCK_MAGIC, ecs_info->cti_base[cpu] + DBGLAR);
+	__raw_writel(0x0, ecs_info->cti_base[cpu] + CTIGATE);
+	__raw_writel(CTICH0, ecs_info->cti_base[cpu] + CTIOUTEN(0));
+	__raw_writel(CTICH1, ecs_info->cti_base[cpu] + CTIOUTEN(1));
+	__raw_writel(CTICONTROLEN, ecs_info->cti_base[cpu] + CTICONTROL);
+	__raw_writel(CTIAPPSETCH0, ecs_info->cti_base[cpu] + CTIAPPSET);
+
+	return 0;
+}
+EXPORT_SYMBOL(exynos_cs_stop_cpu);
+
 static int exynos_cs_suspend_cpu(unsigned int cpu)
 {
 	int idx = 0;

@@ -19,6 +19,7 @@
 #include <linux/uio.h>
 #include <linux/vmalloc.h>
 #include <linux/mount.h>
+#include <linux/mutex.h>
 #include <linux/sec_debug.h>
 #include "sec_debug_internal.h"
 
@@ -278,141 +279,294 @@ static int get_sdg_part_data_member_offset(int member)
 	return sdg_data_this_offset + SDGD_EACH_DUMP_SIZE * member;
 }
 
-static ssize_t secdbg_part_read_member(char __user *buf, int size, int target_offset, size_t len, loff_t *offset, loff_t dm_offset)
+struct part_read_handler {
+	struct dprt_member *p_member;
+	int size;
+	int offset_in_part;
+};
+
+static int secdbg_part_init_data_section(struct part_read_handler *p, int subsection)
 {
-	loff_t pos = dm_offset;
-	ssize_t count, ret = 0;
-	char *base = NULL;
+	int ret;
 
-	count = min(len, (size_t)(size - pos));
-	pr_debug("%s: count: %ld\n", __func__, count);
-
-	base = vmalloc(size);
-	pr_debug("%s: base: %p\n", __func__, base);
-
-	if (!sdg_part_read(base, size, target_offset)) {
-		pr_err("%s: fail to read\n", __func__);
-		goto fail;
-	}
-
-	if (copy_to_user(buf, base + pos, count)) {
-		pr_err("%s: fail to copy to use\n", __func__);
-		ret = -EFAULT;
-	} else {
-		*offset += count;
-		ret = count;
-	}
-
-fail:
-	vfree(base);
-	return ret;
-}
-
-static ssize_t secdbg_part_dhst_read(struct file *file, char __user *buf, size_t len, loff_t *offset)
-{
-	ssize_t ret = 0;
-	ssize_t in_dhst = 0;
-	struct dprt_member *dh, *db;
-	loff_t bore_offset = *offset;
-
-	if (!sdg_bdev) {
-		pr_debug("%s: re-init sdg bdev\n", __func__);
-		ret = (ssize_t)init_sdg_bdev();
-		if (ret)
-			return ret;
-	}
-
-	dh = get_sdg_part_member_by_name("dhst_dump");
-	if (!dh) {
-		pr_err("%s: fail to get dhst_dump\n", __func__);
-		return ret;
-	}
-	pr_debug("%s: dprt_member(dhst_dump): %p\n", __func__, dh);
-	pr_debug("%s: %s: size 0x%x / offset 0x%x\n", __func__, dh->name, dh->size, dh->offset);
-
-	in_dhst = (size_t)(dh->size - *offset);
-	if (in_dhst > 0) {
-		pr_debug("%s: dhst_dump: f_offset(%lld) p_offset(%lld)\n", __func__, *offset, *offset);
-		ret = secdbg_part_read_member(buf, dh->size, dh->offset, len, offset, *offset);
-	} else {
-		db = get_sdg_part_member_by_name("bore_dump");
-		if (!db) {
-			pr_err("%s: fail to get bore_dump\n", __func__);
-			return ret;
-		}
-		pr_debug("%s: dprt_member(bore_dump): %p\n", __func__, db);
-		pr_debug("%s: %s: size 0x%x / offset 0x%x\n", __func__, db->name, db->size, db->offset);
-
-		bore_offset -= dh->size;
-		pr_debug("%s: bore_dump: f_offset(%lld) p_offset(%lld)\n", __func__, *offset, bore_offset);
-		ret = secdbg_part_read_member(buf, db->size, db->offset, len, offset, bore_offset);
-	}
-
-	return ret;
-}
-
-static ssize_t secdbg_part_bore_read(struct file *file, char __user *buf, size_t len, loff_t *offset)
-{
-	ssize_t ret = 0;
-	struct dprt_member *dm;
-
-	if (!sdg_bdev) {
-		pr_err("%s: re-init sdg bdev\n", __func__);
-		ret = (ssize_t)init_sdg_bdev();
-		if (ret)
-			return ret;
-	}
-
-	dm = get_sdg_part_member_by_name("bore_dump");
-	if (!dm) {
-		pr_err("%s: fail to get sdg_part_member\n", __func__);
-		return ret;
-	}
-	pr_debug("%s: dprt_member(bore_dump): %p\n", __func__, dm);
-	pr_debug("%s: %s: size 0x%x / offset 0x%x\n", __func__, dm->name, dm->size, dm->offset);
-
-	ret = secdbg_part_read_member(buf, dm->size, dm->offset, len, offset, *offset);
-
-	return ret;
-}
-
-static ssize_t secdbg_part_summ_read(struct file *file, char __user *buf, size_t len, loff_t *offset)
-{
-	ssize_t ret = 0;
-	struct dprt_member *dm;
-	int sdg_data_summ_offset;
-
-	if (!sdg_bdev) {
-		pr_notice("%s: re-init sdg bdev\n", __func__);
-		ret = (ssize_t)init_sdg_bdev();
-		if (ret)
-			return ret;
-	}
-
+	p->p_member = get_sdg_part_member_by_name("data");
 	if (!sdg_data_this_offset) {
-		dm = get_sdg_part_member_by_name("data");
-		if (!dm) {
-			pr_err("%s: fail to get sdg_part_member\n", __func__);
-			return ret;
-		}
-		pr_debug("%s: dprt_member(data)): %p\n", __func__, dm);
-		pr_debug("%s: %s: size 0x%x / offset 0x%x\n", __func__, dm->name, dm->size, dm->offset);
-
-		pr_debug("%s: init sdg_data_this_offset\n", __func__);
-		ret = sdg_part_load_data_header(dm);
+		ret = sdg_part_load_data_header(p->p_member);
 		if (ret)
 			return ret;
 	}
-	pr_debug("%s: sdg_data_this_offset: 0x%x\n", __func__, sdg_data_this_offset);
 
-	sdg_data_summ_offset = get_sdg_part_data_member_offset(SDGD_SUMM_DUMP);
-	if (!sdg_data_summ_offset)
-		return 0;
-	pr_debug("%s: sdg_data_summ_offset: 0x%x\n", __func__, sdg_data_summ_offset);
+	p->size = SDGD_EACH_DUMP_SIZE;
+	p->offset_in_part = get_sdg_part_data_member_offset(subsection);
+	if (!(p->offset_in_part))
+		return -EINVAL;
 
-	ret = secdbg_part_read_member(buf, SDGD_EACH_DUMP_SIZE, sdg_data_summ_offset, len, offset, *offset);
+	return 0;
+}
 
+static char *dhst_buf;
+static DEFINE_MUTEX(dhst_buf_mutex);
+
+static int secdbg_part_dhst_open(struct inode *inode, struct file *file)
+{
+
+	ssize_t ret = 0, offset;
+	struct part_read_handler prh_dh, prh_br;
+	struct part_read_handler *p_dh, *p_br;
+	int bufsize;
+
+	if (!sdg_bdev) {
+		pr_info("%s: re-init sdg bdev\n", __func__);
+		ret = (ssize_t)init_sdg_bdev();
+		if (ret)
+			return ret;
+	}
+
+	p_dh = &prh_dh;
+	p_dh->p_member = get_sdg_part_member_by_name("dhst_dump");
+	if (p_dh->p_member) {
+		p_dh->size = p_dh->p_member->size;
+		p_dh->offset_in_part = p_dh->p_member->offset;
+	} else {
+		p_dh->size = 0;
+		p_dh->offset_in_part = 0;
+		pr_err("%s: fail to get sdg_part_member (dhst_dump)\n", __func__);
+	}
+
+	p_br = &prh_br;
+	p_br->p_member = get_sdg_part_member_by_name("bore_dump");
+	if (p_br->p_member) {
+		p_br->size = p_br->p_member->size;
+		p_br->offset_in_part = p_br->p_member->offset;
+	} else {
+		p_br->size = 0;
+		p_br->offset_in_part = 0;
+		pr_err("%s: fail to get sdg_part_member (bore_dump)\n", __func__);
+	}
+
+	bufsize = p_dh->size + p_br->size;
+
+	if (!mutex_trylock(&dhst_buf_mutex)) {
+		pr_err("%s: fail to get mutex\n", __func__);
+		return -EBUSY;
+	}
+
+	dhst_buf = vzalloc(bufsize);
+	if (!dhst_buf) {
+		pr_err("%s: fail to alloc, %x\n", __func__, bufsize);
+		mutex_unlock(&dhst_buf_mutex);
+		return -ENOMEM;
+	}
+
+	if (!sdg_part_read(dhst_buf, p_dh->size, p_dh->offset_in_part)) {
+		pr_err("%s: fail to read (DHST/%x/%x)\n", __func__,
+			p_dh->size, p_dh->offset_in_part);
+	}
+
+	offset = strlen(dhst_buf);
+
+	if (!sdg_part_read((dhst_buf + offset), p_br->size, p_br->offset_in_part)) {
+		pr_err("%s: fail to read (BORE/%x/%x)\n", __func__,
+			p_br->size, p_br->offset_in_part);
+	}
+
+	if (!strlen(dhst_buf)) {
+		pr_err("%s: nothing to write\n", __func__);
+		vfree(dhst_buf);
+		dhst_buf = NULL;
+		mutex_unlock(&dhst_buf_mutex);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static ssize_t secdbg_part_proc_read(char *src, struct file *file, char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	ssize_t ret = 0, size;
+
+	if (!src)
+		goto out;
+
+	size = strlen(src);
+	if (!size)
+		goto out;
+
+	if (*ppos > size)
+		goto out;
+
+	if (*ppos + count > size)
+		count = size - *ppos;
+
+	ret = copy_to_user(buf, src + (*ppos), count);
+	if (ret)
+		return -EFAULT;
+
+	*ppos += count;
+	ret = count;
+
+out:
 	return ret;
+}
+
+
+static ssize_t secdbg_part_dhst_read(struct file *file, char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	return secdbg_part_proc_read(dhst_buf, file, buf, count, ppos);
+}
+
+static int secdbg_part_dhst_release(struct inode *inode, struct file *file)
+{
+	vfree(dhst_buf);
+	dhst_buf = NULL;
+	mutex_unlock(&dhst_buf_mutex);
+
+	return 0;
+}
+
+static char *bore_buf;
+static DEFINE_MUTEX(bore_buf_mutex);
+
+static int secdbg_part_bore_open(struct inode *inode, struct file *file)
+{
+
+	ssize_t ret = 0;
+	struct part_read_handler prh;
+	struct part_read_handler *p;
+	int bufsize;
+
+	if (!sdg_bdev) {
+		pr_info("%s: re-init sdg bdev\n", __func__);
+		ret = (ssize_t)init_sdg_bdev();
+		if (ret)
+			return ret;
+	}
+
+	p = &prh;
+
+	p->p_member = get_sdg_part_member_by_name("bore_dump");
+	if (p->p_member) {
+		p->size = p->p_member->size;
+		p->offset_in_part = p->p_member->offset;
+	} else {
+		pr_err("%s: fail to get sdg_part_member (bore_dump)\n", __func__);
+		return -EINVAL;
+	}
+
+	bufsize = p->size;
+
+	if (!mutex_trylock(&bore_buf_mutex)) {
+		pr_err("%s: fail to get mutex\n", __func__);
+		return -EBUSY;
+	}
+
+	bore_buf = vzalloc(bufsize);
+	if (!bore_buf) {
+		pr_err("%s: fail to alloc, %x\n", __func__, bufsize);
+		mutex_unlock(&bore_buf_mutex);
+		return -ENOMEM;
+	}
+
+	if (!sdg_part_read(bore_buf, p->size, p->offset_in_part)) {
+		pr_err("%s: fail to read (BORE/%x/%x)\n", __func__,
+			p->size, p->offset_in_part);
+	}
+
+	if (!strlen(bore_buf)) {
+		pr_err("%s: nothing to write\n", __func__);
+		vfree(bore_buf);
+		bore_buf = NULL;
+		mutex_unlock(&bore_buf_mutex);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static ssize_t secdbg_part_bore_read(struct file *file, char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	return secdbg_part_proc_read(bore_buf, file, buf, count, ppos);
+}
+
+static int secdbg_part_bore_release(struct inode *inode, struct file *file)
+{
+	vfree(bore_buf);
+	bore_buf = NULL;
+	mutex_unlock(&bore_buf_mutex);
+
+	return 0;
+}
+
+static char *summ_buf;
+static DEFINE_MUTEX(summ_buf_mutex);
+
+static int secdbg_part_summ_open(struct inode *inode, struct file *file)
+{
+
+	ssize_t ret = 0;
+	struct part_read_handler prh;
+	struct part_read_handler *p;
+	int bufsize;
+
+	if (!sdg_bdev) {
+		pr_info("%s: re-init sdg bdev\n", __func__);
+		ret = (ssize_t)init_sdg_bdev();
+		if (ret)
+			return ret;
+	}
+
+	p = &prh;
+
+	ret = secdbg_part_init_data_section(p, SDGD_SUMM_DUMP);
+	if (ret)
+		return ret;
+
+	bufsize = p->size;
+
+	if (!mutex_trylock(&summ_buf_mutex)) {
+		pr_err("%s: fail to get mutex\n", __func__);
+		return -EBUSY;
+	}
+
+	summ_buf = vzalloc(bufsize);
+	if (!summ_buf) {
+		pr_err("%s: fail to alloc, %x\n", __func__, bufsize);
+		mutex_unlock(&summ_buf_mutex);
+		return -ENOMEM;
+	}
+
+	if (!sdg_part_read(summ_buf, p->size, p->offset_in_part)) {
+		pr_err("%s: fail to read (SUMM/%x/%x)\n", __func__,
+			p->size, p->offset_in_part);
+	}
+
+	if (!strlen(summ_buf)) {
+		pr_err("%s: nothing to write\n", __func__);
+		vfree(summ_buf);
+		summ_buf = NULL;
+		mutex_unlock(&summ_buf_mutex);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static ssize_t secdbg_part_summ_read(struct file *file, char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	return secdbg_part_proc_read(summ_buf, file, buf, count, ppos);
+}
+
+static int secdbg_part_summ_release(struct inode *inode, struct file *file)
+{
+	vfree(summ_buf);
+	summ_buf = NULL;
+	mutex_unlock(&summ_buf_mutex);
+
+	return 0;
 }
 
 int secdbg_part_init_bdev_path(struct device *dev)
@@ -434,17 +588,23 @@ EXPORT_SYMBOL(secdbg_part_init_bdev_path);
 
 static const struct proc_ops dpart_dhst_file_ops = {
 	.proc_lseek = default_llseek,
+	.proc_open = secdbg_part_dhst_open,
 	.proc_read = secdbg_part_dhst_read,
+	.proc_release = secdbg_part_dhst_release,
 };
 
 static const struct proc_ops dpart_bore_file_ops = {
 	.proc_lseek = default_llseek,
+	.proc_open = secdbg_part_bore_open,
 	.proc_read = secdbg_part_bore_read,
+	.proc_release = secdbg_part_bore_release,
 };
 
 static const struct proc_ops dpart_summ_file_ops = {
 	.proc_lseek = default_llseek,
+	.proc_open = secdbg_part_summ_open,
 	.proc_read = secdbg_part_summ_read,
+	.proc_release = secdbg_part_summ_release,
 };
 
 static int __init secdbg_dprt_init(void)

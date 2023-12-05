@@ -849,6 +849,12 @@ config LEDS_SM5714
 	help
 	  This option enables support for the LEDs on the SM5714.
 
+config LEDS_AW36518
+	tristate "LED support for the AW36518"
+	depends on I2C
+	help
+	  This option enables support for the LEDs on the AW36518.
+
 config LEDS_TPS6105X
 	tristate "LED support for TI TPS6105X"
 	depends on LEDS_CLASS

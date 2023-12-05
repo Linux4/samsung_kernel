@@ -282,11 +282,6 @@ out:
 		dbg_snapshot_expire_watchdog();
 #endif
 #endif
-
-#if defined(CONFIG_SCSI_UFS_TEST_MODE)
-	/* do not recover system if test mode is enabled */
-	BUG();
-#endif
 	return;
 }
 
@@ -443,7 +438,7 @@ static void exynos_ufs_config_host(struct exynos_ufs *ufs)
 	hci_writel(handle, PRDT_SET_SIZE(12), HCI_RXPRDT_ENTRY_SIZE);
 
 	/* I_T_L_Q isn't used at the beginning */
-	ufs->nexus = 0;
+	ufs->nexus = 0xFFFFFFFF;
 	hci_writel(handle, ufs->nexus, HCI_UTRL_NEXUS_TYPE);
 	hci_writel(handle, 0xFFFFFFFF, HCI_UTMRL_NEXUS_TYPE);
 
@@ -585,6 +580,10 @@ static int exynos_ufs_init(struct ufs_hba *hba)
 
 	/* set features, such as caps or quirks */
 	exynos_ufs_set_features(hba);
+
+#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
+	ufs_sec_adjust_caps_quirks(hba);
+#endif
 
 	exynos_ufs_fmp_init(hba);
 
@@ -1130,6 +1129,8 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 	struct ufshcd_lrb *lrbp;
 	struct ufs_vs_handle *handle = &ufs->handle;
 	ufs_perf_op op = UFS_PERF_OP_NONE;
+	int timeout_cnt = 50000 / 10;
+	int wait_ns = 10;
 
 	if (!IS_C_STATE_ON(ufs) ||
 			(ufs->h_state != H_LINK_UP &&
@@ -1168,10 +1169,10 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 		exynos_ufs_cmd_log_start(handle, hba, scmd);
 	}
 
-	/*
-	 * check if an update is needed. not require protection
-	 * because this functions is wrapped with spin lock outside
-	 */
+	/* check if an update is needed */
+	while (test_and_set_bit(EXYNOS_UFS_BIT_CHK_NEXUS, &ufs->flag)
+	       && timeout_cnt--)
+		ndelay(wait_ns);
 
 	if (cmd) {
 		if (test_and_set_bit(tag, &ufs->nexus))
@@ -1182,6 +1183,7 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 	}
 	hci_writel(handle, (u32)ufs->nexus, HCI_UTRL_NEXUS_TYPE);
 out:
+	clear_bit(EXYNOS_UFS_BIT_CHK_NEXUS, &ufs->flag);
 	ufs->h_state = H_REQ_BUSY;
 }
 
@@ -1392,8 +1394,10 @@ static int __exynos_ufs_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 			ufs->h_state != H_HIBERN8)
 		PRINT_STATES(ufs);
 
-	if (notify != POST_CHANGE)
+	if (notify != POST_CHANGE) {
+		ufs->deep_suspended = false;
 		return 0;
+	}
 
 	if (hba->shutting_down)
 		ufs_sec_print_err_info(hba);
@@ -1459,6 +1463,7 @@ static int __exynos_ufs_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 	exynos_pm_qos_update_request(&ufs->pm_qos_int, 0);
 #endif
 	ufs->h_state = H_SUSPEND;
+	pr_info("%s: notify=%d, is shutdown=%d", __func__, notify, hba->shutting_down);
 
 	return 0;
 }
@@ -1471,6 +1476,11 @@ static int __exynos_ufs_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 {
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	int ret = 0;
+
+	if (!ufs->deep_suspended) {
+		pr_info("%s: need ufs power discharge time.\n", __func__);
+		mdelay(LDO_DISCHARGE_GUARANTEE);
+	}
 
 	if (!IS_C_STATE_ON(ufs) ||
 			ufs->h_state != H_SUSPEND)
@@ -1552,19 +1562,6 @@ static int __exynos_ufs_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		ufs_perf_resume(ufs->perf);
 	ufs->resume_state = 1;
 
-#if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
-	/*
-	 * Change WB state to WB_OFF to default in resume sequence.
-	 * In system PM, the link is "link off state" or "hibern8".
-	 * In case of link off state,
-	 *	just reset the WB state because UFS device needs to setup link.
-	 * In Hibern8 state,
-	 *	wb_off reset and WB off are required.
-	 */
-	if (hba->is_sys_suspended)
-		ufs_sec_wb_force_off(hba);
-#endif
-
 	return ret;
 out:
 	exynos_ufs_dump_info(hba, &ufs->handle, ufs->dev);
@@ -1597,6 +1594,16 @@ static int exynos_ufs_suspend(struct device *dev)
 	return ret;
 }
 
+static int exynos_ufs_suspend_noirq(struct device *dev)
+{
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct exynos_ufs *ufs = to_exynos_ufs(hba);
+
+	ufs->deep_suspended = true;
+
+	return 0;
+}
+
 static int exynos_ufs_resume(struct device *dev)
 {
 	struct ufs_hba *hba = dev_get_drvdata(dev);
@@ -1604,6 +1611,9 @@ static int exynos_ufs_resume(struct device *dev)
 	ktime_t now;
 	s64 discharge_period;
 	int ret;
+
+	/* treat as deep suspened here to prevent duplicated delay at vops_resume */
+	ufs->deep_suspended = true;
 
 	if (ufs->vcc_off_time == -1LL)
 		goto resume;
@@ -1735,14 +1745,34 @@ static int __device_reset(struct ufs_hba *hba)
 #if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
 		ufs_sec_inc_hwrst_cnt();
 #endif
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+		/* no dump for some cases, get dump before recovery */
+		exynos_ufs_dump_debug_info(hba);
+#endif
 	}
 
 	return 0;
 }
 
+#define UFS_TEST_COUNT 3
+
 static void exynos_ufs_event_notify(struct ufs_hba *hba,
 		enum ufs_event_type evt, void *data)
 {
+#if IS_ENABLED(CONFIG_SCSI_UFS_TEST_MODE)
+	struct ufs_event_hist *e;
+
+	e = &hba->ufs_stats.event[evt];
+
+	if ((e->cnt > UFS_TEST_COUNT) &&
+			(evt == UFS_EVT_PA_ERR ||
+			evt == UFS_EVT_DL_ERR ||
+			evt == UFS_EVT_LINK_STARTUP_FAIL)) {
+		exynos_ufs_dump_debug_info(hba);
+		BUG();
+	}
+#endif
+
 #if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
 	ufs_sec_inc_op_err(hba, evt, data);
 #endif
@@ -2292,12 +2322,15 @@ static ssize_t ufs_exynos_gear_scale_show(struct exynos_ufs *ufs, char *buf,
 	struct ufs_perf *perf = ufs->perf;
 	struct uic_pwr_mode *pmd = &ufs->device_pmd_parm;
 
-	if (perf)
-		return snprintf(buf, PAGE_SIZE, "%s[%d]\n",
-			perf->exynos_gear_scale ? "enabled" : "disabled",
-			pmd->gear);
+	if (perf == NULL)
+		return -EINVAL;
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", -EINVAL);
+	if (!perf->exynos_cap_gear_scale)
+		return snprintf(buf, PAGE_SIZE, "%s\n", "not supported");
+
+	return snprintf(buf, PAGE_SIZE, "%s[%d]\n",
+		perf->exynos_gear_scale? "enabled" : "disabled",
+		pmd->gear);
 }
 
 static int ufs_exynos_gear_scale_store(struct exynos_ufs *ufs, const char *buf,
@@ -2309,6 +2342,9 @@ static int ufs_exynos_gear_scale_store(struct exynos_ufs *ufs, const char *buf,
 
 	if (perf == NULL)
 		return -EINVAL;
+
+	if (!perf->exynos_cap_gear_scale)
+		return -ENOTSUPP;
 
 	ret = sscanf(buf, "%d", &value);
 	if (!ret)
@@ -2642,6 +2678,7 @@ static const struct dev_pm_ops exynos_ufs_dev_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(exynos_ufs_suspend, exynos_ufs_resume)
 	.prepare	 = ufshcd_suspend_prepare,
 	.complete	 = ufshcd_resume_complete,
+	.suspend_noirq = exynos_ufs_suspend_noirq,
 };
 
 static const struct of_device_id exynos_ufs_match[] = {

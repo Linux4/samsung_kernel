@@ -142,6 +142,8 @@
 
 #define	NOT_SUPPORT			(0xFF)
 
+#define HISTORY_MAGIC			(0xCAFECAFE)
+
 enum err_type {
 	TMOUT,
 	PRTCHKER,
@@ -313,6 +315,7 @@ struct itmon_platdata {
 	struct list_head infolist[TRANS_TYPE_NUM];
 	struct list_head datalist[TRANS_TYPE_NUM];
 	unsigned long last_time;
+	unsigned long errcnt_window_start_time;
 	int last_errcnt;
 
 	struct itmon_policy *policy;

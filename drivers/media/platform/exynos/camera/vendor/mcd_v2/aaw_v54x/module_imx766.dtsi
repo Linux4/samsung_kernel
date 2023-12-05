@@ -137,8 +137,8 @@
 						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 500>; gpio = <&gpg1 1 0x1>; };
 						15 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 1 500 3600000 3600000>; };
 						20 { pname = "RCAM1_AVDD_1P8"; pin = <PIN_OUTPUT 1 500>; gpio = <&gpm12 0 0x1>; };
-						25 { pname = "VDD_VM_2.8V_OIS"; pin = <PIN_REGULATOR 1 700 3300000>; };
-						30 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0 2800000>; };
+						25 { pname = "VDD_VM_2.8V_OIS"; pin = <PIN_REGULATOR 1 700>; };
+						30 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						40 { pname = "VDDD_1.05V_CAM"; pin = <PIN_REGULATOR 1 0 1100000>; };
 						50 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						60 { pname = "on_i2c"; pin = <PIN_I2C 1 6500>; };
@@ -177,7 +177,7 @@
 						15 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 1 500 3600000 3600000>; };
 						20 { pname = "RCAM1_AVDD_1P8"; pin = <PIN_OUTPUT 1 500>; gpio = <&gpm12 0 0x1>; };
 						25 { pname = "VDD_VM_2.8V_OIS"; pin = <PIN_REGULATOR 1 700 3300000>; };
-						30 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0 2800000>; };
+						30 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						40 { pname = "VDDD_1.05V_CAM"; pin = <PIN_REGULATOR 1 0 1100000>; };
 						50 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						60 { pname = "on_i2c"; pin = <PIN_I2C 1 6500>; };
@@ -215,7 +215,7 @@
 						15 { pname = "vdd_mldo"; pin = <PIN_REGULATOR_RANGE 1 500 3600000 3600000>; };
 						16 { pname = "RCAM1_AVDD_1P8"; pin = <PIN_OUTPUT 1 500>; gpio = <&gpm12 0 0x1>; };
 						17 { pname = "VDD_VM_2.8V_OIS"; pin = <PIN_REGULATOR 1 700 3300000>; };
-						20 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0 2800000>; };
+						20 { pname = "VDDA_2.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						40 { pname = "VDDD_1.05V_CAM"; pin = <PIN_REGULATOR 1 0 1100000>; };
 						50 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
 						60 { pname = "on_i2c"; pin = <PIN_I2C 1 6500>; };

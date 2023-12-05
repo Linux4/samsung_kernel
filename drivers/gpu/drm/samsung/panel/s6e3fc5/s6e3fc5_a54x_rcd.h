@@ -25,8 +25,8 @@ static struct rcd_image s6e3fc5_a54x_rcd_1080x2340_top = {
 		.w = 1080,
 		.h = 144,
 	},
-	.image_data = S6E3FC5_RCD_IMAGE_TOP,
-	.image_data_len = ARRAY_SIZE(S6E3FC5_RCD_IMAGE_TOP),
+	.image_data = S6E3FC5_A54X_RCD_IMAGE_TOP,
+	.image_data_len = ARRAY_SIZE(S6E3FC5_A54X_RCD_IMAGE_TOP),
 };
 
 static struct rcd_image s6e3fc5_a54x_rcd_1080x2340_bottom = {
@@ -37,8 +37,8 @@ static struct rcd_image s6e3fc5_a54x_rcd_1080x2340_bottom = {
 		.w = 1080,
 		.h = 144,
 	},
-	.image_data = S6E3FC5_RCD_IMAGE_BOTTOM,
-	.image_data_len = ARRAY_SIZE(S6E3FC5_RCD_IMAGE_BOTTOM),
+	.image_data = S6E3FC5_A54X_RCD_IMAGE_BOTTOM,
+	.image_data_len = ARRAY_SIZE(S6E3FC5_A54X_RCD_IMAGE_BOTTOM),
 };
 
 static struct rcd_image *s6e3fc5_a54x_rcd_1080x2340_images[] = {

@@ -384,6 +384,19 @@ config MALI_HW_ERRATA_1485982_USE_CLOCK_ALTERNATIVE
 	  tree using the property, opp-mali-errata-1485982. Otherwise the
 	  slowest clock will be selected.
 
+config MALI_SEC_JOB_STATUS_CHECK
+        bool "Enable GPU JOB & FENCE STATUS DUMP"
+        depends on MALI_MIDGARD && (SYNC || SYNC_FILE)
+        default n
+        help
+        Choose this option to enable job & fence status dump feature in the Mali tBEx DDK.
+
+config MALI_SEC_DEPENDENCY_CHECK
+        bool "Enable GPU ATOM DEPENDENCY DUBUG INFO"
+        depends on MALI_MIDGARD && (SYNC || SYNC_FILE)
+        default n
+        help
+        Choose this option to enable katom dependency dump feature in the Mali tBEx DDK.
 endif
 
 config MALI_ARBITRATION

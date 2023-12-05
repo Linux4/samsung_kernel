@@ -720,16 +720,11 @@ static int mfc_core_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = mfc_alloc_firmware(core);
-	if (ret)
-		goto err_alloc_debug;
-	ret = mfc_alloc_common_context(core);
-	if (ret)
-		goto err_alloc_firmware;
+	mfc_alloc_firmware(core);
 #if IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)
 	ret = __mfc_core_imgloader_desc_init(pdev, core);
 	if (ret)
-		goto err_alloc_common_context;
+		goto err_alloc_debug;
 #endif
 
 	core->logging_data = devm_kzalloc(&pdev->dev, sizeof(struct mfc_debug),
@@ -776,10 +771,6 @@ err_imgloader:
 #if IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)
 	__mfc_core_imgloader_desc_deinit(core);
 #endif
-err_alloc_common_context:
-	mfc_release_common_context(core);
-err_alloc_firmware:
-	mfc_release_firmware(core);
 err_alloc_debug:
 	iommu_unregister_device_fault_handler(&pdev->dev);
 err_sysmmu_fault_handler:

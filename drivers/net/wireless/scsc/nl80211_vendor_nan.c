@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "mgt.h"
 #include "mlme.h"
+#include "ba.h"
 #ifdef CONFIG_SCSC_WLAN_TX_API
 #include "tx_api.h"
 #endif
@@ -3439,6 +3440,7 @@ void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 #ifdef CONFIG_SCSC_WLAN_LOAD_BALANCE_MANAGER
 		slsi_lbm_netdev_activate(sdev, data_dev);
 #endif
+		slsi_rx_ba_update_timer(sdev, data_dev, SLSI_RX_BA_EVENT_VIF_CONNECTED);
 		ndev_data_vif->activated = true;
 		peer = slsi_get_peer_from_mac(sdev, data_dev, peer_ndi);
 		if (peer) {
@@ -3649,8 +3651,10 @@ void slsi_nan_ndp_termination_handler(struct slsi_dev *sdev, struct net_device *
 
 	if (data_dev) {
 		SLSI_MUTEX_LOCK(ndev_data_vif->vif_mutex);
-		if (!ndev_data_vif->activated)
+		if (!ndev_data_vif->activated) {
 			slsi_release_dp_resources(sdev, data_dev, ndev_data_vif);
+			slsi_rx_ba_update_timer(sdev, data_dev, SLSI_RX_BA_EVENT_VIF_TERMINATED);
+		}
 		SLSI_MUTEX_UNLOCK(ndev_data_vif->vif_mutex);
 	}
 

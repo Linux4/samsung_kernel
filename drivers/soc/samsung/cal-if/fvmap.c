@@ -9,6 +9,8 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <soc/samsung/fvmap.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 
 #include "cmucal.h"
 #include "vclk.h"
@@ -97,6 +99,42 @@ module_param(margin_hsi0, int, 0);
 module_param(margin_intg3d, int, 0);
 module_param(margin_wlbt, int, 0);
 module_param(volt_offset_percent, int, 0);
+
+void parse_margin_table(void)
+{
+	struct device_node *np, *child;
+	int i;
+	int domain_num, id, value;
+	unsigned int *margin_table;
+	const unsigned int *domain;
+
+	np = of_find_compatible_node(NULL, NULL, "samsung,exynos_cal_if");
+	if (!np) {
+		return ;
+	}
+
+	child = of_find_node_by_name(np, "margin_table");
+	if (!child) {
+		return ;
+	}
+
+	domain_num = of_property_count_u32_elems(child, "set_margin_domain");
+	domain = of_get_property(child, "set_margin_domain", NULL);
+
+	for (i = 0; i < domain_num / 2; i++) {
+		margin_table = (unsigned int*)&domain[i * 2];
+
+		id = be32_to_cpu(margin_table[0]);
+		value = be32_to_cpu(margin_table[1]);
+
+		if (id < 0 || id >= MAX_MARGIN_ID) {
+			pr_err("%s : error margin_table id %d(%d)\n", __func__, id, value);
+			continue;
+		}
+		init_margin_table[id] += value;
+		pr_info("%s : set domain_margin %d = %d\n", __func__, id, value);
+	}
+}
 
 void margin_table_init(void)
 {
@@ -501,6 +539,7 @@ int fvmap_init(void __iomem *sram_base)
 	sram_fvmap_base = sram_base;
 	pr_info("%s:fvmap initialize %p\n", __func__, sram_base);
 	margin_table_init();
+	parse_margin_table();
 	fvmap_copy_from_sram(map_base, sram_base);
 
 	/* percent margin for each doamin at runtime */

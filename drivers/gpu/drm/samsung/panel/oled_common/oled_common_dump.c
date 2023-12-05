@@ -11,13 +11,68 @@
 #include <linux/module.h>
 #include "../panel_kunit.h"
 #include "../panel.h"
+#include "../dpui.h"
 #include "../panel_debug.h"
 #include "../maptbl.h"
 #include "oled_common_dump.h"
+#include "../abd.h"
 
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
+
+static void make_abd_print_arr(struct dumpinfo *dump)
+{
+	int i, bit;
+	char **print_tbl;
+	unsigned long expect_mask;
+
+	if (dump->abd_print)
+		return;
+
+	print_tbl = kzalloc(sizeof(char *) * dump->res->dlen * BITS_PER_BYTE, GFP_KERNEL);
+
+	for (i = 0; i < dump->nr_expects; i++) {
+		expect_mask = dump->expects[i].mask;
+		for_each_set_bit(bit, &expect_mask, BITS_PER_BYTE)
+			print_tbl[dump->expects[i].offset * BITS_PER_BYTE + bit] = dump->expects[i].msg;
+	}
+
+	dump->abd_print = print_tbl;
+}
+
+static void check_usdm_abd_mask_bit(struct dumpinfo *dump)
+{
+	int i = 0;
+	u32 res_size;
+	u32 offset, offset_end = 0;
+	u8 expected_values[4] = {0 };
+	u8 values[4] = {0 };
+
+	res_size = get_resource_size(dump->res);
+	if (res_size == 0)
+		return;
+
+	for (i = 0; i < dump->nr_expects; i++) {
+		offset = dump->expects[i].offset;
+		/* abd can get max 4 bytes (unsigned int) */
+		if (offset >= 4)
+			continue;
+
+		values[offset] |= dump->res->data[offset] & dump->expects[i].mask;
+		expected_values[offset] |= dump->expects[i].value;
+		offset_end = max(offset, offset_end);
+	}
+
+	offset_end = min((u32)get_resource_size(dump->res), offset_end + 1);
+
+	if (!memcmp(values, expected_values, offset_end))
+		return;
+
+	make_abd_print_arr(dump);
+	usdm_abd_mask_bit(NULL, offset_end * BITS_PER_BYTE, get_merged_value(values, 4),
+				dump->abd_print, get_merged_value(expected_values, 4));
+}
 
 __visible_for_testing int snprintf_dump_expect_memeq(char *buf, size_t size, struct dumpinfo *dump)
 {
@@ -25,6 +80,7 @@ __visible_for_testing int snprintf_dump_expect_memeq(char *buf, size_t size, str
 	u32 res_size;
 	u32 offset, offset_end = 0;
 	u8 *masks, *expected_values, *values;
+	int result;
 
 	res_size = get_resource_size(dump->res);
 	if (res_size == 0)
@@ -42,16 +98,20 @@ __visible_for_testing int snprintf_dump_expect_memeq(char *buf, size_t size, str
 		offset_end = max(offset, offset_end);
 	}
 	offset_end = min((u32)get_resource_size(dump->res), offset_end + 1);
+	
+	result = (!memcmp(values, expected_values, offset_end)) ?
+		DUMP_STATUS_SUCCESS : DUMP_STATUS_FAILURE;
+	dump->result = result;
 
 	l += snprintf(buf + l, size - l, "SHOW PANEL REG[%s:%s:(",
 			get_resource_name(dump->res),
-			!memcmp(values, expected_values, offset_end) ? "GD" : "NG");
+			(result == DUMP_STATUS_SUCCESS) ? "GD" : "NG");
 
 	for (i = 0; i < offset_end; i++)
 		l += snprintf(buf + l, size - l, "%02X", values[i]);
 
 	l += snprintf(buf + l, size - l, " %s ",
-			!memcmp(values, expected_values, offset_end) ? "==" : "!=");
+			(result == DUMP_STATUS_SUCCESS) ? "==" : "!=");
 
 	for (i = 0; i < offset_end; i++)
 		l += snprintf(buf + l, size - l, "%02X", expected_values[i]);
@@ -82,7 +142,7 @@ __visible_for_testing int snprintf_dump_expect_param_equal(char *buf, size_t siz
 				dump->expects[i].mask;
 
 		if (expected_value != value)
-			l += snprintf(buf + l, size - l, "%s\n",
+			l += snprintf(buf + l, max((int)size - l, 0), "%s\n",
 					dump->expects[i].msg);
 	}
 
@@ -107,11 +167,12 @@ int snprintf_dump_expects(char *buf, size_t size, struct dumpinfo *dump)
 	l += snprintf_dump_expect_memeq(buf + l, size - l, dump);
 	l += snprintf_dump_expect_param_equal(buf + l, size - l, dump);
 
+	check_usdm_abd_mask_bit(dump);
+
 	return l;
 }
-EXPORT_SYMBOL(snprintf_dump_expects);
 
-int show_expects(struct dumpinfo *dump)
+int oled_dump_show_expects(struct dumpinfo *dump)
 {
 	int len;
 	char buf[SZ_256];
@@ -131,9 +192,9 @@ int show_expects(struct dumpinfo *dump)
 
 	return 0;
 }
-EXPORT_SYMBOL(show_expects);
+EXPORT_SYMBOL(oled_dump_show_expects);
 
-int show_resource(struct dumpinfo *dump)
+int oled_dump_show_resource(struct dumpinfo *dump)
 {
 	if (!dump)
 		return -EINVAL;
@@ -148,16 +209,14 @@ int show_resource(struct dumpinfo *dump)
 
 	return 0;
 }
-EXPORT_SYMBOL(show_resource);
 
-int show_resource_and_panic(struct dumpinfo *dump)
+int oled_dump_show_resource_and_panic(struct dumpinfo *dump)
 {
-	show_resource(dump);
+	oled_dump_show_resource(dump);
 	BUG();
 }
-EXPORT_SYMBOL(show_resource_and_panic);
 
-int show_rddpm(struct dumpinfo *dump)
+int oled_dump_show_rddpm(struct dumpinfo *dump)
 {
 	int ret;
 	struct resinfo *res;
@@ -181,7 +240,7 @@ int show_rddpm(struct dumpinfo *dump)
 		return -EINVAL;
 	}
 
-	ret = resource_copy(rddpm, dump->res);
+	ret = copy_resource(rddpm, dump->res);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(%s)\n",
 				get_resource_name(res));
@@ -192,17 +251,15 @@ int show_rddpm(struct dumpinfo *dump)
 	g_rddpm = (unsigned int)rddpm[0];
 #endif
 
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_rddpm);
 
-int show_rddpm_before_sleep_in(struct dumpinfo *dump)
+int oled_dump_show_rddpm_before_sleep_in(struct dumpinfo *dump)
 {
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_rddpm_before_sleep_in);
 
-int show_rddsm(struct dumpinfo *dump)
+int oled_dump_show_rddsm(struct dumpinfo *dump)
 {
 	int ret;
 	struct resinfo *res;
@@ -226,7 +283,7 @@ int show_rddsm(struct dumpinfo *dump)
 		return -EINVAL;
 	}
 
-	ret = resource_copy(rddsm, dump->res);
+	ret = copy_resource(rddsm, dump->res);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy rddsm resource\n");
 		return -EINVAL;
@@ -236,17 +293,15 @@ int show_rddsm(struct dumpinfo *dump)
 	g_rddsm = (unsigned int)rddsm[0];
 #endif
 
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_rddsm);
 
-int show_err(struct dumpinfo *dump)
+int oled_dump_show_err(struct dumpinfo *dump)
 {
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_err);
 
-int show_err_fg(struct dumpinfo *dump)
+int oled_dump_show_err_fg(struct dumpinfo *dump)
 {
 	int ret;
 	u8 err_fg[OLED_ERR_FG_LEN] = { 0, };
@@ -267,12 +322,13 @@ int show_err_fg(struct dumpinfo *dump)
 		return -EINVAL;
 	}
 
-	ret = resource_copy(err_fg, res);
+	ret = copy_resource(err_fg, res);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy err_fg resource\n");
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_USDM_PANEL_DPUI
 	if (err_fg[0] & 0x04)
 		inc_dpui_u32_field(DPUI_KEY_PNVLO3E, 1);
 
@@ -281,12 +337,12 @@ int show_err_fg(struct dumpinfo *dump)
 
 	if (err_fg[0] & 0x40)
 		inc_dpui_u32_field(DPUI_KEY_PNVLI1E, 1);
+#endif
 
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_err_fg);
 
-int show_dsi_err(struct dumpinfo *dump)
+int oled_dump_show_dsi_err(struct dumpinfo *dump)
 {
 	int ret;
 	struct resinfo *res;
@@ -307,28 +363,29 @@ int show_dsi_err(struct dumpinfo *dump)
 		return -EINVAL;
 	}
 
-	ret = resource_copy(dsi_err, res);
+	ret = copy_resource(dsi_err, res);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(%s)\n",
 				get_resource_name(res));
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_USDM_PANEL_DPUI
 	inc_dpui_u32_field(DPUI_KEY_PNDSIE, dsi_err[0]);
+#endif
 #if IS_ENABLED(CONFIG_SEC_ABC)
 	if (dsi_err[0] > 0)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-		sec_abc_send_event("MODULE=display@dump=act_section_panel_main_dsi_error");
+		sec_abc_send_event("MODULE=display@dump=act_section_dsierr0");
 #else
-		sec_abc_send_event("MODULE=display@WARN=act_section_panel_main_dsi_error");
+		sec_abc_send_event("MODULE=display@WARN=act_section_dsierr0");
 #endif
 #endif /* CONFIG_SEC_ABC */
 
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_dsi_err);
 
-int show_self_diag(struct dumpinfo *dump)
+int oled_dump_show_self_diag(struct dumpinfo *dump)
 {
 	int ret;
 	struct resinfo *res;
@@ -349,40 +406,38 @@ int show_self_diag(struct dumpinfo *dump)
 		return -EINVAL;
 	}
 
-	ret = resource_copy(self_diag, res);
+	ret = copy_resource(self_diag, res);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to copy resource(%s)\n",
 				get_resource_name(res));
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_USDM_PANEL_DPUI
 	inc_dpui_u32_field(DPUI_KEY_PNSDRE,
 			((self_diag[0] & OLED_SELF_DIAG_MASK)
 			 == OLED_SELF_DIAG_VALUE) ? 0 : 1);
+#endif
 
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_self_diag);
 
-int show_ecc_err(struct dumpinfo *dump)
+int oled_dump_show_ecc_err(struct dumpinfo *dump)
 {
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_ecc_err);
 
-int show_ssr_err(struct dumpinfo *dump)
+int oled_dump_show_ssr_err(struct dumpinfo *dump)
 {
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_ssr_err);
 
-int show_flash_loaded(struct dumpinfo *dump)
+int oled_dump_show_flash_loaded(struct dumpinfo *dump)
 {
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_flash_loaded);
 
-int show_self_mask_crc(struct dumpinfo *dump)
+int oled_dump_show_self_mask_crc(struct dumpinfo *dump)
 {
 	int ret;
 	struct resinfo *res;
@@ -403,7 +458,7 @@ int show_self_mask_crc(struct dumpinfo *dump)
 		return -EINVAL;
 	}
 
-	ret = resource_copy(crc, dump->res);
+	ret = copy_resource(crc, dump->res);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to self mask crc resource\n");
 		return -EINVAL;
@@ -416,35 +471,30 @@ int show_self_mask_crc(struct dumpinfo *dump)
 
 	return 0;
 }
-EXPORT_SYMBOL(show_self_mask_crc);
 
-#ifdef CONFIG_SUPPORT_DDI_CMDLOG
-int show_cmdlog(struct dumpinfo *dump)
+#ifdef CONFIG_USDM_DDI_CMDLOG
+int oled_dump_show_cmdlog(struct dumpinfo *dump)
 {
-	return show_resource(dump);
+	return oled_dump_show_resource(dump);
 }
-EXPORT_SYMBOL(show_cmdlog);
-#endif /* CONFIG_SUPPORT_DDI_CMDLOG */
+#endif /* CONFIG_USDM_DDI_CMDLOG */
 
-#ifdef CONFIG_SUPPORT_MAFPC
-int show_mafpc_log(struct dumpinfo *dump)
+#ifdef CONFIG_USDM_PANEL_MAFPC
+int oled_dump_show_mafpc_log(struct dumpinfo *dump)
 {
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_mafpc_log);
 
-int show_mafpc_flash_log(struct dumpinfo *dump)
+int oled_dump_show_mafpc_flash_log(struct dumpinfo *dump)
 {
-	return show_expects(dump);
+	return oled_dump_show_expects(dump);
 }
-EXPORT_SYMBOL(show_mafpc_flash_log);
 
-int show_abc_crc_log(struct dumpinfo *dump)
+int oled_dump_show_abc_crc_log(struct dumpinfo *dump)
 {
-	return show_resource(dump);
+	return oled_dump_show_resource(dump);
 }
-EXPORT_SYMBOL(show_abc_crc_log);
-#endif /* CONFIG_SUPPORT_MAFPC */
+#endif /* CONFIG_USDM_PANEL_MAFPC */
 
 MODULE_DESCRIPTION("oled_common_dump driver");
 MODULE_LICENSE("GPL");

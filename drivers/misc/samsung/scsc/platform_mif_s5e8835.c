@@ -94,10 +94,6 @@
 
 #define NUM_MIF_IRQ	(6)
 
-#if defined(CONFIG_WLBT_DCXO_TUNE)
-static u32 oldapm_intmr1_val;
-#endif
-
 static unsigned long sharedmem_base;
 static size_t sharedmem_size;
 
@@ -2503,11 +2499,6 @@ static int platform_mif_irq_register_mbox_apm(struct scsc_mif_abs *interface)
 	}
 
 	// INTXR0 : AP/FW -> APM , INTXR1 : APM -> AP/FW
-	/* MRs */ /*1's - set bit 1 as unmasked */
-	oldapm_intmr1_val = platform_mif_reg_read_apm(platform, MAILBOX_WLBT_REG(INTMR1));
-	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "APM MAILBOX INTMR1 %p\n", oldapm_intmr1_val);
-	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTMR1),
-							   oldapm_intmr1_val & ~(1 << APM_IRQ_BIT_DCXO_SHIFT));
 	/* CRs */ /* 1's - clear all the interrupts */
 	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTCR1), (1 << APM_IRQ_BIT_DCXO_SHIFT));
 
@@ -2522,9 +2513,6 @@ static void platform_mif_irq_unregister_mbox_apm(struct scsc_mif_abs *interface)
 	struct platform_mif *platform = platform_mif_from_mif_abs(interface);
 
 	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Unregistering MBOX APM irq\n");
-
-	/* MRs */ /*1's - set all as Masked */
-	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTMR1), oldapm_intmr1_val);
 
 	/* CRs */ /* 1's - clear all the interrupts */
 	platform_mif_reg_write_apm(platform, MAILBOX_WLBT_REG(INTCR1), (1 << APM_IRQ_BIT_DCXO_SHIFT));
@@ -2541,9 +2529,9 @@ static int platform_mif_check_dcxo_ack(struct scsc_mif_abs *interface, u8 opcode
 
 	timeout = jiffies + msecs_to_jiffies(500);
 	do {
-		irq_val = platform_mif_reg_read_apm(platform, MAILBOX_WLBT_REG(INTMSR1));
+		irq_val = platform_mif_reg_read_apm(platform, MAILBOX_WLBT_REG(INTSR1));
 		if (irq_val & (1 << APM_IRQ_BIT_DCXO_SHIFT)) {
-			SCSC_TAG_DEBUG_DEV(PLAT_MIF, platform->dev, "APM MAILBOX INTMSR1 %p\n", irq_val);
+			SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "APM MAILBOX INTSR1 %p\n", irq_val);
 
 			irq_val = platform_mif_reg_read_apm(platform, MAILBOX_WLBT_REG(ISSR(2)));
 			SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "Read Ack for setting DCXO tune: 0x%p\n", irq_val);

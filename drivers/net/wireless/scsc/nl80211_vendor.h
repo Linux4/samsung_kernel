@@ -91,6 +91,7 @@
 #define SLSI_WIFI_HAL_FEATURE_CONFIG_NDO         0x200000      /* ND offload */
 #define SLSI_WIFI_HAL_FEATURE_CONTROL_ROAMING    0x800000      /* Enable/Disable firmware roaming macro */
 #define SLSI_WIFI_HAL_FEATURE_SCAN_RAND          0x2000000     /* Random MAC & Probe seq */
+#define SLSI_WIFI_HAL_FEATURE_DYNAMIC_SET_MAC    0x10000000    /* Support changing MAC address without iface reset(down and up) */
 #define SLSI_WIFI_HAL_FEATURE_LOW_LATENCY        0x40000000    /* Low Latency modes */
 #define SLSI_WIFI_HAL_FEATURE_P2P_RAND_MAC       0x80000000    /* Random P2P MAC */
 

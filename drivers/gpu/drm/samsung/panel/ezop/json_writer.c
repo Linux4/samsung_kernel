@@ -165,7 +165,7 @@ void jsonw_name(json_writer_t *self, const char *name)
 	jsonw_eor(self);
 	jsonw_eol(self);
 	self->sep = '\0';
-	jsonw_put_string(self, name);
+	jsonw_put_string(self, name ? name : "");
 	jsonw_putc(self, ':');
 	if (self->pretty)
 		jsonw_putc(self, ' ');
@@ -215,7 +215,7 @@ void jsonw_end_array(json_writer_t *self)
 void jsonw_string(json_writer_t *self, const char *value)
 {
 	jsonw_eor(self);
-	jsonw_put_string(self, value);
+	jsonw_put_string(self, value ? value : "");
 }
 
 void jsonw_bool(json_writer_t *self, bool val)

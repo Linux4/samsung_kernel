@@ -39,7 +39,7 @@ void panel_mutex_lock(struct panel_mutex *panel_lock)
 	if (panel_lock->magic != PANEL_MUTEX_MAGIC)
 		BUG();
 
-#if IS_ENABLED(CONFIG_MCD_PANEL_BIG_LOCK)
+#if IS_ENABLED(CONFIG_USDM_PANEL_BIG_LOCK)
 	if (current->pid != panel->commit_thread_pid) {
 		mutex_lock(&panel->panel_mutex_op_lock);
 		if (panel->panel_mutex_depth == 0)
@@ -66,7 +66,7 @@ void panel_mutex_unlock(struct panel_mutex *panel_lock)
 
 	mutex_unlock(&panel_lock->base);
 
-#if IS_ENABLED(CONFIG_MCD_PANEL_BIG_LOCK)
+#if IS_ENABLED(CONFIG_USDM_PANEL_BIG_LOCK)
 	if (current->pid != panel->commit_thread_pid) {
 		mutex_lock(&panel->panel_mutex_op_lock);
 		panel->panel_mutex_depth--;

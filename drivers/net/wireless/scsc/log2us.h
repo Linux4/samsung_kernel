@@ -29,8 +29,7 @@ void slsi_conn_log2us_disconnect(struct slsi_dev *sdev, struct net_device *dev,
 void slsi_conn_log2us_eapol_gtk(struct slsi_dev *sdev, struct net_device *dev, int eapol_msg_type);
 void slsi_conn_log2us_eapol_ptk(struct slsi_dev *sdev, struct net_device *dev, int eapol_msg_type);
 void slsi_conn_log2us_roam_scan_start(struct slsi_dev *sdev, struct net_device *dev, int reason,
-				      int roam_rssi_val, short chan_utilisation, int expired_timer_value,
-				      int rssi_thresh, u64 timestamp);
+				      int roam_rssi_val, short chan_utilisation, int rssi_thresh, u64 timestamp);
 void slsi_conn_log2us_roam_result(struct slsi_dev *sdev, struct net_device *dev,
 				  char *bssid, u64 timestamp, bool roam_candidate);
 void slsi_conn_log2us_eap(struct slsi_dev *sdev, struct net_device *dev, u8 *eap_type);

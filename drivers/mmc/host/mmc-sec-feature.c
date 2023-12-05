@@ -14,6 +14,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
 #include <linux/sec_class.h>
+#include <trace/hooks/mmc.h>
 
 #include "dw_mmc-exynos.h"
 #include "mmc-sec-feature.h"
@@ -73,6 +74,24 @@ static void sd_sec_inc_err_count(int index, int error, u32 status)
 	struct sd_sec_err_info *err_log = &svi.err_info[0];
 	int i = 0;
 	int cpu = raw_smp_processor_id();
+
+	if (!error)
+		return;
+
+	/*
+	 * -EIO (-5) : SDMMC_INT_RESP_ERR error case. So log as CRC.
+	 * -ENOMEDIUM (-123), etc : SW timeout and other error. So log as TIMEOUT.
+	 */
+	switch (error) {
+	case -EIO:
+		error = -EILSEQ;
+		break;
+	case -EILSEQ:
+		break;
+	default:
+		error = -ETIMEDOUT;
+		break;
+	}
 
 	for (i = 0; i < MAX_ERR_TYPE_INDEX; i++) {
 		if (err_log[index + i].err_type == error) {
@@ -151,14 +170,14 @@ static void sd_sec_log_err_count(struct mmc_host *mmc, struct mmc_request *mrq)
 		sd_sec_inc_err_count(SD_STOP_OFFSET, mrq->stop->error, status);
 
 	/*
-	 * Core driver polls card busy for 20s, MMC_BLK_TIMEOUT_MS.
-	 * If card status is still in prog state after 18s by cmd13
+	 * Core driver polls card busy for 10s, MMC_BLK_TIMEOUT_MS.
+	 * If card status is still in prog state after 9s by cmd13
 	 * and tstamp_last_cmd has not been updated by next cmd,
 	 * log as write busy timeout.
 	 */
 	if (mrq->cmd->opcode == MMC_SEND_STATUS &&
 		time_after(jiffies, svi.tstamp_last_cmd +
-								msecs_to_jiffies(18 * 1000))) {
+								msecs_to_jiffies(9 * 1000))) {
 		if (status && (!(status & R1_READY_FOR_DATA) ||
 				(R1_CURRENT_STATE(status) == R1_STATE_PRG))) {
 			/* card stuck in prg state */
@@ -259,6 +278,7 @@ static void sd_sec_init_err_count(void)
 void sd_sec_detect_interrupt(struct dw_mci *host)
 {
 	struct mmc_host *mmc;
+	struct dw_mci_exynos_priv_data *priv = host->priv;
 
 	if (svi.card_detect_cnt < UINT_MAX)
 		svi.card_detect_cnt++;
@@ -267,8 +287,47 @@ void sd_sec_detect_interrupt(struct dw_mci *host)
 		mmc = host->slot->mmc;
 		mmc->trigger_card_event = true;
 
+		if (gpio_get_value(priv->cd_gpio) ^ (host->pdata->use_gpio_invert) &&
+		    (svi.slot_type == SEC_HYBRID_SD_SLOT))
+			svi.failed_init = false;
+
 		sd_sec_clear_err_count();
 	}
+}
+
+/*
+ * vendor hooks
+ * check include/trace/hooks/mmc.h
+ */
+static void sec_android_vh_mmc_blk_reset(void *data,
+		struct mmc_host *host, int err)
+{
+	if (err) {
+		svi.failed_init = true;
+		pr_err("%s: mmc_blk_reset is failed with %d.\n",
+				mmc_hostname(host), err);
+	} else {
+		svi.failed_init = false;
+		pr_info("%s: mmc_blk_reset is done with %d.\n",
+				mmc_hostname(host), err);
+	}
+}
+
+static void sec_android_vh_mmc_attach_sd(void *data,
+		struct mmc_host *host, u32 ocr, int err)
+{
+	/* It can handle only err case */
+	if (err) {
+		/* ST_LOG */
+		svi.failed_init = true;
+		pr_info("%s: init failed: err(%d)\n", __func__, err);
+	}
+}
+
+static void sd_sec_register_vendor_hooks(void)
+{
+	register_trace_android_vh_mmc_blk_reset(sec_android_vh_mmc_blk_reset, NULL);
+	register_trace_android_vh_mmc_attach_sd(sec_android_vh_mmc_attach_sd, NULL);
 }
 
 void sd_sec_set_features(struct platform_device *pdev)
@@ -294,6 +353,7 @@ void sd_sec_set_features(struct platform_device *pdev)
 	sd_sec_init_err_count();
 
 	sd_sec_init_sysfs(host);
+	sd_sec_register_vendor_hooks();
 
 	/* Register sd uevent . */
 	svi.mmc = host->slot->mmc;

@@ -16,24 +16,9 @@
 
 #define EXT_CLK_Mhz (26)
 
-#define SENSOR_IMX355_MAX_WIDTH		(3264 + 16)
-#define SENSOR_IMX355_MAX_HEIGHT	(2448 + 10)
-
-#define TOTAL_NUM_OF_IVTPX_CHANNEL	(2)
-
-/* TODO: Check below values are valid */
-#define SENSOR_IMX355_FINE_INTEGRATION_TIME_MIN                0x54C
-#define SENSOR_IMX355_FINE_INTEGRATION_TIME_MAX                0x54C
-#define SENSOR_IMX355_COARSE_INTEGRATION_TIME_MIN              0x1
-#define SENSOR_IMX355_COARSE_INTEGRATION_TIME_MAX_MARGIN       0xA
-
-/* Register Value */
-#define SENSOR_IMX355_MIN_AGAIN_VALUE                   (0)
-#define SENSOR_IMX355_MAX_AGAIN_VALUE                   (960)
-#define SENSOR_IMX355_MIN_DGAIN_VALUE                   (0x0100)
-#define SENSOR_IMX355_MAX_DGAIN_VALUE                   (0x0FFF)
-
 #define USE_GROUP_PARAM_HOLD	(0)
+#define SENSOR_IMX355_MAX_COARSE_INTEG_WITH_FRM_LENGTH_CTRL    65524
+#define SENSOR_IMX355_MAX_CIT_LSHIFT_VALUE                     (0x7)
 
 enum sensor_imx355_mode_enum{
 	SENSOR_IMX355_3264X2448_30FPS_702MBPS = 0,
@@ -48,5 +33,20 @@ enum sensor_imx355_mode_enum{
 	SENSOR_IMX355_736X552_120FPS,
 	SENSOR_IMX355_MODE_MAX,
 };
+
+struct sensor_imx355_private_data {
+	const struct sensor_regs global;
+};
+
+static const struct sensor_reg_addr sensor_imx355_reg_addr = {
+	.fll = 0x0340,
+	.fll_shifter = 0, /* Not Supported */
+	.cit = 0x0202,
+	.cit_shifter = 0x3060,
+	.again = 0x0204,
+	.dgain = 0x020E,
+	.group_param_hold = 0x0104,
+};
+
 #endif
 

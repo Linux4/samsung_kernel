@@ -56,6 +56,7 @@ struct sd_sec_vendor_info {
 	struct mmc_host *mmc;
 	unsigned int card_detect_cnt;
 	int slot_type;
+	bool failed_init;
 	unsigned long tstamp_last_cmd;
 	struct work_struct noti_work;
 	struct sd_sec_err_info err_info[MAX_LOG_INDEX];

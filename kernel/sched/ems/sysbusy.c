@@ -456,7 +456,7 @@ static enum sysbusy_state determine_sysbusy_state(void)
 		if (system_data.heavy_task_count > 10)
 			is_somac = false;
 
-		if (!is_somac)
+		if (!is_somac || (num_active_cpus() != VENDOR_NR_CPUS))
 			return SYSBUSY_STATE2;
 
 		return SYSBUSY_STATE3;

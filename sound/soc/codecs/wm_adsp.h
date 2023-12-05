@@ -111,6 +111,7 @@ struct wm_adsp {
 	bool booted;
 	bool running;
 	bool fatal_error;
+	bool hibernate;
 
 	int num_firmwares;
 	struct wm_adsp_fw_defs *firmwares;
@@ -134,7 +135,13 @@ struct wm_adsp {
 	char *wmfw_file_name;
 	char *bin_file_name;
 #endif
-
+	/*
+	 * Flag indicating the preloader widget only needs power toggled
+	 * on state change rather than held on for the duration of the
+	 * preload, useful for devices that can retain firmware memory
+	 * across power down.
+	 */
+	bool toggle_preload;
 };
 
 struct wm_adsp_ops {

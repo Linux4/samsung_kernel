@@ -37,7 +37,11 @@
 #include "is-resourcemgr.h"
 #include "is-dt.h"
 #include "is-cis-3l6.h"
+#ifdef USE_S5K3L6_13MP_FULL_SIZE
+#include "is-cis-3l6-setA-13mp.h"
+#else
 #include "is-cis-3l6-setA.h"
+#endif
 
 #include "is-helper-ixc.h"
 
@@ -56,31 +60,6 @@ static const struct v4l2_subdev_ops subdev_ops;
 
 /* For checking frame count */
 static u32 sensor_3l6_fcount;
-
-static int sensor_3l6_wait_stream_off_status(cis_shared_data *cis_data)
-{
-	int ret = 0;
-	u32 timeout = 0;
-
-	BUG_ON(!cis_data);
-
-#define STREAM_OFF_WAIT_TIME 250
-	while (timeout < STREAM_OFF_WAIT_TIME) {
-		if (cis_data->is_active_area == false &&
-				cis_data->stream_on == false) {
-			pr_debug("actual stream off\n");
-			break;
-		}
-		timeout++;
-	}
-
-	if (timeout == STREAM_OFF_WAIT_TIME) {
-		pr_err("actual stream off wait timeout\n");
-		ret = -1;
-	}
-
-	return ret;
-}
 
 int sensor_3l6_cis_init(struct v4l2_subdev *subdev)
 {
@@ -108,7 +87,6 @@ int sensor_3l6_cis_init(struct v4l2_subdev *subdev)
 
 	return ret;
 }
-
 
 static const struct is_cis_log log_3l6[] = {
 	{I2C_READ, 16, 0x0000, 0, "model_id"},
@@ -200,160 +178,6 @@ int sensor_3l6_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	cis->cis_data->sens_config_index_pre = mode;
 
 	dbg_sensor(1, "[%s] mode changed(%d)\n", __func__, mode);
-
-p_err:
-	return ret;
-}
-
-/* TODO: Sensor set size sequence(sensor done, sensor stop, 3AA done in FW case */
-int sensor_3l6_cis_set_size(struct v4l2_subdev *subdev, cis_shared_data *cis_data)
-{
-	int ret = 0;
-	bool binning = false;
-	u32 ratio_w = 0, ratio_h = 0, start_x = 0, start_y = 0, end_x = 0, end_y = 0;
-	u32 even_x= 0, odd_x = 0, even_y = 0, odd_y = 0;
-	struct i2c_client *client = NULL;
-	struct is_cis *cis = NULL;
-
-	BUG_ON(!subdev);
-
-	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
-	BUG_ON(!cis);
-	info(" %s\n", __func__);
-
-	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
-
-	if (unlikely(!cis_data)) {
-		err("cis data is NULL");
-		if (unlikely(!cis->cis_data)) {
-			ret = -EINVAL;
-			goto p_err;
-		} else {
-			cis_data = cis->cis_data;
-		}
-	}
-
-	client = cis->client;
-	if (unlikely(!client)) {
-		err("client is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	/* Wait actual stream off */
-	ret = sensor_3l6_wait_stream_off_status(cis_data);
-	if (ret) {
-		err("Must stream off\n");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	binning = cis_data->binning;
-	if (binning) {
-		ratio_w = (cis->sensor_info->max_width / cis_data->cur_width);
-		ratio_h = (cis->sensor_info->max_height / cis_data->cur_height);
-	} else {
-		ratio_w = 1;
-		ratio_h = 1;
-	}
-
-	if (((cis_data->cur_width * ratio_w) > cis->sensor_info->max_width) ||
-		((cis_data->cur_height * ratio_h) > cis->sensor_info->max_height)) {
-		err("Config max sensor size over~!!\n");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	IXC_MUTEX_LOCK(cis->ixc_lock);
-	/* 1. page_select */
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_PAGE_SELECT_ADDR, 0x2000);
-	if (ret < 0)
-		 goto p_err_unlock;
-
-	/* 2. pixel address region setting */
-	start_x = ((cis->sensor_info->max_width - cis_data->cur_width * ratio_w) / 2) & (~0x1);
-	start_y = ((cis->sensor_info->max_height - cis_data->cur_height * ratio_h) / 2) & (~0x1);
-	end_x = start_x + (cis_data->cur_width * ratio_w - 1);
-	end_y = start_y + (cis_data->cur_height * ratio_h - 1);
-
-	if (!(end_x & (0x1)) || !(end_y & (0x1))) {
-		err("Sensor pixel end address must odd\n");
-		ret = -EINVAL;
-		goto p_err_unlock;
-	}
-
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_X_ADDR_START_ADDR, start_x);
-	if (ret < 0)
-		 goto p_err_unlock;
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_Y_ADDR_START_ADDR, start_y);
-	if (ret < 0)
-		 goto p_err_unlock;
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_X_ADDR_END_ADDR, end_x);
-	if (ret < 0)
-		 goto p_err_unlock;
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_Y_ADDR_END_ADDR, end_y);
-	if (ret < 0)
-		 goto p_err_unlock;
-
-	/* 3. output address setting */
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_X_OUTPUT_SIZE_ADDR, cis_data->cur_width);
-	if (ret < 0)
-		 goto p_err_unlock;
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_Y_OUTPUT_SIZE_ADDR, cis_data->cur_height);
-	if (ret < 0)
-		 goto p_err_unlock;
-
-	/* If not use to binning, sensor image should set only crop */
-	if (!binning) {
-		dbg_sensor(1, "Sensor size set is not binning\n");
-		goto p_err_unlock;
-	}
-
-	/* 4. sub sampling setting */
-	even_x = 1;	/* 1: not use to even sampling */
-	even_y = 1;
-	odd_x = (ratio_w * 2) - even_x;
-	odd_y = (ratio_h * 2) - even_y;
-
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_X_EVEN_INC_ADDR, even_x);
-	if (ret < 0)
-		 goto p_err_unlock;
-	ret = cis->ixc_ops->write16(client,  SENSOR_3L6_X_ODD_INC_ADDR, odd_x);
-	if (ret < 0)
-		 goto p_err_unlock;
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_Y_EVEN_INC_ADDR, even_y);
-	if (ret < 0)
-		 goto p_err_unlock;
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_Y_ODD_INC_ADDR, odd_y);
-	if (ret < 0)
-		 goto p_err_unlock;
-
-	/* 5. binnig setting */
-	ret = cis->ixc_ops->write8(client, SENSOR_3L6_BINNING_MODE_ADDR, binning);	/* 1:  binning enable, 0: disable */
-	if (ret < 0)
-		goto p_err_unlock;
-	ret = cis->ixc_ops->write8(client, SENSOR_3L6_BINNING_TYPE_ADDR, (ratio_w << 4) | ratio_h);
-	if (ret < 0)
-		goto p_err_unlock;
-
-	/* 6. scaling setting: but not use */
-	/* scaling_mode (0: No scaling, 1: Horizontal, 2: Full) */
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_SCALING_MODE_ADDR, 0x0000);
-	if (ret < 0)
-		goto p_err_unlock;
-	/* down_scale_m: 1 to 16 upwards (scale_n: 16(fixed)) */
-	/* down scale factor = down_scale_m / down_scale_n */
-	ret = cis->ixc_ops->write16(client, SENSOR_3L6_DOWN_SCALE_M_ADDR, 0x0010);
-	if (ret < 0)
-		goto p_err_unlock;
-
-	cis_data->frame_time = (cis_data->line_readOut_time * cis_data->cur_height / 1000);
-	cis->cis_data->rolling_shutter_skew = (cis->cis_data->cur_height - 1) * cis->cis_data->line_readOut_time;
-	dbg_sensor(1, "[%s] frame_time(%d), rolling_shutter_skew(%lld)\n", __func__,
-		cis->cis_data->frame_time, cis->cis_data->rolling_shutter_skew);
-
-p_err_unlock:
-	IXC_MUTEX_UNLOCK(cis->ixc_lock);
 
 p_err:
 	return ret;

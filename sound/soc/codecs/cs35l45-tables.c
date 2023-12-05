@@ -539,6 +539,112 @@ const struct cs35l45_pll_sysclk_config
 	{ 27000000,	0x3F },
 };
 
+const struct of_entry bpe_inst_thld_map[BPE_INST_LEVELS] = {
+	[L0] = {"bpe-inst-thld", CS35L45_BPE_INST_THLD,
+		CS35L45_BPE_INST_L0_THLD_MASK,
+		CS35L45_BPE_INST_L0_THLD_SHIFT},
+	[L1] = {"bpe-inst-thld", CS35L45_BPE_INST_THLD,
+		CS35L45_BPE_INST_L1_THLD_MASK,
+		CS35L45_BPE_INST_L1_THLD_SHIFT},
+	[L2] = {"bpe-inst-thld", CS35L45_BPE_INST_THLD,
+		CS35L45_BPE_INST_L2_THLD_MASK,
+		CS35L45_BPE_INST_L2_THLD_SHIFT},
+	[L3] = {"bpe-inst-thld", CS35L45_BPE_INST_THLD,
+		CS35L45_BPE_INST_L3_THLD_MASK,
+		CS35L45_BPE_INST_L3_THLD_SHIFT},
+};
+
+const struct of_entry bpe_inst_attn_map[BPE_INST_LEVELS] = {
+	[L0] = {"bpe-inst-attn", CS35L45_BPE_INST_ATTN,
+		CS35L45_BPE_INST_L0_ATTN_MASK,
+		CS35L45_BPE_INST_L0_ATTN_SHIFT},
+	[L1] = {"bpe-inst-attn", CS35L45_BPE_INST_ATTN,
+		CS35L45_BPE_INST_L1_ATTN_MASK,
+		CS35L45_BPE_INST_L1_ATTN_SHIFT},
+	[L2] = {"bpe-inst-attn", CS35L45_BPE_INST_ATTN,
+		CS35L45_BPE_INST_L2_ATTN_MASK,
+		CS35L45_BPE_INST_L2_ATTN_SHIFT},
+	[L3] = {"bpe-inst-attn", CS35L45_BPE_INST_ATTN,
+		CS35L45_BPE_INST_L3_ATTN_MASK,
+		CS35L45_BPE_INST_L3_ATTN_SHIFT},
+};
+
+const struct of_entry bpe_inst_atk_rate_map[BPE_INST_LEVELS] = {
+	[L0] = {"bpe-inst-atk-rate", CS35L45_BPE_INST_ATK_RATE,
+		CS35L45_BPE_INST_L0_ATK_RATE_MASK,
+		CS35L45_BPE_INST_L0_ATK_RATE_SHIFT},
+	[L1] = {"bpe-inst-atk-rate", CS35L45_BPE_INST_ATK_RATE,
+		CS35L45_BPE_INST_L1_ATK_RATE_MASK,
+		CS35L45_BPE_INST_L1_ATK_RATE_SHIFT},
+	[L2] = {"bpe-inst-atk-rate", CS35L45_BPE_INST_ATK_RATE,
+		CS35L45_BPE_INST_L2_ATK_RATE_MASK,
+		CS35L45_BPE_INST_L2_ATK_RATE_SHIFT},
+	[L3] = {"bpe-inst-atk-rate", CS35L45_BPE_INST_ATK_RATE,
+		CS35L45_BPE_INST_L3_ATK_RATE_MASK,
+		CS35L45_BPE_INST_L3_ATK_RATE_SHIFT},
+};
+
+const struct of_entry bpe_inst_hold_time_map[BPE_INST_LEVELS] = {
+	[L0] = {"bpe-inst-hold-time", CS35L45_BPE_INST_HOLD_TIME,
+		CS35L45_BPE_INST_L0_HOLD_TIME_MASK,
+		CS35L45_BPE_INST_L0_HOLD_TIME_SHIFT},
+	[L1] = {"bpe-inst-hold-time", CS35L45_BPE_INST_HOLD_TIME,
+		CS35L45_BPE_INST_L1_HOLD_TIME_MASK,
+		CS35L45_BPE_INST_L1_HOLD_TIME_SHIFT},
+	[L2] = {"bpe-inst-hold-time", CS35L45_BPE_INST_HOLD_TIME,
+		CS35L45_BPE_INST_L2_HOLD_TIME_MASK,
+		CS35L45_BPE_INST_L2_HOLD_TIME_SHIFT},
+	[L3] = {"bpe-inst-hold-time", CS35L45_BPE_INST_HOLD_TIME,
+		CS35L45_BPE_INST_L3_HOLD_TIME_MASK,
+		CS35L45_BPE_INST_L3_HOLD_TIME_SHIFT},
+};
+
+const struct of_entry bpe_inst_rls_rate_map[BPE_INST_LEVELS] = {
+	[L0] = {"bpe-inst-rls-rate", CS35L45_BPE_INST_RLS_RATE,
+		CS35L45_BPE_INST_L0_RLS_RATE_MASK,
+		CS35L45_BPE_INST_L0_RLS_RATE_SHIFT},
+	[L1] = {"bpe-inst-rls-rate", CS35L45_BPE_INST_RLS_RATE,
+		CS35L45_BPE_INST_L1_RLS_RATE_MASK,
+		CS35L45_BPE_INST_L1_RLS_RATE_SHIFT},
+	[L2] = {"bpe-inst-rls-rate", CS35L45_BPE_INST_RLS_RATE,
+		CS35L45_BPE_INST_L2_RLS_RATE_MASK,
+		CS35L45_BPE_INST_L2_RLS_RATE_SHIFT},
+	[L3] = {"bpe-inst-rls-rate", CS35L45_BPE_INST_RLS_RATE,
+		CS35L45_BPE_INST_L3_RLS_RATE_MASK,
+		CS35L45_BPE_INST_L3_RLS_RATE_SHIFT},
+};
+
+const struct of_entry bpe_misc_map[BPE_MISC_PARAMS] = {
+	[BPE_INST_BPE_BYP] = {"bpe-inst-bpe-byp",
+				 CS35L45_BPE_MISC_CONFIG,
+				 CS35L45_BPE_INST_BPE_BYP_MASK,
+				 CS35L45_BPE_INST_BPE_BYP_SHIFT},
+	[BPE_INST_INF_HOLD_RLS] = {"bpe-inst-inf-hold-rls",
+				       CS35L45_BPE_MISC_CONFIG,
+				       CS35L45_BPE_INST_INF_HOLD_RLS_MASK,
+				       CS35L45_BPE_INST_INF_HOLD_RLS_SHIFT},
+	[BPE_INST_L3_BYP] = {"bpe-inst-l3-byp",
+				 CS35L45_BPE_MISC_CONFIG,
+				 CS35L45_BPE_INST_L3_BYP_MASK,
+				 CS35L45_BPE_INST_L3_BYP_SHIFT},
+	[BPE_INST_L2_BYP] = {"bpe-inst-l2-byp",
+				 CS35L45_BPE_MISC_CONFIG,
+				 CS35L45_BPE_INST_L2_BYP_MASK,
+				 CS35L45_BPE_INST_L2_BYP_SHIFT},
+	[BPE_INST_L1_BYP] = {"bpe-inst-l1-byp",
+				 CS35L45_BPE_MISC_CONFIG,
+				 CS35L45_BPE_INST_L1_BYP_MASK,
+				 CS35L45_BPE_INST_L1_BYP_SHIFT},
+	[BPE_MODE_SEL] = {"bst-bpe-mode-sel",
+			      CS35L45_BPE_MISC_CONFIG,
+			      CS35L45_BPE_MODE_SEL_MASK,
+			      CS35L45_BPE_MODE_SEL_SHIFT},
+	[BPE_FILT_SEL] = {"bst-bpe-filt-sel",
+			      CS35L45_BPE_MISC_CONFIG,
+			      CS35L45_BPE_FILT_SEL_MASK,
+			      CS35L45_BPE_FILT_SEL_SHIFT},
+};
+
 const struct of_entry bst_bpe_inst_thld_map[BST_BPE_INST_LEVELS] = {
 	[L0] = {"bst-bpe-inst-thld", CS35L45_BST_BPE_INST_THLD,
 		CS35L45_BST_BPE_INST_L0_THLD_MASK,
@@ -761,4 +867,6 @@ const struct of_entry classh_map[CLASSH_PARAMS] = {
 
 const struct dev_pm_ops cs35l45_pm_ops = {
 	SET_RUNTIME_PM_OPS(cs35l45_suspend_runtime, cs35l45_resume_runtime, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(cs35l45_sys_suspend, cs35l45_sys_resume)
+	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(cs35l45_sys_suspend_noirq, cs35l45_sys_resume_noirq)
 };

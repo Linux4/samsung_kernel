@@ -196,6 +196,9 @@ static int set_ipbts_urgent(void __iomem *base, struct bts_stat *stat)
 	if (stat->qurgent_on)
 		tmp_reg = tmp_reg | (stat->qurgent_on << QURGENT_EN);
 
+	if (stat->qurgent_ex)
+		tmp_reg = tmp_reg | (stat->qurgent_on << QURGENT_EX);
+
 	__raw_writel(tmp_reg, base + CON);
 
 	return 0;

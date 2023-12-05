@@ -59,6 +59,8 @@
 #define MFC_INT_TIMEOUT_CNT	2
 /* The number of deferred decoding frame */
 #define MFC_DEC_DEFER_FRAME	4
+/* Open timeout (10sec) */
+#define MFC_OPEN_INTERVAL		10000
 /*
  * Deferred decoding wait buffer count
  * Src depends on DFER_FRAME and waits (DEFER_FRAME + 2 frames) time

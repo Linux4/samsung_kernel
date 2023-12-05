@@ -44,6 +44,7 @@
 #define TIMEOUT_CNT_R	0
 #define TIMEOUT_CNT_W	16
 #define QURGENT_EN	20
+#define QURGENT_EX	4
 #define BLOCKING_EN	0
 #define TIMEOUT_CNT_VC0	0
 #define TIMEOUT_CNT_VC1	8

@@ -156,6 +156,7 @@ config MALI_EXYNOS_CL_BOOST
     depends on MALI_MIDGARD
     default y if SOC_EXYNOS9830
     default y if SOC_EXYNOS2100
+	default y if SOC_S5E8835
     default n
 
 config MALI_NOTIFY_UTILISATION

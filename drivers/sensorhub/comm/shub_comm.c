@@ -20,45 +20,24 @@
 #include "../sensormanager/shub_sensor_manager.h"
 #include "../utility/shub_utility.h"
 #include "../vendor/shub_vendor.h"
+#include "shub_comm.h"
 #include "shub_cmd.h"
 
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
 
-#define SHUB_CMD_SIZE		64
-
 #define SHUB2AP_BYPASS_DATA	0x37
 #define SHUB2AP_LIBRARY_DATA	0x01
 #define SHUB2AP_DEBUG_DATA	0x03
 #define SHUB2AP_META_DATA	0x05
-#define SHUB2AP_TIME_SYNC	0x06
-#define SHUB2AP_NOTI_RESET	0x07
 #define SHUB2AP_GYRO_CAL	0x08
 #define SHUB2AP_PROX_THRESH	0x09
 #define SHUB2AP_REQ_RESET	0x0A
 #define SHUB2AP_MAG_CAL		0x0B
-#define SHUB2AP_DUMP_DATA	0xDD
-#define SHUB2AP_CALLSTACK	0x0F
 #define SHUB2AP_LOG_DUMP	0x12
 #define SHUB2AP_SYSTEM_INFO	0x31
-#define SHUB2AP_SENSOR_SPEC	0x41
 #define SHUB2AP_BIG_DATA	0x51
-
-struct shub_msg {
-	u8 cmd;
-	u8 type;
-	u8 subcmd;
-	u16 total_length;
-	u16 length;
-	u64 timestamp;
-	char *buffer;
-	bool is_empty_pending_list;
-	struct completion *done;
-	struct list_head list;
-} __attribute__((__packed__));
-
-#define SHUB_MSG_HEADER_SIZE	offsetof(struct shub_msg, buffer)
 
 struct mutex comm_mutex;
 struct mutex pending_mutex;
@@ -118,12 +97,13 @@ static int comm_to_sensorhub(struct shub_msg *msg)
 
 	mutex_lock(&comm_mutex);
 	memcpy(shub_cmd_data, msg, SHUB_MSG_HEADER_SIZE);
-	if (msg->length > 0) {
-		memcpy(&shub_cmd_data[SHUB_MSG_HEADER_SIZE], msg->buffer, msg->length);
-	} else if (msg->length > (SHUB_CMD_SIZE - SHUB_MSG_HEADER_SIZE)) {
+
+	if (msg->length > (SHUB_CMD_SIZE - SHUB_MSG_HEADER_SIZE)) {
 		shub_errf("command size(%d) is over.", msg->length);
 		mutex_unlock(&comm_mutex);
 		return -EINVAL;
+	} else if (msg->length > 0) {
+		memcpy(&shub_cmd_data[SHUB_MSG_HEADER_SIZE], msg->buffer, msg->length);
 	}
 
 	shub_infof("cmd %d type %d subcmd %d send_buf_len %d ts %llu", msg->cmd, msg->type, msg->subcmd, msg->length,
@@ -296,9 +276,6 @@ static int parse_dataframe(char *dataframe, int frame_len)
 			break;
 		case SHUB2AP_SYSTEM_INFO:
 			ret = print_system_info(dataframe + index, &index, frame_len);
-			break;
-		case SHUB2AP_NOTI_RESET:
-			shub_infof("Reset MSG received from MCU");
 			break;
 		case SHUB2AP_REQ_RESET:
 			if (index + 2 <= frame_len) {

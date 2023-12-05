@@ -18,6 +18,8 @@
 
 #define CIRRUS_MAX_AMPS			8
 
+#define CIRRUS_AMP_CTL_RETRY	5
+
 #define CS35L41_ALG_ID_HALO	0x400a4
 #define CIRRUS_AMP_ALG_ID_HALO	0x4fa00
 #define CIRRUS_AMP_ALG_ID_CSPL	0xcd
@@ -154,10 +156,10 @@ struct cirrus_amp {
 	bool perform_vimon_cal;
 	bool calibration_disable;
 	bool v_val_separate;
+	bool runtime_pm;
 	int (*amp_reinit)(struct snd_soc_component *component);
 	void (*i2c_callback)(const char *suffix);
 	void (*error_callback)(const char *suffix);
-	bool runtime_pm;
 };
 
 struct cirrus_amp_group {

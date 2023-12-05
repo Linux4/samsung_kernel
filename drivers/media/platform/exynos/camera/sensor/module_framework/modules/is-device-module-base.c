@@ -77,6 +77,7 @@ int sensor_module_power_reset(struct v4l2_subdev *subdev, struct is_device_senso
 int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 {
 	int ret = 0;
+	bool is_act_init_require = false;
 	struct is_module_enum *module;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct exynos_platform_is_module *pdata = NULL;
@@ -89,7 +90,6 @@ int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 #ifdef USE_CAMERA_HW_BIG_DATA
 	struct cam_hw_param *hw_param = NULL;
 #endif
-	int retry = 10;
 
 	FIMC_BUG(!subdev);
 
@@ -185,7 +185,6 @@ int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 	if (test_bit(IS_SENSOR_ACTUATOR_AVAILABLE, &sensor_peri->peri_state) &&
 			pdata->af_product_name != ACTUATOR_NAME_NOTHING && sensor_peri->actuator != NULL) {
 
-		sensor_peri->actuator->actuator_data.actuator_init = true;
 		sensor_peri->actuator->actuator_index = -1;
 		sensor_peri->actuator->left_x = 0;
 		sensor_peri->actuator->left_y = 0;
@@ -199,19 +198,15 @@ int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 		if (!sensor_peri->reuse_3a_value)
 			sensor_peri->actuator->position = 0;
 
-		ret = v4l2_subdev_call(subdev_actuator, core, init, 0);
-		if (ret) {
-			while (--retry && ret) {
-				msleep(100);
-				err("v4l2_actuator_call(init) is fail(%d) retry again! (%d)", ret, retry);
-				ret = v4l2_subdev_call(subdev_actuator, core, init, 0);
-			}
-
-			if (retry == 0) {
-				err("v4l2_actuator_call(init) is fail(%d) retry(%d)", ret, retry);
-				goto p_err;
-			}
+		mutex_lock(&sensor_peri->actuator->control_init_lock);
+		if (sensor_peri->actuator->actuator_init_state == ACTUATOR_NOT_INITIALIZED) {
+			sensor_peri->actuator->actuator_init_state = ACTUATOR_INIT_INPROGRESS;
+			is_act_init_require = true;
 		}
+		mutex_unlock(&sensor_peri->actuator->control_init_lock);
+
+		if (is_act_init_require)
+			schedule_work(&sensor_peri->actuator->actuator_init_work);
 	}
 
 	if (device->pdata->scenario == SENSOR_SCENARIO_G_ACTIVE_CAMERA) {
@@ -273,6 +268,20 @@ int sensor_module_deinit(struct v4l2_subdev *subdev)
 				err("failed to turn off flash at flash expired handler\n");
 			}
 		}
+	}
+
+	if (sensor_peri->actuator) {
+		flush_work(&sensor_peri->actuator->actuator_init_work);
+
+		if (CALL_ACTUATOROPS(sensor_peri->actuator, perform_soft_landing_on_exit, sensor_peri->subdev_actuator)) {
+			ret = is_sensor_peri_actuator_softlanding(sensor_peri);
+			if (ret)
+				err("failed to soft landing control\n");
+		}
+
+		mutex_lock(&sensor_peri->actuator->control_init_lock);
+		sensor_peri->actuator->actuator_init_state = ACTUATOR_NOT_INITIALIZED;
+		mutex_unlock(&sensor_peri->actuator->control_init_lock);
 	}
 
 	if (sensor_peri->flash != NULL) {
@@ -420,6 +429,7 @@ int sensor_module_g_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		}
 		break;
 	case V4L2_CID_ACTUATOR_GET_STATUS:
+		flush_work(&sensor_peri->actuator->actuator_init_work);
 		ret = v4l2_subdev_call(sensor_peri->subdev_actuator, core, ioctl, SENSOR_IOCTL_ACT_G_CTRL, ctrl);
 		if (ret) {
 			err("[MOD:%s] v4l2_subdev_call(g_ctrl, id:%d) is fail(%d)",
@@ -595,6 +605,8 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 			}
 		}
 
+		flush_work(&sensor_peri->actuator->actuator_init_work);
+
 		ret = v4l2_subdev_call(sensor_peri->subdev_actuator, core, ioctl, SENSOR_IOCTL_ACT_S_CTRL, ctrl);
 		if (ret < 0) {
 			err("[MOD:%s] v4l2_subdev_call(s_ctrl, id:%d) is fail(%d)",
@@ -746,6 +758,27 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 		sensor_peri->check_auto_framing = ctrl->value;
 		info("%s Auto framing set. val = %d, sensor id = %d", __func__,
 			sensor_peri->check_auto_framing, sensor_peri->module->sensor_id);
+		break;
+	case V4L2_CID_SENSOR_SET_BAYER_ORDER:
+		switch (ctrl->value) {
+		case SENSOR_COLORFILTERARRANGEMENT_RGGB:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_RG_GB;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_GRBG:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_GBRG:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_GB_RG;
+			break;
+		case SENSOR_COLORFILTERARRANGEMENT_BGGR:
+			sensor_peri->cis.bayer_order = OTF_INPUT_ORDER_BAYER_BG_GR;
+			break;
+		default:
+			break;
+		}
+
+		info("%s bayer order = %d, sensor id = %d", __func__,
+			sensor_peri->cis.bayer_order, sensor_peri->module->sensor_id);
 		break;
 	default:
 		err("err!!! Unknown CID(%#x)", ctrl->id);

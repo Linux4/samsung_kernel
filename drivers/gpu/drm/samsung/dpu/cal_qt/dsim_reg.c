@@ -1113,7 +1113,7 @@ static int dsim_reg_wait_idle_status(u32 id, u32 is_vm)
 	ret = readl_poll_timeout_atomic(
 			dsim_regs_desc(id)->regs + DSIM_LINK_STATUS0, val,
 			!DSIM_LINK_STATUS0_VIDEO_MODE_STATUS_GET(val), 10,
-			16000);
+			33000);
 	if (ret) {
 		cal_log_err(id, "dsim%d wait timeout idle status\n", id);
 		return ret;
@@ -1698,7 +1698,7 @@ static void dsim_reg_set_config(u32 id, struct dsim_reg_config *config,
 	if (config->mode == DSIM_VIDEO_MODE) {
 		dsim_reg_set_video_mode(id, 1);
 		dsim_reg_set_hperiod(id, config, clks);
-		dsim_reg_sync_shadow_update_vsa(id, 1);
+		dsim_reg_sync_shadow_update_vsa(id, 0);
 		cal_log_debug(id, "%s: video mode set\n", __func__);
 	} else {
 		dsim_reg_set_video_mode(id, 0);

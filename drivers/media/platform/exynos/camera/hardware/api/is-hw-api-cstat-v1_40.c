@@ -888,14 +888,21 @@ void cstat_hw_corex_trigger(void __iomem *base)
 
 int cstat_hw_s_reset(void __iomem *base)
 {
+	int ret;
+
 	/* 2: Core + Configuration register reset for FRO controller */
 	CSTAT_SET_R_DIRECT(base, CSTAT_R_FRO_SW_RESET, 2);
 
 	CSTAT_SET_R_DIRECT(base, CSTAT_R_SW_RESET, 0x1);
 
+	ret = cstat_hw_wait_idle(base);
+
+	CSTAT_SET_F_DIRECT(base, CSTAT_R_IP_PROCESSING,
+			CSTAT_F_IP_PROCESSING, 0);
+
 	info_hw("[CSTAT] SW reset\n");
 
-	return cstat_hw_wait_idle(base);
+	return ret;
 }
 
 void cstat_hw_s_post_frame_gap(void __iomem *base, u32 gap)
@@ -965,6 +972,8 @@ void cstat_hw_core_init(void __iomem *base)
 			CSTAT_F_AUTO_MASK_PREADY, 1);
 	CSTAT_SET_F_DIRECT(base, CSTAT_R_IP_PROCESSING,
 			CSTAT_F_IP_PROCESSING, 1);
+
+	info_hw("[CSTAT] Core init\n");
 }
 
 void cstat_hw_ctx_init(void __iomem *base)

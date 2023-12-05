@@ -3453,13 +3453,6 @@ static int slsi_roam_add_scan_frequencies(struct net_device *dev, char *command,
 		return -EINVAL;
 	}
 
-	if (sdev->device_config.roam_scan_mode) {
-		SLSI_ERR(sdev, "ROAM Scan Control must be 0, roam mode = %d\n", sdev->device_config.roam_scan_mode);
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
-	}
-
 	if (sdev->device_config.wes_roam_scan_list.n == SLSI_NCHO_MAX_CHANNEL_LIST) {
 		SLSI_ERR(sdev, "Roam scan list is already full\n");
 		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
@@ -4687,10 +4680,11 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 	struct slsi_dev      *sdev = ndev_vif->sdev;
 	struct slsi_ioctl_args *ioctl_args = NULL;
 	int                  mode = 0;
+	int                  ant = -1;
 	int                  error = 0;
 	u16                  host_state;
 
-	ioctl_args = slsi_get_private_command_args(command, buf_len, 1);
+	ioctl_args = slsi_get_private_command_args(command, buf_len, 2);
 	error = slsi_verify_ioctl_args(sdev, ioctl_args);
 	if (error)
 		return error;
@@ -4699,6 +4693,13 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 		SLSI_ERR(sdev, "Invalid string: '%s'\n", ioctl_args->args[0]);
 		kfree(ioctl_args);
 		return -EINVAL;
+	}
+	if (ioctl_args->arg_count > 1) {
+		if (strtoint(ioctl_args->args[1], &ant)) {
+			SLSI_ERR(sdev, "Invalid string: '%s'\n", ioctl_args->args[1]);
+			kfree(ioctl_args);
+			return -EINVAL;
+		}
 	}
 
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
@@ -4712,9 +4713,18 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 		host_state |= SLSI_HOSTSTATE_HEAD_SAR_ACTIVE;
 		break;
 	case BODY_SAR_BACKOFF_DISABLED:
-		host_state &= ~SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
+		if (ant == RADIO_1_ANT_NUM)
+			sdev->device_config.backoffed_ant_config &= MASK_BACKOFF_STATE_ANT_2;
+		else if (ant == RADIO_2_ANT_NUM)
+			sdev->device_config.backoffed_ant_config &= MASK_BACKOFF_STATE_ANT_1;
+		if (sdev->device_config.backoffed_ant_config == MASK_BACKOFF_STATE_INIT)
+			host_state &= ~SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
 		break;
 	case BODY_SAR_BACKOFF_ENABLED:
+		if (ant == RADIO_1_ANT_NUM)
+			sdev->device_config.backoffed_ant_config |= MASK_BACKOFF_STATE_ANT_1;
+		else if (ant == RADIO_2_ANT_NUM)
+			sdev->device_config.backoffed_ant_config |= MASK_BACKOFF_STATE_ANT_2;
 		host_state |= SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
 		break;
 	case NR_MMWAVE_SAR_BACKOFF_DISABLED:
@@ -4777,24 +4787,26 @@ int slsi_set_custom_tx_power_calling(struct net_device *dev, char *command, int 
 		goto exit;
 	}
 
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+
 	for (i = 0; i < MAX_TX_PWR_BACKOFF_ARG_CNT; i++) {
 		if (!slsi_str_to_int(ioctl_args->args[i], &txpwr_limit[i])) {
 			SLSI_ERR(sdev, "Invalid custom tx power limit: '%s'\n", ioctl_args->args[0]);
 			result = -EINVAL;
-			goto exit;
+			goto exit_with_unlock;
 		}
-		if (txpwr_limit[i] < -1 || txpwr_limit[i] > 254) {
-			SLSI_ERR(sdev, "Out of max TX power boundary  (-1 to 254): %d\n", txpwr_limit[i]);
+		if (txpwr_limit[i] < -1 || txpwr_limit[i] > 126) {
+			SLSI_ERR(sdev, "Out of max TX power boundary  (-1 to 126): %d\n", txpwr_limit[i]);
 			result = -EINVAL;
-			goto exit;
+			goto exit_with_unlock;
 		}
+		sdev->device_config.last_custom_tx_pwr[i] = txpwr_limit[i];
 	}
-
-	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
 	result = slsi_mlme_set_max_tx_power(sdev, dev, txpwr_limit);
 
-	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+exit_with_unlock:
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
 
 exit:
 	kfree(ioctl_args);

@@ -18,6 +18,14 @@
 #include "s6e3fc5.h"
 #include "s6e3fc5_dimming.h"
 
+enum {
+	S6E3FC5_A54X_DISPLAY_MODE_1080x2340_120HS,
+	S6E3FC5_A54X_DISPLAY_MODE_1080x2340_60HS_120HS_TE_HW_SKIP_1,
+	S6E3FC5_A54X_DISPLAY_MODE_1080x2340_60HS,
+	S6E3FC5_A54X_DISPLAY_MODE_1080x2340_30NS,
+	MAX_S6E3FC5_A54X_DISPLAY_MODE,
+};
+
 struct panel_vrr s6e3fc5_a54x_default_panel_vrr[] = {
 	[S6E3FC5_VRR_120HS] = {
 		.fps = 120,
@@ -68,7 +76,7 @@ static struct panel_resol s6e3fc5_a54x_default_resol[] = {
 	},
 };
 
-#if defined(CONFIG_PANEL_DISPLAY_MODE)
+#if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 static struct common_panel_display_mode s6e3fc5_a54x_display_mode[] = {
 	/* FHD */
 	[S6E3FC5_A54X_DISPLAY_MODE_1080x2340_120HS] = {
@@ -104,5 +112,5 @@ static struct common_panel_display_modes s6e3fc5_a54x_display_modes = {
 	.num_modes = ARRAY_SIZE(s6e3fc5_a54x_display_mode),
 	.modes = (struct common_panel_display_mode **)&s6e3fc5_a54x_display_mode_array,
 };
-#endif /* CONFIG_PANEL_DISPLAY_MODE */
+#endif /* CONFIG_USDM_PANEL_DISPLAY_MODE */
 #endif /* __S6E3FC5_A54X_RESOL_H__ */

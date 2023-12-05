@@ -2171,7 +2171,11 @@ int sensor_gc5035_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, boo
 		goto exit;
 	}
 
-	if (rom_id == 2) {
+	if (rom_id == 1) {
+		bank1_addr = GC5035_FRONT_OTP_START_ADDR_BANK1;
+		bank2_addr = GC5035_FRONT_OTP_START_ADDR_BANK2;
+		cal_size = GC5035_FRONT_OTP_USED_CAL_SIZE;
+	} else if (rom_id == 2) {
 		bank1_addr = GC5035_BOKEH_OTP_START_ADDR_BANK1;
 		bank2_addr = GC5035_BOKEH_OTP_START_ADDR_BANK2;
 		cal_size = GC5035_BOKEH_OTP_USED_CAL_SIZE;

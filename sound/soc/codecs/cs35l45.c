@@ -12,6 +12,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/gpio/consumer.h>
 #include <linux/of_device.h>
+#include <linux/i2c.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -30,6 +31,8 @@
 #endif
 
 #define DRV_NAME "cs35l45"
+
+static DEFINE_MUTEX(cs35l45_irq_init_mutex);
 
 static struct wm_adsp_ops cs35l45_halo_ops;
 static int (*cs35l45_halo_start_core)(struct wm_adsp *dsp);
@@ -539,7 +542,13 @@ static const struct snd_kcontrol_new amp_en_ctl =
 static const struct snd_kcontrol_new dsp_en_ctl =
 	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 0);
 
+static const struct snd_kcontrol_new abpe_en_ctl =
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 0);
+
 static const struct snd_kcontrol_new bbpe_en_ctl =
+	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 0);
+
+static const struct snd_kcontrol_new dre_en_ctl =
 	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 0);
 
 static const struct snd_kcontrol_new ngate1_en_ctl =
@@ -599,8 +608,12 @@ static const struct snd_soc_dapm_widget cs35l45_dapm_widgets[] = {
 	SND_SOC_DAPM_SWITCH("Force Enable", SND_SOC_NOPM, 0, 0, &force_en_ctl),
 	SND_SOC_DAPM_SWITCH("AMP Enable", SND_SOC_NOPM, 0, 0, &amp_en_ctl),
 	SND_SOC_DAPM_SWITCH("DSP1 Enable", SND_SOC_NOPM, 0, 0, &dsp_en_ctl),
+	SND_SOC_DAPM_SWITCH("ABPE Enable", CS35L45_BLOCK_ENABLES2, 12, 0,
+			    &abpe_en_ctl),
 	SND_SOC_DAPM_SWITCH("BBPE Enable", CS35L45_BLOCK_ENABLES2, 13, 0,
 			    &bbpe_en_ctl),
+	SND_SOC_DAPM_SWITCH("DRE Enable", CS35L45_BLOCK_ENABLES2, 20, 0,
+			    &dre_en_ctl),
 	SND_SOC_DAPM_SWITCH("NFR Enable", CS35L45_BLOCK_ENABLES, 1, 0,
 			    &nfr_en_ctl),
 	SND_SOC_DAPM_SWITCH("NGATE1 Enable", CS35L45_MIXER_NGATE_CH1_CFG, 16, 0, &ngate1_en_ctl),
@@ -660,7 +673,9 @@ static const struct snd_soc_dapm_route cs35l45_dapm_routes[] = {
 
 	{"GLOBAL_EN", NULL, "Entry"},
 
+	{"ABPE Enable", "Switch", "Entry"},
 	{"BBPE Enable", "Switch", "Entry"},
+	{"DRE Enable", "Switch", "Entry"},
 	{"NFR Enable", "Switch", "Entry"},
 
 	{"NGATE_CH1", NULL, "Entry"},
@@ -676,7 +691,9 @@ static const struct snd_soc_dapm_route cs35l45_dapm_routes[] = {
 	{"NGATE2 Enable", "Switch", "NGATE_CH2"},
 
 	{"Exit", NULL, "ASP"},
+	{"Exit", NULL, "ABPE Enable"},
 	{"Exit", NULL, "BBPE Enable"},
+	{"Exit", NULL, "DRE Enable"},
 	{"Exit", NULL, "NFR Enable"},
 	{"Exit", NULL, "NGATE1 Enable"},
 	{"Exit", NULL, "NGATE2 Enable"},
@@ -2234,6 +2251,35 @@ static int cs35l45_apply_of_data(struct cs35l45_private *cs35l45)
 				   val << CS35L45_AUX_NGATE_CH_THR_SHIFT);
 	}
 
+	if (!pdata->bpe_inst_cfg.is_present)
+		goto bpe_misc_cfg;
+
+	for (i = BPE_INST_THLD; i < BPE_INST_PARAMS; i++) {
+		for (j = L0; j < BPE_INST_LEVELS; j++) {
+			entry = cs35l45_get_bpe_inst_entry(j, i);
+			ptr = cs35l45_get_bpe_inst_param(cs35l45, j, i);
+			val = ((*ptr) & (~CS35L45_VALID_PDATA)) << entry->shift;
+			if ((entry->reg) && ((*ptr) & CS35L45_VALID_PDATA))
+				regmap_update_bits(cs35l45->regmap, entry->reg,
+						   entry->mask, val);
+		}
+	}
+
+bpe_misc_cfg:
+	if (!pdata->bpe_misc_cfg.is_present)
+		goto bst_bpe_inst_cfg;
+
+	for (i = BPE_INST_INF_HOLD_RLS; i < BPE_MISC_PARAMS; i++) {
+		ptr = cs35l45_get_bpe_misc_param(cs35l45, i);
+		val = ((*ptr) & (~CS35L45_VALID_PDATA))
+			<< bpe_misc_map[i].shift;
+		if ((*ptr) & CS35L45_VALID_PDATA)
+			regmap_update_bits(cs35l45->regmap,
+					   bpe_misc_map[i].reg,
+					   bpe_misc_map[i].mask, val);
+	}
+
+bst_bpe_inst_cfg:
 	if (!pdata->bst_bpe_inst_cfg.is_present)
 		goto bst_bpe_misc_cfg;
 
@@ -2402,7 +2448,7 @@ static int cs35l45_parse_of_data(struct cs35l45_private *cs35l45)
 	child = of_get_child_by_name(node, "cirrus,pwr-params-config");
 	pdata->pwr_params_cfg.is_present = child ? true : false;
 	if (!pdata->pwr_params_cfg.is_present)
-		goto bst_bpe_inst_cfg;
+		goto bpe_inst_cfg;
 
 	pdata->pwr_params_cfg.global_en = of_property_read_bool(child,
 						"pwr-global-enable");
@@ -2417,8 +2463,46 @@ static int cs35l45_parse_of_data(struct cs35l45_private *cs35l45)
 
 	of_node_put(child);
 
-bst_bpe_inst_cfg:
+bpe_inst_cfg:
 #endif
+
+	child = of_get_child_by_name(node, "cirrus,bpe-inst-config");
+	pdata->bpe_inst_cfg.is_present = child ? true : false;
+	if (!pdata->bpe_inst_cfg.is_present)
+		goto bpe_misc_cfg;
+
+	for (i = BPE_INST_THLD; i < BPE_INST_PARAMS; i++) {
+		entry = cs35l45_get_bpe_inst_entry(L0, i);
+		ret = of_property_read_u32_array(child, entry->name, params,
+						 BPE_INST_LEVELS);
+		if (ret)
+			continue;
+
+		for (j = L0; j < BPE_INST_LEVELS; j++) {
+			ptr = cs35l45_get_bpe_inst_param(cs35l45, j, i);
+			(*ptr) = params[j] | CS35L45_VALID_PDATA;
+		}
+	}
+
+	of_node_put(child);
+
+bpe_misc_cfg:
+	child = of_get_child_by_name(node, "cirrus,bpe-misc-config");
+	pdata->bpe_misc_cfg.is_present = child ? true : false;
+	if (!pdata->bpe_misc_cfg.is_present)
+		goto bst_bpe_inst_cfg;
+
+	for (i = BPE_INST_INF_HOLD_RLS; i < BPE_MISC_PARAMS; i++) {
+		ptr = cs35l45_get_bpe_misc_param(cs35l45, i);
+		ret = of_property_read_u32(child, bpe_misc_map[i].name,
+					   &val);
+		if (!ret)
+			(*ptr) = val | CS35L45_VALID_PDATA;
+	}
+
+	of_node_put(child);
+
+bst_bpe_inst_cfg:
 	child = of_get_child_by_name(node, "cirrus,bst-bpe-inst-config");
 	pdata->bst_bpe_inst_cfg.is_present = child ? true : false;
 	if (!pdata->bst_bpe_inst_cfg.is_present)
@@ -2853,6 +2937,8 @@ int cs35l45_initialize(struct cs35l45_private *cs35l45)
 			   CS35L45_CCM_CORE_EN_MASK, 0);
 
 	if (cs35l45->irq) {
+		mutex_lock(&cs35l45_irq_init_mutex);
+
 		if (cs35l45->pdata.gpio_ctrl2.invert & (~CS35L45_VALID_PDATA))
 			irq_pol |= IRQF_TRIGGER_HIGH;
 		else
@@ -2862,6 +2948,7 @@ int cs35l45_initialize(struct cs35l45_private *cs35l45)
 					       &cs35l45_regmap_irq_chip, &cs35l45->irq_data);
 		if (ret) {
 			dev_err(dev, "Failed to register IRQ chip: %d\n", ret);
+			mutex_unlock(&cs35l45_irq_init_mutex);
 			return ret;
 		}
 
@@ -2869,6 +2956,7 @@ int cs35l45_initialize(struct cs35l45_private *cs35l45)
 			irq = regmap_irq_get_virq(cs35l45->irq_data, cs35l45_irqs[i].irq);
 			if (irq < 0) {
 				dev_err(dev, "Failed to get %s\n", cs35l45_irqs[i].name);
+				mutex_unlock(&cs35l45_irq_init_mutex);
 				return irq;
 			}
 
@@ -2877,9 +2965,11 @@ int cs35l45_initialize(struct cs35l45_private *cs35l45)
 			if (ret) {
 				dev_err(dev, "Failed to request IRQ %s: %d\n",
 					cs35l45_irqs[i].name, ret);
+				mutex_unlock(&cs35l45_irq_init_mutex);
 				return ret;
 			}
 		}
+		mutex_unlock(&cs35l45_irq_init_mutex);
 	}
 
 	return 0;
@@ -2991,6 +3081,7 @@ int cs35l45_probe(struct cs35l45_private *cs35l45)
 		if (ret == -EBUSY) {
 			dev_info(dev,
 				 "Reset line busy, assuming shared reset\n");
+			usleep_range(2000, 2100);
 		} else {
 			dev_err(dev, "Failed to get reset GPIO: %d\n", ret);
 			goto err;
@@ -3064,6 +3155,57 @@ static void cs35l45_pm_runtime_setup(struct cs35l45_private *cs35l45)
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 }
+
+int cs35l45_sys_suspend(struct device *dev)
+{
+	struct cs35l45_private *cs35l45 = dev_get_drvdata(dev);
+	struct i2c_client *i2c_client = to_i2c_client(dev);
+
+	dev_dbg(cs35l45->dev, "System suspend, disabling IRQ\n");
+
+	disable_irq(i2c_client->irq);
+
+	return 0;
+}
+EXPORT_SYMBOL(cs35l45_sys_suspend);
+
+int cs35l45_sys_suspend_noirq(struct device *dev)
+{
+	struct cs35l45_private *cs35l45 = dev_get_drvdata(dev);
+	struct i2c_client *i2c_client = to_i2c_client(dev);
+
+	dev_dbg(cs35l45->dev, "Late system suspend, re-enabling IRQ\n");
+	enable_irq(i2c_client->irq);
+
+	return 0;
+}
+EXPORT_SYMBOL(cs35l45_sys_suspend_noirq);
+
+int cs35l45_sys_resume(struct device *dev)
+{
+	struct cs35l45_private *cs35l45 = dev_get_drvdata(dev);
+	struct i2c_client *i2c_client = to_i2c_client(dev);
+
+	dev_dbg(cs35l45->dev, "System resume, re-enabling IRQ\n");
+
+	enable_irq(i2c_client->irq);
+
+	return 0;
+}
+EXPORT_SYMBOL(cs35l45_sys_resume);
+
+int cs35l45_sys_resume_noirq(struct device *dev)
+{
+	struct cs35l45_private *cs35l45 = dev_get_drvdata(dev);
+	struct i2c_client *i2c_client = to_i2c_client(dev);
+
+	dev_dbg(cs35l45->dev, "Early system resume, disabling IRQ\n");
+
+	disable_irq(i2c_client->irq);
+
+	return 0;
+}
+EXPORT_SYMBOL(cs35l45_sys_resume_noirq);
 
 MODULE_DESCRIPTION("ASoC CS35L45 driver");
 MODULE_AUTHOR("James Schulman, Cirrus Logic Inc, <james.schulman@cirrus.com>");

@@ -3258,7 +3258,9 @@ int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
 
 	r = slsi_mlme_start(sdev, dev, dev->dev_addr, settings, wpa_ie_pos, wmm_ie_pos, append_vht_ies);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 94))
+        cfg80211_ch_switch_notify(dev, &settings->chandef, 0, 0);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 41))
 	cfg80211_ch_switch_notify(dev, &settings->chandef, 0);
 #else
 	cfg80211_ch_switch_notify(dev, &settings->chandef);

@@ -180,6 +180,7 @@ struct exynos_ufs {
 	/* flag for runtime */
 	unsigned long flag;
 #define EXYNOS_UFS_BIT_DBG_DUMP			(0)
+#define EXYNOS_UFS_BIT_CHK_NEXUS		(1)
 
 	/* cache of hardware contents */
 	unsigned long nexus;
@@ -193,6 +194,7 @@ struct exynos_ufs {
 	struct notifier_block itmon_nb;
 #endif
 	bool skip_flush;
+	bool deep_suspended;
 };
 
 static inline struct exynos_ufs *to_exynos_ufs(struct ufs_hba *hba)

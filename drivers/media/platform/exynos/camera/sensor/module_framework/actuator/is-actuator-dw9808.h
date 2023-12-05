@@ -2,7 +2,7 @@
  * Samsung Exynos5 SoC series Actuator driver
  *
  *
- * Copyright (c) 2014 Samsung Electronics Co., Ltd
+ * Copyright (c) 2023 Samsung Electronics Co., Ltd
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,6 +19,13 @@
 #define PRESCALER				0x01 /* Tvib x 1 */
 
 #define PWR_ON_DELAY	5000 /* DW9808 need delay for 5msec after power-on */
+
+enum HW_SOFTLANDING_STATE {
+	HW_SOFTLANDING_PASS = 0,
+	HW_SOFTLANDING_FAIL = -200,
+};
+
+#define DW9808_CAL_SAC_ADDR		0x0194
 
 struct is_caldata_list_dw9808 {
 	u32 af_position_type;
@@ -50,6 +57,12 @@ struct is_caldata_list_dw9808 {
 	u8 module_version;
 	u8 reserved3[161];
 	u32 check_sum;
+};
+
+struct is_caldata_sac_dw9808 {
+	u8 control_mode;
+	u8 prescale;
+	u8 resonance;
 };
 
 #endif
