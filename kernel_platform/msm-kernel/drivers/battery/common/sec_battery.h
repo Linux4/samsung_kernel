@@ -543,6 +543,16 @@ typedef struct sec_battery_platform_data {
 	int wpc_temp_v2_cond_12w;
 	int wpc_temp_v2_cond_15w;
 
+	int wpc_lrp_high_temp;
+	int wpc_lrp_high_temp_recovery;
+	int wpc_lrp_high_temp_12w;
+	int wpc_lrp_high_temp_recovery_12w;
+	int wpc_lrp_high_temp_15w;
+	int wpc_lrp_high_temp_recovery_15w;
+	int wpc_lrp_temp_v2_cond;
+	int wpc_lrp_temp_v2_cond_12w;
+	int wpc_lrp_temp_v2_cond_15w;
+
 	unsigned int wpc_step_limit_size;
 	unsigned int *wpc_step_limit_temp;
 	unsigned int *wpc_step_limit_fcc;
@@ -573,6 +583,8 @@ typedef struct sec_battery_platform_data {
 	int mix_v2_bat_cond;
 	int mix_v2_chg_cond;
 	int mix_v2_dchg_cond;
+
+	bool wpc_high_check_using_lrp;
 
 	unsigned int icl_by_tx_gear; /* check limited charging current during wireless power sharing with cable charging */
 	unsigned int fcc_by_tx;
@@ -799,6 +811,9 @@ typedef struct sec_battery_platform_data {
 
 	bool support_usb_conn_check;
 	unsigned int usb_conn_slope_avg;
+
+	bool wpc_warm_fod;
+	unsigned int wpc_warm_fod_icc;
 } sec_battery_platform_data_t;
 
 struct sec_ttf_data;
@@ -1026,6 +1041,7 @@ struct sec_battery_info {
 	struct delayed_work afc_init_work;
 	struct delayed_work usb_conn_check_work;
 	struct wakeup_source *usb_conn_check_ws;
+	struct delayed_work transit_clear_work;
 
 	char batt_type[48];
 	unsigned int full_check_cnt;
@@ -1224,6 +1240,7 @@ struct sec_battery_info {
 #endif
 	bool abnormal_ta;
 	int srccap_transit_cnt;
+	bool srccap_transit;
 	int dc_check_cnt;
 	bool usb_slow_chg;
 	bool usb_bootcomplete;
@@ -1236,6 +1253,7 @@ struct sec_battery_info {
 	struct notifier_block vbus_nb;
 #endif
 	bool is_otg_on;
+	bool smart_sw_src;
 };
 
 enum {
@@ -1379,5 +1397,6 @@ bool sec_bat_hv_wc_normal_mode_check(struct sec_battery_info *battery);
 int sec_bat_get_temperature(struct device *dev, struct sec_bat_thm_info *info, int old_val,
 		char *chg_name, char *fg_name);
 int sec_bat_get_inbat_vol_ocv(struct sec_battery_info *battery);
+void sec_bat_smart_sw_src(struct sec_battery_info *battery, bool enable, int curr);
 
 #endif /* __SEC_BATTERY_H */

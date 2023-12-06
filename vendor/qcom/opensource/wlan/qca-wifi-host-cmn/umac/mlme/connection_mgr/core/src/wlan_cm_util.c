@@ -40,6 +40,7 @@ static uint32_t cm_get_prefix_for_cm_id(enum wlan_cm_source source) {
 	case CM_ROAMING_FW:
 	case CM_ROAMING_NUD_FAILURE:
 	case CM_ROAMING_LINK_REMOVAL:
+	case CM_ROAMING_USER:
 		return ROAM_REQ_PREFIX;
 	default:
 		return DISCONNECT_REQ_PREFIX;
@@ -1373,6 +1374,46 @@ void cm_fill_ml_partner_info(struct wlan_cm_connect_req *req,
 }
 #endif
 
+bool cm_find_bss_from_candidate_list(qdf_list_t *candidate_list,
+				     struct qdf_mac_addr *bssid,
+				     struct scan_cache_node **entry_found)
+{
+	struct scan_cache_node *scan_entry;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	struct qdf_mac_addr *bssid2;
+
+	if (qdf_is_macaddr_zero(bssid) ||
+	    qdf_is_macaddr_broadcast(bssid))
+		return false;
+
+	if (qdf_list_peek_front(candidate_list, &cur_node) !=
+					QDF_STATUS_SUCCESS) {
+		mlme_err("failed to peer front of candidate_list");
+		return false;
+	}
+
+	while (cur_node) {
+		qdf_list_peek_next(candidate_list, cur_node, &next_node);
+
+		scan_entry = qdf_container_of(cur_node, struct scan_cache_node,
+					      node);
+		bssid2 = &scan_entry->entry->bssid;
+		if (qdf_is_macaddr_zero(bssid2))
+			goto next;
+
+		if (qdf_is_macaddr_equal(bssid, bssid2)) {
+			if (entry_found)
+				*entry_found = scan_entry;
+			return true;
+		}
+next:
+		cur_node = next_node;
+		next_node = NULL;
+	}
+
+	return false;
+}
+
 bool cm_is_connect_req_reassoc(struct wlan_cm_connect_req *req)
 {
 	if (!qdf_is_macaddr_zero(&req->prev_bssid) &&
@@ -1562,7 +1603,9 @@ void cm_calculate_scores(struct cnx_mgr *cm_ctx,
 			pcl_lst = NULL;
 		}
 	}
-	wlan_cm_calculate_bss_score(pdev, pcl_lst, list, &filter->bssid_hint);
+	wlan_cm_calculate_bss_score(pdev, pcl_lst, list, &filter->bssid_hint,
+				    (struct qdf_mac_addr *)
+				    wlan_vdev_mlme_get_macaddr(cm_ctx->vdev));
 	if (pcl_lst)
 		qdf_mem_free(pcl_lst);
 }
@@ -1572,7 +1615,8 @@ void cm_calculate_scores(struct cnx_mgr *cm_ctx,
 			 struct wlan_objmgr_pdev *pdev,
 			 struct scan_filter *filter, qdf_list_t *list)
 {
-	wlan_cm_calculate_bss_score(pdev, NULL, list, &filter->bssid_hint);
+	wlan_cm_calculate_bss_score(pdev, NULL, list, &filter->bssid_hint,
+				    NULL);
 
 	/*
 	 * Custom sorting if enabled

@@ -28,8 +28,6 @@
 
 #define SCSI_UFS_TIMEOUT (10 * HZ)
 
-#define UFS_WB_ISSUED_SIZE_CNT_MAX 4
-
 #define HEALTH_DESC_PARAM_VENDOR_LIFE_TIME_EST 0x22
 
 struct ufs_vendor_dev_info {
@@ -55,7 +53,13 @@ enum ufs_sec_wb_state {
 
 struct ufs_sec_wb_info {
 	bool support;
-	unsigned long wb_lu_state;
+	u64 state_ts;
+	u64 enable_ms;
+	u64 disable_ms;
+	u64 amount_kb;
+	u64 enable_cnt;
+	u64 disable_cnt;
+	u64 err_cnt;
 };
 
 enum ufs_sec_log_str_t {
@@ -108,15 +112,16 @@ struct ufs_sec_cmd_log_info {
 struct ufs_sec_feature_info {
 	struct ufs_vendor_dev_info *vdi;
 	struct ufs_sec_wb_info *ufs_wb;
+	struct ufs_sec_wb_info *ufs_wb_backup;
 	struct ufs_sec_err_info *ufs_err;
 	struct ufs_sec_err_info *ufs_err_backup;
+	struct ufs_sec_err_info *ufs_err_hist;
 #if IS_ENABLED(CONFIG_SEC_UFS_CMD_LOGGING)
 	struct ufs_sec_cmd_log_info *ufs_cmd_log;
 #endif
 	struct notifier_block reboot_notify;
-#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 	struct delayed_work noti_work;
-#endif
+
 	u32 ext_ufs_feature_sup;
 
 	u32 last_ucmd;
@@ -138,13 +143,14 @@ void ufs_sec_check_device_stuck(void);
 
 void ufs_sec_get_health_desc(struct ufs_hba *hba);
 
-bool ufs_sec_is_wb_supported(struct scsi_device *sdev);
-int ufs_sec_wb_ctrl(bool enable, struct scsi_device *sdev);
-void ufs_sec_wb_force_off(struct ufs_hba *hba);
+bool ufs_sec_is_wb_supported(void);
+int ufs_sec_wb_ctrl(bool enable);
+void ufs_sec_wb_register_reset_notify(void *func);
 
 inline bool ufs_sec_is_err_cnt_allowed(void);
 void ufs_sec_inc_hwrst_cnt(void);
 void ufs_sec_inc_op_err(struct ufs_hba *hba, enum ufs_event_type evt, void *data);
+void ufs_sec_print_err(void);
 
 inline bool ufs_sec_is_cmd_log_allowed(void);
 

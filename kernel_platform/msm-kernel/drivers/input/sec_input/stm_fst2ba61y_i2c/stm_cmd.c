@@ -1557,13 +1557,10 @@ static void get_fw_ver_ic(void *device_data)
 	stm_ts_get_version_info(ts);
 
 	snprintf(buff, sizeof(buff), "ST%02X%02X%02X%02X",
-			ts->ic_name_of_ic,
-			ts->project_id_of_ic,
-			ts->module_version_of_ic,
-			ts->fw_main_version_of_ic & 0xFF);
+			ts->plat_data->img_version_of_ic[0], ts->plat_data->img_version_of_ic[1],
+			ts->plat_data->img_version_of_ic[2], ts->plat_data->img_version_of_ic[3]);
 	snprintf(model_ver, sizeof(model_ver), "ST%02X%02X",
-			ts->ic_name_of_ic,
-			ts->project_id_of_ic);
+			ts->plat_data->img_version_of_ic[0], ts->plat_data->img_version_of_ic[1]);
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
@@ -4419,6 +4416,52 @@ static int run_force_calibration_save(void *device_data)
 	return SEC_SUCCESS;
 }
 
+static void run_interrupt_gpio_test(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN];
+	u8 drv_data[3] = { 0xA4, 0x01, 0x01 };
+	u8 irq_data[3] = { 0xA4, 0x01, 0x00 };
+	int drv_value = -1;
+	int irq_value = -1;
+
+	disable_irq(ts->irq);
+
+	ts->stm_ts_write(ts, drv_data, 3, NULL, 0);
+
+	sec_delay(50);
+
+	drv_value = gpio_get_value(ts->plat_data->irq_gpio);
+
+	ts->stm_ts_write(ts, irq_data, 3, NULL, 0);
+
+	sec_delay(50);
+
+	irq_value = gpio_get_value(ts->plat_data->irq_gpio);
+
+	input_info(true, &ts->client->dev, "%s: drv_value:%d, irq_value:%d\n", __func__, drv_value, irq_value);
+
+	if (drv_value == 0 && irq_value == 1) {
+		snprintf(buff, sizeof(buff), "0");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	} else {
+		if (drv_value != 0)
+			snprintf(buff, sizeof(buff), "1:HIGH");
+		else if (irq_value != 1)
+			snprintf(buff, sizeof(buff), "1:LOW");
+		else
+			snprintf(buff, sizeof(buff), "1:FAIL");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+
+	stm_ts_reinit(ts);
+	enable_irq(ts->irq);
+}
+
 static void set_factory_level(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -4482,6 +4525,7 @@ static void factory_cmd_result_all(void *device_data)
 	run_hf_sensor_diff_test(sec);
 
 	run_high_frequency_rawcap_read(sec);
+	run_interrupt_gpio_test(sec);
 
 	get_wet_mode(sec);
 
@@ -5570,6 +5614,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_V2("set_note_mode", set_note_mode, set_note_mode_save, CHECK_ON_LP, EXIT_RESULT),},
 	{SEC_CMD_V2("set_fold_state", set_fold_state, NULL, CHECK_ALL, EXIT_RESULT),},
 	{SEC_CMD_V2("get_status", get_status, NULL, CHECK_ALL, WAIT_RESULT),},
+	{SEC_CMD_V2("run_interrupt_gpio_test", run_interrupt_gpio_test, NULL, CHECK_ON_LP, WAIT_RESULT),},
 	{SEC_CMD_V2("not_support_cmd", not_support_cmd, NULL, CHECK_ALL, EXIT_RESULT),},
 };
 

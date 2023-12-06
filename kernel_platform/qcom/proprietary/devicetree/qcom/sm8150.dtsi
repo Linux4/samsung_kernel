@@ -351,7 +351,7 @@
 	};
 
 	chosen: chosen {
-		bootargs = "qcom_dma_heaps.enable_bitstream_contig_heap=y kpti=0 ssbd=force-off";
+		bootargs = "qcom_dma_heaps.enable_bitstream_contig_heap=y kpti=0 ssbd=force-off rcupdate.rcu_expedited=1";
 	};
 
 	soc: soc { };
@@ -518,6 +518,13 @@
 			size = <0x0 0x1000000>;
 		};
 
+		va_md_mem: va_md_mem_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+			reusable;
+			size = <0 0x1000000>;
+		};
+
 		sp_mem: sp_region {  /* SPSS-HLOS ION shared mem */
 			compatible = "shared-dma-pool";
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
@@ -549,6 +556,12 @@
 			size = <0x0 0x2800000>;
 			linux,cma-default;
 		};
+	};
+
+	va_mini_dump {
+		compatible = "qcom,va-minidump";
+		memory-region = <&va_md_mem>;
+		status = "ok";
 	};
 
 	clocks {
@@ -700,6 +713,11 @@
 			compatible = "qcom,msm-imem-diag-dload";
 			reg = <0xc8 0xc8>;
 		};
+
+		pil@94c {
+			compatible = "qcom,pil-reloc-info";
+			reg = <0x94c 0xc8>;
+		};
 	};
 
 	cpu_pmu: cpu-pmu {
@@ -803,6 +821,12 @@
 				qcom,tcs-wait = <QCOM_ICC_TAG_AMC>;
 			};
 		};
+	};
+
+	ddr_bwprofiler {
+		compatible = "qcom,ddr_bwprofiler";
+		clocks = <&aoss_qmp QDSS_CLK>;
+		clock-names = "qdss_clk";
 	};
 
 	gcc: clock-controller@100000 {
@@ -1699,6 +1723,16 @@
 		};
 	};
 
+	qcom,pmu {
+		compatible = "qcom,pmu";
+		qcom,pmu-events-tbl =
+			< 0x0008 0xFF 0xFF 0xFF >,
+			< 0x0011 0xFF 0xFF 0xFF >,
+			< 0x0017 0xFF 0xFF 0xFF >,
+			< 0x002A 0xFF 0xFF 0xFF >,
+			< 0x1000 0xFF 0xFF 0xFF >;
+	};
+
 	ddr_freq_table: ddr-freq-table {
 		qcom,freq-tbl =
 			<  200000 >,
@@ -1928,10 +1962,14 @@
 	qcom,chd {
 		compatible = "qcom,core-hang-detect";
 		label = "core";
-		qcom,threshold-arr = <0x18000058 0x18010058 0x18020058 0x18030058
-				0x18040058 0x18050058 0x18060058 0x18070058>;
-		qcom,config-arr = <0x18000060 0x18010060 0x18020060 0x18030060
-				0x18040060 0x18050060 0x18060060 0x18070060>;
+		qcom,chd-percpu-info = <&CPU0 0x18000058 0x18000060>,
+					<&CPU1 0x18010058 0x18010060>,
+					<&CPU2 0x18020058 0x18020060>,
+					<&CPU3 0x18030058 0x18030060>,
+					<&CPU4 0x18040058 0x18040060>,
+					<&CPU5 0x18050058 0x18050060>,
+					<&CPU6 0x18060058 0x18060060>,
+					<&CPU7 0x18070058 0x18070060>;
 	};
 
 	qtee_shmbridge {

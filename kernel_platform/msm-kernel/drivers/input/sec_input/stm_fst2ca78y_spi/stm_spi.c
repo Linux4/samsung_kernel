@@ -645,7 +645,7 @@ error_allocate_mem:
 	return ret;
 }
 
-int stm_ts_spi_remove(struct spi_device *client)
+int stm_ts_dev_remove(struct spi_device *client)
 {
 	struct stm_ts_data *ts = spi_get_drvdata(client);
 	int ret = 0;
@@ -654,6 +654,20 @@ int stm_ts_spi_remove(struct spi_device *client)
 
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+static void stm_ts_spi_remove(struct spi_device *client)
+{
+	stm_ts_dev_remove(client);
+}
+#else
+static int stm_ts_spi_remove(struct spi_device *client)
+{
+	stm_ts_dev_remove(client);
+
+	return 0;
+}
+#endif
 
 void stm_ts_spi_shutdown(struct spi_device *client)
 {

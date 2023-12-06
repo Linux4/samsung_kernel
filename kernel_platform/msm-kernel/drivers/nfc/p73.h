@@ -38,7 +38,8 @@
 */
 #define P61_GET_SPM_STATUS    _IOR(P61_MAGIC, 0x05, long)
 
-#define P61_SET_THROUGHPUT    _IOW(P61_MAGIC, 0x06, long)
+/* throughput measurement is deprecated */
+/* #define P61_SET_THROUGHPUT    _IOW(P61_MAGIC, 0x06, long) */
 #define P61_GET_ESE_ACCESS    _IOW(P61_MAGIC, 0x07, long)
 
 #define P61_SET_POWER_SCHEME  _IOW(P61_MAGIC, 0x08, long)
@@ -64,7 +65,8 @@
 #define P61_SET_POLL_COMPAT				_IOW(P61_MAGIC, 0x03, unsigned int)
 #define P61_SET_SPM_PWR_COMPAT			_IOW(P61_MAGIC, 0x04, unsigned int)
 #define P61_GET_SPM_STATUS_COMPAT		_IOR(P61_MAGIC, 0x05, unsigned int)
-#define P61_SET_THROUGHPUT_COMPAT		_IOW(P61_MAGIC, 0x06, unsigned int)
+/* throughput measurement is deprecated */
+/* #define P61_SET_THROUGHPUT_COMPAT		_IOW(P61_MAGIC, 0x06, unsigned int) */
 #define P61_GET_ESE_ACCESS_COMPAT		_IOW(P61_MAGIC, 0x07, unsigned int)
 #define P61_SET_POWER_SCHEME_COMPAT		_IOW(P61_MAGIC, 0x08, unsigned int)
 #define P61_SET_DWNLD_STATUS_COMPAT		_IOW(P61_MAGIC, 0x09, unsigned int)

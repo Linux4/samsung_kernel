@@ -11,6 +11,7 @@
 #include <linux/input/mt.h>
 #include <linux/of_gpio.h>
 #include <linux/power_supply.h>
+#include <linux/version.h>
 
 //#include "../sec_input/sec_input.h"
 //#include <linux/samsung/sec_class.h>

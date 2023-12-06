@@ -121,6 +121,7 @@ enum hw_param_info_type
 	I2C_EEPROM,
 	CRC_EEPROM,
 	CAM_USE_CNT,
+	WIFI_INFO,
 	MAX_HW_PARAM_INFO,
 };
 

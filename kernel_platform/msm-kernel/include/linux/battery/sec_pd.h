@@ -101,6 +101,7 @@ typedef struct sec_pd_sink_status
 	void (*fp_sec_pd_manual_ccopen_req)(int is_on);
 	void (*fp_sec_pd_manual_jig_ctrl)(bool mode);
 	void (*fp_sec_pd_detach_with_cc)(int state);
+	void (*fp_sec_pd_change_src)(int max_cur);
 } SEC_PD_SINK_STATUS;
 
 struct pdic_notifier_struct {
@@ -128,6 +129,7 @@ void sec_pd_get_vid_pid(unsigned short *vid, unsigned short *pid, unsigned int *
 void sec_pd_manual_ccopen_req(int is_on);
 void sec_pd_manual_jig_ctrl(bool mode);
 int sec_pd_detach_with_cc(int state);
+int sec_pd_change_src(int max_cur);
 #else
 static inline char* sec_pd_pdo_type_str(int pdo_type) { return "\0"; }
 static inline int sec_pd_select_pdo(int num) { return -ENODEV; }
@@ -146,5 +148,6 @@ static inline void sec_pd_get_vid_pid(unsigned short *vid, unsigned short *pid, 
 static inline void sec_pd_manual_ccopen_req(int is_on) { }
 static inline void sec_pd_manual_jig_ctrl(bool mode) { }
 static inline int sec_pd_detach_with_cc(int state) { return 0; }
+static inline int sec_pd_change_src(int max_cur) { return 0; }
 #endif
 #endif /* __SEC_PD_H__ */

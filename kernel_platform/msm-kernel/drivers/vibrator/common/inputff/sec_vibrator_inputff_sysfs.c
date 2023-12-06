@@ -179,6 +179,21 @@ static void firmware_load_store_work(struct work_struct *work)
 	queue_work(ddata->fw.fw_workqueue, &ddata->fw.wk);
 }
 
+static void sec_vib_inputff_start_cal_work(struct work_struct *work)
+{
+	struct sec_vib_inputff_drvdata *ddata
+		= container_of(work, struct sec_vib_inputff_drvdata, cal_work);
+	int ret;
+
+	dev_info(ddata->dev, "%s start\n", __func__);
+
+	ret = ddata->vib_ops->set_trigger_cal(ddata->input, ddata->trigger_calibration);
+	if (ret) {
+		dev_err(ddata->dev, "%s set_trigger_cal error : %d\n", __func__, ret);
+		ddata->trigger_calibration = 0;
+	}
+}
+
 static ssize_t firmware_load_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -310,20 +325,17 @@ static ssize_t trigger_calibration_store(struct device *dev,
 {
 	struct sec_vib_inputff_drvdata *ddata = dev_get_drvdata(dev);
 	int ret;
-	u32 trigger_calibration;
 
-	ret = kstrtos32(buf, 16, &trigger_calibration);
+	cancel_work_sync(&ddata->cal_work);
+
+	ret = kstrtos32(buf, 16, &ddata->trigger_calibration);
 	if (ret < 0) {
 		dev_err(ddata->dev, "%s kstrtos32 error : %d\n", __func__, ret);
 		return ret;
 	}
 	if (ddata->vib_ops->set_trigger_cal && ddata->is_f0_tracking) {
-		ret = ddata->vib_ops->set_trigger_cal(ddata->input, trigger_calibration);
-		if (ret) {
-			dev_err(ddata->dev, "%s set_trigger_cal error : %d\n", __func__, ret);
-			return -EINVAL;
-		}
-		dev_info(ddata->dev, "%s trigger_calibration : %u, ret : %d\n", __func__, trigger_calibration, ret);
+		queue_work(ddata->cal_workqueue, &ddata->cal_work);
+		dev_info(ddata->dev, "%s trigger_calibration : %u\n", __func__, ddata->trigger_calibration);
 	} else {
 		dev_err(ddata->dev, "%s set_trigger_cal doesn't support\n", __func__);
 		return -EOPNOTSUPP;
@@ -762,6 +774,9 @@ int sec_vib_inputff_sysfs_init(struct sec_vib_inputff_drvdata *ddata)
 		ddata->fw.stat = FW_LOAD_SUCCESS;
 	}
 
+	ddata->cal_workqueue = alloc_ordered_workqueue("calibration_workqueue", WQ_HIGHPRI);
+	INIT_WORK(&ddata->cal_work, sec_vib_inputff_start_cal_work);
+
 	ddata->sec_vib_inputff_class = class_create(THIS_MODULE, "sec_vib_inputff");
 	if (IS_ERR(ddata->sec_vib_inputff_class)) {
 		ret = PTR_ERR(ddata->sec_vib_inputff_class);
@@ -806,6 +821,10 @@ void sec_vib_inputff_sysfs_exit(struct sec_vib_inputff_drvdata *ddata)
 {
 	if (ddata->support_fw)
 		sec_vib_inputff_fw_exit(ddata);
+	if (ddata->cal_workqueue) {
+		cancel_work_sync(&ddata->cal_work);
+		destroy_workqueue(ddata->cal_workqueue);
+	}
 	sysfs_remove_group(&ddata->virtual_dev->kobj, &vib_inputff_sys_attr_group);
 	device_destroy(ddata->sec_vib_inputff_class, MKDEV(0, 0));
 	class_destroy(ddata->sec_vib_inputff_class);

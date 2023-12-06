@@ -8975,8 +8975,6 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	/* SAMSUNG_FINGERPRINT */
 	vdd = display->panel->panel_private;
-	if (vdd->finger_mask_updated)
-		ss_send_hbm_fingermask_image_tx(vdd, vdd->finger_mask);
 
 	mutex_lock(&vdd->dyn_mipi_clk.dyn_mipi_lock);
 	/* configure dynamic clk rate */

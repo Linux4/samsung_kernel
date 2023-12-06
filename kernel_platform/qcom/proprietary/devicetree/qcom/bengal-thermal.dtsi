@@ -24,41 +24,49 @@
 
 		cpu0_pause: cpu0-pause {
 			qcom,cpus = <&CPU0>;
+			qcom,cdev-alias = "thermal-pause-1";
 			#cooling-cells = <2>;
 		};
 
 		cpu1_pause: cpu1-pause {
 			qcom,cpus = <&CPU1>;
+			qcom,cdev-alias = "thermal-pause-2";
 			#cooling-cells = <2>;
 		};
 
 		cpu2_pause: cpu2-pause {
 			qcom,cpus = <&CPU2>;
+			qcom,cdev-alias = "thermal-pause-4";
 			#cooling-cells = <2>;
 		};
 
 		cpu3_pause: cpu3-pause {
 			qcom,cpus = <&CPU3>;
+			qcom,cdev-alias = "thermal-pause-8";
 			#cooling-cells = <2>;
 		};
 
 		cpu4_pause: cpu4-pause {
 			qcom,cpus = <&CPU4>;
+			qcom,cdev-alias = "thermal-pause-10";
 			#cooling-cells = <2>;
 		};
 
 		cpu5_pause: cpu5-pause {
 			qcom,cpus = <&CPU5>;
+			qcom,cdev-alias = "thermal-pause-20";
 			#cooling-cells = <2>;
 		};
 
 		cpu6_pause: cpu6-pause {
 			qcom,cpus = <&CPU6>;
+			qcom,cdev-alias = "thermal-pause-40";
 			#cooling-cells = <2>;
 		};
 
 		cpu7_pause: cpu7-pause {
 			qcom,cpus = <&CPU7>;
+			qcom,cdev-alias = "thermal-pause-80";
 			#cooling-cells = <2>;
 		};
 
@@ -200,7 +208,13 @@
 
 	qcom,cpufreq-cdev {
 		compatible = "qcom,cpufreq-cdev";
-		qcom,cpus = <&CPU0 &CPU4>;
+		cpu-cluster0 {
+			qcom,cpus = <&CPU0 &CPU1 &CPU2 &CPU3>;
+		};
+
+		cpu-cluster1 {
+			qcom,cpus = < &CPU4 &CPU5 &CPU6 &CPU7>;
+		};
 	};
 };
 

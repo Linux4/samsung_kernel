@@ -870,13 +870,15 @@ static int max17333_charger_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_BAT_VCELL:
 			val->intval = max17333_get_bat_vcell(charger, val->intval);
-			max17333_periodic_dump(charger);
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHG_CURRENT:
 			val->intval = max17333_get_inow(charger, val->intval);
 			break;
 		case POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE:
 			val->intval = max17333_get_ship_enable(charger);
+			break;
+		case POWER_SUPPLY_EXT_PROP_MONITOR_WORK:
+			max17333_periodic_dump(charger);
 			break;
 		default:
 			return -EINVAL;
