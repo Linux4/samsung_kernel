@@ -1,0 +1,17 @@
+name: "abseil-py"
+description:
+    ""
+
+third_party {
+  url {
+    type: HOMEPAGE
+    value: "https://github.com/abseil/abseil-py"
+  }
+  url {
+    type: GIT
+    value: "https://github.com/abseil/abseil-py.git"
+  }
+  version: "v1.1.0"
+  last_upgrade_date { year: 2022 month: 6 day: 8 }
+  license_type: NOTICE
+}
