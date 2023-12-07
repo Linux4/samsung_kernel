@@ -1,0 +1,148 @@
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+
+	/delete-node/ uart@13630000;
+	hsi2c_5: hsi2c@13670000 {
+		status = "okay";
+		/delete-node/ pn547@2B;
+		felica_i2c@2B
+		{
+			compatible = "felica,felica-i2c";
+			reg = <0x2B>;
+		};
+	};
+
+        pinctrl@13470000 {
+		/delete-node/ uart0_bus;
+                uart0_active: uart0-active {
+                        samsung,pins = "gpd0-3", "gpd0-2", "gpd0-1", "gpd0-0";
+                        samsung,pin-function = <2>;
+                        samsung,pin-pud = <0>;
+                        samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+                };
+                uart0_lpm: lpm
+                {
+                        samsung,pins = "gpd0-3", "gpd0-2", "gpd0-1", "gpd0-0";
+                        samsung,pin-function = <0>;
+                        samsung,pin-pud = <0>;
+                        samsung,pin-drv = <0>;
+                };
+        };
+
+
+	pinctrl@10580000
+	{
+		felica_nfc_int: int	/* IRQ PIN */
+		{
+			samsung,pins = "gpa0-6";
+			samsung,pin-function = <0xf>;	/* WAKE_EXT_INT */
+			samsung,pin-pud = <1>;		/* Pull Down Enabled */
+			samsung,pin-drv = <3>;		/* High */
+		};
+	};
+
+	pinctrl@14870000
+	{
+		felica_nfc_pon: pon	/* VEN PIN */
+		{
+			samsung,pins = "gpf1-5";
+			samsung,pin-function = <1>;	/* Output */
+			samsung,pin-pud = <0>;		/* NONE */
+			samsung,pin-drv = <3>;		/* High */
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+		felica_nfc_pon_lpm: lpm
+		{
+			samsung,pins = "gpf1-5";
+                        samsung,pin-function = <0>;     /* Output */
+                        samsung,pin-pud = <0>;          /* NONE*/
+                        samsung,pin-drv = <0>;          /* High */
+		};
+		sec_nfc_rfs: rfs
+		{
+			samsung,pins = "gpf5-5";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <3>;
+		};
+
+		sec_nfc_rfs_lpm: rfs_lpm
+		{
+			samsung,pins = "gpf5-5";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+		sec_nfc_ldo: active
+		{
+			samsung,pins = "gpf5-4";
+	                samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+			samsung,pin-val = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+		sec_nfc_ldo_lpm: lpm
+                {
+                        samsung,pins = "gpf5-4";
+                        samsung,pin-function = <0>;
+                        samsung,pin-pud = <0>;
+                        samsung,pin-drv = <0>;
+                };
+	};
+
+	serial_0: uart@13630000
+	{
+		compatible = "samsung,exynos7420-uart";
+                samsung,separate-uart-clk;
+                reg = <0x13630000 0x100>;
+                interrupts = <0 440 0>;
+                clocks = <&clock 103>, <&clock 104>, <&clock 100>;
+                clock-names = "gate_pclk0", "gate_uart0", "sclk_uart0";
+                uart-sclk-frequency = <200000000>;
+		status = "okay";
+	};
+
+	senn3ab_fn
+	{
+		status = "okay";
+		compatible = "sec-nfc-fn";
+		interrupt-parent = <&gpa0>;
+		interrupts = <6 0>;
+
+		sec-nfc-fn,int-gpio = <&gpa0 6 0x00>;
+	};
+
+	senn3ab
+	{
+		status = "okay";
+		compatible = "sec-nfc";
+		interrupt-parent = <&gpa0>;
+		interrupts = <6 0 0>;
+
+		sec-nfc,irq-gpio = <&gpa0 6 0x00>;
+		sec-nfc,pon-gpio = <&gpf1 5 0x00>;
+		sec-nfc,rfs-gpio = <&gpf5 5 0x0>;
+		sec-nfc,tvdd-gpio = <&gpf5 4 0x1>;
+		sec-nfc,i2c_1p8 = "VDD20_1P8_AP";
+		sec-nfc,regulator_tvdd = "ldo18_3.0V";
+		pinctrl-names = "sec_nfc_active", "sec_nfc_suspend", "sec_nfc_lpm";
+		pinctrl-0 = <&felica_nfc_pon &felica_nfc_int &uart0_active &sec_nfc_rfs &sec_nfc_ldo>;
+		pinctrl-1 = <&felica_nfc_pon &felica_nfc_int &uart0_active &sec_nfc_ldo>;
+		pinctrl-2 = <&felica_nfc_pon_lpm &felica_nfc_int &uart0_lpm &sec_nfc_rfs_lpm &sec_nfc_ldo_lpm>;
+	};
+};
