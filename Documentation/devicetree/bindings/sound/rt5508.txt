@@ -1,0 +1,26 @@
+* RT5508 SPK AMP controller
+
+Required Specific Properties:
+
+- compatible : "richtek,rt5508"
+
+Optional Specific Properties:
+
+- rt,chan_sel : default channel selection.
+                0 -> left channel
+		1 -> (L+R)/2
+		2 -> right channel
+
+- proprietary_param : proprietary param for Richtek RT5508,
+		      something liks as the speaker protection/MBDRC/ALC, etc...
+
+Example:
+
+	i2c@12C70000 {
+		status = "ok";
+		rt5508: rt5508@34 {
+			status = "ok";
+			compatible = "richtek,rt5508";
+			reg = <0x34>;
+		};
+	};

@@ -1,0 +1,478 @@
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * As a general rule, only chipset-specific property overrides should be placed
+ * inside this file.
+ */
+
+/*
+ * Implement here Samsung specific dtsi
+ */
+
+/{
+	reserved-memory {
+		lk_region: lk_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0 0x84C00000 0 0x00400000>;
+
+		};
+
+		/* CONFIG_SEC_DEBUG reserves 8MB */
+		sec_debug_region: sec_debug_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x85000000 0x0 0x00800000>;
+		};
+
+		/* sec_debug_low_region reserves 4MB
+		   This region is reserved if only debuglevel low */
+		sec_debug_low_region: sec_debug_low_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x85000000 0x0 0x00400000>;
+		};
+
+		ramoops@84B00000 {
+			compatible = "ramoops";
+			reg = <0 0x84B00000 0 0x100000>;
+			record-size = <0x40000>;
+			console-size = <0x40000>;
+			ftrace-size = <0x40000>;
+			pmsg-size = <0x40000>;
+		};
+		
+		ss_plog@84700000 {
+			compatible = "ss_plog";
+			no-map;
+			reg = <0x0 0x84700000 0x0 0x00400000>;
+		};
+
+		/*to reserve 2MB for TIMA */
+		tima_mem: tima_region@9C000000 {
+		    compatible = "removed-dma-pool";
+		    no-map;
+		    reg = <0 0x9C000000 0 0x200000>;
+		};
+
+
+		/* rkp_region reserves 15 MB */
+		rkp_region: rkp_region@0x9C200000 {
+			compatible = "removed-dma-pool";
+			reg = <0x0 0x9C200000 0x0 0x00F00000>;
+		};
+
+		modem_shared_mem: modem_shared_mem_region@0x93000000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x93000000 0x0 0x6000000>;
+		};
+
+		/* Reserved Mem for Camera */
+		camera_mem: camera_mem_region@0xC0000000 {
+			compatible = "removed-dma-pool";
+			reg = <0x0 0xC0000000 0x0 0x14800000>;
+		};
+	};
+};
+
+&cont_splash_mem {
+	reg = <0 0x9A400000 0 0x01C00000>;
+	label = "cont_splash_mem";
+};
+
+&modem_mem {
+	compatible = "removed-dma-pool";
+	no-map;
+	reg = <0 0x88800000 0 0x6C00000>;
+};
+
+&peripheral_mem {
+	compatible = "removed-dma-pool";
+	no-map;
+	reg = <0 0x8F400000 0 0x03100000>;
+};
+
+&removed_regions {
+	reg = <0 0x85800000 0 0x2A00000>;
+};
+
+&qcom_seecom {
+	reg = <0x86600000 0x1C00000>;
+};
+
+/delete-node/ &dfps_data_mem;
+
+&mdss_dsi0_pll {
+	/delete-property/ memory-region;
+};
+
+&msm_cpufreq {
+	qcom,cpufreq-boot-limit-default {
+		qcom,cpufreq-boot-limit,num-period = <2>;
+		qcom,cpufreq-boot-limit,table = <1401600 1478400 300>, /* period 0 */
+					<1401600 1478400 450>; /* period 1 */
+		status = "disabled";
+	};
+	qcom,cpufreq-boot-limit-graceqlte {
+		status = "disabled";
+	};
+};
+
+&soc {
+	/delete-node/ i2c@757a000;
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1190400>;
+			input_booster,hmp_boost = <1>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <500>;
+			input_booster,tail_times = <500>;
+
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <940800>;
+			input_booster,hmp_boost = <0>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <500>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:	1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <1190400 1190400 940800>;
+			input_booster,hmp_boost = <1 1 0>;
+			input_booster,bimc_freqs = <0 0 0>;
+
+			/* Time table */
+			input_booster,head_times = <130 130 0>;
+			input_booster,tail_times = <0 0 500>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 940800>;
+			input_booster,hmp_boost = <1 1>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <1000 0>;
+			input_booster,tail_times = <0 500>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 1190400>;
+			input_booster,hmp_boost = <1 1>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <130 130>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 940800>;
+			input_booster,hmp_boost = <1 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <130 0>;
+			input_booster,tail_times = <0 500>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 0>;
+			input_booster,hmp_boost = <1 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <130 0>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN HOVER";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 940800>;
+			input_booster,hmp_boost = <1 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <130 0>;
+			input_booster,tail_times = <0 500>;
+		}; // Input Booster -
+		/* If you need to add new key type, add it this position */
+	};
+
+	qcom,memshare {
+		compatible = "qcom,memshare";
+		memory-region = <&modem_shared_mem>;
+
+		qcom,client_1 {
+			compatible = "qcom,memshare-peripheral";
+			qcom,peripheral-size = <0x0>;
+			qcom,client-id = <1>;
+			label = "modem";
+		};
+	};
+
+	qcom,ssc@1c00000 {
+		/* px12 should be enabled with vdd_cx, ldo17(vdd) should be before lvs2(vddio)*/
+		vdd_sensor-supply = <&pm8994_l17>;
+		qcom,proxy-reg-names = "vdd_cx", "vdd_sensor", "vdd_px";
+	};
+
+	sec_smem@0 {
+		compatible = "samsung,sec-smem";
+		status = "okay";
+	};
+
+	/delete-node/ gpio_keys;
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		use-syscore;
+
+		home_key {
+			label = "home_key";
+			gpios = <&pm8994_gpios 2 0x1>;
+			linux,input-type = <1>;
+			linux,code = <172>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&pm8994_gpios 3 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			debounce-interval = <15>;
+		};
+
+		hall_flip {
+			label = "hall_flip";
+			gpios = <&pm8994_gpios 1 0x1>;
+			linux,input-type = <1>;
+			linux,code = <21>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+	};
+
+	det_zones: det_zones {
+		#list-det-cells = <2>;
+	};
+
+	sound-9335 {
+		qcom,model = "msm8996-tasha-snd-card";
+
+		qcom,audio-routing =
+			"RX_BIAS", "MCLK",
+			"AMIC1", "MIC BIAS4",
+			"MIC BIAS4", "Third Mic",
+			"AMIC2", "MIC BIAS2",
+			"MIC BIAS2", "Headset Mic",
+			"AMIC3", "MIC BIAS2",
+			"MIC BIAS2", "FM Tx",
+			"DMIC0", "MIC BIAS1",
+			"MIC BIAS1", "Digital Mic0",
+			"DMIC2", "MIC BIAS3",
+			"MIC BIAS3", "Digital Mic2";
+
+		qcom,msm-mbhc-hphl-swh = <1>;
+		qcom,msm-mbhc-gnd-swh = <1>;
+		qcom,mpp-channel-scaling = <4 1 1>;
+		qcom,det_debounce_time_ms = <50>;
+		qcom,earjack-read-vadc = <&pm8994_vadc>;
+
+		asoc-cpu = <&dai_pri_auxpcm>, <&dai_tert_auxpcm>,
+				<&dai_pri_mi2s>, <&dai_mi2s>,
+				<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
+				<&sb_2_rx>, <&sb_2_tx>, <&sb_3_rx>, <&sb_3_tx>,
+				<&sb_4_rx>, <&sb_4_tx>, <&sb_5_tx>, <&afe_pcm_rx>,
+				<&afe_pcm_tx>, <&afe_proxy_rx>, <&afe_proxy_tx>,
+				<&incall_record_rx>, <&incall_record_tx>,
+				<&incall_music_rx>, <&incall_music2_rx>,
+				<&sb_5_rx>, <&sb_6_rx>;
+		asoc-cpu-names = "msm-dai-q6-auxpcm.1", "msm-dai-q6-auxpcm.3",
+				"msm-dai-q6-mi2s.0", "msm-dai-q6-mi2s.2",
+				"msm-dai-q6-dev.16384", "msm-dai-q6-dev.16385",
+				"msm-dai-q6-dev.16386", "msm-dai-q6-dev.16387",
+				"msm-dai-q6-dev.16388", "msm-dai-q6-dev.16389",
+				"msm-dai-q6-dev.16390", "msm-dai-q6-dev.16391",
+				"msm-dai-q6-dev.16392", "msm-dai-q6-dev.16393",
+				"msm-dai-q6-dev.16395", "msm-dai-q6-dev.224",
+				"msm-dai-q6-dev.225", "msm-dai-q6-dev.241",
+				"msm-dai-q6-dev.240", "msm-dai-q6-dev.32771",
+				"msm-dai-q6-dev.32772", "msm-dai-q6-dev.32773",
+				"msm-dai-q6-dev.32770", "msm-dai-q6-dev.16394",
+				"msm-dai-q6-dev.16396";
+
+		det-zones-list = <&det_zones 0 2>,
+				 <&det_zones 690 2>,
+				 <&det_zones 691 1>,
+				 <&det_zones 9999 1>;
+
+		mbhc-button-thres = <&det_zones 13 63>,
+				 <&det_zones 88 138>,
+				 <&det_zones 138 138>,
+				 <&det_zones 225 225>,
+				 <&det_zones 450 450>,
+				 <&det_zones 470 470>,
+				 <&det_zones 470 470>,
+				 <&det_zones 650 650>;
+
+		/delete-property/qcom,hdmi-audio-rx;
+		/delete-property/qcom,hph-en0-gpio;
+		/delete-property/qcom,us-euro-gpios;
+		/delete-property/qcom,wsa-max-devs;
+		/delete-property/qcom,wsa-devs;
+		/delete-property/qcom,wsa-aux-dev-prefix;
+	};
+
+	dai_pri_auxpcm: qcom,msm-pri-auxpcm {
+		/delete-property/ pinctrl-names;
+		/delete-property/ pinctrl-0;
+		/delete-property/ pinctrl-1;
+	};
+
+	dai_tert_auxpcm: qcom,msm-tert-auxpcm {
+		compatible = "qcom,msm-auxpcm-dev";
+		qcom,msm-cpudai-auxpcm-mode = <0>, <0>;
+		qcom,msm-cpudai-auxpcm-sync = <1>, <1>;
+		qcom,msm-cpudai-auxpcm-frame = <5>, <4>;
+		qcom,msm-cpudai-auxpcm-quant = <2>, <2>;
+		qcom,msm-cpudai-auxpcm-num-slots = <1>, <1>;
+		qcom,msm-cpudai-auxpcm-slot-mapping = <1>, <1>;
+		qcom,msm-cpudai-auxpcm-data = <0>, <0>;
+		qcom,msm-cpudai-auxpcm-pcm-clk-rate = <2048000>, <2048000>;
+		qcom,msm-auxpcm-interface = "tertiary";
+		qcom,msm-cpudai-afe-clk-ver = <2>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&tert_aux_pcm_active &tert_aux_pcm_din_active>;
+		pinctrl-1 = <&tert_aux_pcm_sleep &tert_aux_pcm_din_sleep>;
+	};
+
+	qcom,msm-dai-mi2s {
+		dai_pri_mi2s: qcom,msm-dai-q6-mi2s-prim {
+			compatible = "qcom,msm-dai-q6-mi2s";
+			qcom,msm-dai-q6-mi2s-dev-id = <0>;
+			qcom,msm-mi2s-rx-lines = <2>;
+			qcom,msm-mi2s-tx-lines = <1>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&pri_mi2s_active &pri_mi2s_sd0_active &pri_mi2s_sd1_active>;
+			pinctrl-1 = <&pri_mi2s_sleep &pri_mi2s_sd0_sleep &pri_mi2s_sd1_sleep>;
+		};
+
+		dai_mi2s: qcom,msm-dai-q6-mi2s-tert {
+			/delete-property/ pinctrl-names;
+			/delete-property/ pinctrl-0;
+			/delete-property/ pinctrl-1;
+		};
+	};
+
+	/delete-node/qcom,msm-dai-tdm-tert-rx;
+	/delete-node/qcom,msm-dai-tdm-tert-tx;
+	/delete-node/qcom,msm-dai-tdm-quat-rx;
+	/delete-node/qcom,msm-dai-tdm-quat-tx;
+
+	rome_vreg: rome_vreg {
+		/delete-property/ gpio;
+	};
+};
+
+&wcd9xxx_intc {
+	qcom,gpio-connect = <&tlmm 79 0>;
+};
+
+&wcd_rst_gpio {
+	compatible = "qcom,wcd-gpio-ctrl";
+	qcom,cdc-rst-n-gpio = <&tlmm 74 0>;
+	pinctrl-names = "aud_active", "aud_sleep";
+	pinctrl-0 = <&cdc_reset_active>;
+	pinctrl-1 = <&cdc_reset_sleep>;
+};
+	
+&slim_msm {
+	/delete-node/msm_dai_slim;
+
+	tasha_codec {
+		qcom,cdc-micbias2-mv = <2700>;
+		qcom,cdc-dmic-sample-rate = <2400000>;
+		/delete-node/swr_master;
+	};
+};
+
+&pm8994_l17 {
+	/* lvs2 is px12 for ssc and vdd/vddio for sensors */
+	status = "okay";
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <2800000>;
+	qcom,init-voltage = <2800000>;
+};

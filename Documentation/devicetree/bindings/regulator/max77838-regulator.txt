@@ -1,0 +1,73 @@
+MAX77838 regulators
+
+Required properties:
+- compatible: "maxim,max77838"
+- reg: I2C slave address
+- regulators: A node that houses a sub-node for each regulator within the
+  device. Each sub-node is identified using the node's name, with valid
+  values listed below. The content of each sub-node is defined by the
+  standard binding for regulators; see regulator.txt.
+  LDO[1-4] and BUCK respectively.
+
+Optional properties:
+- buck-ramp-up : buck ramp-up slew rate control.
+					0 : 6.25mV/us
+					1 : 12.5mV/us
+					2 : 25mV/us
+					3 : 50mV/us
+- buck-ramp-down : buck ramp-down slew rate control.
+					0 : 3.125mV/us
+					1 : 6.25mV/us
+					2 : 12.5mV/us
+					3 : 25mV/us
+- buck-fpwm : buck forced PWM.
+				0 : Disable
+				1 : Enable
+- buck-fsrad : buck falling slew rate active discharge
+				0 : Disable
+				1 : Enable
+- uvlo-fall-threshold : Vsys UVLO falling threshold
+						0 : 2.30V
+						1 : 2.35V
+						2 : 2.40V
+						3 : 2.45V
+
+- active-discharge-enable : All regulators have active discharge enable setting
+							0 : Disable
+							1 : Enable
+
+Each regulator is defined using the standard binding for regulators.
+
+Example:
+
+	max77838@60 {
+		compatible = "maxim,max77838";
+		reg = <0x60>;
+
+		regulators {
+			LDO1 {
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <3775000>;
+				active-discharge-enable = <1>;
+			};
+			
+			LDO2 {
+				active-discharge-enable = <1>;
+			};
+
+			...
+
+			LDO4 {
+				active-discharge-enable = <1>;
+			};
+
+			BUCK {
+				regulator-boot-on;
+				regulator-always-on;
+			};
+		};
+		buck-ramp-up = <0>; 	/* 6.25mV/us */
+		buck-fpwm = <0>;		/* Disable */
+		
+		uvlo-fall-threshold = <1>;	/* 2.35V */
+	};

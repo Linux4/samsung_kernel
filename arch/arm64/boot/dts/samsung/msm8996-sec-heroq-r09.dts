@@ -1,0 +1,43 @@
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "../qcom/msm8996-v3.0.dtsi"
+#include "../qcom/msm8996-pm8994-pm8004.dtsi"
+#include "../qcom/msm8996-mtp.dtsi"
+#include "msm8996-max77838.dtsi"
+#include "msm8996-sec-common.dtsi"
+#include "msm8996-sec-heroq-r09.dtsi"
+#include "msm8996-s2mpb02-hero.dtsi"
+
+/ {
+	model = "Samsung HEROQ PROJECT Rev09";
+	compatible = "qcom,msm8996-mtp", "qcom,msm8996", "qcom,mtp";
+	qcom,board-id = <8 9>;
+
+	aliases {
+//		i2c3 = &i2c_3;
+		i2c1 = &i2c_1;
+		uart1 = &blsp1_uart2;
+		uart0 = &blsp2_uart1;
+		i2c8 = &i2c_8;
+		i2c18 = &i2c_18;
+		i2c23 = &i2c_23;
+		spi0 = &spi_0;
+		spi6 = &spi_6;
+		spi10 = &spi_10;
+		i2c2 = &i2c_2;
+		spi11 = &spi_11;
+		i2c9 = &i2c_9;
+	};
+};

@@ -1,0 +1,3120 @@
+/* Copyright (c) 2012, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&mdss_mdp {
+	ss_dsi_panel_S6E3HF4_AMB526JS01_WQHD: ss_dsi_panel_S6E3HF4_AMB526JS01_WQHD {
+		qcom,mdss-dsi-panel-name = "ss_dsi_panel_S6E3HF4_AMB526JS01_WQHD";
+		label = "ss_dsi_panel_S6E3HF4_AMB526JS01_WQHD";
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,cont-splash-enabled;
+		/*qcom,dcs-cmd-by-left;*/
+		/*qcom,cmd-sync-wait-broadcast;*/
+		/*qcom,cmd-sync-wait-trigger;*/
+		/*qcom,mdss-dsi-fbc-enable=*/
+		/*qcom,mdss-dsi-fbc-bpp=*/
+		/*qcom,mdss-dsi-fbc-packing=*/
+		/*qcom,mdss-dsi-fbc-quant-error=*/
+		/*qcom,mdss-dsi-fbc-bias=*/
+		/*qcom,mdss-dsi-fbc-pat-mode=*/
+		/*qcom,mdss-dsi-fbc-vlc-mode=*/
+		/*qcom,mdss-dsi-fbc-bflc-mode=*/
+		/*qcom,mdss-dsi-fbc-h-line-budget=*/
+		/*qcom,mdss-dsi-fbc-budget-ctrl=*/
+		/*qcom,mdss-dsi-fbc-block-budget=*/
+		/*qcom,mdss-dsi-fbc-lossless-threshold=*/
+		/*qcom,mdss-dsi-fbc-lossy-threshold=*/
+		/*qcom,mdss-dsi-fbc-rgb-threshold=*/
+		/*qcom,mdss-dsi-fbc-lossy-mode-idx=*/
+
+		qcom,mdss-dsi-h-pulse-width = <52>;
+		qcom,mdss-dsi-h-back-porch = <156>;
+		qcom,mdss-dsi-h-front-porch = <152>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-v-pulse-width = <100>;
+		qcom,mdss-dsi-v-back-porch = <160>;
+		qcom,mdss-dsi-v-front-porch = <150>;
+
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+
+		qcom,mdss-dsi-underflow-color = <0xFF>;
+		qcom,mdss-dsi-border-color = <0>;
+
+		/*qcom,mdss-dsi-pan-enable-dynamic-fps=*/
+		/*qcom,mdss-dsi-pan-fps-update=*/
+
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+		/*qcom,mdss-dsi-bl-pmic-bank-select=*/
+		/*qcom,mdss-dsi-bl-pmic-pwm-frequency=*/
+		/*qcom,mdss-dsi-pwm-gpio=*/
+
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <365>;
+		qcom,mdss-brightness-max-level = <365>;
+		qcom,mdss-dsi-interleave-mode = <0>;
+		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
+
+		/*qcom,mdss-dsi-te-check-enable; */
+		qcom,mdss-dsi-te-using-te-pin;
+		qcom,mdss-dsi-te-pin-select = <1>;
+
+		/*qcom,dynamic-mode-switch-enabled;*/
+		/*qcom,dynamic-mode-switch-type = "dynamic-switch-immediate";*/
+
+		qcom,mdss-dsi-te-dcs-command = <1>;
+		qcom,mdss-dsi-wr-mem-start = <0x2C>;
+		qcom,mdss-dsi-wr-mem-continue = <0x3C>;
+
+		/* CMD mode panel doesn't need below stuff */
+		/*qcom,mdss-dsi-h-sync-pulse=*/
+		/*qcom,mdss-dsi-hfp-power-mode=*/
+		/*qcom,mdss-dsi-hbp-power-mode=*/
+		/*qcom,mdss-dsi-hsa-power-mode=*/
+		/*qcom,mdss-dsi-last-line-interleave=*/
+		/*qcom,mdss-dsi-bllp-eof-power-mode=*/
+		/*qcom,mdss-dsi-bllp-power-mode=*/
+		/*qcom,mdss-dsi-traffic-mode=*/
+
+		qcom,mdss-dsi-pixel-packing = "loose";
+
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+
+		/* 60 FPS - DSC (width 480) */
+		qcom,mdss-dsi-t-clk-pre = <0x30>;
+		qcom,mdss-dsi-t-clk-post = <0xD>;
+
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-panel-framerate = <60>;
+/*		qcom,mdss-dsi-panel-clockrate = <898000000>;*/
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+
+		qcom,mdss-pan-physical-width-dimension = <68>; /* 68.4*/
+		qcom,mdss-pan-physical-height-dimension = <122>; /* 121.6 */
+
+		qcom,mdss-dsi-panel-mode-gpio-state = "invalid";
+
+		/*qcom,mdss-tear-check-disable*/
+/*		qcom,mdss-tear-check-sync-cfg-height = <2576>; */
+		/*qcom,mdss-tear-check-sync-init-val=*/
+		/*qcom,mdss-tear-check-sync-threshold-start=*/
+		/*qcom,mdss-tear-check-sync-threshold-continue=*/
+		/*qcom,mdss-tear-check-start-pos=*/
+		/*qcom,mdss-tear-check-rd-ptr-trigger-intr=*/
+		/*qcom,mdss-tear-check-frame-rate=*/
+
+		qcom,mdss-dsi-reset-sequence = <1 5>, <0 5>, <1 5>;
+		qcom,partial-update-enabled;
+		/*qcom,partial-update-roi-merge;*/
+		/*qcom,mdss-dsi-horizontal-line-idle*/
+
+		qcom,mdss-dsi-lp11-init;
+		qcom,mdss-dsi-init-delay-us = <1000>;
+
+		qcom,mdss-dsi-rx-eot-ignore;
+		qcom,mdss-dsi-tx-eot-append;
+
+		qcom,ulps-enabled;
+		/* qcom,suspend-ulps-enabled; */
+		qcom,esd-check-enabled;
+		qcom,mdss-dsi-panel-status-check-mode ="reg_read_irq";
+		qcom,mdss-dsi-panel-status-value=<1>;
+		/*qcom,mdss-dsi-panel-status-irq-trigger1 = "rising";*/
+		qcom,mdss-dsi-panel-status-irq-trigger1 = "falling";
+
+		qcom,mdss-dsi-off-command=[
+			05 01 00 00 00 00 02 28 00
+			05 01 00 00 78 00 02 10 00	/* wait 120ms(0x78) */
+		];
+
+		samsung,esd_2c_short_tx_cmds_revA = [
+			05 01 00 00 00 00 01 2c
+		];
+
+		/*qcom,dynamic-mode-switch-enabled*/
+		/*qcom,video-to-cmd-mode-switch-commands=*/
+		/*qcom,cmd-to-video-mode-switch-commands=*/
+
+/*
+* ************************************************************************************************************************************
+*
+*
+*			Below  parameters are samsung dependent thigs
+*
+*
+* ************************************************************************************************************************************
+*/
+		samsung,support_panel_max = <1>;
+		samsung,hw-config = "single_dsi";
+		samsung,panel-lpm-enable;
+		samsung,support_irc;
+		samsung,elvss_interpolation_temperature = <(-15)>;
+		samsung,support_factory_panel_swap;
+		samsung,support_multires;
+
+		/*
+		* ************************************************************************************************************************
+		*  Tx
+		* ************************************************************************************************************************
+		*/
+
+		samsung,level1_key_enable_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A
+		];
+		samsung,level1_key_disable_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+		samsung,level2_key_enable_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F2 5A 5A
+		];
+		samsung,level2_key_disable_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F2 A5 A5
+		];
+
+		samsung,packet_size_tx_cmds_revA = [
+			37 01 00 00 00 00 02 07 00
+		];
+
+		samsung,reg_read_pos_tx_cmds_revA = [
+			15 01 00 00 00 00 02 B0 00
+		];
+
+		samsung,manufacture_read_pre_tx_cmds_revA = [
+			05 01 00 00 78 00 01 11
+			29 01 00 00 00 00 03 F0 5A 5A
+		];
+
+		samsung,display_on_tx_cmds_revA = [05 01 00 00 00 00 02 29 00];
+		samsung,display_off_tx_cmds_revA = [05 01 00 00 00 00 02 28 00];
+
+		/*
+		* ************************************************************************************************************************
+		*  Rx
+		* ************************************************************************************************************************
+		*/
+
+		/*
+			the last byte in read commands	represent READ LENGH, like below  READ LENGH = 0x21
+		*/
+
+		samsung,manufacture_id0_rx_cmds_revA = [ 06 01 00 00 00 00 01 da 01 00];
+		samsung,manufacture_id1_rx_cmds_revA = [ 06 01 00 00 00 00 01 db 01 00];
+		samsung,manufacture_id2_rx_cmds_revA = [ 06 01 00 00 00 00 01 dc 01 00];
+
+		samsung,manufacture_id_rx_cmds_revA = [ 06 01 00 00 00 00 01 04 03 00];
+
+		samsung,manufacture_date_rx_cmds_revA = [ 06 01 00 00 00 00 01 c8 04 28];	/* read C8 41~44th , 40=0x28*/
+
+		samsung,cell_id_rx_cmds_revA = [ 06 01 00 00 00 00 01 C8 07 28]; /* read C8 41th~47th */
+
+		samsung,ddi_id_rx_cmds_revA = [ 06 01 00 00 00 00 01 D6 05 00]; /* read D6 1th~5th */
+
+		samsung,ldi_debug0_rx_cmds_revA = [06 01 00 00 00 00 01 0A 01 00];
+		samsung,ldi_debug1_rx_cmds_revA = [06 01 00 00 00 00 01 ED 01 00];
+		samsung,ldi_debug2_rx_cmds_revA = [06 01 00 00 00 00 01 EE 01 00];
+
+		samsung,mtp_read_sysfs_rx_cmds_revA = [ 06 01 00 00 00 00 01 00 00 00];
+
+		samsung,smart_dimming_mtp_rx_cmds_revA = [ 06 01 00 00 00 00 01 c8 23 00];
+
+		samsung,mdnie_read_rx_cmds_revA = [ 06 01 00 00 00 00 01 A1 04 00];
+
+		/*
+		* ************************************************************************************************************************
+		*  FPS change
+		* ************************************************************************************************************************
+		*/
+
+		samsung,ldi_fps_change_tx_cmds_revA = [
+			29 00 00 00 00 00 03 F0 5A 5A
+			29 00 00 00 00 00 03 FC 5A 5A
+			29 00 00 00 00 00 04 F2 63 41 C5	/* C5 => hsync timing: 453*/
+			29 00 00 00 00 00 03 F0 A5 A5
+			29 01 00 00 00 00 03 FC A5 A5
+		];
+
+		samsung,spi_enable_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A
+			29 01 00 00 00 00 03 FC 5A 5A
+			29 01 00 00 00 00 02 B0 13
+			29 01 00 00 00 00 02 D8 02
+			29 01 00 00 00 00 02 B0 1F
+			29 01 00 00 1E 00 02 FE 06
+			29 01 00 00 00 00 03 F0 A5 A5
+			29 01 00 00 00 00 03 FC A5 A5
+		];
+
+		samsung,ldi_fps_rx_cmds_revA = [06 01 00 00 00 00 01 D7 01 1A]; /* read D7 27th , 27=0x1B*/
+
+		/*
+		 * ************************************************************************************************************************
+		 *   APLPM
+		 * ************************************************************************************************************************
+		 */
+
+		/*
+		 * The command set of R53h will be replaced with
+		 * lpm 2nit or 40nit tx commnad for
+		 * changing brightness level
+		 */
+		samsung,alpm_on_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A		/* TEST KEY Enable */
+
+			/* mDNIe BYPASS */
+			39 01 00 00 00 00 48
+				DF 00 6a 9a 25 1a 16 2a 00 37
+				5a 00 4e c5 00 5d 17 00 30 c3
+				ff 00 00 ff ff 00 ff 00 ff ff
+				ff ff 00 ff ff 00 ff 00 ff 00
+				00 ff ff 00 ff 00 ff 00 00 ff
+				ff 00 ff 00 ff 00 00 00 04 b0
+				78 cc ff ff ff 00 06 00 00 00
+				00 06
+			39 01 00 00 00 00 D1
+				DE 00 00 00 24 96 b3 01 0e 01
+				00 77 03 07 40 08 04 04 00 00
+				0d e1 07 29 04 0f a0 00 03 7a
+				a0 00 25 1c 24 00 48 ea fa 00
+				10 00 10 00 9c 01 00 00 00 00
+				dc 03 ff 40 80 c0 00 9a 00 9a
+				00 9a 00 9a 00 00 00 00 00 00
+				00 00 40 80 c0 01 0e 01 0e 01
+				0e 01 0e 00 00 00 00 00 00 00
+				00 01 0e 01 3a 01 44 00 01 00
+				43 00 4b 00 18 00 1c 01 ff 01
+				ff 03 ff e8 03 ff e8 01 80 28
+				3e 7e a0 28 18 a0 07 65 06 03
+				00 40 00 00 10 00 00 30 00 00
+				00 30 00 00 30 00 00 00 ff 00
+				00 00 02 00 02 00 14 00 01 00
+				01 00 10 00 00 67 a9 17 29 19
+				27 02 c8 01 90 02 8f 01 a4 20
+				20 07 07 28 3c 01 00 00 10 20
+				30 40 50 60 70 80 90 a0 b0 c0
+				d0 e0 f0 01 00 00 00 00 00
+			39 01 00 00 00 00 13
+				DD 01 00 08 01 01 00 00 00 00
+				00 00 00 00 00 00 00 00 00
+
+			29 01 00 00 00 00 02 53 03			/* alpm on wait 20ms */
+
+			29 01 00 00 01 00 02 F7 03			/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+
+		samsung,alpm_on_tx_cmds_revC = [
+			29 01 00 00 00 00 03 F0 5A 5A		/* TEST KEY Enable */
+
+			/* mDNIe BYPASS */
+			39 01 00 00 00 00 48
+				DF 00 6a 9a 25 1a 16 2a 00 37
+				5a 00 4e c5 00 5d 17 00 30 c3
+				ff 00 00 ff ff 00 ff 00 ff ff
+				ff ff 00 ff ff 00 ff 00 ff 00
+				00 ff ff 00 ff 00 ff 00 00 ff
+				ff 00 ff 00 ff 00 00 00 04 b0
+				78 cc ff ff ff 00 06 00 00 00
+				00 06
+			39 01 00 00 00 00 D1
+				DE 00 00 00 24 96 b3 01 0e 01
+				00 77 03 07 40 08 04 04 00 00
+				0d e1 07 29 04 0f a0 00 03 7a
+				a0 00 25 1c 24 00 48 ea fa 00
+				10 00 10 00 9c 01 00 00 00 00
+				dc 03 ff 40 80 c0 00 9a 00 9a
+				00 9a 00 9a 00 00 00 00 00 00
+				00 00 40 80 c0 01 0e 01 0e 01
+				0e 01 0e 00 00 00 00 00 00 00
+				00 01 0e 01 3a 01 44 00 01 00
+				43 00 4b 00 18 00 1c 01 ff 01
+				ff 03 ff e8 03 ff e8 01 80 28
+				3e 7e a0 28 18 a0 07 65 06 03
+				00 40 00 00 10 00 00 30 00 00
+				00 30 00 00 30 00 00 00 ff 00
+				00 00 02 00 02 00 14 00 01 00
+				01 00 10 00 00 67 a9 17 29 19
+				27 02 c8 01 90 02 8f 01 a4 20
+				20 07 07 28 3c 01 00 00 10 20
+				30 40 50 60 70 80 90 a0 b0 c0
+				d0 e0 f0 01 00 00 00 00 00
+			39 01 00 00 00 00 13
+				DD 01 00 08 01 01 00 00 00 00
+				00 00 00 00 00 00 00 00 00
+
+			29 01 00 00 00 00 02 B0 01			/* Global para(2nd) */
+			29 01 00 00 00 00 02 BB C4			/* HLPM(0x54)/ALPM(0xC4) Mode On */
+			29 01 00 00 00 00 02 53 03			/* ALPM/HLPM 2nit On*/
+
+			29 01 00 00 01 00 02 F7 03			/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+
+		samsung,alpm_on_tx_cmds_revG = [
+			29 01 00 00 00 00 03 F0 5A 5A		/* TEST KEY Enable */
+
+			/* mDNIe BYPASS */
+			39 01 00 00 00 00 48
+				DF 00 6a 9a 25 1a 16 2a 00 37
+				5a 00 4e c5 00 5d 17 00 30 c3
+				ff 00 00 ff ff 00 ff 00 ff ff
+				ff ff 00 ff ff 00 ff 00 ff 00
+				00 ff ff 00 ff 00 ff 00 00 ff
+				ff 00 ff 00 ff 00 00 00 04 b0
+				78 cc ff ff ff 00 06 00 00 00
+				00 06
+			39 01 00 00 00 00 D1
+				DE 00 00 00 24 96 b3 01 0e 01
+				00 77 03 07 40 08 04 04 00 00
+				0d e1 07 29 04 0f a0 00 03 7a
+				a0 00 25 1c 24 00 48 ea fa 00
+				10 00 10 00 9c 01 00 00 00 00
+				dc 03 ff 40 80 c0 00 9a 00 9a
+				00 9a 00 9a 00 00 00 00 00 00
+				00 00 40 80 c0 01 0e 01 0e 01
+				0e 01 0e 00 00 00 00 00 00 00
+				00 01 0e 01 3a 01 44 00 01 00
+				43 00 4b 00 18 00 1c 01 ff 01
+				ff 03 ff e8 03 ff e8 01 80 28
+				3e 7e a0 28 18 a0 07 65 06 03
+				00 40 00 00 10 00 00 30 00 00
+				00 30 00 00 30 00 00 00 ff 00
+				00 00 02 00 02 00 14 00 01 00
+				01 00 10 00 00 67 a9 17 29 19
+				27 02 c8 01 90 02 8f 01 a4 20
+				20 07 07 28 3c 01 00 00 10 20
+				30 40 50 60 70 80 90 a0 b0 c0
+				d0 e0 f0 01 00 00 00 00 00
+			39 01 00 00 00 00 13
+				DD 01 00 08 01 01 00 00 00 00
+				00 00 00 00 00 00 00 00 00
+
+			29 01 00 00 00 00 02 B0 01			/* Global para(2nd) */
+			29 01 00 00 00 00 02 BB C4			/* HLPM(0x54)/ALPM(0xC4) Mode On */
+			29 01 00 00 00 00 02 53 03			/* ALPM/HLPM 2nit On*/
+			29 01 00 00 00 00 0C CB
+				12 11 81 01 00 63 82 00 00 10 01		/* LTPS Timing(MC-1CLK)*/
+
+			29 01 00 00 00 00 02 B8 00			/* IRC OFF */
+			29 01 00 00 01 00 02 F7 03			/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+
+
+		samsung,alpm_off_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A		/* TEST KEY Disable */
+			05 01 00 00 00 00 02 28 00			/* display off wait 20ms */
+
+			/* image write for normal mode */
+
+			29 01 00 00 00 00 02 53 00			/* alpm off */
+			29 01 00 00 00 00 02 F7 03		/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+
+		samsung,alpm_off_tx_cmds_revB = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY Enable */
+			05 01 00 00 00 00 02 28 00		/* display off wait 20ms */
+
+			/* image write for normal mode */
+
+			29 01 00 00 00 00 02 BB 00		/* AOD(1Hz) off */
+			29 01 00 00 00 00 02 BD 00		/* AI_MOD off */
+			29 01 00 00 00 00 02 53 00		/* alpm off */
+			29 01 00 00 01 00 02 F7 03		/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+		];
+
+		samsung,alpm_off_tx_cmds_revG = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY Enable */
+			05 01 00 00 00 00 02 28 00		/* display off wait 20ms */
+
+			/* image write for normal mode */
+
+			29 01 00 00 00 00 0C CB
+				12 11 81 01 00 63 82 00 00 0C 05		/* LTPS Timing(MC-3CLK)*/
+			29 01 00 00 00 00 02 53 00		/* alpm off */
+			29 01 00 00 01 00 02 F7 03		/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+		];
+
+		samsung,lpm_2nit_tx_cmds_revA = [29 01 00 00 14 00 02 53 03];
+		samsung,lpm_2nit_tx_cmds_revC = [29 01 00 00 00 00 02 53 03];
+		samsung,lpm_40nit_tx_cmds_revA = [29 01 00 00 14 00 02 53 03];
+		samsung,lpm_40nit_tx_cmds_revC = [29 01 00 00 00 00 02 53 02];
+
+
+		samsung,lpm_1hz_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		/* 1Hz added on REV B or later version for 40nit */
+		samsung,lpm_1hz_tx_cmds_revB = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY Enable */
+			29 01 00 00 00 00 02 BB 01		/* AOD(1Hz) On */
+			29 01 00 00 14 00 3E BD
+			01 06 FA 06 DC 06 B6 06
+			90 06 72 06 50 06 2A 06
+			0A 05 E5 05 C6 05 A4 05
+			83 05 61 05 41 05 30 05
+			0D 04 EB 04 D8 04 B6 04
+			94 04 81 04 81 04 71 04
+			4F 04 2D 04 16 04 15 04
+			0B 03 C1 03 61
+			29 01 00 00 01 00 02 F7 03		/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+		];
+
+		samsung,lpm_2hz_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		/* 1Hz added on REV B or later version for 40nit */
+		samsung,lpm_2hz_tx_cmds_revD = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY Enable */
+			29 01 00 00 00 00 03 FC 5A 5A	/* TEST KEY Enable */
+			29 01 00 00 00 00 02 B0 1E		/* Global para */
+			29 01 00 00 00 00 02 FE 0F		/* 2Hz Setting */
+			29 01 00 00 00 00 02 BB 01		/* AOD(1Hz) On */
+			29 01 00 00 14 00 32 BD
+			01 05 F8 05 DA 05 B4 05
+			8E 05 70 05 4E 05 28 05
+			08 04 E3 04 C4 04 A2 04
+			81 04 5F 04 3F 04 2E 04
+			0B 03 E9 03 D6 03 B4 03
+			92 03 7F 03 7F 03 6F 03
+			4D
+			29 01 00 00 01 00 02 F7 03		/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+			29 01 00 00 00 00 03 FC A5 A5	/* TEST KEY Disable */
+		];
+
+		samsung,lpm_2hz_tx_cmds_revF = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY Enable */
+			29 01 00 00 00 00 03 FC 5A 5A	/* TEST KEY Enable */
+			29 01 00 00 00 00 02 B0 1E		/* Global para */
+			29 01 00 00 00 00 02 FE 0F		/* 2Hz Setting */
+			29 01 00 00 00 00 02 BB 01		/* AOD(1Hz) On */
+			29 01 00 00 14 00 1E BD
+			01 05 F0 05 B1 05 77 05
+			40 05 0B 04 D8 04 A8 04
+			78 04 4A 04 1C 03 F0 03
+			C6 03 9B 03 7F
+			29 01 00 00 01 00 02 F7 03		/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+			29 01 00 00 00 00 03 FC A5 A5	/* TEST KEY Disable */
+		];
+
+		samsung,lpm_hz_none_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		samsung,lpm_hz_none_tx_cmds_revB = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY Enable */
+			29 01 00 00 00 00 02 BB 00		/* AOD(1Hz) off */
+			29 01 00 00 00 00 02 BD 00		/* AI_MOD off */
+			29 01 00 00 01 00 02 F7 03		/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+
+		];
+
+		/* HLPM added on REV C or later version */
+		samsung,lpm_ctrl_alpm_2nit_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		samsung,lpm_ctrl_alpm_2nit_tx_cmds_revC = [29 01 00 00 00 00 02 BB C4];
+
+		samsung,lpm_ctrl_alpm_40nit_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		samsung,lpm_ctrl_alpm_40nit_tx_cmds_revC = [29 01 00 00 00 00 02 BB C4];
+		samsung,lpm_ctrl_alpm_40nit_tx_cmds_revG = [29 01 00 00 00 00 02 BB 84];
+
+		samsung,lpm_ctrl_hlpm_2nit_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		samsung,lpm_ctrl_hlpm_2nit_tx_cmds_revC = [29 01 00 00 00 00 02 BB 54];
+
+		samsung,lpm_ctrl_hlpm_40nit_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		samsung,lpm_ctrl_hlpm_40nit_tx_cmds_revC = [29 01 00 00 00 00 02 BB 54];
+		samsung,lpm_ctrl_hlpm_40nit_tx_cmds_revG = [29 01 00 00 00 00 02 BB 14];
+
+		samsung,lpm_ctrl_alpm_aod_off_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		samsung,lpm_ctrl_alpm_aod_off_tx_cmds_revB = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY Enable */
+			29 01 00 00 00 00 02 BB 00		/* AOD off */
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+		];
+
+		samsung,lpm_ctrl_alpm_aod_on_tx_cmds_revA = [29 01 00 00 00 00 02 00 00];
+		samsung,lpm_ctrl_alpm_aod_on_tx_cmds_revB = [
+			29 01 00 00 00 00 03 F0 5A 5A	/* TEST KEY Enable */
+			29 01 00 00 00 00 02 BB 01		/* AOD off */
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+		];
+
+		/*
+		* ************************************************************************************************************************
+		*  VINT
+		* ************************************************************************************************************************
+		*/
+
+		samsung,vint_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F4 AB 1E /* 420 ~ 14cd 0 */
+			29 01 00 00 00 00 03 F4 AB 1D /* 13cd 1 */
+			29 01 00 00 00 00 03 F4 AB 1C /* 12cd 2 */
+			29 01 00 00 00 00 03 F4 AB 1B /* 11cd 3 */
+			29 01 00 00 00 00 03 F4 AB 1A /* 10cd 4 */
+			29 01 00 00 00 00 03 F4 AB 19 /* 9cd 5 */
+			29 01 00 00 00 00 03 F4 AB 18 /* 8cd 6 */
+			29 01 00 00 00 00 03 F4 AB 17 /* 7cd 7 */
+			29 01 00 00 00 00 03 F4 AB 16 /* 6cd 8 */
+			29 01 00 00 00 00 03 F4 AB 15 /* 5 ~ 2cd 9 */
+		];
+
+		samsung,vint_tx_cmds_revF = [
+			29 01 00 00 00 00 03 F4 BB 1E /* 420 ~ 14cd 0 */
+			29 01 00 00 00 00 03 F4 BB 1D /* 13cd 1 */
+			29 01 00 00 00 00 03 F4 BB 1C /* 12cd 2 */
+			29 01 00 00 00 00 03 F4 BB 1B /* 11cd 3 */
+			29 01 00 00 00 00 03 F4 BB 1A /* 10cd 4 */
+			29 01 00 00 00 00 03 F4 BB 19 /* 9cd 5 */
+			29 01 00 00 00 00 03 F4 BB 18 /* 8cd 6 */
+			29 01 00 00 00 00 03 F4 BB 17 /* 7cd 7 */
+			29 01 00 00 00 00 03 F4 BB 16 /* 6cd 8 */
+			29 01 00 00 00 00 03 F4 BB 15 /* 5 ~ 2cd 9 */
+		];
+
+		samsung,vint_map_table_revA = <
+			2	9		3	9		4	9		5	9		6	8
+			7	7		8	6		9	5		10	4		11	3
+			12	2		13	1		14	0		15	0		16	0
+			17	0		19	0		20	0		21	0		22	0
+			24	0		25	0		27	0		29	0		30	0
+			32	0		34	0		37	0		39	0		41	0
+			44	0		47	0		50	0		53	0		56	0
+			60	0		64	0		68	0		72	0		77	0
+			82	0		87	0		93	0		98	0		105	0
+			111	0		119	0		126	0		134	0		143	0
+			152	0		162	0		172	0		183	0		195	0
+			207	0		220	0		234	0		249	0		265	0
+			282	0		300	0		316	0		333	0		350	0
+			357	0		365	0		372	0		380	0		387	0
+			395	0		403	0		412	0		420	0
+		>;
+
+		/*
+		* ************************************************************************************************************************
+		*  GAMMA
+		* ************************************************************************************************************************
+		*/
+
+		samsung,gamma_tx_cmds_revA = [
+			29 01 00 00 00 00 24		/* Brightness Condition Set - Gamma 2.2 Setting*/
+			CA 01 00 01 00 01 00 80
+			80 80 80 80 80 80 80 80
+			80 80 80 80 80 80 80 80
+			80 80 80 80 80 80 80 00
+			00 00 00 00
+			29 01 00 00 00 00 02 F7 03		/* Gamma, LTPS(AID) update */
+
+			29 01 00 00 00 00 3C		/* dummy for single transmission more 100ns delay */
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+
+			29 01 00 00 00 00 02 F7 00
+		];
+
+		/*
+		* ************************************************************************************************************************
+		*  HBM
+		* ************************************************************************************************************************
+		*/
+
+		samsung,enter_hbm_lux = <10000>;
+		samsung,hbm_rx_cmds_revA = [ 06 01 00 00 00 00 01 c8 0F 32];	/* read C8 51~65th , 50=0x32 */
+		samsung,hbm2_rx_cmds_revA = [ 06 01 00 00 00 00 01 c8 14 44];	/* read C8 69~88th , 68=0x44 */
+
+		samsung,hbm_gamma_tx_cmds_revA = [
+			29 01 00 00 00 00 24		/* Brightness Condition Set - Gamma 2.2 Setting*/
+				CA 01 00 01 00 01 00 80
+				80 80 80 80 80 80 80 80
+				80 80 80 80 80 80 80 80
+				80 80 80 80 80 80 80 00
+				00 00 00 00
+		];
+
+		samsung,hbm_etc_tx_cmds_revA = [
+			29 01 00 00 00 00 03 B1 00 0C		/* AID */
+			29 01 00 00 00 00 04 B5 19 BC 00		/* ELVSS Setting */
+			29 00 00 00 00 00 02 B0 16
+			29 01 00 00 00 00 02 B5 00
+			29 01 00 00 00 00 03 F4 AB 1E		/* VINT set*/
+			29 01 00 00 00 00 05 B4 50 7F 27 0A  /* 1th : 0x50 32frame avg, 2th : 0x7F start point 50%, 4th: 0x0A ACL 8% */
+			29 01 00 00 00 00 02 55 02			/* ACL on*/
+			29 01 00 00 00 00 02 F7 03
+			29 01 00 00 00 00 02 F7 00
+		];
+
+		samsung,hbm_etc_tx_cmds_revF = [
+			29 01 00 00 00 00 03 B1 00 0C		/* AID */
+			29 01 00 00 00 00 04 B5 19 BC 00		/* ELVSS Setting */
+			29 00 00 00 00 00 02 B0 16
+			29 01 00 00 00 00 02 B5 00
+			29 01 00 00 00 00 03 F4 BB 1E		/* VINT set*/
+			29 01 00 00 00 00 05 B4 50 7F 27 0A  /* 1th : 0x50 32frame avg, 2th : 0x7F start point 50%, 4th: 0x0A ACL 8% */
+			29 01 00 00 00 00 02 55 02			/* ACL on*/
+			29 01 00 00 00 00 02 F7 03
+			29 01 00 00 00 00 02 F7 00
+		];
+
+		samsung,hbm_irc_tx_cmds_revA = [
+			29 00 00 00 00 00 15 B8 00 00
+				00 00 00 00 00 00 00 00 00
+				00 00 00 00 00 00 00 00 00
+		];
+
+		samsung,panel-hbm-off-cmds_revA = [
+			15 01 00 00 00 00 02 53 00		/* HBM off*/
+		];
+
+		samsung,ccb_on_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A
+			29 00 00 00 00 00 03 B7 00 2A
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+
+		samsung,ccb_off_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A
+			29 00 00 00 00 00 03 B7 00 2A
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+
+		/*
+		* ************************************************************************************************************************
+		*  IRC
+		* ************************************************************************************************************************
+		*/
+
+		samsung,irc_tx_cmds_revA = [
+			29 00 00 00 00 00 15 B8 00 00
+				00 00 00 00 00 00 00 00 00
+				00 00 00 00 00 00 00 00 00
+		];
+
+		samsung,irc_off_tx_cmds_revA = [
+			29 01 00 00 00 00 02 B8 00	 /* IRC OFF */
+		];
+
+		/*
+		* ************************************************************************************************************************
+		*  H/W Cursor
+		* ************************************************************************************************************************
+		*/
+
+		samsung,hw_cursor_tx_cmds_revA = [
+			29 01 00 00 00 00 0F E4 00 01 00 04 00 00 05 00 66 00 00 00 3C 1E
+		];
+
+		/*
+		* ************************************************************************************************************************
+		*  MCD
+		* ************************************************************************************************************************
+		*/
+
+		samsung,mcd_on_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A
+			29 01 00 00 00 00 03 FC 5A 5A
+
+			29 00 00 00 00 00 02 B0 04
+			29 00 00 00 00 00 02 CB 80
+			29 00 00 00 00 00 02 B0 14
+			29 00 00 00 00 00 03 CB BF 1A
+			29 00 00 00 00 00 02 B0 1F
+			29 00 00 00 00 00 05 CB D9 51 89 D6
+			29 00 00 00 00 00 02 B0 2E
+			29 00 00 00 00 00 02 CB D6
+
+			29 01 00 00 00 00 3C		/* dummy for single transmission more 100ns delay */
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+
+			29 00 00 00 00 00 02 B0 06
+			29 00 00 00 00 00 02 F6 4E
+			29 00 00 00 00 00 02 F7 03
+
+			29 01 00 00 00 00 3C		/* dummy for single transmission more 100ns delay */
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+
+			29 00 00 00 00 00 02 B0 02
+			29 00 00 00 00 00 02 BB 30
+			29 00 00 00 00 00 02 F7 03
+
+			29 01 00 00 00 00 3C		/* dummy for single transmission more 100ns delay */
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+
+			29 01 00 00 00 00 03 FC A5 A5
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+
+		samsung,mcd_off_tx_cmds_revA = [
+			29 01 00 00 00 00 03 F0 5A 5A
+			29 01 00 00 00 00 03 FC 5A 5A
+
+			29 00 00 00 00 00 02 B0 04
+			29 00 00 00 00 00 02 CB 00
+			29 00 00 00 00 00 02 B0 14
+			29 00 00 00 00 00 03 CB 12 9C
+			29 00 00 00 00 00 02 B0 1F
+			29 00 00 00 00 00 05 CB AE 00 00 D5
+			29 00 00 00 00 00 02 B0 2E
+			29 00 00 00 00 00 02 CB D6
+
+			29 01 00 00 00 00 3C		/* dummy for single transmission more 100ns delay */
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+
+			29 00 00 00 00 00 02 B0 06
+			29 00 00 00 00 00 02 F6 C3
+			29 00 00 00 00 00 02 F7 03
+
+			29 01 00 00 00 00 3C		/* dummy for single transmission more 100ns delay */
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+
+			29 00 00 00 00 00 02 B0 02
+			29 00 00 00 00 00 02 BB 00
+			29 00 00 00 00 00 02 F7 03
+
+			29 01 00 00 00 00 3C		/* dummy for single transmission more 100ns delay */
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00
+
+			29 01 00 00 00 00 03 FC A5 A5
+			29 01 00 00 00 00 03 F0 A5 A5
+		];
+
+		/*
+		* ************************************************************************************************************************
+		* AID command list and mappings
+		* ************************************************************************************************************************
+		*/
+		samsung,aid_subdivision_tx_cmds_revA = [
+			29 01 00 00 00 00 03 B1 90 E3 /* 0   */
+			29 01 00 00 00 00 03 B1 90 CD /* 1   */
+			29 01 00 00 00 00 03 B1 90 BF /* 2   */
+			29 01 00 00 00 00 03 B1 90 B0 /* 3   */
+			29 01 00 00 00 00 03 B1 90 93 /* 4   */
+			29 01 00 00 00 00 03 B1 90 7D /* 5   */
+			29 01 00 00 00 00 03 B1 90 61 /* 6   */
+			29 01 00 00 00 00 03 B1 90 4D /* 7   */
+			29 01 00 00 00 00 03 B1 90 31 /* 8   */
+			29 01 00 00 00 00 03 B1 90 1D /* 9   */
+			29 01 00 00 00 00 03 B1 90 01 /* 10  */
+			29 01 00 00 00 00 03 B1 80 ED /* 11  */
+			29 01 00 00 00 00 03 B1 80 D1 /* 12  */
+			29 01 00 00 00 00 03 B1 80 BD /* 13  */
+			29 01 00 00 00 00 03 B1 80 A1 /* 14  */
+			29 01 00 00 00 00 03 B1 80 8D /* 15  */
+			29 01 00 00 00 00 03 B1 80 6F /* 16  */
+			29 01 00 00 00 00 03 B1 80 57 /* 17  */
+			29 01 00 00 00 00 03 B1 80 3F /* 18  */
+			29 01 00 00 00 00 03 B1 80 23 /* 19  */
+			29 01 00 00 00 00 03 B1 80 0C /* 20  */
+			29 01 00 00 00 00 03 B1 70 EF /* 21  */
+			29 01 00 00 00 00 03 B1 70 BC /* 22  */
+			29 01 00 00 00 00 03 B1 70 A1 /* 23  */
+			29 01 00 00 00 00 03 B1 70 87 /* 24  */
+			29 01 00 00 00 00 03 B1 70 6D /* 25  */
+			29 01 00 00 00 00 03 B1 70 33 /* 26  */
+			29 01 00 00 00 00 03 B1 70 1E /* 27  */
+			29 01 00 00 00 00 03 B1 70 01 /* 28  */
+			29 01 00 00 00 00 03 B1 60 E3 /* 29  */
+			29 01 00 00 00 00 03 B1 60 CA /* 30  */
+			29 01 00 00 00 00 03 B1 60 B1 /* 31  */
+			29 01 00 00 00 00 03 B1 60 8A /* 32  */
+			29 01 00 00 00 00 03 B1 60 63 /* 33  */
+			29 01 00 00 00 00 03 B1 60 2D /* 34  */
+			29 01 00 00 00 00 03 B1 60 10 /* 35  */
+			29 01 00 00 00 00 03 B1 50 F4 /* 36  */
+			29 01 00 00 00 00 03 B1 50 CB /* 37  */
+			29 01 00 00 00 00 03 B1 50 A1 /* 38  */
+			29 01 00 00 00 00 03 B1 50 86 /* 39  */
+			29 01 00 00 00 00 03 B1 50 6B /* 40  */
+			29 01 00 00 00 00 03 B1 50 50 /* 41  */
+			29 01 00 00 00 00 03 B1 50 28 /* 42  */
+			29 01 00 00 00 00 03 B1 50 01 /* 43  */
+			29 01 00 00 00 00 03 B1 40 D8 /* 44  */
+			29 01 00 00 00 00 03 B1 40 AE /* 45  */
+			29 01 00 00 00 00 03 B1 40 85 /* 46  */
+			29 01 00 00 00 00 03 B1 40 5C /* 47  */
+			29 01 00 00 00 00 03 B1 40 36 /* 48  */
+			29 01 00 00 00 00 03 B1 40 0F /* 49  */
+			29 01 00 00 00 00 03 B1 30 E9 /* 50  */
+			29 01 00 00 00 00 03 B1 30 C7 /* 51  */
+			29 01 00 00 00 00 03 B1 30 A6 /* 52  */
+			29 01 00 00 00 00 03 B1 30 84 /* 53  */
+			29 01 00 00 00 00 03 B1 30 C6 /* 54  */
+			29 01 00 00 00 00 03 B1 30 A5 /* 55  */
+			29 01 00 00 00 00 03 B1 30 84 /* 56  */
+			29 01 00 00 00 00 03 B1 30 B3 /* 57  */
+			29 01 00 00 00 00 03 B1 30 84 /* 58  */
+			29 01 00 00 00 00 03 B1 30 D6 /* 59  */
+			29 01 00 00 00 00 03 B1 30 BB /* 60  */
+			29 01 00 00 00 00 03 B1 30 9F /* 61  */
+			29 01 00 00 00 00 03 B1 30 84 /* 62  */
+			29 01 00 00 00 00 03 B1 30 C8 /* 63  */
+			29 01 00 00 00 00 03 B1 30 A6 /* 64  */
+			29 01 00 00 00 00 03 B1 30 84 /* 65  */
+			29 01 00 00 00 00 03 B1 30 CD /* 66  */
+			29 01 00 00 00 00 03 B1 30 B4 /* 67  */
+			29 01 00 00 00 00 03 B1 30 9C /* 68  */
+			29 01 00 00 00 00 03 B1 30 84 /* 69  */
+			29 01 00 00 00 00 03 B1 30 D5 /* 70  */
+			29 01 00 00 00 00 03 B1 30 BA /* 71  */
+			29 01 00 00 00 00 03 B1 30 9F /* 72  */
+			29 01 00 00 00 00 03 B1 30 84 /* 73  */
+			29 01 00 00 00 00 03 B1 30 BD /* 74  */
+			29 01 00 00 00 00 03 B1 30 A1 /* 75  */
+			29 01 00 00 00 00 03 B1 30 84 /* 76  */
+			29 01 00 00 00 00 03 B1 30 D8 /* 77  */
+			29 01 00 00 00 00 03 B1 30 BC /* 78  */
+			29 01 00 00 00 00 03 B1 30 A0 /* 79  */
+			29 01 00 00 00 00 03 B1 30 84 /* 80  */
+			29 01 00 00 00 00 03 B1 30 C8 /* 81  */
+			29 01 00 00 00 00 03 B1 30 B2 /* 82  */
+			29 01 00 00 00 00 03 B1 30 9B /* 83  */
+			29 01 00 00 00 00 03 B1 30 84 /* 84  */
+			29 01 00 00 00 00 03 B1 30 DF /* 85  */
+			29 01 00 00 00 00 03 B1 30 C8 /* 86  */
+			29 01 00 00 00 00 03 B1 30 B1 /* 87  */
+			29 01 00 00 00 00 03 B1 30 9B /* 88  */
+			29 01 00 00 00 00 03 B1 30 84 /* 89  */
+			29 01 00 00 00 00 03 B1 30 CF /* 90  */
+			29 01 00 00 00 00 03 B1 30 BC /* 91  */
+			29 01 00 00 00 00 03 B1 30 A9 /* 92  */
+			29 01 00 00 00 00 03 B1 30 97 /* 93  */
+			29 01 00 00 00 00 03 B1 30 84 /* 94  */
+			29 01 00 00 00 00 03 B1 30 D4 /* 95  */
+			29 01 00 00 00 00 03 B1 30 C0 /* 96  */
+			29 01 00 00 00 00 03 B1 30 AC /* 97  */
+			29 01 00 00 00 00 03 B1 30 98 /* 98  */
+			29 01 00 00 00 00 03 B1 30 84 /* 99  */
+			29 01 00 00 00 00 03 B1 30 D9 /* 100 */
+			29 01 00 00 00 00 03 B1 30 C4 /* 101 */
+			29 01 00 00 00 00 03 B1 30 AE /* 102 */
+			29 01 00 00 00 00 03 B1 30 99 /* 103 */
+			29 01 00 00 00 00 03 B1 30 84 /* 104 */
+			29 01 00 00 00 00 03 B1 30 D7 /* 105 */
+			29 01 00 00 00 00 03 B1 30 C6 /* 106 */
+			29 01 00 00 00 00 03 B1 30 B6 /* 107 */
+			29 01 00 00 00 00 03 B1 30 A5 /* 108 */
+			29 01 00 00 00 00 03 B1 30 95 /* 109 */
+			29 01 00 00 00 00 03 B1 30 84 /* 110 */
+			29 01 00 00 00 00 03 B1 30 DB /* 111 */
+			29 01 00 00 00 00 03 B1 30 C9 /* 112 */
+			29 01 00 00 00 00 03 B1 30 B8 /* 113 */
+			29 01 00 00 00 00 03 B1 30 A7 /* 114 */
+			29 01 00 00 00 00 03 B1 30 95 /* 115 */
+			29 01 00 00 00 00 03 B1 30 84 /* 116 */
+			29 01 00 00 00 00 03 B1 30 D2 /* 117 */
+			29 01 00 00 00 00 03 B1 30 BF /* 118 */
+			29 01 00 00 00 00 03 B1 30 AB /* 119 */
+			29 01 00 00 00 00 03 B1 30 98 /* 120 */
+			29 01 00 00 00 00 03 B1 30 84 /* 121 */
+			29 01 00 00 00 00 03 B1 30 DB /* 122 */
+			29 01 00 00 00 00 03 B1 30 CC /* 123 */
+			29 01 00 00 00 00 03 B1 30 BE /* 124 */
+			29 01 00 00 00 00 03 B1 30 AF /* 125 */
+			29 01 00 00 00 00 03 B1 30 A1 /* 126 */
+			29 01 00 00 00 00 03 B1 30 92 /* 127 */
+			29 01 00 00 00 00 03 B1 30 84 /* 128 */
+			29 01 00 00 00 00 03 B1 30 74 /* 129 */
+			29 01 00 00 00 00 03 B1 30 64 /* 130 */
+			29 01 00 00 00 00 03 B1 30 54 /* 131 */
+			29 01 00 00 00 00 03 B1 30 44 /* 132 */
+			29 01 00 00 00 00 03 B1 30 34 /* 133 */
+			29 01 00 00 00 00 03 B1 30 24 /* 134 */
+			29 01 00 00 00 00 03 B1 30 14 /* 135 */
+			29 01 00 00 00 00 03 B1 30 04 /* 136 */
+			29 01 00 00 00 00 03 B1 20 F4 /* 137 */
+			29 01 00 00 00 00 03 B1 20 E4 /* 138 */
+			29 01 00 00 00 00 03 B1 20 D4 /* 139 */
+			29 01 00 00 00 00 03 B1 20 C3 /* 140 */
+			29 01 00 00 00 00 03 B1 20 B3 /* 141 */
+			29 01 00 00 00 00 03 B1 20 A3 /* 142 */
+			29 01 00 00 00 00 03 B1 20 8E /* 143 */
+			29 01 00 00 00 00 03 B1 20 7A /* 144 */
+			29 01 00 00 00 00 03 B1 20 65 /* 145 */
+			29 01 00 00 00 00 03 B1 20 51 /* 146 */
+			29 01 00 00 00 00 03 B1 20 3C /* 147 */
+			29 01 00 00 00 00 03 B1 20 28 /* 148 */
+			29 01 00 00 00 00 03 B1 20 13 /* 149 */
+			29 01 00 00 00 00 03 B1 20 02 /* 150 */
+			29 01 00 00 00 00 03 B1 10 F1 /* 151 */
+			29 01 00 00 00 00 03 B1 10 E0 /* 152 */
+			29 01 00 00 00 00 03 B1 10 CF /* 153 */
+			29 01 00 00 00 00 03 B1 10 BE /* 154 */
+			29 01 00 00 00 00 03 B1 10 AD /* 155 */
+			29 01 00 00 00 00 03 B1 10 9C /* 156 */
+			29 01 00 00 00 00 03 B1 10 8B /* 157 */
+			29 01 00 00 00 00 03 B1 10 FE /* 158 */
+			29 01 00 00 00 00 03 B1 10 EE /* 159 */
+			29 01 00 00 00 00 03 B1 10 DE /* 160 */
+			29 01 00 00 00 00 03 B1 10 CD /* 161 */
+			29 01 00 00 00 00 03 B1 10 BD /* 162 */
+			29 01 00 00 00 00 03 B1 10 AC /* 163 */
+			29 01 00 00 00 00 03 B1 10 9C /* 164 */
+			29 01 00 00 00 00 03 B1 10 03 /* 165 */
+			29 01 00 00 00 00 03 B1 10 80 /* 166 */
+			29 01 00 00 00 00 03 B1 10 70 /* 167 */
+			29 01 00 00 00 00 03 B1 10 61 /* 168 */
+			29 01 00 00 00 00 03 B1 10 51 /* 169 */
+			29 01 00 00 00 00 03 B1 10 41 /* 170 */
+			29 01 00 00 00 00 03 B1 10 32 /* 171 */
+			29 01 00 00 00 00 03 B1 10 22 /* 172 */
+			29 01 00 00 00 00 03 B1 10 13 /* 173 */
+			29 01 00 00 00 00 03 B1 10 03 /* 174 */
+			29 01 00 00 00 00 03 B1 10 80 /* 175 */
+			29 01 00 00 00 00 03 B1 10 70 /* 176 */
+			29 01 00 00 00 00 03 B1 10 60 /* 177 */
+			29 01 00 00 00 00 03 B1 10 51 /* 178 */
+			29 01 00 00 00 00 03 B1 10 41 /* 179 */
+			29 01 00 00 00 00 03 B1 10 32 /* 180 */
+			29 01 00 00 00 00 03 B1 10 22 /* 181 */
+			29 01 00 00 00 00 03 B1 10 12 /* 182 */
+			29 01 00 00 00 00 03 B1 10 03 /* 183 */
+			29 01 00 00 00 00 03 B1 10 80 /* 184 */
+			29 01 00 00 00 00 03 B1 10 73 /* 185 */
+			29 01 00 00 00 00 03 B1 10 65 /* 186 */
+			29 01 00 00 00 00 03 B1 10 57 /* 187 */
+			29 01 00 00 00 00 03 B1 10 49 /* 188 */
+			29 01 00 00 00 00 03 B1 10 3B /* 189 */
+			29 01 00 00 00 00 03 B1 10 2D /* 190 */
+			29 01 00 00 00 00 03 B1 10 1F /* 191 */
+			29 01 00 00 00 00 03 B1 10 11 /* 192 */
+			29 01 00 00 00 00 03 B1 10 03 /* 193 */
+			29 01 00 00 00 00 03 B1 10 6A /* 194 */
+			29 01 00 00 00 00 03 B1 10 5B /* 195 */
+			29 01 00 00 00 00 03 B1 10 4C /* 196 */
+			29 01 00 00 00 00 03 B1 10 3E /* 197 */
+			29 01 00 00 00 00 03 B1 10 2F /* 198 */
+			29 01 00 00 00 00 03 B1 10 20 /* 199 */
+			29 01 00 00 00 00 03 B1 10 12 /* 200 */
+			29 01 00 00 00 00 03 B1 10 03 /* 201 */
+			29 01 00 00 00 00 03 B1 10 6C /* 202 */
+			29 01 00 00 00 00 03 B1 10 5F /* 203 */
+			29 01 00 00 00 00 03 B1 10 52 /* 204 */
+			29 01 00 00 00 00 03 B1 10 45 /* 205 */
+			29 01 00 00 00 00 03 B1 10 38 /* 206 */
+			29 01 00 00 00 00 03 B1 10 2A /* 207 */
+			29 01 00 00 00 00 03 B1 10 1D /* 208 */
+			29 01 00 00 00 00 03 B1 10 10 /* 209 */
+			29 01 00 00 00 00 03 B1 10 03 /* 210 */
+			29 01 00 00 00 00 03 B1 10 67 /* 211 */
+			29 01 00 00 00 00 03 B1 10 5B /* 212 */
+			29 01 00 00 00 00 03 B1 10 4E /* 213 */
+			29 01 00 00 00 00 03 B1 10 42 /* 214 */
+			29 01 00 00 00 00 03 B1 10 35 /* 215 */
+			29 01 00 00 00 00 03 B1 10 29 /* 216 */
+			29 01 00 00 00 00 03 B1 10 1C /* 217 */
+			29 01 00 00 00 00 03 B1 10 0F /* 218 */
+			29 01 00 00 00 00 03 B1 10 03 /* 219 */
+			29 01 00 00 00 00 03 B1 10 25 /* 220 */
+			29 01 00 00 00 00 03 B1 10 1A /* 221 */
+			29 01 00 00 00 00 03 B1 10 0E /* 222 */
+			29 01 00 00 00 00 03 B1 10 03 /* 223 */
+			29 01 00 00 00 00 03 B1 10 29 /* 224 */
+			29 01 00 00 00 00 03 B1 10 1C /* 225 */
+			29 01 00 00 00 00 03 B1 10 10 /* 226 */
+			29 01 00 00 00 00 03 B1 10 03 /* 227 */
+			29 01 00 00 00 00 03 B1 00 EE /* 228 */
+			29 01 00 00 00 00 03 B1 00 D8 /* 229 */
+			29 01 00 00 00 00 03 B1 00 C3 /* 230 */
+			29 01 00 00 00 00 03 B1 00 B3 /* 231 */
+			29 01 00 00 00 00 03 B1 00 A3 /* 232 */
+			29 01 00 00 00 00 03 B1 00 93 /* 233 */
+			29 01 00 00 00 00 03 B1 00 83 /* 234 */
+			29 01 00 00 00 00 03 B1 00 7C /* 235 */
+			29 01 00 00 00 00 03 B1 00 75 /* 236 */
+			29 01 00 00 00 00 03 B1 00 6E /* 237 */
+			29 01 00 00 00 00 03 B1 00 67 /* 238 */
+			29 01 00 00 00 00 03 B1 00 59 /* 239 */
+			29 01 00 00 00 00 03 B1 00 4A /* 240 */
+			29 01 00 00 00 00 03 B1 00 3B /* 241 */
+			29 01 00 00 00 00 03 B1 00 2D /* 242 */
+			29 01 00 00 00 00 03 B1 00 53 /* 243 */
+			29 01 00 00 00 00 03 B1 00 46 /* 244 */
+			29 01 00 00 00 00 03 B1 00 3A /* 245 */
+			29 01 00 00 00 00 03 B1 00 0C /* 246 */
+			29 01 00 00 00 00 03 B1 00 36 /* 247 */
+			29 01 00 00 00 00 03 B1 00 28 /* 248 */
+			29 01 00 00 00 00 03 B1 00 1A /* 249 */
+			29 01 00 00 00 00 03 B1 00 0C /* 250 */
+			29 01 00 00 00 00 03 B1 00 31 /* 251 */
+			29 01 00 00 00 00 03 B1 00 24 /* 252 */
+			29 01 00 00 00 00 03 B1 00 18 /* 253 */
+			29 01 00 00 00 00 03 B1 00 0C /* 254 */
+			29 01 00 00 00 00 03 B1 00 0C /* 255 */
+		];
+
+		samsung,aid_subdivision_tx_cmds_revC = [
+			29 01 00 00 00 00 03 B1 90 E2 /* 0   */
+			29 01 00 00 00 00 03 B1 90 CE /* 1   */
+			29 01 00 00 00 00 03 B1 90 C0 /* 2   */
+			29 01 00 00 00 00 03 B1 90 B2 /* 3   */
+			29 01 00 00 00 00 03 B1 90 9F /* 4   */
+			29 01 00 00 00 00 03 B1 90 83 /* 5   */
+			29 01 00 00 00 00 03 B1 90 6E /* 6   */
+			29 01 00 00 00 00 03 B1 90 51 /* 7   */
+			29 01 00 00 00 00 03 B1 90 3E /* 8   */
+			29 01 00 00 00 00 03 B1 90 20 /* 9   */
+			29 01 00 00 00 00 03 B1 90 70 /* 10  */
+			29 01 00 00 00 00 03 B1 80 F3 /* 11  */
+			29 01 00 00 00 00 03 B1 80 DD /* 12  */
+			29 01 00 00 00 00 03 B1 80 C1 /* 13  */
+			29 01 00 00 00 00 03 B1 80 B3 /* 14  */
+			29 01 00 00 00 00 03 B1 80 9B /* 15  */
+			29 01 00 00 00 00 03 B1 80 87 /* 16  */
+			29 01 00 00 00 00 03 B1 80 6C /* 17  */
+			29 01 00 00 00 00 03 B1 80 51 /* 18  */
+			29 01 00 00 00 00 03 B1 80 41 /* 19  */
+			29 01 00 00 00 00 03 B1 80 27 /* 20  */
+			29 01 00 00 00 00 03 B1 80 14 /* 21  */
+			29 01 00 00 00 00 03 B1 70 CE /* 22  */
+			29 01 00 00 00 00 03 B1 70 B3 /* 23  */
+			29 01 00 00 00 00 03 B1 70 9A /* 24  */
+			29 01 00 00 00 00 03 B1 70 81 /* 25  */
+			29 01 00 00 00 00 03 B1 70 4F /* 26  */
+			29 01 00 00 00 00 03 B1 70 3C /* 27  */
+			29 01 00 00 00 00 03 B1 70 20 /* 28  */
+			29 01 00 00 00 00 03 B1 70 30 /* 29  */
+			29 01 00 00 00 00 03 B1 60 E9 /* 30  */
+			29 01 00 00 00 00 03 B1 60 CF /* 31  */
+			29 01 00 00 00 00 03 B1 60 A8 /* 32  */
+			29 01 00 00 00 00 03 B1 60 81 /* 33  */
+			29 01 00 00 00 00 03 B1 60 4F /* 34  */
+			29 01 00 00 00 00 03 B1 60 36 /* 35  */
+			29 01 00 00 00 00 03 B1 60 1D /* 36  */
+			29 01 00 00 00 00 03 B1 50 F4 /* 37  */
+			29 01 00 00 00 00 03 B1 50 CB /* 38  */
+			29 01 00 00 00 00 03 B1 50 B0 /* 39  */
+			29 01 00 00 00 00 03 B1 50 96 /* 40  */
+			29 01 00 00 00 00 03 B1 50 7B /* 41  */
+			29 01 00 00 00 00 03 B1 50 54 /* 42  */
+			29 01 00 00 00 00 03 B1 50 2D /* 43  */
+			29 01 00 00 00 00 03 B1 50 70 /* 44  */
+			29 01 00 00 00 00 03 B1 40 E1 /* 45  */
+			29 01 00 00 00 00 03 B1 40 B6 /* 46  */
+			29 01 00 00 00 00 03 B1 40 8B /* 47  */
+			29 01 00 00 00 00 03 B1 40 67 /* 48  */
+			29 01 00 00 00 00 03 B1 40 44 /* 49  */
+			29 01 00 00 00 00 03 B1 40 20 /* 50  */
+			29 01 00 00 00 00 03 B1 30 FA /* 51  */
+			29 01 00 00 00 00 03 B1 30 D4 /* 52  */
+			29 01 00 00 00 00 03 B1 30 AE /* 53  */
+			29 01 00 00 00 00 03 B1 30 EF /* 54  */
+			29 01 00 00 00 00 03 B1 30 CE /* 55  */
+			29 01 00 00 00 00 03 B1 30 9B /* 56  */
+			29 01 00 00 00 00 03 B1 30 C9 /* 57  */
+			29 01 00 00 00 00 03 B1 30 9B /* 58  */
+			29 01 00 00 00 00 03 B1 30 EC /* 59  */
+			29 01 00 00 00 00 03 B1 30 D1 /* 60  */
+			29 01 00 00 00 00 03 B1 30 B6 /* 61  */
+			29 01 00 00 00 00 03 B1 30 9B /* 62  */
+			29 01 00 00 00 00 03 B1 30 DF /* 63  */
+			29 01 00 00 00 00 03 B1 30 BD /* 64  */
+			29 01 00 00 00 00 03 B1 30 9B /* 65  */
+			29 01 00 00 00 00 03 B1 30 E3 /* 66  */
+			29 01 00 00 00 00 03 B1 30 CB /* 67  */
+			29 01 00 00 00 00 03 B1 30 B3 /* 68  */
+			29 01 00 00 00 00 03 B1 30 9B /* 69  */
+			29 01 00 00 00 00 03 B1 30 EB /* 70  */
+			29 01 00 00 00 00 03 B1 30 D1 /* 71  */
+			29 01 00 00 00 00 03 B1 30 B6 /* 72  */
+			29 01 00 00 00 00 03 B1 30 9B /* 73  */
+			29 01 00 00 00 00 03 B1 30 D4 /* 74  */
+			29 01 00 00 00 00 03 B1 30 B7 /* 75  */
+			29 01 00 00 00 00 03 B1 30 9B /* 76  */
+			29 01 00 00 00 00 03 B1 30 EE /* 77  */
+			29 01 00 00 00 00 03 B1 30 D2 /* 78  */
+			29 01 00 00 00 00 03 B1 30 B7 /* 79  */
+			29 01 00 00 00 00 03 B1 30 9B /* 80  */
+			29 01 00 00 00 00 03 B1 30 DE /* 81  */
+			29 01 00 00 00 00 03 B1 30 C8 /* 82  */
+			29 01 00 00 00 00 03 B1 30 B1 /* 83  */
+			29 01 00 00 00 00 03 B1 30 9B /* 84  */
+			29 01 00 00 00 00 03 B1 30 F4 /* 85  */
+			29 01 00 00 00 00 03 B1 30 DE /* 86  */
+			29 01 00 00 00 00 03 B1 30 C8 /* 87  */
+			29 01 00 00 00 00 03 B1 30 B1 /* 88  */
+			29 01 00 00 00 00 03 B1 30 9B /* 89  */
+			29 01 00 00 00 00 03 B1 30 E5 /* 90  */
+			29 01 00 00 00 00 03 B1 30 D2 /* 91  */
+			29 01 00 00 00 00 03 B1 30 C0 /* 92  */
+			29 01 00 00 00 00 03 B1 30 AD /* 93  */
+			29 01 00 00 00 00 03 B1 30 9B /* 94  */
+			29 01 00 00 00 00 03 B1 30 EA /* 95  */
+			29 01 00 00 00 00 03 B1 30 D7 /* 96  */
+			29 01 00 00 00 00 03 B1 30 C3 /* 97  */
+			29 01 00 00 00 00 03 B1 30 AF /* 98  */
+			29 01 00 00 00 00 03 B1 30 9B /* 99  */
+			29 01 00 00 00 00 03 B1 30 EF /* 100 */
+			29 01 00 00 00 00 03 B1 30 DA /* 101 */
+			29 01 00 00 00 00 03 B1 30 C5 /* 102 */
+			29 01 00 00 00 00 03 B1 30 B0 /* 103 */
+			29 01 00 00 00 00 03 B1 30 9B /* 104 */
+			29 01 00 00 00 00 03 B1 30 ED /* 105 */
+			29 01 00 00 00 00 03 B1 30 DD /* 106 */
+			29 01 00 00 00 00 03 B1 30 CC /* 107 */
+			29 01 00 00 00 00 03 B1 30 BC /* 108 */
+			29 01 00 00 00 00 03 B1 30 AB /* 109 */
+			29 01 00 00 00 00 03 B1 30 9B /* 110 */
+			29 01 00 00 00 00 03 B1 30 F0 /* 111 */
+			29 01 00 00 00 00 03 B1 30 DF /* 112 */
+			29 01 00 00 00 00 03 B1 30 CE /* 113 */
+			29 01 00 00 00 00 03 B1 30 BD /* 114 */
+			29 01 00 00 00 00 03 B1 30 AC /* 115 */
+			29 01 00 00 00 00 03 B1 30 9B /* 116 */
+			29 01 00 00 00 00 03 B1 30 E8 /* 117 */
+			29 01 00 00 00 00 03 B1 30 D5 /* 118 */
+			29 01 00 00 00 00 03 B1 30 C2 /* 119 */
+			29 01 00 00 00 00 03 B1 30 AE /* 120 */
+			29 01 00 00 00 00 03 B1 30 9B /* 121 */
+			29 01 00 00 00 00 03 B1 30 F1 /* 122 */
+			29 01 00 00 00 00 03 B1 30 E2 /* 123 */
+			29 01 00 00 00 00 03 B1 30 D4 /* 124 */
+			29 01 00 00 00 00 03 B1 30 C6 /* 125 */
+			29 01 00 00 00 00 03 B1 30 B8 /* 126 */
+			29 01 00 00 00 00 03 B1 30 A9 /* 127 */
+			29 01 00 00 00 00 03 B1 30 5E /* 128 */
+			29 01 00 00 00 00 03 B1 30 4C /* 129 */
+			29 01 00 00 00 00 03 B1 30 3A /* 130 */
+			29 01 00 00 00 00 03 B1 30 29 /* 131 */
+			29 01 00 00 00 00 03 B1 30 16 /* 132 */
+			29 01 00 00 00 00 03 B1 30 50 /* 133 */
+			29 01 00 00 00 00 03 B1 20 F3 /* 134 */
+			29 01 00 00 00 00 03 B1 20 E1 /* 135 */
+			29 01 00 00 00 00 03 B1 20 D3 /* 136 */
+			29 01 00 00 00 00 03 B1 20 C6 /* 137 */
+			29 01 00 00 00 00 03 B1 20 B8 /* 138 */
+			29 01 00 00 00 00 03 B1 20 AA /* 139 */
+			29 01 00 00 00 00 03 B1 20 9C /* 140 */
+			29 01 00 00 00 00 03 B1 20 8F /* 141 */
+			29 01 00 00 00 00 03 B1 20 81 /* 142 */
+			29 01 00 00 00 00 03 B1 20 6C /* 143 */
+			29 01 00 00 00 00 03 B1 20 58 /* 144 */
+			29 01 00 00 00 00 03 B1 20 43 /* 145 */
+			29 01 00 00 00 00 03 B1 20 2E /* 146 */
+			29 01 00 00 00 00 03 B1 20 19 /* 147 */
+			29 01 00 00 00 00 03 B1 20 50 /* 148 */
+			29 01 00 00 00 00 03 B1 10 F0 /* 149 */
+			29 01 00 00 00 00 03 B1 10 E0 /* 150 */
+			29 01 00 00 00 00 03 B1 10 CF /* 151 */
+			29 01 00 00 00 00 03 B1 10 BF /* 152 */
+			29 01 00 00 00 00 03 B1 10 AF /* 153 */
+			29 01 00 00 00 00 03 B1 10 9E /* 154 */
+			29 01 00 00 00 00 03 B1 10 8E /* 155 */
+			29 01 00 00 00 00 03 B1 10 7D /* 156 */
+			29 01 00 00 00 00 03 B1 10 6D /* 157 */
+			29 01 00 00 00 00 03 B1 10 5F /* 158 */
+			29 01 00 00 00 00 03 B1 10 52 /* 159 */
+			29 01 00 00 00 00 03 B1 10 44 /* 160 */
+			29 01 00 00 00 00 03 B1 10 36 /* 161 */
+			29 01 00 00 00 00 03 B1 10 28 /* 162 */
+			29 01 00 00 00 00 03 B1 10 1B /* 163 */
+			29 01 00 00 00 00 03 B1 10 0D /* 164 */
+			29 01 00 00 00 00 03 B1 00 FF /* 165 */
+			29 01 00 00 00 00 03 B1 10 7C /* 166 */
+			29 01 00 00 00 00 03 B1 10 6C /* 167 */
+			29 01 00 00 00 00 03 B1 10 5D /* 168 */
+			29 01 00 00 00 00 03 B1 10 4D /* 169 */
+			29 01 00 00 00 00 03 B1 10 3E /* 170 */
+			29 01 00 00 00 00 03 B1 10 2E /* 171 */
+			29 01 00 00 00 00 03 B1 10 1E /* 172 */
+			29 01 00 00 00 00 03 B1 10 0F /* 173 */
+			29 01 00 00 00 00 03 B1 00 FF /* 174 */
+			29 01 00 00 00 00 03 B1 10 7C /* 175 */
+			29 01 00 00 00 00 03 B1 10 6C /* 176 */
+			29 01 00 00 00 00 03 B1 10 5D /* 177 */
+			29 01 00 00 00 00 03 B1 10 4D /* 178 */
+			29 01 00 00 00 00 03 B1 10 3D /* 179 */
+			29 01 00 00 00 00 03 B1 10 2E /* 180 */
+			29 01 00 00 00 00 03 B1 10 1E /* 181 */
+			29 01 00 00 00 00 03 B1 10 0F /* 182 */
+			29 01 00 00 00 00 03 B1 00 FF /* 183 */
+			29 01 00 00 00 00 03 B1 10 7D /* 184 */
+			29 01 00 00 00 00 03 B1 10 6F /* 185 */
+			29 01 00 00 00 00 03 B1 10 61 /* 186 */
+			29 01 00 00 00 00 03 B1 10 53 /* 187 */
+			29 01 00 00 00 00 03 B1 10 45 /* 188 */
+			29 01 00 00 00 00 03 B1 10 37 /* 189 */
+			29 01 00 00 00 00 03 B1 10 29 /* 190 */
+			29 01 00 00 00 00 03 B1 10 1B /* 191 */
+			29 01 00 00 00 00 03 B1 10 0D /* 192 */
+			29 01 00 00 00 00 03 B1 00 FF /* 193 */
+			29 01 00 00 00 00 03 B1 10 66 /* 194 */
+			29 01 00 00 00 00 03 B1 10 57 /* 195 */
+			29 01 00 00 00 00 03 B1 10 49 /* 196 */
+			29 01 00 00 00 00 03 B1 10 3A /* 197 */
+			29 01 00 00 00 00 03 B1 10 2B /* 198 */
+			29 01 00 00 00 00 03 B1 10 1D /* 199 */
+			29 01 00 00 00 00 03 B1 10 0E /* 200 */
+			29 01 00 00 00 00 03 B1 00 FF /* 201 */
+			29 01 00 00 00 00 03 B1 10 69 /* 202 */
+			29 01 00 00 00 00 03 B1 10 5C /* 203 */
+			29 01 00 00 00 00 03 B1 10 4E /* 204 */
+			29 01 00 00 00 00 03 B1 10 41 /* 205 */
+			29 01 00 00 00 00 03 B1 10 34 /* 206 */
+			29 01 00 00 00 00 03 B1 10 27 /* 207 */
+			29 01 00 00 00 00 03 B1 10 19 /* 208 */
+			29 01 00 00 00 00 03 B1 10 0C /* 209 */
+			29 01 00 00 00 00 03 B1 00 FF /* 210 */
+			29 01 00 00 00 00 03 B1 10 64 /* 211 */
+			29 01 00 00 00 00 03 B1 10 57 /* 212 */
+			29 01 00 00 00 00 03 B1 10 4A /* 213 */
+			29 01 00 00 00 00 03 B1 10 3E /* 214 */
+			29 01 00 00 00 00 03 B1 10 31 /* 215 */
+			29 01 00 00 00 00 03 B1 10 25 /* 216 */
+			29 01 00 00 00 00 03 B1 10 18 /* 217 */
+			29 01 00 00 00 00 03 B1 10 0C /* 218 */
+			29 01 00 00 00 00 03 B1 00 FF /* 219 */
+			29 01 00 00 00 00 03 B1 10 21 /* 220 */
+			29 01 00 00 00 00 03 B1 10 16 /* 221 */
+			29 01 00 00 00 00 03 B1 10 0A /* 222 */
+			29 01 00 00 00 00 03 B1 00 FF /* 223 */
+			29 01 00 00 00 00 03 B1 10 25 /* 224 */
+			29 01 00 00 00 00 03 B1 10 19 /* 225 */
+			29 01 00 00 00 00 03 B1 10 0C /* 226 */
+			29 01 00 00 00 00 03 B1 00 FF /* 227 */
+			29 01 00 00 00 00 03 B1 00 D4 /* 228 */
+			29 01 00 00 00 00 03 B1 00 A8 /* 229 */
+			29 01 00 00 00 00 03 B1 00 7D /* 230 */
+			29 01 00 00 00 00 03 B1 00 6C /* 231 */
+			29 01 00 00 00 00 03 B1 00 5B /* 232 */
+			29 01 00 00 00 00 03 B1 00 49 /* 233 */
+			29 01 00 00 00 00 03 B1 00 38 /* 234 */
+			29 01 00 00 00 00 03 B1 00 30 /* 235 */
+			29 01 00 00 00 00 03 B1 00 27 /* 236 */
+			29 01 00 00 00 00 03 B1 00 1E /* 237 */
+			29 01 00 00 00 00 03 B1 00 16 /* 238 */
+			29 01 00 00 00 00 03 B1 00 14 /* 239 */
+			29 01 00 00 00 00 03 B1 00 13 /* 240 */
+			29 01 00 00 00 00 03 B1 00 11 /* 241 */
+			29 01 00 00 00 00 03 B1 00 0F /* 242 */
+			29 01 00 00 00 00 03 B1 00 0E /* 243 */
+			29 01 00 00 00 00 03 B1 00 0D /* 244 */
+			29 01 00 00 00 00 03 B1 00 0D /* 245 */
+			29 01 00 00 00 00 03 B1 00 0C /* 246 */
+			29 01 00 00 00 00 03 B1 00 36 /* 247 */
+			29 01 00 00 00 00 03 B1 00 28 /* 248 */
+			29 01 00 00 00 00 03 B1 00 1A /* 249 */
+			29 01 00 00 00 00 03 B1 00 0C /* 250 */
+			29 01 00 00 00 00 03 B1 00 31 /* 251 */
+			29 01 00 00 00 00 03 B1 00 24 /* 252 */
+			29 01 00 00 00 00 03 B1 00 18 /* 253 */
+			29 01 00 00 00 00 03 B1 00 0C /* 254 */
+			29 01 00 00 00 00 03 B1 00 0C /* 255 */
+		];
+
+		samsung,aid_subdivision_tx_cmds_revF = [
+			29 01 00 00 00 00 03 B1 90 E3 /* 0   */
+			29 01 00 00 00 00 03 B1 90 DF /* 1   */
+			29 01 00 00 00 00 03 B1 90 DD /* 2   */
+			29 01 00 00 00 00 03 B1 90 D3 /* 3   */
+			29 01 00 00 00 00 03 B1 90 D1 /* 4   */
+			29 01 00 00 00 00 03 B1 90 CF /* 5   */
+			29 01 00 00 00 00 03 B1 90 CD /* 6   */
+			29 01 00 00 00 00 03 B1 90 C7 /* 7   */
+			29 01 00 00 00 00 03 B1 90 C5 /* 8   */
+			29 01 00 00 00 00 03 B1 90 C3 /* 9   */
+			29 01 00 00 00 00 03 B1 90 C1 /* 10  */
+			29 01 00 00 00 00 03 B1 90 B7 /* 11  */
+			29 01 00 00 00 00 03 B1 90 B4 /* 12  */
+			29 01 00 00 00 00 03 B1 90 B0 /* 13  */
+			29 01 00 00 00 00 03 B1 90 AD /* 14  */
+			29 01 00 00 00 00 03 B1 90 A3 /* 15  */
+			29 01 00 00 00 00 03 B1 90 A1 /* 16  */
+			29 01 00 00 00 00 03 B1 90 9F /* 17  */
+			29 01 00 00 00 00 03 B1 90 9D /* 18  */
+			29 01 00 00 00 00 03 B1 90 93 /* 19  */
+			29 01 00 00 00 00 03 B1 90 91 /* 20  */
+			29 01 00 00 00 00 03 B1 90 8F /* 21  */
+			29 01 00 00 00 00 03 B1 90 8D /* 22  */
+			29 01 00 00 00 00 03 B1 90 88 /* 23  */
+			29 01 00 00 00 00 03 B1 90 86 /* 24  */
+			29 01 00 00 00 00 03 B1 90 84 /* 25  */
+			29 01 00 00 00 00 03 B1 90 82 /* 26  */
+			29 01 00 00 00 00 03 B1 90 80 /* 27  */
+			29 01 00 00 00 00 03 B1 90 7B /* 28  */
+			29 01 00 00 00 00 03 B1 90 77 /* 29  */
+			29 01 00 00 00 00 03 B1 90 75 /* 30  */
+			29 01 00 00 00 00 03 B1 90 73 /* 31  */
+			29 01 00 00 00 00 03 B1 90 69 /* 32  */
+			29 01 00 00 00 00 03 B1 90 67 /* 33  */
+			29 01 00 00 00 00 03 B1 90 64 /* 34  */
+			29 01 00 00 00 00 03 B1 90 5A /* 35  */
+			29 01 00 00 00 00 03 B1 90 50 /* 36  */
+			29 01 00 00 00 00 03 B1 90 42 /* 37  */
+			29 01 00 00 00 00 03 B1 90 34 /* 38  */
+			29 01 00 00 00 00 03 B1 90 2A /* 39  */
+			29 01 00 00 00 00 03 B1 90 20 /* 40  */
+			29 01 00 00 00 00 03 B1 90 12 /* 41  */
+			29 01 00 00 00 00 03 B1 90 04 /* 42  */
+			29 01 00 00 00 00 03 B1 80 FA /* 43  */
+			29 01 00 00 00 00 03 B1 80 F0 /* 44  */
+			29 01 00 00 00 00 03 B1 80 E7 /* 45  */
+			29 01 00 00 00 00 03 B1 80 DD /* 46  */
+			29 01 00 00 00 00 03 B1 80 D0 /* 47  */
+			29 01 00 00 00 00 03 B1 80 C2 /* 48  */
+			29 01 00 00 00 00 03 B1 80 B8 /* 49  */
+			29 01 00 00 00 00 03 B1 80 AE /* 50  */
+			29 01 00 00 00 00 03 B1 80 A0 /* 51  */
+			29 01 00 00 00 00 03 B1 80 92 /* 52  */
+			29 01 00 00 00 00 03 B1 80 83 /* 53  */
+			29 01 00 00 00 00 03 B1 80 74 /* 54  */
+			29 01 00 00 00 00 03 B1 80 5C /* 55  */
+			29 01 00 00 00 00 03 B1 80 44 /* 56  */
+			29 01 00 00 00 00 03 B1 80 2E /* 57  */
+			29 01 00 00 00 00 03 B1 80 26 /* 58  */
+			29 01 00 00 00 00 03 B1 80 1E /* 59  */
+			29 01 00 00 00 00 03 B1 80 0F /* 60  */
+			29 01 00 00 00 00 03 B1 80 00 /* 61  */
+			29 01 00 00 00 00 03 B1 70 E8 /* 62  */
+			29 01 00 00 00 00 03 B1 70 D0 /* 63  */
+			29 01 00 00 00 00 03 B1 70 C1 /* 64  */
+			29 01 00 00 00 00 03 B1 70 B2 /* 65  */
+			29 01 00 00 00 00 03 B1 70 99 /* 66  */
+			29 01 00 00 00 00 03 B1 70 80 /* 67  */
+			29 01 00 00 00 00 03 B1 70 67 /* 68  */
+			29 01 00 00 00 00 03 B1 70 4E /* 69  */
+			29 01 00 00 00 00 03 B1 70 33 /* 70  */
+			29 01 00 00 00 00 03 B1 70 1A /* 71  */
+			29 01 00 00 00 00 03 B1 70 00 /* 72  */
+			29 01 00 00 00 00 03 B1 60 E7 /* 73  */
+			29 01 00 00 00 00 03 B1 60 CF /* 74  */
+			29 01 00 00 00 00 03 B1 60 A7 /* 75  */
+			29 01 00 00 00 00 03 B1 60 80 /* 76  */
+			29 01 00 00 00 00 03 B1 60 69 /* 77  */
+			29 01 00 00 00 00 03 B1 60 51 /* 78  */
+			29 01 00 00 00 00 03 B1 60 39 /* 79  */
+			29 01 00 00 00 00 03 B1 60 20 /* 80  */
+			29 01 00 00 00 00 03 B1 50 F8 /* 81  */
+			29 01 00 00 00 00 03 B1 50 D0 /* 82  */
+			29 01 00 00 00 00 03 B1 50 A9 /* 83  */
+			29 01 00 00 00 00 03 B1 50 81 /* 84  */
+			29 01 00 00 00 00 03 B1 50 59 /* 85  */
+			29 01 00 00 00 00 03 B1 50 31 /* 86  */
+			29 01 00 00 00 00 03 B1 50 0A /* 87  */
+			29 01 00 00 00 00 03 B1 40 E3 /* 88  */
+			29 01 00 00 00 00 03 B1 40 BA /* 89  */
+			29 01 00 00 00 00 03 B1 40 91 /* 90  */
+			29 01 00 00 00 00 03 B1 40 59 /* 91  */
+			29 01 00 00 00 00 03 B1 40 22 /* 92  */
+			29 01 00 00 00 00 03 B1 30 EA /* 93  */
+			29 01 00 00 00 00 03 B1 30 B1 /* 94  */
+			29 01 00 00 00 00 03 B1 30 B6 /* 95  */
+			29 01 00 00 00 00 03 B1 30 84 /* 96  */
+			29 01 00 00 00 00 03 B1 30 B3 /* 97  */
+			29 01 00 00 00 00 03 B1 30 84 /* 98  */
+			29 01 00 00 00 00 03 B1 30 BB /* 99  */
+			29 01 00 00 00 00 03 B1 30 84 /* 100 */
+			29 01 00 00 00 00 03 B1 30 B7 /* 101 */
+			29 01 00 00 00 00 03 B1 30 84 /* 102 */
+			29 01 00 00 00 00 03 B1 30 B4 /* 103 */
+			29 01 00 00 00 00 03 B1 30 84 /* 104 */
+			29 01 00 00 00 00 03 B1 30 BA /* 105 */
+			29 01 00 00 00 00 03 B1 30 84 /* 106 */
+			29 01 00 00 00 00 03 B1 30 AF /* 107 */
+			29 01 00 00 00 00 03 B1 30 84 /* 108 */
+			29 01 00 00 00 00 03 B1 30 BC /* 109 */
+			29 01 00 00 00 00 03 B1 30 84 /* 110 */
+			29 01 00 00 00 00 03 B1 30 B2 /* 111 */
+			29 01 00 00 00 00 03 B1 30 84 /* 112 */
+			29 01 00 00 00 00 03 B1 30 BD /* 113 */
+			29 01 00 00 00 00 03 B1 30 84 /* 114 */
+			29 01 00 00 00 00 03 B1 30 B3 /* 115 */
+			29 01 00 00 00 00 03 B1 30 84 /* 116 */
+			29 01 00 00 00 00 03 B1 30 B6 /* 117 */
+			29 01 00 00 00 00 03 B1 30 84 /* 118 */
+			29 01 00 00 00 00 03 B1 30 B9 /* 119 */
+			29 01 00 00 00 00 03 B1 30 84 /* 120 */
+			29 01 00 00 00 00 03 B1 30 B6 /* 121 */
+			29 01 00 00 00 00 03 B1 30 84 /* 122 */
+			29 01 00 00 00 00 03 B1 30 B8 /* 123 */
+			29 01 00 00 00 00 03 B1 30 84 /* 124 */
+			29 01 00 00 00 00 03 B1 30 B5 /* 125 */
+			29 01 00 00 00 00 03 B1 30 84 /* 126 */
+			29 01 00 00 00 00 03 B1 30 B7 /* 127 */
+			29 01 00 00 00 00 03 B1 30 84 /* 128 */
+			29 01 00 00 00 00 03 B1 30 73 /* 129 */
+			29 01 00 00 00 00 03 B1 30 63 /* 130 */
+			29 01 00 00 00 00 03 B1 30 52 /* 131 */
+			29 01 00 00 00 00 03 B1 30 42 /* 132 */
+			29 01 00 00 00 00 03 B1 30 31 /* 133 */
+			29 01 00 00 00 00 03 B1 30 21 /* 134 */
+			29 01 00 00 00 00 03 B1 30 10 /* 135 */
+			29 01 00 00 00 00 03 B1 20 FC /* 136 */
+			29 01 00 00 00 00 03 B1 20 E8 /* 137 */
+			29 01 00 00 00 00 03 B1 20 D5 /* 138 */
+			29 01 00 00 00 00 03 B1 20 C1 /* 139 */
+			29 01 00 00 00 00 03 B1 20 AD /* 140 */
+			29 01 00 00 00 00 03 B1 20 99 /* 141 */
+			29 01 00 00 00 00 03 B1 20 85 /* 142 */
+			29 01 00 00 00 00 03 B1 20 72 /* 143 */
+			29 01 00 00 00 00 03 B1 20 5E /* 144 */
+			29 01 00 00 00 00 03 B1 20 4B /* 145 */
+			29 01 00 00 00 00 03 B1 20 38 /* 146 */
+			29 01 00 00 00 00 03 B1 20 25 /* 147 */
+			29 01 00 00 00 00 03 B1 20 11 /* 148 */
+			29 01 00 00 00 00 03 B1 10 FE /* 149 */
+			29 01 00 00 00 00 03 B1 10 E8 /* 150 */
+			29 01 00 00 00 00 03 B1 10 D1 /* 151 */
+			29 01 00 00 00 00 03 B1 10 BB /* 152 */
+			29 01 00 00 00 00 03 B1 10 A4 /* 153 */
+			29 01 00 00 00 00 03 B1 10 8E /* 154 */
+			29 01 00 00 00 00 03 B1 10 78 /* 155 */
+			29 01 00 00 00 00 03 B1 10 61 /* 156 */
+			29 01 00 00 00 00 03 B1 10 4B /* 157 */
+			29 01 00 00 00 00 03 B1 10 7E /* 158 */
+			29 01 00 00 00 00 03 B1 10 6C /* 159 */
+			29 01 00 00 00 00 03 B1 10 5B /* 160 */
+			29 01 00 00 00 00 03 B1 10 49 /* 161 */
+			29 01 00 00 00 00 03 B1 10 38 /* 162 */
+			29 01 00 00 00 00 03 B1 10 26 /* 163 */
+			29 01 00 00 00 00 03 B1 10 15 /* 164 */
+			29 01 00 00 00 00 03 B1 10 03 /* 165 */
+			29 01 00 00 00 00 03 B1 10 80 /* 166 */
+			29 01 00 00 00 00 03 B1 10 70 /* 167 */
+			29 01 00 00 00 00 03 B1 10 61 /* 168 */
+			29 01 00 00 00 00 03 B1 10 51 /* 169 */
+			29 01 00 00 00 00 03 B1 10 41 /* 170 */
+			29 01 00 00 00 00 03 B1 10 32 /* 171 */
+			29 01 00 00 00 00 03 B1 10 22 /* 172 */
+			29 01 00 00 00 00 03 B1 10 13 /* 173 */
+			29 01 00 00 00 00 03 B1 10 03 /* 174 */
+			29 01 00 00 00 00 03 B1 10 80 /* 175 */
+			29 01 00 00 00 00 03 B1 10 70 /* 176 */
+			29 01 00 00 00 00 03 B1 10 60 /* 177 */
+			29 01 00 00 00 00 03 B1 10 51 /* 178 */
+			29 01 00 00 00 00 03 B1 10 41 /* 179 */
+			29 01 00 00 00 00 03 B1 10 32 /* 180 */
+			29 01 00 00 00 00 03 B1 10 22 /* 181 */
+			29 01 00 00 00 00 03 B1 10 13 /* 182 */
+			29 01 00 00 00 00 03 B1 10 03 /* 183 */
+			29 01 00 00 00 00 03 B1 10 81 /* 184 */
+			29 01 00 00 00 00 03 B1 10 73 /* 185 */
+			29 01 00 00 00 00 03 B1 10 65 /* 186 */
+			29 01 00 00 00 00 03 B1 10 57 /* 187 */
+			29 01 00 00 00 00 03 B1 10 49 /* 188 */
+			29 01 00 00 00 00 03 B1 10 3B /* 189 */
+			29 01 00 00 00 00 03 B1 10 2D /* 190 */
+			29 01 00 00 00 00 03 B1 10 1F /* 191 */
+			29 01 00 00 00 00 03 B1 10 11 /* 192 */
+			29 01 00 00 00 00 03 B1 10 03 /* 193 */
+			29 01 00 00 00 00 03 B1 10 6A /* 194 */
+			29 01 00 00 00 00 03 B1 10 5B /* 195 */
+			29 01 00 00 00 00 03 B1 10 4D /* 196 */
+			29 01 00 00 00 00 03 B1 10 3E /* 197 */
+			29 01 00 00 00 00 03 B1 10 2F /* 198 */
+			29 01 00 00 00 00 03 B1 10 20 /* 199 */
+			29 01 00 00 00 00 03 B1 10 12 /* 200 */
+			29 01 00 00 00 00 03 B1 10 03 /* 201 */
+			29 01 00 00 00 00 03 B1 10 6D /* 202 */
+			29 01 00 00 00 00 03 B1 10 5F /* 203 */
+			29 01 00 00 00 00 03 B1 10 52 /* 204 */
+			29 01 00 00 00 00 03 B1 10 45 /* 205 */
+			29 01 00 00 00 00 03 B1 10 38 /* 206 */
+			29 01 00 00 00 00 03 B1 10 2B /* 207 */
+			29 01 00 00 00 00 03 B1 10 1D /* 208 */
+			29 01 00 00 00 00 03 B1 10 10 /* 209 */
+			29 01 00 00 00 00 03 B1 10 03 /* 210 */
+			29 01 00 00 00 00 03 B1 10 67 /* 211 */
+			29 01 00 00 00 00 03 B1 10 5B /* 212 */
+			29 01 00 00 00 00 03 B1 10 4E /* 213 */
+			29 01 00 00 00 00 03 B1 10 42 /* 214 */
+			29 01 00 00 00 00 03 B1 10 35 /* 215 */
+			29 01 00 00 00 00 03 B1 10 29 /* 216 */
+			29 01 00 00 00 00 03 B1 10 1C /* 217 */
+			29 01 00 00 00 00 03 B1 10 10 /* 218 */
+			29 01 00 00 00 00 03 B1 10 03 /* 219 */
+			29 01 00 00 00 00 03 B1 10 25 /* 220 */
+			29 01 00 00 00 00 03 B1 10 1A /* 221 */
+			29 01 00 00 00 00 03 B1 10 0E /* 222 */
+			29 01 00 00 00 00 03 B1 10 03 /* 223 */
+			29 01 00 00 00 00 03 B1 10 29 /* 224 */
+			29 01 00 00 00 00 03 B1 10 1C /* 225 */
+			29 01 00 00 00 00 03 B1 10 10 /* 226 */
+			29 01 00 00 00 00 03 B1 10 03 /* 227 */
+			29 01 00 00 00 00 03 B1 00 F3 /* 228 */
+			29 01 00 00 00 00 03 B1 00 E2 /* 229 */
+			29 01 00 00 00 00 03 B1 00 D2 /* 230 */
+			29 01 00 00 00 00 03 B1 00 BE /* 231 */
+			29 01 00 00 00 00 03 B1 00 AB /* 232 */
+			29 01 00 00 00 00 03 B1 00 97 /* 233 */
+			29 01 00 00 00 00 03 B1 00 83 /* 234 */
+			29 01 00 00 00 00 03 B1 00 78 /* 235 */
+			29 01 00 00 00 00 03 B1 00 6D /* 236 */
+			29 01 00 00 00 00 03 B1 00 62 /* 237 */
+			29 01 00 00 00 00 03 B1 00 57 /* 238 */
+			29 01 00 00 00 00 03 B1 00 45 /* 239 */
+			29 01 00 00 00 00 03 B1 00 33 /* 240 */
+			29 01 00 00 00 00 03 B1 00 21 /* 241 */
+			29 01 00 00 00 00 03 B1 00 0F /* 242 */
+			29 01 00 00 00 00 03 B1 00 32 /* 243 */
+			29 01 00 00 00 00 03 B1 00 26 /* 244 */
+			29 01 00 00 00 00 03 B1 00 19 /* 245 */
+			29 01 00 00 00 00 03 B1 00 0C /* 246 */
+			29 01 00 00 00 00 03 B1 00 36 /* 247 */
+			29 01 00 00 00 00 03 B1 00 28 /* 248 */
+			29 01 00 00 00 00 03 B1 00 1A /* 249 */
+			29 01 00 00 00 00 03 B1 00 0C /* 250 */
+			29 01 00 00 00 00 03 B1 00 31 /* 251 */
+			29 01 00 00 00 00 03 B1 00 24 /* 252 */
+			29 01 00 00 00 00 03 B1 00 18 /* 253 */
+			29 01 00 00 00 00 03 B1 00 0C /* 254 */
+			29 01 00 00 00 00 03 B1 00 0C /* 255 */
+		];
+
+		samsung,aid_subdivision_tx_cmds_revJ = [
+			29 01 00 00 00 00 03 B1 90 E3  /* 00 */
+			29 01 00 00 00 00 03 B1 90 DF  /* 01 */
+			29 01 00 00 00 00 03 B1 90 DD  /* 02 */
+			29 01 00 00 00 00 03 B1 90 D3  /* 03 */
+			29 01 00 00 00 00 03 B1 90 D1  /* 04 */
+			29 01 00 00 00 00 03 B1 90 CF  /* 05 */
+			29 01 00 00 00 00 03 B1 90 CA  /* 06 */
+			29 01 00 00 00 00 03 B1 90 C3  /* 07 */
+			29 01 00 00 00 00 03 B1 90 C1  /* 08 */
+			29 01 00 00 00 00 03 B1 90 BF  /* 09 */
+			29 01 00 00 00 00 03 B1 90 BD  /* 10 */
+			29 01 00 00 00 00 03 B1 90 B3  /* 11 */
+			29 01 00 00 00 00 03 B1 90 B1  /* 12 */
+			29 01 00 00 00 00 03 B1 90 AF  /* 13 */
+			29 01 00 00 00 00 03 B1 90 AD  /* 14 */
+			29 01 00 00 00 00 03 B1 90 A3  /* 15 */
+			29 01 00 00 00 00 03 B1 90 A1  /* 16 */
+			29 01 00 00 00 00 03 B1 90 9F  /* 17 */
+			29 01 00 00 00 00 03 B1 90 9D  /* 18 */
+			29 01 00 00 00 00 03 B1 90 93  /* 19 */
+			29 01 00 00 00 00 03 B1 90 91  /* 20 */
+			29 01 00 00 00 00 03 B1 90 8F  /* 21 */
+			29 01 00 00 00 00 03 B1 90 8D  /* 22 */
+			29 01 00 00 00 00 03 B1 90 83  /* 23 */
+			29 01 00 00 00 00 03 B1 90 81  /* 24 */
+			29 01 00 00 00 00 03 B1 90 7F  /* 25 */
+			29 01 00 00 00 00 03 B1 90 7D  /* 26 */
+			29 01 00 00 00 00 03 B1 90 7C  /* 27 */
+			29 01 00 00 00 00 03 B1 90 77  /* 28 */
+			29 01 00 00 00 00 03 B1 90 73  /* 29 */
+			29 01 00 00 00 00 03 B1 90 71  /* 30 */
+			29 01 00 00 00 00 03 B1 90 6F  /* 31 */
+			29 01 00 00 00 00 03 B1 90 6D  /* 32 */
+			29 01 00 00 00 00 03 B1 90 63  /* 33 */
+			29 01 00 00 00 00 03 B1 90 61  /* 34 */
+			29 01 00 00 00 00 03 B1 90 57  /* 35 */
+			29 01 00 00 00 00 03 B1 90 4D  /* 36 */
+			29 01 00 00 00 00 03 B1 90 3F  /* 37 */
+			29 01 00 00 00 00 03 B1 90 31  /* 38 */
+			29 01 00 00 00 00 03 B1 90 27  /* 39 */
+			29 01 00 00 00 00 03 B1 90 1D  /* 40 */
+			29 01 00 00 00 00 03 B1 90 0F  /* 41 */
+			29 01 00 00 00 00 03 B1 90 02  /* 42 */
+			29 01 00 00 00 00 03 B1 80 F8  /* 43 */
+			29 01 00 00 00 00 03 B1 80 EE  /* 44 */
+			29 01 00 00 00 00 03 B1 80 E1  /* 45 */
+			29 01 00 00 00 00 03 B1 80 D4  /* 46 */
+			29 01 00 00 00 00 03 B1 80 CA  /* 47 */
+			29 01 00 00 00 00 03 B1 80 C0  /* 48 */
+			29 01 00 00 00 00 03 B1 80 B2  /* 49 */
+			29 01 00 00 00 00 03 B1 80 A4  /* 50 */
+			29 01 00 00 00 00 03 B1 80 99  /* 51 */
+			29 01 00 00 00 00 03 B1 80 8E  /* 52 */
+			29 01 00 00 00 00 03 B1 80 81  /* 53 */
+			29 01 00 00 00 00 03 B1 80 73  /* 54 */
+			29 01 00 00 00 00 03 B1 80 5B  /* 55 */
+			29 01 00 00 00 00 03 B1 80 43  /* 56 */
+			29 01 00 00 00 00 03 B1 80 25  /* 57 */
+			29 01 00 00 00 00 03 B1 80 1C  /* 58 */
+			29 01 00 00 00 00 03 B1 80 13  /* 59 */
+			29 01 00 00 00 00 03 B1 70 EB  /* 60 */
+			29 01 00 00 00 00 03 B1 70 C3  /* 61 */
+			29 01 00 00 00 00 03 B1 70 C2  /* 62 */
+			29 01 00 00 00 00 03 B1 70 C1  /* 63 */
+			29 01 00 00 00 00 03 B1 70 B7  /* 64 */
+			29 01 00 00 00 00 03 B1 70 AE  /* 65 */
+			29 01 00 00 00 00 03 B1 70 91  /* 66 */
+			29 01 00 00 00 00 03 B1 70 75  /* 67 */
+			29 01 00 00 00 00 03 B1 70 5C  /* 68 */
+			29 01 00 00 00 00 03 B1 70 43  /* 69 */
+			29 01 00 00 00 00 03 B1 70 2E  /* 70 */
+			29 01 00 00 00 00 03 B1 70 12  /* 71 */
+			29 01 00 00 00 00 03 B1 60 F5  /* 72 */
+			29 01 00 00 00 00 03 B1 60 DC  /* 73 */
+			29 01 00 00 00 00 03 B1 60 C3  /* 74 */
+			29 01 00 00 00 00 03 B1 60 9C  /* 75 */
+			29 01 00 00 00 00 03 B1 60 75  /* 76 */
+			29 01 00 00 00 00 03 B1 60 5C  /* 77 */
+			29 01 00 00 00 00 03 B1 60 43  /* 78 */
+			29 01 00 00 00 00 03 B1 60 28  /* 79 */
+			29 01 00 00 00 00 03 B1 60 0D  /* 80 */
+			29 01 00 00 00 00 03 B1 50 E8  /* 81 */
+			29 01 00 00 00 00 03 B1 50 C3  /* 82 */
+			29 01 00 00 00 00 03 B1 50 9A  /* 83 */
+			29 01 00 00 00 00 03 B1 50 72  /* 84 */
+			29 01 00 00 00 00 03 B1 50 4B  /* 85 */
+			29 01 00 00 00 00 03 B1 50 23  /* 86 */
+			29 01 00 00 00 00 03 B1 40 FA  /* 87 */
+			29 01 00 00 00 00 03 B1 40 D1  /* 88 */
+			29 01 00 00 00 00 03 B1 40 AA  /* 89 */
+			29 01 00 00 00 00 03 B1 40 83  /* 90 */
+			29 01 00 00 00 00 03 B1 40 4C  /* 91 */
+			29 01 00 00 00 00 03 B1 40 15  /* 92 */
+			29 01 00 00 00 00 03 B1 30 E2  /* 93 */
+			29 01 00 00 00 00 03 B1 30 AF  /* 94 */
+			29 01 00 00 00 00 03 B1 30 C5  /* 95 */
+			29 01 00 00 00 00 03 B1 30 94  /* 96 */
+			29 01 00 00 00 00 03 B1 30 C2  /* 97 */
+			29 01 00 00 00 00 03 B1 30 94  /* 98 */
+			29 01 00 00 00 00 03 B1 30 CA  /* 99 */
+			29 01 00 00 00 00 03 B1 30 94  /* 100 */
+			29 01 00 00 00 00 03 B1 30 C7  /* 101 */
+			29 01 00 00 00 00 03 B1 30 94  /* 102 */
+			29 01 00 00 00 00 03 B1 30 C4  /* 103 */
+			29 01 00 00 00 00 03 B1 30 94  /* 104 */
+			29 01 00 00 00 00 03 B1 30 CA  /* 105 */
+			29 01 00 00 00 00 03 B1 30 94  /* 106 */
+			29 01 00 00 00 00 03 B1 30 BF  /* 107 */
+			29 01 00 00 00 00 03 B1 30 94  /* 108 */
+			29 01 00 00 00 00 03 B1 30 CC  /* 109 */
+			29 01 00 00 00 00 03 B1 30 94  /* 110 */
+			29 01 00 00 00 00 03 B1 30 C1  /* 111 */
+			29 01 00 00 00 00 03 B1 30 94  /* 112 */
+			29 01 00 00 00 00 03 B1 30 CC  /* 113 */
+			29 01 00 00 00 00 03 B1 30 94  /* 114 */
+			29 01 00 00 00 00 03 B1 30 C2  /* 115 */
+			29 01 00 00 00 00 03 B1 30 94  /* 116 */
+			29 01 00 00 00 00 03 B1 30 C6  /* 117 */
+			29 01 00 00 00 00 03 B1 30 94  /* 118 */
+			29 01 00 00 00 00 03 B1 30 C8  /* 119 */
+			29 01 00 00 00 00 03 B1 30 94  /* 120 */
+			29 01 00 00 00 00 03 B1 30 C5  /* 121 */
+			29 01 00 00 00 00 03 B1 30 94  /* 122 */
+			29 01 00 00 00 00 03 B1 30 C7  /* 123 */
+			29 01 00 00 00 00 03 B1 30 94  /* 124 */
+			29 01 00 00 00 00 03 B1 30 C4  /* 125 */
+			29 01 00 00 00 00 03 B1 30 94  /* 126 */
+			29 01 00 00 00 00 03 B1 30 C6  /* 127 */
+			29 01 00 00 00 00 03 B1 30 94  /* 128 */
+			29 01 00 00 00 00 03 B1 30 83  /* 129 */
+			29 01 00 00 00 00 03 B1 30 73  /* 130 */
+			29 01 00 00 00 00 03 B1 30 62  /* 131 */
+			29 01 00 00 00 00 03 B1 30 51  /* 132 */
+			29 01 00 00 00 00 03 B1 30 40  /* 133 */
+			29 01 00 00 00 00 03 B1 30 30  /* 134 */
+			29 01 00 00 00 00 03 B1 30 1F  /* 135 */
+			29 01 00 00 00 00 03 B1 30 0C  /* 136 */
+			29 01 00 00 00 00 03 B1 20 F8  /* 137 */
+			29 01 00 00 00 00 03 B1 20 E5  /* 138 */
+			29 01 00 00 00 00 03 B1 20 D2  /* 139 */
+			29 01 00 00 00 00 03 B1 20 BF  /* 140 */
+			29 01 00 00 00 00 03 B1 20 AB  /* 141 */
+			29 01 00 00 00 00 03 B1 20 98  /* 142 */
+			29 01 00 00 00 00 03 B1 20 87  /* 143 */
+			29 01 00 00 00 00 03 B1 20 75  /* 144 */
+			29 01 00 00 00 00 03 B1 20 64  /* 145 */
+			29 01 00 00 00 00 03 B1 20 53  /* 146 */
+			29 01 00 00 00 00 03 B1 20 42  /* 147 */
+			29 01 00 00 00 00 03 B1 20 30  /* 148 */
+			29 01 00 00 00 00 03 B1 20 1F  /* 149 */
+			29 01 00 00 00 00 03 B1 20 0C  /* 150 */
+			29 01 00 00 00 00 03 B1 10 F9  /* 151 */
+			29 01 00 00 00 00 03 B1 10 E7  /* 152 */
+			29 01 00 00 00 00 03 B1 10 D4  /* 153 */
+			29 01 00 00 00 00 03 B1 10 C1  /* 154 */
+			29 01 00 00 00 00 03 B1 10 AE  /* 155 */
+			29 01 00 00 00 00 03 B1 10 9C  /* 156 */
+			29 01 00 00 00 00 03 B1 10 89  /* 157 */
+			29 01 00 00 00 00 03 B1 10 7E  /* 158 */
+			29 01 00 00 00 00 03 B1 10 6C  /* 159 */
+			29 01 00 00 00 00 03 B1 10 5B  /* 160 */
+			29 01 00 00 00 00 03 B1 10 49  /* 161 */
+			29 01 00 00 00 00 03 B1 10 38  /* 162 */
+			29 01 00 00 00 00 03 B1 10 26  /* 163 */
+			29 01 00 00 00 00 03 B1 10 15  /* 164 */
+			29 01 00 00 00 00 03 B1 10 03  /* 165 */
+			29 01 00 00 00 00 03 B1 10 80  /* 166 */
+			29 01 00 00 00 00 03 B1 10 70  /* 167 */
+			29 01 00 00 00 00 03 B1 10 61  /* 168 */
+			29 01 00 00 00 00 03 B1 10 51  /* 169 */
+			29 01 00 00 00 00 03 B1 10 41  /* 170 */
+			29 01 00 00 00 00 03 B1 10 32  /* 171 */
+			29 01 00 00 00 00 03 B1 10 22  /* 172 */
+			29 01 00 00 00 00 03 B1 10 13  /* 173 */
+			29 01 00 00 00 00 03 B1 10 03  /* 174 */
+			29 01 00 00 00 00 03 B1 10 80  /* 175 */
+			29 01 00 00 00 00 03 B1 10 70  /* 176 */
+			29 01 00 00 00 00 03 B1 10 60  /* 177 */
+			29 01 00 00 00 00 03 B1 10 51  /* 178 */
+			29 01 00 00 00 00 03 B1 10 41  /* 179 */
+			29 01 00 00 00 00 03 B1 10 32  /* 180 */
+			29 01 00 00 00 00 03 B1 10 22  /* 181 */
+			29 01 00 00 00 00 03 B1 10 13  /* 182 */
+			29 01 00 00 00 00 03 B1 10 03  /* 183 */
+			29 01 00 00 00 00 03 B1 10 81  /* 184 */
+			29 01 00 00 00 00 03 B1 10 73  /* 185 */
+			29 01 00 00 00 00 03 B1 10 65  /* 186 */
+			29 01 00 00 00 00 03 B1 10 57  /* 187 */
+			29 01 00 00 00 00 03 B1 10 49  /* 188 */
+			29 01 00 00 00 00 03 B1 10 3B  /* 189 */
+			29 01 00 00 00 00 03 B1 10 2D  /* 190 */
+			29 01 00 00 00 00 03 B1 10 1F  /* 191 */
+			29 01 00 00 00 00 03 B1 10 11  /* 192 */
+			29 01 00 00 00 00 03 B1 10 03  /* 193 */
+			29 01 00 00 00 00 03 B1 10 6A  /* 194 */
+			29 01 00 00 00 00 03 B1 10 5B  /* 195 */
+			29 01 00 00 00 00 03 B1 10 4D  /* 196 */
+			29 01 00 00 00 00 03 B1 10 3E  /* 197 */
+			29 01 00 00 00 00 03 B1 10 2F  /* 198 */
+			29 01 00 00 00 00 03 B1 10 20  /* 199 */
+			29 01 00 00 00 00 03 B1 10 12  /* 200 */
+			29 01 00 00 00 00 03 B1 10 03  /* 201 */
+			29 01 00 00 00 00 03 B1 10 6D  /* 202 */
+			29 01 00 00 00 00 03 B1 10 5F  /* 203 */
+			29 01 00 00 00 00 03 B1 10 52  /* 204 */
+			29 01 00 00 00 00 03 B1 10 45  /* 205 */
+			29 01 00 00 00 00 03 B1 10 38  /* 206 */
+			29 01 00 00 00 00 03 B1 10 2B  /* 207 */
+			29 01 00 00 00 00 03 B1 10 1D  /* 208 */
+			29 01 00 00 00 00 03 B1 10 10  /* 209 */
+			29 01 00 00 00 00 03 B1 10 03  /* 210 */
+			29 01 00 00 00 00 03 B1 10 67  /* 211 */
+			29 01 00 00 00 00 03 B1 10 5B  /* 212 */
+			29 01 00 00 00 00 03 B1 10 4E  /* 213 */
+			29 01 00 00 00 00 03 B1 10 42  /* 214 */
+			29 01 00 00 00 00 03 B1 10 35  /* 215 */
+			29 01 00 00 00 00 03 B1 10 29  /* 216 */
+			29 01 00 00 00 00 03 B1 10 1C  /* 217 */
+			29 01 00 00 00 00 03 B1 10 10  /* 218 */
+			29 01 00 00 00 00 03 B1 10 03  /* 219 */
+			29 01 00 00 00 00 03 B1 10 25  /* 220 */
+			29 01 00 00 00 00 03 B1 10 1A  /* 221 */
+			29 01 00 00 00 00 03 B1 10 0E  /* 222 */
+			29 01 00 00 00 00 03 B1 10 03  /* 223 */
+			29 01 00 00 00 00 03 B1 10 29  /* 224 */
+			29 01 00 00 00 00 03 B1 10 1C  /* 225 */
+			29 01 00 00 00 00 03 B1 10 10  /* 226 */
+			29 01 00 00 00 00 03 B1 10 03  /* 227 */
+			29 01 00 00 00 00 03 B1 00 EE  /* 228 */
+			29 01 00 00 00 00 03 B1 00 D8  /* 229 */
+			29 01 00 00 00 00 03 B1 00 C3  /* 230 */
+			29 01 00 00 00 00 03 B1 00 B5  /* 231 */
+			29 01 00 00 00 00 03 B1 00 A6  /* 232 */
+			29 01 00 00 00 00 03 B1 00 98  /* 233 */
+			29 01 00 00 00 00 03 B1 00 8A  /* 234 */
+			29 01 00 00 00 00 03 B1 00 85  /* 235 */
+			29 01 00 00 00 00 03 B1 00 80  /* 236 */
+			29 01 00 00 00 00 03 B1 00 7C  /* 237 */
+			29 01 00 00 00 00 03 B1 00 77  /* 238 */
+			29 01 00 00 00 00 03 B1 00 66  /* 239 */
+			29 01 00 00 00 00 03 B1 00 55  /* 240 */
+			29 01 00 00 00 00 03 B1 00 44  /* 241 */
+			29 01 00 00 00 00 03 B1 00 33  /* 242 */
+			29 01 00 00 00 00 03 B1 00 32  /* 243 */
+			29 01 00 00 00 00 03 B1 00 26  /* 244 */
+			29 01 00 00 00 00 03 B1 00 19  /* 245 */
+			29 01 00 00 00 00 03 B1 00 0C  /* 246 */
+			29 01 00 00 00 00 03 B1 00 36  /* 247 */
+			29 01 00 00 00 00 03 B1 00 28  /* 248 */
+			29 01 00 00 00 00 03 B1 00 1A  /* 249 */
+			29 01 00 00 00 00 03 B1 00 0C  /* 250 */
+			29 01 00 00 00 00 03 B1 00 31  /* 251 */
+			29 01 00 00 00 00 03 B1 00 24  /* 252 */
+			29 01 00 00 00 00 03 B1 00 18  /* 253 */
+			29 01 00 00 00 00 03 B1 00 0C  /* 254 */
+			29 01 00 00 00 00 03 B1 00 0C  /* 255 */
+		];
+
+		samsung,aid_subdivision_tx_cmds_revM = [
+			29 01 00 00 00 00 03 B1 90 E4  /* 00 */
+			29 01 00 00 00 00 03 B1 90 E1  /* 01 */
+			29 01 00 00 00 00 03 B1 90 DF  /* 02 */
+			29 01 00 00 00 00 03 B1 90 DD  /* 03 */
+			29 01 00 00 00 00 03 B1 90 D3  /* 04 */
+			29 01 00 00 00 00 03 B1 90 D1  /* 05 */
+			29 01 00 00 00 00 03 B1 90 CF  /* 06 */
+			29 01 00 00 00 00 03 B1 90 CD  /* 07 */
+			29 01 00 00 00 00 03 B1 90 C3  /* 08 */
+			29 01 00 00 00 00 03 B1 90 C1  /* 09 */
+			29 01 00 00 00 00 03 B1 90 BF  /* 10 */
+			29 01 00 00 00 00 03 B1 90 BD  /* 11 */
+			29 01 00 00 00 00 03 B1 90 B3  /* 12 */
+			29 01 00 00 00 00 03 B1 90 B1  /* 13 */
+			29 01 00 00 00 00 03 B1 90 AD  /* 14 */
+			29 01 00 00 00 00 03 B1 90 A3  /* 15 */
+			29 01 00 00 00 00 03 B1 90 A1  /* 16 */
+			29 01 00 00 00 00 03 B1 90 9F  /* 17 */
+			29 01 00 00 00 00 03 B1 90 9D  /* 18 */
+			29 01 00 00 00 00 03 B1 90 94  /* 19 */
+			29 01 00 00 00 00 03 B1 90 93  /* 20 */
+			29 01 00 00 00 00 03 B1 90 91  /* 21 */
+			29 01 00 00 00 00 03 B1 90 8F  /* 22 */
+			29 01 00 00 00 00 03 B1 90 8D  /* 23 */
+			29 01 00 00 00 00 03 B1 90 83  /* 24 */
+			29 01 00 00 00 00 03 B1 90 81  /* 25 */
+			29 01 00 00 00 00 03 B1 90 7F  /* 26 */
+			29 01 00 00 00 00 03 B1 90 7E  /* 27 */
+			29 01 00 00 00 00 03 B1 90 7D  /* 28 */
+			29 01 00 00 00 00 03 B1 90 78  /* 29 */
+			29 01 00 00 00 00 03 B1 90 73  /* 30 */
+			29 01 00 00 00 00 03 B1 90 71  /* 31 */
+			29 01 00 00 00 00 03 B1 90 6F  /* 32 */
+			29 01 00 00 00 00 03 B1 90 6D  /* 33 */
+			29 01 00 00 00 00 03 B1 90 63  /* 34 */
+			29 01 00 00 00 00 03 B1 90 59  /* 35 */
+			29 01 00 00 00 00 03 B1 90 4F  /* 36 */
+			29 01 00 00 00 00 03 B1 90 41  /* 37 */
+			29 01 00 00 00 00 03 B1 90 33  /* 38 */
+			29 01 00 00 00 00 03 B1 90 29  /* 39 */
+			29 01 00 00 00 00 03 B1 90 1F  /* 40 */
+			29 01 00 00 00 00 03 B1 90 16  /* 41 */
+			29 01 00 00 00 00 03 B1 90 0C  /* 42 */
+			29 01 00 00 00 00 03 B1 80 FF  /* 43 */
+			29 01 00 00 00 00 03 B1 80 F1  /* 44 */
+			29 01 00 00 00 00 03 B1 80 E8  /* 45 */
+			29 01 00 00 00 00 03 B1 80 DF  /* 46 */
+			29 01 00 00 00 00 03 B1 80 D1  /* 47 */
+			29 01 00 00 00 00 03 B1 80 C3  /* 48 */
+			29 01 00 00 00 00 03 B1 80 B9  /* 49 */
+			29 01 00 00 00 00 03 B1 80 AE  /* 50 */
+			29 01 00 00 00 00 03 B1 80 A0  /* 51 */
+			29 01 00 00 00 00 03 B1 80 92  /* 52 */
+			29 01 00 00 00 00 03 B1 80 83  /* 53 */
+			29 01 00 00 00 00 03 B1 80 74  /* 54 */
+			29 01 00 00 00 00 03 B1 80 63  /* 55 */
+			29 01 00 00 00 00 03 B1 80 52  /* 56 */
+			29 01 00 00 00 00 03 B1 80 35  /* 57 */
+			29 01 00 00 00 00 03 B1 80 2A  /* 58 */
+			29 01 00 00 00 00 03 B1 80 1F  /* 59 */
+			29 01 00 00 00 00 03 B1 80 16  /* 60 */
+			29 01 00 00 00 00 03 B1 80 0C  /* 61 */
+			29 01 00 00 00 00 03 B1 70 F4  /* 62 */
+			29 01 00 00 00 00 03 B1 70 DC  /* 63 */
+			29 01 00 00 00 00 03 B1 70 CE  /* 64 */
+			29 01 00 00 00 00 03 B1 70 C1  /* 65 */
+			29 01 00 00 00 00 03 B1 70 A8  /* 66 */
+			29 01 00 00 00 00 03 B1 70 8F  /* 67 */
+			29 01 00 00 00 00 03 B1 70 76  /* 68 */
+			29 01 00 00 00 00 03 B1 70 5C  /* 69 */
+			29 01 00 00 00 00 03 B1 70 41  /* 70 */
+			29 01 00 00 00 00 03 B1 70 29  /* 71 */
+			29 01 00 00 00 00 03 B1 70 11  /* 72 */
+			29 01 00 00 00 00 03 B1 60 F5  /* 73 */
+			29 01 00 00 00 00 03 B1 60 DA  /* 74 */
+			29 01 00 00 00 00 03 B1 60 B5  /* 75 */
+			29 01 00 00 00 00 03 B1 60 90  /* 76 */
+			29 01 00 00 00 00 03 B1 60 77  /* 77 */
+			29 01 00 00 00 00 03 B1 60 5E  /* 78 */
+			29 01 00 00 00 00 03 B1 60 45  /* 79 */
+			29 01 00 00 00 00 03 B1 60 2C  /* 80 */
+			29 01 00 00 00 00 03 B1 60 05  /* 81 */
+			29 01 00 00 00 00 03 B1 50 DE  /* 82 */
+			29 01 00 00 00 00 03 B1 50 B7  /* 83 */
+			29 01 00 00 00 00 03 B1 50 8F  /* 84 */
+			29 01 00 00 00 00 03 B1 50 62  /* 85 */
+			29 01 00 00 00 00 03 B1 50 35  /* 86 */
+			29 01 00 00 00 00 03 B1 50 11  /* 87 */
+			29 01 00 00 00 00 03 B1 40 EE  /* 88 */
+			29 01 00 00 00 00 03 B1 40 C4  /* 89 */
+			29 01 00 00 00 00 03 B1 40 9A  /* 90 */
+			29 01 00 00 00 00 03 B1 40 64  /* 91 */
+			29 01 00 00 00 00 03 B1 40 2E  /* 92 */
+			29 01 00 00 00 00 03 B1 30 F9  /* 93 */
+			29 01 00 00 00 00 03 B1 30 C3  /* 94 */
+			29 01 00 00 00 00 03 B1 30 C9  /* 95 */
+			29 01 00 00 00 00 03 B1 30 98  /* 96 */
+			29 01 00 00 00 00 03 B1 30 C6  /* 97 */
+			29 01 00 00 00 00 03 B1 30 98  /* 98 */
+			29 01 00 00 00 00 03 B1 30 CE  /* 99 */
+			29 01 00 00 00 00 03 B1 30 98  /* 100 */
+			29 01 00 00 00 00 03 B1 30 CB  /* 101 */
+			29 01 00 00 00 00 03 B1 30 98  /* 102 */
+			29 01 00 00 00 00 03 B1 30 C8  /* 103 */
+			29 01 00 00 00 00 03 B1 30 98  /* 104 */
+			29 01 00 00 00 00 03 B1 30 CE  /* 105 */
+			29 01 00 00 00 00 03 B1 30 98  /* 106 */
+			29 01 00 00 00 00 03 B1 30 C2  /* 107 */
+			29 01 00 00 00 00 03 B1 30 98  /* 108 */
+			29 01 00 00 00 00 03 B1 30 CF  /* 109 */
+			29 01 00 00 00 00 03 B1 30 98  /* 110 */
+			29 01 00 00 00 00 03 B1 30 C5  /* 111 */
+			29 01 00 00 00 00 03 B1 30 98  /* 112 */
+			29 01 00 00 00 00 03 B1 30 D0  /* 113 */
+			29 01 00 00 00 00 03 B1 30 98  /* 114 */
+			29 01 00 00 00 00 03 B1 30 C6  /* 115 */
+			29 01 00 00 00 00 03 B1 30 98  /* 116 */
+			29 01 00 00 00 00 03 B1 30 CA  /* 117 */
+			29 01 00 00 00 00 03 B1 30 98  /* 118 */
+			29 01 00 00 00 00 03 B1 30 CC  /* 119 */
+			29 01 00 00 00 00 03 B1 30 98  /* 120 */
+			29 01 00 00 00 00 03 B1 30 C9  /* 121 */
+			29 01 00 00 00 00 03 B1 30 98  /* 122 */
+			29 01 00 00 00 00 03 B1 30 CB  /* 123 */
+			29 01 00 00 00 00 03 B1 30 98  /* 124 */
+			29 01 00 00 00 00 03 B1 30 C8  /* 125 */
+			29 01 00 00 00 00 03 B1 30 98  /* 126 */
+			29 01 00 00 00 00 03 B1 30 B8  /* 127 */
+			29 01 00 00 00 00 03 B1 30 85  /* 128 */
+			29 01 00 00 00 00 03 B1 30 72  /* 129 */
+			29 01 00 00 00 00 03 B1 30 5F  /* 130 */
+			29 01 00 00 00 00 03 B1 30 4C  /* 131 */
+			29 01 00 00 00 00 03 B1 30 39  /* 132 */
+			29 01 00 00 00 00 03 B1 30 25  /* 133 */
+			29 01 00 00 00 00 03 B1 30 12  /* 134 */
+			29 01 00 00 00 00 03 B1 20 FF  /* 135 */
+			29 01 00 00 00 00 03 B1 20 EB  /* 136 */
+			29 01 00 00 00 00 03 B1 20 D6  /* 137 */
+			29 01 00 00 00 00 03 B1 20 C2  /* 138 */
+			29 01 00 00 00 00 03 B1 20 AD  /* 139 */
+			29 01 00 00 00 00 03 B1 20 99  /* 140 */
+			29 01 00 00 00 00 03 B1 20 84  /* 141 */
+			29 01 00 00 00 00 03 B1 20 70  /* 142 */
+			29 01 00 00 00 00 03 B1 20 5E  /* 143 */
+			29 01 00 00 00 00 03 B1 20 4C  /* 144 */
+			29 01 00 00 00 00 03 B1 20 3B  /* 145 */
+			29 01 00 00 00 00 03 B1 20 28  /* 146 */
+			29 01 00 00 00 00 03 B1 20 17  /* 147 */
+			29 01 00 00 00 00 03 B1 20 05  /* 148 */
+			29 01 00 00 00 00 03 B1 10 F3  /* 149 */
+			29 01 00 00 00 00 03 B1 10 DF  /* 150 */
+			29 01 00 00 00 00 03 B1 10 CB  /* 151 */
+			29 01 00 00 00 00 03 B1 10 B7  /* 152 */
+			29 01 00 00 00 00 03 B1 10 A3  /* 153 */
+			29 01 00 00 00 00 03 B1 10 8F  /* 154 */
+			29 01 00 00 00 00 03 B1 10 7B  /* 155 */
+			29 01 00 00 00 00 03 B1 10 67  /* 156 */
+			29 01 00 00 00 00 03 B1 10 53  /* 157 */
+			29 01 00 00 00 00 03 B1 10 7E  /* 158 */
+			29 01 00 00 00 00 03 B1 10 6C  /* 159 */
+			29 01 00 00 00 00 03 B1 10 5B  /* 160 */
+			29 01 00 00 00 00 03 B1 10 49  /* 161 */
+			29 01 00 00 00 00 03 B1 10 38  /* 162 */
+			29 01 00 00 00 00 03 B1 10 26  /* 163 */
+			29 01 00 00 00 00 03 B1 10 15  /* 164 */
+			29 01 00 00 00 00 03 B1 10 03  /* 165 */
+			29 01 00 00 00 00 03 B1 10 80  /* 166 */
+			29 01 00 00 00 00 03 B1 10 70  /* 167 */
+			29 01 00 00 00 00 03 B1 10 61  /* 168 */
+			29 01 00 00 00 00 03 B1 10 51  /* 169 */
+			29 01 00 00 00 00 03 B1 10 41  /* 170 */
+			29 01 00 00 00 00 03 B1 10 32  /* 171 */
+			29 01 00 00 00 00 03 B1 10 22  /* 172 */
+			29 01 00 00 00 00 03 B1 10 13  /* 173 */
+			29 01 00 00 00 00 03 B1 10 03  /* 174 */
+			29 01 00 00 00 00 03 B1 10 80  /* 175 */
+			29 01 00 00 00 00 03 B1 10 70  /* 176 */
+			29 01 00 00 00 00 03 B1 10 60  /* 177 */
+			29 01 00 00 00 00 03 B1 10 51  /* 178 */
+			29 01 00 00 00 00 03 B1 10 41  /* 179 */
+			29 01 00 00 00 00 03 B1 10 32  /* 180 */
+			29 01 00 00 00 00 03 B1 10 22  /* 181 */
+			29 01 00 00 00 00 03 B1 10 13  /* 182 */
+			29 01 00 00 00 00 03 B1 10 03  /* 183 */
+			29 01 00 00 00 00 03 B1 10 81  /* 184 */
+			29 01 00 00 00 00 03 B1 10 73  /* 185 */
+			29 01 00 00 00 00 03 B1 10 65  /* 186 */
+			29 01 00 00 00 00 03 B1 10 57  /* 187 */
+			29 01 00 00 00 00 03 B1 10 49  /* 188 */
+			29 01 00 00 00 00 03 B1 10 3B  /* 189 */
+			29 01 00 00 00 00 03 B1 10 2D  /* 190 */
+			29 01 00 00 00 00 03 B1 10 1F  /* 191 */
+			29 01 00 00 00 00 03 B1 10 11  /* 192 */
+			29 01 00 00 00 00 03 B1 10 03  /* 193 */
+			29 01 00 00 00 00 03 B1 10 6A  /* 194 */
+			29 01 00 00 00 00 03 B1 10 5B  /* 195 */
+			29 01 00 00 00 00 03 B1 10 4D  /* 196 */
+			29 01 00 00 00 00 03 B1 10 3E  /* 197 */
+			29 01 00 00 00 00 03 B1 10 2F  /* 198 */
+			29 01 00 00 00 00 03 B1 10 20  /* 199 */
+			29 01 00 00 00 00 03 B1 10 12  /* 200 */
+			29 01 00 00 00 00 03 B1 10 03  /* 201 */
+			29 01 00 00 00 00 03 B1 10 6D  /* 202 */
+			29 01 00 00 00 00 03 B1 10 5F  /* 203 */
+			29 01 00 00 00 00 03 B1 10 52  /* 204 */
+			29 01 00 00 00 00 03 B1 10 45  /* 205 */
+			29 01 00 00 00 00 03 B1 10 38  /* 206 */
+			29 01 00 00 00 00 03 B1 10 2B  /* 207 */
+			29 01 00 00 00 00 03 B1 10 1D  /* 208 */
+			29 01 00 00 00 00 03 B1 10 10  /* 209 */
+			29 01 00 00 00 00 03 B1 10 03  /* 210 */
+			29 01 00 00 00 00 03 B1 10 67  /* 211 */
+			29 01 00 00 00 00 03 B1 10 5B  /* 212 */
+			29 01 00 00 00 00 03 B1 10 4E  /* 213 */
+			29 01 00 00 00 00 03 B1 10 42  /* 214 */
+			29 01 00 00 00 00 03 B1 10 35  /* 215 */
+			29 01 00 00 00 00 03 B1 10 29  /* 216 */
+			29 01 00 00 00 00 03 B1 10 1C  /* 217 */
+			29 01 00 00 00 00 03 B1 10 10  /* 218 */
+			29 01 00 00 00 00 03 B1 10 03  /* 219 */
+			29 01 00 00 00 00 03 B1 10 25  /* 220 */
+			29 01 00 00 00 00 03 B1 10 1A  /* 221 */
+			29 01 00 00 00 00 03 B1 10 0E  /* 222 */
+			29 01 00 00 00 00 03 B1 10 03  /* 223 */
+			29 01 00 00 00 00 03 B1 10 29  /* 224 */
+			29 01 00 00 00 00 03 B1 10 1C  /* 225 */
+			29 01 00 00 00 00 03 B1 10 10  /* 226 */
+			29 01 00 00 00 00 03 B1 10 03  /* 227 */
+			29 01 00 00 00 00 03 B1 00 EE  /* 228 */
+			29 01 00 00 00 00 03 B1 00 D9  /* 229 */
+			29 01 00 00 00 00 03 B1 00 C4  /* 230 */
+			29 01 00 00 00 00 03 B1 00 B5  /* 231 */
+			29 01 00 00 00 00 03 B1 00 A7  /* 232 */
+			29 01 00 00 00 00 03 B1 00 98  /* 233 */
+			29 01 00 00 00 00 03 B1 00 8A  /* 234 */
+			29 01 00 00 00 00 03 B1 00 81  /* 235 */
+			29 01 00 00 00 00 03 B1 00 79  /* 236 */
+			29 01 00 00 00 00 03 B1 00 70  /* 237 */
+			29 01 00 00 00 00 03 B1 00 68  /* 238 */
+			29 01 00 00 00 00 03 B1 00 58  /* 239 */
+			29 01 00 00 00 00 03 B1 00 48  /* 240 */
+			29 01 00 00 00 00 03 B1 00 37  /* 241 */
+			29 01 00 00 00 00 03 B1 00 27  /* 242 */
+			29 01 00 00 00 00 03 B1 00 32  /* 243 */
+			29 01 00 00 00 00 03 B1 00 26  /* 244 */
+			29 01 00 00 00 00 03 B1 00 19  /* 245 */
+			29 01 00 00 00 00 03 B1 00 0C  /* 246 */
+			29 01 00 00 00 00 03 B1 00 36  /* 247 */
+			29 01 00 00 00 00 03 B1 00 28  /* 248 */
+			29 01 00 00 00 00 03 B1 00 1A  /* 249 */
+			29 01 00 00 00 00 03 B1 00 0C  /* 250 */
+			29 01 00 00 00 00 03 B1 00 31  /* 251 */
+			29 01 00 00 00 00 03 B1 00 24  /* 252 */
+			29 01 00 00 00 00 03 B1 00 18  /* 253 */
+			29 01 00 00 00 00 03 B1 00 0C  /* 254 */
+			29 01 00 00 00 00 03 B1 00 0C  /* 255 */
+		];
+		samsung,panel_multires_fhd_to_wqhd_revA = [
+			29 00 00 00 05 00 03 F0 5A 5A		/* TEST KEY1 Enable */
+
+			0A 01 00 00 0A 00 58				/* PPS setting wqhd */
+				11 00 00 89 30 80 0A
+				00 05 A0 00 20 02 D0
+				02 D0 02 00 02 68 00
+				20 03 87 00 0A 00 0C
+				03 19 02 63 18 00 10
+				F0 03 0C 20 00 06 0B
+				0B 33 0E 1C 2A 38 46
+				54 62 69 70 77 79 7B
+				7D 7E 01 02 01 00 09
+				40 09 BE 19 FC 19 FA
+				19 F8 1A 38 1A 78 1A
+				B6 2A F6 2B 34 2B 74
+				3B 74 6B F4
+
+			29 00 00 00 00 00 02 BA 01			/* scaler setup */
+
+			29 00 00 00 00 00 05 2A 00 00 05 9F	/* CASET PASET */
+			29 00 00 00 00 00 05 2B 00 00 09 FF
+
+			29 01 00 00 00 00 03 F0 A5 A5		/* TEST KEY Disable */
+		];
+
+		samsung,panel_multires_hd_to_wqhd_revA = [
+			29 00 00 00 05 00 03 F0 5A 5A		/* TEST KEY1 Enable */
+
+			0A 01 00 00 0A 00 58				/* PPS setting wqhd */
+				11 00 00 89 30 80 0A
+				00 05 A0 00 20 02 D0
+				02 D0 02 00 02 68 00
+				20 03 87 00 0A 00 0C
+				03 19 02 63 18 00 10
+				F0 03 0C 20 00 06 0B
+				0B 33 0E 1C 2A 38 46
+				54 62 69 70 77 79 7B
+				7D 7E 01 02 01 00 09
+				40 09 BE 19 FC 19 FA
+				19 F8 1A 38 1A 78 1A
+				B6 2A F6 2B 34 2B 74
+				3B 74 6B F4
+
+			29 00 00 00 00 00 02 BA 01			/* scaler setup */
+
+			29 00 00 00 00 00 05 2A 00 00 05 9F	/* CASET PASET */
+			29 00 00 00 00 00 05 2B 00 00 09 FF
+
+			29 01 00 00 00 00 03 F0 A5 A5		/* TEST KEY Disable */
+		];
+
+		samsung,panel_multires_fhd_revA = [
+			29 00 00 00 05 00 03 F0 5A 5A		/* TEST KEY1 Enable */
+
+			0A 01 00 00 0A 00 58				/* PPS setting fhd */
+				11 00 00 89 30 80 07
+				80 04 38 00 20 02 1C
+				02 1C 02 00 02 0E 00
+				20 03 15 00 07 00 0C
+				03 19 03 2E 18 00 10
+				F0 03 0C 20 00 06 0B
+				0B 33 0E 1C 2A 38 46
+				54 62 69 70 77 79 7B
+				7D 7E 01 02 01 00 09
+				40 09 BE 19 FC 19 FA
+				19 F8 1A 38 1A 78 1A
+				B6 2A F6 2B 34 2B 74
+				3B 74 6B F4
+
+			29 00 00 00 00 00 02 BA 02			/* scaler setup */
+
+			29 00 00 00 00 00 05 2A 00 00 04 37	/* CASET PASET */
+			29 00 00 00 00 00 05 2B 00 00 07 7F
+
+			29 01 00 00 00 00 03 F0 A5 A5	/* TEST KEY Disable */
+		];
+
+		samsung,panel_multires_hd_revA = [
+			29 00 00 00 05 00 03 F0 5A 5A		/* TEST KEY1 Enable */
+
+			0A 01 00 00 0A 00 58				/* PPS setting hd */
+				11 00 00 89 30 80 05
+				00 02 D0 00 40 01 68
+				01 68 02 00 01 B4 00
+				20 04 F2 00 05 00 0C
+				01 87 02 63 18 00 10
+				F0 03 0C 20 00 06 0B
+				0B 33 0E 1C 2A 38 46
+				54 62 69 70 77 79 7B
+				7D 7E 01 02 01 00 09
+				40 09 BE 19 FC 19 FA
+				19 F8 1A 38 1A 78 1A
+				B6 2A F6 2B 34 2B 74
+				3B 74 6B F4
+
+			29 00 00 00 00 00 02 BA 00			/* scaler setup */
+
+			29 00 00 00 00 00 05 2A 00 00 02 CF	/* CASET PASET */
+			29 00 00 00 00 00 05 2B 00 00 04 FF
+
+			29 01 00 00 00 00 03 F0 A5 A5		/* TEST KEY Disable */
+		];
+		/*
+		* ************************************************************************************************************************
+		* ACL command list and mappings
+		* ************************************************************************************************************************
+		*/
+		samsung,acl_on_tx_cmds_revA = [
+			29 01 00 00 00 00 05 B4 50 7F 27 12  /* 1th : 0x50 32frame avg, 2th : 0x7F start point 50%, 4th: 0x12 ACL 15% */
+			29 01 00 00 00 00 02 55 02	/* ACL ON */
+		]; /* ACL on */
+
+		samsung,acl_percent_tx_cmds_revA = [
+			29 01 00 00 00 00 05 B4 50 7F 27 0A  /* 1th : 0x50 32frame avg, 2th : 0x7F start point 50%, 4th: 0x0A ACL 8% */
+			29 01 00 00 00 00 05 B4 50 7F 27 12  /* 1th : 0x50 32frame avg, 2th : 0x7F start point 50%, 4th: 0x12 ACL 15% */
+		];	/* ACL 50% */
+
+		samsung,acl_off_tx_cmds_revA = [
+			29 01 00 00 00 00 05 B4 40 7F 27 00  /* 1th : 0x50 32frame avg, 2th : 0x7F start point 50%, 4th: don't care */
+			29 01 00 00 00 00 02 55 00	 /* ACL OFF */
+		];
+
+		samsung,gradual_acl_tx_cmds_revA = [
+			29 01 00 00 16 00 05 B4 50 7F 12 00
+		];
+
+		/* bl_level , Index in acl command list */
+		samsung,acl_map_table_revA =  <
+			2	1		3	1		4	1		5	1		6	1
+			7	1		8	1		9	1		10	1		11	1
+			12	1		13	1		14	1		15	1		16	1
+			17	1		19	1		20	1		21	1		22	1
+			24	1		25	1		27	1		29	1		30	1
+			32	1		34	1		37	1		39	1		41	1
+			44	1		47	1		50	1		53	1		56	1
+			60	1		64	1		68	1		72	1		77	1
+			82	1		87	1		93	1		98	1		105	1
+			111	1		119	1		126	1		134	1		143	1
+			152	1		162	1		172	1		183	1		195	1
+			207	1		220	1		234	1		249	1		265	1
+			282	1		300	1		316	1		333	1		350	1
+			357	1		365	1		372	1		380	1		387	1
+			395	1		403	1		412	1		420	1
+		>;
+		/*
+		* ************************************************************************************************************************
+		* ELVSS(ACL Off) command list and mappings
+		* ************************************************************************************************************************
+		*/
+
+		samsung,elvss_rx_cmds_revA = [ 06 01 00 00 00 00 01 B5 01 16];	/* read B5 23th , 22=0x16*/
+
+		samsung,elvss_lowtemp_tx_cmds_revA = [
+			29 01 00 00 00 00 02 B5 00 /* TSET */
+			29 01 00 00 00 00 02 B0 16
+			29 01 00 00 00 00 02 B5 00 /* elvss offset */
+		];
+
+		samsung,elvss_tx_cmds_revA = [
+			29 01 00 00 00 00 04 B5 19 BC 0A /* 420CD 0 */
+			29 01 00 00 00 00 04 B5 19 BC 0A /* 412CD 1 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 403CD 2 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 395CD 3 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 387CD 4 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 380CD 5 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 372CD 6 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 365CD 7 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 357CD 8 */
+			29 01 00 00 00 00 04 B5 19 BC 0D /* 350CD 9 */
+			29 01 00 00 00 00 04 B5 19 BC 0D /* 333CD 10 */
+			29 01 00 00 00 00 04 B5 19 BC 0E /* 316CD 11 */
+			29 01 00 00 00 00 04 B5 19 BC 0F /* 300CD 12 */
+			29 01 00 00 00 00 04 B5 19 BC 0F /* 282CD 13 */
+			29 01 00 00 00 00 04 B5 19 BC 10 /* 265CD 14 */
+			29 01 00 00 00 00 04 B5 19 BC 11 /* 249CD 15 */
+			29 01 00 00 00 00 04 B5 19 BC 11 /* 234CD 16 */
+			29 01 00 00 00 00 04 B5 19 BC 12 /* 220CD 17 */
+			29 01 00 00 00 00 04 B5 19 BC 12 /* 207CD 18 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 195CD 19 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 183CD 20 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 172CD 21 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 162CD 22 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 152CD 23 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 143CD 24 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 134CD 25 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 126CD 26 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 119CD 27 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 111CD 28 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 105CD 29 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  98CD 30 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  93CD 31 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  87CD 32 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  82CD 33 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  77CD 34 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 41 ~ 72CD 35 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /* 6 ~ 39CD 36 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /*  5CD 37 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /*  4CD 38 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /*  3CD 39 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /*  2CD 40 */
+		];
+
+		samsung,elvss_tx_cmds_revF = [
+			29 01 00 00 00 00 04 B5 19 BC 0A /* 420CD 0 */
+			29 01 00 00 00 00 04 B5 19 BC 0A /* 412CD 1 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 403CD 2 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 395CD 3 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 387CD 4 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 380CD 5 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 372CD 6 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 365CD 7 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 357CD 8 */
+			29 01 00 00 00 00 04 B5 19 BC 0D /* 350CD 9 */
+			29 01 00 00 00 00 04 B5 19 BC 0E /* 333CD 10 */
+			29 01 00 00 00 00 04 B5 19 BC 0F /* 316CD 11 */
+			29 01 00 00 00 00 04 B5 19 BC 0F /* 300CD 12 */
+			29 01 00 00 00 00 04 B5 19 BC 10 /* 282CD 13 */
+			29 01 00 00 00 00 04 B5 19 BC 11 /* 265CD 14 */
+			29 01 00 00 00 00 04 B5 19 BC 12 /* 249CD 15 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 234CD 16 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 220CD 17 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 207CD 18 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 195CD 19 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 183CD 20 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 172CD 21 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 162CD 22 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 152CD 23 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 143CD 24 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 134CD 25 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 126CD 26 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 119CD 27 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 111CD 28 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 105CD 29 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  98CD 30 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  93CD 31 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  87CD 32 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  82CD 33 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /*  77CD 34 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 41 ~ 72CD 35 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /* 6 ~ 39CD 36 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /*  5CD 37 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /*  4CD 38 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /*  3CD 39 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /*  2CD 40 */
+		];
+
+		samsung,elvss_tx_cmds_revJ = [
+			29 01 00 00 00 00 04 B5 19 BC 0A /* 420CD 0 */
+			29 01 00 00 00 00 04 B5 19 BC 0A /* 412CD 1 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 403CD 2 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 395CD 3 */
+			29 01 00 00 00 00 04 B5 19 BC 0B /* 387CD 4 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 380CD 5 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 372CD 6 */
+			29 01 00 00 00 00 04 B5 19 BC 0C /* 365CD 7 */
+			29 01 00 00 00 00 04 B5 19 BC 0D /* 357CD 8 */
+			29 01 00 00 00 00 04 B5 19 BC 0D /* 350CD 9 */
+			29 01 00 00 00 00 04 B5 19 BC 0D /* 333CD 10 */
+			29 01 00 00 00 00 04 B5 19 BC 0E /* 316CD 11 */
+			29 01 00 00 00 00 04 B5 19 BC 0F /* 300CD 12 */
+			29 01 00 00 00 00 04 B5 19 BC 0F /* 282CD 13 */
+			29 01 00 00 00 00 04 B5 19 BC 10 /* 265CD 14 */
+			29 01 00 00 00 00 04 B5 19 BC 10 /* 249CD 15 */
+			29 01 00 00 00 00 04 B5 19 BC 10 /* 234CD 16 */
+			29 01 00 00 00 00 04 B5 19 BC 10 /* 220CD 17 */
+			29 01 00 00 00 00 04 B5 19 BC 11 /* 207CD 18 */
+			29 01 00 00 00 00 04 B5 19 BC 11 /* 195CD 19 */
+			29 01 00 00 00 00 04 B5 19 BC 11 /* 183CD 20 */
+			29 01 00 00 00 00 04 B5 19 BC 11 /* 172CD 21 */
+			29 01 00 00 00 00 04 B5 19 BC 11 /* 162CD 22 */
+			29 01 00 00 00 00 04 B5 19 BC 12 /* 152CD 23 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 143CD 24 */
+			29 01 00 00 00 00 04 B5 19 BC 13 /* 134CD 25 */
+			29 01 00 00 00 00 04 B5 19 BC 14 /* 126 ~ 41CD 26 */
+			29 01 00 00 00 00 04 B5 19 AC 14 /* 39 ~ 6CD 27 */
+			29 01 00 00 00 00 04 B5 19 AC 13 /*  5CD 28 */
+			29 01 00 00 00 00 04 B5 19 AC 12 /*  4CD 29 */
+			29 01 00 00 00 00 04 B5 19 AC 11 /*  3CD 30 */
+			29 01 00 00 00 00 04 B5 19 AC 10 /*  2CD 31 */
+		];
+
+		/* bl_level, Index in elvss command list */
+		samsung,smart_acl_elvss_map_table_revA = <
+			2	40		3	39		4	38		5	37		6	36
+			7	36		8	36		9	36		10	36		11	36
+			12	36		13	36		14	36		15	36		16	36
+			17	36		19	36		20	36		21	36		22	36
+			24	36		25	36		27	36		29	36		30	36
+			32	36		34	36		37	36		39	36		41	35
+			44	35		47	35		50	35		53	35		56	35
+			60	35		64	35		68	35		72	35		77	34
+			82	33		87	32		93	31		98	30		105	29
+			111	28		119	27		126	26		134	25		143	24
+			152	23		162	22		172	21		183	20		195	19
+			207	18		220	17		234	16		249	15		265	14
+			282	13		300	12		316	11		333	10		350	9
+			357	8		365	7		372	6		380	5		387	4
+			395	3		403	2		412	1		420	0
+		>;
+
+		/* bl_level, Index in elvss command list */
+		samsung,smart_acl_elvss_map_table_revF = <
+			2	40		3	39		4	38		5	37		6	36
+			7	36		8	36		9	36		10	36		11	36
+			12	36		13	36		14	36		15	36		16	36
+			17	36		19	36		20	36		21	36		22	36
+			24	36		25	36		27	36		29	36		30	36
+			32	36		34	36		37	36		39	36		41	35
+			44	35		47	35		50	35		53	35		56	35
+			60	35		64	35		68	35		72	35		77	34
+			82	33		87	32		93	31		98	30		105	29
+			111	28		119	27		126	26		134	25		143	24
+			152	23		162	22		172	21		183	20		195	19
+			207	18		220	17		234	16		249	15		265	14
+			282	13		300	12		316	11		333	10		350	9
+			357	8		365	7		372	6		380	5		387	4
+			395	3		403	2		412	1		420	0
+		>;
+
+		/* bl_level, Index in elvss command list */
+		samsung,smart_acl_elvss_map_table_revJ = <
+			2	31		3	30		4	29		5	28		6	27
+			7	27		8	27		9	27		10	27		11	27
+			12	27		13	27		14	27		15	27		16	27
+			17	27		19	27		20	27		21	27		22	27
+			24	27		25	27		27	27		29	27		30	27
+			32	27		34	27		37	27		39	27		41	26
+			44	26		47	26		50	26		53	26		56	26
+			60	26		64	26		68	26		72	26		77	26
+			82	26		87	26		93	26		98	26		105	26
+			111	26		119	26		126	26		134	25		143	24
+			152	23		162	22		172	21		183	20		195	19
+			207	18		220	17		234	16		249	15		265	14
+			282	13		300	12		316	11		333	10		350	9
+			357	8		365	7		372	6		380	5		387	4
+			395	3		403	2		412	1		420	0
+		>;
+
+		/*
+		* ************************************************************************************************************************
+		* candela to index mappings
+		* ************************************************************************************************************************
+		*/
+		samsung,candela_map_table_revA = <
+			/*<idx>   <from>  <till> <candella> */
+			0	0	0	2
+			1	1	6	3
+			2	7	13	4
+			3	14	19	5
+			4	20	27	6
+			5	28	34	7
+			6	35	36	8
+			7	37	38	9
+			8	39	40	10
+			9	41	42	11
+			10	43	44	12
+			11	45	46	13
+			12	47	48	14
+			13	49	50	15
+			14	51	52	16
+			15	53	54	17
+			16	55	56	19
+			17	57	57	20
+			18	58	59	21
+			19	60	61	22
+			20	62	63	24
+			21	64	65	25
+			22	66	67	27
+			23	68	69	29
+			24	70	70	30
+			25	71	72	32
+			26	73	74	34
+			27	75	76	37
+			28	77	78	39
+			29	79	80	41
+			30	81	82	44
+			31	83	84	47
+			32	85	86	50
+			33	87	88	53
+			34	89	90	56
+			35	91	92	60
+			36	93	94	64
+			37	95	96	68
+			38	97	98	72
+			39	99	100	77
+			40	101	102	82
+			41	103	104	87
+			42	105	106	93
+			43	107	108	98
+			44	109	110	105
+			45	111	112	111
+			46	113	114	119
+			47	115	116	126
+			48	117	118	134
+			49	119	120	143
+			50	121	122	152
+			51	123	124	162
+			52	125	126	172
+			53	127	128	183
+			54	129	135	195
+			55	136	142	207
+			56	143	149	220
+			57	150	157	234
+			58	158	165	249
+			59	166	174	265
+			60	175	183	282
+			61	184	193	300
+			62	194	201	316
+			63	202	210	333
+			64	211	219	350
+			65	220	223	357
+			66	224	227	365
+			67	228	230	372
+			68	231	234	380
+			69	235	238	387
+			70	239	242	395
+			71	243	246	403
+			72	247	250	412
+			73	251	255	420
+		>;
+
+		samsung,hbm_candela_map_table_revA = <
+			0	282	295	465	6
+			1	296	309	488	7
+			2	310	323	510	8
+			3	324	336	533	9
+			4	337	350	555	10
+			5	351	364	578	11
+			6	365	365	600	12
+		>;
+		/*
+		* ************************************************************************************************************************
+		*  HMT
+		* ************************************************************************************************************************
+		*/
+
+		samsung,hmt_enabled;
+
+		samsung,hmt_aid_tx_cmds_revA = [
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*10cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*11cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*12cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*13cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*14cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*15cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*16cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*17cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*19cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*20cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*21cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*22cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*23cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*25cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*27cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*29cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*31cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*33cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*35cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*37cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*39cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*41cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*44cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*47cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*50cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*53cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*56cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*60cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00	/*64cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00   /*68cd */
+			29 01 00 00 00 00 07 B1 20 05 10 10 10 00   /*72cd */
+			29 01 00 00 00 00 07 B1 30 07 10 10 10 00   /*77cd */
+			29 01 00 00 00 00 07 B1 30 07 10 10 10 00   /*82cd */
+			29 01 00 00 00 00 07 B1 30 07 10 10 10 00   /*87cd */
+			29 01 00 00 00 00 07 B1 30 07 10 10 10 00   /*93cd */
+			29 01 00 00 00 00 07 B1 30 07 10 10 10 00   /*99cd */
+			29 01 00 00 00 00 07 B1 30 07 10 10 10 00   /*105cd */
+		];
+
+		/* bl_level, Index in acl command list */
+		samsung,hmt_reverse_aid_map_table_revA = <
+			10	0
+			11	1
+			12	2
+			13	3
+			14	4
+			15	5
+			16	6
+			17	7
+			19	8
+			20	9
+			21	10
+			22	11
+			23	12
+			25	13
+			27	14
+			29	15
+			31	16
+			33	17
+			35	18
+			37	19
+			39	20
+			41	21
+			44	22
+			47	23
+			50	24
+			53	25
+			56	26
+			60	27
+			64	28
+			68	29
+			72	30
+			77	31
+			82	32
+			87	33
+			93	34
+			99	35
+			105	36
+		>;
+
+		samsung,hmt_candela_map_table_revA = <
+		/*<idx>	  <from>  <till> <candella> */
+			0	0	26	10
+			1	27	29	11
+			2	30	31	12
+			3	32	33	13
+			4	34	36	14
+			5	37	38	15
+			6	39	41	16
+			7	42	46	17
+			8	47	48	19
+			9	49	50	20
+			10	51	53	21
+			11	54	55	22
+			12	56	60	23
+			13	61	65	25
+			14	66	70	27
+			15	71	75	29
+			16	76	80	31
+			17	81	84	33
+			18	85	89	35
+			19	90	94	37
+			20	95	99	39
+			21	100	106	41
+			22	107	114	44
+			23	115	121	47
+			24	122	128	50
+			25	129	135	53
+			26	136	145	56
+			27	146	155	60
+			28	156	165	64
+			29	166	174	68
+			30	175	186	72
+			31	187	199	77
+			32	200	211	82
+			33	212	225	87
+			34	226	240	93
+			35	241	254	99
+			36	255	255	105
+		>;
+
+		samsung,hmt_gamma_tx_cmds_revA = [
+			29 01 00 00 00 00 24
+				CA 01 00 01 00 01 00 80
+				80 80 80 80 80 80 80 80
+				80 80 80 80 80 80 80 80
+				80 80 80 80 80 80 80 00
+				00 00 00 00
+
+			29 01 00 00 00 00 05 B4 40 7F 27 12  /* 1th : 0x50 32frame avg, 2th : 0x7F start point 50%, 4th: don't care*/
+			29 01 00 00 00 00 02 55 00	 /* ACL OFF */
+
+			29 01 00 00 01 00 02 F7 03		/* Gamma, LTPS(AID) update */
+			29 01 00 00 00 00 02 F7 00
+		];
+
+		samsung,hmt_elvss_tx_cmds_revA = [
+				29 01 00 00 00 00 02 B0 01
+				29 01 00 00 00 00 03 B5 00 0A
+		];
+
+		samsung,hmt_vint_tx_cmds_revA = [
+				29 01 00 00 00 00 03 F4 AB 1E
+		];
+
+		samsung,hmt_vint_tx_cmds_revF = [
+				29 01 00 00 00 00 03 F4 BB 1E
+		];
+
+		samsung,hmt_enable_tx_cmds_revA = [
+				29 01 00 00 00 00 03 F0 5A 5A
+				29 01 00 00 00 00 07 B1 30 07 10 10 10 00 /* AID 1-Cycle */
+				29 01 00 00 01 00 02 F7 03				/* Gamma, LTPS(AID) update */
+				29 01 00 00 00 00 02 F7 00
+				29 01 00 00 00 00 03 F0 A5 A5
+			];
+
+		samsung,hmt_disable_tx_cmds_revA = [
+				29 01 00 00 00 00 03 F0 5A 5A
+				29 01 00 00 00 00 07 B1 30 07 10 10 10 80 /* AID 1-Cycle */
+				29 01 00 00 01 00 02 F7 03				/* Gamma, LTPS(AID) update */
+				29 01 00 00 00 00 02 F7 00
+				29 01 00 00 00 00 03 F0 A5 A5
+			];
+
+		samsung,hmt_reverse_tx_cmds_revA = [
+				29 01 00 00 00 00 03 F0 5A 5A
+				29 01 00 00 00 00 32 CB					/* LTPS setting */
+					12 11 81 01 00 63 82 00
+					00 04 0D 00 00 00 00 00
+					00 00 00 00 12 9C 00 00
+					00 00 16 00 00 00 00 AE
+					00 00 D5 10 11 13 4E 44
+					C5 06 02 D5 D5 D5 D5 D0
+					D1
+				29 01 00 00 01 00 02 F7 03				/* Gamma, LTPS(AID) update */
+				29 01 00 00 00 00 02 F7 00
+				29 01 00 00 00 00 03 F0 A5 A5
+			];
+		samsung,hmt_forward_tx_cmds_revA = [
+				29 01 00 00 00 00 03 F0 5A 5A
+				29 01 00 00 00 00 32 CB					/* LTPS setting */
+					12 11 81 01 00 63 82 00
+					00 0C 05 00 00 00 00 00
+					00 00 00 00 12 9C 00 00
+					00 00 0A 00 00 00 00 AE
+					00 00 D5 10 11 13 4E 44
+					C5 06 02 D5 D5 D5 D5 D0
+					51
+				29 01 00 00 01 00 02 F7 03				/* Gamma, LTPS(AID) update */
+				29 01 00 00 00 00 02 F7 00
+				29 01 00 00 00 00 03 F0 A5 A5
+			];
+
+		/*
+		* ************************************************************************************************************************
+		*  MULTI_RESOLUTION (DSC configs were moved all to below timing set)
+		* ************************************************************************************************************************
+		*/
+
+		qcom,mdss-dsi-display-timings {
+			wqhd {
+				qcom,mdss-dsi-timing-default;
+				qcom,mdss-dsi-panel-width = <1440>;
+				qcom,mdss-dsi-panel-height = <2560>;
+				qcom,mdss-dsi-h-pulse-width = <52>;
+				qcom,mdss-dsi-h-back-porch = <156>;
+				qcom,mdss-dsi-h-front-porch = <152>;
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				qcom,mdss-dsi-v-pulse-width = <100>;
+				qcom,mdss-dsi-v-back-porch = <160>;
+				qcom,mdss-dsi-v-front-porch = <150>;
+				qcom,mdss-dsi-panel-framerate = <60>;
+				qcom,mdss-dsi-panel-timings = [FE 56 3C 00 74 88 3C 56 4A 03 04 A0];
+				/*qcom,mdss-dsi-timing-switch-command; use samsung,panel_multires_XXX instead*/
+				/*qcom,mdss-dsi-timing-switch-command-state;*/
+				qcom,mdss-dsi-t-clk-pre = <0x30>;
+				qcom,mdss-dsi-t-clk-post = <0x0D>;
+
+				qcom,mdss-dsi-panel-timings-phy-v2 = [
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1B 08 09 05 03 04 a0
+				];
+				qcom,mdss-dsi-on-command = [
+					29 00 00 00 05 00 03 F0 5A 5A		/* TEST KEY1 Enable - 5ms */
+
+					/* DSC setting */
+					07 01 00 00 00 00 01 01				/* DSC enable */
+
+					05 01 00 00 05 00 01 11				/* sleep out */
+
+					29 01 00 00 05 00 02 E6 01			/* HS Timer Disable - prevent DSC being disable */
+
+					/* checksum disable */
+					29 00 00 00 00 00 03 FC 5A 5A
+					29 00 00 00 00 00 02 B0 35
+					29 00 00 00 00 00 02 FE 03
+					29 01 00 00 78 00 03 FC A5 A5
+
+					/* Sleep out, wait 120 ms */
+
+					29 00 00 00 00 00 02 35 00			/* TE Vsync ON */
+
+					29 00 00 00 00 00 02 ED 44			/* ERR_FG */
+
+					0A 01 00 00 0A 00 58				/* PPS setting wqhd */
+						11 00 00 89 30 80 0A
+						00 05 A0 00 20 02 D0
+						02 D0 02 00 02 68 00
+						20 03 87 00 0A 00 0C
+						03 19 02 63 18 00 10
+						F0 03 0C 20 00 06 0B
+						0B 33 0E 1C 2A 38 46
+						54 62 69 70 77 79 7B
+						7D 7E 01 02 01 00 09
+						40 09 BE 19 FC 19 FA
+						19 F8 1A 38 1A 78 1A
+						B6 2A F6 2B 34 2B 74
+						3B 74 6B F4
+
+					29 00 00 00 00 00 02 BA 01			/* scaler setup */
+
+					29 00 00 00 00 00 05 2A 00 00 05 9F	/* CASET PASET */
+					29 00 00 00 00 00 05 2B 00 00 09 FF
+
+					/* FFC Setting(898Mbps) */
+					29 00 00 00 00 00 03 FC 5A 5A
+					29 00 00 00 00 00 12 CE
+						0D 58 14 5E 38 B8 F2 03
+						00 FF 02 0A 0A 0A 0A 0F
+						23
+					29 00 00 00 00 00 03 FC A5 A5
+
+					29 00 00 00 00 00 24				/* Brightness condition set */
+						CA
+						01 00 01 00 01 00
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						00 00 00
+						00 00
+					29 00 00 00 00 00 03 B1 10 03		/* AID 0% */
+					29 00 00 00 00 00 02 B0 01
+					29 00 00 00 00 00 03 B5 BC 0A		/* ELVSS Setting:CAPS ON : acl off */
+					29 00 00 00 00 00 03 F4 BB 1E		/* VINT set */
+
+					29 01 00 00 01 00 02 F7 03			/* Gamma, LTPS(AID) update wait more 100ns */
+					29 00 00 00 00 00 02 F7 00
+
+					29 01 00 00 00 00 03 F0 A5 A5		/* TEST KEY key Disable  */
+				];
+				qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+				qcom,panel-roi-alignment=<720 32 720 32 720 32>;
+				qcom,compression-mode = "dsc";
+				qcom,config-select = <&dsc_wqhd_hf4>;
+				dsc_wqhd_hf4: config_wqhd_hf4 {
+					qcom,lm-split = <720 720>;
+					qcom,mdss-dsc-encoders = <2>;
+					qcom,mdss-dsc-slice-height = <32>;
+					qcom,mdss-dsc-slice-width = <720>;
+					qcom,mdss-dsc-slice-per-pkt = <1>;
+
+					qcom,mdss-dsc-bit-per-component = <8>;
+					qcom,mdss-dsc-bit-per-pixel = <8>;
+					qcom,mdss-dsc-block-prediction-enable;
+				};
+			};
+			fhd {
+				qcom,mdss-dsi-panel-width = <1080>;
+				qcom,mdss-dsi-panel-height = <1920>;
+				qcom,mdss-dsi-h-pulse-width = <52>;
+				qcom,mdss-dsi-h-back-porch = <276>;
+				qcom,mdss-dsi-h-front-porch = <152>;
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				qcom,mdss-dsi-v-pulse-width = <100>;
+				qcom,mdss-dsi-v-back-porch = <160>;
+				qcom,mdss-dsi-v-front-porch = <790>;
+				qcom,mdss-dsi-panel-framerate = <60>;
+				qcom,mdss-dsi-panel-timings = [FE 56 3C 00 74 88 3C 56 4A 03 04 A0];
+				/*qcom,mdss-dsi-timing-switch-command; use samsung,panel_multires_XXX instead*/
+				/*qcom,mdss-dsi-timing-switch-command-state;*/
+				qcom,mdss-dsi-t-clk-pre = <0x30>;
+				qcom,mdss-dsi-t-clk-post = <0x0D>;
+
+				qcom,mdss-dsi-panel-timings-phy-v2 = [
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1B 08 09 05 03 04 a0
+				];
+				qcom,mdss-dsi-on-command = [
+					29 00 00 00 05 00 03 F0 5A 5A		/* TEST KEY1 Enable - 5ms */
+
+					/* DSC setting */
+					07 01 00 00 00 00 01 01				/* DSC enable */
+
+					05 01 00 00 05 00 01 11				/* sleep out */
+					29 01 00 00 05 00 02 E6 01			/* HS Timer Disable - prevent DSC being disable */
+
+					/* checksum disable */
+					29 00 00 00 00 00 03 FC 5A 5A
+					29 00 00 00 00 00 02 B0 35
+					29 00 00 00 00 00 02 FE 03
+					29 01 00 00 78 00 03 FC A5 A5
+
+					/* Sleep out, wait 120 ms */
+
+					29 00 00 00 00 00 02 35 00			/* TE Vsync ON */
+
+					29 00 00 00 00 00 02 ED 44			/* ERR_FG */
+
+					0A 01 00 00 0A 00 58				/* PPS setting fhd */
+						11 00 00 89 30 80 07
+						80 04 38 00 20 02 1C
+						02 1C 02 00 02 0E 00
+						20 03 15 00 07 00 0C
+						03 19 03 2E 18 00 10
+						F0 03 0C 20 00 06 0B
+						0B 33 0E 1C 2A 38 46
+						54 62 69 70 77 79 7B
+						7D 7E 01 02 01 00 09
+						40 09 BE 19 FC 19 FA
+						19 F8 1A 38 1A 78 1A
+						B6 2A F6 2B 34 2B 74
+						3B 74 6B F4
+
+					29 00 00 00 00 00 02 BA 02			/* scaler setup */
+
+					29 00 00 00 00 00 05 2A 00 00 04 37	/* CASET PASET */
+					29 00 00 00 00 00 05 2B 00 00 07 7F
+
+					/* FFC Setting(898Mbps) */
+					29 00 00 00 00 00 03 FC 5A 5A
+					29 00 00 00 00 00 12 CE
+						0D 58 14 5E 38 B8 F2 03
+						00 FF 02 0A 0A 0A 0A 0F
+						23
+					29 00 00 00 00 00 03 FC A5 A5
+
+					29 00 00 00 00 00 24				/* Brightness condition set */
+						CA
+						01 00 01 00 01 00
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						00 00 00
+						00 00
+					29 00 00 00 00 00 03 B1 10 03		/* AID 0% */
+					29 00 00 00 00 00 02 B0 01
+					29 00 00 00 00 00 03 B5 BC 0A		/* ELVSS Setting:CAPS ON : acl off */
+					29 00 00 00 00 00 03 F4 BB 1E		/* VINT set */
+
+					29 01 00 00 01 00 02 F7 03			/* Gamma, LTPS(AID) update wait more 100ns */
+					29 00 00 00 00 00 02 F7 00
+
+					29 01 00 00 00 00 03 F0 A5 A5		/* TEST KEY key Disable  */
+				];
+				qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+				qcom,panel-roi-alignment=<540 32 540 32 540 32>;
+				qcom,compression-mode = "dsc";
+				qcom,config-select = <&dsc_fhd_hf4>;
+				dsc_fhd_hf4: config_fhd_hf4 {
+					qcom,lm-split = <540 540>;
+					qcom,mdss-dsc-encoders = <2>;
+					qcom,mdss-dsc-slice-height = <32>;
+					qcom,mdss-dsc-slice-width = <540>;
+					qcom,mdss-dsc-slice-per-pkt = <1>;
+
+					qcom,mdss-dsc-bit-per-component = <8>;
+					qcom,mdss-dsc-bit-per-pixel = <8>;
+					qcom,mdss-dsc-block-prediction-enable;
+				};
+			};
+			hd {
+				qcom,mdss-dsi-panel-width = <720>;
+				qcom,mdss-dsi-panel-height = <1280>;/*<1080>*/
+				qcom,mdss-dsi-h-pulse-width = <52>;
+				qcom,mdss-dsi-h-back-porch = <396>;/*<876>;*/
+				qcom,mdss-dsi-h-front-porch = <152>;
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				qcom,mdss-dsi-v-pulse-width = <100>;
+				qcom,mdss-dsi-v-back-porch = <160>;
+				qcom,mdss-dsi-v-front-porch = <1430>;/*<1630>;*/
+				qcom,mdss-dsi-panel-framerate = <60>;
+				qcom,mdss-dsi-panel-timings = [FE 56 3C 00 74 88 3C 56 4A 03 04 A0];
+				/*qcom,mdss-dsi-timing-switch-command; use samsung,panel_multires_XXX instead*/
+				/*qcom,mdss-dsi-timing-switch-command-state;*/
+				qcom,mdss-dsi-t-clk-pre = <0x30>;
+				qcom,mdss-dsi-t-clk-post = <0x0D>;
+
+				qcom,mdss-dsi-panel-timings-phy-v2 = [
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1F 08 09 05 03 04 a0
+					24 1B 08 09 05 03 04 a0
+				];
+				qcom,mdss-dsi-on-command = [
+					29 00 00 00 05 00 03 F0 5A 5A		/* TEST KEY1 Enable - 5ms */
+
+					/* DSC setting */
+					07 01 00 00 00 00 01 01				/* DSC enable */
+
+					05 01 00 00 05 00 01 11				/* sleep out */
+					29 01 00 00 05 00 02 E6 01			/* HS Timer Disable - prevent DSC being disable */
+
+					/* checksum disable */
+					29 00 00 00 00 00 03 FC 5A 5A
+					29 00 00 00 00 00 02 B0 35
+					29 00 00 00 00 00 02 FE 03
+					29 01 00 00 78 00 03 FC A5 A5
+
+					/* Sleep out, wait 120 ms */
+
+					29 00 00 00 00 00 02 35 00			/* TE Vsync ON */
+
+					29 00 00 00 00 00 02 ED 44			/* ERR_FG */
+
+					0A 01 00 00 0A 00 58				/* PPS setting hd*/
+						11 00 00 89 30 80 05
+						00 02 D0 00 40 01 68
+						01 68 02 00 01 B4 00
+						20 04 F2 00 05 00 0C
+						01 87 02 63 18 00 10
+						F0 03 0C 20 00 06 0B
+						0B 33 0E 1C 2A 38 46
+						54 62 69 70 77 79 7B
+						7D 7E 01 02 01 00 09
+						40 09 BE 19 FC 19 FA
+						19 F8 1A 38 1A 78 1A
+						B6 2A F6 2B 34 2B 74
+						3B 74 6B F4
+
+					29 00 00 00 00 00 02 BA 00			/* scaler setup */
+
+					29 00 00 00 00 00 05 2A 00 00 02 CF	/* CASET PASET */
+					29 00 00 00 00 00 05 2B 00 00 04 FF
+
+					/* FFC Setting(898Mbps) */
+					29 00 00 00 00 00 03 FC 5A 5A
+					29 00 00 00 00 00 12 CE
+						0D 58 14 5E 38 B8 F2 03
+						00 FF 02 0A 0A 0A 0A 0F
+						23
+					29 00 00 00 00 00 03 FC A5 A5
+
+					29 00 00 00 00 00 24				/* Brightness condition set */
+						CA
+						01 00 01 00 01 00
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						80 80 80
+						00 00 00
+						00 00
+					29 00 00 00 00 00 03 B1 10 03		/* AID 0% */
+					29 00 00 00 00 00 02 B0 01
+					29 00 00 00 00 00 03 B5 BC 0A		/* ELVSS Setting:CAPS ON : acl off */
+					29 00 00 00 00 00 03 F4 BB 1E		/* VINT set */
+
+					29 01 00 00 01 00 02 F7 03			/* Gamma, LTPS(AID) update wait more 100ns */
+					29 00 00 00 00 00 02 F7 00
+
+					29 01 00 00 00 00 03 F0 A5 A5		/* TEST KEY key Disable  */
+				];
+				qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+				qcom,panel-roi-alignment=<360 64 360 64 360 64>;
+				qcom,compression-mode = "dsc";
+				qcom,config-select = <&dsc_hd_hf4>;
+
+				dsc_hd_hf4: config_hd_hf4 {
+					qcom,lm-split = <360 360>;
+					qcom,mdss-dsc-encoders = <2>;
+					qcom,mdss-dsc-slice-height = <64>;
+					qcom,mdss-dsc-slice-width = <360>;
+					qcom,mdss-dsc-slice-per-pkt = <1>;
+					qcom,mdss-dsc-bit-per-component = <8>;
+					qcom,mdss-dsc-bit-per-pixel = <8>;
+					qcom,mdss-dsc-block-prediction-enable;
+				};
+
+			};
+		};
+	};
+};
