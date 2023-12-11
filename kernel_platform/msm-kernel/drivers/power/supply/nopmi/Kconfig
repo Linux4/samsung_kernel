@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+menu "No PMI Technologies, Inc. Charger and Fuel Gauge support"
+
+config AFC_GPIO_HVDCP
+	tristate "Samsung afc protocol driver"
+	depends on I2C
+	help
+	  Say Y to include support for samsung afc driver.
+
+config UPM6918_CHARGER
+	tristate "UP UPM6918 Battery Charger"
+	depends on I2C
+	help
+	  Say Y to include support for UPM6918 Battery Charger.
+
+config UPM6720_CHARGER
+	tristate "UP UPM6720 Charger Pump"
+	depends on I2C
+	help
+	  Say Y to include support for UPM6720 Charger Pump.
+	  
+config SC8541_CHARGER
+	tristate "UP SC8541 Charger Pump"
+	depends on I2C
+	help
+	  Say Y to include support for SC8541 Charger Pump.
+	  
+config CHARGER_SC89890
+	tristate "UP SC89890 Battery Charger"
+	depends on I2C
+	help
+	  Say Y to include support for SC89890 Battery Charger.
+
+config FG_SM5602
+	tristate "FG_SM5602 battery driver"
+	depends on I2C
+	help
+		Say Y to enable support of FG_SM5602 Battery Charger.
+
+config FG_OZ8806
+	tristate "FG_OZ8806 battery driver"
+	depends on I2C
+	help
+		Say Y to enable support of FG_OZ8806 Battery Charger.
+config FG_CW221X
+	tristate "FG_CW221X battery driver"
+	depends on I2C
+	help
+		Say Y to enable support of FG_OZ8806 Battery Charger.
+
+config CHARGER_SD76030
+	tristate "CHARGER_SD76030 battery driver"
+	depends on I2C
+	help
+		Say Y to enable support of CHARGER_SD76030 Charger Charger.
+
+config QCOM_PMIC_VOTER
+	tristate "QCOM pmic voter driver"
+	help
+	  Say Y to include support for QCOM pmic voter driver.
+
+endmenu

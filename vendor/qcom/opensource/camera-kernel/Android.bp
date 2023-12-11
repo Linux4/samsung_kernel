@@ -1,0 +1,50 @@
+headers_src = [
+    "include/uapi/*/**/*.h",
+]
+
+camera_headers_out = [
+    "media/cam_cpas.h",
+    "media/cam_custom.h",
+    "media/cam_defs.h",
+    "media/cam_fd.h",
+    "media/cam_icp.h",
+    "media/cam_isp.h",
+    "media/cam_isp_ife.h",
+    "media/cam_isp_tfe.h",
+    "media/cam_isp_vfe.h",
+    "media/cam_jpeg.h",
+    "media/cam_lrme.h",
+    "media/cam_ope.h",
+    "media/cam_req_mgr.h",
+    "media/cam_sensor.h",
+    "media/cam_sync.h",
+    "media/cam_tfe.h",
+]
+
+camera_kernel_headers_verbose = "--verbose "
+genrule {
+    name: "qti_generate_camera_kernel_headers",
+    tools: ["headers_install.sh",
+            "unifdef"
+    ],
+    tool_files: [
+        "camera_kernel_headers.py",
+    ],
+    srcs: headers_src,
+    cmd: "python3 -u $(location camera_kernel_headers.py) " +
+          camera_kernel_headers_verbose +
+         "--header_arch arm64 " +
+         "--gen_dir $(genDir) " +
+         "--camera_include_uapi $(locations include/uapi/*/**/*.h) " +
+         "--unifdef $(location unifdef) " +
+         "--headers_install $(location headers_install.sh)",
+    out: camera_headers_out,
+}
+
+cc_library_headers {
+    name: "qti_camera_kernel_uapi",
+    generated_headers: ["qti_generate_camera_kernel_headers"],
+    export_generated_headers: ["qti_generate_camera_kernel_headers"],
+    vendor: true,
+    recovery_available: true
+}

@@ -1,0 +1,381 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * COPYRIGHT(C) 2023 Samsung Electronics Co., Ltd. All Right Reserved.
+ */
+
+#include <dt-bindings/samsung/debug/sec_debug.h>
+#include <dt-bindings/samsung/debug/sec_crashkey.h>
+#include <dt-bindings/samsung/debug/sec_log_buf.h>
+#include <dt-bindings/samsung/debug/sec_arm64_vh_ipi_stop.h>
+
+#include <dt-bindings/samsung/debug/qcom/sec_qc_irq_log.h>
+#include <dt-bindings/samsung/debug/qcom/sec_qc_irq_exit_log.h>
+#include <dt-bindings/samsung/debug/qcom/sec_qc_msg_log.h>
+#include <dt-bindings/samsung/debug/qcom/sec_qc_sched_log.h>
+
+&reserved_memory {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	ranges;
+
+	sec_debug_region_pool: sec_debug_region_pool@78200000 {
+		compatible = "samsung,carve-out";
+		// no-map;
+		reg = <0x0 0x78200000 0x0 0x000FF000>;
+	};
+
+	sec_rst_ex_info_region: sec_rst_ex_info_region@782FF000 {
+		compatible = "samsung,carve-out";
+		no-map;
+		reg = <0x0 0x782FF000 0x0 0x00001000>;
+	};
+
+	sec_log_buf_region: sec_log_buf_region@78300000 {
+		compatible = "samsung,carve-out";
+		// no-map;
+		reg = <0x0 0x78300000 0x0 0x00200000>;
+	};
+
+	sec_debug_bl_region: sec_debug_bl_region@78500000 {
+		compatible = "samsung,carve-out";
+		no-map;
+		reg = <0x0 0x78500000 0x0 0x00500000>;
+	};
+
+	sec_pmsg_region: sec_pmsg_region@78A00000 {
+		compatible = "samsung,carve-out";
+		// no-map;
+		reg = <0x0 0x78A00000 0x0 0x00200000>;
+	};
+
+	google_debug_kinfo_region: google_debug_kinfo_region@78C00000 {
+		compatible = "samsung,carve-out";
+		no-map;
+		reg = <0x0 0x78C00000 0x0 0x00001000>;
+	};
+
+	sec_qcom_rdx_bootdev_region: sec_qcom_rdx_bootdev_region@78D00000 {
+		compatible = "samsung,carve-out";
+		status = "disabled";
+		reg = <0x0 0x78D00000 0x0 0x0AD00000>;
+	};
+};
+
+&ramoops_mem {
+	status = "disabled";
+};
+
+&soc {
+	qcom,msm-imem@c125000 {
+		upload_cause@66c {
+			compatible = "qcom,msm-imem-upload_cause";
+			reg = <0x66c 4>;
+		};
+	};
+
+	google_debug_kinfo: google,debug-kinfo {
+		compatible = "google,debug-kinfo";
+		status = "okay";
+		memory-region = <&google_debug_kinfo_region>;
+	};
+};
+
+&tmc_etr {
+	arm,buffer-size = <0x10000000>;
+};
+
+&soc {
+	sec_debug: samsung,sec_debug {
+		compatible = "samsung,sec_debug";
+		status = "okay";
+		sec,panic_notifier-priority = <127>;
+	};
+
+	sec_debug_region: samsung,debug_region {
+		compatible = "samsung,debug_region";
+		status = "okay";
+		memory-region = <&sec_debug_region_pool>;
+	};
+
+	sec_vh_ipi_stop: samsung,ap_context-sec_vh_ipi_stop {
+		compatible = "samsung,ap_context";
+		status = "okay";
+		sec,name = "ap_context-sec_vh_ipi_stop";
+		sec,unique_id = <SEC_ARM64_VH_IPI_STOP_MAGIC>;
+	};
+
+	sec_qcom_sched_log: samsung,qcom-sched_log {
+		compatible = "samsung,qcom-logger";
+		status = "okay";
+		sec,name = "qcom-sched_log";
+		sec,unique_id = <SEC_QC_SCHED_LOG_MAGIC>;
+	};
+
+	sec_qcom_irq_log: samsung,qcom-irq_log {
+		compatible = "samsung,qcom-logger";
+		status = "okay";
+		sec,name = "qcom-irq_log";
+		sec,unique_id = <SEC_QC_IRQ_LOG_MAGIC>;
+	};
+
+	sec_qcom_irq_exit_log: samsung,qcom-irq_exit_log {
+		compatible = "samsung,qcom-logger";
+		status = "okay";
+		sec,name = "qcom-irq_exit_log";
+		sec,unique_id = <SEC_QC_IRQ_EXIT_LOG_MAGIC>;
+	};
+
+	sec_qcom_msg_log: samsung,qcom-msg_log {
+		compatible = "samsung,qcom-logger";
+		status = "disabled";
+		sec,name = "qcom-msg_log";
+		sec,unique_id = <SEC_QC_MSG_LOG_MAGIC>;
+	};
+
+	sec_fsimd_debug: samsung,fsimd_debug {
+		compatible = "samsung,fsimd_debug";
+		status = "okay";
+		sec,debug_level = <SEC_DEBUG_LEVEL_MID>, <SEC_DEBUG_LEVEL_HIGH>;
+	};
+
+	sec_reboot_cmd: samsung,reboot_cmd {
+		compatible = "samsung,reboot_cmd";
+		status = "okay";
+		sec,reboot_notifier-priority = <250>;
+		sec,restart_handler-priority = <220>;
+	};
+
+	sec_qcom_reboot_cmd: samsung,qcom-reboot_cmd {
+		compatible = "samsung,qcom-reboot_cmd";
+		status = "okay";
+		// sec,use-on_reboot;	// counter part of qcom-rboot-reason.c
+		sec,use-on_restart;	// counter part of msm-poweroff.c
+	};
+
+	sec_upload_cause: samsung,upload_cause {
+		compatible = "samsung,upload_cause";
+		status = "okay";
+		sec,panic_notifier-priority = <255>;
+	};
+
+	sec_qc_upload_cause: samsung,qcom-upload_cause {
+		compatible = "samsung,qcom-upload_cause";
+		status = "okay";
+	};
+
+	sec_log_buf: samsung,kernel_log_buf {
+		compatible = "samsung,kernel_log_buf";
+		status = "okay";
+		memory-region = <&sec_log_buf_region>;
+		// sec,strategy = <SEC_LOG_BUF_STRATEGY_CONSOLE>;
+		// sec,strategy = <SEC_LOG_BUF_STRATEGY_KPROBE>;
+		// sec,strategy = <SEC_LOG_BUF_STRATEGY_BUILTIN>;
+		sec,strategy = <SEC_LOG_BUF_STRATEGY_VH_LOGBUF>;
+		sec,use-last_kmsg_compression;
+		sec,last_kmsg_compressor = "zstd";
+	};
+
+	sec_crashkey: samsung,crashkey {
+		compatible = "samsung,crashkey";
+		status = "okay";
+		sec,name = "crashkey";
+		sec,panic_msg = "Crash Key";
+		sec,debug_level = <SEC_DEBUG_LEVEL_MID>, <SEC_DEBUG_LEVEL_HIGH>;
+		sec,desired_pattern =
+			EVENT_KEY_PRESS(KEY_VOLUMEDOWN),
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER);
+		sec,interval = <1>;		/* in sec */
+	};
+
+	sec_crashkey_user: samsung,crashkey-user {
+		compatible = "samsung,crashkey";
+		status = "okay";
+		sec,name = "crashkey-user";
+		sec,panic_msg = "User Crash Key";
+		sec,debug_level = <SEC_DEBUG_LEVEL_LOW>;
+		sec,desired_pattern =
+			EVENT_KEY_PRESS(KEY_VOLUMEDOWN),		/* initial trigger */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 1 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 2 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 3 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 4 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 5 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 6 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 7 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 8 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 9 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_VOLUMEUP),	/* 1 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_VOLUMEUP),	/* 2 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_VOLUMEUP),	/* 3 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_VOLUMEUP),	/* 4 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_VOLUMEUP),	/* 5 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 1 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER),		/* 2 */
+			EVENT_KEY_PRESS_AND_RELEASE(KEY_POWER);		/* 3 */
+		sec,interval = <19>;		/* in sec */
+	};
+
+	sec_crashkey_long: samsung,crashkey-long {
+		compatible = "samsung,crashkey-long";
+		status = "okay";
+		sec,expire_msec = <6600>;
+		sec,panic_msg = "Long Key Press";
+		sec,used_key = <KEY_VOLUMEDOWN KEY_POWER>;
+	};
+
+	sec_boot_stat: samsung,boot_stat {
+		compatible = "samsung,boot_stat";
+		status = "okay";
+	};
+
+	sec_pmsg: samsung,pstore_pmsg {
+		compatible = "samsung,pstore_pmsg";
+		status = "okay";
+		memory-region = <&sec_pmsg_region>;
+	};
+
+	sec_qcom_wdt_core: samsung,qcom-wdt_core {
+		compatible = "samsung,qcom-wdt_core";
+		status = "okay";
+		sec,qcom_wdt_core_dev_name = "f017000.qcom,wdt";
+		sec,panic_notifier-priority = <0xFFFF>;
+	};
+
+	sec_msm_poweroff: samsung,qcom-msm_poweroff {
+		compatible = "samsung,qcom-msm_poweroff";
+		status = "okay";
+		sec,restart_handler-priority = <220>;
+		// nvmem-cells = <&restart_reason>, <&pon_reason>;
+		// nvmem-cell-names = "restart_reason", "pon_reason";
+	};
+
+	sec_qcom_debug_partition: samsung,qcom-debug_partition {
+		compatible = "samsung,qcom-debug_partition";
+		status = "okay";
+		// sec,bdev_path = "/dev/sda8";
+		sec,bdev_path = "PARTUUID=a17d0ddb-cec4-4a80-9e22-7d43fec26358";
+		sec,part_table = /* <offset size> */
+			<0x0 0x1000>,		/* debug_index_reset_header */
+			<0x1000 0x1000>,	/* debug_index_reset_ex_info */
+			<0x2000 0x1000>,	/* debug_index_ap_health */
+			<0x3000 0x1000>,	/* debug_index_lcd_debug_info */
+			<0x4000 0xA000>,	/* debug_index_reset_history */
+			<0xE000 0x1000>,	/* debug_index_reserve_0 */
+			<0xF000 0x78000>,	/* debug_index_reserve_1 */
+			<0x0F000 0x1000>,	/* debug_index_onoff_history */
+			<0x90000 0x3000>,	/* debug_index_reset_tzlog */
+			<0x93000 0x1000>,	/* debug_index_reset_extrc_info */
+			<0x94000 0x1000>,	/* debug_index_auto_comment */
+			<0x95000 0x1000>,	/* debug_index_reset_rkplog */
+			<0xFD000 0x3000>,	/* debug_index_modem_info */
+			<0x100000 0x200000>,	/* debug_index_reset_klog */
+			<0x300000 0x200000>,	/* debug_index_reset_lpm_klog */
+			<0x500000 0x300000>;	/* debug_index_reset_summary */
+	};
+
+	sec_qcom_summary: samsung,qcom-summary {
+		compatible = "samsung,qcom-summary";
+		status = "okay";
+		sec,die_notifier-priority = <250>;
+		sec,panic_notifier-priority = <250>;
+		sec,smem_offset = <64>;
+		memory-region = <&google_debug_kinfo_region>;
+		memory-region-names = "google,debug_kinfo";
+	};
+
+	sec_qcom_debug: samsung,qcom-debug {
+		compatible = "samsung,qcom-debug";
+		status = "okay";
+		sec,reboot_notifier-priority = <0xFFFFFFFE>;	/* -2 */
+		// sec,use-cp_dump_encrypt;
+		sec,use-store_last_kmsg;
+		sec,use-store_lpm_kmsg;
+		// sec,use-store_onoff_history;
+	};
+
+	sec_qcom_user_reset: samsung,qcom-user_reset {
+		compatible = "samsung,qcom-user_reset";
+		status = "okay";
+	};
+
+	sec_qcom_smem: samsung,qcom-smem {
+		compatible = "samsung,qcom-smem";
+		status = "disabled";
+		sec,vendor0_ver = <2>;	// reserved. currently not used.
+		sec,vendor1_ver = <7>;
+	};
+
+	sec_qcom_hw_param: samsung,qcom-hw_param {
+		compatible = "samsung,qcom-hw_param";
+		status = "okay";
+		// sec,use-ddr_eye_info;
+	};
+
+	sec_qcom_rst_exinfo: samsung,qcom-rst_exinfo {
+		compatible = "samsung,qcom-rst_exinfo";
+		status = "okay";
+		sec,die_notifier-priority = <245>;
+		sec,panic_notifier-priority = <245>;
+		memory-region = <&sec_rst_ex_info_region>;
+	};
+
+	sec_qcom_soc_id: samsung,qcom-soc_id {
+		compatible = "samsung,qcom-soc_id";
+		status = "disabled";
+
+		sec,use-qfprom_jtag;
+		sec,qfprom_jtag-addr = <0x221C2098>;
+		sec,use-jtag_id;
+		sec,jtag_id-addr = <0x221C8744>;
+	};
+
+	sec_qcom_rdx_bootdev: samsung,qcom-rdx_bootdev {
+		compatible = "samsung,qcom-rdx_bootdev";
+		status = "disabled";
+		memory-region = <&sec_qcom_rdx_bootdev_region>;
+	};
+
+	sec_arm64_debug: samsung,arm64-debug {
+		compatible = "samsung,arm64-debug";
+		status = "okay";
+	};
+};
+
+&soc {
+	mem_dump {
+		sec,debug_level = <SEC_DEBUG_LEVEL_MID>, <SEC_DEBUG_LEVEL_HIGH>;
+
+		c0_context {
+			sec,eneable-any_debug_level;
+		};
+
+		c1_context {
+			sec,eneable-any_debug_level;
+		};
+
+		c2_context {
+			sec,eneable-any_debug_level;
+		};
+
+		c3_context {
+			sec,eneable-any_debug_level;
+		};
+
+		c100_context {
+			sec,eneable-any_debug_level;
+		};
+
+		c101_context {
+			sec,eneable-any_debug_level;
+		};
+
+		c102_context {
+			sec,eneable-any_debug_level;
+		};
+
+		c103_context {
+			sec,eneable-any_debug_level;
+		};
+	};
+};

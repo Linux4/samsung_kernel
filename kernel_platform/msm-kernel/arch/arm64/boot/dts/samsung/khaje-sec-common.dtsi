@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * COPYRIGHT(C) 2023 Samsung Electronics Co., Ltd. All Right Reserved.
+ */
+
+#include "khaje-sec-bsp-common.dtsi"
+#include "khaje-sec-dcc-common.dtsi"
+#include "khaje-sec-debug-common.dtsi"
+
+&soc {
+	qcom,glinkpkt {
+		compatible = "qcom,glinkpkt";
+
+		qcom,glinkpkt-glinkbridge {
+			qcom,glinkpkt-edge = "mpss";
+			qcom,glinkpkt-ch-name = "glink_bridge";
+			qcom,glinkpkt-dev-name = "smd4";
+		};
+	};
+
+	usb_noti: usb-notifier {
+		compatible = "samsung,usb-notifier";
+		qcom,disable_control_en = <1>;
+		qcom,unsupport_host_en = <0>;
+	};
+};
+
+&usb0 {
+	extcon = <&usb_noti>, <&eud>;
+};

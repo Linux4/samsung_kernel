@@ -1,0 +1,15 @@
+cc_library_shared {
+    name: "libcpu_core_info",
+    srcs: ["cpu_core_info.cpp"],
+    vendor: true,
+    export_include_dirs: ["."],
+    shared_libs: [
+        "libcutils",
+        "libutils",
+        "liblog",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}

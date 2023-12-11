@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * COPYRIGHT(C) 2023 Samsung Electronics Co., Ltd. All Right Reserved.
+ */
+
+&soc {
+	sec_param: samsung,param {
+		compatible = "samsung,param";
+		status = "okay";
+	};
+
+	sec_qcom_param: samsung,qcom-param {
+		compatible = "samsung,qcom-param";
+		status = "okay";
+		// sec,bdev_path = "/dev/sda7";
+		sec,bdev_path = "PARTUUID=2da26441-884e-456c-afbb-721626d69933";
+		sec,negative_offset = <0x100000>;	/* 1MB */
+	};
+
+	sec_reloc_gpio: samsung,reloc_gpio {
+		compatible = "samsung,reloc_gpio";
+		status = "okay";
+		/* see, '/sys/kernel/debug/pinctrl' */
+		sec,gpio-label = "f000000.pinctrl";
+		sec,reloc-base = <0>;
+	};
+};
+
