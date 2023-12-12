@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2020 MediaTek Inc.
+ */
+
+/* display start */
+&mtk_leds {
+	compatible = "mediatek,disp-leds";
+
+	backlight {
+		/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 start*/
+		led_mode = <4>;
+		gate_enable = <0>;
+		/*Tab A9 code for AX6739A-53 by wenghailong at 20230507 start*/
+		max-brightness = <2047>;
+		/*Tab A9 code for AX6739A-53 by wenghailong at 20230507 END*/
+		/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 end*/
+		pwm_config = <0 1 0 0 0>;
+	};
+};
+/*Tab A9 code for SR-AX6739A-01-729 by hehaoran5 at 20230610 start*/
+&pio {
+	ctp_rst_pin_low: ctp_rst_pin_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO155__FUNC_GPIO155>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	ctp_rst_pin_high: ctp_rst_pin_high {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO155__FUNC_GPIO155>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+};
+/*Tab A9 code for SR-AX6739A-01-729 by hehaoran5 at 20230610 end*/
+&dsi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	/*Tab A9 code for SR-AX6739A-01-768 by yuli at 20230718 start*/
+	panel1@0 {
+		/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 start*/
+		compatible = "panel,lcm,video";
+		reg = <0>;
+		reset-gpios = <&pio 85 0>;//lcm rst
+		/*Tab A9 code for AX6739A-53 by wenghailong at 20230507 start*/
+		bias-gpios = <&pio 156 0>, <&pio 157 0>;//vsp.vsn
+		/*Tab A9 code for AX6739A-53 by wenghailong at 20230507 end*/
+		/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 end*/
+		pinctrl-names = "ctp_rst_pin_low","ctp_rst_pin_high";
+		pinctrl-0 = <&ctp_rst_pin_low>;
+		pinctrl-1 = <&ctp_rst_pin_high>;
+		port {
+			panel_in1: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+	/*Tab A9 code for SR-AX6739A-01-768 by yuli at 20230718 end*/
+
+	ports {
+		port {
+			dsi_out: endpoint {
+				remote-endpoint = <&panel_in1>;
+			};
+		};
+	};
+};
+
+/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 start*/
+&i2c5 {
+	i2c_lcd_bias_mtk:i2c_lcd_bias@3e {
+		compatible = "mediatek,i2c_lcd_bias";
+		reg = <0x3e>;
+		id = <5>;
+		status = "okay";
+	};
+};
+/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 end*/
+
+/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 start*/
+&i2c6 {
+	i2c_lcd_bias_mtk_official:i2c_lcd_bias@3e {
+		compatible = "mediatek,i2c_lcd_bias";
+		reg = <0x3e>;
+		id = <5>;
+		status = "okay";
+	};
+};
+/*Tab A9 code for AX6739A-6 by wenghailong at 20230418 end*/

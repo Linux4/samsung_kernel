@@ -1,0 +1,1 @@
+imgsensor_isp6s-objs += $(subdrv-rpath)/a0901frontsc201csly_mipi_raw.o

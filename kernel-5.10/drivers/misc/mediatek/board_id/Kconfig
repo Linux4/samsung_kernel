@@ -1,0 +1,8 @@
+# Tab A9 code for AX6739A-30 by qiaodan at 20230502 start
+config ODM_BOARD_ID_STATUS_SUPPORT
+    tristate "check board id  status"
+    help
+        this will add a global var to show board id status.
+
+        If unsure, say N.
+# Tab A9 code for AX6739A-30 by qiaodan at 20230502 end

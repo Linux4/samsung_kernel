@@ -1,0 +1,8 @@
+/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 start*/
+&board_id {
+        compatible = "odm,board-id-pin";
+        board_id_num1 = <&pio 151 0>;
+        board_id_num2 = <&pio 152 0>;
+        board_id_num3 = <&pio 153 0>;
+};
+/*Tab A9 code for AX6739A-30 by qiaodan at 20230502 end*/

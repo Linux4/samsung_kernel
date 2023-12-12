@@ -1,0 +1,281 @@
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+&i2c7 {
+    clock-frequency = <400000>;
+    /*Tab A9 code for AX6739A-210 by qiaodan at 20230524 start*/
+    i2c_qos_enable;
+    /*Tab A9 code for AX6739A-210 by qiaodan at 20230524 end*/
+    et7304:et7304_type_c_port0@4e{
+        compatible = "etek,et7304";
+        reg = <0x4e>;
+        status = "okay";
+        tcpc-dual,supported_modes = <0>; /* 0: dfp/ufp, */
+                         /* 1: dfp, 2: ufp */
+        et-tcpc,name = "type_c_port0"; /* tcpc_device's name */
+        et-tcpc,role_def = <5>; /* 1: SNK Only, 2: SRC Only, 3: DRP, */
+                    /* 4: Try.SRC, 5: Try.SNK */
+        et-tcpc,rp_level = <0>; /* 0: Default, 1: 1.5, 2: 3.0 */
+        et-tcpc,vconn_supply  = <0>;  /* 0: Never, 1: Always, */
+                          /* 2: EMarkOnly, 3: StartOnly */
+        et7304pd,intr_gpio = <&pio 0 0>;
+        et7304pd,intr_gpio_num = <0>;
+        pd-data {
+            pd,vid = <0x2e99>;
+            pd,pid = <0x0311>;
+            pd,source-cap-ext = <0x03112e99 0x00000000 0x00000000
+                         0x00000000 0x00000000 0x02000000>;
+            pd,mfrs = "etekTCPC";
+
+            /*
+             *    VSAFE5V = 0, MAX_POWER = 1, CUSTOM = 2,
+             *    MAX_POWER_LV = 0x21, MAX_POWER_LVIC = 0x31
+             *    MAX_POWER_HV = 0x41, MAX_POWER_HVIC = 0x51
+             */
+            pd,charging_policy= <0x31>;
+
+            /*
+             * Fixed 5V, 500 mA <0x00019032>
+             * Fixed 5V, 1A <0x00019064>
+             * Fixed 5V, 2A <0x000190c8>
+             * Fixed 5V, 3A <0x0001912c>
+             * Fixed 9V, 500 mA <0x0002d032>
+             * Fixed 9V, 1A <0x0002d064>
+             * Fixed 9V, 2A <0x0002d0c8>
+             * Fixed 9V, 3A <0x0002d12c>
+             * Variable 5-9V, 1A <0x8642d064>
+             * Variable 5-9V, 2A <0x8642d0c8>
+             * Variable 5-9V, 3A <0x8642d12c>
+             * PPS 3V~5.9V, 3A <0xC0761E3C>
+             */
+            pd,source-pdo-size = <1>;
+            /*Tab A9 code for SR-AX6739A-01-480 by wenyaqi at 20230607 start*/
+            pd,source-pdo-data = <0x00019078>;
+            /*Tab A9 code for SR-AX6739A-01-480 by wenyaqi at 20230607 end*/
+            pd,sink-pdo-size = <2>;
+            pd,sink-pdo-data = <0x000190c8 0x0002d0a5>; // 9V1.65A
+
+            /*
+             * No DP, host + device
+             *    pd,id-vdo-size = <3>;
+             *    pd,id-vdo-data = <0xd10029cf 0x0 0x17110000>;
+             * With DP
+             *    pd,id-vdo-size = <3>;
+             *    pd,id-vdo-data = <0xd60029cf 0x0 0x17110000
+             */
+
+            pd,id-vdo-size = <3>;
+            pd,id-vdo-data = <0xd100315c 0x0 0x88510000>;
+
+            bat,nr = <1>;
+            pd,country_nr = <0>;
+
+            bat-info0 {
+                bat,vid = <0x2e99>;
+                bat,pid = <0x0311>;
+                bat,mfrs = "bat1";
+                bat,design_cap = <5000>;
+            };
+
+            //bat-info1 {
+            //    bat,vid = <0x8abc>;
+            //    bat,pid = <0x5234>;
+            //    bat,mfrs = "bat2";
+            //    bat,design_cap = <4000>;
+            //};
+
+            //country0 {
+            //    pd,country_code = <0x5457>;
+            //    pd,country_len = <2>; /* max len = 26 */
+            //    pd,country_data = <0xff 0xff>;
+            //};
+
+            //country1 {
+            //    pd,country_code = <0x5553>;
+            //    pd,country_len = <3>; /* max len = 26 */
+            //    pd,country_data = <0xf1 0xf2 0xf3>;
+            //};
+        };
+
+        dpm_caps {
+            local_dr_power;
+            local_dr_data;
+            //local_ext_power;
+            local_usb_comm;
+            //local_usb_suspend;
+            //local_high_cap;
+            //local_give_back;
+            //local_no_suspend;
+            //local_vconn_supply;
+
+            //attemp_discover_cable_dfp;
+            // attemp_enter_dp_mode;
+            // attemp_discover_cable;
+            // attemp_discover_id;
+
+            /* 0: disable, 1: prefer_snk, 2: prefer_src */
+            pr_check = <0>;
+            //pr_reject_as_source;
+            //pr_reject_as_sink;
+
+            //pr_check_gp_source;
+            //pr_check_gp_sink;
+
+            /* 0: disable, 1: prefer_ufp, 2: prefer_dfp */
+            dr_check = <0>;
+            //dr_reject_as_dfp;
+            //dr_reject_as_ufp;
+        };
+    };
+    /*Tab A9 code for SR-AX6739A-01-498 by lina at 20230505 start*/
+        cps8851:cps8851_type_c_port0@33{
+        compatible = "cps,cps8851";
+        reg = <0x33>;
+        status = "okay";
+        tcpc-dual,supported_modes = <0>; /* 0: dfp/ufp, */
+                         /* 1: dfp, 2: ufp */
+        cps-tcpc,name = "type_c_port0"; /* tcpc_device's name */
+        cps-tcpc,role_def = <5>; /* 1: SNK Only, 2: SRC Only, 3: DRP, */
+                    /* 4: Try.SRC, 5: Try.SNK */
+        cps-tcpc,rp_level = <0>; /* 0: Default, 1: 1.5, 2: 3.0 */
+        cps-tcpc,vconn_supply  = <0>;  /* 0: Never, 1: Always, */
+                          /* 2: EMarkOnly, 3: StartOnly */
+        cps8851,intr_gpio = <&pio 0 0>;
+        cps8851,intr_gpio_num = <0>;
+        pd-data {
+            pd,vid = <0x315c>;
+            pd,pid = <0x8851>;
+            pd,source-cap-ext = <0x03112e99 0x00000000 0x00000000
+                         0x00000000 0x00000000 0x02000000>;
+            pd,mfrs = "CPS_TCPC";
+
+            /*
+             *    VSAFE5V = 0, MAX_POWER = 1, CUSTOM = 2,
+             *    MAX_POWER_LV = 0x21, MAX_POWER_LVIC = 0x31
+             *    MAX_POWER_HV = 0x41, MAX_POWER_HVIC = 0x51
+             */
+            pd,charging_policy= <0x31>;
+
+            /*
+             * Fixed 5V, 500 mA <0x00019032>
+             * Fixed 5V, 1A <0x00019064>
+             * Fixed 5V, 2A <0x000190c8>
+             * Fixed 5V, 3A <0x0001912c>
+             * Fixed 9V, 500 mA <0x0002d032>
+             * Fixed 9V, 1A <0x0002d064>
+             * Fixed 9V, 2A <0x0002d0c8>
+             * Fixed 9V, 3A <0x0002d12c>
+             * Variable 5-9V, 1A <0x8642d064>
+             * Variable 5-9V, 2A <0x8642d0c8>
+             * Variable 5-9V, 3A <0x8642d12c>
+             * PPS 3V~5.9V, 3A <0xC0761E3C>
+             */
+            pd,source-pdo-size = <1>;
+            pd,source-pdo-data = <0x00019064>;
+            pd,sink-pdo-size = <2>;
+            pd,sink-pdo-data = <0x000190c8 0x0002d0a5>; // 9V1.65A
+
+            /*
+             * No DP, host + device
+             *    pd,id-vdo-size = <3>;
+             *    pd,id-vdo-data = <0xd10029cf 0x0 0x17110000>;
+             * With DP
+             *    pd,id-vdo-size = <3>;
+             *    pd,id-vdo-data = <0xd60029cf 0x0 0x17110000
+             */
+
+            pd,id-vdo-size = <3>;
+            pd,id-vdo-data = <0xd100315c 0x0 0x88510000>;
+
+            bat,nr = <1>;
+            pd,country_nr = <0>;
+
+            bat-info0 {
+                bat,vid = <0x315c>;
+                bat,pid = <0x8851>;
+                bat,mfrs = "bat1";
+                bat,design_cap = <5000>;
+            };
+
+            //bat-info1 {
+            //    bat,vid = <0x8abc>;
+            //    bat,pid = <0x5234>;
+            //    bat,mfrs = "bat2";
+            //    bat,design_cap = <4000>;
+            //};
+
+            //country0 {
+            //    pd,country_code = <0x5457>;
+            //    pd,country_len = <2>; /* max len = 26 */
+            //    pd,country_data = <0xff 0xff>;
+            //};
+
+            //country1 {
+            //    pd,country_code = <0x5553>;
+            //    pd,country_len = <3>; /* max len = 26 */
+            //    pd,country_data = <0xf1 0xf2 0xf3>;
+            //};
+        };
+
+        dpm_caps {
+            local_dr_power;
+            local_dr_data;
+            //local_ext_power;
+            local_usb_comm;
+            //local_usb_suspend;
+            //local_high_cap;
+            //local_give_back;
+            //local_no_suspend;
+            //local_vconn_supply;
+
+            //attemp_discover_cable_dfp;
+            // attemp_enter_dp_mode;
+            // attemp_discover_cable;
+            // attemp_discover_id;
+
+            /* 0: disable, 1: prefer_snk, 2: prefer_src */
+            pr_check = <0>;
+            //pr_reject_as_source;
+            //pr_reject_as_sink;
+
+            //pr_check_gp_source;
+            //pr_check_gp_sink;
+
+            /* 0: disable, 1: prefer_ufp, 2: prefer_dfp */
+            dr_check = <0>;
+            //dr_reject_as_dfp;
+            //dr_reject_as_ufp;
+        };
+    };
+    /*Tab A9 code for SR-AX6739A-01-498 by lina at 20230505 start*/
+    /*Tab A9 code for SR-AX6739A-01-497 by wenyaqi at 20230506 start*/
+    aw35615@22 {
+        compatible = "awinic,aw35615";
+        reg = <0x22>;
+        awinic,int_n = <&pio 0 0>;
+        aw35615,snk_pdo_size = <1>; /* set sink pdo num*/
+        aw35615,snk_pdo_vol = <9000>; /* set sink pdo voltage mV*/
+        aw35615,snk_pdo_cur = <1650>; /* set sink pdo current mA*/
+        aw35615,src_pdo_size = <1>; /* set source pdo num*/
+        aw35615,src_pdo_vol = <5000>; /* set source pdo voltage mV*/
+        aw35615,src_pdo_cur = <1200>; /* set source pdo current mA*/
+        aw35615,snk_tog_time = <0x38>; /* set toggle sink time */
+        aw35615,src_tog_time = <0x24>; /* set toggle source time */
+        status = "okay";
+    };
+    /*Tab A9 code for SR-AX6739A-01-497 by wenyaqi at 20230506 end*/
+};
+
+/*Tab A9 code for AX6739A-117|AX6739A-2198|AX6739A-2315 by lina at 20230714 start*/
+&u2port0 {
+    mediatek,eye-vrt = <5>;
+    mediatek,eye-term = <5>;
+    mediatek,eye-src = <7>;
+    mediatek,rev6 = <3>;
+    mediatek,rev4 = <1>;
+    mediatek,eye-vrt-host = <5>;
+    mediatek,eye-term-host = <5>;
+    mediatek,eye-src-host = <7>;
+    mediatek,rev6-host = <3>;
+    mediatek,discth = <15>;
+};
+/*Tab A9 code for AX6739A-117|AX6739A-2198|AX6739A-2315 by lina at 20230714 end*/
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/

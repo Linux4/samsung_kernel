@@ -1,0 +1,13 @@
+/* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230625 start */
+/*
+&spi3 {
+    status = "okay";
+    grdm-spi@3 {
+        status = "okay";
+        compatible = "sec,grdm-spi";
+        reg = <0x0>;
+        spi-max-frequency = <10000000>;
+    };
+};
+*/
+/* Tab A9 code for SR-AX6739A-01-393 by gaochao at 20230625 end */

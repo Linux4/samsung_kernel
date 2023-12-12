@@ -1,0 +1,1 @@
+imgsensor_isp6s-objs += $(subdrv-rpath)/a0902frontc2599cxt_mipi_raw.o
