@@ -1,0 +1,15 @@
+/* Tab A9 code for SR-AX6739A-01-448 by zhengchao at 20230608 start */
+&mmc1 {
+    cd-gpios = <&pio 7 GPIO_ACTIVE_HIGH>;
+    vmmc-supply = <&mt6358_vmch_eint_low>;
+};
+/* Tab A9 code for SR-AX6739A-01-448 by zhengchao at 20230608 end */
+/* Tab A9 code for AX6739A-1105 by zhengchao at 20230613 start */
+&pio {
+    mmc1_pins_uhs: mmc1@0 {
+        pins_clk {
+            drive-strength = <7>;
+        };
+    };
+};
+/* Tab A9 code for AX6739A-1105 by zhengchao at 20230613 end */

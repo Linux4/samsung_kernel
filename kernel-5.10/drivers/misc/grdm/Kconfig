@@ -1,0 +1,5 @@
+config GRDM_POWER
+    tristate "regulatore control of grdm"
+    help
+      Say m here if you have a grdm.
+      If unsure, say N.

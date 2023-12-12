@@ -1,0 +1,10 @@
+
+config INPUT_SAR
+    tristate "Support for sar"
+    help
+      Say Y here if you have sar driver.
+
+config SAR_SX933X
+    tristate "Support for sx933x sar"
+    help
+      Say Y here if you have sar driver.

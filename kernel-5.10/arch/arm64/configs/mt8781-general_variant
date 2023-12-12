@@ -1,0 +1,11 @@
+#! /usr/bin/env bash
+# edit here
+# def/undef for local target
+# *** WARNING: Add enable/disable configs as newline ***
+
+gta9_00="""
+"""
+
+gta9wifi_00="""
+"""
+

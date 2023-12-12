@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2020 MediaTek Inc.
+ */
+
+/* Audio start */
+/*Tab A9 code for SR-AX6739A-01-184 by hujincan at 20230424 start*/
+&sound {
+    ctrl-mod-l-up = <&pio 154 0x0>;
+    ctrl-mod-r-down = <&pio 158 0x0>;
+    audio-switch = <&pio 159 0x0>;
+};
+
+/*Tab A9 code for SR-AX6739A-01-184 by hujincan at 20230424 end*/
+/* Audio end */

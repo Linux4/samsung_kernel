@@ -1,0 +1,237 @@
+#include <dt-bindings/iio/mt635x-auxadc.h>
+
+/*Tab A9 code for SR-AX6739A-01-490 by qiaodan at 20230504 start*/
+&odm {
+    gxy_psy: gxy_psy {
+        compatible = "gxy, gxy_psy";
+        status = "okay";
+    };
+    /*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 start*/
+    bat_id_adc: bat_id_adc {
+        compatible = "gxy, bat_id_adc";
+        io-channels = <&auxadc 4>;
+        io-channel-names = "gxy-battid";
+    };
+    /*Tab A9 code for SR-AX6739A-01-515 by lina at 20230505 end*/
+    /* Tab A9 code for SR-AX6739A-01-461 by qiaodan at 20230607 start */
+    vbus_ctrl: vbus_ctrl {
+        compatible = "gxy, vbus_ctrl";
+        vbus_ctrl_gpio_num = <136>;
+        vbus_ctrl_gpio = <&pio 136 0x0>;
+        io-channels = <&auxadc 2>;
+        io-channel-names = "gxy-usb-therm";
+    };
+    /* Tab A9 code for SR-AX6739A-01-461 by qiaodan at 20230607 end */
+    /*Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 start*/
+    /* AFC  Fast charging */
+    afc_charger: afc_charger {
+        compatible = "gxy,afc_charger";
+        gauge = <&mtk_gauge>;
+        status = "okay";
+
+        afc_switch_gpio_num = <5>;
+        afc_switch_gpio = <&pio 5 0x0>;
+        afc_data_gpio_num = <1>;
+        afc_data_gpio = <&pio 1 0x0>;
+
+        afc_start_battery_soc = <0>;
+        afc_stop_battery_soc = <100>;
+        afc_pre_input_current = <500000>;
+        afc_charger_input_current = <1700000>;
+        afc_charger_current = <2700000>;
+        afc_min_charger_voltage = <4600000>;
+        vbat_threshold = <4400>;
+    };
+    /*Tab A9 code for SR-AX6739A-01-499 by wenyaqi at 20230515 end*/
+
+    /* Tab A9 code for SR-AX6739A-01-452 by gaozhengwei at 20230612 start */
+    gxy_alarm: gxy_alarm {
+        compatible = "gxy, gxy_alarm";
+        status = "okay";
+    };
+    /* Tab A9 code for SR-AX6739A-01-452 by gaozhengwei at 20230612 end */
+};
+/*Tab A9 code for SR-AX6739A-01-490 by qiaodan at 20230504 end*/
+
+/*Tab A9 code for SR-AX6739A-01-493 by lina at 20230518 start*/
+&lk_charger {
+    /* charging current */
+    ac_charger_current = <2000000>;
+    ac_charger_input_current = <1550000>;
+};
+/*Tab A9 code for SR-AX6739A-01-493 by lina at 20230518 end*/
+
+&charger {
+    /*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 start*/
+    /* for get pmic mt6366 vbus */
+    io-channels = <&pmic_auxadc AUXADC_VCDT>;
+    io-channel-names = "pmic_vbus";
+    /*Tab A9 code for AX6739A-12 by wenyaqi at 20230421 end*/
+    /*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+    /* common */
+    battery_cv = <4400000>;
+    /*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 start*/
+    max_charger_voltage = <6400000>;
+    max_fast_charger_voltage = <10400000>;
+    /*Tab A9 code for SR-AX6739A-01-514 by qiaodan at 20230601 end*/
+    min_charger_voltage = <4600000>;
+    /*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230506 start*/
+    /* sw jeita */
+    /* enable_vbat_mon = <1>; */
+    enable_sw_jeita;
+    jeita_temp_above_t4_cv = <4100000>;
+    jeita_temp_t3_to_t4_cv = <4100000>;
+    jeita_temp_t2_to_t3_cv = <4400000>;
+    jeita_temp_t1_to_t2_cv = <4400000>;
+    jeita_temp_t0_to_t1_cv = <4400000>;
+    jeita_temp_below_t0_cv = <4400000>;
+    /*jeita-current*/
+    jeita_temp_above_t4_cur = <0>;
+    jeita_temp_t3_to_t4_cur = <1750000>;
+    jeita_temp_t2_to_t3_cur = <2700000>;
+    jeita_temp_t1_to_t2_cur = <1500000>;
+    jeita_temp_t0_to_t1_cur = <500000>;
+    /*jeita-temp threadshold*/
+    temp_t4_thres = <50>;
+    temp_t4_thres_minus_x_degree = <48>;
+    temp_t3_thres = <45>;
+    temp_t3_thres_minus_x_degree = <43>;
+    temp_t2_thres = <20>;
+    temp_t2_thres_plus_x_degree = <22>;
+    temp_t1_thres = <10>;
+    temp_t1_thres_plus_x_degree = <12>;
+    temp_t0_thres = <0>;
+    temp_t0_thres_plus_x_degree = <2>;
+    temp_neg_10_thres = <0>;
+    /* battery temperature protection */
+    enable_min_charge_temp;
+    min_charge_temp = <0>;
+    min_charge_temp_plus_x_degree = <6>;
+    max_charge_temp = <50>;
+    max_charge_temp_minus_x_degree = <47>;
+    /*Tab A9 code for SR-AX6739A-01-504 by qiaodan at 20230506 end*/
+
+    /*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
+    disable_aicl;
+    /* charging current */
+    usb_charger_current = <500000>;
+    ac_charger_current = <2000000>;
+    ac_charger_input_current = <1550000>;
+    charging_host_charger_current = <1500000>;
+
+    /* dynamic mivr */
+    enable_dynamic_mivr;
+    min_charger_voltage_1 = <4500000>;
+    min_charger_voltage_2 = <4300000>;
+    max_dmivr_charger_current = <1800000>;
+    /*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/
+
+    /* fast charging algo support indicator */
+    enable_fast_charging_indicator;
+    /*Tab A9 code for SR-AX6739A-01-494by qiaodan at 20230502 end*/
+
+    /*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 start*/
+    /* Battery Life */
+    gxy-batt-aging-enable;
+    gxy,cv-ranges = <0 299 4400000
+                    300 399 4380000
+                    400 699 4360000
+                    700 999 4340000
+                    1000 9999 4290000>;
+    /*Tab A9 code for SR-AX6739A-01-522 by gaozhengwei at 20230607 end*/
+};
+
+/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 start*/
+&pdc {
+    pd_vbus_upper_bound = <10000000>;
+    pd_stop_battery_soc = <100>;
+    /* single charger */
+    sc_input_current = <1700000>;
+    sc_charger_current = <2700000>;
+    /* dual charger */
+    vbat_threshold = <4400>;
+};
+/*Tab A9 code for SR-AX6739A-01-503 by qiaodan at 20230510 end*/
+
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 start*/
+&i2c5 {
+    upm6910dh: upm6910dh@6B {
+        compatible = "upm,upm6910dh";
+        reg = <0x6B>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
+        charger_name = "primary_chg";
+        upm,intr_gpio = <&pio 4 0x0>; /* GPIO */
+        upm,intr_gpio_num = <4>;
+    };
+
+    /*Tab A9 code for SR-AX6739A-01-493 by wenyaqi at 20230502 start*/
+     sc8960x_charger: sc8960x@6C {
+        compatible = "sc,sc89601d";
+        reg = <0x6C>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
+        sc8960x,charger_name = "primary_chg";
+        sc8960x,intr_gpio = <&pio 4 0x0>;
+        sc8960x,intr_gpio_num = <4>;
+
+        sc8960x,pfm-dis = <0>; /*0: enable, 1: disable*/
+        sc8960x,vsys-min = <5>; /*0: 2.6V, 1: 2.8V, 2: 3.0V,
+                    3: 3.2V, 4: 3.4V, 5: 3.5V, 6:3.6V, 7: 3.7V*/
+        sc8960x,vbat-low-otg = <0>; /*0: 2.8V, 1: 2.5V*/
+        sc8960x,ipre-chg = <2>; /*60 + val * 60, unit:mA*/
+        sc8960x,itermination = <2>; /*60 + val * 60, unit:mA*/
+        /*Tab A9 code for AX6739A-2529 by wenyaqi at 20230727 start*/
+        sc8960x,vbat-volt = <69>; /*3848 + val * 8, unit:mV*/
+        /*Tab A9 code for AX6739A-2529 by wenyaqi at 20230727 end*/
+        sc8960x,top-off-timer = <0>; /*0: dis, 1: 15min, 2: 20min 3: 45min*/
+        sc8960x,vrechg-volt = <0>; /*0: 100mV, 1: 200mV*/
+        sc8960x,en-termination = <1>; /*0: disable, 1: enable*/
+        sc8960x,wdt-timer = <0>; /*0: disable, 1: 40s, 2: 80s, 3：160s*/
+        sc8960x,en-chg-saft-timer = <1>; /*0: disable, 1: enable*/
+        sc8960x,charge-timer = <1>; /*0: 5hrs, 1: 10hrs*/
+        sc8960x,vac-ovp = <3>; /*0: 5.8V, 1: 6.4V, 2: 11V, 3: 14.2V*/
+        sc8960x,iboost = <1>; /*0: 0.5A, 1: 1.2A*/
+        sc8960x,vboost = <12>; /*3900 + val * 100, unit:mV*/
+        sc8960x,vindpm-track = <0>; /*0: disable, 1:200mV, 2:250mV, 3:300mV*/
+        sc8960x,vindpm-int-mask = <1>; /*0: not mask, 1: mask*/
+        sc8960x,iindpm-int-mask = <1>; /*0: not mask, 1: mask*/
+        sc8960x,vpre-to-cc = <0>; /*0: 3V, 1: 2.8V*/
+        sc8960x,auto-dpdm-en = <0>; /*0: disale, 1: enable*/
+        sc8960x,ntc-pin-dis = <1>; /*0: enable, 1: disable*/
+    };
+    /*Tab A9 code for SR-AX6739A-01-493 by wenyaqi at 20230502 end*/
+
+    /* Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 start */
+    sgm415xx: sgm415xx@1a {
+        compatible = "sgm,sgm41543D";
+        reg = <0x1A>;
+        status = "okay";
+
+        interrupt-parent = <&pio>;
+        interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
+        charger_name = "primary_chg";
+        sgm,intr_gpio = <&pio 4 0x0>; /* GPIO */
+        sgm,intr_gpio_num = <4>;
+
+        sgm41513,charge-detect-enable;
+        sgm41513,usb-vlim = <4600>;
+        sgm41513,usb-ilim = <500>;
+        sgm41513,usb-vreg = <4400>;
+        sgm41513,usb-ichg = <500>;
+
+        sgm41513,precharge-current = <480>;
+        sgm41513,termination-current = <180>;
+        sgm41513,boost-voltage = <5000>;
+        sgm41513,boost-current = <1200>;
+        sgm41513,enable_term;
+        sgm41513,stat-pin-ctrl = <3>;
+        sgm41513,vac-ovp-threshold = <10500>;
+    };
+    /* Tab A9 code for AX6739A-1334 by gaozhengwei at 20230620 end */
+};
+/*Tab A9 code for SR-AX6739A-01-494 by qiaodan at 20230502 end*/
