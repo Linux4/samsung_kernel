@@ -1,0 +1,7 @@
+#Bug 427683 huangcunzhu_wt,20190123,add,sar sensor bringup
+config SENSORS
+	bool "Sensors Class Support"
+	default y
+    help
+	  This option enables the sensor sysfs class in /sys/class/sensors.
+	  You'll need this to do anything useful with sensors. If unsure, say N.
