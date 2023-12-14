@@ -806,15 +806,14 @@ static void uevent_event(uint32_t /*epevents*/, struct data *payload) {
         }
     } else if (std::regex_match(msg, match, udc_regex)) {
         if (!strncmp(msg, "add", 3)) {
-            // Allow ADBD to resume its FFS monitor thread
-            SetProperty(VENDOR_USB_ADB_DISABLED_PROP, "0");
+            // Attempt to re-bind ConfigFS gadget to UDC when it is added
+            ALOGI("Binding UDC %s to ConfigFS", gadgetName.c_str());
+            writeFile("/config/usb_gadget/g1/UDC", gadgetName);
 
-            // In case ADB is not enabled, we need to manually re-bind the UDC to
-            // ConfigFS since ADBD is not there to trigger it (sys.usb.ffs.ready=1)
-            if (GetProperty("init.svc.adbd", "") != "running") {
-                ALOGI("Binding UDC %s to ConfigFS", gadgetName.c_str());
-                writeFile("/config/usb_gadget/g1/UDC", gadgetName);
-            }
+            // Also allow ADBD to resume. In case bind still failed above due
+            // due to ADB FFS EP0 file not opened and written to yet, ADBD will
+            // separately trigger re-bind when it sets sys.usb.ffs.ready=1
+            SetProperty(VENDOR_USB_ADB_DISABLED_PROP, "0");
         } else {
             // When the UDC is removed, the ConfigFS gadget will no longer be
             // bound. If ADBD is running it would keep opening/writing to its

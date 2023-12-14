@@ -130,6 +130,16 @@
 			#thermal-sensor-cells = <0>;
 		};
 
+		qcom,schgm-flash@a600 {
+			compatible = "qcom,schgm-flash";
+			reg = <0xa600>;
+			interrupts = <0x2 0xa6 0x2 IRQ_TYPE_EDGE_RISING>,
+				     <0x2 0xa6 0x6 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "flash-state-change",
+				     "ilim2-s2";
+			qcom,flash-disable-soc = <10>;
+		};
+
 		pmi632_gpios: pinctrl@c000 {
 			compatible = "qcom,pmi632-gpio";
 			reg = <0xc000>;

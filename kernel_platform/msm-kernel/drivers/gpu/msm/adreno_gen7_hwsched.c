@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -15,7 +15,6 @@
 #include "adreno_snapshot.h"
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
-#include "kgsl_util.h"
 
 static size_t adreno_hwsched_snapshot_rb(struct kgsl_device *device, u8 *buf,
 	size_t remain, void *priv)
@@ -321,8 +320,6 @@ void gen7_hwsched_snapshot(struct adreno_device *adreno_dev,
 				entry->md);
 	}
 
-	adreno_hwsched_parse_fault_cmdobj(adreno_dev, snapshot);
-
 	if (!adreno_hwsched_context_queue_enabled(adreno_dev))
 		return;
 
@@ -338,11 +335,11 @@ static int gen7_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	int level, ret = 0;
 
-	trace_kgsl_pwr_request_state(device, KGSL_STATE_AWARE);
+	kgsl_pwrctrl_request_state(device, KGSL_STATE_AWARE);
 
 	gen7_gmu_aop_send_acd_state(gmu, adreno_dev->acd_enabled);
 
-	ret = gen7_gmu_enable_gdsc(adreno_dev);
+	ret = kgsl_pwrctrl_enable_cx_gdsc(device, gmu->cx_gdsc);
 	if (ret)
 		return ret;
 
@@ -417,7 +414,7 @@ clks_gdsc_off:
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
 
 gdsc_off:
-	gen7_gmu_disable_gdsc(adreno_dev);
+	kgsl_pwrctrl_disable_cx_gdsc(device, gmu->cx_gdsc);
 
 	gen7_rdpm_cx_freq_update(gmu, 0);
 
@@ -430,9 +427,9 @@ static int gen7_hwsched_gmu_boot(struct adreno_device *adreno_dev)
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	int ret = 0;
 
-	trace_kgsl_pwr_request_state(device, KGSL_STATE_AWARE);
+	kgsl_pwrctrl_request_state(device, KGSL_STATE_AWARE);
 
-	ret = gen7_gmu_enable_gdsc(adreno_dev);
+	ret = kgsl_pwrctrl_enable_cx_gdsc(device, gmu->cx_gdsc);
 	if (ret)
 		return ret;
 
@@ -485,7 +482,7 @@ clks_gdsc_off:
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
 
 gdsc_off:
-	gen7_gmu_disable_gdsc(adreno_dev);
+	kgsl_pwrctrl_disable_cx_gdsc(device, gmu->cx_gdsc);
 
 	gen7_rdpm_cx_freq_update(gmu, 0);
 
@@ -572,9 +569,11 @@ static int gen7_hwsched_gmu_power_off(struct adreno_device *adreno_dev)
 
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
 
-	gen7_gmu_disable_gdsc(adreno_dev);
+	kgsl_pwrctrl_disable_cx_gdsc(device, gmu->cx_gdsc);
 
 	gen7_rdpm_cx_freq_update(gmu, 0);
+
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
 
 	return ret;
 
@@ -687,7 +686,7 @@ static void gen7_hwsched_touch_wakeup(struct adreno_device *adreno_dev)
 	if (test_bit(GMU_PRIV_GPU_STARTED, &gmu->flags))
 		goto done;
 
-	trace_kgsl_pwr_request_state(device, KGSL_STATE_ACTIVE);
+	kgsl_pwrctrl_request_state(device, KGSL_STATE_ACTIVE);
 
 	ret = gen7_hwsched_gmu_boot(adreno_dev);
 	if (ret)
@@ -726,7 +725,7 @@ static int gen7_hwsched_boot(struct adreno_device *adreno_dev)
 	if (test_bit(GMU_PRIV_GPU_STARTED, &gmu->flags))
 		return 0;
 
-	trace_kgsl_pwr_request_state(device, KGSL_STATE_ACTIVE);
+	kgsl_pwrctrl_request_state(device, KGSL_STATE_ACTIVE);
 
 	adreno_hwsched_start(adreno_dev);
 
@@ -774,7 +773,7 @@ static int gen7_hwsched_first_boot(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 
-	trace_kgsl_pwr_request_state(device, KGSL_STATE_ACTIVE);
+	kgsl_pwrctrl_request_state(device, KGSL_STATE_ACTIVE);
 
 	ret = gen7_hwsched_gmu_first_boot(adreno_dev);
 	if (ret)
@@ -823,31 +822,6 @@ static int gen7_hwsched_first_boot(struct adreno_device *adreno_dev)
 	trace_kgsl_pwr_set_state(device, KGSL_STATE_ACTIVE);
 
 	return 0;
-}
-
-static void reset_preemption_records(struct adreno_device *adreno_dev)
-{
-	struct gen7_hwsched_hfi *hw_hfi = to_gen7_hwsched_hfi(adreno_dev);
-	static struct kgsl_memdesc *preemption_md;
-	u32 i;
-
-	if (!adreno_is_preemption_enabled(adreno_dev))
-		return;
-
-	if (preemption_md) {
-		memset(preemption_md->hostptr, 0x0, preemption_md->size);
-		return;
-	}
-
-	for (i = 0; i < hw_hfi->mem_alloc_entries; i++) {
-		struct hfi_mem_alloc_desc *desc = &hw_hfi->mem_alloc_table[i].desc;
-
-		if (desc->mem_kind == HFI_MEMKIND_CSW_PRIV_NON_SECURE) {
-			preemption_md = hw_hfi->mem_alloc_table[i].md;
-			memset(preemption_md->hostptr, 0x0, preemption_md->size);
-			return;
-		}
-	}
 }
 
 /**
@@ -903,16 +877,10 @@ static int gen7_hwsched_power_off(struct adreno_device *adreno_dev)
 	if (!test_bit(GMU_PRIV_GPU_STARTED, &gmu->flags))
 		return 0;
 
-	trace_kgsl_pwr_request_state(device, KGSL_STATE_SLUMBER);
+	kgsl_pwrctrl_request_state(device, KGSL_STATE_SLUMBER);
 
 	/* process any profiling results that are available */
 	adreno_profile_process_results(ADRENO_DEVICE(device));
-
-	if (!gen7_hw_isidle(adreno_dev)) {
-		dev_err(&gmu->pdev->dev, "GPU isn't idle before SLUMBER\n");
-		gmu_core_fault_snapshot(device);
-		goto no_gx_power;
-	}
 
 	ret = gen7_gmu_oob_set(device, oob_gpu);
 	if (ret) {
@@ -952,22 +920,13 @@ no_gx_power:
 
 	clear_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
-	device->state = KGSL_STATE_NONE;
-
 	del_timer_sync(&device->idle_timer);
 
 	kgsl_pwrscale_sleep(device);
 
 	kgsl_pwrctrl_clear_l3_vote(device);
 
-	/*
-	 * Reset the context records so that CP can start
-	 * at the correct read pointer for BV thread after
-	 * coming out of slumber.
-	 */
-	reset_preemption_records(adreno_dev);
-
-	trace_kgsl_pwr_set_state(device, KGSL_STATE_SLUMBER);
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_SLUMBER);
 
 	return ret;
 }
@@ -983,7 +942,12 @@ static void hwsched_idle_check(struct work_struct *work)
 	if (test_bit(GMU_DISABLE_SLUMBER, &device->gmu_core.flags))
 		goto done;
 
-	if (!atomic_read(&device->active_cnt)) {
+	if (!atomic_read(&device->active_cnt) &&
+		time_is_before_eq_jiffies(device->idle_jiffies)) {
+		if (!gen7_hw_isidle(adreno_dev)) {
+			dev_err(device->dev, "GPU isn't idle before SLUMBER\n");
+			gmu_core_fault_snapshot(device);
+		}
 		gen7_hwsched_power_off(adreno_dev);
 	} else {
 		kgsl_pwrscale_update(device);
@@ -1180,7 +1144,7 @@ static int gen7_hwsched_pm_suspend(struct adreno_device *adreno_dev)
 	if (test_bit(GMU_PRIV_PM_SUSPEND, &gmu->flags))
 		return 0;
 
-	trace_kgsl_pwr_request_state(device, KGSL_STATE_SUSPEND);
+	kgsl_pwrctrl_request_state(device, KGSL_STATE_SUSPEND);
 
 	/* Halt any new submissions */
 	reinit_completion(&device->halt_gate);
@@ -1242,7 +1206,7 @@ void gen7_hwsched_handle_watchdog(struct adreno_device *adreno_dev)
 	gmu_core_regwrite(device, GEN7_GMU_AO_HOST_INTERRUPT_MASK,
 			(mask | GMU_INT_WDOG_BITE));
 
-	gen7_gmu_send_nmi(adreno_dev, false);
+	gen7_gmu_send_nmi(device, false);
 
 	dev_err_ratelimited(&gmu->pdev->dev,
 			"GMU watchdog expired interrupt received\n");
@@ -1414,6 +1378,7 @@ const struct adreno_power_ops gen7_hwsched_power_ops = {
 	.pm_resume = gen7_hwsched_pm_resume,
 	.gpu_clock_set = gen7_hwsched_clock_set,
 	.gpu_bus_set = gen7_hwsched_bus_set,
+	.register_gdsc_notifier = gen7_gmu_register_gdsc_notifier,
 };
 
 const struct adreno_hwsched_ops gen7_hwsched_ops = {
@@ -1471,20 +1436,64 @@ int gen7_hwsched_add_to_minidump(struct adreno_device *adreno_dev)
 					struct gen7_device, adreno_dev);
 	struct gen7_hwsched_device *gen7_hwsched = container_of(gen7_dev,
 					struct gen7_hwsched_device, gen7_dev);
-	int ret;
+	struct gen7_hwsched_hfi *hw_hfi = &gen7_hwsched->hwsched_hfi;
+	int ret, i;
 
 	ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev, KGSL_HWSCHED_DEVICE,
 			(void *)(gen7_hwsched), sizeof(struct gen7_hwsched_device));
 	if (ret)
 		return ret;
 
-	ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev, KGSL_GMU_LOG_ENTRY,
-			gen7_dev->gmu.gmu_log->hostptr, gen7_dev->gmu.gmu_log->size);
-	if (ret)
-		return ret;
+	if (gen7_dev->gmu.gmu_log) {
+		ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev,
+					KGSL_GMU_LOG_ENTRY,
+					gen7_dev->gmu.gmu_log->hostptr,
+					gen7_dev->gmu.gmu_log->size);
+		if (ret)
+			return ret;
+	}
 
-	ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev, KGSL_HFIMEM_ENTRY,
-			gen7_dev->gmu.hfi.hfi_mem->hostptr, gen7_dev->gmu.hfi.hfi_mem->size);
+	if (gen7_dev->gmu.hfi.hfi_mem) {
+		ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev,
+					KGSL_HFIMEM_ENTRY,
+					gen7_dev->gmu.hfi.hfi_mem->hostptr,
+					gen7_dev->gmu.hfi.hfi_mem->size);
+		if (ret)
+			return ret;
+	}
+
+	/* Dump HFI hwsched global mem alloc entries */
+	for (i = 0; i < hw_hfi->mem_alloc_entries; i++) {
+		struct hfi_mem_alloc_entry *entry = &hw_hfi->mem_alloc_table[i];
+		char hfi_minidump_str[MAX_VA_MINIDUMP_STR_LEN] = {0};
+		u32 rb_id = 0;
+
+		if (!hfi_get_minidump_string(entry->desc.mem_kind,
+					&hfi_minidump_str[0],
+					sizeof(hfi_minidump_str), &rb_id)) {
+			ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev,
+						hfi_minidump_str,
+						entry->md->hostptr,
+						entry->md->size);
+			if (ret)
+				return ret;
+		}
+	}
+
+	if (hw_hfi->big_ib) {
+		ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev,
+					KGSL_HFI_BIG_IB_ENTRY,
+					hw_hfi->big_ib->hostptr,
+					hw_hfi->big_ib->size);
+		if (ret)
+			return ret;
+	}
+
+	if (hw_hfi->big_ib_recurring)
+		ret = kgsl_add_va_to_minidump(adreno_dev->dev.dev,
+					KGSL_HFI_BIG_IB_REC_ENTRY,
+					hw_hfi->big_ib_recurring->hostptr,
+					hw_hfi->big_ib_recurring->size);
 
 	return ret;
 }

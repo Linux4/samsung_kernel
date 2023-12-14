@@ -219,6 +219,14 @@
 #define MFC_TX_CONFLICT_CURRENT_REG			0xA0
 #define MFC_RECT_MODE_AP_CTRL				0xA2
 #define MFC_CEP_TIME_OUT_REG				0xA4
+/*
+ * TX Mode Ping Duty Setting Register, Ping_Duty, default is 50% (0x1=50)
+ * 0xA7 = 0 : Ping Soft Start Disable
+ * 0xA7 = 1 : Ping Soft Start Enable & Ping Duty 50%
+ * 0xA7 = other cases (X) : Ping Soft Start Enable & Ping Duty X/2%
+ * (ex) 0xA7 = 90(0x5A) : Ping Duty 45%
+ */
+#define MFC_TX_PING_DUTY_SETTING_REG		0xA7 /* default 0x1 */
 
 #define MFC_FW_DATA_CODE_0					0xB0
 #define MFC_FW_DATA_CODE_1					0xB1
@@ -919,6 +927,7 @@ struct mfc_charger_data {
 	struct wakeup_source *wpc_update_ws;
 	struct wakeup_source *wpc_opfq_ws;
 	struct wakeup_source *wpc_tx_duty_min_ws;
+	struct wakeup_source *wpc_tx_ping_duty_ws;
 	struct wakeup_source *wpc_afc_vout_ws;
 	struct wakeup_source *wpc_vout_mode_ws;
 	struct wakeup_source *wpc_rx_det_ws;
@@ -929,6 +938,7 @@ struct mfc_charger_data {
 	struct wakeup_source *align_check_ws;
 	struct wakeup_source *mode_change_ws;
 	struct wakeup_source *wpc_cs100_ws;
+	struct wakeup_source *wpc_check_rx_power_ws;
 	struct workqueue_struct *wqueue;
 	struct work_struct wcin_work;
 	struct delayed_work wpc_det_work;
@@ -948,6 +958,7 @@ struct mfc_charger_data {
 	struct delayed_work wpc_rx_connection_work;
 	struct delayed_work wpc_tx_op_freq_work;
 	struct delayed_work wpc_tx_duty_min_work;
+	struct delayed_work wpc_tx_ping_duty_work;
 	struct delayed_work wpc_tx_phm_work;
 	struct delayed_work wpc_vrect_check_work;
 	struct delayed_work wpc_rx_power_work;
@@ -958,6 +969,7 @@ struct mfc_charger_data {
 	struct delayed_work wpc_init_work;
 	struct delayed_work align_check_work;
 	struct delayed_work mode_change_work;
+	struct delayed_work wpc_check_rx_power_work;
 
 	struct alarm phm_alarm;
 
@@ -1005,6 +1017,7 @@ struct mfc_charger_data {
 	unsigned long gear_start_time;
 	int input_current;
 	int duty_min;
+	int ping_duty;
 	int wpc_en_flag;
 	bool tx_device_phm;
 
@@ -1020,6 +1033,7 @@ struct mfc_charger_data {
 	int vout_strength;
 	u32 mis_align_tx_try_cnt;
 	bool skip_phm_work_in_sleep;
+	bool check_rx_power;
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;

@@ -1325,6 +1325,18 @@ static ssize_t front2_camera_moduleid_show(struct device *dev,
 	  front2_module_id[0], front2_module_id[1], front2_module_id[2], front2_module_id[3], front2_module_id[4],
 	  front2_module_id[5], front2_module_id[6], front2_module_id[7], front2_module_id[8], front2_module_id[9]);
 }
+
+static ssize_t svc_front2_module_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "front_ultra_wide\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
+}
 #endif
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
@@ -1540,6 +1552,18 @@ static ssize_t rear_moduleid_show(struct device *dev,
 	  rear_module_id[5], rear_module_id[6], rear_module_id[7], rear_module_id[8], rear_module_id[9]);
 }
 
+static ssize_t svc_rear_module_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "rear_wide\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
+}
+
 uint8_t front_module_id[FROM_MODULE_ID_SIZE + 1] = "\0";
 static ssize_t front_camera_moduleid_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -1550,6 +1574,18 @@ static ssize_t front_camera_moduleid_show(struct device *dev,
 	return sprintf(buf, "%c%c%c%c%c%02X%02X%02X%02X%02X\n",
 	  front_module_id[0], front_module_id[1], front_module_id[2], front_module_id[3], front_module_id[4],
 	  front_module_id[5], front_module_id[6], front_module_id[7], front_module_id[8], front_module_id[9]);
+}
+
+static ssize_t svc_front_module_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "front_wide\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
 }
 
 #define SSRM_CAMERA_INFO_SIZE 256
@@ -1780,6 +1816,18 @@ static ssize_t rear3_moduleid_show(struct device *dev,
 	  rear3_module_id[0], rear3_module_id[1], rear3_module_id[2], rear3_module_id[3], rear3_module_id[4],
 	  rear3_module_id[5], rear3_module_id[6], rear3_module_id[7], rear3_module_id[8], rear3_module_id[9]);
 }
+
+static ssize_t svc_rear3_module_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "rear_tele\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
+}
 #endif
 
 char module3_info[SYSFS_MODULE_INFO_SIZE] = "NULL\n";
@@ -1926,6 +1974,18 @@ static ssize_t rear2_moduleid_show(struct device *dev,
 	return sprintf(buf, "%c%c%c%c%c%02X%02X%02X%02X%02X\n",
 	  rear2_module_id[0], rear2_module_id[1], rear2_module_id[2], rear2_module_id[3], rear2_module_id[4],
 	  rear2_module_id[5], rear2_module_id[6], rear2_module_id[7], rear2_module_id[8], rear2_module_id[9]);
+}
+
+static ssize_t svc_rear2_module_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "rear_ultra_wide\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
 }
 
 char rear2_fw_ver[SYSFS_FW_VER_SIZE] = "NULL NULL\n";//multi module
@@ -2331,6 +2391,18 @@ static ssize_t rear4_moduleid_show(struct device *dev,
 	return sprintf(buf, "%c%c%c%c%c%02X%02X%02X%02X%02X\n",
 	  rear4_module_id[0], rear4_module_id[1], rear4_module_id[2], rear4_module_id[3], rear4_module_id[4],
 	  rear4_module_id[5], rear4_module_id[6], rear4_module_id[7], rear4_module_id[8], rear4_module_id[9]);
+}
+
+static ssize_t svc_rear4_module_type_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	char cam_type[] = "rear_super_tele\n";
+
+	rc = scnprintf(buf, PAGE_SIZE, "%s", cam_type);
+	if (rc)
+		return rc;
+	return 0;
 }
 
 char module4_info[SYSFS_MODULE_INFO_SIZE] = "NULL\n";
@@ -3385,9 +3457,12 @@ static DEVICE_ATTR(rear_mtf_exif, S_IRUGO|S_IWUSR|S_IWGRP,
 static DEVICE_ATTR(rear_mtf2_exif, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear_mtf2_exif_show, rear_mtf2_exif_store);
 static DEVICE_ATTR(SVC_rear_module, S_IRUGO, rear_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_rear_module_type, S_IRUGO, svc_rear_module_type_show, NULL);
 static DEVICE_ATTR(SVC_front_module, S_IRUGO, front_camera_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_front_module_type, S_IRUGO, svc_front_module_type_show, NULL);
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 static DEVICE_ATTR(SVC_front_module2, S_IRUGO, front2_camera_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_front_module2_type, S_IRUGO, svc_front2_module_type_show, NULL);
 #endif
 static DEVICE_ATTR(ssrm_camera_info, S_IRUGO|S_IWUSR|S_IWGRP,
 	ssrm_camera_info_show, ssrm_camera_info_store);
@@ -3422,6 +3497,7 @@ static DEVICE_ATTR(rear3_paf_cal_check, S_IRUGO,
 #if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 static DEVICE_ATTR(rear3_moduleid, S_IRUGO, rear3_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module3, S_IRUGO, rear3_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_rear_module3_type, S_IRUGO, svc_rear3_module_type_show, NULL);
 #endif
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
@@ -3449,6 +3525,7 @@ static DEVICE_ATTR(rear2_checkfw_factory, S_IRUGO|S_IWUSR|S_IWGRP,
 static DEVICE_ATTR(rear2_camfw_full, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear2_firmware_full_show, rear2_firmware_full_store);
 static DEVICE_ATTR(SVC_rear_module2, S_IRUGO, rear2_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_rear_module2_type, S_IRUGO, svc_rear2_module_type_show, NULL);
 static DEVICE_ATTR(rear2_camtype, S_IRUGO, rear2_type_show, NULL);
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 static DEVICE_ATTR(rear2_dualcal, S_IRUGO, rear2_dual_cal_show, NULL);
@@ -3484,6 +3561,7 @@ static DEVICE_ATTR(rear4_paf_cal_check, S_IRUGO,
 	rear4_paf_cal_check_show, NULL);
 static DEVICE_ATTR(rear4_moduleid, S_IRUGO, rear4_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module4, S_IRUGO, rear4_moduleid_show, NULL);
+static DEVICE_ATTR(SVC_rear_module4_type, S_IRUGO, svc_rear4_module_type_show, NULL);
 #endif
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
@@ -3830,18 +3908,24 @@ const struct device_attribute *dual_attrs[] = {
 
 static struct attribute *svc_cam_attrs[] = {
 	&dev_attr_SVC_rear_module.attr,
+	&dev_attr_SVC_rear_module_type.attr,
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 	&dev_attr_SVC_rear_module2.attr,
+	&dev_attr_SVC_rear_module2_type.attr,
 #endif
 #if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 	&dev_attr_SVC_rear_module3.attr,
+	&dev_attr_SVC_rear_module3_type.attr,
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
 	&dev_attr_SVC_rear_module4.attr,
+	&dev_attr_SVC_rear_module4_type.attr,
 #endif
 	&dev_attr_SVC_front_module.attr,
+	&dev_attr_SVC_front_module_type.attr,
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 	&dev_attr_SVC_front_module2.attr,
+	&dev_attr_SVC_front_module2_type.attr,
 #endif
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 	&dev_attr_SVC_upper_module.attr,

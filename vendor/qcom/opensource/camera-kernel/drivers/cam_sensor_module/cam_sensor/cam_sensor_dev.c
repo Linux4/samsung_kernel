@@ -80,9 +80,14 @@ static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 	switch (cmd) {
 	case VIDIOC_CAM_CONTROL:
 		rc = cam_sensor_driver_cmd(s_ctrl, arg);
-		if (rc)
-			CAM_ERR(CAM_SENSOR,
-				"Failed in Driver cmd: %d", rc);
+		if (rc) {
+		        if (rc == -EBADR)
+				CAM_INFO(CAM_SENSOR,
+					"Failed in Driver cmd: %d, it has been flushed", rc);
+			else if (rc != -ENODEV)
+				CAM_ERR(CAM_SENSOR,
+					"Returned value for Driver cmd: %d", rc);
+                }
 		break;
 	case CAM_SD_SHUTDOWN:
 		if (!cam_req_mgr_is_shutdown()) {
