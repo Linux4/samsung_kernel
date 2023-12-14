@@ -1865,8 +1865,8 @@ static void gsi_program_evt_ring_ctx(struct gsi_evt_ring_props *props,
 	struct gsihal_reg_ev_ch_k_cntxt_3 ev_ch_k_cntxt_3;
 	struct gsihal_reg_ev_ch_k_cntxt_8 ev_ch_k_cntxt_8;
 	struct gsihal_reg_ev_ch_k_cntxt_9 ev_ch_k_cntxt_9;
-	struct gsihal_reg_ev_ch_k_cntxt_10 ev_ch_k_cntxt_10;
-	struct gsihal_reg_ev_ch_k_cntxt_11 ev_ch_k_cntxt_11;
+	union gsihal_reg_ev_ch_k_cntxt_10 ev_ch_k_cntxt_10;
+	union gsihal_reg_ev_ch_k_cntxt_11 ev_ch_k_cntxt_11;
 	struct gsihal_reg_ev_ch_k_cntxt_12 ev_ch_k_cntxt_12;
 	struct gsihal_reg_ev_ch_k_cntxt_13 ev_ch_k_cntxt_13;
 
@@ -1904,25 +1904,41 @@ static void gsi_program_evt_ring_ctx(struct gsi_evt_ring_props *props,
 		ee, evt_id,
 		&ev_ch_k_cntxt_9);
 
-	ev_ch_k_cntxt_10.msi_addr_lsb = GSI_LSB(props->msi_addr);
-	gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_10,
-		ee, evt_id,
-		&ev_ch_k_cntxt_10);
+	if(props->intf != GSI_EVT_CHTYPE_WDI3_V2_EV) {
+		ev_ch_k_cntxt_10.msi_addr_lsb = GSI_LSB(props->msi_addr);
+		gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_10,
+			ee, evt_id,
+			&ev_ch_k_cntxt_10);
 
-	ev_ch_k_cntxt_11.msi_addr_msb = GSI_MSB(props->msi_addr);
-	gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_11,
-		ee, evt_id,
-		&ev_ch_k_cntxt_11);
+		ev_ch_k_cntxt_11.msi_addr_msb = GSI_MSB(props->msi_addr);
+		gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_11,
+			ee, evt_id,
+			&ev_ch_k_cntxt_11);
 
-	ev_ch_k_cntxt_12.rp_update_addr_lsb = GSI_LSB(props->rp_update_addr);
-	gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_12,
-		ee, evt_id,
-		&ev_ch_k_cntxt_12);
 
-	ev_ch_k_cntxt_13.rp_update_addr_msb = GSI_MSB(props->rp_update_addr);
-	gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_13,
-		ee, evt_id,
-		&ev_ch_k_cntxt_13);
+		ev_ch_k_cntxt_12.rp_update_addr_lsb = GSI_LSB(props->rp_update_addr);
+		gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_12,
+			ee, evt_id,
+			&ev_ch_k_cntxt_12);
+
+		ev_ch_k_cntxt_13.rp_update_addr_msb = GSI_MSB(props->rp_update_addr);
+		gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_13,
+			ee, evt_id,
+			&ev_ch_k_cntxt_13);
+	}
+	else {
+		ev_ch_k_cntxt_10.rp_addr_lsb = GSI_LSB(props->rp_update_addr);
+		gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_10,
+			ee, evt_id,
+			&ev_ch_k_cntxt_10);
+
+		ev_ch_k_cntxt_11.rp_addr_msb = GSI_MSB(props->rp_update_addr);
+		gsihal_write_reg_nk_fields(GSI_EE_n_EV_CH_k_CNTXT_11,
+			ee, evt_id,
+			&ev_ch_k_cntxt_11);
+	}
+
+
 }
 
 static void gsi_init_evt_ring(struct gsi_evt_ring_props *props,
@@ -2721,6 +2737,7 @@ static void gsi_program_chan_ctx(struct gsi_chan_props *props, unsigned int ee,
 	case GSI_CHAN_PROT_WDI3:
 	case GSI_CHAN_PROT_GCI:
 	case GSI_CHAN_PROT_MHIP:
+	case GSI_CHAN_PROT_WDI3_V2:
 		ch_k_cntxt_0.chtype_protocol_msb = 0;
 		break;
 	case GSI_CHAN_PROT_AQC:
@@ -3595,7 +3612,7 @@ int gsi_stop_channel(unsigned long chan_hdl)
 	}
 
 	if (ctx->state == GSI_CHAN_STATE_STOP_IN_PROC) {
-		GSIERR("chan=%lu busy try again\n", chan_hdl);
+		GSIDBG("chan=%lu busy try again\n", chan_hdl);
 		res = -GSI_STATUS_AGAIN;
 		goto free_lock;
 	}
@@ -4263,7 +4280,7 @@ int gsi_queue_xfer(unsigned long chan_hdl, uint16_t num_xfers,
 	if (ctx->props.prot != GSI_CHAN_PROT_GCI) {
 		__gsi_query_channel_free_re(ctx, &free);
 		if (num_xfers > free) {
-			GSIERR("chan_hdl=%lu num_xfers=%u free=%u\n",
+			GSIERR_RL("chan_hdl=%lu num_xfers=%u free=%u\n",
 				chan_hdl, num_xfers, free);
 			spin_unlock_irqrestore(slock, flags);
 			return -GSI_STATUS_RING_INSUFFICIENT_SPACE;

@@ -2373,7 +2373,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 						rc);
 
 					soc_info->rgltr[vreg_idx] = NULL;
+#if !defined(CONFIG_SEC_Q5Q_PROJECT)
 					goto power_up_failed;
+#endif
 				}
 
 				if (power_setting->valid_config) {
@@ -2395,7 +2397,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					CAM_ERR(CAM_SENSOR,
 						"Reg Enable failed for %s",
 						soc_info->rgltr_name[vreg_idx]);
+#if !defined(CONFIG_SEC_Q5Q_PROJECT)
 					goto power_up_failed;
+#endif
 				}
 				power_setting->data[0] =
 						soc_info->rgltr[vreg_idx];
@@ -2410,7 +2414,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
 					"Error in handling VREG GPIO");
+#if !defined(CONFIG_SEC_Q5Q_PROJECT)
 				goto power_up_failed;
+#endif
 			}
 			break;
 		default:
@@ -2747,6 +2753,7 @@ enum {
 	e_vc_addr_260_264,
 	e_vc_addr_110_264,
 	e_vc_addr_110_30b0,
+	e_vc_addr_602a_6f12,
 	e_vc_addr_max
 };
 
@@ -2757,7 +2764,8 @@ struct st_vc_addr {
 } vc_addr_info[e_vc_addr_max] = {
 	{ 0x0260, 0x0264, CAMERA_SENSOR_I2C_TYPE_BYTE },
 	{ 0x0110, 0x0264, CAMERA_SENSOR_I2C_TYPE_WORD },
-	{ 0x0110, 0x30B0, CAMERA_SENSOR_I2C_TYPE_BYTE }
+	{ 0x0110, 0x30B0, CAMERA_SENSOR_I2C_TYPE_BYTE },
+	{ 0x602A, 0x6F12, CAMERA_SENSOR_I2C_TYPE_BYTE }
 };
 
 const uint32_t reg_addr_aeb_on = 0xe00;
@@ -2806,6 +2814,9 @@ inline int32_t get_vc_pick_idx(uint32_t sensor_id)
 	case SENSOR_ID_IMX754:
 		return e_vc_addr_110_30b0;
 		break;
+	case SENSOR_ID_S5K2LD:
+		return e_vc_addr_602a_6f12;
+		break;
 	}
 	return -1;
 }
@@ -2848,7 +2859,7 @@ void cam_sensor_dbg_print_vc(struct cam_sensor_ctrl_t* s_ctrl)
 	int	rc = 0;
 	uint32_t vc_img	= 0, vc_pd_h = 0, vc_pd_v = 0;
 	uint32_t vc_pick_idx = 0;
-	const uint32_t reg_addr_aeb_ctrl = 0xe00;
+	uint32_t reg_addr_aeb_ctrl = 0xe00;
 	bool is_aeb_activated = false;
 	uint32_t val_aeb_ctrl = 0;
 	bool is_fcm_debugging = false;
@@ -2862,6 +2873,10 @@ void cam_sensor_dbg_print_vc(struct cam_sensor_ctrl_t* s_ctrl)
 		CAM_ERR(CAM_SENSOR,	" failed: %pK",
 			slave_info);
 		return;
+	}
+
+	if(SENSOR_ID_S5K2LD == s_ctrl->sensordata->slave_info.sensor_id) {
+		reg_addr_aeb_ctrl = 0xe0a;
 	}
 
 	rc = camera_io_dev_read(
@@ -2895,15 +2910,20 @@ void cam_sensor_dbg_print_vc(struct cam_sensor_ctrl_t* s_ctrl)
 	case SENSOR_ID_IMX754:
 		vc_pick_idx = e_vc_addr_110_30b0;
 		break;
+	case SENSOR_ID_S5K2LD:
+		is_aeb_activated = ((val_aeb_ctrl & 0xf) == 0x2) ? true : false;
+		vc_pick_idx = e_vc_addr_602a_6f12;
+		break;
 	default:
 		return;
 	}
 
 	if (is_aeb_activated)
 	{
-		CAM_INFO(CAM_SENSOR, "[AEB_DBG]%s[%s] AEB switched on (0xe00:0x%x) odd vc",
+		CAM_INFO(CAM_SENSOR, "[AEB_DBG]%s[%s] AEB switched on (0x%x:0x%x) odd vc",
 			s_ctrl->is_bubble_packet == true ? "[BUBBLE]":"",
 			s_ctrl->sensor_name,
+			reg_addr_aeb_ctrl,
 			val_aeb_ctrl);
 	} else {
 		rc = camera_io_dev_read(

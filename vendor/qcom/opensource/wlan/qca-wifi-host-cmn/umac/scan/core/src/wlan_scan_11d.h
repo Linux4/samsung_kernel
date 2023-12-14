@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2018, 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -73,7 +74,7 @@ QDF_STATUS scm_11d_cc_db_deinit(struct wlan_objmgr_psoc *psoc);
  * @vdev: vdev object
  *
  * Decide which country will be elected from the country database. If one
- * cadidate country is found, then it set the country code.
+ * candidate country is found, then it set the country code.
  *
  * Return: void
  */

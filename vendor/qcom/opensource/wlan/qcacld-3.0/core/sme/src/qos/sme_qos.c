@@ -646,7 +646,7 @@ QDF_STATUS sme_qos_close(struct mac_context *mac)
  *               flow (i.e. setup success/failure/release) which needs to
  *               be sent to HDD
  * @HDDcontext: A cookie passed by HDD to be used by SME during any QoS
- *              notification (through the callabck) to HDD
+ *              notification (through the callback) to HDD
  * @UPType: Useful only if HDD or any other upper layer module (BAP etc.)
  *          looking for implicit QoS setup, in that
  *          case, the pQoSInfo will be NULL & SME will know about the AC
@@ -765,7 +765,7 @@ enum sme_qos_statustype sme_qos_modify_req(mac_handle_t mac_handle,
  *             It is only meaningful if the QoS setup for the flow is successful
  *
  * This function should be called only if a QoS is set up with a valid FlowID.
- * HDD sould invoke this API only if an explicit request for QoS release has
+ * HDD should invoke this API only if an explicit request for QoS release has
  * come from Application
  *
  * Return: QDF_STATUS_SUCCESS - Release is successful.
@@ -1001,7 +1001,7 @@ uint8_t sme_qos_get_acm_mask(struct mac_context *mac, struct bss_description
  *                flow (i.e. setup success/failure/release) which needs to
  *                be sent to HDD
  *  @HDDcontext: A cookie passed by HDD to be used by SME during any QoS
- *               notification (through the callabck) to HDD
+ *               notification (through the callback) to HDD
  *  @UPType: Useful only if HDD or any other upper layer module (BAP etc.)
  *           looking for implicit QoS setup, in that
  *           case, the pQoSInfo will be NULL & SME will know about the AC
@@ -1075,7 +1075,7 @@ static enum sme_qos_statustype sme_qos_internal_setup_req(struct mac_context *ma
 	/* check to consider the following flowing scenario.
 	 * Addts request is pending on one AC, while APSD requested on another
 	 * which needs a reassoc. Will buffer a request if Addts is pending
-	 * on any AC, which will safegaurd the above scenario, & also won't
+	 * on any AC, which will safeguard the above scenario, & also won't
 	 * confuse PE with back to back Addts or Addts followed by Reassoc
 	 */
 	if (sme_qos_is_rsp_pending(sessionId, ac)) {
@@ -1524,7 +1524,7 @@ static enum sme_qos_statustype sme_qos_internal_setup_req(struct mac_context *ma
 			pACInfo->curr_state);
 		new_state = pACInfo->curr_state;
 	}
-	/* If current state is same as previous no need for transistion,
+	/* If current state is same as previous no need for transition,
 	 * if we are doing reassoc & we are already in handoff state, no need to
 	 * move to requested state. But make sure to set the previous state as
 	 * requested state
@@ -1650,7 +1650,7 @@ static enum sme_qos_statustype sme_qos_internal_modify_req(struct mac_context *m
 	/* check to consider the following flowing scenario.
 	 * Addts request is pending on one AC, while APSD requested on another
 	 * which needs a reassoc. Will buffer a request if Addts is pending on
-	 * any AC, which will safegaurd the above scenario, & also won't
+	 * any AC, which will safeguard the above scenario, & also won't
 	 * confuse PE with back to back Addts or Addts followed by Reassoc
 	 */
 	if (sme_qos_is_rsp_pending(sessionId, ac)) {
@@ -1933,7 +1933,7 @@ static enum sme_qos_statustype sme_qos_internal_release_req(struct mac_context *
 	/* check to consider the following flowing scenario.
 	 * Addts request is pending on one AC, while APSD requested on another
 	 * which needs a reassoc. Will buffer a request if Addts is pending on
-	 * any AC, which will safegaurd the above scenario, & also won't
+	 * any AC, which will safeguard the above scenario, & also won't
 	 * confuse PE with back to back Addts or Addts followed by Reassoc
 	 */
 	if (sme_qos_is_rsp_pending(sessionId, ac)) {
@@ -3236,7 +3236,7 @@ static QDF_STATUS sme_qos_ft_aggr_qos_req(struct mac_context *mac_ctx, uint8_t
 
 	for (i = 0; i < QCA_WLAN_AC_ALL; i++) {
 		for (j = 0; j < SME_QOS_TSPEC_INDEX_MAX; j++) {
-			sme_debug("ac=%d, tspec_mask_staus=%x, tspec_index=%d direction = %d",
+			sme_debug("ac=%d, tspec_mask_status=%x, tspec_index=%d direction = %d",
 				  i, session->ac_info[i].tspec_mask_status, j,
 				  session->ac_info[i].addTsRsp[j].rsp.tspec.
 				  tsinfo.traffic.direction);
@@ -4218,7 +4218,7 @@ static QDF_STATUS sme_qos_process_reassoc_req_ev(struct mac_context *mac, uint8_
  *
  * This function is called by sme_qos_process_reassoc_success_ev
  * to update the state machine on the reception of reassoc success
- * notificaiton
+ * notification
  *
  * Return: QDF_STATUS
  */
@@ -5268,7 +5268,7 @@ static QDF_STATUS sme_qos_process_add_ts_success_rsp(struct mac_context *mac,
 }
 
 /*
- * sme_qos_aggregate_params() - Utility function to increament the TSPEC
+ * sme_qos_aggregate_params() - Utility function to increment the TSPEC
  *  params per AC. Typical usage while using flow aggregation or deletion of
  *  flows
  *
@@ -6171,7 +6171,7 @@ static QDF_STATUS sme_qos_modification_notify_fnp(struct mac_context *mac, tList
 }
 
 /*
- * sme_qos_modify_fnp() - Utility function (pointer) to delete the origianl
+ * sme_qos_modify_fnp() - Utility function (pointer) to delete the original
  *  entry in FLOW list & add the modified one
  *
  * mac - Pointer to the global MAC parameter structure.
@@ -6992,9 +6992,9 @@ enum sme_qos_statustype sme_qos_re_request_add_ts(struct mac_context *mac_ctx,
 	/*
 	 * call PMC's request for power function
 	 * AND another check is added considering the flowing scenario
-	 * Addts reqest is pending on one AC, while APSD requested on
+	 * Addts request is pending on one AC, while APSD requested on
 	 * another which needs a reassoc. Will buffer a request if Addts
-	 * is pending on any AC, which will safegaurd the above scenario,
+	 * is pending on any AC, which will safeguard the above scenario,
 	 * 2& also won't confuse PE with back to back Addts or Addts
 	 * followed by Reassoc.
 	 */

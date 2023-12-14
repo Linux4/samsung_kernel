@@ -139,11 +139,11 @@ __visible_for_testing int check_system_mount(void)
 			fp = local_fopen("/system/bin/recovery", O_RDONLY, 0);
 
 		if (!IS_ERR(fp)) {
-			pr_alert("[DEFEX] recovery mode\n");
+			defex_log_crit("Recovery mode");
 			filp_close(fp, NULL);
 			load_flags |= LOAD_FLAG_RECOVERY;
 		} else {
-			pr_alert("[DEFEX] normal mode\n");
+			defex_log_crit("Normal mode");
 		}
 
 		mount_system_root = 0;
@@ -151,9 +151,9 @@ __visible_for_testing int check_system_mount(void)
 		if (!IS_ERR(fp)) {
 			filp_close(fp, NULL);
 			mount_system_root = 1;
-			pr_alert("[DEFEX] system_root=TRUE\n");
+			defex_log_crit("System_root=TRUE");
 		} else {
-			pr_alert("[DEFEX] system_root=FALSE\n");
+			defex_log_crit("System_root=FALSE");
 		}
 	}
 	return (mount_system_root > 0);
@@ -181,7 +181,7 @@ __visible_for_testing int defex_check_integrity(struct file *f, unsigned char *h
 	handle = crypto_alloc_shash("sha256", 0, 0);
 	if (IS_ERR(handle)) {
 		err = PTR_ERR(handle);
-		pr_err("[DEFEX] Can't alloc sha256, error : %d", err);
+		defex_log_err("Can't alloc sha256, error : %d", err);
 		return -1;
 	}
 
@@ -277,10 +277,10 @@ __visible_for_testing int check_rule_structure(unsigned char *data_buff)
 	const int integrity_state = 0;
 #endif /* DEFEX_INTEGRITY_ENABLE */
 	if (rules_ptr->next_level != req_size || memcmp(rules_ptr->name, "DEFEX_RULES_FILE", 16) != 0) {
-		pr_err("[DEFEX] Rules structure is wrong. Integrity state: %d\n", integrity_state);
+		defex_log_err("Rules structure is wrong. Integrity state: %d", integrity_state);
 		res = -1;
 	} else {
-		pr_info("[DEFEX] Rules structure is OK. Integrity state: %d\n", integrity_state);
+		defex_log_info("Rules structure is OK. Integrity state: %d", integrity_state);
 	}
 	return res;
 }
@@ -299,18 +299,18 @@ __visible_for_testing int load_rules_common(struct file *f, int flags)
 
 	rules_size = local_fread(f, 0, data_buff, data_size);
 	if (rules_size <= 0) {
-		pr_err("[DEFEX] Failed to read rules file (%d)\n", rules_size);
+		defex_log_err("Failed to read rules file (%d)", rules_size);
 		goto do_clean;
 	}
-	pr_info("[DEFEX] Read %d bytes.\n", rules_size);
+	defex_log_info("Read %d bytes", rules_size);
 
 #ifdef DEFEX_SIGN_ENABLE
 	res = defex_rules_signature_check((char *)data_buff, (unsigned int)rules_size, (unsigned int *)&rules_size);
 
 	if (!res)
-		pr_info("[DEFEX] Rules signature verified successfully.\n");
+		defex_log_info("Rules signature verified successfully");
 	else
-		pr_err("[DEFEX] Rules signature incorrect!!!\n");
+		defex_log_err("Rules signature incorrect!!!");
 #else
 	res = 0;
 #endif
@@ -329,14 +329,18 @@ __visible_for_testing int load_rules_common(struct file *f, int flags)
 			policy_data = packed_rules_primary;
 			if (flags & LOAD_FLAG_DPOLICY_SYSTEM)
 				load_flags |= LOAD_FLAG_SYSTEM_FIRST;
-			pr_info("[DEFEX] Primary rules have been stored.\n");
+			defex_log_info("Primary rules have been stored");
 		} else {
 			if (rules_size > 0) {
 				policy_data = packed_rules_secondary = data_buff;
 				data_buff = NULL;
-				pr_info("[DEFEX] Secondary rules have been stored.\n");
+				defex_log_info("Secondary rules have been stored");
 			}
 		}
+#ifdef DEFEX_SHOW_RULES_ENABLE
+		if (policy_data)
+			defex_show_structure((void *)policy_data, rules_size);
+#endif /* DEFEX_SHOW_RULES_ENABLE */
 #ifdef DEFEX_TRUSTED_MAP_ENABLE
 		if (policy_data && !dtm_tree.data) { /* DTM not yet initialized */
 			const unsigned char *dtm_section = find_policy_section(DEFEX_DTM_SECTION_NAME, policy_data, rules_size, 0);
@@ -384,7 +388,7 @@ int load_rules_late(int forced_load)
 	if ((cur_time - start_time) > 20) {
 		res = -1;
 		load_flags |= LOAD_FLAG_TIMEOUT;
-		pr_info("[DEFEX] Late load timeout. Try counter = %d\n", load_counter);
+		defex_log_warn("Late load timeout. Try counter = %d", load_counter);
 		goto do_exit;
 	}
 	load_counter++;
@@ -394,14 +398,14 @@ int load_rules_late(int forced_load)
 		if (!(item->flags & load_flags)) {
 			f = local_fopen(item->name, O_RDONLY, 0);
 			if (!IS_ERR_OR_NULL(f)) {
-				pr_info("[DEFEX] Late load rules file: %s.\n", item->name);
+				defex_log_info("Late load rules file: %s", item->name);
 				break;
 			}
 		}
 	}
 	if (IS_ERR_OR_NULL(f)) {
 #ifdef DEFEX_KERNEL_ONLY
-		pr_err("[DEFEX] Failed to open rules file (%ld)\n", (long)PTR_ERR(f));
+		defex_log_err("Failed to open rules file (%ld)", (long)PTR_ERR(f));
 #endif /* DEFEX_KERNEL_ONLY */
 		goto do_exit;
 	}
@@ -420,12 +424,7 @@ int __init do_load_rules(void)
 	int res = -1;
 	unsigned int f_index = 0;
 	const struct rules_file_struct *item;
-	static int executed __initdata;
 
-	if (!executed) {
-		memset(packed_rules_primary, 0, sizeof(packed_rules_primary));
-		executed = 1;
-	}
 	if (boot_state_recovery)
 		load_flags |= LOAD_FLAG_RECOVERY;
 
@@ -435,7 +434,7 @@ load_next:
 		if (!(load_flags & item->flags)) {
 			f = local_fopen(item->name, O_RDONLY, 0);
 			if (!IS_ERR_OR_NULL(f)) {
-				pr_info("[DEFEX] Load rules file: %s.\n", item->name);
+				defex_log_info("Load rules file: %s", item->name);
 				break;
 			}
 		}
@@ -445,7 +444,7 @@ load_next:
 	if (f_index == ARRAY_SIZE(rules_files)) {
 		if (load_flags & (LOAD_FLAG_DPOLICY_SYSTEM | LOAD_FLAG_DPOLICY))
 			return 0;
-		pr_err("[DEFEX] Failed to open rules file (%ld)\n", (long)PTR_ERR(f));
+		defex_log_err("Failed to open rules file (%ld)", (long)PTR_ERR(f));
 
 #ifdef DEFEX_KERNEL_ONLY
 		if (load_flags & LOAD_FLAG_RECOVERY)
@@ -460,7 +459,7 @@ load_next:
 #ifdef DEFEX_KERNEL_ONLY
 	if ((load_flags & LOAD_FLAG_RECOVERY) && res != 0) {
 		res = 0;
-		pr_info("[DEFEX] Kernel Only & recovery mode, rules loading is passed.\n");
+		defex_log_info("Kernel Only & recovery mode, rules loading is passed");
 	}
 #endif
 	if (++f_index < ARRAY_SIZE(rules_files))
@@ -501,6 +500,7 @@ __visible_for_testing int lookup_tree(const char *file_path, int attribute, stru
 	int l, is_system, forced_load;
 	const int is_recovery = !!(load_flags & LOAD_FLAG_RECOVERY);
 	const unsigned int load_both_mask = (LOAD_FLAG_DPOLICY | LOAD_FLAG_DPOLICY_SYSTEM);
+	int iterator = 0;
 
 	if (!file_path || *file_path != '/')
 		return 0;
@@ -569,7 +569,7 @@ try_not_system:
 		if (next_separator)
 			ptr++;
 	} while (*ptr);
-	if (is_system && ((void *)base_start == (void *)get_rules_ptr(is_system))) {
+	if ((load_flags & load_both_mask) == load_both_mask && ++iterator < 2) {
 		is_system = !is_system;
 		goto try_not_system;
 	}

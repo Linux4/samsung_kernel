@@ -1,4 +1,5 @@
 # Copyright (c) 2015, 2017, 2020 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022, 2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -94,7 +95,11 @@ class DccSramDump():
             print_out_str('No config found in DCC SRAM. Skipping sram dump ...')
             return False
 
-        sramfile = ram_dump.open_file('sram.bin')
+        file_path = os.path.join(ram_dump.outdir, 'sram.bin')
+        sramfile = open(file_path, 'wb')
+        if not os.path.isfile(file_path):
+            print_out_str("sram.bin file creation failed")
+            return FALSE
 
         for i in range(0, rsz):
             val = ram_dump.read_byte(self.start_addr + i, False)

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -91,12 +91,20 @@ QDF_STATUS cm_abort_fw_roam(struct cnx_mgr *cm_ctx,
 			    wlan_cm_id cm_id)
 {
 	QDF_STATUS status;
+	enum wlan_cm_source source = CM_SOURCE_INVALID;
+	struct cm_roam_req *roam_req;
+	struct qdf_mac_addr bssid = QDF_MAC_ADDR_ZERO_INIT;
+
+	roam_req = cm_get_first_roam_command(cm_ctx->vdev);
+	if (roam_req) {
+		source = roam_req->req.source;
+		bssid = roam_req->req.bssid;
+	}
 
 	mlme_cm_osif_roam_abort_ind(cm_ctx->vdev);
 	status = cm_sm_deliver_event(cm_ctx->vdev,
 				     WLAN_CM_SM_EV_ROAM_ABORT,
 				     sizeof(wlan_cm_id), &cm_id);
-
 	if (QDF_IS_STATUS_ERROR(status))
 		cm_remove_cmd(cm_ctx, &cm_id);
 
@@ -347,6 +355,10 @@ QDF_STATUS cm_fw_roam_abort_req(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id)
 		status = wlan_cm_roam_state_change(pdev, vdev_id,
 						   WLAN_ROAM_RSO_ENABLED,
 						   REASON_ROAM_ABORT);
+	else if (MLME_IS_MLO_ROAM_SYNCH_IN_PROGRESS(psoc, vdev_id))
+		status = wlan_cm_roam_state_change(pdev, vdev_id,
+						   WLAN_ROAM_DEINIT,
+						   REASON_ROAM_ABORT);
 
 	cm_abort_fw_roam(cm_ctx, cm_id);
 rel_ref:
@@ -416,13 +428,28 @@ cm_roam_sync_frame_event_handler(struct wlan_objmgr_psoc *psoc,
 			sync_frame_ind->bcn_probe_rsp_len;
 		roam_synch_frame_ind->is_beacon =
 			sync_frame_ind->is_beacon;
+		if (roam_synch_frame_ind->bcn_probe_rsp)
+			qdf_mem_free(roam_synch_frame_ind->bcn_probe_rsp);
 		roam_synch_frame_ind->bcn_probe_rsp =
 			sync_frame_ind->bcn_probe_rsp;
+	}
+
+	if (sync_frame_ind->link_bcn_probe_rsp_len) {
+		roam_synch_frame_ind->link_bcn_probe_rsp_len =
+			sync_frame_ind->link_bcn_probe_rsp_len;
+		roam_synch_frame_ind->is_link_beacon =
+			sync_frame_ind->is_link_beacon;
+		if (roam_synch_frame_ind->link_bcn_probe_rsp)
+			qdf_mem_free(roam_synch_frame_ind->link_bcn_probe_rsp);
+		roam_synch_frame_ind->link_bcn_probe_rsp =
+			sync_frame_ind->link_bcn_probe_rsp;
 	}
 
 	if (sync_frame_ind->reassoc_req_len) {
 		roam_synch_frame_ind->reassoc_req_len =
 				sync_frame_ind->reassoc_req_len;
+		if (roam_synch_frame_ind->reassoc_req)
+			qdf_mem_free(roam_synch_frame_ind->reassoc_req);
 		roam_synch_frame_ind->reassoc_req =
 			sync_frame_ind->reassoc_req;
 	}
@@ -430,6 +457,8 @@ cm_roam_sync_frame_event_handler(struct wlan_objmgr_psoc *psoc,
 	if (sync_frame_ind->reassoc_rsp_len) {
 		roam_synch_frame_ind->reassoc_rsp_len =
 				sync_frame_ind->reassoc_rsp_len;
+		if (roam_synch_frame_ind->reassoc_rsp)
+			qdf_mem_free(roam_synch_frame_ind->reassoc_rsp);
 		roam_synch_frame_ind->reassoc_rsp =
 			sync_frame_ind->reassoc_rsp;
 	}
@@ -498,10 +527,39 @@ QDF_STATUS cm_roam_sync_event_handler_cb(struct wlan_objmgr_vdev *vdev,
 	}
 
 	/* 24 byte MAC header and 12 byte to ssid IE */
-	if (sync_ind->beaconProbeRespLength >
+	if (wlan_vdev_mlme_is_mlo_link_vdev(vdev) &&
+	    sync_ind->link_beacon_probe_resp_length) {
+		if (sync_ind->link_beacon_probe_resp_length >
+		    (QDF_IEEE80211_3ADDR_HDR_LEN + MAC_B_PR_SSID_OFFSET)) {
+			ie_len = sync_ind->link_beacon_probe_resp_length -
+					(QDF_IEEE80211_3ADDR_HDR_LEN +
+					 MAC_B_PR_SSID_OFFSET);
+		} else {
+			mlme_err("LFR3: MLO: Invalid link Beacon Length");
+			goto err;
+		}
+	} else if (sync_ind->beaconProbeRespLength >
 			(QDF_IEEE80211_3ADDR_HDR_LEN + MAC_B_PR_SSID_OFFSET)) {
-		ie_len = sync_ind->beaconProbeRespLength -
+		/*
+		 * When STA roams to an MLO AP, non-assoc link might be superior
+		 * in features compared to  assoc link and the per-STA profile
+		 * info may carry corresponding IEs. These IEs are extracted
+		 * and added to IE list of link probe response while generating
+		 * it. So, the link probe response generated from assoc link
+		 * probe response might be of more size than assoc link probe
+		 * rsp. Allocate buffer for the bss descriptor to accommodate
+		 * all of the IEs got generated as part of link probe rsp
+		 * generation. Allocate MAX_MGMT_MPDU_LEN bytes for IEs as the
+		 * max frame size that can be received from AP is
+		 * MAX_MGMT_MPDU_LEN bytes.
+		 */
+		if (is_multi_link_roam(sync_ind))
+			ie_len = MAX_MGMT_MPDU_LEN -
 			(QDF_IEEE80211_3ADDR_HDR_LEN + MAC_B_PR_SSID_OFFSET);
+		else
+			ie_len = sync_ind->beaconProbeRespLength -
+			(QDF_IEEE80211_3ADDR_HDR_LEN + MAC_B_PR_SSID_OFFSET);
+
 	} else {
 		mlme_err("LFR3: Invalid Beacon Length");
 		goto err;
@@ -532,7 +590,8 @@ QDF_STATUS cm_roam_sync_event_handler_cb(struct wlan_objmgr_vdev *vdev,
 
 err:
 	if (QDF_IS_STATUS_ERROR(status)) {
-		wlan_mlo_roam_abort_on_link(psoc, sync_ind);
+		wlan_mlo_roam_abort_on_link(psoc, event,
+					    sync_ind->roamed_vdev_id);
 		cm_fw_roam_abort_req(psoc, sync_ind->roamed_vdev_id);
 		cm_roam_stop_req(psoc, sync_ind->roamed_vdev_id,
 				 REASON_ROAM_SYNCH_FAILED,
@@ -590,8 +649,8 @@ cm_roam_candidate_event_handler(struct wlan_objmgr_psoc *psoc,
 							   ie_ptr, ie_len);
 	if (extracted_ie && extracted_ie[0] == WLAN_ELEMID_SSID &&
 	    extracted_ie[1] > MIN_IE_LEN) {
-		mlme_debug("SSID of the candidate is %.*s", extracted_ie[1],
-			   &extracted_ie[2]);
+		mlme_debug("SSID of the candidate is " QDF_SSID_FMT,
+			   QDF_SSID_REF(extracted_ie[1], &extracted_ie[2]));
 		wlan_cm_set_roam_offload_ssid(vdev, extracted_ie);
 	}
 

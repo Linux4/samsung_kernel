@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -39,7 +40,7 @@
  * __wlan_hdd_write_unit_test_host_debugfs()
  *    - host unit test debugfs handler
  *
- * @net_dev: net_device context used to register the debugfs file
+ * @hdd_ctx: HDD context used to register the debugfs file
  * @buf: text being written to the debugfs
  * @count: size of @buf
  * @ppos: (unused) offset into the virtual file system

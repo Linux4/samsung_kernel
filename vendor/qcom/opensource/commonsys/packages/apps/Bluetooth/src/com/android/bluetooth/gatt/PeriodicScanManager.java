@@ -242,6 +242,23 @@ class PeriodicScanManager {
         }
     }
 
+    void onBigInfoReport(int syncHandle, boolean encrypted)
+        throws Exception {
+        if (DBG) {
+            Log.d(TAG, "onBigInfoReport() - syncHandle=" + syncHandle +
+                    " , encrypted=" + encrypted);
+        }
+        Map<IBinder, SyncInfo> syncMap = findAllSync(syncHandle);
+        if (syncMap.isEmpty()) {
+            Log.i(TAG, "onBigInfoReport() - no callback found for syncHandle " + syncHandle);
+            return;
+        }
+        for (Map.Entry<IBinder, SyncInfo> e :syncMap.entrySet()) {
+            IPeriodicAdvertisingCallback callback = e.getValue().callback;
+            callback.onBigInfoAdvertisingReport(syncHandle, encrypted);
+        }
+    }
+
     void startSync(ScanResult scanResult, int skip, int timeout,
             IPeriodicAdvertisingCallback callback) {
         SyncDeathRecipient deathRecipient = new SyncDeathRecipient(callback);

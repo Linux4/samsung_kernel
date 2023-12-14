@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -86,6 +86,7 @@ static QDF_STATUS p2p_scan_start(struct p2p_roc_context *roc_ctx)
 	uint8_t ndp_num = 0, nan_disc_enabled_num = 0;
 	struct wlan_objmgr_pdev *pdev;
 	bool is_dbs;
+	enum QDF_OPMODE opmode;
 
 	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(
 			p2p_soc_obj->soc, roc_ctx->vdev_id,
@@ -94,6 +95,8 @@ static QDF_STATUS p2p_scan_start(struct p2p_roc_context *roc_ctx)
 		p2p_err("vdev is NULL");
 		return QDF_STATUS_E_INVAL;
 	}
+
+	opmode = wlan_vdev_mlme_get_opmode(vdev);
 
 	req = qdf_mem_malloc(sizeof(*req));
 	if (!req) {
@@ -136,23 +139,32 @@ static QDF_STATUS p2p_scan_start(struct p2p_roc_context *roc_ctx)
 			  go_num, ndp_num, nan_disc_enabled_num);
 
 		is_dbs = policy_mgr_is_hw_dbs_capable(p2p_soc_obj->soc);
-
-		if (go_num)
-		/* Add fixed 300ms extra ROC time instead of multiplying the
-		 * ROC duration by const value as this causes the ROC to be
-		 * upto 1.5 secs if GO is present. Firmware will advertize NOA
-		 * of 1.5 secs and if supplicant cancels ROC after 200 or 300ms
-		 * then firmware cannot cancel NOA. So when supplicant sends
-		 * next ROC it will be delayed as firmware already is running
-		 * previous NOA. This causes p2p find issues if GO is present.
-		 * So add fixed duration of 300ms and also cap max ROC to 600ms
-		 * when GO is present
-		 */
-			req->scan_req.dwell_time_passive +=
+		/* Modify the ROC duration only for P2P modes */
+		if (opmode == QDF_P2P_DEVICE_MODE ||
+		    opmode == QDF_P2P_CLIENT_MODE ||
+		    opmode == QDF_P2P_GO_MODE) {
+			if (go_num)
+			/* Check any P2P GO is already present or not. If it's
+			 * present then add fixed ROC timer value by 300ms
+			 * instead of multiplying with const value which may
+			 * lead ROC timer to become 1.5sec. So, in this case fw
+			 * will advertize NOA for 1.5 secs and if supplicant
+			 * wants to cancel the ROC after 200 or 300ms then fw
+			 * can not cancel NOA as ROC is already set to 1.5sec.
+			 * And if supplicant sends the next ROC then it might
+			 * delay as firmware is already running the presvious
+			 * NOA. This may cause the P2P find issue because P2P GO
+			 * is already present.
+			 * To fix this, add fixed 300ms duration to ROC and
+			 * later check if max limit reaches to 600ms then set
+			 * max ROC duartion as 600ms only.
+			 */
+				req->scan_req.dwell_time_passive +=
 					P2P_ROC_DURATION_MULTI_GO_PRESENT;
-		else
-			req->scan_req.dwell_time_passive *=
+			else
+				req->scan_req.dwell_time_passive *=
 					P2P_ROC_DURATION_MULTI_GO_ABSENT;
+		}
 		/* this is to protect too huge value if some customers
 		 * give a higher value from supplicant
 		 */
@@ -334,7 +346,7 @@ static QDF_STATUS p2p_destroy_roc_ctx(struct p2p_roc_context *roc_ctx,
  * @roc_ctx: remain on channel request
  *
  * This function stop roc timer, abort scan and unregister mgmt rx
- * callbak.
+ * callback.
  *
  * Return: QDF_STATUS_SUCCESS - in case of success
  */
@@ -412,7 +424,7 @@ static void p2p_roc_timeout(void *pdata)
  * @roc_ctx: remain on channel request
  *
  * This function init roc timer, start scan and register mgmt rx
- * callbak.
+ * callback.
  *
  * Return: QDF_STATUS_SUCCESS - in case of success
  */

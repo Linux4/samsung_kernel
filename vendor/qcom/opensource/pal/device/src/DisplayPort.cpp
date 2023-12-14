@@ -956,14 +956,14 @@ void DisplayPort::updateChannelMap(edidAudioInfo* info)
         return;
     memset(info->channelMap, 0, MAX_CHANNELS_SUPPORTED);
     if(info->speakerAllocation[0] & BIT(0)) {
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
+        info->channelMap[0] = PCM_CHANNEL_L;
+        info->channelMap[1] = PCM_CHANNEL_R;
     }
     if(info->speakerAllocation[0] & BIT(1)) {
         info->channelMap[2] = PCM_CHANNEL_LFE;
     }
     if(info->speakerAllocation[0] & BIT(2)) {
-        info->channelMap[3] = PCM_CHANNEL_FC;
+        info->channelMap[3] = PCM_CHANNEL_C;
     }
     if(info->speakerAllocation[0] & BIT(3)) {
     /*
@@ -1144,120 +1144,120 @@ void DisplayPort::retrieveChannelMapLpass(int ca, uint8_t *ch_map, int ch_map_si
 
     switch(ca) {
     case 0x0:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         break;
     case 0x1:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
         break;
     case 0x2:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
-        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
+        ch_map[2] = PCM_CHANNEL_C;
         break;
     case 0x3:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         break;
     case 0x4:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_CS;
         break;
     case 0x5:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
         ch_map[3] = PCM_CHANNEL_CS;
         break;
     case 0x6:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
-        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
+        ch_map[2] = PCM_CHANNEL_C;
         ch_map[3] = PCM_CHANNEL_CS;
         break;
     case 0x7:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         ch_map[4] = PCM_CHANNEL_CS;
         break;
     case 0x8:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LS;
         ch_map[3] = PCM_CHANNEL_RS;
         break;
     case 0x9:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
         ch_map[3] = PCM_CHANNEL_LS;
         ch_map[4] = PCM_CHANNEL_RS;
         break;
     case 0xa:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
-        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
+        ch_map[2] = PCM_CHANNEL_C;
         ch_map[3] = PCM_CHANNEL_LS;
         ch_map[4] = PCM_CHANNEL_RS;
         break;
     case 0xb:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         ch_map[4] = PCM_CHANNEL_LS;
         ch_map[5] = PCM_CHANNEL_RS;
         break;
     case 0xc:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LS;
         ch_map[3] = PCM_CHANNEL_RS;
         ch_map[4] = PCM_CHANNEL_CS;
         break;
     case 0xd:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
         ch_map[3] = PCM_CHANNEL_LS;
         ch_map[4] = PCM_CHANNEL_RS;
         ch_map[5] = PCM_CHANNEL_CS;
         break;
     case 0xe:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
-        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
+        ch_map[2] = PCM_CHANNEL_C;
         ch_map[3] = PCM_CHANNEL_LS;
         ch_map[4] = PCM_CHANNEL_RS;
         ch_map[5] = PCM_CHANNEL_CS;
         break;
     case 0xf:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         ch_map[4] = PCM_CHANNEL_LS;
         ch_map[5] = PCM_CHANNEL_RS;
         ch_map[6] = PCM_CHANNEL_CS;
         break;
     case 0x10:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LS;
         ch_map[3] = PCM_CHANNEL_RS;
         ch_map[4] = PCM_CHANNEL_LB;
         ch_map[5] = PCM_CHANNEL_RB;
         break;
     case 0x11:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
         ch_map[3] = PCM_CHANNEL_LS;
         ch_map[4] = PCM_CHANNEL_RS;
@@ -1265,95 +1265,95 @@ void DisplayPort::retrieveChannelMapLpass(int ca, uint8_t *ch_map, int ch_map_si
         ch_map[6] = PCM_CHANNEL_RB;
         break;
     case 0x12:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
-        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
+        ch_map[2] = PCM_CHANNEL_C;
         ch_map[3] = PCM_CHANNEL_LS;
         ch_map[4] = PCM_CHANNEL_RS;
         ch_map[5] = PCM_CHANNEL_LB;
         ch_map[6] = PCM_CHANNEL_RB;
         break;
     case 0x13:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         ch_map[4] = PCM_CHANNEL_LS;
         ch_map[5] = PCM_CHANNEL_RS;
         ch_map[6] = PCM_CHANNEL_LB;
         ch_map[7] = PCM_CHANNEL_RB;
         break;
     case 0x14:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_FLC;
         ch_map[3] = PCM_CHANNEL_FRC;
         break;
     case 0x15:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
         ch_map[3] = PCM_CHANNEL_FLC;
         ch_map[4] = PCM_CHANNEL_FRC;
         break;
     case 0x16:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
-        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
+        ch_map[2] = PCM_CHANNEL_C;
         ch_map[3] = PCM_CHANNEL_FLC;
         ch_map[4] = PCM_CHANNEL_FRC;
         break;
     case 0x17:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         ch_map[4] = PCM_CHANNEL_FLC;
         ch_map[5] = PCM_CHANNEL_FRC;
         break;
     case 0x18:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_CS;
         ch_map[3] = PCM_CHANNEL_FLC;
         ch_map[4] = PCM_CHANNEL_FRC;
         break;
     case 0x19:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
         ch_map[3] = PCM_CHANNEL_CS;
         ch_map[4] = PCM_CHANNEL_FLC;
         ch_map[5] = PCM_CHANNEL_FRC;
         break;
     case 0x1a:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
-        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
+        ch_map[2] = PCM_CHANNEL_C;
         ch_map[3] = PCM_CHANNEL_CS;
         ch_map[4] = PCM_CHANNEL_FLC;
         ch_map[5] = PCM_CHANNEL_FRC;
         break;
     case 0x1b:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         ch_map[4] = PCM_CHANNEL_CS;
         ch_map[5] = PCM_CHANNEL_FLC;
         ch_map[6] = PCM_CHANNEL_FRC;
         break;
     case 0x1c:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LS;
         ch_map[3] = PCM_CHANNEL_RS;
         ch_map[4] = PCM_CHANNEL_FLC;
         ch_map[5] = PCM_CHANNEL_FRC;
         break;
     case 0x1d:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
         ch_map[3] = PCM_CHANNEL_LS;
         ch_map[4] = PCM_CHANNEL_RS;
@@ -1361,29 +1361,29 @@ void DisplayPort::retrieveChannelMapLpass(int ca, uint8_t *ch_map, int ch_map_si
         ch_map[6] = PCM_CHANNEL_FRC;
         break;
     case 0x1e:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
-        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
+        ch_map[2] = PCM_CHANNEL_C;
         ch_map[3] = PCM_CHANNEL_LS;
         ch_map[4] = PCM_CHANNEL_RS;
         ch_map[5] = PCM_CHANNEL_FLC;
         ch_map[6] = PCM_CHANNEL_FRC;
         break;
     case 0x1f:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         ch_map[4] = PCM_CHANNEL_LS;
         ch_map[5] = PCM_CHANNEL_RS;
         ch_map[6] = PCM_CHANNEL_FLC;
         ch_map[7] = PCM_CHANNEL_FRC;
         break;
     case 0x2f:
-        ch_map[0] = PCM_CHANNEL_FL;
-        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_L;
+        ch_map[1] = PCM_CHANNEL_R;
         ch_map[2] = PCM_CHANNEL_LFE;
-        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_C;
         ch_map[4] = PCM_CHANNEL_LS;
         ch_map[5] = PCM_CHANNEL_RS;
         ch_map[6] = 0; // PCM_CHANNEL_TFL; but not defined by LPASS

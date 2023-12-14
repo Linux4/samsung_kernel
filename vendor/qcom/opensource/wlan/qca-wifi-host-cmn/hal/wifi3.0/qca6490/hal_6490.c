@@ -1472,7 +1472,7 @@ bool hal_rx_get_fisa_timeout_6490(uint8_t *buf)
  *
  *@rx_tlv_hdr: start address of rx_pkt_tlvs
  *
- * Return: true if RX_MPDU_START is valied, else false.
+ * Return: true if RX_MPDU_START is valid, else false.
  */
 static uint8_t hal_rx_mpdu_start_tlv_tag_valid_6490(void *rx_tlv_hdr)
 {

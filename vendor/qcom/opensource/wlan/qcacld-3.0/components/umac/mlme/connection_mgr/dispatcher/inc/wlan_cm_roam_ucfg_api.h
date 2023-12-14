@@ -43,15 +43,13 @@ ucfg_user_space_enable_disable_rso(struct wlan_objmgr_pdev *pdev,
 				   const bool is_fast_roam_enabled);
 
 /**
- * ucfg_is_roaming_enabled() - Check if roaming enabled
- * to firmware.
- * @psoc: psoc context
+ * ucfg_is_rso_enabled() - Check if rso is enabled
+ * @pdev: Pointer to pdev
  * @vdev_id: vdev id
  *
- * Return: True if Roam state machine is in
- *	   WLAN_ROAM_RSO_ENABLED/WLAN_ROAMING_IN_PROG/WLAN_ROAM_SYNCH_IN_PROG
+ * Return: Wrapper for wlan_is_rso_enabled.
  */
-bool ucfg_is_roaming_enabled(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id);
+bool ucfg_is_rso_enabled(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id);
 
 /*
  * ucfg_cm_abort_roam_scan() -abort current roam scan cycle by roam scan
@@ -123,6 +121,12 @@ ucfg_cm_update_session_assoc_ie(struct wlan_objmgr_psoc *psoc,
 				struct element_info *assoc_ie)
 {
 	cm_update_session_assoc_ie(psoc, vdev_id, assoc_ie);
+}
+
+static inline enum phy_ch_width
+ucfg_cm_get_associated_ch_width(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id)
+{
+	return wlan_cm_get_associated_ch_width(psoc, vdev_id);
 }
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
@@ -356,6 +360,48 @@ void ucfg_cm_reset_key(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id);
 QDF_STATUS
 ucfg_cm_roam_send_rt_stats_config(struct wlan_objmgr_pdev *pdev,
 				  uint8_t vdev_id, uint8_t param_value);
+
+/**
+ * ucfg_cm_roam_send_ho_delay_config() - Send the HO delay value to Firmware
+ * @pdev: Pointer to pdev
+ * @vdev_id: vdev id
+ * @param_value: Value will be from range 20 to 1000 in msec.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_roam_send_ho_delay_config(struct wlan_objmgr_pdev *pdev,
+				  uint8_t vdev_id, uint16_t param_value);
+
+/**
+ * ucfg_cm_exclude_rm_partial_scan_freq() - Exclude the channels in roam full
+ * scan that are already scanned as part of partial scan.
+ * @pdev: Pointer to pdev
+ * @vdev_id: vdev id
+ * @param_value: Include/exclude the partial scan channel in roam full scan
+ * 1 - Exclude
+ * 0 - Include
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_exclude_rm_partial_scan_freq(struct wlan_objmgr_pdev *pdev,
+				     uint8_t vdev_id, uint8_t param_value);
+
+/**
+ * ucfg_cm_roam_full_scan_6ghz_on_disc() - Include the 6 GHz channels in roam
+ * full scan only on prior discovery of any 6 GHz support in the environment.
+ * @pdev: Pointer to pdev
+ * @vdev_id: vdev id
+ * @param_value: Include the 6 GHz channels in roam full scan:
+ * 1 - Include only on prior discovery of any 6 GHz support in the environment
+ * 0 - Include all the supported 6 GHz channels by default
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS ucfg_cm_roam_full_scan_6ghz_on_disc(struct wlan_objmgr_pdev *pdev,
+					       uint8_t vdev_id,
+					       uint8_t param_value);
 #else
 static inline void
 ucfg_cm_reset_key(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id) {}
@@ -363,6 +409,27 @@ ucfg_cm_reset_key(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id) {}
 static inline QDF_STATUS
 ucfg_cm_roam_send_rt_stats_config(struct wlan_objmgr_pdev *pdev,
 				  uint8_t vdev_id, uint8_t param_value)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+ucfg_cm_roam_send_ho_delay_config(struct wlan_objmgr_pdev *pdev,
+				  uint8_t vdev_id, uint16_t param_value)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+ucfg_cm_exclude_rm_partial_scan_freq(struct wlan_objmgr_pdev *pdev,
+				     uint8_t vdev_id, uint8_t param_value)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS
+ucfg_cm_roam_full_scan_6ghz_on_disc(struct wlan_objmgr_pdev *pdev,
+				    uint8_t vdev_id, uint8_t param_value)
 {
 	return QDF_STATUS_SUCCESS;
 }
@@ -415,4 +482,202 @@ ucfg_cm_get_sae_auth_ta(struct wlan_objmgr_pdev *pdev,
 {
 	return wlan_cm_get_sae_auth_ta(pdev, vdev_id, sae_auth_ta);
 }
+
+/*
+ * ucfg_cm_get_roam_intra_band() - get Intra band roaming
+ * @psoc: pointer to psoc object
+ * @val:  Infra band value
+ *
+ * Return: Success or failure
+ */
+QDF_STATUS
+ucfg_cm_get_roam_intra_band(struct wlan_objmgr_psoc *psoc, uint16_t *val);
+
+/**
+ * ucfg_cm_get_roam_rescan_rssi_diff() - gets roam rescan rssi diff
+ * @psoc: pointer to psoc object
+ * @val: value for rescan rssi diff
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_get_roam_rescan_rssi_diff(struct wlan_objmgr_psoc *psoc, uint8_t *val);
+
+/**
+ * ucfg_cm_get_neighbor_lookup_rssi_threshold() -
+ * get neighbor lookup rssi threshold
+ * @psoc: pointer to psoc object
+ * @vdev_id: vdev identifier
+ * @lookup_threshold: Buffer to fill the neighbor lookup threshold.
+ *			Valid only if the return status is success.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_get_neighbor_lookup_rssi_threshold(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id,
+					   uint8_t *lookup_threshold);
+
+/**
+ * ucfg_cm_get_empty_scan_refresh_period() - get empty scan refresh period
+ * @psoc: pointer to psoc object
+ * @vdev_id: Vdev id
+ * @refresh_threshold: Buffer to fill the empty scan refresh period.
+ *			Valid only if the return status is success.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_get_empty_scan_refresh_period(struct wlan_objmgr_psoc *psoc,
+				      uint8_t vdev_id,
+				      uint16_t *refresh_threshold);
+
+/**
+ * ucfg_cm_get_neighbor_scan_min_chan_time() -
+ * get neighbor scan min channel time
+ * @psoc: pointer to psoc object
+ * @vdev_id: vdev_id
+ *
+ * Return: channel min time value
+ */
+uint16_t
+ucfg_cm_get_neighbor_scan_min_chan_time(struct wlan_objmgr_psoc *psoc,
+					uint8_t vdev_id);
+
+/**
+ * ucfg_cm_get_roam_rssi_diff() - Get Roam rssi diff
+ * @psoc: pointer to psoc object
+ * @vdev_id: vdev identifier
+ * @rssi_diff: Buffer to fill the roam RSSI diff.
+ *		Valid only if the return status is success.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_get_roam_rssi_diff(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
+			   uint8_t *rssi_diff);
+
+#ifdef FEATURE_WLAN_ESE
+/**
+ * ucfg_cm_get_is_ese_feature_enabled() - Get ESE feature enabled or not
+ * This is a synchronous call
+ * @psoc: pointer to psoc object
+ *
+ * Return: true (1) - if the ESE feature is enabled
+ *	false (0) - if feature is disabled (compile or runtime)
+ */
+bool
+ucfg_cm_get_is_ese_feature_enabled(struct wlan_objmgr_psoc *psoc);
+#else
+static inline bool
+ucfg_cm_get_is_ese_feature_enabled(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+#endif
+
+/**
+ * ucfg_cm_get_neighbor_scan_max_chan_time() - get neighbor
+ * scan max channel time
+ * @psoc: pointer to psoc object
+ * @vdev_id: vdev identifier
+ *
+ * Return: channel max time value
+ */
+uint16_t
+ucfg_cm_get_neighbor_scan_max_chan_time(struct wlan_objmgr_psoc *psoc,
+					uint8_t vdev_id);
+
+/**
+ * ucfg_cm_get_neighbor_scan_period() - get neighbor scan period
+ * @psoc: pointer to psoc object
+ * @vdev_id: vdev identifier
+ *
+ * Return: neighbor scan period
+ */
+uint16_t
+ucfg_cm_get_neighbor_scan_period(struct wlan_objmgr_psoc *psoc,
+				 uint8_t vdev_id);
+
+/**
+ * ucfg_cm_get_wes_mode() - Get WES Mode
+ * This is a synchronous call
+ * @psoc: pointer to psoc object
+ *
+ * Return: WES Mode Enabled(1)/Disabled(0)
+ */
+bool ucfg_cm_get_wes_mode(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_cm_get_is_lfr_feature_enabled() - Get LFR feature enabled or not
+ * This is a synchronous call
+ * @psoc: pointer to psoc object
+ *
+ * Return: true (1) - if the feature is enabled
+ *	false (0) - if feature is disabled (compile or runtime)
+ */
+bool ucfg_cm_get_is_lfr_feature_enabled(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_cm_get_is_ft_feature_enabled() - Get FT feature enabled or not
+ * This is a synchronous call
+ * @psoc: pointer to psoc object
+ *
+ * Return: true (1) - if the feature is enabled
+ *	false (0) - if feature is disabled (compile or runtime)
+ */
+bool ucfg_cm_get_is_ft_feature_enabled(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * ucfg_cm_get_roam_scan_home_away_time() - Get Roam scan home away time
+ * @psoc: Pointer to psoc
+ * @vdev_id: vdev identifier
+ * @roam_scan_home_away_time: Buffer to fill the roam scan home away time.
+ *				Valid only if the return status is success.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_get_roam_scan_home_away_time(struct wlan_objmgr_psoc *psoc,
+				     uint8_t vdev_id,
+				     uint16_t *roam_scan_home_away_time);
+/**
+ * ucfg_cm_get_roam_opportunistic_scan_threshold_diff() -
+ * get Opportunistic Scan threshold diff.
+ * This is a synchronous call
+ * @psoc: Pointer to psoc
+ * @val: Opportunistic Scan threshold diff.
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_get_roam_opportunistic_scan_threshold_diff(
+					struct wlan_objmgr_psoc *psoc,
+					int8_t *val);
+
+/**
+ * ucfg_cm_get_neighbor_scan_refresh_period() - Get neighbor scan results
+ * refresh period.
+ * This is a synchronous call
+ * @psoc: pointer to psoc object
+ * @value: value for scan results refresh period
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_get_neighbor_scan_refresh_period(struct wlan_objmgr_psoc *psoc,
+					 uint16_t *value);
+
+/**
+ * ucfg_cm_get_empty_scan_refresh_period_global() - Get global scan
+ * refresh period
+ * @psoc: pointer to psoc object
+ * @roam_scan_period_global: value for empty scan refresh period
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+ucfg_cm_get_empty_scan_refresh_period_global(struct wlan_objmgr_psoc *psoc,
+					     uint16_t *roam_scan_period_global);
+
 #endif /* _WLAN_CM_ROAM_UCFG_API_H_ */

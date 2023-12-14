@@ -6,5 +6,7 @@ endif
 endif
 
 ifeq ($(ENABLE_EVA_KERNEL), true)
+ifneq ($(call is-board-platform-in-list,crow),true)
 PRODUCT_PACKAGES += msm-eva.ko
+endif
 endif

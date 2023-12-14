@@ -182,17 +182,44 @@ int ipa_tsp_get_ingr_tc(u8 index, struct ipa_ioc_tsp_ingress_class_params *outpu
 
 int ipa_tsp_get_egr_ep(u8 index, struct ipa_ioc_tsp_egress_prod_params *output)
 {
-	u32 regval;
+	u32 regval, prod_base;
 	struct ipa_ep_cfg_prod_cfg prod_cfg;
+	void *prod_mmio;
+
+	if (index >= ipa3_ctx->tsp.egr_ep_max) {
+		IPAERR("Invalid producer index.\n");
+		return -EINVAL;
+	}
+
+	if (ipa3_ctx->tsp.egr_ep_config[index] == IPA_CLIENT_MAX)
+		return 0;
+
+	IPA_ACTIVE_CLIENTS_INC_SIMPLE();
+
+	prod_base = ipahal_read_reg(IPA_RAM_EGRESS_SHAPING_PROD_DB_BASE_ADDR);
+	prod_mmio = ioremap(ipa3_ctx->ipa_wrapper_base + prod_base,
+		ipa3_ctx->tsp.egr_ep_tbl.size);
+	if (!prod_mmio) {
+		IPAERR("Failed to ioremap TSP SRAM\n");
+		return -EFAULT;
+	}
 
 	/* The function is internal only, assuming valid params */
 
-	ipahal_tsp_parse_hw_egr_ep(ipa3_ctx->tsp.egr_ep_tbl.base, index, output);
+	ipahal_tsp_parse_hw_egr_ep(prod_mmio, index, output);
 
 	output->client = ipa3_ctx->tsp.egr_ep_config[index];
 
 	regval = ipahal_read_reg_n_fields(IPA_ENDP_INIT_PROD_CFG_n,
 		ipa3_get_ep_mapping(output->client), (void *)&prod_cfg);
+
+	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
+	if (prod_mmio)
+		iounmap(prod_mmio);
+
+	if (!prod_cfg.tsp_enable)
+		IPAERR("TSP is not enabled on %s EP %d!\n",
+			ipa_clients_strings[output->client], ipa3_get_ep_mapping(output->client));
 
 	output->max_out_bytes = prod_cfg.max_output_size << 6; // max_output_size*64
 	output->policing_by_max_out = prod_cfg.max_output_size_drop_enable;
@@ -224,19 +251,35 @@ int ipa_tsp_set_ingr_tc(u8 index, const struct ipa_ioc_tsp_ingress_class_params 
 
 int ipa_tsp_set_egr_ep(u8 index, const struct ipa_ioc_tsp_egress_prod_params *input)
 {
-	u32 regval, ep_index, ep_tc_mask, new_tc_range_mask;
-	struct ipa_ep_cfg_prod_cfg prod_cfg;
+	int new_ep_index;
+	u32 ep_index, ep_tc_mask, new_tc_range_mask;
+	struct ipa_ep_cfg_aggr aggr_cfg = {0};
+	struct ipa_ep_cfg_prod_cfg prod_cfg = {0};
 	bool cleanup = false;
+
+	if (index >= ipa3_ctx->tsp.egr_ep_max) {
+		IPAERR("Invalid producer index.\n");
+		return -EINVAL;
+	}
+
+	if ((new_ep_index = ipa3_get_ep_mapping(input->client)) == IPA_EP_NOT_ALLOCATED) {
+		IPAERR("Failed getting the producer EP index.\n");
+		return -EINVAL;
+	}
+
+	if (input->max_out_bytes >> 6 > 255) {
+		IPAERR("Invalid max out size: %d bytes. Must be up to 16320 bytes.\n",
+			input->max_out_bytes);
+		return -EINVAL;
+	}
 
 	ep_tc_mask = GENMASK(input->tc_hi, input->tc_lo);
 	new_tc_range_mask = ipa3_ctx->tsp.egr_tc_range_mask;
 
-	ep_index = ipa3_get_ep_mapping(ipa3_ctx->tsp.egr_ep_config[index]);
-	regval = ipahal_read_reg_n_fields(
-		IPA_ENDP_INIT_PROD_CFG_n, ep_index, (void *)&prod_cfg);
-
+	/* Checking for an overlap to clean, if needed */
 	if (ipa3_ctx->tsp.egr_ep_config[index] != IPA_CLIENT_MAX &&
 	    ipa3_ctx->tsp.egr_ep_config[index] != input->client) {
+		ep_index = ipa3_get_ep_mapping(ipa3_ctx->tsp.egr_ep_config[index]);
 		cleanup = true;
 		new_tc_range_mask &= !GENMASK(prod_cfg.egress_tc_highest,prod_cfg.egress_tc_lowest);
 	}
@@ -263,7 +306,8 @@ int ipa_tsp_set_egr_ep(u8 index, const struct ipa_ioc_tsp_egress_prod_params *in
 	prod_cfg.max_output_size_drop_enable = input->policing_by_max_out;
 	prod_cfg.egress_tc_lowest = input->tc_lo;
 	prod_cfg.egress_tc_highest = input->tc_hi;
-	if (ipa3_cfg_ep_prod_cfg(ipa3_get_ep_mapping(input->client), &prod_cfg) != 0) {
+	if (ipa3_cfg_ep_aggr((u32)new_ep_index, &aggr_cfg) != 0 ||
+	    ipa3_cfg_ep_prod_cfg((u32)new_ep_index, &prod_cfg) != 0) {
 		IPAERR("Failed configuring the producer EP.\n");
 		return -EFAULT;
 	}
@@ -287,9 +331,9 @@ int ipa_tsp_set_egr_tc(u8 index, const struct ipa_ioc_tsp_egress_class_params *i
 	 * and only maximal bandwidth rate will be considered.
 	 */
 	if (input->guaranteed_rate || input->guaranteed_burst)
-		ipahal_write_reg_mask(IPA_TSP_EGRESS_POLICING_CFG, 0x1 << index, 0x1 << index);
-	else
 		ipahal_write_reg_mask(IPA_TSP_EGRESS_POLICING_CFG, 0x0, 0x1 << index);
+	else
+		ipahal_write_reg_mask(IPA_TSP_EGRESS_POLICING_CFG, 0x1 << index, 0x1 << index);
 
 	return 0;
 }

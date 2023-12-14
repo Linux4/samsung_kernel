@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2018,2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -169,7 +170,7 @@ QDF_STATUS dispatcher_psoc_enable(struct wlan_objmgr_psoc *psoc);
  *
  * A component should abort all its ongign transaction with FW at this stage
  * for example scan component needs to abort all its ongoing scan in FW because
- * is goign to be stopped very soon.
+ * is going to be stopped very soon.
  *
  * Return: none
  */

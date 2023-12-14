@@ -771,7 +771,7 @@ bool LocationIntegrationApi::injectLocation(const location_client::Location& lca
     convertLocation(lcaLocation, halLocation);
     if ((halLocation.flags & VALID_INJECTED_LOCATION_FLAGS) != VALID_INJECTED_LOCATION_FLAGS ||
             (halLocation.timestamp == 0)) {
-        LOC_LOGe("location is invalid: flags=0x%x timestamp=" PRIu64"",
+        LOC_LOGe("location is invalid: flags=0x%x timestamp=%" PRIu64"",
                  lcaLocation.flags, lcaLocation.timestamp);
         return false;
     }

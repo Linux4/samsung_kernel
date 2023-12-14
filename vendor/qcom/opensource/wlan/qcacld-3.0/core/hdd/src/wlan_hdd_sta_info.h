@@ -40,7 +40,7 @@
 #define hdd_sta_info_entry qdf_list_node_t
 
 /**
- * struct dhcp_phase - Per Peer DHCP Phases
+ * enum dhcp_phase - Per Peer DHCP Phases
  * @DHCP_PHASE_ACK: upon receiving DHCP_ACK/NAK message in REQUEST phase or
  *         DHCP_DELINE message in OFFER phase
  * @DHCP_PHASE_DISCOVER: upon receiving DHCP_DISCOVER message in ACK phase
@@ -56,7 +56,7 @@ enum dhcp_phase {
 };
 
 /**
- * struct dhcp_nego_status - Per Peer DHCP Negotiation Status
+ * enum dhcp_nego_status - Per Peer DHCP Negotiation Status
  * @DHCP_NEGO_STOP: when the peer is in ACK phase or client disassociated
  * @DHCP_NEGO_IN_PROGRESS: when the peer is in DISCOVER or REQUEST
  *         (Renewal process) phase
@@ -66,7 +66,7 @@ enum dhcp_nego_status {
 	DHCP_NEGO_IN_PROGRESS
 };
 
-/**
+/*
  * Pending frame type of EAP_FAILURE, bit number used in "pending_eap_frm_type"
  * of sta_info.
  */
@@ -112,7 +112,7 @@ enum dhcp_nego_status {
  * @STA_INFO_WLAN_HDD_CFG80211_DUMP_STATION: NL80211_CMD_GET_STATION dumpit
  *                                           handler for SoftAP
  * @STA_INFO_SON_GET_DATRATE_INFO: gets datarate info for a SON node
- *
+ * @STA_INFO_ID_MAX: Number of enumerators
  */
 /*
  * New value added to the enum must also be reflected in function
@@ -157,7 +157,7 @@ typedef enum {
 
 /**
  * sta_info_string_from_dbgid() - Convert dbgid to respective string
- * @id -  debug id
+ * @id: debug id
  *
  * Debug support function to convert  dbgid to string.
  * Please note to add new string in the array at index equal to
@@ -191,6 +191,7 @@ char *sta_info_string_from_dbgid(wlan_sta_info_dbgid id);
  * @rx_bytes: Bytes received from current station
  * @last_tx_rx_ts: Last tx/rx timestamp with current station
  * @assoc_ts: Current station association timestamp
+ * @disassoc_ts: Current station disassociation timestamp
  * @tx_rate: Tx rate with current station reported from F/W
  * @rx_rate: Rx rate with current station reported from F/W
  * @ampdu: Ampdu enable or not of the station
@@ -216,6 +217,8 @@ char *sta_info_string_from_dbgid(wlan_sta_info_dbgid id);
  * @vht_caps: VHT capabilities of current station
  * @reason_code: Disconnection reason code for current station
  * @rssi: RSSI of the current station reported from F/W
+ * @dhcp_phase: Current phase of DHCP
+ * @dhcp_nego_status: Status of DHCP negotiation
  * @capability: Capability information of current station
  * @support_mode: Max supported mode of a station currently
  * connected to sap
@@ -240,8 +243,8 @@ char *sta_info_string_from_dbgid(wlan_sta_info_dbgid id);
  * @pending_eap_frm_type: EAP frame type in tx queue without tx completion
  * @is_attached: Flag to check if the stainfo is attached/detached
  * @peer_rssi_per_chain: Average value of RSSI (dbm) per chain
- * @num_tx_rate_counts: Num tx rate count for current peer
- * @num_rx_rate_counts: Num rx rate count for current peer
+ * @num_tx_rate_count: Num tx rate count for current peer
+ * @num_rx_rate_count: Num rx rate count for current peer
  * @tx_pkt_per_mcs: Number of tx rate counts for each MCS
  * @rx_pkt_per_mcs: Number of rx rate counts for each MCS
  */
@@ -360,7 +363,7 @@ void hdd_take_sta_info_ref(struct hdd_sta_info_obj *sta_info_container,
 
 /**
  * hdd_get_front_sta_info_no_lock() - Get the first sta_info from the sta list
- * This API doesnot use any lock in it's implementation. It is the caller's
+ * This API does not use any lock in it's implementation. It is the caller's
  * directive to ensure concurrency safety.
  *
  * @sta_info_container: The station info container obj that stores and maintains
@@ -375,11 +378,12 @@ hdd_get_front_sta_info_no_lock(struct hdd_sta_info_obj *sta_info_container,
 
 /**
  * hdd_get_next_sta_info_no_lock() - Get the next sta_info from the sta list
- * This API doesnot use any lock in it's implementation. It is the caller's
+ * This API does not use any lock in it's implementation. It is the caller's
  * directive to ensure concurrency safety.
  *
  * @sta_info_container: The station info container obj that stores and maintains
  *                      the sta_info obj.
+ * @current_sta_info: The station that was previously retrieved
  * @out_sta_info: The station info structure that acts as the container object.
  *
  * Return: QDF_STATUS
@@ -393,75 +397,13 @@ hdd_get_next_sta_info_no_lock(struct hdd_sta_info_obj *sta_info_container,
 #define __hdd_is_station_valid(sta_info) sta_info
 
 /**
- * __hdd_take_ref_and_fetch_front_sta_info - Helper macro to lock, fetch front
- * sta_info, take ref and unlock.
- * @sta_info_container: The station info container obj that stores and maintains
- *                      the sta_info obj.
- * @sta_info: The station info structure that acts as the iterator object.
- */
-#define __hdd_take_ref_and_fetch_front_sta_info(sta_info_container, sta_info, \
-						sta_info_dbgid) \
-	qdf_spin_lock_bh(&sta_info_container.sta_obj_lock), \
-	hdd_get_front_sta_info_no_lock(&sta_info_container, &sta_info), \
-	(sta_info) ? hdd_take_sta_info_ref(&sta_info_container, \
-					   sta_info, false, sta_info_dbgid) : \
-					(false), \
-	qdf_spin_unlock_bh(&sta_info_container.sta_obj_lock)
-
-/**
- * __hdd_take_ref_and_fetch_next_sta_info - Helper macro to lock, fetch next
- * sta_info, take ref and unlock.
- * @sta_info_container: The station info container obj that stores and maintains
- *                      the sta_info obj.
- * @sta_info: The station info structure that acts as the iterator object.
- */
-#define __hdd_take_ref_and_fetch_next_sta_info(sta_info_container, sta_info, \
-					       sta_info_dbgid) \
-	qdf_spin_lock_bh(&sta_info_container.sta_obj_lock), \
-	hdd_get_next_sta_info_no_lock(&sta_info_container, sta_info, \
-				      &sta_info), \
-	(sta_info) ? hdd_take_sta_info_ref(&sta_info_container, \
-					   sta_info, false, sta_info_dbgid) : \
-					(false), \
-	qdf_spin_unlock_bh(&sta_info_container.sta_obj_lock)
-
-/**
- * hdd_for_each_sta_ref - Iterate over each station stored in the sta info
- *                        container with ref taken
- * @sta_info_container: The station info container obj that stores and maintains
- *                      the sta_info obj.
- * @sta_info: The station info structure that acts as the iterator object.
- * @sta_info_dbgid: Debug ID of the caller API
- *
- * The sta_info will contain the structure that is fetched for that particular
- * iteration.
- *
- *			     ***** NOTE *****
- * Before the end of each iteration, dev_put(adapter->dev) must be
- * called. Not calling this will keep hold of a reference, thus preventing
- * unregister of the netdevice.
- *
- * Usage example:
- *	    hdd_for_each_sta_ref(sta_info_container, sta_info, sta_info_dbgid) {
- *		    <work involving station>
- *		    <some more work>
- *		    hdd_put_sta_info_ref(sta_info_container, sta_info, true,
- *					 sta_info_dbgid)
- *	    }
- */
-#define hdd_for_each_sta_ref(sta_info_container, sta_info, sta_info_dbgid) \
-	for (__hdd_take_ref_and_fetch_front_sta_info(sta_info_container, \
-						     sta_info, sta_info_dbgid);\
-	     __hdd_is_station_valid(sta_info); \
-	     __hdd_take_ref_and_fetch_next_sta_info(sta_info_container, \
-						    sta_info, sta_info_dbgid))
-
-/**
  * __hdd_take_ref_and_fetch_front_sta_info_safe - Helper macro to lock, fetch
  * front sta_info, take ref and unlock in a delete safe manner.
  * @sta_info_container: The station info container obj that stores and maintains
  *			the sta_info obj.
  * @sta_info: The station info structure that acts as the iterator object.
+ * @next_sta_info: A temporary node for maintaining del safe.
+ * @sta_info_dbgid: Debug ID of the caller API
  */
 #define __hdd_take_ref_and_fetch_front_sta_info_safe(sta_info_container, \
 						     sta_info, next_sta_info, \
@@ -485,6 +427,8 @@ hdd_get_next_sta_info_no_lock(struct hdd_sta_info_obj *sta_info_container,
  * @sta_info_container: The station info container obj that stores and maintains
  *			the sta_info obj.
  * @sta_info: The station info structure that acts as the iterator object.
+ * @next_sta_info: A temporary node for maintaining del safe.
+ * @sta_info_dbgid: Debug ID of the caller API
  */
 #define __hdd_take_ref_and_fetch_next_sta_info_safe(sta_info_container, \
 						    sta_info, next_sta_info, \
@@ -505,7 +449,7 @@ hdd_get_next_sta_info_no_lock(struct hdd_sta_info_obj *sta_info_container,
  * @sta_info_container: The station info container obj that stores and maintains
  *                      the sta_info obj.
  * @sta_info: The station info structure that acts as the iterator object.
- * @next_sta_info: A temporary node for maintaing del safe.
+ * @next_sta_info: A temporary node for maintaining del safe.
  * @sta_info_dbgid: Debug ID of the caller API
  *
  * The sta_info will contain the structure that is fetched for that particular
@@ -540,7 +484,7 @@ hdd_get_next_sta_info_no_lock(struct hdd_sta_info_obj *sta_info_container,
 							 sta_info_dbgid))
 
 /**
- * wlan_sta_info_init() - Initialise the wlan hdd station info container obj
+ * hdd_sta_info_init() - Initialise the wlan hdd station info container obj
  * @sta_info_container: The station info container obj that stores and maintains
  *                      the sta_info obj.
  *
@@ -549,7 +493,7 @@ hdd_get_next_sta_info_no_lock(struct hdd_sta_info_obj *sta_info_container,
 QDF_STATUS hdd_sta_info_init(struct hdd_sta_info_obj *sta_info_container);
 
 /**
- * wlan_sta_info_deinit() - Deinit the wlan hdd station info container obj
+ * hdd_sta_info_deinit() - Deinit the wlan hdd station info container obj
  * @sta_info_container: The station info container obj that stores and maintains
  *                      the sta_info obj.
  *
@@ -613,8 +557,8 @@ struct hdd_station_info *hdd_get_sta_info_by_mac(
 
 /**
  * hdd_clear_cached_sta_info() - Clear the cached sta info from the container
- * @sta_info_container: The station info container obj that stores and maintains
- *                      the sta_info obj.
+ * @hdd_adapter: The adapter containing the station info container obj that
+ *               stores and maintains the sta_info obj.
  *
  * Return: None
  */

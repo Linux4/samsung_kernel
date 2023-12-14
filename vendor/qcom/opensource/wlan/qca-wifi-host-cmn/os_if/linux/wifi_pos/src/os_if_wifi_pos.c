@@ -802,7 +802,7 @@ static int wifi_pos_parse_req(struct sk_buff *skb, struct wifi_pos_req_msg *req,
 	}
 
 	if (nlh->nlmsg_len < NLMSG_LENGTH(sizeof(*msg_hdr))) {
-		osif_err("nlmsg_len(%d) and msg_hdr_size(%zu) mis-match",
+		osif_err("nlmsg_len(%d) and msg_hdr_size(%zu) mismatch",
 			 nlh->nlmsg_len, sizeof(*msg_hdr));
 		return OEM_ERR_INVALID_MESSAGE_LENGTH;
 	}
@@ -814,7 +814,7 @@ static int wifi_pos_parse_req(struct sk_buff *skb, struct wifi_pos_req_msg *req,
 	}
 
 	if (nlh->nlmsg_len < NLMSG_LENGTH(sizeof(*msg_hdr) + msg_hdr->length)) {
-		osif_err("nlmsg_len(%d) and animsg_len(%d) mis-match",
+		osif_err("nlmsg_len(%d) and animsg_len(%d) mismatch",
 			 nlh->nlmsg_len, msg_hdr->length);
 		return OEM_ERR_INVALID_MESSAGE_LENGTH;
 	}

@@ -67,7 +67,7 @@ ifeq ($(CONFIG_ARCH_SDX20), y)
 CONFIG_MOBILE_ROUTER := y
 endif
 
-ifeq (y, $(filter y, $(CONFIG_ARCH_SDXPRAIRIE) $(CONFIG_ARCH_SA515) $(CONFIG_ARCH_SDXPOORWILLS)))
+ifeq (y, $(filter y, $(CONFIG_ARCH_SDXPRAIRIE) $(CONFIG_ARCH_SA515) $(CONFIG_ARCH_SDXPOORWILLS) $(CONFIG_ARCH_SA515M)))
 CONFIG_MOBILE_ROUTER := y
 endif
 
@@ -751,3 +751,6 @@ CONFIG_WLAN_SYSFS_MEM_STATS := y
 
 #Enable PCI low power interrupt register mask configuration
 CONFIG_PCI_LOW_POWER_INT_REG := y
+
+#Enable Usable channel feature
+CONFIG_WLAN_FEATURE_GET_USABLE_CHAN_LIST := y

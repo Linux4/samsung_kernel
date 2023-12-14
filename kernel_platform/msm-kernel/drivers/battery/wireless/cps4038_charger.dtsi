@@ -126,6 +126,25 @@
 					SEC_WIRELESS_RX_POWER_15W
 					SEC_WIRELESS_RX_POWER_15W>;
 
+	battery,wireless20_iec_qfod_enable = <0x0>;
+	battery,wireless20_iec_q_thresh_1 = <0x46>;
+	battery,wireless20_iec_q_thresh_2 = <0x3c>;
+	battery,wireless20_iec_fres_thresh_1 = <0x47>;
+	battery,wireless20_iec_fres_thresh_2 = <0x55>;
+	battery,wireless20_iec_power_limit_thresh = <0x190>;
+	battery,wireless20_iec_ploss_thresh_1 = <0x0fa>;
+	battery,wireless20_iec_ploss_thresh_2 = <0x384>;
+	battery,wireless20_iec_ploss_freq_thresh_1 = <0xff>;
+	battery,wireless20_iec_ploss_freq_thresh_2 = <0xff>;
+	battery,wireless20_iec_ta_power_limit_thresh = <0x258>;
+	battery,wireless20_iec_ta_ploss_thresh_1 = <0x190>;
+	battery,wireless20_iec_ta_ploss_thresh_2 = <0x4b0>;
+	battery,wireless20_iec_ta_ploss_freq_thresh_1 = <0xff>;
+	battery,wireless20_iec_ta_ploss_freq_thresh_2 = <0xff>;
+	battery,wireless20_iec_ploss_fod_enable = <0x1>;
+	battery,wireless20_iec_pwm_duty_thresh = <0x23>;
+	battery,wireless20_iec_ta_pwm_duty_thresh = <0x1e>;
+
 	fod_list {
 		pad_0x00 { /* DEFAULT */
 			flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(USE_CC) | SET_FOD_FULL(ADD) | SET_FOD_HV(ADD))>;

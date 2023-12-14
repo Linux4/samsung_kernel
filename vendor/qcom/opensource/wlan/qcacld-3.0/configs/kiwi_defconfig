@@ -5,6 +5,11 @@ include $(WLAN_ROOT)/configs/default_defconfig
 #Enable 11BE EHT
 CONFIG_WLAN_FEATURE_11BE := y
 
+# Enable EHT rate sysfs entry
+ifeq ($(CONFIG_WLAN_SYSFS), y)
+CONFIG_WLAN_SYSFS_EHT_RATE := y
+endif
+
 # Max Sta Vdev Config
 CONFIG_CFG_MAX_STA_VDEVS := 4
 

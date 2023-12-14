@@ -65,6 +65,9 @@ typedef struct sDphQosParams {
  * @ht_operation: HT operation IE
  * @vht_operation: VHT operation IE
  * @hs20vendor_ie: HS2.0 vendor IE
+ * @he_operation: HE operation IE
+ * @srp_ie: Spatial Reuse Parameter IE
+ * @eht_operation: EHT IE
  *
  * This structure holds the parsed IE of connected BSS
  * and this is not the intersection of BSS and STA
@@ -80,6 +83,9 @@ struct parsed_ies {
 	tDot11fIEhs20vendor_ie hs20vendor_ie;
 #ifdef WLAN_FEATURE_11AX
 	tDot11fIEhe_op he_operation;
+#endif
+#ifdef WLAN_FEATURE_SR
+	tDot11fIEspatial_reuse srp_ie;
 #endif
 #ifdef WLAN_FEATURE_11BE
 	tDot11fIEeht_op eht_operation;

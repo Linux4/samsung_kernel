@@ -45,12 +45,16 @@
 #define CONFIG_DRM
 #endif
 
+#if IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER)
+#define CONFIG_PANEL_NOTIFIER
+#endif
+
 #include <linux/device.h>
 #include <linux/fb.h>
 #include <linux/notifier.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
-#elif defined(CONFIG_DRM)
+#elif defined(CONFIG_DRM) || defined(CONFIG_PANEL_NOTIFIER)
 #include <drm/drm_panel.h>
 #endif
 
@@ -74,10 +78,11 @@
 #include <linux/suspend.h>
 #include <linux/stringify.h>
 #include <linux/types.h>
-#include <linux/uaccess.h>
+#include <linux/fs.h>
+#include <asm/uaccess.h>
 #include <linux/workqueue.h>
 #include <linux/version.h>
-#include <linux/pt_core.h>
+#include "pt_core.h"
 
 #include <linux/i2c.h>
 #include <linux/of_gpio.h>
@@ -142,6 +147,8 @@
 #ifndef TT7XXX_EXAMPLE
 #define TT7XXX_EXAMPLE
 #endif
+
+#define TOUCH_TO_WAKE_POWER_FEATURE_WORK_AROUND
 
 /*
  * The largest PIP message is the PIP2 FILE_WRITE which has:
@@ -1103,13 +1110,17 @@ enum pt_atten_type {
 };
 
 enum pt_sleep_state {
+	SS_SLEEP_NONE,
 	SS_SLEEP_OFF,
 	SS_SLEEP_ON,
 	SS_SLEEPING,
 	SS_WAKING,
+	SS_EASY_WAKING_ON,
+	SS_EASY_WAKING_OFF,
 };
 
 enum pt_fb_state {
+	FB_NONE,
 	FB_ON,
 	FB_OFF,
 };
@@ -1440,6 +1451,12 @@ struct pt_core_data {
 	struct list_head module_list; /* List of probed modules */
 	char core_id[20];
 	struct device *dev;
+	struct workqueue_struct *pt_workqueue;
+	struct work_struct	resume_offload_work;
+	struct work_struct	suspend_offload_work;
+	struct work_struct	suspend_work;
+	struct work_struct	resume_work;
+
 	struct list_head atten_list[PT_ATTEN_NUM_ATTEN];
 	struct list_head param_list;
 	struct mutex module_list_lock;
@@ -1467,7 +1484,6 @@ struct pt_core_data {
 	bool irq_wake;
 	bool irq_disabled;
 	bool hw_detected;
-	bool runtime;
 	u8 easy_wakeup_gesture;
 #ifdef EASYWAKE_TSG6
 	u8 gesture_id;
@@ -1509,7 +1525,7 @@ struct pt_core_data {
 	int raw_cmd_status;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend es;
-#elif defined(CONFIG_FB) || defined(CONFIG_DRM)
+#elif defined(CONFIG_FB) || defined(CONFIG_DRM) || defined(CONFIG_PANEL_NOTIFIER)
 	struct notifier_block fb_notifier;
 	enum pt_fb_state fb_state;
 #endif
@@ -1574,6 +1590,9 @@ struct pt_core_data {
 	bool bridge_mode;
 	bool hw_detect_enabled;
 #endif
+	bool quick_boot;
+	bool drv_debug_suspend;
+	bool touch_offload;
 };
 
 struct gd_sensor {
@@ -1715,9 +1734,9 @@ static inline int pt_proximity_release(struct device *dev) { return 0; }
 static inline unsigned int pt_get_time_stamp(void)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
-	struct timespec ts;
+	struct timespec64 ts;
 
-	getnstimeofday(&ts);
+	ktime_get_real_ts64(&ts);
 	return (ts.tv_sec*1000 + ts.tv_nsec/1000000);
 #else
 	struct timeval tv;

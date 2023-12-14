@@ -595,6 +595,10 @@ vendor.audio.feature.audiozoom.enable=false
 ############################################
 endif
 
+# set dynamic sensor operation timeout in ms
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.dynamic_sensor.setup.timeout.ms=2000
+
 PRODUCT_PACKAGES_ENG += \
     VoicePrintTest \
     VoicePrintDemo

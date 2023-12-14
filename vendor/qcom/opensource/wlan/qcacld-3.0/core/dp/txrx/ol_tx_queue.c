@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -199,7 +200,7 @@ ol_tx_queue_discard(
  * is_ol_tx_discard_frames_success() - check whether currently queued tx frames
  *				       can be discarded or not
  * @pdev: the physical device object
- * @tx_desc: tx desciptor ptr
+ * @tx_desc: tx descriptor ptr
  *
  * Return: Success if available tx descriptors are too few
  */
@@ -711,7 +712,7 @@ ol_txrx_peer_bal_add_limit_peer(struct ol_txrx_pdev_t *pdev,
 		/* Check if peer_num has reached the capabilit */
 		if (peer_num >= MAX_NO_PEERS_IN_LIMIT) {
 			TX_SCHED_DEBUG_PRINT_ALWAYS(
-				"reach the maxinum peer num %d", peer_num);
+				"reach the maximum peer num %d", peer_num);
 				return;
 		}
 		pdev->tx_peer_bal.limit_list[peer_num].peer_id = peer_id;

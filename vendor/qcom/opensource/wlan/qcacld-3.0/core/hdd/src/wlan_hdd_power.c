@@ -76,7 +76,6 @@
 #include "cds_utils.h"
 #include "wlan_hdd_packet_filter_api.h"
 #include "wlan_cfg80211_scan.h"
-#include <dp_txrx.h>
 #include "wlan_ipa_ucfg_api.h"
 #include <wlan_cfg80211_mc_cp_stats.h>
 #include "wlan_p2p_ucfg_api.h"
@@ -113,7 +112,7 @@ void hdd_wlan_suspend_resume_event(uint8_t state)
 }
 
 /**
- * hdd_wlan_offload_event()- send offloads event
+ * hdd_wlan_offload_event() - send offloads event
  * @type: offload type
  * @state: enabled or disabled
  *
@@ -134,7 +133,7 @@ void hdd_wlan_offload_event(uint8_t type, uint8_t state)
 }
 #endif
 
-#ifdef QCA_CONFIG_SMP
+#ifdef WLAN_DP_LEGACY_OL_RX_THREAD
 
 /* timeout in msec to wait for RX_THREAD to suspend */
 #define HDD_RXTHREAD_SUSPEND_TIMEOUT 200
@@ -173,7 +172,7 @@ int wlan_hdd_rx_thread_suspend(struct hdd_context *hdd_ctx)
 
 	return 0;
 }
-#endif /* QCA_CONFIG_SMP */
+#endif /* WLAN_DP_LEGACY_OL_RX_THREAD */
 
 /**
  * hdd_enable_gtk_offload() - enable GTK offload
@@ -443,7 +442,7 @@ int wlan_hdd_ipv6_changed(struct notifier_block *nb,
 /**
  * hdd_fill_ipv6_uc_addr() - fill IPv6 unicast addresses
  * @idev: pointer to net device
- * @ipv6addr: destination array to fill IPv6 addresses
+ * @ipv6_uc_addr: destination array to fill IPv6 addresses
  * @ipv6addr_type: IPv6 Address type
  * @scope_array: scope of ipv6 addr
  * @count: number of IPv6 addresses
@@ -496,7 +495,7 @@ static int hdd_fill_ipv6_uc_addr(struct inet6_dev *idev,
 /**
  * hdd_fill_ipv6_ac_addr() - fill IPv6 anycast addresses
  * @idev: pointer to net device
- * @ipv6addr: destination array to fill IPv6 addresses
+ * @ipv6_ac_addr: destination array to fill IPv6 addresses
  * @ipv6addr_type: IPv6 Address type
  * @scope_array: scope of ipv6 addr
  * @count: number of IPv6 addresses
@@ -681,6 +680,28 @@ out:
 
 }
 
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(CFG80211_11BE_BASIC)
+static void hdd_send_mlo_ps_to_fw(struct hdd_adapter *adapter,
+				  struct hdd_context *hdd_ctx)
+{
+	struct hdd_adapter *link_adapter;
+	struct hdd_mlo_adapter_info *mlo_adapter_info;
+	int i;
+
+	mlo_adapter_info = &adapter->mlo_adapter_info;
+	for (i = 0; i < WLAN_MAX_MLD; i++) {
+		link_adapter = mlo_adapter_info->link_adapter[i];
+		if (!link_adapter)
+			continue;
+		sme_ps_update(hdd_ctx->mac_handle, link_adapter->vdev_id);
+	}
+}
+#else
+static void hdd_send_mlo_ps_to_fw(struct hdd_adapter *adapter,
+				  struct hdd_context *hdd_ctx)
+{}
+#endif
+
 /**
  * hdd_send_ps_config_to_fw() - Check user pwr save config set/reset PS
  * @adapter: pointer to hdd adapter
@@ -693,27 +714,28 @@ out:
 static void hdd_send_ps_config_to_fw(struct hdd_adapter *adapter)
 {
 	struct hdd_context *hdd_ctx;
-	bool usr_ps_cfg;
+	bool is_mlo_vdev;
 
 	if (hdd_validate_adapter(adapter))
 		return;
 
 	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 
-	usr_ps_cfg = ucfg_mlme_get_user_ps(hdd_ctx->psoc, adapter->vdev_id);
-	if (usr_ps_cfg)
-		sme_ps_enable_disable(hdd_ctx->mac_handle, adapter->vdev_id,
-				      SME_PS_ENABLE);
-	else
-		sme_ps_enable_disable(hdd_ctx->mac_handle, adapter->vdev_id,
-				      SME_PS_DISABLE);
+	is_mlo_vdev = wlan_vdev_mlme_is_mlo_vdev(adapter->vdev);
+
+	if (!is_mlo_vdev) {
+		sme_ps_update(hdd_ctx->mac_handle, adapter->vdev_id);
+		return;
+	}
+
+	hdd_send_mlo_ps_to_fw(adapter, hdd_ctx);
 }
 
 /**
  * __hdd_ipv6_notifier_work_queue() - IPv6 notification work function
  * @adapter: adapter whose IP address changed
  *
- * This function performs the work initially trigged by a callback
+ * This function performs the work initially triggered by a callback
  * from the IPv6 netdev notifier.  Since this means there has been a
  * change in IPv6 state for the interface, the NS offload is
  * reconfigured.
@@ -1056,7 +1078,7 @@ int hdd_set_grat_arp_keepalive(struct hdd_adapter *adapter)
  * __hdd_ipv4_notifier_work_queue() - IPv4 notification work function
  * @adapter: adapter whose IP address changed
  *
- * This function performs the work initially trigged by a callback
+ * This function performs the work initially triggered by a callback
  * from the IPv4 netdev notifier.  Since this means there has been a
  * change in IPv4 state for the interface, the ARP offload is
  * reconfigured. Also, Updates the HLP IE info with IP address info
@@ -1267,7 +1289,7 @@ bool wlan_hdd_is_cpu_pm_qos_in_progress(struct hdd_context *hdd_ctx)
 #endif
 
 /**
- * hdd_get_ipv4_local_interface() - get ipv4 local interafce from iface list
+ * hdd_get_ipv4_local_interface() - get ipv4 local interface from iface list
  * @adapter: Adapter context for which ARP offload is to be configured
  *
  * Return:
@@ -1305,6 +1327,8 @@ void hdd_enable_arp_offload(struct hdd_adapter *adapter,
 	struct pmo_arp_req *arp_req;
 	struct in_ifaddr *ifa;
 	struct wlan_objmgr_vdev *vdev;
+
+	hdd_enter();
 
 	arp_req = qdf_mem_malloc(sizeof(*arp_req));
 	if (!arp_req)
@@ -1524,6 +1548,8 @@ void hdd_disable_arp_offload(struct hdd_adapter *adapter,
 	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	struct wlan_objmgr_vdev *vdev;
 
+	hdd_enter();
+
 	status = ucfg_pmo_check_arp_offload(hdd_ctx->psoc, trigger,
 					    adapter->vdev_id);
 	if (status != QDF_STATUS_SUCCESS) {
@@ -1626,7 +1652,7 @@ flush_mc_list:
 }
 
 /**
- * hdd_update_conn_state_mask(): record info needed by wma_suspend_req
+ * hdd_update_conn_state_mask() - record info needed by wma_suspend_req
  * @adapter: adapter to get info from
  * @conn_state_mask: mask of connection info
  *
@@ -1641,8 +1667,6 @@ static void hdd_update_conn_state_mask(struct hdd_adapter *adapter,
 
 /**
  * hdd_suspend_wlan() - Driver suspend function
- * @callback: Callback function to invoke when driver is ready to suspend
- * @callbackContext: Context to pass back to @callback function
  *
  * Return: 0 on success else error code.
  */
@@ -1673,13 +1697,6 @@ hdd_suspend_wlan(void)
 						  NET_DEV_HOLD_SUSPEND_WLAN);
 			continue;
 		}
-
-		/* stop all TX queues before suspend */
-		hdd_debug("Disabling queues for dev mode %s",
-			  qdf_opmode_str(adapter->device_mode));
-		wlan_hdd_netif_queue_control(adapter,
-					     WLAN_STOP_ALL_NETIF_QUEUE,
-					     WLAN_CONTROL_PATH);
 
 		if (adapter->device_mode == QDF_STA_MODE)
 			status = hdd_enable_default_pkt_filters(adapter);
@@ -1744,16 +1761,10 @@ static int hdd_resume_wlan(void)
 		/* Disable supported OffLoads */
 		hdd_disable_host_offloads(adapter, pmo_apps_resume);
 
-		/* wake the tx queues */
-		hdd_debug("Enabling queues for dev mode %s",
-			  qdf_opmode_str(adapter->device_mode));
-		wlan_hdd_netif_queue_control(adapter,
-					WLAN_WAKE_ALL_NETIF_QUEUE,
-					WLAN_CONTROL_PATH);
-
 		if (adapter->device_mode == QDF_STA_MODE)
 			status = hdd_disable_default_pkt_filters(adapter);
 
+		hdd_restart_tsf_sync_post_wlan_resume(adapter);
 		hdd_adapter_dev_put_debug(adapter, NET_DEV_HOLD_RESUME_WLAN);
 	}
 
@@ -1769,6 +1780,84 @@ static int hdd_resume_wlan(void)
 	return 0;
 }
 
+/**
+ * hdd_pause_ns() - Network stack pause function
+ * @hdd_ctx:   hdd context
+ *
+ * Return: 0 on success else error code.
+ */
+static int hdd_pause_ns(struct hdd_context *hdd_ctx)
+{
+	struct hdd_adapter *adapter = NULL, *next_adapter = NULL;
+
+	hdd_debug("Pause NS");
+
+	if (cds_is_driver_recovering() || cds_is_driver_in_bad_state()) {
+		hdd_info("Recovery in Progress. State: 0x%x Ignore suspend!!!",
+			 cds_get_driver_state());
+		return -EINVAL;
+	}
+
+	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
+					   NET_DEV_HOLD_SUSPEND_WLAN) {
+		if (wlan_hdd_validate_vdev_id(adapter->vdev_id)) {
+			hdd_adapter_dev_put_debug(adapter,
+						  NET_DEV_HOLD_SUSPEND_WLAN);
+			continue;
+		}
+
+		/* stop all TX queues before suspend */
+		hdd_debug("Disabling queues for dev mode %s",
+			  qdf_opmode_str(adapter->device_mode));
+		wlan_hdd_netif_queue_control(adapter,
+					     WLAN_STOP_ALL_NETIF_QUEUE,
+					     WLAN_CONTROL_PATH);
+
+		hdd_adapter_dev_put_debug(adapter, NET_DEV_HOLD_SUSPEND_WLAN);
+	}
+
+	return 0;
+}
+
+/**
+ * hdd_unpause_ns() - Network stack unpause function
+ * @hdd_ctx:   hdd context
+ *
+ * Return: 0 on success else error code.
+ */
+static int hdd_unpause_ns(struct hdd_context *hdd_ctx)
+{
+	struct hdd_adapter *adapter, *next_adapter = NULL;
+
+	hdd_debug("Unpause NS");
+
+	if (cds_is_driver_recovering() || cds_is_driver_in_bad_state()) {
+		hdd_info("Recovery in Progress. State: 0x%x Ignore resume!!!",
+			 cds_get_driver_state());
+		return -EINVAL;
+	}
+
+	/*loop through all adapters. Concurrency */
+	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
+					   NET_DEV_HOLD_RESUME_WLAN) {
+		if (wlan_hdd_validate_vdev_id(adapter->vdev_id)) {
+			hdd_adapter_dev_put_debug(adapter,
+						  NET_DEV_HOLD_RESUME_WLAN);
+			continue;
+		}
+
+		/* wake the tx queues */
+		hdd_debug("Enabling queues for dev mode %s",
+			  qdf_opmode_str(adapter->device_mode));
+		wlan_hdd_netif_queue_control(adapter,
+					     WLAN_WAKE_ALL_NETIF_QUEUE,
+					     WLAN_CONTROL_PATH);
+
+		hdd_adapter_dev_put_debug(adapter, NET_DEV_HOLD_RESUME_WLAN);
+	}
+
+	return 0;
+}
 void hdd_svc_fw_shutdown_ind(struct device *dev)
 {
 	struct hdd_context *hdd_ctx;
@@ -1840,8 +1929,6 @@ QDF_STATUS hdd_wlan_shutdown(void)
 
 	wlan_hdd_rx_thread_resume(hdd_ctx);
 
-	dp_txrx_resume(cds_get_context(QDF_MODULE_ID_SOC));
-
 	if (ucfg_pkt_capture_get_mode(hdd_ctx->psoc) !=
 						PACKET_CAPTURE_MODE_DISABLE) {
 		adapter = hdd_get_adapter(hdd_ctx, QDF_MONITOR_MODE);
@@ -1881,7 +1968,7 @@ QDF_STATUS hdd_wlan_shutdown(void)
 
 #ifdef FEATURE_WLAN_DIAG_SUPPORT
 /**
- * hdd_wlan_ssr_reinit_event()- send ssr reinit state
+ * hdd_wlan_ssr_reinit_event() - send ssr reinit state
  *
  * This Function send send ssr reinit state diag event
  *
@@ -1904,7 +1991,8 @@ static inline void hdd_wlan_ssr_reinit_event(void)
 
 #ifdef WLAN_FEATURE_DBAM_CONFIG
 /**
- * hdd_retore_dbam_config - restore and send dbam config to fw
+ * hdd_restore_dbam_config() - restore and send dbam config to fw
+ * @hdd_ctx: HDD context
  *
  * This function is used to send  store dbam config to fw
  * in case of wlan re-init
@@ -1961,7 +2049,8 @@ static void hdd_restore_dual_sta_config(struct hdd_context *hdd_ctx)
 }
 
 /**
- * hdd_send_default_scan_ies - send default scan ies to fw
+ * hdd_send_default_scan_ies() - send default scan ies to fw
+ * @hdd_ctx: HDD context
  *
  * This function is used to send default scan ies to fw
  * in case of wlan re-init
@@ -1989,7 +2078,7 @@ static void hdd_send_default_scan_ies(struct hdd_context *hdd_ctx)
 }
 
 /**
- * hdd_restore_sar_config - Restore the saved SAR config after SSR
+ * hdd_restore_sar_config() - Restore the saved SAR config after SSR
  * @hdd_ctx: HDD context
  *
  * Restore the SAR config that was lost during SSR.
@@ -2138,12 +2227,10 @@ err_ctx_null:
 }
 
 int wlan_hdd_set_powersave(struct hdd_adapter *adapter,
-	bool allow_power_save, uint32_t timeout)
+			   bool allow_power_save, uint32_t timeout)
 {
-	mac_handle_t mac_handle;
 	struct hdd_context *hdd_ctx;
-	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	bool is_bmps_enabled;
+	QDF_STATUS status;
 	struct hdd_station_ctx *hdd_sta_ctx = NULL;
 
 	if (!adapter) {
@@ -2163,85 +2250,17 @@ int wlan_hdd_set_powersave(struct hdd_adapter *adapter,
 		return -EINVAL;
 	}
 
-	hdd_debug("Allow power save: %d", allow_power_save);
-	mac_handle = hdd_ctx->mac_handle;
-
-	/*
-	 * This is a workaround for defective AP's that send a disassoc
-	 * immediately after WPS connection completes. Defer powersave by a
-	 * small amount if the affected AP is detected.
-	 */
-	if (allow_power_save &&
-	    adapter->device_mode == QDF_STA_MODE &&
-	    !adapter->session.station.ap_supports_immediate_power_save) {
-		timeout = AUTO_PS_DEFER_TIMEOUT_MS;
-		hdd_debug("Defer power-save due to AP spec non-conformance");
-	}
-
-	if (allow_power_save) {
-		if (QDF_STA_MODE == adapter->device_mode ||
-		    QDF_P2P_CLIENT_MODE == adapter->device_mode) {
-			hdd_debug("Disabling Auto Power save timer");
-			status = sme_ps_disable_auto_ps_timer(mac_handle,
-						adapter->vdev_id);
-			if (status != QDF_STATUS_SUCCESS)
-				goto end;
-		}
-
-		ucfg_mlme_is_bmps_enabled(hdd_ctx->psoc, &is_bmps_enabled);
-		if (is_bmps_enabled) {
-			hdd_debug("Wlan driver Entering Power save");
-
-			/*
-			 * Enter Power Save command received from GUI
-			 * this means DHCP is completed
-			 */
-			if (timeout) {
-				status = sme_ps_enable_auto_ps_timer(mac_handle,
-							    adapter->vdev_id,
-							    timeout);
-				if (status != QDF_STATUS_SUCCESS)
-					goto end;
-			} else {
-				status = sme_ps_enable_disable(mac_handle,
-						adapter->vdev_id,
-						SME_PS_ENABLE);
-				if (status != QDF_STATUS_SUCCESS)
-					goto end;
-			}
-		} else {
-			hdd_debug("Power Save is not enabled in the cfg");
-		}
-	} else {
-		hdd_debug("Wlan driver Entering Full Power");
-
-		/*
-		 * Enter Full power command received from GUI
-		 * this means we are disconnected
-		 */
-		status = sme_ps_disable_auto_ps_timer(mac_handle,
-					adapter->vdev_id);
-
-		if (status != QDF_STATUS_SUCCESS)
-			goto end;
-
-		ucfg_mlme_is_bmps_enabled(hdd_ctx->psoc, &is_bmps_enabled);
-		if (is_bmps_enabled) {
-			status = sme_ps_enable_disable(mac_handle,
-						       adapter->vdev_id,
-						       SME_PS_DISABLE);
-			if (status != QDF_STATUS_SUCCESS)
-				goto end;
-		}
-
-		if (adapter->device_mode == QDF_STA_MODE) {
+	status = sme_ps_set_powersave(
+		hdd_ctx->mac_handle, adapter->vdev_id,
+		allow_power_save, timeout,
+		hdd_sta_ctx->ap_supports_immediate_power_save);
+	if (!allow_power_save) {
+		if (adapter->device_mode == QDF_STA_MODE)
 			hdd_twt_del_dialog_in_ps_disable(hdd_ctx,
 						&hdd_sta_ctx->conn_info.bssid,
 						adapter->vdev_id);
-		}
 	}
 
-end:
 	return qdf_status_to_os_return(status);
 }
 
@@ -2336,6 +2355,10 @@ static int __wlan_hdd_cfg80211_resume_wlan(struct wiphy *wiphy)
 	/* Resume all components registered to pmo */
 	status = ucfg_pmo_resume_all_components(hdd_ctx->psoc,
 						QDF_SYSTEM_SUSPEND);
+
+	/* Unpause NS no matter of the return value of pmo_resume */
+	hdd_unpause_ns(hdd_ctx);
+
 	if (status != QDF_STATUS_SUCCESS) {
 		exit_code = 0;
 		goto exit_with_code;
@@ -2343,9 +2366,6 @@ static int __wlan_hdd_cfg80211_resume_wlan(struct wiphy *wiphy)
 	/* Resume tlshim Rx thread */
 	if (ucfg_dp_is_rx_common_thread_enabled(hdd_ctx->psoc))
 		wlan_hdd_rx_thread_resume(hdd_ctx);
-
-	if (ucfg_dp_is_rx_threads_enabled(hdd_ctx->psoc))
-		dp_txrx_resume(cds_get_context(QDF_MODULE_ID_SOC));
 
 	if (ucfg_pkt_capture_get_mode(hdd_ctx->psoc) !=
 						PACKET_CAPTURE_MODE_DISABLE) {
@@ -2393,6 +2413,15 @@ static int _wlan_hdd_cfg80211_resume_wlan(struct wiphy *wiphy)
 	/* If Wifi is off, return success for system resume */
 	if (hdd_ctx->driver_status != DRIVER_MODULES_ENABLED) {
 		hdd_debug("Driver Modules not Enabled ");
+		return 0;
+	}
+
+	/*
+	 * Return success if recovery is in progress, otherwise, linux kernel
+	 * will shutdown all interfaces in wiphy_resume.
+	 */
+	if (cds_is_driver_recovering()) {
+		hdd_debug("Recovery in progress");
 		return 0;
 	}
 
@@ -2603,6 +2632,8 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 		hdd_adapter_dev_put_debug(adapter, dbgid);
 	}
 
+	hdd_pause_ns(hdd_ctx);
+
 	/*
 	 * Suspend all components registered to pmo, abort ongoing scan and
 	 * don't allow new scan any more before scheduler thread suspended.
@@ -2643,11 +2674,6 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 			goto resume_ol_rx;
 	}
 
-	if (ucfg_dp_is_rx_threads_enabled(hdd_ctx->psoc)) {
-		if (dp_txrx_suspend(cds_get_context(QDF_MODULE_ID_SOC)))
-			goto resume_ol_rx;
-	}
-
 	if (ucfg_pkt_capture_get_mode(hdd_ctx->psoc) !=
 						PACKET_CAPTURE_MODE_DISABLE) {
 		adapter = hdd_get_adapter(hdd_ctx, QDF_MONITOR_MODE);
@@ -2682,9 +2708,6 @@ static int __wlan_hdd_cfg80211_suspend_wlan(struct wiphy *wiphy,
 	return 0;
 
 resume_dp_thread:
-	if (ucfg_dp_is_rx_threads_enabled(hdd_ctx->psoc))
-		dp_txrx_resume(cds_get_context(QDF_MODULE_ID_SOC));
-
 	/* Resume packet capture MON thread */
 	if (ucfg_pkt_capture_get_mode(hdd_ctx->psoc) !=
 						PACKET_CAPTURE_MODE_DISABLE) {
@@ -2711,6 +2734,7 @@ resume_tx:
 	hdd_resume_wlan();
 resume_all_components:
 	ucfg_pmo_resume_all_components(hdd_ctx->psoc, QDF_SYSTEM_SUSPEND);
+	hdd_unpause_ns(hdd_ctx);
 
 	return -ETIME;
 
@@ -2842,9 +2866,6 @@ static int wlan_hdd_set_ps(struct wlan_objmgr_psoc *psoc,
 			   bool allow_power_save, int timeout)
 {
 	int status;
-
-	ucfg_mlme_set_user_ps(psoc, adapter->vdev_id,
-			      allow_power_save);
 
 	status = wlan_hdd_set_powersave(adapter, allow_power_save, timeout);
 

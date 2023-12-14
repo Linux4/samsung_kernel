@@ -1,5 +1,5 @@
 # Copyright (c) 2017-2022, The Linux Foundation. All rights reserved.
-# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+# Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -40,10 +40,16 @@ class FtraceParser(RamParser):
         self.event_class = 'struct trace_event_class'
         self.trace_names = ["binder", "bootreceiver", "clock_reg", "kgsl-fence",
                             "memory", "mmc", "rproc_qcom", "suspend", "ufs",
-                            "usb", "wifi"]
+                            "usb", "wifi", "rwmmio"]
         self.whitelisted_trace_names =[]
+        self.ftrace_buffer_size_kb = None
+        self.per_cpu_buffer_pages = None
+
         if len(self.ramdump.ftrace_args):
             self.whitelisted_trace_names = self.ramdump.ftrace_args
+
+        if self.ramdump.ftrace_max_size:
+            self.per_cpu_buffer_pages = self.ramdump.ftrace_max_size / 4
 
     def ftrace_field_func(self, common_list, ram_dump):
         name_offset = ram_dump.field_offset('struct ftrace_event_field', 'name')
@@ -212,7 +218,10 @@ class FtraceParser(RamParser):
             global_trace_data = global_trace_data_next
 
             trace_buffer_name = self.ramdump.read_word(global_trace_data + trace_buffer_name_offset)
-            trace_name = self.ramdump.read_cstring(trace_buffer_name, 256)
+            if not (trace_buffer_name):
+                trace_name = None
+            else:
+                trace_name = self.ramdump.read_cstring(trace_buffer_name, 256)
 
             if self.ramdump.arm64:
                 trace_buffer_ptr_data = self.ramdump.read_u64(
@@ -291,13 +300,17 @@ class FtraceParser(RamParser):
                         b + ring_trace_buffer_nr_pages)
                 if nr_pages is None:
                     continue
+                if self.per_cpu_buffer_pages and self.per_cpu_buffer_pages < nr_pages:
+                    nr_pages = self.per_cpu_buffer_pages
+
                 nr_total_buffer_pages = nr_total_buffer_pages +  nr_pages
 
                 nr_pages_per_buffer.append(nr_pages)
                 rb_per_cpu.append(b)
                 #print "ring_trace_buffer_cpus nr_pages = %d" % nr_pages
                 #print "cpu_buffer = {0}".format(hex(b))
-            #print "nr_total_buffer_pages = %d" % nr_total_buffer_pages
+
+            print("\nTotal pages across cpu trace buffers = {}".format(round(nr_total_buffer_pages)))
 
             #start = time.time()
             for cpu_idx in range(0,len(rb_per_cpu)):

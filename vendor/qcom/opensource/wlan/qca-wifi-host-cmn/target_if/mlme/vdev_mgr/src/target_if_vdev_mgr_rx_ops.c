@@ -194,7 +194,7 @@ void target_if_vdev_mgr_rsp_timer_cb(void *arg)
 }
 
 #ifdef SERIALIZE_VDEV_RESP
-static QDF_STATUS target_if_vdev_mgr_rsp_flush_cb(struct scheduler_msg *msg)
+static QDF_STATUS target_if_vdev_mgr_rsp_flush_cb_mc(struct scheduler_msg *msg)
 {
 	struct vdev_response_timer *vdev_rsp;
 	struct wlan_objmgr_psoc *psoc;
@@ -204,7 +204,7 @@ static QDF_STATUS target_if_vdev_mgr_rsp_flush_cb(struct scheduler_msg *msg)
 		return QDF_STATUS_E_INVAL;
 	}
 
-	vdev_rsp = msg->bodyptr;
+	vdev_rsp = scheduler_qdf_mc_timer_deinit_return_data_ptr(msg->bodyptr);
 	if (!vdev_rsp) {
 		mlme_err("vdev response timer is NULL");
 		return QDF_STATUS_E_INVAL;
@@ -228,6 +228,7 @@ target_if_vdev_mgr_rsp_cb_mc_ctx(void *arg)
 	struct scheduler_msg msg = {0};
 	struct vdev_response_timer *vdev_rsp = arg;
 	struct wlan_objmgr_psoc *psoc;
+	struct sched_qdf_mc_timer_cb_wrapper *mc_timer_wrapper;
 
 	psoc = vdev_rsp->psoc;
 	if (!psoc) {
@@ -238,17 +239,19 @@ target_if_vdev_mgr_rsp_cb_mc_ctx(void *arg)
 	msg.type = SYS_MSG_ID_MC_TIMER;
 	msg.reserved = SYS_MSG_COOKIE;
 
-	/* msg.callback will explicitly cast back to qdf_mc_timer_callback_t
-	 * in scheduler_timer_q_mq_handler.
-	 * but in future we do not want to introduce more this kind of
-	 * typecast by properly using QDF MC timer for MCC from get go in
-	 * common code.
-	 */
-	msg.callback =
-		(scheduler_msg_process_fn_t)target_if_vdev_mgr_rsp_timer_cb;
-	msg.bodyptr = arg;
+	mc_timer_wrapper = scheduler_qdf_mc_timer_init(
+			target_if_vdev_mgr_rsp_timer_cb,
+			arg);
+
+	if (!mc_timer_wrapper) {
+		mlme_err("failed to allocate sched_qdf_mc_timer_cb_wrapper");
+		return;
+	}
+
+	msg.callback = scheduler_qdf_mc_timer_callback_t_wrapper;
+	msg.bodyptr = mc_timer_wrapper;
 	msg.bodyval = 0;
-	msg.flush_callback = target_if_vdev_mgr_rsp_flush_cb;
+	msg.flush_callback = target_if_vdev_mgr_rsp_flush_cb_mc;
 
 	if (scheduler_post_message(QDF_MODULE_ID_TARGET_IF,
 				   QDF_MODULE_ID_TARGET_IF,
@@ -257,6 +260,7 @@ target_if_vdev_mgr_rsp_cb_mc_ctx(void *arg)
 		return;
 
 	mlme_err("Could not enqueue timer to timer queue");
+	qdf_mem_free(mc_timer_wrapper);
 	if (psoc)
 		wlan_objmgr_psoc_release_ref(psoc, WLAN_PSOC_TARGET_IF_ID);
 }
@@ -715,6 +719,7 @@ static int target_if_vdev_mgr_multi_vdev_restart_resp_handler(
 	}
 
 	qdf_mem_zero(&restart_resp, sizeof(restart_resp));
+	restart_resp.timestamp = qdf_get_log_timestamp();
 	if (wmi_extract_multi_vdev_restart_resp_event(wmi_handle, data,
 						      &restart_resp)) {
 		mlme_err("WMI extract failed");

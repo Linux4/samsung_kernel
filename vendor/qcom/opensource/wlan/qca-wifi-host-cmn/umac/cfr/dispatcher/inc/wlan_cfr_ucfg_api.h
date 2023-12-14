@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -71,7 +72,7 @@ int ucfg_cfr_start_capture_probe_req(struct wlan_objmgr_pdev *pdev,
 
 /**
  * ucfg_cfr_stop_capture_probe_req() - function to stop cfr capture for
- *				       unassociated cleints
+ *				       unassociated clients
  * @pdev: pointer to pdev object
  * @unassoc_mac: mac address of un-associated client
  *

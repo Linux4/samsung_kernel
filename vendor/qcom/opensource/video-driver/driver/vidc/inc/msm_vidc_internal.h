@@ -107,6 +107,7 @@
 #define BUFFER_ALIGNMENT_SIZE(x) x
 #define NUM_MBS_360P (((480 + 15) >> 4) * ((360 + 15) >> 4))
 #define NUM_MBS_720P (((1280 + 15) >> 4) * ((720 + 15) >> 4))
+#define NUM_MBS_1080P (((1920 + 15) >> 4) * ((1080 + 15) >> 4))
 #define NUM_MBS_4k (((4096 + 15) >> 4) * ((2304 + 15) >> 4))
 #define MB_SIZE_IN_PIXEL (16 * 16)
 
@@ -133,6 +134,7 @@
 #define FW_UNLOAD_DELAY_VALUE         (SW_PC_DELAY_VALUE + 1500)
 
 #define MAX_MAP_OUTPUT_COUNT 64
+#define MAX_FENCE_COUNT 10
 #define MAX_DPB_COUNT 32
  /*
   * max dpb count in firmware = 16
@@ -513,6 +515,8 @@ enum msm_vidc_inst_capability_type {
 	BLUR_TYPES,
 	REQUEST_PREPROCESS,
 	SLICE_MODE,
+	EARLY_NOTIFY_ENABLE,
+	EARLY_NOTIFY_LINE_COUNT,
 	/* place all intermittent(having both parent and child) enums before this line */
 
 	MIN_FRAME_QP,
@@ -537,6 +541,7 @@ enum msm_vidc_inst_capability_type {
 	DELIVERY_MODE,
 	VUI_TIMING_INFO,
 	SLICE_DECODE,
+	EARLY_NOTIFY_FENCE_COUNT,
 	/* place all leaf(no child) enums before this line */
 	INST_CAP_MAX,
 };
@@ -778,7 +783,8 @@ struct msm_vidc_hfi_frame_info {
 	u32                    cf;
 	u32                    data_corrupt;
 	u32                    overflow;
-	u32                    fence_id;
+	u32                    fence_id[MAX_FENCE_COUNT];
+	u32                    fence_count;
 };
 
 struct msm_vidc_decode_vpp_delay {
@@ -900,9 +906,10 @@ struct msm_vidc_buffer {
 	u32                                flags;
 	u64                                timestamp;
 	enum msm_vidc_buffer_attributes    attr;
-	u64                                fence_id;
 	u32                                start_time_ms;
 	u32                                end_time_ms;
+	u64                                fence_id[MAX_FENCE_COUNT];
+	u32                                fence_count;
 };
 
 struct msm_vidc_buffers {

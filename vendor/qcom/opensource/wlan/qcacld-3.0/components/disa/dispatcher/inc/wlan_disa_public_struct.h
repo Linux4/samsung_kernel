@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -69,7 +70,7 @@ struct disa_encrypt_decrypt_req_params {
  * struct disa_encrypt_decrypt_resp_params - disa encrypt response
  * @vdev_id: vdev id
  * @status: status
- * @data_length: data length
+ * @data_len: data length
  * @data: data pointer
  */
 struct disa_encrypt_decrypt_resp_params {
@@ -79,7 +80,12 @@ struct disa_encrypt_decrypt_resp_params {
 	uint8_t *data;
 };
 
+/**
+ * typedef encrypt_decrypt_resp_callback() - DISA callback function
+ * @cookie: cookie passed in the DISA request
+ * @resp: the DISA response
+ */
 typedef void (*encrypt_decrypt_resp_callback)(void *cookie,
-	struct disa_encrypt_decrypt_resp_params *resp) ;
+	struct disa_encrypt_decrypt_resp_params *resp);
 #endif /* end  of _WLAN_DISA_PUBLIC_STRUCT_H_ */
 

@@ -104,11 +104,11 @@ static int populate_oem_data_cap(struct hdd_adapter *adapter,
 	data_cap->allowed_dwell_time_min = neighbor_scan_min_chan_time;
 	data_cap->allowed_dwell_time_max = neighbor_scan_max_chan_time;
 	data_cap->curr_dwell_time_min =
-		sme_get_neighbor_scan_min_chan_time(hdd_ctx->mac_handle,
-						    adapter->vdev_id);
+		ucfg_cm_get_neighbor_scan_min_chan_time(hdd_ctx->psoc,
+							adapter->vdev_id);
 	data_cap->curr_dwell_time_max =
-		sme_get_neighbor_scan_max_chan_time(hdd_ctx->mac_handle,
-						    adapter->vdev_id);
+		ucfg_cm_get_neighbor_scan_max_chan_time(hdd_ctx->psoc,
+							adapter->vdev_id);
 	data_cap->supported_bands = band_capability;
 
 	/* request for max num of channels */
@@ -403,8 +403,8 @@ void hdd_update_channel_bw_info(struct hdd_context *hdd_ctx,
 	/* Passing CH_WIDTH_MAX will give the max bandwidth supported */
 	ch_params.ch_width = CH_WIDTH_MAX;
 
-	wlan_reg_set_channel_params_for_freq(
-		hdd_ctx->pdev, chan_freq, 0, &ch_params);
+	wlan_reg_set_channel_params_for_pwrmode(
+		hdd_ctx->pdev, chan_freq, 0, &ch_params, REG_CURRENT_PWR_MODE);
 	if (ch_params.center_freq_seg0)
 		hdd_chan_info->band_center_freq1 =
 			cds_chan_to_freq(ch_params.center_freq_seg0);
@@ -504,8 +504,9 @@ static int oem_process_channel_info_req_msg(int numOfChannels, char *chanList)
 
 			hddChanInfo.info = 0;
 			if (CHANNEL_STATE_DFS ==
-			    wlan_reg_get_channel_state_for_freq(
-				p_hdd_ctx->pdev, chan_freq))
+			    wlan_reg_get_channel_state_for_pwrmode(
+						p_hdd_ctx->pdev, chan_freq,
+						REG_CURRENT_PWR_MODE))
 				WMI_SET_CHANNEL_FLAG(&hddChanInfo,
 						     WMI_CHAN_FLAG_DFS);
 
@@ -1447,7 +1448,7 @@ __wlan_hdd_cfg80211_oem_data_handler(struct wiphy *wiphy,
 		if (nla_put(skb, QCA_WLAN_VENDOR_ATTR_OEM_DATA_CMD_DATA,
 			    get_oem_data->data_len, get_oem_data->data)) {
 			hdd_err("nla put failure");
-			kfree_skb(skb);
+			wlan_cfg80211_vendor_free_skb(skb);
 			ret =  -EINVAL;
 			goto err;
 		}

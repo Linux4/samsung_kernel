@@ -107,7 +107,8 @@ enum reg_domain {
 	ETSI15_ETSIC = 0x7A,
 	ETSI16_WORLD = 0x4A,
 	ETSI17_WORLD = 0x4B,
-	ETSI18_WORLD = 0x3D,
+	ETSI18_WORLD = 0x6E,
+	ETSI19_WORLD = 0x7B,
 
 	APL1_WORLD = 0x52,
 	APL1_ETSIC = 0x55,
@@ -140,6 +141,7 @@ enum reg_domain {
 	APL25_ETSIC = 0x75,
 	APL26_ETSIC = 0x72,
 	APL27_FCCA = 0x73,
+	APL28_ETSIC = 0x76,
 
 	WOR0_WORLD = 0x60,
 	WOR1_WORLD = 0x61,
@@ -242,6 +244,7 @@ enum reg_domains_5g {
 	ETSI16,
 	ETSI17,
 	ETSI18,
+	ETSI19,
 
 	APL1,
 	APL2,
@@ -267,6 +270,7 @@ enum reg_domains_5g {
 	APL25,
 	APL26,
 	APL27,
+	APL28,
 
 	MKK3,
 	MKK5,
@@ -637,6 +641,8 @@ struct reg_domain_pair {
  * @APL6_6G_0A: Super domain APL6_6G_0A for Saudi Arabia LPI STA and AP
  * @MKK1_6G_0B: Super domain MKK1_6G_0B for Japan LPI and VLP
  * @ETSI2_6G_0C: Super domain ETSI2_6G_0C for Australia LPI and VLP
+ * @ETSI2_6G_0D: Super domain ETSI2_6G_0D for ISRAEL LPI
+ * @ETSI2_6G_0E: Super domain ETSI2_6G_0E for NEW ZEALAND LPI and VLP
  * @FCC2_6G_10: Super domain FCC1_6G_10 for Canada LPI &
 		SP(VLP to be added later)
  * @APL4_6G_11: Super domain APL3_6G_11 for Costa Rica LPI and VLP
@@ -655,6 +661,8 @@ enum reg_super_domain_6g {
 	APL6_6G_0A = 0x0A,
 	MKK1_6G_0B = 0x0B,
 	ETSI2_6G_0C = 0x0C,
+	ETSI1_6G_0D = 0x0D,
+	ETSI2_6G_0E = 0x0E,
 	FCC2_6G_10 = 0x10,
 	APL4_6G_11 = 0x11,
 	APL5_6G_12 = 0x12,

@@ -101,6 +101,9 @@ typedef enum {
     PAL_AUDIO_FMT_NON_PCM = 0xE0000000,     /* Internal Constant used for Non PCM format identification */
     PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
     PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS          = 0xF0000F01,  /* For OPUS codec in SS */
+#endif
     PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
     PAL_AUDIO_FMT_COMPRESSED_RANGE_END   = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
 } pal_audio_fmt_t;
@@ -137,8 +140,10 @@ static const std::map<std::string, pal_audio_fmt_t> PalAudioFormatMap
     { "AMR_WB_PLUS", PAL_AUDIO_FMT_AMR_WB_PLUS},
     { "EVRC", PAL_AUDIO_FMT_EVRC},
     { "G711", PAL_AUDIO_FMT_G711},
-    { "QCELP", PAL_AUDIO_FMT_QCELP}
-
+    { "QCELP", PAL_AUDIO_FMT_QCELP},
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    { "OPUS" , PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS}
+#endif
 };
 #endif
 
@@ -286,6 +291,12 @@ typedef struct gef_payload_s {
     bool persist;
     effect_pal_payload_t data;
 } gef_payload_t;
+
+typedef enum {
+    LPI_VOTE,
+    NLPI_VOTE,
+    AVOID_VOTE,
+} vote_type_t;
 
 /** Audio channel map enumeration*/
 typedef enum {
@@ -437,8 +448,9 @@ typedef enum {
     PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 22,
     PAL_DEVICE_IN_BLUETOOTH_BLE = PAL_DEVICE_IN_MIN + 23,
     PAL_DEVICE_IN_CPS_FEEDBACK = PAL_DEVICE_IN_MIN + 24,
+    PAL_DEVICE_IN_CPS2_FEEDBACK = PAL_DEVICE_IN_MIN + 25,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 25,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 26,
 } pal_device_id_t;
 
 typedef enum {
@@ -521,6 +533,7 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_IN_ECHO_REF" },              PAL_DEVICE_IN_ECHO_REF},
     {std::string{ "PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK" },   PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK},
     {std::string{ "PAL_DEVICE_IN_CPS_FEEDBACK" },          PAL_DEVICE_IN_CPS_FEEDBACK},
+    {std::string{ "PAL_DEVICE_IN_CPS2_FEEDBACK" },          PAL_DEVICE_IN_CPS2_FEEDBACK},
 };
 
 //reverse mapping
@@ -573,7 +586,8 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_IN_EXT_EC_REF,            std::string{"PAL_DEVICE_IN_EXT_EC_REF"}},
     {PAL_DEVICE_IN_ECHO_REF,              std::string{"PAL_DEVICE_IN_ECHO_REF"}},
     {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   std::string{"PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK"}},
-    {PAL_DEVICE_IN_CPS_FEEDBACK,          std::string{"PAL_DEVICE_IN_CPS_FEEDBACK"}}
+    {PAL_DEVICE_IN_CPS_FEEDBACK,          std::string{"PAL_DEVICE_IN_CPS_FEEDBACK"}},
+    {PAL_DEVICE_IN_CPS2_FEEDBACK,          std::string{"PAL_DEVICE_IN_CPS2_FEEDBACK"}}
 };
 
 const std::map<std::string, uint32_t> usecaseIdLUT {
@@ -603,6 +617,7 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_ULTRASOUND" },               PAL_STREAM_ULTRASOUND},
     {std::string{ "PAL_STREAM_SENSOR_PCM_DATA" },          PAL_STREAM_SENSOR_PCM_DATA},
     {std::string{ "PAL_STREAM_SPATIAL_AUDIO" },            PAL_STREAM_SPATIAL_AUDIO},
+    {std::string{ "PAL_STREAM_CONTEXT_PROXY" },            PAL_STREAM_CONTEXT_PROXY},
 };
 
 /* Update the reverse mapping as well when new stream is added */
@@ -984,8 +999,21 @@ typedef enum {
 #ifdef SEC_AUDIO_BLE_OFFLOAD
     PAL_PARAM_ID_BT_A2DP_SUSPENDED_FOR_BLE = 2004,
 #endif
+#ifdef SEC_AUDIO_BLUETOOTH
+    PAL_PARAM_ID_BT_SCO_CODEC_TYPE = 2005,
+#endif
 #ifdef SEC_AUDIO_SPEAKER_CALIBRATION
     PAL_PARAM_ID_SET_TFA_RUN_CAL = 3000,
+#endif
+#ifdef SEC_AUDIO_AMP_SDHMS
+    PAL_PARAM_ID_SPEAKER_AMP_TEMPERATURE_RCV = 3001,
+    PAL_PARAM_ID_SPEAKER_AMP_TEMPERATURE_SPK = 3002,
+#endif
+#ifdef SEC_AUDIO_AMP_BIGDATA
+    PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_SAVE_RESET = 3003,
+    PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_SAVE = 3004,
+    PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_START = 3005,
+    PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_STOP = 3006,
 #endif
 } pal_param_id_type_t;
 
@@ -1117,6 +1145,12 @@ typedef enum {
                                */
 } pal_speaker_rotation_type;
 
+#ifdef SEC_AUDIO_CALL_RECORD
+enum {
+    PAL_CALL_RECORD_RX_TX_NON_MIX = PAL_SPEAKER_ROTATION_RL
+};
+#endif
+
 /* Payload For ID: PAL_PARAM_ID_DEVICE_ROTATION
  * Description   : Device Rotation
  */
@@ -1181,6 +1215,14 @@ typedef struct btsco_lc3_cfg {
     char     vendor[PAL_LC3_MAX_STRING_LEN];
 } btsco_lc3_cfg_t;
 
+
+#ifdef SEC_AUDIO_BLUETOOTH
+typedef enum {
+    PAL_BT_SCO_CODEC_TYPE_NONE,
+    PAL_BT_SCO_CODEC_TYPE_RVP,
+} pal_bt_sco_codec_t;
+#endif
+
 typedef struct pal_param_btsco {
     bool   bt_sco_on;
     bool   bt_wb_speech_enabled;
@@ -1189,6 +1231,9 @@ typedef struct pal_param_btsco {
     bool   bt_lc3_speech_enabled;
     btsco_lc3_cfg_t lc3_cfg;
     bool   is_bt_hfp;
+#ifdef SEC_AUDIO_BLUETOOTH
+    pal_bt_sco_codec_t bt_sco_codec_type;
+#endif
 } pal_param_btsco_t;
 
 /* Payload For ID: PAL_PARAM_ID_BT_A2DP*

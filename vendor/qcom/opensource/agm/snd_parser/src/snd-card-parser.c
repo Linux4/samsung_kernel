@@ -491,6 +491,7 @@ void *snd_card_def_get_card(unsigned int card)
         }
     }
 
+    card_def = NULL;
     /* read XML */
     file = fopen(CARD_DEF_FILE, "r");
     if (!file) {

@@ -319,6 +319,7 @@ static int agm_pcm_plugin_update_hw_ptr(struct agm_pcm_priv *priv)
     uint32_t read_index, wall_clk_msw, wall_clk_lsw;
     int64_t delta_wall_clk_us = 0;
     uint32_t delta_wall_clk_frames = 0;
+    uint64_t sub_res = 0;
     int ret = 0;
     uint32_t period_size = priv->period_size; /** in frames */
     uint32_t crossed_boundary = 0;
@@ -343,7 +344,8 @@ static int agm_pcm_plugin_update_hw_ptr(struct agm_pcm_priv *priv)
                                          priv->pos_buf->wall_clk_lsw);
             // Compute delta only if diff is greater than zero
             if (dsp_wall_clk > cached_wall_clk) {
-                delta_wall_clk_us = (int64_t)(dsp_wall_clk - cached_wall_clk);
+                __builtin_usubl_overflow(dsp_wall_clk,cached_wall_clk,&sub_res);
+                delta_wall_clk_us = (int64_t)sub_res;
             }
         }
         // Identify the number of times of shared buffer length that the

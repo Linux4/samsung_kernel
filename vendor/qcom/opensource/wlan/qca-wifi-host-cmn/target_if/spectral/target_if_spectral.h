@@ -140,7 +140,7 @@
 #define TLV_TAG_SEARCH_FFT_REPORT_GEN2           0xFB
 
 /**
- * The Maximum number of detector informations to be filled in the SAMP msg
+ * The Maximum number of detector information to be filled in the SAMP msg
  * is 3, only for 165MHz case. For all other cases this value will be 1.
  */
 #define MAX_NUM_DEST_DETECTOR_INFO    (3)
@@ -386,7 +386,7 @@ struct spectral_process_phyerr_info_gen2 {
 /**
  * struct phyerr_info - spectral search fft report for gen3
  * @data:       handle to phyerror buffer
- * @datalen:    length of phyerror bufer
+ * @datalen:    length of phyerror buffer
  * @p_rfqual:   rf quality matrices
  * @p_chaninfo: pointer to chaninfo
  * @tsf64:      64 bit TSF
@@ -1060,7 +1060,7 @@ struct per_session_dest_det_info {
 /**
  * struct per_session_det_map - A map of per-session detector information,
  * keyed by the detector id obtained from the Spectral FFT report, mapping to
- * detination detector info in SAMP message.
+ * destination detector info in SAMP message.
  * @dest_det_info: Struct containing per-session detector information
  * @num_dest_det_info: Number of destination detectors to which information
  * of this detector is to be filled
@@ -1190,7 +1190,7 @@ int get_supported_sscan_bw_pos(enum phy_ch_width sscan_bw);
  * @send_single_packet: Deprecated
  * @spectral_sent_msg: Indicates whether we send report to upper layers
  * @params: Spectral parameters
- * @last_capture_time: Indicates timestamp of previouse report
+ * @last_capture_time: Indicates timestamp of previous report
  * @num_spectral_data: Number of Spectral samples received in current session
  * @total_spectral_data: Total number of Spectral samples received
  * @max_rssi: Maximum RSSI
@@ -1497,7 +1497,7 @@ struct target_if_samp_msg_params {
  * @freq_loading: spectral control duty cycles
  * @noise_floor:  current noise floor (except for secondary 80 segment)
  * @noise_floor_sec80:  current noise floor for secondary 80 segment
- * @interf_list: List of interfernce sources
+ * @interf_list: List of interference sources
  * @classifier_params:  classifier parameters
  * @sc:  classifier parameters
  * @pri80ind: Indication from hardware that the sample was received on the

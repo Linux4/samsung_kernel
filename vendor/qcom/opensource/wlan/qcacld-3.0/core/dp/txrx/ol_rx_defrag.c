@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -147,7 +148,7 @@ static void ol_rx_frag_pull_hdr(htt_pdev_handle htt_pdev,
  * @msdu: msdu
  * @rx_desc_old_position: rx descriptor old position
  * @ind_old_position:index of old position
- * @rx_desc_len: rx desciptor length
+ * @rx_desc_len: rx descriptor length
  *
  * Return: None
  */

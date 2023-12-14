@@ -51,7 +51,7 @@ wlan_twt_add_session(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -93,7 +93,7 @@ wlan_twt_set_command_in_progress(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -134,7 +134,7 @@ wlan_twt_init_context(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -431,7 +431,7 @@ wlan_twt_sap_peer_is_cmd_in_progress(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return false;
 	}
 
@@ -869,7 +869,7 @@ bool wlan_twt_is_setup_done(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return false;
 	}
 
@@ -911,7 +911,7 @@ bool wlan_twt_is_max_sessions_reached(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return true;
 	}
 
@@ -955,7 +955,7 @@ bool wlan_twt_is_setup_in_progress(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return false;
 	}
 
@@ -1013,7 +1013,7 @@ wlan_twt_set_ack_context(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -1069,7 +1069,7 @@ wlan_twt_get_ack_context(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		goto err;
 	}
 
@@ -1120,7 +1120,7 @@ bool wlan_twt_is_command_in_progress(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return false;
 	}
 
@@ -1587,7 +1587,7 @@ wlan_twt_set_setup_done(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return;
 	}
 
@@ -1637,7 +1637,7 @@ wlan_twt_set_session_state(struct wlan_objmgr_psoc *psoc,
 					   WLAN_TWT_ID);
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return;
 	}
 
@@ -1676,7 +1676,7 @@ wlan_twt_get_session_state(struct wlan_objmgr_psoc *psoc,
 
 	if (!peer) {
 		twt_err("Peer object not found "QDF_MAC_ADDR_FMT,
-			QDF_MAC_ADDR_REF(peer_mac));
+			QDF_MAC_ADDR_REF(peer_mac->bytes));
 		return WLAN_TWT_SETUP_STATE_NOT_ESTABLISHED;
 	}
 
@@ -2150,7 +2150,8 @@ QDF_STATUS wlan_twt_update_beacon_template(void)
 
 void wlan_twt_set_work_params(
 			struct wlan_objmgr_vdev *vdev,
-			struct twt_add_dialog_complete_event_param *params,
+			struct qdf_mac_addr *peer_mac,
+			uint8_t dialog_id,
 			uint32_t twt_next_action)
 {
 	struct twt_vdev_priv_obj *twt_vdev_priv;
@@ -2163,8 +2164,8 @@ void wlan_twt_set_work_params(
 		return;
 	}
 
-	qdf_copy_macaddr(&twt_vdev_priv->peer_macaddr, &params->peer_macaddr);
-	twt_vdev_priv->dialog_id = params->dialog_id;
+	qdf_copy_macaddr(&twt_vdev_priv->peer_macaddr, peer_mac);
+	twt_vdev_priv->dialog_id = dialog_id;
 	twt_vdev_priv->next_action = twt_next_action;
 
 	twt_debug("renego: twt_terminate: dialog_id:%d next_action:%d peer mac_addr  "

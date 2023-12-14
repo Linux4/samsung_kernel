@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -41,6 +41,10 @@
 /*Buckets for latency between 250 to 500 ms*/
 #define HIF_SCHED_LATENCY_BUCKET_251_500 500
 
+#ifndef IRQ_DISABLED_MAX_DURATION_NS
+#define IRQ_DISABLED_MAX_DURATION_NS 100000000
+#endif
+
 struct hif_exec_context;
 
 struct hif_execution_ops {
@@ -58,14 +62,14 @@ struct hif_execution_ops {
  * @context_name: a pointer to a const string for debugging.
  *		this should help whenever there could be ambiguity
  *		in what type of context the void* context points to
- * @irq: irq handle coresponding to hw block
- * @os_irq: irq handle for irq_afinity
+ * @irq: irq handle corresponding to hw block
+ * @os_irq: irq handle for irq_affinity
  * @cpu: the cpu this context should be affined to
  * @work_complete: Function call called when leaving the execution context to
  *	determine if this context should reschedule or wait for an interrupt.
  *	This function may be used as a hook for post processing.
  *
- * @sched_latency_stats: schdule latency stats for different latency buckets
+ * @sched_latency_stats: schedule latency stats for different latency buckets
  * @tstamp: timestamp when napi poll happens
  * @irq_disable: called before scheduling the context.
  * @irq_enable: called when the context leaves polling mode
@@ -77,6 +81,7 @@ struct hif_execution_ops {
  *		 to HIF. This means there is more work to be done. Hence do not
  *		 call napi_complete.
  * @force_napi_complete: do a force napi_complete when this flag is set to -1
+ * @irq_disabled_start_time: irq disabled start time for single MSI
  */
 struct hif_exec_context {
 	struct hif_execution_ops *sched_ops;
@@ -116,6 +121,7 @@ struct hif_exec_context {
 #ifdef FEATURE_IRQ_AFFINITY
 	qdf_atomic_t force_napi_complete;
 #endif
+	unsigned long long irq_disabled_start_time;
 };
 
 /**

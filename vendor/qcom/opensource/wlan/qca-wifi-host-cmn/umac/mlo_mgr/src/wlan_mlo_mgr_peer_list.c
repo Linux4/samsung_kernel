@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -32,7 +32,7 @@ struct mlpeerid_search {
 	uint16_t ml_peerid;
 };
 
-struct link_mac_search {
+struct mac_addr_search {
 	struct wlan_mlo_peer_context *ml_peer;
 	struct qdf_mac_addr mac_addr;
 };
@@ -151,7 +151,7 @@ wlan_find_mlpeer_link_mac_addr(struct wlan_mlo_dev_context *ml_dev,
 			       void *iter_ml_peer,
 			       void *arg)
 {
-	struct link_mac_search *link_mac_arg = (struct link_mac_search *)arg;
+	struct mac_addr_search *link_mac_arg = (struct mac_addr_search *)arg;
 	struct wlan_mlo_link_peer_entry *link_peer;
 	struct wlan_mlo_peer_context *ml_peer;
 	uint8_t i;
@@ -171,6 +171,28 @@ wlan_find_mlpeer_link_mac_addr(struct wlan_mlo_dev_context *ml_dev,
 			link_mac_arg->ml_peer = ml_peer;
 			return QDF_STATUS_SUCCESS;
 		}
+	}
+
+	return QDF_STATUS_E_NOENT;
+}
+
+static QDF_STATUS
+wlan_find_mlpeer_mld_mac_addr(struct wlan_mlo_dev_context *ml_dev,
+			      void *iter_ml_peer,
+			      void *arg)
+{
+	struct mac_addr_search *mld_mac_arg = (struct mac_addr_search *)arg;
+	struct wlan_mlo_peer_context *ml_peer;
+
+	ml_peer = (struct wlan_mlo_peer_context *)iter_ml_peer;
+	mlo_debug("MLD ID %d ML Peer mac " QDF_MAC_ADDR_FMT,
+		  ml_dev->mld_id,
+		  QDF_MAC_ADDR_REF(ml_peer->peer_mld_addr.bytes));
+
+	if (qdf_is_macaddr_equal(&mld_mac_arg->mac_addr,
+				 &ml_peer->peer_mld_addr)) {
+		mld_mac_arg->ml_peer = ml_peer;
+		return QDF_STATUS_SUCCESS;
 	}
 
 	return QDF_STATUS_E_NOENT;
@@ -215,7 +237,7 @@ struct wlan_mlo_peer_context *wlan_mlo_get_mlpeer_by_linkmac(
 				struct wlan_mlo_dev_context *ml_dev,
 				struct qdf_mac_addr *link_mac)
 {
-	struct link_mac_search link_mac_arg;
+	struct mac_addr_search link_mac_arg;
 	QDF_STATUS status;
 
 	mlo_debug("MLD ID %d ML Peer search with link mac " QDF_MAC_ADDR_FMT,
@@ -245,6 +267,27 @@ struct wlan_mlo_peer_context *wlan_mlo_get_mlpeer_by_aid(
 					      &aid_arg);
 	if (status == QDF_STATUS_SUCCESS)
 		return aid_arg.ml_peer;
+
+	/* TODO: Take ref */
+
+	return NULL;
+}
+
+struct wlan_mlo_peer_context *wlan_mlo_get_mlpeer_by_mld_mac(
+				struct wlan_mlo_dev_context *ml_dev,
+				struct qdf_mac_addr *mld_mac)
+{
+	struct mac_addr_search mld_mac_arg;
+	QDF_STATUS status;
+
+	mlo_debug("MLD ID %d ML Peer search with mld mac " QDF_MAC_ADDR_FMT,
+		  ml_dev->mld_id, QDF_MAC_ADDR_REF(mld_mac->bytes));
+	qdf_copy_macaddr(&mld_mac_arg.mac_addr, mld_mac);
+	status = wlan_mlo_iterate_ml_peerlist(ml_dev,
+					      wlan_find_mlpeer_mld_mac_addr,
+					      &mld_mac_arg);
+	if (QDF_IS_STATUS_SUCCESS(status))
+		return mld_mac_arg.ml_peer;
 
 	/* TODO: Take ref */
 

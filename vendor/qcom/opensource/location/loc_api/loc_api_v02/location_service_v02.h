@@ -28,7 +28,7 @@
 /*
 Changes from Qualcomm Innovation Center are provided under the following license:
 
-Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted (subject to the limitations in the
@@ -92,13 +92,13 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   by the decode routine and should be checked so that the correct number of
   elements in the array will be accessed.
 
- *====*====*====*====*====*====*====*====*====*====*====*====*====*====*====*/
+*/
 /*====*====*====*====*====*====*====*====*====*====*====*====*====*====*====*
  *THIS IS AN AUTO GENERATED FILE. DO NOT ALTER IN ANY WAY
  *====*====*====*====*====*====*====*====*====*====*====*====*====*====*====*/
 
 /* This file was generated with Tool version 6.14.7
-   It was generated on: Mon May  9 2022 (Spin 0)
+   It was generated on: Thu Oct 13 2022 (Spin 0)
    From IDL File: location_service_v02.idl */
 
 /** @defgroup loc_qmi_consts Constant values defined in the IDL */
@@ -124,7 +124,7 @@ extern "C" {
 /** Major Version Number of the IDL used to generate this file */
 #define LOC_V02_IDL_MAJOR_VERS 0x02
 /** Revision Number of the IDL used to generate this file */
-#define LOC_V02_IDL_MINOR_VERS 0x9A
+#define LOC_V02_IDL_MINOR_VERS 0x9C
 /** Major Version Number of the qmi_idl_compiler used to generate this file */
 #define LOC_V02_IDL_TOOL_VERS 0x06
 /** Maximum Defined Message ID */
@@ -325,6 +325,9 @@ extern "C" {
 #define QMI_LOC_SV_POLY_XYZ_0_TH_ORDER_COEFF_SIZE_V02 3
 #define QMI_LOC_SV_POLY_XYZ_N_TH_ORDER_COEFF_SIZE_V02 9
 #define QMI_LOC_SV_POLY_SV_CLKBIAS_COEFF_SIZE_V02 4
+#define QMI_LOC_SV_POLY_XYZ_COEFF_ORDER_SIZE_MAX_V02 5
+#define QMI_LOC_SV_POLY_SV_CLKBIAS_COEFF_SIZE_MAX_V02 6
+#define QMI_LOC_SV_POLY_XYZ_COEFF_SIZE_MAX_V02 18
 
 /**  IBeacon string maximum length.   */
 #define QMI_LOC_MAX_IBEACON_UUID_STR_LENGTH_V02 32
@@ -3585,12 +3588,12 @@ typedef struct {
        - 0x00 (FALSE) -- Civic Address is not needed \n
        - 0x01 (TRUE) -- Civic Address is needed
 
-    NOTE: If the civic address is available with the AP, the AP Shall inject
-    the same using the new QMI API QMI_LOC_INJECT_LOCATION_CIVIC_ADDRESS.
+	NOTE: If the civic address is available with the AP, the AP Shall inject
+	the same using the new QMI API QMI_LOC_INJECT_LOCATION_CIVIC_ADDRESS.
 
-    If the civic address is not available, the AP shall NOT use the new QMI API
-    QMI_LOC_INJECT_LOCATION_CIVIC_ADDRESS. The existing DBH injection API should
-    be used to inject hybrid location is available.
+        If the civic address is not available, the AP shall NOT use the new QMI API
+	QMI_LOC_INJECT_LOCATION_CIVIC_ADDRESS. The existing DBH injection API should
+        be used to inject hybrid location is available.
   */
 }qmiLocEventWifiReqIndMsgT_v02;  /* Message */
 /**
@@ -12376,6 +12379,16 @@ typedef struct {
   /**<   Network-initiated message body.
        If the inject NI message type is TYPE_SUPL, the message contains
        a SUPL INIT message as defined in OMA-TS-ULP-V2_\hyperref[020110527C]{0-20110527-C}. */
+
+  /* Optional */
+  /*  Subscription ID */
+  uint8_t subId_valid;  /**< Must be set to true if subId is being passed */
+  qmiLocSysModemAsIdTypeEnumT_v02 subId;
+  /**<   Subscription ID on which the Network Initiated request came. Values: \n
+      - eQMI_LOC_SYS_MODEM_AS_ID_1 (0) --  Subscription ID 1 \n
+      - eQMI_LOC_SYS_MODEM_AS_ID_2 (1) --  Subscription ID 2 \n
+      - eQMI_LOC_SYS_MODEM_AS_ID_3 (2) --  Subscription ID 3
+ */
 }qmiLocInjectNetworkInitiatedMessageReqMsgT_v02;  /* Message */
 /**
     @}
@@ -13197,7 +13210,7 @@ typedef struct {
        - 0x01 (TRUE) -- GPS engine is in E911 mode \n
        - 0x00 (FALSE) -- GPS engine is not in E911 mode
 
-       Note: e911Mode shall be set as TRUE for Non-E911 Wifi Ap injections.
+	   Note: e911Mode shall be set as TRUE for Non-E911 Wifi Ap injections.
     */
 }qmiLocEventInjectWifiApDataReqIndMsgT_v02;  /* Message */
 /**
@@ -15489,10 +15502,10 @@ typedef struct {
   float polyCoefClockBias[QMI_LOC_SV_POLY_SV_CLKBIAS_COEFF_SIZE_V02];
   /**<    Polynomial coefficients for satellite clock bias correction (C0T, C1T, C2T, C3T). \n
           Units: \n
-          - 0th term -- Milliseconds per second \n
-          - First term -- Milliseconds per second^2 \n
-          - Second term -- Milliseconds per second^3 \n
-          - Third term -- Milliseconds per second^4
+          - 0th term -- Milliseconds \n
+          - 1st term -- Milliseconds per second^1 \n
+          - 2nd term -- Milliseconds per second^2 \n
+          - 3rd term -- Milliseconds per second^3
     */
 
   /* Optional */
@@ -15809,6 +15822,53 @@ typedef struct {
       - eQMI_LOC_EPHEMERIS_SOURCE_EFS (4) --  Source is EFS
 
  */
+
+  /* Optional */
+  /*  Polynomial Order Size */
+  uint8_t polyOrder_valid;  /**< Must be set to true if polyOrder is being passed */
+  uint8_t polyOrder;
+  /**<   Polynomial Order.\n
+         Maximum Poly Order size -- QMI_LOC_SV_POLY_XYZ_COEFF_ORDER_SIZE_MAX \n
+    */
+
+  /* Optional */
+  /*  Polynomial Valid Duration */
+  uint8_t validDuration_valid;  /**< Must be set to true if validDuration is being passed */
+  uint16_t validDuration;
+  /**<   Valid Polynomial Duration \n
+         - Units -- Seconds \n
+    */
+
+  /* Optional */
+  /*  Polynomial Coefficient's 0th - Nth Term for X, Y, and Z Coordinates */
+  uint8_t polyCoeffXYZ_valid;  /**< Must be set to true if polyCoeffXYZ is being passed */
+  uint32_t polyCoeffXYZ_len;  /**< Must be set to # of elements in polyCoeffXYZ */
+  double polyCoeffXYZ[QMI_LOC_SV_POLY_XYZ_COEFF_SIZE_MAX_V02];
+  /**<   Zero, First, Second,... Nth terms of the Polynomial coefficient for X, Y, and Z coordinates (C0X, C1X, ..., CNX, C0Y, C1Y,..., CNY, C0Z, C1Z, ..., CNZ).\n
+          Units: \n
+          - 0th term -- Meters \n
+          - 1st term -- Meters per second^1 \n
+          - 2nd term -- Meters per second^2 \n
+          - Nth term -- Meters per seconds^N \n
+
+          Note: N -- Polynomial Order Size as specified by polyOrder (TLV 0x36) \n
+    */
+
+  /* Optional */
+  /*  Polynomial Coefficients for Satellite Clock Bias Correction */
+  uint8_t polyClockBias_valid;  /**< Must be set to true if polyClockBias is being passed */
+  uint32_t polyClockBias_len;  /**< Must be set to # of elements in polyClockBias */
+  double polyClockBias[QMI_LOC_SV_POLY_SV_CLKBIAS_COEFF_SIZE_MAX_V02];
+  /**<    Polynomial coefficients for satellite clock bias correction (C0T, C1T, C2T, CNT). \n
+          Units: \n
+          - 0th term -- Milliseconds \n
+          - 1st term -- Milliseconds per second^1 \n
+          - 2nd term -- Milliseconds per second^2 \n
+          - Nth term -- Milliseconds per second^N \n
+
+          Note: N -- Polynomial Order Size as specified by polyOrder (TLV 0x36) \n
+
+    */
 }qmiLocEventGnssSvPolyIndMsgT_v02;  /* Message */
 /**
     @}
@@ -23662,8 +23722,8 @@ typedef struct {
         - Units -- Degrees \n
         - Range -- -90.0 to 90.0 \n
 
-        Note: Positive values indicate northern latitude,
-        Negative values indicate southern latitude
+		Note: Positive values indicate northern latitude,
+		Negative values indicate southern latitude
    */
 
   /* Optional */
@@ -23674,8 +23734,8 @@ typedef struct {
         - Units -- Degrees \n
         - Range -- -180.0 to 180.0 \n
 
-        Note: Positive values indicate eastern longitude,
-        Negative values indicate western longitude
+		Note: Positive values indicate eastern longitude,
+		Negative values indicate western longitude
    */
 
   /* Optional */
@@ -23695,7 +23755,7 @@ typedef struct {
         - 0, 101 to 255 -- invalid value\n
         - If 100 is received, reinterpret to 99 \n
 
-        Note: This field must be specified together with horizontal uncertainty.
+		Note: This field must be specified together with horizontal uncertainty.
         If not specified when horUncCircular is set, the default value is 50.
    */
 
@@ -23705,8 +23765,8 @@ typedef struct {
   float altitudeWrtEllipsoid;
   /**<   Altitude with respect to the WGS84 ellipsoid.\n
         - Units -- Meters
-        - Positive = height
-        - Negative = depth
+		- Positive = height
+		- Negative = depth
    */
 
   /* Optional */
@@ -23732,13 +23792,13 @@ typedef struct {
   uint8_t vertConfidence;
   /**<   Vertical confidence, as defined by ETSI TS 101 109. \n
         - Units -- Percent (0-99)\n
-        - 0 -- invalid value \n
-        - 100 to 256 -- not used \n
-        - If 100 is received, reinterpret to 99 \n
+		- 0 -- invalid value \n
+		- 100 to 256 -- not used \n
+		- If 100 is received, reinterpret to 99 \n
 
-        Note: This field must be specified together with the vertical uncertainty.
+		Note: This field must be specified together with the vertical uncertainty.
         If not specified, the default value is 50.
-    */
+	*/
 
   /* Optional */
   /*  Altitude Source */

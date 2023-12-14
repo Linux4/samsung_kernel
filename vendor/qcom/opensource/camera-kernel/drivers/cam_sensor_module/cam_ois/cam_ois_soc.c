@@ -27,6 +27,10 @@ static int cam_ois_get_dt_data(struct cam_ois_ctrl_t *o_ctrl)
 		(struct cam_ois_soc_private *)o_ctrl->soc_info.soc_private;
 	struct cam_sensor_power_ctrl_t *power_info = &soc_private->power_info;
 	struct device_node             *of_node = NULL;
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+	int adc_arr_len;
+	uint32_t adc, tp;
+#endif
 
 	of_node = soc_info->dev->of_node;
 
@@ -55,11 +59,17 @@ static int cam_ois_get_dt_data(struct cam_ois_ctrl_t *o_ctrl)
 		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
 					soc_info->rgltr_name[i]);
 		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
+#if defined(CONFIG_SEC_Q5Q_PROJECT)
+			CAM_WARN(CAM_OIS,"get failed for regulator %s",
+				soc_info->rgltr_name[i]);
+			soc_info->rgltr[i] = NULL;		
+#else
 			rc = PTR_ERR(soc_info->rgltr[i]);
 			rc = rc ? rc : -EINVAL;
 			CAM_ERR(CAM_OIS, "get failed for regulator %s",
 				 soc_info->rgltr_name[i]);
 			return rc;
+#endif
 		}
 		CAM_DBG(CAM_OIS, "get for regulator %s",
 			soc_info->rgltr_name[i]);
@@ -116,6 +126,35 @@ static int cam_ois_get_dt_data(struct cam_ois_ctrl_t *o_ctrl)
 	if (rc) {
 		CAM_ERR(CAM_OIS, "failed to read gyro-orientation");
 	}
+
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+	if(of_get_property(of_node, "adc_array", &adc_arr_len)) {
+		o_ctrl->adc_arr_size = adc_arr_len / sizeof(uint32_t);
+		o_ctrl->adc_temperature_table = 
+			kzalloc(sizeof(*o_ctrl->adc_temperature_table) * o_ctrl->adc_arr_size, GFP_KERNEL);
+	} else {
+		CAM_ERR(CAM_OIS, "failed to read adc_array");
+	}
+
+	if(o_ctrl->adc_temperature_table) {
+		for (i = 0; i < o_ctrl->adc_arr_size; i++) {
+			if (of_property_read_u32_index(of_node, "adc_array", i, &adc)) {
+				CAM_ERR(CAM_OIS, "failed to read adc_array");
+			}
+
+			if (of_property_read_u32_index(of_node, "temp_array", i, &tp)) {
+				CAM_ERR(CAM_OIS, "failed to read temp_array");
+			}
+
+			o_ctrl->adc_temperature_table[i].adc = (int)adc;
+			o_ctrl->adc_temperature_table[i].temperature = (int)tp;
+
+			//CAM_INFO(CAM_OIS, "adc =%d temperature=%d",o_ctrl->adc_temperature_table[i].adc, o_ctrl->adc_temperature_table[i].temperature);
+		}
+	} else {
+		CAM_ERR(CAM_OIS, "o_ctrl->adc_table is NULL");
+	}
+#endif
 #endif
 
 	return rc;

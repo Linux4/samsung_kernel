@@ -42,7 +42,7 @@ enum qdisc_filter_status {
 
 /**
  * osif_dp_classify_pkt() - classify packet
- * @skb - sk buff
+ * @skb: sk buff
  *
  * Return: None
  */
@@ -50,7 +50,7 @@ void osif_dp_classify_pkt(struct sk_buff *skb);
 
 /**
  * osif_dp_mark_pkt_type() - Mark pkt type in CB
- * @skb - sk buff
+ * @skb: sk buff
  *
  * Return: None
  */

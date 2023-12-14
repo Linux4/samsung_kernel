@@ -94,6 +94,7 @@ struct sigma_dut;
 #define MAX_RADIO 3
 
 #define NAN_AWARE_IFACE "wifi-aware0"
+#define BROADCAST_ADDR "255.255.255.255"
 
 /* Set default operating channel width 80 MHz */
 #define VHT_DEFAULT_OPER_CHWIDTH AP_80_VHT_OPER_CHWIDTH
@@ -357,6 +358,8 @@ enum akm_suite_values {
 	AKM_FILS_SHA384 = 15,
 	AKM_FT_FILS_SHA256 = 16,
 	AKM_FT_FILS_SHA384 = 17,
+	AKM_SAE_EXT_KEY = 24,
+	AKM_FT_SAE_EXT_KEY = 25,
 
 };
 
@@ -395,6 +398,13 @@ struct dscp_policy_data {
 	int dscp;
 	int granularity_score;
 	struct dscp_policy_data *next;
+};
+
+enum dpp_mdns_role {
+	DPP_MDNS_NOT_RUNNING,
+	DPP_MDNS_RELAY,
+	DPP_MDNS_CONTROLLER,
+	DPP_MDNS_BOOTSTRAPPING,
 };
 
 struct sigma_dut {
@@ -894,6 +904,7 @@ struct sigma_dut {
 		PROGRAM_HS2_R3,
 		PROGRAM_QM,
 		PROGRAM_HS2_R4,
+		PROGRAM_HS2_2022,
 	} program;
 
 	enum device_type {
@@ -989,6 +1000,7 @@ struct sigma_dut {
 	int dpp_local_bootstrap;
 	int dpp_conf_id;
 	int dpp_network_id;
+	enum dpp_mdns_role dpp_mdns;
 
 	u8 fils_hlp;
 	pthread_t hlp_thread;
@@ -1042,6 +1054,8 @@ struct sigma_dut {
 	unsigned int prev_disable_scs_support;
 	unsigned int prev_disable_mscs_support;
 	int dscp_use_iptables;
+	int autoconnect_default;
+	int dhcp_client_running;
 };
 
 
@@ -1211,6 +1225,8 @@ void get_ver(const char *cmd, char *buf, size_t buflen);
 
 /* utils.c */
 enum sigma_program sigma_program_to_enum(const char *prog);
+bool is_passpoint_r2_or_newer(enum sigma_program prog);
+bool is_passpoint(enum sigma_program prog);
 int hex_byte(const char *str);
 int parse_hexstr(const char *hex, unsigned char *buf, size_t buflen);
 int parse_mac_address(struct sigma_dut *dut, const char *arg,
@@ -1235,6 +1251,7 @@ void str_remove_chars(char *str, char ch);
 
 int get_wps_forced_version(struct sigma_dut *dut, const char *str);
 int base64_encode(const char *src, size_t len, char *out, size_t out_len);
+unsigned char * base64_decode(const char *src, size_t len, size_t *out_len);
 int random_get_bytes(char *buf, size_t len);
 int get_enable_disable(const char *val);
 int wcn_driver_cmd(const char *ifname, char *buf);
@@ -1276,6 +1293,9 @@ int lowi_cmd_sta_reset_default(struct sigma_dut *dut, struct sigma_conn *conn,
 enum sigma_cmd_result dpp_dev_exec_action(struct sigma_dut *dut,
 					  struct sigma_conn *conn,
 					  struct sigma_cmd *cmd);
+int dpp_mdns_discover_relay_params(struct sigma_dut *dut);
+int dpp_mdns_start(struct sigma_dut *dut, enum dpp_mdns_role role);
+void dpp_mdns_stop(struct sigma_dut *dut);
 
 /* dhcp.c */
 void process_fils_hlp(struct sigma_dut *dut);
@@ -1312,5 +1332,6 @@ void miracast_register_cmds(void);
 int set_ipv6_addr(struct sigma_dut *dut, const char *ip, const char *mask,
 		  const char *ifname);
 void kill_pid(struct sigma_dut *dut, const char *pid_file);
+int get_ip_addr(const char *ifname, int ipv6, char *buf, size_t len);
 
 #endif /* SIGMA_DUT_H */

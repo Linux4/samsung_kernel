@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2019,2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -320,7 +320,7 @@ typedef enum {
 	 * 20 - CHANNEL SCAN
 	 * 21 - NORMAL CHANNEL SCAN
 	 *
-	 * MLM State: offset: 10 legth: 2
+	 * MLM State: offset: 10 length: 2
 	 * 0  - MLM OFFLINE
 	 * 1  - MLM IDLE
 	 * 2  - MLM WT PROBE RESP
@@ -382,7 +382,7 @@ typedef enum {
 	 * 2 - Reset Fail
 	 * 3 - Reset Success
 	 * 4 - Device Removed
-	 * 5 - Devide Inserted
+	 * 5 - Device Inserted
 	 * 6 - Driver Unloaded
 	 * 7 - Driver Loaded
 	 * 8 - bus/link down
@@ -446,7 +446,7 @@ typedef enum {
 	 * 0 - Enter
 	 * 1 - Exit
 	 * 2 - Del Pattern
-	 * 3 - Wakup
+	 * 3 - Wakeup
 	 *
 	 * WOW Type: offset: 1 length: 1
 	 * 0 - None
@@ -636,7 +636,7 @@ typedef enum {
 	 * @ reason: Reason for triggering status
 	 * @ reasonDisconnect:Reason for disconnection
 	 *
-	 * This event is used to send varius wlan status
+	 * This event is used to send various wlan status
 	 * Values for parameters are defined below:
 	 * eventId: offset: 0 length: 1
 	 * ssid[0] - ssid[31]: offset: 1 to 32, length: 1
@@ -954,7 +954,7 @@ typedef enum {
 	 * Table 12-10—Integrity and key wrap algorithms.
 	 * @grp_cipher: Group cipher suite value as defined in
 	 * Table 12-10—Integrity and key wrap algorithm in IEEE 802.11 2020.
-	 * grp_mgmt: Group manangement cipher suite as defined in
+	 * grp_mgmt: Group management cipher suite as defined in
 	 * Table 12-10—Integrity and key wrap algorithms in IEEE 802.11 2020.
 	 *
 	 * This event is used to send connection parameters for
@@ -1197,6 +1197,52 @@ typedef enum {
 	 */
 
 	EVENT_WLAN_CONN_DP = 0xD23,
+
+	/*
+	 * <diag_event>
+	 * EVENT_WLAN_NBR_RPT
+	 * @diag_cmn: Common diag info
+	 * @version: structure version
+	 * @token: dialog token. Dialog Token is a nonzero value chosen by the
+	 * STA
+	 * @num_rpt: the number of neighbor report elements in response frame.
+	 * @num_freq: Number of frequency in response frame
+	 * @ssid: SSID
+	 * @freq: Frequency list in response frame
+	 *
+	 * This Event is used to send Neighbor report
+	 *
+	 * Supported Feature: STA
+	 *
+	 * </diag_event>
+	 */
+
+	EVENT_WLAN_NBR_RPT = 0xD37,
+
+	/*
+	 * <diag_event>
+	 * @diag_cmn: Common diag info
+	 * @version: structure version
+	 * @token: A nonzero number that is unique among the Measurement Request
+	 * elements
+	 * @op_class: Operating classes that include primary channels
+	 * @chan: The channel number field in the beacon report request.
+	 * @req_mode: hex value defines Duration mandatory, parallel, enable,
+	 * request, and report bits.
+	 * @num_rpt: the number of neighbor report elements in response frame.
+	 * @duration: The duration over which the Beacon report was
+	 * measured.(in ms)
+	 * @mode: Mode used for measurement.Values defined in IEEE
+	 * Std 802.11‐2020 Table 9-103.
+	 *
+	 * This Event is used to send Beacon report
+	 *
+	 * Supported Feature: STA
+	 *
+	 * </diag_event>
+	 */
+
+	EVENT_WLAN_BCN_RPT = 0xD38,
 
 	EVENT_MAX_ID = 0x0FFF
 } event_id_enum_type;

@@ -310,7 +310,7 @@ QDF_STATUS wlan_objmgr_pdev_component_obj_attach(
 		return QDF_STATUS_SUCCESS;
 	/**
 	 * If PDEV object status is partially created means, this API is
-	 * invoked with differnt context, this block should be executed for
+	 * invoked with different context, this block should be executed for
 	 * async components only
 	 */
 	/* Derive status */
@@ -325,7 +325,7 @@ QDF_STATUS wlan_objmgr_pdev_component_obj_attach(
 	/* Notify components about the CREATION success/failure */
 	if ((obj_status == QDF_STATUS_SUCCESS) ||
 	    (obj_status == QDF_STATUS_E_FAILURE)) {
-		/* nofity object status */
+		/* notify object status */
 		for (i = 0; i < WLAN_UMAC_MAX_COMPONENTS; i++) {
 			s_hlr = g_umac_glb_obj->pdev_status_handler[i];
 			a = g_umac_glb_obj->pdev_status_handler_arg[i];
@@ -361,7 +361,7 @@ QDF_STATUS wlan_objmgr_pdev_component_obj_detach(
 	wlan_pdev_obj_unlock(pdev);
 
 	/* If PDEV object status is partially destroyed means, this API is
-	invoked with differnt context, this block should be executed for async
+	invoked with different context, this block should be executed for async
 	components only */
 	if ((pdev->obj_state == WLAN_OBJ_STATE_PARTIALLY_DELETED) ||
 	    (pdev->obj_state == WLAN_OBJ_STATE_COMP_DEL_PROGRESS)) {
@@ -980,7 +980,7 @@ qdf_export_symbol(wlan_objmgr_get_vdev_by_id_from_pdev_no_state);
 
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_debug(
-		struct wlan_objmgr_pdev *pdev, uint8_t *macaddr,
+		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id,
 		const char *fnc, int ln)
 {
@@ -1018,7 +1018,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_debug(
 }
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev(
-		struct wlan_objmgr_pdev *pdev, uint8_t *macaddr,
+		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id)
 {
 	struct wlan_objmgr_vdev *vdev;
@@ -1057,7 +1057,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev(
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 struct wlan_objmgr_vdev
 	*wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state_debug(
-		struct wlan_objmgr_pdev *pdev, uint8_t *macaddr,
+		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line)
 {
@@ -1094,7 +1094,7 @@ struct wlan_objmgr_vdev
 }
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state(
-		struct wlan_objmgr_pdev *pdev, uint8_t *macaddr,
+		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id)
 {
 	struct wlan_objmgr_vdev *vdev;

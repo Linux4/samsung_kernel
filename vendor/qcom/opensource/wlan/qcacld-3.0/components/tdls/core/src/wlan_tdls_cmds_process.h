@@ -128,7 +128,7 @@ void tdls_reset_nss(struct tdls_soc_priv_obj *tdls_soc,
 
 /**
  * tdls_release_serialization_command() - TDLS wrapper to
- * relases serialization command.
+ * releases serialization command.
  * @vdev: Object manager vdev
  * @type: command to release.
  *

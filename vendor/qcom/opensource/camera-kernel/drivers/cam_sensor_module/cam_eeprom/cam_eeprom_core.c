@@ -14,6 +14,7 @@
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+#include "cam_hw_bigdata.h"
 #include <linux/ctype.h>
 
 #if defined(CONFIG_CAMERA_SYSFS_V2)
@@ -1474,11 +1475,51 @@ eeropm_crc_check :
 
 		e_ctrl->cam_eeprom_state = CAM_EEPROM_CONFIG;
 #endif
+
+#if defined(CONFIG_SEC_GTS9U_PROJECT)
+		if (e_ctrl->soc_info.index == 2){
+			CAM_ERR(CAM_EEPROM, "HI847 REAR UW");
+			rc = cam_otp_hi847_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+		else {
+			rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+#elif defined(CONFIG_SEC_GTS9P_PROJECT)
+		if (e_ctrl->soc_info.index == 1){
+			CAM_INFO(CAM_EEPROM, "HI1337 FRONT");
+			rc = cam_otp_hi1337_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+		else if (e_ctrl->soc_info.index == 2){
+			CAM_ERR(CAM_EEPROM, "HI847 REAR UW");
+			rc = cam_otp_hi847_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+		else if (e_ctrl->soc_info.index == 12){
+			CAM_INFO(CAM_EEPROM, "HI1337 FRONT FULL");
+			rc = cam_otp_hi1337_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+		else {
+			rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+#elif defined(CONFIG_SEC_GTS9_PROJECT)
+		if (e_ctrl->soc_info.index == 1){
+			CAM_INFO(CAM_EEPROM, "HI1337 FRONT");
+			rc = cam_otp_hi1337_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+		else if (e_ctrl->soc_info.index == 12){
+			CAM_INFO(CAM_EEPROM, "HI1337 FRONT FULL");
+			rc = cam_otp_hi1337_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+		else {
+			rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
+		}
+#else
 		rc = cam_eeprom_read_memory(e_ctrl, &e_ctrl->cal_data);
+#endif
 		if (rc < 0) {
-		CAM_ERR(CAM_EEPROM,
-			"read_eeprom_memory failed");
-		goto power_down;
+			CAM_ERR(CAM_EEPROM,
+				"read_eeprom_memory failed");
+			hw_bigdata_i2c_from_eeprom(e_ctrl);
+			goto power_down;
 		}
 
 #if defined(CONFIG_CAMERA_SYSFS_V2)
@@ -1495,6 +1536,7 @@ eeropm_crc_check :
 
 			if (e_ctrl->is_supported != normal_crc_value) {
 				CAM_ERR(CAM_EEPROM, "Any CRC values at F-ROM are not matched.");
+				hw_bigdata_crc_from_eeprom(e_ctrl);
 				if (crc_check_retry_cnt < 10) {
 					crc_check_retry_cnt++;
 					CAM_ERR(CAM_EEPROM, "Retry to read F-ROM : %d", crc_check_retry_cnt);

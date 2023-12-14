@@ -121,7 +121,7 @@ void ucfg_dlm_dump_deny_list_ap(struct wlan_objmgr_pdev *pdev);
  * disconnect with the current AP.
  * @pdev: pdev object
  * @bssid: BSSID of the AP
- * @con_state: Connection stae (connected/disconnected)
+ * @con_state: Connection state (connected/disconnected)
  *
  * This API will inform the DLM about the state with the AP so that if the AP
  * is selected, and the connection went through, and the connection did not

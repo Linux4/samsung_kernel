@@ -1,4 +1,5 @@
 # Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -71,7 +72,7 @@ def get_strings(buf, length):
             continue
         (ch,) = struct.unpack_from("<B", buf, offset)
         offset += 1
-        if ch >= 0x30 and ch < 0x80:
+        if (ch >= 0x30 and ch < 0x80) or ch==0x2e:
             string += chr(ch)
         elif (string != "" and len(string) >= 3 and
               string != 'linux_banner' and string != 'minidump_table'):
@@ -91,9 +92,17 @@ def get_strings(buf, length):
 def generate_elf():
     delete = False
     elfhd = os.path.join(out_folder, "md_KELF_HEADER.BIN")
+    elfhd_new = os.path.join(out_folder, "md_KELF_HDR.BIN")
     fo = open_file(outputfile, "wb")
-    fi = open_file("md_KELF_HEADER.BIN", "rb")
-    hsize = os.path.getsize(elfhd)
+    if os.path.exists(elfhd):
+        fi = open_file("md_KELF_HEADER.BIN", "rb")
+        hsize = os.path.getsize(elfhd)
+    elif os.path.exists(elfhd_new):
+        fi = open_file("md_KELF_HDR.BIN", "rb")
+        hsize = os.path.getsize(elfhd_new)
+    else:
+        print("ELF header binary is missing")
+        sys.exit(2)
     print("ELF header size %d" % hsize)
     buf = fi.read(hsize)
     fo.write(buf)

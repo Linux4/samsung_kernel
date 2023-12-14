@@ -307,7 +307,7 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 		1, V4L2_MPEG_MSM_VIDC_DISABLE,
 		V4L2_CID_MPEG_VIDC_TS_REORDER},
 
-	{HFLIP, ENC, CODECS_ALL,
+	{HFLIP, ENC, H264|HEVC,
 		V4L2_MPEG_MSM_VIDC_DISABLE,
 		V4L2_MPEG_MSM_VIDC_ENABLE,
 		1, V4L2_MPEG_MSM_VIDC_DISABLE,
@@ -316,7 +316,7 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 		CAP_FLAG_OUTPUT_PORT |
 			CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{VFLIP, ENC, CODECS_ALL,
+	{VFLIP, ENC, H264|HEVC,
 		V4L2_MPEG_MSM_VIDC_DISABLE,
 		V4L2_MPEG_MSM_VIDC_ENABLE,
 		1, V4L2_MPEG_MSM_VIDC_DISABLE,
@@ -325,7 +325,7 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_INPUT_PORT |
 			CAP_FLAG_DYNAMIC_ALLOWED},
 
-	{ROTATION, ENC, CODECS_ALL,
+	{ROTATION, ENC, H264|HEVC,
 		0, 270, 90, 0,
 		V4L2_CID_ROTATE,
 		HFI_PROP_ROTATION,
@@ -335,14 +335,6 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 		0, 32, 1, 0,
 		V4L2_CID_MPEG_VIDC_SUPERFRAME, 0,
 		CAP_FLAG_NONE},
-
-	{SLICE_DECODE, DEC, H264|HEVC,
-		V4L2_MPEG_MSM_VIDC_DISABLE,
-		V4L2_MPEG_MSM_VIDC_DISABLE,
-		0,
-		V4L2_MPEG_MSM_VIDC_DISABLE,
-		V4L2_CID_MPEG_VIDEO_DECODER_SLICE_INTERFACE,
-		0},
 
 	{HEADER_MODE, ENC, CODECS_ALL,
 		V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE,
@@ -1599,23 +1591,23 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 
 	{META_OUTBUF_FENCE, DEC, H264|HEVC|VP9,
 		{OUTPUT_ORDER},
-		{LOWLATENCY_MODE, SLICE_DECODE},
+		{LOWLATENCY_MODE},
 		NULL,
 		NULL},
 
-	{HFLIP, ENC, CODECS_ALL,
+	{HFLIP, ENC, H264|HEVC,
 		{0},
 		{0},
 		NULL,
 		msm_vidc_set_flip},
 
-	{VFLIP, ENC, CODECS_ALL,
+	{VFLIP, ENC, H264|HEVC,
 		{0},
 		{0},
 		NULL,
 		msm_vidc_set_flip},
 
-	{ROTATION, ENC, CODECS_ALL,
+	{ROTATION, ENC, H264|HEVC,
 		{0},
 		{0},
 		NULL,
@@ -1624,12 +1616,6 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 	{SUPER_FRAME, ENC, H264|HEVC,
 		{0},
 		{INPUT_BUF_HOST_MAX_COUNT, OUTPUT_BUF_HOST_MAX_COUNT},
-		NULL,
-		NULL},
-
-	{SLICE_DECODE, DEC, H264|HEVC,
-		{LOWLATENCY_MODE, META_OUTBUF_FENCE, OUTPUT_ORDER},
-		{0},
 		NULL,
 		NULL},
 
@@ -1740,7 +1726,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 
 	{LOWLATENCY_MODE, DEC, H264|HEVC|VP9,
 		{META_OUTBUF_FENCE},
-		{STAGE, SLICE_DECODE},
+		{STAGE},
 		msm_vidc_adjust_dec_lowlatency_mode,
 		NULL},
 
@@ -2025,7 +2011,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 
 	{OUTPUT_ORDER, DEC, H264|HEVC|VP9,
 		{THUMBNAIL_MODE, DISPLAY_DELAY, DISPLAY_DELAY_ENABLE},
-		{META_OUTBUF_FENCE, SLICE_DECODE},
+		{META_OUTBUF_FENCE},
 		msm_vidc_adjust_output_order,
 		msm_vidc_set_u32},
 

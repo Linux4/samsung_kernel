@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -71,7 +72,7 @@ extern "C" {
 /* Following macro specifies the number of milliseconds which constitute 1 ThreadX timer tick. Used
    for mimicking the ThreadX timer behaviour on VOSS. */
 /* Use the same MACRO used by firmware modules to calculate TICKs from mSec */
-/* Mismatch would cause worng timer value to be programmed */
+/* Mismatch would cause wrong timer value to be programmed */
 #define TX_MSECS_IN_1_TICK  SYS_TICK_DUR_MS
 
 /* Signature with which the TX_TIMER struct is initialized, when the timer is created */

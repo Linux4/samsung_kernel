@@ -638,6 +638,11 @@ public class GroupService extends ProfileService {
         } catch (IndexOutOfBoundsException e) {
             Log.e(TAG, "Invalid Group- No device found : " + e);
             mCurrentSetDisc = null;
+            // Debug logs
+            for (DeviceGroup dGroup: mCoordinatedSets) {
+                Log.i(TAG, " Set ID: " + dGroup.getDeviceGroupId() +
+                           " Members: " + dGroup.getDeviceGroupMembers());
+            }
             return;
         }
 
@@ -838,17 +843,24 @@ public class GroupService extends ProfileService {
             if (cSet.getDeviceGroupMembers().size() == 0) {
                 Log.i(TAG, "Last device unpaired. Removing Device Group from database");
                 mCoordinatedSets.remove(cSet);
+                setSirkMap.remove(setId);
+                if (getCoordinatedSet(setId, false) == null) {
+                    Log.i(TAG, "Set " + setId + " removed completely");
+                }
                 return;
             }
         }
 
-        cSet = getCoordinatedSet(setId, true);
-        if (cSet != null) {
-            cSet.getDeviceGroupMembers().remove(device);
-            if (cSet.getDeviceGroupMembers().size() == 0) {
+        DeviceGroup cSet1 = getCoordinatedSet(setId, true);
+        if (cSet1 != null) {
+            cSet1.getDeviceGroupMembers().remove(device);
+            if (cSet1.getDeviceGroupMembers().size() == 0) {
                 Log.i(TAG, "Last device unpaired. Removing Device Group from database");
                 mCoordinatedSets.remove(cSet);
                 setSirkMap.remove(setId);
+                if (getCoordinatedSet(setId, false) == null) {
+                    Log.i(TAG, "Set " + setId + " removed completely");
+                }
             }
         }
     }

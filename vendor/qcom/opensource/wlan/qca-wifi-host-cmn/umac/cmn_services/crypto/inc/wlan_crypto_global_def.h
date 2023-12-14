@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -18,7 +18,7 @@
  */
 
  /**
- * DOC: Public definations  for crypto service
+ * DOC: Public definitions  for crypto service
  */
 
 #ifndef _WLAN_CRYPTO_GLOBAL_DEF_H_
@@ -196,9 +196,8 @@ typedef enum wlan_crypto_rsn_cap {
  * WLAN_CRYPTO_RSNX_CAP_SAE_PK: SAE PK
  * WLAN_CRYPTO_RSNX_CAP_SECURE_LTF: Secure LTF
  * WLAN_CRYPTO_RSNX_CAP_SECURE_RTT: Secure RTT
- * WLAN_CRYPTO_RSNX_CAP_PROT_RANGE_NEG: Protected Range Negotiation
- * WLAN_CRYPTO_RSNX_CAP_URNM_MFPR: Same as WLAN_CRYPTO_RSNX_CAP_PROT_RANGE_NEG
- *                                 and it's just a spec format.
+ * WLAN_CRYPTO_RSNX_CAP_URNM_MFPR: Unassociated Range
+ * Negotiation and Measurement MFP Required
  *
  * Definition: (IEEE Std 802.11-2020, 9.4.2.241, Table 9-780)
  * The Extended RSN Capabilities field, except its first 4 bits, is a
@@ -213,8 +212,7 @@ enum wlan_crypto_rsnx_cap {
 	WLAN_CRYPTO_RSNX_CAP_SAE_PK = 0x40,
 	WLAN_CRYPTO_RSNX_CAP_SECURE_LTF = 0x100,
 	WLAN_CRYPTO_RSNX_CAP_SECURE_RTT = 0x200,
-	WLAN_CRYPTO_RSNX_CAP_PROT_RANGE_NEG = 0x400,
-	WLAN_CRYPTO_RSNX_CAP_URNM_MFPR = WLAN_CRYPTO_RSNX_CAP_PROT_RANGE_NEG,
+	WLAN_CRYPTO_RSNX_CAP_URNM_MFPR = 0x8000,
 };
 
 /**
@@ -258,6 +256,8 @@ typedef enum wlan_crypto_key_mgmt {
 	WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384   = 24,
 	WLAN_CRYPTO_KEY_MGMT_FT_PSK_SHA384         = 25,
 	WLAN_CRYPTO_KEY_MGMT_PSK_SHA384            = 26,
+	WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY           = 27,
+	WLAN_CRYPTO_KEY_MGMT_FT_SAE_EXT_KEY        = 28,
 	/** Keep WLAN_CRYPTO_KEY_MGMT_MAX at the end. */
 	WLAN_CRYPTO_KEY_MGMT_MAX,
 } wlan_crypto_key_mgmt;
@@ -274,7 +274,7 @@ enum wlan_crypto_key_type {
 #define DEFAULT_KEYMGMT_6G_MASK 0xFFFFFFFF
 
 /* AKM wlan_crypto_key_mgmt 1, 6, 8, 25 and 26 are not allowed. */
-#define ALLOWED_KEYMGMT_6G_MASK 0x01FFFEBD
+#define ALLOWED_KEYMGMT_6G_MASK 0x19FFFEBD
 
 /*
  * enum fils_erp_cryptosuite: this enum defines the cryptosuites used
@@ -311,7 +311,7 @@ struct mobility_domain_params {
  * @ssid: ssid information
  * @cache_id: cache id
  * @pmk_lifetime: Duration in seconds for which the pmk is valid
- * @pmk_lifetime_threshold: Percentage of pmk liftime within which
+ * @pmk_lifetime_threshold: Percentage of pmk lifetime within which
  * full authentication is expected to avoid disconnection.
  * @pmk_entry_ts: System timestamp at which the PMK entry was created.
  * @single_pmk_supported: SAE single pmk supported BSS
@@ -409,6 +409,7 @@ typedef enum wlan_crypto_param_type {
  * @flags:          key flags
  * @keyix:          key id
  * @cipher_type:    cipher type being used for this key
+ * @key_type:       unicast or broadcast key
  * @mac_addr:       MAC address of the peer
  * @src_addr:       Source mac address associated with the key
  * @cipher_table:   table which stores cipher related info
@@ -431,6 +432,7 @@ struct wlan_crypto_key {
 	uint16_t    flags;
 	uint16_t    keyix;
 	enum wlan_crypto_cipher_type cipher_type;
+	enum wlan_crypto_key_type key_type;
 	uint8_t     macaddr[QDF_MAC_ADDR_SIZE];
 	struct qdf_mac_addr src_addr;
 	void        *cipher_table;
@@ -515,7 +517,7 @@ struct wlan_lmac_if_crypto_tx_ops {
 			      struct wlan_crypto_key *key,
 			      enum wlan_crypto_key_type key_type);
 	QDF_STATUS(*getpn)(struct wlan_objmgr_vdev *vdev,
-			   uint8_t *macaddr, uint32_t key_type);
+			   uint8_t *macaddr, uint8_t keyix, uint32_t key_type);
 	QDF_STATUS (*set_ltf_keyseed)(struct wlan_objmgr_psoc *psoc,
 				      struct wlan_crypto_ltf_keyseed_data *ks);
 	QDF_STATUS (*set_vdev_param)(struct wlan_objmgr_psoc *psoc,
@@ -586,5 +588,14 @@ struct wlan_lmac_if_crypto_rx_ops {
 	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_FILS_SHA384) || \
 	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_PSK_SHA384) || \
 	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_PSK_SHA384))
+
+#define WLAN_CRYPTO_IS_WPA3(akm) \
+	(QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_SAE) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_SAE) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_IEEE8021X_SUITE_B_192) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_OWE) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_DPP) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_FT_IEEE8021X_SHA384) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_SAE_EXT_KEY))
 
 #endif /* end of _WLAN_CRYPTO_GLOBAL_DEF_H_ */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012 - 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -76,12 +76,14 @@ enum wlan_fwol_southbound_event {
  * @bt_interference_high_ll: Lower limit of high level BT interference
  * @bt_interference_high_ul: Upper limit of high level BT interference
  * @btc_mpta_helper_enable: Enable/Disable tri-radio MPTA helper
- * @bt_sco_allow_wlan_2g_scan: Enable/Disble wlan 2g scan when
+ * @bt_sco_allow_wlan_2g_scan: Enable/Disable wlan 2g scan when
  *                             BT SCO connection is on
  * @btc_three_way_coex_config_legacy_enable: Enable/Disable tri-radio coex
  *                             config legacy feature
  * @ble_scan_coex_policy: BLE Scan policy, true - better BLE scan result, false
  *                        better wlan throughput
+ * @coex_tput_shaping_enable: wifi traffic shaping enable, true - enable,
+ *					false - disable
  */
 struct wlan_fwol_coex_config {
 	uint8_t btc_mode;
@@ -103,6 +105,9 @@ struct wlan_fwol_coex_config {
 	bool    btc_three_way_coex_config_legacy_enable;
 #endif
 	bool ble_scan_coex_policy;
+#ifdef FEATURE_COEX_TPUT_SHAPING_CONFIG
+	bool coex_tput_shaping_enable;
+#endif
 };
 
 #define FWOL_THERMAL_LEVEL_MAX 4
@@ -187,6 +192,25 @@ struct wlan_fwol_neighbor_report_cfg {
 	uint32_t max_req_cap;
 };
 
+#ifdef WLAN_FEATURE_TSF_ACCURACY
+/**
+ * struct wlan_fwol_tsf_accuracy_configs - TSF Accuracy feature config params
+ * @enable: Flag to Enable/Disable TSF Accuracy Feature
+ * @sync_gpio: GPIO to indicate TSF sync is done. The GPIO pin is toggled at
+ *             every TSF sync done.
+ * @periodic_pulse_gpio: GPIO to indicate TSF time completes a cycle of given
+ *                       interval. The GPIO pin gets pulse of 1msec for every
+ *                       TSF cycle complete.
+ * @pulse_interval_ms: Periodicy of TSF pulse in milli seconds.
+ */
+struct wlan_fwol_tsf_accuracy_configs {
+	bool enable;
+	uint32_t sync_gpio;
+	uint32_t periodic_pulse_gpio;
+	uint32_t pulse_interval_ms;
+};
+#endif
+
 /**
  * struct wlan_fwol_cfg - fwol config items
  * @coex_config: coex config items
@@ -194,6 +218,7 @@ struct wlan_fwol_neighbor_report_cfg {
  * @ie_allowlist_cfg: IE Allowlist related config items
  * @neighbor_report_cfg: 11K neighbor report config
  * @ani_enabled: ANI enable/disable
+ * @pcie_config: to control pcie gen and lane params
  * @enable_rts_sifsbursting: Enable RTS SIFS Bursting
  * @enable_sifs_burst: Enable SIFS burst
  * @max_mpdus_inampdu: Max number of MPDUS
@@ -217,6 +242,7 @@ struct wlan_fwol_neighbor_report_cfg {
  * @tsf_sync_host_gpio_pin: TSF Sync GPIO Pin config
  * @tsf_ptp_options: TSF Plus feature options config
  * @tsf_sync_enable: TSF sync feature enable/disable
+ * @tsf_accuracy_configs: TSF Accuracy feature config parameters
  * @sae_enable: SAE feature enable config
  * @gcmp_enable: GCMP feature enable config
  * @enable_tx_sch_delay: Enable TX SCH delay value config
@@ -236,6 +262,7 @@ struct wlan_fwol_cfg {
 	struct wlan_fwol_ie_allowlist ie_allowlist_cfg;
 	struct wlan_fwol_neighbor_report_cfg neighbor_report_cfg;
 	bool ani_enabled;
+	bool pcie_config;
 	bool enable_rts_sifsbursting;
 	uint8_t enable_sifs_burst;
 	uint8_t max_mpdus_inampdu;
@@ -261,6 +288,9 @@ struct wlan_fwol_cfg {
 #ifdef WLAN_FEATURE_TSF_PLUS
 	uint32_t tsf_ptp_options;
 	bool tsf_sync_enable;
+#ifdef WLAN_FEATURE_TSF_ACCURACY
+	struct wlan_fwol_tsf_accuracy_configs tsf_accuracy_configs;
+#endif
 #ifdef WLAN_FEATURE_TSF_PLUS_EXT_GPIO_IRQ
 	uint32_t tsf_irq_host_gpio_pin;
 #endif

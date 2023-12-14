@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -36,5 +37,13 @@
  */
 QDF_STATUS tgt_dcs_process_event(struct wlan_objmgr_psoc *psoc,
 				 struct wlan_host_dcs_event *event);
-
+#ifdef CONFIG_AFC_SUPPORT
+/**
+ * tgt_afc_trigger_dcs() - AFC event DCS process
+ * @pdev: pointer to pdev object
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS tgt_afc_trigger_dcs(struct wlan_objmgr_pdev *pdev);
+#endif
 #endif /* __WLAN_DCS_TGT_API_H__ */

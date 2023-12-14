@@ -513,7 +513,7 @@ struct goodix_ts_core {
 	struct notifier_block ts_notifier;
 	struct goodix_ts_esd ts_esd;
 	bool esd_initialized;
-
+	bool ready;
 #if defined(CONFIG_DRM)
 	struct notifier_block fb_notifier;
 	void *notifier_cookie;

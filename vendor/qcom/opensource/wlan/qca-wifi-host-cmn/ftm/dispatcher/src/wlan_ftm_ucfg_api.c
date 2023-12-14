@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018 The Linux Foundation. All rights reserved.
- *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -102,8 +102,8 @@ wlan_ftm_process_utf_event(struct wlan_objmgr_pdev *pdev,
 		ftm_pdev_obj->length = ftm_pdev_obj->offset;
 
 		/**
-		 * If the repsonse is for a command from FTM daemon,
-		 * send this repsonse data to cfg80211
+		 * If the response is for a command from FTM daemon,
+		 * send this response data to cfg80211
 		 */
 		if (ftm_pdev_obj->cmd_type == WIFI_FTM_CMD_NL80211) {
 			if (wlan_cfg80211_ftm_rx_event(pdev, ftm_pdev_obj->data,

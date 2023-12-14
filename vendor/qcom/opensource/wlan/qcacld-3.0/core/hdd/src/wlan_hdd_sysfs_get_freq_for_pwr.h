@@ -41,6 +41,7 @@ int hdd_sysfs_get_valid_freq_for_power_create(struct kobject *driver_kobject);
 /**
  * hdd_sysfs_get_valid_freq_for_power_destroy() -
  * API to destroy get_valid_freq sysfs
+ * @driver_kobject: sysfs driver kobject
  *
  * Return: none
  */

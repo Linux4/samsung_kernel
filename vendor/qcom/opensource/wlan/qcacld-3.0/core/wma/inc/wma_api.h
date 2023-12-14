@@ -135,7 +135,7 @@ int  wma_rx_service_ready_event(void *handle, uint8_t *ev, uint32_t len);
 int wma_rx_service_ready_ext_event(void *handle, uint8_t *ev, uint32_t len);
 
 /**
- * wma_rx_service_ready_ext2_event() - evt handler for sevice ready ext2 event.
+ * wma_rx_service_ready_ext2_event() - evt handler for service ready ext2 event.
  * @handle: wma handle
  * @event: params of the service ready extended event
  * @length: param length
@@ -756,7 +756,7 @@ QDF_STATUS wma_mon_mlme_vdev_down_send(struct vdev_mlme_obj *vdev_mlme,
  * wma_vdev_detach_callback() - VDEV delete response handler
  * @rsp: pointer to vdev delete response
  *
- * This API proccesses vdev delete response and gives to upper layers
+ * This API processes vdev delete response and gives to upper layers
  *
  * Return: SUCCESS on successful completion of VDEV delete operation
  *         FAILURE, if it fails due to any
@@ -802,7 +802,7 @@ typedef void (*wma_wlm_stats_cb)(void *cookie, const char *data);
  *
  * This API is used to send a message to WLAN latency manager component
  * in FW to retrieve some latency related data and send it to user space.
- * Driver is just a pass-through for user to interract with FW.
+ * Driver is just a pass-through for user to interact with FW.
  *
  * Return: 0 on success and non-zero for error
  */

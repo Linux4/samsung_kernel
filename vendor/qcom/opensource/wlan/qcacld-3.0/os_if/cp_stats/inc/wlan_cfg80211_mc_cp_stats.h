@@ -36,7 +36,7 @@ struct wlan_objmgr_psoc;
 
 /**
  * wlan_cfg80211_mc_cp_stats_get_wakelock_stats() - API to request wake lock
- * stats. Stats are returned to user space via vender event
+ * stats. Stats are returned to user space via vendor event
  * @psoc:    Pointer to psoc
  * @wiphy:   wiphy pointer
  *
@@ -87,8 +87,7 @@ wlan_cfg80211_mc_cp_stats_get_station_stats(struct wlan_objmgr_vdev *vdev,
 /**
  * wlan_cfg80211_mc_cp_stats_free_stats_event() - API to release station
  * statistics buffer
- * @vdev:    Pointer to vdev
- * @info:    pointer to object to populate with station stats
+ * @info:    pointer to object populated with station stats
  *
  * Return: None
  */

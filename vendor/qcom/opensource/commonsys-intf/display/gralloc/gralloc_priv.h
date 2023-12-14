@@ -73,8 +73,8 @@
 #define USE_SYSTEM_HEAP_FOR_SENSORS          GRALLOC_PROP("use_system_heap_for_sensors")
 
 #define ROUND_UP_PAGESIZE(x) roundUpToPageSize(x)
-inline int roundUpToPageSize(int x) {
-  return (x + (getpagesize() - 1)) & ~(getpagesize() - 1);
+inline size_t roundUpToPageSize(size_t x) {
+  return (x + ((size_t)getpagesize() - 1)) & ~((size_t)getpagesize() - 1);
 }
 
 /* Legacy gralloc1 definitions */

@@ -288,7 +288,7 @@ QDF_STATUS sme_ps_process_command(struct mac_context *mac_ctx, uint32_t session_
 		sme_err("Invalid Session_id: %d", session_id);
 		return QDF_STATUS_E_INVAL;
 	}
-	sme_debug("Power Save command %d", command);
+	sme_debug("Vdev id %d, Power Save command %d", session_id, command);
 	switch (command) {
 	case SME_PS_ENABLE:
 		status = sme_ps_enable_ps_req_params(mac_ctx, session_id);
@@ -372,21 +372,150 @@ QDF_STATUS sme_enable_sta_ps_check(struct mac_context *mac_ctx,
 QDF_STATUS sme_ps_enable_disable(mac_handle_t mac_handle, uint32_t session_id,
 				 enum sme_ps_cmd command)
 {
-	QDF_STATUS status = QDF_STATUS_E_FAILURE;
+	QDF_STATUS status;
 	struct mac_context *mac_ctx = MAC_CONTEXT(mac_handle);
+
+	status = sme_acquire_global_lock(&mac_ctx->sme);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		sme_err("can't acquire sme global lock");
+		return status;
+	}
 
 	status =  sme_enable_sta_ps_check(mac_ctx, session_id, command);
 	if (status != QDF_STATUS_SUCCESS) {
 		/*
-		 * In non associated state driver wont handle the power save
+		 * In non associated state driver won't handle the power save
 		 * But kernel expects return status success even
 		 * in the disconnected state.
 		 */
 		if (!cm_is_vdevid_connected(mac_ctx->pdev, session_id))
 			status = QDF_STATUS_SUCCESS;
+		sme_release_global_lock(&mac_ctx->sme);
 		return status;
 	}
 	status = sme_ps_process_command(mac_ctx, session_id, command);
+	sme_release_global_lock(&mac_ctx->sme);
+
+	return status;
+}
+
+QDF_STATUS sme_ps_update(mac_handle_t mac_handle, uint32_t vdev_id)
+{
+	struct mac_context *mac_ctx = MAC_CONTEXT(mac_handle);
+	QDF_STATUS status;
+	bool usr_ps_cfg;
+	enum sme_ps_cmd command;
+
+	status = sme_acquire_global_lock(&mac_ctx->sme);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		sme_err("can't acquire sme global lock");
+		return status;
+	}
+	usr_ps_cfg = mlme_get_user_ps(mac_ctx->psoc, vdev_id);
+	command = usr_ps_cfg ? SME_PS_ENABLE : SME_PS_DISABLE;
+	sme_debug("Allow power save %d vdev %d",
+		  usr_ps_cfg, vdev_id);
+	status = sme_ps_enable_disable(mac_handle, vdev_id, command);
+	sme_release_global_lock(&mac_ctx->sme);
+
+	return status;
+}
+
+QDF_STATUS sme_ps_set_powersave(mac_handle_t mac_handle,
+				uint8_t vdev_id, bool allow_power_save,
+				uint32_t timeout,
+				bool ap_supports_immediate_power_save)
+{
+	struct mac_context *mac_ctx = MAC_CONTEXT(mac_handle);
+	QDF_STATUS status;
+	bool is_bmps_enabled;
+	enum QDF_OPMODE device_mode;
+
+	status = sme_acquire_global_lock(&mac_ctx->sme);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		sme_err("can't acquire sme global lock");
+		return status;
+	}
+	sme_debug("Allow power save %d vdev %d timeout %d imm ps %d",
+		  allow_power_save, vdev_id, timeout,
+		  ap_supports_immediate_power_save);
+
+	mlme_set_user_ps(mac_ctx->psoc, vdev_id, allow_power_save);
+	/*
+	 * This is a workaround for defective AP's that send a disassoc
+	 * immediately after WPS connection completes. Defer powersave by a
+	 * small amount if the affected AP is detected.
+	 */
+	device_mode = wlan_get_opmode_from_vdev_id(mac_ctx->pdev, vdev_id);
+	if (allow_power_save &&
+	    device_mode == QDF_STA_MODE &&
+	    !ap_supports_immediate_power_save) {
+		timeout = AUTO_PS_DEFER_TIMEOUT_MS;
+		sme_debug("Defer power-save due to AP spec non-conformance");
+	}
+
+	if (allow_power_save) {
+		if (device_mode == QDF_STA_MODE ||
+		    device_mode == QDF_P2P_CLIENT_MODE) {
+			sme_debug("Disabling Auto Power save timer");
+			status = sme_ps_disable_auto_ps_timer(
+				mac_handle, vdev_id);
+			if (status != QDF_STATUS_SUCCESS)
+				goto end;
+		}
+
+		wlan_mlme_is_bmps_enabled(mac_ctx->psoc, &is_bmps_enabled);
+		if (is_bmps_enabled) {
+			sme_debug("Wlan driver Entering Power save");
+
+			/*
+			 * Enter Power Save command received from GUI
+			 * this means DHCP is completed
+			 */
+			if (timeout) {
+				status = sme_ps_enable_auto_ps_timer(
+								mac_handle,
+								vdev_id,
+								timeout);
+				if (status != QDF_STATUS_SUCCESS)
+					goto end;
+			} else {
+				status = sme_ps_enable_disable(
+							mac_handle,
+							vdev_id,
+							SME_PS_ENABLE);
+				if (status != QDF_STATUS_SUCCESS)
+					goto end;
+			}
+		} else {
+			sme_debug("Power Save is not enabled in the cfg");
+		}
+	} else {
+		sme_debug("Wlan driver Entering Full Power");
+
+		/*
+		 * Enter Full power command received from GUI
+		 * this means we are disconnected
+		 */
+		status = sme_ps_disable_auto_ps_timer(mac_handle,
+						      vdev_id);
+
+		if (status != QDF_STATUS_SUCCESS)
+			goto end;
+
+		wlan_mlme_is_bmps_enabled(mac_ctx->psoc, &is_bmps_enabled);
+		if (is_bmps_enabled) {
+			status = sme_ps_enable_disable(mac_handle,
+						       vdev_id,
+						       SME_PS_DISABLE);
+			if (status != QDF_STATUS_SUCCESS)
+				goto end;
+		}
+	}
+
+end:
+	sme_release_global_lock(&mac_ctx->sme);
+
 	return status;
 }
 
@@ -403,24 +532,35 @@ QDF_STATUS sme_ps_timer_flush_sync(mac_handle_t mac_handle, uint8_t session_id)
 	if (session_id >= WLAN_MAX_VDEVS)
 		return QDF_STATUS_E_INVAL;
 
+	status = sme_acquire_global_lock(&mac_ctx->sme);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		sme_err("can't acquire sme global lock");
+		return status;
+	}
+
 	status = sme_enable_sta_ps_check(mac_ctx, session_id, SME_PS_ENABLE);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		sme_debug("Power save not allowed for vdev id %d", session_id);
-		return QDF_STATUS_SUCCESS;
+		status = QDF_STATUS_SUCCESS;
+		goto end;
 	}
 
 	ps_parm = &mac_ctx->sme.ps_global_info.ps_params[session_id];
 	tstate = qdf_mc_timer_get_current_state(&ps_parm->auto_ps_enable_timer);
-	if (tstate != QDF_TIMER_STATE_RUNNING)
-		return QDF_STATUS_SUCCESS;
+	if (tstate != QDF_TIMER_STATE_RUNNING) {
+		status = QDF_STATUS_SUCCESS;
+		goto end;
+	}
 
 	sme_debug("flushing powersave enable for vdev %u", session_id);
 
 	qdf_mc_timer_stop(&ps_parm->auto_ps_enable_timer);
 
 	req = qdf_mem_malloc(sizeof(*req));
-	if (!req)
-		return QDF_STATUS_E_NOMEM;
+	if (!req) {
+		status = QDF_STATUS_E_NOMEM;
+		goto end;
+	}
 
 	if (ps_parm->uapsd_per_ac_bit_mask) {
 		req->psSetting = eSIR_ADDON_ENABLE_UAPSD;
@@ -438,8 +578,10 @@ QDF_STATUS sme_ps_timer_flush_sync(mac_handle_t mac_handle, uint8_t session_id)
 	qdf_mem_free(req);
 
 	ps_parm->ps_state = ps_state;
+end:
+	sme_release_global_lock(&mac_ctx->sme);
 
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
 
 /**
@@ -784,7 +926,7 @@ QDF_STATUS sme_ps_disable_auto_ps_timer(mac_handle_t mac_handle,
 
 	ps_param = &ps_global_info->ps_params[session_id];
 	/*
-	 * Stop the auto ps entry timer if runnin
+	 * Stop the auto ps entry timer if running
 	 */
 	if (QDF_TIMER_STATE_RUNNING ==
 			qdf_mc_timer_get_current_state(
@@ -852,6 +994,12 @@ void sme_auto_ps_entry_timer_expired(void *data)
 		sme_err("mac_ctx is NULL");
 		return;
 	}
+	status = sme_acquire_global_lock(&mac_ctx->sme);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		sme_err("can't acquire sme global lock");
+		return;
+	}
+
 	session_id = ps_params->session_id;
 	sme_debug("auto_ps_timer expired, enabling powersave");
 
@@ -859,6 +1007,7 @@ void sme_auto_ps_entry_timer_expired(void *data)
 	if (QDF_STATUS_SUCCESS == status)
 		sme_ps_enable_disable(MAC_HANDLE(mac_ctx), session_id,
 				      SME_PS_ENABLE);
+	sme_release_global_lock(&mac_ctx->sme);
 }
 
 QDF_STATUS sme_ps_close(mac_handle_t mac_handle)

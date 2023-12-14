@@ -991,7 +991,7 @@ uint16_t hal_rx_get_rx_sequence_6390(uint8_t *buf)
  *
  *@rx_tlv_hdr: start address of rx_pkt_tlvs
  *
- * Return: true if RX_MPDU_START is valied, else false.
+ * Return: true if RX_MPDU_START is valid, else false.
  */
 static uint8_t hal_rx_mpdu_start_tlv_tag_valid_6390(void *rx_tlv_hdr)
 {

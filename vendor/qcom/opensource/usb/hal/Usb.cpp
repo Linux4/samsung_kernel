@@ -107,17 +107,23 @@ static int32_t writeFile(const std::string &filename,
 
 std::string appendRoleNodeHelper(const std::string &portName,
                                  PortRoleType type) {
-  std::string node("/sys/class/typec/" + portName);
 
-  switch (type) {
-    case PortRoleType::DATA_ROLE:
-      return node + "/data_role";
-    case PortRoleType::POWER_ROLE:
-      return node + "/power_role";
-    case PortRoleType::MODE:
-      return node + "/port_type";
-    default:
-      return "";
+    if ((portName == "..") || (portName.find('/') != std::string::npos)) {
+       ALOGE("Fatal: invalid portName");
+       return "";
+    }
+
+    std::string node("/sys/class/typec/" + portName);
+
+    switch (type) {
+      case PortRoleType::DATA_ROLE:
+        return node + "/data_role";
+      case PortRoleType::POWER_ROLE:
+        return node + "/power_role";
+      case PortRoleType::MODE:
+        return node + "/port_type";
+      default:
+        return "";
   }
 }
 
@@ -496,7 +502,8 @@ Status getPortStatusHelper(hidl_vec<PortStatus> *currentPortStatus_1_2,
       if (V1_0) {
         (*currentPortStatus_1_2)[i].status_1_1.status.supportedModes = V1_0::PortMode::DFP;
       } else {
-        (*currentPortStatus_1_2)[i].status_1_1.supportedModes = PortMode_1_1::UFP | PortMode_1_1::DFP;
+        (*currentPortStatus_1_2)[i].status_1_1.supportedModes =
+	    PortMode_1_1::DRP | PortMode_1_1::AUDIO_ACCESSORY;
         (*currentPortStatus_1_2)[i].status_1_1.status.supportedModes = V1_0::PortMode::NONE;
         (*currentPortStatus_1_2)[i].status_1_1.status.currentMode = V1_0::PortMode::NONE;
 
@@ -1058,9 +1065,16 @@ static void checkUsbDeviceAutoSuspend(const std::string& devicePath) {
 static bool checkUsbInterfaceAutoSuspend(const std::string& devicePath,
         const std::string &intf) {
   std::string bInterfaceClass;
-  int interfaceClass, ret = -1;
+  int interfaceClass, ret = -1, retry = 3;
 
-  readFile(devicePath + "/" + intf + "/bInterfaceClass", &bInterfaceClass);
+  do {
+	  readFile(devicePath + "/" + intf + "/bInterfaceClass",
+			  &bInterfaceClass);
+  } while ((--retry > 0) && (bInterfaceClass.length() == 0));
+
+  if (bInterfaceClass.length() == 0) {
+	  return false;
+  }
   interfaceClass = std::stoi(bInterfaceClass, 0, 16);
 
   // allow autosuspend for certain class devices

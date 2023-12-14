@@ -460,10 +460,6 @@
                 <!-- DEVICETX - SPEAKER_MIC -->
                 <graph_kv key="0xA3000000" value="0xA3000001"/>
             </keys_and_values>
-            <keys_and_values CustomConfig="unprocessed-hdr-mic-landscape,unprocessed-hdr-mic-portrait,unprocessed-hdr-mic-inverted-landscape,unprocessed-hdr-mic-inverted-portrait">
-                <!-- DEVICETX - HANDSETMIC -->
-                <graph_kv key="0xA3000000" value="0xA3000004"/>
-            </keys_and_values>
             <keys_and_values SidetoneMode="SW">
                 <!-- SW_SIDETONE - SW_SIDETONE_ON -->
                 <graph_kv key="0xBA000000" value="0xBA000001"/>
@@ -956,7 +952,7 @@
         </devicepp>
         <!-- OUT Bluetooth BLE DevicePPs -->
         <devicepp id="PAL_DEVICE_OUT_BLUETOOTH_BLE">
-            <keys_and_values StreamType="PAL_STREAM_COMPRESSED,PAL_STREAM_DEEP_BUFFER,PAL_STREAM_LOW_LATENCY,PAL_STREAM_PCM_OFFLOAD,PAL_STREAM_SPATIAL_AUDIO">
+            <keys_and_values StreamType="PAL_STREAM_COMPRESSED,PAL_STREAM_DEEP_BUFFER,PAL_STREAM_LOW_LATENCY,PAL_STREAM_PCM_OFFLOAD,PAL_STREAM_SPATIAL_AUDIO,PAL_STREAM_GENERIC">
                 <!-- DEVICEPP_RX - DEVICEPP_RX_AUDIO_MBDRC -->
                 <graph_kv key="0xAC000000" value="0xAC000002"/>
             </keys_and_values>
@@ -971,7 +967,7 @@
         </devicepp>
         <!-- OUT Bluetooth BLE BROADCAST DevicePPs -->
         <devicepp id="PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST">
-            <keys_and_values StreamType="PAL_STREAM_COMPRESSED,PAL_STREAM_DEEP_BUFFER,PAL_STREAM_LOW_LATENCY,PAL_STREAM_PCM_OFFLOAD">
+            <keys_and_values StreamType="PAL_STREAM_COMPRESSED,PAL_STREAM_DEEP_BUFFER,PAL_STREAM_LOW_LATENCY,PAL_STREAM_PCM_OFFLOAD,PAL_STREAM_GENERIC">
                 <!-- DEVICEPP_RX - DEVICEPP_RX_AUDIO_MBDRC -->
                 <graph_kv key="0xAC000000" value="0xAC000002"/>
             </keys_and_values>
@@ -1183,8 +1179,8 @@
                 <graph_kv key="0xAD000000" value="0xAD000004"/>
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_DEEP_BUFFER,PAL_STREAM_COMPRESSED" CustomConfig="unprocessed-hdr-mic-landscape,unprocessed-hdr-mic-portrait,unprocessed-hdr-mic-inverted-landscape,unprocessed-hdr-mic-inverted-portrait">
-                <!-- DEVICETX - HANDSETMIC -->
-                <graph_kv key="0xA3000000" value="0xA3000004"/>
+                <!-- DEVICETX - SPEAKER_MIC -->
+                <graph_kv key="0xA3000000" value="0xA3000001"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_AUDIO_RECORD_ENQORE -->
                 <graph_kv key="0xAD000000" value="0xAD000023"/>
             </keys_and_values>

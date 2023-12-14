@@ -334,7 +334,12 @@ def page_address(ramdump, page, vmemmap=None):
 def phys_to_virt(ramdump, phys):
     if not ramdump.arm64:
         return phys - ramdump.phys_offset + ramdump.page_offset
-    if ramdump.kernel_version >= (5, 4, 0):
+
+    if ramdump.kernel_version >= (5, 10, 0):
+        memstart_addr = ramdump.read_s64('memstart_addr')
+        val = (phys - memstart_addr) | ramdump.page_offset
+        return val
+    elif ramdump.kernel_version >= (5, 4, 0):
         #as the page_offset value got changed in 5.4 kernel. It is upstream change to support 52 bit
         return phys - ramdump.read_s64('physvirt_offset ')
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -351,6 +351,7 @@ struct extscan_def_config {
  * @extscan_adaptive_dwell_mode: Adaptive dwell mode during ext scan
  * @skip_6g_and_indoor_freq: skip 6Ghz and 5Gh indoor freq channel for
  * STA scan if hw is non-DBS and SAP is present
+ * @last_scan_ageout_time: use last full scan results for provided time in ms
  * @scan_f_passive: passively scan all channels including active channels
  * @scan_f_bcast_probe: add wild card ssid prbreq even if ssid_list is specified
  * @scan_f_cck_rates: add cck rates to rates/xrates ie in prb req
@@ -358,11 +359,11 @@ struct extscan_def_config {
  * @scan_f_chan_stat_evnt: enable indication of chan load and noise floor
  * @scan_f_filter_prb_req: filter Probe request frames
  * @scan_f_bypass_dfs_chn: when set, do not scan DFS channels
- * @scan_f_continue_on_err:continue scan even if few certain erros have occurred
+ * @scan_f_continue_on_err:continue scan even if few certain errors have occurred
  * @scan_f_offchan_mgmt_tx: allow mgmt transmission during off channel scan
  * @scan_f_offchan_data_tx: allow data transmission during off channel scan
  * @scan_f_promisc_mode: scan with promiscuous mode
- * @scan_f_capture_phy_err: enable capture ppdu with phy errrors
+ * @scan_f_capture_phy_err: enable capture ppdu with phy errors
  * @scan_f_strict_passive_pch: do passive scan on passive channels
  * @scan_f_half_rate: enable HALF (10MHz) rate support
  * @scan_f_quarter_rate: set Quarter (5MHz) rate support
@@ -382,7 +383,7 @@ struct extscan_def_config {
  * @scan_ev_completed: notify scan completed event
  * @scan_ev_bss_chan: notify bss chan event
  * @scan_ev_foreign_chan: notify foreign chan event
- * @scan_ev_dequeued: notify scan request dequed event
+ * @scan_ev_dequeued: notify scan request dequeued event
  * @scan_ev_preempted: notify scan preempted event
  * @scan_ev_start_failed: notify scan start failed event
  * @scan_ev_restarted: notify scan restarted event
@@ -444,6 +445,7 @@ struct scan_default_params {
 	bool honour_nl_scan_policy_flags;
 	enum scan_dwelltime_adaptive_mode extscan_adaptive_dwell_mode;
 	bool skip_6g_and_indoor_freq;
+	uint32_t last_scan_ageout_time;
 	union {
 		struct {
 			uint32_t scan_f_passive:1,
@@ -499,11 +501,13 @@ struct scan_default_params {
  * @inform_beacon: cb to indicate frame to OS
  * @update_beacon: cb to indicate frame to MLME
  * @unlink_bss: cb to unlink bss from kernel cache
+ * @inform_mbssid_bcn_prb_rsp: cb to indicate frames with mbssid
  */
 struct scan_cb {
 	update_beacon_cb inform_beacon;
 	update_beacon_cb update_beacon;
 	update_beacon_cb unlink_bss;
+	update_mbssid_bcn_prb_rsp inform_mbssid_bcn_prb_rsp;
 	/* Define nif/sif function callbacks here */
 };
 

@@ -19,7 +19,7 @@
 #if defined(CONFIG_SECDP_BIGDATA)
 #include <linux/secdp_bigdata.h>
 #endif
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 #include <linux/switch.h>
 
 static struct switch_dev switch_secdp_audio = {
@@ -734,7 +734,7 @@ end:
 	return rc;
 }
 
-#if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 extern int secdp_get_audio_ch(void);
 #endif
 
@@ -756,7 +756,7 @@ static int dp_audio_notify(struct dp_audio_private *audio, u32 state)
 	if (rc)
 		goto end;
 
-#if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 {
 	int audio_ch = state ? secdp_get_audio_ch() : -1;
 
@@ -927,7 +927,7 @@ static int dp_audio_create_notify_workqueue(struct dp_audio_private *audio)
 
 	INIT_DELAYED_WORK(&audio->notify_delayed_work, dp_audio_notify_work_fn);
 
-#if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 {
 	int rc = switch_dev_register(&switch_secdp_audio);
 
@@ -945,7 +945,7 @@ static void dp_audio_destroy_notify_workqueue(struct dp_audio_private *audio)
 	if (audio->notify_workqueue)
 		destroy_workqueue(audio->notify_workqueue);
 
-#if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 	switch_dev_unregister(&switch_secdp_audio);
 #endif
 }

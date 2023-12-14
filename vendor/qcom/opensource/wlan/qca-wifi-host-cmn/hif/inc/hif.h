@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -82,6 +82,7 @@ typedef void *hif_handle_t;
 #define HIF_TYPE_QCA9574 28
 #define HIF_TYPE_MANGO 29
 #define HIF_TYPE_QCA5332 30
+#define HIF_TYPE_QCN9160 31
 
 #define DMA_COHERENT_MASK_DEFAULT   37
 
@@ -130,6 +131,11 @@ enum hif_ic_irq {
 	wbm2host_tx_completions_ring2,
 	wbm2host_tx_completions_ring1,
 	tcl2host_status_ring,
+	txmon2host_monitor_destination_mac3,
+	txmon2host_monitor_destination_mac2,
+	txmon2host_monitor_destination_mac1,
+	host2tx_monitor_ring1,
+	umac_reset,
 };
 
 #ifdef QCA_SUPPORT_LEGACY_INTERRUPTS
@@ -276,12 +282,12 @@ struct CE_state;
  * qca_napi_stat - stats structure for execution contexts
  * @napi_schedules - number of times the schedule function is called
  * @napi_polls - number of times the execution context runs
- * @napi_completes - number of times that the generating interrupt is reenabled
+ * @napi_completes - number of times that the generating interrupt is re-enabled
  * @napi_workdone - cumulative of all work done reported by handler
  * @cpu_corrected - incremented when execution context runs on a different core
  *			than the one that its irq is affined to.
  * @napi_budget_uses - histogram of work done per execution run
- * @time_limit_reache - count of yields due to time limit threshholds
+ * @time_limit_reache - count of yields due to time limit thresholds
  * @rxpkt_thresh_reached - count of yields due to a work limit
  * @poll_time_buckets - histogram of poll times for the napi
  *
@@ -375,7 +381,7 @@ struct qca_napi_cpu {
  * @lock: spinlock used in the event state machine
  * @state: state variable used in the napi stat machine
  * @ce_map: bit map indicating which ce's have napis running
- * @exec_map: bit map of instanciated exec contexts
+ * @exec_map: bit map of instantiated exec contexts
  * @user_cpu_affin_map: CPU affinity map from INI config.
  * @napi_cpu: cpu info for irq affinty
  * @lilcl_head:
@@ -442,6 +448,38 @@ struct hif_opaque_softc {
 };
 
 /**
+ * struct hif_ce_ring_info - CE ring information
+ * @ring_id: ring id
+ * @ring_dir: ring direction
+ * @num_entries: number of entries in ring
+ * @entry_size: ring entry size
+ * @ring_base_paddr: srng base physical address
+ * @hp_paddr: head pointer physical address
+ * @tp_paddr: tail pointer physical address
+ */
+struct hif_ce_ring_info {
+	uint8_t ring_id;
+	uint8_t ring_dir;
+	uint32_t num_entries;
+	uint32_t entry_size;
+	uint64_t ring_base_paddr;
+	uint64_t hp_paddr;
+	uint64_t tp_paddr;
+};
+
+/**
+ * struct hif_direct_link_ce_info - Direct Link CE information
+ * @ce_id: CE ide
+ * @pipe_dir: Pipe direction
+ * @ring_info: ring information
+ */
+struct hif_direct_link_ce_info {
+	uint8_t ce_id;
+	uint8_t pipe_dir;
+	struct hif_ce_ring_info ring_info;
+};
+
+/**
  * enum hif_event_type - Type of DP events to be recorded
  * @HIF_EVENT_IRQ_TRIGGER: IRQ trigger event
  * @HIF_EVENT_TIMER_ENTRY: Monitor Timer entry event
@@ -451,6 +489,7 @@ struct hif_opaque_softc {
  * @HIF_EVENT_SRNG_ACCESS_END: hal ring access end event
  * @HIF_EVENT_BH_COMPLETE: NAPI POLL completion event
  * @HIF_EVENT_BH_FORCE_BREAK: NAPI POLL force break event
+ * @HIF_EVENT_IRQ_DISABLE_EXPIRED: IRQ disable expired event
  */
 enum hif_event_type {
 	HIF_EVENT_IRQ_TRIGGER,
@@ -461,6 +500,7 @@ enum hif_event_type {
 	HIF_EVENT_SRNG_ACCESS_END,
 	HIF_EVENT_BH_COMPLETE,
 	HIF_EVENT_BH_FORCE_BREAK,
+	HIF_EVENT_IRQ_DISABLE_EXPIRED,
 	/* Do check hif_hist_skip_event_record when adding new events */
 };
 
@@ -909,7 +949,7 @@ static inline void *hif_get_ce_handle(struct hif_opaque_softc *hif_ctx, int ret)
 
 /*
  * Enable/disable CDC max performance workaround
- * For max-performace set this to 0
+ * For max-performance set this to 0
  * To allow SoC to enter sleep set this to 1
  */
 #define CONFIG_DISABLE_CDC_MAX_PERF_WAR 0
@@ -1172,7 +1212,7 @@ enum hif_ep_vote_type {
 /**
  * enum hif_ep_vote_access - hif ep vote access
  * HIF_EP_VOTE_ACCESS_ENABLE: Enable ep voting
- * HIF_EP_VOTE_INTERMEDIATE_ACCESS: allow during transistion
+ * HIF_EP_VOTE_INTERMEDIATE_ACCESS: allow during transition
  * HIF_EP_VOTE_ACCESS_DISABLE: disable ep voting
  */
 enum hif_ep_vote_access {
@@ -1214,7 +1254,7 @@ enum  hif_rtpm_client_id {
  * HIF_RTPM_GET_ASYNC: Increment usage count and when system is suspended
  *		      schedule resume process, return depends on pm state.
  * HIF_RTPM_GET_FORCE: Increment usage count and when system is suspended
- *		      shedule resume process, returns success irrespective of
+ *		      schedule resume process, returns success irrespective of
  *		      pm_state.
  * HIF_RTPM_GET_SYNC: Increment usage count and when system is suspended,
  *		     wait till process is resumed.
@@ -1262,6 +1302,28 @@ QDF_STATUS hif_rtpm_register(uint32_t id, void (*hif_rpm_cbk)(void));
  * @id: ID of the module which needs to be de-registered
  */
 QDF_STATUS hif_rtpm_deregister(uint32_t id);
+
+/**
+ * hif_rtpm_set_autosuspend_delay() - Set delay to trigger RTPM suspend
+ * @delay: delay in ms to be set
+ *
+ * Return: Success if delay is set successfully
+ */
+QDF_STATUS hif_rtpm_set_autosuspend_delay(int delay);
+
+/**
+ * hif_rtpm_restore_autosuspend_delay() - Restore delay value to default value
+ *
+ * Return: Success if reset done. E_ALREADY if delay same as config value
+ */
+QDF_STATUS hif_rtpm_restore_autosuspend_delay(void);
+
+/**
+ * hif_rtpm_get_autosuspend_delay() -Get delay to trigger RTPM suspend
+ *
+ * Return: Delay in ms
+ */
+int hif_rtpm_get_autosuspend_delay(void);
 
 /**
  * hif_runtime_lock_init() - API to initialize Runtime PM context
@@ -1414,7 +1476,7 @@ void hif_rtpm_set_monitor_wake_intr(int val);
  * hif_pre_runtime_suspend() - book keeping before beginning runtime suspend.
  * @hif_ctx: HIF context
  *
- * Makes sure that the pci link will be taken down by the suspend opperation.
+ * Makes sure that the pci link will be taken down by the suspend operation.
  * If the hif layer is configured to leave the bus on, runtime suspend will
  * not save any power.
  *
@@ -1524,7 +1586,45 @@ void hif_fastpath_resume(struct hif_opaque_softc *hif_ctx);
  * Return: state
  */
 int hif_rtpm_get_state(void);
+
+/**
+ * hif_rtpm_display_last_busy_hist() - Display runtimepm last busy history
+ * @hif_ctx: HIF context
+ *
+ * Return: None
+ */
+void hif_rtpm_display_last_busy_hist(struct hif_opaque_softc *hif_ctx);
+
+/**
+ * hif_rtpm_record_ce_last_busy_evt() - Record CE runtimepm last busy event
+ * @hif_ctx: HIF context
+ *
+ * Return: None
+ */
+void hif_rtpm_record_ce_last_busy_evt(struct hif_softc *scn,
+				      unsigned long ce_id);
 #else
+
+/**
+ * hif_rtpm_display_last_busy_hist() - Display runtimepm last busy history
+ * @hif_ctx: HIF context
+ *
+ * Return: None
+ */
+static inline
+void hif_rtpm_display_last_busy_hist(struct hif_opaque_softc *hif_ctx) { }
+
+/**
+ * hif_rtpm_record_ce_last_busy_evt() - Record CE runtimepm last busy event
+ * @hif_ctx: HIF context
+ *
+ * Return: None
+ */
+static inline
+void hif_rtpm_record_ce_last_busy_evt(struct hif_softc *scn,
+				      unsigned long ce_id)
+{ }
+
 static inline
 QDF_STATUS hif_rtpm_register(uint32_t id, void (*hif_rpm_cbk)(void))
 { return QDF_STATUS_SUCCESS; }
@@ -1532,6 +1632,16 @@ QDF_STATUS hif_rtpm_register(uint32_t id, void (*hif_rpm_cbk)(void))
 static inline
 QDF_STATUS hif_rtpm_deregister(uint32_t id)
 { return QDF_STATUS_SUCCESS; }
+
+static inline
+QDF_STATUS hif_rtpm_set_autosuspend_delay(int delay)
+{ return QDF_STATUS_SUCCESS; }
+
+static inline QDF_STATUS hif_rtpm_restore_autosuspend_delay(void)
+{ return QDF_STATUS_SUCCESS; }
+
+static inline int hif_rtpm_get_autosuspend_delay(void)
+{ return 0; }
 
 static inline
 int hif_runtime_lock_init(qdf_runtime_lock_t *lock, const char *name)
@@ -1807,7 +1917,7 @@ int32_t hif_get_int_ctx_irq_num(struct hif_opaque_softc *softc,
 				uint8_t id);
 
 /**
- * hif_configure_ext_group_interrupts() - Congigure ext group intrrupts
+ * hif_configure_ext_group_interrupts() - Configure ext group interrupts
  * @hif_ctx: hif opaque context
  *
  * Return: QDF_STATUS
@@ -1815,7 +1925,7 @@ int32_t hif_get_int_ctx_irq_num(struct hif_opaque_softc *softc,
 QDF_STATUS hif_configure_ext_group_interrupts(struct hif_opaque_softc *hif_ctx);
 
 /**
- * hif_deconfigure_ext_group_interrupts() - Deconfigure ext group intrrupts
+ * hif_deconfigure_ext_group_interrupts() - Deconfigure ext group interrupts
  * @hif_ctx: hif opaque context
  *
  * Return: None
@@ -1938,6 +2048,37 @@ int hif_prevent_link_low_power_states(struct hif_opaque_softc *hif)
 
 static inline
 void hif_allow_link_low_power_states(struct hif_opaque_softc *hif)
+{
+}
+#endif
+
+#ifdef IPA_OPT_WIFI_DP
+/**
+ * hif_prevent_l1() - Prevent from going to low power states
+ * @hif: HIF opaque context
+ *
+ * Return: 0 on success. Error code on failure.
+ */
+int hif_prevent_l1(struct hif_opaque_softc *hif);
+
+/**
+ * hif_allow_l1() - Allow link to go to low power states
+ * @hif: HIF opaque context
+ *
+ * Return: None
+ */
+void hif_allow_l1(struct hif_opaque_softc *hif);
+
+#else
+
+static inline
+int hif_prevent_l1(struct hif_opaque_softc *hif)
+{
+	return 0;
+}
+
+static inline
+void hif_allow_l1(struct hif_opaque_softc *hif)
 {
 }
 #endif
@@ -2436,4 +2577,67 @@ QDF_STATUS hif_unregister_umac_reset_handler(struct hif_opaque_softc *hif_scn)
 
 #endif /* DP_UMAC_HW_RESET_SUPPORT */
 
+#ifdef FEATURE_DIRECT_LINK
+/**
+ * hif_set_irq_config_by_ceid() - Set irq configuration for CE given by id
+ * @scn: hif opaque handle
+ * @ce_id: CE id
+ * @addr: irq trigger address
+ * @data: irq trigger data
+ *
+ * Return: QDF status
+ */
+QDF_STATUS
+hif_set_irq_config_by_ceid(struct hif_opaque_softc *scn, uint8_t ce_id,
+			   uint64_t addr, uint32_t data);
+
+/**
+ * hif_get_direct_link_ce_dest_srng_buffers() - Get Direct Link ce dest srng
+ *  buffer information
+ * @hif_ctx: hif opaque handle
+ * @dma_addr: pointer to array of dma addresses
+ * @buf_size: ce dest ring buffer size
+ *
+ * Return: Number of buffers attached to the dest srng.
+ */
+uint16_t hif_get_direct_link_ce_dest_srng_buffers(struct hif_opaque_softc *scn,
+						  uint64_t **dma_addr,
+						  uint32_t *buf_size);
+
+/**
+ * hif_get_direct_link_ce_srng_info() - Get Direct Link CE srng information
+ * @hif_ctx: hif opaque handle
+ * @info: Direct Link CEs information
+ * @max_ce_info_len: max array size of ce info
+ *
+ * Return: QDF status
+ */
+QDF_STATUS
+hif_get_direct_link_ce_srng_info(struct hif_opaque_softc *scn,
+				 struct hif_direct_link_ce_info *info,
+				 uint8_t max_ce_info_len);
+#else
+static inline QDF_STATUS
+hif_set_irq_config_by_ceid(struct hif_opaque_softc *scn, uint8_t ce_id,
+			   uint64_t addr, uint32_t data)
+{
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+uint16_t hif_get_direct_link_ce_dest_srng_buffers(struct hif_opaque_softc *scn,
+						  uint64_t **dma_addr,
+						  uint32_t *buf_size)
+{
+	return 0;
+}
+
+static inline QDF_STATUS
+hif_get_direct_link_ce_srng_info(struct hif_opaque_softc *scn,
+				 struct hif_direct_link_ce_info *info,
+				 uint8_t max_ce_info_len)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
 #endif /* _HIF_H_ */

@@ -15,3 +15,6 @@ CONFIG_FW_THERMAL_THROTTLE := y
 
 # Enable AUTO specific regdoamin table
 CONFIG_WLAN_REG_AUTO := y
+
+# Enable Usable channel feature
+CONFIG_WLAN_FEATURE_GET_USABLE_CHAN_LIST := y

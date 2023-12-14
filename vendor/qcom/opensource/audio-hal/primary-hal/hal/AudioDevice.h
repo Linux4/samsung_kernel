@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
@@ -58,6 +58,10 @@
 #include "AudioFactory.h"
 // OFFLOAD
 #include "AudioEffect.h"
+#endif
+
+#ifdef SEC_AUDIO_DSM_AMP
+#include <audio_extn/AudioExtn.h>
 #endif
 
 #define MAX_PERF_LOCK_OPTS 20
@@ -209,13 +213,8 @@ public:
     int GetPalDeviceIds(
             const std::set<audio_devices_t>& hal_device_id,
             pal_device_id_t* pal_device_id);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     int usb_card_id_ = -1;
     int usb_dev_num_ = -1;
-#else
-    int usb_card_id_;
-    int usb_dev_num_;
-#endif
     int dp_controller;
     int dp_stream;
     int num_va_sessions_ = 0;
@@ -223,6 +222,9 @@ public:
     static card_status_t sndCardState;
     std::mutex adev_init_mutex;
     std::mutex adev_perf_mutex;
+#ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
+    std::mutex adev_karaoke_mutex;
+#endif
     uint32_t adev_init_ref_count = 0;
     int32_t perf_lock_acquire_cnt = 0;
     hw_device_t *GetAudioDeviceCommon();
@@ -282,6 +284,11 @@ public:
 #endif
 #ifdef SEC_AUDIO_HIDL
     audio_hw_device_t* GetAudioDeviceInstance();
+#endif
+#ifdef SEC_AUDIO_DSM_AMP
+    AudioSpeakerFeedback feedback;
+    bool use_feedback_stream;
+    std::mutex feedback_mutex;
 #endif
 protected:
     AudioDevice() {}

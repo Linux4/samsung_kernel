@@ -31,6 +31,9 @@
 #include "Speaker.h"
 #include "ResourceManager.h"
 #include "SpeakerProtection.h"
+#ifdef ENABLE_TFA98XX_SUPPORT
+#include "SpeakerProtectionTFA.h"
+#endif
 #include "Device.h"
 #include "kvh2xml.h"
 
@@ -51,7 +54,11 @@ std::shared_ptr<Device> Speaker::getInstance(struct pal_device *device,
             obj = sp;
         }
         else {
+#ifdef ENABLE_TFA98XX_SUPPORT
+            std::shared_ptr<Device> sp(new SpeakerProtectionTFA(device, Rm));
+#else
             std::shared_ptr<Device> sp(new Speaker(device, Rm));
+#endif
             obj = sp;
         }
     }
@@ -186,4 +193,4 @@ int32_t Speaker::setParameter(uint32_t param_id, void *param)
     }
     return 0;
 }
-#endif // { SUPPORT_VOIP_VIA_SMART_VIEW
+#endif // } SUPPORT_VOIP_VIA_SMART_VIEW

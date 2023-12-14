@@ -769,7 +769,7 @@ void qdf_lock_stats_init(void)
 		__qdf_put_lock_cookie(&lock_cookies[i]);
 
 	/* stats must be allocated for the spinlock before the cookie,
-	 * otherwise this qdf_lock_list_spinlock wouldnt get initialized
+	 * otherwise this qdf_lock_list_spinlock wouldn't get initialized
 	 * properly
 	 */
 	qdf_spinlock_create(&qdf_lock_list_spinlock);

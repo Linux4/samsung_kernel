@@ -346,7 +346,7 @@ struct tx_action_context *p2p_find_tx_ctx_by_nbuf(
 #define P2P_80211_FRM_SA_OFFSET 10
 
 /**
- * p2p_del_random_mac() - del mac fitler from given vdev rand mac list
+ * p2p_del_random_mac() - del mac filter from given vdev rand mac list
  * @soc: soc object
  * @vdev_id: vdev id
  * @rnd_cookie: random mac mgmt tx cookie

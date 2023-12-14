@@ -144,11 +144,12 @@
             <modepair key="0x121C6000" value="0xB3000001"/>
         </mode_map>
     </config_voice>
-    <low_power_vote_streams>
-        <stream_type>PAL_STREAM_VOICE_UI</stream_type>
-        <stream_type>PAL_STREAM_ACD</stream_type>
-        <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
-    </low_power_vote_streams>
+    <sleep_monitor_vote_streams>
+        <low_power_stream_type>PAL_STREAM_VOICE_UI</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_ACD</low_power_stream_type>
+        <low_power_stream_type>PAL_STREAM_ULTRASOUND</low_power_stream_type>
+        <avoid_vote_stream_type>PAL_STREAM_CONTEXT_PROXY</avoid_vote_stream_type>
+    </sleep_monitor_vote_streams>
     <device_profile>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_MIC</id>

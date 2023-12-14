@@ -29,7 +29,7 @@
 /**
  * wlan_send_wfatest_cmd() - Send WFA test command to firmware
  * @vdev: VDEV pointer
- * @wmi_wfatest:  wfa test commad pointer
+ * @wmi_wfatest:  wfa test command pointer
  *
  * Return: QDF_STATUS
  */
