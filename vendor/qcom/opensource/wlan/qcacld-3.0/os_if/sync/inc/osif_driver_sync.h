@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -21,7 +22,7 @@
 
 #include "qdf_types.h"
 
-/**
+/*
  * struct osif_driver_sync - opaque synchronization handle for a driver
  */
 struct osif_driver_sync;
@@ -106,7 +107,7 @@ __osif_driver_sync_trans_start_wait(struct osif_driver_sync **out_driver_sync,
 /**
  * osif_driver_sync_trans_stop() - stop a transition associated with
  *	@driver_sync
- * @driver_sync: the synchonization context tracking the transition
+ * @driver_sync: the synchronization context tracking the transition
  *
  * Return: none
  */
@@ -136,7 +137,7 @@ __osif_driver_sync_op_start(struct osif_driver_sync **out_driver_sync,
 
 /**
  * osif_driver_sync_op_stop() - stop an operation associated with @driver_sync
- * @driver_sync: the synchonization context tracking the operation
+ * @driver_sync: the synchronization context tracking the operation
  *
  * Return: none
  */
@@ -149,7 +150,7 @@ void __osif_driver_sync_op_stop(struct osif_driver_sync *driver_sync,
 /**
  * osif_driver_sync_wait_for_ops() - wait until all @driver_sync operations
  *	complete
- * @driver_sync: the synchonization context tracking the operations
+ * @driver_sync: the synchronization context tracking the operations
  *
  * Return: None
  */

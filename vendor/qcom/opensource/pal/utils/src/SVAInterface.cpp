@@ -306,10 +306,6 @@ int32_t SVAInterface::ParseRecognitionConfig(Stream *s,
             }
         }
     } else {
-        // get history buffer duration from sound trigger platform xml
-        hist_buffer_duration = sm_cfg_->GetKwDuration();
-        pre_roll_duration = 0;
-
         if (sm_cfg_->isQCVAUUID()) {
             status = FillConfLevels(sm_info, config, &conf_levels, &num_conf_levels);
             if (status) {
@@ -317,6 +313,13 @@ int32_t SVAInterface::ParseRecognitionConfig(Stream *s,
                 goto error_exit;
             }
         }
+    }
+
+    if (!hist_buffer_duration) {
+        hist_buffer_duration = sm_cfg_->GetKwDuration();
+        sm_info_map_[s]->is_hist_buffer_duration_set = false;
+    } else {
+        sm_info_map_[s]->is_hist_buffer_duration_set = true;
     }
 
     sm_info_map_[s]->hist_buffer_duration = hist_buffer_duration;
@@ -635,6 +638,11 @@ int32_t SVAInterface::GenerateCallbackEvent(Stream *s,
         opaque_data += sizeof(struct st_param_header);
         kw_indices = (struct st_keyword_indices_info *)opaque_data;
         kw_indices->version = 0x1;
+        if (sm_info->rec_config &&
+            sm_info->rec_config->capture_requested &&
+            !sm_info->is_hist_buffer_duration_set) {
+            read_offset_ = end_index_;
+        }
 
         kw_indices->start_index = start_index_;
         kw_indices->end_index = end_index_;

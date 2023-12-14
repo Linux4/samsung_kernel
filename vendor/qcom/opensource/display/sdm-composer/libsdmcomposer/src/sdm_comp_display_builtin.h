@@ -27,6 +27,12 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
 #ifndef __SDM_COMP_DISPLAY_BUILTIN_H__
 #define __SDM_COMP_DISPLAY_BUILTIN_H__
 
@@ -95,6 +101,7 @@ class SDMCompDisplayBuiltIn : public DisplayEventHandler {
   float min_panel_brightness_ = 0.0f;
   bool validated_ = false;
   std::vector<Layer *> layer_set_ = {};
+  BufferHandle cached_buf_handle_;
 };
 
 }  // namespace sdm

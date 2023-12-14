@@ -301,6 +301,8 @@ struct max77705_fuelgauge_data {
 #endif
 	struct lost_soc_data lost_soc;
 	char d_buf[128];
+	int vfocv;
+	int raw_soc;
 };
 
 #endif /* __MAX77705_FUELGAUGE_H */

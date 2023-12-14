@@ -1,4 +1,5 @@
 # Copyright (c) 2012-2015, 2017, 2020 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -46,7 +47,7 @@ class IrqParse(RamParser):
         irq_desc_entry_size = ram_dump.sizeof('irq_desc[0]')
         cpu_str = ''
 
-        for i in range(0, cpus):
+        for i in ram_dump.iter_cpus():
             cpu_str = cpu_str + '{0:10} '.format('CPU{0}'.format(i))
 
         print_out_str('{0:4} {1:12} {2:10} {3} {4:30} {5:10}'
@@ -67,7 +68,7 @@ class IrqParse(RamParser):
                 irq_desc + i + kstat_irqs_offset)
             irq_stats_str = ''
 
-            for j in range(0, cpus):
+            for j in ram_dump.iter_cpus():
                 if per_cpu_offset_addr is None:
                     offset = 0
                 else:

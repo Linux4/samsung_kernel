@@ -200,6 +200,7 @@ struct ce_bam_info {
 	unsigned long			bam_handle;
 	int				ce_burst_size;
 	uint32_t			minor_version;
+	uint32_t			major_version;
 	struct qce_sps_ep_conn_data	producer[QCE_OFFLOAD_OPER_LAST];
 	struct qce_sps_ep_conn_data	consumer[QCE_OFFLOAD_OPER_LAST];
 };

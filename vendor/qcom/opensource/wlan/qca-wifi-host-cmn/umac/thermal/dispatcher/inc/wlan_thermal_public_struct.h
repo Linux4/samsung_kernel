@@ -1,4 +1,5 @@
 /* Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,8 +22,8 @@
 
 /**
  * enum thermal_throttle_level - firmware offload throttle level
- * @THERMAL_FULLPERF: no any throtting
- * @THERMAL_MITIGATION: throtting tx to do mitigation
+ * @THERMAL_FULLPERF: no any throttling
+ * @THERMAL_MITIGATION: throttling tx to do mitigation
  * @THERMAL_SHUTOFF: shut off the tx completely
  * @THERMAL_SHUTDOWN_TARGET: target will be shutdown entirely
  * @THERMAL_UNKNOWN: unknown level from target.

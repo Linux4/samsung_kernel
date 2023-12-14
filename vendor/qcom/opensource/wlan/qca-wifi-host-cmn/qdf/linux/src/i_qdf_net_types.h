@@ -47,6 +47,21 @@ static inline char *__qdf_netdev_get_devname(qdf_netdev_t dev)
 	return dev->name;
 }
 
+static inline
+__sum16 __qdf_csum_tcpudp_magic(uint32_t ip_saddr, uint32_t ip_daddr,
+				uint16_t adj_ip_len, uint8_t ip_proto,
+				uint32_t sum)
+{
+	return csum_tcpudp_magic(ip_saddr, ip_daddr,
+				 adj_ip_len, ip_proto, sum);
+}
+
+static inline
+uint16_t __qdf_ip_fast_csum(void *ip_hdr, uint8_t ip_hl)
+{
+	return ip_fast_csum((struct iphdr *)ip_hdr, ip_hl);
+}
+
 #define __QDF_TCPHDR_FIN TCPHDR_FIN
 #define __QDF_TCPHDR_SYN TCPHDR_SYN
 #define __QDF_TCPHDR_RST TCPHDR_RST

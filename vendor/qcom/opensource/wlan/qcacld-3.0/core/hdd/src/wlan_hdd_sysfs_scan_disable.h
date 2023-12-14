@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -41,6 +42,7 @@ int hdd_sysfs_scan_disable_create(struct kobject *driver_kobject);
 
 /**
  * hdd_sysfs_scan_disable_destroy() - API to destroy scan_disable
+ * @driver_kobject: sysfs driver kobject
  *
  * Return: none
  */

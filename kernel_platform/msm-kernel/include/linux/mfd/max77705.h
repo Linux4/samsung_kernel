@@ -40,9 +40,13 @@ struct max77705_vibrator_pdata {
 	const char *motor_type;
 
 	int freq;
+	int fold_open_freq;
+	int fold_close_freq;
 	/* for multi-frequency */
 	int freq_nums;
 	u32 *freq_array;
+	u32 *fold_open_freq_array;
+	u32 *fold_close_freq_array;
 	u32 *ratio_array; /* not used now */
 	int normal_ratio;
 	int overdrive_ratio;

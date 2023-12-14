@@ -452,7 +452,7 @@ QDF_STATUS wlan_crypto_set_peer_wep_keys(struct wlan_objmgr_vdev *vdev,
  * wlan_crypto_register_crypto_rx_ops - set crypto_rx_ops
  * @crypto_rx_ops: crypto_rx_ops
  *
- * This function gets called by object manger to register crypto rx ops.
+ * This function gets called by object manager to register crypto rx ops.
  *
  * Return: QDF_STATUS
  */
@@ -1073,7 +1073,7 @@ wlan_crypto_selective_clear_sae_single_pmk_entries(
 		struct wlan_objmgr_vdev *vdev, struct qdf_mac_addr *conn_bssid);
 
 /**
- * wlan_crypto_set_sae_single_pmk_bss_cap - Set the peer SAE sinlge pmk
+ * wlan_crypto_set_sae_single_pmk_bss_cap - Set the peer SAE single pmk
  * feature supported status
  * @vdev: Vdev
  * @bssid: BSSID for which the flag is to be set
@@ -1085,7 +1085,7 @@ void wlan_crypto_set_sae_single_pmk_bss_cap(struct wlan_objmgr_vdev *vdev,
 					    bool single_pmk_capable_bss);
 
 /**
- * wlan_crypto_set_sae_single_pmk_bss_cap - Set the peer SAE sinlge pmk info
+ * wlan_crypto_set_sae_single_pmk_bss_cap - Set the peer SAE single pmk info
  * @vdev: Vdev
  * @roam_sync_pmksa: pmk info for roamed AP
  */

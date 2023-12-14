@@ -264,12 +264,14 @@ struct gsihal_reg_ev_ch_k_cntxt_9 {
 	uint32_t intvec;
 };
 
-struct gsihal_reg_ev_ch_k_cntxt_10 {
+union gsihal_reg_ev_ch_k_cntxt_10 {
 	uint32_t msi_addr_lsb;
+	uint32_t rp_addr_lsb;
 };
 
-struct gsihal_reg_ev_ch_k_cntxt_11 {
+union gsihal_reg_ev_ch_k_cntxt_11 {
 	uint32_t msi_addr_msb;
+	uint32_t rp_addr_msb;
 };
 
 struct gsihal_reg_ev_ch_k_cntxt_12 {

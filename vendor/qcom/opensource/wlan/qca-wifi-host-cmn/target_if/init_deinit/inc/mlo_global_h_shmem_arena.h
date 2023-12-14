@@ -62,16 +62,16 @@ struct wlan_host_mlo_glb_rx_reo_per_link_info {
  * @num_links: Number of valid links
  * @valid_link_bmap: Valid link bitmap
  * @link_info: pointer to an array of Rx REO per-link information
- * @hw_forwaded_snapshot_ver: HW forwaded snapshot version
- * @fw_forwaded_snapshot_ver: FW forwaded snapshot version
+ * @hw_forwarded_snapshot_ver: HW forwarded snapshot version
+ * @fw_forwarded_snapshot_ver: FW forwarded snapshot version
  * @fw_consumed_snapshot_ver: FW consumed snapshot version
  */
 struct wlan_host_mlo_glb_rx_reo_snapshot_info {
 	uint8_t num_links;
 	uint16_t valid_link_bmap;
 	struct wlan_host_mlo_glb_rx_reo_per_link_info *link_info;
-	uint8_t hw_forwaded_snapshot_ver;
-	uint8_t fw_forwaded_snapshot_ver;
+	uint8_t hw_forwarded_snapshot_ver;
+	uint8_t fw_forwarded_snapshot_ver;
 	uint8_t fw_consumed_snapshot_ver;
 };
 
@@ -140,7 +140,7 @@ QDF_STATUS mlo_glb_h_shmem_arena_ctx_deinit(void);
  * mlo_glb_h_shmem_arena_get_crash_reason_address(): get the address of crash
  * reason associated with chip_id
  *
- * Return: Address of crash_reason field fron global shmem arena in case of
+ * Return: Address of crash_reason field from global shmem arena in case of
  * success, else returns NULL
  */
 void *mlo_glb_h_shmem_arena_get_crash_reason_address(uint8_t chip_id);

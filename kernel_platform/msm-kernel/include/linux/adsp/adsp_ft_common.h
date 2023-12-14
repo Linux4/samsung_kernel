@@ -182,6 +182,9 @@ enum {
 	OPTION_TYPE_SSC_AUTO_ROTATION_MODE,  // for auto rotation
 	OPTION_TYPE_SSC_SBM_INIT,            // for sar backoff motion
 	OPTION_TYPE_SSC_WAKEUP_REASON,       // for commoninfo
+	OPTION_TYPE_SSC_RECOVERY,            // for commoninfo
+	OPTION_TYPE_SSC_POCKET_INJECT,       // for pocket mode
+	OPTION_TYPE_SSC_SSR_DUMP,            // for commoninfo
 	OPTION_TYPE_SSC_MAX
 };
 

@@ -296,7 +296,14 @@ public class VolumeControlService extends ProfileService {
     /**
      * {@hide}
      */
-    public void setVolumeGroup(int groupId, int volume) {
+    public void setGroupVolume(int groupId, int volume) {
+    }
+
+    /**
+     * {@hide}
+     */
+    public int getGroupVolume(int groupId) {
+        return IBluetoothVolumeControl.VOLUME_CONTROL_UNKNOWN_VOLUME;
     }
 
     /**
@@ -333,8 +340,8 @@ public class VolumeControlService extends ProfileService {
 
         @RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
         private VolumeControlService getService(AttributionSource source) {
-            if (!Utils.checkCallerIsSystemOrActiveUser(TAG)
-                    || !Utils.checkServiceAvailable(mService, TAG)
+            if (!Utils.checkServiceAvailable(mService, TAG)
+                    || !Utils.checkCallerIsSystemOrActiveOrManagedUser(mService, TAG)
                     || !Utils.checkConnectPermissionForDataDelivery(mService, source, TAG)) {
                 return null;
             }
@@ -520,7 +527,7 @@ public class VolumeControlService extends ProfileService {
         }
 
         @Override
-        public void setVolumeGroup(int groupId, int volume, AttributionSource source,
+        public void setGroupVolume(int groupId, int volume, AttributionSource source,
                 SynchronousResultReceiver receiver) {
             try {
                 Objects.requireNonNull(source, "source cannot be null");
@@ -528,9 +535,27 @@ public class VolumeControlService extends ProfileService {
 
                 VolumeControlService service = getService(source);
                 if (service != null) {
-                    service.setVolumeGroup(groupId, volume);
+                    service.setGroupVolume(groupId, volume);
                 }
                 receiver.send(null);
+            } catch (RuntimeException e) {
+                receiver.propagateException(e);
+            }
+        }
+
+        @Override
+        public void getGroupVolume(int groupId, AttributionSource source,
+                SynchronousResultReceiver receiver) {
+            try {
+                Objects.requireNonNull(source, "source cannot be null");
+                Objects.requireNonNull(receiver, "receiver cannot be null");
+
+                int groupVolume = 0;
+                VolumeControlService service = getService(source);
+                if (service != null) {
+                    groupVolume = service.getGroupVolume(groupId);
+                }
+                receiver.send(groupVolume);
             } catch (RuntimeException e) {
                 receiver.propagateException(e);
             }

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,9 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifdef IPA_OFFLOAD
-
 #include <wlan_ipa_ucfg_api.h>
+#include <wlan_ipa_core.h>
 #include <qdf_ipa_wdi3.h>
 #include <qdf_types.h>
 #include <qdf_lock.h>
@@ -41,6 +40,8 @@
 #include "dp_txrx_wds.h"
 #endif
 
+#ifdef IPA_OFFLOAD
+
 /* Hard coded config parameters until dp_ops_cfg.cfg_attach implemented */
 #define CFG_IPA_UC_TX_BUF_SIZE_DEFAULT            (2048)
 
@@ -52,8 +53,10 @@
  * this issue.
  */
 #define DP_IPA_WAR_WBM2SW_REL_RING_NO_BUF_ENTRIES 16
+
 /**
  *struct dp_ipa_reo_remap_record - history for dp ipa reo remaps
+ * @timestamp: Timestamp when remap occurs
  * @ix0_reg: reo destination ring IX0 value
  * @ix2_reg: reo destination ring IX2 value
  * @ix3_reg: reo destination ring IX3 value
@@ -484,7 +487,7 @@ static void dp_ipa_tx_alt_pool_detach(struct dp_soc *soc, struct dp_pdev *pdev)
 	soc->ipa_uc_tx_rsc_alt.tx_buf_pool_vaddr_unaligned = NULL;
 
 	ipa_res = &pdev->ipa_resource;
-	if (!ipa_res->is_db_ddr_mapped)
+	if (!ipa_res->is_db_ddr_mapped && ipa_res->tx_alt_comp_doorbell_vaddr)
 		iounmap(ipa_res->tx_alt_comp_doorbell_vaddr);
 
 	qdf_mem_free_sgtable(&ipa_res->tx_alt_ring.sgtable);
@@ -949,6 +952,9 @@ static void dp_ipa_tx_comp_ring_init_hp(struct dp_soc *soc,
 			     res->tx_comp_doorbell_vaddr);
 
 	/* Init the alternate TX comp ring */
+	if (!res->tx_alt_comp_doorbell_paddr)
+		return;
+
 	wbm_srng = (struct hal_srng *)
 		soc->tx_comp_ring[IPA_TX_ALT_COMP_RING_IDX].hal_srng;
 
@@ -972,6 +978,9 @@ static void dp_ipa_set_tx_doorbell_paddr(struct dp_soc *soc,
 		(void *)ipa_res->tx_comp_doorbell_vaddr);
 
 	/* Setup for alternative TX comp ring */
+	if (!ipa_res->tx_alt_comp_doorbell_paddr)
+		return;
+
 	wbm_srng = (struct hal_srng *)
 			soc->tx_comp_ring[IPA_TX_ALT_COMP_RING_IDX].hal_srng;
 
@@ -1291,7 +1300,7 @@ int dp_ipa_uc_detach(struct dp_soc *soc, struct dp_pdev *pdev)
  * @pdev: Physical device handle
  *
  * Allocate TX buffer from non-cacheable memory
- * Attache allocated TX buffers with WBM SRNG
+ * Attach allocated TX buffers with WBM SRNG
  *
  * Return: int
  */
@@ -1687,6 +1696,7 @@ int dp_ipa_ring_resource_setup(struct dp_soc *soc,
 	ix0_map[6] = REO_REMAP_FW;
 	ix0_map[7] = REO_REMAP_FW;
 
+	dp_ipa_opt_dp_ixo_remap(ix0_map);
 	ix0 = hal_gen_reo_remap_val(soc->hal_soc, HAL_REO_REMAP_REG_IX0,
 				    ix0_map);
 
@@ -2847,6 +2857,12 @@ QDF_STATUS dp_ipa_setup_iface(char *ifname, uint8_t *mac_addr,
 
 	qdf_mem_zero(&in, sizeof(qdf_ipa_wdi_reg_intf_in_params_t));
 
+	/* Need to reset the values to 0 as all the fields are not
+	 * updated in the Header, Unused fields will be set to 0.
+	 */
+	qdf_mem_zero(&uc_tx_vlan_hdr, sizeof(struct dp_ipa_uc_tx_vlan_hdr));
+	qdf_mem_zero(&uc_tx_vlan_hdr_v6, sizeof(struct dp_ipa_uc_tx_vlan_hdr));
+
 	dp_debug("Add Partial hdr: %s, "QDF_MAC_ADDR_FMT, ifname,
 		 QDF_MAC_ADDR_REF(mac_addr));
 	qdf_mem_zero(&hdr_info, sizeof(qdf_ipa_wdi_hdr_info_t));
@@ -2919,7 +2935,7 @@ QDF_STATUS dp_ipa_setup_iface(char *ifname, uint8_t *mac_addr,
 	ret = qdf_ipa_wdi_reg_intf(&in);
 	if (ret) {
 		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_ERROR,
-			  "%s: ipa_wdi_reg_intf: register IPA interface falied: ret=%d",
+			  "%s: ipa_wdi_reg_intf: register IPA interface failed: ret=%d",
 			  __func__, ret);
 		return QDF_STATUS_E_FAILURE;
 	}
@@ -3176,7 +3192,7 @@ QDF_STATUS dp_ipa_setup_iface(char *ifname, uint8_t *mac_addr,
 
 	ret = qdf_ipa_wdi_reg_intf(&in);
 	if (ret) {
-		dp_err("ipa_wdi_reg_intf: register IPA interface falied: ret=%d",
+		dp_err("ipa_wdi_reg_intf: register IPA interface failed: ret=%d",
 		       ret);
 		return QDF_STATUS_E_FAILURE;
 	}
@@ -3413,6 +3429,83 @@ static qdf_nbuf_t dp_ipa_intrabss_send(struct dp_pdev *pdev,
 	return NULL;
 }
 
+#ifdef IPA_OPT_WIFI_DP
+/**
+ * dp_ipa_rx_super_rule_setup()- pass cce super rule params to fw from ipa
+ *
+ * @soc_hdl: cdp soc
+ * @flt_params: filter tuple
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS dp_ipa_rx_super_rule_setup(struct cdp_soc_t *soc_hdl,
+				      void *flt_params)
+{
+	struct dp_soc *soc = cdp_soc_t_to_dp_soc(soc_hdl);
+
+	return htt_h2t_rx_cce_super_rule_setup(soc->htt_handle, flt_params);
+}
+
+/**
+ * dp_ipa_wdi_opt_dpath_notify_flt_add_rem_cb()- send cce super rule filter
+ * add/remove result to ipa
+ *
+ * @flt0_rslt : result for filter0 add/remove
+ * @flt1_rslt : result for filter1 add/remove
+ *
+ * Return: void
+ */
+void dp_ipa_wdi_opt_dpath_notify_flt_add_rem_cb(int flt0_rslt, int flt1_rslt)
+{
+	wlan_ipa_wdi_opt_dpath_notify_flt_add_rem_cb(flt0_rslt, flt1_rslt);
+}
+
+int dp_ipa_pcie_link_up(struct cdp_soc_t *soc_hdl)
+{
+	struct dp_soc *soc = cdp_soc_t_to_dp_soc(soc_hdl);
+	struct hal_soc *hal_soc = (struct hal_soc *)soc->hal_soc;
+	int response = 0;
+
+	response = hif_prevent_l1((hal_soc->hif_handle));
+	return response;
+}
+
+void dp_ipa_pcie_link_down(struct cdp_soc_t *soc_hdl)
+{
+	struct dp_soc *soc = cdp_soc_t_to_dp_soc(soc_hdl);
+	struct hal_soc *hal_soc = (struct hal_soc *)soc->hal_soc;
+
+	hif_allow_l1(hal_soc->hif_handle);
+}
+
+/**
+ * dp_ipa_wdi_opt_dpath_notify_flt_rlsd()- send cce super rule release
+ * notification to ipa
+ *
+ * @flt0_rslt : result for filter0 release
+ * @flt1_rslt : result for filter1 release
+ *
+ *Return: void
+ */
+void dp_ipa_wdi_opt_dpath_notify_flt_rlsd(int flt0_rslt, int flt1_rslt)
+{
+	wlan_ipa_wdi_opt_dpath_notify_flt_rlsd(flt0_rslt, flt1_rslt);
+}
+
+/**
+ * dp_ipa_wdi_opt_dpath_notify_flt_rsvd()- send cce super rule reserve
+ * notification to ipa
+ *
+ *@is_success : result of filter reservatiom
+ *
+ *Return: void
+ */
+void dp_ipa_wdi_opt_dpath_notify_flt_rsvd(bool is_success)
+{
+	wlan_ipa_wdi_opt_dpath_notify_flt_rsvd(is_success);
+}
+#endif
+
 #ifdef IPA_WDS_EASYMESH_FEATURE
 /**
  * dp_ipa_peer_check() - Check for peer for given mac
@@ -3438,7 +3531,7 @@ static inline bool dp_ipa_peer_check(struct dp_soc *soc,
 	}
 
 	peer = dp_peer_get_ref_by_id(soc, ast_entry->peer_id,
-				     DP_MOD_ID_AST);
+				     DP_MOD_ID_IPA);
 
 	if (!peer) {
 		qdf_spin_unlock_bh(&soc->ast_lock);

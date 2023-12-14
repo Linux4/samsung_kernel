@@ -914,7 +914,7 @@ static void infra_cp_stats_reset_cb(struct infra_cp_stats_event *ev,
 }
 
 /**
- * @wlan_cfg80211_mc_twt_clear_infra_cp_stats() - send clear twt statistics
+ * wlan_cfg80211_mc_twt_clear_infra_cp_stats() - send clear twt statistics
  * request to firmware
  * @vdev: vdev id
  * @dialog_id: dialog id of the twt session.

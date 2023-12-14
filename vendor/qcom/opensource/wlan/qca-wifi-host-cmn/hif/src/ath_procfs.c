@@ -35,6 +35,14 @@
 #include "pld_common.h"
 #include "target_type.h"
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0))
+/*
+ * Commit 359745d78351 ("proc: remove PDE_DATA() completely")
+ * Replaced PDE_DATA() with pde_data()
+ */
+#define pde_data(inode) PDE_DATA(inode)
+#endif
+
 #define PROCFS_NAME             "athdiagpfs"
 #ifdef MULTI_IF_NAME
 #define PROCFS_DIR              "cld" MULTI_IF_NAME
@@ -72,7 +80,7 @@ static void *get_hif_hdl_from_file(struct file *file)
 {
 	struct hif_opaque_softc *scn;
 
-	scn = (struct hif_opaque_softc *)PDE_DATA(file_inode(file));
+	scn = (struct hif_opaque_softc *)pde_data(file_inode(file));
 	return (void *)scn;
 }
 
@@ -109,6 +117,7 @@ static ssize_t ath_procfs_diag_read_legacy(struct file *file,
 	     (tgt_info->target_type == TARGET_TYPE_QCN9000) ||
 	     (tgt_info->target_type == TARGET_TYPE_QCN9224) ||
 	     (tgt_info->target_type == TARGET_TYPE_QCN6122) ||
+	     (tgt_info->target_type == TARGET_TYPE_QCN9160) ||
 	     (tgt_info->target_type == TARGET_TYPE_QCA5018) ||
 	     (tgt_info->target_type == TARGET_TYPE_QCA5332) ||
 	     (tgt_info->target_type == TARGET_TYPE_QCA6018) ||
@@ -193,6 +202,7 @@ static ssize_t ath_procfs_diag_write_legacy(struct file *file,
 	      (tgt_info->target_type == TARGET_TYPE_QCN9000) ||
 	      (tgt_info->target_type == TARGET_TYPE_QCN9224) ||
 	      (tgt_info->target_type == TARGET_TYPE_QCN6122) ||
+	      (tgt_info->target_type == TARGET_TYPE_QCN9160) ||
 	      (tgt_info->target_type == TARGET_TYPE_QCA5018) ||
 	      (tgt_info->target_type == TARGET_TYPE_QCA5332) ||
 	      (tgt_info->target_type == TARGET_TYPE_QCA6018) ||

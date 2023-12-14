@@ -1,4 +1,5 @@
 # Copyright (c) 2012, 2014-2018, 2020-2021 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -212,6 +213,7 @@ class QDSSDump():
 
     def __init__(self):
         self.tmc_etr_start = None
+        self.tmc_etr1_start= None
         self.etf_start = None
         self.tmc_etf_start = None
         self.etm_regs0 = None
@@ -263,6 +265,19 @@ class QDSSDump():
             offset, name = b
             tmc_etf_out.write('{0} ({1}): {2:x}\n'.format(
                 a, name, ram_dump.read_u32(self.tmc_etr_start + offset, False)))
+        tmc_etf_out.close()
+
+        if self.tmc_etr1_start is None:
+            print_out_str(
+                "!!! TMC-ETR1 address has not been set! I can't continue!")
+            return
+
+        print_out_str('Now printing TMC-ETR1 registers to file')
+        tmc_etf_out = ram_dump.open_file('tmc_etr1.txt')
+        for a, b in tmc_registers.items():
+            offset, name = b
+            tmc_etf_out.write('{0} ({1}): {2:x}\n'.format(
+                a, name, ram_dump.read_u32(self.tmc_etr1_start + offset, False)))
         tmc_etf_out.close()
 
     def print_etm_registers(self, ram_dump, base, fname):
@@ -454,43 +469,52 @@ class QDSSDump():
         return False
 
     def save_etr_bin(self, ram_dump):
-        tmc_etr = ram_dump.open_file('tmc-etr.bin', mode='wb')
         if self.tmc_etr_start is None:
             print_out_str('!!! ETR was not enabled!')
-            tmc_etr.close()
             return
+        tmc_etr = ram_dump.open_file('tmc-etr.bin', mode='wb')
+        self.do_save_etr_bin(ram_dump, tmc_etr, self.tmc_etr_start)
+        tmc_etr.close()
 
+        if self.tmc_etr1_start is None:
+            print_out_str('!!! ETR1 was not enabled!')
+            return
+        tmc_etr1 = ram_dump.open_file('tmc-etr1.bin', mode='wb')
+        self.do_save_etr_bin(ram_dump, tmc_etr1, self.tmc_etr1_start)
+        tmc_etr1.close()
+
+    def do_save_etr_bin(self, ram_dump, tmc_etr, tmc_etr_start):
         ctl_offset, ctl_desc = tmc_registers['CTL']
         mode_offset, mode_desc = tmc_registers['MODE']
 
-        ctl = ram_dump.read_u32(self.tmc_etr_start + ctl_offset, False)
-        mode = ram_dump.read_u32(self.tmc_etr_start + mode_offset, False)
+        ctl = ram_dump.read_u32(tmc_etr_start + ctl_offset, False)
+        mode = ram_dump.read_u32(tmc_etr_start + mode_offset, False)
 
         if (ctl & 0x1) == 1 and (mode == 0):
             sts_offset, sts_desc = tmc_registers['STS']
-            sts = ram_dump.read_u32(self.tmc_etr_start + sts_offset, False)
+            sts = ram_dump.read_u32(tmc_etr_start + sts_offset, False)
 
             dbalo_offset, dbalo_desc = tmc_registers['DBALO']
             dbalo = ram_dump.read_u32(
-                self.tmc_etr_start + dbalo_offset, False)
+                tmc_etr_start + dbalo_offset, False)
             dbahi_offset, dbahi_desc = tmc_registers['DBAHI']
             dbahi = ram_dump.read_u32(
-                self.tmc_etr_start + dbahi_offset, False)
+                tmc_etr_start + dbahi_offset, False)
             dbaddr = (dbahi << 32) + dbalo
 
             rsz_offset, rsz_desc = tmc_registers['RSZ']
-            rsz = ram_dump.read_u32(self.tmc_etr_start + rsz_offset, False)
+            rsz = ram_dump.read_u32(tmc_etr_start + rsz_offset, False)
             # rsz is given in words so convert to bytes
             rsz = 4 * rsz
 
             rwp_offset, rwp_desc = tmc_registers['RWP']
-            rwp = ram_dump.read_u32(self.tmc_etr_start + rwp_offset, False)
+            rwp = ram_dump.read_u32(tmc_etr_start + rwp_offset, False)
             rwphi_offset, rwphi_desc = tmc_registers['RWPHI']
-            rwphi = ram_dump.read_u32(self.tmc_etr_start + rwphi_offset, False)
+            rwphi = ram_dump.read_u32(tmc_etr_start + rwphi_offset, False)
             rwpval = (rwphi << 32) + rwp
 
             axictl_offset, axictl_desc = tmc_registers["AXICTL"]
-            axictl = ram_dump.read_u32(self.tmc_etr_start + axictl_offset, False)
+            axictl = ram_dump.read_u32(tmc_etr_start + axictl_offset, False)
 
             if ((axictl >> 7) & 0x1) == 1:
                 print_out_str('Scatter gather memory type was selected for TMC ETR')
@@ -508,8 +532,6 @@ class QDSSDump():
                         tmc_etr.write(ram_dump.read_physical(it[0], len(it)))
         else:
             print_out_str ('!!! ETR was not the current sink!')
-
-        tmc_etr.close()
 
     def print_dbgui_registers(self, ram_dump):
         if self.dbgui_start is None:

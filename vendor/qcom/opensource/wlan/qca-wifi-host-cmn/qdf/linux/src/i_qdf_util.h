@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -268,6 +268,7 @@ static inline bool __qdf_is_macaddr_equal(struct qdf_mac_addr *mac_addr1,
 
 #define __qdf_roundup(x, y) roundup(x, y)
 #define __qdf_ceil(x, y) DIV_ROUND_UP(x, y)
+#define __qdf_abs(x) abs(x)
 
 #if LINUX_VERSION_CODE  < KERNEL_VERSION(4, 3, 0)
 #define  __qdf_ewma_tx_lag_init(tx_lag)

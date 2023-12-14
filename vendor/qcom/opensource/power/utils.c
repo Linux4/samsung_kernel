@@ -56,6 +56,7 @@ static int (*perf_lock_acq)(int handle, int duration,
     int list[], int numArgs);
 static int (*perf_lock_rel)(int handle);
 static int (*perf_hint)(int, const char *, int, int);
+static PropVal (*perf_get_prop)(const char *prop , const char *def_val);
 static struct list_node active_hint_list_head;
 const char *pkg = "QTI PowerHAL";
 
@@ -101,6 +102,11 @@ static void __attribute__ ((constructor)) initialize(void)
 
         if (!perf_hint) {
             ALOGE("Unable to get perf_hint function handle.\n");
+        }
+
+        perf_get_prop = dlsym(qcopt_handle, "perf_get_prop");
+        if (!perf_get_prop) {
+            ALOGE("Unable to get perf_get_prop function handle.\n");
         }
     }
 }
@@ -208,6 +214,16 @@ int is_interactive_governor(char* governor) {
    if (strncmp(governor, INTERACTIVE_GOVERNOR, (strlen(INTERACTIVE_GOVERNOR)+1)) == 0)
       return 1;
    return 0;
+}
+
+PropVal perf_get_property(const char *prop , const char *def_val) {
+    PropVal retVal;
+    if (qcopt_handle && perf_get_prop) {
+        retVal = perf_get_prop(prop, def_val);
+    } else {
+        strlcpy(retVal.value, def_val, PROPERTY_VALUE_MAX);
+    }
+    return retVal;
 }
 
 void interaction(int duration, int num_args, int opt_list[])

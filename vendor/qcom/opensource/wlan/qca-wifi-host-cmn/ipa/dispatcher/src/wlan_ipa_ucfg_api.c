@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -25,6 +25,7 @@
 #include "cfg_ucfg_api.h"
 #include "qdf_module.h"
 
+#ifdef IPA_OFFLOAD
 void ucfg_ipa_set_pld_enable(bool flag)
 {
 	ipa_set_pld_enable(flag);
@@ -361,3 +362,4 @@ bool ucfg_ipa_is_wds_enabled(void)
 }
 
 qdf_export_symbol(ucfg_ipa_is_wds_enabled);
+#endif

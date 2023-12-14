@@ -54,8 +54,10 @@ include $(DLKM_DIR)/Build_external_kernelmodule.mk
 
 ################################ cnss2 ################################
 include $(CLEAR_VARS)
+ifeq ($(TARGET_KERNEL_DLKM_SECURE_MSM_OVERRIDE), true)
 LOCAL_REQUIRED_MODULES := sec-module-symvers
 LOCAL_ADDITIONAL_DEPENDENCIES += $(call intermediates-dir-for,DLKM,sec-module-symvers)/Module.symvers
+endif #TARGET_KERNEL_DLKM_SECURE_MSM_OVERRIDE
 LOCAL_SRC_FILES           := $(CNSS_SRC_FILES)
 LOCAL_MODULE              := cnss2.ko
 LOCAL_MODULE_KBUILD_NAME  := cnss2/cnss2.ko

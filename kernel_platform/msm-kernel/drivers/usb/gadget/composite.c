@@ -2448,7 +2448,9 @@ void composite_resume(struct usb_gadget *gadget)
 
 		usb_gadget_vbus_draw(gadget, maxpower);
 	} else {
-		usb_gadget_vbus_draw(gadget, 100);
+		maxpower = CONFIG_USB_GADGET_VBUS_DRAW;
+		maxpower = min(maxpower, 100U);
+		usb_gadget_vbus_draw(gadget, maxpower);
 	}
 
 	cdev->suspended = 0;

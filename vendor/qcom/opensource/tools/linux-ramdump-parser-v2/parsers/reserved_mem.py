@@ -68,7 +68,7 @@ def parse_softirq_stat(ramdump):
     no_of_cpus = ramdump.get_num_cpus()
     index = 0
     size_of_irq_stat = ramdump.sizeof('irq_cpustat_t')
-    while index < no_of_cpus:
+    for index in ramdump.iter_cpus():
         if ramdump.kernel_version >= (4, 19):
             irq_stat = irq_stat_addr + ramdump.per_cpu_offset(index)
         else:
@@ -92,7 +92,6 @@ def parse_softirq_stat(ramdump):
         if "TASKLET" in pending:
             print_tasklet_info(ramdump, index, 'tasklet_vec')
             print_tasklet_info(ramdump, index, 'tasklet_hi_vec')
-        index = index + 1
 
 def check_qseecom_invalid_cmds(ramdump):
     invalid_qsecom_cmds_id = ["3", "5", "7", "9", "14", "15", "16", "17", "19", "23" , "29"]

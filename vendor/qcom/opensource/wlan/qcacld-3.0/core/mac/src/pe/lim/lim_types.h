@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -53,6 +53,18 @@
 
 #define SAE_AUTH_SEQ_NUM_OFFSET       2
 #define SAE_AUTH_STATUS_CODE_OFFSET   4
+#define SAE_AUTH_GROUP_ID_OFFSET      6
+
+#define SAE_GROUP_ID_19                    19
+#define SAE_GROUP_ID_20                    20
+#define SAE_GROUP_ID_21                    21
+
+#define SAE_GROUP_19_FIXED_FIELDS_LEN      96
+#define SAE_GROUP_20_FIXED_FIELDS_LEN      144
+#define SAE_GROUP_21_FIXED_FIELDS_LEN      198
+
+#define WLAN_SAE_STATUS_HASH_TO_ELEMENT    126
+#define WLAN_SAE_STATUS_PK                 127
 
 /* MLM message types */
 enum mlmmsgtype {
@@ -93,7 +105,7 @@ enum mlmmsgtype {
 
 #define LIM_DECRYPT_ICV_FAIL    1
 
-/* / Definitions to distinquish between Association/Reassociaton */
+/* / Definitions to distinguish between Association/Reassociaton */
 #define LIM_ASSOC    0
 #define LIM_REASSOC  1
 
@@ -438,6 +450,16 @@ void lim_cleanup_mlm(struct mac_context *);
 void lim_process_beacon_eht(struct mac_context *mac_ctx,
 			    struct pe_session *session,
 			    tSchBeaconStruct *bcn_ptr);
+
+/**
+ * lim_process_beacon_eht_op() - process beacon 11be eht op IE
+ * @session: pe session
+ * @eht_op: pointer to eht op IE
+ *
+ * Return none
+ */
+void lim_process_beacon_eht_op(struct pe_session *session,
+			       tDot11fIEeht_op *eht_op);
 #else
 static inline
 void lim_process_beacon_eht(struct mac_context *mac_ctx,
@@ -445,9 +467,28 @@ void lim_process_beacon_eht(struct mac_context *mac_ctx,
 			    tSchBeaconStruct *bcn_ptr)
 {
 }
+
+static inline
+void lim_process_beacon_eht_op(struct pe_session *session,
+			       tDot11fIEeht_op *eht_op)
+{
+}
 #endif
 
 #ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * lim_process_bcn_prb_rsp_t2lm() - process beacon/probe response
+ * 11be t2lm IE
+ * @mac_ctx: global mac context
+ * @session: pe session
+ * @bcn_ptr: pointer to tpSirProbeRespBeacon
+ *
+ * Return none
+ */
+void lim_process_bcn_prb_rsp_t2lm(struct mac_context *mac_ctx,
+				  struct pe_session *session,
+				  tpSirProbeRespBeacon bcn_ptr);
+
 /**
  * lim_process_beacon_mlo() - process beacon mlo IE
  * @mac_ctx: global mac context
@@ -459,11 +500,41 @@ void lim_process_beacon_eht(struct mac_context *mac_ctx,
 void lim_process_beacon_mlo(struct mac_context *mac_ctx,
 			    struct pe_session *session,
 			    tSchBeaconStruct *bcn_ptr);
+
+/**
+ * lim_process_ml_reconfig() - to process beacon frames with reconfig IE
+ * @mac_ctx: Pointer to Global MAC structure
+ * @session: A pointer to session
+ * @rx_pkt_info: A pointer to RX packet info structure
+ *
+ * This function will process ml reconfig beacon frames. If reconfig ie
+ * is present for link removal, link reconfig timer will start.
+ *
+ * Return: none
+ */
+void
+lim_process_ml_reconfig(struct mac_context *mac_ctx,
+			struct pe_session *session,
+			uint8_t *rx_pkt_info);
 #else
 static inline
 void lim_process_beacon_mlo(struct mac_context *mac_ctx,
 			    struct pe_session *session,
 			    tSchBeaconStruct *bcn_ptr)
+{
+}
+
+static inline
+void lim_process_bcn_prb_rsp_t2lm(struct mac_context *mac_ctx,
+				  struct pe_session *session,
+				  tpSirProbeRespBeacon bcn_ptr)
+{
+}
+
+static inline void
+lim_process_ml_reconfig(struct mac_context *mac_ctx,
+			struct pe_session *session,
+			uint8_t *rx_pkt_info)
 {
 }
 #endif
@@ -473,6 +544,19 @@ void lim_process_probe_req_frame(struct mac_context *, uint8_t *, struct pe_sess
 void lim_process_probe_rsp_frame(struct mac_context *, uint8_t *, struct pe_session *);
 void lim_process_probe_req_frame_multiple_bss(struct mac_context *, uint8_t *,
 					      struct pe_session *);
+
+/**
+ * lim_process_gen_probe_rsp_frame() - process generate probe rsp frame
+ * @mac_ctx: pointer to global mac context
+ * @session_entry: pointer to pe session
+ * @bcn_probe: pointer to the data frame
+ * @len: the length of data frame
+ *
+ * Return: void
+ */
+void lim_process_gen_probe_rsp_frame(struct mac_context *mac_ctx,
+				     struct pe_session *session_entry,
+				     uint8_t *bcn_probe, uint32_t len);
 
 /* Process Auth frame when we have a session in progress. */
 void lim_process_auth_frame(struct mac_context *, uint8_t *, struct pe_session *);
@@ -726,6 +810,17 @@ static inline void lim_process_rx_scan_handler(struct wlan_objmgr_vdev *vdev,
 void lim_process_set_he_bss_color(struct mac_context *mac_ctx, uint32_t *msg_buf);
 
 /**
+ * lim_reconfig_obss_scan_param() - reconfig the obss scan params
+ *
+ * @mac_ctx: global mac context pointer
+ * @msg_buf: message buffer pointer
+ *
+ * Return: void
+ */
+void lim_reconfig_obss_scan_param(struct mac_context *mac_ctx,
+				  uint32_t *msg_buf);
+
+/**
  * lim_process_obss_color_collision_info() - Process the obss color collision
  *  request.
  * @mac_ctx: global mac context pointer
@@ -752,6 +847,11 @@ void lim_send_obss_color_collision_cfg(struct mac_context *mac_ctx,
 static inline void lim_process_set_he_bss_color(struct mac_context *mac_ctx,
 		uint32_t *msg_buf)
 {}
+
+static inline void lim_reconfig_obss_scan_param(struct mac_context *mac_ctx,
+						uint32_t *msg_buf)
+{
+}
 static inline void lim_process_obss_color_collision_info(struct mac_context *mac_ctx,
 							 uint32_t *msg_buf)
 {}
@@ -1370,6 +1470,34 @@ QDF_STATUS lim_send_delba_action_frame(struct mac_context *mac_ctx,
 				       uint8_t vdev_id,
 				       uint8_t *peer_macaddr, uint8_t tid,
 				       uint8_t reason_code);
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * lim_send_t2lm_action_rsp_frame() - Send T2LM negotiation response to peer
+ * @mac_ctx: mac context
+ * @peer_mac: Peer mac addr
+ * @session: PE session entry
+ * @token: Dialog token
+ * @status_code: T2LM negotiation response status code
+ *
+ * Return: 0 for success, non-zero for failure
+ */
+QDF_STATUS
+lim_send_t2lm_action_rsp_frame(struct mac_context *mac_ctx,
+			       tSirMacAddr peer_mac,
+			       struct pe_session *session,
+			       uint8_t token,
+			       enum wlan_t2lm_resp_frm_type status_code);
+#else
+static inline QDF_STATUS
+lim_send_t2lm_action_rsp_frame(struct mac_context *mac_ctx,
+			       tSirMacAddr peer_mac,
+			       struct pe_session *session, uint8_t token,
+			       enum wlan_t2lm_resp_frm_type status_code)
+{
+	return QDF_STATUS_SUCCESS;
+}
+#endif
 
 /**
  * lim_process_join_failure_timeout() - This function is called to process

@@ -1333,7 +1333,7 @@ static struct clk_rcg2 gcc_sdcc1_apps_clk_src = {
 		.name = "gcc_sdcc1_apps_clk_src",
 		.parent_data = gcc_parent_data_17,
 		.num_parents = ARRAY_SIZE(gcc_parent_data_17),
-		.ops = &clk_rcg2_ops,
+		.ops = &clk_rcg2_floor_ops,
 	},
 	.clkr.vdd_data = {
 		.vdd_classes = gcc_sdxpinn_regulators,
@@ -1366,7 +1366,7 @@ static struct clk_rcg2 gcc_sdcc2_apps_clk_src = {
 		.name = "gcc_sdcc2_apps_clk_src",
 		.parent_data = gcc_parent_data_18,
 		.num_parents = ARRAY_SIZE(gcc_parent_data_18),
-		.ops = &clk_rcg2_ops,
+		.ops = &clk_rcg2_floor_ops,
 	},
 	.clkr.vdd_data = {
 		.vdd_classes = gcc_sdxpinn_regulators,
@@ -1379,7 +1379,7 @@ static struct clk_rcg2 gcc_sdcc2_apps_clk_src = {
 };
 
 static const struct freq_tbl ftbl_gcc_tlmm_125_clk_src[] = {
-	F(125000000, P_GPLL4_OUT_MAIN, 4, 0, 0),
+	F(125000000, P_GPLL4_OUT_MAIN, 1, 1, 4),
 	{ }
 };
 

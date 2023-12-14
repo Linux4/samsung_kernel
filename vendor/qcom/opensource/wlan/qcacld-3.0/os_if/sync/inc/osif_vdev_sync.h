@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -124,7 +125,7 @@ __osif_vdev_sync_trans_start_wait(struct net_device *net_dev,
 
 /**
  * osif_vdev_sync_trans_stop() - stop a transition associated with @vdev_sync
- * @vdev_sync: the synchonization context tracking the transition
+ * @vdev_sync: the synchronization context tracking the transition
  *
  * Return: none
  */
@@ -157,19 +158,19 @@ __osif_vdev_sync_op_start(struct net_device *net_dev,
 
 /**
  * osif_vdev_sync_op_stop() - stop an operation associated with @vdev_sync
- * @vdev_sync: the synchonization context tracking the operation
+ * @vdev_sync: the synchronization context tracking the operation
  *
  * Return: none
  */
-#define osif_vdev_sync_op_stop(net_dev) \
-	__osif_vdev_sync_op_stop(net_dev, __func__)
+#define osif_vdev_sync_op_stop(vdev_sync) \
+	__osif_vdev_sync_op_stop(vdev_sync, __func__)
 
 void __osif_vdev_sync_op_stop(struct osif_vdev_sync *vdev_sync,
 			      const char *func);
 
 /**
  * osif_vdev_sync_wait_for_ops() - wait until all @vdev_sync operations complete
- * @vdev_sync: the synchonization context tracking the operations
+ * @vdev_sync: the synchronization context tracking the operations
  *
  * Return: None
  */

@@ -574,19 +574,6 @@ static void __attach_io_flag(struct f2fs_io_info *fio)
 		fio->op_flags |= REQ_META;
 	if ((1 << fio->temp) & fua_flag)
 		fio->op_flags |= REQ_FUA;
-
-	/*
-	 * P221011-01695
-	 * flush_group: Process group in which file's is very important.
-	 * e.g., system_server, keystore, etc.
-	 */
-	if (fio->type == DATA && !(fio->op_flags & REQ_FUA) &&
-	    in_group_p(F2FS_OPTION(sbi).flush_group)) {
-		struct inode *inode = fio->page->mapping->host;
-
-		if (f2fs_is_atomic_file(inode) && f2fs_is_commit_atomic_write(inode))
-			fio->op_flags |= REQ_FUA;
-	}
 }
 
 static void __submit_merged_bio(struct f2fs_bio_info *io)
@@ -2929,7 +2916,7 @@ out:
 	}
 	unlock_page(page);
 	if (!S_ISDIR(inode->i_mode) && !IS_NOQUOTA(inode) &&
-			!F2FS_I(inode)->cp_task && allow_balance)
+			!F2FS_I(inode)->wb_task && allow_balance)
 		f2fs_balance_fs(sbi, need_balance_fs);
 
 	if (unlikely(f2fs_cp_error(sbi))) {
@@ -3331,7 +3318,7 @@ static inline bool __should_serialize_io(struct inode *inode,
 					struct writeback_control *wbc)
 {
 	/* to avoid deadlock in path of data flush */
-	if (F2FS_I(inode)->cp_task)
+	if (F2FS_I(inode)->wb_task)
 		return false;
 
 	if (!S_ISREG(inode->i_mode))

@@ -81,7 +81,7 @@ cdp_sawf_peer_get_map_conf(ol_txrx_soc_handle soc,
  * cdp_get_peer_sawf_delay_stats() - Call to get SAWF delay stats
  * @soc: soc handle
  * @svc_class_id: service class ID
- * @mac: peer mac addrees
+ * @mac: peer mac address
  * @data: opaque pointer
  *
  * return: status Success/Failure
@@ -108,7 +108,7 @@ cdp_get_peer_sawf_delay_stats(ol_txrx_soc_handle soc, uint32_t svc_id,
  * cdp_get_peer_sawf_tx_stats() - Call to get SAWF Tx stats
  * @soc: soc handle
  * @svc_class_id: service class ID
- * @mac: peer mac addrees
+ * @mac: peer mac address
  * @data: opaque pointer
  *
  * return: status Success/Failure
@@ -312,7 +312,67 @@ cdp_get_drop_stats(ol_txrx_soc_handle soc, void *arg,
 			arg, pass, drop, drop_ttl, tid, msduq);
 }
 
+/**
+ * cdp_sawf_peer_config_ul - Config uplink QoS parameters
+ * @soc: SOC handle
+ * @mac_addr: MAC address
+ * @tid: TID
+ * @service_interval: Service Interval
+ * @burst_size: Burst Size
+ * @add_or_sub: Add or Sub parameters
+ *
+ * Return: QDF_STATUS
+ */
+static inline QDF_STATUS
+cdp_sawf_peer_config_ul(ol_txrx_soc_handle soc, uint8_t *mac_addr, uint8_t tid,
+			uint32_t service_interval, uint32_t burst_size,
+			uint8_t add_or_sub)
+{
+	if (!soc || !soc->ops || !soc->ops->sawf_ops ||
+	    !soc->ops->sawf_ops->peer_config_ul) {
+		dp_cdp_debug("Invalid Instance");
+		QDF_BUG(0);
+		return false;
+	}
+
+	return soc->ops->sawf_ops->peer_config_ul(soc, mac_addr, tid,
+						  service_interval, burst_size,
+						  add_or_sub);
+}
+
+/*
+ * cdp_swaf_peer_is_sla_configured() - Check if sla is configured for a peer
+ * @soc_hdl: SOC handle
+ * @mac_addr: peer mac address
+ *
+ * Return: true is peer is sla configured
+ */
+static inline bool
+cdp_swaf_peer_is_sla_configured(ol_txrx_soc_handle soc, uint8_t *mac_addr)
+{
+	if (!soc || !soc->ops || !soc->ops->sawf_ops ||
+	    !soc->ops->sawf_ops->swaf_peer_is_sla_configured) {
+		dp_cdp_debug("Invalid Instance");
+		QDF_BUG(0);
+		return false;
+	}
+
+	return soc->ops->sawf_ops->swaf_peer_is_sla_configured(soc, mac_addr);
+}
+
 #else
+static inline QDF_STATUS
+cdp_sawf_mpdu_stats_req(ol_txrx_soc_handle soc, uint8_t enable)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline QDF_STATUS
+cdp_sawf_mpdu_details_stats_req(ol_txrx_soc_handle soc, uint8_t enable)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
 static inline QDF_STATUS
 cdp_get_peer_sawf_delay_stats(ol_txrx_soc_handle soc, uint32_t svc_id,
 			      uint8_t *mac, void *data)
@@ -325,6 +385,12 @@ cdp_get_peer_sawf_tx_stats(ol_txrx_soc_handle soc, uint32_t svc_id,
 			   uint8_t *mac, void *data)
 {
 	return QDF_STATUS_E_FAILURE;
+}
+
+static inline bool
+cdp_swaf_peer_is_sla_configured(ol_txrx_soc_handle soc, uint8_t *mac_addr)
+{
+	return false;
 }
 #endif
 #endif /* _CDP_TXRX_SAWF_H_ */

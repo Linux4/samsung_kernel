@@ -95,6 +95,11 @@ extern "C" {
 #define TARGET_TYPE_QCA5332   35
 #endif
 
+/* York */
+#ifndef TARGET_TYPE_QCN9160
+#define TARGET_TYPE_QCN9160    36
+#endif
+
 #ifdef __cplusplus
 }
 #endif

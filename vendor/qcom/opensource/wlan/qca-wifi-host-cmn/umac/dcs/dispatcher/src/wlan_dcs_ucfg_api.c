@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -74,6 +75,24 @@ QDF_STATUS ucfg_dcs_register_awgn_cb(struct wlan_objmgr_psoc *psoc,
 	}
 
 	dcs_psoc_priv->switch_chan_cb = cb;
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS ucfg_dcs_register_afc_sel_chan_cb(struct wlan_objmgr_psoc *psoc,
+					     dcs_afc_select_chan_cb cb,
+					     void *arg)
+{
+	struct dcs_psoc_priv_obj *dcs_psoc_priv;
+
+	dcs_psoc_priv =
+		wlan_objmgr_psoc_get_comp_private_obj(psoc, WLAN_UMAC_COMP_DCS);
+	if (!dcs_psoc_priv) {
+		dcs_err("dcs psoc private object is null");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	dcs_psoc_priv->afc_sel_chan_cbk.cbk = cb;
+	dcs_psoc_priv->afc_sel_chan_cbk.arg = arg;
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -202,3 +221,12 @@ QDF_STATUS ucfg_dcs_get_ch_util(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
 
 	return QDF_STATUS_SUCCESS;
 }
+
+#ifdef DCS_INTERFERENCE_DETECTION
+QDF_STATUS
+ucfg_dcs_switch_chan(struct wlan_objmgr_vdev *vdev, qdf_freq_t tgt_freq,
+		     enum phy_ch_width tgt_width)
+{
+	return wlan_dcs_switch_chan(vdev, tgt_freq, tgt_width);
+}
+#endif

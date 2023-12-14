@@ -1,13 +1,7 @@
-/* Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _MSM_COMMON_H_
 #define _MSM_COMMON_H_
@@ -24,6 +18,14 @@
 #define CLK_SRC_SWIRE 5
 #define CLK_SRC_DAI 0
 #define CLK_SRC_CODEC 1
+
+#define CS35L43_MONO   0x31
+#define CS35L43_STEREO 0x32
+#define CS35L43_QUAD    0x34
+
+#define CS35L45_MONO   0x51
+#define CS35L45_STEREO 0x52
+#define CS35L45_QUAD    0x54
 #endif
 
 enum {

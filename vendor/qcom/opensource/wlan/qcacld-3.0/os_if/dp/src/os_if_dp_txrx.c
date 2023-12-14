@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -37,14 +37,12 @@
 #include <ol_defines.h>
 #include <hif_napi.h>
 #include <hif.h>
-#include <dp_rx_thread.h>
-#include <dp_txrx.h>
 #include <wlan_hdd_main.h>
 #include "wlan_hdd_wmm.h"
 
 /**
  * osif_dp_classify_pkt() - classify packet
- * @skb - sk buff
+ * @skb:  sk buff
  *
  * Return: none
  */
@@ -108,6 +106,39 @@ static void osif_dp_mark_critical_pkt(struct sk_buff *skb)
 	QDF_NBUF_CB_TX_EXTRA_IS_CRITICAL(skb) = true;
 }
 
+#ifdef DP_TX_PACKET_INSPECT_FOR_ILP
+/**
+ * osif_dp_mark_pkt_type_by_priority() - mark packet type to skb->cb
+ *                                       by type from priority of skb
+ * @skb: network buffer
+ *
+ * Return: true - packet type marked, false - not marked
+ */
+static inline
+bool osif_dp_mark_pkt_type_by_priority(struct sk_buff *skb)
+{
+	bool type_marked = false;
+	uint32_t pkt_type =
+		qdf_nbuf_get_priority_pkt_type(skb);
+
+	if (qdf_unlikely(pkt_type == QDF_NBUF_PRIORITY_PKT_TCP_ACK)) {
+		QDF_NBUF_CB_GET_PACKET_TYPE(skb) =
+					QDF_NBUF_CB_PACKET_TYPE_TCP_ACK;
+		type_marked = true;
+	}
+	/* cleanup the packet type in priority */
+	qdf_nbuf_remove_priority_pkt_type(skb);
+
+	return type_marked;
+}
+#else
+static inline
+bool osif_dp_mark_pkt_type_by_priority(struct sk_buff *skb)
+{
+	return false;
+}
+#endif
+
 /**
  * osif_dp_mark_non_critical_pkt() - Identify and mark non-critical packets
  * @skb: skb ptr
@@ -116,6 +147,10 @@ static void osif_dp_mark_critical_pkt(struct sk_buff *skb)
  */
 static void osif_dp_mark_non_critical_pkt(struct sk_buff *skb)
 {
+	/* check if packet type is marked from skb->priority already */
+	if (osif_dp_mark_pkt_type_by_priority(skb))
+		return;
+
 	if (qdf_nbuf_is_icmp_pkt(skb))
 		QDF_NBUF_CB_GET_PACKET_TYPE(skb) =
 				QDF_NBUF_CB_PACKET_TYPE_ICMP;
@@ -129,7 +164,7 @@ void osif_dp_mark_pkt_type(struct sk_buff *skb)
 	struct ethhdr *eh = (struct ethhdr *)skb->data;
 
 	/*
-	 * Zero out CB before accessing it. Expection is that cb is accessed
+	 * Zero out CB before accessing it. Expectation is that cb is accessed
 	 * for the first time here on TX path in hard_start_xmit.
 	 */
 	qdf_mem_zero(skb->cb, sizeof(skb->cb));
@@ -150,7 +185,7 @@ void osif_dp_mark_pkt_type(struct sk_buff *skb)
 		osif_dp_mark_non_critical_pkt(skb);
 }
 
-/**
+/*
  * When bus bandwidth is idle, if RX data is delivered with
  * napi_gro_receive, to reduce RX delay related with GRO,
  * check gro_result returned from napi_gro_receive to determine
@@ -169,6 +204,46 @@ void osif_dp_mark_pkt_type(struct sk_buff *skb)
 #define DP_IS_EXTRA_GRO_FLUSH_NECESSARY(_gro_ret) \
 	((_gro_ret) != GRO_DROP && (_gro_ret) != GRO_NORMAL)
 #endif
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+/**
+ * osif_dp_rx_thread_napi_gro_flush() - do gro flush
+ * @napi: napi used to do gro flush
+ * @flush_code: flush_code differentiating low_tput_flush and normal_flush
+ *
+ * if there is RX GRO_NORMAL packets pending in napi
+ * rx_list, flush them manually right after napi_gro_flush.
+ *
+ * Return: none
+ */
+static inline
+void osif_dp_rx_thread_napi_gro_flush(struct napi_struct *napi,
+				      enum dp_rx_gro_flush_code flush_code)
+{
+	if (napi->poll) {
+		/* Skipping GRO flush in low TPUT */
+		if (flush_code != DP_RX_GRO_LOW_TPUT_FLUSH)
+			napi_gro_flush(napi, false);
+
+		if (napi->rx_count) {
+			netif_receive_skb_list(&napi->rx_list);
+			qdf_init_list_head(&napi->rx_list);
+			napi->rx_count = 0;
+		}
+	}
+}
+#else
+static inline
+void osif_dp_rx_thread_napi_gro_flush(struct napi_struct *napi,
+				      enum dp_rx_gro_flush_code flush_code)
+{
+	if (napi->poll) {
+		/* Skipping GRO flush in low TPUT */
+		if (flush_code != DP_RX_GRO_LOW_TPUT_FLUSH)
+			napi_gro_flush(napi, false);
+	}
+}
 #endif
 
 /**
@@ -201,8 +276,8 @@ osif_dp_rx_napi_gro_flush(qdf_napi_struct *napi_to_use,
 
 	if (DP_IS_EXTRA_GRO_FLUSH_NECESSARY(gro_ret)) {
 		*low_tput_force_flush = 1;
-		dp_rx_napi_gro_flush((struct napi_struct *)napi_to_use,
-				     DP_RX_GRO_NORMAL_FLUSH);
+		osif_dp_rx_thread_napi_gro_flush((struct napi_struct *)napi_to_use,
+						 DP_RX_GRO_NORMAL_FLUSH);
 	}
 
 	local_bh_enable();
@@ -243,12 +318,13 @@ osif_dp_rx_napi_gro_receive(qdf_napi_struct *napi_to_use,
 
 #ifdef RECEIVE_OFFLOAD
 /**
- * osif_dp_rxthread_napi_gro_flush() - GRO flush cbk for NAPI+Rx_Thread Rx mode
+ * osif_dp_rxthread_napi_normal_gro_flush() - GRO flush cbk for NAPI+Rx_Thread
+ * Rx mode
  * @data: hif NAPI context
  *
  * Return: none
  */
-static void osif_dp_rxthread_napi_gro_flush(void *data)
+static void osif_dp_rxthread_napi_normal_gro_flush(void *data)
 {
 	struct qca_napi_info *qca_napi = (struct qca_napi_info *)data;
 
@@ -257,8 +333,8 @@ static void osif_dp_rxthread_napi_gro_flush(void *data)
 	 * As we are breaking context in Rxthread mode, there is rx_thread NAPI
 	 * corresponds each hif_napi.
 	 */
-	dp_rx_napi_gro_flush(&qca_napi->rx_thread_napi,
-			     DP_RX_GRO_NORMAL_FLUSH);
+	osif_dp_rx_thread_napi_gro_flush(&qca_napi->rx_thread_napi,
+					 DP_RX_GRO_NORMAL_FLUSH);
 	local_bh_enable();
 }
 
@@ -363,6 +439,7 @@ __osif_check_for_prio_filter_in_clsact_qdisc(struct tcf_block *block,
  * osif_check_for_prio_filter_in_clsact_qdisc() - Check if priority 3 filter
  *  is configured in the ingress clsact qdisc
  * @qdisc: pointer to clsact qdisc
+ * @prio: traffic priority
  *
  * Return: qdisc filter status
  */
@@ -385,10 +462,10 @@ osif_check_for_prio_filter_in_clsact_qdisc(struct Qdisc *qdisc, uint32_t prio)
 }
 
 /**
- * osif_dp_rx_check_qdisc_for_configured() - Check if any ingress qdisc
- * configured for given adapter
- * @dp_intf: pointer to DP interface context
- * @rx_ctx_id: Rx context id
+ * osif_dp_rx_check_qdisc_configured() - Check if any ingress qdisc
+ * configured for given netdev
+ * @ndev: pointer to netdev
+ * @prio: traffic priority
  *
  * The function checks if ingress qdisc is registered for a given
  * net device.
@@ -508,7 +585,7 @@ void osif_dp_register_rx_offld_flush_cb(enum dp_rx_offld_flush_cb cb_type)
 		cdp_register_rx_offld_flush_cb(soc, osif_dp_qdf_lro_flush);
 	else if (cb_type == DP_RX_FLUSH_THREAD)
 		cdp_register_rx_offld_flush_cb(soc,
-					       osif_dp_rxthread_napi_gro_flush);
+					       osif_dp_rxthread_napi_normal_gro_flush);
 	else if (cb_type == DP_RX_FLUSH_NAPI)
 		cdp_register_rx_offld_flush_cb(soc,
 					       osif_dp_hif_napi_gro_flush);
@@ -547,6 +624,7 @@ void os_if_dp_register_txrx_callbacks(struct wlan_dp_psoc_callbacks *cb_obj)
 	cb_obj->dp_nbuf_push_pkt = osif_dp_rx_pkt_to_nw;
 	cb_obj->dp_rx_napi_gro_flush = osif_dp_rx_napi_gro_flush;
 	cb_obj->dp_rx_napi_gro_receive = osif_dp_rx_napi_gro_receive;
+	cb_obj->dp_rx_thread_napi_gro_flush = osif_dp_rx_thread_napi_gro_flush;
 	cb_obj->dp_lro_rx_cb = osif_dp_lro_rx;
 	cb_obj->dp_register_rx_offld_flush_cb =
 		osif_dp_register_rx_offld_flush_cb;

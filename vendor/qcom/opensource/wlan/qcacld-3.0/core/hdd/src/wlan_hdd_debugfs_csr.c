@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -314,7 +315,7 @@ void wlan_hdd_debugfs_csr_init(struct hdd_adapter *adapter)
 	const uint32_t max_len = HDD_DEBUGFS_FILE_NAME_MAX;
 
 	/*
-	 * Create debufs diagnostic files for connect, offload info
+	 * Create debugfs diagnostic files for connect, offload info
 	 * and roam info and store in csr_file member of adapter
 	 */
 

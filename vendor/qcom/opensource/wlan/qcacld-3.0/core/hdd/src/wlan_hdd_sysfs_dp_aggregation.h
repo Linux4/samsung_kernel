@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -39,7 +40,7 @@
  * Return: 0 on success and errno on failure
  */
 int
-hdd_sysfs_dp_aggregation_create(struct kobject *drv_kobj);
+hdd_sysfs_dp_aggregation_create(struct kobject *driver_kobject);
 
 /**
  * hdd_sysfs_dp_aggregation_destroy() - API to destroy dp aggregation
@@ -49,16 +50,16 @@ hdd_sysfs_dp_aggregation_create(struct kobject *drv_kobj);
  * Return: None
  */
 void
-hdd_sysfs_dp_aggregation_destroy(struct kobject *drv_kobj);
+hdd_sysfs_dp_aggregation_destroy(struct kobject *driver_kobject);
 #else
 static inline int
-hdd_sysfs_dp_aggregation_create(struct kobject *drv_kobj)
+hdd_sysfs_dp_aggregation_create(struct kobject *driver_kobject)
 {
 	return 0;
 }
 
 static inline void
-hdd_sysfs_dp_aggregation_destroy(struct kobject *drv_kobj)
+hdd_sysfs_dp_aggregation_destroy(struct kobject *driver_kobject)
 {
 }
 #endif

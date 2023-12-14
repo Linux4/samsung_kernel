@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -24,6 +24,15 @@
 
 #include "wlan_mlme_public_struct.h"
 
+#ifdef CONNECTION_ROAMING_CFG
+# define CONKEEPALIVE_INTERVAL_MIN 0
+# define CONKEEPALIVE_INTERVAL_MAX 120
+# define CONKEEPALIVE_INTERVAL_DEFAULT 30
+#else
+# define CONKEEPALIVE_INTERVAL_MIN 0
+# define CONKEEPALIVE_INTERVAL_MAX 1000
+# define CONKEEPALIVE_INTERVAL_DEFAULT 30
+#endif
 /*
  * <ini>
  * gStaKeepAlivePeriod/ConKeepAlive_Interval - STA keep alive period
@@ -44,11 +53,32 @@
  *
  * </ini>
  */
+
+/*
+ * <ini>
+ * gStaKeepAlivePeriod/ConKeepAlive_Interval - STA keep alive period
+ *
+ *
+ * @Min: 0
+ * @Max: 120
+ * @Default: 30
+ *
+ * This ini is used to control how frequently STA should send NULL frames to AP
+ * (period in seconds) to notify AP of its existence.
+ *
+ * Related: None
+ *
+ * Supported Feature: STA
+ *
+ * Usage: Internal/External
+ *
+ * </ini>
+ */
 #define CFG_INFRA_STA_KEEP_ALIVE_PERIOD CFG_INI_UINT( \
 	"gStaKeepAlivePeriod ConKeepAlive_Interval", \
-	0, \
-	1000, \
-	30, \
+	CONKEEPALIVE_INTERVAL_MIN, \
+	CONKEEPALIVE_INTERVAL_MAX, \
+	CONKEEPALIVE_INTERVAL_DEFAULT, \
 	CFG_VALUE_OR_DEFAULT, \
 	"send default NULL frame to AP")
 
@@ -463,8 +493,8 @@
 /*
  * <ini>
  * gStaKeepAliveMethod - Which keepalive method to use
- * @Min: 0
- * @Max: 1
+ * @Min: 1
+ * @Max: 2
  * @Default: 1
  *
  * This ini determines which keepalive method to use for station interfaces
@@ -482,8 +512,8 @@
 #define CFG_STA_KEEPALIVE_METHOD CFG_INI_INT( \
 			"gStaKeepAliveMethod", \
 			MLME_STA_KEEPALIVE_NULL_DATA, \
-			MLME_STA_KEEPALIVE_COUNT - 1, \
 			MLME_STA_KEEPALIVE_GRAT_ARP, \
+			MLME_STA_KEEPALIVE_NULL_DATA, \
 			CFG_VALUE_OR_DEFAULT, \
 			"Which keepalive method to use")
 
@@ -554,7 +584,7 @@
  *
  * </cfg>
  */
-#define CFG_MLO_SUPPORT_LINK_NUM CFG_INI_UINT( \
+#define CFG_MLO_SUPPORT_LINK_NUM CFG_UINT( \
 			"mlo_support_link_num", \
 			1, \
 			3, \
@@ -617,7 +647,7 @@
  *
  * </cfg>
  */
-#define CFG_MLO_SUPPORT_LINK_BAND CFG_INI_UINT( \
+#define CFG_MLO_SUPPORT_LINK_BAND CFG_UINT( \
 			"mlo_support_link_band", \
 			0x1, \
 			0x77, \

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -133,6 +133,7 @@ struct sap_context {
 
 	/* Include the SME(CSR) sessionId here */
 	uint8_t sessionId;
+	uint8_t sap_radar_found_status;
 
 	/* vdev object corresponding to sessionId */
 	struct wlan_objmgr_vdev *vdev;
@@ -212,7 +213,7 @@ struct sap_context {
 	/*
 	 * sap_state, sap_status are created
 	 * to inform upper layers about ACS scan status.
-	 * Don't use these members for anyother purposes.
+	 * Don't use these members for any other purposes.
 	 */
 	eSapHddEvent sap_state;
 	eSapStatus sap_status;
@@ -229,6 +230,8 @@ struct sap_context {
 	/* Disabled mcs13 by sap or not */
 	bool disabled_mcs13;
 	qdf_list_t owe_pending_assoc_ind_list;
+	qdf_list_t ft_pending_assoc_ind_list;
+	qdf_event_t ft_pending_event;
 	uint32_t freq_before_ch_switch;
 #ifdef WLAN_FEATURE_P2P_P2P_STA
 /*
@@ -244,6 +247,13 @@ struct sap_context {
 	bool require_h2e;
 	bool partial_acs_scan;
 	bool optimize_acs_chan_selected;
+#ifdef WLAN_FEATURE_SAP_ACS_OPTIMIZE
+/*
+ * This param is used to track clean channels where there
+ * is no AP found on these channels
+ */
+	bool clean_channel_array[NUM_CHANNELS];
+#endif
 };
 
 /*----------------------------------------------------------------------------
@@ -375,7 +385,7 @@ uint8_t sap_get_total_number_sap_intf(mac_handle_t mac_handle);
  *
  * Return: The QDF_STATUS code associated with performing the operation.
  */
-QDF_STATUS sap_channel_sel(struct sap_context *sap_ctx);
+QDF_STATUS sap_channel_sel(struct sap_context *sap_context);
 
 /**
  * sap_validate_chan - Function validate the channel and forces SCC

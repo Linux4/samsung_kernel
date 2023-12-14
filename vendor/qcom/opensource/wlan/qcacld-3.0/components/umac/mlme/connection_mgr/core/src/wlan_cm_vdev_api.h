@@ -282,7 +282,7 @@ void cm_csr_set_idle(uint8_t vdev_id);
  * @pdev: Pointer to pdev
  * @bssid: bssid to get rssi and snr
  * @rssi: pointer to fill rssi
- * @snr: poiter to fill snr
+ * @snr: pointer to fill snr
  *
  * Return: none
  */

@@ -1,4 +1,5 @@
 # Copyright (c) 2014-2015, 2020-2021 The Linux Foundation. All rights reserved.
+# Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -11,6 +12,7 @@
 
 import re
 import string
+import traceback
 
 from parser_util import cleanupString
 
@@ -150,7 +152,7 @@ class DmesgLib(object):
                 curr_idx = logbuf_addr
                 self.wrap_cnt += 1
 
-    def extract_lockless_dmesg(self):
+    def extract_lockless_dmesg(self, write_to_file=True):
         prb_addr = self.ramdump.read_pointer('prb')
         off = self.ramdump.field_offset('struct printk_ringbuffer', 'desc_ring')
         desc_ring_addr = prb_addr + off
@@ -192,18 +194,20 @@ class DmesgLib(object):
         desc_id_mask = ~desc_flags_mask
 
         off = self.ramdump.field_offset('struct prb_desc_ring','tail_id')
-        tail_id = self.ramdump.read_u64(desc_ring_addr + off)
+        tail_id = self.ramdump.read_ulong(desc_ring_addr + off)
         off = self.ramdump.field_offset('struct prb_desc_ring','head_id')
-        head_id = self.ramdump.read_u64(desc_ring_addr + off)
+        head_id = self.ramdump.read_ulong(desc_ring_addr + off)
 
         did = tail_id
+
+        dmesg_list={}
         while True:
             ind = did % desc_ring_count
             desc_off = desc_sz * ind
             info_off = info_sz * ind
 
             # skip non-committed record
-            state = 3 & (self.ramdump.read_u64(descs_addr + desc_off +
+            state = 3 & (self.ramdump.read_ulong(descs_addr + desc_off +
                                             sv_off) >> desc_flags_shift)
             if state != desc_committed and state != desc_finalized:
                 if did == head_id:
@@ -243,23 +247,41 @@ class DmesgLib(object):
                 tid_info = "C"
 
             caller_id_data = caller_data & ~0x80000000
+            pid = caller_id_data
             caller_id_data = tid_info + str(caller_id_data)
             for line in text.splitlines():
                 msg = u"[{time:12.6f}][{caller_id_data:>6}] {line}\n".format(
                     time=time_stamp / 1000000000.0,
                     line=line,caller_id_data=caller_id_data)
-                self.outfile.write(msg)
+                #print(msg, write_to_file)
+                if write_to_file:
+                     self.outfile.write(msg)
+                else:
+                    dmesg = []
+                    dmesg.append(pid)
+                    dmesg.append(line)
+                    dmesg_list[time_stamp] = dmesg
 
             if did == head_id:
                 break
             did = (did + 1) & desc_id_mask
+        return dmesg_list
 
     def extract_dmesg(self):
         major, minor, patch = self.ramdump.kernel_version
         if (major, minor) >= (5, 10):
-            self.extract_lockless_dmesg()
-            return
+            return self.extract_lockless_dmesg()
         if (major, minor) >= (3, 7):
             self.extract_dmesg_binary()
             return
         self.extract_dmesg_flat()
+
+    def get_dmesg_as_dict(self):
+        major, minor, patch = self.ramdump.kernel_version
+        if (major, minor) >= (5, 10):
+            try:
+                return self.extract_lockless_dmesg(False)
+            except:
+                traceback.format_exc()
+
+        return {}

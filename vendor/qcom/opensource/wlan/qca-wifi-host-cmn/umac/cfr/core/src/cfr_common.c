@@ -512,7 +512,7 @@ QDF_STATUS cfr_stop_indication(struct wlan_objmgr_vdev *vdev)
 		return QDF_STATUS_E_INVAL;
 	}
 
-	/* Don't write stop sting if there is valid cfr_nl_cb. Since
+	/* Don't write stop string if there is valid cfr_nl_cb. Since
 	 * userspace needn't stop event string
 	 */
 	if (pa->nl_cb.cfr_nl_cb)

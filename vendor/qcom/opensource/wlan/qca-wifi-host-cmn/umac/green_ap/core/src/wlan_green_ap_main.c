@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -165,7 +166,7 @@ QDF_STATUS wlan_green_ap_state_mc(struct wlan_pdev_green_ap_ctx *green_ap_ctx,
 	}
 
 	if (!green_ap_tx_ops->ps_on_off_send) {
-		green_ap_err("tx op for sending enbale/disable green ap is NULL");
+		green_ap_err("tx op for sending enable/disable green ap is NULL");
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -399,3 +400,60 @@ void wlan_green_ap_check_mode(struct wlan_objmgr_pdev *pdev,
 	wlan_vdev_obj_unlock(vdev);
 }
 
+#ifdef WLAN_SUPPORT_GAP_LL_PS_MODE
+#define LOW_LATENCY_MAX_CMDID 0x00000080
+
+uint32_t wlan_green_ap_get_cookie_id(struct wlan_pdev_green_ap_ctx *green_ap_ctx,
+				     enum wlan_green_ap_ll_ps_state state)
+{
+	uint32_t id;
+	qdf_atomic_t *cmd_cnt;
+
+	qdf_spin_lock_bh(&green_ap_ctx->lock);
+
+	if (!state)
+		cmd_cnt = &green_ap_ctx->ps_dis_cmd_cnt;
+	else
+		cmd_cnt = &green_ap_ctx->ps_en_cmd_cnt;
+
+	id = qdf_atomic_read(cmd_cnt);
+
+	if (id >= LOW_LATENCY_MAX_CMDID) {
+		green_ap_debug("Cookie id Max limit reached");
+
+		if (!state)
+			qdf_atomic_set(cmd_cnt, 0);
+		else
+			qdf_atomic_set(cmd_cnt, 1);
+
+		id = qdf_atomic_read(cmd_cnt);
+	}
+
+	qdf_atomic_add(2, cmd_cnt);
+	qdf_spin_unlock_bh(&green_ap_ctx->lock);
+
+	green_ap_debug("Cookie id : %x", id);
+
+	return id;
+}
+
+QDF_STATUS
+wlan_green_ap_send_ll_ps_event_params(struct wlan_objmgr_pdev *pdev,
+		struct wlan_green_ap_ll_ps_event_param *event_param)
+{
+	QDF_STATUS status;
+	struct wlan_pdev_green_ap_ctx *green_ap_ctx;
+
+	green_ap_ctx = wlan_objmgr_pdev_get_comp_private_obj(
+			pdev, WLAN_UMAC_COMP_GREEN_AP);
+
+	if (!green_ap_ctx) {
+		green_ap_err("green ap context obtained is NULL");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	status = green_ap_ctx->hdd_cback.send_event(green_ap_ctx->vdev, event_param);
+
+	return status;
+}
+#endif

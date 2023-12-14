@@ -43,3 +43,8 @@ example:
 		reg = <0xc3f0000 0 0x400>;
 		ddr-freq-update;
 	};
+  - |
+    subsystem-sleep-stats@4690000 {
+		compatible = "qcom,subsystem-sleep-stats-v2";
+		reg = <0x4690000 0x400>;
+	};

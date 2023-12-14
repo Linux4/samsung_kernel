@@ -80,14 +80,19 @@ typedef enum {
     LE_AUDIO_HARDWARE_OFFLOAD_DECODING_DATAPATH,
 }tSESSION_TYPE;
 
-
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
 // start of CompressCapture
 class CompressCapture {
    public:
     constexpr static const char *kAudioParameterDSPAacBitRate =
         "dsp_aac_audio_bitrate";
     static const uint32_t kAacPCMSamplesPerFrame = 1024;
+
+    // min and max bitrates supported for AAC mono and stereo
+    static const int32_t kAacMonoMinSupportedBitRate = 16000;
+    static const int32_t kAacStereoMinSupportedBitRate = 16000;
+
+    static const int32_t kAacMonoMaxSupportedBitRate = 192000;
+    static const int32_t kAacStereoMaxSupportedBitRate = 384000;
 
     static std::vector<uint32_t> sAacSampleRates;
     static std::unordered_map<uint32_t, int32_t> sSampleRateToDefaultBitRate;
@@ -114,7 +119,7 @@ class CompressCapture {
     CompressCapture& operator=(CompressCapture&&) = delete;
 };
 // end of CompressCapture
-#endif
+
 
 class AudioExtn
 {
@@ -183,7 +188,25 @@ protected:
     struct pal_stream_attributes sattr;
 private:
     static std::atomic<bool> sServicesRegistered;
-
+    static std::mutex sLock;
 };
+
+#ifdef SEC_AUDIO_DSM_AMP
+class AudioSpeakerFeedback
+{
+public:
+    void init();
+    int open(pal_stream_callback pal_callback);
+    int start();
+    int stop();
+    int close();
+    bool enable_status() { return enable_stream; };
+    bool HasFeedbackStreamHandle() { return (feedback_stream_handle != NULL) ? true : false; };
+protected:
+    pal_stream_handle_t *feedback_stream_handle;
+    struct pal_stream_attributes feedback_sattr;
+    bool enable_stream;
+};
+#endif
 
 #endif /* AUDIOEXTN_H */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -479,11 +479,11 @@ void scm_add_channel_flags(struct wlan_objmgr_vdev *vdev,
 			scm_set_rnr_flag_all_6g_ch(&chan_list->chan[0],
 						   num_scan_chan);
 		else if (scan_mode == SCAN_MODE_6G_PSC_DUTY_CYCLE) {
-			if (is_pno_scan)
-				scm_debug("Duty cycle scan not supported in pno");
-			scm_set_rnr_flag_non_psc_6g_ch(&chan_list->chan[0],
-						       num_scan_chan);
+			if (!is_pno_scan)
+				scm_set_rnr_flag_non_psc_6g_ch(&chan_list->chan[0],
+							       num_scan_chan);
 		}
+
 		fallthrough;
 		/* Even when the scan mode is SCAN_MODE_6G_PSC_DUTY_CYCLE or
 		 * SCAN_MODE_6G_ALL_DUTY_CYCLE, it is better to add other 6 GHz

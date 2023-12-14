@@ -321,6 +321,38 @@ static ssize_t pressure_sw_offset_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", data->msg_buf[MSG_PRESSURE][0]);
 }
 
+static ssize_t pressure_esn_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint8_t cnt = 0;
+
+	adsp_unicast(NULL, 0, MSG_PRESSURE, 0, MSG_TYPE_GET_REGISTER);
+
+	while (!(data->ready_flag[MSG_TYPE_GET_REGISTER] &
+		1 << MSG_PRESSURE) && cnt++ < TIMEOUT_CNT)
+		msleep(20);
+
+	data->ready_flag[MSG_TYPE_GET_REGISTER] &= ~(1 << MSG_PRESSURE);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		return snprintf(buf, PAGE_SIZE, "0\n");
+	}
+
+	pr_info("[FACTORY] %s : esn %02X%02X%02X%02X%02X%02X%02X%02X\n",
+		__func__, data->msg_buf[MSG_PRESSURE][0], data->msg_buf[MSG_PRESSURE][1],
+		data->msg_buf[MSG_PRESSURE][2], data->msg_buf[MSG_PRESSURE][3],
+		data->msg_buf[MSG_PRESSURE][4], data->msg_buf[MSG_PRESSURE][5],
+		data->msg_buf[MSG_PRESSURE][6], data->msg_buf[MSG_PRESSURE][7]);
+
+	return snprintf(buf, PAGE_SIZE, "%02X%02X%02X%02X%02X%02X%02X%02X\n",
+		data->msg_buf[MSG_PRESSURE][0], data->msg_buf[MSG_PRESSURE][1],
+		data->msg_buf[MSG_PRESSURE][2], data->msg_buf[MSG_PRESSURE][3],
+		data->msg_buf[MSG_PRESSURE][4], data->msg_buf[MSG_PRESSURE][5],
+		data->msg_buf[MSG_PRESSURE][6], data->msg_buf[MSG_PRESSURE][7]);
+}
+
 static DEVICE_ATTR(vendor, 0444, pressure_vendor_show, NULL);
 static DEVICE_ATTR(name, 0444, pressure_name_show, NULL);
 static DEVICE_ATTR(calibration, 0664,
@@ -338,6 +370,7 @@ static DEVICE_ATTR(dhr_sensor_info, 0440,
 #endif
 static DEVICE_ATTR(sw_offset, 0664,
 	pressure_sw_offset_show, pressure_sw_offset_store);
+static DEVICE_ATTR(esn, 0440, pressure_esn_show, NULL);
 
 static struct device_attribute *pressure_attrs[] = {
 	&dev_attr_vendor,
@@ -348,6 +381,7 @@ static struct device_attribute *pressure_attrs[] = {
 	&dev_attr_selftest,
 	&dev_attr_dhr_sensor_info,
 	&dev_attr_sw_offset,
+	&dev_attr_esn,
 	NULL,
 };
 

@@ -91,9 +91,9 @@ QDF_STATUS cm_update_advance_roam_scan_filter(
 		wlan_vdev_mlme_get_ssid(vdev, filter->ssid_list[0].ssid,
 					&filter->ssid_list[0].length);
 
-		mlme_debug("Filtering for SSID %.*s,length of SSID = %u",
-			   filter->ssid_list[0].length,
-			   filter->ssid_list[0].ssid,
+		mlme_debug("Filtering for SSID " QDF_SSID_FMT ",length of SSID = %u",
+			   QDF_SSID_REF(filter->ssid_list[0].length,
+					filter->ssid_list[0].ssid),
 			   filter->ssid_list[0].length);
 	}
 

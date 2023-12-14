@@ -4,7 +4,7 @@
 
 		coresight-name = "coresight-audio-etm0";
 		qcom,inst-id = <5>;
-		atid = <40>;
+		atid = <40 41>;
 
 		out-ports {
 			port {
@@ -4245,6 +4245,7 @@
 	ete0 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU0>;
+		phy-cpu = <0>;
 
 		coresight-name = "coresight-ete0";
 		qcom,skip-power-up;
@@ -4261,6 +4262,7 @@
 	ete1 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU1>;
+		phy-cpu = <1>;
 
 		coresight-name = "coresight-ete1";
 		qcom,skip-power-up;
@@ -4277,6 +4279,7 @@
 	ete2 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU2>;
+		phy-cpu = <2>;
 
 		coresight-name = "coresight-ete2";
 		qcom,skip-power-up;
@@ -4293,6 +4296,7 @@
 	ete3 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU3>;
+		phy-cpu = <3>;
 
 		coresight-name = "coresight-ete3";
 		qcom,skip-power-up;
@@ -4309,6 +4313,7 @@
 	ete4 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU4>;
+		phy-cpu = <4>;
 
 		coresight-name = "coresight-ete4";
 		qcom,skip-power-up;
@@ -4325,6 +4330,7 @@
 	ete5 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU5>;
+		phy-cpu = <5>;
 
 		coresight-name = "coresight-ete5";
 		qcom,skip-power-up;
@@ -4341,6 +4347,7 @@
 	ete6 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU6>;
+		phy-cpu = <6>;
 
 		coresight-name = "coresight-ete6";
 		qcom,skip-power-up;
@@ -4357,6 +4364,7 @@
 	ete7 {
 		compatible = "arm,embedded-trace-extension";
 		cpu = <&CPU7>;
+		phy-cpu = <7>;
 
 		coresight-name = "coresight-ete7";
 		qcom,skip-power-up;

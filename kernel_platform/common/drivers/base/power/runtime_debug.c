@@ -18,6 +18,7 @@ void print_runtime_debug_log_rpmflags(struct device *dev, int rpmflags)
 	if (of_device_is_compatible(dev->of_node, "qcom,sde-kms") && (atomic_read(&dev->power.usage_count) <= 1))
 		pr_err("%s:rpmflags%d: Usage count : %d Caller : %pS\n", __func__,rpmflags, atomic_read(&dev->power.usage_count), __builtin_return_address(1));
 
+
 	return;
 }
 

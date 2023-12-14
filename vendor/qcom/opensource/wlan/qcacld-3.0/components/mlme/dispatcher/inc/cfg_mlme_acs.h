@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -205,6 +205,32 @@
 
 /*
  * <ini>
+ * acs_prefer_6ghz_psc - Select 6 GHz PSC channel as priority
+ * @Min: 0
+ * @Max: 1
+ * @Default: 1
+ *
+ * This config is used to configure ACS logic to select PSC channel as
+ * perefered result. "normalize_acs_weight" INI can make the PSC
+ * channel priority higher than NON PSC, but it is for a single channel's
+ * weight, for bw 160 or bw 80 combined channel weight, it has less
+ * help.
+ *
+ * Related: None
+ *
+ * Supported Feature: ACS
+ *
+ * Usage: Internal
+ *
+ * </ini>
+ */
+#define CFG_ACS_PREFER_6GHZ_PSC CFG_BOOL( \
+				"acs_prefer_6ghz_psc", \
+				1, \
+				"Select 6 GHz PSC channel as priority")
+
+/*
+ * <ini>
  * np_chan_weight - chan weightage for non preferred channels
  * @Min: 0x00000000
  * @Max: 0x64646464
@@ -248,6 +274,7 @@
 	CFG(CFG_USER_ACS_DFS_LTE) \
 	CFG(CFG_EXTERNAL_ACS_POLICY) \
 	CFG(CFG_NORMALIZE_ACS_WEIGHT) \
+	CFG(CFG_ACS_PREFER_6GHZ_PSC) \
 	CFG(CFG_ACS_FORCE_START_SAP) \
 	CFG(CFG_ACS_NP_CHAN_WEIGHT)
 

@@ -119,6 +119,7 @@ struct usb_notify {
 
 struct usb_notify_core {
 	struct otg_notify *o_notify;
+	unsigned int lpm_charging_type_done;
 };
 
 static struct usb_notify_core *u_notify_core;
@@ -2645,6 +2646,41 @@ err:
 }
 EXPORT_SYMBOL(send_usb_notify_uevent);
 
+int set_lpm_charging_type_done(struct otg_notify *n, unsigned int state)
+{
+	struct usb_notify *u_notify = NULL;
+	int ret = 0;
+
+	if (!u_notify_core) {
+		pr_err("%s u_notify_core is null\n", __func__);
+		ret = -EFAULT;
+		goto err;
+	}
+
+	pr_info("%s state %u\n", __func__, state);
+
+	u_notify_core->lpm_charging_type_done = state;
+
+	if (!n) {
+		pr_err("%s otg_notify is null\n", __func__);
+		ret = -EFAULT;
+		goto err;
+	}
+
+	u_notify = (struct usb_notify *)(n->u_notify);
+
+	if (!u_notify) {
+		pr_err("%s u_notify is null\n", __func__);
+		ret = -EFAULT;
+		goto err;
+	}
+
+	u_notify->udev.lpm_charging_type_done = state;
+err:
+	return ret;
+}
+EXPORT_SYMBOL(set_lpm_charging_type_done);
+
 int check_reverse_bypass_status(struct otg_notify *n)
 {
 	struct usb_notify *u_notify = NULL;
@@ -2967,6 +3003,9 @@ int set_otg_notify(struct otg_notify *n)
 		pr_err("usb_notify_dev_register is failed\n");
 		goto err6;
 	}
+
+	u_notify->udev.lpm_charging_type_done
+		= u_notify_core->lpm_charging_type_done;
 
 	if (gpio_is_valid(n->vbus_detect_gpio) ||
 			gpio_is_valid(n->redriver_en_gpio)) {

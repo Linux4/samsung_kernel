@@ -71,17 +71,6 @@ static uint8_t _std_init_vector_sha256_uint8[] = {
 #define QCEDEV_CTX_USE_HW_KEY		0x00000001
 #define QCEDEV_CTX_USE_PIPE_KEY		0x00000002
 
-// Key timer expiry for pipes 1-15 (Status3)
-#define PIPE_KEY_TIMER_EXPIRED_STATUS3_MASK	0x0000FF00
-// Key timer expiry for pipes 16-19 (Status6)
-#define PIPE_KEY_TIMER_EXPIRED_STATUS6_MASK	0x00000300
-// Key pause for pipes 1-15 (Status3)
-#define PIPE_KEY_PAUSE_STATUS3_MASK	0xFF000000
-// Key pause for pipes 16-19 (Status6)
-#define PIPE_KEY_PAUSE_STATUS6_MASK	0x3000000
-
-#define QCEDEV_STATUS1_ERR_INTR_MASK	0x10
-
 static DEFINE_MUTEX(send_cmd_lock);
 static DEFINE_MUTEX(qcedev_sent_bw_req);
 static DEFINE_MUTEX(hash_access_lock);
@@ -191,6 +180,8 @@ static void qcedev_ce_high_bw_req(struct qcedev_control *podev,
 {
 	int ret = 0;
 
+        if(podev == NULL) return;
+
 	mutex_lock(&qcedev_sent_bw_req);
 	if (high_bw_req) {
 		if (podev->high_bw_req_count == 0) {
@@ -198,15 +189,22 @@ static void qcedev_ce_high_bw_req(struct qcedev_control *podev,
 			if (ret)
 				goto exit_unlock_mutex;
 			ret = qce_set_irqs(podev->qce, true);
-			if (ret)
+			if (ret) {
+				pr_err("%s: could not enable bam irqs, ret = %d",
+						__func__, ret);
+				qcedev_control_clocks(podev, false);
 				goto exit_unlock_mutex;
+			}
 		}
 		podev->high_bw_req_count++;
 	} else {
 		if (podev->high_bw_req_count == 1) {
 			ret = qce_set_irqs(podev->qce, false);
-			if (ret)
+			if (ret) {
+				pr_err("%s: could not disable bam irqs, ret = %d",
+						__func__, ret);
 				goto exit_unlock_mutex;
+			}
 			ret = qcedev_control_clocks(podev, false);
 			if (ret)
 				goto exit_unlock_mutex;
@@ -312,7 +310,9 @@ static int qcedev_release(struct inode *inode, struct file *file)
 					__func__, podev);
 	}
 
-	qcedev_ce_high_bw_req(podev, false);
+	if (podev)
+		qcedev_ce_high_bw_req(podev, false);
+
 	if (qcedev_unmap_all_buffers(handle))
 		pr_err("%s: failed to unmap all ion buffers\n", __func__);
 
@@ -332,8 +332,9 @@ static void req_done(unsigned long data)
 	areq = podev->active_command;
 	podev->active_command = NULL;
 
-	if (areq && !areq->timed_out) {
-		complete(&areq->complete);
+	if (areq) {
+		if (!areq->timed_out)
+			complete(&areq->complete);
 		areq->state = QCEDEV_REQ_DONE;
 	}
 
@@ -696,53 +697,29 @@ static int start_sha_req(struct qcedev_control *podev,
 };
 
 static void qcedev_check_crypto_status(
-			struct qcedev_async_req *qcedev_areq, void *handle,
-			bool print_err)
+			struct qcedev_async_req *qcedev_areq, void *handle)
 {
-	unsigned int s1, s2, s3, s4, s5, s6;
+	struct qce_error error = {0};
 
 	qcedev_areq->offload_cipher_op_req.err = QCEDEV_OFFLOAD_NO_ERROR;
-	qce_get_crypto_status(handle, &s1, &s2, &s3, &s4, &s5, &s6);
+	qce_get_crypto_status(handle, &error);
 
-	if (print_err) {
-		pr_err("%s: sts = 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n", __func__,
-			s1, s2, s3, s4, s5, s6);
-	}
-
-	// Check for key timer expiry
-	if ((s6 & PIPE_KEY_TIMER_EXPIRED_STATUS6_MASK) ||
-		(s3 & PIPE_KEY_TIMER_EXPIRED_STATUS3_MASK)) {
-		pr_info("%s: crypto timer expired\n", __func__);
-		pr_info("%s: sts = 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n", __func__,
-			s1, s2, s3, s4, s5, s6);
+	if (error.timer_error) {
 		qcedev_areq->offload_cipher_op_req.err =
-					QCEDEV_OFFLOAD_KEY_TIMER_EXPIRED_ERROR;
-		return;
+			QCEDEV_OFFLOAD_KEY_TIMER_EXPIRED_ERROR;
+	} else if (error.key_paused) {
+		qcedev_areq->offload_cipher_op_req.err =
+			QCEDEV_OFFLOAD_KEY_PAUSE_ERROR;
+	} else if (error.generic_error) {
+		qcedev_areq->offload_cipher_op_req.err =
+			QCEDEV_OFFLOAD_GENERIC_ERROR;
 	}
 
-	// Check for key pause
-	if ((s6 & PIPE_KEY_PAUSE_STATUS6_MASK) ||
-		(s3 & PIPE_KEY_PAUSE_STATUS3_MASK)) {
-		pr_info("%s: crypto key paused\n", __func__);
-		pr_info("%s: sts = 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n", __func__,
-			s1, s2, s3, s4, s5, s6);
-		qcedev_areq->offload_cipher_op_req.err =
-					QCEDEV_OFFLOAD_KEY_PAUSE_ERROR;
-		return;
-	}
-
-	// Check for generic error
-	if (s1 & QCEDEV_STATUS1_ERR_INTR_MASK) {
-		pr_err("%s: generic crypto error\n", __func__);
-		pr_info("%s: sts = 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n", __func__,
-			s1, s2, s3, s4, s5, s6);
-		qcedev_areq->offload_cipher_op_req.err =
-					QCEDEV_OFFLOAD_GENERIC_ERROR;
-		return;
-	}
+	return;
 }
 
-#define MAX_RETRIES		333
+
+#define MAX_RETRIES	333
 
 static int submit_req(struct qcedev_async_req *qcedev_areq,
 					struct qcedev_handle *handle)
@@ -753,7 +730,6 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 	struct qcedev_stat *pstat;
 	int current_req_info = 0;
 	int wait = MAX_CRYPTO_WAIT_TIME;
-	bool print_sts = false;
 	struct qcedev_async_req *new_req = NULL;
 	int retries = 0;
 	int req_wait = MAX_REQUEST_TIME;
@@ -761,7 +737,6 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 	qcedev_areq->err = 0;
 	podev = handle->cntl;
 	init_waitqueue_head(&qcedev_areq->wait_q);
-
 
 	spin_lock_irqsave(&podev->lock, flags);
 
@@ -799,8 +774,9 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 				(qcedev_areq->state == QCEDEV_REQ_CURRENT),
 				podev->lock,
 				msecs_to_jiffies(MAX_REQUEST_TIME));
-				if ((req_wait == 0) || (req_wait == -ERESTARTSYS)) {
-					pr_err("%s: request timed out, req_wait = %d\n", __func__, req_wait);
+			if ((req_wait == 0) || (req_wait == -ERESTARTSYS)) {
+				pr_err("%s: request timed out, req_wait = %d\n",
+						__func__, req_wait);
 				list_del(&qcedev_areq->list);
 				podev->active_command = NULL;
 				spin_unlock_irqrestore(&podev->lock, flags);
@@ -840,24 +816,27 @@ static int submit_req(struct qcedev_async_req *qcedev_areq,
 	 */
 		pr_err("%s: wait timed out, req info = %d\n", __func__,
 					current_req_info);
-		print_sts = true;
-		spin_lock_irqsave(&podev->lock, flags);
-		qcedev_check_crypto_status(qcedev_areq, podev->qce, print_sts);
-		qcedev_areq->timed_out = true;
-		ret = qce_manage_timeout(podev->qce, current_req_info);
-		spin_unlock_irqrestore(&podev->lock, flags);
-		if (ret) {
-			pr_err("%s: error during manage timeout", __func__);
+		qcedev_check_crypto_status(qcedev_areq, podev->qce);
+		if (qcedev_areq->offload_cipher_op_req.err ==
+			QCEDEV_OFFLOAD_NO_ERROR) {
+			pr_err("%s: no error, wait for request to be done", __func__);
 			while (qcedev_areq->state != QCEDEV_REQ_DONE &&
-					retries < MAX_RETRIES) {
+				retries < MAX_RETRIES) {
 				usleep_range(3000, 5000);
 				retries++;
 				pr_err("%s: waiting for req state to be done, retries = %d",
-						__func__, retries);
+					__func__, retries);
 			}
 			return 0;
 		}
-		tasklet_schedule(&podev->done_tasklet);
+		spin_lock_irqsave(&podev->lock, flags);
+		qcedev_areq->timed_out = true;
+		ret = qce_manage_timeout(podev->qce, current_req_info);
+		if (ret)
+			pr_err("%s: error during manage timeout", __func__);
+
+		spin_unlock_irqrestore(&podev->lock, flags);
+		req_done((unsigned long) podev);
 		if (qcedev_areq->offload_cipher_op_req.err !=
 						QCEDEV_OFFLOAD_NO_ERROR)
 			return 0;
@@ -1775,6 +1754,8 @@ static int qcedev_smmu_ablk_offload_cipher(struct qcedev_async_req *areq,
 		}
 	}
 exit:
+	areq->cipher_req.creq.src = NULL;
+	areq->cipher_req.creq.dst = NULL;
 	return err;
 }
 
@@ -2605,8 +2586,11 @@ static int qcedev_probe_device(struct platform_device *pdev)
 	podev->qce = handle;
 
 	rc = qce_set_irqs(podev->qce, false);
-	if (rc)
+	if (rc) {
+		pr_err("%s: could not disable bam irqs, ret = %d",
+				__func__, rc);
 		goto exit_scale_busbandwidth;
+	}
 
 	rc = icc_set_bw(podev->icc_path, 0, 0);
 	if (rc) {
@@ -2729,8 +2713,11 @@ static int qcedev_suspend(struct platform_device *pdev, pm_message_t state)
 	mutex_lock(&qcedev_sent_bw_req);
 	if (podev->high_bw_req_count) {
 		ret = qce_set_irqs(podev->qce, false);
-		if (ret)
+		if (ret) {
+			pr_err("%s: could not disable bam irqs, ret = %d",
+					__func__, ret);
 			goto suspend_exit;
+		}
 		ret = qcedev_control_clocks(podev, false);
 		if (ret)
 			goto suspend_exit;
@@ -2757,8 +2744,11 @@ static int qcedev_resume(struct platform_device *pdev)
 		if (ret)
 			goto resume_exit;
 		ret = qce_set_irqs(podev->qce, true);
-		if (ret)
-			goto resume_exit;
+		if (ret) {
+			pr_err("%s: could not enable bam irqs, ret = %d",
+					__func__, ret);
+			qcedev_control_clocks(podev, false);
+		}
 	}
 
 resume_exit:

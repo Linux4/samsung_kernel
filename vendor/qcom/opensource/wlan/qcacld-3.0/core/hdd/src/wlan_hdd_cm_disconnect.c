@@ -102,11 +102,12 @@ static void hdd_cm_print_bss_info(struct hdd_station_ctx *hdd_sta_ctx)
 	conn_info = &hdd_sta_ctx->conn_info;
 
 	hdd_nofl_debug("*********** WIFI DATA LOGGER **************");
-	hdd_nofl_debug("freq: %d dot11mode %d AKM %d ssid: \"%.*s\" ,roam_count %d nss %d legacy %d mcs %d signal %d noise: %d",
+	hdd_nofl_debug("freq: %d dot11mode %d AKM %d ssid: \"" QDF_SSID_FMT "\" ,roam_count %d nss %d legacy %d mcs %d signal %d noise: %d",
 		       conn_info->chan_freq, conn_info->dot11mode,
 		       conn_info->last_auth_type,
-		       conn_info->last_ssid.SSID.length,
-		       conn_info->last_ssid.SSID.ssId, conn_info->roam_count,
+		       QDF_SSID_REF(conn_info->last_ssid.SSID.length,
+				    conn_info->last_ssid.SSID.ssId),
+		       conn_info->roam_count,
 		       conn_info->txrate.nss, conn_info->txrate.legacy,
 		       conn_info->txrate.mcs, conn_info->signal,
 		       conn_info->noise);
@@ -164,6 +165,8 @@ void __hdd_cm_disconnect_handler_post_user_update(struct hdd_adapter *adapter,
 	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	struct hdd_station_ctx *sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(adapter);
 	mac_handle_t mac_handle;
+	struct hdd_adapter *link_adapter;
+	struct hdd_station_ctx *link_sta_ctx;
 
 	mac_handle = hdd_ctx->mac_handle;
 
@@ -187,6 +190,16 @@ void __hdd_cm_disconnect_handler_post_user_update(struct hdd_adapter *adapter,
 						 SCAN_EVENT_TYPE_MAX, true);
 	}
 
+	if (adapter->device_mode == QDF_STA_MODE &&
+	    hdd_adapter_is_ml_adapter(adapter)) {
+		/* Clear connection info in assoc link adapter as well */
+		link_adapter = hdd_get_assoc_link_adapter(adapter);
+		if (link_adapter) {
+			link_sta_ctx =
+				WLAN_HDD_GET_STATION_CTX_PTR(link_adapter);
+			hdd_conn_remove_connect_info(link_sta_ctx);
+		}
+	}
 	/* Clear saved connection information in HDD */
 	hdd_conn_remove_connect_info(sta_ctx);
 
@@ -341,7 +354,7 @@ hdd_cm_disconnect_complete_pre_user_update(struct wlan_objmgr_vdev *vdev,
 			   rsp->req.cm_id,
 			   rsp->req.req.reason_code << 16 |
 			   rsp->req.req.source);
-	hdd_ipa_set_tx_flow_info();
+	wlan_hdd_set_tx_flow_info();
 	/*
 	 * Convert and cache internal reason code in adapter. This can be
 	 * sent to userspace with a vendor event.
@@ -463,7 +476,6 @@ hdd_cm_disconnect_complete_post_user_update(struct wlan_objmgr_vdev *vdev,
 	hdd_cm_set_default_wlm_mode(adapter);
 	__hdd_cm_disconnect_handler_post_user_update(adapter, vdev);
 	wlan_twt_concurrency_update(hdd_ctx);
-	hdd_update_he_obss_pd(adapter, NULL, false);
 	hdd_cm_reset_udp_qos_upgrade_config(adapter);
 
 	return QDF_STATUS_SUCCESS;
@@ -563,7 +575,7 @@ QDF_STATUS hdd_cm_napi_serialize_control(bool action)
 
 	hdd_napi_serialize(action);
 
-	/* reinit scan reject parms for napi off (roam abort/ho fail) */
+	/* reinit scan reject params for napi off (roam abort/ho fail) */
 	if (!action)
 		hdd_init_scan_reject_params(hdd_ctx);
 

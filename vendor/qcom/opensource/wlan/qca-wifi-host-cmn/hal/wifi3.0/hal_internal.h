@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -160,7 +160,7 @@ struct rx_msdu_desc_info;
 typedef struct rx_msdu_desc_info *rx_msdu_desc_info_t;
 
 /**
- * Opaque hanlder for PPE VP config.
+ * Opaque handler for PPE VP config.
  */
 union hal_tx_ppe_vp_config;
 union hal_tx_cmn_config_ppe;
@@ -284,9 +284,10 @@ enum hal_srng_ring_id {
 #ifdef IPA_WDI3_VLAN_SUPPORT
 	HAL_SRNG_WMAC1_SW2RXDMA0_BUF3,
 #endif
+#endif
 	HAL_SRNG_WMAC1_SW2RXDMA1_BUF,
-#else
-	HAL_SRNG_WMAC1_SW2RXDMA1_BUF,
+#ifdef FEATURE_DIRECT_LINK
+	HAL_SRNG_WMAC1_RX_DIRECT_LINK_SW_REFILL_RING,
 #endif
 	HAL_SRNG_WMAC1_SW2RXDMA2_BUF,
 	HAL_SRNG_WMAC1_SW2RXDMA0_STATBUF,
@@ -360,6 +361,7 @@ enum SRNG_REGISTERS {
 	DST_MSI1_BASE_LSB,
 	DST_MSI1_BASE_MSB,
 	DST_MSI1_DATA,
+	DST_MISC_1,
 #ifdef CONFIG_BERYLLIUM
 	DST_MSI2_BASE_LSB,
 	DST_MSI2_BASE_MSB,
@@ -564,6 +566,82 @@ struct hal_srng_high_wm_info {
 };
 #endif
 
+#define DEFAULT_TSF_ID 1
+
+/**
+ * enum hal_scratch_reg_enum - Enum to indicate scratch register values
+ * @PMM_QTIMER_GLOBAL_OFFSET_LO_US - QTIMER GLOBAL OFFSET LOW
+ * @PMM_QTIMER_GLOBAL_OFFSET_HI_US - QTIMER GLOBAL OFFSET HIGH
+ * @PMM_MAC0_TSF1_OFFSET_LO_US - MAC0 TSF1 OFFSET LOW
+ * @PMM_MAC0_TSF1_OFFSET_HI_US - MAC0 TSF1 OFFSET HIGH
+ * @PMM_MAC0_TSF2_OFFSET_LO_US - MAC0 TSF2 OFFSET LOW
+ * @PMM_MAC0_TSF2_OFFSET_HI_US - MAC0 TSF2 OFFSET HIGH
+ * @PMM_MAC1_TSF1_OFFSET_LO_US - MAC1 TSF1 OFFSET LOW
+ * @PMM_MAC1_TSF1_OFFSET_HI_US - MAC1 TSF1 OFFSET HIGH
+ * @PMM_MAC1_TSF2_OFFSET_LO_US - MAC1 TSF2 OFFSET LOW
+ * @PMM_MAC1_TSF2_OFFSET_HI_US - MAC1 TSF2 OFFSET HIGH
+ * @PMM_MLO_OFFSET_LO_US - MLO OFFSET LOW
+ * @PMM_MLO_OFFSET_HI_US - MLO OFFSET HIGH
+ * @PMM_TQM_CLOCK_OFFSET_LO_US - TQM CLOCK OFFSET LOW
+ * @PMM_TQM_CLOCK_OFFSET_HI_US - TQM CLOCK OFFSET HIGH
+ * @PMM_Q6_CRASH_REASON - Q6 CRASH REASON
+ * @PMM_SCRATCH_TWT_OFFSET - TWT OFFSET
+ * @PMM_PMM_REG_MAX - Max PMM REG value
+ */
+enum hal_scratch_reg_enum {
+	PMM_QTIMER_GLOBAL_OFFSET_LO_US,
+	PMM_QTIMER_GLOBAL_OFFSET_HI_US,
+	PMM_MAC0_TSF1_OFFSET_LO_US,
+	PMM_MAC0_TSF1_OFFSET_HI_US,
+	PMM_MAC0_TSF2_OFFSET_LO_US,
+	PMM_MAC0_TSF2_OFFSET_HI_US,
+	PMM_MAC1_TSF1_OFFSET_LO_US,
+	PMM_MAC1_TSF1_OFFSET_HI_US,
+	PMM_MAC1_TSF2_OFFSET_LO_US,
+	PMM_MAC1_TSF2_OFFSET_HI_US,
+	PMM_MLO_OFFSET_LO_US,
+	PMM_MLO_OFFSET_HI_US,
+	PMM_TQM_CLOCK_OFFSET_LO_US,
+	PMM_TQM_CLOCK_OFFSET_HI_US,
+	PMM_Q6_CRASH_REASON,
+	PMM_SCRATCH_TWT_OFFSET,
+	PMM_PMM_REG_MAX
+};
+
+/**
+ * hal_get_tsf_enum(): API to get the enum corresponding to the mac and tsf id
+ *
+ * @tsf_id: tsf id
+ * @mac_id: mac id
+ * @enum_lo: Pointer to update low scratch register
+ * @enum_hi: Pointer to update hi scratch register
+ *
+ * Return: void
+ */
+static inline void
+hal_get_tsf_enum(uint32_t tsf_id, uint32_t mac_id,
+		 enum hal_scratch_reg_enum *tsf_enum_low,
+		 enum hal_scratch_reg_enum *tsf_enum_hi)
+{
+	if (mac_id == 0) {
+		if (tsf_id == 0) {
+			*tsf_enum_low = PMM_MAC0_TSF1_OFFSET_LO_US;
+			*tsf_enum_hi = PMM_MAC0_TSF1_OFFSET_HI_US;
+		} else if (tsf_id == 1) {
+			*tsf_enum_low = PMM_MAC0_TSF2_OFFSET_LO_US;
+			*tsf_enum_hi = PMM_MAC0_TSF2_OFFSET_HI_US;
+		}
+	} else if (mac_id == 1) {
+		if (tsf_id == 0) {
+			*tsf_enum_low = PMM_MAC1_TSF1_OFFSET_LO_US;
+			*tsf_enum_hi = PMM_MAC1_TSF1_OFFSET_HI_US;
+		} else if (tsf_id == 1) {
+			*tsf_enum_low = PMM_MAC1_TSF2_OFFSET_LO_US;
+			*tsf_enum_hi = PMM_MAC1_TSF2_OFFSET_HI_US;
+		}
+	}
+}
+
 /* Common SRNG ring structure for source and destination rings */
 struct hal_srng {
 	/* Unique SRNG ring ID */
@@ -715,6 +793,10 @@ struct hal_srng {
 #ifdef WLAN_DP_SRNG_USAGE_WM_TRACKING
 	struct hal_srng_high_wm_info high_wm;
 #endif
+	/* Timer threshold to issue ring pointer update - in micro seconds */
+	uint16_t pointer_timer_threshold;
+	/* Number threshold of ring entries to issue pointer update */
+	uint8_t pointer_num_threshold;
 };
 
 /* HW SRNG configuration table */
@@ -822,9 +904,11 @@ struct hal_rx_pkt_capture_flags {
 struct hal_hw_txrx_ops {
 	/* init and setup */
 	void (*hal_srng_dst_hw_init)(struct hal_soc *hal,
-				     struct hal_srng *srng, bool idle_check);
+				     struct hal_srng *srng, bool idle_check,
+				     uint32_t idx);
 	void (*hal_srng_src_hw_init)(struct hal_soc *hal,
-				     struct hal_srng *srng, bool idle_check);
+				     struct hal_srng *srng, bool idle_check,
+				     uint32_t idx);
 
 	void (*hal_srng_hw_disable)(struct hal_soc *hal,
 				    struct hal_srng *srng);
@@ -1015,6 +1099,8 @@ struct hal_hw_txrx_ops {
 	uint32_t (*hal_rx_mpdu_start_offset_get)(void);
 	uint32_t (*hal_rx_mpdu_end_offset_get)(void);
 	uint32_t (*hal_rx_pkt_tlv_offset_get)(void);
+	uint32_t (*hal_rx_msdu_end_wmask_get)(void);
+	uint32_t (*hal_rx_mpdu_start_wmask_get)(void);
 	void * (*hal_rx_flow_setup_fse)(uint8_t *rx_fst,
 					uint32_t table_offset,
 					uint8_t *rx_flow);
@@ -1206,6 +1292,17 @@ struct hal_hw_txrx_ops {
 	void (*hal_get_tsf_time)(hal_soc_handle_t hal_soc_hdl, uint32_t tsf_id,
 				 uint32_t mac_id, uint64_t *tsf,
 				 uint64_t *tsf_sync_soc_time);
+	void (*hal_get_tsf2_scratch_reg)(hal_soc_handle_t hal_soc_hdl,
+					 uint8_t mac_id, uint64_t *value);
+	void (*hal_get_tqm_scratch_reg)(hal_soc_handle_t hal_soc_hdl,
+					uint64_t *value);
+#ifdef FEATURE_DIRECT_LINK
+	QDF_STATUS (*hal_srng_set_msi_config)(hal_ring_handle_t ring_hdl,
+					      void *ring_params);
+#endif
+	void (*hal_tx_ring_halt_set)(hal_soc_handle_t hal_soc_hdl);
+	void (*hal_tx_ring_halt_reset)(hal_soc_handle_t hal_soc_hdl);
+	bool (*hal_tx_ring_halt_poll)(hal_soc_handle_t hal_soc_hdl);
 };
 
 /**
@@ -1398,7 +1495,7 @@ struct hal_soc {
 
 #if defined(FEATURE_HAL_DELAYED_REG_WRITE)
 /**
- *  hal_delayed_reg_write() - delayed regiter write
+ *  hal_delayed_reg_write() - delayed register write
  * @hal_soc: HAL soc handle
  * @srng: hal srng
  * @addr: iomem address
@@ -1471,7 +1568,8 @@ struct hal_srng *hal_ring_handle_to_hal_srng(hal_ring_handle_t hal_ring)
 /*
  * REO2PPE destination indication
  */
-#define REO2PPE_DST_IND 11
+#define REO2PPE_DST_IND 6
+#define REO2PPE_DST_RING 11
 #define REO2PPE_RULE_FAIL_FB 0x2000
 
 /**

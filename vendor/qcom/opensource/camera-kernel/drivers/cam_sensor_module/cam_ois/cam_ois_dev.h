@@ -122,6 +122,18 @@ struct cam_ois_intf_params {
 	struct cam_req_mgr_crm_cb *crm_cb;
 };
 
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+/**
+ * struct adc_temperature_table - adc_temperature table params
+ * @adc   : adc
+ * @temperature  : temperature
+ */
+struct adc_temperature_table {
+	uint32_t adc;
+	int temperature;
+};
+#endif
+
 /**
  * struct cam_ois_ctrl_t - OIS ctrl private data
  * @device_name     :   ois device_name
@@ -209,6 +221,12 @@ struct cam_ois_ctrl_t {
 	sysboot_info_type info;
 	uint32_t reset_ctrl_gpio;
 	uint32_t boot0_ctrl_gpio;
+	bool sysfs_ois_power;
+#if defined(CONFIG_SAMSUNG_OIS_ADC_TEMPERATURE_SUPPORT)
+	struct adc_temperature_table *adc_temperature_table;
+	uint32_t adc_arr_size;
+	bool sysfs_ois_init;
+#endif
 #endif
 };
 

@@ -1190,11 +1190,27 @@ android::status_t BnAgmService::onTransact(uint32_t code,
         clbk_data_obj->client_data = (void *)data.readInt64();
         sp<IBinder> binder = data.readStrongBinder();
         clbk_data_obj->cb_binder = interface_cast<ICallback>(binder);
-        list_add_tail(&clbk_data_list, &clbk_data_obj->list);
-        pthread_mutex_unlock(&clbk_data_list_lock);
+        if (clbk_data_obj->cb_func != NULL) {
+            list_add_tail(&clbk_data_list, &clbk_data_obj->list);
+            rc = ipc_agm_session_register_cb(clbk_data_obj->session_id,
+                            &ipc_cb, evnt, clbk_data_obj->client_data);
+        } else {
+            clbk_data *clbk_data_obj_tmp = NULL;
+            struct listnode *node = NULL, *next = NULL;
+            list_for_each_safe(node, next, &clbk_data_list) {
+                clbk_data_obj_tmp = node_to_item(node, clbk_data, list);
+                if ((clbk_data_obj_tmp->session_id == clbk_data_obj->session_id) &&
+                    (clbk_data_obj_tmp->client_data == clbk_data_obj->client_data)) {
+                    list_remove(&clbk_data_obj_tmp->list);
+                    free(clbk_data_obj_tmp);
+                }
+            }
+            rc = ipc_agm_session_register_cb(clbk_data_obj->session_id,
+                            NULL, evnt, clbk_data_obj->client_data);
+            free(clbk_data_obj);
+        }
 
-        rc = ipc_agm_session_register_cb(clbk_data_obj->session_id,
-                        &ipc_cb, evnt, clbk_data_obj->client_data);
+        pthread_mutex_unlock(&clbk_data_list_lock);
         reply->writeInt32(rc);
         break ; }
 

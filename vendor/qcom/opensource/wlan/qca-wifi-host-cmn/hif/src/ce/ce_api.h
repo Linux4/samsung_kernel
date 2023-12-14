@@ -199,7 +199,7 @@ void ce_sendlist_init(struct ce_sendlist *sendlist);
  * ce_sendlist_buf_add() - Append a simple buffer (address/length) to a sendlist
  * @sendlist: Sendlist
  * @buffer: buffer
- * @nbytes: numer of bytes to append
+ * @nbytes: number of bytes to append
  * @flags: flags
  * @user_flags: user flags
  *
@@ -419,7 +419,7 @@ void ce_disable_any_copy_compl_intr_nolock(struct hif_softc *scn);
 void ce_enable_any_copy_compl_intr_nolock(struct hif_softc *scn);
 
 /* API to check if any of the copy engine pipes has
- * pending frames for prcoessing
+ * pending frames for processing
  */
 bool ce_get_rx_pending(struct hif_softc *scn);
 
@@ -501,7 +501,7 @@ void ce_ipa_get_resource(struct CE_handle *ce,
  * Micro controller needs
  *  - Copy engine source descriptor base address
  *  - Copy engine source descriptor size
- *  - PCI BAR address to access copy engine regiser
+ *  - PCI BAR address to access copy engine register
  *
  * Return: None
  */
@@ -596,6 +596,17 @@ struct ce_ops {
 	void (*ce_prepare_shadow_register_v3_cfg)(struct hif_softc *scn,
 			    struct pld_shadow_reg_v3_cfg **shadow_config,
 			    int *num_shadow_registers_configured);
+#endif
+#ifdef FEATURE_DIRECT_LINK
+	QDF_STATUS (*ce_set_irq_config_by_ceid)(struct hif_softc *scn,
+						uint8_t ce_id, uint64_t addr,
+						uint32_t data);
+	uint16_t (*ce_get_direct_link_dest_buffers)(struct hif_softc *scn,
+						    uint64_t **dma_addr,
+						    uint32_t *buf_size);
+	QDF_STATUS (*ce_get_direct_link_ring_info)(struct hif_softc *scn,
+					   struct hif_direct_link_ce_info *info,
+					   uint8_t max_ce_info_len);
 #endif
 };
 

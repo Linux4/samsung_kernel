@@ -14,16 +14,47 @@
 
 #define get_vdi_member(member) ufs_sec_features.vdi->member
 
-#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
-#define get_wb_member(member) ufs_sec_features.ufs_wb->member
-#endif
-
 /* sec specific vendor sysfs nodes */
-#if IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
 struct device *sec_ufs_cmd_dev;
-#else
-static struct device *sec_ufs_cmd_dev;
-#endif
+
+/* SEC next WB : begin */
+static void ufs_sec_wb_info_backup(struct ufs_sec_wb_info *backup)
+{
+	SEC_UFS_WB_INFO_BACKUP(enable_cnt);
+	SEC_UFS_WB_INFO_BACKUP(disable_cnt);
+	SEC_UFS_WB_INFO_BACKUP(amount_kb);
+	SEC_UFS_WB_INFO_BACKUP(err_cnt);
+
+	backup->state_ts = jiffies;
+}
+
+static ssize_t ufs_sec_wb_info_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct ufs_sec_wb_info *wb_info_backup = ufs_sec_features.ufs_wb_backup;
+	struct ufs_sec_wb_info *wb_info = ufs_sec_features.ufs_wb;
+	long hours = 0;
+	int len = 0;
+
+	wb_info->state_ts = jiffies;
+	hours = jiffies_to_msecs(wb_info->state_ts - wb_info_backup->state_ts) / 1000;	/* sec */
+	hours = (hours + 60) / (60 * 60);	/* round up to hours */
+
+	len = sprintf(buf, "\"TWCTRLCNT\":\"%llu\","
+			"\"TWCTRLERRCNT\":\"%llu\","
+			"\"TWDAILYMB\":\"%llu\","
+			"\"TWTOTALMB\":\"%llu\","
+			"\"TWhours\":\"%ld\"\n",
+			(wb_info->enable_cnt + wb_info->disable_cnt),
+			wb_info->err_cnt,    /* total error count */
+			(wb_info->amount_kb >> 10),         /* WB write daily : MB */
+			(wb_info_backup->amount_kb >> 10),    /* WB write total : MB */
+			hours);
+
+	ufs_sec_wb_info_backup(wb_info_backup);
+	return len;
+}
+static DEVICE_ATTR(SEC_UFS_TW_info, 0444, ufs_sec_wb_info_show, NULL);
+/* SEC next WB : end */
 
 /* UFS info nodes : begin */
 static ssize_t ufs_sec_unique_number_show(struct device *dev,
@@ -98,6 +129,61 @@ static ssize_t ufs_sec_lc_info_store(struct device *dev,
 }
 static DEVICE_ATTR(lc, 0664, ufs_sec_lc_info_show, ufs_sec_lc_info_store);
 
+static ssize_t ufs_sec_hist_info_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return SEC_UFS_ERR_HIST_SUM(buf);
+}
+
+static bool is_valid_hist_info(const char *buf, size_t count)
+{
+	int i;
+
+	if (count != ERR_SUM_SIZE)
+		return false;
+
+	if (buf[0] != 'U' || buf[2] != 'I' || buf[4] != 'H' ||
+	    buf[6] != 'L' || buf[8] != 'X' || buf[10] != 'Q' ||
+	    buf[12] != 'R' || buf[14] != 'W' || buf[16] != 'F' ||
+	    buf[18] != 'S' || buf[19] != 'M' || buf[21] != 'S' ||
+	    buf[22] != 'H')
+		return false;
+
+	for (i = 1; i < ERR_SUM_SIZE; i += 2) {
+		if (buf[i] - '0' < 0 || buf[i] - '0' >= 10)
+			return false;
+		/* increase index for "SM", "SH" */
+		if (i == 17 || i == 20)
+			i++;
+	}
+
+	return true;
+}
+
+static ssize_t ufs_sec_hist_info_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	if (!is_valid_hist_info(buf, count)) {
+		pr_err("%s: %s, len(%lu)\n", __func__, buf, count);
+		return -EINVAL;
+	}
+
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UTP_cnt, UTP_err, buf[1]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UIC_err_cnt, UIC_err, buf[3]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(op_cnt, HW_RESET_cnt, buf[5]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(op_cnt, link_startup_cnt, buf[7]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(Fatal_err_cnt, LLE, buf[9]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UTP_cnt, UTMR_query_task_cnt, buf[11]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UTP_cnt, UTR_read_err, buf[13]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(UTP_cnt, UTR_write_err, buf[15]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(Fatal_err_cnt, DFE, buf[17]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(sense_cnt, scsi_medium_err, buf[20]);
+	SEC_UFS_ERR_INFO_HIST_SET_VALUE(sense_cnt, scsi_hw_err, buf[23]);
+
+	return count;
+}
+static DEVICE_ATTR(hist, 0664, ufs_sec_hist_info_show, ufs_sec_hist_info_store);
+
 static ssize_t ufs_sec_man_id_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -119,6 +205,7 @@ static struct attribute *sec_ufs_info_attributes[] = {
 	&dev_attr_lc.attr,
 	&dev_attr_man_id.attr,
 	&dev_attr_flt.attr,
+	&dev_attr_hist.attr,
 	NULL
 };
 
@@ -137,139 +224,6 @@ static void ufs_sec_create_info_sysfs(struct ufs_hba *hba)
 				__func__, ret);
 }
 /* UFS info nodes : end */
-
-#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
-/* UFS SEC WB : begin */
-static ssize_t ufs_sec_wb_support_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct ufs_hba *hba = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%s:%s\n",
-			get_wb_member(support) ? "Support" : "No support",
-			hba->dev_info.wb_enabled ? "on" : "off");
-}
-static DEVICE_ATTR(sec_wb_support, 0444, ufs_sec_wb_support_show, NULL);
-
-static ssize_t ufs_sec_wb_enable_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct ufs_hba *hba = dev_get_drvdata(dev);
-	unsigned long flags;
-	u32 value;
-
-	if (!get_wb_member(setup_done)) {
-		dev_err(hba->dev, "SEC WB is not ready yet.\n");
-		return -ENODEV;
-	}
-
-	if (!ufs_sec_is_wb_allowed()) {
-		pr_err("%s: not allowed.\n", __func__);
-		return -EPERM;
-	}
-
-	if (kstrtou32(buf, 0, &value))
-		return -EINVAL;
-
-	spin_lock_irqsave(hba->host->host_lock, flags);
-	value = !!value;
-
-	if (!value) {
-		if (atomic_inc_return(&get_wb_member(wb_off_cnt)) == 1) {
-			get_wb_member(wb_off) = true;
-			pr_err("disable SEC WB : state %d.\n", get_wb_member(state));
-		}
-	} else {
-		if (atomic_dec_and_test(&get_wb_member(wb_off_cnt))) {
-			get_wb_member(wb_off) = false;
-			pr_err("enable SEC WB.\n");
-		}
-	}
-	spin_unlock_irqrestore(hba->host->host_lock, flags);
-
-	return count;
-}
-
-static ssize_t ufs_sec_wb_enable_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", get_wb_member(wb_off) ? "off" : "Enabled");
-}
-static DEVICE_ATTR(sec_wb_enable, 0664, ufs_sec_wb_enable_show, ufs_sec_wb_enable_store);
-
-SEC_UFS_WB_DATA_ATTR(wb_up_threshold_block, "%d\n", up_threshold_block);
-SEC_UFS_WB_DATA_ATTR(wb_up_threshold_rqs, "%d\n", up_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(wb_down_threshold_block, "%d\n", down_threshold_block);
-SEC_UFS_WB_DATA_ATTR(wb_down_threshold_rqs, "%d\n", down_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(lp_wb_up_threshold_block, "%d\n", lp_up_threshold_block);
-SEC_UFS_WB_DATA_ATTR(lp_wb_up_threshold_rqs, "%d\n", lp_up_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(lp_wb_down_threshold_block, "%d\n", lp_down_threshold_block);
-SEC_UFS_WB_DATA_ATTR(lp_wb_down_threshold_rqs, "%d\n", lp_down_threshold_rqs);
-SEC_UFS_WB_DATA_ATTR(wb_sync_write_threshold_block, "%d\n", sync_write_threshold_block);
-
-SEC_UFS_WB_TIME_ATTR(wb_on_delay_ms, "%d\n", on_delay);
-SEC_UFS_WB_TIME_ATTR(wb_off_delay_ms, "%d\n", off_delay);
-SEC_UFS_WB_TIME_ATTR(lp_wb_on_delay_ms, "%d\n", lp_on_delay);
-SEC_UFS_WB_TIME_ATTR(lp_wb_off_delay_ms, "%d\n", lp_off_delay);
-
-SEC_UFS_WB_DATA_RO_ATTR(wb_state, "%d,%u\n",
-		get_wb_member(state), jiffies_to_msecs(jiffies - get_wb_member(state_ts)));
-SEC_UFS_WB_DATA_RO_ATTR(wb_current_stat, "current : block %d, rqs %d, issued blocks %d\n",
-		get_wb_member(current_block), get_wb_member(current_rqs),
-		get_wb_member(curr_issued_block));
-SEC_UFS_WB_DATA_RO_ATTR(wb_current_min_max_stat, "current issued blocks : min %d, max %d.\n",
-		(get_wb_member(curr_issued_min_block) == INT_MAX) ?
-		0 : get_wb_member(curr_issued_min_block),
-		get_wb_member(curr_issued_max_block));
-SEC_UFS_WB_DATA_RO_ATTR(wb_total_stat, "total : %dMB\n\t<  4GB:%d\n\t<  8GB:%d\n\t< 16GB:%d\n\t>=16GB:%d\n",
-		get_wb_member(total_issued_mb),
-		get_wb_member(issued_size_cnt[0]),
-		get_wb_member(issued_size_cnt[1]),
-		get_wb_member(issued_size_cnt[2]),
-		get_wb_member(issued_size_cnt[3]));
-
-static struct attribute *sec_ufs_wb_attributes[] = {
-	&dev_attr_sec_wb_support.attr,
-	&dev_attr_sec_wb_enable.attr,
-	&dev_attr_wb_up_threshold_block.attr,
-	&dev_attr_wb_up_threshold_rqs.attr,
-	&dev_attr_wb_down_threshold_block.attr,
-	&dev_attr_wb_down_threshold_rqs.attr,
-	&dev_attr_lp_wb_up_threshold_block.attr,
-	&dev_attr_lp_wb_up_threshold_rqs.attr,
-	&dev_attr_lp_wb_down_threshold_block.attr,
-	&dev_attr_lp_wb_down_threshold_rqs.attr,
-	&dev_attr_wb_sync_write_threshold_block.attr,
-	&dev_attr_wb_on_delay_ms.attr,
-	&dev_attr_wb_off_delay_ms.attr,
-	&dev_attr_lp_wb_on_delay_ms.attr,
-	&dev_attr_lp_wb_off_delay_ms.attr,
-	&dev_attr_wb_state.attr,
-	&dev_attr_wb_current_stat.attr,
-	&dev_attr_wb_current_min_max_stat.attr,
-	&dev_attr_wb_total_stat.attr,
-	NULL
-};
-
-static struct attribute_group sec_ufs_wb_attribute_group = {
-	.attrs	= sec_ufs_wb_attributes,
-};
-
-static void ufs_sec_create_wb_sysfs(struct ufs_hba *hba)
-{
-	int ret = 0;
-
-	if (!get_wb_member(setup_done))
-		return;
-
-	ret = sysfs_create_group(&sec_ufs_cmd_dev->kobj,
-			&sec_ufs_wb_attribute_group);
-	if (ret)
-		dev_err(hba->dev, "%s: Failed to create sec_ufs_wb sysfs group (err = %d)\n",
-				__func__, ret);
-}
-/* UFS SEC WB : end */
-#endif
 
 /* SEC error info : begin */
 static ssize_t SEC_UFS_op_cnt_store(struct device *dev,
@@ -535,6 +489,7 @@ static struct attribute *sec_ufs_error_attributes[] = {
 	&dev_attr_sense_err_count.attr,
 	&dev_attr_sense_err_logging.attr,
 	&dev_attr_SEC_UFS_err_summary.attr,
+	&dev_attr_SEC_UFS_TW_info.attr,
 	NULL
 };
 
@@ -635,11 +590,6 @@ void ufs_sec_add_sysfs_nodes(struct ufs_hba *hba)
 	if (!ufs_sec_create_sysfs_dev(hba)) {
 		/* sec specific vendor sysfs nodes */
 		ufs_sec_create_info_sysfs(hba);
-
-#if !IS_ENABLED(CONFIG_MQ_IOSCHED_SSG_WB)
-		/* create WB sysfs-nodes */
-		ufs_sec_create_wb_sysfs(hba);
-#endif
 
 #if IS_ENABLED(CONFIG_SEC_UFS_CMD_LOGGING)
 		if (ufs_sec_is_cmd_log_allowed())

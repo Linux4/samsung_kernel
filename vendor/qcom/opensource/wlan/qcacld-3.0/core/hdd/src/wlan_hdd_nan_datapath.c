@@ -41,6 +41,7 @@
 #include "cfg_nan_api.h"
 #include "wlan_mlme_ucfg_api.h"
 #include "qdf_util.h"
+#include "qdf_net_if.h"
 #include <cdp_txrx_misc.h>
 #include "wlan_fwol_ucfg_api.h"
 #include "wlan_dp_ucfg_api.h"
@@ -48,7 +49,7 @@
 /**
  * hdd_nan_datapath_target_config() - Configure NAN datapath features
  * @hdd_ctx: Pointer to HDD context
- * @cfg: Pointer to target device capability information
+ * @tgt_cfg: Pointer to target device capability information
  *
  * NAN datapath functionality is enabled if it is enabled in
  * .ini file and also supported on target device.
@@ -480,7 +481,7 @@ void hdd_ndp_event_handler(struct hdd_adapter *adapter,
 }
 
 /**
- * __wlan_hdd_cfg80211_process_ndp_cmds() - handle NDP request
+ * __wlan_hdd_cfg80211_process_ndp_cmd() - handle NDP request
  * @wiphy: pointer to wireless wiphy structure.
  * @wdev: pointer to wireless_dev structure.
  * @data: Pointer to the data to be passed via vendor interface
@@ -658,18 +659,23 @@ error_init_txrx:
 	return ret_val;
 }
 
-int hdd_ndi_open(const char *iface_name, bool is_add_virtual_iface)
+/**
+ * hdd_is_max_ndi_count_reached() - Check the NDI max limit
+ * @hdd_ctx: Pointer to HDD context
+ *
+ * This function does not allow to create more than ndi_max_support
+ *
+ * Return: false if max value not reached otherwise true
+ */
+static bool hdd_is_max_ndi_count_reached(struct hdd_context *hdd_ctx)
 {
 	struct hdd_adapter *adapter, *next_adapter = NULL;
-	struct qdf_mac_addr random_ndi_mac;
-	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 	uint8_t ndi_adapter_count = 0;
-	uint8_t *ndi_mac_addr;
-	struct hdd_adapter_create_param params = {0};
+	QDF_STATUS status;
+	uint32_t max_ndi;
 
-	hdd_enter();
 	if (!hdd_ctx)
-		return -EINVAL;
+		return true;
 
 	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
 					   NET_DEV_HOLD_NDI_OPEN) {
@@ -677,11 +683,34 @@ int hdd_ndi_open(const char *iface_name, bool is_add_virtual_iface)
 			ndi_adapter_count++;
 		hdd_adapter_dev_put_debug(adapter, NET_DEV_HOLD_NDI_OPEN);
 	}
-	if (ndi_adapter_count >= MAX_NDI_ADAPTERS) {
-		hdd_err("Can't allow more than %d NDI adapters",
-			MAX_NDI_ADAPTERS);
-		return -EINVAL;
+
+	status = cfg_nan_get_max_ndi(hdd_ctx->psoc, &max_ndi);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		hdd_err(" Unable to fetch Max NDI");
+		return true;
 	}
+
+	if (ndi_adapter_count >= max_ndi) {
+		hdd_err("Can't allow more than %d NDI adapters",
+			max_ndi);
+		return true;
+	}
+
+	return false;
+}
+
+int hdd_ndi_open(const char *iface_name, bool is_add_virtual_iface)
+{
+	struct hdd_adapter *adapter;
+	struct qdf_mac_addr random_ndi_mac;
+	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
+	uint8_t *ndi_mac_addr;
+	struct hdd_adapter_create_param params = {0};
+
+	hdd_enter();
+
+	if (hdd_is_max_ndi_count_reached(hdd_ctx))
+		return -EINVAL;
 
 	params.is_add_virtual_iface = is_add_virtual_iface;
 
@@ -725,7 +754,7 @@ int hdd_ndi_set_mode(const char *iface_name)
 	uint8_t *ndi_mac_addr = NULL;
 
 	hdd_enter();
-	if (!hdd_ctx)
+	if (hdd_is_max_ndi_count_reached(hdd_ctx))
 		return -EINVAL;
 
 	adapter = hdd_get_adapter_by_iface_name(hdd_ctx, iface_name);
@@ -745,7 +774,8 @@ int hdd_ndi_set_mode(const char *iface_name)
 		hdd_update_dynamic_mac(hdd_ctx, &adapter->mac_addr,
 				       (struct qdf_mac_addr *)ndi_mac_addr);
 		qdf_mem_copy(&adapter->mac_addr, ndi_mac_addr, ETH_ALEN);
-		qdf_mem_copy(adapter->dev->dev_addr, ndi_mac_addr, ETH_ALEN);
+		qdf_net_update_net_device_dev_addr(adapter->dev,
+						   ndi_mac_addr, ETH_ALEN);
 	}
 
 	adapter->device_mode = QDF_NDI_MODE;
@@ -1036,6 +1066,29 @@ void hdd_ndp_session_end_handler(struct hdd_adapter *adapter)
 	hdd_objmgr_put_vdev_by_user(vdev, WLAN_OSIF_NAN_ID);
 }
 
+/**
+ * hdd_send_obss_scan_req() - send OBSS scan request to SME layer.
+ * @hdd_ctx: hdd context pointer
+ * @val: true if new NDP peer is added and false when last peer NDP is deleted.
+ *
+ * Return: void
+ */
+static void hdd_send_obss_scan_req(struct hdd_context *hdd_ctx, bool val)
+{
+	QDF_STATUS status;
+	uint32_t sta_vdev_id = 0;
+
+	status = hdd_get_first_connected_sta_vdev_id(hdd_ctx, &sta_vdev_id);
+
+	if (QDF_IS_STATUS_SUCCESS(status)) {
+		hdd_debug("reconfig OBSS scan param: %d", val);
+		sme_reconfig_obss_scan_param(hdd_ctx->mac_handle, sta_vdev_id,
+					     val);
+	} else {
+		hdd_debug("Connected STA not found");
+	}
+}
+
 int hdd_ndp_new_peer_handler(uint8_t vdev_id, uint16_t sta_id,
 			struct qdf_mac_addr *peer_mac_addr, bool first_peer)
 {
@@ -1104,6 +1157,7 @@ int hdd_ndp_new_peer_handler(uint8_t vdev_id, uint16_t sta_id,
 		 */
 		if (!NDI_CONCURRENCY_SUPPORTED(hdd_ctx->psoc))
 			hdd_indicate_active_ndp_cnt(hdd_ctx->psoc, vdev_id, 1);
+		hdd_send_obss_scan_req(hdd_ctx, true);
 
 		wlan_twt_concurrency_update(hdd_ctx);
 	}
@@ -1172,10 +1226,11 @@ void hdd_ndp_peer_departed_handler(uint8_t vdev_id, uint16_t sta_id,
 
 	hdd_delete_peer(sta_ctx, peer_mac_addr);
 
+	ucfg_nan_clear_peer_mc_list(hdd_ctx->psoc, adapter->vdev,
+				    peer_mac_addr);
+
 	if (last_peer) {
 		hdd_debug("No more ndp peers.");
-		ucfg_nan_clear_peer_mc_list(hdd_ctx->psoc, adapter->vdev,
-					    peer_mac_addr);
 		hdd_cleanup_ndi(hdd_ctx, adapter);
 		qdf_event_set(&adapter->peer_cleanup_done);
 		/*
@@ -1184,6 +1239,7 @@ void hdd_ndp_peer_departed_handler(uint8_t vdev_id, uint16_t sta_id,
 		 */
 		if (!NDI_CONCURRENCY_SUPPORTED(hdd_ctx->psoc))
 			hdd_indicate_active_ndp_cnt(hdd_ctx->psoc, vdev_id, 0);
+		hdd_send_obss_scan_req(hdd_ctx, false);
 
 		wlan_twt_concurrency_update(hdd_ctx);
 	}

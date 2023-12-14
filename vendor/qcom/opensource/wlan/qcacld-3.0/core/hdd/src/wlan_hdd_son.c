@@ -16,7 +16,7 @@
  */
 
 /**
- * DOC : contains son hdd API implementation
+ * DOC: contains son hdd API implementation
  */
 
 #include <qdf_types.h>
@@ -1086,7 +1086,7 @@ static uint32_t hdd_son_per_sta_len(struct hdd_station_info *sta_info)
 static uint32_t hdd_son_get_sta_space(struct wlan_objmgr_vdev *vdev)
 {
 	struct hdd_adapter *adapter;
-	struct hdd_station_info *sta_info = NULL;
+	struct hdd_station_info *sta_info, *tmp = NULL;
 	uint32_t space = 0;
 
 	if (!vdev) {
@@ -1099,8 +1099,8 @@ static uint32_t hdd_son_get_sta_space(struct wlan_objmgr_vdev *vdev)
 		return space;
 	}
 
-	hdd_for_each_sta_ref(adapter->sta_info_list, sta_info,
-			     STA_INFO_SOFTAP_GET_STA_INFO) {
+	hdd_for_each_sta_ref_safe(adapter->sta_info_list, sta_info, tmp,
+				  STA_INFO_SOFTAP_GET_STA_INFO) {
 		if (!qdf_is_macaddr_broadcast(&sta_info->sta_mac))
 			space += hdd_son_per_sta_len(sta_info);
 
@@ -1114,7 +1114,7 @@ static uint32_t hdd_son_get_sta_space(struct wlan_objmgr_vdev *vdev)
 }
 
 /**
- * hdd_son_get_stalist() - get connected station list
+ * hdd_son_get_sta_list() - get connected station list
  * @vdev: vdev
  * @si: pointer to ieee80211req_sta_info
  * @space: space left
@@ -1126,7 +1126,7 @@ static void hdd_son_get_sta_list(struct wlan_objmgr_vdev *vdev,
 				 uint32_t *space)
 {
 	struct hdd_adapter *adapter;
-	struct hdd_station_info *sta_info = NULL;
+	struct hdd_station_info *sta_info, *tmp = NULL;
 	uint32_t len;
 	qdf_time_t current_ts;
 
@@ -1140,8 +1140,8 @@ static void hdd_son_get_sta_list(struct wlan_objmgr_vdev *vdev,
 		return;
 	}
 
-	hdd_for_each_sta_ref(adapter->sta_info_list, sta_info,
-			     STA_INFO_SOFTAP_GET_STA_INFO) {
+	hdd_for_each_sta_ref_safe(adapter->sta_info_list, sta_info, tmp,
+				  STA_INFO_SOFTAP_GET_STA_INFO) {
 		if (!qdf_is_macaddr_broadcast(&sta_info->sta_mac)) {
 			len = hdd_son_per_sta_len(sta_info);
 
@@ -1151,6 +1151,13 @@ static void hdd_son_get_sta_list(struct wlan_objmgr_vdev *vdev,
 					&adapter->sta_info_list,
 					&sta_info, true,
 					STA_INFO_SOFTAP_GET_STA_INFO);
+
+				if (tmp)
+					hdd_put_sta_info_ref(
+						&adapter->sta_info_list,
+						&tmp, true,
+						STA_INFO_SOFTAP_GET_STA_INFO);
+
 				hdd_err("space %u, length %u", *space, len);
 
 				return;
@@ -1401,7 +1408,7 @@ static int hdd_son_del_acl_mac(struct wlan_objmgr_vdev *vdev,
 /**
  * hdd_son_kickout_mac() - kickout sta with given mac
  * @vdev: vdev
- * @acl_mac: sta mac to kickout
+ * @mac: sta mac to kickout
  *
  * Return: 0 on success, negative errno on failure
  */
@@ -2512,7 +2519,7 @@ uint32_t hdd_son_get_peer_max_mcs_idx(struct wlan_objmgr_vdev *vdev,
 }
 
 /**
- * hdd_son_sta_stats() - get connected sta rssi and estimated data rate
+ * hdd_son_get_sta_stats() - get connected sta rssi and estimated data rate
  * @vdev: pointer to vdev
  * @mac_addr: connected sta mac addr
  * @stats: pointer to ieee80211_nodestats

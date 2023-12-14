@@ -325,7 +325,7 @@ struct twt_ack_context {
 /**
  * twt_en_dis_context - twt enable/disable private context
  * @twt_role: twt role. When the upper layer is invoking requestor/responder
- * enable/disable command via the TWT component API, Firmare WMI event
+ * enable/disable command via the TWT component API, Firmware WMI event
  * doesn't have the info in the event params to distinguish if this enable or
  * disable is for requestor or responder, hence TWT component stores this role
  * before the request is sent to the firmware.
@@ -691,6 +691,7 @@ struct twt_pause_dialog_cmd_param {
  * @dialog_id: TWT dialog ID
  * @suspend_duration: TWT suspend duration in microseconds
  * @next_twt_size: next TWT size
+ * @sp_start_offset: value to offset the start of service period
  */
 struct twt_nudge_dialog_cmd_param {
 	uint32_t vdev_id;
@@ -698,6 +699,7 @@ struct twt_nudge_dialog_cmd_param {
 	uint32_t dialog_id;
 	uint32_t suspend_duration;
 	uint32_t next_twt_size;
+	int32_t sp_start_offset;
 };
 
 /* enum HOST_TWT_PAUSE_STATUS - status code of pause TWT dialog

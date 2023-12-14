@@ -137,6 +137,32 @@ QDF_STATUS
 target_if_lro_hash_config(struct cdp_ctrl_objmgr_psoc *psoc, uint8_t pdev_id,
 			  struct cdp_lro_hash_config *lro_hash_cfg);
 
+#ifdef WLAN_SUPPORT_PPEDS
+/**
+ * target_if_peer_set_ppeds_default_routing() - Set PPE DS routing API
+ * @soc: psoc handle pointer
+ * @peer_macaddr: Peer MAC address
+ * @service_code: Service code
+ * @priority_valid: Priority valid field
+ * @src_info: Source information
+ * @vdev_id: VDEV ID
+ * @use_ppe: use ppe field value
+ * @ppe_routing_enabled: PPE routing enabled
+ *
+ * This API is used for setting PPE default routing configuration
+ *
+ * return: QDF_STATUS_SUCCESS for success or error code
+ */
+QDF_STATUS
+target_if_peer_set_ppeds_default_routing(struct cdp_ctrl_objmgr_psoc *soc,
+					 uint8_t *peer_macaddr,
+					 uint16_t service_code,
+					 uint8_t priority_valid,
+					 uint16_t src_info,
+					 uint8_t vdev_id, uint8_t use_ppe,
+					 uint8_t ppe_routing_enabled);
+#endif
+
 #ifdef WDS_CONV_TARGET_IF_OPS_ENABLE
 /**
  * target_if_add_wds_entry() - send wds peer add command to fw

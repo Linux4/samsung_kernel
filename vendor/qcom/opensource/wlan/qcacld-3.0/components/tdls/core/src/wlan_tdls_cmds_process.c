@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -127,7 +127,7 @@ void tdls_update_6g_power(struct wlan_objmgr_vdev *vdev,
 	/*
 	 * Since, 8 TDLS peers can be connected. If connected peer already
 	 * exist then no need to set the power again.
-	 * Similarily, for disconnection case, this function is called after
+	 * Similarly, for disconnection case, this function is called after
 	 * just after connected peer count is decreased. If connected peer
 	 * count exist after decrement of peer count that mean another peer
 	 * exist and then no need to reset the BSS power.
@@ -218,7 +218,7 @@ void tdls_decrement_peer_count(struct wlan_objmgr_vdev *vdev,
 	 * Offchannel is allowed only when TDLS is connected with one peer.
 	 * If more than one peer is connected then Offchannel is disabled by
 	 * WMI_TDLS_SET_OFFCHAN_MODE_CMDID with DISABLE_CHANSWITCH.
-	 * Hence, re-enable offchannel when only one conencted peer is left.
+	 * Hence, re-enable offchannel when only one connected peer is left.
 	 */
 	if (soc_obj->connected_peer_count == 1)
 		tdls_set_tdls_offchannelmode(vdev, ENABLE_CHANSWITCH);
@@ -868,11 +868,6 @@ int tdls_validate_mgmt_request(struct tdls_action_frame_request *tdls_mgmt_req)
 
 	/* other than teardown frame, mgmt frames are not sent if disabled */
 	if (TDLS_TEARDOWN != tdls_validate->action_code) {
-		if (ucfg_is_nan_disc_active(tdls_soc->soc)) {
-			tdls_err("NAN active. NAN+TDLS not supported");
-			return -EPERM;
-		}
-
 		if (!tdls_check_is_tdls_allowed(vdev)) {
 			tdls_err("TDLS not allowed, reject MGMT, action = %d",
 				tdls_validate->action_code);
@@ -1013,15 +1008,13 @@ QDF_STATUS tdls_process_add_peer(struct tdls_add_peer_request *req)
 			 wlan_vdev_get_id(vdev));
 		goto error;
 	}
+
 	psoc = wlan_vdev_get_psoc(vdev);
 	if (!psoc) {
 		tdls_err("can't get psoc");
 		goto error;
 	}
-	if (ucfg_is_nan_disc_active(psoc)) {
-		tdls_err("NAN active. NAN+TDLS not supported");
-		goto error;
-	}
+
 	status = QDF_STATUS_SUCCESS;
 
 	cmd.cmd_type = WLAN_SER_CMD_TDLS_ADD_PEER;
@@ -1812,7 +1805,7 @@ QDF_STATUS tdls_process_enable_link(struct tdls_oper_request *req)
 	 * WMI_TDLS_SET_OFFCHAN_MODE_CMDID with DISABLE_CHANSWITCH.
 	 * So, basically when the 2nd peer enable_link is there, offchannel
 	 * should be disabled and will remain disabled for all subsequent
-	 * TDLS peer conenction.
+	 * TDLS peer connection.
 	 * Offchannel will be re-enabled when connected peer count again
 	 * becomes 1.
 	 */

@@ -11,6 +11,7 @@
 #include <linux/phy/phy.h>
 #include <linux/pm_qos.h>
 #include <linux/notifier.h>
+#include <linux/panic_notifier.h>
 #include "ufshcd.h"
 #include "unipro.h"
 
@@ -607,6 +608,9 @@ struct ufs_qcom_host {
 	struct list_head regs_list_head;
 	bool ber_th_exceeded;
 	u32 valid_evt_cnt[UFS_EVT_CNT];
+	bool irq_affinity_support;
+	bool bypass_pbl_rst_wa;
+	struct notifier_block ufs_qcom_panic_nb;
 
 	bool skip_flush;
 };

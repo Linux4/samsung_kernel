@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_DEVICE_H
 #define __KGSL_DEVICE_H
@@ -51,18 +51,6 @@
 enum kgsl_event_results {
 	KGSL_EVENT_RETIRED = 1,
 	KGSL_EVENT_CANCELLED = 2,
-};
-
-/**
- * struct gpu_work_period - Process specific GPU work periods stats
- */
-struct gpu_work_period {
-	/** @active: Total amount of time the GPU spent running work */
-	u64 active;
-	/** @cmds: Total number of commands completed within work period */
-	u32 cmds;
-	/** @frames: Total number frames completed within work period */
-	atomic_t frames;
 };
 
 /*
@@ -244,7 +232,8 @@ struct kgsl_device {
 	/* For GPU inline submission */
 	uint32_t submit_now;
 	spinlock_t submit_lock;
-	bool slumber;
+	/** @skip_inline_submit: Track if user threads should make an inline submission or not */
+	bool skip_inline_submit;
 
 	struct mutex mutex;
 	uint32_t state;
@@ -333,18 +322,20 @@ struct kgsl_device {
 	struct srcu_notifier_head nh;
 	/** @bcl_data_kobj: Kobj for bcl_data sysfs node */
 	struct kobject bcl_data_kobj;
-	/** @proc_period_timer: Timer to capture GPU work stats */
-	struct timer_list proc_period_timer;
-	/** @proc_period_lock: Lock to protect process GPU work periods */
-	spinlock_t proc_period_lock;
-	/** @proc_period_work: Worker thread to emulate GPU work event */
-	struct work_struct proc_period_work;
+	/** @work_period_timer: Timer to capture application GPU work stats */
+	struct timer_list work_period_timer;
+	/** @work_period_lock: Lock to protect application GPU work periods */
+	spinlock_t work_period_lock;
+	/** @work_period_ws: Work struct to emulate application GPU work events */
+	struct work_struct work_period_ws;
 	/** @flags: Flags for gpu_period stats */
 	unsigned long flags;
 	struct {
 		u64 begin;
 		u64 end;
 	} gpu_period;
+	/** @idle_jiffies: Latest idle jiffies */
+	unsigned long idle_jiffies;
 };
 
 #define KGSL_MMU_DEVICE(_mmu) \
@@ -526,14 +517,8 @@ struct kgsl_process_private {
 	 * @reclaim_lock: Mutex lock to protect KGSL_PROC_PINNED_STATE
 	 */
 	struct mutex reclaim_lock;
-	/** @gpu_work_period: Stats for GPU utilization */
-	struct gpu_work_period period;
-	/** @uid: Process private unique identifier */
-	u32 uid;
-	/** @flags: Flags to accumlate process sepcific stats */
-	unsigned long flags;
-	/** @defer_ws: Work struct for process private put */
-	struct work_struct defer_ws;
+	/** @period: Stats for GPU utilization */
+	struct gpu_work_period *period;
 	/**
 	 * @cmd_count: The number of cmds that are active for the process
 	 */
@@ -683,8 +668,8 @@ static inline bool kgsl_state_is_nap_or_minbw(struct kgsl_device *device)
  */
 static inline void kgsl_start_idle_timer(struct kgsl_device *device)
 {
-	mod_timer(&device->idle_timer,
-			jiffies + msecs_to_jiffies(device->pwrctrl.interval_timeout));
+	device->idle_jiffies = jiffies + msecs_to_jiffies(device->pwrctrl.interval_timeout);
+	mod_timer(&device->idle_timer, device->idle_jiffies);
 }
 
 int kgsl_readtimestamp(struct kgsl_device *device, void *priv,

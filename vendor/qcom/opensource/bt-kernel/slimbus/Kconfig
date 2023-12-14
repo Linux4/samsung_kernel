@@ -13,3 +13,13 @@ config BTFM_SLIM
 		Say Y here to compile support for Bluetooth slimbus driver
 		into the kernel or say M to compile as a module.
 
+config SLIM_BTFM_CODEC
+	tristate "MSM Bluetooth/FM Slimbus Device using BTFM codec driver"
+	depends on MSM_BT_POWER
+	depends on BTFM_CODEC
+	help
+		This enables BT/FM slimbus driver to use btfm codec driver as
+		interface to interacts with codec driver.
+
+		Say Y here to compile support for Bluetooth slimbus driver
+		into the kernel or say M to compile as a module.

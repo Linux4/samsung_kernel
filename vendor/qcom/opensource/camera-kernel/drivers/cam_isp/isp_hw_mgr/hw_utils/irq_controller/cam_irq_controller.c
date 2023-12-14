@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -464,10 +464,13 @@ static inline void __cam_irq_controller_disable_irq(
 {
 	struct cam_irq_register_obj *irq_register;
 	uint32_t *update_mask;
-	int i, priority;
+	int i, priority = 0;
 
 	update_mask = evt_handler->evt_bit_mask_arr;
 	priority    = evt_handler->priority;
+
+	if (unlikely(priority >= CAM_IRQ_PRIORITY_MAX))
+		return;
 
 	for (i = 0; i < controller->num_registers; i++) {
 		irq_register = &controller->irq_register_arr[i];
@@ -484,10 +487,13 @@ static inline void __cam_irq_controller_disable_irq_evt(
 {
 	struct cam_irq_register_obj *irq_register;
 	uint32_t *update_mask;
-	int i, priority;
+	int i, priority = 0;
 
 	update_mask = evt_handler->evt_bit_mask_arr;
 	priority    = evt_handler->priority;
+
+	if (unlikely(priority >= CAM_IRQ_PRIORITY_MAX))
+		return;
 
 	for (i = 0; i < controller->num_registers; i++) {
 		irq_register = &controller->irq_register_arr[i];
@@ -503,10 +509,13 @@ static inline void __cam_irq_controller_enable_irq(
 {
 	struct cam_irq_register_obj *irq_register;
 	uint32_t *update_mask;
-	int i, priority;
+	int i, priority = 0;
 
 	update_mask = evt_handler->evt_bit_mask_arr;
 	priority    = evt_handler->priority;
+
+	if (unlikely(priority >= CAM_IRQ_PRIORITY_MAX))
+		return;
 
 	for (i = 0; i < controller->num_registers; i++) {
 		irq_register = &controller->irq_register_arr[i];

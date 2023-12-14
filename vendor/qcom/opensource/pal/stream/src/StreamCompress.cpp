@@ -44,7 +44,7 @@
 std::condition_variable cvPause;
 
 static void handleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
-                                  uint32_t event_size)
+                                  uint32_t event_size, uint32_t miid __unused)
 {
     Stream *s = NULL;
     pal_stream_callback cb;
@@ -176,12 +176,6 @@ int32_t StreamCompress::open()
     }
 
     if (currentState == STREAM_IDLE) {
-        status = session->open(this);
-        if (0 != status) {
-           PAL_ERR(LOG_TAG,"session open failed with status %d", status);
-           goto exit;
-        }
-        PAL_VERBOSE(LOG_TAG, "session open successful");
         for (int32_t i=0; i < mDevices.size(); i++) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to open",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
@@ -192,6 +186,13 @@ int32_t StreamCompress::open()
                 goto exit;
              }
         }
+
+        status = session->open(this);
+        if (0 != status) {
+           PAL_ERR(LOG_TAG,"session open failed with status %d", status);
+           goto exit;
+        }
+        PAL_VERBOSE(LOG_TAG, "session open successful");
         currentState = STREAM_INIT;
         PAL_VERBOSE(LOG_TAG,"device open successful");
         PAL_VERBOSE(LOG_TAG,"exit stream compress opened, state %d", currentState);
@@ -299,8 +300,7 @@ int32_t StreamCompress::stop()
         mStreamMutex.lock();
         currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
-            if (rm->isDeviceActive_l(mDevices[i], this))
-                rm->deregisterDevice(mDevices[i], this);
+            rm->deregisterDevice(mDevices[i], this);
         }
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
@@ -400,6 +400,12 @@ int32_t StreamCompress::start()
              * This allows stream be played even if one of devices failed to start.
              */
             status = -EINVAL;
+            if (!mDevices.size()) {
+                PAL_ERR(LOG_TAG, "No Rx device available to start the usecase");
+                rm->unlockGraph();
+                goto exit;
+            }
+
             for (int32_t i=0; i < mDevices.size(); i++) {
                 devStatus = mDevices[i]->start();
                 if (devStatus == 0) {
@@ -663,8 +669,7 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             rm->lockActiveStream();
             mStreamMutex.lock();
             for (int i = 0; i < mDevices.size(); i++) {
-                if (!rm->isDeviceActive_l(mDevices[i], this))
-                    rm->registerDevice(mDevices[i], this);
+                rm->registerDevice(mDevices[i], this);
             }
             rm->checkAndSetDutyCycleParam();
             rm->unlockActiveStream();
@@ -873,12 +878,14 @@ int32_t StreamCompress::pause_l()
     PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
-    if ((currentState == STREAM_PAUSED) && isPaused) {
+    if (isPaused) {
         PAL_INFO(LOG_TAG, "Stream is already paused");
     } else {
         //caching the volume before setting it to 0
-        voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
-                          (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
+        if (mVolumeData) {
+            voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                          (sizeof(struct pal_channel_vol_kv) * (mVolumeData->no_of_volpair))));
+        }
         if (!voldata) {
             status = -ENOMEM;
             goto exit;
@@ -913,11 +920,17 @@ int32_t StreamCompress::pause_l()
 #ifndef SEC_AUDIO_OFFLOAD
         setVolume(volume);
 #endif
+        if (mVolumeData) {
+            free(mVolumeData);
+            mVolumeData = NULL;
+        }
+        mVolumeData = (struct pal_volume_data *)calloc(1, volSize);
+        if (!mVolumeData) {
+            PAL_ERR(LOG_TAG, "failed to calloc for volume data");
+            status = -ENOMEM;
+            goto exit;
+        }
         ar_mem_cpy(mVolumeData, volSize, voldata, volSize);
-        free(volume);
-        free(voldata);
-        volume = NULL;
-        voldata = NULL;
 
         status = session->setConfig(this, MODULE, PAUSE_TAG);
         if (0 != status) {
@@ -936,6 +949,15 @@ int32_t StreamCompress::pause_l()
 
 exit:
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
+    if (volume) {
+         free(volume);
+         volume = NULL;
+     }
+    if (voldata) {
+         free(voldata);
+         voldata = NULL;
+    }
+
     return status;
 }
 
@@ -985,8 +1007,10 @@ int32_t StreamCompress::resume_l()
     isPaused = false;
 
     //since we set the volume to 0 in pause, in resume we need to set vol back to default
-    voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
+    if (mVolumeData) {
+        voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                      (sizeof(struct pal_channel_vol_kv) * (mVolumeData->no_of_volpair))));
+    }
     if (!voldata) {
         status = -ENOMEM;
         goto exit;
@@ -1128,7 +1152,7 @@ int32_t StreamCompress::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
 
 int32_t StreamCompress::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, currentState);

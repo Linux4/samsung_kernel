@@ -32,3 +32,9 @@ cc_library_headers {
     vendor: true,
     recovery_available: true
 }
+
+cc_library_headers {
+    name: "qti_ipa_kernel_headers",
+    vendor: true,
+    recovery_available: true
+}

@@ -6,6 +6,8 @@ arch/arm64/crypto/aes-glue.c
 arch/arm64/crypto/aes-modes.S
 arch/arm64/crypto/chacha-neon-core.S
 arch/arm64/crypto/chacha-neon-glue.c
+arch/arm64/crypto/ghash-ce-core.S
+arch/arm64/crypto/ghash-ce-glue.c
 arch/arm64/crypto/poly1305-glue.c
 arch/arm64/crypto/polyval-ce-core.S
 arch/arm64/crypto/polyval-ce-glue.c
@@ -446,6 +448,7 @@ block/blk-flush.c
 block/blk.h
 block/blk-ioc.c
 block/blk-iocost.c
+block/blk-ioprio.c
 block/blk-ioprio.h
 block/blk-lib.c
 block/blk-map.c
@@ -1030,6 +1033,8 @@ drivers/i2c/i2c-core-smbus.c
 drivers/i3c/device.c
 drivers/i3c/internals.h
 drivers/i3c/master.c
+drivers/iio/buffer/industrialio-triggered-buffer.c
+drivers/iio/buffer/kfifo_buf.c
 drivers/iio/iio_core.h
 drivers/iio/iio_core_trigger.h
 drivers/iio/industrialio-buffer.c
@@ -1087,6 +1092,7 @@ drivers/irqchip/irq-sun6i-r.c
 drivers/irqchip/irq-sunxi-nmi.c
 drivers/leds/led-class.c
 drivers/leds/led-class-flash.c
+drivers/leds/led-class-multicolor.c
 drivers/leds/led-core.c
 drivers/leds/leds.h
 drivers/leds/led-triggers.c
@@ -1097,6 +1103,7 @@ drivers/mailbox/hi6220-mailbox.c
 drivers/mailbox/mailbox.c
 drivers/mailbox/mailbox.h
 drivers/mailbox/sun6i-msgbox.c
+drivers/md/dm-bow.c
 drivers/md/dm-bufio.c
 drivers/md/dm-builtin.c
 drivers/md/dm.c
@@ -1974,6 +1981,7 @@ fs/fs_struct.c
 fs/fs_types.c
 fs/fs-writeback.c
 fs/fuse/acl.c
+fs/fuse/backing.c
 fs/fuse/control.c
 fs/fuse/dev.c
 fs/fuse/dir.c
@@ -2013,9 +2021,6 @@ fs/iomap/seek.c
 fs/iomap/swapfile.c
 fs/iomap/trace.c
 fs/iomap/trace.h
-fs/io_uring.c
-fs/io-wq.c
-fs/io-wq.h
 fs/jbd2/checkpoint.c
 fs/jbd2/commit.c
 fs/jbd2/journal.c
@@ -2854,9 +2859,11 @@ include/linux/iio/driver.h
 include/linux/iio/events.h
 include/linux/iio/iio.h
 include/linux/iio/iio-opaque.h
+include/linux/iio/kfifo_buf.h
 include/linux/iio/machine.h
 include/linux/iio/sysfs.h
 include/linux/iio/trigger_consumer.h
+include/linux/iio/triggered_buffer.h
 include/linux/iio/trigger.h
 include/linux/iio/types.h
 include/linux/ima.h
@@ -2982,6 +2989,7 @@ include/linux/l2tp.h
 include/linux/latencytop.h
 include/linux/lcm.h
 include/linux/led-class-flash.h
+include/linux/led-class-multicolor.h
 include/linux/leds.h
 include/linux/libfdt_env.h
 include/linux/libfdt.h
@@ -3589,6 +3597,7 @@ include/linux/user.h
 include/linux/usermode_driver.h
 include/linux/user_namespace.h
 include/linux/user-return-notifier.h
+include/linux/util_macros.h
 include/linux/uts.h
 include/linux/utsname.h
 include/linux/uuid.h
@@ -3663,6 +3672,7 @@ include/media/v4l2-mc.h
 include/media/v4l2-mediabus.h
 include/media/v4l2-mem2mem.h
 include/media/v4l2-subdev.h
+include/media/v4l2-uvc.h
 include/media/videobuf2-core.h
 include/media/videobuf2-dma-contig.h
 include/media/videobuf2-dma-sg.h
@@ -4063,7 +4073,9 @@ include/trace/hooks/cpuidle.h
 include/trace/hooks/cpuidle_psci.h
 include/trace/hooks/creds.h
 include/trace/hooks/debug.h
+include/trace/hooks/direct_io.h
 include/trace/hooks/dmabuf.h
+include/trace/hooks/dm.h
 include/trace/hooks/drm_atomic.h
 include/trace/hooks/drm_framebuffer.h
 include/trace/hooks/dtask.h
@@ -4079,6 +4091,7 @@ include/trace/hooks/gic_v3.h
 include/trace/hooks/hung_task.h
 include/trace/hooks/iommu.h
 include/trace/hooks/logbuf.h
+include/trace/hooks/loop.h
 include/trace/hooks/memory.h
 include/trace/hooks/mmc.h
 include/trace/hooks/mm.h
@@ -4090,6 +4103,7 @@ include/trace/hooks/power.h
 include/trace/hooks/preemptirq.h
 include/trace/hooks/printk.h
 include/trace/hooks/psci.h
+include/trace/hooks/psi.h
 include/trace/hooks/regmap.h
 include/trace/hooks/remoteproc.h
 include/trace/hooks/restore_incpath.h
@@ -4154,6 +4168,7 @@ include/uapi/linux/acct.h
 include/uapi/linux/aio_abi.h
 include/uapi/linux/android/binderfs.h
 include/uapi/linux/android/binder.h
+include/uapi/linux/android_fuse.h
 include/uapi/linux/arm_sdei.h
 include/uapi/linux/audit.h
 include/uapi/linux/auxvec.h
@@ -4618,6 +4633,9 @@ init/initramfs.c
 init/init_task.c
 init/main.c
 init/version.c
+io_uring/io_uring.c
+io_uring/io-wq.c
+io_uring/io-wq.h
 kernel/async.c
 kernel/audit.c
 kernel/auditfilter.c
@@ -4628,6 +4646,7 @@ kernel/audit_tree.c
 kernel/audit_watch.c
 kernel/bounds.c
 kernel/bpf/arraymap.c
+kernel/bpf/bpf_fuse.c
 kernel/bpf/bpf_iter.c
 kernel/bpf/bpf_local_storage.c
 kernel/bpf/bpf_lru_list.c
@@ -4706,7 +4725,7 @@ kernel/exit.c
 kernel/extable.c
 kernel/fork.c
 kernel/freezer.c
-kernel/futex.c
+kernel/futex/core.c
 kernel/gki_module.c
 kernel/groups.c
 kernel/hung_task.c
@@ -4917,6 +4936,7 @@ kernel/trace/trace_output.h
 kernel/trace/trace_printk.c
 kernel/trace/trace_probe.c
 kernel/trace/trace_probe.h
+kernel/trace/trace_probe_kernel.h
 kernel/trace/trace_probe_tmpl.h
 kernel/trace/trace_sched_switch.c
 kernel/trace/trace_seq.c

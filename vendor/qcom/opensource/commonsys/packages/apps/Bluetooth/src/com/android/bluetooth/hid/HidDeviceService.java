@@ -12,6 +12,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 package com.android.bluetooth.hid;
@@ -307,8 +311,8 @@ public class HidDeviceService extends ProfileService {
 
         @RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
         private HidDeviceService getService(AttributionSource source) {
-            if (!Utils.checkCallerIsSystemOrActiveUser(TAG)
-                    || !Utils.checkServiceAvailable(mService, TAG)
+            if (!Utils.checkServiceAvailable(mService, TAG)
+                    || !Utils.checkCallerIsSystemOrActiveOrManagedUser(mService, TAG)
                     || !Utils.checkConnectPermissionForDataDelivery(mService, source, TAG)) {
                 return null;
             }
@@ -795,7 +799,10 @@ public class HidDeviceService extends ProfileService {
             mHidDeviceNativeInterface.cleanup();
             mNativeAvailable = false;
         }
-        mActivityManager.removeOnUidImportanceListener(mUidImportanceListener);
+        if (mActivityManager != null) {
+            mActivityManager.removeOnUidImportanceListener(mUidImportanceListener);
+            mActivityManager = null;
+        }
         return true;
     }
 

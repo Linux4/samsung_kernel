@@ -2716,6 +2716,36 @@ static ssize_t mipi_samsung_poc_info_show(struct device *dev,
 	return strlen(buf);
 }
 
+static ssize_t ss_fw_id_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_ERR(vdd, "no vdd");
+		return -ENODEV;
+	}
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		snprintf(buf, PAGE_SIZE, "-1\n");
+		return strlen(buf);
+	}
+
+
+	if (vdd->fw.is_support) {
+		if (vdd->fw.fw_id_read)
+			vdd->fw.fw_id_read(vdd);
+		LCD_INFO(vdd, "fw_id : %x\n", vdd->fw.fw_id);
+	} else
+		LCD_INFO(vdd, "fw_id is not supported\n");
+
+	snprintf(buf, PAGE_SIZE, "%x\n", vdd->fw.fw_id);
+
+	return strlen(buf);
+}
+
 static ssize_t xtalk_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -2900,8 +2930,9 @@ end:
 
 static int ss_gct_store(struct samsung_display_driver_data *vdd)
 {
+	struct samsung_display_driver_data *vddp;
 	struct sde_connector *conn;
-	int ret = 0;
+	int i, ret = 0;
 
 	LCD_INFO(vdd, "lego-opcode gct +++\n");
 
@@ -2914,10 +2945,15 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 	if (vdd->esd_recovery.esd_irq_enable)
 		vdd->esd_recovery.esd_irq_enable(false, true, (void *)vdd, ESD_MASK_GCT_TEST);
 
-	LCD_INFO(vdd, "gct : block commit\n");
-	atomic_inc(&vdd->block_commit_cnt);
-	ss_wait_for_kickoff_done(vdd);
-	LCD_INFO(vdd, "gct : kickoff_done!!\n");
+	for (i = PRIMARY_DISPLAY_NDX; i < MAX_DISPLAY_NDX; i++) {
+		vddp = ss_get_vdd(i);
+		if (!ss_is_panel_off(vddp)) {
+			LCD_INFO(vddp, "gct : block commit\n");
+			atomic_inc(&vddp->block_commit_cnt);
+			ss_wait_for_kickoff_done(vddp);
+			LCD_INFO(vddp, "gct : kickoff_done!!\n");
+		}
+	}
 
 	ret = ss_send_cmd_get_rx(vdd, TX_GCT_LV, &vdd->gct.checksum[0]);
 	if (ret <= 0)
@@ -2943,9 +2979,14 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 	ss_send_cmd(vdd, TX_DSI_CMD_SET_ON);
 	ss_send_cmd(vdd, TX_DSI_CMD_SET_ON_POST);
 
-	LCD_INFO(vdd, "release commit\n");
-	atomic_add_unless(&vdd->block_commit_cnt, -1, 0);
-	wake_up_all(&vdd->block_commit_wq);
+	for (i = PRIMARY_DISPLAY_NDX; i < MAX_DISPLAY_NDX; i++) {
+		vddp = ss_get_vdd(i);
+		if (!ss_is_panel_off(vddp)) {
+			LCD_INFO(vddp, "release commit\n");
+			atomic_add_unless(&vddp->block_commit_cnt, -1, 0);
+			wake_up_all(&vddp->block_commit_wq);
+		}
+	}
 
 	vdd->gct.is_running = false;
 
@@ -3166,14 +3207,13 @@ static ssize_t ss_disp_SVC_OCTA_show(struct device *dev,
 	}
 
 	if (!vdd->cell_id_dsi) {
-		LCD_INFO(vdd, "no cell_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no cell_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->cell_id_dsi, vdd->cell_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->cell_id_dsi, vdd->cell_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3188,14 +3228,13 @@ static ssize_t ss_disp_SVC_OCTA2_show(struct device *dev,
 	}
 
 	if (!vdd->cell_id_dsi) {
-		LCD_INFO(vdd, "no cell_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no cell_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->cell_id_dsi, vdd->cell_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->cell_id_dsi, vdd->cell_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3210,14 +3249,13 @@ static ssize_t ss_disp_SVC_OCTA_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->octa_id_dsi) {
-		LCD_INFO(vdd, "no octa_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no octa_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->octa_id_dsi, vdd->octa_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->octa_id_dsi, vdd->octa_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3232,14 +3270,13 @@ static ssize_t ss_disp_SVC_OCTA2_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->octa_id_dsi) {
-		LCD_INFO(vdd, "no octa_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_INFO(vdd, "no octa_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->octa_id_dsi, vdd->octa_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->octa_id_dsi, vdd->octa_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3254,14 +3291,13 @@ static ssize_t ss_disp_SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->ddi_id_dsi) {
-		LCD_ERR(vdd, "no ddi_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_ERR(vdd, "no ddi_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3276,14 +3312,13 @@ static ssize_t ss_disp_SVC_OCTA2_DDI_CHIPID_show(struct device *dev,
 	}
 
 	if (!vdd->ddi_id_dsi) {
-		LCD_ERR(vdd, "no ddi_id_dsi\n");
+		strlcpy(buf, "0000000000", 11);
+		LCD_ERR(vdd, "no ddi_id_dsi set to default buf[%s]\n", buf);
 		return strlen(buf);
 	}
 
-	strlcat(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
-
-	LCD_INFO(vdd, "%s\n", buf);
-
+	strlcpy(buf, vdd->ddi_id_dsi, vdd->ddi_id_len);
+	LCD_INFO(vdd, "[%s]\n", buf);
 	return strlen(buf);
 }
 
@@ -3435,7 +3470,7 @@ static ssize_t ss_dynamic_freq_show(struct device *dev,
 	timing_table = vdd->dyn_mipi_clk.clk_timing_table;
 
 	len += scnprintf(buf + len, 100, "idx clk_rate\n");
-	for (i = 1; i < timing_table.tab_size; i++)
+	for (i = 0; i < timing_table.tab_size; i++)
 		len += scnprintf(buf + len, 100, "[%d] %d\n", i, timing_table.clk_rate[i]);
 	len += scnprintf(buf + len, 100, "Write [idx] to dynamic_freq node to set clk_rate.\n");
 	len += scnprintf(buf + len, 100, "To revert it (use rf info), Write 0 to dynamic_freq node.\n");
@@ -3445,7 +3480,7 @@ static ssize_t ss_dynamic_freq_show(struct device *dev,
 
 /*
  * ss_dynamic_freq_store()
- * 0 : revert fixed idx (use rf_info notifier)
+ * -1 : revert fixed idx (use rf_info notifier)
  * others : fix table idx for mipi_clk/ffc to tesst purpose
  */
 static ssize_t ss_dynamic_freq_store(struct device *dev,
@@ -3465,7 +3500,7 @@ static ssize_t ss_dynamic_freq_store(struct device *dev,
 		return size;
 	}
 
-	if (sscanf(buf, "%d\n", &val) != 1 || val < 0 ||
+	if (sscanf(buf, "%d\n", &val) != 1 ||
 			val >= vdd->dyn_mipi_clk.clk_timing_table.tab_size) {
 		LCD_INFO(vdd, "invalid input (%d)\n", val);
 		return size;
@@ -3970,8 +4005,9 @@ static ssize_t ss_night_dim_store(struct device *dev,
 	if (vdd->panel_func.set_night_dim) {
 		vdd->night_dim = val;
 		vdd->panel_func.set_night_dim(vdd, val);
-	} else
+	} else {
 		LCD_INFO(vdd, "No night_dim function..");
+	}
 
 	return size;
 }
@@ -4150,7 +4186,7 @@ static ssize_t ss_read_flash_show(struct device *dev,
 
 	if (flash_readlen && (flash_readlen < SZ_256)) {
 		for (i = 0; i < flash_readlen; i++)
-			len += scnprintf(buf + len, 10, "%02x%s", flash_readbuf[i],
+			len += scnprintf(buf + len, 10, "%02X%s", flash_readbuf[i],
 					((i + 1) % 16) == 0 || (i == flash_readlen - 1) ? "\n" : " ");
 	} else {
 		len += scnprintf(buf + len, 100, "No read data.. \n");
@@ -4184,7 +4220,7 @@ static ssize_t ss_read_flash_store(struct device *dev,
 		return -ENODEV;
 	}
 
-	if (sscanf(buf, "%x %x", &temp[0], &temp[1]) != 2)
+	if (sscanf(buf, "%x %d", &temp[0], &temp[1]) != 2)
 		return size;
 
 	if (temp[0] > SZ_1M || temp[1] > SZ_256)
@@ -4195,7 +4231,7 @@ static ssize_t ss_read_flash_store(struct device *dev,
 	flash_readaddr = temp[0];
 	flash_readlen = temp[1];
 
-	LCD_INFO(vdd,"addr 0x(%x) len 0x(%x)\n", flash_readaddr, flash_readlen);
+	LCD_INFO(vdd, "addr 0x(%x) len (%d)\n", flash_readaddr, flash_readlen);
 
 	memset(flash_readbuf, 0x0, sizeof(flash_readbuf));
 
@@ -6185,6 +6221,7 @@ static DEVICE_ATTR(mst, S_IRUGO | S_IWUSR | S_IWGRP, NULL, mipi_samsung_mst_stor
 static DEVICE_ATTR(poc, S_IRUGO | S_IWUSR | S_IWGRP, mipi_samsung_poc_show, mipi_samsung_poc_store);
 static DEVICE_ATTR(poc_mca, S_IRUGO | S_IWUSR | S_IWGRP, mipi_samsung_poc_mca_show, NULL);
 static DEVICE_ATTR(poc_info, S_IRUGO | S_IWUSR | S_IWGRP, mipi_samsung_poc_info_show, NULL);
+static DEVICE_ATTR(fw_id, S_IRUGO | S_IWUSR | S_IWGRP, ss_fw_id_show, NULL);
 static DEVICE_ATTR(irc_mode, S_IRUGO | S_IWUSR | S_IWGRP, ss_irc_mode_show, ss_irc_mode_store);
 //static DEVICE_ATTR(ldu_correction, S_IRUGO | S_IWUSR | S_IWGRP, ss_ldu_correction_show, ss_ldu_correction_store);
 static DEVICE_ATTR(adaptive_control, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_adaptive_control_store);
@@ -6312,6 +6349,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_poc.attr,
 	&dev_attr_poc_mca.attr,
 	&dev_attr_poc_info.attr,
+	&dev_attr_fw_id.attr,
 	&dev_attr_dpui.attr,
 	&dev_attr_dpui_dbg.attr,
 	&dev_attr_dpci.attr,

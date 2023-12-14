@@ -530,7 +530,7 @@ wlan_spectral_psoc_obj_create_handler(struct wlan_objmgr_psoc *psoc, void *arg)
 
 	status = wlan_spectral_init_psoc_feature_cap(psoc);
 	if (QDF_IS_STATUS_ERROR(status)) {
-		spectral_err("Failed to intitialize spectral pdev feature caps");
+		spectral_err("Failed to initialize spectral pdev feature caps");
 		return QDF_STATUS_E_FAILURE;
 	}
 
@@ -599,7 +599,7 @@ wlan_spectral_pdev_obj_create_handler(struct wlan_objmgr_pdev *pdev, void *arg)
 
 	status = wlan_spectral_init_pdev_feature_caps(pdev);
 	if (QDF_IS_STATUS_ERROR(status)) {
-		spectral_err("Failed to intitialize spectral pdev feature caps");
+		spectral_err("Failed to initialize spectral pdev feature caps");
 		return QDF_STATUS_E_FAILURE;
 	}
 

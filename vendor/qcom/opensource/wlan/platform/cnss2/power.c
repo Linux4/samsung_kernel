@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -12,6 +12,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/pinctrl/qcom-pinctrl.h>
 #include <linux/regulator/consumer.h>
 #if IS_ENABLED(CONFIG_QCOM_COMMAND_DB)
 #include <soc/qcom/cmd-db.h>
@@ -25,6 +26,8 @@
 static struct cnss_vreg_cfg cnss_vreg_list[] = {
 	{"vdd-wlan-core", 1300000, 1300000, 0, 0, 0},
 	{"vdd-wlan-io", 1800000, 1800000, 0, 0, 0},
+	{"vdd-wlan-io12", 1200000, 1200000, 0, 0, 0},
+	{"vdd-wlan-ant-share", 1800000, 1800000, 0, 0, 0},
 	{"vdd-wlan-xtal-aon", 0, 0, 0, 0, 0},
 	{"vdd-wlan-xtal", 1800000, 1800000, 0, 2, 0},
 	{"vdd-wlan", 0, 0, 0, 0, 0},
@@ -69,9 +72,13 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #define WLAN_SW_CTRL_GPIO		"qcom,wlan-sw-ctrl-gpio"
 #define WLAN_EN_ACTIVE			"wlan_en_active"
 #define WLAN_EN_SLEEP			"wlan_en_sleep"
+#define WLAN_VREGS_PROP			"wlan_vregs"
 
+/* unit us */
 #define BOOTSTRAP_DELAY			1000
 #define WLAN_ENABLE_DELAY		1000
+/* unit ms */
+#define WLAN_ENABLE_DELAY_ROME		10
 
 #define TCS_CMD_DATA_ADDR_OFFSET	0x4
 #define TCS_OFFSET			0xC8
@@ -86,6 +93,7 @@ static struct cnss_clk_cfg cnss_clk_list[] = {
 #define CNSS_PMIC_AUTO_HEADROOM 16
 #define CNSS_IR_DROP_WAKE 30
 #define CNSS_IR_DROP_SLEEP 10
+#define VREG_NOTFOUND 1
 
 /**
  * enum cnss_aop_vreg_param: Voltage regulator TCS param
@@ -131,8 +139,11 @@ static int cnss_get_vreg_single(struct cnss_plat_data *plat_priv,
 	const __be32 *prop;
 	char prop_name[MAX_PROP_SIZE] = {0};
 	int len;
+	struct device_node *dt_node;
 
 	dev = &plat_priv->plat_dev->dev;
+	dt_node = (plat_priv->dev_node ? plat_priv->dev_node : dev->of_node);
+
 	reg = devm_regulator_get_optional(dev, vreg->cfg.name);
 	if (IS_ERR(reg)) {
 		ret = PTR_ERR(reg);
@@ -152,7 +163,7 @@ static int cnss_get_vreg_single(struct cnss_plat_data *plat_priv,
 	snprintf(prop_name, MAX_PROP_SIZE, "qcom,%s-config",
 		 vreg->cfg.name);
 
-	prop = of_get_property(dev->of_node, prop_name, &len);
+	prop = of_get_property(dt_node, prop_name, &len);
 	if (!prop || len != (5 * sizeof(__be32))) {
 		cnss_pr_dbg("Property %s %s, use default\n", prop_name,
 			    prop ? "invalid format" : "doesn't exist");
@@ -315,6 +326,18 @@ static struct cnss_vreg_cfg *get_vreg_list(u32 *vreg_list_size,
 	}
 }
 
+/*
+ * For multi-exchg dt node, get the required vregs' names from property
+ * 'wlan_vregs', which is string array;
+ *
+ * If the property is not present or present but no value is set, then no
+ * additional wlan verg is required, function return VREG_NOTFOUND.
+ * If property is present with valid value, function return 0.
+ * Other cases a negative value is returned.
+ *
+ * For non-multi-exchg dt, go through all vregs in the static array
+ * 'cnss_vreg_list'.
+ */
 static int cnss_get_vreg(struct cnss_plat_data *plat_priv,
 			 struct list_head *vreg_list,
 			 struct cnss_vreg_cfg *vreg_cfg,
@@ -324,18 +347,58 @@ static int cnss_get_vreg(struct cnss_plat_data *plat_priv,
 	int i;
 	struct cnss_vreg_info *vreg;
 	struct device *dev = &plat_priv->plat_dev->dev;
+	int id_n;
+	struct device_node *dt_node;
 
-	if (!list_empty(vreg_list)) {
+	if (!list_empty(vreg_list) &&
+	    (plat_priv->dt_type != CNSS_DTT_MULTIEXCHG)) {
 		cnss_pr_dbg("Vregs have already been updated\n");
 		return 0;
 	}
 
-	for (i = 0; i < vreg_list_size; i++) {
+	dt_node = (plat_priv->dev_node ? plat_priv->dev_node : dev->of_node);
+	if (plat_priv->dt_type == CNSS_DTT_MULTIEXCHG) {
+		id_n = of_property_count_strings(dt_node,
+						 WLAN_VREGS_PROP);
+		if (id_n <= 0) {
+			if (id_n == -ENODATA || id_n == -EINVAL) {
+				cnss_pr_dbg("No additional vregs for: %s:%lx\n",
+					    dt_node->name,
+					    plat_priv->device_id);
+				/* By returning a positive value, give the caller a
+				 * chance to know no additional regulator is needed
+				 * by this device, and shall not treat this case as
+				 * an error.
+				 */
+				return VREG_NOTFOUND;
+			}
+
+			cnss_pr_err("property %s is invalid: %s:%lx\n",
+				    WLAN_VREGS_PROP, dt_node->name,
+				    plat_priv->device_id);
+			return -EINVAL;
+		}
+	} else {
+		id_n = vreg_list_size;
+	}
+
+	for (i = 0; i < id_n; i++) {
 		vreg = devm_kzalloc(dev, sizeof(*vreg), GFP_KERNEL);
 		if (!vreg)
 			return -ENOMEM;
 
-		memcpy(&vreg->cfg, &vreg_cfg[i], sizeof(vreg->cfg));
+		if (plat_priv->dt_type == CNSS_DTT_MULTIEXCHG) {
+			ret = of_property_read_string_index(dt_node,
+							    WLAN_VREGS_PROP, i,
+							    &vreg->cfg.name);
+			if (ret) {
+				cnss_pr_err("Failed to read vreg ids\n");
+				return ret;
+			}
+		} else {
+			memcpy(&vreg->cfg, &vreg_cfg[i], sizeof(vreg->cfg));
+		}
+
 		ret = cnss_get_vreg_single(plat_priv, vreg);
 		if (ret != 0) {
 			if (ret == -ENODEV) {
@@ -723,6 +786,8 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
 	int ret = 0;
 	struct device *dev;
 	struct cnss_pinctrl_info *pinctrl_info;
+	u32 gpio_id, i;
+	int gpio_id_n;
 
 	dev = &plat_priv->plat_dev->dev;
 	pinctrl_info = &plat_priv->pinctrl_info;
@@ -783,6 +848,8 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
 				    ret);
 			goto out;
 		}
+
+		cnss_set_feature_list(plat_priv, CNSS_WLAN_EN_SUPPORT_V01);
 	} else {
 		pinctrl_info->wlan_en_gpio = -EINVAL;
 	}
@@ -815,6 +882,35 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv)
 			    pinctrl_info->sw_ctrl_gpio);
 	} else {
 		pinctrl_info->sw_ctrl_gpio = -EINVAL;
+	}
+
+	/* Find out and configure all those GPIOs which need to be setup
+	 * for interrupt wakeup capable
+	 */
+	gpio_id_n = of_property_count_u32_elems(dev->of_node, "mpm_wake_set_gpios");
+	if (gpio_id_n > 0) {
+		cnss_pr_dbg("Num of GPIOs to be setup for interrupt wakeup capable: %d\n",
+			    gpio_id_n);
+		for (i = 0; i < gpio_id_n; i++) {
+			ret = of_property_read_u32_index(dev->of_node,
+							 "mpm_wake_set_gpios",
+							 i, &gpio_id);
+			if (ret) {
+				cnss_pr_err("Failed to read gpio_id at index: %d\n", i);
+				continue;
+			}
+
+			ret = msm_gpio_mpm_wake_set(gpio_id, 1);
+			if (ret < 0) {
+				cnss_pr_err("Failed to setup gpio_id: %d as interrupt wakeup capable, ret: %d\n",
+					    ret);
+			} else {
+				cnss_pr_dbg("gpio_id: %d successfully setup for interrupt wakeup capable\n",
+					    gpio_id);
+			}
+		}
+	} else {
+		cnss_pr_dbg("No GPIOs to be setup for interrupt wakeup capable\n");
 	}
 
 	return 0;
@@ -927,12 +1023,19 @@ static int cnss_select_pinctrl_state(struct cnss_plat_data *plat_priv,
 					    ret);
 				goto out;
 			}
-			udelay(WLAN_ENABLE_DELAY);
+
+			if (plat_priv->device_id == QCA6174_DEVICE_ID ||
+			    plat_priv->device_id == 0)
+				mdelay(WLAN_ENABLE_DELAY_ROME);
+			else
+				udelay(WLAN_ENABLE_DELAY);
+
 			cnss_set_xo_clk_gpio_state(plat_priv, false);
 		} else {
 			cnss_set_xo_clk_gpio_state(plat_priv, false);
 			goto out;
 		}
+
 	} else {
 		if (!IS_ERR_OR_NULL(pinctrl_info->wlan_en_sleep)) {
 			cnss_wlan_hw_disable_check(plat_priv);
@@ -1019,7 +1122,7 @@ int cnss_get_input_gpio_value(struct cnss_plat_data *plat_priv, int gpio_num)
 	return gpio_get_value(gpio_num);
 }
 
-int cnss_power_on_device(struct cnss_plat_data *plat_priv)
+int cnss_power_on_device(struct cnss_plat_data *plat_priv, bool reset)
 {
 	int ret = 0;
 
@@ -1045,6 +1148,26 @@ int cnss_power_on_device(struct cnss_plat_data *plat_priv)
 		cnss_pr_err("Failed to turn on clocks, err = %d\n", ret);
 		goto vreg_off;
 	}
+
+#ifdef CONFIG_PULLDOWN_WLANEN
+	if (reset) {
+		/* The default state of wlan_en maybe not low,
+		 * according to datasheet, we should put wlan_en
+		 * to low first, and trigger high.
+		 * And the default delay for qca6390 is at least 4ms,
+		 * for qcn7605/qca6174, it is 10us. For safe, set 5ms delay
+		 * here.
+		 */
+		ret = cnss_select_pinctrl_state(plat_priv, false);
+		if (ret) {
+			cnss_pr_err("Failed to select pinctrl state, err = %d\n",
+				    ret);
+			goto clk_off;
+		}
+
+		usleep_range(4000, 5000);
+	}
+#endif
 
 	ret = cnss_select_pinctrl_enable(plat_priv);
 	if (ret) {
@@ -1469,7 +1592,7 @@ int cnss_aop_pdc_reconfig(struct cnss_plat_data *plat_priv)
 static int cnss_aop_set_vreg_param(struct cnss_plat_data *plat_priv,
 				   const char *vreg_name,
 				   enum cnss_aop_vreg_param param,
-				   enum cnss_aop_tcs_seq_pram seq_param,
+				   enum cnss_aop_tcs_seq_param seq_param,
 				   int val)
 {
 	return 0;
@@ -1486,6 +1609,7 @@ void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv)
 {
 	struct device *dev = &plat_priv->plat_dev->dev;
 	int ret;
+	u32 cfg_arr_size = 0, *cfg_arr = NULL;
 
 	/* common DT Entries */
 	plat_priv->pdc_init_table_len =
@@ -1495,13 +1619,16 @@ void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv)
 		plat_priv->pdc_init_table =
 			kcalloc(plat_priv->pdc_init_table_len,
 				sizeof(char *), GFP_KERNEL);
-		ret =
-		of_property_read_string_array(dev->of_node,
-					      "qcom,pdc_init_table",
-					      plat_priv->pdc_init_table,
-					      plat_priv->pdc_init_table_len);
-		if (ret < 0)
-			cnss_pr_err("Failed to get PDC Init Table\n");
+		if (plat_priv->pdc_init_table) {
+			ret = of_property_read_string_array(dev->of_node,
+							    "qcom,pdc_init_table",
+							    plat_priv->pdc_init_table,
+							    plat_priv->pdc_init_table_len);
+			if (ret < 0)
+				cnss_pr_err("Failed to get PDC Init Table\n");
+		} else {
+			cnss_pr_err("Failed to alloc PDC Init Table mem\n");
+		}
 	} else {
 		cnss_pr_dbg("PDC Init Table not configured\n");
 	}
@@ -1513,13 +1640,16 @@ void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv)
 		plat_priv->vreg_pdc_map =
 			kcalloc(plat_priv->vreg_pdc_map_len,
 				sizeof(char *), GFP_KERNEL);
-		ret =
-		of_property_read_string_array(dev->of_node,
-					      "qcom,vreg_pdc_map",
-					      plat_priv->vreg_pdc_map,
-					      plat_priv->vreg_pdc_map_len);
-		if (ret < 0)
-			cnss_pr_err("Failed to get VReg PDC Mapping\n");
+		if (plat_priv->vreg_pdc_map) {
+			ret = of_property_read_string_array(dev->of_node,
+							    "qcom,vreg_pdc_map",
+							    plat_priv->vreg_pdc_map,
+							    plat_priv->vreg_pdc_map_len);
+			if (ret < 0)
+				cnss_pr_err("Failed to get VReg PDC Mapping\n");
+		} else {
+			cnss_pr_err("Failed to alloc VReg PDC mem\n");
+		}
 	} else {
 		cnss_pr_dbg("VReg PDC Mapping not configured\n");
 	}
@@ -1530,12 +1660,16 @@ void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv)
 	if (plat_priv->pmu_vreg_map_len > 0) {
 		plat_priv->pmu_vreg_map = kcalloc(plat_priv->pmu_vreg_map_len,
 						  sizeof(char *), GFP_KERNEL);
-		ret =
-		of_property_read_string_array(dev->of_node, "qcom,pmu_vreg_map",
-					      plat_priv->pmu_vreg_map,
-					      plat_priv->pmu_vreg_map_len);
-		if (ret < 0)
-			cnss_pr_err("Fail to get PMU VReg Mapping\n");
+		if (plat_priv->pmu_vreg_map) {
+			ret = of_property_read_string_array(dev->of_node,
+							    "qcom,pmu_vreg_map",
+							    plat_priv->pmu_vreg_map,
+							    plat_priv->pmu_vreg_map_len);
+			if (ret < 0)
+				cnss_pr_err("Fail to get PMU VReg Mapping\n");
+		} else {
+			cnss_pr_err("Failed to alloc PMU VReg mem\n");
+		}
 	} else {
 		cnss_pr_dbg("PMU VReg Mapping not configured\n");
 	}
@@ -1554,6 +1688,25 @@ void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv)
 					      &plat_priv->vreg_ipa);
 		if (ret)
 			cnss_pr_dbg("VReg for QCA6490 Int Power Amp not configured\n");
+	}
+	ret = of_property_count_u32_elems(plat_priv->plat_dev->dev.of_node,
+					  "qcom,on-chip-pmic-support");
+	if (ret > 0) {
+		cfg_arr_size = ret;
+		cfg_arr = kcalloc(cfg_arr_size, sizeof(*cfg_arr), GFP_KERNEL);
+		if (cfg_arr) {
+			ret = of_property_read_u32_array(plat_priv->plat_dev->dev.of_node,
+							 "qcom,on-chip-pmic-support",
+							 cfg_arr, cfg_arr_size);
+			if (!ret) {
+				plat_priv->on_chip_pmic_devices_count = cfg_arr_size;
+				plat_priv->on_chip_pmic_board_ids = cfg_arr;
+			}
+		} else {
+			cnss_pr_err("Failed to alloc cfg table mem\n");
+		}
+	} else {
+		cnss_pr_dbg("On chip PMIC device ids not configured\n");
 	}
 }
 
@@ -1689,4 +1842,19 @@ int cnss_enable_int_pow_amp_vreg(struct cnss_plat_data *plat_priv)
 	config_done = true;
 
 	return 0;
+}
+
+int cnss_dev_specific_power_on(struct cnss_plat_data *plat_priv)
+{
+	int ret;
+
+	if (plat_priv->dt_type != CNSS_DTT_MULTIEXCHG)
+		return 0;
+
+	ret = cnss_get_vreg_type(plat_priv, CNSS_VREG_PRIM);
+	if (ret)
+		return ret;
+
+	plat_priv->powered_on = false;
+	return cnss_power_on_device(plat_priv, false);
 }

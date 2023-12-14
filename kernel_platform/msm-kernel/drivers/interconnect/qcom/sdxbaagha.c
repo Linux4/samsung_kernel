@@ -424,8 +424,8 @@ static struct qcom_icc_qosbox qnm_pcie_qos = {
 	.offsets = { 0x2c000 },
 	.config = &(struct qos_config) {
 		.prio = 0,
-		.urg_fwd = 0,
-		.prio_fwd_disable = 1,
+		.urg_fwd = 1,
+		.prio_fwd_disable = 0,
 	},
 };
 
@@ -446,8 +446,8 @@ static struct qcom_icc_qosbox qnm_snoc_sf_qos = {
 	.offsets = { 0x2b000 },
 	.config = &(struct qos_config) {
 		.prio = 0,
-		.urg_fwd = 0,
-		.prio_fwd_disable = 1,
+		.urg_fwd = 1,
+		.prio_fwd_disable = 0,
 	},
 };
 
@@ -1464,12 +1464,6 @@ static int __init qnoc_driver_init(void)
 	return platform_driver_register(&qnoc_driver);
 }
 core_initcall(qnoc_driver_init);
-
-static void __exit qnoc_driver_exit(void)
-{
-	platform_driver_unregister(&qnoc_driver);
-}
-module_exit(qnoc_driver_exit);
 
 MODULE_DESCRIPTION("SDXBAAGHA NoC driver");
 MODULE_LICENSE("GPL v2");

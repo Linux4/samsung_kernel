@@ -214,10 +214,12 @@ bool ucfg_twt_is_command_in_progress(struct wlan_objmgr_psoc *psoc,
 
 void ucfg_twt_set_work_params(
 		struct wlan_objmgr_vdev *vdev,
-		struct twt_add_dialog_complete_event_param *params,
+		struct qdf_mac_addr *peer_mac,
+		uint8_t dialog_id,
 		uint32_t twt_next_action)
 {
-	return wlan_twt_set_work_params(vdev, params, twt_next_action);
+	return wlan_twt_set_work_params(vdev, peer_mac, dialog_id,
+					twt_next_action);
 }
 
 void ucfg_twt_get_work_params(

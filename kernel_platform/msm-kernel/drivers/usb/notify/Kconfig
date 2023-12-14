@@ -143,3 +143,12 @@ config USB_AUDIO_POWER_SAVING
 	 for specific USB earphone,
 	 enable this feature.
 	 It is made by samsung.
+
+config USB_LPM_CHARGING_SYNC
+	bool "LPM charging type sync"
+	depends on USB_NOTIFY_LAYER
+	help
+	 There is a requirement that LPM animation confirm
+	 the final charging method and show it only once.
+	 It is a function that syncs with the driver stage through sysfs
+	 to let the LPM know the final charging type.

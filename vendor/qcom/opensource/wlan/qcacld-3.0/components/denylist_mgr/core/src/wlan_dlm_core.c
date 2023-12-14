@@ -791,6 +791,73 @@ dlm_get_reject_ap_type(struct dlm_reject_ap *dlm_entry)
 	return REJECT_REASON_UNKNOWN;
 }
 
+bool dlm_is_bssid_in_reject_list(struct wlan_objmgr_pdev *pdev,
+				 struct qdf_mac_addr *bssid)
+{
+	struct dlm_pdev_priv_obj *dlm_ctx;
+	struct dlm_psoc_priv_obj *dlm_psoc_obj;
+	struct dlm_reject_ap *dlm_entry = NULL;
+	qdf_list_node_t *cur_node = NULL, *next_node = NULL;
+	QDF_STATUS status;
+
+	dlm_ctx = dlm_get_pdev_obj(pdev);
+	if (!dlm_ctx) {
+		dlm_err("dlm_ctx is NULL");
+		return false;
+	}
+	dlm_psoc_obj = dlm_get_psoc_obj(wlan_pdev_get_psoc(pdev));
+	if (!dlm_psoc_obj) {
+		dlm_err("dlm_ctx or dlm_psoc_obj is NULL");
+		return false;
+	}
+
+	status = qdf_mutex_acquire(&dlm_ctx->reject_ap_list_lock);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		dlm_err("failed to acquire reject_ap_list_lock");
+		return false;
+	}
+
+	qdf_list_peek_front(&dlm_ctx->reject_ap_list, &cur_node);
+	while (cur_node) {
+		qdf_list_peek_next(&dlm_ctx->reject_ap_list, cur_node,
+				   &next_node);
+		dlm_entry =
+			qdf_container_of(cur_node, struct dlm_reject_ap, node);
+		/* Update the AP info to the latest list first */
+		dlm_update_ap_info(dlm_entry, &dlm_psoc_obj->dlm_cfg, NULL);
+		if (!dlm_entry->reject_ap_type) {
+			dlm_debug(QDF_MAC_ADDR_FMT " cleared from list",
+				  QDF_MAC_ADDR_REF(dlm_entry->bssid.bytes));
+			qdf_list_remove_node(&dlm_ctx->reject_ap_list,
+					     &dlm_entry->node);
+			qdf_mem_free(dlm_entry);
+			cur_node = next_node;
+			next_node = NULL;
+			continue;
+		}
+
+		if (qdf_is_macaddr_equal(&dlm_entry->bssid, bssid)) {
+			dlm_debug("BSSID reject_ap_type 0x%x",
+				  dlm_entry->reject_ap_type);
+			if (DLM_IS_AP_IN_DENYLIST(dlm_entry)) {
+				dlm_debug("BSSID is present in deny list");
+				qdf_mutex_release(
+					&dlm_ctx->reject_ap_list_lock);
+				return true;
+			}
+			qdf_mutex_release(
+				&dlm_ctx->reject_ap_list_lock);
+			return false;
+		}
+		cur_node = next_node;
+		next_node = NULL;
+	}
+
+	qdf_mutex_release(&dlm_ctx->reject_ap_list_lock);
+
+	return false;
+}
+
 /**
  * dlm_dump_denylist_bssid() - Function to dump denylisted bssid
  * @pdev:  pdev object

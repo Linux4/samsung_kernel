@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -713,6 +713,37 @@ static int _set_ltm_hist_crtl_feature(struct sde_hw_dspp *hw_dspp,
 	return ret;
 }
 
+static int _disable_rc_mask_feature(struct sde_hw_dspp *hw_dspp,
+				 struct sde_hw_cp_cfg *hw_cfg,
+				 struct sde_crtc *sde_crtc)
+{
+	int ret = 0;
+
+	if (!hw_dspp || !hw_cfg || !sde_crtc) {
+		DRM_ERROR("invalid arguments");
+		return -EINVAL;
+	}
+
+	if (!hw_dspp->ops.setup_rc_mask) {
+		DRM_ERROR("invalid rc ops\n");
+		return -EINVAL;
+	}
+
+	DRM_DEBUG_DRIVER("dspp %d setup mask for rc instance %u\n",
+			hw_dspp->idx, hw_dspp->cap->sblk->rc.idx);
+
+	/* send empty payload to disable rc feature */
+	hw_cfg->len = 0;
+	hw_cfg->payload = NULL;
+	ret = hw_dspp->ops.setup_rc_mask(hw_dspp, hw_cfg);
+
+	if (ret)
+		DRM_ERROR("failed to disable rc feature, ret %d\n", ret);
+
+	_update_pu_feature_enable(sde_crtc, SDE_CP_CRTC_DSPP_RC_PU, false);
+	return ret;
+}
+
 static int _check_rc_mask_feature(struct sde_hw_dspp *hw_dspp,
 				 struct sde_hw_cp_cfg *hw_cfg,
 				 struct sde_crtc *sde_crtc)
@@ -942,6 +973,13 @@ static int _feature_unsupported(struct sde_hw_dspp *hw_dspp,
 
 	return 0;
 }
+
+feature_wrapper crtc_feature_disable_wrappers[SDE_CP_CRTC_MAX_FEATURES];
+#define setup_crtc_feature_disable_wrappers(wrappers) \
+do { \
+	memset(wrappers, 0, sizeof(wrappers)); \
+	wrappers[SDE_CP_CRTC_DSPP_RC_MASK] = _disable_rc_mask_feature; \
+} while (0)
 
 feature_wrapper check_crtc_feature_wrappers[SDE_CP_CRTC_MAX_FEATURES];
 #define setup_check_crtc_feature_wrappers(wrappers) \
@@ -1731,7 +1769,7 @@ static void _sde_cp_crtc_commit_feature(struct sde_cp_node *prop_node,
 			DRM_ERROR("failed to %s feature %d\n",
 				((feature_enabled) ? "enable" : "disable"),
 				prop_node->feature);
-			return;
+			goto disable_feature;
 		}
 	}
 
@@ -1746,6 +1784,34 @@ static void _sde_cp_crtc_commit_feature(struct sde_cp_node *prop_node,
 	}
 	/* Programming of feature done remove from dirty list */
 	list_del_init(&prop_node->cp_dirty_list);
+	return;
+
+disable_feature:
+	ret = 0;
+
+	if (crtc_feature_disable_wrappers[prop_node->feature] != NULL) {
+		feature_wrapper disable_handler =
+					crtc_feature_disable_wrappers[prop_node->feature];
+
+		for (i = 0; i < num_mixers && !ret; i++) {
+			hw_lm = sde_crtc->mixers[i].hw_lm;
+			hw_dspp = sde_crtc->mixers[i].hw_dspp;
+			if (!hw_lm) {
+				ret = -EINVAL;
+				continue;
+			}
+			hw_cfg.ctl = sde_crtc->mixers[i].hw_ctl;
+			hw_cfg.mixer_info = hw_lm;
+			hw_cfg.displayh = num_mixers * hw_lm->cfg.out_width;
+			hw_cfg.displayv = hw_lm->cfg.out_height;
+
+			ret = disable_handler(hw_dspp, &hw_cfg, sde_crtc);
+		}
+
+		/* Remove feature from active and dirty list */
+		list_del_init(&prop_node->cp_active_list);
+		list_del_init(&prop_node->cp_dirty_list);
+	}
 }
 
 static const int dspp_feature_to_sub_blk_tbl[SDE_CP_CRTC_MAX_FEATURES] = {
@@ -2335,6 +2401,7 @@ void sde_cp_crtc_install_properties(struct drm_crtc *crtc)
 		setup_lm_prop_install_funcs(lm_prop_install_func);
 		setup_set_crtc_feature_wrappers(set_crtc_feature_wrappers);
 		setup_check_crtc_feature_wrappers(check_crtc_feature_wrappers);
+		setup_crtc_feature_disable_wrappers(crtc_feature_disable_wrappers);
 		setup_set_crtc_pu_feature_wrappers(
 				set_crtc_pu_feature_wrappers);
 		setup_check_crtc_pu_feature_wrappers(
@@ -2777,9 +2844,9 @@ void sde_cp_disable_features(struct drm_crtc *crtc)
 	u32 num_mixers = sde_crtc->num_mixers;
 	enum sde_cp_crtc_features features[] = {
 		SDE_CP_CRTC_DSPP_DEMURA_INIT,
-		SDE_CP_CRTC_DSPP_RC_MASK
+		SDE_CP_CRTC_DSPP_RC_MASK,
+		SDE_CP_CRTC_DSPP_LTM_HIST_CTL,
 	};
-
 	for (n = 0; n < ARRAY_SIZE(features); n++) {
 		if (features[n] > ARRAY_SIZE(set_crtc_feature_wrappers)) {
 			DRM_DEBUG("invalid feature:%d\n", features[n]);
@@ -2814,6 +2881,7 @@ void sde_cp_disable_features(struct drm_crtc *crtc)
 			}
 			hw_cfg.ctl = sde_crtc->mixers[i].hw_ctl;
 			hw_cfg.mixer_info = hw_lm;
+			hw_cfg.num_of_mixers = num_mixers;
 			hw_cfg.displayh = num_mixers * hw_lm->cfg.out_width;
 			hw_cfg.displayv = hw_lm->cfg.out_height;
 			hw_cfg.panel_height = sde_crtc->base.state->adjusted_mode.vdisplay;
@@ -3521,6 +3589,8 @@ static void _sde_cp_notify_ad_event(struct drm_crtc *crtc_drm, void *arg)
 	}
 
 	priv = kms->dev->dev_private;
+
+	SDE_EVT32(0xEEEEEEEE);
 	ret = pm_runtime_resume_and_get(kms->dev->dev);
 	if (ret < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -3759,6 +3829,7 @@ static void _sde_cp_notify_hist_event(struct drm_crtc *crtc_drm, void *arg)
 		spin_unlock_irqrestore(&crtc->spin_lock, flags);
 		DRM_DEBUG_DRIVER("cannot find histogram event node in crtc\n");
 		/* unlock histogram */
+		SDE_EVT32(0xEEEEEEEE);
 		ret = pm_runtime_resume_and_get(kms->dev->dev);
 		if (ret < 0) {
 			SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -3784,6 +3855,7 @@ static void _sde_cp_notify_hist_event(struct drm_crtc *crtc_drm, void *arg)
 				irq_idx, ret);
 			spin_unlock_irqrestore(&node->state_lock, state_flags);
 			spin_unlock_irqrestore(&crtc->spin_lock, flags);
+			SDE_EVT32(0xEEEEEEEE);
 			ret = pm_runtime_resume_and_get(kms->dev->dev);
 			if (ret < 0) {
 				SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -3809,6 +3881,7 @@ static void _sde_cp_notify_hist_event(struct drm_crtc *crtc_drm, void *arg)
 	if (!crtc->hist_blob)
 		return;
 
+	SDE_EVT32(0xEEEEEEEE);
 	ret = pm_runtime_resume_and_get(kms->dev->dev);
 	if (ret < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -5034,10 +5107,9 @@ void _sde_cp_mark_active_dirty_internal(struct sde_crtc *crtc)
 	u32 i;
 	enum sde_cp_crtc_features features[] = {
 		SDE_CP_CRTC_DSPP_DEMURA_INIT,
+		SDE_CP_CRTC_DSPP_LTM_HIST_CTL,
 	};
-
 	mutex_lock(&crtc->crtc_cp_lock);
-
 	for (i = 0; i < ARRAY_SIZE(features); i++) {
 		if (_sde_cp_feature_in_dirtylist(features[i],
 							 &crtc->cp_dirty_list))

@@ -133,6 +133,8 @@ struct msm_kms_funcs {
 	bool (*check_for_splash)(struct msm_kms *kms);
 	/*trigger null flush if stuck in cont splash*/
 	int (*trigger_null_flush)(struct msm_kms *kms);
+	/* get input fence timeout */
+	int (*get_input_fence_timeout)(const struct msm_kms *kms);
 	/* topology lm information */
 	int (*get_mixer_count)(const struct msm_kms *kms,
 			const struct drm_display_mode *mode,

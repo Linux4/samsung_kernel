@@ -53,7 +53,6 @@ extern const struct nla_policy cfg80211_scan_policy[
 				      QCA_WLAN_VENDOR_ATTR_SCAN_MAX) \
 	},
 
-/* GPS application requirement */
 #define SCAN_DONE_EVENT_BUF_SIZE 4096
 #define SCAN_WAKE_LOCK_CONNECT_DURATION (1 * 1000) /* in msec */
 #define SCAN_WAKE_LOCK_SCAN_DURATION (5 * 1000) /* in msec */
@@ -430,4 +429,15 @@ void wlan_cfg80211_scan_done(struct net_device *netdev,
  */
 enum scan_priority convert_nl_scan_priority_to_internal(
 	enum qca_wlan_vendor_scan_priority nl_scan_priority);
+
+/**
+ * wlan_is_scan_allowed() - Allow/reject scan if any scan is running
+ * @vdev: vdev on which current scan issued
+ *
+ * Check if any other scan is in queue and decide whether to allow or reject
+ * current scan based on simultaneous_scan feature support
+ *
+ * Return: True if current scan can be allowed
+ */
+bool wlan_is_scan_allowed(struct wlan_objmgr_vdev *vdev);
 #endif

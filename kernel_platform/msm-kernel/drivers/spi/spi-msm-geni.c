@@ -5,6 +5,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/dmaengine.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
@@ -434,21 +435,18 @@ static void spi_setup_word_len(struct spi_geni_master *mas, u32 mode,
 	 */
 	if (!(mas->tx_fifo_width % bits_per_word))
 		pack_words = mas->tx_fifo_width / bits_per_word;
-	/*
-	 * Don't configure SPI word length for SPI Slave it is an optional
-	 * property for SPI Slave. H/W will take care of SPI slave word
-	 * if SPI_SLAVE_EN bit is set.
-	 */
-	if (!spi->slave) {
-		word_len &= ~WORD_LEN_MSK;
+
+	word_len &= ~WORD_LEN_MSK;
+	if (spi->slave)
+		word_len |= (bits_per_word & WORD_LEN_MSK);
+	else
 		word_len |= ((bits_per_word - MIN_WORD_LEN) & WORD_LEN_MSK);
-		geni_write_reg(word_len, mas->base, SE_SPI_WORD_LEN);
-	}
+	geni_write_reg(word_len, mas->base, SE_SPI_WORD_LEN);
 
 	geni_se_config_packing(&mas->spi_rsc, bits_per_word, pack_words, msb_first, true, true);
 	SPI_LOG_DBG(mas->ipc, false, mas->dev,
-		"%s: %lu bpw %d pack_words %d\n", __func__,
-		bits_per_word, pack_words);
+		    "%s: SPI-slave: %d bpw: %d pack_words: %d word_len: %d\n",
+		    __func__, spi->slave, bits_per_word, pack_words, word_len);
 }
 
 static int setup_fifo_params(struct spi_device *spi_slv,
@@ -838,6 +836,12 @@ static int spi_geni_lock_bus(struct spi_master *spi)
 	/* Issue TX */
 	mas->gsi_lock_unlock->tx_cookie =
 			dmaengine_submit(mas->gsi_lock_unlock->tx_desc);
+	if (dma_submit_error(mas->gsi_lock_unlock->tx_cookie)) {
+		dev_err(mas->dev, "%s: dmaengine_submit failed (%d)\n",
+			__func__, mas->gsi_lock_unlock->tx_cookie);
+		ret = -EINVAL;
+		goto err_spi_geni_lock_bus;
+	}
 	dma_async_issue_pending(mas->tx);
 
 	timeout = wait_for_completion_timeout(&mas->tx_cb,
@@ -895,6 +899,12 @@ static void spi_geni_unlock_bus(struct spi_master *spi)
 	/* Issue TX */
 	mas->gsi_lock_unlock->tx_cookie =
 			dmaengine_submit(mas->gsi_lock_unlock->tx_desc);
+	if (dma_submit_error(mas->gsi_lock_unlock->tx_cookie)) {
+		dev_err(mas->dev, "%s: dmaengine_submit failed (%d)\n",
+			__func__, mas->gsi_lock_unlock->tx_cookie);
+		ret = -EINVAL;
+		goto err_spi_geni_unlock_bus;
+	}
 	dma_async_issue_pending(mas->tx);
 
 	timeout = wait_for_completion_timeout(&mas->tx_cb,
@@ -1050,9 +1060,22 @@ static int setup_gsi_xfer(struct spi_transfer *xfer,
 					&mas->gsi[mas->num_xfers].desc_cb;
 	mas->gsi[mas->num_xfers].tx_cookie =
 			dmaengine_submit(mas->gsi[mas->num_xfers].tx_desc);
-	if (cmd & SPI_RX_ONLY)
+	if (dma_submit_error(mas->gsi[mas->num_xfers].tx_cookie)) {
+		dev_err(mas->dev, "%s: dmaengine_submit failed (%d)\n",
+			__func__, mas->gsi[mas->num_xfers].tx_cookie);
+		dmaengine_terminate_all(mas->tx);
+		return -EINVAL;
+	}
+	if (cmd & SPI_RX_ONLY) {
 		mas->gsi[mas->num_xfers].rx_cookie =
 			dmaengine_submit(mas->gsi[mas->num_xfers].rx_desc);
+		if (dma_submit_error(mas->gsi[mas->num_xfers].rx_cookie)) {
+			dev_err(mas->dev, "%s: dmaengine_submit failed (%d)\n",
+				__func__, mas->gsi[mas->num_xfers].rx_cookie);
+			dmaengine_terminate_all(mas->rx);
+			return -EINVAL;
+		}
+	}
 	dma_async_issue_pending(mas->tx);
 	if (cmd & SPI_RX_ONLY)
 		dma_async_issue_pending(mas->rx);
@@ -1326,8 +1349,7 @@ static int spi_geni_mas_setup(struct spi_master *spi)
 		(geni_read_reg(mas->base, GENI_IF_DISABLE_RO) &
 					FIFO_IF_DISABLE);
 
-	if (mas->gsi_mode) {
-		SPI_LOG_DBG(mas->ipc, false, mas->dev, "%s:GSI mode\n", __func__);
+	if (mas->gsi_mode && !mas->is_deep_sleep) {
 		mas->tx = dma_request_slave_channel(mas->dev, "tx");
 		if (IS_ERR_OR_NULL(mas->tx)) {
 			dev_info(mas->dev, "Failed to get tx DMA ch %ld\n",
@@ -1400,6 +1422,9 @@ static int spi_geni_mas_setup(struct spi_master *spi)
 		mas->tx_wm = 1;
 	}
 setup_ipc:
+	/* we should avoid reallocation of ipc context during deepsleep */
+	if (!mas->ipc)
+		mas->ipc = ipc_log_context_create(4, dev_name(mas->dev), 0);
 	dev_info(mas->dev, "tx_fifo %d rx_fifo %d tx_width %d\n",
 		mas->tx_fifo_depth, mas->rx_fifo_depth,
 		mas->tx_fifo_width);
@@ -1416,15 +1441,21 @@ setup_ipc:
 	if (mas->is_le_vm)
 		return ret;
 
-	hw_ver = geni_se_get_qup_hw_version(&mas->spi_rsc);
-	major = GENI_SE_VERSION_MAJOR(hw_ver);
-	minor = GENI_SE_VERSION_MINOR(hw_ver);
+	if (!mas->is_deep_sleep) {
+		hw_ver = geni_se_get_qup_hw_version(&mas->spi_rsc);
+		if (hw_ver)
+			dev_err(mas->dev, "%s:Err getting HW version %d\n",
+							__func__, hw_ver);
+		else {
+			major = GENI_SE_VERSION_MAJOR(hw_ver);
+			minor = GENI_SE_VERSION_MINOR(hw_ver);
 
-	if ((major == 1) && (minor == 0)) {
-		mas->oversampling = 2;
-		SPI_LOG_DBG(mas->ipc, false, mas->dev,
-			"%s:Major:%d Minor:%d os%d\n",
-		__func__, major, minor, mas->oversampling);
+			if ((major == 1) && (minor == 0))
+				mas->oversampling = 2;
+			GENI_SE_DBG(mas->ipc, false, mas->dev,
+				"%s:Major:%d Minor:%d os%d\n",
+			__func__, major, minor, mas->oversampling);
+		}
 	}
 	if (mas->set_miso_sampling)
 		spi_geni_set_sampling_rate(mas, major, minor);
@@ -1432,6 +1463,8 @@ setup_ipc:
 	if (mas->dis_autosuspend)
 		SPI_LOG_DBG(mas->ipc, false, mas->dev,
 				"Auto Suspend is disabled\n");
+	mas->is_deep_sleep = false;
+
 	return ret;
 }
 
@@ -2447,6 +2480,22 @@ static int spi_geni_gpi_suspend_resume(struct spi_geni_master *geni_mas, bool is
 	return 0;
 }
 
+static int spi_geni_levm_suspend_proc(struct spi_geni_master *geni_mas, struct spi_master *spi)
+{
+	int ret = 0;
+
+	spi_geni_unlock_bus(spi);
+
+	if (geni_mas->gsi_mode) {
+		ret = spi_geni_gpi_suspend_resume(geni_mas, true);
+		if (ret) {
+			GENI_SE_DBG(geni_mas->ipc, false, geni_mas->dev, "%s failed\n", __func__);
+			return ret;
+		}
+	}
+	return 0;
+}
+
 static int spi_geni_runtime_suspend(struct device *dev)
 {
 	int ret = 0;
@@ -2456,21 +2505,13 @@ static int spi_geni_runtime_suspend(struct device *dev)
 	SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev, "%s: %d\n", __func__, ret);
 
 	disable_irq(geni_mas->irq);
-	if (geni_mas->is_le_vm) {
-		spi_geni_unlock_bus(spi);
-		return 0;
-	}
+	if (geni_mas->is_le_vm)
+		return spi_geni_levm_suspend_proc(geni_mas, spi);
 
-	if (geni_mas->shared_se) {
-		if (geni_mas->tx != NULL) {
-			ret = dmaengine_pause(geni_mas->tx);
-			if (ret) {
-				SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
-				"%s dmaengine_pause failed: %d\n", __func__, ret);
-			}
-			SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev,
-			"%s: Shared_SE dma_pause\n", __func__);
-		}
+	if (geni_mas->gsi_mode) {
+		ret = spi_geni_gpi_suspend_resume(geni_mas, true);
+		if (ret)
+			return ret;
 	}
 
 	/* For tui usecase LA should control clk/gpio/icb */
@@ -2505,6 +2546,19 @@ static int spi_geni_levm_resume_proc(struct spi_geni_master *geni_mas, struct sp
 {
 	int ret = 0;
 
+	if (!geni_mas->setup) {
+		/* It will take care of all GPI /DMA initialization and generic SW/HW
+		 * initializations required for a spi transfer. Gets called once per
+		 * Bootup session.
+		 */
+		ret = spi_geni_mas_setup(spi);
+		if (ret) {
+			SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
+				    "%s mas_setup failed: %d\n", __func__, ret);
+			return ret;
+		}
+	}
+
 	if (geni_mas->gsi_mode) {
 		/* Required after spi_geni_mas_setup for each LE VM suspend/resume.
 		 * Very first time not required when master setup is not completed
@@ -2515,19 +2569,6 @@ static int spi_geni_levm_resume_proc(struct spi_geni_master *geni_mas, struct sp
 		if (ret) {
 			SPI_LOG_ERR(geni_mas->ipc, false, geni_mas->dev,
 				    "%s:\n", __func__);
-			return ret;
-		}
-	}
-
-	if (!geni_mas->setup) {
-		/* It will take care of all GPI /DMA initialization and generic SW/HW
-		 * initializations required for a spi transfer. Gets called once per
-		 * Bootup session.
-		 */
-		ret = spi_geni_mas_setup(spi);
-		if (ret) {
-			SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
-				    "%s mas_setup failed: %d\n", __func__, ret);
 			return ret;
 		}
 	}
@@ -2553,19 +2594,7 @@ static int spi_geni_runtime_resume(struct device *dev)
 	if (geni_mas->is_le_vm)
 		return spi_geni_levm_resume_proc(geni_mas, spi);
 
-	if (geni_mas->shared_se) {
-		/* very first time mas->tx channel is not getting updated */
-		if (geni_mas->tx != NULL) {
-			ret = dmaengine_resume(geni_mas->tx);
-			if (ret) {
-				SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
-				"%s dmaengine_resume failed: %d\n", __func__, ret);
-			}
-			SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev,
-			"%s: Shared_SE dma_resume call\n", __func__);
-		}
-	}
-
+	/*dma engine resume is performed under exit_rt_resume block*/
 	if (geni_mas->shared_ee || geni_mas->is_la_vm)
 		goto exit_rt_resume;
 
@@ -2578,10 +2607,13 @@ static int spi_geni_runtime_resume(struct device *dev)
 		}
 		ret = geni_se_common_clks_on(geni_mas->spi_rsc.clk, geni_mas->m_ahb_clk,
 						geni_mas->s_ahb_clk);
-		if (ret)
+		if (ret) {
 			SPI_LOG_ERR(geni_mas->ipc, false, geni_mas->dev,
 			"%s: Error %d turning on clocks\n", __func__, ret);
-		return ret;
+			return ret;
+		}
+
+		return spi_geni_gpi_suspend_resume(geni_mas, false);
 	}
 
 exit_rt_resume:
@@ -2592,6 +2624,21 @@ exit_rt_resume:
 		return ret;
 	}
 	ret = geni_se_resources_on(&geni_mas->spi_rsc);
+
+	/* SPI Geni setup will happen for SPI Master/Slave after deep sleep exit */
+	if (geni_mas->is_deep_sleep && !geni_mas->setup) {
+		ret = spi_geni_mas_setup(spi);
+		if (ret) {
+			GENI_SE_ERR(geni_mas->ipc, false, geni_mas->dev,
+				"%s: Error %d deep sleep mas setup\n", __func__, ret);
+			return ret;
+		}
+	}
+	if (geni_mas->gsi_mode)
+		ret = spi_geni_gpi_suspend_resume(geni_mas, false);
+
+	geni_write_reg(0x7f, geni_mas->base, GENI_OUTPUT_CTRL);
+	udelay(10);
 
 	enable_irq(geni_mas->irq);
 	return ret;
@@ -2623,8 +2670,14 @@ static int spi_geni_suspend(struct device *dev)
 #ifdef CONFIG_DEEPSLEEP
 	if (pm_suspend_via_firmware()) {
 		SPI_LOG_ERR(geni_mas->ipc, true, dev,
-			    "%s:DEEP SLEEP EXIT", __func__);
+			    "%s:DEEP SLEEP ENTRY", __func__);
 		geni_mas->is_deep_sleep = true;
+
+		/* for dma/fifo mode, master setup config rquired */
+		if (!geni_mas->gsi_mode) {
+			geni_mas->setup = false;
+			geni_mas->slave_setup = false;
+		}
 	}
 #endif
 

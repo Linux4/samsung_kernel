@@ -111,15 +111,15 @@
 
 #define SDE_DBG_LOG_MARKER(name, marker, log) \
 	if (log) \
-		dev_info(sde_dbg_base.dev, "======== %s %s dump =========\n", marker, name)
+		dev_err(sde_dbg_base.dev, "======== %s %s dump =========\n", marker, name)
 
 #define SDE_DBG_LOG_ENTRY(off, x0, x4, x8, xc, log) \
 	if (log) \
-		dev_info(sde_dbg_base.dev, "0x%08x| %08x %08x %08x %08x\n", off, x0, x4, x8, xc)
+		dev_err(sde_dbg_base.dev, "0x%08x| %08x %08x %08x %08x\n", off, x0, x4, x8, xc)
 
 #define SDE_DBG_LOG_DUMP_ADDR(name, addr, size, off, log) \
 	if (log) \
-		dev_info(sde_dbg_base.dev, "%s: start_addr:0x%pK len:0x%x offset=0x%lx\n", \
+		dev_err(sde_dbg_base.dev, "%s: start_addr:0x%pK len:0x%x offset=0x%lx\n", \
 				name, addr, size, off)
 
 #define SDE_DBG_LOG_DEBUGBUS(name, addr, block_id, test_id, val) \
@@ -2494,10 +2494,10 @@ static ssize_t sde_dbg_reg_base_reg_read(struct file *file,
 
 			if (cur_offset == 0) {
 				tot += scnprintf(dbg->buf + tot, dbg->buf_len - tot,
-					"0x%08x:", ((int) dbg->off) - cur_offset);
+					"0x%08x:", ((int) dbg->off) + cur_offset);
 			} else if (!(cur_offset % ROW_BYTES)) { // Header
 				tot += scnprintf(dbg->buf + tot, dbg->buf_len - tot,
-					"\n0x%08x:", ((int) dbg->off) - cur_offset);
+					"\n0x%08x:", ((int) dbg->off) + cur_offset);
 			}
 
 			reg_val = SDE_REG_READ(&c, cur_offset);
@@ -2943,6 +2943,15 @@ void sde_dbg_reg_register_dump_range(const char *base_name,
 				__builtin_return_address(0), base_name,
 				range_name, offset_start, offset_end);
 		return;
+	}
+
+	/* return if the node is already present in sub_range_list */
+	if (!list_empty(&reg_base->sub_range_list)) {
+		list_for_each_entry(range, &reg_base->sub_range_list, head) {
+			if (range->offset.start == offset_start &&
+				range->offset.end == offset_end)
+				return;
+		}
 	}
 
 	range = kzalloc(sizeof(*range), GFP_KERNEL);

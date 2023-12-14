@@ -21,6 +21,7 @@
 static const u32 msm_venc_input_set_prop[] = {
 	HFI_PROP_COLOR_FORMAT,
 	HFI_PROP_RAW_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
 	HFI_PROP_LINEAR_STRIDE_SCANLINE,
 	HFI_PROP_SIGNAL_COLOR_INFO,
 };
@@ -61,6 +62,10 @@ struct msm_venc_prop_type_handle {
 static int msm_venc_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 {
 	int rc = 0;
+	bool create_inst_handler = false;
+
+	if (!inst->codec)
+		create_inst_handler = true;
 
 	if (inst->codec && inst->fmts[OUTPUT_PORT].fmt.pix_mp.pixelformat == v4l2_codec)
 		return 0;
@@ -85,13 +90,15 @@ static int msm_venc_codec_change(struct msm_vidc_inst *inst, u32 v4l2_codec)
 	if (rc)
 		goto exit;
 
-	rc = msm_vidc_ctrl_deinit(inst);
-	if (rc)
-		goto exit;
-
-	rc = msm_vidc_ctrl_init(inst);
-	if (rc)
-		goto exit;
+	if (create_inst_handler) {
+		rc = msm_vidc_ctrl_handler_init(inst, true);
+		if(rc)
+			goto exit;
+	} else {
+		rc = msm_vidc_ctrl_handler_update(inst);
+		if(rc)
+			goto exit;
+	}
 
 	rc = msm_vidc_update_buffer_count(inst, INPUT_PORT);
 	if (rc)
@@ -213,9 +220,10 @@ static int msm_venc_set_raw_resolution(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	resolution = inst->crop.width << 16 | inst->crop.height;
+	resolution = (inst->fmts[port].fmt.pix_mp.width << 16) |
+		inst->fmts[port].fmt.pix_mp.height;
 	i_vpr_h(inst, "%s: width: %d height: %d\n", __func__,
-			inst->crop.width, inst->crop.height);
+			inst->fmts[port].fmt.pix_mp.width, inst->fmts[port].fmt.pix_mp.height);
 	rc = venus_hfi_session_property(inst,
 			HFI_PROP_RAW_RESOLUTION,
 			HFI_HOST_FLAGS_NONE,
@@ -264,19 +272,25 @@ static int msm_venc_set_crop_offsets(struct msm_vidc_inst *inst,
 	u32 crop[2] = {0};
 	u32 width, height;
 
-	if (port != OUTPUT_PORT) {
+	if (port != OUTPUT_PORT && port != INPUT_PORT) {
 		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
 		return -EINVAL;
 	}
 
-	left_offset = inst->compose.left;
-	top_offset = inst->compose.top;
-
-	width = inst->compose.width;
-	height = inst->compose.height;
-	if (is_rotation_90_or_270(inst)) {
-		width = inst->compose.height;
-		height = inst->compose.width;
+	if (port == INPUT_PORT) {
+		left_offset = inst->crop.left;
+		top_offset = inst->crop.top;
+		width = inst->crop.width;
+		height = inst->crop.height;
+	} else {
+		left_offset = inst->compose.left;
+		top_offset = inst->compose.top;
+		width = inst->compose.width;
+		height = inst->compose.height;
+		if (is_rotation_90_or_270(inst)) {
+			width = inst->compose.height;
+			height = inst->compose.width;
+		}
 	}
 
 	right_offset = (inst->fmts[port].fmt.pix_mp.width - width);
@@ -449,6 +463,7 @@ static int msm_venc_set_input_properties(struct msm_vidc_inst *inst)
 	static const struct msm_venc_prop_type_handle prop_type_handle_arr[] = {
 		{HFI_PROP_COLOR_FORMAT,               msm_venc_set_colorformat                 },
 		{HFI_PROP_RAW_RESOLUTION,             msm_venc_set_raw_resolution              },
+		{HFI_PROP_CROP_OFFSETS,               msm_venc_set_crop_offsets                },
 		{HFI_PROP_LINEAR_STRIDE_SCANLINE,     msm_venc_set_stride_scanline             },
 		{HFI_PROP_SIGNAL_COLOR_INFO,          msm_venc_set_colorspace                  },
 	};
@@ -1345,6 +1360,9 @@ int msm_venc_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 		rc = msm_venc_s_fmt_input(inst, f);
 		if (rc)
 			goto exit;
+		rc = msm_vidc_check_session_supported(inst);
+		if (rc)
+			goto exit;
 	} else if (f->type == INPUT_META_PLANE) {
 		rc = msm_venc_s_fmt_input_meta(inst, f);
 		if (rc)
@@ -1895,7 +1913,7 @@ int msm_venc_inst_deinit(struct msm_vidc_inst *inst)
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	rc = msm_vidc_ctrl_deinit(inst);
+	rc = msm_vidc_ctrl_handler_deinit(inst);
 	if (rc)
 		return rc;
 

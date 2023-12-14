@@ -275,7 +275,7 @@ struct wlan_objmgr_pdev {
  * @psoc: PSOC object
  * @scn: os private object
  *
- * Creates PDEV object, intializes with default values
+ * Creates PDEV object, initializes with default values
  * Invokes the registered notifiers to create component object
  *
  * Return: Handle to struct wlan_objmgr_psoc on successful creation,
@@ -349,7 +349,7 @@ typedef void (*wlan_objmgr_pdev_op_handler)(struct wlan_objmgr_pdev *pdev,
  * @obj_type: VDEV_OP/PEER_OP
  * @handler: the handler will be called for each object of requested type
  *           the handler should be implemented to perform required operation
- * @arg: agruments passed by caller
+ * @arg: arguments passed by caller
  * @lock_free_op: its obsolete
  * @dbg_id: id of the caller
  *
@@ -476,7 +476,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_id_from_pdev_no_state(
  */
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_debug(
-		struct wlan_objmgr_pdev *pdev, uint8_t *macaddr,
+		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id,
 		const char *fnc, int ln);
 
@@ -485,7 +485,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_debug(
 		dbgid, __func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev(
-		struct wlan_objmgr_pdev *pdev, uint8_t *macaddr,
+		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id);
 #endif
 
@@ -508,7 +508,7 @@ struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev(
 #ifdef WLAN_OBJMGR_REF_ID_TRACE
 struct wlan_objmgr_vdev
 	*wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state_debug(
-		struct wlan_objmgr_pdev *pdev, uint8_t *macaddr,
+		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id,
 		const char *func, int line);
 
@@ -518,7 +518,7 @@ struct wlan_objmgr_vdev
 		macaddr, dbgid, __func__, __LINE__)
 #else
 struct wlan_objmgr_vdev *wlan_objmgr_get_vdev_by_macaddr_from_pdev_no_state(
-		struct wlan_objmgr_pdev *pdev, uint8_t *macaddr,
+		struct wlan_objmgr_pdev *pdev, const uint8_t *macaddr,
 		wlan_objmgr_ref_dbgid dbg_id);
 #endif
 

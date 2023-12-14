@@ -89,6 +89,7 @@
 #define  PCM_RT_PROXY               0x7
 #define  AUDIOSS_DMA                0x8
 #define  PCM_DUMMY                  0x9
+#define  BTFM_PROXY                 0xa
 
 #define  AUDIO_OUTPUT               0x1 /**< playback usecases*/
 #define  AUDIO_INPUT                0x2 /**< capture/voice activation usecases*/

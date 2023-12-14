@@ -923,9 +923,6 @@ class PhonePolicy {
                      " recently connected HFP Device " + mostRecentlyActiveHfpDevice
                     + " attempting auto connection for HFP");
                 autoConnectHeadset(mostRecentlyActiveHfpDevice);
-                debugLog("autoConnect: attempting auto connection for recently"+
-                        " connected HID device:" + mostRecentlyActiveHfpDevice);
-                autoConnectHidHost(mostRecentlyActiveHfpDevice);
                 if (peerTwsDevice != null) {
                     debugLog("autoConnectHF: 2nd pair TWS+ EB");
                     autoConnectHeadset(peerTwsDevice);

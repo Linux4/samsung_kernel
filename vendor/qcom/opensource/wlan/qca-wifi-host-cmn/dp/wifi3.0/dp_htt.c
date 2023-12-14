@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -23,6 +23,7 @@
 #include "dp_peer.h"
 #include "dp_types.h"
 #include "dp_internal.h"
+#include "dp_ipa.h"
 #include "dp_rx.h"
 #include "htt_stats.h"
 #include "htt_ppdu_stats.h"
@@ -32,7 +33,9 @@
 #endif
 #include "qdf_mem.h"   /* qdf_mem_malloc,free */
 #include "cdp_txrx_cmn_struct.h"
-
+#ifdef IPA_OPT_WIFI_DP
+#include "cdp_txrx_ipa.h"
+#endif
 #ifdef FEATURE_PERPKT_INFO
 #include "dp_ratetable.h"
 #endif
@@ -331,7 +334,7 @@ dp_htt_h2t_send_complete(void *context, HTC_PACKET *htc_pkt)
 #endif /* ENABLE_CE4_COMP_DISABLE_HTT_HTC_MISC_LIST */
 
 /*
- * dp_htt_h2t_add_tcl_metadata_ver_v1() - Add tcl_metadata verion V1
+ * dp_htt_h2t_add_tcl_metadata_ver_v1() - Add tcl_metadata version V1
  * @htt_soc:	HTT SOC handle
  * @msg:	Pointer to nbuf
  *
@@ -377,7 +380,7 @@ static int dp_htt_h2t_add_tcl_metadata_ver_v1(struct htt_soc *soc,
 
 #ifdef QCA_DP_TX_FW_METADATA_V2
 /*
- * dp_htt_h2t_add_tcl_metadata_ver_v2() - Add tcl_metadata verion V2
+ * dp_htt_h2t_add_tcl_metadata_ver_v2() - Add tcl_metadata version V2
  * @htt_soc:	HTT SOC handle
  * @msg:	Pointer to nbuf
  *
@@ -431,7 +434,7 @@ static int dp_htt_h2t_add_tcl_metadata_ver_v2(struct htt_soc *soc,
 }
 
 /*
- * dp_htt_h2t_add_tcl_metadata_ver() - Add tcl_metadata verion
+ * dp_htt_h2t_add_tcl_metadata_ver() - Add tcl_metadata version
  * @htt_soc:	HTT SOC handle
  * @msg:	Pointer to nbuf
  *
@@ -492,6 +495,132 @@ static int htt_h2t_ver_req_msg(struct htt_soc *soc)
 
 	return status;
 }
+
+#ifdef IPA_OPT_WIFI_DP
+QDF_STATUS htt_h2t_rx_cce_super_rule_setup(struct htt_soc *soc, void *param)
+{
+	struct wifi_dp_flt_setup *flt_params =
+			(struct wifi_dp_flt_setup *)param;
+	struct dp_htt_htc_pkt *pkt;
+	qdf_nbuf_t msg;
+	uint32_t *msg_word;
+	uint8_t *htt_logger_bufp;
+	uint16_t ver = 0;
+	uint8_t i, valid = 0;
+	uint8_t num_filters = flt_params->num_filters;
+	uint8_t pdev_id = flt_params->pdev_id;
+	uint8_t op = flt_params->op;
+	uint16_t ipv4 = qdf_ntohs(QDF_NBUF_TRAC_IPV4_ETH_TYPE);
+	uint16_t ipv6 = qdf_ntohs(QDF_NBUF_TRAC_IPV6_ETH_TYPE);
+	QDF_STATUS status;
+
+	if (num_filters > RX_CCE_SUPER_RULE_SETUP_NUM) {
+		dp_htt_err("Wrong filter count %d", num_filters);
+		return QDF_STATUS_FILT_REQ_ERROR;
+	}
+
+	msg = qdf_nbuf_alloc(soc->osdev,
+			     HTT_MSG_BUF_SIZE(HTT_RX_CCE_SUPER_RULE_SETUP_SZ),
+			     HTC_HEADER_LEN + HTC_HDR_ALIGNMENT_PADDING, 4,
+			     true);
+	if (!msg) {
+		dp_htt_err("Fail to allocate SUPER_RULE_SETUP msg ");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	qdf_nbuf_put_tail(msg, HTT_RX_CCE_SUPER_RULE_SETUP_SZ);
+	msg_word = (uint32_t *)qdf_nbuf_data(msg);
+	memset(msg_word, 0, HTT_RX_CCE_SUPER_RULE_SETUP_SZ);
+
+	qdf_nbuf_push_head(msg, HTC_HDR_ALIGNMENT_PADDING);
+	htt_logger_bufp = (uint8_t *)msg_word;
+
+	*msg_word = 0;
+	HTT_H2T_MSG_TYPE_SET(*msg_word,
+			     HTT_H2T_MSG_TYPE_RX_CCE_SUPER_RULE_SETUP);
+	HTT_RX_CCE_SUPER_RULE_SETUP_PDEV_ID_SET(*msg_word, pdev_id);
+	HTT_RX_CCE_SUPER_RULE_SETUP_OPERATION_SET(*msg_word, op);
+
+	/* Set cce_super_rule_params */
+	for (i = 0; i < RX_CCE_SUPER_RULE_SETUP_NUM; i++) {
+		valid = flt_params->flt_addr_params[i].valid;
+		ver = flt_params->flt_addr_params[i].l3_type;
+		msg_word++;
+
+		if (ver == ipv4) {
+			HTT_RX_CCE_SUPER_RULE_SETUP_IPV4_ADDR_ARRAY_SET(
+				msg_word,
+				flt_params->flt_addr_params[i].src_ipv4_addr);
+		} else if (ver == ipv6) {
+			HTT_RX_CCE_SUPER_RULE_SETUP_IPV6_ADDR_ARRAY_SET(
+				msg_word,
+				flt_params->flt_addr_params[i].src_ipv6_addr);
+		} else {
+			dp_htt_debug("Filter %d not in use.", i);
+		}
+
+		/* move uint32_t *msg_word by IPV6 addr size */
+		msg_word += (QDF_IPV6_ADDR_SIZE / 4);
+
+		if (ver == ipv4) {
+			HTT_RX_CCE_SUPER_RULE_SETUP_IPV4_ADDR_ARRAY_SET(
+				msg_word,
+				flt_params->flt_addr_params[i].dst_ipv4_addr);
+		} else if (ver == ipv6) {
+			HTT_RX_CCE_SUPER_RULE_SETUP_IPV6_ADDR_ARRAY_SET(
+				msg_word,
+				flt_params->flt_addr_params[i].dst_ipv6_addr);
+		} else {
+			dp_htt_debug("Filter %d not in use.", i);
+		}
+
+		/* move uint32_t *msg_word by IPV6 addr size */
+		msg_word += (QDF_IPV6_ADDR_SIZE / 4);
+		HTT_RX_CCE_SUPER_RULE_SETUP_L3_TYPE_SET(*msg_word, ver);
+		HTT_RX_CCE_SUPER_RULE_SETUP_L4_TYPE_SET(
+					*msg_word,
+					flt_params->flt_addr_params[i].l4_type);
+		HTT_RX_CCE_SUPER_RULE_SETUP_IS_VALID_SET(*msg_word, valid);
+		msg_word++;
+		HTT_RX_CCE_SUPER_RULE_SETUP_L4_SRC_PORT_SET(
+				*msg_word,
+				flt_params->flt_addr_params[i].src_port);
+		HTT_RX_CCE_SUPER_RULE_SETUP_L4_DST_PORT_SET(
+				*msg_word,
+				flt_params->flt_addr_params[i].dst_port);
+
+		dp_info("opt_dp:: pdev: %u ver %u, flt_num %u, op %u",
+			pdev_id, ver, i, op);
+		dp_info("valid %u", valid);
+	}
+
+	pkt = htt_htc_pkt_alloc(soc);
+	if (!pkt) {
+		dp_htt_err("%pK: Fail to allocate dp_htt_htc_pkt buffer");
+		qdf_assert(0);
+		qdf_nbuf_free(msg);
+		return QDF_STATUS_E_NOMEM;
+	}
+
+	pkt->soc_ctxt = NULL; /*not used during send-done callback */
+	SET_HTC_PACKET_INFO_TX(&pkt->htc_pkt,
+			       dp_htt_h2t_send_complete_free_netbuf,
+			       qdf_nbuf_data(msg), qdf_nbuf_len(msg),
+			       soc->htc_endpoint,
+			       HTC_TX_PACKET_TAG_RUNTIME_PUT);
+
+	SET_HTC_PACKET_NET_BUF_CONTEXT(&pkt->htc_pkt, msg);
+	status = DP_HTT_SEND_HTC_PKT(soc, pkt,
+				     HTT_H2T_MSG_TYPE_RX_CCE_SUPER_RULE_SETUP,
+				     htt_logger_bufp);
+
+	if (status != QDF_STATUS_SUCCESS) {
+		qdf_nbuf_free(msg);
+		htt_htc_pkt_free(soc, pkt);
+	}
+	return status;
+}
+#endif /* IPA_OPT_WIFI_DP */
 
 /*
  * htt_srng_setup() - Send SRNG setup message to target
@@ -573,6 +702,13 @@ int htt_srng_setup(struct htt_soc *soc, int mac_id,
 			(lmac_id * HAL_MAX_RINGS_PER_LMAC))) {
 			htt_ring_id = HTT_RXDMA_HOST_BUF_RING;
 			htt_ring_type = HTT_SW_TO_HW_RING;
+#ifdef FEATURE_DIRECT_LINK
+		} else if (srng_params.ring_id ==
+			   (HAL_SRNG_WMAC1_RX_DIRECT_LINK_SW_REFILL_RING +
+			    (lmac_id * HAL_MAX_RINGS_PER_LMAC))) {
+			htt_ring_id = HTT_LPASS_TO_FW_RXBUF_RING;
+			htt_ring_type = HTT_SW_TO_SW_RING;
+#endif
 		} else {
 			QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_ERROR,
 				   "%s: Ring %d currently not supported",
@@ -793,11 +929,11 @@ qdf_export_symbol(htt_srng_setup);
 
 #ifdef QCA_SUPPORT_FULL_MON
 /**
- * htt_h2t_full_mon_cfg() - Send full monitor configuarion msg to FW
+ * htt_h2t_full_mon_cfg() - Send full monitor configuration msg to FW
  *
  * @htt_soc: HTT Soc handle
  * @pdev_id: Radio id
- * @dp_full_mon_config: enabled/disable configuration
+ * @config: enabled/disable configuration
  *
  * Return: Success when HTT message is sent, error on failure
  */
@@ -855,7 +991,7 @@ int htt_h2t_full_mon_cfg(struct htt_soc *htt_soc,
 		HTT_RX_FULL_MONITOR_MODE_NON_ZERO_MPDU_SET(*msg_word, true);
 		HTT_RX_FULL_MONITOR_MODE_RELEASE_RINGS_SET(*msg_word, 0x2);
 	} else if (config == DP_FULL_MON_DISABLE) {
-		/* As per MAC team's suggestion, While disbaling full monitor
+		/* As per MAC team's suggestion, While disabling full monitor
 		 * mode, Set 'en' bit to true in full monitor mode register.
 		 */
 		HTT_RX_FULL_MONITOR_MODE_ENABLE_SET(*msg_word, true);
@@ -1079,6 +1215,7 @@ int htt_h2t_rx_ring_cfg(struct htt_soc *htt_soc, int pdev_id,
 
 	dp_mon_rx_packet_length_set(soc->dp_soc, msg_word, htt_tlv_filter);
 	dp_mon_rx_hdr_length_set(soc->dp_soc, msg_word, htt_tlv_filter);
+	dp_mon_rx_mac_filter_set(soc->dp_soc, msg_word, htt_tlv_filter);
 
 	/* word 2 */
 	msg_word++;
@@ -1659,6 +1796,11 @@ int htt_h2t_rx_ring_cfg(struct htt_soc *htt_soc, int pdev_id,
 		*msg_word = 0;
 	}
 
+	soc->dp_soc->arch_ops.dp_rx_word_mask_subscribe(
+						soc->dp_soc,
+						msg_word,
+						(void *)htt_tlv_filter);
+
 	if (mon_drop_th > 0)
 		HTT_RX_RING_SELECTION_CFG_RX_DROP_THRESHOLD_SET(*msg_word,
 								mon_drop_th);
@@ -1668,9 +1810,8 @@ int htt_h2t_rx_ring_cfg(struct htt_soc *htt_soc, int pdev_id,
 
 	/* word 14*/
 	msg_word += 3;
-	*msg_word = 0;
-
-	dp_mon_rx_wmask_subscribe(soc->dp_soc, msg_word, htt_tlv_filter);
+	/* word 15*/
+	msg_word++;
 
 #ifdef FW_SUPPORT_NOT_YET
 	/* word 17*/
@@ -1863,9 +2004,30 @@ dp_htt_stats_sysfs_set_event(struct dp_soc *dp_soc, uint32_t *msg_word)
 }
 #endif /* WLAN_SYSFS_DP_STATS */
 
+/* dp_htt_set_pdev_obss_stats() - Function to set pdev obss stats.
+ * @pdev: dp pdev handle
+ * @tag_type: HTT TLV tag type
+ * @tag_buf: TLV buffer pointer
+ *
+ * Return: None
+ */
+static inline void
+dp_htt_set_pdev_obss_stats(struct dp_pdev *pdev, uint32_t tag_type,
+			   uint32_t *tag_buf)
+{
+	if (tag_type != HTT_STATS_PDEV_OBSS_PD_TAG) {
+		dp_err("Tag mismatch");
+		return;
+	}
+	qdf_mem_copy(&pdev->stats.htt_tx_pdev_stats.obss_pd_stats_tlv,
+		     tag_buf, sizeof(struct cdp_pdev_obss_pd_stats_tlv));
+	qdf_event_set(&pdev->fw_obss_stats_event);
+}
+
 /**
  * dp_process_htt_stat_msg(): Process the list of buffers of HTT EXT stats
  * @htt_stats: htt stats info
+ * @soc: dp_soc
  *
  * The FW sends the HTT EXT STATS as a stream of T2H messages. Each T2H message
  * contains sub messages which are identified by a TLV header.
@@ -1991,6 +2153,11 @@ static inline void dp_process_htt_stat_msg(struct htt_stats_context *htt_stats,
 					dp_peer_update_inactive_time(pdev,
 								     tlv_type,
 								     tlv_start);
+
+				if (cookie_msb & DBG_STATS_COOKIE_HTT_OBSS)
+					dp_htt_set_pdev_obss_stats(pdev,
+								   tlv_type,
+								   tlv_start);
 
 				msg_remain_len -= tlv_remain_len;
 
@@ -2138,7 +2305,7 @@ static inline void dp_txrx_fw_stats_handler(struct dp_soc *soc,
 
 	if (!msg_copy) {
 		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_INFO,
-			  "T2H messge clone failed for HTT EXT STATS");
+			  "T2H message clone failed for HTT EXT STATS");
 		goto error;
 	}
 
@@ -2318,7 +2485,7 @@ static void dp_vdev_txrx_hw_stats_handler(struct htt_soc *soc,
 	payload_size =
 	HTT_T2H_VDEVS_TXRX_STATS_PERIODIC_IND_PAYLOAD_SIZE_GET(*msg_word);
 
-	qdf_trace_hex_dump(QDF_MODULE_ID_DP, QDF_TRACE_LEVEL_INFO,
+	qdf_trace_hex_dump(QDF_MODULE_ID_DP_HTT, QDF_TRACE_LEVEL_INFO,
 			   (void *)msg_word, payload_size + 16);
 
 	/* Adjust msg_word to point to the first TLV in buffer */
@@ -2567,6 +2734,8 @@ static void dp_htt_alert_print(enum htt_t2h_msg_type msg_type,
  * @soc: DP_SOC handle
  * @srng: DP_SRNG handle
  * @ring_type: srng src/dst ring
+ * @state: ring state
+ * @pdev: pdev
  *
  * Return: void
  */
@@ -2679,6 +2848,8 @@ dp_get_tcl_status_ring_state_from_hal(struct dp_pdev *pdev,
 
 /**
  * dp_queue_srng_ring_stats(): Print pdev hal level ring stats
+ * dp_queue_ring_stats() - Print pdev hal level ring stats
+ * dp_queue_ring_stats(): Print pdev hal level ring stats
  * @pdev: DP_pdev handle
  *
  * Return: void
@@ -3248,6 +3419,96 @@ dp_htt_ppdu_id_fmt_handler(struct dp_soc *soc, uint32_t *msg_word)
 	}
 }
 
+#ifdef IPA_OPT_WIFI_DP
+static void dp_ipa_rx_cce_super_rule_setup_done_handler(struct htt_soc *soc,
+							uint32_t *msg_word)
+{
+	uint8_t pdev_id = 0;
+	uint8_t resp_type = 0;
+	uint8_t is_rules_enough = 0;
+	uint8_t num_rules_avail = 0;
+	int filter0_result = 0, filter1_result = 0;
+	bool is_success = false;
+
+	pdev_id = HTT_RX_CCE_SUPER_RULE_SETUP_DONE_PDEV_ID_GET(*msg_word);
+	resp_type = HTT_RX_CCE_SUPER_RULE_SETUP_DONE_RESPONSE_TYPE_GET(
+								*msg_word);
+	dp_info("opt_dp:: cce_super_rule_rsp pdev_id: %d resp_type: %d",
+		pdev_id, resp_type);
+
+	switch (resp_type) {
+	case HTT_RX_CCE_SUPER_RULE_SETUP_REQ_RESPONSE:
+	{
+		is_rules_enough =
+			HTT_RX_CCE_SUPER_RULE_SETUP_DONE_IS_RULE_ENOUGH_GET(
+								*msg_word);
+		num_rules_avail =
+			HTT_RX_CCE_SUPER_RULE_SETUP_DONE_AVAIL_RULE_NUM_GET(
+								*msg_word);
+		if (is_rules_enough == 1) {
+			is_success = true;
+			soc->stats.reserve_fail_cnt = 0;
+		} else {
+			is_success = false;
+			soc->stats.reserve_fail_cnt++;
+			if (soc->stats.reserve_fail_cnt > MAX_RESERVE_FAIL_ATTEMPT) {
+				/*
+				 * IPA will retry only after an hour by default
+				 * after MAX_RESERVE_FAIL_ATTEMPT
+				 */
+				soc->stats.abort_count++;
+				soc->stats.reserve_fail_cnt = 0;
+				dp_info(
+				  "opt_dp: Filter reserve failed max attempts");
+			}
+			dp_info("opt_dp:: Filter reserve failed. Rules avail %d",
+				num_rules_avail);
+		}
+		dp_ipa_wdi_opt_dpath_notify_flt_rsvd(is_success);
+		break;
+	}
+	case HTT_RX_CCE_SUPER_RULE_INSTALL_RESPONSE:
+	{
+		filter0_result =
+			HTT_RX_CCE_SUPER_RULE_SETUP_DONE_CFG_RESULT_0_GET(
+								     *msg_word);
+		filter1_result =
+			HTT_RX_CCE_SUPER_RULE_SETUP_DONE_CFG_RESULT_1_GET(
+								     *msg_word);
+
+		dp_ipa_wdi_opt_dpath_notify_flt_add_rem_cb(filter0_result,
+							   filter1_result);
+		break;
+	}
+	case HTT_RX_CCE_SUPER_RULE_RELEASE_RESPONSE:
+	{
+		filter0_result =
+			HTT_RX_CCE_SUPER_RULE_SETUP_DONE_CFG_RESULT_0_GET(
+								     *msg_word);
+		filter1_result =
+			HTT_RX_CCE_SUPER_RULE_SETUP_DONE_CFG_RESULT_1_GET(
+								     *msg_word);
+
+		dp_ipa_wdi_opt_dpath_notify_flt_rlsd(filter0_result,
+							      filter1_result);
+		break;
+	}
+	default:
+		dp_info("opt_dp:: Wrong Super rule setup response");
+	};
+
+	dp_info("opt_dp:: cce super rule resp type: %d, is_rules_enough: %d,",
+		resp_type, is_rules_enough);
+	dp_info("num_rules_avail: %d, rslt0: %d, rslt1: %d",
+		num_rules_avail, filter0_result, filter1_result);
+}
+#else
+static void dp_ipa_rx_cce_super_rule_setup_done_handler(struct htt_soc *soc,
+							uint32_t *msg_word)
+{
+}
+#endif
+
 /*
  * dp_htt_t2h_msg_handler() - Generic Target to host Msg/event handler
  * @context:	Opaque context (HTT SOC handle)
@@ -3371,7 +3632,7 @@ static void dp_htt_t2h_msg_handler(void *context, HTC_PACKET *pkt)
 			 * did not process this indication runtime_put happens
 			 * properly in the cleanup path.
 			 */
-			if (htc_dec_return_runtime_cnt(soc->htc_soc) >= 0)
+			if (htc_dec_return_htt_runtime_cnt(soc->htc_soc) >= 0)
 				htc_pm_runtime_put(soc->htc_soc);
 			else
 				soc->stats.htt_ver_req_put_skip++;
@@ -3695,7 +3956,11 @@ static void dp_htt_t2h_msg_handler(void *context, HTC_PACKET *pkt)
 		dp_sawf_mpdu_stats_handler(soc, htt_t2h_msg);
 		break;
 	}
-
+	case HTT_T2H_MSG_TYPE_RX_CCE_SUPER_RULE_SETUP_DONE:
+	{
+		dp_ipa_rx_cce_super_rule_setup_done_handler(soc, msg_word);
+		break;
+	}
 	default:
 		break;
 	};
@@ -3887,13 +4152,15 @@ void htt_soc_detach(struct htt_soc *htt_hdl)
 }
 
 /**
- * dp_h2t_ext_stats_msg_send(): function to contruct HTT message to pass to FW
+ * dp_h2t_ext_stats_msg_send(): function to construct HTT message to pass to FW
  * @pdev: DP PDEV handle
  * @stats_type_upload_mask: stats type requested by user
  * @config_param_0: extra configuration parameters
  * @config_param_1: extra configuration parameters
  * @config_param_2: extra configuration parameters
  * @config_param_3: extra configuration parameters
+ * @cookie_val: cookie value
+ * @cookie_msb: msb of debug status cookie
  * @mac_id: mac number
  *
  * return: QDF STATUS
@@ -4142,11 +4409,12 @@ QDF_STATUS dp_h2t_hw_vdev_stats_config_send(struct dp_soc *dpsoc,
 #endif
 
 /**
- * dp_h2t_3tuple_config_send(): function to contruct 3 tuple configuration
+ * dp_h2t_3tuple_config_send(): function to construct 3 tuple configuration
  * HTT message to pass to FW
  * @pdev: DP PDEV handle
  * @tuple_mask: tuple configuration to report 3 tuple hash value in either
  * toeplitz_2_or_4 or flow_id_toeplitz in MSDU START TLV.
+ * @mac_id: mac id
  *
  * tuple_mask[1:0]:
  *   00 - Do not report 3 tuple hash value
@@ -4659,7 +4927,7 @@ dp_htt_rx_flow_fse_operation(struct dp_pdev *pdev,
 /**
  * dp_htt_rx_fisa_config(): Send HTT msg to configure FISA
  * @pdev: DP pdev handle
- * @fse_op_info: Flow entry parameters
+ * @fisa_config: Fisa config struct
  *
  * Return: Success when HTT message is sent, error on failure
  */
@@ -4759,7 +5027,7 @@ dp_htt_rx_fisa_config(struct dp_pdev *pdev,
 #ifdef WLAN_SUPPORT_PPEDS
 /**
  * dp_htt_rxdma_rxole_ppe_cfg_set() - Send RxOLE and RxDMA PPE config
- * @dp_osc: Data path SoC handle
+ * @soc: Data path SoC handle
  * @cfg: RxDMA and RxOLE PPE config
  *
  * Return: Success when HTT message is sent, error on failure

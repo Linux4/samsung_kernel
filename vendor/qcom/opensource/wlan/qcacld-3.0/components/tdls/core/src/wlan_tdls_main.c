@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -35,6 +35,7 @@
 #include "wlan_tdls_ucfg_api.h"
 #include "wlan_cm_roam_api.h"
 #include "wlan_cfg80211_tdls.h"
+#include "wlan_nan_api_i.h"
 
 /* Global tdls soc pvt object
  * this is useful for some functions which does not receive either vdev or psoc
@@ -956,30 +957,39 @@ bool tdls_check_is_tdls_allowed(struct wlan_objmgr_vdev *vdev)
 	struct tdls_soc_priv_obj *tdls_soc_obj;
 	bool state = false;
 	qdf_freq_t ch_freq;
+	QDF_STATUS status;
 
-	if (QDF_STATUS_SUCCESS != wlan_objmgr_vdev_try_get_ref(vdev,
-							       WLAN_TDLS_NB_ID))
+	status = wlan_objmgr_vdev_try_get_ref(vdev, WLAN_TDLS_NB_ID);
+	if (QDF_IS_STATUS_ERROR(status))
 		return state;
 
-	if (QDF_STATUS_SUCCESS != tdls_get_vdev_objects(vdev, &tdls_vdev_obj,
-						   &tdls_soc_obj)) {
-		wlan_objmgr_vdev_release_ref(vdev,
-					     WLAN_TDLS_NB_ID);
-		return state;
+	status = tdls_get_vdev_objects(vdev, &tdls_vdev_obj, &tdls_soc_obj);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		tdls_err("Failed to get TDLS objects");
+		goto exit;
+	}
+
+	if (wlan_vdev_mlme_is_mlo_vdev(vdev)) {
+		tdls_debug("TDLS not supported on MLO vdev");
+		goto exit;
+	}
+
+	if (wlan_nan_is_disc_active(tdls_soc_obj->soc)) {
+		tdls_err("NAN active. NAN+TDLS not supported");
+		goto exit;
 	}
 
 	if (policy_mgr_get_connection_count(tdls_soc_obj->soc) == 1)
 		state = true;
 	else
-		tdls_warn("Concurrent sessions are running or TDLS disabled");
-	/* If any concurrency is detected */
-	/* print session information */
-	wlan_objmgr_vdev_release_ref(vdev,
-				     WLAN_TDLS_NB_ID);
+		tdls_warn("Concurrent sessions exist disable TDLS");
 
 	ch_freq = wlan_get_operation_chan_freq(vdev);
 	if (wlan_reg_is_6ghz_chan_freq(ch_freq))
 		state &= tdls_is_6g_freq_allowed(vdev, ch_freq);
+
+exit:
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_TDLS_NB_ID);
 
 	return state;
 }
@@ -1055,16 +1065,26 @@ tdls_process_policy_mgr_notification(struct wlan_objmgr_psoc *psoc)
 		tdls_err("psoc: %pK", psoc);
 		return QDF_STATUS_E_NULL_VALUE;
 	}
+
 	tdls_obj_vdev = tdls_get_vdev(psoc, WLAN_TDLS_NB_ID);
+	if (!tdls_obj_vdev) {
+		tdls_err("No TDLS vdev");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
+	if (!tdls_check_is_tdls_allowed(tdls_obj_vdev)) {
+		wlan_objmgr_vdev_release_ref(tdls_obj_vdev, WLAN_TDLS_NB_ID);
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+
 	tdls_debug("enter ");
 	tdls_set_ct_mode(psoc);
-	if (tdls_obj_vdev && (tdls_get_vdev_objects(tdls_obj_vdev,
-	    &tdls_priv_vdev, &tdls_priv_soc) == QDF_STATUS_SUCCESS) &&
+	if (tdls_get_vdev_objects(tdls_obj_vdev, &tdls_priv_vdev,
+				  &tdls_priv_soc) == QDF_STATUS_SUCCESS &&
 	    tdls_priv_soc->enable_tdls_connection_tracker)
 		tdls_implicit_enable(tdls_priv_vdev);
 
-	if (tdls_obj_vdev)
-		wlan_objmgr_vdev_release_ref(tdls_obj_vdev, WLAN_TDLS_NB_ID);
+	wlan_objmgr_vdev_release_ref(tdls_obj_vdev, WLAN_TDLS_NB_ID);
 
 	tdls_debug("exit ");
 	return QDF_STATUS_SUCCESS;
@@ -1331,27 +1351,22 @@ tdls_process_sta_connect(struct tdls_sta_notify_params *notify)
 {
 	struct tdls_vdev_priv_obj *tdls_vdev_obj;
 	struct tdls_soc_priv_obj *tdls_soc_obj;
+	QDF_STATUS status;
 
-	if (QDF_STATUS_SUCCESS != tdls_get_vdev_objects(notify->vdev,
-							&tdls_vdev_obj,
-							&tdls_soc_obj))
+	if (!tdls_check_is_tdls_allowed(notify->vdev))
+		return QDF_STATUS_E_NOSUPPORT;
+
+	status = tdls_get_vdev_objects(notify->vdev, &tdls_vdev_obj,
+				       &tdls_soc_obj);
+	if (QDF_IS_STATUS_ERROR(status))
 		return QDF_STATUS_E_INVAL;
 
-
-	if (policy_mgr_get_connection_count(tdls_soc_obj->soc) > 1) {
-		tdls_debug("Concurrent sessions exist, TDLS can't be enabled");
-		return QDF_STATUS_SUCCESS;
-	}
-
 	/* Association event */
-	if (!tdls_soc_obj->tdls_disable_in_progress) {
-		tdls_send_update_to_fw(tdls_vdev_obj,
-				   tdls_soc_obj,
-				   notify->tdls_prohibited,
-				   notify->tdls_chan_swit_prohibited,
-				   true,
-				   notify->session_id);
-	}
+	if (!tdls_soc_obj->tdls_disable_in_progress)
+		tdls_send_update_to_fw(tdls_vdev_obj, tdls_soc_obj,
+				       notify->tdls_prohibited,
+				       notify->tdls_chan_swit_prohibited, true,
+				       notify->session_id);
 
 	/* check and set the connection tracker */
 	tdls_set_ct_mode(tdls_soc_obj->soc);

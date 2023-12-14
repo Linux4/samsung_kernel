@@ -416,7 +416,7 @@ static int process_received_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 #if IS_ENABLED(CONFIG_SUPPORT_LIGHT_SEAMLESS)
 		light_seamless_init_work(data);
 #endif
-#if IS_ENABLED(CONFIG_LPS22HH_FACTORY)
+#if IS_ENABLED(CONFIG_LPS22HH_FACTORY) || IS_ENABLED(CONFIG_PRESSURE_FACTORY)
 		pressure_factory_init_work(data);
 #endif
 		return 0;
@@ -525,7 +525,7 @@ static int __init factory_adsp_init(void)
 #if IS_ENABLED(CONFIG_SUPPORT_LIGHT_SEAMLESS)
 	INIT_DELAYED_WORK(&data->light_seamless_work, light_seamless_work_func);
 #endif
-#if IS_ENABLED(CONFIG_LPS22HH_FACTORY)
+#if IS_ENABLED(CONFIG_LPS22HH_FACTORY) || IS_ENABLED(CONFIG_PRESSURE_FACTORY)
 	INIT_DELAYED_WORK(&data->pressure_cal_work, pressure_cal_work_func);
 #endif
 	core_factory_init();

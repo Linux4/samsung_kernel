@@ -27,7 +27,6 @@
 #include <linux/sched/core_ctl.h>
 #endif
 #include <linux/msm_pcie.h>
-#include <linux/qseecom.h>
 #if IS_ENABLED(CONFIG_QSEECOM_PROXY)
 #include <linux/qseecom_kernel.h>
 #endif

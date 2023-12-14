@@ -274,6 +274,12 @@ enum v4l2_h264_encode_delivery_mode {
 #define V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO                                    \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x43)
 
+#define V4L2_CID_MPEG_VIDC_EARLY_NOTIFY_ENABLE                                \
+	(V4L2_CID_MPEG_VIDC_BASE + 0x44)
+
+#define V4L2_CID_MPEG_VIDC_EARLY_NOTIFY_LINE_COUNT                            \
+	(V4L2_CID_MPEG_VIDC_BASE + 0x45)
+
 /* add new controls above this line */
 /* Deprecate below controls once availble in gki and gsi bionic header */
 #ifndef V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID
@@ -430,7 +436,8 @@ enum meta_interlace_info {
 
 /*
  * enum meta_picture_type - specifies input picture type
- * @META_PICTURE_TYPE_NEW: start of new frame or first slice in a frame
+ * @META_PICTURE_TYPE_START: start of a frame or first slice in a frame
+ * @META_PICTURE_TYPE_END: end of a frame or last slice in a frame
  */
 enum meta_picture_type {
 	META_PICTURE_TYPE_IDR                            = 0x00000001,
@@ -440,7 +447,8 @@ enum meta_picture_type {
 	META_PICTURE_TYPE_CRA                            = 0x00000010,
 	META_PICTURE_TYPE_BLA                            = 0x00000020,
 	META_PICTURE_TYPE_NOSHOW                         = 0x00000040,
-	META_PICTURE_TYPE_NEW                            = 0x00000080,
+	META_PICTURE_TYPE_START                          = 0x00000080,
+	META_PICTURE_TYPE_END                            = 0x00000100,
 };
 
 /* vendor controls end */

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,6 +40,7 @@
 #include "lim_utils.h"
 #include "lim_send_messages.h"
 #include "rrm_api.h"
+#include "lim_mlo.h"
 
 #ifdef FEATURE_WLAN_DIAG_SUPPORT
 #include "host_diag_core_log.h"
@@ -49,6 +50,7 @@
 
 #include "wlan_lmac_if_def.h"
 #include "wlan_reg_services_api.h"
+#include "wlan_mlo_mgr_sta.h"
 
 static void
 ap_beacon_process_5_ghz(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
@@ -288,7 +290,7 @@ sch_bcn_process_sta(struct mac_context *mac_ctx,
 		return false;
 	}
 
-	lim_detect_change_in_ap_capabilities(mac_ctx, bcn, session);
+	lim_detect_change_in_ap_capabilities(mac_ctx, bcn, session, true);
 	beaconParams->bss_idx = session->vdev_id;
 	qdf_mem_copy((uint8_t *) &session->lastBeaconTimeStamp,
 			(uint8_t *) bcn->timeStamp, sizeof(uint64_t));
@@ -434,13 +436,12 @@ sch_bcn_update_opmode_change(struct mac_context *mac_ctx, tpDphHashNode sta_ds,
 				struct pe_session *session, tpSchBeaconStruct bcn,
 				tpSirMacMgmtHdr mac_hdr, uint8_t cb_mode)
 {
-	bool skip_opmode_update = false;
-	uint8_t oper_mode;
-	uint32_t fw_vht_ch_wd = wma_get_vht_ch_width();
-	uint8_t ch_width = 0, ch_bw;
+	enum phy_ch_width ch_bw;
+	enum phy_ch_width ch_width = CH_WIDTH_20MHZ;
 	tDot11fIEVHTCaps *vht_caps = NULL;
 	tDot11fIEVHTOperation *vht_op = NULL;
 	uint8_t bcn_vht_chwidth = 0;
+	bool is_40 = false;
 
 	/*
 	 * Ignore opmode change during channel change The opmode will be updated
@@ -455,15 +456,6 @@ sch_bcn_update_opmode_change(struct mac_context *mac_ctx, tpDphHashNode sta_ds,
 		return;
 	}
 
-	if (session->vhtCapability && bcn->OperatingMode.present) {
-		pe_debug("OMN IE is present in the beacon, update NSS/Ch width");
-		lim_update_nss(mac_ctx, sta_ds, bcn->OperatingMode.rxNSS,
-			       session);
-		lim_update_channel_width(mac_ctx, sta_ds, session,
-					 bcn->OperatingMode.chanWidth, &ch_bw);
-		return;
-	}
-
 	if (bcn->VHTCaps.present) {
 		vht_caps = &bcn->VHTCaps;
 		vht_op = &bcn->VHTOperation;
@@ -471,75 +463,82 @@ sch_bcn_update_opmode_change(struct mac_context *mac_ctx, tpDphHashNode sta_ds,
 		vht_caps = &bcn->vendor_vht_ie.VHTCaps;
 		vht_op = &bcn->vendor_vht_ie.VHTOperation;
 	}
-
-	if (!(session->vhtCapability && (vht_op && vht_op->present)))
+	if (!session->vhtCapability ||
+	    !(bcn->OperatingMode.present ||
+	      (vht_op && vht_op->present && vht_caps)))
 		return;
 
-	bcn_vht_chwidth = lim_get_vht_ch_width(&bcn->VHTCaps,
-					       &bcn->VHTOperation,
-					       &bcn->HTInfo);
+	is_40 = bcn->HTInfo.present ?
+			bcn->HTInfo.recommendedTxWidthSet : false;
 
-	oper_mode = sta_ds->vhtSupportedChannelWidthSet;
-	if ((oper_mode == WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ) &&
-	    (oper_mode < bcn_vht_chwidth))
-		skip_opmode_update = true;
-
-	if (WNI_CFG_CHANNEL_BONDING_MODE_DISABLE == cb_mode) {
-		/*
-		 * if channel bonding is disabled from INI do not
-		 * update the chan width
-		 */
-		pe_debug_rl("CB disabled skip bw update: old[%d] new[%d]",
-			    oper_mode, bcn->OperatingMode.chanWidth);
-
-		return;
+	if (bcn->OperatingMode.present) {
+		pe_debug("OMN IE is present in the beacon, update NSS/Ch width");
+		lim_update_nss(mac_ctx, sta_ds, bcn->OperatingMode.rxNSS,
+			       session);
+		ch_width = bcn->OperatingMode.chanWidth;
+	} else {
+		bcn_vht_chwidth = lim_get_vht_ch_width(vht_caps, vht_op,
+						       &bcn->HTInfo);
+		ch_width =
+			lim_convert_vht_chwdith_to_phy_chwidth(bcn_vht_chwidth,
+							       is_40);
 	}
-
-	if (!skip_opmode_update &&
-	    (oper_mode != bcn_vht_chwidth)) {
-		pe_debug("received VHTOP CHWidth %d", bcn_vht_chwidth);
-		pe_debug("MAC - %0x:%0x:%0x:%0x:%0x:%0x",
-		       mac_hdr->sa[0], mac_hdr->sa[1],
-		       mac_hdr->sa[2], mac_hdr->sa[3],
-		       mac_hdr->sa[4], mac_hdr->sa[5]);
-
-		if ((bcn_vht_chwidth >=
-			WNI_CFG_VHT_CHANNEL_WIDTH_160MHZ) &&
-			(fw_vht_ch_wd > eHT_CHANNEL_WIDTH_80MHZ)) {
-			pe_debug("Updating the CH Width to 160MHz");
-			sta_ds->vhtSupportedChannelWidthSet =
-						bcn_vht_chwidth;
-			sta_ds->htSupportedChannelWidthSet =
-				eHT_CHANNEL_WIDTH_40MHZ;
-			ch_width = eHT_CHANNEL_WIDTH_160MHZ;
-		} else if (bcn_vht_chwidth >=
-			WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ) {
-			pe_debug("Updating the CH Width to 80MHz");
-			sta_ds->vhtSupportedChannelWidthSet =
-				WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ;
-			sta_ds->htSupportedChannelWidthSet =
-				eHT_CHANNEL_WIDTH_40MHZ;
-			ch_width = eHT_CHANNEL_WIDTH_80MHZ;
-		} else if (bcn_vht_chwidth ==
-			WNI_CFG_VHT_CHANNEL_WIDTH_20_40MHZ) {
-			sta_ds->vhtSupportedChannelWidthSet =
-				WNI_CFG_VHT_CHANNEL_WIDTH_20_40MHZ;
-			if (bcn->HTCaps.supportedChannelWidthSet) {
-				pe_debug("Updating the CH Width to 40MHz");
-				sta_ds->htSupportedChannelWidthSet =
-					eHT_CHANNEL_WIDTH_40MHZ;
-				ch_width = eHT_CHANNEL_WIDTH_40MHZ;
-			} else {
-				pe_debug("Updating the CH Width to 20MHz");
-				sta_ds->htSupportedChannelWidthSet =
-					eHT_CHANNEL_WIDTH_20MHZ;
-				ch_width = eHT_CHANNEL_WIDTH_20MHZ;
-			}
-		}
-		lim_check_vht_op_mode_change(mac_ctx, session, ch_width,
-						mac_hdr->sa);
-	}
+	lim_update_channel_width(mac_ctx, sta_ds, session, ch_width, &ch_bw);
 }
+
+#ifdef WLAN_FEATURE_SR
+/**
+ * lim_detect_change_in_srp() - Detect change in SRP IE
+ * of the beacon
+ *
+ * @mac_ctx: global mac context
+ * @sta: pointer to sta node
+ * @session: pointer to LIM session
+ * @bcn: beacon from associated AP
+ *
+ * Detect change in SRP IE of the beacon and update the params
+ * accordingly.
+ *
+ * Return: None
+ */
+static void lim_detect_change_in_srp(struct mac_context *mac_ctx,
+				     tpDphHashNode sta,
+				     struct pe_session *session,
+				     tpSchBeaconStruct bcn)
+{
+	tDot11fIEspatial_reuse sr_ie;
+
+	sr_ie = sta->parsed_ies.srp_ie;
+	if (!sr_ie.present) {
+		return;
+	} else if (!bcn->srp_ie.present) {
+		pe_err_rl("SRP IE is missing in beacon, disable SR");
+	} else if (!qdf_mem_cmp(&sr_ie, &bcn->srp_ie,
+				sizeof(tDot11fIEspatial_reuse))) {
+		/* No change in beacon SRP IE */
+		return;
+	}
+
+	/*
+	 * If SRP IE has changes, update the new params.
+	 * Else if the SRP IE is missing, disable SR
+	 */
+	sta->parsed_ies.srp_ie = bcn->srp_ie;
+	if (bcn->srp_ie.present)
+		lim_update_vdev_sr_elements(session, sta);
+	else
+		wlan_vdev_mlme_set_sr_ctrl(session->vdev, SR_DISABLE);
+
+	lim_handle_sr_cap(session->vdev, SR_REASON_CODE_BCN_IE_CHANGE);
+}
+#else
+static void lim_detect_change_in_srp(struct mac_context *mac_ctx,
+				     tpDphHashNode sta,
+				     struct pe_session *session,
+				     tpSchBeaconStruct bcn)
+{
+}
+#endif
 
 static void
 sch_bcn_process_sta_opmode(struct mac_context *mac_ctx,
@@ -564,11 +563,12 @@ sch_bcn_process_sta_opmode(struct mac_context *mac_ctx,
 	/* check for VHT capability */
 	sta = dph_lookup_hash_entry(mac_ctx, pMh->sa, &aid,
 			&session->dph.dphHashTable);
-	if ((!sta))
+	if (!sta)
 		return;
 	sch_bcn_update_opmode_change(mac_ctx, sta, session, bcn, pMh,
 				     cb_mode);
 	sch_bcn_update_he_ies(mac_ctx, sta, session, bcn, pMh);
+	lim_detect_change_in_srp(mac_ctx, sta, session, bcn);
 	return;
 }
 
@@ -614,8 +614,21 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 	QDF_STATUS status;
 	bool skip_tpe = false;
 	uint8_t programmed_country[REG_ALPHA2_LEN + 1];
-	enum reg_6g_ap_type pwr_type_6g = REG_INDOOR_AP;
+	enum reg_6g_ap_type pwr_type_6g;
 	bool ctry_code_match = false;
+	uint8_t bpcc;
+	bool cu_flag = true;
+
+	if (mlo_is_mld_sta(session->vdev)) {
+		cu_flag = false;
+		status = lim_get_bpcc_from_mlo_ie(bcn, &bpcc);
+		if (QDF_IS_STATUS_SUCCESS(status))
+			cu_flag = lim_check_cu_happens(session->vdev, bpcc);
+		lim_process_ml_reconfig(mac_ctx, session, rx_pkt_info);
+	}
+
+	if (!cu_flag)
+		return;
 
 	qdf_mem_zero(&beaconParams, sizeof(tUpdateBeaconParams));
 	beaconParams.paramChangeBitmap = 0;
@@ -654,15 +667,34 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 			pe_err("Channel is 6G but country IE not present");
 			return;
 		}
+
+		if (bcn->he_op.oper_info_6g_present) {
+			session->ap_power_type =
+					bcn->he_op.oper_info_6g.info.reg_info;
+			if (session->ap_power_type < REG_INDOOR_AP ||
+			    session->ap_power_type >
+			    REG_MAX_SUPP_AP_TYPE) {
+				session->ap_power_type =
+						REG_VERY_LOW_POWER_AP;
+				pe_debug("AP power type is invalid, defaulting to VLP");
+			}
+		} else {
+			pe_debug("AP power type is null, defaulting to VLP");
+			session->ap_power_type =
+						REG_VERY_LOW_POWER_AP;
+		}
+		pwr_type_6g = session->ap_power_type;
 		wlan_reg_read_current_country(mac_ctx->psoc,
 					      programmed_country);
 		status = wlan_reg_get_6g_power_type_for_ctry(
-				mac_ctx->psoc,
+				mac_ctx->psoc, mac_ctx->pdev,
 				bcn->countryInfoParam.countryString,
 				programmed_country, &pwr_type_6g,
-				&ctry_code_match, REG_MAX_AP_TYPE);
+				&ctry_code_match, session->ap_power_type);
 		if (QDF_IS_STATUS_ERROR(status))
 			return;
+
+		session->ap_power_type = pwr_type_6g;
 	}
 
 	/*
@@ -772,7 +804,9 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 							      session);
 		session->send_p2p_conf_frame = false;
 	}
+
 	lim_process_beacon_eht(mac_ctx, session, bcn);
+	lim_process_bcn_prb_rsp_t2lm(mac_ctx, session, bcn);
 }
 
 #ifdef WLAN_FEATURE_11AX_BSS_COLOR
@@ -1387,7 +1421,7 @@ QDF_STATUS lim_obss_send_detection_cfg(struct mac_context *mac_ctx,
 			return status;
 		}
 	} else {
-		pe_debug("Skiping WMA_OBSS_DETECTION_REQ, force = %d", force);
+		pe_debug("Skipping WMA_OBSS_DETECTION_REQ, force = %d", force);
 	}
 
 	return status;

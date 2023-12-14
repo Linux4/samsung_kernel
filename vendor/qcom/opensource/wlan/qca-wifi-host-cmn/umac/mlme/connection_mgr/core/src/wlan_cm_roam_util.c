@@ -94,9 +94,9 @@ QDF_STATUS cm_check_and_prepare_roam_req(struct cnx_mgr *cm_ctx,
 	/* Reject re-assoc unless ssid matches. */
 	if (ssid.length != req->ssid.length ||
 	    qdf_mem_cmp(ssid.ssid, req->ssid.ssid, ssid.length)) {
-		mlme_debug("SSID didn't matched: self ssid: \"%.*s\", ssid in req: \"%.*s\"",
-			   ssid.length, ssid.ssid, req->ssid.length,
-			   req->ssid.ssid);
+		mlme_debug("SSID didn't matched: self ssid: \"" QDF_SSID_FMT "\", ssid in req: \"" QDF_SSID_FMT "\"",
+			   QDF_SSID_REF(ssid.length, ssid.ssid),
+			   QDF_SSID_REF(req->ssid.length, req->ssid.ssid));
 		return QDF_STATUS_E_FAILURE;
 	}
 

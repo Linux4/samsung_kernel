@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -394,7 +395,7 @@ uint8_t ol_tx_prepare_tso(ol_txrx_vdev_handle vdev,
 					= tso_seg;
 				num_seg--;
 			} else {
-				/* Free above alocated TSO segements till now */
+				/* Free above allocated TSO segments till now */
 				msdu_info->tso_info.curr_seg =
 					msdu_info->tso_info.tso_seg_list;
 				ol_free_remaining_tso_segs(vdev, msdu_info,
@@ -486,7 +487,7 @@ uint32_t ol_tx_tso_get_stats_idx(struct ol_txrx_pdev_t *pdev)
 /**
  * ol_tso_seg_list_init() - function to initialise the tso seg freelist
  * @pdev: the data physical device sending the data
- * @num_seg: number of segments needs to be intialised
+ * @num_seg: number of segments needs to be initialized
  *
  * Return: none
  */
@@ -600,7 +601,7 @@ void ol_tso_seg_list_deinit(struct ol_txrx_pdev_t *pdev)
  *				use to count the num of tso segments in jumbo
  *				skb packet freelist
  * @pdev: the data physical device sending the data
- * @num_seg: number of elements needs to be intialised
+ * @num_seg: number of elements needs to be initialized
  *
  * Return: none
  */

@@ -407,7 +407,7 @@ struct csr_roamstruct {
 /**
  * csr_get_vdev_dot11_mode() - get the supported dot11mode by vdev
  * @mac_ctx:  pointer to global mac structure
- * @device_mode: vdev mode
+ * @vdev_id: vdev id
  * @curr_dot11_mode: Current dot11 mode
  *
  * The function return the min of supported dot11 mode and vdev type dot11mode
@@ -417,7 +417,7 @@ struct csr_roamstruct {
  */
 enum csr_cfgdot11mode
 csr_get_vdev_dot11_mode(struct mac_context *mac,
-			enum QDF_OPMODE device_mode,
+			uint8_t vdev_id,
 			enum csr_cfgdot11mode curr_dot11_mode);
 
 QDF_STATUS csr_get_channel_and_power_list(struct mac_context *mac);
@@ -479,7 +479,7 @@ uint32_t csr_get_concurrent_operation_freq(struct mac_context *mac_ctx);
  *
  * This routine will return operating channel of active AP/GO channel
  * and will skip the channel of vdev_id_to_skip.
- * If other no reqested mode is active it will return 0
+ * If other no requested mode is active it will return 0
  *
  * Return: uint32_t
  */
@@ -499,7 +499,6 @@ bool csr_roam_is11r_assoc(struct mac_context *mac, uint8_t sessionId);
 #ifdef FEATURE_WLAN_ESE
 /* Returns whether the current association is a ESE assoc or not */
 bool csr_roam_is_ese_assoc(struct mac_context *mac, uint32_t sessionId);
-bool csr_roam_is_ese_ini_feature_enabled(struct mac_context *mac);
 QDF_STATUS csr_get_tsm_stats(struct mac_context *mac,
 		tCsrTsmStatsCallback callback,
 		struct qdf_mac_addr bssId,
@@ -598,16 +597,19 @@ bool csr_is_mcc_channel(struct mac_context *mac_ctx, uint32_t chan_freq);
  * @mac_ctx: Global mac context pointer
  * @vdev_id: Vdev id
  * @bssid: candidate AP bssid
+ * @akm: candidate AKM
  */
 QDF_STATUS
 csr_roam_auth_offload_callback(struct mac_context *mac_ctx,
 			       uint8_t vdev_id,
-			       struct qdf_mac_addr bssid);
+			       struct qdf_mac_addr bssid,
+			       uint32_t akm);
 #else
 static inline QDF_STATUS
 csr_roam_auth_offload_callback(struct mac_context *mac_ctx,
 			       uint8_t vdev_id,
-			       struct qdf_mac_addr bssid)
+			       struct qdf_mac_addr bssid,
+			       uint32_t akm)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }

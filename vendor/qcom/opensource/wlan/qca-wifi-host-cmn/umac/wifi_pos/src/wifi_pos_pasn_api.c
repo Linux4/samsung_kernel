@@ -232,7 +232,7 @@ void wifi_pos_move_peers_to_fail_list(struct wlan_objmgr_vdev *vdev,
 	 */
 	for (i = 0; i < WLAN_MAX_11AZ_PEERS; i++) {
 		/*
-		 * Clear the indvidual entry that exist for the given
+		 * Clear the individual entry that exist for the given
 		 * mac address in secure/unsecure list
 		 */
 		if (qdf_is_macaddr_equal(peer_mac, &secure_list[i].peer_mac)) {
@@ -266,7 +266,7 @@ wifi_pos_request_external_pasn_auth(struct wlan_objmgr_psoc *psoc,
 	if (wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE)
 		return QDF_STATUS_E_INVAL;
 
-	osif_cb = wifi_pos_get_osif_callbacks(psoc);
+	osif_cb = wifi_pos_get_osif_callbacks();
 	if (!osif_cb || !osif_cb->osif_initiate_pasn_cb) {
 		wifi_pos_err("OSIF %s cb is NULL",
 			     !osif_cb ? "" : "PASN");
@@ -297,7 +297,7 @@ wifi_pos_request_flush_pasn_keys(struct wlan_objmgr_psoc *psoc,
 	struct wifi_pos_osif_ops *osif_cb;
 	QDF_STATUS status;
 
-	osif_cb = wifi_pos_get_osif_callbacks(psoc);
+	osif_cb = wifi_pos_get_osif_callbacks();
 	if (!osif_cb || !osif_cb->osif_initiate_pasn_cb) {
 		wifi_pos_err("OSIF %s cb is NULL",
 			     !osif_cb ? "" : "PASN");
@@ -354,7 +354,7 @@ QDF_STATUS wifi_pos_handle_ranging_peer_create(struct wlan_objmgr_psoc *psoc,
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 	uint8_t i;
 
-	legacy_cb = wifi_pos_get_legacy_ops(psoc);
+	legacy_cb = wifi_pos_get_legacy_ops();
 	if (!legacy_cb || !legacy_cb->pasn_peer_create_cb) {
 		wifi_pos_err("legacy callbacks is not registered");
 		return QDF_STATUS_E_FAILURE;
@@ -527,12 +527,12 @@ QDF_STATUS wifi_pos_handle_ranging_peer_delete(struct wlan_objmgr_psoc *psoc,
 
 	if (vdev_pos_obj->is_delete_all_pasn_peer_in_progress) {
 		wlan_objmgr_vdev_release_ref(vdev, WLAN_WIFI_POS_CORE_ID);
-		wifi_pos_err("Vdev delete all peer in progress. Ignore indvidual peer delete");
+		wifi_pos_err("Vdev delete all peer in progress. Ignore individual peer delete");
 		return QDF_STATUS_SUCCESS;
 	}
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_WIFI_POS_CORE_ID);
 
-	legacy_cb = wifi_pos_get_legacy_ops(psoc);
+	legacy_cb = wifi_pos_get_legacy_ops();
 	if (!legacy_cb || !legacy_cb->pasn_peer_delete_cb) {
 		wifi_pos_err("legacy callback is not registered");
 		return QDF_STATUS_E_FAILURE;
@@ -823,7 +823,7 @@ wifi_pos_vdev_delete_all_ranging_peers_rsp(struct wlan_objmgr_psoc *psoc,
 
 	vdev_pos_obj->is_delete_all_pasn_peer_in_progress = false;
 
-	legacy_cb = wifi_pos_get_legacy_ops(psoc);
+	legacy_cb = wifi_pos_get_legacy_ops();
 	if (!legacy_cb || !legacy_cb->pasn_vdev_delete_resume_cb) {
 		wlan_objmgr_vdev_release_ref(vdev, WLAN_WIFI_POS_CORE_ID);
 		wifi_pos_err("legacy callbacks is not registered");

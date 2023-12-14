@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -28,7 +29,7 @@
 
 #if defined(WLAN_DEBUGFS) && defined(WLAN_UNIT_TEST)
 /**
- * hdd_debugfs_unit_test_host_create() - API to create unit_test_target
+ * wlan_hdd_debugfs_unit_test_host_create() - API to create unit_test_target
  * @hdd_ctx: hdd context
  *
  * this file is created per driver.

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -75,6 +75,11 @@ void ucfg_scan_filter_valid_channel(struct wlan_objmgr_pdev *pdev,
 	uint32_t *chan_freq_list, uint32_t num_chan)
 {
 	scm_filter_valid_channel(pdev, chan_freq_list, num_chan);
+}
+
+uint32_t ucfg_scan_get_entry_frame_len(struct scan_cache_entry *scan_entry)
+{
+	return util_scan_entry_frame_len(scan_entry);
 }
 
 QDF_STATUS ucfg_scan_init(void)
@@ -548,8 +553,9 @@ ucfg_scan_config_hidden_ssid_for_bssid(struct wlan_objmgr_pdev *pdev,
 	if (!scan_obj)
 		return QDF_STATUS_E_FAILURE;
 
-	scm_debug("Configure bsssid:"QDF_MAC_ADDR_FMT" ssid:%.*s",
-		  QDF_MAC_ADDR_REF(bssid), ssid->length, ssid->ssid);
+	scm_debug("Configure bsssid:" QDF_MAC_ADDR_FMT " ssid:" QDF_SSID_FMT,
+		  QDF_MAC_ADDR_REF(bssid),
+		  QDF_SSID_REF(ssid->length, ssid->ssid));
 	qdf_mem_copy(scan_obj->pdev_info[pdev_id].conf_bssid,
 		     bssid, QDF_MAC_ADDR_SIZE);
 	scan_obj->pdev_info[pdev_id].conf_ssid.length = ssid->length;
@@ -794,7 +800,7 @@ wlan_scan_global_init(struct wlan_objmgr_psoc *psoc,
 				cfg_get(psoc, CFG_GO_SCAN_BURST_DURATION);
 	scan_obj->scan_def.ap_scan_burst_duration =
 				cfg_get(psoc, CFG_AP_SCAN_BURST_DURATION);
-	/* scan contrl flags */
+	/* scan control flags */
 	scan_obj->scan_def.scan_f_passive = true;
 	scan_obj->scan_def.scan_f_ofdm_rates = true;
 	scan_obj->scan_def.scan_f_2ghz = true;
@@ -821,6 +827,8 @@ wlan_scan_global_init(struct wlan_objmgr_psoc *psoc,
 
 	scan_obj->scan_def.skip_6g_and_indoor_freq =
 		cfg_get(psoc, CFG_SKIP_6GHZ_AND_INDOOR_FREQ_SCAN);
+	scan_obj->scan_def.last_scan_ageout_time =
+		cfg_get(psoc, CFG_LAST_SCAN_AGEOUT_TIME);
 
 	/* init scan id seed */
 	qdf_atomic_init(&scan_obj->scan_ids);
@@ -1001,10 +1009,10 @@ ucfg_scan_init_bssid_params(struct scan_start_request *req,
  * is allowed to scan.
  * @pdev: pointer to pdev
  * @reg_chan: regulatory_channel object
- * @low_2g: lower 2.4 GHz frequency thresold
- * @high_2g: upper 2.4 GHz frequency thresold
- * @low_5g: lower 5 GHz frequency thresold
- * @high_5g: upper 5 GHz frequency thresold
+ * @low_2g: lower 2.4 GHz frequency threshold
+ * @high_2g: upper 2.4 GHz frequency threshold
+ * @low_5g: lower 5 GHz frequency threshold
+ * @high_5g: upper 5 GHz frequency threshold
  *
  * Return: true if scan is allowed. false otherwise.
  */

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2018, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/bitfield.h>
@@ -16,6 +17,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/qcom-cpufreq-hw.h>
+#include <linux/topology.h>
 #include <trace/events/power.h>
 #if IS_ENABLED(CONFIG_SEC_PM_LOG)
 #include <linux/sec_pm_log.h>
@@ -34,8 +36,8 @@
 
 #define HZ_PER_KHZ			1000
 
-#define CYCLE_CNTR_OFFSET(c, m, acc_count)		\
-				(acc_count ? ((c - cpumask_first(m) + 1) * 4) : 0)
+#define CYCLE_CNTR_OFFSET(core_id, m, acc_count)		\
+				(acc_count ? ((core_id + 1) * 4) : 0)
 
 struct cpufreq_counter {
 	u64 total_cycle_counter;
@@ -75,6 +77,7 @@ struct qcom_cpufreq_data {
 	int throttle_irq;
 	char irq_name[15];
 	bool cancel_throttle;
+	bool is_irq_requested;
 	struct delayed_work throttle_work;
 	struct cpufreq_policy *policy;
 	unsigned long last_non_boost_freq;
@@ -152,7 +155,7 @@ u64 qcom_cpufreq_get_cpu_cycle_counter(int cpu)
 	cpu_counter = &qcom_cpufreq_counter[cpu];
 	spin_lock_irqsave(&cpu_counter->lock, flags);
 
-	offset = CYCLE_CNTR_OFFSET(cpu, policy->related_cpus,
+	offset = CYCLE_CNTR_OFFSET(topology_core_id(cpu), policy->related_cpus,
 					soc_data->accumulative_counter);
 	val = readl_relaxed(data->base +
 					soc_data->reg_cycle_cntr + offset);
@@ -169,6 +172,8 @@ u64 qcom_cpufreq_get_cpu_cycle_counter(int cpu)
 	}
 	cycle_counter_ret = cpu_counter->total_cycle_counter;
 	spin_unlock_irqrestore(&cpu_counter->lock, flags);
+
+	pr_debug("CPU %u, core-id 0x%x, offset %u\n", cpu, topology_core_id(cpu), offset);
 
 	return cycle_counter_ret;
 }
@@ -255,6 +260,7 @@ static int qcom_cpufreq_hw_read_lut(struct device *cpu_dev,
 		}
 	} else if (ret != -ENODEV) {
 		dev_err(cpu_dev, "Invalid opp table in device tree\n");
+		kfree(table);
 		return ret;
 	} else {
 		policy->fast_switch_possible = true;
@@ -550,6 +556,8 @@ static int qcom_cpufreq_hw_lmh_init(struct cpufreq_policy *policy, int index,
 	struct platform_device *pdev = cpufreq_get_driver_data();
 	int ret;
 
+	if (data->is_irq_requested)
+		return 0;
 	/*
 	 * Look for LMh interrupt. If no interrupt line is specified /
 	 * if there is an error, allow cpufreq to be enabled as usual.
@@ -572,6 +580,8 @@ static int qcom_cpufreq_hw_lmh_init(struct cpufreq_policy *policy, int index,
 		return 0;
 	}
 
+	data->is_irq_requested = true;
+
 	sysfs_attr_init(&data->freq_limit_attr.attr);
 	data->freq_limit_attr.attr.name = "dcvsh_freq_limit";
 	data->freq_limit_attr.show = dcvsh_freq_limit_show;
@@ -585,8 +595,12 @@ static int qcom_cpufreq_hw_lmh_init(struct cpufreq_policy *policy, int index,
 static void qcom_cpufreq_hw_lmh_exit(struct qcom_cpufreq_data *data)
 {
 	struct cpufreq_policy *policy = data->policy;
+	struct device *cpu_dev;
 
 	if (data->throttle_irq <= 0)
+		return;
+
+	if (!policy)
 		return;
 
 	mutex_lock(&data->throttle_lock);
@@ -594,9 +608,12 @@ static void qcom_cpufreq_hw_lmh_exit(struct qcom_cpufreq_data *data)
 	mutex_unlock(&data->throttle_lock);
 
 	free_irq(data->throttle_irq, data);
+	data->is_irq_requested = false;
 	cancel_delayed_work_sync(&data->throttle_work);
 
 	arch_set_thermal_pressure(policy->related_cpus, 0);
+	cpu_dev = get_cpu_device(cpumask_first(policy->related_cpus));
+	device_remove_file(cpu_dev, &data->freq_limit_attr);
 	trace_dcvsh_throttle(cpumask_first(policy->related_cpus), 0);
 }
 

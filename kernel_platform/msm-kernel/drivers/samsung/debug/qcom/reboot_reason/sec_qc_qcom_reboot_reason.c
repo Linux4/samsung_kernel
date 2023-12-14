@@ -188,8 +188,11 @@ static void __reboot_reason_write_pon_rr(struct qc_reboot_reason_drvdata *drvdat
 
 		pon_read = *(unsigned char *)buf;
 		kfree(buf);
-		if (pon_read == pon_reason)
+		if (pon_read == pon_reason) {
+			dev_info(dev, "0x%02hhX is written successfully. (retry = %zu)\n",
+					pon_reason, retry);
 			return;
+		}
 	}
 
 	dev_warn(dev, "pon reason was not written properly!\n");
@@ -220,10 +223,15 @@ static int __qc_reboot_reason_register_pon_rr_writer(struct builder *bd)
 {
 	struct qc_reboot_reason_drvdata *drvdata =
 			container_of(bd, struct qc_reboot_reason_drvdata, bd);
+	int err;
 
 	drvdata->nb_pon_rr.notifier_call = sec_qc_reboot_reason_write_pon_rr;
 
-	return sec_qc_rbcmd_register_pon_rr_writer(&drvdata->nb_pon_rr);
+	err = sec_qc_rbcmd_register_pon_rr_writer(&drvdata->nb_pon_rr);
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
+	return err;
 }
 
 static void __qc_reboot_reason_unregister_pon_rr_writer(struct builder *bd)
@@ -284,10 +292,15 @@ static int __qc_reboot_reason_register_reboot_notifier(struct builder *bd)
 {
 	struct qc_reboot_reason_drvdata *drvdata =
 			container_of(bd, struct qc_reboot_reason_drvdata, bd);
+	int err;
 
 	drvdata->nb_reboot.notifier_call = sec_qc_reboot_reason_reboot_call;
 
-	return register_reboot_notifier(&drvdata->nb_reboot);
+	err = register_reboot_notifier(&drvdata->nb_reboot);
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
+	return err;
 }
 
 static void __qc_reboot_reason_unregister_reboot_notifier(struct builder *bd)

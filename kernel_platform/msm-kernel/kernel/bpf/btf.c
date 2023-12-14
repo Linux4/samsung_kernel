@@ -3,6 +3,7 @@
 
 #include <uapi/linux/btf.h>
 #include <uapi/linux/bpf.h>
+#include <uapi/linux/android_fuse.h>
 #include <uapi/linux/bpf_perf_event.h>
 #include <uapi/linux/types.h>
 #include <linux/seq_file.h>
@@ -2996,7 +2997,7 @@ static int btf_struct_resolve(struct btf_verifier_env *env,
 	if (v->next_member) {
 		const struct btf_type *last_member_type;
 		const struct btf_member *last_member;
-		u16 last_member_type_id;
+		u32 last_member_type_id;
 
 		last_member = btf_type_member(v->t) + v->next_member - 1;
 		last_member_type_id = last_member->type;
@@ -3875,6 +3876,11 @@ static int btf_func_proto_check(struct btf_verifier_env *env,
 			btf_verifier_log_type(env, t, "Invalid arg#%u", i + 1);
 			err = -EINVAL;
 			break;
+		}
+
+		if (btf_type_is_resolve_source_only(arg_type)) {
+			btf_verifier_log_type(env, t, "Invalid arg#%u", i + 1);
+			return -EINVAL;
 		}
 
 		if (args[i].name_off &&

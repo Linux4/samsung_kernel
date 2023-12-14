@@ -181,7 +181,7 @@ static const struct max77705_muic_vps_data muic_vps_table[] = {
 	},
 	{
 		.adc		= MAX77705_UIADC_301K,
-		.vbvolt		= VB_HIGH,
+		.vbvolt		= VB_DONTCARE,
 		.chgtyp		= CHGTYP_DONTCARE,
 		.muic_switch	= COM_USB,
 		.vps_name	= "JIG USB ON",
@@ -1677,6 +1677,13 @@ muic_attached_dev_t max77705_muic_check_new_dev(struct max77705_muic_data *muic_
 
 	chgtyp = max77705_resolve_chgtyp(muic_data, chgtyp, spchgtyp, dcdtmo, irq);
 
+#if !defined(CONFIG_SEC_FACTORY)
+	if (adc != MAX77705_UIADC_OPEN) {
+		pr_info("%s set adc to open (%d) -> (%d)\n", __func__, adc, MAX77705_UIADC_OPEN);
+	}
+	adc = MAX77705_UIADC_OPEN;
+#endif
+
 #if IS_ENABLED(CONFIG_MUIC_MAX77705_PDIC)
 	adc = max77705_muic_update_adc_with_rid(muic_data, adc);
 	/* Do not check vbus if CCIC RID/UID is 523K */
@@ -1724,6 +1731,9 @@ static void max77705_muic_detect_dev(struct max77705_muic_data *muic_data,
 	int irq)
 {
 	struct i2c_client *i2c = muic_data->i2c;
+#if !defined(CONFIG_SEC_FACTORY)
+	struct max77705_usbc_platform_data *usbpd_data = muic_data->usbc_pdata;
+#endif
 	muic_attached_dev_t new_dev = ATTACHED_DEV_NONE_MUIC;
 	int intr = MUIC_INTR_DETACH;
 	u8 status[5];
@@ -1816,17 +1826,18 @@ static void max77705_muic_detect_dev(struct max77705_muic_data *muic_data,
 	}
 
 #if !defined(CONFIG_SEC_FACTORY)
-	/* W/A of defect cable(Vbus is valid and CC is invalid), set or cancel vbus_wa_work */
-	if (irq == muic_data->irq_vbusdet || irq == MUIC_IRQ_INIT_DETECT) {
-		__pm_relax(muic_data->muic_ws);
-		cancel_delayed_work(&(muic_data->vbus_wa_work));
-		if (vbvolt > 0 && ccstat == cc_No_Connection) {
-			__pm_wakeup_event(muic_data->muic_ws, 2100);
-			schedule_delayed_work(&(muic_data->vbus_wa_work), msecs_to_jiffies(2000));
+	if (!usbpd_data->manual_lpm_mode) {
+		if (irq == muic_data->irq_vbusdet || irq == MUIC_IRQ_INIT_DETECT) {
+			__pm_relax(muic_data->muic_ws);
+			cancel_delayed_work(&(muic_data->vbus_wa_work));
+			if (vbvolt > 0 && ccstat == cc_No_Connection) {
+				__pm_wakeup_event(muic_data->muic_ws, 2100);
+				schedule_delayed_work(&(muic_data->vbus_wa_work), msecs_to_jiffies(2000));
+			}
+		} else if (irq == muic_data->irq_chgtyp && chgtyp > 0) {
+			__pm_relax(muic_data->muic_ws);
+			cancel_delayed_work(&(muic_data->vbus_wa_work));
 		}
-	} else if (irq == muic_data->irq_chgtyp && chgtyp > 0) {
-		__pm_relax(muic_data->muic_ws);
-		cancel_delayed_work(&(muic_data->vbus_wa_work));
 	}
 #endif
 
@@ -1968,7 +1979,7 @@ static void max77705_muic_afc_work(struct work_struct *work)
 		mutex_lock(&muic_data->afc_lock);
 		muic_data->pdata->afc_disabled_updated |= MAX77705_MUIC_AFC_WORK_PROCESS;
 
-		if (!muic_data->pdata->afc_disable) {
+		if (!muic_data->pdata->afc_disable && muic_is_enable_afc_request()) {
 			muic_data->is_check_hv = true;
 			muic_data->hv_voltage = 9;
 			max77705_muic_afc_hv_set(muic_data, 9);

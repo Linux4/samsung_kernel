@@ -872,7 +872,7 @@ static int clock_debug_print_clock(struct hw_debug_clk *dclk, struct seq_file *s
 				clk_hw_get_name(clk_hw),
 				clk_rate);
 
-#if 0
+#if 1
 			if (sec_debug_is_enabled()) {
 				if (!strncmp(clk_hw_get_name(clk_hw), "disp_cc_mdss", strlen("disp_cc_mdss")) && (clk_rate > 0))
 					panic("display clock is alive");

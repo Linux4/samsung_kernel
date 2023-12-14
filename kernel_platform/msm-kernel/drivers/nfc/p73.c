@@ -137,9 +137,6 @@ enum p61_pin_ctrl {
 };
 #endif
 
-#define READ_THROUGH_PUT 0x01
-#define WRITE_THROUGH_PUT 0x02
-#define MXAX_THROUGH_PUT_TIME 999000L
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level;
 
@@ -185,8 +182,10 @@ struct p61_dev {
 	struct pinctrl_state *pinctrl_state[P61_PIN_CTRL_MAX];
 	struct platform_device *spi_pdev;
 	struct nfc_wake_lock ese_lock;
-	int pid;
-	char task_comm[TASK_COMM_LEN];
+	int open_pid;
+	int release_pid;
+	char open_task_name[TASK_COMM_LEN];
+	char release_task_name[TASK_COMM_LEN];
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	struct delayed_work spi_release_work;
 	struct nfc_wake_lock spi_release_wakelock;
@@ -203,91 +202,9 @@ struct p61_dev *g_p61_dev;
 
 /* T==1 protocol specific global data */
 const unsigned char SOF = 0xA5u;
-struct p61_through_put {
-	ktime_t rstart_tv;
-	ktime_t rstop_tv;
-	ktime_t wstart_tv;
-	ktime_t wstop_tv;
-	unsigned long total_through_put_wbytes;
-	unsigned long total_through_put_rbytes;
-	unsigned long total_through_put_rtime;
-	unsigned long total_through_put_wtime;
-	bool enable_through_put_measure;
-};
-static struct p61_through_put p61_through_put_t;
-
-static void p61_start_throughput_measurement(unsigned int type);
-static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes);
-
-static void p61_start_throughput_measurement(unsigned int type)
-{
-	if (type == READ_THROUGH_PUT) {
-		memset(&p61_through_put_t.rstart_tv, 0x00, sizeof(ktime_t));
-		p61_through_put_t.rstart_tv = ktime_get();
-	} else if (type == WRITE_THROUGH_PUT) {
-		memset(&p61_through_put_t.wstart_tv, 0x00, sizeof(ktime_t));
-		p61_through_put_t.wstart_tv = ktime_get();
-
-	} else {
-		NFC_LOG_ERR("p61_start_throughput_measurement: wrong type = %d\n",
-			    type);
-	}
-
-}
-
-static void p61_stop_throughput_measurement(unsigned int type, int no_of_bytes)
-{
-	if (type == READ_THROUGH_PUT) {
-		memset(&p61_through_put_t.rstop_tv, 0x00, sizeof(ktime_t));
-		p61_through_put_t.rstop_tv = ktime_get();
-		p61_through_put_t.total_through_put_rbytes += no_of_bytes;
-		p61_through_put_t.total_through_put_rtime += (long)ktime_to_ns(ktime_sub(
-					p61_through_put_t.rstop_tv, p61_through_put_t.rstart_tv)) / 1000;
-
-		if (p61_through_put_t.total_through_put_rtime >=
-		    MXAX_THROUGH_PUT_TIME) {
-			NFC_LOG_REC("**************** Read Throughput: **************\n");
-			NFC_LOG_REC("No of Read Bytes = %ld\n",
-			       p61_through_put_t.total_through_put_rbytes);
-			NFC_LOG_REC("Total Read Time (uSec) = %ld\n",
-			       p61_through_put_t.total_through_put_rtime);
-			p61_through_put_t.total_through_put_rbytes = 0;
-			p61_through_put_t.total_through_put_rtime = 0;
-			NFC_LOG_INFO("**************** Read Throughput: **************\n");
-		}
-		NFC_LOG_REC("No of Read Bytes = %ld\n",
-		       p61_through_put_t.total_through_put_rbytes);
-		NFC_LOG_REC("Total Read Time (uSec) = %ld\n",
-		       p61_through_put_t.total_through_put_rtime);
-	} else if (type == WRITE_THROUGH_PUT) {
-		memset(&p61_through_put_t.wstop_tv, 0x00, sizeof(ktime_t));
-		p61_through_put_t.wstop_tv = ktime_get();
-		p61_through_put_t.total_through_put_wbytes += no_of_bytes;
-		p61_through_put_t.total_through_put_wtime += (long)ktime_to_ns(ktime_sub(
-					p61_through_put_t.wstop_tv, p61_through_put_t.wstart_tv)) / 1000;
-
-		if (p61_through_put_t.total_through_put_wtime >=
-		    MXAX_THROUGH_PUT_TIME) {
-			NFC_LOG_REC("**************** Write Throughput: **************\n");
-			NFC_LOG_REC("No of Write Bytes = %ld\n",
-			       p61_through_put_t.total_through_put_wbytes);
-			NFC_LOG_REC("Total Write Time (uSec) = %ld\n",
-			       p61_through_put_t.total_through_put_wtime);
-			p61_through_put_t.total_through_put_wbytes = 0;
-			p61_through_put_t.total_through_put_wtime = 0;
-			NFC_LOG_REC("**************** WRITE Throughput: **************\n");
-		}
-		NFC_LOG_REC("No of Write Bytes = %ld\n",
-		       p61_through_put_t.total_through_put_wbytes);
-		NFC_LOG_REC("Total Write Time (uSec) = %ld\n",
-		       p61_through_put_t.total_through_put_wtime);
-	} else {
-		NFC_LOG_ERR("p61_stop_throughput_measurement: wrong type = %u\n", type);
-	}
-}
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-static void p61_get_status(struct p61_dev *p61_dev)
+static void p61_get_task_info(struct p61_dev *p61_dev, char *task_name, int *pid)
 {
 	struct task_struct *task;
 
@@ -295,14 +212,21 @@ static void p61_get_status(struct p61_dev *p61_dev)
 		return;
 
 	rcu_read_lock();
-	p61_dev->pid = task_pid_nr(current);
-	task = pid_task(find_vpid(p61_dev->pid), PIDTYPE_PID);
-	memset(p61_dev->task_comm, 0, TASK_COMM_LEN);
+	*pid = task_pid_nr(current);
+	task = pid_task(find_vpid(*pid), PIDTYPE_PID);
 	if (task) {
-		memcpy(p61_dev->task_comm, task->comm, TASK_COMM_LEN);
-		p61_dev->task_comm[TASK_COMM_LEN - 1] = '\0';
+		memcpy(task_name, task->comm, TASK_COMM_LEN);
+		task_name[TASK_COMM_LEN - 1] = '\0';
 	}
 	rcu_read_unlock();
+}
+
+static void p61_init_task_info(struct p61_dev *p61_dev)
+{
+	p61_dev->open_pid = 0;
+	p61_dev->release_pid = 0;
+	memset(p61_dev->open_task_name, 0, TASK_COMM_LEN);
+	memset(p61_dev->release_task_name, 0, TASK_COMM_LEN);
 }
 
 void p61_print_status(const char *func_name)
@@ -312,9 +236,12 @@ void p61_print_status(const char *func_name)
 	if (!p61_dev)
 		return;
 
-	NFC_LOG_INFO("%s: p61 state=%d pid=%d task=%s\n",
+	NFC_LOG_INFO("%s: state=%d o_pid=%d rel_pid=%d o_task=%s rel_task=%s\n",
 			func_name, p61_dev->ese_spi_transition_state,
-			p61_dev->pid, p61_dev->task_comm);
+			p61_dev->open_pid,
+			p61_dev->release_pid,
+			p61_dev->open_task_name,
+			p61_dev->release_task_name);
 }
 
 static void p61_pinctrl_select(struct p61_dev *p61_dev, enum p61_pin_ctrl stat)
@@ -384,7 +311,7 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 #endif
 	mutex_unlock(&open_close_mutex);
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-	p61_get_status(p61_dev);
+	p61_get_task_info(p61_dev, p61_dev->release_task_name, &p61_dev->release_pid);
 	p61_print_status(__func__);
 #endif
 	NFC_LOG_INFO("Exit %s: ESE driver release\n", __func__);
@@ -589,6 +516,8 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 	p61_dev->ese_spi_transition_state = ESE_SPI_BUSY;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	/* for checking previous open/close tasks */
+	p61_print_status("p61_dev_open pre");
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	cancel_delayed_work_sync(&p61_dev->spi_release_work);
 #endif
@@ -596,11 +525,15 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 		wake_lock(&p61_dev->ese_lock);
 
 	p61_pinctrl_select(p61_dev, P61_PIN_CTRL_ESE_ON);
-	msleep(60);
+
+	if (p61_dev->ap_vendor != AP_VENDOR_QCT)
+		msleep(60);
+
 #endif
 	mutex_unlock(&open_close_mutex);
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-	p61_get_status(p61_dev);
+	p61_init_task_info(p61_dev);
+	p61_get_task_info(p61_dev, p61_dev->open_task_name, &p61_dev->open_pid);
 	p61_print_status(__func__);
 #endif
 	return 0;
@@ -701,11 +634,6 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 		NFC_LOG_INFO("P61_SET_DWNLD_STATUS: enter\n");
 		//ret = nfc_dev_ioctl(filp, PN544_SET_DWNLD_STATUS, arg);
 		NFC_LOG_INFO("P61_SET_DWNLD_STATUS: =%lu exit\n", arg);
-		break;
-	case P61_SET_THROUGHPUT:
-		p61_through_put_t.enable_through_put_measure = true;
-		NFC_LOG_INFO("[NXP-P61] -  P61_SET_THROUGHPUT enable %d\n",
-			    p61_through_put_t.enable_through_put_measure);
 		break;
 	case P61_GET_ESE_ACCESS:
 		NFC_LOG_INFO("P61_GET_ESE_ACCESS: enter\n");
@@ -834,12 +762,6 @@ static long p61_dev_compat_ioctl(struct file *filp, unsigned int cmd,
 		NFC_LOG_INFO("%s: P61_SET_DWNLD_STATUS: =%lu exit\n", __func__, arg);
 		break;
 
-	case P61_SET_THROUGHPUT_COMPAT:
-		p61_through_put_t.enable_through_put_measure = true;
-		NFC_LOG_INFO("[NXP-P61] -  P61_SET_THROUGHPUT enable %d\n",
-			    p61_through_put_t.enable_through_put_measure);
-		break;
-
 	case P61_GET_ESE_ACCESS_COMPAT:
 		NFC_LOG_INFO("P61_GET_ESE_ACCESS: enter\n");
 		//ret = pn547_dev_ioctl(filp, P547_GET_ESE_ACCESS, arg);
@@ -962,8 +884,6 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 		mutex_unlock(&p61_dev->write_mutex);
 		return -EFAULT;
 	}
-	if (p61_through_put_t.enable_through_put_measure)
-		p61_start_throughput_measurement(WRITE_THROUGH_PUT);
 	/* Write data */
 	ret = spi_write(p61_dev->spi, &tx_buffer[0], count);
 	if (ret < 0) {
@@ -971,8 +891,6 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 		ret = -EIO;
 	} else {
 		ret = count;
-		if (p61_through_put_t.enable_through_put_measure)
-			p61_stop_throughput_measurement(WRITE_THROUGH_PUT, ret);
 	}
 
 	mutex_unlock(&p61_dev->write_mutex);
@@ -1116,11 +1034,6 @@ static ssize_t p61_dev_read(struct file *filp, char *buf, size_t count,
 		}
 	}
 
-	if (p61_through_put_t.enable_through_put_measure)
-		p61_start_throughput_measurement(READ_THROUGH_PUT);
-
-	if (p61_through_put_t.enable_through_put_measure)
-		p61_stop_throughput_measurement(READ_THROUGH_PUT, count);
 	NFC_LOG_REC("total_count = %zu\n", count);
 
 	if (copy_to_user(buf, &rx_buffer[0], count)) {
@@ -1673,7 +1586,6 @@ static int p61_probe(struct spi_device *spi)
 	 * for reading.  it is cleared when all data has been read.
 	 */
 	p61_dev->irq_enabled = true;
-	p61_through_put_t.enable_through_put_measure = false;
 	irq_flags = IRQF_TRIGGER_RISING | IRQF_ONESHOT;
 
 	ret = request_irq(p61_dev->spi->irq, p61_dev_irq_handler, irq_flags,

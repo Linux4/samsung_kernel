@@ -16,7 +16,7 @@
  *
  */
 
-#include <Config.h>
+#include "../Config.h"
 #include "ic_drv_global.h"
 #include "ic_drv_interface.h"
 #ifdef __KERNEL__
@@ -30,7 +30,7 @@
 #include <asm/uaccess.h>
 #endif
 
-#include "drv_interface.h"
+#include "../drv_interface.h"
 
 
 

@@ -30,7 +30,7 @@ struct gen7_hwsched_hfi {
 	/** @big_ib_recurring: GMU buffer to hold big recurring IBs */
 	struct kgsl_memdesc *big_ib_recurring;
 	/** @msg_mutex: Mutex for accessing the msgq */
-	struct mutex msgq_mutex;	
+	struct mutex msgq_mutex;
 };
 
 struct kgsl_drawobj_cmd;

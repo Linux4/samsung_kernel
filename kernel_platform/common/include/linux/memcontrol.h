@@ -1098,56 +1098,14 @@ static inline void count_memcg_event_mm(struct mm_struct *mm,
 					enum vm_event_item idx)
 {
 	struct mem_cgroup *memcg;
-	struct task_struct *prev_owner;
-	struct css_set *prev_cgroups;
-	struct cgroup_subsys_state *prev_css;
 
 	if (mem_cgroup_disabled())
 		return;
 
 	rcu_read_lock();
-
-	/* mm->owner */
-	prev_owner = rcu_dereference(mm->owner);
-	if (!prev_owner)
-		goto out;
-
-	/* owner->cgroups->css_set */
-	prev_cgroups = rcu_dereference(prev_owner->cgroups);
-
-	/* owner->cgroups->css_set->css[]->css */
-	prev_css = task_css(prev_owner, memory_cgrp_id);
-	if (!prev_css)
-		goto out;
-	/* css->memcg */
-	memcg = mem_cgroup_from_css(prev_css);
-	if (unlikely(!memcg))
-		goto out;
-
-	/* check the memcg */
-	if ((unsigned long)memcg >= PAGE_OFFSET) {
+	memcg = mem_cgroup_from_task(rcu_dereference(mm->owner));
+	if (likely(memcg))
 		count_memcg_events(memcg, idx, 1);
-	} else {
-		struct task_struct *new_owner;
-		struct css_set *new_cgroups;
-		struct cgroup_subsys_state *new_css;
-		struct mem_cgroup *new_memcg = NULL;
-
-		/* mm->owner */
-		new_owner = rcu_dereference(mm->owner);
-		/* owner->cgroups->css_set */
-		new_cgroups = rcu_dereference(new_owner->cgroups);
-		/* owner->cgroups->css_set->css[]->css */
-		new_css = task_css(new_owner, memory_cgrp_id);
-		/* css->memcg */
-		if (new_css)
-			new_memcg = mem_cgroup_from_css(new_css);
-		pr_err("[%s] %px %px %px %px => %px %px %px %px\n", __func__,
-				memcg, prev_owner, prev_cgroups, prev_css,
-				new_memcg, new_owner, new_cgroups, new_css);
-		BUG();
-	}
-out:
 	rcu_read_unlock();
 }
 

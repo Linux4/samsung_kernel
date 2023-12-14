@@ -498,16 +498,10 @@ dump_rdi_1:
 		camif_lite_priv->hw_intf->hw_idx);
 	if (!soc_private->is_ife_lite) {
 		for (offset = 0x9C00; offset <= 0x9DFC; offset += 0x4) {
-			if (offset == 0x9A08)
-				offset = 0x9A60;
 			val = cam_soc_util_r(camif_lite_priv->soc_info,
 				0, offset);
 			CAM_INFO(CAM_ISP, "offset 0x%X value 0x%X",
 				offset, val);
-			if (offset == 0x9A60)
-				offset = 0x9A64;
-			else if (offset == 0x9A70)
-				offset = 0x9BEC;
 		}
 	} else {
 		for (offset = 0x1400; offset <= 0x15FC; offset += 0x4) {

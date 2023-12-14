@@ -14,6 +14,7 @@ config ARM64
 	select ARCH_BINFMT_ELF_STATE
 	select ARCH_ENABLE_HUGEPAGE_MIGRATION if HUGETLB_PAGE && MIGRATION
 	select ARCH_ENABLE_MEMORY_HOTPLUG
+	select ARCH_MEMORY_PROBE
 	select ARCH_ENABLE_MEMORY_HOTREMOVE
 	select ARCH_ENABLE_SPLIT_PMD_PTLOCK if PGTABLE_LEVELS > 2
 	select ARCH_ENABLE_THP_MIGRATION if TRANSPARENT_HUGEPAGE
@@ -602,6 +603,23 @@ config ARM64_ERRATUM_1530923
 
 config ARM64_WORKAROUND_REPEAT_TLBI
 	bool
+
+config ARM64_ERRATUM_2441007
+	bool "Cortex-A55: Completion of affected memory accesses might not be guaranteed by completion of a TLBI"
+	default y
+	select ARM64_WORKAROUND_REPEAT_TLBI
+	help
+	  This option adds a workaround for ARM Cortex-A55 erratum #2441007.
+
+	  Under very rare circumstances, affected Cortex-A55 CPUs
+	  may not handle a race between a break-before-make sequence on one
+	  CPU, and another CPU accessing the same page. This could allow a
+	  store to a page that has been unmapped.
+
+	  Work around this by adding the affected CPUs to the list that needs
+	  TLB sequences to be done twice.
+
+	  If unsure, say Y.
 
 config ARM64_ERRATUM_1286807
 	bool "Cortex-A76: Modification of the translation table for a virtual address might lead to read-after-read ordering violation"
@@ -1211,6 +1229,17 @@ config ARCH_SPARSEMEM_ENABLE
 config HW_PERF_EVENTS
 	def_bool y
 	depends on ARM_PMU
+
+config ARCH_MEMORY_PROBE
+	bool "Enable sysfs memory/probe interface"
+	depends on MEMORY_HOTPLUG
+	help
+	  This option enables a sysfs memory/probe interface for testing.
+	  See Documentation/admin-guide/mm/memory-hotplug.rst for more information.
+	  If you are unsure how to answer this question, answer N.
+
+	  Add userspace sysfs memory probe interface /sys/device/system/memory/probe.
+	  Write physical address to this interface to probe memory.
 
 # Supported by clang >= 7.0
 config CC_HAVE_SHADOW_CALL_STACK

@@ -213,23 +213,24 @@ static void _sde_rm_inc_resource_info_lm(struct sde_rm *rm,
 	list_for_each_entry(blk2, &rm->hw_blks[SDE_HW_BLK_LM], list) {
 		lm_cfg2 = to_sde_hw_mixer(blk2->hw)->cap;
 		/*
-		 * If lm2 is free, or
-		 * lm1 & lm2 reserved by same enc, check mask
+		 * If the paired lm is free, or is reserved by the same encoder
+		 * set the bit for the 3d mux associated with the lm
+		 * counting these set bits will give an accurate count of available 3dmux
 		 */
-		if ((!blk2->rsvp || (blk->rsvp &&
-				blk2->rsvp->enc_id == blk->rsvp->enc_id
-				&& lm_cfg->id > lm_cfg2->id)) &&
+		if ((!blk2->rsvp || (blk->rsvp && blk2->rsvp->enc_id == blk->rsvp->enc_id)) &&
 				test_bit(lm_cfg->id, &lm_cfg2->lm_pair_mask))
-			avail_res->num_3dmux++;
+			set_bit(lm_cfg->merge_3d, &avail_res->merge_3d_mask);
+
 	}
+
+	avail_res->num_3dmux = hweight_long(avail_res->merge_3d_mask);
 }
 
 static void _sde_rm_dec_resource_info_lm(struct sde_rm *rm,
 	struct msm_resource_caps_info *avail_res,
 	struct sde_rm_hw_blk *blk)
 {
-	struct sde_rm_hw_blk *blk2;
-	const struct sde_lm_cfg *lm_cfg, *lm_cfg2;
+	const struct sde_lm_cfg *lm_cfg;
 
 	lm_cfg = to_sde_hw_mixer(blk->hw)->cap;
 
@@ -239,14 +240,12 @@ static void _sde_rm_dec_resource_info_lm(struct sde_rm *rm,
 
 	avail_res->num_lm--;
 
-	/* Check for 3d muxes by comparing paired lms */
-	list_for_each_entry(blk2, &rm->hw_blks[SDE_HW_BLK_LM], list) {
-		lm_cfg2 = to_sde_hw_mixer(blk2->hw)->cap;
-		/* If lm2 is free and lm1 is now being reserved */
-		if (!blk2->rsvp &&
-				test_bit(lm_cfg->id, &lm_cfg2->lm_pair_mask))
-			avail_res->num_3dmux--;
-	}
+	/*
+	 * Clear the bit for the 3d mux associated with the lm
+	 * counting these set bits will give an accurate count of available 3dmux
+	 */
+	clear_bit(lm_cfg->merge_3d, &avail_res->merge_3d_mask);
+	avail_res->num_3dmux = hweight_long(avail_res->merge_3d_mask);
 }
 
 static void _sde_rm_inc_resource_info(struct sde_rm *rm,

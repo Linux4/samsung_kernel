@@ -20,7 +20,7 @@ extern struct msm_vidc_core *g_core;
 #define MSM_VIDC_MIN_STATS_DELAY_MS     200
 #define MSM_VIDC_MAX_STATS_DELAY_MS     10000
 
-unsigned int msm_vidc_debug = VIDC_ERR | VIDC_PRINTK | FW_ERROR | FW_FATAL | FW_PRINTK;
+unsigned int msm_vidc_debug = (DRV_LOG | FW_LOG);
 
 static int debug_level_set(const char *val,
 	const struct kernel_param *kp)
@@ -46,11 +46,12 @@ static int debug_level_set(const char *val,
 
 	msm_vidc_debug = dvalue;
 
-	/* check only driver logmask */
-	if ((dvalue & 0xFF) > (VIDC_ERR | VIDC_HIGH)) {
-		core->capabilities[HW_RESPONSE_TIMEOUT].value = 2 * HW_RESPONSE_TIMEOUT_VALUE;
-		core->capabilities[SW_PC_DELAY].value         = 2 * SW_PC_DELAY_VALUE;
-		core->capabilities[FW_UNLOAD_DELAY].value     = 2 * FW_UNLOAD_DELAY_VALUE;
+	/* check if driver or FW logmask is more than default level */
+	if (((dvalue & DRV_LOGMASK) & ~(DRV_LOG)) ||
+		((dvalue & FW_LOGMASK) & ~(FW_LOG))) {
+		core->capabilities[HW_RESPONSE_TIMEOUT].value = 4 * HW_RESPONSE_TIMEOUT_VALUE;
+		core->capabilities[SW_PC_DELAY].value         = 4 * SW_PC_DELAY_VALUE;
+		core->capabilities[FW_UNLOAD_DELAY].value     = 4 * FW_UNLOAD_DELAY_VALUE;
 	} else {
 		/* reset timeout values, if user reduces the logging */
 		core->capabilities[HW_RESPONSE_TIMEOUT].value = HW_RESPONSE_TIMEOUT_VALUE;

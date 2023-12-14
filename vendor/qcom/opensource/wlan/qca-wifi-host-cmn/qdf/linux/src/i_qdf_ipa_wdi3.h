@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -139,6 +139,10 @@ typedef struct ipa_wdi_init_out_params __qdf_ipa_wdi_init_out_params_t;
 	(((struct ipa_wdi_init_out_params *)(out_params))->is_uC_ready)
 #define __QDF_IPA_WDI_INIT_OUT_PARAMS_IS_SMMU_ENABLED(out_params)	\
 	(((struct ipa_wdi_init_out_params *)(out_params))->is_smmu_enabled)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#define __QDF_IPA_WDI_INIT_OUT_PARAMS_OPT_WIFI_DP(out_params)	\
+	(((struct ipa_wdi_init_out_params *)(out_params))->opt_wdi_dpath)
+#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 #define __QDF_IPA_WDI_INIT_OUT_PARAMS_HANDLE(out_params)	\
@@ -423,6 +427,67 @@ static inline int __qdf_ipa_wdi_reg_intf(
 	return ipa_wdi_reg_intf_per_inst(in);
 }
 
+#ifdef IPA_OPT_WIFI_DP
+/**
+ * __qdf_ipa_wdi_register_flt_cb() - register callbacks for optional wifi dp
+ * @hdl: ipa_hdl
+ * @flt_rsrv_cb: filter reserve cb function
+ * @flt_rsrv_rel_cb: filter release cb function
+ * @flt_add_cb: filter add cb function
+ * @flt_rem_cb: filter remove cb
+ *
+ * Note: Should not be called from atomic context and only
+ * after checking IPA readiness using ipa_register_ipa_ready_cb()
+ *
+ * @Return 0 on successful register of filter cb, negative on failure
+ */
+static inline int __qdf_ipa_wdi_register_flt_cb(
+			ipa_wdi_hdl_t hdl,
+			ipa_wdi_opt_dpath_flt_rsrv_cb flt_rsrv_cb,
+			ipa_wdi_opt_dpath_flt_rsrv_rel_cb flt_rsrv_rel_cb,
+			ipa_wdi_opt_dpath_flt_add_cb flt_add_cb,
+			ipa_wdi_opt_dpath_flt_rem_cb flt_rem_cb)
+{
+	return ipa_wdi_opt_dpath_register_flt_cb_per_inst(
+					hdl, flt_rsrv_cb,
+					flt_rsrv_rel_cb,
+					flt_add_cb, flt_rem_cb);
+}
+
+/**
+ * __qdf_ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst() - notify response to
+ * filter reserve request from IPA
+ * @hdl: ipa_hdl
+ * @is_success: result of filter reservation
+ *
+ * Note: Should not be called from atomic context and only
+ * after checking IPA readiness using ipa_register_ipa_ready_cb()
+ *
+ * @Return 0 if ipa received the notification, negative on failure
+ */
+static inline int __qdf_ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst(
+			ipa_wdi_hdl_t hdl, bool is_success)
+{
+	return ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst(hdl, is_success);
+}
+
+/**
+ *__qdf_ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst() notify response to
+ *filter release request from IPA
+ * @hdl: ipa_hdl
+ * @is_success: result of filter release
+ *
+ * Note: Should not be called from atomic context and only
+ * after checking IPA readiness using ipa_register_ipa_ready_cb()
+ *
+ * @Return 0 if ipa received the notification, negative on failure
+ */
+static inline int __qdf_ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(
+			ipa_wdi_hdl_t hdl, bool is_success)
+{
+	return ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(hdl, is_success);
+}
+#endif /*IPA_OPT_WIFI_DP */
 /**
  * __qdf_ipa_wdi_dereg_intf - Client Driver should call this
  * function to deregister before unload and after disconnect

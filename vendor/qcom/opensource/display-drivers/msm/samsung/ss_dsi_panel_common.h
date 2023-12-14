@@ -637,6 +637,14 @@ enum ss_dsi_cmd_set_type {
 	TX_POC_REG_READ_POS,
 	TX_POC_CMD_END, /* END POC CMDS */
 
+	TX_FW_PROT_DISABLE, /* Protection disable */
+	TX_FW_PROT_ENABLE,
+	TX_FW_ERASE,			/* ERASE */
+	TX_FW_WRITE,			/* WRITE */
+	RX_FW_READ,
+	RX_FW_READ_CHECK,
+	RX_FW_READ_MTPID,
+
 	TX_DDI_RAM_IMG_DATA,
 	TX_ISC_DEFECT_TEST_ON,
 	TX_ISC_DEFECT_TEST_OFF,
@@ -838,6 +846,8 @@ enum ss_dsi_cmd_set_type {
 	TX_VLIN1_TEST_ENTER,
 	TX_VLIN1_TEST_EXIT,
 
+	TX_SP_FLASH_INIT,
+
 	TX_CMD_END,
 
 	/* RX */
@@ -892,6 +902,7 @@ enum ss_dsi_cmd_set_type {
 	RX_VBIAS_MTP,	/* HOP display */
 	RX_VAINT_MTP,
 	RX_DDI_FW_ID,
+	RX_SP_FLASH_CHECK,
 	RX_ALPM_SET_VALUE,
 	RX_CMD_END,
 
@@ -1019,6 +1030,8 @@ struct ss_cmd_set {
 	struct ss_cmd_set *cmd_set_rev[SUPPORT_PANEL_REVISION];
 
 	void *self_disp_cmd_set_rev;
+
+	bool gpara;
 };
 
 #define SS_CMD_PROP_SIZE ((SS_DSI_CMD_SET_MAX) - (SS_DSI_CMD_SET_START) + 1)
@@ -1144,6 +1157,7 @@ struct samsung_display_debug_data {
 	u32 frame_cnt;
 	bool *is_factory_mode;
 	bool panic_on_pptimeout;
+	bool tx_rx_simulation;
 
 	/* misc */
 	struct miscdevice dev;
@@ -1344,6 +1358,40 @@ struct POC {
 	bool need_sleep_in;
 };
 
+/* FirmWare Update */
+struct FW {
+	struct miscdevice dev;
+
+	bool is_support;
+
+	u32 fw_id;
+	u8 fw_working;
+
+	u32 start_addr;
+	u32 image_size;
+
+	/* ERASE */
+	u32 erase_data_size;
+	int erase_addr_idx[3];
+
+	/* WRITE */
+	u32 write_data_size;
+	int write_addr_idx[3];
+
+	/* READ */
+	u32 read_data_size;
+	u32 read_check_value;
+
+	bool need_sleep_in;
+
+	//int (*init)(struct samsung_display_driver_data *vdd);
+	u32 (*fw_id_read)(struct samsung_display_driver_data *vdd);
+	int (*fw_check)(struct samsung_display_driver_data *vdd, u32 fw_id);
+	int (*fw_update)(struct samsung_display_driver_data *vdd);
+	int (*fw_write)(struct samsung_display_driver_data *vdd);
+};
+
+
 #define GCT_RES_CHECKSUM_PASS	(1)
 #define GCT_RES_CHECKSUM_NG	(0)
 #define GCT_RES_CHECKSUM_OFF	(-2)
@@ -1493,6 +1541,7 @@ struct ub_con_detect {
 	bool enabled;
 	int ub_con_cnt;
 	int current_wakeup_context_gpio_status;
+	bool ub_con_ignore_user;
 };
 
 struct motto_data {
@@ -1779,9 +1828,11 @@ struct panel_func {
 
 	/* print result of gamma comp */
 	void (*samsung_print_gamma_comp)(struct samsung_display_driver_data *vdd);
+	int (*debug_gamma_comp)(struct samsung_display_driver_data *vdd);
 
 	/* Gamma mode2 gamma compensation (for 48/96hz VRR mode) */
 	int (*samsung_gm2_gamma_comp_init)(struct samsung_display_driver_data *vdd);
+	int (*samsung_spsram_gamma_comp_init)(struct samsung_display_driver_data *vdd);
 
 	/* Read UDC datga */
 	int (*read_udc_data)(struct samsung_display_driver_data *vdd);
@@ -1841,6 +1892,8 @@ struct panel_func {
 	void (*read_flash)(struct samsung_display_driver_data *vdd, u32 addr, u32 size, u8 *buf);
 
 	void (*set_night_dim)(struct samsung_display_driver_data *vdd, int val);
+
+	bool (*analog_offset_on)(struct samsung_display_driver_data *vdd);
 };
 
 enum SS_VBIAS_MODE {
@@ -1909,6 +1962,7 @@ struct flash_gm2 {
 
 struct mtp_gm2_info  {
 	bool mtp_gm2_init_done;
+	bool spsram_read_done;
 	u8 *gamma_org; /* original MTP gamma value */
 	u8 *gamma_comp; /* compensated gamma value (for 48/96hz mode) */
 };
@@ -1955,11 +2009,14 @@ struct ss_brightness_info {
 	struct cmd_map hmt_reverse_aid_map_table[SUPPORT_PANEL_REVISION];
 
 	/* lego-opcode tables */
+	/* TBR: manage glut offset tables as array for each VRR/night_dim modes. */
 	struct cmd_legoop_map glut_offset_48hs;
 	struct cmd_legoop_map glut_offset_60hs;
 	struct cmd_legoop_map glut_offset_96hs;
 	struct cmd_legoop_map glut_offset_120hs;
 	struct cmd_legoop_map glut_offset_night_dim;
+	struct cmd_legoop_map glut_offset_night_dim_96hs;
+	struct cmd_legoop_map glut_offset_night_dim_120hs;
 	int glut_offset_size;
 	bool glut_00_val;
 	bool glut_skip;
@@ -1968,6 +2025,8 @@ struct ss_brightness_info {
 	struct cmd_legoop_map analog_offset_60hs[SUPPORT_PANEL_REVISION];
 	struct cmd_legoop_map analog_offset_96hs[SUPPORT_PANEL_REVISION];
 	struct cmd_legoop_map analog_offset_120hs[SUPPORT_PANEL_REVISION];
+	struct cmd_legoop_map analog_offset_96hs_night_dim[SUPPORT_PANEL_REVISION];
+	struct cmd_legoop_map analog_offset_120hs_night_dim[SUPPORT_PANEL_REVISION];
 	int analog_offset_size;
 
 	struct cmd_legoop_map manual_aor_120hs[SUPPORT_PANEL_REVISION];
@@ -1976,6 +2035,7 @@ struct ss_brightness_info {
 	struct cmd_legoop_map manual_aor_48hs[SUPPORT_PANEL_REVISION];
 
 	struct cmd_legoop_map acl_offset_map_table[SUPPORT_PANEL_REVISION];
+	struct cmd_legoop_map irc_offset_map_table[SUPPORT_PANEL_REVISION];
 
 	/*
 	 *  AOR & IRC Interpolation feature
@@ -2715,6 +2775,9 @@ struct samsung_display_driver_data {
 	 */
 	struct POC poc_driver;
 
+	/*  FirmWare Update */
+	struct FW fw;
+
 	/*
 	 *  Dynamic MIPI Clock
 	 */
@@ -2924,6 +2987,7 @@ struct samsung_display_driver_data {
 	bool no_mipi_rx;
 
 	bool use_flash_done_recovery;
+	bool spsram_read_recovery;
 
 	/* skip bl update until disp_on with qcom,bl-update-flag */
 	bool bl_delay_until_disp_on;
@@ -3713,6 +3777,14 @@ static inline struct device_node *ss_get_self_disp_of(
 	struct dsi_panel *panel = GET_DSI_PANEL(vdd);
 
 	return panel->self_display_of_node;
+}
+
+static inline struct device_node *ss_get_fw_update_of(
+		struct samsung_display_driver_data *vdd)
+{
+	struct dsi_panel *panel = GET_DSI_PANEL(vdd);
+
+	return panel->fw_update_of_node;
 }
 
 static inline struct device_node *ss_get_test_mode_of(

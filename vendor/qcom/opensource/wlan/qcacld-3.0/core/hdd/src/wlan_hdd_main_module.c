@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,9 +16,9 @@
  */
 
 /**
- * wlan_driver_resident: wlan_hdd_main_module.c
+ * DOC: wlan_hdd_main_module.c
  *
- * wlan_driver_resident: WLAN Host Device Driver module interface implementation
+ * WLAN Host Device Driver module interface implementation
  *
  */
 

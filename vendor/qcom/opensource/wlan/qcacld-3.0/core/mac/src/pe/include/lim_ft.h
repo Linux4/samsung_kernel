@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -31,7 +32,7 @@
 #include <lim_ser_des_utils.h>
 
 /*-------------------------------------------------------------------------
-   Function declarations and documenation
+   Function declarations and documentation
    ------------------------------------------------------------------------*/
 void lim_ft_open(struct mac_context *mac, struct pe_session *pe_session);
 void lim_ft_cleanup(struct mac_context *mac, struct pe_session *pe_session);

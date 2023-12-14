@@ -274,7 +274,7 @@ int hdd_set_11ax_rate(struct hdd_adapter *adapter, int value,
 int hdd_we_update_phymode(struct hdd_adapter *adapter, int new_phymode);
 
 /**
- * wlan_hdd_update_btcoex_mode() - set BTCoex Mode
+ * wlan_hdd_set_btcoex_mode() - set BTCoex Mode
  * @adapter: adapter being modified
  * @value: new BTCoex mode for the adapter
  *

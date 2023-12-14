@@ -406,7 +406,6 @@ int transmit_mst_data(int track_num)
 	int qsee_ret = 0;
 	int retry = 5;
 	bool is_loaded = false;
-	char app_name[MAX_APP_NAME_SIZE];
 	mst_req_t *kreq = NULL;
 	mst_rsp_t *krsp = NULL;
 	int req_len = 0, rsp_len = 0;
@@ -418,11 +417,10 @@ int transmit_mst_data(int track_num)
 		printk("[MST] failed to acquire transmit_mutex!\n");
 		return ERROR_VALUE;
 	}
-	snprintf(app_name, MAX_APP_NAME_SIZE, "%s", MST_TA);
 	if (NULL == qhandle) {
 		while(retry > 0) {
 			/* start the mst tzapp only when it is not loaded. */
-			qsee_ret = qseecom_start_app(&qhandle, app_name, 1024);
+			qsee_ret = qseecom_start_app(&qhandle, MST_TA, 1024);
 			if (qsee_ret == 0) {
 				is_loaded = true;
 				break;

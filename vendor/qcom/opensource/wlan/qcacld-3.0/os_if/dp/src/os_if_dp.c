@@ -333,6 +333,7 @@ osif_dp_process_mic_error(struct dp_mic_error_info *info,
 				     info->key_id,
 				     info->tsc,
 				     GFP_KERNEL);
+	osif_vdev_sync_op_stop(vdev_sync);
 }
 
 

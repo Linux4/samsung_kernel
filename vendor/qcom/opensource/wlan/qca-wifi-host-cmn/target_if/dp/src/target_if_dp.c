@@ -318,6 +318,72 @@ target_if_lro_hash_config(struct cdp_ctrl_objmgr_psoc *psoc, uint8_t pdev_id,
 	return status;
 }
 
+#ifdef WLAN_SUPPORT_PPEDS
+QDF_STATUS
+target_if_peer_set_ppeds_default_routing(struct cdp_ctrl_objmgr_psoc *soc,
+					 uint8_t *peer_macaddr,
+					 uint16_t service_code,
+					 uint8_t priority_valid,
+					 uint16_t src_info,
+					 uint8_t vdev_id, uint8_t use_ppe,
+					 uint8_t ppe_routing_enabled)
+{
+	struct wmi_unified *pdev_wmi_handle;
+	struct wlan_objmgr_pdev *pdev;
+	struct wlan_objmgr_vdev *vdev;
+	struct peer_ppe_ds_param param;
+	QDF_STATUS qdf_status = QDF_STATUS_SUCCESS;
+
+	struct wlan_objmgr_psoc *psoc = (struct wlan_objmgr_psoc *)soc;
+	if (!psoc) {
+		target_if_err("PSOC is NULL!");
+		return QDF_STATUS_E_NULL_VALUE;
+	}
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
+						    WLAN_WDS_ID);
+	if (!vdev) {
+		target_if_err("vdev with id %d is NULL", vdev_id);
+		return QDF_STATUS_E_INVAL;
+	}
+
+	pdev = wlan_vdev_get_pdev(vdev);
+
+	if (!pdev) {
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_WDS_ID);
+		target_if_err("pdev is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	pdev_wmi_handle = lmac_get_pdev_wmi_handle(pdev);
+	if (!pdev_wmi_handle) {
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_WDS_ID);
+		target_if_err("pdev_wmi_handle is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	qdf_mem_zero(&param, sizeof(param));
+
+	qdf_mem_copy(&param.peer_macaddr[0], peer_macaddr, QDF_MAC_ADDR_SIZE);
+	param.ppe_routing_enabled = ppe_routing_enabled;
+	param.service_code = service_code;
+	param.priority_valid = priority_valid;
+	param.src_info = src_info;
+	param.vdev_id = vdev_id;
+	param.use_ppe = use_ppe;
+
+	qdf_status = wmi_unified_peer_ppe_ds_param_send(pdev_wmi_handle,
+							&param);
+	if (qdf_status != QDF_STATUS_SUCCESS) {
+		target_if_err("Unable to set PPE default routing for peer "
+				QDF_MAC_ADDR_FMT,
+				QDF_MAC_ADDR_REF(peer_macaddr));
+	}
+
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_WDS_ID);
+	return qdf_status;
+}
+#endif	/* WLAN_SUPPORT_PPEDS */
+
 #ifdef WDS_CONV_TARGET_IF_OPS_ENABLE
 QDF_STATUS
 target_if_add_wds_entry(struct cdp_ctrl_objmgr_psoc *soc, uint8_t vdev_id,
