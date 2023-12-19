@@ -62,7 +62,9 @@ static int ipa_generate_rt_hw_rule(enum ipa_ip_type ip,
 	gen_params.dst_pipe_idx = ipa3_get_ep_mapping(entry->rule.dst);
 	if (gen_params.dst_pipe_idx == -1) {
 		IPAERR_RL("Wrong destination pipe specified in RT rule\n");
+		/***  SSI-25733 : Disable stack trace ****
 		WARN_ON_RATELIMIT_IPA(1);
+		****  SSI-25733 : Disable stack trace ***/
 		return -EPERM;
 	}
 	if (!IPA_CLIENT_IS_CONS(entry->rule.dst)) {
@@ -1051,7 +1053,9 @@ static int __ipa_create_rt_entry(struct ipa3_rt_entry **entry,
 		id = ipa3_alloc_rule_id(tbl->rule_ids);
 		if (id < 0) {
 			IPAERR_RL("failed to allocate rule id\n");
+			/***  SSI-25733 : Disable stack trace ****
 			WARN_ON_RATELIMIT_IPA(1);
+			****  SSI-25733 : Disable stack trace ***/
 			goto alloc_rule_id_fail;
 		}
 	}

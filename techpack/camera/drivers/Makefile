@@ -52,6 +52,9 @@ SRC_UW_FILES = $(srctree)/techpack/camera/drivers/cam_sensor_module/cam_sensor/a
 SRC_TELE_FILES = $(srctree)/techpack/camera/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_hi1337.h
 SRC_FRONT_FILES = $(srctree)/techpack/camera/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_imx471.h
 SRC_FRONT_TOP_FILES = $(srctree)/techpack/camera/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_imx374_q2.h
+else ifeq ($(CONFIG_SEC_M44X_PROJECT), y)
+SRC_WIDE_FILES = $(srctree)/techpack/camera/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_s5kjn1.h
+SRC_FRONT_FILES = $(srctree)/techpack/camera/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_hi1336.h
 endif
 
 DST_WIDE_FILES = $(srctree)/techpack/camera/drivers/cam_sensor_module/cam_sensor/cam_sensor_adaptive_mipi_wide.h

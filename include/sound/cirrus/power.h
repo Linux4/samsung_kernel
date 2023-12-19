@@ -1,5 +1,5 @@
 /*
- * power.h - Power-management defines for Cirrus Logic CS35L41 amplifier
+ * power.h - Power-management defines for Cirrus Logic Smart Amplifiers
  *
  * Copyright 2018 Cirrus Logic
  *

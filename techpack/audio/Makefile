@@ -29,6 +29,8 @@ else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),r9q))
 include $(srctree)/techpack/audio/config/lahaina_r9.conf
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),v2q))
 include $(srctree)/techpack/audio/config/lahaina_v2.conf
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m44x))
+include $(srctree)/techpack/audio/config/lahaina_m44.conf
 else
 include $(srctree)/techpack/audio/config/lahainaauto.conf
 endif
@@ -94,6 +96,9 @@ LINUXINCLUDE	+= \
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),v2q))
 LINUXINCLUDE	+= \
                 -include $(srctree)/techpack/audio/config/lahaina_v2.h
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m44x))
+LINUXINCLUDE	+= \
+                -include $(srctree)/techpack/audio/config/lahaina_m44.h
 else
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/lahainaautoconf.h

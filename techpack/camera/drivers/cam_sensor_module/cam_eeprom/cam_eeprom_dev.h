@@ -241,10 +241,17 @@ typedef struct _cam_eeprom_af_idx_t {
 	uint32_t     offset;
 } AfIdx_t;
 
+#if defined(CONFIG_SEC_M44X_PROJECT)
+#define AF_CAL_NEAR_OFFSET_FROM_AF                  0x000C
+#define AF_CAL_FAR_OFFSET_FROM_AF                   0x0000
+#define AF_CAL_M1_OFFSET_FROM_AF                    0x0004
+#define AF_CAL_M2_OFFSET_FROM_AF                    0x0008
+#else
 #define AF_CAL_NEAR_OFFSET_FROM_AF                  0x0010
 #define AF_CAL_FAR_OFFSET_FROM_AF                   0x0004
 #define AF_CAL_M1_OFFSET_FROM_AF                    0x0008
 #define AF_CAL_M2_OFFSET_FROM_AF                    0x000C
+#endif
 
 #define PAF_OFFSET_CAL_ERR_CHECK                    (0x0014)
 #define PAF_MID_SIZE                                936

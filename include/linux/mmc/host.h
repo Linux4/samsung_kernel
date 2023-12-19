@@ -596,12 +596,22 @@ struct mmc_host {
 	/* Host Software Queue support */
 	bool			hsq_enabled;
 #if defined(CONFIG_SDC_QTI)
-	bool                    need_hw_reset;
+	bool			need_hw_reset;
 #endif
 
 #if defined(CONFIG_SDC_QTI)
 	atomic_t active_reqs;
 #endif
+
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	unsigned int		card_detect_cnt;
+	bool			failed_init;
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	unsigned int		card_removed_cnt;
+#endif
+	int (*sdcard_uevent)(struct mmc_card *card);
+#endif
+
 	unsigned long		private[0] ____cacheline_aligned;
 };
 

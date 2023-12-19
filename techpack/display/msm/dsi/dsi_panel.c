@@ -154,6 +154,20 @@ static int dsi_panel_gpio_request(struct dsi_panel *panel)
 	if (gpio_is_valid(r_config->reset_gpio)) {
 		rc = gpio_request(r_config->reset_gpio, "reset_gpio");
 		if (rc) {
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			/* TDDI makes RESET gpios to fixed-regulator.
+			 * So PBA fail request reset gpio(cause it already grabbed as fixed-regulator)
+			 * PBA no need reset pin for real,
+			 * so make not to return error for binding.
+			 */
+			if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+				!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1") ||
+				/* 8450 does not have vdd at this point of dsi probing */
+				!strcmp(panel->name, "M44X_ILI7807S_BS066FBM")) {
+				DSI_ERR("PBA booting or TDDI, Skip request reset gpio\n");
+				rc = 0;
+			}
+#endif
 			DSI_ERR("request for reset_gpio failed, rc=%d\n", rc);
 			goto error;
 		}
@@ -284,6 +298,15 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 	struct dsi_panel_reset_config *r_config = &panel->reset_config;
 	int i;
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	struct samsung_display_driver_data *vdd = panel->panel_private;
+
+	if (vdd->aot_reset_regulator || vdd->aot_reset_regulator_late) {
+		DSI_INFO("Not here, reset_regulator enabled\n");
+		goto exit;
+	}
+#endif
+
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio)) {
 		rc = gpio_direction_output(panel->reset_config.disp_en_gpio, 1);
 		if (rc) {
@@ -349,6 +372,98 @@ exit:
 }
 
 #if defined(CONFIG_DISPLAY_SAMSUNG)
+/* Reset regulater control when aot_reset_regulator enabled
+ * regulator name should be "panel_reset" or "lcd_rst"
+ */
+static int dsi_panel_reset_regulator(struct dsi_panel *panel, bool enable)
+{
+	int rc = 0;
+	struct dsi_panel_reset_config *r_config = &panel->reset_config;
+	int i;
+	struct dsi_vreg *vreg;
+	u32 pre_on_ms, post_on_ms;
+	u32 pre_off_ms, post_off_ms;
+
+	/* Find number of "panel-reset" supply-name order among qcom,panel-supply-entries */
+	for (i = 0; i < panel->power_info.count; i++) {
+		if (!strcmp((panel->power_info.vregs + i)->vreg_name, "panel_reset") ||
+				!strcmp((panel->power_info.vregs + i)->vreg_name, "lcd_rst"))
+			break;
+	}
+
+	if (i == panel->power_info.count) {
+		DSI_ERR("Could not find reset regulator name, i:%d\n", i);
+		goto exit;
+	} else {
+		DSI_INFO("name [%s] at %d(th)(0~%d) enable:%d\n",
+			(panel->power_info.vregs + i)->vreg_name, i, panel->power_info.count - 1, enable);
+	}
+
+	vreg = panel->power_info.vregs + i;
+	if (!vreg) {
+		DSI_ERR("%d(th) vregs is invalid, rc=%d\n", i, rc);
+		goto exit;
+	}
+
+	if (enable) { /* Enable RESET with sequence*/
+		pre_on_ms = vreg->pre_on_sleep;
+		post_on_ms = vreg->post_on_sleep;
+
+		if (pre_on_ms)
+			usleep_range((pre_on_ms * 1000), (pre_on_ms * 1000) + 10);
+
+		for (i = 0; i < r_config->count; i++) {
+			if (r_config->sequence[i].level) {
+				rc = regulator_enable(vreg->vreg);
+				if (rc) {
+					DSI_ERR("enable failed for %s, rc=%d\n",
+						   vreg->vreg_name, rc);
+				}
+			} else {
+				rc = regulator_disable(vreg->vreg);
+				if (rc) {
+					DSI_ERR("disable failed for %s, rc=%d\n",
+						   vreg->vreg_name, rc);
+				}
+			}
+
+			if (r_config->sequence[i].sleep_ms)
+				usleep_range(r_config->sequence[i].sleep_ms * 1000,
+					(r_config->sequence[i].sleep_ms * 1000) + 100);
+		}
+
+		if (post_on_ms) {
+			DSI_INFO("[%s] post_on_sleep: %d ms\n",
+					(panel->power_info.vregs + i)->vreg_name, vreg->post_on_sleep);
+			usleep_range((post_on_ms * 1000), (post_on_ms * 1000) + 10);
+		}
+	} else {
+		/* Disable RESET */
+		pre_off_ms = vreg->pre_off_sleep;
+		post_off_ms = vreg->post_off_sleep;
+		if (pre_off_ms)
+			usleep_range((pre_off_ms * 1000), (pre_off_ms * 1000) + 10);
+
+		rc = regulator_disable(vreg->vreg);
+		if (rc) {
+			DSI_ERR("disable failed for %s, rc=%d\n",
+				   vreg->vreg_name, rc);
+		}
+
+		if (post_off_ms) {
+			DSI_INFO("[%s] post_off_sleep: %d ms\n",
+					(panel->power_info.vregs + i)->vreg_name, vreg->post_off_sleep);
+			usleep_range((post_off_ms * 1000), (post_off_ms * 1000) + 10);
+		}
+
+		if (regulator_is_enabled(vreg->vreg))
+			DSI_INFO("%s is still enabled.\n", vreg->vreg_name);
+	}
+
+exit:
+	return rc;
+}
+
 int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 #else
 static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
@@ -460,7 +575,27 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	}
 #endif
 
-	rc = dsi_panel_reset(panel);
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	if (gpio_is_valid(vdd->dtsi_data.samsung_tcon_rdy_gpio)) {
+		LCD_INFO(vdd, "skip panel reset while panel power on sequence\n");
+		goto exit;
+	}
+
+	/* Call reset_regulator func here
+	 * if aot_reset_regulator is true
+	 * not aot_reset_regulator_late
+	 */
+	if (vdd->aot_reset_regulator) {
+		rc = dsi_panel_reset_regulator(panel, true);
+
+		/* TSP reset on if aot_tsp_reset_regulator enabled
+		 * with aot_reset_regulator
+		 */
+		//if (vdd->aot_tsp_reset_regulator)
+			//rc = dsi_tsp_reset_regulator(panel, true);
+	} else if (!vdd->aot_reset_regulator_late)
+#endif
+		rc = dsi_panel_reset(panel);
 	if (rc) {
 		DSI_ERR("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
 		goto error_disable_gpio;
@@ -526,13 +661,19 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
         usleep_range(vdd->dtsi_data.samsung_dsi_off_reset_delay,
                 vdd->dtsi_data.samsung_dsi_off_reset_delay);
 
-	/*
-		AOT disable on factory binary.
-	*/
-	if (!vdd->aot_enable || vdd->is_factory_mode)
+	/* Reset regulator off when aot_reset_regulator enabled */
+	if (vdd->aot_reset_regulator || vdd->aot_reset_regulator_late) {
+		rc = dsi_panel_reset_regulator(panel, false);
+		if (rc) {
+			DSI_ERR("[%s] failed to off reset regulator, rc=%d\n",
+				panel->name, rc);
+		}
+	} else if (!vdd->aot_enable || vdd->is_factory_mode) {
+		/* AOT disable on factory binary. Old aot, gpio aot*/
 		if (gpio_is_valid(panel->reset_config.reset_gpio) &&
 					!panel->reset_gpio_always_on)
 			gpio_set_value(panel->reset_config.reset_gpio, 0);
+	}
 #else
 	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
 					!panel->reset_gpio_always_on)
@@ -2283,7 +2424,7 @@ int __ss_dsi_panel_parse_cmd_sets(struct dsi_panel_cmd_set *cmd,
 		goto error;
 	}
 
-	DSI_DEBUG("type=%d, name=%s, length=%d\n", ss_cmd_type,
+	DSI_INFO("type=%d, name=%s, length=%d\n", ss_cmd_type,
 		ss_cmd_set_prop[ss_cmd_type], length);
 
 #if !defined(CONFIG_DISPLAY_SAMSUNG) /* prevent log flood */
@@ -2558,12 +2699,16 @@ static int dsi_panel_parse_jitter_config(
 	return 0;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+bool pba_regulator_control_ss;
+#endif
 static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 {
 	int rc = 0;
 	char *supply_name;
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
+	struct dsi_parser_utils *utils = &panel->utils;
 #endif
 
 	if (panel->host_config.ext_bridge_mode)
@@ -2572,11 +2717,16 @@ static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 #if defined(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 
+	if (!strcmp(panel->type, "primary")) {
+		pba_regulator_control_ss = utils->read_bool(utils->data,
+				"qcom,mdss-dsi-pba-regulator_ss");
+	}
+
 	/* In this point, vdd->panel_attach_status has invalid data.
 	 * So, use panel name to verify PBA booting,
 	 * intead of ss_panel_attach_get().
 	 */
-	if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") && !pba_regulator_control_ss) ||
 			!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1")) {
 		LCD_INFO(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
@@ -4973,6 +5123,31 @@ void force_sustain_lp11_for_sleep(void)
 			vdd->lp11_sleep_ms_time);
 	}
 }
+
+/* To turn off reset before LP11->LP00 while power off sequence
+ * With aot_reset_regulator(_late).
+ */
+void check_aot_reset_early_off(void)
+{
+	struct samsung_display_driver_data *vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
+	int rc = 0;
+
+	/* Reset regulator off when aot_reset_regulator(_late) enabled */
+	if (vdd && vdd->aot_reset_early_off) {
+		struct dsi_panel *panel =  GET_DSI_PANEL(vdd);
+
+		rc = dsi_panel_reset_regulator(panel, false);
+		if (rc) {
+			DSI_ERR("[%s] failed to off reset regulator, rc=%d\n",
+				panel->name, rc);
+		}
+
+		/* TSP reset off need here
+		 * Only if aot_tsp_reset_regulator && aot_reset_early_off enabled
+		 */
+	}
+}
+
 #endif
 
 int dsi_panel_prepare(struct dsi_panel *panel)
@@ -5003,6 +5178,17 @@ int dsi_panel_prepare(struct dsi_panel *panel)
 			goto error;
 		}
 	}
+
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	/* Call reset_regulator func here
+	 * if aot_reset_regulator_late is true
+	 * not pure aot_reset_regulator
+	 */
+	if (vdd->aot_reset_regulator_late) {
+		dsi_panel_reset_regulator(panel, true);
+	}
+#endif
 
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_PRE_ON);
 	if (rc) {
@@ -5423,10 +5609,18 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	/* sleep out command is included in DSI_CMD_SET_ON */
 	vdd->sleep_out_time = ktime_get();
-	LCD_INFO(vdd, "tx on_cmd +\n");
-#endif
 
+	/* skip cmds during splash booting : from 7225, 6225 for video panel */
+	if (vdd->skip_cmd_set_on_splash_enabled && vdd->samsung_splash_enabled) {
+		LCD_INFO(vdd, "skip send DSI_CMD_SET_ON during splash booting\n");
+		rc = 0;
+	} else {
+		LCD_INFO(vdd, "tx on_cmd +\n");
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
+	}
+#else
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_ON);
+#endif
 	if (rc)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_ON cmds, rc=%d\n",
 		       panel->name, rc);

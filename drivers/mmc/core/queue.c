@@ -500,7 +500,7 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card)
 			BDI_CAP_STABLE_WRITES;
 
 	mq->queue->queuedata = mq;
-	blk_queue_rq_timeout(mq->queue, 60 * HZ);
+	blk_queue_rq_timeout(mq->queue, 20 * HZ);
 
 	mmc_setup_queue(mq, card);
 	mmc_crypto_setup_queue(host, mq->queue);

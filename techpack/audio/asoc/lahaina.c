@@ -44,6 +44,9 @@
 #if IS_ENABLED(CONFIG_SND_SOC_CS35L41)
 #include <sound/cirrus/big_data.h>
 #include "../../../sound/soc/codecs/bigdata_cs35l41_sysfs_cb.h"
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L43) 
+#include <sound/cirrus/big_data.h>
+#include "../../../sound/soc/codecs/bigdata_cs35l43_sysfs_cb.h"
 #endif
 #if IS_ENABLED(CONFIG_SND_SOC_HYBRID_AMP)
 static u32 combination_value;
@@ -88,8 +91,32 @@ SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_tx_0,
 		COMP_CODEC("cs35l41.18-0040", "cs35l41-pcm"),
 		COMP_CODEC("cs35l41.18-0041", "cs35l41-pcm")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
-#endif
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L43)
+SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-tdm.36864")),
+	DAILINK_COMP_ARRAY(
+		COMP_CODEC("cs35l43.18-0040", "cs35l43-pcm")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
 
+SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-tdm.36865")),
+	DAILINK_COMP_ARRAY(
+		COMP_CODEC("cs35l43.18-0040", "cs35l43-pcm")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
+#endif
+#if IS_ENABLED(CONFIG_SND_SOC_AW882XX)
+SND_SOC_DAILINK_DEFS(awinic_tert_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-tdm.36896")),
+	DAILINK_COMP_ARRAY(
+		COMP_CODEC("aw882xx_smartpa.28-0034", "aw882xx-aif-28-34")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
+
+SND_SOC_DAILINK_DEFS(awinic_tert_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-tdm.36897")),
+	DAILINK_COMP_ARRAY(
+		COMP_CODEC("aw882xx_smartpa.28-0034", "aw882xx-aif-28-34")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
+#endif
 #define DRV_NAME "lahaina-asoc-snd"
 #define __CHIPSET__ "LAHAINA "
 #define MSM_DAILINK_NAME(name) (__CHIPSET__#name)
@@ -136,7 +163,7 @@ SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_tx_0,
 #define WCN_CDC_SLIM_TX_CH_MAX_LITO 3
 
 #define SWR_MAX_SLAVE_DEVICES 6
-#if IS_ENABLED(CONFIG_SND_SOC_CS35L41)
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L43)
 #define CLK_SRC_SCLK 0
 #define CLK_SRC_LRCLK 1
 #define CLK_SRC_PDM 2
@@ -1058,7 +1085,7 @@ static struct snd_soc_codec_conf cs35l41_conf[] = {
 };
 #endif
 
-#if IS_ENABLED(CONFIG_SND_SOC_CS35L41)
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L43)
 /*
  * We want to configure these at runtime for testing
  */
@@ -1266,7 +1293,7 @@ static void param_set_mask(struct snd_pcm_hw_params *p, int n,
 	}
 }
 
-#if IS_ENABLED(CONFIG_SND_SOC_CS35L41)
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L43) 
 static int codec_clk_src_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -4255,7 +4282,7 @@ static int msm_bt_sample_rate_tx_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_SND_SOC_CS35L41)
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L43)
 static const struct soc_enum cirrus_snd_enum[] = {
 	SOC_ENUM_SINGLE_EXT(4, dai_sub_clocks),
 	SOC_ENUM_SINGLE_EXT(4, dai_bit_config),
@@ -4809,7 +4836,7 @@ static const struct snd_kcontrol_new msm_common_snd_controls[] = {
 			msm_vi_feed_tx_ch_get, msm_vi_feed_tx_ch_put),
 	SOC_SINGLE_MULTI_EXT("TDM Slot Map", SND_SOC_NOPM, 0, 255, 0,
 			TDM_MAX_SLOTS + MAX_PATH, NULL, tdm_slot_map_put),
-#if IS_ENABLED(CONFIG_SND_SOC_CS35L41)
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L43)
 	SOC_ENUM_EXT("DAI Clocks", cirrus_snd_enum[0], dai_clks_get,
 			dai_clks_put),
 	SOC_ENUM_EXT("DAI Polarity", cirrus_snd_enum[1], dai_bitfmt_get,
@@ -6079,7 +6106,7 @@ static int lahaina_tdm_hybrid_snd_hw_params(struct snd_pcm_substream *substream,
 end:
 	return ret;
 }
-#elif IS_ENABLED(CONFIG_SND_SOC_CS35L41)
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L41) ||  IS_ENABLED(CONFIG_SND_SOC_CS35L43)
 static int lahaina_tdm_cirrus_snd_hw_params(struct snd_pcm_substream *substream,
 				     struct snd_pcm_hw_params *params)
 {
@@ -6691,6 +6718,23 @@ static int cs35l41_amp_0_speaker(struct snd_soc_dapm_widget *w,
 }
 #endif
 
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L43)
+static int cs35l43_amp_0_speaker(struct snd_soc_dapm_widget *w,
+			  struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
+
+	dev_info(component->dev, "%s ev: %d\n", __func__, event);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMD:
+		cirrus_bd_store_values("_0");
+		break;
+	}
+
+	return 0;
+}
+#endif
 static const struct snd_soc_dapm_widget msm_int_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Analog Mic1", NULL),
 	SND_SOC_DAPM_MIC("Analog Mic2", NULL),
@@ -6710,6 +6754,8 @@ static const struct snd_soc_dapm_widget msm_int_dapm_widgets[] = {
 	SND_SOC_DAPM_SPK("AMP1 SPK", cs35l41_amp_1_speaker),
 	SND_SOC_DAPM_SPK("AMP2 SPK", cs35l41_amp_2_speaker),
 	SND_SOC_DAPM_SPK("AMP3 SPK", cs35l41_amp_3_speaker),
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L43)
+	SND_SOC_DAPM_SPK("AMP0 SPK", cs35l43_amp_0_speaker),
 #endif
 };
 #if IS_ENABLED(CONFIG_SND_SOC_HYBRID_AMP)
@@ -6860,8 +6906,38 @@ static int lahaina_tdm_cirrus_init(struct snd_soc_pcm_runtime *rtd)
 
 	return 0;
 }
-#endif
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L43)
+static int lahaina_tdm_cirrus_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_dai **codec_dais = rtd->codec_dais;
+	struct snd_soc_dapm_context *dapm =
+		snd_soc_component_get_dapm(codec_dais[0]->component);
 
+	pr_info("%s: ++\n", __func__);
+		snd_soc_dapm_ignore_suspend(dapm, "AMP Capture");
+		snd_soc_dapm_ignore_suspend(dapm, "AMP Playback");
+		snd_soc_dapm_ignore_suspend(dapm, "AMP SPK");
+		snd_soc_dapm_sync(dapm);
+
+	register_cirrus_bigdata_cb(codec_dais[0]->component);
+
+	return 0;
+}
+#endif
+#if IS_ENABLED(CONFIG_SND_SOC_AW882XX)
+static int lahaina_tdm_awinic_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_dai **codec_dais = rtd->codec_dais;
+	struct snd_soc_dapm_context *dapm =
+		snd_soc_component_get_dapm(codec_dais[0]->component);
+
+	pr_info("%s: ++\n", __func__);
+		snd_soc_dapm_ignore_suspend(dapm, "Speaker_Playback-28-34");
+		snd_soc_dapm_sync(dapm);
+
+	return 0;
+}
+#endif
 static int msm_wcn_init(struct snd_soc_pcm_runtime *rtd)
 {
 	unsigned int rx_ch[WCN_CDC_SLIM_RX_CH_MAX] = {157, 158};
@@ -6933,7 +7009,7 @@ static struct snd_soc_ops lahaina_tdm_hybrid_be_ops = {
 	.startup = lahaina_tdm_snd_startup,
 	.shutdown = lahaina_tdm_snd_shutdown
 };
-#elif IS_ENABLED(CONFIG_SND_SOC_CS35L41)
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L41) || IS_ENABLED(CONFIG_SND_SOC_CS35L43)
 static struct snd_soc_ops lahaina_tdm_cirrus_be_ops = {
 	.hw_params = lahaina_tdm_cirrus_snd_hw_params,
 	.startup = lahaina_tdm_snd_startup,
@@ -7736,6 +7812,12 @@ static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 		.init = &lahaina_tdm_cirrus_init,
 		.ops = &lahaina_tdm_cirrus_be_ops,
 		SND_SOC_DAILINK_REG(cirrus_pri_tdm_rx_0),
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L43)
+		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
+			| SND_SOC_DAIFMT_IB_NF,
+		.init = &lahaina_tdm_cirrus_init,
+		.ops = &lahaina_tdm_cirrus_be_ops,
+		SND_SOC_DAILINK_REG(cirrus_pri_tdm_rx_0),
 #else
 		.ops = &lahaina_tdm_be_ops,
 		SND_SOC_DAILINK_REG(pri_tdm_rx_0),
@@ -7756,6 +7838,11 @@ static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 		.ops = &lahaina_tdm_hybrid_be_ops,
 		SND_SOC_DAILINK_REG(hybrid_pri_tdm_tx_0),
 #elif IS_ENABLED(CONFIG_SND_SOC_CS35L41)
+		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
+			| SND_SOC_DAIFMT_IB_NF,
+		.ops = &lahaina_tdm_cirrus_be_ops,
+		SND_SOC_DAILINK_REG(cirrus_pri_tdm_tx_0),
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L43)
 		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
 			| SND_SOC_DAIFMT_IB_NF,
 		.ops = &lahaina_tdm_cirrus_be_ops,
@@ -7797,9 +7884,18 @@ static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 		.id = MSM_BACKEND_DAI_TERT_TDM_RX_0,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &lahaina_tdm_be_ops,
+#if IS_ENABLED(CONFIG_SND_SOC_AW882XX)
+		.init = &lahaina_tdm_awinic_init,
+		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
+			| SND_SOC_DAIFMT_IB_NF,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		SND_SOC_DAILINK_REG(awinic_tert_tdm_rx_0),
+#else
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
 		SND_SOC_DAILINK_REG(tert_tdm_rx_0),
+#endif
 	},
 	{
 		.name = LPASS_BE_TERT_TDM_TX_0,
@@ -7809,8 +7905,15 @@ static struct snd_soc_dai_link msm_common_be_dai_links[] = {
 		.id = MSM_BACKEND_DAI_TERT_TDM_TX_0,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &lahaina_tdm_be_ops,
+#if IS_ENABLED(CONFIG_SND_SOC_AW882XX)
+		.dai_fmt = SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBS_CFS
+			| SND_SOC_DAIFMT_IB_NF,
+		.ignore_suspend = 1,
+		SND_SOC_DAILINK_REG(awinic_tert_tdm_tx_0),
+#else
 		.ignore_suspend = 1,
 		SND_SOC_DAILINK_REG(tert_tdm_tx_0),
+#endif
 	},
 	{
 		.name = LPASS_BE_QUAT_TDM_RX_0,
@@ -9123,6 +9226,8 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "AMP1 SPK");
 	snd_soc_dapm_ignore_suspend(dapm, "AMP2 SPK");
 	snd_soc_dapm_ignore_suspend(dapm, "AMP3 SPK");
+#elif IS_ENABLED(CONFIG_SND_SOC_CS35L43)
+	snd_soc_dapm_ignore_suspend(dapm, "AMP0 SPK");
 #endif
 	snd_soc_dapm_sync(dapm);
 
@@ -9142,6 +9247,8 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	bolero_register_wake_irq(component, false);
 
 	if (pdata->wcd_disabled) {
+		bolero_set_port_map(bolero_component,
+			ARRAY_SIZE(sm_port_map), sm_port_map);
 		codec_reg_done = true;
 		return 0;
 	}

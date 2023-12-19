@@ -589,19 +589,6 @@ static void __attach_io_flag(struct f2fs_io_info *fio)
 		fio->op_flags |= REQ_META;
 	if ((1 << fio->temp) & fua_flag)
 		fio->op_flags |= REQ_FUA;
-
-	/*
-	 * P221011-01695
-	 * flush_group: Process group in which file's is very important.
-	 * e.g., system_server, keystore, etc.
-	 */
-	if (fio->type == DATA && !(fio->op_flags & REQ_FUA) &&
-	    in_group_p(F2FS_OPTION(sbi).flush_group)) {
-		struct inode *inode = fio->page->mapping->host;
-
-		if (f2fs_is_atomic_file(inode) && f2fs_is_commit_atomic_write(inode))
-			fio->op_flags |= REQ_FUA;
-	}
 }
 
 static void __submit_merged_bio(struct f2fs_bio_info *io)
