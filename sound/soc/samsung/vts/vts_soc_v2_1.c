@@ -30,6 +30,8 @@ void vts_cpu_power(struct device *dev, bool on)
 
 	exynos_pmu_update(VTS_CPU_CONFIGURATION, VTS_CPU_LOCAL_PWR_CFG,
 		on ? VTS_CPU_LOCAL_PWR_CFG : 0);
+
+	usleep_range(1000, 2000);
 }
 
 int vts_cpu_enable(struct device *dev, bool enable)
@@ -60,6 +62,19 @@ void vts_reset_cpu(struct device *dev)
 	vts_cpu_power(dev, false);
 	vts_cpu_enable(dev, true);
 	vts_cpu_power(dev, true);
+}
+
+void vts_disable_sfr(struct device *dev)
+{
+	struct vts_data *data = dev_get_drvdata(dev);
+
+	vts_dev_info(dev, "%s: enter\n", __func__);
+
+	/* Controls by firmware should be disabled before pd_vts off. */
+	writel(0x0, data->dmic_if0_base);
+	writel(0x0, data->sfr_base + VTS_DMIC_IF_ENABLE_DMIC_IF);
+	writel(0x0, data->dmic_ahb0_base);
+	writel(0x0, data->timer0_base);
 }
 
 void vts_pad_retention(bool retention)
@@ -286,6 +301,8 @@ int vts_soc_runtime_suspend(struct device *dev)
 #endif
 
 	vts_dev_info(dev, "%s\n", __func__);
+
+	vts_disable_sfr(dev);
 
 	if (data->clk_dmic_sync)
 		clk_disable(data->clk_dmic_sync);

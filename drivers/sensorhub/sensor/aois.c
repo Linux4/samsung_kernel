@@ -22,33 +22,19 @@
 
 int init_aois(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_AOIS);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "aois_sensor");
-		sensor->receive_event_size = 1;
-		sensor->report_event_size = 0; 	
-
-		sensor->event_buffer.value = kzalloc(sensor->receive_event_size, GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
+		ret = init_default_func(sensor, "aois_sensor", 1, 0, 1);
 		init_shub_aois();
 	} else {
+		destroy_default_func(sensor);
 		remove_shub_aois();
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

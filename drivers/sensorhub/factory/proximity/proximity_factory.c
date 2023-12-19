@@ -42,84 +42,18 @@ static ssize_t prox_probe_show(struct device *dev, struct device_attribute *attr
 	return snprintf(buf, PAGE_SIZE, "%d\n", probe_pass_fail);
 }
 
+
+#define PROX_THRESH_DUMMY_HIGH 8000
+#define PROX_THRESH_DUMMY_LOW  2200
+
 static ssize_t thresh_high_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
-
-	shub_dbgf("ProxThresh = hi - %u", data->prox_threshold[PROX_THRESH_HIGH]);
-
-	return sprintf(buf, "%u\n", data->prox_threshold[PROX_THRESH_HIGH]);
-}
-
-static ssize_t thresh_high_store(struct device *dev, struct device_attribute *attr, const char *buf,
-					   size_t size)
-{
-	u16 uNewThresh;
-	int ret, i = 0;
-	u16 prox_bits_mask = 0, prox_non_bits_mask = 0;
-	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
-
-	while (i < PROX_ADC_BITS_NUM)
-		prox_bits_mask += (1 << i++);
-
-	while (i < 16)
-		prox_non_bits_mask += (1 << i++);
-
-	ret = kstrtou16(buf, 10, &uNewThresh);
-	if (ret < 0) {
-		shub_errf("kstrto16 failed.(%d)", ret);
-	} else {
-		if (uNewThresh & prox_non_bits_mask) {
-			shub_errf("allow %ubits.(%d)", PROX_ADC_BITS_NUM, uNewThresh);
-		} else {
-			uNewThresh &= prox_bits_mask;
-			data->prox_threshold[PROX_THRESH_HIGH] = uNewThresh;
-		}
-	}
-
-	shub_infof("new prox threshold : hi - %u", data->prox_threshold[PROX_THRESH_HIGH]);
-
-	return size;
+	return sprintf(buf, "%u\n", PROX_THRESH_DUMMY_HIGH);
 }
 
 static ssize_t thresh_low_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
-
-	shub_infof("ProxThresh = lo - %u", data->prox_threshold[PROX_THRESH_LOW]);
-
-	return sprintf(buf, "%u\n", data->prox_threshold[PROX_THRESH_LOW]);
-}
-
-static ssize_t thresh_low_store(struct device *dev, struct device_attribute *attr, const char *buf,
-					  size_t size)
-{
-	u16 uNewThresh;
-	int ret, i = 0;
-	u16 prox_bits_mask = 0, prox_non_bits_mask = 0;
-	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
-
-	while (i < PROX_ADC_BITS_NUM)
-		prox_bits_mask += (1 << i++);
-
-	while (i < 16)
-		prox_non_bits_mask += (1 << i++);
-
-	ret = kstrtou16(buf, 10, &uNewThresh);
-	if (ret < 0) {
-		shub_errf("kstrto16 failed.(%d)", ret);
-	} else {
-		if (uNewThresh & prox_non_bits_mask) {
-			shub_errf("allow %ubits.(%d)", PROX_ADC_BITS_NUM, uNewThresh);
-		} else {
-			uNewThresh &= prox_bits_mask;
-			data->prox_threshold[PROX_THRESH_LOW] = uNewThresh;
-		}
-	}
-
-	shub_infof("new prox threshold : lo - %u", data->prox_threshold[PROX_THRESH_LOW]);
-
-	return size;
+	return sprintf(buf, "%u\n", PROX_THRESH_DUMMY_LOW);
 }
 
 u16 get_prox_raw_data(void)
@@ -149,6 +83,11 @@ u16 get_prox_raw_data(void)
 
 static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
+	if (!get_sensor_probe_state(SENSOR_TYPE_PROXIMITY_RAW)) {
+		shub_errf("sensor is not probed!");
+		return 0;
+	}
+
 	return sprintf(buf, "%u\n", get_prox_raw_data());
 }
 
@@ -221,7 +160,7 @@ static ssize_t trim_check_show(struct device *dev, struct device_attribute *attr
 	memcpy(&trim_check, buffer, sizeof(trim_check));
 	kfree(buffer);
 
-	shub_infof("%d", __func__, trim_check);
+	shub_infof("%d", trim_check);
 
 	if (trim_check != 0 && trim_check != 1) {
 		shub_errf("hub read trim NG");
@@ -233,8 +172,8 @@ static ssize_t trim_check_show(struct device *dev, struct device_attribute *attr
 
 static DEVICE_ATTR_RO(prox_position);
 static DEVICE_ATTR_RO(prox_probe);
-static DEVICE_ATTR(thresh_high, 0664, thresh_high_show, thresh_high_store);
-static DEVICE_ATTR(thresh_low, 0664, thresh_low_show, thresh_low_store);
+static DEVICE_ATTR_RO(thresh_high);
+static DEVICE_ATTR_RO(thresh_low);
 static DEVICE_ATTR_RO(raw_data);
 static DEVICE_ATTR(prox_avg, 0664, prox_avg_show, prox_avg_store);
 static DEVICE_ATTR_RO(prox_offset_pass);
@@ -257,9 +196,11 @@ get_chipset_dev_attrs get_proximity_chipset_dev_attrs[] = {
 	get_proximity_gp2ap110s_dev_attrs,
 	get_proximity_stk3x6x_dev_attrs,
 	get_proximity_stk3328_dev_attrs,
+	get_proximity_tmd3725_dev_attrs,
 	get_proximity_tmd4912_dev_attrs,
 	get_proximity_stk3391x_dev_attrs,
 	get_proximity_stk33512_dev_attrs,
+	get_proximity_stk3afx_dev_attrs,
 };
 
 static void check_proximity_dev_attr(void)
@@ -278,7 +219,9 @@ static void check_proximity_dev_attr(void)
 			   position[4], position[5]);
 	}
 
-	if (sensor->spec.vendor == VENDOR_AMS || sensor->spec.vendor == VENDOR_SITRONIX) {
+	if (sensor->spec.vendor == VENDOR_AMS
+	|| sensor->spec.vendor == VENDOR_CAPELLA
+	|| sensor->spec.vendor == VENDOR_SITRONIX) {
 		if (index < ARRAY_SIZE(proximity_attrs))
 			proximity_attrs[index++] = &dev_attr_trim_check;
 	}
@@ -309,7 +252,7 @@ void initialize_proximity_sysfs(void)
 		if (chipset_attrs) {
 			ret = add_sensor_device_attr(proximity_sysfs_device, chipset_attrs);
 			if (ret < 0) {
-				shub_errf("fail to add sysfs chipset device attr(%d)", i);
+				shub_errf("fail to add sysfs chipset device attr(%d)", (int)i);
 				return;
 			}
 			break;

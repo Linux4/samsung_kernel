@@ -276,11 +276,12 @@ int fts_ex_mode_recovery(struct fts_ts_data *ts_data)
 		fts_ex_mode_switch(MODE_COVER, ENABLE);
 	}
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	if (ts_data->ta_status) {
 		fts_ex_mode_switch(MODE_CHARGER, ENABLE);
 		ts_data->charger_mode = ENABLE;
 	}
-
+#endif
 	if (ts_data->aot_enable) {
 		fts_write_reg(FTS_REG_DOUBLETAP_TO_WAKEUP_EN, ENABLE);
 	}

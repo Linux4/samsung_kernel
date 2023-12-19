@@ -63,7 +63,6 @@ struct dwc3_otg {
 	int                     irq;
 	void __iomem            *regs;
 	struct wakeup_source	*wakelock;
-	struct wakeup_source	*reconn_wakelock;
 
 	unsigned		ready:1;
 

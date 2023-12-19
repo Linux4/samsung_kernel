@@ -90,6 +90,7 @@
 #define SLSI_WIFI_HAL_FEATURE_CONFIG_NDO         0x200000      /* ND offload */
 #define SLSI_WIFI_HAL_FEATURE_CONTROL_ROAMING    0x800000      /* Enable/Disable firmware roaming macro */
 #define SLSI_WIFI_HAL_FEATURE_SCAN_RAND          0x2000000     /* Random MAC & Probe seq */
+#define SLSI_WIFI_HAL_FEATURE_DYNAMIC_SET_MAC    0x10000000    /* Support changing MAC address without iface reset(down and up) */
 #define SLSI_WIFI_HAL_FEATURE_LOW_LATENCY        0x40000000    /* Low Latency modes */
 #define SLSI_WIFI_HAL_FEATURE_P2P_RAND_MAC       0x80000000    /* Random P2P MAC */
 
@@ -381,6 +382,7 @@ enum slsi_hal_vendor_subcmds {
 	SLSI_NL80211_VENDOR_SUBCMD_GET_ROAMING_CAPABILITIES,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_ROAMING_STATE,
 	SLSI_NL80211_VENDOR_SUBCMD_SET_LATENCY_MODE,
+	SLSI_NL80211_VENDOR_SUBCMD_SET_DTIM_CONFIG,
 	SLSI_NL80211_VENDOR_SUBCMD_SELECT_TX_POWER_SCENARIO,
 	SLSI_NL80211_VENDOR_SUBCMD_RESET_TX_POWER_SCENARIO,
 	SLSI_NL80211_VENDOR_SUBCMD_RTT_GET_CAPABILITIES = SLSI_NL80211_RTT_SUBCMD_RANGE_START,
@@ -683,6 +685,11 @@ enum slsi_wifi_rtt_status {
 	SLSI_RTT_STATUS_INVALID_REQ,    /* bad request args */
 	SLSI_RTT_STATUS_NO_WIFI,    /* WiFi not enabled */
 	SLSI_RTT_STATUS_FAIL_FTM_PARAM_OVERRIDE /* Responder overrides param info, cannot range with new params */
+};
+
+enum wifi_dtim_config_attr {
+	SLSI_VENDOR_ATTR_DTIM_MULTIPLIER = 1,
+	SLSI_VENDOR_ATTR_DTIM_MAX
 };
 
 /* Format of information elements found in the beacon */
@@ -1106,8 +1113,6 @@ int slsi_mib_get_gscan_cap(struct slsi_dev *sdev, struct slsi_nl_gscan_capabilit
 void slsi_rx_rssi_report_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_mib_get_apf_cap(struct slsi_dev *sdev, struct net_device *dev);
 int slsi_mib_get_rtt_cap(struct slsi_dev *sdev, struct net_device *dev, struct slsi_rtt_capabilities *cap);
-int slsi_mib_get_sta_tdls_activated(struct slsi_dev *sdev, struct net_device *dev, bool *tdls_supported);
-int slsi_mib_get_sta_tdls_max_peer(struct slsi_dev *sdev, struct net_device *dev, struct netdev_vif *ndev_vif);
 void slsi_rx_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 void slsi_rx_range_done_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 int slsi_tx_rate_calc(struct sk_buff *nl_skb, u16 fw_rate, int res, bool tx_rate);

@@ -45,7 +45,9 @@ int init_pick_up_gesture(bool en);
 int init_call_gesture(bool en);
 int init_wake_up_motion(bool en);
 int init_protos_motion(bool en);
+int init_pocket_mode(bool en);
 int init_pocket_mode_lite(bool en);
+int init_pocket_pos_mode(bool en);
 int init_super(bool en);
 int init_hub_debugger(bool en);
 int init_device_orientation(bool en);
@@ -55,4 +57,7 @@ int init_pogo_request_handler(bool en);
 int init_aois(bool en);
 int init_rotation_vector(bool en);
 int init_game_rotation_vector(bool en);
+int init_light_ir(bool en);
+int init_drop_classifier(bool en);
+int init_sequential_step(bool en);
 #endif

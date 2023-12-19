@@ -61,7 +61,7 @@ static ssize_t shub_injection_write(struct file *file, const char __user *buf, s
 		if (count > 2)
 			ret = inject_sensor_additional_data(type, &buffer[2], count-2);
 		else {
-			shub_errf("type %d buffer length(%d) err", type, count-2);
+			shub_errf("type %d buffer length(%d) err", type, (int)count-2);
 			ret = -EINVAL;
 		}
 	} else {

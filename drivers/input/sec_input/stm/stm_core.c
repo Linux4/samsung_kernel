@@ -1761,7 +1761,7 @@ static void stm_ts_coordinate_event(struct stm_ts_data *ts, u8 *event_buff)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_PALM)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_WET)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_GLOVE)) {
-			sec_input_coord_event(&ts->client->dev, t_id);
+			sec_input_coord_event_fill_slot(&ts->client->dev, t_id);
 		} else {
 			input_err(true, &ts->client->dev,
 					"%s: do not support coordinate type(%d)\n",
@@ -2144,6 +2144,8 @@ irqreturn_t stm_ts_irq_thread(int irq, void *ptr)
 		remain_event_count--;
 	} while (remain_event_count >= 0);
 
+	sec_input_coord_event_sync_slot(&ts->client->dev);
+
 	stm_ts_external_func(ts);
 
 	mutex_unlock(&ts->eventlock);
@@ -2252,7 +2254,7 @@ retry_fodmode:
 
 	return 0;
 }
-
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 #if IS_ENABLED(CONFIG_GH_RM_DRV)
 void stm_ts_close_work(struct work_struct *work)
 {
@@ -2317,7 +2319,7 @@ void stm_ts_close_work(struct work_struct *work)
 	mutex_unlock(&ts->modechange);
 }
 #endif
-
+#endif
 void stm_ts_input_close(struct input_dev *dev)
 {
 	struct stm_ts_data *ts = input_get_drvdata(dev);
@@ -2643,8 +2645,10 @@ static int stm_ts_init(struct stm_ts_data *ts)
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	INIT_DELAYED_WORK(&ts->plat_data->interrupt_notify_work, stm_ts_interrupt_notify);
 #endif
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 #if IS_ENABLED(CONFIG_GH_RM_DRV)
 	INIT_DELAYED_WORK(&ts->close_work, stm_ts_close_work);
+#endif
 #endif
 	mutex_init(&ts->device_mutex);
 	mutex_init(&ts->read_write_mutex);

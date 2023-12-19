@@ -609,8 +609,15 @@ static const u32 sensor_gc02m1_setfile_otp_init[] = {
 #define HI1336_OTP_START_ADDR_BANK3	(0x0E04)
 #define HI1336_OTP_START_ADDR_BANK4	(0x1304)
 
+/********* HI1339 OTP *********/
+#define IS_READ_MAX_HI1339_OTP_CAL_SIZE	(1692)
+#define HI1339_OTP_START_ADDR_BANK1	(0x0740)
+#define HI1339_OTP_START_ADDR_BANK2	(0x0DE0)
+#define HI1339_OTP_START_ADDR_BANK3	(0x1480)
+//#define HI1339_OTP_START_ADDR_BANK4 4th bank not present
+
 /********* S5K4HA OTP *********/
-#define S5K4HA_STANDBY_ADDR                         0x0136
+#define S5K4HA_STREAM_ON_ADDR                       0x0100
 #define S5K4HA_OTP_R_W_MODE_ADDR                    0x0A00
 #define S5K4HA_OTP_CHECK_ADDR                       0x0A01
 #define S5K4HA_OTP_PAGE_SELECT_ADDR                 0x0A02
@@ -619,7 +626,10 @@ static const u32 sensor_gc02m1_setfile_otp_init[] = {
 #define S5K4HA_OTP_PAGE_ADDR_H                      0x0A43
 #define S5K4HA_OTP_BANK_SELECT                      0x0A04
 #define S5K4HA_OTP_START_PAGE_BANK1                 0x11
-#define S5K4HA_OTP_START_PAGE_BANK2                 0x2C
+#define S5K4HA_OTP_START_PAGE_BANK2                 0x24
+#define S5K4HA_OTP_START_PAGE_BANK3                 0x37
+#define S5K4HA_OTP_START_PAGE_BANK4                 0x4A
+#define S5K4HA_OTP_START_PAGE_BANK5                 0x5D
 
 #define S5K4HA_OTP_START_ADDR                       0x0A08
 

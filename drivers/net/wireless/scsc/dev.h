@@ -32,6 +32,7 @@
 #include <linux/ieee80211.h>
 #include <net/cfg80211.h>
 #include <linux/nl80211.h>
+#include <linux/firmware.h>
 
 #include <scsc/scsc_mx.h>
 
@@ -49,7 +50,6 @@
 #include "nl80211_vendor.h"
 #include "traffic_monitor.h"
 #include "reg_info.h"
-#include "tdls_manager.h"
 
 #define FAPI_MAJOR_VERSION(v) (((v) >> 8) & 0xFF)
 #define FAPI_MINOR_VERSION(v) ((v) & 0xFF)
@@ -149,6 +149,7 @@
 
 /* system error buffer size */
 #define SYSTEM_ERROR_BUFFER_SZ    4096
+#define SLSI_QSF_BUFF_LEN         128
 
 /* indices: 3= BW20->idx_0, BW40->idx_1, BW80->idx_2.
  *             2= noSGI->idx_0, SGI->idx_1
@@ -740,10 +741,7 @@ struct slsi_vif_sta {
 	struct sk_buff          *mlme_scan_ind_skb;
 	bool                    roam_in_progress;
 	int                     tdls_peer_sta_records;
-	int                     tdls_max_peer;
 	bool                    tdls_enabled;
-	struct list_head        tdls_candidate_setup_list;
-	int                     tdls_candidate_setup_count;
 	struct cfg80211_bss     *sta_bss;
 	u8                      *assoc_req_add_info_elem;
 	int                     assoc_req_add_info_elem_len;
@@ -799,7 +797,6 @@ struct slsi_vif_sta {
 	u16                            ch_width;
 	u16                            primary_chan_pos;
 	u16                            sae_auth_type;
-	struct tdls_manager     tdls_manager;
 };
 
 struct slsi_vif_unsync {
@@ -1615,6 +1612,9 @@ struct slsi_dev {
 	struct list_head          nan_data_interface_delete_data;
 #endif
 #endif
+	u32                        fw_build_id;
+	u8                         qsfs_feature_set[SLSI_QSF_BUFF_LEN];
+	u32                        qsf_feature_set_len;
 };
 
 /* Compact representation of channels a ESS has been seen on

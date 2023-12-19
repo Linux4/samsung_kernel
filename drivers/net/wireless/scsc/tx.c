@@ -14,7 +14,6 @@
 #include "traffic_monitor.h"
 #include "scsc_wifilogger_ring_pktfate_api.h"
 #include "log2us.h"
-#include "tdls_manager.h"
 
 static bool msdu_enable = true;
 module_param(msdu_enable, bool, S_IRUGO | S_IWUSR);
@@ -584,9 +583,7 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 	/* SKB is owned by scsc_wifi_transmit_frame() unless the transmission is
 	 * unsuccesful.
 	 */
-
 	slsi_traffic_mon_event_tx(sdev, dev, skb);
-	slsi_tdls_manager_event_tx(sdev, dev, skb, slsi_frame_priority_to_ac_queue(skb->priority));
 	ret = scsc_wifi_transmit_frame(&sdev->hip4_inst, skb, false, vif_index, peer_index, slsi_frame_priority_to_ac_queue(skb->priority));
 	if (ret != NETDEV_TX_OK) {
 		/* scsc_wifi_transmit_frame failed, decrement BoT counters */

@@ -78,10 +78,11 @@ struct sec_direct_charger_platform_data {
 	int swelling_high_rechg_voltage;
 	int fpdo_dc_min_vbat;
 	int fpdo_dc_max_vbat;
-
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
-	unsigned int sc_vbat_thresh; /* vbat threshold which dc to sc */
+	int fpdo_dc_max_main_vbat;
+	int fpdo_dc_max_sub_vbat;
 #endif
+	bool chgen_over_swell_rechg_vol;
 };
 
 struct sec_direct_charger_info {
@@ -114,6 +115,7 @@ struct sec_direct_charger_info {
 	bool now_isApdo;
 	bool store_mode;
 	int vbat_min_src;
+	bool dc_rcp;
 
 	int bat_temp;
 

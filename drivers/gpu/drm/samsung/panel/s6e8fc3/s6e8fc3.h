@@ -232,7 +232,7 @@ enum {
 	READ_DATE,
 	READ_OCTA_ID_0,
 	READ_OCTA_ID_1,
-	READ_CHIP_ID,
+	/* READ_CHIP_ID, */
 	/* for brightness debugging */
 	READ_AOR,
 	READ_VINT,
@@ -281,7 +281,7 @@ enum {
 	RES_MTP,
 	RES_DATE,
 	RES_OCTA_ID,
-	RES_CHIP_ID,
+	/* RES_CHIP_ID, */
 	/* for brightness debugging */
 	RES_AOR,
 	RES_VINT,

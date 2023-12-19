@@ -307,7 +307,7 @@ int scsc_log_collector_unregister_client(struct scsc_log_collector_client *colle
 	}
 
 	if (match == false)
-		pr_err("wlbt: FATAL, no match for given scsc_log_collector_client %pS\n", __builtin_return_address(0));
+		pr_info("wlbt: no match for given scsc_log_collector_client %pS\n", __builtin_return_address(0));
 
 	pr_info("wlbt: Unregistered client: %s\n", collect_client->name);
 	mutex_unlock(&log_mutex);

@@ -27,7 +27,7 @@
 #include <linux/sti/abc_common.h>
 #endif
 
-#define SM5451_DC_VERSION  "VK2"
+#define SM5451_DC_VERSION  "WD1"
 
 static u32 SM5451_freq_val[] = {
 	200, 375, 500, 750, 1000, 1250, 1500

@@ -32,6 +32,9 @@
 #define SIOP (1 << 0)
 #define AFC_REQUEST_CHARGER SIOP
 #define FLED (1 << 1)
+#define AFC_REQUEST_MST (1 << 2)
+#define AFC_REQUEST_MFC (1 << 3)
+#define AFC_REQUEST_DETACH_CLEAR_BIT ((SIOP))
 
 /* Status of IF PMIC chip (suspend and resume) */
 enum {
@@ -221,9 +224,11 @@ typedef enum {
 	ATTACHED_DEV_POGO_DOCK_9V_MUIC,
 	ATTACHED_DEV_ABNORMAL_OTG_MUIC,
 	ATTACHED_DEV_RETRY_TIMEOUT_OPEN_MUIC,
-	ATTACHED_DEV_RETRY_AFC_CHARGER_5V_MUIC,
+
+	ATTACHED_DEV_RETRY_AFC_CHARGER_5V_MUIC = 81,
 	ATTACHED_DEV_RETRY_AFC_CHARGER_9V_MUIC,
 	ATTACHED_DEV_UNKNOWN_MUIC,
+	ATTACHED_DEV_LO_TA_MUIC,
 
 	ATTACHED_DEV_NUM,
 } muic_attached_dev_t;
@@ -626,6 +631,8 @@ bool muic_core_hv_is_hv_dev(struct muic_platform_data *muic_pdata);
 extern int muic_afc_set_voltage(int voltage);
 extern int muic_afc_request_voltage(int cause, int voltage);
 extern int muic_afc_request_cause_clear(void);
+extern int muic_afc_get_request_cause(void);
+extern bool muic_is_enable_afc_request(void);
 #endif
 #endif /* __MUIC_H__ */
 

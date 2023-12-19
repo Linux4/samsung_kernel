@@ -66,62 +66,6 @@ static int __ctrl_dvfs(struct ufs_perf *perf, enum ctrl_op op)
 	return 0;
 }
 
-static inline u8 __wb_get_query_index(struct ufs_hba *hba)
-{
-	if (hba->dev_info.b_wb_buffer_type == WB_BUF_MODE_LU_DEDICATED)
-		return hba->dev_info.wb_dedicated_lu;
-	return 0;
-}
-
-/*
-   As ufshcd_wb_ctrl is not exported in mainline, make it one more..
-   The action of function itself is totally same with ufshcd_wb_ctrl().
- */
-static int __wb_ctrl(struct ufs_hba *hba, bool enable)
-{
-	int ret;
-	u8 index;
-	enum query_opcode opcode;
-
-	if (!(hba->caps & UFSHCD_CAP_WB_EN))
-		return 0;
-
-	if (!(enable ^ hba->wb_enabled))
-		return 0;
-	if (enable)
-		opcode = UPIU_QUERY_OPCODE_SET_FLAG;
-	else
-		opcode = UPIU_QUERY_OPCODE_CLEAR_FLAG;
-
-	index = __wb_get_query_index(hba);
-	ret = ufshcd_query_flag_retry(hba, opcode,
-				      QUERY_FLAG_IDN_WB_EN, index, NULL);
-	if (ret) {
-		dev_err(hba->dev, "%s write booster %s failed %d\n",
-			__func__, enable ? "enable" : "disable", ret);
-		return ret;
-	}
-
-	hba->wb_enabled = enable;
-	dev_dbg(hba->dev, "%s write booster %s %d\n",
-			__func__, enable ? "enable" : "disable", ret);
-
-	return ret;
-
-}
-
-static int __ctrl_wb(struct ufs_perf *perf, enum ctrl_op op)
-{
-	if (op == CTRL_OP_UP)
-		__wb_ctrl(perf->hba, true);
-	else if (op == CTRL_OP_DOWN)
-		__wb_ctrl(perf->hba, false);
-	else
-		return -1;
-
-	return 0;
-}
-
 /* policy */
 static enum policy_res __policy_heavy(struct ufs_perf *perf, u32 i_policy)
 {
@@ -551,7 +495,6 @@ int ufs_perf_init_v1(struct ufs_perf *perf)
 	/* register callbacks */
 	perf->update[__UPDATE_V1] = __update_v1;
 	perf->ctrl[__CTRL_REQ_DVFS] = __ctrl_dvfs;
-	perf->ctrl[__CTRL_REQ_WB] = __ctrl_wb;
 
 	/* default thresholds for stats */
 	stat->th_qd_max = 14;

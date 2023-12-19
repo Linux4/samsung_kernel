@@ -5760,8 +5760,8 @@
 		compatible = "samsung,vts";
 		sicd-base = <0x2053400>;
 		sicd-size = <0x400>;
-		reg = <0x00 0x11710000 0x1020 0x00 0x11640000 0x10000 0x00 0x11770000 0x08 0x00 0x117d0000 0x08 0x00 0x2200000 0x80000 0x00 0x117f0000 0x50>;
-		reg-names = "sfr\0baaw\0dmic\0dmic1\0sram\0gpr";
+		reg = <0x00 0x11710000 0x1020 0x00 0x11640000 0x10000 0x00 0x11770000 0x08 0x00 0x117d0000 0x08 0x00 0x2200000 0x80000 0x00 0x117f0000 0x50 0x00 0x11750000 0x08 0x00 0x11720000 0x08>;
+		reg-names = "sfr\0baaw\0dmic\0dmic1\0sram\0gpr\0dmic_ahb0\0timer0";
 		#address-cells = <0x02>;
 		#size-cells = <0x01>;
 		ranges;
@@ -6543,6 +6543,10 @@
 			top-app = <0x01>;
 			prio = <0x77>;
 		};
+
+		should_spread {
+			enabled = <0x01>;
+		};
 	};
 
 	set@0002 {
@@ -6909,6 +6913,10 @@
 			top-app = <0x01>;
 			prio = <0x77>;
 		};
+
+		should_spread {
+			enabled = <0x01>;
+		};
 	};
 
 	set@0402 {
@@ -7008,23 +7016,68 @@
 		phandle = <0xed>;
 
 		freqboost {
-			top-app = <0x05 0x05>;
+			top-app = <0x0f 0x0f>;
+			foreground = <0x0f 0x0f>;
+			camera-daemon = <0x0f 0x0f>;
 		};
 
 		frt {
 			active-ratio = <0x19 0x05>;
 		};
 
+		ontime {
+
+			domain0 {
+				cpus = "0-5";
+				lower-boundary = <0x00>;
+				upper-boundary = <0x15>;
+			};
+
+			domain1 {
+				cpus = "6-7";
+				lower-boundary = <0x08>;
+				upper-boundary = <0x42>;
+			};
+		};
+
 		ecs {
 		};
 
 		ecs_dynamic {
-			dynamic-busy-ratio = <0x32 0x32>;
 		};
 
-		tex {
-			top-app = <0x01>;
-			prio = <0x77>;
+		gsc {
+			up_threshold = <0x00>;
+
+			monitor-group {
+				top-app = <0x01>;
+				foreground = <0x01>;
+				camera-daemon = <0x01>;
+			};
+		};
+
+		should_spread {
+			enabled = <0x01>;
+		};
+
+		cpuidle_gov {
+			expired-ratio = <0x32 0x32>;
+		};
+
+		ntu {
+			root = <0x00>;
+			foreground = <0x00>;
+			background = <0x00>;
+			top-app = <0x00>;
+			rt = <0x00>;
+			system = <0x00>;
+			system-background = <0x00>;
+			nnapi-hal = <0x00>;
+			camera-daemon = <0x00>;
+		};
+
+		cpufreq_gov {
+			htask-boost = <0x96 0x96>;
 		};
 	};
 
@@ -8722,7 +8775,7 @@
 		mv_search_mode = <0x01 0x201118>;
 		enc_idr_flag = <0x01 0x210614>;
 		min_quality_mode = <0x00 0x210705>;
-		enc_ts_delta = <0x01 0x211027>;
+		enc_ts_delta = <0x00 0x211027>;
 		wfd_rc_mode = <0x00 0x00>;
 		support_av1_dec = <0x00>;
 		av1_film_grain = <0x00 0x200717>;

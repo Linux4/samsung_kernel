@@ -192,7 +192,7 @@ int mxman_res_mappings_logger_init(struct mxman *mxman, void *start_dram)
 	start_dram_section2 = (char *)obj->vaddr;
 #else
 	struct scsc_mif_abs *mif;
-	scsc_mifram_ref mifram_ref;
+	//scsc_mifram_ref mifram_ref;
 
 	mif = scsc_mx_get_mif_abs(mxman->mx);
 	start_dram_section2 = (char *)start_dram + MX_DRAM_SIZE_SECTION_1;
@@ -1120,6 +1120,7 @@ int mxman_res_init_subsystem(struct mxman *mxman, enum scsc_subsystem sub, void 
 			     mxmgmt_channel_handler handler)
 {
 	struct scsc_mif_abs *mif;
+	int r = -EIO;
 
 	mif = scsc_mx_get_mif_abs(mxman->mx);
 
@@ -1133,7 +1134,7 @@ int mxman_res_init_subsystem(struct mxman *mxman, enum scsc_subsystem sub, void 
 		/* Ignore return value */
 		mxlogger_init_channel(scsc_mx_get_mxlogger(mxman->mx), SCSC_MIF_ABS_TARGET_WLAN);
 #endif
-		mxman_res_transports_init_wlan(mxman, data, data_sz, handler);
+		r = mxman_res_transports_init_wlan(mxman, data, data_sz, handler);
 		break;
 	case SCSC_SUBSYSTEM_WPAN:
 		/* INTMIF init before allocating transports */
@@ -1142,14 +1143,14 @@ int mxman_res_init_subsystem(struct mxman *mxman, enum scsc_subsystem sub, void 
 		/* Mxlogger init before allocating transports*/
 		mxlogger_init_channel(scsc_mx_get_mxlogger(mxman->mx), SCSC_MIF_ABS_TARGET_WPAN);
 #endif
-		mxman_res_transports_init_wpan(mxman, data, data_sz, handler);
+		r = mxman_res_transports_init_wpan(mxman, data, data_sz, handler);
 		break;
 	default:
 		SCSC_TAG_ERR(MXMAN, "Subsystem %d not found\n", sub);
 		return -EIO;
 	}
 
-	return 0;
+	return r;
 }
 
 int mxman_res_reset(struct mxman *mxman, bool reset)

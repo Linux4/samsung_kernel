@@ -1399,11 +1399,15 @@ static void goodix_ts_esd_work(struct work_struct *work)
 	ret = hw_ops->esd_check(cd);
 	if (ret) {
 		ts_err("esd check failed");
-		mutex_lock(&cd->input_dev->mutex);
-		cd->hw_ops->reset(cd, 100);
-		/* reinit */
-		cd->plat_data->init(cd);
-		mutex_unlock(&cd->input_dev->mutex);
+
+		if (mutex_trylock(&cd->input_dev->mutex)) {
+			cd->hw_ops->reset(cd, 100);
+			/* reinit */
+			cd->plat_data->init(cd);
+			mutex_unlock(&cd->input_dev->mutex);
+		} else {
+			ts_err("mutex is busy & skip!");
+		}
 	}
 
 exit:
@@ -1752,7 +1756,7 @@ static void goodix_ts_input_close(struct input_dev *dev)
 	core_data->plat_data->enabled = false;
 
 	/* for debugging */
-	cancel_delayed_work(&core_data->debug_delayed_work);
+	cancel_delayed_work_sync(&core_data->debug_delayed_work);
 
 	cancel_delayed_work(&core_data->work_print_info);
 	sec_input_print_info(core_data->bus->dev, NULL);
@@ -1858,9 +1862,6 @@ int goodix_ts_stage2_init(struct goodix_ts_core *cd)
 	cd->input_dev = cd->plat_data->input_dev;
 	cd->input_dev_proximity = cd->plat_data->input_dev_proximity;
 
-	cd->sec_ws = wakeup_source_register(cd->bus->dev, "tsp");
-	device_init_wakeup(cd->bus->dev, true);
-
 	/* request irq line */
 	ret = goodix_ts_irq_setup(cd);
 	if (ret < 0) {
@@ -1889,6 +1890,8 @@ int goodix_ts_stage2_init(struct goodix_ts_core *cd)
 	cd->input_dev->open = goodix_ts_input_open;
 	cd->input_dev->close = goodix_ts_input_close;
 	goodix_ts_cmd_init(cd);
+
+	cd->sec_ws = wakeup_source_register(NULL, "tsp");
 
 	goodix_ts_get_sponge_info(cd);
 

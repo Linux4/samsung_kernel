@@ -106,6 +106,9 @@ const struct file_operations ops_name = {				\
 #define INPUT_LOG_BUF_SIZE		512
 #define INPUT_TCLM_LOG_BUF_SIZE		64
 
+#define MAIN_TOUCH	1
+#define SUB_TOUCH	2
+
 #if IS_ENABLED(CONFIG_SEC_DEBUG_TSP_LOG)
 //#include <linux/sec_debug.h>		/* exynos */
 #include "sec_tsp_log.h"
@@ -149,9 +152,6 @@ const struct file_operations ops_name = {				\
 		sec_debug_tsp_log_msg(input_log_buf, fmt, ## __VA_ARGS__);	\
 	}									\
 })
-
-#define MAIN_TOUCH	1
-#define SUB_TOUCH	2
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 #define input_raw_info(mode, dev, fmt, ...)					\
@@ -402,6 +402,7 @@ typedef enum {
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #define SEC_ABC_SEND_EVENT_TYPE "MODULE=tsp@WARN=tsp_int_fault"
 #define SEC_ABC_SEND_EVENT_TYPE_SUB "MODULE=tsp_sub@WARN=tsp_int_fault"
+#define SEC_ABC_SEND_EVENT_TYPE_WACOM_DIGITIZER_NOT_CONNECTED "MODULE=wacom@WARN=digitizer_not_connected"
 #endif
 
 enum display_state {
@@ -660,6 +661,8 @@ struct sec_ts_plat_data {
 
 	struct sec_ts_coordinate coord[SEC_TS_SUPPORT_TOUCH_COUNT];
 	struct sec_ts_coordinate prev_coord[SEC_TS_SUPPORT_TOUCH_COUNT];
+	bool fill_slot;
+
 	int touch_count;
 	unsigned int palm_flag;
 	volatile u8 touch_noise_status;
@@ -828,7 +831,8 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata);
 
 void sec_input_proximity_report(struct device *dev, int data);
 void sec_input_gesture_report(struct device *dev, int id, int x, int y);
-void sec_input_coord_event(struct device *dev, int t_id);
+void sec_input_coord_event_fill_slot(struct device *dev, int t_id);
+void sec_input_coord_event_sync_slot(struct device *dev);
 void sec_input_release_all_finger(struct device *dev);
 int sec_input_device_register(struct device *dev, void *data);
 void sec_tclm_parse_dt(struct device *dev, struct sec_tclm_data *tdata);

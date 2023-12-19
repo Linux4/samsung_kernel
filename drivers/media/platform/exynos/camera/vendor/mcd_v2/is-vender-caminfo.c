@@ -311,26 +311,26 @@ static int is_vender_caminfo_sec2lsi_cmd_get_module_info(void __user *user_data)
 
 	rom_id = is_vendor_get_rom_id_from_position(caminfo.camID);
 
-	info("%s in for ROM[%d]", __func__, caminfo.camID);
+	info("%s in for ROM[%d]", __func__, rom_id);
 
 	if (is_need_use_standard_cal(rom_id) == false) {
-		info("%s : ROM[%d] does not use standard cal", __func__, caminfo.camID);
+		info("%s : ROM[%d] does not use standard cal", __func__, rom_id);
 		ret = -EINVAL;
 		goto EXIT;
 	}
 
-	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+	if (sec2lsi_conversion_done[rom_id] == false) {
 		is_sec_get_cal_buf(&cal_buf, rom_id);
 		is_sec_get_sysfs_finfo(&finfo, rom_id);
 
 		if (!cal_buf) {
-			err("%s: There is no cal buffer allocated (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			err("%s: There is no cal buffer allocated (caminfo.camID : %d, rom ID : %d)\n", __func__, caminfo.camID, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		}
 
 		if (!finfo) {
-			err("%s: There is no cal map (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			err("%s: There is no cal map (caminfo.camID : %d, rom_id : %d)\n", __func__, caminfo.camID, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		} else {
@@ -338,17 +338,17 @@ static int is_vender_caminfo_sec2lsi_cmd_get_module_info(void __user *user_data)
 		}
 
 		if (!test_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state)) {
-			info("%s : ROM[%d] cal data not read, skipping sec2lsi", __func__, caminfo.camID);
+			info("%s : ROM[%d] cal data not read, skipping sec2lsi", __func__, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		}
 
 		if (finfo->rom_header_version_start_addr > 0) {
-			copy_to_user(caminfo.mdInfo, &cal_buf[finfo->rom_header_version_start_addr],
+			ret = copy_to_user(caminfo.mdInfo, &cal_buf[finfo->rom_header_version_start_addr],
 				sizeof(uint8_t) * SEC2LSI_MODULE_INFO_SIZE);
 		} else {
-			info("%s : rom_header_version_start_addr is invalid for cam %d",
-				__func__, caminfo.camID);
+			info("%s : rom_header_version_start_addr is invalid for rom_id %d",
+				__func__, rom_id);
 		}
 
 		if (copy_to_user(user_data, &caminfo, sizeof(caminfo_romdata_sec2lsi))) {
@@ -358,7 +358,7 @@ static int is_vender_caminfo_sec2lsi_cmd_get_module_info(void __user *user_data)
 		}
 		info("%s : mdinfo size:%u, mdinfo addre:%x", __func__, SEC2LSI_MODULE_INFO_SIZE, caminfo.mdInfo);
 	} else {
-		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+		info("%s already did for ROM_[%d]", __func__, rom_id);
 	}
 
 EXIT:
@@ -383,26 +383,26 @@ static int is_vender_caminfo_sec2lsi_cmd_get_buff(void __user *user_data)
 
 	rom_id = is_vendor_get_rom_id_from_position(caminfo.camID);
 
-	info("%s in for ROM[%d]", __func__, caminfo.camID);
+	info("%s in for ROM[%d]", __func__, rom_id);
 
 	if (is_need_use_standard_cal(rom_id) == false) {
-		info("%s : ROM[%d] does not use standard cal", __func__, caminfo.camID);
+		info("%s : ROM[%d] does not use standard cal", __func__, rom_id);
 		ret = -EINVAL;
 		goto EXIT;
 	}
 
-	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+	if (sec2lsi_conversion_done[rom_id] == false) {
 		is_sec_get_cal_buf(&cal_buf, rom_id);
 		is_sec_get_sysfs_finfo(&finfo, rom_id);
 
 		if (!cal_buf) {
-			err("%s: There is no cal buffer allocated (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			err("%s: There is no cal buffer allocated (caminfo.camID : %d, rom_d : %d)\n", __func__, caminfo.camID, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		}
 
 		if (!finfo) {
-			err("%s: There is no cal map (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			err("%s: There is no cal map (caminfo.camID : %d, rom_id : %d)\n", __func__, caminfo.camID, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		} else {
@@ -411,7 +411,7 @@ static int is_vender_caminfo_sec2lsi_cmd_get_buff(void __user *user_data)
 		}
 
 		if (!test_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state)) {
-			info("%s : ROM[%d] cal data not read, skipping sec2lsi", __func__, caminfo.camID);
+			info("%s : ROM[%d] cal data not read, skipping sec2lsi", __func__, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		}
@@ -430,7 +430,7 @@ static int is_vender_caminfo_sec2lsi_cmd_get_buff(void __user *user_data)
 
 		if (standard_cal_data->rom_awb_start_addr > 0) {
 			info("%s rom[%d] awb_start_addr is 0x%08X size is %d", __func__,
-				caminfo.camID, standard_cal_data->rom_awb_start_addr, caminfo.awb_size);
+				rom_id, standard_cal_data->rom_awb_start_addr, caminfo.awb_size);
 			if (copy_to_user(caminfo.secBuf, &cal_buf[standard_cal_data->rom_awb_start_addr],
 				sizeof(uint8_t) * caminfo.awb_size)) {
 				err("%s : failed to copy data to user", __func__);
@@ -438,12 +438,12 @@ static int is_vender_caminfo_sec2lsi_cmd_get_buff(void __user *user_data)
 				goto EXIT;
 			}
 		} else {
-			info("%s sensor %d does not have awb info", __func__, caminfo.camID);
+			info("%s sensor %d with rom_id %d does not have awb info", __func__, caminfo.camID, rom_id);
 		}
 
 		if (standard_cal_data->rom_shading_start_addr > 0) {
 			info("%s rom[%d] shading_start_addr is 0x%08X size is %d", __func__,
-				caminfo.camID, standard_cal_data->rom_shading_start_addr, caminfo.lsc_size);
+				rom_id, standard_cal_data->rom_shading_start_addr, caminfo.lsc_size);
 			if (copy_to_user(caminfo.secBuf + caminfo.awb_size, &cal_buf[standard_cal_data->rom_shading_start_addr],
 				sizeof(uint8_t) * caminfo.lsc_size)) {
 				err("%s : failed to copy data to user", __func__);
@@ -451,7 +451,7 @@ static int is_vender_caminfo_sec2lsi_cmd_get_buff(void __user *user_data)
 				goto EXIT;
 			}
 		} else {
-			info("%s sensor %d does not have shading info", __func__, caminfo.camID);
+			info("%s sensor %d with rom_id : %d does not have shading info", __func__, caminfo.camID, rom_id);
 		}
 		if (copy_to_user(user_data, &caminfo, sizeof(caminfo_romdata_sec2lsi))) {
 			err("%s : failed to copy data to user", __func__);
@@ -461,7 +461,7 @@ static int is_vender_caminfo_sec2lsi_cmd_get_buff(void __user *user_data)
 		info("%s : awb size:%u, lsc size:%u, secBuf addre:%x", __func__,
 			caminfo.awb_size, caminfo.lsc_size, caminfo.secBuf);
 	} else {
-		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+		info("%s already did for ROM_[%d]", __func__, rom_id);
 	}
 
 EXIT:
@@ -492,32 +492,32 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 	}
 
 	rom_id = is_vendor_get_rom_id_from_position(caminfo.camID);
-	info("%s in for ROM[%d]", __func__, caminfo.camID);
+	info("%s in for ROM[%d]", __func__, rom_id);
 
 	if (is_need_use_standard_cal(rom_id) == false) {
-		info("%s : ROM[%d] does not use standard cal", __func__, caminfo.camID);
+		info("%s : ROM[%d] does not use standard cal", __func__, rom_id);
 		ret = -EINVAL;
 		goto EXIT;
 	}
 	
-	if (sec2lsi_conversion_done[caminfo.camID] == false) {
+	if (sec2lsi_conversion_done[rom_id] == false) {
 #ifdef USES_STANDARD_CAL_RELOAD
 		if (!is_sec_sec2lsi_check_cal_reload())
 #endif
 		{
-			sec2lsi_conversion_done[caminfo.camID] = true;
+			sec2lsi_conversion_done[rom_id] = true;
 		}
 		is_sec_get_cal_buf(&cal_buf, rom_id);
 		is_sec_get_sysfs_finfo(&finfo, rom_id);
 
 		if (!cal_buf) {
-			err("%s: There is no cal buffer allocated (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			err("%s: There is no cal buffer allocated (caminfo.camID : %d, rom_id : %d)\n", __func__, caminfo.camID, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		}
 
 		if (!finfo) {
-			err("%s: There is no cal map (caminfo.camID : %d)\n", __func__, caminfo.camID);
+			err("%s: There is no cal map (caminfo.camID : %d, rom_id : %d)\n", __func__, caminfo.camID, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		} else {
@@ -526,7 +526,7 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 		}
 
 		if (!test_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state)) {
-			info("%s : ROM[%d] cal data not read, skipping sec2lsi", __func__, caminfo.camID);
+			info("%s : ROM[%d] cal data not read, skipping sec2lsi", __func__, rom_id);
 			ret = -EINVAL;
 			goto EXIT;
 		}
@@ -573,7 +573,7 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 				goto EXIT;
 			}
 		} else {
-			info("%s sensor %d does not have awb info", __func__, caminfo.camID);
+			info("%s sensor %d with rom_id %d does not have awb info", __func__, caminfo.camID, rom_id);
 		}
 		if (standard_cal_data->rom_shading_start_addr > 0) {
 			info("%s  caminfo.lsc_size is %d", __func__, caminfo.lsc_size);
@@ -584,7 +584,7 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 				goto EXIT;
 			}
 		} else {
-			info("%s sensor %d does not have shading info", __func__, caminfo.camID);
+			info("%s sensor %d with rom_id %d does not have shading info", __func__, caminfo.camID, rom_id);
 		}
 		info("%s : awb size:%u, lsc size:%u, secBuf addre:%x", __func__, caminfo.awb_size,
 			caminfo.lsc_size, caminfo.lsiBuf);
@@ -601,7 +601,7 @@ static int is_vender_caminfo_sec2lsi_cmd_set_buff(void __user *user_data)
 			is_sec_readcal_dump_post_sec2lsi(core, cal_buf, caminfo.camID);
 
 	} else {
-		info("%s already did for ROM_[%d]", __func__, caminfo.camID);
+		info("%s already did for ROM_[%d]", __func__, rom_id);
 	}
 
 EXIT:
