@@ -389,7 +389,6 @@
 		(exynos_soc_info.main_rev >= 0 && exynos_soc_info.sub_rev >= 1)
 
 #define CLOGGING		1
-
 /*
  * ======================================================
  * CONFIG - Interface version configs

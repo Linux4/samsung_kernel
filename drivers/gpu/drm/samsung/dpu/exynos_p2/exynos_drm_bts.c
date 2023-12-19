@@ -20,6 +20,8 @@
 #include <soc/samsung/bts.h>
 #include <soc/samsung/exynos-devfreq.h>
 #include <dt-bindings/soc/samsung/s5e8825-devfreq.h>
+#include <soc/samsung/exynos-pd.h>
+
 #if defined(CONFIG_CAL_IF)
 #include <soc/samsung/cal-if.h>
 #endif
@@ -763,6 +765,24 @@ dpu_bts_calc_dpp_bw(struct decon_device *decon, struct bts_dpp_info *dpp,
 	DPU_DEBUG_BTS(decon, "\tDPP%d BW = %d\n", idx, dpp->bw);
 }
 
+#define BTS_MIF_QOS_MAX 2093000
+#define BTS_MINLOCK_LAYER 6
+#define BTS_MINLOCK_FPS 120
+static struct exynos_pm_domain *pd_csis = NULL;
+static void dpu_bts_set_max_bus_qos(struct decon_device *decon)
+{
+	if (pd_csis == NULL)
+		pd_csis = exynos_pd_lookup_name("pd-csis");
+
+	if ((decon->bts.bts_info.layer_cnt >= BTS_MINLOCK_LAYER) &&
+	    (decon->bts.fps >= BTS_MINLOCK_FPS) &&
+	    (decon->config.mode.op_mode == DECON_VIDEO_MODE) &&
+	    (pd_csis && pd_csis->genpd.status == GENPD_STATE_ON))
+		exynos_pm_qos_update_request(&decon->bts.mif_qos, BTS_MIF_QOS_MAX);
+	else
+		exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
+}
+
 void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 {
 	struct decon_device *decon = exynos_crtc->ctx;
@@ -810,6 +830,7 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 					config[i].format, idx, &updated);
 
 		read_bw += bts_info.dpp[idx].bw;
+		bts_info.layer_cnt++;
 	}
 
 	/* write bw calculation */
@@ -839,6 +860,8 @@ void dpu_bts_calc_bw(struct exynos_drm_crtc *exynos_crtc)
 
 	/* update bw for other decons */
 	dpu_bts_share_bw_info(decon->id);
+
+	dpu_bts_set_max_bus_qos(decon);
 
 	DPU_EVENT_LOG("BTS_CALC_BW", decon->crtc, 0,
 			"mif(%lu) int(%lu) disp(%lu) calculated disp(%u)",

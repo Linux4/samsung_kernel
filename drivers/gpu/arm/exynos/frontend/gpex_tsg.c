@@ -246,7 +246,7 @@ int gpex_tsg_get_queue_nr(int type)
 	return atomic_read(&tsg.queue.nr[type]);
 }
 
-struct atomic_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void)
+struct blocking_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void)
 {
 	return &(tsg.frag_utils_change_notifier_list);
 }
@@ -254,8 +254,8 @@ struct atomic_notifier_head *gpex_tsg_get_frag_utils_change_notifier_list(void)
 int gpex_tsg_notify_frag_utils_change(u32 js0_utils)
 {
 	int ret = 0;
-	ret = atomic_notifier_call_chain(gpex_tsg_get_frag_utils_change_notifier_list(), js0_utils,
-					 NULL);
+	ret = blocking_notifier_call_chain(gpex_tsg_get_frag_utils_change_notifier_list(), 0,
+		       (void *)&js0_utils);
 	return ret;
 }
 

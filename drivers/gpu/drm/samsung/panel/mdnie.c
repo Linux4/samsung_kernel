@@ -30,11 +30,6 @@
 #include "dpui.h"
 #endif
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"mdnie"
-#endif
-
 #ifdef MDNIE_SELF_TEST
 int g_coord_x = MIN_WCRD_X;
 int g_coord_y = MIN_WCRD_Y;
@@ -1688,7 +1683,7 @@ __visible_for_testing int mdnie_create_device(struct mdnie_info *mdnie)
 
 	mdnie->dev = device_create(mdnie->class,
 			to_panel_device(mdnie)->lcd_dev,
-			0, &mdnie, mdnie_get_name(mdnie));
+			0, &mdnie, "%s", mdnie_get_name(mdnie));
 	if (IS_ERR_OR_NULL(mdnie->dev)) {
 		panel_err("failed to create mdnie device\n");
 		return -EINVAL;

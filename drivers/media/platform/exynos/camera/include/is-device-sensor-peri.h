@@ -322,7 +322,7 @@ struct is_flash_data {
 	struct work_struct		flash_fire_work;
 	struct timer_list		flash_expire_timer;
 	struct work_struct		flash_expire_work;
-#ifdef CONFIG_LEDS_S2MU106_FLASH
+#ifdef USE_LEDS_FLASH_CHARGING_VOLTAGE_CONTROL
 	struct work_struct		muic_ctrl_and_flash_fire_work;
 #endif
 

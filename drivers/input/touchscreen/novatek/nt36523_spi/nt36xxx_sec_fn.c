@@ -212,7 +212,7 @@ static void nvt_ts_read_mdata(struct nvt_ts_data *ts, int *buff, u32 xdata_addr,
 	data_len = ts->platdata->x_num * ts->platdata->y_num * 2;
 	residual_len = (head_addr + dummy_len + data_len) % XDATA_SECTOR_SIZE;
 
-	rawdata_buf = vzalloc(ts->platdata->x_num * ts->platdata->y_num * 2 + dummy_len);
+	rawdata_buf = vzalloc(ts->platdata->x_num * ts->platdata->y_num * 2 + dummy_len + XDATA_SECTOR_SIZE);
 	if (!rawdata_buf)
 		return;
 
@@ -1598,6 +1598,11 @@ int nvt_ts_mode_switch(struct nvt_ts_data *ts, u8 cmd, bool print_log)
 
 		if (ts->shutdown_called) {
 			input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+			return -EIO;
+		}
+
+		if (!nvt_ts_lcd_power_check()) {
+			input_err(true, &ts->client->dev, "%s: lcd is off\n", __func__);
 			return -EIO;
 		}
 

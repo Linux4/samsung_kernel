@@ -1870,12 +1870,24 @@ static irqreturn_t is_isr_csi(int irq, void *data)
 	int frame_start, frame_end;
 	struct csis_irq_src irq_src;
 	u32 ch, err_flag = 0;
+	ulong err = 0;
 
 	csi = data;
 	memset(&irq_src, 0x0, sizeof(struct csis_irq_src));
 	csi_hw_g_irq_src(csi->base_reg, &irq_src, true);
 
-	csi->state_cnt.err += (irq_src.err_id[CSI_VIRTUAL_CH_0]) ? 1 : 0;
+	if (is_get_debug_param(IS_DEBUG_PARAM_PHY_TUNE) != PABLO_PHY_TUNE_DISABLE) {
+		if (is_get_debug_param(IS_DEBUG_PARAM_PHY_TUNE) == PABLO_PHY_TUNE_DPHY) {
+			err = (irq_src.err_id[CSI_VIRTUAL_CH_0] & (BIT(CSIS_ERR_ECC) | BIT(CSIS_ERR_CRC)));
+		} else {
+			for (ch = CSI_VIRTUAL_CH_0; ch < CSI_VIRTUAL_CH_MAX; ch++)
+				err |= irq_src.err_id[ch];
+		}
+	} else {
+		err = irq_src.err_id[CSI_VIRTUAL_CH_0];
+	}
+
+	csi->state_cnt.err += err ? 1: 0;
 	csi->state_cnt.str += (irq_src.otf_start & BIT(CSI_VIRTUAL_CH_0)) ? 1 : 0;
 	csi->state_cnt.end += (irq_src.otf_end & BIT(CSI_VIRTUAL_CH_0)) ? 1 : 0;
 

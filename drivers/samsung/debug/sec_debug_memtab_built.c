@@ -97,3 +97,6 @@ DEFINE_MEMBER_TYPE(work_struct_data, work_struct, data);
 DEFINE_MEMBER_TYPE(work_struct_func, work_struct, func);
 DEFINE_MEMBER_TYPE(xarray_xa_head, xarray, xa_head);
 DEFINE_MEMBER_TYPE(xa_node_slots, xa_node, slots);
+#ifdef CONFIG_STACKPROTECTOR_PER_TASK
+DEFINE_MEMBER_TYPE(task_struct_stack_canary, task_struct, stack_canary);
+#endif

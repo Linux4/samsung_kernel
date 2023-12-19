@@ -297,11 +297,7 @@ int sensor_gc02m1_cis_set_exposure_time(struct v4l2_subdev *subdev, u16 multiple
 	int ret = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
-
-#ifdef DEBUG_SENSOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
-#endif
+	ktime_t st = ktime_get();
 
 	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 
@@ -331,10 +327,8 @@ int sensor_gc02m1_cis_set_exposure_time(struct v4l2_subdev *subdev, u16 multiple
 	if (ret < 0)
 		goto p_err;
 
-#ifdef DEBUG_SENSOR_TIME
-	do_gettimeofday(&end);
-	dbg_sensor(2, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
-#endif
+	if (IS_ENABLED(DEBUG_SENSOR_TIME))
+		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -367,11 +361,7 @@ int sensor_gc02m1_cis_set_analog_gain(struct v4l2_subdev *subdev, u32 input_agai
 	u32 analog_gain = 0;
 	u32 analog_permile = 0;
 	u32 digital_gain = 0;
-
-#ifdef DEBUG_SENSOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
-#endif
+	ktime_t st = ktime_get();
 
 	FIMC_BUG(!subdev);
 
@@ -428,11 +418,8 @@ int sensor_gc02m1_cis_set_analog_gain(struct v4l2_subdev *subdev, u32 input_agai
 	if (ret < 0)
 		goto p_err;
 
-
-#ifdef DEBUG_SENSOR_TIME
-	do_gettimeofday(&end);
-	dbg_sensor(2, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
-#endif
+	if (IS_ENABLED(DEBUG_SENSOR_TIME))
+		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);

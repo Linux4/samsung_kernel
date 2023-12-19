@@ -1254,6 +1254,8 @@ static int dw_mci_exynos_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 		dw_mci_exynos_set_sample(host, orig_sample, false);
 		dev_err(host->dev, "tuning err\n");
 		ret = -EIO;
+		dev_warn(&mmc->class_dev,
+			"There is no candiates value about clksmpl!\n");
 	}
 
 	if (!bypass)

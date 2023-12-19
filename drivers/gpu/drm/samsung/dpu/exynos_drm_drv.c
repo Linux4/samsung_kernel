@@ -36,6 +36,7 @@
 #include <exynos_drm_freq_hop.h>
 #include <exynos_drm_partial.h>
 #include <exynos_drm_tui.h>
+#include <exynos_drm_recovery.h>
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 #include <mcd_drm_helper.h>
@@ -499,12 +500,24 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 	return 0;
 }
 
+static bool check_recovery_state(const struct drm_crtc* crtc)
+{
+	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
+
+	if (exynos_crtc->ops->is_recovering &&
+			exynos_crtc->ops->is_recovering(exynos_crtc))
+		return true;
+
+	return false;
+}
+
 static void commit_tail(struct drm_atomic_state *old_state)
 {
 	int i;
 	struct drm_device *dev = old_state->dev;
 	const struct drm_mode_config_helper_funcs *funcs;
 	const struct drm_crtc *crtc;
+	bool recovery = false;
 
 	funcs = dev->mode_config.helper_private;
 
@@ -521,9 +534,14 @@ static void commit_tail(struct drm_atomic_state *old_state)
 
 		if (exynos_crtc->migov)
 			exynos_migov_update_ems_fence_cnt(exynos_crtc->migov);
+
+		recovery = check_recovery_state(crtc);
 	}
 
-	drm_atomic_helper_wait_for_dependencies(old_state);
+	if (unlikely(recovery))
+		pr_info("recovery, skip for all preceding commits\n");
+	else
+		drm_atomic_helper_wait_for_dependencies(old_state);
 
 	if (funcs && funcs->atomic_commit_tail)
 		funcs->atomic_commit_tail(old_state);

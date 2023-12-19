@@ -267,6 +267,11 @@ static int vts_start_ipc_transaction_atomic(
 				data->shared_info->vendor_data[0],
 				data->shared_info->vendor_data[1],
 				data->shared_info->vendor_data[2]);
+			print_hex_dump(KERN_ERR, "vts-fw-log", DUMP_PREFIX_OFFSET, 32, 4, data->sramlog_baseaddr,
+				VTS_SRAM_EVENTLOG_SIZE_MAX, true);
+			print_hex_dump(KERN_ERR, "vts-time-log", DUMP_PREFIX_OFFSET, 32, 4,
+				data->sramlog_baseaddr + VTS_SRAM_EVENTLOG_SIZE_MAX,
+				VTS_SRAM_TIMELOG_SIZE_MAX, true);
 		}
 		if (*state == SEND_MSG_OK || ack_value == (0x1 << msg)) {
 			vts_dev_dbg(dev, "Transaction success Ack_value:0x%x\n",
@@ -2131,6 +2136,7 @@ static int vts_runtime_suspend(struct device *dev)
 			data, VTS_IRQ_AP_POWER_DOWN, &values, 0, 1);
 		if (result < 0) {
 			vts_dev_warn(dev, "POWER_DOWN IPC transaction Failed\n");
+
 			result = vts_start_ipc_transaction(dev,
 				data, VTS_IRQ_AP_POWER_DOWN, &values, 0, 1);
 			if (result < 0)
@@ -3205,6 +3211,23 @@ static int samsung_vts_probe(struct platform_device *pdev)
 		goto error;
 	}
 #endif
+
+#if defined(CONFIG_SOC_S5E8825)
+	data->dmic_ahb0_base = samsung_vts_devm_request_and_map(pdev,
+		"dmic_ahb0", NULL, NULL);
+	if (IS_ERR(data->dmic_ahb0_base)) {
+		result = PTR_ERR(data->dmic_ahb0_base);
+		goto error;
+	}
+
+	data->timer0_base = samsung_vts_devm_request_and_map(pdev,
+		"timer0", NULL, NULL);
+	if (IS_ERR(data->timer0_base)) {
+		result = PTR_ERR(data->timer0_base);
+		goto error;
+	}
+#endif
+
 	data->lpsdgain = 0;
 	data->dmicgain = 0;
 	data->amicgain = 0;

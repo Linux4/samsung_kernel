@@ -108,5 +108,6 @@ struct is_common_cam_info {
 int is_get_cam_info(struct is_cam_info **caminfo);
 void is_get_common_cam_info(struct is_common_cam_info **caminfo);
 int read_from_firmware_version(int rom_id);
+struct class *is_get_camera_class(void);
 
 #endif /* _IS_SYSFS_H_ */

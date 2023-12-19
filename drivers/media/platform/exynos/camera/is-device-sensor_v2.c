@@ -796,7 +796,7 @@ static int is_sensor_start(struct is_device_sensor *device)
 	 * So, it should be set before DVFS selection.
 	 */
 	set_bit(IS_SENSOR_START, &device->state);
-	is_set_static_dvfs(ischain, true, sensor_only);
+	is_set_static_dvfs(ischain, true);
 
 	if (!sensor_only) {
 		ret = is_itf_stream_on(ischain);
@@ -852,7 +852,7 @@ p_err_csi_pattern_en:
 
 p_err_itf_stream_on:
 	clear_bit(IS_SENSOR_START, &device->state);
-	is_set_static_dvfs(ischain, false, sensor_only);
+	is_set_static_dvfs(ischain, false);
 
 	return ret;
 }
@@ -945,7 +945,9 @@ static int is_sensor_stop(struct is_device_sensor *device)
 
 p_err:
 	clear_bit(IS_SENSOR_START, &device->state);
-	is_set_static_dvfs(ischain, false, sensor_only);
+#ifdef ENABLE_SMOOTH_CAM_CHANGE
+	is_set_static_dvfs(ischain, false);
+#endif
 
 	return ret;
 }
@@ -2728,23 +2730,17 @@ p_err:
 int is_sensor_s_ext_ctrls(struct is_device_sensor *device,
 	struct v4l2_ext_controls *ctrls)
 {
-	int ret = 0;
-	struct v4l2_subdev *subdev_module;
+	int ret;
+	struct v4l2_subdev *subdev_module = device->subdev_module;
 
-	WARN_ON(!device);
-	WARN_ON(!device->subdev_module);
-	WARN_ON(!device->subdev_csi);
-	WARN_ON(!ctrls);
-
-	subdev_module = device->subdev_module;
+	FIMC_BUG(!subdev_module);
 
 	ret = v4l2_subdev_call(subdev_module, core, ioctl, SENSOR_IOCTL_MOD_S_EXT_CTRL, ctrls);
 	if (ret) {
 		err("s_ext_ctrls is fail(%d)", ret);
-		goto p_err;
+		return ret;
 	}
 
-p_err:
 	return ret;
 }
 KUNIT_EXPORT_SYMBOL(is_sensor_s_ext_ctrls);

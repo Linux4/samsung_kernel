@@ -19,13 +19,13 @@
 #include "../sensormanager/shub_sensor_manager.h"
 #include "../utility/shub_utility.h"
 #include "../utility/shub_file_manager.h"
+#include "../others/shub_panel.h"
 #include "light.h"
-
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
 
 get_init_chipset_funcs_ptr get_light_funcs_ary[] = {
-	get_light_stk33512_function_pointer,
+	get_light_stk_common_function_pointer,
 };
 
 static get_init_chipset_funcs_ptr *get_light_init_chipset_funcs(int *len)
@@ -37,12 +37,15 @@ static get_init_chipset_funcs_ptr *get_light_init_chipset_funcs(int *len)
 
 static int init_light_variable(void)
 {
-	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
+	struct light_data *data = sensor->data;
 	struct shub_system_info *system_info = get_shub_system_info();
 
 	data->brightness = -1;
-	data->raw_data_size = 2;
-	data->use_cal_data = false;
+	if(sensor->spec.version >= LIGHT_DEBIG_EVENT_SIZE_4BYTE_VERSION)
+		data->raw_data_size = 4;
+	else
+		data->raw_data_size = 2;
 
 	set_light_ddi_support(system_info->support_ddi);
 
@@ -141,6 +144,12 @@ int set_light_region(struct light_data *data)
 
 void set_light_ddi_support(uint32_t ddi_support)
 {
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
+	struct light_data *data = sensor->data;
+
+	if (ddi_support == DDI_SUPPORT)
+		data->ddi_support = true;
+
 	shub_infof("%d", ddi_support);
 }
 
@@ -156,7 +165,7 @@ int light_open_calibration(void)
 		return -EIO;
 	}
 
-	shub_infof("%d %d %d", data->cal_data.cal, data->cal_data.max, data->cal_data.lux);
+	shub_infof("%d %d %d", data->cal_data.result, data->cal_data.max, data->cal_data.lux);
 
 	return ret;
 }
@@ -168,10 +177,42 @@ static int set_light_cal(struct light_data *data)
 	if (!data->use_cal_data)
 		return 0;
 
-	shub_infof("%d %d %d", data->cal_data.cal, data->cal_data.max, data->cal_data.lux);
+	shub_infof("%d %d %d", data->cal_data.result, data->cal_data.max, data->cal_data.lux);
 
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, CAL_DATA, (u8 *)(&data->cal_data),
 							sizeof(data->cal_data));
+	if (ret < 0)
+		shub_errf("shub_send_command fail %d", ret);
+
+	return ret;
+}
+
+static int set_panel_vendor(struct light_data *data)
+{
+	int ret = 0;
+
+	data->panel_vendor = get_panel_lcd_type();
+	if (data->panel_vendor < 0)
+		return ret;
+
+	shub_info("%s : %d", __func__, data->panel_vendor);
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_PANEL_TYPE, (u8 *)(&data->panel_vendor),
+							sizeof(int8_t));
+	if (ret < 0)
+		shub_errf("shub_send_command fail %d", ret);
+
+	return ret;
+}
+
+static int set_hbm_finger(struct light_data *data)
+{
+	int ret = 0;
+
+	shub_info("%s : %d", __func__, data->hbm_finger);
+	if (data->hbm_finger == true) {
+		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_HBM_FINGERPRINT,
+		(u8 *)(&data->hbm_finger), sizeof(data->hbm_finger));
+	}
 	if (ret < 0)
 		shub_errf("shub_send_command fail %d", ret);
 
@@ -182,14 +223,15 @@ static int sync_light_status(void)
 {
 	int ret = 0;
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
-
+	shub_info("sync_light_status ");
 	set_light_coef(data);
 	set_light_brightness(data);
 #ifdef CONFIG_SENSORS_SSP_LIGHT_JPNCONCEPT
 	set_light_region(data);
 #endif
 	set_light_cal(data);
-
+	set_panel_vendor(data);
+	set_hbm_finger(data);
 	return ret;
 }
 
@@ -219,7 +261,7 @@ static void report_event_light(void)
 void print_light_debug(void)
 {
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
-	struct sensor_event *event = &(sensor->event_buffer);
+	struct sensor_event *event = &(sensor->last_event_buffer);
 	struct light_cct_event *sensor_value = (struct light_cct_event *)(event->value);
 
 	shub_info("%s(%u) : %u(%lld) (%ums, %dms)", sensor->name, SENSOR_TYPE_LIGHT, sensor_value->lux,
@@ -234,35 +276,61 @@ int inject_light_additional_data(char *buf, int count)
 	int i, ret = 0;
 	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
 
-	if (count < 4) {
+	if (count < 1) {
 		shub_errf("brightness length error %d", count);
 		return -EINVAL;
-	}
-	brightness = *((int32_t *)(buf));
-	cal_brightness = brightness / 10;
-	cal_brightness *= 10;
+	} else if (count == sizeof(int8_t)) {
+		int8_t finger_print;
 
-	// shub_errf("br %d, cal_br %d", brightness, cal_brightness);
-	// set current level for changing itime
-	for (i = 0; i < data->brightness_array_len; i++) {
-		if (brightness <= data->brightness_array[i]) {
-			cur_level = i + 1;
-			// shub_infof("brightness %d <= %d , level %d", brightness, data->brightness_array[i],
-			// cur_level);
-			break;
+		finger_print = *((int8_t *)(buf));
+		shub_infof("finger_print on/off = %d", finger_print);
+		if (data->hbm_finger != finger_print) {
+			shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_HBM_FINGERPRINT,
+								(char *)&finger_print, sizeof(finger_print));
 		}
-	}
+		data->hbm_finger = finger_print;
+	} else if (count == sizeof(int32_t)) {
+		brightness = *((int32_t *)(buf));
+		cal_brightness = brightness / 10;
+		cal_brightness *= 10;
 
-	if (data->last_brightness_level != cur_level) {
-		data->brightness = brightness;
-		// update last level
-		data->last_brightness_level = cur_level;
-		ret = set_light_brightness(data);
-		data->brightness = cal_brightness;
-	} else if (data->brightness != cal_brightness) {
-		data->brightness = brightness;
-		ret = set_light_brightness(data);
-		data->brightness = cal_brightness;
+		// shub_errf("br %d, cal_br %d", brightness, cal_brightness);
+		// set current level for changing itime
+		for (i = 0; i < data->brightness_array_len; i++) {
+			if (brightness <= data->brightness_array[i]) {
+				cur_level = i + 1;
+				// shub_infof("brightness %d <= %d , level %d", brightness, data->brightness_array[i],
+				// cur_level);
+				break;
+			}
+		}
+
+		if (data->last_brightness_level != cur_level) {
+			data->brightness = brightness;
+			// update last level
+			data->last_brightness_level = cur_level;
+			ret = set_light_brightness(data);
+			data->brightness = cal_brightness;
+		} else if (data->brightness != cal_brightness) {
+			data->brightness = brightness;
+			ret = set_light_brightness(data);
+			data->brightness = cal_brightness;
+		}
+	} else if (count == sizeof(int32_t)*4) {
+		int32_t data[4] = {0,};
+
+		if (!get_sensor_probe_state(SENSOR_TYPE_LIGHT)) {
+			shub_infof("light sensor is not connected");
+			return ret;
+		}
+		memcpy(data, buf, sizeof(data));
+		shub_infof("target br %d threshold_dark %d lux %d threshold_bright %d", data[0], data[1], data[2], data[3]);
+		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_BRIGHTNESS_HYSTERESIS, (char *)data, sizeof(data));
+
+		if (ret < 0) {
+			shub_errf("CMD fail %d\n", ret);
+			return ret;
+		}
 	}
 
 	return ret;
@@ -270,13 +338,15 @@ int inject_light_additional_data(char *buf, int count)
 
 int get_light_sensor_value(char *dataframe, int *index, struct sensor_event *event, int frame_len)
 {
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
-	struct light_data *data = sensor->data;
+	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
 	struct light_event *sensor_value = (struct light_event *)event->value;
-	int offset_raw_data = offsetof(struct light_event, r);
 
-	memcpy(&sensor_value->lux, dataframe + *index, offset_raw_data);
-	*index += offset_raw_data;
+	memcpy(&sensor_value->lux, dataframe + *index, sizeof(sensor_value->lux));
+	*index += sizeof(sensor_value->lux);
+	memcpy(&sensor_value->cct, dataframe + *index, sizeof(sensor_value->cct));
+	*index += sizeof(sensor_value->cct);
+	memcpy(&sensor_value->raw_lux, dataframe + *index, sizeof(sensor_value->raw_lux));
+	*index += sizeof(sensor_value->raw_lux);
 
 	memcpy(&sensor_value->r, dataframe + *index, data->raw_data_size);
 	*index += data->raw_data_size;
@@ -286,77 +356,48 @@ int get_light_sensor_value(char *dataframe, int *index, struct sensor_event *eve
 	*index += data->raw_data_size;
 	memcpy(&sensor_value->w, dataframe + *index, data->raw_data_size);
 	*index += data->raw_data_size;
+	memcpy(&sensor_value->a_time, dataframe + *index, data->raw_data_size);
+	*index += data->raw_data_size;
+	memcpy(&sensor_value->a_gain, dataframe + *index, data->raw_data_size);
+	*index += data->raw_data_size;
 
-	memcpy(&sensor_value->a_time, dataframe + *index, sizeof(sensor_value->a_time));
-	*index += sizeof(sensor_value->a_time);
-	memcpy(&sensor_value->a_gain, dataframe + *index, sizeof(sensor_value->a_gain));
-	*index += sizeof(sensor_value->a_gain);
 	memcpy(&sensor_value->brightness, dataframe + *index, sizeof(sensor_value->brightness));
 	*index += sizeof(sensor_value->brightness);
 
 	return 0;
 }
 
+
+static struct light_data light_data;
+static struct sensor_funcs light_sensor_funcs = {
+	.sync_status = sync_light_status,
+	.enable = enable_light,
+	.report_event = report_event_light,
+	.print_debug = print_light_debug,
+	.inject_additional_data = inject_light_additional_data,
+	.get_sensor_value = get_light_sensor_value,
+	.open_calibration_file = light_open_calibration,
+	.parse_dt = parse_dt_light,
+	.init_variable = init_light_variable,
+	.get_init_chipset_funcs = get_light_init_chipset_funcs,
+};
+
 int init_light(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "light_sensor");
-		sensor->receive_event_size = 28;
-		sensor->report_event_size = 4;
-		sensor->event_buffer.value = kzalloc(sizeof(struct light_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->data = kzalloc(sizeof(struct light_data), GFP_KERNEL);
-		if (!sensor->data)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->sync_status = sync_light_status;
-		sensor->funcs->enable = enable_light;
-		sensor->funcs->report_event = report_event_light;
-		sensor->funcs->print_debug = print_light_debug;
-		sensor->funcs->inject_additional_data = inject_light_additional_data;
-		sensor->funcs->get_sensor_value = get_light_sensor_value;
-		sensor->funcs->open_calibration_file = light_open_calibration;
-		sensor->funcs->parse_dt = parse_dt_light;
-		sensor->funcs->init_variable = init_light_variable;
-		sensor->funcs->get_init_chipset_funcs = get_light_init_chipset_funcs;
+		ret = init_default_func(sensor, "light_sensor",
+				sensor->spec.version >= LIGHT_DEBIG_EVENT_SIZE_4BYTE_VERSION ? 40 : 28, 4, sizeof(struct light_event));
+		sensor->data = (void *)&light_data;
+		sensor->funcs = &light_sensor_funcs;
 	} else {
-		struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
-
-		kfree(data->light_coef);
-		data->light_coef = NULL;
-
-		kfree(sensor->data);
-		sensor->data = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->data);
-	sensor->data = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

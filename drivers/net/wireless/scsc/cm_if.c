@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2022 Samsung Electronics Co., Ltd. All rights reserved
  *
  *       Chip Manager interface
  *
@@ -30,10 +30,6 @@ module_param(EnableTestMode, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(EnableTestMode, "Enable WlanLite test mode driver.");
 
 static BLOCKING_NOTIFIER_HEAD(slsi_wlan_notifier);
-
-static bool EnableRfTestMode;
-module_param(EnableRfTestMode, bool, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(EnableRfTestMode, "Enable RF test mode driver.");
 
 static struct mutex slsi_start_mutex;
 static int recovery_in_progress;
@@ -244,58 +240,6 @@ static  bool wlan_stop_on_failure_v2(struct scsc_service_client *client, struct 
 	return true;
 }
 
-int slsi_check_rf_test_mode(struct slsi_dev *sdev)
-{
-#if defined(SCSC_SEP_VERSION)
-	int         ret = 0;
-#if SCSC_SEP_VERSION >= 9
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
-	char *filepath = "/data/vendor/conn/.psm.info";
-#else
-	char *filepath = "../../data/vendor/conn/.psm.info";
-#endif
-#else
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
-	char *filepath = "/data/misc/conn/.psm.info";
-#else
-	return -ENOENT;
-#endif
-#endif
-	char power_val = 0;
-	int offset = 0;
-	const struct firmware *firm = NULL;
-
-	/* reading power value from /data/vendor/conn/.psm.info */
-	ret = mx140_request_file(sdev->maxwell_core, filepath, &firm);
-	if (ret) {
-		SLSI_ERR_NODEV("Error Loading %s file %d\n", filepath, ret);
-		return -EINVAL;
-	}
-	ret = firmware_read(firm, &power_val, sizeof(char), &offset);
-	if (ret < 0) {
-		SLSI_ERR_NODEV("failed to read power_val's value\n");
-		goto exit;
-	}
-
-	/* if power_val is 0, it means rf_test mode by rf. */
-	if (power_val == '0') {
-		pr_err("*#rf# is enabled.\n");
-		EnableRfTestMode = 1;
-	} else {
-		pr_err("*#rf# is disabled.\n");
-		EnableRfTestMode = 0;
-	}
-
-	mx140_release_file(sdev->maxwell_core, firm);
-	return 0;
-exit:
-	mx140_release_file(sdev->maxwell_core, firm);
-	return -EINVAL;
-#else
-	return -ENOENT;
-#endif
-}
-
 /* WLAN service driver registration
  * ================================
  */
@@ -313,7 +257,7 @@ void slsi_wlan_service_probe(struct scsc_mx_module_client *module_client, struct
 
 	SLSI_INFO_NODEV("WLAN service probe\n");
 
-	memset((void *) &mx_wlan_client, 0, (size_t) sizeof(mx_wlan_client));
+	memset((void *)&mx_wlan_client, 0, (size_t)sizeof(mx_wlan_client));
 	mutex_lock(&slsi_start_mutex);
 
 	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && !recovery_in_progress)
@@ -591,12 +535,6 @@ bool slsi_is_test_mode_enabled(void)
 	return EnableTestMode;
 }
 
-/* Is production rf test mode enabled? */
-bool slsi_is_rf_test_mode_enabled(void)
-{
-	return EnableRfTestMode;
-}
-
 #define SLSI_SM_WLAN_SERVICE_RECOVERY_COMPLETED_TIMEOUT 20000
 #define SLSI_SM_WLAN_SERVICE_RECOVERY_DISABLED_TIMEOUT 2000
 
@@ -799,6 +737,7 @@ int slsi_sm_recovery_service_start(struct slsi_dev *sdev)
 	sdev->wlan_service_on = 1;
 	sprintf(log_to_sys_error_buffer, "%s: wlan_service_on[1]\n", __func__);
 	slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
+	sdev->require_service_close = false;
 	mutex_unlock(&slsi_start_mutex);
 	return err;
 }
@@ -973,6 +912,7 @@ int slsi_sm_wlan_service_start(struct slsi_dev *sdev)
 	}
 	atomic_set(&sdev->cm_if.cm_if_state, SCSC_WIFI_CM_IF_STATE_STARTED);
 	sdev->wlan_service_on = 1;
+	sdev->require_service_close = false;
 	mutex_unlock(&slsi_start_mutex);
 	return 0;
 }
@@ -1129,12 +1069,12 @@ void slsi_sm_wlan_service_close(struct slsi_dev *sdev)
 		goto exit;
 	}
 
-	SLSI_INFO_NODEV("Closing WLAN service. Service is %d\n",sdev->service);
+	SLSI_INFO_NODEV("Closing WLAN service. Service is %d\n", sdev->service);
 
 	sprintf(log_to_sys_error_buffer, "%s: Closing WLAN service. Service is %d\n", __func__, sdev->service);
 	slsi_add_log_to_system_error_buffer(sdev, log_to_sys_error_buffer);
 
-	if (sdev->service){
+	if (sdev->service) {
 		scsc_mx_service_mifram_free(sdev->service, sdev->hip4_inst.hip_ref);
 		r = scsc_mx_service_close(sdev->service);
 		if (r == -EIO) {

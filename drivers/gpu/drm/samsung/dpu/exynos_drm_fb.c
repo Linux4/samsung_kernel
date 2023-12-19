@@ -743,6 +743,10 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 	/* request to change DPHY PLL frequency */
 	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state,
 			new_crtc_state, i) {
+
+		if (!new_crtc_state->active)
+			continue;
+
 		exynos_crtc = to_exynos_crtc(crtc);
 		if (exynos_crtc->freq_hop)
 			exynos_crtc->freq_hop->set_freq_hop(exynos_crtc, true);
@@ -769,7 +773,7 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 	exynos_atomic_wait_for_vblanks(dev, old_state);
 	DPU_ATRACE_END("wait_for_vblanks");
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state,
 			new_crtc_state, i) {
 #else
@@ -800,7 +804,7 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 		if (ops->set_trigger)
 			ops->set_trigger(exynos_crtc, exynos_crtc_state);
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 		if (ops->set_fingerprint_mask)
 			ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 1);
 #endif
@@ -816,6 +820,10 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state,
 			new_crtc_state, i) {
 		const struct exynos_drm_crtc_ops *ops;
+
+		if (!new_crtc_state->active)
+			continue;
+
 		exynos_crtc = to_exynos_crtc(crtc);
 		if (exynos_crtc->freq_hop)
 			exynos_crtc->freq_hop->set_freq_hop(exynos_crtc, false);

@@ -70,6 +70,7 @@ scsc_wlan-$(CONFIG_SCSC_WLAN) += scsc_wlan_mmap.o
 ifeq ($(CONFIG_SCSC_WLAN_CPUHP_MONITOR),y)
 scsc_wlan-$(CONFIG_SCSC_WLAN) += slsi_cpuhp_monitor.o
 endif
+scsc_wlan-$(CONFIG_SCSC_WLAN) += qsfs.o
 
 # ----------------------------------------------------------------------------
 # Wifi Logger Files

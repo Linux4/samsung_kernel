@@ -58,11 +58,13 @@ static void fled_set_mode(struct sm5714_fled_data *fled, u8 mode)
 
 static void fled_set_fled_current(struct sm5714_fled_data *fled, u8 offset)
 {
+	pr_info("sm5714-fled %s, current set = 0x%x ", __func__, offset);
 	sm5714_update_reg(fled->i2c, SM5714_CHG_REG_FLEDCNTL2, (offset << 0), (0xf << 0));
 }
 
 static void fled_set_mled_current(struct sm5714_fled_data *fled, u8 offset)
 {
+	pr_info("sm5714-fled %s, current set = 0x%x ", __func__, offset);
 	sm5714_update_reg(fled->i2c, SM5714_CHG_REG_FLEDCNTL2, (offset << 4), (0x7 << 4));
 }
 
@@ -368,7 +370,8 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 {
 	struct sm5714_fled_data *fled = g_sm5714_fled;
 	int ret = 0;
-	u8 iq_cur = -1;
+	u8 iq_cur = 0;
+	bool use_iq_cur = false;
 
 	pr_info("sm5714-fled: %s: state:%d \n", __func__, state);
 	if (g_sm5714_fled == NULL) {
@@ -376,25 +379,34 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 		return -EFAULT;
 	}
 
-	if (brightness >= 0 && (state == SM5714_FLED_MODE_TORCH_FLASH || state == SM5714_FLED_MODE_PRE_FLASH)) {
-		if (brightness < 50)
-			iq_cur = 0x0;
-		else if (brightness > 225)
-			iq_cur = 0x7;
-		else
-			iq_cur = (brightness - 50) / 25;
-	} else if (brightness > 0 && state == SM5714_FLED_MODE_MAIN_FLASH) {
-		if (brightness < 700)
-			iq_cur = 0x0;
-		else if (brightness < 800)
-			iq_cur = 0x1;
-		else if (brightness < 900)
-			iq_cur = 0x2;
-		else
-			iq_cur = 3 + (brightness - 900) / 50;
+	/* if (brightness == 0) use the current values from the dtsi
+	 * else use the current value based on the brightness set by iq when this function is called
+	 */
+
+	if (brightness > 0) {
+		if (state == SM5714_FLED_MODE_TORCH_FLASH || state == SM5714_FLED_MODE_PRE_FLASH) {
+			if (brightness < 50)
+				iq_cur = 0x0;
+			else if (brightness > 225)
+				iq_cur = 0x7;
+			else
+				iq_cur = (brightness - 50) / 25;
+			use_iq_cur = true;
+		} else if (state == SM5714_FLED_MODE_MAIN_FLASH) {
+			if (brightness < 700)
+				iq_cur = 0x0;
+			else if (brightness < 800)
+				iq_cur = 0x1;
+			else if (brightness < 900)
+				iq_cur = 0x2;
+			else
+				iq_cur = 3 + (brightness - 900) / 50;
+			use_iq_cur = true;
+		}
 	}
 
-	pr_info("sm5714-fled: %s: iq_cur=0x%x brightness=%u\n", __func__, iq_cur, brightness);
+	if (use_iq_cur)
+		pr_info("sm5714-fled: %s: iq_cur=0x%x brightness=%u\n", __func__, iq_cur, brightness);
 
 	switch (state) {
 
@@ -405,21 +417,25 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_OFF(%d) failed\n", __func__, state);
 		else
 			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_OFF(%d) done\n", __func__, state);
-		sm5714_fled_close_flash();
+		if (preflash_done == false)
+			sm5714_fled_close_flash();
+		if (ret == 0)
+			preflash_done = false;
 		break;
 
 	case SM5714_FLED_MODE_MAIN_FLASH:
-		preflash_done = false;
-		sm5714_fled_prepare_flash();
+		if (preflash_done)
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) skipped as flash/preflash already triggered\n",
+				__func__, state);
 		/* FlashLight Mode Flash */
-		if (iq_cur >= 0)
-			ret = sm5714_fled_flash_on(iq_cur);
-		else
-			ret = sm5714_fled_flash_on(fled->pdata->led.flash_brightness);
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.flash_brightness;
+		ret = sm5714_fled_flash_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_TORCH_FLASH: /* TORCH FLASH */
@@ -430,30 +446,28 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 
 		sm5714_fled_prepare_flash();
 		/* FlashLight Mode TORCH */
-		if (iq_cur >= 0)
-			ret = sm5714_fled_torch_on(iq_cur);
-		else
-			ret = sm5714_fled_torch_on(fled->pdata->led.torch_brightness);
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.torch_brightness;
+		ret = sm5714_fled_torch_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_PRE_FLASH: /* TORCH FLASH */
 		preflash_done = true;
 		sm5714_fled_prepare_flash();
 		/* FlashLight Mode TORCH */
-		if (iq_cur >= 0) {
-			ret = sm5714_fled_pre_flash_on(iq_cur);
-		}
-		else {
-			ret = sm5714_fled_pre_flash_on(fled->pdata->led.preflash_brightness);
-		}
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.preflash_brightness;
+		ret = sm5714_fled_pre_flash_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_PREPARE_FLASH:

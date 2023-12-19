@@ -27,11 +27,18 @@
 #include "is-vender-specific.h"
 #include "is-interface-library.h"
 #include "is-ois-mcu.h"
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+#include "is-aois-if.h"
+#endif
 
 /* #define FORCE_CAL_LOAD */
 #define SYSFS_MAX_READ_SIZE	4096
 #define VER_MAX_SIZE 100
+#if IS_ENABLED(RELAX_OIS_GYRO_OFFSET_SPEC)
+#define CAMERA_OIS_GYRO_OFFSET_SPEC 15000
+#else
 #define CAMERA_OIS_GYRO_OFFSET_SPEC 10000
+#endif
 extern struct device *is_dev;
 struct class *camera_class = NULL;
 EXPORT_SYMBOL_GPL(camera_class);
@@ -109,7 +116,7 @@ enum ssrm_camerainfo_operation {
 	SSRM_CAMERA_INFO_UPDATE,
 };
 
-struct ssrm_camera_data SsrmCameraInfo[IS_SENSOR_COUNT];
+struct ssrm_camera_data SsrmCameraInfo[SENSOR_POSITION_MAX];
 int ssrmCameraInfoCnt = 0;
 
 /* read firmware */
@@ -972,7 +979,7 @@ static ssize_t camera_ssrm_camera_info_store(struct device *dev,
 
 	switch (recv_data.operation) {
 	case SSRM_CAMERA_INFO_CLEAR:
-		for (i = 0; i < IS_SENSOR_COUNT; i++) { /* clear */
+		for (i = 0; i < SENSOR_POSITION_MAX; i++) { /* clear */
 			if (SsrmCameraInfo[i].ID == per_camera_info->ID) {
 				SsrmCameraInfo[i].ID = -1;
 				ssrmCameraInfoCnt--;
@@ -981,7 +988,7 @@ static ssize_t camera_ssrm_camera_info_store(struct device *dev,
 		break;
 
 	case SSRM_CAMERA_INFO_SET:
-		for (i = 0; i < IS_SENSOR_COUNT; i++) { /* find empty space*/
+		for (i = 0; i < SENSOR_POSITION_MAX; i++) { /* find empty space*/
 			if (SsrmCameraInfo[i].ID == -1) {
 				index = i;
 				break;
@@ -997,7 +1004,7 @@ static ssize_t camera_ssrm_camera_info_store(struct device *dev,
 		break;
 
 	case SSRM_CAMERA_INFO_UPDATE:
-		for (i = 0; i < IS_SENSOR_COUNT; i++) {
+		for (i = 0; i < SENSOR_POSITION_MAX; i++) {
 			if (SsrmCameraInfo[i].ID == per_camera_info->ID) {
 				index = i;
 				break;
@@ -1031,7 +1038,7 @@ static ssize_t camera_ssrm_camera_info_show(struct device *dev,
 	SSRM_INFO_PRINT(SsrmCameraInfoExt, MODE);
 	strncat(buf, "\n", strlen("\n"));
 
-	for (i = 0; i < IS_SENSOR_COUNT; i++) {
+	for (i = 0; i < SENSOR_POSITION_MAX; i++) {
 		if (SsrmCameraInfo[i].ID != -1) {
 			strncat(buf, "[", strlen("["));
 			sprintf(temp_buffer, "ID=%d<%d>;", SsrmCameraInfo[i].ID, SsrmCameraInfo[i].ON);
@@ -1141,7 +1148,7 @@ static ssize_t camera_front_mipi_clock_show(struct device *dev,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < IS_SENSOR_COUNT; i++) {
+	for (i = 0; i < SENSOR_POSITION_MAX; i++) {
 		device = &core->sensor[i];
 		is_search_sensor_module_with_position(&core->sensor[i],
 				SENSOR_POSITION_FRONT, &module);
@@ -1196,6 +1203,7 @@ static ssize_t camera_rear_camtype_show(struct device *dev,
 		return sprintf(buf, "%s_%s_EXYNOS_IS\n", sensor_maker, sensor_name);
 }
 
+#ifdef CAMERA_REAR3
 static ssize_t camera_rear3_camtype_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1210,6 +1218,7 @@ static ssize_t camera_rear3_camtype_show(struct device *dev,
 	else
 		return sprintf(buf, "%s_%s_EXYNOS_IS\n", sensor_maker, sensor_name);
 }
+#endif
 
 static ssize_t camera_rear_camfw_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1250,7 +1259,7 @@ static ssize_t camera_rear_phy_tune_show(struct device *dev,
 static ssize_t camera_supported_cameraIds_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	char temp_buf[IS_SENSOR_COUNT];
+	char temp_buf[SENSOR_POSITION_MAX];
 	char *end = "\n";
 	int i;
 
@@ -1428,6 +1437,42 @@ static ssize_t camera_rear3_dualcal_show(struct device *dev,
 #endif
 
 	return copy_size;
+}
+
+static ssize_t camera_rear3_dualcal_size_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret;
+	int copy_size = 0;
+	char *temp_buf;
+
+	ret = is_get_dual_cal_buf(SENSOR_POSITION_REAR2, &temp_buf, &copy_size);
+	if (ret < 0) {
+		err("%s: Fail to get dualcal of %d", __func__, SENSOR_POSITION_REAR2);
+	} else {
+		info("%s: success to get dualcal of %d", __func__, SENSOR_POSITION_REAR2);
+		memcpy(buf, temp_buf, copy_size);
+	}
+
+#ifdef READ_DUAL_CAL_FIRMWARE_DATA
+	info("  load multical Cal Data %s \n", DUAL_CAL_DATA_PATH);
+	copy_size = DUAL_CAL_DATA_SIZE_DEFAULT;
+#ifdef USE_KERNEL_VFS_READ_WRITE
+	ret = is_dual_cal_read_firmware(DUAL_CAL_DATA_PATH, 0,
+			DUAL_CAL_DATA_SIZE_DEFAULT);
+#else
+	ret = is_dual_cal_read_firmware(dev, DUAL_CAL_DATA_PATH, DUAL_CAL_DATA_BIN_NAME, 0,
+			DUAL_CAL_DATA_SIZE_DEFAULT);
+#endif
+	if (ret < 0) {
+		err("CAL read %s is fail\n", DUAL_CAL_DATA_PATH);
+		return 0;
+	} else {
+		info("%s: success to get dualcal from firmware of %d", __func__, SENSOR_POSITION_REAR2);
+	}
+#endif
+
+	return sprintf(buf, "%d",copy_size );
 }
 #endif
 
@@ -1801,7 +1846,7 @@ static ssize_t camera_hw_init_show(struct device *dev,
 		|| lib->binary_code_load_flg != BINARY_LOAD_ALL_DONE) {
 		is_vender_hw_init(vender);
 		check_module_init = true;
-		for (i = 0; i < IS_SENSOR_COUNT; i++) {
+		for (i = 0; i < SENSOR_POSITION_MAX; i++) {
 			SsrmCameraInfo[i].ID = -1;
 		}
 	}
@@ -1904,7 +1949,13 @@ static bool read_ois_version(void)
 #ifndef CONFIG_CAMERA_USE_INTERNAL_MCU
 		ois_power_control(1);
 #endif
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+		cam_ois_set_aois_fac_mode_on();
+#endif
 		ret = is_ois_check_fw(sysfs_core);
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+		cam_ois_set_aois_fac_mode_off();
+#endif
 #ifndef CONFIG_CAMERA_USE_INTERNAL_MCU
 		ois_power_control(0);
 #endif
@@ -1958,9 +2009,15 @@ static ssize_t camera_ois_set_mode_store(struct device *dev,
 		err("convert fail");
 	}
 
-	if (check_ois_power)
+	if (check_ois_power) {
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+		cam_ois_set_aois_fac_mode_on();
+#endif
 		is_ois_set_mode(sysfs_core, value);
-	else
+#if IS_ENABLED(CONFIG_CAMERA_USE_AOIS)
+		cam_ois_set_aois_fac_mode_off();
+#endif
+	} else
 		err("OIS power is not enabled.");
 
 	return count;
@@ -2228,8 +2285,8 @@ static ssize_t camera_ois_rawdata_store(struct device *dev,
 		x_init_raw = raw_data_x;
 		y_init_raw = raw_data_y;
 		z_init_raw = raw_data_z;
-
-		info("%s efs data = %s, size = %ld, raw x = %ld, raw y = %ld, raw z = %ld", __func__, buf, efs_size, raw_data_x, raw_data_y, raw_data_z);
+		info("%s: raw x = %ld, raw y = %ld, raw z = %ld, efs size = %ld, efs data = %s\n",
+				__func__, raw_data_x, raw_data_y, raw_data_z, efs_size, buf);
 	} else {
 		err("%s OIS power is not enabled.", __func__);
 	}
@@ -2396,18 +2453,25 @@ static ssize_t camera_ois_hall_position_show(struct device *dev,
 	u16 targetPos[6] = {0, };
 	u16 hallPos[6] = {0, };
 	bool camera_running;
+#ifdef CAMERA_2ND_OIS
 	bool camera_running2;
+#endif
 #ifdef CAMERA_3RD_OIS
 	bool camera_running3;
 #endif
 
 	camera_running = is_vendor_check_camera_running(SENSOR_POSITION_REAR);
+#ifdef CAMERA_2ND_OIS
 	camera_running2 = is_vendor_check_camera_running(SENSOR_POSITION_REAR2);
+#endif
 #ifdef CAMERA_3RD_OIS
 	camera_running3 = is_vendor_check_camera_running(SENSOR_POSITION_REAR4);
 #endif
 
-	if (camera_running || camera_running2
+	if (camera_running
+#ifdef CAMERA_2ND_OIS
+		|| camera_running2
+#endif
 #ifdef CAMERA_3RD_OIS
 		|| camera_running3
 #endif
@@ -2424,7 +2488,7 @@ static ssize_t camera_ois_hall_position_show(struct device *dev,
 	return sprintf(buf, "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u",
 		targetPos[0], targetPos[1], targetPos[2], targetPos[3], targetPos[4], targetPos[5],
 		hallPos[0], hallPos[1], hallPos[2], hallPos[3], hallPos[4], hallPos[5]);
-#else
+#elif defined(CAMERA_2ND_OIS)
 	info("[%s] %u,%u,%u,%u,%u,%u,%u,%u", __func__,
 		targetPos[0], targetPos[1], targetPos[2], targetPos[3],
 		hallPos[0], hallPos[1], hallPos[2], hallPos[3]);
@@ -2432,6 +2496,14 @@ static ssize_t camera_ois_hall_position_show(struct device *dev,
 	return sprintf(buf, "%u,%u,%u,%u,%u,%u,%u,%u",
 		targetPos[0], targetPos[1], targetPos[2], targetPos[3],
 		hallPos[0], hallPos[1], hallPos[2], hallPos[3]);
+#else
+	info("[%s] %u,%u,%u,%u", __func__,
+		targetPos[0], targetPos[1],
+		hallPos[0], hallPos[1]);
+
+	return sprintf(buf, "%u,%u,%u,%u,%u,%u,%u,%u",
+		targetPos[0], targetPos[1], 2048, 2048,
+		hallPos[0], hallPos[1], 2048, 2048);
 #endif
 }
 
@@ -3231,6 +3303,7 @@ static DEVICE_ATTR(SVC_rear_module, S_IRUGO, camera_rear_moduleid_show, NULL);
 static DEVICE_ATTR(rear_dualcal, S_IRUGO, camera_rear_dualcal_show, NULL);
 static DEVICE_ATTR(rear2_dualcal, S_IRUGO, camera_rear2_dualcal_show, NULL);
 static DEVICE_ATTR(rear3_dualcal, S_IRUGO, camera_rear3_dualcal_show, NULL);
+static DEVICE_ATTR(rear3_dualcal_size, S_IRUGO, camera_rear3_dualcal_size_show, NULL);
 #endif
 
 #ifdef CAMERA_FRONT_DUAL_CAL
@@ -3298,7 +3371,7 @@ static DEVICE_ATTR(rear4_paf_cal_check, S_IRUGO, camera_rear4_paf_cal_check_show
 #ifdef CAMERA_REAR4_TILT
 static DEVICE_ATTR(rear4_tilt, S_IRUGO, camera_rear4_tilt_show, NULL);
 #endif
-#ifdef CAMERA_REAR3_MODULEID
+#ifdef CAMERA_REAR4_MODULEID
 static DEVICE_ATTR(rear4_moduleid, S_IRUGO, camera_rear4_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module4, S_IRUGO, camera_rear4_moduleid_show, NULL);
 #endif
@@ -3706,6 +3779,10 @@ int is_create_sysfs(struct is_core *core)
 			pr_err("failed to create rear device file, %s\n",
 					dev_attr_rear_dualcal.attr.name);
 		}
+		if (device_create_file(camera_rear_dev, &dev_attr_rear3_dualcal_size) < 0) {
+			pr_err("failed to create rear device file, %s\n",
+					dev_attr_rear_dualcal.attr.name);
+		}
 #endif
 
 #ifdef CAMERA_REAR2
@@ -4095,6 +4172,7 @@ int is_destroy_sysfs(struct is_core *core)
 		device_remove_file(camera_rear_dev, &dev_attr_rear_dualcal);
 		device_remove_file(camera_rear_dev, &dev_attr_rear2_dualcal);
 		device_remove_file(camera_rear_dev, &dev_attr_rear3_dualcal);
+		device_remove_file(camera_rear_dev, &dev_attr_rear3_dualcal_size);
 #endif
 #ifdef CAMERA_REAR2
 		device_remove_file(camera_rear_dev, &dev_attr_rear2_caminfo);
@@ -4236,3 +4314,9 @@ int is_destroy_sysfs(struct is_core *core)
 
 	return 0;
 }
+
+struct class *is_get_camera_class(void)
+{
+	return camera_class;
+}
+EXPORT_SYMBOL_GPL(is_get_camera_class);

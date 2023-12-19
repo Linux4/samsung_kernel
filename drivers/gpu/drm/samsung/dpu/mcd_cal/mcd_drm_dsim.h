@@ -16,41 +16,14 @@
 #define __MCD_DRM_DSI_H__
 
 /* Add header */
-#include <drm/drm_encoder.h>
-#include <drm/drm_mipi_dsi.h>
-#include <drm/drm_property.h>
-#include <drm/drm_panel.h>
-#include <video/videomode.h>
-
-#include <exynos_drm_drv.h>
-#include <exynos_drm_crtc.h>
-//#include <exynos_drm_dsim.h>
-#include <dt-bindings/display/rf-band-id.h>
-#include <dsim_cal.h>
-
-#define MAX_MODIFIABLE_CLK_CNT 10
-
-
-struct mcd_dsim_device {
-	struct notifier_block radio_noti;
-	struct list_head channel_head[MAX_BAND_ID];
-
-	/* modifiable clock count */
-	u32 hs_clk_cnt;
-	u32 hs_clk_list[MAX_MODIFIABLE_CLK_CNT];
-
-	u32 dsi_freq;
-	u32 osc_freq;
-};
-
+struct dsim_device;
 
 #define MAX_HS_CLOCK			25000000 /*2.5Ghz*/
 #define MAX_HS_CLOCK_STR_LEN		9
-
 #define PMSK_VALUE_COUNT		14
-
 #define DT_NAME_HS_TIMING		"hs_pll_timing"
+#define DT_NAME_PMSK	"pmsk"
 
-
-int mcd_dsim_of_get_pll_param(struct device_node *np, u32 khz, struct stdphy_pms *pms);
+int mcd_dsim_check_dsi_freq(struct dsim_device *dsim, unsigned int freq);
+int mcd_dsim_update_dsi_freq(struct dsim_device *dsim, unsigned int freq);
 #endif /* __MCD_DRM_DSI_H__ */

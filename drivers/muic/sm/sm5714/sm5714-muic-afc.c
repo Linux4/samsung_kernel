@@ -571,7 +571,13 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 				MUIC_DEV_NAME, __func__);
 		return ret;
 	}
-
+#if IS_ENABLED(CONFIG_MUIC_LO_TA_LOW_CURRENT)
+	if (muic_data->attached_dev == ATTACHED_DEV_LO_TA_MUIC) {
+		pr_info("[%s:%s] Cable is LO_TA, return\n",
+				MUIC_DEV_NAME, __func__);
+		return ret;
+	}
+#endif
 	if (muic_data->pdata->afc_disable) {
 		pr_info("[%s:%s] AFC is disabled by USER, return\n",
 				MUIC_DEV_NAME, __func__);

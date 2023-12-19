@@ -9,6 +9,7 @@ int fscrypt_sdp_ioctl_get_sdp_info(struct inode *inode, unsigned long arg)
 {
 	struct dek_arg_sdp_info req;
 	struct fscrypt_info *ci;
+	struct ext_fscrypt_info *ext_ci;
 	int result = 0;
 
 	if (inode->i_crypt_info == NULL) {
@@ -22,18 +23,19 @@ int fscrypt_sdp_ioctl_get_sdp_info(struct inode *inode, unsigned long arg)
 	req.sdp_enabled = 1;
 
 	ci = inode->i_crypt_info;
-	if(!ci->ci_sdp_info) {
+	ext_ci = GET_EXT_CI(ci);
+	if (!ext_ci->ci_sdp_info) {
 		DEK_LOGE("get_info: can't find sdp info\n");
 	} else {
 		DEK_LOGD("get_info: ci->i_crypt_info->sdp_flags: 0x%08x\n",
-				ci->ci_sdp_info->sdp_flags);
+				ext_ci->ci_sdp_info->sdp_flags);
 
-		if (ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) {
+		if (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE) {
 			req.is_sensitive = 1;
-			req.engine_id = ci->ci_sdp_info->engine_id;
-			req.type = ci->ci_sdp_info->sdp_dek.type;
+			req.engine_id = ext_ci->ci_sdp_info->engine_id;
+			req.type = ext_ci->ci_sdp_info->sdp_dek.type;
 		}
-		if (ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)
+		if (ext_ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)
 			req.is_chamber = 1;
 	}
 
@@ -85,9 +87,10 @@ int fscrypt_sdp_ioctl_set_sensitive(struct inode *inode, unsigned long arg)
 		result = -EOPNOTSUPP;
 	} else {
 		struct fscrypt_info *ci = inode->i_crypt_info;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 
-		if (ci->ci_sdp_info &&
-				(ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
+		if (ext_ci->ci_sdp_info &&
+				(ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
 			DEK_LOGE("already sensitive file\n");
 			return 0;
 		}
@@ -174,14 +177,15 @@ int fscrypt_sdp_ioctl_add_chamber_directory(struct inode *inode, unsigned long a
 	} else {
 		dek_arg_add_chamber_t req;
 		struct fscrypt_info *ci = inode->i_crypt_info;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 
 		if (!S_ISDIR(inode->i_mode)) {
 			DEK_LOGE("Not directory\n");
 			return -EOPNOTSUPP;
 		}
 
-		if (ci->ci_sdp_info &&
-				ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR) {
+		if (ext_ci->ci_sdp_info &&
+				ext_ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR) {
 			DEK_LOGE("Already chamber directory\n");
 			return 0;
 		}
@@ -220,9 +224,10 @@ int fscrypt_sdp_ioctl_remove_chamber_directory(struct inode *inode)
 	} else {
 		int rc;
 		struct fscrypt_info *ci = inode->i_crypt_info;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 
-		if (!ci->ci_sdp_info ||
-				!(ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)) {
+		if (!ext_ci->ci_sdp_info ||
+				!(ext_ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)) {
 			DEK_LOGE("Not chamber directory\n");
 			return 0;
 		}

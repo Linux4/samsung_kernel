@@ -13,11 +13,6 @@
 #include "panel_debug.h"
 #include "copr.h"
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"copr"
-#endif
-
 static struct copr_reg_info copr_reg_v0_list[] = {
 	{ .name = "copr_gamma=", .offset = offsetof(struct copr_reg_v0, copr_gamma) },
 	{ .name = "copr_en=", .offset = offsetof(struct copr_reg_v0, copr_en) },

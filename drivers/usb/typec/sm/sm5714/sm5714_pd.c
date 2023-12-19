@@ -73,6 +73,11 @@ void sm5714_usbpd_change_source_cap(int enable, int max_cur, int init)
 		sm5714_usbpd_command_to_policy(pd_data->dev, MANAGER_REQ_SRCCAP_CHANGE);
 }
 
+void sm5714_usbpd_forced_change_srccap(int max_cur)
+{
+	sm5714_usbpd_change_source_cap(2, max_cur, 0);
+}
+
 void sm5714_select_pdo(int num)
 {
 	struct sm5714_usbpd_data *psubpd = sm5714_g_pd_data;
@@ -1128,6 +1133,7 @@ void sm5714_usbpd_power_ready(struct device *dev,
 	PDIC_OTP_MODE power_role)
 {
 	struct sm5714_usbpd_data *pd_data = dev_get_drvdata(dev);
+	struct sm5714_usbpd_manager_data *manager = &pd_data->manager;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	struct sm5714_policy_data *policy = &pd_data->policy;
 	PD_NOTI_ATTACH_TYPEDEF pd_notifier;
@@ -1143,8 +1149,8 @@ void sm5714_usbpd_power_ready(struct device *dev,
 		if (short_cable) {
 			pd_data->pd_noti.sink_status.available_pdo_num = 1;
 			pd_data->pd_noti.sink_status.power_list[1].max_current =
-				pd_data->pd_noti.sink_status.power_list[1].max_current > 1800 ?
-				1800 : pd_data->pd_noti.sink_status.power_list[1].max_current;
+				pd_data->pd_noti.sink_status.power_list[1].max_current > manager->short_cable_current ?
+				manager->short_cable_current : pd_data->pd_noti.sink_status.power_list[1].max_current;
 			pd_data->pd_noti.sink_status.has_apdo = false;
 		}
 #endif
@@ -1502,8 +1508,11 @@ int sm5714_usbpd_get_svids(struct sm5714_usbpd_data *pd_data)
 		manager->dp_hs_connect = 1;
 
 		timeleft = wait_event_interruptible_timeout(pdic_data->host_turn_on_wait_q,
-					pdic_data->host_turn_on_event && !pdic_data->detach_done_wait,
-					(pdic_data->host_turn_on_wait_time)*HZ);
+					pdic_data->host_turn_on_event && !pdic_data->detach_done_wait
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+					&& !pdic_data->wait_entermode
+#endif
+					, (pdic_data->host_turn_on_wait_time)*HZ);
 		pr_info("%s host turn on wait = %d\n", __func__, timeleft);
 		/* notify to dp event */
 		sm5714_pdic_event_work(pdic_data,
@@ -2289,6 +2298,11 @@ static int of_sm5714_usbpd_dt(struct sm5714_usbpd_manager_data *_data)
 	} else {
 		_data->support_vpdo = of_property_read_bool(np,
 						"battery,support_vpdo");
+		ret = of_property_read_u32(np, "battery,short_cable_current", &_data->short_cable_current);
+		if (ret) {
+			pr_info("%s : short_cable_current is Empty, set as 1800 mA\n", __func__);
+			_data->short_cable_current  = 1800;
+		}
 	}
 #else
 	_data->support_vpdo = false;
@@ -2347,6 +2361,7 @@ static int sm5714_usbpd_manager_init(struct sm5714_usbpd_data *pd_data)
 #if IS_ENABLED(CONFIG_HICCUP_CC_DISABLE)
 	pd_data->pd_noti.sink_status.fp_sec_pd_manual_ccopen_req = sm5714_pd_manual_ccopen_req;
 #endif
+	pd_data->pd_noti.sink_status.fp_sec_pd_change_src = sm5714_usbpd_forced_change_srccap;
 #endif
 	manager->pd_data = pd_data;
 	manager->power_role_swap = true;

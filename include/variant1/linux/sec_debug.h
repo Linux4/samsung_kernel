@@ -114,12 +114,21 @@ extern void secdbg_comm_log_once(int type);
 	else							\
 		pr_emerg(fmt, ##__VA_ARGS__);			\
 })
+
+#define pr_auto_on(__pr_auto_cond, lvl, fmt, ...)	\
+({							\
+	if (__pr_auto_cond)				\
+		pr_auto(lvl, fmt, ##__VA_ARGS__);	\
+	else						\
+		pr_emerg(fmt, ##__VA_ARGS__);		\
+})
 #else
 #define DEFINE_STATIC_PR_AUTO_NAME_ONCE(name, lvl)
 #define pr_auto_name_once(name)
 #define pr_auto_name(name, fmt, ...)	pr_emerg(fmt, ##__VA_ARGS__)
 #define pr_auto_name_disable(name)
 #define pr_auto_name_on(__pr_auto_cond, name, fmt, ...)		pr_emerg(fmt, ##__VA_ARGS__)
+#define pr_auto_on(__pr_auto_cond, lvl, fmt, ...)		pr_emerg(fmt, ##__VA_ARGS__)
 #endif /* CONFIG_SEC_DEBUG_AUTO_COMMENT */
 
 /*
@@ -163,6 +172,7 @@ extern void secdbg_exin_set_hardlockup_type(const char *fmt, ...);
 extern void secdbg_exin_set_hardlockup_data(const char *str);
 extern void secdbg_exin_set_hardlockup_freq(const char *domain, struct freq_log *freq);
 extern void secdbg_exin_set_hardlockup_ehld(unsigned int hl_info, unsigned int cpu);
+extern void secdbg_exin_set_ufs(const char *str);
 #else /* !CONFIG_SEC_DEBUG_EXTRA_INFO */
 #define secdbg_exin_set_finish(a)	do { } while (0)
 #define secdbg_exin_set_panic(a)	do { } while (0)
@@ -183,6 +193,7 @@ extern void secdbg_exin_set_hardlockup_ehld(unsigned int hl_info, unsigned int c
 #define secdbg_exin_set_hardlockup_data(a)	do { } while (0)
 #define secdbg_exin_set_hardlockup_freq(a, b)	do { } while (0)
 #define secdbg_exin_set_hardlockup_ehld(a, b)	do { } while (0)
+#define secdbg_exin_set_ufs(a)		do { } while (0)
 #endif /* CONFIG_SEC_DEBUG_EXTRA_INFO */
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG_WATCHDOGD_FOOTPRINT)

@@ -919,23 +919,8 @@ static int init_afm_domain(struct device_node *dn, struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	afm_dom->irq = irq_of_parse_and_map(dn, 0);
-	if (afm_dom->irq <= 0) {
-		dev_err(&pdev->dev, "Failed to get IRQ\n");
-		return -ENODEV;
-	}
-
-	ret = devm_request_irq(&pdev->dev, afm_dom->irq, exynos_afm_irq_handler,
-			IRQF_TRIGGER_HIGH | IRQF_SHARED, dev_name(&pdev->dev), afm_data);
-	if (ret) {
-		dev_err(&pdev->dev, "Failed to request IRQ handler: %d\n", afm_dom->irq);
-		return -ENODEV;
-	}
-
 	INIT_WORK(&afm_dom->work, exynos_afm_work);
 	INIT_DELAYED_WORK(&afm_dom->delayed_work, exynos_afm_work_release);
-
-	irq_set_affinity_hint(afm_dom->irq, &afm_dom->interrupt_affinity);
 
 	if (kobject_init_and_add(&afm_dom->kobj, &ktype_afm,
 				&pdev->dev.kobj, "cpu%d", afm_dom->cpu)) {
@@ -961,6 +946,21 @@ static int init_afm_domain(struct device_node *dn, struct platform_device *pdev)
 				FREQ_QOS_MAX, afm_dom->clipped_freq);
 	if (ret < 0)
 		return ret;
+
+	afm_dom->irq = irq_of_parse_and_map(dn, 0);
+	if (afm_dom->irq <= 0) {
+		dev_err(&pdev->dev, "Failed to get IRQ\n");
+		return -ENODEV;
+	}
+
+	ret = devm_request_irq(&pdev->dev, afm_dom->irq, exynos_afm_irq_handler,
+			IRQF_TRIGGER_HIGH | IRQF_SHARED, dev_name(&pdev->dev), afm_data);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to request IRQ handler: %d\n", afm_dom->irq);
+		return -ENODEV;
+	}
+
+	irq_set_affinity_hint(afm_dom->irq, &afm_dom->interrupt_affinity);
 
 	cpufreq_cpu_put(policy);
 

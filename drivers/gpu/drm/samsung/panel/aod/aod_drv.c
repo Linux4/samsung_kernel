@@ -20,11 +20,6 @@
 #include "../panel_debug.h"
 #include "aod_drv.h"
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"self"
-#endif
-
 int panel_do_aod_seqtbl_by_index_nolock(struct aod_dev_info *aod, int index)
 {
 	int ret;

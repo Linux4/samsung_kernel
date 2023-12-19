@@ -19,13 +19,7 @@ struct slsi_dev;
 
 void slsi_conn_log2us_init(struct slsi_dev *sdev);
 void slsi_conn_log2us_deinit(struct slsi_dev *sdev);
-void slsi_conn_log2us_connecting(struct slsi_dev *sdev, struct net_device *dev,
-				 const unsigned char *ssid, int ssid_len,
-				 const unsigned char *bssid,
-				 const unsigned char *bssid_hint, int freq,
-				 int freq_hint, int pairwise, int group,
-				 int akm, int auth_type,
-				 const u8 *ie, int ie_len);
+void slsi_conn_log2us_connecting(struct slsi_dev *sdev, struct net_device *dev, struct cfg80211_connect_params *sme);
 
 void slsi_conn_log2us_connecting_fail(struct slsi_dev *sdev, struct net_device *dev,
 				      const unsigned char *bssid,
@@ -103,4 +97,5 @@ void slsi_conn_log2us_beacon_report_request(struct slsi_dev *sdev, struct net_de
 					    char *mac_addr, char *ssid);
 void slsi_conn_log2us_beacon_report_response(struct slsi_dev *sdev, struct net_device *dev, int dialog_token,
 					     int ap_count, int reason_code);
+void slsi_conn_log2us_ncho_mode(struct slsi_dev *sdev, struct net_device *dev, int enable);
 #endif

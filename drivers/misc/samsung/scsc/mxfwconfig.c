@@ -294,10 +294,7 @@ int mxfwconfig_load(struct scsc_mx *mx, struct mxmibref *cfg_ref)
 #if defined SCSC_SEP_VERSION
 	if (mif_abs->wlbt_phandle_property_read_u32) {
 		ret = mif_abs->wlbt_phandle_property_read_u32(mif_abs, "samsung,wlbt_hcf", "hcf_rev", &value, ret);
-		/* hcf revision version 0 then only XXXX.hcf.rev0 will be loaded.
-		 * else defult file XXXX.hcf will be loaded.
-		 */
-		if (ret == 0 && value == 0) {
+		if (ret == 0) {
 			memset(filename, 0, MX_WLAN_FILE_LEN_MAX);
 			scnprintf(filename, sizeof(filename), "%s.rev%d", MXFWCONFIG_CFG_FILE_HW, value);
 			r = mxfwconfig_load_cfg(mx, cfg, filename);

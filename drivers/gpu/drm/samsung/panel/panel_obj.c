@@ -78,7 +78,7 @@ int panel_obj_set_property_value(struct panel_obj_properties *properties, char *
 	return 0;
 }
 
-unsigned int panel_obj_get_property_value(struct panel_obj_properties *properties, char *name)
+int panel_obj_get_property_value(struct panel_obj_properties *properties, char *name)
 {
 	struct panel_obj_property *property;
 

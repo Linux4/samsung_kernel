@@ -18,7 +18,6 @@
 
 #include "is-core.h"
 #include "is-dvfs.h"
-#include "is-hw-dvfs.h"
 #include "is-interface-ddk.h"
 #include "is-stripe.h"
 
@@ -290,31 +289,12 @@ int __mcsc_dma_out_cfg(struct is_device_ischain *device,
 #ifdef ENABLE_DVFS
 		/* HF on/off */
 		if (pindex == PARAM_MCS_OUTPUT5) {
-			struct is_resourcemgr *resourcemgr;
-			struct is_dvfs_ctrl *dvfs_ctrl;
-			int scenario_id  = 0;
 			struct param_mcs_output *mcs_output_region;
 
 			mcs_output_region = is_itf_g_param(device, NULL, pindex);
 			mcs_output_region->dma_cmd = node->request & BIT(0);
 
-			resourcemgr = device->resourcemgr;
-			dvfs_ctrl = &resourcemgr->dvfs_ctrl;
-
-			mutex_lock(&dvfs_ctrl->lock);
-
-			/* try to find dynamic scenario to apply */
-			scenario_id = is_dvfs_sel_static(device);
-			if (scenario_id >= 0) {
-				struct is_dvfs_scenario_ctrl *static_ctrl = dvfs_ctrl->static_ctrl;
-
-				minfo("[ISC:D] tbl[%d] HF static scenario(%d)-[%s]\n", device,
-					dvfs_ctrl->dvfs_table_idx, scenario_id,
-					static_ctrl->scenario_nm);
-				is_set_dvfs((struct is_core *)device->interface->core, device, scenario_id);
-			}
-
-			mutex_unlock(&dvfs_ctrl->lock);
+			pablo_set_static_dvfs(device, "HF", IS_DVFS_SN_END, IS_DVFS_PATH_M2M);
 		}
 #endif
 	}

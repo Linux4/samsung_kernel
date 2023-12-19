@@ -89,6 +89,9 @@ struct panel_display_mode {
 	/* dsi parameters */
 	unsigned int cmd_lp_ref;
 
+	/* qos parameters */
+	unsigned int disp_qos_fps;
+
 	void *pdata;
 };
 

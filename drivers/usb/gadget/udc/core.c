@@ -684,9 +684,10 @@ int usb_gadget_connect(struct usb_gadget *gadget)
 		goto out;
 	}
 
+	gadget->connected = 1;
 	ret = gadget->ops->pullup(gadget, 1);
-	if (!ret)
-		gadget->connected = 1;
+	if (ret)
+		gadget->connected = 0;
 
 out:
 	trace_usb_gadget_connect(gadget, ret);
@@ -730,10 +731,11 @@ int usb_gadget_disconnect(struct usb_gadget *gadget)
 	}
 
 	ret = gadget->ops->pullup(gadget, 0);
-	if (!ret) {
+	if (!ret)
 		gadget->connected = 0;
+
+	if (gadget->udc->driver)
 		gadget->udc->driver->disconnect(gadget);
-	}
 
 out:
 	trace_usb_gadget_disconnect(gadget, ret);
@@ -1046,12 +1048,16 @@ EXPORT_SYMBOL_GPL(usb_gadget_set_state);
 
 /* ------------------------------------------------------------------------- */
 
-static void usb_udc_connect_control(struct usb_udc *udc)
+static int usb_udc_connect_control(struct usb_udc *udc)
 {
+	int ret;
+
 	if (udc->vbus)
-		usb_gadget_connect(udc->gadget);
+		ret = usb_gadget_connect(udc->gadget);
 	else
-		usb_gadget_disconnect(udc->gadget);
+		ret = usb_gadget_disconnect(udc->gadget);
+
+	return ret;
 }
 
 /**
@@ -1437,7 +1443,6 @@ static void usb_gadget_remove_driver(struct usb_udc *udc)
 	usb_gadget_udc_stop(udc);
 
 	udc->driver = NULL;
-	udc->dev.driver = NULL;
 	udc->gadget->dev.driver = NULL;
 }
 
@@ -1499,7 +1504,6 @@ static int udc_bind_to_driver(struct usb_udc *udc, struct usb_gadget_driver *dri
 			driver->function);
 
 	udc->driver = driver;
-	udc->dev.driver = &driver->driver;
 	udc->gadget->dev.driver = &driver->driver;
 
 	usb_gadget_udc_set_speed(udc, driver->max_speed);
@@ -1508,21 +1512,31 @@ static int udc_bind_to_driver(struct usb_udc *udc, struct usb_gadget_driver *dri
 	if (ret)
 		goto err1;
 	ret = usb_gadget_udc_start(udc);
-	if (ret) {
-		driver->unbind(udc->gadget);
-		goto err1;
-	}
+	if (ret)
+		goto err_start;
+
 	usb_gadget_enable_async_callbacks(udc);
-	usb_udc_connect_control(udc);
+	ret = usb_udc_connect_control(udc);
+	if (ret)
+		goto err_connect_control;
 
 	kobject_uevent(&udc->dev.kobj, KOBJ_CHANGE);
 	return 0;
+
+err_connect_control:
+	usb_gadget_disable_async_callbacks(udc);
+	if (udc->gadget->irq)
+		synchronize_irq(udc->gadget->irq);
+	usb_gadget_udc_stop(udc);
+
+err_start:
+	driver->unbind(udc->gadget);
+
 err1:
 	if (ret != -EISNAM)
 		dev_err(&udc->dev, "failed to start %s: %d\n",
 			udc->driver->function, ret);
 	udc->driver = NULL;
-	udc->dev.driver = NULL;
 	udc->gadget->dev.driver = NULL;
 	return ret;
 }

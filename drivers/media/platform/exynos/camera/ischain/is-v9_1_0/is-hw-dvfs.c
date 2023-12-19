@@ -17,21 +17,21 @@
 #include "is-hw-dvfs.h"
 #include "is-param.h"
 
-static char str_face[IS_DVFS_FACE_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_face[IS_DVFS_FACE_END + 1] = {
 	"REAR",
 	"FRONT",
 	"PIP",
 	"INVALID",
 };
 
-static char str_num[IS_DVFS_NUM_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_num[IS_DVFS_NUM_END + 1] = {
 	"SINGLE",
 	"DUAL",
 	"TRIPLE",
 	"INVALID",
 };
 
-static char str_sensor[IS_DVFS_SENSOR_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_sensor[IS_DVFS_SENSOR_END + 1] = {
 	"WIDE",
 	"WIDE_FASTAE",
 	"WIDE_REMOSAIC",
@@ -55,7 +55,7 @@ static char str_sensor[IS_DVFS_SENSOR_END + 1][IS_DVFS_STR_LEN] = {
 	"INVALID",
 };
 
-static char str_mode[IS_DVFS_MODE_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_mode[IS_DVFS_MODE_END + 1] = {
 	"PHOTO",
 	"CAPTURE",
 	"VIDEO",
@@ -63,7 +63,7 @@ static char str_mode[IS_DVFS_MODE_END + 1][IS_DVFS_STR_LEN] = {
 	"INVALID",
 };
 
-static char str_resol[IS_DVFS_RESOL_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_resol[IS_DVFS_RESOL_END + 1] = {
 	"FHD",
 	"UHD",
 	"8K",
@@ -71,7 +71,7 @@ static char str_resol[IS_DVFS_RESOL_END + 1][IS_DVFS_STR_LEN] = {
 	"INVALID",
 };
 
-static char str_fps[IS_DVFS_FPS_END + 1][IS_DVFS_STR_LEN] = {
+static const char *str_fps[IS_DVFS_FPS_END + 1] = {
 	"24",
 	"30",
 	"60",
@@ -192,25 +192,25 @@ int is_hw_dvfs_get_num(struct is_device_ischain *device,
 {
 	switch (param->face) {
 	case IS_DVFS_FACE_REAR:
-		if (is_hw_dvfs_get_bit_count(param->rear_face) == 1)
+		if (is_get_bit_count(param->rear_face) == 1)
 			return IS_DVFS_NUM_SINGLE;
-		else if (is_hw_dvfs_get_bit_count(param->rear_face) == 2)
+		else if (is_get_bit_count(param->rear_face) == 2)
 				return IS_DVFS_NUM_DUAL;
-		else if (is_hw_dvfs_get_bit_count(param->rear_face) == 3)
+		else if (is_get_bit_count(param->rear_face) == 3)
 				return IS_DVFS_NUM_TRIPLE;
 		else
 			return -EINVAL;
 	case IS_DVFS_FACE_FRONT:
-		if (is_hw_dvfs_get_bit_count(param->front_face) == 1)
+		if (is_get_bit_count(param->front_face) == 1)
 			return IS_DVFS_NUM_SINGLE;
 		else
 			return -EINVAL;
 	case IS_DVFS_FACE_PIP:
-		if (is_hw_dvfs_get_bit_count(param->rear_face) +
-			is_hw_dvfs_get_bit_count(param->front_face) == 2)
+		if (is_get_bit_count(param->rear_face) +
+			is_get_bit_count(param->front_face) == 2)
 			return IS_DVFS_NUM_DUAL;
-		else if (is_hw_dvfs_get_bit_count(param->rear_face) +
-			is_hw_dvfs_get_bit_count(param->front_face) == 3)
+		else if (is_get_bit_count(param->rear_face) +
+			is_get_bit_count(param->front_face) == 3)
 			return IS_DVFS_NUM_TRIPLE;
 		else
 			return -EINVAL;
@@ -1091,18 +1091,6 @@ void is_hw_dvfs_init_face_mask(struct is_device_ischain *device,
 
 	dbg_dvfs(1, "[DVFS] %s() rear mask: 0x%x, front mask: 0x%x\n", device,
 		__func__, param->rear_mask, param->front_mask);
-}
-
-unsigned int is_hw_dvfs_get_bit_count(unsigned long bits)
-{
-	unsigned int count = 0;
-
-	while (bits) {
-		bits &= (bits - 1);
-		count++;
-	}
-
-	return count;
 }
 
 bool is_hw_dvfs_get_bundle_update_seq(u32 scenario_id, u32 *nums,

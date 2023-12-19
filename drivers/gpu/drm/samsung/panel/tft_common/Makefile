@@ -12,5 +12,8 @@ subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
 	-Wno-implicit-fallthrough \
 	-Wno-format
 
-mcd-panel-tft-common-y := tft_common.o
-obj-$(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON) += mcd-panel-tft-common.o
+
+mcd-panel-nt36672c_m33x_01-y += tft_common.o nt36672c_m33_01.o
+obj-m += mcd-panel-nt36672c_m33x_01.o
+mcd-panel-nt36672c_m33x_00-y += tft_common.o nt36672c_m33_00.o
+obj-m += mcd-panel-nt36672c_m33x_00.o

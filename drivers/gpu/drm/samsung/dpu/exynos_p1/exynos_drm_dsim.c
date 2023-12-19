@@ -1336,9 +1336,15 @@ err_exit:
 	return ret;
 }
 
-static void dsim_fcmd_fail_detector(struct timer_list *arg)
+static void dsim_fcmd_timeout_handler(struct timer_list *arg)
 {
-	struct dsim_device *dsim = from_timer(dsim, arg, fcmd_timer);
+       struct dsim_device *dsim = from_timer(dsim, arg, fcmd_timer);
+       queue_work(system_unbound_wq, &dsim->fcmd_work);
+}
+
+static void dsim_fcmd_fail_detector(struct work_struct *work)
+{
+    struct dsim_device *dsim = container_of(work, struct dsim_device, fcmd_work);
 
 	dsim_debug(dsim, "%s +\n", __func__);
 
@@ -1597,9 +1603,15 @@ static DEVICE_ATTR(fcmd_wr, 0200,
 	dsim_fcmd_write_sysfs_store);
 #endif
 
-static void dsim_cmd_fail_detector(struct timer_list *arg)
+static void dsim_cmd_timeout_handler(struct timer_list *arg)
 {
 	struct dsim_device *dsim = from_timer(dsim, arg, cmd_timer);
+	queue_work(system_unbound_wq, &dsim->cmd_work);
+}
+
+static void dsim_cmd_fail_detector(struct work_struct *work)
+{
+	struct dsim_device *dsim = container_of(work, struct dsim_device, cmd_work);
 
 	dsim_debug(dsim, "%s +\n", __func__);
 
@@ -2383,11 +2395,13 @@ static int dsim_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, &dsim->encoder);
 
-	timer_setup(&dsim->cmd_timer, dsim_cmd_fail_detector, 0);
+	timer_setup(&dsim->cmd_timer, dsim_cmd_timeout_handler, 0);
+	INIT_WORK(&dsim->cmd_work, dsim_cmd_fail_detector);
 
 #if defined(CONFIG_EXYNOS_DMA_DSIMFC)
-	timer_setup(&dsim->fcmd_timer, dsim_fcmd_fail_detector, 0);
+	timer_setup(&dsim->fcmd_timer, dsim_fcmd_timeout_handler, 0);
 	dsim->dsimfc = get_dsimfc_drvdata(dsim->id);
+	INIT_WORK(&dsim->fcmd_work, dsim_fcmd_fail_detector);
 #endif
 
 #if defined(CONFIG_CPU_IDLE)

@@ -65,6 +65,9 @@
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 #include <mcd_drm_decon.h>
 #include <mcd_drm_helper.h>
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
+#include "dpui.h"
+#endif
 #endif
 
 struct decon_device *decon_drvdata[MAX_DECON_CNT];
@@ -144,7 +147,7 @@ void decon_dump_event_log(struct exynos_drm_crtc *exynos_crtc)
 }
 #endif
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 static enum disp_panic_reason mcd_drm_decon_get_disp_panic_reason(struct decon_device *decon)
 {
 	if (decon->recovery.req_mode_id == RECOVERY_MODE_IDX_DSIM)
@@ -159,17 +162,13 @@ static int mcd_drm_decon_snprintf_disp_panic(struct decon_device *decon, char *b
 {
 	int len = 0;
 
-	if (size - len >= 0)
-		len += snprintf_disp_panic_decon_id(buf + len, size - len, decon->id);
-	if (size - len >= 0)
-		len += snprintf_disp_panic_reason(buf + len, size - len,
+	len += snprintf_disp_panic_decon_id(buf + len, size - len, decon->id);
+	len += snprintf_disp_panic_reason(buf + len, size - len,
 			mcd_drm_decon_get_disp_panic_reason(decon));
-	if (size - len >= 0)
-		len += snprintf_disp_panic_recovery_count(buf + len, size - len,
-				decon->recovery.count);
-	if (size - len >= 0)
-		len += snprintf_disp_panic_disp_clock(buf + len, size - len,
-				exynos_devfreq_get_domain_freq(DEVFREQ_DISP));
+	len += snprintf_disp_panic_recovery_count(buf + len, size - len,
+			decon->recovery.count);
+	len += snprintf_disp_panic_disp_clock(buf + len, size - len,
+			exynos_devfreq_get_domain_freq(DEVFREQ_DISP));
 
 	return len;
 }
@@ -206,7 +205,7 @@ static int decon_dpui_notifier_callback(struct notifier_block *self,
 	prev_recovery_cnt = recovery_cnt;
 	return 0;
 }
-#endif /* CONFIG_DISPLAY_USE_INFO */
+#endif /* CONFIG_USDM_PANEL_DPUI */
 
 static bool __is_recovery_supported(struct decon_device *decon)
 {
@@ -864,7 +863,7 @@ static void decon_release_sec_buf(struct decon_device *decon)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 static void decon_fingerprint_mask(struct exynos_drm_crtc *crtc,
 			struct drm_crtc_state *old_crtc_state, u32 after)
 {
@@ -890,10 +889,8 @@ static void decon_fingerprint_mask(struct exynos_drm_crtc *crtc,
 		return;
 	}
 
-	if (decon->id != 0)  {
-		pr_info("%s decon id is not 0(%d).\n", __func__, decon->id);
+	if (decon->id != 0)
 		return;
-	}
 
 	state = old_crtc_state->state;
 
@@ -959,7 +956,7 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 		const int win_id = decon_get_win_id(new_crtc_state, 0);
 
 		if (win_id < 0) {
-			decon_warn(decon, "unable to get free win_id=%d mask=0x%x\n",
+			decon_err(decon, "unable to get free win_id=%d mask=0x%x\n",
 				win_id, new_exynos_crtc_state->reserved_win_mask);
 			return;
 		}
@@ -1025,7 +1022,7 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 			&& (new_exynos_crtc_state->tui_changed == 0))
 		decon_reg_sec_win_shadow_update_req(decon);
 #endif
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	exynos_crtc->ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 0);
 #endif
 	decon_reg_all_win_shadow_update_req(decon->id);
@@ -1184,7 +1181,7 @@ static void decon_wait_framestart(struct exynos_drm_crtc *exynos_crtc)
 			 msecs_to_jiffies(framestart_timeout))) {
 		DPU_EVENT_LOG("FRAMESTART_TIMEOUT", exynos_crtc,
 				EVENT_FLAG_ERROR, NULL);
-		decon_warn(decon, "framestart timeout\n");
+		decon_err(decon, "framestart timeout\n");
 	}
 }
 
@@ -1594,7 +1591,7 @@ static const struct exynos_drm_crtc_ops decon_crtc_ops = {
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 	.dump_event_log = decon_dump_event_log,
 #endif
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	.set_fingerprint_mask = decon_fingerprint_mask,
 #endif
 	.recovery = decon_trigger_recovery,
@@ -1658,9 +1655,8 @@ static int decon_bind(struct device *dev, struct device *master, void *data)
 				if (exynos_pm_qos_request_active(&decon->bts.disp_qos)) {
 					decon_info(decon, "request qos for fb handover\n");
 					exynos_pm_qos_update_request(&decon->bts.disp_qos, 400 * 1000);
-				} else {
+				} else
 					decon_err(decon, "disp qos setting error\n");
-				}
 			}
 		}
 	}
@@ -2352,7 +2348,7 @@ static void decon_emergency_off_handler(struct work_struct *work)
 	struct exynos_drm_crtc_state *exynos_crtc_state;
 	int ret;
 
-	decon_info(decon, "%s +\n");
+	decon_info(decon, "+\n");
 	DRM_MODESET_LOCK_ALL_BEGIN(dev, ctx, 0, ret);
 
 	state = drm_atomic_state_alloc(dev);
@@ -2433,7 +2429,7 @@ static int decon_probe(struct platform_device *pdev)
 	INIT_WORK(&decon->off_work, decon_emergency_off_handler);
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 	decon->dpui_notif.notifier_call = decon_dpui_notifier_callback;
 	ret = dpui_logging_register(&decon->dpui_notif, DPUI_TYPE_CTRL);
 	if (ret)
