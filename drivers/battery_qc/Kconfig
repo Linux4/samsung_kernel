@@ -1,0 +1,35 @@
+config BATTERY_SAMSUNG
+	tristate "samsung battery driver"
+	help
+	 Say Y to include support for samsung battery driver
+	 This battery driver integrated all battery-related functions
+	 To see battery-related functions,
+	 refer to sec_charging_common.h
+
+config BATTERY_SAMSUNG_USING_QC
+	tristate "samsung battery driver for model that uses qc charger"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support for samsung battery driver
+	 This battery driver integrated all battery-related functions
+	 To see battery-related functions,
+	 refer to sec_charging_common.h
+
+ config BATTERY_CISD
+	 bool "support for cisd"
+	 help
+	 Say Y to include support for cisd
+	 cisd means cell internal short detection
+
+config DIRECT_CHARGING
+	bool "support for direct charging"
+	help
+	 Say Y to include support for direct charging
+
+config CALC_TIME_TO_FULL
+	tristate "calculate time to full"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to use calc time to full function.
