@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_HFI_H
 #define __ADRENO_HFI_H
+
+#include "kgsl_util.h"
 
 #define HW_FENCE_QUEUE_SIZE		SZ_4K
 #define HFI_QUEUE_SIZE			SZ_4K /* bytes, must be base 4dw */
@@ -100,6 +102,8 @@
 #define HFI_VALUE_LOG_STREAM_ENABLE	119
 #define HFI_VALUE_PREEMPT_COUNT		120
 #define HFI_VALUE_CONTEXT_QUEUE		121
+#define HFI_VALUE_RB_GPU_QOS		123
+#define HFI_VALUE_RB_IB_RULE		124
 
 #define HFI_VALUE_GLOBAL_TOKEN		0xFFFFFFFF
 
@@ -274,7 +278,7 @@ static const char * const hfi_memkind_strings[] = {
 /* Host can access */
 #define HFI_MEMFLAG_HOST_ACC		BIT(8)
 
-/* Host initializes the buffer */
+/* Host initializes(zero-init) the buffer */
 #define HFI_MEMFLAG_HOST_INIT		BIT(9)
 
 /* Gfx buffer needs to be secure */
@@ -401,7 +405,7 @@ struct hfi_queue_table {
 	(((id) & 0xFF) | (((prio) & 0xFF) << 8) | \
 	(((rtype) & 0xFF) << 16) | (((stype) & 0xFF) << 24))
 
-#define HFI_RSP_TIMEOUT 100 /* msec */
+#define HFI_RSP_TIMEOUT 1000 /* msec */
 
 #define HFI_IRQ_MSGQ_MASK BIT(0)
 
@@ -440,6 +444,7 @@ struct hfi_queue_table {
 #define H2F_MSG_ISSUE_RECURRING_CMD	141
 #define F2H_MSG_CONTEXT_BAD		150
 #define H2F_MSG_HW_FENCE_INFO		151
+#define H2F_MSG_ISSUE_SYNCOBJ		152
 
 enum gmu_ret_type {
 	GMU_SUCCESS = 0,
@@ -741,6 +746,11 @@ struct hfi_ts_notify_cmd {
 #define CMDBATCH_RECURRING_STOP   BIT(19)
 
 
+/* This indicates that the SYNCOBJ is kgsl output fence */
+#define GMU_SYNCOBJ_KGSL_FENCE  BIT(0)
+/* This indicates that the SYNCOBJ is already retired */
+#define GMU_SYNCOBJ_RETIRED     BIT(1)
+
 /* F2H */
 struct hfi_ts_retire_cmd {
 	u32 hdr;
@@ -751,6 +761,8 @@ struct hfi_ts_retire_cmd {
 	u64 sop;
 	u64 eop;
 	u64 retired_on_gmu;
+	u64 active;
+	u32 version;
 } __packed;
 
 /* H2F */
@@ -814,6 +826,20 @@ struct hfi_submit_cmd {
 	u32 profile_gpuaddr_hi;
 	u32 numibs;
 	u32 big_ib_gmu_va;
+} __packed;
+
+struct hfi_syncobj {
+	u64 ctxt_id;
+	u64 seq_no;
+	u64 flags;
+} __packed;
+
+struct hfi_submit_syncobj {
+	u32 hdr;
+	u32 version;
+	u32 flags;
+	u32 timestamp;
+	u32 num_syncobj;
 } __packed;
 
 struct hfi_log_block {
@@ -1053,4 +1079,57 @@ static inline u32 hfi_get_gmu_va_alignment(u32 va_align)
 	return (va_align > ilog2(SZ_4K)) ? (1 << va_align) : SZ_4K;
 }
 
+/**
+ * adreno_hwsched_wait_ack_completion - Wait for HFI ack asynchronously
+ * adreno_dev: Pointer to the adreno device
+ * dev: Pointer to the device structure
+ * ack: Pointer to the pending ack
+ * process_msgq: Function pointer to the msgq processing function
+ *
+ * This function waits for the completion structure, which gets signaled asynchronously. In case
+ * there is a timeout, process the msgq one last time. If the ack is present, log an error and move
+ * on. If the ack isn't present, log an error, take a snapshot and return -ETIMEDOUT.
+ *
+ * Return: 0 on success and -ETIMEDOUT on failure
+ */
+int adreno_hwsched_wait_ack_completion(struct adreno_device *adreno_dev,
+	struct device *dev, struct pending_cmd *ack,
+	void (*process_msgq)(struct adreno_device *adreno_dev));
+
+/**
+ * hfi_get_minidump_string - Get the va-minidump string from entry
+ * mem_kind: mem_kind type
+ * hfi_minidump_str: Pointer to the output string
+ * size: Max size of the hfi_minidump_str
+ * rb_id: Pointer to the rb_id count
+ *
+ * This function return 0 on valid mem_kind and copies the VA-MINIDUMP string to
+ * hfi_minidump_str else return error
+ */
+static inline int hfi_get_minidump_string(u32 mem_kind, char *hfi_minidump_str,
+					   size_t size, u32 *rb_id)
+{
+	/* Extend this if the VA mindump need more hfi alloc entries */
+	switch (mem_kind) {
+	case HFI_MEMKIND_RB:
+		snprintf(hfi_minidump_str, size, KGSL_GMU_RB_ENTRY"_%d", (*rb_id)++);
+		break;
+	case HFI_MEMKIND_SCRATCH:
+		snprintf(hfi_minidump_str, size, KGSL_SCRATCH_ENTRY);
+		break;
+	case HFI_MEMKIND_PROFILE:
+		snprintf(hfi_minidump_str, size, KGSL_GMU_KERNEL_PROF_ENTRY);
+		break;
+	case HFI_MEMKIND_USER_PROFILE_IBS:
+		snprintf(hfi_minidump_str, size, KGSL_GMU_USER_PROF_ENTRY);
+		break;
+	case HFI_MEMKIND_CMD_BUFFER:
+		snprintf(hfi_minidump_str, size, KGSL_GMU_CMD_BUFFER_ENTRY);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
 #endif

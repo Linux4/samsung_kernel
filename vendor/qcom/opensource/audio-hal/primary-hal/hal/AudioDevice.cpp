@@ -71,6 +71,9 @@ bool AudioDevice::mic_characteristics_available = false;
 #ifdef SEC_AUDIO_SPEAKER_CALIBRATION
 #include "Calibration_Interface.h"
 #endif
+#ifdef SEC_AUDIO_LEVEL_DUMP
+#include "SecLevelDump.h"
+#endif
 
 card_status_t AudioDevice::sndCardState = CARD_STATUS_ONLINE;
 
@@ -694,7 +697,7 @@ extern "C" audio_stream_t* sec_get_audio_stream_instance(audio_hw_device_t *dev,
         for (int i = 0; i < SEC_AUDIO_MAX_STREAM_CNT; i++) {
             in = (struct stream_in *)adevice->sec_in_streams[i];
             astream_in = adevice->InGetStream((audio_stream_t*)in);
-            if (in && (astream_in->GetHandle() == handle)) {
+            if (in && astream_in && (astream_in->GetHandle() == handle)) {
                 stream = adevice->sec_in_streams[i];
                 break;
             }
@@ -705,7 +708,7 @@ extern "C" audio_stream_t* sec_get_audio_stream_instance(audio_hw_device_t *dev,
         for (int i = 0; i < SEC_AUDIO_MAX_STREAM_CNT; i++) {
             out = (struct stream_out *)adevice->sec_out_streams[i];
             astream_out = adevice->OutGetStream((audio_stream_t*)out);
-            if (out && (astream_out->GetHandle() == handle)) {
+            if (out && astream_out && (astream_out->GetHandle() == handle)) {
                 stream = adevice->sec_out_streams[i];
                 break;
             }
@@ -1005,6 +1008,15 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         goto exit;
     }
 
+#ifdef SEC_AUDIO_CALL_RECORD
+    if (source == AUDIO_SOURCE_VOICE_CALL && audio_channel_count_from_in_mask(config->channel_mask) < 2) {
+        config->channel_mask = AUDIO_CHANNEL_IN_STEREO;
+        AHAL_DBG("change channel mask to %#x for input source %d", config->channel_mask, source);
+        ret = -EINVAL;
+        goto exit;
+    }
+#endif
+
     astream = adevice->InGetStream(handle);
     if (astream == nullptr)
         astream = adevice->CreateStreamIn(handle, {devices}, flags, config,
@@ -1257,6 +1269,10 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
     }
     pal_dump(fd);
 #endif
+#ifdef SEC_AUDIO_LEVEL_DUMP
+    SEC_LEVEL_DUMP(fd);
+#endif
+
     return 0;
 }
 

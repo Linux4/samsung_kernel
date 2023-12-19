@@ -52,6 +52,9 @@
 #include <linux/sti/abc_common.h>
 #include <sound/cirrus/core.h>
 #endif
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#include <sound/samsung/snd_debug_proc.h>
+#endif
 
 SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_rx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
@@ -107,6 +110,11 @@ SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_tx_0,
 #define STEREO_SPEAKER  2
 #define QUAD_SPEAKER    4
 
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#define MAX_DEFER_COUNT 10
+#define MAX_EXT_DEVS 10
+#endif
+
 struct msm_asoc_mach_data {
 	struct snd_info_entry *codec_root;
 	struct msm_common_pdata *common_pdata;
@@ -133,6 +141,9 @@ static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
 static int dmic_4_5_gpio_cnt;
 static int sub_pcb_conn;
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+static int defer_count;
+#endif
 
 static void *def_wcd_mbhc_cal(void);
 
@@ -2527,6 +2538,66 @@ parse:
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+/*
+ * if external devices are not initialized,
+ * remain the log or save information of defected device in the audio proc
+ */
+static void check_external_device(struct device *dev)
+{
+	struct snd_soc_dai_link_component dai_component;
+	struct snd_soc_dai *dai = NULL;
+	const char *prop_name = "ext-dev-names";
+	const char *prop_dai_name = "ext-dev-dai-names";
+	int num_ext_devs = 0;
+	int i, ret = 0;
+
+	dev_dbg(dev, "%s: enter\n", __func__);
+	num_ext_devs =
+		of_property_count_strings(dev->of_node, prop_name);
+	if (num_ext_devs <= 0 || num_ext_devs > MAX_EXT_DEVS) {
+		dev_dbg(dev, "Property '%s' does not exist(%d).\n",
+			prop_name, num_ext_devs);
+		return;
+	}
+
+	for (i = 0; i < num_ext_devs; i++) {
+		memset(&dai_component, 0, sizeof(dai_component));
+
+		ret = of_property_read_string_index(dev->of_node,
+			prop_name, i, &dai_component.name);
+		if (ret) {
+			dev_err(dev,
+				"%s: failed to read name(%d)\n",
+				__func__, ret);
+			return;
+		}
+
+		ret = of_property_read_string_index(dev->of_node,
+			prop_dai_name, i, &dai_component.dai_name);
+		if (ret) {
+			dev_err(dev,
+				"%s: failed to read dai name(%d)\n",
+				__func__, ret);
+			return;
+		}
+
+		if (dai_component.dai_name) {
+			dai = snd_soc_find_dai(&dai_component);
+			if (!dai) {
+				dev_err(dev, "cannot find the %s\n",
+					dai_component.name);
+				sdp_boot_print("cannot find the %s\n",
+					dai_component.name);
+			}
+		}
+	}
+
+	defer_count = 0;
+	dev_dbg(dev, "%s: leave\n", __func__);
+}
+#endif
+
 static int msm_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = NULL;
@@ -2606,6 +2677,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	if (ret == -EPROBE_DEFER) {
 		if (codec_reg_done)
 			ret = -EINVAL;
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+		if (++defer_count > MAX_DEFER_COUNT)
+			check_external_device(&pdev->dev);
+#endif
 		goto err;
 	} else if (ret) {
 		dev_err(&pdev->dev, "%s: snd_soc_register_card failed (%d)\n",
@@ -2664,6 +2739,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	/* change card status to ONLINE */
 	dev_dbg(&pdev->dev, "%s: setting snd_card to ONLINE\n", __func__);
 	snd_card_set_card_status(SND_CARD_STATUS_ONLINE);
+	sdp_boot_print("%s: snd_card is ONLINE\n", __func__);
 
 	return 0;
 err:

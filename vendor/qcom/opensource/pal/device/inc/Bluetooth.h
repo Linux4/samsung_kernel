@@ -323,12 +323,6 @@ protected:
     static audio_lc3_codec_cfg_t lc3CodecInfo;
     static bool isNrecEnabled;
     int startSwb();
-// SS_BT_HFP - H_127 : RVP
-#ifdef SEC_AUDIO_BLUETOOTH
-    static int rvpMode;
-    int startRvp();
-#endif
-// SS_BT_HFP - H_127 end
 
 public:
     int start();

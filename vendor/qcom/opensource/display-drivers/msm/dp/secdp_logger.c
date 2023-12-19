@@ -21,7 +21,6 @@
 #include <linux/uaccess.h>
 #include <linux/sched/clock.h>
 #include <linux/secdp_logger.h>
-#include <linux/sizes.h>
 
 #include "secdp_unit_test.h"
 
@@ -209,6 +208,7 @@ static ssize_t secdp_logger_read(struct file *file, char __user *buf,
 
 static const struct proc_ops secdp_logger_ops = {
 	.proc_read = secdp_logger_read,
+	.proc_lseek = default_llseek,
 };
 
 int secdp_logger_init(void)

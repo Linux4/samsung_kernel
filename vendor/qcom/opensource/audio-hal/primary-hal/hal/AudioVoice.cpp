@@ -50,6 +50,9 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
 #ifdef SEC_AUDIO_COMMON
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
 #endif
+#ifdef SEC_AUDIO_CALL_VOIP
+    std::shared_ptr<AudioVoice> avoice = adevice->voice_;
+#endif
 
     AHAL_DBG("Enter: mode: %d", mode);
     if (mode_ != mode) {
@@ -123,6 +126,7 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
                         sec_voice_->SetCNGForEchoRefMute(true);
                     /* duo mt call : voicestream > mode 3, hac custom key setting error */
                     astream_out->ForceRouteStream({AUDIO_DEVICE_NONE});
+                    avoice->sec_voice_->SetVideoCallEffect();
                 }
             }
 #endif
@@ -983,7 +987,6 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
 #ifdef SEC_AUDIO_DUAL_SPEAKER
     if (adevice->sec_device_->speaker_left_amp_off &&
         adevice->factory_->factory.state & (FACTORY_LOOPBACK_ACTIVE | FACTORY_ROUTE_ACTIVE)) {
-        adevice->sec_device_->speaker_status_change = true;
         pal_param_speaker_status_t param_speaker_status;
         param_speaker_status.mute_status = PAL_DEVICE_UPPER_SPEAKER_UNMUTE;
         pal_set_param(PAL_PARAM_ID_SPEAKER_STATUS,
@@ -1147,6 +1150,7 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
 
 #ifdef SEC_AUDIO_CALL
     if (adevice->factory_->factory.loopback_type == LOOPBACK_OFF) {
+        sec_voice_->SetRingbackGain();
         sec_voice_->SetNBQuality(adevice->voice_->sec_voice_->nb_quality);
 #ifdef SEC_AUDIO_ADAPT_SOUND
         sec_voice_->SetDHAData(adevice, NULL, DHA_SET);

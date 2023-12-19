@@ -504,7 +504,6 @@ struct secdp_misc {
 
 bool secdp_get_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
-bool secdp_get_clk_status(enum dp_pm_type type);
 
 int  secdp_pdic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_phy_reset_check(void);

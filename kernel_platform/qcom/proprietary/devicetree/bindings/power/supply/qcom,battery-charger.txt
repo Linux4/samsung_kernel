@@ -50,7 +50,7 @@ information on "qcom,pmic_glink" device which is used in the example below.
 	Definition: Array of one or more phandles of the display panel(s) that
 			sends the DRM blank/unblank notifications.
 
-- qcom,wirelss-charging-not-supported:
+- qcom,wireless-charging-not-supported:
 	Usage: optional
 	Value type: <bool>
 	Definition: If this property is specified, registration for

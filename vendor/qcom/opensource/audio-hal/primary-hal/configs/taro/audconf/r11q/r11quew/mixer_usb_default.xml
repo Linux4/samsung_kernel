@@ -35,7 +35,7 @@
     </path>
 
     <path name="speaker-and-usb-headphones-gain">
-        <ctl name="Headset Playback Volume" value="60 60" />
+        <ctl name="Headset Playback Volume" value="64 64" />
     </path>
 
     <path name="fm-usb-headphones-gain">

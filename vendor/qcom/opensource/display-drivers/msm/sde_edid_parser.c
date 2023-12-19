@@ -224,7 +224,7 @@ struct drm_connector *connector, struct sde_edid_ctrl *edid_ctrl)
 	SDE_EDID_DEBUG("%s -\n", __func__);
 }
 
-#if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 struct sde_edid_ctrl *g_edid_ctrl;
 
 int secdp_get_audio_ch(void)
@@ -299,7 +299,7 @@ static void _sde_edid_extract_audio_data_blocks(
 #if defined(CONFIG_SECDP)
 	in_buf = (u8 *)edid_ctrl->edid;
 	if (in_buf[3] & (1<<6)) {
-		pr_info("default audio\n");
+		pr_info("[msm-dp] %s: default audio format\n", __func__);
 		edid_ctrl->audio_channel_info |= 2;
 	}
 #endif
@@ -346,7 +346,7 @@ static void _sde_edid_extract_audio_data_blocks(
 
 #if defined(CONFIG_SECDP)
 	edid_ctrl->adb_size = lpcm_size;
-	pr_info("DP Audio info: 0x%x\n", edid_ctrl->audio_channel_info);
+	pr_info("[msm-dp] %s: Audio info : 0x%x\n", __func__, edid_ctrl->audio_channel_info);
 #endif
 	SDE_EDID_DEBUG("%s -", __func__);
 }
@@ -727,7 +727,7 @@ void sde_get_edid(struct drm_connector *connector,
 				"EDID:", EDID_LENGTH);
 		}
 	}
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	g_edid_ctrl = edid_ctrl;
 #endif
 #endif/*CONFIG_SECDP*/

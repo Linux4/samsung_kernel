@@ -37,7 +37,7 @@
 
 #define ROOT_PATH "/"
 
-static int kunit_mock_thread_function()
+static int kunit_mock_thread_function(void *ptr)
 {
 	while (!kthread_should_stop());
 	return 42;

@@ -448,6 +448,10 @@ struct mem_size_stats {
 	unsigned long swap;
 #if IS_ENABLED(CONFIG_ZRAM)
 	unsigned long writeback;
+	unsigned long writeback_huge;
+	unsigned long same;
+	unsigned long huge;
+	unsigned long swap_shared;
 #endif
 	unsigned long shared_hugetlb;
 	unsigned long private_hugetlb;
@@ -563,10 +567,12 @@ static void smaps_pte_entry(pte_t *pte, unsigned long addr,
 	struct vm_area_struct *vma = walk->vma;
 	bool locked = !!(vma->vm_flags & VM_LOCKED);
 	struct page *page = NULL;
-	bool migration = false;
+	bool migration = false, young = false, dirty = false;
 
 	if (pte_present(*pte)) {
 		page = vm_normal_page(vma, addr, *pte);
+		young = pte_young(*pte);
+		dirty = pte_dirty(*pte);
 	} else if (is_swap_pte(*pte)) {
 		swp_entry_t swpent = pte_to_swp_entry(*pte);
 
@@ -574,10 +580,6 @@ static void smaps_pte_entry(pte_t *pte, unsigned long addr,
 			int mapcount;
 
 			mss->swap += PAGE_SIZE;
-#if IS_ENABLED(CONFIG_ZRAM)
-			if (zram_oem_fn && zram_oem_fn(ZRAM_IS_WRITEBACK_ENTRY, NULL, swp_offset(swpent)))
-				mss->writeback += PAGE_SIZE;
-#endif
 			mapcount = swp_swapcount(swpent);
 			if (mapcount >= 2) {
 				u64 pss_delta = (u64)PAGE_SIZE << PSS_SHIFT;
@@ -587,6 +589,24 @@ static void smaps_pte_entry(pte_t *pte, unsigned long addr,
 			} else {
 				mss->swap_pss += (u64)PAGE_SIZE << PSS_SHIFT;
 			}
+#if IS_ENABLED(CONFIG_ZRAM)
+			if (zram_oem_fn) {
+				int type = zram_oem_fn(ZRAM_GET_ENTRY_TYPE,
+							NULL, swp_offset(swpent));
+				if (type == ZRAM_WB_TYPE || type == ZRAM_WB_HUGE_TYPE)
+					mss->writeback += PAGE_SIZE;
+				if (type == ZRAM_WB_HUGE_TYPE)
+					mss->writeback_huge += PAGE_SIZE;
+				if (mapcount >= 2) {
+					mss->swap_shared += PAGE_SIZE;
+				} else {
+					if (type == ZRAM_SAME_TYPE)
+						mss->same += PAGE_SIZE;
+					if (type == ZRAM_HUGE_TYPE)
+						mss->huge += PAGE_SIZE;
+				}
+			}
+#endif
 		} else if (is_migration_entry(swpent)) {
 			migration = true;
 			page = migration_entry_to_page(swpent);
@@ -604,8 +624,7 @@ static void smaps_pte_entry(pte_t *pte, unsigned long addr,
 	if (!page)
 		return;
 
-	smaps_account(mss, page, false, pte_young(*pte), pte_dirty(*pte),
-		      locked, migration);
+	smaps_account(mss, page, false, young, dirty, locked, migration);
 }
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
@@ -780,9 +799,7 @@ static int smaps_hugetlb_range(pte_t *pte, unsigned long hmask,
 			page = device_private_entry_to_page(swpent);
 	}
 	if (page) {
-		int mapcount = page_mapcount(page);
-
-		if (mapcount >= 2)
+		if (page_mapcount(page) >= 2 || hugetlb_pmd_shared(pte))
 			mss->shared_hugetlb += huge_page_size(hstate_vma(vma));
 		else
 			mss->private_hugetlb += huge_page_size(hstate_vma(vma));
@@ -890,6 +907,10 @@ static void __show_smap(struct seq_file *m, const struct mem_size_stats *mss,
 					mss->swap_pss >> PSS_SHIFT);
 #if IS_ENABLED(CONFIG_ZRAM)
 	SEQ_PUT_DEC(" kB\nWriteback:      ", mss->writeback);
+	SEQ_PUT_DEC(" kB\nWritebackHuge:  ", mss->writeback_huge);
+	SEQ_PUT_DEC(" kB\nSame:           ", mss->same);
+	SEQ_PUT_DEC(" kB\nHuge:           ", mss->huge);
+	SEQ_PUT_DEC(" kB\nSwapShared:     ", mss->swap_shared);
 #endif
 	SEQ_PUT_DEC(" kB\nLocked:         ",
 					mss->pss_locked >> PSS_SHIFT);
@@ -1025,7 +1046,7 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
 		vma = vma->vm_next;
 	}
 
-	show_vma_header_prefix(m, priv->mm->mmap->vm_start,
+	show_vma_header_prefix(m, priv->mm->mmap ? priv->mm->mmap->vm_start : 0,
 			       last_vma_end, 0, 0, 0, 0);
 	seq_pad(m, ' ');
 	seq_puts(m, "[rollup]\n");

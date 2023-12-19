@@ -118,11 +118,11 @@
 						SEC_WIRELESS_RX_POWER_15W>;
 		battery,oc_fod1 = <1100>;
 		battery,phone_fod_thresh1 = <0x0DAC>; /* 3500mW */
+		battery,buds_fod_thresh1 = <0x0DAC>; /* 3500mW */
 		battery,wpc_vout_ctrl_full = <WIRELESS_VOUT_5V_STEP>;
 		battery,tx_gear_min_op_freq_delay = <4000>;
 		battery,mis_align_guide;
 		battery,mis_align_target_vout = <5000>;
-		battery,fw_ver = <0x2032>;
 
 		fod_list {
 			count = <1>;
@@ -136,6 +136,22 @@
 				full = <0x33 0xFF 0x33 0xFF 0x33 0xFF 0x33 0xFF 0x33 0xFF
 					0x33 0xFF 0x33 0xFF 0x33 0xFF 0x33 0xFF 0x33 0xFF>;
 			};
+		};
+		iec_data {
+			reg_56 = <46>;
+			reg_57 = <30>;
+			reg_5B = <30>;
+			reg_84 = <90>;
+			reg_85 = <27>;
+			reg_86 = <9>;
+			reg_87 = <12>;
+			reg_88 = <198>;
+			reg_89 = <50>;
+			reg_8A = <110>;
+			reg_8B = <95>;
+			reg_800 = <50>;
+			reg_801 = <60>;
+			reg_802 = <130>;
 		};
 	};
 };
