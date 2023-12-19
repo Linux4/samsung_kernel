@@ -1736,7 +1736,7 @@ static int wcd937x_event_notify(struct notifier_block *block,
 		mbhc = &wcd937x->mbhc->wcd_mbhc;
 		if(mbhc->mbhc_cfg)
 			wcd937x->usbc_hs_status = get_usbc_hs_status(component,
-					mbhc->mbhc_cfg);
+							mbhc->mbhc_cfg);
 		wcd937x_mbhc_ssr_down(wcd937x->mbhc, component);
 		wcd937x_reset_low(wcd937x->dev);
 		break;

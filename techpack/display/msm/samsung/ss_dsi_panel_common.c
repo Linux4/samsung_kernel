@@ -415,6 +415,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,timing_switch_pre_revA",
 	"samsung,timing_switch_post_revA",
 
+	"samsung,ddi_vcom_mark_pre_cmds_revA",
+
 	"TX_CMD_END not parsed from DTSI",
 
 	/* RX */
@@ -470,6 +472,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,vaint_mtp_rx_cmds_revA",
 	"samsung,ddi_fw_id_rx_cmds_revA",
 	"samsung,alpm_rx_cmds_revA",
+
+	"samsung,ddi_vcom_mark_rx_cmds_revA",
 	"RX_CMD_END not parsed from DTSI",
 };
 
@@ -8018,8 +8022,9 @@ void ss_panel_init(struct dsi_panel *panel)
 	if (vdd->vrr.lfd.support_lfd) {
 		vdd->vrr.lfd.nb_lfd_touch.priority = 3;
 		vdd->vrr.lfd.nb_lfd_touch.notifier_call = ss_lfd_touch_notify_cb;
+#if !defined(CONFIG_PANEL_BUILTIN_BACKLIGHT) //TODO replace with !defined(CONFIG_QGKI)
 		sec_input_register_notify(&vdd->vrr.lfd.nb_lfd_touch, ss_lfd_touch_notify_cb, 3);
-
+#endif
 		vdd->vrr.lfd.lfd_touch_wq = create_singlethread_workqueue("lfd_touch_wq");
 		if (!vdd->vrr.lfd.lfd_touch_wq) {
 			LCD_ERR(vdd, "failed to create touch_lfd workqueue..\n");
@@ -8031,7 +8036,9 @@ void ss_panel_init(struct dsi_panel *panel)
 	if (vdd->esd_touch_notify) {
 		vdd->nb_esd_touch.priority = 3;
 		vdd->nb_esd_touch.notifier_call = ss_esd_touch_notifier_cb;
+#if !defined(CONFIG_PANEL_BUILTIN_BACKLIGHT) //TODO replace with !defined(CONFIG_QGKI)
 		sec_input_register_notify(&vdd->nb_esd_touch, ss_esd_touch_notifier_cb, 3);
+#endif
 	}
 #endif
 

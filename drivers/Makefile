@@ -224,7 +224,6 @@ obj-y += regulator/s2mpb03/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += mfd/sm/sm5714/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += battery/charger/pca9468_charger/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += input/misc/hall/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-obj-y += mstdrv/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += muic/sm/sm5714/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += input/sec_input/stm/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += hwmon/sec_thermistor/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

@@ -159,6 +159,7 @@ struct et7xx_data {
 	bool ldo_onoff;
 
 	int sensortype;
+	int reset_count;
 	u32 spi_value;
 	struct device *dev;
 	struct device *fp_device;

@@ -29,11 +29,12 @@ struct debug_logger *g_logger;
 
 static void et7xx_reset(struct et7xx_data *etspi)
 {
-	pr_debug("Entry\n");
+	pr_info("Entry\n");
 	if (etspi->sleepPin) {
 		gpio_set_value(etspi->sleepPin, 0);
 		usleep_range(1050, 1100);
 		gpio_set_value(etspi->sleepPin, 1);
+		etspi->reset_count++;
 	}
 }
 
@@ -828,11 +829,33 @@ static ssize_t rb_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", etspi->rb);
 }
 
+static ssize_t resetcnt_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct et7xx_data *etspi = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", etspi->reset_count);
+}
+
+static ssize_t resetcnt_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t size)
+{
+	struct et7xx_data *etspi = dev_get_drvdata(dev);
+
+	if (sysfs_streq(buf, "c")) {
+		etspi->reset_count = 0;
+		pr_info("initialization is done\n");
+	}
+	return size;
+}
+
 static DEVICE_ATTR_RO(bfs_values);
 static DEVICE_ATTR_RO(type_check);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RW(resetcnt);
 static DEVICE_ATTR_RO(position);
 static DEVICE_ATTR_RO(rb);
 
@@ -842,6 +865,7 @@ static struct device_attribute *fp_attrs[] = {
 	&dev_attr_vendor,
 	&dev_attr_name,
 	&dev_attr_adm,
+	&dev_attr_resetcnt,
 	&dev_attr_position,
 	&dev_attr_rb,
 	NULL,
@@ -925,6 +949,8 @@ static int et7xx_probe_common(struct device *dev, struct et7xx_data *etspi)
 		goto et7xx_probe_spi_clk_register_failed;
 	}
 
+
+	etspi->reset_count = 0;
 	etspi->clk_setting->enabled_clk = false;
 	etspi->spi_value = 0;
 	etspi->clk_setting->spi_speed = (unsigned int)SLOW_BAUD_RATE;
