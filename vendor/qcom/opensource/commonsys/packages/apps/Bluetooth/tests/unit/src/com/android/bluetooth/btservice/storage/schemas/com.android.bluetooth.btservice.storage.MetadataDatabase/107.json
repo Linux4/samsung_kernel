@@ -1,0 +1,262 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 107,
+    "identityHash": "9f9e9e829ebf6d507ad22ccc8835c1c0",
+    "entities": [
+      {
+        "tableName": "metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`address` TEXT NOT NULL, `migrated` INTEGER NOT NULL, `a2dpSupportsOptionalCodecs` INTEGER NOT NULL, `a2dpOptionalCodecsEnabled` INTEGER NOT NULL, `last_active_time` INTEGER NOT NULL, `is_active_a2dp_device` INTEGER NOT NULL, `is_active_hfp_device` INTEGER NOT NULL, `is_connected_a2dpsrc_device` INTEGER NOT NULL, `was_previously_connected_to_bc` INTEGER NOT NULL, `a2dp_connection_policy` INTEGER, `a2dp_sink_connection_policy` INTEGER, `hfp_connection_policy` INTEGER, `hfp_client_connection_policy` INTEGER, `hid_host_connection_policy` INTEGER, `pan_connection_policy` INTEGER, `pbap_connection_policy` INTEGER, `pbap_client_connection_policy` INTEGER, `map_connection_policy` INTEGER, `sap_connection_policy` INTEGER, `hearing_aid_connection_policy` INTEGER, `map_client_connection_policy` INTEGER, `bc_profile_priority` INTEGER, `manufacturer_name` BLOB, `model_name` BLOB, `software_version` BLOB, `hardware_version` BLOB, `companion_app` BLOB, `main_icon` BLOB, `is_untethered_headset` BLOB, `untethered_left_icon` BLOB, `untethered_right_icon` BLOB, `untethered_case_icon` BLOB, `untethered_left_battery` BLOB, `untethered_right_battery` BLOB, `untethered_case_battery` BLOB, `untethered_left_charging` BLOB, `untethered_right_charging` BLOB, `untethered_case_charging` BLOB, `enhanced_settings_ui_uri` BLOB, PRIMARY KEY(`address`))",
+        "fields": [
+          {
+            "fieldPath": "address",
+            "columnName": "address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "migrated",
+            "columnName": "migrated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "a2dpSupportsOptionalCodecs",
+            "columnName": "a2dpSupportsOptionalCodecs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "a2dpOptionalCodecsEnabled",
+            "columnName": "a2dpOptionalCodecsEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "last_active_time",
+            "columnName": "last_active_time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "is_active_a2dp_device",
+            "columnName": "is_active_a2dp_device",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "is_active_hfp_device",
+            "columnName": "is_active_hfp_device",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "is_connected_a2dpsrc_device",
+            "columnName": "is_connected_a2dpsrc_device",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "was_previously_connected_to_bc",
+            "columnName": "was_previously_connected_to_bc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.a2dp_connection_policy",
+            "columnName": "a2dp_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.a2dp_sink_connection_policy",
+            "columnName": "a2dp_sink_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.hfp_connection_policy",
+            "columnName": "hfp_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.hfp_client_connection_policy",
+            "columnName": "hfp_client_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.hid_host_connection_policy",
+            "columnName": "hid_host_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.pan_connection_policy",
+            "columnName": "pan_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.pbap_connection_policy",
+            "columnName": "pbap_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.pbap_client_connection_policy",
+            "columnName": "pbap_client_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.map_connection_policy",
+            "columnName": "map_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.sap_connection_policy",
+            "columnName": "sap_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.hearing_aid_connection_policy",
+            "columnName": "hearing_aid_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.map_client_connection_policy",
+            "columnName": "map_client_connection_policy",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "profileConnectionPolicies.bc_profile_priority",
+            "columnName": "bc_profile_priority",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.manufacturer_name",
+            "columnName": "manufacturer_name",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.model_name",
+            "columnName": "model_name",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.software_version",
+            "columnName": "software_version",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.hardware_version",
+            "columnName": "hardware_version",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.companion_app",
+            "columnName": "companion_app",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.main_icon",
+            "columnName": "main_icon",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.is_untethered_headset",
+            "columnName": "is_untethered_headset",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_left_icon",
+            "columnName": "untethered_left_icon",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_right_icon",
+            "columnName": "untethered_right_icon",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_case_icon",
+            "columnName": "untethered_case_icon",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_left_battery",
+            "columnName": "untethered_left_battery",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_right_battery",
+            "columnName": "untethered_right_battery",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_case_battery",
+            "columnName": "untethered_case_battery",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_left_charging",
+            "columnName": "untethered_left_charging",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_right_charging",
+            "columnName": "untethered_right_charging",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.untethered_case_charging",
+            "columnName": "untethered_case_charging",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "publicMetadata.enhanced_settings_ui_uri",
+            "columnName": "enhanced_settings_ui_uri",
+            "affinity": "BLOB",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "address"
+          ],
+          "autoGenerate": false
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9f9e9e829ebf6d507ad22ccc8835c1c0')"
+    ]
+  }
+}
