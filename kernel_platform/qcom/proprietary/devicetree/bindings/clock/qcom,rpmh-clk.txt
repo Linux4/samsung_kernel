@@ -21,6 +21,7 @@ Required properties :
 		"qcom,sdxpinn-rpmh-clk"
 		"qcom,sdxbaagha-rpmh-clk"
 		"qcom,lemans-rpmh-clk"
+		"qcom,crow-rpmh-clk"
 
 - #clock-cells : must contain 1
 

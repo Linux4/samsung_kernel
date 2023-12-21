@@ -15,6 +15,7 @@
 	vreg-3p3-supply = <&nvme_vreg>;
 	qcom,boot-option = <0x2>;
 	qcom,apss-based-l1ss-sleep;
+	qcom,no-client-based-bw-voting;
 };
 
 &regulator_ocp_notifier {

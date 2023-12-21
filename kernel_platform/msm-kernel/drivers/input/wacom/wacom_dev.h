@@ -458,7 +458,6 @@ struct wacom_i2c {
 	struct mutex ble_charge_mode_lock;
 	bool power_enable;
 	struct wakeup_source *wacom_ws;
-	bool pm_suspend;
 	volatile bool probe_done;
 	bool query_status;
 	struct completion resume_done;

@@ -1614,10 +1614,6 @@ static int hidinput_input_event(struct input_dev *dev, unsigned int type,
 
 	hid_set_field(field, offset, value);
 
-	if (hid->vendor == 0x04e8 || hid->vendor == 0x0419) {
-		//If device is Samsung keyboard, don't need to call hidinput_led_worker
-		return 0;
-	}
 	schedule_work(&hid->led_work);
 	return 0;
 }

@@ -2,6 +2,7 @@
 
 #include "cinder.dtsi"
 #include "cinder-du.dtsi"
+#include "cinder-du-hireg.dtsi"
 #include "cinder-idp.dtsi"
 
 / {

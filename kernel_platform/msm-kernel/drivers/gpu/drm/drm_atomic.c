@@ -1318,7 +1318,7 @@ int drm_atomic_check_only(struct drm_atomic_state *state)
 	for_each_oldnew_plane_in_state(state, plane, old_plane_state, new_plane_state, i) {
 		ret = drm_atomic_plane_check(old_plane_state, new_plane_state);
 		if (ret) {
-			DRM_DEBUG_ATOMIC("[PLANE:%d:%s] atomic core check failed\n",
+			DRM_ERROR("[PLANE:%d:%s] atomic core check failed\n",
 					 plane->base.id, plane->name);
 			return ret;
 		}
@@ -1327,7 +1327,7 @@ int drm_atomic_check_only(struct drm_atomic_state *state)
 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
 		ret = drm_atomic_crtc_check(old_crtc_state, new_crtc_state);
 		if (ret) {
-			DRM_DEBUG_ATOMIC("[CRTC:%d:%s] atomic core check failed\n",
+			DRM_ERROR("[CRTC:%d:%s] atomic core check failed\n",
 					 crtc->base.id, crtc->name);
 			return ret;
 		}
@@ -1336,7 +1336,7 @@ int drm_atomic_check_only(struct drm_atomic_state *state)
 	for_each_new_connector_in_state(state, conn, conn_state, i) {
 		ret = drm_atomic_connector_check(conn, conn_state);
 		if (ret) {
-			DRM_DEBUG_ATOMIC("[CONNECTOR:%d:%s] atomic core check failed\n",
+			DRM_ERROR("[CONNECTOR:%d:%s] atomic core check failed\n",
 					 conn->base.id, conn->name);
 			return ret;
 		}
@@ -1346,7 +1346,7 @@ int drm_atomic_check_only(struct drm_atomic_state *state)
 		ret = config->funcs->atomic_check(state->dev, state);
 
 		if (ret) {
-			DRM_DEBUG_ATOMIC("atomic driver check for %p failed: %d\n",
+			DRM_ERROR("atomic driver check for %p failed: %d\n",
 					 state, ret);
 			return ret;
 		}
@@ -1355,7 +1355,7 @@ int drm_atomic_check_only(struct drm_atomic_state *state)
 	if (!state->allow_modeset) {
 		for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
 			if (drm_atomic_crtc_needs_modeset(new_crtc_state)) {
-				DRM_DEBUG_ATOMIC("[CRTC:%d:%s] requires full modeset\n",
+				DRM_ERROR("[CRTC:%d:%s] requires full modeset\n",
 						 crtc->base.id, crtc->name);
 				return -EINVAL;
 			}

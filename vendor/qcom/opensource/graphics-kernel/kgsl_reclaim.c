@@ -8,7 +8,6 @@
 #include <linux/notifier.h>
 #include <linux/shmem_fs.h>
 #include <linux/proc_fs.h>
-#include <linux/vmalloc.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/cputime.h>
 
@@ -45,28 +44,9 @@ static struct swap_stat swap_stat_hist[SWAP_STAT_HISTORY_SIZE];
 static unsigned int swap_stat_new_idx;
 struct mutex swap_stat_lock;
 
-static void *swap_hist_buf;
-static bool swap_hist_enabled;
-
-#define SWAP_HIST_BUF_SIZE	(16 << 10)	/* 16 KB */
-
-static int graphics_swap_proc_init(void)
-{
-	swap_hist_buf = vmalloc(SWAP_HIST_BUF_SIZE);
-	if (!swap_hist_buf)
-		return -ENOMEM;
-
-	mutex_init(&swap_stat_lock);
-	swap_hist_enabled = true;
-	return 0;
-}
-
 static void swap_stat_save(struct swap_stat *swap_stat)
 {
 	unsigned int stat_idx;
-
-	if (!swap_hist_enabled)
-		return;
 
 	mutex_lock(&swap_stat_lock);
 	stat_idx = swap_stat_new_idx;
@@ -568,9 +548,9 @@ int kgsl_reclaim_init(void)
 
 	INIT_WORK(&reclaim_work, kgsl_reclaim_background_work);
 
-	if (!graphics_swap_proc_init())
-		proc_create_single("graphics_swap", 0444, NULL,
-				   graphics_swap_proc_show);
+	mutex_init(&swap_stat_lock);
+	proc_create_single("graphics_swap", 0444, NULL,
+			   graphics_swap_proc_show);
 	return ret;
 }
 

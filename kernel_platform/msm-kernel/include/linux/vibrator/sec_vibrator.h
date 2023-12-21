@@ -9,6 +9,7 @@
 #include <linux/kdev_t.h>
 #include <linux/device.h>
 
+#define MAX_DUTY		100
 #define MAX_INTENSITY		10000
 #define MAX_TIMEOUT		10000
 #define PACKET_MAX_SIZE		1000
@@ -66,6 +67,12 @@ enum EVENT_CMD {
 
 struct sec_vibrator_ops {
 	int (*enable)(struct device *dev, bool en);
+	int (*set_default_duty)(struct device *dev, int default_duty);
+	int (*get_default_duty)(struct device *dev, char *buf);
+	int (*set_fold_open_duty)(struct device *dev, int fold_open_duty);
+	int (*get_fold_open_duty)(struct device *dev, char *buf);
+	int (*set_fold_close_duty)(struct device *dev, int fold_close_duty);
+	int (*get_fold_close_duty)(struct device *dev, char *buf);
 	int (*set_intensity)(struct device *dev, int intensity);
 	int (*set_fifo_intensity)(struct device *dev, int intensity);
 	int (*set_frequency)(struct device *dev, int frequency);

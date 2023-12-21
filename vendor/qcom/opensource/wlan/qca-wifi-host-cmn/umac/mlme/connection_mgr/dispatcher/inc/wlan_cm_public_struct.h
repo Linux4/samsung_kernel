@@ -153,6 +153,7 @@ struct wlan_fils_con_info {
  * @CM_MLO_LINK_VDEV_DISCONNECT: Disconnect req for ML link
  * @CM_MLO_LINK_VDEV_CONNECT: Connect req for ML link
  * @CM_MLO_ROAM_INTERNAL_DISCONNECT: Disconnect req triggered for mlo roaming
+ * @CM_ROAMING_USER: Roaming request initiated by user
  * @CM_SOURCE_MAX: max value of connection manager source
  * @CM_SOURCE_INVALID: Invalid connection manager req source
  */
@@ -173,6 +174,7 @@ enum wlan_cm_source {
 	CM_MLO_LINK_VDEV_DISCONNECT,
 	CM_MLO_LINK_VDEV_CONNECT,
 	CM_MLO_ROAM_INTERNAL_DISCONNECT,
+	CM_ROAMING_USER,
 	CM_SOURCE_MAX,
 	CM_SOURCE_INVALID = CM_SOURCE_MAX,
 };
@@ -197,7 +199,7 @@ enum wlan_cm_source {
  * for production.
  * @is_wps_connection: if its wps connection
  * @is_osen_connection: if its osen connection
- * @reassoc_in_non_connected: if reassoc received in non connected
+ * @reassoc_in_non_init: if reassoc received in non init state
  * @dot11mode_filter: dot11mode filter used to restrict connection to
  * 11n/11ac/11ax.
  * @sae_pwe: SAE mechanism for PWE derivation
@@ -227,7 +229,7 @@ struct wlan_cm_connect_req {
 	uint8_t force_rsne_override:1,
 		is_wps_connection:1,
 		is_osen_connection:1,
-		reassoc_in_non_connected:1;
+		reassoc_in_non_init:1;
 	enum dot11_mode_filter dot11mode_filter;
 	uint8_t sae_pwe;
 	uint16_t ht_caps;

@@ -1628,6 +1628,10 @@ reset:
 	if (!info->cx_data)
 		return -ENOMEM;
 
+	info->vp_cap_data = devm_kzalloc(&info->client->dev, info->SenseChannelLength * info->ForceChannelLength + 1, GFP_KERNEL);
+	if (!info->vp_cap_data)
+		return -ENOMEM;
+
 	info->ito_result = devm_kzalloc(&info->client->dev, FTS_ITO_RESULT_PRINT_SIZE, GFP_KERNEL);
 	if (!info->ito_result)
 		return -ENOMEM;
@@ -2499,7 +2503,6 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	info->reinit_done = true;
 	mutex_unlock(&info->device_mutex);
 
-	info->wakelock = wakeup_source_register(&client->dev, "tsp");
 	init_completion(&info->resume_done);
 	complete_all(&info->resume_done);
 
@@ -2574,8 +2577,7 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	sec_secure_touch_register(info, 1, &info->board->input_dev->dev.kobj);
 	
 #endif
-
-	device_init_wakeup(&client->dev, true);
+	info->wakelock = wakeup_source_register(NULL, "tsp");
 
 	fts_check_custom_library(info);
 
@@ -3096,8 +3098,7 @@ static int fts_stop_device(struct fts_ts_info *info, bool lpmode)
 		if (info->fix_active_mode)
 			fts_fix_active_mode(info, false);
 
-		if (device_may_wakeup(&info->client->dev))
-			enable_irq_wake(info->irq);
+		enable_irq_wake(info->irq);
 
 		fts_release_all_finger(info);
 
@@ -3164,8 +3165,7 @@ static int fts_start_device(struct fts_ts_info *info)
 			info->reinit_done = true;
 		}
 
-		if (device_may_wakeup(&info->client->dev))
-			disable_irq_wake(info->irq);
+		disable_irq_wake(info->irq);
 	}
 	info->fts_power_state = FTS_POWER_STATE_ACTIVE;
 

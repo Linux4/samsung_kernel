@@ -22,7 +22,7 @@ struct mixer *SpeakerProtectionTFA::hwMixer;
 std::mutex SpeakerProtectionTFA::cal_mutex;
 std::condition_variable SpeakerProtectionTFA::cal_wait_cond;
 
-#define PAL_SP_TFA_VERSION "Goodix_20230411_1"
+#define PAL_SP_TFA_VERSION "Goodix_20230621_1"
 
 //#define SET_IPCID_MIXER_CTL
 //#define CHECK_STREAM_TYPE
@@ -86,8 +86,14 @@ std::condition_variable SpeakerProtectionTFA::cal_wait_cond;
 #define TFA_CAL_FAIL    0
 #define TFA_CAL_SUCCESS 1
 
+#define TFA_CAL_IDLE        0 // not started or done
 #define TFA_CAL_ON_GOING    1
-#define TFA_CAL_IDLE        0 //not started or done
+
+#define TFADSP_STATE_IDLE      0 // not started
+#define TFADSP_STATE_ACTIVE    1
+
+#define TFADSP_ACTIVATION_POLLING_MAX_COUNT 250
+#define TFADSP_ACTIVATION_POLLING_INTERVAL 2000 // 2000us(2ms)
 
 std::shared_ptr<Device> SpeakerFeedbackTFA::obj = nullptr;
 
@@ -327,6 +333,7 @@ SpeakerProtectionTFA::SpeakerProtectionTFA(struct pal_device *device,
 
     active_spk_dev_count = 0;
     bigdata_read = false;
+    tfadsp_state = TFADSP_STATE_IDLE;
 
     PAL_DBG(LOG_TAG, "SpeakerProtectionTFA Constructor");
 
@@ -364,7 +371,6 @@ SpeakerProtectionTFA::SpeakerProtectionTFA(struct pal_device *device,
             NUM_OF_SPEAKER * NUM_OF_BIGDATA_ITEM * sizeof(tfa_bigdata.value[MAX_TEMP_L]));
     memset((void *)tfa_bigdata_param.value, 0,
             NUM_OF_SPEAKER * NUM_OF_BIGDATA_ITEM * sizeof(tfa_bigdata_param.value[MAX_TEMP_L]));
-
 
 #if defined(SEC_AUDIO_DUAL_SPEAKER) || defined(SEC_AUDIO_SCREEN_MIRRORING) // { SUPPORT_VOIP_VIA_SMART_VIEW
     curMuteStatus = PAL_DEVICE_SPEAKER_UNMUTE;
@@ -475,7 +481,13 @@ int32_t SpeakerProtectionTFA::setParameter(uint32_t param_id, void *param)
             }
             break;
         case PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_START:
-            PAL_DBG(LOG_TAG, "PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_START");
+            PAL_DBG(LOG_TAG, "PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_START, state=%d, running=%d, count=%d",
+                    tfadsp_state, activate_tfadsp_thread_running, active_spk_dev_count);
+            if (tfadsp_state == TFADSP_STATE_IDLE && activate_tfadsp_thread_running == false && (active_spk_dev_count != 0)) {
+                activate_tfadsp_thread_running = true;
+                activate_tfadsp();
+                activate_tfadsp_thread_running = false;
+            }
             break;
         case PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_STOP:
             PAL_DBG(LOG_TAG, "PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_STOP");
@@ -604,6 +616,7 @@ int SpeakerProtectionTFA::start()
     Device::start();
 
     if (active_spk_dev_count == 0) {
+        tfadsp_state = TFADSP_STATE_IDLE;
         active_state = true;
 #ifdef TFADSP_ACTIVATION_THREAD
         if (activate_tfadsp_thread_running == false) {
@@ -658,6 +671,7 @@ int SpeakerProtectionTFA::stop()
         }
         activate_tfadsp_thread_running = false;
         active_state = false;
+        tfadsp_state = TFADSP_STATE_IDLE;
     }
     Device::stop();
 
@@ -679,24 +693,23 @@ int32_t SpeakerProtectionTFA::activate_tfadsp()
     uint32_t cmd = SET_RE25C_CMD;
     uint32_t cal_p = 0;
     uint32_t cal_s = 0;
-    uint32_t tfadsp_state = 0;
 
     PAL_DBG(LOG_TAG, "Begin");
 
 #ifdef TFADSP_ACTIVATION_THREAD
-    for (int i = 0; i < 10; i++) { // max 50ms polling
+    for (int i = 0; i < TFADSP_ACTIVATION_POLLING_MAX_COUNT; i++) {
         if (activate_tfadsp_thread_running == false)
             break;
         PAL_DBG(LOG_TAG, "tfa_dsp_read_state polling %d", i+1);
         ret = tfa_dsp_read_state(cmd_buf, 4);
         tfadsp_state = *((uint32_t *)cmd_buf);
-        if (ret == 0 && tfadsp_state != 0) {
+        if (ret == 0 && tfadsp_state != TFADSP_STATE_IDLE) {
             PAL_DBG(LOG_TAG, "tfa_dsp_read_state success, tfadsp_state %d", tfadsp_state);
             break;
         }
         if (activate_tfadsp_thread_running == false)
             break;
-        usleep(1000); // 1ms
+        usleep(TFADSP_ACTIVATION_POLLING_INTERVAL);
     }
 #else
     ret = tfa_dsp_read_state(cmd_buf, 4);
@@ -704,7 +717,7 @@ int32_t SpeakerProtectionTFA::activate_tfadsp()
     PAL_DBG(LOG_TAG, "tfadsp_state %d", tfadsp_state);
 #endif
 
-    if (ret != 0 || tfadsp_state == 0) {
+    if (ret != 0 || tfadsp_state == TFADSP_STATE_IDLE) {
         PAL_ERR(LOG_TAG,"tfadsp is not in the active state");
         return ret;
     }
@@ -1511,7 +1524,7 @@ SpeakerFeedbackTFA::~SpeakerFeedbackTFA()
 
 int32_t SpeakerFeedbackTFA::start()
 {
-    PAL_DBG(LOG_TAG2," Feedback start\n");
+    PAL_DBG(LOG_TAG2, "Feedback start\n");
 
     Device::start();
 
@@ -1523,7 +1536,7 @@ int32_t SpeakerFeedbackTFA::start()
 
 int32_t SpeakerFeedbackTFA::stop()
 {
-    PAL_DBG(LOG_TAG2," Feedback stop\n");
+    PAL_DBG(LOG_TAG2, "Feedback stop\n");
 
     std::shared_ptr<Device> instance = Device::getObject(PAL_DEVICE_OUT_SPEAKER);
     instance->setParameter(PAL_PARAM_ID_SPEAKER_AMP_BIGDATA_STOP, nullptr);
@@ -1535,7 +1548,7 @@ int32_t SpeakerFeedbackTFA::stop()
 std::shared_ptr<Device> SpeakerFeedbackTFA::getInstance(struct pal_device *device,
                                                      std::shared_ptr<ResourceManager> Rm)
 {
-    PAL_DBG(LOG_TAG2," Feedback getInstance\n");
+    PAL_DBG(LOG_TAG2, "Feedback getInstance\n");
     if (!obj) {
         std::shared_ptr<Device> sp(new SpeakerFeedbackTFA(device, Rm));
         obj = sp;

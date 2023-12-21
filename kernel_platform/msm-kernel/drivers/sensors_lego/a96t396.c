@@ -39,6 +39,7 @@
 #if IS_ENABLED(CONFIG_CCIC_NOTIFIER) || IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
+#include <linux/usb/typec/common/pdic_param.h>
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 #include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
 #endif
@@ -63,9 +64,13 @@
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
 #if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
 #include "../input/sec_input/stm32/pogo_notifier_v3.h"
-#else
+#elif IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 #include <linux/input/pogo_i2c_notifier.h>
 #endif
+#endif
+
+#if IS_ENABLED(CONFIG_SENSORS_LOW_TEMP_COMP) && IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+#include "../battery/common/sec_charging_common.h"
 #endif
 
 #include "a96t396.h"
@@ -80,9 +85,27 @@
 
 #define SHCEDULE_INTERVAL       2
 
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+#define TUNINGMAP_MAX 126
+#define CHECKSUM_MSB 0x7E
+#define CHECKSUM_LSB 0x7F
+
+#define REG_GRIP_TUNING_STATE 0xF1
+#define REG_TUNING_CHECKSUM_MSB 0xF2
+#define REG_TUNING_CHECKSUM_LSB 0xF3
+
+enum{
+	CHANGE_REGISTER_MAP_FINISHED    = 0x00,
+	CHANGE_TUNING_MAP_CMD           = 0x01,
+	CHANGE_TUNING_MAP_FINISHED      = 0x02,
+	CHANGE_REGISTER_MAP_CMD         = 0x03,
+};
+#endif
+
 #ifdef CONFIG_SENSORS_FW_VENDOR
 static struct delayed_work* gp_fw_work[GRIP_MAX_CNT];
 static int probe_count;
+static int max_probe_count;
 #endif
 
 enum grip_error_state {
@@ -142,8 +165,10 @@ struct a96t396_data {
 	struct notifier_block hall_nb;
 #endif
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	struct notifier_block pogo_nb;
 	struct delayed_work init_work;
+#endif
 #endif
 #if IS_ENABLED(CONFIG_CCIC_NOTIFIER) || IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	struct notifier_block pdic_nb;
@@ -173,6 +198,7 @@ struct a96t396_data {
 
 	int multi_use;
 	int unknown_ch_selection;
+	int fail_safe_concept;
 	int irq_en_cnt;
 
 #ifdef CONFIG_SEC_FACTORY
@@ -189,6 +215,23 @@ struct a96t396_data {
 	int motion;
 	int retry_i2c;
 	int irq;
+
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+	int is_tuning_mode;
+	bool setup_reg_exist;
+	u8 setup_reg[TUNINGMAP_MAX * 2 + 1];
+	u32 checksum_msb;
+	u32 checksum_lsb;
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_LOW_TEMP_COMP)
+	int grip_p_thd_low_temp;
+	int grip_p_thd_low_temp_2ch;
+	int grip_p_thd_origin;
+	int grip_p_thd_origin_2ch;
+	int low_temp;
+	int low_temp_release;
+	bool is_low_temp;
+#endif
 
 	u32 err_state;
 
@@ -240,6 +283,9 @@ struct a96t396_data {
 	bool is_first_event;
 	bool prevent_sleep_irq;
 	bool fw_update_flag;
+#ifdef CONFIG_SENSORS_FW_VENDOR
+	int fw_retry;
+#endif
 };
 
 static void a96t396_check_first_working(struct a96t396_data *data);
@@ -256,7 +302,10 @@ static int a96t396_fw_check(struct a96t396_data *data);
 static void a96t396_set_firmware_work(struct a96t396_data *data, u8 enable,
 		unsigned int time_ms);
 #endif
-
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+static int a96t396_tuning_mode(struct a96t396_data *data);
+static void a96t396_tuning_check(struct delayed_work *work, int ic_num);
+#endif
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 
 static long a96t396_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
@@ -390,8 +439,10 @@ static int a96t396_i2c_read_retry(struct i2c_client *client,
 {
 	struct a96t396_data *data = i2c_get_clientdata(client);
 	int ret = 0;
+	u8 i2c_fail_count = data->i2c_fail_count;
 
 	while (retry--) {
+		data->i2c_fail_count = i2c_fail_count;
 		ret = a96t396_i2c_read(data->client, reg, val, len);
 		if (ret >= 0)
 			break;
@@ -585,6 +636,11 @@ static void a96t396_reset_for_bootmode(struct a96t396_data *data)
 {
 	GRIP_INFO("\n");
 
+	if (data->check_abnormal_working == true) {
+		GRIP_INFO("abnormal working, skip reset for bootmode\n");
+		return;
+	}
+
 	data->power(data, false);
 	usleep_range(50000, 50010);
 	data->power(data, true);
@@ -596,12 +652,15 @@ static void a96t396_reset(struct a96t396_data *data)
 		return;
 
 	GRIP_INFO("start\n");
-	disable_irq_nosync(data->irq);
+	if (data->is_irq_active) {
+		disable_irq_nosync(data->irq);
+		data->is_irq_active = false;
+	}
 
 	data->enabled = false;
 
 	a96t396_reset_for_bootmode(data);
-	usleep_range(RESET_DELAY, RESET_DELAY);
+	usleep_range(RESET_DELAY, RESET_DELAY + 1);
 
 	if (data->current_state)
 		a96t396_set_enable(data, 1);
@@ -682,6 +741,23 @@ static void a96t396_enter_unknown_mode(struct a96t396_data *data, int type)
 		input_report_rel(data->noti_input_dev, REL_X, type);
 		input_sync(data->noti_input_dev);
 	}
+
+	if (data->check_abnormal_working == true && !data->skip_event &&
+		data->fail_safe_concept & 0x1) {
+		GRIP_INFO("send abnormal event (%d)\n", data->fail_safe_concept);
+		input_report_rel(data->input_dev, REL_MISC, -1);
+#ifdef CONFIG_SENSORS_A96T396_2CH
+		if (data->multi_use)
+			input_report_rel(data->input_dev, REL_DIAL, -1);
+#endif
+		input_sync(data->input_dev);
+#if !defined(CONFIG_SENSORS_A96T396_LDO_SHARE)
+		if (!(data->fail_safe_concept & 0x2)) {
+			GRIP_INFO("forced dvdd_vreg turned off\n\n");
+			data->power(data, false);
+		}
+#endif
+	}
 }
 
 static void a96t396_check_diff_and_cap(struct a96t396_data *data)
@@ -757,16 +833,24 @@ static void a96t396_firmware_work_func(struct work_struct *work)
 		struct a96t396_data, firmware_work);
 	int ret;
 	int next_idx = data->ic_num;
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+	int i = 0;
+#endif
+	GRIP_INFO("start - probe_count %d, firmware_retry %d\n", probe_count, data->fw_retry);
 
-	GRIP_INFO("start\n");
+	if (data->fw_retry == 0) {
+		GRIP_INFO("stop\n");
+		return;
+	}
 
-	if (probe_count <= GRIP_MAX_CNT) {
-		if (probe_count == GRIP_MAX_CNT) {
+	if (probe_count <= max_probe_count) {
+		if (probe_count == max_probe_count) {
 			GRIP_INFO("All chip probe sequences are complete!\n");
-			probe_count = GRIP_MAX_CNT + 1;
+			probe_count = max_probe_count + 1;
 		}
 		schedule_delayed_work(&data->firmware_work,
 				msecs_to_jiffies(500));
+		data->fw_retry--;
 		return;
 	}
 
@@ -782,7 +866,6 @@ static void a96t396_firmware_work_func(struct work_struct *work)
 		GRIP_ERR("final retry fail\n");
 	} else {
 		GRIP_INFO("fw check success\n");
-		gp_fw_work[data->ic_num] = NULL;
 	}
 
 	while (next_idx < GRIP_MAX_CNT - 1) {
@@ -793,15 +876,142 @@ static void a96t396_firmware_work_func(struct work_struct *work)
 			GRIP_INFO("schedule GRIP[%d] fw download\n", next_idx);
 			schedule_delayed_work(gp_fw_work[next_idx],
 				msecs_to_jiffies(500));
-			break;
+			return;
 		}
 	}
+
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+	for (i = 0; i < GRIP_MAX_CNT; i++) {
+		if (gp_fw_work[i] == NULL) {
+			GRIP_INFO("skip tuning check GRIP[%d]\n", i);
+		} else {
+			GRIP_INFO("tuning check GRIP[%d]\n", i);
+			a96t396_tuning_check(gp_fw_work[i], i);
+		}
+	}
+#endif
 }
 #endif
+
+#if IS_ENABLED(CONFIG_SENSORS_LOW_TEMP_COMP) && IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+static void a96t396_change_press_threshold(struct a96t396_data *data, int threshold)
+{
+	int ret;
+	u8 cmd[2];
+
+	if (threshold > 0xff) {
+		cmd[0] = (threshold >> 8) & 0xff;
+		cmd[1] = 0xff & threshold;
+	} else if (threshold < 0) {
+		cmd[0] = 0x0;
+		cmd[1] = 0x0;
+	} else {
+		cmd[0] = 0x0;
+		cmd[1] = (u8)threshold;
+	}
+
+	GRIP_INFO("buf %d threshold %d\n", threshold,
+			(cmd[0] << 8) | cmd[1]);
+
+	ret = a96t396_i2c_write(data->client, REG_SAR_THRESHOLD, &cmd[0]);
+	if (ret < 0) {
+		GRIP_ERR("fail to write 1ch data1(%d)\n", threshold);
+		return;
+	}
+	ret = a96t396_i2c_write(data->client, REG_SAR_THRESHOLD + 0x01, &cmd[1]);
+	if (ret < 0) {
+		GRIP_ERR("fail to write 1ch data2(%d)\n", threshold);
+		return;
+	}
+
+	GRIP_INFO("Set press THD %d", threshold);
+}
+
+#ifdef CONFIG_SENSORS_A96T396_2CH
+static void a96t396_change_press_threshold_2ch(struct a96t396_data *data, int threshold)
+{
+	int ret;
+	u8 cmd[2];
+
+	if (threshold > 0xff) {
+		cmd[0] = (threshold >> 8) & 0xff;
+		cmd[1] = 0xff & threshold;
+	} else if (threshold < 0) {
+		cmd[0] = 0x0;
+		cmd[1] = 0x0;
+	} else {
+		cmd[0] = 0x0;
+		cmd[1] = (u8)threshold;
+	}
+
+	GRIP_INFO("buf %d threshold %d\n", threshold,
+			(cmd[0] << 8) | cmd[1]);
+
+	ret = a96t396_i2c_write(data->client, REG_SAR_THRESHOLD_2CH, &cmd[0]);
+	if (ret < 0) {
+		GRIP_ERR("fail to write 2ch data1(%d)\n", threshold);
+		return;
+	}
+	ret = a96t396_i2c_write(data->client, REG_SAR_THRESHOLD_2CH + 0x01, &cmd[1]);
+	if (ret < 0) {
+		GRIP_ERR("fail to write 2ch data2(%d)\n", threshold);
+		return;
+	}
+
+	GRIP_INFO("Set press THD 2CH %d", threshold);
+}
+#endif
+
+static int a96t396_get_battery_temperature(struct a96t396_data *data)
+{
+	union power_supply_propval value = {0, };
+	int temp_intval = 0;
+
+	psy_do_property("battery", get, POWER_SUPPLY_PROP_TEMP, value);
+	temp_intval = value.intval;
+
+	return temp_intval;
+}
+
+static int a96t396_handle_low_temperature(struct a96t396_data *data)
+{
+	int temp_intval;
+
+	temp_intval = a96t396_get_battery_temperature(data);
+
+	if (!data->is_low_temp) {
+		if (temp_intval <= data->low_temp) {
+			a96t396_change_press_threshold(data, data->grip_p_thd_low_temp);
+#ifdef CONFIG_SENSORS_A96T396_2CH
+			if (data->multi_use)
+				a96t396_change_press_threshold_2ch(data, data->grip_p_thd_low_temp_2ch);
+#endif
+			data->is_low_temp = true;
+			GRIP_INFO("tmp %d, change thd done\n", temp_intval);
+		}
+	} else {
+		if (temp_intval >= data->low_temp_release) {
+			a96t396_change_press_threshold(data, data->grip_p_thd_origin);
+#ifdef CONFIG_SENSORS_A96T396_2CH
+			if (data->multi_use)
+				a96t396_change_press_threshold_2ch(data, data->grip_p_thd_origin_2ch);
+#endif
+			data->is_low_temp = false;
+			GRIP_INFO("tmp %d, restore thd done\n", temp_intval);
+		}
+	}
+
+	return 0;
+}
+#endif
+
 static void a96t396_debug_work_func(struct work_struct *work)
 {
 	struct a96t396_data *data = container_of((struct delayed_work *)work,
 		struct a96t396_data, debug_work);
+
+	if (data->check_abnormal_working == true)
+		return;
 
 	if (data->resume_called == true) {
 		data->resume_called = false;
@@ -812,6 +1022,9 @@ static void a96t396_debug_work_func(struct work_struct *work)
 	if (data->current_state) {
 		check_irq_status(data, false, false);
 
+#if IS_ENABLED(CONFIG_SENSORS_LOW_TEMP_COMP) && IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		a96t396_handle_low_temperature(data);
+#endif
 #ifdef CONFIG_SEC_FACTORY
 		if (data->abnormal_mode) {
 			a96t396_diff_getdata(data, true);
@@ -836,6 +1049,13 @@ static void a96t396_debug_work_func(struct work_struct *work)
 					if (data->mul_ch->is_unknown_mode == UNKNOWN_ON && data->motion)
 						a96t396_2ch_check_first_working(data);
 				}
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_LOW_TEMP_COMP) && IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+				GRIP_INFO("temp %s(%d/%d,%d/%d,%d/%d)\n",
+				data->is_low_temp ? "low" : "normal",
+				data->low_temp, data->low_temp_release,
+				data->grip_p_thd_low_temp, data->grip_p_thd_origin
+				, data->grip_p_thd_low_temp_2ch, data->grip_p_thd_origin_2ch);
 #endif
 				data->debug_count = 0;
 			} else {
@@ -867,7 +1087,7 @@ static void a96t396_set_debug_work(struct a96t396_data *data, u8 enable,
 {
 	GRIP_INFO("enable %d\n", enable);
 
-	if (enable == 1 && !data->check_abnormal_working) {
+	if (enable == 1) {
 		data->debug_count = 0;
 		schedule_delayed_work(&data->debug_work,
 			msecs_to_jiffies(time_ms));
@@ -893,6 +1113,7 @@ static void a96t396_set_firmware_work(struct a96t396_data *data, u8 enable,
 static irqreturn_t a96t396_interrupt(int irq, void *ptr)
 {
 	struct a96t396_data *data = ptr;
+
 	GRIP_INFO("called\n");
 
 	__pm_wakeup_event(data->grip_ws, jiffies_to_msecs(3 * HZ));
@@ -1335,13 +1556,36 @@ static ssize_t grip_2ch_unknown_state_show(struct device *dev,
 }
 
 #endif
+#ifdef CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER
+static ssize_t grip_tuning_version_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct a96t396_data *data = dev_get_drvdata(dev);
+	u8 tuning_ver, project_id;
+	int ret;
+
+	ret = a96t396_i2c_read(data->client, REG_PROJECT_ID, &project_id, 1);
+	if (ret < 0) {
+		GRIP_ERR("err %d\n", ret);
+		project_id = 0;
+	}
+
+	ret = a96t396_i2c_read(data->client, REG_TUNING_VER, &tuning_ver, 1);
+	if (ret < 0) {
+		GRIP_ERR("err %d\n", ret);
+		tuning_ver = 0;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "0x%02x%02x\n", project_id, tuning_ver);
+}
+#endif
 
 static ssize_t grip_sw_reset_ready_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct a96t396_data *data = dev_get_drvdata(dev);
 	int ret;
-	int retry = 10;
+	int retry = 5;
 	u8 r_buf[1] = {0};
 
 	GRIP_INFO("Wait start\n");
@@ -1352,7 +1596,7 @@ static ssize_t grip_sw_reset_ready_show(struct device *dev,
 	}
 
 	/* To garuantee grip sensor sw reset delay*/
-	msleep(500);
+	msleep(1000);
 
 	while (retry--) {
 		ret = a96t396_i2c_read(data->client, REG_SW_RESET, r_buf, 1);
@@ -1447,10 +1691,26 @@ static ssize_t grip_reg_show(struct device *dev, struct device_attribute *attr, 
 
 		return (p-buf);
 	}
+
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+	if (data->is_tuning_mode) {
+		for (i = 0; i < 0x80; i++) {
+			a96t396_i2c_read(data->client, i, r_buf, 1);
+			p += snprintf(p, PAGE_SIZE, "(0x%02x)=0x%02x\n", i, r_buf[0]);
+		}
+	} else {
+		for (i = 0; i < 0x91; i++) {
+			a96t396_i2c_read(data->client, i, r_buf, 1);
+			p += snprintf(p, PAGE_SIZE, "(0x%02x)=0x%02x\n", i, r_buf[0]);
+		}
+	}
+#else
 	for (i = 0; i < 0x91; i++) {
 		a96t396_i2c_read(data->client, i, r_buf, 1);
 		p += snprintf(p, PAGE_SIZE, "(0x%02x)=0x%02x\n", i, r_buf[0]);
 	}
+#endif
+
 	return (p-buf);
 }
 
@@ -1564,14 +1824,14 @@ static ssize_t grip_sar_release_threshold_store(struct device *dev,
 				&cmd[0]);
 	GRIP_INFO("ret %d\n", ret);
 
-	if (ret != 0) {
+	if (ret < 0) {
 		GRIP_INFO("fail to write 1ch data1");
 		goto release_threshold_out;
 	}
 	ret = a96t396_i2c_write(data->client, REG_SAR_THRESHOLD + 0x03,
 				&cmd[1]);
 	GRIP_INFO("ret %d\n", ret);
-	if (ret != 0) {
+	if (ret < 0) {
 		GRIP_INFO("fail to write 1ch data2");
 		goto release_threshold_out;
 	}
@@ -1658,14 +1918,14 @@ static ssize_t grip_2ch_sar_release_threshold_store(struct device *dev,
 				&cmd[0]);
 	GRIP_INFO("ret %d\n", ret);
 
-	if (ret != 0) {
+	if (ret < 0) {
 		GRIP_INFO("fail to write 2ch data1");
 		goto release_threshold_out;
 	}
 	ret = a96t396_i2c_write(data->client, REG_SAR_THRESHOLD_2CH + 0x03,
 				&cmd[1]);
 	GRIP_INFO("ret %d\n", ret);
-	if (ret != 0) {
+	if (ret < 0) {
 		GRIP_INFO("fail to write 2ch data2");
 		goto release_threshold_out;
 	}
@@ -1700,6 +1960,11 @@ static ssize_t a96t396_irq_count_store(struct device *dev,
 	struct a96t396_data *data = dev_get_drvdata(dev);
 	u8 onoff;
 	int ret;
+
+	if (data->check_abnormal_working == true) {
+		GRIP_INFO("abnormal skip");
+		return -EIO;
+	}
 
 	ret = kstrtou8(buf, 10, &onoff);
 	if (ret < 0) {
@@ -1796,13 +2061,14 @@ static ssize_t bin_fw_ver_show(struct device *dev,
 		data->md_ver_bin, data->fw_ver_bin);
 }
 
-static int a96t396_get_fw_version(struct a96t396_data *data, bool bootmode)
+static int a96t396_get_fw_version(struct a96t396_data *data, bool bootmode, bool activemode)
 {
 	struct i2c_client *client = data->client;
 	u8 buf;
 	int ret;
 
-	grip_always_active(data, 1);
+	if (activemode)
+		grip_always_active(data, 1);
 
 	ret = a96t396_i2c_read(client, REG_FW_VER, &buf, 1);
 	if (ret < 0) {
@@ -1832,12 +2098,14 @@ static int a96t396_get_fw_version(struct a96t396_data *data, bool bootmode)
 
 	GRIP_INFO("fw 0x%x, md 0x%x\n", data->fw_ver, data->md_ver);
 
-	grip_always_active(data, 0);
+	if (activemode)
+		grip_always_active(data, 0);
 
 	return 0;
 
 err_grip_revert_mode:
-	grip_always_active(data, 0);
+	if (activemode)
+		grip_always_active(data, 0);
 
 	return -1;
 }
@@ -1848,12 +2116,9 @@ static ssize_t read_fw_ver_show(struct device *dev,
 	struct a96t396_data *data = dev_get_drvdata(dev);
 	int ret;
 
-	if (data->check_abnormal_working == true) {
-		GRIP_INFO("abnormal working, skip read fw ver\n");
-		return snprintf(buf, PAGE_SIZE, "0x0000\n");
-	}
+	data->check_abnormal_working = false;
 
-	ret = a96t396_get_fw_version(data, false);
+	ret = a96t396_get_fw_version(data, false, true);
 	if (ret < 0) {
 		GRIP_ERR("read err\n");
 		data->fw_ver = 0;
@@ -2102,7 +2367,7 @@ static int a96t396_fw_update(struct a96t396_data *data, u8 cmd)
 
 	while (retry > 0) {
 		a96t396_reset_for_bootmode(data);
-		usleep_range(BOOT_DELAY, BOOT_DELAY);
+		usleep_range(BOOT_DELAY, BOOT_DELAY + 1);
 
 		ret = a96t396_fw_mode_enter(data);
 		if (ret < 0)
@@ -2181,7 +2446,7 @@ static int a96t396_flash_fw(struct a96t396_data *data, bool probe, u8 cmd)
 	int block_count;
 	const u8 *fw_data;
 
-	ret = a96t396_get_fw_version(data, probe);
+	ret = a96t396_get_fw_version(data, probe, true);
 	if (ret)
 		data->fw_ver = 0;
 
@@ -2210,10 +2475,10 @@ static int a96t396_flash_fw(struct a96t396_data *data, bool probe, u8 cmd)
 
 	block_count = (int)(data->firm_size / 32);
 
+	data->fw_update_flag = true;
+
 	while (retry--) {
-		data->fw_update_flag = true;
 		ret = a96t396_fw_update(data, cmd);
-		data->fw_update_flag = false;
 		if (ret < 0)
 			break;
 
@@ -2237,9 +2502,9 @@ static int a96t396_flash_fw(struct a96t396_data *data, bool probe, u8 cmd)
 		}
 
 		a96t396_reset_for_bootmode(data);
-		usleep_range(RESET_DELAY, RESET_DELAY);
+		usleep_range(RESET_DELAY, RESET_DELAY + 1);
 
-		ret = a96t396_get_fw_version(data, true);
+		ret = a96t396_get_fw_version(data, true, true);
 		if (ret) {
 			GRIP_ERR("read ver err\n");
 			ret = -1;
@@ -2263,6 +2528,8 @@ static int a96t396_flash_fw(struct a96t396_data *data, bool probe, u8 cmd)
 	}
 
 	a96t396_release_fw(data, cmd);
+
+	data->fw_update_flag = false;
 
 	return ret;
 }
@@ -2603,7 +2870,6 @@ static ssize_t a96t396_noti_enable_show(struct device *dev,
 	return sprintf(buf, "%d\n", data->noti_enable);
 }
 
-
 static DEVICE_ATTR(grip_threshold, 0444, grip_threshold_show, NULL);
 static DEVICE_ATTR(grip_total_cap, 0444, grip_total_cap_show, NULL);
 static DEVICE_ATTR(grip_sar_enable, 0664, grip_sar_enable_show, grip_sar_enable_store);
@@ -2664,6 +2930,9 @@ static DEVICE_ATTR(grip_baseline_2ch, 0444, grip_2ch_baseline_show, NULL);
 static DEVICE_ATTR(grip_raw_2ch, 0444, grip_2ch_raw_show, NULL);
 static DEVICE_ATTR(grip_check_2ch, 0444, grip_2ch_check_show, NULL);
 #endif
+#ifdef CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER
+static DEVICE_ATTR(grip_tuning_version, 0444, grip_tuning_version_show, NULL);
+#endif
 
 static struct device_attribute *grip_sensor_attributes[] = {
 	&dev_attr_grip_threshold,
@@ -2700,6 +2969,9 @@ static struct device_attribute *grip_sensor_attributes[] = {
 	&dev_attr_motion,
 	&dev_attr_unknown_state,
 	&dev_attr_noti_enable,
+#ifdef CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER
+	&dev_attr_grip_tuning_version,
+#endif	
 	NULL,
 };
 
@@ -2740,31 +3012,199 @@ static int a96t396_checksum_for_usermode(struct a96t396_data *data)
 {
 	int ret = 0;
 	int length = 3;
+	int retry = 2;
 	unsigned char cmd[3] = {0x0A, 0x00, 0x10};
 	unsigned char checksum[2] = {0, };
 
-	ret = i2c_master_send(data->client, cmd, length);
-	if (ret != length) {
-		GRIP_ERR("i2c_write fail %d\n", ret);
-		return -1;
+	while (retry--) {
+		ret = i2c_master_send(data->client, cmd, length);
+		if (ret != length) {
+			GRIP_ERR("i2c_write fail %d\n", ret);
+			ret = -1;
+			continue;
+		}
+
+		usleep_range(160 * 1000, 161 * 1000);
+
+		ret = a96t396_i2c_read(data->client, 0x0A, checksum, 2);
+		if (ret < 0) {
+			GRIP_ERR("i2c read fail : %d\n", ret);
+			continue;
+			ret = -1;
+		}
+
+		GRIP_INFO("CRC:%02x%02x, BIN:%02x%02x\n", checksum[0], checksum[1],
+			data->checksum_h_bin, data->checksum_l_bin);
+
+		if ((checksum[0] == data->checksum_h_bin) && (checksum[1] == data->checksum_l_bin)) {
+			ret = 0;
+			break;
+		} else {
+			GRIP_INFO("Checksum fail. retry:%d\n", retry);
+			ret = -1;
+		}
 	}
-
-	usleep_range(10 * 1000, 11 * 1000);
-
-	ret = a96t396_i2c_read(data->client, 0x0A, checksum, 2);
-	if (ret < 0) {
-		GRIP_ERR("i2c read fail : %d\n", ret);
-		return -1;
-	}
-
-	GRIP_INFO("CRC:%02x%02x, BIN:%02x%02x\n", checksum[0], checksum[1],
-		data->checksum_h_bin, data->checksum_l_bin);
-
-	if ((checksum[0] != data->checksum_h_bin) || (checksum[1] != data->checksum_l_bin))
-		ret = -1;
 
 	return ret;
 }
+
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+static int a96t396_check_tuning_checksum(struct a96t396_data *data)
+{
+	int ret = 0;
+	u8 cmd;
+	unsigned char checksum[2] = {0, };
+
+	cmd = 0x00;
+	ret = a96t396_i2c_write(data->client, REG_TUNING_CHECKSUM_MSB, &cmd);
+	if (ret < 0) {
+		GRIP_INFO("i2c write fail(%d)\n", ret);
+		return ret;
+	}
+
+	cmd = 0x10;
+	ret = a96t396_i2c_write(data->client, REG_TUNING_CHECKSUM_LSB, &cmd);
+	if (ret < 0) {
+		GRIP_INFO("i2c write fail(%d)\n", ret);
+		return ret;
+	}
+
+	usleep_range(10000, 10010);
+
+	ret = a96t396_i2c_read(data->client, REG_TUNING_CHECKSUM_MSB, checksum, 2); // 0x10, 0x00
+	if (ret < 0) {
+		GRIP_ERR("i2c read fail(%d)\n", ret);
+		return ret;
+	}
+
+	if (checksum[0] != data->checksum_msb || checksum[1] != data->checksum_lsb) {
+		GRIP_INFO("0x%x, 0x%x, 0x%x, 0x%x\n", checksum[0], checksum[1],
+			data->checksum_msb, data->checksum_lsb);
+		ret = -1;
+	}
+
+	return ret;
+}
+
+static void a96t396_tuning_check(struct delayed_work *work, int ic_num)
+{
+	struct a96t396_data *data = container_of((struct delayed_work *)work,
+		struct a96t396_data, firmware_work);
+
+	int ret;
+
+	ret = a96t396_tuning_mode(data);
+	if (ret < 0) {
+		GRIP_INFO("fail to enter tuning mode");
+	} else {
+		GRIP_INFO("success to enter tuning mode");
+	}
+}
+
+static int a96t396_tuning_mode(struct a96t396_data *data)
+{
+	int ret, i;
+	u8 cmd;
+	u8 r_buf[2] = {0};
+	int index = 0;
+
+	grip_always_active(data, 1);
+
+	ret = a96t396_get_fw_version(data, true, false);
+	if (ret)
+		GRIP_ERR("i2c fail(%d), addr[%d]\n", ret, data->client->addr);
+
+	grip_always_active(data, 0);
+
+	// check logic FW
+	if ((data->fw_ver != data->fw_ver_bin) || (data->md_ver != data->md_ver_bin))
+		return -1;
+	if (data->md_ver != 0XAC)
+		return -1;
+
+	GRIP_INFO("tuning mode start!\n");
+
+	// change tuning mode
+	cmd = CHANGE_TUNING_MAP_CMD;
+	ret = a96t396_i2c_write(data->client, REG_GRIP_TUNING_STATE, &cmd);
+	if (ret < 0) {
+		GRIP_INFO("i2c write fail(%d)\n", ret);
+		return ret;
+	}
+
+	msleep(20);
+
+	ret = a96t396_i2c_read(data->client, REG_GRIP_TUNING_STATE, r_buf, 1);
+	if (ret < 0) {
+		GRIP_ERR("i2c read fail(%d)\n", ret);
+		return ret;
+	}
+
+	// change tuning mode success
+	if (r_buf[0] == CHANGE_TUNING_MAP_FINISHED) {
+		// set tunging parameter
+		if (data->setup_reg_exist) {
+			for (i = 0; i < TUNINGMAP_MAX - 2; i++) {
+				index = i << 1;
+				ret = a96t396_i2c_write(data->client,
+					data->setup_reg[index],
+					&data->setup_reg[index + 1]);
+				if (ret < 0) {
+					GRIP_INFO("i2c write fail(%d)\n", ret);
+					return ret;
+				}
+			}
+		}
+	}
+
+	// verify
+	for (i = 0; i < TUNINGMAP_MAX - 2; i++) {
+		index = i << 1;
+		ret = a96t396_i2c_read(data->client, data->setup_reg[index],
+			r_buf, 1);
+
+		//GRIP_INFO("%x, %x, %x\n", data->setup_reg[index], r_buf[0], data->setup_reg[index + 1]);
+		if (r_buf[0] != data->setup_reg[index + 1]) {
+			ret = a96t396_i2c_write(data->client,
+				data->setup_reg[index], &data->setup_reg[index + 1]);
+				if (ret < 0) {
+					GRIP_INFO("i2c write fail(%d)\n", ret);
+					return ret;
+				}
+		}
+	}
+
+	// check checksum
+	ret = a96t396_check_tuning_checksum(data);
+	if (ret < 0) {
+		GRIP_INFO("tuning checksum fail(%d)\n", ret);
+		return ret;
+	}
+
+	// check register mode
+	cmd = CHANGE_REGISTER_MAP_CMD;
+	ret = a96t396_i2c_write(data->client, REG_GRIP_TUNING_STATE, &cmd);
+	if (ret < 0) {
+		GRIP_INFO("i2c write fail(%d)\n", ret);
+		return ret;
+	}
+
+	msleep(20);
+
+	ret = a96t396_i2c_read(data->client, REG_GRIP_TUNING_STATE, r_buf, 1);
+	if (ret < 0) {
+		GRIP_ERR("i2c read fail(%d)\n", ret);
+		return ret;
+	}
+
+	if (r_buf[0] == CHANGE_REGISTER_MAP_FINISHED) {
+		data->is_tuning_mode = 1;
+		return 0;
+	} else {
+		return -1;
+	}
+}
+#endif
 
 static int a96t396_fw_check(struct a96t396_data *data)
 {
@@ -2784,7 +3224,9 @@ static int a96t396_fw_check(struct a96t396_data *data)
 	} else
 		GRIP_INFO("fw version read success (%d)\n", ret);
 
-	ret = a96t396_get_fw_version(data, true);
+	grip_always_active(data, 1);
+
+	ret = a96t396_get_fw_version(data, true, false);
 	if (ret)
 		GRIP_ERR("i2c fail(%d), addr[%d]\n", ret, data->client->addr);
 
@@ -2800,14 +3242,18 @@ static int a96t396_fw_check(struct a96t396_data *data)
 		}
 	}
 
+	grip_always_active(data, 0);
+
 	if (data->fw_ver < data->fw_ver_bin || data->fw_ver > TEST_FIRMWARE_DETECT_VER
 				|| force == true || data->crc_check == CRC_FAIL) {
 		GRIP_ERR("excute fw update (0x%x -> 0x%x)\n",
 			data->fw_ver, data->fw_ver_bin);
 		ret = a96t396_flash_fw(data, true, BUILT_IN);
-		if (ret)
+
+		if (ret) {
 			GRIP_ERR("failed to a96t396_flash_fw (%d)\n", ret);
-		else
+			enter_error_mode(data, FAIL_SETUP_REGISTER);
+		} else
 			GRIP_INFO("fw update success\n");
 	}
 
@@ -2822,9 +3268,24 @@ static int a96t396_fw_check(struct a96t396_data *data)
 	}
 	data->grip_p_thd = (r_buf[0] << 8) | r_buf[1];
 #ifdef CONFIG_SENSORS_A96T396_2CH
-	if (data->multi_use) {
+	if (data->multi_use)
 		data->mul_ch->grip_p_thd_2ch = (r_buf[2] << 8) | r_buf[3];
+#endif
+
+	if (data->check_abnormal_working == true) {
+		GRIP_INFO("stop to a96t396_flash_fw\n");
+		ret = 0;
 	}
+
+#if IS_ENABLED(CONFIG_SENSORS_LOW_TEMP_COMP) && IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	data->grip_p_thd_origin = data->grip_p_thd;
+	GRIP_ERR("save grip_p_thd_origin(%d)\n", data->grip_p_thd_origin);
+#ifdef CONFIG_SENSORS_A96T396_2CH
+	if (data->multi_use) {
+		data->grip_p_thd_origin_2ch = data->mul_ch->grip_p_thd_2ch;
+		GRIP_ERR("save grip_p_thd_origin 2ch(%d)\n", data->grip_p_thd_origin_2ch);
+	}
+#endif
 #endif
 
 	return ret;
@@ -2924,43 +3385,13 @@ static int a96t396_parse_dt(struct a96t396_data *data, struct device *dev)
 	int ret = 0;
 	enum of_gpio_flags flags;
 
-#if IS_ENABLED(CONFIG_SENSORS_A96T396)
-	if (data->ic_num == MAIN_GRIP)
-		data->grip_int = of_get_named_gpio(np, "a96t396,irq_gpio", 0);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		data->grip_int = of_get_named_gpio(np, "a96t396_sub,irq_gpio", 0);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
-	if (data->ic_num == SUB2_GRIP)
-		data->grip_int = of_get_named_gpio(np, "a96t396_sub2,irq_gpio", 0);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		data->grip_int = of_get_named_gpio(np, "a96t396_wifi,irq_gpio", 0);
-#endif
+	data->grip_int = of_get_named_gpio(np, "irq_gpio", 0);
 	if (data->grip_int < 0) {
 		GRIP_ERR("Can't get grip_int\n");
 		return data->grip_int;
 	}
-#if IS_ENABLED(CONFIG_SENSORS_A96T396)
-	if (data->ic_num == MAIN_GRIP)
-		data->ldo_en = of_get_named_gpio_flags(np, "a96t396,ldo_en", 0, &flags);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		data->ldo_en = of_get_named_gpio_flags(np, "a96t396_sub,ldo_en", 0, &flags);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
-	if (data->ic_num == SUB2_GRIP)
-		data->ldo_en = of_get_named_gpio_flags(np, "a96t396_sub2,ldo_en", 0, &flags);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		data->ldo_en = of_get_named_gpio_flags(np, "a96t396_wifi,ldo_en", 0, &flags);
-#endif
 
+	data->ldo_en = of_get_named_gpio_flags(np, "ldo_en", 0, &flags);
 	if (data->ldo_en < 0) {
 		GRIP_INFO("set ldo_en 0\n");
 		data->ldo_en = 0;
@@ -2989,155 +3420,128 @@ static int a96t396_parse_dt(struct a96t396_data *data, struct device *dev)
 		gpio_free(data->ldo_en);
 	}
 
-#if IS_ENABLED(CONFIG_SENSORS_A96T396)
-	if (data->ic_num == MAIN_GRIP) {
-		if (of_property_read_string_index(np, "a96t396,dvdd_vreg_name", 0,
-				(const char **)&data->dvdd_vreg_name)) {
-			data->dvdd_vreg_name = NULL;
-		}
+	if (of_property_read_string_index(np, "dvdd_vreg_name", 0,
+			(const char **)&data->dvdd_vreg_name)) {
+		data->dvdd_vreg_name = NULL;
 	}
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP) {
-		if (of_property_read_string_index(np, "a96t396_sub,dvdd_vreg_name", 0,
-						(const char **)&data->dvdd_vreg_name)) {
-			data->dvdd_vreg_name = NULL;
-		}
-	}
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
-	if (data->ic_num == SUB2_GRIP) {
-		if (of_property_read_string_index(np, "a96t396_sub2,dvdd_vreg_name", 0,
-						(const char **)&data->dvdd_vreg_name)) {
-			data->dvdd_vreg_name = NULL;
-		}
-	}
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP) {
-		if (of_property_read_string_index(np, "a96t396_wifi,dvdd_vreg_name", 0,
-						(const char **)&data->dvdd_vreg_name)) {
-			data->dvdd_vreg_name = NULL;
-		}
-	}
-#endif
-
 	GRIP_INFO("dvdd_vreg_name: %s\n", data->dvdd_vreg_name);
 
-#if IS_ENABLED(CONFIG_SENSORS_A96T396)
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_string(np, "a96t396,fw_path", (const char **)&data->fw_path);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_string(np, "a96t396_sub,fw_path", (const char **)&data->fw_path);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
-	if (data->ic_num == SUB2_GRIP)
-		ret = of_property_read_string(np, "a96t396_sub2,fw_path", (const char **)&data->fw_path);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_string(np, "a96t396_wifi,fw_path", (const char **)&data->fw_path);
-#endif
-
+	ret = of_property_read_string(np, "fw_path", (const char **)&data->fw_path);
 	if (ret < 0) {
 		GRIP_INFO("use TK_FW_PATH_BIN %d\n", ret);
 		data->fw_path = TK_FW_PATH_BIN;
 	}
 	GRIP_INFO("fw path %s\n", data->fw_path);
 
-#if IS_ENABLED(CONFIG_SENSORS_A96T396)
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u32(np, "a96t396,firmup_cmd", &data->firmup_cmd);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub,firmup_cmd", &data->firmup_cmd);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
-	if (data->ic_num == SUB2_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub2,firmup_cmd", &data->firmup_cmd);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u32(np, "a96t396_wifi,firmup_cmd", &data->firmup_cmd);
-#endif
-
+	ret = of_property_read_u32(np, "firmup_cmd", &data->firmup_cmd);
 	if (ret < 0)
 		data->firmup_cmd = 0;
 
-#if IS_ENABLED(CONFIG_SENSORS_A96T396)
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u32(np, "a96t396,multi_use", &data->multi_use);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub,multi_use", &data->multi_use);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
-	if (data->ic_num == SUB2_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub2,multi_use", &data->multi_use);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u32(np, "a96t396_wifi,multi_use", &data->multi_use);
-#endif
+
+	ret = of_property_read_u32(np, "multi_use", &data->multi_use);
 	if (ret < 0) {
 		GRIP_INFO("set multi_use 0\n");
 		data->multi_use = 0;
 	}
 
-#if IS_ENABLED(CONFIG_SENSORS_A96T396)
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u32(np, "a96t396,unknown_ch_selection", &data->unknown_ch_selection);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub,unknown_ch_selection", &data->unknown_ch_selection);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
-	if (data->ic_num == SUB2_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub2,unknown_ch_selection", &data->unknown_ch_selection);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u32(np, "a96t396_wifi,unknown_ch_selection", &data->unknown_ch_selection);
-#endif
+
+	ret = of_property_read_u32(np, "unknown_ch_selection", &data->unknown_ch_selection);
 	if (ret < 0) {
-		GRIP_INFO("set select unknown ch 3\n");
+		GRIP_INFO("set unknown ch 3\n");
 		data->unknown_ch_selection = 3;
 	}
+
+	ret = of_property_read_u32(np, "fail_safe_concept", &data->fail_safe_concept);
+	if (ret < 0) {
+		GRIP_INFO("set fail_safe_concept 0\n");
+		data->fail_safe_concept = 0;
+	}
+
 	p = pinctrl_get_select_default(dev);
 	if (IS_ERR(p))
 		GRIP_INFO("failed pinctrl_get\n");
 
 	GRIP_INFO("grip_int:%d, ldo_en:%d\n", data->grip_int, data->ldo_en);
 
-#if IS_ENABLED(CONFIG_SENSORS_A96T396)
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u32(np, "a96t396,retry_i2c", &data->retry_i2c);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB)
-	if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub,retry_i2c", &data->retry_i2c);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_SUB2)
-	if (data->ic_num == SUB2_GRIP)
-		ret = of_property_read_u32(np, "a96t396_sub2,retry_i2c", &data->retry_i2c);
-#endif
-#if IS_ENABLED(CONFIG_SENSORS_A96T396_WIFI)
-	if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u32(np, "a96t396_wifi,retry_i2c", &data->retry_i2c);
-#endif
+	ret = of_property_read_u32(np, "retry_i2c", &data->retry_i2c);
 	if (ret < 0) {
 		GRIP_ERR("set retry_i2c 1\n");
 		data->retry_i2c = 1;
 	}
 
+#if IS_ENABLED(CONFIG_SENSORS_LOW_TEMP_COMP)
+	ret = of_property_read_u32(np, "grip_thd_low_temp", &data->grip_p_thd_low_temp);
+	if (ret < 0) {
+		GRIP_ERR("grip_thd_low_temp none. set 500\n");
+		data->grip_p_thd_low_temp = 500;
+	}
+	ret = of_property_read_s32(np, "low_temp", &data->low_temp);
+	if (ret < 0) {
+		GRIP_ERR("low_temp none. set -100\n");
+		data->low_temp = -100;
+	}
+	ret = of_property_read_s32(np, "low_temp_release", &data->low_temp_release);
+	if (ret < 0) {
+		GRIP_ERR("low_temp_release none. set -50\n");
+		data->low_temp_release = -50;
+	}
+#ifdef CONFIG_SENSORS_A96T396_2CH
+	if (data->multi_use) {
+		ret = of_property_read_u32(np, "grip_thd_low_temp_2ch", &data->grip_p_thd_low_temp_2ch);
+		if (ret < 0) {
+			GRIP_ERR("grip_thd_low_temp_2ch none. set 500\n");
+			data->grip_p_thd_low_temp_2ch = 500;
+		}
+	}
+#endif
+	GRIP_INFO("%d, %d, %d, %d\n", data->grip_p_thd_low_temp, data->low_temp,
+		data->low_temp_release, data->grip_p_thd_low_temp_2ch);
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+	ret = of_property_read_u32(np, "checksum_msb", &data->checksum_msb);
+	if (ret < 0) {
+		GRIP_ERR("%d checksum_msb fail\n", data->ic_num);
+		data->checksum_msb = 0x00;
+	} else {
+		GRIP_INFO("checksum_msb : 0x%x\n", data->checksum_msb);
+	}
+
+	ret = of_property_read_u32(np, "checksum_lsb", &data->checksum_lsb);
+	if (ret < 0) {
+		GRIP_ERR("%d checksum_lsb fail\n", data->ic_num);
+		data->checksum_lsb = 0x00;
+	} else {
+		GRIP_INFO("checksum_lsb : 0x%x\n", data->checksum_lsb);
+	}
+
+	ret = of_property_read_u8_array(np, "set_reg", data->setup_reg,
+						TUNINGMAP_MAX * 2);
+	if (ret < 0) {
+		GRIP_ERR("set_reg fail\n");
+		data->setup_reg_exist = false;
+	} else {
+		GRIP_INFO("set_reg success\n");
+		data->setup_reg_exist = true;
+	}
+#endif
 	return 0;
 }
+#ifdef CONFIG_SENSORS_FW_VENDOR
+static void parse_dt_for_max_count(struct a96t396_data *data, struct device *dev)
+{
+	struct device_node *np = dev->of_node;
+	int temp = 0;
+	int count;
 
+	temp = of_property_read_u32(np, "max_probe_count", &count);
+	if (temp < 0) {
+		GRIP_INFO("skip to update\n");
+	} else {
+		max_probe_count = count;
+		GRIP_INFO("max probe count %d\n", max_probe_count);
+	}
+}
+#endif
 #if (IS_ENABLED(CONFIG_CCIC_NOTIFIER) || IS_ENABLED(CONFIG_PDIC_NOTIFIER)) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 static int a96t396_pdic_handle_notification(struct notifier_block *nb,
 					     unsigned long action, void *pdic_data)
@@ -3153,12 +3557,16 @@ static int a96t396_pdic_handle_notification(struct notifier_block *nb,
 	if (data->fw_update_flag == true) {
 		GRIP_INFO("fw updating, skip TA/USB reset");
 		return 0;
+	} else if (data->check_abnormal_working == true) {
+		GRIP_INFO("abnormal working, skip TA/USB reset\n");
+		return 0;
 	}
 
 	if (usb_typec_info.id != PDIC_NOTIFY_ID_ATTACH && usb_typec_info.id != PDIC_NOTIFY_ID_OTG) {
 #if defined(CONFIG_SEC_FACTORY)
 		if (usb_typec_info.id == PDIC_NOTIFY_ID_RID) {
 			PD_NOTI_RID_TYPEDEF usb_fac_cable_info = *(PD_NOTI_RID_TYPEDEF *)pdic_data;
+
 			switch (usb_fac_cable_info.rid) {
 			case RID_301K:
 			case RID_523K:
@@ -3217,6 +3625,9 @@ static int a96t396_hall_notifier(struct notifier_block *nb,
 	if (data->fw_update_flag == true) {
 		GRIP_INFO("fw updating, skip hall reset");
 		return 0;
+	} else if (data->check_abnormal_working == true) {
+		GRIP_INFO("abnormal working, skip hall reset\n");
+		return 0;
 	}
 
 #ifdef CONFIG_SENSORS_A96T396_2CH
@@ -3254,6 +3665,7 @@ static int a96t396_hall_notifier(struct notifier_block *nb,
 #endif
 
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 static int a96t396_pogo_notifier(struct notifier_block *nb,
 		unsigned long action, void *pogo_data)
 {
@@ -3272,6 +3684,7 @@ static int a96t396_pogo_notifier(struct notifier_block *nb,
 
 	return 0;
 }
+#endif
 #endif
 
 static void a96t396_check_first_working(struct a96t396_data *data)
@@ -3529,6 +3942,7 @@ static void irq_work_func(struct work_struct *work)
 }
 
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 static void a96t396_init_work_func(struct work_struct *work)
 {
 	struct a96t396_data *data = container_of((struct delayed_work *)work,
@@ -3539,6 +3953,7 @@ static void a96t396_init_work_func(struct work_struct *work)
 	pogo_notifier_register(&data->pogo_nb, a96t396_pogo_notifier,
 					POGO_NOTIFY_DEV_SENSOR);
 }
+#endif
 #endif
 
 static int a96t396_probe(struct i2c_client *client,
@@ -3590,7 +4005,7 @@ static int a96t396_probe(struct i2c_client *client,
 
 	data = kzalloc(sizeof(struct a96t396_data), GFP_KERNEL);
 	if (!data) {
-		pr_info("[GRIP %d] Failed to allocate memory\n", ic_num);
+		pr_info("[GRIP %d] Fail to alloc\n", ic_num);
 		ret = -ENOMEM;
 		goto err_alloc;
 	}
@@ -3614,6 +4029,13 @@ static int a96t396_probe(struct i2c_client *client,
 	data->is_unknown_mode = UNKNOWN_OFF;
 	data->first_working = false;
 	data->motion = 1;
+#ifdef CONFIG_SENSORS_FW_VENDOR
+	data->fw_retry = 20;
+	parse_dt_for_max_count(data, &client->dev);
+#endif
+#if IS_ENABLED(CONFIG_SENSORS_SUPPORT_LOGIC_PARAMETER)
+	data->is_tuning_mode = 0;
+#endif
 
 	ret = a96t396_parse_dt(data, &client->dev);
 	if (ret) {
@@ -3622,7 +4044,7 @@ static int a96t396_probe(struct i2c_client *client,
 		goto err_config;
 	}
 
-	GRIP_INFO("multi_use %d", data->multi_use);
+	GRIP_INFO("multi_use %d\n", data->multi_use);
 #ifdef CONFIG_SENSORS_A96T396_2CH
 	if (data->multi_use) {
 		data->mul_ch = kzalloc(sizeof(struct multi_channel), GFP_KERNEL);
@@ -3647,7 +4069,7 @@ static int a96t396_probe(struct i2c_client *client,
 
 	if (data->power) {
 		data->power(data, true);
-		usleep_range(RESET_DELAY, RESET_DELAY);
+		usleep_range(RESET_DELAY, RESET_DELAY + 1);
 	}
 
 	data->irq = -1;
@@ -3737,7 +4159,9 @@ static int a96t396_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&data->firmware_work, a96t396_firmware_work_func);
 #endif
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	INIT_DELAYED_WORK(&data->init_work, a96t396_init_work_func);
+#endif
 #endif
 	ret = input_register_device(input_dev);
 	if (ret) {
@@ -3779,7 +4203,7 @@ static int a96t396_probe(struct i2c_client *client,
 		int multi_sensor_attrs_size = sizeof(multi_sensor_attrs) / sizeof(ssize_t *);
 		int grip_sensor_attr_size = sizeof(grip_sensor_attributes) / sizeof(ssize_t *);
 
-		if (SENSOR_ATTR_SIZE <  multi_sensor_attrs_size + grip_sensor_attr_size) {
+		if (multi_sensor_attrs_size + grip_sensor_attr_size > SENSOR_ATTR_SIZE) {
 			GRIP_ERR("fail %d, %d\n", multi_sensor_attrs_size, grip_sensor_attr_size);
 			goto err_sysfs_group;
 		}
@@ -3810,16 +4234,16 @@ static int a96t396_probe(struct i2c_client *client,
 		int multi_sensor_attrs_size = sizeof(multi_sensor_attrs) / sizeof(ssize_t *);
 		int grip_sensor_attr_size = sizeof(grip_sensor_attributes) / sizeof(ssize_t *);
 
-		if (SENSOR_ATTR_SIZE <  multi_sensor_attrs_size + grip_sensor_attr_size) {
+		if (multi_sensor_attrs_size + grip_sensor_attr_size > SENSOR_ATTR_SIZE) {
 			GRIP_ERR("fail mem size of sensor_attr is exceeded size %d, %d\n", multi_sensor_attrs_size, grip_sensor_attr_size);
 			goto err_sysfs_group;
 		}
 		memcpy(sensor_attributes + grip_sensor_attr_size - 1, multi_sensor_attrs, sizeof(multi_sensor_attrs));
 	}
-	ret = sensors_register(data->dev, data, sensor_attributes,
+	ret = sensors_register(&data->dev, data, sensor_attributes,
 				(char *)module_name[data->ic_num]);
 #else
-	ret = sensors_register(data->dev, data, grip_sensor_attributes,
+	ret = sensors_register(&data->dev, data, grip_sensor_attributes,
 				(char *)module_name[data->ic_num]);
 #endif
 #endif
@@ -3868,7 +4292,9 @@ static int a96t396_probe(struct i2c_client *client,
 	hall_notifier_register(&data->hall_nb);
 #endif
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	schedule_delayed_work(&data->init_work, msecs_to_jiffies(5000));
+#endif
 #endif
 	GRIP_INFO("done\n");
 	data->probe_done = true;
@@ -4002,6 +4428,7 @@ static void a96t396_shutdown(struct i2c_client *client)
 		data->power(data, false);
 	}
 	data->enabled = false;
+	data->check_abnormal_working = true;
 
 	cancel_work_sync(&data->pdic_attach_reset_work);
 	cancel_work_sync(&data->pdic_detach_reset_work);
@@ -4134,6 +4561,14 @@ static int __init a96t396_init(void)
 {
 	int ret = 0;
 
+	if (is_lpcharge_pdic_param()) {
+		pr_err("[GRIP] %s: lpm : Do not load driver\n", __func__);
+		return 0;
+	}
+
+#ifdef CONFIG_SENSORS_FW_VENDOR
+	max_probe_count = GRIP_MAX_CNT;
+#endif
 #if IS_ENABLED(CONFIG_SENSORS_A96T396)
 	ret = i2c_add_driver(&a96t396_driver);
 	if (ret != 0)

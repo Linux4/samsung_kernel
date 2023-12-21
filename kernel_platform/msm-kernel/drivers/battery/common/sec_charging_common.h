@@ -119,6 +119,13 @@ enum sec_battery_voltage_type {
 	SEC_BATTERY_VOLTAGE_MV,
 };
 
+enum sec_battery_temp_type {
+	/* temp */
+	SEC_BATTERY_TEMP_TEMP = 0,
+	/* adc */
+	SEC_BATTERY_TEMP_ADC,
+};
+
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 enum sec_battery_dual_mode {
 	SEC_DUAL_BATTERY_MAIN = 0,
@@ -282,6 +289,13 @@ enum sec_battery_direct_charging_source_ctrl {
 	SEC_TEST_MODE = 0x1,
 	SEC_SEND_UVDM = 0x2,
 	SEC_STORE_MODE = 0x4,
+};
+
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
 };
 
 extern const char *sb_rx_type_str(int type);
@@ -473,6 +487,8 @@ enum sec_battery_check {
  * charging current should be over than USB charging current
  */
 #define SEC_CHARGER_MINIMUM_SIOP_CHARGING_CURRENT	2
+
+#define SEC_BATTERY_CALBE_TYPE_FROM_MTK	1
 
 #if defined(CONFIG_TABLET_MODEL_CONCEPT) && !defined(CONFIG_SEC_FACTORY)
 #define SLOW_CHARGING_CURRENT_STANDARD          1000

@@ -12,6 +12,7 @@
 #include "dp_reg.h"
 #include "dp_debug.h"
 #include "dp_link.h"
+#include "sde_dbg.h"
 #if defined(CONFIG_SECDP)
 #include "secdp.h"
 #endif
@@ -323,6 +324,7 @@ static void dp_catalog_aux_clear_hw_interrupts(struct dp_catalog_aux *aux)
 	io_data = catalog->io.dp_phy;
 
 	data = dp_read(DP_PHY_AUX_INTERRUPT_STATUS);
+	pr_err("on way to clear hw interrupts \n");
 #if defined(CONFIG_SECDP)
 	if (data)
 		DP_DEBUG("PHY_AUX_INTERRUPT_STATUS=0x%08x\n", data);
@@ -470,6 +472,7 @@ static void dp_catalog_aux_get_irq(struct dp_catalog_aux *aux, bool cmd_busy)
 	struct dp_catalog_private *catalog;
 	struct dp_io_data *io_data;
 
+	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_ENTRY);
 	if (!aux) {
 		DP_ERR("invalid input\n");
 		return;
@@ -480,10 +483,12 @@ static void dp_catalog_aux_get_irq(struct dp_catalog_aux *aux, bool cmd_busy)
 
 	aux->isr = dp_read(DP_INTR_STATUS);
 	aux->isr &= ~DP_INTR_MASK1;
+	SDE_EVT32_EXTERNAL(aux->isr);
 	ack = aux->isr & DP_INTERRUPT_STATUS1;
 	ack <<= 1;
 	ack |= DP_INTR_MASK1;
 	dp_write(DP_INTR_STATUS, ack);
+	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT);
 }
 
 static bool dp_catalog_ctrl_wait_for_phy_ready(

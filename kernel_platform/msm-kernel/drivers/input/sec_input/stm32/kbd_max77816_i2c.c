@@ -77,6 +77,35 @@ int kbd_i2c_write_ex(u8 addr, u8 value)
 	return (KBD_MAX77816_WRITE_SIZE == 1 ? ret : -EIO);
 }
 
+int kbd_max77816_control_init(struct stm32_dev *stm32)
+{
+	char max77816_data_config1[2] = { 0x02, 0x8E }; /* 0x8E (3.1A) */
+	char max77816_data_config2[2] = { 0x03, 0x70 }; /* BB_EN=1(Enable buck-boost output) */
+	int ret = 0;
+
+	kbd_boost_pdata.stm32 = stm32;
+
+	if (!stm32->dtdata->booster_power_model_cnt)
+		return 0;
+
+	if (!kbd_boost_pdata.client) {
+		input_err(true, &stm32->client->dev, "%s : not probed\n", __func__);
+		return -1;
+	}
+
+	input_info(true, &stm32->client->dev, "%s\n", __func__);
+
+	ret = kbd_i2c_write_ex(max77816_data_config2[0], max77816_data_config2[1]);
+	if (ret < 0)
+		input_err(true, &stm32->client->dev, "%s : config2 write error(%d)\n", __func__, ret);
+
+	ret = kbd_i2c_write_ex(max77816_data_config1[0], max77816_data_config1[1]);
+	if (ret < 0)
+		input_err(true, &stm32->client->dev, "%s : config1 write error(%d)\n", __func__, ret);
+
+	return 0;
+}
+
 int kbd_max77816_control(struct stm32_dev *stm32, int voltage_val)
 {
 	char max77816_data_voltage[2] = { 0x04, 0x23 }; /* 0x23:3.30V(default) */

@@ -55,6 +55,8 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_iowait);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_blocked);
 #endif
 
+DEFINE_PER_CPU_SHARED_ALIGNED(struct rq_guard, runqueue_guards);
+
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 EXPORT_SYMBOL_GPL(runqueues);
 
@@ -5691,8 +5693,7 @@ static noinline void __schedule_bug(struct task_struct *prev)
 		pr_err("Preemption disabled at:");
 		print_ip_sym(KERN_ERR, preempt_disable_ip);
 	}
-	if (panic_on_warn)
-		panic("scheduling while atomic\n");
+	check_panic_on_warn("scheduling while atomic");
 
 	trace_android_rvh_schedule_bug(prev);
 
@@ -9687,6 +9688,8 @@ void __init sched_init(void)
 
 		rq->core_cookie = 0UL;
 #endif
+
+		memset(&per_cpu(runqueue_guards, i), 0xFF, sizeof(struct rq_guard));
 	}
 
 	set_load_weight(&init_task, false);

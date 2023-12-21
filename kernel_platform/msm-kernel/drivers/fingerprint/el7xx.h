@@ -139,6 +139,7 @@ struct el7xx_data {
 	bool ldo_onoff;
 
 	int sensortype;
+	int reset_count;
 	u32 spi_value;
 	u32 prev_bits_per_word;
 	struct device *dev;

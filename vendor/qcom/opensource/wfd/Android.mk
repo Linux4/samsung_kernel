@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 
-QMAA_DISABLES_WFD := false
+QMAA_DISABLES_WFD := true
 ifeq ($(TARGET_USES_QMAA),true)
 ifneq ($(TARGET_USES_QMAA_OVERRIDE_WFD),true)
 QMAA_DISABLES_WFD := true

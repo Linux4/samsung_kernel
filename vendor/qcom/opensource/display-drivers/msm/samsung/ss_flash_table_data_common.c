@@ -671,7 +671,7 @@ void spsram_read_bytes(struct samsung_display_driver_data *vdd, int addr, int rs
 
 	/* need 1frame delay between 71h and 6Eh */
 	delay = ss_frame_delay(cur_rr, 1);
-	usleep_range(delay, delay);
+	usleep_range(delay * 1000, delay * 1000);
 
 	/* RX - Flash read
 	 * do not send level key.. */
@@ -685,6 +685,8 @@ void spsram_read_bytes(struct samsung_display_driver_data *vdd, int addr, int rs
 	/* Do not use gpara to read flash via MIPI */
 	vdd->gpara = false;
 	ss_panel_data_read(vdd, RX_FLASH_GAMMA, buf, LEVEL_KEY_NONE);
+
+	usleep_range(delay * 1000, delay * 1000);
 
 	vdd->gpara = gpara_temp;
 }

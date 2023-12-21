@@ -78,6 +78,7 @@ struct dp_display_mode {
 	 * The output format can be read from drm_mode.
 	 */
 	enum dp_output_format output_format;
+	u32 lm_count;
 };
 
 struct dp_panel;

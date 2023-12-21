@@ -204,7 +204,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_chip_id),
 	SEC_BATTERY_ATTR(error_cause),
 	SEC_BATTERY_ATTR(cisd_fullcaprep_max),
-#if defined(CONFIG_BATTERY_CISD)
 	SEC_BATTERY_ATTR(cisd_data),
 	SEC_BATTERY_ATTR(cisd_data_json),
 	SEC_BATTERY_ATTR(cisd_data_d_json),
@@ -223,7 +222,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(cisd_event_data_json),
 	SEC_BATTERY_ATTR(prev_battery_data),
 	SEC_BATTERY_ATTR(prev_battery_info),
-#endif
 	SEC_BATTERY_ATTR(safety_timer_set),
 	SEC_BATTERY_ATTR(batt_swelling_control),
 	SEC_BATTERY_ATTR(batt_battery_id),
@@ -1242,7 +1240,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 					fullcaprep_val.intval);
 		}
 		break;
-#if defined(CONFIG_BATTERY_CISD)
 	case CISD_DATA:
 		{
 			struct cisd *pcisd = &battery->cisd;
@@ -1607,7 +1604,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 				battery->prev_jig_on, battery->prev_chg_on);
 		}
 		break;
-#endif
 	case SAFETY_TIMER_SET:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 			       battery->safety_timer_set);
@@ -2152,9 +2148,7 @@ ssize_t sec_bat_store_attrs(
 	const ptrdiff_t offset = attr - sec_battery_attrs;
 	int ret = -EINVAL;
 	int x = 0;
-#if defined(CONFIG_ENG_BATTERY_CONCEPT) || defined(CONFIG_BATTERY_CISD)
 	int i = 0;
-#endif
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
 	char direct_charging_source_status[2] = {0, };
 #endif
@@ -2275,7 +2269,7 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case BATT_SLATE_MODE:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (x == 2) {
+			if (x == SEC_SMART_SWITCH_SLATE) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 				sec_bat_set_mfc_off(battery, WPC_EN_SLATE, false);
@@ -2284,18 +2278,23 @@ ssize_t sec_bat_store_attrs(
 #endif
 				dev_info(battery->dev,
 					"%s: enable smart switch slate mode : %d\n", __func__, x);
-			} else if (x == 1) {
+			} else if (x == SEC_SLATE_MODE) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 				dev_info(battery->dev,
 					"%s: enable slate mode : %d\n", __func__, x);
-			} else if (x == 0) {
+			} else if (x == SEC_SLATE_OFF) {
 				sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, false, 0);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, false, 0);
 				sec_bat_set_mfc_on(battery, WPC_EN_SLATE);
+				/* recover smart switch src cap max current to 500mA */
+				sec_bat_smart_sw_src(battery, false, 500);
 				dev_info(battery->dev,
 					"%s: disable slate mode : %d\n", __func__, x);
+			} else if (x == SEC_SMART_SWITCH_SRC) {
+				/* reduce smart switch src cap max current */
+				sec_bat_smart_sw_src(battery, true, 0);
 			} else {
 				dev_info(battery->dev,
 					"%s: SLATE MODE unknown command\n", __func__);
@@ -2365,9 +2364,7 @@ ssize_t sec_bat_store_attrs(
 					sec_abc_send_event("MODULE=battery@WARN=store_fg_asoc0");
 #endif
 				battery->batt_asoc = x;
-#if defined(CONFIG_BATTERY_CISD)
 				battery->cisd.data[CISD_DATA_ASOC] = x;
-#endif
 				sec_bat_check_battery_health(battery);
 			}
 			ret = count;
@@ -2896,9 +2893,7 @@ ssize_t sec_bat_store_attrs(
 			if (x >= 0) {
 				int prev_battery_cycle = battery->batt_cycle;
 				battery->batt_cycle = x;
-#if defined(CONFIG_BATTERY_CISD)
 				battery->cisd.data[CISD_DATA_CYCLE] = x;
-#endif
 				if (prev_battery_cycle < 0) {
 					sec_bat_aging_check(battery);
 				}
@@ -3025,10 +3020,8 @@ ssize_t sec_bat_store_attrs(
 					/* clear tx all event */
 					sec_bat_set_tx_event(battery, 0, BATT_TX_EVENT_WIRELESS_ALL_MASK);
 				}
-#if defined(CONFIG_BATTERY_CISD)
 				if (x)
 					battery->cisd.tx_data[TX_ON]++;
-#endif
 			}
 #endif
 			ret = count;
@@ -3501,7 +3494,6 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case CISD_FULLCAPREP_MAX:
 		break;
-#if defined(CONFIG_BATTERY_CISD)
 	case CISD_DATA:
 		{
 			struct cisd *pcisd = &battery->cisd;
@@ -3822,7 +3814,6 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case PREV_BATTERY_INFO:
 		break;
-#endif
 	case SAFETY_TIMER_SET:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			if (x) {
@@ -4182,13 +4173,6 @@ ssize_t sec_bat_store_attrs(
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			dev_info(battery->dev,
 				"%s: boot completed(%d)\n", __func__, x);
-#if defined(CONFIG_WIRELESS_IC_PARAM)
-			value.intval = x;
-			psy_do_property(battery->pdata->wireless_charger_name, set,
-					POWER_SUPPLY_EXT_PROP_BOOT_COMPLETE, value);
-			psy_do_property(battery->pdata->wireless_charger_name, set,
-					POWER_SUPPLY_EXT_PROP_WIRELESS_PARAM_INFO, value);
-#endif
 			ret = count;
 		}
 		break;
