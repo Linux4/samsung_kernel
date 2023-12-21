@@ -224,6 +224,7 @@ enum usbpd_data_msg_type {
 	USBPD_Battery_Status		= 0x5,
 	USBPD_Alert					= 0x6,
 	USBPD_Get_Country_Info		= 0x7,
+	USBPD_Source_Info			= 0xB,
 	USBPD_Vendor_Defined		= 0xF,
 };
 
@@ -421,7 +422,7 @@ typedef enum {
 	PE_Get_Battery_Cap	= 0xE7,
 	PE_Give_Battery_Cap	= 0xE8,
 	PE_Get_Battery_Status	= 0xE9,
-	PE_Give_Battery_Status	= 0xEA,
+	PE_SNK_Give_Battery_Status	= 0xEA,
 	PE_Get_Manufacturer_Info	= 0xEB,
 	PE_Give_Manufacturer_Info	= 0xEC,
 
@@ -435,6 +436,7 @@ typedef enum {
 	PE_Send_Firmware_Update_Request	= 0x14,
 	PE_Send_Firmware_Update_Response	= 0x15,
 	PE_Firmware_Update_Response_Received	= 0x16,
+	PE_SRC_Send_Source_Info	= 0x17,
 
 	Error_Recovery			= 0xFF
 } policy_state;
@@ -539,7 +541,8 @@ enum usbpd_msg_status {
 	MSG_COUNTRY_INFO		= 53,
 	MSG_COUNTRY_CODES		= 54,
 	MSG_SNK_CAP_EXT			= 55,
-	MSG_RESERVED			= 56,
+	MSG_GET_SRC_INFO		= 56,
+	MSG_RESERVED			= 57,
 };
 
 /* Timer */
@@ -817,6 +820,22 @@ typedef union {
 		unsigned source_pdp_rating:8;
 	} source_capabilities_extended_data6;
 
+	struct{
+		unsigned reserved:8;
+		unsigned batt_info_invalid_batt_ref:1;
+		unsigned batt_info_batt_present:1;
+		unsigned batt_info_charging_status:2;
+		unsigned batt_info_reserved:4;
+		unsigned batt_present_capacity:16;
+	} battery_status;
+
+	struct{
+		unsigned port_reported_pdp:8;
+		unsigned port_present_pdp:8;
+		unsigned port_maximun_pdp:8;
+		unsigned reserved:7;
+		unsigned port_type:1;
+	} source_info;
 } data_obj_type;
 
 typedef union {
@@ -959,6 +978,7 @@ struct sm5714_usbpd_manager_data {
 	int vbus_adc;
 #endif
 	bool support_vpdo;
+	bool support_15w_vpdo;
 };
 
 struct sm5714_usbpd_data {
@@ -976,6 +996,7 @@ struct sm5714_usbpd_data {
 	data_obj_type		source_request_obj;
 	struct sm5714_usbpd_manager_data	manager;
 	struct work_struct	worker;
+	struct wakeup_source	*policy_engine_wake;
 	struct completion	msg_arrived;
 	struct completion	pd_completion;
 	u64			wait_for_msg_arrived;
@@ -1080,6 +1101,7 @@ extern int (*fp_count_cisd_pd_data)(unsigned short vid, unsigned short pid);
 extern int dwc3_restart_usb_host_mode_hs(void);
 #endif
 #endif
+void sm5714_usbpd_change_source_cap(int enable, int max_cur, int init);
 void sm5714_usbpd_turn_on_reverse_booster(struct sm5714_usbpd_data *pd_data);
 void sm5714_usbpd_turn_off_reverse_booster(struct sm5714_usbpd_data *pd_data);
 #endif

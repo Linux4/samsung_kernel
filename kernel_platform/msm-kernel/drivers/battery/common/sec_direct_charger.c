@@ -294,7 +294,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	int has_apdo = 0, cable_type = 0, voltage_avg = 0;
 	unsigned int current_event = 0, lrp_chg_src = SEC_CHARGING_SOURCE_DIRECT, tx_retry_case = 0;
 	int flash_state = 0, mst_en = 0, abnormal_ta = 0;
-#if defined(CONFIG_MTK_CHARGER)
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 	int mtk_fg_init = 0;
 #endif
 
@@ -390,7 +390,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_ABNORMAL_TA, value);
 	abnormal_ta = value.intval;
 
-#if defined(CONFIG_MTK_CHARGER)
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_MTK_FG_INIT, value);
 	mtk_fg_init = value.intval; /* check only for MTK */
 #endif
@@ -399,7 +399,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	charger->capacity = value.intval;
 	if (charger->direct_chg_done || (charger->capacity >= charger->pdata->dchg_end_soc)
 		|| !has_apdo || charger->store_mode || flash_state || mst_en || abnormal_ta
-#if defined(CONFIG_MTK_CHARGER)
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 		|| !mtk_fg_init
 #endif
 		) {
@@ -677,7 +677,7 @@ static int sec_direct_chg_get_property(struct power_supply *psy,
 			val->intval = value.intval;
 			break;
 		case POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_CHG_STATUS:
-			psy_do_property(charger->pdata->direct_charger_name, get, ext_psp, value);
+			ret = psy_do_property(charger->pdata->direct_charger_name, get, ext_psp, value);
 			val->strval = value.strval;
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHANGE_CHARGING_SOURCE:

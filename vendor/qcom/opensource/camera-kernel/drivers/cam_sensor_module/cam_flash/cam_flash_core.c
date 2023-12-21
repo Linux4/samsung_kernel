@@ -487,17 +487,14 @@ static int cam_flash_torch(
 		return -EINVAL;
 	}
 
-#if defined(CONFIG_FLASH_CURRENT_JAPAN)
-	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", 60);
-	rc = s2mpb02_led_en(S2MPB02_TORCH_LED_1, S2MPB02_TORCH_OUT_I_60MA, S2MPB02_LED_TURN_WAY_I2C);/* torch, on */
-#else
 	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", flash_data->led_current_ma[0]);
-	if (flash_data->led_current_ma[0] == 140) {
+	if (flash_data->led_current_ma[0] == 60) {
+		rc = s2mpb02_led_en(S2MPB02_TORCH_LED_1, S2MPB02_TORCH_OUT_I_60MA, S2MPB02_LED_TURN_WAY_I2C);/* torch, on */
+	} else if (flash_data->led_current_ma[0] == 140) {
 		rc = s2mpb02_led_en(S2MPB02_TORCH_LED_1, S2MPB02_TORCH_OUT_I_120MA, S2MPB02_LED_TURN_WAY_I2C);/* torch, on */
 	} else {
 		rc = s2mpb02_led_en(S2MPB02_TORCH_LED_1, S2MPB02_TORCH_OUT_I_220MA, S2MPB02_LED_TURN_WAY_I2C);/* torch, on */
 	}
-#endif
 
 	if (rc)
 		CAM_ERR(CAM_FLASH, "Fire Torch failed: %d", rc);
@@ -572,17 +569,15 @@ static int cam_flash_torch(
 		return -EINVAL;
 	}
 
-#if defined(CONFIG_FLASH_CURRENT_JAPAN)
-	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", 50);
-	rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 50);
-#else
 	CAM_INFO(CAM_FLASH, "CAM Torch Flash ON, %d mA", flash_data->led_current_ma[0]);
-	if (flash_data->led_current_ma[0] == 140) {
+
+	if (flash_data->led_current_ma[0] == 60) {
+		rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 50);
+	} else if (flash_data->led_current_ma[0] == 140) {
 		rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 100);
 	} else {
 		rc =  ktd2692_led_mode_ctrl(KTD2692_ENABLE_TORCH_MODE, 175);
 	}
-#endif
 
 	if (rc)
 		CAM_ERR(CAM_FLASH, "Fire Torch failed: %d", rc);

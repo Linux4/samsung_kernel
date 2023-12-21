@@ -218,6 +218,11 @@ int SessionAgm::getAgmCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_VORBIS:
             id = AGM_FORMAT_VORBIS;
             break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS:
+            id = AGM_FORMAT_OPUS;
+            break;
+#endif
         default:
             PAL_ERR(LOG_TAG, "Entered default format %x", fmt);
             break;

@@ -5731,6 +5731,7 @@ QDF_STATUS cm_start_roam_invoke(struct wlan_objmgr_psoc *psoc,
 	struct qdf_mac_addr connected_bssid;
 	uint8_t vdev_id = vdev->vdev_objmgr.vdev_id;
 	bool roam_offload_enabled = cm_roam_offload_enabled(psoc);
+	struct rso_config *rso_cfg;
 
 	roam_control_bitmap = mlme_get_operations_bitmap(psoc, vdev_id);
 	if (roam_offload_enabled && (roam_control_bitmap ||
@@ -5749,6 +5750,10 @@ QDF_STATUS cm_start_roam_invoke(struct wlan_objmgr_psoc *psoc,
 		qdf_mem_free(cm_req);
 		return QDF_STATUS_E_FAILURE;
 	}
+
+	rso_cfg = wlan_cm_get_rso_config(vdev);
+	if (!rso_cfg)
+		return QDF_STATUS_E_NULL_VALUE;
 
 	/* Ignore BSSID and channel validation for FW host roam */
 	if (source == CM_ROAMING_FW)
@@ -5770,13 +5775,17 @@ QDF_STATUS cm_start_roam_invoke(struct wlan_objmgr_psoc *psoc,
 			qdf_mem_free(cm_req);
 			return QDF_STATUS_E_NOSUPPORT;
 		}
+
 		cm_req->roam_req.req.forced_roaming = true;
+		if (source == CM_ROAMING_HOST || source == CM_ROAMING_USER)
+			rso_cfg->is_forced_roaming = true;
 		source = CM_ROAMING_NUD_FAILURE;
 		goto send_evt;
 	}
 
 	if (qdf_is_macaddr_broadcast(bssid)) {
 		qdf_copy_macaddr(&cm_req->roam_req.req.bssid, bssid);
+		qdf_copy_macaddr(&rso_cfg->roam_invoke_bssid, bssid);
 		mlme_debug("Roam only if better candidate found else stick to current AP");
 		goto send_evt;
 	}
@@ -5799,6 +5808,17 @@ QDF_STATUS cm_start_roam_invoke(struct wlan_objmgr_psoc *psoc,
 
 send_evt:
 	cm_req->roam_req.req.source = source;
+
+	/* Storing source information in rso cfg as if FW aborts
+	 * roam host will delete roam req from queue.
+	 * In roam invoke failure, host will read rso cfg params
+	 * information and disconnect if needed.
+	 */
+	if (source == CM_ROAMING_HOST ||
+	    source == CM_ROAMING_NUD_FAILURE ||
+	    source == CM_ROAMING_LINK_REMOVAL ||
+	    source == CM_ROAMING_USER)
+		rso_cfg->roam_invoke_source = source;
 
 	cm_req->roam_req.req.vdev_id = vdev_id;
 	/*

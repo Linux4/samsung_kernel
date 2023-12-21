@@ -494,6 +494,162 @@ __visible_for_testing inline bool is_valid_params(struct device *dev, struct dev
 	return true;
 }
 
+__visible_for_testing ssize_t default_duty_store(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int default_duty = 0, ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	ret = kstrtoint(buf, 0, &default_duty);
+	if (ret) {
+		pr_err("%s : fail to get default_duty\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("%s %d\n", __func__, default_duty);
+
+	if ((default_duty < 0) || (default_duty > MAX_DUTY)) {
+		pr_err("[VIB]: %s out of range\n", __func__);
+		return -EINVAL;
+	}
+
+	if (ddata->vib_ops->set_default_duty) {
+		ret = ddata->vib_ops->set_default_duty(ddata->dev, default_duty);
+		if (ret) {
+			pr_err("%s set_default_duty error : %d\n", __func__, ret);
+			goto err;
+		}
+	} else {
+		pr_info("%s this model doesn't need set_default_duty\n", __func__);
+	}
+
+err:
+	return ret ? ret : count;
+}
+
+__visible_for_testing ssize_t default_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	if (!ddata->vib_ops->get_default_duty)
+		return snprintf(buf, VIB_BUFSIZE, "NONE\n");
+
+	ret = ddata->vib_ops->get_default_duty(ddata->dev, buf);
+
+	return ret;
+}
+
+__visible_for_testing ssize_t fold_open_duty_store(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int fold_open_duty = 0, ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	ret = kstrtoint(buf, 0, &fold_open_duty);
+	if (ret) {
+		pr_err("%s : fail to get fold_open_duty\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("%s %d\n", __func__, fold_open_duty);
+
+	if ((fold_open_duty < 0) || (fold_open_duty > MAX_DUTY)) {
+		pr_err("[VIB]: %s out of range\n", __func__);
+		return -EINVAL;
+	}
+
+	if (ddata->vib_ops->set_fold_open_duty) {
+		ret = ddata->vib_ops->set_fold_open_duty(ddata->dev, fold_open_duty);
+		if (ret) {
+			pr_err("%s set_fold_open_duty error : %d\n", __func__, ret);
+			goto err;
+		}
+	} else {
+		pr_info("%s this model doesn't need set_fold_open_duty\n", __func__);
+	}
+
+err:
+	return ret ? ret : count;
+}
+
+__visible_for_testing ssize_t fold_open_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	if (!ddata->vib_ops->get_fold_open_duty)
+		return snprintf(buf, VIB_BUFSIZE, "NONE\n");
+
+	ret = ddata->vib_ops->get_fold_open_duty(ddata->dev, buf);
+
+	return ret;
+}
+
+__visible_for_testing ssize_t fold_close_duty_store(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int fold_close_duty = 0, ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	ret = kstrtoint(buf, 0, &fold_close_duty);
+	if (ret) {
+		pr_err("%s : fail to get fold_close_duty\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("%s %d\n", __func__, fold_close_duty);
+
+	if ((fold_close_duty < 0) || (fold_close_duty > MAX_DUTY)) {
+		pr_err("[VIB]: %s out of range\n", __func__);
+		return -EINVAL;
+	}
+
+	if (ddata->vib_ops->set_fold_close_duty) {
+		ret = ddata->vib_ops->set_fold_close_duty(ddata->dev, fold_close_duty);
+		if (ret) {
+			pr_err("%s set_fold_close_duty error : %d\n", __func__, ret);
+			goto err;
+		}
+	} else {
+		pr_info("%s this model doesn't need set_fold_close_duty\n", __func__);
+	}
+
+err:
+	return ret ? ret : count;
+}
+
+__visible_for_testing ssize_t fold_close_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	if (!ddata->vib_ops->get_fold_close_duty)
+		return snprintf(buf, VIB_BUFSIZE, "NONE\n");
+
+	ret = ddata->vib_ops->get_fold_close_duty(ddata->dev, buf);
+
+	return ret;
+}
+
 __visible_for_testing ssize_t intensity_store(struct device *dev, struct device_attribute *attr,
 	const char *buf, size_t count)
 {
@@ -1331,6 +1487,9 @@ static DEVICE_ATTR_RW(pwle);
 static DEVICE_ATTR_RO(virtual_composite_indexes);
 static DEVICE_ATTR_RO(virtual_pwle_indexes);
 static DEVICE_ATTR_RW(enable);
+static DEVICE_ATTR_RW(default_duty);
+static DEVICE_ATTR_RW(fold_open_duty);
+static DEVICE_ATTR_RW(fold_close_duty);
 static DEVICE_ATTR_RO(motor_type);
 static DEVICE_ATTR_WO(use_sep_index);
 static DEVICE_ATTR_RW(current_temp);
@@ -1344,6 +1503,9 @@ static DEVICE_ATTR_RW(event_cmd);
 
 static struct attribute *sec_vibrator_attributes[] = {
 	&dev_attr_enable.attr,
+	&dev_attr_default_duty.attr,
+	&dev_attr_fold_open_duty.attr,
+	&dev_attr_fold_close_duty.attr,
 	&dev_attr_motor_type.attr,
 	&dev_attr_use_sep_index.attr,
 	&dev_attr_current_temp.attr,

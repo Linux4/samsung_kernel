@@ -656,7 +656,7 @@
 	funnel_gfx: funnel@0x6943000 {
 		compatible = "arm,primecell";
 		arm,primecell-periphid = <0x000bb908>;
-
+		status = "disabled";
 		reg = <0x6943000 0x1000>;
 		reg-names = "funnel-base";
 

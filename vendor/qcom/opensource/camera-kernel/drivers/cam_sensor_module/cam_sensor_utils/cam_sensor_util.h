@@ -74,7 +74,6 @@ enum sensor_retention_mode {
 #endif
 
 #if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
-extern int to_do_print_vc__sen_id;
 extern int to_dump_when_sof_freeze__sen_id;
 
 typedef enum {
@@ -83,8 +82,16 @@ typedef enum {
 	e_seq_sensor_idn_s5k3lu,
 	e_seq_sensor_idn_imx564,
 	e_seq_sensor_idn_imx754,
-	e_seq_sensor_idn_max,
+	e_seq_sensor_idn_s5k2ld,
+	e_seq_sensor_idn_s5k3k1,
+	e_seq_sensor_idn_max_invalid,
 } e_seq_sensor_idnum;
+
+typedef enum {
+	e_sensor_upd_event_invalid = 0x0,
+	e_sensor_upd_event_vc = 0x1,
+	e_sensor_upd_event_exposure = 0x2,
+} e_sensor_reg_upd_event_type;
 #endif
 
 int cam_sensor_count_elems_i3c_device_id(struct device_node *dev,

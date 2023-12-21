@@ -69,6 +69,7 @@ int stm32_dev_regulator(struct stm32_dev *stm32, int onoff)
 				input_err(true, dev, "%s: Failed to enable vddo: %d\n", __func__, ret);
 				return ret;
 			}
+			kbd_max77816_control_init(stm32);
 		} else {
 			input_err(true, dev, "%s: vdd is already enabled\n", __func__);
 		}

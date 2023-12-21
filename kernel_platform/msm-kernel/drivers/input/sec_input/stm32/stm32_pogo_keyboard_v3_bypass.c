@@ -127,11 +127,11 @@ static void pogo_kpd_event_bypass(struct stm32_keypad_dev *stm32, u16 *key_value
 		input_info(true, &stm32->pdev->dev, "%s '%s'\n", __func__,
 				keydata.press != STM32_KPC_DATA_PRESS ? "R" : "P");
 #endif
-		if (key_values[i] < STM32_KEY_MAX) {
+		if (keydata.key_value < STM32_KEY_MAX) {
 			if (keydata.press != STM32_KPC_DATA_PRESS)
-				stm32->key_state[key_values[i]] = 0;
+				stm32->key_state[keydata.key_value] = 0;
 			else
-				stm32->key_state[key_values[i]] = 1;
+				stm32->key_state[keydata.key_value] = 1;
 		}
 		input_report_key(stm32->input_dev, keydata.key_value, keydata.press);
 		input_sync(stm32->input_dev);

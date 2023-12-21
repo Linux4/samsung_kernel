@@ -918,7 +918,7 @@
                 <!-- DEVICEPP_RX - DEVICEPP_RX_VOICE_DEFAULT RX_NN_NS/CASCADE -->
                 <graph_kv key="0xAC000000" value="0xAC000009"/>
             </keys_and_values>
-            <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="loopback_mic1_spk,loopback_mic2_spk,loopback_mic3_spk,loopback_mic1_spk_left,incallmusic_spk">
+            <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="loopback_mic1_spk,loopback_mic2_spk,loopback_mic3_spk,loopback_mic1_spk_left,incallmusic_spk,incallmusic_all_spk">
                 <!-- DEVICERX - SPEAKER -->
                 <graph_kv key="0xA2000000" value="0xA2000001"/>
                 <!-- DEVICEPP_RX - DEVICEPP_RX_LOOPBACK_DIAMONDVOICE -->
@@ -1596,7 +1596,7 @@
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_ECNS_DEX -->
                 <graph_kv key="0xAD000000" value="0x0AD00003"/>
             </keys_and_values>
-            <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="loopback_mic2_spk,incallmusic_spk">
+            <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="loopback_mic2_spk,incallmusic_spk,incallmusic_all_spk">
                 <!-- DEVICETX - SPEAKER_MIC -->
                 <graph_kv key="0xA3000000" value="0xA3000001"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_LOOPBACK_SUB_MIC -->

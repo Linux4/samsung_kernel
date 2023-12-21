@@ -165,13 +165,13 @@ static void mmc_sd_sec_log_err_count(struct mmc_host *mmc,
 
 	/*
 	 * in block.c
-	 *    #define MMC_BLK_TIMEOUT_MS  (20 * 1000)
+	 *    #define MMC_BLK_TIMEOUT_MS  (10 * 1000)
 	 *    refer to card_busy_detect()
 	 * so, check CMD13's response(status)
-	 *    if there is no other CMD for 18secs or more.
+	 *    if there is no other CMD for 9 secs or more.
 	 */
 	if (mrq->cmd->opcode == MMC_SEND_STATUS &&
-		time_after(jiffies, sdi.tstamp_last_cmd + msecs_to_jiffies(18 * 1000))) {
+		time_after(jiffies, sdi.tstamp_last_cmd + msecs_to_jiffies(9 * 1000))) {
 		if (status && (!(status & R1_READY_FOR_DATA) ||
 				(R1_CURRENT_STATE(status) == R1_STATE_PRG))) {
 			/* card stuck in prg state */

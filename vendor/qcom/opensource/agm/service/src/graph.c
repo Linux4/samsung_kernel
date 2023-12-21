@@ -83,6 +83,10 @@
 #include <log_utils.h>
 #endif
 
+// { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+#include <system/audiofw_feature.h>
+// } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+
 #define DEVICE_RX 0
 #define DEVICE_TX 1
 #define FILE_PATH_EXTN_MAX_SIZE 80
@@ -2342,6 +2346,11 @@ static bool is_media_config_needed_on_datapath(enum agm_media_format format)
     case AGM_FORMAT_WMAPRO:
         ret = true;
         break;
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    case AGM_FORMAT_OPUS:
+        ret = true;
+        break;
+#endif
     default:
         AGM_LOGE("Entered default, format %d", format);
         break;
