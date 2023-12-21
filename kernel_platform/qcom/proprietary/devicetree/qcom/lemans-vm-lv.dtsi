@@ -1,0 +1,54 @@
+&soc {
+};
+
+&hab {
+	vmid = <3>;
+};
+
+&qupv3_se17_4uart {
+	status = "ok";
+};
+
+&usb0 {
+	status = "ok";
+};
+
+&usb2_phy0 {
+	status = "ok";
+};
+
+&usb_qmp_phy0 {
+	status = "ok";
+};
+
+&usb1 {
+	status = "ok";
+};
+
+&usb2_phy1 {
+	status = "ok";
+};
+
+&usb_qmp_phy1 {
+	status = "ok";
+};
+
+&usb2 {
+	status = "ok";
+};
+
+&usb2_phy2 {
+	status = "ok";
+};
+
+&qcom_rng_ee3 {
+	status = "okay";
+};
+
+&pcie0 {
+	status = "ok";
+};
+
+&pcie0_msi_snps {
+	status = "ok";
+};
