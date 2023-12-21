@@ -1,0 +1,73 @@
+#
+# MUIC devices
+#
+
+comment "MUIC configs"
+
+config MUIC_UNIVERSAL
+  bool "UNIVERSAL MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for various MUIC chips.
+
+config MUIC_UNIVERSAL_SM5703
+  bool "SM5703 MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the SM5703 MUIC chip.
+
+config MUIC_UNIVERSAL_SM5705
+	bool "SM5705 MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the SM5705 MUIC chip.
+
+config MUIC_UNIVERSAL_SM5705_AFC
+	bool "SM5705 MUIC AFC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the SM5705 MUIC
+	  AFC feature.
+
+config MUIC_UNIVERSAL_SM5504
+  bool "SM5504 MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the SM5504 MUIC chip.
+
+config MUIC_PINCTRL
+  bool "MUIC PINCTRL"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for the Pinctrl in MUIC driver.
+
+config MUIC_SUPPORT_RUSTPROOF
+	bool "MUIC Disable UART"
+	depends on !SEC_FACTORY
+	default n
+	help
+	 This option will disable the UART to prevent the rusting of the
+	 IF Connector in the case of Kmini Devices.
+
+config SM5705_SUPPORT_LANHUB
+	bool "LANHUB Support for SM5705 MUIC"
+	depends on MUIC_UNIVERSAL_SM5705
+	default n
+	help
+	 This option will provide USB LANHUB support to SM5705 MUIC based
+	 devices.
+
+config MUIC_SUPPORT_GAMEPAD
+	bool "GAMEPAD Support for MUIC"
+	depends on MUIC_UNIVERSAL
+	default n
+	help
+	 This option will provide GAMEPAD support to MUIC based
+	 devices.
+
