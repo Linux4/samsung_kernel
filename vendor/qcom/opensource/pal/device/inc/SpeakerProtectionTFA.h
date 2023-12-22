@@ -85,6 +85,8 @@ private :
     int32_t spk_temp;
     int32_t active_spk_dev_count;
     bool bigdata_read;
+    uint32_t tfadsp_state;
+
 #if defined(SEC_AUDIO_DUAL_SPEAKER) || defined(SEC_AUDIO_SCREEN_MIRRORING) // { SUPPORT_VOIP_VIA_SMART_VIEW
     pal_device_speaker_mute curMuteStatus;
 #endif // } SUPPORT_VOIP_VIA_SMART_VIEW

@@ -1234,9 +1234,13 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 
 		if (vdd->vrr.support_vrr_based_bl &&
 				(vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr)) {
-			LCD_DEBUG(vdd, "skip & backup props.brightness = %d during VRR\n",
-					c_conn->bl_device->props.brightness);
-			vdd->br_info.common_br.bl_level = c_conn->bl_device->props.brightness;
+			if (!vdd->br_info.common_br.finger_mask_hbm_on) {
+				LCD_DEBUG(vdd, "skip & backup props.brightness = %d during VRR\n",
+						c_conn->bl_device->props.brightness);
+				vdd->br_info.common_br.bl_level = c_conn->bl_device->props.brightness;
+			} else
+				LCD_INFO(vdd, "Finger Mask Case. Do not backup\n");
+
 		} else {
 			backlight_update_status(c_conn->bl_device);
 		}

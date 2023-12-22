@@ -66,10 +66,6 @@
 
 #include "cam_generated_h"
 
-#ifdef CONFIG_SEC_KUNIT
-#include "camera_kunit_main.h"
-#endif
-
 char camera_banner[] = "Camera-Banner: (" CAMERA_COMPILE_BY "@"
 	CAMERA_COMPILE_HOST ") (" CAMERA_COMPILE_TIME ")";
 
@@ -192,12 +188,6 @@ static const struct camera_submodule_component camera_presil[] = {
 #endif
 };
 
-#ifdef CONFIG_SEC_KUNIT
-static const struct camera_submodule_component camera_kunit[] = {
-	{&cam_kunit_init, &cam_kunit_exit},
-};
-#endif
-
 static const struct camera_submodule submodule_table[] = {
 	{
 		.name = "Camera BASE",
@@ -258,14 +248,7 @@ static const struct camera_submodule submodule_table[] = {
 		.name = "Camera Presil",
 		.num_component = ARRAY_SIZE(camera_presil),
 		.component = camera_presil,
-	},
-#ifdef CONFIG_SEC_KUNIT
-	{
-		.name = "Camera KUnit",
-		.num_component = ARRAY_SIZE(camera_kunit),
-		.component = camera_kunit,
 	}
-#endif
 };
 
 static int camera_verify_submodules(void)

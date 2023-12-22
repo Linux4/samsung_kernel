@@ -105,6 +105,10 @@ LOCAL_SHARED_LIBRARIES := \
 
 # Use flag based selection to use QTI vs open source tinycompress project
 
+# { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+LOCAL_C_INCLUDES    += $(TOP)/system/media/audio/include
+# } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+
 ifeq ($(TARGET_USES_QTI_TINYCOMPRESS),true)
 LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/tinyalsa/include
 LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/tinycompress/include

@@ -382,7 +382,10 @@ const std::map<uint32_t, pal_audio_fmt_t> getFormatId {
     {AUDIO_FORMAT_APE,                 PAL_AUDIO_FMT_APE},
     {AUDIO_FORMAT_WMA_PRO,             PAL_AUDIO_FMT_WMA_PRO},
     {AUDIO_FORMAT_FLAC,                PAL_AUDIO_FMT_FLAC},
-    {AUDIO_FORMAT_VORBIS,              PAL_AUDIO_FMT_VORBIS}
+    {AUDIO_FORMAT_VORBIS,              PAL_AUDIO_FMT_VORBIS},
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    {AUDIO_FORMAT_OPUS,                PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS}
+#endif
 };
 
 const uint32_t format_to_bitwidth_table[] = {
@@ -646,6 +649,10 @@ public:
     int GetOutputUseCase(audio_output_flags_t halStreamFlags);
     bool CheckOffloadEffectsType(pal_stream_type_t pal_stream_type);
 #ifdef SEC_AUDIO_OFFLOAD
+#if defined(SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS) && defined(SEC_AUDIO_OFFLOAD_SOUNDSPEED)
+    int SetPlaybackRate(const audio_playback_rate_t *playbackRate);
+    int GetPlaybackRate(audio_playback_rate_t *playbackRate);
+#endif
     int UpdateOffloadEffects(int);
 #else
     int StartOffloadEffects(audio_io_handle_t, pal_stream_handle_t*);
@@ -671,12 +678,10 @@ public:
     ssize_t isAndroidOutDevicesSize() {return mAndroidOutDevices.size();}
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
     int SetVideoCallEffectKvParams(int mode);
-#endif
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
     void CheckAndSwitchListenbackMode(bool on);
 #endif
-#ifdef SEC_AUDIO_COMMON
     void lock_output_stream() { stream_mutex_.lock(); }
     void unlock_output_stream() { stream_mutex_.unlock(); }
 #endif
@@ -702,6 +707,9 @@ protected:
 #ifdef SEC_AUDIO_OFFLOAD
     bool playback_started;
     offload_effects_update_output fnp_offload_effect_update_output_ = nullptr;
+#if defined(SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS) && defined(SEC_AUDIO_OFFLOAD_SOUNDSPEED)
+    audio_playback_rate_t playback_rate;
+#endif
 #else
     offload_effects_start_output fnp_offload_effect_start_output_ = nullptr;
     offload_effects_stop_output fnp_offload_effect_stop_output_ = nullptr;
@@ -789,6 +797,9 @@ public:
     audio_source_t GetInputSource() { return source_; }
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
     int SetVideoCallEffectKvParams(int mode);
+#ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
+    int SetVideoCallEffectParams(int mode);
+#endif // } CONFIG_EFFECTS_VIDEOCALL
 #endif
 #ifdef SEC_AUDIO_SAMSUNGRECORD
     std::shared_ptr<AudioPreProcess> PreProcessInit();

@@ -35,6 +35,8 @@ typedef struct {
 
 struct qc_smem_drvdata {
 	struct builder bd;
+	size_t smem_offset_vendor0;
+	size_t smem_offset_vendor1;
 	sec_smem_id_vendor0_v2_t *vendor0;
 	unsigned int vendor0_ver;
 	union {

@@ -51,7 +51,7 @@ enum VRR_CMD_RR {
 #define GLUT_CMD_LEN_0xEB (110)
 #define GLUT_CMD_LEN_0xEC (82)
 
-#define SELF_MASK_IMG_CHECKSUM 0xBA639641
+#define SELF_MASK_IMG_CHECKSUM 0x06FBEE8A
 
 static char self_mask_img_data[] = {
 	0xc0, 0x1c, 0x41, 0xfb, 0x41, 0xdb, 0x41, 0xbe,

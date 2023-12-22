@@ -108,8 +108,6 @@ QDF_STATUS cm_abort_fw_roam(struct cnx_mgr *cm_ctx,
 	if (QDF_IS_STATUS_ERROR(status))
 		cm_remove_cmd(cm_ctx, &cm_id);
 
-	cm_disconnect_roam_abort_fail(cm_ctx->vdev, source, &bssid, cm_id);
-
 	return status;
 }
 

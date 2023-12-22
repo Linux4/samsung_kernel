@@ -519,8 +519,8 @@
         <path name="spk" />
         <ctl name="Left Amp Gain" value="18" />
         <ctl name="Right Amp Gain" value="18" />
-        <ctl name="Left Digital PCM Volume" value="685" />
-        <ctl name="Right Digital PCM Volume" value="809" />
+        <ctl name="Left Digital PCM Volume" value="701" />
+        <ctl name="Right Digital PCM Volume" value="825" />
     </path>
 
     <path name="listenback-headphones">
@@ -802,8 +802,8 @@
 
     <path name="bargein-tts-speaker-mic">
         <path name="sub-main-mic" />
-        <ctl name="TX_DEC0 Volume" value="110" />
-        <ctl name="TX_DEC1 Volume" value="100" />
+        <ctl name="TX_DEC0 Volume" value="98" />
+        <ctl name="TX_DEC1 Volume" value="95" />
     </path>
 
     <path name="bargein-tts-headphones-mic">
@@ -822,7 +822,7 @@
     <path name="bargein-aec-speaker-mic">
         <path name="sub-main-mic" />
         <ctl name="TX_DEC0 Volume" value="100" />
-        <ctl name="TX_DEC1 Volume" value="101" />
+        <ctl name="TX_DEC1 Volume" value="104" />
     </path>
 
     <path name="bargein-aec-headphones-mic">
@@ -874,7 +874,7 @@
     <!-- RX part -->
     <path name="call-handset">
         <path name="rcv" />
-        <ctl name="Left Amp Gain" value="6" />
+        <ctl name="Left Amp Gain" value="3" />
         <ctl name="Left Digital PCM Volume" value="817" />
     </path>
 
@@ -1017,7 +1017,7 @@
     <!-- RX part -->
     <path name="wifi-call-handset">
         <path name="rcv" />
-        <ctl name="Left Amp Gain" value="6" />
+        <ctl name="Left Amp Gain" value="3" />
         <ctl name="Left Digital PCM Volume" value="817" />
     </path>
 

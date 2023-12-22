@@ -11004,10 +11004,8 @@ bool lim_update_channel_width(struct mac_context *mac_ctx,
 	 * Do not update the channel bonding mode if channel bonding
 	 * mode is disabled in INI.
 	 */
-	if (cb_mode == WNI_CFG_CHANNEL_BONDING_MODE_DISABLE) {
-		pe_debug("channel bonding disabled");
+	if (cb_mode == WNI_CFG_CHANNEL_BONDING_MODE_DISABLE)
 		return false;
-	}
 
 	if (sta_ptr->htSupportedChannelWidthSet) {
 		if (sta_ptr->vhtSupportedChannelWidthSet >

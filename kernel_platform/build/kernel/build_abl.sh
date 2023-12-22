@@ -105,7 +105,7 @@ function sec_abl_image_generate() {
   cp -rf ${ABL_OUT_DIR}/unsigned_abl.elf ${ABL_IMAGE_DIR}/${ABL_IMAGE_NAME}
 
   set -x
-  "${SECABL_CMD[@]}" > ${ABL_OUT_DIR}/secimage.log 2>&1
+  ${SECABL_CMD[@]} > ${ABL_OUT_DIR}/secimage.log 2>&1
   set +x
 }
 

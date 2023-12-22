@@ -67,7 +67,12 @@ void sec_bat_fw_update(struct sec_battery_info *battery, int mode)
 		sec_vote(battery->chgen_vote, VOTER_FW, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 		msleep(500);
 		sec_vote(battery->iv_vote, VOTER_FW, true, SEC_INPUT_VOLTAGE_5V);
-		msleep(500);
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#if !defined(CONFIG_MTK_CHARGER) || !defined(CONFIG_AFC_CHARGER)
+		muic_afc_request_voltage(AFC_REQUEST_MFC, SEC_INPUT_VOLTAGE_5V / 1000);
+#endif
+#endif
+		msleep(2000);
 		value.intval = mode;
 		ret = psy_do_property(battery->pdata->wireless_charger_name, set,
 				POWER_SUPPLY_EXT_PROP_CHARGE_POWERED_OTG_CONTROL, value);
@@ -75,6 +80,11 @@ void sec_bat_fw_update(struct sec_battery_info *battery, int mode)
 			battery->mfc_fw_update = false;
 			sec_vote(battery->chgen_vote, VOTER_FW, false, 0);
 			sec_vote(battery->iv_vote, VOTER_FW, false, 0);
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#if !defined(CONFIG_MTK_CHARGER) || !defined(CONFIG_AFC_CHARGER)
+			muic_afc_request_voltage(AFC_REQUEST_MFC, SEC_INPUT_VOLTAGE_9V / 1000);
+#endif
+#endif
 		}
 		break;
 	default:
@@ -1129,6 +1139,13 @@ void sec_bat_wc_cv_mode_check(struct sec_battery_info *battery)
 		value.intval = POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE;
 		psy_do_property(battery->pdata->wireless_charger_name, set,
 			POWER_SUPPLY_PROP_STATUS, value);
+
+		/* Change Vrect headroom for CV mode */
+		if (battery->pdata->p2p_cv_headroom && battery->cable_type == SEC_BATTERY_CABLE_WIRELESS_TX) {
+			value.intval = WIRELESS_VRECT_ADJ_ROOM_2;
+			psy_do_property(battery->pdata->wireless_charger_name, set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_RX_CONTROL, value);
+		}
 	}
 }
 EXPORT_SYMBOL_KUNIT(sec_bat_wc_cv_mode_check);
@@ -1570,7 +1587,9 @@ void sec_bat_wpc_tx_en_work_content(struct sec_battery_info *battery)
 		sec_vote(battery->input_vote, VOTER_WC_TX, false, 0);
 		/* for 1) not supporting DC and charging bia PD20/DC on Tx */
 		/*     2) supporting DC and charging bia PD20 on Tx */
-		sec_vote(battery->iv_vote, VOTER_WC_TX, false, 0);
+		/*	   3) During retrying, maintain iv_vote */
+		if (battery->tx_retry_case == SEC_BAT_TX_RETRY_NONE)
+			sec_vote(battery->iv_vote, VOTER_WC_TX, false, 0);
 		cnt = 0;
 	}
 

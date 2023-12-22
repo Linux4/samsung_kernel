@@ -1183,5 +1183,6 @@ void cam_req_mgr_exit(void)
 	platform_driver_unregister(&cam_req_mgr_driver);
 }
 
+MODULE_SOFTDEP("pre: i2c-msm-geni");
 MODULE_DESCRIPTION("Camera Request Manager");
 MODULE_LICENSE("GPL v2");

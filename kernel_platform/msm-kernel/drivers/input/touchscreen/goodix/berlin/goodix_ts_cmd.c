@@ -2862,7 +2862,7 @@ static void fod_enable(void *device_data)
 
 	if (!ts->plat_data->enabled && !ts->plat_data->lowpower_mode && !ts->plat_data->pocket_mode
 			&& !ts->plat_data->ed_enable && !ts->plat_data->fod_lp_mode) {
-		if (device_may_wakeup(ts->bus->dev) && ts->plat_data->power_state == SEC_INPUT_STATE_LPM)
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM)
 			disable_irq_wake(ts->irq);
 		ts->hw_ops->irq_enable(ts, false);
 		goodix_ts_power_off(ts);

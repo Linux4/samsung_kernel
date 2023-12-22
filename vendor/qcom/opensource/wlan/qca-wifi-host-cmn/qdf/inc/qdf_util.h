@@ -123,6 +123,17 @@ typedef __qdf_wait_queue_head_t qdf_wait_queue_head_t;
 	 (_a)[4] == 0xff &&        \
 	 (_a)[5] == 0xff)
 
+/**
+ * QDF_IS_LAST_3_BYTES_OF_MAC_SAME - check the last 3 bytes
+ * same or not for two mac addresses
+ * @mac1: mac address 1
+ * @mac2: mac address 2
+ */
+#define QDF_IS_LAST_3_BYTES_OF_MAC_SAME(mac1, mac2) \
+	((mac1)->bytes[3] == (mac2)->bytes[3] && \
+	 (mac1)->bytes[4] == (mac2)->bytes[4] && \
+	 (mac1)->bytes[5] == (mac2)->bytes[5])
+
 /* Get number of bits from the index bit */
 #define QDF_GET_BITS(_val, _index, _num_bits) \
 		(((_val) >> (_index)) & ((1 << (_num_bits)) - 1))

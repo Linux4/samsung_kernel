@@ -11,8 +11,8 @@
 		<0x01c00000 0x4000>,
 		<0x01c20000 0x10000>,
 		<0x01c04000 0x1000>,
-		<0x01fcb000 0x1000>,
-		<0xc2f1000 0x4>,
+		<0x01fc6000 0x1000>,
+		<0xc2fa000 0x4>,
 		<0x48030000 0x100>;
 	reg-names = "msi", "dm_core", "dm_core_vf", "elbi", "iatu",
 			"msix_table", "msix_pba", "parf",
@@ -63,4 +63,8 @@
 
 &ecpricc {
 	compatible = "qcom,cinder-ecpricc-v2", "syscon";
+};
+
+&tsc {
+	qcom,tsc-hw-preload;
 };

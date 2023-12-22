@@ -133,6 +133,10 @@ struct session_obj;
 /*Enables SRCM event in metadata on the read path*/
 #define AGM_SESSION_FLAG_INBAND_SRCM 0x1
 
+// { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+#define SND_AUDIOCODEC_OPUS SND_AUDIOCODEC_BESPOKE
+// } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+
 /**
  * A single entry of a Key Vector
  */
@@ -172,6 +176,9 @@ enum agm_media_format
     AGM_FORMAT_EVRC,            /**< EVRC codec */
     AGM_FORMAT_G711,            /**< G711 codec */
     AGM_FORMAT_QCELP,            /**< G711 codec */
+// { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    AGM_FORMAT_OPUS,            /**< opus codec */
+// } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
     AGM_FORMAT_MAX,
 };
 
@@ -344,6 +351,17 @@ struct agm_session_wmapro_dec {
     uint32_t advanced_enc_option2; /**< Adv encoder options2 */
 };
 
+// { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+/**
+ * OPUS decoder parameters
+ */
+struct agm_session_opus_dec {
+    uint16_t num_channels;
+    uint32_t sample_rate;
+};
+// } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+
+
 /**
  * Session encoder/decoder parameters
  */
@@ -356,6 +374,9 @@ union agm_session_codec
     struct agm_session_ape_dec ape_dec;        /**< APE decoder config */
     struct agm_session_wma_dec wma_dec;        /**< WMA decoder config */
     struct agm_session_wmapro_dec wmapro_dec;  /**< WMAPro decoder config */
+// { SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    struct agm_session_opus_dec opus_dec;      /**< OPUS decoder config */
+// } SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
 };
 
 /**

@@ -286,7 +286,7 @@ struct sm5714_fuelgauge_platform_data {
 	int num_age_step;
 	int age_step;
 	int age_data_length;
-	sec_age_data_t *age_data;
+	unsigned int *age_data_soc;
 	unsigned int full_condition_soc;
 };
 
@@ -330,6 +330,7 @@ struct sm5714_fuelgauge_data {
 #endif
 	unsigned int standard_capacity;
 
+	bool capacity_max_updated;
 	bool initial_update_of_soc;
 	bool sleep_initial_update_of_soc;
 	struct mutex fg_lock;

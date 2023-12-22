@@ -182,8 +182,20 @@ static irqreturn_t q6v5_fatal_interrupt(int irq, void *data)
 		dev_err(q6v5->dev, "fatal error received: %s\n", msg);
 #if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
 		chk_name = strstr(q6v5->rproc->name, "adsp");
-		if (chk_name != NULL)
+		if (chk_name != NULL) {
 			ssr_reason_call_back(msg, len);
+			if (strstr(msg, "IPLSREVOCER")) {
+				q6v5->rproc->fssr = true;
+				q6v5->rproc->prev_recovery_disabled = 
+					q6v5->rproc->recovery_disabled;
+				q6v5->rproc->recovery_disabled = false;
+			} else {
+				q6v5->rproc->fssr = false;			
+			}
+			dev_info(q6v5->dev, "recovery:%d,%d\n",
+				(int)q6v5->rproc->prev_recovery_disabled,
+				(int)q6v5->rproc->recovery_disabled);			
+		}
 #endif
 	} else
 		dev_err(q6v5->dev, "fatal error without message\n");
