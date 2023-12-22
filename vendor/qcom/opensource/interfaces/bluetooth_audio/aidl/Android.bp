@@ -1,0 +1,24 @@
+aidl_interface {
+    name: "vendor.qti.hardware.bluetooth.audio",
+    vendor_available: true,
+    srcs: [
+        "vendor/qti//hardware/bluetooth/audio/*.aidl",
+    ],
+    stability: "vintf",
+    backend: {
+        cpp: {
+            enabled: false,
+        },
+        java: {
+            sdk_version: "module_current",
+            enabled: false,
+        },
+    },
+    versions_with_info: [
+        {
+            version: "1",
+            imports: [],
+        },
+    ],
+
+}
