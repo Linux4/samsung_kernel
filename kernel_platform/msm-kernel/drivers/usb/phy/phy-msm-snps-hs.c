@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -25,6 +26,9 @@
 #include <linux/debugfs.h>
 #include <linux/qcom_scm.h>
 #include <linux/types.h>
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
+#include <linux/usb/f_ss_mon_gadget.h>
+#endif
 
 #define USB2_PHY_USB_PHY_UTMI_CTRL0		(0x3c)
 #define OPMODE_MASK				(0x3 << 3)
@@ -90,6 +94,9 @@
 #define USB2PHY_USB_PHY_PARAMETER_OVERRIDE_X3	0x78
 #define TXVREFTUNE0_MASK			0xF
 #define PARAM_OVRD_MASK			0xFF
+
+#define USB2_PHY_USB_PHY_PWRDOWN_CTRL		(0xa4)
+#define PWRDOWN_B				BIT(0)
 
 #define DPSE_INTR_HIGH			BIT(0)
 
@@ -619,6 +626,19 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 			} else {
 				msm_hsphy_enable_clocks(phy, true);
 				ret = msm_hsphy_enable_power(phy, true);
+				/* On some targets 3.3V LDO which acts as EUD power
+				 * up (which in turn reset the USB PHY) is shared
+				 * with EMMC so that it won't be turned off even
+				 * though we remove our vote as part of disconnect
+				 * so power up this regulator is actually not
+				 * resetting the PHY next time when cable is
+				 * connected. So we explicitly bring
+				 * it out of power down state by writing
+				 * to POWER DOWN register,powering on the EUD
+				 * will bring EUD as well as phy out of reset state.
+				 */
+				msm_usb_write_readback(phy->base,
+					USB2_PHY_USB_PHY_PWRDOWN_CTRL, PWRDOWN_B, 1);
 				return ret;
 			}
 		}
@@ -845,7 +865,13 @@ static void msm_hsphy_vbus_draw_work(struct work_struct *w)
 			return;
 		}
 	}
-
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
+	/* USB SUSPEND CURRENT SETTINGS */
+	if (phy->vbus_draw == 2) {
+		pr_err("[USB] make suspend currrent event\n");
+		make_suspend_current_event();
+	}
+#endif
 	dev_info(phy->phy.dev, "Avail curr from USB = %u\n", phy->vbus_draw);
 
 	/* Set max current limit in uA */
@@ -951,6 +977,7 @@ static int msm_hsphy_dpdm_regulator_enable(struct regulator_dev *rdev)
 
 	if (phy->eud_enable_reg && readl_relaxed(phy->eud_enable_reg)) {
 		dev_err(phy->phy.dev, "eud is enabled\n");
+		phy->dpdm_enable = true;
 		return 0;
 	}
 
@@ -981,11 +1008,20 @@ static int msm_hsphy_dpdm_regulator_enable(struct regulator_dev *rdev)
 
 static int msm_hsphy_dpdm_regulator_disable(struct regulator_dev *rdev)
 {
-	int ret = 0;
+	int ret = 0, val = 0;
 	struct msm_hsphy *phy = rdev_get_drvdata(rdev);
 
 	dev_dbg(phy->phy.dev, "%s dpdm_enable:%d\n",
 				__func__, phy->dpdm_enable);
+
+	if (phy->eud_enable_reg) {
+		val = readl_relaxed(phy->eud_enable_reg);
+		if (val & EUD_EN2) {
+			dev_err(phy->phy.dev, "eud is enabled\n");
+			phy->dpdm_enable = false;
+			return 0;
+		}
+	}
 
 	mutex_lock(&phy->phy_lock);
 	if (phy->dpdm_enable) {
@@ -1345,6 +1381,7 @@ static void msm_hsphy_port_state_work(struct work_struct *w)
 		return;
 	case PORT_DISCONNECTED:
 		msm_hsphy_unprepare_chg_det(phy);
+		msm_hsphy_notify_charger(phy, POWER_SUPPLY_TYPE_UNKNOWN);
 		phy->port_state = PORT_UNKNOWN;
 		break;
 	case PORT_DCD_IN_PROGRESS:
@@ -1436,8 +1473,9 @@ static void msm_hsphy_port_state_work(struct work_struct *w)
 		 */
 	case PORT_CHG_DET_DONE:
 		if (!phy->vbus_active) {
-			phy->port_state = PORT_UNKNOWN;
+			phy->port_state = PORT_DISCONNECTED;
 			msm_hsphy_notify_extcon(phy, EXTCON_USB, 0);
+			break;
 		}
 
 		return;

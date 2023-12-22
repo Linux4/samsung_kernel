@@ -2247,9 +2247,11 @@ struct samsung_display_driver_data {
 	bool support_optical_fingerprint;
 	bool finger_mask_updated;
 	int finger_mask;
+	bool panel_hbm_exit_frame_wait; // To prevent Normal Brightness between HBM & Vsync */
 	int panel_hbm_entry_delay; //hbm entry delay/ unit = vsync
 	int panel_hbm_entry_after_te; /* delay after TE noticed */
 	int panel_hbm_exit_delay; /* hbm exit delay frame */
+	int panel_hbm_delay_after_tx; /* hbm delay after CMD tx */
 	struct lcd_device *lcd_dev;
 
 	struct display_status display_status_dsi;

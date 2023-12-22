@@ -225,7 +225,6 @@ enum sec_bat_attrs {
 	BATT_CHIP_ID,
 	ERROR_CAUSE,
 	CISD_FULLCAPREP_MAX,
-#if defined(CONFIG_BATTERY_CISD)
 	CISD_DATA,
 	CISD_DATA_JSON,
 	CISD_DATA_D_JSON,
@@ -244,7 +243,6 @@ enum sec_bat_attrs {
 	CISD_EVENT_DATA_JSON,
 	PREV_BATTERY_DATA,
 	PREV_BATTERY_INFO,
-#endif
 	SAFETY_TIMER_SET,
 	BATT_SWELLING_CONTROL,
 	BATT_BATTERY_ID,
@@ -318,7 +316,6 @@ enum sec_bat_attrs {
 	WC_PARAM_INFO,
 #endif
 	CHG_INFO,
-	BATT_FULL_CAPACITY,
 	LRP,
 	HP_D2D,
 	CHARGER_IC_NAME,
@@ -330,6 +327,8 @@ enum sec_bat_attrs {
 	MST_EN,
 	SPSN_TEST,
 	CHG_SOC_LIM,
+	MAG_COVER,
+	MAG_CLOAK,
 };
 
 enum sec_pogo_attrs {

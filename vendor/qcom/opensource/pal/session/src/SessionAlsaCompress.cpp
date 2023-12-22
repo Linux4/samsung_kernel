@@ -1268,6 +1268,7 @@ int SessionAlsaCompress::start(Stream * s)
         default:
             break;
     }
+#ifndef SEC_AUDIO_OFFLOAD
     memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
     rm->getVolumeSetParamInfo(&vol_set_param_info);
     isStreamAvail = (find(vol_set_param_info.streams_.begin(),
@@ -1307,7 +1308,7 @@ int SessionAlsaCompress::start(Stream * s)
             PAL_ERR(LOG_TAG,"Setting volume failed");
         }
     }
-
+#endif
 exit:
     if (status != 0)
         rm->voteSleepMonitor(s, false);

@@ -1770,9 +1770,6 @@ int cam_ois_init(struct cam_ois_ctrl_t *o_ctrl)
 							CAM_DBG(CAM_UTIL, "[NON][OIS][%d] Unsupport\n", hw_cam_position);
 							break;
 						}
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
-						msm_is_sec_get_rfinfo(hw_param);
-#endif
 					}
 				}
 #endif

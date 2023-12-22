@@ -96,7 +96,7 @@ int wacom_i2c_send_sel(struct wacom_i2c *wac_i2c, const char *buf, int count, bo
 	int i;
 
 	/* in LPM, waiting blsp block resume */
-	if (wac_i2c->pm_suspend) {
+	if (!wac_i2c->pdata->enabled) {
 		__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(500));
 		ret = wait_for_completion_interruptible_timeout(&wac_i2c->resume_done, msecs_to_jiffies(500));
 		if (ret <= 0) {
@@ -162,7 +162,7 @@ int wacom_i2c_recv_sel(struct wacom_i2c *wac_i2c, char *buf, int count, bool mod
 	int i;
 
 	/* in LPM, waiting blsp block resume */
-	if (wac_i2c->pm_suspend) {
+	if (!wac_i2c->pdata->enabled) {
 		__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(500));
 		ret = wait_for_completion_interruptible_timeout(&wac_i2c->resume_done, msecs_to_jiffies(500));
 		if (ret <= 0) {
@@ -949,8 +949,7 @@ reset:
 	wac_i2c->tsp_block_cnt = 0;
 	schedule_work(&wac_i2c->work_print_info.work);
 
-	if (device_may_wakeup(&client->dev))
-		wacom_enable_irq_wake(wac_i2c, false);
+	wacom_enable_irq_wake(wac_i2c, false);
 
 	wac_i2c->screen_on = true;
 
@@ -1032,8 +1031,7 @@ reset:
 	if (wac_i2c->reset_flag && retry--)
 		goto reset;
 
-	if (device_may_wakeup(&client->dev))
-		wacom_enable_irq_wake(wac_i2c, true);
+	wacom_enable_irq_wake(wac_i2c, true);
 
 	wac_i2c->screen_on = false;
 
@@ -1621,7 +1619,7 @@ static irqreturn_t wacom_interrupt(int irq, void *dev_id)
 	int ret = 0;
 
 	/* in LPM, waiting blsp block resume */
-	if (wac_i2c->pm_suspend) {
+	if (!wac_i2c->pdata->enabled) {
 		__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(500));
 		/* waiting for blsp block resuming, if not occurs i2c error */
 		ret = wait_for_completion_interruptible_timeout(&wac_i2c->resume_done, msecs_to_jiffies(500));
@@ -1686,8 +1684,8 @@ static irqreturn_t wacom_interrupt_pdct(int irq, void *dev_id)
 #endif
 
 		/* in LPM, waiting blsp block resume */
-		if (wac_i2c->pm_suspend) {
-		__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(1000));
+		if (!wac_i2c->pdata->enabled) {
+			__pm_wakeup_event(wac_i2c->wacom_ws, jiffies_to_msecs(1000));
 			ret = wait_for_completion_interruptible_timeout(&wac_i2c->resume_done, msecs_to_jiffies(1000));
 			if (ret <= 0) {
 				input_err(true, &wac_i2c->client->dev,
@@ -1873,6 +1871,7 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 	struct wacom_g5_platform_data *pdata = wac_i2c->pdata;
 	/* Set input values before registering input device */
 
+	input_dev->phys = input_dev->name;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
 
@@ -3256,7 +3255,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	wac_i2c->battery_saving_mode = false;
 #endif
 	wac_i2c->reset_flag = false;
-	wac_i2c->pm_suspend = false;
 	wac_i2c->samplerate_state = true;
 	wac_i2c->update_status = FW_UPDATE_PASS;
 
@@ -3297,14 +3295,13 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	mutex_init(&wac_i2c->ble_lock);
 	mutex_init(&wac_i2c->ble_charge_mode_lock);
 
-	wac_i2c->wacom_fw_ws = wakeup_source_register(&wac_i2c->client->dev, "wacom");
-	wac_i2c->wacom_ws = wakeup_source_register(&wac_i2c->client->dev, "wacom_wakelock");
-
 	INIT_DELAYED_WORK(&wac_i2c->work_print_info, wacom_print_info_work);
+	wac_i2c->wacom_fw_ws = wakeup_source_register(NULL, "wacom");
+	wac_i2c->wacom_ws = wakeup_source_register(NULL, "wacom_wakelock");
 
 	ret = wacom_fw_update_on_probe(wac_i2c);
 	if (ret)
-		goto err_register_input_dev;
+		goto err_fw_update_on_probe;
 
 	wacom_i2c_set_input_values(wac_i2c, input);
 
@@ -3315,6 +3312,10 @@ static int wacom_i2c_probe(struct i2c_client *client,
 		goto err_register_input_dev;
 
 	}
+
+	ret = wacom_sec_init(wac_i2c);
+	if (ret)
+		goto err_sec_init;
 
 	/*Request IRQ */
 	ret = devm_request_threaded_irq(&client->dev, wac_i2c->irq, NULL, wacom_interrupt,
@@ -3335,12 +3336,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	}
 	input_info(true, &client->dev, "init pdct %d\n", wac_i2c->irq_pdct);
 #endif
-
-	ret = wacom_sec_init(wac_i2c);
-	if (ret)
-		goto err_sec_init;
-
-	device_init_wakeup(&client->dev, true);
 
 	if (wac_i2c->pdata->table_swap) {
 		INIT_DELAYED_WORK(&wac_i2c->nb_reg_work, wacom_i2c_nb_register_work);
@@ -3384,16 +3379,15 @@ static int wacom_i2c_probe(struct i2c_client *client,
 
 	return 0;
 
-err_sec_init:
-	cancel_delayed_work_sync(&wac_i2c->open_test_dwork);
 #if 1 // WACOM_PDCT_ENABLE
 err_request_pdct_irq:
 #endif
 err_request_irq:
+err_sec_init:
 err_register_input_dev:
+err_fw_update_on_probe:
 	wakeup_source_unregister(wac_i2c->wacom_fw_ws);
 	wakeup_source_unregister(wac_i2c->wacom_ws);
-
 	mutex_destroy(&wac_i2c->i2c_mutex);
 	mutex_destroy(&wac_i2c->irq_lock);
 	mutex_destroy(&wac_i2c->update_lock);
@@ -3426,7 +3420,6 @@ static int wacom_i2c_suspend(struct device *dev)
 			input_err(true, &wac_i2c->client->dev, "%s: completion expired, %d\n", __func__, ret);
 	}
 
-	wac_i2c->pm_suspend = true;
 	reinit_completion(&wac_i2c->resume_done);
 
 #ifndef USE_OPEN_CLOSE
@@ -3441,7 +3434,6 @@ static int wacom_i2c_resume(struct device *dev)
 {
 	struct wacom_i2c *wac_i2c = dev_get_drvdata(dev);
 
-	wac_i2c->pm_suspend = false;
 	complete_all(&wac_i2c->resume_done);
 #ifndef USE_OPEN_CLOSE
 	if (wac_i2c->input_dev->users)

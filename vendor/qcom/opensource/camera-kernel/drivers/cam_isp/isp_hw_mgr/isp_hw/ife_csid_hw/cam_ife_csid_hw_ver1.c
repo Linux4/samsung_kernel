@@ -4305,9 +4305,6 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 					CAM_DBG(CAM_UTIL, "[NON][MIPI][%d] Unsupport\n", hw_cam_position);
 					break;
 			}
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
-			msm_is_sec_get_rfinfo(hw_param);
-#endif
 		}
 	}
 #endif

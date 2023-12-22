@@ -1008,8 +1008,15 @@ void ss_wait_for_te_gpio(struct samsung_display_driver_data *vdd, int num_of_te,
 			ss_wait_for_te_gpio_low(vdd, disp_te_gpio, preemption);
 	}
 
-	if (delay_after_te)
-		udelay(delay_after_te);
+	if (delay_after_te) {
+		if (delay_after_te < 5000) {
+			udelay(delay_after_te);
+		} else {
+			mdelay(delay_after_te / 1000);
+			udelay(delay_after_te % 1000);
+		}
+		LCD_INFO(vdd, "%d us delay after te is done\n", delay_after_te);
+	}
 
 	if (preemption)
 		preempt_enable();
@@ -3488,6 +3495,8 @@ end:
 *
 **************************************************************/
 
+static unsigned long false_esd_jiffies;
+
 /*
  * esd_irq_enable() - Enable or disable esd irq.
  *
@@ -3495,8 +3504,6 @@ end:
  * @nosync	: flag for disable irq with nosync
  * @data	: point ot struct ss_panel_info
  */
-#define IRQS_PENDING	0x00000200
-#define istate core_internal_state__do_not_mess_with_it
 static int esd_irq_enable(bool enable, bool nosync, void *data, u32 esd_mask)
 {
 	/* The irq will enabled when do the request_threaded_irq() */
@@ -3506,8 +3513,8 @@ static int esd_irq_enable(bool enable, bool nosync, void *data, u32 esd_mask)
 	int irq[MAX_ESD_GPIO] = {0,};
 	struct samsung_display_driver_data *vdd =
 		(struct samsung_display_driver_data *)data;
-	struct irq_desc *desc = NULL;
 	struct esd_recovery *esd;
+
 	u8 i = 0;
 	int ret = 0;
 
@@ -3556,29 +3563,21 @@ static int esd_irq_enable(bool enable, bool nosync, void *data, u32 esd_mask)
 	}
 
 	for (i = 0; i < esd->num_of_gpio; i++) {
-		gpio = esd->esd_gpio[i];
-		desc = irq_to_desc(irq[i]);
 		if (enable) {
-			/* clear esd irq triggered while it was disabled. */
-			if (desc->irq_data.chip->irq_ack)
-				desc->irq_data.chip->irq_ack(&desc->irq_data);
+			/* record time to prevent false positive esd interrupt
+			 * skip esd interrupt for 100ms after enable esd interrupt.
+			 */
+			false_esd_jiffies = jiffies + __msecs_to_jiffies(100);
 
-			if (desc->istate & IRQS_PENDING) {
-				LCD_DEBUG(vdd, "clear esd irq pending status\n");
-				desc->istate &= ~IRQS_PENDING;
-			}
-		}
-
-		if (enable) {
-			is_enabled[vdd->ndx] = true;
 			enable_irq(irq[i]);
 		} else {
 			if (nosync)
 				disable_irq_nosync(irq[i]);
 			else
 				disable_irq(irq[i]);
-			is_enabled[vdd->ndx] = false;
 		}
+
+		is_enabled[vdd->ndx] = enable;
 	}
 
 config_wakeup_source:
@@ -3624,12 +3623,17 @@ __visible_for_testing irqreturn_t esd_irq_handler(int irq, void *handle)
 		(struct samsung_display_driver_data *) handle;
 	struct sde_connector *conn;
 	struct esd_recovery *esd = NULL;
+	unsigned long now = jiffies;
 	int i;
 
 	if (!vdd->esd_recovery.is_enabled_esd_recovery) {
 		LCD_ERR(vdd, "esd recovery is not enabled yet");
 		goto end;
 	}
+
+	LCD_INFO(vdd, "now: %ld, threshold: %ld\n", now, false_esd_jiffies);
+	if (time_before(now, false_esd_jiffies))
+		goto end;
 
 	conn = GET_SDE_CONNECTOR(vdd);
 	if (!conn) {
@@ -3642,6 +3646,8 @@ __visible_for_testing irqreturn_t esd_irq_handler(int irq, void *handle)
 			LCD_INFO(vdd, "ub_con_det.gpio = %d\n", ss_gpio_get_value(vdd, vdd->ub_con_det.gpio));
 		}
 	}
+
+	esd = &vdd->esd_recovery;
 
 	LCD_INFO(vdd, "++\n");
 
@@ -3656,8 +3662,6 @@ __visible_for_testing irqreturn_t esd_irq_handler(int irq, void *handle)
 	inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
 	if (vdd->is_factory_mode) {
-		esd = &vdd->esd_recovery;
-
 		for (i = 0; i < esd->num_of_gpio; i++) {
 			if ((esd->esd_gpio[i] == vdd->ub_con_det.gpio) &&
 				(ss_gpio_to_irq(esd->esd_gpio[i]) == irq)) {
@@ -6754,9 +6758,12 @@ skip_bl_update:
 	/* SAMSUNG_FINGERPRINT */
 	/* hbm needs vdd->panel_hbm_entry_delay TE to be updated, where as normal needs no */
 		if (backlight_origin == BACKLIGHT_FINGERMASK_ON) {
-			if (panel->panel_mode == DSI_OP_CMD_MODE)
-				ss_wait_for_te_gpio(vdd, vdd->panel_hbm_entry_delay, 200, true);
-			else /* Video mode*/
+			if (panel->panel_mode == DSI_OP_CMD_MODE) {
+				if (vdd->panel_hbm_delay_after_tx)
+					ss_wait_for_te_gpio(vdd, vdd->panel_hbm_entry_delay, vdd->panel_hbm_delay_after_tx, true);
+				else
+					ss_wait_for_te_gpio(vdd, vdd->panel_hbm_entry_delay, 200, true);
+			} else /* Video mode*/
 				ss_wait_for_vsync(vdd, vdd->panel_hbm_entry_delay, 0);
 		}
 		if ((backlight_origin >= BACKLIGHT_FINGERMASK_ON) && (vdd->finger_mask_updated)) {
@@ -6765,10 +6772,15 @@ skip_bl_update:
 			vdd->finger_mask_updated = 0;
 		}
 		if (backlight_origin == BACKLIGHT_FINGERMASK_OFF) {
-			if (panel->panel_mode == DSI_OP_CMD_MODE)
-				ss_wait_for_te_gpio(vdd, vdd->panel_hbm_exit_delay, 200, true);
-			else
+			if (panel->panel_mode == DSI_OP_CMD_MODE) {
+				if (vdd->panel_hbm_delay_after_tx)
+					ss_wait_for_te_gpio(vdd, vdd->panel_hbm_exit_delay, vdd->panel_hbm_delay_after_tx, true);
+				else
+					ss_wait_for_te_gpio(vdd, vdd->panel_hbm_exit_delay, 200, true);
+			} else
 				ss_wait_for_vsync(vdd, vdd->panel_hbm_exit_delay, 0);
+
+			vdd->panel_hbm_exit_frame_wait = true;
 		}
 	}
 	mutex_unlock(&vdd->bl_lock);

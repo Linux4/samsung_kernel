@@ -299,3 +299,8 @@
 	};
 };
 
+&ufshc_mem
+{
+	qcom,prime-mask = <0x70>;
+	qcom,silver-mask = <0x0f>;
+};

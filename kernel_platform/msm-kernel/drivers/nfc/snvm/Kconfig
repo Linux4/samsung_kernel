@@ -24,3 +24,10 @@ config SEC_SNVM_WAKELOCK_METHOD
           0 - auto selection
           1 - wakeup_source_init
           2 - wakeup_source_register
+
+config SEC_SNVM_PLATFORM_DRV
+	bool "snvm platform driver"
+	default n
+	help
+	  make snvm driver to platfrom driver
+	  disable i2c node

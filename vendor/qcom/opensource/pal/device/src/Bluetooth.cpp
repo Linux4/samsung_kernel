@@ -83,6 +83,51 @@ static void peerMtu_cb(int mtu)
     peerMtu = mtu;
 }
 
+// SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+void lc3_mono_mode_cb(bool mono)
+{
+    PAL_INFO(LOG_TAG, "lc3_mono_mode_cb start");
+    int status = 0;
+    std::shared_ptr<Device> dev = nullptr;
+    struct pal_device curDevAttr;
+    Stream *stream = NULL;
+    std::vector<Stream*> activestreams;
+    std::shared_ptr<ResourceManager> rmLocal = ResourceManager::getInstance();
+    Session *session = NULL;
+    std::shared_ptr<BtA2dp> a2dpDev = nullptr;
+    std::shared_ptr<Bluetooth> bluetoothDev = nullptr;
+    enum A2DP_STATE a2dpState;
+    codec_format_t currCodecFormat;
+    pal_bt_lc3_payload param_lc3;
+    PAL_INFO(LOG_TAG, "IsLC3MonoModeOn = %d",mono);
+    
+    memset(&curDevAttr, 0, sizeof(curDevAttr));
+    curDevAttr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE;
+    dev = Device::getInstance(&curDevAttr, rmLocal);
+    status = rmLocal->getActiveStream_l(activestreams, dev);
+    if ((status != 0) || (activestreams.size() == 0)) {
+        PAL_ERR(LOG_TAG, "No active stream available");
+        return;
+    }
+    stream = static_cast<Stream *>(activestreams[0]);
+    stream->getAssociatedSession(&session);
+    
+    a2dpDev = std::dynamic_pointer_cast<BtA2dp>(dev);
+    a2dpState = a2dpDev->getA2dpState();
+    currCodecFormat = a2dpDev->getCodecFormat();
+    bluetoothDev = std::dynamic_pointer_cast<Bluetooth>(dev);
+    bluetoothDev->setLc3MonoMode(mono);
+
+    if (a2dpState == A2DP_STATE_STARTED) {
+        param_lc3.isLC3MonoModeOn = mono;
+        session->setParameters(stream, BT_PLACEHOLDER_ENCODER, PAL_PARAM_ID_BT_A2DP_LC3_CONFIG, &param_lc3);
+    } else {
+        PAL_INFO(LOG_TAG, "Mode update when a2dpState = %d",a2dpState);
+        bluetoothDev->setLc3MonoUpdated(true);
+    }
+}
+// SS_BT_LEA - MB_021 : END
+
 static uint32_t calculate_latency(uint32_t latency, uint32_t delay_report)
 {
     if (delay_report < MAX_OUT_LATENCY) {
@@ -157,6 +202,16 @@ bool BtA2dp::is_a2dp_offload()
     return false;
 }
 
+// SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+void Bluetooth::setLc3MonoMode(bool mode) {
+    isLC3MonoModeOn = mode;
+}
+
+void Bluetooth::setLc3MonoUpdated(bool mode) {
+    isLc3MonoChanged = mode;
+}
+// SS_BT_LEA - MB_021 : END
+
 #ifdef QCA_OFFLOAD
 void BtA2dp::setGameMode(bool gameMode) {
     game_mode = gameMode;
@@ -202,7 +257,8 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       isDummySink(false),
       isEncDecConfigured(false),
       abrRefCnt(0),
-      totalActiveSessionRequests(0)
+      totalActiveSessionRequests(0),
+      isLc3MonoChanged(false) // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
 {
 }
 
@@ -510,19 +566,14 @@ int Bluetooth::configureA2dpEncoderDecoder()
     }
 
     if (codecFormat == CODEC_TYPE_LC3) {
-        // SS_BT_LEA - A_041 : Stereo audio for SingleDev_OneChanStereoSnk
-        bool isActualLC3MonoModeOn = isLC3MonoModeOn;
-        audio_lc3_codec_cfg_t *bleCfg = (audio_lc3_codec_cfg_t *)codecInfo;
-        if (!bleCfg) {
-            PAL_ERR(LOG_TAG, "Invalid lc3 config");
-        } else {
-            if (bleCfg->enc_cfg.actual_stream_map_size > 1) {
-                PAL_INFO(LOG_TAG, "Mono mode is off");
-                isActualLC3MonoModeOn = false;
-            }
+// SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+        PAL_DBG(LOG_TAG, "isLC3MonoModeOn = %d", isLC3MonoModeOn);
+        if (isLc3MonoChanged == true) {
+            setLc3MonoUpdated(false);
         }
+// SS_BT_LEA - MB_021 : END
         builder->payloadLC3Config(&paramData, &paramSize, miid,
-                                  isActualLC3MonoModeOn);
+                                  isLC3MonoModeOn);
         // SS_BT_LEA - A_041 : END
         if (paramSize) {
             dev->updateCustomPayload(paramData, paramSize);
@@ -923,7 +974,6 @@ void Bluetooth::startAbr()
     mAbrMutex.lock();
     if (abrRefCnt > 0) {
         abrRefCnt++;
-        PAL_INFO(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
         mAbrMutex.unlock();
         return;
     }
@@ -1376,7 +1426,7 @@ start_pcm:
         fbDev->isConfigured = true;
         fbDev->deviceStartStopCount++;
         fbDev->deviceCount++;
-        PAL_INFO(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
+        PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
                 fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
 
     }
@@ -1387,7 +1437,7 @@ start_pcm:
         fbDev->isConfigured = true;
         fbDev->deviceStartStopCount++;
         fbDev->deviceCount++;
-        PAL_INFO(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
+        PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
                 fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
     }
 
@@ -1431,13 +1481,13 @@ void Bluetooth::stopAbr()
     }
 
     if (abrRefCnt == 0) {
-        PAL_INFO(LOG_TAG, "skip as abrRefCnt is zero");
+        PAL_DBG(LOG_TAG, "skip as abrRefCnt is zero");
         mAbrMutex.unlock();
         return;
     }
 
     if (--abrRefCnt > 0) {
-        PAL_INFO(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
+        PAL_DBG(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
         mAbrMutex.unlock();
         return;
     }
@@ -1475,7 +1525,7 @@ void Bluetooth::stopAbr()
         }
         if (fbDev->deviceCount > 0)
             fbDev->deviceCount--;
-        PAL_INFO(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
+        PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
                 fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
     }
     if ((codecFormat == CODEC_TYPE_LC3) &&
@@ -1489,7 +1539,7 @@ void Bluetooth::stopAbr()
         }
         if (fbDev->deviceCount > 0)
             fbDev->deviceCount--;
-        PAL_INFO(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
+        PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
                 fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
     }
 
@@ -1598,6 +1648,7 @@ audio_sink_get_a2dp_latency_t BtA2dp::ss_audio_sink_get_a2dp_latency = nullptr;
 
 audio_get_dynamic_bitrate_t BtA2dp::ss_audio_get_dynamic_bitrate = nullptr;
 audio_get_peer_mtu_t BtA2dp::ss_audio_get_peer_mtu = nullptr;
+audio_get_lc3_mono_mode_t BtA2dp::audio_get_lc3_mono_mode= nullptr; // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
 #endif
 
 
@@ -1706,6 +1757,7 @@ void BtA2dp::open_a2dp_source()
                 }
             }
             a2dpState = A2DP_STATE_CONNECTED;
+            audio_get_lc3_mono_mode(&lc3_mono_mode_cb); // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
         } else {
             PAL_DBG(LOG_TAG, "Called a2dp open with improper state %d", a2dpState);
         }
@@ -1903,6 +1955,13 @@ void BtA2dp::init_a2dp_source()
             dlsym(bt_lib_source_handle, "audio_check_a2dp_ready");
         audio_sink_get_a2dp_latency = (audio_sink_get_a2dp_latency_t)
             dlsym(bt_lib_source_handle, "audio_sink_get_a2dp_latency");
+// SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+        audio_get_lc3_mono_mode = (audio_get_lc3_mono_mode_t) 
+            dlsym(bt_lib_source_handle, "register_lc3_mono_changed_cb");
+        if (audio_get_lc3_mono_mode == nullptr) {
+            PAL_DBG(LOG_TAG, "audio_get_lc3_mono_mode null");
+        }
+// SS_BT_LEA - MB_021 : END
 
         if (bt_lib_source_handle && bt_audio_pre_init) {
             PAL_DBG(LOG_TAG, "calling BT module preinit");
@@ -2100,7 +2159,6 @@ int BtA2dp::start()
         customPayloadSize = 0;
     }
 
-    PAL_INFO(LOG_TAG, "isAbrEnabled is %d", isAbrEnabled);
     if (!status && isAbrEnabled)
         startAbr();
 
@@ -2114,7 +2172,6 @@ int BtA2dp::stop()
     int status = 0;
 
     mDeviceMutex.lock();
-    PAL_INFO(LOG_TAG, "isAbrEnabled is %d", isAbrEnabled);
     if (isAbrEnabled)
         stopAbr();
 
@@ -2295,19 +2352,22 @@ int BtA2dp::startPlayback()
             } else {
                 param_bt_a2dp.latency = 0;
             }
-        } else
-#endif
-        if (audio_sink_get_a2dp_latency_api && (a2dpState != A2DP_STATE_DISCONNECTED)) {
-            slatency = audio_sink_get_a2dp_latency_api(get_session_type());
-        } else if (audio_sink_get_a2dp_latency && (a2dpState != A2DP_STATE_DISCONNECTED)) {
-            slatency = audio_sink_get_a2dp_latency();
-        }
-        if (pluginCodec) {
-            param_bt_a2dp.latency =
-                pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
         } else {
-            param_bt_a2dp.latency = 0;
+#endif
+            if (audio_sink_get_a2dp_latency_api && (a2dpState != A2DP_STATE_DISCONNECTED)) {
+                slatency = audio_sink_get_a2dp_latency_api(get_session_type());
+            } else if (audio_sink_get_a2dp_latency && (a2dpState != A2DP_STATE_DISCONNECTED)) {
+                slatency = audio_sink_get_a2dp_latency();
+            }
+            if (pluginCodec) {
+                param_bt_a2dp.latency =
+                    pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
+            } else {
+                param_bt_a2dp.latency = 0;
+            }
+#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
         }
+#endif
 
         a2dpState = A2DP_STATE_STARTED;
     } else {
@@ -2325,6 +2385,13 @@ int BtA2dp::startPlayback()
         bitrate_cb(SSC_BITRATE_GAME_MODE_ON);
     }
 #endif
+// SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+    if (is_a2dp_offload() == false && codecFormat == CODEC_TYPE_LC3 && isLc3MonoChanged) { 
+        PAL_INFO(LOG_TAG, "Set mono mode, isLC3MonoModeOn = %d", isLC3MonoModeOn);
+        lc3_mono_mode_cb(isLC3MonoModeOn);
+        setLc3MonoUpdated(false);
+    }
+// SS_BT_LEA - MB_021 : END
     return ret;
 }
 
@@ -2385,7 +2452,8 @@ int BtA2dp::stopPlayback()
         /* Reset isTwsMonoModeOn and isLC3MonoModeOn during stop */
         if (!param_bt_a2dp.a2dp_suspended) {
             isTwsMonoModeOn = false;
-            //isLC3MonoModeOn = false; // SS_BT_LEA - MB_003 : Reset mono mode on close source instead of stop playback
+            isLC3MonoModeOn = false; // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+            isLc3MonoChanged = false; // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
             isScramblingEnabled = false;
         }
 
@@ -2824,7 +2892,8 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
     }
     case PAL_PARAM_ID_BT_A2DP_LC3_CONFIG:
     {
-        isLC3MonoModeOn = param_a2dp->is_lc3_mono_mode_on;
+// SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+/*      isLC3MonoModeOn = param_a2dp->is_lc3_mono_mode_on;
         if (a2dpState == A2DP_STATE_STARTED) {
             std::shared_ptr<Device> dev = nullptr;
             Stream *stream = NULL;
@@ -2855,6 +2924,8 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             // SS_BT_LEA - A_041 : END
             session->setParameters(stream, BT_PLACEHOLDER_ENCODER, param_id, &param_lc3);
         }
+*/
+// SS_BT_LEA - MB_021 : END
         break;
     }
     case PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED:

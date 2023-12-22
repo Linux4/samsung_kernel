@@ -571,6 +571,7 @@
 		msi-parent = <&pcie2_msi>;
 
 		perst-gpio = <&tlmm 170 GPIO_ACTIVE_HIGH>;
+		card-presence-pin = <&tlmm 172 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&pcie2_perst_default>;
 		pinctrl-1 = <&pcie2_perst_default>;
@@ -652,6 +653,7 @@
 			<0x100 &apps_smmu 0x2c01 0x1>;
 
 		qcom,boot-option = <0x1>;
+		qcom,no-client-based-bw-voting;
 		qcom,apss-based-l1ss-sleep;
 		qcom,target-link-width = <0x1>;
 		qcom,drv-l1ss-timeout-us = <5000>;

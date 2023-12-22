@@ -70,9 +70,6 @@ struct cam_hw_param {
 	u16 mipi_chk;
 	u16 comp_chk;
 	u16 need_update_to_file;
-	u8  rf_rat;
-	u32 rf_band;
-	u32 rf_channel;
 } __attribute__((__packed__));
 
 struct cam_hw_param_collector {
@@ -104,9 +101,6 @@ int msm_is_sec_get_rear4_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_front2_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_front3_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_hw_param(uint32_t camera_id, struct cam_hw_param **hw_param);
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
-void msm_is_sec_get_rfinfo(struct cam_hw_param *hw_param);
-#endif
 #endif
 
 enum camera_flash_opcode {

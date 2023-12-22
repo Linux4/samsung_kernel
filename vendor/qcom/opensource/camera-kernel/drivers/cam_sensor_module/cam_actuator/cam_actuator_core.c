@@ -541,9 +541,6 @@ int32_t cam_actuator_apply_settings(struct cam_actuator_ctrl_t *a_ctrl,
 							CAM_DBG(CAM_UTIL, "[NON][AF][%d] Unsupport\n", a_ctrl->soc_info.index);
 							break;
 					}
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
-					msm_is_sec_get_rfinfo(hw_param);
-#endif
 				}
 			}
 #endif

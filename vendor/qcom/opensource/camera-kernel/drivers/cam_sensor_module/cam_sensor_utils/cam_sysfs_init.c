@@ -3405,28 +3405,28 @@ static ssize_t rear_camera_hw_param_show(struct device *dev,
 		switch (moduelid_chk) {
 		case HW_PARAMS_MI_VALID:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR_AF\":\"%d\",\"I2CR_COM\":\"%d\",\"I2CR_OIS\":\"%d\","
-					"\"I2CR_SEN\":\"%d\",\"MIPIR_COM\":\"%d\",\"MIPIR_SEN\":\"%d\",\"MIPIR_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR_SEN\":\"%d\",\"MIPIR_COM\":\"%d\",\"MIPIR_SEN\":\"%d\"\n",
 					rear_module_id[0], rear_module_id[1], rear_module_id[2], rear_module_id[3],
 					rear_module_id[4], rear_module_id[7], rear_module_id[8], rear_module_id[9],
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		case HW_PARAMS_MIR_ERR_1:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR_ID\":\"MIR_ERR\",\"I2CR_AF\":\"%d\",\"I2CR_COM\":\"%d\",\"I2CR_OIS\":\"%d\","
-					"\"I2CR_SEN\":\"%d\",\"MIPIR_COM\":\"%d\",\"MIPIR_SEN\":\"%d\",\"MIPIR_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR_SEN\":\"%d\",\"MIPIR_COM\":\"%d\",\"MIPIR_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		default:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR_ID\":\"MI_NO\",\"I2CR_AF\":\"%d\",\"I2CR_COM\":\"%d\",\"I2CR_OIS\":\"%d\","
-					"\"I2CR_SEN\":\"%d\",\"MIPIR_COM\":\"%d\",\"MIPIR_SEN\":\"%d\",\"MIPIR_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR_SEN\":\"%d\",\"MIPIR_COM\":\"%d\",\"MIPIR_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 		}
 	}
@@ -3526,28 +3526,28 @@ static ssize_t front_camera_hw_param_show(struct device *dev,
 		switch (moduelid_chk) {
 		case HW_PARAMS_MI_VALID:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CF_AF\":\"%d\",\"I2CF_COM\":\"%d\",\"I2CF_OIS\":\"%d\","
-					"\"I2CF_SEN\":\"%d\",\"MIPIF_COM\":\"%d\",\"MIPIF_SEN\":\"%d\",\"MIPIF_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF_SEN\":\"%d\",\"MIPIF_COM\":\"%d\",\"MIPIF_SEN\":\"%d\"\n",
 					front_module_id[0], front_module_id[1], front_module_id[2], front_module_id[3],
 					front_module_id[4], front_module_id[7], front_module_id[8], front_module_id[9],
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		case HW_PARAMS_MIR_ERR_1:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF_ID\":\"MIR_ERR\",\"I2CF_AF\":\"%d\",\"I2CF_COM\":\"%d\",\"I2CF_OIS\":\"%d\","
-					"\"I2CF_SEN\":\"%d\",\"MIPIF_COM\":\"%d\",\"MIPIF_SEN\":\"%d\",\"MIPIF_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF_SEN\":\"%d\",\"MIPIF_COM\":\"%d\",\"MIPIF_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		default:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF_ID\":\"MI_NO\",\"I2CF_AF\":\"%d\",\"I2CF_COM\":\"%d\",\"I2CF_OIS\":\"%d\","
-					"\"I2CF_SEN\":\"%d\",\"MIPIF_COM\":\"%d\",\"MIPIF_SEN\":\"%d\",\"MIPIF_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF_SEN\":\"%d\",\"MIPIF_COM\":\"%d\",\"MIPIF_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 		}
 	}
@@ -3590,28 +3590,28 @@ static ssize_t rear2_camera_hw_param_show(struct device *dev,
 		switch (moduelid_chk) {
 		case HW_PARAMS_MI_VALID:
 			rc = sprintf(buf, "\"CAMIR2_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR2_AF\":\"%d\",\"I2CR2_COM\":\"%d\",\"I2CR2_OIS\":\"%d\","
-					"\"I2CR2_SEN\":\"%d\",\"MIPIR2_COM\":\"%d\",\"MIPIR2_SEN\":\"%d\",\"MIPIR2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR2_SEN\":\"%d\",\"MIPIR2_COM\":\"%d\",\"MIPIR2_SEN\":\"%d\"\n",
 					rear2_module_id[0], rear2_module_id[1], rear2_module_id[2], rear2_module_id[3],
 					rear2_module_id[4], rear2_module_id[7], rear2_module_id[8], rear2_module_id[9],
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		case HW_PARAMS_MIR_ERR_1:
 			rc = sprintf(buf, "\"CAMIR2_ID\":\"MIR_ERR\",\"I2CR2_AF\":\"%d\",\"I2CR2_COM\":\"%d\",\"I2CR2_OIS\":\"%d\","
-					"\"I2CR2_SEN\":\"%d\",\"MIPIR2_COM\":\"%d\",\"MIPIR2_SEN\":\"%d\",\"MIPIR2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR2_SEN\":\"%d\",\"MIPIR2_COM\":\"%d\",\"MIPIR2_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		default:
 			rc = sprintf(buf, "\"CAMIR2_ID\":\"MI_NO\",\"I2CR2_AF\":\"%d\",\"I2CR2_COM\":\"%d\",\"I2CR2_OIS\":\"%d\","
-					"\"I2CR2_SEN\":\"%d\",\"MIPIR2_COM\":\"%d\",\"MIPIR2_SEN\":\"%d\",\"MIPIR2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR2_SEN\":\"%d\",\"MIPIR2_COM\":\"%d\",\"MIPIR2_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 		}
 	}
@@ -3653,28 +3653,28 @@ static ssize_t rear3_camera_hw_param_show(struct device *dev,
 		switch (moduelid_chk) {
 		case HW_PARAMS_MI_VALID:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR3_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR3_AF\":\"%d\",\"I2CR3_COM\":\"%d\",\"I2CR3_OIS\":\"%d\","
-					"\"I2CR3_SEN\":\"%d\",\"MIPIR3_COM\":\"%d\",\"MIPIR3_SEN\":\"%d\",\"MIPIR3_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR3_SEN\":\"%d\",\"MIPIR3_COM\":\"%d\",\"MIPIR3_SEN\":\"%d\"\n",
 					rear3_module_id[0], rear3_module_id[1], rear3_module_id[2], rear3_module_id[3],
 					rear3_module_id[4], rear3_module_id[7], rear3_module_id[8], rear3_module_id[9],
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		case HW_PARAMS_MIR_ERR_1:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR3_ID\":\"MIR_ERR\",\"I2CR3_AF\":\"%d\",\"I2CR3_COM\":\"%d\",\"I2CR3_OIS\":\"%d\","
-					"\"I2CR3_SEN\":\"%d\",\"MIPIR3_COM\":\"%d\",\"MIPIR3_SEN\":\"%d\",\"MIPIR3_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR3_SEN\":\"%d\",\"MIPIR3_COM\":\"%d\",\"MIPIR3_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		default:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR3_ID\":\"MI_NO\",\"I2CR3_AF\":\"%d\",\"I2CR3_COM\":\"%d\",\"I2CR3_OIS\":\"%d\","
-					"\"I2CR3_SEN\":\"%d\",\"MIPIR3_COM\":\"%d\",\"MIPIR3_SEN\":\"%d\",\"MIPIR3_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR3_SEN\":\"%d\",\"MIPIR3_COM\":\"%d\",\"MIPIR3_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 		}
 	}
@@ -3718,28 +3718,28 @@ static ssize_t rear4_camera_hw_param_show(struct device *dev,
 		switch (moduelid_chk) {
 		case HW_PARAMS_MI_VALID:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR4_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR4_AF\":\"%d\",\"I2CR4_COM\":\"%d\",\"I2CR4_OIS\":\"%d\","
-					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\",\"MIPIR4_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\"\n",
 					rear4_module_id[0], rear4_module_id[1], rear4_module_id[2], rear4_module_id[3],
 					rear4_module_id[4], rear4_module_id[7], rear4_module_id[8], rear4_module_id[9],
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		case HW_PARAMS_MIR_ERR_1:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR4_ID\":\"MIR_ERR\",\"I2CR4_AF\":\"%d\",\"I2CR4_COM\":\"%d\",\"I2CR4_OIS\":\"%d\","
-					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\",\"MIPIR4_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		default:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR4_ID\":\"MI_NO\",\"I2CR4_AF\":\"%d\",\"I2CR4_COM\":\"%d\",\"I2CR4_OIS\":\"%d\","
-					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\",\"MIPIR4_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 		}
 	}
@@ -3783,28 +3783,28 @@ static ssize_t front2_camera_hw_param_show(struct device *dev,
 		switch (moduelid_chk) {
 		case HW_PARAMS_MI_VALID:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					front2_module_id[0], front2_module_id[1], front2_module_id[2], front2_module_id[3],
 					front2_module_id[4], front2_module_id[7], front2_module_id[8], front2_module_id[9],
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		case HW_PARAMS_MIR_ERR_1:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"MIR_ERR\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		default:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"MI_NO\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 		}
 	}
@@ -3849,28 +3849,28 @@ static ssize_t front3_camera_hw_param_show(struct device *dev,
 		switch (moduelid_chk) {
 		case HW_PARAMS_MI_VALID:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					front3_module_id[0], front3_module_id[1], front3_module_id[2], front3_module_id[3],
 					front3_module_id[4], front3_module_id[7], front3_module_id[8], front3_module_id[9],
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		case HW_PARAMS_MIR_ERR_1:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"MIR_ERR\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		default:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"MI_NO\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 		}
 	}
@@ -3912,28 +3912,28 @@ static ssize_t front2_camera_hw_param_show(struct device *dev,
 		switch (moduelid_chk) {
 		case HW_PARAMS_MI_VALID:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					front2_module_id[0], front2_module_id[1], front2_module_id[2], front2_module_id[3],
 					front2_module_id[4], front2_module_id[7], front2_module_id[8], front2_module_id[9],
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		case HW_PARAMS_MIR_ERR_1:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"MIR_ERR\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 
 		default:
 			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIF2_ID\":\"MI_NO\",\"I2CF2_AF\":\"%d\",\"I2CF2_COM\":\"%d\",\"I2CF2_OIS\":\"%d\","
-					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\",\"MIPIF2_INFO\":\"%d,%d,%d\"\n",
+					"\"I2CF2_SEN\":\"%d\",\"MIPIF2_COM\":\"%d\",\"MIPIF2_SEN\":\"%d\"\n",
 					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
 					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
-					ec_param->mipi_sensor_err_cnt, ec_param->rf_rat, ec_param->rf_band, ec_param->rf_channel);
+					ec_param->mipi_sensor_err_cnt);
 			break;
 		}
 	}

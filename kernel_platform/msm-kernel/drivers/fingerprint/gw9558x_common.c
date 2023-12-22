@@ -340,7 +340,7 @@ static void gw9558_work_func_debug(struct work_struct *work)
 
 	pr_info("ldo: %d, sleep: %d, tz: %d type: %s\n",
 		gf_dev->ldo_onoff, rst_value, gf_dev->tz_mode,
-		sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype > 0 ? gf_dev->chipid : sensor_status[gf_dev->sensortype + 2]);
 }
 
 int gw9558_pin_control(struct gf_device *gf_dev, bool pin_set)
@@ -566,19 +566,16 @@ int gw9558_type_check(struct gf_device *gf_dev)
 	pr_info("Sensor read : %x %x\n", mcuid[0], mcuid[1]);
 	pr_info("Sensor read : 0x%4x\n", mcuid32);
 	if (mcuid32 == G3_MCU_ID) {
-		gf_dev->sensortype = SENSOR_GOODIXOPTICAL;
-		pr_info("sensor type is G3 %s\n",
-				sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("sensor type is G3 %s\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid32 == GX_MCU_ID) {
-		gf_dev->sensortype = SENSOR_GOODIXOPTICAL;
-		pr_info("sensor type is GX %s\n",
-				sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("sensor type is GX %s\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid32 == G3S_MCU_ID) {
-		gf_dev->sensortype = SENSOR_GOODIXOPTICAL;
-		pr_info("sensor type is G3S %s\n",
-				sensor_status[gf_dev->sensortype + 2]);
+		gf_dev->sensortype = SENSOR_OK;
+		pr_info("sensor type is G3S %s\n", gf_dev->chipid);
 		retval = 0;
 	} else {
 		gf_dev->sensortype = SENSOR_FAILED;
@@ -870,6 +867,21 @@ static int gw9558_remove(struct platform_device *pdev)
 	return 0;
 }
 #else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(6, 1, 0)
+static void gw9558_remove(struct spi_device *spi)
+{
+	struct gf_device *gf_dev = spi_get_drvdata(spi);
+
+	gw9558_free_buffer(gf_dev);
+	gw9558_remove_common(&spi->dev);
+
+	mutex_destroy(&gf_dev->buf_lock);
+	spin_lock_irq(&gf_dev->spi_lock);
+	gf_dev->spi = NULL;
+	spin_unlock_irq(&gf_dev->spi_lock);
+	gf_dev = NULL;
+}
+#else
 static int gw9558_remove(struct spi_device *spi)
 {
 	struct gf_device *gf_dev = spi_get_drvdata(spi);
@@ -884,6 +896,7 @@ static int gw9558_remove(struct spi_device *spi)
 	gf_dev = NULL;
 	return 0;
 }
+#endif
 #endif
 
 static int gw9558_pm_suspend(struct device *dev)

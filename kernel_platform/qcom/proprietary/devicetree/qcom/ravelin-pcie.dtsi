@@ -1,4 +1,5 @@
 #include <dt-bindings/clock/qcom,gcc-ravelin.h>
+#include <dt-bindings/gpio/gpio.h>
 
 &soc {
 	pcie0: qcom,pcie@1c00000 {
@@ -35,8 +36,8 @@
 
 		msi-parent = <&pcie0_msi>;
 
-		perst-gpio = <&tlmm 32 0>;
-		wake-gpio = <&tlmm 31 0>;
+		perst-gpio = <&tlmm 32 GPIO_ACTIVE_HIGH>;
+		wake-gpio = <&tlmm 31 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&pcie0_perst_default
 				&pcie0_clkreq_default
@@ -65,8 +66,8 @@
 				RPMH_REGULATOR_LEVEL_LOW_SVS
 				19200000
 				/* Gen3 */
-				RPMH_REGULATOR_LEVEL_NOM
-				RPMH_REGULATOR_LEVEL_NOM
+				RPMH_REGULATOR_LEVEL_LOW_SVS
+				RPMH_REGULATOR_LEVEL_LOW_SVS
 				100000000>;
 
 		interconnect-names = "icc_path";
@@ -83,8 +84,10 @@
 			<&gcc GCC_PCIE_0_PHY_RCHNG_CLK>,
 			<&gcc GCC_DDRSS_PCIE_SF_TBU_CLK>,
 			<&gcc GCC_AGGRE_NOC_PCIE_0_AXI_CLK>,
-			<&gcc GCC_AGGRE_NOC_PCIE_0_AXI_CLK>,
+			<&gcc GCC_CFG_NOC_PCIE_ANOC_AHB_CLK>,
 			<&gcc GCC_PCIE_0_PIPE_CLK_SRC>,
+			<&gcc GCC_PCIE_0_PIPE_DIV2_CLK>,
+			<&gcc GCC_QMIP_PCIE_AHB_CLK>,
 			<&pcie_0_pipe_clk>;
 		clock-names = "pcie_0_pipe_clk", "pcie_0_ref_clk_src",
 				"pcie_0_aux_clk", "pcie_0_cfg_ahb_clk",
@@ -92,11 +95,11 @@
 				"pcie_0_ldo", "pcie_0_slv_q2a_axi_clk",
 				"pcie_phy_refgen_clk",
 				"pcie_ddrss_sf_tbu_clk",
-				"pcie_aggre_noc_0_axi_clk",
-				"pcie_aggre_noc_1_axi_clk", "pcie_pipe_clk_mux",
-				"pcie_pipe_clk_ext_src";
-		max-clock-frequency-hz = <0>, <0>, <19200000>, <0>, <0>, <0>,
-					<0>, <0>, <0>, <0>, <100000000>,
+				"pcie_aggre_noc_0_axi_clk", "pcie_cfg_noc_pcie_anoc_ahb_clk",
+				"pcie_pipe_clk_mux", "pcie_0_pipe_div2_clk",
+				"pcie_qmip_pcie_ahb_clk", "pcie_pipe_clk_ext_src";
+		max-clock-frequency-hz = <0>, <0>, <0>, <19200000>, <0>, <0>,
+					<0>, <0>, <0>, <0>, <0>, <100000000>,
 					<0>, <0>, <0>, <0>;
 
 		resets = <&gcc GCC_PCIE_0_BCR>,
@@ -112,7 +115,6 @@
 		qcom,boot-option = <0x1>;
 		qcom,aux-clk-freq = <20>; /* 19.2 MHz */
 		qcom,drv-supported;
-		qcom,no-l0s-supported;
 		qcom,drv-l1ss-timeout-us = <5000>;
 		qcom,l1-2-th-scale = <2>;
 		qcom,l1-2-th-value = <150>;
@@ -121,7 +123,7 @@
 		qcom,num-parf-testbus-sel = <0xb9>;
 		qcom,config-recovery;
 
-		qcom,pcie-phy-ver = <105>;
+		qcom,pcie-phy-ver = <107>;
 		qcom,phy-status-offset = <0x214>;
 		qcom,phy-status-bit = <6>;
 		qcom,phy-power-down-offset = <0x240>;

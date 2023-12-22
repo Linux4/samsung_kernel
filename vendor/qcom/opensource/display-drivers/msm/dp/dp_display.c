@@ -47,8 +47,8 @@
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 #include <linux/secdp_bigdata.h>
 #endif
-/*#undef CONFIG_SWITCH*/
-#if IS_ENABLED(CONFIG_SWITCH)
+/*#undef CONFIG_SECDP_SWITCH*/
+#if defined(CONFIG_SECDP_SWITCH)
 #include <linux/switch.h>
 
 static struct switch_dev switch_secdp_msg = {
@@ -323,7 +323,7 @@ static void secdp_send_poor_connection_event(bool edid_fail)
 	if (!edid_fail)
 		dp->link->poor_connection = true;
 
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	switch_set_state(&switch_secdp_msg, 1);
 	switch_set_state(&switch_secdp_msg, 0);
 #else
@@ -2101,6 +2101,8 @@ static int dp_display_host_ready(struct dp_display_private *dp)
 {
 	int rc = 0;
 
+	DP_ENTER("\n");
+
 	if (!dp_display_state_is(DP_STATE_INITIALIZED)) {
 		rc = dp_display_host_init(dp);
 		if (rc) {
@@ -2113,8 +2115,6 @@ static int dp_display_host_ready(struct dp_display_private *dp)
 		dp_display_state_log("[already ready]");
 		return rc;
 	}
-
-	DP_ENTER("\n");
 
 	/*
 	 * Reset the aborted state for AUX and CTRL modules. This will
@@ -2275,12 +2275,20 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 	 * ETIMEDOUT --> cable may have been removed
 	 * ENOTCONN --> no downstream device connected
 	 */
+#if !defined(CONFIG_SECDP)
 	if (rc == -ETIMEDOUT || rc == -ENOTCONN) {
 		dp_display_state_remove(DP_STATE_CONNECTED);
 		goto end;
 	}
-
-#if defined(CONFIG_SECDP)
+#else
+	if (rc == -ENOTCONN) {
+		dp_display_state_remove(DP_STATE_CONNECTED);
+		goto end;
+	}
+	if (rc == -ETIMEDOUT) {
+		/* turn core clk off */
+		goto off;
+	}
 	if (rc == -EINVAL) {
 		/* read EDID is corrupted or invalid, failsafe case */
 		secdp_send_poor_connection_event(true);
@@ -3600,6 +3608,10 @@ static void secdp_pdic_handle_linkconf(struct dp_display_private *dp,
 
 	sec->link_conf = true;
 
+	/* see dp_display_usbpd_configure_cb() */
+	dp_display_state_remove(DP_STATE_ABORTED);
+	dp_display_state_add(DP_STATE_CONFIGURED);
+
 #ifdef SECDP_USB_CONCURRENCY
 	if (noti->sub1 == PDIC_NOTIFY_DP_PIN_B ||
 			noti->sub1 == PDIC_NOTIFY_DP_PIN_D ||
@@ -3861,11 +3873,11 @@ bool secdp_phy_reset_check(void)
 	struct dp_display_private *dp = g_secdp_priv;
 	bool ret = false;
 
-	if (!dp)
+	if (!dp || !dp->power)
 		goto end;
 
 	/* check if core clk is off */
-	if (!secdp_get_clk_status(DP_CORE_PM)) {
+	if (!dp->power->clk_status(dp->power, DP_CORE_PM)) {
 		ret = true;
 		goto end;
 	}
@@ -4140,7 +4152,7 @@ static int secdp_init(struct dp_display_private *dp)
 		goto end;
 	}
 #endif
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	rc = switch_dev_register(&switch_secdp_msg);
 	if (rc)
 		DP_INFO("Failed to register secdp_msg switch:%d\n", rc);
@@ -4178,7 +4190,7 @@ static void secdp_deinit(struct dp_display_private *dp)
 	secdp_sysfs_deinit(sec->sysfs);
 	sec->sysfs = NULL;
 
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	switch_dev_unregister(&switch_secdp_msg);
 #endif
 #ifdef SECDP_EVENT_THREAD
@@ -4776,6 +4788,7 @@ end:
 	mutex_unlock(&dp->session_lock);
 
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state, rc);
+	DP_LEAVE("\n");
 	return rc;
 }
 

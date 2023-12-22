@@ -41,6 +41,8 @@ module_param(lpcharge, uint, 0444);
 static int __read_mostly factory_mode;
 module_param(factory_mode, int, 0444);
 #endif
+static int __read_mostly factory_mode_siso;
+module_param(factory_mode_siso, int, 0444);
 
 extern void max77705_usbc_icurr(u8 curr);
 extern void max77705_set_fw_noautoibus(int enable);
@@ -75,6 +77,7 @@ static unsigned int max77705_get_lpmode(void) { return lpcharge; }
 #if defined(CONFIG_SEC_FACTORY)
 static unsigned int max77705_get_facmode(void) { return factory_mode; }
 #endif
+static unsigned int max77705_get_facmode_siso(void) { return factory_mode_siso; }
 
 static bool max77705_charger_unlock(struct max77705_charger_data *charger)
 {
@@ -543,10 +546,12 @@ static void max77705_force_change_charge_path(struct max77705_charger_data *char
 {
 	u8 cnfg12 = (1 << CHG_CNFG_12_CHGINSEL_SHIFT);
 
-	max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			    cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
-	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
-	pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
+	if (!max77705_get_facmode_siso()) {
+		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
+		max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
+		pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
+	}
 
 	max77705_check_cnfg12_reg(charger);
 }
@@ -556,16 +561,17 @@ static void max77705_change_charge_path(struct max77705_charger_data *charger,
 {
 	u8 cnfg12;
 
-	if (is_wcin_type(charger->cable_type))
-		cnfg12 = (0 << CHG_CNFG_12_CHGINSEL_SHIFT);
-	else
-		cnfg12 = (1 << CHG_CNFG_12_CHGINSEL_SHIFT);
+	if (!max77705_get_facmode_siso()) {
+		if (is_wcin_type(charger->cable_type))
+			cnfg12 = (0 << CHG_CNFG_12_CHGINSEL_SHIFT);
+		else
+			cnfg12 = (1 << CHG_CNFG_12_CHGINSEL_SHIFT);
 
-	max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			    cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
-	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
-	pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
-
+		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					cnfg12, CHG_CNFG_12_CHGINSEL_MASK);
+		max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &cnfg12);
+		pr_info("%s : CHG_CNFG_12(0x%02x)\n", __func__, cnfg12);
+	}
 	max77705_check_cnfg12_reg(charger);
 }
 
@@ -978,16 +984,22 @@ static void max77705_charger_initialize(struct max77705_charger_data *charger)
 	max77705_set_float_voltage(charger, charger->pdata->chg_float_voltage);
 
 	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_INT_OK, &reg_data);
-	/* VCHGIN : REG=4.6V, UVLO=4.8V
+	/*
+	 * VCHGIN : REG=4.6V, UVLO=4.8V
 	 * to fix CHGIN-UVLO issues including cheapy battery packs
 	 */
-	if (reg_data & MAX77705_CHGIN_OK)
-		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			0x08, CHG_CNFG_12_VCHGIN_REG_MASK);
-	/* VCHGIN : REG=4.5V, UVLO=4.7V */
-	else
-		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			0x00, CHG_CNFG_12_VCHGIN_REG_MASK);
+	if (!max77705_get_facmode_siso()) {
+		if (reg_data & MAX77705_CHGIN_OK)
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(REG_4600_UVLO_4800), CHG_CNFG_12_VCHGIN_REG_MASK);
+		/* VCHGIN : REG=4.5V, UVLO=4.7V */
+		else
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+	} else {
+		max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &reg_data);
+		pr_info("%s: maintain siso settings(cnfg_12 = 0x%2x)\n", __func__, reg_data);
+	}
 
 	/* Boost mode possible in FACTORY MODE */
 	max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_07,
@@ -1304,6 +1316,11 @@ static int max77705_chg_get_property(struct power_supply *psy,
 	struct max77705_charger_data *charger = power_supply_get_drvdata(psy);
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 	u8 reg_data;
+
+	if (atomic_read(&charger->shutdown_cnt) > 0) {
+		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		return -EINVAL;
+	}
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -1704,6 +1721,11 @@ static int max77705_chg_set_property(struct power_supply *psy,
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 	u8 reg_data = 0;
 
+	if (atomic_read(&charger->shutdown_cnt) > 0) {
+		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		return -EINVAL;
+	}
+
 	/* check unlock status before does set the register */
 	max77705_charger_unlock(charger);
 	switch ((int)psp) {
@@ -1752,20 +1774,25 @@ static int max77705_chg_set_property(struct power_supply *psy,
 
 		if (is_nocharge_type(charger->cable_type)) {
 			charger->wc_pre_current = WC_CURRENT_START;
+			if (!max77705_get_facmode_siso()) {
 			/* VCHGIN : REG=4.5V, UVLO=4.7V */
-			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-			    0x00, CHG_CNFG_12_VCHGIN_REG_MASK);
+				max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+			}
 			if (charger->pdata->enable_sysovlo_irq)
 				max77705_set_sysovlo(charger, 1);
 
 			if (!charger->pdata->boosting_voltage_aicl)
 				max77705_aicl_irq_enable(charger, true);
 		} else if (is_wired_type(charger->cable_type)) {
-			/* VCHGIN : REG=4.6V, UVLO=4.8V
-			 * to fix CHGIN-UVLO issues including cheapy battery packs
-			 */
-			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
-				0x08, CHG_CNFG_12_VCHGIN_REG_MASK);
+			if (!max77705_get_facmode_siso()) {
+				/*
+				 * VCHGIN : REG=4.6V, UVLO=4.8V
+				 * to fix CHGIN-UVLO issues including cheapy battery packs
+				 */
+				max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					CHG_CNFG_12_VCHGIN(REG_4600_UVLO_4800), CHG_CNFG_12_VCHGIN_REG_MASK);
+			}
 			if (is_hv_wire_type(charger->cable_type) ||
 			(charger->cable_type == SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT)) {
 				if (!charger->pdata->boosting_voltage_aicl) {
@@ -1922,6 +1949,11 @@ static int max77705_otg_get_property(struct power_supply *psy,
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 	u8 reg_data;
 
+	if (atomic_read(&charger->shutdown_cnt) > 0) {
+		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		return -EINVAL;
+	}
+
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		mutex_lock(&charger->charger_mutex);
@@ -1961,6 +1993,11 @@ static int max77705_otg_set_property(struct power_supply *psy,
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 	bool mfc_fw_update = false;
 	union power_supply_propval value = {0, };
+
+	if (atomic_read(&charger->shutdown_cnt) > 0) {
+		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		return -EINVAL;
+	}
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -2584,6 +2621,13 @@ static int max77705_charger_parse_dt(struct max77705_charger_data *charger)
 		pdata->enable_dpm =
 		    of_property_read_bool(np, "charger,enable_dpm");
 
+		ret = of_property_read_u32(np, "charger,fac_vchgin_reg", &pdata->fac_vchgin_reg);
+		if (ret) {
+			pr_info("%s : fac_vchgin_reg is default\n", __func__);
+			pdata->fac_vchgin_reg = 0;
+		}
+		pr_info("%s: fac_vchgin_reg:%d\n", __func__, pdata->fac_vchgin_reg);
+
 		if (of_property_read_u32(np, "charger,dpm_icl", &pdata->dpm_icl)) {
 			pr_info("%s : dpm_icl is Empty\n", __func__);
 			pdata->dpm_icl = 1800;
@@ -2695,6 +2739,7 @@ static int max77705_charger_probe(struct platform_device *pdev)
 	charger->hp_otg = false;
 	charger->bat_det = true;
 	charger->dpm_last_icl = 100;
+	atomic_set(&charger->shutdown_cnt, 0);
 
 #if defined(CONFIG_OF)
 	ret = max77705_charger_parse_dt(charger);
@@ -2981,15 +3026,43 @@ static void max77705_charger_complete(struct device *dev)
 #define max77705_charger_complete NULL
 #endif
 
+static void max77705_charger_set_shtdn_vchgin(struct max77705_charger_data *charger, bool set)
+{
+	u8 reg_data;
+
+	if (!max77705_get_facmode_siso()) {
+		if (charger->pdata->fac_vchgin_reg) {
+#if defined(CONFIG_SEC_FACTORY)
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(charger->pdata->fac_vchgin_reg), CHG_CNFG_12_VCHGIN_REG_MASK);
+#else
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+#endif
+		} else if (set) {
+			max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+				CHG_CNFG_12_VCHGIN(REG_4500_UVLO_4700), CHG_CNFG_12_VCHGIN_REG_MASK);
+		}
+	}
+
+	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, &reg_data);
+	pr_info("%s: reg_data = 0x%2x\n", __func__, reg_data);
+}
+
 static void max77705_charger_shutdown(struct platform_device *pdev)
 {
 	struct max77705_charger_data *charger = platform_get_drvdata(pdev);
 
 	pr_info("%s: ++\n", __func__);
+	
+	atomic_inc(&charger->shutdown_cnt);
 
 #if defined(CONFIG_SEC_FACTORY)
-	if (max77705_get_facmode())
+	if (max77705_get_facmode()) {
+		/* Maintain settings for old models */
+		max77705_charger_set_shtdn_vchgin(charger, false);
 		goto free_chg;	/* prevent SMPL during SMD ARRAY shutdown */
+	}
 #endif
 	if (charger->i2c) {
 		u8 reg_data;
@@ -3006,8 +3079,12 @@ static void max77705_charger_shutdown(struct platform_device *pdev)
 		max77705_write_reg(charger->i2c, MAX77705_CHG_REG_CNFG_09, reg_data);
 		reg_data = 0x13;	/* WCIN_ILIM 500mA */
 		max77705_write_reg(charger->i2c, MAX77705_CHG_REG_CNFG_10, reg_data);
-		reg_data = 0x60;	/* CHGINSEL/WCINSEL enable */
-		max77705_write_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12, reg_data);
+		/* CHGINSEL/WCINSEL enable */
+		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					1 << CHG_CNFG_12_CHGINSEL_SHIFT, CHG_CNFG_12_CHGINSEL_MASK);
+		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
+					1 << CHG_CNFG_12_WCINSEL_SHIFT, CHG_CNFG_12_WCINSEL_MASK);
+		max77705_charger_set_shtdn_vchgin(charger, true);
 
 		/* enable auto shipmode, this should work under 2.6V */
 		max77705_set_auto_ship_mode(charger, 1);
@@ -3028,11 +3105,12 @@ free_chg:
 #endif
 	if (charger->irq_sysovlo)
 		free_irq(charger->irq_sysovlo, charger);
-	if (charger->pdata->chg_irq)
+	if (charger->pdata->chg_irq) {
 		free_irq(charger->pdata->chg_irq, charger);
+		cancel_delayed_work(&charger->isr_work);
+	}
 
 	cancel_delayed_work(&charger->aicl_work);
-	cancel_delayed_work(&charger->isr_work);
 	cancel_delayed_work(&charger->wc_current_work);
 
 	pr_info("%s: --\n", __func__);

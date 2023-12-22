@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  */
 
 #include <linux/uaccess.h>
@@ -281,8 +283,12 @@ static int cam_icp_supported_clk_rates(struct cam_icp_hw_mgr *hw_mgr,
 	for (i = 0; i < CAM_MAX_VOTE; i++) {
 		ctx_data->clk_info.clk_rate[i] =
 			soc_info->clk_rate[i][soc_info->src_clk_idx];
-		CAM_DBG(CAM_PERF, "clk_info[%d] = %d",
-			i, ctx_data->clk_info.clk_rate[i]);
+
+		if (ctx_data->clk_info.clk_rate[i])
+			ctx_data->clk_info.max_supported_clk_level = i;
+		CAM_DBG(CAM_PERF, "dev_type: %d clk_info[%d] = %d max_supported_clk_level: %d",
+			ctx_data->icp_dev_acquire_info->dev_type, i, ctx_data->clk_info.clk_rate[i],
+			ctx_data->clk_info.max_supported_clk_level);
 	}
 
 	return 0;
@@ -1372,7 +1378,7 @@ static bool cam_icp_check_clk_update(struct cam_icp_hw_mgr *hw_mgr,
 	if (!ctx_data->clk_info.rt_flag &&
 		(ctx_data->icp_dev_acquire_info->dev_type !=
 		CAM_ICP_RES_TYPE_BPS))
-		base_clk = ctx_data->clk_info.clk_rate[CAM_MAX_VOTE-1];
+		base_clk = ctx_data->clk_info.clk_rate[ctx_data->clk_info.max_supported_clk_level];
 	else
 		base_clk = cam_icp_mgr_calc_base_clk(clk_info->frame_cycles,
 				clk_info->budget_ns);

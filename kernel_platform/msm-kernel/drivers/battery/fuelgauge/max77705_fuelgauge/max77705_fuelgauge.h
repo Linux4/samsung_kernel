@@ -24,6 +24,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/pm_wakeup.h>
 #include "../../common/sec_charging_common.h"
+#include <linux/types.h>
 
 /* Client address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
@@ -235,6 +236,8 @@ struct max77705_fuelgauge_data {
 	struct power_supply	      *psy_fg;
 	struct delayed_work isr_work;
 
+	atomic_t	shutdown_cnt;
+
 	int cable_type;
 	bool is_charging;
 
@@ -295,11 +298,11 @@ struct max77705_fuelgauge_data {
 	u32 err_cnt;
 	u32 q_res_table[4]; /* QResidual Table */
 
-#if defined(CONFIG_BATTERY_CISD)
 	bool valert_count_flag;
-#endif
 	struct lost_soc_data lost_soc;
 	char d_buf[128];
+	int bd_vfocv;
+	int bd_raw_soc;
 };
 
 #endif /* __MAX77705_FUELGAUGE_H */

@@ -1871,9 +1871,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 					CAM_DBG(CAM_UTIL, "[NON][I2C][%d] Unsupport\n", s_ctrl->id);
 					break;
 				}
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
-				msm_is_sec_get_rfinfo(hw_param);
-#endif
 			}
 		}
 #endif
@@ -3413,20 +3410,5 @@ int msm_is_sec_get_hw_param(uint32_t camera_id, struct cam_hw_param **hw_param)
 	}
 	return ret;
 }
-
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
-void msm_is_sec_get_rfinfo(struct cam_hw_param *hw_param)
-{
-	struct cam_cp_noti_info rf_info;
-
-	get_rf_info(&rf_info);
-	CAM_DBG(CAM_UTIL,
-		"[RF_MIPI_DBG] rat : %d, band : %d, channel : %d",
-		rf_info.rat, rf_info.band, rf_info.channel);
-	hw_param->rf_rat = rf_info.rat;
-	hw_param->rf_band = rf_info.band;
-	hw_param->rf_channel = rf_info.channel;
-}
-#endif
 #endif
 

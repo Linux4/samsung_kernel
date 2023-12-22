@@ -34,9 +34,6 @@ static void hw_bigdata_update_hw_param(uint32_t camera_id, struct cam_hw_param *
 	}
 	hw_param->mipi_chk = TRUE;
 	hw_param->need_update_to_file = TRUE;
-#if defined(CONFIG_CAMERA_ADAPTIVE_MIPI) && defined(CONFIG_CAMERA_RF_MIPI)
-	msm_is_sec_get_rfinfo(hw_param);
-#endif
 }
 
 static void hw_bigdata_count_mipi_error()

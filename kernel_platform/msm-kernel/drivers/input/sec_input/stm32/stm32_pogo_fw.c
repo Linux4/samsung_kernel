@@ -1091,6 +1091,7 @@ static int stm32_dev_firmware_update_mode(struct stm32_dev *data, int mode)
 	int ii = 0;
 	int ret = 0;
 	bool force_firm = 0;
+	int retry_count = 10;
 
 	input_info(true, &data->client->dev, "%s start\n", __func__);
 
@@ -1110,8 +1111,17 @@ static int stm32_dev_firmware_update_mode(struct stm32_dev *data, int mode)
 
 	disable_irq(data->client->irq);
 
-	if (request_firmware(&fw_entry, fw_path, &data->client->dev) != 0) {
-		input_err(true, &data->client->dev, "%s: Failed to request firmware\n", __func__);
+	while (retry_count--) {
+		if (request_firmware(&fw_entry, fw_path, &data->client->dev) == 0) {
+			input_err(true, &data->client->dev, "%s: succeeded to request firmware retry_count:%d\n",
+					__func__, retry_count);
+			break;
+		}
+		sec_delay(50);
+	}
+
+	if (retry_count < 0) {
+		input_err(true, &data->client->dev, "%s: failed to request firmware\n", __func__);
 		goto err_request_fw;
 	}
 

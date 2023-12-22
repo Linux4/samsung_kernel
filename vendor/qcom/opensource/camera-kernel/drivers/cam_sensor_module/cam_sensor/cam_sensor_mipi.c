@@ -363,15 +363,4 @@ void cam_mipi_get_clock_string(struct cam_sensor_ctrl_t *s_ctrl)
 	CAM_DBG(CAM_SENSOR, "[AM_DBG] cam_mipi_get_clock_string : %d", s_ctrl->mipi_clock_index_new);
 	CAM_DBG(CAM_SENSOR, "[AM_DBG] mipi_string : %s", mipi_string);
  }
-
-#if defined(CONFIG_CAMERA_RF_MIPI)
-void get_rf_info(struct cam_cp_noti_info *rf_info)
-{
-	cam_mipi_get_rf_channel(rf_info);
-
-	CAM_DBG(CAM_SENSOR, "[AM_DBG] get rf info [%d,%d,%d]",
-		rf_info->rat, rf_info->band, rf_info->channel);
-}
-#endif
-
 #endif

@@ -47,9 +47,9 @@ static struct adc_list batt_adc_list[SEC_BAT_ADC_CHANNEL_NUM] = {
 static int adc_init_count;
 
 #if defined(CONFIG_SEC_KUNIT)
-int __mockable adc_read_type(struct device *dev, int channel)
+int __mockable adc_read_type(struct device *dev, int channel, int batt_adc_type)
 #else
-int adc_read_type(struct device *dev, int channel)
+int adc_read_type(struct device *dev, int channel, int batt_adc_type)
 #endif
 {
 	int adc = -1;
@@ -73,15 +73,20 @@ int adc_read_type(struct device *dev, int channel)
 
 	if (batt_adc_list[channel].is_used) {
 		do {
-#if defined(CONFIG_ARCH_MTK_PROJECT) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
-			ret = (batt_adc_list[channel].is_used) ?
-				iio_read_channel_raw(batt_adc_list[channel].channel, &adc) : 0;
-#else
-			ret = (batt_adc_list[channel].is_used) ?
-				iio_read_channel_processed(batt_adc_list[channel].channel, &adc) : 0;
-#endif
+			switch (batt_adc_type) {
+			case SEC_BATTERY_ADC_RAW:
+				ret = iio_read_channel_raw(batt_adc_list[channel].channel, &adc);
+				break;
+			default:
+				/* SEC_BATTERY_ADC_PROCESSED */
+				ret = iio_read_channel_processed(batt_adc_list[channel].channel, &adc);
+				break;
+			}
+
 			retry_cnt--;
 		} while ((retry_cnt > 0) && (adc < 0));
+	} else {
+		ret = 0;
 	}
 
 	if (retry_cnt <= 0) {
@@ -91,12 +96,13 @@ int adc_read_type(struct device *dev, int channel)
 		batt_adc_list[channel].prev_value = adc;
 	}
 
-	pr_debug("%s: [%d] ADC = %d\n", __func__, channel, adc);
+	pr_debug("%s: [%d] ADC (type:%s) = %d\n", __func__, channel,
+		(batt_adc_type ? "raw" : "proc."), adc);
 
 	return adc;
 }
 
-int sec_bat_get_adc_data(struct device *dev, int adc_ch, int count)
+int sec_bat_get_adc_data(struct device *dev, int adc_ch, int count, int batt_adc_type)
 {
 	int adc_data = 0;
 	int adc_max = 0;
@@ -109,7 +115,7 @@ int sec_bat_get_adc_data(struct device *dev, int adc_ch, int count)
 
 	for (i = 0; i < count; i++) {
 		mutex_lock(&adclock);
-		adc_data = adc_read_type(dev, adc_ch);
+		adc_data = adc_read_type(dev, adc_ch, batt_adc_type);
 		mutex_unlock(&adclock);
 
 		if (i != 0) {
@@ -144,7 +150,8 @@ int sec_bat_get_charger_type_adc(struct sec_battery_info *battery)
 	if (battery->pdata->cable_switch_check && !battery->pdata->cable_switch_check())
 		return battery->cable_type;
 
-	adc = sec_bat_get_adc_data(battery->dev, SEC_BAT_ADC_CHANNEL_CABLE_CHECK, battery->pdata->adc_check_count);
+	adc = sec_bat_get_adc_data(battery->dev, SEC_BAT_ADC_CHANNEL_CABLE_CHECK,
+			battery->pdata->adc_check_count, battery->pdata->adc_read_type);
 
 	/* Do NOT check cable type when cable_switch_normal() returns false
 	 * and keep current cable type
@@ -233,7 +240,7 @@ int sec_bat_get_inbat_vol_by_adc(struct sec_battery_info *battery)
 	inbat_adc_table_size = battery->pdata->inbat_adc_table_size;
 
 	inbat_adc = sec_bat_get_adc_data(battery->dev, SEC_BAT_ADC_CHANNEL_INBAT_VOLTAGE,
-			battery->pdata->adc_check_count);
+			battery->pdata->adc_check_count, battery->pdata->adc_read_type);
 	if (inbat_adc <= 0)
 		return inbat_adc;
 
@@ -283,7 +290,8 @@ bool sec_bat_check_vf_adc(struct sec_battery_info *battery)
 
 	adc = sec_bat_get_adc_data(battery->dev,
 		SEC_BAT_ADC_CHANNEL_BATID_CHECK,
-		battery->pdata->adc_check_count);
+		battery->pdata->adc_check_count,
+		battery->pdata->adc_read_type);
 
 	if (adc < 0) {
 		dev_err(battery->dev, "%s: VF ADC error\n", __func__);

@@ -580,7 +580,9 @@ static int netlink_insert(struct sock *sk, u32 portid)
 	if (nlk_sk(sk)->bound)
 		goto err;
 
-	nlk_sk(sk)->portid = portid;
+	/* portid can be read locklessly from netlink_getname(). */
+	WRITE_ONCE(nlk_sk(sk)->portid, portid);
+
 	sock_hold(sk);
 
 	err = __netlink_insert(table, sk);
@@ -1089,9 +1091,11 @@ static int netlink_connect(struct socket *sock, struct sockaddr *addr,
 		return -EINVAL;
 
 	if (addr->sa_family == AF_UNSPEC) {
-		sk->sk_state	= NETLINK_UNCONNECTED;
-		nlk->dst_portid	= 0;
-		nlk->dst_group  = 0;
+		/* paired with READ_ONCE() in netlink_getsockbyportid() */
+		WRITE_ONCE(sk->sk_state, NETLINK_UNCONNECTED);
+		/* dst_portid and dst_group can be read locklessly */
+		WRITE_ONCE(nlk->dst_portid, 0);
+		WRITE_ONCE(nlk->dst_group, 0);
 		return 0;
 	}
 	if (addr->sa_family != AF_NETLINK)
@@ -1112,9 +1116,11 @@ static int netlink_connect(struct socket *sock, struct sockaddr *addr,
 		err = netlink_autobind(sock);
 
 	if (err == 0) {
-		sk->sk_state	= NETLINK_CONNECTED;
-		nlk->dst_portid = nladdr->nl_pid;
-		nlk->dst_group  = ffs(nladdr->nl_groups);
+		/* paired with READ_ONCE() in netlink_getsockbyportid() */
+		WRITE_ONCE(sk->sk_state, NETLINK_CONNECTED);
+		/* dst_portid and dst_group can be read locklessly */
+		WRITE_ONCE(nlk->dst_portid, nladdr->nl_pid);
+		WRITE_ONCE(nlk->dst_group, ffs(nladdr->nl_groups));
 	}
 
 	return err;
@@ -1131,10 +1137,12 @@ static int netlink_getname(struct socket *sock, struct sockaddr *addr,
 	nladdr->nl_pad = 0;
 
 	if (peer) {
-		nladdr->nl_pid = nlk->dst_portid;
-		nladdr->nl_groups = netlink_group_mask(nlk->dst_group);
+		/* Paired with WRITE_ONCE() in netlink_connect() */
+		nladdr->nl_pid = READ_ONCE(nlk->dst_portid);
+		nladdr->nl_groups = netlink_group_mask(READ_ONCE(nlk->dst_group));
 	} else {
-		nladdr->nl_pid = nlk->portid;
+		/* Paired with WRITE_ONCE() in netlink_insert() */
+		nladdr->nl_pid = READ_ONCE(nlk->portid);
 		netlink_lock_table();
 		nladdr->nl_groups = nlk->groups ? nlk->groups[0] : 0;
 		netlink_unlock_table();
@@ -1161,8 +1169,9 @@ static struct sock *netlink_getsockbyportid(struct sock *ssk, u32 portid)
 
 	/* Don't bother queuing skb if kernel socket has no input function */
 	nlk = nlk_sk(sock);
-	if (sock->sk_state == NETLINK_CONNECTED &&
-	    nlk->dst_portid != nlk_sk(ssk)->portid) {
+	/* dst_portid and sk_state can be changed in netlink_connect() */
+	if (READ_ONCE(sock->sk_state) == NETLINK_CONNECTED &&
+	    READ_ONCE(nlk->dst_portid) != nlk_sk(ssk)->portid) {
 		sock_put(sock);
 		return ERR_PTR(-ECONNREFUSED);
 	}
@@ -1898,8 +1907,9 @@ static int netlink_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 			goto out;
 		netlink_skb_flags |= NETLINK_SKB_DST;
 	} else {
-		dst_portid = nlk->dst_portid;
-		dst_group = nlk->dst_group;
+		/* Paired with WRITE_ONCE() in netlink_connect() */
+		dst_portid = READ_ONCE(nlk->dst_portid);
+		dst_group = READ_ONCE(nlk->dst_group);
 	}
 
 	/* Paired with WRITE_ONCE() in netlink_insert() */
@@ -1958,8 +1968,6 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 	size_t copied;
 	struct sk_buff *skb, *data_skb;
 	int err, ret;
-	struct nlmsghdr *nh;
-	struct nlmsgerr *err2;
 
 	if (flags & MSG_OOB)
 		return -EOPNOTSUPP;
@@ -1971,13 +1979,7 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 		goto out;
 
 	data_skb = skb;
-/*
-	if (msg->msg_name) {
-		nh = (struct nlmsghdr *) msg->msg_name;
-		err2 = nlmsg_data(nh);
-		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
-	}
-*/
+
 #ifdef CONFIG_COMPAT_NETLINK_MESSAGES
 	if (unlikely(skb_shinfo(skb)->frag_list)) {
 		/*
@@ -2007,13 +2009,7 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 	}
 
 	err = skb_copy_datagram_msg(data_skb, 0, msg, copied);
-/*
-	if (msg->msg_name) {
-		nh = (struct nlmsghdr *) msg->msg_name;
-		err2 = nlmsg_data(nh);
-		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
-	}
-*/
+
 	if (msg->msg_name) {
 		DECLARE_SOCKADDR(struct sockaddr_nl *, addr, msg->msg_name);
 		addr->nl_family = AF_NETLINK;
@@ -2041,21 +2037,11 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 		if (ret) {
 			sk->sk_err = -ret;
 			sk->sk_error_report(sk);
-/*			if (msg->msg_name) {
-				nh = (struct nlmsghdr *) msg->msg_name;
-				err2 = nlmsg_data(nh);
-				pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
-			}*/
 		}
 	}
 
 	scm_recv(sock, msg, &scm, flags);
 out:
-/*	if (msg->msg_name) {
-		nh = (struct nlmsghdr *) msg->msg_name;
-		err2 = nlmsg_data(nh);
-		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
-	}*/
 	netlink_rcv_wake(sk);
 	return err ? : copied;
 }
