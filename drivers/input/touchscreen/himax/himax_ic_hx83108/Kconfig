@@ -1,0 +1,41 @@
+#
+# Himax Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_HIMAX_COMMON
+	bool "HIMAX chipset i2c touchscreen"
+	depends on TOUCHSCREEN_HIMAX_IC_HX83108
+	help
+		This enables support for HIMAX CHIPSET over I2C based touchscreens.
+
+config TOUCHSCREEN_HIMAX_IC_HX83108
+	bool "HIMAX chipset HX83108 function"
+	help
+		This enables support for HIMAX CHIPSET of HX83108.
+
+# ***************** In-cell Start *****************
+config TOUCHSCREEN_HIMAX_INCELL
+	bool "HIMAX chipset in-cell function"
+	depends on TOUCHSCREEN_HIMAX_COMMON
+	help
+		This enables support for HIMAX CHIPSET of in-cell function.
+
+# ***************** In-cell End *******************
+
+config TOUCHSCREEN_HIMAX_DEBUG
+	bool "HIMAX debug function"
+	depends on TOUCHSCREEN_HIMAX_COMMON
+	help
+		This enables support for HIMAX debug function.
+
+config TOUCHSCREEN_HIMAX_INSPECT
+	bool "HIMAX inspect function"
+	depends on TOUCHSCREEN_HIMAX_COMMON
+	help
+		This enables support for HIMAX debug function.
+
+config HMX_DB
+	bool "HIMAX driver test over Dragon Board"
+	depends on TOUCHSCREEN_HIMAX_COMMON
+	help
+		This enables support for HIMAX driver test over Dragon Board.

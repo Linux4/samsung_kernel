@@ -1,0 +1,37 @@
+/*
+ * sec_adc.h
+ * Samsung Mobile Charger Header
+ *
+ * Copyright (C) 2012 Samsung Electronics, Inc.
+ *
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
+#ifndef __SEC_ADC_H
+#define __SEC_ADC_H __FILE__
+
+#include <linux/iio/consumer.h>
+#include "sec_battery.h"
+#include "sec_charging_common.h"
+
+#define VENDOR_UNKNOWN 0
+#define VENDOR_LSI 1
+#define VENDOR_QCOM 2
+#define VENDOR_MTK 3
+#define RETRY_CNT 3
+
+#if defined(CONFIG_MTK_AUXADC)
+extern int IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata);
+#endif
+
+#endif /* __SEC_ADC_H */
+

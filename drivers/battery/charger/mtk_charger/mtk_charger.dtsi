@@ -1,0 +1,12 @@
+
+&smd {
+	mtk_charger: mtk-charger {
+		compatible = "samsung,mtk-charger";
+		charger,vbus_min_charger_voltage = <4500000>;
+		charger,vbus_normal_mivr_voltage = <4500000>;
+		charger,gpio_ilim = <&pio 140 0x0>;
+		charger,gpio_chgenb = <&pio 135 0x0>;
+		charger,max_icl = <3250>;
+		charger,ib_fcc = <100>;
+	};
+};
