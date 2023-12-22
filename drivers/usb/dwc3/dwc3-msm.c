@@ -4266,13 +4266,6 @@ static void msm_dwc3_perf_vote_work(struct work_struct *w)
 
 #define VBUS_REG_CHECK_DELAY	(msecs_to_jiffies(1000))
 
-#if defined(CONFIG_USB_HOST_NOTIFY)
-void msm_host_block_state_notify(void)
-{
-	host_state_notify(&dwc3_ndev, NOTIFY_HOST_BLOCK);
-}
-EXPORT_SYMBOL(msm_host_block_state_notify);
-#endif
 /**
  * dwc3_otg_start_host -  helper function for starting/stoping the host
  * controller driver.

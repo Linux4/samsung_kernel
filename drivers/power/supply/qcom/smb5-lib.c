@@ -32,9 +32,6 @@
 #ifdef CONFIG_DISABLE_TEMP_PROTECT
 #include <linux/reboot.h>
 #endif
-#if defined(CONFIG_USB_HOST_NOTIFY)
-#include <linux/host_notify.h>
-#endif
 
 extern struct smb_charger *wt_smbchip;
 //-Bug594012,gudi.wt,20201023,Bringup:add period log
@@ -7065,10 +7062,6 @@ irqreturn_t typec_attach_detach_irq_handler(int irq, void *data)
 			//bug596217, guodandan@wt, 20201026, add usb control node, start
 			#ifdef CONFIG_USB_NOTIFIER
 			if(chg->usb_psy->usb_host_flag) {
-#if defined(CONFIG_USB_HOST_NOTIFY)
-				msm_host_block_state_notify();
-				pr_info("%s : host is blocked\n", __func__);
-#endif
 				chg->otg_block = 1;
 				return IRQ_HANDLED;
 			}
