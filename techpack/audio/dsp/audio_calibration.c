@@ -416,7 +416,7 @@ static long audio_cal_shared_ioctl(struct file *file, unsigned int cmd,
 		pr_err("%s: Could not copy size value from user\n", __func__);
 		ret = -EFAULT;
 		goto done;
-	} else if ((size < sizeof(struct audio_cal_basic))
+	} else if ((size < 0) || (size < sizeof(struct audio_cal_basic))
 		|| (size > MAX_IOCTL_CMD_SIZE)) {
 		pr_err("%s: Invalid size sent to driver: %d, max size is %d, min size is %zd\n",
 			__func__, size, MAX_IOCTL_CMD_SIZE,

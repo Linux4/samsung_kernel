@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  */
 
@@ -157,6 +158,7 @@ struct sde_power_event {
  * @event_list: current power handle event list
  * @rsc_client: sde rsc client pointer
  * @rsc_client_init: boolean to control rsc client create
+ * @ib_quota: ib quota of the given bus
  */
 struct sde_power_handle {
 	struct dss_module_power mp;
@@ -169,6 +171,7 @@ struct sde_power_handle {
 	u32 last_event_handled;
 	struct sde_rsc_client *rsc_client;
 	bool rsc_client_init;
+	u64 ib_quota[SDE_POWER_HANDLE_DBUS_ID_MAX];
 };
 
 /**

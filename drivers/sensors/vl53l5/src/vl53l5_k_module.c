@@ -125,6 +125,27 @@ extern int sensors_register(struct device *dev, void *drvdata,
 
 #define TEST_300_MM_MAX_ZONE 64
 #define TEST_500_MM_MAX_ZONE 16
+
+#ifdef VL53L5_INTERRUPT
+#define MAX_READ_COUNT        45
+#else
+#define MAX_READ_COUNT        10
+#endif
+
+#define ENTER 1
+#define END   2
+
+#define NUM_OF_PRINT 8
+
+#define FAIL_GET_RANGE	-1
+#define EXCEED_AMBIENT	-2
+#define EXCEED_XTALK	-3
+#define MAX_FAILING_ZONES_LIMIT_FAIL	-452581885
+#define NO_VALID_ZONES	-452516349
+
+#define FAC_CAL		1
+#define USER_CAL	2
+
 #endif //STM_VL53L5_SUPPORT_SEC_CODE
 
 static struct spi_device *vl53l5_k_spi_device;
@@ -602,9 +623,187 @@ void vl53l5_k_re_init(struct vl53l5_k_module_t *p_module)
 	}
 }
 
+int vl53l5_check_calibration_condition(struct vl53l5_k_module_t *p_module, int seq)
+{
+	int status = STATUS_OK, prev_state = VL53L5_STATE_RANGING;
+	int count = 0;
+	int ret = STATUS_OK;
+	int max_ambient = 0, max_xtalk = 0, max_peaksignal = 0;
+	int i = 0, j = 0, idx = 0;
+#ifndef VL53L5_INTERRUPT
+	int data_ready = 0;
+#endif
+
+	vl53l5_k_log_info("state_preset %d, power_state %d", p_module->state_preset, p_module->power_state);
+	if (p_module->state_preset != VL53L5_STATE_RANGING) {
+		prev_state = p_module->state_preset;
+
+		status = vl53l5_ioctl_start(p_module, NULL, 1);
+		if (status != STATUS_OK) {
+			status = vl53l5_ioctl_init(p_module);
+			vl53l5_k_log_error("restart %d", status);
+			status = vl53l5_ioctl_start(p_module, NULL, 1);
+		}
+
+		if (status == STATUS_OK) {
+			p_module->enabled = 1;
+		} else {
+			vl53l5_k_log_error("start err");
+			vl53l5_k_store_error(p_module, status);
+			ret = FAIL_GET_RANGE;
+			goto out_result;
+		}
+	}
+	msleep(180);
+
+	vl53l5_k_log_info("get_range start %d", p_module->fac_rotation_mode);
+
+	memset(&p_module->range_data, 0, sizeof(p_module->range_data));
+
+#ifdef VL53L5_INTERRUPT
+	while ((p_module->range.count == 0) && (count < MAX_READ_COUNT)) {
+		usleep_range(10000, 10100);
+		++count;
+	}
+	status = vl53l5_ioctl_get_range(p_module, NULL);
+#else
+	status = vl53l5_k_check_data_ready(p_module, &data_ready);
+	while (!data_ready && (count < MAX_READ_COUNT)) {
+		vl53l5_k_log_info("check ready %d %d", data_ready, status);
+		usleep_range(10000, 10100);
+		status = vl53l5_k_check_data_ready(p_module, &data_ready);
+		count++;
+	}
+	status = vl53l5_ioctl_get_range(p_module, NULL);
+#endif
+	if (status == STATUS_OK) {
+		for (i = 0; i < NUM_OF_PRINT; i++) {
+			for (j = 0; j < NUM_OF_PRINT; j++) {
+				idx = (i * NUM_OF_PRINT + j);
+				if (seq == END && max_xtalk < (p_module->calibration.cal_data.pxtalk_grid_rate.cal__grid_data__rate_kcps_per_spad[idx] >> 11))
+					max_xtalk = p_module->calibration.cal_data.pxtalk_grid_rate.cal__grid_data__rate_kcps_per_spad[idx] >> 11;
+				if (max_peaksignal < (p_module->range_data.per_tgt_results.peak_rate_kcps_per_spad[idx * p_module->max_targets_per_zone] >> 11))
+					max_peaksignal = p_module->range_data.per_tgt_results.peak_rate_kcps_per_spad[idx * p_module->max_targets_per_zone] >> 11;
+				if (max_ambient < (p_module->range_data.per_zone_results.amb_rate_kcps_per_spad[idx] >> 11))
+					max_ambient = p_module->range_data.per_zone_results.amb_rate_kcps_per_spad[idx] >> 11;
+			}
+		}
+	} else {
+		vl53l5_k_log_info("get range fail, status : %d", status);
+		ret = FAIL_GET_RANGE;
+		goto out_result;
+	}
+
+	p_module->max_peak_signal = max_peaksignal;
+
+	if (max_ambient > 35)
+		ret = EXCEED_AMBIENT;
+	else if (seq == END && max_xtalk > 200)
+		ret = EXCEED_XTALK;
+
+	vl53l5_k_log_info("max_ambient : %d, max_xtalk : %d, ret : %d, max_peaksignal : %d \n", max_ambient, max_xtalk, ret, max_peaksignal);
+
+out_result:
+	if (prev_state != VL53L5_STATE_RANGING) {
+		p_module->enabled = 0;
+		vl53l5_ioctl_stop(p_module, NULL, 1);
+	}
+
+	return ret;
+}
+
+int vl53l5_perform_open_calibration(struct vl53l5_k_module_t *p_module)
+{
+	int ret = STATUS_OK;
+
+	vl53l5_k_log_info("Do CHAR CAL\n");
+	vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_HP_IDLE);
+	msleep(20);
+
+	ret = vl53l5_perform_calibration(p_module, 3);
+
+	msleep(20);
+	vl53l5_ioctl_set_device_parameters(p_module, NULL, VL53L5_CFG__BACK_TO_BACK__8X8__15HZ);
+	usleep_range(2000, 2100);
+	vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_LP_IDLE_COMMS);
+
+	return ret;
+}
+
+int vl53l5_load_open_calibration(struct vl53l5_k_module_t *p_module)
+{
+	int p2p, cha;
+
+	vl53l5_k_log_info("Open CAL Load\n");
+
+	p_module->stdev.status_cal = 0;
+	p_module->load_calibration = false;
+	p_module->read_p2p_cal_data = false;
+
+	vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_HP_IDLE);
+	usleep_range(2000, 2100);
+
+	cha = vl53l5_ioctl_read_open_cal_shape_calibration(p_module);
+	msleep(100);
+
+	p2p = vl53l5_ioctl_read_open_cal_p2p_calibration(p_module);
+	usleep_range(2000, 2100);
+
+	vl53l5_k_log_info("cha %d, p2p %d\n", cha, p2p);
+
+	if (cha == STATUS_OK)
+		p_module->load_calibration = true;
+	if (p2p == STATUS_OK)
+		p_module->read_p2p_cal_data = true;
+
+	vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_LP_IDLE_COMMS);
+	msleep(20);
+
+	if (cha != STATUS_OK)
+		return cha;
+	else if (p2p != STATUS_OK)
+		return p2p;
+	else
+		return STATUS_OK;
+}
+
+void vl53l5_load_factory_calibration(struct vl53l5_k_module_t *p_module)
+{
+	int cha, p2p;
+
+	vl53l5_k_log_info("Load CAL\n");
+
+	p_module->stdev.status_cal = 0;
+	p_module->load_calibration = false;
+	p_module->read_p2p_cal_data = false;
+
+	vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_HP_IDLE);
+	usleep_range(2000, 2100);
+
+	cha = vl53l5_ioctl_read_generic_shape(p_module);
+	usleep_range(2000, 2100);
+
+	p2p = vl53l5_ioctl_read_p2p_calibration(p_module, true);
+	usleep_range(2000, 2100);
+
+	vl53l5_k_log_info("cha %d, p2p %d\n", cha, p2p);
+
+	if (cha == STATUS_OK)
+		p_module->load_calibration = true;
+	if (p2p == STATUS_OK)
+		p_module->read_p2p_cal_data = true;
+
+	vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_LP_IDLE_COMMS);
+}
+
 static ssize_t vl53l5_name_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	//test code
+	struct vl53l5_k_module_t *p_module = dev_get_drvdata(dev);
+	vl53l5_ioctl_init(p_module);
+	///end
+
 	return snprintf(buf, PAGE_SIZE, "VL53L5\n");
 }
 
@@ -1369,6 +1568,53 @@ static ssize_t vl53l5_cal_offset_show(struct device *dev,
 	return j;
 }
 
+static ssize_t vl53l5_open_calibration_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct vl53l5_k_module_t *p_module = dev_get_drvdata(dev);
+	int ret = 0;
+	int status = 0;
+	int cal_status;
+
+	cal_status = vl53l5_check_calibration_condition(p_module, ENTER);
+	if (cal_status < 0) {
+		vl53l5_k_log_info("fail enter open CAL!\n");
+		if (cal_status == FAIL_GET_RANGE)
+			return snprintf(buf, PAGE_SIZE, "FAIL_MODULE_CONNECTOR\n");
+		else
+			return snprintf(buf, PAGE_SIZE, "FAIL_AMBIENT\n");
+	}
+
+	ret = vl53l5_perform_open_calibration(p_module);
+	if (ret == STATUS_OK)
+		ret = vl53l5_load_open_calibration(p_module);
+
+	cal_status = vl53l5_check_calibration_condition(p_module, END);
+	if (cal_status < 0 || ret < 0) {
+		vl53l5_k_log_info("cal fail!\n");
+		status = vl53l5_input_report(p_module, 7, CMD_DELTE_OPENCAL_FILE);
+		if (status < 0)
+			vl53l5_k_log_error("could not delete wrong cal file!\n");
+
+		vl53l5_k_log_error("Restore to factory cal file!\n");
+		vl53l5_load_factory_calibration(p_module);
+
+		if (cal_status == EXCEED_AMBIENT)
+			return snprintf(buf, PAGE_SIZE, "FAIL_AMBIENT\n");
+		else if ((ret == MAX_FAILING_ZONES_LIMIT_FAIL || ret == NO_VALID_ZONES) && p_module->max_peak_signal > 200)
+			return snprintf(buf, PAGE_SIZE, "FAIL_CLOSED\n");
+		else if ((ret == MAX_FAILING_ZONES_LIMIT_FAIL || ret == NO_VALID_ZONES) && p_module->max_peak_signal <= 200)
+			return snprintf(buf, PAGE_SIZE, "FAIL_BG\n");
+		else if (cal_status == EXCEED_XTALK)
+			return snprintf(buf, PAGE_SIZE, "FAIL_CLOSED_DUST\n");
+		else
+			return snprintf(buf, PAGE_SIZE, "FAIL_MODULE_CONNECTOR\n");
+	}
+
+	vl53l5_k_log_info("cal done!\n");
+	return snprintf(buf, PAGE_SIZE, "PASS\n");
+}
+
 static ssize_t vl53l5_calibration_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1429,7 +1675,8 @@ static ssize_t vl53l5_calibration_store(struct device *dev,
 	struct vl53l5_k_module_t *p_module = dev_get_drvdata(dev);
 	u8 val = 0;
 	int ret;
-	int p2p, cha;
+	int status = 0;
+	int cal_type = 0;
 
 	vl53l5_k_re_init(p_module);
 
@@ -1445,29 +1692,23 @@ static ssize_t vl53l5_calibration_store(struct device *dev,
 
 	switch(val) {
 	case 0: /* Calibration Load */
-		vl53l5_k_log_info("Load CAL\n");
+		status = vl53l5_input_report(p_module, 6, CMD_CHECK_CAL_FILE_TYPE);
+		if (status < 0)
+			vl53l5_k_log_error("could not find file_list");
 
-		p_module->stdev.status_cal = 0;
-		p_module->load_calibration = false;
-		p_module->read_p2p_cal_data = false;
+		if ((p_module->file_list & 3) == 3) {
+			vl53l5_k_log_info("Do user cal: %d", p_module->file_list);
+			cal_type = USER_CAL;
+		} else {
+			vl53l5_k_log_info("Do fac cal: %d", p_module->file_list);
+			cal_type = FAC_CAL;
+		}
 
-		vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_HP_IDLE);
-		usleep_range(2000, 2100);
+		if (cal_type != USER_CAL)
+			vl53l5_load_factory_calibration(p_module);
+		else
+			vl53l5_load_open_calibration(p_module);
 
-		cha = vl53l5_ioctl_read_generic_shape(p_module);
-		usleep_range(2000, 2100);
-
-		p2p = vl53l5_ioctl_read_p2p_calibration(p_module, true);
-		usleep_range(2000, 2100);
-
-		vl53l5_k_log_error("cha %d, p2p %d\n", cha, p2p);
-
-		if (cha == STATUS_OK)
-			p_module->load_calibration = true;
-		if (p2p == STATUS_OK)
-			p_module->read_p2p_cal_data = true;
-
-		vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_LP_IDLE_COMMS);
 		break;
 	case 1:  /* Factory Calibration */
 		vl53l5_k_log_info("Do CAL\n");
@@ -1524,14 +1765,7 @@ static ssize_t vl53l5_calibration_store(struct device *dev,
 		vl53l5_reset(p_module);
 		break;
 	case 3:
-		vl53l5_k_log_info("Do CHAR CAL\n");
-		vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_HP_IDLE);
-		msleep(20);
-		ret = vl53l5_perform_calibration(p_module, 3);
-		msleep(20);
-		vl53l5_ioctl_set_device_parameters(p_module, NULL, VL53L5_CFG__BACK_TO_BACK__8X8__15HZ);
-		usleep_range(2000, 2100);
-		vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_LP_IDLE_COMMS);
+		vl53l5_perform_open_calibration(p_module);
 		break;
 	default:
 		vl53l5_k_log_info("Not support: %d\n", val);
@@ -1578,6 +1812,7 @@ static DEVICE_ATTR(cal01, 0440, vl53l5_cal_offset_show, NULL);
 static DEVICE_ATTR(cal02, 0440, vl53l5_cal_xtalk_show, NULL);
 static DEVICE_ATTR(status, 0440, vl53l5_status_show, NULL);
 static DEVICE_ATTR(calibration, 0660, vl53l5_calibration_show, vl53l5_calibration_store);
+static DEVICE_ATTR(open_calibration, 0440, vl53l5_open_calibration_show, NULL);
 
 static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_name,
@@ -1599,6 +1834,7 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_cal01,
 	&dev_attr_cal02,
 	&dev_attr_calibration,
+	&dev_attr_open_calibration,
 	&dev_attr_status,
 	&dev_attr_test_mode,
 	NULL,
@@ -2137,6 +2373,10 @@ static int vl53l5_k_ioctl_handler(struct vl53l5_k_module_t *p_module,
 	case VL53L5_IOCTL_SET_PASS_FAIL:
 		vl53l5_k_log_info("SET_PASS_FAIL");
 		status = vl53l5_ioctl_set_pass_fail(p_module, p);
+		break;
+	case VL53L5_IOCTL_SET_FILE_LIST:
+		vl53l5_k_log_info("SET_FILE_LIST");
+		status = vl53l5_ioctl_set_file_list(p_module, p);
 		break;
 #endif
 	default:

@@ -147,6 +147,7 @@ struct max77705_usbc_platform_data {
 	struct work_struct op_wait_work;
 	struct work_struct op_send_work;
 	struct work_struct cc_open_req_work;
+	struct work_struct dp_configure_work;
 #ifdef MAX77705_SYS_FW_UPDATE
 	struct work_struct fw_update_work;
 #endif

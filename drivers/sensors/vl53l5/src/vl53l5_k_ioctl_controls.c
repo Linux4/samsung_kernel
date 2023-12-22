@@ -96,6 +96,9 @@
 #include <linux/delay.h>
 
 #define MAX_FAIL_COUNT 30 // 33 * 30 = 990 msec
+#define FAC_CAL		1
+#define USER_CAL	2
+
 #endif
 
 int p2p_bh[] = VL53L5_K_P2P_CAL_BLOCK_HEADERS;
@@ -831,6 +834,16 @@ int vl53l5_ioctl_init(struct vl53l5_k_module_t *p_module)
 	if (p_module->probe_done)
 	{
 		int p2p, cha;
+		int cal_type = FAC_CAL;
+
+		status = vl53l5_input_report(p_module, 6, CMD_CHECK_CAL_FILE_TYPE);
+		if (status < 0)
+			vl53l5_k_log_error("could not find file_list");
+
+		if ((p_module->file_list & 3) == 3)
+			cal_type = USER_CAL;
+
+		vl53l5_k_log_info("Do %s cal: %d", cal_type == FAC_CAL ? "FACTORY" : "USER", p_module->file_list);
 
 		status = vl53l5_ioctl_set_power_mode(p_module, NULL, VL53L5_POWER_STATE_HP_IDLE);
 		if (status != STATUS_OK) {
@@ -838,15 +851,24 @@ int vl53l5_ioctl_init(struct vl53l5_k_module_t *p_module)
 			goto out;
 		}
 
-		usleep_range(5000, 5100);
-		cha = vl53l5_ioctl_read_generic_shape(p_module);
-		usleep_range(1000, 1100);
+		if (cal_type == FAC_CAL) {
+			usleep_range(5000, 5100);
+			cha = vl53l5_ioctl_read_generic_shape(p_module);
+			usleep_range(1000, 1100);
+			p2p = vl53l5_ioctl_read_p2p_calibration(p_module, true);
+		} else {
+			usleep_range(2000, 2100);
+			cha = vl53l5_ioctl_read_open_cal_shape_calibration(p_module);
+			msleep(100);
+			p2p = vl53l5_ioctl_read_open_cal_p2p_calibration(p_module);
+		}
+		usleep_range(2000, 2100);
+
 		if (cha == STATUS_OK)
 			p_module->load_calibration = true;
 		else
 			p_module->load_calibration = false;
 
-		p2p = vl53l5_ioctl_read_p2p_calibration(p_module, true);
 		if (p2p == STATUS_OK)
 			p_module->read_p2p_cal_data = true;
 		else
@@ -1924,6 +1946,145 @@ out_state:
 	return status;
 }
 
+
+int vl53l5_ioctl_read_open_cal_p2p_calibration(struct vl53l5_k_module_t *p_module)
+{
+	int status = STATUS_OK;
+	unsigned char *p_buff = NULL;
+	unsigned int num_bh = VL53L5_K_P2P_BH_SZ;
+	unsigned int *p_buffer[] = {&p2p_bh[0]};
+
+	LOG_FUNCTION_START("");
+
+	status = _check_state(p_module, VL53L5_STATE_INITIALISED);
+	if (status != STATUS_OK) {
+		if (!p_module->stdev.status_cal)
+			p_module->stdev.status_cal = -15;
+		goto out_state;
+	}
+
+	status = vl53l5_input_report(p_module, 4, CMD_READ_P2P_CAL_FILE);
+	if (status != STATUS_OK) {
+		vl53l5_k_log_error("Read Cal Failed");
+		if (!p_module->stdev.status_cal)
+			p_module->stdev.status_cal = -16;
+		goto out;
+	} else {
+		vl53l5_k_log_info("Read file size %d", p_module->cal_data.size);
+	}
+
+	status = vl53l5_decode_calibration_data(
+			&p_module->stdev,
+			&p_module->calibration.cal_data,
+			&p_module->calibration.info,
+			&p_module->calibration.version,
+			p_buffer[0],
+			num_bh,
+			VL53L5_K_P2P_FILE_SIZE + 4);
+
+	if (status != STATUS_OK) {
+		vl53l5_k_log_info("Fail vl53l5_decode_calibration_data %d", status);
+		if (!p_module->stdev.status_cal)
+			p_module->stdev.status_cal = -17;
+		goto out;
+	}
+
+	vl53l5_k_log_info("CAL ID : %x.%x",
+			  p_module->calibration.info.module_id_hi,
+			  p_module->calibration.info.module_id_lo);
+
+	if ((p_module->calibration.info.module_id_hi
+			== p_module->m_info.module_id_hi)
+			&& (p_module->calibration.info.module_id_lo
+			== p_module->m_info.module_id_lo)) {
+		p_buff = p_module->stdev.host_dev.p_comms_buff;
+		p_buff += VL53L5_K_DEVICE_INFO_SZ;
+		status = vl53l5_set_device_parameters(&p_module->stdev, p_buff,
+						VL53L5_K_P2P_FILE_SIZE);
+
+		if (status != STATUS_OK) {
+			if (!p_module->stdev.status_cal)
+				p_module->stdev.status_cal = -18;
+			goto out;
+		}
+	} else {
+		vl53l5_k_log_error("device and cal id was not matched %x.%x",
+			  p_module->m_info.module_id_hi,
+			  p_module->m_info.module_id_lo);
+		status = VL53L5_CONFIG_ERROR_INVALID_VERSION;
+		if (!p_module->stdev.status_cal)
+			p_module->stdev.status_cal = -19;
+	}
+
+out:
+	if (status != STATUS_OK) {
+		status = vl53l5_read_device_error(&p_module->stdev, status);
+		vl53l5_k_log_error("Failed: %d", status);
+	}
+out_state:
+	LOG_FUNCTION_END(status);
+	return status;
+}
+
+int vl53l5_ioctl_read_open_cal_shape_calibration(struct vl53l5_k_module_t *p_module)
+{
+	int status = STATUS_OK;
+	unsigned char *p_buff = NULL;
+	unsigned int num_bh = VL53L5_K_SHAPE_CAL_BLOCK_HEADERS_SZ;
+	unsigned int *p_buffer[] = {&shape_bh[0]};
+
+	LOG_FUNCTION_START("");
+
+	status = _check_state(p_module, VL53L5_STATE_INITIALISED);
+	if (status != STATUS_OK) {
+		if (!p_module->stdev.status_cal)
+			p_module->stdev.status_cal = -20;
+		goto out_state;
+	}
+
+	status = vl53l5_input_report(p_module, 5, CMD_READ_SHAPE_CAL_FILE);
+	if (status != STATUS_OK) {
+		vl53l5_k_log_error("Read Cal Failed");
+		if (!p_module->stdev.status_cal)
+			p_module->stdev.status_cal = -21;
+		goto out;
+	} else {
+		vl53l5_k_log_info("Read file size %d", p_module->cal_data.size);
+	}
+
+	status = vl53l5_decode_calibration_data(
+			&p_module->stdev,
+			&p_module->calibration.cal_data,
+			&p_module->calibration.info,
+			&p_module->calibration.version,
+			p_buffer[0],
+			num_bh,
+			VL53L5_K_SHAPE_FILE_SIZE + 4);
+
+	if (status != STATUS_OK) {
+		vl53l5_k_log_info("Fail vl53l5_decode_calibration_data %d", status);
+		if (!p_module->stdev.status_cal)
+			p_module->stdev.status_cal = -22;
+		goto out;
+	}
+
+	p_buff = p_module->stdev.host_dev.p_comms_buff;
+	p_buff += VL53L5_K_DEVICE_INFO_SZ;
+	status = vl53l5_set_device_parameters(&p_module->stdev, p_buff,
+					      VL53L5_K_SHAPE_FILE_SIZE);
+
+	if (status != STATUS_OK)
+		goto out;
+out:
+	if (status != STATUS_OK) {
+		status = vl53l5_read_device_error(&p_module->stdev, status);
+		vl53l5_k_log_error("Failed: %d", status);
+	}
+out_state:
+	LOG_FUNCTION_END(status);
+	return status;
+}
+
 #ifdef STM_VL53L5_SUPPORT_LEGACY_CODE
 int vl53l5_ioctl_read_shape_calibration(struct vl53l5_k_module_t *p_module)
 {
@@ -2284,10 +2445,9 @@ int vl53l5_ioctl_set_cal_data(struct vl53l5_k_module_t *p_module, void __user *p
 			memset(p_module->stdev.host_dev.p_comms_buff, 0, p_module->stdev.host_dev.comms_buff_max_count);
 			memcpy(p_module->stdev.host_dev.p_comms_buff, p_module->cal_data.pcal_data, p_module->cal_data.size);
 
-			if (p_module->cal_data.cmd == CMD_READ_CAL_FILE) {
-				p_module->pass_fail_flag |= 1 << CMD_READ_CAL_FILE;
-				p_module->update_flag |= 1 << p_module->cal_data.cmd;
-			}
+			p_module->pass_fail_flag |= 1 << p_module->cal_data.cmd;
+			p_module->update_flag |= 1 << p_module->cal_data.cmd;
+
 			status = STATUS_OK;
 		} else {
 			vl53l5_k_log_error("Over Size %d", p_module->stdev.host_dev.comms_buff_max_count);
@@ -2323,12 +2483,41 @@ int vl53l5_ioctl_set_pass_fail(struct vl53l5_k_module_t *p_module,
 	return status;
 }
 
+int vl53l5_ioctl_set_file_list(struct vl53l5_k_module_t *p_module,
+				       void __user *p)
+{
+	int status = STATUS_OK;
+
+	if (p != NULL) {
+		struct vl53l5_file_list_t list;
+
+		status = copy_from_user(&list, p, sizeof(struct vl53l5_file_list_t));
+		if (status == STATUS_OK)
+			p_module->file_list = list.file_list;
+		else
+			vl53l5_k_log_error("copy from user failed");
+	} else
+		status = VL53L5_ERROR_INVALID_PARAMS;
+
+	return status;
+}
+
 int vl53l5_input_report(struct vl53l5_k_module_t *p_module, int type, int cmd)
 {
 	int status = STATUS_OK;
 	int cnt = 0;
 
+	if (cmd >= 8) {
+		status = VL53L5_IO_ERROR;
+		vl53l5_k_log_info("Invalid cmd : %d", cmd);
+		return status;
+	}
+
 	if (p_module->input_dev) {
+		p_module->pass_fail_flag &= ~(1 << cmd);
+		p_module->update_flag &= ~(1 << cmd);
+
+		vl53l5_k_log_info("send event %d", type);
 		input_report_rel(p_module->input_dev, REL_MISC, type);
 		input_sync(p_module->input_dev);
 

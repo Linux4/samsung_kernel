@@ -31,7 +31,7 @@
 #include <linux/muic/common/muic.h>
 #include <linux/usb/typec/maxim/max77705-muic.h>
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 
 #if IS_ENABLED(CONFIG_MUIC_SUPPORT_PDIC)

@@ -151,5 +151,9 @@
 
 #define VL53L5_IOCTL_SET_PASS_FAIL \
 	_IOW(VL53L5_IOCTL_CHAR, 0x22, struct vl53l5_update_data_t)
+
+#define VL53L5_IOCTL_SET_FILE_LIST \
+	_IOW(VL53L5_IOCTL_CHAR, 0x23, struct vl53l5_file_list_t)
+
 #endif
 #endif

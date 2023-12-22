@@ -142,6 +142,7 @@ struct asm_stream_cmd_set_pp_params_dolby_atmos {
 	uint32_t enable;
 	int16_t device;
 	int16_t dolby_profile;
+	int16_t swap_param;
 } __packed;
 
 struct afe_volume_monitor_set_params_t {

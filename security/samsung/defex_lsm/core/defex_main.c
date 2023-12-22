@@ -76,10 +76,10 @@ __visible_for_testing void defex_report_violation(const char *violation, uint64_
 	char message[MESSAGE_BUFFER_SIZE + 1];
 
 	struct task_struct *parent = NULL, *p = dc->task;
-	const uid_t uid = uid_get_value(dc->cred.uid);
-	const uid_t euid = uid_get_value(dc->cred.euid);
-	const uid_t fsuid = uid_get_value(dc->cred.fsuid);
-	const uid_t egid = uid_get_value(dc->cred.egid);
+	const uid_t uid = uid_get_value(dc->cred->uid);
+	const uid_t euid = uid_get_value(dc->cred->euid);
+	const uid_t fsuid = uid_get_value(dc->cred->fsuid);
+	const uid_t egid = uid_get_value(dc->cred->egid);
 	const char *process_name = p->comm;
 	const char *prt_process_name = NULL;
 	const char *program_path = get_dc_process_name(dc);
@@ -117,7 +117,7 @@ __visible_for_testing void defex_report_violation(const char *violation, uint64_
 }
 #endif /* DEFEX_DSMS_ENABLE */
 
-#ifdef DEFEX_SAFEPLACE_ENABLE
+#if defined(DEFEX_SAFEPLACE_ENABLE) || defined(DEFEX_TRUSTED_MAP_ENABLE)
 __visible_for_testing long kill_process(struct task_struct *p)
 {
 	read_lock(&tasklist_lock);
@@ -125,7 +125,7 @@ __visible_for_testing long kill_process(struct task_struct *p)
 	read_unlock(&tasklist_lock);
 	return 0;
 }
-#endif /* DEFEX_SAFEPLACE_ENABLE */
+#endif /* DEFEX_SAFEPLACE_ENABLE || DEFEX_TRUSTED_MAP_ENABLE */
 
 #ifdef DEFEX_PED_ENABLE
 __visible_for_testing long kill_process_group(struct task_struct *p, int tgid, int pid)
@@ -232,7 +232,7 @@ __visible_for_testing int lower_adb_permission(struct defex_context *dc, unsigne
 		uid_set_value(shellcred->egid, 2000);
 		uid_set_value(shellcred->fsgid, 2000);
 		commit_creds(shellcred);
-		memcpy(&dc->cred, shellcred, sizeof(struct cred));
+		dc->cred = (struct cred *)current_cred(); //shellcred;
 		set_task_creds(p, 2000, 2000, 2000, cred_flags);
 
 		ret = 1;
@@ -268,10 +268,10 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 
 	get_task_creds(p, &ref_uid, &ref_fsuid, &ref_egid, &cred_flags);
 
-	cur_uid = uid_get_value(dc->cred.uid);
-	cur_euid = uid_get_value(dc->cred.euid);
-	cur_fsuid = uid_get_value(dc->cred.fsuid);
-	cur_egid = uid_get_value(dc->cred.egid);
+	cur_uid = uid_get_value(dc->cred->uid);
+	cur_euid = uid_get_value(dc->cred->euid);
+	cur_fsuid = uid_get_value(dc->cred->fsuid);
+	cur_egid = uid_get_value(dc->cred->egid);
 
 	if (!ref_uid) {
 		if (p->tgid != p->pid && p->tgid != 1) {
@@ -292,7 +292,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 			put_task_struct(parent);
 		}
 
-		if (CHECK_ROOT_CREDS(&dc->cred)) {
+		if (CHECK_ROOT_CREDS(dc->cred)) {
 #ifdef DEFEX_LP_ENABLE
 			if (!lower_adb_permission(dc, cred_flags))
 #endif /* DEFEX_LP_ENABLE */
@@ -303,7 +303,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 		else
 			set_task_creds(p, cur_euid, cur_fsuid, cur_egid, cred_flags);
 	} else if (ref_uid == 1) {
-		if (!CHECK_ROOT_CREDS(&dc->cred))
+		if (!CHECK_ROOT_CREDS(dc->cred))
 			set_task_creds(p, cur_euid, cur_fsuid, cur_egid, cred_flags);
 	} else if (ref_uid == dead_uid) {
 		path = get_dc_process_name(dc);
@@ -324,7 +324,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 	  			 (cur_fsuid%100000 == AID_MEDIA_RW) ||
 	  			 (cur_fsuid%100000 == AID_MEDIA_OBB)) ) {
 			check_deeper = 1;
-			if (CHECK_ROOT_CREDS(&dc->cred))
+			if (CHECK_ROOT_CREDS(dc->cred))
 				set_task_creds(p, 1, 1, 1, cred_flags);
 			else
 				set_task_creds(p, cur_euid, cur_fsuid, cur_egid, cred_flags);
@@ -340,7 +340,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 		}
 	}
 
-	if (CHECK_ROOT_CREDS(&dc->cred) && !(cred_flags & CRED_FLAGS_PROOT) && task_defex_is_secured(dc)) {
+	if (CHECK_ROOT_CREDS(dc->cred) && !(cred_flags & CRED_FLAGS_PROOT) && task_defex_is_secured(dc)) {
 		if (p->tgid != p->pid) {
 			case_num = 3;
 			goto trigger_violation;
@@ -369,6 +369,34 @@ exit:
 }
 #endif /* DEFEX_PED_ENABLE */
 
+#ifdef DEFEX_INTEGRITY_ENABLE
+__visible_for_testing int task_defex_integrity(struct defex_context *dc)
+{
+	int ret = DEFEX_ALLOW, is_violation = 0;
+	char *proc_file, *new_file;
+	struct task_struct *p = dc->task;
+
+	if (!get_dc_target_dpath(dc))
+		goto out;
+
+	new_file = get_dc_target_name(dc);
+	is_violation = rules_lookup(new_file, feature_integrity_check, dc->target_file);
+
+	if (is_violation == DEFEX_INTEGRITY_FAIL) {
+		ret = -DEFEX_DENY;
+		proc_file = get_dc_process_name(dc);
+
+		pr_crit("defex: integrity violation [task=%s (%s), child=%s, uid=%d]\n",
+				p->comm, proc_file, new_file, uid_get_value(dc->cred->uid));
+#ifdef DEFEX_DSMS_ENABLE
+			defex_report_violation(INTEGRITY_VIOLATION, 0, dc, 0, 0, 0, 0);
+#endif /* DEFEX_DSMS_ENABLE */
+	}
+out:
+	return ret;
+}
+#endif /* DEFEX_INTEGRITY_ENABLE */
+
 #ifdef DEFEX_SAFEPLACE_ENABLE
 /* Safeplace feature decision function */
 __visible_for_testing int task_defex_safeplace(struct defex_context *dc)
@@ -377,50 +405,54 @@ __visible_for_testing int task_defex_safeplace(struct defex_context *dc)
 	char *proc_file, *new_file;
 	struct task_struct *p = dc->task;
 
-	if (!CHECK_ROOT_CREDS(&dc->cred))
+	if (!CHECK_ROOT_CREDS(dc->cred))
 		goto out;
 
 	if (!get_dc_target_dpath(dc))
 		goto out;
 
 	new_file = get_dc_target_name(dc);
-	is_violation = rules_lookup(new_file, feature_safeplace_path, dc->target_file);
-#ifdef DEFEX_INTEGRITY_ENABLE
-	if (is_violation != DEFEX_INTEGRITY_FAIL)
-#endif /* DEFEX_INTEGRITY_ENABLE */
-		is_violation = !is_violation;
+	is_violation = !rules_lookup(new_file, feature_safeplace_path, dc->target_file);
 
 	if (is_violation) {
 		ret = -DEFEX_DENY;
 		proc_file = get_dc_process_name(dc);
 
-#ifdef DEFEX_INTEGRITY_ENABLE
-		if (is_violation == DEFEX_INTEGRITY_FAIL) {
-			pr_crit("defex: integrity violation [task=%s (%s), child=%s, uid=%d]\n",
-				p->comm, proc_file, new_file, uid_get_value(dc->cred.uid));
-#ifdef DEFEX_DSMS_ENABLE
-			defex_report_violation(INTEGRITY_VIOLATION, 0, dc, 0, 0, 0, 0);
-#endif /* DEFEX_DSMS_ENABLE */
-
-			/*  Temporary make permissive mode for tereble
-			 *  system image is changed as google's and defex might not work
-			 */
-			ret = DEFEX_ALLOW;
-		}
-		else
-#endif /* DEFEX_INTEGRITY_ENABLE */
-		{
-			pr_crit("defex: safeplace violation [task=%s (%s), child=%s, uid=%d]\n",
-				p->comm, proc_file, new_file, uid_get_value(dc->cred.uid));
+		pr_crit("defex: safeplace violation [task=%s (%s), child=%s, uid=%d]\n",
+			p->comm, proc_file, new_file, uid_get_value(dc->cred->uid));
 #ifdef DEFEX_DSMS_ENABLE
 			defex_report_violation(SAFEPLACE_VIOLATION, 0, dc, 0, 0, 0, 0);
 #endif /* DEFEX_DSMS_ENABLE */
-		}
 	}
 out:
 	return ret;
 }
 #endif /* DEFEX_SAFEPLACE_ENABLE */
+
+#ifdef DEFEX_TRUSTED_MAP_ENABLE
+/* Trusted map feature decision function */
+__visible_for_testing int task_defex_trusted_map(struct defex_context *dc, va_list ap)
+{
+	int ret = DEFEX_ALLOW, argc;
+	void *argv;
+
+	if (!CHECK_ROOT_CREDS(dc->cred))
+		goto out;
+
+	argc = va_arg(ap, int);
+	argv = va_arg(ap, void *);
+#ifdef DEFEX_DEBUG_ENABLE
+	if (argc <= 0)
+		pr_crit("[DEFEX][DTM] Invalid trusted map arguments - check integration on fs/exec.c (argc %d)", argc);
+#endif
+
+	ret = defex_trusted_map_lookup(dc, argc, argv);
+	if (defex_tm_mode_enabled(DEFEX_TM_PERMISSIVE_MODE))
+		ret = DEFEX_ALLOW;
+out:
+	return ret;
+}
+#endif /* DEFEX_TRUSTED_MAP_ENABLE */
 
 #ifdef DEFEX_IMMUTABLE_ENABLE
 
@@ -473,12 +505,15 @@ out:
 #endif /* DEFEX_IMMUTABLE_ENABLE */
 
 /* Main decision function */
-int task_defex_enforce(struct task_struct *p, struct file *f, int syscall)
+int task_defex_enforce(struct task_struct *p, struct file *f, int syscall, ...)
 {
 	int ret = DEFEX_ALLOW;
 	int feature_flag;
 	const struct local_syscall_struct *item;
 	struct defex_context dc;
+#ifdef DEFEX_TRUSTED_MAP_ENABLE
+	va_list ap;
+#endif
 
 	if (boot_state_unlocked)
 		return ret;
@@ -486,7 +521,11 @@ int task_defex_enforce(struct task_struct *p, struct file *f, int syscall)
 	if (!p || p->pid == 1 || !p->mm || !is_task_used(p))
 		return ret;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0))
 	if ((p->state & (__TASK_STOPPED | TASK_DEAD)) || (p->exit_state & (EXIT_ZOMBIE | EXIT_DEAD)))
+#else
+	if ((p->__state & (__TASK_STOPPED | TASK_DEAD)) || (p->exit_state & (EXIT_ZOMBIE | EXIT_DEAD)))
+#endif
 		return ret;
 
 	if (syscall < 0) {
@@ -515,6 +554,23 @@ int task_defex_enforce(struct task_struct *p, struct file *f, int syscall)
 		}
 	}
 #endif /* DEFEX_PED_ENABLE */
+
+#ifdef DEFEX_INTEGRITY_ENABLE
+	/* Integrity feature */
+	if (feature_flag & FEATURE_INTEGRITY) {
+		if (syscall == __DEFEX_execve) {
+			ret = task_defex_integrity(&dc);
+			if (ret == -DEFEX_DENY) {
+				if (!(feature_flag & FEATURE_INTEGRITY_SOFT)) {
+					release_defex_context(&dc);
+					put_task_struct(p);
+					kill_process(p);
+					return -DEFEX_DENY;
+				}
+			}
+		}
+	}
+#endif /* DEFEX_INTEGRITY_ENABLE */
 
 #ifdef DEFEX_SAFEPLACE_ENABLE
 	/* Safeplace feature */
@@ -547,6 +603,23 @@ int task_defex_enforce(struct task_struct *p, struct file *f, int syscall)
 		}
 	}
 #endif /* DEFEX_IMMUTABLE_ENABLE */
+
+#ifdef DEFEX_TRUSTED_MAP_ENABLE
+	/* Trusted map feature */
+	if (feature_flag & FEATURE_TRUSTED_MAP) {
+		if (syscall == __DEFEX_execve) {
+			va_start(ap, syscall);
+			ret = task_defex_trusted_map(&dc, ap);
+			va_end(ap);
+			if (ret == -DEFEX_DENY) {
+				if (!(feature_flag & FEATURE_TRUSTED_MAP_SOFT)) {
+					kill_process(p);
+					goto do_deny;
+				}
+			}
+		}
+	}
+#endif /* DEFEX_TRUSTED_MAP_ENABLE */
 do_allow:
 	release_defex_context(&dc);
 	put_task_struct(p);
@@ -567,7 +640,11 @@ int task_defex_zero_creds(struct task_struct *tsk)
 	if (is_task_creds_ready()) {
 		is_fork = ((tsk->flags & PF_FORKNOEXEC) && (!tsk->on_rq));
 #ifdef TASK_NEW
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0))
 		if (!is_fork && (tsk->state & TASK_NEW))
+#else
+		if (!is_fork && (tsk->__state & TASK_NEW))
+#endif
 			is_fork = 1;
 #endif /* TASK_NEW */
 		set_task_creds_tcnt(tsk, is_fork?1:-1);

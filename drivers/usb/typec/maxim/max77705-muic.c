@@ -367,6 +367,13 @@ static int com_to_usb_ap(struct max77705_muic_data *muic_data)
 
 	pr_info("%s\n", __func__);
 
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	if (muic_data->pogo_adc ==ADC_HMT) {
+		pr_info("%s: pogo adc is 49.9K just return\n", __func__);
+		return ret;
+	}
+#endif
+
 	reg_val = COM_USB;
 
 	/* write command - switch */
@@ -500,9 +507,9 @@ static int switch_to_cp_uart(struct max77705_muic_data *muic_data,
 	return ret;
 }
 
-static void max77705_muic_enable_detecting_short(struct max77705_muic_data *muic_data)
+void max77705_muic_enable_detecting_short(struct max77705_muic_data *muic_data)
 {
-#if !defined(CONFIG_SEC_FACTORY)
+
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
 
@@ -516,11 +523,16 @@ static void max77705_muic_enable_detecting_short(struct max77705_muic_data *muic
 	 * bit 1: Enable detecting sbu-gnd short
 	 * bit 2: Enable detecting vbus-sbu short
 	 */
+#if !defined(CONFIG_SEC_FACTORY)
 	write_data.write_data[0] = 0x7;
+#else
+	/* W/A, in factory mode, sbu-gnd short disable */
+	write_data.write_data[0] = 0x5;
+#endif
 	write_data.read_length = 1;
 
 	max77705_usbc_opcode_write(usbc_pdata, &write_data);
-#endif
+
 }
 
 static void max77705_muic_dp_reset(struct max77705_muic_data *muic_data)
@@ -553,7 +565,7 @@ static void max77705_muic_enable_chgdet(struct max77705_muic_data *muic_data)
 	max77705_usbc_opcode_update(usbc_pdata, &update_data);
 }
 
-#if 0
+#if defined(CONFIG_MUIC_DISABLE_CHGDET)
 static void max77705_muic_disable_chgdet(struct max77705_muic_data *muic_data)
 {
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
@@ -803,10 +815,24 @@ static ssize_t max77705_muic_show_attached_dev(struct device *dev,
 	int vps_index;
 
 	vps_index = muic_lookup_vps_table(muic_data->attached_dev, muic_data);
-	if (vps_index < 0)
+	if (vps_index < 0) {
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+		if (muic_data->pogo_adc == ADC_HMT)
+			return sprintf(buf, "POGO Dock 49.9K\n");
+		else if (muic_data->pogo_adc == ADC_INCOMPATIBLE_VZW)
+			return sprintf(buf, "POGO Dock 34K\n");
+#endif /* CONFIG_MUIC_SM5504_POGO */
 		return sprintf(buf, "No VPS\n");
+	}
 
 	tmp_vps = &(muic_vps_table[vps_index]);
+
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	if (muic_data->pogo_adc == ADC_HMT)
+		return sprintf(buf, "POGO Dock 49.9K+%s\n", tmp_vps->vps_name);
+	else if (muic_data->pogo_adc == ADC_INCOMPATIBLE_VZW)
+		return sprintf(buf, "POGO Dock 34K+%s\n", tmp_vps->vps_name);
+#endif /* CONFIG_MUIC_SM5504_POGO */
 
 	return sprintf(buf, "%s\n", tmp_vps->vps_name);
 }
@@ -935,6 +961,7 @@ static ssize_t max77705_muic_set_afc_disable(struct device *dev,
 	if (!strncasecmp(buf, "1", 1)) {
 		/* Disable AFC */
 		pdata->afc_disable = true;
+		muic_afc_request_cause_clear();
 	} else if (!strncasecmp(buf, "0", 1)) {
 		/* Enable AFC */
 		pdata->afc_disable = false;
@@ -1694,6 +1721,12 @@ static void max77705_muic_detect_dev(struct max77705_muic_data *muic_data,
 	u8 status[5];
 	u8 adc, vbvolt, chgtyp, spchgtyp, sysmsg, vbadc, dcdtmo, ccstat;
 	int ret;
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	int event;
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 
 	ret = max77705_bulk_read(i2c,
 		MAX77705_USBC_REG_USBC_STATUS1, 5, status);
@@ -1833,8 +1866,17 @@ static void max77705_muic_detect_dev(struct max77705_muic_data *muic_data,
 	} else {
 		pr_info("%s DETACHED\n", __func__);
 
-		if (vbvolt == 0 && chgtyp == CHGTYP_DEDICATED_CHARGER)
-			pr_info("%s catch the Fake Vbus type\n", __func__);
+		if (vbvolt == 0 && chgtyp == CHGTYP_DEDICATED_CHARGER) {
+			pr_info("[MUIC] %s USB Killer Detected!!!\n", __func__);
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+			event = NOTIFY_EXTRA_USBKILLER;
+			store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+			if (o_notify)
+				inc_hw_param(o_notify, USB_CCIC_USB_KILLER_COUNT);
+#endif
+		}
 
 		ret = max77705_muic_handle_detach(muic_data, irq);
 		if (ret)
@@ -2014,6 +2056,12 @@ static int max77705_muic_hv_charger_init(void)
 {
 	struct max77705_muic_data *muic_data = g_muic_data;
 
+	if (!muic_data || !muic_data->pdata ||
+		!test_bit(MUIC_PROBE_DONE, &muic_data->pdata->driver_probe_flag)) {
+		pr_info("[%s:%s] skip\n", MUIC_DEV_NAME, __func__);
+		return 0;
+	}
+
 	if (muic_data->is_charger_ready) {
 		pr_info("%s: charger is already ready(%d), return\n",
 				__func__, muic_data->is_charger_ready);
@@ -2073,6 +2121,32 @@ void max77705_muic_handle_detect_dev_hv(struct max77705_muic_data *muic_data, un
 	schedule_work(&(muic_data->afc_handle_work));
 }
 #endif /* CONFIG_HV_MUIC_MAX77705_AFC */
+
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+static int max77705_muic_set_pogo_adc(int adc)
+{
+	struct max77705_muic_data *muic_data = g_muic_data;
+
+	pr_info("%s adc(0x%x)\n", __func__, adc);
+	muic_data->pogo_adc = adc;
+
+#if defined(CONFIG_MUIC_DISABLE_CHGDET)
+	if (adc == ADC_HMT) {
+		pr_info("%s adc is POGO pogo keyboard, path open, bc12 off\n", __func__);
+		com_to_open(muic_data);
+
+		max77705_muic_disable_chgdet(muic_data);
+	}
+
+	if (adc == ADC_OPEN) {
+		pr_info("%s adc is open, bc12 on\n", __func__);
+		max77705_muic_enable_chgdet(muic_data);
+	}
+#endif
+
+	return 0;
+}
+#endif /* CONFIG_MUIC_SM5504_POGO */
 
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 static int max77705_muic_set_hiccup_mode(int on_off)
@@ -2539,6 +2613,11 @@ int max77705_muic_probe(struct max77705_usbc_platform_data *usbc_data)
 	muic_data->pdata->muic_afc_set_voltage_cb = max77705_muic_afc_set_voltage;
 	muic_data->pdata->muic_hv_charger_disable_cb = max77705_muic_hv_charger_disable;
 
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	muic_data->pdata->muic_set_pogo_adc_cb = max77705_muic_set_pogo_adc;
+	muic_data->pogo_adc = ADC_OPEN;
+#endif /* CONFIG_MUIC_SM5504_POGO */
+
 	/* set MUIC check charger init function */
 	muic_data->pdata->muic_hv_charger_init_cb = max77705_muic_hv_charger_init;
 	muic_data->is_charger_ready = false;
@@ -2568,6 +2647,11 @@ int max77705_muic_probe(struct max77705_usbc_platform_data *usbc_data)
 		max77705_muic_print_reg_log);
 	schedule_delayed_work(&(muic_data->debug_work),
 		msecs_to_jiffies(10000));
+
+	/* hv charger init */
+	set_bit(MUIC_PROBE_DONE, &muic_data->pdata->driver_probe_flag);
+	if (test_bit(CHARGER_PROBE_DONE, &muic_data->pdata->driver_probe_flag))
+		max77705_muic_hv_charger_init();
 
 	return 0;
 

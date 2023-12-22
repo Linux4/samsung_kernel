@@ -32,6 +32,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/ioctl.h>
 #include <linux/gpio.h>
+#include <linux/version.h>
 
 #include "sec_star.h"
 
@@ -272,7 +273,11 @@ static int k250a_probe(struct i2c_client *client, const struct i2c_device_id *id
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 static int k250a_remove(struct i2c_client *client)
+#else
+static void k250a_remove(struct i2c_client *client)
+#endif
 {
 	INFO("Entry : %s\n", __func__);
 #if defined(USE_INTERNAL_PULLUP)
@@ -285,7 +290,9 @@ static int k250a_remove(struct i2c_client *client)
 	}
 	star_close(g_k250a.star);
 	INFO("Exit : %s\n", __func__);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	return 0;
+#endif
 }
 
 static const struct i2c_device_id k250a_id[] = {

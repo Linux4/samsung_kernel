@@ -734,20 +734,10 @@ static int max77705_vdm_dp_configure(void *data, char *vdm_data, int len)
 {
 	struct max77705_usbc_platform_data *usbpd_data = data;
 	UND_DATA_MSG_VDM_HEADER_Type *DATA_MSG_VDM = (UND_DATA_MSG_VDM_HEADER_Type *)&vdm_data[4];
-#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
-	int timeleft = 0;
-#endif
 
 	msg_maxim("vendor_id = 0x%04x , svid_1 = 0x%04x", DATA_MSG_VDM->BITS.Standard_Vendor_ID, usbpd_data->SVID_1);
-	if (usbpd_data->SVID_DP == TypeC_DP_SUPPORT) {
-#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
-		timeleft = wait_event_interruptible_timeout(usbpd_data->device_add_wait_q,
-				usbpd_data->device_add, HZ/2);
-		msg_maxim("%s timeleft = %d\n", __func__, timeleft);
-#endif
-		max77705_ccic_event_work(usbpd_data, PDIC_NOTIFY_DEV_DP,
-			PDIC_NOTIFY_ID_DP_LINK_CONF, usbpd_data->dp_selected_pin, 0, 0);
-	}
+	if (usbpd_data->SVID_DP == TypeC_DP_SUPPORT)
+		schedule_work(&usbpd_data->dp_configure_work);
 	if (DATA_MSG_VDM->BITS.Standard_Vendor_ID == TypeC_DP_SUPPORT && usbpd_data->SVID_1 == TypeC_Dex_SUPPORT) {
 		/* Samsung Discover Modes packet */
 		usbpd_data->send_enter_mode_req = 0;

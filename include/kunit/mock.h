@@ -1479,4 +1479,8 @@ struct mock_param_formatter *mock_find_formatter(const char *type_name);
 
 extern struct mock_param_formatter unknown_formatter[];
 
+/*
+ * separate wrapper macro and functions to support 5.10 Kunit
+ */
+#include <kunit/mock_wrapper.h>
 #endif /* _TEST_MOCK_H */
