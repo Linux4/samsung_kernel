@@ -31,6 +31,7 @@
 #endif
 #include "tee_impl/tee_ops.h"
 #include "tee_impl/tee_regions.h"
+#include "tee_impl/tee_invoke.h"
 
 #ifdef CONFIG_MTK_IOMMU_V2
 #include <mach/pseudo_m4u.h>
@@ -97,8 +98,7 @@ int tee_directly_invoke_cmd(struct trusted_driver_cmd_params *invoke_params)
 
 #if defined(CONFIG_TRUSTONIC_TEE_SUPPORT) \
 	|| defined(CONFIG_MICROTRUST_TEE_SUPPORT) \
-	|| defined(CONFIG_TEEGRIS_TEE_SUPPORT)\
-	&& defined(CONFIG_MTK_SVP_ON_MTEE_SUPPORT)
+	|| defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 int secmem_fr_set_svp_region(u64 pa, u32 size, int remote_region_type)
 {
 	int ret;
@@ -124,7 +124,11 @@ int secmem_fr_set_svp_region(u64 pa, u32 size, int remote_region_type)
 #ifdef CONFIG_MTK_IOMMU_V2
 	pseudo_m4u_sec_init(SEC_ID_SVP);
 #endif
-
+#if (IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) && \
+	!IS_ENABLED(CONFIG_MTK_SVP_ON_MTEE_SUPPORT) && \
+	IS_ENABLED(CONFIG_MTK_CAM_SECURITY_SUPPORT))
+	m4u_sec_init();
+#endif
 	return ret;
 }
 
@@ -156,6 +160,7 @@ int secmem_fr_set_wfd_region(u64 pa, u32 size, int remote_region_type)
 int secmem_fr_set_prot_shared_region(u64 pa, u32 size, int remote_region_type)
 {
 	struct trusted_driver_cmd_params cmd_params = {0};
+	int ret;
 
 	cmd_params.cmd = CMD_SEC_MEM_SET_PROT_REGION;
 	cmd_params.param0 = pa;
@@ -172,7 +177,15 @@ int secmem_fr_set_prot_shared_region(u64 pa, u32 size, int remote_region_type)
 	}
 #endif
 
-	return tee_directly_invoke_cmd(&cmd_params);
+	ret = tee_directly_invoke_cmd(&cmd_params);
+
+#if (IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) && \
+	!IS_ENABLED(CONFIG_MTK_SVP_ON_MTEE_SUPPORT) && \
+	IS_ENABLED(CONFIG_MTK_CAM_SECURITY_SUPPORT))
+	m4u_sec_init();
+#endif
+
+	return ret;
 }
 
 int secmem_fr_dump_info(void)

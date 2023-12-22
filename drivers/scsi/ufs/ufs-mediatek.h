@@ -180,7 +180,7 @@ struct ufs_mtk_host {
 	 */
 	struct scsi_device *sdev_ufs_rpmb;
 	struct rpmb_dev *rawdev_ufs_rpmb;
-	struct mutex rpmb_lock;
+	struct semaphore rpmb_sem;
 
 	bool qos_allowed;
 	bool qos_enabled;

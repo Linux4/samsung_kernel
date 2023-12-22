@@ -76,6 +76,7 @@ typedef struct sx933x
     psx933x_platform_data_t hw;        /* specific platform data settings */
 } sx933x_t, *psx933x_t;
 /*hs14 code for SR-AL6528A-01-742 by duxinqi at 2022/10/12 start*/
+/*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 start*/
 static void touchProcess(psx93XX_t this);
 bool enable_save = false;
 static int irq_gpio_num;
@@ -83,8 +84,10 @@ static int irq_gpio_num;
 static int irq_sign = 0;
 static int cali_sign = 0;
 static int anfr_sign = 1;
+#define IRQ_NUM  24
 #endif
 /*hs14 code for SR-AL6528A-01-742 by duxinqi at 2022/10/12 end*/
+/*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 end*/
 
 #ifdef SX933X_USB_CALI
 static struct workqueue_struct* sx_sar_work;
@@ -320,6 +323,45 @@ static ssize_t sx933x_register_read_store(struct device *dev,
 
     return count;
 }
+
+/*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 start*/
+#ifndef HQ_FACTORY_BUILD
+static ssize_t sx933x_receiver_turnon_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+    u32 val = 0;
+    int receiver_status = 0;
+    int grip_sensor_sub_status = 0;
+    psx933x_t pDevice = NULL;
+    struct input_dev *grip_sensor_sub = NULL;
+
+    psx93XX_t this = dev_get_drvdata(dev);
+
+    if (this && (pDevice = this->pDevice)) {
+        dev_info(this->pdev, "receiver_turnon\n");
+
+        if (sscanf(buf, "%x", &receiver_status) != 1) {
+            pr_err("[SX933x]: %s - The number of data are wrong\n", __func__);
+            return -EINVAL;
+        }
+
+        grip_sensor_sub = pDevice->pbuttonInformation->grip_sensor_sub;
+        if ((anfr_sign == 1) && (receiver_status == 1)) {
+            anfr_sign = 0;
+            sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &val);
+            grip_sensor_sub_status = ((val>>26) & 0x01) == 0 ? 2 : 1;
+            input_report_rel(grip_sensor_sub, REL_MISC, grip_sensor_sub_status);
+            input_sync(grip_sensor_sub);
+            pr_info("%s anfr_sign[%d]\n", __func__, anfr_sign);
+        }
+    }
+
+    pr_info("%s out\n", __func__);
+
+    return count;
+}
+#endif
+/*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 end*/
 /*hs14 code for SR-AL6528A-01-742 by duxinqi at 2022/10/12 start*/
 static ssize_t sx933x_really_enable_store(struct device *dev,
         struct device_attribute *attr, const char *buf, size_t count)
@@ -640,6 +682,11 @@ static DEVICE_ATTR(really_enable, 0664, NULL, sx933x_really_enable_store);
 #ifndef CONFIG_SENSORS
 static DEVICE_ATTR(enable, 0664, sx933x_enable_show,sx933x_enable_store);
 #endif
+/*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 start*/
+#ifndef HQ_FACTORY_BUILD
+static DEVICE_ATTR(receiver_turnon, 0664, NULL, sx933x_receiver_turnon_store);
+#endif
+/*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 end*/
 
 static struct attribute *sx933x_attributes[] =
 {
@@ -651,6 +698,11 @@ static struct attribute *sx933x_attributes[] =
 #ifndef CONFIG_SENSORS
     &dev_attr_enable.attr,
 #endif
+/*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 start*/
+#ifndef HQ_FACTORY_BUILD
+    &dev_attr_receiver_turnon.attr,
+#endif
+/*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 end*/
     NULL,
 };
 static struct attribute_group sx933x_attr_group =
@@ -1013,6 +1065,7 @@ static void anfr_attestation(psx93XX_t this, struct input_dev *grip_sensor, stru
 }
 #endif
 /*hs14 code for SR-AL6528A-01-742 by duxinqi at 2022/10/12 end*/
+/*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 start*/
 /*!
  * \brief Handle what to do when a touch occurs
  * \param this Pointer to main parent struct
@@ -1044,7 +1097,9 @@ static void touchProcess(psx93XX_t this)
         }
         /*hs14 code for SR-AL6528A-01-742|DEAL6398A-1888 by duxinqi at 2022/10/14 start*/
 #ifndef HQ_FACTORY_BUILD
-        if (irq_sign < 16 && cali_sign < 3) {
+        /*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 start*/
+        if ((anfr_sign == 1) && irq_sign < IRQ_NUM && cali_sign < 3) {
+        /*hs14 code for AL6528A-1092 by xiongxiaoliang at 2023/02/20 end*/
             anfr_attestation(this, grip_sensor, grip_sensor_sub);
         } else {
             anfr_sign = 0;
@@ -1071,17 +1126,29 @@ static void touchProcess(psx93XX_t this)
                             input_report_rel(grip_sensor, REL_MISC, 1);
                             #endif
                             input_sync(grip_sensor);
-
+                            pCurrentButton->state = ACTIVE;
                         } else if(1 == counter && this->channel_status & 0x02) {
                             #ifdef HQ_FACTORY_BUILD
                             input_report_key(grip_sensor_sub, KEY_SAR2_CLOSE, 1);
                             input_report_key(grip_sensor_sub, KEY_SAR2_CLOSE, 0);
+                            pCurrentButton->state = ACTIVE;
                             #else
-                            input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                            if ((i & SX933X_STAT_V2_FLAG) == SX933X_STAT_V2_FLAG) {
+                                input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                                pCurrentButton->state = ACTIVE;
+                            } else {
+                                if((i & SX933X_STAT_V0_FLAG) == SX933X_STAT_V0_FLAG) {
+                                    input_report_rel(grip_sensor_sub, REL_MISC, 2);
+                                    pCurrentButton->state = IDLE;
+                                    dev_info(this->pdev, "[SX933x]:secondary1 state:%d\n",pCurrentButton->state);
+                                } else {
+                                    input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                                    pCurrentButton->state = ACTIVE;
+                                }
+                            }
                             #endif
                             input_sync(grip_sensor_sub);
                         }
-                        pCurrentButton->state = ACTIVE;
                     } else {
                         dev_info(this->pdev, "[SX933x]:Button %d already released.\n",counter);
                     }
@@ -1109,6 +1176,11 @@ static void touchProcess(psx93XX_t this)
                             input_sync(grip_sensor_sub);
                         }
                         pCurrentButton->state = IDLE;
+                    } else if (1 == counter && (i & SX933X_STAT_V0_FLAG) == SX933X_STAT_V0_FLAG && (i & SX933X_STAT_V2_FLAG) != SX933X_STAT_V2_FLAG) {
+                            input_report_rel(grip_sensor_sub, REL_MISC, 2);
+                            input_sync(grip_sensor_sub);
+                            pCurrentButton->state = IDLE;
+                            dev_info(this->pdev, "[SX933x]:secondary2 state:%d\n",pCurrentButton->state);
                     } else {
                         dev_info(this->pdev, "[SX933x]:Button %d still touched.\n",counter);
                     }
@@ -1125,6 +1197,7 @@ static void touchProcess(psx93XX_t this)
         dev_info(this->pdev, "Leaving touchProcess()\n");
     }
 }
+/*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 end*/
 
 static int sx933x_parse_dt(struct sx933x_platform_data *pdata, struct device *dev)
 {
@@ -1580,17 +1653,19 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
         this->useIrqTimer = 0;
 
         /* Setup function to call on corresponding reg irq source bit */
+        /*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 start*/
         if (MAX_NUM_STATUS_BITS>= 8)
         {
             this->statusFunc[0] = 0; /* TXEN_STAT */
             this->statusFunc[1] = 0; /* UNUSED */
-            this->statusFunc[2] = 0; /* UNUSED */
+            this->statusFunc[2] = touchProcess; /* UNUSED */
             this->statusFunc[3] = read_rawData; /* CONV_STAT */
             this->statusFunc[4] = touchProcess; /* COMP_STAT */
             this->statusFunc[5] = touchProcess; /* RELEASE_STAT */
             this->statusFunc[6] = touchProcess; /* TOUCH_STAT  */
             this->statusFunc[7] = 0; /* RESET_STAT */
         }
+        /*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 end*/
 
         /* setup i2c communication */
         this->bus = client;
@@ -1861,14 +1936,16 @@ static void sx93XX_schedule_work(psx93XX_t this, unsigned long delay)
 static irqreturn_t sx93XX_irq(int irq, void *pvoid)
 {
     psx93XX_t this = 0;
+    /*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 start*/
     /*hs14 code for AL6528A-194 by duxinqi at 2022/09/29 start*/
 #ifndef HQ_FACTORY_BUILD
-    if (irq_sign < 16) {
+    if (irq_sign < IRQ_NUM) {
         irq_sign++;
     }
     printk("sx93XX:irq_sign already is (%d)\n", irq_sign);
 #endif
     /*hs14 code for AL6528A-194 by duxinqi at 2022/09/29 end*/
+    /*hs14 code for AL6528A-1091 by Wentao at 2023/2/17 end*/
     if (pvoid) {
         this = (psx93XX_t)pvoid;
         if ((!this->get_nirq_low) || this->get_nirq_low()) {

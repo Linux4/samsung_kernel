@@ -112,7 +112,7 @@
 #define REG05_WDT_160S            	3
 #define REG05_WDT_BASE            	0
 #define REG05_WDT_LSB             	40
-
+/* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 start */#define REG06_VINDPM_HV_VAL			0x0F // 8.4V#define REG06_VINDPM_HV_LOW			8000 // 8V#define REG06_VINDPM_HV_TOP			9000 // 9V/* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 end */
 #define REG05_EN_TIMER_MASK       	0x08
 #define REG05_EN_TIMER_SHIFT      	3
 #define REG05_CHG_TIMER_ENABLE    	1
@@ -154,6 +154,16 @@
 #define	REG06_VINDPM_SHIFT			0
 #define	REG06_VINDPM_BASE			3900
 #define	REG06_VINDPM_LSB			100
+/* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 start */
+#define REG06_VINDPM_HV_VAL			0x0F // 8.4V
+#define REG06_VINDPM_HV_LOW			8000 // 8V
+#define REG06_VINDPM_HV_TOP			9000 // 9V
+/* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 end */
+/* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 start */
+#define REG06_MIN_VINDPM_VAL                    0x07 // 4.6V
+#define REG06_MIN_VINDPM_THRES                  5000
+/* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 end */
+
 
 /* Register 0x07*/
 #define SC8960X_REG_07              0x07
@@ -388,6 +398,9 @@
 /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
 #define REG81_DP_DRIVE_MASK           0xE0
 #define REG81_DM_DRIVE_MASK           0x1C
+/* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 start */
+#define REG81_DP_DRIVE_06V            0x02
+/* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 end */
 #define REG81_DP_DRIVE_SHIFT          5
 #define REG81_DM_DRIVE_SHIFT          2
 /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */

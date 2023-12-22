@@ -12,6 +12,7 @@
 
 #define MAX_WRITE_ARRAY_SIZE 32
 
+/*Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/03/02 start*/
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
@@ -28,11 +29,13 @@
 #include <linux/sort.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include "../sensor_user_node.h"
+#include "sx932x.h"     /* main struct, interrupt,init,pointers */
+/*Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/03/02 end*/
+
 #if defined(CONFIG_SENSORS)
 #include <linux/sensor/sensors_core.h>
 #endif
-
-#include "sx932x.h"     /* main struct, interrupt,init,pointers */
 
 #if defined(CONFIG_SENSORS)
 #define VENDOR_NAME      "SEMTECH"
@@ -73,11 +76,13 @@
 extern char *sar_name;
 /*TabA7 Lite code for OT8-1003 by Hujincan at 20210111 end*/
 
-#ifndef CONFIG_SENSORS
 /*TabA7 Lite code for OT8-3208|OT8-4719 by Hujincan at 20210419 start*/
 static bool mEnabled = 1;
+/* Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/04/10 start */
+static bool onoff_mEnabled = true;
+struct device *onoff_dev;
+/* Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/04/10 end */
 /*TabA7 Lite code for OT8-3208|OT8-4719 by Hujincan at 20210419 end*/
-#endif
 
 /*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
 static int g_cali_sign = 1, g_irq_sign = 1;
@@ -94,10 +99,6 @@ typedef struct sx932x
 } sx932x_t, *psx932x_t;
 
 static int irq_gpio_num;
-
-#if defined(CONFIG_SENSORS)
-static bool mEnabled = 1;
-#endif
 
 /*! \fn static int write_register(psx93XX_t this, u8 address, u8 value)
  * \brief Sends a write register to the device
@@ -467,15 +468,19 @@ static int enable_bottom(psx93XX_t this, unsigned int enable)
         if (this->skip_data == true) {
             pr_info("%s - skip grip event\n", __func__);
         } else {
-            read_register(this, SX932x_STAT0_REG, &i);
-            if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
-                input_report_rel(input_main_sar, REL_MISC, 1);
-                input_sync(input_main_sar);
-                pCurrentButton->state = ACTIVE;
+            if (!onoff_mEnabled) {
+                pr_info("%s - onoff_mEnabled false\n", __func__);
             } else {
-                input_report_rel(input_main_sar, REL_MISC, 2);
-                input_sync(input_main_sar);
-                pCurrentButton->state = IDLE;
+                read_register(this, SX932x_STAT0_REG, &i);
+                if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
+                    input_report_rel(input_main_sar, REL_MISC, 1);
+                    input_sync(input_main_sar);
+                    pCurrentButton->state = ACTIVE;
+                } else {
+                    input_report_rel(input_main_sar, REL_MISC, 2);
+                    input_sync(input_main_sar);
+                    pCurrentButton->state = IDLE;
+                }
             }
         }
 
@@ -533,15 +538,19 @@ static int enable_top(psx93XX_t this, unsigned int enable)
         if (this->skip_data == true) {
             pr_info("%s - skip grip event\n", __func__);
         } else {
-            read_register(this, SX932x_STAT0_REG, &i);
-            if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
-                input_report_rel(input_wifi_sar, REL_MISC, 1);
-                input_sync(input_wifi_sar);
-                pCurrentButton->state = ACTIVE;
+            if (!onoff_mEnabled) {
+                pr_info("%s - onoff_mEnabled false\n", __func__);
             } else {
-                input_report_rel(input_wifi_sar, REL_MISC, 2);
-                input_sync(input_wifi_sar);
-                pCurrentButton->state = IDLE;
+                read_register(this, SX932x_STAT0_REG, &i);
+                if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
+                    input_report_rel(input_wifi_sar, REL_MISC, 1);
+                    input_sync(input_wifi_sar);
+                    pCurrentButton->state = ACTIVE;
+                } else {
+                    input_report_rel(input_wifi_sar, REL_MISC, 2);
+                    input_sync(input_wifi_sar);
+                    pCurrentButton->state = IDLE;
+                }
             }
         }
 
@@ -924,7 +933,7 @@ static int initialize(psx93XX_t this)
         /*TabA7 Lite code for OT8-4719 by Hujincan at 20210419 start*/
         enable_irq_wake(this->irq);
         /*TabA7 Lite code for OT8-4719 by Hujincan at 20210419 end*/
-        
+
         /* make sure no interrupts are pending since enabling irq will only
         * work on next falling edge */
         read_regStat(this);
@@ -932,6 +941,60 @@ static int initialize(psx93XX_t this)
     }
     return -ENOMEM;
 }
+
+/* Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/04/10 start */
+ssize_t sx932_set_onoff(const char *buf, size_t count)
+{
+    psx93XX_t this = dev_get_drvdata(onoff_dev);
+    psx932x_t pDevice = NULL;
+    struct input_dev *input_main_sar = NULL;
+    struct input_dev *input_wifi_sar = NULL;
+
+    if (this && (pDevice = this->pDevice)){
+        if (!strncmp(buf, "1", 1)) {
+            if (this->irq_disabled == 1) {
+                enable_irq(this->irq);
+                this->irq_disabled = 0;
+            } else {
+                dev_err(this->pdev, "irq already enable!");
+            }
+            onoff_mEnabled = true;
+            dev_info(this->pdev, "onoff Function set of on\n");
+        } else if (!strncmp(buf, "0", 1)) {
+            input_main_sar = pDevice->pbuttonInformation->input_main_sar;
+            input_wifi_sar = pDevice->pbuttonInformation->input_wifi_sar;
+            if (this->irq_disabled == 0) {
+                disable_irq(this->irq);
+                this->irq_disabled = 1;
+            } else {
+                dev_info(this->pdev, "irq already disable!");
+            }
+            onoff_mEnabled = false;
+            if (input_main_sar && input_wifi_sar) {
+                input_report_rel(input_main_sar, REL_MISC, 2);
+                input_report_rel(input_wifi_sar, REL_MISC, 2);
+                input_sync(input_main_sar);
+                input_sync(input_wifi_sar);
+                dev_info(this->pdev, "onoff report down\n");
+            } else {
+                dev_err(this->pdev, "onoff input device has null pointer!");
+            }
+            dev_info(this->pdev, "onoff Function set of off\n");
+        } else {
+            dev_err(this->pdev, "onoff instruction error!");
+        }
+
+    } else {
+        dev_err(this->pdev, "onoff Function has null pointer!");
+    }
+    return count;
+
+}
+ssize_t sx932_get_onoff(char *buf)
+{
+    return snprintf(buf, 8, "%d\n", onoff_mEnabled);
+}
+/* Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/04/10 end */
 
 /*!
  * \brief Handle what to do when a touch occurs
@@ -974,6 +1037,11 @@ static void touchProcess(psx93XX_t this)
 #endif
 
         dev_err(this->pdev,"sx932x g_cali_sign: %d sx932x g_irq_sign: %d   \n", g_cali_sign, g_irq_sign);
+        /* Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/04/10 start */
+        if (onoff_mEnabled == false) {
+            return;
+        }
+        /* Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/04/10 end */
         if (g_cali_sign < 3 && g_irq_sign < 12 ) {
             input_report_rel(input_main_sar, REL_MISC, 1);
             input_report_rel(input_wifi_sar, REL_MISC, 1);
@@ -1267,6 +1335,11 @@ static int sx932x_probe(struct i2c_client *client, const struct i2c_device_id *i
             return err;
         }
         sar_name = "sx9328";
+        /*Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/03/02 start*/
+        onoff_dev = &client->dev;
+        sar_func.set_onoff = sx932_set_onoff;
+        sar_func.get_onoff = sx932_get_onoff;
+        /*Tab A7 lite_T code for AX3565TDEV-837 by duxinqi at 2022/03/02 end*/
 
         /* record device struct */
         this->pdev = &client->dev;

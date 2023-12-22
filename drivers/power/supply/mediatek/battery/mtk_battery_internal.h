@@ -668,6 +668,9 @@ struct battery_data {
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 start */
 #ifndef HQ_FACTORY_BUILD
 	int cust_batt_cap;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 start */
+	const char *cust_batt_type;
+	/* hs14 code for AL6528A-1055 by qiaodan at 2023/01/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
 };

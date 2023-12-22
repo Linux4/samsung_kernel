@@ -41,9 +41,6 @@ struct sec_debug_panic_extra_info sec_debug_extra_info_init = {
 		{"SMP",		"", SZ_8},
 		{"ETC",		"", SZ_256},
 		{"ESR",		"", SZ_64},
-		{"PCB",		"", SZ_8},
-		{"SMD",		"", SZ_16},
-		{"CHI",		"", SZ_4},
 		{"KLG",		"", SZ_256},
 		{"LEV",		"", SZ_4},
 
@@ -333,15 +330,6 @@ void sec_debug_set_extra_info_wdt_lastpc(unsigned long stackframe[][WDT_FRAME], 
 			offset += sym_name_len;
 		}
 	}
-}
-
-/******************************************************************************
- * sec_debug_set_extra_info_dpm_timeout
-******************************************************************************/
-
-void sec_debug_set_extra_info_dpm_timeout(char *devname)
-{
-	sec_debug_set_extra_info(INFO_DPM, "%s", devname);
 }
 
 /******************************************************************************

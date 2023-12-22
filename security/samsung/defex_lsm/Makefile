@@ -10,6 +10,9 @@ LP_ENABLE=true
 UMH_RESTRICTION_ENABLE=true
 TRUSTED_MAP_ENABLE=false
 
+# Additional debug
+LOG_BUFFER_ENABLE=false
+
 ifneq ($(wildcard $(srctree)/include/crypto/internal/rsa.h),)
     $(warning [DEFEX] INTEGRITY_ENABLE)
     INTEGRITY_ENABLE=true
@@ -58,6 +61,9 @@ ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
         DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
+	ifeq ($(LOG_BUFFER_ENABLE), true)
+	    DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
+	endif
     endif
 endif
 
@@ -132,6 +138,9 @@ ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
     DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
+    ifeq ($(LOG_BUFFER_ENABLE), true)
+	DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
+    endif
 else
     ifeq ($(CONFIG_SECURITY_DSMS), y)
         DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
