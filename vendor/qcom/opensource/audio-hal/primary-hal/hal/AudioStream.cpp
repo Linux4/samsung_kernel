@@ -97,6 +97,9 @@ std::shared_ptr<SecAudioStreamIn> sec_audio_stream_in;
 #ifdef SEC_AUDIO_DUMP
 #include "AudioDump.h"
 #endif
+#ifdef SEC_AUDIO_LEVEL_DUMP
+#include "SecLevelDump.h"
+#endif
 
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE (32 * 1024)
 #define FLAC_COMPRESS_OFFLOAD_FRAGMENT_SIZE (256 * 1024)
@@ -1118,6 +1121,56 @@ static int astream_out_set_volume(struct audio_stream_out *stream,
     }
 }
 
+#ifdef SEC_AUDIO_OFFLOAD
+#if defined(SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS) && defined(SEC_AUDIO_OFFLOAD_SOUNDSPEED)
+static int out_set_playback_rate_parameters(struct audio_stream_out *stream __unused,
+                                        const audio_playback_rate_t *playbackRate __unused)
+{
+    int ret = 0;
+    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+    std::shared_ptr<StreamOutPrimary> astream_out;
+
+    if (adevice) {
+        astream_out = adevice->OutGetStream((audio_stream_t*)stream);
+    } else {
+        AHAL_ERR("unable to get audio device");
+        return -EINVAL;
+    }
+
+    if (astream_out) {
+        ret = astream_out->SetPlaybackRate(playbackRate);
+    } else {
+        AHAL_ERR("unable to get audio stream");
+        return -EINVAL;
+    }
+    return ret;
+}
+
+static int out_get_playback_rate_parameters(struct audio_stream_out *stream __unused,
+                                        audio_playback_rate_t *playbackRate __unused)
+{
+    int ret = 0;
+    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+    std::shared_ptr<StreamOutPrimary> astream_out;
+
+    if (adevice) {
+        astream_out = adevice->OutGetStream((audio_stream_t*)stream);
+    } else {
+        AHAL_ERR("unable to get audio device");
+        return -EINVAL;
+    }
+
+    if (astream_out) {
+        ret = astream_out->GetPlaybackRate(playbackRate);
+    } else {
+        AHAL_ERR("unable to get audio stream");
+        return -EINVAL;
+    }
+    return ret;
+}
+#endif
+#endif
+
 static void out_update_source_metadata_v7(
                                 struct audio_stream_out *stream,
                                 const struct source_metadata_v7 *source_metadata) {
@@ -1958,17 +2011,24 @@ pal_stream_type_t StreamInPrimary::GetPalStreamType(
      *RAW record graphs ( record with no pp)
      */
     if (source_ == AUDIO_SOURCE_UNPROCESSED) {
+#ifdef SEC_AUDIO_MMAP_NOIRQ
+        palStreamType = PAL_STREAM_DEEP_BUFFER;
+        if (halStreamFlags & AUDIO_INPUT_FLAG_MMAP_NOIRQ) {
+            palStreamType = PAL_STREAM_ULTRA_LOW_LATENCY;
+        }
+#else
         palStreamType = PAL_STREAM_RAW;
+#endif
         return palStreamType;
     } else if (source_ == AUDIO_SOURCE_VOICE_RECOGNITION) {
 #ifdef SEC_AUDIO_HOTWORD
         palStreamType = PAL_STREAM_DEEP_BUFFER;
 #else
         palStreamType = PAL_STREAM_VOICE_RECOGNITION;
+#endif
         if (halStreamFlags & AUDIO_INPUT_FLAG_MMAP_NOIRQ) {
             palStreamType = PAL_STREAM_ULTRA_LOW_LATENCY;
         }
-#endif
         return palStreamType;
     }
 
@@ -2116,6 +2176,13 @@ int StreamOutPrimary::FillHalFnPtrs() {
     stream_.get()->set_latency_mode = astream_set_latency_mode;
     stream_.get()->get_recommended_latency_modes = astream_get_recommended_latency_modes;
     stream_.get()->set_latency_mode_callback = astream_set_latency_mode_callback;
+#endif
+
+#ifdef SEC_AUDIO_OFFLOAD
+#if defined(SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS) && defined(SEC_AUDIO_OFFLOAD_SOUNDSPEED)
+    stream_.get()->set_playback_rate_parameters = out_set_playback_rate_parameters;
+    stream_.get()->get_playback_rate_parameters = out_get_playback_rate_parameters;
+#endif
 #endif
     return ret;
 }
@@ -2616,7 +2683,9 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
 
         mAndroidOutDevices = new_devices;
 #ifdef SEC_AUDIO_DUAL_SPEAKER
-        adevice->sec_device_->mRoutingOutDevices = mAndroidOutDevices;
+        if ((AudioExtn::get_device_types(mAndroidOutDevices) != AUDIO_DEVICE_OUT_TELEPHONY_TX) &&
+            (AudioExtn::get_device_types(mAndroidOutDevices) != AUDIO_DEVICE_NONE))
+            adevice->sec_device_->mRoutingOutDevices = mAndroidOutDevices;
 #endif
         for (int i = 0; i < noPalDevices; i++) {
             mPalOutDevice[i].id = mPalOutDeviceIds[i];
@@ -2743,7 +2812,7 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
                             config_.sample_rate, flags_);
 
 #ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
-                if (adevice->voice_ 
+                if (adevice->voice_
                       && (this->GetUseCase() == USECASE_AUDIO_PLAYBACK_VOIP)
                       && (AudioExtn::get_device_types(mAndroidOutDevices) != AudioExtn::get_device_types(previousDevices))) {
                     stream_mutex_.unlock();
@@ -2802,8 +2871,15 @@ int StreamOutPrimary::SetParameters(struct str_parms *parms) {
     if (ret >= 0) {
         adevice->dp_controller = controller;
         adevice->dp_stream = stream;
+#ifdef SEC_AUDIO_HDMI
+        if (AudioExtn::audio_devices_cmp(mAndroidOutDevices, AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
+            if (stream != 0 || controller != 0)
+                AHAL_INFO("ret %d, plugin device cont %d stream %d", ret, controller, stream);
+        }
+#else
         if (stream >= 0 || controller >= 0)
             AHAL_INFO("ret %d, plugin device cont %d stream %d", ret, controller, stream);
+#endif
     } else {
         AHAL_ERR("error %d, failed to get stream and controller", ret);
     }
@@ -4212,6 +4288,41 @@ bool StreamOutPrimary::CheckOffloadEffectsType(pal_stream_type_t pal_stream_type
 }
 
 #ifdef SEC_AUDIO_OFFLOAD
+#if defined(SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS) && defined(SEC_AUDIO_OFFLOAD_SOUNDSPEED)
+int StreamOutPrimary::SetPlaybackRate(const audio_playback_rate_t *playbackRate)
+{
+    int ret = 0;
+    if (config_.format == AUDIO_FORMAT_OPUS) {
+        AHAL_DBG("rate %f usecase(%s)", playbackRate->mSpeed, use_case_table[GetUseCase()]);
+        std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+        playback_rate = *playbackRate;
+        adevice->effect_->set_soundspeed_value(playbackRate->mSpeed);
+        if (pal_stream_handle_) {
+            if (streamAttributes_.type == PAL_STREAM_COMPRESSED) {
+                ret = adevice->effect_->send_soundspeed_value();
+            }
+        }
+    } else {
+        AHAL_DBG("not supported format");
+        ret = -ENOSYS;
+    }
+    return ret;
+}
+
+int StreamOutPrimary::GetPlaybackRate(audio_playback_rate_t *playbackRate)
+{
+    int ret = 0;
+    if (config_.format == AUDIO_FORMAT_OPUS) {
+        AHAL_DBG("rate %f usecase(%s)", playbackRate->mSpeed, use_case_table[GetUseCase()]);
+        *playbackRate = playback_rate;
+    } else {
+        AHAL_DBG("not supported format");
+        ret = -ENOSYS;
+    }
+    return ret;
+}
+#endif
+
 int StreamOutPrimary::UpdateOffloadEffects(
                                     int offload_effect_type) {
     int ret  = 0;
@@ -4220,6 +4331,7 @@ int StreamOutPrimary::UpdateOffloadEffects(
         std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
         adevice->effect_->send_soundalive_lrsm_value();
 #ifdef SEC_AUDIO_OFFLOAD_SOUNDSPEED
+        adevice->effect_->set_soundspeed_value(playback_rate.mSpeed);
         adevice->effect_->send_soundspeed_value();
 #endif
     }
@@ -4502,6 +4614,9 @@ StreamOutPrimary::StreamOutPrimary(
 #endif
 #ifdef SEC_AUDIO_OFFLOAD
     fnp_offload_effect_update_output_ = update_offload_effect;
+#if defined(SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS) && defined(SEC_AUDIO_OFFLOAD_SOUNDSPEED)
+    playback_rate = AUDIO_PLAYBACK_RATE_INITIALIZER;
+#endif
 #else
     fnp_offload_effect_start_output_ = start_offload_effect;
     fnp_offload_effect_stop_output_ = stop_offload_effect;
@@ -5612,6 +5727,16 @@ set_buff_size:
 
     fragments_ = inBufCount;
     fragment_size_ = inBufSize;
+#ifdef SEC_AUDIO_SAMSUNGRECORD
+#ifdef SEC_AUDIO_LEVEL_DUMP
+    SEC_LEVEL_OPEN(this->GetHandle(), SEC_LEVEL_IN_PURE, streamAttributes_.in_media_config.sample_rate,
+        streamAttributes_.in_media_config.ch_info.channels,
+        (streamAttributes_.in_media_config.aud_fmt_id == PAL_AUDIO_FMT_PCM_S24_LE)?AUDIO_FORMAT_PCM_8_24_BIT:AUDIO_FORMAT_PCM_16_BIT);
+    if (preprocess_->IsSupportPreprocess(this)) {
+        SEC_LEVEL_OPEN(this->GetHandle(), SEC_LEVEL_IN_LAST, config_.sample_rate, audio_channel_count_from_in_mask(config_.channel_mask), config_.format);
+    }
+#endif
+#endif
 
 exit:
     if (device_cap_query) {
@@ -5865,7 +5990,9 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
 #endif
 #ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
         if (adevice->voice_ && (streamAttributes_.type == PAL_STREAM_VOIP_TX)) {
+            stream_mutex_.unlock();
             adevice->voice_->sec_voice_->SetVideoCallEffect();
+            stream_mutex_.lock();
         }
 #endif // } CONFIG_EFFECTS_VIDEOCALL
     }
@@ -5945,8 +6072,16 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
     if (usecase_ != USECASE_AUDIO_RECORD_COMPRESS)
 #endif
     {
+#ifdef SEC_AUDIO_LEVEL_DUMP
+        SEC_LEVEL_RUN(this->GetHandle(), SEC_LEVEL_IN_PURE, palBuffer.buffer, palBuffer.size);
+#endif
         preprocess_->Process(this, (void**)&palBuffer.buffer, bytes);
         palBuffer.size = preprocess_->SwapBuffer(this, (void**)&palBuffer.buffer, bytes, palBuffer.size);
+#ifdef SEC_AUDIO_LEVEL_DUMP
+        if (preprocess_->IsSupportPreprocess(this)) {
+            SEC_LEVEL_RUN(this->GetHandle(), SEC_LEVEL_IN_LAST, palBuffer.buffer, palBuffer.size);
+        }
+#endif
     }
 #endif
 
@@ -5989,6 +6124,12 @@ exit:
     } else {
         mBytesRead = UINT64_MAX;
     }
+#ifdef SEC_AUDIO_ROUTING_NOISE
+    // P230608-00262 : TX buzzing sound occurs when EP was pulled right after answering the call
+    if (ret < 0) {
+        memset(palBuffer.buffer, 0, bytes);
+    }
+#endif
     stream_mutex_.unlock();
     clock_gettime(CLOCK_MONOTONIC, &readAt);
     AHAL_VERBOSE("Exit: returning size: %zu size ", size);
@@ -6354,6 +6495,21 @@ int StreamOutPrimary::ForceRouteStream(const std::set<audio_devices_t>& new_devi
     }
 
     if (pal_stream_handle_) {
+#ifdef SEC_AUDIO_DSM_AMP
+        if (adevice->use_feedback_stream) {
+            adevice->feedback_mutex.lock();
+            if (!adevice->feedback.HasFeedbackStreamHandle() &&
+                (AudioExtn::get_device_types(out_devices) == AUDIO_DEVICE_OUT_SPEAKER) &&
+                (pal_active_device_count(PAL_DEVICE_OUT_SPEAKER) >= 0)) {
+                // start feedback when routing spk -> other device
+                // new device is speaker and current device count is 0 -> 1
+                AHAL_DBG("Open and start feedback stream for speaker");
+                adevice->feedback.open(nullptr);
+                adevice->feedback.start();
+            }
+            adevice->feedback_mutex.unlock();
+        }
+#endif    
         for (int i = 0; i < noPalDevices; i++) {
             sec_stream_out_->SetCustomKey(this, i);
             AHAL_DBG("pal_stream_handle_ %p mPalOutDevice id %d", pal_stream_handle_ , mPalOutDevice[i].id);
@@ -6370,6 +6526,20 @@ int StreamOutPrimary::ForceRouteStream(const std::set<audio_devices_t>& new_devi
         ret = pal_stream_set_device(pal_stream_handle_, noPalDevices, mPalOutDevice);
 #ifdef SEC_AUDIO_SUPPORT_SOUNDBOOSTER_FOLD_PARAM_ON_DSP
         adevice->sec_device_->UpdateSoundBoosterFoldDegree();
+#endif
+#ifdef SEC_AUDIO_DSM_AMP
+        if (adevice->use_feedback_stream) {
+            adevice->feedback_mutex.lock();
+            if (adevice->feedback.HasFeedbackStreamHandle() &&
+                (pal_active_device_count(PAL_DEVICE_OUT_SPEAKER) == 0)) {
+                // stop feedback when routing spk -> other device
+                // and current spk count is 1 -> 0
+                AHAL_DBG("stop and close feedback stream for speaker");
+                adevice->feedback.stop();
+                adevice->feedback.close();
+            }
+            adevice->feedback_mutex.unlock();
+        }
 #endif
     }
 
@@ -6419,7 +6589,6 @@ int StreamInPrimary::ForceRouteStream(const std::set<audio_devices_t>& new_devic
     return ret;
 }
 
-
 #ifdef SEC_AUDIO_SUPPORT_VOIP_MICMODE_DEFAULT
 int StreamOutPrimary::SetVideoCallEffectKvParams(int mode)
 {
@@ -6440,7 +6609,7 @@ int StreamOutPrimary::SetVideoCallEffectKvParams(int mode)
         // Invalid sample rate, set NB as temp
         voip_sample_rate = 0; /* VOIP_SR_NB */
     } else {
-        voip_sample_rate = getVoipSampleRate.at(voip_sample_rate); 
+        voip_sample_rate = getVoipSampleRate.at(voip_sample_rate);
     }
 
     // for voip rx, set TAG_DVRX_MODE_KEY
@@ -6458,6 +6627,7 @@ int StreamInPrimary::SetVideoCallEffectKvParams(int mode)
         return ret;
     }
 
+    stream_mutex_.lock();
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
     uint32_t voip_sample_rate = streamAttributes_.in_media_config.sample_rate;
     AHAL_DBG("enter : voip_mic_mode %d voip_sample_rate %d (pal_stream_handle_ %p)",
@@ -6468,17 +6638,57 @@ int StreamInPrimary::SetVideoCallEffectKvParams(int mode)
         // Invalid sample rate, set NB as temp
         voip_sample_rate = 0; /* VOIP_SR_NB */
     } else {
-        voip_sample_rate = getVoipSampleRate.at(voip_sample_rate); 
+        voip_sample_rate = getVoipSampleRate.at(voip_sample_rate);
     }
 
     // for voip tx, set TAG_ECNS_MODE_KEY, TAG_DVTX_MODE_KEY
     ret = adevice->effect_->send_mic_mode_params_pal(pal_stream_handle_, TAG_ECNS_MODE_KEY, mode, voip_sample_rate);
     ret |= adevice->effect_->send_mic_mode_params_pal(pal_stream_handle_, TAG_DVTX_MODE_KEY, mode, voip_sample_rate);
-
+    stream_mutex_.unlock();
     AHAL_VERBOSE("exit: %d", ret );
     return ret;
 }
 #endif
+
+#ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
+int StreamInPrimary::SetVideoCallEffectParams(int mode)
+{
+    int ret = 0;
+    pal_effect_custom_payload_t *custom_payload = NULL;
+    uint32_t custom_data_sz = 0;
+
+    stream_mutex_.lock();
+    if (!pal_stream_handle_) {
+        // pal stream handle not opened, cannot set effect param
+        goto exit;
+    }
+    
+    custom_data_sz = DEFAULT_PARAM_LEN * sizeof(uint32_t);
+    custom_payload = (pal_effect_custom_payload_t *) calloc (1,
+                                        sizeof(pal_effect_custom_payload_t) +
+                                        custom_data_sz);
+    if (!custom_payload) {
+        AHAL_ERR("calloc failed for size %d", custom_data_sz);
+        ret = -ENOMEM;
+        goto exit;
+    }
+
+    AHAL_INFO("set SetVideoCallEffect as %d ", mode);
+
+    custom_payload->paramId = PARAM_ID_ENHANCED_VT_CALL_DYNAMIC_PARAM;
+    custom_payload->data[0] = mode;
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    setPalStreamEffectParams(TAG_ECHOREF_NO_KEY, custom_payload, custom_data_sz);
+#endif
+    free(custom_payload);
+    custom_payload = NULL;
+
+exit:
+    stream_mutex_.unlock();
+    AHAL_VERBOSE("exit: %d", ret );
+    return ret;
+}
+#endif // } CONFIG_EFFECTS_VIDEOCALL
 #endif
 
 #ifdef SEC_AUDIO_SAMSUNGRECORD
@@ -6537,7 +6747,7 @@ int StreamOutPrimary::UpdateListenback(bool on) {
 
         if (AudExtn->is_karaoke_mode()) {
             AHAL_DBG("Exit: karaoke stream already open");
-            adevice->adev_karaoke_mutex.unlock();            
+            adevice->adev_karaoke_mutex.unlock();
             return -EINVAL;
         }
 

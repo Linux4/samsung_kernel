@@ -9087,6 +9087,14 @@ typedef enum {
      *  1-31  | Reserved.
      */
     WMI_PDEV_PARAM_LPL_SETTING,
+
+    /*
+     * Parameter for configure PCIE
+     *
+     *  0 - Default Value(FW Control).
+     *  1 - Force PCIE Gen Speed and Lane Width to maximum supported value.
+     */
+    WMI_PDEV_PARAM_PCIE_CONFIG,
 } WMI_PDEV_PARAM;
 
 #define WMI_PDEV_ONLY_BSR_TRIG_IS_ENABLED(trig_type) WMI_GET_BITS(trig_type, 0, 1)
@@ -34223,10 +34231,22 @@ typedef struct {
      **************************************************************************/
 } WMI_OEM_DMA_RING_CAPABILITIES;
 
+typedef enum {
+    WMI_SAR_VERSION_0_ORIGINAL    = 0x00,
+    WMI_SAR_VERSION_1_FULL_TABLE  = 0x01,
+    WMI_SAR_VERSION_2_DBS_SAR     = 0x02,
+    WMI_SAR_VERSION_3_SBS_SAR     = 0x03,
+
+    WMI_SAR_VERSION_SMART_TX      = 0x04,
+    WMI_SAR_VERSION_TAS           = 0x05,
+
+    WMI_SAR_VERSION_INVALID       = 0x80
+} wmi_sar_version_t;
+
 typedef struct {
     A_UINT32 tlv_header; /* TLV tag and len; tag equals WMITLV_TAG_STRUC_WMI_SAR_CAPABILITIES*/
     /* sar version in bdf */
-    A_UINT32 active_version;
+    A_UINT32 active_version; /* contains a wmi_sar_version_t value */
 
     /**************************************************************************
      * DON'T ADD ANY FURTHER FIELDS HERE -

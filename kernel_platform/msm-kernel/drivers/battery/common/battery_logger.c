@@ -173,7 +173,7 @@ static int batterylog_proc_open(struct inode *inode, struct file *file)
 	return single_open(file, batterylog_proc_show, NULL);
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
 static const struct proc_ops batterylog_proc_fops = {
 	.proc_open	= batterylog_proc_open,
 	.proc_read	= seq_read,

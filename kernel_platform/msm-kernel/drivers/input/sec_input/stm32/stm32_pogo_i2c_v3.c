@@ -277,6 +277,16 @@ static int stm32_dev_probe(struct i2c_client *client, const struct i2c_device_id
 	struct stm32_dev *stm32;
 	int ret = 0;
 
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+	static int deferred_flag;
+
+	if (!deferred_flag) {
+		deferred_flag = 1;
+		input_info(true, &client->dev, "deferred_flag boot %s\n", __func__);
+		return -EPROBE_DEFER;
+	}
+#endif
+
 	input_info(true, &client->dev, "%s++\n", __func__);
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -334,21 +344,19 @@ static int stm32_dev_suspend(struct device *dev)
 	struct stm32_dev *stm32 = dev_get_drvdata(dev);
 	int ret = 0;
 
-	input_dbg(false, &stm32->client->dev, "%s\n", __func__);
-
 	ret = wait_for_completion_interruptible_timeout(&stm32->i2c_done, msecs_to_jiffies(3 * MSEC_PER_SEC));
 	if (ret <= 0)
-		input_err(true, &stm32->client->dev, "%s: i2c is not handled, error %d\n", __func__, ret);
+		pr_err("%s %s: i2c is not handled, error %d\n", SECLOG, __func__, ret);
 
 	stm32_voting_suspend(stm32);
 	cancel_delayed_work(&stm32->print_info_work);
 
 	reinit_completion(&stm32->resume_done);
 
-	if (stm32->connect_state && device_may_wakeup(dev)) {
+	if (stm32->connect_state) {
 		enable_irq_wake(stm32->dev_irq);
 		stm32->irq_wake = true;
-		input_info(false, &stm32->client->dev, "%s enable irq wake\n", __func__);
+		pr_info("%s %s enable irq wake\n", SECLOG, __func__);
 	}
 
 	return 0;
@@ -358,14 +366,12 @@ static int stm32_dev_resume(struct device *dev)
 {
 	struct stm32_dev *stm32 = dev_get_drvdata(dev);
 
-	input_dbg(false, &stm32->client->dev, "%s\n", __func__);
-
 	complete_all(&stm32->resume_done);
 
 	if (stm32->irq_wake && device_may_wakeup(dev)) {
 		disable_irq_wake(stm32->dev_irq);
 		stm32->irq_wake = false;
-		input_info(false, &stm32->client->dev, "%s disable irq wake\n", __func__);
+		pr_info("%s %s disable irq wake\n", SECLOG, __func__);
 	}
 	if (stm32->connect_state)
 		schedule_delayed_work(&stm32->print_info_work, STM32_PRINT_INFO_DELAY);

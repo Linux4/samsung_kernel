@@ -3135,6 +3135,7 @@ static void sde_crtc_frame_event_work(struct kthread_work *work)
 					| SDE_ENCODER_FRAME_EVENT_DONE))) {
 
 		SDE_ATRACE_BEGIN("crtc_frame_event_runtime");
+		SDE_EVT32(0xEEEEEEEE);
 		ret = pm_runtime_resume_and_get(crtc->dev->dev);
 		SDE_ATRACE_END("crtc_frame_event_runtime");
 		if (ret < 0) {
@@ -7426,6 +7427,7 @@ static ssize_t _sde_crtc_misr_read(struct file *file,
 	if (!sde_kms)
 		return -EINVAL;
 
+	SDE_EVT32(0xEEEEEEEE);
 	rc = pm_runtime_resume_and_get(crtc->dev->dev);
 	if (rc < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", rc);
@@ -8291,6 +8293,7 @@ static int _sde_crtc_event_enable(struct sde_kms *kms,
 
 	ret = 0;
 	if (crtc_drm->enabled) {
+		SDE_EVT32(0xEEEEEEEE);
 		ret = pm_runtime_resume_and_get(crtc_drm->dev->dev);
 		if (ret < 0) {
 			SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -8360,6 +8363,8 @@ static int _sde_crtc_event_disable(struct sde_kms *kms,
 		kfree(node);
 		return 0;
 	}
+
+	SDE_EVT32(0xEEEEEEEE);
 	ret = pm_runtime_resume_and_get(crtc_drm->dev->dev);
 	if (ret < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", ret);

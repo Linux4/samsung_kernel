@@ -10,6 +10,9 @@
 #define MODULE_CORE_VERSION_VALUE  0x45
 
 struct cam_eeprom_ctrl_t *e_ctrl;
+extern ConfigInfo_t ConfigInfo[MAX_CONFIG_INFO_IDX];
+ConfigInfo_t Temp_ConfigInfo[MAX_CONFIG_INFO_IDX];
+
 
 static int eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 	struct cam_eeprom_memory_block_t *block)
@@ -173,8 +176,10 @@ int eeprom_read_and_update_module(struct cam_eeprom_ctrl_t *e_ctrl)
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "read_eeprom_memory failed");
 		rc = -EINVAL;
-	}	
-	rc = cam_sec_eeprom_update_module_info(e_ctrl);
+	}
+	/* To-do : After resoving dependency issue with legacy code, need to update.
+		rc = cam_sec_eeprom_update_module_info(e_ctrl);
+	*/
 	if (rc < 0) {
 		CAM_ERR(CAM_EEPROM, "cam_sec_eeprom_update_module_info failed");
 		rc = -EINVAL;
@@ -184,15 +189,29 @@ int eeprom_read_and_update_module(struct cam_eeprom_ctrl_t *e_ctrl)
 
 int eeprom_test_init(struct kunit *test)
 {
+	int i;
 	e_ctrl = kmalloc(sizeof(struct cam_eeprom_ctrl_t), GFP_KERNEL);
+
+	for(i = 0; i < MAX_CONFIG_INFO_IDX; i ++)
+	{
+		Temp_ConfigInfo[i].isSet = ConfigInfo[i].isSet;
+		ConfigInfo[i].isSet = 0;
+	}
+
 	return 0;
 }
 
 void eeprom_test_exit(struct kunit *test)
 {
+	int i;
 	if (e_ctrl) {
 		kfree(e_ctrl);
 		e_ctrl = NULL;
+	}
+
+	for(i = 0; i < MAX_CONFIG_INFO_IDX; i ++)
+	{
+		ConfigInfo[i].isSet = Temp_ConfigInfo[i].isSet;
 	}
 }
 
@@ -372,6 +391,76 @@ void eeprom_fill_config_info_test(struct kunit *test)
 	
 	cam_sec_eeprom_fill_configInfo(configString, configValue, ConfigInfo);
 	KUNIT_EXPECT_EQ(test, (rc >= 0), TRUE);
+}
+
+void eeprom_link_module_info_rear_test(struct kunit *test)
+{
+	ModuleInfo_t	mInfo;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR);
+	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
+	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.module_info) > 0), TRUE);
+}
+
+void eeprom_link_module_info_rear2_test(struct kunit *test)
+{
+	ModuleInfo_t	mInfo;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR2);
+	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
+	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.module_info) > 0), TRUE);
+}
+
+void eeprom_link_module_info_rear3_test(struct kunit *test)
+{
+	ModuleInfo_t	mInfo;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR3);
+	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
+	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.module_info) > 0), TRUE);
+}
+
+void eeprom_link_module_info_rear4_test(struct kunit *test)
+{
+	ModuleInfo_t	mInfo;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR4);
+	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
+	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.module_info) > 0), TRUE);
+}
+
+void eeprom_link_module_info_front_test(struct kunit *test)
+{
+	ModuleInfo_t	mInfo;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT);
+	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
+	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.module_info) > 0), TRUE);
+}
+
+void eeprom_link_module_info_front2_test(struct kunit *test)
+{
+	ModuleInfo_t	mInfo;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT2);
+	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
+	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.module_info) > 0), TRUE);
+}
+
+void eeprom_link_module_info_front3_test(struct kunit *test)
+{
+	ModuleInfo_t	mInfo;
+	cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT3);
+	CAM_INFO(CAM_EEPROM, "firmware version: %s", mInfo.mVer.cam_fw_ver);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.cam_fw_ver) > 0), TRUE);
+	CAM_INFO(CAM_EEPROM, "module info: %s", mInfo.mVer.module_info);
+	KUNIT_EXPECT_EQ(test, (strlen(mInfo.mVer.module_info) > 0), TRUE);
 }
 
 MODULE_LICENSE("GPL v2");

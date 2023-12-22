@@ -139,3 +139,13 @@ config SENSORS_GRIP_FAILURE_DEBUG
 	bool "Grip failure debug"
 	help
 	  Say Y here, Enable Grip failure debug flag.
+
+config SENSORS_LOW_TEMP_COMP
+	bool "Grip condition for low temperature"
+	help
+	  Say Y here, if you need low temperature compensation.
+
+config SENSORS_SUPPORT_LOGIC_PARAMETER
+	bool "support grip logic fw"
+	help
+	  Say Y here, if the model support logic firmware.

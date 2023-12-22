@@ -184,6 +184,11 @@ static int __wlan_hdd_cfg80211_remain_on_channel(struct wiphy *wiphy,
 		return -EINVAL;
 	}
 
+	if (!wlan_is_scan_allowed(vdev)) {
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_OSIF_P2P_ID);
+		return -EBUSY;
+	}
+
 	/* Disable NAN Discovery if enabled */
 	ucfg_nan_disable_concurrency(hdd_ctx->psoc);
 

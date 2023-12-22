@@ -20,5 +20,12 @@ void eeprom_front_match_crc_test(struct kunit *test);
 void eeprom_calc_calmap_size_test(struct kunit *test);
 void eeprom_get_custom_info_test(struct kunit *test);
 void eeprom_fill_config_info_test(struct kunit *test);
+void eeprom_link_module_info_rear_test(struct kunit *test);
+void eeprom_link_module_info_rear2_test(struct kunit *test);
+void eeprom_link_module_info_rear3_test(struct kunit *test);
+void eeprom_link_module_info_rear4_test(struct kunit *test);
+void eeprom_link_module_info_front_test(struct kunit *test);
+void eeprom_link_module_info_front2_test(struct kunit *test);
+void eeprom_link_module_info_front3_test(struct kunit *test);
 
 #endif /* _CAM_SEC_EEPROM_CORE_TEST_H_ */

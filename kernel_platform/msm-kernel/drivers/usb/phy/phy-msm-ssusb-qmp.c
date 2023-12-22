@@ -250,6 +250,7 @@ static ssize_t ssphy_set_show(struct device *dev,
 {
 	struct msm_ssphy_qmp *phy = dev_get_drvdata(dev);
 	char str[(TUNE_BUF_SIZE * TUNE_BUF_COUNT) + 35] = {0, };
+	char str2[(TUNE_BUF_SIZE * TUNE_BUF_COUNT) + 35] = {0, };
 	int i;
 
 	if (!phy) {
@@ -259,7 +260,8 @@ static ssize_t ssphy_set_show(struct device *dev,
 	mutex_lock(&phy->phy_tune_lock);
 	sprintf(str, "\n    Address Value Input [%2d/%2d]\n", phy->tune_buf_cnt, TUNE_BUF_COUNT);
 	for (i = 0; i < phy->tune_buf_cnt; i++) {
-		sprintf(str, "%s#%2d  0x%4x  0x%2x  0x%2x\n", str, i + 1, phy->tune_buf[i][0],
+		strcpy(str2, str);
+		sprintf(str, "%s#%2d  0x%4x  0x%2x  0x%2x\n", str2, i + 1, phy->tune_buf[i][0],
 			(readl_relaxed(phy->base + phy->tune_buf[i][0]) & 0xff), phy->tune_buf[i][1]);
 	}
 	mutex_unlock(&phy->phy_tune_lock);

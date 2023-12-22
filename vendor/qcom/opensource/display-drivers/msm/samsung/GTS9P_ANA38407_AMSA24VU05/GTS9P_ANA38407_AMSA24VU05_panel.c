@@ -105,6 +105,33 @@ err:
 	return 0;
 }
 
+#define MAX_REG_CHECK 20
+static int ss_sp_flash_init_check(struct samsung_display_driver_data *vdd)
+{
+	u8 ip08_check[MAX_REG_CHECK] = {0,};
+	int rx_len, loop;
+
+	/* Check IP08 Flash Initialized */
+	if (ss_get_cmds(vdd, RX_SP_FLASH_CHECK)) {
+		rx_len = ss_send_cmd_get_rx(vdd, RX_SP_FLASH_CHECK, ip08_check);
+
+		for (loop = 0 ; loop < MAX_REG_CHECK ; loop++) {
+			if (ip08_check[loop] != 0xFF)
+				break;
+		}
+
+		if (loop == MAX_REG_CHECK) {
+			LCD_INFO(vdd, "Already SP Flash Initialized\n");
+			return false;
+		}
+	} else {
+		LCD_ERR(vdd, "No RX_IP08_FLASH_CHECK cmds");
+		return -EINVAL;
+	}
+
+	return true;
+}
+
 static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 {
 	int idx = 0;
@@ -136,6 +163,8 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 
 static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 {
+	int ret = 0;
+	struct sde_connector *conn;
 
 	LCD_INFO(vdd, "ndx=%d\n", vdd->ndx);
 
@@ -150,13 +179,22 @@ static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 		LCD_INFO(vdd, "samsung splash enabled.. skip image write\n");
 	}
 
-	if (vdd->self_disp.self_mask_on)
+	/* self mask checksum */
+	if (vdd->self_disp.self_display_debug)
+		ret = vdd->self_disp.self_display_debug(vdd);
+
+	/* self mask is turned on only when data checksum matches. */
+	if (vdd->self_disp.self_mask_on && !ret)
 		vdd->self_disp.self_mask_on(vdd, true);
+	else {
+		LCD_ERR(vdd, "Selfmask CheckSum Error. Skip Self Mask On!\n");
+		if (sec_debug_is_enabled())
+			panic("Display Selfmask CheckSum Error\n");
+	}
 
 	LCD_INFO(vdd, "manufacture_id_dsi=%x\n", vdd->manufacture_id_dsi);
-#if 0 /* It will be enabled from U OS again */
 	/* Tab S9 Plus FW Update Panel Target LCD_ID = 0x800004 ~ 0x800005 */
-	if ((vdd->manufacture_id_dsi == 0x800004 || vdd->manufacture_id_dsi == 0x800005) && vdd->fw.is_support) {
+	if (sec_debug_is_enabled() && (vdd->manufacture_id_dsi == 0x800004 || vdd->manufacture_id_dsi == 0x800005) && vdd->fw.is_support) {
 		int ret = 0;
 
 		if (vdd->fw.fw_id < 0x5 && vdd->fw.fw_id_read)
@@ -169,7 +207,20 @@ static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 		if (ret == 1)
 			vdd->fw.fw_update(vdd);
 	}
-#endif
+
+
+	/* SP Flash Initialize */
+	if (vdd->gct.on && ss_sp_flash_init_check(vdd)) {
+		LCD_INFO(vdd, "SP Flash Init Start\n");
+		ss_send_cmd(vdd, TX_SP_FLASH_INIT);
+		LCD_INFO(vdd, "SP Flash Init Finish\n");
+
+		conn = GET_SDE_CONNECTOR(vdd);
+		if (conn)
+			schedule_work(&conn->status_work.work);
+		else
+			LCD_ERR(vdd, "Failed to get conn\n");
+	}
 
 	return true;
 }
@@ -654,7 +705,6 @@ static enum VRR_CMD_RR ss_get_vrr_mode_base(struct samsung_display_driver_data *
 	return vrr_base;
 }
 
-
 static int ss_pre_brightness(struct samsung_display_driver_data *vdd)
 {
 	enum VRR_CMD_RR vrr_mode = ss_get_vrr_mode(vdd);
@@ -702,6 +752,85 @@ static int ss_pre_brightness(struct samsung_display_driver_data *vdd)
 				vdd->panel_hbm_exit_after_vsync);
 
 	return 0;
+}
+
+static int ss_gct_read(struct samsung_display_driver_data *vdd)
+{
+	int res;
+
+	if (!vdd->gct.on)
+		return GCT_RES_CHECKSUM_OFF;
+
+	if (memcmp(vdd->gct.checksum, vdd->gct.valid_checksum, 2))
+		res = GCT_RES_CHECKSUM_PASS;
+	else
+		res = GCT_RES_CHECKSUM_NG;
+
+	LCD_INFO(vdd, "res=%d Result=(0x%02X 0x%02X), Fail=(0x%02X 0x%02X)\n", res,
+		vdd->gct.checksum[0], vdd->gct.checksum[1],
+		vdd->gct.valid_checksum[0], vdd->gct.valid_checksum[1]);
+
+	return res;
+}
+
+static int ss_gct_write(struct samsung_display_driver_data *vdd)
+{
+	struct sde_connector *conn;
+	int ret = 0;
+
+	LCD_INFO(vdd, "+++\n");
+
+	ss_set_test_mode_state(vdd, PANEL_TEST_GCT);
+
+	vdd->gct.is_running = true;
+
+	/* prevent sw reset to trigger esd recovery */
+	LCD_INFO(vdd, "disable esd interrupt\n");
+	if (vdd->esd_recovery.esd_irq_enable)
+		vdd->esd_recovery.esd_irq_enable(false, true, (void *)vdd, ESD_MASK_GCT_TEST);
+
+	LCD_INFO(vdd, "gct : block commit\n");
+	atomic_inc(&vdd->block_commit_cnt);
+	ss_wait_for_kickoff_done(vdd);
+	LCD_INFO(vdd, "gct : kickoff_done!!\n");
+
+	ret = ss_send_cmd_get_rx(vdd, TX_GCT_ENTER, &vdd->gct.checksum[0]);
+	if (ret <= 0)
+		goto rx_err;
+
+	LCD_INFO(vdd, "Check Value = {0x%x 0x%x}\n", vdd->gct.checksum[0], vdd->gct.checksum[1]);
+
+	vdd->gct.on = 1;
+
+	LCD_INFO(vdd, "release commit\n");
+	atomic_add_unless(&vdd->block_commit_cnt, -1, 0);
+	wake_up_all(&vdd->block_commit_wq);
+
+	vdd->gct.is_running = false;
+
+	/* enable esd interrupt */
+	LCD_INFO(vdd, "enable esd interrupt\n");
+	if (vdd->esd_recovery.esd_irq_enable)
+		vdd->esd_recovery.esd_irq_enable(true, true, (void *)vdd, ESD_MASK_GCT_TEST);
+
+	/* hw reset (gct spec.) */
+	LCD_INFO(vdd, "panel_dead event to reset panel\n");
+	conn = GET_SDE_CONNECTOR(vdd);
+	if (!conn)
+		LCD_ERR(vdd, "fail to get valid conn\n");
+	else
+		schedule_work(&conn->status_work.work);
+
+	LCD_INFO(vdd, "---\n");
+
+	ss_set_test_mode_state(vdd, PANEL_TEST_NONE);
+
+	return 0;
+
+rx_err:
+	LCD_ERR(vdd, "Fail to read checksum via mipi(%d)\n", ret);
+
+	return ret;
 }
 
 static int update_glut(struct samsung_display_driver_data *vdd,
@@ -893,6 +1022,10 @@ void GTS9P_ANA38407_AMSA24VU05_WQXGA_init(struct samsung_display_driver_data *vd
 
 	/* Boost control */
 	vdd->panel_func.samsung_boost_control = ss_boost_control;
+
+	/* Memory Checksum Test */
+	vdd->panel_func.samsung_gct_write = ss_gct_write;
+	vdd->panel_func.samsung_gct_read = ss_gct_read;
 
 	/* SAMSUNG_FINGERPRINT */
 	vdd->panel_hbm_entry_delay = 0;

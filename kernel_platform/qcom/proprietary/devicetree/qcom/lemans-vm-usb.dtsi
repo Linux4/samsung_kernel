@@ -81,6 +81,7 @@
 
 		resets = <&gcc GCC_USB2_PHY_PRIM_BCR>;
 		reset-names = "phy_reset";
+		status = "disabled";
 	};
 
 	/* Primary USB port related QMP PHY */

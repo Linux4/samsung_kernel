@@ -3422,11 +3422,18 @@ vm_fault_t filemap_map_pages(struct vm_fault *vmf,
 	unsigned int mmap_miss = READ_ONCE(file->f_ra.mmap_miss);
 	vm_fault_t ret = (vmf->flags & FAULT_FLAG_SPECULATIVE) ?
 		VM_FAULT_RETRY : 0;
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	pgoff_t head_pgoff = 0;
+#endif
 
 	/* filemap_map_pages() is called within an rcu read lock already. */
 	head = first_map_page(mapping, &xas, end_pgoff);
 	if (!head)
 		return ret;
+
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	head_pgoff = xas.xa_index;
+#endif
 
 	if (!(vmf->flags & FAULT_FLAG_SPECULATIVE) &&
 	    filemap_map_pmd(vmf, head))
@@ -3474,7 +3481,8 @@ unlock:
 
 #ifdef CONFIG_PAGE_BOOST_RECORDING
 	/* end_pgoff is inclusive */
-	record_io_info(file, start_pgoff, last_pgoff - start_pgoff + 1);
+	if (ret == VM_FAULT_NOPAGE)
+		record_io_info(file, head_pgoff, last_pgoff - head_pgoff + 1);
 #endif
 	return ret;
 }
@@ -3882,7 +3890,7 @@ ssize_t generic_perform_write(struct file *file,
 		unsigned long offset;	/* Offset into pagecache page */
 		unsigned long bytes;	/* Bytes to write to page */
 		size_t copied;		/* Bytes copied from user */
-		void *fsdata;
+		void *fsdata = NULL;
 
 		offset = (pos & (PAGE_SIZE - 1));
 		bytes = min_t(unsigned long, PAGE_SIZE - offset,

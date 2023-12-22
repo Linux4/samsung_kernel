@@ -1603,6 +1603,11 @@ early_exit:
 
 	if (next_run)
 		gc_work->early_drop = false;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+	if ( (check_ncm_flag()) && (check_intermediate_flag()) ) {
+		next_run = 0;
+	}
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 	queue_delayed_work(system_power_efficient_wq, &gc_work->dwork, next_run);
 }
@@ -1798,7 +1803,7 @@ init_conntrack(struct net *net, struct nf_conn *tmpl,
 			}
 
 #ifdef CONFIG_NF_CONNTRACK_MARK
-			ct->mark = exp->master->mark;
+			ct->mark = READ_ONCE(exp->master->mark);
 #endif
 #ifdef CONFIG_NF_CONNTRACK_SECMARK
 			ct->secmark = exp->master->secmark;

@@ -101,6 +101,9 @@ typedef enum {
     PAL_AUDIO_FMT_NON_PCM = 0xE0000000,     /* Internal Constant used for Non PCM format identification */
     PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
     PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS          = 0xF0000F01,  /* For OPUS codec in SS */
+#endif
     PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
     PAL_AUDIO_FMT_COMPRESSED_RANGE_END   = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
 } pal_audio_fmt_t;
@@ -137,8 +140,10 @@ static const std::map<std::string, pal_audio_fmt_t> PalAudioFormatMap
     { "AMR_WB_PLUS", PAL_AUDIO_FMT_AMR_WB_PLUS},
     { "EVRC", PAL_AUDIO_FMT_EVRC},
     { "G711", PAL_AUDIO_FMT_G711},
-    { "QCELP", PAL_AUDIO_FMT_QCELP}
-
+    { "QCELP", PAL_AUDIO_FMT_QCELP},
+#ifdef SEC_AUDIO_OFFLOAD_COMPRESSED_OPUS
+    { "OPUS" , PAL_AUDIO_FMT_COMPRESSED_EXTENDED_OPUS}
+#endif
 };
 #endif
 
@@ -1140,6 +1145,12 @@ typedef enum {
                                */
 } pal_speaker_rotation_type;
 
+#ifdef SEC_AUDIO_CALL_RECORD
+enum {
+    PAL_CALL_RECORD_RX_TX_NON_MIX = PAL_SPEAKER_ROTATION_RL
+};
+#endif
+
 /* Payload For ID: PAL_PARAM_ID_DEVICE_ROTATION
  * Description   : Device Rotation
  */
@@ -1222,7 +1233,7 @@ typedef struct pal_param_btsco {
     bool   is_bt_hfp;
 #ifdef SEC_AUDIO_BLUETOOTH
     pal_bt_sco_codec_t bt_sco_codec_type;
-#endif	
+#endif
 } pal_param_btsco_t;
 
 /* Payload For ID: PAL_PARAM_ID_BT_A2DP*

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -68,6 +68,8 @@ enum peer_status {
  * @hs20_present: hs20 element present or not
  * @ht_op_present: ht operation present or not
  * @vht_op_present: vht operation present or not
+ * @he_present: he operation present or not
+ * @eht_present: eht operation present or not
  * @reserved: reserved spare bits
  */
 struct hdd_conn_flag {
@@ -76,7 +78,9 @@ struct hdd_conn_flag {
 	uint8_t hs20_present:1;
 	uint8_t ht_op_present:1;
 	uint8_t vht_op_present:1;
-	uint8_t reserved:3;
+	uint8_t he_present:1;
+	uint8_t eht_present:1;
+	uint8_t reserved:1;
 };
 
 /*defines for tx_BF_cap_info */

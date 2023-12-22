@@ -2182,6 +2182,37 @@ hdd_convert_chwidth_to_phy_chwidth(enum eSirMacHTChannelWidth chwidth)
 	return ch_width;
 }
 
+/**
+ * hdd_update_bss_rate_flags() - update bss rate flag as per new channel width
+ * @adapter: adapter being modified
+ * @psoc: psoc common object
+ * @cw: channel width for which bss rate flag being updated
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS hdd_update_bss_rate_flags(struct hdd_adapter *adapter,
+					    struct wlan_objmgr_psoc *psoc,
+					    enum phy_ch_width cw)
+{
+	struct hdd_station_ctx *hdd_sta_ctx;
+	uint8_t eht_present, he_present, vht_present, ht_present;
+
+	hdd_sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(adapter);
+	if (!hdd_sta_ctx) {
+		hdd_err("hdd_sta_ctx is null");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	eht_present = hdd_sta_ctx->conn_info.conn_flag.eht_present;
+	he_present = hdd_sta_ctx->conn_info.conn_flag.he_present;
+	vht_present = hdd_sta_ctx->conn_info.conn_flag.vht_present;
+	ht_present = hdd_sta_ctx->conn_info.conn_flag.ht_present;
+
+	return ucfg_mlme_update_bss_rate_flags(psoc, adapter->vdev_id,
+					       cw, eht_present, he_present,
+					       vht_present, ht_present);
+}
+
 int hdd_update_channel_width(struct hdd_adapter *adapter,
 			     enum eSirMacHTChannelWidth chwidth,
 			     uint32_t bonding_mode)
@@ -2205,6 +2236,10 @@ int hdd_update_channel_width(struct hdd_adapter *adapter,
 		status =
 		    ucfg_mlme_send_ch_width_update_with_notify(hdd_ctx->psoc,
 					adapter->vdev_id, ch_width);
+		if (QDF_IS_STATUS_ERROR(status))
+			return -EIO;
+		status = hdd_update_bss_rate_flags(adapter, hdd_ctx->psoc,
+						   ch_width);
 		if (QDF_IS_STATUS_ERROR(status))
 			return -EIO;
 	}

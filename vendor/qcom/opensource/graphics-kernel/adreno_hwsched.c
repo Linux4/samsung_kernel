@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/soc/qcom,ipcc.h>
@@ -749,10 +749,10 @@ static void adreno_hwsched_issuecmds(struct adreno_device *adreno_dev)
 	if (device->skip_inline_submit) {
 		spin_unlock(&device->submit_lock);
 		goto done;
-	}	
+	}
 	device->submit_now++;
 	spin_unlock(&device->submit_lock);
-	
+
 	/* If the dispatcher is busy then schedule the work for later */
 	if (!mutex_trylock(&hwsched->mutex)) {
 		_decrement_submit_now(device);
@@ -774,7 +774,7 @@ static void adreno_hwsched_issuecmds(struct adreno_device *adreno_dev)
 	return;
 
 done:
-	adreno_hwsched_trigger(adreno_dev);	
+	adreno_hwsched_trigger(adreno_dev);
 }
 
 /**
@@ -1885,10 +1885,12 @@ static bool is_tx_slot_available(struct adreno_device *adreno_dev)
 		(ptr + sizeof(struct msm_hw_fence_hfi_queue_table_header));
 	u32 queue_size_dwords = hdr->queue_size / sizeof(u32);
 	u32 payload_size_dwords = hdr->pkt_size / sizeof(u32);
-	u32 free_dwords = hdr->read_index <= hdr->write_index ?
-		queue_size_dwords - (hdr->write_index - hdr->read_index) :
-		hdr->read_index - hdr->write_index;
+	u32 free_dwords, write_idx = hdr->write_index, read_idx = hdr->read_index;
 	u32 reserved_dwords = adreno_dev->hwsched.hw_fence_count * payload_size_dwords;
+
+	free_dwords = read_idx <= write_idx ?
+		queue_size_dwords - (write_idx - read_idx) :
+		read_idx - write_idx;
 
 	if (free_dwords - reserved_dwords <= payload_size_dwords)
 		return false;

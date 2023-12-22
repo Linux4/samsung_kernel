@@ -508,6 +508,7 @@ static int _sde_kms_sui_misr_ctrl(struct sde_kms *sde_kms,
 	int ret;
 
 	if (enable) {
+		SDE_EVT32(0xEEEEEEEE);
 		ret = pm_runtime_resume_and_get(sde_kms->dev->dev);
 		if (ret < 0) {
 			SDE_ERROR("failed to enable power resource %d\n", ret);
@@ -1736,6 +1737,10 @@ static void sde_kms_wait_for_commit_done(struct msm_kms *kms,
 					DRMID(crtc), DRMID(encoder), cwb_disabling, ret);
 			SDE_EVT32(DRMID(crtc), DRMID(encoder), cwb_disabling,
 					ret, SDE_EVTLOG_ERROR);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			if (!ss_is_panel_dead(crtc->index))
+				SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
+#endif
 			sde_crtc_request_frame_reset(crtc, encoder);
 			break;
 		}
@@ -5456,6 +5461,7 @@ int sde_kms_vm_trusted_resource_init(struct sde_kms *sde_kms,
 	 * fill-in vote for the continuous splash hanodff path, which will be
 	 * removed on the successful first commit.
 	 */
+	SDE_EVT32(0xEEEEEEEE);
 	ret = pm_runtime_resume_and_get(sde_kms->dev->dev);
 	if (ret < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", ret);

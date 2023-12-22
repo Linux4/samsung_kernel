@@ -929,6 +929,33 @@
 		1, \
 		"enable pci gen")
 
+/*
+ * <ini>
+ * pcie_config - Ini to control pcie gen and lane params
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to control to pcie gen and lane params
+ * 0 - FW controlled
+ * 1 - Force PCIe Gen and lane to max supported value
+ *
+ * Related: g_enable_pci_gen
+ *
+ * Supported Feature: PCI
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define CFG_PCIE_CONFIG CFG_INI_UINT( \
+				"pcie_config", \
+				0, \
+				1, \
+				0, \
+				CFG_VALUE_OR_DEFAULT, \
+				"to control pcie gen and lane")
+
 #define CFG_FWOL_GENERIC_ALL \
 	CFG_FWOL_DHCP \
 	CFG(CFG_ENABLE_ANI) \
@@ -961,6 +988,7 @@
 	CFG(CFG_SAP_SHO_CONFIG) \
 	CFG(CFG_DISABLE_HW_ASSIST) \
 	CFG(CFG_ENABLE_PCI_GEN) \
+	CFG(CFG_PCIE_CONFIG) \
 	ENABLE_OFDM_SCRAMBLER_SEED
 
 #endif

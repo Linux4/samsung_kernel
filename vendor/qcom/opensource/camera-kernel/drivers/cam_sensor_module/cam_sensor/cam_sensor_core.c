@@ -59,15 +59,17 @@ adb shell "echo s5khp2 > /sys/module/camera/parameters/debug_sensor_name"
 adb shell "echo 10 > /sys/module/camera/parameters/i2c_debug_cnt"
 */
 
-extern int to_do_print_vc__sen_id;
 extern int to_dump_when_sof_freeze__sen_id;
 
 void cam_sensor_dbg_regdump(struct cam_sensor_ctrl_t* s_ctrl);
 void cam_sensor_dbg_regdump_stream_on_fail(struct cam_sensor_ctrl_t* s_ctrl);
-void cam_sensor_dbg_detect_vc_change(
+void cam_sensor_parse_reg(
 	struct cam_sensor_ctrl_t* s_ctrl,
-	struct i2c_settings_list* i2c_list);
+	struct i2c_settings_list* i2c_list,
+	int32_t *debug_sen_id,
+	e_sensor_reg_upd_event_type *sen_update_type);
 void cam_sensor_dbg_print_vc(struct cam_sensor_ctrl_t* s_ctrl);
+void cam_sensor_dbg_print_by_upd_type(struct cam_sensor_ctrl_t* , int32_t);
 void cam_sensor_i2c_dump_util(
 	struct cam_sensor_ctrl_t* s_ctrl,
 	struct i2c_settings_list* i2c_list,
@@ -193,6 +195,13 @@ int cam_sensor_wait_stream_on(
 {
 	int rc = 0;
 	uint32_t frame_cnt = 0;
+
+#if defined(CONFIG_SOF_FREEZE_FRAME_CNT_READ)
+	if (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_IMX374) {
+		rc = gpio_get_value_cansleep(MIPI_SW_SEL_GPIO);
+		CAM_INFO(CAM_SENSOR, "[%s]: mipi_sw_sel_gpio value = %d",s_ctrl->sensor_name, rc);
+	}
+#endif
 
 	CAM_DBG(CAM_SENSOR, "E");
 
@@ -1360,7 +1369,7 @@ static int cam_sensor_handle_res_info(struct cam_sensor_res_info *res_info,
 	struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int rc = 0;
-	uint32_t idx = s_ctrl->last_updated_req % MAX_PER_FRAME_ARRAY;
+	uint32_t idx = 0;
 
 	if (!s_ctrl || !res_info) {
 		CAM_ERR(CAM_SENSOR, "Invalid params: res_info: %s, s_ctrl: %s",
@@ -1552,7 +1561,23 @@ static int32_t cam_sensor_pkt_parse(struct cam_sensor_ctrl_t *s_ctrl,
 	}
 	case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON: {
 		if (s_ctrl->streamon_count > 0)
+#if 1//defined(CONFIG_SAMSUNG_CAMERA_SENSOR_FLIP)
+		{
+			CAM_DBG(CAM_SENSOR,
+				"Replace Streamon settings");
+			i2c_reg_settings = &i2c_data->streamon_settings;
+			if (i2c_reg_settings->is_settings_valid == 1)
+			{
+				i2c_reg_settings->is_settings_valid = -1;
+				rc = delete_request(i2c_reg_settings);
+				if (rc < 0)
+					CAM_ERR(CAM_SENSOR,
+						"failed while deleting Streamon settings");
+			}
+		}
+#else
 			goto end;
+#endif
 
 		s_ctrl->streamon_count = s_ctrl->streamon_count + 1;
 		i2c_reg_settings = &i2c_data->streamon_settings;
@@ -2250,9 +2275,9 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 
 #if defined(CONFIG_SENSOR_RETENTION)
-    if ((s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) &&
-        (check_stream_on == 0) && (sensor_retention_mode != RETENTION_ON)) {
-        CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum start!");
+	if ((s_ctrl->sensordata->slave_info.sensor_id == RETENTION_SENSOR_ID) &&
+		(check_stream_on == 0) && (sensor_retention_mode != RETENTION_ON)) {
+		CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum start!");
 
 #if defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_B5Q_PROJECT)
 		rc = cam_sensor_write_retention_setting(&s_ctrl->io_master_info,
@@ -2706,7 +2731,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			rc = -EAGAIN;
 			goto release_mutex;
 		}
-	
+
 		hw_bigdata_debug_info();
 
 #if defined(CONFIG_SENSOR_RETENTION)
@@ -3343,6 +3368,10 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 	uint64_t top = 0, del_req_id = 0;
 	struct i2c_settings_array *i2c_set = NULL;
 	struct i2c_settings_list *i2c_list;
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+	int32_t to_dbg_sen_id = -1;
+	e_sensor_reg_upd_event_type sen_upd_evt_type = e_sensor_upd_event_invalid;
+#endif
 
 	if (req_id == 0) {
 		switch (opcode) {
@@ -3392,7 +3421,9 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 				if (debug_sensor_name[0]!='\0') {
 					cam_sensor_i2c_dump_util(s_ctrl, i2c_list, i2c_debug_cnt);
 				}
-				cam_sensor_dbg_detect_vc_change(s_ctrl, i2c_list);
+				cam_sensor_parse_reg(s_ctrl, i2c_list,
+					&to_dbg_sen_id,
+					&sen_upd_evt_type);
 #endif
 				rc = cam_sensor_i2c_modes_util(
 					&(s_ctrl->io_master_info),
@@ -3404,11 +3435,6 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 					return rc;
 				}
 			}
-
-#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
-			if (to_do_print_vc__sen_id == s_ctrl->sensordata->slave_info.sensor_id)
-				cam_sensor_dbg_print_vc(s_ctrl);
-#endif
 
 #if 1
 			cam_sensor_post_apply_settings(s_ctrl, opcode);
@@ -3442,7 +3468,9 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 				if (debug_sensor_name[0] != '\0') {
 					cam_sensor_i2c_dump_util(s_ctrl, i2c_list, i2c_debug_cnt);
 				}
-				cam_sensor_dbg_detect_vc_change(s_ctrl, i2c_list);
+				cam_sensor_parse_reg(s_ctrl, i2c_list,
+					&to_dbg_sen_id,
+					&sen_upd_evt_type);
 #endif
 				rc = cam_sensor_i2c_modes_util(
 					&(s_ctrl->io_master_info),
@@ -3455,10 +3483,6 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 				}
 			}
 			CAM_DBG(CAM_SENSOR, "applied req_id: %llu", req_id);
-#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
-			if (to_do_print_vc__sen_id == s_ctrl->sensordata->slave_info.sensor_id)
-				cam_sensor_dbg_print_vc(s_ctrl);
-#endif
 		} else {
 			CAM_DBG(CAM_SENSOR,
 				"Invalid/NOP request to apply: %lld", req_id);
@@ -3539,6 +3563,12 @@ int cam_sensor_apply_settings(struct cam_sensor_ctrl_t *s_ctrl,
 			}
 		}
 	}
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+	if ((to_dbg_sen_id == s_ctrl->sensordata->slave_info.sensor_id) &&
+		(sen_upd_evt_type != e_sensor_upd_event_invalid))
+		cam_sensor_dbg_print_by_upd_type(s_ctrl, sen_upd_evt_type);
+#endif
 
 	return rc;
 }
@@ -3734,6 +3764,9 @@ int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data)
 {
 	int                       rc = 0;
 	struct cam_sensor_ctrl_t *s_ctrl = NULL;
+#if defined(CONFIG_SOF_FREEZE_FRAME_CNT_READ)
+	uint32_t frame_cnt = 0;
+#endif
 
 	if (!evt_data)
 		return -EINVAL;
@@ -3777,6 +3810,17 @@ int cam_sensor_process_evt(struct cam_req_mgr_link_evt_data *evt_data)
 #if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
 	case CAM_REQ_MGR_LINK_EVT_SOF_FREEZE:
 	case CAM_REQ_MGR_LINK_EVT_ERR:
+#if defined(CONFIG_SOF_FREEZE_FRAME_CNT_READ)
+		rc = cam_sensor_read_frame_count(s_ctrl, &frame_cnt);
+		if (rc >= 0)
+			CAM_INFO(CAM_SENSOR, "[CNT_DBG][%s]: frame_cnt 0x%x",s_ctrl->sensor_name, frame_cnt);
+
+		if (s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_IMX374) {
+			rc = gpio_get_value_cansleep(MIPI_SW_SEL_GPIO);
+			CAM_INFO(CAM_SENSOR, "[FREEZE_DBG][%s]: mipi_sw_sel_gpio value = %d",s_ctrl->sensor_name, rc);
+		}
+#endif
+
 		CAM_INFO(CAM_SENSOR, "[FREEZE_DBG][%s] sof freeze proc_evt %d", s_ctrl->sensor_name,
 			evt_data->evt_type);
 		to_dump_when_sof_freeze__sen_id = s_ctrl->sensordata->slave_info.sensor_id;

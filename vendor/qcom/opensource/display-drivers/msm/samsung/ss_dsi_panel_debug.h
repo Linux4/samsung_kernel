@@ -136,6 +136,8 @@ void ss_inc_ftout_debug(const char *name);
 int ss_write_fw_up_debug_partition(enum FW_UP_OP op, uint32_t addr);
 u32 ss_read_fw_up_debug_partition(void);
 
+bool ss_is_panel_dead(int ndx);
+
 #if 0 // tmp, comment in until SS bsp team bringup sec debug feature...
 extern bool read_debug_partition(enum debug_partition_index index, void *value);
 extern bool write_debug_partition(enum debug_partition_index index, void *value);
