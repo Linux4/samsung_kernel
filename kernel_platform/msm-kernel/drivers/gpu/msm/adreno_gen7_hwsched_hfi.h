@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _ADRENO_GEN7_HWSCHED_HFI_H_
@@ -29,6 +29,8 @@ struct gen7_hwsched_hfi {
 	struct kgsl_memdesc *big_ib;
 	/** @big_ib_recurring: GMU buffer to hold big recurring IBs */
 	struct kgsl_memdesc *big_ib_recurring;
+	/** @msg_mutex: Mutex for accessing the msgq */
+	struct mutex msgq_mutex;
 };
 
 struct kgsl_drawobj_cmd;
@@ -86,6 +88,20 @@ void gen7_hwsched_hfi_stop(struct adreno_device *adreno_dev);
  * Return: 0 on success and negative error on failure.
  */
 int gen7_hwsched_cp_init(struct adreno_device *adreno_dev);
+
+/**
+ * gen7_hwsched_counter_inline_enable - Configure a performance counter for a countable
+ * @adreno_dev -  Adreno device to configure
+ * @group - Desired performance counter group
+ * @counter - Desired performance counter in the group
+ * @countable - Desired countable
+ *
+ * Physically set up a counter within a group with the desired countable
+ * Return 0 on success or negative error on failure.
+ */
+int gen7_hwsched_counter_inline_enable(struct adreno_device *adreno_dev,
+		const struct adreno_perfcount_group *group,
+		u32 counter, u32 countable);
 
 /**
  * gen7_hfi_send_cmd_async - Send an hfi packet
@@ -146,15 +162,6 @@ u32 gen7_hwsched_preempt_count_get(struct adreno_device *adreno_dev);
  * Return: The value of the key or 0 if key is not found
  */
 u32 gen7_hwsched_parse_payload(struct payload_section *payload, u32 key);
-
-/**
- * gen7_hwsched_process_msgq - Process hfi msg queue
- * @adreno_dev: Pointer to adreno device
- *
- * Process any pending firmware to host packets in the message
- * queue
- */
-void gen7_hwsched_process_msgq(struct adreno_device *adreno_dev);
 
 /**
  * gen7_hwsched_lpac_cp_init - Send CP_INIT to LPAC via HFI

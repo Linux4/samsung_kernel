@@ -179,6 +179,9 @@
 #define WAKE_LOCK_NAME "audio_pal_wl"
 #define WAKE_LOCK_PATH "/sys/power/wake_lock"
 #define WAKE_UNLOCK_PATH "/sys/power/wake_unlock"
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+#define MAX_WAKE_LOCK_LENGTH 1024
+#endif
 
 #define CLOCK_SRC_DEFAULT 1
 
@@ -551,11 +554,6 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_CELT),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
-// SS_BT_HFP - H_127 : RVP
-#ifdef SEC_AUDIO_BLUETOOTH
-    MAKE_STRING_FROM_ENUM(CODEC_TYPE_RVP),
-#endif
-// SS_BT_HFP - H_127 end
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_LC3),
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM),
@@ -972,7 +970,14 @@ void ResourceManager::loadAdmLib()
 
 int ResourceManager::initWakeLocks(void) {
 
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    char buf[MAX_WAKE_LOCK_LENGTH] = {};
+    int size = 0, ret = 0;
+
+    wake_lock_fd = ::open(WAKE_LOCK_PATH, O_RDWR|O_APPEND);
+#else
     wake_lock_fd = ::open(WAKE_LOCK_PATH, O_WRONLY|O_APPEND);
+#endif
     if (wake_lock_fd < 0) {
         PAL_ERR(LOG_TAG, "Unable to open %s, err:%s",
             WAKE_LOCK_PATH, strerror(errno));
@@ -990,6 +995,22 @@ int ResourceManager::initWakeLocks(void) {
         wake_lock_fd = -1;
         return -EINVAL;
     }
+
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+    size = ::read(wake_lock_fd, buf, sizeof(buf) - 1);
+    buf[MAX_WAKE_LOCK_LENGTH - 1] = '\0';
+    if (size >= 0) {
+        if (strstr(buf, WAKE_LOCK_NAME)) {
+            PAL_INFO(LOG_TAG, "Clean up wake lock after restart");
+            ret = ::write(wake_unlock_fd, WAKE_LOCK_NAME, strlen(WAKE_LOCK_NAME));
+            if (ret < 0) {
+                PAL_ERR(LOG_TAG, "Failed to release wakelock %d %s",
+                    ret, strerror(errno));
+                return ret;
+            }
+        }
+    }
+#endif
     return 0;
 }
 
@@ -6579,6 +6600,13 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
                 VoiceorVoip_call_active = true;
                 break;
             }
+#ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
+            // set higher priority to loopback stream for AAS
+            if (strAttr.type == PAL_STREAM_LOOPBACK) {
+                VoiceorVoip_call_active = true;
+                break;
+            }
+#endif
         }
         getSndDeviceName(inDevAttr->id, inSndDeviceName);
         updatePriorityAttr(inDevAttr->id,
@@ -8166,34 +8194,33 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 #endif
                     dattr.id = device_connection->id;
                     dev = Device::getInstance(&dattr, rm);
-                    if (dev)
+                    if (dev) {
                         status = dev->setDeviceParameter(param_id, param_payload);
-
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
-                    // check a2dp restart needed for a2dp playback
-                    if ((device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
-                        && (device_connection->connection_state)
-                        && !device_available) {
-                        std::vector<Stream*> activestreams;
-                        getActiveStream_l(activestreams, dev);
-
-                        // if active stream exist on a2dp device,
-                        // call suspend to reroute / start a2dp again
-                        if (activestreams.size() != 0) {
-                            PAL_INFO(LOG_TAG, "active streams found on a2dp device, set suspend t->f");
-                            pal_param_bta2dp_t param_bt_a2dp;
+                        // check a2dp restart needed for a2dp playback
+                        if ((device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+                                && (device_connection->connection_state)
+                                && !device_available) {
+                            std::vector<Stream*> activestreams;
+                            getActiveStream_l(activestreams, dev);
+                            // if active stream exist on a2dp device,
+                            // call suspend to reroute / start a2dp again
+                            if (activestreams.size() != 0) {
+                                PAL_INFO(LOG_TAG, "active streams found on a2dp device, set suspend t->f");
+                                pal_param_bta2dp_t param_bt_a2dp;
 #ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
-                            param_bt_a2dp.dev_id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+                                param_bt_a2dp.dev_id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
 #endif
-                            param_bt_a2dp.a2dp_suspended = true;
-                            mResourceManagerMutex.unlock();
-                            dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
-                            param_bt_a2dp.a2dp_suspended = false;
-                            dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
-                            mResourceManagerMutex.lock();
+                                param_bt_a2dp.a2dp_suspended = true;
+                                mResourceManagerMutex.unlock();
+                                dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
+                                param_bt_a2dp.a2dp_suspended = false;
+                                dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
+                                mResourceManagerMutex.lock();
+                            }
                         }
-                    }
 #endif
+                    }
                 } else {
                     status = SwitchSoundTriggerDevices(
                         device_connection->connection_state,
@@ -8356,8 +8383,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                             }
                             dAttr.id = (pal_device_id_t)associatedDevices[i]->getSndDeviceId();
                             dev = Device::getInstance(&dAttr, rm);
-                            if (dev && (!isBtScoDevice(dAttr.id)) &&
-                                (dAttr.id != PAL_DEVICE_OUT_PROXY) &&
+                            if (dev && (dAttr.id != PAL_DEVICE_OUT_PROXY) &&
                                 isDeviceAvailable(PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
                                 rxDevices.push_back(dev);
                             }
@@ -8372,8 +8398,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                             }
                             dAttr.id = (pal_device_id_t)associatedDevices[i]->getSndDeviceId();
                             dev = Device::getInstance(&dAttr, rm);
-                            if (dev && (!isBtScoDevice(dAttr.id)) &&
-                                    isDeviceAvailable(PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
+                            if (dev && isDeviceAvailable(PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
                                 txDevices.push_back(dev);
                             }
                         }
@@ -8399,6 +8424,23 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
                 SortAndUnique(rxDevices);
                 SortAndUnique(txDevices);
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+                /*
+                 * If there a switch in SCO configurations and at the time of BT_SCO=on,
+                 * there are streams active with old SCO configs as well as on another
+                 * device. In this case, we need to disconnect streams over SCO first and
+                 * move them to new SCO configs, before we move streams on other devices
+                 * to SCO. This is ensured by moving SCO to the beginning of the disconnect
+                 * device list.
+                 */
+                {
+                    dAttr.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
+                    dev = Device::getInstance(&dAttr, rm);
+                    auto it = std::find(rxDevices.begin(),rxDevices.end(),dev);
+                    if ((it != rxDevices.end()) && (it != rxDevices.begin()))
+                        std::iter_swap(it, rxDevices.begin());
+                }
+#endif
                 mActiveStreamMutex.unlock();
 
                 for (auto& device : rxDevices) {
@@ -11387,7 +11429,8 @@ void ResourceManager::dump(int fd)
     dprintf(fd, " \n");
     dprintf(fd, "ResourceManager : \n");
     if (ssrTimeinfo) {
-        dprintf(fd, "ssr occurred: %s \n", asctime(ssrTimeinfo));
+        dprintf(fd, "\tssr occurred: %s", asctime(ssrTimeinfo));
     }
+    sec_pal_sysfs_dump(fd);
 }
 #endif

@@ -115,12 +115,12 @@
                 <custom-config key="bargein_aec">
                     <channels>2</channels>
                     <bit_width>16</bit_width>
-                    <snd_device_name>bargein-aec-usb-headphones-mic</snd_device_name>
+                    <snd_device_name>bargein-aec-headphones-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="bargein_tts">
                     <channels>2</channels>
                     <bit_width>16</bit_width>
-                    <snd_device_name>bargein-tts-usb-headphones-mic</snd_device_name>
+                    <snd_device_name>bargein-tts-headphones-mic</snd_device_name>
                 </custom-config>
                 <custom-config key="echo_main_mic">
                     <bit_width>16</bit_width>

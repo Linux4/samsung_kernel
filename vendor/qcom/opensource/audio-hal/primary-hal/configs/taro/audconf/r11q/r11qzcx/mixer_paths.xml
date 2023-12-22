@@ -2119,7 +2119,7 @@
         <ctl name="Left AMP PCM Gain" value="18" />
         <ctl name="Right AMP PCM Gain" value="18" />
         <ctl name="Left Digital PCM Volume" value="709" />
-        <ctl name="Right Digital PCM Volume" value="825" />
+        <ctl name="Right Digital PCM Volume" value="809" />
     </path>
 
     <path name="listenback-headphones">
@@ -2385,8 +2385,8 @@
 
     <path name="bargein-aec-speaker-mic">
         <path name="sub-main-mic" />
-        <ctl name="TX_DEC0 Volume" value="97" />
-        <ctl name="TX_DEC1 Volume" value="103" />
+        <ctl name="TX_DEC0 Volume" value="99" />
+        <ctl name="TX_DEC1 Volume" value="99" />
     </path>
 
     <path name="bargein-aec-headphones-mic">
