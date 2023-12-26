@@ -55,6 +55,9 @@ extern struct class *sec_class;
 #if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
 #include <linux/sti/abc_motto.h>
 #endif
+#ifndef EXPORT_SYMBOL_KUNIT
+#define EXPORT_SYMBOL_KUNIT(sym)	/* nothing */
+#endif
 #define ABC_UEVENT_MAX		20
 #define ABC_BUFFER_MAX		256
 #define ABC_LOG_STR_LEN		50

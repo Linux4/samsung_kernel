@@ -23,6 +23,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/slab.h>
 
+#define SE_GENI_CFG_REG68		(0x210)
 #define SE_I2C_TX_TRANS_LEN		(0x26C)
 #define SE_I2C_RX_TRANS_LEN		(0x270)
 #define SE_I2C_SCL_COUNTERS		(0x278)
@@ -128,6 +129,9 @@ struct geni_i2c_dev {
 	bool is_shared;
 	u32 dbg_num;
 	struct dbg_buf_ctxt *dbg_buf_ptr;
+	bool prev_cancel_pending; //Halt cancel till IOS in good state
+	bool is_i2c_rtl_based; /* doing pending cancel only for rtl based SE's */
+	bool bus_recovery_enable; //To be enabled by client if needed
 #if defined(CONFIG_BATTERY_SAMSUNG)
 	bool disable_mas_clk_stretch;
 #endif
@@ -237,6 +241,200 @@ static void geni_i2c_err(struct geni_i2c_dev *gi2c, int err)
 err_ret:
 	gi2c->err = gi2c_log[err].err;
 }
+/**
+ * geni_i2c_stop_with_cancel(): stops GENI SE with cancel command.
+ * @gi2c: I2C dev handle
+ *
+ * This is a generic function to stop serial engine, to be called as required.
+ *
+ * Return: 0 if Success, non zero value if failed.
+ */
+static int geni_i2c_stop_with_cancel(struct geni_i2c_dev *gi2c)
+{
+	int timeout = 0;
+
+	reinit_completion(&gi2c->xfer);
+	geni_cancel_m_cmd(gi2c->base);
+	timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
+	if (!timeout) {
+		GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+				"%s:Cancel failed\n", __func__);
+		reinit_completion(&gi2c->xfer);
+		geni_abort_m_cmd(gi2c->base);
+		timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
+		if (!timeout) {
+			GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+					"%s:Abort failed\n", __func__);
+			return !timeout;
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * geni_i2c_is_bus_recovery_required: Checks if Bus recovery enabled/required ?
+ * @gi2c: Handle of the I2C device
+ *
+ * Return: TRUE if SDA is stuck LOW due to some issue else false.
+ */
+static bool geni_i2c_is_bus_recovery_required(struct geni_i2c_dev *gi2c)
+{
+	u32 geni_ios = readl_relaxed(gi2c->base + SE_GENI_IOS);
+
+	/*
+	 * SE_GENI_IOS will show I2C CLK/SDA line status, BIT 0 is SDA and
+	 * BIT 1 is clk status. SE_GENI_IOS register set when CLK/SDA line
+	 * is pulled high.
+	 */
+	return (((geni_ios & 1) == 0) && (gi2c->err == -EPROTO ||
+					gi2c->err == -EBUSY ||
+					gi2c->err == -ETIMEDOUT));
+}
+
+/**
+ * geni_i2c_bus_recovery(): Function to recover i2c bus when required
+ * @gi2c: I2C device handle
+ *
+ * Use this function only when bus in bad state for some reason and need to
+ * reset the slave to bring slave into proper state. This should put
+ * bus into proper state once executed successfully.
+ *
+ * Return: 0 for Success OR Respective error code/value for failure.
+ */
+static int geni_i2c_bus_recovery(struct geni_i2c_dev *gi2c)
+{
+	int timeout = 0;
+
+	/* Must be enabled by client "only" if required. */
+	if (gi2c->bus_recovery_enable &&
+		geni_i2c_is_bus_recovery_required(gi2c)) {
+		GENI_SE_ERR(gi2c->ipcl, false, gi2c->dev,
+			"SDA Line stuck\n", gi2c->err);
+	} else {
+		GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
+			"Bus Recovery not required/enabled\n");
+		return 0;
+	}
+
+	GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev, "%s: start\n", __func__);
+
+	reinit_completion(&gi2c->xfer);
+	geni_setup_m_cmd(gi2c->base, I2C_BUS_CLEAR, 0);
+	timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
+	if (!timeout) {
+		geni_i2c_err(gi2c, GENI_TIMEOUT);
+		gi2c->cur = NULL;
+		timeout = geni_i2c_stop_with_cancel(gi2c);
+		if (timeout) {
+			GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+				"%s: Bus clear Failed\n", __func__);
+			return timeout;
+		}
+	}
+	GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
+		"%s: BUS_CLEAR success\n", __func__);
+
+	reinit_completion(&gi2c->xfer);
+	geni_setup_m_cmd(gi2c->base, I2C_STOP_ON_BUS, 0);
+	timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
+	if (!timeout) {
+		geni_i2c_err(gi2c, GENI_TIMEOUT);
+		gi2c->cur = NULL;
+		timeout = geni_i2c_stop_with_cancel(gi2c);
+		if (timeout) {
+			GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+				"%s:Bus Stop Failed\n", __func__);
+			return timeout;
+		}
+	}
+	GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev, "%s: success\n", __func__);
+	return 0;
+}
+
+static void do_reg68_war_for_rtl_se(struct geni_i2c_dev *gi2c)
+{
+	u32 status;
+
+	//Add REG68 WAR if stretch bit is set
+	status = geni_read_reg_nolog(gi2c->base, SE_GENI_M_CMD0);
+	GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
+		"%s: SE_GENI_M_CMD0:0x%x\n", __func__,  status);
+
+	//BIT(2) - STOP/STRETCH set then configure REG68 register
+	if ((status & 0x4) && gi2c->is_i2c_rtl_based) {
+		status = geni_read_reg_nolog(gi2c->base, SE_GENI_CFG_REG68);
+		GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
+			"%s: Before WAR REG68:0x%x\n", __func__, status);
+		if (status & 0x20) {
+			//Toggle Bit#4, Bit#5 of REG68 to disable/enable stretch
+			geni_write_reg(0x00100110, gi2c->base,
+							SE_GENI_CFG_REG68);
+		} else {
+			//Restore FW to suggested value i.e. 0x00100120
+			geni_write_reg(0x00100120, gi2c->base,
+							SE_GENI_CFG_REG68);
+		}
+		status = geni_read_reg_nolog(gi2c->base, SE_GENI_CFG_REG68);
+		GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
+				"%s: After WAR REG68:0x%x\n", __func__, status);
+	}
+}
+
+
+static int do_pending_cancel(struct geni_i2c_dev *gi2c)
+{
+	int timeout = 0;
+	u32 geni_ios = 0;
+
+	/* doing pending cancel only rtl based SE's */
+	if (!gi2c->is_i2c_rtl_based)
+		return 0;
+		
+	geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+	
+	if ((geni_ios & 0x3) != 0x3) {
+		/* Try to restore IOS with FORCE_DEFAULT */
+		GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+			    "%s: IOS:0x%x, bad state\n", __func__, geni_ios);
+		geni_write_reg(FORCE_DEFAULT,
+			       gi2c->base, GENI_FORCE_DEFAULT_REG);
+		geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+		if ((geni_ios & 0x3) != 0x3) {
+			GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+				    "%s: IOS:0x%x, Fix from Slave side\n",
+				    __func__, geni_ios);
+			return -EINVAL;
+		}
+		GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+			    "%s: IOS:0x%x restored properly\n", __func__, geni_ios);
+	}
+
+
+	if (gi2c->se_mode == GSI_ONLY) {
+		dmaengine_terminate_all(gi2c->tx_c);
+		gi2c->cfg_sent = 0;
+	} else {
+		reinit_completion(&gi2c->xfer);
+		geni_cancel_m_cmd(gi2c->base);
+		timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
+		if (!timeout) {
+			GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+				    "%s:Pending Cancel failed\n", __func__);
+			reinit_completion(&gi2c->xfer);
+			geni_abort_m_cmd(gi2c->base);
+			timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
+			if (!timeout)
+				GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+					    "%s:Abort failed\n", __func__);
+		}
+	}
+	gi2c->prev_cancel_pending = false;
+	GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+		    "%s: Pending Cancel done\n", __func__);
+	return timeout;
+}
+
 
 static irqreturn_t geni_i2c_irq(int irq, void *dev)
 {
@@ -248,7 +446,10 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 	u32 dm_rx_st = readl_relaxed(gi2c->base + SE_DMA_RX_IRQ_STAT);
 	u32 dma = readl_relaxed(gi2c->base + SE_GENI_DMA_MODE_EN);
 	struct i2c_msg *cur = gi2c->cur;
-
+	
+	GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
+		    "%s: m_irq_status:0x%x\n", __func__, m_stat);
+			
 	if (!cur) {
 		geni_se_dump_dbg_regs(&gi2c->i2c_rsc, gi2c->base, gi2c->ipcl);
 		GENI_SE_ERR(gi2c->ipcl, false, gi2c->dev, "Spurious irq\n");
@@ -256,9 +457,12 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 	}
 
 	if ((m_stat & M_CMD_FAILURE_EN) ||
-		    (dm_rx_st & (DM_I2C_CB_ERR)) ||
-		    (m_stat & M_CMD_CANCEL_EN) ||
-		    (m_stat & M_CMD_ABORT_EN)) {
+		(dm_rx_st & (DM_I2C_CB_ERR)) ||
+		(m_stat & M_CMD_CANCEL_EN) ||
+		(m_stat & M_CMD_ABORT_EN) ||
+		(m_stat & M_GP_IRQ_1_EN) ||
+		(m_stat & M_GP_IRQ_3_EN) ||
+		(m_stat & M_GP_IRQ_4_EN)) {
 
 		if (m_stat & M_GP_IRQ_1_EN)
 			geni_i2c_err(gi2c, I2C_NACK);
@@ -271,9 +475,7 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 		if (m_stat & M_ILLEGAL_CMD_EN)
 			geni_i2c_err(gi2c, GENI_ILLEGAL_CMD);
 		if (m_stat & M_CMD_ABORT_EN)
-			geni_i2c_err(gi2c, GENI_ABORT_DONE);
-		if (m_stat & M_GP_IRQ_0_EN)
-			geni_i2c_err(gi2c, GP_IRQ0);
+			geni_i2c_err(gi2c, GENI_ABORT_DONE);		
 
 		if (!dma)
 			writel_relaxed(0, (gi2c->base +
@@ -702,6 +904,7 @@ static int geni_i2c_gsi_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 		timeout = wait_for_completion_timeout(&gi2c->xfer,
 						gi2c->xfer_timeout);
 		if (!timeout) {
+			u32 geni_ios = 0;
 			GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
 				"I2C gsi xfer timeout:%u flags:%d addr:0x%x\n",
 				gi2c->xfer_timeout, gi2c->cur->flags,
@@ -709,6 +912,20 @@ static int geni_i2c_gsi_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
 			geni_se_dump_dbg_regs(&gi2c->i2c_rsc, gi2c->base,
 						gi2c->ipcl);
 			gi2c->err = -ETIMEDOUT;
+			
+			/* WAR: Set flag to mark cancel pending if IOS stuck */
+			geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+			if ((geni_ios & 0x3) != 0x3) { //SCL:b'1, SDA:b'0
+				GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+					    "%s: IO lines not in good state\n",
+					     __func__);
+				/* doing pending cancel only rtl based SE's */
+				if (gi2c->is_i2c_rtl_based) {
+				    gi2c->prev_cancel_pending = true;
+					ret = gi2c->err;
+					goto geni_i2c_gsi_cancel_pending;
+				}
+			}
 		}
 geni_i2c_err_prep_sg:
 		if (gi2c->err) {
@@ -719,6 +936,7 @@ geni_i2c_err_prep_sg:
 			/* Resend cfg tre for every new message on shared se */
 			gi2c->cfg_sent = 0;
 
+geni_i2c_gsi_cancel_pending:
 		if (msgs[i].flags & I2C_M_RD)
 			geni_se_iommu_unmap_buf(rx_dev, &gi2c->rx_ph,
 				msgs[i].len, DMA_FROM_DEVICE);
@@ -742,6 +960,7 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 {
 	struct geni_i2c_dev *gi2c = i2c_get_adapdata(adap);
 	int i, ret = 0, timeout = 0;
+	u32 geni_ios = 0;
 
 	gi2c->err = 0;
 
@@ -760,6 +979,25 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 		/* Set device in suspended since resume failed */
 		pm_runtime_set_suspended(gi2c->dev);
 		return ret;
+	}
+	
+	// WAR : Complete previous pending cancel cmd
+	if (gi2c->prev_cancel_pending) {
+		ret = do_pending_cancel(gi2c);
+		if (ret) {
+			pm_runtime_mark_last_busy(gi2c->dev);
+			pm_runtime_put_autosuspend(gi2c->dev);
+			return ret; //Don't perform xfer is cancel failed
+		}
+	}
+	
+	geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+	if ((geni_ios & 0x3) != 0x3) { //SCL:b'1, SDA:b'0
+		GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+			    "IO lines in bad state, Power the slave\n");
+		pm_runtime_mark_last_busy(gi2c->dev);
+		pm_runtime_put_autosuspend(gi2c->dev);
+		return -ENXIO;
 	}
 
 	GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
@@ -821,6 +1059,10 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 				goto geni_i2c_txn_ret;
 			}
 		}
+		
+		GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
+			    "%s: stretch:%d, m_param:0x%x\n",
+			    __func__, stretch, m_param);
 
 		if (msgs[i].flags & I2C_M_RD) {
 			GENI_SE_DBG(gi2c->ipcl, false, gi2c->dev,
@@ -879,12 +1121,53 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 		timeout = wait_for_completion_timeout(&gi2c->xfer,
 						gi2c->xfer_timeout);
 		if (!timeout) {
+		    u32 geni_ios = 0;
 			GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
 				"I2C xfer timeout: %d\n", gi2c->xfer_timeout);
 			geni_i2c_err(gi2c, GENI_TIMEOUT);
+			/* WAR: Set flag to mark cancel pending if IOS bad */
+			geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+			if ((geni_ios & 0x3) != 0x3) { //SCL:b'1, SDA:b'0
+				GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+					    "%s: IO lines not in good state\n",
+					    __func__);
+				/* doing pending cancel only rtl based SE's */
+				if (gi2c->is_i2c_rtl_based) {
+					gi2c->prev_cancel_pending = true;
+					ret = gi2c->err;
+					goto geni_i2c_txn_ret;
+				}
+			}
+			} else {
+			if (msgs[i].flags & I2C_M_RD)
+				GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+					    "%s: Read operation completed for len:%d\n",
+					    __func__, msgs[i].len);
+			else
+				GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+					     "%s:Write operation completed for len:%d\n",
+					     __func__,  msgs[i].len);
 		}
 
 		if (gi2c->err) {
+		    if (gi2c->is_i2c_rtl_based) {
+				/* WAR: Set flag to mark cancel pending if IOS bad */
+				geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+				if ((geni_ios & 0x3) != 0x3) { //SCL:b'1, SDA:b'0
+					GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+						"%s: IO lines not in good state\n",
+						__func__);
+					gi2c->prev_cancel_pending = true;
+					goto geni_i2c_txn_ret;
+				}
+
+				/* EBUSY set by ARB_LOST error condition */
+				if (gi2c->err == -EBUSY) {
+					GENI_SE_DBG(gi2c->ipcl, true, gi2c->dev,
+						"%s:run reg68 war\n", __func__);
+					do_reg68_war_for_rtl_se(gi2c);
+				}
+			}
 			reinit_completion(&gi2c->xfer);
 			geni_cancel_m_cmd(gi2c->base);
 			timeout = wait_for_completion_timeout(&gi2c->xfer, HZ);
@@ -925,10 +1208,25 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 		if (gi2c->err) {
 			GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
 				"i2c error :%d\n", gi2c->err);
+			if (geni_i2c_bus_recovery(gi2c))
+				GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+				"%s:Bus Recovery failed\n", __func__);
 			break;
 		}
 	}
 geni_i2c_txn_ret:
+	geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+	if (gi2c ->err && gi2c->is_i2c_rtl_based && ((geni_ios & 0x3) != 0x3)) {
+		if (geni_i2c_bus_recovery(gi2c)) {
+			geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+			GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+				    "%s:RTL Bus Recovery failed, IOS:0x%x\n", __func__, geni_ios);
+		} else {
+			geni_ios = geni_read_reg_nolog(gi2c->base, SE_GENI_IOS);
+			GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+				    "%s:RTL Bus Recovery success, IOS:0x%x\n", __func__, geni_ios);
+		}
+	}
 	if (ret == 0)
 		ret = num;
 
@@ -958,6 +1256,7 @@ static int geni_i2c_probe(struct platform_device *pdev)
 	struct platform_device *wrapper_pdev;
 	struct device_node *wrapper_ph_node;
 	int ret;
+	u32 geni_se_hw_param_2;
 
 	gi2c = devm_kzalloc(&pdev->dev, sizeof(*gi2c), GFP_KERNEL);
 	if (!gi2c)
@@ -1042,11 +1341,25 @@ static int geni_i2c_probe(struct platform_device *pdev)
 		ret = PTR_ERR(gi2c->i2c_rsc.geni_gpio_sleep);
 		return ret;
 	}
+	
+	/* Check if SE is RTL based SE */
+	geni_se_hw_param_2 = readl_relaxed(gi2c->base + SE_HW_PARAM_2);
+	if (geni_se_hw_param_2 & GEN_HW_FSM_I2C) {
+		gi2c->is_i2c_rtl_based  = true;
+		dev_info(&pdev->dev, "%s: RTL based SE\n", __func__);
+	}
 
 	if (of_property_read_bool(pdev->dev.of_node, "qcom,shared")) {
 		gi2c->is_shared = true;
 		dev_info(&pdev->dev, "Multi-EE usecase\n");
 	}
+	
+	/* Strictly it's client/slave device decision for an SE */
+	if (of_property_read_bool(pdev->dev.of_node, "qcom,bus-recovery")) {
+		gi2c->bus_recovery_enable = true;
+		dev_dbg(&pdev->dev, "%s:I2C Bus recovery enabled\n", __func__);
+	}
+
 
 #if defined(CONFIG_BATTERY_SAMSUNG)
 	if (of_property_read_bool(pdev->dev.of_node, "qcom,mas_clk_stretch")) {

@@ -33,7 +33,8 @@
 #include "five.h"
 #include "five_crypto_comp.h"
 #include "five_porting.h"
-#include "../../integrity/integrity.h"
+#include "security/integrity/integrity.h"
+#include "five_testing.h"
 
 struct ahash_completion {
 	struct completion completion;
@@ -48,6 +49,12 @@ MODULE_PARM_DESC(ahash_minsize, "Minimum file size for ahash use");
 /* default is 0 - 1 page. */
 static int five_maxorder;
 static unsigned long five_bufsize = PAGE_SIZE;
+
+__visible_for_testing __mockable struct crypto_shash *call_crypto_alloc_shash(
+		const char *alg_name, u32 type, u32 mask)
+{
+	return crypto_alloc_shash(alg_name, type, mask);
+}
 
 static int param_set_bufsize(const char *val, const struct kernel_param *kp)
 {
@@ -80,7 +87,7 @@ int __init five_init_crypto(void)
 {
 	long rc;
 
-	five_shash_tfm = crypto_alloc_shash(
+	five_shash_tfm = call_crypto_alloc_shash(
 					hash_algo_name[five_hash_algo], 0, 0);
 	if (IS_ERR(five_shash_tfm)) {
 		rc = PTR_ERR(five_shash_tfm);
@@ -228,7 +235,7 @@ static int ahash_wait(int err, struct ahash_completion *res)
 		wait_for_completion(&res->completion);
 		reinit_completion(&res->completion);
 		err = res->err;
-		/* fall through */
+		fallthrough;
 	default:
 		pr_crit_ratelimited("ahash calculation failed: err: %d\n", err);
 	}

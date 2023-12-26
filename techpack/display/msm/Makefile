@@ -148,6 +148,9 @@ msm_drm-$(CONFIG_PANEL_XCP2_NT36672C_PM6585JB2_FHD) += samsung/BLIC/ss_blic_ktz8
 
 msm_drm-$(CONFIG_PANEL_NT36672C_PM6585JB3_FHD) += samsung/BLIC/ss_blic_s2dps01a01_i2c.o
 
+msm_drm-$(CONFIG_PANEL_M44X_ILI7807S_BS066FBM_FHD) += samsung/BLIC/ss_blic_s2dps01a01_i2c.o
+
+
 msm_drm-$(CONFIG_PANEL_HX83121_PPC357DB11_WQXGA) += samsung/PMIC/ss_boost_max77816_i2c.o
 msm_drm-$(CONFIG_PANEL_HX83121_PPC357DB11_WQXGA) += samsung/PMIC/ss_buck_isl98609_i2c.o
 msm_drm-$(CONFIG_PANEL_TAP2_HX8279_TV101WUM_WUXGA) += samsung/PMIC/ss_buck_isl98609_i2c.o
