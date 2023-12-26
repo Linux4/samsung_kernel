@@ -40,12 +40,18 @@ char *sec_direct_charger_mode_str[] = {
 
 void sec_direct_chg_monitor(struct sec_direct_charger_info *charger)
 {
+	union power_supply_propval dc_state = {0, };
+
+	dc_state.strval = "NO_CHARGING";
+	psy_do_property(charger->pdata->direct_charger_name, get,
+		POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_CHG_STATUS, dc_state);
+
 	if (charger->charging_source == SEC_CHARGING_SOURCE_DIRECT) {
-		pr_info("%s: Src(%s), direct(%s), switching(%s), Imax(%dmA), Ichg(%dmA), dc_input(%dmA)\n",
+		pr_info("%s: Src(%s), direct(%s), switching(%s), Imax(%dmA), Ichg(%dmA), dc_input(%dmA), dc_state(%s)\n",
 			__func__, charger->charging_source ? "DIRECT" : "SWITCHING",
 			sec_direct_charger_mode_str[charger->charger_mode_direct],
 			sec_direct_charger_mode_str[charger->charger_mode_main],
-			charger->input_current, charger->charging_current, charger->dc_input_current);
+			charger->input_current, charger->charging_current, charger->dc_input_current, dc_state.strval);
 	}
 
 	sb_pt_monitor(charger->pt, charger->charging_source);
@@ -528,6 +534,9 @@ static int sec_direct_chg_get_property(struct power_supply *psy,
 			ret = psy_do_property(charger->pdata->direct_charger_name, get,
 				ext_psp, value);
 			val->intval = value.intval;
+			break;
+		case POWER_SUPPLY_EXT_PROP_CHARGER_MODE_DIRECT:
+			val->intval = charger->charger_mode_direct;
 			break;
 		default:
 			ret = psy_do_property(charger->pdata->main_charger_name, get, ext_psp, value);

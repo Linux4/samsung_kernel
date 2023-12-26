@@ -45,6 +45,9 @@ on the Qualcomm ADSP Hexagon core.
 		    "qcom,neo-wpss-pas"
 		    "qcom,anorak-adsp-pas"
 		    "qcom,anorak-cdsp-pas"
+		    "qcom,ravelin-adsp-pas"
+		    "qcom,ravelin-modem-pas"
+		    "qcom,ravelin-wpss-pas"
 
 
 - interrupts-extended:

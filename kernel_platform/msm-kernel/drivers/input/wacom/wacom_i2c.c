@@ -976,8 +976,10 @@ void wacom_sleep_sequence(struct wacom_i2c *wac_i2c)
 	wacom_print_info(wac_i2c);
 
 	if (gpio_is_valid(wac_i2c->pdata->esd_detect_gpio)) {
-		if (gpio_get_value(wac_i2c->pdata->esd_detect_gpio) == 0)
+		if (gpio_get_value(wac_i2c->pdata->esd_detect_gpio) == 0) {
+			wac_i2c->esd_irq_count++;
 			wac_i2c->reset_flag = true;
+		}
 	}
 
 reset:
@@ -1166,7 +1168,8 @@ static void wacom_i2c_noti_handler(struct wacom_i2c *wac_i2c, char *data)
 		break;
 #endif
 	case ESD_DETECT_PACKET:
-		input_err(true, &wac_i2c->client->dev, "%s: DETECT ESD\n", __func__);
+		wac_i2c->esd_packet_count++;
+		input_err(true, &wac_i2c->client->dev, "%s: DETECT ESD(%d)\n", __func__, wac_i2c->esd_packet_count);
 		wac_i2c->reset_flag = true;
 		break;
 	default:
@@ -1791,6 +1794,7 @@ static void wacom_i2c_set_input_values(struct wacom_i2c *wac_i2c,
 	struct wacom_g5_platform_data *pdata = wac_i2c->pdata;
 	/* Set input values before registering input device */
 
+	input_dev->phys = input_dev->name;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = &client->dev;
 

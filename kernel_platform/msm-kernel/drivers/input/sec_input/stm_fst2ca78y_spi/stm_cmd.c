@@ -198,7 +198,7 @@ static ssize_t sensitivity_mode_show(struct device *dev,
 	u8 *rbuf;
 	u8 reg_read = STM_TS_READ_SENSITIVITY_VALUE;
 	int ret, i;
-	s16 value[10];
+	s16 value[12];
 	u8 count = 9;
 	char *buffer;
 	ssize_t len;
@@ -1210,6 +1210,8 @@ int stm_ts_fw_wait_for_jitter_result(struct stm_ts_data *ts, u8 *reg, u8 count, 
 		return rc;
 	}
 
+	sec_delay(5);
+
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
 	rc = -1;
@@ -1657,6 +1659,8 @@ static int stm_ts_panel_test_micro_result(struct stm_ts_data *ts, int type)
 		input_err(true, &ts->client->dev, "%s: write failed: %d\n", __func__, ret);
 		goto error;
 	}
+
+	sec_delay(5);
 
 	/* maximum timeout 500 msec ? */
 	while (retry-- >= 0) {
@@ -2219,6 +2223,8 @@ static void run_jitter_delta_test(void *device_data)
 		mutex_unlock(&ts->fn_mutex);
 		goto OUT_JITTER_DELTA;
 	}
+
+	sec_delay(5);
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
@@ -2969,7 +2975,7 @@ static void run_prox_intensity_read_all(void *device_data)
 		return;
 	}
 
-	snprintf(buff, sizeof(buff), "SUM_X:%d THD_X:%d SUM_Y:%d THD_Y:%d",
+	snprintf(buff, sizeof(buff), "SUM_X:%d SUM_Y:%d THD_X:%d THD_Y:%d",
 			(sum_data[0] << 8) + sum_data[1], (sum_data[2] << 8) + sum_data[3],
 			(thd_data[0] << 8) + thd_data[1], (thd_data[2] << 8) + thd_data[3]);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -3247,6 +3253,8 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 	reg[1] = 0x23;
 	reg[2] = TYPE_RAW_DATA;
 	ts->stm_ts_prefix_write_reg(ts, &reg[0], 3, NULL, 0);
+
+	sec_delay(5);
 
 	do {
 		reg[0] = (u8)((FRAME_BUFFER_ADDR >> 8) & 0xFF);
@@ -4233,7 +4241,7 @@ static void run_factory_miscalibration(void *device_data)
 	u8 cmd[2] = {0x00, STM_TS_READ_ONE_EVENT};
 	int ret;
 	int retry = 200;
-	short min, max;
+	short min = SHRT_MIN, max = SHRT_MAX;
 
 	sec_cmd_set_default_result(sec);
 
@@ -4368,7 +4376,7 @@ static void run_miscalibration(void *device_data)
 	u8 cmd[2] = {0x00, STM_TS_READ_ONE_EVENT};
 	int ret;
 	int retry = 200;
-	short min, max;
+	short min = SHRT_MIN, max = SHRT_MAX;
 
 	sec_cmd_set_default_result(sec);
 
@@ -4384,6 +4392,8 @@ static void run_miscalibration(void *device_data)
 		input_err(true, &ts->client->dev, "%s: write failed: %d\n", __func__, ret);
 		goto error;
 	}
+
+	sec_delay(5);
 
 	/* maximum timeout 2sec ? */
 	while (retry-- >= 0) {

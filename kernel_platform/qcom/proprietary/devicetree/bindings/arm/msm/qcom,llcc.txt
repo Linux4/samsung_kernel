@@ -14,10 +14,13 @@ Properties:
 	Definition: must be "qcom,sdm845-llcc" or "qcom,lahaina-llcc"
 	            or "qcom,shima-llcc" or "qcom,waipio-llcc"
 		    or "qcom,sdxlemur-llcc" or "qcom,diwali-llcc"
-		    or "qcom,cape-llcc" or "qcom,neo-llcc".
+		    or "qcom,cape-llcc" or "qcom,neo-xr-llcc" or "qcom,neo-sg-llcc"
+		    or "qcom,anorak-llcc" or "qcom,ukee-llcc".
+		    or "qcom,neo-sg-v2-llcc" or "qcom,neo-llcc"
 		    "qcom,llcc-v2" must be appended for V2 hardware or
 		    "qcom,llcc-v21" for V2.1.
 		    "qcom,llcc-v31" for V3.1.
+		    "qcom,llcc-v41" for V4.1.
 
 - reg:
 	Usage: required
@@ -65,6 +68,12 @@ LLCC Performance Monitor
 	Definition: List of clock input name strings sorted in the same
 		    order as the clocks property. Definition must have
 		    "qdss_clk"
+- memory-region:
+	Usage: optional
+	Value type: <prop-encoded-array>
+	Definition: List of memory regions which define the range of addresses used
+		for tightly coupled memory in the llcc.
+
 Example:
 
 	cache-controller@1100000 {
@@ -73,6 +82,24 @@ Example:
 			compatible = "qcom,llcc-perfmon";
 			clocks = <&aoss_qmp QDSS_CLK>;
 			clock-names = "qdss_clk";
+		};
+		...
+	};
+
+LLCC Performance Monitor SPAD
+===
+
+- compatible:
+	Usage: required
+	Value type: <string>
+	Definition: must be "qcom,llcc-perfom-spad"
+
+Example:
+
+	cache-controller@1100000 {
+		...
+		llcc-perfmon-spad {
+			compatible = "qcom,llcc-perfmon-spad";
 		};
 		...
 	};

@@ -35,6 +35,8 @@
 #define CAPACITY_SCALE_DEFAULT_CURRENT 1000
 #define CAPACITY_SCALE_HV_CURRENT 600
 
+#define FG_BATT_DUMP_SIZE 128
+
 enum max77705_vempty_mode {
 	VEMPTY_MODE_HW = 0,
 	VEMPTY_MODE_SW,
@@ -294,6 +296,7 @@ struct max77705_fuelgauge_data {
 	bool valert_count_flag;
 #endif
 	struct lost_soc_data lost_soc;
+	char d_buf[128];
 };
 
 #endif /* __MAX77705_FUELGAUGE_H */

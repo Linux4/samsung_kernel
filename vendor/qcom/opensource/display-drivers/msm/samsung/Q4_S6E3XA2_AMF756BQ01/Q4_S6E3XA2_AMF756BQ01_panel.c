@@ -492,6 +492,7 @@ done:
 	lfd_base->max_div_def = max_div_def;
 	lfd_base->min_div_def = min_div_def;
 	lfd_base->min_div_lowest = min_div_lowest;
+	lfd_base->fix_div_def = 1; // LFD MAX/MIN 120hz fix
 
 	vrr->lfd.base_rr = base_rr;
 

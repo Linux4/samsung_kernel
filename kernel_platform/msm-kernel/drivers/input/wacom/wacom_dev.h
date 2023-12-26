@@ -554,6 +554,10 @@ struct wacom_i2c {
 
 	struct epen_pos survey_pos;
 
+	/* esd reset */
+	int esd_packet_count;
+	int esd_irq_count;
+
 	/* fw update */
 	struct wakeup_source *wacom_fw_ws;
 	struct fw_image *fw_img;

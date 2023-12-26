@@ -264,6 +264,14 @@ struct mem_buf_vmperm *to_mem_buf_vmperm(struct dma_buf *dmabuf)
 }
 EXPORT_SYMBOL(to_mem_buf_vmperm);
 
+static bool mem_buf_uncached(struct dma_buf *dmabuf)
+{
+	struct mem_buf_dma_buf_ops *ops;
+
+	ops = container_of(dmabuf->ops, struct mem_buf_dma_buf_ops, dma_ops);
+	return ops->uncached(dmabuf);
+}
+
 int mem_buf_dma_buf_set_destructor(struct dma_buf *buf,
 				   mem_buf_dma_buf_destructor dtor,
 				   void *dtor_data)
@@ -492,8 +500,10 @@ static int mem_buf_lend_internal(struct dma_buf *dmabuf,
 	 * whether they require cache maintenance prior to caling this function
 	 * for backwards compatibility with ion we will always do CMO.
 	 */
-	dma_map_sgtable(mem_buf_dev, vmperm->sgt, DMA_TO_DEVICE, 0);
-	dma_unmap_sgtable(mem_buf_dev, vmperm->sgt, DMA_TO_DEVICE, 0);
+	if (!mem_buf_uncached(dmabuf)) {
+		dma_map_sgtable(mem_buf_dev, vmperm->sgt, DMA_TO_DEVICE, 0);
+		dma_unmap_sgtable(mem_buf_dev, vmperm->sgt, DMA_TO_DEVICE, 0);
+	}
 
 	ret = mem_buf_vmperm_resize(vmperm, arg->nr_acl_entries);
 	if (ret)

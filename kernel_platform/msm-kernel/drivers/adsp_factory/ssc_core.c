@@ -49,7 +49,7 @@
 
 #define HISTORY_CNT 5
 #define NO_SSR 0xFF
-#define SSR_REASON_LEN	128
+#define SSR_REASON_LEN	256
 #define TIME_LEN	24
 #ifdef CONFIG_SEC_FACTORY
 #define SLPI_STUCK "SLPI_STUCK"
@@ -651,6 +651,33 @@ static ssize_t fac_fstate_store(struct device *dev,
 
 	return size;
 }
+
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+static ssize_t light_utilization_rate_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint8_t cnt = 0;
+
+	adsp_unicast(NULL, 0, MSG_VIR_OPTIC, 0, MSG_TYPE_GET_CAL_DATA);
+	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_VIR_OPTIC) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_VIR_OPTIC);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		return snprintf(buf, PAGE_SIZE, "0,0,0,0\n");
+	}
+
+	pr_info("[FACTORY] %s - Light sensor Debug info:%d %d %d %d", __func__, 
+	         data->msg_buf[MSG_VIR_OPTIC][0], data->msg_buf[MSG_VIR_OPTIC][1], 
+			 data->msg_buf[MSG_VIR_OPTIC][2], data->msg_buf[MSG_VIR_OPTIC][3]);
+	return snprintf(buf, PAGE_SIZE, "\"MAIN_LIGHT\":\"%d\",\"SUB_LIGHT\":\"%d\"\n", 
+	                data->msg_buf[MSG_VIR_OPTIC][2], data->msg_buf[MSG_VIR_OPTIC][3]);
+}
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
@@ -1126,6 +1153,26 @@ static ssize_t sbm_init_store(struct device *dev,
 	return size;
 }
 
+static ssize_t pocket_inject_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_POCKET_INJECT, 0};
+	int pocket_inject_data = 0;
+
+	if (kstrtoint(buf, 10, &pocket_inject_data)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (pocket_inject_data) {
+		msg_buf[1] = pocket_inject_data;
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
 static DEVICE_ATTR(dumpstate, 0440, dumpstate_show, NULL);
 static DEVICE_ATTR(operation_mode, 0664,
 	operation_mode_show, operation_mode_store);
@@ -1138,6 +1185,9 @@ static DEVICE_ATTR(ssr_reset, 0440, ssr_reset_show, NULL);
 static DEVICE_ATTR(support_algo, 0220, NULL, support_algo_store);
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 static DEVICE_ATTR(fac_fstate, 0220, NULL, fac_fstate_store);
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+static DEVICE_ATTR(light_utilization_rate, 0440, light_utilization_rate_show, NULL);
+#endif
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 static DEVICE_ATTR(update_ssc_flip, 0220, NULL, update_ssc_flip_store);
@@ -1158,6 +1208,7 @@ static DEVICE_ATTR(light_seamless, 0660,
 #endif
 static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
 static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
+static DEVICE_ATTR(pocket_inject, 0220, NULL, pocket_inject_store);
 
 static struct device_attribute *core_attrs[] = {
 	&dev_attr_dumpstate,
@@ -1171,6 +1222,9 @@ static struct device_attribute *core_attrs[] = {
 	&dev_attr_support_algo,
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 	&dev_attr_fac_fstate,
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+	&dev_attr_light_utilization_rate,
+#endif
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 	&dev_attr_update_ssc_flip,
@@ -1189,6 +1243,7 @@ static struct device_attribute *core_attrs[] = {
 #endif
 	&dev_attr_ar_mode,
 	&dev_attr_sbm_init,
+	&dev_attr_pocket_inject,
 	NULL,
 };
 

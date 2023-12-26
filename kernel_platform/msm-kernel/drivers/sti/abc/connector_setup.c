@@ -507,6 +507,7 @@ static int parse_detect_conn_dt(struct device *dev)
 	set_pinctrl_by_pinctrl_name(dev, "det_exp_connect");
 	parse_exp_dt(pdata, np);
 	set_pinctrl_by_pinctrl_name(dev, "det_pm_connect");
+	set_pinctrl_by_pinctrl_name(dev, "det_pm_2_connect");
 	parse_pmic_dt(pdata, np);
 #endif
 	return 0;
