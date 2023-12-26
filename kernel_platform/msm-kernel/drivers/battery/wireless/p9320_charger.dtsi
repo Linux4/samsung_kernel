@@ -75,7 +75,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/suwon_2207/wireless/p9320/p9320_charger.b4q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1788/android/kernel_platform/kmodule/battery/stable/suwon_2207/wireless/p9320/p9320_charger.b4q.dtsi */
 &sw_i2c2 {
 	/delete-node/ p9320-charger@3b;
 
@@ -131,5 +131,12 @@
 				full = <255 127 255 127 255 127 255 127 255 127 255 127>;
 			};
  		};
+
+		iec_data {
+			fod_enable = <1>;
+			fod_thres1 = <0x2bc>; /* 700mW */
+			fod_thres2 = <0x640>; /* 1600mW */
+			fod_counter = <3>;
+		};
 	};
 };

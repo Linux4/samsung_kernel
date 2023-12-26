@@ -199,6 +199,7 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 		}
 	}
 
+check_not_support_cmd:
 	/* set not_support_cmd */
 	if (!cmd_found) {
 		list_for_each_entry(sec_cmd_ptr, &data->cmd_list_head, list) {
@@ -219,8 +220,12 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 				end = cur;
 				memcpy(buff, start, end - start);
 				*(buff + strnlen(buff, ARRAY_SIZE(buff))) = '\0';
-				if (kstrtoint(buff, 10, data->cmd_param + param_cnt) < 0)
-					goto err_out;
+				if (kstrtoint(buff, 10, data->cmd_param + param_cnt) < 0) {
+					pr_err("%s: %s %s: error to parse parameter\n",
+							dev_name(data->fac_dev), SECLOG, __func__);
+					cmd_found = false;
+					goto check_not_support_cmd;
+				}
 				start = cur + 1;
 				memset(buff, 0x00, ARRAY_SIZE(buff));
 				param_cnt++;
@@ -243,7 +248,6 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 
 	sec_cmd_ptr->cmd_func(data);
 
-err_out:
 	return count;
 }
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
@@ -317,6 +321,7 @@ static void sec_cmd_store_function(struct sec_cmd_data *data)
 		}
 	}
 
+check_not_support_cmd:
 	/* set not_support_cmd */
 	if (!cmd_found) {
 		list_for_each_entry(sec_cmd_ptr, &data->cmd_list_head, list) {
@@ -337,8 +342,12 @@ static void sec_cmd_store_function(struct sec_cmd_data *data)
 				end = cur;
 				memcpy(buff, start, end - start);
 				*(buff + strnlen(buff, ARRAY_SIZE(buff))) = '\0';
-				if (kstrtoint(buff, 10, data->cmd_param + param_cnt) < 0)
-					return;
+				if (kstrtoint(buff, 10, data->cmd_param + param_cnt) < 0) {
+					pr_err("%s: %s %s: error to parse parameter\n",
+							dev_name(data->fac_dev), SECLOG, __func__);
+					cmd_found = false;
+					goto check_not_support_cmd;
+				}
 				start = cur + 1;
 				memset(buff, 0x00, ARRAY_SIZE(buff));
 				param_cnt++;
@@ -572,15 +581,6 @@ __visible_for_testing ssize_t sec_cmd_show_result(struct device *dev,
 		return -EINVAL;
 	}
 
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-	if (data->cmd_is_running &&
-		(data->cmd_state == SEC_CMD_STATUS_RUNNING || data->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)) {
-		size = snprintf(buf, SEC_CMD_RESULT_STR_LEN, "BUSY:NG\n");
-		pr_info("%s: %s %s: %s\n", dev_name(data->fac_dev), SECLOG, __func__, buf);
-		return size;
-	}
-#endif
-
 	size = snprintf(buf, SEC_CMD_RESULT_STR_LEN, "%s\n",
 		data->cmd_result + (SEC_CMD_RESULT_STR_LEN - 1) * data->cmd_result_expand_count);
 
@@ -611,15 +611,6 @@ static ssize_t sec_cmd_show_result_all(struct device *dev,
 		pr_err("%s %s: No platform data found\n", SECLOG, __func__);
 		return -EINVAL;
 	}
-
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-	if (data->cmd_is_running &&
-		(data->cmd_state == SEC_CMD_STATUS_RUNNING || data->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)) {
-		size = snprintf(buf, SEC_CMD_RESULT_STR_LEN, "BUSY:NG\n");
-		pr_info("%s: %s %s: %s\n", dev_name(data->fac_dev), SECLOG, __func__, buf);
-		return size;
-	}
-#endif
 
 	data->cmd_state = SEC_CMD_STATUS_WAITING;
 	pr_info("%s: %s %s: %d, %s\n", dev_name(data->fac_dev), SECLOG, __func__, data->item_count, data->cmd_result_all);

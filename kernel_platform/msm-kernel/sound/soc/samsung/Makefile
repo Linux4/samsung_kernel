@@ -69,3 +69,4 @@ obj-$(CONFIG_SND_SOC_SAMSUNG_TM2_WM5110) += snd-soc-tm2-wm5110.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_ARIES_WM8994) += snd-soc-aries-wm8994.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_MIDAS_WM1811) += snd-soc-midas-wm1811.o
 obj-$(CONFIG_SND_SOC_SAMSUNG_AUDIO) += sec_audio_sysfs.o
+obj-$(CONFIG_SND_SOC_SAMSUNG_AUDIO) += snd_debug_proc.o

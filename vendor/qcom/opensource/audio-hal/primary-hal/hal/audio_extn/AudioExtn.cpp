@@ -658,18 +658,30 @@ feature_disabled:
 // END: A2DP
 
 // START: DEVICE UTILS =============================================================
-bool AudioExtn::audio_devices_cmp(const std::set<audio_devices_t>& devs, audio_device_cmp_fn_t fn){
+bool AudioExtn::audio_devices_cmp(const std::set<audio_devices_t>& devs, audio_device_cmp_fn_t fn) {
     for(auto dev : devs)
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        if(fn(dev))
+            return true;
+    return false;
+#else
         if(!fn(dev))
             return false;
     return true;
+#endif
 }
 
-bool AudioExtn::audio_devices_cmp(const std::set<audio_devices_t>& devs, audio_devices_t dev){
+bool AudioExtn::audio_devices_cmp(const std::set<audio_devices_t>& devs, audio_devices_t dev) {
     for(auto d : devs)
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        if(d == dev)
+            return true;
+    return false;
+#else
         if(d != dev)
             return false;
     return true;
+#endif
 }
 
 audio_devices_t AudioExtn::get_device_types(const std::set<audio_devices_t>& devs){
@@ -836,6 +848,10 @@ bool AudioExtn::is_karaoke_mode() {
         return true;
 
     return false;
+}
+
+void AudioExtn::karaoke_init() {
+    karaoke_stream_handle = NULL;
 }
 #endif
 

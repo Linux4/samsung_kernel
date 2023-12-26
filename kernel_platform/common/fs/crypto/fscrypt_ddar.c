@@ -79,11 +79,12 @@ int update_encryption_context_with_dd_policy(
 				dd_error("update_encryption_context_with_dd_policy: failed to read dd crypt context ino:%ld\n", inode->i_ino);
 				ret = -EINVAL;
 			} else {
-				ci->ci_dd_info = alloc_dd_info(inode, policy, &crypt_context);
-				if (IS_ERR(ci->ci_dd_info)) {
+				struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+				ext_ci->ci_dd_info = alloc_dd_info(inode, policy, &crypt_context);
+				if (IS_ERR(ext_ci->ci_dd_info)) {
 					dd_error("failed to alloc dd info:%ld\n", inode->i_ino);
 					ret = -ENOMEM;
-					ci->ci_dd_info = NULL;
+					ext_ci->ci_dd_info = NULL;
 				} else {
 					fscrypt_dd_inc_count();
 				}
@@ -107,9 +108,12 @@ int fscrypt_dd_has_policy(const struct inode *inode)
 		return 0;
 
 	ci = inode->i_crypt_info;
-	if (ci && ci->ci_dd_info) {
-		if (dd_policy_encrypted(ci->ci_dd_info->policy.flags))
-			return 1;
+	if (ci) {
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+		if (ext_ci->ci_dd_info) {
+			if (dd_policy_encrypted(ext_ci->ci_dd_info->policy.flags))
+				return 1;
+		}
 	}
 
 	return 0;
@@ -126,9 +130,12 @@ int fscrypt_dd_encrypted_inode(const struct inode *inode)
 	if (!S_ISREG(inode->i_mode))
 		return 0;
 
-	if (ci && ci->ci_dd_info) {
-		if (dd_policy_encrypted(ci->ci_dd_info->policy.flags))
-			return 1;
+	if (ci) {
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+		if (ext_ci->ci_dd_info) {
+			if (dd_policy_encrypted(ext_ci->ci_dd_info->policy.flags))
+				return 1;
+		}
 	}
 
 	return 0;
@@ -146,9 +153,12 @@ int fscrypt_dd_is_traced_inode(const struct inode *inode)
 	if (!S_ISREG(inode->i_mode))
 		return 0;
 
-	if (ci && ci->ci_dd_info) {
-		if (dd_policy_trace_file(ci->ci_dd_info->policy.flags))
-			return 1;
+	if (ci) {
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+		if (ext_ci->ci_dd_info) {
+			if (dd_policy_trace_file(ext_ci->ci_dd_info->policy.flags))
+				return 1;
+		}
 	}
 
 	return 0;
@@ -162,9 +172,12 @@ void fscrypt_dd_trace_inode(const struct inode *inode)
 		return;
 
 	ci = inode->i_crypt_info;
-	if (ci && ci->ci_dd_info) {
-		dd_info("update dd trace policy ino:%ld\n", inode->i_ino);
-		ci->ci_dd_info->policy.flags |= DD_POLICY_TRACE_FILE;
+	if (ci) {
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
+		if (ext_ci->ci_dd_info) {
+			dd_info("update dd trace policy ino:%ld\n", inode->i_ino);
+			ext_ci->ci_dd_info->policy.flags |= DD_POLICY_TRACE_FILE;
+		}
 	}
 }
 EXPORT_SYMBOL(fscrypt_dd_trace_inode);
@@ -236,17 +249,22 @@ err_out:
 
 void *dd_get_info(const struct inode *inode)
 {
+	struct ext_fscrypt_info *ext_ci;
+
 	if (!inode)
 		return NULL;
 
 	if (!inode->i_crypt_info)
 		return NULL;
-	return inode->i_crypt_info->ci_dd_info;
+
+	ext_ci = GET_EXT_CI(inode->i_crypt_info);
+	return ext_ci->ci_dd_info;
 }
 
 int fscrypt_dd_decrypt_page(struct inode *inode, struct page *page)
 {
-	return dd_page_crypto(inode->i_crypt_info->ci_dd_info, DD_DECRYPT, page, page);
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(inode->i_crypt_info);
+	return dd_page_crypto(ext_ci->ci_dd_info, DD_DECRYPT, page, page);
 }
 
 void fscrypt_dd_set_count(long count)

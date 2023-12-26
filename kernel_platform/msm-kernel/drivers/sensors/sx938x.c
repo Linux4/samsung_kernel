@@ -106,53 +106,51 @@ struct sx938x_p {
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 	struct notifier_block hall_nb;
 #endif
-	bool skip_data;
-
-	int ldo_en;
-	const char *dvdd_vreg_name;	/* regulator name */
 	struct regulator *dvdd_vreg;	/* regulator */
+	const char *dvdd_vreg_name;	/* regulator name */
 
+#if IS_ENABLED(CONFIG_SENSORS_COMMON_VDD_SUB)
+	int gpio_nirq_sub;
+#endif
+	int pre_attach;
+	int debug_count;
+	int debug_zero_count;
+	int fail_status_code;
+	int is_unknown_mode;
+	int motion;
+	int irq_count;
+	int abnormal_mode;
+	int ldo_en;
 	int irq;
 	int gpio_nirq;
 	int state;
 	int init_done;
-#if IS_ENABLED(CONFIG_SENSORS_COMMON_VDD_SUB)
-	int gpio_nirq_sub;
-#endif
-
-	atomic_t enable;
 	int noti_enable;
-
 	int again_m;
 	int dgain_m;
+	int diff_cnt;
+
+	atomic_t enable;
+
+	u32 unknown_sel;
+
+	s32 useful_avg;
+	s32 capMain;
+	s32 useful;
 
 	u16 detect_threshold;
 	u16 offset;
-	s32 capMain;
-	s32 useful;
+
 	s16 avg;
 	s16 diff;
-
 	s16 diff_avg;
-	int diff_cnt;
-	s32 useful_avg;
-
-	int irq_count;
-	int abnormal_mode;
 	s16 max_diff;
 	s16 max_normal_diff;
-	int pre_attach;
 
-	int debug_count;
-	int debug_zero_count;
-
-	int fail_status_code;
 	u8 ic_num;
 
-	int is_unknown_mode;
-	int motion;
 	bool first_working;
-	u32 unknown_sel;
+	bool skip_data;
 };
 
 static int sx938x_get_nirq_state(struct sx938x_p *data)
@@ -177,7 +175,7 @@ static int sx938x_i2c_write(struct sx938x_p *data, u8 reg_addr, u8 buf)
 
 	ret = i2c_transfer(data->client->adapter, &msg, 1);
 	if (ret < 0) {
-		GRIP_ERR("i2c write err %d", ret);
+		GRIP_ERR("err %d", ret);
 		data->fail_status_code = SX938x_I2C_ERROR;
 	}
 	return 0;
@@ -200,7 +198,7 @@ static int sx938x_i2c_read(struct sx938x_p *data, u8 reg_addr, u8 *buf)
 
 	ret = i2c_transfer(data->client->adapter, msg, 2);
 	if (ret < 0) {
-		GRIP_ERR("i2c read err %d", ret);
+		GRIP_ERR("err %d", ret);
 		data->fail_status_code = SX938x_I2C_ERROR;
 	}
 
@@ -223,25 +221,31 @@ static void sx938x_initialize_register(struct sx938x_p *data)
 	u8 val = 0;
 	int idx;
 
+	data->init_done = OFF;
+
 	for (idx = 0; idx < (int)(ARRAY_SIZE(setup_reg[data->ic_num])); idx++) {
 		sx938x_i2c_write(data, setup_reg[data->ic_num][idx].reg, setup_reg[data->ic_num][idx].val);
-		GRIP_INFO("Write Reg: 0x%x Value: 0x%x\n", setup_reg[data->ic_num][idx].reg,
-			  setup_reg[data->ic_num][idx].val);
+		GRIP_INFO("Write Reg 0x%x Val 0x%x\n",
+			setup_reg[data->ic_num][idx].reg,
+			setup_reg[data->ic_num][idx].val);
 
 		sx938x_i2c_read(data, setup_reg[data->ic_num][idx].reg, &val);
-		GRIP_INFO("Read Reg: 0x%x Value: 0x%x\n\n", setup_reg[data->ic_num][idx].reg, val);
+		GRIP_INFO("Read Reg 0x%x Val 0x%x\n",
+			setup_reg[data->ic_num][idx].reg, val);
 	}
 
+	val = 0;
 	sx938x_i2c_read(data, SX938x_PROXCTRL5_REG, &val);
 	data->detect_threshold = (u16)val * (u16)val / 2;
 
+	val = 0;
 	sx938x_i2c_read(data, SX938x_PROXCTRL4_REG, &val);
 	val = (val & 0x30) >> 4;
 
 	if (val)
 		data->detect_threshold += data->detect_threshold >> (5 - val);
 
-	GRIP_INFO("detect threshold: %u\n", data->detect_threshold);
+	GRIP_INFO("detect threshold %u\n", data->detect_threshold);
 
 	data->init_done = ON;
 }
@@ -253,11 +257,11 @@ static int sx938x_hardware_check(struct sx938x_p *data)
 	u8 loop = 0;
 
 	//Check th IRQ Status
-	GRIP_INFO("irq state : %d", sx938x_get_nirq_state(data));
+	GRIP_INFO("irq state %d", sx938x_get_nirq_state(data));
 
 	while (sx938x_get_nirq_state(data) == INTERRUPT_LOW) {
 			sx938x_read_reg_stat(data);
-			GRIP_INFO("irq state : %d", sx938x_get_nirq_state(data));
+			GRIP_INFO("irq state %d", sx938x_get_nirq_state(data));
 			if (++loop > 10) {
 				data->fail_status_code = SX938x_NIRQ_ERROR;
 				return data->fail_status_code;
@@ -270,7 +274,7 @@ static int sx938x_hardware_check(struct sx938x_p *data)
 		return data->fail_status_code;
 	}
 
-	GRIP_INFO("sx938x whoami = 0x%x\n", whoami);
+	GRIP_INFO("whoami 0x%x\n", whoami);
 
 	if (whoami != SX938x_WHOAMI_VALUE) {
 		data->fail_status_code = SX938x_ID_ERROR;
@@ -317,13 +321,14 @@ static void sx938x_send_event(struct sx938x_p *data, u8 state)
 
 static void sx938x_get_gain(struct sx938x_p *data)
 {
-	u8 msByte;
+	u8 msByte = 0;
 	static const int again_phm[] = {7500, 22500, 37500, 52500, 60000, 75000, 90000, 105000};
 
 	sx938x_i2c_read(data, SX938x_AFE_PARAM1_PHM_REG, &msByte);
 	msByte = (msByte >> 4) & 0x07;
 	data->again_m = again_phm[msByte];
 
+	msByte = 0;
 	sx938x_i2c_read(data, SX938x_PROXCTRL0_PHM_REG, &msByte);
 	msByte = (msByte >> 3) & 0x07;
 	if (msByte)
@@ -353,21 +358,24 @@ static void sx938x_get_data(struct sx938x_p *data)
 
 			usleep_range(10000, 11000);
 		}
-		GRIP_INFO("retry : %d, CONVSTAT : %u\n", retry, convstat);
+		GRIP_INFO("retry %d, CONVSTAT %u\n", retry, convstat);
 		//READ REF Channel data
 		sx938x_i2c_read(data, SX938x_USEMSB_PHR, &msb);
 		sx938x_i2c_read(data, SX938x_USELSB_PHR, &lsb);
 		useful_ref = (s16)((msb << 8) | lsb);
 
+		msb = lsb = 0;
 		sx938x_i2c_read(data, SX938x_OFFSETMSB_PHR, &msb);
 		sx938x_i2c_read(data, SX938x_OFFSETLSB_PHR, &lsb);
 		offset_ref = (u16)((msb << 8) | lsb);
 
 		//READ Main channel data
+		msb = lsb = 0;
 		sx938x_i2c_read(data, SX938x_USEMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_USELSB_PHM, &lsb);
 		data->useful = (s16)((msb << 8) | lsb);
 
+		msb = lsb = 0;
 		sx938x_i2c_read(data, SX938x_AVGMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_AVGLSB_PHM, &lsb);
 		data->avg = (s16)((msb << 8) | lsb);
@@ -387,13 +395,14 @@ static void sx938x_get_data(struct sx938x_p *data)
 		else
 			data->diff = diff;
 
+		msb = lsb = 0;
 		sx938x_i2c_read(data, SX938x_OFFSETMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_OFFSETLSB_PHM, &lsb);
 		data->capMain = (int)(msb >> 7) * 2369640 + (int)(msb & 0x7F) * 30380 + (int)(lsb * 270) +
 						(int)(((int)data->useful * data->again_m) / (data->dgain_m * 32768));
 		data->offset = (u16)((msb << 8) | lsb);
 
-		GRIP_INFO("[MAIN] capMain = %d Useful = %d Average = %d DIFF = %d Offset = %d [REF] Useful_ref = %d Offset_ref = %d \n",
+		GRIP_INFO("[MAIN] capMain %d Useful %d Average %d DIFF %d Offset %d [REF] Useful %d Offset %d\n",
 					data->capMain, data->useful, data->avg, data->diff,
 					data->offset, useful_ref, offset_ref);
 	}
@@ -403,20 +412,22 @@ static void sx938x_get_data(struct sx938x_p *data)
 static int sx938x_set_mode(struct sx938x_p *data, unsigned char mode)
 {
 	int ret = -EINVAL;
+	u8 val = 0;
 
-	GRIP_INFO(" %u\n", mode);
+	GRIP_INFO("%u\n", mode);
 
 	mutex_lock(&data->mode_mutex);
 	if (mode == SX938x_MODE_SLEEP) {
 		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, REF_OFF_MAIN_OFF);
 	} else if (mode == SX938x_MODE_NORMAL) {
-		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, REF_OFF_MAIN_ON);
+		val = setup_reg[data->ic_num][SX938x_GNRL_CTRL0_REG_IDX].val;
+		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, val);
 		msleep(20);
 		sx938x_manual_offset_calibration(data);
 		msleep(450);
 	}
 
-	GRIP_INFO("change the mode : %u\n", mode);
+	GRIP_INFO("changed %u\n", mode);
 
 	mutex_unlock(&data->mode_mutex);
 	return ret;
@@ -428,7 +439,7 @@ static void sx938x_check_status(struct sx938x_p *data)
 
 	sx938x_i2c_read(data, SX938x_STAT_REG, &status);
 
-	GRIP_INFO("(status: 0x%x)\n", status);
+	GRIP_INFO("0x%x\n", status);
 
 	if (data->skip_data == true) {
 		input_report_rel(data->input, REL_MISC, GRIP_RELEASE);
@@ -544,14 +555,24 @@ static ssize_t sx938x_sw_reset_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
 {
 	struct sx938x_p *data = dev_get_drvdata(dev);
-	u8 compstat = 0;
+	u8 compstat = 0xFF;
+	int retry = 0;
 
 	GRIP_INFO("\n");
 	sx938x_manual_offset_calibration(data);
 	msleep(450);
 	sx938x_get_data(data);
-	sx938x_i2c_read(data, SX938x_STAT_REG, &compstat);
-	compstat &= 0x04;
+
+	while (retry++ <= 3) {
+		sx938x_i2c_read(data, SX938x_STAT_REG, &compstat);
+		GRIP_INFO("compstat 0x%x\n", compstat);
+		compstat &= 0x04;
+
+		if (compstat == 0)
+			break;
+
+		msleep(50);
+	}
 
 	if (compstat == 0)
 		return snprintf(buf, PAGE_SIZE, "%d\n", 0);
@@ -861,7 +882,7 @@ static ssize_t sx938x_irq_count_store(struct device *dev,
 
 	ret = kstrtou8(buf, 10, &onoff);
 	if (ret < 0) {
-		GRIP_ERR("kstrtou8 failed.(%d)\n", ret);
+		GRIP_ERR("kstrtou8 fail %d\n", ret);
 		return count;
 	}
 
@@ -875,7 +896,7 @@ static ssize_t sx938x_irq_count_store(struct device *dev,
 		data->max_diff = 0;
 		data->max_normal_diff = 0;
 	} else {
-		GRIP_ERR("unknown value %d\n", onoff);
+		GRIP_ERR("unknown val %d\n", onoff);
 	}
 
 	mutex_unlock(&data->read_mutex);
@@ -934,7 +955,7 @@ static ssize_t sx938x_onoff_store(struct device *dev,
 
 	ret = kstrtou8(buf, 2, &val);
 	if (ret) {
-		GRIP_ERR("Invalid Argument\n");
+		GRIP_ERR("kstrtou8 fail %d\n", ret);
 		return ret;
 	}
 
@@ -983,12 +1004,12 @@ static ssize_t sx938x_register_write_store(struct device *dev,
 	struct sx938x_p *data = dev_get_drvdata(dev);
 
 	if (sscanf(buf, "%x,%x", &reg_address, &val) != 2) {
-		pr_err("[SX938x]: %s - The number of data are wrong\n", __func__);
+		GRIP_ERR("sscanf err\n");
 		return -EINVAL;
 	}
 
 	sx938x_i2c_write(data, (unsigned char)reg_address, (unsigned char)val);
-	pr_info("[SX938x]: %s - Register(0x%x) data(0x%x)\n", __func__, reg_address, val);
+	GRIP_INFO("Regi 0x%x Val 0x%x\n", reg_address, val);
 
 	sx938x_get_gain(data);
 
@@ -1010,15 +1031,15 @@ static ssize_t sx938x_register_read_store(struct device *dev,
 	int regist = 0;
 	struct sx938x_p *data = dev_get_drvdata(dev);
 
-	GRIP_INFO("Reading register\n");
+	GRIP_INFO("\n");
 
 	if (sscanf(buf, "%x", &regist) != 1) {
-		pr_err("[SX938x]: %s - The number of data are wrong\n", __func__);
+		GRIP_ERR("sscanf err\n");
 		return -EINVAL;
 	}
 
 	sx938x_i2c_read(data, regist, &val);
-	GRIP_INFO("Register(0x%2x) data(0x%2x)\n", regist, val);
+	GRIP_INFO("Regi 0x%2x Val 0x%2x\n", regist, val);
 	register_read_store_reg = (unsigned int)regist;
 	register_read_store_val = (unsigned int)val;
 	return count;
@@ -1032,7 +1053,7 @@ static ssize_t sx938x_status_regdata_show(struct device *dev,
 	struct sx938x_p *data = dev_get_drvdata(dev);
 
 	sx938x_i2c_read(data, SX938x_STAT_REG, &val0);
-	pr_info("[SX938x]: %s - Status = 0x%2x \n", __func__, val0);
+	GRIP_INFO("Status 0x%2x \n", val0);
 
 	return sprintf(buf, "%d \n", val0);
 }
@@ -1063,7 +1084,7 @@ static ssize_t sx938x_cal_state_show(struct device *dev,
 	struct sx938x_p *data = dev_get_drvdata(dev);
 
 	sx938x_i2c_read(data, SX938x_STAT_REG, &val);
-	pr_info("[SX938x]: %s - Register(0x01) data(0x%2x)\n", __func__, val);
+	GRIP_INFO("Regi 0x01 Val 0x%2x\n", val);
 	if ((val & 0x06) == 0)
 		status = 1;
 	else
@@ -1090,7 +1111,7 @@ static ssize_t sx938x_motion_store(struct device *dev,
 
 	ret = kstrtou8(buf, 2, &val);
 	if (ret) {
-		GRIP_ERR("Invalid Argument\n");
+		GRIP_ERR("kstrtou8 fail %d\n", ret);
 		return ret;
 	}
 
@@ -1118,7 +1139,7 @@ static ssize_t sx938x_unknown_state_store(struct device *dev,
 
 	ret = kstrtou8(buf, 2, &val);
 	if (ret) {
-		GRIP_ERR("Invalid Argument\n");
+		GRIP_ERR("kstrtou8 fail %d\n", ret);
 		return ret;
 	}
 
@@ -1127,7 +1148,7 @@ static ssize_t sx938x_unknown_state_store(struct device *dev,
 	else if (val == 0)
 		data->is_unknown_mode = UNKNOWN_OFF;
 	else
-		GRIP_INFO("Invalid Argument(%u)\n", val);
+		GRIP_INFO("Invalid Val %u\n", val);
 
 	GRIP_INFO("%u\n", val);
 
@@ -1143,11 +1164,11 @@ static ssize_t sx938x_noti_enable_store(struct device *dev,
 
 	ret = kstrtou8(buf, 2, &enable);
 	if (ret) {
-		GRIP_INFO("invalid argument\n");
+		GRIP_ERR("kstrtou8 fail %d\n", ret);
 		return size;
 	}
 
-	GRIP_INFO("new_value=%d\n", (int)enable);
+	GRIP_INFO("new val %d\n", (int)enable);
 
 	data->noti_enable = enable;
 
@@ -1180,7 +1201,8 @@ static DEVICE_ATTR(menual_calibrate, S_IRUGO | S_IWUSR | S_IWGRP,
 static DEVICE_ATTR(register_write, S_IWUSR | S_IWGRP,
 		   NULL, sx938x_register_write_store);
 static DEVICE_ATTR(register_read_all, S_IRUGO, sx938x_register_show, NULL);
-static DEVICE_ATTR(register_read, S_IRUGO, sx938x_register_read_show, sx938x_register_read_store);
+static DEVICE_ATTR(register_read, S_IRUGO | S_IWUSR | S_IWGRP,
+			sx938x_register_read_show, sx938x_register_read_store);
 static DEVICE_ATTR(reset, S_IRUGO, sx938x_sw_reset_show, NULL);
 
 static DEVICE_ATTR(name, S_IRUGO, sx938x_name_show, NULL);
@@ -1273,11 +1295,11 @@ static ssize_t sx938x_enable_store(struct device *dev,
 
 	ret = kstrtou8(buf, 2, &enable);
 	if (ret) {
-		GRIP_ERR("Invalid Argument\n");
+		GRIP_ERR("kstrtou8 fail %d\n", ret);
 		return ret;
 	}
 
-	GRIP_INFO("new_value = %u\n", enable);
+	GRIP_INFO("new val %u\n", enable);
 	if ((enable == 0) || (enable == 1))
 		sx938x_set_enable(data, (int)enable);
 	return size;
@@ -1352,7 +1374,7 @@ static void sx938x_init_work_func(struct work_struct *work)
 					     struct sx938x_p, init_work);
 
 	if (data) {
-		GRIP_INFO("SX938x income initialize\n");
+		GRIP_INFO("initialize\n");
 
 		sx938x_initialize_register(data);
 		msleep(100);
@@ -1407,7 +1429,7 @@ static void sx938x_debug_work_func(struct work_struct *work)
 
 	if (data->debug_count >= GRIP_LOG_TIME) {
 		if (data->fail_status_code != 0)
-			GRIP_ERR("err code : %d", data->fail_status_code);
+			GRIP_ERR("err code %d", data->fail_status_code);
 		sx938x_get_data(data);
 		if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
 			sx938x_check_first_working(data);
@@ -1459,18 +1481,22 @@ static int sx938x_input_init(struct sx938x_p *data)
 #if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_create_symlink(&dev->dev.kobj, dev->name);
 	if (ret < 0) {
-		GRIP_ERR("failed to create symlink (%d)\n", ret);
+		GRIP_ERR("fail to create symlink %d\n", ret);
+		input_unregister_device(dev);
 		return ret;
 	}
 
 	ret = sysfs_create_group(&dev->dev.kobj, &sx938x_attribute_group);
 	if (ret < 0) {
-		GRIP_ERR("failed to create sysfs group (%d)\n", ret);
+		GRIP_ERR("fail to create sysfs group %d\n", ret);
+		sensors_remove_symlink(&data->input->dev.kobj, data->input->name);
+		input_unregister_device(dev);
 		return ret;
 	}
 #else
 	ret = sensors_create_symlink(dev);
 	if (ret < 0) {
+		GRIP_ERR("fail to create symlink %d\n", ret);
 		input_unregister_device(dev);
 		return ret;
 	}
@@ -1497,7 +1523,7 @@ static int sx938x_noti_input_init(struct sx938x_p *data)
 		/* Create the input device */
 		noti_input_dev = input_allocate_device();
 		if (!noti_input_dev) {
-			GRIP_ERR("input_allocate_device failed\n");
+			GRIP_ERR("input_allocate_device fail\n");
 			return -ENOMEM;
 		}
 
@@ -1509,7 +1535,7 @@ static int sx938x_noti_input_init(struct sx938x_p *data)
 
 		ret = input_register_device(noti_input_dev);
 		if (ret < 0) {
-			GRIP_ERR("failed to register input dev for noti (%d)\n", ret);
+			GRIP_ERR("fail to regi input dev for noti %d\n", ret);
 			input_free_device(noti_input_dev);
 			return ret;
 		}
@@ -1526,13 +1552,13 @@ static int sx938x_setup_pin(struct sx938x_p *data)
 
 	ret = gpio_request(data->gpio_nirq, "SX938X_nIRQ");
 	if (ret < 0) {
-		GRIP_ERR("gpio %d request failed (%d)\n", data->gpio_nirq, ret);
+		GRIP_ERR("gpio %d req fail %d\n", data->gpio_nirq, ret);
 		return ret;
 	}
 
 	ret = gpio_direction_input(data->gpio_nirq);
 	if (ret < 0) {
-		GRIP_ERR("failed to set gpio %d as input (%d)\n", data->gpio_nirq, ret);
+		GRIP_ERR("fail to set gpio %d as input %d\n", data->gpio_nirq, ret);
 		gpio_free(data->gpio_nirq);
 		return ret;
 	}
@@ -1551,7 +1577,7 @@ static int sx938x_power_onoff(struct sx938x_p *data, bool on)
 	if (data->ldo_en) {
 		ret = gpio_request(data->ldo_en, "sx938x_ldo_en");
 		if (ret < 0) {
-			GRIP_ERR("gpio %d request failed %d\n", data->ldo_en, ret);
+			GRIP_ERR("gpio %d req fail %d\n", data->ldo_en, ret);
 			return ret;
 		}
 		gpio_set_value(data->ldo_en, on);
@@ -1564,7 +1590,7 @@ static int sx938x_power_onoff(struct sx938x_p *data, bool on)
 			data->dvdd_vreg = regulator_get(NULL, data->dvdd_vreg_name);
 			if (IS_ERR(data->dvdd_vreg)) {
 				data->dvdd_vreg = NULL;
-				GRIP_ERR("failed to get dvdd_vreg %s\n", data->dvdd_vreg_name);
+				GRIP_ERR("fail to get dvdd_vreg %s\n", data->dvdd_vreg_name);
 			}
 		}
 	}
@@ -1583,7 +1609,7 @@ static int sx938x_power_onoff(struct sx938x_p *data, bool on)
 					GRIP_ERR("dvdd reg enable fail\n");
 					return ret;
 				}
-				GRIP_INFO("dvdd_vreg turned on\n");
+				GRIP_INFO("dvdd_vreg turn on\n");
 			}
 		}
 	} else {
@@ -1594,7 +1620,7 @@ static int sx938x_power_onoff(struct sx938x_p *data, bool on)
 					GRIP_ERR("dvdd reg disable fail\n");
 					return ret;
 				}
-				GRIP_INFO("dvdd_vreg turned off\n");
+				GRIP_INFO("dvdd_vreg turn off\n");
 			}
 		}
 	}
@@ -1628,11 +1654,13 @@ static int sx938x_read_setupreg(struct sx938x_p *data, struct device_node *dnode
 	ret = of_property_read_u32(dnode, str, &temp_val);
 	if (!ret) {
 		setup_reg[data->ic_num][idx].val = (u8)temp_val;
-		GRIP_INFO("grip sensor reg debug str : %s => add : (0x%2x) , val : (0x%2x)", str, setup_reg[data->ic_num][idx].reg, setup_reg[data->ic_num][idx].val);
+		GRIP_INFO("reg debug str %s add 0x%2x val 0x%2x", 
+				str, setup_reg[data->ic_num][idx].reg,
+				setup_reg[data->ic_num][idx].val);
 	} else if (ret == -22)
-		GRIP_ERR("%s: default (0x%2x, %d)\n", str, temp_val, ret);
+		GRIP_ERR("%s default 0x%2x %d\n", str, temp_val, ret);
 	else {
-		GRIP_ERR("%s: property read err 0x%2x (%d)\n", str, temp_val, ret);
+		GRIP_ERR("%s property read err 0x%2x %d\n", str, temp_val, ret);
 		data->fail_status_code = SX938x_REG_ERROR;
 	}
 	return ret;
@@ -1674,13 +1702,13 @@ static int sx938x_check_dependency(struct device *dev, int ic_num)
 		}
 	}
 #endif
-	pr_info("[GRIP_%d] dvdd_vreg_name: %s\n", ic_num, dvdd_vreg_name);
+	pr_info("[GRIP_%d] dvdd_vreg_name %s\n", ic_num, dvdd_vreg_name);
 
 	if (dvdd_vreg_name) {
 		if (dvdd_vreg == NULL) {
 			dvdd_vreg = regulator_get(NULL, dvdd_vreg_name);
 			if (IS_ERR(dvdd_vreg)) {
-				pr_info("[GRIP_%d] : %s\n", ic_num, __func__);
+				pr_info("[GRIP_%d] %s\n", ic_num, __func__);
 				return -EPROBE_DEFER;
 			}
 		}
@@ -1729,7 +1757,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 	}
 
 	if (ret < 0) {
-		GRIP_ERR("unknown_sel read failed %d\n", ret);
+		GRIP_ERR("unknown_sel read fail %d\n", ret);
 		data->unknown_sel = 1;
 		ret = 0;
 	}
@@ -1737,7 +1765,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 	GRIP_INFO("unknown_sel %d\n", data->unknown_sel);
 
 	if (data->gpio_nirq < 0) {
-		GRIP_ERR("get gpio_nirq error\n");
+		GRIP_ERR("get gpio_nirq err\n");
 		return -ENODEV;
 	} else {
 		GRIP_INFO("get gpio_nirq %d\n", data->gpio_nirq);
@@ -1777,10 +1805,10 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 			ret = gpio_request(data->ldo_en, "sx938x_wifi_ldo_en");
 #endif
 		if (ret < 0) {
-			GRIP_ERR("gpio %d request failed %d\n", data->ldo_en, ret);
+			GRIP_ERR("gpio %d req fail %d\n", data->ldo_en, ret);
 			return ret;
 		}
-		gpio_direction_output(data->ldo_en, 1);
+		gpio_direction_output(data->ldo_en, 0);
 		gpio_free(data->ldo_en);
 	}
 
@@ -1814,7 +1842,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 		}
 	}
 #endif
-		GRIP_INFO("dvdd_vreg_name: %s\n", data->dvdd_vreg_name);
+		GRIP_INFO("dvdd_vreg_name %s\n", data->dvdd_vreg_name);
 
 	if (data->ic_num == MAIN_GRIP)
 		reg_size = sizeof(sx938x_parse_reg) / sizeof(char *);
@@ -1920,23 +1948,23 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 		ic_num = WIFI_GRIP;
 #endif
 	else {
-		pr_err("[GRIP] client->name : %s, can't find grip ic num", client->name);
+		pr_err("[GRIP] name %s can't find grip ic num", client->name);
 		return -1;
 	}
-	pr_info("[GRIP_%s] %s: start (0x%x)\n", grip_name[ic_num], __func__, client->addr);
+	pr_info("[GRIP_%s] %s start 0x%x\n", grip_name[ic_num], __func__, client->addr);
 
 	ret = sx938x_check_dependency(&client->dev, ic_num);
 	if (ret < 0)
 		return ret;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		pr_info("[GRIP %s] i2c_check_functionality error\n", grip_name[ic_num]);
+		pr_info("[GRIP_%s] i2c func err\n", grip_name[ic_num]);
 		goto exit;
 	}
 
 	data = kzalloc(sizeof(struct sx938x_p), GFP_KERNEL);
 	if (data == NULL) {
-		pr_info("[GRIP %s] Failed to allocate memory\n", grip_name[ic_num]);
+		pr_info("[GRIP_%s] Fail to mem alloc\n", grip_name[ic_num]);
 		ret = -ENOMEM;
 		goto exit_kzalloc;
 	}
@@ -1956,7 +1984,7 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	ret = sx938x_parse_dt(data, &client->dev);
 	if (ret < 0) {
-		GRIP_ERR("of_node error\n");
+		GRIP_ERR("of_node err\n");
 		ret = -ENODEV;
 		goto exit_of_node;
 	}
@@ -2001,7 +2029,7 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 	/* read chip id */
 	ret = sx938x_hardware_check(data);
 	if (ret < 0) {
-		GRIP_ERR("chip id check failed %d\n", ret);
+		GRIP_ERR("chip id check fail %d\n", ret);
 		goto exit_chip_reset;
 	}
 
@@ -2016,19 +2044,14 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 				    device_name[data->ic_num], data);
 	if (ret < 0) {
-		GRIP_ERR("failed to set request_threaded_irq %d as returning (%d)\n", data->irq,
-			 ret);
+		GRIP_ERR("fail to req thread irq %d ret %d\n", data->irq, ret);
 		goto exit_request_threaded_irq;
 	}
 	disable_irq(data->irq);
 
-#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_register(&data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
-#else
-	ret = sensors_register(data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
-#endif
 	if (ret) {
-		GRIP_ERR("could not register sensor(%d).\n", ret);
+		GRIP_ERR("could not regi sensor %d\n", ret);
 		goto exit_register_failed;
 	}
 
@@ -2036,19 +2059,19 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 	sx938x_set_debug_work(data, ON, 20000);
 
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-	GRIP_INFO("register pdic notifier\n");
+	GRIP_INFO("regi pdic notifier\n");
 	manager_notifier_register(&data->pdic_nb,
 				  sx938x_pdic_handle_notification,
 				  MANAGER_NOTIFY_PDIC_SENSORHUB);
 #endif
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
-		GRIP_INFO("register hall notifier\n");
+		GRIP_INFO("regi hall notifier\n");
 		data->hall_nb.priority = 1;
 		data->hall_nb.notifier_call = sx938x_hall_notifier;
 		hall_notifier_register(&data->hall_nb);
 #endif
 
-	GRIP_INFO("Probe done!\n");
+	GRIP_INFO("done!\n");
 
 	return 0;
 exit_register_failed:

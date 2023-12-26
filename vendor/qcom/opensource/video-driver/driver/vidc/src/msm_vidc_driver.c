@@ -1186,7 +1186,7 @@ int msm_vidc_change_core_state(struct msm_vidc_core *core,
 		return -EINVAL;
 	}
 
-	d_vpr_e("%s: core state changed to %s from %s\n",
+	d_vpr_h("%s: core state changed to %s from %s\n",
 		func, core_state_name(request_state),
 		core_state_name(core->state));
 	core->state = request_state;
@@ -1217,7 +1217,7 @@ int msm_vidc_change_inst_state(struct msm_vidc_inst *inst,
 		i_vpr_e(inst, "%s: state changed to %s from %s\n",
 		   func, state_name(request_state), state_name(inst->state));
 	else
-		i_vpr_e(inst, "%s: state changed to %s from %s\n",
+		i_vpr_h(inst, "%s: state changed to %s from %s\n",
 		   func, state_name(request_state), state_name(inst->state));
 
 	trace_msm_vidc_common_state_change(inst, func, state_name(inst->state),
@@ -1614,12 +1614,12 @@ enum msm_vidc_allow msm_vidc_allow_input_psc(struct msm_vidc_inst *inst)
 		inst->state == MSM_VIDC_DRC_DRAIN ||
 		inst->state == MSM_VIDC_DRC_DRAIN_LAST_FLAG ||
 		inst->state == MSM_VIDC_DRAIN_START_INPUT) {
-		i_vpr_e(inst, "%s: defer input psc, inst state %s\n",
+		i_vpr_h(inst, "%s: defer input psc, inst state %s\n",
 				__func__, state_name(inst->state));
 		allow = MSM_VIDC_DEFER;
 	} else if (inst->state == MSM_VIDC_OPEN ||
 		inst->state == MSM_VIDC_START_OUTPUT) {
-		i_vpr_e(inst, "%s: discard input psc, inst state %s\n",
+		i_vpr_h(inst, "%s: discard input psc, inst state %s\n",
 				__func__, state_name(inst->state));
 		allow = MSM_VIDC_DISCARD;
 	} else {
@@ -1664,7 +1664,7 @@ static int msm_vidc_flush_pending_last_flag(struct msm_vidc_inst *inst)
 	list_for_each_entry_safe(resp_work, dummy,
 				&inst->response_works, list) {
 		if (resp_work->type == RESP_WORK_LAST_FLAG) {
-			i_vpr_e(inst, "%s: flush pending last flag buffer\n",
+			i_vpr_h(inst, "%s: flush pending last flag buffer\n",
 				__func__);
 			rc = handle_session_response_work(inst, resp_work);
 			if (rc) {
@@ -1755,7 +1755,7 @@ static int msm_vidc_process_pending_ipsc(struct msm_vidc_inst *inst,
 	if (list_empty(&inst->response_works))
 		return 0;
 
-	i_vpr_e(inst, "%s: state %s, ipsc pending\n", __func__, state_name(inst->state));
+	i_vpr_h(inst, "%s: state %s, ipsc pending\n", __func__, state_name(inst->state));
 	list_for_each_entry_safe(resp_work, dummy, &inst->response_works, list) {
 		if (resp_work->type == RESP_WORK_INPUT_PSC) {
 			rc = handle_session_response_work(inst, resp_work);
@@ -1805,7 +1805,7 @@ int msm_vidc_state_change_streamon(struct msm_vidc_inst *inst, u32 type)
 		} else if (inst->state == MSM_VIDC_START_INPUT) {
 			new_state = MSM_VIDC_START;
 		} else if (inst->state == MSM_VIDC_DRAIN_START_INPUT) {
-			i_vpr_e(inst, "%s: streamon(output) in %s state\n",
+			i_vpr_h(inst, "%s: streamon(output) in %s state\n",
 				__func__, state_name(inst->state));
 			new_state = MSM_VIDC_DRAIN;
 			rc = msm_vidc_process_pending_ipsc(inst, &new_state);

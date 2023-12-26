@@ -220,7 +220,7 @@ static int pwm_gpclk_config(struct pwm_chip *chip, struct pwm_device *pwm,
 		g_nlra_gp_clk_m << HWIO_GP_MD_REG_M_VAL_SHFT);
 	hwio_settling_delay();
 
-	calc_n = (~(g_nlra_gp_clk_n - g_nlra_gp_clk_m) & 0xFF);
+	calc_n = (~(g_nlra_gp_clk_n - g_nlra_gp_clk_m) & HWIO_GP_N_REG_N_VAL_BMSK);
 
 	base_d = g_nlra_gp_clk_n * duty_ns / period_ns;
 
@@ -230,10 +230,10 @@ static int pwm_gpclk_config(struct pwm_chip *chip, struct pwm_device *pwm,
 		pr_info("[VIB] %s: D is larger than 127 which causes overflow, so set D as 127\n", __func__);
 		base_d = 127;
 	}
-	calc_d = (~(base_d << 1) & 0xFF);
+	calc_d = (~(base_d << 1) & HWIO_GP_MD_REG_D_VAL_BMSK);
 
-	if (calc_d == 0xFF)
-		calc_d = 0xFE;
+	if (calc_d == HWIO_GP_MD_REG_D_VAL_BMSK)
+		calc_d = HWIO_GP_MD_REG_D_VAL_BMSK - 1;
 
 	/* D value */
 	HWIO_OUTM(GPx_D_REG, HWIO_GP_MD_REG_D_VAL_BMSK, calc_d);
@@ -407,9 +407,14 @@ static int pwm_gpclk_remove(struct platform_device *pdev)
 	int ret = 0;
 
 	iounmap(virt_mmss_gp1_base);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
 	ret = pwmchip_remove(chip);
 	if (ret < 0)
 		dev_err(chip->dev, "Remove pwmchip failed, ret=%d\n", ret);
+#else
+	pwmchip_remove(chip);
+#endif
 
 	wakeup_source_unregister(ws);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
