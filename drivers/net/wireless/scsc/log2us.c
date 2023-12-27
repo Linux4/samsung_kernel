@@ -286,44 +286,6 @@ u8 *get_eap_type_from_val(int val, u8 *str)
 	}
 }
 
-static int slsi_get_roam_reason_for_fw_reason(int roam_reason)
-{
-	switch (roam_reason) {
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_LOW_RSSI:
-		return 1;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_LINK_LOSS:
-		return 3;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_BTM_REQ:
-		return 5;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_CU_TRIGGER:
-		return 2;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_EMERGENCY:
-		return 4;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_IDLE:
-		return 6;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_WTC:
-		return 7;
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX:
-		return 10;
-	default:
-		return 0;
-	}
-}
-
-/* if the Expired_Timer_Value is set to 1,2,3, the Roam_Reason is set to UNKNOWN. */
-static int slsi_get_roam_reason_from_expired_tv(int roam_reason, int expired_timer_value)
-{
-	if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_DEFAULT)
-		return slsi_get_roam_reason_for_fw_reason(roam_reason);
-	else if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_INACTIVITY_TIMER)
-		return SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER;
-	else if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_RESCAN_TIMER
-			|| expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_BACKGROUND_RESCAN_TIMER)
-		return SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER;
-	else
-		return 0;
-}
-
 void slsi_eapol_eap_handle_tx_status(struct slsi_dev *sdev, struct netdev_vif *ndev_vif,
 				     u16 host_tag, u16 tx_status)
 {
@@ -700,7 +662,6 @@ void slsi_conn_log2us_eapol_tx(struct slsi_dev *sdev, struct net_device *dev, u3
 void slsi_conn_log2us_roam_scan_start(struct slsi_dev *sdev, struct net_device *dev,
 				      int reason, int roam_rssi_val,
 				      short chan_utilisation,
-				      int expired_timer_value,
 				      int rssi_thresh, u64 timestamp)
 {
 	int pos = 0;
@@ -721,7 +682,6 @@ void slsi_conn_log2us_roam_scan_start(struct slsi_dev *sdev, struct net_device *
 	log_buffer = new_node->str;
 
 	get_kernel_timestamp(time);
-	reason = slsi_get_roam_reason_from_expired_tv(reason, expired_timer_value);
 
 	pos += scnprintf(log_buffer + pos, buf_size - pos, "[%d.%d] [ROAM] SCAN_START reason=%d ",
 			 time[0], time[1], reason);
@@ -1546,7 +1506,6 @@ void slsi_conn_log2us_eapol_ptk(struct slsi_dev *sdev, struct net_device *dev,
 void slsi_conn_log2us_roam_scan_start(struct slsi_dev *sdev, struct net_device *dev,
 				      int reason, int roam_rssi_val,
 				      short chan_utilisation,
-				      int expired_timer_value,
 				      int rssi_thresh, u64 timestamp)
 {
 }

@@ -10,8 +10,7 @@
 #include "panel_drv.h"
 #include "panel_debug.h"
 #include "adaptive_mipi.h"
-#include <linux/dev_ril_bridge.h>
-
+#include "dev_ril_header.h"
 
 static int of_get_rf_band_element(struct device_node *np, struct rf_band_element *elem, unsigned int mipi_cnt)
 {
@@ -115,11 +114,17 @@ static void dump_rf_element_list(struct panel_adaptive_mipi *adap_mipi)
 static int parse_mipi_freq(struct device_node *np, struct adaptive_mipi_freq *freq)
 {
 	int i;
-	int ret;
+	int ret, num_elems;
 	size_t cnt = 0;
 	char buf[SZ_128];
 
-	freq->mipi_cnt = of_property_count_u32_elems(np, DT_NAME_MIPI_FREQ_LISTS);
+	num_elems = of_property_count_u32_elems(np, DT_NAME_MIPI_FREQ_LISTS);
+	if (num_elems < 0) {
+		panel_err("of_property_count_u32_elems fail %s\n", DT_NAME_MIPI_FREQ_LISTS);
+		return -EINVAL;
+	}
+	freq->mipi_cnt = num_elems;
+
 	ret = of_property_read_u32_array(np, DT_NAME_MIPI_FREQ_LISTS, freq->mipi_lists, freq->mipi_cnt);
 	if (ret < 0) {
 		panel_err("of_property_read_u32_array fail %s\n", DT_NAME_MIPI_FREQ_LISTS);
@@ -132,7 +137,13 @@ static int parse_mipi_freq(struct device_node *np, struct adaptive_mipi_freq *fr
 	buf[cnt] = 0;
 	panel_info("adaptive mipi: %s\n", buf);
 
-	freq->osc_cnt = of_property_count_u32_elems(np, DT_NAME_OSC_FREQ_LISTS);
+	num_elems = of_property_count_u32_elems(np, DT_NAME_OSC_FREQ_LISTS);
+	if (num_elems < 0) {
+		panel_err("of_property_count_u32_elems fail %s\n", DT_NAME_OSC_FREQ_LISTS);
+		return -EINVAL;
+	}
+	freq->osc_cnt = num_elems;
+
 	ret = of_property_read_u32_array(np, DT_NAME_OSC_FREQ_LISTS, freq->osc_lists, freq->osc_cnt);
 	if (ret < 0) {
 		panel_err("of_property_read_u32_array fail %s\n", DT_NAME_OSC_FREQ_LISTS);
@@ -148,15 +159,12 @@ static int parse_mipi_freq(struct device_node *np, struct adaptive_mipi_freq *fr
 	return 0;
 }
 
-
-
 static int parse_dt(struct device_node *np, struct panel_adaptive_mipi *adap_mipi)
 {
 	int ret, i;
 	struct device_node *entry;
 	int element_cnt = 0;
-
-	unsigned int table_cnt;
+	int table_cnt;
 	struct device_node *table_np;
 	struct adaptive_mipi_freq *freq;
 
@@ -174,6 +182,10 @@ static int parse_dt(struct device_node *np, struct panel_adaptive_mipi *adap_mip
 	}
 
 	table_cnt = of_property_count_u32_elems(np, DT_NAME_RF_TABLE_LISTS);
+	if (table_cnt < 0) {
+		panel_err("of_property_count_u32_elems fail %s\n", DT_NAME_RF_TABLE_LISTS);
+		return -EINVAL;
+	}
 	panel_info("adaptive mipi: rf table count: %d\n", table_cnt);
 
 	for (i = 0; i < table_cnt; i++) {
@@ -185,12 +197,13 @@ static int parse_dt(struct device_node *np, struct panel_adaptive_mipi *adap_mip
 		for_each_child_of_node(table_np, entry) {
 			ret = parse_rf_band_elements(entry, adap_mipi, i);
 			if (ret) {
+				of_node_put(table_np);
 				panel_err("failed to get rf element\n");
 				return -EINVAL;
 			}
 			element_cnt++;
 		}
-
+		of_node_put(table_np);
 	}
 
 	panel_info("adaptive mipi: total rf element count: %d\n", element_cnt);
@@ -211,7 +224,7 @@ static bool check_ril_msg(struct dev_ril_bridge_msg *msg)
 	}
 
 	if (msg->dev_id != SUB_CMD_ADAPTIVE_MIPI) {
-		panel_err("adaptive mipi: invalid sub cmd: %d\n", msg->dev_id);
+		panel_dbg("adaptive mipi: invalid sub cmd: %d\n", msg->dev_id);
 		return false;
 	}
 
@@ -440,8 +453,9 @@ int ril_notifier(struct notifier_block *self, unsigned long size, void *buf)
 		panel_err("null ril message\n");
 		goto exit_notifier;
 	}
+
 	if (!check_ril_msg(ril_msg)) {
-		panel_err("adaptive mipi: invalid ril message\n");
+		panel_dbg("adaptive mipi: invalid ril message\n");
 		goto exit_notifier;
 	}
 	msg = (struct cp_info *)ril_msg->data;

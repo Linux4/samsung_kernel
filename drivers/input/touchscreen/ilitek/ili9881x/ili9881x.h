@@ -1161,8 +1161,7 @@ struct ilitek_ts_data {
 	struct completion secure_interrupt;
 	struct mutex secure_lock;
 #endif
-	struct work_struct irq_work;
-	struct workqueue_struct *irq_workqueue;
+
 };
 extern struct ilitek_ts_data *ilits;
 
@@ -1394,7 +1393,6 @@ void ilitek_tddi_touch_send_debug_data(u8 *buf, int len);
 int ilitek_set_vbus(void);
 #endif
 void ili_read_info_onboot(void *device_data);
-extern void ili_handler_wait_resume_work(struct work_struct *work);
 
 #if IS_ENABLED(CONFIG_SPU_VERIFY)
 extern long spu_firmware_signature_verify(const char *fw_name, const u8 *fw_data, const long fw_size);

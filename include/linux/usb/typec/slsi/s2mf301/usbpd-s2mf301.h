@@ -39,7 +39,7 @@
 /* message buffer */
 #define S2MF301_MAX_NUM_MSG_OBJ (7)
 /* INTERRUPT STATUS NUM */
-#define S2MF301_MAX_NUM_INT_STATUS (7)
+#define S2MF301_MAX_NUM_INT_STATUS (10)
 
 #define S2MF301_REG_TYPEC_DIS (1 << 2)
 

@@ -119,6 +119,7 @@
 #define S2MF301_CHG_SHIP_MODE_CTRL	0x62
 #define S2MF301_CHG_OPEN_OTP3	0x63
 #define S2MF301_CHG_D2A_SC_OTP0	0x75
+#define S2MF301_CHG_SC_STRL24	0x77
 #define S2MF301_CHG_D2A_SC_OTP4	0x79
 #define S2MF301_CHG_D2A_SC_OTP5	0x7A
 #define S2MF301_CHG_CHG_OPTION0	0xE8
@@ -322,6 +323,11 @@
 #define TIME_BAT2SHIP_DB_WIDTH		2
 #define TIME_BAT2SHIP_DB_MASK		MASK(TIME_BAT2SHIP_DB_WIDTH, TIME_BAT2SHIP_DB_SHIFT)
 
+/* S2MF301_CHG_STRL24 */
+#define SET_DBAT_SHIFT		4
+#define SET_DBAT_WIDTH		2
+#define SET_DBAT_MASK		MASK(SET_DBAT_WIDTH, SET_DBAT_SHIFT)
+
 enum {
 	CHIP_ID = 0,
 };
@@ -480,7 +486,6 @@ struct s2mf301_charger_data {
 	int ivr_on;
 	bool slow_charging;
 
-	bool is_523k;
 	bool bypass;
 	bool keystring;
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)

@@ -902,6 +902,11 @@ static __always_inline void slsi_txbp_set_priority(struct slsi_dev *sdev, struct
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	int proto;
 
+	if (!ndev_vif->is_available) {
+		skb->priority = FAPI_PRIORITY_QOS_UP0;
+		return;
+	}
+
 	proto = be16_to_cpu(eth_hdr(skb)->h_proto);
 	/**
 	 * Multicast / broadcast over AP interface
@@ -922,11 +927,15 @@ static __always_inline void slsi_txbp_set_priority(struct slsi_dev *sdev, struct
 	 */
 	if (peer) {
 		if (peer->qos_enabled) {
+			if (peer->qos_map_set) {
+				skb->priority = cfg80211_classify8021d(skb, &peer->qos_map);
+			} else {
 #ifdef CONFIG_SCSC_USE_WMM_TOS
-			skb->priority = slsi_get_priority_from_tos(skb->data + ETH_HLEN, proto);
+				skb->priority = slsi_get_priority_from_tos(skb->data + ETH_HLEN, proto);
 #else
-			skb->priority = slsi_get_priority_from_tos_dscp(skb->data + ETH_HLEN, proto);
+				skb->priority = slsi_get_priority_from_tos_dscp(skb->data + ETH_HLEN, proto);
 #endif
+			}
 			slsi_netif_set_tid_change_tid(dev, skb);
 		} else {
 			skb->priority = FAPI_PRIORITY_QOS_UP0;
@@ -1273,10 +1282,7 @@ static __always_inline int slsi_tx_transmit_nan_multicast(struct slsi_dev *sdev,
 	fapi_set_u16(skb, sender_pid,   SLSI_TX_PROCESS_ID_MIN);
 	fapi_set_u32(skb, fw_reference, 0);
 
-	/* TODO: group option will be added to next fapi.xml.
-	 * Until then, set configuration_option for NAN multicast with 0x0010
-	 */
-	fapi_set_u16(skb, u.ma_unitdata_req.configuration_option, FAPI_OPTION_INLINE | 0x0010);
+	fapi_set_u16(skb, u.ma_unitdata_req.configuration_option, FAPI_OPTION_INLINE | FAPI_OPTION_GROUP);
 	fapi_set_memcpy(skb, u.ma_unitdata_req.address, sdev->nan_cluster_id);
 	SLSI_NET_DBG_HEX(dev, SLSI_TX, skb->data, skb->len < 128 ? skb->len : 128, "\n");
 

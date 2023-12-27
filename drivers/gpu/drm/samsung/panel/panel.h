@@ -52,7 +52,9 @@
 #include "panel_obj.h"
 #include "panel_dump.h"
 
-#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
+#include "sdp_adaptive_mipi.h"
+#elif defined(CONFIG_USDM_ADAPTIVE_MIPI)
 #include "adaptive_mipi.h"
 #endif
 
@@ -76,12 +78,10 @@ enum {
 
 #ifdef CONFIG_USDM_FACTORY
 #define CONFIG_SUPPORT_PANEL_SWAP
-#define CONFIG_SUPPORT_XTALK_MODE
 #define CONFIG_SUPPORT_ISC_DEFECT
-//#define CONFIG_USDM_FACTORY_BRIGHTDOT_TEST
-#define CONFIG_SELFMASK_FACTORY
 #endif
 
+#define CONFIG_SUPPORT_XTALK_MODE
 #define CONFIG_SUPPORT_GRAYSPOT_TEST
 
 #define CONFIG_SUPPORT_SPI_IF_SEL
@@ -203,6 +203,7 @@ enum {
 	KEY_NONE,
 	KEY_DISABLE,
 	KEY_ENABLE,
+	MAX_KEY_TYPE,
 };
 
 enum cmd_level {
@@ -296,9 +297,6 @@ struct freq_hop_param {
 #if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 #define PANEL_DISPLAY_MODE_SEQ ("panel_display_mode_seq")
 #endif
-#ifdef CONFIG_USDM_PANEL_MULTI_RESOLUTION
-#define PANEL_DSU_SEQ ("panel_dsu_seq")
-#endif
 #define PANEL_FPS_SEQ ("panel_fps_seq")
 #define PANEL_BLACK_AND_FPS_SEQ ("panel_black_and_fps_seq")
 #define PANEL_MCD_ON_SEQ ("panel_mcd_on_seq")
@@ -325,9 +323,6 @@ struct freq_hop_param {
 #define PANEL_GRAYSPOT_ON_SEQ ("panel_grayspot_on_seq")
 #define PANEL_GRAYSPOT_OFF_SEQ ("panel_grayspot_off_seq")
 #endif
-#ifdef CONFIG_USDM_MDNIE_TDMB
-#define PANEL_TDMB_TUNE_SEQ ("panel_tdmb_tune_seq")
-#endif
 #ifdef CONFIG_SUPPORT_ISC_DEFECT
 #define PANEL_CHECK_ISC_DEFECT_SEQ ("panel_check_isc_defect_seq")
 #endif
@@ -338,6 +333,7 @@ struct freq_hop_param {
 #ifdef CONFIG_USDM_FACTORY_CCD_TEST
 #define PANEL_CCD_TEST_SEQ ("panel_ccd_test_seq")
 #endif
+#define PANEL_FLASH_TEST_SEQ ("panel_flash_test_seq")
 
 #ifdef CONFIG_USDM_PANEL_MAFPC
 #define PANEL_MAFPC_ON_SEQ ("panel_mafpc_on_seq")
@@ -361,6 +357,9 @@ struct freq_hop_param {
 #endif
 #ifdef CONFIG_USDM_FACTORY_BRIGHTDOT_TEST
 #define PANEL_BRIGHTDOT_TEST_SEQ ("panel_brightdot_test_seq")
+#endif
+#ifdef CONFIG_USDM_FACTORY_VGLHIGHDOT_TEST
+#define PANEL_VGLHIGHDOT_TEST_SEQ ("panel_vglhighdot_test_seq")
 #endif
 #define PANEL_FFC_SEQ ("panel_ffc_seq")
 #define PANEL_OSC_SEQ ("panel_osc_seq")
@@ -501,6 +500,7 @@ struct ddi_properties {
 	u32 dft_osc_freq; //ddi's oscillator clock rate, unit: khz
 	bool init_seq_by_lpdt;
 	bool support_avoid_sandstorm;
+	bool evasion_disp_det;
 };
 
 struct ddi_ops {
@@ -551,6 +551,13 @@ struct panel_rcd_data {
 	char *name;
 	struct rcd_resol **rcd_resol;
 	int nr_rcd_resol;
+};
+
+enum {
+	USDM_DRV_LEVEL_COMMON,
+	USDM_DRV_LEVEL_DDI,
+	USDM_DRV_LEVEL_MODEL,
+	MAX_USDM_DRV_LEVEL,
 };
 
 struct common_panel_info {
@@ -615,6 +622,8 @@ struct common_panel_info {
 #ifdef CONFIG_USDM_PANEL_RCD
 	struct panel_rcd_data *rcd_data;
 #endif
+	struct panel_prop_list *prop_lists[MAX_USDM_DRV_LEVEL];
+	unsigned int num_prop_lists[MAX_USDM_DRV_LEVEL];
 };
 
 enum {
@@ -643,6 +652,11 @@ enum {
 	SMOOTH_TRANS_OFF,
 	SMOOTH_TRANS_ON,
 	SMOOTH_TRANS_MAX,
+};
+
+enum {
+	NIGHT_DIM_OFF,
+	NIGHT_DIM_ON,
 };
 
 enum {
@@ -676,6 +690,12 @@ enum {
 };
 #endif
 
+enum {
+	IRC_MODE_MODERATO,
+	IRC_MODE_FLAT_GAMMA,
+	MAX_IRC_MODE,
+};
+
 #ifdef CONFIG_USDM_FACTORY_GCT_TEST
 enum {
 	GRAM_CHKSUM_OFF,
@@ -693,12 +713,16 @@ enum {
 	MAX_GCT_PATTERN,
 };
 
+#define PANEL_PROPERTY_GCT_PATTERN ("panel_gct_pattern")
+
 enum {
 	VDDM_ORIG,
 	VDDM_LV,
 	VDDM_HV,
 	MAX_VDDM,
 };
+
+#define PANEL_PROPERTY_GCT_VDDM ("panel_gct_vddm")
 
 enum {
 	GRAM_TEST_OFF,
@@ -759,7 +783,8 @@ struct panel_dt_lut {
 	struct list_head head;
 	struct list_head id_mask_list;
 	const char *dqe_suffix;
-#ifdef CONFIG_USDM_ADAPTIVE_MIPI
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 	struct device_node *adap_mipi_node;
 #endif
 };
@@ -820,10 +845,6 @@ struct panel_properties {
 	u32 grayspot;
 #endif
 	u32 poc_onoff;
-#ifdef CONFIG_USDM_MDNIE_TDMB
-	u32 tdmb_on;
-	u32 cur_tdmb_on;
-#endif
 	u32 key[MAX_CMD_LEVEL];
 	u32 irc_mode;
 #ifdef CONFIG_USDM_PANEL_DIM_FLASH
@@ -834,7 +855,7 @@ struct panel_properties {
 	u32 panel_partial_disp;
 	u32 panel_mode;
 	/* resolution */
-	bool mres_updated;
+	u32 mres_updated;
 	u32 old_mres_mode;
 	u32 mres_mode;
 	u32 xres;
@@ -857,6 +878,9 @@ struct panel_properties {
 #endif
 #ifdef CONFIG_USDM_FACTORY_BRIGHTDOT_TEST
 	u32 brightdot_test_enable;
+#endif
+#ifdef CONFIG_USDM_FACTORY_VGLHIGHDOT_TEST
+	u32 vglhighdot;
 #endif
 	u32 dsi_freq;
 	u32 osc_freq;
@@ -1051,6 +1075,10 @@ int get_panel_resource_size(struct panel_device *panel, char *name);
 int panel_resource_update(struct panel_device *panel, struct resinfo *res);
 int panel_resource_update_by_name(struct panel_device *panel, char *name);
 int panel_do_init_maptbl(struct panel_device *panel, struct maptbl *maptbl);
+struct dumpinfo *find_panel_dumpinfo(struct panel_device *panel, char *name);
+struct resinfo *panel_get_dump_resource(struct panel_device *panel, char *name);
+bool panel_is_dump_status_success(struct panel_device *panel, char *name);
+int panel_init_dumpinfo(struct panel_device *panel, char *name);
 int panel_dumpinfo_update(struct panel_device *panel, struct dumpinfo *info);
 int panel_rx_nbytes(struct panel_device *panel, u32 type, u8 *buf, u8 addr, u32 pos, u32 len);
 int panel_tx_nbytes(struct panel_device *panel,	u32 type, u8 *buf, u8 addr, u32 pos, u32 len);
@@ -1068,9 +1096,12 @@ int panel_dsi_set_lpdt(struct panel_device *panel, bool on);
 int panel_wake_lock(struct panel_device *panel, unsigned long timeout);
 int panel_wake_unlock(struct panel_device *panel);
 int panel_emergency_off(struct panel_device *panel);
-#if defined(CONFIG_USDM_PANEL_FREQ_HOP) || defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP) ||\
+	defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_param *param);
 #endif
+int panel_trigger_recovery(struct panel_device *panel);
 int panel_parse_ap_vendor_node(struct panel_device *panel, struct device_node *node);
 int panel_flush_image(struct panel_device *panel);
 int read_panel_id(struct panel_device *panel, u8 *buf);

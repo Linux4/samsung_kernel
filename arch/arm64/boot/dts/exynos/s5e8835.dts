@@ -570,6 +570,15 @@
 			};
 		};
 
+		gsc {
+			up_threshold = <0x64>;
+			down_threshold = <0x32>;
+
+			monitor-group {
+				top-app = <0x01>;
+			};
+		};
+
 		ecs {
 		};
 
@@ -601,6 +610,9 @@
 		};
 
 		ecs {
+		};
+
+		gsc {
 		};
 
 		ecs_dynamic {

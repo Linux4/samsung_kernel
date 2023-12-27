@@ -133,9 +133,14 @@ static ssize_t logging_data_show(struct device *dev, struct device_attribute *at
 
 static ssize_t raw_data_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct mag_power_event *sensor_value =
-	    (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
+	struct mag_power_event *sensor_value;
 
+	if (!get_sensor_probe_state(SENSOR_TYPE_GEOMAGNETIC_POWER)) {
+		shub_errf("sensor is not probed!");
+		return 0;
+	}
+
+	sensor_value = (struct mag_power_event *)(get_sensor_event(SENSOR_TYPE_GEOMAGNETIC_POWER)->value);
 	shub_info("%d,%d,%d\n", sensor_value->x, sensor_value->y, sensor_value->z);
 
 	if (!get_sensor_enabled(SENSOR_TYPE_GEOMAGNETIC_POWER)) {

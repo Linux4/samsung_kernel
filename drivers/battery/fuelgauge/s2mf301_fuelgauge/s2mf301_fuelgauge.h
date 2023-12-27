@@ -181,6 +181,11 @@ struct s2mf301_fuelgauge_data {
 
 	unsigned int capacity_old;
 	unsigned int capacity_max;
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	unsigned int g_capacity_max;	/* only for dynamic calculation */
+	bool capacity_max_conv;
+	int prev_raw_soc;
+#endif
 	int raw_capacity;
 
 	bool initial_update_of_soc;
@@ -245,6 +250,8 @@ struct s2mf301_fuelgauge_data {
 	int soh;
 #endif
 	char d_buf[FG_BATT_DUMP_SIZE];
+	int bd_vfocv;
+	int bd_raw_soc;
 };
 
 #if IS_ENABLED(BATCAP_LEARN)

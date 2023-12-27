@@ -86,14 +86,14 @@ err:
 }
 EXPORT_SYMBOL(panel_lib_rdinfo_create);
 
-void panel_lib_rdinfo_destroy(struct rdinfo *m)
+void panel_lib_rdinfo_destroy(struct rdinfo *rdi)
 {
-	if (!m)
+	if (!rdi)
 		return;
 
-	panel_lib_rdinfo_free_buffer(m);
-	free_pnobj_name(&m->base);
-	kfree(m);
+	panel_lib_rdinfo_free_buffer(rdi);
+	pnobj_deinit(&rdi->base);
+	kfree(rdi);
 }
 EXPORT_SYMBOL(panel_lib_rdinfo_destroy);
 

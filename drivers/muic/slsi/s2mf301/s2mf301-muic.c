@@ -1399,10 +1399,13 @@ static int s2mf301_muic_detect_dev_rid_array(struct s2mf301_muic_data *muic_data
 			muic_data->new_dev = ATTACHED_DEV_JIG_UART_OFF_MUIC;
 		break;
 	case ADC_JIG_USB_ON:
-	case ADC_JIG_USB_OFF:
 	case ADC_DESKDOCK:
 		muic_data->new_dev = ATTACHED_DEV_JIG_USB_ON_MUIC;
 		pr_info("ADC JIG_USB_ON DETECTED\n");
+		break;
+	case ADC_JIG_USB_OFF:
+		muic_data->new_dev = ATTACHED_DEV_JIG_USB_OFF_MUIC;
+		pr_info("ADC JIG_USB_OFF DETECTED\n");
 		break;
 	case ADC_JIG_UART_ON:
 		muic_data->new_dev = ATTACHED_DEV_JIG_UART_ON_MUIC;

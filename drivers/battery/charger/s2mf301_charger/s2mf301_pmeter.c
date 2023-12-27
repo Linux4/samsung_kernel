@@ -22,7 +22,7 @@
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#if defined(CONFIG_S2MF301_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 #include <linux/usb/typec/slsi/s2mf301/s2mf301-water.h>
 #endif
 
@@ -75,7 +75,7 @@ static int s2mf301_pm_enable(struct s2mf301_pmeter_data *pmeter, int mode, int e
 	case S2MF301_PM_TYPE_GPADC2:
 	case S2MF301_PM_TYPE_GPADC3:
 	case S2MF301_PM_TYPE_VDCIN:
-#if defined(CONFIG_S2MF301_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	case S2MF301_PM_TYPE_GPADC12:
 #endif
 		if (mode == CONTINUOUS_MODE)
@@ -89,7 +89,7 @@ static int s2mf301_pm_enable(struct s2mf301_pmeter_data *pmeter, int mode, int e
 	}
 
 	s2mf301_read_reg(pmeter->i2c, addr, &r_data);
-#if defined(CONFIG_S2MF301_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	if (type == S2MF301_PM_TYPE_GPADC12) {
 		pr_info("[WATER] %s, %s gpadc12 %s\n", __func__, ((enable)?"Enable":"Disable"),
 					((mode == CONTINUOUS_MODE)?"CO":"RR"));
@@ -157,7 +157,7 @@ static int s2mf301_pm_get_value(struct s2mf301_pmeter_data *pmeter, int type)
 		addr1 = S2MF301_REG_PM_IADC1_OTG;
 		addr2 = S2MF301_REG_PM_IADC2_OTG;
 		break;
-#if defined(CONFIG_S2MF301_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	case S2MF301_PM_TYPE_GPADC1:
 		addr1 = S2MF301_REG_PM_VADC1_GPADC1;
 		addr2 = S2MF301_REG_PM_VADC2_GPADC1;
@@ -179,7 +179,7 @@ static int s2mf301_pm_get_value(struct s2mf301_pmeter_data *pmeter, int type)
 	s2mf301_read_reg(pmeter->i2c, addr1, &data1);
 	s2mf301_read_reg(pmeter->i2c, addr2, &data2);
 
-#if defined(CONFIG_S2MF301_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	if (type == S2MF301_PM_TYPE_GPADC1 || type == S2MF301_PM_TYPE_GPADC2) {
 		charge_voltage = (data1<<8) | data2;
 		//pr_info("%s, Raw[0x%x, 0x%x] -> 0x%x(%dmV)\n", __func__, data1, data2, charge_voltage, charge_voltage);
@@ -190,7 +190,7 @@ static int s2mf301_pm_get_value(struct s2mf301_pmeter_data *pmeter, int type)
 	return charge_voltage;
 }
 
-#if defined(CONFIG_S2MF301_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 int s2mf301_pm_ops_pm_enable(void *data, int mode, int enable, int type)
 {
 	struct s2mf301_pmeter_data *pmeter = (struct s2mf301_pmeter_data *)data;
@@ -491,10 +491,35 @@ static irqreturn_t s2mf301_pm_water2_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void s2mf301_pm_water_init(struct s2mf301_pmeter_data *pmeter)
+void *s2mf301_pm_water_init(struct s2mf301_water_data *water)
 {
 	int ret;
-	struct s2mf301_dev *s2mf301 = pmeter->s2mf301;
+	struct power_supply *psy;
+	struct s2mf301_pmeter_data *pmeter;
+	struct s2mf301_dev *s2mf301;
+
+	psy = get_power_supply_by_name("s2mf301-pmeter");
+	if (!psy) {
+		pr_info("%s, Fail to get psy\n", __func__);
+		return NULL;
+	}
+
+	pmeter = power_supply_get_drvdata(psy);
+	if (!pmeter) {
+		pr_info("%s, Fail to get drv data\n", __func__);
+		return NULL;
+	}
+
+	s2mf301 = pmeter->s2mf301;
+	if (!s2mf301) {
+		pr_info("%s, Fail to get mfd data\n", __func__);
+		return NULL;
+	}
+
+	pmeter->water = water;
+
+	pr_info("[WATER], %s\n", __func__);
+
 	/* 
 	 * GPADC12 hyst setting
 	 * 0x73[2:0], 0x74[6:4]
@@ -556,7 +581,9 @@ static void s2mf301_pm_water_init(struct s2mf301_pmeter_data *pmeter)
 	if (ret < 0)
 		pr_err("%s: Fail to request SYS in IRQ: %d: %d\n", __func__, pmeter->irq_gpadc2up, ret);
 
+	return pmeter;
 }
+EXPORT_SYMBOL_GPL(s2mf301_pm_water_init);
 #endif
 
 static int s2mf301_pm_get_property(struct power_supply *psy,
@@ -565,6 +592,9 @@ static int s2mf301_pm_get_property(struct power_supply *psy,
 {
 	struct s2mf301_pmeter_data *pmeter = power_supply_get_drvdata(psy);
 	enum power_supply_lsi_property lsi_prop = (enum power_supply_lsi_property) psp;
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+	int volt[2] = {0, };
+#endif
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -588,6 +618,26 @@ static int s2mf301_pm_get_property(struct power_supply *psy,
 			val->intval = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_VBAT);
 			break;
 		case POWER_SUPPLY_LSI_PROP_VGPADC:
+#if IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
+			s2mf301_pm_water_set_gpadc_mode(pmeter, S2MF301_GPADC_VMODE);
+			s2mf301_pm_enable(pmeter, CONTINUOUS_MODE, 0,  S2MF301_PM_TYPE_GPADC12);
+			s2mf301_pm_water_det_en(pmeter, false);
+
+			usleep_range(10000, 10100);
+
+			s2mf301_pm_water_irq_masking(pmeter, false, S2MF301_IRQ_TYPE_RR);
+			s2mf301_pm_enable(pmeter, REQUEST_RESPONSE_MODE, true, S2MF301_PM_TYPE_GPADC12);
+
+			msleep(20);
+			s2mf301_pm_water_irq_masking(pmeter, true, S2MF301_IRQ_TYPE_RR);
+			s2mf301_pm_water_set_gpadc_mode(pmeter, S2MF301_GPADC_RMODE);
+
+			volt[0] = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC1);
+			volt[1] = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC2);
+
+			val->intval = (volt[0] < volt[1] ? volt[0] : volt[1]);
+#endif
+			break;
 		case POWER_SUPPLY_LSI_PROP_VGPADC1:
 			val->intval = s2mf301_pm_get_value(pmeter, S2MF301_PM_TYPE_GPADC1);
 			break;
@@ -658,10 +708,6 @@ static int s2mf301_pm_set_property(struct power_supply *psy,
 			s2mf301_pm_enable(pmeter, REQUEST_RESPONSE_MODE, true, val->intval);
 			break;
 		case POWER_SUPPLY_LSI_PROP_ENABLE_WATER:
-#if defined(CONFIG_S2MF301_TYPEC_WATER)
-			pmeter->water = (struct s2mf301_water_data *)val->strval;
-			s2mf301_pm_water_init(pmeter);
-#endif
 			break;
 		default:
 			return -EINVAL;
@@ -761,10 +807,11 @@ static int s2mf301_pm_get_rid_adc(void *_data)
 
 	switch (reg_data & S2MF301_PM_RID_STATUS_MASK) {
 	case S2MF301_PM_RID_STATUS_255K:
-		rid = ADC_JIG_USB_ON;
+	case S2MF301_PM_RID_STATUS_56K:
+		rid = ADC_JIG_USB_OFF;
 		break;
 	case S2MF301_PM_RID_STATUS_301K:
-		rid = ADC_JIG_USB_OFF;
+		rid = ADC_JIG_USB_ON;
 		break;
 	case S2MF301_PM_RID_STATUS_523K:
 		rid = ADC_JIG_UART_OFF;

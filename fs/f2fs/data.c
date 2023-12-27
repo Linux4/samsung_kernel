@@ -557,19 +557,6 @@ static void __attach_io_flag(struct f2fs_io_info *fio)
 		fio->op_flags |= REQ_META;
 	if ((1 << fio->temp) & fua_flag)
 		fio->op_flags |= REQ_FUA;
-
-	/*
-	 * P221011-01695
-	 * flush_group: Process group in which file's is very important.
-	 * e.g., system_server, keystore, etc.
-	 */
-	if (fio->type == DATA && !(fio->op_flags & REQ_FUA) &&
-	    in_group_p(F2FS_OPTION(sbi).flush_group)) {
-		struct inode *inode = fio->page->mapping->host;
-
-		if (f2fs_is_atomic_file(inode) && f2fs_is_commit_atomic_write(inode))
-			fio->op_flags |= REQ_FUA;
-	}
 }
 
 static void __submit_merged_bio(struct f2fs_bio_info *io)
@@ -721,7 +708,7 @@ int f2fs_submit_page_bio(struct f2fs_io_info *fio)
 	}
 
 	if (fio->io_wbc && !is_read_io(fio->op))
-		wbc_account_cgroup_owner(fio->io_wbc, page, PAGE_SIZE);
+		wbc_account_cgroup_owner(fio->io_wbc, fio->page, PAGE_SIZE);
 
 	__attach_io_flag(fio);
 	/* @fs.sec -- 0531f63f3688ffb680b8c83a53641dce37f186da -- */
@@ -858,6 +845,8 @@ void f2fs_submit_merged_ipu_write(struct f2fs_sb_info *sbi,
 	bool found = false;
 	struct bio *target = bio ? *bio : NULL;
 
+	f2fs_bug_on(sbi, !target && !page);
+
 	for (temp = HOT; temp < NR_TEMP_TYPE && !found; temp++) {
 		struct f2fs_bio_info *io = sbi->write_io[DATA] + temp;
 		struct list_head *head = &io->bio_list;
@@ -937,7 +926,7 @@ alloc_new:
 	}
 
 	if (fio->io_wbc)
-		wbc_account_cgroup_owner(fio->io_wbc, page, PAGE_SIZE);
+		wbc_account_cgroup_owner(fio->io_wbc, fio->page, PAGE_SIZE);
 
 	inc_page_count(fio->sbi, WB_DATA_TYPE(page));
 
@@ -1011,7 +1000,7 @@ alloc_new:
 	}
 
 	if (fio->io_wbc)
-		wbc_account_cgroup_owner(fio->io_wbc, bio_page, PAGE_SIZE);
+		wbc_account_cgroup_owner(fio->io_wbc, fio->page, PAGE_SIZE);
 
 	io->last_block_in_bio = fio->new_blkaddr;
 
@@ -2897,7 +2886,8 @@ out:
 
 	if (unlikely(f2fs_cp_error(sbi))) {
 		f2fs_submit_merged_write(sbi, DATA);
-		f2fs_submit_merged_ipu_write(sbi, bio, NULL);
+		if (bio && *bio)
+			f2fs_submit_merged_ipu_write(sbi, bio, NULL);
 		submitted = NULL;
 	}
 

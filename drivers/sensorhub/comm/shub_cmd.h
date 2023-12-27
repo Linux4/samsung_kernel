@@ -36,15 +36,15 @@ enum {
 	AP_SHUTDOWN = 0,
 	AP_RESUME,
 	AP_SUSPEND,
-	SYSTEM_TIME,
 	RTC_TIME,
+	LCD_LPM,
 	LCD_ON,
 	LCD_OFF,
 	POW_CONNECTED,
 	POW_DISCONNECTED,
 	CALL_IDLE,
 	CALL_ACTIVE = 10,
-	WHO_AM_I,
+	COPR_STATUS,
 	HUB_SYSTEM_INFO,
 	MOBEAM_DATA,
 	MOBEAM_HOP_TABLE,
@@ -108,6 +108,7 @@ enum {
 	// 72 (0x48)                  // DISPLAY_REFRESH_RATE @ref SensorAdditionalInfo.java
 	// 73 (0x49)                  // WIFI_DATA_ACTIVITY_ @ref SensorAdditionalInfo.java
 	// 74 (0x50)                  // SENSORHUB_INFO_POWERSHARE_ @ref MotionRecognitionService.java
+	MODEL_NAME_INFO = 75,
 	CMD_VALUE_MAX,
 };
 

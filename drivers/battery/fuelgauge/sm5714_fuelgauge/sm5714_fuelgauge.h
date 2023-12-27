@@ -330,6 +330,7 @@ struct sm5714_fuelgauge_data {
 #endif
 	unsigned int standard_capacity;
 
+	bool capacity_max_updated;
 	bool initial_update_of_soc;
 	bool sleep_initial_update_of_soc;
 	struct mutex fg_lock;

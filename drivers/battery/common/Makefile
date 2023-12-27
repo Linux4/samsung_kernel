@@ -1,9 +1,9 @@
 obj-$(CONFIG_SEC_PD)				+= sec_pd.o
+obj-$(CONFIG_BATTERY_SAMSUNG)		+= sb_wireless.o
 
 obj-$(CONFIG_BATTERY_SAMSUNG)	+= sec-battery.o
 sec-battery-$(CONFIG_ENG_BATTERY_CONCEPT) += sb_checklist_app.o
-sec-battery-$(CONFIG_BATTERY_SAMSUNG)		+= sec_charging_modprobe.o sec_battery.o sec_battery_vote.o sec_battery_thermal.o sec_battery_sysfs.o sec_battery_dt.o sec_battery_ttf.o sec_adc.o
-sec-battery-$(CONFIG_BATTERY_CISD)	+= sec_cisd.o
+sec-battery-$(CONFIG_BATTERY_SAMSUNG)		+= sec_charging_modprobe.o sec_battery.o sec_battery_vote.o sec_battery_thermal.o sec_battery_sysfs.o sec_battery_dt.o sec_battery_ttf.o sec_adc.o sec_cisd.o sb_full_soc.o
 sec-battery-$(CONFIG_STEP_CHARGING)		+= sec_step_charging.o
 sec-battery-$(CONFIG_WIRELESS_AUTH)		+= sec_battery_misc.o
 sec-battery-$(CONFIG_WIRELESS_CHARGING)	+= sec_battery_wc.o
@@ -21,11 +21,9 @@ GCOV_PROFILE_sec_adc.o := y
 GCOV_PROFILE_sec_battery_sysfs.o := y
 GCOV_PROFILE_sec_battery_ttf.o := y
 GCOV_PROFILE_sec_battery_dt.o := y
+GCOV_PROFILE_sec_cisd.o := y
 ifneq ($(CONFIG_WIRELESS_CHARGING), n)
 GCOV_PROFILE_sec_battery_wc.o := y
-endif
-ifneq ($(CONFIG_BATTERY_CISD), n)
-GCOV_PROFILE_sec_cisd.o := y
 endif
 ifneq ($(CONFIG_STEP_CHARGING), n)
 GCOV_PROFILE_sec_step_charging.o := y

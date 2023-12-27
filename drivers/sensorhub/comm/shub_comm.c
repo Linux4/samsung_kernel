@@ -20,13 +20,12 @@
 #include "../sensormanager/shub_sensor_manager.h"
 #include "../utility/shub_utility.h"
 #include "../vendor/shub_vendor.h"
+#include "shub_comm.h"
 #include "shub_cmd.h"
 
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
-
-#define SHUB_CMD_SIZE		64
 
 #define SHUB2AP_BYPASS_DATA	0x37
 #define SHUB2AP_LIBRARY_DATA	0x01
@@ -39,21 +38,6 @@
 #define SHUB2AP_LOG_DUMP	0x12
 #define SHUB2AP_SYSTEM_INFO	0x31
 #define SHUB2AP_BIG_DATA	0x51
-
-struct shub_msg {
-	u8 cmd;
-	u8 type;
-	u8 subcmd;
-	u16 total_length;
-	u16 length;
-	u64 timestamp;
-	char *buffer;
-	bool is_empty_pending_list;
-	struct completion *done;
-	struct list_head list;
-} __attribute__((__packed__));
-
-#define SHUB_MSG_HEADER_SIZE	offsetof(struct shub_msg, buffer)
 
 struct mutex comm_mutex;
 struct mutex pending_mutex;
@@ -113,12 +97,13 @@ static int comm_to_sensorhub(struct shub_msg *msg)
 
 	mutex_lock(&comm_mutex);
 	memcpy(shub_cmd_data, msg, SHUB_MSG_HEADER_SIZE);
-	if (msg->length > 0) {
-		memcpy(&shub_cmd_data[SHUB_MSG_HEADER_SIZE], msg->buffer, msg->length);
-	} else if (msg->length > (SHUB_CMD_SIZE - SHUB_MSG_HEADER_SIZE)) {
+
+	if (msg->length > (SHUB_CMD_SIZE - SHUB_MSG_HEADER_SIZE)) {
 		shub_errf("command size(%d) is over.", msg->length);
 		mutex_unlock(&comm_mutex);
 		return -EINVAL;
+	} else if (msg->length > 0) {
+		memcpy(&shub_cmd_data[SHUB_MSG_HEADER_SIZE], msg->buffer, msg->length);
 	}
 
 	shub_infof("cmd %d type %d subcmd %d send_buf_len %d ts %llu", msg->cmd, msg->type, msg->subcmd, msg->length,

@@ -24,7 +24,7 @@ void panel_firmware_set_name(struct panel_device *panel, char *name)
 		return;
 
 	kfree(panel->fw.name);
-	panel->fw.name = kstrndup(name, PNOBJ_NAME_LEN, GFP_KERNEL);
+	panel->fw.name = kstrndup(name, PNOBJ_NAME_LEN-1, GFP_KERNEL);
 }
 
 char *panel_firmware_get_name(struct panel_device *panel)
@@ -165,10 +165,8 @@ int panel_firmware_load(struct panel_device *panel,
 	return 0;
 
 err:
-	list_for_each_entry_safe(pos, next, pnobj_list, list) {
-		list_del(&pos->list);
+	list_for_each_entry_safe(pos, next, pnobj_list, list)
 		destroy_panel_object(pos);
-	}
 	kvfree(json);
 	release_firmware(fw_entry);
 	panel_firmware_set_load_status(panel, PANEL_FIRMWARE_LOAD_STATUS_FAILURE);

@@ -72,10 +72,10 @@ static void check_no_event(void)
 
 		event = get_sensor_event(type);
 		if (sensor->report_mode_continuous && sensor->enabled && sensor->max_report_latency == 0 &&
-		    sensor->enable_timestamp + 5000000000ULL < timestamp &&
+		    MAX(sensor->enable_timestamp, sensor->change_timestamp) + 5000000000ULL < timestamp &&
 		    event->received_timestamp + 5000000000ULL < timestamp) {
-			shub_infof("sensor(%d) %lld(%lld), cur = %lld en = %lld", type, event->received_timestamp,
-				   event->timestamp, timestamp, sensor->enable_timestamp);
+			shub_infof("sensor(%d) %lld(%lld), cur = %lld en = %lld change = %lld", type, event->received_timestamp,
+				   event->timestamp, timestamp, sensor->enable_timestamp, sensor->change_timestamp);
 
 			if (sensor->enable_timestamp < sensor->disable_timestamp) {
 				shub_infof("enable_timestamp invalid: enable_timestamp(%lld)  disable_timestamp(%lld)",

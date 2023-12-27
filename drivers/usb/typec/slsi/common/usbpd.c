@@ -727,6 +727,7 @@ void usbpd_rx_soft_reset(struct usbpd_data *pd_data)
 	usbpd_reinit(pd_data->dev);
 	usbpd_policy_reset(pd_data, SOFTRESET_RECEIVED);
 }
+EXPORT_SYMBOL(usbpd_rx_soft_reset);
 
 void usbpd_reinit(struct device *dev)
 {

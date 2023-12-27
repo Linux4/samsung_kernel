@@ -26,6 +26,8 @@
 #define HUB_RESET_REQ_NO_EVENT		0x1a
 #define HUB_RESET_REQ_TASK_FAILURE	0x1b
 #define MINI_DUMP_LENGTH		512
+#define MODEL_NAME_MAX 10
+
 enum {
 	RESET_TYPE_HUB_CRASHED = 0,
 	RESET_TYPE_KERNEL_SYSFS,
@@ -82,6 +84,7 @@ struct shub_data_t {
 
 	int sensor_ldo_en;
 	char mini_dump[MINI_DUMP_LENGTH];
+	char model_name[MODEL_NAME_MAX];
 };
 
 #if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)

@@ -528,7 +528,7 @@ static int panel_expr_data_get_value(struct panel_device *panel, struct panel_ex
 		/* not implemented */
 		value = 0;
 	} else if (data->type == PANEL_EXPR_TYPE_OPERAND_PROP) {
-		value = panel_property_get_value(&panel->prop_list, data->op.str);
+		value = panel_get_property_value(panel, data->op.str);
 		if (value < 0) {
 			panel_err("failed to get property(%s) value\n", data->op.str);
 			return 0;

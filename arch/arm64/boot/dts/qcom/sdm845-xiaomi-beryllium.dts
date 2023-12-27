@@ -2086,7 +2086,7 @@
 			status = "disabled";
 			phandle = <0x16a>;
 
-			lanes@1c06200 {
+			phy@1c06200 {
 				reg = <0x00 0x1c06200 0x00 0x128 0x00 0x1c06400 0x00 0x1fc 0x00 0x1c06800 0x00 0x218 0x00 0x1c06600 0x00 0x70>;
 				clocks = <0x2d 0x2e>;
 				clock-names = "pipe0";
@@ -2143,7 +2143,7 @@
 			status = "disabled";
 			phandle = <0x16c>;
 
-			lanes@1c06200 {
+			phy@1c06200 {
 				reg = <0x00 0x1c0a800 0x00 0x800 0x00 0x1c0a800 0x00 0x800 0x00 0x1c0b800 0x00 0x400>;
 				clocks = <0x2d 0x36>;
 				clock-names = "pipe0";
@@ -2248,7 +2248,7 @@
 			vdda-pll-supply = <0x71>;
 			phandle = <0x16e>;
 
-			lanes@1d87400 {
+			phy@1d87400 {
 				reg = <0x00 0x1d87400 0x00 0x108 0x00 0x1d87600 0x00 0x1e0 0x00 0x1d87c00 0x00 0x1dc 0x00 0x1d87800 0x00 0x108 0x00 0x1d87a00 0x00 0x1e0>;
 				#phy-cells = <0x00>;
 				phandle = <0x6c>;
@@ -3847,7 +3847,7 @@
 			vdda-pll-supply = <0x70>;
 			phandle = <0x185>;
 
-			lanes@88e9200 {
+			phy@88e9200 {
 				reg = <0x00 0x88e9200 0x00 0x128 0x00 0x88e9400 0x00 0x200 0x00 0x88e9c00 0x00 0x218 0x00 0x88e9600 0x00 0x128 0x00 0x88e9800 0x00 0x200 0x00 0x88e9a00 0x00 0x100>;
 				#clock-cells = <0x00>;
 				#phy-cells = <0x00>;
@@ -3871,7 +3871,7 @@
 			reset-names = "phy\0common";
 			phandle = <0x186>;
 
-			lane@88eb200 {
+			phy@88eb200 {
 				reg = <0x00 0x88eb200 0x00 0x128 0x00 0x88eb400 0x00 0x1fc 0x00 0x88eb800 0x00 0x218 0x00 0x88eb600 0x00 0x70>;
 				#clock-cells = <0x00>;
 				#phy-cells = <0x00>;
@@ -5825,10 +5825,10 @@
 		uart15 = "/soc@0/geniqup@ac0000/serial@a9c000";
 		pcie0 = "/soc@0/pci@1c00000";
 		pcie0_phy = "/soc@0/phy@1c06000";
-		pcie0_lane = "/soc@0/phy@1c06000/lanes@1c06200";
+		pcie0_lane = "/soc@0/phy@1c06000/phy@1c06200";
 		pcie1 = "/soc@0/pci@1c08000";
 		pcie1_phy = "/soc@0/phy@1c0a000";
-		pcie1_lane = "/soc@0/phy@1c0a000/lanes@1c06200";
+		pcie1_lane = "/soc@0/phy@1c0a000/phy@1c06200";
 		mem_noc = "/soc@0/interconnect@1380000";
 		dc_noc = "/soc@0/interconnect@14e0000";
 		config_noc = "/soc@0/interconnect@1500000";
@@ -5838,7 +5838,7 @@
 		mmss_noc = "/soc@0/interconnect@1740000";
 		ufs_mem_hc = "/soc@0/ufshc@1d84000";
 		ufs_mem_phy = "/soc@0/phy@1d87000";
-		ufs_mem_phy_lanes = "/soc@0/phy@1d87000/lanes@1d87400";
+		ufs_mem_phy_lanes = "/soc@0/phy@1d87000/phy@1d87400";
 		cryptobam = "/soc@0/dma@1dc4000";
 		crypto = "/soc@0/crypto@1dfa000";
 		ipa = "/soc@0/ipa@1e40000";
@@ -5961,9 +5961,9 @@
 		usb_1_hsphy = "/soc@0/phy@88e2000";
 		usb_2_hsphy = "/soc@0/phy@88e3000";
 		usb_1_qmpphy = "/soc@0/phy@88e9000";
-		usb_1_ssphy = "/soc@0/phy@88e9000/lanes@88e9200";
+		usb_1_ssphy = "/soc@0/phy@88e9000/phy@88e9200";
 		usb_2_qmpphy = "/soc@0/phy@88eb000";
-		usb_2_ssphy = "/soc@0/phy@88eb000/lane@88eb200";
+		usb_2_ssphy = "/soc@0/phy@88eb000/phy@88eb200";
 		usb_1 = "/soc@0/usb@a6f8800";
 		usb_1_dwc3 = "/soc@0/usb@a6f8800/dwc3@a600000";
 		usb_2 = "/soc@0/usb@a8f8800";

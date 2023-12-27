@@ -38,10 +38,6 @@ struct panel_drv_funcs testmode_dummy_funcs = {
 	.doze = panel_testmode_dummy,
 	.doze_suspend = panel_testmode_dummy,
 #endif
-#ifdef CONFIG_USDM_PANEL_MULTI_RESOLUTION
-	.set_mres = panel_testmode_dummy_void,
-#endif
-	.get_mres = panel_testmode_dummy_void,
 #if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	.set_display_mode = panel_testmode_dummy_void,
 	.get_display_mode = panel_get_display_mode,

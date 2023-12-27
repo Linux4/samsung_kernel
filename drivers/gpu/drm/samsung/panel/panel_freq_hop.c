@@ -10,7 +10,7 @@
 #include "panel_drv.h"
 #include "panel_debug.h"
 #include "panel_freq_hop.h"
-#include <linux/dev_ril_bridge.h>
+#include "dev_ril_header.h"
 
 static int of_get_freq_hop_elem(struct device_node *np, struct freq_hop_elem *elem)
 {

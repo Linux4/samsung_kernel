@@ -225,7 +225,6 @@ err:
 static int aod_exit_from_lpm(struct aod_dev_info *aod_dev)
 {
 	int ret = 0;
-
 	struct aod_ioctl_props *props = &aod_dev->props;
 
 	panel_mutex_lock(&aod_dev->lock);
@@ -296,20 +295,15 @@ err:
 
 static int aod_doze_suspend(struct aod_dev_info *aod_dev)
 {
-	int ret = 0;
-
 	panel_mutex_lock(&aod_dev->lock);
-
 	panel_info("was called\n");
-
 	panel_mutex_unlock(&aod_dev->lock);
 
-	return ret;
+	return 0;
 }
 
 static int aod_power_off(struct aod_dev_info *aod_dev)
 {
-	int ret = 0;
 	struct aod_ioctl_props *props = &aod_dev->props;
 
 	panel_mutex_lock(&aod_dev->lock);
@@ -331,14 +325,13 @@ static int aod_power_off(struct aod_dev_info *aod_dev)
 	props->self_reset_cnt = 0;
 	panel_mutex_unlock(&aod_dev->lock);
 
-	return ret;
+	return 0;
 }
 
 static int aod_black_grid_on(struct aod_dev_info *aod_dev)
 {
 	int ret;
 
-	panel_info("was called\n");
 	if (!check_aod_seqtbl_exist(aod_dev, ICON_GRID_ON_SEQ)) {
 		panel_dbg("seq does not exists\n");
 		return 0;
@@ -351,6 +344,8 @@ static int aod_black_grid_on(struct aod_dev_info *aod_dev)
 		return ret;
 	}
 
+	panel_info("was called\n");
+
 	return 0;
 }
 
@@ -358,7 +353,6 @@ static int aod_black_grid_off(struct aod_dev_info *aod_dev)
 {
 	int ret;
 
-	panel_info("was called\n");
 	if (!check_aod_seqtbl_exist(aod_dev, ICON_GRID_OFF_SEQ)) {
 		panel_dbg("seq does not exists\n");
 		return 0;
@@ -370,6 +364,8 @@ static int aod_black_grid_off(struct aod_dev_info *aod_dev)
 				ICON_GRID_OFF_SEQ);
 		return ret;
 	}
+
+	panel_info("was called\n");
 
 	return 0;
 }

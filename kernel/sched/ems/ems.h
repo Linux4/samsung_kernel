@@ -25,6 +25,7 @@ enum task_cgroup {
 	CGROUP_SYSTEM_BACKGROUND,
 	CGROUP_NNAPI_HAL,
 	CGROUP_CAMERA_DAEMON,
+	CGROUP_MIDGROUND,
 	CGROUP_COUNT,
 };
 
@@ -761,6 +762,7 @@ static inline int is_misfit_task_util(unsigned long util)
 extern int profile_sched_init(struct kobject *);
 extern int profile_sched_data(void);
 extern int profile_get_htask_ratio(int cpu);
+extern int profile_get_fps(void);
 extern u64 profile_get_cpu_wratio_busy(int cpu);
 extern void profile_enqueue_task(struct rq *rq, struct task_struct *p);
 extern void get_system_sched_data(struct system_profile_data *);

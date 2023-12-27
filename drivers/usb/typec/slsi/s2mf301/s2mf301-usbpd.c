@@ -264,8 +264,9 @@ static void s2mf301_usbpd_init_tx_hard_reset(struct s2mf301_usbpd_data *pdic_dat
 	s2mf301_usbpd_bulk_read(i2c, S2MF301_REG_INT_STATUS0,
 			S2MF301_MAX_NUM_INT_STATUS, intr);
 
-	pr_info("%s, --, clear status[0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x]\n",
-			__func__, intr[0], intr[1], intr[2], intr[3], intr[4], intr[5], intr[6]);
+	pr_info("%s, --, clear status[0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x]\n",
+			__func__, intr[0], intr[1], intr[2], intr[3], intr[4],
+			intr[5], intr[6], intr[7], intr[8], intr[9]);
 
 	pdic_data->status_reg = 0;
 }
@@ -518,7 +519,6 @@ static void s2mf301_pr_swap(void *_data, int val)
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 		pd_data->pd_noti.event = PDIC_NOTIFY_EVENT_PD_PRSWAP_SNKTOSRC;
 		pd_data->pd_noti.sink_status.selected_pdo_num = 0;
-		pd_data->pd_noti.sink_status.available_pdo_num = 0;
 		pd_data->pd_noti.sink_status.current_pdo_num = 0;
 		pdic_event_work(pd_data, PDIC_NOTIFY_DEV_BATT,
 			PDIC_NOTIFY_ID_POWER_STATUS, 0, 0, 0);
@@ -536,7 +536,6 @@ static void s2mf301_pr_swap(void *_data, int val)
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 		pd_data->pd_noti.event = PDIC_NOTIFY_EVENT_PD_PRSWAP_SRCTOSNK;
 		pd_data->pd_noti.sink_status.selected_pdo_num = 0;
-		pd_data->pd_noti.sink_status.available_pdo_num = 0;
 		pd_data->pd_noti.sink_status.current_pdo_num = 0;
 		pdic_event_work(pd_data, PDIC_NOTIFY_DEV_BATT,
 			PDIC_NOTIFY_ID_POWER_STATUS, 0, 0, 0);
@@ -737,7 +736,7 @@ static void s2mf301_set_irq_enable(struct s2mf301_usbpd_data *_data,
 		u8 int0, u8 int1, u8 int2, u8 int3, u8 int4, u8 int5)
 {
 	u8 int_mask[S2MF301_MAX_NUM_INT_STATUS]
-		= {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+		= {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 	int ret = 0;
 	struct i2c_client *i2c = _data->i2c;
 	struct device *dev = &i2c->dev;
@@ -903,6 +902,9 @@ static bool s2mf301_poll_status(void *_data)
 
 	dev_info(dev, "%s status[0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x]\n",
 			__func__, intr[0], intr[1], intr[2], intr[3], intr[4], intr[5], intr[6]);
+
+	if (intr[7] || intr[8] || intr[9])
+		dev_info(dev, "%s, status[0x%x 0x%x 0x%x]\n", __func__, intr[7], intr[8], intr[9]);
 
 	if ((intr[0] | intr[1] | intr[2] | intr[3] | intr[4] | intr[5]) == 0)
 		goto out;
@@ -1585,13 +1587,14 @@ static int s2mf301_set_power_role(void *_data, int val)
 	struct s2mf301_usbpd_data *pdic_data = data->phy_driver_data;
 
 	pr_info("%s, power_role(%d)\n", __func__, val);
-	pdic_data->power_role = val;
 
 	if (val == USBPD_SINK) {
+		pdic_data->power_role = val;
 		pdic_data->is_pr_swap = true;
 		s2mf301_assert_rd(data);
 		s2mf301_snk(pdic_data->i2c);
 	} else if (val == USBPD_SOURCE) {
+		pdic_data->power_role = val;
 		pdic_data->is_pr_swap = true;
 		s2mf301_assert_rp(data);
 		s2mf301_src(pdic_data->i2c);
@@ -1603,7 +1606,6 @@ static int s2mf301_set_power_role(void *_data, int val)
 	} else
 		return(-1);
 
-	//pdic_data->power_role = val;
 	return 0;
 }
 
@@ -3436,8 +3438,9 @@ static void s2mf301_usbpd_try_snk(struct s2mf301_usbpd_data *pdic_data)
 	usleep_range(1000, 1100);
 
 	s2mf301_usbpd_bulk_read(i2c, S2MF301_REG_INT_STATUS0, S2MF301_MAX_NUM_INT_STATUS, intr);
-	pr_info("%s, intr[0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x]\n", __func__,
-			intr[0], intr[1], intr[2], intr[3], intr[4], intr[5], intr[6]);
+	pr_info("%s, status[0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x]\n",
+			__func__, intr[0], intr[1], intr[2], intr[3], intr[4],
+			intr[5], intr[6], intr[7], intr[8], intr[9]);
 }
 #endif
 
@@ -3711,6 +3714,9 @@ static irqreturn_t s2mf301_irq_thread(int irq, void *data)
 	mutex_lock(&pdic_data->_mutex);
 
 	s2mf301_poll_status(pd_data);
+
+	if (s2mf301_get_status(pd_data, MSG_SOFTRESET))
+		usbpd_rx_soft_reset(pd_data);
 
 	if (s2mf301_get_status(pd_data, PLUG_DETACH)) {
 #if IS_ENABLED(CONFIG_SEC_FACTORY)

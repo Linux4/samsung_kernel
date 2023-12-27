@@ -68,6 +68,9 @@
 #define tDRPtry (75) /* 75~150ms */
 #define tTryCCDebounce (15) /* 10~20ms */
 
+/* Custom Timer */
+#define tStartAmsMargin (100)
+
 enum s2m_pdic_power_role {
 	PDIC_SINK,
 	PDIC_SOURCE
@@ -665,6 +668,7 @@ struct policy_data {
 	int				selected_pdo_num;
 	int				requested_pdo_type;
 	int				requested_pdo_num;
+	int			got_ufp_vdm;
 };
 
 struct protocol_data {
@@ -763,6 +767,7 @@ struct usbpd_manager_data {
 	int req_pdo_type;
 	bool psrdy_sent;
 	int is_ccopen;
+	bool first_noti_sent;
 };
 
 struct usbpd_data {

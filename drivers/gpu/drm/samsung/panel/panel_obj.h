@@ -70,7 +70,7 @@ static inline unsigned int get_pnobj_cmd_type(struct pnobj *base)
 
 static inline void set_pnobj_name(struct pnobj *base, char *name)
 {
-	base->name = kstrndup(name, PNOBJ_NAME_LEN, GFP_KERNEL);
+	base->name = kstrndup(name, PNOBJ_NAME_LEN-1, GFP_KERNEL);
 }
 
 static inline char *get_pnobj_name(struct pnobj *base)
@@ -88,11 +88,22 @@ static inline struct list_head *get_pnobj_list(struct pnobj *base)
 	return &base->list;
 }
 
+static inline void delete_pnobj_list(struct pnobj *base)
+{
+	list_del(get_pnobj_list(base));
+}
+
 static inline void pnobj_init(struct pnobj *base, u32 type, char *name)
 {
 	set_pnobj_cmd_type(base, type);
 	set_pnobj_name(base, name);
 	INIT_LIST_HEAD(&base->list);
+}
+
+static inline void pnobj_deinit(struct pnobj *base)
+{
+	delete_pnobj_list(base);
+	free_pnobj_name(base);
 }
 
 #define __PNOBJ_INITIALIZER(_pnobjname, _cmdtype) \
@@ -115,10 +126,10 @@ struct pnobj *pnobj_find_by_name(struct list_head *head, char *name);
 struct pnobj *pnobj_find_by_substr(struct list_head *head, char *substr);
 struct pnobj *pnobj_find_by_pnobj(struct list_head *head, struct pnobj *pnobj);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
-int pnobj_type_compare(void *priv,
+int pnobj_compare(void *priv,
 		struct list_head *a, struct list_head *b);
 #else
-int pnobj_type_compare(void *priv,
+int pnobj_compare(void *priv,
 		const struct list_head *a, const struct list_head *b);
 #endif
 struct pnobj_refs *create_pnobj_refs(void);

@@ -36,8 +36,6 @@ size_t panel_drv_ioctl_scnprintf_cmd_name(char *buf, size_t size, unsigned int c
 		[_IOC_NR(PANEL_IOC_DOZE)] = "DOZE",
 		[_IOC_NR(PANEL_IOC_DOZE_SUSPEND)] = "DOZE_SUSPEND",
 #endif
-		[_IOC_NR(PANEL_IOC_SET_MRES)] = "SET_MRES",
-		[_IOC_NR(PANEL_IOC_GET_MRES)] = "GET_MRES",
 #if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 		[_IOC_NR(PANEL_IOC_GET_DISPLAY_MODE)] = "GET_DISPLAY_MODE",
 		[_IOC_NR(PANEL_IOC_SET_DISPLAY_MODE)] = "SET_DISPLAY_MODE",
@@ -74,8 +72,6 @@ static const struct panel_drv_ioctl_desc panel_drv_ioctls[] = {
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DOZE, panel_drv_doze_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_DOZE_SUSPEND, panel_drv_doze_suspend_ioctl),
 #endif
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_SET_MRES, panel_drv_set_mres_ioctl),
-	PANEL_DRV_IOCTL_DEF(PANEL_IOC_GET_MRES, panel_drv_get_mres_ioctl),
 #if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_GET_DISPLAY_MODE, panel_drv_get_display_mode_ioctl),
 	PANEL_DRV_IOCTL_DEF(PANEL_IOC_SET_DISPLAY_MODE, panel_drv_set_display_mode_ioctl),

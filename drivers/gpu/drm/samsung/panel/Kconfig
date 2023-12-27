@@ -110,11 +110,6 @@ config USDM_FACTORY_ECC_TEST
 	depends on USDM_PANEL
 	default n
 
-config USDM_MDNIE_TDMB
-	bool "Support TDMB Tuning"
-	depends on USDM_PANEL && TDMB_NOTIFIER
-	default n
-
 config USDM_PANEL_BACKLIGHT_PAC_3_0
 	bool "Support baclight PAC 3.0"
 	depends on USDM_PANEL
@@ -177,6 +172,11 @@ config USDM_FACTORY_MST_TEST
 
 config USDM_FACTORY_BRIGHTDOT_TEST
 	bool "Support Brightdot Test"
+	depends on USDM_PANEL
+	default n
+
+config USDM_FACTORY_VGLHIGHDOT_TEST
+	bool "Support VGL Highdot Test"
 	depends on USDM_PANEL
 	default n
 
@@ -262,6 +262,22 @@ config USDM_LPD_AUTO_BR
 
 config USDM_ADAPTIVE_MIPI
 	bool "Support Adaptive MIPI"
+	depends on USDM_PANEL
+	default n
+
+config USDM_SDP_ADAPTIVE_MIPI
+	bool "Support SDP Adaptive MIPI"
+	depends on USDM_PANEL
+	depends on SDP
+	default n
+
+config USDM_USE_CUSTOM_SOFTDEP
+	bool "Support Custom softdep"
+	depends on USDM_PANEL
+	default n
+
+config USDM_PANEL_UEVENT_RECOVERY
+	bool "Support uevent recovery"
 	depends on USDM_PANEL
 	default n
 

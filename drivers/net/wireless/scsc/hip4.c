@@ -66,16 +66,20 @@ MODULE_PARM_DESC(hip4_qos_enable, "enable HIP4 PM QoS. (default: Y)");
 
 #if defined(CONFIG_SOC_S5E9925)
 static int hip4_qos_max_tput_in_mbps = 150;
-#else
+#elif defined(CONFIG_SOC_S5E8835)
 static int hip4_qos_max_tput_in_mbps = 50;
+#else
+static int hip4_qos_max_tput_in_mbps = 250;
 #endif
 module_param(hip4_qos_max_tput_in_mbps, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(hip4_qos_max_tput_in_mbps, "throughput (in Mbps) to apply Max PM QoS");
 
 #if defined(CONFIG_SOC_S5E9925)
 static int hip4_qos_med_tput_in_mbps = 50;
-#else
+#elif defined(CONFIG_SOC_S5E8835)
 static int hip4_qos_med_tput_in_mbps = 30;
+#else
+static int hip4_qos_med_tput_in_mbps = 150;
 #endif
 module_param(hip4_qos_med_tput_in_mbps, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(hip4_qos_med_tput_in_mbps, "throughput (in Mbps) to apply Median PM QoS");

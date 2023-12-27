@@ -64,7 +64,7 @@
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
 #if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
 #include "../input/sec_input/stm32/pogo_notifier_v3.h"
-#else
+#elif IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 #include <linux/input/pogo_i2c_notifier.h>
 #endif
 #endif
@@ -190,8 +190,10 @@ struct a96t396_data {
 	struct notifier_block hall_nb;
 #endif
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	struct notifier_block pogo_nb;
 	struct delayed_work init_work;
+#endif
 #endif
 #ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	int ioctl_pass;
@@ -3073,6 +3075,7 @@ static int a96t396_hall_notifier(struct notifier_block *nb,
 #endif
 
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 static int a96t396_pogo_notifier(struct notifier_block *nb,
 		unsigned long action, void *pogo_data)
 {
@@ -3095,6 +3098,7 @@ static int a96t396_pogo_notifier(struct notifier_block *nb,
 
 	return 0;
 }
+#endif
 #endif
 
 static void a96t396_check_first_working(struct a96t396_data *data)
@@ -3227,6 +3231,7 @@ static void cleanup_miscdev(struct a96t396_data *data)
 #endif
 
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 static void a96t396_init_work_func(struct work_struct *work)
 {
 	struct a96t396_data *data = container_of((struct delayed_work *)work,
@@ -3237,6 +3242,7 @@ static void a96t396_init_work_func(struct work_struct *work)
 	pogo_notifier_register(&data->pogo_nb, a96t396_pogo_notifier,
 					POGO_NOTIFY_DEV_SENSOR);
 }
+#endif
 #endif
 
 static int a96t396_probe(struct i2c_client *client,
@@ -3430,7 +3436,9 @@ static int a96t396_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&data->firmware_work, a96t396_firmware_work_func);
 #endif
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	INIT_DELAYED_WORK(&data->init_work, a96t396_init_work_func);
+#endif
 #endif
 	ret = input_register_device(input_dev);
 	if (ret) {
@@ -3560,7 +3568,9 @@ static int a96t396_probe(struct i2c_client *client,
 	hall_notifier_register(&data->hall_nb);
 #endif
 #if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO)
 	schedule_delayed_work(&data->init_work, msecs_to_jiffies(5000));
+#endif
 #endif
 	GRIP_INFO("done\n");
 	data->probe_done = true;

@@ -21,29 +21,33 @@
 
 #include <linux/slab.h>
 
+#define INPUT_MAX 256
+
 static int inject_light_seamless_additional_data(char *buf, int count)
 {
-	char *token;
-	char *str = NULL;
-    int ret = 0;
+	int ret = 0;
 	int index = 0;
 	int thd[2] = {200, 1000000};
+	char input[INPUT_MAX] = {0,};
+	char *input_tmp = NULL, *token = NULL;
 
-	if (count < 4) {
-		shub_errf("length error %d", count);
+	if (count > INPUT_MAX) {
+		shub_errf("bufsize too long(%d)", count);
 		return -EINVAL;
 	}
 
-	str = kstrdup(buf, GFP_KERNEL);
-	while ((token = strsep(&str, ",")) != NULL && index < 2) {
-        ret = kstrtoint(token, 10, &thd[index++]);
-        if (ret < 0) {
-            shub_errf("%s - kstrtoint failed.(%d)\n", __func__, ret);
-            return ret;
-        }
-    }
+	memcpy(input, buf, count);
+	input_tmp = input;
 
-    shub_info("%s - thd[0] = %d thd[1] = %d", __func__, thd[0], thd[1]);
+	while ((token = strsep(&input_tmp, ",")) != NULL && index < 2) {
+		ret = kstrtoint(token, 10, &thd[index++]);
+		if (ret < 0) {
+			shub_errf("%s - kstrtoint failed.(%d)\n", __func__, ret);
+			return ret;
+		}
+	}
+
+	shub_info("%s - thd[0] = %d thd[1] = %d", __func__, thd[0], thd[1]);
 
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT_SEAMLESS, LIGHT_SUBCMD_THRESHOLD, (char *)&thd, sizeof(thd));
 

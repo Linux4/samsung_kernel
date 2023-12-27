@@ -88,6 +88,9 @@ struct init_func_t init_sensor_funcs[] = {
 	{SENSOR_TYPE_ROTATION_VECTOR, init_rotation_vector},
 	{SENSOR_TYPE_GAME_ROTATION_VECTOR, init_game_rotation_vector},
 	{SENSOR_TYPE_LED_COVER_EVENT, init_led_cover_event},
+	{SENSOR_TYPE_LIGHT_IR, init_light_ir},
+	{SENSOR_TYPE_DROP_CLASSIFIER, init_drop_classifier},
+	{SENSOR_TYPE_SEQUENTIAL_STEP, init_sequential_step},
 };
 
 struct sensor_key_type {
@@ -130,6 +133,7 @@ struct sensor_key_type sensor_key_table[] = {
 	{SENSOR_TYPE_SS_ACTIVITY_TRACKER, "AT"},
 	{SENSOR_TYPE_POCKET_MODE, "POCKET"},
 	{SENSOR_TYPE_POCKET_POS_MODE, "POCKET_POSE"},
+	{SENSOR_TYPE_DROP_CLASSIFIER, "DROPCLASSIFIER"},
 };
 
 struct sensor_wakeup_count_type {
@@ -357,6 +361,7 @@ int batch_sensor(int type, uint32_t sampling_period, uint32_t max_report_latency
 	if (sensor->enabled &&
 	    (sensor->sampling_period != sampling_period || sensor->max_report_latency != max_report_latency)) {
 		shub_infof("CHANGE RATE %s, %d(%d, %d)", sensor->name, type, sampling_period, max_report_latency);
+		sensor->change_timestamp = get_current_timestamp();
 		memcpy(&buf[0], &sampling_period, 4);
 		memcpy(&buf[4], &max_report_latency, 4);
 		if (type != SENSOR_TYPE_SCONTEXT) {
@@ -409,7 +414,8 @@ int inject_sensor_additional_data(int type, char *buf, int buf_len)
 	if (sensor->funcs && sensor->funcs->inject_additional_data)
 		ret = sensor->funcs->inject_additional_data(buf, buf_len);
 	else
-		ret = shub_send_command(CMD_SETVALUE, type, DATA_INJECTION, buf, buf_len);
+		ret = shub_send_command(CMD_SETVALUE, type, DATA_INJECTION, buf,
+							buf_len > SHUB_MSG_BUFFER_SIZE ? SHUB_MSG_BUFFER_SIZE : buf_len);
 
 	return ret;
 }
@@ -436,7 +442,6 @@ void print_sensor_debug(int type)
 int get_sensor_value(int type, char *dataframe, int *index, struct sensor_event *event, int frame_len)
 {
 	struct shub_sensor *sensor = get_sensor(type);
-	int receive_event_size;
 	int ret = 0;
 	u64 current_timestamp = get_current_timestamp();
 #if defined(CONFIG_SHUB_DEBUG) && defined(CONFIG_SHUB_MTK)
@@ -457,11 +462,10 @@ int get_sensor_value(int type, char *dataframe, int *index, struct sensor_event 
 		if (ret < 0)
 			return ret;
 	} else {
-		receive_event_size = sensor->receive_event_size;
-		memcpy(event->value, dataframe + *index, receive_event_size);
-		memcpy(sensor->last_event_buffer.value, dataframe + *index, receive_event_size);
-		*index += receive_event_size;
+		memcpy(event->value, dataframe + *index, sensor->receive_event_size);
+		*index += sensor->receive_event_size;
 	}
+	memcpy(sensor->last_event_buffer.value, event->value, sensor->receive_event_size);
 
 	if (*index + sizeof(event->timestamp) > frame_len)
 		return -EINVAL;

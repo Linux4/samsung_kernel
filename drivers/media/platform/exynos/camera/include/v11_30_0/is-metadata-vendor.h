@@ -88,6 +88,8 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_GFHDR_SHORT = 25,                     /* 25: GFHDR Short capture (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_GFHDR_LONG = 26,                      /* 26: GFHDR Long capture (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_GALAXY_RAW = 27,                      /* 27: Galaxy Raw still capture */
+    ISS_SUB_SCENARIO_STILL_CAPTURE_MFHDR = 28,                                  /* 28: MF/LL HDR single capture (HDR Auto/Off) */
+    ISS_SUB_SCENARIO_REMOSAIC_ZOOM_MFHDR_SINGLE_CAPTURE = 29,                   /* 29: Seamless Remosaic MFHDR single capture */
 
 	ISS_SUB_SCENARIO_VIDEO = 30,                                                /* 30: FHD 30fps (HDR Off) */
 	ISS_SUB_SCENARIO_VIDEO_WDR_AUTO = 31,                                       /* 31: FHD 30fps (HDR Auto) */
@@ -1398,7 +1400,9 @@ struct camera2_aa_dm {
 	uint32_t			vendor_touchBvChange;
 	float				vendor_objectDistanceCm;
 	int32_t				vendor_colorTempKelvin;
-	int32_t				vendor_dynamicShotValue[3];
+	int32_t				vendor_dynamicShotValue;        // DS Value
+	int32_t				vendor_dynamicShotDeviceLSB;    // DS Device Info LSB 32bit
+	int32_t				vendor_dynamicShotDeviceMSB;    // DS Device Info MSB 32bit
 	int32_t				vendor_lightConditionValue;
 	int32_t				vendor_dynamicShotExtraInfo;
 	struct aa_apexInfo		vendor_apexInfo;
@@ -1428,9 +1432,10 @@ struct camera2_aa_dm {
 	enum aa_moire_trigger		vendor_moireTrigger;
 	enum aa_sensor_state            vendor_sensorResultState;
 	enum aa_sensor_state            vendor_sensorAvailableState;
+    uint32_t vendor_skipAFStateCapture;       // Skip checking af state before capturing. (0 / 1)
 	uint32_t			vendor_nightModeSuggest; // 0(off), 1(on)
 	enum aa_night_indicator	vendor_nightIndicator;
-	uint32_t vendor_reserved[22];
+	uint32_t vendor_reserved[21];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -2196,7 +2201,7 @@ struct camera2_uctl {
 	uint32_t			svHistInfo[6];		/* Used in HAL-DDK interface */
 	enum camera_adaptive_lens_condition adaptiveLensCondition;
 	enum camera_adaptive_lens_mode_state adaptiveLensModeState;
-	struct camera2_object_detect_uctl multiObjectDetectInfoUd[3];
+	struct camera2_object_detect_uctl multiObjectDetectInfoUd[6];
 	struct camera2_segmentationInfo_uctl segmentationInfo;
 	struct camera2_object_detect_uctl sunDetectInfoUd;
 	uint32_t			highResolutionMode;

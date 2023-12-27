@@ -16,19 +16,16 @@ struct panel_device;
 
 struct pnobj_config {
 	struct pnobj base;
-	char *prop_name;
-	enum PANEL_PROP_TYPE prop_type;
-	union {
-		unsigned int value;
-		char *str;
-	};
+	struct panel_property *prop;
+	char prop_name[PANEL_PROP_NAME_LEN];
+	unsigned int value;
 };
 
-#define __PNOBJ_CONFIG_INITIALIZER(_name_, _prop_name_, _value_) \
-	{ .base = __PNOBJ_INITIALIZER(_name_, CMD_TYPE_CFG) \
-	, .prop_name = (_prop_name_) \
-	, .prop_type = (PANEL_PROP_TYPE_RANGE) \
-	, .value = (_value_) }
+#define __PNOBJ_CONFIG_INITIALIZER(_name, _prop_name, _value) \
+	{ .base = __PNOBJ_INITIALIZER(_name, CMD_TYPE_CFG) \
+	, .prop = (NULL) \
+	, .prop_name = (_prop_name) \
+	, .value = (_value) }
 
 #define DEFINE_PNOBJ_CONFIG(_name, _prop_name, _value) \
 struct pnobj_config PN_CONCAT(pnobj_config_, _name) = \
@@ -43,5 +40,10 @@ static inline char *get_pnobj_config_name(struct pnobj_config *prop)
 {
 	return get_pnobj_name(&prop->base);
 }
+
+struct pnobj_config *create_pnobj_config(char *name,
+		char *prop_name, unsigned int value);
+struct pnobj_config *duplicate_pnobj_config(struct pnobj_config *src);
+void destroy_pnobj_config(struct pnobj_config *cfg);
 
 #endif /* __PANEL_CONFIG_H__ */

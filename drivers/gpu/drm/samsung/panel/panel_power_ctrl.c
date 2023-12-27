@@ -168,7 +168,6 @@ static int panel_power_ctrl_action_regulator(struct panel_power_ctrl *pctrl,
 static int panel_power_ctrl_action_execute(struct panel_power_ctrl *pctrl)
 {
 	struct panel_power_ctrl_action *paction;
-	int result = 0;
 	int ret = 0;
 
 	if (!pctrl)
@@ -198,20 +197,24 @@ static int panel_power_ctrl_action_execute(struct panel_power_ctrl *pctrl)
 			ret = panel_power_ctrl_action_delay(pctrl, paction);
 			break;
 		default:
-			panel_warn("%s:%s invalid action type %d\n", pctrl->name, paction->name, paction->type);
+			panel_warn("%s:%s invalid action type %d\n",
+					pctrl->name, paction->name, paction->type);
 			ret = -ENODEV;
 			break;
 		}
 
-		panel_dbg("done %d\n", ret);
 		if (ret < 0) {
-			result = ret;
-			break;
+			panel_err("%s:%s action failed\n",
+					pctrl->name, paction->name);
+			return ret;
 		}
+
+		panel_dbg("%s:%s action done\n",
+				pctrl->name, paction->name);
 	}
 
-	panel_info("%s - %d\n", pctrl->name, result);
-	return result;
+	panel_info("%s -\n", pctrl->name);
+	return 0;
 }
 
 __visible_for_testing struct panel_power_ctrl_funcs panel_power_ctrl_funcs = {
@@ -434,4 +437,54 @@ int panel_power_ctrl_execute(struct panel_device *panel,
 		return PTR_ERR(pctrl);
 	}
 	return panel_power_ctrl_helper_execute(pctrl);
+}
+
+struct pwrctrl *create_pwrctrl(char *name, char *key)
+{
+	struct pwrctrl *pwrctrl;
+	char *dup_key;
+
+	if (!name) {
+		panel_err("name is null\n");
+		return NULL;
+	}
+
+	if (!key) {
+		panel_err("key is null\n");
+		return NULL;
+	}
+
+	pwrctrl = kzalloc(sizeof(*pwrctrl), GFP_KERNEL);
+	if (!pwrctrl)
+		return NULL;
+
+	pnobj_init(&pwrctrl->base, CMD_TYPE_PCTRL, name);
+	dup_key = kstrndup(key, PNOBJ_NAME_LEN-1, GFP_KERNEL);
+	if (!dup_key) {
+		pnobj_deinit(&pwrctrl->base);
+		kfree(pwrctrl);
+		return NULL;
+	}
+	pwrctrl->key = dup_key;
+
+	return pwrctrl;
+}
+
+struct pwrctrl *duplicate_pwrctrl(struct pwrctrl *pwrctrl)
+{
+	if (!pwrctrl)
+		return NULL;
+
+	return create_pwrctrl(get_pwrctrl_name(pwrctrl),
+			get_pwrctrl_key(pwrctrl));
+}
+
+void destroy_pwrctrl(struct pwrctrl *pwrctrl)
+{
+	if (!pwrctrl)
+		return;
+
+	pnobj_deinit(&pwrctrl->base);
+	kfree(get_pwrctrl_key(pwrctrl));
+	kfree(pwrctrl);
 }

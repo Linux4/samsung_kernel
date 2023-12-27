@@ -39,6 +39,7 @@ shub-y += factory/proximity/proximity_tmd4912_factory.o
 shub-y += factory/proximity/proximity_stk3391x_factory.o
 shub-y += factory/proximity/proximity_stk33512_factory.o
 shub-y += factory/proximity/proximity_stk3afx_factory.o
+shub-y += factory/proximity/proximity_tmd3725_factory.o
 
 shub-y += others/shub_motor_callback.o
 shub-y += others/shub_panel.o
@@ -55,6 +56,7 @@ shub-y += sensor/light.o
 shub-y += sensor/light_cct.o
 shub-y += sensor/light_autobrightness.o
 shub-y += sensor/light_seamless.o
+shub-y += sensor/light_ir.o
 shub-y += sensor/led_cover_event.o
 shub-y += sensor/pressure.o
 shub-y += sensor/scontext.o
@@ -73,6 +75,7 @@ shub-y += sensor/pogo_request_handler.o
 shub-y += sensor/aois.o
 shub-y += sensor/rotation_vector.o
 shub-y += sensor/game_rotation_vector.o
+shub-y += sensor/drop_classifier.o
 
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42605m.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsl.o
@@ -97,7 +100,8 @@ shub-y += sensor/physical_sensor/proximity/proximity_tmd4912.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk33512.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk3391x.o
 shub-y += sensor/physical_sensor/proximity/proximity_stk3afx.o
-shub-y += sensor/physical_sensor/light/light_stk33512.o
+shub-y += sensor/physical_sensor/proximity/proximity_tmd3725.o
+shub-y += sensor/physical_sensor/light/light_stk_common.o
 
 shub-y += sensor/physical_sensor/pressure/pressure_bmp580.o
 shub-y += sensor/physical_sensor/pressure/pressure_lps22hh.o
@@ -125,5 +129,8 @@ ccflags-$(CONFIG_SHUB_MTK_SCP_INCLUDE) += -I$(srctree)/drivers/misc/mediatek/scp
 
 shub-$(CONFIG_SHUB_LSI) += vendor/shub_lsi.o
 
+ifneq (,$(filter y ,$(CONFIG_ARCH_EXYNOS) $(CONFIG_ARCH_MEDIATEK) $(CONFIG_MTK_TINYSYS_SCP_SUPPORT)))
 obj-$(CONFIG_SHUB) += shub.o
+endif
+
 obj-$(CONFIG_SHUB) += utility/sensor_core.o
