@@ -790,7 +790,7 @@
 					vdd_l17_29-supply = <0x2e>;
 					vdd_l20_21-supply = <0x2e>;
 					vdd_l25-supply = <0x2d>;
-					vdd_lvs1_2 = <0x19>;
+					vdd_lvs1_2-supply = <0x19>;
 
 					s1 {
 						status = "disabled";

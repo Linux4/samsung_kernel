@@ -734,6 +734,10 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 	struct is_module_enum *module = NULL;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 	struct is_sensor_ctl *module_ctl = NULL;
+#ifdef CONFIG_CAMERA_USE_MCU
+	struct is_core *core = NULL;
+	struct is_cis *cis = NULL;
+#endif
 	cis_shared_data *cis_data = NULL;
 #ifdef USE_OIS_HALL_DATA_FOR_VDIS
 	u32 hashkey;
@@ -758,6 +762,10 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 		return;
 	}
 	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+#ifdef CONFIG_CAMERA_USE_MCU
+	core = (struct is_core *)device->private_data;
+	cis = (struct is_cis *)v4l2_get_subdevdata(sensor_peri->subdev_cis);
+#endif
 
 	if(vsync_count < sensor_peri->sensor_interface.diff_bet_sen_isp + 1) {
 		info("%s: vsync_count(%d) < DIFF_BET_SEN_ISP + 1(%d)\n",
@@ -933,6 +941,13 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 	/* Warning! Aperture mode should be set before setting ois mode */
 	if (sensor_peri->mcu && sensor_peri->mcu->ois) {
 		if (CALL_OISOPS(sensor_peri->mcu->ois, ois_get_active)) {
+#ifdef CONFIG_CAMERA_USE_MCU
+			if (sensor_peri->mcu->ois->ois_mode == OPTICAL_STABILIZATION_MODE_OFF) {
+				if (cis->cis_data->is_data.scene_mode == AA_SCENE_MODE_FAST_AE) {
+					sensor_peri->mcu->ois->ois_mode = OPTICAL_STABILIZATION_MODE_STILL;
+				}
+			}
+#endif
 			ret = CALL_OISOPS(sensor_peri->mcu->ois, ois_set_mode, sensor_peri->subdev_mcu, sensor_peri->mcu->ois->ois_mode);
 			if (ret < 0) {
 				err("[%s] v4l2_subdev_call(ois_mode_change, mode:%d) is fail(%d)",

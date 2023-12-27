@@ -293,6 +293,9 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 			!need_to_control_shared_rsc(pin_ctrls, module))
 		return 0;
 
+	minfo("[%s] pin_ctrl(%s, val(%d), delay(%d), act(%d), pin(%ld))\n", module,
+		module->sensor_name, name, value, delay, act, (act == PIN_FUNCTION) ? 0 : pin);
+
 	subdev_module = module->subdev;
 	if (!subdev_module) {
 		merr("[%s] module's subdev was not probed",
@@ -413,16 +416,6 @@ int exynos_is_module_pins_cfg(struct is_module_enum *module,
 		err("There is no such a scenario(scen:%d, on:%d)", scenario, gpio_scenario);
 		ret = -EINVAL;
 		goto p_err;
-	}
-
-	/* print configs */
-	for (idx = 0; idx < idx_max; ++idx) {
-		minfo("[%s] pin_ctrl(act(%d), pin(%ld), val(%d), nm(%s)\n", module,
-			module->sensor_name,
-			pin_ctrls[scenario][gpio_scenario][idx].act,
-			(pin_ctrls[scenario][gpio_scenario][idx].act == PIN_FUNCTION) ? 0 : pin_ctrls[scenario][gpio_scenario][idx].pin,
-			pin_ctrls[scenario][gpio_scenario][idx].value,
-			pin_ctrls[scenario][gpio_scenario][idx].name);
 	}
 
 	minfo("[%s][P%d:S%d:GS%d]: pin_ctrl start\n", module,

@@ -356,21 +356,19 @@ p_err:
 	return ret;
 #else
 	return 0;
-
 #endif
 }
 
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
+/*
+  hold control register for updating multiple-parameters within the same frame. 
+  true : hold, flase : no hold/release
+*/
+#if USE_GROUP_PARAM_HOLD
 int sensor_hi1336_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	u32 mode = 0;
 
 	FIMC_BUG(!subdev);
 
@@ -379,15 +377,32 @@ int sensor_hi1336_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
+	if (cis->cis_data->stream_on == false && hold == true) {
+		ret = 0;
+		dbg_sensor(1,"%s : sensor stream off skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == SENSOR_HI1336_1000X752_120FPS) {
+		ret = 0;
+		dbg_sensor(1,"%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_hi1336_cis_group_param_hold_func(subdev, hold);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
+
+p_err_unlock:
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	return ret;
 }
+#endif
 
 int sensor_hi1336_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
@@ -406,12 +421,12 @@ int sensor_hi1336_cis_set_global_setting(struct v4l2_subdev *subdev)
 	ret = sensor_cis_set_registers(subdev, sensor_hi1336_global, sensor_hi1336_global_size);
 	if (ret < 0) {
 		err("sensor_hi1336_set_registers fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
 	info("[%s] global setting done\n", __func__);
 
-p_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	return ret;
@@ -440,7 +455,7 @@ int sensor_hi1336_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	ret = sensor_cis_set_registers(subdev, sensor_hi1336_setfiles[mode], sensor_hi1336_setfile_sizes[mode]);
 	if (ret < 0) {
 		err("[%s] sensor_hi1336_set_registers fail!!", __func__);
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 	// Can change position later
@@ -449,10 +464,10 @@ int sensor_hi1336_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 			sensor_hi1336_setfile_fsync_info[HI1336_FSYNC_NORMAL].file_size);
 	if (ret < 0) {
 		err("[%s] fsync normal fail\n", __func__);
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
@@ -581,10 +596,6 @@ int sensor_hi1336_cis_stream_on(struct v4l2_subdev *subdev)
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 	is_vendor_set_mipi_clock(device);
 
-	ret = sensor_hi1336_cis_group_param_hold(subdev, true);
-	if (ret < 0)
-		err("group_param_hold_func failed at stream on");
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	/* Sensor stream on */
@@ -596,10 +607,6 @@ int sensor_hi1336_cis_stream_on(struct v4l2_subdev *subdev)
 				SENSOR_HI1336_STREAM_ONOFF_ADDR, ret);
 		goto p_err;
 	}
-
-	ret = sensor_hi1336_cis_group_param_hold(subdev, false);
-	if (ret < 0)
-		err("group_param_hold_func failed at stream on");
 
 	cis_data->stream_on = true;
 
@@ -643,21 +650,20 @@ int sensor_hi1336_cis_stream_off(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	ret = sensor_hi1336_cis_group_param_hold(subdev, false);
+	cis_data->stream_on = false;
+
+	I2C_MUTEX_LOCK(cis->i2c_lock);
+
+	ret = sensor_hi1336_cis_group_param_hold_func(subdev, false);
 	if (ret < 0)
 		err("group_param_hold_func failed at stream off");
 
-	I2C_MUTEX_LOCK(cis->i2c_lock);
 	info("%s\n", __func__);
 	ret = is_sensor_write16(client, SENSOR_HI1336_STREAM_ONOFF_ADDR, 0x0000);
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-	if (ret < 0) {
-		err("i2c transfer fail addr(%x) ret = %d\n",
-				SENSOR_HI1336_STREAM_ONOFF_ADDR, ret);
-		goto p_err;
-	}
+	if (ret < 0)
+		err("i2c transfer fail addr(%x), val(%x), ret = %d\n", SENSOR_HI1336_STREAM_ONOFF_ADDR, 0x0000, ret);
 
-	cis_data->stream_on = false;
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
@@ -857,7 +863,6 @@ int sensor_hi1336_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_hi1336_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis   = NULL;
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
@@ -902,16 +907,10 @@ int sensor_hi1336_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 			cis->id, __func__, pix_rate_freq_khz, frame_duration,
 			line_length_pck, frame_length_lines);
 
-	hold = sensor_hi1336_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write16(client, SENSOR_HI1336_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
 	if (ret < 0) {
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 	cis_data->cur_frame_us_time = frame_duration;
@@ -923,16 +922,10 @@ int sensor_hi1336_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi1336_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -989,15 +982,12 @@ int sensor_hi1336_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 #endif
 
 p_err:
-
 	return ret;
 }
 
 int sensor_hi1336_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *target_exposure)
 {
 	int ret = 0;
-#if 1
-	int hold = 0;
 	struct is_cis *cis   = NULL;
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
@@ -1061,16 +1051,10 @@ int sensor_hi1336_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	cis_data->cur_long_exposure_coarse = coarse_int;
 	cis_data->cur_short_exposure_coarse = coarse_int;
 
-	hold = sensor_hi1336_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write16(client, SENSOR_HI1336_COARSE_INTEG_TIME_ADDR, coarse_int);
 		if (ret < 0)
-			goto p_i2c_err;
+			goto p_err_unlock;
 
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d): pix_rate_freq_khz (%d),"
 		KERN_CONT "line_length_pck(%d), frame_length_lines(%#x)\n", cis->id, __func__,
@@ -1083,16 +1067,10 @@ int sensor_hi1336_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi1336_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
-#endif
 	return ret;
 }
 
@@ -1252,7 +1230,6 @@ int sensor_hi1336_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_a
 int sensor_hi1336_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis   = NULL;
 	struct i2c_client *client = NULL;
 
@@ -1292,42 +1269,29 @@ int sensor_hi1336_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_again = %d us, analog_gain(%#x)\n",
 		cis->id, __func__, cis->cis_data->sen_vsync_count, again->val, analog_gain);
 
-	hold = sensor_hi1336_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	analog_gain &= 0xFF;
 
 	// Analog gain
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write8(client, SENSOR_HI1336_ANALOG_GAIN_ADDR, analog_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi1336_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
 int sensor_hi1336_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis   = NULL;
 	struct i2c_client *client = NULL;
 
@@ -1352,16 +1316,10 @@ int sensor_hi1336_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 		goto p_err;
 	}
 
-	hold = sensor_hi1336_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read8(client, SENSOR_HI1336_ANALOG_GAIN_ADDR, &analog_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	*again = sensor_hi1336_cis_calc_again_permile((u32)analog_gain);
 
@@ -1373,16 +1331,10 @@ int sensor_hi1336_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi1336_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1463,7 +1415,6 @@ int sensor_hi1336_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_a
 int sensor_hi1336_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis   = NULL;
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
@@ -1509,29 +1460,23 @@ int sensor_hi1336_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_dgain = %d, dgain_code(%#x)\n",
 			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->val, dgain_code);
 
-	hold = sensor_hi1336_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	dgains[0] = dgains[1] = dgains[2] = dgains[3] = dgain_code;
 	ret = is_sensor_write16_array(client, SENSOR_HI1336_DIG_GAIN_ADDR, dgains, 4);
 	if (ret < 0) {
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 	ret = is_sensor_read16(client, SENSOR_HI1336_ISP_ENABLE_ADDR, &read_val);
 	if (ret < 0) {
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 	enable_dgain = read_val | (0x1 << 4); // [4]: D gain enable
 	ret = is_sensor_write16(client, SENSOR_HI1336_ISP_ENABLE_ADDR, enable_dgain);
 	if (ret < 0) {
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 #ifdef DEBUG_SENSOR_TIME
@@ -1539,23 +1484,16 @@ int sensor_hi1336_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi1336_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
 int sensor_hi1336_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis   = NULL;
 	struct i2c_client *client = NULL;
 
@@ -1580,16 +1518,10 @@ int sensor_hi1336_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 		goto p_err;
 	}
 
-	hold = sensor_hi1336_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read16(client, SENSOR_HI1336_DIG_GAIN_ADDR, &digital_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	*dgain = sensor_hi1336_cis_calc_dgain_permile(digital_gain);
 
@@ -1601,16 +1533,10 @@ int sensor_hi1336_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi1336_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -1711,7 +1637,9 @@ void sensor_hi1336_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 static struct is_cis_ops cis_ops_hi1336 = {
 	.cis_init = sensor_hi1336_cis_init,
 	.cis_log_status = sensor_hi1336_cis_log_status,
+#if USE_GROUP_PARAM_HOLD
 	.cis_group_param_hold = sensor_hi1336_cis_group_param_hold,
+#endif
 	.cis_set_global_setting = sensor_hi1336_cis_set_global_setting,
 	.cis_set_size = sensor_hi1336_cis_set_size,
 	.cis_mode_change = sensor_hi1336_cis_mode_change,

@@ -2,8 +2,6 @@
 #define IS_VENDOR_CONFIG_AAV_V53X_H
 
 /***** HW DEFENDANT DEFINE *****/
-#define CONFIG_LEDS_SM5714
-
 #define VENDER_PATH
 
 #define USE_CAMERA_HEAP

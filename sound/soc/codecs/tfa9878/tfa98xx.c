@@ -6384,7 +6384,8 @@ int tfa98xx_get_blackbox_data(int dev, int *data)
 	}
 
 	/* update current session if it's active */
-	if (tfa98xx_count_active_stream(BIT_PSTREAM) > 0) {
+	if (tfa98xx_count_active_stream(BIT_PSTREAM) > 0
+		&& tfa->is_configured > 0) {
 		ret = tfa_update_log();
 		if (ret != TFA98XX_ERROR_OK)
 			pr_info("%s: failure in updating current data\n",
@@ -6442,7 +6443,8 @@ int tfa98xx_get_blackbox_data_index(int dev, int index, int reset)
 	}
 
 	/* update current session if it's active */
-	if (tfa98xx_count_active_stream(BIT_PSTREAM) > 0) {
+	if (tfa98xx_count_active_stream(BIT_PSTREAM) > 0
+		&& tfa->is_configured > 0) {
 		ret = tfa_update_log();
 		if (ret != TFA98XX_ERROR_OK)
 			pr_info("%s: failure in updating current data\n",

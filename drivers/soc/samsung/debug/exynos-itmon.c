@@ -480,16 +480,6 @@ void itmon_enable(bool enabled)
 }
 EXPORT_SYMBOL(itmon_enable);
 
-/* SEC DEBUG FEATURTE */
-#define pr_auto_on(__pr_auto_cond, index, fmt, ...)	\
-({								\
-	if (__pr_auto_cond)					\
-		pr_auto(index, fmt, ##__VA_ARGS__);	\
-	else							\
-		pr_err(fmt, ##__VA_ARGS__);			\
-})
-/* SEC DEBUG FEATURTE */
-
 int itmon_get_dpm_policy(struct itmon_dev *itmon)
 {
 	struct itmon_platdata *pdata = itmon->pdata;

@@ -19,6 +19,7 @@
 #define SCHED_POLICY_EFF_TINY		3	/* best efficiency except tiny task */
 #define SCHED_POLICY_SEMI_PERF		4	/* semi perf */
 #define SCHED_POLICY_PERF		5	/* best perf */
-#define NUM_OF_SCHED_POLICY		6
+#define SCHED_POLICY_EXPRESS		6	/* task express */
+#define NUM_OF_SCHED_POLICY		7
 
 #endif /* __EXYNOS_MOBILE_SCHEDULER__ */

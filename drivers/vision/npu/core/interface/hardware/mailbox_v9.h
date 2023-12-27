@@ -36,7 +36,7 @@
 #define MAILBOX_GROUP_REPORT		4
 #define MAILBOX_GROUP_MAX		5
 
-#define MAX_MAILBOX	6
+#define MAX_MAILBOX	7
 
 enum numCtrl_e {
 	ECTRL_LOW = 1,
@@ -147,10 +147,9 @@ struct mailbox_hdr {
 	u32			hw_info;
 	u32			totsize;
 	u32			boottype;
-	u32			warm_boot_enable;
 #ifdef CONFIG_NPU_USE_UTIL_STATS
 	struct fw_stats		stats;
-	u32			reserved[16 - CONFIG_NPU_NUM_CORES];
+	u32			reserved[17 - CONFIG_NPU_NUM_CORES];
 #else
 	u32			reserved[18];
 #endif
@@ -184,12 +183,13 @@ union npu_hw_info {
 };
 
 static u32 NPU_MAILBOX_SECTION_CONFIG[MAX_MAILBOX] = {
-	SZ_4K,         /* Size of 1st mailbox */
-	SZ_4K,         /* Size of 2nd mailbox */
-	SZ_4K,         /* Size of 3rd mailbox */
-	SZ_4K,         /* Size of 4th mailbox */
-	SZ_8K,         /* Size of 5th mailbox */
-	SZ_256K,         /* Size of 6th mailbox */
+	SZ_4K,	/* Size of mailbox hdr*/
+	SZ_128K,	/* Size of 1st mailbox */
+	SZ_128K,	/* Size of 2nd mailbox */
+	SZ_128K,	/* Size of 3rd mailbox */
+	SZ_128K,	/* Size of 4th mailbox */
+	SZ_256K,	/* Size of 5th mailbox */
+	SZ_256K,	/* Size of 6th mailbox */
 };
 
 #define NPU_MBOX_BASE(x)		(x)

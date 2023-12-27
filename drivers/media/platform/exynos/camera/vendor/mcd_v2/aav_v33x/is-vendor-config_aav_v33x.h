@@ -59,6 +59,7 @@
 #define USES_STANDARD_CAL_RELOAD
 #define USE_PERSISTENT_DEVICE_PROPERTIES_FOR_CAL /* For cal reload */
 
+#define USE_LEDS_FLASH_CHARGING_VOLTAGE_CONTROL /* Flash config */
 /* Although hw version is different, allow to upload MCU firmware temporarily */
 #define CONFIG_CHECK_HW_VERSION_FOR_MCU_FW_UPLOAD
 

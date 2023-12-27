@@ -460,7 +460,7 @@ static inline bool memlog_get_obj_pm(void)
 	struct memlog *memlog_desc = NULL;
 	struct memlog_obj *file_obj = NULL;
 
-	if (!preemptible() || in_interrupt())
+	if (!preemptible() || in_interrupt() || rcu_preempt_depth() > 0)
 		return false;
 
 	memlog_desc = memlog_get_desc("WB_LOG");
@@ -486,7 +486,7 @@ static inline bool memlog_get_obj(void)
 	struct memlog *memlog_desc = NULL;
 	struct memlog_obj *file_obj = NULL;
 
-	if (!preemptible() || in_interrupt())
+	if (!preemptible() || in_interrupt() || rcu_preempt_depth() > 0)
 		return false;
 
 	memlog_desc = memlog_get_desc("WB_LOG");

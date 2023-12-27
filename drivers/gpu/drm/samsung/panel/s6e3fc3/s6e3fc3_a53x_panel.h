@@ -16,6 +16,7 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "s6e3fc3.h"
+#include "s6e3fc3_a53x.h"
 #include "s6e3fc3_dimming.h"
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 #include "s6e3fc3_a53x_panel_mdnie.h"
@@ -29,9 +30,6 @@
 #include "../aod/aod_drv.h"
 #endif
 
-#ifdef CONFIG_DYNAMIC_FREQ
-#include "s6e3fc3_a53x_df_tbl.h"
-#endif
 #include "s6e3fc3_a53x_resol.h"
 
 #undef __pn_name__
@@ -308,6 +306,9 @@ static u8 A53X_TSET_SET[] = {
 static DEFINE_PKTUI(a53x_tset_set, &a53x_maptbl[TSET_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(a53x_tset_set, DSI_PKT_TYPE_WR, A53X_TSET_SET, 0x00);
 
+static u8 A53X_SEED_CRC_ON[] = { 0x6A, 0x01 };
+static DEFINE_STATIC_PACKET(a53x_seed_crc_on, DSI_PKT_TYPE_WR, A53X_SEED_CRC_ON, 0x06);
+
 static u8 A53X_AOD_VAINT[] = { 0xF4, 0x28 };
 static DEFINE_STATIC_PACKET(a53x_aod_vaint, DSI_PKT_TYPE_WR, A53X_AOD_VAINT, 0x4C);
 
@@ -365,6 +366,47 @@ static u8 A53X_LPM_NIT[] = { 0x53, 0x27 };
 static DEFINE_PKTUI(a53x_lpm_nit, &a53x_maptbl[LPM_NIT_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(a53x_lpm_nit, DSI_PKT_TYPE_WR, A53X_LPM_NIT, 0x00);
 
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+static u8 A53X_DECODER_TEST_CASET[] = { 0x2A, 0x00, 0x00, 0x04, 0x37 };
+static DEFINE_STATIC_PACKET(a53x_decoder_test_caset, DSI_PKT_TYPE_WR, A53X_DECODER_TEST_CASET, 0x00);
+
+static u8 A53X_DECODER_TEST_PASET[] = { 0x2B, 0x00, 0x00, 0x09, 0x5F };
+static DEFINE_STATIC_PACKET(a53x_decoder_test_paset, DSI_PKT_TYPE_WR, A53X_DECODER_TEST_PASET, 0x00);
+
+static u8 A53X_DECODER_TEST_2C[] = { 0x2C, 0x00 };
+static DEFINE_STATIC_PACKET(a53x_decoder_test_2c, DSI_PKT_TYPE_WR, A53X_DECODER_TEST_2C, 0x00);
+
+static u8 A53X_DECODER_CRC_PATTERN_ENABLE[] = { 0xBE, 0x07 };
+static DEFINE_STATIC_PACKET(a53x_decoder_crc_pattern_enable, DSI_PKT_TYPE_WR, A53X_DECODER_CRC_PATTERN_ENABLE, 0x00);
+
+static u8 A53X_DECODER_READ_SET_1[] = { 0xD8, 0x11 };
+static DEFINE_STATIC_PACKET(a53x_decoder_read_set_1, DSI_PKT_TYPE_WR, A53X_DECODER_READ_SET_1, 0x27);
+
+static u8 A53X_DECODER_READ_SET_2[] = { 0xD8, 0x20 };
+static DEFINE_STATIC_PACKET(a53x_decoder_read_set_2, DSI_PKT_TYPE_WR, A53X_DECODER_READ_SET_2, 0x27);
+
+static u8 A53X_DECODER_VDDM_LOW_SET_1[] = { 0xD7, 0x04 };
+static DEFINE_STATIC_PACKET(a53x_decoder_vddm_low_set_1, DSI_PKT_TYPE_WR, A53X_DECODER_VDDM_LOW_SET_1, 0x02);
+
+static u8 A53X_DECODER_VDDM_LOW_SET_2[] = { 0xF4, 0x07 };
+static DEFINE_STATIC_PACKET(a53x_decoder_vddm_low_set_2, DSI_PKT_TYPE_WR, A53X_DECODER_VDDM_LOW_SET_2, 0x0F);
+
+static u8 A53X_DECODER_FUSING_UPDATE_1[] = { 0xFE, 0xB0 };
+static DEFINE_STATIC_PACKET(a53x_decoder_fusing_update_1, DSI_PKT_TYPE_WR, A53X_DECODER_FUSING_UPDATE_1, 0x00);
+
+static u8 A53X_DECODER_FUSING_UPDATE_2[] = { 0xFE, 0x30 };
+static DEFINE_STATIC_PACKET(a53x_decoder_fusing_update_2, DSI_PKT_TYPE_WR, A53X_DECODER_FUSING_UPDATE_2, 0x0F);
+
+static u8 A53X_DECODER_CRC_PATERN_DISABLE[] = { 0xBE, 0x00 };
+static DEFINE_STATIC_PACKET(a53x_decoder_crc_pattern_disable, DSI_PKT_TYPE_WR, A53X_DECODER_CRC_PATERN_DISABLE, 0x00);
+
+static u8 A53X_DECODER_VDDM_RETURN_SET_1[] = { 0xD7, 0x00 };
+static DEFINE_STATIC_PACKET(a53x_decoder_vddm_return_set_1, DSI_PKT_TYPE_WR, A53X_DECODER_VDDM_RETURN_SET_1, 0x02);
+
+static u8 A53X_DECODER_VDDM_RETURN_SET_2[] = { 0xF4, 0x00 };
+static DEFINE_STATIC_PACKET(a53x_decoder_vddm_return_set_2, DSI_PKT_TYPE_WR, A53X_DECODER_VDDM_RETURN_SET_2, 0x0F);
+#endif
+
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 static DEFINE_PANEL_MDELAY(a53x_wait_1msec, 1);
 static DEFINE_PANEL_MDELAY(a53x_wait_9msec, 9);
@@ -374,6 +416,7 @@ static DEFINE_PANEL_MDELAY(a53x_wait_7msec, 7);
 static DEFINE_PANEL_MDELAY(a53x_wait_10msec, 10);
 static DEFINE_PANEL_MDELAY(a53x_wait_30msec, 30);
 static DEFINE_PANEL_MDELAY(a53x_wait_17msec, 17);
+static DEFINE_PANEL_MDELAY(a53x_wait_dsc_test, 20);
 
 static DEFINE_PANEL_MDELAY(a53x_wait_34msec, 34);
 
@@ -635,6 +678,7 @@ static void *a53x_init_cmdtbl[] = {
 	&PKTINFO(a53x_pcd_det_set),
 	&PKTINFO(a53x_freq_set),
 	&PKTINFO(a53x_swire_no_pulse),
+	&PKTINFO(a53x_seed_crc_on),
 	&PKTINFO(a53x_panel_update),
 
 	&PKTINFO(a53x_porch_set),
@@ -665,7 +709,6 @@ static void *a53x_res_init_cmdtbl[] = {
 	&s6e3fc3_restbl[RES_DATE],
 	&s6e3fc3_restbl[RES_OCTA_ID],
 #ifdef CONFIG_DISPLAY_USE_INFO
-	&s6e3fc3_restbl[RES_CHIP_ID],
 	&s6e3fc3_restbl[RES_SELF_DIAG],
 	&s6e3fc3_restbl[RES_ERR_FG],
 	&s6e3fc3_restbl[RES_DSI_ERR],
@@ -917,6 +960,43 @@ static void *a53x_mask_layer_exit_br_cmdtbl[] = {
 };
 #endif
 
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+static void *a53x_decoder_test_cmdtbl[] = {
+	&KEYINFO(a53x_level1_key_enable),
+	&KEYINFO(a53x_level2_key_enable),
+	&KEYINFO(a53x_level3_key_enable),
+	&PKTINFO(a53x_decoder_test_caset),
+	&PKTINFO(a53x_decoder_test_paset),
+	&PKTINFO(a53x_decoder_test_2c),
+	&PKTINFO(a53x_decoder_crc_pattern_enable),
+	&PKTINFO(a53x_decoder_read_set_1),
+	&DLYINFO(a53x_wait_dsc_test),
+	&s6e3fc3_restbl[RES_DECODER_TEST1],
+	&PKTINFO(a53x_decoder_read_set_2),
+	&DLYINFO(a53x_wait_dsc_test),
+	&s6e3fc3_restbl[RES_DECODER_TEST2],
+	&PKTINFO(a53x_decoder_vddm_low_set_1),
+	&PKTINFO(a53x_decoder_vddm_low_set_2),
+	&PKTINFO(a53x_decoder_fusing_update_1),
+	&PKTINFO(a53x_decoder_fusing_update_2),
+	&PKTINFO(a53x_decoder_crc_pattern_enable),
+	&PKTINFO(a53x_decoder_read_set_1),
+	&DLYINFO(a53x_wait_dsc_test),
+	&s6e3fc3_restbl[RES_DECODER_TEST3],
+	&PKTINFO(a53x_decoder_read_set_2),
+	&DLYINFO(a53x_wait_dsc_test),
+	&s6e3fc3_restbl[RES_DECODER_TEST4],
+	&PKTINFO(a53x_decoder_crc_pattern_disable),
+	&PKTINFO(a53x_decoder_vddm_return_set_1),
+	&PKTINFO(a53x_decoder_vddm_return_set_2),
+	&PKTINFO(a53x_decoder_fusing_update_1),
+	&PKTINFO(a53x_decoder_fusing_update_2),
+	&KEYINFO(a53x_level3_key_disable),
+	&KEYINFO(a53x_level2_key_disable),
+	&KEYINFO(a53x_level1_key_disable),
+};
+#endif
+
 static void *a53x_dummy_cmdtbl[] = {
 	NULL,
 };
@@ -940,6 +1020,9 @@ static struct seqinfo a53x_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_FFC_SEQ] = SEQINFO_INIT("set-ffc-seq", a53x_ffc_cmdtbl),
 	[PANEL_DUMP_SEQ] = SEQINFO_INIT("dump-seq", a53x_dump_cmdtbl),
 	[PANEL_CHECK_CONDITION_SEQ] = SEQINFO_INIT("check-condition-seq", a53x_check_condition_cmdtbl),
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+	[PANEL_DECODER_TEST_SEQ] = SEQINFO_INIT("decoder-test-seq", a53x_decoder_test_cmdtbl),
+#endif
 	[PANEL_DUMMY_SEQ] = SEQINFO_INIT("dummy-seq", a53x_dummy_cmdtbl),
 };
 
@@ -959,6 +1042,11 @@ struct common_panel_info s6e3fc3_a53x_panel_info = {
 		 * It must be changed to be read and set in the LK.
 		 */
 		.dft_dsi_freq = 1108000,
+	},
+	.ddi_ops = {
+#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+		.decoder_test = s6e3fc3_decoder_test,
+#endif
 	},
 #if defined(CONFIG_PANEL_DISPLAY_MODE)
 	.common_panel_modes = &s6e3fc3_a53x_display_modes,
@@ -989,14 +1077,8 @@ struct common_panel_info s6e3fc3_a53x_panel_info = {
 		[PANEL_BL_SUBDEV_TYPE_AOD] = &s6e3fc3_a53x_panel_aod_dimming_info,
 #endif
 	},
-#ifdef CONFIG_DYNAMIC_FREQ
-	.df_freq_tbl = a53x_s6e3fc3_dynamic_freq_set,
-#endif
 #ifdef CONFIG_EXTEND_LIVE_CLOCK
 	.aod_tune = &s6e3fc3_a53x_aod,
-#endif
-#ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
-	.profile_tune = NULL,
 #endif
 };
 

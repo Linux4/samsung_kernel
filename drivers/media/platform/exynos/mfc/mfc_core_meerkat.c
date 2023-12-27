@@ -25,7 +25,7 @@
 #include "mfc_sync.h"
 #include "base/mfc_queue.h"
 
-#define MFC_SFR_AREA_COUNT	23
+#define MFC_SFR_AREA_COUNT	24
 #define MFC1_SFR_AREA_COUNT	4
 static void __mfc_dump_regs(struct mfc_core *core)
 {
@@ -55,6 +55,7 @@ static void __mfc_dump_regs(struct mfc_core *core)
 		{ 0xA000, 0x500 },
 		{ 0xB000, 0x444 },
 		{ 0xC000, 0x84 },
+		{ 0xE000, 0x204 },
 	};
 	int addr1[MFC1_SFR_AREA_COUNT][2] = {
 		{ 0x3A00, 0x5CC },
@@ -366,13 +367,14 @@ void mfc_dump_state(struct mfc_dev *dev)
 
 	for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
 		if (dev->ctx[i]) {
-			mfc_dev_err("- ctx[%d] %s %s, %s, %s, size: %dx%d@%ldfps(tmu: %dfps, op: %ldfps), crop: %d %d %d %d\n",
+			mfc_dev_err("- ctx[%d] %s %s, %s, %s, size: %dx%d@%ldfps(src_ts: %ldfps, tmu: %dfps, op: %ldfps), crop: %d %d %d %d\n",
 				dev->ctx[i]->num,
 				dev->ctx[i]->type == MFCINST_DECODER ? "DEC" : "ENC",
 				dev->ctx[i]->is_drm ? "Secure" : "Normal",
 				dev->ctx[i]->src_fmt->name,
 				dev->ctx[i]->dst_fmt->name,
 				dev->ctx[i]->img_width, dev->ctx[i]->img_height,
+				dev->ctx[i]->framerate / 1000,
 				dev->ctx[i]->last_framerate / 1000,
 				dev->tmu_fps,
 				dev->ctx[i]->operating_framerate,
@@ -769,13 +771,14 @@ int __mfc_store_dump_state(struct mfc_dev *dev, char *buf)
 	for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
 		if (dev->ctx[i]) {
 			ret = snprintf((buf + idx), 300,
-			"- ctx[%d] %s %s, %s, %s, size: %dx%d@%ldfps(tmu: %dfps, op: %ldfps), crop: %d %d %d %d\n",
+			"- ctx[%d] %s %s, %s, %s, size: %dx%d@%ldfps(src_ts: %ldfps, tmu: %dfps, op: %ldfps), crop: %d %d %d %d\n",
 				dev->ctx[i]->num,
 				dev->ctx[i]->type == MFCINST_DECODER ? "DEC" : "ENC",
 				dev->ctx[i]->is_drm ? "Secure" : "Normal",
 				dev->ctx[i]->src_fmt->name,
 				dev->ctx[i]->dst_fmt->name,
 				dev->ctx[i]->img_width, dev->ctx[i]->img_height,
+				dev->ctx[i]->framerate / 1000,
 				dev->ctx[i]->last_framerate / 1000,
 				dev->tmu_fps,
 				dev->ctx[i]->operating_framerate,

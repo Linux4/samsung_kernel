@@ -49,6 +49,7 @@
 #include "cfg80211_ops.h"
 #include "nl80211_vendor.h"
 
+
 #ifdef CONFIG_SCSC_WLBTD
 #include "../../../misc/samsung/scsc/scsc_wlbtd.h"
 #endif
@@ -65,6 +66,15 @@
 #include "scsc_wlan_mmap.h"
 #endif
 
+#define SLSI_MODE_HE   BIT(2)
+#define SLSI_MODE_VHT  BIT(1)
+#define SLSI_MODE_LEGACY_HT   BIT(0)
+#define SLSI_2_4_BAND_SUPPORT BIT(0)
+#define SLSI_5_BAND_SUPPORT   BIT(1)
+#define SLSI_6_BAND_SUPPORT   BIT(2)
+
+#include "qsfs.h"
+
 #define CSR_WIFI_SME_MIB2_HOST_PSID_MASK    0x8000
 #define MX_WLAN_FILE_PATH_LEN_MAX (128)
 #define SLSI_MIB_REG_RULES_MAX (50)
@@ -76,6 +86,8 @@
 /* Manually added: To remove after fapi update */
 #define FAPI_SCANMODE_LOW_LATENCY_2   0x0002
 #define FAPI_SCANMODE_LOW_LATENCY_3   0x0003
+
+#define SLSI_ANTENNA_NOT_SET (0xff)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
@@ -101,6 +113,10 @@ static char mac_addr_override[] = "ff:ff:ff:ff:ff:ff";
 module_param_string(mac_addr, mac_addr_override, sizeof(mac_addr_override), S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mac_addr_override, "WLAN MAC address override");
 
+static bool EnableRfTestMode;
+module_param(EnableRfTestMode, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(EnableRfTestMode, "Enable RF test mode driver.");
+
 static int slsi_mib_open_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *mib_info, const struct firmware **fw);
 static int slsi_mib_close_file(struct slsi_dev *sdev, const struct firmware *e);
 static int slsi_mib_download_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *mib_info);
@@ -117,17 +133,30 @@ static ssize_t sysfs_show_macaddr(struct kobject *kobj, struct kobj_attribute *a
 				  char *buf);
 static ssize_t sysfs_store_macaddr(struct kobject *kobj, struct kobj_attribute *attr,
 				   const char *buf, size_t count);
+static ssize_t sysfs_show_version_info(struct kobject *kobj, struct kobj_attribute *attr,
+				       char *buf);
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 /* dump_in_progress stored in sysfs global */
 static ssize_t sysfs_show_debugdump(struct kobject *kobj, struct kobj_attribute *attr,
-				  char *buf);
+				    char *buf);
 static ssize_t sysfs_store_debugdump(struct kobject *kobj, struct kobj_attribute *attr,
-				   const char *buf, size_t count);
+				     const char *buf, size_t count);
 #endif
+
+static ssize_t sysfs_show_pm(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t sysfs_store_pm(struct kobject *kobj, struct kobj_attribute *attr,
+			      const char *buf, size_t count);
+static ssize_t sysfs_show_ant(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t sysfs_store_ant(struct kobject *kobj, struct kobj_attribute *attr,
+			       const char *buf, size_t count);
 
 static struct kobject *wifi_kobj_ref;
 static char sysfs_mac_override[] = "ff:ff:ff:ff:ff:ff";
+static u16 sysfs_antenna = SLSI_ANTENNA_NOT_SET;
 static struct kobj_attribute mac_attr = __ATTR(mac_addr, 0660, sysfs_show_macaddr, sysfs_store_macaddr);
+static struct kobj_attribute pm_attr = __ATTR(pm, 0660, sysfs_show_pm, sysfs_store_pm);
+static struct kobj_attribute ant_attr = __ATTR(ant, 0660, sysfs_show_ant, sysfs_store_ant);
+static struct kobj_attribute ver_attr = __ATTR(wifiver, 0660, sysfs_show_version_info, NULL);
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 static int dump_in_progress;
 static struct kobj_attribute dump_attr = __ATTR(dump_in_progress, 0660, sysfs_show_debugdump, sysfs_store_debugdump);
@@ -187,6 +216,70 @@ void slsi_destroy_sysfs_macaddr(void)
 
 	/* Destroy /sys/wifi/mac_addr file */
 	sysfs_remove_file(wifi_kobj_ref, &mac_attr.attr);
+
+	/* Destroy /sys/wifi virtual dir */
+	mxman_wifi_kobject_ref_put();
+}
+
+/* Retrieve version information in sysfs global */
+static ssize_t sysfs_show_version_info(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       char *buf)
+{
+	struct slsi_dev *sdev = slsi_get_sdev();
+	char build_id_fw[128] = {0};
+	char build_id_drv[64] = {0};
+	int buf_size = 256;
+
+#ifndef SLSI_TEST_DEV
+	mxman_get_fw_version(build_id_fw, 128);
+	mxman_get_driver_version(build_id_drv, 64);
+#endif
+
+	return snprintf(buf, buf_size,
+			"%s\n"	/* drv_ver: already appended by mxman_get_driver_version() */
+			"f/w_ver: %s\n"
+			"hcf_ver_hw: %s\n"
+			"hcf_ver_sw: %s\n"
+			"regDom_ver: %d.%d\n",
+			build_id_drv,
+			build_id_fw,
+			sdev->mib[0].platform,
+			sdev->mib[1].platform,
+			((sdev->reg_dom_version >> 8) & 0xFF), (sdev->reg_dom_version & 0xFF));
+}
+
+/* Register sysfs version information */
+void slsi_create_sysfs_version_info(void)
+{
+#ifndef SLSI_TEST_DEV
+	int r;
+
+	wifi_kobj_ref = mxman_wifi_kobject_ref_get();
+	pr_info("wifi_kobj_ref: 0x%p\n", wifi_kobj_ref);
+
+	if (wifi_kobj_ref) {
+		/* Create sysfs file /sys/wifi/wifiver */
+		r = sysfs_create_file(wifi_kobj_ref, &ver_attr.attr);
+		if (r) {
+			/* Failed, so clean up dir */
+			pr_err("Can't create /sys/wifi/wifiver\n");
+			return;
+		}
+	} else {
+		pr_err("failed to create /sys/wifi/wifiver\n");
+	}
+#endif
+}
+
+/* Unregister sysfs version information */
+void slsi_destroy_sysfs_version_info(void)
+{
+	if (!wifi_kobj_ref)
+		return;
+
+	/* Destroy /sys/wifi/wifiver file */
+	sysfs_remove_file(wifi_kobj_ref, &ver_attr.attr);
 
 	/* Destroy /sys/wifi virtual dir */
 	mxman_wifi_kobject_ref_put();
@@ -727,15 +820,6 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	int  err = 0, r, reg_err = 0, stop_err;
 	int i;
 	char alpha2[3];
-#ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
-#if (KERNEL_VERSION(5, 4, 0) > LINUX_VERSION_CODE)
-	char *ant_file_path = "/data/vendor/conn/.ant.info";
-	char *antenna_file_path = "/data/vendor/wifi/antenna.info";
-#else
-	char *ant_file_path = "../../data/vendor/conn/.ant.info";
-	char *antenna_file_path = "../../data/vendor/wifi/antenna.info";
-#endif
-#endif
 	char log_to_sys_error_buffer[128] = { 0 };
 
 	SLSI_UNUSED_PARAMETER(dev);
@@ -873,6 +957,9 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	SLSI_INFO(sdev, "HW Version : 0x%.4X (%u)\n", sdev->chip_info_mib.chip_version, sdev->chip_info_mib.chip_version);
 	SLSI_INFO(sdev, "Platform : 0x%.4X (%u)\n", sdev->plat_info_mib.plat_build, sdev->plat_info_mib.plat_build);
 	slsi_cfg80211_update_wiphy(sdev);
+	/* Get feature set from FW if it is already not present */
+	if (sdev->qsf_feature_set_len <= (SLSI_QSF_FEATURE_VER_LEN + SLSI_QSF_SOLUTION_PROVIDER))
+		slsi_get_qsfs_feature_set(sdev);
 
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 
@@ -925,11 +1012,14 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	}
 
 #ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
-	if (slsi_is_rf_test_mode_enabled()) {
-		/* reading antenna mode from configured file /data/vendor/conn/.ant.info */
-		if (!(slsi_read_preferred_antenna_from_file(sdev, ant_file_path))) {
-			/* reading antenna mode from configured file /data/vendor/wifi/antenna.info */
-			slsi_read_preferred_antenna_from_file(sdev, antenna_file_path);
+	if (slsi_is_rf_test_mode_enabled() && !slsi_is_test_mode_enabled()) {
+		if (sysfs_antenna == SLSI_ANTENNA_NOT_SET) {
+			SLSI_INFO(sdev, "antenna not set. Set /sys/wifi/ant to modify antenna\n");
+		} else if (sdev->lls_num_radio < 2) {
+			SLSI_ERR(sdev, "Invalid: trying to modify ant in SISO model\n");
+			sysfs_antenna = SLSI_ANTENNA_NOT_SET;
+		} else {
+			slsi_set_mib_preferred_antenna(sdev, sysfs_antenna);
 		}
 	}
 #endif
@@ -974,39 +1064,6 @@ done:
 
 	return err;
 }
-
-#ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
-bool slsi_read_preferred_antenna_from_file(struct slsi_dev *sdev, char *antenna_file_path)
-{
-#if defined(SCSC_SEP_VERSION)
-	char ant_mode = '0';
-	u16 antenna = 0;
-	int ret = 0;
-	int offset = 0;
-	const struct firmware *firm = NULL;
-
-	ret = mx140_request_file(sdev->maxwell_core, antenna_file_path, &firm);
-	if (ret) {
-		SLSI_INFO(sdev, "Error Loading %s file %d\n", antenna_file_path, ret);
-		return false;
-	} else {
-		if (firmware_read(firm, &ant_mode, sizeof(char), &offset) < 0) {
-			SLSI_INFO(sdev, "Failed to read ant_mode\n");
-			goto exit;
-		}
-		antenna = ant_mode - '0';
-		slsi_set_mib_preferred_antenna(sdev, antenna);
-		mx140_release_file(sdev->maxwell_core, firm);
-		return true;
-	}
-exit:
-	mx140_release_file(sdev->maxwell_core, firm);
-	return false;
-#else
-	return false;
-#endif
-}
-#endif
 
 struct net_device *slsi_dynamic_interface_create(struct wiphy        *wiphy,
 					     const char          *name,
@@ -1134,13 +1191,9 @@ void slsi_ndl_vif_cleanup(struct slsi_dev *sdev, struct net_device *dev, bool hw
 		while (peer && peer->valid) {
 			ndp_instance_id = slsi_nan_get_ndp_from_ndl_local_ndi(nan_mgmt_dev, peer->ndl_vif, dev->dev_addr);
 			slsi_ps_port_control(sdev, dev, peer, SLSI_STA_CONN_STATE_DISCONNECTED);
-			if (peer->ndp_count == 1)
-				slsi_peer_remove(sdev, dev, peer);
 			peer->ndp_count--;
-			if (ndev_vif->nan.ndp_count > 0)
-				ndev_vif->nan.ndp_count--;
-			if (nan_mgmt_dev && ndp_instance_id < SLSI_NAN_MAX_NDP_INSTANCES + 1)
-				slsi_nan_ndp_del_entry(sdev, nan_mgmt_dev, ndp_instance_id, true);
+			if (peer->ndp_count == 0)
+				slsi_peer_remove(sdev, dev, peer);
 		}
 	}
 
@@ -1299,9 +1352,37 @@ void slsi_scan_cleanup(struct slsi_dev *sdev, struct net_device *dev)
 	SLSI_MUTEX_UNLOCK(ndev_vif->scan_mutex);
 }
 
+static void slsi_clear_low_latency_state(struct net_device *dev)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct slsi_dev   *sdev = ndev_vif->sdev;
+	int               ret = 0;
+	u16               host_state;
+
+	if (!SLSI_IS_VIF_INDEX_WLAN(ndev_vif))
+		return;
+
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+	host_state = sdev->device_config.host_state;
+	host_state &= ~SLSI_HOSTSTATE_LOW_LATENCY_ACTIVE;
+
+	ret = slsi_mlme_set_host_state(sdev, dev, host_state);
+	if (ret != 0) {
+		SLSI_NET_ERR(dev, "Error in setting the Host State, ret=%d\n", ret);
+		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+		return;
+	}
+	sdev->device_config.host_state = host_state;
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+}
+
 static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *dev, bool hw_available)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+	struct net_device *nan_mgmt_dev = slsi_get_netdev_locked(sdev, SLSI_NET_INDEX_NAN);
+	struct netdev_vif *ndev_vif_mgmt = netdev_priv(nan_mgmt_dev);
+#endif
 
 	SLSI_NET_DBG1(dev, SLSI_INIT_DEINIT, "Stopping netdev_up_count=%d, hw_available = %d\n", sdev->netdev_up_count, hw_available);
 
@@ -1346,6 +1427,10 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 
 	cancel_work_sync(&ndev_vif->set_multicast_filter_work);
 	cancel_work_sync(&ndev_vif->update_pkt_filter_work);
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+	if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
+		SLSI_MUTEX_LOCK(ndev_vif_mgmt->vif_mutex);
+#endif
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	slsi_vif_cleanup(sdev, dev, hw_available, 0);
 	slsi_spinlock_lock(&sdev->netdev_lock);
@@ -1358,6 +1443,11 @@ static void slsi_stop_net_dev_locked(struct slsi_dev *sdev, struct net_device *d
 	atomic_set(&ndev_vif->arp_tx_count, 0);
 #endif
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+#ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
+	if (ndev_vif->ifnum >= SLSI_NAN_DATA_IFINDEX_START)
+		SLSI_MUTEX_UNLOCK(ndev_vif_mgmt->vif_mutex);
+#endif
+
 
 	complete_all(&ndev_vif->sig_wait.completion);
 	slsi_stop_chip(sdev);
@@ -1615,10 +1705,7 @@ static int slsi_mib_open_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *m
 
 #if defined SCSC_SEP_VERSION
 	ret = scsc_mx_service_phandle_property_read_u32(sdev->service, "samsung,wlbt_hcf", "hcf_rev", &value, ret);
-	/* hcf revision version 0 then only XXXX.hcf.rev0 will be loaded.
-	 * else defult file XXXX.hcf will be loaded.
-	 */
-	if (ret == 0 && value == 0) {
+	if (ret == 0) {
 		memset(filename, 0, MX_WLAN_FILE_LEN_MAX);
 		scnprintf(filename, sizeof(filename), "%s.rev%d", mib_file_name, value);
 		r = mx140_file_request_conf(sdev->maxwell_core, &e, "wlan", filename);
@@ -3063,6 +3150,7 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
 			ndev_vif->sta.rsn_ie = NULL;
 		}
 #endif
+		slsi_clear_low_latency_state(dev);
 	}
 
 	/* MUST be done first to ensure that other code doesn't treat the VIF as still active */
@@ -3158,6 +3246,10 @@ static int slsi_get_sta_mode(struct net_device *dev, const u8 *last_peer_mac)
 	struct slsi_dev *sdev = ndev_vif->sdev;
 	struct slsi_peer    *last_peer;
 	const u8             *peer_ie;
+	u8                   ie_len = 0;
+	u8                   start_chan = 0;
+	int                  i = 0, chan_count = 0;
+	const u8             *supported_chan_ie = NULL;
 
 	last_peer = slsi_get_peer_from_mac(sdev, dev, last_peer_mac);
 
@@ -3165,15 +3257,47 @@ static int slsi_get_sta_mode(struct net_device *dev, const u8 *last_peer_mac)
 		SLSI_NET_ERR(dev, "Peer not found\n");
 		return -EINVAL;
 	}
-
 	ndev_vif->ap.last_disconnected_sta.support_mode = 0;
+#if (KERNEL_VERSION(5, 0, 0) <= LINUX_VERSION_CODE)
+	if (cfg80211_find_ext_ie(WLAN_EID_EXT_HE_CAPABILITY, last_peer->assoc_ie->data,
+				      last_peer->assoc_ie->len))
+		ndev_vif->ap.last_disconnected_sta.support_mode = SLSI_MODE_HE;
+	else if (cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, last_peer->assoc_ie->data,
+				  last_peer->assoc_ie->len))
+		ndev_vif->ap.last_disconnected_sta.support_mode = SLSI_MODE_VHT;
+#else
 	if (cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, last_peer->assoc_ie->data,
 			     last_peer->assoc_ie->len))
-		ndev_vif->ap.last_disconnected_sta.support_mode = 3;
-	else if (cfg80211_find_ie(WLAN_EID_HT_CAPABILITY, last_peer->assoc_ie->data,
-				  last_peer->assoc_ie->len))
-		ndev_vif->ap.last_disconnected_sta.support_mode = 1;
+		ndev_vif->ap.last_disconnected_sta.support_mode = SLSI_MODE_VHT;
+#endif
+	else
+		ndev_vif->ap.last_disconnected_sta.support_mode = SLSI_MODE_LEGACY_HT;
 
+	ndev_vif->ap.last_disconnected_sta.supported_band = 0;
+	supported_chan_ie = cfg80211_find_ie(WLAN_EID_SUPPORTED_CHANNELS, last_peer->assoc_ie->data,
+					     last_peer->assoc_ie->len);
+	if ((supported_chan_ie) &&
+	    ((last_peer->assoc_ie->len - (supported_chan_ie - last_peer->assoc_ie->data)) > 2)) {
+		ie_len = supported_chan_ie[1];
+		if ((last_peer->assoc_ie->len - (supported_chan_ie - last_peer->assoc_ie->data)) < (2 + ie_len))
+			goto skip_supported_band;
+
+		supported_chan_ie += 2;
+		for (i = 0; i < (ie_len / 2); i++) {
+			start_chan = supported_chan_ie[2 * i];
+			chan_count = supported_chan_ie[2 * i + 1];
+			if ((start_chan <= MAX_24G_CHANNELS) && (chan_count < MAX_24G_CHANNELS))
+				ndev_vif->ap.last_disconnected_sta.supported_band |= SLSI_2_4_BAND_SUPPORT;
+			else if ((start_chan == 36) || (start_chan == 52) || (start_chan == 100) ||
+				 (start_chan == 149) || (start_chan == 169))
+				ndev_vif->ap.last_disconnected_sta.supported_band |= SLSI_5_BAND_SUPPORT;
+			else
+				ndev_vif->ap.last_disconnected_sta.supported_band |= SLSI_6_BAND_SUPPORT;
+		}
+	} else {
+		SLSI_INFO(sdev, "supported_chan_ie is null\n");
+	}
+skip_supported_band:
 	if (ndev_vif->ap.mode == SLSI_80211_MODE_11AC) { /*AP supports VHT*/
 		peer_ie = cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, last_peer->assoc_ie->data,
 					   last_peer->assoc_ie->len);
@@ -4057,7 +4181,7 @@ static void slsi_create_packet_filter_element(u8                               f
 					      u8                               num_pattern_desc,
 					      struct slsi_mlme_pattern_desc    *pattern_desc,
 					      struct slsi_mlme_pkt_filter_elem *pkt_filter_elem,
-					      u8                               *pkt_filters_len)
+					      int                              *pkt_filters_len)
 {
 	u8 pkt_filter_hdr[SLSI_PKT_FILTER_ELEM_HDR_LEN] = { 0xdd,             /* vendor ie*/
 							    0x00,             /*Length to be filled*/
@@ -4066,7 +4190,8 @@ static void slsi_create_packet_filter_element(u8                               f
 							    filterid,         /*filter id to be filled*/
 							    pkt_filter_mode   /* pkt filter mode to be filled */
 	};
-	u8 i, pattern_desc_len = 0;
+	u8 i;
+	int pattern_desc_len = 0;
 
 	WARN_ON(num_pattern_desc > SLSI_MAX_PATTERN_DESC);
 
@@ -4092,7 +4217,8 @@ static int slsi_set_common_packet_filters(struct slsi_dev *sdev, struct net_devi
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 
 	/*Opt out all broadcast and multicast packets (filter on I/G bit)*/
 	pattern_desc.offset = 0;
@@ -4111,7 +4237,8 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 num_filters = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[2];
 	int ret;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -4120,7 +4247,7 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	if (slsi_is_proxy_arp_supported_on_ap(peer->assoc_resp_ie))
@@ -4255,7 +4382,7 @@ int slsi_set_enhanced_pkt_filter(struct net_device *dev, char *command, int buf_
 static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4278,7 +4405,7 @@ static int slsi_set_opt_out_unicast_packet_filter(struct slsi_dev *sdev, struct 
 static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4311,7 +4438,7 @@ static int  slsi_set_opt_in_tcp4_packet_filter(struct slsi_dev *sdev, struct net
 static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[2];
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem;
 
@@ -4344,7 +4471,8 @@ static int  slsi_set_opt_in_tcp6_packet_filter(struct slsi_dev *sdev, struct net
 int  slsi_set_multicast_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[3];
-	u8 pkt_filters_len = 0, i, num_filters = 0;
+	int pkt_filters_len = 0;
+	u8 i, num_filters = 0;
 	u8 num_pattern_desc = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem = NULL;
@@ -4459,7 +4587,8 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_peer *peer = slsi_get_peer_from_qs(sdev, dev, SLSI_STA_PEER_QUEUESET);
 
-	u8 i, pkt_filters_len = 0;
+	u8 i;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 	int ret = 0;
 	struct slsi_mlme_pkt_filter_elem *pkt_filter_elem;
@@ -4470,7 +4599,7 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "Clear filters on Screen on");
@@ -4593,7 +4722,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 {
 	struct slsi_mlme_pattern_desc pattern_desc[SLSI_MAX_PATTERN_DESC];
 	int num_pattern_desc = 0;
-	u8 pkt_filters_len = 0;
+	int pkt_filters_len = 0;
 	int num_filters = 0;
 
 	struct slsi_mlme_pkt_filter_elem pkt_filter_elem[SLSI_ON_CONNECT_FILTERS_COUNT];
@@ -4606,10 +4735,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return;
 
-	if (WARN_ON(!peer))
-		return;
-
-	if (WARN_ON(!peer->assoc_resp_ie))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return;
 
 #if !(IS_ENABLED(CONFIG_IPV6))
@@ -4664,7 +4790,7 @@ int slsi_ip_address_changed(struct slsi_dev *sdev, struct net_device *dev, __be3
 		struct slsi_mlme_pattern_desc pattern_desc[1];
 		u8 num_patterns = 0;
 		struct slsi_mlme_pkt_filter_elem pkt_filter_elem[1];
-		u8 pkt_filters_len = 0;
+		int pkt_filters_len = 0;
 		u8 num_filters = 0;
 #endif
 
@@ -5056,21 +5182,20 @@ void slsi_p2p_vif_deactivate(struct slsi_dev *sdev, struct net_device *dev, bool
 		return;
 	}
 
-	if (!ndev_vif->chan) {
-		SLSI_NET_ERR(dev, "ndev_vif->chan is null\n");
-		return;
-	}
-
 	/* Indicate failure using cfg80211_mgmt_tx_status() if frame TX is not completed during VIF delete */
-	if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID) {
+	if (ndev_vif->mgmt_tx_data.exp_frame != SLSI_PA_INVALID)
 		ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
+	if (ndev_vif->mgmt_tx_data.host_tag)
 		cfg80211_mgmt_tx_status(&ndev_vif->wdev, ndev_vif->mgmt_tx_data.cookie, ndev_vif->mgmt_tx_data.buf, ndev_vif->mgmt_tx_data.buf_len, false, GFP_KERNEL);
-	}
-
 	cancel_delayed_work(&ndev_vif->unsync.del_vif_work);
 	if (delayed_work_pending(&ndev_vif->unsync.roc_expiry_work) && sdev->recovery_status) {
-		cfg80211_remain_on_channel_expired(&ndev_vif->wdev, ndev_vif->unsync.roc_cookie, ndev_vif->chan,
-						   GFP_KERNEL);
+		if (ndev_vif->chan) {
+			cfg80211_remain_on_channel_expired(&ndev_vif->wdev, ndev_vif->unsync.roc_cookie,
+							   ndev_vif->chan, GFP_KERNEL);
+		} else {
+			SLSI_NET_WARN(dev, "There is pending work for ROC expire. But no chan. Cookie = 0x%llx\n",
+				      ndev_vif->unsync.roc_cookie);
+		}
 	}
 	cancel_delayed_work(&ndev_vif->unsync.roc_expiry_work);
 
@@ -5205,7 +5330,7 @@ int slsi_p2p_dev_null_ies(struct slsi_dev *sdev, struct net_device *dev)
 		SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 		scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		while (scan_result) {
-			slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan_result);
+			slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan_result, true);
 			scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		}
 		SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -5517,7 +5642,7 @@ void slsi_abort_sta_scan(struct slsi_dev *sdev)
 		SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 		scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		while (scan_result) {
-			slsi_rx_scan_pass_to_cfg80211(sdev, wlan_net_dev, scan_result);
+			slsi_rx_scan_pass_to_cfg80211(sdev, wlan_net_dev, scan_result, true);
 			scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		}
 		SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -6004,6 +6129,8 @@ static u32 slsi_remap_reg_rule_flags(u8 flags)
 		remapped_flags |= NL80211_RRF_NO_INDOOR;
 	if (flags & SLSI_REGULATORY_NO_OUTDOOR)
 		remapped_flags |= NL80211_RRF_NO_OUTDOOR;
+	if (flags & SLSI_REGULATORY_NO_IR)
+		remapped_flags |= NL80211_RRF_NO_IR;
 
 	return remapped_flags;
 }
@@ -7869,9 +7996,11 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	total_header = sizeof(build_id_fw) + sizeof(build_id_drv);
 
+	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 	if (!sdev || !sdev->service) {
 		SLSI_ERR(sdev, "sdev/service is NULL\n");
 		dump_in_progress = 0;
+		SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 		return;
 	}
 
@@ -7881,6 +8010,7 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	if (size < total_header) {
 		SLSI_INFO(sdev, "Not enough space, size %zu header %zu\n", size, total_header);
+		SLSI_MUTEX_UNLOCK(sdev->start_stop_mutex);
 		return;
 	}
 
@@ -7889,7 +8019,6 @@ void slsi_collect_chipset_logs(struct work_struct *work)
 
 	SLSI_INFO(sdev, "SCSC_LOG_CHUNK_UDI chunk size %zu\n", size);
 
-	SLSI_MUTEX_LOCK(sdev->start_stop_mutex);
 	if (sdev->device_state != SLSI_DEVICE_STATE_STARTED) {
 		SLSI_INFO(sdev, "Skip chipset_log in off state\n");
 		goto done;
@@ -8197,4 +8326,202 @@ int slsi_add_probe_ies_request(struct slsi_dev *sdev, struct net_device *dev)
 		kfree(add_info_ies);
 	}
 	return r;
+}
+
+int slsi_dump_eth_packet(struct slsi_dev *sdev, struct sk_buff *skb)
+{
+	struct ieee80211_hdr *hdr;
+	int offset = 0;
+	int payload_len, remain_len;
+	bool is_ciphered;
+	u8 *qc = NULL;
+
+	hdr = (struct ieee80211_hdr *)fapi_get_data(skb);
+	payload_len = skb->len - fapi_get_siglen(skb);
+	is_ciphered = (fapi_get_u16(skb, u.ma_unitdata_ind.configuration_option) & FAPI_OPTION_KEYRSC) >> 3;
+
+	if (!ieee80211_is_data(hdr->frame_control)) {
+		SLSI_INFO(sdev, "Ignore this packet. It is not data\n");
+		SCSC_BIN_TAG_INFO(BINARY, hdr, payload_len > 54 ? 54 : payload_len);
+		return -EINVAL;
+	}
+
+	/* 1.calc offset 80211_hdr */
+	if (ieee80211_has_a4(hdr->frame_control))
+		offset += sizeof(struct ieee80211_hdr);
+	else
+		offset += sizeof(struct ieee80211_hdr_3addr);
+
+	if (ieee80211_is_data_qos(hdr->frame_control)) {
+		qc = ieee80211_get_qos_ctl(hdr);
+		offset += IEEE80211_QOS_CTL_LEN;
+	}
+
+	if (ieee80211_has_order(hdr->frame_control))
+		offset += IEEE80211_HT_CTL_LEN;
+
+	/* 3.calc offset of key-RSC if FAPI_OPTION_KEYRSC is set */
+	if (is_ciphered)
+		offset += SLSI_EAPOL_KEY_RSC_LENGTH;
+
+	/* 4.dump DA and SA */
+	if (qc && (*qc & IEEE80211_QOS_CTL_A_MSDU_PRESENT)) {
+		SLSI_DBG4(sdev, SLSI_RX, "Packet is A-MSDU offset:%d\n", offset);
+		remain_len = payload_len - offset;
+		if (remain_len < 0) {
+			SLSI_INFO(sdev, "Invalid packet len\n");
+			return -EINVAL;
+		}
+		SCSC_BIN_TAG_INFO(BINARY, (u8 *)hdr + offset, remain_len > 2 * ETH_ALEN ? 2 * ETH_ALEN : remain_len);
+
+		offset += 2 * ETH_ALEN + LLC_SNAP_HDR_LEN;
+	} else {
+		SLSI_DBG4(sdev, SLSI_RX, "Packet is MSDU offset:%d\n", offset);
+		SCSC_BIN_TAG_INFO(BINARY, ieee80211_get_DA(hdr), ETH_ALEN);
+		SCSC_BIN_TAG_INFO(BINARY, ieee80211_get_SA(hdr), ETH_ALEN);
+
+		offset += LLC_SNAP_HDR_LEN - 2;
+	}
+	/* 5. dump ETH_TYPE and Data */
+	remain_len = payload_len - offset;
+	if (remain_len < 0) {
+		SLSI_INFO(sdev, "Invalid packet len\n");
+		return -EINVAL;
+	}
+#ifdef CONFIG_SCSC_WLAN_DEBUG
+	SCSC_BIN_TAG_INFO(BINARY, (u8 *)hdr + offset, remain_len > 116 ? 116 : remain_len);
+#else
+	SCSC_BIN_TAG_INFO(BINARY, (u8 *)hdr + offset, remain_len > 42 ? 42 : remain_len);
+#endif
+	return 0;
+}
+
+/* Is production rf test mode enabled? */
+bool slsi_is_rf_test_mode_enabled(void)
+{
+	return EnableRfTestMode;
+}
+
+/* Retrieve EnableRfTestMode in sysfs global */
+static ssize_t sysfs_show_pm(struct kobject *kobj,
+			     struct kobj_attribute *attr,
+			     char *buf)
+{
+	return sprintf(buf, "%d\n", !EnableRfTestMode);
+}
+
+/* Update pm in sysfs global */
+static ssize_t sysfs_store_pm(struct kobject *kobj,
+			      struct kobj_attribute *attr,
+			      const char *buf,
+			      size_t count)
+{
+	int r;
+	int sysfs_pm;
+
+	r = kstrtoint(buf, 10, &sysfs_pm);
+	if (r == 0 && (sysfs_pm == 0 || sysfs_pm == 1))
+		EnableRfTestMode = (!(bool)sysfs_pm);
+	else
+		pr_err("Invalid pm value. Must be 0 or 1\n");
+
+	SLSI_INFO_NODEV("pm: %d\n", !EnableRfTestMode);
+
+	return (r == 0) ? count : 0;
+}
+
+/* Register sysfs pm */
+void slsi_create_sysfs_pm(void)
+{
+	int r;
+
+	wifi_kobj_ref = mxman_wifi_kobject_ref_get();
+	pr_info("wifi_kobj_ref: 0x%p\n", wifi_kobj_ref);
+
+	if (wifi_kobj_ref) {
+		/* Create sysfs file /sys/wifi/pm */
+		r = sysfs_create_file(wifi_kobj_ref, &pm_attr.attr);
+		if (r) {
+			/* Failed, so clean up dir */
+			pr_err("Can't create /sys/wifi/pm\n");
+			return;
+		}
+	} else {
+		pr_err("failed to create /sys/wifi/pm\n");
+	}
+}
+
+/* Unregister sysfs pm */
+void slsi_destroy_sysfs_pm(void)
+{
+	if (!wifi_kobj_ref)
+		return;
+
+	/* Destroy /sys/wifi/pm file */
+	sysfs_remove_file(wifi_kobj_ref, &pm_attr.attr);
+
+	/* Destroy /sys/wifi virtual dir */
+	mxman_wifi_kobject_ref_put();
+}
+
+/* Retrieve ant in sysfs global */
+static ssize_t sysfs_show_ant(struct kobject *kobj,
+			      struct kobj_attribute *attr,
+			      char *buf)
+{
+	return sprintf(buf, "%d\n", sysfs_antenna);
+}
+
+/* Update ant in sysfs global */
+static ssize_t sysfs_store_ant(struct kobject *kobj,
+			       struct kobj_attribute *attr,
+			       const char *buf,
+			       size_t count)
+{
+	int r;
+	int antenna;
+
+	r = kstrtoint(buf, 10, &antenna);
+	if (r < 0 || antenna < 0 || antenna > 3)
+		pr_err("Invalid ant value. Min:0 Max:3\n");
+	else
+		sysfs_antenna = (u16)antenna;
+
+	SLSI_INFO_NODEV("antenna: %d\n", sysfs_antenna);
+
+	return (r == 0) ? count : 0;
+}
+
+/* Register sysfs ant */
+void slsi_create_sysfs_ant(void)
+{
+	int r;
+
+	wifi_kobj_ref = mxman_wifi_kobject_ref_get();
+	pr_info("wifi_kobj_ref: 0x%p\n", wifi_kobj_ref);
+
+	if (wifi_kobj_ref) {
+		/* Create sysfs file /sys/wifi/ant */
+		r = sysfs_create_file(wifi_kobj_ref, &ant_attr.attr);
+		if (r) {
+			/* Failed, so clean up dir */
+			pr_err("Can't create /sys/wifi/ant\n");
+			return;
+		}
+	} else {
+		pr_err("failed to create /sys/wifi/ant\n");
+	}
+}
+
+/* Unregister sysfs ant */
+void slsi_destroy_sysfs_ant(void)
+{
+	if (!wifi_kobj_ref)
+		return;
+
+	/* Destroy /sys/wifi/ant file */
+	sysfs_remove_file(wifi_kobj_ref, &ant_attr.attr);
+
+	/* Destroy /sys/wifi virtual dir */
+	mxman_wifi_kobject_ref_put();
 }

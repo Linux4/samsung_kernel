@@ -67,8 +67,9 @@ static int goodix_i2c_read(struct device *dev, unsigned int reg,
 		return -EBUSY;
 #endif
 
-	if (core_data->resume_done.done) {
-		int ret = wait_for_completion_interruptible_timeout(&core_data->resume_done, msecs_to_jiffies(500));
+	if (!core_data->resume_done.done) {
+		int ret = wait_for_completion_interruptible_timeout(&core_data->resume_done,
+				msecs_to_jiffies(SEC_TS_WAKE_LOCK_TIME));
 
 		if (ret <= 0) {
 			ts_err("LPM: pm resume is not handled:%d", ret);
@@ -159,8 +160,9 @@ static int goodix_i2c_write(struct device *dev, unsigned int reg,
 		return -EBUSY;
 #endif
 
-	if (core_data->resume_done.done) {
-		int ret = wait_for_completion_interruptible_timeout(&core_data->resume_done, msecs_to_jiffies(500));
+	if (!core_data->resume_done.done) {
+		int ret = wait_for_completion_interruptible_timeout(&core_data->resume_done,
+				msecs_to_jiffies(SEC_TS_WAKE_LOCK_TIME));
 
 		if (ret <= 0) {
 			ts_err("LPM: pm resume is not handled:%d", ret);

@@ -1191,7 +1191,7 @@
 		};
 	};
 
-	cpu-opp-table {
+	opp-table-cpu {
 		compatible = "allwinner,sun50i-h6-operating-points";
 		nvmem-cells = <0x3b>;
 		opp-shared;
@@ -1473,7 +1473,7 @@
 		reg_dcdce = "/soc/i2c@7081400/pmic@36/regulators/dcdce";
 		ths = "/soc/thermal-sensor@5070400";
 		cpu_alert = "/thermal-zones/cpu-thermal/trips/cpu-alert";
-		cpu_opp_table = "/cpu-opp-table";
+		cpu_opp_table = "/opp-table-cpu";
 		hdmi_con_in = "/connector/port/endpoint";
 		ext_osc32k = "/ext_osc32k_clk";
 		reg_vcc5v = "/vcc5v";

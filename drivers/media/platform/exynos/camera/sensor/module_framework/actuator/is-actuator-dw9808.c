@@ -21,6 +21,7 @@
 #include "is-device-sensor-peri.h"
 #include "is-core.h"
 #include "is-helper-i2c.h"
+#include "is-sec-define.h"
 
 #include "interface/is-interface-library.h"
 
@@ -46,7 +47,7 @@
 #define DEF_DW9808_AF_PAN 450
 #define DEF_DW9808_PRESET_MAX 255
 
-int sensor_dw9808_init(struct i2c_client *client, struct is_caldata_list_dw9808 *cal_data)
+int sensor_dw9808_init(struct i2c_client *client, struct is_caldata_sac_dw9808 *cal_data)
 {
 	int ret = 0;
 	u8 i2c_data[2];
@@ -279,6 +280,8 @@ int sensor_dw9808_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	int ret = 0;
 	struct is_actuator *actuator;
 	struct i2c_client *client = NULL;
+	struct is_caldata_sac_dw9808 *cal_data = NULL;
+	char *cal_buf = NULL;
 
 #ifdef USE_CAMERA_HW_BIG_DATA
 	struct cam_hw_param *hw_param = NULL;
@@ -303,6 +306,22 @@ int sensor_dw9808_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	if (unlikely(!client)) {
 		err("client is NULL");
 		ret = -EINVAL;
+		goto p_err;
+	}
+
+	is_sec_get_cal_buf(&cal_buf, ROM_ID_REAR);
+	cal_data = (struct is_caldata_sac_dw9808 *)&cal_buf[DW9808_CAL_SAC_ADDR];
+
+	/* Read into EEPROM data or default setting */
+	ret = sensor_dw9808_init(client, cal_data);
+	if (ret < 0){
+#ifdef USE_CAMERA_HW_BIG_DATA
+		device = v4l2_get_subdev_hostdata(subdev);
+		if (device)
+			is_sec_get_hw_param(&hw_param, device->position);
+		if (hw_param)
+			hw_param->i2c_af_err_cnt++;
+#endif
 		goto p_err;
 	}
 
@@ -358,7 +377,7 @@ p_err:
 	return ret;
 }
 
-#ifdef USE_CAMERA_ACT_DRIVER_SOFT_LANDING 
+#ifdef USE_CAMERA_ACT_DRIVER_SOFT_LANDING
 int sensor_dw9808_actuator_wait_busy(struct v4l2_subdev *subdev)
 {
 	u32 info;
@@ -390,7 +409,7 @@ int sensor_dw9808_actuator_soft_landing(struct v4l2_subdev *subdev)
 
 	BUG_ON(!subdev);
 	actuator = (struct is_actuator *)v4l2_get_subdevdata(subdev);
-	BUG_ON(!actuator);    
+	BUG_ON(!actuator);
 	client = actuator->client;
 	if (unlikely(!client)) {
 		err("client is NULL");
@@ -417,14 +436,14 @@ int sensor_dw9808_actuator_soft_landing(struct v4l2_subdev *subdev)
 		goto p_err;
 	sensor_dw9808_actuator_wait_busy(subdev);
 
-	/* Enable RING Mode*/   
+	/* Enable RING Mode */
 	i2c_data[0] = REG_CONTROL;
-	i2c_data[1] = 0x02; 
-	ret = is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);	
+	i2c_data[1] = 0x02;
+	ret = is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);
 	if (ret < 0)
 		goto p_err;
 	sensor_dw9808_actuator_wait_busy(subdev);
-	/* Set SAC[2:0] and SAC[7:2] as 101 00 001 i.e SAC4 & clock divide x1   */   
+	/* Set SAC[2:0] and SAC[7:2] as 101 00 001 i.e SAC4 & clock divide x1 */
 	i2c_data[0] = REG_MODE;
 	i2c_data[1] = (0x05 << 5) | 0x01;
 	ret = is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);
@@ -433,14 +452,14 @@ int sensor_dw9808_actuator_soft_landing(struct v4l2_subdev *subdev)
 	sensor_dw9808_actuator_wait_busy(subdev);
 
 
-	/*  Set up for NRC now complete...  RING_MODE Enabled + SAC[2:0] set Enable NRC_EN */    	
+	/* Set up for NRC now complete...  RING_MODE Enabled + SAC[2:0] set Enable NRC_EN */
 	i2c_data[0] = REG_NRC_EN;
-	i2c_data[1] = 0x01;     
+	i2c_data[1] = 0x01;
 	ret = is_sensor_addr8_write8(client, i2c_data[0], i2c_data[1]);
 	if (ret < 0)
 		goto p_err;
 	sensor_dw9808_actuator_wait_busy(subdev);
-    
+
 #ifdef DEBUG_ACTUATOR_TIME
 	pr_info("[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 #endif
@@ -454,7 +473,7 @@ int sensor_dw9808_actuator_soft_landing(struct v4l2_subdev *subdev)
 		goto p_err;
 	pos1 = pos1 & 0x03;
 	position = ((u16)pos1 << 8) | pos2;
-    
+
 	if(position > 0){
 		pr_info("[%s] NRC Softlanding Failed, final position: [%x]\n",__func__, position);
 		actuator->position = position;
@@ -558,7 +577,7 @@ static int sensor_dw9808_actuator_s_ctrl(struct v4l2_subdev *subdev, struct v4l2
 			goto p_err;
 		}
 		break;
-#ifdef USE_CAMERA_ACT_DRIVER_SOFT_LANDING 
+#ifdef USE_CAMERA_ACT_DRIVER_SOFT_LANDING
 	case V4L2_CID_ACTUATOR_SOFT_LANDING:
 		ret = sensor_dw9808_actuator_soft_landing(subdev);
 		if(ret == HW_SOFTLANDING_FAIL) {
@@ -668,45 +687,45 @@ int sensor_dw9808_actuator_probe(struct i2c_client *client,
 		if (ret) {
 			pr_info("place read is fail(%d)", ret);
 			place = 0;
-	}
+		}
 		probe_info("%s sensor_id(%d) actuator_place(%d)\n", __func__, sensor_id[i], place);
 
 		device = &core->sensor[sensor_id[i]];
 
 		actuator = kzalloc(sizeof(struct is_actuator), GFP_KERNEL);
-	if (!actuator) {
+		if (!actuator) {
 			err("actuator is NULL");
-		ret = -ENOMEM;
-		goto p_err;
-	}
+			ret = -ENOMEM;
+			goto p_err;
+		}
 
-	subdev_actuator = kzalloc(sizeof(struct v4l2_subdev), GFP_KERNEL);
-	if (!subdev_actuator) {
-		err("subdev_actuator is NULL");
-		ret = -ENOMEM;
+		subdev_actuator = kzalloc(sizeof(struct v4l2_subdev), GFP_KERNEL);
+		if (!subdev_actuator) {
+			err("subdev_actuator is NULL");
+			ret = -ENOMEM;
 			kfree(actuator);
-		goto p_err;
-	}
+			goto p_err;
+		}
 
-	/* This name must is match to sensor_open_extended actuator name */
-	actuator->id = ACTUATOR_NAME_DW9808;
-	actuator->subdev = subdev_actuator;
+		/* This name must is match to sensor_open_extended actuator name */
+		actuator->id = ACTUATOR_NAME_DW9808;
+		actuator->subdev = subdev_actuator;
 		actuator->device = sensor_id[i];
-	actuator->client = client;
-	actuator->position = 0;
-	actuator->max_position = DW9808_POS_MAX_SIZE;
-	actuator->pos_size_bit = DW9808_POS_SIZE_BIT;
-	actuator->pos_direction = DW9808_POS_DIRECTION;
-        actuator->i2c_lock = NULL;
+		actuator->client = client;
+		actuator->position = 0;
+		actuator->max_position = DW9808_POS_MAX_SIZE;
+		actuator->pos_size_bit = DW9808_POS_SIZE_BIT;
+		actuator->pos_direction = DW9808_POS_DIRECTION;
+		actuator->i2c_lock = NULL;
 
-	device->subdev_actuator[place] = subdev_actuator;
-	device->actuator[place] = actuator;
+		device->subdev_actuator[place] = subdev_actuator;
+		device->actuator[place] = actuator;
 
-	v4l2_i2c_subdev_init(subdev_actuator, client, &subdev_ops);
-	v4l2_set_subdevdata(subdev_actuator, actuator);
-	v4l2_set_subdev_hostdata(subdev_actuator, device);
+		v4l2_i2c_subdev_init(subdev_actuator, client, &subdev_ops);
+		v4l2_set_subdevdata(subdev_actuator, actuator);
+		v4l2_set_subdev_hostdata(subdev_actuator, device);
 
-	snprintf(subdev_actuator->name, V4L2_SUBDEV_NAME_SIZE, "actuator-subdev.%d", actuator->id);
+		snprintf(subdev_actuator->name, V4L2_SUBDEV_NAME_SIZE, "actuator-subdev.%d", actuator->id);
 	}
 p_err:
 	probe_info("%s done\n", __func__);

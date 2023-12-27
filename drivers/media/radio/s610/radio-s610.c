@@ -42,7 +42,7 @@
 #include <linux/of_gpio.h>
 #include <linux/of_device.h>
 
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 #include <scsc/scsc_mx.h>
 #endif
 
@@ -1579,7 +1579,7 @@ static int s610_radio_fops_open(struct file *file)
 		return ret;
 
 	if (v4l2_fh_is_singular_file(file)) {
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 		/* Start FM/WLBT LDO */
 		ret = mx250_fm_request();
 		if (ret < 0) {
@@ -1765,7 +1765,7 @@ static int s610_radio_fops_release(struct file *file)
 		}
 #endif /* USE_PMIC_RW */
 
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 		/* Stop FM/WLBT LDO */
 		ret = mx250_fm_release();
 		if (ret < 0)

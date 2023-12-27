@@ -160,6 +160,8 @@ struct vts_data {
 	void __iomem *sram_base;
 	void __iomem *dmic_if0_base;
 	void __iomem *dmic_if1_base;
+	void __iomem *dmic_ahb0_base;
+	void __iomem *timer0_base;
 	void __iomem *gpr_base;
 
 	void __iomem *intmem_code;

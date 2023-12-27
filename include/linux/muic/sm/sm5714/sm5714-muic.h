@@ -329,6 +329,8 @@ struct sm5714_muic_data {
 
 	struct delayed_work	delayed_523Kto619K_work;
 	int delayed_523Kto619K_state;
+
+	int shut_down;
 };
 
 extern struct device *switch_device;

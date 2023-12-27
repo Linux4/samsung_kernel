@@ -131,7 +131,7 @@ p_err:
 }
 
 #if IS_ENABLED(CONFIG_PM_DEVFREQ)
-static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node *np, int index)
+static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node *np)
 {
 	int i, cnt;
 	u32 temp;
@@ -165,16 +165,16 @@ static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node 
 			snprintf(pprop, PATH_MAX, "%s%s",
 				is_dvfs_dt_arr[i].parse_scenario_nm, qos_name_l[dvfs_t]);
 			DT_READ_U32_DEFAULT(np, pprop,
-				pdata->dvfs_data[index][is_dvfs_dt_arr[i].scenario_id][dvfs_t],
+				pdata->dvfs_data[is_dvfs_dt_arr[i].scenario_id][dvfs_t],
 				IS_DVFS_LV_END);
 		}
 
 		snprintf(pprop, PATH_MAX, "%s%s", is_dvfs_dt_arr[i].parse_scenario_nm, "hpg");
 		DT_READ_U32_DEFAULT(np, pprop,
-			pdata->dvfs_data[index][is_dvfs_dt_arr[i].scenario_id][IS_DVFS_HPG], 1);
+			pdata->dvfs_data[is_dvfs_dt_arr[i].scenario_id][IS_DVFS_HPG], 1);
 
 		snprintf(pprop, PATH_MAX, "%s%s", is_dvfs_dt_arr[i].parse_scenario_nm, "cpu");
-		DT_READ_STR(np, pprop, pdata->dvfs_cpu[index][is_dvfs_dt_arr[i].scenario_id]);
+		DT_READ_STR(np, pprop, pdata->dvfs_cpu[is_dvfs_dt_arr[i].scenario_id]);
 	}
 	__putname(pprop);
 
@@ -184,19 +184,19 @@ static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node 
 
 		for (dvfs_t = 0; dvfs_t < IS_DVFS_END; dvfs_t++) {
 			if (pdata->qos_name[dvfs_t])
-				probe_info("[%d][%d][%s] = %d\n", index, i,
+				probe_info("[%d][%s] = %d\n", i,
 					pdata->qos_name[dvfs_t],
-					pdata->dvfs_data[index][i][dvfs_t]);
+					pdata->dvfs_data[i][dvfs_t]);
 		}
 
-		probe_info("[%d][%d][HPG] = %d\n", index, i, pdata->dvfs_data[index][i][IS_DVFS_HPG]);
-		probe_info("[%d][%d][CPU] = %s\n", index, i, pdata->dvfs_cpu[index][i]);
+		probe_info("[%d][HPG] = %d\n", i, pdata->dvfs_data[i][IS_DVFS_HPG]);
+		probe_info("[%d][CPU] = %s\n", i, pdata->dvfs_cpu[i]);
 	}
 #endif
 	return 0;
 }
 #else
-static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node *np, int index)
+static int parse_dvfs_data(struct exynos_platform_is *pdata, struct device_node *np)
 {
 	return 0;
 }
@@ -222,6 +222,7 @@ static int parse_qos_table(struct exynos_platform_is *pdata, struct device_node 
 			continue;
 		}
 
+		pdata->qos_otf[dvfs_typ] = of_property_read_bool(next, "otf");
 		pdata->qos_name[dvfs_typ] = next->name;
 
 		for (lv = 0; lv < elems; lv++) {
@@ -241,25 +242,19 @@ static int parse_dvfs_table(struct is_dvfs_ctrl *dvfs,
 	struct exynos_platform_is *pdata, struct device_node *np)
 {
 	int ret = 0;
-	u32 table_cnt;
-	struct device_node *table_np;
+	int table_cnt = 0;
+	struct device_node *table_np = NULL;
 	const char *dvfs_table_desc;
 
-	table_np = NULL;
-
-	table_cnt = 0;
-	while ((table_np = of_get_next_child(np, table_np)) &&
-		(table_cnt < IS_DVFS_TABLE_IDX_MAX)) {
+	while ((table_np = of_get_next_child(np, table_np))) {
 		ret = of_property_read_string(table_np, "desc", &dvfs_table_desc);
 		if (ret)
 			dvfs_table_desc = "NOT defined";
 
 		probe_info("dvfs table[%d] is %s", table_cnt, dvfs_table_desc);
-		parse_dvfs_data(pdata, table_np, table_cnt);
+		parse_dvfs_data(pdata, table_np);
 		table_cnt++;
 	}
-
-	dvfs->dvfs_table_max = table_cnt;
 
 	return ret;
 }

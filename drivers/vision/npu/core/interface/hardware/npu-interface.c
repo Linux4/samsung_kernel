@@ -42,7 +42,8 @@ struct fw_profile_info {
 };
 
 static struct fw_profile_info fwProfile;
-static const u8 strArr[][128] = {{"fid : "}, };
+/* Modify strArr, when changes are there in cmd_done structure */
+static const u8 strArr[][128] = {{"fid : "}, {"duration : "}, };
 static void __rprt_manager(struct work_struct *w);
 static void __profile_manager(struct work_struct *w);
 int npu_kpi_response_read(void);
@@ -55,11 +56,14 @@ static struct npu_interface interface = {
 	.addr = NULL,
 };
 
+void dbg_dump_mbox(void);
+
 /*****************************************************************************
  *****                         wrapper function                          *****
  *****************************************************************************/
-static void __send_interrupt(u32 cmdType, struct command *cmd, u32 type)
+static int __send_interrupt(u32 cmdType, struct command *cmd, u32 type)
 {
+	int ret = 0;
 	u32 val;
 	u32 timeout;
 #ifndef CONFIG_NPU_USE_MAILBOX_GROUP
@@ -92,14 +96,16 @@ static void __send_interrupt(u32 cmdType, struct command *cmd, u32 type)
 #endif
 			timeout--;
 			if (!(timeout % 100))
-				npu_err("Mailbox %d delayed for %d\n", cmdType,
+				npu_warn("Mailbox %d delayed for %d\n", cmdType,
 					MAILBOX_CLEAR_CHECK_TIMEOUT - timeout);
 		}
 
 		if (!timeout) {
 			npu_err("Mailbox %d delayed for %d times, cancelled\n",
-					cmdType,
-					MAILBOX_CLEAR_CHECK_TIMEOUT);
+					cmdType, MAILBOX_CLEAR_CHECK_TIMEOUT);
+			dbg_dump_mbox();
+			ret = -EWOULDBLOCK;
+			return ret;
 		}
 
 #ifdef CONFIG_NPU_USE_MAILBOX_GROUP
@@ -125,14 +131,16 @@ static void __send_interrupt(u32 cmdType, struct command *cmd, u32 type)
 #endif
 			timeout--;
 			if (!(timeout % 100))
-				npu_err("Mailbox %d delayed for %d\n", cmdType,
+				npu_warn("Mailbox %d delayed for %d\n", cmdType,
 					MAILBOX_CLEAR_CHECK_TIMEOUT - timeout);
 		}
 
 		if (!timeout) {
 			npu_err("Mailbox %d delayed for %d times, cancelled\n",
-					cmdType,
-					MAILBOX_CLEAR_CHECK_TIMEOUT);
+					cmdType, MAILBOX_CLEAR_CHECK_TIMEOUT);
+			dbg_dump_mbox();
+			ret = -EWOULDBLOCK;
+			return ret;
 		}
 
 #ifdef CONFIG_NPU_USE_MAILBOX_GROUP
@@ -154,14 +162,16 @@ static void __send_interrupt(u32 cmdType, struct command *cmd, u32 type)
 #endif
 			timeout--;
 			if (!(timeout % 100))
-				npu_err("Mailbox %d delayed for %d\n", cmdType,
+				npu_warn("Mailbox %d delayed for %d\n", cmdType,
 					MAILBOX_CLEAR_CHECK_TIMEOUT - timeout);
 		}
 
 		if (!timeout) {
 			npu_err("Mailbox %d delayed for %d times, cancelled\n",
-					cmdType,
-					MAILBOX_CLEAR_CHECK_TIMEOUT);
+					cmdType, MAILBOX_CLEAR_CHECK_TIMEOUT);
+			dbg_dump_mbox();
+			ret = -EWOULDBLOCK;
+			return ret;
 		}
 
 #ifdef CONFIG_NPU_USE_MAILBOX_GROUP
@@ -176,6 +186,8 @@ static void __send_interrupt(u32 cmdType, struct command *cmd, u32 type)
 	default:
 		break;
 	}
+
+	return ret;
 }
 
 static irqreturn_t mailbox_isr0(int irq, void *data)
@@ -336,27 +348,23 @@ void dbg_dump_mbox(void)
 
 	volatile struct mailbox_ctrl *ctrl;
 
-	for (i = MAILBOX_F2HCTRL_MAX - 1; i >= 0; i--) {
+	for (i = 0; i < MAX_MAILBOX / 2; i++) {
 		ctrl = &(interface.mbox_hdr->f2hctrl[i]);
 		sgmt_len = ctrl->sgmt_len;
 		base = NPU_MAILBOX_GET_CTRL(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl->sgmt_ofs);
 		rptr = 0;
-		npu_debug_memdump32_by_memcpy((u32 *)(base + LINE_TO_SGMT(sgmt_len, rptr)),
-			(u32 *)(base + LINE_TO_SGMT(sgmt_len, rptr) + (8 * K_SIZE)));
+		npu_err("H2F_MBOX - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 	}
 
-	for (i = MAILBOX_H2FCTRL_MAX - 1; i >= 0; i--) {
+	for (i = 0; i < MAX_MAILBOX / 2; i++) {
 		ctrl = &(interface.mbox_hdr->h2fctrl[i]);
 		sgmt_len = ctrl->sgmt_len;
 		base = NPU_MAILBOX_GET_CTRL(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl->sgmt_ofs);
 		rptr = 0;
-		npu_debug_memdump32_by_memcpy((u32 *)(base + LINE_TO_SGMT(sgmt_len, rptr)),
-			(u32 *)(base + LINE_TO_SGMT(sgmt_len, rptr) + (1 * K_SIZE)));
+		npu_err("F2H_MBOX - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 	}
-
-	//Dump mbox_hdr
-	npu_debug_memdump32_by_memcpy((u32 *)interface.mbox_hdr,
-		(u32 *)(interface.mbox_hdr + 1));
 }
 
 void dbg_print_error(void)
@@ -411,47 +419,52 @@ void dbg_print_error(void)
 
 void dbg_print_ncp_header(struct ncp_header *nhdr)
 {
-	npu_info("============= ncp_header at %pK =============\n", nhdr);
-	npu_info("mabic_number1 \t: 0X%X\n", nhdr->magic_number1);
-	npu_info("hdr_version \t\t: 0X%X\n", nhdr->hdr_version);
-	npu_info("hdr_size \t\t: 0X%X\n", nhdr->hdr_size);
+	npu_info("============= ncp_header =============\n");
+	npu_info("mabic_number1: 0X%X\n", nhdr->magic_number1);
+	npu_info("hdr_version: 0X%X\n", nhdr->hdr_version);
+	npu_info("hdr_size: 0X%X\n", nhdr->hdr_size);
 #if (NCP_VERSION == 25)
-	npu_info("model name \t\t: %s\n", nhdr->model_name);
-	npu_info("periodicity \t\t: 0X%X\n", nhdr->periodicity);
+	npu_info("model name: %s\n", nhdr->model_name);
+	npu_info("periodicity: 0X%X\n", nhdr->periodicity);
 #else
-	npu_info("net_id \t\t: 0X%X\n", nhdr->net_id);
-	npu_info("unique_id \t\t: 0X%X\n", nhdr->unique_id);
-	npu_info("period \t\t: 0X%X\n", nhdr->period);
+	npu_info("net_id: 0X%X\n", nhdr->net_id);
+	npu_info("unique_id: 0X%X\n", nhdr->unique_id);
+	npu_info("period: 0X%X\n", nhdr->period);
 #endif
-	npu_info("priority \t\t: 0X%X\n", nhdr->priority);
-	npu_info("flags \t\t: 0X%X\n", nhdr->flags);
-	npu_info("workload \t\t: 0X%X\n", nhdr->workload);
+	npu_info("priority: 0X%X\n", nhdr->priority);
+	npu_info("flags: 0X%X\n", nhdr->flags);
+	npu_info("workload: 0X%X\n", nhdr->workload);
 
-	npu_info("addr_vector_offset \t: 0X%X\n", nhdr->address_vector_offset);
-	npu_info("addr_vector_cnt \t: 0X%X\n", nhdr->address_vector_cnt);
-	npu_info("magic_number2 \t: 0X%X\n", nhdr->magic_number2);
+	npu_info("addr_vector_offset: 0X%X\n", nhdr->address_vector_offset);
+	npu_info("addr_vector_cnt: 0X%X\n", nhdr->address_vector_cnt);
+	npu_info("magic_number2: 0X%X\n", nhdr->magic_number2);
 }
 
 void dbg_print_interface(void)
 {
-	npu_info("=============  interface at %pK =============\n", &interface);
-	npu_info("mbox_hdr \t\t: 0x%pK\n", interface.mbox_hdr);
-	npu_info("mbox_hdr.max_slot \t: %d\n", interface.mbox_hdr->max_slot);
-	npu_info("mbox_hdr.version \t: %d\n", interface.mbox_hdr->version);
-	npu_info("mbox_hdr.signature2 \t: 0X%x\n", interface.mbox_hdr->signature2);
-	npu_info("mbox_hdr.signature1 \t: 0X%x\n", interface.mbox_hdr->signature1);
-	npu_info("sfr \t\t\t: 0x%pK\n", interface.sfr);
-	npu_info("addr \t\t\t: 0x%pK\n", NPU_MBOX_BASE(interface.mbox_hdr));
+	npu_info("=============  interface mbox hdr =============\n");
+	npu_info("mbox_hdr: 0x%pK\n", interface.mbox_hdr);
+	npu_info("mbox_hdr.max_slot: %d\n", interface.mbox_hdr->max_slot);
+	npu_info("mbox_hdr.version: %d\n", interface.mbox_hdr->version);
+	npu_info("mbox_hdr.signature2: 0x%x\n", interface.mbox_hdr->signature2);
+	npu_info("mbox_hdr.signature1: 0x%x\n", interface.mbox_hdr->signature1);
+	npu_info("sfr: 0x%pK\n", interface.sfr);
+	npu_info("addr: 0x%pK\n", NPU_MBOX_BASE(interface.mbox_hdr));
 }
 
 static int npu_set_cmd(struct message *msg, struct command *cmd, u32 cmdType)
 {
 	int ret = 0;
+	volatile struct mailbox_ctrl *ctrl;
+	ctrl = &interface.mbox_hdr->h2fctrl[cmdType];
 
-	ret = mbx_ipc_put(NPU_MBOX_BASE((void *)interface.mbox_hdr), &interface.mbox_hdr->h2fctrl[cmdType], msg, cmd);
+	ret = mbx_ipc_put(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, msg, cmd);
 	if (ret)
 		goto I_ERR;
-	__send_interrupt(msg->command, cmd, cmdType);
+	npu_log_ipc_set_date(cmdType, ctrl->rptr, ctrl->wptr);
+	ret = __send_interrupt(msg->command, cmd, cmdType);
+	if (ret)
+		goto I_ERR;
 	return 0;
 I_ERR:
 	switch (ret) {
@@ -463,26 +476,6 @@ I_ERR:
 		break;
 	}
 	return ret;
-}
-
-static ssize_t get_ncp_hdr_size(const struct npu_nw *nw)
-{
-	struct ncp_header *ncp_header;
-
-	BUG_ON(!nw);
-
-	if (nw->ncp_addr.vaddr == NULL) {
-		npu_err("not specified in ncp_addr.kvaddr");
-		return -EINVAL;
-	}
-
-	ncp_header = (struct ncp_header *)nw->ncp_addr.vaddr;
-	//dbg_print_ncp_header(ncp_header);
-	if (ncp_header->magic_number1 != NCP_MAGIC1) {
-		npu_info("invalid MAGIC of NCP header (0x%08x) at (%pK)", ncp_header->magic_number1, ncp_header);
-		return -EINVAL;
-	}
-	return ncp_header->hdr_size;
 }
 
 int npu_interface_probe(struct device *dev, void *regs1, void *regs2)
@@ -511,54 +504,9 @@ int npu_interface_probe(struct device *dev, void *regs1, void *regs2)
 	return ret;
 }
 
-#ifdef CONFIG_DSP_USE_VS4L
-void dsp_ctrl_userdefined_dump(struct npu_system *system)
-{
-	u32 value;
-	struct npu_iomem_area *mem;
-
-	mem = npu_get_io_area(system, "sfrdnc");
-	value = npu_read_hw_reg(mem, 0x120100, 0xFFFFFFFF, 0);
-
-	npu_info("USER %08x\n", value);
-}
-
-// static int dsp_system_wait_boot(struct npu_system *system)
-// {
-// 	int ret;
-// 	long timeout;
-
-// 	if (configs[DSP_WAIT_MODE] == DSP_SYSTEM_WAIT_MODE_INTERRUPT) {
-// 		wait_event_timeout(system->dsp_wq,
-// 				system->dsp_system_flag & BIT(DSP_SYSTEM_BOOT),
-// 				msecs_to_jiffies(configs[DSP_WAIT_BOOT]));
-// 	} else if (configs[DSP_WAIT_MODE] == DSP_SYSTEM_WAIT_MODE_BUSY_WAITING) {
-// 		timeout = 10000;
-// 		while (timeout) {
-// 			if (system->dsp_system_flag & BIT(DSP_SYSTEM_BOOT))
-// 				break;
-
-// 			//dsp_ctrl_pc_dump();
-// 			//dsp_ctrl_userdefined_dump(system);
-// 			timeout -= 10;
-// 			mdelay(100);
-// 		}
-// 		if (timeout == 0)
-// 			return -1;
-// 	} else {
-// 		ret = -EINVAL;
-// 		npu_err("wait mode(%u) is invalid\n", configs[DSP_WAIT_MODE]);
-// 		goto p_err;
-// 	}
-// 	npu_info("DSP booted\n");
-// p_err:
-// 	return 0;
-// }
-#endif
-
 int npu_interface_open(struct npu_system *system)
 {
-	int i, j, ret = 0;
+	int i, ret = 0;
 	unsigned int isr_cpu_affinity = 0;
 	struct npu_device *device;
 	struct device *dev = &system->pdev->dev;
@@ -570,18 +518,12 @@ int npu_interface_open(struct npu_system *system)
 	interface.system = &device->system;
 	interface.dhcp = device->system.dhcp;
 #endif
-
-#ifdef CONFIG_NPU_SECURE_MODE
-	if (!system->mbox_hdr->warm_boot_enable)
-#endif
-	{
-		for (i = 0; i < system->irq_num; i++) {
-			ret = devm_request_irq(dev, system->irq[i], mailbox_isr_list[i],
-					IRQF_TRIGGER_HIGH, "exynos-npu", NULL);
-			if (ret) {
-				npu_err("fail(%d) in devm_request_irq(%d)\n", ret, i);
-				goto err_probe_irq;
-			}
+	for (i = 0; i < system->irq_num; i++) {
+		ret = devm_request_irq(dev, system->irq[i], mailbox_isr_list[i],
+				IRQF_TRIGGER_HIGH, "exynos-npu", NULL);
+		if (ret) {
+			npu_err("fail(%d) in devm_request_irq(%d)\n", ret, i);
+			goto err_probe_irq;
 		}
 	}
 
@@ -607,22 +549,18 @@ int npu_interface_open(struct npu_system *system)
 	ret = mailbox_init(interface.mbox_hdr, system);
 	if (ret) {
 		npu_err("error(%d) in npu_mailbox_init\n", ret);
+		dbg_print_interface();
 		goto err_workqueue;
 	}
-// #ifdef CONFIG_DSP_USE_VS4L
-// 	ret = dsp_system_wait_boot(system);
-// 	if (ret) {
-// 		npu_err("error(%d) in dsp_system_wait_boot\n", ret);
-// 		goto err_workqueue;
-// 	}
-// #endif
 	return ret;
 
 err_workqueue:
 	destroy_workqueue(wq);
 err_probe_irq:
-	for (j = i - 1; j >= 0; j--)
-		devm_free_irq(dev, system->irq[j], NULL);
+	for (i = 0; i < system->irq_num; i++) {
+		irq_set_affinity_hint(system->irq[i], NULL);
+		devm_free_irq(dev, system->irq[i], NULL);
+	}
 err_exit:
 	interface.addr = NULL;
 	interface.mbox_hdr = NULL;
@@ -641,7 +579,16 @@ int npu_interface_close(struct npu_system *system)
 		return -EINVAL;
 	}
 
+	if (likely(interface.mbox_hdr))
+		mailbox_deinit(interface.mbox_hdr, system);
+
 	dev = &system->pdev->dev;
+
+	for (i = 0; i < system->irq_num; i++)
+		irq_set_affinity_hint(system->irq[i], NULL);
+
+	for (i = 0; i < system->irq_num; i++)
+		devm_free_irq(dev, system->irq[i], NULL);
 
 	queue_work(wq, &work_report);
 	if ((wq) && (interface.mbox_hdr)) {
@@ -654,17 +601,6 @@ int npu_interface_close(struct npu_system *system)
 		flush_workqueue(wq);
 		destroy_workqueue(wq);
 		wq = NULL;
-	}
-
-	for (i = 0; i < system->irq_num; i++)
-		irq_set_affinity_hint(system->irq[i], NULL);
-
-#ifdef CONFIG_NPU_SECURE_MODE
-	if (!system->mbox_hdr->warm_boot_enable)
-#endif
-	{
-		for (i = 0; i < system->irq_num; i++)
-			devm_free_irq(dev, system->irq[i], NULL);
 	}
 
 	interface.addr = NULL;
@@ -684,12 +620,30 @@ int register_msgid_get_type(int (*msgid_get_type_func)(int))
 	return 0;
 }
 
+static u32 config_npu_load_payload(struct npu_nw *nw)
+{
+	struct npu_session *session = nw->session;
+	struct cmd_load_payload *payload = session->ncp_payload->vaddr;
+
+	payload[COMMAND_LOAD_USER_NCP].addr = nw->ncp_addr.daddr;
+	payload[COMMAND_LOAD_USER_NCP].size = nw->ncp_addr.size;
+	payload[COMMAND_LOAD_USER_NCP].id = COMMAND_LOAD_USER_NCP;
+
+	payload[COMMAND_LOAD_HDR_COPY].addr = session->ncp_hdr_buf->daddr;
+	payload[COMMAND_LOAD_HDR_COPY].size = session->ncp_hdr_buf->size;
+	payload[COMMAND_LOAD_HDR_COPY].id = COMMAND_LOAD_HDR_COPY;
+
+	npu_session_ion_sync_for_device(session->ncp_payload, 0, session->ncp_payload->size,
+					DMA_TO_DEVICE);
+
+	return session->ncp_payload->daddr;
+}
+
 int nw_req_manager(int msgid, struct npu_nw *nw)
 {
 	int ret = 0;
 	struct command cmd = {};
 	struct message msg = {};
-	ssize_t hdr_size;
 
 	switch (nw->cmd) {
 	case NPU_NW_CMD_BASE:
@@ -703,14 +657,9 @@ int nw_req_manager(int msgid, struct npu_nw *nw)
 #endif
 			cmd.c.load.oid = nw->uid;
 			cmd.c.load.tid = nw->bound_id;
-			hdr_size = get_ncp_hdr_size(nw);
-			if (hdr_size <= 0) {
-				npu_info("fail in get_ncp_hdr_size: (%zd)", hdr_size);
-				ret = FALSE;
-				goto nw_req_err;
-			}
-			cmd.length = (u32)hdr_size;
-			cmd.payload = nw->ncp_addr.daddr;
+			cmd.length = sizeof(struct cmd_load_payload) * 2;
+			cmd.payload = config_npu_load_payload(nw);
+
 #ifdef CONFIG_DSP_USE_VS4L
 		} else {
 			/* DSP */
@@ -1029,6 +978,10 @@ void makeStructToString(struct cmd_done *done)
 
 	memset(&fwProfile, 0, sizeof(struct fw_profile_info));
 	fwProfile.info_cnt = sizeof(struct cmd_done) / sizeof(u32);
+	if (done == NULL) {
+		npu_err("done is NULL\n");
+		goto error;
+	}
 	for (i = 0; i < (int)fwProfile.info_cnt; i++) {
 		memset(tempbuf, 0, sizeof(tempbuf));
 		val = ((u32 *)done)[i];
@@ -1039,6 +992,8 @@ void makeStructToString(struct cmd_done *done)
 		strcat(fwProfile.data, "\n");
 		fwProfile.buf_size += strlen(strArr[i]) + strlen(tempbuf) + 1;
 	}
+error:
+	return;
 }
 
 int nw_rslt_manager(int *ret_msgid, struct npu_nw *nw)
@@ -1188,31 +1143,36 @@ int npu_check_unposted_mbox(int nCtrl)
 	switch (nCtrl) {
 	case ECTRL_LOW:
 		ctrl = &(interface.mbox_hdr->h2fctrl[MAILBOX_H2FCTRL_LPRIORITY]);
-		npu_err("[V] H2F_MBOX[LOW] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] H2F_MBOX[LOW] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 #if (CONFIG_NPU_MAILBOX_VERSION >= 8)
 	case ECTRL_MEDIUM:
 		ctrl = &(interface.mbox_hdr->h2fctrl[MAILBOX_H2FCTRL_MPRIORITY]);
-		npu_err("[V] H2F_MBOX[MEDIUM] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] H2F_MBOX[MEDIUM] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 #endif
 	case ECTRL_HIGH:
 		ctrl = &(interface.mbox_hdr->h2fctrl[MAILBOX_H2FCTRL_HPRIORITY]);
-		npu_err("[V] H2F_MBOX[HIGH] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] H2F_MBOX[HIGH] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 	case ECTRL_ACK:
 		ctrl = &(interface.mbox_hdr->f2hctrl[MAILBOX_F2HCTRL_RESPONSE]);
-		npu_err("[V] F2H_MBOX[RESPONSE] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] F2H_MBOX[RESPONSE] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 #if (CONFIG_NPU_MAILBOX_VERSION >= 8)
 	case ECTRL_NACK:
 		ctrl = &(interface.mbox_hdr->f2hctrl[MAILBOX_F2HCTRL_NRESPONSE]);
-		npu_err("[V] F2H_MBOX[NRESPONSE] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] F2H_MBOX[NRESPONSE] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), ctrl, NPU_LOG_ERR);
 		break;
 #endif
 	case ECTRL_REPORT:
 		ctrl = &(interface.mbox_hdr->f2hctrl[MAILBOX_F2HCTRL_REPORT]);
-		npu_err("[V] F2H_MBOX[REPORT] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
+		npu_dump("[V] F2H_MBOX[REPORT] - rptr/wptr : %d/%d\n", ctrl->rptr, ctrl->wptr);
 		break;
 	default:
 		BUG_ON(1);
@@ -1309,7 +1269,6 @@ static void __profile_manager(struct work_struct *w)
 	npu_fw_profile_store(fwProfile.data, fwProfile.buf_size);
 }
 
-
 void fw_rprt_manager(void)
 {
 	if (wq)
@@ -1330,22 +1289,19 @@ int mbx_rslt_fault_listener(void)
 {
 	int i;
 
-	fw_rprt_manager();
-
 	for (i = 0; i < MAX_MAILBOX / 2; i++) {
 		dbg_print_ctrl(&interface.mbox_hdr->h2fctrl[i]);
-		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr), &interface.mbox_hdr->h2fctrl[i]);
+		mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr),
+					&interface.mbox_hdr->h2fctrl[i], NPU_LOG_ERR);
 	}
 
 	for (i = 0; i < MAX_MAILBOX / 2; i++) {
 		dbg_print_ctrl(&interface.mbox_hdr->f2hctrl[i]);
 		if (i != MAILBOX_F2HCTRL_REPORT)
 			mbx_ipc_print(NPU_MBOX_BASE((void *)interface.mbox_hdr),
-					&interface.mbox_hdr->f2hctrl[i]);
+					&interface.mbox_hdr->f2hctrl[i], NPU_LOG_ERR);
 	}
 
-	fw_will_note(FW_LOGSIZE);
-	dbg_print_error();
 	return 0;
 }
 

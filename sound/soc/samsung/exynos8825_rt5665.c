@@ -62,6 +62,7 @@ struct _drvdata {
 	struct device *dev;
 	struct wakeup_source *ws;
 	struct snd_soc_jack rt5665_headset;
+	struct snd_soc_component *codec_comp;
 };
 
 static struct _drvdata exynos_drvdata;
@@ -92,6 +93,7 @@ static int uaif0_init(struct snd_soc_pcm_runtime *rtd)
 		dev_err(card->dev, "%s: no component\n", __func__);
 		return ret;
 	}
+	exynos_drvdata.codec_comp = component;
 
 	dapm = snd_soc_component_get_dapm(component);
 
@@ -235,14 +237,14 @@ static int exynos_late_probe(struct snd_soc_card *card)
 		for_each_rtd_cpu_dais(rtd, i, dai) {
 			dapm = snd_soc_component_get_dapm(dai->component);
 			if (dai->playback_widget) {
-				name = dai->playback_widget->name;
+				name = dai->driver->playback.stream_name;
 				dev_dbg(card->dev, "ignore suspend: %s\n",
 						name);
 				snd_soc_dapm_ignore_suspend(dapm, name);
 				snd_soc_dapm_sync(dapm);
 			}
 			if (dai->capture_widget) {
-				name = dai->capture_widget->name;
+				name = dai->driver->capture.stream_name;
 				dev_dbg(card->dev, "ignore suspend: %s\n",
 						name);
 				snd_soc_dapm_ignore_suspend(dapm, name);
@@ -254,14 +256,14 @@ static int exynos_late_probe(struct snd_soc_card *card)
 		for_each_rtd_codec_dais(rtd, i, dai) {
 			dapm = snd_soc_component_get_dapm(dai->component);
 			if (dai->playback_widget) {
-				name = dai->playback_widget->name;
+				name = dai->driver->playback.stream_name;
 				dev_dbg(card->dev, "ignore suspend: %s\n",
 						name);
 				snd_soc_dapm_ignore_suspend(dapm, name);
 				snd_soc_dapm_sync(dapm);
 			}
 			if (dai->capture_widget) {
-				name = dai->capture_widget->name;
+				name = dai->driver->capture.stream_name;
 				dev_dbg(card->dev, "ignore suspend: %s\n",
 						name);
 				snd_soc_dapm_ignore_suspend(dapm, name);
@@ -1147,6 +1149,139 @@ static struct snd_soc_dai_link exynos_dai[100] = {
 	},
 };
 
+static int exynos8825_rt5665_dmic1(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_dmic2(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_headset_mic(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+	struct snd_soc_component *component = NULL;
+	struct rt5665_priv *rt5665 = NULL;
+
+	component = exynos_drvdata.codec_comp;
+	if (component)
+		rt5665 = snd_soc_component_get_drvdata(component);
+
+	dev_info(card->dev, "%s ev: %d, jack = %d\n", __func__, event, rt5665 ? rt5665->jack_type : -1);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_receiver(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_speaker(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_headphone(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+	struct snd_soc_component *component = NULL;
+	struct rt5665_priv *rt5665 = NULL;
+
+	component = exynos_drvdata.codec_comp;
+	if (component)
+		rt5665 = snd_soc_component_get_drvdata(component);
+
+	dev_info(card->dev, "%s ev: %d, jack = %d\n", __func__, event, rt5665 ? rt5665->jack_type : -1);
+
+
+	return 0;
+}
+
+static int exynos8825_rt5665_bt_mic(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_bt_spk(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_usb_mic(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_usb_spk(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_fwd_mic(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
+static int exynos8825_rt5665_fwd_spk(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	return 0;
+}
+
 static int get_sound_wakelock(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
 {
@@ -1201,18 +1336,18 @@ static const struct snd_kcontrol_new exynos_controls[] = {
 };
 
 static const struct snd_soc_dapm_widget exynos_widgets[] = {
-	SND_SOC_DAPM_MIC("DMIC1", NULL),
-	SND_SOC_DAPM_MIC("DMIC2", NULL),
-	SND_SOC_DAPM_MIC("HEADSETMIC", NULL),
-	SND_SOC_DAPM_SPK("RECEIVER", NULL),
-	SND_SOC_DAPM_SPK("SPEAKER", NULL),
-	SND_SOC_DAPM_HP("HEADPHONE", NULL),
-	SND_SOC_DAPM_MIC("BLUETOOTH MIC", NULL),
-	SND_SOC_DAPM_SPK("BLUETOOTH SPK", NULL),
-	SND_SOC_DAPM_MIC("USB MIC", NULL),
-	SND_SOC_DAPM_SPK("USB SPK", NULL),
-	SND_SOC_DAPM_MIC("FWD MIC", NULL),
-	SND_SOC_DAPM_SPK("FWD SPK", NULL),
+	SND_SOC_DAPM_MIC("DMIC1", exynos8825_rt5665_dmic1),
+	SND_SOC_DAPM_MIC("DMIC2", exynos8825_rt5665_dmic2),
+	SND_SOC_DAPM_MIC("HEADSETMIC", exynos8825_rt5665_headset_mic),
+	SND_SOC_DAPM_SPK("RECEIVER", exynos8825_rt5665_receiver),
+	SND_SOC_DAPM_SPK("SPEAKER", exynos8825_rt5665_speaker),
+	SND_SOC_DAPM_HP("HEADPHONE", exynos8825_rt5665_headphone),
+	SND_SOC_DAPM_MIC("BLUETOOTH MIC", exynos8825_rt5665_bt_mic),
+	SND_SOC_DAPM_SPK("BLUETOOTH SPK", exynos8825_rt5665_bt_spk),
+	SND_SOC_DAPM_MIC("USB MIC", exynos8825_rt5665_usb_mic),
+	SND_SOC_DAPM_SPK("USB SPK", exynos8825_rt5665_usb_spk),
+	SND_SOC_DAPM_MIC("FWD MIC", exynos8825_rt5665_fwd_mic),
+	SND_SOC_DAPM_SPK("FWD SPK", exynos8825_rt5665_fwd_spk),
 	SND_SOC_DAPM_OUTPUT("VTS Virtual Output"),
 	SND_SOC_DAPM_MUX("VTS Virtual Output Mux", SND_SOC_NOPM, 0, 0,
 			&vts_output_mux[0]),

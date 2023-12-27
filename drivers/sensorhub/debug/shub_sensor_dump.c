@@ -16,6 +16,7 @@
 #include <linux/slab.h>
 
 #include "shub_sensor_dump.h"
+#include "shub_debug.h"
 #include "../comm/shub_comm.h"
 #include "../sensormanager/shub_sensor_type.h"
 #include "../sensormanager/shub_sensor_manager.h"
@@ -57,7 +58,7 @@ static int store_sensor_dump(int sensor_type, u16 length, u8 *buf)
 	}
 
 	for (i = 0; i < length; i++) {
-		tmp_ch = ((i % NUM_LINE_ITEM == NUM_LINE_ITEM - 1) || (i - 1 == length)) ? '\n' : ' ';
+		tmp_ch = ((i % NUM_LINE_ITEM == NUM_LINE_ITEM - 1) || (i == length - 1)) ? '\n' : ' ';
 		snprintf(contents + i * LENGTH_1BYTE_HEXA_WITH_BLANK, dump_len - i * LENGTH_1BYTE_HEXA_WITH_BLANK,
 			 "%02x%c", buf[i], tmp_ch);
 	}
@@ -72,6 +73,11 @@ static int store_sensor_dump(int sensor_type, u16 length, u8 *buf)
 	return ret;
 }
 
+void clear_sensor_dump(void)
+{
+	memset(sensor_dump, 0, sizeof(sensor_dump));
+}
+
 int send_sensor_dump_command(u8 sensor_type)
 {
 	int ret = 0;
@@ -83,7 +89,7 @@ int send_sensor_dump_command(u8 sensor_type)
 		return -EINVAL;
 	} else if (!get_sensor_probe_state(sensor_type)) {
 		shub_errf("%u is not connected", sensor_type);
-		return -EINVAL;
+		return ret;
 	}
 
 	if (!is_support_registerdump(sensor_type)) {
@@ -107,6 +113,13 @@ int send_sensor_dump_command(u8 sensor_type)
 	return ret;
 }
 
+void send_hub_dump_command(void)
+{
+	shub_infof("");
+	init_log_dump();
+	shub_send_command(CMD_SETVALUE, TYPE_HUB, SENSOR_REGISTER_DUMP, NULL, 0);
+}
+
 int send_all_sensor_dump_command(void)
 {
 	int types[] = SENSOR_DUMP_SENSOR_LIST;
@@ -118,7 +131,7 @@ int send_all_sensor_dump_command(void)
 		if (temp != 0)
 			ret = temp;
 	}
-
+	send_hub_dump_command();
 	return ret;
 }
 

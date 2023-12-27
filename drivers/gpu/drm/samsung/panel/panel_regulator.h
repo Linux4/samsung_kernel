@@ -12,7 +12,7 @@
 #define __PANEL_REGULATOR_H__
 
 #include <linux/regulator/consumer.h>
-#include <kunit/mock.h>
+#include "panel_kunit.h"
 #include <dt-bindings/display/panel-display.h>
 
 #define call_panel_regulator_func(q, _f, args...) \

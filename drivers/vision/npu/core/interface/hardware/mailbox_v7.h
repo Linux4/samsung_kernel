@@ -34,7 +34,7 @@
 #define MAILBOX_GROUP_REPORT		4
 #define MAILBOX_GROUP_MAX		5
 
-#define MAX_MAILBOX	4
+#define MAX_MAILBOX	5
 
 enum numCtrl_e {
 	ECTRL_LOW = 1,
@@ -141,6 +141,7 @@ union npu_hw_info {
 
 static u32 NPU_MAILBOX_SECTION_CONFIG[MAX_MAILBOX] = {
 	/* TODO: increase the size */
+	4 * K_SIZE,         /* Size of mailbox hdr*/
 	1 * K_SIZE,         /* Size of 1st mailbox */
 	1 * K_SIZE,         /* Size of 2nd mailbox */
 	2 * K_SIZE,         /* Size of 3rd mailbox */

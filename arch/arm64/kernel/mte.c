@@ -23,8 +23,6 @@
 #include <asm/ptrace.h>
 #include <asm/sysreg.h>
 
-u64 gcr_kernel_excl __ro_after_init;
-
 static bool report_fault_once = true;
 
 static DEFINE_PER_CPU_READ_MOSTLY(u64, mte_tcf_preferred);
@@ -69,6 +67,9 @@ void mte_sync_tags(pte_t *ptep, pte_t pte)
 		if (!test_and_set_bit(PG_mte_tagged, &page->flags))
 			mte_sync_page_tags(page, ptep, check_swap);
 	}
+
+	/* ensure the tags are visible before the PTE is set */
+	smp_wmb();
 }
 
 int memcmp_pages(struct page *page1, struct page *page2)
@@ -94,26 +95,6 @@ int memcmp_pages(struct page *page1, struct page *page2)
 		return addr1 != addr2;
 
 	return ret;
-}
-
-void mte_init_tags(u64 max_tag)
-{
-	static bool gcr_kernel_excl_initialized;
-
-	if (!gcr_kernel_excl_initialized) {
-		/*
-		 * The format of the tags in KASAN is 0xFF and in MTE is 0xF.
-		 * This conversion extracts an MTE tag from a KASAN tag.
-		 */
-		u64 incl = GENMASK(FIELD_GET(MTE_TAG_MASK >> MTE_TAG_SHIFT,
-					     max_tag), 0);
-
-		gcr_kernel_excl = ~incl & SYS_GCR_EL1_EXCL_MASK;
-		gcr_kernel_excl_initialized = true;
-	}
-
-	/* Enable the kernel exclude mask for random tags generation. */
-	write_sysreg_s(SYS_GCR_EL1_RRND | gcr_kernel_excl, SYS_GCR_EL1);
 }
 
 static inline void __mte_enable_kernel(const char *mode, unsigned long tcf)
@@ -168,12 +149,7 @@ bool mte_report_once(void)
 #ifdef CONFIG_KASAN_HW_TAGS
 void mte_check_tfsr_el1(void)
 {
-	u64 tfsr_el1;
-
-	if (!system_supports_mte())
-		return;
-
-	tfsr_el1 = read_sysreg_s(SYS_TFSR_EL1);
+	u64 tfsr_el1 = read_sysreg_s(SYS_TFSR_EL1);
 
 	if (unlikely(tfsr_el1 & SYS_TFSR_EL1_TF1)) {
 		/*
@@ -187,18 +163,6 @@ void mte_check_tfsr_el1(void)
 	}
 }
 #endif
-
-static void update_gcr_el1_excl(u64 excl)
-{
-
-	/*
-	 * Note that the mask controlled by the user via prctl() is an
-	 * include while GCR_EL1 accepts an exclude mask.
-	 * No need for ISB since this only affects EL0 currently, implicit
-	 * with ERET.
-	 */
-	sysreg_clear_set_s(SYS_GCR_EL1, SYS_GCR_EL1_EXCL_MASK, excl);
-}
 
 static void mte_update_sctlr_user(struct task_struct *task)
 {
@@ -222,6 +186,30 @@ static void mte_update_sctlr_user(struct task_struct *task)
 	task->thread.sctlr_user = sctlr;
 }
 
+static void mte_update_gcr_excl(struct task_struct *task)
+{
+	/*
+	 * SYS_GCR_EL1 will be set to current->thread.mte_ctrl value by
+	 * mte_set_user_gcr() in kernel_exit, but only if KASAN is enabled.
+	 */
+	if (kasan_hw_tags_enabled())
+		return;
+
+	write_sysreg_s(
+		((task->thread.mte_ctrl >> MTE_CTRL_GCR_USER_EXCL_SHIFT) &
+		 SYS_GCR_EL1_EXCL_MASK) | SYS_GCR_EL1_RRND,
+		SYS_GCR_EL1);
+}
+
+void __init kasan_hw_tags_enable(struct alt_instr *alt, __le32 *origptr,
+				 __le32 *updptr, int nr_inst)
+{
+	BUG_ON(nr_inst != 1); /* Branch -> NOP */
+
+	if (kasan_hw_tags_enabled())
+		*updptr = cpu_to_le32(aarch64_insn_gen_nop());
+}
+
 void mte_thread_init_user(void)
 {
 	if (!system_supports_mte())
@@ -237,7 +225,11 @@ void mte_thread_init_user(void)
 
 void mte_thread_switch(struct task_struct *next)
 {
+	if (!system_supports_mte())
+		return;
+
 	mte_update_sctlr_user(next);
+	mte_update_gcr_excl(next);
 
 	/*
 	 * Check if an async tag exception occurred at EL1.
@@ -248,6 +240,49 @@ void mte_thread_switch(struct task_struct *next)
 	 */
 	isb();
 	mte_check_tfsr_el1();
+}
+
+void mte_cpu_setup(void)
+{
+	u64 rgsr;
+
+	/*
+	 * CnP must be enabled only after the MAIR_EL1 register has been set
+	 * up. Inconsistent MAIR_EL1 between CPUs sharing the same TLB may
+	 * lead to the wrong memory type being used for a brief window during
+	 * CPU power-up.
+	 *
+	 * CnP is not a boot feature so MTE gets enabled before CnP, but let's
+	 * make sure that is the case.
+	 */
+	BUG_ON(read_sysreg(ttbr0_el1) & TTBR_CNP_BIT);
+	BUG_ON(read_sysreg(ttbr1_el1) & TTBR_CNP_BIT);
+
+	/* Normal Tagged memory type at the corresponding MAIR index */
+	sysreg_clear_set(mair_el1,
+			 MAIR_ATTRIDX(MAIR_ATTR_MASK, MT_NORMAL_TAGGED),
+			 MAIR_ATTRIDX(MAIR_ATTR_NORMAL_TAGGED,
+				      MT_NORMAL_TAGGED));
+
+	write_sysreg_s(KERNEL_GCR_EL1, SYS_GCR_EL1);
+
+	/*
+	 * If GCR_EL1.RRND=1 is implemented the same way as RRND=0, then
+	 * RGSR_EL1.SEED must be non-zero for IRG to produce
+	 * pseudorandom numbers. As RGSR_EL1 is UNKNOWN out of reset, we
+	 * must initialize it.
+	 */
+	rgsr = (read_sysreg(CNTVCT_EL0) & SYS_RGSR_EL1_SEED_MASK) <<
+	       SYS_RGSR_EL1_SEED_SHIFT;
+	if (rgsr == 0)
+		rgsr = 1 << SYS_RGSR_EL1_SEED_SHIFT;
+	write_sysreg_s(rgsr, SYS_RGSR_EL1);
+
+	/* clear any pending tag check faults in TFSR*_EL1 */
+	write_sysreg_s(0, SYS_TFSR_EL1);
+	write_sysreg_s(0, SYS_TFSRE0_EL1);
+
+	local_flush_tlb_all();
 }
 
 void mte_suspend_enter(void)
@@ -271,7 +306,7 @@ void mte_suspend_exit(void)
 	if (!system_supports_mte())
 		return;
 
-	update_gcr_el1_excl(gcr_kernel_excl);
+	mte_cpu_setup();
 }
 
 long set_mte_ctrl(struct task_struct *task, unsigned long arg)
@@ -291,6 +326,7 @@ long set_mte_ctrl(struct task_struct *task, unsigned long arg)
 	if (task == current) {
 		preempt_disable();
 		mte_update_sctlr_user(task);
+		mte_update_gcr_excl(task);
 		update_sctlr_el1(task->thread.sctlr_user);
 		preempt_enable();
 	}

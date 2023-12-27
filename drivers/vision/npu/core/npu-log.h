@@ -23,6 +23,7 @@
 #include <linux/wait.h>
 #include <linux/atomic.h>
 #include <linux/printk.h>
+#include <linux/smp.h>
 #if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
 #include <soc/samsung/memlogger.h>
 #else
@@ -112,6 +113,13 @@ struct npu_log_ioctl {
 	u32	dir;	/* IOCTL dir */
 };
 
+struct npu_log_ipc {
+	u64	timestamp;
+	u32	h2fctrl;
+	u32	rptr;
+	u32	wptr;
+};
+
 union npu_log_tag {
 	struct npu_log_dvfs d;
 	struct npu_log_scheduler s;
@@ -119,6 +127,8 @@ union npu_log_tag {
 #ifdef CONFIG_NPU_USE_HW_DEVICE
 	struct npu_log_hwdev h;
 #endif
+	struct npu_log_ioctl i;
+	struct npu_log_ipc c;
 };
 
 #endif
@@ -160,13 +170,16 @@ struct npu_log {
 	/* memlog for Unified Logging System*/
 	struct memlog *memlog_desc_log;
 	struct memlog *memlog_desc_array;
+	struct memlog *memlog_desc_dump;
 	struct memlog_obj *npu_memlog_obj;
+	struct memlog_obj *npu_dumplog_obj;
 	struct memlog_obj *npu_memfile_obj;
 	struct memlog_obj *npu_dvfs_array_obj;
 	struct memlog_obj *npu_scheduler_array_obj;
 	struct memlog_obj *npu_protodrv_array_obj;
 	struct memlog_obj *npu_hwdev_array_obj;
 	struct memlog_obj *npu_ioctl_array_obj;
+	struct memlog_obj *npu_ipc_array_obj;
 	struct memlog_obj *npu_array_file_obj;
 	struct npu_log_scheduler s;
 #endif
@@ -231,6 +244,7 @@ void npu_fw_profile_init(char *buf_addr, const size_t size);
 void npu_fw_profile_deinit(void);
 
 void npu_memlog_store(npu_log_level_e loglevel, const char *fmt, ...);
+void npu_dumplog_store(npu_log_level_e loglevel, const char *fmt, ...);
 bool npu_log_is_kpi_silent(void);
 
 
@@ -253,6 +267,7 @@ inline void npu_log_scheduler_set_data(struct npu_device *device);
 inline void npu_log_hwdev_set_data(int id);
 #endif
 inline void npu_log_ioctl_set_date(int cmd, int dir);
+inline void npu_log_ipc_set_date(int h2fctrl, int wptr, int rptr);
 
 #define ISPRINTABLE(strValue)	((isascii(strValue) && isprint(strValue)) ? \
 	((strValue == '%') ? '.' : strValue) : '.')
@@ -268,7 +283,10 @@ inline void npu_log_ioctl_set_date(int cmd, int dir);
 #else
 #if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
 #define npu_log_on_lv_target(LV, fmt, ...)	\
-				((console_printk[0] > LV) ? npu_memlog_store(LV, fmt, ##__VA_ARGS__) : 0)
+				((console_printk[0] > LV) ? npu_memlog_store(LV, "[%d: %15s:%5d]" fmt, __smp_processor_id(), current->comm, \
+					current->pid,##__VA_ARGS__) : 0)
+#define npu_dump_on_lv_target(LV, fmt, ...)	\
+				npu_dumplog_store(LV, "[%d: %15s:%5d]" fmt, smp_processor_id(), current->comm, current->pid, ##__VA_ARGS__)
 #else
 #define npu_log_on_lv_target(LV, DEV_FUNC, fmt, ...)		\
 	do {	\
@@ -292,6 +310,7 @@ inline void npu_log_ioctl_set_date(int cmd, int dir);
 #define npu_notice_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_CAUTION, fmt, ##__VA_ARGS__)
 #define npu_dbg_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_INFO, fmt, ##__VA_ARGS__)  // debug
 #define npu_trace_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_NOTICE, fmt, ##__VA_ARGS__)  // performance
+#define npu_dump_target(fmt, ...)	npu_dump_on_lv_target(MEMLOG_LEVEL_ERR, fmt, ##__VA_ARGS__)  // dump
 #else
 #define npu_err_target(fmt, ...)	\
 	do {	\
@@ -356,6 +375,9 @@ inline void npu_log_ioctl_set_date(int cmd, int dir);
 
 #define npu_trace(fmt, args...) \
 	npu_trace_target("NPU:[T][" NPU_LOG_TAG "]%s(%d):" fmt, __func__, __LINE__, ##args)
+
+#define npu_dump(fmt, args...) \
+	npu_dump_target("NPU:[T][" NPU_LOG_TAG "]%s(%d):" fmt, __func__, __LINE__, ##args)
 
 /* Printout context ID */
 #define npu_ierr(fmt, vctx, args...) \

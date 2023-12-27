@@ -34,6 +34,9 @@ struct panel_dimming_info {
 	/* gamma mode 2 */
 	struct gm2_dimming_init_info *gm2_dim_init_info;
 	u32 nr_gm2_dim_init_info;
+	/* dimming_data */
+	void *dimming_data;
+	u32 nr_dimming_data;	
 };
 
 enum {

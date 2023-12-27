@@ -13,7 +13,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/sm5714.h>
-#include <linux/mfd/sm/sm5714/sm5714-private.h>
+#include <linux/mfd/sm5714-private.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
@@ -21,12 +21,13 @@
 #define SM5714_FLED_VERSION "XXX.UA1"
 
 static struct sm5714_fled_data *g_sm5714_fled;
-extern struct class *camera_class; /*sys/class/camera*/
+struct device *camera_flash_dev;
 extern void sm5714_request_default_power_src(void);
 extern int muic_request_disable_afc_state(void);
 extern int sm5714_muic_get_vbus_voltage(void);
 extern int muic_check_fled_state(int enable, int mode);   /* mode:1 = FLED_MODE_TORCH, mode:2 = FLED_MODE_FLASH */
 extern int sm5714_usbpd_check_fled_state(bool enable, u8 mode);
+bool preflash_done = false; /* Check main flash triggered done 0:*/
 
 static void fled_set_enable_push_event(int event_type)
 {
@@ -57,11 +58,13 @@ static void fled_set_mode(struct sm5714_fled_data *fled, u8 mode)
 
 static void fled_set_fled_current(struct sm5714_fled_data *fled, u8 offset)
 {
+	pr_info("sm5714-fled %s, current set = 0x%x ", __func__, offset);
 	sm5714_update_reg(fled->i2c, SM5714_CHG_REG_FLEDCNTL2, (offset << 0), (0xf << 0));
 }
 
 static void fled_set_mled_current(struct sm5714_fled_data *fled, u8 offset)
 {
+	pr_info("sm5714-fled %s, current set = 0x%x ", __func__, offset);
 	sm5714_update_reg(fled->i2c, SM5714_CHG_REG_FLEDCNTL2, (offset << 4), (0x7 << 4));
 }
 
@@ -215,6 +218,42 @@ static int sm5714_fled_torch_on(u8 brightness)
 	return 0;
 }
 
+static int sm5714_fled_pre_flash_on(u8 brightness)
+{
+	struct sm5714_fled_data *fled = g_sm5714_fled;
+
+	pr_info("sm5714-fled: %s: start.\n", __func__);
+
+	if (g_sm5714_fled == NULL) {
+		pr_err("sm5714-fled: %s: not probe fled yet\n", __func__);
+		return -ENXIO;
+	}
+
+	mutex_lock(&fled->fled_mutex);
+
+	if (brightness) {
+		fled_set_mled_current(fled, brightness);
+	} else {
+		fled_set_mled_current(fled, fled->pdata->led.preflash_brightness);
+	}
+
+	if (fled->pdata->led.en_mled == false) {
+		if (fled->torch_on_cnt == 0) {
+			fled_set_enable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
+		}
+		fled->pdata->led.en_mled = true;
+		fled->torch_on_cnt++;
+	}
+
+	sm5714_fled_control(FLED_MODE_TORCH);
+
+	mutex_unlock(&fled->fled_mutex);
+
+	pr_info("sm5714-fled: %s: done.\n", __func__);
+
+	return 0;
+}
+
 static int sm5714_fled_flash_on(u8 brightness)
 {
 	struct sm5714_fled_data *fled = g_sm5714_fled;
@@ -331,32 +370,43 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 {
 	struct sm5714_fled_data *fled = g_sm5714_fled;
 	int ret = 0;
-	u8 iq_cur = -1;
+	u8 iq_cur = 0;
+	bool use_iq_cur = false;
 
+	pr_info("sm5714-fled: %s: state:%d \n", __func__, state);
 	if (g_sm5714_fled == NULL) {
 		pr_err("sm5714_fled: %s: g_sm5714_fled is not initialized.\n", __func__);
 		return -EFAULT;
 	}
 
-	if (brightness >= 0 && (state == SM5714_FLED_MODE_TORCH_FLASH || state == SM5714_FLED_MODE_PRE_FLASH)) {
-		if (brightness < 50)
-			iq_cur = 0x0;
-		else if (brightness > 225)
-			iq_cur = 0x7;
-		else
-			iq_cur = (brightness - 50) / 25;
-	} else if (brightness > 0 && state == SM5714_FLED_MODE_MAIN_FLASH) {
-		if (brightness < 700)
-			iq_cur = 0x0;
-		else if (brightness < 800)
-			iq_cur = 0x1;
-		else if (brightness < 900)
-			iq_cur = 0x2;
-		else
-			iq_cur = 3 + (brightness - 900) / 50;
+	/* if (brightness == 0) use the current values from the dtsi
+	 * else use the current value based on the brightness set by iq when this function is called
+	 */
+
+	if (brightness > 0) {
+		if (state == SM5714_FLED_MODE_TORCH_FLASH || state == SM5714_FLED_MODE_PRE_FLASH) {
+			if (brightness < 50)
+				iq_cur = 0x0;
+			else if (brightness > 225)
+				iq_cur = 0x7;
+			else
+				iq_cur = (brightness - 50) / 25;
+			use_iq_cur = true;
+		} else if (state == SM5714_FLED_MODE_MAIN_FLASH) {
+			if (brightness < 700)
+				iq_cur = 0x0;
+			else if (brightness < 800)
+				iq_cur = 0x1;
+			else if (brightness < 900)
+				iq_cur = 0x2;
+			else
+				iq_cur = 3 + (brightness - 900) / 50;
+			use_iq_cur = true;
+		}
 	}
 
-	pr_info("sm5714-fled: %s: iq_cur=0x%x brightness=%u\n", __func__, iq_cur, brightness);
+	if (use_iq_cur)
+		pr_info("sm5714-fled: %s: iq_cur=0x%x brightness=%u\n", __func__, iq_cur, brightness);
 
 	switch (state) {
 
@@ -367,46 +417,57 @@ int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_OFF(%d) failed\n", __func__, state);
 		else
 			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_OFF(%d) done\n", __func__, state);
-		sm5714_fled_close_flash();
+		if (preflash_done == false)
+			sm5714_fled_close_flash();
+		if (ret == 0)
+			preflash_done = false;
 		break;
 
 	case SM5714_FLED_MODE_MAIN_FLASH:
-		sm5714_fled_prepare_flash();
+		if (preflash_done)
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) skipped as flash/preflash already triggered\n",
+				__func__, state);
 		/* FlashLight Mode Flash */
-		if (iq_cur >= 0)
-			ret = sm5714_fled_flash_on(iq_cur);
-		else
-			ret = sm5714_fled_flash_on(fled->pdata->led.flash_brightness);
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.flash_brightness;
+		ret = sm5714_fled_flash_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_MAIN_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_TORCH_FLASH: /* TORCH FLASH */
+		if(preflash_done) { /*Pre-flash triggered, wait for main flash */
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) skipped as preflash already triggered\n", __func__, state);
+			break;
+		}
+
 		sm5714_fled_prepare_flash();
 		/* FlashLight Mode TORCH */
-		if (iq_cur >= 0)
-			ret = sm5714_fled_torch_on(iq_cur);
-		else
-			ret = sm5714_fled_torch_on(fled->pdata->led.torch_brightness);
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.torch_brightness;
+		ret = sm5714_fled_torch_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_TORCH_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_PRE_FLASH: /* TORCH FLASH */
+		preflash_done = true;
 		sm5714_fled_prepare_flash();
 		/* FlashLight Mode TORCH */
-		if (iq_cur >= 0)
-			ret = sm5714_fled_torch_on(iq_cur);
-		else
-			ret = sm5714_fled_torch_on(fled->pdata->led.preflash_brightness);
+		if (!use_iq_cur)
+			iq_cur = fled->pdata->led.preflash_brightness;
+		ret = sm5714_fled_pre_flash_on(iq_cur);
+
 		if (ret < 0)
 			pr_err("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) failed\n", __func__, state);
 		else
-			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) done\n", __func__, state);
+			pr_info("sm5714-fled: %s: SM5714_FLED_MODE_PRE_FLASH(%d) done; iq_cur = 0x%x\n", __func__, state, iq_cur);
 		break;
 
 	case SM5714_FLED_MODE_PREPARE_FLASH:
@@ -574,6 +635,44 @@ static ssize_t sm5714_rear_flash_show(struct device *dev, struct device_attribut
 
 static DEVICE_ATTR(rear_flash, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH, sm5714_rear_flash_show, sm5714_rear_flash_store);
 
+int sm5714_create_sysfs(struct class *class)
+{
+	if (class == NULL) {
+		class = class_create(THIS_MODULE, "camera");
+		if (IS_ERR(class)) {
+			pr_err("Failed to create class(camera)!\n");
+			return PTR_ERR(class);
+		}
+	}
+
+	camera_flash_dev = device_create(class, NULL, 3, NULL, "flash");
+
+	if (IS_ERR(camera_flash_dev)) {
+		pr_err("<%s> Failed to create device(flash)!\n", __func__);
+	} else {
+		if (device_create_file(camera_flash_dev, &dev_attr_rear_flash) < 0) {
+			pr_err("<%s> failed to create device file, %s\n",
+				__func__, dev_attr_rear_flash.attr.name);
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(sm5714_create_sysfs);
+
+int sm5714_destroy_sysfs(struct class *class)
+{
+	if (camera_flash_dev) {
+		device_remove_file(camera_flash_dev, &dev_attr_rear_flash);
+	}
+
+	if (class && camera_flash_dev)
+		device_destroy(class, camera_flash_dev->devt);
+
+	return 0;
+}
+EXPORT_SYMBOL(sm5714_destroy_sysfs);
+
 static int sm5714_fled_parse_dt(struct device *dev, sm5714_fled_platform_data *pdata)
 {
 	struct device_node *np;
@@ -641,6 +740,21 @@ static void sm5714_fled_init(struct sm5714_fled_data *fled)
 	fled->flash_prepare_cnt = 0;
 
 	mutex_init(&fled->fled_mutex);
+
+	mutex_lock(&fled->fled_mutex);
+
+	fled_set_mode(fled, FLED_MODE_OFF);
+
+	if (fled->flash_prepare_cnt == 0) {
+		fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_TORCH);
+		fled_set_disable_push_event(SM5714_CHARGER_OP_EVENT_FLASH);
+		muic_check_fled_state(0, FLED_MODE_FLASH);
+		sm5714_usbpd_check_fled_state(0, FLED_MODE_FLASH);
+	}
+	fled->pdata->led.pre_fled = false;
+
+	mutex_unlock(&fled->fled_mutex);
+
 	dev_info(fled->dev, "%s: flash init done\n", __func__);
 }
 
@@ -674,32 +788,10 @@ static int sm5714_fled_probe(struct platform_device *pdev)
 	sm5714_fled_init(fled);
 	g_sm5714_fled = fled;
 
-	if (IS_ERR_OR_NULL(camera_class)) {
-		dev_err(fled->dev, "%s: can't find camera_class sysfs object, didn't use rear_flash attribute\n", __func__);
-		goto free_pdata;
-	}
-
-	fled->rear_fled_dev = device_create(camera_class, NULL, 0, NULL, "flash");
-
-	if (IS_ERR(fled->rear_fled_dev)) {
-		dev_err(fled->dev, "%s failed create device for rear_flash\n", __func__);
-		goto free_pdata;
-	}
-
-	fled->rear_fled_dev->parent = fled->dev;
-
-	ret = device_create_file(fled->rear_fled_dev, &dev_attr_rear_flash);
-	if (IS_ERR_VALUE((unsigned long)ret)) {
-		dev_err(fled->dev, "%s failed create device file for rear_flash\n", __func__);
-		goto free_device;
-	}
-
 	dev_info(&pdev->dev, "sm5714 fled probe done[%s].\n", SM5714_FLED_VERSION);
 
 	return 0;
 
-free_device:
-	device_destroy(camera_class, fled->rear_fled_dev->devt);
 free_pdata:
 	devm_kfree(&pdev->dev, fled->pdata);
 free_dev:
@@ -712,8 +804,6 @@ static int sm5714_fled_remove(struct platform_device *pdev)
 {
 	struct sm5714_fled_data *fled = platform_get_drvdata(pdev);
 
-	device_remove_file(fled->rear_fled_dev, &dev_attr_rear_flash);
-	device_destroy(camera_class, fled->rear_fled_dev->devt);
 	fled_set_mode(fled, FLED_MODE_OFF);
 	platform_set_drvdata(pdev, NULL);
 	devm_kfree(&pdev->dev, fled->pdata);

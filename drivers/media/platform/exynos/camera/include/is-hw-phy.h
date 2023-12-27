@@ -12,6 +12,11 @@
 #ifndef IS_HW_PHY_H
 #define IS_HW_PHY_H
 
+enum pablo_phy_tune_mode {
+	PABLO_PHY_TUNE_DISABLE = 0,
+	PABLO_PHY_TUNE_CPHY,
+	PABLO_PHY_TUNE_DPHY,
+};
 
 enum pablo_phy_info {
 	PPI_VERSION,

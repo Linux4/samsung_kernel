@@ -65,6 +65,10 @@
 #include "dsp-dhcp.h"
 #endif
 
+#define BUF_SIZE 4096
+#define BUF2_SIZE 240
+static char buf[BUF_SIZE]; // print 4K characters when log2dram is triggered
+static char buf2[BUF2_SIZE]; // used to print log2dram line by line(max 240 characters)
 /*****************************************************************************
  *****                         wrapper function                          *****
  *****************************************************************************/
@@ -167,6 +171,11 @@ static void npu_memory_dma_buf_dva_unmap(
 	return;
 }
 
+static int npu_iommu_dma_enable_best_fit_algo(struct device *dev)
+{
+	return iommu_dma_enable_best_fit_algo(dev);
+}
+
 /*
 static void *npu_memory_dma_buf_va_map(struct npu_memory_buffer *buffer)
 {
@@ -199,7 +208,6 @@ static unsigned long npu_memory_set_prot(int prot,
 	probe_info("prot : %d", prot);
 	attachment->dma_map_attrs |= DMA_ATTR_SET_PRIV_DATA(prot);
 	return ((prot) << IOMMU_PRIV_SHIFT);
-	return 0;
 }
 
 static int npu_reserve_iova(struct platform_device *pdev,
@@ -217,6 +225,11 @@ static dma_addr_t npu_memory_dma_buf_dva_map(struct npu_memory_buffer *buffer)
 static void npu_memory_dma_buf_dva_unmap(struct npu_memory_buffer *buffer)
 {
 	ion_iovmm_unmap(buffer->attachment, buffer->daddr);
+}
+
+static int npu_iommu_dma_enable_best_fit_algo(__attribute__((unused))struct device *dev)
+{
+	return 0;
 }
 
 /*
@@ -347,10 +360,11 @@ void npu_memory_sync_for_device(void)
 
 int npu_memory_alloc_from_heap(struct platform_device *pdev,
 		struct npu_memory_buffer *buffer, dma_addr_t daddr,
-		__attribute__((unused))const char *heapname, int prot)
+		struct npu_memory *memory, const char *heapname, int prot)
 {
 	int ret = 0;
 	bool complete_suc = false;
+	unsigned long flags;
 
 	struct dma_buf *dma_buf;
 	struct dma_buf_attachment *attachment;
@@ -370,6 +384,7 @@ int npu_memory_alloc_from_heap(struct platform_device *pdev,
 	buffer->sgt = NULL;
 	buffer->daddr = 0;
 	buffer->vaddr = NULL;
+	strncpy(buffer->name, heapname, strlen(heapname));
 	INIT_LIST_HEAD(&buffer->list);
 
 	size = buffer->size;
@@ -413,11 +428,10 @@ int npu_memory_alloc_from_heap(struct platform_device *pdev,
 			ret = -ENOMEM;
 			goto p_err;
 		}
-		probe_info("sg_dma_address is success");
 	} else {
 		struct iommu_domain *domain = iommu_get_domain_for_dev(&pdev->dev);
 
-		probe_info("domain = 0x%p daddr = 0x%llx, phys_addr = 0x%llx, size = 0x%lx", domain, daddr, phys_addr, size);
+		// probe_info("domain = 0x%p daddr = 0x%llx, phys_addr = 0x%llx, size = 0x%lx", domain, daddr, phys_addr, size);
 		map_size = iommu_map_sg(domain, daddr, sgt->sgl, sgt->orig_nents, iommu_attributes);
 		if (!map_size) {
 			probe_err("fail(err %pad) in iommu_map\n", &daddr);
@@ -431,7 +445,6 @@ int npu_memory_alloc_from_heap(struct platform_device *pdev,
 				probe_err("failed(err %pad) in iommu_dma_reserve_iova\n", &daddr);
 				goto p_err;
 			}
-			probe_info("success reserve iova(daddr : 0x%llx, size = 0x%lx)\n", daddr, size);
 		}
 
 		if (map_size != size) {
@@ -455,19 +468,27 @@ int npu_memory_alloc_from_heap(struct platform_device *pdev,
 
 	complete_suc = true;
 
-	probe_info("buffer[%p], paddr[%llx], vaddr[%p], daddr[%llx], "
-		"sgt[%p], nents[%u], attachment[%p], map[%ld]\n",
-		buffer, buffer->paddr, buffer->vaddr, buffer->daddr,
-		buffer->sgt, buffer->sgt->orig_nents, buffer->attachment, map_size);
+	spin_lock_irqsave(&memory->alloc_lock, flags);
+	list_add_tail(&buffer->list, &memory->alloc_list);
+	memory->alloc_count++;
+	spin_unlock_irqrestore(&memory->alloc_lock, flags);
+
+	// probe_info("buffer[%p], paddr[%llx], vaddr[%p], daddr[%llx], "
+	// 	"sgt[%p], nents[%u], attachment[%p], map[%ld]\n",
+	// 	buffer, buffer->paddr, buffer->vaddr, buffer->daddr,
+	// 	buffer->sgt, buffer->sgt->orig_nents, buffer->attachment, map_size);
 p_err:
 	if (complete_suc != true) {
-		npu_memory_free_from_heap(&pdev->dev, buffer);
+		npu_memory_free_from_heap(&pdev->dev, memory, buffer);
+		npu_memory_dump(memory);
 	}
 	return ret;
 }
 
-void npu_memory_free_from_heap(struct device *dev, struct npu_memory_buffer *buffer)
+void npu_memory_free_from_heap(struct device *dev, struct npu_memory *memory, struct npu_memory_buffer *buffer)
 {
+	unsigned long flags;
+
   if (buffer->vaddr)
 		dma_buf_vunmap(buffer->dma_buf, buffer->vaddr);
 	if (buffer->daddr && !IS_ERR_VALUE(buffer->daddr))
@@ -484,6 +505,16 @@ void npu_memory_free_from_heap(struct device *dev, struct npu_memory_buffer *buf
 	buffer->sgt = NULL;
 	buffer->daddr = 0;
 	buffer->vaddr = NULL;
+
+	spin_lock_irqsave(&memory->alloc_lock, flags);
+	if (likely(!list_empty(&buffer->list))) {
+		list_del(&buffer->list);
+		INIT_LIST_HEAD(&buffer->list);
+		memory->alloc_count--;
+	} else
+		npu_info("buffer[%pK] is not linked to alloc_lock. Skipping remove.\n", buffer);
+
+	spin_unlock_irqrestore(&memory->alloc_lock, flags);
 }
 
 void npu_soc_status_report(struct npu_system *system)
@@ -545,6 +576,7 @@ int npu_system_alloc_fw_dram_log_buf(struct npu_system *system)
 	npu_info("start: initialization.\n");
 
 	if (!fw_report_buf.v_buf) {
+		strcpy(fw_report_buf.name, "FW_REPORT");
 		ret = npu_memory_v_alloc(&system->memory, &fw_report_buf);
 		if (ret) {
 			npu_err("fail(%d) in FW report buffer memory allocation\n", ret);
@@ -556,6 +588,7 @@ int npu_system_alloc_fw_dram_log_buf(struct npu_system *system)
 	}
 
 	if (!fw_profile_buf.v_buf) {
+		strcpy(fw_profile_buf.name, "FW_PROFILE");
 		ret = npu_memory_v_alloc(&system->memory, &fw_profile_buf);
 		if (ret) {
 			npu_err("fail(%d) in FW profile memory allocation\n", ret);
@@ -797,13 +830,13 @@ static int npu_init_iomem_area(struct npu_system *system)
 			probe_info("Flags[%08x], DVA[%08x], SIZE[%08x]",
 				(iomem_data + i)->vaddr, (iomem_data + i)->paddr, (iomem_data + i)->size);
 			ret = npu_memory_alloc_from_heap(system->pdev, mt->area_info,
-					(iomem_data + i)->paddr, mt->heapname, (iomem_data + i)->vaddr);
+					(iomem_data + i)->paddr, &system->memory, mt->heapname, (iomem_data + i)->vaddr);
 			if (ret) {
 				for (k = 0; k < mi; k++) {
 					bd = (system->mem_area)[k].area_info;
 					if (bd) {
 						if (bd->vaddr)
-							npu_memory_free_from_heap(&system->pdev->dev, bd);
+							npu_memory_free_from_heap(&system->pdev->dev, &system->memory, bd);
 						devm_kfree(dev, bd);
 					}
 				}
@@ -1310,9 +1343,16 @@ int npu_system_probe(struct npu_system *system, struct platform_device *pdev)
 		probe_err("fail(%d) in npu_binary_init\n", ret);
 		goto p_err;
 	}
+
 	ret = npu_util_memdump_probe(system);
 	if (ret) {
 		probe_err("fail(%d) in npu_util_memdump_probe\n", ret);
+		goto p_err;
+	}
+
+	ret = npu_iommu_dma_enable_best_fit_algo(dev);
+	if (ret) {
+		probe_err("fail(%d) npu_iommu_dma_enable_best_fit_algo\n", ret);
 		goto p_err;
 	}
 
@@ -1368,6 +1408,8 @@ int npu_system_probe(struct npu_system *system, struct platform_device *pdev)
 
 	system->layer_start = NPU_SET_DEFAULT_LAYER;
 	system->layer_end = NPU_SET_DEFAULT_LAYER;
+
+	system->fw_cold_boot = true;
 
 	goto p_exit;
 p_qos_err:
@@ -1607,6 +1649,7 @@ int npu_system_resume(struct npu_system *system, u32 mode)
 	BUG_ON(!system);
 	BUG_ON(!system->pdev);
 
+	npu_info("fw_cold_boot(%d)\n", system->fw_cold_boot);
 	dev = &system->pdev->dev;
 
 	device = container_of(system, struct npu_device, system);
@@ -1630,20 +1673,19 @@ int npu_system_resume(struct npu_system *system, u32 mode)
 	set_bit(NPU_SYS_RESUME_SETUP_WAKELOCK, &system->resume_steps);
 #endif
 
-	ret = npu_system_alloc_fw_dram_log_buf(system);
-	if (ret) {
-		npu_err("fail(%d) in npu_system_alloc_fw_dram_log_buf\n", ret);
-		goto p_err;
+	if (system->fw_cold_boot) {
+		ret = npu_system_alloc_fw_dram_log_buf(system);
+		if (ret) {
+			npu_err("fail(%d) in npu_system_alloc_fw_dram_log_buf\n", ret);
+			goto p_err;
+		}
 	}
 	set_bit(NPU_SYS_RESUME_INIT_FWBUF, &system->resume_steps);
 
-	npu_info("reset FW mailbox memory : paddr 0x%08llx, vaddr 0x%p, daddr 0x%08llx, size %lu\n",
-		fwmbox->paddr, fwmbox->vaddr, fwmbox->daddr, fwmbox->size);
+	if (system->fw_cold_boot) {
+		npu_info("reset FW mailbox memory : paddr 0x%08llx, vaddr 0x%p, daddr 0x%08llx, size %lu\n",
+				fwmbox->paddr, fwmbox->vaddr, fwmbox->daddr, fwmbox->size);
 
-#ifdef CONFIG_NPU_SECURE_MODE
-	if (!system->saved_warm_boot_flag)
-#endif
-	{
 		memset(fwmbox->vaddr, 0, fwmbox->size);
 
 		ret = npu_firmware_load(system, 0);
@@ -1655,6 +1697,16 @@ int npu_system_resume(struct npu_system *system, u32 mode)
 	set_bit(NPU_SYS_RESUME_FW_LOAD, &system->resume_steps);
 	set_bit(NPU_SYS_RESUME_FW_VERIFY, &system->resume_steps);
 
+#ifdef CONFIG_NPU_USE_HW_DEVICE
+	{
+		struct npu_memory_buffer *fwmem;
+
+		fwmem = npu_get_mem_area(system, "fwmem");
+		if (likely(fwmem->vaddr))
+			print_ufw_signature(fwmem);
+	}
+#endif
+
 #ifndef CONFIG_NPU_USE_BOOT_IOCTL
 	ret = npu_clk_prepare_enable(&system->clks);
 	if (ret) {
@@ -1664,18 +1716,14 @@ int npu_system_resume(struct npu_system *system, u32 mode)
 #endif
 	set_bit(NPU_SYS_RESUME_CLK_PREPARE, &system->resume_steps);
 
-#ifdef CONFIG_NPU_SECURE_MODE
-	if (!system->saved_warm_boot_flag) {
+	if (system->fw_cold_boot) {
 		/* Clear mailbox area and setup some initialization variables */
 		memset((void *)system->mbox_hdr, 0, sizeof(*system->mbox_hdr));
 	} else {
 		system->mbox_hdr->signature1 = 0;
 		system->mbox_hdr->signature2 = 0;
 	}
-#else
-	/* Clear mailbox area and setup some initialization variables */
-	memset((void *)system->mbox_hdr, 0, sizeof(*system->mbox_hdr));
-#endif
+
 #ifdef CONFIG_NPU_LOOPBACK
 	system->mbox_hdr->signature1 = MAILBOX_SIGNATURE1;
 #endif
@@ -1727,6 +1775,8 @@ int npu_system_suspend(struct npu_system *system)
 	dev = &system->pdev->dev;
 	device = container_of(system, struct npu_device, system);
 
+	npu_info("fw_cold_boot(%d)\n", system->fw_cold_boot);
+
 	BIT_CHECK_AND_EXECUTE(NPU_SYS_RESUME_COMPLETED, &system->resume_steps, NULL, ;);
 
 	BIT_CHECK_AND_EXECUTE(NPU_SYS_RESUME_OPEN_INTERFACE, &system->resume_steps, "Close interface", {
@@ -1738,9 +1788,10 @@ int npu_system_suspend(struct npu_system *system)
 #ifdef CONFIG_NPU_SECURE_MODE
 	if (!system->mbox_hdr->warm_boot_enable)
 #endif
-		BIT_CHECK_AND_EXECUTE(NPU_SYS_RESUME_FW_LOAD, &system->resume_steps, "FW load", {
-			npu_imgloader_shutdown(system);
-		});
+		if (system->fw_cold_boot)
+			BIT_CHECK_AND_EXECUTE(NPU_SYS_RESUME_FW_LOAD, &system->resume_steps, "FW load", {
+				npu_imgloader_shutdown(system);
+			});
 
 	/* Invoke platform specific suspend routine */
 	BIT_CHECK_AND_EXECUTE(NPU_SYS_RESUME_SOC, &system->resume_steps, "SoC suspend", {
@@ -1908,9 +1959,6 @@ static int npu_firmware_load(struct npu_system *system, int mode)
 
 	// dma_sync_sg_for_device(fwmem->attachment->dev, fwmem->sgt->sgl, fwmem->sgt->orig_nents, DMA_TO_DEVICE);
 
-#ifdef CONFIG_NPU_USE_HW_DEVICE
-	print_ufw_signature(fwmem);
-#endif
 	npu_info("complete in npu_firmware_load\n");
 	return ret;
 err_exit:
@@ -1918,4 +1966,90 @@ err_exit:
 	npu_info("error(%d) in npu_firmware_load\n", ret);
 #endif
 	return ret;
+}
+
+/*
+ * functionality helps to get logs during fw-bootup stage
+ * where fw-report logs will be present after the mailbox
+ * downward initialization in the fw
+ */
+void fw_print_log2dram(struct npu_system *system, u32 len)
+{
+	struct npu_memory_buffer *fw_log;
+	char *start = 0, *end = 0;
+	u32 pos = 0, loc = 0;
+	int i = 0;
+
+	fw_log = npu_get_mem_area(system, "fwlog");
+
+	if (fw_log == NULL) {
+		pr_err("fw_log pointer is NULL\n");
+		goto error;
+	}
+
+	pr_info("FW_LOG vaddr: 0x%p, daddr: 0x%x size: 0x%x\n",
+			fw_log->vaddr, (unsigned int)fw_log->daddr,
+			(unsigned int)fw_log->size);
+	if (!fw_log->vaddr) {
+		pr_err("fw_log vaddr is null\n");
+		goto error;
+	}
+
+	start = (char *)fw_log->vaddr;
+	end = (char *)((u64)fw_log->vaddr + (u64)fw_log->size);
+	pos = system->mbox_hdr->log_dram;
+
+	if (pos == 0) {
+		/*
+		 * log2dram will be executed only if there is a positive value
+		 * from pos; pos == 0 is a corner case where the whole 2MB of
+		 * log2dram is filled then log2dram will not be executed further
+		 */
+		goto error;
+	} else {
+		if (pos > fw_log->size || len > fw_log->size) {
+			pr_err("fw_log pos(%d) or len(%d) is invalid!\n", pos, len);
+			goto error;
+		}
+
+		if (len > BUF_SIZE)
+			len = BUF_SIZE;
+
+		memset(buf, 0, len);
+		memset(buf2, 0, BUF2_SIZE);
+
+
+		pr_info("pos value is %d\n", pos);
+		pr_info("(pos-len): %d", (pos - len));
+		if (pos < len) {
+			pr_info("start address of log2dram(circular case): 0x%x, dest address:0x%x\n",
+				(unsigned int)((u64)end - (u64)(len - pos)),
+				(unsigned int)((u64)start + (u64)len));
+			memcpy(buf, (char *)((u64)end - (u64)(len - pos)), (len - pos));
+			memcpy(&buf[(len - pos)], start, pos);
+		} else {
+			pr_info("start address of log2dram: 0x%x, dest address:0x%x\n",
+				(unsigned int)((u64)start + (u64)(pos - len)),
+				(unsigned int)((u64)start + (u64)(pos - len) + (u64)len));
+			memcpy(buf, (char *)((u64)start + (u64)(pos - len)), len);
+		}
+		pr_err("---------FW LOG2DRAM STARTS---------");
+		for (i = 0; i < len; i++) {
+			buf2[loc] = buf[i];
+			loc++;
+			if (buf[i] == '\n' || loc == (BUF2_SIZE-1)) {
+				buf2[loc] = '\0';
+				pr_err("%s", buf2);
+				loc = 0;
+			}
+		}
+
+		if (loc) {
+			buf2[loc] = '\0';
+			pr_err("%s", buf2);
+		}
+		pr_err("---------FW LOG2DRAM ENDS-----------");
+	}
+error:
+	return;
 }

@@ -448,15 +448,9 @@ void mlx5_vdpa_destroy_mr(struct mlx5_vdpa_dev *mvdev)
 		unmap_direct_mr(mvdev, dmr);
 		kfree(dmr);
 	}
-	memset(mr, 0, sizeof(*mr));
 	mr->initialized = false;
 out:
 	mutex_unlock(&mr->mkey_mtx);
-}
-
-static bool map_empty(struct vhost_iotlb *iotlb)
-{
-	return !vhost_iotlb_itree_first(iotlb, 0, U64_MAX);
 }
 
 int mlx5_vdpa_handle_set_map(struct mlx5_vdpa_dev *mvdev, struct vhost_iotlb *iotlb,
@@ -466,10 +460,6 @@ int mlx5_vdpa_handle_set_map(struct mlx5_vdpa_dev *mvdev, struct vhost_iotlb *io
 	int err = 0;
 
 	*change_map = false;
-	if (map_empty(iotlb)) {
-		mlx5_vdpa_destroy_mr(mvdev);
-		return 0;
-	}
 	mutex_lock(&mr->mkey_mtx);
 	if (mr->initialized) {
 		mlx5_vdpa_info(mvdev, "memory map update\n");

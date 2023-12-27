@@ -513,12 +513,7 @@ struct page *__read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
 		 * __read_swap_cache_async(), which has set SWAP_HAS_CACHE
 		 * in swap_map, but not yet added its page to swap cache.
 		 */
-		if (rt_task(current)) {
-			pr_err("%s: retry swapcache lookup\n", __func__);
-			schedule_timeout_uninterruptible(1);
-		} else {
-			cond_resched();
-		}
+		schedule_timeout_uninterruptible(1);
 	}
 
 	/*

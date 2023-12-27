@@ -1157,6 +1157,12 @@ enum aa_aeb_state {
 	AA_AEB_STATE_ON,
 };
 
+enum aa_night_indicator {
+	AA_NIGHT_INDICATOR_NONE = 0,
+	AA_NIGHT_INDICATOR_ON,
+	AA_NIGHT_INDICATOR_OFF,
+};
+
 struct camera2_video_output_size {
 	uint16_t			width;
 	uint16_t			height;
@@ -1314,7 +1320,9 @@ struct camera2_aa_dm {
 	uint32_t			ispHwTargetFpsRange[2];
 	uint32_t			vendor_aeDarkBoostGain;
 	enum aa_aeb_state	vendor_aebState;
-	uint32_t			vendor_reserved[31];
+	uint32_t			vendor_nightModeSuggest;    // 0(off), 1(on)
+	enum				aa_night_indicator vendor_nightIndicator;
+	uint32_t			vendor_reserved[29];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -2066,6 +2074,19 @@ enum camera_adaptive_lens_mode_state {
 	CAMERA_ADAPTIVE_LENS_MODE_STATE_MAX,
 };
 
+enum camera_flip_mode {
+	CAM_FLIP_MODE_NORMAL = 0,
+	CAM_FLIP_MODE_HORIZONTAL,
+	CAM_FLIP_MODE_VERTICAL,
+	CAM_FLIP_MODE_HORIZONTAL_VERTICAL,
+	CAM_FLIP_MODE_MAX,
+};
+enum camera_external_lens_mask {
+	CAMERA_EXTERNAL_LENS_NONE           = 0,
+	CAMERA_EXTERNAL_LENS_DOF            = 1 << 0, /* bit 0 */
+	CAMERA_EXTERNAL_LENS_ANAMORPHIC     = 1 << 1, /* bit 1 */
+};
+
 struct camera2_object_detect_uctl {
 	uint16_t detected;
 	uint16_t confidence_score;
@@ -2128,7 +2149,10 @@ struct camera2_uctl {
 	enum camera_adaptive_lens_condition adaptiveLensCondition;
 	enum camera_adaptive_lens_mode_state adaptiveLensModeState;
 	struct camera2_object_detect_uctl sunDetectInfoUd;
-	uint32_t			reserved[17];
+	enum camera_flip_mode			sensorFlip;
+	enum camera_external_lens_mask	externalLensType;
+	uint32_t						textDetectionInfo;
+	uint32_t						reserved[14];
 };
 
 struct camera2_udm {
@@ -2286,14 +2310,6 @@ struct hfd_meta {
 	uint32_t		rot[CAMERA2_MAX_FACES];
 	uint32_t		mirror_x[CAMERA2_MAX_FACES];
 	uint32_t		hw_rot_mirror[CAMERA2_MAX_FACES];
-};
-
-enum camera_flip_mode {
-	CAM_FLIP_MODE_NORMAL = 0,
-	CAM_FLIP_MODE_HORIZONTAL,
-	CAM_FLIP_MODE_VERTICAL,
-	CAM_FLIP_MODE_HORIZONTAL_VERTICAL,
-	CAM_FLIP_MODE_MAX,
 };
 
 enum camera_thermal_mode {

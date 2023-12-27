@@ -30,6 +30,10 @@
 #include <linux/dev_ril_bridge.h>
 #endif
 
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
+#include <linux/sm5714.h>
+#endif
+
 #include <linux/bsearch.h>
 #include "is-binary.h"
 
@@ -1303,19 +1307,24 @@ bool is_vender_check_sensor(struct is_core *core)
 	int i = 0;
 	bool ret = false;
 	int retry_count = 20;
+	int sensor_probe_done = 0;
 
 	do {
 		ret = false;
-		for (i = 0; i < is_vendor_sensor_count; i++) {
-			if (!test_bit(IS_SENSOR_PROBE, &core->sensor[i].state)) {
-				ret = true;
-				break;
+		sensor_probe_done = 0;
+		for (i = 0; i < IS_SENSOR_COUNT; i++) {
+			if (test_bit(IS_SENSOR_PROBE, &core->sensor[i].state)) {
+				++sensor_probe_done;
 			}
 		}
 
-		if (i == is_vendor_sensor_count && ret == false) {
+		if (sensor_probe_done == is_vendor_sensor_count) {
 			info("Retry count = %d\n", retry_count);
 			break;
+		}
+		else {
+			info("sensor: not probed\n");
+			ret = true;
 		}
 
 		mdelay(100);
@@ -2125,6 +2134,9 @@ extern int sky81296_torch_ctrl(int state);
 #if IS_ENABLED(CONFIG_LEDS_S2MPB02_FLASH)
 extern int s2mpb02_set_torch_current(enum s2mpb02_torch_mode torch_mode, unsigned int intensity);
 #endif
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
+extern int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness);
+#endif
 
 int is_vender_set_torch(struct camera2_shot *shot)
 {
@@ -2149,6 +2161,13 @@ int is_vender_set_torch(struct camera2_shot *shot)
 #endif
 		break;
 	case AA_FLASHMODE_START: /*Pre flash mode*/
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
+		if (shot->uctl.masterCamera == AA_SENSORPLACE_REAR) {
+			info("is_vender_set_torch sm5714_fled_mode_ctrl:(%d)\n", aeflashMode);
+			sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PRE_FLASH,0);
+		}
+#endif
+
 #ifdef CONFIG_LEDS_LM3560
 		lm3560_reg_update_export(0xE0, 0xFF, 0xEF);
 #elif defined(CONFIG_LEDS_SKY81296)

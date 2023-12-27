@@ -23,14 +23,17 @@
 __visible_for_testing int dc_vib_on(struct dc_vib_drvdata *ddata)
 {
 	int ret = 0;
+	int is_enabled = 0;
 
 	if (!ddata)
 		return -EINVAL;
 	if (ddata->running)
 		return 0;
 	if (ddata->pdata->regulator) {
-		pr_info("%s: regulator on\n", __func__);
-		if (!regulator_is_enabled(ddata->pdata->regulator))
+		is_enabled = regulator_is_enabled(ddata->pdata->regulator);
+		pr_info("%s: regulator on, is_enabled(%d)\n",
+				__func__, is_enabled);
+		if (!is_enabled)
 			ret = regulator_enable(ddata->pdata->regulator);
 		if (ret)
 			pr_err("%s: regulator_enable err %d\n", __func__, ret);
@@ -46,6 +49,7 @@ __visible_for_testing int dc_vib_on(struct dc_vib_drvdata *ddata)
 __visible_for_testing int dc_vib_off(struct dc_vib_drvdata *ddata)
 {
 	int ret = 0;
+	int is_enabled = 0;
 
 	if (!ddata)
 		return -EINVAL;
@@ -56,8 +60,10 @@ __visible_for_testing int dc_vib_off(struct dc_vib_drvdata *ddata)
 		gpio_direction_output(ddata->pdata->gpio_en, 0);
 	}
 	if (ddata->pdata->regulator) {
-		pr_info("%s: regulator off\n", __func__);
-		if (regulator_is_enabled(ddata->pdata->regulator))
+		is_enabled = regulator_is_enabled(ddata->pdata->regulator);
+		pr_info("%s: regulator off, is_enabled(%d)\n",
+				__func__, is_enabled);
+		if (is_enabled)
 			ret = regulator_disable(ddata->pdata->regulator);
 		if (ret)
 			pr_err("%s: regulator_disable err %d\n", __func__, ret);
@@ -122,7 +128,7 @@ static struct dc_vib_pdata *dc_vib_get_dt(struct device *dev)
 				__func__, ret);
 			goto err_out;
 		}
-		ret = gpio_direction_output(pdata->gpio_en, 0);
+		gpio_direction_output(pdata->gpio_en, 0);
 	} else {
 		pr_info("%s: gpio isn't used\n", __func__);
 	}
@@ -130,7 +136,7 @@ static struct dc_vib_pdata *dc_vib_get_dt(struct device *dev)
 	ret = of_property_read_string(node, "dc_vib,regulator_name",
 			&pdata->regulator_name);
 	if (!ret) {
-		pdata->regulator = regulator_get(NULL, pdata->regulator_name);
+		pdata->regulator = regulator_get(dev, pdata->regulator_name);
 		if (IS_ERR(pdata->regulator)) {
 			ret = PTR_ERR(pdata->regulator);
 			pdata->regulator = NULL;

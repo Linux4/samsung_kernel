@@ -1870,12 +1870,24 @@ static irqreturn_t is_isr_csi(int irq, void *data)
 	int frame_start, frame_end;
 	struct csis_irq_src irq_src;
 	u32 ch, err_flag = 0;
+	ulong err = 0;
 
 	csi = data;
 	memset(&irq_src, 0x0, sizeof(struct csis_irq_src));
 	csi_hw_g_irq_src(csi->base_reg, &irq_src, true);
 
-	csi->state_cnt.err += (irq_src.err_id[CSI_VIRTUAL_CH_0]) ? 1 : 0;
+	if (is_get_debug_param(IS_DEBUG_PARAM_PHY_TUNE) != PABLO_PHY_TUNE_DISABLE) {
+		if (is_get_debug_param(IS_DEBUG_PARAM_PHY_TUNE) == PABLO_PHY_TUNE_DPHY) {
+			err = (irq_src.err_id[CSI_VIRTUAL_CH_0] & (BIT(CSIS_ERR_ECC) | BIT(CSIS_ERR_CRC)));
+		} else {
+			for (ch = CSI_VIRTUAL_CH_0; ch < CSI_VIRTUAL_CH_MAX; ch++)
+				err |= irq_src.err_id[ch];
+		}
+	} else {
+		err = irq_src.err_id[CSI_VIRTUAL_CH_0];
+	}
+
+	csi->state_cnt.err += err ? 1: 0;
 	csi->state_cnt.str += (irq_src.otf_start & BIT(CSI_VIRTUAL_CH_0)) ? 1 : 0;
 	csi->state_cnt.end += (irq_src.otf_end & BIT(CSI_VIRTUAL_CH_0)) ? 1 : 0;
 
@@ -3034,9 +3046,6 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 		/* for multi frame buffer setting for internal vc */
 		csis_s_vc_dma_multibuf(csi);
 
-		/* OTF */
-		tasklet_enable(&csi->tasklet_csis_end);
-
 		/* DMA Workqueue Setting */
 		if (csi->dma_subdev[CSI_VIRTUAL_CH_0]) {
 			INIT_WORK(&csi->wq_csis_dma[CSI_VIRTUAL_CH_0], wq_csis_dma_vc0);
@@ -3067,7 +3076,6 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 		/* update line_fcount for sensor_notify_by_line */
 		device->line_fcount = atomic_read(&csi->fcount) + 1;
 
-		tasklet_enable(&csi->tasklet_csis_line);
 		set_bit(CSIS_LINE_IRQ_ENABLE, &csi->state);
 
 		csi_hw_s_control(base_reg, CSIS_CTRL_LINE_RATIO, csi->image.window.height * CSI_LINE_RATIO / 20);
@@ -3217,13 +3225,13 @@ static int csi_stream_off(struct v4l2_subdev *subdev,
 	clear_bit(CSIS_DMA_DISABLING, &csi->state);
 
 	if (test_and_clear_bit(CSIS_LINE_IRQ_ENABLE, &csi->state))
-		tasklet_disable(&csi->tasklet_csis_line);
+		tasklet_kill(&csi->tasklet_csis_line);
 
 	if (test_bit(CSIS_DMA_ENABLE, &csi->state)) {
 		struct is_camif_wdma *wdma = csi->wdma;
 		struct is_camif_wdma_module *wdma_mod = is_camif_wdma_module_get(csi->wdma_ch);
 
-		tasklet_disable(&csi->tasklet_csis_end);
+		tasklet_kill(&csi->tasklet_csis_end);
 
 		for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++) {
 			/*
@@ -3867,12 +3875,14 @@ int is_csi_probe(void *parent, u32 device_id, u32 ch, int wdma_ch_hint)
 	for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++)
 		csi->dma_subdev[vc] = NULL;
 
-	/* setup & disable tasklets */
+	/*
+	 * Setup tasklets
+	 * These should always be enabled to handle abnormal IRQ from CSI
+	 * for PHY tuning sequence.
+	 */
 	tasklet_setup(&csi->tasklet_csis_end, tasklet_csis_end);
-	tasklet_disable(&csi->tasklet_csis_end);
 
 	tasklet_setup(&csi->tasklet_csis_line, tasklet_csis_line);
-	tasklet_disable(&csi->tasklet_csis_line);
 
 	csi->workqueue = alloc_workqueue("is-csi/[H/U]", WQ_HIGHPRI | WQ_UNBOUND, 0);
 	if (!csi->workqueue)

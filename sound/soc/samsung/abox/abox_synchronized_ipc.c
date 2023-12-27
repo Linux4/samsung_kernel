@@ -95,7 +95,7 @@ int tfadsp_read(void *tfa, int length, unsigned char *buf)
 		/*return -1;*/
 	}
 
-	ret = wait_event_interruptible_timeout(wq_read,
+	ret = wait_event_timeout(wq_read,
 			abox_ipc_read_avail, msecs_to_jiffies(TIMEOUT_MS));
 
 	abox_request_cpu_gear_ext(data->dev_abox, REALTIME_GEAR_ID, 12, "TFA9874");
@@ -143,7 +143,7 @@ int tfadsp_write(void *tfa, int length, const char *buf)
 		/*return -1;*/
 	}
 
-	ret = wait_event_interruptible_timeout(wq_write,
+	ret = wait_event_timeout(wq_write,
 		abox_ipc_write_avail, msecs_to_jiffies(TIMEOUT_MS));
 
 	abox_request_cpu_gear_ext(data->dev_abox, REALTIME_GEAR_ID, 12, "TFA9874");
@@ -182,7 +182,7 @@ static irqreturn_t abox_synchronized_ipc_handler(int irq,
 			abox_ipc_read_error = TFADSP_SUCCESS;
 			ipc_dbg("TFADSP_CMD_READ DONE size= %d", size);
 			if (waitqueue_active(&wq_read))
-				wake_up_interruptible(&wq_read);
+				wake_up(&wq_read);
 		break;
 		case TFADSP_RES_BLACKBOX:
 			smem_read_buf =
@@ -192,42 +192,42 @@ static irqreturn_t abox_synchronized_ipc_handler(int irq,
 			abox_ipc_read_error = TFADSP_SUCCESS;
 			ipc_dbg("TFADSP_CMD_BLACKBOX DONE size= %d", size);
 			if (waitqueue_active(&wq_read))
-				wake_up_interruptible(&wq_read);
+				wake_up(&wq_read);
 		break;
 		case TFADSP_READ_INVALID_STATE:
 			abox_ipc_read_avail = true;
 			abox_ipc_read_error = TFADSP_READ_INVALID_STATE;
 			ipc_err("tfadsp_read() TFADSP_READ_INVALID_STATE");
 			if (waitqueue_active(&wq_read))
-				wake_up_interruptible(&wq_read);
+				wake_up(&wq_read);
 		break;
 		case TFADSP_RES_WRITE:
 			abox_ipc_write_avail = true;
 			abox_ipc_write_error = TFADSP_SUCCESS;
 			ipc_dbg("TFADSP_CMD_WRITE done");
 			if (waitqueue_active(&wq_write))
-				wake_up_interruptible(&wq_write);
+				wake_up(&wq_write);
 		break;
 		case TFADSP_WRITE_INVALID_STATE:
 			abox_ipc_write_avail = true;
 			abox_ipc_write_error = TFADSP_WRITE_INVALID_STATE;
 			ipc_err("tfadsp_write() TFADSP_WRITE_INVALID_STATE");
 			if (waitqueue_active(&wq_write))
-				wake_up_interruptible(&wq_write);
+				wake_up(&wq_write);
 		break;
 		case TFADSP_INVALID_PARAM:
 			abox_ipc_write_avail = true;
 			abox_ipc_write_error = TFADSP_INVALID_PARAM;
 			ipc_err("tfadsp_write() TFADSP_INVALID_PARAM");
 			if (waitqueue_active(&wq_write))
-				wake_up_interruptible(&wq_write);
+				wake_up(&wq_write);
 		break;
 		case TFADSP_FAILED:
 			abox_ipc_write_avail = true;
 			abox_ipc_write_error = TFADSP_FAILED;
 			ipc_err("tfadsp_write() TFADSP_FAILED");
 			if (waitqueue_active(&wq_write))
-				wake_up_interruptible(&wq_write);
+				wake_up(&wq_write);
 		break;
 
 		default:

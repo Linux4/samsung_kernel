@@ -11,8 +11,6 @@
 
 #ifndef __SM5714_H__
 #define __SM5714_H__
-#include <linux/platform_device.h>
-#include <linux/regmap.h>
 
 #define MFD_DEV_NAME "sm5714"
 
@@ -83,7 +81,6 @@ struct sm5714_fled_data {
 	struct mutex fled_mutex;
 
 	sm5714_fled_platform_data *pdata;
-	struct device *rear_fled_dev;
 
 	int vbus_voltage;
 	u8 torch_on_cnt;
@@ -92,5 +89,6 @@ struct sm5714_fled_data {
 };
 
 extern int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness);
+extern int sm5714_create_sysfs(struct class *class);
 
 #endif /* __SM5714_H__ */

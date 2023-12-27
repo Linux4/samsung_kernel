@@ -28,9 +28,6 @@
 #include "fmp_fips_main.h"
 #include "fmp_test.h"
 #include "fmp_fips_info.h"
-#ifdef CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST
-#include "fmp_fips_func_test.h"
-#endif
 #ifndef CONFIG_KEYS_IN_PRDT
 #include "ufs-vs-mmio.h"
 #endif
@@ -65,10 +62,11 @@
 
 static struct device *fmp_dev;
 
-static inline struct exynos_fmp *get_fmp(void)
+struct exynos_fmp *get_fmp(void)
 {
 	return dev_get_drvdata(fmp_dev);
 }
+EXPORT_SYMBOL(get_fmp);
 
 static inline void dump_ci(struct fmp_crypto_info *c)
 {
@@ -403,7 +401,7 @@ int exynos_fmp_crypt(struct exynos_fmp_crypt_info *fmp_ci, struct fmp_table_sett
 	} else {
 		if (!crypto_memneq(fmp_ci->enckey, fmp_ci->twkey, AES_KEYSIZE_256)) {
 			dev_err(fmp->dev, "Can't use weak AES-XTS key\n");
-			ret = -EINVAL;
+			ret = -EKEYREJECTED;
 			goto out;
 		}
 
@@ -446,6 +444,15 @@ int exynos_fmp_setkey(struct exynos_fmp_key_info *fmp_ki, struct fmp_handle *han
 		u32 words[AES_256_XTS_KEY_SIZE / sizeof(u32)];
 	} fmp_key;
 
+	/* Key length check. FMP only support 256b Key for AES-XTS */
+	if (fmp_ki->size != AES_256_XTS_KEY_SIZE) {
+		pr_err("%s: Does not support %d length of AES-XTS key\n", __func__, fmp_ki->size);
+		return -EINVAL;
+	}
+
+	if (get_fmp_fips_state())
+		return -EINVAL;
+
 	/* In XTS mode, the blk_crypto_key's size is already doubled */
 	memcpy(fmp_key.bytes, fmp_ki->raw, fmp_ki->size);
 
@@ -457,7 +464,7 @@ int exynos_fmp_setkey(struct exynos_fmp_key_info *fmp_ki, struct fmp_handle *han
 	/* Reject weak AES-XTS keys */
 	if (!crypto_memneq(enckey, twkey, AES_KEYSIZE_256)) {
 		pr_err("%s: Can't use weak AES-XTS key\n", __func__);
-		return -EINVAL;
+		return -EKEYREJECTED;
 	}
 
 	/* Key program in keyslot */
@@ -616,45 +623,10 @@ static void fmplib_clear_file_key(struct ufs_vs_handle *handle, int slot)
 }
 #endif
 
-#ifdef CONFIG_KEYS_IN_PRDT
-int exynos_fmp_clear(struct fmp_table_setting *table)
-{
-	struct exynos_fmp *fmp = get_fmp();
-	struct exynos_fmp_fips_test_vops *test_vops = fmp->test_vops;
-	int ret;
-
-	if (!table) {
-		pr_err("%s: Invalid input table\n", __func__);
-		return -EINVAL;
-	}
-
-	if (test_vops) {
-		ret = test_vops->zeroization(table, "before");
-		if (ret)
-			dev_err(fmp->dev,
-				"%s: Fail to check zeroization(before)\n",
-				__func__);
-	}
-
-	fmplib_clear_file_key(table);
-
-	if (test_vops) {
-		ret = test_vops->zeroization(table, "after");
-		if (ret)
-			dev_err(fmp->dev,
-				"%s: Fail to check zeroization(after)\n",
-				__func__);
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL(exynos_fmp_clear);
-#else
+#ifndef CONFIG_KEYS_IN_PRDT
 int exynos_fmp_clear(struct fmp_handle *handle, int slot)
 {
 	struct exynos_fmp *fmp = get_fmp();
-	struct exynos_fmp_fips_test_vops *test_vops = fmp->test_vops;
-	int ret;
 
 	if (slot > EXYNOS_FMP_FIPS_KEYSLOT) {
 		dev_err(fmp->dev, "%s: unable to clear %d keyslot. Keyslot num exceeded\n",
@@ -668,12 +640,6 @@ int exynos_fmp_clear(struct fmp_handle *handle, int slot)
 	}
 
 	fmplib_clear_file_key((struct ufs_vs_handle *)handle, slot);
-
-	if (test_vops) {
-		ret = test_vops->zeroization(slot, "complete");
-		if (ret)
-			dev_err(fmp->dev, "%s: Fail to zeroization func test\n", __func__);
-	}
 
 	return 0;
 }
@@ -768,11 +734,7 @@ bool is_fmp_fips_op(struct bio *bio)
 	if (!fmp->fips_run)
 		return false;
 
-#ifdef CONFIG_EXYNOS_FMP_ACVP_TEST
-	if (fmp_check_fips(bio, fmp)) {
-#else
 	if (!fmp->result.overall && fmp_check_fips(bio, fmp)) {
-#endif
 		dev_dbg(fmp->dev, "%s: find fips\n", __func__);
 		return true;
 	}
@@ -796,21 +758,13 @@ EXPORT_SYMBOL(is_fmp_fips_clean);
 
 int get_fmp_fips_state(void)
 {
-#ifndef CONFIG_NODE_FOR_SELFTEST_FAIL
-	struct exynos_fmp *fmp = get_fmp();
-#endif
 	if (unlikely(in_fmp_fips_err())) {
 #if defined(CONFIG_NODE_FOR_SELFTEST_FAIL)
 		pr_err("%s: Fail to work fmp config due to fips in error.\n", __func__);
-		return -EINVAL;
 #else
-		if (fmp->test_vops)
-			pr_err("%s: Fail to work fmp config due to fips in error.\n", __func__);
-		else
-			panic("%s: Fail to work fmp config due to fips in error\n", __func__);
-
-		return -EINVAL;
+		panic("%s: Fail to work fmp config due to fips in error\n", __func__);
 #endif
+		return -EINVAL;
 	}
 
 	return 0;
@@ -871,6 +825,7 @@ static void *exynos_fmp_init(struct platform_device *pdev)
 	dev_info(fmp->dev, "Exynos FMP dun swap = %d\n", fmp->dun_swap);
 	fmp->fips_run = 0;
 	dev_info(fmp->dev, "Exynos FMP driver is initialized\n");
+	dev_info(fmp->dev, "Exynos FMP driver Version: %s\n", FMP_DRV_VERSION);
 	return fmp;
 
 err_dev:
@@ -911,13 +866,9 @@ static int exynos_fmp_probe(struct platform_device *pdev)
 
 static int exynos_fmp_remove(struct platform_device *pdev)
 {
-	void *drv_data = dev_get_drvdata(&pdev->dev);
+	exynos_fmp_exit(pdev);
 
-	if (!drv_data) {
-		pr_err("%s: Fail to get drvdata\n", __func__);
-		return 0;
-	}
-	exynos_fmp_exit(drv_data);
+	dev_info(&pdev->dev, "%s: complete remove fmp driver\n", __func__);
 	return 0;
 }
 

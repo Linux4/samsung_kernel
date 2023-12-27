@@ -146,6 +146,9 @@ static bool suspended;
 static DEFINE_MUTEX (thermal_suspend_lock);
 #endif
 
+static int thermal_status_level[3];
+static bool update_thermal_status;
+
 int exynos_build_static_power_table(struct device_node *np, int **var_table,
 		unsigned int *var_volt_size, unsigned int *var_temp_size, char *tz_name)
 {
@@ -368,8 +371,6 @@ static void exynos_tmu_control(struct platform_device *pdev, bool on)
 
 static void thermal_freq_qos_init(struct exynos_tmu_data *data)
 {
-	if (data->policy)
-		return;
 
 	if (data->limited_frequency) {
 		data->policy = cpufreq_cpu_get(cpumask_first(&data->cpu_domain));
@@ -428,112 +429,136 @@ static int exynos_get_temp(void *p, int *temp)
 
 	*temp = acpm_temp * MCELSIUS;
 
-	if (data->id == 0)
-	    limited_max_freq = PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE;
-	else if (data->id == 1)
-	    limited_max_freq = PM_QOS_CLUSTER1_FREQ_MAX_DEFAULT_VALUE;
+	// Update thermal status
+	if (update_thermal_status) {
+		ktime_t diff;
+		ktime_t cur_time = ktime_get() / NSEC_PER_MSEC;
 
-	if (data->limited_frequency_2) {
-		thermal_freq_qos_init(data);
+		diff = cur_time - data->last_thermal_status_updated;
 
-		if (data->limited == 0) {
-			if (*temp >= data->limited_threshold_2) {
-				freq_qos_update_request(&data->thermal_limit_request,
-						data->limited_frequency_2);
-
-				data->limited = 2;
-			} else if (*temp >= data->limited_threshold) {
-				freq_qos_update_request(&data->thermal_limit_request,
-						data->limited_frequency);
-				data->limited = 1;
-			}
-		} else if (data->limited == 1) {
-			if (*temp >= data->limited_threshold_2) {
-				freq_qos_update_request(&data->thermal_limit_request,
-						data->limited_frequency_2);
-				data->limited = 2;
-			}
-			else if (*temp < data->limited_threshold_release) {
-				freq_qos_update_request(&data->thermal_limit_request,
-						limited_max_freq);
-				data->limited = 0;
-			}
-		} else if (data->limited == 2) {
-			if (*temp < data->limited_threshold_release) {
-				freq_qos_update_request(&data->thermal_limit_request,
-						limited_max_freq);
-				data->limited = 0;
-			} else if (*temp < data->limited_threshold_release_2) {
-				freq_qos_update_request(&data->thermal_limit_request,
-						data->limited_frequency);
-				data->limited = 1;
-			}
-		}
-	} else if (data->limited_frequency) {
-		thermal_freq_qos_init(data);
-
-		if (data->limited == 0) {
-			if (*temp >= data->limited_threshold) {
-				freq_qos_update_request(&data->thermal_limit_request,
-						data->limited_frequency);
-				data->limited = 1;
-			}
+		if (data->last_thermal_status_updated == 0 && *temp >= thermal_status_level[0]) {
+			data->last_thermal_status_updated = cur_time;
+		} else if (*temp >= thermal_status_level[2]) {
+			data->thermal_status[2] += diff;
+			data->last_thermal_status_updated = cur_time;
+		} else if (*temp >= thermal_status_level[1]) {
+			data->thermal_status[1] += diff;
+			data->last_thermal_status_updated = cur_time;
+		} else if (*temp >= thermal_status_level[0]) {
+			data->thermal_status[0] += diff;
+			data->last_thermal_status_updated = cur_time;
 		} else {
-			if (*temp < data->limited_threshold_release) {
-				freq_qos_update_request(&data->thermal_limit_request,
-						limited_max_freq);
-				data->limited = 0;
-			}
+			data->last_thermal_status_updated = 0;
 		}
 	}
 
-	if (data->emergency_frequency) {
+	if (!data->policy) {
 		thermal_freq_qos_init(data);
-
-		if (!data->emergency_throttle && (stat & EMERGENCY_THROTTLE_STAT)) {
-			freq_qos_update_request(&data->emergency_throttle_request,
-					data->emergency_frequency);
-			data->emergency_throttle = true;
-		} else if (data->emergency_throttle && !(stat & EMERGENCY_THROTTLE_STAT)) {
-			freq_qos_update_request(&data->emergency_throttle_request,
-					PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
-			data->emergency_throttle = false;
-		}
 	}
-	if (data->emergency_frequency_1) {
-		thermal_freq_qos_init(data);
-		if (stat & EMERGENCY_THROTTLE_STAT_3) {
-			emergency_throttle = 3;
-		} else if (stat & EMERGENCY_THROTTLE_STAT_2) {
-			emergency_throttle = 2;
-		} else if (stat & EMERGENCY_THROTTLE_STAT_1) {
-			emergency_throttle = 1;
-		} else {
-			emergency_throttle = 0;
-		}
-		if (data->emergency_throttle != emergency_throttle) {
-			switch(emergency_throttle) {
-			case 0:
-				freq_qos_update_request(&data->emergency_throttle_request,
-							PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
-				break;
-			case 1:
-				freq_qos_update_request(&data->emergency_throttle_request,
-							data->emergency_frequency_1);
-				break;
-			case 2:
-				freq_qos_update_request(&data->emergency_throttle_request,
-							data->emergency_frequency_2);
-				break;
-			case 3:
-				freq_qos_update_request(&data->emergency_throttle_request,
-							data->emergency_frequency_3);
-				break;
-			default:
-				BUG();
-				break;
+
+	if (data->policy) {
+		if (data->id == 0)
+		    limited_max_freq = PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE;
+		else if (data->id == 1)
+		    limited_max_freq = PM_QOS_CLUSTER1_FREQ_MAX_DEFAULT_VALUE;
+
+		if (data->limited_frequency_2) {
+			if (data->limited == 0) {
+				if (*temp >= data->limited_threshold_2) {
+					freq_qos_update_request(&data->thermal_limit_request,
+							data->limited_frequency_2);
+
+					data->limited = 2;
+				} else if (*temp >= data->limited_threshold) {
+					freq_qos_update_request(&data->thermal_limit_request,
+							data->limited_frequency);
+					data->limited = 1;
+				}
+			} else if (data->limited == 1) {
+				if (*temp >= data->limited_threshold_2) {
+					freq_qos_update_request(&data->thermal_limit_request,
+							data->limited_frequency_2);
+					data->limited = 2;
+				}
+				else if (*temp < data->limited_threshold_release) {
+					freq_qos_update_request(&data->thermal_limit_request,
+							limited_max_freq);
+					data->limited = 0;
+				}
+			} else if (data->limited == 2) {
+				if (*temp < data->limited_threshold_release) {
+					freq_qos_update_request(&data->thermal_limit_request,
+							limited_max_freq);
+					data->limited = 0;
+				} else if (*temp < data->limited_threshold_release_2) {
+					freq_qos_update_request(&data->thermal_limit_request,
+							data->limited_frequency);
+					data->limited = 1;
+				}
 			}
-			data->emergency_throttle = emergency_throttle;
+		} else if (data->limited_frequency) {
+
+			if (data->limited == 0) {
+				if (*temp >= data->limited_threshold) {
+					freq_qos_update_request(&data->thermal_limit_request,
+							data->limited_frequency);
+					data->limited = 1;
+				}
+			} else {
+				if (*temp < data->limited_threshold_release) {
+					freq_qos_update_request(&data->thermal_limit_request,
+							limited_max_freq);
+					data->limited = 0;
+				}
+			}
+		}
+
+		if (data->emergency_frequency) {
+
+			if (!data->emergency_throttle && (stat & EMERGENCY_THROTTLE_STAT)) {
+				freq_qos_update_request(&data->emergency_throttle_request,
+						data->emergency_frequency);
+				data->emergency_throttle = true;
+			} else if (data->emergency_throttle && !(stat & EMERGENCY_THROTTLE_STAT)) {
+				freq_qos_update_request(&data->emergency_throttle_request,
+						PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
+				data->emergency_throttle = false;
+			}
+		}
+		if (data->emergency_frequency_1) {
+			if (stat & EMERGENCY_THROTTLE_STAT_3) {
+				emergency_throttle = 3;
+			} else if (stat & EMERGENCY_THROTTLE_STAT_2) {
+				emergency_throttle = 2;
+			} else if (stat & EMERGENCY_THROTTLE_STAT_1) {
+				emergency_throttle = 1;
+			} else {
+				emergency_throttle = 0;
+			}
+			if (data->emergency_throttle != emergency_throttle) {
+				switch(emergency_throttle) {
+				case 0:
+					freq_qos_update_request(&data->emergency_throttle_request,
+								PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
+					break;
+				case 1:
+					freq_qos_update_request(&data->emergency_throttle_request,
+								data->emergency_frequency_1);
+					break;
+				case 2:
+					freq_qos_update_request(&data->emergency_throttle_request,
+								data->emergency_frequency_2);
+					break;
+				case 3:
+					freq_qos_update_request(&data->emergency_throttle_request,
+								data->emergency_frequency_3);
+					break;
+				default:
+					BUG();
+					break;
+				}
+				data->emergency_throttle = emergency_throttle;
+			}
 		}
 	}
 
@@ -976,7 +1001,8 @@ static void exynos_pi_thermal(struct exynos_tmu_data *data)
 			mutex_lock(&data->lock);
 			goto polling;
 		}
-	}
+	} else
+		return;
 
 	thermal_zone_device_update(tz, THERMAL_EVENT_UNSPECIFIED);
 	mutex_lock(&data->lock);
@@ -1062,10 +1088,12 @@ polling:
 void exynos_tmu_set_boost_mode(struct exynos_tmu_data *data, enum exynos_tmu_boost_mode new_mode, bool from_amb)
 {
 	ktime_t cur_time = ktime_get();
-	enum exynos_tmu_boost_mode cur_mode = data->boost_param.boost_mode;
+	enum exynos_tmu_boost_mode cur_mode;
 
 	if (!data)
 		return;
+
+	cur_mode = data->boost_param.boost_mode;
 
 	mutex_lock(&data->lock);
 	if (from_amb == true || (from_amb == false && cur_mode != AMBIENT_MODE))
@@ -1262,6 +1290,12 @@ static int exynos_map_dt_data(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to get tmu_name\n");
 	} else
 		strncpy(data->tmu_name, tmu_name, THERMAL_NAME_LENGTH);
+
+	if (of_property_read_bool(pdev->dev.of_node, "thermal_status_level")) {
+		of_property_read_u32_array(pdev->dev.of_node, "thermal_status_level", (u32 *)&thermal_status_level,
+				(size_t)(ARRAY_SIZE(thermal_status_level)));
+		update_thermal_status = true;
+	}
 
 	data->hotplug_enable = of_property_read_bool(pdev->dev.of_node, "hotplug_enable");
 	if (data->hotplug_enable) {
@@ -1865,11 +1899,37 @@ static ssize_t thermal_log_show(struct file *file, struct kobject *kobj,
 	return printed;
 }
 
+static ssize_t thermal_status_show(struct kobject *kobj, struct kobj_attribute *attr,
+		char *buf)
+{
+	ssize_t count = 0;
+	struct exynos_tmu_data *devnode;
+
+	count += snprintf(buf + count, PAGE_SIZE, "DOMAIN %10d %10d %10d\n",
+			thermal_status_level[0], thermal_status_level[1],
+			thermal_status_level[2]);
+	list_for_each_entry(devnode, &dtm_dev_list, node) {
+		exynos_report_trigger(devnode);
+		mutex_lock(&devnode->lock);
+		count += snprintf(buf + count, PAGE_SIZE, "%6s %10llu %10llu %10llu\n",
+				devnode->tmu_name, devnode->thermal_status[0],
+				devnode->thermal_status[1], devnode->thermal_status[2]);
+		devnode->thermal_status[0] = 0;
+		devnode->thermal_status[1] = 0;
+		devnode->thermal_status[2] = 0;
+		mutex_unlock(&devnode->lock);
+	}
+
+	return count;
+}
+
 static struct bin_attribute thermal_log_bin_attr = {
 	.attr.name = "thermal_log",
 	.attr.mode = 0400,
 	.read = thermal_log_show,
 };
+
+static struct kobj_attribute thermal_status_attr = __ATTR(thermal_status, 0440, thermal_status_show, NULL);
 
 #define create_s32_param_attr(name)						\
 	static ssize_t								\
@@ -2357,6 +2417,7 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 
 		kobj = kobject_create_and_add("exynos-thermal", kernel_kobj);
 		sysfs_create_bin_file(kobj, &thermal_log_bin_attr);
+		sysfs_create_file(kobj, &thermal_status_attr.attr);
 	}
 
 	if (data->use_pi_thermal) {

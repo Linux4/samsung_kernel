@@ -173,7 +173,7 @@ scmi_config_linear_regulator_mappings(struct scmi_regulator *sreg,
 		sreg->desc.uV_step =
 			vinfo->levels_uv[SCMI_VOLTAGE_SEGMENT_STEP];
 		sreg->desc.linear_min_sel = 0;
-		sreg->desc.n_voltages = delta_uV / sreg->desc.uV_step;
+		sreg->desc.n_voltages = (delta_uV / sreg->desc.uV_step) + 1;
 		sreg->desc.ops = &scmi_reg_linear_ops;
 	}
 
@@ -350,7 +350,7 @@ static int scmi_regulator_probe(struct scmi_device *sdev)
 		if (ret == -ENOMEM)
 			return ret;
 	}
-
+	of_node_put(np);
 	/*
 	 * Register a regulator for each valid regulator-DT-entry that we
 	 * can successfully reach via SCMI and has a valid associated voltage

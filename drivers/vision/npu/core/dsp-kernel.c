@@ -257,6 +257,14 @@ free:
 	dsp_leave();
 }
 
+void dsp_kernel_dump(struct dsp_kernel_manager *kmgr)
+{
+	dsp_enter();
+	if (kmgr->dl_init)
+		dsp_dl_print_status();
+	dsp_leave();
+}
+
 static int __dsp_kernel_load(struct dsp_kernel_manager *kmgr,
 		struct dsp_dl_lib_info *dl_libs, unsigned int kernel_count)
 {
@@ -275,8 +283,7 @@ static int __dsp_kernel_load(struct dsp_kernel_manager *kmgr,
 			ret = dl_ret.status;
 			dsp_err("Failed to load kernel(%u/%d)\n",
 					kernel_count, ret);
-			// TODO: add dump for kernel info.
-			//dsp_dump_kernel(kmgr);
+			dsp_kernel_dump(kmgr);
 			goto p_err;
 		}
 	} else {
@@ -320,16 +327,6 @@ static int __dsp_kernel_unload(struct dsp_kernel_manager *kmgr,
 p_err:
 	return ret;
 }
-
-/*
-void dsp_kernel_dump(struct dsp_kernel_manager *kmgr)
-{
-	dsp_enter();
-	if (kmgr->dl_init)
-		dsp_dl_print_status();
-	dsp_leave();
-}
-*/
 
 void dsp_graph_remove_kernel(struct npu_device *device, struct npu_session *session)
 {

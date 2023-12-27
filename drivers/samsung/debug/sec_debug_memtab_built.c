@@ -16,6 +16,8 @@
 #include <linux/spinlock.h>
 #include <linux/rwsem.h>
 #include <linux/rtmutex.h>
+#include <linux/workqueue.h>
+#include <linux/xarray.h>
 /* for module symbol */
 #include <linux/module.h>
 #include <linux/elf.h>
@@ -90,4 +92,11 @@ DEFINE_MEMBER_TYPE(elf64_sym_st_size, elf64_sym, st_size);
 DEFINE_MEMBER_TYPE(rq_curr, rq, curr);
 #ifdef CONFIG_ARM64_PTR_AUTH
 DEFINE_MEMBER_TYPE(task_struct_thread__keys_kernel, task_struct, thread.keys_kernel);
+#endif
+DEFINE_MEMBER_TYPE(work_struct_data, work_struct, data);
+DEFINE_MEMBER_TYPE(work_struct_func, work_struct, func);
+DEFINE_MEMBER_TYPE(xarray_xa_head, xarray, xa_head);
+DEFINE_MEMBER_TYPE(xa_node_slots, xa_node, slots);
+#ifdef CONFIG_STACKPROTECTOR_PER_TASK
+DEFINE_MEMBER_TYPE(task_struct_stack_canary, task_struct, stack_canary);
 #endif

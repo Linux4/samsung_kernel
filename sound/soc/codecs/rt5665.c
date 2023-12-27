@@ -1180,8 +1180,15 @@ static int rt5665_hp_vol_put(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
 	struct rt5665_priv *rt5665 = snd_soc_component_get_drvdata(component);
 	struct snd_soc_dapm_context *dapm = &component->dapm;
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
 	int reg05, reg06;
 	int ret;
+
+	/*  Modified in case the value is set higher than max value */ 
+	/*  For AND operation, MAX values can only be applied to 0xf and 0x1f */ 
+	ucontrol->value.integer.value[0] &= mc->max;
+	ucontrol->value.integer.value[1] &= mc->max;
 
 	snd_soc_dapm_mutex_lock(dapm);
 
@@ -1216,7 +1223,16 @@ static int rt5665_mono_vol_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
-	int ret = snd_soc_put_volsw(kcontrol, ucontrol);
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	int ret;
+
+	/*  Modified in case the value is set higher than max value */ 
+	/*  For AND operation, MAX values can only be applied to 0xf and 0x1f */ 
+	ucontrol->value.integer.value[0] &= mc->max;
+	ucontrol->value.integer.value[1] &= mc->max;
+
+	ret = snd_soc_put_volsw(kcontrol, ucontrol);
 
 	if (snd_soc_component_read(component, RT5665_MONO_NG2_CTRL_1) & RT5665_NG2_EN) {
 		snd_soc_component_update_bits(component, RT5665_MONO_NG2_CTRL_1,
@@ -2095,7 +2111,7 @@ static void rt5665_jack_detect_handler(struct work_struct *work)
 	struct rt5665_priv *rt5665 =
 		container_of(work, struct rt5665_priv, jack_detect_work.work);
 	struct snd_soc_component *component = rt5665->component;
-	int val, btn_type, mask, ret, count = 0;
+	int val, btn_type, mask, ret, count = 0, i;
 	unsigned int reg094;
 
 	pm_stay_awake(component->dev);
@@ -2103,13 +2119,23 @@ static void rt5665_jack_detect_handler(struct work_struct *work)
 	pr_debug("%s\n", __func__);
 
 	if (rt5665->is_suspend) {
-		/* Because some SOCs need wake up time of I2C controller */
-		msleep(50);
+		dev_info(component->dev, "%s wait resume\n", __func__);
+		i = 0;
+		while (i < 10 && rt5665->is_suspend) {
+			msleep(50);
+			i++;
+		}
 	}
 
 	rt5665->mic_check_break = true;
 	cancel_delayed_work_sync(&rt5665->mic_check_work);
 	cancel_delayed_work_sync(&rt5665->water_detect_work);
+
+	i = 0;
+	while (regmap_read(rt5665->regmap, RT5665_AJD1_CTRL, &val) && i < 5) {
+		msleep(100);
+		i++;
+	}
 
 	reg094 = snd_soc_component_read(component, RT5665_MICBIAS_2);
 
@@ -6566,6 +6592,8 @@ static int rt5665_i2c_probe(struct i2c_client *i2c,
 	if (rt5665->pdata.rek_first_playback)
 		rt5665->do_rek = true;
 
+	device_init_wakeup(&i2c->dev, true);
+
 	return devm_snd_soc_register_component(&i2c->dev, &rt5665_soc_component_dev,
 			rt5665_dai, ARRAY_SIZE(rt5665_dai));
 }
@@ -6581,6 +6609,8 @@ static int rt5665_i2c_remove(struct i2c_client *i2c)
 #endif
 
 	iio_channel_release(rt5665->jack_adc);
+
+	device_init_wakeup(&i2c->dev, false);
 
 	return 0;
 }

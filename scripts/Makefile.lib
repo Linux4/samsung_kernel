@@ -247,7 +247,9 @@ objtool_args =								\
 	$(if $(or $(CONFIG_GCOV_KERNEL),$(CONFIG_LTO_CLANG)), 		\
 		--no-unreachable,)					\
 	$(if $(CONFIG_RETPOLINE), --retpoline,)				\
+	$(if $(CONFIG_RETHUNK), --rethunk,)				\
 	$(if $(CONFIG_X86_SMAP), --uaccess,)				\
+	$(if $(CONFIG_SLS), --sls,)					\
 	$(if $(CONFIG_FTRACE_MCOUNT_USE_OBJTOOL), --mcount,)
 
 # Useful for describing the dependency of composite objects
@@ -349,7 +351,8 @@ show_dtc_error =                                                          \
 	cat $1;                                                           \
 	for err in "$$(cat $1 | grep 'Error:')"; do                       \
 	   echo "See more detail error as below:";                        \
-	   cat $$(echo $$err | cut -d':' -f2) | nl -ba                    \
+	   cat $$(echo $$err | cut -d':' -f2)                             \
+	   | awk '{printf("ERROR: %6d  %s\n"), NR, $$0}'                  \
 	   | head -n $$(echo $$err | grep -Eo ':[0-9]+' | cut -d':' -f2)  \
 	   | tail -n 2;                                                   \
 	done;                                                             \

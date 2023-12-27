@@ -417,6 +417,13 @@ static int p3_rw_spi_message(struct p3_data *p3_device,
 }
 #endif
 
+#ifdef CONFIG_ESE_COLDRESET
+#if !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+extern int trig_nfc_wakeup(void);
+extern int trig_nfc_sleep(void);
+#endif
+#endif
+
 static int spip3_open(struct inode *inode, struct file *filp)
 {
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
@@ -451,7 +458,11 @@ static int spip3_open(struct inode *inode, struct file *filp)
 		P3_ERR_MSG("%s - ALREADY opened!\n", __func__);
 		return -EBUSY;
 	}
-
+#ifdef CONFIG_ESE_COLDRESET
+#if !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+	trig_nfc_wakeup();
+#endif
+#endif
 	mutex_lock(&device_list_lock);
 	p3_dev->device_opened = true;
 	P3_INFO_MSG("open\n");
@@ -526,7 +537,11 @@ static int spip3_release(struct inode *inode, struct file *filp)
 	usleep_range(10000, 15000);
 
 	mutex_unlock(&device_list_lock);
-
+#ifdef CONFIG_ESE_COLDRESET
+#if !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
+	trig_nfc_sleep();
+#endif
+#endif
 	P3_DBG_MSG("%s, users:%d, Major Minor No:%d %d\n", __func__,
 			p3_dev->users, imajor(inode), iminor(inode));
 	return 0;
@@ -536,7 +551,6 @@ static int spip3_release(struct inode *inode, struct file *filp)
 #if !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
 extern int trig_cold_reset(void);
 #endif
-
 static void p3_power_reset(struct p3_data *data)
 {
 	/*Add Reset Sequence here*/
@@ -910,7 +924,7 @@ static int spip3_probe(struct spi_device *spi)
 	delay_params = devm_kzalloc(&spi->dev, sizeof(struct spi_geni_qcom_ctrl_data),
 			GFP_KERNEL);
 	pr_info("%s success alloc ctrl_data!\n", __func__);
-	delay_params->spi_cs_clk_delay = 35; /*clock cycles*/
+	delay_params->spi_cs_clk_delay = 133; /*clock cycles*/
 	delay_params->spi_inter_words_delay = 0;
 	spi->controller_data = delay_params;
 #endif

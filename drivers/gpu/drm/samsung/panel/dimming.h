@@ -465,7 +465,7 @@ int init_dimming_info(struct dimming_info *, struct dimming_init_info *);
 int init_dimming_mtp(struct dimming_info *, s32 (*)[MAX_COLOR]);
 int init_dimming_hbm_info(struct dimming_info *, s32 (*)[MAX_COLOR], u32);
 s64 interpolation_round(s64 from, s64 to, int cur_step, int total_step);
-s64 interpolation(s64 from, s64 to, int cur_step, int total_step);
+s64 disp_interpolation64(s64 from, s64 to, int cur_step, int total_step);
 s64 disp_round(s64 num, u32 digits);
 s64 disp_div64(s64 num, s64 den);
 s64 disp_pow(s64 num, u32 digits);
@@ -496,7 +496,7 @@ static inline int init_dimming_info(struct dimming_info *dim_info, struct dimmin
 static inline int init_dimming_mtp(struct dimming_info *dim_info, s32 (*mtp)[MAX_COLOR]) { return 0; }
 static inline int init_dimming_hbm_info(struct dimming_info *dim_info, s32 (*hbm_gamma_tbl)[MAX_COLOR], u32 hbm_luminance) { return 0; }
 static inline s64 interpolation_round(s64 from, s64 to, int cur_step, int total_step) { return 0; }
-static inline s64 interpolation(s64 from, s64 to, int cur_step, int total_step) { return 0; }
+static inline s64 disp_interpolation64(s64 from, s64 to, int cur_step, int total_step) { return 0; }
 static inline s64 disp_round(s64 num, u32 digits) { return 0; }
 static inline s64 disp_div64(s64 num, s64 den) { return 0; }
 #ifdef DIMMING_CALC_PRECISE

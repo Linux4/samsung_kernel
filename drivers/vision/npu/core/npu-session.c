@@ -237,7 +237,7 @@ static int __npu_update_imb_size_save_result(struct npu_session *dummy_session, 
 
 	imb_size_ctl_ref->result_code = nw_result.result_code;
 	imb_size_ctl_ref->fw_size = nw_result.nw.result_value;
-	wake_up_interruptible(&imb_size_ctl_ref->waitq);
+	wake_up(&imb_size_ctl_ref->waitq);
 
 	return ret;
 }
@@ -265,7 +265,7 @@ static int __npu_update_imb_size(struct npu_session *session, u32 new_chunk_cnt)
 	}
 
 	/* wait for response from FW */
-	wait_event_interruptible(imb_size_ctl_ref->waitq, imb_size_ctl_ref->result_code != NPU_SYSTEM_JUST_STARTED);
+	wait_event(imb_size_ctl_ref->waitq, imb_size_ctl_ref->result_code != NPU_SYSTEM_JUST_STARTED);
 
 	if (unlikely(imb_size_ctl_ref->result_code != NPU_ERR_NO_ERROR)) {
 		/* firmware failed or did not accept the change in IMB size */
@@ -315,7 +315,8 @@ static int __alloc_imb_chunk(struct npu_session *session, struct npu_memory_buff
 	for (i = system->imb_alloc_data.alloc_chunk_cnt; i < req_chunk_cnt; i++) {
 		dAddr = system->chunk_imb->paddr + (i * NPU_IMB_CHUNK_SIZE);
 		system->imb_alloc_data.chunk[i].size = NPU_IMB_CHUNK_SIZE;
-		ret = npu_memory_alloc_from_heap(system->pdev, &(system->imb_alloc_data.chunk[i]), dAddr, "npu_imb", 0);
+		ret = npu_memory_alloc_from_heap(
+			system->pdev, &(system->imb_alloc_data.chunk[i]), dAddr, &system->memory, "IMB", 0);
 		if (unlikely(ret)) {
 			npu_uerr("IMB: npu_memory_alloc_from_heap failed, err: %d\n", session, ret);
 			ret = -EFAULT;
@@ -349,7 +350,7 @@ static inline void __free_imb_chunk(struct npu_session *session, u32 new_chunk_c
 	WARN_ON(!system);
 	cur_chunk_cnt = system->imb_alloc_data.alloc_chunk_cnt;
 	for (i = cur_chunk_cnt; i > new_chunk_cnt; i--) {
-		npu_memory_free_from_heap(&system->pdev->dev, &(system->imb_alloc_data.chunk[i - 1]));
+		npu_memory_free_from_heap(&system->pdev->dev, &system->memory, &(system->imb_alloc_data.chunk[i - 1]));
 		system->imb_alloc_data.alloc_chunk_cnt--;
 	}
 	if (system->imb_alloc_data.alloc_chunk_cnt != cur_chunk_cnt) {
@@ -513,6 +514,9 @@ int add_ion_mem(struct npu_session *session, struct npu_memory_buffer *mem_buf, 
 	case NCP_TYPE:
 		session->ncp_mem_buf = mem_buf;
 		break;
+	case NCP_HDR_TYPE:
+		session->ncp_hdr_buf = mem_buf;
+		break;
 	case IOFM_TYPE:
 		session->IOFM_mem_buf = mem_buf;
 		break;
@@ -555,6 +559,13 @@ void __release_graph_ion(struct npu_session *session)
 		kfree(ion_mem_buf);
 	}
 
+	ion_mem_buf = session->ncp_hdr_buf;
+	session->ncp_hdr_buf = NULL;
+	if (unlikely(ion_mem_buf)) {
+		npu_memory_free(memory, ion_mem_buf);
+		kfree(ion_mem_buf);
+	}
+
 	ion_mem_buf = session->IOFM_mem_buf;
 	session->IOFM_mem_buf = NULL;
 	if (unlikely(ion_mem_buf)) {
@@ -573,7 +584,7 @@ int npu_session_NW_CMD_UNLOAD(struct npu_session *session)
 	struct npu_device *device;
 	nw_cmd_e nw_cmd = NPU_NW_CMD_UNLOAD;
 
-	if (!session) {
+	if (unlikely(!session)) {
 		npu_err("invalid session\n");
 		return -EINVAL;
 	}
@@ -590,6 +601,12 @@ int npu_session_NW_CMD_UNLOAD(struct npu_session *session)
 	session->nw_result.result_code = NPU_NW_JUST_STARTED;
 	npu_session_put_nw_req(session, nw_cmd);
 	wait_event(session->wq, session->nw_result.result_code != NPU_NW_JUST_STARTED);
+
+	if (session->ncp_payload) {
+		npu_memory_free(session->memory, session->ncp_payload);
+		kfree(session->ncp_payload);
+		session->ncp_payload = NULL;
+	}
 
 	return 0;
 }
@@ -794,6 +811,13 @@ graph_ion_unmap:
 	session->ncp_mem_buf = NULL;
 	if (likely(ion_mem_buf)) {
 		npu_memory_unmap(memory, ion_mem_buf);
+		kfree(ion_mem_buf);
+	}
+
+	ion_mem_buf = session->ncp_hdr_buf;
+	session->ncp_hdr_buf = NULL;
+	if (likely(ion_mem_buf)) {
+		npu_memory_free(memory, ion_mem_buf);
 		kfree(ion_mem_buf);
 	}
 
@@ -1441,45 +1465,72 @@ p_err:
 }
 #endif
 
+static struct npu_memory_buffer *
+copy_ncp_header(struct npu_session *session, struct npu_memory_buffer *ncp_mem_buf)
+{
+	struct npu_memory_buffer *buffer;
+	struct ncp_header *src_hdr = ncp_mem_buf->vaddr;
+
+	buffer = npu_memory_copy(session->memory, ncp_mem_buf, 0, src_hdr->hdr_size);
+	if (IS_ERR_OR_NULL(buffer))
+		return buffer;
+
+	add_ion_mem(session, buffer, NCP_HDR_TYPE);
+
+	return buffer;
+}
+
 int __ncp_ion_map(struct npu_session *session, struct drv_usr_share *usr_data)
 {
 	int ret = 0;
 
-	struct npu_memory_buffer *ncp_mem_buf = NULL;
+	struct npu_memory_buffer *ncp_mem_buf = NULL, *ncp_hdr_buf = NULL;
 	mem_opt_e opt = NCP_TYPE;
 
 	ncp_mem_buf = kzalloc(sizeof(struct npu_memory_buffer), GFP_KERNEL);
 	if (ncp_mem_buf == NULL) {
 		npu_err("fail in npu_ion_map kzalloc\n");
-		ret = -ENOMEM;
-		goto p_err;
+		return -ENOMEM;
 	}
 	ncp_mem_buf->fd = usr_data->ncp_fd;
 	ncp_mem_buf->size = usr_data->ncp_size;
+	strcpy(ncp_mem_buf->name, "NCP");
 
 	ret = npu_memory_map(session->memory, ncp_mem_buf, configs[NPU_PBHA_HINT_11]);
 	if (unlikely(ret)) {
 		npu_err("npu_memory_map is fail(%d).\n", ret);
-		if (ncp_mem_buf)
-			kfree(ncp_mem_buf);
-		goto p_err;
+		goto err_free;
 	}
 	npu_info("ncp_ion_map(0x%pad), vaddr(0x%pK)\n", &ncp_mem_buf->daddr, ncp_mem_buf->vaddr);
 	ret = __update_ncp_info(session, ncp_mem_buf);
 	if (ret) {
 		npu_err("__ncp_ion_map is fail(%d).\n", ret);
-		if (ncp_mem_buf)
-			kfree(ncp_mem_buf);
-		goto p_err;
+		goto err_unmap;
 	}
 	ret = add_ion_mem(session, ncp_mem_buf, opt);
 	if (ret) {
 		npu_err("__ncp_ion_map is fail(%d).\n", ret);
-		if (ncp_mem_buf)
-			kfree(ncp_mem_buf);
-		goto p_err;
+		goto err_unmap;
 	}
-p_err:
+
+#ifdef CONFIG_NPU_USE_HW_DEVICE
+	if (session->hids & NPU_HWDEV_ID_NPU)
+#endif
+	{
+		ncp_hdr_buf = copy_ncp_header(session, ncp_mem_buf);
+		if (IS_ERR_OR_NULL(ncp_hdr_buf))
+			return PTR_ERR(ncp_hdr_buf); /* free buffer from __release_graph_ion */
+
+		ret = npu_util_validate_user_ncp(session, ncp_hdr_buf->vaddr, ncp_mem_buf->size);
+		if (ret)
+			return ret; /* free buffer from __release_graph_ion */
+	}
+
+	return ret;
+err_unmap:
+	npu_memory_unmap(session->memory, ncp_mem_buf);
+err_free:
+	kfree(ncp_mem_buf);
 	return ret;
 }
 
@@ -1534,7 +1585,7 @@ int __pilot_parsing_ncp(struct npu_session *session, u32 *IFM_cnt, u32 *OFM_cnt,
 	struct memory_vector *mv;
 	struct ncp_header *ncp;
 
-	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+	ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
 	ncp = (struct ncp_header *)ncp_vaddr;
 	memory_vector_offset = ncp->memory_vector_offset;
 	if (unlikely(memory_vector_offset > session->ncp_mem_buf->size)) {
@@ -1609,8 +1660,7 @@ int __second_parsing_ncp(
 	char *ncp_vaddr;
 	dma_addr_t ncp_daddr;
 
-	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
-	ncp_daddr = session->ncp_mem_buf->daddr;
+	ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
 	ncp = (struct ncp_header *)ncp_vaddr;
 
 	address_vector_offset = ncp->address_vector_offset;
@@ -1762,6 +1812,9 @@ int __second_parsing_ncp(
 		case MEMORY_TYPE_WEIGHT:
 		case MEMORY_TYPE_WMASK:
 			{
+				ncp_daddr = session->ncp_mem_buf->daddr;
+				ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+
 				if (WGT_cnt >= session->WGT_cnt) {
 					npu_err("WGT_cnt(%d) should not exceed size of allocated array(%d)\n",
 							WGT_cnt, session->WGT_cnt);
@@ -1787,6 +1840,11 @@ int __second_parsing_ncp(
 
 				(*WGT_av + WGT_cnt)->av_index = address_vector_index;
 				weight_size = (av + address_vector_index)->size;
+				if (unlikely((weight_offset + weight_size) < weight_size)) {
+					npu_err("weight_offset(0x%x) + weight size (0x%x) seems to be overflow.\n",
+						weight_offset, weight_size);
+					return -ERANGE;
+				}
 				if (unlikely((weight_offset + weight_size) > (u32)session->ncp_mem_buf->size)) {
 					npu_err("weight_offset(0x%x) + weight size (0x%x) seems to go beyond ncp size(0x%x)\n",
 							weight_offset, weight_size, (u32)session->ncp_mem_buf->size);
@@ -1905,6 +1963,7 @@ int __ion_alloc_IOFM(struct npu_session *session, struct addr_info **IFM_av, str
 	npu_udbg("ion alloc IOFM(0x%pK)\n", session, IOFM_mem_buf);
 
 	IOFM_mem_buf->size = VISION_MAX_CONTAINERLIST * VISION_MAX_BUFFER * IOFM_cnt * sizeof(struct address_vector);
+	strcpy(IOFM_mem_buf->name, "IOFM");
 	ret = npu_memory_alloc(session->memory, IOFM_mem_buf, configs[NPU_PBHA_HINT_00]);
 	if (unlikely(ret)) {
 		npu_uerr("npu_memory_alloc is fail(%d).\n", session, ret);
@@ -1955,6 +2014,7 @@ int __make_IMB_info(struct npu_session *session, struct addr_info **temp_IMB_av)
 		(IMB_info + i)->channels = (*temp_IMB_av + i)->channels;
 		(IMB_info + i)->stride = (*temp_IMB_av + i)->stride;
 	}
+
 	return ret;
 }
 
@@ -2003,6 +2063,17 @@ p_err:
 	return ret;
 }
 
+void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size, enum dma_data_direction dir)
+{
+	if (likely(pbuf->vaddr)) {
+		BUG_ON((offset < 0) || (offset > pbuf->size));
+		BUG_ON((offset + size) < size);
+		BUG_ON((size > pbuf->size) || ((offset + size) > pbuf->size));
+
+		__npu_session_ion_sync_for_device(pbuf, offset, size, dir);
+	}
+}
+
 int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, struct npu_memory_buffer *IMB_mem_buf)
 {
 	int ret = 0;
@@ -2013,7 +2084,7 @@ int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, stru
 	u32 IMB_cnt = session->IMB_cnt;
 	u32 addr_offset = 0;
 
-	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+	ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
 	address_vector_offset = session->address_vector_offset;
 
 	av = (struct address_vector *)(ncp_vaddr + address_vector_offset);
@@ -2040,6 +2111,8 @@ int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, stru
 			 session, i, (session->IMB_info + i)->vaddr, &(session->IMB_info + i)->daddr,
 			 (session->IMB_info + i)->size);
 	}
+
+	npu_session_ion_sync_for_device(IMB_mem_buf, 0, IMB_mem_buf->size, DMA_TO_DEVICE);
 	return ret;
 
 p_err:
@@ -2051,17 +2124,6 @@ p_err:
 	session->IMB_mem_buf = NULL;
 
 	return ret;
-}
-
-void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size, enum dma_data_direction dir)
-{
-	if (likely(pbuf->vaddr)) {
-		BUG_ON((offset < 0) || (offset > pbuf->size));
-		BUG_ON((offset + size) < size);
-		BUG_ON((size > pbuf->size) || ((offset + size) > pbuf->size));
-
-		__npu_session_ion_sync_for_device(pbuf, offset, size, dir);
-	}
 }
 
 int __config_session_info(struct npu_session *session)
@@ -2118,6 +2180,7 @@ int __config_session_info(struct npu_session *session)
 		ret = -ENOMEM;
 		goto p_err;
 	}
+	strcpy(IMB_mem_buf->name, "IMB");
 
 	ret = __prepare_IMB_info(session, &IMB_av, IMB_mem_buf);
 	if (unlikely(ret)) {
@@ -2144,10 +2207,9 @@ int __config_session_info(struct npu_session *session)
 			goto p_err;
 		}
 		session->ss_state |= BIT(NPU_SESSION_STATE_IMB_ION_ALLOC);
-		npu_session_ion_sync_for_device(IMB_mem_buf, 0, IMB_mem_buf->size, DMA_TO_DEVICE);
 	}
 
-	npu_session_ion_sync_for_device(session->ncp_mem_buf, 0, session->ncp_mem_buf->size, DMA_TO_DEVICE);
+	npu_session_ion_sync_for_device(session->ncp_hdr_buf, 0, session->ncp_hdr_buf->size, DMA_TO_DEVICE);
 p_err:
 	if (likely(IFM_av))
 		kfree(IFM_av);
@@ -2767,7 +2829,14 @@ int npu_session_format(struct npu_queue *queue, struct vs4l_format_list *flist)
 	BUG_ON(!vctx);
 	BUG_ON(!session);
 
-	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+#ifdef CONFIG_NPU_USE_HW_DEVICE
+	if (session->hids & NPU_HWDEV_ID_NPU)
+		ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
+	else
+		ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
+#else
+	ncp_vaddr = (char *)session->ncp_hdr_buf->vaddr;
+#endif
 
 	address_vector_offset = session->address_vector_offset;
 	address_vector_cnt = session->address_vector_cnt;
@@ -2934,7 +3003,10 @@ int npu_session_NW_CMD_RESUME(struct npu_session *session)
 
 int npu_session_NW_CMD_SUSPEND(struct npu_session *session)
 {
-	int ret = 0, cnt;
+	int ret = 0;
+#if (CONFIG_NPU_MAILBOX_VERSION == 9)
+	int cnt = 0;
+#endif
 	struct npu_sessionmgr *sessionmgr;
 	struct npu_vertex_ctx *vctx;
 	struct npu_vertex *vertex;
@@ -2965,16 +3037,17 @@ int npu_session_NW_CMD_SUSPEND(struct npu_session *session)
 	wait_event(session->wq, session->nw_result.result_code != NPU_NW_JUST_STARTED);
 
 	/* Waiting for FW to update the flag */
-	cnt = 0;
+#if (CONFIG_NPU_MAILBOX_VERSION == 9)
+#define BOOT_TYPE_WARM_BOOT (0xb0080c0d)
 	ret = -EFAULT;
 	do {
-		if (device->system.mbox_hdr->warm_boot_enable) {
+		if (device->system.mbox_hdr->boottype == BOOT_TYPE_WARM_BOOT) {
 			ret = 0;
 			break;
 		}
 		msleep(1);
 	} while (cnt++ < 100); /* Maximum 100 retries */
-
+#endif
 	if (!ret) {
 		sessionmgr->npu_hw_cnt_saved = 0;
 		sessionmgr->npu_hw_cnt_saved = atomic_xchg(&sessionmgr->npu_hw_cnt, sessionmgr->npu_hw_cnt_saved);
@@ -2988,18 +3061,58 @@ int npu_session_NW_CMD_SUSPEND(struct npu_session *session)
 }
 #endif
 
+static struct npu_memory_buffer *alloc_npu_load_payload(struct npu_session *session)
+{
+	struct npu_memory_buffer *buffer;
+	int ret;
+
+	buffer = kzalloc(sizeof(struct npu_memory_buffer), GFP_KERNEL);
+	if (!buffer)
+		return ERR_PTR(-ENOMEM);
+
+	/* 2 payloads.
+	 * - User NCP
+	 * - Kernel copy and updated NCP header.
+	 */
+	buffer->size = sizeof(struct cmd_load_payload) * 2;
+
+	ret = npu_memory_alloc(session->memory, buffer, configs[NPU_PBHA_HINT_00]);
+	if (ret) {
+		npu_err("failed to allocate payload buffer(%d)\n", ret);
+		goto err_free_buffer;
+	}
+
+	return buffer;
+err_free_buffer:
+	kfree(buffer);
+	return ERR_PTR(ret);
+}
+
 int npu_session_NW_CMD_LOAD(struct npu_session *session)
 {
 	int ret = 0;
 	nw_cmd_e nw_cmd = NPU_NW_CMD_LOAD;
 
-	if (!session) {
+	if (unlikely(!session)) {
 		npu_err("invalid session\n");
 		ret = -EINVAL;
 		return ret;
 	}
 
 	profile_point1(PROBE_ID_DD_NW_RECEIVED, session->uid, 0, nw_cmd);
+
+#ifdef CONFIG_NPU_USE_HW_DEVICE
+	if (session->hids & NPU_HWDEV_ID_NPU)
+#endif
+	{
+		session->ncp_payload = alloc_npu_load_payload(session);
+		if (IS_ERR_OR_NULL(session->ncp_payload)) {
+			ret = PTR_ERR(session->ncp_payload);
+			session->ncp_payload = NULL;
+			return ret;
+		}
+	}
+
 	session->nw_result.result_code = NPU_NW_JUST_STARTED;
 	npu_session_put_nw_req(session, nw_cmd);
 	wait_event(session->wq, session->nw_result.result_code != NPU_NW_JUST_STARTED);
@@ -3105,8 +3218,7 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 			goto p_err;
 		}
 		session->ss_state |= BIT(NPU_SESSION_STATE_IMB_ION_ALLOC);
-		npu_session_ion_sync_for_device(session->ncp_mem_buf, 0, session->ncp_mem_buf->size, DMA_TO_DEVICE);
-		npu_session_ion_sync_for_device(session->IMB_mem_buf, 0, session->IMB_mem_buf->size, DMA_TO_DEVICE);
+		npu_session_ion_sync_for_device(session->ncp_hdr_buf, 0, session->ncp_hdr_buf->size, DMA_TO_DEVICE);
 	}
 
 #ifdef CONFIG_NPU_USE_HW_DEVICE

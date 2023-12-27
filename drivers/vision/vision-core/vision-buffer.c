@@ -23,6 +23,8 @@
 #include "vision-config.h"
 #include "vision-buffer.h"
 
+#include "../npu/core/npu-vertex.h"
+
 #include <asm/cacheflush.h>
 
 #define DEBUG_SENTENCE_MAX	300
@@ -65,10 +67,24 @@ static void vision_dma_buf_sync(struct vb_buffer *buffers,
 				__attribute__((unused))u32 size,
 				u32 direction, u32 action)
 {
+	unsigned long flags;
+
+	// With sync fence (temperary solution or POC)
+	// In KPI mode, we adapted 'direct path'
+	// which is message-getting process of execution in 'interrupt context'
+	// If we allow IRQ in dma_buf_sync, it can cause
+	// abnormal scheduling in interrupt context
+	// (FW response of 'sync' ioctl  vs  qbuf of next execution)
+	if (is_kpi_mode_enabled(true))
+		local_irq_save(flags);
+
 	if (action == VISION_QBUF)
 		dma_buf_end_cpu_access(buffers->dma_buf, direction);
 	else // action == VISION_DQBUF
 		dma_buf_begin_cpu_access(buffers->dma_buf, direction);
+
+	if (is_kpi_mode_enabled(true))
+		local_irq_restore(flags);
 }
 #else
 static dma_addr_t vision_dma_buf_dva_map(struct vb_buffer *buffer, u32 size)
@@ -102,7 +118,15 @@ static void vision_dma_buf_sync(struct vb_buffer *buffers,
 				u32 size, u32 direction,
 				__attribute__((unused))u32 action)
 {
+	unsigned long flags;
+
+	if (is_kpi_mode_enabled(true))
+		local_irq_save(flags);
+
 	__dma_map_area(buffers->vaddr, size, direction);
+
+	if (is_kpi_mode_enabled(true))
+		local_irq_restore(flags);
 }
 
 #endif
@@ -1645,4 +1669,29 @@ void vb_queue_done(struct vb_queue *q, struct vb_bundle *bundle)
 	vision_dbg("done bundle %p, id %d, index %d, count %d\n",
 			bundle, bundle->clist.id, bundle->clist.index, bundle->clist.count);
 	wake_up(&q->done_wq);
+}
+
+void vb_queue_sync(u32 direction, struct vb_container_list *c)
+{
+	struct vb_container *container;
+	u32 i, j, k, size;
+
+	/* sync buffers */
+	for (i = 0; i < c->count; ++i) {
+		container = &c->containers[i];
+		BUG_ON(!container->format);
+		if (container->memory != VS4L_MEMORY_VIRTPTR) {
+			k = container->count;
+			if (container->format->colorspace == VS4L_DF_IMAGE_NPU ||
+				container->format->colorspace == VS4L_DF_IMAGE_DSP)
+				size = container->format->size[0];
+			else
+				size = container->format->size[
+					container->format->plane];
+			for (j = 0; j < k; ++j) {
+				vision_dma_buf_sync(&(container->buffers[j]),
+					size, direction, VISION_QBUF);
+			}
+		}
+	}
 }

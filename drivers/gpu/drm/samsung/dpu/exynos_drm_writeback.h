@@ -31,6 +31,7 @@ enum writeback_state {
 
 struct repeater_dma_buf {
 	bool 				votf_o_feature_enabled;
+	bool 				repeater_dev_opened;
 	bool 				repeater_buf_active;
 	struct shared_buffer_info 	repeater_shared_buf;
 	uint32_t			repeater_valid_buf_idx;

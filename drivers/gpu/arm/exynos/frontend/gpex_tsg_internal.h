@@ -78,7 +78,7 @@ struct _tsg_info {
 	/* End for GPU Profiler */
 
 	raw_spinlock_t spinlock;
-	struct atomic_notifier_head frag_utils_change_notifier_list;
+	struct blocking_notifier_head frag_utils_change_notifier_list;
 };
 
 struct amigo_freq_estpower {

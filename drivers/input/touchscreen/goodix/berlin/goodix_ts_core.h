@@ -38,7 +38,7 @@
 extern struct device *ptsp;
 
 #define GOODIX_CORE_DRIVER_NAME			"goodix_ts"
-#define GOODIX_DRIVER_VERSION			"v1.0.31"
+#define GOODIX_DRIVER_VERSION			"v1.0.32"
 #define GOODIX_MAX_TOUCH			10
 #define GOODIX_CFG_MAX_SIZE			4096
 #define GOODIX_MAX_STR_LABLE_LEN		128
@@ -77,6 +77,10 @@ extern struct device *ptsp;
 #define GOODIX_GLOVE_MODE_ADDR		0x72
 #define GOODIX_COVER_MODE_ADDR		0x78
 #define GOODIX_ED_MODE_ADDR			0x93
+#define GOODIX_LS_MODE_ADDR			0x40
+#define WATCH_DOG_REG			0xD040
+#define GIO_REG_BD				0xC804
+#define GIO_REG_BB				0xC808
 
 /* SEC status type */
 #define TYPE_STATUS_EVENT_CMD_DRIVEN	0
@@ -130,23 +134,6 @@ extern struct device *ptsp;
 
 #define SNR_TEST_NON_TOUCH						0
 #define SNR_TEST_TOUCH							1
-
-enum {
-	LCD_EARLY_EVENT = 0,
-	LCD_LATE_EVENT
-};
-
-enum {
-	SERVICE_SHUTDOWN = -1,
-	LCD_NONE = 0,
-	LCD_OFF,
-	LCD_ON,
-	LCD_DOZE1,
-	LCD_DOZE2,
-	LPM_OFF = 20,
-	FORCE_OFF,
-	FORCE_ON,
-};
 
 enum switch_system_mode {
 	TO_TOUCH_MODE			= 0,
@@ -489,6 +476,7 @@ struct goodix_ts_hw_ops {
 	int (*gesture)(struct goodix_ts_core *cd, bool enable);
 	int (*reset)(struct goodix_ts_core *cd, int delay_ms);
 	int (*irq_enable)(struct goodix_ts_core *cd, bool enable);
+	int (*irq_enable_for_handler)(struct goodix_ts_core *cd, bool enable);
 	int (*read)(struct goodix_ts_core *cd, unsigned int addr,
 			unsigned char *data, unsigned int len);
 	int (*write)(struct goodix_ts_core *cd, unsigned int addr,
@@ -498,6 +486,7 @@ struct goodix_ts_hw_ops {
 	int (*write_to_flash)(struct goodix_ts_core *cd, int addr, unsigned char *buf, int len);
 	int (*read_from_flash)(struct goodix_ts_core *cd, int addr, unsigned char *buf, int len);
 	int (*send_cmd)(struct goodix_ts_core *cd, struct goodix_ts_cmd *cmd);
+	int (*send_cmd_delay)(struct goodix_ts_core *cd, struct goodix_ts_cmd *cmd, int delay);
 	int (*send_config)(struct goodix_ts_core *cd, u8 *config, int len);
 	int (*read_config)(struct goodix_ts_core *cd, u8 *config_data, int size);
 	int (*read_version)(struct goodix_ts_core *cd, struct goodix_fw_version *version);
@@ -639,11 +628,14 @@ struct goodix_ts_core {
 	size_t irq_trig_cnt;
 
 	int factory_position;
+	int lpm_coord_event_cnt;
 
 	atomic_t irq_enabled;
 	atomic_t suspended;
 	struct completion resume_done;
 	struct wakeup_source *sec_ws;
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 	struct delayed_work work_print_info;
 	struct delayed_work work_read_info;
 	/* for debugging */
@@ -682,6 +674,7 @@ struct goodix_ts_core {
 	bool sponge_dump_delayed_flag;
 	u8 sponge_dump_delayed_area;
 	u16 sponge_dump_border;
+	unsigned int specific_fw_update_ver;
 };
 
 /* external module structures */

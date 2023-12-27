@@ -48,7 +48,7 @@ static void fw_update(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		return;
 	}
-
+	mutex_lock(&core_data->modechange_mutex);
 	update_type = sec->cmd_param[0];
 
 	switch (update_type) {
@@ -84,6 +84,7 @@ static void fw_update(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_OK;
 	}
 	ts_info("%s", buff);
+	mutex_unlock(&core_data->modechange_mutex);
 }
 
 static void get_chip_vendor(void *device_data)
@@ -1549,6 +1550,110 @@ out:
 	ts_raw_info("%s", buff);
 }
 
+static void run_interrupt_gpio_test(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret = -EIO;
+	uint32_t gio_reg;
+	uint32_t reg_data;
+	uint32_t int_bit;
+	uint8_t temp_buf[16] = {0};
+	int retry = 20;
+
+	sec_cmd_set_default_result(sec);
+
+	if (atomic_read(&core_data->suspended)) {
+		ts_err("IC is on suspend state");
+		snprintf(buff, sizeof(buff), "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
+
+	core_data->hw_ops->irq_enable(core_data, false);
+
+	/* fix to idle */
+	ret = goodix_set_cmd(core_data, 0x9F, 0x00);
+	if (ret < 0) {
+		ts_err("failed to send idle cmd");
+		goto out;
+	}
+
+	/* close watching dog */
+	core_data->hw_ops->write(core_data, WATCH_DOG_REG, temp_buf, 1);
+
+	while (retry--)	{
+		memset(temp_buf, 0, sizeof(temp_buf));
+		temp_buf[2] = 0x01;
+		temp_buf[3] = 0x00;
+		core_data->hw_ops->write(core_data, 0x0000, temp_buf, 4);
+		core_data->hw_ops->read(core_data, 0x2000, &temp_buf[4], 4);
+		core_data->hw_ops->read(core_data, 0x2000, &temp_buf[8], 4);
+		core_data->hw_ops->read(core_data, 0x2000, &temp_buf[12], 4);
+		if (!memcmp(&temp_buf[4], &temp_buf[8], 4) && !memcmp(&temp_buf[4], &temp_buf[12], 4))
+			break;
+
+		sec_delay(2);
+	}
+
+	if (retry < 0) {
+		ts_err("Failed to hold CPU");
+		ret = -EIO;
+		goto out;
+	}
+
+	if (core_data->bus->ic_type == IC_TYPE_BERLIN_B) {
+		gio_reg = GIO_REG_BB;
+		int_bit = 0x001;
+	} else {
+		gio_reg = GIO_REG_BD;
+		int_bit = 0x200;
+	}
+
+	core_data->hw_ops->read(core_data, gio_reg, (uint8_t *)&reg_data, 4);
+	retry = 3;
+	while (retry--)	{
+		reg_data |= int_bit; // set int gpio to high
+		core_data->hw_ops->write(core_data, gio_reg, (uint8_t *)&reg_data, 4);
+		sec_delay(1);
+		if (!gpio_get_value(core_data->plat_data->irq_gpio)) {
+			ts_err("int gpio is LOW, should HIGH");
+			snprintf(buff, sizeof(buff), "%s", "1:LOW");
+			ret = -EIO;
+			goto out;
+		}
+		reg_data &= ~int_bit; // set int gpio to low
+		core_data->hw_ops->write(core_data, gio_reg, (uint8_t *)&reg_data, 4);
+		sec_delay(1);
+		if (gpio_get_value(core_data->plat_data->irq_gpio)) {
+			ts_err("int gpio is HIGH, should LOW");
+			snprintf(buff, sizeof(buff), "%s", "1:HIGH");
+			ret = -EIO;
+			goto out;
+		}
+	}
+	ret = 0;
+	ts_info("INT test ok");
+
+out:
+	if (ret < 0) {
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else {
+		snprintf(buff, sizeof(buff), "%s", "0");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
+
+	goodix_ts_release_all_finger(core_data);
+	core_data->hw_ops->reset(core_data, 200);
+	core_data->hw_ops->irq_enable(core_data, true);
+}
+
 static void run_snr_non_touched(void *device_data)
 {
  	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -1799,7 +1904,7 @@ static void factory_cmd_result_all(void *device_data)
 	get_chip_name(sec);
 	get_fw_ver_bin(sec);
 	get_fw_ver_ic(sec);
-
+	run_interrupt_gpio_test(sec);
 	run_rawdata_read(sec);
 	get_gap_data(sec);
 	run_high_frequency_rawdata_read(sec);
@@ -1857,6 +1962,51 @@ static void factory_cmd_result_all_imagetest(void *device_data)
 out:
 	ts_info("%d%s", sec->item_count, sec->cmd_result_all);
 }
+
+static void fix_active_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
+	struct goodix_ts_cmd temp_cmd;
+	int ret;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec_cmd_set_cmd_exit(sec);
+		return;
+	}
+
+	ts_info("fix active mode : %s", sec->cmd_param[0] ? "enable" : "disabled");
+
+	if (sec->cmd_param[0]) {	//enable
+		temp_cmd.len = 5;
+		temp_cmd.cmd = 0x9F;
+		temp_cmd.data[0] = 2;
+	} else {					//disabled
+		temp_cmd.len = 5;
+		temp_cmd.cmd = 0x9F;
+		temp_cmd.data[0] = 1;
+	}
+
+	ret = core_data->hw_ops->send_cmd(core_data, &temp_cmd);
+	if (ret < 0) {
+		ts_err("send fix active mode cmd failed");
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else {
+		snprintf(buff, sizeof(buff), "OK");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+}
+
 #if 0
 static int goodix_ts_set_mode(struct goodix_ts_core *core_data, u8 reg, u8 data, int len)
 {
@@ -1893,13 +2043,13 @@ static void pocket_mode_enable(void *device_data)
 		goto fail;
 	}
 
+	core_data->plat_data->pocket_mode = sec->cmd_param[0];
+	ts_info("pocket mode : %s", core_data->plat_data->pocket_mode ? "on" : "off");
+
 	if (core_data->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		ts_err("IC is OFF");
 		goto fail;
 	}
-
-	core_data->plat_data->pocket_mode = sec->cmd_param[0];
-	ts_info("pocket mode : %s", core_data->plat_data->pocket_mode ? "on" : "off");
 
 	ret = core_data->hw_ops->pocket_mode_enable(core_data, core_data->plat_data->pocket_mode);
 	if (ret < 0) {
@@ -1937,13 +2087,13 @@ static void ear_detect_enable(void *device_data)
 		goto fail;
 	}
 
+	core_data->plat_data->ed_enable = sec->cmd_param[0];
+	ts_info("ear detect mode(%d)", core_data->plat_data->ed_enable);
+
 	if (core_data->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		ts_err("IC is OFF");
 		goto fail;
 	}
-
-	core_data->plat_data->ed_enable = sec->cmd_param[0];
-	ts_info("ear detect mode(%d)", core_data->plat_data->ed_enable);
 
 	ret = core_data->hw_ops->ed_enable(core_data, core_data->plat_data->ed_enable);
 	if (ret < 0) {
@@ -1965,6 +2115,53 @@ fail:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec_cmd_set_cmd_exit(sec);
 	return;
+}
+
+/* 0: exit LSM  1: enter LSM  2: debug  3: debug */
+static void low_sensitivity_mode_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct goodix_ts_core *core_data = container_of(sec, struct goodix_ts_core, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 3) {
+		ts_err("abnormal parm (%d)", sec->cmd_param[0]);
+		goto fail;
+	}
+
+	mutex_lock(&core_data->modechange_mutex);
+	core_data->plat_data->low_sensitivity_mode = sec->cmd_param[0];
+
+	if (core_data->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		mutex_unlock(&core_data->modechange_mutex);
+		ts_err("IC is OFF");
+		goto fail;
+	}
+
+	ret = goodix_set_cmd(core_data, GOODIX_LS_MODE_ADDR, core_data->plat_data->low_sensitivity_mode);
+	if (ret < 0) {
+		mutex_unlock(&core_data->modechange_mutex);
+		ts_err("send low sensitivity mode cmd failed");
+		goto fail;
+	}
+	mutex_unlock(&core_data->modechange_mutex);
+
+	ts_info("set low sensitivity mode: %d", core_data->plat_data->low_sensitivity_mode);
+
+	snprintf(buff, sizeof(buff), "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+	return;
+
+fail:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
 }
 
 static void run_prox_intensity_read_all(void *device_data)
@@ -2394,17 +2591,17 @@ static void set_aod_rect(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
-		ts_err("IC is OFF");
-		goto NG;
-	}
-
 	ts_info(" w:%d, h:%d, x:%d, y:%d, lowpower_mode:0x%02X\n",
 			sec->cmd_param[0], sec->cmd_param[1],
 			sec->cmd_param[2], sec->cmd_param[3], ts->plat_data->lowpower_mode);
 
 	for (i = 0; i < 4; i++)
 		ts->plat_data->aod_data.rect_data[i] = sec->cmd_param[i];
+
+	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+		ts_err("IC is OFF");
+		goto NG;
+	}
 
 	ret = goodix_set_aod_rect(ts);
 	if (ret < 0)
@@ -2532,7 +2729,6 @@ void goodix_get_custom_library(struct goodix_ts_core *ts)
 	u8 data[6] = { 0 };
 	int ret, i;
 
-	mutex_lock(&ts->modechange_mutex);
 	ret = ts->hw_ops->read_from_sponge(ts, SEC_TS_CMD_SPONGE_AOD_ACTIVE_INFO, data, 6);
 	if (ret < 0) {
 		ts_err("Failed to read aod active area");
@@ -2551,7 +2747,6 @@ void goodix_get_custom_library(struct goodix_ts_core *ts)
 	if (ret < 0) {
 		ts_err("Failed to read fod info");
 	}
-	mutex_unlock(&ts->modechange_mutex);
 
 	sec_input_set_fod_info(ts->bus->dev, data[0], data[1], data[2], data[3]);
 }
@@ -2562,7 +2757,6 @@ int goodix_set_custom_library(struct goodix_ts_core *ts)
 	int ret;
 	u8 force_fod_enable = 0;
 
-	mutex_lock(&ts->modechange_mutex);
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 		/* enable FOD when LCD on state */
 	if (ts->plat_data->support_fod && ts->plat_data->enabled)
@@ -2584,7 +2778,6 @@ int goodix_set_custom_library(struct goodix_ts_core *ts)
 	ret = ts->hw_ops->write_to_sponge(ts, 0, data, 1);
 	if (ret < 0)
 		ts_err("Failed to write sponge");
-	mutex_unlock(&ts->modechange_mutex);
 
 	return ret;
 }
@@ -2664,11 +2857,12 @@ static void fod_enable(void *device_data)
 			ts->plat_data->fod_data.press_prop & 2 ? "on" : "off",
 			ts->plat_data->lowpower_mode);
 
-//	mutex_lock(&ts->modechange);
+	mutex_lock(&ts->modechange_mutex);
+
 
 	if (!ts->plat_data->enabled && !ts->plat_data->lowpower_mode && !ts->plat_data->pocket_mode
 			&& !ts->plat_data->ed_enable && !ts->plat_data->fod_lp_mode) {
-		if (device_may_wakeup(ts->bus->dev) && ts->plat_data->power_state == SEC_INPUT_STATE_LPM)
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM)
 			disable_irq_wake(ts->irq);
 		ts->hw_ops->irq_enable(ts, false);
 		goodix_ts_power_off(ts);
@@ -2677,7 +2871,7 @@ static void fod_enable(void *device_data)
 		goodix_set_press_property(ts);
 	}
 
-//	mutex_unlock(&ts->modechange);
+	mutex_unlock(&ts->modechange_mutex);
 
 	snprintf(buff, sizeof(buff), "OK");
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -3231,6 +3425,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_trx_short_test", run_trx_short_test),},
 	{SEC_CMD("run_jitter_test", run_jitter_test),},
 	{SEC_CMD("run_jitter_delta_test", run_jitter_delta_test),},
+	{SEC_CMD("run_interrupt_gpio_test", run_interrupt_gpio_test),},
 	{SEC_CMD_H("glove_mode", glove_mode),},
 	{SEC_CMD_H("clear_cover_mode", clear_cover_mode),},
 //	{SEC_CMD("set_wirelesscharger_mode", set_wirelesscharger_mode),},
@@ -3252,7 +3447,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_disassemble_count", get_disassemble_count),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("factory_cmd_result_all_imagetest", factory_cmd_result_all_imagetest),},
-//	{SEC_CMD_H("fix_active_mode", fix_active_mode),},
+	{SEC_CMD_H("fix_active_mode", fix_active_mode),},
 //	{SEC_CMD_H("touch_aging_mode", touch_aging_mode),},
 	{SEC_CMD("run_snr_non_touched", run_snr_non_touched),},
 	{SEC_CMD("run_snr_touched", run_snr_touched),},
@@ -3262,6 +3457,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD_H("set_game_mode", set_game_mode),},
 	{SEC_CMD_H("pocket_mode_enable", pocket_mode_enable),},
 	{SEC_CMD_H("ear_detect_enable", ear_detect_enable),},
+	{SEC_CMD("low_sensitivity_mode_enable", low_sensitivity_mode_enable),},
 	{SEC_CMD("run_prox_intensity_read_all", run_prox_intensity_read_all),},
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	{SEC_CMD_H("pocket_mode_state", pocket_mode_state),},
@@ -3335,13 +3531,13 @@ static ssize_t protos_event_store(struct device *dev,
 		return -EINVAL;
 	}
 
+	core_data->plat_data->ed_enable = data;
+	ts_info("ear detect mode(%d)", core_data->plat_data->ed_enable);
+
 	if (core_data->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
 		ts_err("IC is OFF");
 		return count;
 	}
-
-	core_data->plat_data->ed_enable = data;
-	ts_info("ear detect mode(%d)", core_data->plat_data->ed_enable);
 
 	ret = core_data->hw_ops->ed_enable(core_data, core_data->plat_data->ed_enable);
 	if (ret < 0)
@@ -3594,7 +3790,7 @@ static ssize_t goodix_fod_position_show(struct device *dev,
 
 	if (!ts->plat_data->support_fod) {
 		ts_err("fod is not supported");
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts->plat_data->fod_data.vi_size) {
@@ -3802,26 +3998,36 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 		return -EINVAL;
 	}
 
-	if (buff[0] == LCD_ON && buff[1] == LCD_LATE_EVENT) {
+	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
 		if (ts->plat_data->enabled) {
 			ts_info("device already enabled\n");
 			goto out;
 		}
 
 		ret = sec_input_enable_device(input_dev);
-	} else if (buff[0] == LCD_OFF && buff[1] == LCD_EARLY_EVENT) {
+	} else if (buff[0] == DISPLAY_STATE_OFF && buff[1] == DISPLAY_EVENT_EARLY) {
 		if (!ts->plat_data->enabled) {
 			ts_info("device already disabled\n");
 			goto out;
 		}
 
 		ret = sec_input_disable_device(input_dev);
-	} else if (buff[0] == FORCE_ON) {
+	} else if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+		if (ts->plat_data->enabled) {
+			ts_info("device already enabled\n");
+			goto out;
+		}
+
 		ret = sec_input_enable_device(input_dev);
-		ts_info("FORCE_ON(%d)\n", ret);
-	} else if (buff[0] == FORCE_OFF) {
+		ts_info("DISPLAY_STATE_FORCE_ON(%d)\n", ret);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF) {
+		if (!ts->plat_data->enabled) {
+			ts_info("device already disabled\n");
+			goto out;
+		}
+
 		ret = sec_input_disable_device(input_dev);
-		ts_info("FORCE_OFF(%d)\n", ret);
+		ts_info("DISPLAY_STATE_FORCE_OFF(%d)\n", ret);
 	}
 
 	if (ret)

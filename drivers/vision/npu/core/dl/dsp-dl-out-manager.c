@@ -112,7 +112,6 @@ void dsp_dl_hash_pop(char *k)
 	DL_ERROR("No hash node for %s\n", k);
 }
 
-/*
 void dsp_dl_hash_print(void)
 {
 	int idx;
@@ -133,7 +132,6 @@ void dsp_dl_hash_print(void)
 		}
 	}
 }
-*/
 
 static unsigned int __dsp_dl_out_offset_align(unsigned int offset)
 {
@@ -212,7 +210,6 @@ static void __dsp_dl_out_cpy_metadata(struct dsp_dl_out *op1,
 	memcpy(op1, op2, sizeof(*op1));
 }
 
-/*
 static void __dsp_dl_out_print_sec_data(struct dsp_dl_out *dl_out,
 	struct dsp_dl_out_section sec)
 {
@@ -292,7 +289,6 @@ void dsp_dl_out_print(struct dsp_dl_out *dl_out)
 	DL_DEBUG("Data loaded\n");
 	__dsp_dl_out_print_data(dl_out);
 }
-*/
 
 int dsp_dl_out_manager_init(unsigned long start_addr, size_t size)
 {
@@ -327,7 +323,6 @@ int dsp_dl_out_manager_free(void)
 	return 0;
 }
 
-/*
 void dsp_dl_out_manager_print(void)
 {
 	DL_INFO(DL_BORDER);
@@ -338,7 +333,6 @@ void dsp_dl_out_manager_print(void)
 	DL_INFO("Output hash table\n");
 	dsp_dl_hash_print();
 }
-*/
 
 int dsp_dl_out_manager_alloc_libs(struct dsp_lib **libs, int libs_size,
 	int *pm_inv)

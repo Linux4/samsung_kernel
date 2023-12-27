@@ -46,12 +46,15 @@ struct s2m_rtc_info {
 	struct rtc_device	*rtc_dev;
 	struct mutex		lock;
 	struct delayed_work	irq_work;
+#if IS_ENABLED(CONFIG_RTC_BOOT_ALARM) || IS_ENABLED(CONFIG_RTC_AUTO_PWRON)
+	struct delayed_work	restart_work;
+	struct workqueue_struct *restart_wqueue;
+#endif
 	int			irq;
 	int			smpl_irq;
 #if IS_ENABLED(CONFIG_RTC_BOOT_ALARM) || IS_ENABLED(CONFIG_RTC_AUTO_PWRON)
 	int			boot_alarm_irq;
 	bool			boot_alarm_enabled;
-
 #endif
 	bool			use_irq;
 	bool			wtsr_en;
@@ -64,6 +67,8 @@ struct s2m_rtc_info {
 	u8			audr_mask;
 	int			smpl_warn_info;
 };
+
+static struct wakeup_source *rtc_ws;
 
 enum S2M_RTC_OP {
 	S2M_RTC_READ,
@@ -455,23 +460,6 @@ static int s2m_rtc_alarm_irq_enable(struct device *dev,
 	return ret;
 }
 
-static int s2m_rtc_wake_lock_timeout(struct device *dev, unsigned int msec)
-{
-	struct wakeup_source *ws = NULL;
-
-	if (!dev->power.wakeup) {
-		pr_err("%s: Not register wakeup source\n", __func__);
-		goto err;
-	}
-
-	ws = dev->power.wakeup;
-	__pm_wakeup_event(ws, msec);
-
-	return 0;
-err:
-	return -1;
-}
-
 static irqreturn_t s2m_rtc_alarm_irq(int irq, void *data)
 {
 	struct s2m_rtc_info *info = data;
@@ -482,8 +470,7 @@ static irqreturn_t s2m_rtc_alarm_irq(int irq, void *data)
 	dev_info(info->dev, "%s:irq(%d)\n", __func__, irq);
 	rtc_update_irq(info->rtc_dev, 1, RTC_IRQF | RTC_AF);
 
-	if (s2m_rtc_wake_lock_timeout(info->dev, 500) < 0)
-		return IRQ_NONE;
+	__pm_wakeup_event(rtc_ws, 500);
 
 	return IRQ_HANDLED;
 }
@@ -734,6 +721,24 @@ static int s2m_rtc_set_boot_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 	return ret;
 }
 
+static void s2m_rtc_restart_work_func(struct work_struct *work)
+{
+	kernel_restart(NULL);
+}
+
+static int s2m_rtc_set_restart_wqueue(struct s2m_rtc_info *info)
+{
+	info->restart_wqueue = create_singlethread_workqueue("rtc-restart-wqueue");
+	if (!info->restart_wqueue) {
+		pr_err("%s: fail to create workqueue\n", __func__);
+		return -EINVAL;
+	}
+
+	INIT_DELAYED_WORK(&info->restart_work, s2m_rtc_restart_work_func);
+
+	return 0;
+}
+
 static irqreturn_t s2m_rtc_boot_alarm_irq(int irq, void *data)
 {
 	struct s2m_rtc_info *info = data;
@@ -741,8 +746,7 @@ static irqreturn_t s2m_rtc_boot_alarm_irq(int irq, void *data)
 	dev_info(info->dev, "%s: irq(%d)\n", __func__, irq);
 
 	rtc_update_irq(info->rtc_dev, 1, RTC_IRQF | RTC_AF);
-	if (s2m_rtc_wake_lock_timeout(info->dev, 500) < 0)
-		return IRQ_NONE;
+	__pm_wakeup_event(rtc_ws, 500);
 
 #if IS_ENABLED(CONFIG_RTC_AUTO_PWRON)
 	is_charging_mode = pon_alarm_get_lpcharge();
@@ -750,7 +754,7 @@ static irqreturn_t s2m_rtc_boot_alarm_irq(int irq, void *data)
 	dev_info(info->dev, "%s: is_charging_mode(%d)\n", __func__, is_charging_mode);
 	if (info->boot_alarm_enabled) {
 		if (is_charging_mode)
-			kernel_restart(NULL);
+			queue_delayed_work(info->restart_wqueue, &info->restart_work, 1);
 		else {
 			info->boot_alarm_enabled = 0;
 			info->update_reg &= ~RTC_WAKE_MASK;
@@ -810,7 +814,7 @@ static ssize_t bootalarm_store(struct device *dev, struct device_attribute *attr
 	retval = rtc_read_time(rtc, &alarm.time);
 	if (retval < 0)
 		return retval;
-	rtc_tm_to_time(&alarm.time, &now);
+	now = rtc_tm_to_time64(&alarm.time);
 
 	buf_ptr = (char *)buf;
 	if (*buf_ptr == '+') {
@@ -830,7 +834,7 @@ static ssize_t bootalarm_store(struct device *dev, struct device_attribute *attr
 	if (adjust)
 		alrm_long += now;
 
-	rtc_time_to_tm(alrm_long, &alarm.time);
+	rtc_time64_to_tm(alrm_long, &alarm.time);
 
 	retval = mutex_lock_interruptible(&rtc->ops_lock);
 	if (retval)
@@ -1082,8 +1086,8 @@ static int s2m_rtc_init_reg(struct s2m_rtc_info *info,
 	info->boot_alarm_enabled = (update_val & RTC_WAKE_MASK) ? 1 : 0;
 	if (info->boot_alarm_enabled) {
 		s2m_rtc_read_time(info->dev, &now);
-		rtc_tm_to_time(&now, &now_int);
-		rtc_tm_to_time(&alrm, &alrm_int);
+		now_int = rtc_tm_to_time64(&now);
+		alrm_int = rtc_tm_to_time64(&alrm);
 		if (now_int >= alrm_int) {
 			info->boot_alarm_enabled = 0;
 			update_val &= ~RTC_WAKE_MASK;
@@ -1150,7 +1154,6 @@ static int s2m_rtc_init_reg(struct s2m_rtc_info *info,
 	return ret;
 }
 
-
 static int s2m_rtc_probe(struct platform_device *pdev)
 {
 	struct s2mpu13_dev *iodev = dev_get_drvdata(pdev->dev.parent);
@@ -1213,6 +1216,7 @@ static int s2m_rtc_probe(struct platform_device *pdev)
 		goto err_init_wakeup;
 	}
 
+	rtc_ws = wakeup_source_register(&pdev->dev, "rtc-s2mp");
 	ret = devm_request_threaded_irq(&pdev->dev, info->irq, NULL,
 			s2m_rtc_alarm_irq, 0, "rtc-alarm0", info);
 	if (ret < 0) {
@@ -1228,6 +1232,12 @@ static int s2m_rtc_probe(struct platform_device *pdev)
 	ret = exynos_pmu_read(POWER_SYSIP_INFORM3, &is_charging_mode);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to get charge mode: %d\n", ret);
+		goto err_rtc_irq;
+	}
+
+	ret = s2m_rtc_set_restart_wqueue(info);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Failed to set workqueue: %d\n", ret);
 		goto err_rtc_irq;
 	}
 
@@ -1311,6 +1321,7 @@ err_rtc_dev_register:
 	enable_irq(info->irq);
 	enable_irq(info->irq);
 err_rtc_irq:
+	wakeup_source_unregister(rtc_ws);
 err_init_wakeup:
 err_rtc_init_reg:
 	platform_set_drvdata(pdev, NULL);
@@ -1330,8 +1341,10 @@ static int s2m_rtc_remove(struct platform_device *pdev)
 	mutex_destroy(&info->lock);
 #if IS_ENABLED(CONFIG_RTC_BOOT_ALARM) || IS_ENABLED(CONFIG_RTC_AUTO_PWRON)
 	devm_free_irq(&pdev->dev, info->boot_alarm_irq, info);
+	cancel_delayed_work_sync(&info->restart_work);
+	destroy_workqueue(info->restart_wqueue);
 #endif
-
+	wakeup_source_unregister(rtc_ws);
 	return 0;
 }
 

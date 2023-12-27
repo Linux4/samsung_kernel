@@ -83,8 +83,6 @@ const u32 sensor_gc02m1_setfile_B_Global[] = {
 	0xfe, 0x04, 0x01,
 	0xe0, 0x01, 0x01,
 	0xfe, 0x00, 0x01,
-	0xfe, 0x00, 0x01,
-	0x3e, 0x00, 0x01,
 };
 
 const u32 sensor_gc02m1_setfile_B_1600x1200_30fps[] = {
@@ -268,8 +266,6 @@ const u32 sensor_gc02m1_setfile_B_1600x1200_30fps[] = {
 	0x2b, 0x08, 0x01,
 	0xfe, 0x01, 0x01,
 	0x8c, 0x10, 0x01,
-	0xfe, 0x00, 0x01,
-	0x3e, 0x90, 0x01,
 };
 
 const u32 sensor_gc02m1_setfile_B_1600x900_30fps[] = {
@@ -449,6 +445,8 @@ const u32 sensor_gc02m1_setfile_B_1600x900_30fps[] = {
 	0x29, 0x06, 0x01,
 	0x2a, 0x0c, 0x01,
 	0x2b, 0x08, 0x01,
+	0xfe, 0x01, 0x01,
+	0x8c, 0x10, 0x01,
 };
 
 const u32 sensor_gc02m1_setfile_B_800x600_60fps[] = {
@@ -628,6 +626,8 @@ const u32 sensor_gc02m1_setfile_B_800x600_60fps[] = {
 	0x29, 0x06, 0x01,
 	0x2a, 0x0c, 0x01,
 	0x2b, 0x08, 0x01,
+	0xfe, 0x01, 0x01,
+	0x8c, 0x10, 0x01,
 };
 
 const u32 sensor_gc02m1_setfile_B_Fsync_Slave[] = {
@@ -674,7 +674,7 @@ const struct sensor_pll_info_compact sensor_gc02m1_pllinfo_B_800x600_60fps = {
 	EXT_CLK_Mhz * 1000 * 1000,   /* ext_clk */
 	676 * 1000 * 1000,          /* mipi_datarate = OPSYCK */
 	84500000,                  /* pclk = VTPXCK*/
-	639,                        /* frame_length_lines */
+	640,                        /* frame_length_lines */
 	2192,                        /* line_length_pck */
 };
 

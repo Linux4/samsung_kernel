@@ -287,9 +287,6 @@ s2mpu14_mfd-$(CONFIG_MFD_S2MPU14)	+= s2mpu14_core.o s2mpu14_notifier.o
 obj-$(CONFIG_MFD_S2MPB02)		+= s2mpb02_mfd.o
 s2mpb02_mfd-$(CONFIG_MFD_S2MPB02)	+= s2mpb02-core.o s2mpb02-irq.o
 
-obj-$(CONFIG_MFD_S2MF301)		+= s2mf301_mfd.o
-s2mf301_mfd-$(CONFIG_MFD_S2MF301)	+= s2mf301_core.o s2mf301_irq.o
-
 obj-$(CONFIG_MFD_S2MPM07)		+= s2mpm07_mfd.o
 s2mpm07_mfd-$(CONFIG_MFD_S2MPM07)	+= s2mpm07_core.o
 

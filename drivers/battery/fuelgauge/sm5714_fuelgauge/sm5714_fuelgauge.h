@@ -26,9 +26,6 @@
 #include <linux/mfd/sm/sm5714/sm5714-private.h>
 #include <linux/regulator/machine.h>
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
-#define ENABLE_BATT_LONG_LIFE 1
-#endif
 
 
 /* address should be shifted to the right 1bit.
@@ -158,12 +155,10 @@ struct sm5714_fg_info {
 	int battery_typ;        /*SDI_BATTERY_TYPE or ATL_BATTERY_TYPE*/
 	int batt_id_adc_check;
 	int battery_table[3][24];
-#ifdef ENABLE_BATT_LONG_LIFE
 	int v_max_table[5];
 	int q_max_table[5];
 	int v_max_now;
 	int q_max_now;
-#endif
 	int rs_value[7];   /*spare min max factor chg_factor dischg_factor manvalue*/
 	int batt_v_max;
 	int cap;
@@ -250,6 +245,8 @@ struct battery_data_t {
 #define POWER_OFF_VOLTAGE_HIGH_MARGIN	3500
 #define POWER_OFF_VOLTAGE_LOW_MARGIN	3400
 
+#define FG_BATT_DUMP_SIZE 128
+
 struct cv_slope {
 	int fg_current;
 	int soc;
@@ -284,14 +281,13 @@ struct sm5714_fuelgauge_platform_data {
 	int capacity_max;
 	int capacity_max_margin;
 	int capacity_min;
+	unsigned int capacity_full;
 
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int num_age_step;
 	int age_step;
 	int age_data_length;
-	sec_age_data_t *age_data;
+	unsigned int *age_data_soc;
 	unsigned int full_condition_soc;
-#endif
 };
 
 struct sm5714_fuelgauge_data {
@@ -303,6 +299,8 @@ struct sm5714_fuelgauge_data {
 	struct sm5714_fuelgauge_platform_data *pdata; //long.vu
 	struct power_supply		*psy_fg;
 	struct delayed_work isr_work;
+
+	atomic_t shutdown_cnt;
 
 	u8 pmic_rev;
 	u8 vender_id;
@@ -325,8 +323,14 @@ struct sm5714_fuelgauge_data {
 
 	unsigned int capacity_old;	/* only for atomic calculation */
 	unsigned int capacity_max;	/* only for dynamic calculation */
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	unsigned int g_capacity_max;	/* only for dynamic calculation */
+	bool capacity_max_conv;
+	int prev_raw_soc;
+#endif
 	unsigned int standard_capacity;
 
+	bool capacity_max_updated;
 	bool initial_update_of_soc;
 	bool sleep_initial_update_of_soc;
 	struct mutex fg_lock;
@@ -351,11 +355,10 @@ struct sm5714_fuelgauge_data {
 	bool auto_discharge_en;
 	u32 discharge_temp_threshold;
 	u32 discharge_volt_threshold;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
-	unsigned int chg_full_soc; /* BATTERY_AGE_FORECAST */
-#endif
+	unsigned int chg_full_soc;
 
 	u32 fg_resistor;
 	bool isjigmoderealvbat;
+	char d_buf[FG_BATT_DUMP_SIZE];
 };
 #endif /* __SM5714_FUELGAUGE_H */

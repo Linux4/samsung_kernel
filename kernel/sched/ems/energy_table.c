@@ -10,31 +10,34 @@
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/cal-if.h>
 
-#include "../sched.h"
-#include "ems.h"
-
 #include <trace/events/ems.h>
 #include <trace/events/ems_debug.h>
 
-struct static_power_table {
-	unsigned long *power;
-	unsigned int row_size;
-	unsigned int col_size;
+#include "../sched.h"
+#include "ems.h"
 
-	unsigned int *volt_field;
-	unsigned int *temp_field;
+#define UNIT_OF_VOLT		50
+#define UNIT_OF_TEMP		5
 
-	struct thermal_zone_device *tz_dev;
+
+struct field {
+	int size;
+	unsigned int min;
+	unsigned int *list;
 };
 
-/* complex power table */
-struct complex_power_table {
-	struct static_power_table *sl_spt;	/* shared logic static power table */
+struct static_power_table {
+	struct thermal_zone_device *tz_dev;
 
-	int cr;		/* complex ratio to total static power */
-	int ccr;	/* complex core ratio to complex power */
-	int csr;	/* complex shared logic ratio to complex power */
-	struct cpumask cpus[VENDOR_NR_CPUS];
+	struct field volt;
+	struct field temp;
+
+	unsigned long *power;
+};
+
+struct constraint {
+	unsigned int cpu_freq;
+	unsigned int dsu_freq;
 };
 
 /*
@@ -42,8 +45,11 @@ struct complex_power_table {
  * Generally, cpus in the same frequency domain have the same mips_per_mhz,
  * coefficient and energy table.
  */
-struct energy_table {
+static struct energy_table {
 	struct cpumask cpus;
+
+	struct energy_state *states;
+	unsigned int nr_states;
 
 	unsigned int mips_mhz;
 	unsigned int mips_mhz_orig;
@@ -51,145 +57,365 @@ struct energy_table {
 	unsigned int dynamic_coeff_orig;
 	unsigned int static_coeff;
 
+	struct static_power_table *spt;
+	struct static_power_table *sl_spt;
+
+	struct cpumask sl_cpus[VENDOR_NR_CPUS];
+	struct cpumask pd_cpus;
+
+	unsigned long cur_freq;	/* requested by governor, NOT real frequency */
+	unsigned long cur_volt;	/* voltage matched with cur_freq */
+	unsigned int cur_index;	/* real current frequency index */
+
+	struct constraint **constraints;
+	int nr_constraint;
+} __percpu **energy_table;
+
+static struct dsu_energy_table {
 	struct energy_state *states;
 	unsigned int nr_states;
 
-	struct static_power_table *spt;
-	struct complex_power_table *cpt;
+	unsigned int dynamic_coeff;
+	unsigned int static_coeff;
 
-	unsigned long cur_freq;
-	unsigned long cur_volt;
-	struct cpumask power_sharing_cpus;	/* power sharing cpus */
-	int power_sharing_dsu;			/* power sharing with DSU */
-} __percpu **energy_table;
+	struct static_power_table *spt;
+
+	struct cpumask pd_cpus;
+} *dsu_table;
+
+static const int default_temp = 85;
 
 #define per_cpu_et(cpu)		(*per_cpu_ptr(energy_table, cpu))
 
-static struct energy_table *dsu_table;
-
-static unsigned long et_dynamic_power(struct energy_table *table,
-				unsigned long freq, unsigned long volt)
+static int get_cap_index(struct energy_state *states, int size, unsigned long cap)
 {
-	unsigned long p, c = table->dynamic_coeff;
+	int i;
 
-	/* power = coefficent * frequency * voltage^2 */
-	p = c * freq * volt * volt;
+	if (size == 0)
+		return -1;
+
+	for (i = 0; i < size; i++)
+		if (states[i].capacity >= cap)
+			break;
+
+	return min(i, size);
+}
+
+static int get_dpower_index(struct energy_state *states, int size, unsigned long dpower)
+{
+	int i;
+
+	if (size == 0)
+		return -1;
+
+	for (i = 0; i < size; i++)
+		if (states[i].dynamic_power >= dpower)
+			break;
+
+	return min(i, size);
+}
+
+static int get_freq_index(struct energy_state *states, int size, unsigned long freq)
+{
+	int i;
+
+	if (size == 0)
+		return -1;
+
+	for (i = 0; i < size; i++)
+		if (states[i].frequency >= freq)
+			break;
+
+	return min(i, size);
+}
+/****************************************************************************************
+ *					Helper functions				*
+ ****************************************************************************************/
+static int emstune_index = 0;
+static unsigned long get_needed_dsu_freq(struct energy_table *table, unsigned long cpu_freq)
+{
+	struct constraint *constraint;
+	unsigned long dsu_freq = 0;
+	int i;
+
+	if (unlikely(table->nr_constraint == 0)
+			|| unlikely(table->nr_constraint <= emstune_index))
+		return dsu_freq;
+
+	constraint = table->constraints[emstune_index];
+	if (unlikely(!constraint))
+		return dsu_freq;
+
+	for (i = 0; i < table->nr_states; i++) {
+		if (constraint[i].cpu_freq >= cpu_freq)
+			dsu_freq = constraint[i].dsu_freq;
+	}
+
+	return dsu_freq;
+}
+
+static int find_nearest_index(struct field *f, int value, int unit)
+{
+	int index;
+
+	value = value - f->min + (unit >> 1);
+	value = max(value, 0);
+
+	index = value / unit;
+	index = min(index, f->size - 1);
+
+	return index;
+}
+
+#define of_power(spt, row, col) (spt->power[(row) * spt->temp.size + (col)])
+static unsigned long __get_static_power(struct static_power_table *spt,
+		unsigned long volt, int temp)
+{
+	int row, col;
+
+	row = find_nearest_index(&spt->volt, volt, UNIT_OF_VOLT);
+	col = find_nearest_index(&spt->temp, temp, UNIT_OF_TEMP);
+
+	/* get static power from pre-calculated table */
+	return of_power(spt, row, col);
+}
+
+static unsigned long get_static_power(struct static_power_table *spt,
+		unsigned long v, unsigned long c, int t)
+{
+	/*
+	 * Pre-calculated static power table does not exist,
+	 * calculate static power with coefficient.
+	 */
+	if (!spt) {
+		/* static power = coefficent * voltage^2 */
+		unsigned long power = c * v * v;
+
+		do_div(power, 1000000);
+
+		return power;
+	}
+
+	return __get_static_power(spt, v, t);
+}
+
+static unsigned long get_dynamic_power(unsigned long f, unsigned long v, unsigned long c)
+{
+	/* dynamic power = coefficent * frequency * voltage^2 */
+	unsigned long power;
+
+	f /= 1000;
+	power = c * f * v * v;
 
 	/*
 	 * f_mhz is more than 3 digits and volt is also more than 3 digits,
 	 * so calculated power is more than 9 digits. For convenience of
 	 * calculation, divide the value by 10^9.
 	 */
-	do_div(p, 1000000000);
+	do_div(power, 1000000000);
 
-	return p;
+	return power;
 }
 
-/* list must be ascending order */
-static int et_find_nearest_index(int value, int *list, int length)
+static unsigned long compute_sl_energy(struct energy_table *table,
+		struct cpumask *cpus, struct energy_state *states)
 {
-	int i;
+	struct energy_state *state;
+	unsigned long sp, e;
 
-	/*
-	 * length is less than 0 or given value is smaller than first
-	 * element of list, pick index 0.
-	 */
-	if (length <= 0 || value < list[0])
+	if (!table->sl_spt)
 		return 0;
 
-	for (i = 0; i < length; i++) {
-		if (value == list[i])
-			return i;
+	state = &states[cpumask_any(cpus)];
+	sp = __get_static_power(table->sl_spt, state->voltage, state->temperature);
 
-		if (i == length - 1)
-			return i;
+	e = sp << SCHED_CAPACITY_SHIFT;
 
-		if (list[i] < value && value < list[i + 1]) {
-			if (value - list[i] < list[i + 1] - value)
-				return i;
-			else
-				return i + 1;
+	trace_ems_compute_sl_energy(cpus, sp, e);
+
+	return e;
+}
+
+static unsigned long compute_dsu_energy(struct energy_state *state)
+{
+	unsigned long dp, sp, e;
+
+	if (unlikely(!dsu_table))
+		return 0;
+
+	dp = get_dynamic_power(state->frequency, state->voltage, dsu_table->dynamic_coeff);
+	sp = get_static_power(dsu_table->spt, state->voltage, dsu_table->static_coeff,
+			default_temp);
+
+	e = (dp + sp) << SCHED_CAPACITY_SHIFT;
+
+	trace_ems_compute_dsu_energy(state->frequency, state->voltage, dp, sp, e);
+
+	return e;
+}
+
+static unsigned long __compute_cpu_energy(struct energy_state *state, int cpu)
+{
+	struct energy_table *table = per_cpu_et(cpu);
+	unsigned long dp, sp, e;
+
+	dp = get_dynamic_power(state->frequency, state->voltage, table->dynamic_coeff);
+	sp = get_static_power(table->spt, state->voltage, table->static_coeff, state->temperature);
+	e = ((dp + sp) << SCHED_CAPACITY_SHIFT) * state->util / state->capacity;
+	e = e * 100 / state->weight;
+
+	trace_ems_compute_energy(cpu, state->util, state->capacity,
+			state->frequency, state->voltage, state->temperature, dp, sp, e);
+
+	return e;
+}
+
+static unsigned long compute_cpu_energy(const struct cpumask *cpus, struct energy_state *states,
+		int target_cpu, struct energy_backup *backup)
+{
+	unsigned long energy = 0;
+	int cpu;
+
+	for_each_cpu(cpu, cpus) {
+		struct energy_table *table = per_cpu_et(cpu);
+		struct energy_state *state = &states[cpu];
+		struct cpumask mask;
+
+		cpumask_and(&mask, &table->sl_cpus[cpu], cpus);
+		if (cpu == cpumask_first(&mask))
+			energy += compute_sl_energy(table, &table->sl_cpus[cpu], states);
+
+		/*
+		 * If this cpu is target or backup is null, do not use backup energy.
+		 */
+		if (cpu == target_cpu || !backup) {
+			energy += __compute_cpu_energy(state, cpu);
+			continue;
 		}
+
+		if (backup[cpu].voltage != state->voltage) {
+			backup[cpu].energy = __compute_cpu_energy(state, cpu);
+			backup[cpu].voltage = state->voltage;
+		}
+
+		energy += backup[cpu].energy;
 	}
 
-	return 0;
+	return energy;
 }
 
-static unsigned long
-__et_static_power(struct static_power_table *spt,
-			unsigned long volt, int temp)
+static void update_energy_state(const struct cpumask *cpus,
+		struct energy_state *states, struct energy_state *dsu_state)
 {
-	int row, col;
+	struct energy_table *table;
+	unsigned long cpu_volt, cpu_freq;
+	unsigned long dsu_volt, dsu_freq = 0;
+	int cpu, rep_cpu, index;
 
-	row = et_find_nearest_index(volt, spt->volt_field, spt->row_size);
-	col = et_find_nearest_index(temp, spt->temp_field, spt->col_size);
+	if (unlikely(!dsu_table))
+		return;
 
-	/* get static power from pre-calculated table */
-	return spt->power[row * spt->col_size + col];
-}
+	/* 1. Find DSU frequency */
+	for_each_possible_cpu(cpu) {
+		table = per_cpu_et(cpu);
+		if (cpu != cpumask_first(&table->cpus))
+			continue;
 
-static unsigned long et_static_power(struct energy_table *table,
-					unsigned long volt, int temp)
-{
-	/*
-	 * Pre-calculated static power table does not exist,
-	 * calculate static power with coefficient.
-	 */
-	if (!table->spt) {
-		unsigned long p;
-
-		/* power = coefficent * voltage^2 / 10^6 */
-		p = table->static_coeff * volt * volt;
-		do_div(p, 1000000);
-		return p;
+		cpu_freq = states[cpu].frequency ? states[cpu].frequency : table->cur_freq;
+		dsu_freq = max(dsu_freq, get_needed_dsu_freq(table, cpu_freq));
 	}
 
-	if (!temp && likely(table->spt->tz_dev))
-		temp = table->spt->tz_dev->temperature / 1000;
+	/* 2. Find DSU voltage */
+	index = get_freq_index(dsu_table->states, dsu_table->nr_states, dsu_freq);
+	if (index < 0)
+		return;
+	dsu_volt = dsu_table->states[index].voltage;
 
-	return __et_static_power(table->spt, volt, temp);
+	/* 3. Apply DSU voltage to CPU */
+	for_each_cpu_and(cpu, cpus, &dsu_table->pd_cpus)
+		states[cpu].voltage = max(states[cpu].voltage, dsu_volt);
+
+	/* 4. Apply CPU voltage of same pd-cpus */
+	for_each_cpu(cpu, cpus) {
+		table = per_cpu_et(cpu);
+		if (cpu != cpumask_first(&table->cpus))
+			continue;
+
+		if (!cpumask_weight(&table->pd_cpus))
+			continue;
+
+		for_each_cpu(rep_cpu, &table->pd_cpus) {
+			cpu_volt = states[rep_cpu].voltage ?
+				states[rep_cpu].voltage : per_cpu_et(rep_cpu)->cur_volt;
+			cpu_volt = max(states[cpu].voltage, cpu_volt);
+		}
+
+		for_each_cpu(rep_cpu, &table->cpus)
+			states[rep_cpu].voltage = cpu_volt;
+	}
+
+	/* 5. Update temperature info */
+	for_each_cpu(cpu, cpus) {
+		int temp;
+
+		table = per_cpu_et(cpu);
+		if (cpu != cpumask_first(&table->cpus))
+			continue;
+
+		if (table->spt && table->spt->tz_dev)
+			temp = table->spt->tz_dev->temperature / 1000;
+		else
+			temp = default_temp;
+
+		for_each_cpu_and(rep_cpu, cpus, &table->cpus)
+			states[rep_cpu].temperature = temp;
+	}
+
+	/* If dsu_state is NULL, don't need to update dsu_state */
+	if (!dsu_state)
+		return;
+
+	/* 6. Apply CPU voltage to DSU */
+	for_each_cpu(cpu, &dsu_table->pd_cpus) {
+		table = per_cpu_et(cpu);
+		if (cpu != cpumask_first(&table->cpus))
+			continue;
+
+		cpu_volt = states[cpu].voltage ? states[cpu].voltage : table->cur_volt;
+		dsu_volt = max(dsu_volt, cpu_volt);
+	}
+
+	dsu_state->frequency = dsu_freq;
+	dsu_state->voltage = dsu_volt;
 }
 
-static int et_freq_index(struct energy_table *table, unsigned long freq)
+/****************************************************************************************
+ *					Extern APIs					*
+ ****************************************************************************************/
+unsigned int et_cur_freq_idx(int cpu)
 {
-	int i;
+	struct energy_table *table = per_cpu_et(cpu);
 
-	for (i = 0; i < table->nr_states; i++)
-		if (table->states[i].frequency >= freq)
-			break;
+	if (unlikely(!table))
+		return 0;
 
-	if (i == table->nr_states)
-		i--;
+	if (unlikely(table->cur_index < 0))
+		return 0;
 
-	return i;
+	return table->cur_index;
 }
 
-static int et_cap_index(struct energy_table *table, unsigned long cap)
+unsigned long et_cur_cap(int cpu)
 {
-	int i;
+	struct energy_table *table = per_cpu_et(cpu);
 
-	for (i = 0; i < table->nr_states; i++)
-		if (table->states[i].capacity >= cap)
-			break;
+	if (unlikely(!table))
+		return 0;
 
-	if (i == table->nr_states)
-		i--;
+	if (unlikely(table->cur_index < 0))
+		return 0;
 
-	return i;
-}
-
-static int et_dpower_index(struct energy_table *table, unsigned long dpower)
-{
-	int i;
-
-	for (i = 0; i < table->nr_states; i++)
-		if (table->states[i].dynamic_power >= dpower)
-			break;
-
-	if (i == table->nr_states)
-		i--;
-
-	return i;
+	return table->states[table->cur_index].capacity;
 }
 
 unsigned long et_max_cap(int cpu)
@@ -222,459 +448,174 @@ unsigned long et_min_dpower(int cpu)
 	return table->states[0].dynamic_power;
 }
 
-unsigned long et_cap_to_freq(int cpu, unsigned long cap)
-{
-	struct energy_table *table = per_cpu_et(cpu);
-
-	if (!table->states)
-		return 0;
-
-	return table->states[et_cap_index(table, cap)].frequency;
-}
-
 unsigned long et_freq_to_cap(int cpu, unsigned long freq)
 {
 	struct energy_table *table = per_cpu_et(cpu);
+	int index = get_freq_index(table->states, table->nr_states, freq);
 
-	if (!table->states)
+	if (index < 0)
 		return 0;
 
-	return table->states[et_freq_index(table, freq)].capacity;
+	return table->states[index].capacity;
 }
 
 unsigned long et_freq_to_dpower(int cpu, unsigned long freq)
 {
 	struct energy_table *table = per_cpu_et(cpu);
+	int index = get_freq_index(table->states, table->nr_states, freq);
 
-	if (!table->states)
+	if (index < 0)
 		return 0;
 
-	return table->states[et_freq_index(table, freq)].dynamic_power;
+	return table->states[index].dynamic_power;
 }
+
+unsigned long et_freq_to_spower(int cpu, unsigned long freq)
+{
+	struct energy_table *table = per_cpu_et(cpu);
+	int index = get_freq_index(table->states, table->nr_states, freq);
+
+	if (index < 0)
+		return 0;
+
+	return table->states[index].static_power;
+}
+EXPORT_SYMBOL_GPL(et_freq_to_spower);
 
 unsigned long et_dpower_to_cap(int cpu, unsigned long dpower)
 {
 	struct energy_table *table = per_cpu_et(cpu);
+	int index = get_dpower_index(table->states, table->nr_states, dpower);
 
-	if (!table->states)
+	if (index < 0)
 		return 0;
 
-	return table->states[et_dpower_index(table, dpower)].capacity;
+	return table->states[index].capacity;
 }
 
-unsigned int et_freq_to_volt(int cpu, unsigned int freq)
+void et_get_orig_state(int cpu, unsigned long freq, struct energy_state *state)
 {
 	struct energy_table *table = per_cpu_et(cpu);
-
-	if (!table->states)
-		return 0;
-
-	return table->states[et_freq_index(table, freq)].voltage;
-}
-
-static void et_fill_orig_state(int cpu, struct energy_table *table,
-				int index, struct energy_state *state)
-{
-	state->frequency = table->states[index].frequency;
-	state->capacity = table->states[index].capacity;
-	state->dynamic_power = table->states[index].dynamic_power;
-	state->static_power = table->states[index].static_power;
-	state->voltage = table->states[index].voltage;
-}
-
-int et_get_orig_state_with_freq(int cpu, unsigned long freq, struct energy_state *state)
-{
-	struct energy_table *table = per_cpu_et(cpu);
-
-	if (!table->states)
-		return -ENODATA;
-
-	et_fill_orig_state(cpu, table, et_freq_index(table, freq), state);
-
-	return 0;
-}
-
-static unsigned long et_get_shared_volt(struct energy_table *table)
-{
-	unsigned long v, max_v = 0;
-	int cpu;
-
-	if (table->power_sharing_dsu) {
-		if (dsu_table)
-			return dsu_table->cur_volt;
-		else
-			return 0;
-	}
-
-	for_each_cpu(cpu, &table->power_sharing_cpus) {
-		v = per_cpu_et(cpu)->cur_volt;
-		if (max_v < v)
-			max_v = v;
-	}
-
-	return max_v;
-}
-
-static void et_fill_state(struct energy_table *table, unsigned long next_freq,
-			unsigned long next_volt, struct energy_state *state)
-{
-	unsigned long f_mhz, v;
-	int index = et_freq_index(table, next_freq);
-
-	f_mhz = table->states[index].frequency / 1000;
-	if (next_volt)
-		v = next_volt;
-	else {
-		/* If next_volt is not given, get current voltage */
-		v = max(et_get_shared_volt(table),
-			table->states[index].voltage);
-	}
-
-	state->frequency = table->states[index].frequency;
-	state->capacity = table->states[index].capacity;
-	state->dynamic_power = et_dynamic_power(table, f_mhz, v);
-	state->static_power = et_static_power(table, v, 0);
-	state->voltage = v;
-}
-
-int et_get_state_with_freq(int cpu, unsigned long freq,
-			struct energy_state *state, int dis_buck_share)
-{
-	struct energy_table *table = per_cpu_et(cpu);
-	unsigned long f_mhz, v;
+	struct energy_state *next_state;
 	int index;
 
-	if (!table->states)
-		return -ENODATA;
-
-	index = et_freq_index(table, freq);
-	f_mhz = table->states[index].frequency / 1000;
-	if (dis_buck_share)
-		v = table->states[index].voltage;
-	else
-		v = max(et_get_shared_volt(table), table->states[index].voltage);
-
-	state->frequency = table->states[index].frequency;
-	state->capacity = table->states[index].capacity;
-	state->dynamic_power = et_dynamic_power(table, f_mhz, v);
-	state->static_power = et_static_power(table, v, 0);
-	state->voltage = v;
-
-	return 0;
-}
-
-static inline unsigned long et_freq_cpu_to_dsu(unsigned long cpu_freq)
-{
-	/* CPU-DSU freq ratio = 50% */
-	unsigned long dsu_freq = cpu_freq * 50 / 100;
-	int index = et_freq_index(dsu_table, dsu_freq);
-
-	return dsu_table->states[index].frequency;
-}
-
-static void et_update_dsu_freq(void)
-{
-	int cpu;
-	unsigned long freq, max_freq = 0, dsu_freq;
-
-	if (!dsu_table)
+	index = get_freq_index(table->states, table->nr_states, freq);
+	if (index < 0)
 		return;
 
-	for_each_cpu(cpu, cpu_active_mask) {
-		freq = per_cpu_et(cpu)->cur_freq;
-		if (max_freq < freq)
-			max_freq = freq;
-	}
+	next_state = &table->states[index];
 
-	dsu_freq = et_freq_cpu_to_dsu(max_freq);
-
-	dsu_table->cur_freq = dsu_freq;
-	dsu_table->cur_volt =
-		dsu_table->states[et_freq_index(dsu_table, dsu_freq)].voltage;
+	state->frequency = next_state->frequency;
+	state->capacity = next_state->capacity;
+	state->dynamic_power = next_state->dynamic_power;
+	state->static_power = next_state->static_power;
+	state->voltage = next_state->voltage;
 }
 
-void et_update_freq(int cpu, unsigned long freq)
+void et_update_freq(int cpu, unsigned long cpu_freq)
 {
-	per_cpu_et(cpu)->cur_freq = freq;
-	per_cpu_et(cpu)->cur_volt = et_freq_to_volt(cpu, freq);
+	struct energy_table *table = per_cpu_et(cpu);
+	int index;
 
-	et_update_dsu_freq();
+	index = get_freq_index(table->states, table->nr_states, cpu_freq);
+	if (index < 0)
+		return;
+
+	table->cur_freq = cpu_freq;
+	table->cur_volt = table->states[index].voltage;
 }
 
-unsigned long et_compute_cpu_energy(int cpu, unsigned long freq,
-				unsigned long util, unsigned long weight)
+void et_fill_energy_state(struct tp_env *env, struct cpumask *cpus,
+		struct energy_state *states, unsigned long capacity, int dst_cpu)
 {
-	struct cpumask mask;
-	unsigned long utils[VENDOR_NR_CPUS], weights[VENDOR_NR_CPUS];
+	int index, cpu = cpumask_any(cpus);
+	struct energy_table *table = per_cpu_et(cpu);
 
-	cpumask_clear(&mask);
-	cpumask_set_cpu(cpu, &mask);
-
-	utils[cpu] = util;
-	weights[cpu] = weight;
-
-	return et_compute_energy(&mask, cpu, freq, utils, weights, 1);
-}
-
-/*
- * Returns
- *  - active or unknown idle state : -1
- *  - C1 : 0
- *  - C2 : 1
- */
-static int et_get_idle_state(int cpu)
-{
-	struct cpuidle_state *state = idle_get_state(cpu_rq(cpu));
-
-	if (!state)
-		return -1;
-
-	if (strcmp(state->name, "WFI"))
-		return 0;
-	else
-		return 1;
-
-	return -1;
-}
-
-static unsigned long et_sl_static_power(struct static_power_table *sl_spt,
-			struct cpumask *complex_cpus, unsigned long volt,
-			int target_cpu)
-{
-	int cpu;
-	int sl_active = 0;
-
-	rcu_read_lock();
-
-	for_each_cpu(cpu, complex_cpus) {
-		/*
-		 * All cpus in complex muxt be in C2 state to turn off
-		 * shared logic. If even one CPU is running, the shared
-		 * logic becomes active state and comsumes power. Even
-		 * if the CPU is in C2 state, CPU is target, CPU will
-		 * become active state, so shared logic also become
-		 * active state.
-		 */
-		if ((et_get_idle_state(cpu) != 1) || cpu == target_cpu) {
-			sl_active = 1;
-			break;
-		}
-	}
-
-	rcu_read_unlock();
-
-	return sl_active ? __et_static_power(sl_spt, volt, 0) : 0;
- }
-
-static unsigned long
-__et_compute_energy(const struct cpumask *cpus, struct energy_state *state,
-				int target_cpu, unsigned long *utils,
-				unsigned long *weights, int apply_sp)
-{
-	unsigned long cap, v, dp, sp, energy = 0, weight;
-	int cpu;
-
-	cap = state->capacity;
-	v = state->voltage;
-	dp = state->dynamic_power;
-	sp = apply_sp ? state->static_power : 0;
+	index = get_cap_index(table->states, table->nr_states, capacity);
+	if (index < 0)
+		return;
 
 	for_each_cpu(cpu, cpus) {
-		struct energy_table *table;
-		unsigned long e, sl_sp = 0;
+		states[cpu].capacity = table->states[index].capacity;
+		states[cpu].frequency = table->states[index].frequency;
+		states[cpu].voltage = table->states[index].voltage;
+		states[cpu].dynamic_power = table->states[index].dynamic_power;
+		states[cpu].static_power = table->states[index].static_power;
 
-		weight = weights ? weights[cpu] : 100;
-
-		/*
-		 * Compute energy
-		 *  energy = (util / capacity) * (d.p + s.p) * weight(%)
-		 */
-		e = ((utils[cpu] << SCHED_CAPACITY_SHIFT) *
-				(dp + sp) / cap) * 100 / weight;
-
-		/* support complex? */
-		table = per_cpu_et(cpu);
-		if (table->cpt) {
-			if (!apply_sp)
-				goto skip;
-
-			/* only last cpu in complex applies energy */
-			if (cpu != cpumask_last(&table->cpt->cpus[cpu]))
-				goto skip;
-
-			/*
-			 * MUST be modified:
-			 * Track complex shared utilization and calculate energy.
-			 */
-			sl_sp = et_sl_static_power(table->cpt->sl_spt,
-					&table->cpt->cpus[cpu], v, target_cpu);
+		if (env) {
+			if (cpu == dst_cpu)
+				states[cpu].util = env->cpu_stat[cpu].util_with;
+			else
+				states[cpu].util = env->cpu_stat[cpu].util_wo;
+			states[cpu].weight = env->weight[cpu];
+		} else {
+			states[cpu].util = 0;
+			states[cpu].weight = 100;
 		}
-
-skip:
-		e += (sl_sp << SCHED_CAPACITY_SHIFT);
-		trace_ems_compute_energy(cpu, utils[cpu], cap, v,
-				dp, sp, sl_sp, apply_sp, weight, e);
-
-		energy += e;
 	}
+}
+
+unsigned long et_compute_cpu_energy(const struct cpumask *cpus, struct energy_state *states)
+{
+	update_energy_state(cpus, states, NULL);
+
+	return compute_cpu_energy(cpus, states, -1, NULL);
+}
+
+unsigned long et_compute_system_energy(const struct list_head *csd_head,
+		struct energy_state *states, int target_cpu, struct energy_backup *backup)
+{
+	struct energy_state dsu_state;
+	struct cs_domain *csd;
+	unsigned long energy = 0;
+
+	update_energy_state(cpu_possible_mask, states, &dsu_state);
+
+	energy += compute_dsu_energy(&dsu_state);
+
+	list_for_each_entry(csd, csd_head, list)
+		energy += compute_cpu_energy(&csd->cpus, states, target_cpu, backup);
 
 	return energy;
 }
 
-/* All cpus must be in same frequency domain */
-unsigned long et_compute_energy(const struct cpumask *cpus, int target_cpu,
-			unsigned long freq, unsigned long *utils,
-			unsigned long *weights, int apply_sp)
+/****************************************************************************************
+ *					CPUFREQ Change VH				*
+ ****************************************************************************************/
+void et_arch_set_freq_scale(const struct cpumask *cpus,
+		unsigned long freq,  unsigned long max, unsigned long *scale)
 {
-	struct energy_table *table;
-	struct energy_state state;
+	struct energy_table *table = per_cpu_et(cpumask_first(cpus));
+	int index = get_freq_index(table->states, table->nr_states, freq);
 
-	table = per_cpu_et(cpumask_any(cpus));
-	if (!table->states)
-		return 0;
-
-	et_fill_state(table, freq, 0, &state);
-
-	return __et_compute_energy(cpus, &state, target_cpu,
-				utils, weights, apply_sp);
+	if (index > -1)
+		table->cur_index = index;
 }
 
-static unsigned long
-et_compute_dsu_energy(struct list_head *csd_head, unsigned long *utils,
-					unsigned long *next_dsu_volt)
+/****************************************************************************************
+ *					Notifier Call					*
+ ****************************************************************************************/
+static void update_dynamic_power(struct cpumask *cpus)
 {
-	unsigned long max_cpu_freq = 0;
-	unsigned long dsu_freq, v, dp, sp, e;
-	struct cs_domain *csd;
-	struct energy_state state;
-
-	if (!dsu_table || !dsu_table->nr_states)
-		return 0;
-
-	list_for_each_entry(csd, csd_head, list) {
-		/* find max cpu freq to determine next dsu freq */
-		if (max_cpu_freq < csd->next_freq)
-			max_cpu_freq = csd->next_freq;
-	}
-
-	/* dsu freq is determined by the CPU that requested the highest freq */
-	dsu_freq = et_freq_cpu_to_dsu(max_cpu_freq);
-
-	et_fill_state(dsu_table, dsu_freq, 0, &state);
-	v = state.voltage;
-	dp = state.dynamic_power;
-	sp = state.static_power;
-
-	/*
-	 * Since DSU is not an actively operating H/W, monitor unit for DSU is
-	 * necessary to get DSU utilization. Since SoC is upport monitor unit
-	 * currently, it assumes that DSU is running at 100%.
-	 *
-	 * DSU energy = (dp + sp) * 100%
-	 */
-	e = (dp + sp) << SCHED_CAPACITY_SHIFT;
-
-	trace_ems_compute_dsu_energy(max_cpu_freq, dsu_freq, v, dp, sp, e);
-
-	*next_dsu_volt = v;
-
-	return e;
-}
-
-static void et_find_next_volt(struct list_head *csd_head,
-				unsigned long next_dsu_volt)
-{
-	struct cs_domain *csd;
-	unsigned long next_volt[VENDOR_NR_CPUS];
 	int cpu;
 
-	list_for_each_entry(csd, csd_head, list) {
-		cpu = cpumask_any(&csd->cpus);
-		next_volt[cpu] = et_freq_to_volt(cpu, csd->next_freq);
-	}
+	for_each_cpu(cpu, cpus) {
+		struct energy_table *table = per_cpu_et(cpu);
+		int i;
 
-	list_for_each_entry(csd, csd_head, list) {
-		struct energy_table *table;
-
-		cpu = cpumask_any(&csd->cpus);
-		table = per_cpu_et(cpu);
-
-#if 0
-		if (table->power_sharing_dsu) {
-			csd->next_volt = max(next_volt[cpu], next_dsu_volt);
-			continue;
-		}
-#endif
-
-		if (!cpumask_empty(&table->power_sharing_cpus)) {
-			int scpu = cpumask_any(&table->power_sharing_cpus);
-
-			csd->next_volt = max(next_volt[cpu], next_volt[scpu]);
-			continue;
-		}
-
-		csd->next_volt = next_volt[cpu];
-	}
-}
-
-unsigned long et_compute_system_energy(struct list_head *csd_head,
-				unsigned long *utils, unsigned long *weights,
-				int target_cpu)
-{
-	struct cs_domain *csd;
-	unsigned long energy, next_dsu_volt = 0;
-
-	energy = et_compute_dsu_energy(csd_head, utils, &next_dsu_volt);
-
-	et_find_next_volt(csd_head, next_dsu_volt);
-
-	list_for_each_entry(csd, csd_head, list) {
-		struct energy_table *table;
-		struct energy_state state;
-
-		table = per_cpu_et(cpumask_any(&csd->cpus));
-		if (!table->states)
-			continue;
-
-		et_fill_state(table, csd->next_freq, csd->next_volt, &state);
-
-		energy += __et_compute_energy(&csd->cpus, &state, target_cpu,
-					utils, weights, csd->apply_sp);
-	}
-
-	return energy;
-}
-
-/****************************************************************
- *		   emstune mode update notifier			*
- ****************************************************************/
-static void et_update_dynamic_power(void)
-{
-	struct energy_table *table;
-	int cpu, i;
-
-	/* Fill energy table with dynamic power */
-	for_each_possible_cpu(cpu) {
-		table = per_cpu_et(cpu);
-		if (!table->nr_states)
+		if (unlikely(!table) || !table->nr_states)
 			continue;
 
 		for (i = 0; i < table->nr_states; i++) {
-			unsigned long f_mhz = table->states[i].frequency / 1000;
-			unsigned long v = table->states[i].voltage;
+			struct energy_state *state = &table->states[i];
 
-			table->states[i].dynamic_power =
-						et_dynamic_power(table, f_mhz, v);
+			state->dynamic_power = get_dynamic_power(state->frequency, state->voltage,
+					table->dynamic_coeff);
 		}
 	}
 }
 
-static void et_set_cpu_scale(unsigned int cpu, unsigned long capacity)
-{
-	per_cpu(cpu_scale, cpu) = capacity;
-}
-
-static void et_update_capacity(void)
+static void update_capacity(void)
 {
 	struct energy_table *table;
 	unsigned long max_mips = 0;
@@ -692,7 +633,11 @@ static void et_update_capacity(void)
 		unsigned long max_f, mips;
 
 		table = per_cpu_et(cpu);
-		if (!table->nr_states)
+
+		if (cpu != cpumask_first(&table->cpus))
+			continue;
+
+		if (unlikely(!table->nr_states))
 			continue;
 
 		/* max mips = max_f * mips/mhz */
@@ -708,22 +653,27 @@ static void et_update_capacity(void)
 	/* Fill energy table with capacity */
 	for_each_possible_cpu(cpu) {
 		table = per_cpu_et(cpu);
-		if (!table->nr_states)
+
+		if (cpu != cpumask_first(&table->cpus))
+			continue;
+
+		if (unlikely(!table->nr_states))
 			continue;
 
 		for (i = 0; i < table->nr_states; i++) {
-			unsigned long f = table->states[i].frequency;
+			unsigned long capacity;
 
 			/*
 			 *     mips(f) = f * mips/mhz
 			 * capacity(f) = mips(f) / max_mips * 1024
 			 */
-			table->states[i].capacity =
-				f * table->mips_mhz * 1024 / max_mips;
+			capacity = table->states[i].frequency * table->mips_mhz;
+			capacity = (capacity << 10) / max_mips;
+			table->states[i].capacity = capacity;
 		}
 
 		/* Set CPU scale with max capacity of the CPU */
-		et_set_cpu_scale(cpu, table->states[table->nr_states - 1].capacity);
+		per_cpu(cpu_scale, cpu) = table->states[table->nr_states - 1].capacity;
 	}
 }
 
@@ -731,43 +681,45 @@ static int et_emstune_notifier_call(struct notifier_block *nb,
 				unsigned long val, void *v)
 {
 	struct emstune_set *cur_set = (struct emstune_set *)v;
-	struct emstune_specific_energy_table *emstune_specific_et;
+	struct emstune_specific_energy_table *emstune_et = &cur_set->specific_energy_table;
+	struct cpumask dp_update_cpus;
+	bool need_to_update_capacity = false;
 	int cpu;
-	bool need_to_update_dynamic_power = false, need_to_update_capacity = false;
 
-	emstune_specific_et = &cur_set->specific_energy_table;
+	cpumask_clear(&dp_update_cpus);
 
 	for_each_possible_cpu(cpu) {
-		struct energy_table *table;
+		struct energy_table *table = per_cpu_et(cpu);
 		unsigned int next_mips_mhz;
 		unsigned int next_dynamic_coeff;
 
-		table = per_cpu_et(cpu);
-
 		/* Check whether dynamic power coefficient is changed */
-		next_dynamic_coeff = emstune_specific_et->dynamic_coeff[cpu] ?
-				     emstune_specific_et->dynamic_coeff[cpu] :
-				     table->dynamic_coeff_orig;
+		next_dynamic_coeff = emstune_et->dynamic_coeff[cpu] ?
+			emstune_et->dynamic_coeff[cpu] : table->dynamic_coeff_orig;
+
 		if (table->dynamic_coeff != next_dynamic_coeff) {
 			table->dynamic_coeff = next_dynamic_coeff;
-			need_to_update_dynamic_power = true;
+			cpumask_set_cpu(cpu, &dp_update_cpus);
 		}
 
 		/* Check whether mips per mhz is changed */
-		next_mips_mhz = emstune_specific_et->mips_mhz[cpu] ?
-				emstune_specific_et->mips_mhz[cpu] :
-				table->mips_mhz_orig;
+		next_mips_mhz = emstune_et->mips_mhz[cpu] ?
+			emstune_et->mips_mhz[cpu] : table->mips_mhz_orig;
+
 		if (table->mips_mhz != next_mips_mhz) {
 			table->mips_mhz = next_mips_mhz;
 			need_to_update_capacity = true;
 		}
 	}
 
-	if (need_to_update_dynamic_power)
-		et_update_dynamic_power();
+	if (cpumask_weight(&dp_update_cpus))
+		update_dynamic_power(&dp_update_cpus);
 
 	if (need_to_update_capacity)
-		et_update_capacity();
+		update_capacity();
+
+	emstune_index = emstune_cpu_dsu_table_index(v);
+	emstune_index = max(emstune_index, 0);
 
 	return NOTIFY_OK;
 }
@@ -776,133 +728,159 @@ static struct notifier_block et_emstune_notifier = {
 	.notifier_call = et_emstune_notifier_call,
 };
 
-static ssize_t et_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+/****************************************************************************************
+ *					SYSFS						*
+ ****************************************************************************************/
+#define MSG_SIZE 8192
+
+static ssize_t energy_table_read(struct file *file, struct kobject *kobj,
+		struct bin_attribute *attr, char *buf,
+		loff_t offset, size_t size)
 {
-	struct energy_table *table = NULL;
-	struct static_power_table *spt;
-	int cpu, i, ret = 0;
+	int cpu, i;
+	char *msg = kcalloc(MSG_SIZE, sizeof(char), GFP_KERNEL);
+	ssize_t count = 0, msg_size;
 
 	for_each_possible_cpu(cpu) {
-		if (table && cpumask_test_cpu(cpu, &table->cpus))
+		struct energy_table *table = per_cpu_et(cpu);
+
+		if (unlikely(!table) || cpumask_first(&table->cpus) != cpu)
 			continue;
 
-		table = per_cpu_et(cpu);
-		if (unlikely(!table))
-			continue;
-
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"[Energy Table: cpu%d]\n", cpu);
-
-		spt = table->spt;
-		if (!spt) {
-			for (i = 0; i < table->nr_states; i++) {
-				ret += snprintf(buf + ret, PAGE_SIZE - ret,
-					"cap=%4lu dyn-power=%4lu sta-power=%lu\n",
+		count += sprintf(msg + count, "[Energy Table: cpu%d]\n", cpu);
+		count += sprintf(msg + count,
+				"+------------+------------+---------------+---------------+\n"
+				"|  frequency |  capacity  | dynamic power |  static power |\n"
+				"+------------+------------+---------------+---------------+\n");
+		for (i = 0; i < table->nr_states; i++) {
+			count += sprintf(msg + count,
+					"| %10lu | %10lu | %13lu | %13lu |\n",
+					table->states[i].frequency,
 					table->states[i].capacity,
 					table->states[i].dynamic_power,
 					table->states[i].static_power);
-			}
-		} else {
-
-			for (i = 0; i < table->nr_states; i++) {
-				ret += snprintf(buf + ret, PAGE_SIZE - ret,
-					"cap=%4lu dyn-power=%lu\n",
-					table->states[i].capacity,
-					table->states[i].dynamic_power);
-			}
 		}
-
-		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
+		count += sprintf(msg + count,
+				"+------------+------------+---------------+---------------+\n\n");
 	}
 
-	return ret;
+	msg_size = min_t(ssize_t, count, MSG_SIZE);
+	msg_size = memory_read_from_buffer(buf, size, &offset, msg, msg_size);
+
+	kfree(msg);
+
+	return msg_size;
 }
 
-static DEVICE_ATTR(energy_table, S_IRUGO, et_show, NULL);
-
-static ssize_t et_sp_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+static ssize_t static_power_table_read(struct file *file, struct kobject *kobj,
+		struct bin_attribute *attr, char *buf,
+		loff_t offset, size_t size)
 {
-	struct energy_table *table = NULL;
 	struct static_power_table *spt;
-	int cpu, i, row, ret = 0;
+	int cpu;
+	char *msg = kcalloc(MSG_SIZE, sizeof(char), GFP_KERNEL);
+	ssize_t count = 0, msg_size;
 
 	for_each_possible_cpu(cpu) {
-		if (table && cpumask_test_cpu(cpu, &table->cpus))
-			continue;
+		struct energy_table *table = per_cpu_et(cpu);
+		int col, row;
 
-		table = per_cpu_et(cpu);
-		if (unlikely(!table))
+		if (unlikely(!table) || cpumask_first(&table->cpus) != cpu)
 			continue;
-
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"[cpu%d]\n", cpu);
 
 		spt = table->spt;
-		if (!spt) {
-			ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"Does not support precise static power table\n\n");
+		if (!spt)
 			continue;
+
+		count += sprintf(msg + count, "[Static Power Table: cpu%d]\n", cpu);
+		count += sprintf(msg + count, "      ");
+
+		for (col = 0; col < spt->temp.size; col++)
+			count += sprintf(msg + count, " %4lu℃", spt->temp.list[col]);
+		count += sprintf(msg + count, "\n");
+
+		for (row = 0; row < spt->volt.size; row++) {
+			count += sprintf(msg + count, "%4lumV ", spt->volt.list[row]);
+
+			for (col = 0; col < spt->temp.size; col++)
+				count += sprintf(msg + count, "%5lu ", of_power(spt, row, col));
+			count += sprintf(msg + count, "\n");
 		}
 
-		ret += snprintf(buf + ret, PAGE_SIZE - ret, "       ");
-		for (i = 0; i < spt->col_size; i++)
-			ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				" %2lu℃", spt->temp_field[i]);
-		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
-		for (row = 0; row < spt->row_size; row++) {
-			ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"%4lumV ", spt->volt_field[row]);
-			for (i = row * spt->col_size; i < (row + 1) * spt->col_size; i++)
-				ret += snprintf(buf + ret, PAGE_SIZE - ret,
-					"%4lu ", spt->power[i]);
-			ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
+		count += sprintf(msg + count, "\n");
+	}
+
+	msg_size = min_t(ssize_t, count, MSG_SIZE);
+	msg_size = memory_read_from_buffer(buf, size, &offset, msg, msg_size);
+
+	kfree(msg);
+
+	return msg_size;
+}
+
+static ssize_t sl_static_power_table_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct static_power_table *sl_spt;
+	int cpu;
+	ssize_t ret = 0;
+
+	for_each_possible_cpu(cpu) {
+		struct energy_table *table = per_cpu_et(cpu);
+		int col, row;
+
+		if (unlikely(!table) || cpumask_first(&table->cpus) != cpu)
+			continue;
+
+		sl_spt = table->sl_spt;
+		if (!sl_spt)
+			continue;
+
+		ret += sprintf(buf + ret, "[Shared Logic Static Power Table: cpu%d]\n", cpu);
+		ret += sprintf(buf + ret, "      ");
+
+		for (col = 0; col < sl_spt->temp.size; col++)
+			ret += sprintf(buf + ret, " %4lu℃", sl_spt->temp.list[col]);
+		ret += sprintf(buf + ret, "\n");
+
+		for (row = 0; row < sl_spt->volt.size; row++) {
+			ret += sprintf(buf + ret, "%4lumV ", sl_spt->volt.list[row]);
+
+			for (col = 0; col < sl_spt->temp.size; col++)
+				ret += sprintf(buf + ret, "%5lu ", of_power(sl_spt, row, col));
+			ret += sprintf(buf + ret, "\n");
 		}
 
-		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
+		ret += sprintf(buf + ret, "\n");
 	}
 
 	return ret;
 }
 
-static DEVICE_ATTR(static_power_table, S_IRUGO, et_sp_show, NULL);
-
-static ssize_t et_dsu_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+static ssize_t dsu_static_power_table_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
-	struct energy_table *table;
 	struct static_power_table *spt;
-	int i, row, ret = 0;
+	int col, row;
+	ssize_t ret = 0;
 
-	if (!dsu_table)
-		return 0;
+	if (unlikely(!dsu_table) || !dsu_table->spt)
+		return ret;
 
-	table = dsu_table;
 	spt = dsu_table->spt;
 
-	ret += snprintf(buf + ret, PAGE_SIZE - ret, "[Energy Table: DSU]\n");
+	ret += snprintf(buf + ret, PAGE_SIZE - ret, "[Static Power Table: DSU]\n");
+	ret += snprintf(buf + ret, PAGE_SIZE - ret, "      ");
 
-	for (i = 0; i < table->nr_states; i++) {
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"freq=%4lu dyn-power=%lu\n",
-				table->states[i].frequency,
-				table->states[i].dynamic_power);
-	}
-
-	ret += snprintf(buf + ret, PAGE_SIZE - ret, "\nsta-power table:\n");
-
-	ret += snprintf(buf + ret, PAGE_SIZE - ret, "       ");
-	for (i = 0; i < spt->col_size; i++)
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				" %2lu℃", spt->temp_field[i]);
+	for (col = 0; col < spt->temp.size; col++)
+		ret += snprintf(buf + ret, PAGE_SIZE - ret, " %4lu℃", spt->temp.list[col]);
 	ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
-	for (row = 0; row < spt->row_size; row++) {
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"%4lumV ", spt->volt_field[row]);
-		for (i = row * spt->col_size; i < (row + 1) * spt->col_size; i++)
-			ret += snprintf(buf + ret, PAGE_SIZE - ret,
-					"%4lu ", spt->power[i]);
+
+	for (row = 0; row < spt->volt.size; row++) {
+		ret += snprintf(buf + ret, PAGE_SIZE - ret, "%4lumV ", spt->volt.list[row]);
+
+		for (col = 0; col < spt->temp.size; col++)
+			ret += snprintf(buf + ret, PAGE_SIZE - ret, "%5lu ", of_power(spt, row, col));
 		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
 
@@ -911,24 +889,34 @@ static ssize_t et_dsu_show(struct device *dev,
 	return ret;
 }
 
-static DEVICE_ATTR(dsu_energy_table, S_IRUGO, et_dsu_show, NULL);
+static DEVICE_ATTR_RO(sl_static_power_table);
+static DEVICE_ATTR_RO(dsu_static_power_table);
 
-static unsigned long
-et_calulate_static_power(int ag, int ts, int mV, int vt_c,
-				int ac_a, int ac_b, int ac_c)
-{
-	unsigned long long sp;
-	long long ratio;
+static BIN_ATTR(energy_table, 0440, energy_table_read, NULL, 0);
+static BIN_ATTR(static_power_table, 0440, static_power_table_read, NULL, 0);
 
-	ratio = (vt_c * ((ac_a * ag * ag) +
-			 (ac_b * ag) + ac_c));
+static struct attribute *et_attrs[] = {
+	&dev_attr_sl_static_power_table.attr,
+	&dev_attr_dsu_static_power_table.attr,
+	NULL,
+};
 
-	sp = div64_u64(mV * ts * ratio, 10000000000);
+static struct bin_attribute *et_bin_attrs[] = {
+	&bin_attr_energy_table,
+	&bin_attr_static_power_table,
+	NULL,
+};
 
-	return (unsigned long)sp;
-}
+static struct attribute_group et_attr_group = {
+	.name		= "energy_table",
+	.attrs		= et_attrs,
+	.bin_attrs	= et_bin_attrs,
+};
 
-static struct ect_gen_param_table *et_ect_gen_param_table(char *name)
+/****************************************************************************************
+ *					Initialize					*
+ ****************************************************************************************/
+static struct ect_gen_param_table *get_ect_gen_param_table(char *name)
 {
 	void *gen_block = ect_get_block("GEN");
 
@@ -940,59 +928,7 @@ static struct ect_gen_param_table *et_ect_gen_param_table(char *name)
 	return ect_gen_param_get_table(gen_block, name);
 }
 
-static void et_init_complex_power_table(struct device_node *np,
-					struct energy_table *table)
-{
-	struct device_node *complex_np;
-	struct complex_power_table *cpt;
-	const char *buf[VENDOR_NR_CPUS];
-	struct ect_gen_param_table *ect_cr, *ect_ccr, *ect_csr;
-	int i, count;
-
-	complex_np = of_find_node_by_name(np, "complex");
-	if (!complex_np)
-		return;
-
-	cpt = kzalloc(sizeof(struct complex_power_table), GFP_KERNEL);
-	if (unlikely(!cpt))
-		return;
-
-	/* initialize complex cpu configuration */
-	count = of_property_count_strings(complex_np, "cpus");
-	if (!count) {
-		kfree(cpt);
-		return;
-	}
-
-	/* Read complex ratio information  */
-	ect_cr = et_ect_gen_param_table("COMPLEX_RATIO");
-	ect_ccr = et_ect_gen_param_table("COMPLEX_CORE_RATIO");
-	ect_csr = et_ect_gen_param_table("COMPLEX_SHARED_RATIO");
-	if (!ect_cr || !ect_ccr || !ect_csr) {
-		kfree(cpt);
-		return;
-	}
-
-	of_property_read_string_array(complex_np, "cpus", buf, count);
-	for (i = 0; i < count; i++) {
-		struct cpumask mask;
-		int cpu;
-
-		cpulist_parse(buf[i], &mask);
-		for_each_cpu(cpu, &table->cpus)
-			if (cpumask_test_cpu(cpu, &mask))
-				cpumask_copy(&cpt->cpus[cpu], &mask);
-	}
-
-	cpt->cr = ect_cr->parameter[0];
-	cpt->ccr = ect_ccr->parameter[0];
-	cpt->csr = ect_csr->parameter[0];
-
-	table->cpt = cpt;
-}
-
-static struct static_power_table *
-et_alloc_static_power_table(int row_size, int col_size)
+static struct static_power_table *alloc_static_power_table(int row_size, int col_size)
 {
 	struct static_power_table *spt;
 
@@ -1000,17 +936,17 @@ et_alloc_static_power_table(int row_size, int col_size)
 	if (unlikely(!spt))
 		return NULL;
 
-	spt->row_size = row_size;
-	spt->col_size = col_size;
+	spt->volt.size = row_size;
+	spt->temp.size = col_size;
 
-	spt->power = kcalloc(spt->row_size * spt->col_size,
-			sizeof(unsigned long), GFP_KERNEL);
-	spt->volt_field = kcalloc(spt->row_size, sizeof(int), GFP_KERNEL);
-	spt->temp_field = kcalloc(spt->col_size, sizeof(int), GFP_KERNEL);
-	if (!spt->power || !spt->volt_field || !spt->temp_field) {
+	spt->power = kcalloc(spt->volt.size * spt->temp.size, sizeof(unsigned long), GFP_KERNEL);
+	spt->volt.list = kcalloc(spt->volt.size, sizeof(int), GFP_KERNEL);
+	spt->temp.list = kcalloc(spt->temp.size, sizeof(int), GFP_KERNEL);
+
+	if (!spt->power || !spt->volt.list || !spt->temp.list) {
 		kfree(spt->power);
-		kfree(spt->volt_field);
-		kfree(spt->temp_field);
+		kfree(spt->volt.list);
+		kfree(spt->temp.list);
 		kfree(spt);
 		return NULL;
 	}
@@ -1018,210 +954,314 @@ et_alloc_static_power_table(int row_size, int col_size)
 	return spt;
 }
 
-static void et_copy_static_power_table(struct static_power_table *dst,
-					struct static_power_table *src)
+static void copy_static_power_table(struct static_power_table *dst,
+		struct static_power_table *src)
 {
-	memcpy(dst->volt_field, src->volt_field,
-				sizeof(unsigned int) * src->row_size);
-	memcpy(dst->temp_field, src->temp_field,
-				sizeof(unsigned int) * src->col_size);
+	memcpy(dst->volt.list, src->volt.list, sizeof(unsigned int) * src->volt.size);
+	memcpy(dst->temp.list, src->temp.list, sizeof(unsigned int) * src->temp.size);
 }
 
-static void et_init_dsu_static_power_table(struct static_power_table *spt)
+static struct static_power_table *init_dsu_static_power_table(struct static_power_table *spt)
 {
 	struct ect_gen_param_table *ect_dsr;
 	struct static_power_table *dsu_spt;
 	int row, col, dsr;
 
-	if (!dsu_table)
-		return;
-
-	ect_dsr = et_ect_gen_param_table("DSU_STATIC_RATIO");
+	ect_dsr = get_ect_gen_param_table("DSU_STATIC_RATIO");
 	if (!ect_dsr)
-		return;
+		return NULL;
 
 	dsr = ect_dsr->parameter[0];
 
 	/* size of dsu static power table is same as this domain */
-	dsu_spt = et_alloc_static_power_table(spt->row_size, spt->col_size);
+	dsu_spt = alloc_static_power_table(spt->volt.size, spt->temp.size);
 	if (!dsu_spt)
-		return;
+		return NULL;
 
-	et_copy_static_power_table(dsu_spt, spt);
+	copy_static_power_table(dsu_spt, spt);
 
-	for (row = 0; row < spt->row_size; row++) {
-		for (col = 0; col < spt->col_size; col++) {
-			int i = row * spt->col_size + col;
+	for (row = 0; row < spt->volt.size; row++) {
+		for (col = 0; col < spt->temp.size; col++) {
+			unsigned int orig_power = of_power(spt, row, col);
 
-			dsu_spt->power[i] = spt->power[i] * dsr / 100;
-			spt->power[i] = spt->power[i] * (100 - dsr) / 100;
+			of_power(spt, row, col) = orig_power * (100 - dsr) / 100;
+			of_power(dsu_spt, row, col) = orig_power * dsr / 100;
 		}
 	}
 
-	dsu_table->spt = dsu_spt;
+	return dsu_spt;
 }
 
-static struct static_power_table *
-__et_init_static_power_table(struct device_node *np)
+static struct static_power_table *init_sl_static_power_table(struct device_node *np,
+		struct static_power_table *spt)
 {
-	struct static_power_table *spt;
-	const char *ect_vt_name, *ect_a_name;
-	struct ect_gen_param_table *vt, *a;
-	int cal_id, ts, ag;
-	int row, i, cnt = 0;
+	struct static_power_table *sl_spt;
+	struct ect_gen_param_table *ect_cr, *ect_ccr, *ect_csr;
+	const char *buf[VENDOR_NR_CPUS];
+	int cr, ccr, csr;
+	int row, col;
+	int count, i;
 
-	if (of_property_read_u32(np, "cal-id", &cal_id) ||
-	    of_property_read_string(np, "ect-param-vt", &ect_vt_name) ||
-	    of_property_read_string(np, "ect-param-a", &ect_a_name))
+	np = of_find_node_by_name(np, "complex");
+	if (!np)
 		return NULL;
 
-	vt = et_ect_gen_param_table((char *)ect_vt_name);
-	a = et_ect_gen_param_table((char *)ect_a_name);
-	if (!vt || !a) {
-		pr_err("Failed to get coefficient table from ECT\n");
+	count = of_property_count_strings(np, "cpus");
+	if (!count)
+		return NULL;
+
+	ect_cr = get_ect_gen_param_table("COMPLEX_RATIO");
+	ect_ccr = get_ect_gen_param_table("COMPLEX_CORE_RATIO");
+	ect_csr = get_ect_gen_param_table("COMPLEX_SHARED_RATIO");
+	if (!ect_cr || !ect_ccr || !ect_csr)
+		return NULL;
+
+	cr = ect_cr->parameter[0];
+	ccr= ect_ccr->parameter[0];
+	csr = ect_csr->parameter[0];
+
+	sl_spt = alloc_static_power_table(spt->volt.size, spt->temp.size);
+	if (!sl_spt)
+		return NULL;
+
+	copy_static_power_table(sl_spt, spt);
+
+	for (row = 0; row < spt->volt.size; row++) {
+		for (col = 0; col < spt->temp.size; col++) {
+			unsigned long orig_power = of_power(spt, row, col);
+
+			/*
+			 * P(complex) = P(total) * complex_ratio / 100
+			 * P(complex-core) = P(complex) * complex_ccr / 100
+			 * P(complex-shared) = P(complex) * complex_shared_ratio / 100
+			 */
+			of_power(spt, row, col) = orig_power * cr * ccr / 10000;
+			of_power(sl_spt, row, col) = orig_power * cr * csr / 10000;
+		}
+	}
+
+	of_property_read_string_array(np, "cpus", buf, count);
+	for (i = 0; i < count; i++) {
+		struct cpumask mask;
+		int cpu;
+
+		cpulist_parse(buf[i], &mask);
+		for_each_cpu(cpu, &mask)
+			cpumask_copy(&per_cpu_et(cpu)->sl_cpus[cpu], &mask);
+	}
+
+	sl_spt->tz_dev = spt->tz_dev;
+
+	return sl_spt;
+}
+
+static void get_field_property_size(struct ect_gen_param_table *vt, int *volt_size, int *temp_size)
+{
+	int min, max;
+
+	min = vt->parameter[vt->num_of_col];
+	max = vt->parameter[(vt->num_of_row - 1) * vt->num_of_col];
+	*volt_size = (max - min) / UNIT_OF_VOLT + 1;
+
+	min = vt->parameter[1];
+	max = vt->parameter[vt->num_of_col - 1];
+	*temp_size = (max - min) / UNIT_OF_TEMP + 1;
+}
+
+static unsigned long calulate_static_power(int ag, int ids, int mV, int vt_c,
+		int ac_a, int ac_b, int ac_c)
+{
+	unsigned long long sp;
+	long long ratio;
+
+	ratio = (vt_c * ((ac_a * ag * ag) + (ac_b * ag) + ac_c));
+	sp = div64_u64(mV * ids * ratio, 10000000000);
+
+	return (unsigned long)sp;
+}
+
+static void fill_static_power_table(struct static_power_table *spt, struct ect_gen_param_table *vt,
+		struct ect_gen_param_table *a, int asv_grp, int ids)
+{
+	int row, col;
+	int i;
+
+	/* Fill voltage field */
+	spt->volt.min = vt->parameter[vt->num_of_col];
+	for (i = 0; i < spt->volt.size; i++)
+		spt->volt.list[i] = spt->volt.min + UNIT_OF_VOLT * i;
+
+	/* Fill temperature field */
+	spt->temp.min = vt->parameter[1];
+	for (i = 0; i < spt->temp.size; i++)
+		spt->temp.list[i] = spt->temp.min + UNIT_OF_TEMP * i;
+
+	for (row = 1; row < vt->num_of_row; row++) {
+		unsigned int volt = vt->parameter[row * vt->num_of_col];
+		int vi = find_nearest_index(&spt->volt, volt, UNIT_OF_VOLT);
+		int ac_a = a->parameter[row * a->num_of_col + 0];
+		int ac_b = a->parameter[row * a->num_of_col + 1];
+		int ac_c = a->parameter[row * a->num_of_col + 2];
+
+		for (col = 1; col < vt->num_of_col; col++) {
+			unsigned int temp = vt->parameter[col];
+			int ti = find_nearest_index(&spt->temp, temp, UNIT_OF_TEMP);
+
+			of_power(spt, vi, ti) = calulate_static_power(asv_grp, ids, volt,
+						vt->parameter[col + row * vt->num_of_col],
+						ac_a, ac_b, ac_c);
+		}
+	}
+
+	/* Fill the power values of volt/temp that are not in ECT by scaling */
+	for (row = 0; row < spt->volt.size; row++) {
+		if (of_power(spt, row, 0))
+			continue;
+
+		for (col = 0; col < spt->temp.size; col++) {
+			of_power(spt, row, col) =
+				(of_power(spt, row - 1, col) + of_power(spt, row + 1, col)) / 2;
+		}
+	}
+	for (col = 0; col < spt->temp.size; col++) {
+		if (of_power(spt, 0, col))
+			continue;
+
+		for (row = 0; row < spt->volt.size; row++) {
+			of_power(spt, row, col) =
+				(of_power(spt, row, col - 1) + of_power(spt, row, col + 1)) / 2;
+		}
+	}
+}
+
+static struct static_power_table *init_core_static_power_table(struct device_node *np)
+{
+	struct static_power_table *spt;
+	struct ect_gen_param_table *vt, *a;
+	const char *name;
+	int cal_id, asv_grp, ids;
+	int volt_size, temp_size;
+
+	/* Parse cal-id */
+	if (of_property_read_u32(np, "cal-id", &cal_id))
+		return NULL;
+
+	asv_grp = cal_asv_get_grp(cal_id);
+	if (asv_grp <= 0)
+		asv_grp = 8;		/* 8 = last group */
+
+	ids = cal_asv_get_ids_info(cal_id);
+	if (!ids)
+		ids = 73;		/* 73 = temporarily value */
+
+	/* Parse ect-param-vt */
+	if (of_property_read_string(np, "ect-param-vt", &name))
+		return NULL;
+	vt = get_ect_gen_param_table((char *)name);
+	if (!vt) {
+		pr_err("Failed to get volt-temp param table from ECT\n");
 		return NULL;
 	}
 
-	spt = et_alloc_static_power_table(vt->num_of_row - 1,
-					  vt->num_of_col - 1);
+	/* Parse ect-param-a */
+	if (of_property_read_string(np, "ect-param-a", &name))
+		return NULL;
+	a = get_ect_gen_param_table((char *)name);
+	if (!a) {
+		pr_err("Failed to get asv param table from ECT\n");
+		return NULL;
+	}
+
+	get_field_property_size(vt, &volt_size, &temp_size);
+
+	spt = alloc_static_power_table(volt_size, temp_size);
 	if (!spt)
 		return NULL;
 
-	ag = max(cal_asv_get_grp(cal_id), 0);
-	if (!ag)
-		ag = 8;		/* 8 = last group */
+	fill_static_power_table(spt, vt, a, asv_grp, ids);
 
-	ts = cal_asv_get_ids_info(cal_id);
-	if (!ts)
-		ts = 73;	/* 73 = temporarily value */
-
-	/* fill temperature field (row) */
-	for (row = 1; row < vt->num_of_row; row++)
-		spt->volt_field[row - 1] = vt->parameter[row * vt->num_of_col];
-
-	/* fill temperature field (column) */
-	for (i = 1; i < vt->num_of_col; i++)
-		spt->temp_field[i - 1] = vt->parameter[i];
-
-	for (row = 1; row < vt->num_of_row; row++) {
-		for (i = row * vt->num_of_col + 1; i < (row + 1) * vt->num_of_col; i++) {
-			unsigned int volt = vt->parameter[row * vt->num_of_col];
-
-			spt->power[cnt++] = et_calulate_static_power(ag,
-					ts, volt, vt->parameter[i],
-					a->parameter[row * a->num_of_col + 0],
-					a->parameter[row * a->num_of_col + 1],
-					a->parameter[row * a->num_of_col + 2]);
-		}
+	if (!of_property_read_string(np, "tz-name", &name)) {
+		spt->tz_dev = thermal_zone_get_zone_by_name(name);
+		if (IS_ERR_VALUE(spt->tz_dev))
+			spt->tz_dev = NULL;
 	}
 
 	return spt;
 }
 
-static void et_init_static_power_table(struct device_node *np,
-					struct energy_table *table)
+static void init_static_power_table(struct device_node *np, struct energy_table *table)
 {
 	struct static_power_table *spt;
-	const char *tz_name;
-	int  row, col, i;
 
-	/*
-	 * __et_init_static_power_table() fills static power with whole static
-	 * power for cpu domain. It must be divided by the value corresponding
-	 * to each CPU.
-	 */
-	spt = __et_init_static_power_table(np);
+	spt = init_core_static_power_table(np);
 	if (!spt)
 		return;
 
+	if (dsu_table && of_property_read_bool(np, "power-sharing-dsu"))
+		dsu_table->spt = init_dsu_static_power_table(spt);
+
+	table->sl_spt = init_sl_static_power_table(np, spt);
+	if (!table->sl_spt) {
+		int num_of_cpus = cpumask_weight(&table->cpus);
+		int row, col;
+
+		for (row = 0; row < spt->volt.size; row++)
+			for (col = 0; col < spt->temp.size; col++)
+				of_power(spt, row, col) /= num_of_cpus;
+	}
+
 	table->spt = spt;
+}
 
-	/* get thermal zone dev to get temperature */
-	if (!of_property_read_string(np, "tz-name", &tz_name))
-		spt->tz_dev = thermal_zone_get_zone_by_name(tz_name);
+void et_register_dsu_constraint(int cpu, void *p, int size)
+{
+	struct energy_table *table = per_cpu_et(cpu);
+	struct constraint *constraint = (struct constraint *)p;
+	struct constraint *new_constraint;
+	struct constraint **temp;
+	int i;
 
-	/* If this domain contains dsu, separate dsu from entire power */
-	if (table->power_sharing_dsu)
-		et_init_dsu_static_power_table(spt);
+	temp = kcalloc(table->nr_constraint + 1, sizeof(struct constraint *), GFP_KERNEL);
+	if (!temp)
+		return;
 
-	/*
-	 * If complex is supported, allocate shared logic static power table and
-	 * divide static power with complex ratio.
-	 */
-	if (table->cpt) {
-		struct static_power_table *sl_spt = NULL;
+	for (i = 0; i < table->nr_constraint; i++)
+		temp[i] = table->constraints[i];
 
-		sl_spt = et_alloc_static_power_table(spt->row_size, spt->col_size);
-		if (!sl_spt)
-			goto skip;
-
-		et_copy_static_power_table(sl_spt, spt);
-
-		for (row = 0; row < spt->row_size; row++) {
-			for (col = 0; col < spt->col_size; col++) {
-				unsigned long power;
-				i = row * spt->col_size + col;
-
-				power = spt->power[i];
-				/*
-				 * P(complex) = P(total) * complex_ratio / 100
-				 * P(complex-core) = P(complex) * complex_core_ratio / 100
-				 * P(complex-shared) = P(complex) * complex_shared_ratio / 100
-				 */
-				spt->power[i] = power * table->cpt->cr *
-						table->cpt->ccr / 10000;
-				sl_spt->power[i] = power * table->cpt->cr *
-						table->cpt->csr / 10000;
-			}
-		}
-
-		table->cpt->sl_spt = sl_spt;
+	new_constraint = kcalloc(size, sizeof(struct constraint), GFP_KERNEL);
+	if (!new_constraint) {
+		kfree(temp);
 		return;
 	}
 
-skip:
-	/*
-	 * et_init_static_power() fills static power with whole static
-	 * power for cpu domain. It divided by num of cpus.
-	 */
-	for (row = 0; row < spt->row_size; row++) {
-		for (col = 0; col < spt->col_size; col++) {
-			spt->power[row * spt->col_size + col]
-					/= cpumask_weight(&table->cpus);
-		}
-	}
-}
+	memcpy(new_constraint, constraint, sizeof(struct constraint) * size);
+	temp[table->nr_constraint] = new_constraint;
 
-static void et_init_dsu_table(struct energy_table *table, struct device *dev)
+	kfree(table->constraints);
+	table->constraints = temp;
+	table->nr_constraint++;
+}
+EXPORT_SYMBOL_GPL(et_register_dsu_constraint);
+
+void et_init_dsu_table(unsigned long *freq_table, unsigned int *volt_table, int size)
 {
 	int i;
 
-	if (!dsu_table)
-		return;
+	if (unlikely(!dsu_table))
+		pr_err("Failed to init dsu_table\n");
 
-	dsu_table->states = kcalloc(table->nr_states,
-				sizeof(struct energy_state), GFP_KERNEL);
+	dsu_table->states = kcalloc(size, sizeof(struct energy_state), GFP_KERNEL);
 	if (!dsu_table->states)
 		return;
 
-	dsu_table->nr_states = table->nr_states;
-	for (i = 0; i < dsu_table->nr_states; i++) {
-		unsigned long f_mhz, v;
+	dsu_table->nr_states = size;
 
-		f_mhz = table->states[i].frequency / 1000;		/* KHz -> MHz */
-		v = table->states[i].voltage;
-
-		/*
-		 * To get DSU frequency, it needs to register DSU freq table to
-		 * opp. Build DSU table with CPU table temporarily.
-		 */
-		dsu_table->states[i].frequency = table->states[i].frequency;
-		dsu_table->states[i].dynamic_power = et_dynamic_power(dsu_table, f_mhz, v);
-		dsu_table->states[i].voltage = v;
+	for (i = 0; i < size; i++) {
+		dsu_table->states[i].frequency = freq_table[i];
+		dsu_table->states[i].voltage = volt_table[i] / 1000;
 	}
 }
-
-#define DEFAULT_TEMP	85
+EXPORT_SYMBOL_GPL(et_init_dsu_table);
 
 /*
  * Whenever frequency domain is registered, and energy table corresponding to
@@ -1235,20 +1275,20 @@ void et_init_table(struct cpufreq_policy *policy)
 	struct energy_table *table;
 	struct device *dev;
 	struct cpufreq_frequency_table *cursor;
-	int table_size = 0, i, cpu = policy->cpu;
+	int table_size = 0, i = 0;
 
-	table = per_cpu_et(cpu);
+	table = per_cpu_et(policy->cpu);
 	if (unlikely(!table))
 		return;
 
-	dev = get_cpu_device(cpu);
+	dev = get_cpu_device(policy->cpu);
 	if (unlikely(!dev))
 		return;
 
 	/* Count valid frequency */
 	cpufreq_for_each_entry(cursor, policy->freq_table) {
 		if ((cursor->frequency > policy->cpuinfo.max_freq) ||
-		    (cursor->frequency < policy->cpuinfo.min_freq))
+				(cursor->frequency < policy->cpuinfo.min_freq))
 			continue;
 
 		table_size++;
@@ -1258,133 +1298,134 @@ void et_init_table(struct cpufreq_policy *policy)
 	if (!table_size)
 		return;
 
-	table->nr_states = table_size;
-	table->states = kcalloc(table_size,
-			sizeof(struct energy_state), GFP_KERNEL);
+	table->states = kcalloc(table_size, sizeof(struct energy_state), GFP_KERNEL);
 	if (!table->states)
 		return;
 
+	table->nr_states = table_size;
+
 	/* Fill the energy table with frequency, dynamic/static power and voltage */
-	i = 0;
 	cpufreq_for_each_entry(cursor, policy->freq_table) {
 		struct dev_pm_opp *opp;
-		unsigned long f_hz, f_mhz, v;
+		struct energy_state *state;
+		unsigned long f_hz;
 
 		if ((cursor->frequency > policy->cpuinfo.max_freq) ||
-		    (cursor->frequency < policy->cpuinfo.min_freq))
+				(cursor->frequency < policy->cpuinfo.min_freq))
 			continue;
 
-		f_mhz = cursor->frequency / 1000;		/* KHz -> MHz */
-		f_hz = cursor->frequency * 1000;		/* KHz -> Hz */
-
-		/* Get voltage from opp */
+		f_hz = cursor->frequency * 1000;
 		opp = dev_pm_opp_find_freq_ceil(dev, &f_hz);
-		v = dev_pm_opp_get_voltage(opp) / 1000;		/* uV -> mV */
 
-		table->states[i].frequency = cursor->frequency;
-		table->states[i].dynamic_power = et_dynamic_power(table, f_mhz, v);
-		table->states[i].static_power = et_static_power(table, v, DEFAULT_TEMP);
-		table->states[i].voltage = v;
-		i++;
+		state = &table->states[i++];
+		state->frequency = cursor->frequency;
+		state->voltage = dev_pm_opp_get_voltage(opp) / 1000;
+
+		state->dynamic_power = get_dynamic_power(state->frequency, state->voltage,
+				table->dynamic_coeff);
+		state->static_power = get_static_power(table->spt, state->voltage,
+				table->static_coeff, default_temp);
 	}
 
-	if (table->power_sharing_dsu)
-		et_init_dsu_table(table, dev);
-
-	et_update_capacity();
+	update_capacity();
 }
 
-static void et_init_dsu_data(void)
+static int init_cpu_data(struct device_node *np,
+			struct ect_gen_param_table *dp_coeff, int *nr_cluster)
+{
+	struct energy_table *table;
+	const char *buf;
+	int cpu, index;
+
+	table = kzalloc(sizeof(struct energy_table), GFP_KERNEL);
+	if (unlikely(!table))
+		return -ENOMEM;
+
+	if (of_property_read_string(np, "cpus", &buf))
+		goto fail;
+	cpulist_parse(buf, &table->cpus);
+
+	if (of_property_read_u32(np, "capacity-dmips-mhz", &table->mips_mhz_orig))
+		goto fail;
+
+	if (of_property_read_u32(np, "static-power-coefficient", &table->static_coeff))
+		goto fail;
+
+	if (dp_coeff && !of_property_read_u32(np, "ect-coeff-idx", &index))
+		table->dynamic_coeff_orig = dp_coeff->parameter[index];
+	else
+		of_property_read_u32(np, "dynamic-power-coefficient", &table->dynamic_coeff_orig);
+
+	cpumask_clear(&table->pd_cpus);
+	if (!of_property_read_string(np, "pd-cpus", &buf))
+		cpulist_parse(buf, &table->pd_cpus);
+
+	table->dynamic_coeff = table->dynamic_coeff_orig;
+	table->mips_mhz = table->mips_mhz_orig;
+
+	for_each_cpu(cpu, &table->cpus) {
+		per_cpu_et(cpu) = table;
+		ems_rq_cluster_idx(cpu_rq(cpu)) = *nr_cluster;
+	}
+	*nr_cluster = *nr_cluster + 1;
+
+	init_static_power_table(np, table);
+
+	return 0;
+
+fail:
+	kfree(table);
+	return -EINVAL;
+}
+
+static void init_dsu_data(void)
 {
 	struct device_node *np;
 	struct ect_gen_param_table *dp_coeff;
-	int index;
 	const char *buf;
+	int index;
 
 	np = of_find_node_by_path("/power-data/dsu");
 	if (!np)
 		return;
 
-	dp_coeff = et_ect_gen_param_table("DTM_PWR_Coeff");
-	if (!dp_coeff)
+	if (of_property_read_u32(np, "ect-coeff-idx", &index))
 		return;
 
-	if (of_property_read_u32(np, "ect-coeff-idx", &index) ||
-	    of_property_read_string(np, "power-sharing-cpus", &buf))
+	dp_coeff = get_ect_gen_param_table("DTM_PWR_Coeff");
+	if (!dp_coeff || !dp_coeff->parameter)
 		return;
 
-	dsu_table = kzalloc(sizeof(struct energy_table), GFP_KERNEL);
-	if (!dsu_table)
+	dsu_table = kzalloc(sizeof(struct dsu_energy_table), GFP_KERNEL);
+	if (unlikely(!dsu_table))
 		return;
 
 	dsu_table->dynamic_coeff = dp_coeff->parameter[index];
-	cpulist_parse(buf, &dsu_table->power_sharing_cpus);
+
+	cpumask_clear(&dsu_table->pd_cpus);
+	if (!of_property_read_string(np, "pd-cpus", &buf))
+		cpulist_parse(buf, &dsu_table->pd_cpus);
 }
 
-static int et_init_data(void)
+static int init_data(void)
 {
 	struct device_node *np, *child;
 	struct ect_gen_param_table *dp_coeff;
+	int nr_cluster = 0;
 
-	/* Initialize DSU power data, it is optional */
-	et_init_dsu_data();
+	/* DSU power data should be initialized before CPU */
+	init_dsu_data();
 
 	/* Initialize CPU power data */
 	np = of_find_node_by_path("/power-data/cpu");
 	if (!np)
 		return -ENODATA;
 
-	dp_coeff = et_ect_gen_param_table("DTM_PWR_Coeff");
+	dp_coeff = get_ect_gen_param_table("DTM_PWR_Coeff");
 
-	for_each_child_of_node(np, child) {
-		struct energy_table *table;
-		const char *buf;
-		int cpu, index;
-
-		if (of_property_read_string(child, "cpus", &buf))
-			continue;
-
-		table = kzalloc(sizeof(struct energy_table), GFP_KERNEL);
-		if (unlikely(!table))
-			continue;
-
-		cpulist_parse(buf, &table->cpus);
-
-
-		/* Read dmps/mhz and power coefficient from device tree */
-		of_property_read_u32(child, "capacity-dmips-mhz", &table->mips_mhz_orig);
-		table->mips_mhz = table->mips_mhz_orig;
-
-		of_property_read_u32(child, "static-power-coefficient", &table->static_coeff);
-
-		/*
-		 * Read dynamic power coefficient from ECT first, otherwise read
-		 * it from device tree.
-		 */
-		if (dp_coeff && !of_property_read_u32(child, "ect-coeff-idx", &index))
-			table->dynamic_coeff_orig = dp_coeff->parameter[index];
-		else
-			of_property_read_u32(child, "dynamic-power-coefficient",
-							&table->dynamic_coeff_orig);
-		table->dynamic_coeff = table->dynamic_coeff_orig;
-
-		/*
-		 * Read power sharing cpus(for single buck).
-		 * If cpu does not share power domain with other cpu,
-		 * table->power_sharing_cpus is empty.
-		 */
-		cpumask_clear(&table->power_sharing_cpus);
-		if (!of_property_read_string(child, "power-sharing-cpus", &buf))
-			cpulist_parse(buf, &table->power_sharing_cpus);
-		if (of_property_read_bool(child, "power-sharing-dsu"))
-			table->power_sharing_dsu = 1;
-
-		for_each_cpu(cpu, &table->cpus)
-			per_cpu_et(cpu) = table;
-
-		et_init_complex_power_table(child, table);
-		et_init_static_power_table(child, table);
-	}
+	for_each_child_of_node(np, child)
+		if (init_cpu_data(child, dp_coeff, &nr_cluster))
+			return -EINVAL;
 
 	of_node_put(np);
 
@@ -1397,24 +1438,22 @@ int et_init(struct kobject *ems_kobj)
 
 	energy_table = alloc_percpu(struct energy_table *);
 	if (!energy_table) {
-		pr_err("failed to allocate energy table\n");
+		pr_err("Failed to allocate energy table\n");
 		return -ENOMEM;
 	}
 
-	ret = et_init_data();
+	ret = init_data();
 	if (ret) {
-		pr_err("failed to initialize energy table\n");
+		kfree(energy_table);
+		pr_err("Failed to initialize energy table\n");
 		return ret;
 	}
 
-	if (sysfs_create_file(ems_kobj, &dev_attr_energy_table.attr))
-		pr_warn("%s: failed to create sysfs\n", __func__);
-	if (sysfs_create_file(ems_kobj, &dev_attr_dsu_energy_table.attr))
-		pr_warn("%s: failed to create sysfs\n", __func__);
-	if (sysfs_create_file(ems_kobj, &dev_attr_static_power_table.attr))
-		pr_warn("%s: failed to create sysfs\n", __func__);
+	if (sysfs_create_group(ems_kobj, &et_attr_group))
+		pr_err("failed to initialize energy_table sysfs\n");
 
 	emstune_register_notifier(&et_emstune_notifier);
 
 	return ret;
 }
+
