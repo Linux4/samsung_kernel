@@ -21,7 +21,7 @@
 #if defined(CONFIG_BATTERY_GKI)
 #include <linux/battery/sec_battery_common.h>
 #else
-#include "../../battery/common/sec_charging_common.h"
+#include <linux/battery/common/sb_psy.h>
 #endif
 #endif
 #if defined(CONFIG_SEC_KUNIT)
@@ -29,6 +29,12 @@
 #else
 #define __visible_for_testing static
 #endif
+
+enum {
+	VIB_NO_COMPEMSATION = 0,
+	VIB_COMPENSATION_WAY1,
+	VIB_COMPENSATION_WAY2,
+};
 
 static const int  kMaxBufSize = 7;
 static const int kMaxHapticStepSize = 7;
@@ -148,6 +154,7 @@ static int sec_vibrator_check_temp(struct sec_vibrator_drvdata *ddata)
 	return ret;
 }
 #endif
+
 __visible_for_testing int sec_vibrator_set_enable(struct sec_vibrator_drvdata *ddata, bool en)
 {
 	int ret = 0;
@@ -251,6 +258,7 @@ static void sec_vibrator_haptic_enable(struct sec_vibrator_drvdata *ddata)
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	sec_vibrator_check_temp(ddata);
 #endif
+
 	sec_vibrator_set_frequency(ddata, ddata->frequency);
 	sec_vibrator_set_intensity(ddata, ddata->intensity);
 	sec_vibrator_set_enable(ddata, true);
@@ -294,6 +302,8 @@ static void sec_vibrator_engine_run_packet(struct sec_vibrator_drvdata *ddata, s
 	int frequency = packet.freq;
 	int intensity = packet.intensity;
 	int overdrive = packet.overdrive;
+	int fifo =  packet.fifo_flag;
+	int file_num = 0;
 
 	if (!ddata) {
 		pr_err("%s : ddata is NULL\n", __func__);
@@ -305,15 +315,38 @@ static void sec_vibrator_engine_run_packet(struct sec_vibrator_drvdata *ddata, s
 		return;
 	}
 
+	if (fifo == 0)
+		pr_info("%s [%d] freq:%d, intensity:%d, time:%d overdrive: %d\n",
+		__func__, ddata->packet_cnt, frequency, intensity,
+		ddata->timeout, overdrive);
+	else
+		pr_info("%s [%d] fifo num:%d, intensity:%d, time:%d overdrive: %d\n",
+		__func__, ddata->packet_cnt, frequency, intensity,
+		ddata->timeout, overdrive);
+
 	sec_vibrator_set_overdrive(ddata, overdrive);
-	sec_vibrator_set_frequency(ddata, frequency);
+	if (fifo == 0)
+		sec_vibrator_set_frequency(ddata, frequency);
+	else
+		file_num = frequency;
+
 	if (intensity) {
-		sec_vibrator_set_intensity(ddata, intensity);
-		if (!ddata->packet_running) {
-			pr_info("[haptic engine] motor run\n");
-			sec_vibrator_set_enable(ddata, true);
+		if (fifo == 0) {
+			sec_vibrator_set_intensity(ddata, intensity);
+			if (!ddata->packet_running) {
+				pr_info("[haptic engine] motor run\n");
+				sec_vibrator_set_enable(ddata, true);
+				ddata->packet_running = true;
+			} else if (ddata->vib_ops->update_packet_params) {
+				pr_info("motor running, parameters update\n");
+				ddata->vib_ops->update_packet_params(ddata->dev);
+			}
+		} else {
+			ddata->vib_ops->set_fifo_intensity(ddata->dev, intensity);
+			ddata->packet_running = false;
+			sec_vibrator_set_enable(ddata, false);
+			ddata->vib_ops->enable_fifo(ddata->dev, file_num);
 		}
-		ddata->packet_running = true;
 	} else {
 		if (ddata->packet_running) {
 			pr_info("[haptic engine] motor stop\n");
@@ -323,8 +356,7 @@ static void sec_vibrator_engine_run_packet(struct sec_vibrator_drvdata *ddata, s
 		sec_vibrator_set_intensity(ddata, intensity);
 	}
 
-	pr_info("%s [%d] freq:%d, intensity:%d, time:%d overdrive: %d\n",
-		__func__, ddata->packet_cnt, frequency, intensity, ddata->timeout, overdrive);
+	pr_info("%s end\n", __func__);
 }
 
 static void timed_output_enable(struct sec_vibrator_drvdata *ddata, unsigned int value)
@@ -388,6 +420,7 @@ static void sec_vibrator_work(struct kthread_work *work)
 {
 	struct sec_vibrator_drvdata *ddata;
 	struct hrtimer *timer;
+	int fifo = 0;
 
 	if (!work) {
 		pr_err("%s : work is NULL\n", __func__);
@@ -408,14 +441,23 @@ static void sec_vibrator_work(struct kthread_work *work)
 		return;
 	}
 
+	pr_info("%s\n", __func__);
 	mutex_lock(&ddata->vib_mutex);
 
 	if (ddata->f_packet_en) {
 		ddata->packet_cnt++;
 		if (ddata->packet_cnt < ddata->packet_size) {
 			ddata->timeout = ddata->vib_pac[ddata->packet_cnt].time;
-			sec_vibrator_engine_run_packet(ddata, ddata->vib_pac[ddata->packet_cnt]);
-			hrtimer_start(timer, ns_to_ktime((u64)ddata->timeout * NSEC_PER_MSEC), HRTIMER_MODE_REL);
+			fifo = ddata->vib_pac[ddata->packet_cnt].fifo_flag;
+			if (fifo == 0) {
+				sec_vibrator_engine_run_packet(ddata, ddata->vib_pac[ddata->packet_cnt]);
+				hrtimer_start(timer, ns_to_ktime((u64)ddata->timeout * NSEC_PER_MSEC),
+				HRTIMER_MODE_REL);
+			} else {
+				hrtimer_start(timer, ns_to_ktime((u64)ddata->timeout * NSEC_PER_MSEC),
+				HRTIMER_MODE_REL);
+				sec_vibrator_engine_run_packet(ddata, ddata->vib_pac[ddata->packet_cnt]);
+			}
 			goto unlock_without_vib_off;
 		} else {
 			ddata->f_packet_en = false;
@@ -452,6 +494,162 @@ __visible_for_testing inline bool is_valid_params(struct device *dev, struct dev
 	return true;
 }
 
+__visible_for_testing ssize_t default_duty_store(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int default_duty = 0, ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	ret = kstrtoint(buf, 0, &default_duty);
+	if (ret) {
+		pr_err("%s : fail to get default_duty\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("%s %d\n", __func__, default_duty);
+
+	if ((default_duty < 0) || (default_duty > MAX_DUTY)) {
+		pr_err("[VIB]: %s out of range\n", __func__);
+		return -EINVAL;
+	}
+
+	if (ddata->vib_ops->set_default_duty) {
+		ret = ddata->vib_ops->set_default_duty(ddata->dev, default_duty);
+		if (ret) {
+			pr_err("%s set_default_duty error : %d\n", __func__, ret);
+			goto err;
+		}
+	} else {
+		pr_info("%s this model doesn't need set_default_duty\n", __func__);
+	}
+
+err:
+	return ret ? ret : count;
+}
+
+__visible_for_testing ssize_t default_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	if (!ddata->vib_ops->get_default_duty)
+		return snprintf(buf, VIB_BUFSIZE, "NONE\n");
+
+	ret = ddata->vib_ops->get_default_duty(ddata->dev, buf);
+
+	return ret;
+}
+
+__visible_for_testing ssize_t fold_open_duty_store(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int fold_open_duty = 0, ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	ret = kstrtoint(buf, 0, &fold_open_duty);
+	if (ret) {
+		pr_err("%s : fail to get fold_open_duty\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("%s %d\n", __func__, fold_open_duty);
+
+	if ((fold_open_duty < 0) || (fold_open_duty > MAX_DUTY)) {
+		pr_err("[VIB]: %s out of range\n", __func__);
+		return -EINVAL;
+	}
+
+	if (ddata->vib_ops->set_fold_open_duty) {
+		ret = ddata->vib_ops->set_fold_open_duty(ddata->dev, fold_open_duty);
+		if (ret) {
+			pr_err("%s set_fold_open_duty error : %d\n", __func__, ret);
+			goto err;
+		}
+	} else {
+		pr_info("%s this model doesn't need set_fold_open_duty\n", __func__);
+	}
+
+err:
+	return ret ? ret : count;
+}
+
+__visible_for_testing ssize_t fold_open_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	if (!ddata->vib_ops->get_fold_open_duty)
+		return snprintf(buf, VIB_BUFSIZE, "NONE\n");
+
+	ret = ddata->vib_ops->get_fold_open_duty(ddata->dev, buf);
+
+	return ret;
+}
+
+__visible_for_testing ssize_t fold_close_duty_store(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int fold_close_duty = 0, ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	ret = kstrtoint(buf, 0, &fold_close_duty);
+	if (ret) {
+		pr_err("%s : fail to get fold_close_duty\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("%s %d\n", __func__, fold_close_duty);
+
+	if ((fold_close_duty < 0) || (fold_close_duty > MAX_DUTY)) {
+		pr_err("[VIB]: %s out of range\n", __func__);
+		return -EINVAL;
+	}
+
+	if (ddata->vib_ops->set_fold_close_duty) {
+		ret = ddata->vib_ops->set_fold_close_duty(ddata->dev, fold_close_duty);
+		if (ret) {
+			pr_err("%s set_fold_close_duty error : %d\n", __func__, ret);
+			goto err;
+		}
+	} else {
+		pr_info("%s this model doesn't need set_fold_close_duty\n", __func__);
+	}
+
+err:
+	return ret ? ret : count;
+}
+
+__visible_for_testing ssize_t fold_close_duty_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int ret = 0;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+
+	if (!ddata->vib_ops->get_fold_close_duty)
+		return snprintf(buf, VIB_BUFSIZE, "NONE\n");
+
+	ret = ddata->vib_ops->get_fold_close_duty(ddata->dev, buf);
+
+	return ret;
+}
+
 __visible_for_testing ssize_t intensity_store(struct device *dev, struct device_attribute *attr,
 	const char *buf, size_t count)
 {
@@ -486,6 +684,47 @@ __visible_for_testing ssize_t intensity_show(struct device *dev, struct device_a
 	if (!is_valid_params(dev, attr, buf, ddata))
 		return -ENODATA;
 	return snprintf(buf, VIB_BUFSIZE, "intensity: %u\n", ddata->intensity);
+}
+
+static ssize_t fifo_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = (struct sec_vibrator_drvdata *) dev_get_drvdata(dev);
+	int ret;
+	int file_num;
+
+	pr_info("%s +\n", __func__);
+
+	ret = kstrtoint(buf, 0, &file_num);
+	if (ret) {
+		pr_err("fail to get file_num\n");
+		return -EINVAL;
+	}
+
+	if (!ddata->vib_ops->enable_fifo || !ddata->vib_ops->set_fifo_intensity) {
+		pr_err("fifo functionality doesn't support\n");
+		return -EOPNOTSUPP;
+	}
+
+	ret = ddata->vib_ops->set_fifo_intensity(ddata->dev, 10000);
+	ret = ddata->vib_ops->enable_fifo(ddata->dev, file_num);
+
+	pr_info("%s -\n", __func__);
+	return count;
+}
+
+static ssize_t fifo_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = (struct sec_vibrator_drvdata *)
+		dev_get_drvdata(dev);
+	int ret = 0;
+
+	if (!ddata->vib_ops->get_fifo_filepath)
+		return snprintf(buf, VIB_BUFSIZE, "NONE\n");
+
+	ret = ddata->vib_ops->get_fifo_filepath(ddata->dev, buf);
+
+	return ret;
 }
 
 __visible_for_testing ssize_t multi_freq_store(struct device *dev, struct device_attribute *attr,
@@ -591,6 +830,136 @@ __visible_for_testing ssize_t haptic_engine_show(struct device *dev, struct devi
 		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", ddata->vib_pac[index].intensity);
 		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", ddata->vib_pac[index].freq);
 		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", ddata->vib_pac[index].overdrive);
+	}
+
+	return size;
+}
+
+static ssize_t hybrid_haptic_engine_store(struct device *dev,
+	struct device_attribute *devattr, const char *buf, size_t count)
+{
+	struct sec_vibrator_drvdata *ddata = (struct sec_vibrator_drvdata *)
+		dev_get_drvdata(dev);
+	int i = 0, _data = 0, tmp = 0, check_fifo = 0, origin_time = 0;
+	int way1_cmp_sum = 0, way2_cmp_sum = 0;
+	int normal_pac_time_sum = 0;
+	int compensation_way = VIB_NO_COMPEMSATION;
+
+	pr_info("%s +\n", __func__);
+	if (sscanf(buf, "%6d", &_data) != 1)
+		return count;
+
+	if (_data > PACKET_MAX_SIZE * VIB_PACKET_MAX)
+		pr_info("%s, [%d] packet size over\n", __func__, _data);
+	else {
+		ddata->packet_size = _data / VIB_PACKET_MAX;
+		ddata->packet_cnt = 0;
+		ddata->f_packet_en = true;
+
+		buf = strstr(buf, " ");
+
+		for (i = 0; i < ddata->packet_size; i++) {
+			check_fifo = 0;
+			for (tmp = 0; tmp < VIB_PACKET_MAX; tmp++) {
+				if (buf == NULL) {
+					pr_err("%s, buf is NULL, Please check packet data again\n",
+							__func__);
+					ddata->f_packet_en = false;
+					return count;
+				}
+
+				if (*(buf+1) == '#') {
+					buf = buf+2;
+					if ((*buf != '\0') && (sscanf(buf++, "%6d", &_data) == 1))
+						check_fifo = 1;
+				}
+
+				else if (sscanf(buf++, "%6d", &_data) != 1) {
+					pr_err("%s, packet data error, Please check packet data again\n",
+							__func__);
+					ddata->f_packet_en = false;
+					return count;
+				}
+
+				switch (tmp) {
+				case VIB_PACKET_TIME:
+					ddata->vib_pac[i].time = _data;
+					break;
+				case VIB_PACKET_INTENSITY:
+					ddata->vib_pac[i].intensity = _data;
+					break;
+				case VIB_PACKET_FREQUENCY:
+					ddata->vib_pac[i].freq = _data;
+					if (check_fifo == 0) {
+						ddata->vib_pac[i].fifo_flag = 0;
+						if (ddata->time_compensation && ddata->max_delay_ms) {
+							origin_time = ddata->vib_pac[i].time;
+							normal_pac_time_sum += origin_time;
+							way1_cmp_sum += (origin_time*ddata->time_compensation)/100;
+							way2_cmp_sum += ddata->max_delay_ms;
+						}
+					} else
+						ddata->vib_pac[i].fifo_flag = 1;
+					break;
+				case VIB_PACKET_OVERDRIVE:
+					ddata->vib_pac[i].overdrive = _data;
+					break;
+				}
+				buf = strstr(buf, " ");
+			}
+		}
+
+		if (ddata->time_compensation == 0 || way2_cmp_sum <= ddata->max_delay_ms) {
+			compensation_way = VIB_NO_COMPEMSATION;
+		} else if (way1_cmp_sum < way2_cmp_sum) {
+			compensation_way = VIB_COMPENSATION_WAY1;
+			pr_info("%s compensation way1:way1_cmp_sum=%d\n",
+				__func__, way1_cmp_sum);
+		} else {
+			compensation_way = VIB_COMPENSATION_WAY2;
+			pr_info("%s compensation way2:way2_cmp_sum=%d,normal_pac_time_sum=%d\n",
+				__func__, way2_cmp_sum, normal_pac_time_sum);
+		}
+
+		for (i = 0; i < ddata->packet_size; i++) {
+			if (ddata->vib_pac[i].fifo_flag == 1) {
+				pr_info("%s i=%d, file=%d time=%d intensity=%d\n", __func__, i,
+					ddata->vib_pac[i].freq,
+					ddata->vib_pac[i].time,
+					ddata->vib_pac[i].intensity);
+				continue;
+			}
+			origin_time = ddata->vib_pac[i].time;
+			if (compensation_way == VIB_COMPENSATION_WAY1)
+				ddata->vib_pac[i].time -= (origin_time*ddata->time_compensation)/100;
+			else if (compensation_way == VIB_COMPENSATION_WAY2 && normal_pac_time_sum != 0)
+				ddata->vib_pac[i].time -= (way2_cmp_sum*origin_time)/normal_pac_time_sum;
+
+			pr_info("%s i=%d, origin_time=%d->time=%d intensity=%d freq=%d\n",
+				__func__, i, origin_time,
+				ddata->vib_pac[i].time,
+				ddata->vib_pac[i].intensity,
+				ddata->vib_pac[i].freq);
+		}
+	}
+	pr_info("%s -\n", __func__);
+	return count;
+}
+
+static ssize_t hybrid_haptic_engine_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct sec_vibrator_drvdata *ddata = (struct sec_vibrator_drvdata *)
+		dev_get_drvdata(dev);
+	int i = 0;
+	size_t size = 0;
+
+	for (i = 0; i < ddata->packet_size && ddata->f_packet_en &&
+			((4 * VIB_BUFSIZE + size) < PAGE_SIZE); i++) {
+		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", ddata->vib_pac[i].time);
+		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", ddata->vib_pac[i].intensity);
+		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", ddata->vib_pac[i].freq);
+		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", ddata->vib_pac[i].overdrive);
 	}
 
 	return size;
@@ -1080,7 +1449,7 @@ __visible_for_testing ssize_t event_cmd_store(struct device *dev,
 	if (!ddata->vib_ops->set_event_cmd)
 		return -ENOSYS;
 
-	if (count > MAX_STR_LEN_EVENT_CMD) {
+	if (count >= MAX_STR_LEN_EVENT_CMD) {
 		pr_err("%s: size(%zu) is too long.\n", __func__, count);
 		goto error;
 	}
@@ -1118,9 +1487,14 @@ static DEVICE_ATTR_RW(pwle);
 static DEVICE_ATTR_RO(virtual_composite_indexes);
 static DEVICE_ATTR_RO(virtual_pwle_indexes);
 static DEVICE_ATTR_RW(enable);
+static DEVICE_ATTR_RW(default_duty);
+static DEVICE_ATTR_RW(fold_open_duty);
+static DEVICE_ATTR_RW(fold_close_duty);
 static DEVICE_ATTR_RO(motor_type);
 static DEVICE_ATTR_WO(use_sep_index);
 static DEVICE_ATTR_RW(current_temp);
+static DEVICE_ATTR_RW(fifo);
+static DEVICE_ATTR_RW(hybrid_haptic_engine);
 static DEVICE_ATTR_RO(num_waves);
 static DEVICE_ATTR_RO(intensities);
 static DEVICE_ATTR_RO(haptic_intensities);
@@ -1129,9 +1503,14 @@ static DEVICE_ATTR_RW(event_cmd);
 
 static struct attribute *sec_vibrator_attributes[] = {
 	&dev_attr_enable.attr,
+	&dev_attr_default_duty.attr,
+	&dev_attr_fold_open_duty.attr,
+	&dev_attr_fold_close_duty.attr,
 	&dev_attr_motor_type.attr,
 	&dev_attr_use_sep_index.attr,
 	&dev_attr_current_temp.attr,
+	&dev_attr_fifo.attr,
+	&dev_attr_hybrid_haptic_engine.attr,
 	NULL,
 };
 

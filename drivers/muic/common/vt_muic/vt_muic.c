@@ -368,8 +368,19 @@ static int vt_muic_set_hiccup_cb(void *data, int en)
 	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
 	int ret = 0;
 
-	if (ic_data && ic_data->m_ops.set_hiccup)
-		ret = ic_data->m_ops.set_hiccup(ic_data->mdata, en);
+	if (ic_data && ic_data->m_ops.set_hiccup_mode)
+		ret = ic_data->m_ops.set_hiccup_mode(ic_data->mdata, en);
+
+	return ret;
+}
+
+static int vt_muic_set_hiccup_mode_cb(int en)
+{
+	struct vt_muic_ic_data *ic_data = vt_muic.ic_data;
+	int ret = 0;
+
+	if (ic_data && ic_data->m_ops.set_hiccup_mode)
+		ret = ic_data->m_ops.set_hiccup_mode(ic_data->mdata, en);
 
 	return ret;
 }
@@ -383,6 +394,13 @@ static void vt_muic_fill_muic_sysfs_cb(struct muic_platform_data *pdata)
 	pdata->sysfs_cb.set_afc_disable = vt_muic_set_afc_disable_cb;
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 	pdata->sysfs_cb.set_hiccup = vt_muic_set_hiccup_cb;
+#endif
+}
+
+static void vt_muic_fill_muic_cb(struct muic_platform_data *pdata)
+{
+#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
+	pdata->muic_set_hiccup_mode_cb = vt_muic_set_hiccup_mode_cb;
 #endif
 }
 #endif
@@ -531,6 +549,7 @@ static int vt_muic_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_MUIC_COMMON_SYSFS
 	vt_muic_fill_muic_sysfs_cb(vt_muic.muic_pdata);
+	vt_muic_fill_muic_cb(vt_muic.muic_pdata);
 
 	ret = muic_sysfs_init(vt_muic.muic_pdata);
 	if (ret) {

@@ -6,7 +6,7 @@
 #ifndef __IMX582_SENSOR_SETFILE_H__
 #define __IMX582_SENSOR_SETFILE_H__
 
-/* setfile: IMX582_SEC-MTK-DPHY-26MHz_RegisterSetting_ver4.00-6.10_b3_MP_221021.xlsx */
+/* setfile: IMX582_SEC-MTK-DPHY-26MHz_RegisterSetting_ver4.00-6.10_b3_MP_230203_DPCon.xlsx */
 #include "imx582mipiraw_Sensor.h"
 
 static kal_uint16 imx582_init_setting[] = {

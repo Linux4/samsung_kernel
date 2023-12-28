@@ -113,6 +113,8 @@
 		battery,mix_high_chg_temp = <500>;
 		battery,mix_high_temp_recovery = <390>;
 
+		/* battery,usb_conn_slope_avg = <9>; */
+
 		/* battery,enable_mix_v2; */
 		/* if you want to use mix_v2 concept, add "battery,enable_mix_v2;" */
 		battery,mix_v2_lrp_recov = <460>;
@@ -138,7 +140,6 @@
 		battery,pre_wc_afc_work_delay = <4000>;
 		battery,pre_afc_input_current = <500>;
 		battery,pre_wc_afc_input_current = <500>;
-		battery,prepare_ta_delay = <0>; /* msec */
 
 		battery,swelling_high_rechg_voltage = <4000>;
 		battery,swelling_low_rechg_voltage = <4000>;
@@ -176,12 +177,26 @@
 		battery,wireless_cc_cv = <85>;
 		battery,wireless_otg_input_current = <900>;
 
+		/* Calculate Based on Offsets from float voltage, full_condition_vcell and recharge_condition_vcell */
+		/* if you want to use age_data_by_offset concept add battery,age_data_by_offset; */
+
+		battery,age_data_cycle = <0 300 400 700 1000>;
+		battery,age_data_full_condition_soc = <93 92 91 90 89>;
+		battery,age_data_chg_float_voltage_offset = <0 20 40 60 110>;
+		battery,age_data_full_condition_vcell_offset = <0 20 40 60 110>;
+		battery,age_data_recharge_condition_vcell_offset = <0 20 40 60 110>;
+		/* battery,age_data_max_charging_current_offset = <0 100 200 300 400>; */
+
 		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc, step charging condition */
 		battery,age_data = <0 4350 4280 4250 93
 			300 4330 4260 4230 92
 			400 4310 4240 4210 91
 			700 4290 4220 4190 90
 			1000 4240 4170 4140 89>;
+
+
+		battery,health_condition_cycle = <900 1200 1500>;
+		battery,health_condition_asoc = <0 0 0>; /* Default ASOC Disabled */
 
 		battery,max_input_voltage = <9000>; /* mV */
 		battery,max_input_current = <3000>;  /* mA */
@@ -319,7 +334,8 @@
 	 *  38	CABLE_PDIC_APDO,
 	 *  39  CABLE_POGO,
 	 *  40  CABLE_POGO_9V,
-	 *  41	CABLE_MAX,
+	 *  41  FPDO_DC,
+	 *  42	CABLE_MAX,
 	 */
 	sec_battery_cable: cable-info {
 		default_input_current = <1800>;
@@ -424,11 +440,11 @@
 		};
 	};
 	sec_battery_wireless_power_info: wireless-power-info {
-		count = <5>;
+		count = <9>;
 		current_group_0 {
 			wireless_power_class = <2>;
 			vout = <9000>;
-			input_current_limit = <825>;
+			input_current_limit = <830>;
 			fast_charging_current = <3150>;
 			ttf_charge_current = <1500>;
 			rx_power = <7500>;
@@ -443,24 +459,56 @@
 		};
 		current_group_2 {
 			wireless_power_class = <2>;
+			vout = <11000>;
+			input_current_limit = <680>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <1500>;
+			rx_power = <7500>;
+		};
+		current_group_3 {
+			wireless_power_class = <2>;
+			vout = <12000>;
+			input_current_limit = <625>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <1500>;
+			rx_power = <7500>;
+		};
+		current_group_4 {
+			wireless_power_class = <2>;
 			vout = <9000>;
-			input_current_limit = <1200>;
+			input_current_limit = <1330>;
 			fast_charging_current = <3150>;
 			ttf_charge_current = <2175>;
 			rx_power = <12000>;
 		};
-		current_group_3 {
+		current_group_5 {
 			wireless_power_class = <2>;
 			vout = <11000>;
-			input_current_limit = <1100>;
+			input_current_limit = <1090>;
 			fast_charging_current = <3150>;
 			ttf_charge_current = <2100>;
 			rx_power = <12000>;
 		};
-		current_group_4 {
+		current_group_6 {
+			wireless_power_class = <2>;
+			vout = <12000>;
+			input_current_limit = <1000>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2100>;
+			rx_power = <12000>;
+		};
+		current_group_7 {
 			wireless_power_class = <2>;
 			vout = <11000>;
-			input_current_limit = <1300>;
+			input_current_limit = <1360>;
+			fast_charging_current = <3150>;
+			ttf_charge_current = <2300>;
+			rx_power = <15000>;
+		};
+		current_group_8 {
+			wireless_power_class = <2>;
+			vout = <12000>;
+			input_current_limit = <1250>;
 			fast_charging_current = <3150>;
 			ttf_charge_current = <2300>;
 			rx_power = <15000>;
@@ -480,6 +528,7 @@
 
 		battery,chip_vendor = "MTK";
 
+		battery,adc_read_type = <SEC_BATTERY_ADC_RAW>;
 		battery,temp_check_type = <SEC_BATTERY_TEMP_CHECK_ADC>;
 		battery,chg_temp_check_type = <SEC_BATTERY_TEMP_CHECK_ADC>;
 		battery,dchg_temp_check_type = <SEC_BATTERY_TEMP_CHECK_TEMP>;
@@ -580,13 +629,6 @@
 			600 4400 4330 4350 91
 			1001 4330 4260 4280 89>;
 
-		battery,health_condition = <
-			/* CYCLE ASOC */
-			900 0  /* GOOD */
-			1200 0 /* NORMAL */
-			1500 0 /* AGED */
-			>;
-
 		/* direct step charging option */
 		battery,dc_step_chg_type = <0xE9>;
 		battery,dc_step_chg_charge_power = <22000>;
@@ -616,6 +658,7 @@
 		battery,inbat_ocv_type =  <SEC_BATTERY_OCV_VOLT_FROM_PMIC>;
 		battery,slowcharging_usb_bootcomplete;
 		battery,dynamic_cv_factor;
+		battery,change_FV_after_full = <4420>;
 
 		battery,ttf_hv_charge_current = <2085>;
 		battery,ttf_dc25_charge_current = <3600>;
@@ -632,6 +675,8 @@
 				554	990	93
 				517	1000	0
 					>;
+
+		battery,boosting_voltage_aicl;
 };
 
 &sec_battery_cable {

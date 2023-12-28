@@ -674,6 +674,29 @@ static int mtk_charger_get_charge_type(struct mtk_charger_data *charger)
 	return charge_type;
 }
 
+static void mtk_charger_check_aicl(struct mtk_charger_data *charger)
+{
+	union power_supply_propval value = {0, };
+	unsigned int charge_type = 0;
+	int ret = 0;
+
+	if (is_wired_type(charger->cable_type)) {
+		ret = charger_dev_get_charge_type(charger->chg_dev, &charge_type);
+		if (ret < 0)
+			pr_err("[DEBUG]%s: failed to get charge type\n", __func__);
+		else
+			pr_info("[DEBUG]%s: charge type: %d\n", __func__, charge_type);
+
+		if ((charge_type == POWER_SUPPLY_CHARGE_TYPE_SLOW) ||
+			(charge_type == POWER_SUPPLY_CHARGE_TYPE_TRICKLE)) {
+			charger->slow_charging = true;
+			pr_info("%s: slow-charging mode\n", __func__);
+			psy_do_property("battery", set, POWER_SUPPLY_PROP_CHARGE_TYPE, value);
+		}
+	}
+
+}
+
 static bool mtk_charger_get_batt_present(struct mtk_charger_data *charger)
 {
 	return true;
@@ -769,6 +792,8 @@ static int mtk_charger_chg_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_MONITOR_WORK:
 			mtk_charger_test_read(charger);
+			if (charger->pdata->boosting_voltage_aicl)
+				mtk_charger_check_aicl(charger); /* cannot detect aicl irq, so need polling*/
 			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_VSYS:
 			val->intval = mtk_charger_get_vsys_voltage(charger);
@@ -1190,6 +1215,9 @@ static int mtk_charger_parse_dt(struct device *dev,
 		}
 		pr_info("%s: battery,chg_float_voltage is %d\n",
 				__func__, pdata->chg_float_voltage);
+
+		pdata->boosting_voltage_aicl = of_property_read_bool(np,
+				"battery,boosting_voltage_aicl");
 	}
 
 	pr_info("%s DT file parsed successfully, %d\n", __func__, ret);

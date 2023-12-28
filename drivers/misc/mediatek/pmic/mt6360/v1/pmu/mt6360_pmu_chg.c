@@ -109,7 +109,7 @@ struct mt6360_pmu_chg_info {
 	struct notifier_block pd_nb;
 	bool is_host;
 	bool is_in_hardreset;
-	int is_in_hardreset_count;
+	struct delayed_work hardreset_work;
 #else
 	struct work_struct chgdet_work;
 #endif /* CONFIG_TCPC_CLASS */
@@ -213,7 +213,8 @@ static inline u32 mt6360_trans_sel(u32 target, u32 min_val, u32 step,
 
 static u32 mt6360_trans_ichg_sel(u32 uA)
 {
-	return mt6360_trans_sel(uA, 100000, 100000, 0x31);
+	/* return mt6360_trans_sel(uA, 100000, 100000, 0x31); */
+	return mt6360_trans_sel(uA, 100000, 100000, 0x1D); // ALPS07902899 limit ichg as 3A
 }
 
 static u32 mt6360_trans_aicr_sel(u32 uA)
@@ -895,19 +896,19 @@ out:
 static int mt6360_chgdet_pre_process(struct mt6360_pmu_chg_info *mpci)
 {
 	int ret = 0;
-	bool attach = false;	
+	bool attach = false;
 	struct device *dev = NULL;
 	struct device_node *boot_node = NULL;
 	struct tag_bootmode *tag = NULL;
 	int boot_mode = 11;//UNKNOWN_BOOT
-	
+
 #ifdef CONFIG_TCPC_CLASS
 	attach = mpci->tcpc_attach;
 #else
 	attach = mpci->pwr_rdy;
 #endif /* CONFIG_TCPC_CLASS */
-	
-// workaround for mt6768 
+
+// workaround for mt6768
 	dev = mpci->dev;
 	if (dev != NULL){
 		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
@@ -962,6 +963,28 @@ static int mt6360_toggle_usbchgen(struct mt6360_pmu_chg_info *mpci)
 }
 #endif
 
+static void mt6360_in_hardreset_handler(struct work_struct *work)
+{
+	struct mt6360_pmu_chg_info *mpci = container_of(work,
+					struct mt6360_pmu_chg_info, hardreset_work.work);
+
+	dev_info(mpci->dev, "%s\n", __func__);
+	mpci->is_in_hardreset = false;
+}
+
+static void mt6360_set_is_in_hardreset(struct mt6360_pmu_chg_info *mpci, bool in_hardreset)
+{
+	dev_info(mpci->dev, "%s: set %u\n", __func__, in_hardreset);
+
+	if(mpci->is_in_hardreset) {
+		cancel_delayed_work(&mpci->hardreset_work);
+		schedule_delayed_work(&mpci->hardreset_work, msecs_to_jiffies(10000));
+	} else
+		cancel_delayed_work(&mpci->hardreset_work);
+
+	mpci->is_in_hardreset = in_hardreset;
+}
+
 #if defined(CONFIG_BATTERY_SAMSUNG)
 static int mt6360_bc12_nsdp_workaround(struct mt6360_pmu_chg_info *mpci)
 {
@@ -1014,9 +1037,7 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 #ifdef CONFIG_TCPC_CLASS
 	else if (mpci->is_in_hardreset &&
 			(mpci->chg_type == CHARGER_UNKNOWN)) {
-		mpci->is_in_hardreset_count++;
-		dev_info(mpci->dev, "%s: is_in_hardreset[%d]\n",
-					__func__, mpci->is_in_hardreset_count);
+		dev_info(mpci->dev, "%s: is_in_hardreset\n", __func__);
 		mpci->attach = false;
 		return mt6360_toggle_usbchgen(mpci);
 	}
@@ -1062,6 +1083,12 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 #ifdef MT6360_APPLE_SAMSUNG_TA_SUPPORT
 	if (mpci->chg_type == NONSTANDARD_CHARGER) {
 		dev_info(mpci->dev, "%s: call mt6360_detect_apple_samsung_ta()\n", __func__);
+		ret = mt6360_pmu_reg_clr_bits(mpci->mpi, MT6360_PMU_DEVICE_TYPE,
+						MT6360_MASK_USBCHGEN);
+		if (ret < 0)
+			dev_notice(mpci->dev, "%s: disable chgdet fail\n", __func__);
+		usleep_range(1000, 1100);
+
 		ret = mt6360_detect_apple_samsung_ta(mpci);
 		if (ret < 0)
 			dev_notice(mpci->dev,
@@ -2078,10 +2105,9 @@ static int mt6360_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 	ret = (en ? mt6360_chgdet_pre_process :
 		    mt6360_chgdet_post_process)(mpci);
 
-	if (!en) {
-		mpci->is_in_hardreset = false;
-		mpci->is_in_hardreset_count = 0;
-	}
+	if (!en)
+		mt6360_set_is_in_hardreset(mpci, false);
+
 out:
 	mutex_unlock(&mpci->chgdet_lock);
 #endif /* CONFIG_MT6360_PMU_CHARGER_TYPE_DETECT && CONFIG_TCPC_CLASS */
@@ -3558,7 +3584,7 @@ static int mt6360_chg_init_setting(struct mt6360_pmu_chg_info *mpci)
 	struct device_node *boot_node = NULL;
 	struct tag_bootmode *tag = NULL;
 	u32 boot_mode = 11;//UNKNOWN_BOOT
-// workaround for mt6768 
+// workaround for mt6768
 	dev = mpci->dev;
 	if (dev != NULL){
 		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
@@ -3849,17 +3875,12 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 
 	switch (event) {
 	case TCP_NOTIFY_HARD_RESET_STATE:
-		dev_info(mpci->dev, "%s pd hreset = %d\n",
-			__func__, noti->hreset_state.state);
 		mutex_lock(&mpci->chgdet_lock);
 		if (noti->hreset_state.state >= TCP_HRESET_SIGNAL_SEND) {
-			mpci->is_in_hardreset = true;
-			mpci->is_in_hardreset_count = 0;
+			mt6360_set_is_in_hardreset(mpci, true);
 			mpci->is_host = false;
-		} else {
-			mpci->is_in_hardreset = false;
-			mpci->is_in_hardreset_count = 0;
-		}
+		} else
+			mt6360_set_is_in_hardreset(mpci, false);
 		mutex_unlock(&mpci->chgdet_lock);
 
 		break;
@@ -3867,10 +3888,8 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		dev_info(mpci->dev, "%s pd state = %d\n",
 			__func__, noti->pd_state.connected);
 		if ((noti->pd_state.connected == PD_CONNECT_NONE) ||
-			(noti->pd_state.connected == PD_CONNECT_HARD_RESET)) {
-			mpci->is_in_hardreset = false;
-			mpci->is_in_hardreset_count = 0;
-		}
+			(noti->pd_state.connected == PD_CONNECT_HARD_RESET))
+			mt6360_set_is_in_hardreset(mpci, false);
 		break;
 	case TCP_NOTIFY_DR_SWAP:
 		if (noti->swap_state.new_role == PD_ROLE_DFP) {
@@ -3971,6 +3990,7 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 #endif
 	init_waitqueue_head(&mpci->waitq);
 	platform_set_drvdata(pdev, mpci);
+	INIT_DELAYED_WORK(&mpci->hardreset_work, mt6360_in_hardreset_handler);
 
 	/* apply platform data */
 	ret = mt6360_chg_apply_pdata(mpci, pdata);
@@ -4132,7 +4152,6 @@ static int __init mt6360_pmu_notify_init(void)
 	pr_info("%s\n", __func__);
 
 	mpci->is_in_hardreset = false;
-	mpci->is_in_hardreset_count = 0;
 	mpci->is_host = false;
 	mpci->tcpc = tcpc_dev_get_by_name("type_c_port0");
 	if (!mpci->tcpc)

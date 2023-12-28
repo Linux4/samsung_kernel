@@ -223,7 +223,7 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 	 * don't attempt to dump non-kernel addresses or
 	 * values that are probably just small negative numbers
 	 */
-	if (addr < PAGE_OFFSET || addr > -256UL)
+	if (addr < VA_START || addr > -256UL)
 		return;
 
 	printk("\n%s: %#lx:\n", name, addr);
@@ -246,13 +246,13 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 		for (j = 0; j < 8; j++) {
 			u32	data;
 			if (probe_kernel_address(p, data)) {
-				printk(" ********");
+				pr_cont(" ********");
 			} else {
-				printk(" %08x", data);
+				pr_cont(" %08x", data);
 			}
 			++p;
 		}
-		printk("\n");
+		pr_cont("\n");
 	}
 }
 

@@ -20,6 +20,8 @@
 #endif //SAMSUNG_TUI_TEST
 #define STUI_HW_IOCTL_GET_RESOLUTION    0x13
 
+#define STUI_DISPLAY_INFO_SIZE    10
+
 struct tui_hw_buffer {
 	uint32_t width;
 	uint32_t height;
@@ -29,7 +31,9 @@ struct tui_hw_buffer {
 	uint64_t wb_size;
 	uint64_t disp_physical;
 	uint64_t disp_size;
-	uint32_t touch_type;
+	uint32_t touch_type; // for multipanel
+	uint64_t lcd_info[STUI_DISPLAY_INFO_SIZE];
+	uint32_t disp_if;
 } __packed;
 
 #endif /* __STUI_IOCTL_H_ */

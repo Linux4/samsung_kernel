@@ -99,7 +99,33 @@ static struct MTK_IDLE_MODULE_INTERNAL g_mtk_idle_module = {
 #define IS_MTK_IDLE_MODEL_CLR(_mod, _clr)\
 	((_mod->clerk.status.clr & (1<<_clr)))
 
+#ifdef CONFIG_SEC_PM_IDLE_DEBUG
 #define MTK_IDLE_MODEL_ENTER(_cpu, _mod) do {\
+	u64 time_start = 0;\
+	if (!_mod->policy.enter)\
+		break;\
+	_mod->clerk.status.cnt.enter[_cpu] += 1;\
+	if (IS_MTK_IDLE_MODULE_STATUS(MTK_IDLE_RATIO_CAL_ENABLE)) {\
+		if (IS_MTK_IDLE_MODEL_CLR(_mod\
+				, MTK_IDLE_MODEL_CLR_RESIDENCY)) {\
+			_mod->clerk.status.residency_ms = 0;\
+			mutex_lock(&mtk_idle_module_locker);\
+			MTK_IDLE_MODEL_CLR_CLEAR(_mod\
+				, MTK_IDLE_MODEL_CLR_RESIDENCY);\
+			mutex_unlock(&mtk_idle_module_locker);\
+		} \
+		mtk_idle_recent_ratio_calc_start_plat(_mod->clerk.type);\
+		time_start = sched_clock(); } \
+	_mod->policy.enter(_cpu);\
+	if (IS_MTK_IDLE_MODULE_STATUS(MTK_IDLE_RATIO_CAL_ENABLE)) {\
+		time_start = sched_clock() - time_start;\
+		do_div(time_start, 1000000);\
+		mtk_idle_recent_ratio_calc_stop_plat(_mod->clerk.type);\
+		_mod->clerk.status.residency_ms += time_start;\
+		_mod->clerk.status.cnt.time_in_state += time_start; } \
+	} while (0)
+#else
+	#define MTK_IDLE_MODEL_ENTER(_cpu, _mod) do {\
 	u64 time_start = 0;\
 	if (!_mod->policy.enter)\
 		break;\
@@ -122,7 +148,7 @@ static struct MTK_IDLE_MODULE_INTERNAL g_mtk_idle_module = {
 		mtk_idle_recent_ratio_calc_stop_plat(_mod->clerk.type);\
 		_mod->clerk.status.residency_ms += time_start; } \
 	} while (0)
-
+#endif
 
 int __attribute__((weak))
 mtk_idle_recent_ratio_calc_start_plat(int IdleType)
@@ -577,7 +603,20 @@ size_t mtk_idle_module_info_dump_idle_state(
 	struct MTK_IDLE_MODEL **mod = NULL;
 	size_t mSize = 0;
 	int i = 0, idx = 0, nm_idx = 0;
-
+#ifdef CONFIG_SEC_PM_IDLE_DEBUG
+	mSize += scnprintf(buf + mSize, len - mSize
+					, "Time in state: ");
+	foreach_mtk_idle_module_model(mod, idx, 0) {
+		if ((len - mSize) <= 0)
+			break;
+		mSize += scnprintf(buf + mSize, len - mSize,
+				(nm_idx == 0) ? "%s=%llu":", %s=%llu",
+				(*mod)->clerk.name,
+				(*mod)->clerk.status.cnt.time_in_state);
+		nm_idx++;
+	}
+	mSize += scnprintf(buf + mSize, len - mSize, "\n");
+#endif
 	for (i = 0; i < nr_cpu_ids; i++) {
 		if ((len - mSize) <= 0)
 			break;

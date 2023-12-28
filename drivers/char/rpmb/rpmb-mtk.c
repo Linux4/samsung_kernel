@@ -349,7 +349,7 @@ static void rpmb_dump_frame(u8 *data_frame)
  */
 int emmc_rpmb_switch(struct mmc_card *card, struct emmc_rpmb_blk_data *md)
 {
-	int ret;
+	int ret = 0;
 	struct emmc_rpmb_blk_data *main_md = dev_get_drvdata(&card->dev);
 
 	if (main_md->part_curr == md->part_type)
@@ -562,7 +562,7 @@ out:
 int emmc_rpmb_req_handle(struct mmc_card *card, struct emmc_rpmb_req *rpmb_req)
 {
 	struct emmc_rpmb_blk_data *md = NULL, *part_md;
-	int ret;
+	int ret = 0;
 	struct emmc_rpmb_data *rpmb;
 	struct list_head *pos;
 
@@ -633,7 +633,7 @@ int emmc_rpmb_req_set_key(struct mmc_card *card, u8 *key)
 {
 	struct emmc_rpmb_req rpmb_req;
 	struct s_rpmb *rpmb_frame;
-	int ret;
+	int ret = 0;
 	u8 user_key;
 
 	if (get_user(user_key, key))
@@ -732,7 +732,7 @@ int rpmb_req_get_wc_ufs(u8 *key, u32 *wc, u8 *frame)
 	struct rpmb_dev *rawdev_ufs_rpmb;
 	u8 nonce[RPMB_SZ_NONCE] = {0};
 	u8 hmac[RPMB_SZ_MAC];
-	int ret, i;
+	int ret = 0, i = 0;
 
 	MSG(INFO, "%s start!!!\n", __func__);
 
@@ -884,7 +884,7 @@ int rpmb_req_read_data_ufs(u8 *frame, u32 blk_cnt)
 {
 	struct rpmb_data data;
 	struct rpmb_dev *rawdev_ufs_rpmb;
-	int ret;
+	int ret = 0;
 
 	rawdev_ufs_rpmb = ufs_mtk_rpmb_get_raw_dev();
 
@@ -921,7 +921,7 @@ int rpmb_req_write_data_ufs(u8 *frame, u32 blk_cnt)
 {
 	struct rpmb_data data;
 	struct rpmb_dev *rawdev_ufs_rpmb;
-	int ret;
+	int ret = 0;
 #ifdef __RPMB_MTK_DEBUG_HMAC_VERIFY
 	u8 *key_mac;
 #endif
@@ -993,7 +993,7 @@ int rpmb_req_program_key_ufs(u8 *frame, u32 blk_cnt)
 {
 	struct rpmb_data data;
 	struct rpmb_dev *rawdev_ufs_rpmb;
-	int ret;
+	int ret = 0;
 
 	rawdev_ufs_rpmb = ufs_mtk_rpmb_get_raw_dev();
 
@@ -1497,7 +1497,7 @@ int rpmb_req_get_wc_emmc(struct mmc_card *card, u8 *key, u32 *wc)
 	struct s_rpmb *rpmb_frame;
 	u8 nonce[RPMB_SZ_NONCE] = {0};
 	u8 hmac[RPMB_SZ_MAC];
-	int ret;
+	int ret = 0;
 
 	MSG(INFO, "%s start!!!\n", __func__);
 
@@ -2070,7 +2070,7 @@ int ut_rpmb_req_get_wc(struct mmc_card *card, unsigned int *wc)
 	struct emmc_rpmb_req rpmb_req;
 	struct s_rpmb rpmb_frame;
 	u8 nonce[RPMB_SZ_NONCE] = {0};
-	int ret;
+	int ret = 0;
 
 	memset(&rpmb_frame, 0, sizeof(rpmb_frame));
 	get_random_bytes(nonce, RPMB_SZ_NONCE);
@@ -2114,7 +2114,7 @@ int ut_rpmb_req_read_data(struct mmc_card *card,
 	struct s_rpmb *param, u32 blk_cnt)/*struct mmc_card *card, */
 {
 	struct emmc_rpmb_req rpmb_req;
-	int ret;
+	int ret = 0;
 
 	rpmb_req.type = RPMB_READ_DATA;
 	rpmb_req.blk_cnt = blk_cnt;
@@ -2133,7 +2133,7 @@ int ut_rpmb_req_write_data(struct mmc_card *card,
 	struct s_rpmb *param, u32 blk_cnt)/*struct mmc_card *card, */
 {
 	struct emmc_rpmb_req rpmb_req;
-	int ret;
+	int ret = 0;
 
 	rpmb_req.type = RPMB_WRITE_DATA;
 	rpmb_req.blk_cnt = blk_cnt;
@@ -2160,7 +2160,7 @@ EXPORT_SYMBOL(ut_rpmb_req_write_data);
 #ifndef CONFIG_TEE
 static int rpmb_execute_ufs(u32 cmdId)
 {
-	int ret;
+	int ret = 0;
 
 	switch (cmdId) {
 
@@ -2212,7 +2212,7 @@ static int rpmb_execute_ufs(u32 cmdId)
 
 static int rpmb_gp_execute_ufs(u32 cmdId)
 {
-	int ret;
+	int ret = 0;
 
 	switch (cmdId) {
 
@@ -2268,7 +2268,7 @@ static int rpmb_gp_execute_ufs(u32 cmdId)
 #if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 static int rpmb_execute_emmc(u32 cmdId)
 {
-	int ret;
+	int ret = 0;
 #if defined(CONFIG_MMC_MTK_PRO)
 	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
 #else
@@ -2358,7 +2358,7 @@ static int rpmb_execute_emmc(u32 cmdId)
 #if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 static int rpmb_gp_execute_emmc(u32 cmdId)
 {
-	int ret;
+	int ret = 0;
 #if defined(CONFIG_MMC_MTK_PRO)
 	struct mmc_card *card = mtk_msdc_host[0]->mmc->card;
 #else
@@ -2774,7 +2774,7 @@ static int init_rpmb_wsm(struct rpmb_ctx *ctx)
 
 static struct sock_desc *accept_swd_connection(void)
 {
-	int ret;
+	int ret = 0;
 	struct sock_desc *rpmb_conn;
 	struct sock_desc *srpmb_listen;
 
@@ -2808,7 +2808,7 @@ out:
 
 static int register_rpmb_wsm(struct rpmb_ctx *ctx, struct sock_desc *rpmb_conn)
 {
-	int ret;
+	int ret = 0;
 	ssize_t len;
 	uint64_t sock_data;
 
@@ -2843,7 +2843,7 @@ static int register_rpmb_wsm(struct rpmb_ctx *ctx, struct sock_desc *rpmb_conn)
 
 static int rpmb_wait_request(struct sock_desc *rpmb_conn)
 {
-	int ret;
+	int ret = 0;
 	ssize_t len;
 	unsigned int sock_data;
 
@@ -2872,7 +2872,7 @@ static int rpmb_wait_request(struct sock_desc *rpmb_conn)
 
 static int rpmb_send_reply(struct sock_desc *rpmb_conn)
 {
-	int ret;
+	int ret = 0;
 	ssize_t len;
 	unsigned int sock_data;
 
@@ -3028,7 +3028,7 @@ static void rpmb_iwsock_execute_emmc(struct rpmb_ctx *ctx)
 
 static int rpmb_iwsock_thread(void *context)
 {
-	int ret;
+	int ret = 0;
 	int boot_type;
 
 	struct rpmb_ctx *ctx;
@@ -3688,7 +3688,7 @@ EXPORT_SYMBOL_GPL(mmc_rpmb_register);
 #ifdef CONFIG_SCSI_UFS_MEDIATEK
 static void rpmb_gp_execute_ufs(u32 cmdId)
 {
-	int ret;
+	int ret = 0;
 
 	switch (cmdId) {
 
@@ -3743,7 +3743,7 @@ static void rpmb_gp_execute_ufs(u32 cmdId)
 #if defined(CONFIG_MMC_MTK_PRO) || defined(CONFIG_MMC_MTK)
 static void rpmb_gp_execute_emmc(u32 cmdId)
 {
-	int ret;
+	int ret = 0;
 	struct mmc_card *card;
 	struct emmc_rpmb_req rpmb_req;
 

@@ -20,6 +20,7 @@
 
 #include <linux/dmapool.h>
 #include <linux/iopoll.h>
+#include <linux/timekeeping.h>
 
 #include "mtu3.h"
 #include "mtu3_trace.h"
@@ -69,6 +70,20 @@
 #define HILO_GEN64(hi, lo) (((u64)(hi) << 32) + (lo))
 #define HILO_DMA(hi, lo)	\
 	((dma_addr_t)HILO_GEN64((le32_to_cpu(hi)), (le32_to_cpu(lo))))
+
+#define MAX_LEN 100
+#define MAX_COUNT 500
+char mtu3_dump[MAX_COUNT][MAX_LEN];
+unsigned long dump_i;
+
+#define mtu3_dump_print(string, args...) do {\
+	int n = 0;\
+	u64 ts = 0;\
+	ts = local_clock();\
+	n = snprintf(&mtu3_dump[dump_i%MAX_COUNT][0], MAX_LEN, "%5lu]", (unsigned long)ts);\
+	snprintf(&mtu3_dump[dump_i++%MAX_COUNT][n], MAX_LEN-n, string, ##args); \
+	} while (0)
+
 
 static dma_addr_t read_txq_cur_addr(void __iomem *mbase, u8 epnum)
 {
@@ -258,7 +273,9 @@ static int mtu3_prepare_tx_gpd(struct mtu3_ep *mep, struct mtu3_request *mreq)
 	/* get the next GPD */
 	enq = advance_enq_gpd(ring);
 	enq_dma = gpd_virt_to_dma(ring, enq);
-	dev_dbg(mep->mtu->dev, "TX-EP%d queue gpd=%p, enq=%p, qdma=%pad\n",
+	dev_dbg(mep->mtu->dev, "TX-EP%d queue gpd=%pK, enq=%pK, qdma=%pKad\n",
+		mep->epnum, gpd, enq, &enq_dma);
+	mtu3_dump_print("TX-EP%d gpd=%pK,enq=%pK,qdma=%pKad\n",
 		mep->epnum, gpd, enq, &enq_dma);
 
 	enq->dw0_info &= cpu_to_le32(~GPD_FLAGS_HWO);
@@ -301,7 +318,9 @@ static int mtu3_prepare_rx_gpd(struct mtu3_ep *mep, struct mtu3_request *mreq)
 	/* get the next GPD */
 	enq = advance_enq_gpd(ring);
 	enq_dma = gpd_virt_to_dma(ring, enq);
-	dev_dbg(mep->mtu->dev, "RX-EP%d queue gpd=%p, enq=%p, qdma=%pad\n",
+	dev_dbg(mep->mtu->dev, "RX-EP%d queue gpd=%pK, enq=%pK, qdma=%pKad\n",
+		mep->epnum, gpd, enq, &enq_dma);
+	mtu3_dump_print("RX-EP%d gpd=%pK,enq=%pK,qdma=%pKad\n",
 		mep->epnum, gpd, enq, &enq_dma);
 
 	enq->dw0_info &= cpu_to_le32(~GPD_FLAGS_HWO);
@@ -437,7 +456,7 @@ static void qmu_tx_zlp_error_handler(struct mtu3 *mtu, u8 epnum)
 		return;
 	}
 
-	dev_dbg(mtu->dev, "%s send ZLP for req=%p\n", __func__, mreq);
+	dev_dbg(mtu->dev, "%s send ZLP for req=%pK\n", __func__, mreq);
 	trace_mtu3_zlp_exp_gpd(mep, gpd_current);
 
 	mtu3_clrbits(mbase, MU3D_EP_TXCR0(mep->epnum), TX_DMAREQEN);
@@ -483,8 +502,10 @@ static void qmu_done_tx(struct mtu3 *mtu, u8 epnum)
 	cur_gpd_dma = read_txq_cur_addr(mbase, epnum);
 	gpd_current = gpd_dma_to_virt(ring, cur_gpd_dma);
 
-	dev_dbg(mtu->dev, "%s EP%d, last=%p, current=%p, enq=%p\n",
+	dev_dbg(mtu->dev, "%s EP%d, last=%pK, current=%pK, enq=%pK\n",
 		__func__, epnum, gpd, gpd_current, ring->enqueue);
+	mtu3_dump_print("tx_dn EP%d, last=%pK, current=%pK, enq=%pK\n",
+		epnum, gpd, gpd_current, ring->enqueue);
 
 	while (gpd != NULL && gpd != gpd_current &&
 			!GET_GPD_HWO(gpd)) {
@@ -504,9 +525,10 @@ static void qmu_done_tx(struct mtu3 *mtu, u8 epnum)
 		gpd = advance_deq_gpd(ring);
 	}
 
-	dev_dbg(mtu->dev, "%s EP%d, deq=%p, enq=%p, complete\n",
+	dev_dbg(mtu->dev, "%s EP%d, deq=%pK, enq=%pK, complete\n",
 		__func__, epnum, ring->dequeue, ring->enqueue);
-
+	mtu3_dump_print("tx_dn EP%d, deq=%pK, enq=%pK, complete\n",
+		epnum, ring->dequeue, ring->enqueue);
 }
 
 static void qmu_done_rx(struct mtu3 *mtu, u8 epnum)
@@ -523,7 +545,9 @@ static void qmu_done_rx(struct mtu3 *mtu, u8 epnum)
 	cur_gpd_dma = read_rxq_cur_addr(mbase, epnum);
 	gpd_current = gpd_dma_to_virt(ring, cur_gpd_dma);
 
-	dev_dbg(mtu->dev, "%s EP%d, last=%p, current=%p, enq=%p\n",
+	dev_dbg(mtu->dev, "%s EP%d, last=%pK, current=%pK, enq=%pK\n",
+		__func__, epnum, gpd, gpd_current, ring->enqueue);
+	mtu3_dump_print("rx_dn EP%d,last=%pK,cur=%pK,enq=%pK\n",
 		__func__, epnum, gpd, gpd_current, ring->enqueue);
 
 	while (gpd != NULL && gpd != gpd_current &&
@@ -544,8 +568,10 @@ static void qmu_done_rx(struct mtu3 *mtu, u8 epnum)
 		gpd = advance_deq_gpd(ring);
 	}
 
-	dev_dbg(mtu->dev, "%s EP%d, deq=%p, enq=%p, complete\n",
+	dev_dbg(mtu->dev, "%s EP%d, deq=%pK, enq=%pK, complete\n",
 		__func__, epnum, ring->dequeue, ring->enqueue);
+	mtu3_dump_print("rx_dn EP%d, deq=%pK, enq=%pK, complete\n",
+		epnum, ring->dequeue, ring->enqueue);
 }
 
 static void qmu_done_isr(struct mtu3 *mtu, u32 done_status)
@@ -582,7 +608,7 @@ static void qmu_exception_isr(struct mtu3 *mtu, u32 qmu_status)
 		errval = mtu3_readl(mbase, U3D_RQERRIR1);
 		for (i = 1; i < mtu->num_eps; i++) {
 			if (errval & QMU_RX_ZLP_ERR(i))
-				dev_dbg(mtu->dev, "RX EP%d Recv ZLP\n", i);
+				dev_err(mtu->dev, "RX EP%d Recv ZLP\n", i);
 		}
 		mtu3_writel(mbase, U3D_RQERRIR1, errval);
 	}

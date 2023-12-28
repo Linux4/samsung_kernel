@@ -29,80 +29,7 @@
 extern char *sec_debug_extra_info_buf;
 extern struct sec_debug_panic_extra_info *sec_debug_extra_info_backup;
 
-/*
- * LPDDR4 (JESD209-4) MR5 Manufacturer ID
- * 0000 0000B : Reserved
- * 0000 0001B : Samsung
- * 0000 0101B : Nanya
- * 0000 0110B : SK hynix
- * 0000 1000B : Winbond
- * 0000 1001B : ESMT
- * 1111 1111B : Micron
- * All others : Reserved
- */
-static char *lpddr4_manufacture_name[MAX_DDR_VENDOR] = {
-	"NA",
-	"SEC", /* Samsung */
-	"NA",
-	"KIN", /* Kingston */
-	"NA",
-	"NAN", /* Nanya */
-	"HYN", /* SK hynix */
-	"NA",
-	"WIN", /* Winbond */
-	"ESM", /* ESMT */
-	"NA",
-	"NA",
-	"NA",
-	"NA",
-	"NA",
-};
-
 unsigned int sec_reset_cnt;
-static unsigned int sec_hw_rev;
-static unsigned long dram_VendorID;
-static unsigned long pcb_offset;
-static unsigned long smd_offset;
-
-static int __init sec_hw_param_get_hw_rev(char *arg)
-{
-	get_option(&arg, &sec_hw_rev);
-	return 0;
-}
-
-early_param("androidboot.revision", sec_hw_param_get_hw_rev);
-
-static int __init sec_hw_param_get_dram_info(char *arg)
-{
-	unsigned long dram_RevID1, dram_RevID2, dram_size;
-	int ret;
-
-	ret = sscanf(arg, "%lx,%lx,%lx,%d", &dram_VendorID, &dram_RevID1, &dram_RevID2, &dram_size);
-
-	if (ret != 4) {
-		pr_notice("%s: It need to check DRAM Info. (ret=%d, arg=%s)\n", __func__, ret, arg);
-	}
-	
-	return 0;
-}
-
-early_param("androidboot.dram_info", sec_hw_param_get_dram_info);
-
-static int __init sec_hw_param_pcb_offset(char *arg)
-{
-	pcb_offset = simple_strtoul(arg, NULL, 10);	
-	return 0;
-}
-
-early_param("sec_debug.pcb_offset", sec_hw_param_pcb_offset);
-
-static int __init sec_hw_param_smd_offset(char *arg)
-{
-	smd_offset = simple_strtoul(arg, NULL, 10);	
-	return 0;
-}
-
-early_param("sec_debug.smd_offset", sec_hw_param_smd_offset);
 
 static int __init sec_hw_param_get_reset_count(char *arg)
 {
@@ -111,41 +38,6 @@ static int __init sec_hw_param_get_reset_count(char *arg)
 }
 
 early_param("sec_debug.reset_rwc", sec_hw_param_get_reset_count);
-
-
-static ssize_t sec_hw_param_ap_info_show(struct kobject *kobj,
-					 struct kobj_attribute *attr, char *buf)
-{
-	ssize_t info_size = 0;
-
-	info_size += snprintf(buf, DATA_SIZE, "\"HW_REV\":\"%d\",", sec_hw_rev);
-	info_size +=
-	    snprintf((char *)(buf + info_size), DATA_SIZE - info_size,
-		     "\"LOT_ID\":\"\"");
-	info_size +=
-	    snprintf((char *)(buf + info_size), DATA_SIZE - info_size,
-		     "\"PARAM0\":\"\"");
-
-	return info_size;
-}
-
-static ssize_t sec_hw_param_ddr_info_show(struct kobject *kobj,
-					  struct kobj_attribute *attr,
-					  char *buf)
-{
-	ssize_t info_size = 0;
-
-	if (dram_VendorID == 0xFF ) {
-		info_size +=
-	    snprintf((char *)(buf), DATA_SIZE, "\"DDRV\":\"MIC\",");
-	} else {
-		info_size +=
-	    snprintf((char *)(buf), DATA_SIZE, "\"DDRV\":\"%s\",",
-		     lpddr4_manufacture_name[dram_VendorID]);
-	}
-
-	return info_size;
-}
 
 static ssize_t sec_hw_param_extra_info_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
@@ -215,42 +107,6 @@ static ssize_t sec_hw_param_extrm_info_show(struct kobject *kobj,
 	return info_size;
 }
 
-static ssize_t sec_hw_param_pcb_info_store(struct kobject *kobj,
-				struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	unsigned char barcode[6] = {0,};
-	int ret = -1;
-
-	strncpy(barcode, buf, 5);
-
-	ret = sec_set_param_str(pcb_offset , barcode, 5);
-	if (ret < 0)
-		pr_err("%s : Set Param fail. offset (%lu), data (%s)", __func__, pcb_offset, barcode);
-	
-	return count;
-}
-
-static ssize_t sec_hw_param_smd_info_store(struct kobject *kobj,
-				struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	unsigned char smd_date[9] = {0,};
-	int ret = -1;
-
-	strncpy(smd_date, buf, 8);
-
-	ret = sec_set_param_str(smd_offset , smd_date, 8);
-	if (ret < 0)
-		pr_err("%s : Set Param fail. offset (%lu), data (%s)", __func__, smd_offset, smd_date);
-	
-	return count;
-}
-
-static struct kobj_attribute sec_hw_param_ap_info_attr =
-        __ATTR(ap_info, 0440, sec_hw_param_ap_info_show, NULL);
-
-static struct kobj_attribute sec_hw_param_ddr_info_attr =
-        __ATTR(ddr_info, 0440, sec_hw_param_ddr_info_show, NULL);
-
 static struct kobj_attribute sec_hw_param_extra_info_attr =
 		__ATTR(extra_info, 0440, sec_hw_param_extra_info_show, NULL);
 
@@ -263,21 +119,11 @@ static struct kobj_attribute sec_hw_param_extrc_info_attr =
 static struct kobj_attribute sec_hw_param_extrm_info_attr =
 		__ATTR(extrm_info, 0440, sec_hw_param_extrm_info_show, NULL);
 
-static struct kobj_attribute sec_hw_param_pcb_info_attr =
-        __ATTR(pcb_info, 0660, NULL, sec_hw_param_pcb_info_store);
-
-static struct kobj_attribute sec_hw_param_smd_info_attr =
-		__ATTR(smd_info, 0660, NULL, sec_hw_param_smd_info_store);
-
 static struct attribute *sec_hw_param_attributes[] = {
-	&sec_hw_param_ap_info_attr.attr,
-	&sec_hw_param_ddr_info_attr.attr,
 	&sec_hw_param_extra_info_attr.attr,
 	&sec_hw_param_extrb_info_attr.attr,
 	&sec_hw_param_extrc_info_attr.attr,
 	&sec_hw_param_extrm_info_attr.attr,
-	&sec_hw_param_pcb_info_attr.attr,
-	&sec_hw_param_smd_info_attr.attr,
 	NULL,
 };
 

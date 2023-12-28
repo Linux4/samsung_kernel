@@ -908,8 +908,11 @@ static void sensor_QSC_write(void)
 
 	int qsc_addr, qsc_size;
 
-	// TODO : sensor_dev_id needs to be updated according to actual id.
-	int sensor_dev_id = IMGSENSOR_SENSOR_IDX_SUB;
+	int sensor_dev_id = IMGSENOSR_GET_SENSOR_IDX(imgsensor_info.sensor_id);
+	if (sensor_dev_id == IMGSENSOR_SENSOR_IDX_NONE) {
+		LOG_ERR("get_sensor_idx: fail");
+		return;
+	}
 
 	LOG_INF(" - E");
 	qsc_cal_addr = IMGSENSOR_GET_CAL_ADDR_BY_SENSOR_IDX(sensor_dev_id, GET_CAL_CROSSTALK);

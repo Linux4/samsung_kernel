@@ -237,7 +237,13 @@ static int smcdsd_abd_simple_write_to_buffer(char *ibuf, size_t sizeof_ibuf,
 
 	ibuf = strim(ibuf);
 
-	if (ibuf[0] && !isalnum(ibuf[0]))
+	if (!ibuf[0])
+		return -EFAULT;
+
+	if (!isascii(ibuf[0]))
+		return -EFAULT;
+
+	if (!isalnum(ibuf[0]))
 		return -EFAULT;
 
 	return 0;
@@ -1590,7 +1596,7 @@ static ssize_t smcdsd_abd_debugfs_write(struct file *f, const char __user *user_
 	if (STRNEQ("blank", ibuf)) {
 		smcdsd_abd_blank(abd);
 	} else if (STRNEQ("con_blank", ibuf)) {
-		if (!abd->blank_workqueue)
+		if (!abd->con_fb_notifier.priority)
 			smcdsd_abd_con_register(abd);
 
 		smcdsd_abd_blank(abd);

@@ -29,11 +29,12 @@ struct debug_logger *g_logger;
 
 static void el7xx_reset(struct el7xx_data *etspi)
 {
-	pr_debug("Entry\n");
+	pr_info("Entry\n");
 	if (etspi->sleepPin) {
 		gpio_set_value(etspi->sleepPin, 0);
 		usleep_range(1050, 1100);
 		gpio_set_value(etspi->sleepPin, 1);
+		etspi->reset_count++;
 	}
 }
 
@@ -436,13 +437,12 @@ int el7xx_platformInit(struct el7xx_data *etspi)
 			etspi->regulator_3p3 = regulator_get(NULL, etspi->btp_vdd);
 			if (IS_ERR(etspi->regulator_3p3)) {
 				pr_err("regulator get failed\n");
-				etspi->regulator_3p3 = NULL;
+				retval = PTR_ERR(etspi->regulator_3p3);
 				goto el7xx_platformInit_ldo_failed;
-			} else {
-				regulator_set_load(etspi->regulator_3p3, 100000);
-				pr_info("btp_regulator ok\n");
-				etspi->ldo_enabled = 0;
 			}
+			regulator_set_load(etspi->regulator_3p3, 100000);
+			pr_info("btp_regulator ok\n");
+			etspi->ldo_enabled = 0;
 		} else if (etspi->ldo_pin) {
 			retval = gpio_request(etspi->ldo_pin, "el7xx_ldo_en");
 			if (retval < 0) {
@@ -563,7 +563,7 @@ static int el7xx_parse_dt(struct device *dev, struct el7xx_data *etspi)
 
 	if (of_property_read_string_index(np, "etspi-chipid", 0,
 			(const char **)&etspi->chipid)) {
-		etspi->chipid = NULL;
+		etspi->chipid = "NULL";
 	}
 	pr_info("chipid: %s\n", etspi->chipid);
 
@@ -586,21 +586,22 @@ static int el7xx_parse_dt(struct device *dev, struct el7xx_data *etspi)
 	pr_info("rb: %s\n", etspi->rb);
 
 	etspi->p = pinctrl_get_select_default(dev);
-#if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
-	if (!IS_ERR(etspi->p)) {
-		etspi->pins_poweroff = pinctrl_lookup_state(etspi->p, "pins_poweroff");
-		if (IS_ERR(etspi->pins_poweroff)) {
-			pr_err("could not get pins sleep_state (%li)\n",
-				PTR_ERR(etspi->pins_poweroff));
-		}
-
-		etspi->pins_poweron = pinctrl_lookup_state(etspi->p, "pins_poweron");
-		if (IS_ERR(etspi->pins_poweron)) {
-			pr_err("could not get pins idle_state (%li)\n",
-				PTR_ERR(etspi->pins_poweron));
-		}
-	} else {
+	if (IS_ERR(etspi->p)) {
+		retval = PTR_ERR(etspi->p);
 		pr_err("failed pinctrl_get\n");
+		goto dt_exit;
+	}
+#if !defined(ENABLE_SENSORS_FPRINT_SECURE) || defined(DISABLED_GPIO_PROTECTION)
+	etspi->pins_poweroff = pinctrl_lookup_state(etspi->p, "pins_poweroff");
+	if (IS_ERR(etspi->pins_poweroff)) {
+		pr_err("could not get pins sleep_state (%li)\n",
+			PTR_ERR(etspi->pins_poweroff));
+	}
+
+	etspi->pins_poweron = pinctrl_lookup_state(etspi->p, "pins_poweron");
+	if (IS_ERR(etspi->pins_poweron)) {
+		pr_err("could not get pins idle_state (%li)\n",
+			PTR_ERR(etspi->pins_poweron));
 	}
 #endif
 	el7xx_pin_control(etspi, false);
@@ -645,7 +646,7 @@ static int el7xx_type_check(struct el7xx_data *etspi)
 	 * EL721  : 0x07 / 0x15
 	 */
 	if ((buf1 == 0x07) && (buf2 == 0x15)) {
-		etspi->sensortype = SENSOR_EGISOPTICAL;
+		etspi->sensortype = SENSOR_OK;
 		pr_info("sensor type is EGIS EL721 sensor\n");
 	} else {
 		etspi->sensortype = SENSOR_FAILED;
@@ -721,11 +722,33 @@ static ssize_t rb_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", etspi->rb);
 }
 
+static ssize_t resetcnt_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct el7xx_data *etspi = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", etspi->reset_count);
+}
+
+static ssize_t resetcnt_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t size)
+{
+	struct el7xx_data *etspi = dev_get_drvdata(dev);
+
+	if (sysfs_streq(buf, "c")) {
+		etspi->reset_count = 0;
+		pr_info("initialization is done\n");
+	}
+	return size;
+}
+
 static DEVICE_ATTR_RO(bfs_values);
 static DEVICE_ATTR_RO(type_check);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RW(resetcnt);
 static DEVICE_ATTR_RO(position);
 static DEVICE_ATTR_RO(rb);
 
@@ -735,6 +758,7 @@ static struct device_attribute *fp_attrs[] = {
 	&dev_attr_vendor,
 	&dev_attr_name,
 	&dev_attr_adm,
+	&dev_attr_resetcnt,
 	&dev_attr_position,
 	&dev_attr_rb,
 	NULL,
@@ -750,7 +774,7 @@ static void el7xx_work_func_debug(struct work_struct *work)
 	pr_info("ldo: %d, sleep: %d, tz: %d, spi_value: 0x%x, type: %s\n",
 		etspi->ldo_enabled, gpio_get_value(etspi->sleepPin),
 		etspi->tz_mode, etspi->spi_value,
-		sensor_status[etspi->sensortype + 2]);
+		etspi->sensortype > 0 ? etspi->chipid : sensor_status[etspi->sensortype + 2]);
 }
 
 static struct el7xx_data *alloc_platformdata(struct device *dev)
@@ -818,6 +842,7 @@ static int el7xx_probe_common(struct device *dev, struct el7xx_data *etspi)
 		goto el7xx_probe_spi_clk_register_failed;
 	}
 
+	etspi->reset_count = 0;
 	etspi->clk_setting->enabled_clk = false;
 	etspi->spi_value = 0;
 	etspi->clk_setting->spi_speed = (unsigned int)SLOW_BAUD_RATE;
@@ -994,6 +1019,16 @@ static int el7xx_remove_common(struct device *dev)
 }
 
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
+#if LINUX_VERSION_CODE > KERNEL_VERSION(6, 1, 0)
+static void el7xx_remove(struct spi_device *spi)
+{
+	struct el7xx_data *etspi = spi_get_drvdata(spi);
+
+	el7xx_free_buffer(etspi);
+	el7xx_remove_common(&spi->dev);
+	return;
+}
+#else
 static int el7xx_remove(struct spi_device *spi)
 {
 	struct el7xx_data *etspi = spi_get_drvdata(spi);
@@ -1002,13 +1037,14 @@ static int el7xx_remove(struct spi_device *spi)
 	el7xx_remove_common(&spi->dev);
 	return 0;
 }
+#endif /* LINUX_VERSION_CODE */
 #else
 static int el7xx_remove(struct platform_device *pdev)
 {
 	el7xx_remove_common(&pdev->dev);
 	return 0;
 }
-#endif
+#endif /* ENABLE_SENSORS_FPRINT_SECURE */
 
 static int el7xx_pm_suspend(struct device *dev)
 {

@@ -6,6 +6,7 @@
 
 #define MCU_I2C_SLAVE_W_ADDR             0xC4
 #define OIS_GYRO_SCALE_FACTOR            114 // LSM6DSO
+#define OIS_GYRO_OFFSET_SPEC             15000 // LSM6DSO
 
 #define OIS_GYRO_WX_POLE                 0x01
 #define OIS_GYRO_WY_POLE                 0x01

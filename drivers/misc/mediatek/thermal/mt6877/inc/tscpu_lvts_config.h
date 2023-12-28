@@ -100,6 +100,8 @@
 
 #define THERMINTST	(THERM_CTRL_BASE_2 + 0xF04)
 
+
+
 #define STAGE3_INT_EN	(1 << 31)
 #define PROTOFFSET	GENMASK(15, 0)
 

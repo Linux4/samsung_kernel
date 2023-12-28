@@ -297,9 +297,6 @@ static ssize_t error_count_show(struct device *dev,
 	u64 total_t_cnt = 0;
 	int total_len = 0;
 	int i = 0;
-	static const char *const req_types[] = {
-		"sbc  ", "cmd  ", "data ", "stop ", "busy "
-	};
 
 	if (!card) {
 		total_len = snprintf(buf, PAGE_SIZE, "no card\n");
@@ -311,19 +308,7 @@ static ssize_t error_count_show(struct device *dev,
 	total_len += snprintf(buf, PAGE_SIZE,
 			"type: err    status: first_issue_time:  last_issue_time:      count\n");
 
-	/*
-	 * Init err_log[]
-	 * //sbc
-	 * err_log[0].err_type = -EILSEQ;
-	 * err_log[1].err_type = -ETIMEDOUT;
-	 * ...
-	 */
 	for (i = 0; i < MAX_ERR_LOG_INDEX; i++) {
-		strncpy(card->err_log[i].type,
-			req_types[i / MAX_ERR_TYPE_INDEX], sizeof(char) * 5);
-		card->err_log[i].err_type =
-			(i % MAX_ERR_TYPE_INDEX == 0) ?	-EILSEQ : -ETIMEDOUT;
-
 		total_len += snprintf(buf + total_len, PAGE_SIZE - total_len,
 				"%5s:%4d 0x%08x %16llu, %16llu, %10d\n",
 				err_log[i].type, err_log[i].err_type,

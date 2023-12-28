@@ -63,16 +63,24 @@ struct temp_job {
 	int operation_rate;
 	long long submit;
 	int kcy;
+	int cur_inst_cnt;
+	int svp_mode;
 	struct temp_job *next;
 };
 static struct temp_job *temp_venc_jobs;
 
 struct temp_job *new_job_from_info(struct mtk_vcodec_ctx *ctx, int core_id)
 {
+	struct mtk_vcodec_dev *dev;
 	struct temp_job *new_job = kmalloc(sizeof(struct temp_job), GFP_KERNEL);
 
 	if (new_job == 0)
 		return 0;
+	dev = ctx->dev;
+	if (dev == 0) {
+		kfree(new_job);
+		return 0;
+	}
 
 	new_job->ctx_id = ctx->id;
 	new_job->format = ctx->q_data[MTK_Q_DATA_DST].fmt->fourcc;
@@ -83,6 +91,8 @@ struct temp_job *new_job_from_info(struct mtk_vcodec_ctx *ctx, int core_id)
 	new_job->operation_rate = 0;
 	new_job->submit = 0; /* use now - to be filled */
 	new_job->kcy = 0; /* retrieve hw counter - to be filled */
+	new_job->cur_inst_cnt = dev->enc_cnt;
+	new_job->svp_mode = ctx->enc_params.svp_mode;
 	new_job->next = 0;
 	return new_job;
 }
@@ -318,8 +328,10 @@ void mtk_venc_dvfs_begin(struct temp_job **job_list)
 	if (area >= 3840 * 2160)
 		idx = 2;
 	else if (area >= 1920 * 1080)
-		if (job->operation_rate > 30)
+		if (job->operation_rate > 30 || job->cur_inst_cnt > 1)
 			idx = 2;
+		else if (job->svp_mode)
+			idx = 1;
 		else
 			idx = 0;
 	else
@@ -332,6 +344,9 @@ void mtk_venc_dvfs_begin(struct temp_job **job_list)
 		idx = 3;
 
 	venc_freq = venc_freq_map[idx];
+	mtk_v4l2_debug(4, "%s: %dx%d sec=%d inst_cnt=%d, freq(%d)=%d\n",
+		__func__, job->visible_width, job->visible_height,
+		job->svp_mode, job->cur_inst_cnt, idx, venc_freq);
 
 	mtk_pm_qos_update_request(&venc_qos_req_f, venc_freq);
 #endif

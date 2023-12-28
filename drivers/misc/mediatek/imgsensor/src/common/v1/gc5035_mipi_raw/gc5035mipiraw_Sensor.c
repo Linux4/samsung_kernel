@@ -783,13 +783,10 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		spin_unlock(&imgsensor_drv_lock);
 		do {
 			*sensor_id = return_sensor_id();
+			LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n",
-					imgsensor.i2c_write_id, *sensor_id);
 				return ERROR_NONE;
 			}
-			LOG_INF("Read sensor id fail, write id: 0x%x, id: 0x%x\n",
-				imgsensor.i2c_write_id, *sensor_id);
 			retry--;
 		} while (retry > 0);
 		i++;
@@ -797,6 +794,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 	}
 
 	if (*sensor_id != imgsensor_info.sensor_id) {
+		LOG_ERR("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
 		/*if Sensor ID is not correct, Must set *sensor_id to 0xFFFFFFFF*/
 		*sensor_id = 0xFFFFFFFF;
 		return ERROR_SENSOR_CONNECT_FAIL;
@@ -836,13 +834,10 @@ static kal_uint32 open(void)
 		spin_unlock(&imgsensor_drv_lock);
 		do {
 			sensor_id = return_sensor_id();
+			LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
 			if (sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n",
-					imgsensor.i2c_write_id, sensor_id);
 				break;
 			}
-			LOG_INF("Read sensor id fail, write id: 0x%x, id: 0x%x\n",
-				imgsensor.i2c_write_id, sensor_id);
 			retry--;
 		} while (retry > 0);
 		i++;
@@ -850,8 +845,10 @@ static kal_uint32 open(void)
 			break;
 		retry = 2;
 	}
-	if (imgsensor_info.sensor_id != sensor_id)
+	if (imgsensor_info.sensor_id != sensor_id) {
+		LOG_ERR("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
 		return ERROR_SENSOR_CONNECT_FAIL;
+	}
 
 	/* initail sequence write in  */
 	ret = sensor_init();

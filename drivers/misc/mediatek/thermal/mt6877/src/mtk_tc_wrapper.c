@@ -896,7 +896,6 @@ int get_io_reg_base(void)
 		rgu_base = of_iomap(rgu_node, 0);
 	}
 	tscpu_printk("[THERM_CTRL] rgu_base = 0x%px\n",rgu_base);
-
 	/*get thermal irq num */
 	thermal_irq_number = irq_of_parse_and_map(node, 0);
 	tscpu_printk("[THERM_CTRL] thermal_irq_number=%d\n",

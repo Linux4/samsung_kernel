@@ -13,6 +13,7 @@
 
 #include "inc/tcpci.h"
 #include "inc/tcpci_typec.h"
+#include "inc/pd_dpm_core.h"
 
 #ifdef CONFIG_USB_POWER_DELIVERY
 #include "inc/tcpci_event.h"
@@ -624,6 +625,10 @@ static inline int tcpci_report_usb_port_detached(struct tcpc_device *tcpc)
 		tcpc_enable_timer(tcpc, TYPEC_RT_TIMER_PE_IDLE);
 	}
 #endif /* CONFIG_USB_POWER_DELIVERY */
+
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
+	sec_dfp_accessory_detach_handler(&tcpc->pd_port);
+#endif /* CONFIG_PDIC_NOTIFIER */
 
 	tcpci_set_vbus_dischg_gpio(tcpc, 1);
 	tcpci_set_wake_lock_pd(tcpc, false);

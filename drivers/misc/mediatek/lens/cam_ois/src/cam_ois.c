@@ -1034,9 +1034,6 @@ int cam_ois_gyro_sensor_noise_check(long *stdev_data_x, long *stdev_data_y)
 		return 0;
 	}
 
-#if ENABLE_AOIS == 1
-	cam_ois_set_aois_fac_mode(FACTORY_ONETIME, 10);
-#endif
 	/* Check Noise Measure End */
 	do {
 		ret = cam_ois_i2c_read_multi(i2c_client, MCU_I2C_SLAVE_W_ADDR, 0x0029, rcv_data_array, 1);
@@ -1149,10 +1146,6 @@ void cam_ois_get_hall_position(unsigned int *targetPosition, unsigned int *hallP
 			LOG_ERR("fail to set servo_on bit: %d", ret);
 	}
 
-#if ENABLE_AOIS == 1
-	cam_ois_set_aois_fac_mode(FACTORY_1MS, 1);
-#endif
-
 	msleep(200);
 
 	LOG_INF("4: GET OIS HALL POSITION");
@@ -1213,3 +1206,4 @@ void cam_ois_get_hall_position(unsigned int *targetPosition, unsigned int *hallP
 #endif
 	LOG_INF(" - X");
 }
+

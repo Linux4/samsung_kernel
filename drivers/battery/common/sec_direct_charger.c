@@ -42,15 +42,48 @@ char *sec_direct_charger_mode_str[] = {
 	"Max",
 };
 
+#if IS_ENABLED(CONFIG_SEC_ABC)
+void sec_direct_abc_check(struct sec_direct_charger_info *charger)
+{
+	if ((charger->charging_source != SEC_CHARGING_SOURCE_DIRECT) ||
+		!is_pd_apdo_wire_type(charger->cable_type) || !charger->now_isApdo) {
+		charger->abc_dc_current_cnt = 0;
+
+		return;
+	}
+
+	if (charger->dc_input_current < 900) {
+		if (charger->abc_dc_current_cnt <= ABC_DC_CNT)
+			charger->abc_dc_current_cnt++;
+		if (charger->abc_dc_current_cnt == ABC_DC_CNT)
+			sec_abc_send_event("MODULE=battery@WARN=dc_current");
+	} else {
+		charger->abc_dc_current_cnt = 0;
+	}
+}
+#else
+void sec_direct_abc_check(struct sec_direct_charger_info *charger) {}
+#endif
+
 void sec_direct_chg_monitor(struct sec_direct_charger_info *charger)
 {
-	if (charger->charging_source == SEC_CHARGING_SOURCE_DIRECT) {
-		pr_info("%s: Src(%s), direct(%s), switching(%s), Imax(%dmA), Ichg(%dmA), dc_input(%dmA)\n",
+	int ret = 0;
+	union power_supply_propval dc_state = {0, };
+
+	dc_state.strval = "NO_CHARGING";
+	ret = psy_do_property(charger->pdata->direct_charger_name, get,
+		POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_CHG_STATUS, dc_state);
+
+	if (ret < 0) {
+		pr_info("%s: Failed to get dc_chg status", __func__);
+	} else if (charger->charging_source == SEC_CHARGING_SOURCE_DIRECT) {
+		pr_info("%s: Src(%s), direct(%s), switching(%s), Imax(%dmA), Ichg(%dmA), dc_input(%dmA), dc_state(%s)\n",
 			__func__, charger->charging_source ? "DIRECT" : "SWITCHING",
 			sec_direct_charger_mode_str[charger->charger_mode_direct],
 			sec_direct_charger_mode_str[charger->charger_mode_main],
-			charger->input_current, charger->charging_current, charger->dc_input_current);
+			charger->input_current, charger->charging_current, charger->dc_input_current, dc_state.strval);
 	}
+	sec_direct_abc_check(charger);
 
 	sb_pt_monitor(charger->pt, charger->charging_source);
 }
@@ -158,7 +191,8 @@ static bool sec_direct_chg_check_temp(struct sec_direct_charger_info *charger)
 	return false;
 }
 
-static bool sec_direct_chg_check_event(struct sec_direct_charger_info *charger, unsigned int current_event)
+static bool sec_direct_chg_check_event(
+	struct sec_direct_charger_info *charger, unsigned int current_event, unsigned int tx_retry_case)
 {
 	union power_supply_propval value = {0,};
 	int batt_volt = 0;
@@ -173,12 +207,19 @@ static bool sec_direct_chg_check_event(struct sec_direct_charger_info *charger, 
 				POWER_SUPPLY_PROP_STATUS, value);
 			dc_status = value.intval;
 			if ((batt_volt >= charger->pdata->swelling_high_rechg_voltage) &&
-				(dc_status != POWER_SUPPLY_STATUS_CHARGING)) {
+				(dc_status != POWER_SUPPLY_STATUS_CHARGING) &&
+				!charger->pdata->chgen_over_swell_rechg_vol) {
 				pr_info("%s : volt(%d) rechg_voltage(%d) dc_status(%d)\n", __func__,
 					batt_volt, charger->pdata->swelling_high_rechg_voltage, dc_status);
 				return true;
 			}
-		}
+			if (charger->dc_rcp) {
+				pr_info("%s : swelling and rcp(%d)\n", __func__,
+					charger->dc_rcp);
+				return true;
+			}
+		} else
+			charger->dc_rcp = false;
 		if (current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP_MODE)
 			return true;
 	} else {
@@ -188,9 +229,68 @@ static bool sec_direct_chg_check_event(struct sec_direct_charger_info *charger, 
 	if (current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE ||
 		current_event & SEC_BAT_CURRENT_EVENT_SIOP_LIMIT ||
 		current_event & SEC_BAT_CURRENT_EVENT_SEND_UVDM ||
-		(current_event & SEC_BAT_CURRENT_EVENT_DC_ERR && charger->ta_alert_mode == OCP_NONE)) {
+		(current_event & SEC_BAT_CURRENT_EVENT_DC_ERR && charger->ta_alert_mode == OCP_NONE))
+		return true;
+
+	if (tx_retry_case & SEC_BAT_TX_RETRY_MISALIGN ||
+		tx_retry_case & SEC_BAT_TX_RETRY_OCP)
+		return true;
+
+	return false;
+}
+
+static bool sec_direct_fpdo_dc_check(struct sec_direct_charger_info *charger)
+{
+	union power_supply_propval value = {0,};
+	int voltage = 0;
+
+	/* Works only in FPDO DC */
+	if (charger->cable_type != SEC_BATTERY_CABLE_FPDO_DC)
+		return false;
+
+	/* check fdpo dc start vbat condition */
+	psy_do_property("battery", get, POWER_SUPPLY_PROP_VOLTAGE_AVG, value);
+	voltage = value.intval / 1000;
+	if (voltage < charger->pdata->fpdo_dc_min_vbat) {
+		pr_info("%s: FPDO DC, S/C was selected! low vbat(%dmV)\n", __func__, voltage);
 		return true;
 	}
+
+	if (charger->charging_source == SEC_CHARGING_SOURCE_SWITCHING) {
+		/* check fdpo dc vbat max condition */
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+		psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_VOLTAGE_PACK_MAIN, value);
+		voltage = value.intval;
+		if (voltage >= charger->pdata->fpdo_dc_max_main_vbat) {
+			pr_info("%s: FPDO DC, S/C was selected! high main vbat(%dmV/%dmV)\n", __func__,
+					voltage, charger->pdata->fpdo_dc_max_main_vbat);
+			return true;
+		}
+
+		psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_VOLTAGE_PACK_SUB, value);
+		voltage = value.intval;
+		if (voltage >= charger->pdata->fpdo_dc_max_sub_vbat) {
+			pr_info("%s: FPDO DC, S/C was selected! high sub vbat(%dmV/%dmV)\n", __func__,
+					voltage, charger->pdata->fpdo_dc_max_sub_vbat);
+			return true;
+		}
+#else
+		psy_do_property("battery", get, POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
+		voltage = value.intval / 1000;
+		if (voltage >= charger->pdata->fpdo_dc_max_vbat) {
+			pr_info("%s: FPDO DC, S/C was selected! high vbat(%dmV)\n", __func__, voltage);
+			return true;
+		}
+#endif
+	}
+
+	/* check fpdo dc thermal condition check */
+	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_FPDO_DC_THERMAL_CHECK, value);
+	if (value.intval) {
+		pr_info("%s:  S/C was selected! FPDO_DC_THERMAL_CHECK(%d)\n", __func__, value.intval);
+		return true;
+	}
+
 	return false;
 }
 
@@ -199,9 +299,9 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	union power_supply_propval value = {0,};
 	int ret = SEC_CHARGING_SOURCE_SWITCHING;
 	int has_apdo = 0, cable_type = 0, voltage_avg = 0;
-	unsigned int current_event = 0, lrp_chg_src = SEC_CHARGING_SOURCE_DIRECT;
-	int flash_state = 0, mst_en = 0;
-#if defined(CONFIG_MTK_CHARGER)
+	unsigned int current_event = 0, lrp_chg_src = SEC_CHARGING_SOURCE_DIRECT, tx_retry_case = 0;
+	int flash_state = 0, mst_en = 0, abnormal_ta = 0;
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 	int mtk_fg_init = 0;
 #endif
 
@@ -251,8 +351,11 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	/* check current event */
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_CURRENT_EVENT, value);
 	current_event = value.intval;
-	if (sec_direct_chg_check_event(charger, current_event)) {
-		pr_info("%s:  S/C was selected! BAT_CURRENT_EVENT(0x%x)\n", __func__, current_event);
+	psy_do_property("wireless", get, POWER_SUPPLY_EXT_PROP_WIRELESS_TX_RETRY_CASE, value);
+	tx_retry_case = value.intval;
+	if (sec_direct_chg_check_event(charger, current_event, tx_retry_case)) {
+		pr_info("%s:  S/C was selected! current_event(0x%x), tx_retry_case(0x%x)\n",
+			__func__, current_event, tx_retry_case);
 		goto end_chg_src;
 	}
 
@@ -285,12 +388,16 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	/* check charging status */
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_DIRECT_HAS_APDO, value);
 	has_apdo = value.intval;
+	if (charger->cable_type == SEC_BATTERY_CABLE_FPDO_DC)
+		has_apdo = 1;
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_FLASH_STATE, value);
 	flash_state = value.intval; /* check only for MTK */
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_MST_EN, value);
 	mst_en = value.intval; /* check only for MTK */
+	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_ABNORMAL_TA, value);
+	abnormal_ta = value.intval;
 
-#if defined(CONFIG_MTK_CHARGER)
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_MTK_FG_INIT, value);
 	mtk_fg_init = value.intval; /* check only for MTK */
 #endif
@@ -298,14 +405,14 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	psy_do_property("battery", get, POWER_SUPPLY_PROP_CAPACITY, value);
 	charger->capacity = value.intval;
 	if (charger->direct_chg_done || (charger->capacity >= charger->pdata->dchg_end_soc)
-		|| !has_apdo || charger->store_mode || flash_state || mst_en
-#if defined(CONFIG_MTK_CHARGER)
+		|| !has_apdo || charger->store_mode || flash_state || mst_en || abnormal_ta
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 		|| !mtk_fg_init
 #endif
 		) {
-		pr_info("%s:  S/C was selected! dc_done(%s), SoC(%d), has_apdo(%d) mst_en(%d)\n",
+		pr_info("%s:  S/C was selected! dc_done(%s), SoC(%d), has_apdo(%d) mst_en(%d) abnormal_ta(%d)\n",
 				__func__, charger->direct_chg_done ? "TRUE" : "FALSE",
-				charger->capacity, has_apdo, mst_en);
+				charger->capacity, has_apdo, mst_en, abnormal_ta);
 		goto end_chg_src;
 	}
 
@@ -321,6 +428,9 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 		}
 		charger->vbat_min_src = LOW_VBAT_OFF;
 	}
+
+	if (sec_direct_fpdo_dc_check(charger))
+		goto end_chg_src;
 
 	ret = SEC_CHARGING_SOURCE_DIRECT;
 
@@ -359,6 +469,10 @@ static int sec_direct_chg_set_charging_source(struct sec_direct_charger_info *ch
 		/* Must Charging-off the DC charger before changing voltage */
 		/* to prevent reverse-current into TA */
 		sec_direct_chg_set_direct_charge(charger, SEC_BAT_CHG_MODE_CHARGING_OFF);
+
+		if (charger->cable_type == SEC_BATTERY_CABLE_FPDO_DC &&
+				charger->charging_source == SEC_CHARGING_SOURCE_DIRECT)
+			msleep(100);
 
 		value.intval = SEC_INPUT_VOLTAGE_9V;
 		psy_do_property("battery", set,
@@ -447,11 +561,6 @@ static int sec_direct_chg_set_charging_current(struct sec_direct_charger_info *c
 
 	/* direct charger */
 	if (is_pd_apdo_wire_type(cable_type)) {
-#if IS_ENABLED(CONFIG_SEC_ABC)
-		if (charging_source == SEC_CHARGING_SOURCE_DIRECT &&  charger->now_isApdo)
-			if (charger->dc_input_current < 900)
-				sec_abc_send_event("MODULE=battery@WARN=dc_current");
-#endif
 		psy_do_property(charger->pdata->direct_charger_name, set,
 			POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT, value);
 		sec_direct_chg_set_charging_source(charger, charger->charger_mode, charging_source);
@@ -475,6 +584,7 @@ static void sec_direct_chg_set_initial_status(struct sec_direct_charger_info *ch
 	charger->dc_input_current = charger->dc_charging_current / 2;
 	charger->dc_err = false;
 	charger->dc_retry_cnt = 0;
+	charger->dc_rcp = false;
 	charger->test_mode_source = SEC_CHARGING_SOURCE_DIRECT;
 	charger->vbat_min_src = LOW_VBAT_NONE;
 }
@@ -575,7 +685,7 @@ static int sec_direct_chg_get_property(struct power_supply *psy,
 			val->intval = value.intval;
 			break;
 		case POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_CHG_STATUS:
-			psy_do_property(charger->pdata->direct_charger_name, get, ext_psp, value);
+			ret = psy_do_property(charger->pdata->direct_charger_name, get, ext_psp, value);
 			val->strval = value.strval;
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHANGE_CHARGING_SOURCE:
@@ -608,6 +718,14 @@ static int sec_direct_chg_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_DC_OP_MODE:
 		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VBUS:
+			ret = psy_do_property(charger->pdata->direct_charger_name, get,
+				ext_psp, value);
+			val->intval = value.intval;
+			break;
+		case POWER_SUPPLY_EXT_PROP_CHARGER_MODE_DIRECT:
+			val->intval = charger->charger_mode_direct;
+			break;
+		case POWER_SUPPLY_EXT_PROP_DCHG_READ_BATP_BATN:
 			ret = psy_do_property(charger->pdata->direct_charger_name, get,
 				ext_psp, value);
 			val->intval = value.intval;
@@ -707,6 +825,8 @@ static int sec_direct_chg_set_property(struct power_supply *psy,
 						sec_direct_chg_mode_str[charger->direct_chg_mode], charger->direct_chg_mode,
 						sec_direct_chg_mode_str[val->intval], val->intval);
 					charger->direct_chg_mode = val->intval;
+					if (charger->direct_chg_mode == SEC_DIRECT_CHG_MODE_DIRECT_OFF)
+						charger->charger_mode_direct = SEC_BAT_CHG_MODE_CHARGING_OFF;
 				}
 			}
 			break;
@@ -814,6 +934,9 @@ static int sec_direct_chg_set_property(struct power_supply *psy,
 					POWER_SUPPLY_EXT_PROP_DC_REVERSE_MODE, value);
 			}
 			break;
+		case POWER_SUPPLY_EXT_PROP_DC_RCP:
+			charger->dc_rcp = val->intval;
+			break;
  		default:
 			ret = psy_do_property(charger->pdata->main_charger_name, set, ext_psp, value);
 			return ret;
@@ -842,8 +965,12 @@ static int sec_direct_charger_parse_dt(struct device *dev,
 	sb_of_parse_str_dt(np, "charger,direct_charger", charger->pdata, direct_charger_name);
 	sb_of_parse_u32_dt(np, "charger,dchg_min_current", charger->pdata, dchg_min_current, SEC_DIRECT_CHG_MIN_IOUT);
 	sb_of_parse_u32_dt(np, "charger,dchg_min_vbat", charger->pdata, dchg_min_vbat, SEC_DIRECT_CHG_MIN_VBAT);
+	sb_of_parse_u32_dt(np, "charger,fpdo_dc_min_vbat", charger->pdata, fpdo_dc_min_vbat, FPDO_DC_MIN_VBAT);
+	sb_of_parse_u32_dt(np, "charger,fpdo_dc_max_vbat", charger->pdata, fpdo_dc_max_vbat, FPDO_DC_MAX_VBAT);
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
-	sb_of_parse_u32_dt(np, "charger,sc_vbat_thresh", charger->pdata, sc_vbat_thresh, 4420);
+	sb_of_parse_u32_dt(np, "charger,fpdo_dc_max_main_vbat",
+			charger->pdata, fpdo_dc_max_main_vbat, FPDO_DC_MAX_VBAT);
+	sb_of_parse_u32_dt(np, "charger,fpdo_dc_max_sub_vbat", charger->pdata, fpdo_dc_max_sub_vbat, FPDO_DC_MAX_VBAT);
 #endif
 	sb_of_parse_u32_dt(np, "charger,end_soc", charger->pdata, dchg_end_soc, 95);
 	sb_of_parse_bool_dt(np, "charger,ta_alert_wa", charger, ta_alert_wa);
@@ -860,6 +987,8 @@ static int sec_direct_charger_parse_dt(struct device *dev,
 					charger->pdata, dchg_temp_low_threshold, 180);
 	sb_of_parse_u32_dt(np, "battery,swelling_high_rechg_voltage",
 					charger->pdata, swelling_high_rechg_voltage, 4050);
+	sb_of_parse_bool_dt(np, "battery,chgen_over_swell_rechg_vol", charger->pdata, chgen_over_swell_rechg_vol);
+
 	return 0;
 }
 #else
@@ -924,14 +1053,17 @@ static int sec_direct_charger_probe(struct platform_device *pdev)
 	charger->cable_type = SEC_BATTERY_CABLE_NONE;
 
 	charger->charger_mode = SEC_BAT_CHG_MODE_CHARGING_OFF;
-	charger->charger_mode_direct = SEC_BAT_CHG_MODE_MAX;
-	charger->charger_mode_main = SEC_BAT_CHG_MODE_MAX;
+	charger->charger_mode_direct = SEC_BAT_CHG_MODE_CHARGING_OFF;
+	charger->charger_mode_main = SEC_BAT_CHG_MODE_CHARGING_OFF;
 	charger->test_mode_source = SEC_CHARGING_SOURCE_DIRECT;
 
 	charger->wc_tx_enable = false;
 	charger->now_isApdo = false;
 	charger->store_mode = false;
 	charger->vbat_min_src = LOW_VBAT_NONE;
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	charger->abc_dc_current_cnt = 0;
+#endif
 
 	platform_set_drvdata(pdev, charger);
 	charger->dev = &pdev->dev;
@@ -939,6 +1071,13 @@ static int sec_direct_charger_probe(struct platform_device *pdev)
 	charger->ta_alert_mode = OCP_NONE;
 
 	mutex_init(&charger->charger_mutex);
+
+	charger->pt = sb_pt_init(charger->dev);
+	if (IS_ERR(charger->pt)) {
+		ret = PTR_ERR(charger->pt);
+		dev_info(charger->dev, "%s: unused pass through (ret = %d)\n", __func__, ret);
+		charger->pt = NULL;
+	}
 
 	charger->psy_chg = power_supply_register(&pdev->dev,
 			&sec_direct_charger_power_supply_desc, &direct_charger_cfg);
@@ -949,13 +1088,6 @@ static int sec_direct_charger_probe(struct platform_device *pdev)
 		goto err_power_supply_register;
 	}
 	sec_chg_set_dev_init(SC_DEV_SEC_DIR_CHG);
-
-	charger->pt = sb_pt_init(charger->dev);
-	if (IS_ERR(charger->pt)) {
-		ret = PTR_ERR(charger->pt);
-		dev_info(charger->dev, "%s: unused pass through (ret = %d)\n", __func__, ret);
-		charger->pt = NULL;
-	}
 
 	pr_info("%s: SEC Direct-Charger Driver Loaded(%s, %s)\n",
 		__func__, charger->pdata->main_charger_name, charger->pdata->direct_charger_name);

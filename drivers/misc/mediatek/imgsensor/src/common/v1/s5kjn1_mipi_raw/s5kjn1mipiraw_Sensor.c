@@ -118,8 +118,8 @@ static struct imgsensor_info_struct imgsensor_info = {
 	},
 	.hs_video = {
 		.pclk = 598000000,
-		.linelength  = 2800,
-		.framelength = 1770,
+		.linelength  = 3492,
+		.framelength = 1421,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width  = 2032,
@@ -887,7 +887,7 @@ static int set_mode_setfile(enum IMGSENSOR_MODE mode)
 	return 0;
 }
 
-/** JN1_EVT0.0_Setfile_20220302_ver0.13 **/
+/** JN1_EVT0.0_Setfile_20220302_ver0.14 **/
 #if INDIRECT_BURST
 static kal_uint16 addr_data_burst_init_jn1[] = {
 	0x6F12,

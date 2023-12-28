@@ -2561,7 +2561,7 @@
 						<0 0>;
 
 		vcc-supply = <&mt_pmic_vemc_ldo_reg>;
-		vccq2-supply = <&mt_pmic_vufs_ldo_reg>;
+		vcc-fixed-regulator;
 
 		resets = <&infracfg_rst 0>, <&infracfg_rst 1>,
 				 <&infracfg_rst 2>;
@@ -6472,8 +6472,10 @@
 		mtk_dsp_a2dp = <0x1 0xffffffff 0xffffffff 0xffffffff 0x40000>;
 		mtk_dsp_bledl = <0x1 0xffffffff 0xffffffff 0xffffffff 0x30000>;
 		mtk_dsp_bleul = <0x1 0xffffffff 0xffffffff 0xffffffff 0x20000>;
-		mtk-dsp-usbdl = <0x1 0xffffffff 0xffffffff 0xffffffff 0x30000>;
-		mtk-dsp-usbul = <0x1 0xffffffff 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_usbdl = <0x1 0xffffffff 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_usbul = <0x1 0xffffffff 0xffffffff 0xffffffff 0x30000>;
+		mtk_dsp_mddl = <0x1 0xffffffff 0x13 0xffffffff 0x30000>;
+		mtk_dsp_mdul = <0x1 0x2 0xffffffff 0xffffffff 0x30000>;
 		mtk_dsp_dataprovider = <0x0 0xffffffff 0xf 0xffffffff 0x30000>;
 		mtk_dsp_call_final = <0x5 0x4 0x10 0x14 0x18000>;
 		mtk_dsp_fast = <0x5 0xffffffff 0xffffffff 0xffffffff 0x5000>;
@@ -6829,10 +6831,6 @@
 #endif
 #include "mediatek/cust_mt6877_connfem.dtsi"
 
-&mt_pmic_vemc_ldo_reg {
-	regulator-min-microvolt = <3000000>;
-	regulator-max-microvolt = <3000000>;
-};
 
 &mt6360_pmic {
 	ldo7 {

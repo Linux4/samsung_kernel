@@ -85,10 +85,10 @@ static struct mtk_adsp_task_attr adsp_task_attr[AUDIO_TASK_DAI_NUM] = {
 				USB_DL_FEATURE_ID, false},
 	[AUDIO_TASK_USBUL_ID] = {true, -1, -1, -1,
 				USB_UL_FEATURE_ID, false},
-	[AUDIO_TASK_MDDL_ID] = {true, -1, -1, -1,
+	[AUDIO_TASK_MDDL_ID] = {true, -1, MT6877_MEMIF_AWB, -1,
 				VOICE_CALL_SUB_FEATURE_ID, false},
-	[AUDIO_TASK_MDUL_ID] = {true, -1, -1, -1,
-				VOIP_FEATURE_ID, false},
+	[AUDIO_TASK_MDUL_ID] = {true, MT6877_MEMIF_DL2, -1, -1,
+				VOICE_CALL_FEATURE_ID, false},
 };
 
 /* task share mem block */

@@ -498,7 +498,7 @@ int pdc_get_setting(void)
 
 	cap = &pd->cap;
 
-	if (cap->nr == 0 || !mt_charger_plugin())
+	if (cap->nr == 0 || !tcpm_inquire_typec_attach_state(pd->tcpc))
 		return -1;
 
 	ret = charger_get_ibus(&ibus);
@@ -607,10 +607,10 @@ int pdc_get_setting(void)
 	pdic_noti.sub1 = 1;
 	pdic_noti.sub2 = 0;
 	pdic_noti.sub3 = 0;
-	if (mt_charger_plugin())
+	if (tcpm_inquire_typec_attach_state(pd->tcpc) == TYPEC_ATTACHED_SNK)
 		pdic_notifier_notify((PD_NOTI_TYPEDEF *)&pdic_noti, &pd_noti, 0);
 	else
-		pr_info("%s : do not send pdic_noti: mt_charger_plugin:%d\n", __func__, mt_charger_plugin());
+		pr_info("%s : do not send pdic_noti: mt_charger_plugin:%d\n", __func__, tcpm_inquire_typec_attach_state(pd->tcpc));
 #endif
 	chr_err("[%s] vbus:%d ibus:%d, mivr:%d\n",
 		__func__, vbus, ibus, chg1_mivr);

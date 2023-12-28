@@ -1086,7 +1086,6 @@ static int mtk_atomic_check(struct drm_device *dev,
 	struct drm_crtc_state *crtc_state;
 	struct mtk_crtc_state *old_state, *new_state;
 	int i, ret = 0;
-	int power_mode = DISP_NONE;
 
 	ret = drm_atomic_helper_check(dev, state);
 	if (ret)
@@ -1095,29 +1094,6 @@ static int mtk_atomic_check(struct drm_device *dev,
 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
 		old_state = to_mtk_crtc_state(crtc->state);
 		new_state = to_mtk_crtc_state(crtc_state);
-
-		if (crtc_state->active == 0 &&
-				crtc->state->active == 1) {
-			if (old_state->prop_val[CRTC_PROP_DOZE_ACTIVE])
-				power_mode = DISP_DOZE_SUSPEND;
-			else
-				power_mode = DISP_OFF;
-		} else if (crtc_state->active == 1 &&
-				crtc->state->active == 0) {
-			if (old_state->prop_val[CRTC_PROP_DOZE_ACTIVE] &&
-					!new_state->prop_val[CRTC_PROP_DOZE_ACTIVE])
-				power_mode = DISP_ON;
-			else if (old_state->prop_val[CRTC_PROP_DOZE_ACTIVE])
-				power_mode = DISP_DOZE;
-			else
-				power_mode = DISP_ON;
-		} else if (!old_state->prop_val[CRTC_PROP_DOZE_ACTIVE] &&
-				new_state->prop_val[CRTC_PROP_DOZE_ACTIVE]) {
-			power_mode = DISP_DOZE;
-		}
-
-		if (power_mode != DISP_NONE)
-			mtk_notifier_call_chain(MTK_POWER_MODE_CHANGE, (void *)&power_mode);
 
 		if (old_state->prop_val[CRTC_PROP_DOZE_ACTIVE] ==
 		    new_state->prop_val[CRTC_PROP_DOZE_ACTIVE])
@@ -1192,6 +1168,7 @@ static int mtk_atomic_commit(struct drm_device *drm,
 	uint32_t crtc_mask;
 	struct drm_crtc *crtc;
 	struct mtk_drm_crtc *mtk_crtc;
+	struct mtk_drm_crtc *mtk_crtc0 = to_mtk_crtc(private->crtc[0]);
 	int ret, i = 0;
 	int index;
 
@@ -1202,6 +1179,8 @@ static int mtk_atomic_commit(struct drm_device *drm,
 #if defined(CONFIG_SMCDSD_PANEL)
 	mtk_crtc_state_notify(state, 1);
 #endif
+
+	mtk_check_powermode(state, MTK_POWER_MODE_CHANGE);
 
 	mutex_lock(&private->commit.lock);
 	flush_work(&private->commit.work);
@@ -1224,9 +1203,9 @@ static int mtk_atomic_commit(struct drm_device *drm,
 	mutex_nested_time_start = sched_clock();
 
 #ifndef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
-	mtk_crtc->need_lock_tid = sys_gettid();
+	mtk_crtc0->need_lock_tid = sys_gettid();
 #else
-	mtk_crtc->need_lock_tid = current->pid;
+	mtk_crtc0->need_lock_tid = current->pid;
 #endif
 	ret = drm_atomic_helper_swap_state(state, 0);
 	if (ret) {
@@ -1270,11 +1249,10 @@ err_mutex_unlock:
 				i + (1 << 8));
 	}
 	DRM_MMP_EVENT_END(mutex_lock, 0, 0);
-
-	mtk_crtc->need_lock_tid = 0;
+	mtk_crtc0->need_lock_tid = 0;
 	mutex_unlock(&private->commit.lock);
 
-	mtk_notifier_call_chain(MTK_POWER_MODE_DONE, NULL);
+	mtk_check_powermode(state, MTK_POWER_MODE_DONE);
 
 #if defined(CONFIG_SMCDSD_PANEL)
 	mtk_crtc_state_notify(state, 0);
@@ -3192,8 +3170,10 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 	init_waitqueue_head(&private->repaint_data.wq);
 	INIT_LIST_HEAD(&private->repaint_data.job_queue);
 	INIT_LIST_HEAD(&private->repaint_data.job_pool);
-	for (i = 0; i < MAX_CRTC ; ++i)
+	for (i = 0; i < MAX_CRTC ; ++i) {
 		atomic_set(&private->crtc_present[i], 0);
+		atomic_set(&private->crtc_rel_present[i], 0);
+	}
 	atomic_set(&private->rollback_all, 0);
 
 #ifdef CONFIG_DRM_MEDIATEK_DEBUG_FS

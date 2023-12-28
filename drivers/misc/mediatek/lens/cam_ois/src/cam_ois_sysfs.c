@@ -50,7 +50,6 @@ static int cam_ois_get_gyro_cal_result(long *out_data, struct i2c_client *client
 	return ret;
 }
 
-
 int cam_ois_gyro_calibration(struct mcu_info *mcu_info, struct i2c_client *client,
 	long *out_gyro_x, long *out_gyro_y, long *out_gyro_z)
 {
@@ -77,10 +76,6 @@ int cam_ois_gyro_calibration(struct mcu_info *mcu_info, struct i2c_client *clien
 		if (ret < 0)
 			LOG_WARN("i2c write fail %d", ret);
 
-#if ENABLE_AOIS == 1
-		cam_ois_set_aois_fac_mode(FACTORY_ONETIME, 1);
-		msleep(200);
-#endif
 		/* Check Gyro Calibration Sequence End */
 		ret = cam_ois_get_gc_status(client, 80);
 		if (ret < 0)
@@ -154,7 +149,6 @@ int cam_ois_get_offset_testdata(struct mcu_info *mcu_info, struct i2c_client *cl
 		LOG_WARN("i2c write fail %d", ret);
 
 #if ENABLE_AOIS == 1
-	cam_ois_set_aois_fac_mode(FACTORY_ONETIME, 1);
 	msleep(200);
 #endif
 
@@ -201,7 +195,6 @@ int cam_ois_get_offset_testdata(struct mcu_info *mcu_info, struct i2c_client *cl
 	return result;
 }
 
-
 int cam_ois_selftest(struct mcu_info *mcu_info, struct i2c_client *client)
 {
 	int ret = 0;
@@ -223,11 +216,6 @@ int cam_ois_selftest(struct mcu_info *mcu_info, struct i2c_client *client)
 	ret = cam_ois_i2c_write_one(client, MCU_I2C_SLAVE_W_ADDR, 0x0014, 0x08);
 	if (ret)
 		LOG_WARN("i2c write fail %d", ret);
-
-#if ENABLE_AOIS == 1
-	cam_ois_set_aois_fac_mode(FACTORY_ONETIME, 1);
-	msleep(200);
-#endif
 
 	do {
 		ret = cam_ois_i2c_read_multi(client, MCU_I2C_SLAVE_W_ADDR, 0x0014, &recv, 1);
@@ -265,7 +253,6 @@ int cam_ois_selftest(struct mcu_info *mcu_info, struct i2c_client *client)
 	return (int)recv;
 }
 
-
 int cam_ois_sine_wavecheck(int *sin_x, int *sin_y, int *result, struct i2c_client *client, int threshold)
 {
 	u8 val[3] = {0, };
@@ -297,11 +284,6 @@ int cam_ois_sine_wavecheck(int *sin_x, int *sin_y, int *result, struct i2c_clien
 	}
 	LOG_INF("i2c write success");
 
-#if ENABLE_AOIS == 1
-	cam_ois_set_aois_fac_mode(FACTORY_1MS, 1);
-	msleep(200);
-#endif
-
 	retries = 60;
 	do {
 		ret = cam_ois_i2c_read_multi(client, MCU_I2C_SLAVE_W_ADDR, 0x0050, val, 1);
@@ -319,7 +301,6 @@ int cam_ois_sine_wavecheck(int *sin_x, int *sin_y, int *result, struct i2c_clien
 		}
 	} while (val[0]);
 
-
 	ret = cam_ois_i2c_read_multi(client, MCU_I2C_SLAVE_W_ADDR, 0x004C, val, 1);
 	if (ret < 0)
 		LOG_ERR("i2c read fail");
@@ -335,7 +316,6 @@ int cam_ois_sine_wavecheck(int *sin_x, int *sin_y, int *result, struct i2c_clien
 	sinx_count = (val[1] << 8) | val[0];
 	if (sinx_count > 0x7FFF)
 		sinx_count = -((sinx_count ^ 0xFFFF) + 1);
-
 
 	ret |= cam_ois_i2c_read_multi(client, MCU_I2C_SLAVE_W_ADDR, 0xC2, val, 2);
 	siny_count = (val[1] << 8) | val[0];
@@ -359,7 +339,6 @@ int cam_ois_sine_wavecheck(int *sin_x, int *sin_y, int *result, struct i2c_clien
 
 	LOG_INF("threshold = %d, sinx = %d, siny = %d, sinx_count = %d, siny_count = %d",
 	threshold, *sin_x, *sin_y, sinx_count, siny_count);
-
 
 	if (*result == 0x00)
 		return 0;
@@ -568,7 +547,6 @@ static ssize_t ois_selftest_show(struct device *dev, struct device_attribute *at
 	bool result_offset = 0, result_selftest = 0;
 	uint32_t selftest_ret = 0, offsettest_ret = 0;
 	long raw_data_x = 0, raw_data_y = 0, raw_data_z = 0;
-	int OIS_GYRO_OFFSET_SPEC = 10000;
 
 	offsettest_ret = cam_ois_sysfs_read_gyro_offset_test(&raw_data_x, &raw_data_y, &raw_data_z);
 	msleep(50);
@@ -680,7 +658,6 @@ static ssize_t ois_autotest_show(struct device *dev, struct device_attribute *at
 	int ret = 0;
 	int sin_x = 0, sin_y = 0, result_x = 0, result_y = 0;
 
-
 	cam_ois_af_power_on();
 
 	msleep(50);
@@ -700,7 +677,6 @@ static ssize_t ois_autotest_show(struct device *dev, struct device_attribute *at
 	return ret;
 }
 
-
 static ssize_t ois_autotest_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -712,7 +688,6 @@ static ssize_t ois_autotest_store(struct device *dev,
 	ois_autotest_threshold = value;
 	return size;
 }
-
 
 static ssize_t oisfw_show(struct device *dev, struct device_attribute *attr, char *buf)
 {

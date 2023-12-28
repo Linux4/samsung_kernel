@@ -420,6 +420,29 @@ static inline bool mmc_blk_in_tran_state(u32 status)
 	       (R1_CURRENT_STATE(status) == R1_STATE_TRAN);
 }
 
+static void mmc_sec_init_err_count(struct mmc_card *card)
+{
+	int i = 0;
+
+	static const char *const req_types[] = {
+		"sbc  ", "cmd  ", "data ", "stop ", "busy "
+	};
+
+	/*
+	 * err_log[0].type = "sbc  "
+	 * err_log[0].err_type = -EILSEQ;
+	 * err_log[1].type = "sbc  "
+	 * err_log[1].err_type = -ETIMEDOUT;
+	 * ...
+	 */
+	for (i = 0; i < MAX_ERR_LOG_INDEX; i++) {
+		strncpy(card->err_log[i].type,
+			req_types[i / MAX_ERR_TYPE_INDEX], sizeof(char) * 5);
+		card->err_log[i].err_type =
+			(i % MAX_ERR_TYPE_INDEX == 0) ?	-EILSEQ : -ETIMEDOUT;
+	}
+}
+
 #define CMD_ERRORS_EXCL_OOR						\
 	(R1_ADDRESS_ERROR |	/* Misaligned address */		\
 	 R1_BLOCK_LEN_ERROR |	/* Transferred block length incorrect */\
@@ -1104,13 +1127,31 @@ static unsigned int mmc_blk_data_timeout_ms(struct mmc_host *host,
 	return ms;
 }
 
-static void mmc_error_count_log(struct mmc_card *card, int index, int error, u32 status)
+void mmc_error_count_log(struct mmc_card *card, int index, int error, u32 status)
 {
 	struct mmc_card_error_log *err_log;
 	int i = 0;
 	int cpu = raw_smp_processor_id();
 
 	err_log = card->err_log;
+
+	if (!error)
+		return;
+
+	/*
+	 * -EIO (-5) : I/O error case. So log as CRC.
+	 * -ENOMEDIUM (-123), etc : SW timeout and other error. So log as TIMEOUT.
+	 */
+	switch (error) {
+	case -EIO:
+		error = -EILSEQ;
+		break;
+	case -EILSEQ:
+		break;
+	default:
+		error = -ETIMEDOUT;
+		break;
+	}
 
 	for (i = 0; i < MAX_ERR_TYPE_INDEX; i++) {
 		if (err_log[index + i].err_type == error) {
@@ -1207,18 +1248,18 @@ void mmc_card_error_logging(struct mmc_card *card,
 	}
 
 	if (brq->sbc.error)
-		mmc_error_count_log(card, 0, brq->sbc.error, status);
+		mmc_error_count_log(card, MMC_SBC_OFFSET, brq->sbc.error, status);
 	if (brq->cmd.error)
-		mmc_error_count_log(card, 2, brq->cmd.error, status);
+		mmc_error_count_log(card, MMC_CMD_OFFSET, brq->cmd.error, status);
 	if (brq->data.error)
-		mmc_error_count_log(card, 4, brq->data.error, status);
+		mmc_error_count_log(card, MMC_DATA_OFFSET, brq->data.error, status);
 	if (brq->stop.error)
-		mmc_error_count_log(card, 6, brq->stop.error, status);
+		mmc_error_count_log(card, MMC_STOP_OFFSET, brq->stop.error, status);
 
 	if (!(status & R1_READY_FOR_DATA) ||
 			(R1_CURRENT_STATE(status) == R1_STATE_PRG)) {
 		// card stuck in prg state
-		mmc_error_count_log(card, 8, -ETIMEDOUT, status);
+		mmc_error_count_log(card, MMC_BUSY_OFFSET, -ETIMEDOUT, status);
 	}
 }
 
@@ -2078,7 +2119,8 @@ static void mmc_blk_mq_rw_recovery(struct mmc_queue *mq, struct request *req)
 	 */
 	err = __mmc_send_status(card, &status, 0);
 	if (err || mmc_blk_status_error(req, status)) {
-		mmc_card_error_logging(card, brq, status);
+		if (!err)
+			mmc_card_error_logging(card, brq, status);
 		brq->data.bytes_xfered = 0;
 	}
 
@@ -3399,6 +3441,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 		}
 	}
 #endif
+	mmc_sec_init_err_count(card);
 	return 0;
 
  out:
