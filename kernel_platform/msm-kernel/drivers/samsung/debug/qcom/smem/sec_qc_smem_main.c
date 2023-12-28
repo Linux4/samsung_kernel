@@ -52,7 +52,7 @@ static int __smem_test_vendor0(struct builder *bd)
 {
 	struct qc_smem_drvdata *drvdata =
 			container_of(bd, struct qc_smem_drvdata, bd);
-	void *vendor0;
+	char *vendor0;
 
 	vendor0 = __smem_get_ddr_smem_entry(drvdata, SMEM_ID_VENDOR0);
 	if (PTR_ERR(vendor0) == -EPROBE_DEFER)
@@ -65,7 +65,7 @@ static int __smem_test_vendor0(struct builder *bd)
 		return -EINVAL;
 	}
 
-	drvdata->vendor0 = vendor0;
+	drvdata->vendor0 = (sec_smem_id_vendor0_v2_t *)(&vendor0[drvdata->smem_offset_vendor0]);
 
 	return 0;
 }
@@ -74,7 +74,7 @@ static int __smem_test_vendor1(struct builder *bd)
 {
 	struct qc_smem_drvdata *drvdata =
 			container_of(bd, struct qc_smem_drvdata, bd);
-	void *vendor1;
+	char *vendor1;
 
 	vendor1 = __smem_get_ddr_smem_entry(drvdata, SMEM_ID_VENDOR1);
 	if (PTR_ERR(vendor1) == -EPROBE_DEFER)
@@ -87,7 +87,51 @@ static int __smem_test_vendor1(struct builder *bd)
 		return -EINVAL;
 	}
 
-	drvdata->vendor1 = vendor1;
+	drvdata->vendor1 = (void *)(&vendor1[drvdata->smem_offset_vendor1]);
+
+	return 0;
+}
+
+static int __smem_parse_dt_smem_offset_vendor0(struct builder *bd, struct device_node *np)
+{
+	struct qc_smem_drvdata *drvdata =
+			container_of(bd, struct qc_smem_drvdata, bd);
+	u32 smem_offset;
+	int err;
+
+	/* NOTE:
+	 * android13-5.15.y and before : optional. if not found assign '0'.
+	 * android14-6.1.y and after : mandatory.
+	 */
+	err = of_property_read_u32(np, "sec,smem_offset_vendor0", &smem_offset);
+	if (err) {
+		drvdata->smem_offset_vendor0 = 0;
+		return 0;
+	}
+
+	drvdata->smem_offset_vendor0 = (size_t)smem_offset;
+
+	return 0;
+}
+
+static int __smem_parse_dt_smem_offset_vendor1(struct builder *bd, struct device_node *np)
+{
+	struct qc_smem_drvdata *drvdata =
+			container_of(bd, struct qc_smem_drvdata, bd);
+	u32 smem_offset;
+	int err;
+
+	/* NOTE:
+	 * android13-5.15.y and before : optional. if not found assign '0'.
+	 * android14-6.1.y and after : mandatory.
+	 */
+	err = of_property_read_u32(np, "sec,smem_offset_vendor1", &smem_offset);
+	if (err) {
+		drvdata->smem_offset_vendor1 = 0;
+		return 0;
+	}
+
+	drvdata->smem_offset_vendor1 = (size_t)smem_offset;
 
 	return 0;
 }
@@ -127,6 +171,8 @@ static int __smem_parse_dt_vendor1_ver(struct builder *bd,
 }
 
 static const struct dt_builder __smem_dt_builder[] = {
+	DT_BUILDER(__smem_parse_dt_smem_offset_vendor0),
+	DT_BUILDER(__smem_parse_dt_smem_offset_vendor1),
 	DT_BUILDER(__smem_parse_dt_vendor0_ver),
 	DT_BUILDER(__smem_parse_dt_vendor1_ver),
 };

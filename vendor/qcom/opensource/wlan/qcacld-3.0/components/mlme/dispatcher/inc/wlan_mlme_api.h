@@ -1089,6 +1089,27 @@ wlan_mlme_send_ch_width_update_with_notify(struct wlan_objmgr_psoc *psoc,
 					   uint8_t vdev_id,
 					   enum phy_ch_width ch_width);
 
+/**
+ * wlan_mlme_update_bss_rate_flags() - update bss rate flag as per new channel
+ * width
+ * @psoc: pointer to psoc object
+ * @vdev_id: Vdev id
+ * @cw: channel width to update
+ * @eht_present: connected bss is eht capable or not
+ * @he_present: connected bss is he capable or not
+ * @vht_present: connected bss is vht capable or not
+ * @ht_present: connected bss is ht capable or not
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_mlme_update_bss_rate_flags(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id,
+					   enum phy_ch_width cw,
+					   uint8_t eht_present,
+					   uint8_t he_present,
+					   uint8_t vht_present,
+					   uint8_t ht_present);
+
 #ifdef WLAN_FEATURE_11BE
 /**
  * mlme_update_tgt_eht_caps_in_cfg() - Update tgt eht cap in mlme component

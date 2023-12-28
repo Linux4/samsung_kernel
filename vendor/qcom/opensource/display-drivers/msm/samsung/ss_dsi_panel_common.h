@@ -846,6 +846,8 @@ enum ss_dsi_cmd_set_type {
 	TX_VLIN1_TEST_ENTER,
 	TX_VLIN1_TEST_EXIT,
 
+	TX_SP_FLASH_INIT,
+
 	TX_CMD_END,
 
 	/* RX */
@@ -900,6 +902,7 @@ enum ss_dsi_cmd_set_type {
 	RX_VBIAS_MTP,	/* HOP display */
 	RX_VAINT_MTP,
 	RX_DDI_FW_ID,
+	RX_SP_FLASH_CHECK,
 	RX_ALPM_SET_VALUE,
 	RX_CMD_END,
 
@@ -1538,6 +1541,7 @@ struct ub_con_detect {
 	bool enabled;
 	int ub_con_cnt;
 	int current_wakeup_context_gpio_status;
+	bool ub_con_ignore_user;
 };
 
 struct motto_data {
@@ -1824,9 +1828,11 @@ struct panel_func {
 
 	/* print result of gamma comp */
 	void (*samsung_print_gamma_comp)(struct samsung_display_driver_data *vdd);
+	int (*debug_gamma_comp)(struct samsung_display_driver_data *vdd);
 
 	/* Gamma mode2 gamma compensation (for 48/96hz VRR mode) */
 	int (*samsung_gm2_gamma_comp_init)(struct samsung_display_driver_data *vdd);
+	int (*samsung_spsram_gamma_comp_init)(struct samsung_display_driver_data *vdd);
 
 	/* Read UDC datga */
 	int (*read_udc_data)(struct samsung_display_driver_data *vdd);
@@ -1956,6 +1962,7 @@ struct flash_gm2 {
 
 struct mtp_gm2_info  {
 	bool mtp_gm2_init_done;
+	bool spsram_read_done;
 	u8 *gamma_org; /* original MTP gamma value */
 	u8 *gamma_comp; /* compensated gamma value (for 48/96hz mode) */
 };
@@ -2980,6 +2987,7 @@ struct samsung_display_driver_data {
 	bool no_mipi_rx;
 
 	bool use_flash_done_recovery;
+	bool spsram_read_recovery;
 
 	/* skip bl update until disp_on with qcom,bl-update-flag */
 	bool bl_delay_until_disp_on;

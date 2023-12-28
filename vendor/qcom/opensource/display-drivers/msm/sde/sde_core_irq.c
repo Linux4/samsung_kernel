@@ -428,6 +428,7 @@ void sde_core_irq_preinstall(struct sde_kms *sde_kms)
 	}
 
 	if (!sde_in_trusted_vm(sde_kms)) {
+		SDE_EVT32(0xEEEEEEEE);
 		rc = pm_runtime_resume_and_get(sde_kms->dev->dev);
 		if (rc < 0) {
 			SDE_ERROR("failed to enable power resource %d\n", rc);
@@ -481,6 +482,7 @@ void sde_core_irq_uninstall(struct sde_kms *sde_kms)
 		return;
 	}
 
+	SDE_EVT32(0xEEEEEEEE);
 	rc = pm_runtime_resume_and_get(sde_kms->dev->dev);
 	if (rc < 0) {
 		SDE_ERROR("failed to enable power resource %d\n", rc);

@@ -512,6 +512,14 @@ static void __blk_mq_free_request(struct request *rq)
 		blk_mq_put_tag(hctx->tags, ctx, rq->tag);
 	if (sched_tag != BLK_MQ_NO_TAG)
 		blk_mq_put_tag(hctx->sched_tags, ctx, sched_tag);
+
+	if (!__blk_mq_active_requests(hctx)) {
+		if (rq->tag != BLK_MQ_NO_TAG)
+			blk_mq_tag_wakeup_all(hctx->tags, false);
+		if (sched_tag != BLK_MQ_NO_TAG)
+			blk_mq_tag_wakeup_all(hctx->sched_tags, false);
+	}
+
 	blk_mq_sched_restart(hctx);
 	blk_queue_exit(q);
 }
@@ -2200,6 +2208,8 @@ blk_qc_t blk_mq_submit_bio(struct bio *bio)
 
 	blk_queue_bounce(q, &bio);
 	__blk_queue_split(&bio, &nr_segs);
+	if (!bio)
+		goto queue_exit;
 
 	if (!bio_integrity_prep(bio))
 		goto queue_exit;
@@ -2232,7 +2242,7 @@ blk_qc_t blk_mq_submit_bio(struct bio *bio)
 
 	blk_mq_bio_to_request(rq, bio, nr_segs);
 
-	ret = blk_crypto_init_request(rq);
+	ret = blk_crypto_rq_get_keyslot(rq);
 	if (ret != BLK_STS_OK) {
 		bio->bi_status = ret;
 		bio_endio(bio);

@@ -203,6 +203,11 @@ int sm5714_i2c_write_byte(struct i2c_client *client,
 	while (ret < 0) {
 		pr_info("[%s:%s] reg(0x%x), retrying...\n",
 			MUIC_DEV_NAME, __func__, command);
+		if (retry > 10) {
+			pr_err("[%s:%s] retry failed!!\n", MUIC_DEV_NAME,
+					__func__);
+			break;
+		}
 		sm5714_read_reg(client, command, &written);
 		if (written != value)
 			pr_err("[%s:%s] reg(0x%x)\n",
@@ -1270,6 +1275,7 @@ static void sm5714_muic_handle_logically_detach(
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:
 	case ATTACHED_DEV_UNOFFICIAL_TA_MUIC:
+	case ATTACHED_DEV_LO_TA_MUIC:
 		ret = com_to_open(muic_data);
 		break;
 	case ATTACHED_DEV_JIG_USB_ON_MUIC:
@@ -1366,6 +1372,7 @@ static void sm5714_muic_handle_attach(struct sm5714_muic_data *muic_data,
 		ret = com_to_open(muic_data);
 		break;
 	case ATTACHED_DEV_UNOFFICIAL_TA_MUIC:
+	case ATTACHED_DEV_LO_TA_MUIC:
 		ret = com_to_open(muic_data);
 		break;
 	case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:
@@ -1493,6 +1500,7 @@ static void sm5714_muic_handle_detach(struct sm5714_muic_data *muic_data,
 		ret = com_to_open(muic_data);
 		break;
 	case ATTACHED_DEV_UNOFFICIAL_TA_MUIC:
+	case ATTACHED_DEV_LO_TA_MUIC:
 		ret = com_to_open(muic_data);
 		break;
 	default:
@@ -1659,7 +1667,11 @@ static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
 			return;
 		}
 		intr = MUIC_INTR_ATTACH;
+#if IS_ENABLED(CONFIG_MUIC_LO_TA_LOW_CURRENT)
+		new_dev = ATTACHED_DEV_LO_TA_MUIC;
+#else
 		new_dev = ATTACHED_DEV_UNOFFICIAL_TA_MUIC;
+#endif
 		pr_info("[%s:%s] LO_TA\n", MUIC_DEV_NAME, __func__);
 	} else if (dev1 & DEV_TYPE1_U200) {
 		if ((irq == SM5714_MUIC_IRQ_WORK) || (irq == SM5714_MUIC_IRQ_PROBE)) {
@@ -1730,7 +1742,6 @@ static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
 		new_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
 		pr_info("[%s:%s] DCD_OUT_SDP\n", MUIC_DEV_NAME, __func__);
 	}
-
 
 	if (dev2 & DEV_TYPE2_JIG_UART_OFF) {
 		intr = MUIC_INTR_ATTACH;

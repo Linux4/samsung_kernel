@@ -851,16 +851,45 @@ int32_t cam_actuator_i2c_pkt_parse(struct cam_actuator_ctrl_t *a_ctrl,
 			a_ctrl->cam_act_state = CAM_ACTUATOR_CONFIG;
 		}
 
-		rc = cam_actuator_apply_settings(a_ctrl,
-			&a_ctrl->i2c_data.init_settings);
-		if (rc < 0) {
-			CAM_ERR(CAM_ACTUATOR, "Cannot apply Init settings");
-#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
-			if (a_ctrl != NULL) {
-				hw_bigdata_i2c_from_actuator(a_ctrl);
+#if defined(CONFIG_ACTUATOR_RETRY_SUPPORT)
+		if (a_ctrl->soc_info.index == 0) {
+			int32_t retry = 0;
+			for (retry = 0; retry < 3; retry++)
+			{
+				rc = cam_actuator_apply_settings(a_ctrl,
+					&a_ctrl->i2c_data.init_settings);
+				if (rc < 0) {
+					CAM_ERR(CAM_ACTUATOR, "Cannot apply Init settings, retry %d", retry);
+					cam_actuator_power_down(a_ctrl);
+					msleep(20);
+					cam_actuator_power_up(a_ctrl);
+				} else {
+					break;
+				}
 			}
+			if (rc < 0) {
+				CAM_ERR(CAM_ACTUATOR, "Cannot apply Init settings");
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+				if (a_ctrl != NULL) {
+					hw_bigdata_i2c_from_actuator(a_ctrl);
+				}
 #endif
-			goto end;
+				goto end;
+			}
+		} else 
+#endif
+		{
+			rc = cam_actuator_apply_settings(a_ctrl,
+				&a_ctrl->i2c_data.init_settings);
+			if (rc < 0) {
+				CAM_ERR(CAM_ACTUATOR, "Cannot apply Init settings");
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+				if (a_ctrl != NULL) {
+					hw_bigdata_i2c_from_actuator(a_ctrl);
+				}
+#endif
+				goto end;
+			}
 		}
 
 		/* Delete the request even if the apply is failed */

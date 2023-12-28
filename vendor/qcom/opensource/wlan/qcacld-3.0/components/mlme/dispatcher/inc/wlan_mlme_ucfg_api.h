@@ -4613,6 +4613,27 @@ ucfg_mlme_set_vdev_traffic_low_latency(struct wlan_objmgr_psoc *psoc,
 				       uint8_t vdev_id, bool set);
 
 /**
+ * ucfg_mlme_update_bss_rate_flags() - update bss rate flag as per new channel
+ * width
+ * @psoc: pointer to psoc object
+ * @vdev_id: Vdev id
+ * @ch_width: channel width to update
+ * @eht_present: connected bss is eht capable or not
+ * @he_present: connected bss is he capable or not
+ * @vht_present: connected bss is vht capable or not
+ * @ht_present: connected bss is ht capable or not
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS ucfg_mlme_update_bss_rate_flags(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id,
+					   enum phy_ch_width ch_width,
+					   uint8_t eht_present,
+					   uint8_t he_present,
+					   uint8_t vht_present,
+					   uint8_t ht_present);
+
+/**
  * ucfg_mlme_send_ch_width_update_with_notify() - Send chwidth with notify
  * capability of FW
  * @psoc: pointer to psoc object

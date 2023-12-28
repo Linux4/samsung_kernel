@@ -711,8 +711,8 @@
 
     <path name="bargein-tts-speaker-mic">
         <path name="sub-main-mic" />
-        <ctl name="TX_DEC0 Volume" value="86" />
-        <ctl name="TX_DEC1 Volume" value="92" />
+        <ctl name="TX_DEC0 Volume" value="96" />
+        <ctl name="TX_DEC1 Volume" value="96" />
     </path>
 
     <path name="bargein-tts-headphones-mic">
@@ -730,8 +730,8 @@
 
     <path name="bargein-aec-speaker-mic">
         <path name="sub-main-mic" />
-        <ctl name="TX_DEC0 Volume" value="100" />
-        <ctl name="TX_DEC1 Volume" value="101" />
+        <ctl name="TX_DEC0 Volume" value="98" />
+        <ctl name="TX_DEC1 Volume" value="107" />
     </path>
 
     <path name="bargein-aec-headphones-mic">
@@ -1212,6 +1212,10 @@
 
     <path name="loopback-incallmusic-speaker">
         <path name="spk-mono-right" />
+    </path>
+
+    <path name="loopback-incallmusic-speaker-all">
+        <path name="spk" />
     </path>
 
     <!-- TX part -->
