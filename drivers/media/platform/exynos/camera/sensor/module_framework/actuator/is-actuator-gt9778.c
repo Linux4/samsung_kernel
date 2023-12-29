@@ -224,6 +224,7 @@ int sensor_gt9778_actuator_init(struct v4l2_subdev *subdev, u32 val)
 {
 	int ret = 0;
 	struct is_actuator *actuator;
+	struct is_rom_info *finfo = NULL;
 	struct is_caldata_sac_gt9778 *cal_data = NULL;
 	struct i2c_client *client = NULL;
 	long cal_addr;
@@ -257,7 +258,11 @@ int sensor_gt9778_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	}
 
 	/* EEPROM AF calData address */
-	cal_addr = gPtr_lib_support.minfo->kvaddr_cal[SENSOR_POSITION_REAR] + GT9778_CAL_SAC_ADDR;
+	ret = is_sec_get_sysfs_finfo(&finfo, SENSOR_POSITION_REAR);
+	if (ret < 0)
+		goto p_err;
+
+	cal_addr = gPtr_lib_support.minfo->kvaddr_cal[SENSOR_POSITION_REAR] + finfo->rom_af_cal_sac_addr;
 	cal_data = (struct is_caldata_sac_gt9778 *)(cal_addr);
 
 	/* Read into EEPROM data or default setting */

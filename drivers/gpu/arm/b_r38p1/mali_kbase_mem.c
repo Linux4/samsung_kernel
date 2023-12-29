@@ -380,6 +380,7 @@ void kbase_remove_va_region(struct kbase_device *kbdev,
 	struct rb_node *rbnext;
 	struct kbase_va_region *next = NULL;
 	struct rb_root *reg_rbtree = NULL;
+	struct kbase_va_region *orig_reg = reg;
 
 	int merged_front = 0;
 	int merged_back = 0;
@@ -476,6 +477,12 @@ void kbase_remove_va_region(struct kbase_device *kbdev,
 		}
 		rb_replace_node(&(reg->rblink), &(free_reg->rblink), reg_rbtree);
 	}
+
+	/* This operation is always safe because the function never frees
+	 * the region. If the region has been merged to both front and back,
+	 * then it's the previous region that is supposed to be freed.
+	 */
+	orig_reg->start_pfn = 0;
 
 out:
 	return;
@@ -827,6 +834,10 @@ static void kbase_region_tracker_erase_rbtree(struct rb_root *rbtree)
 
 void kbase_region_tracker_term(struct kbase_context *kctx)
 {
+	WARN(kctx->as_nr != KBASEP_AS_NR_INVALID,
+	     "kctx-%d_%d must first be scheduled out to flush GPU caches+tlbs before erasing remaining regions",
+	     kctx->tgid, kctx->id);
+
 	kbase_gpu_vm_lock(kctx);
 	kbase_region_tracker_erase_rbtree(&kctx->reg_rbtree_same);
 	kbase_region_tracker_erase_rbtree(&kctx->reg_rbtree_custom);
@@ -1746,7 +1757,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg,
 					reg->flags & gwt_mask, kctx->as_nr,
 					group_id, mmu_sync_info);
 				if (err)
-					goto bad_insert;
+					goto bad_aliased_insert;
 
 				/* Note: mapping count is tracked at alias
 				 * creation time
@@ -1760,7 +1771,7 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg,
 					group_id, mmu_sync_info);
 
 				if (err)
-					goto bad_insert;
+					goto bad_aliased_insert;
 			}
 		}
 	} else {
@@ -1801,9 +1812,16 @@ int kbase_gpu_mmap(struct kbase_context *kctx, struct kbase_va_region *reg,
 
 	return err;
 
+bad_aliased_insert:
+       while (i-- > 0) {
+
+                kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu, reg->start_pfn, alloc->pages,
+                                 reg->nr_pages, kctx->as_nr);
+
+       }
+
+
 bad_insert:
-	kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu, reg->start_pfn, alloc->pages,
-				 reg->nr_pages, kctx->as_nr);
 
 	kbase_remove_va_region(kctx->kbdev, reg);
 
@@ -2468,7 +2486,7 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
 			&kctx->mem_pools.large[alloc->group_id],
 			 nr_lp * (SZ_2M / SZ_4K),
 			 tp,
-			 true);
+			 true, kctx->task);
 
 		if (res > 0) {
 			nr_left -= res;
@@ -2522,7 +2540,7 @@ int kbase_alloc_phy_pages_helper(struct kbase_mem_phy_alloc *alloc,
 
 				err = kbase_mem_pool_grow(
 					&kctx->mem_pools.large[alloc->group_id],
-					1);
+					1, kctx->task);
 				if (err)
 					break;
 			} while (1);
@@ -2569,7 +2587,7 @@ no_new_partial:
 	if (nr_left) {
 		res = kbase_mem_pool_alloc_pages(
 			&kctx->mem_pools.small[alloc->group_id],
-			nr_left, tp, false);
+			nr_left, tp, false, kctx->task);
 		if (res <= 0)
 			goto alloc_failed;
 	}
@@ -4059,7 +4077,7 @@ static int kbase_jit_grow(struct kbase_context *kctx,
 		spin_unlock(&kctx->mem_partials_lock);
 
 		kbase_gpu_vm_unlock(kctx);
-		ret = kbase_mem_pool_grow(pool, pool_delta);
+		ret = kbase_mem_pool_grow(pool, pool_delta, kctx->task);
 		kbase_gpu_vm_lock(kctx);
 
 		if (ret)

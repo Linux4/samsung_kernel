@@ -1049,6 +1049,7 @@ struct decon_bts {
 	u32 prev_total_bw;
 	u32 max_disp_freq;
 	u32 prev_max_disp_freq;
+	u32 prev_minlock_stage;
 	u64 ppc;
 	u32 line_mem_cnt;
 	u32 cycle_per_line;

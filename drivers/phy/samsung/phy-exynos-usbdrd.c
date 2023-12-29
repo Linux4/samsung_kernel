@@ -185,7 +185,7 @@ exynos_usbdrd_hs_phy_tune_store(struct device *dev,
 	int ret, i;
 	u32 tune_num = 0;
 
-	if (sscanf(buf, "%s %x", tune_name, &tune_val) != 2){
+	if (sscanf(buf, "%29s %x", tune_name, &tune_val) != 2){
 		return -EINVAL;
 	}
 
@@ -254,7 +254,7 @@ exynos_usbdrd_phy_tune_store(struct device *dev,
 	int ret, i;
 	u32 tune_num = 0;
 
-	if (sscanf(buf, "%s %x", tune_name, &tune_val) != 2){
+	if (sscanf(buf, "%29s %x", tune_name, &tune_val) != 2){
 		return -EINVAL;
 	}
 
@@ -1703,7 +1703,8 @@ void exynos_usbdrd_ldo_control(struct exynos_usbdrd_phy *phy_drd, int on)
 {
 	int ret1, ret2, ret3;
 
-	if (phy_drd->vdd075_usb == NULL || phy_drd->vdd18_usb == NULL || phy_drd->vdd33_usb == NULL) {
+	if (IS_ERR(phy_drd->vdd075_usb) || IS_ERR(phy_drd->vdd18_usb) || IS_ERR(phy_drd->vdd33_usb) || 
+			phy_drd->vdd075_usb == NULL || phy_drd->vdd18_usb == NULL || phy_drd->vdd33_usb == NULL) {
 		dev_err(phy_drd->dev, "%s: not define regulator\n", __func__);
 		goto out;
 	}
@@ -2189,6 +2190,26 @@ static int exynos_usbdrd_phy_probe(struct platform_device *pdev)
 	if (!phy_drd)
 		return -ENOMEM;
 
+	dev_info(dev, "Get USB LDO!\n");
+	phy_drd->vdd075_usb = regulator_get(dev, "vdd075_usb");
+	if (IS_ERR(phy_drd->vdd075_usb) || phy_drd->vdd075_usb == NULL) {
+		dev_err(dev, "%s - vdd075_usb regulator_get fail %p %d\n",
+			__func__, phy_drd->vdd075_usb, IS_ERR(phy_drd->vdd075_usb));
+	}
+
+	phy_drd->vdd18_usb = regulator_get(dev, "vdd18_usb");
+	if (IS_ERR(phy_drd->vdd18_usb) || phy_drd->vdd18_usb == NULL) {
+		dev_err(dev, "%s - vdd18_usb regulator_get fail %p %d\n",
+			__func__, phy_drd->vdd18_usb, IS_ERR(phy_drd->vdd18_usb));
+	}
+
+	phy_drd->vdd33_usb = regulator_get(dev, "vdd33_usb");
+	if (IS_ERR(phy_drd->vdd33_usb) || phy_drd->vdd33_usb == NULL) {
+		dev_err(dev, "%s - vdd33_usb regulator_get fail %p %d\n",
+				__func__, phy_drd->vdd33_usb, IS_ERR(phy_drd->vdd33_usb));
+		return -EPROBE_DEFER;
+	}
+
 	dev_set_drvdata(dev, phy_drd);
 	phy_drd->dev = dev;
 
@@ -2436,28 +2457,6 @@ skip_clock:
 
 	spin_lock_init(&phy_drd->lock);
 
-	dev_info(dev, "Get USB LDO!\n");
-	phy_drd->vdd075_usb = regulator_get(dev, "vdd075_usb");
-	if (IS_ERR(phy_drd->vdd075_usb) || phy_drd->vdd075_usb == NULL) {
-		dev_err(dev, "%s - vdd075_usb regulator_get fail %p %d\n",
-			__func__, phy_drd->vdd075_usb, IS_ERR(phy_drd->vdd075_usb));
-	}
-
-	phy_drd->vdd18_usb = regulator_get(dev, "vdd18_usb");
-	if (IS_ERR(phy_drd->vdd18_usb) || phy_drd->vdd18_usb == NULL) {
-		dev_err(dev, "%s - vdd18_usb regulator_get fail %p %d\n",
-			__func__, phy_drd->vdd18_usb, IS_ERR(phy_drd->vdd18_usb));
-	}
-
-	for (i = 0; i < 5; i++) {
-		phy_drd->vdd33_usb = regulator_get(dev, "vdd33_usb");
-		if (IS_ERR(phy_drd->vdd33_usb) || phy_drd->vdd33_usb == NULL) {
-			dev_err(dev, "%s - vdd33_usb regulator_get fail %p %d\n",
-					__func__, phy_drd->vdd33_usb, IS_ERR(phy_drd->vdd33_usb));
-			mdelay(100);
-		} else
-			break;
-	}
 
 	phy_drd->is_irq_enabled = 0;
 	pm_runtime_enable(dev);

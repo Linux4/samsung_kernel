@@ -95,17 +95,16 @@ static unsigned char debug_level = P3_FULL_DEBUG;
 		case P3_DEBUG_OFF: \
 			break; \
 		case P3_FULL_DEBUG: \
-			NFC_LOG_INFO("[ESE] :  " msg); \
+			NFC_LOG_INFO("ESE: "msg); \
 			break; \
-			 /*fallthrough*/ \
 		default: \
-			NFC_LOG_ERR("[ESE] : debug level %d", debug_level);\
+			NFC_LOG_ERR("ESE: debug level %d", debug_level);\
 			break; \
 		}; \
 	} while (0)
 
-#define P3_ERR_MSG(msg...) NFC_LOG_ERR("[ESE] : " msg)
-#define P3_INFO_MSG(msg...) NFC_LOG_INFO("[ESE] : " msg)
+#define P3_ERR_MSG(msg...) NFC_LOG_ERR("ESE: " msg)
+#define P3_INFO_MSG(msg...) NFC_LOG_INFO("ESE: " msg)
 #else
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level = P3_FULL_DEBUG;
@@ -115,17 +114,17 @@ static unsigned char debug_level = P3_FULL_DEBUG;
 		case P3_DEBUG_OFF: \
 			break; \
 		case P3_FULL_DEBUG: \
-			pr_info("[ESE-P3] :  " msg); \
+			pr_info("ESE: "msg); \
 			break; \
 			 /*fallthrough*/ \
 		default: \
-			pr_err("[ESE-P3] : debug level %d", debug_level);\
+			pr_err("ESE: debug level %d", debug_level);\
 			break; \
 		}; \
 	} while (0)
 
-#define P3_ERR_MSG(msg...) pr_err("[ESE-P3] : " msg)
-#define P3_INFO_MSG(msg...) pr_info("[ESE-P3] : " msg)
+#define P3_ERR_MSG(msg...) pr_err("ESE: "msg)
+#define P3_INFO_MSG(msg...) pr_info("ESE: " msg)
 #endif
 
 static DEFINE_MUTEX(device_list_lock);
@@ -188,8 +187,12 @@ static int p3_regulator_onoff(struct p3_data *data, int onoff)
 	int rc = 0;
 	struct regulator *regulator_ese_pvdd = data->ese_pvdd;
 
+#ifndef CONFIG_ESE_USE_REGULATOR
+	return 0;
+#endif
+
 	if (!regulator_ese_pvdd) {
-		P3_ERR_MSG("%s - null regulator!\n", __func__);
+		P3_ERR_MSG("no regulator!\n");
 		goto done;
 	}
 
@@ -473,12 +476,12 @@ static long spip3_ioctl(struct file *filp, unsigned int cmd,
 
 #ifdef CONFIG_ESE_COLDRESET
 	case P3_WR_RESET:
-		P3_DBG_MSG(": %s: ese_ioctl (cmd: %d)\n", __func__, cmd);
+		P3_DBG_MSG("ese_ioctl (cmd: %d)\n", cmd);
 		p3_power_reset(data);
 		break;
 #endif
 	default:
-		P3_DBG_MSG("%s no matching ioctl! 0x%X\n", __func__, cmd);
+		P3_DBG_MSG("no matching ioctl! 0x%X\n", cmd);
 		ret = -EINVAL;
 	}
 	mutex_unlock(&data->buffer_mutex);
@@ -578,7 +581,7 @@ static ssize_t spip3_write(struct file *filp, const char *buf, size_t count,
 		ret = -EIO;
 	} else {
 		ret = count;
-		P3_INFO_MSG("spi_w%zu\n", count);
+		P3_INFO_MSG("w%zu\n", count);
 	}
 
 	mutex_unlock(&p3_dev->buffer_mutex);
@@ -628,7 +631,7 @@ static ssize_t spip3_read(struct file *filp, char *buf, size_t count,
 		goto fail;
 	}
 	if (count > 1 && rx_buffer[0])
-		P3_INFO_MSG("spi_r%zu\n", count);
+		P3_INFO_MSG("r%zu\n", count);
 	ret = count;
 
 	mutex_unlock(&p3_dev->buffer_mutex);
@@ -681,13 +684,16 @@ static int p3_parse_dt(struct device *dev, struct p3_data *data)
 	} else {
 		P3_INFO_MSG("coldrst type is not set\n");
 	}
-
+#ifdef CONFIG_ESE_USE_REGULATOR
 	data->ese_pvdd = regulator_get(dev, "p3-vdd");
-	if (IS_ERR(data->ese_pvdd)) {
+	if (IS_ERR_OR_NULL(data->ese_pvdd)) {
 		P3_ERR_MSG("get ese_pvdd error\n");
 		data->ese_pvdd = NULL;
 	} else
 		P3_INFO_MSG("LDO ese_pvdd: %pK\n", data->ese_pvdd);
+#else
+	P3_INFO_MSG("ESE power follows NFC PVDD\n");
+#endif
 
 	data->pwr_always_on = of_property_read_bool(np, "ese_p3,pwr_always_on");
 
@@ -705,6 +711,8 @@ static int spip3_probe(struct spi_device *spi)
 #ifdef CONFIG_SPI_QCOM_GENI /*SDM845 Only*/
 	struct spi_geni_qcom_ctrl_data *delay_params = NULL;
 #endif
+
+	nfc_logger_init();
 
 	P3_INFO_MSG("%s chip select : %d , bus number = %d\n",
 		__func__, spi->chip_select, spi->master->bus_num);
@@ -738,11 +746,7 @@ static int spip3_probe(struct spi_device *spi)
 		goto p3_parse_dt_failed;
 	}
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE) && !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
-	if (data->pwr_always_on && !lpcharge) {
-#else
 	if (data->pwr_always_on) {
-#endif
 		ret = p3_regulator_onoff(data, 1);
 		if (ret) {
 			P3_ERR_MSG("%s - Failed to enable regulator\n", __func__);
@@ -757,7 +761,7 @@ static int spip3_probe(struct spi_device *spi)
 	delay_params = devm_kzalloc(&spi->dev, sizeof(struct spi_geni_qcom_ctrl_data),
 			GFP_KERNEL);
 	pr_info("%s success alloc ctrl_data!\n", __func__);
-	delay_params->spi_cs_clk_delay = 35; /*clock cycles*/
+	delay_params->spi_cs_clk_delay = 133; /*clock cycles*/
 	delay_params->spi_inter_words_delay = 0;
 	spi->controller_data = delay_params;
 #endif
@@ -851,7 +855,7 @@ err_exit:
 	return ret;
 }
 
-static int spip3_remove(struct spi_device *spi)
+static int __spip3_remove(struct spi_device *spi)
 {
 	struct p3_data *p3_dev = dev_get_drvdata(&spi->dev);
 
@@ -870,8 +874,21 @@ static int spip3_remove(struct spi_device *spi)
 #endif
 	kfree(p3_dev);
 	P3_DBG_MSG("Exit : %s\n", __func__);
+
 	return 0;
 }
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+static int spip3_remove(struct spi_device *spi)
+{
+	return __spip3_remove(spi);
+}
+#else
+static void spip3_remove(struct spi_device *spi)
+{
+	__spip3_remove(spi);
+}
+#endif
 
 #ifdef CONFIG_OF
 static const struct of_device_id p3_match_table[] = {
@@ -900,6 +917,8 @@ static struct spi_driver spip3_driver = {
 static int p3_platform_probe(struct platform_device *pdev)
 {
 	int ret = -1;
+
+	nfc_logger_init();
 
 	ret = misc_register(&p3_misc_device);
 	if (ret < 0)

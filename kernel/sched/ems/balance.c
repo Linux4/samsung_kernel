@@ -514,6 +514,9 @@ static int lb_idle_pull_tasks_rt(struct rq *dst_rq)
 	if (src_cpu == -1)
 		return 0;
 
+	if (src_cpu == dst_cpu)
+		return 0;
+
 	src_rq = cpu_rq(src_cpu);
 	double_lock_balance(dst_rq, src_rq);
 
@@ -554,13 +557,6 @@ void lb_newidle_balance(struct rq *dst_rq, struct rq_flags *rf,
 
 	short_idle = determine_short_idle(dst_rq->avg_idle);
 
-	/*
-	 * There is a task waiting to run. No need to search for one.
-	 * Return 0; the task will be enqueued when switching to idle.
-	 */
-	if (dst_rq->ttwu_pending)
-		return;
-
 	dst_rq->idle_stamp = rq_clock(dst_rq);
 
 	/*
@@ -571,21 +567,32 @@ void lb_newidle_balance(struct rq *dst_rq, struct rq_flags *rf,
 
 	rq_unpin_lock(dst_rq, rf);
 
+	/*
+	 * There is a task waiting to run. No need to search for one.
+	 * Return 0; the task will be enqueued when switching to idle.
+	 */
+	if (dst_rq->ttwu_pending)
+		goto out;
+
 	if (dst_rq->nr_running)
 		goto out;
 
 	if (lb_idle_pull_tasks_rt(dst_rq))
 		goto out;
 
+	/* sanity check again after drop rq lock during RT balance */
+	if (dst_rq->nr_running)
+		goto out;
+
 	if (!READ_ONCE(dst_rq->rd->overload))
-		goto repin;
+		goto out;
 
 	if (atomic_read(&dst_rq->nr_iowait) && short_idle)
-		goto repin;
+		goto out;
 
 	/* if system is busy state */
 	if (sysbusy_on_somac())
-		goto repin;
+		goto out;
 
 	raw_spin_unlock(&dst_rq->lock);
 
@@ -628,7 +635,6 @@ out:
 	if (*pulled_task)
 		dst_rq->idle_stamp = 0;
 
-repin:
 	rq_repin_lock(dst_rq, rf);
 
 	trace_lb_newidle_balance(dst_cpu, src_cpu, *pulled_task, range, short_idle);

@@ -953,7 +953,7 @@ int slsi_start(struct slsi_dev *sdev, struct net_device *dev)
 	}
 
 #ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
-	if (slsi_is_rf_test_mode_enabled()) {
+	if (slsi_is_rf_test_mode_enabled() && !slsi_is_test_mode_enabled()) {
 		if (sysfs_antenna == SLSI_ANTENNA_NOT_SET)
 			SLSI_INFO(sdev, "antenna not set. Set /sys/wifi/ant to modify antenna\n");
 		else
@@ -4010,7 +4010,7 @@ int  slsi_set_arp_packet_filter(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	if (slsi_is_proxy_arp_supported_on_ap(peer->assoc_resp_ie))
@@ -4362,7 +4362,7 @@ int  slsi_clear_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return -EINVAL;
 
-	if (WARN_ON(!peer))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return -EINVAL;
 
 	SLSI_NET_DBG2(dev, SLSI_MLME, "Clear filters on Screen on");
@@ -4499,10 +4499,7 @@ void slsi_set_packet_filters(struct slsi_dev *sdev, struct net_device *dev)
 	if (WARN_ON(ndev_vif->vif_type != FAPI_VIFTYPE_STATION))
 		return;
 
-	if (WARN_ON(!peer))
-		return;
-
-	if (WARN_ON(!peer->assoc_resp_ie))
+	if (WARN_ON(!peer) || WARN_ON(!peer->assoc_resp_ie))
 		return;
 
 #if !(IS_ENABLED(CONFIG_IPV6))
@@ -5147,7 +5144,7 @@ int slsi_p2p_dev_null_ies(struct slsi_dev *sdev, struct net_device *dev)
 		SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 		scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		while (scan_result) {
-			slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan_result);
+			slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan_result, true);
 			scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		}
 		SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -5453,7 +5450,7 @@ void slsi_abort_sta_scan(struct slsi_dev *sdev)
 		SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 		scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		while (scan_result) {
-			slsi_rx_scan_pass_to_cfg80211(sdev, wlan_net_dev, scan_result);
+			slsi_rx_scan_pass_to_cfg80211(sdev, wlan_net_dev, scan_result, true);
 			scan_result = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 		}
 		SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);

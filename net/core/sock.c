@@ -141,8 +141,22 @@
 #include <net/tcp.h>
 #include <net/busy_poll.h>
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+#include <linux/pid.h>
+#define PROCESS_NAME_LEN_NAP	128
+#define DOMAIN_NAME_LEN_NAP		255
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 static DEFINE_MUTEX(proto_list_mutex);
 static LIST_HEAD(proto_list);
+
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+extern unsigned int check_ncm_flag(void);
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 static void sock_inuse_add(struct net *net, int val);
 
@@ -686,6 +700,105 @@ out:
 	return ret;
 }
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+/** The function sets the domain name associated with the socket. **/
+static int sock_set_domain_name(struct sock *sk, sockptr_t optval,
+				int optlen)
+{
+	int ret = -EADDRNOTAVAIL;
+	char domain[DOMAIN_NAME_LEN_NAP];
+
+	ret = -EINVAL;
+	if (optlen < 0)
+		goto out;
+
+	if (optlen > DOMAIN_NAME_LEN_NAP - 1)
+		optlen = DOMAIN_NAME_LEN_NAP - 1;
+
+	memset(domain, 0, sizeof(domain));
+
+	ret = -EFAULT;
+	if (copy_from_sockptr(domain, optval, optlen))
+		goto out;
+
+	if (SOCK_NPA_VENDOR_DATA_GET(sk)) {
+		memcpy(SOCK_NPA_VENDOR_DATA_GET(sk)->domain_name, domain, sizeof(SOCK_NPA_VENDOR_DATA_GET(sk)->domain_name)-1);
+		ret = 0;
+	}
+
+out:
+	return ret;
+}
+
+/** The function sets the uid associated with the dns socket. **/
+static int sock_set_dns_uid(struct sock *sk, sockptr_t optval, int optlen)
+{
+	int ret = -EADDRNOTAVAIL;
+
+	if (optlen < 0)
+		goto out;
+
+	if (optlen == sizeof(uid_t)) {
+		uid_t dns_uid;
+		ret = -EFAULT;
+		if (copy_from_sockptr(&dns_uid, optval, sizeof(dns_uid)))
+			goto out;
+
+		if (SOCK_NPA_VENDOR_DATA_GET(sk)) {
+			memcpy(&SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_uid, &dns_uid, sizeof(SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_uid));
+			ret = 0;
+		}
+	}
+
+out:
+	return ret;
+}
+
+/** The function sets the pid and the process name associated with the dns socket. **/
+static int sock_set_dns_pid(struct sock *sk, sockptr_t optval, int optlen)
+{
+	int ret = -EADDRNOTAVAIL;
+	struct pid *pid_struct = NULL;
+	struct task_struct *task = NULL;
+	int process_returnValue = -1;
+	char full_process_name[PROCESS_NAME_LEN_NAP] = {0};
+
+	if (optlen < 0)
+		goto out;
+
+	if (optlen == sizeof(pid_t)) {
+		pid_t dns_pid;
+		ret = -EFAULT;
+		if (copy_from_sockptr(&dns_pid, optval, sizeof(dns_pid)))
+			goto out;
+		
+		if (SOCK_NPA_VENDOR_DATA_GET(sk)) {
+			memcpy(&SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_pid, &dns_pid, sizeof(SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_pid));
+			if(check_ncm_flag()) {
+				pid_struct = find_get_pid(dns_pid);
+				if (pid_struct != NULL) {
+					task = pid_task(pid_struct,PIDTYPE_PID);
+					if (task != NULL) {
+						process_returnValue = get_cmdline(task, full_process_name, sizeof(full_process_name)-1);
+						if (process_returnValue > 0) {
+							memcpy(SOCK_NPA_VENDOR_DATA_GET(sk)->dns_process_name, full_process_name, sizeof(SOCK_NPA_VENDOR_DATA_GET(sk)->dns_process_name)-1);
+						} else {
+							memcpy(SOCK_NPA_VENDOR_DATA_GET(sk)->dns_process_name, task->comm, sizeof(task->comm)-1);
+						}
+					}
+				}
+			}
+			ret = 0;
+		}
+	}
+
+out:
+	return ret;
+}
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 bool sk_mc_loop(struct sock *sk)
 {
 	if (dev_recursion_level())
@@ -846,6 +959,16 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 
 	if (optname == SO_BINDTODEVICE)
 		return sock_setbindtodevice(sk, optval, optlen);
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+	if (optname == SO_SET_DOMAIN_NAME)
+		return sock_set_domain_name(sk, optval, optlen);
+	if (optname == SO_SET_DNS_UID)
+		return sock_set_dns_uid(sk, optval, optlen);
+	if (optname == SO_SET_DNS_PID)
+		return sock_set_dns_pid(sk, optval, optlen);
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 	if (optlen < sizeof(int))
 		return -EINVAL;
@@ -889,7 +1012,7 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 		 * play 'guess the biggest size' games. RCVBUF/SNDBUF
 		 * are treated in BSD as hints
 		 */
-		val = min_t(u32, val, sysctl_wmem_max);
+		val = min_t(u32, val, READ_ONCE(sysctl_wmem_max));
 set_sndbuf:
 		/* Ensure val * 2 fits into an int, to prevent max_t()
 		 * from treating it as a negative value.
@@ -921,7 +1044,7 @@ set_sndbuf:
 		 * play 'guess the biggest size' games. RCVBUF/SNDBUF
 		 * are treated in BSD as hints
 		 */
-		__sock_set_rcvbuf(sk, min_t(u32, val, sysctl_rmem_max));
+		__sock_set_rcvbuf(sk, min_t(u32, val, READ_ONCE(sysctl_rmem_max)));
 		break;
 
 	case SO_RCVBUFFORCE:
@@ -1614,6 +1737,13 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 		v.val = sk->sk_bound_dev_if;
 		break;
 
+	case SO_NETNS_COOKIE:
+		lv = sizeof(u64);
+		if (len != lv)
+			return -EINVAL;
+		v.val64 = atomic64_read(&sock_net(sk)->net_cookie);
+		break;
+
 	default:
 		/* We implement the SO_SNDLOWAT etc to not be settable
 		 * (1003.1g 7).
@@ -1665,6 +1795,12 @@ static void sock_copy(struct sock *nsk, const struct sock *osk)
 #ifdef CONFIG_SECURITY_NETWORK
 	void *sptr = nsk->sk_security;
 #endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+	u64 android_vendor_data_npa = nsk->android_oem_data1;
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 	memcpy(nsk, osk, offsetof(struct sock, sk_dontcopy_begin));
 
 	memcpy(&nsk->sk_dontcopy_end, &osk->sk_dontcopy_end,
@@ -1674,6 +1810,11 @@ static void sock_copy(struct sock *nsk, const struct sock *osk)
 	nsk->sk_security = sptr;
 	security_sk_clone(osk, nsk);
 #endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+	nsk->android_oem_data1 = android_vendor_data_npa;
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 }
 
 static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
@@ -1693,10 +1834,20 @@ static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
 		sk = kmalloc(prot->obj_size, priority);
 
 	if (sk != NULL) {
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+		sk->android_oem_data1 = (u64)NULL;
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 		if (security_sk_alloc(sk, family, priority))
 			goto out_free;
 
 		trace_android_rvh_sk_alloc(sk);
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+		sk->android_oem_data1 = (u64)kzalloc(sizeof(struct sock_npa_vendor_data), GFP_NOWAIT);
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 		if (!try_module_get(prot->owner))
 			goto out_free_sec;
@@ -1707,6 +1858,14 @@ static struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority,
 
 out_free_sec:
 	security_sk_free(sk);
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+	if (SOCK_NPA_VENDOR_DATA_GET(sk)) {
+		kfree(SOCK_NPA_VENDOR_DATA_GET(sk));
+		sk->android_oem_data1 = (u64)NULL;
+	}
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 	trace_android_rvh_sk_free(sk);
 out_free:
 	if (slab != NULL)
@@ -1727,6 +1886,14 @@ static void sk_prot_free(struct proto *prot, struct sock *sk)
 	cgroup_sk_free(&sk->sk_cgrp_data);
 	mem_cgroup_sk_free(sk);
 	security_sk_free(sk);
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+	if (SOCK_NPA_VENDOR_DATA_GET(sk)) {
+		kfree(SOCK_NPA_VENDOR_DATA_GET(sk));
+		sk->android_oem_data1 = (u64)NULL;
+	}
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 	trace_android_rvh_sk_free(sk);
 	if (slab != NULL)
 		kmem_cache_free(slab, sk);
@@ -1747,10 +1914,60 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 		      struct proto *prot, int kern)
 {
 	struct sock *sk;
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+	struct pid *pid_struct = NULL;
+	struct task_struct *task = NULL;
+	int process_returnValue = -1;
+	char full_process_name[PROCESS_NAME_LEN_NAP] = {0};
+	struct pid *parent_pid_struct = NULL;
+	struct task_struct *parent_task = NULL;
+	int parent_returnValue = -1;
+	char full_parent_process_name[PROCESS_NAME_LEN_NAP] = {0};
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 	sk = sk_prot_alloc(prot, priority | __GFP_ZERO, family);
 	if (sk) {
 		sk->sk_family = family;
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+		if (SOCK_NPA_VENDOR_DATA_GET(sk)) {
+			SOCK_NPA_VENDOR_DATA_GET(sk)->knox_uid = current->cred->uid.val;
+			SOCK_NPA_VENDOR_DATA_GET(sk)->knox_pid = current->tgid;
+			if (check_ncm_flag()) {
+				pid_struct = find_get_pid(current->tgid);
+				if (pid_struct != NULL) {
+					task = pid_task(pid_struct, PIDTYPE_PID);
+					if (task != NULL) {
+						process_returnValue = get_cmdline(task, full_process_name, sizeof(full_process_name)-1);
+						if (process_returnValue > 0) {
+							memcpy(SOCK_NPA_VENDOR_DATA_GET(sk)->process_name, full_process_name, sizeof(SOCK_NPA_VENDOR_DATA_GET(sk)->process_name)-1);
+						} else {
+							memcpy(SOCK_NPA_VENDOR_DATA_GET(sk)->process_name, task->comm, sizeof(task->comm)-1);
+						}
+						if (task->parent != NULL) {
+							parent_pid_struct = find_get_pid(task->parent->tgid);
+							if (parent_pid_struct != NULL) {
+								parent_task = pid_task(parent_pid_struct, PIDTYPE_PID);
+								if (parent_task != NULL) {
+									parent_returnValue = get_cmdline(parent_task, full_parent_process_name, sizeof(full_parent_process_name)-1);
+									if (parent_returnValue > 0) {
+										memcpy(SOCK_NPA_VENDOR_DATA_GET(sk)->parent_process_name, full_parent_process_name, sizeof(SOCK_NPA_VENDOR_DATA_GET(sk)->parent_process_name)-1);
+									} else {
+										memcpy(SOCK_NPA_VENDOR_DATA_GET(sk)->parent_process_name, parent_task->comm, sizeof(parent_task->comm)-1);
+									}
+									SOCK_NPA_VENDOR_DATA_GET(sk)->knox_puid = parent_task->cred->uid.val;
+									SOCK_NPA_VENDOR_DATA_GET(sk)->knox_ppid = parent_task->tgid;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 		/*
 		 * See comment in struct sock definition to understand
 		 * why we need sk_prot_creator -acme
@@ -2225,7 +2442,7 @@ struct sk_buff *sock_omalloc(struct sock *sk, unsigned long size,
 
 	/* small safe race: SKB_TRUESIZE may differ from final skb->truesize */
 	if (atomic_read(&sk->sk_omem_alloc) + SKB_TRUESIZE(size) >
-	    sysctl_optmem_max)
+	    READ_ONCE(sysctl_optmem_max))
 		return NULL;
 
 	skb = alloc_skb(size, priority);
@@ -2243,8 +2460,10 @@ struct sk_buff *sock_omalloc(struct sock *sk, unsigned long size,
  */
 void *sock_kmalloc(struct sock *sk, int size, gfp_t priority)
 {
-	if ((unsigned int)size <= sysctl_optmem_max &&
-	    atomic_read(&sk->sk_omem_alloc) + size < sysctl_optmem_max) {
+	int optmem_max = READ_ONCE(sysctl_optmem_max);
+
+	if ((unsigned int)size <= optmem_max &&
+	    atomic_read(&sk->sk_omem_alloc) + size < optmem_max) {
 		void *mem;
 		/* First do the add, to avoid the race if kmalloc
 		 * might sleep.
@@ -2982,7 +3201,7 @@ void sk_stop_timer_sync(struct sock *sk, struct timer_list *timer)
 }
 EXPORT_SYMBOL(sk_stop_timer_sync);
 
-void sock_init_data(struct socket *sock, struct sock *sk)
+void sock_init_data_uid(struct socket *sock, struct sock *sk, kuid_t uid)
 {
 	sk_init_common(sk);
 	sk->sk_send_head	=	NULL;
@@ -2990,8 +3209,8 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 	timer_setup(&sk->sk_timer, NULL, 0);
 
 	sk->sk_allocation	=	GFP_KERNEL;
-	sk->sk_rcvbuf		=	sysctl_rmem_default;
-	sk->sk_sndbuf		=	sysctl_wmem_default;
+	sk->sk_rcvbuf		=	READ_ONCE(sysctl_rmem_default);
+	sk->sk_sndbuf		=	READ_ONCE(sysctl_wmem_default);
 	sk->sk_state		=	TCP_CLOSE;
 	sk_set_socket(sk, sock);
 
@@ -3001,11 +3220,10 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 		sk->sk_type	=	sock->type;
 		RCU_INIT_POINTER(sk->sk_wq, &sock->wq);
 		sock->sk	=	sk;
-		sk->sk_uid	=	SOCK_INODE(sock)->i_uid;
 	} else {
 		RCU_INIT_POINTER(sk->sk_wq, NULL);
-		sk->sk_uid	=	make_kuid(sock_net(sk)->user_ns, 0);
 	}
+	sk->sk_uid	=	uid;
 
 	rwlock_init(&sk->sk_callback_lock);
 	if (sk->sk_kern_sock)
@@ -3046,7 +3264,7 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 
 #ifdef CONFIG_NET_RX_BUSY_POLL
 	sk->sk_napi_id		=	0;
-	sk->sk_ll_usec		=	sysctl_net_busy_read;
+	sk->sk_ll_usec		=	READ_ONCE(sysctl_net_busy_read);
 #endif
 
 	sk->sk_max_pacing_rate = ~0UL;
@@ -3062,6 +3280,16 @@ void sock_init_data(struct socket *sock, struct sock *sk)
 	smp_wmb();
 	refcount_set(&sk->sk_refcnt, 1);
 	atomic_set(&sk->sk_drops, 0);
+}
+EXPORT_SYMBOL(sock_init_data_uid);
+
+void sock_init_data(struct socket *sock, struct sock *sk)
+{
+	kuid_t uid = sock ?
+		SOCK_INODE(sock)->i_uid :
+		make_kuid(sock_net(sk)->user_ns, 0);
+
+	sock_init_data_uid(sock, sk, uid);
 }
 EXPORT_SYMBOL(sock_init_data);
 

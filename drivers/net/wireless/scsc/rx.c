@@ -113,7 +113,8 @@ static struct ieee80211_mgmt *slsi_rx_scan_update_ssid(struct slsi_dev *sdev, st
 	return NULL;
 }
 
-struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev,
+							struct sk_buff *skb, bool release_skb)
 {
 	struct ieee80211_mgmt    *mgmt = fapi_get_mgmt(skb);
 	size_t                   mgmt_len = fapi_get_mgmtlen(skb);
@@ -155,7 +156,8 @@ struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, s
 		SLSI_NET_DBG1(dev, SLSI_MLME, "No Channel info found for freq:%d\n", freq);
 	}
 
-	kfree_skb(skb);
+	if (release_skb)
+		kfree_skb(skb);
 	return channel;
 }
 
@@ -1156,7 +1158,7 @@ void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_
 	while (scan) {
 		scan_results_count++;
 		/* skb freed inside slsi_rx_scan_pass_to_cfg80211 */
-		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan);
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan, true);
 
 		if ((SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) && (*result_count >= max_count)) {
 			more_than_max_count = 1;
@@ -1764,6 +1766,11 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 		width =  NL80211_CHAN_WIDTH_160;
 
 	chandef.chan = ieee80211_get_channel(sdev->wiphy, freq);
+	if (!chandef.chan) {
+		SLSI_NET_WARN(dev, "invalid freq received (cf1=%d, temp_chan_info=%d, freq=%d)\n",
+			      (int)cf1, (int)temp_chan_info, (int)freq);
+		goto exit;
+	}
 	chandef.width = width;
 	chandef.center_freq1 = cf1;
 	chandef.center_freq2 = 0;
@@ -1771,7 +1778,11 @@ void slsi_rx_channel_switched_ind(struct slsi_dev *sdev, struct net_device *dev,
 	ndev_vif->ap.channel_freq = freq; /* updated for GETSTAINFO */
 	ndev_vif->chan = chandef.chan;
 	ndev_vif->chandef_saved = chandef;
+	SLSI_NET_INFO(dev, "width:%d, center_freq1:%dMHz, primary:%dMHz\n",
+	      	(int)chandef.width, (int)chandef.center_freq1, freq);
 	cfg80211_ch_switch_notify(dev, &chandef);
+
+exit:
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	kfree_skb(skb);
 }
@@ -2066,7 +2077,7 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 
 	if (ndev_vif->sta.mlme_scan_ind_skb) {
 		/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 		ndev_vif->sta.mlme_scan_ind_skb = NULL;
 	}
 
@@ -2463,6 +2474,7 @@ void slsi_rx_synchronised_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		return;
 	}
 
+	slsi_rx_scan_pass_to_cfg80211(sdev, dev, skb, false);
 	auth_request.action = NL80211_EXTERNAL_AUTH_START;
 	memcpy(auth_request.bssid, fapi_get_mgmt(skb)->bssid, ETH_ALEN);
 	memcpy(auth_request.ssid.ssid, ndev_vif->sta.ssid, ndev_vif->sta.ssid_len);
@@ -3043,7 +3055,7 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 #endif
 			SLSI_NET_DBG1(dev, SLSI_MLME, "Sending scan indication to cfg80211, bssid: %pM\n", fapi_get_mgmt(ndev_vif->sta.mlme_scan_ind_skb)->bssid);
 			/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 			ndev_vif->sta.mlme_scan_ind_skb = NULL;
 		}
 

@@ -781,7 +781,7 @@ int ilitek_set_vbus(void)
 {
 	int ret = 0;
 
-	if (ilits->power_status == POWER_OFF_STATUS || ilits->tp_shutdown) {
+	if (ilits->power_status == POWER_OFF_STATUS || ilits->tp_shutdown || atomic_read(&ilits->fw_stat) != END) {
 		input_info(true, ilits->dev, "%s: power off status(%d,%d)\n",
 					__func__, ilits->power_status, ilits->tp_shutdown);
 		return ret;

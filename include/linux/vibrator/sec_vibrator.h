@@ -9,6 +9,7 @@
 #include <linux/kdev_t.h>
 #include <linux/device.h>
 
+#define MAX_DUTY		100
 #define MAX_INTENSITY		10000
 #define MAX_TIMEOUT		10000
 #define PACKET_MAX_SIZE		1000
@@ -25,6 +26,7 @@ struct vib_packet {
 	int intensity;
 	int freq;
 	int overdrive;
+	int fifo_flag;
 };
 
 enum {
@@ -65,7 +67,14 @@ enum EVENT_CMD {
 
 struct sec_vibrator_ops {
 	int (*enable)(struct device *dev, bool en);
+	int (*set_default_duty)(struct device *dev, int default_duty);
+	int (*get_default_duty)(struct device *dev, char *buf);
+	int (*set_fold_open_duty)(struct device *dev, int fold_open_duty);
+	int (*get_fold_open_duty)(struct device *dev, char *buf);
+	int (*set_fold_close_duty)(struct device *dev, int fold_close_duty);
+	int (*get_fold_close_duty)(struct device *dev, char *buf);
 	int (*set_intensity)(struct device *dev, int intensity);
+	int (*set_fifo_intensity)(struct device *dev, int intensity);
 	int (*set_frequency)(struct device *dev, int frequency);
 	int (*set_overdrive)(struct device *dev, bool en);
 	int (*get_motor_type)(struct device *dev, char *buf);
@@ -90,6 +99,9 @@ struct sec_vibrator_ops {
 	ssize_t (*get_pwle)(struct device *dev, char *buf);
 	ssize_t (*get_virtual_composite_indexes)(struct device *dev, char *buf);
 	ssize_t (*get_virtual_pwle_indexes)(struct device *dev, char *buf);
+	int (*get_fifo_filepath)(struct device *dev, char *buf);
+	int (*enable_fifo)(struct device *dev, int file_num);
+	int (*update_packet_params)(struct device *dev);
 };
 
 struct sec_vibrator_pdata  {
@@ -123,6 +135,8 @@ struct sec_vibrator_drvdata {
 	bool overdrive;
 
 	int timeout;
+	int time_compensation;
+	int max_delay_ms;
 
 	struct sec_vibrator_pdata *pdata;
 

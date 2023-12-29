@@ -3324,6 +3324,7 @@ int is_sec_readcal_eeprom_dualized(int rom_id)
 		finfo->rom_af_cal_addr[i] = finfo->rom_dualized_af_cal_addr[i];
 	finfo->rom_af_cal_addr_len = finfo->rom_dualized_af_cal_addr_len;
 	finfo->rom_paf_cal_start_addr = finfo->rom_dualized_paf_cal_start_addr;
+	finfo->rom_af_cal_sac_addr = finfo->rom_dualized_af_cal_sac_addr;
 
 #ifdef CONFIG_SEC_CAL_ENABLE
 	/* standard cal */
@@ -3381,6 +3382,13 @@ int is_sec_readcal_eeprom_dualized(int rom_id)
 	finfo->rom_xtc_cal_data_start_addr =
 		finfo->rom_dualized_xtc_cal_data_start_addr;
 	finfo->rom_xtc_cal_data_size = finfo->rom_dualized_xtc_cal_data_size;
+	finfo->rom_xgc_cal_data_start_addr =
+		finfo->rom_dualized_xgc_cal_data_start_addr;
+	finfo->rom_xgc_cal_data_0_size = finfo->rom_dualized_xgc_cal_data_0_size;
+	finfo->rom_xgc_cal_data_1_size = finfo->rom_dualized_xgc_cal_data_1_size;
+	finfo->rom_qbgc_cal_data_start_addr =
+		finfo->rom_dualized_qbgc_cal_data_start_addr;
+	finfo->rom_qbgc_cal_data_size = finfo->rom_dualized_qbgc_cal_data_size;
 	finfo->rom_pdxtc_cal_endian_check =
 		finfo->rom_dualized_pdxtc_cal_endian_check;
 
@@ -3583,7 +3591,7 @@ int is_sec_readcal_eeprom(int rom_id)
 	rom_type = module->pdata->rom_type;
 
 	if (!(sensor_id ==
-		  SENSOR_NAME_S5KGD2)) //put all dualized sensor names here
+		  SENSOR_NAME_HI5022)) //put all dualized sensor names here
 		finfo->is_read_dualized_values = true;
 	if (!(finfo->is_read_dualized_values)) {
 		is_sec_readcal_eeprom_dualized(

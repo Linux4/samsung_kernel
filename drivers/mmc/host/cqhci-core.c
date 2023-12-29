@@ -424,9 +424,6 @@ static int cqhci_enable(struct mmc_host *mmc, struct mmc_card *card)
 
 	cq_host->enabled = true;
 
-#ifdef DEBUG
-	cqhci_dumpregs(cq_host);
-#endif
 	return 0;
 }
 
@@ -694,6 +691,16 @@ static int cqhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 		return -EINVAL;
 	}
 
+	spin_lock_irqsave(&cq_host->lock, flags);
+	if ((cq_host->recovery_halt)) {
+		err = -EBUSY;
+		pr_err("%s, %s: cqhci: cq in recovery\n",
+				mmc_hostname(mmc), __func__);
+		goto out_unlock;
+	}
+
+	spin_unlock_irqrestore(&cq_host->lock, flags);
+
 	/* First request after resume has to re-enable */
 	if (!cq_host->activated)
 		__cqhci_enable(cq_host);
@@ -739,8 +746,7 @@ static int cqhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	spin_lock_irqsave(&cq_host->lock, flags);
 
-	if ((cq_host->recovery_halt) || (cq_host->slot[DCMD_SLOT].mrq) != NULL) {
-
+	if ((cq_host->slot[DCMD_SLOT].mrq) != NULL) {
 		err = -EBUSY;
 		goto out_unlock;
 	}
@@ -748,7 +754,7 @@ static int cqhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	cq_host->slot[tag].mrq = mrq;
 	cq_host->slot[tag].flags = 0;
 
-#ifdef CONFIG_MMC_DW_DEBUG
+#if IS_ENABLED(CONFIG_MMC_DW_DEBUG)
 	if (cq_host->ops->cmdq_log) {
 		struct cmdq_log_ctx log_ctx;
 

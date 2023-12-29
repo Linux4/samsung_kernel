@@ -1189,46 +1189,61 @@ static u8 A14_ILI7807_217[] = {
 };
 
 static u8 A14_ILI7807_218[] = {
+	0xAE,
+	0x28,
+};
+
+static u8 A14_ILI7807_219[] = {
+	0xB1,
+	0x38,
+};
+
+static u8 A14_ILI7807_220[] = {
 	0xFF,
 	0x78, 0x07, 0x06,
 };
 
-static u8 A14_ILI7807_219[] = {
+static u8 A14_ILI7807_221[] = {
 	0xC0,
 	0x68,
 };
 
-static u8 A14_ILI7807_220[] = {
+static u8 A14_ILI7807_222[] = {
 	0xC1,
 	0x19,
 };
 
-static u8 A14_ILI7807_221[] = {
+static u8 A14_ILI7807_223[] = {
 	0xC3,
 	0x06,
 };
 
-static u8 A14_ILI7807_222[] = {
+static u8 A14_ILI7807_224[] = {
 	0x13,
 	0x13,
 };
 
-static u8 A14_ILI7807_223[] = {
+static u8 A14_ILI7807_225[] = {
+	0x69,
+	0xDF,
+};
+
+static u8 A14_ILI7807_226[] = {
 	0xFF,
 	0x78, 0x07, 0x07,
 };
 
-static u8 A14_ILI7807_224[] = {
+static u8 A14_ILI7807_227[] = {
 	0x29,
 	0x80,
 };
 
-static u8 A14_ILI7807_225[] = {
+static u8 A14_ILI7807_228[] = {
 	0xFF,
 	0x78, 0x07, 0x17,
 };
 
-static u8 A14_ILI7807_226[] = {
+static u8 A14_ILI7807_229[] = {
 	0x20,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x89, 0x30,
 	0x80, 0x09, 0x68, 0x04, 0x38, 0x00, 0x08, 0x02, 0x1C, 0x02,
@@ -1246,12 +1261,12 @@ static u8 A14_ILI7807_226[] = {
 	0x00, 0x00, 0x00,
 };
 
-static u8 A14_ILI7807_227[] = {
+static u8 A14_ILI7807_230[] = {
 	0xFF,
 	0x78, 0x07, 0x08,
 };
 
-static u8 A14_ILI7807_228[] = {
+static u8 A14_ILI7807_231[] = {
 	0xE0,
 	0x00, 0x00, 0x1A, 0x43, 0x00, 0x7A, 0xA6, 0xCB, 0x15, 0x04,
 	0x2F, 0x72, 0x25, 0xA2, 0xEE, 0x28, 0x2A, 0x61, 0xA2, 0xCA,
@@ -1259,7 +1274,7 @@ static u8 A14_ILI7807_228[] = {
 	0xD7,
 };
 
-static u8 A14_ILI7807_229[] = {
+static u8 A14_ILI7807_232[] = {
 	0xE1,
 	0x00, 0x00, 0x1A, 0x43, 0x00, 0x7A, 0xA6, 0xCB, 0x15, 0x04,
 	0x2F, 0x72, 0x25, 0xA2, 0xEE, 0x28, 0x2A, 0x61, 0xA2, 0xCA,
@@ -1267,291 +1282,314 @@ static u8 A14_ILI7807_229[] = {
 	0xD7,
 };
 
-static u8 A14_ILI7807_230[] = {
+static u8 A14_ILI7807_233[] = {
 	0xFF,
 	0x78, 0x07, 0x0B,
 };
 
-static u8 A14_ILI7807_231[] = {
+static u8 A14_ILI7807_234[] = {
 	0x94,
 	0x88,
 };
 
-static u8 A14_ILI7807_232[] = {
+static u8 A14_ILI7807_235[] = {
 	0x95,
 	0x21,
 };
 
-static u8 A14_ILI7807_233[] = {
+static u8 A14_ILI7807_236[] = {
 	0x96,
 	0x06,
 };
 
-static u8 A14_ILI7807_234[] = {
+static u8 A14_ILI7807_237[] = {
 	0x97,
 	0x06,
 };
 
-static u8 A14_ILI7807_235[] = {
+static u8 A14_ILI7807_238[] = {
 	0x98,
 	0xCB,
 };
 
-static u8 A14_ILI7807_236[] = {
+static u8 A14_ILI7807_239[] = {
 	0x99,
 	0xCB,
 };
 
-static u8 A14_ILI7807_237[] = {
+static u8 A14_ILI7807_240[] = {
 	0x9A,
 	0x46,
 };
 
-static u8 A14_ILI7807_238[] = {
+static u8 A14_ILI7807_241[] = {
 	0x9B,
 	0xAE,
 };
 
-static u8 A14_ILI7807_239[] = {
+static u8 A14_ILI7807_242[] = {
 	0x9C,
 	0x05,
 };
 
-static u8 A14_ILI7807_240[] = {
+static u8 A14_ILI7807_243[] = {
 	0x9D,
 	0x05,
 };
 
-static u8 A14_ILI7807_241[] = {
+static u8 A14_ILI7807_244[] = {
 	0x9E,
 	0xA7,
 };
 
-static u8 A14_ILI7807_242[] = {
+static u8 A14_ILI7807_245[] = {
 	0x9F,
 	0xA7,
 };
 
-static u8 A14_ILI7807_243[] = {
+static u8 A14_ILI7807_246[] = {
 	0xAA,
 	0x12,
 };
 
-static u8 A14_ILI7807_244[] = {
+static u8 A14_ILI7807_247[] = {
 	0xAB,
 	0xE0,
 };
 
-static u8 A14_ILI7807_245[] = {
+static u8 A14_ILI7807_248[] = {
 	0xFF,
 	0x78, 0x07, 0x0C,
 };
 
-static u8 A14_ILI7807_246[] = {
+static u8 A14_ILI7807_249[] = {
 	0x80,
 	0x2E,
 };
 
-static u8 A14_ILI7807_247[] = {
+static u8 A14_ILI7807_250[] = {
 	0x81,
 	0xF0,
 };
 
-static u8 A14_ILI7807_248[] = {
+static u8 A14_ILI7807_251[] = {
 	0x82,
 	0x2E,
 };
 
-static u8 A14_ILI7807_249[] = {
+static u8 A14_ILI7807_252[] = {
 	0x83,
 	0xF1,
 };
 
-static u8 A14_ILI7807_250[] = {
+static u8 A14_ILI7807_253[] = {
 	0xFF,
 	0x78, 0x07, 0x0E,
 };
 
-static u8 A14_ILI7807_251[] = {
+static u8 A14_ILI7807_254[] = {
 	0x00,
 	0xA3,
 };
 
-static u8 A14_ILI7807_252[] = {
+static u8 A14_ILI7807_255[] = {
 	0x02,
 	0x0F,
 };
 
-static u8 A14_ILI7807_253[] = {
+static u8 A14_ILI7807_256[] = {
 	0x04,
 	0x06,
 };
 
-static u8 A14_ILI7807_254[] = {
+static u8 A14_ILI7807_257[] = {
 	0x13,
 	0x04,
 };
 
-static u8 A14_ILI7807_255[] = {
+static u8 A14_ILI7807_258[] = {
 	0xB0,
 	0x21,
 };
 
-static u8 A14_ILI7807_256[] = {
+static u8 A14_ILI7807_259[] = {
 	0xC0,
 	0x12,
 };
 
-static u8 A14_ILI7807_257[] = {
+static u8 A14_ILI7807_260[] = {
 	0x05,
 	0x20,
 };
 
-static u8 A14_ILI7807_258[] = {
+static u8 A14_ILI7807_261[] = {
 	0x0B,
 	0x00,
 };
 
-static u8 A14_ILI7807_259[] = {
+static u8 A14_ILI7807_262[] = {
 	0x41,
 	0x14,
 };
 
-static u8 A14_ILI7807_260[] = {
+static u8 A14_ILI7807_263[] = {
 	0x42,
 	0x02,
 };
 
-static u8 A14_ILI7807_261[] = {
+static u8 A14_ILI7807_264[] = {
 	0x43,
 	0x14,
 };
 
-static u8 A14_ILI7807_262[] = {
+static u8 A14_ILI7807_265[] = {
 	0x44,
 	0x82,
 };
 
-static u8 A14_ILI7807_263[] = {
+static u8 A14_ILI7807_266[] = {
 	0x40,
 	0x07,
 };
 
-static u8 A14_ILI7807_264[] = {
+static u8 A14_ILI7807_267[] = {
 	0x45,
 	0x0B,
 };
 
-static u8 A14_ILI7807_265[] = {
+static u8 A14_ILI7807_268[] = {
 	0x46,
 	0x1C,
 };
 
-static u8 A14_ILI7807_266[] = {
+static u8 A14_ILI7807_269[] = {
 	0x47,
 	0x10,
 };
 
-static u8 A14_ILI7807_267[] = {
+static u8 A14_ILI7807_270[] = {
 	0x49,
 	0x2D,
 };
 
-static u8 A14_ILI7807_268[] = {
+static u8 A14_ILI7807_271[] = {
 	0xB1,
 	0x61,
 };
 
-static u8 A14_ILI7807_269[] = {
+static u8 A14_ILI7807_272[] = {
 	0xC8,
 	0x61,
 };
 
-static u8 A14_ILI7807_270[] = {
+static u8 A14_ILI7807_273[] = {
 	0xC9,
 	0x61,
 };
 
-static u8 A14_ILI7807_271[] = {
+static u8 A14_ILI7807_274[] = {
 	0x4D,
 	0xC0,
 };
 
-static u8 A14_ILI7807_272[] = {
+static u8 A14_ILI7807_275[] = {
 	0x50,
 	0x00,
 };
 
-static u8 A14_ILI7807_273[] = {
+static u8 A14_ILI7807_276[] = {
 	0x4B,
 	0x01,
 };
 
-static u8 A14_ILI7807_274[] = {
+static u8 A14_ILI7807_277[] = {
 	0xE0,
 	0x11,
 };
 
-static u8 A14_ILI7807_275[] = {
+static u8 A14_ILI7807_278[] = {
 	0xE1,
 	0x00,
 };
 
-static u8 A14_ILI7807_276[] = {
+static u8 A14_ILI7807_279[] = {
 	0xE2,
 	0x08,
 };
 
-static u8 A14_ILI7807_277[] = {
+static u8 A14_ILI7807_280[] = {
 	0xE3,
 	0x31,
 };
 
-static u8 A14_ILI7807_278[] = {
+static u8 A14_ILI7807_281[] = {
 	0xE5,
 	0x08,
 };
 
-static u8 A14_ILI7807_279[] = {
+static u8 A14_ILI7807_282[] = {
 	0xFF,
 	0x78, 0x07, 0x1E,
 };
 
-static u8 A14_ILI7807_280[] = {
+static u8 A14_ILI7807_283[] = {
 	0xC9,
 	0x02,
 };
 
-static u8 A14_ILI7807_281[] = {
+static u8 A14_ILI7807_284[] = {
 	0xC0,
 	0x1F,
 };
 
-static u8 A14_ILI7807_282[] = {
+static u8 A14_ILI7807_285[] = {
 	0xFF,
 	0x78, 0x07, 0x00,
 };
 
-static u8 A14_ILI7807_283[] = {
+static u8 A14_ILI7807_286[] = {
 	0x51,
 	0x00, 0x00,
 };
 
-static u8 A14_ILI7807_284[] = {
+static u8 A14_ILI7807_287[] = {
 	0x53,
 	0x2C,
 };
 
-static u8 A14_ILI7807_285[] = {
+static u8 A14_ILI7807_288[] = {
 	0x55,
 	0x01,
 };
+
+#if defined(CONFIG_SUPPORT_VCOM_TRIM_TEST)
+static u8 A14_VCOM_TRIM_TEST_START[] = {
+	0xFF,
+	0x78, 0x07, 0x05,
+};
+
+static u8 A14_VCOM_TRIM_TEST_07[] = {
+	0xFF,
+	0x78, 0x07, 0x07,
+};
+
+static u8 A14_VCOM_TRIM_TEST_END[] = {
+	0xFF,
+	0x78, 0x07, 0x00,
+};
+#endif
 
 static DEFINE_STATIC_PACKET(a14_sleep_out, DSI_PKT_TYPE_WR, A14_SLEEP_OUT, 0);
 static DEFINE_STATIC_PACKET(a14_sleep_in, DSI_PKT_TYPE_WR, A14_SLEEP_IN, 0);
 static DEFINE_STATIC_PACKET(a14_display_on, DSI_PKT_TYPE_WR, A14_DISPLAY_ON, 0);
 static DEFINE_STATIC_PACKET(a14_display_off, DSI_PKT_TYPE_WR, A14_DISPLAY_OFF, 0);
 static DEFINE_STATIC_PACKET(a14_brightness_mode, DSI_PKT_TYPE_WR, A14_BRIGHTNESS_MODE, 0);
+
+#if defined(CONFIG_SUPPORT_VCOM_TRIM_TEST)
+static DEFINE_STATIC_PACKET(a14_vcom_trim_test_start, DSI_PKT_TYPE_WR, A14_VCOM_TRIM_TEST_START, 0);
+static DEFINE_STATIC_PACKET(a14_vcom_trim_test_07, DSI_PKT_TYPE_WR, A14_VCOM_TRIM_TEST_07, 0);
+static DEFINE_STATIC_PACKET(a14_vcom_trim_test_end, DSI_PKT_TYPE_WR, A14_VCOM_TRIM_TEST_END, 0);
+#endif
 
 static DEFINE_PKTUI(a14_brightness, &a14_maptbl[BRT_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(a14_brightness, DSI_PKT_TYPE_WR, A14_BRIGHTNESS, 0);
@@ -1841,11 +1879,14 @@ static DEFINE_STATIC_PACKET(a14_ili7807_boe_282, DSI_PKT_TYPE_WR, A14_ILI7807_28
 static DEFINE_STATIC_PACKET(a14_ili7807_boe_283, DSI_PKT_TYPE_WR, A14_ILI7807_283, 0);
 static DEFINE_STATIC_PACKET(a14_ili7807_boe_284, DSI_PKT_TYPE_WR, A14_ILI7807_284, 0);
 static DEFINE_STATIC_PACKET(a14_ili7807_boe_285, DSI_PKT_TYPE_WR, A14_ILI7807_285, 0);
-
+static DEFINE_STATIC_PACKET(a14_ili7807_boe_286, DSI_PKT_TYPE_WR, A14_ILI7807_286, 0);
+static DEFINE_STATIC_PACKET(a14_ili7807_boe_287, DSI_PKT_TYPE_WR, A14_ILI7807_287, 0);
+static DEFINE_STATIC_PACKET(a14_ili7807_boe_288, DSI_PKT_TYPE_WR, A14_ILI7807_288, 0);
 
 static DEFINE_PANEL_MDELAY(a14_wait_display_off, 1 * 17); /* 1 frame */
 static DEFINE_PANEL_MDELAY(a14_wait_sleep_in, 4 * 17); /* 4 frame */
 static DEFINE_PANEL_MDELAY(a14_wait_2msec, 2);
+static DEFINE_PANEL_MDELAY(a14_wait_17msec, 17);
 static DEFINE_PANEL_MDELAY(a14_wait_40msec, 40);
 static DEFINE_PANEL_MDELAY(a14_wait_100msec, 100);
 static DEFINE_PANEL_MDELAY(a14_wait_blic_off, 1);
@@ -2138,7 +2179,9 @@ static void *a14_init_cmdtbl[] = {
 	&PKTINFO(a14_ili7807_boe_283),
 	&PKTINFO(a14_ili7807_boe_284),
 	&PKTINFO(a14_ili7807_boe_285),
-
+	&PKTINFO(a14_ili7807_boe_286),
+	&PKTINFO(a14_ili7807_boe_287),
+	&PKTINFO(a14_ili7807_boe_288),
 
 	&PKTINFO(a14_sleep_out),
 	&DLYINFO(a14_wait_100msec),
@@ -2167,6 +2210,20 @@ static void *a14_exit_cmdtbl[] = {
 	&PKTINFO(a14_sleep_in),
 };
 
+#if defined(CONFIG_SUPPORT_VCOM_TRIM_TEST)
+static void *a14_vcom_trim_test_cmdtbl[] = {
+	&PKTINFO(a14_vcom_trim_test_start),
+	&ili7807_boe_restbl[RES_VCOM_TRIM_1],
+	&DLYINFO(a14_wait_17msec),
+	&PKTINFO(a14_vcom_trim_test_07),
+	&ili7807_boe_restbl[RES_VCOM_TRIM_2],
+	&DLYINFO(a14_wait_17msec),
+	&ili7807_boe_restbl[RES_VCOM_TRIM_3],
+	&DLYINFO(a14_wait_17msec),
+	&PKTINFO(a14_vcom_trim_test_end),
+};
+#endif
+
 /* ===================================================================================== */
 /* ================================= [EA8076 I2C TABLE] ===========+++================= */
 /* ===================================================================================== */
@@ -2176,7 +2233,7 @@ static u8 ILI7807_A14_I2C_INIT[] = {
 	0x0E, 0x1E,
 	0x09, 0x99,
 	0x02, 0x6B,
-	0x03, 0x27,
+	0x03, 0x26,
 	0x11, 0x74,
 	0x04, 0x03,
 	0x05, 0xC2,
@@ -2230,6 +2287,9 @@ static struct seqinfo a14_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_I2C_INIT_SEQ] = SEQINFO_INIT("i2c-init-seq", ili7807_boe_a14_init_cmdtbl),
 	[PANEL_I2C_EXIT_SEQ] = SEQINFO_INIT("i2c-exit-seq", ili7807_boe_a14_exit_cmdtbl),
 	[PANEL_I2C_DUMP_SEQ] = SEQINFO_INIT("i2c-dump-seq", ili7807_boe_a14_dump_cmdtbl),
+#endif
+#if defined(CONFIG_SUPPORT_VCOM_TRIM_TEST)
+	[PANEL_VCOM_TRIM_TEST_SEQ] = SEQINFO_INIT("vcom_trim_test_seq", a14_vcom_trim_test_cmdtbl),
 #endif
 };
 

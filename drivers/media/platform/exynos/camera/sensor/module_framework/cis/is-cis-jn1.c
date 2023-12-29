@@ -120,6 +120,10 @@ static void sensor_jn1_cis_data_calculation(const struct sensor_pll_info_compact
 					/ (vt_pix_clk_hz / 1000));
 	cis_data->cur_frame_us_time = cis_data->min_frame_us_time;
 
+#ifdef CAMERA_REAR2
+	cis_data->min_sync_frame_us_time = cis_data->min_frame_us_time;
+#endif
+
 	/* 3. FPS calculation */
 	frame_rate = vt_pix_clk_hz / (pll_info_compact->frame_length_lines * pll_info_compact->line_length_pck);
 	dbg_sensor(1, "frame_rate (%d) = vt_pix_clk_hz(%llu) / "
@@ -1058,7 +1062,6 @@ int sensor_jn1_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	u32 coarse_integ_time = 0;
 	u32 frame_length_lines = 0;
 	u32 frame_duration = 0;
-	u32 max_frame_us_time = 0;
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
 	do_gettimeofday(&st);
@@ -1085,45 +1088,37 @@ int sensor_jn1_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	coarse_integ_time = (u32)(((vt_pic_clk_freq_khz * input_exposure_time) / 1000
 									- cis_data->min_fine_integration_time) / line_length_pck);
 
-	if (cis->min_fps == cis->max_fps) {
+	if (cis->min_fps == cis->max_fps && cis->max_fps <= 60) {
+		/*
+		 * If input exposure is setted as 33333us@30fps from ddk
+		 * then calculated frame duration is larger than 33333us because of CIT MARGIN.
+		 */
 		dbg_sensor(1, "[%s] requested min_fps(%d), max_fps(%d) from HAL\n", __func__, cis->min_fps, cis->max_fps);
 
 		if (coarse_integ_time > cis_data->max_coarse_integration_time) {
-			dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%u) max(%u)\n", cis->id, __func__,
-				cis_data->sen_vsync_count, coarse_integ_time, cis_data->max_coarse_integration_time);
+			dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), input exp(%d) coarse(%u) max(%u)\n", cis->id, __func__,
+				cis_data->sen_vsync_count, input_exposure_time, coarse_integ_time, cis_data->max_coarse_integration_time);
 			coarse_integ_time = cis_data->max_coarse_integration_time;
 		}
 
 		if (coarse_integ_time < cis_data->min_coarse_integration_time) {
-			dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%u) min(%u)\n", cis->id, __func__,
-				cis_data->sen_vsync_count, coarse_integ_time, cis_data->min_coarse_integration_time);
+			dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), input exp(%d) coarse(%u) min(%u)\n", cis->id, __func__,
+				cis_data->sen_vsync_count, input_exposure_time, coarse_integ_time, cis_data->min_coarse_integration_time);
 			coarse_integ_time = cis_data->min_coarse_integration_time;
 		}
 	}
 
 	frame_length_lines = coarse_integ_time + cis_data->max_margin_coarse_integration_time;
 	frame_duration = (u32)(((u64)frame_length_lines * line_length_pck) * 1000 / vt_pic_clk_freq_khz);
-	max_frame_us_time = 1000000/cis->min_fps;
 
-	dbg_sensor(1, "[%s](vsync cnt = %d) input exp(%d), adj duration, frame duraion(%d), min_frame_us(%d)\n",
+	dbg_sensor(1, "[%s](vsync cnt = %d) input exp(%d), adj duration, frame duration(%d), min_frame_us(%d)\n",
 			__func__, cis_data->sen_vsync_count, input_exposure_time, frame_duration, cis_data->min_frame_us_time);
-	dbg_sensor(1, "[%s](vsync cnt = %d) adj duration, frame duraion(%d), min_frame_us(%d), max_frame_us_time(%d)\n",
-			__func__, cis_data->sen_vsync_count, frame_duration, cis_data->min_frame_us_time, max_frame_us_time);
 
-	if (input_exposure_time <= 0)
-		*target_duration = cis_data->min_frame_us_time;
-	else
+	if (cis->long_term_mode.sen_strm_off_on_enable == false) {
 		*target_duration = MAX(frame_duration, cis_data->min_frame_us_time);
-
-	/*
-	 * For recording with fixed fps (>= 10fps).
-	 * If input exposure is setted as 33333us@30fps from ddk,
-	 * then calculated frame duration is larger than 33333us because of CIT MARGIN.
-	 */
-	if ((cis_data->min_frame_us_time <= SENSOR_JN1_MIN_FRAME_DURATION) && (cis->min_fps == cis->max_fps)) {
-		*target_duration = MIN(frame_duration, max_frame_us_time);
+	} else {
+		*target_duration = frame_duration;
 	}
-
 	dbg_sensor(1, "[%s] calcurated frame_duration(%d), adjusted frame_duration(%d)\n", __func__, frame_duration, *target_duration);
 
 #ifdef DEBUG_SENSOR_TIME
@@ -1279,7 +1274,11 @@ int sensor_jn1_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 		goto p_err;
 	}
 
+#ifdef CAMERA_REAR2
+	cis_data->min_frame_us_time = MAX(frame_duration, cis_data->min_sync_frame_us_time);
+#else
 	cis_data->min_frame_us_time = frame_duration;
+#endif
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);

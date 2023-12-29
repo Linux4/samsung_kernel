@@ -121,6 +121,10 @@ config SMCDSD_LCD_DEBUG
 	bool "Support LCD_DEBUG"
 	default n
 
+config SUPPORT_VCOM_TRIM_TEST
+	bool "Support VCOM TRIM test"
+	default n
+
 config EXYNOS_DECON_LCD_DUMMY_LCD_V320
 	depends on EXYNOS_DECON_LCD
 	tristate "DUMMY_LCD_V320 LCD driver"

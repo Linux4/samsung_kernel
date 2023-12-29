@@ -446,7 +446,7 @@ static struct sock *udp4_lib_lookup2(struct net *net,
 			result = lookup_reuseport(net, sk, skb,
 						  saddr, sport, daddr, hnum);
 			/* Fall back to scoring if group has connections */
-			if (result && !reuseport_has_conns(sk, false))
+			if (result && !reuseport_has_conns(sk))
 				return result;
 
 			result = result ? : sk;
@@ -597,6 +597,12 @@ void udp_encap_enable(void)
 	static_branch_inc(&udp_encap_needed_key);
 }
 EXPORT_SYMBOL(udp_encap_enable);
+
+void udp_encap_disable(void)
+{
+	static_branch_dec(&udp_encap_needed_key);
+}
+EXPORT_SYMBOL(udp_encap_disable);
 
 /* Handler for tunnels with arbitrary destination ports: no socket lookup, go
  * through error handlers in encapsulations looking for a match.
@@ -1198,7 +1204,7 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 				   faddr, saddr, dport, inet->inet_sport,
 				   sk->sk_uid);
 
-		security_sk_classify_flow(sk, flowi4_to_flowi(fl4));
+		security_sk_classify_flow(sk, flowi4_to_flowi_common(fl4));
 		rt = ip_route_output_flow(net, fl4, sk);
 		if (IS_ERR(rt)) {
 			err = PTR_ERR(rt);
@@ -2187,7 +2193,7 @@ bool udp_sk_rx_dst_set(struct sock *sk, struct dst_entry *dst)
 	struct dst_entry *old;
 
 	if (dst_hold_safe(dst)) {
-		old = xchg(&sk->sk_rx_dst, dst);
+		old = xchg((__force struct dst_entry **)&sk->sk_rx_dst, dst);
 		dst_release(old);
 		return old != dst;
 	}
@@ -2337,6 +2343,11 @@ static int udp_unicast_rcv_skb(struct sock *sk, struct sk_buff *skb,
  *	All we need to do is get the socket, and then do a checksum.
  */
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+#include <net/ncm.h>
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 		   int proto)
 {
@@ -2376,9 +2387,61 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 	if (sk) {
 		struct dst_entry *dst = skb_dst(skb);
 		int ret;
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+		struct nf_conn *ct = NULL;
+		enum ip_conntrack_info ctinfo;
+		struct nf_conntrack_tuple *tuple = NULL;
+		char srcaddr[INET6_ADDRSTRLEN_NAP];
+		char dstaddr[INET6_ADDRSTRLEN_NAP];
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
-		if (unlikely(sk->sk_rx_dst != dst))
+		if (unlikely(rcu_dereference(sk->sk_rx_dst) != dst))
 			udp_sk_rx_dst_set(sk, dst);
+
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+		/* function to handle open flows with incoming udp packets */
+		if (check_ncm_flag()) {
+			if ( (sk) && (sk->sk_protocol == IPPROTO_UDP) && (SOCK_NPA_VENDOR_DATA_GET(sk) != NULL) ) {
+				ct = nf_ct_get(skb, &ctinfo);
+				if ( (ct) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) && (!atomic_read(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->startFlow)) && (!nf_ct_is_dying(ct)) ) {
+					tuple = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
+					if (tuple) {
+						sprintf(srcaddr,"%pI4",(void *)&tuple->src.u3.ip);
+						sprintf(dstaddr,"%pI4",(void *)&tuple->dst.u3.ip);
+						if ( !isIpv4AddressEqualsNull(srcaddr, dstaddr) ) {
+							atomic_set(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->startFlow, 1);
+							if ( check_intermediate_flag() ) {
+								NF_CONN_NPA_VENDOR_DATA_GET(ct)->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
+								atomic_set(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->intermediateFlow, 1);
+							}
+							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_uid;
+							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_pid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_pid;
+							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name, SOCK_NPA_VENDOR_DATA_GET(sk)->process_name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name)-1);
+							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_puid;
+							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_ppid;
+							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name, SOCK_NPA_VENDOR_DATA_GET(sk)->parent_process_name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
+							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name, SOCK_NPA_VENDOR_DATA_GET(sk)->domain_name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name)-1);
+							if ( (skb->dev) ) {
+								memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name, skb->dev->name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name)-1);
+							} else {
+								sprintf(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name,"%s","null");
+							}
+							if ( (tuple != NULL) && (ntohs(tuple->dst.u.udp.port) == DNS_PORT_NAP) && (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid == INIT_UID_NAP) && (SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_uid > INIT_UID_NAP) ) {
+								NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_uid;
+								NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_pid;
+								memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name, SOCK_NPA_VENDOR_DATA_GET(sk)->dns_process_name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
+							}
+							knox_collect_conntrack_data(ct, NCM_FLOW_TYPE_OPEN, 3);
+						}	
+					}
+				}
+			}
+		}
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 		ret = udp_unicast_rcv_skb(sk, skb, uh);
 		if (refcounted)
@@ -2391,8 +2454,58 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 						saddr, daddr, udptable, proto);
 
 	sk = __udp4_lib_lookup_skb(skb, uh->source, uh->dest, udptable);
-	if (sk)
+	if (sk) {
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+		struct nf_conn *ct = NULL;
+		enum ip_conntrack_info ctinfo;
+		struct nf_conntrack_tuple *tuple = NULL;
+		char srcaddr[INET6_ADDRSTRLEN_NAP];
+		char dstaddr[INET6_ADDRSTRLEN_NAP];
+
+		/* function to handle open flows with incoming udp packets */
+		if (check_ncm_flag()) {
+			if ( (sk) && (sk->sk_protocol == IPPROTO_UDP) && (SOCK_NPA_VENDOR_DATA_GET(sk) != NULL) ) {
+				ct = nf_ct_get(skb, &ctinfo);
+				if ( (ct) && (NF_CONN_NPA_VENDOR_DATA_GET(ct) != NULL) && (!atomic_read(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->startFlow)) && (!nf_ct_is_dying(ct)) ) {
+					tuple = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
+					if (tuple) {
+						sprintf(srcaddr,"%pI4",(void *)&tuple->src.u3.ip);
+						sprintf(dstaddr,"%pI4",(void *)&tuple->dst.u3.ip);
+						if ( !isIpv4AddressEqualsNull(srcaddr, dstaddr) ) {
+							atomic_set(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->startFlow, 1);
+							if ( check_intermediate_flag() ) {
+								NF_CONN_NPA_VENDOR_DATA_GET(ct)->npa_timeout = ((u32)(jiffies)) + (get_intermediate_timeout() * HZ);
+								atomic_set(&NF_CONN_NPA_VENDOR_DATA_GET(ct)->intermediateFlow, 1);
+							}
+							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_uid;
+							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_pid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_pid;
+							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name, SOCK_NPA_VENDOR_DATA_GET(sk)->process_name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->process_name)-1);
+							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_puid;
+							NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_ppid;
+							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name, SOCK_NPA_VENDOR_DATA_GET(sk)->parent_process_name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
+							memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name, SOCK_NPA_VENDOR_DATA_GET(sk)->domain_name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->domain_name)-1);
+							if ( (skb->dev) ) {
+								memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name, skb->dev->name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name)-1);
+							} else {
+								sprintf(NF_CONN_NPA_VENDOR_DATA_GET(ct)->interface_name,"%s","null");
+							}
+							if ( (tuple != NULL) && (ntohs(tuple->dst.u.udp.port) == DNS_PORT_NAP) && (NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_uid == INIT_UID_NAP) && (SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_uid > INIT_UID_NAP) ) {
+								NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_puid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_uid;
+								NF_CONN_NPA_VENDOR_DATA_GET(ct)->knox_ppid = SOCK_NPA_VENDOR_DATA_GET(sk)->knox_dns_pid;
+								memcpy(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name, SOCK_NPA_VENDOR_DATA_GET(sk)->dns_process_name, sizeof(NF_CONN_NPA_VENDOR_DATA_GET(ct)->parent_process_name)-1);
+							}
+							knox_collect_conntrack_data(ct, NCM_FLOW_TYPE_OPEN, 3);
+						}	
+					}
+				}
+			}
+		}
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 		return udp_unicast_rcv_skb(sk, skb, uh);
+	}
 
 	if (!xfrm4_policy_check(NULL, XFRM_POLICY_IN, skb))
 		goto drop;
@@ -2484,8 +2597,7 @@ static struct sock *__udp4_lib_demux_lookup(struct net *net,
 	struct sock *sk;
 
 	udp_portaddr_for_each_entry_rcu(sk, &hslot2->head) {
-		if (INET_MATCH(sk, net, acookie, rmt_addr,
-			       loc_addr, ports, dif, sdif))
+		if (INET_MATCH(net, sk, acookie, ports, dif, sdif))
 			return sk;
 		/* Only check first socket in chain */
 		break;
@@ -2536,7 +2648,7 @@ int udp_v4_early_demux(struct sk_buff *skb)
 
 	skb->sk = sk;
 	skb->destructor = sock_efree;
-	dst = READ_ONCE(sk->sk_rx_dst);
+	dst = rcu_dereference(sk->sk_rx_dst);
 
 	if (dst)
 		dst = dst_check(dst, 0);

@@ -15,6 +15,16 @@
 #include <linux/netfilter/x_tables.h>
 #include <linux/netfilter/xt_connmark.h>
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+#include <linux/pid.h>
+#include <linux/types.h>
+#include <linux/tcp.h>
+#include <linux/ip.h>
+#include <net/ip.h>
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+
 MODULE_AUTHOR("Henrik Nordstrom <hno@marasystems.com>");
 MODULE_DESCRIPTION("Xtables: connection mark operations");
 MODULE_LICENSE("GPL");
@@ -23,6 +33,44 @@ MODULE_ALIAS("ip6t_CONNMARK");
 MODULE_ALIAS("ipt_connmark");
 MODULE_ALIAS("ip6t_connmark");
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+#define META_MARK_BASE_LOWER 100
+#define META_MARK_BASE_UPPER 500
+
+static void knoxvpn_uidpid(struct sk_buff *skb, u_int32_t newmark)
+{
+	struct skb_shared_info *knox_shinfo = NULL;
+
+	if (skb != NULL) {
+		knox_shinfo = skb_shinfo(skb);
+	} else {
+		pr_err("KNOX: NULL SKB - no KNOX processing");
+		return;
+	}
+
+	if( skb->sk == NULL) {
+		pr_err("KNOX: skb->sk value is null");
+		return;
+	}
+
+	if( knox_shinfo == NULL) {
+		pr_err("KNOX: knox_shinfo is null");
+		return;
+	}
+
+	if (newmark < META_MARK_BASE_LOWER || newmark > META_MARK_BASE_UPPER) {
+		pr_err("KNOX: The mark is out of range");
+		return;
+	} else {
+		if ((current) && (current->cred)) knox_shinfo->android_oem_data1[0] = (u64)current->cred->uid.val;
+		if (current) knox_shinfo->android_oem_data1[1] = (u64)current->tgid;
+		knox_shinfo->android_oem_data1[2] = (u64)newmark;
+	}
+}
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+
 static unsigned int
 connmark_tg_shift(struct sk_buff *skb, const struct xt_connmark_tginfo2 *info)
 {
@@ -30,6 +78,7 @@ connmark_tg_shift(struct sk_buff *skb, const struct xt_connmark_tginfo2 *info)
 	u_int32_t new_targetmark;
 	struct nf_conn *ct;
 	u_int32_t newmark;
+	u_int32_t oldmark;
 
 	ct = nf_ct_get(skb, &ctinfo);
 	if (ct == NULL)
@@ -37,14 +86,15 @@ connmark_tg_shift(struct sk_buff *skb, const struct xt_connmark_tginfo2 *info)
 
 	switch (info->mode) {
 	case XT_CONNMARK_SET:
-		newmark = (ct->mark & ~info->ctmask) ^ info->ctmark;
+		oldmark = READ_ONCE(ct->mark);
+		newmark = (oldmark & ~info->ctmask) ^ info->ctmark;
 		if (info->shift_dir == D_SHIFT_RIGHT)
 			newmark >>= info->shift_bits;
 		else
 			newmark <<= info->shift_bits;
 
-		if (ct->mark != newmark) {
-			ct->mark = newmark;
+		if (READ_ONCE(ct->mark) != newmark) {
+			WRITE_ONCE(ct->mark, newmark);
 			nf_conntrack_event_cache(IPCT_MARK, ct);
 		}
 		break;
@@ -55,15 +105,15 @@ connmark_tg_shift(struct sk_buff *skb, const struct xt_connmark_tginfo2 *info)
 		else
 			new_targetmark <<= info->shift_bits;
 
-		newmark = (ct->mark & ~info->ctmask) ^
+		newmark = (READ_ONCE(ct->mark) & ~info->ctmask) ^
 			  new_targetmark;
-		if (ct->mark != newmark) {
-			ct->mark = newmark;
+		if (READ_ONCE(ct->mark) != newmark) {
+			WRITE_ONCE(ct->mark, newmark);
 			nf_conntrack_event_cache(IPCT_MARK, ct);
 		}
 		break;
 	case XT_CONNMARK_RESTORE:
-		new_targetmark = (ct->mark & info->ctmask);
+		new_targetmark = (READ_ONCE(ct->mark) & info->ctmask);
 		if (info->shift_dir == D_SHIFT_RIGHT)
 			new_targetmark >>= info->shift_bits;
 		else
@@ -72,6 +122,11 @@ connmark_tg_shift(struct sk_buff *skb, const struct xt_connmark_tginfo2 *info)
 		newmark = (skb->mark & ~info->nfmask) ^
 			  new_targetmark;
 		skb->mark = newmark;
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+		knoxvpn_uidpid(skb, newmark);
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 		break;
 	}
 	return XT_CONTINUE;
@@ -126,7 +181,7 @@ connmark_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	if (ct == NULL)
 		return false;
 
-	return ((ct->mark & info->mask) == info->mark) ^ info->invert;
+	return ((READ_ONCE(ct->mark) & info->mask) == info->mark) ^ info->invert;
 }
 
 static int connmark_mt_check(const struct xt_mtchk_param *par)

@@ -76,6 +76,3 @@ struct p3_spi_platform_data {
 	unsigned int irq_gpio;
 	unsigned int rst_gpio;
 };
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE) && !IS_ENABLED(CONFIG_SAMSUNG_ESE_ONLY)
-extern unsigned int lpcharge; /*for power off charge*/
-#endif

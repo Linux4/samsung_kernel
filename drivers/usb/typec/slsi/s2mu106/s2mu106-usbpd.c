@@ -470,7 +470,6 @@ static void s2mu106_pr_swap(void *_data, int val)
 	if (val == USBPD_SINK_OFF) {
 		pd_data->pd_noti.event = PDIC_NOTIFY_EVENT_PD_PRSWAP_SNKTOSRC;
 		pd_data->pd_noti.sink_status.selected_pdo_num = 0;
-		pd_data->pd_noti.sink_status.available_pdo_num = 0;
 		pd_data->pd_noti.sink_status.current_pdo_num = 0;
 		pdic_event_work(pd_data, PDIC_NOTIFY_DEV_BATT,
 			PDIC_NOTIFY_ID_POWER_STATUS, 0, 0, 0);
@@ -486,7 +485,6 @@ static void s2mu106_pr_swap(void *_data, int val)
 	} else if (val == USBPD_SOURCE_OFF) {
 		pd_data->pd_noti.event = PDIC_NOTIFY_EVENT_PD_PRSWAP_SRCTOSNK;
 		pd_data->pd_noti.sink_status.selected_pdo_num = 0;
-		pd_data->pd_noti.sink_status.available_pdo_num = 0;
 		pd_data->pd_noti.sink_status.current_pdo_num = 0;
 		pdic_event_work(pd_data, PDIC_NOTIFY_DEV_BATT,
 			PDIC_NOTIFY_ID_POWER_STATUS, 0, 0, 0);
@@ -3240,6 +3238,9 @@ static void s2mu106_vbus_short_check(struct s2mu106_usbpd_data *pdic_data)
 #if IS_ENABLED(CONFIG_USB_HW_PARAM)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
+#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
+	int event = 0;
+#endif
 
 	if (pdic_data->vbus_short_check)
 		return;
@@ -3277,6 +3278,12 @@ static void s2mu106_vbus_short_check(struct s2mu106_usbpd_data *pdic_data)
 			) {
 		pr_info("%s, Vbus short\n", __func__);
 		pdic_data->vbus_short = true;
+#if defined(CONFIG_USB_NOTIFY_PROC_LOG)
+		if (o_notify) {
+			event = NOTIFY_EXTRA_SYSMSG_CC_SHORT;
+			store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+		}
+#endif
 #if IS_ENABLED(CONFIG_USB_HW_PARAM)
 		if (o_notify)
 			inc_hw_param(o_notify, USB_CCIC_VBUS_CC_SHORT_COUNT);
@@ -4003,6 +4010,9 @@ static irqreturn_t s2mu106_irq_thread(int irq, void *data)
 
 	s2mu106_poll_status(pd_data);
 
+	if (s2mu106_get_status(pd_data, MSG_SOFTRESET))
+		usbpd_rx_soft_reset(pd_data);
+
 	if (s2mu106_get_status(pd_data, PLUG_DETACH)) {
 #if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
 	mutex_lock(&pdic_data->plug_mutex);
@@ -4560,13 +4570,11 @@ static int s2mu106_usbpd_probe(struct i2c_client *i2c,
 
 #if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
-	wakeup_source_init(pdic_data->water_wake, "water_wake");   // 4.19 R
 	if (!(pdic_data->water_wake)) {
 		pdic_data->water_wake = wakeup_source_create("water_wake"); // 4.19 Q
 		if (pdic_data->water_wake)
 			wakeup_source_add(pdic_data->water_wake);
 	}
-	wakeup_source_init(pdic_data->water_irq_wake, "water_irq_wake");   // 4.19 R
 	if (!(pdic_data->water_irq_wake)) {
 		pdic_data->water_irq_wake = wakeup_source_create("water_irq_wake"); // 4.19 Q
 		if (pdic_data->water_irq_wake)

@@ -779,6 +779,8 @@ int panel_display_on(struct panel_device *panel)
 	state->disp_on = PANEL_DISPLAY_ON;
 	copr_enable(&panel->copr);
 
+	panel_update_brightness(panel);
+
 	return 0;
 
 do_exit:

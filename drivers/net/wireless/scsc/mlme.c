@@ -2112,7 +2112,7 @@ int slsi_mlme_start(struct slsi_dev *sdev, struct net_device *dev, u8 *bssid, st
 	channel_encode = ndev_vif->acs == true ? 0 : 1;
 	fapi_set_u32(req, u.mlme_start_req.spare_1, 0);
 	fapi_set_low16_u32(req, u.mlme_start_req.spare_1, channel_encode);
-#ifdef CONFIG_SCSC_WLAN_SAE_PWE
+#if defined(CONFIG_SCSC_WLAN_SAE_PWE) || (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 	if (settings->crypto.sae_pwe == NL80211_SAE_PWE_HASH_TO_ELEMENT)
 		fapi_set_high16_u32(req, u.mlme_start_req.spare_1, 1);
 #endif
@@ -3236,7 +3236,7 @@ int slsi_mlme_connect_scan(struct slsi_dev *sdev, struct net_device *dev,
 	SLSI_MUTEX_LOCK(ndev_vif->scan_result_mutex);
 	scan = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 	while (scan) {
-		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan);
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan, true);
 		scan = slsi_dequeue_cached_scan_result(&ndev_vif->scan[SLSI_SCAN_HW_ID], NULL);
 	}
 	SLSI_MUTEX_UNLOCK(ndev_vif->scan_result_mutex);
@@ -3647,7 +3647,8 @@ int slsi_mlme_send_frame_mgmt(struct slsi_dev *sdev, struct net_device *dev, con
 		return -EINVAL;
 	}
 
-	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_send_frame_req(vif:%d, message_type:%d,host_tag:%d)\n", ndev_vif->ifnum, msg_type, host_tag);
+	SLSI_NET_DBG2(dev, SLSI_MLME, "mlme_send_frame_req(vif:%d, message_type:%d,host_tag:%d, frame_len:%d)\n",
+	      	ndev_vif->ifnum, msg_type, host_tag, frame_len);
 	slsi_debug_frame(sdev, dev, req, "TX");
 	cfm = slsi_mlme_req_cfm(sdev, dev, req, MLME_SEND_FRAME_CFM);
 	if (!cfm)

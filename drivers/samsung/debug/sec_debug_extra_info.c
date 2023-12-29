@@ -276,6 +276,34 @@ static int is_key_in_blocklist(const char *key)
 	return 0;
 }
 
+static int is_key_in_once_list(const char *s, const char *key)
+{
+	char blkey[][MAX_ITEM_KEY_LEN] = {
+		"SPCNT", "HLFREQ",
+	};
+
+	int nr_blkey, val_len, i;
+	int ret = 0;
+
+	val_len = get_val_len(s);
+	nr_blkey = ARRAY_SIZE(blkey);
+
+	for (i = 0; i < nr_blkey; i++) {
+		if (!strncmp(key, blkey[i], strlen(key)))
+			ret++;
+	}
+
+	if (!ret)
+		return 0;
+
+	for (i = 0; i < nr_blkey; i++) {
+		if (strnstr(s, blkey[i], val_len))
+			return 1;
+	}
+
+	return 0;
+}
+
 static DEFINE_SPINLOCK(keyorder_lock);
 
 static void set_key_order(const char *key)
@@ -306,6 +334,9 @@ static void set_key_order(const char *key)
 	}
 
 	v = get_item_val(p);
+
+	if (is_key_in_once_list(v, key))
+		goto  unlock_keyorder;
 
 	/* keep previous value */
 	len_prev = get_val_len(v);
@@ -913,6 +944,13 @@ void secdbg_exin_set_epd(const char *str)
 }
 EXPORT_SYMBOL(secdbg_exin_set_epd);
 
+void secdbg_exin_set_ufs(const char *str)
+{
+	clear_item_val("UFS");
+	set_item_val("UFS", "%s", str);
+}
+EXPORT_SYMBOL(secdbg_exin_set_ufs);
+
 /* OCP total limitation */
 #define MAX_OCP_CNT		(0xFF)
 
@@ -1474,12 +1512,28 @@ static int secdbg_exin_die_handler(struct notifier_block *nb,
 {
 	struct die_args *args = (struct die_args *)buf;
 	struct pt_regs *regs = args->regs;
+	u64 lr;
 
-	if (regs && (!user_mode(regs)))
+	if (args->err)
+		secdbg_exin_set_esr(args->err);
+
+	if (!regs)
+		return NOTIFY_DONE;
+
+	if (!user_mode(regs))
 		secdbg_exin_set_backtrace(regs);
 
 	if (is_bug_reported)
 		secdbg_exin_set_fault(BUG_FAULT, (unsigned long)regs->pc, regs);
+
+	if (compat_user_mode(regs))
+		lr = regs->compat_lr;
+	else
+		lr = regs->regs[30];
+
+	set_item_val("PC", "%pS", regs->pc);
+	set_item_val("LR", "%pS",
+			user_mode(regs) ? lr : ptrauth_strip_insn_pac(lr));
 
 	return NOTIFY_DONE;
 }

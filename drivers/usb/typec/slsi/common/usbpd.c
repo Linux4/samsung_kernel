@@ -457,7 +457,6 @@ void usbpd_set_ops(struct device *dev, usbpd_phy_ops_type *ops)
 	pd_data->phy_ops.authentic			= ops->authentic;
 	pd_data->phy_ops.energy_now			= ops->energy_now;
 	pd_data->phy_ops.set_usbpd_reset		= ops->set_usbpd_reset;
-	pd_data->phy_ops.ops_get_fsm_state		= ops->ops_get_fsm_state;
 	pd_data->phy_ops.set_is_otg_vboost		= ops->set_is_otg_vboost;
 	pd_data->phy_ops.get_detach_valid		= ops->get_detach_valid;
 	pd_data->phy_ops.rprd_mode_change		= ops->rprd_mode_change;
@@ -728,6 +727,7 @@ void usbpd_rx_soft_reset(struct usbpd_data *pd_data)
 	usbpd_reinit(pd_data->dev);
 	usbpd_policy_reset(pd_data, SOFTRESET_RECEIVED);
 }
+EXPORT_SYMBOL(usbpd_rx_soft_reset);
 
 void usbpd_reinit(struct device *dev)
 {

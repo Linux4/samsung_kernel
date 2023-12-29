@@ -82,7 +82,7 @@ struct sec_nfc_platform_data {
 	u32 npt_gpio_flags;
 /*[END] NPT*/
 	struct regulator *nfc_pvdd;
-	int bootloader_ver; /* used for nfc test */
+	const char *nfc_ic_type; /* used for nfc test */
 	int i2c_switch; /*i2c swicth on_off gpio*/
 };
 

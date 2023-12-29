@@ -977,6 +977,7 @@ struct is_rom_info {
 	int32_t		rom_awb_module_addr;
 	int32_t		rom_af_cal_addr[AF_CAL_MAX];
 	int32_t		rom_af_cal_addr_len;
+	int32_t		rom_af_cal_sac_addr;
 	int32_t		rom_paf_cal_start_addr;
 #ifdef CONFIG_SEC_CAL_ENABLE
 	/* standard cal */
@@ -1010,6 +1011,11 @@ struct is_rom_info {
 
 	int32_t		rom_xtc_cal_data_start_addr;
 	int32_t		rom_xtc_cal_data_size;
+	int32_t		rom_xgc_cal_data_start_addr;
+	int32_t		rom_xgc_cal_data_0_size;
+	int32_t		rom_xgc_cal_data_1_size;
+	int32_t		rom_qbgc_cal_data_start_addr;
+	int32_t		rom_qbgc_cal_data_size;
 
 	int32_t		rear_remosaic_tetra_xtc_start_addr;
 	int32_t		rear_remosaic_tetra_xtc_size;
@@ -1072,6 +1078,7 @@ struct is_rom_info {
 	int32_t		rom_dualized_awb_module_addr;
 	int32_t		rom_dualized_af_cal_addr[AF_CAL_MAX];
 	int32_t		rom_dualized_af_cal_addr_len;
+	int32_t		rom_dualized_af_cal_sac_addr;
 	int32_t		rom_dualized_paf_cal_start_addr;
 #ifdef CONFIG_SEC_CAL_ENABLE
 	/* standard cal */
@@ -1105,6 +1112,11 @@ struct is_rom_info {
 
 	int32_t		rom_dualized_xtc_cal_data_start_addr;
 	int32_t		rom_dualized_xtc_cal_data_size;
+	int32_t		rom_dualized_xgc_cal_data_start_addr;
+	int32_t		rom_dualized_xgc_cal_data_0_size;
+	int32_t		rom_dualized_xgc_cal_data_1_size;
+	int32_t		rom_dualized_qbgc_cal_data_start_addr;
+	int32_t		rom_dualized_qbgc_cal_data_size;
 
 	bool	rom_dualized_pdxtc_cal_endian_check;
 	u32		rom_dualized_pdxtc_cal_data_addr_list[CROSSTALK_CAL_MAX];

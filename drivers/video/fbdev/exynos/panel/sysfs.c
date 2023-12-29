@@ -110,6 +110,52 @@ static ssize_t manufacture_code_show(struct device *dev,
 	return strlen(buf);
 }
 
+#if defined(CONFIG_SUPPORT_VCOM_TRIM_TEST)
+#define VCOM_TRIM_EXPECTED (0x00 << 16  | 0x11 << 8 | 0x01)
+static ssize_t vcom_trim_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct panel_info *panel_data;
+	struct panel_device *panel = dev_get_drvdata(dev);
+	u8 read_vals[3] = {0, };
+	u32 read_val = 0;
+	int ret = 0;
+
+	if (panel == NULL) {
+		panel_err("PANEL:ERR:%s:panel is null\n", __func__);
+		return -EINVAL;
+	}
+	panel_data = &panel->panel_data;
+
+	if (!check_seqtbl_exist(panel_data, PANEL_VCOM_TRIM_TEST_SEQ)) {
+		panel_info("PANEL:INFO:PANEL_VCOM_TRIM_TEST_SEQ is not exist, (not supported) return 1.\n");
+		snprintf(buf, PAGE_SIZE, "1\n");
+		goto exit;
+	}
+
+	ret = panel_do_seqtbl_by_index(panel, PANEL_VCOM_TRIM_TEST_SEQ);
+	if (unlikely(ret < 0)) {
+		pr_err("%s, failed to do PANEL_VCOM_TRIM_TEST_SEQ seq\n", __func__);
+		return ret;
+	}
+
+	resource_copy_by_name(panel_data, &read_vals[0], "vcom_trim_1");
+	resource_copy_by_name(panel_data, &read_vals[1], "vcom_trim_2");
+	resource_copy_by_name(panel_data, &read_vals[2], "vcom_trim_3");
+
+	read_val = read_vals[0] << 16 | read_vals[1] << 8 | read_vals[2];
+
+	if (read_val == VCOM_TRIM_EXPECTED )
+		snprintf(buf, PAGE_SIZE, "1\n");
+	else
+		snprintf(buf, PAGE_SIZE, "0 %02X %02X %02X\n", read_vals[0], read_vals[1], read_vals[2]);
+
+	panel_info("PANEL:INFO:%s read_val:0x%08x expected: 0x%08x ret:%s\n", __func__, read_val, VCOM_TRIM_EXPECTED, buf);
+exit:
+	return strlen(buf);
+}
+#endif
+
 static ssize_t SVC_OCTA_DDI_CHIPID_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -3999,6 +4045,9 @@ struct device_attribute panel_attrs[] = {
 #endif
 	__PANEL_ATTR_RW(conn_det, 0664),
 	__PANEL_ATTR_RW(vrr, 0664),
+#if defined(CONFIG_SUPPORT_VCOM_TRIM_TEST)
+	__PANEL_ATTR_RO(vcom_trim, 0444),
+#endif
 };
 
 int panel_remove_svc_octa(struct panel_device *panel)

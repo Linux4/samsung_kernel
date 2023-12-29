@@ -57,12 +57,25 @@
 /* static reserved memory for libraries */
 #define CDH_SIZE		SZ_128K		/* CDH : Camera Debug Helper */
 
+#if defined(BPF_JIT_REGION_SIZE)
+#define BPF_OFS		0
+#else
+#define BPF_OFS		SZ_128M
+#endif /* BPF_JIT_REGION_SIZE */
+
+/*
 #ifdef CONFIG_KASAN
 #define LIB_OFFSET		(VMALLOC_START + 0xF6000000 - 0x8000000)
 #else
 #define LIB_OFFSET		(VMALLOC_START + 0x1000000000UL + 0xF6000000 - 0x8000000)
 #endif
-
+*/
+ 
+#ifdef CONFIG_KASAN
+#define LIB_OFFSET		(VMALLOC_START + BPF_OFS + 0xF6000000 - 0x8000000)
+#else
+#define LIB_OFFSET		(VMALLOC_START + BPF_OFS + 0x1000000000UL + 0xF6000000 - 0x8000000)
+#endif
 #define __LIB_START		(LIB_OFFSET + 0x04000000 - CDH_SIZE)
 #define LIB_START		(__LIB_START)
 

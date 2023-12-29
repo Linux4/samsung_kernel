@@ -11,7 +11,7 @@ config SAMSUNG_NFC
 	  be called nfc.
 
 config SEC_NFC
-	bool "Samsung NFC driver"
+	tristate "Samsung NFC driver"
 	default n
 	help
 	  SAMSUNG NFC Driver.
@@ -19,6 +19,17 @@ config SEC_NFC
 	  You should select your NFC product and interface.
 
 	  Say Y here to compile support for SAMSUNG NFC driver into the
+	  kernel.
+
+config SEC_MX_NFC
+	tristate "Samsung MX NFC driver"
+	default n
+	help
+	  SAMSUNG MX NFC Driver.
+	  This driver provides support for SAMSUNG MX NFC products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for SAMSUNG MX NFC driver into the
 	  kernel.
 
 config NFC_PVDD_LATE_ENABLE

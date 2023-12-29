@@ -37,7 +37,7 @@ int initialize_shub_misc_dev(void)
 	for (i = 0 ; i < ARRAY_SIZE(misc_dev_init_funcs); i++) {
 		ret = misc_dev_init_funcs[i](true);
 		if (ret) {
-			shub_errf("init[%d] failed. ret %d", i, ret);
+			shub_errf("init[%d] failed. ret %d", (int)i, ret);
 			break;
 		}
 	}

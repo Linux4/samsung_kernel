@@ -901,13 +901,14 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 		decon = get_decon_drvdata(i);
 
 		if (decon) {
-			dsim_info("\tDECON%d: bw(%u %u), disp(%u %u), p(%u)\n",
+			dsim_info("\tDECON%d: bw(%u %u), disp(%u %u), p(%u), L(%u)\n",
 					decon->id,
 					decon->bts.prev_total_bw,
 					decon->bts.total_bw,
 					decon->bts.prev_max_disp_freq,
 					decon->bts.max_disp_freq,
-					decon->bts.peak);
+					decon->bts.peak,
+					decon->bts.prev_minlock_stage);
 			dsim_bts_print_info(&decon->bts.bts_info);
 		}
 	}

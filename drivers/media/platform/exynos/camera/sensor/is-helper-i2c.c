@@ -79,6 +79,7 @@ int is_i2c_transfer(struct i2c_adapter *adapter, struct i2c_msg *msg, u32 size)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(is_i2c_transfer);
 
 int is_sensor_addr8_read8(struct i2c_client *client,
 	u8 addr, u8 *val)

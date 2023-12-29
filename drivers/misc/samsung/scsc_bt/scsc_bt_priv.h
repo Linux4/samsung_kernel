@@ -247,6 +247,7 @@ struct scsc_bt_service {
 	struct scsc_bt_connection_info connection_handle_list[SCSC_BT_CONNECTION_INFO_MAX];
 	bool                           hci_event_paused;
 	bool                           acldata_paused;
+	uint16_t                       acldata_paused_conn_hdl;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 	struct scsc_wake_lock	       read_wake_lock;
         struct scsc_wake_lock	       write_wake_lock;

@@ -109,24 +109,20 @@ int mfc_core_get_hwlock_dev(struct mfc_core *core)
 	int ret = 0;
 	unsigned long flags;
 
-	mutex_lock(&core->hwlock_wq.wait_mutex);
-
-	spin_lock_irqsave(&core->hwlock.lock, flags);
-	__mfc_print_hwlock(core);
-
 	if (core->state == MFCCORE_ERROR) {
 		mfc_core_info("[MSR] Couldn't lock HW. It's Error state\n");
-		spin_unlock_irqrestore(&core->hwlock.lock, flags);
-		mutex_unlock(&core->hwlock_wq.wait_mutex);
 		return 0;
 	}
 
 	if (core->shutdown) {
 		mfc_core_info("Couldn't lock HW. Shutdown was called\n");
-		spin_unlock_irqrestore(&core->hwlock.lock, flags);
-		mutex_unlock(&core->hwlock_wq.wait_mutex);
 		return -EINVAL;
 	}
+
+	mutex_lock(&core->hwlock_wq.wait_mutex);
+
+	spin_lock_irqsave(&core->hwlock.lock, flags);
+	__mfc_print_hwlock(core);
 
 	if ((core->hwlock.bits != 0) || (core->hwlock.dev != 0)) {
 		list_add_tail(&core->hwlock_wq.list, &core->hwlock.waiting_list);
@@ -180,24 +176,20 @@ int mfc_core_get_hwlock_ctx(struct mfc_core_ctx *core_ctx)
 	int ret = 0;
 	unsigned long flags;
 
-	mutex_lock(&core_ctx->hwlock_wq.wait_mutex);
-
-	spin_lock_irqsave(&core->hwlock.lock, flags);
-	__mfc_print_hwlock(core);
-
 	if (core->state == MFCCORE_ERROR) {
 		mfc_core_info("[MSR] Couldn't lock HW. It's Error state\n");
-		spin_unlock_irqrestore(&core->hwlock.lock, flags);
-		mutex_unlock(&core->hwlock_wq.wait_mutex);
 		return 0;
 	}
 
 	if (core->shutdown) {
 		mfc_core_info("Couldn't lock HW. Shutdown was called\n");
-		spin_unlock_irqrestore(&core->hwlock.lock, flags);
-		mutex_unlock(&core_ctx->hwlock_wq.wait_mutex);
 		return -EINVAL;
 	}
+
+	mutex_lock(&core_ctx->hwlock_wq.wait_mutex);
+
+	spin_lock_irqsave(&core->hwlock.lock, flags);
+	__mfc_print_hwlock(core);
 
 	if ((core->hwlock.bits != 0) || (core->hwlock.dev != 0)) {
 		list_add_tail(&core_ctx->hwlock_wq.list, &core->hwlock.waiting_list);

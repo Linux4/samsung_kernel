@@ -527,6 +527,8 @@ static int s2mpu12_suspend(struct device *dev)
 	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
 	struct s2mpu12_dev *s2mpu12 = i2c_get_clientdata(i2c);
 
+	dev->power.must_resume = true;
+
 	if (device_may_wakeup(dev))
 		enable_irq_wake(s2mpu12->irq);
 

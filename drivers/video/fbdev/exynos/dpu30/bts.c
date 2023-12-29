@@ -47,6 +47,221 @@
 #define RESOL_QHDP_21_TO_9	3440*1440UL	/* for MIF min-lock */
 
 
+enum bts_minlock_stage {
+	BTS_MINLOCK_L0 = 0,
+	BTS_MINLOCK_L1,
+	BTS_MINLOCK_L2,
+	BTS_MINLOCK_LMAX,
+};
+
+struct bts_overlay_private {
+	u32 count;
+	u32 max_overlay;
+	u32 max_h;
+
+	u32 coord[BTS_DPP_MAX * 2];
+	u32 coord_cnt;
+
+	u32 max_range[BTS_DPP_MAX][2];
+	u32 max_range_cnt;
+};
+
+static u32 __get_overlap_threshold(struct decon_device *decon)
+{
+	u32 threshold = 0;
+
+	if (!decon->lcd_info)
+		goto exit;
+
+	threshold = decon->lcd_info->continuous_underrun_max / 10;
+
+exit:
+	return ((threshold > 0) ? threshold : 1);
+}
+
+static int
+create_win_overlay_coordinate(struct decon_device *decon,
+			      struct decon_reg_data *regs,
+			      struct bts_overlay_private *info)
+{
+	u32 i, j;
+	u32 start, end, temp;
+	int win_cnt = decon->dt.max_win;
+	struct decon_win_config *config;
+	int threshold;
+
+	if (!regs)
+		return -EINVAL;
+
+	config = regs->dpp_config;
+	if (!config)
+		return -EINVAL;
+
+	threshold = __get_overlap_threshold(decon);
+
+	for (i = 0; i < win_cnt; i++) {
+		if (config[i].state == DECON_WIN_STATE_DISABLED)
+			continue;
+		if (config[i].dst.h == 0)
+			continue;
+		if (config[i].dst.h <= threshold)
+			continue;
+
+		info->count++;
+		start = ((u32)config[i].dst.y) << 1;
+		end = (((u32)config[i].dst.y + config[i].dst.h - threshold) << 1) | 1;
+
+		info->coord[info->coord_cnt] = start;
+		info->coord_cnt++;
+		for (j = info->coord_cnt - 1; j > 0; j--) {
+			if (info->coord[j] < info->coord[j - 1]) {
+				temp = info->coord[j];
+				info->coord[j] = info->coord[j - 1];
+				info->coord[j - 1] = temp;
+			} else
+				break;
+		}
+		info->coord[info->coord_cnt] = end;
+		info->coord_cnt++;
+		for (j = info->coord_cnt - 1; j > 0; j--) {
+			if (info->coord[j] < info->coord[j - 1]) {
+				temp = info->coord[j];
+				info->coord[j] = info->coord[j - 1];
+				info->coord[j - 1] = temp;
+			} else
+				break;
+		}
+	}
+
+	return info->count;
+}
+
+static u32
+get_win_max_overlay_count(struct decon_device *decon, struct bts_overlay_private *info)
+{
+	int i;
+	u32 cnt = 0, max_cnt = 0;
+
+	info->max_range_cnt = 0;
+	for (i = 0; i < info->coord_cnt; i++) {
+		if (info->coord[i] & 0x1)
+			cnt--;
+		else {
+			cnt++;
+			if (cnt > max_cnt) {
+				max_cnt = cnt;
+				info->max_range[0][0] = (info->coord[i] >> 1);
+				info->max_range[0][1] = (info->coord[i + 1] >> 1) + 1;
+				info->max_range_cnt = 1;
+			} else if (cnt == max_cnt) {
+				info->max_range[info->max_range_cnt][0]
+					= (info->coord[i] >> 1);
+				info->max_range[info->max_range_cnt][1]
+					= (info->coord[i + 1] >> 1) + 1;
+				info->max_range_cnt++;
+			}
+		}
+	}
+	info->max_overlay = max_cnt;
+
+
+	return info->max_overlay;
+}
+
+static u32
+dpu_bts_calc_layer_overlap_count(struct decon_device *decon, struct decon_reg_data *regs)
+{
+	struct bts_overlay_private layer_info;
+
+	memset(&layer_info, 0, sizeof(struct bts_overlay_private));
+
+	if (create_win_overlay_coordinate(decon, regs, &layer_info) <= 0)
+		return 0;
+
+	return get_win_max_overlay_count(decon, &layer_info);
+}
+
+static void
+update_bts_drex_config(enum bts_minlock_stage prev, enum bts_minlock_stage now)
+{
+	if (now == BTS_MINLOCK_L2 && prev != BTS_MINLOCK_L2)
+		bts_change_drex_config(1);
+	else if (now != BTS_MINLOCK_L2 && prev == BTS_MINLOCK_L2)
+		bts_change_drex_config(0);
+
+	return;
+}
+
+static void
+update_minlock_stage(struct decon_device *decon, enum bts_minlock_stage s)
+{
+	enum bts_minlock_stage ps = (enum bts_minlock_stage)decon->bts.prev_minlock_stage;
+
+	if (decon->lcd_info->mode != DECON_VIDEO_MODE)
+		return;
+
+	if (s >= BTS_MINLOCK_LMAX) {
+		DPU_ERR_BTS("%s: stage: out of bounds\n", __func__);
+		return;
+	}
+
+	if (ps == s)
+		goto exit;
+
+	update_bts_drex_config(ps, s);
+
+	if (s >= BTS_MINLOCK_L1) {
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+		exynos_pm_qos_update_request(&decon->bts.int_qos, 334 * 1000);
+		if (s == BTS_MINLOCK_L2)
+			exynos_pm_qos_update_request(&decon->bts.mif_qos, 1352 * 1000);
+		else
+			exynos_pm_qos_update_request(&decon->bts.mif_qos, decon->dt.mif_freq);
+#else
+		pm_qos_update_request(&decon->bts.int_qos, 334 * 1000);
+		if (s == BTS_MINLOCK_L2)
+			pm_qos_update_request(&decon->bts.mif_qos, 1352 * 1000);
+		else
+			pm_qos_update_request(&decon->bts.mif_qos, decon->dt.mif_freq);
+#endif
+	} else {
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+		exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
+		exynos_pm_qos_update_request(&decon->bts.int_qos, 0);
+#else
+		pm_qos_update_request(&decon->bts.mif_qos, 0);
+		pm_qos_update_request(&decon->bts.int_qos, 0);
+#endif
+	}
+
+exit:
+	decon->bts.prev_minlock_stage = s;
+
+	return;
+}
+
+static enum bts_minlock_stage
+calc_minlock_stage(struct decon_device *decon, u32 max_overlay_count)
+{
+	enum bts_minlock_stage stage = BTS_MINLOCK_L0;
+
+	if (decon->lcd_info->mode != DECON_VIDEO_MODE)
+		return stage;
+
+	if (decon->bts.total_bw <= 1094865 && max_overlay_count < 3)
+		stage = BTS_MINLOCK_L0;
+	else {
+		stage = BTS_MINLOCK_L1;
+
+		if ((decon->bts.total_bw > 2746287) || (max_overlay_count > 3)) {
+			stage = BTS_MINLOCK_L2;
+		}
+	}
+
+	return stage;
+}
+
+
 /* unit : usec x 1000 -> 5592 (5.592us) for WQHD+ case */
 static inline u32 dpu_bts_get_one_line_time(struct exynos_panel_info *lcd_info)
 {
@@ -553,6 +768,8 @@ void dpu_bts_update_bw(struct decon_device *decon, struct decon_reg_data *regs,
 		u32 is_after)
 {
 	struct bts_bw bw = { 0, };
+	u32 max_overlay_count = 0;
+	enum bts_minlock_stage minlock_stage = BTS_MINLOCK_L0;
 #if defined(CONFIG_EXYNOS_DISPLAYPORT)
 	struct displayport_device *displayport = get_displayport_drvdata();
 	videoformat cur = V640X480P60;
@@ -565,7 +782,6 @@ void dpu_bts_update_bw(struct decon_device *decon, struct decon_reg_data *regs,
 		pixelclock = supported_videos[cur].dv_timings.bt.pixelclock;
 	}
 #endif
-
 	DPU_DEBUG_BTS("%s +\n", __func__);
 
 	if (!decon->bts.enabled)
@@ -578,6 +794,8 @@ void dpu_bts_update_bw(struct decon_device *decon, struct decon_reg_data *regs,
 
 	if (bw.read == 0)
 		bw.peak = 0;
+
+	max_overlay_count = dpu_bts_calc_layer_overlap_count(decon, regs);
 
 	if (is_after) { /* after DECON h/w configuration */
 		if (decon->bts.total_bw <= decon->bts.prev_total_bw)
@@ -597,29 +815,9 @@ void dpu_bts_update_bw(struct decon_device *decon, struct decon_reg_data *regs,
 			pm_qos_update_request(&decon->bts.disp_qos,
 				decon->bts.max_disp_freq);
 #endif
-		if (decon->bts.total_bw <= 2746287) {
-			bts_change_drex_config(0);
-			if ((decon->lcd_info->mode == DECON_VIDEO_MODE) &&
-						(decon->bts.total_bw > 1094865)) {
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
-				exynos_pm_qos_update_request(&decon->bts.mif_qos,
-							decon->dt.mif_freq);
-#else
-				pm_qos_update_request(&decon->bts.mif_qos,
-							decon->dt.mif_freq);
-#endif
-			}
-		}
 
-		if (decon->bts.total_bw <= 1094865) { // if smaller than FHD+ * 2
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
-			exynos_pm_qos_update_request(&decon->bts.mif_qos, 0);
-			exynos_pm_qos_update_request(&decon->bts.int_qos, 0);
-#else
-			pm_qos_update_request(&decon->bts.mif_qos, 0);
-			pm_qos_update_request(&decon->bts.int_qos, 0);
-#endif
-		}
+		minlock_stage = calc_minlock_stage(decon, max_overlay_count);
+		update_minlock_stage(decon, minlock_stage);
 
 		decon->bts.prev_total_bw = decon->bts.total_bw;
 		decon->bts.prev_max_disp_freq = decon->bts.max_disp_freq;
@@ -641,24 +839,10 @@ void dpu_bts_update_bw(struct decon_device *decon, struct decon_reg_data *regs,
 			pm_qos_update_request(&decon->bts.disp_qos,
 					decon->bts.max_disp_freq);
 #endif
-		if ((decon->lcd_info->mode == DECON_VIDEO_MODE) &&
-				(decon->bts.total_bw > 1094865)) { // if bigger than FHD * 2
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
-			exynos_pm_qos_update_request(&decon->bts.mif_qos, decon->dt.mif_freq);
-			exynos_pm_qos_update_request(&decon->bts.int_qos, 334 * 1000);
-#else
-			pm_qos_update_request(&decon->bts.mif_qos, decon->dt.mif_freq);
-			pm_qos_update_request(&decon->bts.int_qos, 334 * 1000);
-#endif
-			if (decon->bts.total_bw > 2746287) {
-				bts_change_drex_config(1);
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
-				exynos_pm_qos_update_request(&decon->bts.mif_qos, 1352 * 1000);
-#else
-				pm_qos_update_request(&decon->bts.mif_qos, 1352 * 1000);
-#endif
-			}
-		}
+		minlock_stage = calc_minlock_stage(decon, max_overlay_count);
+
+		if (minlock_stage > decon->bts.prev_minlock_stage)
+			update_minlock_stage(decon, minlock_stage);
 	}
 
 	DPU_DEBUG_BTS("%s -\n", __func__);
@@ -797,6 +981,7 @@ void dpu_bts_release_bw(struct decon_device *decon)
 	if (decon->dt.out_type == DECON_OUT_DSI) {
 		bts_update_bw(decon->bts.bw_idx, bw);
 		decon->bts.prev_total_bw = 0;
+		decon->bts.prev_minlock_stage = BTS_MINLOCK_L0;
 #if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
 		exynos_pm_qos_update_request(&decon->bts.disp_qos, 0);
 #else

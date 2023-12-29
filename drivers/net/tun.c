@@ -81,6 +81,19 @@
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+#include <linux/types.h>
+#include <linux/udp.h>
+#include <linux/tcp.h>
+#include <linux/ip.h>
+#include <net/ip.h>
+
+#define META_MARK_BASE_LOWER 100
+#define META_MARK_BASE_UPPER 500
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+
 static void tun_default_link_ksettings(struct net_device *dev,
 				       struct ethtool_link_ksettings *cmd);
 
@@ -100,6 +113,18 @@ static void tun_default_link_ksettings(struct net_device *dev,
 		      IFF_MULTI_QUEUE | IFF_NAPI | IFF_NAPI_FRAGS)
 
 #define GOODCOPY_LEN 128
+
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+struct knox_meta_param {
+    uid_t uid;
+    pid_t pid;
+};
+
+#define TUN_META_HDR_SZ sizeof(struct knox_meta_param)
+#define TUN_META_MARK_OFFSET offsetof(struct knox_meta_param, uid)
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 #define FLT_EXACT_COUNT 8
 struct tap_filter {
@@ -220,12 +245,18 @@ struct tun_struct {
 	struct tun_prog __rcu *steering_prog;
 	struct tun_prog __rcu *filter_prog;
 	struct ethtool_link_ksettings link_ksettings;
+	/* init args */
+	struct file *file;
+	struct ifreq *ifr;
 };
 
 struct veth {
 	__be16 h_vlan_proto;
 	__be16 h_vlan_TCI;
 };
+
+static void tun_flow_init(struct tun_struct *tun);
+static void tun_flow_uninit(struct tun_struct *tun);
 
 static int tun_napi_receive(struct napi_struct *napi, int budget)
 {
@@ -277,6 +308,12 @@ static void tun_napi_init(struct tun_struct *tun, struct tun_file *tfile,
 				  NAPI_POLL_WEIGHT);
 		napi_enable(&tfile->napi);
 	}
+}
+
+static void tun_napi_enable(struct tun_file *tfile)
+{
+	if (tfile->napi_enabled)
+		napi_enable(&tfile->napi);
 }
 
 static void tun_napi_disable(struct tun_file *tfile)
@@ -640,7 +677,8 @@ static void __tun_detach(struct tun_file *tfile, bool clean)
 	tun = rtnl_dereference(tfile->tun);
 
 	if (tun && clean) {
-		tun_napi_disable(tfile);
+		if (!tfile->detached)
+			tun_napi_disable(tfile);
 		tun_napi_del(tfile);
 	}
 
@@ -659,8 +697,10 @@ static void __tun_detach(struct tun_file *tfile, bool clean)
 		if (clean) {
 			RCU_INIT_POINTER(tfile->tun, NULL);
 			sock_put(&tfile->sk);
-		} else
+		} else {
 			tun_disable_queue(tun, tfile);
+			tun_napi_disable(tfile);
+		}
 
 		synchronize_net();
 		tun_flow_delete_by_queue(tun, tun->numqueues + 1);
@@ -683,7 +723,6 @@ static void __tun_detach(struct tun_file *tfile, bool clean)
 		if (tun)
 			xdp_rxq_info_unreg(&tfile->xdp_rxq);
 		ptr_ring_cleanup(&tfile->tx_ring, tun_ptr_free);
-		sock_put(&tfile->sk);
 	}
 }
 
@@ -699,6 +738,9 @@ static void tun_detach(struct tun_file *tfile, bool clean)
 	if (dev)
 		netdev_state_change(dev);
 	rtnl_unlock();
+
+	if (clean)
+		sock_put(&tfile->sk);
 }
 
 static void tun_detach_all(struct net_device *dev)
@@ -733,6 +775,7 @@ static void tun_detach_all(struct net_device *dev)
 		sock_put(&tfile->sk);
 	}
 	list_for_each_entry_safe(tfile, tmp, &tun->disabled, next) {
+		tun_napi_del(tfile);
 		tun_enable_queue(tfile);
 		tun_queue_purge(tfile);
 		xdp_rxq_info_unreg(&tfile->xdp_rxq);
@@ -813,6 +856,7 @@ static int tun_attach(struct tun_struct *tun, struct file *file,
 
 	if (tfile->detached) {
 		tun_enable_queue(tfile);
+		tun_napi_enable(tfile);
 	} else {
 		sock_hold(&tfile->sk);
 		tun_napi_init(tun, tfile, napi, napi_frags);
@@ -963,6 +1007,49 @@ static int check_filter(struct tap_filter *filter, const struct sk_buff *skb)
 /* Network device part of the driver */
 
 static const struct ethtool_ops tun_ethtool_ops;
+
+static int tun_net_init(struct net_device *dev)
+{
+	struct tun_struct *tun = netdev_priv(dev);
+	struct ifreq *ifr = tun->ifr;
+	int err;
+
+	tun->pcpu_stats = netdev_alloc_pcpu_stats(struct tun_pcpu_stats);
+	if (!tun->pcpu_stats)
+		return -ENOMEM;
+
+	spin_lock_init(&tun->lock);
+
+	err = security_tun_dev_alloc_security(&tun->security);
+	if (err < 0) {
+		free_percpu(tun->pcpu_stats);
+		return err;
+	}
+
+	tun_flow_init(tun);
+
+	dev->hw_features = NETIF_F_SG | NETIF_F_FRAGLIST |
+			   TUN_USER_FEATURES | NETIF_F_HW_VLAN_CTAG_TX |
+			   NETIF_F_HW_VLAN_STAG_TX;
+	dev->features = dev->hw_features | NETIF_F_LLTX;
+	dev->vlan_features = dev->features &
+			     ~(NETIF_F_HW_VLAN_CTAG_TX |
+			       NETIF_F_HW_VLAN_STAG_TX);
+
+	tun->flags = (tun->flags & ~TUN_FEATURES) |
+		      (ifr->ifr_flags & TUN_FEATURES);
+
+	INIT_LIST_HEAD(&tun->disabled);
+	err = tun_attach(tun, tun->file, false, ifr->ifr_flags & IFF_NAPI,
+			 ifr->ifr_flags & IFF_NAPI_FRAGS, false);
+	if (err < 0) {
+		tun_flow_uninit(tun);
+		security_tun_dev_free_security(tun->security);
+		free_percpu(tun->pcpu_stats);
+		return err;
+	}
+	return 0;
+}
 
 /* Net device detach from fd. */
 static void tun_net_uninit(struct net_device *dev)
@@ -1205,6 +1292,7 @@ static int tun_net_change_carrier(struct net_device *dev, bool new_carrier)
 }
 
 static const struct net_device_ops tun_netdev_ops = {
+	.ndo_init		= tun_net_init,
 	.ndo_uninit		= tun_net_uninit,
 	.ndo_open		= tun_net_open,
 	.ndo_stop		= tun_net_close,
@@ -1285,6 +1373,7 @@ static int tun_xdp_tx(struct net_device *dev, struct xdp_buff *xdp)
 }
 
 static const struct net_device_ops tap_netdev_ops = {
+	.ndo_init		= tun_net_init,
 	.ndo_uninit		= tun_net_uninit,
 	.ndo_open		= tun_net_open,
 	.ndo_stop		= tun_net_close,
@@ -1325,7 +1414,7 @@ static void tun_flow_uninit(struct tun_struct *tun)
 #define MAX_MTU 65535
 
 /* Initialize net device. */
-static void tun_net_init(struct net_device *dev)
+static void tun_net_initialize(struct net_device *dev)
 {
 	struct tun_struct *tun = netdev_priv(dev);
 
@@ -1413,7 +1502,8 @@ static struct sk_buff *tun_napi_alloc_frags(struct tun_file *tfile,
 	int err;
 	int i;
 
-	if (it->nr_segs > MAX_SKB_FRAGS + 1)
+	if (it->nr_segs > MAX_SKB_FRAGS + 1 ||
+	    len > (ETH_MAX_MTU - NET_SKB_PAD - NET_IP_ALIGN))
 		return ERR_PTR(-EMSGSIZE);
 
 	local_bh_disable();
@@ -1923,17 +2013,25 @@ drop:
 					  skb_headlen(skb));
 
 		if (unlikely(headlen > skb_headlen(skb))) {
+			WARN_ON_ONCE(1);
+			err = -ENOMEM;
 			this_cpu_inc(tun->pcpu_stats->rx_dropped);
+napi_busy:
 			napi_free_frags(&tfile->napi);
 			rcu_read_unlock();
 			mutex_unlock(&tfile->napi_mutex);
-			WARN_ON(1);
-			return -ENOMEM;
+			return err;
 		}
 
-		local_bh_disable();
-		napi_gro_frags(&tfile->napi);
-		local_bh_enable();
+		if (likely(napi_schedule_prep(&tfile->napi))) {
+			local_bh_disable();
+			napi_gro_frags(&tfile->napi);
+			napi_complete(&tfile->napi);
+			local_bh_enable();
+		} else {
+			err = -EBUSY;
+			goto napi_busy;
+		}
 		mutex_unlock(&tfile->napi_mutex);
 	} else if (tfile->napi_enabled) {
 		struct sk_buff_head *queue = &tfile->sk.sk_write_queue;
@@ -1988,6 +2086,44 @@ static ssize_t tun_chr_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	return result;
 }
 
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+static int get_meta_param_values(struct sk_buff *skb, 
+				 struct knox_meta_param *metalocal) {
+
+	struct skb_shared_info *knox_shinfo = NULL;
+
+	if (skb != NULL)
+		knox_shinfo = skb_shinfo(skb);
+	else {
+#ifdef TUN_DEBUG
+		pr_err("KNOX: NULL SKB in knoxvpn_process_uidpid");
+#endif
+		return 1;
+	}
+
+	if (knox_shinfo == NULL) {
+#ifdef TUN_DEBUG
+		pr_err("KNOX: knox_shinfo value is null");
+#endif
+		return 1;
+	}	
+
+	if (knox_shinfo->android_oem_data1[2] >= META_MARK_BASE_LOWER && knox_shinfo->android_oem_data1[2] <= META_MARK_BASE_UPPER) {
+		metalocal->uid = (uid_t)knox_shinfo->android_oem_data1[0];
+		metalocal->pid = (pid_t)knox_shinfo->android_oem_data1[1];
+	}
+
+	if (knox_shinfo != NULL) {
+		knox_shinfo->android_oem_data1[0] = knox_shinfo->android_oem_data1[1] = 0;
+		knox_shinfo->android_oem_data1[2] = 0;
+	}
+
+	return 0;
+}
+#endif
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+
 static ssize_t tun_put_user_xdp(struct tun_struct *tun,
 				struct tun_file *tfile,
 				struct xdp_frame *xdp_frame,
@@ -2029,6 +2165,12 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 			    struct iov_iter *iter)
 {
 	struct tun_pi pi = { 0, skb->protocol };
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+	struct knox_meta_param metalocal = { 0, 0 };
+	int meta_param_get_status = 0;
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	struct tun_pcpu_stats *stats;
 	ssize_t total;
 	int vlan_offset = 0;
@@ -2056,6 +2198,33 @@ static ssize_t tun_put_user(struct tun_struct *tun,
 		if (copy_to_iter(&pi, sizeof(pi), iter) != sizeof(pi))
 			return -EFAULT;
 	}
+
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+	meta_param_get_status = get_meta_param_values(skb, &metalocal);
+	if(meta_param_get_status == 1) {
+#ifdef TUN_DEBUG
+		pr_err("KNOX: Error obtaining meta param values");
+#endif
+	} else {
+
+		if (tun->flags & TUN_META_HDR) {	
+#ifdef TUN_DEBUG
+			pr_err("KNOX: Appending uid: %d and pid: %d", metalocal.uid,
+			       metalocal.pid);
+#endif
+			if (iov_iter_count(iter) < sizeof(struct knox_meta_param)) {
+				return -EINVAL;
+			}
+
+			total += sizeof(struct knox_meta_param);
+			if (copy_to_iter(&metalocal, sizeof(struct knox_meta_param), iter) != sizeof(struct knox_meta_param)) {
+				return -EFAULT;
+			}
+		}
+	}
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 
 	if (vnet_hdr_sz) {
 		struct virtio_net_hdr gso;
@@ -2257,10 +2426,6 @@ static void tun_free_netdev(struct net_device *dev)
 	BUG_ON(!(list_empty(&tun->disabled)));
 
 	free_percpu(tun->pcpu_stats);
-	/* We clear pcpu_stats so that tun_set_iff() can tell if
-	 * tun_free_netdev() has been called from register_netdevice().
-	 */
-	tun->pcpu_stats = NULL;
 
 	tun_flow_uninit(tun);
 	security_tun_dev_free_security(tun->security);
@@ -2499,7 +2664,8 @@ static int tun_sendmsg(struct socket *sock, struct msghdr *m, size_t total_len)
 	if (!tun)
 		return -EBADFD;
 
-	if (ctl && (ctl->type == TUN_MSG_PTR)) {
+	if (m->msg_controllen == sizeof(struct tun_msg_ctl) &&
+	    ctl && ctl->type == TUN_MSG_PTR) {
 		struct tun_page tpage;
 		int n = ctl->num;
 		int flush = 0;
@@ -2617,7 +2783,13 @@ static struct proto tun_proto = {
 
 static int tun_flags(struct tun_struct *tun)
 {
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+	return tun->flags & (TUN_FEATURES | IFF_PERSIST | IFF_TUN | IFF_TAP | IFF_META_HDR);
+#else
 	return tun->flags & (TUN_FEATURES | IFF_PERSIST | IFF_TUN | IFF_TAP);
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 }
 
 static ssize_t tun_show_flags(struct device *dev, struct device_attribute *attr,
@@ -2772,41 +2944,16 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 		tun->rx_batched = 0;
 		RCU_INIT_POINTER(tun->steering_prog, NULL);
 
-		tun->pcpu_stats = netdev_alloc_pcpu_stats(struct tun_pcpu_stats);
-		if (!tun->pcpu_stats) {
-			err = -ENOMEM;
-			goto err_free_dev;
-		}
+		tun->ifr = ifr;
+		tun->file = file;
 
-		spin_lock_init(&tun->lock);
-
-		err = security_tun_dev_alloc_security(&tun->security);
-		if (err < 0)
-			goto err_free_stat;
-
-		tun_net_init(dev);
-		tun_flow_init(tun);
-
-		dev->hw_features = NETIF_F_SG | NETIF_F_FRAGLIST |
-				   TUN_USER_FEATURES | NETIF_F_HW_VLAN_CTAG_TX |
-				   NETIF_F_HW_VLAN_STAG_TX;
-		dev->features = dev->hw_features | NETIF_F_LLTX;
-		dev->vlan_features = dev->features &
-				     ~(NETIF_F_HW_VLAN_CTAG_TX |
-				       NETIF_F_HW_VLAN_STAG_TX);
-
-		tun->flags = (tun->flags & ~TUN_FEATURES) |
-			      (ifr->ifr_flags & TUN_FEATURES);
-
-		INIT_LIST_HEAD(&tun->disabled);
-		err = tun_attach(tun, file, false, ifr->ifr_flags & IFF_NAPI,
-				 ifr->ifr_flags & IFF_NAPI_FRAGS, false);
-		if (err < 0)
-			goto err_free_flow;
+		tun_net_initialize(dev);
 
 		err = register_netdevice(tun->dev);
-		if (err < 0)
-			goto err_detach;
+		if (err < 0) {
+			free_netdev(dev);
+			return err;
+		}
 		/* free_netdev() won't check refcnt, to aovid race
 		 * with dev_put() we need publish tun after registration.
 		 */
@@ -2814,6 +2961,16 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 	}
 
 	netif_carrier_on(tun->dev);
+
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+	if (ifr->ifr_flags & IFF_META_HDR) {
+		tun->flags |= TUN_META_HDR;
+	} else {
+		tun->flags &= ~TUN_META_HDR;
+	}
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
 
 	/* Make sure persistent devices do not get stuck in
 	 * xoff state.
@@ -2823,24 +2980,6 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 
 	strcpy(ifr->ifr_name, tun->dev->name);
 	return 0;
-
-err_detach:
-	tun_detach_all(dev);
-	/* We are here because register_netdevice() has failed.
-	 * If register_netdevice() already called tun_free_netdev()
-	 * while dealing with the error, tun->pcpu_stats has been cleared.
-	 */
-	if (!tun->pcpu_stats)
-		goto err_free_dev;
-
-err_free_flow:
-	tun_flow_uninit(tun);
-	security_tun_dev_free_security(tun->security);
-err_free_stat:
-	free_percpu(tun->pcpu_stats);
-err_free_dev:
-	free_netdev(dev);
-	return err;
 }
 
 static void tun_get_iff(struct tun_struct *tun, struct ifreq *ifr)
@@ -3047,6 +3186,14 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 	int ret;
 	bool do_notify = false;
 
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+	int knox_flag = 0;
+	int tun_meta_param;
+	int tun_meta_value;
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+
 	if (cmd == TUNSETIFF || cmd == TUNSETQUEUE ||
 	    (_IOC_TYPE(cmd) == SOCK_IOC_TYPE && cmd != SIOCGSKNS)) {
 		if (copy_from_user(&ifr, argp, ifreq_len))
@@ -3059,8 +3206,16 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 		 * This is needed because we never checked for invalid flags on
 		 * TUNSETIFF.
 		 */
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+		knox_flag |= IFF_META_HDR;
+		return put_user(IFF_TUN | IFF_TAP | TUN_FEATURES | knox_flag,
+				(unsigned int __user*)argp);
+#else
 		return put_user(IFF_TUN | IFF_TAP | TUN_FEATURES,
 				(unsigned int __user*)argp);
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
 	} else if (cmd == TUNSETQUEUE) {
 		return tun_set_queue(file, &ifr);
 	} else if (cmd == SIOCGSKNS) {
@@ -3246,6 +3401,35 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 			ret = -EFAULT;
 		break;
 
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN {
+#ifdef CONFIG_KNOX_NCM
+	case TUNGETMETAPARAM:
+		if (copy_from_user(&tun_meta_param, argp,
+				   sizeof(tun_meta_param))) {
+			ret = -EFAULT;
+			break;
+		}
+		ret = 0;
+		switch (tun_meta_param) {
+		case TUN_GET_META_HDR_SZ:
+			tun_meta_value = TUN_META_HDR_SZ;
+			break;
+		case TUN_GET_META_MARK_OFFSET:
+			tun_meta_value = TUN_META_MARK_OFFSET;
+			break;
+		default:
+			ret = -EINVAL;
+			break;
+		}
+		if (!ret) {
+			if (copy_to_user(argp, &tun_meta_value,
+					 sizeof(tun_meta_value)))
+				ret = -EFAULT;
+		}
+		break;
+#endif
+		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_VPN }
+
 	case TUNSETVNETHDRSZ:
 		if (copy_from_user(&vnet_hdr_sz, argp, sizeof(vnet_hdr_sz))) {
 			ret = -EFAULT;
@@ -3430,7 +3614,7 @@ static int tun_chr_open(struct inode *inode, struct file * file)
 	tfile->socket.file = file;
 	tfile->socket.ops = &tun_socket_ops;
 
-	sock_init_data(&tfile->socket, &tfile->sk);
+	sock_init_data_uid(&tfile->socket, &tfile->sk, inode->i_uid);
 
 	tfile->sk.sk_write_space = tun_sock_write_space;
 	tfile->sk.sk_sndbuf = INT_MAX;

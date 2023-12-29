@@ -42,24 +42,26 @@ void is_ischain_3ap_stripe_cfg(struct is_subdev *subdev,
 		/* Output crop & WDMA offset configuration */
 		if (!region_id) {
 			/* Left region */
-			stripe_w = ldr_frame->stripe_info.in.h_pix_num;
+			stripe_w = ldr_frame->stripe_info.in.h_pix_num - otcrop->x;
 			frame->stripe_info.out.h_pix_num = stripe_w;
 			frame->stripe_info.region_base_addr[0] = frame->dvaddr_buffer[0];
 		} else if (region_id < ldr_frame->stripe_info.region_num - 1) {
 			/* Middle region */
-			stripe_w = ldr_frame->stripe_info.in.h_pix_num - frame->stripe_info.out.h_pix_num;
+			stripe_w = ldr_frame->stripe_info.in.h_pix_num - frame->stripe_info.out.h_pix_num - otcrop->x;
 			dma_offset = frame->stripe_info.out.h_pix_num;
 			dma_offset += STRIPE_MARGIN_WIDTH * ((2 * (region_id - 1)) + 1);
 			dma_offset *= fmt->bitsperpixel[0] / BITS_PER_BYTE * otcrop->h;
 			frame->stripe_info.out.h_pix_num += stripe_w;
 			stripe_w += STRIPE_MARGIN_WIDTH;
+			otcrop->x = 0;
 		} else {
 			/* Right region */
-			stripe_w = incrop->w - frame->stripe_info.out.h_pix_num;
+			stripe_w = incrop->w - frame->stripe_info.out.h_pix_num - otcrop->x * 2;
 			dma_offset = frame->stripe_info.out.h_pix_num;
 			dma_offset += STRIPE_MARGIN_WIDTH * ((2 * (region_id - 1)) + 1);
 			dma_offset *= fmt->bitsperpixel[0] / BITS_PER_BYTE * otcrop->h;
 			frame->stripe_info.out.h_pix_num += stripe_w;
+			otcrop->x = 0;
 		}
 
 		stripe_w += STRIPE_MARGIN_WIDTH;

@@ -2407,13 +2407,13 @@
 			};
 
 			qup-i2c12-default {
-				drive-strength = <0x02>;
-				bias-disable;
 				phandle = <0x5d>;
 
 				pinmux {
 					pins = "gpio49\0gpio50";
 					function = "qup12";
+					drive-strength = <0x02>;
+					bias-disable;
 				};
 			};
 
@@ -3588,10 +3588,10 @@
 					#clock-cells = <0x00>;
 					clock-frequency = <0x927c00>;
 					clock-output-names = "mclk";
-					qcom,micbias1-millivolt = <0x708>;
-					qcom,micbias2-millivolt = <0x708>;
-					qcom,micbias3-millivolt = <0x708>;
-					qcom,micbias4-millivolt = <0x708>;
+					qcom,micbias1-microvolt = <0x1b7740>;
+					qcom,micbias2-microvolt = <0x1b7740>;
+					qcom,micbias3-microvolt = <0x1b7740>;
+					qcom,micbias4-microvolt = <0x1b7740>;
 					#address-cells = <0x01>;
 					#size-cells = <0x01>;
 					pinctrl-0 = <0xa4>;

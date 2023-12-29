@@ -359,6 +359,7 @@ enum mfc_debug_cause {
 	MFC_CAUSE_FAIL_CACHE_FLUSH		= 13,
 	MFC_CAUSE_FAIL_MOVE_INST		= 14,
 	MFC_CAUSE_FAIL_DRC_WAIT			= 15,
+	MFC_CAUSE_DRM_PAGE_FAULT		= 16,
 	/* last information */
 	MFC_LAST_INFO_BLACK_BAR                 = 26,
 	MFC_LAST_INFO_NAL_QUEUE                 = 27,

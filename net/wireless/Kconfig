@@ -197,7 +197,6 @@ config CFG80211_WEXT
 
 config CFG80211_WEXT_EXPORT
 	bool
-	default y if SEC_FACTORY
 	help
 	  Drivers should select this option if they require cfg80211's
 	  wext compatibility symbols to be exported.

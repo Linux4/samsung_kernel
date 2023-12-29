@@ -977,6 +977,67 @@ const u32 sensor_hi1336_setfile_A_2binning_crop_1696x1272_30fps[] = {
 	0x027e, 0x0100, 0x02,
 };
 
+const u32 sensor_hi1336_setfile_A_2binning_crop_1856x1044_30fps[] = {
+	0x3250, 0xa470, 0x02,
+	0x0730, 0x730f, 0x02,
+	0x0732, 0xe1b0, 0x02,
+	0x0734, 0x5c0f, 0x02,
+	0x0736, 0xd8b0, 0x02,
+	0x1118, 0x0208, 0x02,
+	0x1200, 0x001f, 0x02,
+	0x1204, 0x1c01, 0x02,
+	0x1240, 0x0100, 0x02,
+	0x0b20, 0x8200, 0x02,
+	0x0f00, 0x0400, 0x02,
+	0x1002, 0xc319, 0x02,
+	0x1004, 0x2b30, 0x02,
+	0x103e, 0x0100, 0x02,
+	0x1020, 0xc106, 0x02,
+	0x1022, 0x061c, 0x02,
+	0x1024, 0x0507, 0x02,
+	0x1026, 0x0a0a, 0x02,
+	0x1028, 0x1408, 0x02,
+	0x102a, 0x090a, 0x02,
+	0x102c, 0x1400, 0x02,
+	0x1010, 0x07d0, 0x02,
+	0x1012, 0x0131, 0x02,
+	0x1014, 0x0056, 0x02,
+	0x1016, 0x0056, 0x02,
+	0x1018, 0x0020, 0x02,
+	0x101a, 0x0056, 0x02,
+	0x1038, 0x0000, 0x02,
+	0x1042, 0x0008, 0x02,
+	0x1048, 0x0080, 0x02,
+	0x1044, 0x0100, 0x02,
+	0x1046, 0x0180, 0x02,
+	0x104c, 0x4000, 0x02,
+	0x0404, 0x0008, 0x02,
+	0x0406, 0x1087, 0x02,
+	0x0220, 0x0008, 0x02,
+	0x022a, 0x0015, 0x02,
+	0x0222, 0x0c80, 0x02,
+	0x022c, 0x0c89, 0x02,
+	0x0224, 0x0230, 0x02,
+	0x022e, 0x0a5d, 0x02,
+	0x0f04, 0x0080, 0x02,
+	0x0f06, 0x0000, 0x02,
+	0x023a, 0x2222, 0x02,
+	0x0234, 0x3311, 0x02,
+	0x0238, 0x3311, 0x02,
+	0x0246, 0x0020, 0x02,
+	0x020a, 0x0cf5, 0x02,
+	0x021c, 0x0008, 0x02,
+	0x0206, 0x05dc, 0x02,
+	0x020e, 0x0cf9, 0x02,
+	0x0b12, 0x0740, 0x02,
+	0x0b14, 0x0414, 0x02,
+	0x0204, 0x0200, 0x02,
+	0x041c, 0x0048, 0x02,
+	0x041e, 0x1047, 0x02,
+	0x0b04, 0x037c, 0x02,
+	0x027e, 0x0100, 0x02,
+};
+
 const struct sensor_pll_info_compact sensor_hi1336_pllinfo_A_full_30fps = {
 	EXT_CLK_Mhz * 1000 * 1000,  /* ext_clk */
 	1456 * 1000 * 1000,         /* mipi_datarate */
@@ -1001,6 +1062,14 @@ const struct sensor_pll_info_compact sensor_hi1336_pllinfo_A_4binning_120fps = {
 	1500,                       /* line_length_pck(per lane) */
 };
 
+const struct sensor_pll_info_compact sensor_hi1336_pllinfo_A_1856x1044_30fps = {
+	EXT_CLK_Mhz * 1000 * 1000,  /* ext_clk */
+	747500000,                  /* mipi_datarate */
+	149500000,                  /* pclk, VT system clock */
+	3321,                       /* frame_length_lines */
+	1500,                       /* line_length_pck(per lane)*/
+};
+
 static const u32 *sensor_hi1336_setfiles_A[] = {
 
 	sensor_hi1336_setfile_A_full_crop_4128x3096_30fps,
@@ -1012,7 +1081,8 @@ static const u32 *sensor_hi1336_setfiles_A[] = {
 	sensor_hi1336_setfile_A_4binning_crop_1024x768_120fps,
 	sensor_hi1336_setfile_A_full_crop_2064x1548_30fps,
 	sensor_hi1336_setfile_A_full_crop_2064x1160_30fps,
-	sensor_hi1336_setfile_A_2binning_crop_1696x1272_30fps
+	sensor_hi1336_setfile_A_2binning_crop_1696x1272_30fps,
+	sensor_hi1336_setfile_A_2binning_crop_1856x1044_30fps,
 };
 
 static const u32 sensor_hi1336_setfile_A_sizes[] = {
@@ -1027,6 +1097,7 @@ static const u32 sensor_hi1336_setfile_A_sizes[] = {
 	ARRAY_SIZE(sensor_hi1336_setfile_A_full_crop_2064x1548_30fps),
 	ARRAY_SIZE(sensor_hi1336_setfile_A_full_crop_2064x1160_30fps),
 	ARRAY_SIZE(sensor_hi1336_setfile_A_2binning_crop_1696x1272_30fps),
+	ARRAY_SIZE(sensor_hi1336_setfile_A_2binning_crop_1856x1044_30fps),
 };
 
 static const struct sensor_pll_info_compact *sensor_hi1336_pllinfos_A[] = {
@@ -1041,6 +1112,7 @@ static const struct sensor_pll_info_compact *sensor_hi1336_pllinfos_A[] = {
 	&sensor_hi1336_pllinfo_A_full_30fps,       /* full_crop_2064x1548_30fps */
 	&sensor_hi1336_pllinfo_A_full_30fps,       /* full_crop_2064x1160_30fps */
 	&sensor_hi1336_pllinfo_A_2binning_30fps,   /* full_crop_1696x1272_30fps */
+	&sensor_hi1336_pllinfo_A_1856x1044_30fps,  /* full_crop_1856x1044_30fps */
 };
 
 /***************************************************************************

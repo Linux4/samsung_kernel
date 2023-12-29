@@ -191,7 +191,6 @@
   gpiochip_generic_request
   gpiochip_get_data
   gpiochip_remove
-  gpiod_direction_output
   gpiod_direction_output_raw
   gpiod_set_consumer_name
   gpiod_set_raw_value
@@ -475,6 +474,7 @@
   request_threaded_irq
   reset_control_assert
   reset_control_deassert
+  reset_control_put
   reset_control_reset
   rpmsg_register_device
   rpmsg_send
@@ -551,6 +551,7 @@
   strncpy
   strnlen
   strpbrk
+  strscpy_pad
   strsep
   __sw_hweight32
   __sw_hweight64
@@ -614,6 +615,7 @@
   bus_set_iommu
   device_link_add
   device_match_fwnode
+  devm_platform_get_and_ioremap_resource
   driver_find_device
   generic_device_group
   generic_iommu_put_resv_regions
@@ -978,9 +980,12 @@
   drm_atomic_private_obj_fini
   drm_atomic_private_obj_init
   drm_bridge_attach
+  drm_bridge_connector_enable_hpd
+  drm_bridge_connector_init
+  drm_bridge_detect
+  drm_bridge_hpd_notify
   drm_compat_ioctl
   drm_connector_has_possible_encoder
-  drm_connector_init_with_ddc
   drm_connector_list_iter_begin
   drm_connector_list_iter_end
   drm_connector_list_iter_next
@@ -1127,7 +1132,6 @@
   generic_file_llseek
   get_pid_task
   get_unused_fd_flags
-  gpiod_direction_input
   gpiod_get_value
   gpiod_set_value
   hdmi_audio_infoframe_pack
@@ -1145,6 +1149,8 @@
   kthread_create_worker
   kthread_destroy_worker
   kthread_queue_work
+  kthread_should_stop
+  kthread_stop
   kvfree
   kvmalloc_node
   llist_add_batch
@@ -1267,7 +1273,7 @@
   usb_remove_hcd
 
 # required by phy-qcom-qmp.ko
-  of_clk_get_by_name
+  devm_get_clk_from_child
   __of_reset_control_get
 
 # required by phy-qcom-qusb2.ko
@@ -1376,6 +1382,7 @@
   srcu_notifier_chain_unregister
 
 # required by qcom_geni_serial.ko
+  devm_krealloc
   dev_pm_clear_wake_irq
   dev_pm_set_dedicated_wake_irq
   oops_in_progress
@@ -1439,7 +1446,6 @@
   autoremove_wake_function
   datagram_poll
   do_wait_intr_irq
-  idr_alloc_u32
   lock_sock_nested
   proto_register
   proto_unregister
@@ -1470,6 +1476,12 @@
   sock_register
   sock_unregister
   synchronize_rcu
+  __xa_alloc
+  xa_erase
+  xa_find
+  xa_find_after
+  __xa_insert
+  xa_load
 
 # required by reboot-mode.ko
   devres_add
@@ -1506,6 +1518,7 @@
   mmc_regulator_set_vqmmc
   mmc_send_tuning
   regulator_is_supported_voltage
+  __reset_control_get
   __sdhci_add_host
   sdhci_add_host
   sdhci_cleanup_host
@@ -1575,15 +1588,15 @@
 
 # required by snd-soc-wcd9335.ko
   kmemdup_nul
-  snd_soc_get_volsw_sx
-  snd_soc_info_volsw_sx
-  snd_soc_put_volsw_sx
   strnstr
 
 # required by snd-soc-wcd934x.ko
   kstrndup
   of_clk_add_provider
   of_clk_src_simple_get
+
+# required by snd-soc-wsa881x.ko
+  gpiod_direction_output
 
 # required by socinfo.ko
   add_device_randomness
@@ -1666,11 +1679,14 @@
   mfd_remove_devices
 
 # preserved by --additions-only
+  drm_connector_init_with_ddc
   eth_platform_get_mac_address
   ethtool_op_get_link
   ethtool_op_get_ts_info
   eth_validate_addr
   generic_mii_ioctl
+  gpiod_direction_input
+  idr_alloc_u32
   mii_ethtool_get_link_ksettings
   mii_ethtool_gset
   mii_ethtool_set_link_ksettings
@@ -1679,7 +1695,11 @@
   netdev_info
   netdev_warn
   netif_carrier_on
+  of_clk_get_by_name
   snd_pcm_create_iec958_consumer_hw_params
+  snd_soc_get_volsw_sx
+  snd_soc_info_volsw_sx
+  snd_soc_put_volsw_sx
   usb_deregister
   usbnet_disconnect
   usbnet_get_endpoints

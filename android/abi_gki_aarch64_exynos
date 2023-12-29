@@ -504,6 +504,7 @@
   _raw_spin_unlock_bh
   _raw_spin_unlock_irq
   _raw_spin_unlock_irqrestore
+  _raw_write_lock_irqsave
   _raw_write_unlock_irqrestore
   rb_insert_color
   __rcu_read_lock
@@ -1056,7 +1057,6 @@
 # required by exynos-cpupm.ko
   cpuidle_get_cpu_driver
   of_find_node_by_type
-  _raw_write_lock_irqsave
   smp_call_function_many
   __traceiter_ipi_entry
   __traceiter_ipi_exit
@@ -1138,6 +1138,10 @@
 # required by exynos_mfc.ko
   dma_buf_begin_cpu_access_partial
   dma_buf_end_cpu_access_partial
+
+# required by exynos_pm_qos.ko
+  _raw_read_lock_irqsave
+  _raw_read_unlock_irqrestore
 
 # required by exynos_thermal.ko
   dev_pm_opp_find_freq_exact
@@ -1836,7 +1840,3 @@
   _raw_write_unlock
   __SetPageMovable
   unlock_page
-
-# preserved by --additions-only
-  _raw_read_lock_irqsave
-  _raw_read_unlock_irqrestore

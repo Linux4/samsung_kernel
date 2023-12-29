@@ -3240,7 +3240,8 @@ int slsi_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	}
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
-
+	SLSI_NET_INFO(dev, "fc:%d, len:%d\n", mgmt->frame_control, len);
+	
 	if (!(ieee80211_is_auth(mgmt->frame_control))) {
 		SLSI_NET_DBG2(dev, SLSI_CFG80211, "Mgmt Frame Tx: iface_num = %d, channel = %d, wait = %d, noAck = %d,"
 			      "offchannel = %d, mgmt->frame_control = %d, vif_type = %d\n", ndev_vif->ifnum, chan->hw_value,

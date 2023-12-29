@@ -134,6 +134,14 @@ int mfc_core_sysmmu_fault_handler(struct iommu_fault *fault, void *param)
 			mfc_core_err("This is not a MFC page fault\n");
 			return 0;
 		}
+
+		/*
+		 * When DRM page fault, this can't read sysmmu reg and
+		 * can't judge whether MFC fault or not.
+		 * So do not occur kernel panic to call shared sysmmu ip's fault handler.
+		 */
+		if (core->num_drm_inst > 0)
+			core->logging_data->cause |= (1 << MFC_CAUSE_DRM_PAGE_FAULT);
 	}
 
 	if (MFC_MMU0_READL(MFC_MMU_INTERRUPT_STATUS)) {

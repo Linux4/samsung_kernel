@@ -34,6 +34,12 @@
 #define EXYRNG_RETRY_MAX_COUNT		1000000
 #define EXYRNG_START_UP_TEST_MAX_RETRY	2
 
+atomic_t hwrng_suspend_flag;
+atomic_t hwrng_running_flag;
+
+/* Protects exyswd read functions */
+static DEFINE_SPINLOCK(rng_running_lock);
+
 #ifdef CONFIG_EXYRNG_DEBUG
 #define exyrng_debug(args...)	pr_debug(args)
 #else
@@ -146,9 +152,21 @@ static int exynos_swd_read(struct hwrng *rng, void *data, size_t max, bool wait)
 	uint32_t *read_buf = data;
 	uint32_t read_size = max;
 	unsigned long flag;
+	unsigned long running_flag;
 	uint32_t retry_cnt;
 	int ret = HWRNG_RET_OK;
 	struct exyswd_rng_dev *dev = to_rng_dev(rng);
+
+	spin_lock_irqsave(&rng_running_lock, running_flag);
+	if (atomic_read(&hwrng_suspend_flag) == 1) {
+		atomic_set(&hwrng_running_flag, 0);
+		spin_unlock_irqrestore(&rng_running_lock, running_flag);
+		printk("[ExyRNG] exynos_swd_read is failed because of suspend flag\n");
+		return -EFAULT;
+	}
+
+	atomic_set(&hwrng_running_flag, 1);
+	spin_unlock_irqrestore(&rng_running_lock, running_flag);
 
 	retry_cnt = 0;
 	do {
@@ -182,7 +200,8 @@ static int exynos_swd_read(struct hwrng *rng, void *data, size_t max, bool wait)
 	} while (ret == HWRNG_RET_RETRY_ERROR);
 	if (ret != HWRNG_RET_OK) {
 		msleep(1);
-		return -EFAULT;
+		ret = -EFAULT;
+		goto err;
 	}
 
 	if (dev->start_up_test) {
@@ -261,6 +280,11 @@ out:
 		usleep_range(50, 100);
 	} while(1);
 
+err:
+	spin_lock_irqsave(&rng_running_lock, running_flag);
+	atomic_set(&hwrng_running_flag, 0);
+	spin_unlock_irqrestore(&rng_running_lock, running_flag);
+
 	return ret;
 }
 
@@ -282,6 +306,9 @@ static int exyswd_rng_probe(struct platform_device *pdev)
 	rng_dev->dev = dev;
 	rng_dev->start_up_test = 1;
 
+	atomic_set(&hwrng_suspend_flag, 0);
+	atomic_set(&hwrng_running_flag, 0);
+
 	spin_lock_init(&rng_dev->hwrandom_lock);
 
 	ret = devm_hwrng_register(dev, &rng_dev->rng);
@@ -301,64 +328,32 @@ static int exyswd_rng_remove(struct platform_device *pdev)
 #if defined(CONFIG_PM_SLEEP) || defined(CONFIG_PM_RUNTIME)
 static int exyswd_rng_suspend(struct device *dev)
 {
-	uint64_t reg0;
-	uint64_t reg1;
-	uint64_t reg2;
-	uint64_t reg3;
 	unsigned long flag;
 	int ret = HWRNG_RET_OK;
-	struct exyswd_rng_dev *rng_dev = dev_get_drvdata(dev);
 
-	spin_lock_irqsave(&rng_dev->hwrandom_lock, flag);
-	if (rng_dev->hwrng_read_flag) {
-		reg0 = SMC_CMD_RANDOM;
-		reg1 = HWRNG_EXIT;
-		reg2 = 0;
-		reg3 = 0;
-
-		ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
-		if (ret != HWRNG_RET_OK)
-			pr_info("[ExyRNG] failed to enter suspend with %d\n", ret);
+	spin_lock_irqsave(&rng_running_lock, flag);
+	if (atomic_read(&hwrng_running_flag) == 1) {
+		printk("[ExyRNG] exyswd_rng_suspend: hwrng_running_flag is 1.\n");
+		ret = -EFAULT;
+		goto out;
 	}
-	spin_unlock_irqrestore(&rng_dev->hwrandom_lock, flag);
+
+	atomic_set(&hwrng_suspend_flag, 1);
+out:
+	spin_unlock_irqrestore(&rng_running_lock, flag);
 
 	return ret;
 }
 
 static int exyswd_rng_resume(struct device *dev)
 {
-	uint64_t reg0;
-	uint64_t reg1;
-	uint64_t reg2;
-	uint64_t reg3;
 	unsigned long flag;
-	int ret = HWRNG_RET_OK;
-	struct exyswd_rng_dev *rng_dev = dev_get_drvdata(dev);
 
-	spin_lock_irqsave(&rng_dev->hwrandom_lock, flag);
+	spin_lock_irqsave(&rng_running_lock, flag);
+	atomic_set(&hwrng_suspend_flag, 0);
+	spin_unlock_irqrestore(&rng_running_lock, flag);
 
-	reg0 = SMC_CMD_RANDOM;
-	reg1 = HWRNG_RESUME;
-	reg2 = 0;
-	reg3 = 0;
-
-	ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
-	if (ret != HWRNG_RET_OK)
-		pr_info("[ExyRNG] failed to resume with %d\n", ret);
-
-	if (rng_dev->hwrng_read_flag) {
-		reg0 = SMC_CMD_RANDOM;
-		reg1 = HWRNG_INIT;
-		reg2 = 0;
-		reg3 = 0;
-
-		ret = exynos_cm_smc(&reg0, &reg1, &reg2, &reg3);
-		if (ret != HWRNG_RET_OK)
-			pr_info("[ExyRNG] failed to resume with %d\n", ret);
-	}
-	spin_unlock_irqrestore(&rng_dev->hwrandom_lock, flag);
-
-	return ret;
+	return HWRNG_RET_OK;
 }
 #endif
 

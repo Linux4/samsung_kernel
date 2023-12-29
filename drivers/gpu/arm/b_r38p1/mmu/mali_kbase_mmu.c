@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -178,14 +178,35 @@ static void mmu_flush_invalidate_as(struct kbase_device *kbdev, struct kbase_as 
 				    const struct kbase_mmu_hw_op_param *op_param)
 {
 	int err = 0;
+	bool gpu_powered;
 	unsigned long flags;
+
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+	gpu_powered = kbdev->pm.backend.gpu_powered;
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	/* GPU is off so there's no need to perform flush/invalidate.
+	 * But even if GPU is not actually powered down, after gpu_powered flag
+	 * was set to false, it is still safe to skip the flush/invalidate.
+	 * The TLB invalidation will anyways be performed due to AS_COMMAND_UPDATE
+	 * which is sent when address spaces are restored after gpu_powered flag
+	 * is set to true. Flushing of L2 cache is certainly not required as L2
+	 * cache is definitely off if gpu_powered is false.
+	 */
+	if (!gpu_powered)
+		return;
+
+	if (kbase_pm_context_active_handle_suspend(kbdev,
+				KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE)) {
+		/* GPU has just been powered off due to system suspend.
+		 * So again, no need to perform flush/invalidate.
+		 */
+		return;
+	}
 
 	/* AS transaction begin */
 	mutex_lock(&kbdev->mmu_hw_mutex);
-	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
-
-	if (kbdev->pm.backend.gpu_powered)
-		err = kbase_mmu_hw_do_flush_locked(kbdev, as, op_param);
+	err = kbase_mmu_hw_do_flush(kbdev, as, op_param);
 
 	if (err) {
 		/* Flush failed to complete, assume the GPU has hung and
@@ -198,9 +219,10 @@ static void mmu_flush_invalidate_as(struct kbase_device *kbdev, struct kbase_as 
 			kbase_reset_gpu(kbdev);
 	}
 
-	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
 	mutex_unlock(&kbdev->mmu_hw_mutex);
 	/* AS transaction end */
+
+	kbase_pm_context_idle(kbdev);
 }
 
 /**
@@ -1346,6 +1368,7 @@ page_fault_retry:
 		kbase_gpu_vm_unlock(kctx);
 	} else {
 		int ret = -ENOMEM;
+		const u8 group_id = region->gpu_alloc->group_id;
 
 		kbase_gpu_vm_unlock(kctx);
 
@@ -1357,23 +1380,21 @@ page_fault_retry:
 			if (grow_2mb_pool) {
 				/* Round page requirement up to nearest 2 MB */
 				struct kbase_mem_pool *const lp_mem_pool =
-					&kctx->mem_pools.large[
-					region->gpu_alloc->group_id];
+					&kctx->mem_pools.large[group_id];
 
 				pages_to_grow = (pages_to_grow +
 					((1 << lp_mem_pool->order) - 1))
 						>> lp_mem_pool->order;
 
 				ret = kbase_mem_pool_grow(lp_mem_pool,
-					pages_to_grow);
+					pages_to_grow, kctx->task);
 			} else {
 #endif
 				struct kbase_mem_pool *const mem_pool =
-					&kctx->mem_pools.small[
-					region->gpu_alloc->group_id];
+					&kctx->mem_pools.small[group_id];
 
 				ret = kbase_mem_pool_grow(mem_pool,
-					pages_to_grow);
+					pages_to_grow, kctx->task);
 #ifdef CONFIG_MALI_2MB_ALLOC
 			}
 #endif
@@ -1784,7 +1805,7 @@ int kbase_mmu_insert_single_page(struct kbase_context *kctx, u64 vpfn,
 			err = kbase_mem_pool_grow(
 				&kbdev->mem_pools.small[
 					kctx->mmu.group_id],
-				MIDGARD_MMU_BOTTOMLEVEL);
+				MIDGARD_MMU_BOTTOMLEVEL,kctx->task);
 			mutex_lock(&kctx->mmu.mmu_lock);
 		} while (!err);
 		if (err) {
@@ -1948,7 +1969,7 @@ int kbase_mmu_insert_pages_no_flush(struct kbase_device *kbdev, struct kbase_mmu
 			mutex_unlock(&mmut->mmu_lock);
 			err = kbase_mem_pool_grow(
 				&kbdev->mem_pools.small[mmut->group_id],
-				cur_level);
+				cur_level,mmut->kctx ? mmut->kctx->task : NULL);
 			mutex_lock(&mmut->mmu_lock);
 		} while (!err);
 
@@ -2742,7 +2763,7 @@ int kbase_mmu_init(struct kbase_device *const kbdev,
 
 		err = kbase_mem_pool_grow(
 			&kbdev->mem_pools.small[mmut->group_id],
-			MIDGARD_MMU_BOTTOMLEVEL);
+			MIDGARD_MMU_BOTTOMLEVEL,kctx ? kctx->task : NULL);
 		if (err) {
 			kbase_mmu_term(kbdev, mmut);
 			return -ENOMEM;
@@ -2759,6 +2780,10 @@ int kbase_mmu_init(struct kbase_device *const kbdev,
 void kbase_mmu_term(struct kbase_device *kbdev, struct kbase_mmu_table *mmut)
 {
 	int level;
+
+	WARN((mmut->kctx) && (mmut->kctx->as_nr != KBASEP_AS_NR_INVALID),
+	     "kctx-%d_%d must first be scheduled out to flush GPU caches+tlbs before tearing down MMU tables",
+	     mmut->kctx->tgid, mmut->kctx->id);
 
 	if (mmut->pgd != KBASE_MMU_INVALID_PGD_ADDRESS) {
 		mutex_lock(&mmut->mmu_lock);

@@ -643,7 +643,7 @@ static int abox_schedule_ipc(struct device *dev, struct abox_data *data,
 		abox_err(dev, "%s(%d): invalid message\n", __func__, hw_irq);
 	} else if (ret < 0) {
 		abox_err(dev, "%s(%d): ipc queue overflow\n", __func__, hw_irq);
-		abox_failsafe_report(dev, false);
+		abox_failsafe_report(dev, true);
 	}
 
 	return ret;
@@ -3713,6 +3713,16 @@ static int samsung_abox_probe(struct platform_device *pdev)
 	of_platform_populate(np, NULL, NULL, dev);
 
 	pm_runtime_put(dev);
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	data->debug_mode = DEBUG_MODE_NONE;
+	abox_info(dev, "debug_mode NONE\n");
+#else
+	data->debug_mode = DEBUG_MODE_FILE;
+	abox_info(dev, "debug_mode FILE\n");
+#endif
+#endif
 
 	abox_info(dev, "%s: probe complete\n", __func__);
 	return 0;

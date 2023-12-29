@@ -6,8 +6,7 @@ export HOSTCFLAGS="--sysroot=$(pwd)/toolchain/build/kernel/build-tools/sysroot -
 export HOSTLDFLAGS="--sysroot=$(pwd)/toolchain/build/kernel/build-tools/sysroot  -Wl,-rpath,$(pwd)/toolchain/prebuilts/kernel-build-tools/linux-x86/lib64 -L $(pwd)/toolchain/prebuilts/kernel-build-tools/linux-x86/lib64 -fuse-ld=lld --rtlib=compiler-rt"
 
 export DTC_FLAGS="-@"
-export PLATFORM_VERSION=13
-export ANDROID_MAJOR_VERSION=t
+export PLATFORM_VERSION=14
 export LLVM=1
 export DEPMOD=depmod
 export ARCH=arm64

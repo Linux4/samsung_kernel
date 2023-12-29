@@ -97,7 +97,7 @@ config SND_SOC_SAMSUNG_ABOX_DRAM_SIZE
 config SND_SOC_SAMSUNG_ABOX_DEBUG
 	bool "Debug mode for ABOX"
 	depends on SND_SOC_SAMSUNG_ABOX
-	default y
+	default n
 
 config SEC_SND_ADAPTATION
 	tristate "Samsung ABOX Adaptation for Audio"

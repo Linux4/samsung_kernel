@@ -1253,8 +1253,12 @@ static void __mfc_dump_info_and_stop_hw(struct mfc_core *core)
 	struct mfc_ctx *ctx;
 	int curr_ctx = __mfc_get_curr_ctx(core);
 	int two_dump = 0;
+	bool skip_panic = false;
 
 	MFC_TRACE_CORE("** %s will stop!!!\n", core->name);
+
+	if (core->logging_data->cause & (1 << MFC_CAUSE_DRM_PAGE_FAULT))
+		skip_panic = true;
 
 	/* dump issued core first */
 	__mfc_dump_info(core);
@@ -1308,6 +1312,9 @@ static void __mfc_dump_info_and_stop_hw(struct mfc_core *core)
 
 panic:
 	if (dev->debugfs.sfr_dump & MFC_DUMP_ALL_INFO)
+		return;
+
+	if (skip_panic)
 		return;
 
 	dbg_snapshot_expire_watchdog();

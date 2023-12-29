@@ -36,6 +36,21 @@ do { \
 	SENSOR_TYPE_PROXIMITY, SENSOR_TYPE_LIGHT} \
 } while (0)
 
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+static void sensor_get_grip_info(void)
+{
+	int i = 0;
+
+	for (i = 0; i < GRIP_MAX_CNT; i++)
+		pr_err("GRIP%d_REASON : %d\n", i, grip_error[i]);
+}
+#endif
+
+/*
+ * Caution !
+ * Do not change the format. ex) !@#REG_DUMP!@#, @@TYPE:1##
+ * Big data parses the data.
+ */
 static ssize_t sensor_dump_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	char **sensor_dump_data  = get_sensor_dump_data();
@@ -43,16 +58,17 @@ static ssize_t sensor_dump_show(struct device *dev, struct device_attribute *att
 	char str_no_sensor_dump[] = "there is no sensor dump";
 	int i = 0, ret;
 	char *sensor_dump;
-	char temp[sensor_dump_length(DUMPREGISTER_MAX_SIZE) + LENGTH_SENSOR_TYPE_MAX + 2] = {0,};
+	char temp[sensor_dump_length(DUMPREGISTER_MAX_SIZE) + LENGTH_SENSOR_TYPE_MAX] = {0,};
 	char time_temp[TIMEINFO_SIZE] = "";
 	char *time_info;
 	char str_no_registered_sensor[] = "there is no registered sensor";
 	char reset_info[TIMEINFO_SIZE*2 + 20] = "Sensor Hub Reset : ";
+	char str_reg_dump_filter[] = "!@#REG_DUMP!@#";
 	int cnt = 0;
 	struct shub_sensor *sensor;
 
 	sensor_dump = kzalloc(
-	    (sensor_dump_length(DUMPREGISTER_MAX_SIZE) + LENGTH_SENSOR_TYPE_MAX + 3) * (ARRAY_SIZE(types)), GFP_KERNEL);
+	    (sensor_dump_length(DUMPREGISTER_MAX_SIZE) + LENGTH_SENSOR_TYPE_MAX) * (ARRAY_SIZE(types)), GFP_KERNEL);
 
 	if (!sensor_dump) {
 		shub_errf("fail to allocate memory for dump buffer");
@@ -61,9 +77,7 @@ static ssize_t sensor_dump_show(struct device *dev, struct device_attribute *att
 
 	for (i = 0; i < ARRAY_SIZE(types); i++) {
 		if (sensor_dump_data[types[i]] != NULL) {
-			snprintf(temp, (int)strlen(sensor_dump_data[types[i]]) + LENGTH_SENSOR_TYPE_MAX + 3,
-				 "%3d\n%s\n\n", types[i], sensor_dump_data[types[i]]);
-				 /* %3d -> 3 : LENGTH_SENSOR_TYPE_MAX */
+			snprintf(temp, sizeof(temp), "@@TYPE:%d##\n%s", types[i], sensor_dump_data[types[i]]);
 			strcpy(&sensor_dump[(int)strlen(sensor_dump)], temp);
 		}
 	}
@@ -168,7 +182,8 @@ print_sensordump:
 	if ((int)strlen(sensor_dump) == 0)
 		ret = snprintf(buf, PAGE_SIZE, "%s\n%s\n%s\n", str_no_sensor_dump, reset_info, time_info);
 	else
-		ret = snprintf(buf, PAGE_SIZE, "%s\n%s\n%s\n", sensor_dump, reset_info, time_info);
+		ret = snprintf(buf, PAGE_SIZE, "%s\n%s%s\n\n%s\n%s\n",
+				str_reg_dump_filter, sensor_dump, str_reg_dump_filter, reset_info, time_info);
 
 	kfree(sensor_dump);
 	if (cnt > 0)
@@ -185,7 +200,18 @@ static ssize_t sensor_dump_store(struct device *dev, struct device_attribute *at
 	if (sscanf(buf, "%40s", name) != 1)             // 40 : SENSOR_NAME_MAX
 		return -EINVAL;
 
+	clear_sensor_dump();
+
 	if ((strcmp(name, "all")) == 0) {
+		int type;
+
+		shub_errf("last event of sensors");
+		for (type = 0; type < SENSOR_TYPE_MAX; type++) {
+			print_sensor_debug(type);
+		}
+
+		print_big_data();
+
 		sensorhub_save_ram_dump();
 		ret = send_all_sensor_dump_command();
 	} else {
@@ -208,7 +234,9 @@ static ssize_t sensor_dump_store(struct device *dev, struct device_attribute *at
 		}
 		ret = send_sensor_dump_command(sensor_type);
 	}
-
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+	sensor_get_grip_info();
+#endif
 	return (ret == 0) ? size : ret;
 }
 
@@ -274,7 +302,7 @@ static ssize_t debug_enable_show(struct device *dev, struct device_attribute *at
 
 static ssize_t debug_enable_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
-	char *input_str = NULL, *tmp = NULL, *dup_str = NULL;
+	char *input_str = NULL, *input_str_origin = NULL, *token = NULL;
 	unsigned int arg[5] = {0,};
 	int index = 0;
 
@@ -287,16 +315,16 @@ static ssize_t debug_enable_store(struct device *dev, struct device_attribute *a
 		return -ENOMEM;
 
 	memcpy(input_str, buf, strlen(buf));
-	dup_str = kstrdup(input_str, GFP_KERNEL);
+	input_str_origin = input_str;
 
-	while (((tmp = strsep(&dup_str, " ")) != NULL)) {
+	while (((token = strsep(&input_str, " ")) != NULL)) {
 		switch (index) {
 		case 0:
-			if (kstrtoint(tmp, 10, &arg[0]) < 0)
+			if (kstrtoint(token, 10, &arg[0]) < 0)
 				goto exit;
 			break;
 		case 1:
-			if (kstrtoint(tmp, 10, &arg[1]) < 0)
+			if (kstrtoint(token, 10, &arg[1]) < 0)
 				goto exit;
 			break;
 		default:
@@ -312,8 +340,7 @@ static ssize_t debug_enable_store(struct device *dev, struct device_attribute *a
 		debug_enable[arg[1]] = arg[0] ? true : false;
 	}
 exit:
-	kfree(dup_str);
-	kfree(input_str);
+	kfree(input_str_origin);
 	return size;
 }
 
@@ -342,7 +369,7 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 	int send_buf_len = 0;
 	unsigned int arg[10] = {0, };
 
-	char *input_str, *tmp, *dup_str = NULL;
+	char *input_str = NULL, *input_str_origin = NULL, *token = NULL;
 	int index = 0, i = 0;
 
 	shub_infof("%s", buf);
@@ -355,40 +382,48 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 		return -ENOMEM;
 
 	memcpy(input_str, buf, strlen(buf));
-	dup_str = kstrdup(input_str, GFP_KERNEL);
+	input_str_origin = input_str;
 
-	while (((tmp = strsep(&dup_str, " ")) != NULL)) {
+	while (((token = strsep(&input_str, " ")) != NULL)) {
 		switch (index) {
 		case 0:
-			if (kstrtou8(tmp, 10, &cmd) < 0) {
+			if (kstrtou8(token, 10, &cmd) < 0) {
 				shub_errf("invalid cmd(%d)", cmd);
 				goto exit;
 			}
 			break;
 		case 1:
-			if (kstrtou8(tmp, 10, &type) < 0) {
+			if (kstrtou8(token, 10, &type) < 0) {
 				shub_errf("invalid type(%d)", type);
 				goto exit;
 			}
 			break;
 		case 2:
-			if (kstrtou8(tmp, 10, &subcmd) < 0) {
+			if (kstrtou8(token, 10, &subcmd) < 0) {
 				shub_errf("invalid subcmd(%d)", subcmd);
 				goto exit;
 			}
 			break;
 		case 3:
 			if (cmd == CMD_SETVALUE && subcmd == HUB_SYSTEM_CHECK) {
-				if (kstrtouint(tmp, 10, &arg[0])) {
+				if (kstrtouint(token, 10, &arg[0])) {
 					shub_errf("parsing error");
 					goto exit;
 				}
-			} else {
-				if ((strlen(tmp) - 1) % 2 != 0) {
-					shub_errf("not match buf len(%d) != %d", (int)strlen(tmp), send_buf_len);
+			} else if (cmd == CMD_ADD) {
+				send_buf_len = 8;
+				send_buf = kzalloc(send_buf_len, GFP_KERNEL);
+				if (kstrtouint(token, 10, &arg[0])) {
+					shub_errf("parssing error");
 					goto exit;
 				}
-				send_buf_len = (strlen(tmp) - 1) / 2;
+				memcpy(&send_buf[0], &arg[0], 4);
+			} else {
+				if ((strlen(token) - 1) % 2 != 0) {
+					shub_errf("not match buf len(%d) != %d", (int)strlen(token), send_buf_len);
+					goto exit;
+				}
+				send_buf_len = (strlen(token) - 1) / 2;
 				send_buf = kzalloc(send_buf_len, GFP_KERNEL);
 				if (!send_buf) {
 					shub_errf("fail to alloc memory");
@@ -396,17 +431,27 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 				}
 
 				for (i = 0; i < send_buf_len; i++) {
-					send_buf[i] = (u8)((htou8(tmp[2 * i]) << 4) | htou8(tmp[2 * i + 1]));
+					send_buf[i] = (u8)((htou8(token[2 * i]) << 4) | htou8(token[2 * i + 1]));
 					shub_infof("[%d]:%d", i, send_buf[i]);
 				}
 			}
 			break;
 		case 4:
-			if (cmd == CMD_SETVALUE && subcmd == HUB_SYSTEM_CHECK)
-				if (kstrtouint(tmp, 10, &arg[1])) {
+			if (cmd == CMD_SETVALUE && subcmd == HUB_SYSTEM_CHECK) {
+				if (kstrtouint(token, 10, &arg[1])) {
 					shub_errf("parsing error");
 					goto exit;
 				}
+			} else if (cmd == CMD_ADD) {
+				if (kstrtouint(token, 10, &arg[1])) {
+					shub_errf("parssing error");
+					goto exit;
+				}
+				memcpy(&send_buf[4], &arg[1], 4);
+				shub_infof("type : %d, sampling : %d, report : %d", type, arg[0], arg[1]);
+			} else {
+				shub_errf("unused input");
+			}
 			break;
 		default:
 			goto exit;
@@ -430,8 +475,7 @@ static ssize_t make_command_store(struct device *dev, struct device_attribute *a
 	}
 exit:
 	kfree(send_buf);
-	kfree(dup_str);
-	kfree(input_str);
+	kfree(input_str_origin);
 
 	return size;
 }
@@ -460,40 +504,39 @@ static ssize_t register_rw_store(struct device *dev, struct device_attribute *at
 	char rw_cmd;
 
 	char input_str[20] = {0,};
-	char *dup_str = NULL;
-	char *tmp;
+	char *tmp_str = NULL, *token = NULL;
 
 	if (strlen(buf) >= sizeof(input_str)) {
-		shub_errf("bufsize too long(%d)", strlen(buf));
+		shub_errf("bufsize too long(%d)", (int)strlen(buf));
 		goto exit;
 	}
 
 	memcpy(input_str, buf, strlen(buf));
-	dup_str = kstrdup(input_str, GFP_KERNEL);
+	tmp_str = input_str;
 
-	while (((tmp = strsep(&dup_str, " ")) != NULL)) {
+	while (((token = strsep(&tmp_str, " ")) != NULL)) {
 		switch (index) {
 		case 0:
-			if (kstrtou8(tmp, 10, &sensor_type) < 0 || (sensor_type >= SENSOR_TYPE_MAX)) {
+			if (kstrtou8(token, 10, &sensor_type) < 0 || (sensor_type >= SENSOR_TYPE_MAX)) {
 				shub_errf("invalid type(%d)", sensor_type);
 				goto exit;
 			}
 			break;
 		case 1:
-			if (tmp[0] == 'r' || tmp[0] == 'w')
-				rw_cmd = tmp[0];
+			if (token[0] == 'r' || token[0] == 'w')
+				rw_cmd = token[0];
 			else {
-				shub_errf("invalid cmd(%c)", tmp[0]);
+				shub_errf("invalid cmd(%c)", token[0]);
 				goto exit;
 			}
 			break;
 		case 2:
 		case 3:
-			if ((strlen(tmp) == 4) && tmp[0] != '0' && tmp[1] != 'x') {
-				shub_errf("invalid value(0xOO) %s", tmp);
+			if ((strlen(token) == 4) && token[0] != '0' && token[1] != 'x') {
+				shub_errf("invalid value(0xOO) %s", token);
 				goto exit;
 			}
-			send_val[index - 2] = (u8)((htou8(tmp[2]) << 4) | htou8(tmp[3]));
+			send_val[index - 2] = (u8)((htou8(token[2]) << 4) | htou8(token[3]));
 			break;
 		default:
 			goto exit;
@@ -533,8 +576,38 @@ static ssize_t register_rw_store(struct device *dev, struct device_attribute *at
 	}
 
 exit:
-	kfree(dup_str);
 	return size;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+void update_grip_error(u8 idx, u32 error_state)
+{
+	if (idx >= GRIP_MAX_CNT) {
+		pr_info("[FACTORY] %s dump is NULL \n", __func__,
+			idx);
+		return;
+	}
+	grip_error[idx] = error_state;
+	pr_info("[FACTORY] %s [IC num %d] grip_error %d\n", __func__,
+		idx, error_state);
+}
+EXPORT_SYMBOL(update_grip_error);
+static ssize_t grip_fail_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int i = 0, j = 0;
+
+	for (i = 0; i < GRIP_MAX_CNT; i++) {
+		j += snprintf(buf + j, PAGE_SIZE - j,
+			"\"GRIP%d_REASON\":\"%d\",",
+			i, grip_error[i]);
+		pr_info("[FACTORY] %s \"GRIP%d_REASON\":\"%d\",",
+			__func__, i, grip_error[i]);
+		grip_error[i] = 0;
+	}
+
+	return j;
 }
 #endif
 
@@ -545,9 +618,14 @@ static DEVICE_ATTR_RW(debug_enable);
 static DEVICE_ATTR(make_command, 0220, NULL, make_command_store);
 static DEVICE_ATTR_RW(register_rw);
 #endif
-
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+static DEVICE_ATTR(grip_fail, 0440, grip_fail_show, NULL);
+#endif
 static struct device_attribute *shub_debug_attrs[] = {
 	&dev_attr_sensor_axis,
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+	&dev_attr_grip_fail,
+#endif
 	&dev_attr_sensor_dump,
 	&dev_attr_debug_enable,
 #ifdef CONFIG_SHUB_DEBUG

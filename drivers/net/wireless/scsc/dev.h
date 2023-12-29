@@ -252,8 +252,7 @@ static inline void ethr_ii_to_subframe_msdu(struct sk_buff *skb)
 #define SLSI_MAX_CHANNEL_LIST 20
 #define SLSI_MAX_RX_BA_SESSIONS (8)
 #define SLSI_STA_ACTION_FRAME_BITMAP (SLSI_ACTION_FRAME_PUBLIC | SLSI_ACTION_FRAME_WMM | SLSI_ACTION_FRAME_WNM |\
-				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL |\
-				      SLSI_ACTION_FRAME_RADIO_MEASUREMENT)
+				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL)
 #define SLSI_STA_ACTION_FRAME_SUSPEND_BITMAP (SLSI_ACTION_FRAME_PUBLIC | SLSI_ACTION_FRAME_WMM | SLSI_ACTION_FRAME_WNM |\
 				      SLSI_ACTION_FRAME_QOS | SLSI_ACTION_FRAME_PROTECTED_DUAL)
 
@@ -1548,7 +1547,8 @@ void slsi_rx_dbg_sap_work(struct work_struct *work);
 void slsi_rx_netdev_data_work(struct work_struct *work);
 void slsi_rx_netdev_mlme_work(struct work_struct *work);
 int slsi_rx_enqueue_netdev_mlme(struct slsi_dev *sdev, struct sk_buff *skb, u16 vif);
-struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
+struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev,
+							struct sk_buff *skb, bool release_skb);
 void slsi_rx_buffered_frames(struct slsi_dev *sdev, struct net_device *dev, struct slsi_peer *peer);
 int slsi_rx_blocking_signals(struct slsi_dev *sdev, struct sk_buff *skb);
 void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_id, bool aborted,

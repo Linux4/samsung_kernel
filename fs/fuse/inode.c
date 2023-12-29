@@ -115,6 +115,10 @@ static void fuse_free_inode(struct inode *inode)
 #ifdef CONFIG_FUSE_DAX
 	kfree(fi->dax);
 #endif
+#ifdef CONFIG_FUSE_BPF
+	if (fi->bpf)
+		bpf_prog_put(fi->bpf);
+#endif
 	kmem_cache_free(fuse_inode_cachep, fi);
 }
 
@@ -124,13 +128,6 @@ static void fuse_evict_inode(struct inode *inode)
 
 	/* Will write inode on close/munmap and in all other dirtiers */
 	WARN_ON(inode->i_state & I_DIRTY_INODE);
-
-#ifdef CONFIG_FUSE_BPF
-	iput(fi->backing_inode);
-	if (fi->bpf)
-		bpf_prog_put(fi->bpf);
-	fi->bpf = NULL;
-#endif
 
 	truncate_inode_pages_final(&inode->i_data);
 	clear_inode(inode);
@@ -150,6 +147,15 @@ static void fuse_evict_inode(struct inode *inode)
 		WARN_ON(!list_empty(&fi->queued_writes));
 	}
 }
+
+#ifdef CONFIG_FUSE_BPF
+static void fuse_destroy_inode(struct inode *inode)
+{
+	struct fuse_inode *fi = get_fuse_inode(inode);
+
+	iput(fi->backing_inode);
+}
+#endif
 
 static int fuse_reconfigure(struct fs_context *fc)
 {
@@ -214,6 +220,12 @@ void fuse_change_attributes_common(struct inode *inode, struct fuse_attr *attr,
 	inode->i_uid     = make_kuid(fc->user_ns, attr->uid);
 	inode->i_gid     = make_kgid(fc->user_ns, attr->gid);
 	inode->i_blocks  = attr->blocks;
+
+	/* Sanitize nsecs */
+	attr->atimensec = min_t(u32, attr->atimensec, NSEC_PER_SEC - 1);
+	attr->mtimensec = min_t(u32, attr->mtimensec, NSEC_PER_SEC - 1);
+	attr->ctimensec = min_t(u32, attr->ctimensec, NSEC_PER_SEC - 1);
+
 	inode->i_atime.tv_sec   = attr->atime;
 	inode->i_atime.tv_nsec  = attr->atimensec;
 	/* mtime from server may be stale due to local buffered write */
@@ -1078,6 +1090,9 @@ static const struct export_operations fuse_export_operations = {
 
 static const struct super_operations fuse_super_operations = {
 	.alloc_inode    = fuse_alloc_inode,
+#ifdef CONFIG_FUSE_BPF
+	.destroy_inode  = fuse_destroy_inode,
+#endif
 	.free_inode     = fuse_free_inode,
 	.evict_inode	= fuse_evict_inode,
 	.write_inode	= fuse_write_inode,
@@ -1854,7 +1869,31 @@ static void fuse_fs_cleanup(void)
 
 static struct kobject *fuse_kobj;
 
-/* TODO Remove this once BPF_PROG_TYPE_FUSE is upstreamed */
+static ssize_t fuse_bpf_show(struct kobject *kobj,
+				       struct kobj_attribute *attr, char *buff)
+{
+	return sysfs_emit(buff, "supported\n");
+}
+
+static struct kobj_attribute fuse_bpf_attr =
+		__ATTR_RO(fuse_bpf);
+
+static struct attribute *bpf_features[] = {
+	&fuse_bpf_attr.attr,
+	NULL,
+};
+
+static const struct attribute_group bpf_features_group = {
+	.name = "features",
+	.attrs = bpf_features,
+};
+
+/*
+ * TODO Remove this once fuse-bpf is upstreamed
+ *
+ * bpf_prog_type_fuse exports the bpf_prog_type_fuse 'constant', which cannot be
+ * constant until the code is upstreamed
+ */
 static ssize_t bpf_prog_type_fuse_show(struct kobject *kobj,
 				       struct kobj_attribute *attr, char *buff)
 {
@@ -1872,6 +1911,13 @@ static struct attribute *bpf_attributes[] = {
 static const struct attribute_group bpf_attr_group = {
 	.attrs = bpf_attributes,
 };
+
+static const struct attribute_group *attribute_groups[] = {
+	&bpf_features_group,
+	&bpf_attr_group,
+	NULL
+};
+
 /* TODO remove to here */
 
 static int fuse_sysfs_init(void)
@@ -1889,7 +1935,7 @@ static int fuse_sysfs_init(void)
 		goto out_fuse_unregister;
 
 	/* TODO Remove when BPF_PROG_TYPE_FUSE is upstreamed */
-	err = sysfs_create_group(fuse_kobj, &bpf_attr_group);
+	err = sysfs_create_groups(fuse_kobj, attribute_groups);
 	if (err)
 		goto out_fuse_remove_mount_point;
 
@@ -1905,6 +1951,7 @@ static int fuse_sysfs_init(void)
 
 static void fuse_sysfs_cleanup(void)
 {
+	sysfs_remove_groups(fuse_kobj, attribute_groups);
 	sysfs_remove_mount_point(fuse_kobj, "connections");
 	kobject_put(fuse_kobj);
 }

@@ -404,6 +404,13 @@ config CAMERA_CIS_GD1_OBJ
 	help
 	  Use to build GD1 camera sensor.
 
+config CAMERA_CIS_HI5022_OBJ
+	tristate "Use HI5022 camera cis"
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build HI5022 camera sensor.
+
 config CAMERA_CIS_HI1336_OBJ
 	tristate "Use HI1336 camera cis"
 	depends on CAMERA_CIS_SELECT

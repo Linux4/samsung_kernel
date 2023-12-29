@@ -616,6 +616,7 @@ static int is_vender_caminfo_cmd_perform_cal_reload(void __user *user_data)
 	struct is_rom_info *finfo;
 	int rom_id;
 	int curr_rom_id;
+	int position;
 	struct is_core *core = is_get_is_core();
 	struct is_vender_specific *specific = NULL;
 
@@ -647,7 +648,8 @@ static int is_vender_caminfo_cmd_perform_cal_reload(void __user *user_data)
 					goto EXIT;
 				}
 				/* to enable sec2lsi reload */
-				sec2lsi_conversion_done[curr_rom_id] = false;
+				position = is_vendor_get_position_from_rom_id(curr_rom_id);
+				sec2lsi_conversion_done[position] = false;
 			}
 		}
 #ifdef USES_STANDARD_CAL_RELOAD

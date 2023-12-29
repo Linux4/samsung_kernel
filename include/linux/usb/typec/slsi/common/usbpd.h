@@ -68,6 +68,9 @@
 #define tDRPtry (75) /* 75~150ms */
 #define tTryCCDebounce (15) /* 10~20ms */
 
+/* Custom Timer */
+#define tStartAmsMargin (100)
+
 enum s2m_pdic_power_role {
 	PDIC_SINK,
 	PDIC_SOURCE
@@ -614,7 +617,7 @@ typedef struct usbpd_phy_ops {
 	int    (*pps_enable)(void *, int);
 	int    (*get_pps_enable)(void *, int *);
 #endif
-#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER) || IS_ENABLED(CONFIG_S2MF301_TYPEC_WATER)
 	int		(*water_get_power_role)(void *);
 	int		(*ops_water_check)(void *);
 	int		(*ops_dry_check)(void *);
@@ -665,6 +668,7 @@ struct policy_data {
 	int				selected_pdo_num;
 	int				requested_pdo_type;
 	int				requested_pdo_num;
+	int			got_ufp_vdm;
 };
 
 struct protocol_data {
@@ -763,6 +767,7 @@ struct usbpd_manager_data {
 	int req_pdo_type;
 	bool psrdy_sent;
 	int is_ccopen;
+	bool first_noti_sent;
 };
 
 struct usbpd_data {

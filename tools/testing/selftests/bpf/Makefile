@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-include ../../../../scripts/Kbuild.include
+include ../../../build/Build.include
 include ../../../scripts/Makefile.arch
 
 CXX ?= $(CROSS_COMPILE)g++
@@ -119,8 +119,6 @@ RESOLVE_BTFIDS := $(BUILD_DIR)/resolve_btfids/resolve_btfids
 # NOTE: Semicolon at the end is critical to override lib.mk's default static
 # rule for binaries.
 $(notdir $(TEST_GEN_PROGS)						\
-	 $(TEST_PROGS)							\
-	 $(TEST_PROGS_EXTENDED)						\
 	 $(TEST_GEN_PROGS_EXTENDED)					\
 	 $(TEST_CUSTOM_PROGS)): %: $(OUTPUT)/% ;
 

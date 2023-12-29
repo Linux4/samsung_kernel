@@ -882,6 +882,27 @@ int dwc3_exynos_vbus_event(struct device *dev, bool vbus_active)
 }
 EXPORT_SYMBOL_GPL(dwc3_exynos_vbus_event);
 
+int dwc3_gadget_speed(struct device *dev)
+{
+	struct dwc3_exynos	*exynos;
+	struct usb_gadget	*gadget;
+
+	exynos = dev_get_drvdata(dev);
+	if (!exynos) {
+		dev_err(dev, "%s: exynos is NULL!!\n", __func__);
+		return 0;
+	}
+
+	gadget = exynos->dwc->gadget;
+	if (!gadget) {
+		dev_err(dev, "%s: gadget is NULL!!\n", __func__);
+		return 0;
+	}
+
+	return gadget->speed;
+}
+EXPORT_SYMBOL(dwc3_gadget_speed);
+
 /**
  * dwc3_exynos_phy_enable - received combo phy control.
  */

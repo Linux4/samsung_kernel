@@ -55,6 +55,11 @@ static int __mfc_init_hw(struct mfc_core *core, enum mfc_buf_usage_type buf_type
 	mfc_core_reg_clear(core);
 	mfc_core_debug(2, "Done register clear\n");
 
+	if (core->state == MFCCORE_ERROR) {
+		mfc_core_info("[MSR] Couldn't lock HW. It's Error state\n");
+		return  -EIO;
+	}
+
 	/*
 	 * When protection_on by init or wakeup sequence,
 	 * do not need to pending check because the register already cleared.
