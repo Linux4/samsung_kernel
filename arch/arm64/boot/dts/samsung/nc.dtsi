@@ -1,0 +1,2 @@
+#define LEGO_IS_USE_NC
+#define LEGO_IS_USE(x, ...) !defined(LEGO_IS_USE_##x)

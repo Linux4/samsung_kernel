@@ -1,0 +1,17 @@
+&smd {
+	sec_abc {
+		compatible = "samsung,sec_abc";
+		status = "okay";
+		abc_spec_type1 {
+			module_list = "gpu", "gpu_qc", "gpu_qc", "camera", "camera", "vib", "tsp", "tsp_sub";
+			name_list = "gpu_fault", "gpu_fault", "gpu_page_fault", "mipi_overflow", "i2c_fail", "int_gnd_short", "tsp_int_fault", "tsp_int_fault";
+#ifndef CONFIG_SEC_FACTORY
+			threshold_cnt = <20>, <2>, <20>, <1>, <1>, <25>, <10>, <10>;
+			threshold_time = <1200>, <1200>, <1200>, <0>, <0>, <5>, <5>, <5>;
+#else
+			threshold_cnt = <20>, <2>, <20>, <4>, <4>, <25>, <10>, <10>;
+			threshold_time = <1200>, <1200>, <1200>, <120>, <120>, <5>, <5>, <5>;
+#endif
+		};
+	};
+};

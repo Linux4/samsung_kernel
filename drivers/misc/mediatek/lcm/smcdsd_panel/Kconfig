@@ -1,0 +1,10 @@
+if MTK_FB && !DRM_MEDIATEK
+
+config SMCDSD_PANEL
+	bool "Samsung Mobile Communication Division System Display"
+	default n
+
+endif # MTK_FB && !DRM_MEDIATEK
+
+source "drivers/misc/mediatek/lcm/smcdsd_panel/panels/Kconfig"
+

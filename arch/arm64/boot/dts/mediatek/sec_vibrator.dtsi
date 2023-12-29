@@ -1,0 +1,12 @@
+
+&smd {
+	sec_vibrator {
+		status = "okay";
+		compatible = "sec_vibrator";
+
+		haptic,normal_ratio = <84>;
+		haptic,high_temp_ref = <48>;
+		haptic,high_temp_ratio = <71>;
+	};
+};
+

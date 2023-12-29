@@ -1,0 +1,19 @@
+
+&smd {
+	vib_info: vibrator_info {
+		status = "okay";
+		compatible = "samsung,vib-info";
+		functions = "INTENSITY", "HAPTIC_ENGINE";
+#if 1
+		samsung,intensities = <0 2000 4000 6000 8000 10000>;
+#else
+		samsung,intensities = <>;
+#endif
+
+#if 1
+		samsung,haptic_intensities = <0 3000 4000 6000 8000 10000>;
+#else
+		samsung,haptic_intensities = <>;
+#endif
+	};
+};

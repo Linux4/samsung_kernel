@@ -1,0 +1,49 @@
+#define EXPAND(str) #str
+
+&pio {
+	/* add pinctrl for motor  */
+	motor_pwm {
+		motor_pwm_active: motor_pwm_active {
+			pinmux = <PINMUX_GPIO0__FUNC_PWM_0>;
+			bias-disable;
+			output-low;
+		  };
+	};
+};
+
+&pio {
+	vib_en_gpio: vib_en_gpio {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,195), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+};
+
+
+&smd {
+	isa1000_vibrator {
+		status = "okay";
+		compatible = "imagis,isa1000_vibrator";
+		isa1000,duty_ratio = <84>;
+		isa1000,gpio_en = <SEC_GPIO_REF(AP,pio,195) 0>;
+		isa1000,motor_type = EXPAND(LINEAR_1040);
+
+#if 1
+		/* for multi-frequency */
+		isa1000,multi_frequency = <1>;
+#endif
+		/* frequency       alert low  mid  high  0  press release (multi_freq)*/
+		isa1000,frequency = <2050>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&motor_pwm_active &vib_en_gpio>;
+	/*	#pwms = <&mtk_pwm 0 1000000>; */
+
+		samsung,steps = <6>;
+		samsung,intensities = <0 3000 4000 6000 8000 10000>;
+		samsung,haptic_intensities = <0 2000 4000 6000 8000 10000>;
+	};
+};

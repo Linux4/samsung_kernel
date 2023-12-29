@@ -1,0 +1,421 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+#ifndef __HX83102J_BOE_PARAM_H__
+#define __HX83102J_BOE_PARAM_H__
+
+#include <linux/types.h>
+#include <linux/kernel.h>
+
+#define LCD_TYPE_VENDOR		"BOE"
+
+#define EXTEND_BRIGHTNESS	306
+#define UI_MAX_BRIGHTNESS	255
+#define UI_DEFAULT_BRIGHTNESS	128
+
+#define LDI_REG_BRIGHTNESS	0x51
+#define LDI_REG_ID		0x04
+#define LDI_LEN_BRIGHTNESS	((u16)ARRAY_SIZE(SEQ_HX83102J_BOE_BRIGHTNESS))
+
+/* len is read length */
+#define LDI_LEN_ID		3
+
+#define TYPE_WRITE		I2C_SMBUS_WRITE
+#define TYPE_DELAY		U8_MAX
+
+static u8 MAX77816_INIT[] = {
+	0x03, 0x70, 0,
+	0x02, 0x8E, 0,
+	0x04, 0x78, 0,
+};
+
+#if 0
+static u8 MAX77816_EXIT[] = {
+	0x03, 0x32, 0,
+};
+
+static u8 ISL98608_INIT[] = {
+	0x06, 0x08,
+	0x08, 0x08,
+	0x09, 0x08,
+};
+#endif
+
+struct lcd_seq_info {
+	unsigned char	*cmd;
+	unsigned int	len;
+	unsigned int	sleep;
+};
+
+static unsigned char SEQ_HX83102J_BOE_SLEEP_OUT[] = { 0x11 };
+static unsigned char SEQ_HX83102J_BOE_SLEEP_IN[] = { 0x10 };
+static unsigned char SEQ_HX83102J_BOE_DISPLAY_OFF[] = { 0x28 };
+static unsigned char SEQ_HX83102J_BOE_DISPLAY_ON[] = { 0x29 };
+
+static unsigned char SEQ_HX83102J_BOE_BRIGHTNESS[] = {
+	0x51,
+	0x00, 0x00,
+};
+
+static unsigned char SEQ_HX83102J_BOE_001[] = {
+	0xB9,
+	0x83, 0x10, 0x21, 0x55, 0x00,
+};
+
+static unsigned char SEQ_HX83102J_BOE_002[] = {
+	0xB1,
+	0x2C, 0xB3, 0xB3, 0x2F, 0xEF, 0x42, 0xE1, 0x43, 0x36, 0x36,
+	0x36, 0x36,
+};
+
+static unsigned char SEQ_HX83102J_BOE_003[] = {
+	0xE9,
+	0xD9,
+};
+
+static unsigned char SEQ_HX83102J_BOE_004[] = {
+	0xB1,
+	0x98, 0x33,
+};
+
+static unsigned char SEQ_HX83102J_BOE_005[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83102J_BOE_006[] = {
+	0xB2,
+	0x00, 0x59, 0xA0, 0x00, 0x00, 0x12, 0x5E, 0x3C, 0x84, 0x32,
+	0x10,
+};
+
+static unsigned char SEQ_HX83102J_BOE_007[] = {
+	0xB4,
+	0x4B, 0x4B, 0x50, 0x50, 0x50, 0x50, 0x7A, 0x7A, 0x06, 0x7A,
+	0x01, 0x93,
+};
+
+static unsigned char SEQ_HX83102J_BOE_008[] = {
+	0xBC,
+	0x1B, 0x4,
+};
+
+static unsigned char SEQ_HX83102J_BOE_009[] = {
+	0xBE,
+	0x20,
+};
+
+static unsigned char SEQ_HX83102J_BOE_010[] = {
+	0xBF,
+	0xFC, 0x84,
+};
+
+static unsigned char SEQ_HX83102J_BOE_011[] = {
+	0xC0,
+	0x36, 0x36, 0x22, 0x11, 0x22, 0xA0, 0x61, 0x8, 0xF5, 0x3,
+};
+
+static unsigned char SEQ_HX83102J_BOE_012[] = {
+	0xE9,
+	0xCC,
+};
+
+static unsigned char SEQ_HX83102J_BOE_013[] = {
+	0xC7,
+	0x80,
+};
+
+static unsigned char SEQ_HX83102J_BOE_014[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83102J_BOE_015[] = {
+	0xE9,
+	0xC6,
+};
+
+static unsigned char SEQ_HX83102J_BOE_016[] = {
+	0xC8,
+	0x97,
+};
+
+static unsigned char SEQ_HX83102J_BOE_017[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83102J_BOE_018[] = {
+	0x51,
+	0x00, 0x00,
+};
+
+static unsigned char SEQ_HX83102J_BOE_019[] = {
+	0x53,
+	0x24,
+};
+
+static unsigned char SEQ_HX83102J_BOE_020[] = {
+	0xC9,
+	0x00, 0x1E, 0x0F, 0xA0, 0x01,
+};
+
+static unsigned char SEQ_HX83102J_BOE_021[] = {
+	0xCB,
+	0x8, 0x13, 0x07, 0x00, 0x0C, 0xE9,
+};
+
+static unsigned char SEQ_HX83102J_BOE_022[] = {
+	0xCC,
+	0x2,
+};
+
+static unsigned char SEQ_HX83102J_BOE_023[] = {
+	0xD1,
+	0x37, 0x6, 0x0, 0x2, 0x4, 0x0C, 0xFF,
+};
+
+static unsigned char SEQ_HX83102J_BOE_024[] = {
+	0xD2,
+	0x1F, 0x11, 0x1F,
+};
+
+static unsigned char SEQ_HX83102J_BOE_025[] = {
+	0xD3,
+	0x06, 0x00, 0x00, 0x00, 0x00, 0x04, 0x08, 0x04, 0x08, 0x27,
+	0x47, 0x64, 0x4B, 0x12, 0x12, 0x03, 0x03, 0x32, 0x10, 0x0D,
+	0x00, 0x0D, 0x32, 0x10, 0x7, 0x00, 0x7, 0x32, 0x19, 0x18,
+	0x9, 0x18, 0x00, 0x00,
+};
+
+static unsigned char SEQ_HX83102J_BOE_026[] = {
+	0xD5,
+	0x24, 0x24, 0x24, 0x24, 0x07, 0x06, 0x07, 0x06, 0x05, 0x04,
+	0x05, 0x04, 0x03, 0x02, 0x03, 0x02, 0x01, 0x00, 0x01, 0x00,
+	0x21, 0x20, 0x21, 0x20, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18,
+	0x18, 0x18, 0x1F, 0x1F, 0x1F, 0x1F, 0x1E, 0x1E, 0x1E, 0x1E,
+	0x18, 0x18, 0x18, 0x18,
+};
+
+static unsigned char SEQ_HX83102J_BOE_027[] = {
+	0xD8,
+	0xAA, 0xAA, 0xAA, 0xAA, 0xFA, 0xA0, 0xAA, 0xAA, 0xAA, 0xAA,
+	0xFA, 0xA0,
+};
+
+static unsigned char SEQ_HX83102J_BOE_028[] = {
+	0xE0,
+	0x0, 0x4, 0x0C, 0x13, 0x1A, 0x2D, 0x48, 0x52, 0x5E, 0x5D,
+	0x7C, 0x85, 0x8D, 0x9E, 0x9C, 0xA4, 0xAC, 0xBD, 0xBA, 0x5A,
+	0x61, 0x6A, 0x75, 0x0, 0x4, 0x0C, 0x13, 0x1A, 0x2D, 0x48,
+	0x52, 0x5E, 0x5D, 0x7C, 0x85, 0x8D, 0x9E, 0x9C, 0xA4, 0xAC,
+	0xBD, 0xBA, 0x5A, 0x61, 0x6A, 0x75,
+};
+
+static unsigned char SEQ_HX83102J_BOE_029[] = {
+	0xE7,
+	0x15, 0x0E, 0x0E, 0x28, 0x23, 0x8D, 0x00, 0x20, 0x8D, 0x14,
+	0x14, 0x00, 0x00, 0x00, 0x00, 0x12, 0x05, 0x02, 0x02, 0x0E,
+};
+
+static unsigned char SEQ_HX83102J_BOE_030[] = {
+	0xBD,
+	0x1,
+};
+
+static unsigned char SEQ_HX83102J_BOE_031[] = {
+	0xD2,
+	0xB4,
+};
+
+static unsigned char SEQ_HX83102J_BOE_032[] = {
+	0xE9,
+	0xC9,
+};
+
+static unsigned char SEQ_HX83102J_BOE_033[] = {
+	0xD3,
+	0x84,
+};
+
+static unsigned char SEQ_HX83102J_BOE_034[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83102J_BOE_035[] = {
+	0xD8,
+	0xFF, 0xFF, 0xFA, 0xAF, 0xFF, 0xA0, 0xFF, 0xFF, 0xFA, 0xAF,
+	0xFF, 0xA0, 0xFF, 0xFF, 0xFA, 0xAF, 0xFF, 0xA0, 0xFF, 0xFF,
+	0xFA, 0xAF, 0xFF, 0xA0,
+};
+
+static unsigned char SEQ_HX83102J_BOE_036[] = {
+	0xE7,
+	0x02, 0x00, 0x9C, 0x01, 0xA6, 0x0D, 0xAA, 0x0E, 0xA0, 0x00,
+	0x00,
+};
+
+static unsigned char SEQ_HX83102J_BOE_037[] = {
+	0xBD,
+	0x2,
+};
+
+static unsigned char SEQ_HX83102J_BOE_038[] = {
+	0xE9,
+	0xC4,
+};
+
+static unsigned char SEQ_HX83102J_BOE_039[] = {
+	0xBA,
+	0x8A,
+};
+
+static unsigned char SEQ_HX83102J_BOE_040[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83102J_BOE_041[] = {
+	0xD8,
+	0xFF, 0xFF, 0xFA, 0xAF, 0xFF, 0xA0, 0xFF, 0xFF, 0xFA, 0xAF,
+	0xFF, 0xA0,
+};
+
+static unsigned char SEQ_HX83102J_BOE_042[] = {
+	0xE7,
+	0xFF, 0x01, 0xFF, 0x01, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x22,
+	0x00, 0x22, 0x81, 0x02, 0x40, 0x00, 0x20, 0x93, 0x01, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+};
+
+static unsigned char SEQ_HX83102J_BOE_043[] = {
+	0xBD,
+	0x3,
+};
+
+static unsigned char SEQ_HX83102J_BOE_044[] = {
+	0xD8,
+	0xAA, 0xAA, 0xAA, 0xAA, 0xFA, 0xA0, 0xAA, 0xAA, 0xAA, 0xAA,
+	0xFA, 0xA0, 0xFF, 0xFF, 0xFA, 0xAF, 0xFF, 0xA0, 0xFF, 0xFF,
+	0xFA, 0xAF, 0xFF, 0xA0, 0x55, 0x55, 0x55, 0x55, 0x55, 0x50,
+	0x55, 0x55, 0x55, 0x55, 0x55, 0x50,
+};
+
+static unsigned char SEQ_HX83102J_BOE_045[] = {
+	0xE9,
+	0xC4,
+};
+
+static unsigned char SEQ_HX83102J_BOE_046[] = {
+	0xBA,
+	0xC0, 0x4F, 0x70,
+};
+
+static unsigned char SEQ_HX83102J_BOE_047[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83102J_BOE_048[] = {
+	0xBD,
+	0x0,
+};
+
+static unsigned char SEQ_HX83102J_BOE_049[] = {
+	0xB9,
+	0x0, 0x0, 0x0,
+};
+
+static struct lcd_seq_info LCD_SEQ_INIT_1[] = {
+	{SEQ_HX83102J_BOE_001, ARRAY_SIZE(SEQ_HX83102J_BOE_001), 0, },
+	{SEQ_HX83102J_BOE_002, ARRAY_SIZE(SEQ_HX83102J_BOE_002), 0, },
+	{SEQ_HX83102J_BOE_003, ARRAY_SIZE(SEQ_HX83102J_BOE_003), 0, },
+	{SEQ_HX83102J_BOE_004, ARRAY_SIZE(SEQ_HX83102J_BOE_004), 0, },
+	{SEQ_HX83102J_BOE_005, ARRAY_SIZE(SEQ_HX83102J_BOE_005), 0, },
+	{SEQ_HX83102J_BOE_006, ARRAY_SIZE(SEQ_HX83102J_BOE_006), 0, },
+	{SEQ_HX83102J_BOE_007, ARRAY_SIZE(SEQ_HX83102J_BOE_007), 0, },
+	{SEQ_HX83102J_BOE_008, ARRAY_SIZE(SEQ_HX83102J_BOE_008), 0, },
+	{SEQ_HX83102J_BOE_009, ARRAY_SIZE(SEQ_HX83102J_BOE_009), 0, },
+	{SEQ_HX83102J_BOE_010, ARRAY_SIZE(SEQ_HX83102J_BOE_010), 0, },
+	{SEQ_HX83102J_BOE_011, ARRAY_SIZE(SEQ_HX83102J_BOE_011), 0, },
+	{SEQ_HX83102J_BOE_012, ARRAY_SIZE(SEQ_HX83102J_BOE_012), 0, },
+	{SEQ_HX83102J_BOE_013, ARRAY_SIZE(SEQ_HX83102J_BOE_013), 0, },
+	{SEQ_HX83102J_BOE_014, ARRAY_SIZE(SEQ_HX83102J_BOE_014), 0, },
+	{SEQ_HX83102J_BOE_015, ARRAY_SIZE(SEQ_HX83102J_BOE_015), 0, },
+	{SEQ_HX83102J_BOE_016, ARRAY_SIZE(SEQ_HX83102J_BOE_016), 0, },
+	{SEQ_HX83102J_BOE_017, ARRAY_SIZE(SEQ_HX83102J_BOE_017), 0, },
+	{SEQ_HX83102J_BOE_018, ARRAY_SIZE(SEQ_HX83102J_BOE_018), 0, },
+	{SEQ_HX83102J_BOE_019, ARRAY_SIZE(SEQ_HX83102J_BOE_019), 0, },
+	{SEQ_HX83102J_BOE_020, ARRAY_SIZE(SEQ_HX83102J_BOE_020), 0, },
+	{SEQ_HX83102J_BOE_021, ARRAY_SIZE(SEQ_HX83102J_BOE_021), 0, },
+	{SEQ_HX83102J_BOE_022, ARRAY_SIZE(SEQ_HX83102J_BOE_022), 0, },
+	{SEQ_HX83102J_BOE_023, ARRAY_SIZE(SEQ_HX83102J_BOE_023), 0, },
+	{SEQ_HX83102J_BOE_024, ARRAY_SIZE(SEQ_HX83102J_BOE_024), 0, },
+	{SEQ_HX83102J_BOE_025, ARRAY_SIZE(SEQ_HX83102J_BOE_025), 0, },
+	{SEQ_HX83102J_BOE_026, ARRAY_SIZE(SEQ_HX83102J_BOE_026), 0, },
+	{SEQ_HX83102J_BOE_027, ARRAY_SIZE(SEQ_HX83102J_BOE_027), 0, },
+	{SEQ_HX83102J_BOE_028, ARRAY_SIZE(SEQ_HX83102J_BOE_028), 0, },
+	{SEQ_HX83102J_BOE_029, ARRAY_SIZE(SEQ_HX83102J_BOE_029), 0, },
+	{SEQ_HX83102J_BOE_030, ARRAY_SIZE(SEQ_HX83102J_BOE_030), 0, },
+	{SEQ_HX83102J_BOE_031, ARRAY_SIZE(SEQ_HX83102J_BOE_031), 0, },
+	{SEQ_HX83102J_BOE_032, ARRAY_SIZE(SEQ_HX83102J_BOE_032), 0, },
+	{SEQ_HX83102J_BOE_033, ARRAY_SIZE(SEQ_HX83102J_BOE_033), 0, },
+	{SEQ_HX83102J_BOE_034, ARRAY_SIZE(SEQ_HX83102J_BOE_034), 0, },
+	{SEQ_HX83102J_BOE_035, ARRAY_SIZE(SEQ_HX83102J_BOE_035), 0, },
+	{SEQ_HX83102J_BOE_036, ARRAY_SIZE(SEQ_HX83102J_BOE_036), 0, },
+	{SEQ_HX83102J_BOE_037, ARRAY_SIZE(SEQ_HX83102J_BOE_037), 0, },
+	{SEQ_HX83102J_BOE_038, ARRAY_SIZE(SEQ_HX83102J_BOE_038), 0, },
+	{SEQ_HX83102J_BOE_039, ARRAY_SIZE(SEQ_HX83102J_BOE_039), 0, },
+	{SEQ_HX83102J_BOE_040, ARRAY_SIZE(SEQ_HX83102J_BOE_040), 0, },
+	{SEQ_HX83102J_BOE_041, ARRAY_SIZE(SEQ_HX83102J_BOE_041), 0, },
+	{SEQ_HX83102J_BOE_042, ARRAY_SIZE(SEQ_HX83102J_BOE_042), 0, },
+	{SEQ_HX83102J_BOE_043, ARRAY_SIZE(SEQ_HX83102J_BOE_043), 0, },
+	{SEQ_HX83102J_BOE_044, ARRAY_SIZE(SEQ_HX83102J_BOE_044), 0, },
+	{SEQ_HX83102J_BOE_045, ARRAY_SIZE(SEQ_HX83102J_BOE_045), 0, },
+	{SEQ_HX83102J_BOE_046, ARRAY_SIZE(SEQ_HX83102J_BOE_046), 0, },
+	{SEQ_HX83102J_BOE_047, ARRAY_SIZE(SEQ_HX83102J_BOE_047), 0, },
+	{SEQ_HX83102J_BOE_048, ARRAY_SIZE(SEQ_HX83102J_BOE_048), 0, },
+	{SEQ_HX83102J_BOE_049, ARRAY_SIZE(SEQ_HX83102J_BOE_049), 0, },
+	{SEQ_HX83102J_BOE_SLEEP_OUT, ARRAY_SIZE(SEQ_HX83102J_BOE_SLEEP_OUT), 100, },	/* 100ms */
+	{SEQ_HX83102J_BOE_DISPLAY_ON, ARRAY_SIZE(SEQ_HX83102J_BOE_DISPLAY_ON), 20, },
+};
+
+static struct lcd_seq_info LCD_SEQ_EXIT_1[] = {
+	{SEQ_HX83102J_BOE_DISPLAY_OFF, ARRAY_SIZE(SEQ_HX83102J_BOE_DISPLAY_OFF), 0, },
+	{SEQ_HX83102J_BOE_SLEEP_IN, ARRAY_SIZE(SEQ_HX83102J_BOE_SLEEP_IN), 0, },
+};
+
+static unsigned int brightness_table[EXTEND_BRIGHTNESS + 1] = {
+	0,
+	0, 20, 27, 35, 43, 51, 58, 66, 74, 82, /* 2: 20 */
+	90, 97, 105, 113, 121, 128, 136, 144, 152, 160,
+	167, 175, 183, 191, 198, 206, 214, 222, 230, 237,
+	245, 253, 261, 268, 276, 284, 292, 300, 307, 315,
+	323, 331, 338, 346, 354, 362, 370, 377, 385, 393,
+	401, 408, 416, 424, 432, 440, 447, 455, 463, 471,
+	478, 486, 494, 502, 510, 517, 525, 533, 541, 548,
+	556, 564, 572, 580, 587, 595, 603, 611, 618, 626,
+	634, 642, 650, 657, 665, 673, 681, 688, 696, 704,
+	712, 720, 727, 735, 743, 751, 758, 766, 774, 782,
+	790, 797, 805, 813, 821, 828, 836, 844, 852, 860,
+	867, 875, 883, 891, 898, 906, 914, 922, 930, 937,
+	945, 953, 961, 968, 976, 984, 992, 1000, 1014, 1028, /* 128: 1000 */
+	1042, 1056, 1070, 1084, 1098, 1112, 1126, 1140, 1154, 1168,
+	1182, 1196, 1210, 1224, 1238, 1252, 1266, 1280, 1294, 1308,
+	1322, 1336, 1350, 1364, 1378, 1392, 1406, 1420, 1434, 1448,
+	1462, 1476, 1490, 1504, 1518, 1532, 1546, 1560, 1574, 1588,
+	1602, 1616, 1630, 1644, 1658, 1672, 1686, 1700, 1714, 1728,
+	1742, 1756, 1770, 1784, 1798, 1812, 1826, 1840, 1854, 1868,
+	1882, 1897, 1911, 1925, 1939, 1953, 1967, 1981, 1995, 2009,
+	2023, 2037, 2051, 2065, 2079, 2093, 2107, 2121, 2135, 2149,
+	2163, 2177, 2191, 2205, 2219, 2233, 2247, 2261, 2275, 2289,
+	2303, 2317, 2331, 2345, 2359, 2373, 2387, 2401, 2415, 2429,
+	2443, 2457, 2471, 2485, 2499, 2513, 2527, 2541, 2555, 2569,
+	2583, 2597, 2611, 2625, 2639, 2653, 2667, 2681, 2695, 2709,
+	2723, 2737, 2751, 2765, 2780, 2792, 2804, 2816, 2828, 2840, /* 255: 2780 */
+	2852, 2865, 2877, 2889, 2901, 2913, 2925, 2938, 2950, 2962,
+	2974, 2986, 2998, 3010, 3023, 3035, 3047, 3059, 3071, 3083,
+	3096, 3108, 3120, 3132, 3144, 3156, 3169, 3181, 3193, 3205,
+	3217, 3229, 3241, 3254, 3266, 3278, 3290, 3302, 3314, 3327,
+	3339, 3351, 3363, 3375, 3387, 3400,
+};
+#endif /* __HX83102J_BOE_PARAM_H__ */

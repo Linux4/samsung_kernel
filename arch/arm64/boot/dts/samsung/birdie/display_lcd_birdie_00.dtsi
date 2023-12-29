@@ -1,0 +1,168 @@
+/*
+ * SAMSUNG LCD Panel Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	fragment@led {
+		target-path = "/disp_leds/";
+		__overlay__ {
+			compatible;
+		};
+	};
+
+	fragment@pwm {
+		target-path = "/pwmleds/";
+		__overlay__ {
+			compatible;
+		};
+	};
+
+	fragment@lcd {
+		target-path = "/";
+		__overlay__ {
+			panel {
+				compatible = "samsung,mtk-dsi-panel";
+				smcdsd_panel = <&hx83102j_boe>;
+			};
+
+			lcd_fixed_regulator: lcd_fixed_regulator {
+				compatible = "simple-bus";
+
+				__gpio_lcd_buckboost_en: __gpio_lcd_buckboost_en {
+					compatible = "regulator-fixed";
+					regulator-name = "lcd_buckboost_en";
+					gpio = <&panel_gpio 0 0>;	/* LCD_BUCKBOOST_EN */
+					enable-active-high;
+					regulator-boot-on;
+				};
+				__gpio_lcd_buck_en: __gpio_lcd_buck_en {
+					compatible = "regulator-fixed";
+					regulator-name = "lcd_buck_en";
+					gpio = <&panel_gpio 1 0>;	/* LCD_BUCK_EN */
+					enable-active-high;
+					regulator-boot-on;
+				};
+				__gpio_lcd_buck_en_n: __gpio_lcd_buck_en_n {
+					compatible = "regulator-fixed";
+					regulator-name = "lcd_buck_en_n";
+					gpio = <&panel_gpio 2 0>;	/* LCD_BUCK_EN_N */
+					enable-active-high;
+					regulator-boot-on;
+				};
+				__gpio_lcd_rst: __gpio_lcd_rst {
+					compatible = "regulator-fixed";
+					regulator-name = "lcd_rst";
+					gpio = <&panel_gpio 3 0>;	/* LCD_RST_N */
+					enable-active-high;
+					regulator-boot-on;
+				};
+			};
+
+			smcdsd_board_hx83102j: smcdsd_board_hx83102j {
+				gpio_con = <&panel_gpio 4 GPIO_ACTIVE_HIGH>;	/* LCD_CON_DET */
+
+				panel_power_enable {
+					type =
+					"regulator,enable",	"lcd_buckboost_en",
+					"delay,usleep",	"1000",
+					"regulator,enable",	"lcd_vddi",
+					"delay,usleep",	"1000",
+					"regulator,enable",	"lcd_buck_en",
+					"delay,usleep",	"1000",
+					"regulator,enable",	"lcd_buck_en_n",
+					"delay,usleep",	"1000",
+					"regulator,enable",	"lcd_buck_boost",
+					"regulator,enable",	"lcd_buck";
+				};
+				panel_power_disable {
+					type =
+					"regulator,disable",	"lcd_buck",
+					"regulator,disable",	"lcd_buck_boost",
+					"delay,usleep",	"3000",
+					"regulator,disable",	"lcd_buck_en_n",
+					"regulator,disable",	"lcd_buck_en",
+					"delay,usleep",	"5000",
+					"regulator,disable",	"lcd_vddi",
+					"delay,usleep",	"3000",
+					"regulator,disable",	"lcd_buckboost_en",
+					"delay,msleep",	"20";
+				};
+				panel_reset_enable {
+					type =
+					"delay,usleep",	"3000",
+					"regulator,enable",	"lcd_rst",
+					"delay,usleep",	"1000",
+					"regulator,disable",	"lcd_rst",
+					"delay,usleep",	"1000",
+					"regulator,enable",	"lcd_rst",
+					"delay,msleep",	"15";
+				};
+				panel_reset_disable {
+					type =
+					"delay,msleep",	"70",
+					"regulator,disable",	"lcd_rst",
+					"delay,usleep",	"1000";
+				};
+				panel_not_connected {
+					type =
+					"regulator,disable",	"lcd_rst",
+					"regulator,disable",	"lcd_buck",
+					"regulator,disable",	"lcd_buck_boost",
+					"regulator,disable",	"lcd_buck_en_n",
+					"regulator,disable",	"lcd_buck_en",
+					"regulator,disable",	"lcd_vddi",
+					"regulator,disable",	"lcd_buckboost_en";
+				};
+			};
+
+			hx83102j_boe: hx83102j_boe {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFFF 0x4CD230
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <3>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <3>;
+
+				lcm_params-resolution = <1440 2304>;
+				lcm_params-physical_width = <147>;	/* 146.7936mm x 234.86976mm */
+				lcm_params-physical_height = <235>;
+
+				lcm_params-dsi-horizontal_sync_active = <20>;
+				lcm_params-dsi-horizontal_backporch = <40>;
+				lcm_params-dsi-horizontal_frontporch = <172>;
+				lcm_params-dsi-vertical_sync_active = <8>;
+				lcm_params-dsi-vertical_backporch = <12>;
+				lcm_params-dsi-vertical_frontporch = <96>;
+
+				lcm_params-dsi-data_rate = <850>;
+				lcm_params-dsi-ssc_disable = <1>;
+				lcm_params-dsi-cont_clock = <1>;
+				lcm_params-dsi-is_cphy = <1>;
+
+				drm_params-vrefresh = <60>;
+
+				smcdsd_board = <&smcdsd_board_hx83102j>;
+			};
+		};
+	};
+};
+
+&mt_pmic_vcamio_ldo_reg {
+	regulator-name = "lcd_vddi";
+	regulator-boot-on;
+};
+
+&dsi0 {
+	panel@0 {
+		compatible = "smcdsd_panel";
+	};
+};
+

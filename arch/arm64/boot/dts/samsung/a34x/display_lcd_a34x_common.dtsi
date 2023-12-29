@@ -1,0 +1,209 @@
+/*
+ * SAMSUNG LCD Panel Device Tree Source
+ *
+ * Copyright (c) Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	fragment@disp_leds {
+		target-path = "/disp_leds/";
+		__overlay__ {
+			compatible;
+		};
+	};
+
+	fragment@pwmleds {
+		target-path = "/pwmleds/";
+		__overlay__ {
+			compatible;
+		};
+	};
+
+	fragment@i2c_leds {
+		target-path = "/i2c_leds/";
+		__overlay__ {
+			compatible;
+		};
+	};
+
+	fragment@lcd {
+		target-path = "/";
+		__overlay__ {
+			panel {
+				compatible = "samsung,mtk-dsi-panel";
+				smcdsd_panel = <&s6e3fc5_sdc>;
+			};
+
+			smcdsd_board_s6e3fc5: smcdsd_board_s6e3fc5 {
+				gpio_con = <&pio 118 GPIO_ACTIVE_HIGH>;	/* OCTA_CON_DET */
+				gpio_pcd = <&pio 18 GPIO_ACTIVE_LOW>;	/* PCD_INT */
+				gpio_det = <&pio 1 GPIO_ACTIVE_LOW>;	/* EL_ON1_DET */
+				gpio_err = <&pio 8 GPIO_ACTIVE_LOW>;	/* FG_ERR */
+				gpio_lcd_3p0_en = <&pio 119 0>;
+				gpio_octa_rst_n = <&pio 40 0>;
+
+				panel_power_enable {
+					type =
+					"regulator,enable",	"vcamio",
+					"delay,usleep",	"2000",
+					"gpio,high",	"gpio_lcd_3p0_en",
+					"delay,usleep",	"11000";	/* Wait 10ms */
+				};
+				panel_reset_enable {
+					type =
+					"delay,usleep",	"2000",	/* ton3 min 1ms */
+					"gpio,high",	"gpio_octa_rst_n",
+					"delay,usleep",	"1000",
+					"gpio,low",	"gpio_octa_rst_n",
+					"delay,usleep",	"1000",
+					"gpio,high",	"gpio_octa_rst_n",
+					"delay,usleep",	"10000";	/* Wait 10ms */
+				};
+				panel_reset_disable {
+					type =
+					"gpio,low",	"gpio_octa_rst_n",
+					"delay,usleep",	"2000";	/* toff5 min 1ms */
+				};
+				panel_power_disable {
+					type =
+					"gpio,low",	"gpio_lcd_3p0_en",
+					"delay,usleep",	"1000",
+					"regulator,disable",	"vcamio",
+					"delay,usleep",	"1000";
+				};
+				panel_not_connected {
+					type =
+					"regulator,disable",	"vcamio";
+				};
+			};
+
+			__s6e3fc5_sdc_120: __s6e3fc5_sdc_120 {
+				drm_params-vrefresh = <120>;
+			};
+
+			s6e3fc5_sdc: s6e3fc5_sdc {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFF0 0x800000
+				>;
+				lcm_params-dsi-mode = <0>;	/* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <4>;
+
+				lcm_params-resolution = <1080 2340>;
+				lcm_params-physical_width = <70>;	/* 69.768 mm x 151.164 mm */
+				lcm_params-physical_height = <151>;
+
+				lcm_params-dsi-horizontal_backporch = <2>;
+				lcm_params-dsi-horizontal_frontporch = <2>;
+				lcm_params-dsi-horizontal_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <2>;
+				lcm_params-dsi-vertical_frontporch = <2>;
+				lcm_params-dsi-vertical_sync_active = <2>;
+
+				lcm_params-dsi-data_rate = <806 822 824>;
+				lcm_params-dsi-ssc_disable = <1>;
+
+				drm_params-vrefresh = <60>;
+
+				ext_params-dyn_fps-vact_timing_fps = <120>;
+				vrr_info = <&s6e3fc5_sdc &s6e3fc5_sdc &__s6e3fc5_sdc_120>;
+
+				dsc_params-enable = <1>;
+				dsc_params-ver = <17>;
+				dsc_params-slice_mode = <1>;
+				dsc_params-rgb_swap = <0>;
+				dsc_params-dsc_cfg = <34>;
+				dsc_params-rct_on = <1>;
+				dsc_params-bit_per_channel = <8>;
+				dsc_params-dsc_line_buf_depth = <9>;
+				dsc_params-bp_enable = <1>;
+				dsc_params-bit_per_pixel = <128>;
+				dsc_params-pic_height = <2340>;
+				dsc_params-pic_width = <1080>;
+				dsc_params-slice_height = <30>;
+				dsc_params-slice_width = <540>;
+				dsc_params-chunk_size = <540>;
+				dsc_params-xmit_delay = <512>;
+				dsc_params-dec_delay = <526>;
+				dsc_params-scale_value = <32>;
+				dsc_params-increment_interval = <739>;
+				dsc_params-decrement_interval = <7>;
+				dsc_params-line_bpg_offset = <12>;
+				dsc_params-nfl_bpg_offset = <848>;
+				dsc_params-slice_bpg_offset = <868>;
+				dsc_params-initial_offset = <6144>;
+				dsc_params-final_offset = <4336>;
+				dsc_params-flatness_minqp = <3>;
+				dsc_params-flatness_maxqp = <12>;
+				dsc_params-rc_model_size = <8192>;
+				dsc_params-rc_edge_factor = <6>;
+				dsc_params-rc_quant_incr_limit0 = <11>;
+				dsc_params-rc_quant_incr_limit1 = <11>;
+				dsc_params-rc_tgt_offset_hi = <3>;
+				dsc_params-rc_tgt_offset_lo = <3>;
+
+				smcdsd_board = <&smcdsd_board_s6e3fc5>;
+			};
+		};
+	};
+};
+
+&mt_pmic_vcamio_ldo_reg {
+	regulator-boot-on;
+};
+
+&dsi0 {
+	panel@0 {
+		compatible = "smcdsd_panel";
+	};
+};
+
+&dispsys_config {
+	helper-value = <0>, /*MTK_DRM_OPT_STAGE*/
+		<1>, /*MTK_DRM_OPT_USE_CMDQ*/
+		<1>, /*MTK_DRM_OPT_USE_M4U*/
+		<0>, /*MTK_DRM_OPT_SODI_SUPPORT*/
+		<1>, /*MTK_DRM_OPT_IDLE_MGR*/
+		<0>, /*MTK_DRM_OPT_IDLEMGR_SWTCH_DECOUPLE*/
+		<1>, /*MTK_DRM_OPT_IDLEMGR_BY_REPAINT*/
+		<0>, /*MTK_DRM_OPT_IDLEMGR_ENTER_ULPS*/
+		<0>, /*MTK_DRM_OPT_IDLEMGR_KEEP_LP11*/
+		<0>, /*MTK_DRM_OPT_DYNAMIC_RDMA_GOLDEN_SETTING*/
+		<1>, /*MTK_DRM_OPT_IDLEMGR_DISABLE_ROUTINE_IRQ*/
+		<0>, /*MTK_DRM_OPT_MET_LOG*/
+		<1>, /*MTK_DRM_OPT_USE_PQ*/
+		<1>, /*MTK_DRM_OPT_ESD_CHECK_RECOVERY*/
+		<1>, /*MTK_DRM_OPT_ESD_CHECK_SWITCH*/
+		<1>, /*MTK_DRM_OPT_PRESENT_FENCE*/
+		<0>, /*MTK_DRM_OPT_RDMA_UNDERFLOW_AEE*/
+		<0>, /*MTK_DRM_OPT_DSI_UNDERRUN_AEE*/
+		<1>, /*MTK_DRM_OPT_HRT*/
+		<1>, /*MTK_DRM_OPT_HRT_MODE*/
+		<0>, /*MTK_DRM_OPT_DELAYED_TRIGGER*/
+		<1>, /*MTK_DRM_OPT_OVL_EXT_LAYER*/
+		<0>, /*MTK_DRM_OPT_AOD*/
+		<1>, /*MTK_DRM_OPT_RPO*/
+		<0>, /*MTK_DRM_OPT_DUAL_PIPE*/
+		<0>, /*MTK_DRM_OPT_DC_BY_HRT*/
+		<0>, /*MTK_DRM_OPT_OVL_WCG*/
+		<0>, /*MTK_DRM_OPT_OVL_SBCH*/
+		<1>, /*MTK_DRM_OPT_COMMIT_NO_WAIT_VBLANK*/
+		<0>, /*MTK_DRM_OPT_MET*/
+		<0>, /*MTK_DRM_OPT_REG_PARSER_RAW_DUMP*/
+		<0>, /*MTK_DRM_OPT_VP_PQ*/
+		<0>, /*MTK_DRM_OPT_GAME_PQ*/
+		<0>, /*MTK_DRM_OPT_MMPATH*/
+		<1>, /*MTK_DRM_OPT_HBM*/
+		<0>, /*MTK_DRM_OPT_VDS_PATH_SWITCH*/
+		<0>, /*MTK_DRM_OPT_LAYER_REC*/
+		<1>, /*MTK_DRM_OPT_CLEAR_LAYER*/
+		<1>, /*MTK_DRM_OPT_LFR*/
+		<1>; /*MTK_DRM_OPT_DYN_MIPI_CHANGE*/
+};

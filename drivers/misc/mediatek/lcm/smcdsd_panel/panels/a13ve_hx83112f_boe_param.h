@@ -1,0 +1,641 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+#ifndef __HX83112F_BOE_PARAM_H__
+#define __HX83112F_BOE_PARAM_H__
+
+#include <linux/types.h>
+#include <linux/kernel.h>
+
+#define LCD_TYPE_VENDOR		"BOE"
+
+#define EXTEND_BRIGHTNESS	306
+#define UI_MAX_BRIGHTNESS	255
+#define UI_DEFAULT_BRIGHTNESS	128
+
+#define LDI_REG_BRIGHTNESS	0x51
+#define LDI_REG_ID		0xDA
+#define LDI_LEN_BRIGHTNESS	((u16)ARRAY_SIZE(SEQ_HX83112F_BOE_BRIGHTNESS))
+
+/* len is read length */
+#define LDI_LEN_ID		3
+
+#define TYPE_WRITE		I2C_SMBUS_WRITE
+#define TYPE_DELAY		U8_MAX
+
+static u8 KTZ8864_INIT[] = {
+	TYPE_WRITE, 0x0C, 0x24,
+	TYPE_WRITE, 0x0D, 0x1E,
+	TYPE_WRITE, 0x0E, 0x1E,
+	TYPE_WRITE, 0x09, 0x99,
+	TYPE_WRITE, 0x02, 0x6B,
+	TYPE_WRITE, 0x03, 0x0D,
+	TYPE_WRITE, 0x11, 0x74,
+	TYPE_WRITE, 0x04, 0x03,
+	TYPE_WRITE, 0x05, 0xC2,
+	TYPE_WRITE, 0x10, 0x66,
+	TYPE_WRITE, 0x08, 0x13,
+};
+
+static u8 KTZ8864_EXIT[] = {
+	TYPE_WRITE, 0x09, 0x18,
+	TYPE_DELAY, 1, 0,
+	TYPE_WRITE, 0x08, 0x00,
+};
+
+struct lcd_seq_info {
+	unsigned char	*cmd;
+	unsigned int	len;
+	unsigned int	sleep;
+};
+
+static unsigned char SEQ_HX83112F_BOE_SLEEP_OUT[] = { 0x11 };
+static unsigned char SEQ_HX83112F_BOE_SLEEP_IN[] = { 0x10 };
+static unsigned char SEQ_HX83112F_BOE_DISPLAY_OFF[] = { 0x28 };
+static unsigned char SEQ_HX83112F_BOE_DISPLAY_ON[] = { 0x29 };
+
+static unsigned char SEQ_HX83112F_BOE_BRIGHTNESS[] = {
+	0x51,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_001[] = {
+	0xB9,
+	0x83, 0x11, 0x2F,
+};
+
+static unsigned char SEQ_HX83112F_BOE_002[] = {
+	0xB1,
+	0x40, 0x2B, 0x2B, 0x80, 0x80, 0xA8, 0xA8, 0x38, 0x1E, 0x06,
+	0x06, 0x1A,
+};
+
+static unsigned char SEQ_HX83112F_BOE_003[] = {
+	0xBD,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_004[] = {
+	0xB1,
+	0xA4, 0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_005[] = {
+	0xBD,
+	0x02,
+};
+
+static unsigned char SEQ_HX83112F_BOE_006[] = {
+	0xB1,
+	0x2D, 0x2D,
+};
+
+static unsigned char SEQ_HX83112F_BOE_007[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_008[] = {
+	0xB2,
+	0x00, 0x02, 0x08, 0x90, 0x68, 0x00, 0x1C, 0x4C, 0x10, 0x08,
+	0x00, 0xBC, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x14,
+};
+
+static unsigned char SEQ_HX83112F_BOE_009[] = {
+	0xB4,
+	0x00, 0x00, 0x00, 0xBF, 0x00, 0x69, 0x00, 0xB8, 0x00, 0x69,
+	0x00, 0x69, 0x00, 0xB8, 0x00, 0x00, 0x04, 0x05, 0x00, 0x2F,
+	0x00, 0x03, 0x05, 0x11, 0x00, 0x00, 0x00, 0x00, 0x83, 0x00,
+	0xFF, 0x00, 0xFF, 0x02, 0x01, 0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_010[] = {
+	0xBD,
+	0x02,
+};
+
+static unsigned char SEQ_HX83112F_BOE_011[] = {
+	0xB4,
+	0x92, 0x44, 0x12, 0x00, 0x22, 0x22, 0x11, 0x12, 0x88, 0x12,
+	0x42,
+};
+
+static unsigned char SEQ_HX83112F_BOE_012[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_013[] = {
+	0xE9,
+	0xC5,
+};
+
+static unsigned char SEQ_HX83112F_BOE_014[] = {
+	0xBA,
+	0x11,
+};
+
+static unsigned char SEQ_HX83112F_BOE_015[] = {
+	0xE9,
+	0xC9,
+};
+
+static unsigned char SEQ_HX83112F_BOE_016[] = {
+	0xBA,
+	0x09, 0x3D,
+};
+
+static unsigned char SEQ_HX83112F_BOE_017[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83112F_BOE_018[] = {
+	0xE9,
+	0xCF,
+};
+
+static unsigned char SEQ_HX83112F_BOE_019[] = {
+	0xBA,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_020[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83112F_BOE_021[] = {
+	0xBD,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_022[] = {
+	0xE9,
+	0xC5,
+};
+
+static unsigned char SEQ_HX83112F_BOE_023[] = {
+	0xBA,
+	0x04,
+};
+
+static unsigned char SEQ_HX83112F_BOE_024[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83112F_BOE_025[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_026[] = {
+	0xC7,
+	0xF0, 0x20,
+};
+
+static unsigned char SEQ_HX83112F_BOE_027[] = {
+	0xCB,
+	0x5F, 0x21, 0x0A, 0x59,
+};
+
+static unsigned char SEQ_HX83112F_BOE_028[] = {
+	0xCC,
+	0x0A,
+};
+
+static unsigned char SEQ_HX83112F_BOE_029[] = {
+	0xD1,
+	0x07,
+};
+
+static unsigned char SEQ_HX83112F_BOE_030[] = {
+	0xD3,
+	0x81, 0x14, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x03, 0x03,
+	0x14, 0x14, 0x08, 0x08, 0x08, 0x08, 0x22, 0x18, 0x32, 0x10,
+	0x1B, 0x00, 0x1B, 0x32, 0x10, 0x11, 0x00, 0x11, 0x32, 0x10,
+	0x08, 0x00, 0x08, 0x00, 0x00, 0x1E, 0x09, 0x69,
+};
+
+static unsigned char SEQ_HX83112F_BOE_031[] = {
+	0xBD,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_032[] = {
+	0xD2,
+	0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x30,
+};
+
+static unsigned char SEQ_HX83112F_BOE_033[] = {
+	0xD3,
+	0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x24, 0x08, 0x01, 0x19,
+};
+
+static unsigned char SEQ_HX83112F_BOE_034[] = {
+	0xBD,
+	0x02,
+};
+
+static unsigned char SEQ_HX83112F_BOE_035[] = {
+	0xD3,
+	0x01, 0x01, 0x00, 0x01, 0x00, 0x0A, 0x0A, 0x0A, 0x0A, 0x01,
+	0x03, 0x00, 0x00, 0x08, 0x02, 0x11, 0x01, 0x00, 0x00, 0x01,
+	0x05, 0x78, 0x10,
+};
+
+static unsigned char SEQ_HX83112F_BOE_036[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_037[] = {
+	0xD5,
+	0x18, 0x18, 0x18, 0x18, 0x41, 0x41, 0x41, 0x41, 0x18, 0x18,
+	0x18, 0x18, 0x31, 0x31, 0x30, 0x30, 0x2F, 0x2F, 0x31, 0x31,
+	0x30, 0x30, 0x2F, 0x2F, 0x40, 0x40, 0x01, 0x01, 0x00, 0x00,
+	0x03, 0x03, 0x02, 0x02, 0x24, 0x24, 0xCE, 0xCE, 0xCE, 0xCE,
+	0xC0, 0xC0, 0x18, 0x18, 0x21, 0x21, 0x20, 0x20,
+};
+
+static unsigned char SEQ_HX83112F_BOE_038[] = {
+	0xD6,
+	0x18, 0x18, 0x18, 0x18, 0x41, 0x41, 0x41, 0x41, 0x18, 0x18,
+	0x18, 0x18, 0x31, 0x31, 0x30, 0x30, 0x2F, 0x2F, 0x31, 0x31,
+	0x30, 0x30, 0x2F, 0x2F, 0x40, 0x40, 0x02, 0x02, 0x03, 0x03,
+	0x00, 0x00, 0x01, 0x01, 0x24, 0x24, 0xCE, 0xCE, 0xCE, 0xCE,
+	0x18, 0x18, 0xC0, 0xC0, 0x20, 0x20, 0x21, 0x21,
+};
+
+static unsigned char SEQ_HX83112F_BOE_039[] = {
+	0xD8,
+	0xAA, 0xAA, 0xAA, 0xBF, 0xFF, 0xAA, 0xAA, 0xAA, 0xAA, 0xBF,
+	0xFF, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+	0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+	0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+};
+
+static unsigned char SEQ_HX83112F_BOE_040[] = {
+	0xBD,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_041[] = {
+	0xD8,
+	0xAF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xAF, 0xFF, 0xFF, 0xFF,
+	0xFF, 0xFF, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+	0xAA, 0xAA, 0xAA, 0xAA,
+};
+
+static unsigned char SEQ_HX83112F_BOE_042[] = {
+	0xBD,
+	0x02,
+};
+
+static unsigned char SEQ_HX83112F_BOE_043[] = {
+	0xD8,
+	0xAF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xAF, 0xFF, 0xFF, 0xFF,
+	0xFF, 0xFF,
+};
+
+static unsigned char SEQ_HX83112F_BOE_044[] = {
+	0xBD,
+	0x03,
+};
+
+static unsigned char SEQ_HX83112F_BOE_045[] = {
+	0xD8,
+	0xAA, 0xAF, 0xFF, 0xEA, 0xAA, 0xAA, 0xAA, 0xAF, 0xFF, 0xEA,
+	0xAA, 0xAA, 0xAA, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xAA, 0xFF,
+	0xFF, 0xFF, 0xFF, 0xFF,
+};
+
+static unsigned char SEQ_HX83112F_BOE_046[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_047[] = {
+	0xE0,
+	0x00, 0x13, 0x2D, 0x33, 0x3B, 0x75, 0x85, 0x8B, 0x8E, 0x8E,
+	0x8F, 0x8C, 0x89, 0x88, 0x86, 0x85, 0x85, 0x87, 0x89, 0xA2,
+	0xB4, 0x50, 0x76, 0x00, 0x13, 0x2D, 0x33, 0x3B, 0x75, 0x85,
+	0x8B, 0x8E, 0x8E, 0x8F, 0x8C, 0x89, 0x88, 0x86, 0x85, 0x85,
+	0x87, 0x89, 0xA2, 0xB4, 0x50, 0x76,
+};
+
+static unsigned char SEQ_HX83112F_BOE_048[] = {
+	0xE7,
+	0x41, 0x23, 0x10, 0x10, 0x1D, 0xD1, 0x22, 0xD1, 0x21, 0xD1,
+	0x0F, 0x02, 0x00, 0x00, 0x02, 0x02, 0x12, 0x05, 0xFF, 0xFF,
+	0x22, 0xD1, 0x21, 0xD1, 0x08, 0x00, 0x00, 0x48, 0x17, 0x03,
+	0x69, 0x00, 0x00, 0x00, 0x4C, 0x4C, 0x1E, 0x00, 0x40, 0x01,
+	0x00, 0x0C, 0x0A, 0x04,
+};
+
+static unsigned char SEQ_HX83112F_BOE_049[] = {
+	0xBD,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_050[] = {
+	0xE7,
+	0x02, 0x50, 0xE8, 0x01, 0x3C, 0x07, 0x2D, 0x10, 0x00, 0x00,
+	0x00, 0x02,
+};
+
+static unsigned char SEQ_HX83112F_BOE_051[] = {
+	0xBD,
+	0x02,
+};
+
+static unsigned char SEQ_HX83112F_BOE_052[] = {
+	0xE7,
+	0x02, 0x02, 0x02, 0x00, 0xB8, 0x01, 0x03, 0x01, 0x03, 0x01,
+	0x03, 0x22, 0x20, 0x28, 0x40, 0x01, 0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_053[] = {
+	0xBD,
+	0x03,
+};
+
+static unsigned char SEQ_HX83112F_BOE_054[] = {
+	0xE7,
+	0x01, 0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_055[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_056[] = {
+	0xE1,
+	0x11, 0x00, 0x00, 0x89, 0x30, 0x80, 0x09, 0x68, 0x04, 0x38,
+	0x00, 0x08, 0x02, 0x1C, 0x02, 0x1C, 0x02, 0x00, 0x02, 0x0E,
+	0x00, 0x20, 0x00, 0xBB, 0x00, 0x07, 0x00, 0x0C, 0x0D, 0xB7,
+	0x0C, 0xB7, 0x18, 0x00, 0x10, 0xF0, 0x03, 0x0C, 0x20, 0x00,
+	0x06, 0x0B, 0x0B, 0x33, 0x0E, 0x1C, 0x2A, 0x38, 0x46, 0x54,
+	0x62, 0x69, 0x70, 0x77, 0x79, 0x7B, 0x7D, 0x7E, 0x01, 0x02,
+	0x01, 0x00, 0x09,
+};
+
+static unsigned char SEQ_HX83112F_BOE_057[] = {
+	0xBD,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_058[] = {
+	0xE1,
+	0x40, 0x09, 0xBE, 0x19, 0xFC, 0x19, 0xFA, 0x19, 0xF8, 0x1A,
+	0x38, 0x1A, 0x78, 0x1A, 0xB6, 0x2A, 0xF6, 0x2B, 0x34, 0x2B,
+	0x74, 0x3B, 0x74, 0x63, 0xF4,
+};
+
+static unsigned char SEQ_HX83112F_BOE_059[] = {
+	0xBD,
+	0x03,
+};
+
+static unsigned char SEQ_HX83112F_BOE_060[] = {
+	0xE1,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_061[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_062[] = {
+	0xC0,
+	0x35, 0x35, 0x00, 0x00, 0x2D, 0x1A, 0x66, 0x81,
+};
+
+static unsigned char SEQ_HX83112F_BOE_063[] = {
+	0xBD,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_064[] = {
+	0xC0,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_065[] = {
+	0xC7,
+	0x44,
+};
+
+static unsigned char SEQ_HX83112F_BOE_066[] = {
+	0xBF,
+	0x0B,
+};
+
+static unsigned char SEQ_HX83112F_BOE_067[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_068[] = {
+	0xBA,
+	0x73, 0x03, 0xA8, 0x9A,
+};
+
+static unsigned char SEQ_HX83112F_BOE_069[] = {
+	0xC9,
+	0x00, 0x1E, 0x18, 0x6A,
+};
+
+static unsigned char SEQ_HX83112F_BOE_070[] = {
+	0xBD,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_071[] = {
+	0xE9,
+	0xDD,
+};
+
+static unsigned char SEQ_HX83112F_BOE_072[] = {
+	0xE4,
+	0x0C, 0x08, 0x04, 0x54, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+	0x55, 0x00, 0x77,
+};
+
+static unsigned char SEQ_HX83112F_BOE_073[] = {
+	0xE9,
+	0x3F,
+};
+
+static unsigned char SEQ_HX83112F_BOE_074[] = {
+	0xBD,
+	0x03,
+};
+
+static unsigned char SEQ_HX83112F_BOE_075[] = {
+	0xE4,
+	0x98, 0xAD, 0xC1, 0xCB, 0xD6, 0xE1, 0xEA, 0xFA, 0xFF, 0xFF,
+	0xFF, 0x03,
+};
+
+static unsigned char SEQ_HX83112F_BOE_076[] = {
+	0xBD,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_077[] = {
+	0xCE,
+	0x00, 0x50, 0x20,
+};
+
+static unsigned char SEQ_HX83112F_BOE_078[] = {
+	0x51,
+	0x00,
+};
+
+static unsigned char SEQ_HX83112F_BOE_079[] = {
+	0x53,
+	0x24,
+};
+
+static unsigned char SEQ_HX83112F_BOE_080[] = {
+	0x55,
+	0x01,
+};
+
+static unsigned char SEQ_HX83112F_BOE_081[] = {
+	0xB9,
+	0x00, 0x00, 0x00,
+};
+
+static struct lcd_seq_info LCD_SEQ_INIT_1[] = {
+	{SEQ_HX83112F_BOE_001, ARRAY_SIZE(SEQ_HX83112F_BOE_001), 0, },
+	{SEQ_HX83112F_BOE_002, ARRAY_SIZE(SEQ_HX83112F_BOE_002), 0, },
+	{SEQ_HX83112F_BOE_003, ARRAY_SIZE(SEQ_HX83112F_BOE_003), 0, },
+	{SEQ_HX83112F_BOE_004, ARRAY_SIZE(SEQ_HX83112F_BOE_004), 0, },
+	{SEQ_HX83112F_BOE_005, ARRAY_SIZE(SEQ_HX83112F_BOE_005), 0, },
+	{SEQ_HX83112F_BOE_006, ARRAY_SIZE(SEQ_HX83112F_BOE_006), 0, },
+	{SEQ_HX83112F_BOE_007, ARRAY_SIZE(SEQ_HX83112F_BOE_007), 0, },
+	{SEQ_HX83112F_BOE_008, ARRAY_SIZE(SEQ_HX83112F_BOE_008), 0, },
+	{SEQ_HX83112F_BOE_009, ARRAY_SIZE(SEQ_HX83112F_BOE_009), 0, },
+	{SEQ_HX83112F_BOE_010, ARRAY_SIZE(SEQ_HX83112F_BOE_010), 0, },
+	{SEQ_HX83112F_BOE_011, ARRAY_SIZE(SEQ_HX83112F_BOE_011), 0, },
+	{SEQ_HX83112F_BOE_012, ARRAY_SIZE(SEQ_HX83112F_BOE_012), 0, },
+	{SEQ_HX83112F_BOE_013, ARRAY_SIZE(SEQ_HX83112F_BOE_013), 0, },
+	{SEQ_HX83112F_BOE_014, ARRAY_SIZE(SEQ_HX83112F_BOE_014), 0, },
+	{SEQ_HX83112F_BOE_015, ARRAY_SIZE(SEQ_HX83112F_BOE_015), 0, },
+	{SEQ_HX83112F_BOE_016, ARRAY_SIZE(SEQ_HX83112F_BOE_016), 0, },
+	{SEQ_HX83112F_BOE_017, ARRAY_SIZE(SEQ_HX83112F_BOE_017), 0, },
+	{SEQ_HX83112F_BOE_018, ARRAY_SIZE(SEQ_HX83112F_BOE_018), 0, },
+	{SEQ_HX83112F_BOE_019, ARRAY_SIZE(SEQ_HX83112F_BOE_019), 0, },
+	{SEQ_HX83112F_BOE_020, ARRAY_SIZE(SEQ_HX83112F_BOE_020), 0, },
+	{SEQ_HX83112F_BOE_021, ARRAY_SIZE(SEQ_HX83112F_BOE_021), 0, },
+	{SEQ_HX83112F_BOE_022, ARRAY_SIZE(SEQ_HX83112F_BOE_022), 0, },
+	{SEQ_HX83112F_BOE_023, ARRAY_SIZE(SEQ_HX83112F_BOE_023), 0, },
+	{SEQ_HX83112F_BOE_024, ARRAY_SIZE(SEQ_HX83112F_BOE_024), 0, },
+	{SEQ_HX83112F_BOE_025, ARRAY_SIZE(SEQ_HX83112F_BOE_025), 0, },
+	{SEQ_HX83112F_BOE_026, ARRAY_SIZE(SEQ_HX83112F_BOE_026), 0, },
+	{SEQ_HX83112F_BOE_027, ARRAY_SIZE(SEQ_HX83112F_BOE_027), 0, },
+	{SEQ_HX83112F_BOE_028, ARRAY_SIZE(SEQ_HX83112F_BOE_028), 0, },
+	{SEQ_HX83112F_BOE_029, ARRAY_SIZE(SEQ_HX83112F_BOE_029), 0, },
+	{SEQ_HX83112F_BOE_030, ARRAY_SIZE(SEQ_HX83112F_BOE_030), 0, },
+	{SEQ_HX83112F_BOE_031, ARRAY_SIZE(SEQ_HX83112F_BOE_031), 0, },
+	{SEQ_HX83112F_BOE_032, ARRAY_SIZE(SEQ_HX83112F_BOE_032), 0, },
+	{SEQ_HX83112F_BOE_033, ARRAY_SIZE(SEQ_HX83112F_BOE_033), 0, },
+	{SEQ_HX83112F_BOE_034, ARRAY_SIZE(SEQ_HX83112F_BOE_034), 0, },
+	{SEQ_HX83112F_BOE_035, ARRAY_SIZE(SEQ_HX83112F_BOE_035), 0, },
+	{SEQ_HX83112F_BOE_036, ARRAY_SIZE(SEQ_HX83112F_BOE_036), 0, },
+	{SEQ_HX83112F_BOE_037, ARRAY_SIZE(SEQ_HX83112F_BOE_037), 0, },
+	{SEQ_HX83112F_BOE_038, ARRAY_SIZE(SEQ_HX83112F_BOE_038), 0, },
+	{SEQ_HX83112F_BOE_039, ARRAY_SIZE(SEQ_HX83112F_BOE_039), 0, },
+	{SEQ_HX83112F_BOE_040, ARRAY_SIZE(SEQ_HX83112F_BOE_040), 0, },
+	{SEQ_HX83112F_BOE_041, ARRAY_SIZE(SEQ_HX83112F_BOE_041), 0, },
+	{SEQ_HX83112F_BOE_042, ARRAY_SIZE(SEQ_HX83112F_BOE_042), 0, },
+	{SEQ_HX83112F_BOE_043, ARRAY_SIZE(SEQ_HX83112F_BOE_043), 0, },
+	{SEQ_HX83112F_BOE_044, ARRAY_SIZE(SEQ_HX83112F_BOE_044), 0, },
+	{SEQ_HX83112F_BOE_045, ARRAY_SIZE(SEQ_HX83112F_BOE_045), 0, },
+	{SEQ_HX83112F_BOE_046, ARRAY_SIZE(SEQ_HX83112F_BOE_046), 0, },
+	{SEQ_HX83112F_BOE_047, ARRAY_SIZE(SEQ_HX83112F_BOE_047), 0, },
+	{SEQ_HX83112F_BOE_048, ARRAY_SIZE(SEQ_HX83112F_BOE_048), 0, },
+	{SEQ_HX83112F_BOE_049, ARRAY_SIZE(SEQ_HX83112F_BOE_049), 0, },
+	{SEQ_HX83112F_BOE_050, ARRAY_SIZE(SEQ_HX83112F_BOE_050), 0, },
+	{SEQ_HX83112F_BOE_051, ARRAY_SIZE(SEQ_HX83112F_BOE_051), 0, },
+	{SEQ_HX83112F_BOE_052, ARRAY_SIZE(SEQ_HX83112F_BOE_052), 0, },
+	{SEQ_HX83112F_BOE_053, ARRAY_SIZE(SEQ_HX83112F_BOE_053), 0, },
+	{SEQ_HX83112F_BOE_054, ARRAY_SIZE(SEQ_HX83112F_BOE_054), 0, },
+	{SEQ_HX83112F_BOE_055, ARRAY_SIZE(SEQ_HX83112F_BOE_055), 0, },
+	{SEQ_HX83112F_BOE_056, ARRAY_SIZE(SEQ_HX83112F_BOE_056), 0, },
+	{SEQ_HX83112F_BOE_057, ARRAY_SIZE(SEQ_HX83112F_BOE_057), 0, },
+	{SEQ_HX83112F_BOE_058, ARRAY_SIZE(SEQ_HX83112F_BOE_058), 0, },
+	{SEQ_HX83112F_BOE_059, ARRAY_SIZE(SEQ_HX83112F_BOE_059), 0, },
+	{SEQ_HX83112F_BOE_060, ARRAY_SIZE(SEQ_HX83112F_BOE_060), 0, },
+	{SEQ_HX83112F_BOE_061, ARRAY_SIZE(SEQ_HX83112F_BOE_061), 0, },
+	{SEQ_HX83112F_BOE_062, ARRAY_SIZE(SEQ_HX83112F_BOE_062), 0, },
+	{SEQ_HX83112F_BOE_063, ARRAY_SIZE(SEQ_HX83112F_BOE_063), 0, },
+	{SEQ_HX83112F_BOE_064, ARRAY_SIZE(SEQ_HX83112F_BOE_064), 0, },
+	{SEQ_HX83112F_BOE_065, ARRAY_SIZE(SEQ_HX83112F_BOE_065), 0, },
+	{SEQ_HX83112F_BOE_066, ARRAY_SIZE(SEQ_HX83112F_BOE_066), 0, },
+	{SEQ_HX83112F_BOE_067, ARRAY_SIZE(SEQ_HX83112F_BOE_067), 0, },
+	{SEQ_HX83112F_BOE_068, ARRAY_SIZE(SEQ_HX83112F_BOE_068), 0, },
+	{SEQ_HX83112F_BOE_069, ARRAY_SIZE(SEQ_HX83112F_BOE_069), 0, },
+	{SEQ_HX83112F_BOE_070, ARRAY_SIZE(SEQ_HX83112F_BOE_070), 0, },
+	{SEQ_HX83112F_BOE_071, ARRAY_SIZE(SEQ_HX83112F_BOE_071), 0, },
+	{SEQ_HX83112F_BOE_072, ARRAY_SIZE(SEQ_HX83112F_BOE_072), 0, },
+	{SEQ_HX83112F_BOE_073, ARRAY_SIZE(SEQ_HX83112F_BOE_073), 0, },
+	{SEQ_HX83112F_BOE_074, ARRAY_SIZE(SEQ_HX83112F_BOE_074), 0, },
+	{SEQ_HX83112F_BOE_075, ARRAY_SIZE(SEQ_HX83112F_BOE_075), 0, },
+	{SEQ_HX83112F_BOE_076, ARRAY_SIZE(SEQ_HX83112F_BOE_076), 0, },
+	{SEQ_HX83112F_BOE_077, ARRAY_SIZE(SEQ_HX83112F_BOE_077), 0, },
+	{SEQ_HX83112F_BOE_078, ARRAY_SIZE(SEQ_HX83112F_BOE_078), 0, },
+	{SEQ_HX83112F_BOE_079, ARRAY_SIZE(SEQ_HX83112F_BOE_079), 0, },
+	{SEQ_HX83112F_BOE_080, ARRAY_SIZE(SEQ_HX83112F_BOE_080), 0, },
+	{SEQ_HX83112F_BOE_081, ARRAY_SIZE(SEQ_HX83112F_BOE_081), 0, },
+	{SEQ_HX83112F_BOE_BRIGHTNESS, ARRAY_SIZE(SEQ_HX83112F_BOE_BRIGHTNESS), 0, },
+	{SEQ_HX83112F_BOE_SLEEP_OUT, ARRAY_SIZE(SEQ_HX83112F_BOE_SLEEP_OUT), 100 + 5, },	/* 100ms */
+	{SEQ_HX83112F_BOE_DISPLAY_ON, ARRAY_SIZE(SEQ_HX83112F_BOE_DISPLAY_ON), 0, },
+};
+
+static struct lcd_seq_info LCD_SEQ_EXIT_1[] = {
+	{SEQ_HX83112F_BOE_DISPLAY_OFF, ARRAY_SIZE(SEQ_HX83112F_BOE_DISPLAY_OFF), 20 + 5, },
+	{SEQ_HX83112F_BOE_SLEEP_IN, ARRAY_SIZE(SEQ_HX83112F_BOE_SLEEP_IN), 0, },
+};
+
+static unsigned int brightness_table[EXTEND_BRIGHTNESS + 1] = {
+	0,
+	2, 2, 3, 3, 4, 4, 5, 5, 6, 6, /* 1: 2 */
+	7, 7, 8, 8, 9, 9, 10, 10, 11, 11,
+	12, 12, 13, 13, 14, 14, 15, 15, 16, 16,
+	17, 17, 18, 18, 19, 20, 20, 21, 21, 22,
+	23, 23, 24, 24, 25, 26, 26, 27, 27, 28,
+	29, 29, 30, 30, 31, 32, 32, 33, 33, 34,
+	35, 35, 36, 36, 37, 38, 38, 39, 39, 40,
+	41, 41, 42, 42, 43, 44, 44, 45, 45, 46,
+	47, 48, 48, 49, 50, 51, 52, 52, 53, 54,
+	55, 56, 56, 57, 58, 59, 59, 60, 61, 62,
+	63, 63, 64, 65, 66, 67, 67, 68, 69, 70,
+	71, 71, 72, 73, 74, 75, 75, 76, 77, 78,
+	78, 79, 80, 81, 82, 82, 83, 84, 85, 86, /* 128: 84 */
+	87, 88, 89, 90, 91, 92, 93, 94, 95, 96,
+	97, 98, 99, 100, 101, 102, 103, 104, 105, 106,
+	107, 108, 109, 110, 111, 112, 113, 114, 115, 117,
+	118, 119, 120, 121, 122, 123, 124, 125, 126, 127,
+	128, 129, 130, 131, 132, 133, 134, 135, 136, 137,
+	138, 139, 140, 141, 142, 143, 144, 145, 146, 147,
+	148, 149, 150, 151, 152, 153, 154, 155, 156, 157,
+	158, 159, 160, 161, 162, 163, 164, 165, 166, 167,
+	168, 169, 170, 171, 172, 173, 174, 175, 176, 177,
+	178, 179, 180, 182, 183, 184, 185, 186, 187, 188,
+	189, 190, 191, 192, 193, 194, 195, 196, 197, 198,
+	199, 200, 201, 202, 203, 204, 205, 206, 207, 208,
+	209, 210, 211, 212, 213, 214, 215, 216, 216, 217, /* 255: 213 */
+	218, 219, 220, 221, 221, 222, 223, 224, 225, 226,
+	226, 227, 228, 229, 230, 231, 232, 232, 233, 234,
+	235, 236, 237, 237, 238, 239, 240, 241, 241, 242,
+	243, 244, 245, 245, 246, 247, 248, 249, 249, 250,
+	251, 252, 252, 253, 254, 255,
+};
+
+#endif /* __HX83112F_BOE_PARAM_H__ */
