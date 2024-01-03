@@ -101,6 +101,8 @@ struct npu_session {
 
 	// dynamic allocation, free is required, for ion alloc memory
 	struct npu_memory_buffer *ncp_mem_buf;
+	struct npu_memory_buffer *ncp_hdr_buf;
+	struct npu_memory_buffer *ncp_payload;
 	struct npu_memory_buffer *IOFM_mem_buf; // VISION_MAX_CONTAINERLIST * VISION_MAX_BUFFER
 	struct npu_memory_buffer *IMB_mem_buf; // IMB_cnt
 	struct npu_memory_buffer *sec_mem_buf; // secure memory
@@ -182,6 +184,8 @@ int npu_session_close(struct npu_session *session);
 int npu_session_s_graph(struct npu_session *session, struct vs4l_graph *info);
 int npu_session_param(struct npu_session *session, struct vs4l_param_list *plist);
 int npu_session_nw_sched_param(struct npu_session *session, struct vs4l_sched_param *param);
+void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size,
+					enum dma_data_direction dir);
 int npu_session_NW_CMD_LOAD(struct npu_session *session);
 int npu_session_NW_CMD_UNLOAD(struct npu_session *session);
 int npu_session_NW_CMD_STREAMON(struct npu_session *session);
