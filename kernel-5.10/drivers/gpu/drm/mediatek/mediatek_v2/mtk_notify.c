@@ -52,7 +52,8 @@ int uevent_dev_register(struct mtk_uevent_dev *udev)
 		ret = -1;
 	}
 
-	dev_set_drvdata(udev->dev, udev);
+	if (udev->dev)
+		dev_set_drvdata(udev->dev, udev);
 	udev->state = 0;
 
 	return ret;

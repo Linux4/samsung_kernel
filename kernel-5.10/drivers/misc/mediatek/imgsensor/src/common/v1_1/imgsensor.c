@@ -653,21 +653,17 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 /******************************************************************************
  * imgsensor_set_driver
  ******************************************************************************/
-int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
-{
-	int ret = -EIO;
-	unsigned int i = 0;
-	struct IMGSENSOR             *pimgsensor   = &gimgsensor;
-	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
-	struct IMGSENSOR_HW *phw = &pimgsensor->hw;
-
 #ifdef USING_GENERAL_VARIANT_FOR_IMGSENSOR
-	static int max_num_of_config_sensor;
-	static int max_num_of_config_2nd_sensor;
-	static int searched_sensor_list_num;
-	static bool init_flag_search_list = false;
+enum sensor_diversity_enum {
+	SENSOR_DIVERSITY_1ST,
+	SENSOR_DIVERSITY_2ND,
+	SENSOR_DIVERSITY_3RD,
+	SENSOR_DIVERSITY_MAX
+};
 
-	char *config_sensor_name[] = {
+/* for using several sensor of same position */
+char *config_sensor_name[SENSOR_DIVERSITY_MAX][10] = {
+	{
 		CONFIG_CAMERA_SENSOR0,
 		CONFIG_CAMERA_SENSOR1,
 		CONFIG_CAMERA_SENSOR2,
@@ -678,10 +674,8 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 		NULL,
 		NULL,
 		NULL, //9
-	};
-
-	//for using two sensor of same position
-	char *config_2nd_sensor_name[] = {
+	},
+	{
 		CONFIG_CAMERA_SENSOR0_2,
 		CONFIG_CAMERA_SENSOR1_2,
 		CONFIG_CAMERA_SENSOR2_2,
@@ -691,8 +685,127 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 		NULL,
 		NULL,
 		NULL,
-		NULL, //9_2
-	};
+		NULL, //9
+	},
+	{
+		CONFIG_CAMERA_SENSOR0_3,
+		CONFIG_CAMERA_SENSOR1_3,
+		CONFIG_CAMERA_SENSOR2_3,
+		CONFIG_CAMERA_SENSOR3_3,
+		CONFIG_CAMERA_SENSOR4_3,
+		CONFIG_CAMERA_SENSOR5_3,
+		NULL,
+		NULL,
+		NULL,
+		NULL, //9
+	}
+};
+
+static bool sensor_diversity_check_config_sensor(struct IMGSENSOR_SENSOR *psensor, unsigned int sensor_idx, unsigned int diversity_num)
+{
+	static int max_num_of_config_sensor;
+
+	if (diversity_num >= SENSOR_DIVERSITY_MAX) {
+		PK_PR_ERR("wrong sensor diversity count[%d])", diversity_num);
+		return false;
+	}
+
+	max_num_of_config_sensor = ARRAY_SIZE(config_sensor_name[diversity_num]);
+	if (sensor_idx >= max_num_of_config_sensor) {
+		PK_PR_ERR("wrong sensor_idx[%d])", sensor_idx);
+		return false;
+	}
+
+	if (config_sensor_name[diversity_num][sensor_idx] == NULL) {
+		PK_INFO("config_sensor(CONFIG_CAMERA_SENSOR%d_%d) is NULL", sensor_idx, diversity_num+1);
+		return false;
+	}
+
+	if (config_sensor_name[diversity_num][sensor_idx][0] == '\0') {
+		PK_DBG("config_sensor(CONFIG_CAMERA_SENSOR%d_%d) is not set", sensor_idx, diversity_num+1);
+		return false;
+	}
+
+	return true;
+}
+
+/* Caution: SENSOR_DIVERSITY_1ST must execute first */
+static int sensor_diversity_search_sensor(struct IMGSENSOR_SENSOR *psensor, unsigned int sensor_idx, unsigned int diversity_num)
+{
+	int ret = -1;
+	unsigned int i = 0;
+	bool searched_sensor = false;
+	static int default_sensor_list_num;
+	struct IMGSENSOR             *pimgsensor   = &gimgsensor;
+	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
+	struct IMGSENSOR_HW *phw = &pimgsensor->hw;
+
+	/* search sensor */
+	searched_sensor = false;
+	for (i = 0; i < MAX_NUM_OF_SUPPORT_SENSOR; i++) {
+		if (pimgsensor->psensor_list[i]->init != NULL &&
+			!strcmp(config_sensor_name[diversity_num][sensor_idx], pimgsensor->psensor_list[i]->name)) {
+
+			pimgsensor->psensor_list[i]->init(&psensor->pfunc);
+			/* get sensor name */
+			psensor_inst->psensor_list = pimgsensor->psensor_list[i];
+
+			/* SENSOR_DIVERSITY_1ST must execute first */
+			if (diversity_num == SENSOR_DIVERSITY_1ST) {
+				default_sensor_list_num = i;
+				PK_INFO("searched default sensor(CONFIG_CAMERA_SENSOR%d: %s)",
+						sensor_idx, psensor_inst->psensor_list->name);
+				searched_sensor = true;
+			} else {
+				/* for searching real sensor */
+				if (!imgsensor_check_is_alive(psensor)) {
+					PK_INFO("searched sensor diversity(CONFIG_CAMERA_SENSOR%d_%d: %s)",
+							sensor_idx, diversity_num+1, psensor_inst->psensor_list->name);
+					searched_sensor = true;
+				}
+			}
+			break;
+		}
+	}
+
+	ret = -1;
+	if (searched_sensor) {
+#ifdef IMGSENSOR_LEGACY_COMPAT
+		psensor_inst->status.arch = psensor->pfunc->arch;
+#endif
+		/* supporting from kernel-5.10 */
+		if (psensor->pfunc->SensorSetPlatformInfo)
+			psensor->pfunc->SensorSetPlatformInfo(phw->g_platform_id);
+		ret = 0;
+	} else {
+		if (diversity_num == SENSOR_DIVERSITY_1ST) {
+			PK_INFO("default sensor search failed(CONFIG_CAMERA_SENSOR%d: %s)",
+					sensor_idx, config_sensor_name[SENSOR_DIVERSITY_1ST][sensor_idx]);
+		} else {
+			/* set default sensor(searched 1st sensor) */
+			pimgsensor->psensor_list[default_sensor_list_num]->init(&psensor->pfunc);
+			psensor_inst->psensor_list = pimgsensor->psensor_list[default_sensor_list_num];
+			PK_INFO("sensor diversity search failed(CONFIG_CAMERA_SENSOR%d_%d: %s)",
+					sensor_idx, diversity_num+1, config_sensor_name[diversity_num][sensor_idx]);
+		}
+	}
+	return ret;
+}
+#endif
+
+
+int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
+{
+	int ret = -EIO;
+#ifndef USING_GENERAL_VARIANT_FOR_IMGSENSOR
+	unsigned int i = 0;
+	struct IMGSENSOR             *pimgsensor   = &gimgsensor;
+	struct IMGSENSOR_HW *phw = &pimgsensor->hw;
+#endif
+	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
+
+#ifdef USING_GENERAL_VARIANT_FOR_IMGSENSOR
+	unsigned int sensor_diversity_cnt = 0;
 #endif
 
 	if (psensor_inst == NULL) {
@@ -706,88 +819,19 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 
 	imgsensor_i2c_filter_msg(&psensor_inst->i2c_cfg, true);
 
-#ifdef USING_GENERAL_VARIANT_FOR_IMGSENSOR
-	// for using general variant
-	if(!init_flag_search_list) {
-		max_num_of_config_sensor = ARRAY_SIZE(config_sensor_name);
-		max_num_of_config_2nd_sensor = ARRAY_SIZE(config_2nd_sensor_name);
-
-		init_flag_search_list = true;
+#ifdef USING_GENERAL_VARIANT_FOR_IMGSENSOR /* for using general variant */
+	/* set default sensor */
+	if (sensor_diversity_check_config_sensor(psensor, psensor_inst->sensor_idx, SENSOR_DIVERSITY_1ST)) {
+		/*if config_sensor exist, search sensor */
+		ret = sensor_diversity_search_sensor(psensor, psensor_inst->sensor_idx, SENSOR_DIVERSITY_1ST);
 	}
 
-	//set default sensor
-	if ((psensor_inst->sensor_idx < max_num_of_config_sensor) &&
-		(config_sensor_name[psensor_inst->sensor_idx] != NULL) &&
-		(config_sensor_name[psensor_inst->sensor_idx][0] != '\0')) {
-
-		//search sensor
-		for (i = 0; i < MAX_NUM_OF_SUPPORT_SENSOR; i++) {
-			if (pimgsensor->psensor_list[i]->init != NULL &&
-				!strcmp(config_sensor_name[psensor_inst->sensor_idx], pimgsensor->psensor_list[i]->name)) {
-				searched_sensor_list_num = i;
-				pimgsensor->psensor_list[i]->init(&psensor->pfunc);
-				/* get sensor name */
-				psensor_inst->psensor_list = pimgsensor->psensor_list[i];
-#ifdef IMGSENSOR_LEGACY_COMPAT
-				psensor_inst->status.arch = psensor->pfunc->arch;
-#endif
-				PK_INFO("searched sensor(idx[%d], name[%s])",
-						psensor_inst->sensor_idx, psensor_inst->psensor_list->name);
-
-				//supporting from kernel-5.10
-				if (psensor->pfunc->SensorSetPlatformInfo)
-					psensor->pfunc->SensorSetPlatformInfo(phw->g_platform_id);
-				ret  = 0;
+	/* search sensor for sensor diversity */
+	for (sensor_diversity_cnt = SENSOR_DIVERSITY_2ND; sensor_diversity_cnt < SENSOR_DIVERSITY_MAX; sensor_diversity_cnt++) {
+		if (sensor_diversity_check_config_sensor(psensor, psensor_inst->sensor_idx, sensor_diversity_cnt)) {
+			/* if config_sensor exist, search sensor */
+			if (!sensor_diversity_search_sensor(psensor, psensor_inst->sensor_idx, sensor_diversity_cnt))
 				break;
-			}
-		}
-
-		if (ret < 0)
-			PK_INFO("search failed(idx[%d], name[%s])", psensor_inst->sensor_idx,
-								config_sensor_name[psensor_inst->sensor_idx]);
-	} else {
-		if (psensor_inst->sensor_idx < max_num_of_config_sensor)
-			PK_INFO("no searched sensor(idx[%d], name[%s])",
-				psensor_inst->sensor_idx, config_sensor_name[psensor_inst->sensor_idx]);
-		else
-			PK_INFO("no searched sensor(idx[%d])", psensor_inst->sensor_idx);
-	}
-
-	//search 2nd sensor
-	if ((psensor_inst->sensor_idx < max_num_of_config_2nd_sensor) &&
-		(config_2nd_sensor_name[psensor_inst->sensor_idx] != NULL) &&
-		(config_2nd_sensor_name[psensor_inst->sensor_idx][0] != '\0')) {
-
-		//search sensor
-		for (i = 0; i < MAX_NUM_OF_SUPPORT_SENSOR; i++) {
-			if (pimgsensor->psensor_list[i]->init != NULL &&
-				!strcmp(config_2nd_sensor_name[psensor_inst->sensor_idx], pimgsensor->psensor_list[i]->name)) {
-
-				pimgsensor->psensor_list[i]->init(&psensor->pfunc);
-				/* get sensor name */
-				psensor_inst->psensor_list = pimgsensor->psensor_list[i];
-
-				//olny check 2nd sensor, check alive
-				if (!imgsensor_check_is_alive(psensor)) {
-					PK_INFO("searched 2nd sensor(idx[%d], name: %s)\n",
-							psensor_inst->sensor_idx, psensor_inst->psensor_list->name);
-
-					//supporting from kernel-5.10
-					if (psensor->pfunc->SensorSetPlatformInfo)
-						psensor->pfunc->SensorSetPlatformInfo(phw->g_platform_id);
-					ret = 0;
-				} else {
-					//set default sensor(searched 1st sensor)
-					pimgsensor->psensor_list[searched_sensor_list_num]->init(&psensor->pfunc);
-					psensor_inst->psensor_list = pimgsensor->psensor_list[searched_sensor_list_num];
-					PK_INFO("2nd sensor search failed(idx[%d], name[%s])",
-							psensor_inst->sensor_idx, config_2nd_sensor_name[psensor_inst->sensor_idx]);
-				}
-#ifdef IMGSENSOR_LEGACY_COMPAT
-				psensor_inst->status.arch = psensor->pfunc->arch;
-#endif
-				break;
-			}
 		}
 	}
 #else
@@ -2078,7 +2122,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			kal_uint32 buf_type = (kal_uint32) (*(pFeaturePara_64 + 0));
 			void *usr_ptr = (void *)(uintptr_t)(*(pFeaturePara_64 + 1));
 			kal_uint32 buf_size = (kal_uint32) (*(pFeaturePara_64 + 2));
-#if defined(CONFIG_CAMERA_AAW_V24)
+#if defined(CONFIG_CAMERA_AAW_V24) || defined(CONFIG_CAMERA_AAX_V15)
 			char *XTC_CAL = NULL;
 			const int TYPE_XTALK_CAL = 0; // Correspond to FOUR_CELL_CAL_TYPE_GAIN_TBL (XTALK_CAL)
 

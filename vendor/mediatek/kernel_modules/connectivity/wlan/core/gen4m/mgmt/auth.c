@@ -1432,7 +1432,7 @@ void authAddMDIE(IN struct ADAPTER *prAdapter,
 	uint8_t *pucBuffer =
 		(uint8_t *)prMsduInfo->prPacket + prMsduInfo->u2FrameLength;
 	uint8_t ucBssIdx = prMsduInfo->ucBssIndex;
-	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIdx);
+	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIdx, FT_R0);
 
 	if (!prFtIEs->prMDIE ||
 	    !rsnIsFtOverTheAir(prAdapter, ucBssIdx, prMsduInfo->ucStaRecIndex))
@@ -1445,7 +1445,7 @@ void authAddMDIE(IN struct ADAPTER *prAdapter,
 uint32_t authCalculateRSNIELen(struct ADAPTER *prAdapter, uint8_t ucBssIdx,
 			       struct STA_RECORD *prStaRec)
 {
-	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIdx);
+	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIdx, FT_R0);
 
 	if (!prFtIEs->prRsnIE ||
 	    !rsnIsFtOverTheAir(prAdapter, ucBssIdx, prStaRec->ucIndex))
@@ -1466,7 +1466,16 @@ uint32_t authAddRSNIE_impl(IN struct ADAPTER *prAdapter,
 		(uint8_t *)prMsduInfo->prPacket + prMsduInfo->u2FrameLength;
 	uint32_t ucRSNIeSize = 0;
 	uint8_t ucBssIdx = prMsduInfo->ucBssIndex;
-	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIdx);
+	uint8_t ucRound = 0;
+	struct STA_RECORD *prStaRec;
+	struct FT_IES *prFtIEs;
+
+	prStaRec = cnmGetStaRecByIndex(prAdapter, prMsduInfo->ucStaRecIndex);
+	if (!prStaRec)
+		return 0;
+
+	ucRound = prStaRec->ucStaState == STA_STATE_1 ? FT_R0 : FT_R1;
+	prFtIEs = aisGetFtIe(prAdapter, ucBssIdx, ucRound);
 
 	if (!prFtIEs->prRsnIE ||
 	    !rsnIsFtOverTheAir(prAdapter, ucBssIdx, prMsduInfo->ucStaRecIndex))

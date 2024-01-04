@@ -112,7 +112,7 @@ cqhci-y					+= cqhci-core.o
 cqhci-$(CONFIG_MMC_CRYPTO)		+= cqhci-crypto.o
 obj-$(CONFIG_MMC_HSQ)			+= mmc_hsq.o
 obj-$(CONFIG_MMC_MTK_PRO)		+= mtk-mmc-sec.o
-mtk-mmc-sec-y				+= mtk-mmc.o mmc-sec-feature.o mmc-sec-sysfs.o
+mtk-mmc-sec-$(CONFIG_SEC_MMC_FEATURE)	+= mtk-mmc.o mmc-sec-feature.o mmc-sec-sysfs.o
 obj-$(CONFIG_MMC_AUTOK)			+= mtk-mmc-autok.o
 obj-$(CONFIG_MMC_DEBUG)			+= mtk-mmc-dbg.o
 

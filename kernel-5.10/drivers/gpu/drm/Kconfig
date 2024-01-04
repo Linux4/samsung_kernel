@@ -30,6 +30,7 @@ menuconfig DRM
 config DRM_MIPI_DBI
 	tristate
 	depends on DRM
+	select DRM_KMS_HELPER
 
 config DRM_MIPI_DSI
 	bool
@@ -481,5 +482,7 @@ config DRM_PANEL_ORIENTATION_QUIRKS
 config DRM_LIB_RANDOM
 	bool
 	default n
+
+source "drivers/gpu/drm/panel/mcd_panel/Kconfig"
 
 MCD_PANEL_PATH := drivers/gpu/drm/samsung/panel

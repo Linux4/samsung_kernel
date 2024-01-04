@@ -208,6 +208,7 @@ void soc5_0_dump_mac_info(
 	IN struct ADAPTER *prAdapter);
 #ifdef CFG_SUPPORT_LINK_QUALITY_MONITOR
 int soc5_0_get_rx_rate_info(IN struct ADAPTER *prAdapter,
+		IN uint8_t ucBssIdx,
 		OUT uint32_t *pu4Rate, OUT uint32_t *pu4Nss,
 		OUT uint32_t *pu4RxMode, OUT uint32_t *pu4FrMode,
 		OUT uint32_t *pu4Sgi);

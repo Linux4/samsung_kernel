@@ -458,7 +458,7 @@ struct mtk_panel_funcs {
 #if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
 	int (*set_power)(struct drm_panel *panel, int power);
 #endif
-#if IS_ENABLED(CONFIG_MCD_PANEL_BIG_LOCK)
+#if IS_ENABLED(CONFIG_USDM_PANEL_BIG_LOCK)
 	int (*set_panel_lock)(struct drm_panel *panel, int lock);
 #endif
 	int (*set_backlight_cmdq)(void *dsi_drv, dcs_write_gce cb,

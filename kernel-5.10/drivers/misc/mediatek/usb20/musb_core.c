@@ -37,6 +37,7 @@
 #endif
 
 #include <usb20.h>
+#include <linux/pm_wakeup.h>
 
 #if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
 #include <linux/usb/f_ss_mon_gadget.h>
@@ -50,6 +51,8 @@ int musb_fake_CDP;
  * Fixme: kernel_init_done should be move to mt6765/usb20_host.c
  */
 int kernel_init_done;
+static struct wakeup_source *usb_ws;
+
 EXPORT_SYMBOL(kernel_init_done);
 module_param(kernel_init_done, int, 0644);
 
@@ -3199,11 +3202,6 @@ static void mt_usb_wakeup(struct musb *musb, bool enable)
 
 	DBG(0, "connection=%d\n", is_con);
 
-	if (is_con == 0 && enable != 0) {
-		DBG(0, "Only OTG Adapter\n");
-		return;
-	}
-
 	if (enable) {
 		tmp = musb_readl(musb->mregs, RESREG);
 		if (is_con)
@@ -3243,6 +3241,7 @@ static void mt_usb_wakeup(struct musb *musb, bool enable)
 			return;
 		}
 	} else {
+		__pm_wakeup_event(usb_ws, 3000);
 		switch (uwk_vers) {
 		case MUSB_UWK_V1:
 			if (pericfg == NULL)
@@ -4336,6 +4335,7 @@ static int mt_usb_init(struct musb *musb)
 	mt_usb_wakeup_init(musb);
 	musb->host_suspend = true;
 #endif
+	usb_ws = wakeup_source_register(NULL, "usb_musb");
 	DBG(0, "%s done\n", __func__);
 	return 0;
 

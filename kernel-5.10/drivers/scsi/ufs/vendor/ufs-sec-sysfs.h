@@ -19,6 +19,7 @@ extern struct ufs_vendor_dev_info ufs_vdi;
 extern struct ufs_sec_err_info ufs_err_info;
 extern struct ufs_sec_err_info ufs_err_info_backup;
 extern struct ufs_sec_wb_info ufs_wb;
+extern struct ufs_sec_feature_info ufs_sec_features;
 
 /* UFSHCD states : in ufshcd.c */
 enum {

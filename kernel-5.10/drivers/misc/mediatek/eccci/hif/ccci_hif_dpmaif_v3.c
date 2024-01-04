@@ -34,6 +34,7 @@
 #include <linux/atomic.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#include <linux/suspend.h>
 
 #ifndef CCCI_KMODULE_ENABLE
 #include "ccci_core.h"
@@ -347,6 +348,7 @@ static inline void dpmaif_rxq_lro_join_skb(
 			__func__);
 
 		dpmaif_rxq_push_all_skb(rxq);
+		lro_info->count = 0;
 	}
 
 	lro_info->bid_tbl[lro_info->count] = bid;
@@ -411,7 +413,7 @@ static inline void dpmaif_lro_update_gro_info(
 		gso_type = SKB_GSO_TCPV4;
 		iph->tot_len = htons(total_len);
 		iph->check = 0;
-		iph->check = ip_fast_csum((const void*)iph, iph->ihl);
+		iph->check = ip_fast_csum((const void *)iph, iph->ihl);
 
 	} else if (iph->version == 6) {
 		gso_type = SKB_GSO_TCPV6;
@@ -562,8 +564,11 @@ lro_continue:
 	start_idx = lro_info->count;
 
 gro_too_much_skb:
-	if (lro_num > 1)
+	if ((lro_num > 1) && (lro_num < DPMAIF_MAX_LRO))
 		dpmaif_lro_update_gro_info(skb0, total_len, lro_num);
+	else
+		CCCI_ERROR_LOG(-1, TAG,
+			"%s: lro_num: %u\n", __func__, lro_num);
 
 lro_end:
 	if (atomic_cmpxchg(&dpmaif_ctrl->wakeup_src, 1, 0) == 1) {
@@ -2059,6 +2064,7 @@ static int dpmaif_wait_resume_done(void)
 			CCCI_NORMAL_LOG(-1, TAG,
 				"[%s] warning: suspend_flag = 1; (cnt: %d)",
 				__func__, cnt);
+			pm_system_wakeup();
 			return -1;
 		}
 	}

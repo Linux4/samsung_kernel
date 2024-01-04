@@ -46,8 +46,9 @@ config SEC_DEBUG_HW_PARAM
 
 config SEC_DEBUG_SOFTDOG_PWDT
 	tristate "Enable Soft Watchdog for Platform"
-	default n
+	default m
 	depends on WATCHDOG
+	select SOFT_WATCHDOG	
 	help
 	  This option enables soft watchdog device and soft_panic.
 

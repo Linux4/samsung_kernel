@@ -85,7 +85,7 @@ static int Read_I2C_CAM_CAL(struct i2c_client *client,
 				EEPROM_I2C_MSG_SIZE_READ);
 
 	if (i4RetValue != EEPROM_I2C_MSG_SIZE_READ) {
-		must_log("I2C read data failed!!\n");
+		must_log("I2C read data failed!! addr: %#x, readCmd: %#x %#x\n", client->addr, puReadCmd[0], puReadCmd[1]);
 		return -1;
 	}
 

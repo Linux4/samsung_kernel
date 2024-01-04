@@ -186,26 +186,24 @@
 #define PARTIAL_HLPM4_L0_REG	0x07
 #define PARTIAL_HLPM4_L1_REG	0x08
 
-void oled_aod_copy_self_mask_ctrl(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_digital_pos(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_digital_blink(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_time(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_timer_rate(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_timer_rate_hop(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_self_move_on_ctrl(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_analog_pos(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_analog_en(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_digital_en(struct maptbl *tbl, u8 *dst);
-int oled_aod_getidx_self_mode_pos(struct maptbl *tbl);
-void oled_aod_copy_self_move_reset(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_icon_ctrl(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_digital_color(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_digital_un_width(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_partial_mode(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_partial_area(struct maptbl *tbl, u8 *dst);
-void oled_aod_copy_partial_hlpm(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_digital_pos(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_time(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_timer_rate(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_timer_rate_hop(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_self_move_on_ctrl(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_analog_pos(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_analog_en(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_digital_en(struct maptbl *tbl, u8 *dst);
+int oled_maptbl_getidx_aod_self_mode_pos(struct maptbl *tbl);
+void oled_maptbl_copy_aod_self_move_reset(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_icon_ctrl(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_digital_color(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_digital_un_width(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_partial_mode(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_partial_area(struct maptbl *tbl, u8 *dst);
+void oled_maptbl_copy_aod_partial_hlpm(struct maptbl *tbl, u8 *dst);
 #ifdef SUPPORT_NORMAL_SELF_MOVE
-int oled_aod_getidx_self_pattern(struct maptbl *tbl);
-void oled_aod_copy_self_move_pattern(struct maptbl *tbl, u8 *dst);
+int oled_maptbl_getidx_aod_self_pattern(struct maptbl *tbl);
+void oled_maptbl_copy_aod_self_move_pattern(struct maptbl *tbl, u8 *dst);
 #endif
 #endif /* __OLED_COMMON_AOD_H__ */

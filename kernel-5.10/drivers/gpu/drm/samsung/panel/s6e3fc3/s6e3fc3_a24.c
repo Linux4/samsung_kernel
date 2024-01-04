@@ -13,10 +13,10 @@
 #include <video/mipi_display.h>
 #include "../maptbl.h"
 #include "../panel.h"
-#include "oled_common.h"
+#include "../panel_function.h"
 #include "s6e3fc3_a24_panel.h"
 
-#ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
+#ifdef CONFIG_USDM_FACTORY_DSC_CRC_TEST
 /*
  * s6e3fc3_decoder_test - test ddi's decoder function
  *
@@ -44,25 +44,25 @@ int s6e3fc3_a24_decoder_test(struct panel_device *panel, void *data, u32 len)
 		return ret;
 	}
 
-	ret = resource_copy_by_name(panel, read_buf1, "decoder_test1"); // 0x14 in normal voltage
+	ret = panel_resource_copy(panel, read_buf1, "decoder_test1"); // 0x14 in normal voltage
 	if (unlikely(ret < 0)) {
 		panel_err("decoder_test1 copy failed\n");
 		return -ENODATA;
 	}
 
-	ret = resource_copy_by_name(panel, read_buf2, "decoder_test2"); // 0x15 in normal voltage
+	ret = panel_resource_copy(panel, read_buf2, "decoder_test2"); // 0x15 in normal voltage
 	if (unlikely(ret < 0)) {
 		panel_err("decoder_test2 copy failed\n");
 		return -ENODATA;
 	}
 
-	ret = resource_copy_by_name(panel, read_buf3, "decoder_test3"); // 0x14 in low voltage
+	ret = panel_resource_copy(panel, read_buf3, "decoder_test3"); // 0x14 in low voltage
 	if (unlikely(ret < 0)) {
 		panel_err("decoder_test1 copy failed\n");
 		return -ENODATA;
 	}
 
-	ret = resource_copy_by_name(panel, read_buf4, "decoder_test4"); // 0x15 in low voltage
+	ret = panel_resource_copy(panel, read_buf4, "decoder_test4"); // 0x15 in low voltage
 	if (unlikely(ret < 0)) {
 		panel_err("decoder_test2 copy failed\n");
 		return -ENODATA;
@@ -91,7 +91,7 @@ int s6e3fc3_a24_decoder_test(struct panel_device *panel, void *data, u32 len)
 }
 #endif
 
-int s6e3fc3_a24_getidx_ffc_table(struct maptbl *tbl)
+int s6e3fc3_a24_maptbl_getidx_ffc(struct maptbl *tbl)
 {
 	int idx;
 	u32 dsi_clk;
@@ -117,15 +117,14 @@ int s6e3fc3_a24_getidx_ffc_table(struct maptbl *tbl)
 	return maptbl_index(tbl, 0, idx, 0);
 }
 
-__visible_for_testing int getidx_irc_mode_table(struct maptbl *tbl)
-{
-	struct panel_device *panel = (struct panel_device *)tbl->pdata;
-
-	return maptbl_index(tbl, 0, !!panel->panel_data.props.irc_mode, 0);
-}
+struct pnobj_func s6e3fc3_a24_function_table[MAX_S6E3FC3_A24_FUNCTION] = {
+	[S6E3FC3_A24_MAPTBL_GETIDX_FFC] = __PNOBJ_FUNC_INITIALIZER(S6E3FC3_A24_MAPTBL_GETIDX_FFC, s6e3fc3_a24_maptbl_getidx_ffc),
+};
 
 static int __init s6e3fc3_a24_panel_init(void)
 {
+	s6e3fc3_init(&s6e3fc3_a24_panel_info);
+	panel_function_insert_array(s6e3fc3_a24_function_table, ARRAY_SIZE(s6e3fc3_a24_function_table));
 	register_common_panel(&s6e3fc3_a24_panel_info);
 
 	return 0;

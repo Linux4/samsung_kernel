@@ -333,13 +333,14 @@ int mtk_drm_ioctl_get_chist(struct drm_device *dev, void *data,
 	struct drm_mtk_chist_info *hist = data;
 	int i = 0;
 
-	DDPINFO("%s chist id:%d, get count:%d\n", __func__,
-		hist->device_id, hist->get_channel_count);
-
 	if (hist == NULL) {
 		DDPPR_ERR("%s drm_mtk_hist_info is NULL\n", __func__);
 		return -EFAULT;
 	}
+
+	DDPINFO("%s chist id:%d, get count:%d\n", __func__,
+		hist->device_id, hist->get_channel_count);
+
 	if (hist->get_channel_count == 0) {
 		DDPPR_ERR("%s get channel count is 0\n", __func__);
 		return -EFAULT;

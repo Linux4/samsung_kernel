@@ -161,13 +161,20 @@ int mtk_drm_cmdset_add(struct mtk_panel *ctx, struct mipi_dsi_device *dsi, u8 ty
 int mtk_drm_cmdset_flush(struct mtk_panel *ctx, bool wait_done)
 {
 	int ret;
+	int set_lcm_blocking = 0;
 
 	if (!ctx->mtk_dsi_msg.tx_cmd_num) {
 		dev_err(ctx->dev, "there is no MIPI command to transfer\n");
 		return -EINVAL;
 	}
 
-	ret = set_lcm_wrapper(&ctx->mtk_dsi_msg, wait_done);
+	/* in video mode, blocking => blocking_nowait (mutex early release) */
+	if (wait_done && (ctx->dsi->mode_flags & MIPI_DSI_MODE_VIDEO))
+		set_lcm_blocking = SET_LCM_BLOCKING_NOWAIT;
+	else if (wait_done)
+		set_lcm_blocking = SET_LCM_BLOCKING;
+
+	ret = set_lcm_wrapper(&ctx->mtk_dsi_msg, set_lcm_blocking);
 	if (ret < 0) {
 		dev_err(ctx->dev, "%s failed to write %d\n", __func__, ret);
 		return ret;
@@ -634,7 +641,7 @@ static inline int mcd_drm_set_bypass(void *ctx, bool on)
 	return mtk_drm_set_frame_skip(on);
 }
 
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 static int mcd_drm_panel_set_osc(struct mtk_panel *ctx, u32 frequency)
 {
 	struct panel_clock_info info;
@@ -700,7 +707,7 @@ int mcd_ddp_update_dsi_freq(struct mtk_panel *ctx, unsigned int freq)
 }
 
 __visible_for_testing int mcd_drm_set_freq_hop(void *_ctx,
-		struct freq_hop_elem *elem)
+		struct freq_hop_param *param)
 {
 	struct mipi_dsi_device *dsi;
 	struct mtk_panel *ctx = _ctx;
@@ -717,30 +724,56 @@ __visible_for_testing int mcd_drm_set_freq_hop(void *_ctx,
 		return -EINVAL;
 	}
 
-	ret = mcd_ddp_update_dsi_freq(ctx, elem->dsi_freq);
+	ret = mcd_ddp_update_dsi_freq(ctx, param->dsi_freq);
 	if (ret < 0) {
 		pr_err("%s: failed to update dsi_freq(%d)\n",
-				__func__, elem->dsi_freq);
+				__func__, param->dsi_freq);
 		return ret;
 	}
 
-	ret = mcd_drm_panel_set_ffc(ctx, elem->dsi_freq);
+	ret = mcd_drm_panel_set_ffc(ctx, param->dsi_freq);
 	if (ret < 0) {
 		pr_err("%s: failed to set ffc(%d)\n",
-				__func__, elem->dsi_freq);
+				__func__, param->dsi_freq);
 		return ret;
 	}
 
-	ret = mcd_drm_panel_set_osc(ctx, elem->osc_freq);
+	ret = mcd_drm_panel_set_osc(ctx, param->osc_freq);
 	if (ret < 0) {
-		pr_err("%s: failed to set ffc(%d)\n",
-				__func__, elem->dsi_freq);
+		pr_err("%s: failed to set osc(%d)\n",
+				__func__, param->osc_freq);
 		return ret;
 	}
 
 	return 0;
 }
 #endif
+
+__visible_for_testing int mcd_drm_set_lpdt(void *_ctx, bool on)
+{
+	struct mipi_dsi_device *dsi;
+	struct mtk_panel *ctx = (struct mtk_panel *)_ctx;
+
+	if (!ctx || !ctx->dev) {
+		pr_err("%s: invalid ctx\n", __func__);
+		return -EINVAL;
+	}
+
+	dsi = to_mipi_dsi_device(ctx->dev);
+	if (!dsi) {
+		pr_err("%s: invalid dsi\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_info("%s %s\n", __func__, on ? "on" : "off");
+
+	if (on)
+		dsi->mode_flags |= MIPI_DSI_MODE_LPM;
+	else
+		dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
+
+	return 0;
+}
 
 struct panel_adapter_funcs mcd_panel_adapter_funcs = {
 	.read = mcd_drm_mtk_dsi_read,
@@ -752,12 +785,12 @@ struct panel_adapter_funcs mcd_panel_adapter_funcs = {
 	.wait_for_fsync = mcd_drm_wait_for_fsync,
 	.set_bypass = mcd_drm_set_bypass,
 //	.get_bypass = mcd_drm_get_bypass, //TODO
-//	.set_lpdt = mcd_drm_set_lpdt,
+	.set_lpdt = mcd_drm_set_lpdt,
 //	.dpu_register_dump = mcd_drm_dpu_register_dump,
 //	.dpu_event_log_print = mcd_drm_dpu_event_log_print,
 //	.set_commit_retry = mcd_drm_set_commit_retry,
 //	.emergency_off = mcd_drm_emergency_off,
-#if defined(CONFIG_PANEL_FREQ_HOP)
+#if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 	.set_freq_hop = mcd_drm_set_freq_hop,
 #endif
 };
@@ -966,7 +999,7 @@ static int mtk_panel_ext_set_power(struct drm_panel *panel, int power)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_MCD_PANEL_BIG_LOCK)
+#if IS_ENABLED(CONFIG_USDM_PANEL_BIG_LOCK)
 static int mcd_panel_set_lock(struct mtk_panel *ctx, int lock)
 {
 	int ret;
@@ -1058,7 +1091,7 @@ static int mtk_panel_ext_param_set(struct drm_panel *panel,
 	return 1;
 }
 
-#if IS_ENABLED(CONFIG_MCD_PANEL_LPM)
+#if IS_ENABLED(CONFIG_USDM_PANEL_LPM)
 static int mtk_panel_ext_doze_enable(struct drm_panel *panel,
 	void *dsi, dcs_write_gce cb, void *handle)
 {
@@ -1179,12 +1212,12 @@ static int mtk_panel_mode_switch(struct drm_panel *panel,
 
 static struct mtk_panel_funcs ext_funcs = {
 	.set_power = mtk_panel_ext_set_power,
-#if IS_ENABLED(CONFIG_MCD_PANEL_BIG_LOCK)
+#if IS_ENABLED(CONFIG_USDM_PANEL_BIG_LOCK)
 	.set_panel_lock = mtk_panel_ext_set_panel_lock,
 #endif
 	.ext_param_set = mtk_panel_ext_param_set,
 	.mode_switch = mtk_panel_mode_switch,
-#if IS_ENABLED(CONFIG_MCD_PANEL_LPM)
+#if IS_ENABLED(CONFIG_USDM_PANEL_LPM)
 	.doze_enable = mtk_panel_ext_doze_enable,
 	.doze_disable = mtk_panel_ext_doze_disable,
 #endif
@@ -1462,7 +1495,7 @@ mcd_panel_get_mtk_panel_desc(struct mtk_panel *ctx)
 	dsi->mode_flags = MIPI_DSI_MODE_EOT_PACKET;
 
 	if (pdms[0].modes[0]->panel_video_mode)
-		dsi->mode_flags |= (MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST | MIPI_DSI_MODE_LPM); /* todo LPM? */
+		dsi->mode_flags |= (MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST);
 
 	dsi->mode_flags |= MIPI_DSI_CLOCK_NON_CONTINUOUS;
 

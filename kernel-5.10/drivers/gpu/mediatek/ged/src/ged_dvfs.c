@@ -988,15 +988,15 @@ static bool ged_dvfs_policy(
 {
 	int ui32GPUFreq = ged_get_cur_oppidx();
 	unsigned int sentinalLoading = 0;
-	unsigned int ui32GPULoading_avg;
+	unsigned int ui32GPULoading_avg = 0;
 
 	int i32NewFreqID = (int)ui32GPUFreq;
 
-	unsigned long ui32IRQFlags;
+	unsigned long ui32IRQFlags = 0;
 
-	int loading_mode;
-	int minfreq_idx;
-	int idx_diff;
+	int loading_mode = 0;
+	int minfreq_idx = 0;
+	int idx_diff = 0;
 
 	if (ui32GPUFreq < 0 || ui32GPUFreq > ged_get_min_oppidx())
 		return GED_FALSE;

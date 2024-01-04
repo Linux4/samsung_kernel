@@ -67,7 +67,7 @@ static struct fm_fifo *cqi_fifo;
 #endif
 static signed int mt6627_is_dese_chan(unsigned short freq);
 static bool mt6627_I2S_hopping_check(unsigned short freq);
-static signed int mt6627_atj_set(unsigned short value);
+static signed int mt6627_atj_set(signed int freq, unsigned short value);
 
 #if 0
 static signed int mt6627_mcu_dese(unsigned short freq, void *arg);
@@ -1697,7 +1697,7 @@ static signed int mt6627_blending_control(signed int control, signed int value)
 				WCN_DBG(FM_ERR | CHIP, "mt6627_write fail(%d), Blend part\n", ret);
 		} else {
 			WCN_DBG(FM_ERR | CHIP, "invald value(%d) for Blend control\n", value);
-			fm_blend_ctl.pamd_value = 0x2;
+			fm_blend_ctl.blend_value = 0x2;
 		}
 	} else {
 		WCN_DBG(FM_ERR | CHIP, "invalid contol(%d)\n", control);
@@ -2118,10 +2118,9 @@ static bool mt6627_I2S_hopping_check(unsigned short freq)
 	return 0;
 }
 
-static signed int mt6627_atj_set(unsigned short value)
+static signed int mt6627_atj_set(signed int freq, unsigned short value)
 {
 	signed int pos, size;
-	signed int freq = 10400;
 
 	if (fm_get_channel_space(freq) == 0)
 		freq *= 10;
@@ -2133,7 +2132,6 @@ static signed int mt6627_atj_set(unsigned short value)
 
 	size = ARRAY_SIZE(mt6627_chan_para_map);
 
-	pos = (pos < 0) ? 0 : pos;
 	pos = (pos > (size - 1)) ? (size - 1) : pos;
 
 	if (value == 1)

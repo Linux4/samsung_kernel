@@ -112,6 +112,7 @@ static void iwd_unregister_callbacks(void)
 
 static int get_display_info(GetDisplayInfo_cmd_t *cmd, GetDisplayInfo_rsp_t *rsp)
 {
+	int i;
 	struct tui_hw_buffer buffer;
 	(void)cmd;
 	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
@@ -133,6 +134,18 @@ static int get_display_info(GetDisplayInfo_cmd_t *cmd, GetDisplayInfo_rsp_t *rsp
 	rsp->num_periph   = 1;
 	rsp->associatedPeripherals[0] = TUILL_TOUCH_DRV;
 	memcpy(rsp->lcd_info, buffer.lcd_info, sizeof(uint64_t) * STUI_DISPLAY_INFO_SIZE);
+
+	pr_debug(TUIHW_LOG_TAG " rsp->physical_width  =%d\n", rsp->physical_width);
+	pr_debug(TUIHW_LOG_TAG " rsp->physical_height =%d\n", rsp->physical_height);
+	pr_debug(TUIHW_LOG_TAG " rsp->pixel_width     =%d\n", rsp->pixel_width);
+	pr_debug(TUIHW_LOG_TAG " rsp->pixel_height    =%d\n", rsp->pixel_height);
+	pr_debug(TUIHW_LOG_TAG " rsp->bit_depth       =%d\n", rsp->bit_depth);
+	pr_debug(TUIHW_LOG_TAG " rsp->flags           =%d\n", rsp->flags);
+	pr_debug(TUIHW_LOG_TAG " rsp->num_periph      =%d\n", rsp->num_periph);
+	for (i = 0; i < STUI_DISPLAY_INFO_SIZE; i++)
+		pr_debug(TUIHW_LOG_TAG " rsp->lcd_info[%d]  =%lx\n", i, rsp->lcd_info[i]);
+	pr_debug(TUIHW_LOG_TAG " rsp->disp_if         =%d\n", rsp->disp_if);
+
 	pr_debug(TUIHW_LOG_TAG " %s <<\n", __func__);
 	return 0;
 }
@@ -230,19 +243,16 @@ static int close_driver(ClosePeripheral_cmd_t *cmd)
 
 static void reboot_phone()
 {
-	/**
-	 *	kernel_restart - reboot the system
-	 *	@cmd: pointer to buffer containing command to execute for restart or %NULL
-	 */
 	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
 	atomic_set(&reboot_flag, 1);
-	kernel_restart(NULL); // -> To restart the system
+	panic("tuihw: Trusted User Interface was not unlocked.");
 	atomic_set(&reboot_flag, 0);
 	pr_debug(TUIHW_LOG_TAG " %s <<\n", __func__);
 }
 
 static int connecting_thread(void *data)
 {
+	unsigned int tzd_up;
 	int ret = 0;
 	tuill_internal_command_t cmd;
 	tuill_internal_command_t rsp;
@@ -258,6 +268,12 @@ static int connecting_thread(void *data)
 		 *	NWd peripheral released.
 		 */
 		usleep_range(500000, 500001);//0.5 s
+
+		tzd_up = tzdev_is_up();
+		if (!tzd_up) {
+			pr_debug(TUIHW_LOG_TAG " %s tzdev is not ready\n", __func__);
+			continue;
+		}
 
 		sd = tz_iwsock_socket(1, TZ_NON_INTERRUPTIBLE);
 
@@ -316,7 +332,7 @@ static int connecting_thread(void *data)
 				pr_debug(TUIHW_LOG_TAG " timeout injection\n");
 				continue;
 			}
-			switch(cmd.cmd) {
+			switch (cmd.cmd) {
 			case TUILL_ICMD_GET_DISPLAY_INFO:
 				pr_debug(TUIHW_LOG_TAG " received TUILL_ICMD_GET_DISPLAY_INFO\n");
 				rsp.ret_code = get_display_info(&cmd.GetDisplayInfo_cmd, &rsp.GetDisplayInfo_rsp);
@@ -336,6 +352,7 @@ static int connecting_thread(void *data)
 				reboot_phone();
 				goto exit;
 			}
+			pr_debug(TUIHW_LOG_TAG " sending reply: %zu\n", sizeof(rsp));
 			ret = tz_iwsock_write(sd, &rsp, sizeof(rsp), 0);
 		}
 		if (sd) {

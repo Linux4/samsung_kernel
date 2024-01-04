@@ -214,23 +214,23 @@ struct abd_pending {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
 static inline u64 get_unaligned_le24(const u8 *p)
 {
-	return p[0] | p[1] << 8 | p[2] << 16;
+	return (u64)p[0] | (u64)p[1] << 8 | (u64)p[2] << 16;
 }
 #endif
 
 static inline u64 get_unaligned_le40(const u8 *p)
 {
-	return p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24 | (u64)p[4] << 32;
+	return (u64)p[0] | (u64)p[1] << 8 | (u64)p[2] << 16 | (u64)p[3] << 24 | (u64)p[4] << 32;
 }
 
 static inline u64 get_unaligned_le48(const u8 *p)
 {
-	return p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24 | (u64)p[4] << 32 | (u64)p[5] << 40;
+	return (u64)p[0] | (u64)p[1] << 8 | (u64)p[2] << 16 | (u64)p[3] << 24 | (u64)p[4] << 32 | (u64)p[5] << 40;
 }
 
 static inline u64 get_unaligned_le56(const u8 *p)
 {
-	return p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24 | (u64)p[4] << 32 | (u64)p[5] << 40 | (u64)p[6] << 48;
+	return (u64)p[0] | (u64)p[1] << 8 | (u64)p[2] << 16 | (u64)p[3] << 24 | (u64)p[4] << 32 | (u64)p[5] << 40 | (u64)p[6] << 48;
 }
 
 static inline u64 get_merged_value(const void *p, u8 byte)
@@ -262,7 +262,7 @@ static inline u64 get_merged_value(const void *p, u8 byte)
 }
 
 extern unsigned int lcdtype;
-extern int get_lcd_info(char *arg);
+extern int get_lk_boot_panel_id(void);
 
 #if defined(CONFIG_MEDIATEK_SOLUTION) || defined(CONFIG_ARCH_MEDIATEK)
 extern int mtkfb_debug_show(struct seq_file *m, void *unused);
@@ -278,5 +278,6 @@ extern int usdm_abd_pin_register_refresh_handler(struct abd_protect *abd, int id
 extern int usdm_abd_register_printer(struct abd_protect *abd, int (*show)(struct seq_file *, void *), void *data);
 extern void usdm_abd_con_register(struct abd_protect *abd);
 extern void usdm_abd_blank(struct abd_protect *abd);
+void usdm_abd_simple_print(struct abd_protect *abd, struct seq_file *m, void *unused);
 #endif	/* __ABD_H__ */
 

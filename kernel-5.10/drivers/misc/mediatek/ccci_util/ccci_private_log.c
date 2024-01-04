@@ -1066,7 +1066,7 @@ void ccci_util_mem_dump(int md_id, int buf_type, void *start_addr, int len)
 		return;
 	}
 
-	ccci_dump_write(md_id, buf_type, 0, "Base:%px\n",
+	ccci_dump_write(md_id, buf_type, 0, "Base:%lx\n",
 					(unsigned long)start_addr);
 	/* Fix section */
 	for (i = 0; i < _16_fix_num; i++) {

@@ -313,6 +313,7 @@ void statsParseARPInfo(struct sk_buff *skb,
 	switch (eventType) {
 	case EVENT_RX:
 		GLUE_SET_INDEPENDENT_PKT(skb, TRUE);
+		GLUE_SET_PKT_FLAG(skb, ENUM_PKT_ARP);
 		if (u2OpCode == ARP_PRO_REQ)
 			DBGLOG_LIMITED(RX, INFO,
 				"<RX> Arp Req From IP: " IPV4STR "\n",
@@ -360,7 +361,7 @@ void statsParseUDPInfo(struct sk_buff *skb, uint8_t *pucEthBody,
 		switch (eventType) {
 		case EVENT_RX:
 			GLUE_SET_INDEPENDENT_PKT(skb, TRUE);
-
+			GLUE_SET_PKT_FLAG(skb, ENUM_PKT_DHCP);
 			WLAN_GET_FIELD_BE32(&prBootp->aucOptions[0],
 					    &u4DhcpMagicCode);
 			if (u4DhcpMagicCode == DHCP_MAGIC_NUMBER) {
@@ -449,6 +450,7 @@ void statsParseUDPInfo(struct sk_buff *skb, uint8_t *pucEthBody,
 			(pucBootp[0] << 8) | pucBootp[1];
 		if (eventType == EVENT_RX) {
 			GLUE_SET_INDEPENDENT_PKT(skb, TRUE);
+			GLUE_SET_PKT_FLAG(skb, ENUM_PKT_DNS);
 			DBGLOG_LIMITED(RX, INFO,
 				"<RX> DNS: IPID 0x%02x, TransID 0x%04x\n",
 				u2IpId, u2TransId);
@@ -492,6 +494,7 @@ void statsParseIPV4Info(struct sk_buff *skb,
 		switch (eventType) {
 		case EVENT_RX:
 			GLUE_SET_INDEPENDENT_PKT(skb, TRUE);
+			GLUE_SET_PKT_FLAG(skb, ENUM_PKT_ICMP);
 			DBGLOG_LIMITED(RX, INFO,
 				"<RX> ICMP: Type %d, Id BE 0x%04x, Seq BE 0x%04x\n",
 				ucIcmpType, u2IcmpId, u2IcmpSeq);
@@ -664,12 +667,16 @@ static void statsParsePktInfo(uint8_t *pucPkt, struct sk_buff *skb,
 					DBGLOG(RX, TRACE,
 						"<RX><IPv6> dns packet\n");
 					GLUE_SET_INDEPENDENT_PKT(skb, TRUE);
+					GLUE_SET_PKT_FLAG(skb,
+						ENUM_PKT_DNS);
 					break;
 				case 547:/*dhcp*/
 				case 546:
 					DBGLOG(RX, INFO,
 						"<RX><IPv6> dhcp packet\n");
 					GLUE_SET_INDEPENDENT_PKT(skb, TRUE);
+					GLUE_SET_PKT_FLAG(skb,
+						ENUM_PKT_DHCP);
 					break;
 				case 123:/*ntp port*/
 					DBGLOG(RX, INFO,
@@ -697,6 +704,8 @@ static void statsParsePktInfo(uint8_t *pucPkt, struct sk_buff *skb,
 				/*130 mlti listener query*/
 				/*143 multi listener report v2*/
 				GLUE_SET_INDEPENDENT_PKT(skb, TRUE);
+				GLUE_SET_PKT_FLAG(skb,
+					ENUM_PKT_IPV6_HOP_BY_HOP);
 
 				DBGLOG(RX, INFO,
 					"<RX><IPv6> hop-by-hop packet\n");
@@ -717,6 +726,8 @@ static void statsParsePktInfo(uint8_t *pucPkt, struct sk_buff *skb,
 				/* IPv6 header without options */
 				ucICMPv6Type = pucEthBody[IPV6_HDR_LEN];
 				GLUE_SET_INDEPENDENT_PKT(skb, TRUE);
+				GLUE_SET_PKT_FLAG(skb,
+					ENUM_PKT_ICMPV6);
 
 				switch (ucICMPv6Type) {
 				case 0x85: /*ICMPV6_TYPE_ROUTER_SOLICITATION*/
@@ -787,6 +798,9 @@ static void statsParsePktInfo(uint8_t *pucPkt, struct sk_buff *skb,
 			(uint8_t *) DISP_STRING("SUCC"),
 			(uint8_t *) DISP_STRING("FAIL")
 		};
+
+		if (eventType == EVENT_RX)
+			GLUE_SET_PKT_FLAG(skb, ENUM_PKT_1X);
 
 		statsLogData(eventType, WLAN_WAKE_1X);
 		switch (ucEapolType) {
@@ -959,6 +973,8 @@ static void statsParsePktInfo(uint8_t *pucPkt, struct sk_buff *skb,
 
 				break;
 			}
+			/* Record EAPOL key type */
+			GLUE_SET_INDEPENDENT_EAPOL(skb, m);
 			break;
 		}
 		break;
@@ -976,6 +992,7 @@ static void statsParsePktInfo(uint8_t *pucPkt, struct sk_buff *skb,
 			DBGLOG(RX, INFO,
 				"<RX> WAPI: subType %d, Len %d, Seq %d\n",
 				ucSubType, u2Length, u2Seq);
+			GLUE_SET_PKT_FLAG(skb, ENUM_PKT_1X);
 			break;
 		case EVENT_TX:
 			DBGLOG(TX, INFO,
@@ -995,6 +1012,7 @@ static void statsParsePktInfo(uint8_t *pucPkt, struct sk_buff *skb,
 				"<RX> TDLS type %d, category %d, Action %d, Token %d\n",
 				pucEthBody[0], pucEthBody[1],
 				pucEthBody[2], pucEthBody[3]);
+			GLUE_SET_PKT_FLAG(skb, ENUM_PKT_TDLS);
 			break;
 		case EVENT_TX:
 			DBGLOG(TX, INFO,

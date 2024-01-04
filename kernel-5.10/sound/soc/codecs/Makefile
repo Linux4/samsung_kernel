@@ -311,6 +311,7 @@ snd-soc-wsa881x-objs := wsa881x.o
 snd-soc-zl38060-objs := zl38060.o
 snd-soc-zx-aud96p22-objs := zx_aud96p22.o
 # Amp
+snd-soc-aw882xx-objs := aw882xx/aw882xx.o aw882xx/aw882xx_monitor.o aw882xx/aw882xx_init.o aw882xx/aw882xx_dsp.o aw882xx/aw882xx_device.o aw882xx/aw882xx_calib.o aw882xx/aw882xx_bin_parse.o aw882xx/aw882xx_spin.o
 snd-soc-max9877-objs := max9877.o
 snd-soc-max98504-objs := max98504.o
 snd-soc-simple-amplifier-objs := simple-amplifier.o
@@ -638,6 +639,7 @@ obj-$(CONFIG_SND_SOC_ZL38060)	+= snd-soc-zl38060.o
 obj-$(CONFIG_SND_SOC_ZX_AUD96P22) += snd-soc-zx-aud96p22.o
 
 # Amp
+obj-$(CONFIG_SND_SMARTPA_AW882XX) += snd-soc-aw882xx.o
 obj-$(CONFIG_SND_SOC_MAX9877)	+= snd-soc-max9877.o
 obj-$(CONFIG_SND_SOC_MAX98504)	+= snd-soc-max98504.o
 obj-$(CONFIG_SND_SOC_SIMPLE_AMPLIFIER)	+= snd-soc-simple-amplifier.o

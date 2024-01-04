@@ -18,5 +18,5 @@ subdir-ccflags-y += -I$(srctree)/$(src)/../oled_common
 subdir-ccflags-y += -I$(srctree)/$(src)/../oled_common
 
 mcd-panel-s6e3fc3_a24-y += s6e3fc3.o s6e3fc3_a24.o
-obj-$(CONFIG_EXYNOS_DECON_LCD_S6E3FC3) += mcd-panel-s6e3fc3_a24.o
+obj-$(CONFIG_USDM_PANEL_S6E3FC3) += mcd-panel-s6e3fc3_a24.o
 

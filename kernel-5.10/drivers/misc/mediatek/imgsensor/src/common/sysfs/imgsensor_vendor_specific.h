@@ -62,6 +62,9 @@ enum crosstalk_cal_name {
 	CROSSTALK_CAL_SW_GGC,
 	CROSSTALK_CAL_HW_GGC,
 	CROSSTALK_CAL_PARTIAL_XTC,
+	CROSSTALK_CAL_XGC,
+	CROSSTALK_CAL_QBGC,
+	CROSSTALK_CAL_OPC,
 };
 
 struct rom_extend_cal_addr {

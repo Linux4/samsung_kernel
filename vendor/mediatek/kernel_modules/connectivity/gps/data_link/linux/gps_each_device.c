@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2019 - 2021 MediaTek Inc.
  */
-
+#include <asm/arch_timer.h>
 #include "gps_each_device.h"
 #include "gps_each_link.h"
 #include "gps_dsp_fsm.h"
@@ -226,10 +226,12 @@ static int gps_each_device_hw_suspend(enum gps_dl_link_id_enum link_id, bool nee
 #define GPSDL_IOC_GPS_HW_RESUME        19
 #define GPSDL_IOC_GPS_LISTEN_RST_EVT   20
 #define GPSDL_IOC_GPS_GET_MD_STATUS    21
-
+#define GPSDL_IOC_GPS_GET_BOOT_TIME    28
 static int gps_each_device_ioctl_inner(struct file *filp, unsigned int cmd, unsigned long arg, bool is_compat)
 {
 	struct gps_each_device *dev; /* device information */
+	struct boot_time_info gps_boot_time;
+	unsigned long flags;
 	int retval;
 	unsigned int md2gps_status = 0;
 
@@ -403,6 +405,29 @@ static int gps_each_device_ioctl_inner(struct file *filp, unsigned int cmd, unsi
 			retval = -EFAULT;
 			GDL_LOGXE_ONF(dev->index, "Can't get MD2GPS_REG in this platform\n");
 		}
+		break;
+	case GPSDL_IOC_GPS_GET_BOOT_TIME:
+		if (arg == 0)
+			retval = -EINVAL;
+		else
+			retval = 0;
+		local_irq_save(flags);
+		#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+		gps_boot_time.now_time = ktime_get_boottime_ns();
+		gps_boot_time.arch_counter = __arch_counter_get_cntvct();
+		#else
+		gps_boot_time.now_time = ktime_get_boot_ns();
+		gps_boot_time.arch_counter = arch_counter_get_cntvct();
+		#endif
+		local_irq_restore(flags);
+		if (copy_to_user((char __user *)arg, &gps_boot_time, sizeof(struct boot_time_info))) {
+			GDL_LOGXI_ONF(dev->index,
+			"GPSDL_IOC_GPS_GET_BOOT_TIME: copy_to_user error");
+			retval = -EFAULT;
+		}
+		GDL_LOGXI_ONF(dev->index,
+			"GPSDL_IOC_GPS_GET_BOOT_TIME now_time = %d,arch_counter = %d",
+			gps_boot_time.now_time, gps_boot_time.arch_counter);
 		break;
 	default:
 		retval = -EFAULT;

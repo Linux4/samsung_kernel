@@ -826,6 +826,10 @@ EXPORT_SYMBOL(secdbg_set_power_reset_reason);
 void sec_upload_cause(void *buf)
 {
 	secdbg_set_upload_magic(UPLOAD_MAGIC_UPLOAD);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
+	sec_debug_set_extra_info_upload(buf);
+#endif	
 	
 	if (!strncmp(buf, "User Fault", 10))
 		secdbg_set_upload_reason(UPLOAD_CAUSE_USER_FAULT);

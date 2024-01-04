@@ -285,11 +285,6 @@ void wlanImageSectionGetPatchInfoV2(IN struct ADAPTER
 			num_of_region,
 			be2cpu32(glo_desc->subsys));
 
-	if (num_of_region < 0) {
-		DBGLOG(INIT, WARN, "parse patch failed! num_of_region < 0.\n");
-		return;
-	}
-
 	/* section map */
 	img_ptr += sizeof(struct PATCH_GLO_DESC);
 
@@ -392,14 +387,6 @@ uint32_t wlanDownloadSectionV2(IN struct ADAPTER *prAdapter,
 	uint32_t u4Status = WLAN_STATUS_SUCCESS;
 
 	num_of_region = target->num_of_region;
-	if (num_of_region < 0) {
-		DBGLOG(INIT, ERROR,
-			"Firmware download num_of_region < 0 !\n");
-		u4Status = WLAN_STATUS_FAILURE;
-		goto out;
-	}
-
-
 	for (i = 0; i < num_of_region; i++) {
 		struct patch_dl_buf *region;
 

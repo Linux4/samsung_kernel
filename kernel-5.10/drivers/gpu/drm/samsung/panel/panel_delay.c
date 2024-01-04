@@ -71,6 +71,7 @@ char *get_timer_delay_begin_name(struct timer_delay_begin_info *begin)
  * @type: type of delay.
  * @usec: microseconds to delay.
  * @nframe: number of frames to delay.
+ * @nvsync: number of vsyncs to wait.
  * @no_sleep: flag to choose sleep or delay function.
  *
  * This is used to create a struct delayinfo pointer.
@@ -80,7 +81,7 @@ char *get_timer_delay_begin_name(struct timer_delay_begin_info *begin)
  * Note, the pointer created here is to be destroyed when finished by
  * making a call to destroy_delay().
  */
-struct delayinfo *create_delay(char *name, u32 type, u32 usec, u32 nframe, bool no_sleep)
+struct delayinfo *create_delay(char *name, u32 type, u32 usec, u32 nframe, u32 nvsync, bool no_sleep)
 {
 	struct delayinfo *delay;
 
@@ -98,6 +99,7 @@ struct delayinfo *create_delay(char *name, u32 type, u32 usec, u32 nframe, bool 
 	pnobj_init(&delay->base, type, name);
 	delay->usec = usec;
 	delay->nframe = nframe;
+	delay->nvsync = nvsync;
 	delay->no_sleep = no_sleep;
 
 	return delay;
@@ -113,7 +115,10 @@ EXPORT_SYMBOL(create_delay);
  */
 void destroy_delay(struct delayinfo *delay)
 {
-	free_pnobj_name(&delay->base);
+	if (!delay)
+		return;
+
+	pnobj_deinit(&delay->base);
 	kfree(delay);
 }
 EXPORT_SYMBOL(destroy_delay);
@@ -160,7 +165,7 @@ EXPORT_SYMBOL(create_timer_delay_begin);
  */
 void destroy_timer_delay_begin(struct timer_delay_begin_info *begin)
 {
-	free_pnobj_name(&begin->base);
+	pnobj_deinit(&begin->base);
 	kfree(begin);
 }
 EXPORT_SYMBOL(destroy_timer_delay_begin);

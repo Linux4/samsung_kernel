@@ -10,7 +10,7 @@
 #include "panel_drv.h"
 #include "panel_debug.h"
 #include "panel_freq_hop.h"
-#include <linux/dev_ril_bridge.h>
+#include "dev_ril_header.h"
 
 static int of_get_freq_hop_elem(struct device_node *np, struct freq_hop_elem *elem)
 {
@@ -204,6 +204,7 @@ int radio_notifier(struct notifier_block *self, unsigned long size, void *buf)
 		container_of(self, struct panel_freq_hop, radio_noti);
 	struct ril_noti_info *rf_info;
 	struct dev_ril_bridge_msg *msg = buf;
+	struct freq_hop_param param;
 	int ret;
 
 	if (!is_valid_msg_info(msg)) {
@@ -218,7 +219,10 @@ int radio_notifier(struct notifier_block *self, unsigned long size, void *buf)
 		goto exit_notifier;
 	}
 
-	ret = panel_set_freq_hop(to_panel_device(freq_hop), elem);
+	param.dsi_freq = elem->dsi_freq;
+	param.osc_freq = elem->osc_freq;
+
+	ret = panel_set_freq_hop(to_panel_device(freq_hop), &param);
 	if (ret < 0) {
 		pr_err("FREQ_HOP: ERR:%s: failed to set freq_hop\n", __func__);
 		goto exit_notifier;

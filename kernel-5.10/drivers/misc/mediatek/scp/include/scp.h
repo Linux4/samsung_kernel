@@ -7,6 +7,7 @@
 #define __SCP_H__
 
 #include <linux/soc/mediatek/mtk_tinysys_ipi.h>
+#include <linux/version.h>
 
 #define SCP_MBOX_TOTAL 5
 
@@ -211,6 +212,16 @@ extern void scp_wdt_reset(int cpu_id);
 
 #if IS_ENABLED(CONFIG_SHUB)
 extern int get_scp_dump_size(void);
+#endif
+
+#if IS_ENABLED(CONFIG_SHUB)
+struct shub_dump {
+	int reason;
+	int size;
+	char *dump;
+	char *mini_dump;
+};
+extern int shub_dump_notifier_register(struct notifier_block *nb);
 #endif
 
 #endif

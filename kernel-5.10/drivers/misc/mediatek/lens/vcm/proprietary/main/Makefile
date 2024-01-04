@@ -60,6 +60,7 @@ mainaf-y  += common/dw9719taf/DW9719TAF.o
 mainaf-y  += common/dw9763af/DW9763AF.o
 mainaf-y  += common/dw9839af/DW9839AF.o
 mainaf-y  += common/gt9764af/GT9764AF.o
+mainaf-y  += common/gt9778af/GT9778AF.o
 mainaf-y  += common/dw9825af_ois_mcu/DW9825AF_OIS_MCU.o
 mainaf-y  += common/lc898212af/LC898212AF.o
 mainaf-y  += common/lc898212xdaf/LC898212XDAF.o

@@ -24,32 +24,6 @@
 extern char *sec_debug_extra_info_buf;
 extern struct sec_debug_panic_extra_info *sec_debug_extra_info_backup;
 
-static unsigned int __read_mostly hw_rev;
-module_param(hw_rev, uint, 0440);
-
-static char __read_mostly *dram_info;
-module_param(dram_info, charp, 0440);
-
-static ssize_t secdbg_hw_param_ap_info_show(struct device *dev,
-					struct device_attribute *attr, char *buf)
-{
-	ssize_t info_size = 0;
-
-	info_size += snprintf(buf, DATA_SIZE, "\"HW_REV\":\"%d\",", hw_rev);
-
-	return info_size;
-}
-
-static ssize_t secdbg_hw_param_ddr_info_show(struct device *dev,
-					struct device_attribute *attr, char *buf)
-{
-	ssize_t info_size = 0;
-
-	info_size += snprintf((char *)(buf), DATA_SIZE, "\"DDRV\":\"%s\"",  dram_info);	
-
-	return info_size;
-}
-
 static ssize_t secdbg_hw_param_extra_info_show(struct device *dev,
 					struct device_attribute *attr, char *buf)
 {
@@ -110,16 +84,12 @@ static ssize_t secdbg_hw_param_extrm_info_show(struct device *dev,
 	return info_size;
 }
 
-static DEVICE_ATTR(ap_info, 0440, secdbg_hw_param_ap_info_show, NULL);
-static DEVICE_ATTR(ddr_info, 0440, secdbg_hw_param_ddr_info_show, NULL);
 static DEVICE_ATTR(extra_info, 0440, secdbg_hw_param_extra_info_show, NULL);
 static DEVICE_ATTR(extrb_info, 0440, secdbg_hw_param_extrb_info_show, NULL);
 static DEVICE_ATTR(extrc_info, 0440, secdbg_hw_param_extrc_info_show, NULL);
 static DEVICE_ATTR(extrm_info, 0440, secdbg_hw_param_extrm_info_show, NULL);
 
 static struct attribute *secdbg_hw_param_attributes[] = {
-	&dev_attr_ap_info.attr,
-	&dev_attr_ddr_info.attr,
 	&dev_attr_extra_info.attr,
 	&dev_attr_extrb_info.attr,
 	&dev_attr_extrc_info.attr,

@@ -9,9 +9,6 @@
 #include "mtk_debug.h"
 #include "mtk_panel_ext.h"
 
-#define SET_LCM_NONBLOCKING 2
-#define SET_LCM_BLOCKING 1
-
 #define SET_LCM(msg, ...) set_lcm_default_parameter(msg, (f_args) {__VA_ARGS__})
 
 /* Description

@@ -367,7 +367,7 @@ glGetRstInfo(uint32_t *pu4Reason, uint8_t *pcData,
 	uint32_t u4Offset;
 	uint32_t u4RstReason = glGetRstReason();
 
-	if (u4RstReason < 0 || u4RstReason >= RST_REASON_MAX)
+	if (u4RstReason >= RST_REASON_MAX)
 		u4RstReason = 0;
 
 	DBGLOG(AIS, INFO, "eResetReason=%u (%s), len %u\n",

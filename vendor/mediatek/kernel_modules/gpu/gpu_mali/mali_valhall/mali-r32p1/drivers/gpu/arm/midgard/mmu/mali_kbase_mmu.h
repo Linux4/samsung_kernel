@@ -22,6 +22,8 @@
 #ifndef _KBASE_MMU_H_
 #define _KBASE_MMU_H_
 
+#define KBASE_MMU_PAGE_ENTRIES 512
+
 /**
  * kbase_mmu_as_init() - Initialising GPU address space object.
  *
@@ -122,6 +124,38 @@ int kbase_mmu_teardown_pages(struct kbase_device *kbdev,
 int kbase_mmu_update_pages(struct kbase_context *kctx, u64 vpfn,
 			   struct tagged_addr *phys, size_t nr,
 			   unsigned long flags, int const group_id);
+
+#if MALI_USE_CSF
+/**
+ * kbase_mmu_update_csf_mcu_pages - Update CSF MCU mappings.
+ *
+ * @kbdev: Pointer to kbase device.
+ * @vpfn: Virtual PFN (Page Frame Number) of the first page to update.
+ * @phys: Pointer to the array of tagged physical addresses of the physical
+ *        pages that are pointed to by the page table entries to update.
+ * @nr: Number of pages to update.
+ * @flags: Flags.
+ * @group_id: The physical memory group in which the page was allocated.
+ *            Valid range is 0..(MEMORY_GROUP_MANAGER_NR_GROUPS - 1).
+ *
+ * This function updates the pre-set GPU VA mappings used for CSF MCU regions
+ * with new physical pages and flags.
+ *
+ * Every CSG is given a reserved GPU VA region upon creation, but physical
+ * backing and flags depend on whether the CSG is scheduled on-slot on a GPU
+ * or not, and they are changed every time the CSG transitions between these
+ * two states.
+ *
+ * When the CSG is off-slot, the GPU VA region is mapped to dummy physical
+ * pages and flags, in order to be "safe" (GPU is not supposed to use it)
+ * and save memory resources in the system. When the CSG is on-slot, instead,
+ * the GPU VA region is mapped to actual physical pages and proper flags.
+ *
+ * Return: 0 on success, otherwise an error code.
+ */
+int kbase_mmu_update_csf_mcu_pages(struct kbase_device *kbdev, u64 vpfn, struct tagged_addr *phys,
+				   size_t nr, unsigned long flags, int const group_id);
+#endif
 
 /**
  * kbase_mmu_bus_fault_interrupt - Process a bus fault interrupt.

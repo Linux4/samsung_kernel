@@ -715,6 +715,8 @@ p2pFuncAddPendingMgmtLinkEntry(struct ADAPTER *prAdapter,
 
 	prPendingMgmtInfo = cnmMemAlloc(prAdapter, RAM_TYPE_MSG,
 		sizeof(struct P2P_PENDING_MGMT_INFO));
+	if (!prPendingMgmtInfo)
+		return;
 	prPendingMgmtInfo->u8PendingMgmtCookie = u8Cookie;
 	LINK_INSERT_TAIL(&prGlueP2pInfo->rWaitTxDoneLink,
 		&prPendingMgmtInfo->rLinkEntry);
@@ -7950,6 +7952,29 @@ void p2pFunCalAcsChnScores(IN struct ADAPTER *prAdapter)
 	wlanSortChannel(prAdapter, CHNL_SORT_POLICY_ALL_CN);
 }
 
+uint8_t p2pFuncIsCsaBlockScan(struct ADAPTER *prAdapter)
+{
+	uint8_t ucBssIndex;
+	struct BSS_INFO *prP2pBssInfo =
+		(struct BSS_INFO *) NULL;
+	struct P2P_ROLE_FSM_INFO *prP2pRoleFsmInfo =
+		(struct P2P_ROLE_FSM_INFO *) NULL;
+
+	ucBssIndex = p2pFuncGetCsaBssIndex();
+
+	prP2pBssInfo =
+		GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIndex);
+	if (!prP2pBssInfo)
+		return FALSE;
+
+	prP2pRoleFsmInfo = P2P_ROLE_INDEX_2_ROLE_FSM_INFO(prAdapter,
+						prP2pBssInfo->u4PrivateData);
+	if (!prP2pRoleFsmInfo)
+		return FALSE;
+	else
+		return timerPendingTimer(&prP2pRoleFsmInfo->rP2pCsaDoneTimer);
+}
+
 enum ENUM_CHNL_SWITCH_POLICY
 p2pFunDetermineChnlSwitchPolicy(IN struct ADAPTER *prAdapter,
 		IN uint8_t ucBssIdx,
@@ -7993,11 +8018,14 @@ p2pFunNotifyChnlSwitch(IN struct ADAPTER *prAdapter,
 	struct BSS_INFO *prBssInfo;
 	struct LINK *prClientList;
 	struct STA_RECORD *prCurrStaRec;
+	struct P2P_ROLE_FSM_INFO *prP2pRoleFsmInfo = NULL;
 
 	DBGLOG(P2P, INFO, "bss index: %d, policy: %d\n", ucBssIdx, ePolicy);
 
 	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIdx);
 	prClientList = &prBssInfo->rStaRecOfClientList;
+	prP2pRoleFsmInfo = P2P_ROLE_INDEX_2_ROLE_FSM_INFO(
+		prAdapter, prBssInfo->u4PrivateData);
 
 	switch (ePolicy) {
 	case CHNL_SWITCH_POLICY_DEAUTH:
@@ -8050,6 +8078,7 @@ p2pFunNotifyChnlSwitch(IN struct ADAPTER *prAdapter,
 			nicFreq2ChannelNum(
 				prNewChannelInfo->u4CenterFreq1 * 1000);
 		prAdapter->rWifiVar.ucNewChannelS2 = 0;
+		p2pFunAbortOngoingScan(prAdapter);
 
 		/* Send Action Frame */
 		rlmSendChannelSwitchFrame(prAdapter, prBssInfo->ucBssIndex);
@@ -8060,6 +8089,9 @@ p2pFunNotifyChnlSwitch(IN struct ADAPTER *prAdapter,
 		 * reported once in the beacon.
 		 */
 		prAdapter->rWifiVar.fgCsaInProgress = TRUE;
+		cnmTimerStartTimer(prAdapter,
+			&(prP2pRoleFsmInfo->rP2pCsaDoneTimer),
+			SEC_TO_MSEC(7));
 
 		/* Update Beacon */
 		bssUpdateBeaconContent(prAdapter, prBssInfo->ucBssIndex);
@@ -8112,7 +8144,7 @@ p2pFunChnlSwitchNotifyDone(IN struct ADAPTER *prAdapter)
 		DBGLOG(CNM, ERROR, "Drop invalid csa done event!\n");
 		return; /* Drop invalid csa done event */
 	}
-
+	bssUpdateBeaconContent(prAdapter, prBssInfo->ucBssIndex);
 	prP2pCsaDoneMsg->rMsgHdr.eMsgId = MID_CNM_P2P_CSA_DONE;
 	prP2pCsaDoneMsg->ucBssIndex = prBssInfo->ucBssIndex;
 	mboxSendMsg(prAdapter, MBOX_ID_0, (struct MSG_HDR *) prP2pCsaDoneMsg,

@@ -81,6 +81,11 @@ unsigned int imgsensor_read_otp_cal(unsigned int dual_device_id, unsigned int se
 		ret = hi1339_read_otp_cal(addr, data, size);
 		break;
 #endif
+#if defined(SC501CS_MIPI_RAW)
+	case SC501CS_SENSOR_ID:
+		ret = sc501cs_read_otp_cal(addr, data, size);
+		break;
+#endif
 	default:
 		pr_err("[%s] no searched otp cal\n", __func__);
 		ret = -1;

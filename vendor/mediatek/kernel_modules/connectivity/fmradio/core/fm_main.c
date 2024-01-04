@@ -1559,7 +1559,7 @@ signed int fm_i2s_set(struct fm *fm, signed int onoff, signed int mode, signed i
 	return ret;
 }
 
-signed int fm_atj_set(unsigned short value)
+signed int fm_atj_set(signed int freq, unsigned short value)
 {
 	signed int ret = 0;
 
@@ -1570,7 +1570,7 @@ signed int fm_atj_set(unsigned short value)
 	if (FM_LOCK(fm_ops_lock))
 		return -FM_ELOCK;
 
-	ret = fm_low_ops.bi.atj_set(value);
+	ret = fm_low_ops.bi.atj_set(freq, value);
 
 	FM_UNLOCK(fm_ops_lock);
 	return ret;

@@ -100,7 +100,7 @@ struct APPEND_VAR_IE_ENTRY txAssocReqIETable[] = {
 	{(ELEM_HDR_LEN + ELEM_MAX_LEN_HT_CAP), NULL, rlmReqGenerateHtCapIE}
 	,			/* 45 */
 #if CFG_SUPPORT_802_11R
-	{(ELEM_HDR_LEN + 1), NULL, assocGenerateMDIE}, /* Element ID: 54 */
+	{(ELEM_HDR_LEN + 3), NULL, assocGenerateMDIE}, /* Element ID: 54 */
 	{0, rsnCalculateFTIELen, rsnGenerateFTIE}, /* Element ID: 55 */
 #endif
 #if CFG_SUPPORT_802_11K
@@ -2319,7 +2319,7 @@ void assocGenerateMDIE(IN struct ADAPTER *prAdapter,
 	uint8_t ucBssIndex = prMsduInfo->ucBssIndex;
 	enum ENUM_PARAM_AUTH_MODE eAuthMode =
 	    aisGetAuthMode(prAdapter, ucBssIndex);
-	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIndex);
+	struct FT_IES *prFtIEs = aisGetFtIe(prAdapter, ucBssIndex, FT_R1);
 	struct GL_WPA_INFO *prWpaInfo = aisGetWpaInfo(prAdapter,
 		ucBssIndex);
 
@@ -2353,8 +2353,8 @@ void assocGenerateMDIE(IN struct ADAPTER *prAdapter,
 		}
 		return;
 	}
-	prMsduInfo->u2FrameLength +=
-		5; /* IE size for MD IE is fixed, it is 5 */
+	/* IE size for MD IE is fixed, it is 5 */
+	prMsduInfo->u2FrameLength += 5;
 	kalMemCopy(pucBuffer, prFtIEs->prMDIE, 5);
 	DBGLOG(SAA, TRACE, "FT: Generate MD IE\n");
 }

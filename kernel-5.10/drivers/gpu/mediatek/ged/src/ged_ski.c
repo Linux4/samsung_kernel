@@ -45,7 +45,7 @@ ssize_t gpu_freq_table_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	const struct gpufreq_opp_info *power_table = NULL;
-	unsigned int table_num = 0;
+	int table_num = 0;
 	char temp[1024] = {0};
 	int idx;
 	int count = 0;
@@ -55,7 +55,7 @@ ssize_t gpu_freq_table_show(struct kobject *kobj,
 	power_table = gpufreq_get_working_table(TARGET_DEFAULT);
 	table_num = ged_get_opp_num();
 
-	for (idx = 0; count < table_num; count++) {
+	for (idx = 0; table_num>0 && count < table_num; count++) {
 		length = scnprintf(temp + pos, 1024 - pos,
 				"%u ", power_table[idx + count].freq);
 		pos += length;
@@ -91,7 +91,7 @@ static ssize_t gpu_max_clock_store(struct kobject *kobj,
 {
 	int max_freq = 0;
 	const struct gpufreq_opp_info *power_table = NULL;
-	unsigned int table_num = 0;
+	int table_num = 0;
 	int idx = 0;
 	int index_count = 0;
 
@@ -106,7 +106,7 @@ static ssize_t gpu_max_clock_store(struct kobject *kobj,
 				power_table = gpufreq_get_working_table(TARGET_DEFAULT);
 				table_num = ged_get_opp_num();
 
-				for (idx = 0; index_count < table_num; index_count++) {
+				for (idx = 0; table_num>0 && index_count < table_num; index_count++) {
 					if (max_freq ==
 					    power_table[idx + index_count].freq) {
 						mtk_custom_upbound_gpu_freq(index_count);
@@ -141,7 +141,7 @@ static ssize_t gpu_min_clock_store(struct kobject *kobj,
 {
 	int min_freq = 0;
 	const struct gpufreq_opp_info *power_table = NULL;
-	unsigned int table_num = 0;
+	int table_num = 0;
 	int idx = 0;
 	int index_count = 0;
 
@@ -156,7 +156,7 @@ static ssize_t gpu_min_clock_store(struct kobject *kobj,
 				power_table = gpufreq_get_working_table(TARGET_DEFAULT);
 				table_num = ged_get_opp_num();
 
-				for (idx = 0; index_count < table_num; index_count++) {
+				for (idx = 0; table_num>0 && index_count < table_num; index_count++) {
 					if (min_freq ==
 					    power_table[idx + index_count].freq) {
 						mtk_custom_boost_gpu_freq(index_count);

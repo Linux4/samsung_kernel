@@ -6076,7 +6076,7 @@ void mqmProcessScanResult(IN struct ADAPTER *prAdapter,
 
 	/* <1> Determine whether the peer supports WMM/QoS and UAPSDU */
 	IE_FOR_EACH(pucIE, u2IELength, u2Offset) {
-		if (IE_LEN(pucIE) > CFG_IE_BUFFER_SIZE) {
+		if (IE_LEN(pucIE) > 0xFF) {
 			DBGLOG(SCN, ERROR, "ERR! EID:%d, IE length = %d\n",
 				IE_ID(pucIE), IE_LEN(pucIE));
 			break;

@@ -2173,7 +2173,7 @@ uint32_t nicPmIndicateBssCreated(IN struct ADAPTER
 				 *prAdapter, IN uint8_t ucBssIndex)
 {
 	struct BSS_INFO *prBssInfo;
-	struct CMD_INDICATE_PM_BSS_CREATED rCmdIndicatePmBssCreated;
+	struct CMD_INDICATE_PM_BSS_CREATED rCmdIndicatePmBssCreated = {0};
 
 	ASSERT(prAdapter);
 	ASSERT(ucBssIndex <= prAdapter->ucHwBssIdNum);
@@ -2214,8 +2214,7 @@ uint32_t nicPmIndicateBssConnected(IN struct ADAPTER
 				   *prAdapter, IN uint8_t ucBssIndex)
 {
 	struct BSS_INFO *prBssInfo;
-	struct CMD_INDICATE_PM_BSS_CONNECTED
-		rCmdIndicatePmBssConnected;
+	struct CMD_INDICATE_PM_BSS_CONNECTED rCmdIndicatePmBssConnected = {0};
 
 	ASSERT(prAdapter);
 	ASSERT(ucBssIndex <= prAdapter->ucHwBssIdNum);
@@ -2293,7 +2292,7 @@ uint32_t nicPmIndicateBssConnected(IN struct ADAPTER
 uint32_t nicPmIndicateBssAbort(IN struct ADAPTER *prAdapter,
 			       IN uint8_t ucBssIndex)
 {
-	struct CMD_INDICATE_PM_BSS_ABORT rCmdIndicatePmBssAbort;
+	struct CMD_INDICATE_PM_BSS_ABORT rCmdIndicatePmBssAbort = {0};
 
 	ASSERT(prAdapter);
 	ASSERT(ucBssIndex <= prAdapter->ucHwBssIdNum);
@@ -2448,7 +2447,7 @@ nicConfigProcSetCamCfgWrite(IN struct ADAPTER *prAdapter,
 	IN u_int8_t enabled, IN uint8_t ucBssIndex)
 {
 	enum PARAM_POWER_MODE ePowerMode;
-	struct CMD_PS_PROFILE rPowerSaveMode;
+	struct CMD_PS_PROFILE rPowerSaveMode = { 0, 0, { 0, 0 } };
 
 	if ((!prAdapter))
 		return WLAN_STATUS_FAILURE;
@@ -2488,7 +2487,7 @@ nicConfigProcSetCamCfgWrite(IN struct ADAPTER *prAdapter,
 uint32_t nicEnterCtiaMode(IN struct ADAPTER *prAdapter,
 			  u_int8_t fgEnterCtia, u_int8_t fgEnCmdEvent)
 {
-	struct CMD_SW_DBG_CTRL rCmdSwCtrl;
+	struct CMD_SW_DBG_CTRL rCmdSwCtrl = {0};
 	/* CMD_ACCESS_REG rCmdAccessReg; */
 	uint32_t rWlanStatus;
 	uint8_t ucBssIdx;
@@ -2618,7 +2617,7 @@ uint32_t nicEnterCtiaModeOfScan(IN struct ADAPTER
 uint32_t nicEnterCtiaModeOfRoaming(IN struct ADAPTER
 	*prAdapter, u_int8_t fgEnterCtia, u_int8_t fgEnCmdEvent)
 {
-	struct CMD_SW_DBG_CTRL rCmdSwCtrl;
+	struct CMD_SW_DBG_CTRL rCmdSwCtrl = {0};
 	uint32_t rWlanStatus;
 
 	ASSERT(prAdapter);
@@ -2722,7 +2721,7 @@ uint32_t nicEnterCtiaModeOfBCNTimeout(IN struct ADAPTER
 uint32_t nicEnterCtiaModeOfAutoTxPower(IN struct ADAPTER
 	*prAdapter, u_int8_t fgEnterCtia, u_int8_t fgEnCmdEvent)
 {
-	struct CMD_SW_DBG_CTRL rCmdSwCtrl;
+	struct CMD_SW_DBG_CTRL rCmdSwCtrl = {0};
 	uint32_t rWlanStatus;
 
 	ASSERT(prAdapter);
@@ -2767,7 +2766,7 @@ uint32_t nicEnterCtiaModeOfAutoTxPower(IN struct ADAPTER
 uint32_t nicEnterCtiaModeOfFIFOFullNoAck(IN struct ADAPTER
 		*prAdapter, u_int8_t fgEnterCtia, u_int8_t fgEnCmdEvent)
 {
-	struct CMD_SW_DBG_CTRL rCmdSwCtrl;
+	struct CMD_SW_DBG_CTRL rCmdSwCtrl = {0};
 	uint32_t rWlanStatus;
 
 	ASSERT(prAdapter);
@@ -2812,7 +2811,7 @@ uint32_t nicEnterCtiaModeOfFIFOFullNoAck(IN struct ADAPTER
 uint32_t nicEnterTPTestMode(IN struct ADAPTER *prAdapter,
 			    IN uint8_t ucFuncMask)
 {
-	struct CMD_SW_DBG_CTRL rCmdSwCtrl;
+	struct CMD_SW_DBG_CTRL rCmdSwCtrl = {0};
 	uint32_t rWlanStatus;
 	uint8_t ucBssIdx;
 	struct BSS_INFO *prBssInfo;
@@ -3035,7 +3034,7 @@ uint32_t nicQmUpdateWmmParms(IN struct ADAPTER *prAdapter,
 			     IN uint8_t ucBssIndex)
 {
 	struct BSS_INFO *prBssInfo;
-	struct CMD_UPDATE_WMM_PARMS rCmdUpdateWmmParms;
+	struct CMD_UPDATE_WMM_PARMS rCmdUpdateWmmParms = {0};
 	struct mt66xx_chip_info *prChipInfo;
 	uint32_t u4TxHifRes = 0, u4Idx = 0;
 
@@ -3104,7 +3103,7 @@ uint32_t nicQmUpdateMUEdcaParams(IN struct ADAPTER *prAdapter,
 	IN uint8_t ucBssIndex)
 {
 	struct BSS_INFO *prBssInfo;
-	struct _CMD_MQM_UPDATE_MU_EDCA_PARMS_T rCmdUpdateMUEdcaParms;
+	struct _CMD_MQM_UPDATE_MU_EDCA_PARMS_T rCmdUpdateMUEdcaParms = {0};
 
 	ASSERT(prAdapter);
 
@@ -3157,7 +3156,7 @@ uint32_t nicRlmUpdateSRParams(IN struct ADAPTER *prAdapter,
 	IN uint8_t ucBssIndex)
 {
 	struct BSS_INFO *prBssInfo;
-	struct _CMD_RLM_UPDATE_SR_PARMS_T rCmdUpdateSRParms;
+	struct _CMD_RLM_UPDATE_SR_PARMS_T rCmdUpdateSRParms = {0};
 
 	ASSERT(prAdapter);
 

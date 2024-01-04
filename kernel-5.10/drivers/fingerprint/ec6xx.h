@@ -206,6 +206,7 @@ struct ec6xx_data {
 	const char *chipid;
 	bool ldo_enabled;
 	unsigned int orient;
+	const char *position;
 	int reset_count;
 	int interrupt_count;
 	struct spi_clk_setting *clk_setting;

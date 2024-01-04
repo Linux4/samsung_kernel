@@ -32,6 +32,10 @@
 // if you want to use implant mode without tail data(PDAF data), use below define.
 //#define PDAF_DISABLE
 
+#if IS_ENABLED(CONFIG_CAMERA_XXX_V07) || IS_ENABLED(CONFIG_CAMERA_AAX_V15X) || IS_ENABLED(CONFIG_CAMERA_AAX_V15)
+#define ENABLE_MIRROR_HV
+#endif
+
 enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_INIT,
 	IMGSENSOR_MODE_PREVIEW,

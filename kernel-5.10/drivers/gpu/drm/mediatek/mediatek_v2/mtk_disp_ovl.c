@@ -2045,6 +2045,11 @@ static bool compr_l_config_PVRIC_V4_1(struct mtk_ddp_comp *comp,
 	unsigned int lx_pitch, lx_hdr_pitch;
 	unsigned int lx_clip, lx_src_size;
 
+	if (Bpp == 0) {
+		DDPPR_ERR("%s invalid Bpp with fmt %u\n", __func__, fmt);
+		return 0;
+	}
+
 #ifdef CONFIG_MTK_LCM_PHYSICAL_ROTATION_HW
 	if (drm_crtc_index(&comp->mtk_crtc->base) == 0)
 		rotate = 1;
@@ -2565,9 +2570,6 @@ bool compr_l_config_AFBC_V1_2(struct mtk_ddp_comp *comp,
 {
 	/* input config */
 	struct mtk_plane_pending_state *pending = &state->pending;
-	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
-	struct drm_crtc *crtc = &mtk_crtc->base;
-	int crtc_idx = drm_crtc_index(crtc);
 	dma_addr_t addr = pending->addr;
 	unsigned int pitch = pending->pitch & 0xffff;
 	unsigned int vpitch = (unsigned int)pending->prop_val[PLANE_PROP_VPITCH];
@@ -2608,6 +2610,14 @@ bool compr_l_config_AFBC_V1_2(struct mtk_ddp_comp *comp,
 	unsigned int aid_sel_offset = 0;
 	resource_size_t mmsys_reg = 0;
 	int sec_bit;
+	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
+	int crtc_idx;
+
+	if (mtk_crtc == NULL) {
+		DDPPR_ERR("%s, null mtk_crtc!", __func__);
+		return 0;
+	}
+	crtc_idx = drm_crtc_index(&mtk_crtc->base);
 
 	DDPDBG("%s:%d, addr:0x%lx, pitch:%d, vpitch:%d\n",
 		__func__, __LINE__, (unsigned long)addr,
@@ -2619,7 +2629,7 @@ bool compr_l_config_AFBC_V1_2(struct mtk_ddp_comp *comp,
 		compress);
 
 #ifdef CONFIG_MTK_LCM_PHYSICAL_ROTATION_HW
-	if (drm_crtc_index(&comp->mtk_crtc->base) == 0)
+	if (crtc_idx == 0)
 		rotate = 1;
 #endif
 
@@ -2657,7 +2667,7 @@ bool compr_l_config_AFBC_V1_2(struct mtk_ddp_comp *comp,
 		cmdq_pkt_write(handle, comp->cmdq_base,
 			(resource_size_t)(0x14021000) + SMI_LARB_NON_SEC_CON + 4*9,
 			0x00000000, GENMASK(19, 16));
-		if (comp->mtk_crtc && comp->mtk_crtc->is_dual_pipe) {
+		if (mtk_crtc->is_dual_pipe) {
 			// setting SMI for read SRAM
 			cmdq_pkt_write(handle, comp->cmdq_base,
 				(resource_size_t)(0x14421000) + SMI_LARB_NON_SEC_CON + 4*9,
@@ -2672,6 +2682,10 @@ bool compr_l_config_AFBC_V1_2(struct mtk_ddp_comp *comp,
 	}
 
 	/* 2. pre-calculation */
+	if (Bpp == 0) {
+		DDPPR_ERR("%s fail, no Bpp info\n", __func__);
+		return 0;
+	}
 	src_buf_tile_num = ALIGN_TO(pitch / Bpp, tile_w) *
 	    ALIGN_TO(vpitch, tile_h);
 	src_buf_tile_num /= (tile_w * tile_h);
@@ -2788,7 +2802,7 @@ bool compr_l_config_AFBC_V1_2(struct mtk_ddp_comp *comp,
 					mmsys_reg + aid_sel_offset,
 					0, BIT(sec_bit));
 		} else {
-			if (comp->mtk_crtc->sec_on) {
+			if (mtk_crtc->sec_on) {
 				u32 addr_offset;
 
 				addr_offset = header_offset + tile_offset * tile_body_size;
@@ -2839,7 +2853,7 @@ legacy_sec1:
 					mmsys_reg + aid_sel_offset,
 					0, BIT(sec_bit));
 		} else {
-			if (comp->mtk_crtc->sec_on) {
+			if (mtk_crtc->sec_on) {
 				u32 addr_offset;
 
 				addr_offset = header_offset + tile_offset * tile_body_size;

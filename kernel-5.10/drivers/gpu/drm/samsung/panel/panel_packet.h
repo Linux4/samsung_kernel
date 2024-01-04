@@ -16,6 +16,49 @@
 
 struct pkt_update_info;
 
+/* packet type */
+enum {
+	/* tx packet */
+	CMD_TYPE_TX_PKT_START,
+	CMD_PKT_TYPE_NONE = CMD_TYPE_TX_PKT_START,
+	DSI_PKT_TYPE_WR,
+	DSI_PKT_TYPE_WR_COMP,
+	DSI_PKT_TYPE_WR_PPS,
+	DSI_PKT_TYPE_WR_SR, /* write to side-ram */
+	DSI_PKT_TYPE_WR_SR_FAST, /* write to side-ram with busy-wait */
+	DSI_PKT_TYPE_WR_MEM,
+	CMD_TYPE_TX_PKT_END = DSI_PKT_TYPE_WR_MEM,
+
+	/* rx packet */
+	CMD_TYPE_RX_PKT_START,
+	SPI_PKT_TYPE_RD = CMD_TYPE_RX_PKT_START,
+	DSI_PKT_TYPE_RD_POC,
+	DSI_PKT_TYPE_RD,
+	CMD_TYPE_RX_PKT_END = DSI_PKT_TYPE_RD,
+
+	/* spi packet */
+	SPI_PKT_TYPE_WR,
+	SPI_PKT_TYPE_SETPARAM,
+	/* i2c packet */
+	CMD_TYPE_I2C_START,
+	I2C_PKT_TYPE_WR = CMD_TYPE_I2C_START,
+	I2C_PKT_TYPE_RD,
+	CMD_TYPE_I2C_END = I2C_PKT_TYPE_RD,
+	MAX_CMD_PACKET_TYPE,
+};
+
+#define IS_TX_PKT_TYPE(_pkt_type_) \
+	(((_pkt_type_) >= CMD_TYPE_TX_PKT_START && \
+	  (_pkt_type_) <= CMD_TYPE_TX_PKT_END) || \
+	  (_pkt_type_) == SPI_PKT_TYPE_WR || \
+	  (_pkt_type_) == SPI_PKT_TYPE_SETPARAM || \
+	  (_pkt_type_) == I2C_PKT_TYPE_WR)
+
+#define IS_RX_PKT_TYPE(_pkt_type_) \
+	(((_pkt_type_) >= CMD_TYPE_RX_PKT_START && \
+	  (_pkt_type_) <= CMD_TYPE_RX_PKT_END) || \
+	  (_pkt_type_) == I2C_PKT_TYPE_RD)
+
 enum {
 	PKT_OPTION_NONE = 0,
 	PKT_OPTION_CHECK_TX_DONE = (1 << 0),
@@ -43,8 +86,10 @@ struct panel_rx_msg {
 
 struct pktinfo {
 	struct pnobj base;
+	u32 type;
 	u32 addr;
-	u8 *data;
+	u8 *initdata;
+	u8 *txbuf;
 	u32 offset;
 	u32 dlen;
 	struct pkt_update_info *pktui;
@@ -55,13 +100,11 @@ struct pktinfo {
 struct pkt_update_info {
 	u32 offset;
 	struct maptbl *maptbl;
-	u32 nr_maptbl;
-	int (*getidx)(struct pkt_update_info *pktui);
-	void *pdata;
 };
 
 struct rdinfo {
 	struct pnobj base;
+	u32 type;
 	u32 addr;
 	u32 offset;
 	u32 len;
@@ -80,14 +123,14 @@ struct pkt_update_info PKTUI(_name_)[] =			\
 	{												\
 		.offset = (_update_offset_),				\
 		.maptbl = (_maptbl_),						\
-		.nr_maptbl = (1),							\
-		.getidx = (NULL),							\
 	},												\
 }
 
 #define PKTINFO_INIT(_name_, _type_, _arr_, _ofs_, _option_, _pktui_, _nr_pktui_) \
-	{ .base = __PNOBJ_INITIALIZER(_name_, _type_) \
-	, .data = (_arr_) \
+	{ .base = __PNOBJ_INITIALIZER(_name_, CMD_TYPE_TX_PACKET) \
+	, .type = (_type_) \
+	, .initdata = (_arr_) \
+	, .txbuf = (_arr_) \
 	, .offset = (_ofs_) \
 	, .dlen = ARRAY_SIZE((_arr_)) \
 	, .pktui = (_pktui_) \
@@ -119,7 +162,8 @@ DEFINE_PACKET(PN_CONCAT(__pn_name__, _name_), _type_,	\
 #define RDINFO(_name_) PN_CONCAT(rd, _name_)
 
 #define RDINFO_INIT(_rdiname, _type, _addr, _offset, _len)	\
-	{ .base = __PNOBJ_INITIALIZER(_rdiname, _type) \
+	{ .base = __PNOBJ_INITIALIZER(_rdiname, CMD_TYPE_RX_PACKET) \
+	, .type = (_type) \
 	, .addr = (_addr) \
 	, .offset = (_offset) \
 	, .len = (_len) }
@@ -127,17 +171,30 @@ DEFINE_PACKET(PN_CONCAT(__pn_name__, _name_), _type_,	\
 #define DEFINE_RDINFO(_name_, _type_, _addr_, _offset_, _len_)	\
 struct rdinfo RDINFO(_name_) = RDINFO_INIT(_name_, _type_, _addr_, _offset_, _len_)
 
+const char *packet_type_to_string(u32 type);
+int string_to_packet_type(const char *str);
 unsigned int get_pktinfo_type(struct pktinfo *pkt);
 char *get_pktinfo_name(struct pktinfo *pkt);
+u8 *get_pktinfo_initdata(struct pktinfo *pkt);
+u8 *get_pktinfo_txbuf(struct pktinfo *pkt);
 unsigned int get_rdinfo_type(struct rdinfo *rdi);
 char *get_rdinfo_name(struct rdinfo *rdi);
+bool is_tx_packet(struct pnobj *pnobj);
 bool is_valid_tx_packet(struct pktinfo *tx_packet);
+bool is_variable_packet(struct pktinfo *tx_packet);
 bool is_valid_rdinfo(struct rdinfo *rdi);
 struct pktinfo *create_tx_packet(char *name, u32 type,
 		struct panel_tx_msg *msg, struct pkt_update_info *pktui, u32 nr_pktui, u32 option);
 void destroy_tx_packet(struct pktinfo *tx_packet);
 struct rdinfo *create_rx_packet(char *name, u32 type, struct panel_rx_msg *msg);
 void destroy_rx_packet(struct rdinfo *rx_packet);
-
+int update_tx_packet(struct pktinfo *info);
+void *copy_pktinfo_data(void *dest, struct pktinfo *pkt);
+int add_tx_packet_on_pnobj_refs(struct pktinfo *pkt, struct pnobj_refs *pnobj_refs);
+void print_pktinfo(struct pktinfo *pkt, int index);
+struct keyinfo *create_key_packet(char *name, unsigned int level,
+		unsigned int key_type, struct pktinfo *pkt);
+struct keyinfo *duplicate_key_packet(struct keyinfo *key);
+void destroy_key_packet(struct keyinfo *key);
 #endif /* __PANEL_PACKET_H__ */
 

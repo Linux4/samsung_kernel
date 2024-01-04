@@ -21,71 +21,58 @@
 
 #include <linux/slab.h>
 
+#define INPUT_MAX 256
+
 static int inject_light_seamless_additional_data(char *buf, int count)
 {
-	char *token;
-    
-    int ret = 0;
+	int ret = 0;
 	int index = 0;
 	int thd[2] = {200, 1000000};
+	char input[INPUT_MAX] = {0,};
+	char *input_tmp = NULL, *token = NULL;
 
-	if (count < 4) {
-		shub_errf("length error %d", count);
+	if (count > INPUT_MAX) {
+		shub_errf("bufsize too long(%d)", count);
 		return -EINVAL;
 	}
-    token = strsep(&buf, ",");
-    while (token != NULL && index < 2) {
-        ret = kstrtoint(token, 10, &thd[index++]);
-        if (ret < 0) {
-            shub_errf("%s - kstrtoint failed.(%d)\n", __func__, ret);
-            return ret;
-        }
-        token = strsep(&buf, ",");
-    }
 
-    shub_info("%s - thd[0] = %d thd[1] = %d", __func__, thd[0], thd[1]);
+	memcpy(input, buf, count);
+	input_tmp = input;
+
+	while ((token = strsep(&input_tmp, ",")) != NULL && index < 2) {
+		ret = kstrtoint(token, 10, &thd[index++]);
+		if (ret < 0) {
+			shub_errf("%s - kstrtoint failed.(%d)\n", __func__, ret);
+			return ret;
+		}
+	}
+
+	shub_info("%s - thd[0] = %d thd[1] = %d", __func__, thd[0], thd[1]);
 
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT_SEAMLESS, LIGHT_SUBCMD_THRESHOLD, (char *)&thd, sizeof(thd));
 
 	return ret;
 }
 
+static struct sensor_funcs light_seamless_sensor_funcs = {
+	.inject_additional_data = inject_light_seamless_additional_data,
+};
+
 int init_light_seamless(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT_SEAMLESS);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "light_seamless_sensor");
-		sensor->receive_event_size = 4;
-		sensor->report_event_size = 4;
-		sensor->event_buffer.value = kzalloc(sizeof(struct light_seamless_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
+		ret = init_default_func(sensor, "light_seamless_sensor", 4, 4, sizeof(struct light_seamless_event));
 
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-        sensor->funcs->inject_additional_data = inject_light_seamless_additional_data;
+		sensor->funcs = &light_seamless_sensor_funcs;
 	} else {
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
-
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
+		destroy_default_func(sensor);
 	}
 
-	return 0;
-
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }

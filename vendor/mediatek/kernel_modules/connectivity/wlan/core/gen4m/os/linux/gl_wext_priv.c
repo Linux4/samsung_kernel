@@ -2841,11 +2841,11 @@ priv_get_ndis(IN struct net_device *prNetDev,
  * \brief The routine handles ATE set operation.
  *
  * \param[in] pDev Net device requested.
- * \param[in] ndisReq Ndis request OID information copy from user.
- * \param[out] outputLen_p If the call is successful, returns the number of
- *                         bytes written into the query buffer. If the
- *                         call failed due to invalid length of the query
- *                         buffer, returns the amount of storage needed..
+ * \param[in] prIwReqInfo Pointer to iwreq structure.
+ * \param[in] prIwReqData The ioctl data structure, use the field of
+ *            sub-command.
+ * \param[in] pcExtra The buffer with input value
+ *
  *
  * \retval 0 On success.
  * \retval -EOPNOTSUPP If cmd is not supported.
@@ -15863,7 +15863,7 @@ int32_t priv_driver_cmds(IN struct net_device *prNetDev, IN int8_t *pcCommand,
 				 FALSE, &i4BytesWritten);
 		} else if (!strnicmp(pcCommand, CMD_FW_EVENT, 9)) {
 			kalIoctl(prGlueInfo, wlanoidFwEventIT,
-				 (void *)(pcCommand + 9), i4TotalLen, FALSE,
+				 (void *)(pcCommand + 9), i4TotalLen - 9, FALSE,
 				 FALSE, FALSE, &i4BytesWritten);
 		} else if (!strnicmp(pcCommand, CMD_DUMP_UAPSD,
 				     strlen(CMD_DUMP_UAPSD))) {

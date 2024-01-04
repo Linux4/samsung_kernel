@@ -157,6 +157,7 @@
 		etspi-drdyPin = <SEC_GPIO_REF(AP,pio,17) 0>;
 		etspi-chipid = "EC617";
 		etspi-orient = <2>;
+		etspi-position = "NA";
 		controller-data {
 			mediatek,tckdly = <1>;	/* It'll be used after tckdly patch */
 		};

@@ -239,6 +239,10 @@
 #define LD_PATCH_TIME 0
 #endif
 
+#ifndef BUILD_QA_DBG
+#define BUILD_QA_DBG 0
+#endif
+
 enum {
 	RES_1 = 0,
 	RES_DOT_5,

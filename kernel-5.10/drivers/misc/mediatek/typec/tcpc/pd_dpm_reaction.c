@@ -404,6 +404,9 @@ static uint8_t dpm_reaction_update_pe_ready(struct pd_port *pd_port)
 	pd_dpm_dynamic_disable_vconn(pd_port);
 
 #if CONFIG_USB_PD_REV30_COLLISION_AVOID
+	if (tcpc->tcp_event_count)
+		return 0;
+
 	pd_port->pe_data.pd_traffic_idle = true;
 	if (pd_check_rev30(pd_port) &&
 		(pd_port->power_role == PD_ROLE_SOURCE))

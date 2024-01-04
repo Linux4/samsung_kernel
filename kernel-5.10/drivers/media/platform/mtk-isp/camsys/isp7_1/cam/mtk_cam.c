@@ -6408,8 +6408,12 @@ static int mtk_cam_power_ctrl_ccu(struct device *dev, int on_off)
 		if (ret)
 			dev_info(dev, "boot ccu rproc fail\n");
 
-		if (dvfs_info->reg_vmm)
-			regulator_enable(dvfs_info->reg_vmm);
+		if (dvfs_info->reg_vmm) {
+			ret = regulator_enable(dvfs_info->reg_vmm);
+			if (ret < 0)
+				dev_info(dev, "regulator_enable fail with return val: %d\n",
+					regulator_enable(dvfs_info->reg_vmm));
+		}
 	} else {
 		if (dvfs_info->reg_vmm && regulator_is_enabled(dvfs_info->reg_vmm))
 			regulator_disable(dvfs_info->reg_vmm);

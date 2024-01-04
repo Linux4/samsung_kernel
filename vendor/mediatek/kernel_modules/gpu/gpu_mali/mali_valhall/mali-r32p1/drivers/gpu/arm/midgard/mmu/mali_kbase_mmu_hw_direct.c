@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -25,11 +25,20 @@
 #include <mmu/mali_kbase_mmu_hw.h>
 #include <tl/mali_kbase_tracepoints.h>
 #include <device/mali_kbase_device.h>
+#include <linux/delay.h>
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 #include <mtk_gpufreq.h>
 #include <platform/mtk_platform_common.h>
 #include <platform/mtk_platform_common/mtk_platform_debug.h>
+
+/* Max loop is 100000000 which roughly equals to 50s.
+ * 1s roughly equals to 2000000 loops.
+ */
+#define KBASE_AS_INACTIVE_DUMP_POINT_1S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 1))
+#define KBASE_AS_INACTIVE_DUMP_POINT_3S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 3))
+#define KBASE_AS_INACTIVE_DUMP_POINT_5S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 5))
+#define KBASE_AS_INACTIVE_DUMP_POINT_8S     (KBASE_AS_INACTIVE_MAX_LOOPS - (2000000 * 8))
 #endif
 
 /**
@@ -132,14 +141,31 @@ static int lock_region(u64 pfn, u32 num_pages, u64 *lockaddr)
 static int wait_ready(struct kbase_device *kbdev,
 		unsigned int as_nr)
 {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+	bool early_timeouts = false;
+#endif
 	unsigned int max_loops = KBASE_AS_INACTIVE_MAX_LOOPS;
-	u32 val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
-
-	/* Wait for the MMU status to indicate there is no active command, in
-	 * case one is pending. Do not log remaining register accesses.
-	 */
-	while (--max_loops && (val & AS_STATUS_AS_ACTIVE))
-		val = kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
+	/* Wait for the MMU status to indicate there is no active command. */
+	while (--max_loops &&
+	       kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS)) &
+		       AS_STATUS_AS_ACTIVE) {
+#if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
+		if((max_loops == KBASE_AS_INACTIVE_DUMP_POINT_1S) ||
+			(max_loops == KBASE_AS_INACTIVE_DUMP_POINT_3S) ||
+			(max_loops == KBASE_AS_INACTIVE_DUMP_POINT_5S) ||
+			(max_loops == KBASE_AS_INACTIVE_DUMP_POINT_8S)) {
+			dev_info(kbdev->dev, "%s: Early dump for MMU not ready, remain loops: %d", __func__, max_loops);
+			ged_log_buf_print2(
+				kbdev->ged_log_buf_hnd_kbase, GED_LOG_ATTR_TIME,
+				"%s: Early dump for MMU not ready, remain loops: %d\n",
+				__func__, max_loops);
+		}
+		if (max_loops == KBASE_AS_INACTIVE_DUMP_POINT_3S) {
+			early_timeouts = true;
+			break;
+		}
+#endif /* CONFIG_MALI_MTK_DEBUG */
+	}
 
 #if IS_ENABLED(CONFIG_MALI_MTK_DEBUG)
 	if (max_loops == 0) {
@@ -168,10 +194,6 @@ static int wait_ready(struct kbase_device *kbdev,
 	}
 #endif
 
-	/* If waiting in loop was performed, log last read value. */
-	if (KBASE_AS_INACTIVE_MAX_LOOPS - 1 > max_loops)
-		kbase_reg_read(kbdev, MMU_AS_REG(as_nr, AS_STATUS));
-
 	return 0;
 }
 
@@ -196,6 +218,100 @@ static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd)
 
 	return status;
 }
+
+#if MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_NO_MALI)
+static int wait_cores_power_trans_complete(struct kbase_device *kbdev)
+{
+#define WAIT_TIMEOUT 1000 /* 1ms timeout */
+#define DELAY_TIME_IN_US 1
+	const int max_iterations = WAIT_TIMEOUT;
+	int loop;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	for (loop = 0; loop < max_iterations; loop++) {
+		u32 lo =
+		    kbase_reg_read(kbdev, GPU_CONTROL_REG(SHADER_PWRTRANS_LO));
+		u32 hi =
+		    kbase_reg_read(kbdev, GPU_CONTROL_REG(SHADER_PWRTRANS_HI));
+
+		if (!lo && !hi)
+			break;
+
+		udelay(DELAY_TIME_IN_US);
+	}
+
+	if (loop == max_iterations) {
+		dev_info(kbdev->dev, "SHADER_PWRTRANS set for too long");
+		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
+/**
+ * apply_hw_issue_GPU2019_3901_wa - Apply WA for the HW issue GPU2019_3901
+ *
+ * @kbdev:             Kbase device to issue the MMU operation on.
+ * @mmu_cmd:           Pointer to the variable contain the value of MMU command
+ *                     that needs to be sent to flush the L2 cache and do an
+ *                     implicit unlock.
+ * as_nr:              Address space number for which MMU command needs to be
+ *                     sent.
+ * @hwaccess_locked:   Flag to indicate if hwaccess_lock is held by the caller.
+ *
+ * This functions ensures that the flush of LSC is not missed for the pages that
+ * were unmapped from the GPU, due to the power down transition of shader cores.
+ *
+ * Return: 0 if the WA was successfully applied, non-zero otherwise.
+ */
+static int apply_hw_issue_GPU2019_3901_wa(struct kbase_device *kbdev,
+			u32 *mmu_cmd, unsigned int as_nr, bool hwaccess_locked)
+{
+	unsigned long flags = 0;
+	int ret = 0;
+
+	if (!hwaccess_locked)
+		spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
+
+	/* Check if L2 is OFF. The cores also must be OFF if L2 is not up, so
+	 * the workaround can be safely skipped.
+	 */
+	if (kbdev->pm.backend.l2_state != KBASE_L2_OFF) {
+		if (*mmu_cmd != AS_COMMAND_FLUSH_MEM) {
+			dev_info(kbdev->dev,
+				 "Unexpected mmu command received");
+			ret = -EINVAL;
+			goto unlock;
+		}
+
+		/* Wait for the LOCK MMU command to complete, issued by the caller */
+		ret = wait_ready(kbdev, as_nr);
+		if (ret)
+			goto unlock;
+
+		ret = kbase_gpu_cache_flush_and_busy_wait(kbdev,
+				GPU_COMMAND_CACHE_CLN_INV_LSC);
+		if (ret)
+			goto unlock;
+
+		ret = wait_cores_power_trans_complete(kbdev);
+		if (ret)
+			goto unlock;
+
+		/* As LSC is guaranteed to have been flushed we can use FLUSH_PT
+		 * MMU command to only flush the L2.
+		 */
+		*mmu_cmd = AS_COMMAND_FLUSH_PT;
+	}
+
+unlock:
+	if (!hwaccess_locked)
+		spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+
+	return ret;
+}
+#endif
 
 void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 {
@@ -254,9 +370,9 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as)
 #endif
 }
 
-int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
+__attribute__((unused)) static int mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 		u64 vpfn, u32 nr, u32 op,
-		unsigned int handling_irq)
+		bool hwaccess_locked)
 {
 	int ret;
 
@@ -283,6 +399,20 @@ int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 				(lock_addr >> 32) & 0xFFFFFFFFUL);
 			write_cmd(kbdev, as->number, AS_COMMAND_LOCK);
 
+#if MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_NO_MALI)
+			/* WA for the BASE_HW_ISSUE_GPU2019_3901. No runtime check is used here
+			 * as the WA is applicable to all CSF GPUs where FLUSH_MEM/PT command is
+			 * supported, and this function doesn't gets called for the GPUs where
+			 * FLUSH_MEM/PT command is deprecated.
+			 */
+			if (op == AS_COMMAND_FLUSH_MEM) {
+				ret = apply_hw_issue_GPU2019_3901_wa(kbdev, &op,
+						as->number, hwaccess_locked);
+				if (ret)
+					return ret;
+			}
+#endif
+
 			/* Run the MMU operation */
 			write_cmd(kbdev, as->number, op);
 
@@ -290,6 +420,74 @@ int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 			ret = wait_ready(kbdev, as->number);
 		}
 	}
+
+	return ret;
+}
+
+static int mmu_hw_lock_op_no_wait(struct kbase_device *kbdev,
+				  struct kbase_as *as, u64 vpfn, u32 nr,
+				  bool op_lock)
+{
+	int ret;
+	u64 lock_addr = 0;
+
+	if (op_lock) {
+		ret = lock_region(vpfn, nr, &lock_addr);
+
+		if (!ret) {
+			/* Lock the region that needs to be updated */
+			kbase_reg_write(kbdev,
+				MMU_AS_REG(as->number, AS_LOCKADDR_LO),
+				lock_addr & 0xFFFFFFFFUL);
+			kbase_reg_write(kbdev,
+				MMU_AS_REG(as->number, AS_LOCKADDR_HI),
+				(lock_addr >> 32) & 0xFFFFFFFFUL);
+			ret = write_cmd(kbdev, as->number, AS_COMMAND_LOCK);
+		}
+	} else {
+		/* Unlock doesn't require a lock first */
+		ret = write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK);
+	}
+
+	return ret;
+}
+
+int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
+			      u64 vpfn, u32 nr, u32 op,
+			      unsigned int handling_irq)
+{
+	int ret;
+
+	lockdep_assert_held(&kbdev->mmu_hw_mutex);
+
+	if (op == AS_COMMAND_UNLOCK) {
+		ret = mmu_hw_lock_op_no_wait(kbdev, as, vpfn, nr, false);
+	} else {
+		ret = mmu_hw_lock_op_no_wait(kbdev, as, vpfn, nr, true);
+
+		if (!ret) {
+			/* Lock succeeded, run the MMU operation */
+			write_cmd(kbdev, as->number, op);
+
+			/* Wait for the flush to complete */
+			ret = wait_ready(kbdev, as->number);
+		}
+	}
+
+	return ret;
+}
+
+int kbase_mmu_hw_do_lock_op(struct kbase_device *kbdev, struct kbase_as *as,
+			    u64 vpfn, u32 nr, bool op_lock)
+{
+	int ret;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	ret = mmu_hw_lock_op_no_wait(kbdev, as, vpfn, nr, op_lock);
+
+	if (!ret)
+		ret = wait_ready(kbdev, as->number);
 
 	return ret;
 }

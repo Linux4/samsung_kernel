@@ -1787,6 +1787,7 @@ void asicConnac2xRxProcessRxvforMSP(IN struct ADAPTER *prAdapter,
 
 	prGroup3 =
 		(struct HW_MAC_RX_STS_GROUP_3_V2 *)prRetSwRfb->prRxStatusGroup3;
+
 	if (prRetSwRfb->ucGroupVLD & BIT(RX_GROUP_VLD_3)) {
 		/* P-RXV1[0:31] */
 		prAdapter->arStaRec[
@@ -1918,112 +1919,37 @@ void asicConnac2xRxPerfIndProcessRXV(IN struct ADAPTER *prAdapter,
 			       IN struct SW_RFB *prSwRfb,
 			       IN uint8_t ucBssIndex)
 {
-	struct STA_RECORD *prStaRec;
+	struct GLUE_INFO *prGlueInfo;
 	struct HW_MAC_RX_STS_GROUP_3 *prRxStatusGroup3;
-	uint32_t u4RxVector0 = 0;
-	uint8_t ucWlanIdx, ucStaIdx;
-	uint8_t ucRxMode = 0;
-	uint8_t ucMcs = 0;
-	uint8_t ucFrMode = 0;
-	uint8_t ucShortGI = 0;
-	uint8_t ucNsts = 0;
-	uint8_t ucNss = 0;
-	uint8_t ucStbc = 0;
 	uint8_t ucRCPI0 = 0, ucRCPI1 = 0;
 	uint32_t u4PhyRate;
-
-	/* Rate
-	 * Bit Number 2
-	 * Unit 500 Kbps
-	 */
-	uint16_t u2Rate = 0;
+	uint16_t u2Rate = 0; /* Unit 500 Kbps */
+	struct RateInfo rRateInfo = {0};
+	int status;
 
 	ASSERT(prAdapter);
 	ASSERT(prSwRfb);
 	/* REMOVE DATA RATE Parsing Logic:Workaround only for 6885*/
 	/* Since MT6885 can not get Rx Data Rate dur to RXV HW Bug*/
 
-	/* if (ucBssIndex >= BSSID_NUM)*/
-	if (!(IS_BSS_INDEX_AIS(prAdapter, ucBssIndex)))
+	prGlueInfo = prAdapter->prGlueInfo;
+	status = wlanGetRxRate(prGlueInfo, ucBssIndex, &u4PhyRate, NULL,
+				&rRateInfo);
+	/* ucRate(500kbs) = u4PhyRate(100kbps) */
+	if (status < 0 || u4PhyRate == 0)
 		return;
+	u2Rate = u4PhyRate / 5;
 
-	/* can't parse radiotap info if no rx vector */
-	if (((prSwRfb->ucGroupVLD & BIT(RX_GROUP_VLD_2)) == 0)
-		|| ((prSwRfb->ucGroupVLD & BIT(RX_GROUP_VLD_3)) == 0)) {
-		return;
-	}
-
-	prRxStatusGroup3 = prSwRfb->prRxStatusGroup3;
-
-	prStaRec = aisGetStaRecOfAP(prAdapter, ucBssIndex);
-	if (prStaRec) {
-		ucWlanIdx = prStaRec->ucWlanIndex;
-	} else {
-		/* DBGLOG(SW4, ERROR, "prStaRecOfAP is null\n");*/
-		return;
-	}
-
-	if (wlanGetStaIdxByWlanIdx(prAdapter, ucWlanIdx, &ucStaIdx) ==
-		WLAN_STATUS_SUCCESS) {
-		u4RxVector0 = prAdapter->arStaRec[ucStaIdx].u4RxVector0;
-		if (u4RxVector0 == 0) {
-			DBGLOG(SW4, WARN, "u4RxVector0 is 0\n");
-			return;
-		}
-	} else {
-		DBGLOG(SW4, ERROR, "wlanGetStaIdxByWlanIdx fail\n");
-		return;
-	}
-
-	ucRxMode = PERF_IND_RXV_GET_TXMODE(u4RxVector0);
-	ucMcs = PERF_IND_RXV_GET_RX_RATE(u4RxVector0);
-
-	ucNsts = PERF_IND_RXV_GET_RX_NSTS(u4RxVector0);
-	ucStbc = PERF_IND_RXV_GET_STBC(u4RxVector0);
-	ucNsts += 1;
-	if (ucNsts == 1)
-		ucNss = ucNsts;
-	else
-		ucNss = ucStbc ? (ucNsts >> 1) : ucNsts;
-
-	/* RATE & NSS */
-	if (ucRxMode == RX_VT_LEGACY_CCK || ucRxMode == RX_VT_LEGACY_OFDM) {
-		/* Bit[2:0] for Legacy CCK, Bit[3:0] for Legacy OFDM */
-		u2Rate = nicGetHwRateByPhyRate(ucMcs);
-	} else {
-		ucFrMode = PERF_IND_RXV_GET_FR_MODE(u4RxVector0);
-		ucShortGI = PERF_IND_RXV_GET_GI(u4RxVector0);
-
-		if (ucFrMode >= 4) {
-			DBGLOG(SW4, ERROR, "frmode error: %u\n", ucFrMode);
-			return;
-		}
-
-		if (ucRxMode == RX_VT_MIXED_MODE)
-			ucMcs %= 8;
-		/* ucRate(500kbs) = u4PhyRate(100kbps) */
-		u4PhyRate = nicGetPhyRateByMcsRate(ucMcs, ucFrMode, ucShortGI);
-		if (ucRxMode == RX_VT_MIXED_MODE)
-			u4PhyRate *= ucNss;
-
-		if (u4PhyRate == 0)
-			return;
-		u2Rate = u4PhyRate / 5;
-	}
-
-	if (ucNss == 1) {
-		if (prAdapter->prGlueInfo->
-			PerfIndCache.ucCurRxNss[ucBssIndex] < 0xff)
-			prAdapter->prGlueInfo->PerfIndCache.
-				ucCurRxNss[ucBssIndex]++;
-	} else if (ucNss == 2) {
-		if (prAdapter->prGlueInfo->
-			PerfIndCache.ucCurRxNss2[ucBssIndex] < 0xff)
-			prAdapter->prGlueInfo->PerfIndCache.
-				ucCurRxNss2[ucBssIndex]++;
+	if (rRateInfo.u4Nss == 1) {
+		if (prGlueInfo->PerfIndCache.ucCurRxNss[ucBssIndex] < 0xff)
+			prGlueInfo->PerfIndCache.ucCurRxNss[ucBssIndex]++;
+	} else if (rRateInfo.u4Nss == 2) {
+		if (prGlueInfo->PerfIndCache.ucCurRxNss2[ucBssIndex] < 0xff)
+			prGlueInfo->PerfIndCache.ucCurRxNss2[ucBssIndex]++;
 	}
 
 	/* RCPI */
+	prRxStatusGroup3 = prSwRfb->prRxStatusGroup3;
 	ucRCPI0 = HAL_RX_STATUS_GET_RCPI0(prRxStatusGroup3);
 	ucRCPI1 = HAL_RX_STATUS_GET_RCPI1(prRxStatusGroup3);
 

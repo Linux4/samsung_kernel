@@ -35,6 +35,11 @@
 /* Todo: should not use this const, currently it's a work-around */
 #define GPS_LIBMNL_READ_MAX		512
 
+struct boot_time_info {
+	int64_t now_time;
+	int64_t arch_counter;
+};
+
 struct gps_each_device_cfg {
 	char *dev_name;
 	int index;

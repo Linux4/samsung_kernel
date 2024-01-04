@@ -121,7 +121,6 @@
 #define WMT_IOCTL_FW_PATCH_UPDATE_RST	_IOR(WMT_IOC_MAGIC, 34, int)
 #define WMT_IOCTL_GET_VENDOR_PATCH_NUM		_IOW(WMT_IOC_MAGIC, 35, int)
 #define WMT_IOCTL_GET_VENDOR_PATCH_VERSION	_IOR(WMT_IOC_MAGIC, 36, char*)
-#define WMT_IOCTL_SET_VENDOR_PATCH_VERSION	_IOW(WMT_IOC_MAGIC, 37, char*)
 #define WMT_IOCTL_GET_CHECK_PATCH_STATUS	_IOR(WMT_IOC_MAGIC, 38, int)
 #define WMT_IOCTL_SET_CHECK_PATCH_STATUS	_IOW(WMT_IOC_MAGIC, 39, int)
 #define WMT_IOCTL_SET_ACTIVE_PATCH_VERSION	_IOR(WMT_IOC_MAGIC, 40, char*)
@@ -188,6 +187,7 @@ static atomic_t g_late_pwr_on_for_blank = ATOMIC_INIT(0); /* PwrOnOff Late flag 
 
 /* Prevent race condition when wmt_dev_tm_temp_query is called concurrently */
 static OSAL_UNSLEEPABLE_LOCK g_temp_query_spinlock;
+static OSAL_UNSLEEPABLE_LOCK g_patch_num_spinlock;
 
 #ifdef CONFIG_EARLYSUSPEND
 static VOID wmt_dev_early_suspend(struct early_suspend *h)
@@ -1158,13 +1158,16 @@ LONG WMT_unlocked_ioctl(struct file *filp, UINT32 cmd, ULONG arg)
 			wmt_lib_set_stp_wmt_last_close(0);
 		break;
 	case WMT_IOCTL_SET_PATCH_NUM:
+		osal_lock_unsleepable_lock(&g_patch_num_spinlock);
 		if (arg == 0 || arg > MAX_PATCH_NUM || pAtchNum > 0) {
 			WMT_ERR_FUNC("patch num(%lu) == 0 or > %d or has set!\n", arg, MAX_PATCH_NUM);
 			iRet = -1;
+			osal_unlock_unsleepable_lock(&g_patch_num_spinlock);
 			break;
 		}
 
 		pAtchNum = (UINT32)arg;
+		osal_unlock_unsleepable_lock(&g_patch_num_spinlock);
 
 		if (pPatchInfo == NULL)
 			pPatchInfo = kcalloc(pAtchNum, sizeof(WMT_PATCH_INFO), GFP_ATOMIC);
@@ -1388,24 +1391,6 @@ LONG WMT_unlocked_ioctl(struct file *filp, UINT32 cmd, ULONG arg)
 		break;
 	case WMT_IOCTL_GET_VENDOR_PATCH_NUM:
 		iRet = wmt_lib_get_vendor_patch_num();
-		break;
-	case WMT_IOCTL_SET_VENDOR_PATCH_VERSION:
-		do {
-			struct wmt_vendor_patch patch;
-
-			if (copy_from_user(&patch, (PVOID)arg,
-				sizeof(struct wmt_vendor_patch))) {
-				WMT_ERR_FUNC("copy_from_user failed at %d\n", __LINE__);
-				iRet = -EFAULT;
-				break;
-			}
-
-			iRet = wmt_lib_set_vendor_patch_version(&patch);
-			if (iRet) {
-				iRet = -EFAULT;
-				break;
-			}
-		} while (0);
 		break;
 	case WMT_IOCTL_GET_VENDOR_PATCH_VERSION:
 		do {
@@ -1643,6 +1628,7 @@ static INT32 WMT_init(VOID)
 	init_waitqueue_head((wait_queue_head_t *) &gWmtInitWq);
 
 	osal_unsleepable_lock_init(&g_temp_query_spinlock);
+	osal_unsleepable_lock_init(&g_patch_num_spinlock);
 
 #if (MTK_WCN_REMOVE_KO)
 	/* called in do_common_drv_init() */
@@ -1791,6 +1777,7 @@ static VOID WMT_exit(VOID)
 		return;
 
 	osal_unsleepable_lock_deinit(&g_temp_query_spinlock);
+	osal_unsleepable_lock_deinit(&g_patch_num_spinlock);
 #ifdef CONFIG_EARLYSUSPEND
 	unregister_early_suspend(&wmt_early_suspend_handler);
 	WMT_INFO_FUNC("unregister_early_suspend finished\n");

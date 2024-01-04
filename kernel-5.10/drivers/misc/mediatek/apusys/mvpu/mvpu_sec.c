@@ -221,7 +221,7 @@ uint32_t get_avail_session_id(void)
 	uint32_t cnt = 0;
 	uint32_t session_id = -1;
 
-	for (cnt = 0; cnt < MAX_SAVE_HASH; cnt++) {
+	for (cnt = 0; cnt < MAX_SAVE_SESSION; cnt++) {
 		if (saved_session[cnt] == NULL) {
 			pr_info("[MVPU][Sec] error: saved_session[%d] is NULL\n",
 						cnt);

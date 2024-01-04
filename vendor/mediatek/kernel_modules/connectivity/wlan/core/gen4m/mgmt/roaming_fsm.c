@@ -248,7 +248,7 @@ void roamingClearHistory(struct ROAMING_INFO *prRoamingFsmInfo) {
 
 	while (!LINK_IS_EMPTY(history)) {
 		LINK_REMOVE_HEAD(history, bss, struct CONNECTED_BSS *);
-		kalMemFree(bss, VIR_MEM_TYPE, sizeof(*ap));
+		kalMemFree(bss, VIR_MEM_TYPE, sizeof(struct CONNECTED_BSS));
 	}
 	LINK_INITIALIZE(&prRoamingFsmInfo->rRoamingHistory);
 }
@@ -975,7 +975,8 @@ void roamingFsmLogScanStart(IN struct ADAPTER *prAdapter,
 	kalSprintf(aucLog,
 		"[ROAM] SCAN_START reason=%d rssi=%d cu=%d full_scan=%d rssi_thres=%d",
 		apucRoamingReasonToLog[prRoamInfo->eReason],
-		RCPI_TO_dBm(prRoamInfo->ucRcpi), u4CannelUtilization,
+		RCPI_TO_dBm(prRoamInfo->ucRcpi),
+		prBssDesc->fgExistBssLoadIE ? u4CannelUtilization : -1,
 		fgIsFullScn, RCPI_TO_dBm(prRoamInfo->ucThreshold));
 
 	kalReportWifiLog(prAdapter, ucBssIndex, aucLog);

@@ -260,11 +260,6 @@ int mtk_cfg80211_get_station(struct wiphy *wiphy,
 			     struct station_info *sinfo);
 #endif
 
-int
-mtk_cfg80211_get_link_statistics(struct wiphy *wiphy,
-				 struct net_device *ndev, u8 *mac,
-				 struct station_info *sinfo);
-
 int mtk_cfg80211_scan(struct wiphy *wiphy,
 		      struct cfg80211_scan_request *request);
 

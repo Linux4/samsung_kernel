@@ -194,6 +194,9 @@ EXPORT_SYMBOL_GPL(mrdump_regist_hang_bt);
 *******************************************************/
 
 extern void sec_debug_dump_info(struct pt_regs *regs);
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)		
+extern void sec_debug_set_extra_info_fault(unsigned long addr, struct pt_regs *regs);
+#endif		
 
 static void (*reset_delay)(void);
 void register_mrdump_reset_delay(void (*func)(void))
@@ -292,6 +295,11 @@ int mrdump_common_die(int reboot_reason, const char *msg,
 	default:
 #if IS_ENABLED(CONFIG_SEC_DEBUG)
 		sec_debug_dump_info(regs);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)		
+ 	if (!user_mode(regs))
+		sec_debug_set_extra_info_fault((unsigned long)regs->pc, regs);
+#endif		
 
 		if (reset_delay)
 			reset_delay();

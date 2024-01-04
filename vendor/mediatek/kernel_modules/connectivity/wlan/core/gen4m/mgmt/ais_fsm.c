@@ -130,6 +130,9 @@ static void aisRemoveDeauthBlocklist(struct ADAPTER *prAdapter);
 static void aisFunClearAllTxReq(IN struct ADAPTER *prAdapter,
 		IN struct AIS_MGMT_TX_REQ_INFO *prAisMgmtTxInfo);
 
+static void aisFsmIndicateToResetFT(
+	IN struct ADAPTER *prAdapter, IN uint8_t ucBssIndex);
+
 /*******************************************************************************
  *                              F U N C T I O N S
  *******************************************************************************
@@ -1091,6 +1094,9 @@ u_int8_t aisFsmStateInit_RetryJOIN(IN struct ADAPTER *prAdapter,
 		DBGLOG(AIS, INFO,
 		       "RETRY JOIN INIT: Retry Authentication with AuthType == OPEN_SYSTEM for FT roaming.\n");
 
+		/* Indicate supplicant to reset FT process */
+		aisFsmIndicateToResetFT(prAdapter, ucBssIndex);
+
 		prAisFsmInfo->ucAvailableAuthTypes &=
 			~(uint8_t) AUTH_TYPE_OPEN_SYSTEM;
 
@@ -1503,6 +1509,30 @@ void aisFsmNotifyManageChannelList(
 	mtk_cfg80211_vendor_event_generic_response(
 		wiphy, wdev, size, (uint8_t *)list);
 	kalMemFree(list, VIR_MEM_TYPE, size);
+}
+
+static void aisFsmIndicateToResetFT(
+	IN struct ADAPTER *prAdapter, IN uint8_t ucBssIndex)
+{
+	struct wiphy *wiphy;
+	struct wireless_dev *wdev;
+	struct PARAM_RESET_FT *event;
+
+	wiphy = prAdapter->prGlueInfo->prDevHandler->ieee80211_ptr->wiphy;
+	wdev = wlanGetNetDev(prAdapter->prGlueInfo, ucBssIndex)->ieee80211_ptr;
+
+	event = kalMemAlloc(sizeof(struct PARAM_RESET_FT), VIR_MEM_TYPE);
+	if (!event) {
+		DBGLOG(AIS, ERROR, "alloc mgmt chnl list event fail\n");
+		return;
+	}
+
+	kalMemZero(event, sizeof(struct PARAM_RESET_FT));
+	event->id = GRID_RESET_FT_PROCESS;
+
+	mtk_cfg80211_vendor_event_generic_response(
+		wiphy, wdev, sizeof(struct PARAM_RESET_FT), (uint8_t *)event);
+	kalMemFree(event, VIR_MEM_TYPE, sizeof(struct PARAM_RESET_FT));
 }
 #endif
 
@@ -2060,7 +2090,9 @@ void aisFsmSteps(IN struct ADAPTER *prAdapter,
 			} else if (prAisReq->eReqType ==
 				   AIS_REQUEST_ROAMING_CONNECT
 				   || prAisReq->eReqType ==
-				   AIS_REQUEST_ROAMING_SEARCH) {
+				   AIS_REQUEST_ROAMING_SEARCH
+				   || prAisReq->eReqType ==
+				   AIS_REQUEST_BTO) {
 				fgIsTransition = TRUE;
 				/* ignore */
 				/* free the message */
@@ -2124,6 +2156,16 @@ void aisFsmSteps(IN struct ADAPTER *prAdapter,
 			DBGLOG(AIS, LOUD,
 			       "SCAN: Idle Begin - Current Time = %u\n",
 			       kalGetTimeTick());
+
+			/* Process for pending BTO event */
+			if (aisFsmIsRequestPending(prAdapter,
+				AIS_REQUEST_BTO, TRUE,
+				ucBssIndex) == TRUE) {
+				aisHandleBeaconTimeout(prAdapter,
+					ucBssIndex, TRUE);
+				fgIsTransition = FALSE;
+				break;
+			}
 
 			cnmTimerStartTimer(prAdapter,
 					   &prAisFsmInfo->rBGScanTimer,
@@ -2598,8 +2640,16 @@ void aisFsmSteps(IN struct ADAPTER *prAdapter,
 				aisFunClearAllTxReq(prAdapter,
 						&(prAisFsmInfo->rMgmtTxInfo));
 
-			/* 1. Process for pending roaming scan */
+			/* 0. Process for pending BTO event */
 			if (aisFsmIsRequestPending(prAdapter,
+				AIS_REQUEST_BTO, TRUE,
+				ucBssIndex) == TRUE) {
+				aisHandleBeaconTimeout(prAdapter,
+					ucBssIndex, TRUE);
+				fgIsTransition = FALSE;
+			}
+			/* 1. Process for pending roaming scan */
+			else if (aisFsmIsRequestPending(prAdapter,
 				AIS_REQUEST_ROAMING_SEARCH, TRUE,
 				ucBssIndex) == TRUE) {
 				eNextState = AIS_STATE_LOOKING_FOR;
@@ -3099,6 +3149,7 @@ void aisFsmRunEventAbort(IN struct ADAPTER *prAdapter,
 	/* end Support AP Selection */
 
 	aisFsmClearRequest(prAdapter, AIS_REQUEST_RECONNECT, ucBssIndex);
+	aisFsmClearRequest(prAdapter, AIS_REQUEST_BTO, ucBssIndex);
 	if (ucReasonOfDisconnect == DISCONNECT_REASON_CODE_NEW_CONNECTION ||
 	    ucReasonOfDisconnect == DISCONNECT_REASON_CODE_ROAMING)
 		aisFsmInsertRequestToHead(prAdapter,
@@ -5557,7 +5608,16 @@ void aisFsmRunEventChGrant(IN struct ADAPTER *prAdapter,
 	/* 1. free message */
 	cnmMemFree(prAdapter, prMsgHdr);
 
-	if (prAisFsmInfo->eCurrentState == AIS_STATE_REQ_CHANNEL_JOIN
+	if (prAisBssInfo->prStaRecOfAP &&
+		prAisBssInfo->fgIsAisSwitchingChnl == TRUE) {
+
+		nicUpdateBss(prAdapter, ucBssIndex);
+
+		prAisBssInfo->fgIsAisSwitchingChnl = FALSE;
+
+		prAisFsmInfo->fgIsChannelGranted = TRUE;
+		aisFsmReleaseCh(prAdapter, ucBssIndex);
+	} else if (prAisFsmInfo->eCurrentState == AIS_STATE_REQ_CHANNEL_JOIN
 	    && prAisFsmInfo->ucSeqNumOfChReq == ucTokenID) {
 		/* 2. channel privilege has been approved */
 		prAisFsmInfo->u4ChGrantedInterval = u4GrantInterval;
@@ -5694,12 +5754,12 @@ void aisBssBeaconTimeout_impl(IN struct ADAPTER *prAdapter,
 {
 	struct BSS_INFO *prAisBssInfo;
 	u_int8_t fgDoAbortIndication = FALSE;
-	u_int8_t fgIsReasonPER =
-		(ucBcnTimeoutReason == BEACON_TIMEOUT_REASON_HIGH_PER);
-	struct CONNECTION_SETTINGS *prConnSettings;
+	struct AIS_FSM_INFO *prAisFsmInfo;
+	struct AIS_BTO_INFO *prAisBtoInfo;
 
 	prAisBssInfo = aisGetAisBssInfo(prAdapter, ucBssIndex);
-	prConnSettings = aisGetConnSettings(prAdapter, ucBssIndex);
+	prAisFsmInfo = aisGetAisFsmInfo(prAdapter, ucBssIndex);
+	prAisBtoInfo = &(prAisFsmInfo->rBtoInfo);
 
 	/* 4 <1> Diagnose Connection for Beacon Timeout Event */
 	if (prAisBssInfo->eConnectionState == MEDIA_STATE_CONNECTED) {
@@ -5709,29 +5769,95 @@ void aisBssBeaconTimeout_impl(IN struct ADAPTER *prAdapter,
 
 			if (prStaRec)
 				fgDoAbortIndication = TRUE;
-
 		} else if (prAisBssInfo->eCurrentOPMode == OP_MODE_IBSS) {
 			fgDoAbortIndication = TRUE;
 		}
 	}
+
 	/* 4 <2> invoke abort handler */
 	if (fgDoAbortIndication) {
-		if (prAisBssInfo->ucReasonOfDisconnect ==
-			DISCONNECT_REASON_CODE_REASSOCIATION) {
-			/* For reassociation */
-			prAisBssInfo->u2DeauthReason = REASON_CODE_RESERVED;
-		} else {
-			prAisBssInfo->u2DeauthReason =
-				REASON_CODE_BEACON_TIMEOUT * 100 +
-				ucBcnTimeoutReason;
-			DBGLOG(AIS, EVENT, "aisBssBeaconTimeout\n");
-		}
+		uint8_t roam = roamingFsmIsDiscovering(prAdapter, ucBssIndex);
+		uint8_t join = timerPendingTimer(
+				&prAisFsmInfo->rJoinTimeoutTimer);
 
-		aisFsmStateAbort(prAdapter,
-			ucDisconnectReason,
-			!fgIsReasonPER,
-			ucBssIndex);
+		aisFsmClearRequest(prAdapter, AIS_REQUEST_BTO, ucBssIndex);
+		prAisBtoInfo->ucBcnTimeoutReason = ucBcnTimeoutReason;
+		prAisBtoInfo->ucDisconnectReason = ucDisconnectReason;
+
+		if (roam && join) {
+			struct PARAM_SSID rSsid;
+
+			DBGLOG(AIS, EVENT,
+				"Postpone aisBssBeaconTimeout, roam=%d, join=%d",
+				roam, join);
+
+			/* record info for postpone handle BTO */
+			COPY_SSID(rSsid.aucSsid,
+				  rSsid.u4SsidLen,
+				  prAisBssInfo->aucSSID,
+				  prAisBssInfo->ucSSIDLen);
+			prAisBtoInfo->prBtoBssDesc =
+				scanSearchBssDescByBssidAndSsid(prAdapter,
+				prAisBssInfo->aucBSSID, TRUE, &rSsid);
+
+			aisFsmInsertRequest(prAdapter,
+				AIS_REQUEST_BTO,
+				ucBssIndex);
+		} else {
+			DBGLOG(AIS, EVENT,
+				"aisBssBeaconTimeout, roam=%d, join=%d",
+				roam, join);
+			aisHandleBeaconTimeout(prAdapter, ucBssIndex, FALSE);
+		}
 	}
+}
+
+void aisHandleBeaconTimeout(IN struct ADAPTER *prAdapter,
+	IN uint8_t ucBssIndex, IN u_int8_t fgDelayAbortIndication)
+{
+	struct BSS_INFO *prAisBssInfo;
+	struct AIS_FSM_INFO *prAisFsmInfo;
+	struct AIS_BTO_INFO *prAisBtoInfo;
+	u_int8_t fgIsReasonPER;
+
+	prAisBssInfo = aisGetAisBssInfo(prAdapter, ucBssIndex);
+	prAisFsmInfo = aisGetAisFsmInfo(prAdapter, ucBssIndex);
+	prAisBtoInfo = &(prAisFsmInfo->rBtoInfo);
+	fgIsReasonPER = (prAisBtoInfo->ucBcnTimeoutReason ==
+				BEACON_TIMEOUT_REASON_HIGH_PER);
+
+	if (fgDelayAbortIndication) {
+		struct BSS_DESC *prBssDesc =
+			aisGetTargetBssDesc(prAdapter, ucBssIndex);
+		struct BSS_DESC *prBtoBssDesc =
+			prAisBtoInfo->prBtoBssDesc;
+
+		if (prBtoBssDesc != prBssDesc) {
+			DBGLOG(AIS, EVENT,
+				"Connect to better AP[" MACSTR
+				"], ignore BTO AP[" MACSTR "]\n",
+				MAC2STR(prBssDesc->aucBSSID),
+				MAC2STR(prBtoBssDesc->aucBSSID));
+			return;
+		}
+	}
+
+	if (prAisBssInfo->ucReasonOfDisconnect ==
+		DISCONNECT_REASON_CODE_REASSOCIATION) {
+		/* For reassociation */
+		prAisBssInfo->u2DeauthReason =
+			REASON_CODE_RESERVED;
+	} else {
+		prAisBssInfo->u2DeauthReason =
+			REASON_CODE_BEACON_TIMEOUT * 100 +
+			prAisBtoInfo->ucBcnTimeoutReason;
+		DBGLOG(AIS, EVENT, "aisBssBeaconTimeout\n");
+	}
+
+	aisFsmStateAbort(prAdapter,
+		prAisBtoInfo->ucDisconnectReason,
+		!fgIsReasonPER,
+		ucBssIndex);
 }				/* end of aisBssBeaconTimeout() */
 
 #if CFG_SUPPORT_DETECT_SECURITY_MODE_CHANGE
@@ -7880,10 +8006,8 @@ struct GL_DETECT_REPLAY_INFO *
 }
 #endif
 
-struct FT_IES *
-	aisGetFtIe(
-	IN struct ADAPTER *prAdapter,
-	IN uint8_t ucBssIndex) {
+struct FT_IES *aisGetFtIe(IN struct ADAPTER *prAdapter,
+	IN uint8_t ucBssIndex, IN uint8_t ucRound) {
 
 	if (!IS_BSS_INDEX_AIS(prAdapter, ucBssIndex)) {
 		DBGLOG(AIS, LOUD,
@@ -7891,7 +8015,12 @@ struct FT_IES *
 		ucBssIndex = AIS_DEFAULT_INDEX;
 	}
 
-	return &(prAdapter->rWifiVar.rConnSettings[ucBssIndex].rFtIeForTx);
+	if (ucRound >= FT_ROUND) {
+		DBGLOG(AIS, ERROR, "Invalid round:%d\n", ucRound);
+		return NULL;
+	}
+
+	return &(prAdapter->rWifiVar.rConnSettings[ucBssIndex].rFtIe[ucRound]);
 }
 
 struct cfg80211_ft_event_params *
@@ -8053,3 +8182,122 @@ u_int8_t clearAxBlocklist(IN struct ADAPTER *prAdapter,
 	}
 	return TRUE;
 }
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * @brief This function will request new channel once reciving new beacon
+ *        after CSA.
+ *
+ * @param[in] prAisFsmInfo              Pointer to AIS_FSM_INFO
+ * @param[in] prBss                     Pointer to AIS BSS_INFO_T
+ * @param[in] ucChTokenId               Pointer to token ID
+ *
+ * @return (none)
+ */
+/*----------------------------------------------------------------------------*/
+void aisReqJoinChPrivilegeForCSA(struct ADAPTER *prAdapter,
+				struct AIS_FSM_INFO *prAisFsmInfo,
+				struct BSS_INFO *prBss,
+				uint8_t *ucChTokenId)
+{
+		struct MSG_CH_REQ *prMsgChReq = NULL;
+
+		/* stop Tx due to we need to connect a new AP. even the
+		 ** new AP is operating on the same channel with current
+		 ** , we still need to stop Tx, because firmware should
+		 ** ensure all mgmt and dhcp packets are Tx in time,
+		 ** and may cause normal data packets was queued and
+		 ** eventually flushed in firmware
+		 */
+		if (prBss->prStaRecOfAP &&
+		    prBss->ucReasonOfDisconnect !=
+		    DISCONNECT_REASON_CODE_REASSOCIATION)
+			prBss->prStaRecOfAP->fgIsTxAllowed = FALSE;
+
+		/* send message to CNM for acquiring channel */
+		prMsgChReq = (struct MSG_CH_REQ *)cnmMemAlloc(prAdapter,
+				RAM_TYPE_MSG,
+				sizeof(struct MSG_CH_REQ));
+		if (!prMsgChReq) {
+			DBGLOG(AIS, ERROR, "Can't indicate CNM\n");
+			return;
+		}
+		kalMemZero(prMsgChReq, sizeof(struct MSG_CH_REQ));
+
+		prMsgChReq->rMsgHdr.eMsgId = MID_MNY_CNM_CH_REQ;
+		prMsgChReq->ucBssIndex = prBss->ucBssIndex;
+		prMsgChReq->ucTokenID = ++prAisFsmInfo->ucSeqNumOfChReq;
+		prMsgChReq->eReqType = CH_REQ_TYPE_JOIN;
+		prMsgChReq->u4MaxInterval = AIS_JOIN_CH_REQUEST_INTERVAL;
+		prMsgChReq->ucPrimaryChannel =
+		    prAisFsmInfo->prTargetBssDesc->ucChannelNum;
+		prMsgChReq->eRfSco = prAisFsmInfo->prTargetBssDesc->eSco;
+		prMsgChReq->eRfBand = prAisFsmInfo->prTargetBssDesc->eBand;
+#if CFG_SUPPORT_DBDC
+		prMsgChReq->eDBDCBand = ENUM_BAND_AUTO;
+#endif /*CFG_SUPPORT_DBDC */
+		prMsgChReq->eRfChannelWidth = prBss->ucVhtChannelWidth;
+		prMsgChReq->ucRfCenterFreqSeg1 = prBss->ucVhtChannelFrequencyS1;
+		prMsgChReq->ucRfCenterFreqSeg2 = prBss->ucVhtChannelFrequencyS2;
+
+		mboxSendMsg(prAdapter, MBOX_ID_0,
+				(struct MSG_HDR *)prMsgChReq,
+				MSG_SEND_METHOD_BUF);
+}				/* end of aisReqJoinChPrivilegeForCSA() */
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * @brief This function will update the contain of BSS_INFO_T and STA_RECORD_T
+ *        for AIS network once reciving new beacon after CSA.
+ *
+ * @param[in] prBssInfo              Pointer to AIS BSS_INFO_T
+ *
+ * @return (none)
+ */
+/*----------------------------------------------------------------------------*/
+void aisUpdateParamsForCSA(struct ADAPTER *prAdapter,
+				struct BSS_INFO *prBssInfo)
+{
+	struct STA_RECORD *prStaRec;
+	struct BSS_DESC *prBssDesc;
+
+	prStaRec = prBssInfo->prStaRecOfAP;
+	prBssDesc = scanSearchBssDescByBssid(prAdapter, prStaRec->aucMacAddr);
+
+	if (!prBssDesc) {
+		DBGLOG(AIS, ERROR,
+			"Can't find " MACSTR "\n",
+			MAC2STR(prStaRec->aucMacAddr));
+		return;
+	}
+
+	/* <1> Update information from BSS_DESC to current P_STA_RECORD */
+	bssUpdateStaRecFromBssDesc(prAdapter, prBssDesc, prStaRec);
+
+	/* <2> Decide if this BSS 20/40M bandwidth is allowed */
+	if ((prAdapter->rWifiVar.ucAvailablePhyTypeSet &
+	     PHY_TYPE_SET_802_11N) &&
+	    (prStaRec->ucPhyTypeSet & PHY_TYPE_SET_802_11N)) {
+		prBssInfo->fgAssoc40mBwAllowed =
+			cnmBss40mBwPermitted(prAdapter, prStaRec->ucIndex);
+	} else {
+		prBssInfo->fgAssoc40mBwAllowed = FALSE;
+	}
+	DBGLOG(RLM, TRACE, "STA 40mAllowed=%d\n",
+	       prBssInfo->fgAssoc40mBwAllowed);
+
+	/* <3> Setup PHY Attributes and Basic Rate Set/Operational
+	 * Rate Set
+	 */
+	prBssInfo->ucPhyTypeSet = prStaRec->ucDesiredPhyTypeSet;
+	prBssInfo->ucNonHTBasicPhyType = prStaRec->ucNonHTBasicPhyType;
+	prBssInfo->u2OperationalRateSet = prStaRec->u2OperationalRateSet;
+	prBssInfo->u2BSSBasicRateSet = prStaRec->u2BSSBasicRateSet;
+
+	nicTxUpdateBssDefaultRate(prBssInfo);
+	nicTxUpdateStaRecDefaultRate(prAdapter, prStaRec);
+	cnmStaSendUpdateCmd(prAdapter, prStaRec, NULL, FALSE);
+
+	cnmDumpStaRec(prAdapter, prStaRec->ucIndex);
+}				/* end of aisUpdateParamsForCSA() */
+

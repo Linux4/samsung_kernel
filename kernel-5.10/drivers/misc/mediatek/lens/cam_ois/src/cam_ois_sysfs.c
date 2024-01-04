@@ -568,7 +568,6 @@ static ssize_t ois_selftest_show(struct device *dev, struct device_attribute *at
 	bool result_offset = 0, result_selftest = 0;
 	uint32_t selftest_ret = 0, offsettest_ret = 0;
 	long raw_data_x = 0, raw_data_y = 0, raw_data_z = 0;
-	int OIS_GYRO_OFFSET_SPEC = 10000;
 
 	offsettest_ret = cam_ois_sysfs_read_gyro_offset_test(&raw_data_x, &raw_data_y, &raw_data_z);
 	msleep(50);

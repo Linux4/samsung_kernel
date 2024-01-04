@@ -237,7 +237,7 @@ struct fm_basic_interface {
 	signed int (*rds_tx_adapter)(unsigned short pi, unsigned short *ps, unsigned short *other_rds,
 							unsigned char other_rds_cnt);
 	bool (*is_valid_freq)(unsigned short freq);
-	signed int (*atj_set)(unsigned short value);
+	signed int (*atj_set)(signed int freq, unsigned short value);
 };
 
 struct fm_rds_interface {

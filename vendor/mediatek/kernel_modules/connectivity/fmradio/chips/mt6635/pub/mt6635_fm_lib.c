@@ -75,7 +75,7 @@ static unsigned short mt6635_chan_para_get(unsigned short freq);
 static signed int mt6635_desense_check(unsigned short freq, signed int rssi);
 static bool mt6635_TDD_chan_check(unsigned short freq);
 static bool mt6635_SPI_hopping_check(unsigned short freq);
-static signed int mt6635_atj_set(unsigned short value);
+static signed int mt6635_atj_set(signed int freq, unsigned short value);
 static signed int mt6635_soft_mute_tune(unsigned short freq, signed int *rssi, signed int *valid);
 static signed int mt6635_get_cust_chan_para_map(void);
 
@@ -1956,7 +1956,7 @@ static signed int mt6635_blending_control(signed int control, signed int value)
 				WCN_DBG(FM_ERR | CHIP, "mt6635_write fail(%d), Blend part\n", ret);
 		} else {
 			WCN_DBG(FM_ERR | CHIP, "invald value(%d) for Blend control\n", value);
-			fm_blend_ctl.pamd_value = 0x2;
+			fm_blend_ctl.blend_value = 0x2;
 		}
 	} else {
 		WCN_DBG(FM_ERR | CHIP, "invalid contol(%d)\n", control);
@@ -2382,10 +2382,9 @@ static bool mt6635_SPI_hopping_check(unsigned short freq)
 	return 0;
 }
 
-static signed int mt6635_atj_set(unsigned short value)
+static signed int mt6635_atj_set(signed int freq, unsigned short value)
 {
 	signed int pos, size;
-	signed int freq = 10400;
 
 	if (fm_get_channel_space(freq) == 0)
 		freq *= 10;
@@ -2397,7 +2396,6 @@ static signed int mt6635_atj_set(unsigned short value)
 
 	size = ARRAY_SIZE(mt6635_chan_para_map);
 
-	pos = (pos < 0) ? 0 : pos;
 	pos = (pos > (size - 1)) ? (size - 1) : pos;
 
 	if (value == 1)

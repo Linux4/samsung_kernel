@@ -27,6 +27,10 @@
 
 #define GPS_HW_SUSPEND_SUPPORT
 #endif /* GPS_FWCTL_SUPPORT */
+struct boot_time_info {
+	int64_t now_time;
+	int64_t arch_counter;
+};
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
 struct timeval {
