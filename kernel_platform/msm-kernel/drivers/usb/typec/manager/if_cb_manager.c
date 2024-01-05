@@ -70,6 +70,17 @@ struct if_cb_manager *register_usbpd(struct usbpd_dev *usbpd)
 }
 EXPORT_SYMBOL(register_usbpd);
 
+struct if_cb_manager *register_lvs(struct lvs_dev *lvs)
+{
+	struct if_cb_manager *man_core;
+
+	man_core = get_if_cb_manager();
+	man_core->lvs_d = lvs;
+
+	return man_core;
+}
+EXPORT_SYMBOL(register_lvs);
+
 void usb_set_vbus_current(struct if_cb_manager *man_core, int state)
 {
 	if (man_core == NULL || man_core->usb_d == NULL ||
@@ -89,7 +100,7 @@ int muic_check_usb_killer(struct if_cb_manager *man_core)
 	if (man_core == NULL || man_core->muic_d == NULL ||
 			man_core->muic_d->ops == NULL ||
 			man_core->muic_d->ops->muic_check_usb_killer == NULL) {
-			pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
+		pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
 		return 0;
 	}
 
@@ -117,7 +128,7 @@ int usbpd_sbu_test_read(struct if_cb_manager *man_core)
 	if (man_core == NULL || man_core->usbpd_d == NULL ||
 			man_core->usbpd_d->ops == NULL ||
 			man_core->usbpd_d->ops->usbpd_sbu_test_read == NULL) {
-			pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
+		pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
 		return -ENXIO;
 	}
 
@@ -131,7 +142,7 @@ void usbpd_set_host_on(struct if_cb_manager *man_core, int mode)
 	if (man_core == NULL || man_core->usbpd_d == NULL ||
 			man_core->usbpd_d->ops == NULL ||
 			man_core->usbpd_d->ops->usbpd_set_host_on == NULL) {
-			pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
+		pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
 		return;
 	}
 
@@ -145,7 +156,7 @@ void usbpd_cc_control_command(struct if_cb_manager *man_core, int is_off)
 	if (man_core == NULL || man_core->usbpd_d == NULL ||
 			man_core->usbpd_d->ops == NULL ||
 			man_core->usbpd_d->ops->usbpd_cc_control_command == NULL) {
-			pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
+		pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
 		return;
 	}
 
@@ -153,6 +164,19 @@ void usbpd_cc_control_command(struct if_cb_manager *man_core, int is_off)
 		man_core->usbpd_d->data, is_off);
 }
 EXPORT_SYMBOL(usbpd_cc_control_command);
+
+void usbpd_wait_entermode(struct if_cb_manager *man_core, int on)
+{
+	if (man_core == NULL || man_core->usbpd_d == NULL ||
+			man_core->usbpd_d->ops == NULL ||
+			man_core->usbpd_d->ops->usbpd_wait_entermode == NULL) {
+		pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
+		return;
+	}
+
+	man_core->usbpd_d->ops->usbpd_wait_entermode(man_core->usbpd_d->data, on);
+}
+EXPORT_SYMBOL(usbpd_wait_entermode);
 
 static int __init if_cb_manager_init(void)
 {

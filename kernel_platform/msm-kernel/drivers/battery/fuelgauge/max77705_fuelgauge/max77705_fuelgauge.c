@@ -1975,6 +1975,9 @@ static int max77705_fg_get_property(struct power_supply *psy,
 		case SEC_BATTERY_CAPACITY_VFSOC:
 			val->intval = max77705_get_fuelgauge_value(fuelgauge, FG_QH_VF_SOC);
 			break;
+		case SEC_BATTERY_CAPACITY_RC0:
+			val->intval = max77705_read_word(fuelgauge->i2c, RCOMP_REG);
+			break;
 		}
 		break;
 		/* SOC (%) */

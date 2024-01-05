@@ -668,6 +668,7 @@ static void qcom_glink_rx_done(struct qcom_glink *glink,
 			       struct glink_core_rx_intent *intent)
 {
 	int ret = -EAGAIN;
+	unsigned long flags;
 
 	/* We don't send RX_DONE to intentless systems */
 	if (glink->intentless) {
@@ -678,13 +679,13 @@ static void qcom_glink_rx_done(struct qcom_glink *glink,
 
 	/* Take it off the tree of receive intents */
 	if (!intent->reuse) {
-		spin_lock(&channel->intent_lock);
+		spin_lock_irqsave(&channel->intent_lock, flags);
 		idr_remove(&channel->liids, intent->id);
-		spin_unlock(&channel->intent_lock);
+		spin_unlock_irqrestore(&channel->intent_lock, flags);
 	}
 
 	/* Schedule the sending of a rx_done indication */
-	spin_lock(&channel->intent_lock);
+	spin_lock_irqsave(&channel->intent_lock, flags);
 	if (list_empty(&channel->done_intents))
 		ret = __qcom_glink_rx_done(glink, channel, intent, false);
 
@@ -692,7 +693,7 @@ static void qcom_glink_rx_done(struct qcom_glink *glink,
 		list_add_tail(&intent->node, &channel->done_intents);
 		kthread_queue_work(&glink->kworker, &channel->intent_work);
 	}
-	spin_unlock(&channel->intent_lock);
+	spin_unlock_irqrestore(&channel->intent_lock, flags);
 }
 
 /**
@@ -1092,9 +1093,11 @@ static int qcom_glink_rx_data(struct qcom_glink *glink, size_t avail)
 					channel->ept.priv,
 					RPMSG_ADDR_ANY);
 
-			if (ret < 0 && ret != -ENODEV) {
-				CH_ERR(channel,
-					"callback error ret = %d\n", ret);
+			if (ret < 0) {
+				if (ret != -ENODEV) {
+					CH_ERR(channel,
+						"callback error ret = %d\n", ret);
+				}
 				ret = 0;
 			}
 		} else {
@@ -1981,7 +1984,7 @@ static void qcom_glink_rx_close(struct qcom_glink *glink, unsigned int rcid)
 	kthread_cancel_work_sync(&channel->intent_work);
 
 	if (channel->rpdev) {
-		strlcpy(chinfo.name, channel->name, sizeof(chinfo.name));
+		strscpy_pad(chinfo.name, channel->name, sizeof(chinfo.name));
 		chinfo.src = RPMSG_ADDR_ANY;
 		chinfo.dst = RPMSG_ADDR_ANY;
 

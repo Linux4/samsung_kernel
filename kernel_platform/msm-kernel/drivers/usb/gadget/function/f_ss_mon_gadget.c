@@ -213,10 +213,10 @@ static int ss_monitor_set_alt(struct usb_function *f,
 	struct f_ss_monitor	*ss_monitor;
 
 	ss_monitor = func_to_ss_monitor(f);
+	g_ss_monitor->aoa_reset.acc_dev_status = false;
 	if (ss_monitor->usb_function_info & GADGET_ACCESSORY) {
 		pr_info("[USB] %s: aoa connect\n", __func__);
 		g_ss_monitor->aoa_reset.acc_online = true;
-		g_ss_monitor->aoa_reset.acc_dev_status = false;
 		g_ss_monitor->aoa_reset.rst_err_cnt = 0;
 	}
 	return 0;
@@ -247,7 +247,7 @@ ret:
 }
 
 /* for BC1.2 spec */
-static int dwc3_set_vbus_current(int state)
+static int set_vbus_current(int state)
 {
 	struct power_supply *psy;
 	union power_supply_propval pval = {0};
@@ -296,7 +296,7 @@ static void set_vbus_current_work(struct work_struct *w)
 	default:
 		break;
 	}
-	dwc3_set_vbus_current(ss_monitor->vbus_current);
+	set_vbus_current(ss_monitor->vbus_current);
 skip:
 	return;
 }
@@ -535,6 +535,12 @@ static int ss_monitor_setup(struct usb_function *f,
 			if (ctrl->bRequest == 0xA3) {
 				pr_info("[USB] %s: (mtp) RECEIVE PC GUID / line[%d]\n",
 							__func__, __LINE__);
+				if (w_length > MAX_GUID_SIZE) {
+					pr_info("usb: [%s] Invalid GUID size / line[%d]\n",
+								__func__, __LINE__);
+					goto unknown;
+				}
+
 				value = w_length;
 				req->complete = mtp_complete_get_guid;
 				req->zero = 0;
@@ -603,6 +609,10 @@ static int ss_monitor_setup(struct usb_function *f,
 			store_usblog_notify(NOTIFY_USBSTATE,
 				(void *)"USB_STATE=ENUM:SET:CON", NULL);
 #endif
+			if (ss_monitor->usb_function_info & GADGET_ACCESSORY) {
+				g_ss_monitor->aoa_reset.acc_online = true;
+				g_ss_monitor->aoa_reset.rst_err_cnt = 0;
+			}
 			break;
 		}
 	}
@@ -844,7 +854,6 @@ ss_monitor_unbind(struct usb_configuration *c, struct usb_function *f)
 	store_usblog_notify(NOTIFY_USBSTATE,
 		(void *)"USB_STATE=PULLUP:DIS", NULL);
 #endif
-	opts->aoa_reset.acc_dev_status = false;
 	opts->aoa_reset.rst_err_cnt = 0;
 	ss_monitor->usb_function_info = 0;
 	ss_monitor->is_bind = 0;

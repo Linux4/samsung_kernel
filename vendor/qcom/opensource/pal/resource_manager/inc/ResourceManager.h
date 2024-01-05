@@ -872,6 +872,7 @@ public:
     bool updateDevAttr(struct pal_device *activeDevAttr, const struct pal_device_info *inDevInfo,
          struct pal_device *inDevAttr);
     bool isDpDevice(pal_device_id_t id);
+    bool isPluginPlaybackDevice(pal_device_id_t id);
 
     /* Separate device reference counts are maintained in PAL device and GSL device SGs.
      * lock graph is to sychronize these reference counts during device and session operations
@@ -880,6 +881,8 @@ public:
     void unlockGraph() { mGraphMutex.unlock(); };
     void lockActiveStream() { mActiveStreamMutex.lock(); };
     void unlockActiveStream() { mActiveStreamMutex.unlock(); };
+    void lockResourceManagerMutex() {mResourceManagerMutex.lock();};
+    void unlockResourceManagerMutex() {mResourceManagerMutex.unlock();};       
     void getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream *, uint32_t>> &activeStreamDevs,
                                      int dev_id);
     int32_t streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,

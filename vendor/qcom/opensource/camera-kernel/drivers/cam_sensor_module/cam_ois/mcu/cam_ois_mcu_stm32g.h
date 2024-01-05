@@ -45,9 +45,6 @@
 
 #define MAX_EFS_DATA_LENGTH     (30)
 
-#define OIS_R0Q_G0Q_FIRST_VERSION     "UBC1OE1A"
-#define OIS_B0Q_FIRST_VERSION         "VGC1OG1A"
-
 #define OIS_FW_STATUS_OFFSET          (0x00FC)
 #define OIS_FW_STATUS_SIZE            (4)
 #define OIS_HW_VERSION_SIZE           (3)
@@ -290,6 +287,7 @@ typedef struct
 #define BOOT_I2C_FULL_ERASE_TMOUT       (flash_full_erase_time)
 #define BOOT_I2C_PAGE_ERASE_TMOUT(n)    (flash_page_erase_time * n)
 #define BOOT_I2C_WAIT_RESP_TMOUT        (30)
+#define BOOT_I2C_WAIT_MAX_RESP_TMOUT    (1500)
 #define BOOT_I2C_WAIT_RESP_POLL_TMOUT   (500)
 #define BOOT_I2C_WAIT_RESP_POLL_INTVL   (3)
 #define BOOT_I2C_WAIT_RESP_POLL_RETRY   (BOOT_I2C_WAIT_RESP_POLL_TMOUT / BOOT_I2C_WAIT_RESP_POLL_INTVL)

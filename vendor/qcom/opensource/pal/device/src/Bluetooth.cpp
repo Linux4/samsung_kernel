@@ -1407,6 +1407,7 @@ void Bluetooth::stopAbr()
     struct mixer_ctl *btSetFeedbackChannelCtrl = NULL;
     struct mixer *hwMixerHandle = NULL;
     int dir, ret = 0;
+    bool isfbDeviceLocked = false;
 
     mAbrMutex.lock();
     if (!fbPcm) {
@@ -1422,7 +1423,7 @@ void Bluetooth::stopAbr()
     }
 
     if (--abrRefCnt > 0) {
-        PAL_DBG(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
+        PAL_INFO(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
         mAbrMutex.unlock();
         return;
     }
@@ -1431,6 +1432,10 @@ void Bluetooth::stopAbr()
     sAttr.type = PAL_STREAM_LOW_LATENCY;
     sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
 
+    if (fbDev) {
+        fbDev->lockDeviceMutex();
+        isfbDeviceLocked = true;
+    }
     pcm_stop(fbPcm);
     pcm_close(fbPcm);
 
@@ -1480,7 +1485,18 @@ free_fe:
         rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
         fbpcmDevIds.clear();
     }
-    isAbrEnabled = false;
+
+    /* Check for deviceStartStopCount, to avoid false reset of isAbrEnabled flag in
+     * case of BLE playback path stops during ongoing capture session
+     */
+    if (deviceStartStopCount == 1) {
+        isAbrEnabled = false;
+    }
+
+    if (isfbDeviceLocked) {
+        isfbDeviceLocked = false;
+        fbDev->unlockDeviceMutex();
+    }
     mAbrMutex.unlock();
 }
 
@@ -2046,30 +2062,27 @@ int BtA2dp::start()
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
     if (status) {
-        isAbrEnabled = false;
         goto exit;
     }
 
     if (totalActiveSessionRequests == 1) {
         status = configureSlimbusClockSrc();
         if (status) {
-            isAbrEnabled = false;
             goto exit;
         }
     }
 
     status = Device::start_l();
 
-    if (!status && isAbrEnabled)
-        startAbr();
-
-exit:
     if (customPayload) {
         free(customPayload);
         customPayload = NULL;
         customPayloadSize = 0;
     }
 
+    if (!status && isAbrEnabled)
+        startAbr();
+exit:
     mDeviceMutex.unlock();
     return status;
 }
@@ -2077,8 +2090,8 @@ exit:
 int BtA2dp::stop()
 {
     int status = 0;
-    mDeviceMutex.lock();
 
+    mDeviceMutex.lock();
     if (isAbrEnabled)
         stopAbr();
 
@@ -2259,19 +2272,22 @@ int BtA2dp::startPlayback()
             } else {
                 param_bt_a2dp.latency = 0;
             }
-        } else
-#endif
-        if (audio_sink_get_a2dp_latency_api && (a2dpState != A2DP_STATE_DISCONNECTED)) {
-            slatency = audio_sink_get_a2dp_latency_api(get_session_type());
-        } else if (audio_sink_get_a2dp_latency && (a2dpState != A2DP_STATE_DISCONNECTED)) {
-            slatency = audio_sink_get_a2dp_latency();
-        }
-        if (pluginCodec) {
-            param_bt_a2dp.latency =
-                pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
         } else {
-            param_bt_a2dp.latency = 0;
+#endif
+            if (audio_sink_get_a2dp_latency_api && (a2dpState != A2DP_STATE_DISCONNECTED)) {
+                slatency = audio_sink_get_a2dp_latency_api(get_session_type());
+            } else if (audio_sink_get_a2dp_latency && (a2dpState != A2DP_STATE_DISCONNECTED)) {
+                slatency = audio_sink_get_a2dp_latency();
+            }
+            if (pluginCodec) {
+                param_bt_a2dp.latency =
+                    pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
+            } else {
+                param_bt_a2dp.latency = 0;
+            }
+#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
         }
+#endif
 
         a2dpState = A2DP_STATE_STARTED;
     } else {
@@ -2884,7 +2900,16 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             } else {
                 delay_report = 0;
             }
-            PAL_INFO(LOG_TAG, "delay_report = %d", delay_report);
+            if (pluginCodec) {
+                uint32_t slatency = 0;
+                slatency = delay_report;
+                param_bt_a2dp.latency =
+                        pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
+                if (slatency > 0) {
+                    param_bt_a2dp.latency = calculate_latency(param_bt_a2dp.latency, slatency);
+                }
+            }
+            PAL_INFO(LOG_TAG, "delay_report = %d, latency = %d", delay_report, param_bt_a2dp.latency);
         }
         break;
     }

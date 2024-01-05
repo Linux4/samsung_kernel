@@ -27,26 +27,31 @@
 #include <linux/version.h>
 #include <linux/pm_wakeup.h>
 
-#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2)
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V2) || IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
 #define POGO_NOTIFIER_ENABLED
 #endif
 
 #ifdef POGO_NOTIFIER_ENABLED
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+#include "../../sec_input/stm32/pogo_notifier_v3.h"
+#include "../../sec_input/stm32/stm32_pogo_v3.h"
+#else
 #include <linux/input/pogo_i2c_notifier.h>
-#endif
-
 #include "../../sec_input/stm32/stm32_pogo_i2c.h"
+#endif
+#endif
 
 /*
  * Switch events
  */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
-#define SW_FLIP                 0x10  /* set = flip cover open, close*/
-#define SW_HALL_LOGICAL         0x0a  /* set = logical hall ic attach/detach */
+#define SW_FLIP				0x10  /* set = flip cover open, close*/
+#define SW_HALL_LOGICAL		0x0a  /* set = logical hall ic attach/detach */
 #else
-#define SW_FLIP                 0x15  /* set = flip cover open, close*/
-#define SW_HALL_LOGICAL         0x1f  /* set = logical hall ic attach/detach */
+#define SW_FLIP				0x15  /* set = flip cover open, close*/
+#define SW_HALL_LOGICAL		0x1f  /* set = logical hall ic attach/detach */
 #endif
+#define SW_POGO_HALL		0x0d  /* set = pogo cover attach/detach */
 
 enum LID_POSITION {
 	E_LID_0 = 1,
@@ -71,8 +76,9 @@ struct hall_drvdata {
 #endif
 };
 
-static int hall_logical_status = 0;
-static int hall_backflip_status = 0;
+static int hall_logical_status;
+static int hall_backflip_status;
+static int pogo_cover_status;
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 static ssize_t hall_logical_detect_show(struct device *dev,
@@ -148,7 +154,21 @@ static int logical_hallic_notifier_handler(struct notifier_block *nb,
 			input_report_switch(logical_hall_dev->input, SW_HALL_LOGICAL, hall_backflip_status);
 			input_sync(logical_hall_dev->input);
 		}
-
+		break;
+#if IS_ENABLED(CONFIG_KEYBOARD_STM32_POGO_V3)
+	case POGO_NOTIFIER_EVENTID_ACESSORY:
+		if (pogo_data.size != 2) {
+			pr_info("%s size is wrong. size=%d!\n", __func__, pogo_data.size);
+			break;
+		}
+		pogo_cover_status = pogo_data.data[1];
+		input_info(true, &logical_hall_dev->input->dev, "%s pogo_cover_status = %d\n",
+					__func__, pogo_cover_status);
+		input_report_switch(logical_hall_dev->input, SW_POGO_HALL, pogo_cover_status);
+		input_sync(logical_hall_dev->input);
+		break;
+#endif
+	default:
 		break;
 	};
 
@@ -198,6 +218,7 @@ static int hall_logical_probe(struct platform_device *pdev)
 	input->evbit[0] |= BIT_MASK(EV_SW);
 	input_set_capability(input, EV_SW, SW_FLIP);
 	input_set_capability(input, EV_SW, SW_HALL_LOGICAL);
+	input_set_capability(input, EV_SW, SW_POGO_HALL);
 
 	input->open = hall_logical_open;
 	input->close = hall_logical_close;
@@ -233,7 +254,9 @@ static int hall_logical_probe(struct platform_device *pdev)
 
 	input_report_switch(input, SW_FLIP, hall_logical_status);
 	input_report_switch(input, SW_HALL_LOGICAL, hall_backflip_status);
-	input_info(true, dev, "%s hall_status = %d backflip_status = %d\n", __func__, hall_logical_status, hall_backflip_status);
+	input_report_switch(input, SW_POGO_HALL, pogo_cover_status);
+	input_info(true, dev, "%s hall_status = %d backflip_status = %d pogo_cover_status = %d\n",
+			__func__, hall_logical_status, hall_backflip_status, pogo_cover_status);
 
 	pr_info("%s end", __func__);
 	return 0;

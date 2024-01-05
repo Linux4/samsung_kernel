@@ -214,7 +214,8 @@ do
 done
 
 # Default A/B configuration flag for all QSSI targets (not used for legacy targets).
-ENABLE_AB=${ENABLE_AB:-true}
+#ENABLE_AB=${ENABLE_AB:-true}
+ENABLE_AB=false
 ARGS="$@"
 QSSI_ARGS="$ARGS ENABLE_AB=$ENABLE_AB"
 

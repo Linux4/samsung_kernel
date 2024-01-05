@@ -354,7 +354,7 @@ extern char rear3_sensor_id[FROM_SENSOR_ID_SIZE + 1];
 extern DualTilt_t rear3_dual;
 #endif
 
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 extern char rear3_fw_factory_ver[SYSFS_FW_VER_SIZE];
 extern char rear3_fw_user_ver[SYSFS_FW_VER_SIZE];
 #endif

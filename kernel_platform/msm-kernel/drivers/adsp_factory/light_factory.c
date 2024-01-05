@@ -1328,7 +1328,7 @@ static ssize_t light_test_show(struct device *dev,
 }
 
 static DEVICE_ATTR(light_test, 0444, light_test_show, NULL);
-#elif defined (CONFIG_TABLET_MODEL_CONCEPT)
+#else
 static ssize_t light_cal_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1431,9 +1431,7 @@ static ssize_t light_sub_als_lux_show(struct device *dev,
 }
 #endif
 
-#if IS_ENABLED(CONFIG_SUPPORT_LIGHT_CALIBRATION) || IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
 static DEVICE_ATTR(light_cal, 0664, light_cal_show, light_cal_store);
-#endif
 static DEVICE_ATTR(lcd_onoff, 0220, NULL, light_lcd_onoff_store);
 static DEVICE_ATTR(hallic_info, 0220, NULL, light_hallic_info_store);
 static DEVICE_ATTR(light_circle, 0444, light_circle_show, NULL);
@@ -1485,9 +1483,7 @@ static struct device_attribute *light_attrs[] = {
 	&dev_attr_copr_roix,
 	&dev_attr_sensorhub_ddi_spi_check,
 #endif
-#if IS_ENABLED(CONFIG_SUPPORT_LIGHT_CALIBRATION) || IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
 	&dev_attr_light_cal,
-#endif
 #if IS_ENABLED(CONFIG_SUPPORT_LIGHT_CALIBRATION)
 	&dev_attr_light_test,
 #endif

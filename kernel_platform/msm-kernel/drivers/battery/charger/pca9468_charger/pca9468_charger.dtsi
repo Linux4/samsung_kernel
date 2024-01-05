@@ -17,7 +17,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1788/android/kernel_platform/kmodule/battery/stable/suwon_2111/charger/pca9468/pca9468_charger.b0[qs].dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1788/android/kernel_platform/kmodule/battery/stable/suwon_2111/charger/pca9468/pca9468_charger.b0[qs].dtsi */
 
 &pca9468_charger {
 		pca9468,input-itopoff = <400000>; /* 400mA */

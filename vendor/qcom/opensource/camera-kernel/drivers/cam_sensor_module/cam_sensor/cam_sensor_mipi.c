@@ -188,6 +188,7 @@ int32_t cam_check_sensor_type(uint16_t sensor_id)
 			break;
 
 		case SENSOR_ID_IMX374:
+		case SENSOR_ID_S5K3J1:
 		case SENSOR_ID_S5KGH1:
  			sensor_type = FRONT;
 			break;

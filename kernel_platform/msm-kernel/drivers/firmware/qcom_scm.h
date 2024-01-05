@@ -150,6 +150,7 @@ int qcom_scm_handle_wait(struct device *dev, int scm_ret,
 #define QCOM_SCM_MP_MPU_LOCK_NS_REGION			0x25
 #define QCOM_SCM_IOMMU_TLBINVAL_FLAG    0x00000001
 #define QCOM_SCM_CP_APERTURE_REG	0x0
+#define QCOM_SCM_CP_LPAC_APERTURE_REG	0x1
 
 #define QCOM_SCM_SVC_DCVS			0x0D
 #define QCOM_SCM_DCVS_RESET			0x07
@@ -225,6 +226,9 @@ int qcom_scm_handle_wait(struct device *dev, int scm_ret,
 #define QCOM_SCM_TZ_DBG_ETM_FEAT_ID		0x08
 #define QCOM_SCM_FEAT_LOG_ID			0x0a
 #define QCOM_SCM_MP_CP_FEAT_ID			0x0c
+
+#define QCOM_SCM_LMH_LIMIT_PROFILE_CHANGE	0x01
+#define QCOM_SCM_LMH_LIMIT_DCVSH		0x10
 
 extern void __qcom_scm_init(void);
 

@@ -879,6 +879,16 @@ int agm_session_pause(uint64_t hndl);
 int agm_session_flush(uint64_t hndl);
 
 /**
+  * \brief flush the session. session must be in pause state
+  *        before flushing.
+  *
+  * \param[in] session_id - Valid audio session id
+  *
+  * \return 0 on success, error code otherwise
+  */
+int agm_sessionid_flush(uint32_t session_id);
+
+/**
   * \brief Resume the session. session must be in paused state
   *        before resuming.
   *

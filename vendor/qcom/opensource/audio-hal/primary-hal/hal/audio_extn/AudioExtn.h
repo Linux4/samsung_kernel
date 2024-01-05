@@ -123,13 +123,14 @@ public:
     static void audio_extn_fm_set_parameters(std::shared_ptr<AudioDevice> adev, struct str_parms *params);
     static void audio_extn_fm_get_parameters(std::shared_ptr<AudioDevice> adev, struct str_parms *query, struct str_parms *reply);
 
-    // Karaoke
+    //Karaoke
     int karaoke_open(pal_device_id_t device_out, pal_stream_callback pal_callback, pal_channel_info ch_info);
     int karaoke_start();
     int karaoke_stop();
     int karaoke_close();
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     bool is_karaoke_mode();
+    void karaoke_init();
 #endif
 
     /* start kpi optimize perf apis */

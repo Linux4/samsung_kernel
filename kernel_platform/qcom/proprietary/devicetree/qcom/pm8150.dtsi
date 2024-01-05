@@ -26,7 +26,7 @@
 			#thermal-sensor-cells = <0>;
 		};
 
-		qcom,power-on@800 {
+		pm8150_pon: qcom,power-on@800 {
 			compatible = "qcom,qpnp-power-on";
 			reg = <0x800>;
 			interrupts = <0x0 0x8 0x0 IRQ_TYPE_EDGE_BOTH>,
