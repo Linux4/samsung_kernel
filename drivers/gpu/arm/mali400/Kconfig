@@ -1,0 +1,50 @@
+menuconfig MALI400
+	tristate "Mali-400 support"
+	depends on ARM
+	default n
+	select DMA_SHARED_BUFFER
+	---help---
+	  This enables support for the ARM Mali-400 GPU.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called mali.
+
+choice
+depends on MALI400
+prompt "Select MALI VER"
+default MALI_VER_R3P2_REL2
+
+config MALI_VER_R3P2_REL2
+	bool "Mali400 Version R3P2-REL2"
+	help
+	  Choose this option to select DDK version.
+
+if MALI_VER_R3P2_REL2
+source "drivers/gpu/arm/mali400/r3p2_rel2/Kconfig"
+endif
+
+config MALI_VER_R4P0_REL0
+	bool "Mali400 Version R4P0-REL0"
+	help
+	  Choose this option to select DDK version.
+
+if MALI_VER_R4P0_REL0
+source "drivers/gpu/arm/mali400/r4p0_rel0/Kconfig"
+endif
+
+endchoice
+
+config VIDEO_SAMSUNG
+	bool "Samsung Multimedia Devices"
+	depends on VIDEO_CAPTURE_DRIVERS && VIDEO_V4L2
+	select VIDEO_FIXED_MINOR_RANGES
+	default n
+	help
+	  This is a representative video4linux configuration for Samsung multimedia devices.
+
+config VIDEO_SAMSUNG_V4L2
+	bool "V4L2 API for digital camera to be contributed by samsung"
+	depends on VIDEO_DEV && VIDEO_SAMSUNG
+	default n
+	help
+	  This feature is for new V4L2 APIs all about digital camera
