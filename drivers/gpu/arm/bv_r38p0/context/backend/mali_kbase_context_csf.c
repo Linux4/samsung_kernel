@@ -31,6 +31,7 @@
 #include <mali_kbase_mem_pool_group.h>
 #include <mmu/mali_kbase_mmu.h>
 #include <tl/mali_kbase_timeline.h>
+#include <mali_kbase_ctx_sched.h>
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <csf/mali_kbase_csf_csg_debugfs.h>
@@ -89,6 +90,7 @@ static const struct kbase_context_init context_init[] = {
 	  "Memory pool group initialization failed" },
 	{ kbase_mem_evictable_init, kbase_mem_evictable_deinit,
 	  "Memory evictable initialization failed" },
+	{ kbase_ctx_sched_init_ctx, NULL, NULL },
 	{ kbase_context_mmu_init, kbase_context_mmu_term,
 	  "MMU initialization failed" },
 	{ kbase_context_mem_alloc_page, kbase_context_mem_pool_free,
@@ -118,7 +120,7 @@ struct kbase_context *kbase_create_context(struct kbase_device *kbdev,
 	bool is_compat,
 	base_context_create_flags const flags,
 	unsigned long const api_version,
-	struct file *const filp)
+	struct kbase_file *const kfile)
 {
 	struct kbase_context *kctx;
 	unsigned int i = 0;
@@ -137,7 +139,7 @@ struct kbase_context *kbase_create_context(struct kbase_device *kbdev,
 
 	kctx->kbdev = kbdev;
 	kctx->api_version = api_version;
-	kctx->filp = filp;
+	kctx->kfile = kfile;
 	kctx->create_flags = flags;
 
 	if (is_compat)

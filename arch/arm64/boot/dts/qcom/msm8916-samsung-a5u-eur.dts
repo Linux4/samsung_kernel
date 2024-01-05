@@ -8,8 +8,8 @@
 	compatible = "samsung,a5u-eur\0qcom,msm8916";
 
 	aliases {
-		sdhc1 = "/soc/sdhci@7824000";
-		sdhc2 = "/soc/sdhci@7864000";
+		mmc0 = "/soc/sdhci@7824000";
+		mmc1 = "/soc/sdhci@7864000";
 		serial0 = "/soc/serial@78b0000";
 	};
 

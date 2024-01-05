@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2011-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2011-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -555,7 +555,7 @@ struct kbase_devfreq_opp {
  * @entry_set_pte:    program the pte to be a valid entry to encode the physical
  *                    address of the next lower level page table and also update
  *                    the number of valid entries.
- * @entry_invalidate: clear out or invalidate the pte.
+ * @entries_invalidate: clear out or invalidate a range of ptes.
  * @get_num_valid_entries: returns the number of valid entries for a specific pgd.
  * @set_num_valid_entries: sets the number of valid entries for a specific pgd
  * @flags:            bitmask of MMU mode flags. Refer to KBASE_MMU_MODE_ constants.
@@ -573,7 +573,7 @@ struct kbase_mmu_mode {
 	void (*entry_set_ate)(u64 *entry, struct tagged_addr phy,
 			unsigned long flags, int level);
 	void (*entry_set_pte)(u64 *entry, phys_addr_t phy);
-	void (*entry_invalidate)(u64 *entry);
+	void (*entries_invalidate)(u64 *entry, u32 count);
 	unsigned int (*get_num_valid_entries)(u64 *pgd);
 	void (*set_num_valid_entries)(u64 *pgd,
 				      unsigned int num_of_valid_entries);
@@ -1240,6 +1240,9 @@ struct kbase_device {
  * @KBASE_FILE_COMPLETE:        Indicates if the setup for context has
  *                              completed, i.e. flags have been set for the
  *                              context.
+ * @KBASE_FILE_DESTROY_CTX:     Indicates that destroying of context has begun or
+ *                              is complete. This state can only be reached after
+ *                              @KBASE_FILE_COMPLETE.
  *
  * The driver allows only limited interaction with user-space until setup
  * is complete.
@@ -1249,7 +1252,8 @@ enum kbase_file_state {
 	KBASE_FILE_VSN_IN_PROGRESS,
 	KBASE_FILE_NEED_CTX,
 	KBASE_FILE_CTX_IN_PROGRESS,
-	KBASE_FILE_COMPLETE
+	KBASE_FILE_COMPLETE,
+	KBASE_FILE_DESTROY_CTX
 };
 
 /**
@@ -1259,6 +1263,12 @@ enum kbase_file_state {
  *                       allocated from the probe method of the Mali driver.
  * @filp:                Pointer to the struct file corresponding to device file
  *                       /dev/malixx instance, passed to the file's open method.
+ * @owner:               Pointer to the file table structure of a process that
+ *                       created the instance of /dev/malixx device file. Set to
+ *                       NULL when that process closes the file instance. No more
+ *                       file operations would be allowed once set to NULL.
+ *                       It would be updated only in the Userspace context, i.e.
+ *                       when @kbase_open or @kbase_flush is called.
  * @kctx:                Object representing an entity, among which GPU is
  *                       scheduled and which gets its own GPU address space.
  *                       Invalid until @setup_state is KBASE_FILE_COMPLETE.
@@ -1267,13 +1277,40 @@ enum kbase_file_state {
  *                       @setup_state is KBASE_FILE_NEED_CTX.
  * @setup_state:         Initialization state of the file. Values come from
  *                       the kbase_file_state enumeration.
+ * @destroy_kctx_work:   Work item for destroying the @kctx, enqueued only when
+ *                       @fops_count and @map_count becomes zero after /dev/malixx
+ *                       file was previously closed by the @owner.
+ * @lock:                Lock to serialize the access to members like @owner, @fops_count,
+ *                       @map_count.
+ * @fops_count:          Counter that is incremented at the beginning of a method
+ *                       defined for @kbase_fops and is decremented at the end.
+ *                       So the counter keeps a track of the file operations in progress
+ *                       for /dev/malixx file, that are being handled by the Kbase.
+ *                       The counter is needed to defer the context termination as
+ *                       Userspace can close the /dev/malixx file and flush() method
+ *                       can get called when some other file operation is in progress.
+ * @map_count:           Counter to keep a track of the memory mappings present on
+ *                       /dev/malixx file instance. The counter is needed to defer the
+ *                       context termination as Userspace can close the /dev/malixx
+ *                       file and flush() method can get called when mappings are still
+ *                       present.
+ * @zero_fops_count_wait: Waitqueue used to wait for the @fops_count to become 0.
+ *                        Currently needed only for the "mem_view" debugfs file.
  */
 struct kbase_file {
 	struct kbase_device  *kbdev;
 	struct file          *filp;
+	fl_owner_t            owner;
 	struct kbase_context *kctx;
 	unsigned long         api_version;
 	atomic_t              setup_state;
+	struct work_struct    destroy_kctx_work;
+	spinlock_t            lock;
+	int                   fops_count;
+	int                   map_count;
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	wait_queue_head_t     zero_fops_count_wait;
+#endif
 };
 #if MALI_JIT_PRESSURE_LIMIT_BASE
 /**
@@ -1452,8 +1489,8 @@ struct kbase_sub_alloc {
 /**
  * struct kbase_context - Kernel base context
  *
- * @filp:                 Pointer to the struct file corresponding to device file
- *                        /dev/malixx instance, passed to the file's open method.
+ * @kfile:                Pointer to the object representing the /dev/malixx device
+ *                        file instance.
  * @kbdev:                Pointer to the Kbase device for which the context is created.
  * @kctx_list_link:       Node into Kbase device list of contexts.
  * @mmu:                  Structure holding details of the MMU tables for this
@@ -1586,11 +1623,13 @@ struct kbase_sub_alloc {
  *                        is scheduled in and an atom is pulled from the context's per
  *                        slot runnable tree in JM GPU or GPU command queue
  *                        group is programmed on CSG slot in CSF GPU.
- * @mm_update_lock:       lock used for handling of special tracking page.
  * @process_mm:           Pointer to the memory descriptor of the process which
  *                        created the context. Used for accounting the physical
  *                        pages used for GPU allocations, done for the context,
- *                        to the memory consumed by the process.
+ *                        to the memory consumed by the process. A reference is taken
+ *                        on this descriptor for the Userspace created contexts so that
+ *                        Kbase can safely access it to update the memory usage counters.
+ *                        The reference is dropped on context termination.
  * @gpu_va_end:           End address of the GPU va space (in 4KB page units)
  * @running_total_tiler_heap_nr_chunks: Running total of number of chunks in all
  *                        tiler heaps of the kbase context.
@@ -1718,7 +1757,10 @@ struct kbase_sub_alloc {
  * @limited_core_mask:    The mask that is applied to the affinity in case of atoms
  *                        marked with BASE_JD_REQ_LIMITED_CORE_MASK.
  * @platform_data:        Pointer to platform specific per-context data.
- *
+ *  @task:                 Pointer to the task structure of the main thread of the process
+ *                        that created the Kbase context. It would be set only for the
+ *                        contexts created by the Userspace and not for the contexts
+ *                        created internally by the Kbase.*
  * A kernel base context is an entity among which the GPU is scheduled.
  * Each context has its own GPU address space.
  * Up to one context can be created for each client that opens the device file
@@ -1726,7 +1768,7 @@ struct kbase_sub_alloc {
  * is made on the device file.
  */
 struct kbase_context {
-	struct file *filp;
+	struct kbase_file *kfile;
 	struct kbase_device *kbdev;
 	struct list_head kctx_list_link;
 	struct kbase_mmu_table mmu;
@@ -1811,8 +1853,7 @@ struct kbase_context {
 
 	atomic_t refcount;
 
-	spinlock_t         mm_update_lock;
-	struct mm_struct __rcu *process_mm;
+        struct mm_struct *process_mm;
 	u64 gpu_va_end;
 #if MALI_USE_CSF
 	u32 running_total_tiler_heap_nr_chunks;
@@ -1876,6 +1917,8 @@ struct kbase_context {
 #if !MALI_USE_CSF
 	void *platform_data;
 #endif
+
+       struct task_struct *task;
 };
 
 #ifdef CONFIG_MALI_CINSTR_GWT
@@ -1904,17 +1947,15 @@ struct kbasep_gwt_list_element {
  *                                 to a @kbase_context.
  * @ext_res_node:                  List head for adding the metadata to a
  *                                 @kbase_context.
- * @alloc:                         The physical memory allocation structure
- *                                 which is mapped.
- * @gpu_addr:                      The GPU virtual address the resource is
- *                                 mapped to.
+ * @reg:                           External resource information, containing
+ *                                 the corresponding VA region
  * @ref:                           Reference count.
  *
  * External resources can be mapped into multiple contexts as well as the same
  * context multiple times.
- * As kbase_va_region itself isn't refcounted we can't attach our extra
- * information to it as it could be removed under our feet leaving external
- * resources pinned.
+ * As kbase_va_region is refcounted, we guarantee that it will be available
+ * for the duration of the external resource, meaning it is sufficient to use
+ * it to rederive any additional data, like the GPU address.
  * This metadata structure binds a single external resource to a single
  * context, ensuring that per context mapping is tracked separately so it can
  * be overridden when needed and abuses by the application (freeing the resource
@@ -1922,8 +1963,7 @@ struct kbasep_gwt_list_element {
  */
 struct kbase_ctx_ext_res_meta {
 	struct list_head ext_res_node;
-	struct kbase_mem_phy_alloc *alloc;
-	u64 gpu_addr;
+	struct kbase_va_region *reg;
 	u32 ref;
 };
 

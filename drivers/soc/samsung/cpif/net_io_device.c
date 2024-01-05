@@ -60,6 +60,7 @@ static int vnet_open(struct net_device *ndev)
 	struct modem_shared *msd = iod->msd;
 	struct link_device *ld;
 	int ret;
+	unsigned long flags;
 
 	atomic_inc(&iod->opened);
 
@@ -74,7 +75,10 @@ static int vnet_open(struct net_device *ndev)
 			}
 		}
 	}
+
+	spin_lock_irqsave(&msd->active_list_lock, flags);
 	list_add(&iod->node_ndev, &iod->msd->activated_ndev_list);
+	spin_unlock_irqrestore(&msd->active_list_lock, flags);
 
 	netif_start_queue(ndev);
 
@@ -90,6 +94,7 @@ static int vnet_stop(struct net_device *ndev)
 	struct io_device *iod = (struct io_device *)vnet->iod;
 	struct modem_shared *msd = iod->msd;
 	struct link_device *ld;
+	unsigned long flags;
 
 	if (atomic_dec_and_test(&iod->opened))
 		skb_queue_purge(&iod->sk_rx_q);
@@ -99,9 +104,9 @@ static int vnet_stop(struct net_device *ndev)
 			ld->terminate_comm(ld, iod);
 	}
 
-	spin_lock(&msd->active_list_lock);
+	spin_lock_irqsave(&msd->active_list_lock, flags);
 	list_del(&iod->node_ndev);
-	spin_unlock(&msd->active_list_lock);
+	spin_unlock_irqrestore(&msd->active_list_lock, flags);
 	netif_stop_queue(ndev);
 
 	mif_info("%s (opened %d) by %s\n",

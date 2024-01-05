@@ -133,6 +133,7 @@ static const struct kbase_context_init context_init[] = {
 	  "Memory pool goup initialization failed" },
 	{ kbase_mem_evictable_init, kbase_mem_evictable_deinit,
 	  "Memory evictable initialization failed" },
+	{ kbase_ctx_sched_init_ctx, NULL, NULL },
 	{ kbase_context_mmu_init, kbase_context_mmu_term,
 	  "MMU initialization failed" },
 	{ kbase_context_mem_alloc_page, kbase_context_mem_pool_free,

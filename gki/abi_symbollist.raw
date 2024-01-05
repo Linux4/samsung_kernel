@@ -65,6 +65,7 @@ __dev_get_by_name
 __dev_kfree_skb_any
 __dev_kfree_skb_irq
 __device_reset
+__devm_alloc_percpu
 __devm_iio_device_register
 __devm_irq_alloc_descs
 __devm_of_phy_provider_register
@@ -264,7 +265,9 @@ __trace_puts
 __tracepoint_android_vh_ipi_stop
 __tracepoint_android_vh_is_fpsimd_save
 __tracepoint_android_vh_kfree_skb
+__tracepoint_android_vh_printk_store
 __tracepoint_android_vh_ptype_head
+__tracepoint_android_vh_show_regs
 __tracepoint_android_vh_wq_lockup_pool
 __tracepoint_device_pm_callback_end
 __tracepoint_device_pm_callback_start
@@ -511,6 +514,7 @@ blk_sync_queue
 blk_unregister_region
 blk_update_request
 blk_verify_command
+blkdev_fsync
 blkdev_get_by_dev
 blkdev_get_by_path
 blkdev_issue_discard
@@ -1066,12 +1070,14 @@ devm_device_add_group
 devm_device_remove_group
 devm_drm_panel_bridge_add
 devm_extcon_dev_allocate
+devm_extcon_dev_free
 devm_extcon_dev_register
 devm_extcon_dev_unregister
 devm_extcon_register_notifier
 devm_extcon_register_notifier_all
 devm_free_irq
 devm_fwnode_get_index_gpiod_from_child
+devm_gen_pool_create
 devm_get_clk_from_child
 devm_gpio_free
 devm_gpio_request
@@ -1740,6 +1746,7 @@ firmware_request_nowarn
 five_hook_heads
 fixed_phy_register
 fixed_phy_unregister
+fixed_size_llseek
 flow_keys_basic_dissector
 flush_dcache_page
 flush_delayed_work
@@ -1858,6 +1865,7 @@ get_options
 get_pid_task
 get_random_bytes
 get_random_u32
+get_random_u64
 get_task_exe_file
 get_task_mm
 get_task_pid
@@ -1986,6 +1994,7 @@ hrtimer_forward
 hrtimer_init
 hrtimer_init_sleeper
 hrtimer_resolution
+hrtimer_sleeper_start_expires
 hrtimer_start_range_ns
 hrtimer_try_to_cancel
 hvc_alloc
@@ -2121,6 +2130,7 @@ ieee80211_stop_rx_ba_session
 ieee80211_stop_tx_ba_cb_irqsafe
 ieee80211_tdls_oper_request
 ieee80211_tx_dequeue
+ieee80211_tx_prepare_skb
 ieee80211_tx_rate_update
 ieee80211_tx_status
 ieee80211_tx_status_ext
@@ -2212,6 +2222,7 @@ input_register_handler
 input_scancode_to_scalar
 input_set_abs_params
 input_set_capability
+input_set_timestamp
 input_unregister_device
 input_unregister_handle
 input_unregister_handler
@@ -2395,6 +2406,7 @@ kern_path
 kern_path_create
 kernel_bind
 kernel_connect
+kernel_cpustat
 kernel_getsockname
 kernel_kobj
 kernel_neon_begin
@@ -2430,6 +2442,7 @@ kfree_const
 kfree_skb
 kfree_skb_list
 kfree_skb_partial
+kill_anon_super
 kill_block_super
 kill_fasync
 kill_litter_super
@@ -2451,6 +2464,7 @@ kmem_cache_free_bulk
 kmemdup
 kmemdup_nul
 kmsg_dump_get_line
+kmsg_dump_rewind
 kobject_add
 kobject_create_and_add
 kobject_del
@@ -2837,6 +2851,7 @@ ns_capable_noaudit
 ns_to_timespec
 ns_to_timespec64
 ns_to_timeval
+nsec_to_clock_t
 nsecs_to_jiffies
 nvdimm_bus_register
 nvdimm_bus_unregister
@@ -3419,6 +3434,7 @@ refcount_dec_checked
 refcount_dec_not_one
 refcount_inc_checked
 refcount_inc_not_zero_checked
+refcount_warn_saturate
 refresh_frequency_limits
 reg_initiator_name
 regcache_cache_bypass
@@ -4187,6 +4203,7 @@ strpbrk
 strrchr
 strreplace
 strscpy
+strscpy_pad
 strsep
 strspn
 strstr
@@ -4457,6 +4474,7 @@ unregister_binfmt
 unregister_blkdev
 unregister_chrdev_region
 unregister_console
+unregister_die_notifier
 unregister_filesystem
 unregister_five_tee_driver
 unregister_gadget_item

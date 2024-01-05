@@ -641,10 +641,10 @@
 						option { votf = <1>; };
 					};
 					mode10 {
-						option { votf = <1>; binnig = <1995>; };
+						option { votf = <1>; };
 					};
 					mode11 {
-						option { votf = <1>; binnig = <1995>; };
+						option { votf = <1>; };
 					};
 					mode12 {
 						option { votf = <1>; };

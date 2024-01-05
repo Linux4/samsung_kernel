@@ -768,9 +768,12 @@ static u8 UNBOUND1_A3_S0_LPM_ENTER_OSC[] = {
 	0xF2, 0xB2
 };
 
-
 static u8 UNBOUND1_A3_S0_LPM_ENTER_ELVSS[] = {
 	0xC6, 0x01, 0x77, 0xFF, 0x0D, 0xC0, 0x2F
+};
+
+static u8 UNBOUND1_A3_S0_LPM_ENTER_VFP_60NS[] = {
+	0xF2, 0x00, 0x10
 };
 
 static u8 UNBOUND1_A3_S0_LPM_EXIT_ELVSS[] = {
@@ -1000,6 +1003,7 @@ static DEFINE_STATIC_PACKET(unbound1_a3_s0_lpm_enter_aor, DSI_PKT_TYPE_WR, UNBOU
 static DEFINE_STATIC_PACKET(unbound1_a3_s0_lpm_exit_aor, DSI_PKT_TYPE_WR, UNBOUND1_A3_S0_LPM_EXIT_AOR, 0xAF);
 static DEFINE_STATIC_PACKET(unbound1_a3_s0_lpm_enter_osc, DSI_PKT_TYPE_WR, UNBOUND1_A3_S0_LPM_ENTER_OSC, 0);
 static DEFINE_STATIC_PACKET(unbound1_a3_s0_lpm_enter_elvss, DSI_PKT_TYPE_WR, UNBOUND1_A3_S0_LPM_ENTER_ELVSS, 0);
+static DEFINE_STATIC_PACKET(unbound1_a3_s0_lpm_enter_vfp_60ns, DSI_PKT_TYPE_WR, UNBOUND1_A3_S0_LPM_ENTER_VFP_60NS, 0x0B);
 static DEFINE_PKTUI(unbound1_a3_s0_lpm_exit_elvss, &unbound1_a3_s0_maptbl[ELVSS_MAPTBL], 6);
 static DEFINE_VARIABLE_PACKET(unbound1_a3_s0_lpm_exit_elvss, DSI_PKT_TYPE_WR, UNBOUND1_A3_S0_LPM_EXIT_ELVSS, 0);
 static DEFINE_STATIC_PACKET(unbound1_a3_s0_lpm_exit_swire_no_pulse, DSI_PKT_TYPE_WR,
@@ -1835,6 +1839,7 @@ static void *unbound1_a3_s0_alpm_enter_cmdtbl[] = {
 	&PKTINFO(unbound1_a3_s0_clr_te_frame_sel),
 	&PKTINFO(unbound1_a3_s0_lpm_enter_aor),
 	&PKTINFO(unbound1_a3_s0_lpm_enter_elvss),
+	&PKTINFO(unbound1_a3_s0_lpm_enter_vfp_60ns),
 	&PKTINFO(unbound1_a3_s0_lpm_enter_osc),
 	&PKTINFO(unbound1_a3_s0_lpm_enter_fps),
 	&PKTINFO(unbound1_a3_s0_gamma_update_enable),

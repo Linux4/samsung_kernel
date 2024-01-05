@@ -827,6 +827,20 @@ int dwc3_exynos_vbus_event(struct device *dev, bool vbus_active)
 }
 EXPORT_SYMBOL_GPL(dwc3_exynos_vbus_event);
 
+int dwc3_gadget_speed(struct device *dev)
+{
+	struct dwc3_exynos	*exynos;
+
+	exynos = dev_get_drvdata(dev);
+	if (!exynos) {
+		dev_err(dev, "%s: exynos is NULL!!\n", __func__);
+		return 0;
+	}
+
+	return exynos->dwc->gadget.speed;
+}
+EXPORT_SYMBOL(dwc3_gadget_speed);
+
 /**
  * dwc3_exynos_phy_enable - received combo phy control.
  */
@@ -932,15 +946,6 @@ err1:
 	platform_device_put(exynos->usb2_phy);
 
 	return ret;
-}
-
-static int dwc3_exynos_remove_child(struct device *dev, void *unused)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-
-	platform_device_unregister(pdev);
-
-	return 0;
 }
 
 static u32 fixed_usb_idle_ip_index = 0;
@@ -1062,7 +1067,7 @@ static int dwc3_exynos_remove(struct platform_device *pdev)
 	dwc3_free_event_buffers(dwc);
 	dwc3_free_scratch_buffers(dwc);
 
-	device_for_each_child(&pdev->dev, NULL, dwc3_exynos_remove_child);
+	of_platform_depopulate(&pdev->dev);
 	platform_device_unregister(exynos->usb2_phy);
 	platform_device_unregister(exynos->usb3_phy);
 

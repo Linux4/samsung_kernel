@@ -25,7 +25,6 @@
 #include <linux/smp.h>
 #include <linux/smpboot.h>
 #include <linux/version.h>
-#include <linux/delay.h>
 
 #include "tzdev_internal.h"
 #include "core/iwservice.h"
@@ -44,35 +43,13 @@ enum {
 	KTHREAD_SHOULD_PARK,
 };
 
-#define HEARTBEAT_RETRY_MAX 0x10
-
 static atomic_t tz_kthread_pool_init_done = ATOMIC_INIT(0);
-static int tz_retry_state[NR_CPUS];
 
 static DEFINE_PER_CPU(struct task_struct *, worker);
 static DECLARE_WAIT_QUEUE_HEAD(tz_cmd_waitqueue);
 static atomic_t tz_nr_cmds = ATOMIC_INIT(0);
 
-static struct task_struct *heartbeat_th;
-static int heartbeat_retry_cnt = 0;
 static cpumask_t tz_kthread_pool_cpu_mask;
-
-static int tz_kthread_pool_heartbeat(void *data)
-{
-	(void)data;
-
-	pr_warn("TZDEV: heartbeat thread start\n");
-
-	while (heartbeat_retry_cnt++ < HEARTBEAT_RETRY_MAX) {
-		msleep(5000);
-		pr_warn("TZDEV: heartbeat smc for reschedule\n");
-		tzdev_smc_schedule();
-	}
-
-	pr_warn("TZDEV: heartbeat thread exit\n");
-
-	return 0;
-}
 
 static int tz_kthread_pool_cmd_get(void)
 {
@@ -220,21 +197,16 @@ static struct smp_hotplug_thread tz_kthread_pool_smp_hotplug = {
 
 static int tz_kthread_pool_post_smc_call(struct notifier_block *cb, unsigned long code, void *unused)
 {
+	(void)cb;
+	(void)code;
+	(void)unused;
 
-	int cpu = get_cpu();
-	put_cpu();
-
-	if (tz_iwservice_get_cpu_mask_in_atomic_preempt()) {
+	if (tz_iwservice_get_cpu_mask())
 		tz_kthread_pool_wake_up_all();
-	} else if(!tz_retry_state[cpu]) {
-		tz_retry_state[cpu] = 1;
-		tzdev_smc_schedule();
-	}
-
-	tz_retry_state[cpu] = 0;
 
 	return NOTIFY_DONE;
 }
+
 
 static struct notifier_block tz_kthread_pool_post_smc_notifier = {
 	.notifier_call = tz_kthread_pool_post_smc_call,
@@ -243,14 +215,6 @@ static struct notifier_block tz_kthread_pool_post_smc_notifier = {
 int tz_kthread_pool_init(void)
 {
 	int rc;
-
-	heartbeat_th = kthread_run(tz_kthread_pool_heartbeat, NULL, "tz_kthread_heartbeat");
-
-	if (IS_ERR(heartbeat_th)) {
-		rc = PTR_ERR(heartbeat_th);
-		log_error(tzdev_kthread, "Failed to create heartbeat ktread, error=%d\n", rc);
-		return rc;
-	}
 
 	rc = smpboot_register_percpu_thread(&tz_kthread_pool_smp_hotplug);
 	if (rc) {

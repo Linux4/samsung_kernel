@@ -66,9 +66,6 @@ static int mst_pwr_en;
 #if defined(CONFIG_MST_SUPPORT_GPIO)
 static int mst_support_check;
 #endif
-#if defined(CONFIG_MFC_CHARGER)
-static int wpc_det;
-#endif
 #if defined(CONFIG_MST_PCR)
 static bool mst_pwr_use_uno;
 #endif
@@ -409,7 +406,6 @@ int transmit_mst_data(int track_num)
 	int qsee_ret = 0;
 	int retry = 5;
 	bool is_loaded = false;
-	char app_name[MAX_APP_NAME_SIZE];
 	mst_req_t *kreq = NULL;
 	mst_rsp_t *krsp = NULL;
 	int req_len = 0, rsp_len = 0;
@@ -421,11 +417,10 @@ int transmit_mst_data(int track_num)
 		printk("[MST] failed to acquire transmit_mutex!\n");
 		return ERROR_VALUE;
 	}
-	snprintf(app_name, MAX_APP_NAME_SIZE, "%s", MST_TA);
 	if (NULL == qhandle) {
 		while(retry > 0) {
 			/* start the mst tzapp only when it is not loaded. */
-			qsee_ret = qseecom_start_app(&qhandle, app_name, 1024);
+			qsee_ret = qseecom_start_app(&qhandle, MST_TA, 1024);
 			if (qsee_ret == 0) {
 				is_loaded = true;
 				break;
@@ -584,35 +579,9 @@ static ssize_t store_mst_drv(struct device *dev,
 {
 	char in = 0;
 	int ret = 0;
-#if defined(CONFIG_MFC_CHARGER)
-	struct device_node *np;
-	enum of_gpio_flags irq_gpio_flags;
-#endif
 
 	sscanf(buf, "%c\n", &in);
 	mst_info("%s: in = %c\n", __func__, in);
-
-#if defined(CONFIG_MFC_CHARGER)
-	if (wpc_det < 0) {
-		np = of_find_node_by_name(NULL, "mfc-charger");
-		if (!np) {
-			mst_err("%s: np NULL\n", __func__);
-		} else {
-			/* wpc_det */
-			wpc_det = of_get_named_gpio_flags(np, "battery,wpc_det",
-							  0, &irq_gpio_flags);
-			if (wpc_det < 0) {
-				mst_err("%s: can't get wpc_det = %d\n",
-					__func__, wpc_det);
-			}
-		}
-	}
-
-	if (wpc_det && (gpio_get_value(wpc_det) == 1)) {
-		mst_info("%s: Wireless charging, no proceed MST\n", __func__);
-		return count;
-	}
-#endif
 
 	switch (in) {
 	case CMD_MST_LDO_OFF:

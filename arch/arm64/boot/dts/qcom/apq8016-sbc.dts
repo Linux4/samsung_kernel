@@ -8,8 +8,8 @@
 	compatible = "qcom,apq8016-sbc\0qcom,apq8016\0qcom,sbc";
 
 	aliases {
-		sdhc1 = "/soc/sdhci@7824000";
-		sdhc2 = "/soc/sdhci@7864000";
+		mmc0 = "/soc/sdhci@7824000";
+		mmc1 = "/soc/sdhci@7864000";
 		serial0 = "/soc/serial@78b0000";
 		serial1 = "/soc/serial@78af000";
 		usid0 = "/soc/spmi@200f000/pm8916@0";

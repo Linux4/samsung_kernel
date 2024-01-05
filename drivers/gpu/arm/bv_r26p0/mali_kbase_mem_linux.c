@@ -1738,6 +1738,9 @@ u64 kbase_mem_alias(struct kbase_context *kctx, u64 *flags, u64 stride,
 	if (!nents)
 		goto bad_nents;
 
+	if (stride > U64_MAX / nents)
+		goto bad_size;
+
 	if ((nents * stride) > (U64_MAX / PAGE_SIZE))
 		/* 64-bit address range is the max */
 		goto bad_size;
@@ -2193,6 +2196,9 @@ int kbase_mem_commit(struct kbase_context *kctx, u64 gpu_addr, u64 new_pages)
 		goto out_unlock;
 	/* can't grow regions which are ephemeral */
 	if (reg->flags & KBASE_REG_DONT_NEED)
+		goto out_unlock;
+
+	 if (reg->flags & KBASE_REG_NO_USER_FREE)
 		goto out_unlock;
 
 #ifdef CONFIG_MALI_MEMORY_FULLY_BACKED
@@ -3003,6 +3009,10 @@ void *kbase_vmap_prot(struct kbase_context *kctx, u64 gpu_addr, size_t size,
 	if (kbase_is_region_invalid_or_free(reg))
 		goto out_unlock;
 
+	if (reg->gpu_alloc->type != KBASE_MEM_TYPE_NATIVE)
+		goto out_unlock;
+
+
 	/* check access permissions can be satisfied
 	 * Intended only for checking KBASE_REG_{CPU,GPU}_{RD,WR}
 	 */
@@ -3084,73 +3094,23 @@ static void kbasep_add_mm_counter(struct mm_struct *mm, int member, long value)
 
 void kbasep_os_process_page_usage_update(struct kbase_context *kctx, int pages)
 {
-	struct mm_struct *mm;
-
-	rcu_read_lock();
-	mm = rcu_dereference(kctx->process_mm);
-	if (mm) {
-		atomic_add(pages, &kctx->nonmapped_pages);
+        struct mm_struct *mm = kctx->process_mm;
+        if (unlikely(!mm))
+                return;
+        atomic_add(pages, &kctx->nonmapped_pages);
 #ifdef SPLIT_RSS_COUNTING
-		kbasep_add_mm_counter(mm, MM_FILEPAGES, pages);
-#else
-		spin_lock(&mm->page_table_lock);
-		kbasep_add_mm_counter(mm, MM_FILEPAGES, pages);
-		spin_unlock(&mm->page_table_lock);
-#endif
-	}
-	rcu_read_unlock();
-}
-
-static void kbasep_os_process_page_usage_drain(struct kbase_context *kctx)
-{
-	int pages;
-	struct mm_struct *mm;
-
-	spin_lock(&kctx->mm_update_lock);
-	mm = rcu_dereference_protected(kctx->process_mm, lockdep_is_held(&kctx->mm_update_lock));
-	if (!mm) {
-		spin_unlock(&kctx->mm_update_lock);
-		return;
-	}
-
-	rcu_assign_pointer(kctx->process_mm, NULL);
-	spin_unlock(&kctx->mm_update_lock);
-	synchronize_rcu();
-
-	pages = atomic_xchg(&kctx->nonmapped_pages, 0);
-#ifdef SPLIT_RSS_COUNTING
-	kbasep_add_mm_counter(mm, MM_FILEPAGES, -pages);
+	kbasep_add_mm_counter(mm, MM_FILEPAGES, pages);
 #else
 	spin_lock(&mm->page_table_lock);
-	kbasep_add_mm_counter(mm, MM_FILEPAGES, -pages);
+	kbasep_add_mm_counter(mm, MM_FILEPAGES, pages);
 	spin_unlock(&mm->page_table_lock);
 #endif
 }
 
-static void kbase_special_vm_close(struct vm_area_struct *vma)
-{
-	struct kbase_context *kctx;
-
-	kctx = vma->vm_private_data;
-	kbasep_os_process_page_usage_drain(kctx);
-}
-
-static const struct vm_operations_struct kbase_vm_special_ops = {
-	.close = kbase_special_vm_close,
-};
-
 static int kbase_tracking_page_setup(struct kbase_context *kctx, struct vm_area_struct *vma)
 {
-	/* check that this is the only tracking page */
-	spin_lock(&kctx->mm_update_lock);
-	if (rcu_dereference_protected(kctx->process_mm, lockdep_is_held(&kctx->mm_update_lock))) {
-		spin_unlock(&kctx->mm_update_lock);
-		return -EFAULT;
-	}
-
-	rcu_assign_pointer(kctx->process_mm, current->mm);
-
-	spin_unlock(&kctx->mm_update_lock);
+        if (vma_pages(vma) != 1)
+                return -EINVAL;
 
 	/* no real access */
 	vma->vm_flags &= ~(VM_READ | VM_MAYREAD | VM_WRITE | VM_MAYWRITE | VM_EXEC | VM_MAYEXEC);
@@ -3159,9 +3119,7 @@ static int kbase_tracking_page_setup(struct kbase_context *kctx, struct vm_area_
 #else
 	vma->vm_flags |= VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED | VM_IO;
 #endif
-	vma->vm_ops = &kbase_vm_special_ops;
-	vma->vm_private_data = kctx;
 
-	return 0;
+        return 0;
 }
 

@@ -496,8 +496,9 @@ void iodev_netif_stop(struct io_device *iod, void *args)
 void netif_tx_flowctl(struct modem_shared *msd, bool tx_stop)
 {
 	struct io_device *iod;
+	unsigned long flags;
 
-	spin_lock(&msd->active_list_lock);
+	spin_lock_irqsave(&msd->active_list_lock, flags);
 	list_for_each_entry(iod, &msd->activated_ndev_list, node_ndev) {
 		if (tx_stop) {
 			netif_stop_subqueue(iod->ndev, 0);
@@ -515,7 +516,7 @@ void netif_tx_flowctl(struct modem_shared *msd, bool tx_stop)
 #endif
 		}
 	}
-	spin_unlock(&msd->active_list_lock);
+	spin_unlock_irqrestore(&msd->active_list_lock, flags);
 }
 
 void stop_net_iface(struct link_device *ld, unsigned int channel)

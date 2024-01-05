@@ -31,7 +31,6 @@ static DEFINE_IDA(iommu_group_ida);
 static unsigned int iommu_def_domain_type __read_mostly;
 static bool iommu_dma_strict __read_mostly = true;
 static u32 iommu_cmd_line __read_mostly;
-static DEFINE_MUTEX(iommu_probe_lock);
 
 struct iommu_group {
 	struct kobject kobj;
@@ -178,15 +177,21 @@ static void iommu_free_dev_param(struct device *dev)
 int iommu_probe_device(struct device *dev)
 {
 	const struct iommu_ops *ops = dev->bus->iommu_ops;
+	static DEFINE_MUTEX(iommu_probe_device_lock);
 	int ret;
 
-	mutex_lock(&iommu_probe_lock);
 	WARN_ON(dev->iommu_group);
-	if (!ops) {
-		ret = -EINVAL;
-		goto err_unlock;
-	}
+	if (!ops)
+		return -EINVAL;
 
+	/*
+	 * Serialise to avoid races between IOMMU drivers registering in
+	 * parallel and/or the "replay" calls from ACPI/OF code via client
+	 * driver probe. Once the latter have been cleaned up we should
+	 * probably be able to use device_lock() here to minimise the scope,
+	 * but for now enforcing a simple global ordering is fine.
+	 */
+	mutex_lock(&iommu_probe_device_lock);
 	if (!iommu_get_dev_param(dev)) {
 		ret = -ENOMEM;
 		goto err_unlock;
@@ -200,7 +205,8 @@ int iommu_probe_device(struct device *dev)
 	ret = ops->add_device(dev);
 	if (ret)
 		goto err_module_put;
-	mutex_unlock(&iommu_probe_lock);
+
+	mutex_unlock(&iommu_probe_device_lock);
 
 	return 0;
 
@@ -209,7 +215,8 @@ err_module_put:
 err_free_dev_param:
 	iommu_free_dev_param(dev);
 err_unlock:
-	mutex_unlock(&iommu_probe_lock);
+	mutex_unlock(&iommu_probe_device_lock);
+
 	return ret;
 }
 

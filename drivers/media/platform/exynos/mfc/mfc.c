@@ -118,6 +118,7 @@ static void __mfc_deinit_dec_ctx(struct mfc_ctx *ctx)
 
 	mfc_mem_cleanup_user_shared_handle(ctx, &dec->sh_handle_dpb);
 	mfc_mem_cleanup_user_shared_handle(ctx, &dec->sh_handle_hdr);
+	mfc_mem_cleanup_user_shared_handle(ctx, &dec->sh_handle_av1_film_grain);
 
 	if (dec->ref_info)
 		vfree(dec->ref_info);
