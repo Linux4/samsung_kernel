@@ -16,19 +16,11 @@
 #
 
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
-ifdef CONFIG_CAMERA_SAMSUNG_MODEL_NAME
-ARCH_MTK_PROJECT := $(subst ",,$(CONFIG_CAMERA_SAMSUNG_MODEL_NAME))
-else
 ARCH_MTK_PROJECT := $(subst ",,$(CONFIG_ARCH_MTK_PROJECT))
-endif
-
 IMGSENSOR_DRIVER_PATH  := $(srctree)/drivers/misc/mediatek/imgsensor/src
 COMMON_VERSION := v1
 
-subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/common/$(COMMON_VERSION) \
-					-I$(IMGSENSOR_DRIVER_PATH)/common/sysfs \
-					-I$(IMGSENSOR_DRIVER_PATH)/common/adaptive_mipi
-
+subdir-ccflags-y +=  -I$(IMGSENSOR_DRIVER_PATH)/common/$(COMMON_VERSION)
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_hw.o
@@ -37,11 +29,6 @@ obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_legacy.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_proc.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_sensor_list.o
 
-# Build sysfs folder
-obj-$(CONFIG_IMGSENSOR_SYSFS) += ../common/sysfs/
-
-# Build adaptive mipi folder
-obj-$(CONFIG_CAMERA_ADAPTIVE_MIPI) += ../common/adaptive_mipi/
 
 define FILTER_DRV
 ifeq ($(wildcard $(IMGSENSOR_DRIVER_PATH)/$(MTK_PLATFORM)/camera_project/$(ARCH_MTK_PROJECT)/$(1)),)

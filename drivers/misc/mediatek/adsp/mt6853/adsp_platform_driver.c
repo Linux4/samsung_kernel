@@ -145,18 +145,24 @@ int adsp_core0_suspend(void)
 	u32 status = 0;
 	struct adsp_priv *pdata = adsp_cores[ADSP_A_ID];
 	ktime_t start = ktime_get();
+	pr_info("%s(), start. state = %d", __func__,
+		get_adsp_state(pdata));
 
 	if (get_adsp_state(pdata) == ADSP_RUNNING) {
 		reinit_completion(&pdata->done);
-		if (adsp_push_message(ADSP_IPI_DVFS_SUSPEND, &status,
-				      sizeof(status), 2000, pdata->id)) {
+		ret = adsp_push_message(ADSP_IPI_DVFS_SUSPEND, &status,
+					sizeof(status), 2000, pdata->id);
+		if (ret != ADSP_IPI_DONE) {
 			ret = -EPIPE;
 			goto ERROR;
 		}
-		set_adsp_state(pdata, ADSP_SUSPENDING);
 
 		/* wait core suspend ack timeout 2s */
 		ret = wait_for_completion_timeout(&pdata->done, 2 * HZ);
+		if (!ret) {
+			ret = -ETIMEDOUT;
+			goto ERROR;
+		}
 
 		while (--retry && !is_adsp_core_suspend(pdata))
 			usleep_range(100, 200);
@@ -189,6 +195,8 @@ int adsp_core0_resume(void)
 	int ret = 0;
 	struct adsp_priv *pdata = adsp_cores[ADSP_A_ID];
 	ktime_t start = ktime_get();
+	pr_info("%s(), start. state = %d", __func__,
+		get_adsp_state(pdata));
 
 	if (get_adsp_state(pdata) == ADSP_SUSPEND) {
 		switch_adsp_power(true);
@@ -216,7 +224,7 @@ int adsp_core0_resume(void)
 void adsp_logger_init0_cb(struct work_struct *ws)
 {
 	int ret;
-	unsigned int info[6];
+	uint64_t info[6];
 
 	info[0] = adsp_get_reserve_mem_phys(ADSP_A_LOGGER_MEM_ID);
 	info[1] = adsp_get_reserve_mem_size(ADSP_A_LOGGER_MEM_ID);

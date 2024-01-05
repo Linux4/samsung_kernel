@@ -15,6 +15,9 @@
 static void sec_cmd_store_function(struct sec_cmd_data *data);
 #endif
 
+struct device *ptsp;
+EXPORT_SYMBOL(ptsp);
+
 void sec_cmd_set_cmd_exit(struct sec_cmd_data *data)
 {
 	mutex_lock(&data->cmd_lock);
@@ -757,6 +760,49 @@ void sec_cmd_send_event_to_user(struct sec_cmd_data *data, char *test, char *res
 
 	kobject_uevent_env(&data->fac_dev->kobj, KOBJ_CHANGE, event);
 }
+
+int stui_tsp_enter(void)
+{
+	struct sec_ts_plat_data *pdata = NULL;
+	if (ptsp == NULL)
+		return -EINVAL;
+
+	pdata = ptsp->platform_data;
+	if (pdata == NULL)
+		return  -EINVAL;
+
+	return pdata->stui_tsp_enter();
+}
+EXPORT_SYMBOL(stui_tsp_enter);
+
+int stui_tsp_exit(void)
+{
+	struct sec_ts_plat_data *pdata = NULL;
+	if (ptsp == NULL)
+		return -EINVAL;
+
+	pdata = ptsp->platform_data;
+	if (pdata == NULL)
+		return  -EINVAL;
+
+	return pdata->stui_tsp_exit();
+}
+EXPORT_SYMBOL(stui_tsp_exit);
+
+int stui_tsp_type(void)
+{
+	struct sec_ts_plat_data *pdata = NULL;
+	if (ptsp == NULL)
+		return -EINVAL;
+
+	pdata = ptsp->platform_data;
+	if (pdata == NULL)
+		return  -EINVAL;
+
+	return pdata->stui_tsp_type();
+}
+EXPORT_SYMBOL(stui_tsp_type);
+
 
 MODULE_DESCRIPTION("Samsung factory command");
 MODULE_LICENSE("GPL");

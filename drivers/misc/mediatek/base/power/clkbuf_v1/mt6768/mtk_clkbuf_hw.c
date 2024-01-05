@@ -22,6 +22,9 @@
 #include <mtk_clkbuf_common.h>
 #if defined(CONFIG_MTK_UFS_SUPPORT)
 #include "ufs-mtk.h"
+#if defined(CONFIG_MACH_MT6781)
+#include <mt-plat/mtk_boot.h>
+#endif
 #endif
 
 static void __iomem *pwrap_base;
@@ -780,6 +783,36 @@ bool clk_buf_ctrl(enum clk_buf_id id, bool onoff)
 }
 EXPORT_SYMBOL(clk_buf_ctrl);
 
+void clk_buf_disp_ctrl(bool onoff)
+{
+	int pwrap_dcxo_en;
+
+	pwrap_dcxo_en = clkbuf_readl(DCXO_ENABLE) & ~DCXO_NFC_ENABLE;
+	clkbuf_writel(DCXO_ENABLE, pwrap_dcxo_en);
+	if (onoff) {
+		pmic_config_interface(PMIC_DCXO_CW00_CLR_ADDR,
+			PMIC_XO_EXTBUF3_MODE_MASK,
+			PMIC_XO_EXTBUF3_MODE_MASK,
+			PMIC_XO_EXTBUF3_MODE_SHIFT);
+		pmic_config_interface(PMIC_DCXO_CW00_SET_ADDR,
+			PMIC_XO_EXTBUF3_EN_M_MASK,
+			PMIC_XO_EXTBUF3_EN_M_MASK,
+			PMIC_XO_EXTBUF3_EN_M_SHIFT);
+		pmic_clk_buf_swctrl[XO_NFC] = 1;
+	} else {
+		pmic_config_interface(PMIC_DCXO_CW00_CLR_ADDR,
+			PMIC_XO_EXTBUF3_MODE_MASK,
+			PMIC_XO_EXTBUF3_MODE_MASK,
+			PMIC_XO_EXTBUF3_MODE_SHIFT);
+		pmic_config_interface(PMIC_DCXO_CW00_CLR_ADDR,
+			PMIC_XO_EXTBUF3_EN_M_MASK,
+			PMIC_XO_EXTBUF3_EN_M_MASK,
+			PMIC_XO_EXTBUF3_EN_M_SHIFT);
+		pmic_clk_buf_swctrl[XO_NFC] = 0;
+	}
+}
+EXPORT_SYMBOL(clk_buf_disp_ctrl);
+
 void clk_buf_dump_dts_log(void)
 {
 	pr_info("%s: PMIC_CLK_BUF?_STATUS=%d %d %d %d %d %d %d\n", __func__,
@@ -1129,16 +1162,24 @@ static ssize_t clk_buf_show_status_info_internal(char *buf)
 	len += snprintf(buf+len, CLKBUF_STATUS_INFO_SIZE-len,
 		"bblpm_switch=%u, bblpm_cnt=%u, bblpm_cond=0x%x\n",
 		bblpm_switch, bblpm_cnt, clk_buf_bblpm_enter_cond());
-
+#if defined(CONFIG_MACH_MT6768)
 	len += snprintf(buf+len, CLKBUF_STATUS_INFO_SIZE-len,
 		"MD1_PWR_CON=0x%x, PWR_STATUS=0x%x, PCM_REG13_DATA=0x%x,",
 		mtk_spm_read_register(SPM_MD1_PWR_CON),
 		mtk_spm_read_register(SPM_PWRSTA),
 		mtk_spm_read_register(SPM_REG13));
+#endif
+
+#if defined(CONFIG_MACH_MT6768)
 	len += snprintf(buf+len, CLKBUF_STATUS_INFO_SIZE-len,
 		"SPARE_ACK_MASK=0x%x, flight mode = %d\n",
 		mtk_spm_read_register(SPM_SPARE_ACK_MASK),
 		is_clk_buf_under_flightmode());
+#else
+		len += snprintf(buf+len, CLKBUF_STATUS_INFO_SIZE-len,
+		 "flight mode = %d\n",
+		is_clk_buf_under_flightmode());
+#endif
 	len += snprintf(buf+len, CLKBUF_STATUS_INFO_SIZE-len,
 			".********** clock buffer command help **********\n");
 	len += snprintf(buf+len, CLKBUF_STATUS_INFO_SIZE-len,
@@ -1384,15 +1425,86 @@ static ssize_t clk_buf_bblpm_show(struct kobject *kobj,
 	return len;
 }
 
+static void capid_trim_write(uint32_t cap_code)
+{
+	pmic_config_interface(PMIC_XO_COFST_FPM_ADDR, 0x0,
+			      PMIC_XO_COFST_FPM_MASK, PMIC_XO_COFST_FPM_SHIFT);
+	pmic_config_interface(PMIC_XO_CDAC_FPM_ADDR, cap_code,
+			      PMIC_XO_CDAC_FPM_MASK, PMIC_XO_CDAC_FPM_SHIFT);
+	pmic_config_interface(PMIC_XO_CORE_IDAC_FPM_ADDR, 0x2,
+			      PMIC_XO_CORE_IDAC_FPM_MASK,
+			      PMIC_XO_CORE_IDAC_FPM_SHIFT);
+	pmic_config_interface(PMIC_XO_AAC_FPM_SWEN_ADDR, 0x0,
+			      PMIC_XO_AAC_FPM_SWEN_MASK,
+			      PMIC_XO_AAC_FPM_SWEN_SHIFT);
+	mdelay(1);
+	pmic_config_interface(PMIC_XO_AAC_FPM_SWEN_ADDR, 0x1,
+			      PMIC_XO_AAC_FPM_SWEN_MASK,
+			      PMIC_XO_AAC_FPM_SWEN_SHIFT);
+	mdelay(5);
+}
+
+static uint32_t capid_trim_read(void)
+{
+	uint32_t cap_code = 0;
+
+	pmic_read_interface(PMIC_XO_CDAC_FPM_ADDR, &cap_code,
+			    PMIC_XO_CDAC_FPM_MASK, PMIC_XO_CDAC_FPM_SHIFT);
+
+	return cap_code;
+}
+
+static ssize_t clk_buf_capid_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	uint32_t capid;
+	int ret;
+
+	if (buf != NULL && count != 0) {
+		ret = kstrtouint(buf, 0, &capid);
+		if (ret) {
+			pr_info("wrong format!\n");
+			return ret;
+		}
+		if (capid > PMIC_XO_CDAC_FPM_MASK) {
+			pr_info("offset should be within(%x) %x!\n",
+				PMIC_XO_CDAC_FPM_MASK, capid);
+			return -EINVAL;
+		}
+
+		pr_info("original cap code: 0x%x\n", capid_trim_read());
+
+		capid_trim_write(capid);
+		mdelay(1);
+		pr_info("write capid 0x%x done. current capid: 0x%x\n",
+			capid, capid_trim_read());
+	}
+
+	return count;
+}
+
+static ssize_t clk_buf_capid_show(struct kobject *kobj,
+struct kobj_attribute *attr, char *buf)
+{
+	int len = 0;
+
+	len += snprintf(buf+len, PAGE_SIZE-len, "dcxo capid: 0x%x\n",
+		capid_trim_read());
+
+	return len;
+}
+
 DEFINE_ATTR_RW(clk_buf_ctrl);
 DEFINE_ATTR_RW(clk_buf_debug);
 DEFINE_ATTR_RW(clk_buf_bblpm);
+DEFINE_ATTR_RW(clk_buf_capid);
 
 static struct attribute *clk_buf_attrs[] = {
 	/* for clock buffer control */
 	__ATTR_OF(clk_buf_ctrl),
 	__ATTR_OF(clk_buf_debug),
 	__ATTR_OF(clk_buf_bblpm),
+	__ATTR_OF(clk_buf_capid),
 
 	/* must */
 	NULL,
@@ -1460,7 +1572,11 @@ int clk_buf_dts_map(void)
 		return -1;
 	}
 
+#if defined(CONFIG_MACH_MT6781)
+	node = of_find_compatible_node(NULL, NULL, "mediatek,mt6781-pwrap");
+#else
 	node = of_find_compatible_node(NULL, NULL, "mediatek,mt6768-pwrap");
+#endif
 	if (node)
 		pwrap_base = of_iomap(node, 0);
 	else {
@@ -1503,6 +1619,7 @@ short is_clkbuf_bringup(void)
 
 void clk_buf_post_init(void)
 {
+#ifndef CONFIG_MTK_MT6382_BDG
 #if defined(CONFIG_MTK_UFS_SUPPORT)
 	int boot_type;
 
@@ -1515,6 +1632,7 @@ void clk_buf_post_init(void)
 #else
 	clk_buf_ctrl_internal(CLK_BUF_UFS, CLK_BUF_FORCE_OFF);
 	CLK_BUF7_STATUS = CLOCK_BUFFER_DISABLE;
+#endif
 #endif
 
 #ifndef CONFIG_MTK_NFC_CLKBUF_ENABLE

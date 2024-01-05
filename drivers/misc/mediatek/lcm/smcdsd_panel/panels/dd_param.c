@@ -207,7 +207,7 @@ static int param_show(struct seq_file *m, void *unused)
 
 	seq_puts(m, "  |");
 	for (i = 0; i < params_list->max_size; i++)
-		seq_printf(m, (params_list->max_type == 32) ? " %4d" : " %2d", i);
+		seq_printf(m, (params_list->max_type == U32_MAX) ? " %4d" : " %2d", i);
 	seq_puts(m, "| <- input X first\n");
 	seq_puts(m, "--+");
 	for (i = 0; i < params_list->max_size * ((params_list->max_type == U32_MAX) ? 5 : 3) ; i++)
@@ -330,7 +330,7 @@ static int add_param(struct params_list_info *params_list, void *ptr, u32 ptr_ty
 {
 	struct param_info *param;
 
-	if (params_list->max_h > U8_MAX) {
+	if (params_list->max_h > U32_MAX) {
 		dbg_info("params_list->max_h(%d) invalid\n", params_list->max_h);
 		return 0;
 	}
@@ -404,12 +404,12 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 		return;
 	}
 
-	if (sum_size > 64) {
+	if (sum_size > U32_MAX) {
 		dbg_info("sum_size(%d) invalid\n", sum_size);
 		return;
 	}
 
-	if (ptr_unit > 64) {
+	if (ptr_unit > U32_MAX) {
 		dbg_info("ptr_unit(%d) invalid\n", ptr_unit);
 		return;
 	}

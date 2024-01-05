@@ -31,7 +31,6 @@
 #include "cam_cal_list.h"
 
 #include "cam_cal.h"
-#include "imgsensor_sysfs.h"
 #include "kd_imgsensor_sysfs_adapter.h"
 
 #define DEV_NODE_NAME_PREFIX "camera_eeprom"
@@ -41,7 +40,7 @@
 
 static struct EEPROM_DRV ginst_drv[MAX_EEPROM_NUMBER];
 
-static struct stCAM_CAL_LIST_STRUCT *get_list(struct CAM_CAL_SENSOR_INFO *sinfo)
+static struct stCAM_CAL_LIST_STRUCT *get_list(u32 sensor_id)
 {
 	struct stCAM_CAL_LIST_STRUCT *plist;
 
@@ -49,7 +48,7 @@ static struct stCAM_CAL_LIST_STRUCT *get_list(struct CAM_CAL_SENSOR_INFO *sinfo)
 
 	while (plist &&
 	       (plist->sensorID != 0) &&
-	       (plist->sensorID != sinfo->sensor_id))
+	       (plist->sensorID != sensor_id))
 		plist++;
 
 	return plist;
@@ -61,12 +60,12 @@ static unsigned int read_region(struct EEPROM_DRV_FD_DATA *pdata,
 {
 	unsigned int ret;
 	unsigned short dts_addr;
-	struct stCAM_CAL_LIST_STRUCT *plist = get_list(&pdata->sensor_info);
+	struct stCAM_CAL_LIST_STRUCT *plist = get_list(pdata->sensor_info.sensor_id);
 	unsigned int size_limit = (plist && plist->maxEepromSize > 0)
 		? plist->maxEepromSize : DEFAULT_MAX_EEPROM_SIZE_8K;
 
 	if (offset + size > size_limit) {
-		pr_err("Error! not support address >= 0x%x!!\n", size_limit);
+		pr_debug("Error! not support address >= 0x%x!!\n", size_limit);
 		return 0;
 	}
 
@@ -79,7 +78,6 @@ static unsigned int read_region(struct EEPROM_DRV_FD_DATA *pdata,
 					    offset, buf, size);
 		pdata->pdrv->pi2c_client->addr = dts_addr;
 		mutex_unlock(&pdata->pdrv->eeprom_mutex);
-
 	} else {
 		pr_debug("no customized\n");
 	// we don't use this
@@ -105,12 +103,12 @@ static unsigned int write_region(struct EEPROM_DRV_FD_DATA *pdata,
 {
 	unsigned int ret;
 	unsigned short dts_addr;
-	struct stCAM_CAL_LIST_STRUCT *plist = get_list(&pdata->sensor_info);
+	struct stCAM_CAL_LIST_STRUCT *plist = get_list(pdata->sensor_info.sensor_id);
 	unsigned int size_limit = (plist && plist->maxEepromSize > 0)
 		? plist->maxEepromSize : DEFAULT_MAX_EEPROM_SIZE_8K;
 
 	if (offset + size > size_limit) {
-		pr_err("Error! not support address >= 0x%x!!\n", size_limit);
+		pr_debug("Error! not support address >= 0x%x!!\n", size_limit);
 		return 0;
 	}
 
@@ -174,7 +172,7 @@ static ssize_t eeprom_read(struct file *a_file, char __user *user_buffer,
 		(struct EEPROM_DRV_FD_DATA *) a_file->private_data;
 	u8 *kbuf = kmalloc(size, GFP_KERNEL);
 
-	pr_debug("read %lu %llu\n", size, *offset);
+	pr_debug("[%s] read %lu %llu\n", __func__, size, *offset);
 
 	if (kbuf == NULL)
 		return -ENOMEM;
@@ -240,26 +238,22 @@ static loff_t eeprom_seek(struct file *a_file, loff_t offset, int whence)
 	return new_pos;
 }
 
-long eeprom_ioctl_control_command(void *pBuff)
+int eeprom_ioctl_get_command_data(enum CAM_CAL_COMMAND command, unsigned int device_id, unsigned int sensor_id)
 {
-	struct CAM_CAL_SENSOR_INFO sensor_info;
-	const struct imgsensor_vendor_rom_addr *rom_addr = NULL;
-	u32 info = 0;
+	int info = -1;
 	struct stCAM_CAL_LIST_STRUCT *cam_cal_list = NULL;
+	const struct imgsensor_vendor_rom_addr *rom_addr = NULL;
 
-	sensor_info.sensor_id = ((struct CAM_CAL_SENSOR_INFO *)pBuff)->sensor_id;
-	sensor_info.device_id = ((struct CAM_CAL_SENSOR_INFO *)pBuff)->device_id;
-	sensor_info.command = ((struct CAM_CAL_SENSOR_INFO *)pBuff)->command;
-	rom_addr = IMGSENSOR_SYSGET_ROM_ADDR_BY_ID(sensor_info.device_id, sensor_info.sensor_id);
+	rom_addr = IMGSENSOR_SYSGET_ROM_ADDR_BY_ID(device_id, sensor_id);
+
 	if (rom_addr == NULL) {
 		pr_err("[%s] rom_addr is NULL", __func__);
 		return -EFAULT;
 	}
-	sensor_info.device_id = IMGSENSOR_SENSOR_IDX_MAP(sensor_info.device_id);
 
-	switch (sensor_info.command) {
+	switch (command) {
 	case CAM_CAL_COMMAND_EEPROM_LIMIT_SIZE:
-		cam_cal_list = get_list(&sensor_info);
+		cam_cal_list = get_list(sensor_id);
 		info = cam_cal_list->maxEepromSize;
 		break;
 	case CAM_CAL_COMMAND_CAL_SIZE:
@@ -287,23 +281,70 @@ long eeprom_ioctl_control_command(void *pBuff)
 	case CAM_CAL_COMMAND_MODULE_INFO_ADDR:
 		info = rom_addr->rom_header_main_module_info_start_addr;
 		break;
-	case CAM_CAL_COMMAND_NONE:
 	case CAM_CAL_COMMAND_BAYERFORMAT:
 	case CAM_CAL_COMMAND_MEMTYPE:
-		pr_debug("[%s] Not used anymore", __func__);
-		return -EINVAL;
-
+		pr_err("[%s] Not used anymore", __func__);
+		info = -EINVAL;
+		break;
+	case CAM_CAL_COMMAND_NONE:
 	default:
-		pr_debug("No such command %d\n", sensor_info.command);
-		return -EINVAL;
+		pr_err("No such command %d\n", command);
+		info = -EINVAL;
 	}
 
-	pr_debug("sensor id = 0x%x, device id = 0x%x, info: 0x%x\n",
-			sensor_info.sensor_id, sensor_info.device_id, info);
+	return info;
+}
+
+long eeprom_ioctl_control_command(void *pBuff)
+{
+	struct CAM_CAL_SENSOR_INFO sensor_info;
+	u32 info = 0;
+	int ret = -1;
+
+	sensor_info.sensor_id = ((struct CAM_CAL_SENSOR_INFO *)pBuff)->sensor_id;
+	sensor_info.device_id = ((struct CAM_CAL_SENSOR_INFO *)pBuff)->device_id;
+	sensor_info.command = ((struct CAM_CAL_SENSOR_INFO *)pBuff)->command;
+
+	ret = eeprom_ioctl_get_command_data(sensor_info.command, sensor_info.device_id, sensor_info.sensor_id);
+	if (ret < 0)
+		return ret;
+
+	info = (u32)ret;
+
+	sensor_info.device_id = IMGSENSOR_SENSOR_IDX_MAP(sensor_info.device_id);
+
+	pr_info("[%s] sensor id = 0x%x, device id = 0x%x, info: 0x%x\n",
+			__func__, sensor_info.sensor_id, sensor_info.device_id, info);
 	copy_to_user((void __user *)((struct CAM_CAL_SENSOR_INFO *)pBuff)->info,
 				(void *)&info, sizeof(info));
 	return 0;
 }
+
+#ifdef CONFIG_COMPAT
+long compat_eeprom_ioctl_control_command(void *pBuff)
+{
+	struct COMPAT_CAM_CAL_SENSOR_INFO sensor_info;
+	compat_uint_t info = 0;
+	int ret = -1;
+
+	sensor_info.sensor_id = ((struct COMPAT_CAM_CAL_SENSOR_INFO *)pBuff)->sensor_id;
+	sensor_info.device_id = ((struct COMPAT_CAM_CAL_SENSOR_INFO *)pBuff)->device_id;
+	sensor_info.command = ((struct COMPAT_CAM_CAL_SENSOR_INFO *)pBuff)->command;
+
+	ret = eeprom_ioctl_get_command_data(sensor_info.command, sensor_info.device_id, sensor_info.sensor_id);
+	if (ret < 0)
+		return ret;
+
+	info = (compat_uint_t)ret;
+
+	sensor_info.device_id = IMGSENSOR_SENSOR_IDX_MAP(sensor_info.device_id);
+
+	copy_to_user(compat_ptr(((struct COMPAT_CAM_CAL_SENSOR_INFO *)pBuff)->info),
+				&info, sizeof(info));
+
+	return 0;
+}
+#endif
 
 static long eeprom_ioctl(struct file *a_file, unsigned int a_cmd,
 			 unsigned long a_param)
@@ -316,12 +357,16 @@ static long eeprom_ioctl(struct file *a_file, unsigned int a_cmd,
 
 	pr_debug("ioctl\n");
 
-	if (_IOC_DIR(a_cmd) == _IOC_NONE)
+	if (_IOC_DIR(a_cmd) == _IOC_NONE) {
+		pr_err("[%s] Command == _IOC_NONE", __func__);
 		return -EFAULT;
+	}
 
 	pBuff = kmalloc(ioctl_size, GFP_KERNEL);
 	if (pBuff == NULL)
 		return -ENOMEM;
+
+	memset(pBuff, 0, ioctl_size);
 
 	if (((_IOC_WRITE | _IOC_READ) & _IOC_DIR(a_cmd)) &&
 	    copy_from_user(pBuff,
@@ -329,7 +374,7 @@ static long eeprom_ioctl(struct file *a_file, unsigned int a_cmd,
 			   _IOC_SIZE(a_cmd))) {
 
 		kfree(pBuff);
-		pr_debug("ioctl copy from user failed\n");
+		pr_err("ioctl copy from user failed\n");
 		return -EFAULT;
 	}
 
@@ -349,7 +394,7 @@ static long eeprom_ioctl(struct file *a_file, unsigned int a_cmd,
 			pr_err("[%s] Failed to get data", __func__);
 		break;
 	default:
-		pr_debug("No such command %d\n", a_cmd);
+		pr_err("No such command %d\n", a_cmd);
 		ret = -EINVAL;
 	}
 
@@ -361,9 +406,55 @@ static long eeprom_ioctl(struct file *a_file, unsigned int a_cmd,
 static long eeprom_compat_ioctl(struct file *a_file, unsigned int a_cmd,
 				unsigned long a_param)
 {
-	pr_debug("compat ioctl\n");
+	void *pBuff = NULL;
+	long ret = -1;
+	struct COMPAT_EEPROM_DRV_FD_DATA *pdata =
+		(struct COMPAT_EEPROM_DRV_FD_DATA *) a_file->private_data;
+	u32 ioctl_size = _IOC_SIZE(a_cmd);
 
-	return 0;
+	if (_IOC_DIR(a_cmd) == _IOC_NONE) {
+		pr_err("[%s] Command == _IOC_NONE", __func__);
+		return -EFAULT;
+	}
+
+	pBuff = kmalloc(ioctl_size, GFP_KERNEL);
+	if (pBuff == NULL)
+		return -ENOMEM;
+
+	memset(pBuff, 0, ioctl_size);
+
+	if (((_IOC_WRITE | _IOC_READ) & _IOC_DIR(a_cmd)) &&
+		copy_from_user(pBuff,
+			   (void *)a_param,
+			   _IOC_SIZE(a_cmd))) {
+
+		kfree(pBuff);
+		pr_err("ioctl copy from user failed\n");
+		return -EFAULT;
+	}
+
+	switch (a_cmd) {
+	case COMPAT_CAM_CALIOC_S_SENSOR_INFO:
+		pdata->sensor_info.sensor_id =
+			((struct COMPAT_CAM_CAL_SENSOR_INFO *)pBuff)->sensor_id;
+		pdata->sensor_info.device_id =
+			((struct COMPAT_CAM_CAL_SENSOR_INFO *)pBuff)->device_id;
+
+		pr_debug("sensor id = 0x%x, device id = 0x%x\n",
+			   pdata->sensor_info.sensor_id, pdata->sensor_info.device_id);
+		break;
+	case COMPAT_CAM_CALIOC_G_SENSOR_INFO:
+		ret = compat_eeprom_ioctl_control_command(pBuff);
+		if (ret < 0)
+			pr_err("[%s] Failed to get data", __func__);
+		break;
+	default:
+		pr_err("No such command %u\n", a_cmd);
+		ret = -EINVAL;
+	}
+
+	kfree(pBuff);
+	return ret;
 }
 #endif
 
@@ -447,7 +538,7 @@ static inline int eeprom_driver_register(struct i2c_client *client,
 	memcpy(pinst->class_name, class_drv_name, DEV_NAME_STR_LEN_MAX);
 	pinst->pclass = class_create(THIS_MODULE, pinst->class_name);
 	if (IS_ERR(pinst->pclass)) {
-		int ret = PTR_ERR(pinst->pclass);
+		ret = PTR_ERR(pinst->pclass);
 
 		pr_err("Unable to create class, err = %d\n", ret);
 		return ret;

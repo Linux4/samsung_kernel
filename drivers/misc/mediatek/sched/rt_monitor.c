@@ -105,7 +105,7 @@ static void release_entry(struct mt_rt_mon_struct *entry)
 	uintptr_t diff;
 
 	diff = ((uintptr_t)entry - (uintptr_t)&memory_base[0]);
-	index = (unsigned int)(diff / sizeof(struct mt_rt_mon_struct));
+	index = diff / sizeof(struct mt_rt_mon_struct);
 	bitmap_clear(rt_mon_map, index, 1);
 }
 

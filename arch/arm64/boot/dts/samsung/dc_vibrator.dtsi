@@ -7,7 +7,10 @@
 						compatible = "samsung,dc_vibrator";
 						status = "okay";
 						dc_vib,motor_type = "COINDC";
-						dc_vib,regulator_name = "vibr";
+#if 1
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&mt_pmic_vibr_ldo_reg>;
+#endif
 					};
 				};
 			};

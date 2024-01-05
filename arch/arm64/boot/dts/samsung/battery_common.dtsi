@@ -159,8 +159,8 @@
 
 		battery,cisd_alg_index = <8>;
 		battery,cisd_max_voltage_thr = <4400>; /* batttery ovp dettection voltage */
-		battery,ignore_cisd_index = <0 960>; /* Do not use AFC_FAIL to DROP_VALUE */
-		battery,ignore_cisd_index_d = <0 120>; /* Do not use AFC_FAIL_PER_DAY to DROP_VALUE_PER_DAY */
+		battery,ignore_cisd_index = <0 0>;
+		battery,ignore_cisd_index_d = <0 80>; /* Do not use BUCK_OFF_PER_DAY, DROP_SENSOR_PER_DAY */
 
 		battery,expired_time = <10800>;
 		battery,recharging_expired_time = <5400>;
@@ -314,7 +314,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a32x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a32x.dtsi */
 &sec_battery {
 		pinctrl-names = "default";
 
@@ -359,10 +359,10 @@
 		battery,wire_cool3_cool2_thresh = <50>;
 		battery,wire_cold_cool3_thresh = <0>;
 
-		battery,wire_warm_current = <1750>;	/* 0.36C */
+		battery,wire_warm_current = <1700>;	/* 0.36C */
 		battery,wire_cool1_current = <2400>; /* 0.72C */
-		battery,wire_cool2_current = <1150>;	/* 0.24C */
-		battery,wire_cool3_current = <500>;	/* 0.1C */
+		battery,wire_cool2_current = <1100>;	/* 0.24C */
+		battery,wire_cool3_current = <400>;	/* 0.1C */
 
 		battery,high_temp_topoff = <250>;
 		battery,low_temp_topoff = <250>;

@@ -363,7 +363,7 @@ static void mt_usb_enable(struct musb *musb)
 	/* only for mt6761 */
 	usb_sram_setup();
 #endif
-	usb_phy_recover();
+	usb_phy_recover(musb);
 
 	/* update musb->power & mtk_usb_power in the same time */
 	musb->power = true;
@@ -613,8 +613,8 @@ void do_connection_work(struct work_struct *data)
 
 	if (!mtk_musb->power && (usb_on == true)) {
 		/* enable usb */
-		if (!mtk_musb->usb_lock.active) {
-			__pm_stay_awake(&mtk_musb->usb_lock);
+		if (!mtk_musb->usb_lock->active) {
+			__pm_stay_awake(mtk_musb->usb_lock);
 			DBG(0, "lock\n");
 		} else {
 			DBG(0, "already lock\n");
@@ -627,9 +627,9 @@ void do_connection_work(struct work_struct *data)
 	} else if (mtk_musb->power && (usb_on == false)) {
 		/* disable usb */
 		musb_stop(mtk_musb);
-		if (mtk_musb->usb_lock.active) {
+		if (mtk_musb->usb_lock->active) {
 			DBG(0, "unlock\n");
-			__pm_relax(&mtk_musb->usb_lock);
+			__pm_relax(mtk_musb->usb_lock);
 		} else {
 			DBG(0, "lock not active\n");
 		}
@@ -1561,7 +1561,7 @@ static int __init mt_usb_init(struct musb *musb)
 	musb->usb_rev6_setting = usb_rev6_setting;
 #endif
 
-	wakeup_source_init(&musb->usb_lock, "USB suspend lock");
+	musb->usb_lock = wakeup_source_register(NULL, "USB suspend lock");
 
 #ifndef FPGA_PLATFORM
 	reg_vusb = regulator_get(musb->controller, "vusb");
@@ -1695,6 +1695,45 @@ static u64 mt_usb_dmamask = DMA_BIT_MASK(36);
 static u64 mt_usb_dmamask = DMA_BIT_MASK(32);
 #endif
 
+struct mt_usb_phy_data *phy_data;
+int phy_data_cnt;
+
+static void mt_usb_tuning_dt(struct device *dev)
+{
+	struct device_node *node =
+		of_find_compatible_node(NULL,
+			NULL, "mediatek,phy_tuning");
+	struct device_node *nn;
+	int i = 0;
+
+	phy_data_cnt = of_get_child_count(node);
+	if (phy_data_cnt) {
+		phy_data = devm_kzalloc(dev,
+		     sizeof(*phy_data) + phy_data_cnt * sizeof(*phy_data),
+		     GFP_KERNEL);
+		if (!phy_data) {
+			pr_err("%s out of memory\n", __func__);
+			return;
+		}
+		for_each_child_of_node(node, nn) {
+			struct mt_usb_phy_data *data = &phy_data[i++];
+
+			data->name = of_get_property(nn, "label", NULL);
+			of_property_read_u32(nn, "offset", &data->offset);
+			of_property_read_u32(nn, "shift", &data->shift);
+			of_property_read_u32(nn, "mask", &data->mask);
+			of_property_read_u32(nn, "value", &data->value);
+			of_property_read_u32(nn, "host", &data->host);
+
+			pr_info("%s %s : 0x%x 0x%x 0x%x 0x%x 0x%x\n",
+				__func__, data->name,
+				data->offset, data->shift,
+				data->mask, data->value,
+				data->host);
+		}
+	}
+}
+
 static int mt_usb_probe(struct platform_device *pdev)
 {
 	struct musb_hdrc_platform_data *pdata = pdev->dev.platform_data;
@@ -1756,6 +1795,7 @@ static int mt_usb_probe(struct platform_device *pdev)
 
 	of_property_read_u32(np, "num_eps", (u32 *) &config->num_eps);
 	config->multipoint = of_property_read_bool(np, "multipoint");
+	mt_usb_tuning_dt(&pdev->dev);
 
 	pdata->config = config;
 

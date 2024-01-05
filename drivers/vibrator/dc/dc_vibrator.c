@@ -1,81 +1,99 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 Samsung Electronics Co. Ltd. All Rights Reserved.
+ * Copyright (C) 2021 Samsung Electronics Co. Ltd.
  *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
-
 #define pr_fmt(fmt) "[VIB] dc_vib: " fmt
-
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/err.h>
-#include <linux/regulator/consumer.h>
 #include <linux/of_gpio.h>
-#include <linux/vibrator/sec_vibrator.h>
-#define DC_VIB_NAME "dc_vib"
+#include "dc_vibrator.h"
+#if defined(CONFIG_SEC_KUNIT)
+#include "kunit_test/dc_vibrator_test.h"
+#else
+#define __visible_for_testing static
+#endif
 
-struct dc_vib_pdata {
-	const char *regulator_name;
-	struct regulator *regulator;
-	int gpio_en;
-	const char *motor_type;
-};
-
-struct dc_vib_drvdata {
-	struct sec_vibrator_drvdata sec_vib_ddata;
-	struct dc_vib_pdata *pdata;
-	bool running;
-};
-
-static int dc_vib_enable(struct device *dev, bool en)
+__visible_for_testing int dc_vib_on(struct dc_vib_drvdata *ddata)
 {
-	struct dc_vib_drvdata *ddata = dev_get_drvdata(dev);
+	int ret = 0;
+	int is_enabled = 0;
 
-	if (en) {
-		if (ddata->running)
-			return 0;
-		if (ddata->pdata->regulator) {
-			pr_info("%s: regulator on\n", __func__);
-			if (!regulator_is_enabled(ddata->pdata->regulator))
-				regulator_enable(ddata->pdata->regulator);
-		}
-		if (gpio_is_valid(ddata->pdata->gpio_en)) {
-			pr_info("%s: gpio on\n", __func__);
-			gpio_direction_output(ddata->pdata->gpio_en, 1);
-		}
-		ddata->running = true;
-	} else {
-		if (!ddata->running)
-			return 0;
-		if (gpio_is_valid(ddata->pdata->gpio_en)) {
-			pr_info("%s: gpio off\n", __func__);
-			gpio_direction_output(ddata->pdata->gpio_en, 0);
-		}
-		if (ddata->pdata->regulator) {
-			pr_info("%s: regulator off\n", __func__);
-			if (regulator_is_enabled(ddata->pdata->regulator))
-				regulator_disable(ddata->pdata->regulator);
-		}
-		ddata->running = false;
+	if (!ddata)
+		return -EINVAL;
+	if (ddata->running)
+		return 0;
+	if (ddata->pdata->regulator) {
+		is_enabled = regulator_is_enabled(ddata->pdata->regulator);
+		pr_info("%s: regulator on, is_enabled(%d)\n",
+				__func__, is_enabled);
+		if (!is_enabled)
+			ret = regulator_enable(ddata->pdata->regulator);
+		if (ret)
+			pr_err("%s: regulator_enable err %d\n", __func__, ret);
 	}
+	if (gpio_is_valid(ddata->pdata->gpio_en)) {
+		pr_info("%s: gpio on\n", __func__);
+		gpio_direction_output(ddata->pdata->gpio_en, 1);
+	}
+	ddata->running = true;
 	return 0;
 }
 
-static int dc_vib_get_motor_type(struct device *dev, char *buf)
+__visible_for_testing int dc_vib_off(struct dc_vib_drvdata *ddata)
 {
-	struct dc_vib_drvdata *ddata = dev_get_drvdata(dev);
-	int ret = snprintf(buf, VIB_BUFSIZE, "%s\n", ddata->pdata->motor_type);
+	int ret = 0;
+	int is_enabled = 0;
 
-	return ret;
+	if (!ddata)
+		return -EINVAL;
+	if (!ddata->running)
+		return 0;
+	if (gpio_is_valid(ddata->pdata->gpio_en)) {
+		pr_info("%s: gpio off\n", __func__);
+		gpio_direction_output(ddata->pdata->gpio_en, 0);
+	}
+	if (ddata->pdata->regulator) {
+		is_enabled = regulator_is_enabled(ddata->pdata->regulator);
+		pr_info("%s: regulator off, is_enabled(%d)\n",
+				__func__, is_enabled);
+		if (is_enabled)
+			ret = regulator_disable(ddata->pdata->regulator);
+		if (ret)
+			pr_err("%s: regulator_disable err %d\n", __func__, ret);
+	}
+	ddata->running = false;
+	return 0;
+}
+
+__visible_for_testing int dc_vib_enable(struct device *dev, bool en)
+{
+	struct dc_vib_drvdata *ddata;
+
+	if (!dev)
+		return -EINVAL;
+
+	ddata = dev_get_drvdata(dev);
+
+	return en ? dc_vib_on(ddata) : dc_vib_off(ddata);
+}
+
+__visible_for_testing int dc_vib_get_motor_type(struct device *dev, char *buf)
+{
+	struct dc_vib_drvdata *ddata;
+
+	if (!dev)
+		return -EINVAL;
+
+	ddata = dev_get_drvdata(dev);
+
+	return snprintf(buf, VIB_BUFSIZE, "%s\n", ddata->pdata->motor_type);
 }
 
 static const struct sec_vibrator_ops dc_vib_ops = {
@@ -110,7 +128,7 @@ static struct dc_vib_pdata *dc_vib_get_dt(struct device *dev)
 				__func__, ret);
 			goto err_out;
 		}
-		ret = gpio_direction_output(pdata->gpio_en, 0);
+		gpio_direction_output(pdata->gpio_en, 0);
 	} else {
 		pr_info("%s: gpio isn't used\n", __func__);
 	}
@@ -118,7 +136,7 @@ static struct dc_vib_pdata *dc_vib_get_dt(struct device *dev)
 	ret = of_property_read_string(node, "dc_vib,regulator_name",
 			&pdata->regulator_name);
 	if (!ret) {
-		pdata->regulator = regulator_get(NULL, pdata->regulator_name);
+		pdata->regulator = regulator_get(dev, pdata->regulator_name);
 		if (IS_ERR(pdata->regulator)) {
 			ret = PTR_ERR(pdata->regulator);
 			pdata->regulator = NULL;
@@ -188,6 +206,7 @@ static int dc_vib_remove(struct platform_device *pdev)
 {
 	struct dc_vib_drvdata *ddata = platform_get_drvdata(pdev);
 
+	sec_vibrator_unregister(&ddata->sec_vib_ddata);
 	if (ddata->pdata->regulator) {
 		regulator_put(ddata->pdata->regulator);
 	}

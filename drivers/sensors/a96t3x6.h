@@ -30,6 +30,10 @@
 #define NOTIFY_CABLE_TA		0x25
 #define NOTIFY_CABLE_TA_FAC	0x27
 
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
+#define NOTI_MODULE_NAME        "grip_notifier"
 /* registers */
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
 #define REG_LED_CONTROL                 0x00

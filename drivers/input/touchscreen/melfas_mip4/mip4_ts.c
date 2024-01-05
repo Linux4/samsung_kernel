@@ -375,14 +375,12 @@ static int mip4_ts_fb_notifier_callback(struct notifier_block *self, unsigned lo
 	case FB_BLANK_UNBLANK:
 	    /* Enable */
 		dev_dbg(&info->client->dev, "%s - FB_BLANK_UNBLANK\n", __func__);
-		dev_info(&info->client->dev, "%s - Display : On\n", __func__);
 
 		break;
 
 	case FB_BLANK_POWERDOWN:
 	    /* Disable */
 		dev_dbg(&info->client->dev, "%s - FB_BLANK_POWERDOWN\n", __func__);
-		dev_info(&info->client->dev, "%s - Display : Off\n", __func__);
 
 		break;
 

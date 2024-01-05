@@ -11,7 +11,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/charger/mtk_charger/mtk_charger.a32x_eur_open.01.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/mtk_charger/mtk_charger.a32x_eur_open.01.dtsi */
 
 &smd {
 	mtk_charger: mtk-charger {

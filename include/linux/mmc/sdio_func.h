@@ -19,7 +19,6 @@
 
 struct mmc_card;
 struct sdio_func;
-struct mmc_host;
 
 typedef void (sdio_irq_handler_t)(struct sdio_func *);
 

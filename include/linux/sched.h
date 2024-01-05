@@ -1395,10 +1395,7 @@ struct task_struct {
 	short nice_backup;
 	atomic_t inherit_types;
 #endif
-#ifdef CONFIG_SEC_PERF_MANAGER
-	int drawing_flag;
-	int drawing_mig_boost;
-#endif
+
 	/*
 	 * New fields for task_struct should be added above here, so that
 	 * they are included in the randomized portion of task_struct.
@@ -1618,7 +1615,6 @@ extern struct pid *cad_pid;
 #define PF_MEMSTALL		0x01000000	/* Stalled due to lack of memory */
 #define PF_NO_SETAFFINITY	0x04000000	/* Userland is not allowed to meddle with cpus_allowed */
 #define PF_MCE_EARLY		0x08000000      /* Early kill for mce process policy */
-#define PF_NOFS_MASK		0x10000000	/* This process should not have __GFP_FS while shrinking */
 #define PF_MUTEX_TESTER		0x20000000	/* Thread belongs to the rt mutex tester */
 #define PF_FREEZER_SKIP		0x40000000	/* Freezer should not count it as freezable */
 #define PF_SUSPEND_TASK		0x80000000      /* This thread called freeze_processes() and should not be frozen */

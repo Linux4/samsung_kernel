@@ -97,6 +97,11 @@ GED_ERROR ged_ge_init(void)
 	gPoolCache = kmem_cache_create("gralloc_extra",
 		sizeof(struct GEEntry), 0, flags, NULL);
 
+	if (!gPoolCache) {
+		GED_PDEBUG("kmem_cache_create fail\n");
+		err = GED_ERROR_FAIL;
+	}
+
 	return err;
 }
 
@@ -111,6 +116,7 @@ int ged_ge_exit(void)
 int ged_ge_alloc(int region_num, uint32_t *region_sizes)
 {
 	unsigned long flags;
+	int fd;
 	int i;
 	struct GEEntry *entry =
 		(struct GEEntry *)kmem_cache_zalloc(gPoolCache, GFP_KERNEL);
@@ -121,7 +127,7 @@ int ged_ge_alloc(int region_num, uint32_t *region_sizes)
 		goto err_entry;
 	}
 
-	entry->alloc_fd = get_unused_fd_flags(O_CLOEXEC);
+	fd = entry->alloc_fd = get_unused_fd_flags(O_CLOEXEC);
 
 	if (entry->alloc_fd < 0) {
 		GED_PDEBUG("get_unused_fd_flags() return %d\n",
@@ -163,7 +169,7 @@ int ged_ge_alloc(int region_num, uint32_t *region_sizes)
 
 	fd_install(entry->alloc_fd, entry->file);
 
-	return entry->alloc_fd;
+	return fd;
 
 err_kmalloc:
 err_entry_file:
@@ -217,6 +223,8 @@ int ged_ge_get(int ge_fd, int region_id, int u32_offset,
 
 	if (file == NULL || file->f_op != &GEEntry_fops) {
 		GED_PDEBUG("fail, invalid ge_fd %d\n", ge_fd);
+		if (file)
+			fput(file);
 		return -EFAULT;
 	}
 
@@ -257,6 +265,8 @@ int ged_ge_set(int ge_fd, int region_id, int u32_offset,
 
 	if (file == NULL || file->f_op != &GEEntry_fops) {
 		GED_PDEBUG("fail, invalid ge_fd %d\n", ge_fd);
+		if (file)
+			fput(file);
 		return -EFAULT;
 	}
 
@@ -330,6 +340,16 @@ int ged_bridge_ge_get(
 	 */
 	int header_size = sizeof(struct GED_BRIDGE_OUT_GE_GET);
 
+	if (psGET_IN->uint32_offset < 0 ||
+			psGET_IN->uint32_offset >= 0x20000000ULL ||
+			psGET_IN->uint32_size < 0 ||
+			psGET_IN->uint32_size >= 0x20000000ULL) {
+		pr_info("[%s] invalid offset(%d) or size(%d)",
+				__func__,
+				psGET_IN->uint32_offset,
+				psGET_IN->uint32_size);
+		return -EFAULT;
+	}
 	if ((output_package_size - header_size) !=
 		psGET_IN->uint32_size * sizeof(uint32_t)) {
 		pr_info("[%s] data (%d byte) != u32_size (%d byte)",
@@ -356,6 +376,16 @@ int ged_bridge_ge_set(
 
 	int header_size = sizeof(struct GED_BRIDGE_IN_GE_SET);
 
+	if (psSET_IN->uint32_offset < 0 ||
+			psSET_IN->uint32_offset >= 0x20000000ULL ||
+			psSET_IN->uint32_size < 0 ||
+			psSET_IN->uint32_size >= 0x20000000ULL) {
+		pr_info("[%s] invalid offset(%d) or size(%d)",
+				__func__,
+				psSET_IN->uint32_offset,
+				psSET_IN->uint32_size);
+		return -EFAULT;
+	}
 	if ((input_package_size - header_size) !=
 		psSET_IN->uint32_size * sizeof(uint32_t)) {
 		pr_info("[%s] data (%d byte) != u32_size (%d byte)",
@@ -382,6 +412,8 @@ int ged_bridge_ge_info(
 
 	if (file == NULL || file->f_op != &GEEntry_fops) {
 		GED_PDEBUG("ged_ge fail, invalid ge_fd %d\n", psINFO_IN->ge_fd);
+		if (file)
+			fput(file);
 		return -EFAULT;
 	}
 

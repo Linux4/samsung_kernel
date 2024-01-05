@@ -23,6 +23,8 @@
 #include <linux/uaccess.h>
 
 #include "lens_info.h"
+#include "imgsensor_sysfs.h"
+#include "kd_imgsensor_sysfs_adapter.h"
 
 #define AF_DRVNAME "FP5519AF_DRV"
 #define AF_I2C_SLAVE_ADDR 0x18
@@ -34,8 +36,6 @@
 #else
 #define LOG_INF(format, args...)
 #endif
-
-#define mDELAY(ms)       usleep_range(ms*1000, ms*1000)
 
 static struct i2c_client *g_pstAF_I2Cclient;
 static int *g_pAF_Opened;
@@ -154,29 +154,39 @@ static u8 read_data(u8 addr)
 /* initAF include driver initialization and standby mode */
 static int initAF(void)
 {
-
+	int ret = 0;
+#ifdef IMGSENSOR_HW_PARAM
+	struct cam_hw_param *hw_param = NULL;
+#endif
 	u8 data = 0xFF;
+	u8 ac_mode = 0xA2, ac_time = 0x3F;
 
 	LOG_INF("+\n");
 
-	mDELAY(5);
+	usleep_range(5000, 5500);
 
 	data = read_data(0x00);
 	LOG_INF("module id:%d\n", data);
-	s4AF_WriteReg(0x02, 0x01);
-	s4AF_WriteReg(0x02, 0x00);
-	mDELAY(5);
-	s4AF_WriteReg(0x02, 0x02);//ring
-	//s4AF_WriteReg(0x06, 0xA4);//101__100 sac4 with x8
-	s4AF_WriteReg(0x06, 0x61);//0110 0001 SAC3 with x1
-	mDELAY(5);
-	s4AF_WriteReg(0x07, 0x36);// 0011 0110 SACT
-	//s4AF_WriteReg(0x07, 0x00);//00111111 SACT
-	mDELAY(1);
-	s4AF_WriteReg(0x0A, 0x00);
-	s4AF_WriteReg(0x0B, 0x01);
-	s4AF_WriteReg(0x0C, 0xFF);
-	s4AF_WriteReg(0x11, 0x00);
+	ret |= s4AF_WriteReg(0x02, 0x01);
+	ret |= s4AF_WriteReg(0x02, 0x00);
+	usleep_range(5000, 5500);
+	ret |= s4AF_WriteReg(0x02, 0x02);//ring
+
+	if (!IMGSENSOR_GET_SAC_VALUE_BY_SENSOR_IDX(0, &ac_mode, &ac_time)) {
+		ret |= -1;
+		pr_err("[%s] FP5519: failed to get sac value\n", __func__);
+	}
+
+	pr_info("[%s] FP5519 SAC setting (read from eeprom) - ac_mode: 0x%x, ac_time: 0x%x\n", __func__, ac_mode, ac_time);
+	s4AF_WriteReg(0x06, ac_mode);
+	usleep_range(5000, 5100);
+	s4AF_WriteReg(0x07, ac_time);
+
+	usleep_range(1000, 1100);
+	ret |= s4AF_WriteReg(0x0A, 0x00);
+	ret |= s4AF_WriteReg(0x0B, 0x01);
+	ret |= s4AF_WriteReg(0x0C, 0xFF);
+	ret |= s4AF_WriteReg(0x11, 0x00);
 
 	if (*g_pAF_Opened == 1) {
 
@@ -185,7 +195,13 @@ static int initAF(void)
 		spin_unlock(g_pAF_SpinLock);
 
 	}
-
+#ifdef IMGSENSOR_HW_PARAM
+	if (ret != 0) {
+		imgsensor_sec_get_hw_param(&hw_param, SENSOR_POSITION_REAR);
+		if (hw_param)
+			hw_param->i2c_af_err_cnt++;
+	}
+#endif
 	LOG_INF("-\n");
 
 	return 0;

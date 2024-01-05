@@ -385,7 +385,7 @@ static void dump_disp_info(struct disp_layer_info *disp_info,
 	struct layer_config *layer_info;
 
 #define _HRT_FMT \
-	"HRT hrt_num:0x%x/fps:%d/dal:%d/p:%d/r:%s/l_tb:%d/bd_tb:%d/dc:%d\n"
+	"HRT hrt_num:0x%x/fps:%d/dal:%d/p:%d/r:%s/l_tb:%d/bd_tb:%d/dc:%d/\n"
 #define _L_FMT \
 	"L%d->%d/of(%d,%d)/swh(%d,%d)/dwh(%d,%d)/fmt:0x%x/ext:%d/caps:0x%x\n"
 
@@ -1289,7 +1289,7 @@ static int _calc_hrt_num(struct disp_layer_info *disp_info, int disp_index,
 	}
 
 #ifdef HRT_DEBUG_LEVEL1
-	DISPMSG("%s disp:%d, disp:%d, hrt_type:%d, sum_overlap_w:%d\n",
+	DISPMSG("%s disp_index:%d, disp_index:%d, hrt_type:%d, sum_overlap_w:%d\n",
 		__func__, disp_index, disp_index, hrt_type, sum_overlap_w);
 #endif
 
@@ -1649,6 +1649,7 @@ int check_disp_info(struct disp_layer_info *disp_info)
 			disp_info->gles_head[disp_idx]) &&
 			(disp_info->gles_tail[disp_idx] <
 			disp_info->layer_num[disp_idx])))) {
+			dump_disp_info(disp_info, DISP_DEBUG_LEVEL_ERR);
 			DISPERR("[HRT]gles invalid,disp:%d,head:%d,tail:%d\n",
 				disp_idx, disp_info->gles_head[disp_idx],
 				disp_info->gles_tail[disp_idx]);
@@ -1833,7 +1834,7 @@ int layering_rule_start(struct disp_layer_info *disp_info_user, int debug_mode)
 		if (l_rule_ops->resizing_rule)
 			ret = l_rule_ops->resizing_rule(&layering_info);
 		else
-			DISPWARN("RSZ on, but no resizing rule.\n");
+			DISPWARN("RSZ feature on, but no resizing rule be implement.\n");
 	} else {
 		l_rule_info->scale_rate = HRT_SCALE_NONE;
 	}
@@ -1947,6 +1948,8 @@ static char *parse_hrt_data_value(char *start, long int *value)
 	int ret;
 
 	tok_start = strchr(start + 1, ']');
+	if (unlikely(!tok_start))
+		goto out;
 	tok_end = strchr(tok_start + 1, '[');
 	if (tok_end)
 		*tok_end = 0;
@@ -1954,7 +1957,7 @@ static char *parse_hrt_data_value(char *start, long int *value)
 	if (ret)
 		DISPWARN("Parsing error gles_num:%d, p:%s, ret:%d\n",
 			(int)*value, tok_start + 1, ret);
-
+out:
 	return tok_end;
 }
 
@@ -1970,6 +1973,7 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 	bool is_end = false, is_test_pass = false;
 	int tmp_hrt_num, tmp;
 
+	disp_id = 0;
 	pos = 0;
 	test_case = -1;
 	oldfs = get_fs();
@@ -2023,17 +2027,24 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 		} else if (strncmp(line_buf, "[set_layer]", 11) == 0) {
 			unsigned long int tmp_info;
 
+			tmp_info = 0;
 			tok = strchr(line_buf, ']');
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &disp_id);
+			if (!tok)
+				goto end;
 			for (i = 0 ; i < HRT_LAYER_DATA_NUM ; i++) {
 				tok = parse_hrt_data_value(tok, &tmp_info);
+				if (!tok)
+					goto end;
 				debug_set_layer_data(disp_info,
 					disp_id, i, tmp_info);
 			}
 		} else if (strncmp(line_buf, "[test_start]", 12) == 0) {
 			tok = parse_hrt_data_value(line_buf, &test_case);
+			if (!tok)
+				goto end;
 			layering_rule_start(disp_info, 1);
 			is_test_pass = true;
 		} else if (strncmp(line_buf, "[test_end]", 10) == 0) {
@@ -2073,6 +2084,8 @@ static int load_hrt_test_data(struct disp_layer_info *disp_info)
 			if (!tok)
 				goto end;
 			tok = parse_hrt_data_value(tok, &layer_result);
+			if (!tok)
+				goto end;
 			if (layer_result != tmp_config.ext_sel_layer) {
 				DISPWARN("case:%d,ext_sel_layer wrong,%d/%d\n",
 					(int)test_case,

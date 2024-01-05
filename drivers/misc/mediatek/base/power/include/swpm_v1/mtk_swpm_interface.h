@@ -29,8 +29,16 @@ enum swpm_type {
 	CORE_SWPM_TYPE,
 	MEM_SWPM_TYPE,
 	ISP_SWPM_TYPE,
+	ME_SWPM_TYPE,
 
 	NR_SWPM_TYPE,
+};
+
+enum swpm_pmu_user {
+	SWPM_PMU_CPU_DVFS,
+	SWPM_PMU_INTERNAL,
+
+	NR_SWPM_PMU_USER,
 };
 
 /* swpm interface to request share memory address by SWPM TYPE */
@@ -39,6 +47,16 @@ enum swpm_type {
  */
 extern int swpm_mem_addr_request(enum swpm_type id,
 				 phys_addr_t **ptr);
+
+/* swpm interface to enable/disable swpm related pmu */
+/* return:	0  (SWPM_SUCCESS)
+ *		otherwise (ERROR)
+ */
+extern int swpm_pmu_enable(enum swpm_pmu_user id,
+			   unsigned int enable);
+
+/* TODO: for API default compatible */
+#define swpm_pmu_enable(x) swpm_pmu_enable(SWPM_PMU_CPU_DVFS, x)
 
 #endif /* __MTK_SWPM_INTERFACE_H__ */
 

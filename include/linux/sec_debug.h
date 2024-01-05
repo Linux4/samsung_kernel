@@ -20,27 +20,47 @@
 #include "mt-plat/mt6739/include/mach/upmu_hw.h"
 #elif defined (CONFIG_MACH_MT6768)
 #include "mt-plat/mt6768/include/mach/upmu_hw.h"
+#elif defined (CONFIG_MACH_MT6833)
+#include "mt-plat/mt6833/include/mach/upmu_hw.h"
 #elif defined (CONFIG_MACH_MT6853)
 #include "mt-plat/mt6853/include/mach/upmu_hw.h"
+#elif defined (CONFIG_MACH_MT6877)
+#include "mt-plat/mt6877/include/mach/upmu_hw.h"
 #else
 #include "mt-plat/mt6768/include/mach/upmu_hw.h"
 #endif
 
 /* RESERVED MEMORY BASE ADDRESS */
+#if defined (CONFIG_MACH_MT6739)
 #define SEC_LOG_BASE				0x4B000000    /* SZ_2M */
 #define SEC_LASTKMSG_BASE			0x4B200000    /* SZ_2M */
 #define SEC_LOGGER_BASE				0x4B400000    /* SZ_4M */
 #ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
 #define SEC_AUTO_COMMENT_BASE		0x4B800000    /* SZ_64K */
 #endif
-#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
-#define SEC_EXTRA_INFO_BASE			0x4B810000    /* SZ_2M - SZ_64K */
-#endif
-#ifdef CONFIG_SEC_DEBUG_INIT_LOG
-#define SEC_INIT_LOG_BASE				0x4BA00000    /* SZ_2M */
-#endif
 #ifdef CONFIG_SEC_DEBUG_HIST_LOG
 #define SEC_HIST_LOG_BASE				0x4B900000    /* SZ_512K */
+#endif
+#else
+#define SEC_LOG_BASE				0x46C00000    /* SZ_2M */
+#define SEC_LASTKMSG_BASE			0x46E00000    /* SZ_2M */
+#define SEC_LOGGER_BASE				0x47000000    /* SZ_4M */
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+#define SEC_AUTO_COMMENT_BASE		0x47400000    /* SZ_64K */
+#endif
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
+#define SEC_EXTRA_INFO_BASE			0x47410000    /* SZ_2M - SZ_64K */
+#endif
+#ifdef CONFIG_SEC_DEBUG_INIT_LOG
+#define SEC_INIT_LOG_BASE				0x47600000    /* SZ_2M */
+#endif
+#ifdef CONFIG_SEC_DEBUG_HIST_LOG
+#define SEC_HIST_LOG_BASE				0x47500000    /* SZ_512K */
+#endif
+#endif
+
+#if defined(CONFIG_SEC_DUMP_SINK)	
+#define SEC_DUMPSINK_MASK 0x0000FFFF
 #endif
 
 /* +++ MediaTek Feature +++ */
@@ -235,6 +255,9 @@ struct last_reboot_reason {
 	uint32_t power_reset_reason;
 	uint32_t mcupm_skip;
 	char panic_str[PANIC_STRBUF_LEN];
+#if defined(CONFIG_SEC_DUMP_SINK)	
+	uint32_t reboot_magic;
+#endif
 	/* - SEC Feature - */
 };
 
@@ -290,6 +313,14 @@ enum sec_power_flags {
 	SEC_POWER_OFF = 0x0,
 	SEC_POWER_RESET = 0x12345678,
 };
+
+#if defined(CONFIG_SEC_DUMP_SINK)	
+enum sec_reboot_magic_flags {
+	MAGIC_SDR_FOR_MINFORM = 0x3,
+	MAGIC_STR_FOR_MINFORM = 0xC,
+};
+#endif
+
 #define SEC_RESET_REASON_PREFIX 0x12345670
 #define SEC_RESET_SET_PREFIX    0xabc00000
 enum sec_reset_reason {
@@ -321,6 +352,10 @@ enum sec_reset_reason {
 	#ifdef CONFIG_DIAG_MODE
 	SEC_RESET_SET_DIAG         = (SEC_RESET_SET_PREFIX | 0xe)	/* Diag enable for CP */
 	#endif
+
+#if defined(CONFIG_SEC_DUMP_SINK)	
+	SEC_RESET_SET_DUMPSINK     = (SEC_RESET_SET_PREFIX | 0x80000),	/* dumpsink */
+#endif
 };
 
 #define	_THIS_CPU	(-1)

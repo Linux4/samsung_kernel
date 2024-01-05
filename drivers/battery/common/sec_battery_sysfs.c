@@ -73,6 +73,7 @@ static struct device_attribute sysfs_battery_attrs[] = {
 	SYSFS_BATTERY_ATTR(check_ps_ready),
 	SYSFS_BATTERY_ATTR(safety_timer_set),
 	SYSFS_BATTERY_ATTR(batt_swelling_control),
+	SYSFS_BATTERY_ATTR(batt_battery_id),
 	SYSFS_BATTERY_ATTR(batt_temp_control_test),
 	SYSFS_BATTERY_ATTR(safety_timer_info),
 	SYSFS_BATTERY_ATTR(batt_misc_test),
@@ -81,6 +82,7 @@ static struct device_attribute sysfs_battery_attrs[] = {
 #endif
 	SYSFS_BATTERY_ATTR(usb_conf_test),
 	SYSFS_BATTERY_ATTR(voter_status),
+	SYSFS_BATTERY_ATTR(batt_full_capacity),
 };
 
 enum {
@@ -127,6 +129,7 @@ enum {
 	CHECK_PS_READY,
 	SAFETY_TIMER_SET,
 	BATT_SWELLING_CONTROL,
+	BATT_BATTERY_ID,
 	BATT_TEMP_CONTROL_TEST,
 	SAFETY_TIMER_INFO,
 	BATT_MISC_TEST,
@@ -135,6 +138,7 @@ enum {
 #endif
 	USB_CONF,
 	VOTER_STATUS,
+	BATT_FULL_CAPACITY,
 };
 
 ssize_t sysfs_battery_show_attrs(struct device *dev,
@@ -188,6 +192,9 @@ ssize_t sysfs_battery_show_attrs(struct device *dev,
 					POWER_SUPPLY_PROP_TEMP, value);
 
 				temp = sec_bat_get_fg_temp_adc(battery, value.intval);
+				if (battery->pdata->temp_check_type ==
+							SEC_BATTERY_TEMP_CHECK_FAKE)
+					temp = 300;
 				i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 					temp);
 			}
@@ -476,6 +483,13 @@ ssize_t sysfs_battery_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 			       battery->skip_swelling);
 		break;
+	case BATT_BATTERY_ID:
+		value.intval = 0;
+		psy_do_property(battery->pdata->fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_BATTERY_ID, value);
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		break;
 	case BATT_TEMP_CONTROL_TEST:
 		{
 			int temp_ctrl_t = 0;
@@ -507,6 +521,10 @@ ssize_t sysfs_battery_show_attrs(struct device *dev,
 		break;
 	case VOTER_STATUS:
 		i = show_sec_vote_status(buf, PAGE_SIZE);
+		break;
+	case BATT_FULL_CAPACITY:
+		pr_info("%s: BATT_FULL_CAPACITY = %d\n", __func__, battery->batt_full_capacity);
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->batt_full_capacity);
 		break;
 	default:
 		i = -EINVAL;
@@ -729,6 +747,13 @@ ssize_t sysfs_battery_store_attrs(
 					sec_bat_aging_check(battery);
 				}
 				sec_bat_check_battery_health(battery);
+
+				if ((prev_battery_cycle - battery->batt_cycle) >= 9000) {
+					value.intval = 0;
+					psy_do_property(battery->pdata->fuelgauge_name, set,
+									POWER_SUPPLY_PROP_ENERGY_NOW, value);
+					dev_info(battery->dev, "%s: change the concept of battery protection mode.\n", __func__);
+				}
 			}
 			ret = count;
 		}
@@ -760,6 +785,8 @@ ssize_t sysfs_battery_store_attrs(
 			}
 			ret = count;
 		}
+		break;
+	case BATT_BATTERY_ID:
 		break;
 	case BATT_TEMP_CONTROL_TEST:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
@@ -829,6 +856,20 @@ ssize_t sysfs_battery_store_attrs(
 		}
 		break;
 	case VOTER_STATUS:
+		break;
+	case BATT_FULL_CAPACITY:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			if (x >= 0 && x <= 100) {
+				pr_info("%s: update BATT_FULL_CAPACITY(%d)\n", __func__, x);
+				battery->batt_full_capacity = x;
+				__pm_stay_awake(battery->monitor_ws);
+				queue_delayed_work(battery->monitor_wqueue,
+					&battery->monitor_work, 0);
+			} else {
+				pr_info("%s: out of range(%d)\n", __func__, x);
+			}
+			ret = count;
+		}
 		break;
 	default:
 		ret = -EINVAL;

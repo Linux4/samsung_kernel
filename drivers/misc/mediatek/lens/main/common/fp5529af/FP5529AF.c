@@ -23,7 +23,6 @@
 #include <linux/uaccess.h>
 
 #include "lens_info.h"
-#include "imgsensor_sysfs.h"
 #include "kd_imgsensor_sysfs_adapter.h"
 
 #define AF_DRVNAME "FP5529AF_DRV"

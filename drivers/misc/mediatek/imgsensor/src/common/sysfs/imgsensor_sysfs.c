@@ -140,36 +140,42 @@ bool check_isp_vendor(int position, char *header_ver)
 	}
 }
 #if defined(REAR_SUB_CAMERA)
-static int read_file(const char *path, unsigned char *data, unsigned int size)
+static int sysfs_kernel_read(const char *path, unsigned char *data, unsigned int size)
 {
-	int fd, ret;
-	mm_segment_t old_fs = get_fs();
+	struct file *fp;
+	loff_t pos;
+	ssize_t ret = 0;
 
-	set_fs(KERNEL_DS);
-	fd = sys_open(path, O_RDONLY, 0);
-	if (fd < 0) {
-		set_fs(old_fs);
-		pr_err("%s: fail to open file %s", __func__, path);
-		return -EINVAL;
+	fp = filp_open(path, O_RDONLY, 0);
+	if (IS_ERR_OR_NULL(fp)) {
+		pr_err("%s fail to open file %s", __func__, path);
+		ret = -EINVAL;
+		goto kread_err;
 	}
 
-	ret = sys_read(fd, data, size);
+	pos = 0;
+	ret = kernel_read(fp, data, size, &pos);
 	if (ret != size) {
-		pr_err("%s: fail to read file %s. ret %d", __func__, path, ret);
+		pr_err("%s fail to read file %s. ret %d", __func__, path, ret);
 		ret = -ENOENT;
+		goto kread_err;
 	}
-	sys_close(fd);
-	set_fs(old_fs);
+
+kread_err:
+	if (!IS_ERR_OR_NULL(fp))
+		filp_close(fp, NULL);
+
 	return ret;
 }
+
 static int SetMultiCal_read(unsigned char *data)
 {
-	int ret = read_file(SetMultiCal_Path, data, SetMultiCal_Size);
+	int ret = sysfs_kernel_read(SetMultiCal_Path, data, SetMultiCal_Size);
 
 	if (ret < 0)
-		pr_err("%s: failed to read file %s\n", __func__, SetMultiCal_Path);
+		pr_err("%s failed to read file %s\n", __func__, SetMultiCal_Path);
 	else
-		pr_info("%s: read file %s, size %d", __func__, SetMultiCal_Path, SetMultiCal_Size);
+		pr_info("%s read file %s, size %d", __func__, SetMultiCal_Path, SetMultiCal_Size);
 	return ret;
 }
 #endif
@@ -595,8 +601,7 @@ static ssize_t camera_sensorid_exif_show(int position, char *buf)
 	if(!imgsensor_sec_check_rom_ver(position)) {
 		return -ENODEV;
 	}
-	memcpy(buf, finfo[position]->rom_sensor_id, IMGSENSOR_SENSOR_ID_SIZE);
-	return IMGSENSOR_SENSOR_ID_SIZE;
+	return sprintf(buf, "%s\n", finfo[position]->rom_sensor_id);
 }
 
 static ssize_t camera_mtf_exif_show(int position, char *buf)
@@ -1845,15 +1850,13 @@ static DEVICE_ATTR(rear3_sensorid_exif, S_IRUGO, camera_rear3_sensorid_exif_show
 #if defined(REAR_SUB_CAMERA)
 static DEVICE_ATTR(rear3_dualcal, S_IRUGO, camera_rear3_dualcal_show, NULL);
 static DEVICE_ATTR(rear3_dualcal_size, S_IRUGO, camera_rear3_dualcal_size_show, NULL);
+static DEVICE_ATTR(rear3_tilt, S_IRUGO, camera_rear3_tilt_show, NULL);
 #endif
 static DEVICE_ATTR(rear3_camfw, S_IRUGO, camera_rear3_camfw_show, NULL);
 static DEVICE_ATTR(rear3_camfw_full, S_IRUGO, camera_rear3_camfw_full_show, NULL);
 static DEVICE_ATTR(rear3_checkfw_user, S_IRUGO, camera_rear3_checkfw_user_show, NULL);
 static DEVICE_ATTR(rear3_checkfw_factory, S_IRUGO, camera_rear3_checkfw_factory_show, NULL);
 static DEVICE_ATTR(rear3_camtype, S_IRUGO, camera_rear3_camtype_show, NULL);
-#if defined(REAR_SUB_CAMERA)
-static DEVICE_ATTR(rear3_tilt, S_IRUGO, camera_rear3_tilt_show, NULL);
-#endif
 #if NOTYETDONE
 static DEVICE_ATTR(rear3_mtf_exif, S_IRUGO, camera_rear3_mtf_exif_show, NULL);
 #endif
@@ -2181,87 +2184,48 @@ static DEVICE_ATTR(rear4_hwparam,  S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 #endif//REAR_CAMERA4
 
 #if ENABLE_CAM_CAL_DUMP
-ssize_t write_data_to_file(char *name, char *buf, size_t count, loff_t *pos)
+int sysfs_kernel_write(char *name, char *buf, size_t size)
 {
+	ssize_t ret = 0;
 	struct file *fp;
-	mm_segment_t old_fs;
-	ssize_t tx = -ENOENT;
-	int fd, old_mask;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	old_mask = sys_umask(0);
-
-	sys_rmdir(name);
-	pr_err("delete done: %s", name);
-	fd = sys_open(name, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666);
-
-	if (fd < 0) {
-		pr_err("open file error: %s", name);
-		sys_umask(old_mask);
-		set_fs(old_fs);
-		return -EINVAL;
-	} else {
-		pr_err("open file success: %s", name);
+	fp = filp_open(name, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666);
+	if (IS_ERR_OR_NULL(fp)) {
+		ret = PTR_ERR(fp);
+		pr_err("[%s] open file: %s, error(%d)\n", __func__, name, ret);
+		ret = -EINVAL;
+		goto kwrite_err;
 	}
 
-	fp = fget(fd);
-	if (fp) {
-		pr_err("get file success %s", name);
-		tx = vfs_write(fp, buf, count, pos);
-		if (tx != count) {
-			pr_err("fail to write %s. ret %zd", name, tx);
-			tx = -ENOENT;
-		} else {
-			pr_err("write success %s", name);
-		}
-
-		vfs_fsync(fp, 0);
-		fput(fp);
-	} else {
-		pr_err("fail to get file *: %s", name);
+	ret = kernel_write(fp, buf, size, &fp->f_pos);
+	if (ret != size) {
+		pr_err("[%s] file write fail: %s, (%d)", __func__, name, ret);
+		ret = -ENOENT;
+		goto kwrite_err;
 	}
 
-	sys_close(fd);
-	sys_umask(old_mask);
-	set_fs(old_fs);
+	pr_err("[%s] write success %s", __func__, name);
 
-	return tx;
+kwrite_err:
+	if (!IS_ERR_OR_NULL(fp))
+		filp_close(fp, NULL);
+
+	return ret;
 }
 
-bool imgsensor_sec_readcal_dump(char *buf, int size, int position)
+int imgsensor_sec_readcal_dump(char *buf, int size, int position)
 {
-	int ret = false;
-	struct file *dump_fp = NULL;
-	mm_segment_t old_fs;
-	loff_t pos = 0;
-
+	int ret = 0;
 	char path[50] = IMGSENSOR_CAL_SDCARD_PATH;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	dump_fp = filp_open(path, O_RDONLY, 0);
-	if (IS_ERR(dump_fp)) {
-		pr_err("dump folder does not exist.\n");
-		dump_fp = NULL;
-		goto dump_err;
-	}
-
-
-	pr_info("dump folder exist, Dump EEPROM cal data.\n");
-
 	strcat(path, eeprom_cal_dump_path[position]);
-	if (write_data_to_file(path, buf, size, &pos) < 0) {
-		pr_err("Failed to rear dump cal data.\n");
-		goto dump_err;
-	}
-	ret = true;
 
-dump_err:
-	if (dump_fp)
-		filp_close(dump_fp, current->files);
-	set_fs(old_fs);
+	ret = sysfs_kernel_write(path, buf, size);
+	if (ret < 0)
+		pr_err("%s failed to write file %s\n", __func__, path);
+	else
+		pr_info("%s write file %s, size %d", __func__, path, size);
+
 	return ret;
 }
 #endif
@@ -2501,12 +2465,7 @@ static int imgsensor_rom_read_common(unsigned char *pRomData, struct imgsensor_e
 	max_num_of_rom_info = ARRAY_SIZE(vendor_rom_info);
 	pr_info("[%s]max_num_of_rom_info: %d \n", __func__, max_num_of_rom_info);
 
-	for (i = 0; i <= max_num_of_rom_info; i++) {
-		if (i == max_num_of_rom_info) {
-			pr_err("[%s] fail, no searched rom_info \n", __func__);
-			return -1;
-		}
-
+	for (i = 0; i < max_num_of_rom_info; i++) {
 		if (vendor_rom_info[i].rom_addr != NULL &&
 			vendor_rom_info[i].sensor_position == info->sensor_position &&
 			vendor_rom_info[i].sensor_id_with_rom == info->sensor_id) {
@@ -2517,6 +2476,10 @@ static int imgsensor_rom_read_common(unsigned char *pRomData, struct imgsensor_e
 					info->sensor_position, info->sensor_id);
 			break;
 		}
+	}
+	if (i == max_num_of_rom_info) {
+		pr_err("[%s] fail, no searched rom_info \n", __func__);
+		return -1;
 	}
 
 crc_retry:
@@ -2954,6 +2917,17 @@ int imgsensor_sys_get_cal_size(unsigned int remapped_device_id, unsigned int sen
 	return cal_size;
 }
 
+void imgsensor_set_g_cal_buf_size_by_sensor_id(unsigned int remapped_device_id, unsigned int sensor_id)
+{
+	int cal_size = imgsensor_sys_get_cal_size(remapped_device_id, sensor_id);
+
+	if (cal_size <= 0) {
+		pr_err("[%s] cal_size(remapped_device_id: %d) <= 0", __func__, remapped_device_id);
+		return;
+	}
+	g_cal_buf_size[remapped_device_id] = cal_size;
+}
+
 const struct imgsensor_vendor_rom_addr *imgsensor_sys_get_rom_addr_by_id(
 	unsigned int dualDeviceId, unsigned int sensorId)
 {
@@ -2968,18 +2942,17 @@ const struct imgsensor_vendor_rom_addr *imgsensor_sys_get_rom_addr_by_id(
 	max_num_of_rom_info = ARRAY_SIZE(vendor_rom_info);
 	pr_info("[%s]max_num_of_rom_info: %d\n", __func__, max_num_of_rom_info);
 
-	for (i = 0; i <= max_num_of_rom_info; i++) {
-		if (i == max_num_of_rom_info) {
-			pr_err("[%s] fail, no searched rom_info, device id: %#06x, sensor id: %#06x\n",
-					__func__, remapped_device_id, sensorId);
-			return NULL;
-		}
-
+	for (i = 0; i < max_num_of_rom_info; i++) {
 		if (vendor_rom_info[i].rom_addr != NULL &&
 			vendor_rom_info[i].sensor_position == remapped_device_id &&
 			vendor_rom_info[i].sensor_id_with_rom == sensorId) {
 			break;
 		}
+	}
+	if (i == max_num_of_rom_info) {
+		pr_err("[%s] fail, no searched rom_info, device id: %#06x, sensor id: %#06x\n",
+				__func__, remapped_device_id, sensorId);
+		return NULL;
 	}
 	return vendor_rom_info[i].rom_addr;
 }
@@ -3022,7 +2995,7 @@ int imgsensor_sysfs_update(unsigned char* pRomData, unsigned int dualDeviceId, u
 	if (deviceIdx == IMGSENSOR_SENSOR_IDX_NONE)
 		return -1;
 
-	cal_size = imgsensor_sys_get_cal_size_by_device_id(deviceIdx, sensorId);
+	ret = cal_size = imgsensor_sys_get_cal_size_by_device_id(deviceIdx, sensorId);
 	if (offset != 0 || i4RetValue != cal_size) {
 		pr_err("%s : read size NG, read size: %#06x, cal_size: %#06x\n", __func__, i4RetValue, cal_size);
 		return -1;
@@ -3030,11 +3003,14 @@ int imgsensor_sysfs_update(unsigned char* pRomData, unsigned int dualDeviceId, u
 
 	remapped_device_id = (int)map_position(deviceIdx);
 
+	imgsensor_set_g_cal_buf_size_by_sensor_id(remapped_device_id, sensorId);
+
 	eeprom_read_info.sensor_position     = remapped_device_id;
 	eeprom_read_info.sensor_id           = sensorId;
 	eeprom_read_info.sub_sensor_position = remapped_device_id;
 	eeprom_read_info.use_common_eeprom   = false;
-	ret = imgsensor_rom_read_common(pRomData, &eeprom_read_info);
+	if (imgsensor_rom_read_common(pRomData, &eeprom_read_info) < 0)
+		ret = -1;
 
 	init_cam_hwparam(remapped_device_id);
 	if (cam_infos[deviceIdx].includes_sub) {
@@ -3305,6 +3281,10 @@ static int create_rear3_sysfs(struct kobject *svc)
 		printk(KERN_ERR "failed to create rear3 device file, %s\n",
 			dev_attr_rear3_dualcal_size.attr.name);
 	}
+	if (device_create_file(camera_rear_dev, &dev_attr_rear3_tilt) < 0) {
+		printk(KERN_ERR "failed to create rear3 device file, %s\n",
+			dev_attr_rear3_tilt.attr.name);
+	}
 #endif
 	if (device_create_file(camera_rear_dev, &dev_attr_rear3_camfw) < 0) {
 		printk(KERN_ERR "failed to create rear3 device file, %s\n",
@@ -3326,12 +3306,6 @@ static int create_rear3_sysfs(struct kobject *svc)
 		printk(KERN_ERR "failed to create rear3 device file, %s\n",
 			dev_attr_rear3_camtype.attr.name);
 	}
-#if defined(REAR_SUB_CAMERA)
-	if (device_create_file(camera_rear_dev, &dev_attr_rear3_tilt) < 0) {
-		printk(KERN_ERR "failed to create rear3 device file, %s\n",
-			dev_attr_rear3_tilt.attr.name);
-	}
-#endif
 	if (device_create_file(camera_rear_dev, &dev_attr_rear3_hwparam) < 0) {
 			printk(KERN_ERR "failed to create rear3 device file, %s\n",
 					dev_attr_rear3_hwparam.attr.name);

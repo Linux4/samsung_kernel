@@ -32,11 +32,13 @@
 #include <linux/uidgid.h>
 #include <linux/slab.h>
 #include "tzbatt_initcfg.h"
-//#if (CONFIG_MTK_GAUGE_VERSION == 30)
+#if (CONFIG_MTK_GAUGE_VERSION == 30)
 #include <mtk_battery.h>
-//#else
-//#include <tmp_battery.h>
-//#endif
+#else 
+#if !defined (CONFIG_MACH_MT6739)
+#include <tmp_battery.h>
+#endif
+#endif
 
 /* ************************************ */
 /* Function prototype*/
@@ -205,9 +207,9 @@ static int get_hw_battery_temp(void)
 	ret = -1270;
 #else
 	/* Phone */
-
-	return 250;
-
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	ret = 250;
+#else
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	ret = battery_get_bat_temperature();
 #else
@@ -216,8 +218,10 @@ static int get_hw_battery_temp(void)
 #endif
 	ret = ret * 10;
 #endif
+#endif
 
 	return ret;
+
 }
 
 static DEFINE_MUTEX(Battery_lock);

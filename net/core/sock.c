@@ -660,7 +660,6 @@ out:
 
 	return ret;
 }
-
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 /** The function sets the domain name associated with the socket. **/
 static int sock_set_domain_name(struct sock *sk, char __user *optval,
@@ -749,6 +748,7 @@ out:
 }
 
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 static inline void sock_valbool_flag(struct sock *sk, int bit, int valbool)
 {
 	if (valbool)
@@ -796,7 +796,6 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 
 	if (optname == SO_BINDTODEVICE)
 		return sock_setbindtodevice(sk, optval, optlen);
-
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 	if (optname == SO_SET_DOMAIN_NAME)
 		return sock_set_domain_name(sk, optval, optlen);
@@ -805,6 +804,7 @@ int sock_setsockopt(struct socket *sock, int level, int optname,
 	if (optname == SO_SET_DNS_PID)
 		return sock_set_dns_pid(sk, optval, optlen);
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 	if (optlen < sizeof(int))
 		return -EINVAL;
 
@@ -1618,7 +1618,6 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 		      struct proto *prot, int kern)
 {
 	struct sock *sk;
-
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 	struct pid *pid_struct = NULL;
 	struct task_struct *task = NULL;
@@ -1629,6 +1628,7 @@ struct sock *sk_alloc(struct net *net, int family, gfp_t priority,
 	int parent_returnValue = -1;
 	char full_parent_process_name[PROCESS_NAME_LEN_NAP] = {0};
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 	sk = sk_prot_alloc(prot, priority | __GFP_ZERO, family);
 	if (sk) {
 		sk->sk_family = family;

@@ -83,7 +83,7 @@ union fscrypt_context {
  */
 static inline int fscrypt_context_size(const union fscrypt_context *ctx)
 {
-		switch (ctx->version) {
+	switch (ctx->version) {
 	case FSCRYPT_CONTEXT_V1:
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
 		BUILD_BUG_ON(sizeof(ctx->v1) != 32);
@@ -273,7 +273,7 @@ struct fscrypt_info {
 #ifdef CONFIG_FSCRYPT_SDP
 	struct sdp_info *ci_sdp_info;
 #endif
-    /* Hashed inode number.  Only set for IV_INO_LBLK_32 */
+	/* Hashed inode number.  Only set for IV_INO_LBLK_32 */
 	u32 ci_hashed_ino;
 	/*
 	 * This design for eMMC + F2FS security OTA,

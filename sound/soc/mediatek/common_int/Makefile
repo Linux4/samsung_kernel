@@ -34,7 +34,6 @@ obj-$(CONFIG_MTK_HDMI_TDM) += mtk-soc-pcm-hdmi.o
 ifeq ($(CONFIG_SND_SOC_MTK_AUDIO_DSP),y)
 subdir-ccflags-y += -I$(srctree)/sound/soc/mediatek/audio_dsp/
 subdir-ccflags-y += -I$(srctree)/sound/soc/mediatek/audio_dsp/$(MTK_PLATFORM)
-subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/scp/$(MTK_PLATFORM)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common/framework
 obj-y += mtk-soc-offload-common.o
 endif

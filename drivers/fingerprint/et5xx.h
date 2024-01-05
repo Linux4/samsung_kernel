@@ -11,22 +11,19 @@
  * General Public License for more details.
  */
 
-#ifndef _ET5XX_LINUX_DIRVER_H_
-#define _ET5XX_LINUX_DIRVER_H_
+#ifndef _ET5XX_LINUX_DRIVER_H_
+#define _ET5XX_LINUX_DRIVER_H_
 
 #include <linux/module.h>
-#include <linux/spi/spi.h>
-#include <linux/platform_data/spi-s3c64xx.h>
-#include <linux/wakelock.h>
 #include <linux/regulator/consumer.h>
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
-#include <linux/clk.h>
 #include <linux/pm_runtime.h>
 #include <linux/spi/spidev.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_dma.h>
 #endif
+#include "fingerprint_common.h"
 
 /*
  * This feature is temporary for exynos AP only.
@@ -80,7 +77,6 @@
 #define FP_RESET_SET					0x07
 #define FP_REGISTER_BREAD				0x20
 #define FP_REGISTER_BWRITE				0x21
-#define FP_REGISTER_MREAD				0x22
 #define FP_REGISTER_MWRITE				0x23
 #define FP_REGISTER_BREAD_BACKWARD		0x24
 #define FP_REGISTER_BWRITE_BACKWARD		0x25
@@ -89,7 +85,6 @@
 #define FP_NVM_READ						0X40
 #define FP_NVM_WRITE					0x41
 #define FP_NVM_OFF						0x42
-#define FP_NVM_WRITEEX					0x43
 
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 #define FP_DISABLE_SPI_CLOCK				0x10
@@ -129,6 +124,7 @@
 #define MAX_NVM_LEN (32 * 2) /* NVM length in bytes (32 * 16 bits internally) */
 #define NVM_WRITE_LENGTH 4096
 #define DETECT_ADM 1
+static unsigned int bufsiz = 30 * 1024;
 
 struct egis_ioc_transfer {
 	u8 *tx_buf;
@@ -142,6 +138,18 @@ struct egis_ioc_transfer {
 	__u8 cs_change;
 	__u8 opcode;
 	__u8 pad[3];
+};
+
+struct egis_ioc_transfer_32 {
+	u32 tx_buf;
+	u32 rx_buf;
+	u32 len;
+	u32 speed_hz;
+	u16 delay_usecs;
+	u8 bits_per_word;
+	u8 cs_change;
+	u8 opcode;
+	u8 pad[3];
 };
 
 #define EGIS_IOC_MAGIC			'k'
@@ -167,7 +175,6 @@ struct et5xx_data {
 	int gpio_irq;
 	const char *btp_vdd;
 	struct regulator *regulator_3p3;
-	unsigned int spi_speed;
 	struct pinctrl *p;
 	struct pinctrl_state *pins_poweron;
 	struct pinctrl_state *pins_poweroff;
@@ -179,22 +186,11 @@ struct et5xx_data {
 
 	/* For polling interrupt */
 	int int_count;
-	struct timer_list timer;
-	struct work_struct work_debug;
-	struct workqueue_struct *wq_dbg;
-	struct timer_list dbg_timer;
 	int sensortype;
 	u32 spi_value;
 	struct device *dev;
 	struct device *fp_device;
-#ifdef ENABLE_SENSORS_FPRINT_SECURE
-	bool enabled_clk;
-	struct clk *fp_spi_pclk;
-	struct clk *fp_spi_sclk;
-	struct wake_lock fp_spi_lock;
-	struct clk *fp_parent_clk;
-#endif
-	struct wake_lock fp_signal_lock;
+	struct wakeup_source *fp_signal_lock;
 	bool tz_mode;
 	int detect_period;
 	int detect_threshold;
@@ -204,6 +200,9 @@ struct et5xx_data {
 	unsigned int orient;
 	int reset_count;
 	int interrupt_count;
+	struct spi_clk_setting *clk_setting;
+	struct boosting_config *boosting;
+	struct debug_logger *logger;
 };
 
 int et5xx_io_burst_read_register(struct et5xx_data *etspi,
@@ -216,8 +215,6 @@ int et5xx_io_burst_write_register_backward(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);
 int et5xx_io_read_register(struct et5xx_data *etspi,
 		u8 *addr, u8 *buf);
-int et5xx_io_read_registerex(struct et5xx_data *etspi,
-		u8 *addr, u8 *buf, u32 len);
 int et5xx_io_write_register(struct et5xx_data *etspi,
 		u8 *buf);
 int et5xx_read_register(struct et5xx_data *etspi,
@@ -228,8 +225,6 @@ int et5xx_io_nvm_read(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);
 int et5xx_io_nvm_write(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);
-int et5xx_io_nvm_writeex(struct et5xx_data *etspi,
-		struct egis_ioc_transfer *ioc);
 int et5xx_io_nvm_off(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);
 int et5xx_io_vdm_read(struct et5xx_data *etspi,
@@ -237,18 +232,4 @@ int et5xx_io_vdm_read(struct et5xx_data *etspi,
 int et5xx_io_vdm_write(struct et5xx_data *etspi,
 		struct egis_ioc_transfer *ioc);
 int et5xx_io_get_frame(struct et5xx_data *etspi, u8 *frame, u32 size);
-
-int fps_resume_set(void);
-int fps_suspend_set(struct et5xx_data *etspi);
-int et5xx_spi_clk_enable(struct et5xx_data *etspi);
-int et5xx_spi_clk_disable(struct et5xx_data *etspi);
-int et5xx_set_cpu_speedup(struct et5xx_data *etspi, int onoff);
-int et5xx_register_platform_variable(struct et5xx_data *etspi);
-int et5xx_unregister_platform_variable(struct et5xx_data *etspi);
-
-extern int fingerprint_register(struct device *dev, void *drvdata,
-	struct device_attribute *attributes[], char *name);
-extern void fingerprint_unregister(struct device *dev,
-	struct device_attribute *attributes[]);
-
 #endif

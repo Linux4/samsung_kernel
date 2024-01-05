@@ -101,11 +101,7 @@ static int g_pll_ssc_init_tbl[FH_PLL_NUM] = {
 	 */
 	FH_SSC_DEF_DISABLE,	/* FHCTL PLL0 */
 	FH_SSC_DEF_DISABLE,	/* FHCTL PLL1 */
-#ifdef CONFIG_SEC_MSDC_SSC
-	FH_SSC_DEF_ENABLE_SSC,	/* FHCTL PLL2 */
-#else
 	FH_SSC_DEF_DISABLE,	/* FHCTL PLL2 */
-#endif
 	FH_SSC_DEF_DISABLE,	/* FHCTL PLL3 */
 	FH_SSC_DEF_DISABLE,	/* FHCTL PLL4 */
 	FH_SSC_DEF_DISABLE,	/* FHCTL PLL5 */
@@ -132,11 +128,7 @@ static const struct freqhopping_ssc g_pll_ssc_setting_tbl[FH_PLL_NUM][4] = {
 	/* FH PLL2 MSDCPLL*/
 	{
 	 {0, 0, 0, 0, 0, 0},
-#ifdef CONFIG_SEC_MSDC_SSC
-	 {PLL_SETTING_IDX__DEF, 0, 9, 0, 1, UNINIT_DDS},	/* 0% ~ -1% */
-#else
 	 {PLL_SETTING_IDX__DEF, 0, 9, 0, 0, UNINIT_DDS},	/* 0% ~ -0% */
-#endif
 	 },
 
 	/* FH PLL3 MFGPLL*/

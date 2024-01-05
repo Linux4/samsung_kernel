@@ -45,6 +45,7 @@
 #define WAIT_INTR_TIMEOUT_MS    500
 #define SUSPEND_TIMEOUT_CNT     5000
 #define MTK_MAX_CTRLS_HINT      64
+#define V4L2_BUF_FLAG_OUTPUT_NOT_GENERATED 0x02000000
 
 /**
  * enum mtk_instance_type - The type of an MTK Vcodec instance.
@@ -94,6 +95,15 @@ enum mtk_encode_param {
 	MTK_ENCODE_PARAM_SEC_ENCODE = (1 << 15),
 	MTK_ENCODE_PARAM_TSVC = (1 << 16),
 	MTK_ENCODE_PARAM_NONREFPFREQ = (1 << 17),
+	MTK_ENCODE_PARAM_MAX_QP = (1 << 18),
+	MTK_ENCODE_PARAM_MIN_QP = (1 << 19),
+	MTK_ENCODE_PARAM_I_P_QP_DELTA = (1 << 20),
+	MTK_ENCODE_PARAM_QP_CONTROL_MODE = (1 << 21),
+	MTK_ENCODE_PARAM_FRAME_LEVEL_QP = (1 << 22),
+	MTK_ENCODE_PARAM_MAX_REFP_NUM = (1 << 23),
+	MTK_ENCODE_PARAM_REFP_DISTANCE = (1 << 24),
+	MTK_ENCODE_PARAM_REFP_FRMNUM = (1 << 25),
+	MTK_ENCODE_PARAM_DUMMY_NAL = (1 << 26),
 };
 
 /*
@@ -242,6 +252,15 @@ struct mtk_enc_params {
 	unsigned int    svp_mode;
 	unsigned int    tsvc;
 	unsigned int    nonrefpfreq;
+	unsigned int    max_qp;
+	unsigned int    min_qp;
+	unsigned int    i_p_qp_delta;
+	unsigned int    qp_control_mode;
+	unsigned int    frame_level_qp;
+	unsigned int    maxrefpnum;
+	unsigned int    refpdistance;
+	unsigned int    refpfrmnum;
+	unsigned int	dummynal;
 };
 
 /*
@@ -295,6 +314,16 @@ struct venc_enc_param {
 	unsigned int svp_mode;
 	unsigned int tsvc;
 	unsigned int nonrefpfreq;
+	unsigned int max_qp;
+	unsigned int min_qp;
+	unsigned int i_p_qp_delta;
+	unsigned int qp_control_mode;
+	unsigned int frame_level_qp;
+	unsigned int maxrefpnum;
+	unsigned int refpdistance;
+	unsigned int refpfrmnum;
+	char *log;
+	unsigned int dummynal;
 };
 
 /*
@@ -308,6 +337,7 @@ struct venc_frm_buf {
 	u64 timestamp;
 	unsigned int roimap;
 	bool has_meta;
+	unsigned int qpmap;
 	struct dma_buf *meta_dma;
 	dma_addr_t meta_addr;
 };
@@ -397,10 +427,9 @@ struct mtk_vcodec_ctx {
 	struct vb2_buffer *pend_src_buf;
 	wait_queue_head_t fm_wq;
 	int input_driven;
-	int user_lock_hw;
 	/* for user lock HW case release check */
+	struct mutex hw_status;
 	int hw_locked[MTK_VDEC_HW_NUM];
-	int lock_abort;
 	int async_mode;
 	int oal_vcodec;
 
@@ -468,6 +497,9 @@ struct mtk_vcodec_dev {
 	struct mtk_vcodec_ctx *curr_enc_ctx[MTK_VENC_HW_NUM];
 	void __iomem *dec_reg_base[NUM_MAX_VDEC_REG_BASE];
 	void __iomem *enc_reg_base[NUM_MAX_VENC_REG_BASE];
+
+	bool dec_is_power_on[MTK_VDEC_HW_NUM];
+	spinlock_t dec_power_lock[MTK_VDEC_HW_NUM];
 
 	unsigned long id_counter;
 

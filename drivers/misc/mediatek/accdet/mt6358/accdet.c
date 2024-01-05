@@ -159,6 +159,7 @@ static struct cdev *accdet_cdev;
 static struct class *accdet_class;
 static struct device *accdet_device;
 static int s_button_status;
+static int accdet_pmic;
 
 /* accdet input device to report cable type and key event */
 static struct input_dev *accdet_input_dev;
@@ -818,18 +819,24 @@ static u32 accdet_get_auxadc(int deCount)
 static void accdet_get_efuse(void)
 {
 	u32 efuseval = 0;
-	int tmp_div;
+	int tmp_div = 0, efuse_idx = 0;
 	unsigned int moisture_eint0;
 	unsigned int moisture_eint1;
+	int efuse[2][5] = {{110, 113, 114, 112, 113},
+			   {115, 118, 119, 117, 118} };
 
+	if (accdet_pmic == 0x0)
+		efuse_idx = 0;
+	else if (accdet_pmic == 0x66)
+		efuse_idx = 1;
 	/* accdet offset efuse:
 	 * this efuse must divided by 2
 	 */
-	efuseval = pmic_Read_Efuse_HPOffset(110);
+	efuseval = pmic_Read_Efuse_HPOffset(efuse[efuse_idx][0]);
 	accdet_auxadc_offset = efuseval & 0xFF;
 	if (accdet_auxadc_offset > 128)
 		accdet_auxadc_offset -= 256;
-	accdet_auxadc_offset = (accdet_auxadc_offset >> 1);
+	accdet_auxadc_offset = (accdet_auxadc_offset / 2);
 	pr_info("%s efuse=0x%x,auxadc_val=%dmv\n", __func__, efuseval,
 		accdet_auxadc_offset);
 
@@ -837,7 +844,7 @@ static void accdet_get_efuse(void)
  * we need to transfer it
  */
 	/* moisture vdd efuse offset */
-	efuseval = pmic_Read_Efuse_HPOffset(113);
+	efuseval = pmic_Read_Efuse_HPOffset(efuse[efuse_idx][1]);
 	moisture_vdd_offset = (int)((efuseval >> 8) & ACCDET_CALI_MASK0);
 	if (moisture_vdd_offset > 128)
 		moisture_vdd_offset -= 256;
@@ -845,7 +852,7 @@ static void accdet_get_efuse(void)
 		__func__, efuseval, moisture_vdd_offset);
 
 	/* moisture offset */
-	efuseval = pmic_Read_Efuse_HPOffset(114);
+	efuseval = pmic_Read_Efuse_HPOffset(efuse[efuse_idx][2]);
 	moisture_offset = (int)(efuseval & ACCDET_CALI_MASK0);
 	if (moisture_offset > 128)
 		moisture_offset -= 256;
@@ -854,12 +861,12 @@ static void accdet_get_efuse(void)
 
 	if (accdet_dts.moisture_use_ext_res == 0x0) {
 		/* moisture eint efuse offset */
-		efuseval = pmic_Read_Efuse_HPOffset(112);
+		efuseval = pmic_Read_Efuse_HPOffset(efuse[efuse_idx][3]);
 		moisture_eint0 = (int)((efuseval >> 8) & ACCDET_CALI_MASK0);
 		pr_info("%s moisture_eint0 efuse=0x%x,moisture_eint0=0x%x\n",
 			__func__, efuseval, moisture_eint0);
 
-		efuseval = pmic_Read_Efuse_HPOffset(113);
+		efuseval = pmic_Read_Efuse_HPOffset(efuse[efuse_idx][4]);
 		moisture_eint1 = (int)(efuseval & ACCDET_CALI_MASK0);
 		pr_info("%s moisture_eint1 efuse=0x%x,moisture_eint1=0x%x\n",
 			__func__, efuseval, moisture_eint1);
@@ -888,7 +895,6 @@ static void accdet_get_efuse(void)
 				moisture_vm);
 		}
 	}
-
 }
 
 #ifdef CONFIG_FOUR_KEY_HEADSET
@@ -896,6 +902,14 @@ static void accdet_get_efuse_4key(void)
 {
 	u32 tmp_val = 0;
 	u32 tmp_8bit = 0;
+	int efuse_idx = 0;
+	int efuse[2][2] = {{111, 112},
+			   {116, 117} };
+
+	if (accdet_pmic == 0x0)
+		efuse_idx = 0;
+	else if (accdet_pmic == 0x66)
+		efuse_idx = 1;
 
 	/* 4-key efuse:
 	 * bit[9:2] efuse value is loaded, so every read out value need to be
@@ -905,14 +919,14 @@ static void accdet_get_efuse_4key(void)
 	 * BC efuse: key-B Voltage:DB--BC;
 	 * key-C Voltage: BC--600;
 	 */
-	tmp_val = pmic_Read_Efuse_HPOffset(111);
+	tmp_val = pmic_Read_Efuse_HPOffset(efuse[efuse_idx][0]);
 	tmp_8bit = tmp_val & ACCDET_CALI_MASK0;
 	accdet_dts.four_key.mid = tmp_8bit << 2;
 
 	tmp_8bit = (tmp_val >> 8) & ACCDET_CALI_MASK0;
 	accdet_dts.four_key.voice = tmp_8bit << 2;
 
-	tmp_val = pmic_Read_Efuse_HPOffset(112);
+	tmp_val = pmic_Read_Efuse_HPOffset(efuse[efuse_idx][1]);
 	tmp_8bit = tmp_val & ACCDET_CALI_MASK0;
 	accdet_dts.four_key.up = tmp_8bit << 2;
 
@@ -2281,6 +2295,10 @@ static int accdet_get_dts_data(void)
 		pr_notice("%s can't find compatible dts node\n", __func__);
 		return -1;
 	}
+
+	ret = of_property_read_u32(node, "mediatek,accdet-pmic", &accdet_pmic);
+	if (ret)
+		accdet_pmic = 0x0;
 
 	ret = of_property_read_u32(node, "moisture-ver", &moisture_ver);
 	if (ret)

@@ -35,6 +35,9 @@
 #define SEC_GPIO_REF(src, type, num)	&type num
 #define SEC_GPIO_NUM(src, type, num)	num
 #define SEC_GPIO_TYPE(src, type, num)	&type
+#define SEC_GPIO_PHANDLE_ACTIVE(src, type, num)	SEC_GPIO_PHANDLE(type, num, active)
+#define SEC_GPIO_PHANDLE_SLEEP(src, type, num)	SEC_GPIO_PHANDLE(type, num, sleep)
+#define SEC_GPIO_PHANDLE(type, num, mode)	type##_##num##_##mode
 
 #define MTK_PINMUX(gpio, func) (MTK_PIN_NO(gpio) | func)
 

@@ -3655,7 +3655,6 @@ static int complete_formation(struct module *mod, struct load_info *info)
 	/* Mark state as coming so strong_try_module_get() ignores us,
 	 * but kallsyms etc. can see us. */
 	mod->state = MODULE_STATE_COMING;
-	mutex_unlock(&module_mutex);
 #if defined(CONFIG_UH_RKP) || defined(CONFIG_RUSTUH_RKP)
 	rkp_mod_info.base_va = 0;
 	rkp_mod_info.vm_size = 0;
@@ -3666,6 +3665,7 @@ static int complete_formation(struct module *mod, struct load_info *info)
 	rkp_mod_info.init_text_size = (u64)mod->init_layout.text_size;
 	uh_call(UH_APP_RKP, RKP_MODULE_LOAD, RKP_MODULE_PXN_CLEAR, (u64)&rkp_mod_info, 0, 0);
 #endif
+	mutex_unlock(&module_mutex);
 
 	return 0;
 
@@ -4498,6 +4498,8 @@ int save_modules(char *mbuf, int mbufsize)
 		text_addr = (unsigned long)mod->core_layout.base;
 		init_addr = (unsigned long)mod->init_layout.base;
 		search_nm = 2;
+		if (!mod->sect_attrs)
+			continue;
 		for (i = 0; i < mod->sect_attrs->nsections; i++) {
 			if (!strcmp(mod->sect_attrs->attrs[i].name, ".text")) {
 				text_addr = mod->sect_attrs->attrs[i].address;
@@ -4510,7 +4512,8 @@ int save_modules(char *mbuf, int mbufsize)
 			if (!search_nm)
 				break;
 		}
-		sz += snprintf(mbuf + sz, mbufsize - sz, " %s %px %px %d %d %s",
+		sz += snprintf(mbuf + sz, mbufsize - sz,
+				" %s 0x%lx 0x%lx %d %d %s",
 				mod->name,
 				text_addr,
 				init_addr,

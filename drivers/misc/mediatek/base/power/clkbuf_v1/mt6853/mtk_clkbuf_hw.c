@@ -36,17 +36,11 @@
 /* static void __iomem *pwrap_base; */
 static void __iomem *pmif_spi_base;
 static void __iomem *pmif_spmi_base;
-#if 0
-static void __iomem *pmif_spmi2_base;
-#endif
 static void __iomem *spm_base;
 
 /* #define PWRAP_REG(ofs)		(pwrap_base + ofs) */
 #define PMIF_SPI_REG(ofs)	(pmif_spi_base + ofs)
 #define PMIF_SPMI_REG(ofs)	(pmif_spmi_base + ofs)
-#if 0
-#define PMIF_SPMI2_REG(ofs)	(pmif_spmi2_base + ofs)
-#endif
 #define SPM_REG(ofs)		(spm_base + ofs)
 
 /* PMIF Register*/
@@ -131,9 +125,7 @@ static void __iomem *spm_base;
 #define XO_BUF7_BBLPM_EN_MASK	(0x1 << 7)
 
 /* TODO: marked this after driver is ready */
-#if defined(CONFIG_MACH_MT6833)
-#define CLKBUF_BRINGUP
-#endif /* defined(CONFIG_MACH_MT6833) */
+/* #define CLKBUF_BRINGUP */
 /* #define CLKBUF_CONN_SUPPORT_CTRL_FROM_I1 */
 
 #define BUF_MAN_M				0
@@ -144,6 +136,17 @@ static void __iomem *spm_base;
 #define CLKBUF_STATUS_INFO_SIZE 2048
 
 #define PLAT_CLKBUF_OP_FLIGHT_MODE	(0x1)
+
+#if defined(CONFIG_MACH_MT6833)
+#define PWRAP_DTS_NODE_NAME			"mediatek,mt6833-pwrap"
+#define PMIF_M_DTS_NODE_NAME			"mediatek,mt6833-pmif-m"
+#elif defined(CONFIG_MACH_MT6877)
+#define PWRAP_DTS_NODE_NAME			"mediatek,mt6877-pwrap"
+#define PMIF_M_DTS_NODE_NAME			"mediatek,mt6877-pmif-m"
+#else
+#define PWRAP_DTS_NODE_NAME			"mediatek,mt6853-pwrap"
+#define PMIF_M_DTS_NODE_NAME			"mediatek,mt6853-pmif-m"
+#endif /* defined(CONFIG_MACH_MT6833) */
 
 static unsigned int xo2_mode_set[4] = {WCN_EN_M,
 			WCN_EN_BB_G,
@@ -1459,15 +1462,84 @@ static ssize_t clk_buf_bblpm_show(struct kobject *kobj,
 	return len;
 }
 
+static void capid_trim_write(uint32_t cap_code)
+{
+	pmic_config_interface(PMIC_XO_COFST_FPM_ADDR, 0x0,
+		PMIC_XO_COFST_FPM_MASK,
+		PMIC_XO_COFST_FPM_SHIFT);
+	pmic_config_interface(PMIC_XO_CDAC_FPM_ADDR, cap_code,
+		PMIC_XO_CDAC_FPM_MASK,
+		PMIC_XO_CDAC_FPM_SHIFT);
+	pmic_config_interface(PMIC_XO_AAC_FPM_SWEN_ADDR, 0x0,
+		PMIC_XO_AAC_FPM_SWEN_MASK,
+		PMIC_XO_AAC_FPM_SWEN_SHIFT);
+	mdelay(1);
+	pmic_config_interface(PMIC_XO_AAC_FPM_SWEN_ADDR, 0x1,
+		PMIC_XO_AAC_FPM_SWEN_MASK,
+		PMIC_XO_AAC_FPM_SWEN_SHIFT);
+	mdelay(30);
+}
+
+static uint32_t capid_trim_read(void)
+{
+	uint32_t cap_code = 0;
+
+	pmic_read_interface(PMIC_XO_CDAC_FPM_ADDR, &cap_code,
+			    PMIC_XO_CDAC_FPM_MASK, PMIC_XO_CDAC_FPM_SHIFT);
+
+	return cap_code;
+}
+
+static ssize_t clk_buf_capid_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	uint32_t capid;
+	int ret;
+
+	if (buf != NULL && count != 0) {
+		ret = kstrtouint(buf, 0, &capid);
+		if (ret) {
+			pr_info("wrong format!\n");
+			return ret;
+		}
+		if (capid > PMIC_XO_CDAC_FPM_MASK) {
+			pr_info("offset should be within(%x) %x!\n",
+				PMIC_XO_CDAC_FPM_MASK, capid);
+			return -EINVAL;
+		}
+
+		pr_info("original cap code: 0x%x\n", capid_trim_read());
+
+		capid_trim_write(capid);
+		mdelay(1);
+		pr_info("write capid 0x%x done. current capid: 0x%x\n",
+			capid, capid_trim_read());
+	}
+
+	return count;
+}
+
+static ssize_t clk_buf_capid_show(struct kobject *kobj,
+struct kobj_attribute *attr, char *buf)
+{
+	int len = 0;
+
+	len += snprintf(buf+len, PAGE_SIZE-len, "dcxo capid: 0x%x\n",
+		capid_trim_read());
+
+	return len;
+}
 DEFINE_ATTR_RW(clk_buf_ctrl);
 DEFINE_ATTR_RW(clk_buf_debug);
 DEFINE_ATTR_RW(clk_buf_bblpm);
+DEFINE_ATTR_RW(clk_buf_capid);
 
 static struct attribute *clk_buf_attrs[] = {
 	/* for clock buffer control */
 	__ATTR_OF(clk_buf_ctrl),
 	__ATTR_OF(clk_buf_debug),
 	__ATTR_OF(clk_buf_bblpm),
+	__ATTR_OF(clk_buf_capid),
 
 	/* must */
 	NULL,
@@ -1546,7 +1618,7 @@ int clk_buf_dts_map(void)
 		return -1;
 	}
 
-	node = of_find_compatible_node(NULL, NULL, "mediatek,mt6853-pwrap");
+	node = of_find_compatible_node(NULL, NULL, PWRAP_DTS_NODE_NAME);
 	if (node)
 		pmif_spi_base = of_iomap(node, 0);
 	else {
@@ -1555,7 +1627,7 @@ int clk_buf_dts_map(void)
 		return -1;
 	}
 
-	node = of_find_compatible_node(NULL, NULL, "mediatek,mt6853-pmif-m");
+	node = of_find_compatible_node(NULL, NULL, PMIF_M_DTS_NODE_NAME);
 	if (node)
 		pmif_spmi_base = of_iomap(node, 0);
 	else {
@@ -1563,17 +1635,6 @@ int clk_buf_dts_map(void)
 			__func__);
 		return -1;
 	}
-
-#if 0
-	node = of_find_compatible_node(NULL, NULL, "mediatek,mt6853-pmif-p");
-	if (node)
-		pmif_spmi2_base = of_iomap(node, 0);
-	else {
-		pr_notice("%s can't find compatible node for pmif_spmi2\n",
-			__func__);
-		return -1;
-	}
-#endif
 
 	node = of_find_compatible_node(NULL, NULL, "mediatek,sleep");
 	if (node)

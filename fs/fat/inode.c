@@ -227,7 +227,6 @@ static int fat_write_begin(struct file *file, struct address_space *mapping,
 	err = cont_write_begin(file, mapping, pos, len, flags,
 				pagep, fsdata, fat_get_block,
 				&MSDOS_I(mapping->host)->mmu_private);
-	mtk_btag_pidlog_set_pid(*pagep);
 	if (err < 0)
 		fat_write_failed(mapping, pos + len);
 	return err;
@@ -697,7 +696,7 @@ static void fat_set_state(struct super_block *sb,
 			b->fat16.state &= ~FAT_STATE_DIRTY;
 	}
 
-	mark_buffer_dirty_sync(bh);
+	mark_buffer_dirty(bh);
 	sync_dirty_buffer(bh);
 	brelse(bh);
 }
@@ -898,7 +897,7 @@ retry:
 				  &raw_entry->adate, NULL);
 	}
 	spin_unlock(&sbi->inode_hash_lock);
-	mark_buffer_dirty_sync(bh);
+	mark_buffer_dirty(bh);
 	err = 0;
 	if (wait)
 		err = sync_dirty_buffer(bh);
@@ -1645,8 +1644,6 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 	error = parse_options(sb, data, isvfat, silent, &debug, &sbi->options);
 	if (error)
 		goto out_fail;
-
-	setup_fat_xattr_handler(sb);
 
 	setup(sb); /* flavour-specific stuff that needs options */
 

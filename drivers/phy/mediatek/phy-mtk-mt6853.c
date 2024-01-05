@@ -120,6 +120,9 @@ static void phy_advance_settings(struct mtk_phy_instance *instance)
 	u3phywrite32(
 		U3D_USBPHYACR2, 11, (0x3<<11), 0x3);
 
+//	u3phywrite32(U3D_USBPHYACR6, RG_USB20_SQTH_OFST,
+//		RG_USB20_SQTH, 0x2);
+
 	u3phywrite32(U3D_USBPHYACR6, (28),
 		(0x1<<28), 0x1);
 
@@ -180,8 +183,20 @@ static int phy_slew_rate_calibration(struct mtk_phy_instance *instance)
 	int fgRet = 0;
 	int u4FmOut = 0;
 	int u4Tmp = 0;
+	struct mtk_phy_tuning *pdata, *data;
+	int hstx_srctrl_tune = -1;
 
 	phy_printk(K_DEBUG, "%s\n", __func__);
+
+	pdata = instance->phy_tuning;
+	for (i = 0; i < instance->phy_data_cnt; i++) {
+		data = &pdata[i];
+		if (strcmp(data->name, "hstx_srctrl") == 0) {
+			hstx_srctrl_tune = data->value;
+			pr_info("%s hstx_srctrl_tune=%d\n", __func__, hstx_srctrl_tune);
+			break;
+		}
+	}
 
 	/* enable USB ring oscillator */
 	u3phywrite32(U3D_USBPHYACR5, RG_USB20_HSTX_SRCAL_EN_OFST,
@@ -222,7 +237,10 @@ static int phy_slew_rate_calibration(struct mtk_phy_instance *instance)
 	u3phywrite32(RG_SSUSB_SIFSLV_FMMONR1, RG_FRCK_EN_OFST,
 		RG_FRCK_EN, 0);
 
-	if (u4FmOut == 0) {
+	if (hstx_srctrl_tune >= 0) {
+		u3phywrite32(U3D_USBPHYACR5, RG_USB20_HSTX_SRCTRL_OFST,
+			RG_USB20_HSTX_SRCTRL, hstx_srctrl_tune);
+	} else if (u4FmOut == 0) {
 		u3phywrite32(U3D_USBPHYACR5, RG_USB20_HSTX_SRCTRL_OFST,
 			RG_USB20_HSTX_SRCTRL, 0x4);
 		fgRet = 1;
@@ -428,6 +446,7 @@ static void usb_phy_tuning(struct mtk_phy_instance *instance)
 		RG_SSUSB_FORCE_IDEMSEL, 1);
 }
 
+
 static void phy_recover(struct mtk_phy_instance *instance)
 {
 	struct mtk_phy_drv *phy_drv = instance->phy_drv;
@@ -498,6 +517,9 @@ static void phy_recover(struct mtk_phy_instance *instance)
 
 	phy_efuse_settings(instance);
 
+//	u3phywrite32(U3D_USBPHYACR6, RG_USB20_DISCTH_OFST,
+//		RG_USB20_DISCTH, 0x7);
+
 	usb_phy_tuning(instance);
 	phy_advance_settings(instance);
 
@@ -510,6 +532,7 @@ static void phy_recover(struct mtk_phy_instance *instance)
 static int charger_detect_init(struct mtk_phy_instance *instance)
 {
 	struct mtk_phy_drv *phy_drv = instance->phy_drv;
+
 
 	phy_printk(K_INFO, "%s+\n", __func__);
 

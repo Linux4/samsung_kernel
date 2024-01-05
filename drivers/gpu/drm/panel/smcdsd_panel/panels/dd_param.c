@@ -64,7 +64,7 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 	struct params_list_info *params_list = ((struct seq_file *)f->private_data)->private;
 	struct param_info *param = NULL;
 
-	unsigned char ibuf[MAX_INPUT] = {0, };
+	char ibuf[MAX_INPUT] = {0, };
 	unsigned int tbuf[MAX_INPUT] = {0, };
 	unsigned int value = 0, end = 0, input_w = 0, input_h = 0, offset_w = 0, offset_h = 0, param_old, param_new;
 	char *pbuf, *token = NULL;
@@ -76,7 +76,7 @@ static ssize_t param_write(struct file *f, const char __user *user_buf,
 		goto exit;
 	}
 
-	if (!strncmp(ibuf, "0", count - 1)) {
+	if (sysfs_streq(ibuf, "0")) {
 		dbg_info("input is 0(zero). reset param to default\n");
 
 		list_for_each_entry(param, &params_list->node, node) {
@@ -207,7 +207,7 @@ static int param_show(struct seq_file *m, void *unused)
 
 	seq_puts(m, "  |");
 	for (i = 0; i < params_list->max_size; i++)
-		seq_printf(m, (params_list->max_type == 32) ? " %4d" : " %2d", i);
+		seq_printf(m, (params_list->max_type == U32_MAX) ? " %4d" : " %2d", i);
 	seq_puts(m, "| <- input X first\n");
 	seq_puts(m, "--+");
 	for (i = 0; i < params_list->max_size * ((params_list->max_type == U32_MAX) ? 5 : 3) ; i++)
@@ -330,7 +330,7 @@ static int add_param(struct params_list_info *params_list, void *ptr, u32 ptr_ty
 {
 	struct param_info *param;
 
-	if (params_list->max_h > U8_MAX) {
+	if (params_list->max_h > U32_MAX) {
 		dbg_info("params_list->max_h(%d) invalid\n", params_list->max_h);
 		return 0;
 	}
@@ -404,12 +404,12 @@ void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size,
 		return;
 	}
 
-	if (sum_size > 64) {
+	if (sum_size > U32_MAX) {
 		dbg_info("sum_size(%d) invalid\n", sum_size);
 		return;
 	}
 
-	if (ptr_unit > 64) {
+	if (ptr_unit > U32_MAX) {
 		dbg_info("ptr_unit(%d) invalid\n", ptr_unit);
 		return;
 	}

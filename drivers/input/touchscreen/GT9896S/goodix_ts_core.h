@@ -132,6 +132,8 @@ struct gt9896s_ts_board_data {
 	/* For MTK Internal Touch End */
 
 	unsigned int swap_axis;
+	unsigned int lcm_max_x;
+	unsigned int lcm_max_y;
 	unsigned int panel_max_x;
 	unsigned int panel_max_y;
 	unsigned int panel_max_w; /*major and minor*/
@@ -765,7 +767,7 @@ void gt9896s_msg_printf(const char *fmt, ...);
 
 int gt9896s_do_fw_update(int mode);
 
-static int gt9896s_ts_remove(struct platform_device *pdev);
+int gt9896s_ts_remove(struct platform_device *pdev);
 
 int gt9896s_start_later_init(struct gt9896s_ts_core *ts_core);
 

@@ -16,6 +16,8 @@
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/of_address.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 
 #include "musb_core.h"
 #include "mtk_musb.h"
@@ -45,6 +47,12 @@
 #include <mt-plat/mtk_usb2jtag.h>
 #endif
 
+#if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+#include <linux/cable_type_notifier.h>
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#include <linux/usb/typec/common/pdic_notifier.h>
+#endif
+
 #ifndef FPGA_PLATFORM
 #include "mtk_spm_resource_req.h"
 
@@ -59,59 +67,6 @@ static DEFINE_SPINLOCK(usb_hal_dpidle_lock);
 #define DPIDLE_TIMER_INTERVAL_MS 30
 
 static void issue_dpidle_timer(void);
-
-#if defined(CONFIG_BATTERY_SAMSUNG)
-static int musb_set_vbus_current(int usb_state)
-{
-	struct power_supply *psy;
-	union power_supply_propval pval = {0};
-	int cur = 100;
-
-	if (usb_state == USB_CONFIGURED)
-		cur = USB_CURRENT_HIGH_SPEED;
-	else
-		cur = USB_CURRENT_UNCONFIGURED;
-
-	pr_info("%s : %dmA\n", __func__, cur);
-
-	psy = power_supply_get_by_name("battery");
-	if (psy) {
-		pval.intval = cur;
-		psy_do_property("battery", set,
-			POWER_SUPPLY_EXT_PROP_USB_CONFIGURE, pval);
-		power_supply_put(psy);
-	}
-
-	return 0;
-}
-
-static void musb_set_vbus_current_work(struct work_struct *w)
-{
-	struct musb *musb = container_of(w,
-		struct musb, set_vbus_current_work);
-
-	struct otg_notify *o_notify = get_otg_notify();
-
-        switch (musb->usb_state) {
-        case USB_SUSPEND:
-        /* set vbus current for suspend state is called in usb_notify. */
-                send_otg_notify(o_notify, NOTIFY_EVENT_USBD_SUSPENDED, 1);
-                goto skip;
-        case USB_UNCONFIGURED:
-                send_otg_notify(o_notify, NOTIFY_EVENT_USBD_UNCONFIGURED, 1);
-                break;
-        case USB_CONFIGURED:
-                send_otg_notify(o_notify, NOTIFY_EVENT_USBD_CONFIGURED, 1);
-                break;
-        default:
-                break;
-        }	
-
-	musb_set_vbus_current(musb->usb_state);
-skip:
-	return;
-}
-#endif
 
 static void dpidle_timer_wakeup_func(unsigned long data)
 {
@@ -179,12 +134,137 @@ static void usb_dpidle_request(int mode)
 		DBG(0, "USB_DPIDLE_TIMER\n");
 		issue_dpidle_timer();
 		break;
+	case USB_DPIDLE_SUSPEND:
+		spm_resource_req(SPM_RESOURCE_USER_SSUSB,
+			SPM_RESOURCE_MAINPLL | SPM_RESOURCE_CK_26M |
+			SPM_RESOURCE_AXI_BUS);
+		DBG(0, "DPIDLE_SUSPEND\n");
+		break;
+	case USB_DPIDLE_RESUME:
+		spm_resource_req(SPM_RESOURCE_USER_SSUSB,
+			SPM_RESOURCE_RELEASE);
+		DBG(0, "DPIDLE_RESUME\n");
+		break;
 	default:
 		DBG(0, "[ERROR] Are you kidding!?!?\n");
 		break;
 	}
 
 	spin_unlock_irqrestore(&usb_hal_dpidle_lock, flags);
+}
+#endif
+
+#ifdef CONFIG_USB_MTK_OTG
+static struct regmap *pericfg;
+
+static void mt_usb_wakeup(struct musb *musb, bool enable)
+{
+	u32 tmp;
+	bool is_con = musb->port1_status & USB_PORT_STAT_CONNECTION;
+
+	if (IS_ERR_OR_NULL(pericfg)) {
+		DBG(0, "init fail");
+		return;
+	}
+
+	DBG(0, "connection=%d\n", is_con);
+
+	if (enable) {
+		regmap_read(pericfg, USB_WAKEUP_DEC_CON1, &tmp);
+		tmp |= USB1_CDDEBOUNCE(0x8) | USB1_CDEN;
+		regmap_write(pericfg, USB_WAKEUP_DEC_CON1, tmp);
+
+		tmp = musb_readw(musb->mregs, RESREG);
+		if (is_con)
+			tmp &= ~HSTPWRDWN_OPT;
+		else
+			tmp |= HSTPWRDWN_OPT;
+		musb_writew(musb->mregs, RESREG, tmp);
+	} else {
+		regmap_read(pericfg, USB_WAKEUP_DEC_CON1, &tmp);
+		tmp &= ~(USB1_CDEN | USB1_CDDEBOUNCE(0xf));
+		regmap_write(pericfg, USB_WAKEUP_DEC_CON1, tmp);
+
+		tmp = musb_readw(musb->mregs, RESREG);
+		tmp &= ~HSTPWRDWN_OPT;
+		musb_writew(musb->mregs, RESREG, tmp);
+	}
+}
+
+static int mt_usb_wakeup_init(struct musb *musb)
+{
+	struct device_node *node;
+
+	node = of_find_compatible_node(NULL, NULL,
+					"mediatek,mt6768-usb20");
+	if (!node) {
+		DBG(0, "map node failed\n");
+		return -ENODEV;
+	}
+
+	pericfg = syscon_regmap_lookup_by_phandle(node,
+					"pericfg");
+	if (IS_ERR(pericfg)) {
+		DBG(0, "fail to get pericfg regs\n");
+		return PTR_ERR(pericfg);
+	}
+
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+static int musb_set_vbus_current(int usb_state)
+{
+	struct power_supply *psy;
+	union power_supply_propval pval = {0};
+	int cur = 100;
+
+	if (usb_state == USB_CONFIGURED)
+		cur = USB_CURRENT_HIGH_SPEED;
+	else
+		cur = USB_CURRENT_UNCONFIGURED;
+
+	pr_info("%s : %dmA\n", __func__, cur);
+
+	psy = power_supply_get_by_name("battery");
+	if (psy) {
+		pval.intval = cur;
+		psy_do_property("battery", set,
+			POWER_SUPPLY_EXT_PROP_USB_CONFIGURE, pval);
+		power_supply_put(psy);
+	}
+
+	return 0;
+}
+
+static void musb_set_vbus_current_work(struct work_struct *w)
+{
+	struct musb *musb = container_of(w,
+		struct musb, set_vbus_current_work);
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *o_notify = get_otg_notify();
+
+	switch (musb->usb_state) {
+	case USB_SUSPEND:
+	/* set vbus current for suspend state is called in usb_notify. */
+	        send_otg_notify(o_notify, NOTIFY_EVENT_USBD_SUSPENDED, 1);
+	        goto skip;
+	case USB_UNCONFIGURED:
+	        send_otg_notify(o_notify, NOTIFY_EVENT_USBD_UNCONFIGURED, 1);
+	        break;
+	case USB_CONFIGURED:
+	        send_otg_notify(o_notify, NOTIFY_EVENT_USBD_CONFIGURED, 1);
+	        break;
+	default:
+	        break;
+	}
+#endif
+	musb_set_vbus_current(musb->usb_state);
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+skip:
+	return;
+#endif
 }
 #endif
 
@@ -319,6 +399,9 @@ static void mt_usb_try_idle(struct musb *musb, unsigned long timeout)
 	unsigned long default_timeout = jiffies + msecs_to_jiffies(3);
 	static unsigned long last_timer;
 
+	DBG(0, "skip %s\n", __func__);
+	return;
+
 	if (timeout == 0)
 		timeout = default_timeout;
 
@@ -378,7 +461,7 @@ static void mt_usb_enable(struct musb *musb)
 	#endif
 
 	flags = musb_readl(musb->mregs, USB_L1INTM);
-	usb_phy_recover(musb->is_host);
+	usb_phy_recover(musb);
 
 	/* update musb->power & mtk_usb_power in the same time */
 	musb->power = true;
@@ -599,6 +682,23 @@ static bool cmode_effect_on(void)
 	return effect;
 }
 
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+void mt_usb_event_work(int event)
+{
+	PD_NOTI_TYPEDEF pdic_noti = {
+		.src = PDIC_NOTIFY_DEV_PDIC,
+		.dest = PDIC_NOTIFY_DEV_USB,
+		.id = PDIC_NOTIFY_ID_USB,
+		.sub1 = 0,
+		.sub2 = event,
+		.sub3 = 0,
+	};
+
+	pr_info("usb: %s :%s\n", __func__, pdic_usbstatus_string(event));
+	pdic_notifier_notify((PD_NOTI_TYPEDEF *)&pdic_noti, 0, 0);
+}
+#endif
+
 void do_connection_work(struct work_struct *data)
 {
 	unsigned long flags = 0;
@@ -644,8 +744,8 @@ void do_connection_work(struct work_struct *data)
 
 	if (!mtk_musb->power && (usb_on == true)) {
 		/* enable usb */
-		if (!mtk_musb->usb_lock.active) {
-			__pm_stay_awake(&mtk_musb->usb_lock);
+		if (!mtk_musb->usb_lock->active) {
+			__pm_stay_awake(mtk_musb->usb_lock);
 			DBG(0, "lock\n");
 		} else {
 			DBG(0, "already lock\n");
@@ -658,9 +758,9 @@ void do_connection_work(struct work_struct *data)
 	} else if (mtk_musb->power && (usb_on == false)) {
 		/* disable usb */
 		musb_stop(mtk_musb);
-		if (mtk_musb->usb_lock.active) {
+		if (mtk_musb->usb_lock->active) {
 			DBG(0, "unlock\n");
-			__pm_relax(&mtk_musb->usb_lock);
+			__pm_relax(mtk_musb->usb_lock);
 		} else {
 			DBG(0, "lock not active\n");
 		}
@@ -706,16 +806,42 @@ static void issue_connection_work(int ops)
 	queue_delayed_work(mtk_musb->st_wq, &work->dwork, 0);
 }
 
+void mtk_usb_connect(void)
+{
+	DBG(0, "[MUSB] USB connect work\n");
+	issue_connection_work(CONNECTION_OPS_CONN);
+}
+EXPORT_SYMBOL_GPL(mtk_usb_connect);
+
 void mt_usb_connect(void)
 {
 	DBG(0, "[MUSB] USB connect\n");
+#if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+	cable_type_notifier_set_attached_dev(CABLE_TYPE_USB);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	mt_usb_event_work(USB_STATUS_NOTIFY_ATTACH_UFP);
+#else
 	issue_connection_work(CONNECTION_OPS_CONN);
+#endif
 }
+
+void mtk_usb_disconnect(void)
+{
+	DBG(0, "[MUSB] USB disconnect work\n");
+	issue_connection_work(CONNECTION_OPS_DISC);
+}
+EXPORT_SYMBOL_GPL(mtk_usb_disconnect);
 
 void mt_usb_disconnect(void)
 {
 	DBG(0, "[MUSB] USB disconnect\n");
+#if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
+	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	mt_usb_event_work(USB_STATUS_NOTIFY_DETACH);
+#else
 	issue_connection_work(CONNECTION_OPS_DISC);
+#endif
 }
 
 static void mt_usb_reconnect(void)
@@ -1532,7 +1658,7 @@ static int __init mt_usb_init(struct musb *musb)
 	musb->usb_rev6_setting = usb_rev6_setting;
 #endif
 
-	wakeup_source_init(&musb->usb_lock, "USB suspend lock");
+	musb->usb_lock = wakeup_source_register(NULL, "USB suspend lock");
 
 #ifndef FPGA_PLATFORM
 	reg_vusb = regulator_get(musb->controller, "vusb");
@@ -1614,6 +1740,9 @@ static int __init mt_usb_init(struct musb *musb)
 #endif
 #ifdef CONFIG_USB_MTK_OTG
 	mt_usb_otg_init(musb);
+	/* enable host suspend mode */
+	mt_usb_wakeup_init(musb);
+	musb->host_suspend = true;
 #endif
 	return 0;
 }
@@ -1668,6 +1797,9 @@ static const struct musb_platform_ops mt_usb_ops = {
 	.disable_clk =  mt_usb_disable_clk,
 	.prepare_clk = mt_usb_prepare_clk,
 	.unprepare_clk = mt_usb_unprepare_clk,
+#ifdef CONFIG_USB_MTK_OTG
+	.enable_wakeup = mt_usb_wakeup,
+#endif
 };
 
 #ifdef CONFIG_MTK_MUSB_DRV_36BIT

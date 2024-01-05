@@ -18,7 +18,6 @@
 #include <linux/version.h>
 
 #define DEFAULT_BPP		32
-#define IS_DEBUG		false
 static int buffer_allocated;
 
 static struct fb_info *get_fb_info_for_tui(struct device *fb_dev);
@@ -153,9 +152,7 @@ int stui_alloc_video_space(struct tui_hw_buffer *buffer)
 		return -1;
 	}
 	buffer_allocated = 1;
-	/*avoid addr print for safety reason*/
-	if (IS_DEBUG)
-		pr_debug("alloc (p=%p s=0x%lx)\n", (void *)phys_addr, total_size);
+	pr_debug("alloc (p=%p s=0x%lx)\n", (void *)phys_addr, total_size);
 
 	buffer->width = witdh;
 	buffer->height = height;

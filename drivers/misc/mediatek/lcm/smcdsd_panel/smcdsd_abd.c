@@ -168,7 +168,7 @@ static void save_boot_lcd_information(struct abd_protect *abd)
 #endif
 
 static int smcdsd_abd_simple_write_to_buffer(char *ibuf, size_t sizeof_ibuf,
-		loff_t *ppos, const char __user *user_buf, size_t count)
+		loff_t *ppos, const char *user_buf, size_t count)
 {
 	int ret = 0;
 	loff_t pos = 0;
@@ -548,6 +548,8 @@ static void __smcdsd_abd_blank(struct abd_protect *abd)
 	dbg_info("- %s\n", __func__);
 }
 #elif defined(CONFIG_DRM_MEDIATEK)
+static int smcdsd_abd_con_set_dummy(struct abd_protect *abd, unsigned int dummy);
+
 static void __smcdsd_abd_blank(struct abd_protect *abd)
 {
 	struct mipi_dsi_lcd_common *container = get_abd_container_of(abd);
@@ -758,7 +760,7 @@ static int __of_smcdsd_abd_pin_register_handler_chain(struct abd_protect *abd,
 
 	ret = smcdsd_abd_simple_write_to_buffer(ibuf, sizeof(ibuf), NULL, chain_name, strlen(chain_name));
 	if (ret < 0) {
-		dbg_info("%s: %s simple_write_to_buffer fail %d\n", __func__, ret);
+		dbg_info("%s: simple_write_to_buffer fail: %d\n", __func__, ret);
 		return ret;
 	}
 

@@ -232,6 +232,9 @@ static int cpufreq_freq_proc_show(struct seq_file *m, void *v)
 	struct mt_cpu_dvfs *p = m->private;
 	struct pll_ctrl_t *pll_p = id_to_pll_ctrl(p->Pll_id);
 
+	if (pll_p == NULL)
+		return 0;
+
 	seq_printf(m, "%d KHz\n", pll_p->pll_ops->get_cur_freq(pll_p));
 
 	return 0;
@@ -338,6 +341,8 @@ static int cpufreq_volt_proc_show(struct seq_file *m, void *v)
 	struct buck_ctrl_t *vsram_p = id_to_buck_ctrl(p->Vsram_buck_id);
 	unsigned long flags;
 
+	if (vproc_p == NULL || vsram_p == NULL)
+		return 0;
 	cpufreq_lock(flags);
 	seq_printf(m, "Vproc: %d uV\n",
 		vproc_p->buck_ops->get_cur_volt(vproc_p) * 10);
@@ -591,11 +596,11 @@ static int cpufreq_cci_mode_proc_show(struct seq_file *m, void *v)
 #ifdef CONFIG_HYBRID_CPU_DVFS
 	mode = cpuhvfs_get_cci_mode();
 	if (mode == 0)
-		seq_puts(m, "cci_mode as Normal mode\n");
+		seq_puts(m, "cci_mode as Normal mode 0\n");
 	else if (mode == 1)
-		seq_puts(m, "cci_mode as Perf mode\n");
+		seq_puts(m, "cci_mode as Perf mode 1\n");
 	else
-		seq_puts(m, "cci_mode as Unknown mode\n");
+		seq_puts(m, "cci_mode as Unknown mode 2\n");
 #endif
 	return 0;
 }

@@ -54,7 +54,37 @@ static struct cpufreq_limit_parameter param = {
 	.ltl_divider			= 4,
 	.over_limit				= -1,
 };
+#elif defined(CONFIG_MACH_MT6833)
+static struct cpufreq_limit_parameter param = {
+	.ltl_cpu_start			= 0,
+	.big_cpu_start			= 6,
+	.ltl_max_freq			= 2000000,
+	.ltl_min_lock_freq		= 1115000,
+	.big_max_lock_freq		= 725000,
+	.ltl_divider			= 4,
+	.over_limit				= -1,
+};
+#elif defined(CONFIG_MACH_MT6877)
+static struct cpufreq_limit_parameter param = {
+	.ltl_cpu_start			= 0,
+	.big_cpu_start			= 6,
+	.ltl_max_freq			= 2000000,
+	.ltl_min_lock_freq		= 1115000,
+	.big_max_lock_freq		= 740000,
+	.ltl_divider			= 4,
+	.over_limit				= -1,
+};
 #elif defined(CONFIG_MACH_MT6768)
+static struct cpufreq_limit_parameter param = {
+	.ltl_cpu_start			= 0,
+	.big_cpu_start			= 6,
+	.ltl_max_freq			= 1800000,
+	.ltl_min_lock_freq		= 1175000,
+	.big_max_lock_freq		= 850000,
+	.ltl_divider			= 4,
+	.over_limit				= -1,
+};
+#else
 static struct cpufreq_limit_parameter param = {
 	.ltl_cpu_start			= 0,
 	.big_cpu_start			= 6,
@@ -121,7 +151,6 @@ int set_freq_limit(unsigned int id, int freq)
 }
 
 /**
- * For MT6768
  * cpufreq_limit_get_table - fill the cpufreq table to support HMP
  * @buf		a buf that has been requested to fill the cpufreq table
  */

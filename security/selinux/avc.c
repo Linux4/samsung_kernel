@@ -33,12 +33,11 @@
 #include "avc.h"
 #include "avc_ss.h"
 #include "classmap.h"
-
 // [ SEC_SELINUX_PORTING_COMMON
 #ifdef SEC_SELINUX_DEBUG
 #include <linux/signal.h>
 #endif
-// ] SEC_SELINUX_PORTING_COMMON
+// ] SEC_SELINUX_PORTING_COMMON						   
 
 #define AVC_CACHE_SLOTS			512
 #define AVC_DEF_CACHE_THRESHOLD		512
@@ -915,11 +914,7 @@ static int avc_update_node(struct selinux_avc *avc,
 	if (orig->ae.xp_node) {
 		rc = avc_xperms_populate(node, orig->ae.xp_node);
 		if (rc) {
-//[SEC_SELINUX_PORTING_COMMON
-// P191014-03912 - avc_cache.active_nodes is not decresed when "avc_alloc_node-success"&"avc_xperms_populate-fail"
-//			kmem_cache_free(avc_node_cachep, node);
 			avc_node_kill(avc, node);
-//]SEC_SELINUX_PORTING_COMMON
 			goto out_unlock;
 		}
 	}
@@ -1088,15 +1083,12 @@ static noinline int avc_denied(struct selinux_state *state,
 
 	}
 #endif
-
-#ifdef CONFIG_ALWAYS_ENFORCE
-	if (!(avd->flags & AVD_FLAGS_PERMISSIVE))
-#else
-	if (selinux_enforcing &&
-	    !(avd->flags & AVD_FLAGS_PERMISSIVE))
-#endif
-		return -EACCES;
 // ] SEC_SELINUX_PORTING_COMMON
+
+  // SEC_SELINUX_PORTING_COMMON Change to use RKP
+	if (selinux_enforcing &&				 
+	    !(avd->flags & AVD_FLAGS_PERMISSIVE))
+		return -EACCES;
 
 	avc_update_node(state->avc, AVC_CALLBACK_GRANT, requested, driver,
 			xperm, ssid, tsid, tclass, avd->seqno, NULL, flags);

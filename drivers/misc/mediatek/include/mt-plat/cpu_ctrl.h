@@ -28,6 +28,7 @@ enum {
 	CPU_KIR_GBE,
 	CPU_KIR_CCCI,
 	CPU_KIR_SYSLIM,
+	CPU_KIR_CORE_CTL,
 #ifdef CONFIG_CPU_FREQ_LIMIT
 	CPU_KIR_SEC_LIMIT,
 	CPU_KIR_SEC_TOUCH,
@@ -38,12 +39,19 @@ enum {
 };
 
 enum {
-	CPU_ISO_KIR_PERF = 0,
+	CPU_ISO_KIR_PERF_CORE = 0,
+	CPU_ISO_KIR_PERF_ISO,
 	CPU_ISO_KIR_FPSGO,
 	CPU_ISO_KIR_CPU_CTRL,
 	CPU_ISO_MAX_KIR
 };
 
+
+extern unsigned int __attribute__((weak)) mt_ppm_userlimit_freq_limit_by_others(
+	unsigned int cluster);
+extern void __attribute__((weak)) ppm_game_mode_change_cb(int is_game_mode);
+extern unsigned int __attribute__((weak)) mt_ppm_userlimit_cpu_freq(unsigned int cluster_num,
+	struct ppm_limit_data *data);
 extern unsigned int mt_cpufreq_get_freq_by_idx(int id, int idx);
 extern int update_userlimit_cpu_freq(int kicker, int num_cluster
 				, struct ppm_limit_data *freq_limit);
@@ -52,6 +60,7 @@ extern int update_userlimit_cpu_core(int kicker, int num_cluster
 extern int sched_isolate_cpu(int cpu);
 extern int sched_deisolate_cpu(int cpu);
 
-int update_isolation_cpu(int kicker, int enable, int cpu);
+int update_cpu_core_limit(int kicker, int cid, int min, int max);
+void update_isolation_cpu(int kicker, int enable, int cpu);
 
 #endif /* _CPU_CTRL_H */

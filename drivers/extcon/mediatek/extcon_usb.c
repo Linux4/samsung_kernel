@@ -24,6 +24,8 @@
 #include "extcon_usb.h"
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 #include <linux/cable_type_notifier.h>
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+#include <linux/usb/typec/common/pdic_notifier.h>
 #endif
 
 struct usb_extcon_info {
@@ -132,6 +134,23 @@ static void issue_connection_work(unsigned int dr)
 }
 
 #if !defined(CONFIG_USB_MU3D_DRV)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+void mt_usb_event_work(int event)
+{
+	PD_NOTI_TYPEDEF pdic_noti = {
+		.src = PDIC_NOTIFY_DEV_PDIC,
+		.dest = PDIC_NOTIFY_DEV_USB,
+		.id = PDIC_NOTIFY_ID_USB,
+		.sub1 = 0,
+		.sub2 = event,
+		.sub3 = 0,
+	};
+
+	pr_info("usb: %s :%s\n", __func__, pdic_usbstatus_string(event));
+	pdic_notifier_notify((PD_NOTI_TYPEDEF *)&pdic_noti, 0, 0);
+}
+#endif
+
 void mtk_usb_connect(void)
 {
 #ifndef CONFIG_TCPC_CLASS
@@ -149,6 +168,8 @@ void mt_usb_connect(void)
 {
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_USB);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	mt_usb_event_work(USB_STATUS_NOTIFY_ATTACH_UFP);
 #else
 #ifndef CONFIG_TCPC_CLASS
 #ifdef CONFIG_DUAL_ROLE_USB_INTF
@@ -179,6 +200,8 @@ void mt_usb_disconnect(void)
 {
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	mt_usb_event_work(USB_STATUS_NOTIFY_DETACH);
 #else
 #ifndef CONFIG_TCPC_CLASS
 #ifdef CONFIG_DUAL_ROLE_USB_INTF
@@ -210,6 +233,8 @@ void mt_usbhost_connect(void)
 {
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_OTG);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	mt_usb_event_work(USB_STATUS_NOTIFY_ATTACH_DFP);
 #else
 #ifndef CONFIG_TCPC_CLASS
 #ifdef CONFIG_DUAL_ROLE_USB_INTF
@@ -240,6 +265,8 @@ void mt_usbhost_disconnect(void)
 {
 #if IS_ENABLED(CONFIG_CABLE_TYPE_NOTIFIER)
 	cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+#elif IS_ENABLED(CONFIG_PDIC_NOTIFIER) && IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	mt_usb_event_work(USB_STATUS_NOTIFY_DETACH);
 #else
 #ifndef CONFIG_TCPC_CLASS
 #ifdef CONFIG_DUAL_ROLE_USB_INTF

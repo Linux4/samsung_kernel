@@ -140,6 +140,7 @@ EXPORT_SYMBOL(udp_memory_allocated);
 
 #define MAX_UDP_PORTS 65536
 #define PORTS_PER_CHAIN (MAX_UDP_PORTS / UDP_HTABLE_SIZE_MIN)
+#define UDP_GRO_DISABLED 5
 
 /* IPCB reference means this can not be used from early demux */
 static bool udp_lib_exact_dif_match(struct net *net, struct sk_buff *skb)
@@ -2204,7 +2205,6 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 
 		if (unlikely(sk->sk_rx_dst != dst))
 			udp_sk_rx_dst_set(sk, dst);
-
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 		/* function to handle open flows with incoming udp packets */
 		if (check_ncm_flag()) {
@@ -2271,7 +2271,6 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 		struct nf_conntrack_tuple *tuple = NULL;
 		char srcaddr[INET6_ADDRSTRLEN_NAP];
 		char dstaddr[INET6_ADDRSTRLEN_NAP];
-
 		/* function to handle open flows with incoming udp packets */
 		if (check_ncm_flag()) {
 			if ( (sk) && (sk->sk_protocol == IPPROTO_UDP) ) {
@@ -2319,7 +2318,6 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 			}
 		}
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
-
 		return udp_unicast_rcv_skb(sk, skb, uh);
 	}
 
@@ -2567,9 +2565,14 @@ int udp_lib_setsockopt(struct sock *sk, int level, int optname,
 
 	case UDP_GRO:
 		lock_sock(sk);
-		if (valbool)
-			udp_tunnel_encap_enable(sk->sk_socket);
-		up->gro_enabled = valbool;
+		if (val == 0xEAEA) {
+			up->gro_disabled = UDP_GRO_DISABLED;
+		} else {
+			up->gro_disabled = 0;
+			if (valbool)
+				udp_tunnel_encap_enable(sk->sk_socket);
+			up->gro_enabled = valbool;
+		}
 		release_sock(sk);
 		break;
 
@@ -2681,6 +2684,13 @@ int udp_lib_getsockopt(struct sock *sk, int level, int optname,
 
 	case UDPLITE_RECV_CSCOV:
 		val = up->pcrlen;
+		break;
+
+	case UDP_GRO:
+		if (up->gro_disabled == UDP_GRO_DISABLED)
+			val = 0xEAEA;
+		else
+			val = -1;
 		break;
 
 	default:

@@ -5,6 +5,8 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 
+#define LCD_TYPE_VENDOR		"SDC"
+
 #define EXTEND_BRIGHTNESS	365
 #define UI_MAX_BRIGHTNESS	255
 #define UI_DEFAULT_BRIGHTNESS	128
@@ -68,7 +70,7 @@ enum {
 	LDI_BIT_ENUM_0E,	LDI_BIT_ENUM_RDDSM = LDI_BIT_ENUM_0E,
 	LDI_BIT_ENUM_0F,	LDI_BIT_ENUM_RDDSDR = LDI_BIT_ENUM_0F,
 	LDI_BIT_ENUM_EE,	LDI_BIT_ENUM_ESDERR = LDI_BIT_ENUM_EE,
-	LDI_BIT_ENUM_EA,	LDI_BIT_ENUM_DSIERR = LDI_BIT_ENUM_EA,
+	LDI_BIT_ENUM_E9,	LDI_BIT_ENUM_DSIERR = LDI_BIT_ENUM_E9,
 	LDI_BIT_ENUM_MAX
 };
 
@@ -96,7 +98,7 @@ static char *LDI_BIT_DESC_EE[BITS_PER_BYTE] = {
 	[6] = "VLIN1 error",
 };
 
-static char *LDI_BIT_DESC_EA[BITS_PER_BYTE * 2] = {
+static char *LDI_BIT_DESC_E9[BITS_PER_BYTE * 2] = {
 	[0] = "SoT Error",
 	[1] = "SoT Sync Error",
 	[2] = "EoT Sync Error",
@@ -121,7 +123,7 @@ static struct bit_info ldi_bit_info_list[LDI_BIT_ENUM_MAX] = {
 	[LDI_BIT_ENUM_0E] = {0x0E, 1, LDI_BIT_DESC_0E, 0x80, },
 	[LDI_BIT_ENUM_0F] = {0x0F, 1, LDI_BIT_DESC_0F, 0xC0, .invert = (BIT(7)), },
 	[LDI_BIT_ENUM_EE] = {0xEE, 1, LDI_BIT_DESC_EE, 0xC0, },
-	[LDI_BIT_ENUM_EA] = {0xEA, 2, LDI_BIT_DESC_EA, 0x00, },
+	[LDI_BIT_ENUM_E9] = {0xE9, 2, LDI_BIT_DESC_E9, 0x00, },
 };
 
 #if defined(CONFIG_SMCDSD_DPUI)

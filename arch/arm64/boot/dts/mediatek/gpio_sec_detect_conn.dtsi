@@ -153,13 +153,32 @@
 #if 1 || 0
 		sec,det_conn_name =
 #endif
-#if 1 && 0
-					"SUB_CONNECT", "", "", "", "", "",
-					"", "";
-#elif 1
-					"SUB_CONNECT", "", "", "", "", "";
-#elif 0
-					"", "";
+#if 1
+					"SUB_CONNECT"
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 0
+					,""
+#endif
+#if 1 || 0
+;
 #endif
 #endif /*use_dynamic_ap_gpio_detect*/
 
@@ -176,8 +195,7 @@
 		sec,det_pm_conn_name =
 #endif
 #if 0 && 0
-					"",
-					"";
+					"", "";
 #elif 0
 					"";
 #elif 0

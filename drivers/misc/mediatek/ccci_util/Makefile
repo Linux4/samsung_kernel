@@ -32,6 +32,7 @@ endif
 ifeq ($(ENABLE_CCCI_UTIL), y)
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/ccci_util
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/aee/mrdump/
 
 obj-y += ccci_util_lib.o
 ccci_util_lib-y := ccci_util_lib_fo.o
@@ -42,7 +43,9 @@ ccci_util_lib-y += ccci_util_lib_time.o
 ccci_util_lib-y += ccci_util_lib_main.o
 ccci_util_lib-y += ccci_util_ld_md_errno.o
 ccci_util_lib-y += ccci_util_broadcast.o
+ccci_util_lib-y += ccci_util_pin_broadcast.o
 ccci_util_lib-y += ccci_util_sib.o
+ccci_util_lib-y += ccci_util_md_rat.o
 endif
 
 ifeq ($(CONFIG_MTK_SECURITY_SW_SUPPORT), y)

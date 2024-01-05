@@ -722,6 +722,7 @@ void _perflog(int type, int logid, const char *fmt, ...)
 
 void get_callstack(char *buffer, int max_size, int max_count)
 {
+/*
 	struct stackframe frame;
 	struct task_struct *tsk = current;
 	//int len;
@@ -753,6 +754,7 @@ void get_callstack(char *buffer, int max_size, int max_count)
 
 		put_task_stack(tsk);
 	}
+*/
 }
 
 void send_signal(void)

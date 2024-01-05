@@ -12,3 +12,12 @@ config SEC_VIB_NOTIFIER
 	  Enable notifier functions to get motor enable status
 	  and timeout value by register notifiy
 	  If you unsure, please select n
+
+config SEC_VIBRATOR_TEST
+	bool "KUnit test for sec_vibrator_test"
+	depends on SEC_KUNIT
+	help
+	  This driver is for sec vibrator test driver
+	  sec vibrator kunit test
+	  If you want to add some functions,
+	  Please make the test case.

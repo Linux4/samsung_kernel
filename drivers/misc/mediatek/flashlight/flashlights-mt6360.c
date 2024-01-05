@@ -56,7 +56,6 @@
 #define MT6360_LEVEL_FLASH MT6360_LEVEL_NUM
 #define MT6360_WDT_TIMEOUT 1248 /* ms */
 #define MT6360_HW_TIMEOUT 400 /* ms */
-
 #define MT6360_FLASH_LIGHT_MAX 5
 
 /* define mutex, work queue and timer */
@@ -115,7 +114,12 @@ static const int mt6360_current[MT6360_LEVEL_NUM] = {
 };
 
 static const unsigned char mt6360_torch_level[MT6360_LEVEL_TORCH] = {
-	0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12,
+#ifdef CONFIG_CAMERA_AAU_V22EX
+	0x03,//To Support 62.5mA for JPN Models
+#else
+	0x00,
+#endif
+	0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12,
 	0x14, 0x16, 0x18, 0x1A, 0x1C, 0x1E
 };
 
@@ -664,7 +668,6 @@ static int mt6360_ioctl(unsigned int cmd, unsigned long arg)
 	case FLASH_IOC_SET_VOLTAGE:
 		pr_debug("FLASH_IOC_SET_VOLTAGE(%d)\n", channel);
 		mt6360_set_voltage();
-		break;
 
 	default:
 		pr_info("No such command and arg(%d): (%d, %d)\n",
@@ -792,7 +795,11 @@ static ssize_t mt6360_rear_flash_store(struct device *dev,
 		mode = MT6360_DISABLE;
 		mt6360_timeout_ms[MT6360_CHANNEL_CH1] = 600;
 		mt6360_timer_cancel(MT6360_CHANNEL_CH1);
-		mt6360_disable(MT6360_CHANNEL_CH1);
+		mt6360_disable(MT6360_CHANNEL_CH1);		
+		/* setup strobe mode timeout as defualt : 400ms */
+		if (flashlight_set_strobe_timeout(flashlight_dev_ch1,
+				MT6360_HW_TIMEOUT, MT6360_HW_TIMEOUT + 200) < 0)
+			pr_info("Failed to set strobe timeout.\n");
 	} else if (value == 1) {
 		mode = MT6360_ENABLE;
 		current_level = g_fled_data->torch_current;
@@ -807,6 +814,10 @@ static ssize_t mt6360_rear_flash_store(struct device *dev,
 	} else if (value == 200) {
 		/* Factory Flash */
 		pr_info("%s: factory flash current [%d]\n", __func__, g_fled_data->factory_current);
+		/* setup strobe mode timeout : 700ms */
+		if (flashlight_set_strobe_timeout(flashlight_dev_ch1,
+				MT6360_HW_TIMEOUT + 300, MT6360_HW_TIMEOUT + 500) < 0)
+			pr_info("Failed to set strobe timeout.\n");
 		current_level = g_fled_data->factory_current;
 		mode = MT6360_ENABLE_FLASH;
 	} else if (value <= 1010 && value >= 1001) {
@@ -833,6 +844,7 @@ static ssize_t mt6360_rear_flash_store(struct device *dev,
 		mt6360_set_level(MT6360_CHANNEL_CH1, current_level);
 		mt6360_operate(MT6360_CHANNEL_CH1, mode);
 	}
+		
 	pr_info("%s: input value - %d\n", __func__, current_level);
 	pr_info("%s: rear_flash_store end\n", __func__);
 	return size;

@@ -5,6 +5,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+#define PFX "Adaptive_mipi D/D"
 
 #include <linux/platform_device.h>
 #include <linux/delay.h>
@@ -31,13 +32,17 @@ static void imgsensor_get_rf_channel(struct cam_cp_noti_info *ch);
 static void imgsensor_get_5g_rf_channel(struct cam_cp_noti_info *ch);
 static int imgsensor_compare_rf_channel(const void *key, const void *element);
 
+#define LOG_DBG(format, args...) pr_debug(PFX format, ##args)
+#define LOG_INF(format, args...) pr_info(PFX format, ##args)
+#define LOG_ERR(format, args...) pr_err(PFX format, ##args)
+
 int imgsensor_register_ril_notifier(void)
 {
 	int ret = -1;
 
-	pr_info("%s: register ril notifier - E\n", __func__);
+	LOG_INF("%s: register ril notifier - E\n", __func__);
 	if (!g_init_notifier) {
-		pr_info("%s: register ril notifier\n", __func__);
+		LOG_INF("%s: register ril notifier\n", __func__);
 
 		mutex_init(&g_mipi_mutex);
 		memset(&g_cp_noti_info, 0, sizeof(struct cam_cp_noti_info));
@@ -49,13 +54,13 @@ int imgsensor_register_ril_notifier(void)
 		else
 			g_init_notifier = true;
 	}
-	pr_info("%s: register ril notifier - X\n", __func__);
+	LOG_INF("%s: register ril notifier - X\n", __func__);
 	return 0;
 }
 
 int imgsensor_print_cp_info(void)
 {
-	pr_info("%s, CP info [rat:%d, band:%d, channel:%d]\n",
+	LOG_INF("%s, CP info [rat:%d, band:%d, channel:%d]\n",
 		__func__, g_cp_noti_info.rat, g_cp_noti_info.band, g_cp_noti_info.channel);
 	return 0;
 }
@@ -72,7 +77,7 @@ int imgsensor_select_mipi_by_rf_channel(const struct cam_mipi_channel *channel_l
 	key.channel_min = input_ch.channel;
 	key.channel_max = input_ch.channel;
 
-	pr_info("%s: searching rf channel s [%d,%d,%d]\n",
+	LOG_INF("%s: searching rf channel s [%d,%d,%d]\n",
 		__func__, input_ch.rat, input_ch.band, input_ch.channel);
 
 	result = bsearch(&key,
@@ -83,14 +88,14 @@ int imgsensor_select_mipi_by_rf_channel(const struct cam_mipi_channel *channel_l
 
 	if (result == NULL) {
 		if (input_ch.rat == CAM_RAT_7_NR5G) {		/* EN-DC case */
-			pr_info("%s: not found for NR, retry for 5G RAT\n", __func__);
+			LOG_INF("%s: not found for NR, retry for 5G RAT\n", __func__);
 			imgsensor_get_5g_rf_channel(&input_ch);
 
 			key.rat_band = CAM_RAT_BAND(input_ch.rat, input_ch.band);
 			key.channel_min = input_ch.channel;
 			key.channel_max = input_ch.channel;
 
-			pr_info("%s: searching 5G rf channel s [%d,%d,%d]\n",
+			LOG_INF("%s: searching 5G rf channel s [%d,%d,%d]\n",
 				__func__, input_ch.rat, input_ch.band, input_ch.channel);
 
 			result = bsearch(&key,
@@ -99,16 +104,16 @@ int imgsensor_select_mipi_by_rf_channel(const struct cam_mipi_channel *channel_l
 					sizeof(struct cam_mipi_channel),
 					imgsensor_compare_rf_channel);
 			if (result == NULL) {
-				pr_info("%s: searching result : not found, use default mipi clock\n", __func__);
+				LOG_INF("%s: searching result : not found, use default mipi clock\n", __func__);
 				return -1;
 			}
 		} else {
-			pr_info("%s: searching result : not found, use default mipi clock\n", __func__);
+			LOG_INF("%s: searching result : not found, use default mipi clock\n", __func__);
 			return -1;
 		}
 	}
 
-	pr_info("%s: searching result : [0x%x,(%d-%d)]->(%d)\n", __func__,
+	LOG_INF("%s: searching result : [0x%x,(%d-%d)]->(%d)\n", __func__,
 		result->rat_band, result->channel_min, result->channel_max, result->setting_index);
 
 	return result->setting_index;
@@ -136,7 +141,7 @@ static int imgsensor_ril_notifier(struct notifier_block *nb, unsigned long size,
 		return NOTIFY_DONE;
 	}
 
-	pr_info("%s: ril notification size [%ld]\n", __func__, size);
+	LOG_INF("%s: ril notification size [%ld]\n", __func__, size);
 
 	msg = (struct dev_ril_bridge_msg *)buf;
 	if (size == sizeof(struct dev_ril_bridge_msg)
@@ -150,7 +155,7 @@ static int imgsensor_ril_notifier(struct notifier_block *nb, unsigned long size,
 			memcpy(&g_cp_noti_5g_info, &g_cp_noti_info, sizeof(struct cam_cp_noti_info));
 		mutex_unlock(&g_mipi_mutex);
 
-		pr_info("%s: update mipi channel [%d,%d,%d]\n",
+		LOG_INF("%s: update mipi channel [%d,%d,%d]\n",
 			__func__, g_cp_noti_info.rat, g_cp_noti_info.band, g_cp_noti_info.channel);
 
 		return NOTIFY_OK;

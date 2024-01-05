@@ -39,7 +39,7 @@ int trans_freq_to_level(long request_ddr_freq)
 		}
 	}
 
-	return DDR_OPP_NUM-1;
+	return DDR_OPP_NUM -1;
 }
 
 static struct pm_qos_request ddr_pm_qos_request;

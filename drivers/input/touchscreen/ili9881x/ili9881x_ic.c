@@ -1090,11 +1090,19 @@ void ili_get_ini_path(void)
 	snprintf(ini_name[P2P_TD_PATH_NUM], INI_PATH_SIZE, "%s", P2P_TD_PATH);
 	snprintf(ini_name[RAWDATATD_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATATD_PATH);
 	snprintf(ini_name[RAWDATANOBK_LCMOFF_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATANOBK_LCMOFF_PATH);
+	/* only for 9882Q ic */
+	snprintf(ini_name[RAWDATAHAVEBK_LCMON_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATAHAVEBK_LCMON_PATH);
+	snprintf(ini_name[RAWDATAHAVEBK_LCMOFF_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATAHAVEBK_LCMOFF_PATH);
 
 	switch (ilits->chip->id) {
 	case ILI9882_CHIP:
-	/* 9882N */
-		snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_9882);
+		if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
+			/* 9882Q */
+			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_9882Q);
+		} else {
+			/* 9882N */
+			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_9882);
+		}
 		break;
 	case ILI7807_CHIP:
 		if (ilits->chip->type == 0x1F) {

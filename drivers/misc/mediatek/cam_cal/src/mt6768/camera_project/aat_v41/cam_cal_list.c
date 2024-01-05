@@ -18,9 +18,6 @@
 
 #define MAX_EEPROM_SIZE_16K 0x4000
 
-extern unsigned int imgsensor_read_otp_cal(struct i2c_client *client,
-		struct stCAM_CAL_INFO_STRUCT *sensor_info, unsigned int addr, unsigned char *data, unsigned int size);
-
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{S5K4HAYX_SENSOR_ID, 0xA8, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{IMX582_SENSOR_ID, 0xB0, Common_read_region, MAX_EEPROM_SIZE_16K},

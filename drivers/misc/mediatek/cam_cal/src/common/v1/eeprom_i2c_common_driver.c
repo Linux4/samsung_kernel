@@ -53,9 +53,18 @@ static struct i2c_client *g_pstI2CclientG;
 #define I2C_MASK_FLAG	(0x00ff)
 #endif
 
+#define I2C_WRITE_ID 0x6E
+#define dump_en
+
 #define EEPROM_I2C_MSG_SIZE_READ 2
 #ifndef EEPROM_I2C_READ_MSG_LENGTH_MAX
 #define EEPROM_I2C_READ_MSG_LENGTH_MAX 32
+#endif
+#ifndef EEPROM_I2C_WRITE_MSG_LENGTH_MAX
+#define EEPROM_I2C_WRITE_MSG_LENGTH_MAX 32
+#endif
+#ifndef EEPROM_WRITE_EN
+#define EEPROM_WRITE_EN 1
 #endif
 
 void set_global_i2c_client(struct i2c_client *client)

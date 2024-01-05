@@ -67,4 +67,3 @@ obj-$(CONFIG_USBIP_CORE)	+= usbip/
 obj-$(CONFIG_USB_NOTIFY_LAYER)	+= notify/
 
 obj-$(CONFIG_TYPEC)		+= typec/
-

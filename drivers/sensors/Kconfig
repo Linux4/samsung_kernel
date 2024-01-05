@@ -3,7 +3,6 @@
 #
 # Sensor  drivers configuration
 #
-	
 menuconfig SENSORS
 	bool "Sensor devices"
 	help
@@ -72,7 +71,7 @@ config SENSORS_LIS2DS_SPI_A02
 	   It is a accelerometer device.
 	   To compile this driver as a module, choose M here. The module
 	   will be called lis2ds.
-
+	  
 config SENSORS_A96T3X6
 	depends on I2C
 	tristate "A96T3X6 driver for grip"
@@ -113,7 +112,7 @@ config SENSORS_A96T3X6_A32X
 	help
 	  Say Y here if you use A32 model grip firmware.
 
-config SENSORS_ISG5320A
+config SENSORS_BSP_ISG5320A
 	depends on I2C
 	tristate "ISG5320A grip"
 	default n
@@ -122,7 +121,7 @@ config SENSORS_ISG5320A
 	  This option enables grip sensors using
 	  IMAGIS ISG5320A device driver for grip.
 
-config SENSORS_ISG5320A_SUB
+config SENSORS_BSP_ISG5320A_SUB
 	depends on I2C
 	tristate "ISG5320A grip sub"
 	default n
@@ -160,7 +159,7 @@ config SENSORS_ISG5320A_SUB_A02
 	  If you say yes here if you use ISG5320A for A02 sub grip.
 	  This option enables grip sensors using
 	  IMAGIS ISG5320A device driver for A02 sub grip.
-
+	  
 config FLIP_COVER_DETECTOR_FACTORY
 	depends on I2C
 	tristate "factory test Flip Cover Detector"

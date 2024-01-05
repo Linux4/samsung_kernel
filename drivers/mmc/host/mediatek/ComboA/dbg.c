@@ -427,7 +427,6 @@ inline void __dbg_add_sd_log(struct mmc_host *mmc, int type,
 	static int last_cmd, last_arg, skip;
 	int l_skip = 0;
 	struct msdc_host *host = mmc_priv(mmc);
-	static int tag = -1;
 
 	/* only log msdc1 */
 	if (!host || host->id == 0)
@@ -669,11 +668,8 @@ void sd_cmd_dump(char **buff, unsigned long *size, struct seq_file *m,
 	struct mmc_host *mmc, u32 latest_cnt)
 {
 	int i, j;
-	int tag = -1;
-	int is_read, is_rel, is_fprg;
 	unsigned long long time_sec, time_usec;
-	int type, cmd, arg, skip, cnt, cpu;
-	unsigned long active_reqs;
+	int type, cmd, arg, skip;
 	struct msdc_host *host;
 	u32 dump_cnt;
 
@@ -2616,7 +2612,7 @@ static int msdc_debug_proc_show(struct seq_file *m, void *v)
 		if (id >= HOST_MAX_NUM || id < 0)
 			goto invalid_host_id;
 
-		host = mtk_msdc_host[id];
+			host = mtk_msdc_host[id];
 		if (p1 == 1) {
 			mmc_get_card(host->mmc->card);
 			msdc_set_host_mode_speed(m, host->mmc, spd_mode);

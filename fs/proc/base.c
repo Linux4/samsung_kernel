@@ -98,6 +98,7 @@
 #ifdef CONFIG_HARDWALL
 #include <asm/hardwall.h>
 #endif
+#include <linux/cn_proc.h>
 #include <trace/events/oom.h>
 #include "internal.h"
 #include "fd.h"
@@ -517,7 +518,7 @@ static int proc_pid_ioinfo(struct seq_file *m, struct pid_namespace *ns,
 #ifdef CONFIG_TASK_IO_ACCOUNTING
 		   (unsigned long long)acct.read_bytes,
 #else
- 		   (unsigned long long)0,                 
+ 		   (unsigned long long)0,
 #endif
 		   (unsigned long long)delayacct_blkio_nsecs(task));
 
@@ -1639,8 +1640,10 @@ static ssize_t comm_write(struct file *file, const char __user *buf,
 	if (!p)
 		return -ESRCH;
 
-	if (same_thread_group(current, p))
+	if (same_thread_group(current, p)) {
 		set_task_comm(p, buffer);
+		proc_comm_connector(p);
+	}
 	else
 		count = -EINVAL;
 
@@ -3034,7 +3037,7 @@ static int proc_integrity_reset_cause(struct seq_file *m,
 				struct pid_namespace *ns,
 				struct pid *pid, struct task_struct *task)
 {
-	if (task->integrity->reset_cause)
+	if (task->integrity->reset_cause != CAUSE_UNSET)
 		seq_printf(m, "%s\n", tint_reset_cause_to_string(
 			task->integrity->reset_cause));
 	else

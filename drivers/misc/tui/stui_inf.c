@@ -25,6 +25,10 @@
 #define SESSION_CANCEL_DELAY        150
 #define MAX_WAIT_CNT                10
 
+extern int stui_tsp_enter(void);
+extern int stui_tsp_exit(void);
+extern int stui_tsp_type(void);
+
 static int tui_mode = STUI_MODE_OFF;
 static int tui_blank_cnt;
 static uint32_t stui_touch_type;
@@ -341,5 +345,5 @@ void stui_set_touch_type(uint32_t type)
 
 uint32_t stui_get_touch_type(void)
 {
-	return stui_touch_type;
+	return stui_tsp_type();
 }

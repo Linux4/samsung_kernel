@@ -11,6 +11,7 @@
 #include <linux/platform_device.h>
 #include <linux/string.h>
 #include <linux/debugfs.h>
+#include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -25,6 +26,7 @@ enum FH_DEBUG_CMD_ID {
 	FH_DBG_CMD_SSC_DISABLE = 0x1005,
 };
 
+static bool has_perms;
 static int __fh_ctrl_cmd_hdlr(struct pll_dts *array,
 			unsigned int cmd,
 			char *pll_name,
@@ -79,6 +81,44 @@ static int __fh_ctrl_cmd_hdlr(struct pll_dts *array,
 	}
 	return 0;
 }
+static bool prop_request(char *kbuf,
+		struct pll_dts *array)
+{
+	unsigned int n, i, arg;
+	int num_pll = array->num_pll;
+	struct pll_dts *entry = NULL;
+	char pll_name[32];
+	char prop[32];
+
+	/* retrieve prop/pll_name/arg from kbuf */
+	n = sscanf(kbuf, "%s %31s %x", prop, pll_name, &arg);
+		FHDBG("prop<%s>, pll_name<%s>, arg<%x>\n",
+				prop, pll_name, arg);
+	if (n == -1)
+		FHDBG("error input format\n");
+
+	/* get entry by pll_name */
+	for (i = 0; i < num_pll; i++, array++) {
+		if (strcmp(pll_name,
+					array->pll_name) == 0) {
+			entry = array;
+			break;
+		}
+	}
+
+	if (!entry)
+		return false;
+
+	/* update entry by prop/arg */
+	if (strstr(prop, "perms"))
+		entry->perms = arg;
+	else if (strstr(prop, "ssc-rate"))
+		entry->ssc_rate = arg;
+	else
+		return false;
+
+	return true;
+}
 static ssize_t fh_ctrl_proc_write(struct file *file,
 				const char *buffer, size_t count, loff_t *data)
 {
@@ -88,7 +128,6 @@ static ssize_t fh_ctrl_proc_write(struct file *file,
 	size_t len = 0;
 	unsigned int cmd, arg;
 	struct pll_dts *array = file->f_inode->i_private;
-	static bool has_perms;
 
 	FHDBG("array<%x>\n", array);
 	len = min(count, (sizeof(kbuf) - 1));
@@ -107,17 +146,19 @@ static ssize_t fh_ctrl_proc_write(struct file *file,
 	kbuf[count] = '\0';
 
 	/* permission control */
-	if (!has_perms &&
-			strstr(kbuf, array->comp)) {
+	if (strstr(kbuf, array->comp)) {
 		has_perms = true;
 		FHDBG("has_perms to true\n");
 		return count;
 	} else if (!has_perms) {
 		FHDBG("!has_perms\n");
 		return count;
+	} else if (prop_request(kbuf, array)) {
+		FHDBG("prop_request = true\n");
+		return count;
 	}
 
-	n = sscanf(kbuf, "%x %s %x", &cmd, pll_name, &arg);
+	n = sscanf(kbuf, "%x %31s %x", &cmd, pll_name, &arg);
 	if ((n != 3) && (n != 2)) {
 		FHDBG("error input format\n");
 		return -EINVAL;
@@ -134,15 +175,21 @@ static int fh_ctrl_proc_read(struct seq_file *m, void *v)
 	struct pll_dts *array = m->private;
 	int num_pll = array->num_pll;
 
-	seq_printf(m, "====== FHCTL CTRL Description <%p>======\n", array);
+	seq_printf(m, "====== FHCTL CTRL, has_perms<%d>, comp<%s>======\n",
+			has_perms, array->comp);
+
+	seq_puts(m, "[Name pll-id fh-id perms ssc-rate]");
+	seq_puts(m, "[domain method]");
+	seq_puts(m, "[Hdlr]");
+	seq_puts(m, "\n");
 
 	for (i = 0; i < num_pll; i++, array++) {
-		seq_printf(m, "<%s,%d,%d,%x,%d>,<%s,%s>,<%x>\n",
+		seq_printf(m, "<%s,%d,%d,%x,%d>,<%s,%s>,<%lx>\n",
 				array->pll_name,
 				array->pll_id, array->fh_id,
 				array->perms, array->ssc_rate,
 				array->domain, array->method,
-				array->hdlr);
+				(unsigned long)array->hdlr);
 	}
 	return 0;
 }
@@ -157,6 +204,70 @@ static const struct file_operations ctrl_fops = {
 	.read = seq_read,
 	.write = fh_ctrl_proc_write,
 	.release = single_release,
+};
+
+static int fh_ctrl_proc_open2(struct inode *inode, struct file *file)
+{
+	void *v = PDE_DATA(file_inode(file));
+    return single_open(file, fh_ctrl_proc_read, v);
+}
+static ssize_t fh_ctrl_proc_write2(struct file *file,
+                const char *buffer, size_t count, loff_t *data)
+{
+    int ret, n;
+    char kbuf[256];
+    char pll_name[32];
+    size_t len = 0;
+    unsigned int cmd, arg;
+    struct pll_dts *array = PDE_DATA(file_inode(file));
+
+    FHDBG("array<%x>\n", array);
+    len = min(count, (sizeof(kbuf) - 1));
+
+    FHDBG("count: %ld", count);
+    if (count == 0)
+        return -1;
+
+    if (count > 255)
+        count = 255;
+
+    ret = copy_from_user(kbuf, buffer, count);
+    if (ret < 0)
+        return -1;
+
+    kbuf[count] = '\0';
+
+    /* permission control */
+    if (strstr(kbuf, array->comp)) {
+        has_perms = true;
+        FHDBG("has_perms to true\n");
+        return count;
+    } else if (!has_perms) {
+        FHDBG("!has_perms\n");
+        return count;
+    } else if (prop_request(kbuf, array)) {
+        FHDBG("prop_request = true\n");
+        return count;
+    }
+
+    n = sscanf(kbuf, "%x %31s %x", &cmd, pll_name, &arg);
+    if ((n != 3) && (n != 2)) {
+        FHDBG("error input format\n");
+        return -EINVAL;
+    }
+
+    FHDBG("pll:%s cmd:0x%x arg:0x%x", pll_name, cmd, arg);
+    __fh_ctrl_cmd_hdlr(array, cmd, pll_name, arg);
+
+	return count;
+}
+
+static const struct file_operations ctrl_fops2 = {
+    .owner = THIS_MODULE,
+    .open = fh_ctrl_proc_open2,
+    .read = seq_read,
+    .write = fh_ctrl_proc_write2,
+    .release = single_release,
 };
 
 static int __sample_dds(struct fh_pll_regs *regs,
@@ -223,6 +334,13 @@ static int fh_dumpregs_read(struct seq_file *m, void *v)
 		pll_id = array->pll_id;
 		pll_name = array->pll_name;
 		domain = get_fh_domain(array->domain);
+
+		if (domain == NULL) {
+			FHDBG("domain is null!");
+			WARN_ON(1);
+			return 0;
+		}
+
 		regs = &domain->regs[fh_id];
 		data = &domain->data[fh_id];
 
@@ -267,8 +385,7 @@ static const struct file_operations dumpregs_fops = {
 	.release = single_release,
 };
 
-int fhctl_debugfs_init(struct platform_device *pdev,
-		struct pll_dts *array)
+int fhctl_debugfs_init(struct pll_dts *array)
 {
 	struct dentry *root;
 	struct dentry *fh_dumpregs_dir;
@@ -299,6 +416,7 @@ int fhctl_debugfs_init(struct platform_device *pdev,
 		FHDBG("\n");
 		return -1;
 	}
+	proc_create_data("fhctl", 0644, NULL, &ctrl_fops2, array);
 
 	/* init resources */
 	for (i = 0; i < num_pll; i++, array++) {

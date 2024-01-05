@@ -246,6 +246,8 @@ static int mt6660_codec_probe(struct snd_soc_codec *codec)
 	}
 	chip->codec = codec;
 
+	chip->spm.max_pwr = 5100;
+	chip->spm.min_pwr = 4000;
 	ret = richtek_spm_classdev_register(codec->dev, &chip->spm);
 	if (ret < 0) {
 		dev_err(codec->dev, "spm class register faled\n");

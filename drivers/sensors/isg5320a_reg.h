@@ -16,6 +16,10 @@
 #ifndef __ISG5320A_REG_H__
 #define __ISG5320A_REG_H__
 
+#define NOTI_MODULE_NAME        "grip_notifier"
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
+
 enum registers {
 	ISG5320A_IRQSRC_REG = 0x00,
 	ISG5320A_IRQSTS_REG,
@@ -588,6 +592,10 @@ static const struct isg5320a_reg_data setup_reg[] = {
 };
 
 #endif
+
+#define GRIP_ERR(fmt, ...) pr_err("%s %s: "fmt, ISG5320A_TAG, __func__, ##__VA_ARGS__)
+#define GRIP_INFO(fmt, ...) pr_info("%s %s: "fmt, ISG5320A_TAG, __func__, ##__VA_ARGS__)
+#define GRIP_WARN(fmt, ...) pr_warn("%s %s: "fmt, ISG5320A_TAG, __func__, ##__VA_ARGS__)
 
 extern int sensors_create_symlink(struct input_dev *inputdev);
 extern void sensors_remove_symlink(struct input_dev *inputdev);

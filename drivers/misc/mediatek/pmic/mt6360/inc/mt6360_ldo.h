@@ -22,7 +22,7 @@
 #include <linux/interrupt.h>
 #include <linux/of.h>
 #include "config.h"
-#include "rt-regmap.h"
+#include <mt-plat/rt-regmap.h>
 
 #define mt_dbg(dev, fmt, ...) \
 	do { \
@@ -45,6 +45,7 @@ struct mt6360_ldo_platform_data {
 	struct resource *irq_res;
 	int irq_res_cnt;
 	u32 sdcard_det_en;
+	u32 sdcard_hlact;
 };
 
 struct mt6360_ldo_info {

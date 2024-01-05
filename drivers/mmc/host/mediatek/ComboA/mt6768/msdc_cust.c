@@ -271,9 +271,33 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 		if (host->hw->flags & MSDC_SD_NEED_POWER)
 			card_on = 1;
 
+		/* Disable VMCH OC */
+		if (!card_on)
+			pmic_enable_interrupt(INT_VMCH_OC, 0, "sdcard");
+
 		/* VMCH VOLSEL */
 		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_2950,
 			&host->power_flash);
+
+		if (card_on) {
+			if (host->hw->cd_level == 1) {
+				/* 1: high; 0: low, vmch fast off
+				 * hw_det default high active
+				 */
+				pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_POL,
+							0);
+			}
+			pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_EN, 1);
+		} else {
+			udelay(1500);
+			pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_EN, 0);
+		}
+
+		/* Enable VMCH OC */
+		if (card_on) {
+			mdelay(3);
+			pmic_enable_interrupt(INT_VMCH_OC, 1, "sdcard");
+		}
 
 		/* VMC VOLSEL */
 		/* rollback to 0mv in REG_VMC_VOSEL_CAL
@@ -282,7 +306,7 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 		pmic_config_interface(REG_VMC_VOSEL_CAL,
 			SD_VOL_ACTUAL - VOL_3000,
 			MASK_VMC_VOSEL_CAL, SHIFT_VMC_VOSEL_CAL);
-		msdc_ldo_power(on, host->mmc->supply.vqmmc, VOL_3000,
+		msdc_ldo_power(on, host->mmc->supply.vqmmc, VOL_2950,
 			&host->power_io);
 
 		if (on)
@@ -1110,7 +1134,7 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	struct msdc_host *host = mmc_priv(mmc);
 	int ret = 0;
 	int len = 0;
-	u8 id;
+	u8 id = 0;
 	const char *dup_name;
 
 	np = mmc->parent->of_node; /* mmcx node in project dts */
@@ -1134,6 +1158,20 @@ int msdc_of_parse(struct platform_device *pdev, struct mmc_host *mmc)
 	host->mmc = mmc;
 	host->hw = kzalloc(sizeof(struct msdc_hw), GFP_KERNEL);
 
+	if (of_property_read_s32(np, "req_vcore", &host->vcore_opp)) {
+		pr_notice("%s: failed to get req_vcore", __func__);
+		host->vcore_opp = -1;
+	} else {
+		pr_notice("msdc%d:get req_vcore:%d", host->id, host->vcore_opp);
+		/* init VCORE QOS */
+		host->req_vcore = devm_kzalloc(&pdev->dev,
+			sizeof(*host->req_vcore), GFP_KERNEL);
+		if (!host->req_vcore)
+			return -ENOMEM;
+
+		pm_qos_add_request(host->req_vcore, PM_QOS_VCORE_OPP,
+			PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+	}
 	/* iomap register */
 	host->base = of_iomap(np, 0);
 	if (!host->base) {

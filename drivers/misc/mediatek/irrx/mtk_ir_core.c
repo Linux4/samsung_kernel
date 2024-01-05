@@ -10,8 +10,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
-#include "inc/mtk_ir_core.h"
-#include "inc/mtk_ir_regs.h"
+#include "mtk_ir_core.h"
+#include "mtk_ir_regs.h"
 static int mtk_ir_get_hw_info(struct platform_device *pdev);
 static int mtk_ir_core_register_swirq(int trigger_type);
 static void mtk_ir_core_free_swirq(void);
@@ -157,6 +157,20 @@ enum MTK_IR_MODE mtk_ir_core_getmode(void)
 	return MTK_IR_MAX;
 }
 
+static int mtk_ir_core_enable_clock(int enable)
+{
+	int res = 0;
+
+	MTK_IR_LOG(" enable clock: %d\n", enable);
+
+	if (enable)
+		res = clk_prepare_enable(mtk_ir_context_obj->hw->irrx_clk);
+	else
+		clk_disable_unprepare(mtk_ir_context_obj->hw->irrx_clk);
+	return res;
+}
+
+
 #ifdef CONFIG_PM_SLEEP
 static int mtk_ir_core_suspend(struct device *dev)
 {
@@ -238,7 +252,11 @@ static ssize_t mtk_ir_core_show_info(struct device *dev,
 
 	if (strcmp(pattr->name, "register") == 0) {
 		SPRINTF_DEV_ATTR("-------------dump ir register-----------\n");
+#ifdef USE_OLD_IRRX_CODA
+		for (vregstart = 0; vregstart <= IRRX_CHKDATA16;) {
+#else
 		for (vregstart = 0; vregstart <= IRRX_CHKDATA31;) {
+#endif
 			SPRINTF_DEV_ATTR("IR reg 0x%08x = 0x%08x\n",
 				vregstart, IR_READ32(vregstart));
 			vregstart += 4;
@@ -803,6 +821,7 @@ static int mtk_ir_lirc_unregister(struct mtk_ir_context *pdev)
 
 static int mtk_ir_get_hw_info(struct platform_device *pdev)
 {
+	const char *clkname = "irrx_clock";
 	const char *compatible_name;
 	struct device_node *node;
 	struct mtk_ir_context *cxt;
@@ -817,6 +836,22 @@ static int mtk_ir_get_hw_info(struct platform_device *pdev)
 		MTK_IR_ERR(" Cannot get irrx register base address!\n");
 		return -ENODEV;
 	}
+	cxt->hw->irrx_clk = devm_clk_get(&pdev->dev, clkname);
+	if (IS_ERR(cxt->hw->irrx_clk)) {
+		MTK_IR_ERR(" Cannot get irrx clock!\n");
+		ret = PTR_ERR(cxt->hw->irrx_clk);
+		MTK_IR_ERR(" ret=%d!\n", ret);
+		iounmap(cxt->hw->irrx_base_addr);
+		return ret;
+	}
+
+	ret = mtk_ir_core_enable_clock(1);
+	if (ret) {
+		MTK_IR_ERR(" Enable clk failed!\n");
+		iounmap(cxt->hw->irrx_base_addr);
+		return -ENODEV;
+	}
+
 	node = of_find_matching_node(NULL, mtk_ir_of_match);
 	if (node) {
 		cxt->hw->irrx_irq = irq_of_parse_and_map(node, 0);
@@ -835,6 +870,7 @@ static int mtk_ir_get_hw_info(struct platform_device *pdev)
 			MTK_IR_ERR(" Device Tree: Find property fail!\n");
 	} else {
 		MTK_IR_ERR(" Device Tree: can not find IR node!\n");
+		clk_disable_unprepare(cxt->hw->irrx_clk);
 		iounmap(cxt->hw->irrx_base_addr);
 		return -ENODEV;
 	}
@@ -843,6 +879,7 @@ static int mtk_ir_get_hw_info(struct platform_device *pdev)
 	if (IS_ERR(irrx_pinctrl1)) {
 		ret = PTR_ERR(irrx_pinctrl1);
 		MTK_IR_ERR(" Cannot find pinctrl %d!\n", ret);
+		clk_disable_unprepare(cxt->hw->irrx_clk);
 		iounmap(cxt->hw->irrx_base_addr);
 		return ret;
 	}
@@ -850,6 +887,7 @@ static int mtk_ir_get_hw_info(struct platform_device *pdev)
 	if (IS_ERR(irrx_pins_default)) {
 		ret = PTR_ERR(irrx_pins_default);
 		MTK_IR_LOG("Cannot find pinctrl default %d!\n", ret);
+		clk_disable_unprepare(cxt->hw->irrx_clk);
 		iounmap(cxt->hw->irrx_base_addr);
 		return ret;
 	}

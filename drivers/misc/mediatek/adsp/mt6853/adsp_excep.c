@@ -20,11 +20,17 @@
 #include "adsp_excep.h"
 #include "adsp_logger.h"
 
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+#include <sound/samsung/sec_audio_sysfs.h>
+#endif
+
 #define ADSP_MISC_EXTRA_SIZE    0x400 //1KB
 #define ADSP_MISC_BUF_SIZE      0x10000 //64KB
+#define ADSP_TEST_EE_PATTERN    "Assert-Test"
 
 static char adsp_ke_buffer[ADSP_KE_DUMP_LEN];
 static struct adsp_exception_control excep_ctrl;
+static bool suppress_test_ee;
 
 static u32 copy_from_buffer(void *dest, size_t destsize, const void *src,
 			    size_t srcsize, u32 offset, size_t request)
@@ -176,13 +182,20 @@ static void adsp_exception_dump(struct adsp_exception_control *ctrl)
 	if (pdata->id == ADSP_A_ID)
 		coredump_id = ADSP_A_CORE_DUMP_MEM_ID;
 
+	coredump = adsp_get_reserve_mem_virt(coredump_id);
+	coredump_size = adsp_get_reserve_mem_size(coredump_id);
+
+	if (suppress_test_ee && coredump
+	    && strstr(coredump->assert_log, ADSP_TEST_EE_PATTERN)) {
+		pr_info("%s, suppress Test EE dump", __func__);
+		return;
+	}
+
 	if (dump_flag) {
 		ret = dump_buffer(ctrl, coredump_id);
 		if (ret < 0)
 			pr_info("%s, excep dump fail ret(%d)", __func__, ret);
 	}
-	coredump = adsp_get_reserve_mem_virt(coredump_id);
-	coredump_size = adsp_get_reserve_mem_size(coredump_id);
 
 	n += snprintf(detail + n, ADSP_AED_STR_LEN - n, "%s %s\n",
 		      pdata->name, aed_type);
@@ -232,6 +245,14 @@ void adsp_aed_worker(struct work_struct *ws)
 
 	/* exception dump */
 	adsp_exception_dump(ctrl);
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_AUDIO)
+	send_adsp_silent_reset_ev();
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	pr_info("%s, adsp dead, bug on", __func__);
+	BUG_ON(1);
+#endif
+#endif
 
 	/* reset adsp */
 	adsp_enable_clock();
@@ -516,6 +537,21 @@ struct bin_attribute bin_attr_adsp_dump_log = {
 	.read = adsp_dump_log_show,
 };
 
+static inline ssize_t suppress_ee_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	unsigned int input = 0;
+
+	if (kstrtouint(buf, 0, &input) != 0)
+		return -EINVAL;
+
+	suppress_test_ee = !!input;
+
+	return count;
+}
+DEVICE_ATTR_WO(suppress_ee);
+
 static struct bin_attribute *adsp_excep_bin_attrs[] = {
 	&bin_attr_adsp_dump,
 	&bin_attr_adsp_dump_ke,
@@ -523,7 +559,13 @@ static struct bin_attribute *adsp_excep_bin_attrs[] = {
 	NULL,
 };
 
+static struct attribute *adsp_excep_attrs[] = {
+	&dev_attr_suppress_ee.attr,
+	NULL,
+};
+
 struct attribute_group adsp_excep_attr_group = {
+	.attrs = adsp_excep_attrs,
 	.bin_attrs = adsp_excep_bin_attrs,
 };
 

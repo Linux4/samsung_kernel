@@ -242,7 +242,7 @@ static struct GAForensicINFO {
 #endif
 #endif
 	.mount_struct_mnt_mountpoint = offsetof(struct mount, mnt_mountpoint),
-#ifdef CONFIG_KDP_NS
+#if defined(CONFIG_KDP_NS) || defined(CONFIG_RUSTUH_KDP_NS)
 #if defined(CONFIG_SOC_EXYNOS2100) || defined(CONFIG_ARCH_LAHAINA)
 	.vfsmount_struct_bp_mount = offsetof(struct kdp_vfsmount, bp_mount),
 #else

@@ -1723,6 +1723,7 @@ void ufshpb_rsp_upiu(struct ufsf_feature *ufsf, struct ufshcd_lrb *lrbp)
 {
 	struct ufshpb_lu *hpb;
 	struct ufshpb_rsp_field *rsp_field;
+	struct ufshpb_rsp_field sense_data;
 	int data_seg_len, ret;
 
 	data_seg_len = be32_to_cpu(lrbp->ucd_rsp_ptr->header.dword_2)
@@ -1746,7 +1747,9 @@ void ufshpb_rsp_upiu(struct ufsf_feature *ufsf, struct ufshcd_lrb *lrbp)
 		goto put_hpb;
 	}
 
-	rsp_field = ufshpb_get_hpb_rsp(lrbp);
+	memcpy(&sense_data, &lrbp->ucd_rsp_ptr->sr.sense_data_len,
+		sizeof(struct ufshpb_rsp_field));
+	rsp_field = &sense_data;
 
 	if (ufshpb_may_field_valid(lrbp, rsp_field)) {
 		WARN_ON(rsp_field->additional_len != DEV_ADDITIONAL_LEN);
@@ -2510,6 +2513,22 @@ static void ufshpb_init_lu_constant(struct ufshpb_dev_info *hpb_dev_info,
 	/* relation : lu <-> region <-> sub region <-> entry */
 	entries_per_rgn = rgn_mem_size / HPB_ENTRY_SIZE;
 	hpb->entries_per_srgn = hpb->srgn_mem_size / HPB_ENTRY_SIZE;
+#if BITS_PER_LONG == 32
+	hpb->srgns_per_rgn = div_u64(rgn_mem_size, hpb->srgn_mem_size);
+
+	/*
+	 * regions_per_lu = (lu_num_blocks * 4096) / region_unit_size
+	 *	          = (lu_num_blocks * HPB_ENTRY_SIZE) / region_mem_size
+	 */
+	hpb->rgns_per_lu =
+		div_u64(((unsigned long long)hpb->lu_num_blocks
+		 + (rgn_mem_size / HPB_ENTRY_SIZE) - 1),
+		 (rgn_mem_size / HPB_ENTRY_SIZE));
+	hpb->srgns_per_lu =
+		div_u64(((unsigned long long)hpb->lu_num_blocks
+		 + (hpb->srgn_mem_size / HPB_ENTRY_SIZE) - 1),
+		(hpb->srgn_mem_size / HPB_ENTRY_SIZE));
+#else
 	hpb->srgns_per_rgn = rgn_mem_size / hpb->srgn_mem_size;
 
 	/*
@@ -2524,6 +2543,7 @@ static void ufshpb_init_lu_constant(struct ufshpb_dev_info *hpb_dev_info,
 		((unsigned long long)hpb->lu_num_blocks
 		 + (hpb->srgn_mem_size / HPB_ENTRY_SIZE) - 1)
 		/ (hpb->srgn_mem_size / HPB_ENTRY_SIZE);
+#endif
 
 	/* mempool info */
 	hpb->mpage_bytes = OS_PAGE_SIZE;

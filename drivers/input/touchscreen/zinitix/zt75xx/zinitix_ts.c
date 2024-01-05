@@ -31,8 +31,9 @@
 #include <linux/gpio.h>
 #include <linux/uaccess.h>
 #include <linux/regulator/consumer.h>
+#if defined(CONFIG_SPU_VERIFY)
 #include <linux/spu-verify.h>
-
+#endif
 #include <linux/input/mt.h>
 #include <linux/sec_sysfs.h>
 #include <linux/input/sec_cmd.h>
@@ -61,8 +62,6 @@
 #define GLOVE_MODE
 
 #define MAX_FW_PATH 255
-
-#define SPU_FW_SIGNED
 
 #define TSP_PATH_EXTERNAL_FW		"/sdcard/Firmware/TSP/tsp.bin"
 #define TSP_PATH_EXTERNAL_FW_SIGNED	"/sdcard/Firmware/TSP/tsp_signed.bin"
@@ -3777,7 +3776,7 @@ static void fw_update(void *device_data)
 		set_fs(old_fs);
 		input_info(true, &client->dev, "ums fw is loaded!!\n");
 
-#ifdef SPU_FW_SIGNED
+#if defined(CONFIG_SPU_VERIFY)
 		info->fw_data = (unsigned char *)buff;
 		if (!(ts_check_need_upgrade(info, info->cap_info.fw_version, info->cap_info.fw_minor_version,
 			info->cap_info.reg_data_version, info->cap_info.hw_id)) &&

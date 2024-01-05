@@ -126,7 +126,7 @@ static enum IMGSENSOR_RETURN gpio_set(
 	enum   GPIO_STATE      gpio_state;
 
 	 PK_DBG("%s :debug pinctrl ENABLE, PinIdx %d, Val %d\n",
-	 	__func__, pin, pin_state);
+		__func__, pin, pin_state);
 
 	if (pin < IMGSENSOR_HW_PIN_PDN ||
 #ifdef MIPI_SWITCH

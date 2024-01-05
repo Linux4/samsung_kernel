@@ -47,5 +47,3 @@ config TRUSTONIC_TRUSTED_UI_FB_BLANK
     depends on TRUSTONIC_TRUSTED_UI
     ---help---
     Blank the framebuffer before starting a TUI session
-
-source "drivers/misc/mediatek/gud/410/sec-os-ctrl/Kconfig"

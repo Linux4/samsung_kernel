@@ -272,8 +272,6 @@ extern void mtk_ccci_ccb_info_peek(void);
 	_IOWR(CCCI_IOC_MAGIC, 64, struct ccci_ccb_config)
 #define CCCI_IOC_CCB_CTRL_OFFSET		\
 	_IOR(CCCI_IOC_MAGIC, 65, unsigned int)
-#define CCCI_IOC_GET_CCB_DEBUG_VAL		\
-	_IOWR(CCCI_IOC_MAGIC, 67, struct ccci_ccb_debug)
 
 #define CCCI_IOC_CCB_CTRL_INFO			\
 	_IOWR(CCCI_IOC_MAGIC, 71, struct ccb_ctrl_info)
@@ -281,7 +279,6 @@ extern void mtk_ccci_ccb_info_peek(void);
 /* for user space ccci mdinit user */
 #define CCCI_IOC_GET_MDINIT_KILLED      \
 	_IOR(CCCI_IOC_MAGIC, 72, unsigned int)
-
 
 /* modem log */
 #define CCCI_IOC_ENTER_UPLOAD		\
@@ -311,6 +308,9 @@ extern void mtk_ccci_ccb_info_peek(void);
 /* RILD  factory */
 #define CCCI_IOC_LEAVE_DEEP_FLIGHT_ENHANCED     \
 	_IO(CCCI_IOC_MAGIC,  124)
+/* RILD nodify ccci power off md */
+#define CCCI_IOC_RILD_POWER_OFF_MD		\
+	_IO(CCCI_IOC_MAGIC,  125)
 
 
 #define CCCI_IPC_MAGIC 'P' /* only for IPC user */
@@ -506,6 +506,9 @@ enum CCCI_CH {
 	CCCI_UDC_RX			= 177,
 	CCCI_UDC_TX			= 178,
 
+	CCCI_MIPI_CHANNEL_RX	= 179,
+	CCCI_MIPI_CHANNEL_TX	= 180,
+
 	CCCI_TCHE_RX			= 181,
 	CCCI_TCHE_TX			= 182,
 	CCCI_DISP_RX			= 183,
@@ -521,12 +524,11 @@ enum CCCI_CH {
 
 	CCCI_IKERAW_RX			= 191,
 	CCCI_IKERAW_TX			= 192,
-
 	CCCI_RIL_IPC0_RX		= 193,
 	CCCI_RIL_IPC0_TX		= 194,
 	CCCI_RIL_IPC1_RX		= 195,
 	CCCI_RIL_IPC1_TX		= 196,
-	CCCI_VT_CTL_RX		= 197,
+	CCCI_VT_CTL_RX			= 197,
 	CCCI_VT_CTL_TX			= 198,
 
 	CCCI_MD_DIRC_RX			= 200,
@@ -535,6 +537,18 @@ enum CCCI_CH {
 	CCCI_TIME_TX			= 203,
 	CCCI_GARB_RX			= 204,
 	CCCI_GARB_TX			= 205,
+
+	CCCI_EPDG1_RX			= 236,
+	CCCI_EPDG1_TX			= 237,
+	CCCI_EPDG2_RX			= 238,
+	CCCI_EPDG2_TX			= 239,
+	CCCI_EPDG3_RX			= 240,
+	CCCI_EPDG3_TX			= 241,
+	CCCI_EPDG4_RX			= 242,
+	CCCI_EPDG4_TX			= 243,
+
+	CCCI_AT_RX				= 258,
+	CCCI_AT_TX				= 259,
 
 	CCCI_C2K_PPP_DATA, /* data ch for c2k */
 
@@ -620,6 +634,7 @@ enum md_bc_event {
 	MD_STA_EV_READY,
 	MD_STA_EV_EXCEPTION,
 	MD_STA_EV_STOP,
+	MD_STA_EV_RILD_POWEROFF_START,
 };
 
 /* ========================================================================= */

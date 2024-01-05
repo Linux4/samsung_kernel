@@ -199,9 +199,7 @@ void dump_backtrace_auto_comment(struct pt_regs *regs, struct task_struct *tsk)
 	struct stackframe frame;
 	int skip = 0;
 	unsigned long prev_fp = 0;
-#ifdef CONFIG_SEC_DEBUG_LIMIT_BACKTRACE
 	int cnt = 0;
-#endif
 
 	pr_debug("%s(regs = %p tsk = %p)\n", __func__, regs, tsk);
 
@@ -260,9 +258,7 @@ void dump_backtrace_auto_comment(struct pt_regs *regs, struct task_struct *tsk)
 		if (frame.fp) {
 			prev_fp = frame.fp;
 		}
-#ifdef CONFIG_SEC_DEBUG_LIMIT_BACKTRACE
 		cnt++;
-#endif
 	} while (!unwind_frame(tsk, &frame));
 
 	put_task_stack(tsk);

@@ -288,7 +288,7 @@
 /* TSP End */
 
 #include "mediatek/k69v1_64_titan_marmot/gpio01.dtsi"
-#include "mediatek/k69v1_64_titan_marmot/cust_mt6768_camera01.dtsi"
+//#include "mediatek/k69v1_64_titan_marmot/cust_mt6768_camera01.dtsi"
 
 &pio {
 	if_pmic_irq: if_pmic_irq {

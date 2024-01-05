@@ -32,7 +32,7 @@
 #include "modem_prj.h"
 #endif
 
-#define MAX_QUEUE_LENGTH 64
+#define MAX_QUEUE_LENGTH 32
 
 unsigned int port_char_dev_poll(struct file *fp,
 	struct poll_table_struct *poll)
@@ -88,7 +88,7 @@ EXPORT_SYMBOL(get_port_char_ops);
 
 static int port_char_init(struct port_t *port)
 {
-	struct cdev *dev;
+	struct cdev *dev = NULL;
 	int ret = 0;
 	int md_id = port->md_id;
 
@@ -200,8 +200,6 @@ static int port_char_recv_skb(struct port_t *port, struct sk_buff *skb)
 		port->rx_ch != CCCI_RPC_RX &&
 		port->rx_ch != CCCI_UDC_RX &&
 #ifdef CONFIG_MTK_SRIL_SUPPORT
-		port->rx_ch != CCCI_RIL_IPC0_RX &&
-		port->rx_ch != CCCI_RIL_IPC1_RX &&
 		port->rx_ch != CCCI_CIQ_RX &&
 #endif
 		!(port->rx_ch == CCCI_IPC_RX &&

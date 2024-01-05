@@ -11,6 +11,7 @@ input-core-y := input.o input-compat.o input-mt.o ff-core.o
 ifneq ($(CONFIG_INPUT_SEC_INPUT), y)
 obj-$(CONFIG_INPUT_TOUCHSCREEN)	+= sec_cmd.o
 obj-$(CONFIG_SEC_DEBUG_TSP_LOG) += sec_tsp_log.o
+obj-$(CONFIG_INPUT_TOUCHSCREEN_TCLMV2)	+= sec_tclm_v2.o
 endif
 
 obj-$(CONFIG_INPUT_FF_MEMLESS)	+= ff-memless.o

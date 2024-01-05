@@ -464,12 +464,59 @@ struct DVP_Settings {
 	unsigned int engWidth;
 	unsigned int engHeight;
 };
-
+struct DPE_Config_map {
+	unsigned int Dpe_InBuf_SrcImg_YL_fd;
+	unsigned int Dpe_InBuf_SrcImg_YL_Ofs;
+	unsigned int Dpe_InBuf_SrcImg_YR_fd;
+	unsigned int Dpe_InBuf_SrcImg_YR_Ofs;
+	unsigned int Dpe_InBuf_SrcImg_Yfd;
+	unsigned int Dpe_InBuf_SrcImg_YOfs;
+	unsigned int Dpe_InBuf_SrcImg_Cfd;
+	unsigned int Dpe_InBuf_SrcImg_COfs;
+	unsigned int Dpe_InBuf_ValidMapL_fd;
+	unsigned int Dpe_InBuf_ValidMapL_Ofs;
+	unsigned int Dpe_InBuf_ValidMapR_fd;
+	unsigned int Dpe_InBuf_ValidMapR_Ofs;
+	unsigned int Dpe_OutBuf_CONF_fd;
+	unsigned int Dpe_OutBuf_CONF_Ofs;
+	unsigned int Dpe_OutBuf_OCC_fd;
+	unsigned int Dpe_OutBuf_OCC_Ofs;
+	unsigned int Dpe_OutBuf_OCCExt_fd;
+	unsigned int Dpe_OutBuf_OCCExt_Ofs;
+	unsigned int Dpe_InBufOCC_fd;
+	unsigned int Dpe_InBufOCC_Ofs;
+	unsigned int Dpe_InBuf_OCCExt_fd;
+	unsigned int Dpe_InBuf_OCCExt_Ofs;
+	unsigned int Dpe_OutBufCRM_fd;
+	unsigned int Dpe_OutBufCRM_Ofs;
+	unsigned int Dpe_OutBuf_ASFRD_fd;
+	unsigned int Dpe_OutBuf_ASFRD_Ofs;
+	unsigned int Dpe_OutBuf_ASFRD_Ext_fd;
+	unsigned int Dpe_OutBuf_ASFRD_Ext_Ofs;
+	unsigned int Dpe_OutBuf_ASFHF_fd;
+	unsigned int Dpe_OutBuf_ASFHF_Ofs;
+	unsigned int Dpe_OutBuf_ASF_HFExt_fd;
+	unsigned int Dpe_OutBuf_ASF_HFExt_Ofs;
+	unsigned int Dpe_OutBuf_WMFFILT_fd;
+	unsigned int Dpe_OutBuf_WMFFILT_Ofs;
+	unsigned int DVS_SRC_21_INTER_MEDV_fd;
+	unsigned int DVS_SRC_21_INTER_MEDV_Ofs;
+	unsigned int DVS_SRC_34_DCV_L_FRM0_fd;
+	unsigned int DVS_SRC_34_DCV_L_FRM0_Ofs;
+	unsigned int DVP_SRC_18_ASF_RMDV_fd;
+	unsigned int DVP_SRC_18_ASF_RMDV_Ofs;
+	unsigned int DVP_SRC_24_WMF_HFDV_fd;
+	unsigned int DVP_SRC_24_WMF_HFDV_Ofs;
+	unsigned int DVP_EXT_SRC_18_ASF_RMDV_fd;
+	unsigned int DVP_EXT_SRC_18_ASF_RMDV_Ofs;
+};
 struct DPE_Config {
 	enum DPEMODE Dpe_engineSelect;
 	unsigned int Dpe_is16BitMode;
 	struct DVS_Settings	Dpe_DVSSettings;
 	struct DVP_Settings	Dpe_DVPSettings;
+	struct DPE_Config_map DPE_DMapSettings;
+	unsigned int use_fd;
 	unsigned int Dpe_InBuf_SrcImg_Y_L;
 	unsigned int Dpe_InBuf_SrcImg_Y_R;
 	unsigned int Dpe_InBuf_SrcImg_Y;
@@ -543,10 +590,6 @@ struct compat_DPE_Request {
 #define DPE_DUMP_REG        _IO(DPE_MAGIC, DPE_CMD_DUMP_REG)
 #define DPE_DUMP_ISR_LOG    _IO(DPE_MAGIC, DPE_CMD_DUMP_ISR_LOG)
 
-#define DPE_READ_REGISTER						\
-	_IOWR(DPE_MAGIC, DPE_CMD_READ_REG, struct DPE_REG_IO_STRUCT)
-#define DPE_WRITE_REGISTER						\
-	_IOWR(DPE_MAGIC, DPE_CMD_WRITE_REG, struct DPE_REG_IO_STRUCT)
 #define DPE_WAIT_IRQ							\
 	_IOW(DPE_MAGIC, DPE_CMD_WAIT_IRQ, struct DPE_WAIT_IRQ_STRUCT)
 #define DPE_CLEAR_IRQ							\
@@ -561,10 +604,6 @@ struct compat_DPE_Request {
 #define DPE_DEQUE_REQ  _IOWR(DPE_MAGIC, DPE_CMD_DEQUE_REQ,  struct DPE_Request)
 
 #ifdef CONFIG_COMPAT
-#define COMPAT_DPE_WRITE_REGISTER					\
-	_IOWR(DPE_MAGIC, DPE_CMD_WRITE_REG, struct compat_DPE_REG_IO_STRUCT)
-#define COMPAT_DPE_READ_REGISTER					\
-	_IOWR(DPE_MAGIC, DPE_CMD_READ_REG, struct compat_DPE_REG_IO_STRUCT)
 
 #define COMPAT_DPE_ENQUE_REQ						\
 	_IOWR(DPE_MAGIC, DPE_CMD_ENQUE_REQ, struct compat_DPE_Request)

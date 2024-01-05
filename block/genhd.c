@@ -1025,7 +1025,7 @@ static int show_iodevs(struct seq_file *seqf, void *v)
 	struct hd_struct *part;
 	char buf[BDEVNAME_SIZE];
 
-	/* Don't show non-partitionable removeable devices or empty devices */
+	/* Don't show non-partitionable removable devices or empty devices */
 	if (!get_capacity(sgp) || (!disk_max_parts(sgp) &&
 				(sgp->flags & GENHD_FL_REMOVABLE)))
 		return 0;
@@ -1236,7 +1236,7 @@ static DEVICE_ATTR(stat, S_IRUGO, part_stat_show, NULL);
 static DEVICE_ATTR(inflight, S_IRUGO, part_inflight_show, NULL);
 static DEVICE_ATTR(badblocks, S_IRUGO | S_IWUSR, disk_badblocks_show,
 		disk_badblocks_store);
-static DEVICE_ATTR(diskios, 0600, disk_ios_show, NULL);
+static DEVICE_ATTR(diskios, 0400, disk_ios_show, NULL);
 #ifdef CONFIG_FAIL_MAKE_REQUEST
 static struct device_attribute dev_attr_fail =
 	__ATTR(make-it-fail, S_IRUGO|S_IWUSR, part_fail_show, part_fail_store);
@@ -1486,7 +1486,7 @@ static int iostats_show(struct seq_file *seqf, void *v)
 	unsigned long thresh = 0;
 	unsigned long bg_thresh = 0;
 	struct backing_dev_info *bdi;
-	unsigned int inflight[2];
+	unsigned int nread, nwrite;
 
 	unsigned long long uptime_s;
 	unsigned long long uptime_ms;
@@ -1499,7 +1499,6 @@ static int iostats_show(struct seq_file *seqf, void *v)
 	while ((hd = disk_part_iter_next(&piter))) {
 		cpu = part_stat_lock();
 		part_round_stats(gp->queue, cpu, hd);
-		part_in_flight_rw(gp->queue, hd, inflight);
 		part_stat_unlock();
 		uptime = ktime_to_ns(ktime_get());
 		do_div(uptime, 1000000);
@@ -1508,7 +1507,10 @@ static int iostats_show(struct seq_file *seqf, void *v)
 
 		flight_tmp = (unsigned long) gp->queue->in_flight_time;
 		do_div(flight_tmp, USEC_PER_MSEC);
+
 		bdi = gp->queue->backing_dev_info;
+		nread = part_in_flight_read(hd);
+		nwrite = part_in_flight_write(hd);
 		seq_printf(seqf, "%4d %7d %s %lu %lu %lu %u "
 				"%lu %lu %lu %u %u %u %u "
 				/* added */
@@ -1526,16 +1528,17 @@ static int iostats_show(struct seq_file *seqf, void *v)
 				part_stat_read(hd, merges[WRITE]),
 				part_stat_read(hd, sectors[WRITE]),
 				jiffies_to_msecs(part_stat_read(hd, ticks[WRITE])),
-				inflight[0] + inflight[1],
+				/*part_in_flight(hd),*/
+				nread + nwrite,
 				jiffies_to_msecs(part_stat_read(hd, io_ticks)),
 				jiffies_to_msecs(part_stat_read(hd, time_in_queue)),
-				/* followings are added */
+				/* following are added */
 				part_stat_read(hd, discard_ios),
 				part_stat_read(hd, discard_sectors),
 				part_stat_read(hd, flush_ios),
 				gp->queue->flush_ios,
 
-				inflight[0], /* read request count */
+				nread,
 				flight_tmp,
 				PG2KB(thresh),
 				PG2KB(bdi->last_thresh),

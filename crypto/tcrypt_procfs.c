@@ -61,7 +61,7 @@ static void PR_ECHO(fmt, ...)
 #include <linux/jiffies.h>
 #include <linux/timex.h>
 #include <linux/interrupt.h>
-#include "tcrypt_procfs.h"
+#include "tcrypt_dbgfs.h"
 
 /*
  * Need slab memory for testing (size in number of pages).

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2019 MediaTek Inc.
+# Copyright (C) 2022 MediaTek Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -11,6 +11,5 @@
 # GNU General Public License for more details.
 #
 
-obj-y += s5k4hayxotp.o
 obj-y += s5k4hayxmipiraw_Sensor.o
 

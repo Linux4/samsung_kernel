@@ -98,8 +98,6 @@ static struct LCM_UTIL_FUNCS lcm_util = {0};
 			lcm_util.dsi_set_cmdq_V3(para_tbl, size, force_update)
 #define dsi_set_cmdq_V22(cmdq, cmd, count, ppara, force_update) \
 			lcm_util.dsi_set_cmdq_V22(cmdq, cmd, count, ppara, force_update)
-#define dsi_set_cmdq_V24(cmdq, cmd, count, ppara, force_update, hs) \
-			lcm_util.dsi_set_cmdq_V24(cmdq, cmd, count, ppara, force_update, hs)
 #define dsi_set_cmdq_V2(cmd, count, ppara, force_update) \
 			lcm_util.dsi_set_cmdq_V2(cmd, count, ppara, force_update)
 #define dsi_set_cmdq(pdata, queue_size, force_update) \
@@ -175,7 +173,7 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
 	/* 2.PAGE ADDRESS SET */
 	{0x2A, 4, {0x00, 0x00, 0x04, 0x37} },
 	{0x2B, 4, {0x00, 0x00, 0x09, 0x5F} },
-
+	
 	/* 4.ERR_FG Setting */
 	{0xF0, 2, {0x5A, 0x5A} },
 	{0xE5, 1, {0x05} },
@@ -332,8 +330,8 @@ static void push_table(void *cmdq, struct LCM_setting_table *table,
 #endif
 			break;
 		default:
-			dsi_set_cmdq_V24(cmdq, cmd, table[i].count,
-				table[i].para_list, force_update, 0);
+			dsi_set_cmdq_V22(cmdq, cmd, table[i].count,
+				table[i].para_list, force_update);
 		}
 	}
 }
@@ -387,7 +385,7 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	params->physical_width_um = LCM_PHYSICAL_WIDTH;
 	params->physical_height_um = LCM_PHYSICAL_HEIGHT;
 	params->density = LCM_DENSITY;
-
+	
 	params->lcm_if = LCM_INTERFACE_DSI0;
 	params->lcm_cmd_if = LCM_INTERFACE_DSI0;
 
@@ -446,8 +444,8 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	/****DynFPS end****/
 #endif
 	/* HBM: High Backlight Mode */
-	params->hbm_enable_wait_frame = 2;
-	params->hbm_disable_wait_frame = 0;
+	params->hbm_en_time = 2;
+	params->hbm_dis_time = 0;
 }
 
 static void lcm_init(void)

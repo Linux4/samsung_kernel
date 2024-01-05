@@ -344,14 +344,8 @@ enum IMGSENSOR_RETURN imgsensor_i2c_read(
 		u16 id,
 		int speed)
 {
-	struct IMGSENSOR_I2C_INST *pinst = NULL;
+	struct IMGSENSOR_I2C_INST *pinst = pi2c_cfg->pinst;
 	enum   IMGSENSOR_RETURN    ret   = IMGSENSOR_RETURN_SUCCESS;
-
-	if (pi2c_cfg == NULL) {
-		PK_PR_ERR("pi2c_cfg is NULL!\n");
-		return IMGSENSOR_RETURN_ERROR;
-	}
-	pinst = pi2c_cfg->pinst;
 
 	if (pinst->pi2c_client == NULL) {
 		PK_PR_ERR("pi2c_client is NULL!\n");

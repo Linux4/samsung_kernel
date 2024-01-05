@@ -5,9 +5,3 @@ config MTK_THERMAL_PA_VIA_ATCMD
 	  to query modem RF temperature
 	  via AT command.
 	  (RIL sockets)
-
-config MTK_THERMAL_FIX_VALUE
-	bool "Thermal Fix Board Temp"
-	help
-	  By different thermal points.
-	  Fix temp value 40' to ignore MTK thermal points.

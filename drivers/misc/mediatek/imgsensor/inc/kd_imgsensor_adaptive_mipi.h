@@ -30,21 +30,6 @@ struct cam_mipi_channel {
 	u16 setting_index;
 };
 
-struct cam_mipi_setting {
-	const char *str_mipi_clk;
-	const u32 mipi_rate; /* it's not internal mipi clock */
-	const u16 *setting;
-	const u32 setting_size;
-};
-
-struct cam_mipi_sensor_mode {
-	const u32 mode;
-	const struct cam_mipi_channel *mipi_channel;
-	const u32 mipi_channel_size;
-	const struct cam_mipi_setting *sensor_setting;
-	const u32 sensor_setting_size;
-};
-
 /* RAT */
 enum {
 	CAM_RAT_1_GSM = 1,

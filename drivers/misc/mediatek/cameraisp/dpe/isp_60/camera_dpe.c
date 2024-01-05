@@ -279,6 +279,7 @@ struct wakeup_source DPE_wake_lock;
 
 static DEFINE_MUTEX(gDpeMutex);
 static DEFINE_MUTEX(gDpeDequeMutex);
+static DEFINE_MUTEX(MutexDPERef);
 
 #ifdef CONFIG_OF
 
@@ -427,7 +428,6 @@ struct DPE_IRQ_INFO_STRUCT {
 };
 
 struct DPE_INFO_STRUCT {
-	spinlock_t SpinLockDPERef;
 	spinlock_t SpinLockDPE;
 	spinlock_t SpinLockIrq[DPE_IRQ_TYPE_AMOUNT];
 	wait_queue_head_t WaitQueueHead;
@@ -1419,7 +1419,7 @@ void DPE_Config_DVS(struct DPE_Config *pDpeConfig,
 	unsigned int pitch = pDpeConfig->Dpe_DVSSettings.pitch >> 4;
 
 	LOG_INF(
-	"DVS param: frm w/h(%d/%d), engStart X_L/X_R/Y(%d/%d/%d), eng w/h(%d/%d), occ w(%d), occ startX(%d), pitch(%d), main eye(%d), 16bit mode(%d), sbf/conf/occ_en(%d/%d/%d), Dpe_InBuf_SrcImg_Y_L: (0x%08x), Dpe_InBuf_SrcImg_Y_R(0x%08x), Dpe_InBuf_ValidMap_L(0x%08x), Dpe_InBuf_ValidMap_R(0x%08x), Dpe_OutBuf_CONF(0x%08x), Dpe_OutBuf_OCC(0x%08x)\n",
+	"DVS param: frm w/h(%d/%d), engStart X_L/X_R/Y(%d/%d/%d), eng w/h(%d/%d), occ w(%d), occ startX(%d), pitch(%d), main eye(%d), 16bit mode(%d), sbf/conf/occ_en(%d/%d/%d), Dpe_InBuf_SrcImg_Y_L: (0x%08x), Dpe_InBuf_SrcImg_Y_R(0x%08x), Dpe_InBuf_ValidMap_L(0x%08x), Dpe_InBuf_ValidMap_R(0x%08x), Dpe_OutBuf_CONF(0x%08x), Dpe_OutBuf_OCC(0x%08x), use_fd(%d)\n",
 	frmWidth, frmHeight, L_engStartX, R_engStartX, engStartY,
 	engWidth, engHeight, occWidth, occStartX, pitch,
 	pDpeConfig->Dpe_DVSSettings.mainEyeSel, pDpeConfig->Dpe_is16BitMode,
@@ -1428,8 +1428,7 @@ void DPE_Config_DVS(struct DPE_Config *pDpeConfig,
 	pDpeConfig->Dpe_DVSSettings.SubModule_EN.occ_en,
 	pDpeConfig->Dpe_InBuf_SrcImg_Y_L, pDpeConfig->Dpe_InBuf_SrcImg_Y_R,
 	pDpeConfig->Dpe_InBuf_ValidMap_L, pDpeConfig->Dpe_InBuf_ValidMap_R,
-	pDpeConfig->Dpe_OutBuf_CONF, pDpeConfig->Dpe_OutBuf_OCC);
-
+	pDpeConfig->Dpe_OutBuf_CONF, pDpeConfig->Dpe_OutBuf_OCC, pDpeConfig->use_fd);
 	LOG_DBG(
 	"Dpe_InBuf_SrcImg_Y_L: (0x%08x), Dpe_InBuf_SrcImg_Y_R(0x%08x), Dpe_InBuf_ValidMap_L(0x%08x), Dpe_InBuf_ValidMap_R(0x%08x), Dpe_OutBuf_CONF(0x%08x), Dpe_OutBuf_OCC(0x%08x)\n",
 	pDpeConfig->Dpe_InBuf_SrcImg_Y_L, pDpeConfig->Dpe_InBuf_SrcImg_Y_R,
@@ -3020,13 +3019,13 @@ static inline void DPE_Reset(void)
 	LOG_DBG("- E.");
 
 	LOG_DBG(" DPE Reset start!\n");
-	spin_lock(&(DPEInfo.SpinLockDPERef));
+	mutex_lock(&(MutexDPERef));
 
 	if (DPEInfo.UserCount > 1) {
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 		LOG_DBG("Curr UserCount(%d) users exist", DPEInfo.UserCount);
 	} else {
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 
 		/* Reset DPE flow */
 		DPE_MASKWR(DVS_CTRL01_REG, 0x70000000, 0x70000000);
@@ -3036,160 +3035,6 @@ static inline void DPE_Reset(void)
 
 		LOG_DBG(" DPE Reset end!\n");
 	}
-}
-
-/*******************************************************************************
- *
- ******************************************************************************/
-static signed int DPE_ReadReg(struct DPE_REG_IO_STRUCT *pRegIo)
-{
-	unsigned int i;
-	signed int Ret = 0;
-	/*  */
-	struct DPE_REG_STRUCT reg;
-	/* unsigned int* pData = (unsigned int*)pRegIo->Data; */
-	struct DPE_REG_STRUCT *pData = (struct DPE_REG_STRUCT *) pRegIo->pData;
-
-	if ((pRegIo->pData == NULL) ||
-		(pRegIo->Count == 0) ||
-		(pRegIo->Count > DPE_MAX_REG_CNT)) {
-		LOG_ERR("ERROR: pRegIo->pData is NULL or Count:%d\n",
-			pRegIo->Count);
-		Ret = -EFAULT;
-		goto EXIT;
-	}
-
-	for (i = 0; i < pRegIo->Count; i++) {
-		if (get_user(reg.Addr, (unsigned int *) &pData->Addr) != 0) {
-			LOG_ERR("get_user failed");
-			Ret = -EFAULT;
-			goto EXIT;
-		}
-		/* pData++; */
-		/*  */
-		if ((ISP_DPE_BASE + reg.Addr >= ISP_DPE_BASE)
-		    && (ISP_DPE_BASE + reg.Addr <
-						(ISP_DPE_BASE + DPE_REG_RANGE))
-			&& ((reg.Addr & 0x3) == 0)) {
-			reg.Val = DPE_RD32(ISP_DPE_BASE + reg.Addr);
-		} else {
-			LOG_ERR(
-			"Wrong address(0x%p)", (ISP_DPE_BASE + reg.Addr));
-			reg.Val = 0;
-		}
-		/*  */
-
-		if (put_user(reg.Val, (unsigned int *) &(pData->Val)) != 0) {
-			LOG_ERR("put_user failed");
-			Ret = -EFAULT;
-			goto EXIT;
-		}
-		pData++;
-		/*  */
-	}
-	/*  */
-EXIT:
-	return Ret;
-}
-
-
-/*******************************************************************************
- *
- ******************************************************************************/
-static signed int DPE_WriteRegToHw(struct DPE_REG_STRUCT *pReg,
-							unsigned int Count)
-{
-	signed int Ret = 0;
-	unsigned int i;
-	bool dbgWriteReg;
-
-	spin_lock(&(DPEInfo.SpinLockDPE));
-	dbgWriteReg = DPEInfo.DebugMask & DPE_DBG_WRITE_REG;
-	spin_unlock(&(DPEInfo.SpinLockDPE));
-
-	/*  */
-	if (dbgWriteReg)
-		LOG_DBG("- E.\n");
-
-	/*  */
-	for (i = 0; i < Count; i++) {
-		if (dbgWriteReg) {
-			LOG_DBG("Addr(0x%lx), Val(0x%x)\n",
-				(unsigned long)(ISP_DPE_BASE + pReg[i].Addr),
-				(unsigned int) (pReg[i].Val));
-		}
-
-		if (((ISP_DPE_BASE + pReg[i].Addr) <
-						(ISP_DPE_BASE + DPE_REG_RANGE))
-			&& ((pReg[i].Addr & 0x3) == 0)) {
-			DPE_WR32(ISP_DPE_BASE + pReg[i].Addr, pReg[i].Val);
-		} else {
-			LOG_ERR("wrong address(0x%lx)\n",
-				(unsigned long)(ISP_DPE_BASE + pReg[i].Addr));
-		}
-	}
-
-	/*  */
-	return Ret;
-}
-
-
-
-/*******************************************************************************
- *
- ******************************************************************************/
-static signed int DPE_WriteReg(struct DPE_REG_IO_STRUCT *pRegIo)
-{
-	signed int Ret = 0;
-	/*
-	 *  signed int TimeVd = 0;
-	 *  signed int TimeExpdone = 0;
-	 *  signed int TimeTasklet = 0;
-	 */
-	/* unsigned char* pData = NULL; */
-	struct DPE_REG_STRUCT *pData = NULL;
-	/*  */
-	if (DPEInfo.DebugMask & DPE_DBG_WRITE_REG)
-		LOG_DBG("Data(0x%p), Count(%d)\n", (pRegIo->pData),
-							(pRegIo->Count));
-	/*  */
-	if ((pRegIo->pData == NULL) ||
-		(pRegIo->Count == 0) ||
-		(pRegIo->Count > DPE_MAX_REG_CNT)) {
-		LOG_ERR("ERROR: pRegIo->pData is NULL or Count:%d\n",
-			pRegIo->Count);
-		Ret = -EFAULT;
-		goto EXIT;
-	}
-
-	pData = kmalloc((pRegIo->Count) *
-		sizeof(struct DPE_REG_STRUCT),
-		GFP_KERNEL); /* Use GFP_KERNEL instead of GFP_ATOMIC */
-if (pData == NULL) {
-	LOG_INF("ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)\n",
-		current->comm,
-		current->pid,
-		current->tgid);
-		Ret = -ENOMEM;
-		goto EXIT;
-}
-
-	if (copy_from_user(pData,
-		(void __user *)(pRegIo->pData),
-		pRegIo->Count * sizeof(struct DPE_REG_STRUCT)) != 0) {
-		LOG_ERR("copy_from_user failed\n");
-		Ret = -EFAULT;
-		goto EXIT;
-	}
-	/*  */
-	Ret = DPE_WriteRegToHw(pData, pRegIo->Count);
-	/*  */
-EXIT:
-	if (pData != NULL) {
-		kfree(pData);
-		pData = NULL;
-	}
-	return Ret;
 }
 
 
@@ -3383,7 +3228,6 @@ static long DPE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	signed int Ret = 0;
 
 	/*unsigned int pid = 0;*/
-	struct DPE_REG_IO_STRUCT RegIo;
 	struct DPE_WAIT_IRQ_STRUCT IrqInfo;
 	struct DPE_CLEAR_IRQ_STRUCT ClearIrq;
 	struct DPE_Config dpe_DpeConfig;
@@ -3438,30 +3282,6 @@ static long DPE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 								_LOG_INF);
 			IRQ_LOG_PRINTER(DPE_IRQ_TYPE_INT_DVP_ST, currentPPB,
 								_LOG_ERR);
-			break;
-		}
-	case DPE_READ_REGISTER:
-		{
-			if (copy_from_user(&RegIo, (void *)Param,
-				sizeof(struct DPE_REG_IO_STRUCT)) == 0) {
-				Ret = DPE_ReadReg(&RegIo);
-			} else {
-				LOG_ERR(
-				"DPE_READ_REGISTER copy_from_user failed");
-				Ret = -EFAULT;
-			}
-			break;
-		}
-	case DPE_WRITE_REGISTER:
-		{
-			if (copy_from_user(&RegIo, (void *)Param,
-				sizeof(struct DPE_REG_IO_STRUCT)) == 0) {
-				Ret = DPE_WriteReg(&RegIo);
-			} else {
-				LOG_ERR(
-				"DPE_WRITE_REGISTER copy_from_user failed");
-				Ret = -EFAULT;
-			}
 			break;
 		}
 	case DPE_WAIT_IRQ:
@@ -3554,6 +3374,14 @@ static long DPE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				    g_DPE_ReqRing.DPEReq_Struct[
 							g_DPE_ReqRing.WriteIdx].
 				    State) {
+					if (enqueNum >
+						_SUPPORT_MAX_DPE_FRAME_REQUEST_ ||
+						enqueNum < 0) {
+						LOG_ERR(
+						"DPE Enque Num is bigger than enqueNum:%d\n",
+						enqueNum);
+						break;
+					}
 					spin_lock_irqsave(
 					&(DPEInfo.SpinLockIrq[
 						DPE_IRQ_TYPE_INT_DVP_ST]),
@@ -3568,12 +3396,6 @@ static long DPE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					spin_unlock_irqrestore(
 					&(DPEInfo.SpinLockIrq[
 					DPE_IRQ_TYPE_INT_DVP_ST]), flags);
-					if (enqueNum >
-					_SUPPORT_MAX_DPE_FRAME_REQUEST_) {
-						LOG_ERR(
-						"DPE Enque Num is bigger than enqueNum:%d\n",
-						     enqueNum);
-					}
 					LOG_DBG(
 					"DPE_ENQNUE_NUM:%d\n", enqueNum);
 				} else {
@@ -3911,35 +3733,6 @@ EXIT:
 /*******************************************************************************
  *
  ******************************************************************************/
-static int compat_get_DPE_read_register_data(
-			struct compat_DPE_REG_IO_STRUCT __user *data32,
-					struct DPE_REG_IO_STRUCT __user *data)
-{
-	compat_uint_t count;
-	compat_uptr_t uptr;
-	int err;
-
-	err = get_user(uptr, &data32->pData);
-	err |= put_user(compat_ptr(uptr), &data->pData);
-	err |= get_user(count, &data32->Count);
-	err |= put_user(count, &data->Count);
-	return err;
-}
-
-static int compat_put_DPE_read_register_data(
-			struct compat_DPE_REG_IO_STRUCT __user *data32,
-					struct DPE_REG_IO_STRUCT __user *data)
-{
-	compat_uint_t count;
-	/*compat_uptr_t uptr;*/
-	int err = 0;
-	/* Assume data pointer is unchanged. */
-	/* err = get_user(compat_ptr(uptr), &data->pData); */
-	/* err |= put_user(uptr, &data32->pData); */
-	err |= get_user(count, &data->Count);
-	err |= put_user(count, &data32->Count);
-	return err;
-}
 
 static int compat_get_DPE_enque_req_data(
 			struct compat_DPE_Request __user *data32,
@@ -4015,53 +3808,6 @@ static long DPE_ioctl_compat(struct file *filp, unsigned int cmd,
 		return -ENOTTY;
 	}
 	switch (cmd) {
-	case COMPAT_DPE_READ_REGISTER:
-		{
-			struct compat_DPE_REG_IO_STRUCT __user *data32;
-			struct DPE_REG_IO_STRUCT __user *data;
-			int err;
-
-			data32 = compat_ptr(arg);
-			data = compat_alloc_user_space(sizeof(*data));
-			if (data == NULL)
-				return -EFAULT;
-
-			err = compat_get_DPE_read_register_data(data32, data);
-			if (err) {
-				LOG_INF("compat_get_read_register_data err.\n");
-				return err;
-			}
-			ret =
-			    filp->f_op->unlocked_ioctl(filp, DPE_READ_REGISTER,
-						       (unsigned long)data);
-			err = compat_put_DPE_read_register_data(data32, data);
-			if (err) {
-				LOG_INF("compat_put_read_register_data err.\n");
-				return err;
-			}
-			return ret;
-		}
-	case COMPAT_DPE_WRITE_REGISTER:
-		{
-			struct compat_DPE_REG_IO_STRUCT __user *data32;
-			struct DPE_REG_IO_STRUCT __user *data;
-			int err;
-
-			data32 = compat_ptr(arg);
-			data = compat_alloc_user_space(sizeof(*data));
-			if (data == NULL)
-				return -EFAULT;
-
-			err = compat_get_DPE_read_register_data(data32, data);
-			if (err) {
-				LOG_INF("COMPAT_DPE_WRITE_REGISTER error!!!\n");
-				return err;
-			}
-			ret =
-			    filp->f_op->unlocked_ioctl(filp, DPE_WRITE_REGISTER,
-						       (unsigned long)data);
-			return ret;
-		}
 	case COMPAT_DPE_ENQUE_REQ:
 		{
 			struct compat_DPE_Request __user *data32;
@@ -4147,8 +3893,7 @@ static signed int DPE_open(struct inode *pInode, struct file *pFile)
 
 
 	/*  */
-	spin_lock(&(DPEInfo.SpinLockDPERef));
-
+	mutex_lock(&(MutexDPERef));
 	pFile->private_data = NULL;
 	pFile->private_data = kmalloc(sizeof(struct DPE_USER_INFO_STRUCT),
 								GFP_ATOMIC);
@@ -4157,6 +3902,8 @@ static signed int DPE_open(struct inode *pInode, struct file *pFile)
 								current->comm,
 						current->pid, current->tgid);
 		Ret = -ENOMEM;
+		mutex_unlock(&(MutexDPERef));
+		goto EXIT;
 	} else {
 		pUserInfo = (struct DPE_USER_INFO_STRUCT *) pFile->private_data;
 		pUserInfo->Pid = DPEInfo.UserCount;
@@ -4165,14 +3912,13 @@ static signed int DPE_open(struct inode *pInode, struct file *pFile)
 	/*  */
 	if (DPEInfo.UserCount > 0) {
 		DPEInfo.UserCount++;
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 		LOG_DBG("Cur Usr(%d), (proc, pid, tgid)=(%s, %d, %d), exist",
 			DPEInfo.UserCount, current->comm, current->pid,
 								current->tgid);
 		goto EXIT;
 	} else {
 		DPEInfo.UserCount++;
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
 
 		/* do wait queue head init when re-enter in camera */
 		/*  */
@@ -4211,6 +3957,7 @@ static signed int DPE_open(struct inode *pInode, struct file *pFile)
 		/*  */
 		dpe_register_requests(&dpe_reqs, sizeof(struct DPE_Config));
 		dpe_set_engine_ops(&dpe_reqs, &dpe_ops);
+		mutex_unlock(&(MutexDPERef));
 
 		LOG_DBG("Cur Usr(%d), (proc, pid, tgid)=(%s, %d, %d), 1st user",
 			DPEInfo.UserCount, current->comm, current->pid,
@@ -4267,18 +4014,18 @@ static signed int DPE_release(struct inode *pInode, struct file *pFile)
 		pFile->private_data = NULL;
 	}
 	/*  */
-	spin_lock(&(DPEInfo.SpinLockDPERef));
+	mutex_lock(&(MutexDPERef));
 	DPEInfo.UserCount--;
 
 	if (DPEInfo.UserCount > 0) {
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 		LOG_DBG("Cur UsrCnt(%d), (proc, pid, tgid)=(%s, %d, %d), exist",
 			DPEInfo.UserCount, current->comm, current->pid,
 								current->tgid);
 		goto EXIT;
 	} else {
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
 		dpe_unregister_requests(&dpe_reqs);
+		mutex_unlock(&(MutexDPERef));
 	}
 	/*  */
 	LOG_INF("Curr UsrCnt(%d), (process, pid, tgid)=(%s, %d, %d), last user",
@@ -4825,7 +4572,6 @@ if (DPE_dev->irq > 0) {
 #endif
 
 		/* Init spinlocks */
-		spin_lock_init(&(DPEInfo.SpinLockDPERef));
 		spin_lock_init(&(DPEInfo.SpinLockDPE));
 		for (n = 0; n < DPE_IRQ_TYPE_AMOUNT; n++)
 			spin_lock_init(&(DPEInfo.SpinLockIrq[n]));
@@ -4848,9 +4594,9 @@ if (DPE_dev->irq > 0) {
 
 
 		/* Init DPEInfo */
-		spin_lock(&(DPEInfo.SpinLockDPERef));
+		mutex_lock(&(MutexDPERef));
 		DPEInfo.UserCount = 0;
-		spin_unlock(&(DPEInfo.SpinLockDPERef));
+		mutex_unlock(&(MutexDPERef));
 		/*  */
 		DPEInfo.IrqInfo.Mask[DPE_IRQ_TYPE_INT_DVP_ST] = INT_ST_MASK_DPE;
 

@@ -3,6 +3,7 @@
 #
 
 comment "USB Notify features"
+
 config USB_HOST_NOTIFY
 	bool "USB Host notify Driver"
 	depends on USB_NOTIFY_LAYER
@@ -13,7 +14,7 @@ config USB_HOST_NOTIFY
 	 The uevent include host connect, disconnect, source, sink.
 
 config USB_NOTIFY_LAYER
-	bool "USB notify layer"
+	tristate "USB notify layer"
 	depends on USB
 	help
 	 Added usb notify layer on gadget,host,otg drivers.
@@ -22,7 +23,7 @@ config USB_NOTIFY_LAYER
 	 It is made by samsung.
 
 config USB_NOTIFIER
-	bool "USB notifier"
+	tristate "USB notifier"
 	depends on USB_NOTIFY_LAYER
 	help
 	 Added platform driver to call usb notify.
@@ -44,19 +45,20 @@ config USB_STORAGE_DETECT
 	depends on USB && SCSI
 	depends on USB_STORAGE
 	help
-	  This feature enables to detect inserting or removing
-          sd card in sd reader device.
-          This must to be defined in /usb/storage/Kconfig
-          directory originally. But this feature is defined
-          in this Kconfig to gather samsung feature about usb host.
+	 This feature enables to detect inserting or removing
+	 sd card in sd reader device.
+	 This must to be defined in /usb/storage/Kconfig
+	 directory originally. But this feature is defined
+	 in this Kconfig to gather samsung feature about usb host.
 
 config USB_HMT_SAMSUNG_INPUT
 	bool "USB HMT inputs for samsung hmt devices"
 	depends on HID
 	help
-	  Some samsung smart phones support gear vr.
-          The samsung gear vr need some special hid input codes.
-          This feature enables special hid input codes.
+	 Some samsung smart phones support gear vr.
+	 The samsung gear vr need some special hid input codes.
+	 This feature enables special hid input codes.
+	 ..
 
 config USB_EXTERNAL_NOTIFY
 	bool "USB external notify"
@@ -93,6 +95,7 @@ config USB_HW_PARAM
 	 Added USB H/W Parameter for DQA Agent.
 	 You need more works for USB PDIC driver.
 	 It is made by samsung.
+	 ..
 
 config USB_INTERFACE_LPM_LIST
 	bool "USB interface class lpm Feature"
@@ -109,21 +112,24 @@ config USB_CCIC_NOTIFIER_USING_QC
 	help
 	 When USB type C model uses QC PMIC without IFPMIC,
 	 add to get notification from QC PMIC.
+	 ..
+	 ..
 
 config USB_AUDIO_ENHANCED_DETECT_TIME
 	bool "USB audio enhanced detect time"
 	depends on USB_NOTIFY_LAYER
-	depends on !SEC_FACTORY
 	help
 	 Added uevent for usb audio device(bundle)
 	 uevent includes path, card number, vid, pid
 	 The usb framework gets this uevent.
 	 It is made by samsung.
 
-config USB_DONGLE
-	bool "5G dongle notifier"
+config USB_HOST_CERTI
+	bool "USB Embedded host certification"
 	depends on USB_NOTIFY_LAYER
+	depends on !SEC_FACTORY
 	help
-	 The dongle_notifier.c can be spported by 5G dongle.
-	 It is not common code.
-	 It may be different for each project.
+	 Added uevent for usb embedded host certification
+	 uevent includes information of notification
+	 The usb framework gets this uevent.
+	 It is made by samsung.

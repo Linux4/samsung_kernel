@@ -1559,6 +1559,7 @@ static void __vunmap(const void *addr, int deallocate_pages)
 			__free_pages(page, 0);
 		}
 		atomic_long_sub(area->nr_pages, &nr_vmalloc_pages);
+
 		kvfree(area->pages);
 	}
 
@@ -1732,8 +1733,8 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 		if (gfpflags_allow_blocking(gfp_mask|highmem_mask))
 			cond_resched();
 	}
-
 	atomic_long_add(area->nr_pages, &nr_vmalloc_pages);
+
 	if (map_vm_area(area, prot, pages))
 		goto fail;
 	return area->addr;
@@ -2836,7 +2837,6 @@ static const struct file_operations proc_vmalloc_operations = {
 static int __init proc_vmalloc_init(void)
 {
 	proc_create("vmallocinfo", S_IRUSR, NULL, &proc_vmalloc_operations);
-	atomic_long_set(&nr_vmalloc_pages, 0);
 	show_mem_extra_notifier_register(&vmalloc_size_nb);
 	return 0;
 }

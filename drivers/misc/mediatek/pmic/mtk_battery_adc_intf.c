@@ -55,10 +55,11 @@ bool pmic_is_battery_exist(void)
 	return is_bat_exist;
 #endif
 
-	/* Battery always present */
-	pr_err("pmic_is_battery_exist : force return as true\n");
+#if defined(CONFIG_MTK_NO_USE_BATON)
+	bm_debug("[%s] MTK_NO_USE_BATON force return as true.\n", __func__);
 	is_bat_exist = true;
 	return is_bat_exist;
+#endif /* CONFIG_MTK_NO_USE_BATON */
 
 #if defined(CONFIG_MTK_PMIC_CHIP_MT6358) \
 || defined(CONFIG_MTK_PMIC_CHIP_MT6359) \

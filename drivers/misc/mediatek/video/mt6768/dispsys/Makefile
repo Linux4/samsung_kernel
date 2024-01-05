@@ -33,7 +33,8 @@ subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM) \
 subdir-ccflags-y += -I$(srctree)/drivers/staging/android/ion \
 		    -I$(srctree)/drivers/staging/android/ion/mtk
 
-subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3/
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3/ \
+		    -I$(srctree)/drivers/misc/mediatek/cmdq/bridge
 
 ifeq ($(CONFIG_MACH_MT6761),y)
     subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v3/mt6765/
@@ -86,8 +87,9 @@ obj-y += ddp_irq.o
 obj-y += ddp_info.o
 obj-y += ddp_color_format.o
 obj-y += ddp_pwm_mux.o
-
-
+ifeq ($(CONFIG_MACH_MT6768),y)
+obj-y += ddp_disp_bdg.o
+endif
 ifeq ($(CONFIG_MMPROFILE), y)
 obj-y += ddp_mmp.o
 endif
@@ -114,4 +116,10 @@ ifeq ($(strip $(CONFIG_MTK_PQ_COLOR_MODE)),"DISP")
 else ifeq ($(strip $(CONFIG_MTK_PQ_COLOR_MODE)),"OFF")
     ccflags-y += -DDISP_COLOR_ON
 endif
+
+ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/trusted_mem/public/
+endif
+subdir-ccflags-y += -I$(srctree)/drivers/staging/android/ion \
+		    -I$(srctree)/drivers/staging/android/ion/mtk
 # EOF

@@ -985,7 +985,7 @@ ssize_t sysfs_device_store_attrs(
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			pr_info("%s: Charger WDT Set : %d\n", __func__, x);
 			battery->wdt_kick_disable = x;
-#if defined(CONFIG_ENG_BATTERY_CONCEPT) && defined(CONFIG_DIRECT_CHARGING)
+#if defined(CONFIG_DIRECT_CHARGING)
 			value.intval = x;
 			psy_do_property(battery->pdata->charger_name, set,
 				POWER_SUPPLY_EXT_PROP_DIRECT_WDT_CONTROL, value);
@@ -1158,8 +1158,7 @@ ssize_t sysfs_device_store_attrs(
 #endif
 	case BATT_RESET_SOC:
 		/* Do NOT reset fuel gauge in charging mode */
-		if (is_nocharge_type(battery->cable_type) ||
-			battery->is_jig_on) {
+		if (battery->is_jig_on) {
 			sec_bat_set_misc_event(battery, BATT_MISC_EVENT_BATT_RESET_SOC, BATT_MISC_EVENT_BATT_RESET_SOC);
 
 			value.intval =
@@ -1194,7 +1193,11 @@ ssize_t sysfs_device_store_attrs(
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 		if (sscanf(buf, "%d\n", &x) == 1) {
 			if (x >= 0 && x <= 100) {
+				dev_info(battery->dev, "%s: batt_asoc(%d)\n", __func__, x);
 				battery->batt_asoc = x;
+#if defined(CONFIG_BATTERY_CISD)
+				battery->cisd.data[CISD_DATA_ASOC] = x;
+#endif
 				sec_bat_check_battery_health(battery);
 			}
 			ret = count;

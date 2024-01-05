@@ -100,8 +100,6 @@ static struct LCM_UTIL_FUNCS lcm_util = {0};
 			lcm_util.dsi_set_cmdq_V3(para_tbl, size, force_update)
 #define dsi_set_cmdq_V22(cmdq, cmd, count, ppara, force_update) \
 			lcm_util.dsi_set_cmdq_V22(cmdq, cmd, count, ppara, force_update)
-#define dsi_set_cmdq_V24(cmdq, cmd, count, ppara, force_update, hs) \
-			lcm_util.dsi_set_cmdq_V24(cmdq, cmd, count, ppara, force_update, hs)
 #define dsi_set_cmdq_V2(cmd, count, ppara, force_update) \
 			lcm_util.dsi_set_cmdq_V2(cmd, count, ppara, force_update)
 #define dsi_set_cmdq(pdata, queue_size, force_update) \
@@ -177,7 +175,7 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
 	/* 2.PAGE ADDRESS SET */
 	{0x2A, 4, {0x00, 0x00, 0x02, 0xCF} },
 	{0x2B, 4, {0x00, 0x00, 0x06, 0x3F} },
-	
+
 	/* 6.PCD Setting */
 	{0xF0, 2, {0x5A, 0x5A} },
 	{0xCD, 2, {0x5C, 0x51} },
@@ -407,8 +405,8 @@ static void push_table(void *cmdq, struct LCM_setting_table *table,
 #endif
 			break;
 		default:
-			dsi_set_cmdq_V24(cmdq, cmd, table[i].count,
-				table[i].para_list, force_update, 0);
+			dsi_set_cmdq_V22(cmdq, cmd, table[i].count,
+				table[i].para_list, force_update);
 		}
 	}
 }
@@ -462,7 +460,7 @@ static void lcm_get_params(struct LCM_PARAMS *params)
 	params->physical_width_um = LCM_PHYSICAL_WIDTH;
 	params->physical_height_um = LCM_PHYSICAL_HEIGHT;
 	params->density = LCM_DENSITY;
-	
+
 	params->lcm_if = LCM_INTERFACE_DSI0;
 	params->lcm_cmd_if = LCM_INTERFACE_DSI0;
 

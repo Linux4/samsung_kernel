@@ -11,21 +11,24 @@
 #define LINUX_MMC_CARD_H
 
 #include <linux/device.h>
-#include <linux/mmc/core.h>
 #include <linux/mod_devicetable.h>
 
-#define MAX_CNT_U64     0xFFFFFFFFFF
-#define MAX_CNT_U32     0x7FFFFFFF
-#define STATUS_MASK     (R1_ERROR | R1_CC_ERROR | R1_CARD_ECC_FAILED | R1_WP_VIOLATION | R1_OUT_OF_RANGE)
+#define MAX_CNT_U64		0xFFFFFFFFFF
+#define MAX_CNT_U32		0x7FFFFFFF
+#define STATUS_MASK		(R1_ERROR | R1_CC_ERROR | R1_CARD_ECC_FAILED |\
+						R1_WP_VIOLATION | R1_OUT_OF_RANGE)
 
 /* Only [0:4] bits in response are reserved. The other bits shouldn't be used */
-#ifdef CONFIG_MTK_EMMC_CQ_SUPPORT
-#define HALT_UNHALT_ERR         0x00000001
-#define CQ_EN_DIS_ERR           0x00000002
-#define RPMB_SWITCH_ERR         0x00000004
+#define HALT_UNHALT_ERR		0x00000001
+#define CQ_EN_DIS_ERR		0x00000002
+#define RPMB_SWITCH_ERR		0x00000004
 #define CQ_HW_RST		0x00000008
-#define CQERR_MASK	(HALT_UNHALT_ERR | CQ_EN_DIS_ERR | RPMB_SWITCH_ERR | CQ_HW_RST)
-#endif
+#define CQERR_MASK		(HALT_UNHALT_ERR | CQ_EN_DIS_ERR |\
+						RPMB_SWITCH_ERR | CQ_HW_RST)
+
+#define MAX_REQ_TYPE_INDEX	5		// sbc, cmd, data, stop, busy
+#define MAX_ERR_TYPE_INDEX	2		// timeout, crc
+#define MAX_ERR_LOG_INDEX	(MAX_REQ_TYPE_INDEX * MAX_ERR_TYPE_INDEX)
 
 struct mmc_cid {
 	unsigned int		manfid;
@@ -260,21 +263,21 @@ struct mmc_part {
 #define MMC_QUIRK_CMDQ_DELAY_BEFORE_DCMD 6 /* microseconds */
 
 struct mmc_card_error_log {
-	char    type[5];        // sbc, cmd, data, stop, busy
-	int     err_type;
-	u32     status;
-	u64     first_issue_time;
-	u64     last_issue_time;
-	u32     count;
-	u32     ge_cnt;         // status[19] : general error or unknown error
-	u32     cc_cnt;         // status[20] : internal card controller error
-	u32     ecc_cnt;        // status[21] : ecc error
-	u32     wp_cnt;         // status[26] : write protection error
-	u32     oor_cnt;        // status[31] : out of range error
-	u32     halt_cnt;       // cq halt / unhalt fail
-	u32     cq_cnt;         // cq enable / disable fail
-	u32     rpmb_cnt;       // RPMB switch fail
-	u32     noti_cnt;       // uevent notification count
+	char	type[MAX_REQ_TYPE_INDEX];
+	int	err_type;
+	u32	status;
+	u64	first_issue_time;
+	u64	last_issue_time;
+	u32	count;
+	u32	ge_cnt;			// status[19] : general error or unknown error_count
+	u32	cc_cnt;			// status[20] : internal card controller error_count
+	u32	ecc_cnt;		// status[21] : ecc error_count
+	u32	wp_cnt;			// status[26] : write protection error_count
+	u32	oor_cnt;		// status[31] : out of range error
+	u32	noti_cnt;		// uevent notification count
+	u32	halt_cnt;	// cq halt / unhalt fail
+	u32	cq_cnt;		// cq enable / disable fail
+	u32	rpmb_cnt;	// RPMB switch fail
 	u32	hw_rst_cnt;	// reset count
 };
 
@@ -360,8 +363,8 @@ struct mmc_card {
 
 	unsigned int		bouncesz;	/* Bounce buffer size */
 
-	struct device_attribute error_count;
-	struct mmc_card_error_log err_log[10];
+	struct mmc_card_error_log err_log[MAX_ERR_LOG_INDEX];
+	struct mmc_card_error_log err_log_backup[MAX_ERR_LOG_INDEX];
 };
 
 static inline bool mmc_large_sector(struct mmc_card *card)
@@ -375,9 +378,8 @@ bool mmc_card_is_blockaddr(struct mmc_card *card);
 #define mmc_card_sd(c)		((c)->type == MMC_TYPE_SD)
 #define mmc_card_sdio(c)	((c)->type == MMC_TYPE_SDIO)
 
-#define mmc_get_drvdata(c)      dev_get_drvdata(&(c)->dev)
-
-#ifdef CONFIG_MTK_EMMC_CQ_SUPPORT
+#if defined(CONFIG_MTK_EMMC_CQ_SUPPORT) || defined(CONFIG_MTK_EMMC_HW_CQ)
+struct mmc_cmdq_req;
 extern void mmc_cmdq_error_logging(struct mmc_card *card,
 		struct mmc_cmdq_req *cqrq, u32 status);
 #endif

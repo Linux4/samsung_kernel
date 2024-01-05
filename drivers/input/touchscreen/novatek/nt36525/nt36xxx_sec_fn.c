@@ -1664,6 +1664,12 @@ int nvt_ts_mode_restore(struct nvt_ts_data *ts)
 				else
 					cmd = GLOVE_LEAVE;
 				break;
+			case CHARGER:
+				if (ts->sec_function & CHARGER_MASK)
+					cmd = CHARGER_PLUG_AC;
+				else
+					cmd = CHARGER_PLUG_OFF;
+				break;
 			case HOLSTER:
 				if (ts->sec_function & HOLSTER_MASK) {
 					cmd_list[0] = EVENT_MAP_HOST_CMD;
@@ -2085,6 +2091,66 @@ static void glove_mode(void *device_data)
 	ret = nvt_ts_mode_switch(ts, mode, true);
 	if (ret) {
 		mutex_unlock(&ts->lock);
+		goto out;
+	}
+
+	mutex_unlock(&ts->lock);
+
+	snprintf(buff, sizeof(buff), "%s", "OK");
+	sec->cmd_state =  SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+
+	return;
+out:
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+}
+
+static void charger_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct nvt_ts_data *ts = container_of(sec, struct nvt_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+	u8 cmd;
+
+	sec_cmd_set_default_result(sec);
+
+	if (ts->power_status == POWER_OFF_STATUS) {
+		input_err(true, &ts->client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
+		goto out;
+	}
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 1) {
+		input_err(true, &ts->client->dev, "%s: invalid parameter %d\n",
+				__func__, sec->cmd_param[0]);
+		goto out;
+	} else {
+		cmd = sec->cmd_param[0] ? CHARGER_PLUG_AC : CHARGER_PLUG_OFF;
+	}
+
+	if (mutex_lock_interruptible(&ts->lock)) {
+		input_err(true, &ts->client->dev, "%s: another task is running\n",
+				__func__);
+		goto out;
+	}
+
+	if (sec->cmd_param[0])
+		ts->sec_function |= CHARGER_MASK;
+	else
+		ts->sec_function &= ~CHARGER_MASK;
+
+	ret = nvt_ts_mode_switch(ts, cmd, true);
+	if (ret) {
+		mutex_unlock(&ts->lock);
+		input_err(true, &ts->client->dev, "failed to switch %s mode\n", (cmd == CHARGER_PLUG_AC) ? "CHARGER_PLUG_AC" : "CHARGER_PLUG_OFF");
 		goto out;
 	}
 
@@ -5314,6 +5380,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_threshold", get_threshold),},
 	{SEC_CMD("check_connection", check_connection),},
 	{SEC_CMD_H("glove_mode", glove_mode),},
+	{SEC_CMD_H("charger_mode", charger_mode),},
 	{SEC_CMD_H("aot_enable", aot_enable),},
 	{SEC_CMD_H("set_sip_mode", set_sip_mode),},
 	{SEC_CMD_H("set_game_mode", set_game_mode),},

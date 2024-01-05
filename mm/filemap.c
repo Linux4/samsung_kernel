@@ -2426,9 +2426,9 @@ static noinline void tracing_mark_write(bool start, struct file *file, pgoff_t o
 #define trace_fault_file_path_end(...) tracing_mark_write(0, ##__VA_ARGS__)
 
 #if CONFIG_MMAP_READAROUND_LIMIT == 0
-int mmap_readaround_limit = (VM_MAX_READAHEAD / 4); 		/* page */
+int mmap_readaround_limit = (VM_MAX_READAHEAD / 4);		/* page */
 #else
-int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT; 	/* page */
+int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT;	/* page */
 #endif
 
 /*

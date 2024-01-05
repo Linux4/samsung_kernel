@@ -87,6 +87,13 @@ struct sec_cmd_data {
 	u8 cmd_all_factory_state;
 };
 
+struct sec_ts_plat_data {
+	int (*stui_tsp_enter)(void);
+	int (*stui_tsp_exit)(void);
+	int (*stui_tsp_type)(void);
+};
+
+
 extern void sec_cmd_set_cmd_exit(struct sec_cmd_data *data);
 extern void sec_cmd_set_default_result(struct sec_cmd_data *data);
 extern void sec_cmd_set_cmd_result(struct sec_cmd_data *data, char *buff, int len);

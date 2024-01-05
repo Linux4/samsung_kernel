@@ -47,7 +47,6 @@
 #include <asm/stacktrace.h>
 #endif
 
-
 static const char *handler[]= {
 	"prefetch abort",
 	"data abort",

@@ -1,0 +1,175 @@
+/*
+ * Samsung Exynos SoC series Panel driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+//#include "s5e8825-dsim_freq.dtsi"
+
+/ {
+	fragment@panel_drv {
+		target-path = "/";
+		__overlay__ {
+			nt36672c_m33_00_ddi: nt36672c_m33_00_ddi {
+				id = <0x4BF240>;
+				mode = <0>;
+				resolution = <720 1600>;
+				size = <68 153>; /* 68.43mm£¨H£©*152.57mm£¨V£©*/
+				timing,refresh = <90>;
+				timing,h-porch = <8 76 10>;
+				timing,v-porch = <8 950 2>;
+				timing,dsi-hs-clk = <830>;
+				timing,pmsk = <
+					0x02 0xAD 0x02 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				timing,dsi-escape-clk = <20>;
+				mic_en = <0>;			/* 0: Disable, 1: Enable */
+				mic_ratio = <0>;		/* 0: 1/2 mic, 1: 1/3 mic */
+				mic_ver = <0>;			/* 0: mic v1.1, 1: v1.2, 2: v2.0 */
+				type_of_ddi = <0>;		/* 0: Samsung Mobile, 1: MAGNA, 2: Normal(Etc) */
+				dsc_en = <0>;			/* 0: Disable, 1: Enable */
+				dsc_cnt = <1>;			/* used DSC count */
+				dsc_slice_num = <2>;		/* count of dsc slice */
+				dsc_slice_h = <8>;		/* height of dsc slice */
+				data_lane = <4>;		/* number of using data lane */
+				cmd_underrun_cnt = <9935>;	/* for underrun detect*/
+				mres_en = <1>;
+				mres_number = <1>;
+				mres_width = <1080>;
+				mres_height = <2408>;
+				mres_dsc_width = <540>;
+				mres_dsc_height = <8>;
+				mres_dsc_en = <1>;
+				default_mode = <1>;
+				/* <xres : yres : fps : lp_ref : dsc_en : slice_w : slice_h> */
+				display_mode =  <1080 2408 60 5093 1 540 8>,
+							 <1080 2408 120 9935 1 540 8>;
+
+				hdr_num = <2>;			/* max: 4 */
+				hdr_type = <2 3 0 0>;		/* 1: DOLBY_VISION, 2: HDR10, 3: HLG */
+				hdr_max_luma = <4500000>;	/* 450 */
+				hdr_max_avg_luma = <1200000>;	/* 120 */
+				hdr_min_luma = <5>;		/* 0.0005 */
+				color_mode = <0 7 9>;  /* color mode : NATIVE, SRGB, P3 */
+
+				/* DSC PPS vender setting (optional) */
+				initial_xmit_delay = <170>;
+				initial_dec_delay = <526>;
+				scale_increment_interval = <43>;
+				final_offset = <7072>;
+			};
+
+			nt36672c_m33_01_ddi: nt36672c_m33_01_ddi {
+				id = <0x4B7240>;
+				mode = <0>;
+				resolution = <1080 2408>;
+				size = <68 153>; /* 68.43mm£¨H£©*152.57mm£¨V£©*/
+				timing,refresh = <120>;
+				timing,h-porch = <20 242 8>;
+				timing,v-porch = <10 54 8>;
+				timing,dsi-hs-clk = <1125>;
+				timing,pmsk = <
+					0x02 0xAD 0x02 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				timing,dsi-escape-clk = <20>;
+				mic_en = <0>;			/* 0: Disable, 1: Enable */
+				mic_ratio = <0>;		/* 0: 1/2 mic, 1: 1/3 mic */
+				mic_ver = <0>;			/* 0: mic v1.1, 1: v1.2, 2: v2.0 */
+				type_of_ddi = <0>;		/* 0: Samsung Mobile, 1: MAGNA, 2: Normal(Etc) */
+				dsc_en = <1>;			/* 0: Disable, 1: Enable */
+				dsc_cnt = <1>;			/* used DSC count */
+				dsc_slice_num = <2>;		/* count of dsc slice */
+				dsc_slice_h = <8>;		/* height of dsc slice */
+				data_lane = <4>;		/* number of using data lane */
+				cmd_underrun_cnt = <9935>;	/* for underrun detect*/
+				mres_en = <1>;
+				mres_number = <1>;
+				mres_width = <1080>;
+				mres_height = <2408>;
+				mres_dsc_width = <540>;
+				mres_dsc_height = <8>;
+				mres_dsc_en = <1>;
+				default_mode = <1>;
+				/* <xres : yres : fps : lp_ref : dsc_en : slice_w : slice_h> */
+				display_mode =  <1080 2408 60 5093 1 540 8>,
+							 <1080 2408 120 9935 1 540 8>;
+
+				hdr_num = <2>;			/* max: 4 */
+				hdr_type = <2 3 0 0>;		/* 1: DOLBY_VISION, 2: HDR10, 3: HLG */
+				hdr_max_luma = <4500000>;	/* 450 */
+				hdr_max_avg_luma = <1200000>;	/* 120 */
+				hdr_min_luma = <5>;		/* 0.0005 */
+				color_mode = <0 7 9>;  /* color mode : NATIVE, SRGB, P3 */
+
+				/* DSC PPS vender setting (optional) */
+				initial_xmit_delay = <170>;
+				initial_dec_delay = <526>;
+				scale_increment_interval = <43>;
+				final_offset = <7072>;
+			};
+
+			hx83102j_gts8l_00_ddi: hx83102j_gts8l_00_ddi {
+				id = <0x4CD230>;
+				mode = <0>;
+				resolution = <1440 2304>;
+				size = <68 153>;  /* FIX ME : should be updated */
+				timing,refresh = <60>;
+				timing,h-porch = <40 60 20>;
+				timing,v-porch = <12 96 8>;
+				timing,dsi-hs-clk = <523>;
+				timing,pmsk = <
+					0x02 0xA1 0x03 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00 0x00 0x00
+					0x00 0x00>;
+				timing,dsi-escape-clk = <20>;
+				mic_en = <0>;			/* 0: Disable, 1: Enable */
+				mic_ratio = <0>;		/* 0: 1/2 mic, 1: 1/3 mic */
+				mic_ver = <0>;			/* 0: mic v1.1, 1: v1.2, 2: v2.0 */
+				type_of_ddi = <0>;		/* 0: Samsung Mobile, 1: MAGNA, 2: Normal(Etc) */
+				dsc_en = <1>;			/* 0: Disable, 1: Enable */
+				dsc_cnt = <1>;			/* used DSC count */
+				dsc_slice_num = <2>;		/* count of dsc slice */
+				dsc_slice_h = <32>;		/* height of dsc slice */
+				data_lane = <4>;		/* number of using data lane */
+				cmd_underrun_cnt = <9935>;	/* for underrun detect*/
+				mres_en = <1>;
+				mres_number = <1>;
+				mres_width = <1440>;
+				mres_height = <2304>;
+				mres_dsc_width = <720>;
+				mres_dsc_height = <32>;
+				mres_dsc_en = <1>;
+				default_mode = <1>;
+				/* <xres : yres : fps : lp_ref : dsc_en : slice_w : slice_h> */
+				display_mode =  <1440 2304 60 9935 1 720 32>;
+
+				hdr_num = <2>;			/* max: 4 */
+				hdr_type = <2 3 0 0>;		/* 1: DOLBY_VISION, 2: HDR10, 3: HLG */
+				hdr_max_luma = <4500000>;	/* 450 */
+				hdr_max_avg_luma = <1200000>;	/* 120 */
+				hdr_min_luma = <5>;		/* 0.0005 */
+				color_mode = <0 7 9>;  /* color mode : NATIVE, SRGB, P3 */
+
+				/* DSC PPS vender setting (optional) */
+				initial_xmit_delay = <512>;
+				initial_dec_delay = <616>;
+				scale_increment_interval = <903>;
+				final_offset = <4336>;
+			};
+
+			mafpc_0: mafpc_0 {
+				compatible = "samsung,panel-mafpc";
+				status = "okay";
+			};
+		};
+	};
+};

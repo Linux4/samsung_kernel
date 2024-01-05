@@ -35,6 +35,7 @@
 #include <linux/cma.h>
 #include <linux/highmem.h>
 #include <linux/io.h>
+#include <linux/delay.h>
 #include <trace/events/cma.h>
 
 #include "cma.h"
@@ -469,6 +470,8 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 	size_t i;
 	struct page *page = NULL;
 	int ret = -ENOMEM;
+	int num_attempts = 0;
+	int max_retries = 10;
 
 	if (!cma || !cma->count)
 		return NULL;
@@ -505,10 +508,28 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
 		mutex_unlock(&cma->lock);
 
 		pfn = cma->base_pfn + (bitmap_no << cma->order_per_bit);
+retry:		
 		mutex_lock(&cma_mutex);
 		ret = alloc_contig_range(pfn, pfn + count, MIGRATE_CMA,
 					 gfp_mask);
 		mutex_unlock(&cma_mutex);
+
+		if ((num_attempts < max_retries) && (ret == -EBUSY)) {
+			if (fatal_signal_pending(current))
+					break;
+
+			/*
+			* Page may be momentarily pinned by some other
+			* process which has been scheduled out, e.g.
+			* in exit path, during unmap call, or process
+			* fork and so cannot be freed there. Sleep
+			* for 100ms and retry the allocation.
+			*/
+			schedule_timeout_killable(msecs_to_jiffies(100));
+			num_attempts++;
+			goto retry;
+		}
+
 		if (ret == 0) {
 			page = pfn_to_page(pfn);
 			break;

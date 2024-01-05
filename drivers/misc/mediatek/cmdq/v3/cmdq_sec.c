@@ -19,7 +19,6 @@
 #include <linux/module.h>
 #include <linux/io.h>
 #include <linux/sched/clock.h>
-#include "cmdq_sec_iwc_common.h"
 
 #ifdef CMDQ_MET_READY
 #include <linux/met_drv.h>
@@ -484,12 +483,6 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 		cmdq_sec_get_secure_engine(
 		task->secData.enginesNeedPortSecurity);
 
-	iwc->command.metadata.enginesDisableDAPC =
-		cmdq_sec_get_secure_engine(task->secData.enginesDisableDAPC);
-	iwc->command.metadata.enginesDisablePortSecurity =
-		cmdq_sec_get_secure_engine(
-		task->secData.enginesDisablePortSecurity);
-
 	memset(iwcex, 0x0, sizeof(*iwcex));
 	memset(iwcex2, 0x0, sizeof(*iwcex2));
 
@@ -520,6 +513,10 @@ s32 cmdq_sec_fill_iwc_command_msg_unlocked(
 	/* assign extension and read back parameter */
 	iwc->command.extension = task->secData.extension;
 	iwc->command.readback_pa = task->reg_values_pa;
+
+
+	iwc->command.sec_id = task->secData.sec_id;
+	CMDQ_LOG("%s, sec_id:%d\n", __func__, iwc->command.sec_id);
 
 	last_buf = list_last_entry(&task->pkt->buf, typeof(*last_buf),
 		list_entry);
@@ -1860,12 +1857,19 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 	struct cmdq_task *task, struct cmdq_sec_thread *thread,
 	const s32 cookie, const bool reset_thread)
 {
-	s32 err = 0, max_task = 0;
+	s32 max_task = 0;
 	if (!task || !thread) {
 		CMDQ_ERR(
 			"invalid param pTask:0x%p pThread:0x%p cookie:%d needReset:%d\n",
 			task, thread, cookie, reset_thread);
 		return -EFAULT;
+	}
+
+	if (thread->idx < CMDQ_MIN_SECURE_THREAD_ID) {
+		CMDQ_ERR(
+			"invalid param pTask:0x%p pThread:0x%p idx:%u cookie:%d needReset:%d\n",
+			task, thread, thread->idx, cookie, reset_thread);
+		return -EINVAL;
 	}
 
 	if (reset_thread == true) {
@@ -1904,18 +1908,16 @@ static s32 cmdq_sec_insert_handle_from_thread_array_by_cookie(
 		CMDQ_ERR("task_cnt:%u cannot more than %u task:%p thrd-idx:%u",
 			task->thread->task_cnt, max_task,
 			task, task->thread->idx);
-		err = -EMSGSIZE;
+		return -EMSGSIZE;
 	}
 
-	thread->task_list[cookie % cmdq_max_task_in_secure_thread[
-		thread->idx - CMDQ_MIN_SECURE_THREAD_ID]] = task;
+	thread->task_list[cookie % max_task] = task;
 	task->handle->secData.waitCookie = cookie;
 	task->handle->secData.resetExecCnt = reset_thread;
 
 	CMDQ_MSG("%s leave task:0x%p handle:0x%p insert with idx:%d\n",
 		__func__, task, task->handle,
-		cookie % cmdq_max_task_in_secure_thread[
-		thread->idx - CMDQ_MIN_SECURE_THREAD_ID]);
+		cookie % max_task);
 
 	return 0;
 }
@@ -1950,6 +1952,8 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 		handle->pkt->cmd_buf_size, handle->pkt->buf_size,
 		handle->scenario, handle->engineFlag);
 	CMDQ_MSG("%s", long_msg);
+
+	CMDQ_LOG("%s: cmdq send handle:0x%p to secure world.", __func__, handle);
 
 	if (!handle->secData.is_secure)
 		CMDQ_ERR("not secure %s", long_msg);
@@ -1991,14 +1995,15 @@ static void cmdq_sec_exec_task_async_impl(struct work_struct *work_item)
 
 			CMDQ_ERR(
 				"gce: err:%d task:%p pkt:%p thread:%u task_cnt:%u wait_cookie:%u next_cookie:%u",
-				(unsigned long) err, task, task->handle->pkt,
+				err, task, task->handle->pkt,
 				task->thread->idx, task->thread->task_cnt,
 				task->thread->wait_cookie, task->thread->next_cookie);
 			spin_unlock_irqrestore(&task->thread->chan->lock, flags);
 
 			cmdq_sec_release_task(task);
+			status = err;
+			break;
 		}
-
 		handle->state = TASK_STATE_BUSY;
 		handle->trigger = sched_clock();
 
@@ -2535,7 +2540,7 @@ static s32 __init cmdq_late_init(void)
 		sizeof(struct iwcCmdqMessageEx2_t), GFP_KERNEL);
 	if (!handle->mtee_iwcMessageEx2)
 		return -ENOMEM;
-	CMDQ_LOG("iwc:%p(%#x) ex:%p(%#x) ex2:%p(%#x)\n",
+	CMDQ_LOG("iwc:%p(%#lx) ex:%p(%#lx) ex2:%p(%#lx)\n",
 		handle->mtee_iwcMessage, sizeof(struct iwcCmdqMessage_t),
 		handle->mtee_iwcMessageEx, sizeof(struct iwcCmdqMessageEx_t),
 		handle->mtee_iwcMessageEx2, sizeof(struct iwcCmdqMessageEx2_t));

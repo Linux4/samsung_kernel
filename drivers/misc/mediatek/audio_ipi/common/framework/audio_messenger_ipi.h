@@ -29,6 +29,7 @@
 #define MAX_IPI_MSG_BUF_SIZE     (240) /* SHARE_BUF_SIZE - 16 */
 #define IPI_MSG_HEADER_SIZE      (16)
 #define MAX_IPI_MSG_PAYLOAD_SIZE (MAX_IPI_MSG_BUF_SIZE - IPI_MSG_HEADER_SIZE)
+#define MAX_DSP_DMA_WRITE_SIZE   (0x20000)
 
 #define IPI_MSG_MAGIC_NUMBER     (0x8888)
 
@@ -239,6 +240,7 @@ int audio_send_ipi_buf_to_dsp(
 	struct ipi_msg_t *p_ipi_msg,
 	uint8_t task_scene, /* task_scene_t */
 	uint16_t msg_id,
+	uint32_t param2,
 	void    *data_buffer,
 	uint32_t data_size);
 
@@ -247,6 +249,7 @@ int audio_recv_ipi_buf_from_dsp(
 	struct ipi_msg_t *p_ipi_msg,
 	uint8_t task_scene,
 	uint16_t msg_id,
+	uint32_t param2,
 	void    *data_buffer,
 	uint32_t max_data_size,
 	uint32_t *data_size);

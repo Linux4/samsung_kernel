@@ -994,8 +994,8 @@ static struct usb_device *usbdev_lookup_by_devt(dev_t devt)
 }
 
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-static unsigned int prev_cmd = 0;
-static int prev_ret = 0;
+static unsigned int prev_cmd;
+static int prev_ret;
 #endif
 /*
  * file operations
@@ -1292,7 +1292,7 @@ static int proc_resetep(struct usb_dev_state *ps, void __user *arg)
 	if (ret)
 		return ret;
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-	dev_info(&ps->dev->dev,"%s epnum %d\n", __func__, ep);
+	dev_info(&ps->dev->dev, "%s epnum %d\n", __func__, ep);
 #endif
 	check_reset_of_active_ep(ps->dev, ep, "RESETEP");
 	usb_reset_endpoint(ps->dev, ep);
@@ -1365,7 +1365,7 @@ static int proc_resetdevice(struct usb_dev_state *ps)
 	 * currently claimed.
 	 */
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-	dev_info(&ps->dev->dev,"%s\n", __func__);
+	dev_info(&ps->dev->dev, "%s\n", __func__);
 #endif
 	if (ps->privileges_dropped && actconfig) {
 		for (i = 0; i < actconfig->desc.bNumInterfaces; ++i) {
@@ -1998,10 +1998,6 @@ static int proc_control_compat(struct usb_dev_state *ps,
 	struct usbdevfs_ctrltransfer __user *p;
 	__u32 udata;
 	p = compat_alloc_user_space(sizeof(*p));
-#if IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
-	if (!p)
-		return -EFAULT;
-#endif
 	if (copy_in_user(p, p32, (sizeof(*p32) - sizeof(compat_caddr_t))) ||
 	    get_user(udata, &p32->data) ||
 	    put_user(compat_ptr(udata), &p->data))
@@ -2017,10 +2013,7 @@ static int proc_bulk_compat(struct usb_dev_state *ps,
 	compat_caddr_t addr;
 
 	p = compat_alloc_user_space(sizeof(*p));
-#if IS_ENABLED(CONFIG_USB_HOST_SAMSUNG_FEATURE)
-	if (!p)
-		return -EFAULT;
-#endif
+
 	if (get_user(n, &p32->ep) || put_user(n, &p->ep) ||
 	    get_user(n, &p32->len) || put_user(n, &p->len) ||
 	    get_user(n, &p32->timeout) || put_user(n, &p->timeout) ||
@@ -2162,7 +2155,7 @@ static int proc_claiminterface(struct usb_dev_state *ps, void __user *arg)
 	if (get_user(ifnum, (unsigned int __user *)arg))
 		return -EFAULT;
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-	dev_info(&ps->dev->dev,"%s: ifnum %d\n", __func__, ifnum);
+	dev_info(&ps->dev->dev, "%s: ifnum %d\n", __func__, ifnum);
 #endif
 	return claimintf(ps, ifnum);
 }
@@ -2175,7 +2168,7 @@ static int proc_releaseinterface(struct usb_dev_state *ps, void __user *arg)
 	if (get_user(ifnum, (unsigned int __user *)arg))
 		return -EFAULT;
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-	dev_info(&ps->dev->dev,"%s: ifnum %d\n", __func__, ifnum);
+	dev_info(&ps->dev->dev, "%s: ifnum %d\n", __func__, ifnum);
 #endif
 	ret = releaseintf(ps, ifnum);
 	if (ret < 0)
@@ -2223,7 +2216,7 @@ static int proc_ioctl(struct usb_dev_state *ps, struct usbdevfs_ioctl *ctl)
 	else switch (ctl->ioctl_code) {
 
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-	dev_info(&ps->dev->dev,"%s ioctl_code %d\n", __func__, ctl->ioctl_code);
+	dev_info(&ps->dev->dev, "%s ioctl_code %d\n", __func__, ctl->ioctl_code);
 #endif
 	/* disconnect kernel driver from interface */
 	case USBDEVFS_DISCONNECT:
@@ -2705,7 +2698,7 @@ static int usbdev_log(unsigned int cmd, int ret)
 		break;
 	}
 	if ((prev_cmd != cmd) || (prev_ret != ret)) {
-		printk(KERN_ERR "%s: %s error ret=%d\n", __func__, cmd_string, ret);
+		pr_err("%s: %s error ret=%d\n", __func__, cmd_string, ret);
 		prev_cmd = cmd;
 		prev_ret = ret;
 	}
@@ -2727,6 +2720,7 @@ static long usbdev_ioctl(struct file *file, unsigned int cmd,
 		prev_ret = 0;
 	}
 #endif
+
 	return ret;
 }
 

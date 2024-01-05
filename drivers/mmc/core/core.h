@@ -16,6 +16,12 @@
 
 #include "mmc_crypto.h"
 
+#ifdef CONFIG_MMC_SUPPORT_STLOG
+#include <linux/fslog.h>
+#else
+#define ST_LOG(fmt, ...)
+#endif
+
 struct mmc_host;
 struct mmc_card;
 struct mmc_request;

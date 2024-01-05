@@ -592,8 +592,13 @@
 		};
 	};
 };
+
+&tboard_thermistor1 {
+	fixed_thermal;
+};
+
 #include "mediatek/k68v1_64_titan/gpio00.dtsi"
-#include "mediatek/k68v1_64_titan/cust_mt6768_camera_titan-00.dtsi"
+//#include "mediatek/k68v1_64_titan/cust_mt6768_camera_titan-00.dtsi"
 #include "mediatek/k68v1_64_titan/display_lcd_a31_common.dtsi"
 #include "samsung/mt6768_a31_cis_ser_00.dts"
 /*End of this file, DO NOT ADD ANYTHING HERE*/

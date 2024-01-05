@@ -11,7 +11,7 @@
 #define PATTERN1	0x5A5A5A5A
 #define PATTERN2	0xA5A5A5A5
 
-int mtk_dramc_binning_test(void)
+int mtk_dramc_binning_test_sz(unsigned int len)
 {
 	unsigned char *mem8_base;
 	unsigned short *mem16_base;
@@ -22,7 +22,6 @@ int mtk_dramc_binning_test(void)
 	unsigned short pattern16;
 	unsigned int i, j, size, pattern32;
 	unsigned int value;
-	unsigned int len = MEM_TEST_SIZE;
 	void *ptr;
 	int ret = 1;
 
@@ -371,3 +370,7 @@ fail:
 	return ret;
 }
 
+int mtk_dramc_binning_test(void)
+{
+	return mtk_dramc_binning_test_sz(MEM_TEST_SIZE);
+}

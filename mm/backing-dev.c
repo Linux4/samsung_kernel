@@ -242,7 +242,7 @@ static ssize_t bdp_debug_show(struct device *dev,
 		struct bdi_sec_bdp_entry *entry = sec_bdi->bdp_debug.entry + i;
 
 		len += snprintf(page + len, PAGE_SIZE-len-1,
-			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
+			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
 			entry->start_time,
 			entry->elapsed_ms,
 			entry->global_thresh,
@@ -250,7 +250,6 @@ static ssize_t bdp_debug_show(struct device *dev,
 			entry->wb_thresh,
 			entry->wb_dirty,
 			entry->wb_avg_write_bandwidth,
-			entry->wb_timelist_dirty,
 			entry->wb_timelist_inodes);
 	}
 	spin_unlock(&sec_bdi->bdp_debug.lock);
@@ -274,7 +273,7 @@ static ssize_t max_bdp_debug_show(struct device *dev,
 
 	spin_lock(&sec_bdi->bdp_debug.lock);
 	len += snprintf(page + len, PAGE_SIZE-len-1,
-			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
+			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
 			entry->start_time,
 			entry->elapsed_ms,
 			entry->global_thresh,
@@ -282,7 +281,6 @@ static ssize_t max_bdp_debug_show(struct device *dev,
 			entry->wb_thresh,
 			entry->wb_dirty,
 			entry->wb_avg_write_bandwidth,
-			entry->wb_timelist_dirty,
 			entry->wb_timelist_inodes);
 	spin_unlock(&sec_bdi->bdp_debug.lock);
 
@@ -320,8 +318,8 @@ static int __init default_bdi_init(void)
 {
 	int err;
 
-	bdi_wq = alloc_workqueue("writeback", WQ_MEM_RECLAIM | WQ_FREEZABLE |
-					      WQ_UNBOUND | WQ_SYSFS, 0);
+	bdi_wq = alloc_workqueue("writeback", WQ_MEM_RECLAIM | WQ_UNBOUND |
+				 WQ_SYSFS, 0);
 	if (!bdi_wq)
 		return -ENOMEM;
 
