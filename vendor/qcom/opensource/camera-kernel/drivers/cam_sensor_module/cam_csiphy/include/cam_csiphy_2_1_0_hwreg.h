@@ -770,10 +770,18 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 					.lane_identifier = CPHY_LANE_0,
 					.csiphy_data_rate_regs = {
 						{0x0274, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0278, 0x30, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0278, 0x28, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0288, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x028C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x026C, 0x04, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x026C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0290, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0214, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DNP_PARAMS},
@@ -783,10 +791,18 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 					.lane_identifier = CPHY_LANE_1,
 					.csiphy_data_rate_regs = {
 						{0x0674, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0678, 0x30, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0678, 0x28, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0688, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x068C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x066C, 0x04, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x066C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0690, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0614, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DNP_PARAMS},
@@ -796,10 +812,18 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 					.lane_identifier = CPHY_LANE_2,
 					.csiphy_data_rate_regs = {
 						{0x0A74, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0A78, 0x30, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0A78, 0x28, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0A88, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A8C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0A6C, 0x04, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0A6C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0A90, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A14, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -862,10 +886,18 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 					.lane_identifier = CPHY_LANE_0,
 					.csiphy_data_rate_regs = {
 						{0x0274, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0278, 0x25, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0278, 0x1D, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0288, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x028C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x026C, 0x05, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x026C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0290, 0x02, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0214, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DNP_PARAMS},
@@ -875,10 +907,18 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 					.lane_identifier = CPHY_LANE_1,
 					.csiphy_data_rate_regs = {
 						{0x0674, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0678, 0x25, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0678, 0x1D, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0688, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x068C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x066C, 0x05, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x066C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0690, 0x02, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0614, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DNP_PARAMS},
@@ -888,10 +928,18 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 					.lane_identifier = CPHY_LANE_2,
 					.csiphy_data_rate_regs = {
 						{0x0A74, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0A78, 0x25, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0A78, 0x1D, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0A88, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A8C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0A6C, 0x05, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0A6C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0A90, 0x02, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A14, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
@@ -902,45 +950,83 @@ struct data_rate_settings_t data_rate_delta_table_2_1_0 = {
 		{
 			/* ((3.5 GSpS) * (10^9) * (2.28 bits/symbol)) rounded value */
 			.bandwidth = 7980000000,
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+			.data_rate_reg_array_size = 9,
+#else
 			.data_rate_reg_array_size = 8,
+#endif
+	
 			.per_lane_info = {
 				{
 					.lane_identifier = CPHY_LANE_0,
 					.csiphy_data_rate_regs = {
 						{0x0274, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0278, 0x1C, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0278, 0x15, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0288, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x028C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x026C, 0x05, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x026C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0290, 0x02, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0214, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DNP_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x108C, 0x03, 0x00, CSIPHY_DNP_PARAMS},
+#endif
 					},
 				},
 				{
 					.lane_identifier = CPHY_LANE_1,
 					.csiphy_data_rate_regs = {
 						{0x0674, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0678, 0x1C, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0678, 0x15, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0688, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x068C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x066C, 0x05, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x066C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0690, 0x02, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0614, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DNP_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x108C, 0x03, 0x00, CSIPHY_DNP_PARAMS},
+#endif
 					},
 				},
 				{
 					.lane_identifier = CPHY_LANE_2,
 					.csiphy_data_rate_regs = {
 						{0x0A74, 0x07, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0A78, 0x1C, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0A78, 0x15, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0A88, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A8C, 0x01, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x0A6C, 0x05, 0x00, CSIPHY_DEFAULT_PARAMS},
+#else
 						{0x0A6C, 0x10, 0x00, CSIPHY_DEFAULT_PARAMS},
+#endif
 						{0x0A90, 0x02, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x0A14, 0x00, 0x00, CSIPHY_DEFAULT_PARAMS},
 						{0x108C, 0x03, 0x00, CSIPHY_DEFAULT_PARAMS},
+#if defined(CONFIG_SEC_R11Q_PROJECT)
+						{0x108C, 0x05, 0x00, CSIPHY_AUXILLARY_SETTING},
+#endif
 					},
 				},
 			},

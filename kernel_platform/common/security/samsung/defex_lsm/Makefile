@@ -9,6 +9,21 @@ IMMUTABLE_ENABLE=true
 LP_ENABLE=true
 UMH_RESTRICTION_ENABLE=true
 TRUSTED_MAP_ENABLE=false
+USER_BUILD=false
+
+# Additional debug
+LOG_BUFFER_ENABLE=false
+SHOW_RULES_ENABLE=false
+
+ifeq (,$(TARGET_BUILD_VARIANT))
+    ifeq ($(CONFIG_SECURITY_DEFEX_USER),y)
+        USER_BUILD := true
+    endif
+else
+    ifeq ($(TARGET_BUILD_VARIANT),user)
+        USER_BUILD := true
+    endif
+endif
 
 ifneq ($(wildcard $(srctree)/include/crypto/internal/rsa.h),)
     $(warning [DEFEX] INTEGRITY_ENABLE)
@@ -58,11 +73,19 @@ ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
         DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
+        ifeq ($(LOG_BUFFER_ENABLE), true)
+            DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
+        endif
+	ifeq ($(SHOW_RULES_ENABLE), true)
+	    defex-y += debug/defex_rules_show.o
+	    DEFEX_DEFINES += -DDEFEX_SHOW_RULES_ENABLE
+	endif
     endif
 endif
 
-ifeq ($(CONFIG_SEC_FACTORY), y)
+ifeq ($(SEC_FACTORY_BUILD), true)
     DEFEX_DEFINES += -DDEFEX_FACTORY_ENABLE
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
 endif
 
 ifeq ($(PED_ENABLE), true)
@@ -123,7 +146,13 @@ ifeq ($(TRUSTED_MAP_ENABLE), true)
     defex-y += feature_trusted_map/ptree.o
 endif
 
-ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+ifeq ($(USER_BUILD), true)
+    $(warning [DEFEX] DEBUG_DISABLE)
+    ifeq ($(CONFIG_SECURITY_DSMS), y)
+        DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
+    endif
+else
+    $(warning [DEFEX] DEBUG_ENABLE)
     defex-y += debug/defex_debug.o
     defex-y += core/defex_sysfs.o
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
@@ -132,9 +161,12 @@ ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
     DEFEX_DEFINES += -DDEFEX_DEBUG_ENABLE
-else
-    ifeq ($(CONFIG_SECURITY_DSMS), y)
-        DEFEX_DEFINES += -DDEFEX_DSMS_ENABLE
+    ifeq ($(LOG_BUFFER_ENABLE), true)
+        DEFEX_DEFINES += -DDEFEX_LOG_BUFFER_ENABLE
+    endif
+    ifeq ($(SHOW_RULES_ENABLE), true)
+	defex-y += debug/defex_rules_show.o
+	DEFEX_DEFINES += -DDEFEX_SHOW_RULES_ENABLE
     endif
 endif
 

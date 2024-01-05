@@ -23,6 +23,9 @@
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_UML)
 #include "samsung/kunit_test/ss_kunit_test_garbage_macro.h"
 #endif
+#if IS_ENABLED(CONFIG_DRM_MSM_DP_KUNIT) && IS_ENABLED(CONFIG_UML)
+#include "dp/kunit_test/dp_kunit_macro.h"
+#endif
 
 #include <linux/kernel.h>
 #include <linux/clk.h>

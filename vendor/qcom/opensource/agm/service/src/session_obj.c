@@ -343,6 +343,23 @@ done:
     pthread_mutex_unlock(&sess_pool->lock);
     return obj;
 }
+int session_obj_valid_check(uint64_t hndl)
+{
+
+    struct session_obj *obj = NULL;
+    struct listnode *node;
+
+    pthread_mutex_lock(&sess_pool->lock);
+    list_for_each(node, &sess_pool->session_list) {
+        obj = node_to_item(node, struct session_obj, node);
+        if (obj == hndl) {
+            pthread_mutex_unlock(&sess_pool->lock);
+            return  1;
+        }
+    }
+    pthread_mutex_unlock(&sess_pool->lock);
+    return 0;
+}
 
 /* returns session_obj associated with session id */
 int session_obj_get(int session_id, struct session_obj **obj)
@@ -515,7 +532,7 @@ static int session_disconnect_aif(struct session_obj *sess_obj,
                       audio interface id:%d \n",
                        sess_obj->sess_id, aif_obj->aif_id);
         ret = -ENOMEM;
-        return ret;
+        goto done;
     }
 
     pthread_mutex_lock(&hwep_lock);
@@ -532,7 +549,7 @@ static int session_disconnect_aif(struct session_obj *sess_obj,
                           sess_obj->sess_id, aif_obj->aif_id);
             ret = -ENOMEM;
             pthread_mutex_unlock(&hwep_lock);
-            return ret;
+            goto done;
         }
 
         temp.gkv = merged_metadata->gkv;
@@ -562,10 +579,17 @@ static int session_disconnect_aif(struct session_obj *sess_obj,
             ret, aif_obj->aif_id);
     }
     pthread_mutex_unlock(&hwep_lock);
-    if (merged_meta_sess_aif)
-        metadata_free(merged_meta_sess_aif);
 
-    metadata_free(merged_metadata);
+done:
+    if (merged_meta_sess_aif) {
+        metadata_free(merged_meta_sess_aif);
+        free(merged_meta_sess_aif);
+    }
+
+    if (merged_metadata) {
+        metadata_free(merged_metadata);
+        free(merged_metadata);
+    }
     return ret;
 }
 
@@ -741,14 +765,16 @@ static int session_connect_aif(struct session_obj *sess_obj,
     //step 2.c set cached params for stream only in closed
     if (sess_obj->state == SESSION_CLOSED && sess_obj->params != NULL) {
         ret = graph_set_config(graph, sess_obj->params, sess_obj->params_size);
+        /* clean up params irrespective of success or failure to avoid
+         * impact to next usecase */
+        free(sess_obj->params);
+        sess_obj->params = NULL;
+        sess_obj->params_size = 0;
         if (ret) {
             AGM_LOGE("Error:%d setting session cached params: %d\n",
                 ret, sess_obj->sess_id);
             goto graph_cleanup;
         }
-        free(sess_obj->params);
-        sess_obj->params = NULL;
-        sess_obj->params_size = 0;
     }
 
     //step 2.d set cached streamdevice params

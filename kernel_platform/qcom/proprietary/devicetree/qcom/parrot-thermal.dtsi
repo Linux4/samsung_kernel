@@ -11,8 +11,9 @@
 			<0x0c222000 0x1ff>; /* SROT */
 		#qcom,sensors = <16>;
 		interrupts = <GIC_SPI 506 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 508 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "uplow","critical";
+			     <GIC_SPI 508 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 500 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "uplow","critical", "cold";
 		#thermal-sensor-cells = <1>;
 	};
 
@@ -22,8 +23,9 @@
 			<0x0c223000 0x1ff>; /* SROT */
 		#qcom,sensors = <16>;
 		interrupts = <GIC_SPI 507 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 509 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "uplow","critical";
+			     <GIC_SPI 509 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 501 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "uplow","critical", "cold";
 		#thermal-sensor-cells = <1>;
 	};
 
@@ -210,6 +212,11 @@
 };
 
 &thermal_zones {
+	/delete-node/ sdr-mmw-therm;
+	/delete-node/ mmw_pa1;
+	/delete-node/ mmw_pa2;
+	/delete-node/ mmw_pa3;
+
 	aoss-0 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
@@ -901,10 +908,49 @@
 		};
 	};
 
+	nspss-2 {
+		polling-delay-passive = <10>;
+		polling-delay = <0>;
+		thermal-sensors = <&tsens1 7>;
+		trips {
+			thermal-engine-config {
+				temperature = <125000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+
+			thermal-hal-config {
+				temperature = <125000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+
+			reset-mon-cfg {
+				temperature = <115000>;
+				hysteresis = <5000>;
+				type = "passive";
+			};
+
+			nspss_2_config: junction-config {
+				temperature = <95000>;
+				hysteresis = <5000>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			nsp_cdev {
+				trip = <&nspss_2_config>;
+				cooling-device = <&cdsp_sw THERMAL_NO_LIMIT
+							THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
 	video {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-sensors = <&tsens1 7>;
+		thermal-sensors = <&tsens1 8>;
 		trips {
 			thermal-engine-config {
 				temperature = <125000>;
@@ -923,7 +969,7 @@
 	ddr {
 		polling-delay-passive = <10>;
 		polling-delay = <0>;
-		thermal-sensors = <&tsens1 8>;
+		thermal-sensors = <&tsens1 9>;
 		trips {
 			thermal-engine-config {
 				temperature = <125000>;
@@ -967,7 +1013,7 @@
 	mdmss-0 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-sensors = <&tsens1 9>;
+		thermal-sensors = <&tsens1 10>;
 		trips {
 			thermal-engine-config {
 				temperature = <125000>;
@@ -986,7 +1032,7 @@
 	mdmss-1 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-sensors = <&tsens1 10>;
+		thermal-sensors = <&tsens1 11>;
 		trips {
 			thermal-engine-config {
 				temperature = <125000>;
@@ -1005,7 +1051,7 @@
 	mdmss-2 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-sensors = <&tsens1 11>;
+		thermal-sensors = <&tsens1 12>;
 		trips {
 			thermal-engine-config {
 				temperature = <125000>;
@@ -1024,7 +1070,7 @@
 	mdmss-3 {
 		polling-delay-passive = <0>;
 		polling-delay = <0>;
-		thermal-sensors = <&tsens1 12>;
+		thermal-sensors = <&tsens1 13>;
 		trips {
 			thermal-engine-config {
 				temperature = <125000>;
@@ -1036,6 +1082,58 @@
 				temperature = <115000>;
 				hysteresis = <5000>;
 				type = "passive";
+			};
+		};
+	};
+
+	zeroc-0-step {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&tsens0 128>;
+		trips {
+			thermal-engine-config {
+				temperature = <1>;
+				hysteresis = <1>;
+				type = "passive";
+			};
+
+			min_temp_0_trip: cold-trip {
+				temperature = <1>;
+				hysteresis = <1>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			wcss_cx_vdd_cdev {
+				trip = <&min_temp_0_trip>;
+				cooling-device = <&cx_cdev 1 1>;
+			};
+		};
+	};
+
+	zeroc-1-step {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&tsens1 128>;
+		trips {
+			thermal-engine-config {
+				temperature = <1>;
+				hysteresis = <1>;
+				type = "passive";
+			};
+
+			min_temp_1_trip: cold-trip {
+				temperature = <1>;
+				hysteresis = <1>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			wcss_cx_vdd_cdev {
+				trip = <&min_temp_1_trip>;
+				cooling-device = <&cx_cdev 1 1>;
 			};
 		};
 	};

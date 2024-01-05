@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "dp_panel.h"
@@ -2774,7 +2775,7 @@ bool secdp_panel_hdr_supported(void)
 
 	hdr = dp_panel_hdr_supported(dp_panel);
 
-	DP_DEBUG("dsp_type:%s, hdr_support: %d\n",
+	DP_INFO("dsp_type:%s, hdr:%d\n",
 		mdss_dp_dsp_type_to_string(dp_panel->dsp_type), hdr);
 
 	return ((dp_panel->dsp_type == DSP_TYPE_DP) && hdr);
