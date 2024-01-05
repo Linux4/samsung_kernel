@@ -1,0 +1,6 @@
+config CAMERA_ADAPTIVE_MIPI
+	bool "Camera adaptive mipi"
+	depends on MTK_IMGSENSOR
+	help
+	  for using Adaptive MIPI.
+	  use CONFIG_CAMERA_ADAPTIVE_MIPI

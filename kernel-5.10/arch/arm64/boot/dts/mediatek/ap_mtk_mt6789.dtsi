@@ -1,0 +1,9 @@
+#include <dt-bindings/clock/mt6789-clk.h>
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6789/ap_mtk_mt6789.a15_eur.05.dtsi */
+#include "../../mediatek/k6789v1_64_titan_minirex_23u/Board_00.dts"
+#include "../../mediatek/k6789v1_64_titan_minirex_23u/gpio05.dtsi"
+
+#define topckgen topckgen_clk
+#define infracfg_ao infracfg_ao_clk

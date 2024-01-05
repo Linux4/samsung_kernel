@@ -1,0 +1,14 @@
+&i2c0 {
+	status = "okay";
+
+	sm5461_charger: sm5461@63 {
+		compatible = "siliconmitus,sm5461";
+		reg = <0x63>;
+
+		sm5461,freq = <2>; /* 500kHz */
+		sm5461,r_ttl = <520000>;
+		sm5461,topoff = <380>;
+		sm5461,en_vbatreg = <1>;
+		sm5461,single_mode = <1>;
+	};
+};

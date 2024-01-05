@@ -1,0 +1,61 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	snvm_i2c_on: snvm_i2c_on {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,140), 1)>,
+				<MTK_PINMUX(SEC_GPIO_NUM(AP,pio,141), 1)>;
+			bias-disable;
+		};
+	};
+	snvm_i2c_off: snvm_i2c_off {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,140), 0)>,
+					<MTK_PINMUX(SEC_GPIO_NUM(AP,pio,141), 0)>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+
+&i2c5 {
+	clock-frequency = <400000>;
+#if 0	
+	status = "disabled";
+#else
+	status = "okay";
+#endif
+	pinctrl-names = "default", "nvm_on","nvm_off";
+	pinctrl-0 = <&snvm_i2c_off>;
+	pinctrl-1 = <&snvm_i2c_on>;
+	pinctrl-2 = <&snvm_i2c_off>;
+	k250a@23 {
+		compatible = "sec_k250a";
+		1p8_pvdd-supply = <&fixed_regulator4>;
+		reg = <0x23>;
+	};
+};
+
+#if 0
+/ {
+	fragment@k250a_platform {
+		target-path = "/";
+		__overlay__ {
+			k250a_platform {
+				status = "ok";
+				compatible = "sec_k250a_platform";
+				1p8_pvdd-supply = <&fixed_regulator4>;
+			};
+		};
+	};
+};
+#endif

@@ -1,0 +1,157 @@
+config SPECIFY_IMGSENSOR
+	bool "Specify image sensor name"
+	depends on MTK_IMGSENSOR
+	help
+	  Specify name of each sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_MAIN
+	string "Custom main image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of main sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_MAIN2
+	string "Custom main2 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of main2 sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_SUB
+	string "Custom sub image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of sub sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_SUB2
+	string "Custom sub2 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of sub2 sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_MAIN3
+	string "Custom main3 image sensor"
+	depends on SPECIFY_IMGSENSOR
+	help
+	  Specify name of main3 sensor to prevent obtaining wrong sensor driver
+	  with same sensor ID. For example, imx258_mipi_raw and
+	  imx258_mipi_mono are of same sensor ID. If not specifying sensor,
+	  imx258_mipi_mono may be recognized as imx258_mipi_raw.
+
+config IMGSENSOR_CUSTOM_CAMERA
+	bool "Use custom camera set"
+	help
+	  Use custom camera set
+
+if IMGSENSOR_CUSTOM_CAMERA
+choice IMGSENSOR_CAMERA_SET_CHOICE
+	prompt "Choose the proper camera set"
+config CAMERA_AAV_V23
+	bool "Camera aav_v23"
+	help
+	  For AAV V23 camera set
+config CAMERA_AAW_V24
+	bool "Camera aaw_v24"
+	help
+	  For AAW V24 camera set
+config CAMERA_AAX_V15
+	bool "Camera aax_v15"
+	help
+	  For AAX V15 camera set
+endchoice
+
+config CAMERA_SAMSUNG_MODEL_NAME
+	string "Camera samsung model name"
+	help
+	  Current model name. Set string by IMGSENSOR_CAMERA_SET_CHOICE.
+
+config CAMERA_SENSOR0
+	string "Camera Sensor 0"
+	help
+	  Camera image sensor 0
+config CAMERA_SENSOR1
+	string "Camera Sensor 1"
+	help
+	  Camera image sensor 1
+config CAMERA_SENSOR2
+	string "Camera Sensor 2"
+	help
+	  Camera image sensor 2
+config CAMERA_SENSOR3
+	string "Camera Sensor 3"
+	help
+	  Camera image sensor 3
+config CAMERA_SENSOR4
+	string "Camera Sensor 4"
+	help
+	  Camera image sensor 4
+config CAMERA_SENSOR5
+	string "Camera Sensor 5"
+	help
+	  Camera image sensor 5
+config CAMERA_SENSOR0_2
+	string "Camera Sensor 0_2"
+	help
+	  Camera image sensor 0_2
+config CAMERA_SENSOR1_2
+	string "Camera Sensor 1_2"
+	help
+	  Camera image sensor 1_2
+config CAMERA_SENSOR2_2
+	string "Camera Sensor 2_2"
+	help
+	  Camera image sensor 2_2
+config CAMERA_SENSOR3_2
+	string "Camera Sensor 3_2"
+	help
+	  Camera image sensor 3_2
+config CAMERA_SENSOR4_2
+	string "Camera Sensor 4_2"
+	help
+	  Camera image sensor 4_2
+config CAMERA_SENSOR5_2
+	string "Camera Sensor 5_2"
+	help
+	  Camera image sensor 5_2
+config CAMERA_SENSOR0_3
+	string "Camera Sensor 0_3"
+	help
+	  Camera image sensor 0_3
+config CAMERA_SENSOR1_3
+	string "Camera Sensor 1_3"
+	help
+	  Camera image sensor 1_3
+config CAMERA_SENSOR2_3
+	string "Camera Sensor 2_3"
+	help
+	  Camera image sensor 2_3
+config CAMERA_SENSOR3_3
+	string "Camera Sensor 3_3"
+	help
+	  Camera image sensor 3_3
+config CAMERA_SENSOR4_3
+	string "Camera Sensor 4_3"
+	help
+	  Camera image sensor 4_3
+config CAMERA_SENSOR5_3
+	string "Camera Sensor 5_3"
+	help
+	  Camera image sensor 5_3
+endif
+
+source "drivers/misc/mediatek/imgsensor/src/common/sysfs/Kconfig"
+source "drivers/misc/mediatek/imgsensor/src/common/adaptive_mipi/Kconfig"

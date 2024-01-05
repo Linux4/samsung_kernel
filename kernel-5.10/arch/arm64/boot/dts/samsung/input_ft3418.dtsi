@@ -1,0 +1,71 @@
+&pio {
+	ts_int_active: ts_int_active {
+		GPIO_CONFIG_PUD(AP,pio,10, FUNC_INPUT_WAKEUP, PULL_NONE);
+	};
+
+	ts_int_suspend: ts_int_suspend {
+		GPIO_CONFIG_PUD(AP,pio,10, FUNC_INPUT, PULL_NONE);
+	};
+};
+
+&i2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	tsp_focaltech: touchscreen@38 {
+		status = "okay";
+		compatible = "focaltech,fts";
+		reg = <0x38>;
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&ts_int_active>;
+		pinctrl-1 = <&ts_int_suspend>;
+#if 0
+		tsp_io_ldo-supply = <&${regulator_dvdd}>;
+#endif
+		tsp_avdd_ldo-supply = <&fixed_regulator0>;
+		sec,irq_gpio = <SEC_GPIO_REF(AP,pio,10) 0x02>;
+		support_dex_mode;
+		sec,enable_sysinput_enabled;
+		support_open_short_test;
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input_2023/touchscreen/focaltech/ft3418/dts/input-mtk-tsp-ft3418.a15.dtsi */
+&pio {
+	tsp_i2c_sda_default: tsp_i2c_sda_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO145__FUNC_SDA7>;
+			bias-pull-up = <MTK_PULL_SET_RSEL_110>;
+		};
+	};
+
+	tsp_i2c_scl_default: tsp_i2c_scl_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO144__FUNC_SCL7>;
+			bias-pull-up = <MTK_PULL_SET_RSEL_110>;
+		};
+	};
+};
+
+&i2c7 {
+	/delete-property/pinctrl-names;
+	/delete-property/pinctrl-0;
+	pinctrl-names = "default";
+	pinctrl-0 = <&tsp_i2c_sda_default>, <&tsp_i2c_scl_default>;
+};
+
+&tsp_focaltech {
+	status = "okay";
+	not_support_io_ldo;
+	support_ear_detect_mode;
+	support_fod;
+	support_fod_lp_mode;
+	support_refresh_rate_mode;
+	enable_settings_aot;
+	sec_cmd,not_support_cmds = "refresh_rate_mode";
+	sec,bitmask_unload = <0x00FF00 0x000200>;
+	sec,max_coords = <1080 2340>;
+	sec,firmware_name = "ft3418_a15.bin";
+	sec,bringup = <0>;
+};

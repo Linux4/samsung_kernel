@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2021 MediaTek Inc.
+ */
+&pio {
+	zt_attn_irq: zt_attn_irq {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	zt_attn_irq_suspend: zt_attn_irq_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+
+&i2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	clock-frequency = <400000>;
+	mediatek,use-open-drain;
+
+	tsp_zinitix: touchscreen@20 {
+		status = "okay";
+		compatible = "zinitix,zt_ts_device";
+		reg = <0x20>; // need to check
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&zt_attn_irq>;
+		pinctrl-1 = <&zt_attn_irq_suspend>;
+		zinitix,irq_gpio = <&pio 10 0>;
+		zinitix,gpio_ldo_en;
+		/* Temporary ldo name add */
+		/* this due to touch driver power on/off function bug when using external ldo */
+		zinitix,regulator_avdd = "tsp_vtp";
+		zinitix,x_resolution = <1080>;
+		zinitix,y_resolution = <2340>;
+//		zinitix,area-size = <>;
+		zinitix,page_size = <128>;
+
+		zinitix,firmware_name = "2023_A15_ZT7650M_ZI15320001.mng.bin";
+		zinitix,bringup = <3>;
+
+		zinitix,aot;
+		zinitix,spay;
+	};
+};

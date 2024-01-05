@@ -1,0 +1,5 @@
+config DRM_PANEL_MCD_COMMON
+	tristate "Samsung MCD Common panel"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	select VIDEOMODE_HELPERS
