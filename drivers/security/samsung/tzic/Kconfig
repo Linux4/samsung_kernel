@@ -6,7 +6,7 @@ config TZIC
     tristate "TZIC Driver"
     depends on FIVE
     default y
-    ---help---
+    help
       Enable TZIC Driver support.
 
 choice
@@ -16,28 +16,28 @@ choice
     default TZIC_USE_TZDEV if TZDEV
     default TZIC_USE_TRUSTONIC if TRUSTONIC_TEE || TRUSTONIC_TEE_SUPPORT
     default TZIC_DEFAULT
-    ---help---
+    help
       Select Secure OS for TZIC
 
     config TZIC_USE_TRUSTONIC
         bool "TZIC based on Trustonic Secure OS"
         depends on TRUSTONIC_TEE || TRUSTONIC_TEE_SUPPORT
-        ---help---
+        help
           Use Trustonic as base Trusted Execution Environment
 
     config TZIC_USE_TZDEV
         bool "TZIC based on TEEgris Secure OS"
         depends on TZDEV
-        ---help---
+        help
           Use TEEgris as base Trusted Execution Environment
 
     config TZIC_USE_QSEECOM
         bool "TZIC based on Qualcomm Secure OS"
         depends on QSEECOM
-        ---help---
+        help
           Use Qualcomm as base Trusted Execution Environment
     config TZIC_DEFAULT
         bool "TZIC Disabled"
-        ---help---
+        help
           TZIC disabled
 endchoice

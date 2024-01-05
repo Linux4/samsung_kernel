@@ -452,7 +452,7 @@
 			alloc-ranges = <0 0x00000000 0 0xffffffff>;
 			reusable;
 			alignment = <0 0x400000>;
-			size = <0 0x8c00000>;
+			size = <0 0x6800000>;
 		};
 
 		cont_splash_memory: cont_splash_region {

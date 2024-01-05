@@ -4013,6 +4013,10 @@ struct sdhci_host *sdhci_alloc_host(struct device *dev,
 
 	host->sdma_boundary = SDHCI_DEFAULT_BOUNDARY_ARG;
 
+#if defined(CONFIG_HDM)
+	mmc->trigger_card_event = true;
+#endif
+
 	spin_lock_init(&host->lock);
 	ratelimit_state_init(&host->dbg_dump_rs, SDHCI_DBG_DUMP_RS_INTERVAL,
 			SDHCI_DBG_DUMP_RS_BURST);

@@ -6,7 +6,7 @@ config FIVE_TEE_DRIVER
     tristate "Integrity TEE Driver"
     depends on FIVE && !PROCA_S_OS
     default y
-    ---help---
+    help
       Enable Integrity Trusted Execution Environment support
 
 choice
@@ -16,30 +16,30 @@ choice
     default FIVE_USE_QSEE if QSEECOM
     default FIVE_USE_TRUSTONIC if TRUSTONIC_TEE || TRUSTONIC_TEE_SUPPORT
     default FIVE_USE_EMULATOR
-    ---help---
+    help
       Select Secure OS for FIVE TEE Driver
 
     config FIVE_USE_EMULATOR
         bool "Integrity TEE Driver for TA emualtor"
-        ---help---
+        help
           Use Integrity TEE Driver which interacts with TA emulator over network
 
     config FIVE_USE_TRUSTONIC
         bool "Integrity TEE Driver based on Trustonic Secure OS"
         depends on TRUSTONIC_TEE || TRUSTONIC_TEE_SUPPORT
-        ---help---
+        help
           Use Trustonic as base Trusted Execution Environment
 
     config FIVE_USE_TZDEV
         bool "Integrity TEE Driver based on TEEgris Secure OS"
         depends on TZDEV
-        ---help---
+        help
           Use TEEgris as base Trusted Execution Environment
 
     config FIVE_USE_QSEE
         bool "Integrity TEE Driver based on QSEE Secure OS"
         depends on QSEECOM
-        ---help---
+        help
           Use QSEE as base Trusted Execution Environment
 
 endchoice
@@ -48,21 +48,21 @@ config TEE_DRIVER_DEBUG
     bool "Integrity TEE Driver Debug mode"
     depends on FIVE_TEE_DRIVER
     default n
-    ---help---
+    help
       Enable Debug mode in TEE Driver
 
 config FIVE_EMULATOR_IP
     string "IP address of FIVE TA Emulator"
     depends on FIVE_TEE_DRIVER && FIVE_USE_EMULATOR
     default "10.0.2.2" if FIVE_USE_EMULATOR
-    ---help---
+    help
       The driver will connect to FIVE TA at this address
 
 config FIVE_TRUSTLET_PATH
     string "FIVE trustlet"
     depends on FIVE_TEE_DRIVER && FIVE_USE_TRUSTONIC && FIRMWARE_IN_KERNEL
     default "five/ffffffff000000000000000000000072.tlbin"
-    ---help---
+    help
       This option defines FIVE trustlet path which will be built-in kernel
 
 config FIVE_EARLY_LOAD_TRUSTED_APP

@@ -2888,13 +2888,8 @@ static int fts_setup_drv_data(struct i2c_client *client)
 
 static void fts_set_input_prop(struct fts_ts_info *info, struct input_dev *dev, u8 propbit)
 {
-	static char fts_ts_phys[64] = { 0 };
-
 	dev->dev.parent = &info->client->dev;
 
-	snprintf(fts_ts_phys, sizeof(fts_ts_phys), "%s/input1",
-			dev->name);
-	dev->phys = fts_ts_phys;
 	dev->id.bustype = BUS_I2C;
 
 	set_bit(EV_SYN, dev->evbit);
@@ -2941,10 +2936,6 @@ static void fts_set_input_prop(struct fts_ts_info *info, struct input_dev *dev, 
 
 static void fts_set_input_prop_proximity(struct fts_ts_info *info, struct input_dev *dev)
 {
-	char phys[64] = { 0 };
-
-	snprintf(phys, sizeof(phys), "%s/input1", dev->name);
-	dev->phys = phys;
 	dev->id.bustype = BUS_I2C;
 	dev->dev.parent = &info->client->dev;
 
@@ -3049,11 +3040,13 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 
 	if (info->board->support_dex) {
 		info->input_dev_pad->name = "sec_touchpad";
+		info->input_dev_pad->phys = info->input_dev_pad->name;
 		fts_set_input_prop(info, info->input_dev_pad, INPUT_PROP_POINTER);
 	}
 
 	if (info->board->support_ear_detect) {
 		info->input_dev_proximity->name = "sec_touchproximity";
+		info->input_dev_proximity->phys = info->input_dev_proximity->name;
 		fts_set_input_prop_proximity(info, info->input_dev_proximity);
 	}
 
@@ -3063,6 +3056,7 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 		info->input_dev->name = "sec_touchscreen2";
 	else
 		info->input_dev->name = "sec_touchscreen";
+	info->input_dev->phys = info->input_dev->name;
 	fts_set_input_prop(info, info->input_dev, INPUT_PROP_DIRECT);
 #ifdef USE_OPEN_CLOSE
 	info->input_dev->open = fts_input_open;
