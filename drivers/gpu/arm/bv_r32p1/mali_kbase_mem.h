@@ -889,7 +889,9 @@ void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p,
  * @pages:    Pointer to array where the physical address of the allocated
  *            pages will be stored.
  * @partial_allowed: If fewer pages allocated is allowed
- *
+ * @page_owner: Pointer to the task that created the Kbase context for which
+ *              the pages are being allocated. It can be NULL if the pages
+ *              won't be associated with any Kbase context.
  * Like kbase_mem_pool_alloc() but optimized for allocating many pages.
  *
  * Return:
@@ -905,7 +907,7 @@ void kbase_mem_pool_free_locked(struct kbase_mem_pool *pool, struct page *p,
  * this lock, it should use kbase_mem_pool_alloc_pages_locked() instead.
  */
 int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
-		struct tagged_addr *pages, bool partial_allowed);
+		struct tagged_addr *pages, bool partial_allowed, struct task_struct *page_owner);
 
 /**
  * kbase_mem_pool_alloc_pages_locked - Allocate pages from memory pool
@@ -1017,13 +1019,15 @@ void kbase_mem_pool_set_max_size(struct kbase_mem_pool *pool, size_t max_size);
  * kbase_mem_pool_grow - Grow the pool
  * @pool:       Memory pool to grow
  * @nr_to_grow: Number of pages to add to the pool
- *
+ * @page_owner: Pointer to the task that created the Kbase context for which
+ *              the memory pool is being grown. It can be NULL if the pages
+ *              to be allocated won't be associated with any Kbase context.
  * Adds @nr_to_grow pages to the pool. Note that this may cause the pool to
  * become larger than the maximum size specified.
  *
  * Returns: 0 on success, -ENOMEM if unable to allocate sufficent pages
  */
-int kbase_mem_pool_grow(struct kbase_mem_pool *pool, size_t nr_to_grow);
+int kbase_mem_pool_grow(struct kbase_mem_pool *pool, size_t nr_to_grow,struct task_struct *page_owner);
 
 /**
  * kbase_mem_pool_trim - Grow or shrink the pool to a new size
@@ -2120,12 +2124,26 @@ kbase_ctx_reg_zone_get(struct kbase_context *kctx, unsigned long zone_bits)
 	return &kctx->reg_zone[KBASE_REG_ZONE_IDX(zone_bits)];
 }
 
+/*
+ * kbase_mem_mmgrab - Wrapper function to take reference on mm_struct of current process
+ */
+static inline void kbase_mem_mmgrab(void)
+{
+        /* This merely takes a reference on the memory descriptor structure
+        * i.e. mm_struct of current process and not on its address space and
+        * so won't block the freeing of address space on process exit.
+        */
+#if KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE
+        atomic_inc(&current->mm->mm_count);
+#else
+        mmgrab(current->mm);
+#endif
+}
 /**
  * kbase_mem_allow_alloc - Check if allocation of GPU memory is allowed
  * @kctx: Pointer to kbase context
  *
- * Don't allow the allocation of GPU memory until user space has set up the
- * tracking page (which sets kctx->process_mm) or if the ioctl has been issued
+ * Don't allow the allocation of GPU memory if the ioctl has been issued
  * from the forked child process using the mali device file fd inherited from
  * the parent process.
  *
@@ -2133,12 +2151,6 @@ kbase_ctx_reg_zone_get(struct kbase_context *kctx, unsigned long zone_bits)
  */
 static inline bool kbase_mem_allow_alloc(struct kbase_context *kctx)
 {
-	bool allow_alloc = true;
-
-	rcu_read_lock();
-	allow_alloc = (rcu_dereference(kctx->process_mm) == current->mm);
-	rcu_read_unlock();
-
-	return allow_alloc;
+        return (kctx->process_mm == current->mm);
 }
 #endif				/* _KBASE_MEM_H_ */

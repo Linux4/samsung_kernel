@@ -57,6 +57,8 @@ int npu_memory_close(struct npu_memory *memory);
 int npu_memory_map(struct npu_memory *memory, struct npu_memory_buffer *buffer);
 void npu_memory_unmap(struct npu_memory *memory, struct npu_memory_buffer *buffer);
 int npu_memory_alloc(struct npu_memory *memory, struct npu_memory_buffer *buffer);
+struct npu_memory_buffer *npu_memory_copy(struct npu_memory *memory,
+					struct npu_memory_buffer *buffer, size_t offset, size_t size);
 int npu_memory_free(struct npu_memory *memory, struct npu_memory_buffer *buffer);
 int npu_memory_v_alloc(struct npu_memory *memory, struct npu_memory_v_buf *buffer);
 void npu_memory_v_free(struct npu_memory *memory, struct npu_memory_v_buf *buffer);

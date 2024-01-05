@@ -242,26 +242,6 @@ I_ERR:
 	return ret;
 }
 
-static ssize_t get_ncp_hdr_size(const struct npu_nw *nw)
-{
-	struct ncp_header *ncp_header;
-
-	BUG_ON(!nw);
-
-	if (nw->ncp_addr.vaddr == NULL) {
-		npu_err("not specified in ncp_addr.kvaddr");
-		return -EINVAL;
-	}
-
-	ncp_header = (struct ncp_header *)nw->ncp_addr.vaddr;
-	//dbg_print_ncp_header(ncp_header);
-	if (ncp_header->magic_number1 != NCP_MAGIC1) {
-		npu_info("invalid MAGIC of NCP header (0x%08x) at (%pK)", ncp_header->magic_number1, ncp_header);
-		return -EINVAL;
-	}
-	return ncp_header->hdr_size;
-}
-
 int npu_interface_probe(struct device *dev, void *regs)
 {
 	int ret = 0;
@@ -379,12 +359,30 @@ int register_msgid_get_type(int (*msgid_get_type_func)(int))
 	return 0;
 }
 
+static u32 config_npu_load_payload(struct npu_nw *nw)
+{
+	struct npu_session *session = nw->session;
+	struct cmd_load_payload *payload = session->ncp_payload->vaddr;
+
+	payload[COMMAND_LOAD_USER_NCP].addr = nw->ncp_addr.daddr;
+	payload[COMMAND_LOAD_USER_NCP].size = nw->ncp_addr.size;
+	payload[COMMAND_LOAD_USER_NCP].id = COMMAND_LOAD_USER_NCP;
+
+	payload[COMMAND_LOAD_HDR_COPY].addr = session->ncp_hdr_buf->daddr;
+	payload[COMMAND_LOAD_HDR_COPY].size = session->ncp_hdr_buf->size;
+	payload[COMMAND_LOAD_HDR_COPY].id = COMMAND_LOAD_HDR_COPY;
+
+	npu_session_ion_sync_for_device(session->ncp_payload, 0, session->ncp_payload->size,
+					DMA_TO_DEVICE);
+
+	return session->ncp_payload->daddr;
+}
+
 int nw_req_manager(int msgid, struct npu_nw *nw)
 {
 	int ret = 0;
 	struct command cmd = {};
 	struct message msg = {};
-	ssize_t hdr_size;
 
 	switch (nw->cmd) {
 	case NPU_NW_CMD_BASE:
@@ -393,15 +391,8 @@ int nw_req_manager(int msgid, struct npu_nw *nw)
 	case NPU_NW_CMD_LOAD:
 		cmd.c.load.oid = nw->uid;
 		cmd.c.load.tid = nw->bound_id;
-		hdr_size = get_ncp_hdr_size(nw);
-		if (hdr_size <= 0) {
-			npu_info("fail in get_ncp_hdr_size: (%zd)", hdr_size);
-			ret = FALSE;
-			goto nw_req_err;
-		}
-
-		cmd.length = (u32)hdr_size;
-		cmd.payload = nw->ncp_addr.daddr;
+		cmd.length = sizeof(struct cmd_load_payload) * 2;
+		cmd.payload = config_npu_load_payload(nw);
 		msg.command = COMMAND_LOAD;
 		msg.length = sizeof(struct command);
 		break;
