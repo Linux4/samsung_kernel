@@ -822,8 +822,7 @@ KBUILD_CFLAGS	+= $(call cc-option, -gdwarf-4,)
 endif
 
 ifdef CONFIG_RKP_CFP
-#CFP_CC		?= $(srctree)/../../vendor/qcom/proprietary/llvm-arm-toolchain-ship/10.0/bin/clang
-CFP_CC		= $(srctree)/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang
+CFP_CC		?= $(srctree)/../../vendor/qcom/proprietary/llvm-arm-toolchain-ship/10.0/bin/clang
 CC		= $(srctree)/scripts/gcc-wrapper.py $(CFP_CC)
 endif
 

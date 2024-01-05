@@ -1210,7 +1210,7 @@ char supported_camera_ids[] = {
     50, //REAR_2ND = Rear UW
     54, // Macro Sensor
 };
-#elif defined(CONFIG_SEC_BEYOND2QLTE_PROJECT) || defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT)
+#elif defined(CONFIG_SEC_BEYOND2QLTE_PROJECT) || defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT) || defined(CONFIG_SEC_ZODIAC_PROJECT)
 char supported_camera_ids[] = {
 	0,  //REAR_0
 	3,  //FRONT_FULL_FOV

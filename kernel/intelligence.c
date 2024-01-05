@@ -130,12 +130,18 @@ static int task_state_proc_show(struct seq_file *m, void *v)
 	// 	get sched infos
 	mutex_lock(&pid_array_mutex);
 	for (i = 0; i < pid_array_len; i++) {
+        rcu_read_lock();
 		tsk = find_task_by_vpid(pid_array[i]);
-		if (!tsk) continue;
+        if (tsk)
+            get_task_struct(tsk);
+        rcu_read_unlock();
+		if (!tsk)
+            continue;
 		load_sum += tsk->se.avg.load_sum;
 		util_sum += tsk->se.avg.util_sum;
 		load_avg += tsk->se.avg.load_avg;
 		util_avg += tsk->se.avg.util_avg;
+        put_task_struct(tsk);
 		cnt++;
 		seq_printf(m, "%d ", pid_array[i]);
 	}
@@ -157,13 +163,26 @@ static ssize_t task_state_proc_write(struct file *file,
 	int i;
 	int ret;
 
+	if (!count || count > 8 * 2048)
+		return -EINVAL;
+
+	// + 1 to safeguard string termination
 	kbuf = kmalloc(count + 1, GFP_KERNEL);
 	if (!kbuf)
 		return -ENOMEM;
+	((char*)kbuf)[count] = '\0';
 
-	if (copy_from_user(kbuf, buffer, count))
+	if (copy_from_user(kbuf, buffer, count)) {
+		kfree(kbuf);
 		return -EFAULT;
+	}
+	((char*)kbuf)[count-1] = '\0';
 	argv = argv_split(GFP_KERNEL, kbuf, &argc);
+
+	kfree(kbuf);
+
+	if (!argv)
+		return -EFAULT;
 
 	mutex_lock(&pid_array_mutex);
 	pid_array_len = argc;
@@ -177,7 +196,7 @@ static ssize_t task_state_proc_write(struct file *file,
 		ret = kstrtoint(argv[i], 0, (int *)&pid_array[i]);
 		if (ret) {
 			pid_array_len--;
-			pr_err("failed to convert %s : %d\n", argv[i], ret);
+			pr_debug("failed to convert %s : %d\n", argv[i], ret);
 		}
 
 	}
