@@ -1,0 +1,59 @@
+config TROUT_FM
+	tristate "SPRD Trout FM Support"
+	depends on SPRD_2351
+	---help---
+	  Say Y to enable built-in wireless MAC controller in the
+	  Spreadtrum SC88xx based System-on-Chip devices.
+
+config FM_SEEK_STEP_50KHZ
+	tristate "Trout FM Seek Step 50KHz Support "
+	default n
+	help
+	  If you say yes here you can support Step 50KHz for Trout FM.
+
+if TROUT_FM
+choice
+	prompt "TROUT INTERFACE"
+	default INTERFACE_ONCHIP
+#use shared interface
+config INTERFACE_SHARED
+	depends on TROUT_FM
+	bool "Use Shared Interface"
+	help
+	  Public interface for trout FM BT and WIFI.
+
+config INTERFACE_ONCHIP
+	depends on TROUT_FM
+	bool "Use Onchip interface."
+	help
+	  Directly access to the trout configure address.
+
+endchoice
+
+choice
+	prompt "TROUT RF"
+	default RF_SHARK
+
+#use rf 55
+config RF_55
+	depends on TROUT_FM
+	bool "RF 55"
+	help
+	  MXD RF.
+
+#use rf 2829
+config RF_2829
+	depends on TROUT_FM
+	bool "RF 2829"
+	help
+	  SPRD RF.
+
+config RF_SHARK
+	depends on TROUT_FM
+	bool "RF SHARK"
+	help
+	  SPRD RF.
+
+endchoice
+
+endif

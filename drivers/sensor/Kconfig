@@ -1,0 +1,101 @@
+menu "Sensor support"
+
+config SENSORS
+	bool "Support for sensors"
+	help
+	  Say Y here to add support for accelerometer sensors
+
+if SENSORS
+
+config SENSORS_GP2A
+        tristate "Sharp GP2AP002A00F I2C Proximity/Opto sensor driver"
+        depends on I2C
+        help
+	  Say Y here if you have a Sharp GP2AP002A00F proximity/als combo-chip
+	  hooked to an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called gp2ap002a00f.
+ 
+config SENSORS_BMA2X2
+	tristate "BMA255/BMA250E/BMA222E/BMA280 acceleration sensor support"
+	depends on I2C
+	help
+	  If you say yes here you get support for Bosch Sensortec's
+	  acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
+
+config SENSORS_BMA254
+	tristate "BMA255/BMA254/BMA250E/BMA222E/BMA280 acceleration sensor support"
+	depends on I2C
+	help
+	  If you say yes here you get support for Bosch Sensortec's
+	  acceleration sensors BMA255/BMA254/BMA250E/BMA222E/BMA280.
+
+config SENSORS_ACCELOMETER_BMA25X
+	depends on I2C
+	tristate "BOSCH acceleromter sensor driver"
+	default n
+	help
+	  Say Y here if you use GP2A_PROXIMITY.
+	  This option enables proximity sensors using
+	  SHARP GP2A_ANALOG device driver.
+
+	  Say N here if you do not use GP2A_ANALOG.
+
+config BOSCH_ACCELEROMETER_POSITION
+    int "Bosch Accelerometer Sensor Mounting Position on Board"
+    depends on SENSORS_BMA254
+    default "0"
+    help
+      Chip mounting position (pin 1).
+      0: top, upper-left
+      1: top, upper-right
+      2: top, lower-right
+      3: top, lower-left
+      4: bottom, upper-left
+      5: bottom, upper-right
+      6: bottom, lower-right
+      7: bottom, lower-left
+
+config SENSORS_BMA2X2_ENABLE_INT1
+	tristate "BMA2X2 acceleration sensor interrupt INT1 support"
+	depends on SENSORS_BMA2X2
+	help
+	 If you say yes here you get INT1 support for Bosch Sensortec
+	 acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
+	 Select it will disable interrupt INT2 support
+
+config SENSORS_BMA2X2_ENABLE_INT2
+	tristate "BMA2X2 acceleration sensor interrupt INT2 support"
+	depends on SENSORS_BMA2X2
+	help
+	 If you say yes here you get INT2 support for Bosch Sensortec
+	 acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
+	 Can only open if you do NOT open interrupt INT1 support
+
+config SIG_MOTION
+	tristate "support significant motion sensor function"
+	depends on SENSORS_BMA2X2 && ( SENSORS_BMA2X2_ENABLE_INT1 || SENSORS_BMA2X2_ENABLE_INT2)
+	help
+	 Say Y here if you want to support Bosch significant motion sensor function
+
+config DOUBLE_TAP
+	tristate "support double tap sensor function"
+	depends on SENSORS_BMA2X2 && ( SENSORS_BMA2X2_ENABLE_INT1 || SENSORS_BMA2X2_ENABLE_INT2)
+	help
+	 Say Y here if you want to support Bosch double tap sensor function
+
+config SENSORS_BMI058
+	tristate "BMI058 Sensor Support"
+	depends on (SENSORS_BMG || SENSORS_BMA2X2)
+	help
+	 If you say yes here you get support for Bosch Sensortec's
+	 sensor driver of BMI058.
+
+config SENSORS_BMM050
+	tristate "BMM050 Magnetic Sensor Driver"
+	depends on I2C
+	help
+	 BMM050 Magnetic Sensor Driver implemented by Bosch-Sensortec.
+
+endif
+endmenu
