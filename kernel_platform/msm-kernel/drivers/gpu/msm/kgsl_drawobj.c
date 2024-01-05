@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -51,6 +52,14 @@ static void syncobj_destroy_object(struct kgsl_drawobj *drawobj)
 				kfree(priv->fences);
 				kfree(priv);
 			}
+
+			if (event->handle) {
+				struct kgsl_sync_fence_cb *kcb = event->handle;
+
+				dma_fence_put(kcb->fence);
+				kfree(kcb);
+			}
+
 		} else if (event->type == KGSL_CMD_SYNCPOINT_TYPE_TIMELINE) {
 			kfree(event->priv);
 		}
@@ -188,22 +197,21 @@ static void syncobj_timer(struct timer_list *t)
 		case KGSL_CMD_SYNCPOINT_TYPE_TIMELINE: {
 			int j;
 			struct event_timeline_info *info = event->priv;
-			struct dma_fence* fence = event->fence;
+			struct dma_fence *fence = event->fence;
 			bool retired = false;
 			bool signaled = test_bit(DMA_FENCE_FLAG_SIGNALED_BIT,
-				&fence->flags);
-			const char* str = NULL;
-			
+					&fence->flags);
+			const char *str = NULL;
+
 			if (fence->ops->signaled && fence->ops->signaled(fence))
 				retired = true;
-			
+
 			if (!retired)
 				str = "not retired";
 			else if (retired && signaled)
 				str = "signaled";
 			else if (retired && !signaled)
 				str = "retired but not signaled";
-
 			dev_err(device->dev, "       [%u] FENCE %s\n",
 				i, str);
 			for (j = 0; info && info[j].timeline; j++)
@@ -429,8 +437,10 @@ static void cmdobj_destroy(struct kgsl_drawobj *drawobj)
 		kmem_cache_free(memobjs_cache, mem);
 	}
 
-	if (drawobj->type & CMDOBJ_TYPE)
+	if (drawobj->type & CMDOBJ_TYPE) {
 		atomic_dec(&drawobj->context->proc_priv->cmd_count);
+		atomic_dec(&drawobj->context->proc_priv->period->active_cmds);
+	}
 }
 
 /**
@@ -737,6 +747,9 @@ int kgsl_drawobj_sync_add_sync(struct kgsl_device *device,
 {
 	struct kgsl_drawobj *drawobj = DRAWOBJ(syncobj);
 
+	if (sync->type != KGSL_CMD_SYNCPOINT_TYPE_FENCE)
+		syncobj->flags |= KGSL_SYNCOBJ_SW;
+
 	if (sync->type == KGSL_CMD_SYNCPOINT_TYPE_TIMESTAMP)
 		return drawobj_add_sync_timestamp_from_user(device,
 			syncobj, sync->priv, sync->size);
@@ -747,7 +760,7 @@ int kgsl_drawobj_sync_add_sync(struct kgsl_device *device,
 		return drawobj_add_sync_timeline(device,
 			syncobj, sync->priv, sync->size);
 
-	dev_err(device->dev, "bad syncpoint type %d for ctxt %d\n",
+	dev_err(device->dev, "bad syncpoint type %d for ctxt %u\n",
 		sync->type, drawobj->context->id);
 
 	return -EINVAL;
@@ -792,7 +805,7 @@ static void add_profiling_buffer(struct kgsl_device *device,
 
 	if (entry == NULL) {
 		dev_err(device->dev,
-			"ignore bad profile buffer ctxt %d id %d offset %lld gpuaddr %llx size %lld\n",
+			"ignore bad profile buffer ctxt %u id %d offset %lld gpuaddr %llx size %lld\n",
 			drawobj->context->id, id, offset, gpuaddr, size);
 		return;
 	}
@@ -1127,13 +1140,31 @@ struct kgsl_drawobj_cmd *kgsl_drawobj_cmd_create(struct kgsl_device *device,
 		| KGSL_DRAWOBJ_PWR_CONSTRAINT
 		| KGSL_DRAWOBJ_MEMLIST
 		| KGSL_DRAWOBJ_PROFILING
-		| KGSL_DRAWOBJ_PROFILING_KTIME);
+		| KGSL_DRAWOBJ_PROFILING_KTIME
+		| KGSL_DRAWOBJ_START_RECURRING
+		| KGSL_DRAWOBJ_STOP_RECURRING);
 
 	INIT_LIST_HEAD(&cmdobj->cmdlist);
 	INIT_LIST_HEAD(&cmdobj->memlist);
+	cmdobj->requeue_cnt = 0;
 
-	if (type & CMDOBJ_TYPE)
-		atomic_inc(&context->proc_priv->cmd_count);
+	if (!(type & CMDOBJ_TYPE))
+		return cmdobj;
+
+	atomic_inc(&context->proc_priv->cmd_count);
+	atomic_inc(&context->proc_priv->period->active_cmds);
+	spin_lock(&device->work_period_lock);
+	if (!__test_and_set_bit(KGSL_WORK_PERIOD, &device->flags)) {
+		mod_timer(&device->work_period_timer,
+			  jiffies + msecs_to_jiffies(KGSL_WORK_PERIOD_MS));
+		device->gpu_period.begin = ktime_get_ns();
+	}
+
+	/* Take a refcount here and put it back in kgsl_work_period_timer() */
+	if (!__test_and_set_bit(KGSL_WORK_PERIOD, &context->proc_priv->period->flags))
+		kref_get(&context->proc_priv->period->refcount);
+
+	spin_unlock(&device->work_period_lock);
 
 	return cmdobj;
 }
@@ -1346,7 +1377,7 @@ int kgsl_drawobj_cmd_add_cmdlist(struct kgsl_device *device,
 		/* Sanity check the flags */
 		if (!(obj.flags & CMDLIST_FLAGS)) {
 			dev_err(device->dev,
-				     "invalid cmdobj ctxt %d flags %d id %d offset %llu addr %llx size %llu\n",
+				     "invalid cmdobj ctxt %u flags %d id %d offset %llu addr %llx size %llu\n",
 				     baseobj->context->id, obj.flags, obj.id,
 				     obj.offset, obj.gpuaddr, obj.size);
 			return -EINVAL;
@@ -1384,7 +1415,7 @@ int kgsl_drawobj_cmd_add_memlist(struct kgsl_device *device,
 
 		if (!(obj.flags & KGSL_OBJLIST_MEMOBJ)) {
 			dev_err(device->dev,
-				     "invalid memobj ctxt %d flags %d id %d offset %lld addr %lld size %lld\n",
+				     "invalid memobj ctxt %u flags %d id %d offset %lld addr %lld size %lld\n",
 				     DRAWOBJ(cmdobj)->context->id, obj.flags,
 				     obj.id, obj.offset, obj.gpuaddr,
 				     obj.size);

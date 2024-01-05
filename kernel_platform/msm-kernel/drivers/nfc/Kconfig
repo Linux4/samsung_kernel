@@ -10,6 +10,15 @@ config SAMSUNG_NFC
 	  To compile this support as a module, choose M here: the module will
 	  be called nfc.
 
+config NFC_NXP_COMBINED
+	bool "NXP COMBINED driver Feature"
+	default n
+	help
+	  NXP Near Field Communication controller support.
+	  If this feature is enabled, sn2xx driver can support various ICs
+	  such as PN557, sn1xx and sn2xx.
+	  For one binary, this driver should be used.
+
 config NFC_SN2XX
 	bool "NXP SN2XX Feature"
 	default n
@@ -47,6 +56,16 @@ config SEC_NFC_LOGGER
           NFC log will be recorded at proc folder.
           but will not included at dumpstate log.
           so need to copy this file to log folder.
+
+config SEC_NFC_WAKELOCK_METHOD
+        int "nfc wakelock method"
+        default 0
+        help
+          Different functions must be used depending on the kernel version
+          for wakelock initialization.
+          0 - auto selection
+          1 - wakeup_source_init
+          2 - wakeup_source_register
 
 config SEC_NFC_LOGGER_ADD_ACPM_LOG
         bool "NFC logger: add acpm log"

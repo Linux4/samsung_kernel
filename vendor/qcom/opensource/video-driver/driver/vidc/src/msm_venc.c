@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <media/v4l2_vidc_extensions.h>
@@ -162,7 +163,8 @@ static int msm_venc_set_stride_scanline(struct msm_vidc_inst *inst,
 	stride_y = inst->fmts[INPUT_PORT].fmt.pix_mp.width;
 	scanline_y = inst->fmts[INPUT_PORT].fmt.pix_mp.height;
 	if (color_format == MSM_VIDC_FMT_NV12 ||
-		color_format == MSM_VIDC_FMT_P010) {
+		color_format == MSM_VIDC_FMT_P010 ||
+		color_format == MSM_VIDC_FMT_NV21) {
 		stride_uv = stride_y;
 		scanline_uv = scanline_y / 2;
 	}
@@ -543,13 +545,11 @@ static int msm_venc_set_internal_properties(struct msm_vidc_inst *inst)
 static int msm_venc_get_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
-	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 
 	for (i = 0; i < ARRAY_SIZE(msm_venc_input_internal_buffer_type); i++) {
 		rc = msm_vidc_get_internal_buffers(inst,
@@ -662,16 +662,14 @@ static int msm_venc_property_subscription(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core *core;
 	u32 payload[32] = {0};
 	u32 i;
 	u32 payload_size = 0;
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	payload[0] = HFI_MODE_PROPERTY;
@@ -752,7 +750,6 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core *core;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
 	struct msm_vidc_inst_capability *capability;
@@ -765,11 +762,10 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 		META_ENC_QP_METADATA,
 	};
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	capability = inst->capabilities;
@@ -1029,6 +1025,10 @@ int msm_venc_streamon_output(struct msm_vidc_inst *inst)
 	if (rc)
 		goto error;
 
+	rc = msm_vidc_set_vui_timing_info(inst, VUI_TIMING_INFO);
+	if (rc)
+		goto error;
+
 	rc = msm_venc_property_subscription(inst, OUTPUT_PORT);
 	if (rc)
 		goto error;
@@ -1052,15 +1052,13 @@ error:
 int msm_venc_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 {
 	int rc = 0;
-	struct msm_vidc_core *core;
 	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;
 	u32 pix_fmt;
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 
 	memset(pixmp->reserved, 0, sizeof(pixmp->reserved));
 
@@ -1373,6 +1371,9 @@ int msm_venc_s_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 		rc = msm_venc_s_fmt_input(inst, f);
 		if (rc)
 			goto exit;
+		rc = msm_vidc_check_session_supported(inst);
+		if (rc)
+			goto exit;
 	} else if (f->type == INPUT_META_PLANE) {
 		rc = msm_venc_s_fmt_input_meta(inst, f);
 		if (rc)
@@ -1618,7 +1619,7 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 	input_rate = (u64)USEC_PER_SEC;
 	do_div(input_rate, us_per_frame);
 
-	i_vpr_h(inst, "%s: type %s, %s value %d\n",
+	i_vpr_h(inst, "%s: type %s, %s value %llu\n",
 		__func__, v4l2_type_name(s_parm->type),
 		is_frame_rate ? "frame rate" : "operating rate", input_rate);
 
@@ -1635,7 +1636,7 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 		}
 		rc = input_rate > max_rate;
 		if (rc) {
-			i_vpr_e(inst, "%s: unsupported rate %u, max %u\n", __func__,
+			i_vpr_e(inst, "%s: unsupported rate %llu, max %u\n", __func__,
 				input_rate, max_rate);
 			rc = -ENOMEM;
 			goto reset_rate;
@@ -1673,7 +1674,7 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 
 reset_rate:
 	if (rc) {
-		i_vpr_e(inst, "%s: setting rate %u failed, reset to %u\n", __func__,
+		i_vpr_e(inst, "%s: setting rate %llu failed, reset to %u\n", __func__,
 			input_rate, default_rate);
 		msm_vidc_update_cap_value(inst, is_frame_rate ? FRAME_RATE : OPERATING_RATE,
 			default_rate << 16, __func__);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Copyright (c) 2012, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Description: CoreSight Trace Memory Controller driver
  */
@@ -32,7 +33,7 @@ DEFINE_CORESIGHT_DEVLIST(etb_devs, "tmc_etb");
 DEFINE_CORESIGHT_DEVLIST(etf_devs, "tmc_etf");
 DEFINE_CORESIGHT_DEVLIST(etr_devs, "tmc_etr");
 
-void tmc_wait_for_tmcready(struct tmc_drvdata *drvdata)
+int tmc_wait_for_tmcready(struct tmc_drvdata *drvdata)
 {
 	struct coresight_device *csdev = drvdata->csdev;
 	struct csdev_access *csa = &csdev->access;
@@ -41,7 +42,10 @@ void tmc_wait_for_tmcready(struct tmc_drvdata *drvdata)
 	if (coresight_timeout(csa, TMC_STS, TMC_STS_TMCREADY_BIT, 1)) {
 		dev_err(&csdev->dev,
 			"timeout while waiting for TMC to be Ready\n");
+		return -EBUSY;
 	}
+
+	return 0;
 }
 
 void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
@@ -62,6 +66,11 @@ void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
 	}
 
 	tmc_wait_for_tmcready(drvdata);
+}
+
+void tmc_disable_stop_on_flush(struct tmc_drvdata *drvdata)
+{
+	drvdata->stop_on_flush = false;
 }
 
 void tmc_enable_hw(struct tmc_drvdata *drvdata)
@@ -422,25 +431,78 @@ static ssize_t out_mode_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(out_mode);
 
-static struct attribute *coresight_tmc_attrs[] = {
+static ssize_t stop_on_flush_show(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	u32 val;
+	struct tmc_drvdata *drvdata = dev_get_drvdata(dev->parent);
+
+	if (drvdata->stop_on_flush)
+		val = 1;
+	else
+		val = 0;
+
+	return scnprintf(buf, PAGE_SIZE, "%x\n", val);
+}
+
+static ssize_t stop_on_flush_store(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t size)
+{
+
+	static int ret;
+	unsigned long val;
+	struct tmc_drvdata *drvdata = dev_get_drvdata(dev->parent);
+
+	ret = kstrtoul(buf, 10, &val);
+	if (ret)
+		return ret;
+	if (val)
+		drvdata->stop_on_flush = true;
+	else
+		drvdata->stop_on_flush = false;
+
+	return drvdata->stop_on_flush;
+}
+static DEVICE_ATTR_RW(stop_on_flush);
+
+static struct attribute *coresight_tmc_etr_attrs[] = {
 	&dev_attr_trigger_cntr.attr,
 	&dev_attr_buffer_size.attr,
 	&dev_attr_block_size.attr,
 	&dev_attr_out_mode.attr,
+	&dev_attr_stop_on_flush.attr,
 	NULL,
 };
 
-static const struct attribute_group coresight_tmc_group = {
-	.attrs = coresight_tmc_attrs,
+static struct attribute *coresight_tmc_etf_attrs[] = {
+	&dev_attr_trigger_cntr.attr,
+	&dev_attr_stop_on_flush.attr,
+	NULL,
 };
+
+static const struct attribute_group coresight_tmc_etr_group = {
+	.attrs = coresight_tmc_etr_attrs,
+};
+
+static const struct attribute_group coresight_tmc_etf_group = {
+	.attrs = coresight_tmc_etf_attrs,
+};
+
 
 static const struct attribute_group coresight_tmc_mgmt_group = {
 	.attrs = coresight_tmc_mgmt_attrs,
 	.name = "mgmt",
 };
 
-static const struct attribute_group *coresight_tmc_groups[] = {
-	&coresight_tmc_group,
+static const struct attribute_group *coresight_tmc_etr_groups[] = {
+	&coresight_tmc_etr_group,
+	&coresight_tmc_mgmt_group,
+	NULL,
+};
+
+static const struct attribute_group *coresight_tmc_etf_groups[] = {
+	&coresight_tmc_etf_group,
 	&coresight_tmc_mgmt_group,
 	NULL,
 };
@@ -565,19 +627,21 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 	}
 
 	desc.dev = dev;
-	desc.groups = coresight_tmc_groups;
+	drvdata->stop_on_flush = false;
 
 	switch (drvdata->config_type) {
 	case TMC_CONFIG_TYPE_ETB:
 		desc.type = CORESIGHT_DEV_TYPE_SINK;
 		desc.subtype.sink_subtype = CORESIGHT_DEV_SUBTYPE_SINK_BUFFER;
 		desc.ops = &tmc_etb_cs_ops;
+		desc.groups = coresight_tmc_etf_groups;
 		dev_list = &etb_devs;
 		break;
 	case TMC_CONFIG_TYPE_ETR:
 		desc.type = CORESIGHT_DEV_TYPE_SINK;
 		desc.subtype.sink_subtype = CORESIGHT_DEV_SUBTYPE_SINK_SYSMEM;
 		desc.ops = &tmc_etr_cs_ops;
+		desc.groups = coresight_tmc_etr_groups;
 		ret = tmc_etr_setup_caps(dev, devid,
 					 coresight_get_uci_data(id));
 		if (ret)
@@ -603,6 +667,7 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 		desc.subtype.sink_subtype = CORESIGHT_DEV_SUBTYPE_SINK_BUFFER;
 		desc.subtype.link_subtype = CORESIGHT_DEV_SUBTYPE_LINK_FIFO;
 		desc.ops = &tmc_etf_cs_ops;
+		desc.groups = coresight_tmc_etf_groups;
 		dev_list = &etf_devs;
 		break;
 	default:

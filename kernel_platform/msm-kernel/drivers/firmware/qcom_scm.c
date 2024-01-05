@@ -43,6 +43,12 @@ module_param(pas_shutdown_retry_max, uint, 0644);
 #define SCM_HAS_IFACE_CLK	BIT(1)
 #define SCM_HAS_BUS_CLK		BIT(2)
 
+struct qcom_scm_waitq {
+	struct idr idr;
+	spinlock_t idr_lock;
+	struct work_struct scm_irq_work;
+};
+
 struct qcom_scm {
 	struct device *dev;
 	struct clk *core_clk;
@@ -50,9 +56,7 @@ struct qcom_scm {
 	struct clk *bus_clk;
 	struct reset_controller_dev reset;
 	struct notifier_block restart_nb;
-	struct work_struct scm_irq_work;
-	struct idr wq_idr;
-	spinlock_t wq_idr_lock;
+	struct qcom_scm_waitq waitq;
 
 	u64 dload_mode_addr;
 };
@@ -289,7 +293,7 @@ static bool __qcom_scm_is_call_available(struct device *dev, u32 svc_id,
 		break;
 	default:
 		pr_err("Unknown SMC convention being used\n");
-		return -EINVAL;
+		return false;
 	}
 
 	ret = qcom_scm_call(dev, &desc, &res);
@@ -694,6 +698,7 @@ int qcom_scm_pas_shutdown_retry(u32 peripheral)
 		return ret;
 
 	pr_err("PAS Shutdown: First call to shutdown failed with error: %d\n", ret);
+
 	while (retry_num < pas_shutdown_retry_max && ret) {
 		retry_num++;
 		msleep(pas_shutdown_retry_interval);
@@ -944,11 +949,9 @@ void qcom_scm_halt_spmi_pmic_arbiter(void)
 		.arginfo = QCOM_SCM_ARGS(1),
 	};
 
-	pr_crit("Calling SCM to disable SPMI PMIC arbiter\n");
-
 	ret = qcom_scm_call_atomic(__scm->dev, &desc, NULL);
 	if (ret)
-		pr_err("Failed to halt_spmi_pmic_arbiter=0x%x\n", ret);
+		pr_debug("Failed to halt_spmi_pmic_arbiter=0x%x\n", ret);
 }
 EXPORT_SYMBOL(qcom_scm_halt_spmi_pmic_arbiter);
 
@@ -1384,6 +1387,25 @@ int qcom_scm_kgsl_set_smmu_aperture(unsigned int num_context_bank)
 	return qcom_scm_call(__scm->dev, &desc, NULL);
 }
 EXPORT_SYMBOL(qcom_scm_kgsl_set_smmu_aperture);
+
+int qcom_scm_kgsl_set_smmu_lpac_aperture(unsigned int num_context_bank)
+{
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_SVC_MP,
+		.cmd = QCOM_SCM_MP_CP_SMMU_APERTURE_ID,
+		.owner = ARM_SMCCC_OWNER_SIP,
+		.args[0] = 0xffff0000
+			   | ((QCOM_SCM_CP_LPAC_APERTURE_REG & 0xff) << 8)
+			   | (num_context_bank & 0xff),
+		.args[1] = 0xffffffff,
+		.args[2] = 0xffffffff,
+		.args[3] = 0xffffffff,
+		.arginfo = QCOM_SCM_ARGS(4),
+	};
+
+	return qcom_scm_call(__scm->dev, &desc, NULL);
+}
+EXPORT_SYMBOL(qcom_scm_kgsl_set_smmu_lpac_aperture);
 
 int qcom_scm_enable_shm_bridge(void)
 {
@@ -2203,53 +2225,6 @@ int qcom_scm_camera_protect_phy_lanes(bool protect, u64 regmask)
 }
 EXPORT_SYMBOL(qcom_scm_camera_protect_phy_lanes);
 
-static int qcom_scm_wq_wake_ack(u32 smc_call_ctx, struct qcom_scm_res *res)
-{
-	struct qcom_scm_desc desc = {
-		.svc = QCOM_SCM_SVC_WAITQ,
-		.cmd = QCOM_SCM_WAITQ_ACK,
-		.owner = ARM_SMCCC_OWNER_SIP,
-		.args[0] = smc_call_ctx,
-		.arginfo = QCOM_SCM_ARGS(1),
-	};
-
-	return qcom_scm_call(__scm->dev, &desc, res);
-}
-
-static int qcom_scm_wq_resume(u32 smc_call_ctx, struct qcom_scm_res *res)
-{
-	struct qcom_scm_desc desc = {
-		.svc = QCOM_SCM_SVC_WAITQ,
-		.cmd = QCOM_SCM_WAITQ_RESUME,
-		.owner = ARM_SMCCC_OWNER_SIP,
-		.args[0] = smc_call_ctx,
-		.arginfo = QCOM_SCM_ARGS(1),
-	};
-
-	return qcom_scm_call(__scm->dev, &desc, res);
-}
-
-static int qcom_scm_get_wq_ctx(u32 *wq_ctx, u32 *flags, u32 *more_pending)
-{
-	struct qcom_scm_desc desc = {
-		.svc = QCOM_SCM_SVC_WAITQ,
-		.cmd = QCOM_SCM_WAITQ_GET_WQ_CTX,
-		.owner = ARM_SMCCC_OWNER_SIP,
-	};
-	struct qcom_scm_res res;
-	int ret;
-
-	ret = qcom_scm_call(__scm->dev, &desc, &res);
-	if (ret)
-		return ret;
-
-	*wq_ctx = res.result[0];
-	*flags  = res.result[1];
-	*more_pending = res.result[2];
-
-	return ret;
-}
-
 int qcom_scm_tsens_reinit(int *tsens_ret)
 {
 	unsigned int ret;
@@ -2289,6 +2264,64 @@ int qcom_scm_ice_restore_cfg(void)
 	return qcom_scm_call(__scm->dev, &desc, NULL);
 }
 EXPORT_SYMBOL(qcom_scm_ice_restore_cfg);
+
+bool qcom_scm_lmh_dcvsh_available(void)
+{
+	return __qcom_scm_is_call_available(__scm->dev, QCOM_SCM_SVC_LMH, QCOM_SCM_LMH_LIMIT_DCVSH);
+}
+EXPORT_SYMBOL(qcom_scm_lmh_dcvsh_available);
+
+int qcom_scm_lmh_profile_change(u32 profile_id)
+{
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_SVC_LMH,
+		.cmd = QCOM_SCM_LMH_LIMIT_PROFILE_CHANGE,
+		.arginfo = QCOM_SCM_ARGS(1, QCOM_SCM_VAL),
+		.args[0] = profile_id,
+		.owner = ARM_SMCCC_OWNER_SIP,
+	};
+
+	return qcom_scm_call(__scm->dev, &desc, NULL);
+}
+EXPORT_SYMBOL(qcom_scm_lmh_profile_change);
+
+int qcom_scm_lmh_dcvsh(u32 payload_fn, u32 payload_reg, u32 payload_val,
+		       u64 limit_node, u32 node_id, u64 version)
+{
+	dma_addr_t payload_phys;
+	u32 *payload_buf;
+	int ret, payload_size = 5 * sizeof(u32);
+
+	struct qcom_scm_desc desc = {
+		.svc = QCOM_SCM_SVC_LMH,
+		.cmd = QCOM_SCM_LMH_LIMIT_DCVSH,
+		.arginfo = QCOM_SCM_ARGS(5, QCOM_SCM_RO, QCOM_SCM_VAL, QCOM_SCM_VAL,
+					QCOM_SCM_VAL, QCOM_SCM_VAL),
+		.args[1] = payload_size,
+		.args[2] = limit_node,
+		.args[3] = node_id,
+		.args[4] = version,
+		.owner = ARM_SMCCC_OWNER_SIP,
+	};
+
+	payload_buf = dma_alloc_coherent(__scm->dev, payload_size, &payload_phys, GFP_KERNEL);
+	if (!payload_buf)
+		return -ENOMEM;
+
+	payload_buf[0] = payload_fn;
+	payload_buf[1] = 0;
+	payload_buf[2] = payload_reg;
+	payload_buf[3] = 1;
+	payload_buf[4] = payload_val;
+
+	desc.args[0] = payload_phys;
+
+	ret = qcom_scm_call(__scm->dev, &desc, NULL);
+
+	dma_free_coherent(__scm->dev, payload_size, payload_buf, payload_phys);
+	return ret;
+}
+EXPORT_SYMBOL(qcom_scm_lmh_dcvsh);
 
 int qcom_scm_get_tz_log_feat_id(u64 *version)
 {
@@ -2543,6 +2576,12 @@ bool qcom_scm_is_available(void)
 }
 EXPORT_SYMBOL(qcom_scm_is_available);
 
+void *qcom_get_scm_device(void)
+{
+	return __scm ? __scm->dev : NULL;
+}
+EXPORT_SYMBOL(qcom_get_scm_device);
+
 static int qcom_scm_do_restart(struct notifier_block *this, unsigned long event,
 			      void *ptr)
 {
@@ -2554,39 +2593,39 @@ static int qcom_scm_do_restart(struct notifier_block *this, unsigned long event,
 	return NOTIFY_OK;
 }
 
-static struct completion *qcom_scm_lookup_wq(struct qcom_scm *scm,
-					     u32 wq_ctx)
+struct completion *qcom_scm_lookup_wq(struct qcom_scm *scm, u32 wq_ctx)
 {
 	struct completion *wq = NULL;
 	u32 wq_ctx_idr = wq_ctx;
+	unsigned long flags;
 	int err;
 
-	spin_lock(&scm->wq_idr_lock);
-	wq = idr_find(&scm->wq_idr, wq_ctx);
-	spin_unlock(&scm->wq_idr_lock);
-
+	spin_lock_irqsave(&scm->waitq.idr_lock, flags);
+	wq = idr_find(&scm->waitq.idr, wq_ctx);
 	if (wq)
-		return wq;
+		goto out;
 
 	wq = devm_kzalloc(scm->dev, sizeof(*wq), GFP_ATOMIC);
-	if (!wq)
-		return ERR_PTR(-ENOMEM);
+	if (!wq) {
+		wq = ERR_PTR(-ENOMEM);
+		goto out;
+	}
 
 	init_completion(wq);
 
-	spin_lock(&scm->wq_idr_lock);
-	err = idr_alloc_u32(&scm->wq_idr, wq, &wq_ctx_idr,
+	err = idr_alloc_u32(&scm->waitq.idr, wq, &wq_ctx_idr,
 			    (wq_ctx_idr < U32_MAX ? : U32_MAX), GFP_ATOMIC);
-	spin_unlock(&scm->wq_idr_lock);
 	if (err < 0) {
 		devm_kfree(scm->dev, wq);
-		return ERR_PTR(err);
+		wq = ERR_PTR(err);
 	}
 
+out:
+	spin_unlock_irqrestore(&scm->waitq.idr_lock, flags);
 	return wq;
 }
 
-static void qcom_scm_waitq_flag_handler(struct completion *wq, u32 flags)
+void scm_waitq_flag_handler(struct completion *wq, u32 flags)
 {
 	switch (flags) {
 	case QCOM_SMC_WAITQ_FLAG_WAKE_ONE:
@@ -2600,84 +2639,21 @@ static void qcom_scm_waitq_flag_handler(struct completion *wq, u32 flags)
 	}
 }
 
-static int qcom_scm_handle_wait_sleep(struct qcom_scm *scm,
-				      u32 wq_ctx)
-{
-	struct completion *wq;
-	int rc;
-
-	wq = qcom_scm_lookup_wq(scm, wq_ctx);
-	if (IS_ERR_OR_NULL(wq)) {
-		pr_err("No waitqueue found\n");
-		return PTR_ERR(wq);
-	}
-
-	reinit_completion(wq);
-
-	rc = wait_for_completion_timeout(wq, msecs_to_jiffies(200));
-	if (!rc)
-		pr_err("Timed out\n");
-
-	return 0;
-}
-
-static int qcom_scm_handle_wait_wake(struct qcom_scm *scm, u32 wq_ctx,
-				     u32 smc_call_ctx, u32 flags,
-				     struct qcom_scm_res *res)
-{
-	struct completion *wq;
-
-	wq = qcom_scm_lookup_wq(scm, wq_ctx);
-	if (IS_ERR_OR_NULL(wq)) {
-		pr_err("No waitqueue found\n");
-		return PTR_ERR(wq);
-	}
-
-	/* Allow resume to occur first */
-	qcom_scm_waitq_flag_handler(wq, flags);
-
-	return qcom_scm_wq_wake_ack(smc_call_ctx, res);
-}
-
-int qcom_scm_handle_wait(struct device *dev, int scm_ret,
-			struct qcom_scm_res *res)
-{
-	struct qcom_scm *scm = dev_get_drvdata(dev);
-	u32 wq_ctx = res->result[0], smc_call_ctx = res->result[1];
-	u32 flags = res->result[2];
-	int ret;
-
-	switch (scm_ret) {
-	case QCOM_SCM_WAITQ_WAKE:
-		/* Exit in order to let another thread waiting on the same wq
-		 * to proceed and send wq_resume().
-		 */
-		return qcom_scm_handle_wait_wake(scm, wq_ctx, smc_call_ctx,
-						 flags, res);
-
-	case QCOM_SCM_WAITQ_SLEEP:
-		ret = qcom_scm_handle_wait_sleep(scm, wq_ctx);
-		if (ret)
-			return ret;
-		break;
-
-	default:
-		pr_err("Invalid return code\n");
-	}
-
-	return qcom_scm_wq_resume(smc_call_ctx, res);
-}
-
 static void scm_irq_work(struct work_struct *work)
 {
 	int ret;
 	u32 wq_ctx, flags, more_pending = 0;
 	struct completion *wq_to_wake;
-	struct qcom_scm *scm = container_of(work, struct qcom_scm,
-					    scm_irq_work);
+	struct qcom_scm_waitq *w = container_of(work, struct qcom_scm_waitq, scm_irq_work);
+	struct qcom_scm *scm = container_of(w, struct qcom_scm, waitq);
+
+	if (qcom_scm_convention != SMC_CONVENTION_ARM_64) {
+		/* Unsupported */
+		return;
+	}
 
 	do {
-		ret = qcom_scm_get_wq_ctx(&wq_ctx, &flags, &more_pending);
+		ret = scm_get_wq_ctx(&wq_ctx, &flags, &more_pending);
 		if (ret) {
 			pr_err("GET_WQ_CTX SMC call failed: %d\n", ret);
 			return;
@@ -2685,11 +2661,12 @@ static void scm_irq_work(struct work_struct *work)
 
 		wq_to_wake = qcom_scm_lookup_wq(scm, wq_ctx);
 		if (IS_ERR_OR_NULL(wq_to_wake)) {
-			pr_err("No waitqueue found for wq_ctx %d\n", wq_ctx);
+			pr_err("No waitqueue found for wq_ctx %d: %d\n",
+					wq_ctx, PTR_ERR(wq_to_wake));
 			return;
 		}
 
-		qcom_scm_waitq_flag_handler(wq_to_wake, flags);
+		scm_waitq_flag_handler(wq_to_wake, flags);
 	} while (more_pending);
 }
 
@@ -2697,9 +2674,74 @@ static irqreturn_t qcom_scm_irq_handler(int irq, void *p)
 {
 	struct qcom_scm *scm = p;
 
-	schedule_work(&scm->scm_irq_work);
+	schedule_work(&scm->waitq.scm_irq_work);
 
 	return IRQ_HANDLED;
+}
+
+/**
+ * scm_mem_protection_init_do() - Makes core kernel bootup milestone call
+ *                                to Kernel Protect (KP) in Hypervisor
+ *                                to start kernel memory protection. KP will
+ *                                start protection on kernel sections like
+ *                                .text, .rodata, .bss, .data with applying
+ *                                permissions in EL2 page table.
+ *
+ * @pid_offset:       Offset of PID in task_struct structure to pass in
+ *                    hypervisor syscall.
+ * @task_name_offset: Offset of task name in task_struct structure to pass in
+ *                    hypervisor syscall.
+ *
+ * Returns 0 on success.
+ */
+int  scm_mem_protection_init_do(void)
+{
+	int ret = 0, resp;
+	uint32_t pid_offset = 0;
+	uint32_t task_name_offset = 0;
+	struct qcom_scm_desc desc = {
+		.svc = SCM_SVC_RTIC,
+		.cmd = TZ_HLOS_NOTIFY_CORE_KERNEL_BOOTUP,
+		.owner = ARM_SMCCC_OWNER_SIP,
+		.arginfo = QCOM_SCM_ARGS(2),
+	};
+
+	struct qcom_scm_res res;
+
+	if (!__scm) {
+		pr_err("SCM dev is not initialized\n");
+		ret = -1;
+		return ret;
+	}
+
+	/*
+	 * Fetching offset of PID and task_name from task_struct.
+	 * This will be used by fault handler of Kernel Protect (KP)
+	 * in hypervisor to read PID and task name of process for
+	 * which KP fault handler is triggered. This is required to
+	 * record PID and task name in integrity report of kernel.
+	 */
+	pid_offset = offsetof(struct task_struct, pid);
+	task_name_offset = offsetof(struct task_struct, comm);
+
+	pr_debug("offset of pid is %zu, offset of comm is %zu\n",
+			pid_offset, task_name_offset);
+	desc.args[0] = pid_offset,
+	desc.args[1] = task_name_offset,
+
+	ret = qcom_scm_call(__scm ? __scm->dev : NULL, &desc, &res);
+	resp = res.result[0];
+
+	pr_debug("SCM call values: ret %d, resp %d\n",
+			ret, resp);
+
+	if (ret || resp) {
+		pr_err("SCM call failed %d, resp %d\n", ret, resp);
+		if (ret)
+			return ret;
+	}
+
+	return resp;
 }
 
 static int qcom_scm_probe(struct platform_device *pdev)
@@ -2769,7 +2811,7 @@ static int qcom_scm_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ret = dma_set_mask(&pdev->dev, DMA_BIT_MASK(64));
+	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 	if (ret)
 		return ret;
 
@@ -2778,10 +2820,10 @@ static int qcom_scm_probe(struct platform_device *pdev)
 	__scm = scm;
 	__scm->dev = &pdev->dev;
 
-	spin_lock_init(&__scm->wq_idr_lock);
-	idr_init(&__scm->wq_idr);
+	spin_lock_init(&__scm->waitq.idr_lock);
+	idr_init(&__scm->waitq.idr);
 	if (of_device_is_compatible(__scm->dev->of_node, "qcom,scm-v1.1")) {
-		INIT_WORK(&__scm->scm_irq_work, scm_irq_work);
+		INIT_WORK(&__scm->waitq.scm_irq_work, scm_irq_work);
 
 		irq = platform_get_irq(pdev, 0);
 		if (irq < 0) {
@@ -2816,7 +2858,7 @@ static int qcom_scm_probe(struct platform_device *pdev)
 
 static void qcom_scm_shutdown(struct platform_device *pdev)
 {
-	idr_destroy(&__scm->wq_idr);
+	idr_destroy(&__scm->waitq.idr);
 	qcom_scm_disable_sdi();
 	qcom_scm_halt_spmi_pmic_arbiter();
 	/* Clean shutdown, disable download mode to allow normal restart */

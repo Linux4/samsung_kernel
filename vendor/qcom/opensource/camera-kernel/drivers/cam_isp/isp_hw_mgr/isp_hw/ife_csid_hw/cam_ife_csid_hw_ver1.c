@@ -23,6 +23,12 @@
 #include "cam_tasklet_util.h"
 #include "cam_common_util.h"
 #include "cam_subdev.h"
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include <linux/ktime.h>
+extern char cdr_result[40];
+extern uint64_t cdr_start_ts;
+extern uint64_t cdr_end_ts;
+#endif
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 #include "cam_sensor_cmn_header.h"
@@ -3946,6 +3952,17 @@ static int cam_ife_csid_ver1_get_evt_payload(
 	return 0;
 }
 
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static void cam_ife_csid_cdr_store_result()
+{
+	cdr_end_ts	= ktime_get();
+	cdr_end_ts = cdr_end_ts / 1000 / 1000;
+	sprintf(cdr_result, "%d,%lld\n", 0, cdr_end_ts-cdr_start_ts);
+	CAM_INFO(CAM_ISP, "[CDR_DBG] mipi_overflow, time(ms): %llu", cdr_end_ts-cdr_start_ts);
+}
+#endif
+
 static int cam_ife_csid_ver1_rx_bottom_half_handler(
 		struct cam_ife_csid_ver1_hw *csid_hw,
 		struct cam_ife_csid_ver1_evt_payload *evt_payload)
@@ -3962,7 +3979,7 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	struct cam_hw_param *hw_param = NULL;
-	uint32_t *hw_cam_position = NULL;
+	uint32_t hw_cam_position = 0;
 	uint32_t hwb_mipi_err = FALSE;
 #endif
 
@@ -4097,6 +4114,10 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
 				CAM_SUBDEV_MESSAGE_IRQ_ERR,
 				&subdev_msg);
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_ife_csid_cdr_store_result();
+#endif
 	}
 	if (event_type)
 		cam_ife_csid_ver1_handle_event_err(csid_hw,
@@ -4105,8 +4126,8 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 	if (hwb_mipi_err == TRUE) {
 		msm_is_sec_get_sensor_position(&hw_cam_position);
-		if (hw_cam_position != NULL) {
-			switch (*hw_cam_position) {
+		{
+			switch (hw_cam_position) {
 				case CAMERA_0:
 					if (!msm_is_sec_get_rear_hw_param(&hw_param)) {
 						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
@@ -4273,8 +4294,36 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 					break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+				case CAMERA_4:
+					if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+						if (hw_param != NULL && (hw_param->mipi_chk == FALSE)) {
+							switch (hw_param->comp_chk) {
+								case TRUE:
+									CAM_ERR(CAM_UTIL, "[HWB][R4][MIPI_C] Err\n");
+									hw_param->mipi_comp_err_cnt++;
+									hw_param->mipi_chk = TRUE;
+									hw_param->need_update_to_file = TRUE;
+									break;
+
+								case FALSE:
+									CAM_ERR(CAM_UTIL, "[HWB][R4][MIPI_S] Err\n");
+									hw_param->mipi_sensor_err_cnt++;
+									hw_param->mipi_chk = TRUE;
+									hw_param->need_update_to_file = TRUE;
+									break;
+
+								default:
+									CAM_ERR(CAM_UTIL, "[HWB][R4][MIPI] Unsupport\n");
+									break;
+							}
+						}
+					}
+					break;
+#endif
+
 				default:
-					CAM_DBG(CAM_UTIL, "[NON][MIPI][%d] Unsupport\n", *hw_cam_position);
+					CAM_DBG(CAM_UTIL, "[NON][MIPI][%d] Unsupport\n", hw_cam_position);
 					break;
 			}
 		}

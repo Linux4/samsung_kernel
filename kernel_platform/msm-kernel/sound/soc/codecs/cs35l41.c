@@ -210,8 +210,11 @@ static int cs35l41_dsp_power_ev(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_PRE_PMU:
 		if (cs35l41->halo_booted == false)
 			wm_adsp_early_event(w, kcontrol, event);
-		else
+		else {
+			mutex_lock(&cs35l41->dsp.pwr_lock);
 			cs35l41->dsp.booted = true;
+			mutex_unlock(&cs35l41->dsp.pwr_lock);
+		}
 
 		return 0;
 
@@ -1146,7 +1149,7 @@ static const struct snd_soc_dapm_route cs35l41_audio_map[] = {
 	{"ASP TX1 Source", "ASPRX2", "ASPRX2" },
 	{"ASP TX2 Source", "VMON", "VMON ADC"},
 	{"ASP TX2 Source", "IMON", "IMON ADC"},
-	{"ASP TX2 Source", "IMON", "VPMON ADC"},
+	{"ASP TX2 Source", "VPMON", "VPMON ADC"},
 	{"ASP TX2 Source", "VBSTMON", "VBSTMON ADC"},
 	{"ASP TX2 Source", "DSPTX1", "ASPRX1"},
 	{"ASP TX2 Source", "DSPTX2", "ASPRX1"},
@@ -2484,8 +2487,12 @@ int cs35l41_reinit(struct snd_soc_component *component)
 
 	if (cs35l41->reset_gpio) {
 		gpiod_set_value_cansleep(cs35l41->reset_gpio, 0);
+		gpiod_direction_output(cs35l41->reset_gpio, 0);
+		gpiod_direction_output(cs35l41->reset_gpio, 1);
+
+		gpiod_set_value_cansleep(cs35l41->reset_gpio, 0);
 		usleep_range(1000, 1100);
-		gpiod_set_value_cansleep(cs35l41->reset_gpio, 1);
+		gpiod_direction_output(cs35l41->reset_gpio, 1);
 	}
 
 	usleep_range(2000, 2100);

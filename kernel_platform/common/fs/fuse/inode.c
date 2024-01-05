@@ -27,6 +27,7 @@
 MODULE_AUTHOR("Miklos Szeredi <miklos@szeredi.hu>");
 MODULE_DESCRIPTION("Filesystem in Userspace");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(ANDROID_GKI_VFS_EXPORT_ONLY);
 
 static struct kmem_cache *fuse_inode_cachep;
 struct list_head fuse_conn_list;
@@ -119,6 +120,9 @@ static void fuse_evict_inode(struct inode *inode)
 {
 	struct fuse_inode *fi = get_fuse_inode(inode);
 
+	/* Will write inode on close/munmap and in all other dirtiers */
+	WARN_ON(inode->i_state & I_DIRTY_INODE);
+
 	truncate_inode_pages_final(&inode->i_data);
 	clear_inode(inode);
 	if (inode->i_sb->s_flags & SB_ACTIVE) {
@@ -179,6 +183,12 @@ void fuse_change_attributes_common(struct inode *inode, struct fuse_attr *attr,
 	inode->i_uid     = make_kuid(fc->user_ns, attr->uid);
 	inode->i_gid     = make_kgid(fc->user_ns, attr->gid);
 	inode->i_blocks  = attr->blocks;
+
+	/* Sanitize nsecs */
+	attr->atimensec = min_t(u32, attr->atimensec, NSEC_PER_SEC - 1);
+	attr->mtimensec = min_t(u32, attr->mtimensec, NSEC_PER_SEC - 1);
+	attr->ctimensec = min_t(u32, attr->ctimensec, NSEC_PER_SEC - 1);
+
 	inode->i_atime.tv_sec   = attr->atime;
 	inode->i_atime.tv_nsec  = attr->atimensec;
 	/* mtime from server may be stale due to local buffered write */
@@ -340,8 +350,8 @@ retry:
 		inode->i_generation = generation;
 		fuse_init_inode(inode, attr);
 		unlock_new_inode(inode);
-	} else if ((inode->i_mode ^ attr->mode) & S_IFMT) {
-		/* Inode has changed type, any I/O on the old should fail */
+	} else if (fuse_stale_inode(inode, generation, attr)) {
+		/* nodeid was reused, any I/O on the old inode should fail */
 		fuse_make_bad(inode);
 		iput(inode);
 		goto retry;
@@ -1172,14 +1182,15 @@ static int fuse_bdi_init(struct fuse_conn *fc, struct super_block *sb)
 		bdi_put(sb->s_bdi);
 		sb->s_bdi = &noop_backing_dev_info;
 	}
-	err = super_setup_bdi_name(sb, "%u:%u%s", MAJOR(fc->dev),
+	/* @fs.sec -- 9b4d962cc783453fc63e4302012c8e28e11e31a5 -- */
+	err = sec_super_setup_bdi_name(sb, "%u:%u%s", MAJOR(fc->dev),
 				   MINOR(fc->dev), suffix);
 	if (err)
 		return err;
 
 	/* fuse does it's own writeback accounting */
 	sb->s_bdi->capabilities &= ~BDI_CAP_WRITEBACK_ACCT;
-	sb->s_bdi->capabilities |= BDI_CAP_STRICTLIMIT;
+	sb->s_bdi->capabilities |= (BDI_CAP_STRICTLIMIT | BDI_CAP_SEC_DEBUG);
 
 	/*
 	 * For a single fuse filesystem use max 1% of dirty +

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -49,6 +50,8 @@
 #define SDE_HW_VER_700	SDE_HW_VER(7, 0, 0) /* lahaina */
 #define SDE_HW_VER_720	SDE_HW_VER(7, 2, 0) /* yupik */
 #define SDE_HW_VER_810	SDE_HW_VER(8, 1, 0) /* waipio */
+#define SDE_HW_VER_820	SDE_HW_VER(8, 2, 0) /* diwali */
+#define SDE_HW_VER_850	SDE_HW_VER(8, 5, 0) /* cape */
 
 /* Avoid using below IS_XXX macros outside catalog, use feature bit instead */
 #define IS_SDE_MAJOR_SAME(rev1, rev2)   \
@@ -75,6 +78,8 @@
 #define IS_LAHAINA_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_700)
 #define IS_YUPIK_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_720)
 #define IS_WAIPIO_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_810)
+#define IS_DIWALI_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_820)
+#define IS_CAPE_TARGET(rev) IS_SDE_MAJOR_MINOR_SAME((rev), SDE_HW_VER_850)
 
 #define SDE_HW_BLK_NAME_LEN	16
 
@@ -455,6 +460,7 @@ enum {
  * @SDE_DSC_HW_REV_1_1          dsc block supports dsc 1.1 only
  * @SDE_DSC_HW_REV_1_2          dsc block supports dsc 1.1 and 1.2
  * @SDE_DSC_NATIVE_422_EN,      Supports native422 and native420 encoding
+ * @SDE_DSC_REDUCED_OB_MAX,	DSC size is limited to 10k
  * @SDE_DSC_ENC,                DSC encoder sub block
  * @SDE_DSC_CTL,                DSC ctl sub block
  * @SDE_DSC_MAX
@@ -464,6 +470,7 @@ enum {
 	SDE_DSC_HW_REV_1_1,
 	SDE_DSC_HW_REV_1_2,
 	SDE_DSC_NATIVE_422_EN,
+	SDE_DSC_REDUCED_OB_MAX,
 	SDE_DSC_ENC,
 	SDE_DSC_CTL,
 	SDE_DSC_MAX
@@ -1141,11 +1148,13 @@ struct sde_ds_cfg {
  * @features           bit mask identifying sub-blocks/features
  * @sblk               sub-blocks information
  * @merge_3d_id        merge_3d block id
+ * @dcwb:              ID of DCWB, DCWB_MAX if invalid
  */
 struct sde_pingpong_cfg  {
 	SDE_HW_BLK_INFO;
 	const struct sde_pingpong_sub_blks *sblk;
 	int merge_3d_id;
+	u32 dcwb_id;
 };
 
 /**
@@ -1518,6 +1527,7 @@ struct sde_perf_cfg {
  * @skip_inline_rot_thresh    Skip inline rotation threshold
  * @has_idle_pc        indicate if idle power collapse feature is supported
  * @allowed_dsc_reservation_switch  intf to which dsc reservation switch is supported
+ * @has_reduced_ob_max	indicate if DSC size is limited to 10k
  * @wakeup_with_touch  indicate early wake up display with input touch event
  * @has_hdr            HDR feature support
  * @has_hdr_plus       HDR10+ feature support
@@ -1611,6 +1621,7 @@ struct sde_mdss_cfg {
 	bool skip_inline_rot_threshold;
 	bool has_idle_pc;
 	u32 allowed_dsc_reservation_switch;
+	bool has_reduced_ob_max;
 	bool wakeup_with_touch;
 	u32 vbif_qos_nlvl;
 	u32 ts_prefill_rev;
@@ -1761,13 +1772,15 @@ struct sde_mdss_hw_cfg_handler {
 #define BLK_RC(s) ((s)->rc)
 
 /**
- * sde_hw_set_preference: populate the individual hw lm preferences,
- *                        overwrite if exists
- * @sde_cfg:              pointer to sspp cfg
- * @num_lm:               num lms to set preference
- * @disp_type:            is the given display primary/secondary
+ * sde_hw_mixer_set_preference: populate the individual hw lm preferences,
+ *                              overwrite if exists
+ * @sde_cfg:                    pointer to sspp cfg
+ * @num_lm:                     num lms to set preference
+ * @disp_type:                  is the given display primary/secondary
+ *
+ * Return:                      layer mixer mask allocated for the disp_type
  */
-void sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
+u32 sde_hw_mixer_set_preference(struct sde_mdss_cfg *sde_cfg, u32 num_lm,
 		uint32_t disp_type);
 
 /**

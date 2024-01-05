@@ -192,10 +192,8 @@ int32_t ContextManager::build_and_send_register_ack(Usecase *uc, uint32_t see_id
 exit:
     if (ack_payload)
         free(ack_payload);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     if (pal_param)
         free(pal_param);
-#endif
     PAL_VERBOSE(LOG_TAG, "Exit rc:%d", rc);
     return rc;
 }
@@ -953,10 +951,7 @@ Usecase::~Usecase()
         this->pal_devices = NULL;
     }
 
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-    free(pal_stream);
-#endif
-
+    pal_stream = NULL;
     this->usecase_id = 0;
     this->no_of_devices = 0;
 
@@ -1137,9 +1132,8 @@ UsecaseACD::~UsecaseACD()
         free(this->requested_context_list);
         this->requested_context_list = NULL;
     }
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
+   
     tags.clear();
-#endif
 
     PAL_VERBOSE(LOG_TAG, "Exit ");
 }

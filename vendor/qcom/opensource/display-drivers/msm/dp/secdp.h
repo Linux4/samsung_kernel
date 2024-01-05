@@ -29,12 +29,13 @@
 /*defined at kmodule/usb/typec/common/pdic_core.h*/
 #define SAMSUNG_VENDOR_ID	0x04E8
 
-#define DEXDOCK_PRODUCT_ID	0xA020	/* EE-MG950, DeX station */
-#define HG950_PRODUCT_ID	0xA025	/* EE-HG950 */
-#define MPA2_PRODUCT_ID		0xA027	/* EE-P5000 */
-#define DEXPAD_PRODUCT_ID	0xA029	/* EE-M5100 */
-#define DEXCABLE_PRODUCT_ID	0xA048	/* EE-I3100 */
-#define MPA3_PRODUCT_ID		0xA056	/* EE-P3200 */
+#define DEXDOCK_PRODUCT_ID      0xA020	/* EE-MG950 DeX Station */
+#define DEXPAD_PRODUCT_ID       0xA029	/* EE-M5100 DeX Pad */
+#define DEXCABLE_PRODUCT_ID     0xA048	/* EE-I3100 DeX Cable */
+#define HG950_PRODUCT_ID        0xA025	/* EE-HG950 HDMI Adapter */
+#define MPA2_PRODUCT_ID         0xA027	/* EE-P5000 Multiport Adapter */
+#define MPA3_PRODUCT_ID         0xA056	/* EE-P3200 Multiport Adapter */
+#define MPA4_PRODUCT_ID         0xA066	/* EE-P5400 Multiport Adapter */
 
 #define SECDP_ENUM_STR(x)	#x
 
@@ -42,18 +43,19 @@
 #define SECDP_USE_WAKELOCK
 #define SECDP_MAX_HBR2
 #define SECDP_OPTIMAL_LINK_RATE	 /* use optimum link_rate, not max link_rate */
-#define SECDP_LIMIT_REFRESH_RATE /* needs to be DISABLED once android has menu for user to change DP resolution */
 /*#define SECDP_AUDIO_CTS*/
 /*#define SECDP_HDCP_DISABLE*/
 /*#define SECDP_EVENT_THREAD*/
 /*#define SECDP_TEST_HDCP2P2_REAUTH*/
 /*#define NOT_SUPPORT_DEX_RES_CHANGE*/
-/*#define SECDP_IGNORE_PREFER*/	 /* ignore prefer timing if dex timing exists */
+
+#define DPCD_IEEE_OUI			0x500
+#define DPCD_DEVID_STR			0x503
 
 #define LEN_BRANCH_REV		3
-#define	DPCD_BRANCH_HW_REV		0x509
-#define	DPCD_BRANCH_SW_REV_MAJOR	0x50A
-#define	DPCD_BRANCH_SW_REV_MINOR	0x50B
+#define DPCD_BRANCH_HW_REV		0x509
+#define DPCD_BRANCH_SW_REV_MAJOR	0x50A
+#define DPCD_BRANCH_SW_REV_MINOR	0x50B
 
 #define MAX_CNT_LINK_STATUS_UPDATE	4
 #define MAX_CNT_HDCP_RETRY		10
@@ -97,12 +99,13 @@ static inline char *secdp_ev_event_to_string(int event)
 
 /* displayport self test */
 #if defined(CONFIG_SEC_DISPLAYPORT_DBG)
-/*#define SECDP_SELF_TEST*/
+#define SECDP_SELF_TEST
 #endif
 
 #ifdef SECDP_SELF_TEST
 #define ST_EDID_SIZE	256
 #define ST_ARG_CNT	20
+#define ST_TEST_EXIT	555
 
 enum {
 	ST_CLEAR_CMD,
@@ -197,8 +200,9 @@ enum dex_support_res_t {
 #define DEX_MAX_COL	3440
 #define DEX_MAX_ROW	1440
 
-#define DEX_REFRESH_MIN	50
-#define DEX_REFRESH_MAX	60
+#define DEX_REFRESH_MIN		50
+#define DEX_REFRESH_MAX		60
+#define MIRROR_REFRESH_MIN	24
 
 static inline char *secdp_dex_res_to_string(int res)
 {
@@ -342,6 +346,13 @@ struct secdp_attention_node {
 struct secdp_adapter {
 	uint ven_id;
 	uint prod_id;
+	char ieee_oui[4];  /* DPCD 500h ~ 502h */
+	char devid_str[7]; /* DPCD 503h ~ 508h */
+	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
+
+	bool ss_genuine;
+	bool ss_legacy;
+	enum dex_support_res_t dex_type;
 };
 
 #define MON_NAME_LEN	14	/* monitor name length, max 13 chars + null */
@@ -366,8 +377,6 @@ struct secdp_prefer {
 	enum mon_aspect_ratio_t	ratio;
 
 	bool exist;   /* true if preferred resolution */
-	bool ignore;  /* true if larger refresh rate exists */
-
 	int  hdisp;   /* horizontal pixel of preferred resolution */
 	int  vdisp;   /* vertical pixel of preferred resolution */
 	int  refresh; /* refresh rate of preferred resolution */
@@ -381,6 +390,7 @@ struct secdp_dex {
 	enum DEX_STATUS curr; /* previously known as "dex_en" */
 	int  setting_ui;      /* "dex_set", true if setting has Dex mode */
 
+	bool ignore_prefer_ratio; /* true if prefer ratio does not match to dex ratio */
 	bool adapter_check_skip;
 
 	/*
@@ -390,12 +400,7 @@ struct secdp_dex {
 	 */
 	enum DEX_STATUS status; /* previously known as "dex_node_status" */
 
-	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
 	bool reconnecting; /* true if dex is under reconnecting */
-
-#ifdef SECDP_IGNORE_PREFER
-	bool res_exist;    /* true if dex resolution exists */
-#endif
 };
 
 struct secdp_display_timing {
@@ -407,6 +412,7 @@ struct secdp_display_timing {
 	enum dex_support_res_t dex_res;    /* dex supported resolution */
 	enum mon_aspect_ratio_t mon_ratio; /* monitor aspect ratio */
 	int  supported;                    /* for unit test */
+	u64  total;
 };
 
 struct secdp_mst {
@@ -437,11 +443,14 @@ struct secdp_debug {
 
 struct secdp_misc {
 	struct delayed_work link_status_work;
+	struct delayed_work link_backoff_work;
+	bool backoff_start;
 	struct delayed_work poor_discon_work;
 
 	bool cable_connected; /* previously known as "cable_connected_phy" */
 	bool link_conf;       /* previously known as "sec_link_conf" */
 	struct secdp_hpd hpd;
+	int mode_cnt;
 
 	struct secdp_adapter adapter;
 	struct secdp_pdic_noti pdic_noti;
@@ -485,9 +494,9 @@ struct secdp_misc {
 	struct delayed_work self_test_reconnect_work;
 	struct delayed_work self_test_hdcp_test_work;
 
-	void (*self_test_reconnect_callback)(void);
-	void (*self_test_hdcp_on_callback)(void);
-	void (*self_test_hdcp_off_callback)(void);
+	void (*self_test_reconnect_cb)(void);
+	void (*self_test_hdcp_on_cb)(void);
+	void (*self_test_hdcp_off_cb)(void);
 
 	u8 self_test_edid[ST_EDID_SIZE];
 #endif
@@ -495,8 +504,6 @@ struct secdp_misc {
 
 bool secdp_get_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
-bool secdp_get_clk_status(enum dp_pm_type type);
-void secdp_send_poor_connection_event(void);
 
 int  secdp_pdic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_phy_reset_check(void);
@@ -515,6 +522,8 @@ void secdp_redriver_linkinfo(u32 rate, u8 v_level, u8 p_level);
 int  secdp_is_mst_receiver(void);
 
 int  secdp_power_request_gpios(struct dp_power *dp_power);
+void secdp_power_set_gpio(bool flip);
+void secdp_power_unset_gpio(void);
 void secdp_config_gpios_factory(int aux_sel, bool out_en);
 enum dp_hpd_plug_orientation secdp_get_plug_orientation(void);
 bool secdp_get_reboot_status(void);
@@ -528,10 +537,13 @@ bool secdp_check_reconnect(void);
 bool secdp_check_dex_mode(void);
 
 void secdp_clear_link_status_cnt(struct dp_link *dp_link);
-void secdp_reset_link_status(struct dp_link *dp_link);
+void secdp_read_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+void secdp_link_backoff_start(void);
+void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
+bool secdp_adapter_is_legacy(void);
 
 bool secdp_panel_hdr_supported(void);
 

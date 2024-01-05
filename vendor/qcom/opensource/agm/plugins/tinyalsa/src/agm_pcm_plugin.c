@@ -1,5 +1,6 @@
 /*
 ** Copyright (c) 2019, 2021 The Linux Foundation. All rights reserved.
+** Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
 ** modification, are permitted provided that the following conditions are
@@ -73,6 +74,13 @@ struct pcm_plugin_pos_buf_info {
     struct timespec tstamp;
     snd_pcm_uframes_t appl_ptr;  /* RW: appl ptr (0...boundary-1) */
     snd_pcm_uframes_t avail_min; /* RW: min available frames for wakeup */
+    uint32_t wall_clk_msw;
+    uint32_t wall_clk_lsw;
+};
+
+struct agm_mmap_buffer_port {
+    void* mmap_buffer_addr;
+    snd_pcm_uframes_t mmap_buffer_length;
 };
 
 struct agm_pcm_priv {
@@ -86,6 +94,8 @@ struct agm_pcm_priv {
     int session_id;
     unsigned int period_size;
     snd_pcm_uframes_t total_size_frames;
+    /* idx: 0: out port, 1: in port */
+    struct agm_mmap_buffer_port mmap_buffer_port[2];
 };
 
 struct pcm_plugin_hw_constraints agm_pcm_constrs = {
@@ -300,8 +310,11 @@ static int agm_pcm_plugin_update_hw_ptr(struct agm_pcm_priv *priv)
     snd_pcm_sframes_t circ_buf_pos;
     snd_pcm_uframes_t pos, old_hw_ptr, new_hw_ptr, hw_base;
     uint32_t read_index, wall_clk_msw, wall_clk_lsw;
+    uint64_t delta_wall_clk_us = 0;
+    uint32_t delta_wall_clk_frames = 0;
     int ret = 0;
     uint32_t period_size = priv->period_size; /** in frames */
+    uint32_t crossed_boundary = 0;
 
     do {
         ret = agm_pcm_plugin_get_shared_pos(priv->pos_buf,
@@ -314,17 +327,103 @@ static int agm_pcm_plugin_update_hw_ptr(struct agm_pcm_priv *priv)
         old_hw_ptr = agm_pcm_plugin_get_hw_ptr(priv);
         hw_base = priv->pos_buf->hw_ptr_base;
         new_hw_ptr = hw_base + pos;
-        if (new_hw_ptr < old_hw_ptr) {
-            hw_base += priv->total_size_frames;
+
+        // Set delta_wall_clk_us only if cached wall clk is non-zero
+        if (priv->pos_buf->wall_clk_msw || priv->pos_buf->wall_clk_lsw) {
+            uint64_t dsp_wall_clk =  (((uint64_t)wall_clk_msw) << 32 | wall_clk_lsw);
+            uint64_t cached_wall_clk = (((uint64_t)priv->pos_buf->wall_clk_msw) << 32 |
+                                         priv->pos_buf->wall_clk_lsw);
+            // Compute delta only if diff is greater than zero
+            if (dsp_wall_clk > cached_wall_clk) {
+                delta_wall_clk_us = (int64_t)(dsp_wall_clk - cached_wall_clk);
+            }
+        }
+        // Identify the number of times of shared buffer length that the
+        // hw ptr has jumped through by checking wall clock time delta
+        // and assuming read ptr moved at a constant rate
+        if (delta_wall_clk_us > 0 ) {
+            delta_wall_clk_frames = ((delta_wall_clk_us / 1000000)
+                                        * (priv->media_config->rate)
+                                        * priv->media_config->channels);
+            crossed_boundary = delta_wall_clk_frames / priv->total_size_frames;
+        }
+
+        // More than 1 loop of shared buffer completed by hw_ptr
+        // No need to check if new_hw_ptr < old_hw_ptr, as new_hw_ptr
+        // has crossed old_hw_ptr atleast once if not more
+        if (crossed_boundary > 0) {
+            hw_base += (crossed_boundary * priv->total_size_frames);
             if (hw_base >= priv->pos_buf->boundary)
                 hw_base = 0;
             new_hw_ptr = hw_base + pos;
             priv->pos_buf->hw_ptr_base = hw_base;
+            AGM_LOGD("%s: crossed_boundary = %u, new_hw_ptr=%ld \n",
+                                                __func__, crossed_boundary, new_hw_ptr);
+            AGM_LOGD("%s: delta_wall_clk_frames = %lx, delta_wall_clk_us=%ld \n",
+                                                __func__, delta_wall_clk_frames, delta_wall_clk_us);
+            AGM_LOGD("%s: shared buffer length = %lx \n",
+                                                __func__, priv->total_size_frames);
+        } else {
+            if (new_hw_ptr < old_hw_ptr) {
+                hw_base += priv->total_size_frames;
+                if (hw_base >= priv->pos_buf->boundary)
+                    hw_base = 0;
+                new_hw_ptr = hw_base + pos;
+                priv->pos_buf->hw_ptr_base = hw_base;
+            }
         }
+
         priv->pos_buf->hw_ptr = new_hw_ptr;
+        priv->pos_buf->wall_clk_lsw = wall_clk_lsw;
+        priv->pos_buf->wall_clk_msw = wall_clk_msw;
         clock_gettime(CLOCK_MONOTONIC, &priv->pos_buf->tstamp);
     }
 
+    return ret;
+}
+
+static void agm_get_shared_buffer_addr(struct pcm_plugin *plugin,
+                                       void **addr, snd_pcm_uframes_t *length)
+{
+    struct agm_pcm_priv *priv = plugin->priv;
+    enum direction dir;
+
+    dir = (plugin->mode & PCM_IN) ? TX : RX;
+    *addr = priv->mmap_buffer_port[dir-1].mmap_buffer_addr;
+    *length = priv->mmap_buffer_port[dir-1].mmap_buffer_length;
+}
+
+static int agm_pcm_plugin_reset(struct pcm_plugin *plugin)
+{
+    struct agm_pcm_priv *priv = plugin->priv;
+    uint64_t handle;
+    int ret = 0;
+    void *mmap_addr = NULL;
+    snd_pcm_uframes_t mmap_length = 0;
+
+    if (!(plugin->mode & PCM_NOIRQ))
+        return -EOPNOTSUPP;
+
+    ret = agm_get_session_handle(priv, &handle);
+    if (ret)
+        return ret;
+
+    if (!priv->buf_info)
+        return -EINVAL;
+
+    agm_get_shared_buffer_addr(plugin,&mmap_addr,&mmap_length);
+    if (mmap_addr && mmap_length != 0) {
+        memset(mmap_addr,0,mmap_length);
+    } else {
+        AGM_LOGE("%s: failed to clear shared buffer\n", __func__);
+        ret = -EINVAL;
+    }
+    agm_pcm_plugin_update_hw_ptr(priv);
+    priv->pos_buf->hw_ptr = (snd_pcm_uframes_t)(priv->pos_buf->hw_ptr % priv->total_size_frames);
+    priv->pos_buf->hw_ptr_base = 0;
+    priv->pos_buf->wall_clk_msw = 0;
+    priv->pos_buf->wall_clk_lsw = 0;
+    AGM_LOGD("%s: reset hw_ptr to %d \n", __func__, priv->pos_buf->hw_ptr);
     return ret;
 }
 
@@ -502,6 +601,11 @@ static int agm_pcm_prepare(struct pcm_plugin *plugin)
     struct agm_pcm_priv *priv = plugin->priv;
     int ret = 0;
 
+    if (priv->pos_buf) {
+        priv->pos_buf->wall_clk_msw = 0;
+        priv->pos_buf->wall_clk_lsw = 0;
+    }
+
     ret = agm_get_session_handle(priv, &handle);
     if (ret)
         return ret;
@@ -561,6 +665,11 @@ static int agm_pcm_close(struct pcm_plugin *plugin)
     free(priv->buffer_config);
     free(priv->media_config);
     free(priv->session_config);
+    if (priv->buf_info) {
+        if (priv->buf_info->data_buf_fd != -1)
+            close(priv->buf_info->data_buf_fd);
+        free(priv->buf_info);
+    }
     free(plugin->priv);
     free(plugin);
 
@@ -582,7 +691,7 @@ static snd_pcm_sframes_t agm_pcm_get_avail(struct pcm_plugin *plugin)
         else if ((snd_pcm_uframes_t)avail >= priv->pos_buf->boundary)
             avail -= priv->pos_buf->boundary;
     } else if (plugin->mode & PCM_IN) {
-        avail = priv->pos_buf->hw_ptr - priv->pos_buf->appl_ptr;
+        __builtin_sub_overflow(priv->pos_buf->hw_ptr, priv->pos_buf->appl_ptr, &avail);
         if (avail < 0)
             avail += priv->pos_buf->boundary;
     }
@@ -634,7 +743,8 @@ static void* agm_pcm_mmap(struct pcm_plugin *plugin, void *addr __unused, size_t
     int flag = DATA_BUF;
     int ret = 0;
     unsigned int boundary;
-
+    void *mmap_addr = NULL;
+    enum direction dir;
     if (offset != 0)
         return MAP_FAILED;
 
@@ -682,9 +792,15 @@ static void* agm_pcm_mmap(struct pcm_plugin *plugin, void *addr __unused, size_t
     if (length > priv->buf_info->data_buf_size)
         return MAP_FAILED;
 
-    return mmap(0, length,
-            PROT_READ | PROT_WRITE, MAP_SHARED,
-            priv->buf_info->data_buf_fd, 0);
+    dir = (plugin->mode & PCM_IN) ? TX : RX;
+    mmap_addr = mmap(0, length,
+             PROT_READ | PROT_WRITE, MAP_SHARED,
+             priv->buf_info->data_buf_fd, 0);
+    if (mmap_addr != MAP_FAILED) {
+        priv->mmap_buffer_port[dir-1].mmap_buffer_addr = mmap_addr;
+        priv->mmap_buffer_port[dir-1].mmap_buffer_length = length;
+    }
+    return mmap_addr;
 }
 
 static int agm_pcm_munmap(struct pcm_plugin *plugin, void *addr, size_t length)
@@ -702,6 +818,33 @@ static int agm_pcm_munmap(struct pcm_plugin *plugin, void *addr, size_t length)
     return munmap(addr, length);
 }
 
+static int agm_pcm_ioctl(struct pcm_plugin *plugin, int cmd, ...)
+{
+    struct agm_pcm_priv *priv = plugin->priv;
+    uint64_t handle;
+    int ret = 0;
+    va_list ap;
+    void *arg;
+
+    ret = agm_get_session_handle(priv, &handle);
+    if (ret)
+        return ret;
+
+    va_start(ap, cmd);
+    arg = va_arg(ap, void *);
+    va_end(ap);
+
+    switch (cmd) {
+    case SNDRV_PCM_IOCTL_RESET:
+        ret = agm_pcm_plugin_reset(plugin);
+        break;
+    default:
+        break;
+    }
+
+    return ret;
+}
+
 struct pcm_plugin_ops agm_pcm_ops = {
     .close = agm_pcm_close,
     .hw_params = agm_pcm_hw_params,
@@ -716,6 +859,7 @@ struct pcm_plugin_ops agm_pcm_ops = {
     .mmap = agm_pcm_mmap,
     .munmap = agm_pcm_munmap,
     .poll = agm_pcm_poll,
+    .ioctl = agm_pcm_ioctl,
 };
 
 PCM_PLUGIN_OPEN_FN(agm_pcm_plugin)

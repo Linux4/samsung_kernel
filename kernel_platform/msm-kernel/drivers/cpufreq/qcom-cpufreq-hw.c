@@ -19,9 +19,10 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/qcom-cpufreq-hw.h>
+#include <linux/topology.h>
 #include <trace/events/power.h>
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
-#include <linux/thermal.h>
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+#include <linux/sec_pm_log.h>
 #endif
 
 #define CREATE_TRACE_POINTS
@@ -36,10 +37,10 @@
 #define CLK_HW_DIV			2
 #define GT_IRQ_STATUS			BIT(2)
 #define MAX_FN_SIZE			20
-#define LIMITS_POLLING_DELAY_MS		10
+#define LIMITS_POLLING_DELAY_MS		4
 
-#define CYCLE_CNTR_OFFSET(c, m, acc_count)				\
-			(acc_count ? ((c - cpumask_first(m) + 1) * 4) : 0)
+#define CYCLE_CNTR_OFFSET(core_id, m, acc_count)		\
+			(acc_count ? ((core_id + 1) * 4) : 0)
 
 enum {
 	REG_ENABLE,
@@ -76,7 +77,7 @@ struct cpufreq_qcom {
 	bool is_irq_enabled;
 	bool is_irq_requested;
 	bool exited;
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 	unsigned long lowest_freq;
 	bool limiting;
 #endif
@@ -159,7 +160,7 @@ static unsigned long limits_mitigation_notify(struct cpufreq_qcom *c,
 	trace_dcvsh_freq(cpumask_first(&c->related_cpus), freq);
 	c->dcvsh_freq_limit = freq;
 
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 	if (c->limiting == false) {
 		ss_thermal_print("Start lmh cpu%d @%lu\n",
 			cpumask_first(&c->related_cpus), freq);
@@ -190,7 +191,7 @@ static void limits_dcvsh_poll(struct work_struct *work)
 	dcvsh_freq = qcom_cpufreq_hw_get(cpu);
 
 	if (freq_limit < dcvsh_freq) {
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 		if ((c->limiting == true) && (freq_limit < c->lowest_freq))
 			c->lowest_freq = freq_limit;
 #endif
@@ -206,7 +207,7 @@ static void limits_dcvsh_poll(struct work_struct *work)
 
 		c->is_irq_enabled = true;
 		enable_irq(c->dcvsh_irq);
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 		ss_thermal_print("Fin. lmh cpu%d, lowest %lu, f_lim %lu, dcvsh %lu\n",
 			cpu, c->lowest_freq, freq_limit, dcvsh_freq);
 		c->limiting = false;
@@ -259,7 +260,7 @@ u64 qcom_cpufreq_get_cpu_cycle_counter(int cpu)
 	cpu_counter = &qcom_cpufreq_counter[cpu];
 	spin_lock_irqsave(&cpu_counter->lock, flags);
 
-	offset = CYCLE_CNTR_OFFSET(cpu, policy->related_cpus,
+	offset = CYCLE_CNTR_OFFSET(topology_core_id(cpu), policy->related_cpus,
 					accumulative_counter);
 	val = readl_relaxed_no_log(policy->driver_data +
 				    offsets[REG_CYCLE_CNTR] + offset);
@@ -276,6 +277,8 @@ u64 qcom_cpufreq_get_cpu_cycle_counter(int cpu)
 	}
 	cycle_counter_ret = cpu_counter->total_cycle_counter;
 	spin_unlock_irqrestore(&cpu_counter->lock, flags);
+
+	pr_debug("CPU %u, core-id 0x%x, offset %u\n", cpu, topology_core_id(cpu), offset);
 
 	return cycle_counter_ret;
 }
@@ -496,6 +499,9 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 		src = FIELD_GET(LUT_SRC, data);
 		lval = FIELD_GET(LUT_L_VAL, data);
 		core_count = FIELD_GET(LUT_CORE_COUNT, data);
+
+		if (of_device_is_compatible(dev->of_node, "qcom,cpufreq-hw-epss"))
+			core_count = FIELD_GET(GENMASK(19, 16), data);
 
 		data = readl_relaxed(c->base + offsets[REG_VOLT_LUT] +
 				      i * lut_row_size);

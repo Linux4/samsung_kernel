@@ -208,11 +208,76 @@ static ssize_t stable_pages_required_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(stable_pages_required);
 
+static ssize_t bdp_debug_show(struct device *dev,
+					  struct device_attribute *attr,
+					  char *page)
+{
+	struct backing_dev_info *bdi = dev_get_drvdata(dev);
+	struct sec_backing_dev_info *sec_bdi = SEC_BDI(bdi);
+	int len = 0, i;
+
+	len += snprintf(page + len, PAGE_SIZE-len-1,
+		"start_time, elapsed_ms, g_thresh, g_dirty, wb_thresh, wb_dirty"
+		", avg_bw, timelist_dirty, timelist_inodes\n");
+
+	spin_lock(&sec_bdi->bdp_debug.lock);
+	for (i = 0; i < BDI_BDP_DEBUG_ENTRY && i < sec_bdi->bdp_debug.total; i++) {
+		struct bdi_sec_bdp_entry *entry = sec_bdi->bdp_debug.entry + i;
+
+		len += snprintf(page + len, PAGE_SIZE-len-1,
+			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
+			entry->start_time,
+			entry->elapsed_ms,
+			entry->global_thresh,
+			entry->global_dirty,
+			entry->wb_thresh,
+			entry->wb_dirty,
+			entry->wb_avg_write_bandwidth,
+			entry->wb_timelist_inodes);
+	}
+	spin_unlock(&sec_bdi->bdp_debug.lock);
+
+	return len;
+}
+static DEVICE_ATTR_RO(bdp_debug);
+
+static ssize_t max_bdp_debug_show(struct device *dev,
+					  struct device_attribute *attr,
+					  char *page)
+{
+	struct backing_dev_info *bdi = dev_get_drvdata(dev);
+	struct sec_backing_dev_info *sec_bdi = SEC_BDI(bdi);
+	int len = 0;
+	struct bdi_sec_bdp_entry *entry = &sec_bdi->bdp_debug.max_entry;
+
+	len += snprintf(page + len, PAGE_SIZE-len-1,
+		"start_time, elapsed_ms, g_thresh, g_dirty, wb_thresh, wb_dirty"
+		", avg_bw, timelist_dirty, timelist_inodes\n");
+
+	spin_lock(&sec_bdi->bdp_debug.lock);
+	len += snprintf(page + len, PAGE_SIZE-len-1,
+			"%lu, %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
+			entry->start_time,
+			entry->elapsed_ms,
+			entry->global_thresh,
+			entry->global_dirty,
+			entry->wb_thresh,
+			entry->wb_dirty,
+			entry->wb_avg_write_bandwidth,
+			entry->wb_timelist_inodes);
+	spin_unlock(&sec_bdi->bdp_debug.lock);
+
+	return len;
+}
+static DEVICE_ATTR_RO(max_bdp_debug);
+
 static struct attribute *bdi_dev_attrs[] = {
 	&dev_attr_read_ahead_kb.attr,
 	&dev_attr_min_ratio.attr,
 	&dev_attr_max_ratio.attr,
 	&dev_attr_stable_pages_required.attr,
+	&dev_attr_bdp_debug.attr,
+	&dev_attr_max_bdp_debug.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(bdi_dev);
@@ -750,6 +815,30 @@ struct backing_dev_info *bdi_alloc(int node_id)
 }
 EXPORT_SYMBOL(bdi_alloc);
 
+struct backing_dev_info *sec_bdi_alloc(int node_id)
+{
+	struct sec_backing_dev_info *sec_bdi;
+
+	sec_bdi = kmalloc_node(sizeof(struct sec_backing_dev_info),
+			GFP_KERNEL | __GFP_ZERO, node_id);
+	if (!sec_bdi)
+		return NULL;
+
+	if (bdi_init(&sec_bdi->bdi)) {
+		kfree(sec_bdi);
+		return NULL;
+	}
+	sec_bdi->bdi.capabilities = BDI_CAP_WRITEBACK | BDI_CAP_WRITEBACK_ACCT;
+	sec_bdi->bdi.ra_pages = VM_READAHEAD_PAGES;
+	sec_bdi->bdi.io_pages = VM_READAHEAD_PAGES;
+
+	spin_lock_init(&sec_bdi->bdp_debug.lock);
+
+	return (struct backing_dev_info *)sec_bdi;
+}
+EXPORT_SYMBOL(sec_bdi_alloc);
+
+
 static struct rb_node **bdi_lookup_rb_node(u64 id, struct rb_node **parentp)
 {
 	struct rb_node **p = &bdi_tree.rb_node;
@@ -872,6 +961,13 @@ void bdi_unregister(struct backing_dev_info *bdi)
 	wb_shutdown(&bdi->wb);
 	cgwb_bdi_unregister(bdi);
 
+	/*
+	 * If this BDI's min ratio has been set, use bdi_set_min_ratio() to
+	 * update the global bdi_min_ratio.
+	 */
+	if (bdi->min_ratio)
+		bdi_set_min_ratio(bdi, 0);
+
 	if (bdi->dev) {
 		bdi_debug_unregister(bdi);
 		device_unregister(bdi->dev);
@@ -893,7 +989,14 @@ static void release_bdi(struct kref *ref)
 		bdi_unregister(bdi);
 	WARN_ON_ONCE(bdi->dev);
 	wb_exit(&bdi->wb);
-	kfree(bdi);
+
+	if (bdi->capabilities & BDI_CAP_SEC_DEBUG) {
+		struct sec_backing_dev_info *sec_bdi = SEC_BDI(bdi);
+
+		kfree(sec_bdi);
+	} else {
+		kfree(bdi);
+	}
 }
 
 void bdi_put(struct backing_dev_info *bdi)

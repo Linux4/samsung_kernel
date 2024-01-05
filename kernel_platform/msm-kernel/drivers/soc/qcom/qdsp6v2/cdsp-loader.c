@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2014, 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -155,6 +156,7 @@ static void cdsp_loader_unload(struct platform_device *pdev)
 		dev_dbg(&pdev->dev, "%s: calling subsystem_put\n", __func__);
 		rproc_shutdown(priv->pil_h);
 		priv->pil_h = NULL;
+		cdsp_state = CDSP_SUBSYS_DOWN;
 	}
 }
 
@@ -258,6 +260,7 @@ static int cdsp_loader_remove(struct platform_device *pdev)
 	if (priv->pil_h) {
 		rproc_shutdown(priv->pil_h);
 		priv->pil_h = NULL;
+		cdsp_state = CDSP_SUBSYS_DOWN;
 	}
 
 	if (priv->boot_cdsp_obj) {
@@ -271,7 +274,26 @@ static int cdsp_loader_remove(struct platform_device *pdev)
 
 static int cdsp_loader_probe(struct platform_device *pdev)
 {
-	int ret = cdsp_loader_init_sysfs(pdev);
+	phandle rproc_phandle;
+	struct property *prop = NULL;
+	int size = 0;
+	struct rproc *cdsp = NULL;
+	int ret = 0;
+
+	prop = of_find_property(pdev->dev.of_node, "qcom,rproc-handle", &size);
+	if (!prop) {
+		dev_err(&pdev->dev, "%s: error reading rproc phandle\n", __func__);
+		return -ENOPARAM;
+	}
+
+	rproc_phandle = be32_to_cpup(prop->value);
+	cdsp = rproc_get_by_phandle(rproc_phandle);
+	if (!cdsp) {
+		dev_err(&pdev->dev, "%s: rproc not found\n", __func__);
+		return -EPROBE_DEFER;
+	}
+
+	ret = cdsp_loader_init_sysfs(pdev);
 
 	if (ret != 0) {
 		dev_err(&pdev->dev, "%s: Error in initing sysfs\n", __func__);

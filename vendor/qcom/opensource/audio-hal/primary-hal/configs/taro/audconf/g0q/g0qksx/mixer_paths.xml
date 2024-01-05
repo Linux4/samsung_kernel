@@ -2076,9 +2076,17 @@
     <path name="bt-a2dp">
     </path>
 
+    <path name="bt-ble">
+    </path>
+
     <path name="speaker-and-bt-a2dp">
         <path name="speaker" />
         <path name="bt-a2dp" />
+    </path>
+
+    <path name="speaker-and-bt-ble">
+        <path name="speaker" />
+        <path name="bt-ble" />
     </path>
 
     <path name="speaker-and-display-port">
@@ -2150,6 +2158,9 @@
     </path>
 
     <path name="bt-a2dp-mic">
+    </path>
+
+    <path name="bt-ble-mic">
     </path>
 
     <path name="usb-headset-mic">

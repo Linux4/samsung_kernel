@@ -22,4 +22,14 @@ extern void sec_qc_summary_set_rtb_info(struct sec_qc_summary_data_apss *apss);
 static inline void sec_qc_summary_set_rtb_info(struct sec_qc_summary_data_apss *apss) {}
 #endif
 
+/* implemented @ kernel/time/sched_clock.c */
+#if IS_BUILTIN(CONFIG_SEC_QC_SUMMARY)
+extern atomic64_t sec_qc_summary_last_ns;
+#endif
+
+/* implemented @ kernel/module.c */
+#if IS_BUILTIN(CONFIG_SEC_QC_SUMMARY)
+extern void *sec_qc_summary_mod_tree;
+#endif
+
 #endif /* __INTERNAL__SEC_QC_SUMMARY_EXTERNAL_H__ */

@@ -89,4 +89,18 @@ int cam_csiphy_dump_status_reg(struct csiphy_device *csiphy_dev);
  *
  */
 int cam_csiphy_util_update_aon_registration(uint32_t phy_idx, bool is_aon_user);
+
+#ifdef CONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT
+/**
+ * @csiphy_dev: CSIPhy device structure
+ *
+ */
+bool cam_csiphy_is_secure_mode(struct csiphy_device *csiphy_dev);
+
+/**
+ * @bool: is_secure
+ *
+ */
+void cam_csiphy_set_secure_irq_err (bool is_secure);
+#endif
 #endif /* _CAM_CSIPHY_CORE_H_ */

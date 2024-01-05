@@ -9,7 +9,6 @@
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
 #include <linux/of_reserved_mem.h>
-#include <linux/memblock.h>
 
 #include <linux/qcom_dma_heap.h>
 #include "qcom_dt_parser.h"
@@ -65,22 +64,12 @@ void free_pdata(const struct platform_data *pdata)
 	kfree(pdata);
 }
 
-#if defined(CONFIG_RBIN)
-static bool under_8GB_device(void)
-{
-	return memblock_end_of_DRAM() <= 0x980000000 ? true : false;
-}
-#endif
-
 static int heap_dt_init(struct device_node *mem_node,
 			struct platform_heap *heap)
 {
-	const __be32 *basep;
-	u64 base, size;
 	struct device *dev = heap->dev;
 	struct reserved_mem *rmem;
 	int ret = 0;
-
 
 	rmem = of_reserved_mem_lookup(mem_node);
 
@@ -106,19 +95,9 @@ static int heap_dt_init(struct device_node *mem_node,
 		}
 	}
 
-	basep = of_get_address(mem_node, 0, &size, NULL);
-	if (basep) {
-		base = of_translate_address(mem_node, basep);
-		if (base != OF_BAD_ADDR) {
-			heap->base = base;
-			heap->size = size;
-		} else {
-			ret = -EINVAL;
-			dev_err(heap->dev,
-				"Failed to get heap base/size\n");
-			of_reserved_mem_device_release(dev);
-		}
-	}
+	heap->base = rmem->base;
+	heap->size = rmem->size;
+	heap->is_nomap =  of_property_read_bool(mem_node, "no-map");
 
 #if defined(CONFIG_RBIN)
 	if (strncmp(rmem->name, "rbin", 4) == 0) {
@@ -126,9 +105,6 @@ static int heap_dt_init(struct device_node *mem_node,
 			heap->base = rmem->base;
 			heap->size = rmem->size;
 		}
-
-		if (!under_8GB_device())
-			heap->type = HEAP_TYPE_CARVEOUT;
 	}
 #endif
 
@@ -168,8 +144,10 @@ struct platform_data *parse_heap_dt(struct platform_device *pdev)
 	for_each_available_child_of_node(dt_node, node)
 		num_heaps++;
 
-	if (!num_heaps)
-		return ERR_PTR(-EINVAL);
+	if (!num_heaps) {
+		pr_info("System might be booting with just system heap\n");
+		return 0;
+	}
 
 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)

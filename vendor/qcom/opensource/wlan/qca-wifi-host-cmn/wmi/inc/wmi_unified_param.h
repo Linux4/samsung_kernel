@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -544,6 +544,8 @@ typedef enum {
  * @WMI_HOST_CHAN_WIDTH_5: 5 MHz channel operating width
  * @WMI_HOST_CHAN_WIDTH_10: 10 MHz channel operating width
  * @WMI_HOST_CHAN_WIDTH_165: 165 MHz channel operating width
+ * @WMI_HOST_CHAN_WIDTH_160P160: 160 MHz + 160 MHz channel operating width
+ * @WMI_HOST_CHAN_WIDTH_320: 320 MHz channel operating width
  */
 typedef enum {
 	WMI_HOST_CHAN_WIDTH_20    = 0,
@@ -554,9 +556,8 @@ typedef enum {
 	WMI_HOST_CHAN_WIDTH_5     = 5,
 	WMI_HOST_CHAN_WIDTH_10    = 6,
 	WMI_HOST_CHAN_WIDTH_165   = 7,
-#ifdef WLAN_FEATURE_11BE
-	WMI_HOST_CHAN_WIDTH_320   = 8,
-#endif
+	WMI_HOST_CHAN_WIDTH_160P160 = 8,
+	WMI_HOST_CHAN_WIDTH_320   = 9,
 } wmi_host_channel_width;
 
 #define ATH_EXPONENT_TO_VALUE(v)	((1<<v)-1)
@@ -643,6 +644,18 @@ struct oem_data {
 	bool pdev_vdev_flag;
 	bool is_host_pdev_id;
 	uint8_t *data;
+};
+#endif
+
+#ifdef MULTI_CLIENT_LL_SUPPORT
+/**
+ * struct latency_level_data - latency data received in the event from the FW
+ * @vdev_id: The latency level for specified vdev_id
+ * @latency_level: latency level honoured by FW
+ */
+struct latency_level_data {
+	uint8_t vdev_id;
+	uint32_t latency_level;
 };
 #endif
 
@@ -1044,6 +1057,7 @@ struct peer_assoc_ml_partner_links {
  * @peer_eht_mcs_count: Peer EHT MCS TX/RX MAP count
  * @peer_eht_rx_mcs_set: Peer EHT RX MCS MAP
  * @peer_eht_tx_mcs_set: Peer EHT TX MCS MAP
+ * @puncture_bitmap: 11be static puncture bitmap
  * @peer_ppet: Peer HE PPET info
  * @peer_bss_max_idle_option: Peer BSS Max Idle option update
  * @akm: AKM info
@@ -1122,7 +1136,7 @@ struct peer_assoc_params {
 	uint32_t peer_eht_mcs_count;
 	uint32_t peer_eht_rx_mcs_set[WMI_HOST_MAX_EHT_RATE_SET];
 	uint32_t peer_eht_tx_mcs_set[WMI_HOST_MAX_EHT_RATE_SET];
-	uint16_t puncture_pattern;
+	uint16_t puncture_bitmap;
 #endif
 	struct wmi_host_ppe_threshold peer_ppet;
 	u_int8_t peer_bsscolor_rept_info;
@@ -1132,6 +1146,8 @@ struct peer_assoc_params {
 	struct peer_assoc_mlo_params mlo_params;
 	struct peer_assoc_ml_partner_links ml_links;
 #endif
+	uint8_t peer_dms_capable:1,
+		reserved:7;
 };
 
 /**
@@ -1322,6 +1338,10 @@ struct seg_hdr_info {
  *              0:disable 1:enable
  * @en_beamforming: flag to enable tx beamforming
  *              0:disable 1:enable
+ * @retry_limit_ext: 3 bits of extended retry limit.
+ *              Combined with 4 bits "retry_limit"
+ *              to create 7 bits hw retry count.
+ *              Maximum 127 retries for specific frames.
  */
 struct tx_send_params {
 	uint32_t pwr:8,
@@ -1334,7 +1354,8 @@ struct tx_send_params {
 		 frame_type:1,
 		 cfr_enable:1,
 		 en_beamforming:1,
-		 reserved:9;
+		 retry_limit_ext:3,
+		 reserved:6;
 };
 
 /**
@@ -3269,6 +3290,64 @@ struct fips_params {
 	uint32_t pdev_id;
 };
 
+#ifdef WLAN_FEATURE_FIPS_BER_CCMGCM
+#define MAX_KEY_LEN_FIPS_EXTEND 64
+#define MAX_NONCEIV_LEN_FIPS_EXTEND 16
+/**
+ * struct fips_extend_cmd_params - FIPS extend params config for first frag
+ * @fips_cmd:  1 - Encrypt, 2 - Decrypt
+ * key_cipher: 0 - CCM, 1 - GCM
+ * @key_len: length of key
+ * @key: key_data
+ * @nonce_iv_len: length of nonce or iv
+ * @nonce_iv: nonce_iv
+ * @tag_len: length of tag/mic
+ * @aad_len: length of aad
+ * @payload_len: length of payload
+ */
+struct fips_extend_cmd_params {
+	u_int32_t fips_cmd;
+	u_int32_t key_cipher;
+	u_int32_t key_len;
+	u_int8_t  key[MAX_KEY_LEN_FIPS_EXTEND];
+	u_int32_t nonce_iv_len;
+	u_int8_t  nonce_iv[MAX_NONCEIV_LEN_FIPS_EXTEND];
+	u_int32_t tag_len;
+	u_int32_t aad_len;
+	u_int32_t payload_len;
+};
+
+/**
+ * struct fips_extend_params - FIPS extend params config
+ * @pdev_id: pdev_id for identifying the MAC
+ * @cookie: cookie value
+ * @frag_idx: fragment index
+ * @more_bit: more bit
+ * @data_len: length of data buf
+ * @cmd_params: cmd_params set for first fragment
+ * @data: pointer data buf
+ */
+struct fips_extend_params {
+	uint32_t pdev_id;
+	u_int32_t cookie;
+	u_int32_t frag_idx;
+	u_int32_t more_bit;
+	u_int32_t data_len;
+	struct fips_extend_cmd_params cmd_params;
+	u_int32_t *data;
+};
+
+/**
+ * struct fips_mode_set_params - FIPS mode enable param
+ * @pdev_id: pdev_id for identifying the MAC
+ * @mode: value to disable or enable fips extend mode
+ */
+struct fips_mode_set_params {
+	uint32_t pdev_id;
+	uint32_t mode;
+};
+#endif
+
 #ifdef WLAN_FEATURE_DISA_FIPS
 /**
  * struct disa_encrypt_decrypt_req_params - disa encrypt request
@@ -4659,6 +4738,17 @@ typedef enum {
 	wmi_mlo_teardown_complete_event_id,
 	wmi_mlo_link_set_active_resp_eventid,
 #endif
+	wmi_pdev_fips_extend_event_id,
+	wmi_roam_frame_event_id,
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+	wmi_vdev_update_mac_addr_conf_eventid,
+#endif
+#ifdef WLAN_FEATURE_11BE_MLO
+	wmi_vdev_quiet_offload_eventid,
+#endif
+#ifdef MULTI_CLIENT_LL_SUPPORT
+	wmi_vdev_latency_event_id,
+#endif
 	wmi_events_max,
 } wmi_conv_event_id;
 
@@ -5272,6 +5362,20 @@ typedef enum {
 	wmi_service_mgmt_rx_reo_supported,
 	wmi_service_phy_dma_byte_swap_support,
 	wmi_service_spectral_session_info_support,
+	wmi_service_mu_snif,
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+	wmi_service_dynamic_update_vdev_macaddr_support,
+#endif
+	wmi_service_pno_scan_conf_per_ch_support,
+#ifdef WLAN_FEATURE_11BE_MLO
+	wmi_service_mlo_sta_nan_ndi_support,
+#endif
+#ifdef WLAN_FEATURE_ROAM_OFFLOAD
+	wmi_service_roam_stats_per_candidate_frame_info,
+#endif
+#ifdef MULTI_CLIENT_LL_SUPPORT
+	wmi_service_configure_multi_client_ll_support,
+#endif
 	wmi_services_max,
 } wmi_conv_service_ids;
 #define WMI_SERVICE_UNAVAILABLE 0xFFFF
@@ -5429,6 +5533,7 @@ struct wmi_host_fw_abi_ver {
  *                                       inclusive of SP power mode.
  * @afc_timer_check_disable: Disables AFC Timer related checks in FW
  * @afc_req_id_check_disable: Disables AFC Request ID check in FW
+ * @carrier_profile_config: Configuration for per-carrier profile
  */
 typedef struct {
 	uint32_t num_vdevs;
@@ -5548,6 +5653,7 @@ typedef struct {
 	bool is_6ghz_sp_pwrmode_supp_enabled;
 	bool afc_timer_check_disable;
 	bool afc_req_id_check_disable;
+	uint32_t carrier_profile_config;
 } target_resource_config;
 
 /**
@@ -6275,6 +6381,9 @@ enum {
 	WMI_HOST_PKTLOG_EVENT_TX_DATA_CAPTURE_BIT,
 	WMI_HOST_PKTLOG_EVENT_PHY_LOGGING_BIT,
 	WMI_HOST_PKTLOG_EVENT_CBF_BIT,
+#ifdef QCA_WIFI_QCN9224
+	WMI_HOST_PKTLOG_EVENT_HYBRID_TX_BIT,
+#endif
 };
 
 typedef enum {
@@ -6301,6 +6410,10 @@ typedef enum {
 		BIT(WMI_HOST_PKTLOG_EVENT_PHY_LOGGING_BIT),
 	WMI_HOST_PKTLOG_EVENT_CBF =
 		BIT(WMI_HOST_PKTLOG_EVENT_CBF_BIT),
+#ifdef QCA_WIFI_QCN9224
+	WMI_HOST_PKTLOG_EVENT_HYBRID_TX =
+		BIT(WMI_HOST_PKTLOG_EVENT_HYBRID_TX_BIT),
+#endif
 } WMI_HOST_PKTLOG_EVENT;
 
 /**
@@ -6928,6 +7041,28 @@ struct wmi_host_fips_event_param {
 	uint32_t *data;
 };
 
+#ifdef WLAN_FEATURE_FIPS_BER_CCMGCM
+/*
+ * struct wmi_host_fips_extend_event_param: FIPS extend event param
+ * @pdev_id: pdev id
+ * @fips_cookie: fips_cookie
+ * @cmd_frag_idx: cmd_frag_idx
+ * @more_bit: more_bit
+ * @error_status: Error status: 0 (no err), 1, or OPER_TIMEOUR
+ * @data_len: FIPS data length
+ * @data: pointer to data
+ */
+struct wmi_host_fips_extend_event_param {
+	uint32_t pdev_id;
+	uint32_t fips_cookie;
+	uint32_t cmd_frag_idx;
+	uint32_t more_bit;
+	uint32_t error_status;
+	uint32_t data_len;
+	uint32_t *data;
+};
+#endif
+
 #ifdef WLAN_FEATURE_DISA_FIPS
 /**
  * struct disa_encrypt_decrypt_resp_params - disa encrypt response
@@ -7503,7 +7638,7 @@ struct wmi_roam_scan_stats_res {
 #define MAX_ROAM_SCAN_CHAN       38
 #define MAX_ROAM_SCAN_STATS_TLV  5
 #define WLAN_MAX_BTM_CANDIDATE   8
-#define WLAN_ROAM_MAX_FRAME_INFO 6
+#define WLAN_ROAM_MAX_FRAME_INFO (MAX_ROAM_CANDIDATE_AP * 6)
 /**
  * struct btm_req_candidate_info  - BTM request candidate
  * info
@@ -7643,6 +7778,7 @@ struct wmi_roam_candidate_info {
 /**
  * struct wmi_roam_scan_data - Roam scan event details
  * @present:            Flag to check if the roam scan tlv is present
+ * @is_btcoex_active:   is bluetooth connection active
  * @type:      0 - Partial roam scan; 1 - Full roam scan
  * @num_ap:    Number of candidate APs.
  * @num_chan:  Number of channels.
@@ -7653,6 +7789,7 @@ struct wmi_roam_candidate_info {
  */
 struct wmi_roam_scan_data {
 	bool present;
+	bool is_btcoex_active;
 	uint16_t type;
 	uint16_t num_ap;
 	uint16_t num_chan;
@@ -7669,12 +7806,14 @@ struct wmi_roam_scan_data {
  * @status:             0 - Roaming is success ; 1 - Roaming failed ;
  * 2 - No roam
  * @fail_reason:        One of WMI_ROAM_FAIL_REASON_ID
+ * @fail_bssid:         BSSID of the last attempted roam failed AP
  */
 struct wmi_roam_result {
 	bool present;
 	uint32_t timestamp;
 	uint32_t status;
 	uint32_t fail_reason;
+	struct qdf_mac_addr fail_bssid;
 };
 
 #define WLAN_11KV_TYPE_BTM_REQ  1
@@ -8201,6 +8340,34 @@ struct set_mec_timer_params {
 	uint32_t pdev_id;
 	uint32_t vdev_id;
 	uint32_t mec_aging_timer_threshold;
+};
+#endif
+
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+/**
+ * struct set_mac_addr_params - Set MAC address command parameter
+ * @vdev_id: vdev id
+ * @mac_addr: VDEV MAC address
+ * @mmld_addr: MLD address of the vdev
+ */
+struct set_mac_addr_params {
+	uint8_t vdev_id;
+	struct qdf_mac_addr mac_addr;
+	struct qdf_mac_addr mld_addr;
+};
+#endif
+
+#ifdef WLAN_FEATURE_SON
+/**
+ * struct wmi_host_inst_rssi_stats_resp - inst rssi stats
+ * @inst_rssi: instantaneous rssi above the noise floor in dB unit
+ * @peer_macaddr: peer mac address
+ * @vdev_id: vdev_id
+ */
+struct wmi_host_inst_rssi_stats_resp {
+	uint32_t inst_rssi;
+	struct qdf_mac_addr peer_macaddr;
+	uint32_t vdev_id;
 };
 #endif
 #endif /* _WMI_UNIFIED_PARAM_H_ */

@@ -796,6 +796,10 @@ static u8 update_white_list(struct hci_request *req)
 	 */
 	bool allow_rpa = hdev->suspended;
 
+	if (use_ll_privacy(hdev) &&
+	    hci_dev_test_flag(hdev, HCI_ENABLE_LL_PRIVACY))
+		allow_rpa = true;
+
 	/* Go through the current white list programmed into the
 	 * controller one by one and check if that address is still
 	 * in the list of pending connections or list of devices to
@@ -1060,9 +1064,10 @@ static u8 get_adv_instance_scan_rsp_len(struct hci_dev *hdev, u8 instance)
 	if (!adv_instance)
 		return 0;
 
-	/* TODO: Take into account the "appearance" and "local-name" flags here.
-	 * These are currently being ignored as they are not supported.
-	 */
+	if (adv_instance->flags & MGMT_ADV_FLAG_APPEARANCE ||
+	    adv_instance->flags & MGMT_ADV_FLAG_LOCAL_NAME)
+		return 1;
+
 	return adv_instance->scan_rsp_len;
 }
 
@@ -1599,14 +1604,11 @@ void __hci_req_update_scan_rsp_data(struct hci_request *req, u8 instance)
 
 		memset(&cp, 0, sizeof(cp));
 
-		/* Extended scan response data doesn't allow a response to be
-		 * set if the instance isn't scannable.
-		 */
-		if (get_adv_instance_scan_rsp_len(hdev, instance))
+		if (instance)
 			len = create_instance_scan_rsp_data(hdev, instance,
 							    cp.data);
 		else
-			len = 0;
+			len = create_default_scan_rsp_data(hdev, cp.data);
 
 		if (hdev->scan_rsp_data_len == len &&
 		    !memcmp(cp.data, hdev->scan_rsp_data, len))
@@ -2113,7 +2115,7 @@ int __hci_req_enable_ext_advertising(struct hci_request *req, u8 instance)
 	/* Set duration per instance since controller is responsible for
 	 * scheduling it.
 	 */
-	if (adv_instance && adv_instance->duration) {
+	if (adv_instance && adv_instance->timeout) {
 		u16 duration = adv_instance->timeout * MSEC_PER_SEC;
 
 		/* Time = N * 10 ms */

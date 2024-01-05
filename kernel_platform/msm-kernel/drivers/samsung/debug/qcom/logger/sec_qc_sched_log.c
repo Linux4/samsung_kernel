@@ -104,14 +104,6 @@ static int notrace __sched_log_msg(char *fmt, ...)
 	return r;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-void notrace sec_debug_task_sched_log(int cpu, bool preempt,
-		struct task_struct *prev, struct task_struct *next)
-{
-	sec_qc_trace_sched_switch(NULL, preempt, prev, next);
-}
-#endif
-
 static int __sched_log_register_trace_sched_switch(struct builder *bd)
 {
 	return register_trace_sched_switch(sec_qc_trace_sched_switch, NULL);
@@ -231,9 +223,6 @@ static int sec_qc_sched_log_probe(struct qc_logger *logger)
 	if (err)
 		return err;
 
-	if (IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML))
-		return 0;
-
 	return __qc_logger_sub_module_probe(logger,
 			__sched_log_dev_builder_trace,
 			ARRAY_SIZE(__sched_log_dev_builder_trace));
@@ -244,9 +233,6 @@ static void sec_qc_sched_log_remove(struct qc_logger *logger)
 	__qc_logger_sub_module_remove(logger,
 			__sched_log_dev_builder_trace,
 			ARRAY_SIZE(__sched_log_dev_builder_trace));
-
-	if (IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML))
-		return;
 
 	__qc_logger_sub_module_remove(logger,
 			__sched_log_dev_builder,

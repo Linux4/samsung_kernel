@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _UAPI_SMCINVOKE_H_
 #define _UAPI_SMCINVOKE_H_
@@ -9,6 +10,7 @@
 #include <linux/ioctl.h>
 
 #define SMCINVOKE_USERSPACE_OBJ_NULL	-1
+#define DEFAULT_CB_OBJ_THREAD_CNT	4
 
 struct smcinvoke_buf {
 	__u64 addr;
@@ -91,5 +93,13 @@ struct smcinvoke_server {
 
 #define SMCINVOKE_IOCTL_ACK_LOCAL_OBJ \
 	_IOWR(SMCINVOKE_IOC_MAGIC, 4, __s32)
+
+/*
+ * smcinvoke logging buffer is for communicating with the smcinvoke driver additional
+ * info for debugging to be included in driver's log (if any)
+ */
+#define SMCINVOKE_LOG_BUF_SIZE 100
+#define SMCINVOKE_IOCTL_LOG \
+	_IOC(_IOC_READ|_IOC_WRITE, SMCINVOKE_IOC_MAGIC, 255, SMCINVOKE_LOG_BUF_SIZE)
 
 #endif /* _UAPI_SMCINVOKE_H_ */

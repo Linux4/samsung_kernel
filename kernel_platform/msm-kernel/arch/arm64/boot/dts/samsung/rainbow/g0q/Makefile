@@ -1,19 +1,21 @@
-dtbo-y += g0q_chn_hkx_w00_r12.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-g0q_chn_hkx_w00_r12.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += g0q_chn_hkx_w00_r11.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-g0q_chn_hkx_w00_r11.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += g0q_chn_hkx_w00_r10.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-g0q_chn_hkx_w00_r10.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += g0q_chn_hkx_w00_r09.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-g0q_chn_hkx_w00_r09.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += g0q_chn_hkx_w00_r08.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-g0q_chn_hkx_w00_r08.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += g0q_chn_hkx_w00_r07.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-g0q_chn_hkx_w00_r07.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += g0q_chn_hkx_w00_r06.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-g0q_chn_hkx_w00_r06.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-dtbo-y += g0q_chn_hkx_w00_r05.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-g0q_chn_hkx_w00_r05.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r12.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r12.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r11.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r11.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r10.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r10.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r09.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r09.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r08.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r08.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r07.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r07.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r06.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r06.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r05.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r05.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+dtbo-y += g0q_chn_openx_w00_r04.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+g0q_chn_openx_w00_r04.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 # SPDX-License-Identifier: GPL-2.0
 
 #define __sec_dtbo_build

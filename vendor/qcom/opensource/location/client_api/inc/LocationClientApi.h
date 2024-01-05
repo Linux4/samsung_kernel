@@ -193,7 +193,11 @@ enum LocationFlagsMask {
     /** Location has valid Location::bearingAccuracy. <br/>   */
     LOCATION_HAS_BEARING_ACCURACY_BIT  = (1<<7),
     /** Location has valid Location::timestamp. <br/>   */
-    LOCATION_HAS_TIMESTAMP_BIT         = (1<<8)
+    LOCATION_HAS_TIMESTAMP_BIT         = (1<<8),
+    /** Location has valid Location::elapsedRealTime. <br/>   */
+    LOCATION_HAS_ELAPSED_REAL_TIME_BIT = (1<<9),
+    /** Location has valid Location::elapsedRealTimeUnc. <br/>   */
+    LOCATION_HAS_ELAPSED_REAL_TIME_UNC_BIT = (1<<10),
 };
 
 /**
@@ -976,6 +980,19 @@ struct Location {
     float bearingAccuracy;
     /** Sets of technology that contributed to the fix. <br/>   */
     LocationTechnologyMask techMask;
+    /** Boot timestamp corresponding to the UTC timestamp for
+     *  location fix.  <br/>
+     *  In unit of nano-seconds.<br/>
+     *  This field may not always be available. Please check for the
+     *  presence of LOCATION_HAS_ELAPSED_REAL_TIME_BIT in
+     *  location::flags before retrieving this field. <br/>   */
+    uint64_t elapsedRealTimeNs;
+    /** Uncertainty for the boot timestamp.<br/>
+     *  In unit of nano-seconds.<br/>
+     *  This field may not always be available. Please check for the
+     *  presence of LOCATION_HAS_ELAPSED_REAL_TIME_UNC_BIT in
+     *  location::flags before retrieving this field. <br/>   */
+    uint64_t elapsedRealTimeUncNs;
     /** Method to print the struct to human readable form, for logging.
      *  <br/> */
     string toString() const;

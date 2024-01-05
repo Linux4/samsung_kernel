@@ -72,6 +72,16 @@ struct chmap_pdata {
 
 #define MAX_USR_INPUT 10
 
+static int qos_vote_status;
+static struct dev_pm_qos_request latency_pm_qos_req; /* pm_qos request */
+static unsigned int qos_client_active_cnt;
+/* set audio task affinity to core 1 & 2 */
+static const unsigned int audio_core_list[] = {0, 1, 2, 3};
+static cpumask_t audio_cpu_map = CPU_MASK_NONE;
+static struct dev_pm_qos_request *msm_audio_req = NULL;
+static bool kregister_pm_qos_latency_controls = false;
+#define MSM_LL_QOS_VALUE	300 /* time in us to ensure LPM doesn't go in C3/C4 */
+
 static ssize_t aud_dev_sysfs_store(struct kobject *kobj,
 		struct attribute *attr,
 		const char *buf, size_t count)
@@ -271,38 +281,37 @@ static bool is_fractional_sample_rate(unsigned int sample_rate)
 
 static int get_mi2s_clk_id(int index)
 {
-        int clk_id;
+	int clk_id = -EINVAL;
 
-        switch(index) {
-        case PRI_MI2S_TDM_AUXPCM:
-                clk_id = CLOCK_ID_PRI_MI2S_IBIT;
-                break;
-        case SEC_MI2S_TDM_AUXPCM:
-                clk_id = CLOCK_ID_SEP_MI2S_IBIT;
-                break;
-        case TER_MI2S_TDM_AUXPCM:
-                clk_id = CLOCK_ID_TER_MI2S_IBIT;
-                break;
-        case QUAT_MI2S_TDM_AUXPCM:
-                clk_id = CLOCK_ID_QUAD_MI2S_IBIT;
-                break;
-        case QUIN_MI2S_TDM_AUXPCM:
-                clk_id = CLOCK_ID_QUI_MI2S_IBIT;
-                break;
-        case SEN_MI2S_TDM_AUXPCM:
-                clk_id = CLOCK_ID_SEN_MI2S_IBIT;
-                break;
-        default:
-                pr_err("%s: Invalid interface index: %d\n", __func__, index);
-                clk_id = -EINVAL;
-        }
-        pr_debug("%s: clk id: %d\n", __func__, clk_id);
-        return clk_id;
+	switch(index) {
+	case PRI_MI2S_TDM_AUXPCM:
+		clk_id = CLOCK_ID_PRI_MI2S_IBIT;
+		break;
+	case SEC_MI2S_TDM_AUXPCM:
+		clk_id = CLOCK_ID_SEP_MI2S_IBIT;
+		break;
+	case TER_MI2S_TDM_AUXPCM:
+		clk_id = CLOCK_ID_TER_MI2S_IBIT;
+		break;
+	case QUAT_MI2S_TDM_AUXPCM:
+		clk_id = CLOCK_ID_QUAD_MI2S_IBIT;
+		break;
+	case QUIN_MI2S_TDM_AUXPCM:
+		clk_id = CLOCK_ID_QUI_MI2S_IBIT;
+		break;
+	case SEN_MI2S_TDM_AUXPCM:
+		clk_id = CLOCK_ID_SEN_MI2S_IBIT;
+		break;
+	default:
+		pr_err("%s: Invalid interface index: %d\n", __func__, index);
+	}
+	pr_debug("%s: clk id: %d\n", __func__, clk_id);
+	return clk_id;
 }
 
 static int get_tdm_clk_id(int index)
 {
-	int clk_id;
+	int clk_id = -EINVAL;
 
 	switch(index) {
 	case PRI_MI2S_TDM_AUXPCM:
@@ -325,7 +334,6 @@ static int get_tdm_clk_id(int index)
 		break;
 	default:
 		pr_err("%s: Invalid interface index: %d\n", __func__, index);
-		clk_id = -EINVAL;
 	}
 	pr_debug("%s: clk id: %d\n", __func__, clk_id);
 	return clk_id;
@@ -564,7 +572,7 @@ void msm_common_snd_shutdown(struct snd_pcm_substream *substream)
 		if (atomic_read(&pdata->lpass_intf_clk_ref_cnt[index]) == 0) {
 			if ((strnstr(stream_name, "TDM", strlen(stream_name)))) {
 				ret = get_tdm_clk_id(index);
-				if (ret != -EINVAL) {
+				if (ret > 0) {
 					intf_clk_cfg.clk_id = ret;
 					ret = audio_prm_set_lpass_clk_cfg(&intf_clk_cfg, 0);
 					if (ret < 0)
@@ -576,7 +584,7 @@ void msm_common_snd_shutdown(struct snd_pcm_substream *substream)
 				}
 			} else if((strnstr(stream_name, "MI2S", strlen(stream_name)))) {
 				ret = get_mi2s_clk_id(index);
-				if (ret != -EINVAL) {
+				if (ret > 0) {
 					intf_clk_cfg.clk_id = ret;
 					ret = audio_prm_set_lpass_clk_cfg(&intf_clk_cfg, 0);
 					if (ret < 0)
@@ -616,6 +624,55 @@ void msm_common_snd_shutdown(struct snd_pcm_substream *substream)
 			}
 		}
 		mutex_unlock(&pdata->lock[index]);
+	}
+}
+
+static void msm_audio_add_qos_request()
+{
+	int i;
+	int cpu = 0;
+	int ret = 0;
+
+	msm_audio_req = kcalloc(num_possible_cpus(),
+			sizeof(struct dev_pm_qos_request), GFP_KERNEL);
+	if (!msm_audio_req)
+		return;
+
+	for (i = 0; i < ARRAY_SIZE(audio_core_list); i++) {
+		if (audio_core_list[i] >= num_possible_cpus())
+			pr_err("%s incorrect cpu id: %d specified.\n",
+					__func__, audio_core_list[i]);
+		else
+			cpumask_set_cpu(audio_core_list[i], &audio_cpu_map);
+	}
+
+	for_each_cpu(cpu, &audio_cpu_map) {
+		ret = dev_pm_qos_add_request(get_cpu_device(cpu),
+				&msm_audio_req[cpu],
+				DEV_PM_QOS_RESUME_LATENCY,
+				PM_QOS_CPU_LATENCY_DEFAULT_VALUE);
+		if (ret < 0)
+			pr_err("%s error (%d) adding resume latency to cpu %d.\n",
+							__func__, ret, cpu);
+		pr_debug("%s set cpu affinity to core %d.\n", __func__, cpu);
+	}
+}
+
+static void msm_audio_remove_qos_request()
+{
+	int cpu = 0;
+	int ret = 0;
+
+	if (msm_audio_req) {
+		for_each_cpu(cpu, &audio_cpu_map) {
+			ret = dev_pm_qos_remove_request(
+					&msm_audio_req[cpu]);
+			if (ret < 0)
+				pr_err("%s error (%d) removing request from cpu %d.\n",
+							__func__, ret, cpu);
+			pr_debug("%s remove cpu affinity of core %d.\n", __func__, cpu);
+		}
+		kfree(msm_audio_req);
 	}
 }
 
@@ -724,6 +781,10 @@ int msm_common_snd_init(struct platform_device *pdev, struct snd_soc_card *card)
 	aud_dev_sysfs_init(common_pdata);
 
 	msm_common_set_pdata(card, common_pdata);
+
+    /* Add QoS request for audio tasks */
+	msm_audio_add_qos_request();
+
 	return 0;
 };
 
@@ -733,6 +794,8 @@ void msm_common_snd_deinit(struct msm_common_pdata *common_pdata)
 
 	if (!common_pdata)
 		return;
+
+	msm_audio_remove_qos_request();
 
 	for (count = 0; count < MI2S_TDM_AUXPCM_MAX; count++) {
 		mutex_destroy(&common_pdata->lock[count]);
@@ -879,6 +942,86 @@ void msm_common_get_backend_name(const char *stream_name, char **backend_name)
 	strlcpy(*backend_name, arg, ARRAY_SZ);
 }
 
+static void msm_audio_update_qos_request(u32 latency)
+{
+	int cpu = 0;
+	int ret = -1;
+
+	if (msm_audio_req) {
+		for_each_cpu(cpu, &audio_cpu_map) {
+			ret = dev_pm_qos_update_request(
+					&msm_audio_req[cpu], latency);
+			if (1 == ret ) {
+				pr_info("%s: updated latency of core %d to %u.\n",
+								__func__, cpu, latency);
+			} else if (0 == ret) {
+				pr_info("%s: latency of core %d not changed. latency %u.\n",
+								__func__, cpu, latency);
+			} else {
+				pr_err("%s: failed to update latency of core %d, error %d \n",
+								__func__, cpu, ret);
+			}
+		}
+	}
+}
+
+static int msm_qos_ctl_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	qos_vote_status = ucontrol->value.enumerated.item[0];
+	if (qos_vote_status) {
+		if (dev_pm_qos_request_active(&latency_pm_qos_req))
+			dev_pm_qos_remove_request(&latency_pm_qos_req);
+
+		qos_client_active_cnt++;
+		if (qos_client_active_cnt == 1)
+			msm_audio_update_qos_request(MSM_LL_QOS_VALUE);
+	} else {
+		if (qos_client_active_cnt > 0)
+			qos_client_active_cnt--;
+		if (qos_client_active_cnt == 0)
+			msm_audio_update_qos_request(PM_QOS_CPU_LATENCY_DEFAULT_VALUE);
+	}
+
+	return 0;
+}
+
+static int msm_qos_ctl_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] = qos_vote_status;
+	return 0;
+}
+
+static const char *const qos_text[] = {"Disable", "Enable"};
+
+static SOC_ENUM_SINGLE_EXT_DECL(qos_vote, qos_text);
+
+static const struct snd_kcontrol_new card_pm_qos_controls[] = {
+	SOC_ENUM_EXT("PM_QOS Vote", qos_vote,
+			msm_qos_ctl_get, msm_qos_ctl_put),
+};
+
+static int register_pm_qos_latency_controls(struct snd_soc_pcm_runtime *rtd) {
+	struct snd_soc_component *lpass_cdc_component = NULL;
+	int ret = 0;
+	lpass_cdc_component = snd_soc_rtdcom_lookup(rtd, "lpass-cdc");
+	if (!lpass_cdc_component) {
+		pr_err("%s: could not find component for lpass-cdc\n",
+				__func__);
+		return -EINVAL;
+	}
+
+	ret = snd_soc_add_component_controls(lpass_cdc_component,
+			card_pm_qos_controls, ARRAY_SIZE(card_pm_qos_controls));
+	if (ret < 0) {
+		pr_err("%s: add common snd controls failed: %d\n",
+				__func__, ret);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 int msm_common_dai_link_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, 0);
@@ -918,16 +1061,20 @@ int msm_common_dai_link_init(struct snd_soc_pcm_runtime *rtd)
 	}
 
 	pdata = devm_kzalloc(dev, sizeof(struct chmap_pdata), GFP_KERNEL);
-	if (!pdata)
-		return -ENOMEM;
+	if (!pdata) {
+		ret = -ENOMEM;
+		goto free_backend;
+	}
 
 	if ((!strncmp(backend_name, "SLIM", strlen("SLIM"))) ||
 		(!strncmp(backend_name, "CODEC_DMA", strlen("CODEC_DMA")))) {
 		ctl_len = strlen(dai_link->stream_name) + 1 +
 				strlen(mixer_ctl_name) + 1;
 		mixer_str = kzalloc(ctl_len, GFP_KERNEL);
-		if (!mixer_str)
-			return -ENOMEM;
+		if (!mixer_str) {
+			ret = -ENOMEM;
+			goto free_backend;
+		}
 
 		snprintf(mixer_str, ctl_len, "%s %s", dai_link->stream_name,
 				mixer_ctl_name);
@@ -958,9 +1105,22 @@ int msm_common_dai_link_init(struct snd_soc_pcm_runtime *rtd)
 			}
 		}
 		kctl->private_data = pdata;
+	}
+	if (!kregister_pm_qos_latency_controls) {
+		if (!register_pm_qos_latency_controls(rtd))
+			kregister_pm_qos_latency_controls = true;
+	}
+
 free_mixer_str:
-		kfree(backend_name);
+	if (mixer_str) {
 		kfree(mixer_str);
+		mixer_str = NULL;
+	}
+
+free_backend:
+	if (backend_name) {
+		kfree(backend_name);
+		backend_name = NULL;
 	}
 
 	return ret;

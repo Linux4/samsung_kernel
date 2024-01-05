@@ -175,11 +175,13 @@ enum powersave_mode {
  * @PMO_SUSPEND_NONE: Does not support suspend
  * @PMO_SUSPEND_LEGENCY: Legency PDEV suspend mode
  * @PMO_SUSPEND_WOW: WoW suspend mode
+ * @PMO_FULL_POWER_DOWN: Full power down while suspend
  */
 enum pmo_suspend_mode {
 	PMO_SUSPEND_NONE = 0,
 	PMO_SUSPEND_LEGENCY,
-	PMO_SUSPEND_WOW
+	PMO_SUSPEND_WOW,
+	PMO_FULL_POWER_DOWN
 };
 
 #define PMO_TARGET_SUSPEND_TIMEOUT   (4000)
@@ -220,6 +222,7 @@ typedef QDF_STATUS(*pmo_psoc_resume_handler)
  * @pmo_ns_offload_dynamic_update: enable/disable ns offload on the fly
  * @pmo_peer_disconnect: trigger is peer disconnect
  * @pmo_mcbc_setting_dynamic_update: mcbc value update on the fly
+ * @pmo_arp_ns_offload_dynamic_update: enable/disable arp/ns offload on the fly
  *
  * @pmo_offload_trigger_max: Max trigger value
  */
@@ -234,6 +237,7 @@ enum pmo_offload_trigger {
 	pmo_ns_offload_dynamic_update,
 	pmo_peer_disconnect,
 	pmo_mcbc_setting_dynamic_update,
+	pmo_arp_ns_offload_dynamic_update,
 
 	pmo_offload_trigger_max,
 };

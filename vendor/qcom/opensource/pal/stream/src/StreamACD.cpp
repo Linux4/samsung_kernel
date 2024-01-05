@@ -536,17 +536,45 @@ exit:
 
 void StreamACD::SendCachedEventData()
 {
-    size_t event_size = cached_event_data_->data_size + sizeof(struct pal_st_recognition_event);
     struct acd_context_event *context_event = NULL;
+    uint32_t *ev_payload = NULL;
 
     if (callback_) {
+notify:
+        size_t event_size = cached_event_data_->data_size + sizeof(struct pal_st_recognition_event);
         context_event = (struct acd_context_event *)(((uint8_t*) cached_event_data_) + sizeof(struct pal_st_recognition_event) + sizeof(struct st_param_header));
         PAL_INFO(LOG_TAG, "Notify cached detection event to client with no of contexts=%d", context_event->num_contexts);
-        callback_((pal_stream_handle_t *)this, 0, (uint32_t *)cached_event_data_,
-                  event_size, cookie_);
+        ev_payload = (uint32_t *)calloc(1, event_size);
+        if (!ev_payload) {
+            ALOGE("memory allocation for ev_payload failed");
+            free(cached_event_data_);
+            cached_event_data_ = NULL;
+            return;
+        }
+        memcpy(ev_payload, cached_event_data_, event_size);
+        free(cached_event_data_);
+        cached_event_data_ = NULL;
+        /* SendCachedEventData() is always called with mutex_ lock acquired.
+         *  Unlock it before calling callback */
+        notificationInProgress = true;
+        mutex_.unlock();
+        callback_((pal_stream_handle_t *)this, 0, ev_payload, event_size, cookie_);
+        free(ev_payload);
+        ev_payload = NULL;
+        mutex_.lock();
+        notificationInProgress = false;
+        /* If mutex_ lock is acquired by other thread handling detection event before
+         * this thread, then cv_.notify_one will not be handled. Handle it here and
+         * notify client if there is pending notification to be sent to client.
+         */
+        if (deferredNotification == true && cached_event_data_ != NULL) {
+            deferredNotification = false;
+            goto notify;
+        }
+    } else {
+        free(cached_event_data_);
+        cached_event_data_ = NULL;
     }
-    free(cached_event_data_);
-    cached_event_data_ = NULL;
 }
 
 void StreamACD::SetEngineDetectionData(struct acd_context_event *event)
@@ -1446,7 +1474,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
             acd_stream_.CacheEventData((struct acd_context_event *)data->data_);
             if (acd_stream_.cached_event_data_) {
-                acd_stream_.cv_.notify_one();
+                if (acd_stream_.notificationInProgress == true)
+                    acd_stream_.deferredNotification = true;
+                else
+                    acd_stream_.cv_.notify_one();
                 TransitTo(ACD_STATE_DETECTED);
             }
             break;
@@ -1720,7 +1751,10 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
             /* notify client if events are present , else move to active */
             std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
             if (acd_stream_.cached_event_data_) {
-                acd_stream_.cv_.notify_one();
+                if (acd_stream_.notificationInProgress == true)
+                    acd_stream_.deferredNotification = true;
+                else
+                    acd_stream_.cv_.notify_one();
             } else {
                 TransitTo(ACD_STATE_ACTIVE);
             }

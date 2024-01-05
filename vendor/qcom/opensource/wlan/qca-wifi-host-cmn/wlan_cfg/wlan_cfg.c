@@ -197,16 +197,20 @@ static const uint8_t rx_ring_mask_msi[WLAN_CFG_INT_NUM_CONTEXTS] = {
 
 #ifdef CONFIG_BERYLLIUM
 static const  uint8_t rxdma2host_ring_mask_msi[WLAN_CFG_INT_NUM_CONTEXTS] = {
-	[13] = WLAN_CFG_RXDMA2HOST_RING_MASK_0 |
-		WLAN_CFG_RXDMA2HOST_RING_MASK_1};
+	[13] = WLAN_CFG_RXDMA2HOST_RING_MASK_0};
 #else
 static const  uint8_t rxdma2host_ring_mask_msi[WLAN_CFG_INT_NUM_CONTEXTS] = {
 	[6] = WLAN_CFG_RXDMA2HOST_RING_MASK_0 |
 	      WLAN_CFG_RXDMA2HOST_RING_MASK_1};
 #endif /* CONFIG_BERYLLIUM */
 
+#ifdef CONFIG_BERYLLIUM
+static const  uint8_t rx_mon_ring_mask_msi[WLAN_CFG_INT_NUM_CONTEXTS] = {
+	[5] = WLAN_CFG_RX_MON_RING_MASK_0};
+#else
 static const  uint8_t rx_mon_ring_mask_msi[WLAN_CFG_INT_NUM_CONTEXTS] = {
 	[1] = WLAN_CFG_RX_MON_RING_MASK_0, [2] = WLAN_CFG_RX_MON_RING_MASK_1};
+#endif
 
 static const  uint8_t host2rxdma_ring_mask_msi[WLAN_CFG_INT_NUM_CONTEXTS] = {0};
 
@@ -1453,19 +1457,26 @@ struct wlan_srng_cfg wlan_srng_default_cfg = {
 	.low_threshold = 0,
 };
 
+/* DEFAULT_CONFIG source ring configuration */
+struct wlan_srng_cfg wlan_src_srng_default_cfg = {
+	.timer_threshold = 0,
+	.batch_count_threshold = 0,
+	.low_threshold = 0,
+};
+
 void wlan_set_srng_cfg(struct wlan_srng_cfg **wlan_cfg)
 {
 	g_wlan_srng_cfg[REO_DST] = wlan_srng_reo_cfg;
 	g_wlan_srng_cfg[WBM2SW_RELEASE] = wlan_srng_wbm_release_cfg;
 	g_wlan_srng_cfg[REO_EXCEPTION] = wlan_srng_default_cfg;
-	g_wlan_srng_cfg[REO_REINJECT] = wlan_srng_default_cfg;
-	g_wlan_srng_cfg[REO_CMD] = wlan_srng_default_cfg;
+	g_wlan_srng_cfg[REO_REINJECT] = wlan_src_srng_default_cfg;
+	g_wlan_srng_cfg[REO_CMD] = wlan_src_srng_default_cfg;
 	g_wlan_srng_cfg[REO_STATUS] = wlan_srng_default_cfg;
-	g_wlan_srng_cfg[TCL_DATA] = wlan_srng_default_cfg;
-	g_wlan_srng_cfg[TCL_CMD_CREDIT] = wlan_srng_default_cfg;
+	g_wlan_srng_cfg[TCL_DATA] = wlan_src_srng_default_cfg;
+	g_wlan_srng_cfg[TCL_CMD_CREDIT] = wlan_src_srng_default_cfg;
 	g_wlan_srng_cfg[TCL_STATUS] = wlan_srng_default_cfg;
-	g_wlan_srng_cfg[WBM_IDLE_LINK] = wlan_srng_default_cfg;
-	g_wlan_srng_cfg[SW2WBM_RELEASE] = wlan_srng_default_cfg;
+	g_wlan_srng_cfg[WBM_IDLE_LINK] = wlan_src_srng_default_cfg;
+	g_wlan_srng_cfg[SW2WBM_RELEASE] = wlan_src_srng_default_cfg;
 	g_wlan_srng_cfg[RXDMA_BUF] = wlan_srng_rxdma_buf_cfg;
 	g_wlan_srng_cfg[RXDMA_DST] = wlan_srng_default_cfg;
 	g_wlan_srng_cfg[RXDMA_MONITOR_BUF] =
@@ -1515,7 +1526,11 @@ void wlan_cfg_fill_interrupt_mask(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx,
 							reo_status_ring_mask_msi[i];
 		if (is_monitor_mode) {
 			wlan_cfg_ctx->int_rx_ring_mask[i] = 0;
-			wlan_cfg_ctx->int_rxdma2host_ring_mask[i] = 0;
+			if (interrupt_mode == DP_INTR_POLL)
+				wlan_cfg_ctx->int_rxdma2host_ring_mask[i] = 0;
+			else
+				wlan_cfg_ctx->int_rxdma2host_ring_mask[i] =
+						rxdma2host_ring_mask_msi[i];
 		} else {
 			wlan_cfg_ctx->int_rx_ring_mask[i] =
 							rx_ring_mask_msi[i];
@@ -1595,6 +1610,8 @@ void wlan_cfg_fill_interrupt_mask(struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx,
 #endif
 
 #ifdef IPA_OFFLOAD
+
+#define WLAN_CFG_IPA_ENABLE_MASK BIT(0)
 #ifdef IPA_WDI3_TX_TWO_PIPES
 /**
  * wlan_soc_ipa_cfg_attach() - Update ipa tx and tx alt config
@@ -1608,6 +1625,8 @@ static void
 wlan_soc_ipa_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
 			struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx)
 {
+	wlan_cfg_ctx->ipa_enabled = (cfg_get(psoc, CFG_DP_IPA_OFFLOAD_CONFIG) &
+				     WLAN_CFG_IPA_ENABLE_MASK);
 	wlan_cfg_ctx->ipa_tx_ring_size =
 			cfg_get(psoc, CFG_DP_IPA_TX_RING_SIZE);
 	wlan_cfg_ctx->ipa_tx_comp_ring_size =
@@ -1630,6 +1649,8 @@ static void
 wlan_soc_ipa_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
 			struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx)
 {
+	wlan_cfg_ctx->ipa_enabled = (cfg_get(psoc, CFG_DP_IPA_OFFLOAD_CONFIG) &
+				     WLAN_CFG_IPA_ENABLE_MASK);
 	wlan_cfg_ctx->ipa_tx_ring_size =
 			cfg_get(psoc, CFG_DP_IPA_TX_RING_SIZE);
 	wlan_cfg_ctx->ipa_tx_comp_ring_size =
@@ -1688,6 +1709,118 @@ wlan_soc_ppe_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
 }
 #endif
 
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
+/**
+ * wlan_cfg_get_lsb_set_pos() - returns position of LSB which is set
+ *
+ * Return: position of LSB which is set
+ */
+static uint8_t wlan_cfg_get_lsb_set_pos(uint8_t val)
+{
+	uint8_t pos = 0;
+
+	while (pos < 8) {
+		if (val & (1 << pos))
+			return pos;
+
+		pos++;
+	}
+
+	return 0;
+}
+
+/**
+ * wlan_multi_soc_mlo_cfg_attach() - Update multi soc mlo config in dp soc
+ *  cfg context
+ * @psoc - Object manager psoc
+ * @wlan_cfg_ctx - dp soc cfg ctx
+ *
+ * Return: None
+ */
+static void
+wlan_multi_soc_mlo_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
+			      struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx)
+{
+	uint8_t rx_ring_map;
+
+	rx_ring_map =
+		cfg_get(psoc, CFG_DP_MLO_CHIP0_RX_RING_MAP);
+	wlan_cfg_ctx->mlo_chip_rx_ring_map[0] = rx_ring_map;
+	wlan_cfg_ctx->mlo_chip_default_rx_ring_id[0] =
+			wlan_cfg_get_lsb_set_pos(rx_ring_map);
+	wlan_cfg_ctx->lmac_peer_id_msb[0] = 1;
+
+	rx_ring_map =
+		cfg_get(psoc, CFG_DP_MLO_CHIP1_RX_RING_MAP);
+	wlan_cfg_ctx->mlo_chip_rx_ring_map[1] = rx_ring_map;
+	wlan_cfg_ctx->mlo_chip_default_rx_ring_id[1] =
+			wlan_cfg_get_lsb_set_pos(rx_ring_map);
+	wlan_cfg_ctx->lmac_peer_id_msb[1] = 2;
+
+	rx_ring_map =
+		cfg_get(psoc, CFG_DP_MLO_CHIP2_RX_RING_MAP);
+	wlan_cfg_ctx->mlo_chip_rx_ring_map[2] = rx_ring_map;
+	wlan_cfg_ctx->mlo_chip_default_rx_ring_id[2] =
+			wlan_cfg_get_lsb_set_pos(rx_ring_map);
+	wlan_cfg_ctx->lmac_peer_id_msb[2] = 3;
+}
+#else
+static inline void
+wlan_multi_soc_mlo_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
+			      struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx)
+{
+}
+#endif
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * wlan_soc_mlo_cfg_attach() - Update mlo config in dp soc
+ *  cfg context
+ * @psoc - Object manager psoc
+ * @wlan_cfg_ctx - dp soc cfg ctx
+ *
+ * Return: None
+ */
+static void
+wlan_soc_mlo_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
+			struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx)
+{
+	wlan_multi_soc_mlo_cfg_attach(psoc, wlan_cfg_ctx);
+}
+#else
+static inline void
+wlan_soc_mlo_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
+			struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx)
+{
+}
+#endif
+
+#ifdef QCA_VDEV_STATS_HW_OFFLOAD_SUPPORT
+/**
+ * wlan_soc_vdev_hw_stats_cfg_attach() - Update hw vdev stats config in dp soc
+ *  cfg context
+ * @psoc - Object manager psoc
+ * @wlan_cfg_ctx - dp soc cfg ctx
+ *
+ * Return: None
+ */
+static void
+wlan_soc_vdev_hw_stats_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
+				  struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx)
+{
+	wlan_cfg_ctx->vdev_stats_hw_offload_config = cfg_get(psoc,
+					CFG_DP_VDEV_STATS_HW_OFFLOAD_CONFIG);
+	wlan_cfg_ctx->vdev_stats_hw_offload_timer = cfg_get(psoc,
+					CFG_DP_VDEV_STATS_HW_OFFLOAD_TIMER);
+}
+#else
+static void
+wlan_soc_vdev_hw_stats_cfg_attach(struct cdp_ctrl_objmgr_psoc *psoc,
+				  struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx)
+{
+}
+#endif
+
 /**
  * wlan_cfg_soc_attach() - Allocate and prepare SoC configuration
  * @psoc - Object manager psoc
@@ -1698,6 +1831,7 @@ wlan_cfg_soc_attach(struct cdp_ctrl_objmgr_psoc *psoc)
 {
 	struct wlan_cfg_dp_soc_ctxt *wlan_cfg_ctx =
 		qdf_mem_malloc(sizeof(struct wlan_cfg_dp_soc_ctxt));
+	uint32_t gro_bit_set;
 
 	if (!wlan_cfg_ctx)
 		return NULL;
@@ -1760,7 +1894,13 @@ wlan_cfg_soc_attach(struct cdp_ctrl_objmgr_psoc *psoc)
 	wlan_cfg_ctx->tso_enabled = cfg_get(psoc, CFG_DP_TSO);
 	wlan_cfg_ctx->lro_enabled = cfg_get(psoc, CFG_DP_LRO);
 	wlan_cfg_ctx->sg_enabled = cfg_get(psoc, CFG_DP_SG);
-	wlan_cfg_ctx->gro_enabled = cfg_get(psoc, CFG_DP_GRO);
+	gro_bit_set = cfg_get(psoc, CFG_DP_GRO);
+	if (gro_bit_set & DP_GRO_ENABLE_BIT_SET) {
+		wlan_cfg_ctx->gro_enabled = true;
+		if (gro_bit_set & DP_TC_BASED_DYNAMIC_GRO)
+			wlan_cfg_ctx->tc_based_dynamic_gro = true;
+	}
+	wlan_cfg_ctx->tc_ingress_prio = cfg_get(psoc, CFG_DP_TC_INGRESS_PRIO);
 	wlan_cfg_ctx->ol_tx_csum_enabled = cfg_get(psoc, CFG_DP_OL_TX_CSUM);
 	wlan_cfg_ctx->ol_rx_csum_enabled = cfg_get(psoc, CFG_DP_OL_RX_CSUM);
 	wlan_cfg_ctx->rawmode_enabled = cfg_get(psoc, CFG_DP_RAWMODE);
@@ -1815,8 +1955,6 @@ wlan_cfg_soc_attach(struct cdp_ctrl_objmgr_psoc *psoc)
 						   CFG_DP_RXDMA_ERR_DST_RING);
 	wlan_cfg_ctx->enable_data_stall_detection =
 		cfg_get(psoc, CFG_DP_ENABLE_DATA_STALL_DETECTION);
-	wlan_cfg_ctx->enable_force_rx_64_ba =
-		cfg_get(psoc, CFG_FORCE_RX_64_BA);
 	wlan_cfg_ctx->tx_flow_start_queue_offset =
 		cfg_get(psoc, CFG_DP_TX_FLOW_START_QUEUE_OFFSET);
 	wlan_cfg_ctx->tx_flow_stop_queue_threshold =
@@ -1873,10 +2011,19 @@ wlan_cfg_soc_attach(struct cdp_ctrl_objmgr_psoc *psoc)
 	wlan_soc_ipa_cfg_attach(psoc, wlan_cfg_ctx);
 	wlan_soc_hw_cc_cfg_attach(psoc, wlan_cfg_ctx);
 	wlan_soc_ppe_cfg_attach(psoc, wlan_cfg_ctx);
+	wlan_soc_mlo_cfg_attach(psoc, wlan_cfg_ctx);
+	wlan_soc_vdev_hw_stats_cfg_attach(psoc, wlan_cfg_ctx);
 #ifdef WLAN_FEATURE_PKT_CAPTURE_V2
 	wlan_cfg_ctx->pkt_capture_mode = cfg_get(psoc, CFG_PKT_CAPTURE_MODE) &
 						 PKT_CAPTURE_MODE_DATA_ONLY;
 #endif
+	wlan_cfg_ctx->num_rxdma_dst_rings_per_pdev = NUM_RXDMA_RINGS_PER_PDEV;
+	wlan_cfg_ctx->num_rxdma_status_rings_per_pdev =
+					NUM_RXDMA_RINGS_PER_PDEV;
+	wlan_cfg_ctx->mpdu_retry_threshold_1 =
+			cfg_get(psoc, CFG_DP_MPDU_RETRY_THRESHOLD_1);
+	wlan_cfg_ctx->mpdu_retry_threshold_2 =
+			cfg_get(psoc, CFG_DP_MPDU_RETRY_THRESHOLD_2);
 
 	return wlan_cfg_ctx;
 }
@@ -2231,7 +2378,7 @@ int wlan_cfg_num_tcl_data_rings(struct wlan_cfg_dp_soc_ctxt *cfg)
 int wlan_cfg_num_nss_tcl_data_rings(struct wlan_cfg_dp_soc_ctxt *cfg)
 {
 	if (!cfg->ipa_enabled)
-		return cfg->num_tcl_data_rings;
+		return cfg->num_nss_tcl_data_rings;
 
 	return 1;
 }
@@ -2842,11 +2989,6 @@ void wlan_cfg_set_rxdma1_enable(struct wlan_cfg_dp_soc_ctxt *cfg)
 	cfg->rxdma1_enable = true;
 }
 
-bool wlan_cfg_is_dp_force_rx_64_ba(struct wlan_cfg_dp_soc_ctxt *cfg)
-{
-	return cfg->enable_force_rx_64_ba;
-}
-
 void
 wlan_cfg_set_delay_mon_replenish(struct wlan_cfg_dp_soc_ctxt *cfg,
 				 bool val)
@@ -2986,3 +3128,62 @@ wlan_cfg_set_rx_rel_ring_id(struct wlan_cfg_dp_soc_ctxt *cfg,
 {
 	cfg->rx_rel_wbm2sw_ring_id = wbm2sw_ring_id;
 }
+
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
+uint8_t
+wlan_cfg_mlo_rx_ring_map_get_by_chip_id(struct wlan_cfg_dp_soc_ctxt *cfg,
+					uint8_t chip_id)
+{
+	return cfg->mlo_chip_rx_ring_map[chip_id];
+}
+
+uint8_t
+wlan_cfg_mlo_default_rx_ring_get_by_chip_id(struct wlan_cfg_dp_soc_ctxt *cfg,
+					    uint8_t chip_id)
+{
+	return cfg->mlo_chip_default_rx_ring_id[chip_id];
+}
+
+uint8_t
+wlan_cfg_mlo_lmac_peer_id_msb_get_by_chip_id(struct wlan_cfg_dp_soc_ctxt *cfg,
+					     uint8_t chip_id)
+{
+	return cfg->lmac_peer_id_msb[chip_id];
+}
+#endif
+
+#ifdef QCA_VDEV_STATS_HW_OFFLOAD_SUPPORT
+bool
+wlan_cfg_get_vdev_stats_hw_offload_config(struct wlan_cfg_dp_soc_ctxt *cfg)
+{
+	return cfg->vdev_stats_hw_offload_config;
+}
+
+int wlan_cfg_get_vdev_stats_hw_offload_timer(struct wlan_cfg_dp_soc_ctxt *cfg)
+{
+	return cfg->vdev_stats_hw_offload_timer;
+}
+
+void
+wlan_cfg_set_vdev_stats_hw_offload_config(struct wlan_cfg_dp_soc_ctxt *cfg,
+					  bool val)
+{
+	cfg->vdev_stats_hw_offload_config = val;
+}
+#else
+bool
+wlan_cfg_get_vdev_stats_hw_offload_config(struct wlan_cfg_dp_soc_ctxt *cfg)
+{
+	return false;
+}
+
+int wlan_cfg_get_vdev_stats_hw_offload_timer(struct wlan_cfg_dp_soc_ctxt *cfg)
+{
+	return 0;
+}
+
+void
+wlan_cfg_set_vdev_stats_hw_offload_config(struct wlan_cfg_dp_soc_ctxt *cfg,
+					  bool val)
+{}
+#endif

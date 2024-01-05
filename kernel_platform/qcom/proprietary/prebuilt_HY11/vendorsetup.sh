@@ -6,9 +6,20 @@ kernel_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/kernel_links"
 display_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/display_links"
 camera_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/camera_links"
 video_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/video_links"
+sensor_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/sensors_links"
+cv_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/cv_links"
+xr_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/xr_links"
+wlan_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/wlan_links"
+btfm_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/btfm_links"
+hexlp_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/hexlp_links"
+ssgmink_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/ssgmink_links"
+dcf_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/dcf_links"
+win_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/win_links"
+graphics_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/graphics_links"
+audio_links_path="$(dirname $(readlink -e "${BASH_SOURCE[0]}"))/audio_links"
 failed_links=""
 count=0
-if [[ -f "$links_path" || -f "$sys_links_path" || -f "$ven_links_path" || -f "$kernel_links_path" || -f "$display_links_path" || -f "$camera_links_path" || -f "$video_links_path" ]];then
+if [[ -f "$links_path" || -f "$sys_links_path" || -f "$ven_links_path" || -f "$kernel_links_path" || -f "$display_links_path" || -f "$camera_links_path" || -f "$video_links_path" || -f "$sensor_links_path" || -f "$dcf_links_path" || -f "$win_links_path" || -f "$xr_links_path" || -f "$graphics_links_path" || -f "$ssgmink_links_path" || -f "$wlan_links_path" || -f "$btfm_links_path" || -f "$hexlp_links_path" || -f "$cv_links_path" || -f "$audio_links_path" ]];then
   total_links=$(cat $links_dir/*links| wc -l)
   for i in $(cat $links_dir/*links);do
     src=$(echo $i | awk -F:: '{print $1}')

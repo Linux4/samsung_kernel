@@ -294,6 +294,7 @@ enum sec_bat_attrs {
 	BATT_FULL_CAPACITY,
 	LRP,
 	HP_D2D,
+	CHG_TYPE,
 };
 
 enum sec_pogo_attrs {

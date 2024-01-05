@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_GMU_CORE_H
 #define __KGSL_GMU_CORE_H
 
+#include <linux/rbtree.h>
 #include <linux/mailbox_client.h>
 
 /* GMU_DEVICE - Given an KGSL device return the GMU specific struct */
@@ -85,20 +87,21 @@ enum gmu_pwrctrl_mode {
  * exiting IFPC is taking longer than expected. We continue
  * to retry after this until the long retry limit.
  */
-#define GMU_CORE_SHORT_WAKEUP_RETRY_LIMIT 250
-#define GMU_CORE_LONG_WAKEUP_RETRY_LIMIT 500
+#define GMU_CORE_SHORT_WAKEUP_RETRY_LIMIT 100
+#define GMU_CORE_LONG_WAKEUP_RETRY_LIMIT 200
 
 #define FENCE_STATUS_WRITEDROPPED0_MASK 0x1
 #define FENCE_STATUS_WRITEDROPPED1_MASK 0x2
 
+#define GMU_MAX_PWRLEVELS	2
 #define GMU_FREQ_MIN   200000000
 #define GMU_FREQ_MAX   500000000
 
 #define GMU_VER_MAJOR(ver) (((ver) >> 28) & 0xF)
 #define GMU_VER_MINOR(ver) (((ver) >> 16) & 0xFFF)
 #define GMU_VER_STEP(ver) ((ver) & 0xFFFF)
-#define GMU_VERSION(major, minor) \
-	((((major) & 0xF) << 28) | (((minor) & 0xFFF) << 16))
+#define GMU_VERSION(major, minor, step) \
+	((((major) & 0xF) << 28) | (((minor) & 0xFFF) << 16) | ((step) & 0xFFFF))
 
 #define GMU_INT_WDOG_BITE		BIT(0)
 #define GMU_INT_RSCC_COMP		BIT(1)
@@ -189,6 +192,12 @@ struct kgsl_mailbox {
 
 struct icc_path;
 
+struct gmu_vma_node {
+	struct rb_node node;
+	u32 va;
+	u32 size;
+};
+
 struct gmu_vma_entry {
 	/** @start: Starting virtual address of the vma */
 	u32 start;
@@ -196,6 +205,10 @@ struct gmu_vma_entry {
 	u32 size;
 	/** @next_va: Next available virtual address in this vma */
 	u32 next_va;
+	/** @lock: Spinlock for synchronization */
+	spinlock_t lock;
+	/** @vma_root: RB tree root that keeps track of dynamic allocations */
+	struct rb_root vma_root;
 };
 
 enum {
@@ -214,14 +227,15 @@ struct kgsl_snapshot;
 struct gmu_dev_ops {
 	int (*oob_set)(struct kgsl_device *device, enum oob_request req);
 	void (*oob_clear)(struct kgsl_device *device, enum oob_request req);
-	bool (*gx_is_on)(struct kgsl_device *device);
 	int (*ifpc_store)(struct kgsl_device *device, unsigned int val);
 	unsigned int (*ifpc_show)(struct kgsl_device *device);
 	void (*cooperative_reset)(struct kgsl_device *device);
-	void (*halt_execution)(struct kgsl_device *device);
 	int (*wait_for_active_transition)(struct kgsl_device *device);
 	bool (*scales_bandwidth)(struct kgsl_device *device);
 	int (*acd_set)(struct kgsl_device *device, bool val);
+	int (*bcl_sid_set)(struct kgsl_device *device, u32 sid_id, u64 sid_val);
+	u64 (*bcl_sid_get)(struct kgsl_device *device, u32 sid_id);
+	void (*send_nmi)(struct kgsl_device *device, bool force);
 };
 
 /**
@@ -245,7 +259,7 @@ extern struct platform_driver gen7_hwsched_driver;
 /* GMU core functions */
 
 void __init gmu_core_register(void);
-void __exit gmu_core_unregister(void);
+void gmu_core_unregister(void);
 
 bool gmu_core_gpmu_isenabled(struct kgsl_device *device);
 bool gmu_core_scales_bandwidth(struct kgsl_device *device);
@@ -274,7 +288,6 @@ void gmu_core_regrmw(struct kgsl_device *device, unsigned int offsetwords,
 		unsigned int mask, unsigned int bits);
 int gmu_core_dev_oob_set(struct kgsl_device *device, enum oob_request req);
 void gmu_core_dev_oob_clear(struct kgsl_device *device, enum oob_request req);
-bool gmu_core_dev_gx_is_on(struct kgsl_device *device);
 int gmu_core_dev_ifpc_show(struct kgsl_device *device);
 int gmu_core_dev_ifpc_store(struct kgsl_device *device, unsigned int val);
 int gmu_core_dev_wait_for_active_transition(struct kgsl_device *device);

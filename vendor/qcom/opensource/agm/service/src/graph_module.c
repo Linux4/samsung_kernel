@@ -1171,16 +1171,15 @@ int configure_placeholder_dec(struct module_info *mod,
     int ret = 0;
     struct gsl_key_vector tkv;
     struct session_obj *sess_obj = NULL;
-
     size_t payload_size = 0, real_fmt_id = 0;
 
     AGM_LOGE("enter");
+    memset(&tkv, 0, sizeof(struct gsl_key_vector));
     if (graph_obj == NULL) {
         AGM_LOGE("invalid graph object");
         goto done;
     }
     sess_obj = graph_obj->sess_obj;
-
     /* 1. Configure placeholder decoder with Real ID */
     ret = get_media_fmt_id_and_size(sess_obj->out_media_config.format,
                                     &payload_size, &real_fmt_id);
@@ -1663,6 +1662,8 @@ int configure_spr(struct module_info *spr_mod,
         }
     }
 done:
+    if (payload)
+        free(payload);
     return ret;
 }
 
@@ -1708,6 +1709,8 @@ int configure_gapless(struct module_info *gapless_mod,
     }
 
 done:
+    if (reg_ev_payload)
+        free(reg_ev_payload);
     return ret;
 }
 

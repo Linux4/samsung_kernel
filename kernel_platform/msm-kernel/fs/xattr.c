@@ -291,7 +291,7 @@ retry_deleg:
 	}
 	return error;
 }
-EXPORT_SYMBOL_GPL(vfs_setxattr);
+EXPORT_SYMBOL_NS_GPL(vfs_setxattr, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 static ssize_t
 xattr_getsecurity(struct inode *inode, const char *name, void *value,
@@ -405,7 +405,7 @@ vfs_getxattr(struct dentry *dentry, const char *name, void *value, size_t size)
 {
 	return __vfs_getxattr(dentry, dentry->d_inode, name, value, size, 0);
 }
-EXPORT_SYMBOL_GPL(vfs_getxattr);
+EXPORT_SYMBOL_NS_GPL(vfs_getxattr, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 ssize_t
 vfs_listxattr(struct dentry *dentry, char *list, size_t size)
@@ -425,7 +425,7 @@ vfs_listxattr(struct dentry *dentry, char *list, size_t size)
 	}
 	return error;
 }
-EXPORT_SYMBOL_GPL(vfs_listxattr);
+EXPORT_SYMBOL_NS_GPL(vfs_listxattr, ANDROID_GKI_VFS_EXPORT_ONLY);
 
 int
 __vfs_removexattr(struct dentry *dentry, const char *name)
@@ -1049,7 +1049,7 @@ static int xattr_list_one(char **buffer, ssize_t *remaining_size,
 ssize_t simple_xattr_list(struct inode *inode, struct simple_xattrs *xattrs,
 			  char *buffer, size_t size)
 {
-	bool trusted = capable(CAP_SYS_ADMIN);
+	bool trusted = ns_capable_noaudit(&init_user_ns, CAP_SYS_ADMIN);
 	struct simple_xattr *xattr;
 	ssize_t remaining_size = size;
 	int err = 0;

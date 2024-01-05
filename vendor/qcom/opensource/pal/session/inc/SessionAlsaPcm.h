@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,6 +38,7 @@
 #include "PalCommon.h"
 #include <tinyalsa/asoundlib.h>
 #include <thread>
+#include <mutex>
 
 #define PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP 0x08001049
 #define PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG 0x08001044
@@ -67,6 +69,8 @@ private:
     uint64_t cbCookie;
     pal_device_id_t ecRefDevId;
     uint32_t svaMiid;
+    static std::mutex pcmLpmRefCntMtx;
+    static int pcmLpmRefCnt;
 public:
 
     SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);
@@ -104,17 +108,19 @@ public:
     int createMmapBuffer(Stream *s, int32_t min_size_frames,
                                    struct pal_mmap_buffer *info) override;
     int GetMmapPosition(Stream *s, struct pal_mmap_position *position) override;
+    int ResetMmapBuffer(Stream *s) override;
     int openGraph(Stream *s) override;
     void adjustMmapPeriodCount(struct pcm_config *config, int32_t min_size_frames);
     void registerAdmStream(Stream *s, pal_stream_direction_t dir,
             pal_stream_flags_t flags, struct pcm *, struct pcm_config *cfg);
     void deRegisterAdmStream(Stream *s);
     void requestAdmFocus(Stream *s, long ns);
+    void AdmRoutingChange(Stream *s);
     void releaseAdmFocus(Stream *s);
     void setEventPayload(uint32_t event_id, void *payload, size_t payload_size);
     int register_asps_event(uint32_t reg);
     int getTagsWithModuleInfo(Stream *s, size_t *size __unused, uint8_t *payload);
-
+    void retryOpenWithoutEC(Stream *s, unsigned int pcm_flags, struct pcm_config *config);
 };
 
 #endif //SESSION_ALSAPCM_H

@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (C) 2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2019-2021 NXP
+ * Copyright (C) 2019-2022 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,12 +21,17 @@
 #define _COMMON_H_
 
 #include <linux/cdev.h>
+#include <linux/fs.h>
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #include <linux/clk.h>
 #include "nfc_wakelock.h"
 #ifdef CONFIG_SEC_NFC_LOGGER
+#ifdef CONFIG_NFC_NXP_COMBINED
+#include "../nfc_logger/nfc_logger.h"
+#else
 #include "nfc_logger/nfc_logger.h"
+#endif
 #endif
 #endif
 
@@ -59,7 +64,17 @@
 
 #define MAX_NCI_PAYLOAD_LEN		(255)
 #define MAX_NCI_BUFFER_SIZE		(NCI_HDR_LEN + MAX_NCI_PAYLOAD_LEN)
-#define MAX_DL_PAYLOAD_LEN		(550)
+/*
+ * Compile time option to select maximum writer buffer of either 4K or 550 bytes.
+ * Default value is set as 4K. This value shall be chosen based on Hal flag "HDLL_4K_WRITE_SUPPORTED".
+ * undef or comment HDLL_4K_WRITE_SUPPORTED to fallback to 550 bytes write frame buffer.
+ */
+#define HDLL_4K_WRITE_SUPPORTED
+#ifdef HDLL_4K_WRITE_SUPPORTED
+#define MAX_DL_PAYLOAD_LEN	(4096)
+#else
+#define MAX_DL_PAYLOAD_LEN	(550)
+#endif
 #define MAX_DL_BUFFER_SIZE		(DL_HDR_LEN + DL_CRC_LEN + \
 					MAX_DL_PAYLOAD_LEN)
 
@@ -76,19 +91,18 @@
 #define NCI_CMD_RSP_TIMEOUT_MS		(2000)
 /* Time to wait for NFCC to be ready again after any change in the GPIO */
 #define NFC_GPIO_SET_WAIT_TIME_US	(15000)
-/* Time to wait for IRQ low during write 5*3ms */
-#define NFC_WRITE_IRQ_WAIT_TIME_US	(3000)
-/* Time to wait before retrying i2c/I3C writes */
-#define WRITE_RETRY_WAIT_TIME_US	(1000)
+/* Time to wait before retrying writes */
+#define WRITE_RETRY_WAIT_TIME_US	(3000)
 /* Time to wait before retrying read for some specific usecases */
 #define READ_RETRY_WAIT_TIME_US		(3500)
 #define NFC_MAGIC			(0xE9)
 
 /* Ioctls */
 /* The type should be aligned with MW HAL definitions */
-#define NFC_SET_PWR			_IOW(NFC_MAGIC, 0x01, long)
-#define ESE_SET_PWR			_IOW(NFC_MAGIC, 0x02, long)
-#define ESE_GET_PWR			_IOR(NFC_MAGIC, 0x03, long)
+#define NFC_SET_PWR			_IOW(NFC_MAGIC, 0x01, uint64_t)
+#define ESE_SET_PWR			_IOW(NFC_MAGIC, 0x02, uint64_t)
+#define ESE_GET_PWR			_IOR(NFC_MAGIC, 0x03, uint64_t)
+#define NFC_GET_GPIO_STATUS		_IOR(NFC_MAGIC, 0x05, uint64_t)
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #define CONFIG_SAMSUNG_NFC_DEBUG
@@ -112,14 +126,20 @@ enum lpm_status {
 	LPM_TRUE
 };
 #else
-#define DTS_IRQ_GPIO_STR		"nxp,pn544-irq"
-#define DTS_VEN_GPIO_STR		"nxp,pn544-ven"
-#define DTS_FWDN_GPIO_STR		"nxp,pn544-fw-dwnld"
+#define DTS_IRQ_GPIO_STR		"nxp,sn-irq"
+#define DTS_VEN_GPIO_STR		"nxp,sn-ven-rstn"
+#define DTS_FWDN_GPIO_STR		"nxp,sn-dwl-req"
 #endif
+
+/* Each GPIO occupies consecutive two bits */
+#define GPIO_POS_SHIFT_VAL 2
+/* Two bits to indicate GPIO status (Invalid(-2), Set(1) or Reset(0)) */
+#define GPIO_STATUS_MASK_BITS 3
 
 #ifndef CONFIG_SEC_NFC_LOGGER
 #define NFC_LOG_ERR(fmt, ...)		pr_err("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_INFO(fmt, ...)		pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
+#define NFC_LOG_INFO_WITH_DATE(fmt, ...) pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_DBG(fmt, ...)		pr_debug("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_REC(fmt, ...)		do { } while (0)
 
@@ -183,6 +203,9 @@ enum gpio_values {
 	GPIO_IRQ = 0x4,
 };
 
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+#define PLATFORM_DEFAULT_GPIO_CNT 3
+#endif
 /* NFC GPIO variables */
 struct platform_gpio {
 	int irq;
@@ -206,6 +229,7 @@ struct platform_configs {
 	struct regulator *nfc_pvdd;
 	struct clk *nfc_clock;
 	bool late_pvdd_en;
+	bool disable_clk_irq_during_wakeup;
 #endif
 };
 
@@ -247,8 +271,13 @@ struct nfc_dev {
 	struct cold_reset cold_reset;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	struct nfc_wake_lock nfc_wake_lock;
 	struct nfc_wake_lock nfc_clk_wake_lock;
 	bool clk_req_wakelock;
+	bool screen_cfg;
+	bool screen_on_cmd;
+	bool screen_off_cmd;
+	int screen_off_rsp_count;
 #endif
 
 	/* function pointers for the common i2c functionality */
@@ -267,6 +296,8 @@ struct nfc_dev {
 int nfc_dev_open(struct inode *inode, struct file *filp);
 int nfc_dev_flush(struct file *pfile, fl_owner_t id);
 int nfc_dev_close(struct inode *inode, struct file *filp);
+long nfc_dev_compat_ioctl(struct file *pfile, unsigned int cmd,
+		      unsigned long arg);
 long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg);
 int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		 uint8_t interface);
@@ -279,7 +310,7 @@ void gpio_set_ven(struct nfc_dev *nfc_dev, int value);
 void gpio_free_all(struct nfc_dev *nfc_dev);
 int validate_nfc_state_nci(struct nfc_dev *nfc_dev);
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-int nfc_regulator_onoff(struct platform_configs *nfc_configs, int onoff);
+int nfc_regulator_onoff(struct nfc_dev *nfc_dev, int onoff);
 void nfc_power_control(struct nfc_dev *nfc_dev);
 void nfc_print_status(void);
 void nfc_probe_done(struct nfc_dev *nfc_dev);

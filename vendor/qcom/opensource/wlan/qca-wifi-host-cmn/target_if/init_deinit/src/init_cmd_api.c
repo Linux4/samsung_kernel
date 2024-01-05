@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -32,6 +33,7 @@
 #include <init_cmd_api.h>
 #include <target_if_scan.h>
 #include <target_if_reg.h>
+#include <target_if_twt.h>
 
 /**
  *  init_deinit_alloc_host_mem_chunk() - allocates chunk of memory requested
@@ -420,6 +422,7 @@ void init_deinit_prepare_send_init_cmd(
 	struct tgt_info *info;
 	struct wmi_unified *wmi_handle;
 	QDF_STATUS ret_val;
+	uint32_t fw_build_vers_ext;
 
 	if (!tgt_hdl) {
 		target_if_err("target_psoc_info is null");
@@ -464,18 +467,24 @@ void init_deinit_prepare_send_init_cmd(
 		QDF_MIN(info->wlan_res_cfg.max_ndp_sessions,
 			info->service_ext2_param.max_ndp_sessions);
 
-	if (info->service_ext2_param.twt_ack_support_cap)
+	if (info->service_ext2_param.twt_ack_support_cap) {
 		info->wlan_res_cfg.twt_ack_support_cap = true;
+		target_if_twt_set_twt_ack_support(psoc, true);
+	}
 
 	info->wlan_res_cfg.target_cap_flags =
 		target_psoc_get_target_cap_flags(tgt_hdl);
 
 	target_if_debug("FW version 0x%x ", info->target_caps.fw_version);
-	if (init_deinit_is_service_ext_msg(psoc, tgt_hdl) == QDF_STATUS_SUCCESS)
-		target_if_debug("0x%x\n",
-				info->service_ext_param.fw_build_vers_ext);
-	else
+	if (init_deinit_is_service_ext_msg(psoc, tgt_hdl) ==
+							QDF_STATUS_SUCCESS) {
+		fw_build_vers_ext = info->service_ext_param.fw_build_vers_ext;
+		target_if_debug("fw_build_vers_ext:0x%x HDL version info:0x%0x, CRM sub ID:0x%x\n",
+				fw_build_vers_ext, fw_build_vers_ext & 0x3FF,
+				(fw_build_vers_ext >> 25) & 0x7F);
+	} else {
 		target_if_debug("0x%x\n", info->target_caps.fw_version_1);
+	}
 
 	target_if_ext_res_cfg_enable(psoc, tgt_hdl, NULL);
 

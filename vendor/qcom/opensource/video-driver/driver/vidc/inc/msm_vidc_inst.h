@@ -130,6 +130,8 @@ struct msm_vidc_inst {
 	struct msm_vidc_session_idle       session_idle;
 	struct delayed_work                response_work;
 	struct delayed_work                stats_work;
+	struct work_struct                 stability_work;
+	struct msm_vidc_stability          stability;
 	struct workqueue_struct           *response_workq;
 	struct list_head                   response_works; /* list of struct response_work */
 	struct list_head                   enc_input_crs;
@@ -137,6 +139,7 @@ struct msm_vidc_inst {
 	bool                               once_per_session_set;
 	bool                               ipsc_properties_set;
 	bool                               opsc_properties_set;
+	bool                               psc_or_last_flag_discarded;
 	struct dentry                     *debugfs_root;
 	struct msm_vidc_debug              debug;
 	struct debug_buf_count             debug_count;

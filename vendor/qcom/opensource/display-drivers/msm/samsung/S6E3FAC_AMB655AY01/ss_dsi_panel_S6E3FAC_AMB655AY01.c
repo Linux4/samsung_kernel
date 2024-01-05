@@ -302,7 +302,7 @@ static struct dsi_panel_cmd_set *ss_vrr(struct samsung_display_driver_data *vdd,
 	/* send vrr cmd in 1vsync when the image is not being transmitted */
 	/* wait TE + pass image update (9ms), then send cmd */
 	if (vdd->vrr.running_vrr) {
-		if (cur_rr == 30) {			
+		if (cur_rr == 30) {
 			ss_wait_for_te_gpio(vdd, 1, 0, false);
 			usleep_range(9000, 9000);
 			LCD_ERR(vdd, "DELAY 9ms!!\n");
@@ -1417,9 +1417,11 @@ static int ss_self_display_data_init(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum = SELF_MASK_IMG_CHECKSUM;
 	make_self_dispaly_img_cmds_FAC(vdd, TX_SELF_MASK_IMAGE, FLAG_SELF_MASK);
 
-	vdd->self_disp.operation[FLAG_SELF_MASK_CRC].img_buf = self_mask_img_fhd_crc_data;
-	vdd->self_disp.operation[FLAG_SELF_MASK_CRC].img_size = ARRAY_SIZE(self_mask_img_fhd_crc_data);
-	make_mass_self_display_img_cmds_FAC(vdd, TX_SELF_MASK_IMAGE_CRC, FLAG_SELF_MASK_CRC);
+	if (vdd->is_factory_mode) {
+		vdd->self_disp.operation[FLAG_SELF_MASK_CRC].img_buf = self_mask_img_fhd_crc_data;
+		vdd->self_disp.operation[FLAG_SELF_MASK_CRC].img_size = ARRAY_SIZE(self_mask_img_fhd_crc_data);
+		make_mass_self_display_img_cmds_FAC(vdd, TX_SELF_MASK_IMAGE_CRC, FLAG_SELF_MASK_CRC);
+	}
 
 	LCD_INFO(vdd, "--\n");
 	return 1;
@@ -1446,17 +1448,19 @@ static int ss_mafpc_data_init(struct samsung_display_driver_data *vdd)
 		return -EINVAL;
 	}
 
-	/* CRC Check For Factory Mode */
-	vdd->mafpc.crc_img_buf = mafpc_img_data_crc_check;
-	vdd->mafpc.crc_img_size = ARRAY_SIZE(mafpc_img_data_crc_check);
+	if (vdd->is_factory_mode) {
+		/* CRC Check For Factory Mode */
+		vdd->mafpc.crc_img_buf = mafpc_img_data_crc_check;
+		vdd->mafpc.crc_img_size = ARRAY_SIZE(mafpc_img_data_crc_check);
 
-	if (vdd->mafpc.make_img_mass_cmds)
-		vdd->mafpc.make_img_mass_cmds(vdd, vdd->mafpc.crc_img_buf, vdd->mafpc.crc_img_size, TX_MAFPC_CRC_CHECK_IMAGE); /* CRC Check Image Data */
-	else if (vdd->mafpc.make_img_cmds)
-		vdd->mafpc.make_img_cmds(vdd, vdd->mafpc.crc_img_buf, vdd->mafpc.crc_img_size, TX_MAFPC_CRC_CHECK_IMAGE); /* CRC Check Image Data */
-	else {
-		LCD_ERR(vdd, "Can not make mafpc image commands\n");
-		return -EINVAL;
+		if (vdd->mafpc.make_img_mass_cmds)
+			vdd->mafpc.make_img_mass_cmds(vdd, vdd->mafpc.crc_img_buf, vdd->mafpc.crc_img_size, TX_MAFPC_CRC_CHECK_IMAGE); /* CRC Check Image Data */
+		else if (vdd->mafpc.make_img_cmds)
+			vdd->mafpc.make_img_cmds(vdd, vdd->mafpc.crc_img_buf, vdd->mafpc.crc_img_size, TX_MAFPC_CRC_CHECK_IMAGE); /* CRC Check Image Data */
+		else {
+			LCD_ERR(vdd, "Can not make mafpc image commands\n");
+			return -EINVAL;
+		}
 	}
 
 	return true;

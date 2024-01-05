@@ -26,6 +26,7 @@
 #include <sound/soc-dpcm.h>
 #include <sound/soc-link.h>
 #include <sound/initval.h>
+#include <trace/hooks/sound.h>
 
 #define DPCM_MAX_BE_USERS	8
 
@@ -723,11 +724,6 @@ static int soc_pcm_open(struct snd_pcm_substream *substream)
 		ret = snd_soc_dai_startup(dai, substream);
 		if (ret < 0)
 			goto err;
-
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-			dai->tx_mask = 0;
-		else
-			dai->rx_mask = 0;
 	}
 
 	/* Dynamic PCM DAI links compat checks use dynamic capabilities */
@@ -1159,6 +1155,8 @@ static void dpcm_be_reparent(struct snd_soc_pcm_runtime *fe,
 		return;
 
 	be_substream = snd_soc_dpcm_get_substream(be, stream);
+	if (!be_substream)
+		return;
 
 	for_each_dpcm_fe(be, stream, dpcm) {
 		if (dpcm->fe == fe)
@@ -1274,8 +1272,8 @@ int dpcm_path_get(struct snd_soc_pcm_runtime *fe,
 	int stream, struct snd_soc_dapm_widget_list **list)
 {
 	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(fe, 0);
-	struct snd_soc_card_ext *card_ext;
 	int paths;
+	bool chaining = false;
 
 	if (fe->num_cpus > 1) {
 		dev_err(fe->dev,
@@ -1283,12 +1281,11 @@ int dpcm_path_get(struct snd_soc_pcm_runtime *fe,
 		return -EINVAL;
 	}
 
-	card_ext = container_of(fe->card, struct snd_soc_card_ext, card);
+	trace_android_vh_snd_soc_card_get_comp_chain(&chaining);
 
 	/* get number of valid DAI paths and their widgets */
 	paths = snd_soc_dapm_dai_get_connected_widgets(cpu_dai, stream, list,
-			card_ext->component_chaining ?
-					NULL : dpcm_end_walk_at_be);
+			chaining ? NULL : dpcm_end_walk_at_be);
 
 	dev_dbg(fe->dev, "ASoC: found %d audio %s paths\n", paths,
 			stream ? "capture" : "playback");
@@ -1742,7 +1739,7 @@ static int dpcm_apply_symmetry(struct snd_pcm_substream *fe_substream,
 	struct snd_soc_dpcm *dpcm;
 	struct snd_soc_pcm_runtime *fe = asoc_substream_to_rtd(fe_substream);
 	struct snd_soc_dai *fe_cpu_dai;
-	int err;
+	int err = 0;
 	int i;
 
 	/* apply symmetry for FE */

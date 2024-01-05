@@ -1,4 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -493,13 +494,20 @@ sw_csum:
 
 static void rmnet_map_v5_check_priority(struct sk_buff *skb,
 					struct net_device *orig_dev,
-					struct rmnet_map_v5_csum_header *hdr)
+					struct rmnet_map_v5_csum_header *hdr,
+					bool tso)
 {
 	struct rmnet_priv *priv = netdev_priv(orig_dev);
 
-	if (skb->priority) {
+	if (RMNET_LLM(skb->priority)) {
 		priv->stats.ul_prio++;
 		hdr->priority = 1;
+	}
+
+	/* APS priority bit is only valid for csum header */
+	if (!tso && RMNET_APS_LLB(skb->priority)) {
+		priv->stats.aps_prio++;
+		hdr->aps_prio = 1;
 	}
 }
 
@@ -516,7 +524,7 @@ void rmnet_map_v5_checksum_uplink_packet(struct sk_buff *skb,
 	ul_header->header_type = RMNET_MAP_HEADER_TYPE_CSUM_OFFLOAD;
 
 	if (port->data_format & RMNET_EGRESS_FORMAT_PRIORITY)
-		rmnet_map_v5_check_priority(skb, orig_dev, ul_header);
+		rmnet_map_v5_check_priority(skb, orig_dev, ul_header, false);
 
 	/* Allow priority w/o csum offload */
 	if (!(port->data_format & RMNET_FLAGS_EGRESS_MAP_CKSUMV5))
@@ -1255,11 +1263,10 @@ static void rmnet_map_flush_tx_packet_work(struct work_struct *work)
 {
 	struct sk_buff *skb = NULL;
 	struct rmnet_aggregation_state *state;
-	unsigned long flags;
 
 	state = container_of(work, struct rmnet_aggregation_state, agg_wq);
 
-	spin_lock_irqsave(&state->agg_lock, flags);
+	spin_lock_bh(&state->agg_lock);
 	if (likely(state->agg_state == -EINPROGRESS)) {
 		/* Buffer may have already been shipped out */
 		if (likely(state->agg_skb)) {
@@ -1271,9 +1278,9 @@ static void rmnet_map_flush_tx_packet_work(struct work_struct *work)
 		state->agg_state = 0;
 	}
 
-	spin_unlock_irqrestore(&state->agg_lock, flags);
 	if (skb)
 		state->send_agg_skb(skb);
+	spin_unlock_bh(&state->agg_lock);
 }
 
 enum hrtimer_restart rmnet_map_flush_tx_packet_queue(struct hrtimer *t)
@@ -1430,13 +1437,12 @@ rmnet_map_build_skb(struct rmnet_aggregation_state *state)
 	return skb;
 }
 
-void rmnet_map_send_agg_skb(struct rmnet_aggregation_state *state,
-			    unsigned long flags)
+void rmnet_map_send_agg_skb(struct rmnet_aggregation_state *state)
 {
 	struct sk_buff *agg_skb;
 
 	if (!state->agg_skb) {
-		spin_unlock_irqrestore(&state->agg_lock, flags);
+		spin_unlock_bh(&state->agg_lock);
 		return;
 	}
 
@@ -1446,9 +1452,9 @@ void rmnet_map_send_agg_skb(struct rmnet_aggregation_state *state,
 	state->agg_count = 0;
 	memset(&state->agg_time, 0, sizeof(state->agg_time));
 	state->agg_state = 0;
-	spin_unlock_irqrestore(&state->agg_lock, flags);
-	hrtimer_cancel(&state->hrtimer);
 	state->send_agg_skb(agg_skb);
+	spin_unlock_bh(&state->agg_lock);
+	hrtimer_cancel(&state->hrtimer);
 }
 
 void rmnet_map_tx_aggregate(struct sk_buff *skb, struct rmnet_port *port,
@@ -1457,20 +1463,19 @@ void rmnet_map_tx_aggregate(struct sk_buff *skb, struct rmnet_port *port,
 	struct rmnet_aggregation_state *state;
 	struct timespec64 diff, last;
 	int size;
-	unsigned long flags;
 
 	state = &port->agg_state[(low_latency) ? RMNET_LL_AGG_STATE :
 						 RMNET_DEFAULT_AGG_STATE];
 
 new_packet:
-	spin_lock_irqsave(&state->agg_lock, flags);
+	spin_lock_bh(&state->agg_lock);
 	memcpy(&last, &state->agg_last, sizeof(last));
 	ktime_get_real_ts64(&state->agg_last);
 
 	if ((port->data_format & RMNET_EGRESS_FORMAT_PRIORITY) &&
-	    skb->priority) {
+	    (RMNET_LLM(skb->priority) || RMNET_APS_LLB(skb->priority))) {
 		/* Send out any aggregated SKBs we have */
-		rmnet_map_send_agg_skb(state, flags);
+		rmnet_map_send_agg_skb(state);
 		/* Send out the priority SKB. Not holding agg_lock anymore */
 		skb->protocol = htons(ETH_P_MAP);
 		state->send_agg_skb(skb);
@@ -1486,9 +1491,9 @@ new_packet:
 
 		if (diff.tv_sec > 0 || diff.tv_nsec > rmnet_agg_bypass_time ||
 		    size <= 0) {
-			spin_unlock_irqrestore(&state->agg_lock, flags);
 			skb->protocol = htons(ETH_P_MAP);
 			state->send_agg_skb(skb);
+			spin_unlock_bh(&state->agg_lock);
 			return;
 		}
 
@@ -1497,9 +1502,9 @@ new_packet:
 			state->agg_skb = NULL;
 			state->agg_count = 0;
 			memset(&state->agg_time, 0, sizeof(state->agg_time));
-			spin_unlock_irqrestore(&state->agg_lock, flags);
 			skb->protocol = htons(ETH_P_MAP);
 			state->send_agg_skb(skb);
+			spin_unlock_bh(&state->agg_lock);
 			return;
 		}
 
@@ -1517,7 +1522,7 @@ new_packet:
 	if (skb->len > size ||
 	    state->agg_count >= state->params.agg_count ||
 	    diff.tv_sec > 0 || diff.tv_nsec > rmnet_agg_time_limit) {
-		rmnet_map_send_agg_skb(state, flags);
+		rmnet_map_send_agg_skb(state);
 		goto new_packet;
 	}
 
@@ -1532,15 +1537,13 @@ schedule:
 			      ns_to_ktime(state->params.agg_time),
 			      HRTIMER_MODE_REL);
 	}
-	spin_unlock_irqrestore(&state->agg_lock, flags);
+	spin_unlock_bh(&state->agg_lock);
 }
 
 void rmnet_map_update_ul_agg_config(struct rmnet_aggregation_state *state,
 				    u16 size, u8 count, u8 features, u32 time)
 {
-	unsigned long irq_flags;
-
-	spin_lock_irqsave(&state->agg_lock, irq_flags);
+	spin_lock_bh(&state->agg_lock);
 	state->params.agg_count = count;
 	state->params.agg_time = time;
 	state->params.agg_size = size;
@@ -1564,7 +1567,7 @@ void rmnet_map_update_ul_agg_config(struct rmnet_aggregation_state *state,
 		rmnet_alloc_agg_pages(state);
 
 done:
-	spin_unlock_irqrestore(&state->agg_lock, irq_flags);
+	spin_unlock_bh(&state->agg_lock);
 }
 
 void rmnet_map_tx_aggregate_init(struct rmnet_port *port)
@@ -1599,7 +1602,6 @@ void rmnet_map_tx_aggregate_init(struct rmnet_port *port)
 
 void rmnet_map_tx_aggregate_exit(struct rmnet_port *port)
 {
-	unsigned long flags;
 	unsigned int i;
 
 	for (i = RMNET_DEFAULT_AGG_STATE; i < RMNET_MAX_AGG_STATE; i++) {
@@ -1612,7 +1614,7 @@ void rmnet_map_tx_aggregate_exit(struct rmnet_port *port)
 	for (i = RMNET_DEFAULT_AGG_STATE; i < RMNET_MAX_AGG_STATE; i++) {
 		struct rmnet_aggregation_state *state = &port->agg_state[i];
 
-		spin_lock_irqsave(&state->agg_lock, flags);
+		spin_lock_bh(&state->agg_lock);
 		if (state->agg_state == -EINPROGRESS) {
 			if (state->agg_skb) {
 				kfree_skb(state->agg_skb);
@@ -1626,7 +1628,7 @@ void rmnet_map_tx_aggregate_exit(struct rmnet_port *port)
 		}
 
 		rmnet_free_agg_pages(state);
-		spin_unlock_irqrestore(&state->agg_lock, flags);
+		spin_unlock_bh(&state->agg_lock);
 	}
 }
 
@@ -1635,7 +1637,6 @@ void rmnet_map_tx_qmap_cmd(struct sk_buff *qmap_skb, u8 ch, bool flush)
 	struct rmnet_aggregation_state *state;
 	struct rmnet_port *port;
 	struct sk_buff *agg_skb;
-	unsigned long flags;
 
 	if (unlikely(ch >= RMNET_MAX_AGG_STATE))
 		ch = RMNET_DEFAULT_AGG_STATE;
@@ -1653,18 +1654,18 @@ void rmnet_map_tx_qmap_cmd(struct sk_buff *qmap_skb, u8 ch, bool flush)
 	if (!(port->data_format & RMNET_EGRESS_FORMAT_AGGREGATION))
 		goto send;
 
-	spin_lock_irqsave(&state->agg_lock, flags);
+	spin_lock_bh(&state->agg_lock);
 	if (state->agg_skb) {
 		agg_skb = state->agg_skb;
 		state->agg_skb = NULL;
 		state->agg_count = 0;
 		memset(&state->agg_time, 0, sizeof(state->agg_time));
 		state->agg_state = 0;
-		spin_unlock_irqrestore(&state->agg_lock, flags);
-		hrtimer_cancel(&state->hrtimer);
 		state->send_agg_skb(agg_skb);
+		spin_unlock_bh(&state->agg_lock);
+		hrtimer_cancel(&state->hrtimer);
 	} else {
-		spin_unlock_irqrestore(&state->agg_lock, flags);
+		spin_unlock_bh(&state->agg_lock);
 	}
 
 send:
@@ -1690,7 +1691,8 @@ int rmnet_map_add_tso_header(struct sk_buff *skb, struct rmnet_port *port,
 
 	if (port->data_format & RMNET_EGRESS_FORMAT_PRIORITY)
 		rmnet_map_v5_check_priority(skb, orig_dev,
-					    (struct rmnet_map_v5_csum_header *)ul_header);
+					    (struct rmnet_map_v5_csum_header *)ul_header,
+					    true);
 
 	ul_header->segment_size = htons(skb_shinfo(skb)->gso_size);
 

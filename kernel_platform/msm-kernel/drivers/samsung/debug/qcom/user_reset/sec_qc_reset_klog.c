@@ -132,8 +132,8 @@ static int sec_qc_reset_klog_proc_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&reset_klog->lock);
 
-	if (reset_klog->ref) {
-		reset_klog->ref++;
+	if (reset_klog->ref_cnt) {
+		reset_klog->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -149,7 +149,7 @@ static int sec_qc_reset_klog_proc_open(struct inode *inode, struct file *file)
 		goto err_buf;
 	}
 
-	reset_klog->ref++;
+	reset_klog->ref_cnt++;
 
 	mutex_unlock(&reset_klog->lock);
 
@@ -168,6 +168,9 @@ static ssize_t sec_qc_reset_klog_proc_read(struct file *file,
 {
 	struct qc_user_reset_proc *reset_klog = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
+
+	if (pos < 0 || pos > reset_klog->len)
+		return 0;
 
 	nbytes = min_t(size_t, nbytes, reset_klog->len - pos);
 	if (copy_to_user(buf, &reset_klog->buf[pos], nbytes))
@@ -193,8 +196,8 @@ static int sec_qc_reset_klog_proc_release(struct inode *inode,
 
 	mutex_lock(&reset_klog->lock);
 
-	reset_klog->ref--;
-	if (reset_klog->ref)
+	reset_klog->ref_cnt--;
+	if (reset_klog->ref_cnt)
 		goto still_used;
 
 	reset_klog->len = 0;

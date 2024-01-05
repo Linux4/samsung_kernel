@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -419,6 +420,8 @@ typedef bool (*qdf_irqlocked_func_t)(void *);
  * @QDF_MODULE_ID_MON: Monitor module ID
  * @QDF_MODULE_ID_MGMT_RX_REO: Management rx-reorder module ID
  * @QDF_MODULE_ID_AFC: AFC module ID
+ * @QDF_MODULE_ID_WIFI_RADAR: WIFI RADAR module ID
+ * @QDF_MODULE_ID_TWT: TWT module ID
  * @QDF_MODULE_ID_ANY: anything
  * @QDF_MODULE_ID_MAX: Max place holder module ID
  *
@@ -575,6 +578,8 @@ typedef enum {
 	QDF_MODULE_ID_MON,
 	QDF_MODULE_ID_MGMT_RX_REO,
 	QDF_MODULE_ID_AFC,
+	QDF_MODULE_ID_WIFI_RADAR,
+	QDF_MODULE_ID_TWT,
 	QDF_MODULE_ID_ANY,
 	QDF_MODULE_ID_MAX,
 } QDF_MODULE_ID;
@@ -1406,6 +1411,8 @@ enum qdf_suspend_type {
  * @QDF_RX_REG_PKT_ROUTE_ERR: MSDU buf errors exceed thresh in REO err path
  * @QDF_VDEV_SM_OUT_OF_SYNC: Vdev SM is out of sync and connect req received
  * when already connected
+ * @QDF_STATS_REQ_TIMEDOUT: Stats request timedout
+ * @QDF_RSO_STOP_RSP_TIMEOUT: Firmware hasn't sent RSO stop response
  */
 enum qdf_hang_reason {
 	QDF_REASON_UNSPECIFIED,
@@ -1435,6 +1442,9 @@ enum qdf_hang_reason {
 	QDF_TASKLET_CREDIT_LATENCY_DETECT,
 	QDF_RX_REG_PKT_ROUTE_ERR,
 	QDF_VDEV_SM_OUT_OF_SYNC,
+	QDF_STATS_REQ_TIMEDOUT,
+	QDF_TX_DESC_LEAK,
+	QDF_RSO_STOP_RSP_TIMEOUT,
 };
 
 /**
@@ -1524,4 +1534,68 @@ enum qdf_dp_a_status {
 	QDF_A_STATUS_ERROR = -1,
 	QDF_A_STATUS_OK,
 };
+
+/**
+ * enum qdf_iommu_attr- qdf iommu domain attribute
+ * @QDF_DOMAIN_ATTR_GEOMETRY: Domain attribute geometry
+ * @QDF_DOMAIN_ATTR_PAGING: Domain attribute paging
+ * @QDF_DOMAIN_ATTR_WINDOWS: Domain attribute windows
+ * @QDF_DOMAIN_ATTR_FSL_PAMU_STASH: Domain attribute fsl pamu stash
+ * @QDF_DOMAIN_ATTR_FSL_PAMU_ENABLE: Domain attribute fsl pamu enable
+ * @QDF_DOMAIN_ATTR_FSL_PAMUV1: Domain attribute fsl pamu v1
+ * @QDF_DOMAIN_ATTR_NESTING: Domain attribute Nesting
+ * @QDF_DOMAIN_ATTR_DMA_USE_FLUSH_QUEUE: Domain attribute dma use flush queue
+ * @QDF_DOMAIN_ATTR_PT_BASE_ADDR: Domain attribute pt base address
+ * @QDF_DOMAIN_ATTR_CONTEXT_BANK: Domain attribute context bank
+ * @QDF_DOMAIN_ATTR_DYNAMIC: Domain attribute dynamic
+ * @QDF_DOMAIN_ATTR_TTBR0: Domain attribute TTBR0
+ * @QDF_DOMAIN_ATTR_CONTEXTIDR: Domain attribute contextidr
+ * @QDF_DOMAIN_ATTR_PROCID: Domain attribute procid
+ * @QDF_DOMAIN_ATTR_NON_FATAL_FAULTS: Domain attribute non fatal faults
+ * @QDF_DOMAIN_ATTR_S1_BYPASS: Domain attribute S1 bypass
+ * @QDF_DOMAIN_ATTR_ATOMIC: Domain attribute atomic
+ * @QDF_DOMAIN_ATTR_SECURE_VMID: Domain attribute secure cmid
+ * @QDF_DOMAIN_ATTR_FAST: Domain attribute fast
+ * @QDF_DOMAIN_ATTR_PGTBL_INFO: Domain attribute pgtbl info
+ * @QDF_DOMAIN_ATTR_USE_UPSTREAM_HINT: Domain attribute use upsteram hint
+ * @QDF_DOMAIN_ATTR_EARLY_MAP: Domain attribute early map
+ * @QDF_DOMAIN_ATTR_PAGE_TABLE_IS_COHERENT: Domain attribute page table
+ * is coherrent
+ * @QDF_DOMAIN_ATTR_PAGE_TABLE_FORCE_COHERENT: Domain attribute page table
+ * force coherrent
+ * @QDF_DOMAIN_ATTR_USE_LLC_NWA: Domain attribute use llc nwa
+ * @QDF_DOMAIN_ATTR_SPLIT_TABLES: Domain attribute split tables
+ * @QDF_DOMAIN_ATTR_FAULT_MODEL_NO_CFRE: Domain attribute fault model no cfre
+ * @QDF_DOMAIN_ATTR_FAULT_MODEL_NO_STALL: Domain attribute fault model no stall
+ * @QDF_DOMAIN_ATTR_FAULT_MODEL_HUPCF: Domain attribute fault model hupcf
+ * @QDF_DOMAIN_ATTR_MAX: Domain attribute max
+ */
+enum qdf_iommu_attr {
+	QDF_DOMAIN_ATTR_GEOMETRY,
+	QDF_DOMAIN_ATTR_PAGING,
+	QDF_DOMAIN_ATTR_WINDOWS,
+	QDF_DOMAIN_ATTR_FSL_PAMU_STASH,
+	QDF_DOMAIN_ATTR_FSL_PAMU_ENABLE,
+	QDF_DOMAIN_ATTR_FSL_PAMUV1,
+	QDF_DOMAIN_ATTR_NESTING,
+	QDF_DOMAIN_ATTR_DMA_USE_FLUSH_QUEUE,
+	QDF_DOMAIN_ATTR_CONTEXT_BANK,
+	QDF_DOMAIN_ATTR_NON_FATAL_FAULTS,
+	QDF_DOMAIN_ATTR_S1_BYPASS,
+	QDF_DOMAIN_ATTR_ATOMIC,
+	QDF_DOMAIN_ATTR_SECURE_VMID,
+	QDF_DOMAIN_ATTR_FAST,
+	QDF_DOMAIN_ATTR_PGTBL_INFO,
+	QDF_DOMAIN_ATTR_USE_UPSTREAM_HINT,
+	QDF_DOMAIN_ATTR_EARLY_MAP,
+	QDF_DOMAIN_ATTR_PAGE_TABLE_IS_COHERENT,
+	QDF_DOMAIN_ATTR_PAGE_TABLE_FORCE_COHERENT,
+	QDF_DOMAIN_ATTR_USE_LLC_NWA,
+	QDF_DOMAIN_ATTR_SPLIT_TABLES,
+	QDF_DOMAIN_ATTR_FAULT_MODEL_NO_CFRE,
+	QDF_DOMAIN_ATTR_FAULT_MODEL_NO_STALL,
+	QDF_DOMAIN_ATTR_FAULT_MODEL_HUPCF,
+	QDF_DOMAIN_ATTR_MAX,
+};
+
 #endif /* __QDF_TYPES_H */

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -10,6 +11,7 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/slab.h>
+#include <soc/qcom/socinfo.h>
 
 #include "bcm-voter.h"
 #include "icc-debug.h"
@@ -27,14 +29,20 @@ void qcom_icc_pre_aggregate(struct icc_node *node)
 {
 	size_t i;
 	struct qcom_icc_node *qn;
+	struct qcom_icc_provider *qp;
 
 	qn = node->data;
+	qp = to_qcom_provider(node->provider);
 
 	for (i = 0; i < QCOM_ICC_NUM_BUCKETS; i++) {
 		qn->sum_avg[i] = 0;
 		qn->max_peak[i] = 0;
 		qn->perf_mode[i] = false;
 	}
+
+	for (i = 0; i < qn->num_bcms; i++)
+		qcom_icc_bcm_voter_add(qp->voters[qn->bcms[i]->voter_idx],
+				       qn->bcms[i]);
 }
 EXPORT_SYMBOL_GPL(qcom_icc_pre_aggregate);
 
@@ -52,10 +60,8 @@ int qcom_icc_aggregate(struct icc_node *node, u32 tag, u32 avg_bw,
 {
 	size_t i;
 	struct qcom_icc_node *qn;
-	struct qcom_icc_provider *qp;
 
 	qn = node->data;
-	qp = to_qcom_provider(node->provider);
 
 	if (!tag)
 		tag = QCOM_ICC_TAG_ALWAYS;
@@ -67,14 +73,15 @@ int qcom_icc_aggregate(struct icc_node *node, u32 tag, u32 avg_bw,
 			if (tag & QCOM_ICC_TAG_PERF_MODE && (avg_bw || peak_bw))
 				qn->perf_mode[i] = true;
 		}
+
+		if (node->init_avg || node->init_peak) {
+			qn->sum_avg[i] = max_t(u64, qn->sum_avg[i], node->init_avg);
+			qn->max_peak[i] = max_t(u64, qn->max_peak[i], node->init_peak);
+		}
 	}
 
 	*agg_avg += avg_bw;
 	*agg_peak = max_t(u32, *agg_peak, peak_bw);
-
-	for (i = 0; i < qn->num_bcms; i++)
-		qcom_icc_bcm_voter_add(qp->voters[qn->bcms[i]->voter_idx],
-				       qn->bcms[i]);
 
 	return 0;
 }
@@ -108,11 +115,6 @@ int qcom_icc_set(struct icc_node *src, struct icc_node *dst)
 
 	qp = to_qcom_provider(node->provider);
 	qn = node->data;
-
-	qn->sum_avg[QCOM_ICC_BUCKET_AMC] = max_t(u64, qn->sum_avg[QCOM_ICC_BUCKET_AMC],
-						 node->avg_bw);
-	qn->max_peak[QCOM_ICC_BUCKET_AMC] = max_t(u64, qn->max_peak[QCOM_ICC_BUCKET_AMC],
-						  node->peak_bw);
 
 	for (i = 0; i < qp->num_voters; i++)
 		qcom_icc_bcm_voter_commit(qp->voters[i]);
@@ -191,7 +193,7 @@ int qcom_icc_bcm_init(struct qcom_icc_bcm *bcm, struct device *dev)
 	int i;
 
 	/* BCM is already initialised*/
-	if (bcm->addr)
+	if (bcm->disabled || bcm->addr)
 		return 0;
 
 	bcm->addr = cmd_db_read_addr(bcm->name);
@@ -318,6 +320,51 @@ static struct regmap *qcom_icc_rpmh_map(struct platform_device *pdev,
 	return devm_regmap_init_mmio(dev, base, desc->config);
 }
 
+static bool is_voter_disabled(char *voter)
+{
+	if ((strnstr(voter, "disp", strlen(voter)) && socinfo_get_part_info(PART_DISPLAY)) ||
+	    (strnstr(voter, "cam", strlen(voter)) && socinfo_get_part_info(PART_CAMERA)))
+		return true;
+
+	return false;
+}
+
+static int qcom_icc_init_disabled_parts(struct qcom_icc_provider *qp)
+{
+	struct qcom_icc_bcm *bcm;
+	struct qcom_icc_node **qnodes, *qn;
+	const struct qcom_icc_desc *desc;
+	int voter_idx, i, j;
+	char *voter_name;
+
+	desc = of_device_get_match_data(qp->dev);
+	if (!desc)
+		return -EINVAL;
+
+	for (i = 0; i < qp->num_bcms; i++) {
+		bcm = qp->bcms[i];
+		voter_idx = bcm->voter_idx;
+		voter_name = desc->voters[voter_idx];
+
+		/* Disable BCMs incase of NO display or No Camera */
+		if (is_voter_disabled(voter_name)) {
+			bcm->disabled = true;
+			qnodes = desc->nodes;
+
+			for (j = 0; j < desc->num_nodes; j++) {
+				qn = qnodes[j];
+				if (!qn)
+					continue;
+
+				if (strnstr(qn->name, voter_name, strlen(qn->name)))
+					qn->disabled = true;
+			}
+		}
+	}
+
+	return 0;
+}
+
 int qcom_icc_rpmh_probe(struct platform_device *pdev)
 {
 	const struct qcom_icc_desc *desc;
@@ -365,15 +412,25 @@ int qcom_icc_rpmh_probe(struct platform_device *pdev)
 	if (!qp->voters)
 		return -ENOMEM;
 
+	ret = qcom_icc_init_disabled_parts(qp);
+	if (ret)
+		return ret;
+
 	for (i = 0; i < qp->num_voters; i++) {
-		qp->voters[i] = of_bcm_voter_get(qp->dev, desc->voters[i]);
-		if (IS_ERR(qp->voters[i]))
-			return PTR_ERR(qp->voters[i]);
+		if (desc->voters[i] && !is_voter_disabled(desc->voters[i])) {
+			qp->voters[i] = of_bcm_voter_get(qp->dev, desc->voters[i]);
+			if (IS_ERR(qp->voters[i]))
+				return PTR_ERR(qp->voters[i]);
+		}
 	}
 
 	qp->regmap = qcom_icc_rpmh_map(pdev, desc);
 	if (IS_ERR(qp->regmap))
 		return PTR_ERR(qp->regmap);
+
+	qp->num_clks = devm_clk_bulk_get_all(qp->dev, &qp->clks);
+	if (qp->num_clks < 0)
+		return qp->num_clks;
 
 	ret = icc_provider_add(provider);
 	if (ret) {
@@ -381,21 +438,17 @@ int qcom_icc_rpmh_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	qp->num_clks = devm_clk_bulk_get_all(qp->dev, &qp->clks);
-	if (qp->num_clks < 0)
-		return qp->num_clks;
-
 	for (i = 0; i < qp->num_bcms; i++)
 		qcom_icc_bcm_init(qp->bcms[i], &pdev->dev);
 
 	ret = enable_qos_deps(qp);
 	if (ret)
-		return ret;
+		goto provider_del;
 
 	for (i = 0; i < num_nodes; i++) {
 		size_t j;
 
-		if (!qnodes[i])
+		if (!qnodes[i] || qnodes[i]->disabled)
 			continue;
 
 		qnodes[i]->regmap = dev_get_regmap(qp->dev, NULL);
@@ -449,7 +502,7 @@ err:
 
 	clk_bulk_disable_unprepare(qp->num_clks, qp->clks);
 	clk_bulk_put_all(qp->num_clks, qp->clks);
-
+provider_del:
 	icc_provider_del(provider);
 
 	return ret;

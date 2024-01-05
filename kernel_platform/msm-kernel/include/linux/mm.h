@@ -845,6 +845,8 @@ static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 	return kvmalloc_array(n, size, flags | __GFP_ZERO);
 }
 
+extern void *kvrealloc(const void *p, size_t oldsize, size_t newsize,
+		gfp_t flags);
 extern void kvfree(const void *addr);
 extern void kvfree_sensitive(const void *addr, size_t len);
 
@@ -1716,6 +1718,7 @@ struct zap_details {
 	struct address_space *check_mapping;	/* Check page->mapping if set */
 	pgoff_t	first_index;			/* Lowest page->index to unmap */
 	pgoff_t last_index;			/* Highest page->index to unmap */
+	struct page *single_page;		/* Locked page to be unmapped */
 };
 
 struct page *_vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
@@ -1757,6 +1760,12 @@ int generic_access_phys(struct vm_area_struct *vma, unsigned long addr,
 #ifdef CONFIG_SPECULATIVE_PAGE_FAULT
 static inline void vm_write_begin(struct vm_area_struct *vma)
 {
+        /*
+         * Isolated vma might be freed without exclusive mmap_lock but
+         * speculative page fault handler still needs to know it was changed.
+         */
+        if (!RB_EMPTY_NODE(&vma->vm_rb))
+	       mmap_assert_write_locked(vma->vm_mm);
 	/*
 	 * The reads never spins and preemption
 	 * disablement is not required.
@@ -1831,6 +1840,7 @@ static inline bool can_reuse_spf_vma(struct vm_area_struct *vma,
 }
 #endif /* CONFIG_SPECULATIVE_PAGE_FAULT */
 
+void unmap_mapping_page(struct page *page);
 void unmap_mapping_pages(struct address_space *mapping,
 		pgoff_t start, pgoff_t nr, bool even_cows);
 void unmap_mapping_range(struct address_space *mapping,
@@ -1851,6 +1861,7 @@ static inline int fixup_user_fault(struct mm_struct *mm, unsigned long address,
 	BUG();
 	return -EFAULT;
 }
+static inline void unmap_mapping_page(struct page *page) { }
 static inline void unmap_mapping_pages(struct address_space *mapping,
 		pgoff_t start, pgoff_t nr, bool even_cows) { }
 static inline void unmap_mapping_range(struct address_space *mapping,
@@ -2732,6 +2743,7 @@ extern int install_special_mapping(struct mm_struct *mm,
 				   unsigned long flags, struct page **pages);
 
 unsigned long randomize_stack_top(unsigned long stack_top);
+unsigned long randomize_page(unsigned long start, unsigned long range);
 
 extern unsigned long get_unmapped_area(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
 
@@ -3364,7 +3376,6 @@ unsigned long wp_shared_mapping_range(struct address_space *mapping,
 extern int sysctl_nr_trim_pages;
 extern bool pte_map_lock_addr(struct vm_fault *vmf, unsigned long addr);
 extern int reclaim_shmem_address_space(struct address_space *mapping);
-extern int reclaim_pages_from_list(struct list_head *page_list);
 
 /**
  * seal_check_future_write - Check for F_SEAL_FUTURE_WRITE flag and handle it

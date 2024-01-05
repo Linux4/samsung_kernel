@@ -126,6 +126,7 @@ struct dp_catalog_private {
 
 	char exe_mode[SZ_4];
 	u32 dp_core_version;
+	u32 dp_phy_version;
 };
 
 static u32 dp_read_sw(struct dp_catalog_private *catalog,
@@ -484,11 +485,19 @@ static void dp_catalog_aux_get_irq(struct dp_catalog_aux *aux, bool cmd_busy)
 static bool dp_catalog_ctrl_wait_for_phy_ready(
 		struct dp_catalog_private *catalog)
 {
-	u32 reg = DP_PHY_STATUS, state;
+	u32 phy_version;
+	u32 reg, state;
 	void __iomem *base = catalog->io.dp_phy->io.base;
 	bool success = true;
 	u32 const poll_sleep_us = 500;
 	u32 const pll_timeout_us = 10000;
+
+	phy_version = dp_catalog_get_dp_phy_version(&catalog->dp_catalog);
+	if (phy_version >= 0x60000000) {
+		reg = DP_PHY_STATUS_V600;
+	} else {
+		reg = DP_PHY_STATUS;
+	}
 
 	if (readl_poll_timeout_atomic((base + reg), state,
 			((state & DP_PHY_READY) > 0),
@@ -1724,9 +1733,17 @@ static void dp_catalog_ctrl_enable_irq(struct dp_catalog_ctrl *ctrl,
 		dp_write(DP_INTR_STATUS2, DP_INTR_MASK2);
 		dp_write(DP_INTR_STATUS5, DP_INTR_MASK5);
 	} else {
+		/* disable interrupts */
 		dp_write(DP_INTR_STATUS, 0x00);
 		dp_write(DP_INTR_STATUS2, 0x00);
 		dp_write(DP_INTR_STATUS5, 0x00);
+		wmb();
+
+		/* clear all pending interrupts */
+		dp_write(DP_INTR_STATUS, DP_INTERRUPT_STATUS1 << 1);
+		dp_write(DP_INTR_STATUS2, DP_INTERRUPT_STATUS2 << 1);
+		dp_write(DP_INTR_STATUS5, DP_INTERRUPT_STATUS5 << 1);
+		wmb();
 	}
 }
 
@@ -1839,14 +1856,14 @@ static void dp_catalog_ctrl_update_vx_px(struct dp_catalog_ctrl *ctrl,
 	if (secdp_self_test_status(ST_VOLTAGE_TUN) >= 0) {
 		u8 val = secdp_self_test_get_arg(ST_VOLTAGE_TUN)[v_level*4 + p_level];
 
-		DP_INFO("value0 : 0x%02x => 0x%02x\n", value0, val);
+		DP_INFO("[vx] value0: %02x => %02x\n", value0, val);
 		value0 = val;
 	}
 
 	if (secdp_self_test_status(ST_PREEM_TUN) >= 0) {
 		u8 val = secdp_self_test_get_arg(ST_PREEM_TUN)[v_level*4 + p_level];
 
-		DP_INFO("value0 : 0x%02x => 0x%02x\n", value1, val);
+		DP_INFO("[px] value0: %02x => %02x\n", value1, val);
 		value1 = val;
 	}
 #endif
@@ -2021,6 +2038,29 @@ u32 dp_catalog_get_dp_core_version(struct dp_catalog *dp_catalog)
 	io_data = catalog->io.dp_ahb;
 
 	return dp_read(DP_HW_VERSION);
+}
+
+u32 dp_catalog_get_dp_phy_version(struct dp_catalog *dp_catalog)
+{
+	struct dp_catalog_private *catalog;
+	struct dp_io_data *io_data;
+
+	if (!dp_catalog) {
+		DP_ERR("invalid input\n");
+		return 0;
+	}
+
+	catalog = container_of(dp_catalog, struct dp_catalog_private, dp_catalog);
+	if (catalog->dp_phy_version)
+		return catalog->dp_phy_version;
+
+	io_data = catalog->io.dp_phy;
+	catalog->dp_phy_version = (dp_read(DP_PHY_REVISION_ID3) << 24) |
+				(dp_read(DP_PHY_REVISION_ID2) << 16) |
+				(dp_read(DP_PHY_REVISION_ID1) << 8) |
+				dp_read(DP_PHY_REVISION_ID0);
+
+	return catalog->dp_phy_version;
 }
 
 static int dp_catalog_reg_dump(struct dp_catalog *dp_catalog,

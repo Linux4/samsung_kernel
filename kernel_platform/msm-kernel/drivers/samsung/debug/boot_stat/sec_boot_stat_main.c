@@ -63,13 +63,13 @@ int sec_boot_stat_register_soc_ops(struct sec_boot_stat_soc_operations *soc_ops)
 	int ret = 0;
 
 	if (!__boot_stat_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	mutex_lock(&sec_boot_stat->soc_ops_lock);
 
 	if (sec_boot_stat->soc_ops) {
 		pr_warn("soc specific operations already registered\n");
-		ret = -EBUSY;
+		ret = -ENOENT;
 		goto __arleady_registered;
 	}
 
@@ -86,7 +86,7 @@ int sec_boot_stat_unregister_soc_ops(struct sec_boot_stat_soc_operations *soc_op
 	int ret = 0;
 
 	if (!__boot_stat_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	mutex_lock(&sec_boot_stat->soc_ops_lock);
 

@@ -503,7 +503,7 @@ config MMC_OMAP_HS
 
 config MMC_WBSD
 	tristate "Winbond W83L51xD SD/MMC Card Interface support"
-	depends on ISA_DMA_API
+	depends on ISA_DMA_API && !M68K
 	help
 	  This selects the Winbond(R) W83L51xD Secure digital and
 	  Multimedia card Interface.
@@ -549,6 +549,19 @@ config MMC_SDHCI_MSM
 	  This selects the Secure Digital Host Controller Interface (SDHCI)
 	  support present in Qualcomm SOCs. The controller supports
 	  SD/MMC/SDIO devices.
+
+	  If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N.
+
+config MMC_SDHCI_MSM_SCALING
+	tristate "Qualcomm Technologies, Inc. SDHCI Controller Support"
+	depends on ARCH_QCOM || COMPILE_TEST
+	depends on MMC_SDHCI_PLTFM
+	help
+	  This selects the Secure Digital Host Controller Interface (SDHCI)
+	  support present in Qualcomm Technologies, Inc. SOCs. The
+	  controller supports SD/MMC/SDIO devices.
 
 	  If you have a controller with this interface, say Y or M here.
 
@@ -1080,9 +1093,10 @@ config MMC_SDHCI_OMAP
 
 config MMC_SDHCI_AM654
 	tristate "Support for the SDHCI Controller in TI's AM654 SOCs"
-	depends on MMC_SDHCI_PLTFM && OF && REGMAP_MMIO
+	depends on MMC_SDHCI_PLTFM && OF
 	select MMC_SDHCI_IO_ACCESSORS
 	select MMC_CQHCI
+	select REGMAP_MMIO
 	help
 	  This selects the Secure Digital Host Controller Interface (SDHCI)
 	  support present in TI's AM654 SOCs. The controller supports
@@ -1110,6 +1124,15 @@ config MMC_CRYPTO_QTI
          Enable Vendor Crypto Engine Support in CQHCI
          Enabling this allows kernel to use CQHCI crypto operations defined
          and implemented by QTI.
+
+config SDHCI_MSM_DBG
+	bool "SDHCI_MSM_DBG"
+	depends on MMC_SDHCI_MSM
+	help
+	  This enables the IPC tracing events for sdhci_msm driver to
+	  trace significant events used for debugging purpose.
+
+	  If unsure, say N here.
 
 config SEC_MMC_FEATURE
 	bool "SEC specific MMC/SD feature"

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _KGSL_UTIL_H_
@@ -17,6 +18,17 @@
 #define KGSL_GMU_LOG_ENTRY "kgsl_gmu_log"
 #define KGSL_HFIMEM_ENTRY "kgsl_hfi_mem"
 #define KGSL_GMU_DUMPMEM_ENTRY "kgsl_gmu_dump_mem"
+#define KGSL_GMU_RB_ENTRY "kgsl_gmu_rb"
+#define KGSL_GMU_KERNEL_PROF_ENTRY "kgsl_gmu_kernel_profiling"
+#define KGSL_GMU_USER_PROF_ENTRY "kgsl_gmu_user_profiling"
+#define KGSL_GMU_CMD_BUFFER_ENTRY "kgsl_gmu_cmd_buffer"
+#define KGSL_HFI_BIG_IB_ENTRY "kgsl_hfi_big_ib"
+#define KGSL_HFI_BIG_IB_REC_ENTRY "kgsl_hfi_big_ib_rec"
+#define KGSL_ADRENO_CTX_ENTRY "kgsl_adreno_ctx"
+#define KGSL_PROC_PRIV_ENTRY "kgsl_proc_priv"
+#define KGSL_PGTABLE_ENTRY "kgsl_pgtable"
+
+#define MAX_VA_MINIDUMP_STR_LEN 32
 
 struct regulator;
 struct clk_bulk_data;
@@ -30,13 +42,25 @@ struct clk_bulk_data;
  * 16 + (4 * (List_Length - 1))
  * @list_offset: this tells CP the start of preemption only list:
  * 16 + (4 * List_Offset)
+ * @ifpc_list_len: number of static ifpc duplets in the list
+ * @preemption_list_len: number of static preemption duplets in the list
+ * @dynamic_list_len: number of dynamically added triplets in the list
  */
 struct cpu_gpu_lock {
 	u32 gpu_req;
 	u32 cpu_req;
 	u32 turn;
-	u16 list_length;
-	u16 list_offset;
+	union {
+		struct {
+			u16 list_length;
+			u16 list_offset;
+		};
+		struct {
+			u8 ifpc_list_len;
+			u8 preemption_list_len;
+			u16 dynamic_list_len;
+		};
+	};
 };
 
 /**
@@ -146,5 +170,11 @@ int kgsl_add_va_to_minidump(struct device *dev, const char *name, void *ptr,
  * @device: Pointer to kgsl device
  */
 void kgsl_qcom_va_md_register(struct kgsl_device *device);
+
+/**
+ * kgsl_qcom_va_md_unregister - Unregister driver with va-minidump
+ * @device: Pointer to kgsl device
+ */
+void kgsl_qcom_va_md_unregister(struct kgsl_device *device);
 
 #endif

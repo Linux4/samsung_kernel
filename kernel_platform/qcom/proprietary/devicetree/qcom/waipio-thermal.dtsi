@@ -257,6 +257,15 @@
 
 #include "waipio-thermal-modem.dtsi"
 
+&soc {
+	qmi-ts-sensors {
+		cdsp {
+			qcom,instance-id = <QMI_CDSP_INST_ID>;
+			qcom,qmi-sensor-names = "isense_trim";
+		};
+	};
+};
+
 &thermal_zones {
 	aoss-0 {
 		polling-delay-passive = <0>;
@@ -278,7 +287,7 @@
 	};
 
 	cpuss-0 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 1>;
 		trips {
@@ -288,35 +297,16 @@
 				type = "passive";
 			};
 
-			thermal-hal-config {
-				temperature = <125000>;
-				hysteresis = <1000>;
-				type = "passive";
-			};
-
-			thermal_ss_config0: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
-			};
-		};
-
-		cooling-maps {
-			cpu0_cdev_usr {
-				trip = <&thermal_ss_config0>;
-				cooling-device = <&CPU0 0 THERMAL_NO_LIMIT>;
+				type = "passive";
 			};
 		};
 	};
 
 	cpuss-1 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 2>;
 		trips {
@@ -326,35 +316,16 @@
 				type = "passive";
 			};
 
-			thermal-hal-config {
-				temperature = <125000>;
-				hysteresis = <1000>;
-				type = "passive";
-			};
-
-			thermal_ss_config1: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
-			};
-		};
-
-		cooling-maps {
-			cpu1_cdev_usr {
-				trip = <&thermal_ss_config1>;
-				cooling-device = <&CPU0 0 THERMAL_NO_LIMIT>;
+				type = "passive";
 			};
 		};
 	};
 
 	cpuss-2 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 3>;
 		trips {
@@ -364,35 +335,16 @@
 				type = "passive";
 			};
 
-			thermal-hal-config {
-				temperature = <125000>;
-				hysteresis = <1000>;
-				type = "passive";
-			};
-
-			thermal_ss_config2: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
-			};
-		};
-
-		cooling-maps {
-			cpu2_cdev_usr {
-				trip = <&thermal_ss_config2>;
-				cooling-device = <&CPU0 0 THERMAL_NO_LIMIT>;
+				type = "passive";
 			};
 		};
 	};
 
 	cpuss-3 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 4>;
 		trips {
@@ -402,35 +354,16 @@
 				type = "passive";
 			};
 
-			thermal-hal-config {
-				temperature = <125000>;
-				hysteresis = <1000>;
-				type = "passive";
-			};
-
-			thermal_ss_config3: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
-			};
-		};
-
-		cooling-maps {
-			cpu3_cdev_usr {
-				trip = <&thermal_ss_config3>;
-				cooling-device = <&CPU0 0 THERMAL_NO_LIMIT>;
+				type = "passive";
 			};
 		};
 	};
 
 	cpu-1-0 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 5>;
 		trips {
@@ -446,16 +379,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config10: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu4_emerg0: cpu4-emerg0-cfg {
@@ -464,17 +391,10 @@
 				type = "passive";
 			};
 		};
-
-		cooling-maps {
-			cpu10_cdev_usr {
-				trip = <&thermal_ss_config10>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
-			};
-		};
 	};
 
 	cpu-1-1 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 6>;
 		trips {
@@ -490,16 +410,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config11: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu4_emerg1: cpu4-emerg1-cfg {
@@ -508,17 +422,10 @@
 				type = "passive";
 			};
 		};
-
-		cooling-maps {
-			cpu11_cdev_usr {
-				trip = <&thermal_ss_config11>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
-			};
-		};
 	};
 
 	cpu-1-2 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 7>;
 		trips {
@@ -534,16 +441,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config12: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu5_emerg0: cpu5-emerg0-cfg {
@@ -558,16 +459,11 @@
 				trip = <&cpu5_emerg0>;
 				cooling-device = <&cpu5_pause 1 1>;
 			};
-
-			cpu12_cdev_usr {
-				trip = <&thermal_ss_config12>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
-			};
 		};
 	};
 
 	cpu-1-3 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 8>;
 		trips {
@@ -583,16 +479,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config13: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu5_emerg1: cpu5-emerg1-cfg {
@@ -607,16 +497,11 @@
 				trip = <&cpu5_emerg1>;
 				cooling-device = <&cpu5_pause 1 1>;
 			};
-
-			cpu13_cdev_usr {
-				trip = <&thermal_ss_config13>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
-			};
 		};
 	};
 
 	cpu-1-4 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 9>;
 		trips {
@@ -632,16 +517,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config14: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu6_emerg0: cpu6-emerg0-cfg {
@@ -656,16 +535,11 @@
 				trip = <&cpu6_emerg0>;
 				cooling-device = <&cpu6_pause 1 1>;
 			};
-
-			cpu14_cdev_usr {
-				trip = <&thermal_ss_config14>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
-			};
 		};
 	};
 
 	cpu-1-5 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 10>;
 		trips {
@@ -681,16 +555,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config15: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu6_emerg1: cpu6-emerg1-cfg {
@@ -705,16 +573,11 @@
 				trip = <&cpu6_emerg1>;
 				cooling-device = <&cpu6_pause 1 1>;
 			};
-
-			cpu15_cdev_usr {
-				trip = <&thermal_ss_config15>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
-			};
 		};
 	};
 
 	cpu-1-6 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 11>;
 		trips {
@@ -730,16 +593,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config16: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu7_emerg0: cpu7-emerg0-cfg {
@@ -754,16 +611,11 @@
 				trip = <&cpu7_emerg0>;
 				cooling-device = <&cpu7_pause 1 1>;
 			};
-
-			cpu16_cdev_usr {
-				trip = <&thermal_ss_config16>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
-			};
 		};
 	};
 
 	cpu-1-7 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 12>;
 		trips {
@@ -779,16 +631,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config17: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu7_emerg1: cpu7-emerg1-cfg {
@@ -803,16 +649,11 @@
 				trip = <&cpu7_emerg1>;
 				cooling-device = <&cpu7_pause 1 1>;
 			};
-
-			cpu17_cdev_usr {
-				trip = <&thermal_ss_config17>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
-			};
 		};
 	};
 
 	cpu-1-8 {
-		polling-delay-passive = <10>;
+		polling-delay-passive = <0>;
 		polling-delay = <0>;
 		thermal-sensors = <&tsens0 13>;
 		trips {
@@ -828,16 +669,10 @@
 				type = "passive";
 			};
 
-			thermal_ss_config18: thermal-ss-config {
-				temperature = <85000>;
-				hysteresis = <2000>;
-				type = "passive";
-			};
-
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu7_emerg2: cpu7-emerg2-cfg {
@@ -851,11 +686,6 @@
 			cpu18_cdev {
 				trip = <&cpu7_emerg2>;
 				cooling-device = <&cpu7_pause 1 1>;
-			};
-
-			cpu18_cdev_usr {
-				trip = <&thermal_ss_config18>;
-				cooling-device = <&apc1_cluster 0 THERMAL_NO_LIMIT>;
 			};
 		};
 	};
@@ -880,7 +710,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			gpu0_tj_cfg: tj_cfg {
@@ -918,7 +748,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			gpu1_tj_cfg: tj_cfg {
@@ -975,7 +805,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu0_emerg: cpu0-emerg-cfg {
@@ -1013,7 +843,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu1_emerg: cpu1-emerg-cfg {
@@ -1051,7 +881,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu2_emerg: cpu2-emerg-cfg {
@@ -1089,7 +919,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			cpu3_emerg: cpu3-emerg-cfg {
@@ -1127,7 +957,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			nspss_0_config: junction-config {
@@ -1166,7 +996,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			nspss_1_config: junction-config {
@@ -1205,7 +1035,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 
 			nspss_2_config: junction-config {
@@ -1263,7 +1093,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 		};
 
@@ -1313,7 +1143,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 		};
 
@@ -1371,7 +1201,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 		};
 
@@ -1429,7 +1259,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 		};
 
@@ -1487,7 +1317,7 @@
 			reset-mon-cfg {
 				temperature = <115000>;
 				hysteresis = <5000>;
-				type = "critical";
+				type = "passive";
 			};
 		};
 
@@ -1672,6 +1502,37 @@
 			nr_scg_cdev0 {
 				trip = <&mx_pe_config3>;
 				cooling-device = <&modem_nr_scg_dsc 10 10>;
+			};
+		};
+	};
+
+	isense_trim {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&qmi_sensor
+				(QMI_CDSP_INST_ID+QMI_NSP_ISENSE_TRIM)>;
+		trips {
+			isense_trim_trip: isense-trim-config {
+				temperature = <2>;
+				hysteresis = <1>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			gold_cdev {
+				trip = <&isense_trim_trip>;
+				cooling-device = <&CPU4 15 15>;
+			};
+
+			gold_plus_cdev {
+				trip = <&isense_trim_trip>;
+				cooling-device = <&CPU7 15 15>;
+			};
+
+			cdsp_hw_cdev {
+				trip = <&isense_trim_trip>;
+				cooling-device = <&cdsp_hw 1 1>;
 			};
 		};
 	};

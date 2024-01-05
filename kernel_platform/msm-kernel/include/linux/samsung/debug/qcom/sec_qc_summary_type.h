@@ -125,6 +125,11 @@ struct sec_qc_summary_data {
 	struct sec_qc_summary_simple_var_mon var_mon;
 };
 
+struct sec_qc_summary_data_modem_ext_log {
+	uint32_t idx;
+	uint8_t log[0];
+};
+
 struct sec_qc_summary_data_modem {
 	unsigned int magic;
 	char name[16];
@@ -133,6 +138,10 @@ struct sec_qc_summary_data_modem {
 	struct sec_qc_summary_excp excp;
 	struct sec_qc_summary_simple_var_mon var_mon;
 	unsigned int separate_debug;
+	union {
+		struct sec_qc_summary_data_modem_ext_log ext_log;
+		uint8_t __reserved_0[2048];
+	};
 };
 
 struct sec_qc_summary_avc_log {

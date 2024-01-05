@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -27,6 +28,11 @@
 
 #define IS_FEATURE_SUPPORTED_BY_FW(feat_enum_value) \
 				wma_get_fw_wlan_feat_caps(feat_enum_value)
+#ifdef WLAN_FEATURE_11BE
+#define IS_FEATURE_11BE_SUPPORTED_BY_FW IS_FEATURE_SUPPORTED_BY_FW(DOT11BE)
+#else
+#define IS_FEATURE_11BE_SUPPORTED_BY_FW 0
+#endif
 
 #define DPU_FEEDBACK_UNPROTECTED_ERROR 0x0F
 
@@ -439,8 +445,6 @@ enum wmamsgtype {
 	WMA_TWT_NUDGE_DIALOG_REQUEST = SIR_HAL_TWT_NUDGE_DIALOG_REQUEST,
 };
 
-#define WMA_DATA_STALL_TRIGGER 0x1006
-
 /* Bit 6 will be used to control BD rate for Management frames */
 #define HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME 0x40
 
@@ -456,7 +460,6 @@ enum wmamsgtype {
 		      (pCompFunc), \
 		      (pData), \
 		      (NULL), \
-		      (NULL), \
 		      (txFlag), \
 		      (sessionid), \
 		      (false), \
@@ -465,7 +468,7 @@ enum wmamsgtype {
 		      (peer_rssi)))
 
 #define wma_tx_frameWithTxComplete(hHal, pFrmBuf, frmLen, frmType, txDir, tid, \
-	 pCompFunc, pData, pCBackFnTxComp, ota_comp_data, txFlag, sessionid, \
+	 pCompFunc, pData, pCBackFnTxComp, txFlag, sessionid, \
 	 tdlsflag, channel_freq, rid, peer_rssi) \
 	(QDF_STATUS)( wma_tx_packet( \
 		      cds_get_context(QDF_MODULE_ID_WMA), \
@@ -477,7 +480,6 @@ enum wmamsgtype {
 		      (pCompFunc), \
 		      (pData), \
 		      (pCBackFnTxComp), \
-		      (ota_comp_data), \
 		      (txFlag), \
 		      (sessionid), \
 		      (tdlsflag), \
@@ -671,7 +673,6 @@ void wma_tx_abort(uint8_t vdev_id);
  * @tx_frm_download_comp_cb: tx download callback handler
  * @pData: tx packet
  * @tx_frm_ota_comp_cb: OTA completion handler
- * @ota_comp_data: OTA completion data
  * @tx_flag: tx flag
  * @vdev_id: vdev id
  * @tdls_flag: tdls flag
@@ -690,7 +691,6 @@ QDF_STATUS wma_tx_packet(void *wma_context, void *tx_frame, uint16_t frmLen,
 			 wma_tx_dwnld_comp_callback tx_frm_download_comp_cb,
 			 void *pData,
 			 wma_tx_ota_comp_callback tx_frm_ota_comp_cb,
-			 struct mgmt_frame_data *ota_comp_data,
 			 uint8_t tx_flag, uint8_t vdev_id, bool tdls_flag,
 			 uint16_t channel_freq, enum rateid rid,
 			 int8_t peer_rssi);

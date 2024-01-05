@@ -88,10 +88,6 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 		rc = -EINVAL;
 	}
 
-	CAM_INFO(CAM_CSIPHY, "csi phy idx:%d, cp_reg_mask:0x%lx",
-		csiphy_dev->soc_info.index,
-		csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask);
-
 	return rc;
 }
 
@@ -175,10 +171,6 @@ int cam_csiphy_notify_secure_mode(struct csiphy_device *csiphy_dev,
 		CAM_ERR(CAM_CSIPHY, "SCM call to hypervisor failed");
 		rc = -EINVAL;
 	}
-
-	CAM_INFO(CAM_CSIPHY, "csi phy idx:%d, cp_reg_mask:0x%lx",
-		csiphy_dev->soc_info.index,
-		csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask);
 
 	return rc;
 }

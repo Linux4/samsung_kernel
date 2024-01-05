@@ -80,6 +80,7 @@ void GetNext(struct tRingBuffer *buffer);
 void ReadBuffer(struct tRingBuffer *buffer,
 			byte *data,
 			unsigned long *length);
+int kperfmon_open(struct inode *, struct file *);
 ssize_t kperfmon_write(struct file *filp,
 				const char __user *data,
 				size_t length,

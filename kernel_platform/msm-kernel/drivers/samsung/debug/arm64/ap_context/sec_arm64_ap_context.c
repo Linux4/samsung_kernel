@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2020-2022 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2020-2023 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)	KBUILD_MODNAME ":%s() " fmt, __func__
@@ -18,7 +18,6 @@
 #include <trace/hooks/debug.h>
 
 #include <linux/samsung/builder_pattern.h>
-#include <linux/samsung/of_early_populate.h>
 #include <linux/samsung/debug/sec_arm64_ap_context.h>
 #include <linux/samsung/debug/sec_debug_region.h>
 
@@ -57,36 +56,25 @@ static void __always_inline __ap_context_save_core_regs_from_pt_regs(
 void __naked __ap_context_save_core_regs_on_current(struct pt_regs *regs)
 {
 	asm volatile (
-		"stp	x1, x2, [sp, #-0x30]! \n\t"
+		"stp	x1, x2, [sp, #-0x20]! \n\t"
 		"stp	x3, x4, [sp, #0x10] \n\t"
-		"stp	x0, x29, [sp, #0x20] \n\t"
 
-		"add	x0, x0, #0x8 \n\t"
-
-		/* x1 ~ x30 */
-		"stp	x1, x2, [x0], #0x10 \n\t"
-		"stp	x3, x4, [x0], #0x10 \n\t"
-		"stp	x5, x6, [x0], #0x10 \n\t"
-		"stp	x7, x8, [x0], #0x10 \n\t"
-		"stp	x9, x10, [x0], #0x10 \n\t"
-		"stp	x11, x12, [x0], #0x10 \n\t"
-		"stp	x13, x14, [x0], #0x10 \n\t"
-		"stp	x15, x16, [x0], #0x10 \n\t"
-		"stp	x17, x18, [x0], #0x10 \n\t"
-		"stp	x19, x20, [x0], #0x10 \n\t"
-		"stp	x21, x22, [x0], #0x10 \n\t"
-		"stp	x23, x24, [x0], #0x10 \n\t"
-		"stp	x25, x26, [x0], #0x10 \n\t"
-		"stp	x27, x28, [x0], #0x10 \n\t"
-		"stp	x29, x30, [x0], #0x10 \n\t"
-
-		/* sp, pc(lr) */
-		/* NOTE: To fake a simulator or other snapshot based debugging tools.
-		* Using a sp, pc of the caller makes to increase poissbility of
-		* unwinding stacks.
-		*/
-		"add	x29, sp, #0x30 \n\t"
-		"stp	x29, x30, [x0], #0x10 \n\t"
+		/* x0 ~ x28 */
+		"stp	x0, x1, [x0] \n\t"
+		"stp	x2, x3, [x0, #0x10] \n\t"
+		"stp	x4, x5, [x0, #0x20] \n\t"
+		"stp	x6, x7, [x0, #0x30] \n\t"
+		"stp	x8, x9, [x0, #0x40] \n\t"
+		"stp	x10, x11, [x0, #0x50] \n\t"
+		"stp	x12, x13, [x0, #0x60] \n\t"
+		"stp	x14, x15, [x0, #0x70] \n\t"
+		"stp	x16, x17, [x0, #0x80] \n\t"
+		"stp	x18, x19, [x0, #0x90] \n\t"
+		"stp	x20, x21, [x0, #0xA0] \n\t"
+		"stp	x22, x23, [x0, #0xB0] \n\t"
+		"stp	x24, x25, [x0, #0xC0] \n\t"
+		"stp	x26, x27, [x0, #0xD0] \n\t"
+		"str	x28, [x0, #0xE0] \n\t"
 
 		/* pstate */
 		"mrs	x1, nzcv \n\t"
@@ -100,17 +88,9 @@ void __naked __ap_context_save_core_regs_on_current(struct pt_regs *regs)
 		"mrs	x4, spsel \n\t"
 		"bic	x4, x4, #0xFFFFFFFFFFFFFFFE \n\t"
 		"orr	x1, x1, x4 \n\t"
-		"str	x1, [x0] \n\t"
-
-		/* x0 */
-		"ldp	x0, x29, [sp, #0x20] \n\t"
-		"str	x0, [x0] \n\t"
-
+		"str	x1, [x0, #0x108] \n\t"
 		"ldp	x3, x4, [sp, #0x10] \n\t"
-		"ldp	x1, x2, [sp], #0x30 \n\t"
-
-		/* restore lr */
-		"ldr	x30, [x0, #0xF0] \n\t"
+		"ldp	x1, x2, [sp], #0x20 \n\t"
 		"ret \n\t"
 	);
 }
@@ -223,7 +203,9 @@ static int __ap_context_alloc_client(struct builder *bd)
 		return -EBUSY;
 
 	client = sec_dbg_region_alloc(drvdata->unique_id, size);
-	if (!client)
+	if (PTR_ERR(client) == -EBUSY)
+		return -EPROBE_DEFER;
+	else if (IS_ERR_OR_NULL(client))
 		return -ENOMEM;
 
 	client->name = drvdata->name;
@@ -316,17 +298,18 @@ static void __ap_context_unregister_vh(struct builder *bd)
 static __always_inline void __ap_context_hack_core_regs_for_panic(
 		struct pt_regs *regs)
 {
-	uint64_t *fp;
-
 	/* FIXME: stack is corrupted by another callees of 'panic'. */
-	fp = (uint64_t *)regs->regs[29];
-	regs->regs[29] = fp[0];
-	regs->sp = fp[0];	/* maybe incorrect value */
-	regs->pc = PAGE_OFFSET | fp[1];
+	regs->sp = (uintptr_t)__builtin_frame_address(3);
+	regs->regs[29] = (uintptr_t)__builtin_frame_address(3);
+	regs->regs[30] = (uintptr_t)__builtin_return_address(2) - AARCH64_INSN_SIZE;
+	regs->pc = (uintptr_t)__builtin_return_address(2) - AARCH64_INSN_SIZE;
 }
 
 static int __used __sec_arm64_ap_context_on_panic(struct pt_regs *regs)
 {
+	/* NOTE: x0 MUST BE SAVED before this function is called.
+	 * see, 'sec_arm64_ap_context_on_panic'.
+	 */
 	struct notifier_block *this = (void *)regs->regs[0];
 	struct ap_context_drvdata *drvdata =
 			container_of(this, struct ap_context_drvdata, nb_panic);
@@ -366,26 +349,21 @@ static int __naked sec_arm64_ap_context_on_panic(struct notifier_block *nb,
 		"mov	x0, sp \n\t"
 		"bl	__ap_context_save_core_regs_on_current \n\t"
 
-		/* x0, x30 registers */
-		"ldp	x0, x30, [sp, %0] \n\t"
+		/* save 'x0' on 'struct pt_regs' before calling
+		 * '__sec_arm64_ap_context_on_panic'
+		 */
+		"ldr	x0, [sp, %0] \n\t"
 		"str	x0, [sp] \n\t"
-		"str	x30, [sp, %1] \n\t"
-
-		/* sp, pc : use the previous sp and the current lr */
-		"add	x0, sp, %0 \n\t"
-		"add	x0, x0, #0x10 \n\t"
-		"stp	x0, x30, [sp, %2] \n\t"
 
 		/* concrete notifier */
 		"mov	x0, sp \n\t"
 		"bl	__sec_arm64_ap_context_on_panic \n\t"
+
 		"add	sp, sp, %0 \n\t"
-		"ldp	x1, x30, [sp], #0x10 \n\t"
+		"ldp	x0, x30, [sp], #0x10 \n\t"
 		"ret \n\t"
 		:
-		: "i"(sizeof(struct pt_regs)),
-		  "i"(offsetof(struct pt_regs, regs[30])),
-		  "i"(offsetof(struct pt_regs, sp))
+		: "i"(sizeof(struct pt_regs))
 		:
 	);
 }
@@ -461,6 +439,17 @@ static void __ap_context_unregister_die_notifier(struct builder *bd)
 	unregister_die_notifier(nb);
 }
 
+static int __ap_context_probe_epilog(struct builder *bd)
+{
+	struct ap_context_drvdata *drvdata =
+			container_of(bd, struct ap_context_drvdata, bd);
+	struct device *dev = bd->dev;
+
+	dev_set_drvdata(dev, drvdata);
+
+	return 0;
+}
+
 static int __ap_context_probe(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
@@ -494,6 +483,7 @@ static const struct dev_builder __ap_context_dev_builder[] = {
 		       __ap_context_unregister_panic_notifier),
 	DEVICE_BUILDER(__ap_context_register_die_notifier,
 		       __ap_context_unregister_die_notifier),
+	DEVICE_BUILDER(__ap_context_probe_epilog, NULL),
 };
 
 static int sec_ap_context_probe(struct platform_device *pdev)
@@ -525,23 +515,9 @@ static struct platform_driver sec_ap_context_driver = {
 
 static int __init sec_ap_context_init(void)
 {
-	int err;
-
-	err = platform_driver_register(&sec_ap_context_driver);
-	if (err)
-		return err;
-
-	err = __of_platform_early_populate_init(sec_ap_context_match_table);
-	if (err)
-		return err;
-
-	return 0;
+	return platform_driver_register(&sec_ap_context_driver);
 }
-#if IS_BUILTIN(CONFIG_SEC_ARM64_AP_CONTEXT)
-arch_initcall_sync(sec_ap_context_init);
-#else
-module_init(sec_ap_context_init);
-#endif
+arch_initcall(sec_ap_context_init);
 
 static void __exit sec_ap_context_exit(void)
 {
@@ -550,5 +526,5 @@ static void __exit sec_ap_context_exit(void)
 module_exit(sec_ap_context_exit);
 
 MODULE_AUTHOR("Samsung Electronics");
-MODULE_DESCRIPTION("AP CORE/MMU context snaphot");
+MODULE_DESCRIPTION("AP CORE/MMU context snaphot (ARM64)");
 MODULE_LICENSE("GPL v2");

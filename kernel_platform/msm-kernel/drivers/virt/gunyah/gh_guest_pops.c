@@ -91,13 +91,31 @@ static int __init gh_guest_pops_init_poff(void)
 	input_set_capability(gh_vm_poff_input, EV_KEY, KEY_POWER);
 
 	ret = input_register_device(gh_vm_poff_input);
-	if (ret)
-		goto fail_register;
+	if (ret) {
+		input_free_device(gh_vm_poff_input);
+		return ret;
+	}
 
 	rm_nb.notifier_call = gh_guest_pops_rm_notifer_fn;
 	ret = gh_rm_register_notifier(&rm_nb);
+	if (ret) {
+		input_unregister_device(gh_vm_poff_input);
+		return ret;
+	}
+
+	return 0;
+}
+
+static ssize_t gh_guest_set_app_status(struct kobject *kobj,
+	struct kobj_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	int ret = 0;
+	u16 app_status;
+
+	ret = kstrtou16(buf, 0, &app_status);
 	if (ret)
-		goto fail_init;
 
 	return 0;
 
@@ -187,7 +205,6 @@ static void gh_guest_pops_exit_poff(void)
 	gh_rm_unregister_notifier(&rm_nb);
 
 	input_unregister_device(gh_vm_poff_input);
-	input_free_device(gh_vm_poff_input);
 }
 
 static int __init gh_guest_pops_init(void)

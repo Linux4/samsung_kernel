@@ -159,7 +159,7 @@
 
     <!-- Factory Scenario -->
     <path name="loopback-usb-headset-gain">
-        <ctl name="Headset Playback Volume" value="104 104" />
+        <ctl name="Headset Playback Volume" value="89 89" />
     </path>
 
     <path name="loopback-main-mic-gain">

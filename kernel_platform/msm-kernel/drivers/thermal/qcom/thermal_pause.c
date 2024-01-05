@@ -14,6 +14,10 @@
 #include <linux/suspend.h>
 #include <linux/cpumask.h>
 #include <linux/sched/walt.h>
+#include "thermal_zone_internal.h"
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+#include <linux/sec_pm_log.h>
+#endif
 
 enum thermal_pause_levels {
 	THERMAL_NO_CPU_PAUSE,
@@ -24,6 +28,8 @@ enum thermal_pause_levels {
 };
 
 #define THERMAL_PAUSE_RETRY_COUNT 5
+
+/* minimum 160mS of time to allow for retry mechanism */
 #define DELAYED_WORK_TICKS 2
 #define THERMAL_PAUSE_DELAYED_RETRY_COUNT 20
 
@@ -102,7 +108,7 @@ static int thermal_pause_work(struct thermal_pause_cdev *thermal_pause_cdev)
 
 	cpumask_copy(&cpus_to_pause, &thermal_pause_cdev->cpu_mask);
 	pr_debug("Pause:%*pbl\n", cpumask_pr_args(&thermal_pause_cdev->cpu_mask));
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 	ss_thermal_print("Pause:%*pbl\n", cpumask_pr_args(&thermal_pause_cdev->cpu_mask));
 #endif
 
@@ -142,7 +148,7 @@ static int thermal_resume_work(struct thermal_pause_cdev *thermal_pause_cdev)
 
 	cpumask_copy(&cpus_to_unpause, &thermal_pause_cdev->cpu_mask);
 	pr_debug("Unpause:%*pbl\n", cpumask_pr_args(&cpus_to_unpause));
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
 	ss_thermal_print("Unpause:%*pbl\n", cpumask_pr_args(&thermal_pause_cdev->cpu_mask));
 #endif
 
@@ -236,7 +242,7 @@ retry:
 		retcnt = THERMAL_PAUSE_RETRY_COUNT;
 		goto retry;
 	}
- 
+
 	if (ret < 0) {
 		/* after local retries, still failed.  queue delayed work */
 		if (thermal_pause_cdev->delayed_work_retries > 0) {
@@ -384,6 +390,13 @@ static int thermal_pause_probe(struct platform_device *pdev)
 	unsigned long mask = 0;
 	const char *alias;
 
+	/*
+	 * cpu pause is first thermal cooling device driver
+	 * which modeprobe in early boot up, hence just register
+	 * for vendor hook to disable cooling stats
+	 */
+	thermal_vendor_hooks_init();
+
 	INIT_LIST_HEAD(&thermal_pause_cdev_list);
 	cpumask_clear(&cpus_in_max_cooling_level);
 
@@ -427,6 +440,7 @@ static int thermal_pause_probe(struct platform_device *pdev)
 		thermal_pause_cdev->thermal_pause_level = false;
 		thermal_pause_cdev->cdev = NULL;
 		thermal_pause_cdev->np = subsys_np;
+		thermal_pause_cdev->delayed_work_retries = -1;
 		cpumask_copy(&thermal_pause_cdev->cpu_mask, &cpu_mask);
 
 		INIT_WORK(&thermal_pause_cdev->reg_work, thermal_pause_register_cdev);
@@ -448,6 +462,8 @@ static int thermal_pause_remove(struct platform_device *pdev)
 {
 	struct thermal_pause_cdev *thermal_pause_cdev = NULL, *next = NULL;
 	int ret = 0;
+
+	thermal_vendor_hooks_exit();
 
 	if (cpu_hp_online) {
 		cpuhp_remove_state_nocalls(cpu_hp_online);

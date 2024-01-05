@@ -19,6 +19,9 @@
 static struct kobject c1dcvs_kobj;
 static struct scmi_protocol_handle *ph;
 const static struct scmi_c1dcvs_vendor_ops *ops;
+static unsigned int user_c1dcvs_en;
+static unsigned int kernel_c1dcvs_en;
+static DEFINE_MUTEX(c1dcvs_lock);
 
 struct qcom_c1dcvs_attr {
 	struct attribute		attr;
@@ -70,13 +73,64 @@ static ssize_t show_##name(struct kobject *kobj,			\
 	return scnprintf(buf, PAGE_SIZE, "%lu\n", le32_to_cpu(var));	\
 }									\
 
+/*
+ * Must hold c1dcvs_lock before calling this function
+ */
+static int update_enable_c1dcvs(void)
+{
+	unsigned int enable = min(user_c1dcvs_en, kernel_c1dcvs_en);
+
+	if (!ops)
+		return -ENODEV;
+
+	return ops->set_enable_c1dcvs(ph, &enable);
+}
+
+static ssize_t store_enable_c1dcvs(struct kobject *kobj,
+				  struct attribute *attr, const char *buf,
+				  size_t count)
+{
+	unsigned int var;
+	int ret;
+
+	if (!ops)
+		return -ENODEV;
+
+	ret = kstrtouint(buf, 10, &var);
+	if (ret < 0)
+		return ret;
+
+	mutex_lock(&c1dcvs_lock);
+	user_c1dcvs_en = var;
+	ret = update_enable_c1dcvs();
+	mutex_unlock(&c1dcvs_lock);
+
+	return ((ret < 0) ? ret : count);
+}
+
+int c1dcvs_enable(bool enable)
+{
+	unsigned int data = enable ? 1 : 0;
+	int ret;
+
+	if (!ops)
+		return -EPROBE_DEFER;
+
+	mutex_lock(&c1dcvs_lock);
+	kernel_c1dcvs_en = data;
+	ret = update_enable_c1dcvs();
+	mutex_unlock(&c1dcvs_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(c1dcvs_enable);
+
 store_c1dcvs_attr(enable_trace);
 show_c1dcvs_attr(enable_trace);
 C1DCVS_ATTR_RW(enable_trace);
 store_c1dcvs_attr(hysteresis);
 show_c1dcvs_attr(hysteresis);
 C1DCVS_ATTR_RW(hysteresis);
-store_c1dcvs_attr(enable_c1dcvs);
 show_c1dcvs_attr(enable_c1dcvs);
 C1DCVS_ATTR_RW(enable_c1dcvs);
 
@@ -86,24 +140,32 @@ static ssize_t store_##name(struct kobject *kobj,			\
 				   size_t count)			\
 {									\
 	int ret, i = 0;							\
-	char *s = kstrdup(buf, GFP_KERNEL);				\
-	unsigned int msg[2];						\
+	char *s;						\
+	unsigned int msg[2] = {0};						\
 	char *str;							\
-									\
-	if (!ops)							\
-		return -ENODEV;						\
+										\
+	s = kstrdup(buf, GFP_KERNEL);					\
+	if (!s)		\
+		return -ENOMEM;		\
+	if (!ops) {						\
+		ret = -ENODEV;		\
+		goto out;						\
+	}		\
 									\
 	while (((str = strsep(&s, " ")) != NULL) && i < 2) {		\
 		ret = kstrtouint(str, 10, &msg[i]);			\
 		if (ret < 0) {						\
 			pr_err("Invalid value :%d\n", ret);		\
-			return -EINVAL;					\
+			ret =  -EINVAL;					\
+			goto out;		\
 		}							\
 		i++;							\
 	}								\
 									\
 	pr_info("Input threshold :%lu for cluster :%lu\n", msg[1], msg[0]);\
 	ret = ops->set_##name(ph, msg);				\
+out:		\
+	kfree(s);		\
 	return ((ret < 0) ? ret : count);				\
 }									\
 
@@ -196,15 +258,16 @@ static int scmi_c1dcvs_probe(struct scmi_device *sdev)
 		return -ENODEV;
 
 	ops = sdev->handle->devm_get_protocol(sdev, SCMI_C1DCVS_PROTOCOL, &ph);
-	if (!ops)
-		return -ENODEV;
-
+	if (IS_ERR(ops))
+		return PTR_ERR(ops);
 	ret = kobject_init_and_add(&c1dcvs_kobj, &c1dcvs_settings_ktype,
 				   &cpu_subsys.dev_root->kobj, "c1dcvs");
 	if (ret < 0) {
 		pr_err("failed to init c1 dcvs kobj: %d\n", ret);
 		kobject_put(&c1dcvs_kobj);
 	}
+
+	user_c1dcvs_en = kernel_c1dcvs_en = 1;
 
 	return 0;
 }

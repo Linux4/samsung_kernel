@@ -102,7 +102,7 @@ Return<int32_t> AGMCallback::event_callback_rw_done(uint32_t session_id,
     buffer->size = rw_payload_hidl->buff.size;
     allochandle = rw_payload_hidl->buff.alloc_info.alloc_handle.handle();
     buffer->alloc_info.alloc_handle = allochandle->data[1];
-    ALOGE("alloc handleinput[0] %d and input[1] %d ", allochandle->data[0], allochandle->data[1]);
+    ALOGV("alloc handleinput[0] %d and input[1] %d ", allochandle->data[0], allochandle->data[1]);
     buffer->alloc_info.alloc_size = rw_payload_hidl->buff.alloc_info.alloc_size;
     buffer->alloc_info.offset = rw_payload_hidl->buff.alloc_info.offset;
 
