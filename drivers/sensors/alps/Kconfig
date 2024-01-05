@@ -1,0 +1,30 @@
+#
+# Sensors core device.
+#
+config SENSORS_ALPS
+	bool "ALPS Sensor"
+	default n
+	help
+	 This option enables alps sensors
+
+config SENSORS_ALPS_CORE
+	depends on SENSORS_ALPS
+	tristate "sensors core for alps sensors"
+	default n
+	help
+	  Say Y here to enable debugging messages for power supply class
+	  and drivers.
+
+config SENSORS_HSCD
+	depends on I2C && SENSORS_ALPS
+	tristate "hscd alps mag"
+	default n
+	help
+	  This option enables hscd alps mag driver
+
+config SENSORS_HSCDTD008A
+	depends on I2C && SENSORS_ALPS
+	tristate "hscd alps HSCDTD008A"
+	default n
+	help
+	  This option enables hscd alps HSCDTD008A mag driver

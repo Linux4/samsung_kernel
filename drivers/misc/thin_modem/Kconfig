@@ -1,0 +1,29 @@
+menuconfig THIN_MODEM
+	bool "HSIC I/F for Ericsson, Samsung"
+	default n
+
+if THIN_MODEM
+
+config SEC_MODEM_ERICSSON
+	bool "ERICSSON HSIC feature"
+	default n
+	select LTE_MODEM_M74XX
+	select LINK_DEVICE_HSIC
+
+comment "Select Link Devices"
+
+config LTE_MODEM_M74XX
+	bool "modem chip : ERICSSON M74XX"
+	default n
+
+config LINK_DEVICE_HSIC
+	bool "modem driver link device HSIC"
+	default n
+
+endif
+
+if LINK_DEVICE_HSIC
+config EHCI_MODEM_PORTNUM
+	int "EHCI port number for modem connection"
+	default 2
+endif

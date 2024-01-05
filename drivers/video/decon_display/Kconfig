@@ -1,0 +1,19 @@
+config FB_HIBERNATION_DISPLAY
+	bool "FB Hibernation Display MODE"
+	depends on FB_I80_COMMAND_MODE
+	default n
+
+config FB_HIBERNATION_DISPLAY_CLOCK_GATING
+	bool "Support clock-gating"
+	depends on FB_HIBERNATION_DISPLAY
+	default y
+
+config FB_HIBERNATION_DISPLAY_POWER_GATING
+	bool "Support power-gating"
+	depends on FB_HIBERNATION_DISPLAY_CLOCK_GATING
+	default n
+
+config FB_HIBERNATION_DISPLAY_POWER_GATING_DEEPSTOP
+	bool "Support power-gating with deep-stop"
+	depends on FB_HIBERNATION_DISPLAY_POWER_GATING
+	default n
