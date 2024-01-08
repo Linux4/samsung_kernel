@@ -628,9 +628,15 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d Miid:%d",
+                      mfcConf->sampling_rate, mfcConf->bit_width,
+                      mfcConf->num_channels, header->module_instance_id);
+#else
     PAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d Miid:%d",
                       mfcConf->sampling_rate, mfcConf->bit_width,
                       mfcConf->num_channels, header->module_instance_id);
+#endif
     PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
                 *size);
 }

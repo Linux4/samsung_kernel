@@ -1530,6 +1530,7 @@ enum qdf_suspend_type {
  * when already connected
  * @QDF_STATS_REQ_TIMEDOUT: Stats request timedout
  * @QDF_TX_DESC_LEAK: tx desc leak
+ * @QDF_SCHED_TIMEOUT: Scheduler watchdog timedout
  */
 enum qdf_hang_reason {
 	QDF_REASON_UNSPECIFIED,
@@ -1561,6 +1562,7 @@ enum qdf_hang_reason {
 	QDF_VDEV_SM_OUT_OF_SYNC,
 	QDF_STATS_REQ_TIMEDOUT,
 	QDF_TX_DESC_LEAK,
+	QDF_SCHED_TIMEOUT,
 };
 
 /**

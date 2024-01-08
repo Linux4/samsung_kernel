@@ -23,6 +23,7 @@ typedef struct stk6d2x_wrapper
 	struct i2c_manager      i2c_mgr;
 	stk6d2x_data            alps_data;
 	struct device           *dev;
+	struct device           *sensor_dev;
 #ifdef SUPPORT_SENSOR_CLASS
 	struct sensors_classdev als_cdev;
 #endif

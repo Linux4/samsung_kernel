@@ -701,6 +701,12 @@
 	thermal_zones: thermal-zones {
 	};
 
+	ddr_bwprofiler {
+		compatible = "qcom,ddr_bwprofiler";
+		clocks = <&aoss_qmp QDSS_CLK>;
+		clock-names = "qdss_clk";
+	};
+
 	qupv3_id_1: geniqup@8c0000 {
 		compatible = "qcom,geni-se-qup";
 		reg = <0xac0000 0x6000>;

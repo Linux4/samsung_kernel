@@ -142,7 +142,12 @@ int max77705_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 	}
 	mutex_unlock(&max77705->i2c_lock);
 	if (ret < 0) {
-		pr_info("%s:%s reg(0x%x), ret(%d)\n", MFD_DEV_NAME, __func__, reg, ret);
+		pr_info("%s:%s reg(0x%x), ret(%d) suspended(%d)\n",
+			MFD_DEV_NAME, __func__, reg, ret, max77705->suspended);
+
+		if (max77705->suspended)
+			return ret;
+
 #if defined(CONFIG_USB_HW_PARAM)
 		if (o_notify)
 			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
@@ -183,6 +188,10 @@ int max77705_bulk_read(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 	}
 	mutex_unlock(&max77705->i2c_lock);
 	if (ret < 0) {
+
+		if (max77705->suspended)
+			return ret;
+
 #if defined(CONFIG_USB_HW_PARAM)
 		if (o_notify)
 			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
@@ -219,22 +228,24 @@ int max77705_read_word(struct i2c_client *i2c, u8 reg)
 			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
 	}
 	mutex_unlock(&max77705->i2c_lock);
-#if defined(CONFIG_USB_HW_PARAM)
 	if (ret < 0) {
+
+		if (max77705->suspended)
+			return ret;
+
+#if defined(CONFIG_USB_HW_PARAM)
 		if (o_notify)
 			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
-	}
 #endif
 
 #if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_ABC_IFPMIC_EVENT)
-	if (ret < 0)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 		sec_abc_send_event("MODULE=pdic@INFO=i2c_fail");
 #else
 		sec_abc_send_event("MODULE=pdic@WARN=i2c_fail");
 #endif
 #endif
-
+	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(max77705_read_word);
@@ -271,26 +282,32 @@ int max77705_write_reg(struct i2c_client *i2c, u8 reg, u8 value)
 			timeout -= interval;
 		}
 	}
+
+	if (ret < 0) {
+
+		if (max77705->suspended)
+			return ret;
+
 #if defined(CONFIG_USB_HW_PARAM)
-	if (o_notify && ret < 0)
-		inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
+		if (o_notify)
+			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
 #endif
 
 #if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_ABC_IFPMIC_EVENT)
-	if (ret < 0)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 		sec_abc_send_event("MODULE=pdic@INFO=i2c_fail");
 #else
 		sec_abc_send_event("MODULE=pdic@WARN=i2c_fail");
 #endif
 #endif
-
+	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(max77705_write_reg);
 
 int max77705_write_reg_nolock(struct i2c_client *i2c, u8 reg, u8 value)
 {
+	struct max77705_dev *max77705 = i2c_get_clientdata(i2c);
 #if defined(CONFIG_USB_HW_PARAM)
 	struct otg_notify *o_notify = get_otg_notify();
 #endif
@@ -312,19 +329,24 @@ int max77705_write_reg_nolock(struct i2c_client *i2c, u8 reg, u8 value)
 			timeout -= interval;
 		}
 	}
+	if (ret < 0) {
+
+		if (max77705->suspended)
+			return ret;
+
 #if defined(CONFIG_USB_HW_PARAM)
-	if (o_notify && ret < 0)
-		inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
+		if (o_notify)
+			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
 #endif
 
 #if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_ABC_IFPMIC_EVENT)
-	if (ret < 0)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 		sec_abc_send_event("MODULE=pdic@INFO=i2c_fail");
 #else
 		sec_abc_send_event("MODULE=pdic@WARN=i2c_fail");
 #endif
 #endif
+	}
 
 	return ret;
 }
@@ -362,19 +384,24 @@ int max77705_bulk_write(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 			timeout -= interval;
 		}
 	}
+	if (ret < 0) {
+
+		if (max77705->suspended)
+			return ret;
+
 #if defined(CONFIG_USB_HW_PARAM)
-	if (o_notify && ret < 0)
-		inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
+		if (o_notify)
+			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
 #endif
 
 #if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_ABC_IFPMIC_EVENT)
-	if (ret < 0)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 		sec_abc_send_event("MODULE=pdic@INFO=i2c_fail");
 #else
 		sec_abc_send_event("MODULE=pdic@WARN=i2c_fail");
 #endif
 #endif
+	}
 
 	return ret;
 }
@@ -397,7 +424,12 @@ int max77705_write_word(struct i2c_client *i2c, u8 reg, u16 value)
 			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
 	}
 	mutex_unlock(&max77705->i2c_lock);
+
 	if (ret < 0) {
+
+		if (max77705->suspended)
+			return ret;
+
 #if defined(CONFIG_USB_HW_PARAM)
 		if (o_notify)
 			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
@@ -410,10 +442,9 @@ int max77705_write_word(struct i2c_client *i2c, u8 reg, u16 value)
 		sec_abc_send_event("MODULE=pdic@WARN=i2c_fail");
 #endif
 #endif
-
-		return ret;
 	}
-	return 0;
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(max77705_write_word);
 
@@ -434,13 +465,9 @@ int max77705_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask)
 		pr_info("%s:%s read reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
 			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
 	}
-	if (ret < 0) {
-#if defined(CONFIG_USB_HW_PARAM)
-		if (o_notify)
-			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
-#endif
+	if (ret < 0)
 		goto err;
-	}
+
 	if (ret >= 0) {
 		old_val = ret & 0xff;
 		new_val = (val & mask) | (old_val & (~mask));
@@ -451,24 +478,31 @@ int max77705_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask)
 			pr_info("%s:%s write reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
 				MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
 		}
-		if (ret < 0) {
-#if defined(CONFIG_USB_HW_PARAM)
-			if (o_notify)
-				inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
-#endif
+		if (ret < 0)
 			goto err;
-		}
 	}
 err:
 	mutex_unlock(&max77705->i2c_lock);
+
+	if (ret < 0) {
+
+		if (max77705->suspended)
+			return ret;
+
+#if defined(CONFIG_USB_HW_PARAM)
+		if (o_notify)
+			inc_hw_param(o_notify, USB_CCIC_I2C_ERROR_COUNT);
+#endif
+
 #if IS_ENABLED(CONFIG_SEC_ABC) && IS_ENABLED(CONFIG_ABC_IFPMIC_EVENT)
-	if (ret < 0)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 		sec_abc_send_event("MODULE=pdic@INFO=i2c_fail");
 #else
 		sec_abc_send_event("MODULE=pdic@WARN=i2c_fail");
 #endif
 #endif
+	}
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(max77705_update_reg);

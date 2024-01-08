@@ -31,40 +31,8 @@
 #define TRUE 1
 #endif
 
-char rear_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-char front_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-char front2_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-#endif
-
-#if defined(CONFIG_SAMSUNG_FRONT_TOP)
-#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
-char front3_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-#else
-char front2_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-#endif
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_DUAL)
-char rear2_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
-char rear3_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
-char rear4_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-#endif
-
-#if defined(CONFIG_SAMSUNG_REAR_TOF)
-char rear_tof_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-#endif
-
-#if defined(CONFIG_SAMSUNG_FRONT_TOF)
-char front_tof_cam_cal_check[SYSFS_FW_VER_SIZE] = "NULL";
-#endif
+char cam_cal_check[MAX_EEP_CAMID][SYSFS_FW_VER_SIZE] = { "NULL", "NULL", "NULL", "NULL", "NULL", "NULL", "NULL"};
+char camera_info[MAX_EEP_CAMID][10] = { "Rear", "Front", "Rear2", "Rear3", "Rear4", "Front2", "Front3"};
 
 #if defined(CONFIG_SAMSUNG_REAR_BOKEH)
 char bokeh_module_fw_ver[FROM_MODULE_FW_INFO_SIZE+1];
@@ -1136,23 +1104,23 @@ static int cam_sec_eeprom_module_info_set_load_version(int rev, struct cam_eepro
 					bokeh_module_fw_ver[10]);
 		}
 		ConfIdx = ADDR_CUSTOM_SENSOR_ID;
-		memset(rear3_sensor_id,0x00,sizeof(rear3_sensor_id));
+		memset(sensor_id[EEP_REAR3],0x00,sizeof(sensor_id[EEP_REAR3]));
 		if (isValidIdx(ConfIdx, &ConfAddr) == 1)
 		{
-			memcpy(rear3_sensor_id, &e_ctrl->cal_data.mapdata[ConfAddr], FROM_SENSOR_ID_SIZE);
-			rear3_sensor_id[FROM_SENSOR_ID_SIZE] = '\0';
+			memcpy(sensor_id[EEP_REAR3], &e_ctrl->cal_data.mapdata[ConfAddr], FROM_SENSOR_ID_SIZE);
+			sensor_id[EEP_REAR3][FROM_SENSOR_ID_SIZE] = '\0';
 			CAM_DBG(CAM_EEPROM,
 					"[BOKEH]%s sensor_id = %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
 					mInfo->typeStr,
-					rear3_sensor_id[0], rear3_sensor_id[1], rear3_sensor_id[2], rear3_sensor_id[3],
-					rear3_sensor_id[4], rear3_sensor_id[5], rear3_sensor_id[6], rear3_sensor_id[7],
-					rear3_sensor_id[8], rear3_sensor_id[9], rear3_sensor_id[10], rear3_sensor_id[11],
-					rear3_sensor_id[12], rear3_sensor_id[13], rear3_sensor_id[14], rear3_sensor_id[15]);
+					sensor_id[EEP_REAR3][0], sensor_id[EEP_REAR3][1], sensor_id[EEP_REAR3][2], sensor_id[EEP_REAR3][3],
+					sensor_id[EEP_REAR3][4], sensor_id[EEP_REAR3][5], sensor_id[EEP_REAR3][6], sensor_id[EEP_REAR3][7],
+					sensor_id[EEP_REAR3][8], sensor_id[EEP_REAR3][9], sensor_id[EEP_REAR3][10], sensor_id[EEP_REAR3][11],
+					sensor_id[EEP_REAR3][12], sensor_id[EEP_REAR3][13], sensor_id[EEP_REAR3][14], sensor_id[EEP_REAR3][15]);
 		}
 	}
 	//fill rear3 fw info
-	sprintf(rear3_fw_ver, "%s %s\n", bokeh_module_fw_ver, bokeh_module_fw_ver);
-	sprintf(rear3_fw_full_ver, "%s %s %s\n", bokeh_module_fw_ver, bokeh_module_fw_ver,bokeh_module_fw_ver);
+	sprintf(cam_fw_ver[EEP_REAR3], "%s %s\n", bokeh_module_fw_ver, bokeh_module_fw_ver);
+	sprintf(cam_fw_full_ver[EEP_REAR3], "%s %s %s\n", bokeh_module_fw_ver, bokeh_module_fw_ver,bokeh_module_fw_ver);
 #endif
 
 #if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
@@ -1172,24 +1140,24 @@ static int cam_sec_eeprom_module_info_set_load_version(int rev, struct cam_eepro
 		}
 
 		ConfIdx = ADDR_M_SENSOR_ID;
-		memset(rear3_sensor_id, 0x00, sizeof(rear3_sensor_id));
+		memset(sensor_id[EEP_REAR3], 0x00, sizeof(sensor_id[EEP_REAR3]));
 		if (isValidIdx(ConfIdx, &ConfAddr) == 1)
 		{
-			memcpy(rear3_sensor_id, &e_ctrl->cal_data.mapdata[ConfAddr], FROM_SENSOR_ID_SIZE);
-			rear3_sensor_id[FROM_SENSOR_ID_SIZE] = '\0';
+			memcpy(sensor_id[EEP_REAR3], &e_ctrl->cal_data.mapdata[ConfAddr], FROM_SENSOR_ID_SIZE);
+			sensor_id[EEP_REAR3][FROM_SENSOR_ID_SIZE] = '\0';
 			CAM_DBG(CAM_EEPROM,
 					"[TRIPLE]%s sensor_id = %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
 					mInfo->typeStr,
-					rear3_sensor_id[0], rear3_sensor_id[1], rear3_sensor_id[2], rear3_sensor_id[3],
-					rear3_sensor_id[4], rear3_sensor_id[5], rear3_sensor_id[6], rear3_sensor_id[7],
-					rear3_sensor_id[8], rear3_sensor_id[9], rear3_sensor_id[10], rear3_sensor_id[11],
-					rear3_sensor_id[12], rear3_sensor_id[13], rear3_sensor_id[14], rear3_sensor_id[15]);
+					sensor_id[EEP_REAR3][0], sensor_id[EEP_REAR3][1], sensor_id[EEP_REAR3][2], sensor_id[EEP_REAR3][3],
+					sensor_id[EEP_REAR3][4], sensor_id[EEP_REAR3][5], sensor_id[EEP_REAR3][6], sensor_id[EEP_REAR3][7],
+					sensor_id[EEP_REAR3][8], sensor_id[EEP_REAR3][9], sensor_id[EEP_REAR3][10], sensor_id[EEP_REAR3][11],
+					sensor_id[EEP_REAR3][12], sensor_id[EEP_REAR3][13], sensor_id[EEP_REAR3][14], sensor_id[EEP_REAR3][15]);
 		}
 	}
 
 	//fill rear3 fw info
-	sprintf(rear3_fw_ver, "%s %s\n", rear3_module_fw_ver, rear3_module_fw_ver);
-	sprintf(rear3_fw_full_ver, "%s %s %s\n", rear3_module_fw_ver, rear3_module_fw_ver, rear3_module_fw_ver);
+	sprintf(cam_fw_ver[EEP_REAR3], "%s %s\n", rear3_module_fw_ver, rear3_module_fw_ver);
+	sprintf(cam_fw_full_ver[EEP_REAR3], "%s %s %s\n", rear3_module_fw_ver, rear3_module_fw_ver, rear3_module_fw_ver);
 #endif
 
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
@@ -1209,24 +1177,24 @@ static int cam_sec_eeprom_module_info_set_load_version(int rev, struct cam_eepro
 		}
 
 		ConfIdx = ADDR_M_SENSOR_ID;
-		memset(rear4_sensor_id, 0x00, sizeof(rear4_sensor_id));
+		memset(sensor_id[EEP_REAR4], 0x00, sizeof(sensor_id[EEP_REAR4]));
 		if (isValidIdx(ConfIdx, &ConfAddr) == 1)
 		{
-			memcpy(rear4_sensor_id, &e_ctrl->cal_data.mapdata[ConfAddr], FROM_SENSOR_ID_SIZE);
-			rear4_sensor_id[FROM_SENSOR_ID_SIZE] = '\0';
+			memcpy(sensor_id[EEP_REAR4], &e_ctrl->cal_data.mapdata[ConfAddr], FROM_SENSOR_ID_SIZE);
+			sensor_id[EEP_REAR4][FROM_SENSOR_ID_SIZE] = '\0';
 			CAM_DBG(CAM_EEPROM,
 					"[TRIPLE]%s sensor_id = %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
 					mInfo->typeStr,
-					rear4_sensor_id[0], rear4_sensor_id[1], rear4_sensor_id[2], rear4_sensor_id[3],
-					rear4_sensor_id[4], rear4_sensor_id[5], rear4_sensor_id[6], rear4_sensor_id[7],
-					rear4_sensor_id[8], rear4_sensor_id[9], rear4_sensor_id[10], rear4_sensor_id[11],
-					rear4_sensor_id[12], rear4_sensor_id[13], rear4_sensor_id[14], rear4_sensor_id[15]);
+					sensor_id[EEP_REAR4][0], sensor_id[EEP_REAR4][1], sensor_id[EEP_REAR4][2], sensor_id[EEP_REAR4][3],
+					sensor_id[EEP_REAR4][4], sensor_id[EEP_REAR4][5], sensor_id[EEP_REAR4][6], sensor_id[EEP_REAR4][7],
+					sensor_id[EEP_REAR4][8], sensor_id[EEP_REAR4][9], sensor_id[EEP_REAR4][10], sensor_id[EEP_REAR4][11],
+					sensor_id[EEP_REAR4][12], sensor_id[EEP_REAR4][13], sensor_id[EEP_REAR4][14], sensor_id[EEP_REAR4][15]);
 		}
 	}
 
 	//fill rear4 fw info
-	sprintf(rear4_fw_ver, "%s %s\n", rear4_module_fw_ver, rear4_module_fw_ver);
-	sprintf(rear4_fw_full_ver, "%s %s %s\n", rear4_module_fw_ver, rear4_module_fw_ver, rear4_module_fw_ver);
+	sprintf(cam_fw_ver[EEP_REAR4], "%s %s\n", rear4_module_fw_ver, rear4_module_fw_ver);
+	sprintf(cam_fw_full_ver[EEP_REAR4], "%s %s %s\n", rear4_module_fw_ver, rear4_module_fw_ver, rear4_module_fw_ver);
 #endif
 
 	/* temp load version */
@@ -1741,232 +1709,57 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	switch(e_ctrl->soc_info.index)
 	{
 		case SEC_WIDE_SENSOR:
-			strlcpy(mInfo.typeStr, "Rear", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = rear_sensor_id;
-			mInfo.mVer.sensor2_id              = rear_sensor_id;
-			mInfo.mVer.module_id               = rear_module_id;
-
-			mInfo.mVer.module_info             = module_info;
-
-			mInfo.mVer.cam_cal_ack             = rear_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = rear_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = rear_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = rear_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = rear_fw_factory_ver;
-
+			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR);
+			mInfo.mVer.cam_cal_ack             = cam_cal_check[EEP_REAR];
 			break;
 
 #if defined(CONFIG_SEC_DM1Q_PROJECT)|| defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
 		case SEC_TELE_SENSOR:
-			strlcpy(mInfo.typeStr, "Rear3", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
-			mInfo.type						   = e_ctrl->soc_info.index;
-			mInfo.M_or_S					   = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id			   = rear3_sensor_id;
-			mInfo.mVer.sensor2_id			   = rear3_sensor_id;
-			mInfo.mVer.module_id			   = rear3_module_id;
-
-			mInfo.mVer.module_info			   = module3_info;
-
-			mInfo.mVer.cam_cal_ack			   = rear3_cam_cal_check;
-			mInfo.mVer.cam_fw_ver			   = rear3_fw_ver;
-			mInfo.mVer.cam_fw_full_ver		   = rear3_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver			   = rear3_fw_user_ver;
-			mInfo.mVer.fw_factory_ver		   = rear3_fw_factory_ver;
+			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR3);
+			mInfo.mVer.cam_cal_ack			   = cam_cal_check[EEP_REAR3];
 			break;
 #endif
 
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
 		case SEC_TELE2_SENSOR:
-			strlcpy(mInfo.typeStr, "Rear4", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = rear4_sensor_id;
-			mInfo.mVer.sensor2_id              = rear4_sensor_id;
-			mInfo.mVer.module_id               = rear4_module_id;
-
-			mInfo.mVer.module_info             = module4_info;
-
-			mInfo.mVer.cam_cal_ack             = rear4_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = rear4_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = rear4_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = rear4_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = rear4_fw_factory_ver;
+			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR4);
+			mInfo.mVer.cam_cal_ack             = cam_cal_check[EEP_REAR4];
 			break;
 #endif
 
 		case SEC_FRONT_SENSOR:
-			strlcpy(mInfo.typeStr, "Front", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
+			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT);
+			mInfo.mVer.cam_cal_ack             = cam_cal_check[EEP_FRONT];
 
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = front_sensor_id;
-			mInfo.mVer.sensor2_id              = front_sensor_id;
-			mInfo.mVer.module_id               = front_module_id;
-
-			mInfo.mVer.module_info             = front_module_info;
-
-			mInfo.mVer.cam_cal_ack             = front_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = front_cam_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = front_cam_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = front_cam_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = front_cam_fw_factory_ver;
 			break;
 
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 		case SEC_FRONT_AUX1_SENSOR:
-			strlcpy(mInfo.typeStr, "Front2", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = front2_sensor_id;
-			mInfo.mVer.sensor2_id              = front2_sensor_id;
-			mInfo.mVer.module_id               = front2_module_id;
-
-			mInfo.mVer.module_info             = front2_module_info;
-
-			mInfo.mVer.cam_cal_ack             = front2_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = front2_cam_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = front2_cam_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = front2_cam_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = front2_cam_fw_factory_ver;
+			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT2);
+			mInfo.mVer.cam_cal_ack             = cam_cal_check[EEP_FRONT2];
 			break;
 #endif
 
 		case SEC_ULTRA_WIDE_SENSOR:
-			strlcpy(mInfo.typeStr, "Rear2", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = rear2_sensor_id;
-			mInfo.mVer.sensor2_id              = rear2_sensor_id;
-			mInfo.mVer.module_id               = rear2_module_id;
-
-			mInfo.mVer.module_info             = module2_info;
-
-			mInfo.mVer.cam_cal_ack             = rear2_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = rear2_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = rear2_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = rear2_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = rear2_fw_factory_ver;
+			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_REAR2);
+			mInfo.mVer.cam_cal_ack             = cam_cal_check[EEP_REAR2];
 #endif
 			break;
 
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 		case SEC_FRONT_TOP_SENSOR:
-			strlcpy(mInfo.typeStr, "Front3", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = front3_sensor_id;
-			mInfo.mVer.sensor2_id              = front3_sensor_id;
-			mInfo.mVer.module_id               = front3_module_id;
-
-			mInfo.mVer.module_info             = front3_module_info;
-
-			mInfo.mVer.cam_cal_ack             = front_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = front3_cam_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = front3_cam_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = front3_cam_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = front3_cam_fw_factory_ver;
+			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT3);
+			mInfo.mVer.cam_cal_ack             = cam_cal_check[EEP_FRONT];
 			break;
 #else
 		case SEC_FRONT_TOP_SENSOR:
-			strlcpy(mInfo.typeStr, "Front2", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = front2_sensor_id;
-			mInfo.mVer.sensor2_id              = front2_sensor_id;
-			mInfo.mVer.module_id               = front2_module_id;
-
-			mInfo.mVer.module_info             = front2_module_info;
-
-			mInfo.mVer.cam_cal_ack             = front_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = front2_cam_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = front2_cam_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = front2_cam_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = front2_cam_fw_factory_ver;
+			cam_sec_eeprom_link_module_info(e_ctrl, &mInfo, EEP_FRONT2);
+			mInfo.mVer.cam_cal_ack             = cam_cal_check[EEP_FRONT];
 			break;
 #endif
 #endif
-
-#if defined(CONFIG_SAMSUNG_REAR_TOF)
-		case SEC_REAR_TOF_SENSOR:
-			strlcpy(mInfo.typeStr, "RearTof", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = rear_tof_sensor_id;
-			mInfo.mVer.sensor2_id              = rear_tof_sensor_id;
-			mInfo.mVer.module_id               = rear_tof_module_id;
-
-			mInfo.mVer.module_info             = rear_tof_module_info;
-
-			mInfo.mVer.cam_cal_ack             = rear_tof_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = rear_tof_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = rear_tof_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = rear_tof_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = rear_tof_fw_factory_ver;
-			break;
-#endif
-
-#if defined(CONFIG_SAMSUNG_FRONT_TOF)
-		case SEC_FRONT_TOF_SENSOR:
-			strlcpy(mInfo.typeStr, "FrontTof", FROM_MODULE_FW_INFO_SIZE);
-			mInfo.typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
-
-			mInfo.type                         = e_ctrl->soc_info.index;
-			mInfo.M_or_S                       = MAIN_MODULE;
-
-			mInfo.mVer.sensor_id               = front_tof_sensor_id;
-			mInfo.mVer.sensor2_id              = front_tof_sensor_id;
-			mInfo.mVer.module_id               = front2_module_id;
-
-			mInfo.mVer.module_info             = front_tof_module_info;
-
-			mInfo.mVer.cam_cal_ack             = front_tof_cam_cal_check;
-			mInfo.mVer.cam_fw_ver              = front_tof_cam_fw_ver;
-			mInfo.mVer.cam_fw_full_ver         = front_tof_cam_fw_full_ver;
-
-			mInfo.mVer.fw_user_ver             = front_tof_cam_fw_user_ver;
-			mInfo.mVer.fw_factory_ver          = front_tof_cam_fw_factory_ver;
-			break;
-#endif
-
 		default:
 			break;
 	}
@@ -2086,36 +1879,11 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE) || defined(CONFIG_SAMSUNG_REAR_QUADRA)
 #if defined(CONFIG_SEC_DM3Q_PROJECT)
 		if (SEC_TELE2_SENSOR == e_ctrl->soc_info.index)
-		{
-			if ((1 == isValidIdx(ADDR_S_DUAL_CAL, &ConfAddr))
-				&& (1 == isValidIdx(SIZE_S_DUAL_CAL, &ConfSize)))
-			{
-				if (e_ctrl->cal_data.num_data >= (ConfAddr + ConfSize))
-				{
-					mInfo.mVer.dual_cal = rear3_dual_cal;
-					mInfo.mVer.DualTilt = &rear3_dual;
-					cam_sec_eeprom_module_info_set_dual_tilt(DUAL_TILT_REAR_TELE, ADDR_S_DUAL_CAL,
-						SIZE_S_DUAL_CAL, e_ctrl->cal_data.mapdata, "rear3 tele", &mInfo);
-				}
-			}
-		}
 #elif defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_Q5Q_PROJECT)
 		if (SEC_TELE_SENSOR == e_ctrl->soc_info.index)
-		{
-			if ((1 == isValidIdx(ADDR_S_DUAL_CAL, &ConfAddr))
-				&& (1 == isValidIdx(SIZE_S_DUAL_CAL, &ConfSize)))
-			{
-				if (e_ctrl->cal_data.num_data >= (ConfAddr + ConfSize))
-				{
-					mInfo.mVer.dual_cal = rear3_dual_cal;
-					mInfo.mVer.DualTilt = &rear3_dual;
-					cam_sec_eeprom_module_info_set_dual_tilt(DUAL_TILT_REAR_TELE, ADDR_S_DUAL_CAL,
-						SIZE_S_DUAL_CAL, e_ctrl->cal_data.mapdata, "rear3 tele", &mInfo);
-				}
-			}
-		}
 #else
 		if (SEC_WIDE_SENSOR == e_ctrl->soc_info.index)
+#endif
 		{
 			if ((1 == isValidIdx(ADDR_S_DUAL_CAL, &ConfAddr))
 				&& (1 == isValidIdx(SIZE_S_DUAL_CAL, &ConfSize)))
@@ -2129,7 +1897,6 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 				}
 			}
 		}
-#endif
 #endif
 
 		CAM_DBG(CAM_EEPROM, "[CAL] index:%d valid(%d, %d)", e_ctrl->soc_info.index, isValidIdx(ADDR_M_AF, &ConfAddr), isValidIdx(ADDR_S0_AF, &ConfAddr));
@@ -2438,6 +2205,26 @@ int cam_sec_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 	return rc;
 }
 
+void cam_sec_eeprom_link_module_info(struct cam_eeprom_ctrl_t *e_ctrl, ModuleInfo_t *mInfo, eeprom_camera_id_type camera_id)
+{
+	strlcpy(mInfo->typeStr, camera_info[camera_id], FROM_MODULE_FW_INFO_SIZE);
+	mInfo->typeStr[FROM_MODULE_FW_INFO_SIZE-1] = '\0';
+
+	mInfo->type                         = e_ctrl->soc_info.index;
+	mInfo->M_or_S                       = MAIN_MODULE;
+
+	mInfo->mVer.sensor_id               = sensor_id[camera_id];
+	mInfo->mVer.sensor2_id              = sensor_id[camera_id];
+	mInfo->mVer.module_id               = module_id[camera_id];
+
+	mInfo->mVer.module_info             = module_info[camera_id];
+	mInfo->mVer.cam_fw_ver              = cam_fw_ver[camera_id];
+	mInfo->mVer.cam_fw_full_ver         = cam_fw_full_ver[camera_id];
+
+	mInfo->mVer.fw_user_ver             = cam_fw_user_ver[camera_id];
+	mInfo->mVer.fw_factory_ver          = cam_fw_factory_ver[camera_id];	
+}
+
 void cam_sec_eeprom_update_sysfs_fw_version(
 	const char *update_fw_ver, cam_eeprom_fw_version_idx update_fw_index, ModuleInfo_t *mInfo)
 {
@@ -2617,7 +2404,7 @@ int32_t cam_sec_eeprom_check_firmware_cal(uint32_t camera_cal_crc, uint32_t came
 
 	/* 4. update CAL check ack on sysfs rear_calcheck */
 	strlcpy(mInfo->mVer.cam_cal_ack, cam_cal_ack, SYSFS_FW_VER_SIZE);
-	snprintf(cal_crc, SYSFS_FW_VER_SIZE, "%s %s\n", rear_cam_cal_check, front_cam_cal_check);
+	snprintf(cal_crc, SYSFS_FW_VER_SIZE, "%s %s\n", cam_cal_check[EEP_REAR], cam_cal_check[EEP_FRONT]);
 
 	CAM_INFO(CAM_EEPROM,
 		"version_module_maker: 0x%x, MODULE_VER_ON_PVR: 0x%x, MODULE_VER_ON_SRA: 0x%x",

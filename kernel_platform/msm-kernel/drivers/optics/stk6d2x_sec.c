@@ -137,9 +137,6 @@ void stk_sec_report(struct stk6d2x_data *alps_data)
 	input_report_abs(stk_wrapper->als_input_dev, ABS_Z, alps_data->ir_gain + 1);
 	input_report_abs(stk_wrapper->als_input_dev, ABS_RX, alps_data->uv_gain + 1);
 	input_sync(stk_wrapper->als_input_dev);
-	msleep_interruptible(30);
-	input_report_rel(stk_wrapper->als_input_dev, REL_RZ, alps_data->flicker + 1);
-	input_sync(stk_wrapper->als_input_dev);
 
 #if IS_ENABLED(CONFIG_SENSORS_FLICKER_SELF_TEST)
 	als_eol_update_als(temp_ir, temp_clear, temp_ir, temp_uv);
@@ -149,7 +146,7 @@ void stk_sec_report(struct stk6d2x_data *alps_data)
 int32_t stk_power_ctrl(struct stk6d2x_data *alps_data, bool en)
 {
 	int rc = 0;
-#if !defined(CONFIG_AMS_ALWAYS_ON_MODE_FOR_AUTO_BRIGHTNESS)
+
 	ALS_info("enable = %s state : %d\n", en?"ON":"OFF", alps_data->regulator_state);
 
 	if (en) {
@@ -183,7 +180,6 @@ int32_t stk_power_ctrl(struct stk6d2x_data *alps_data, bool en)
 				} else {
 					alps_data->vdd_1p8_enable = true;
 					ALS_info("enable vdd_1p8 done, (state : %d), rc=%d\n", (alps_data->regulator_state + 1), rc);
-					msleep_interruptible(40);
 				}
 			} else {
 				ALS_dbg("vdd_1p8 already enabled, en=%d\n", alps_data->vdd_1p8_enable);
@@ -228,7 +224,7 @@ int32_t stk_power_ctrl(struct stk6d2x_data *alps_data, bool en)
 					ALS_dbg("disable vbus_1p8 done, rc=%d\n", rc);
 				}
 			} else {
-			ALS_dbg("vbus_1p8 already disabled, en=%d\n", alps_data->vbus_1p8_enable);
+				ALS_dbg("vbus_1p8 already disabled, en=%d\n", alps_data->vbus_1p8_enable);
 			}
 		}
 	}
@@ -252,7 +248,6 @@ enable_vdd_1p8_failed:
 
 done:
 enable_vbus_1p8_failed:
-#endif /* !CONFIG_AMS_ALWAYS_ON_MODE_FOR_AUTO_BRIGHTNESS */
 	return rc;
 }
 
@@ -778,6 +773,9 @@ static ssize_t stk_eol_test_store(struct device *dev, struct device_attribute *a
 #if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
 	bool flicker_flag = alps_data->flicker_flag;
 
+	if (probe_error)
+		return 0;
+
 	if (!flicker_flag) {
 		alps_data->flicker_flag = true;
 
@@ -987,6 +985,8 @@ int stk6d2x_suspend(struct device *dev)
 	}
 
 	stk6d2x_pin_control(alps_data, false);
+	stk_power_ctrl(alps_data, false);
+
 	return 0;
 }
 
@@ -998,13 +998,18 @@ int stk6d2x_resume(struct device *dev)
 	if(probe_error)
 		return 0;
 
+	stk_power_ctrl(alps_data, true);
+
 	if (alps_data->als_info.enable) {
 		ALS_info("Enable ALS\n");
+		msleep_interruptible(40);
 		stk6d2x_alps_set_config(alps_data, 1);
 	}
 #if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
-	else if (alps_data->als_flag)
+	else if (alps_data->als_flag) {
+		msleep_interruptible(40);
 		stk_als_start(alps_data);
+	}
 #endif
 
 	stk6d2x_pin_control(alps_data, true);
@@ -1163,11 +1168,7 @@ static int stk6d2x_set_input_devices(struct stk6d2x_wrapper *stk_wrapper)
 
 #endif
 
-#if IS_ENABLED(CONFIG_ARCH_EXYNOS)
-	err = sensors_register(stk_wrapper->dev, stk_wrapper, stk_sensor_attrs, MODULE_NAME_ALS);
-#else
-	err = sensors_register(&stk_wrapper->dev, stk_wrapper, stk_sensor_attrs, MODULE_NAME_ALS);
-#endif
+	err = sensors_register(&stk_wrapper->sensor_dev, stk_wrapper, stk_sensor_attrs, MODULE_NAME_ALS);
 	if (err) {
 		ALS_err("%s - cound not register als_sensor(%d).\n", __func__, err);
 		goto als_sensor_register_failed;
@@ -1285,43 +1286,9 @@ int stk6d2x_probe(struct i2c_client *client,
 		goto err_als_input_allocate;
 	}
 
-#if defined(CONFIG_AMS_ALWAYS_ON_MODE_FOR_AUTO_BRIGHTNESS)
-	if (alps_data->regulator_vbus_1p8 != NULL) {
-		if (!alps_data->vbus_1p8_enable) {
-			err = regulator_enable(alps_data->regulator_vbus_1p8);
-			if (err) {
-				ALS_err("enable vbus_1p8 failed, err=%d\n", err);
-				goto enable_vbus_1p8_failed;
-			} else {
-				alps_data->vbus_1p8_enable = true;
-				ALS_dbg("enable vbus_1p8 done, err=%d\n", err);
-			}
-		} else {
-			ALS_dbg("vbus_1p8 already enabled, en=%d\n", alps_data->vbus_1p8_enable);
-		}
-	}
-
-	if (alps_data->regulator_vdd_1p8 != NULL) {
-		if (!alps_data->vdd_1p8_enable) {
-			err = regulator_enable(alps_data->regulator_vdd_1p8);
-			if (err) {
-				ALS_err("enable vdd_1p8 failed, err=%d\n", err);
-				goto enable_vdd_1p8_failed;
-			} else {
-				alps_data->vdd_1p8_enable = true;
-				ALS_dbg("enable vdd_1p8 done, err=%d\n", err);
-				msleep_interruptible(40);
-			}
-		} else {
-			ALS_dbg("vdd_1p8 already enabled, en=%d\n", alps_data->vdd_1p8_enable);
-		}
-	}
-
-	alps_data->regulator_state++;
-	alps_data->pm_state = PM_RESUME;
-#else
 	stk_power_ctrl(alps_data, true);
-#endif
+	msleep_interruptible(40);
+
 	stk6d2x_pin_control(alps_data, true);
 
 	// Register device
@@ -1342,14 +1309,12 @@ int stk6d2x_probe(struct i2c_client *client,
 	ALS_dbg("probe successfully\n");
 
 	stk6d2x_pin_control(alps_data, false);
-	stk_power_ctrl(alps_data, false);
 	probe_error = 0;
 	return 0;
 
 err_setup_init_reg:
 	stk6d2x_pin_control(alps_data, false);
-	stk_power_ctrl(alps_data, false);
-	sensors_unregister(stk_wrapper->dev, stk_sensor_attrs);
+	sensors_unregister(stk_wrapper->sensor_dev, stk_sensor_attrs);
 #ifdef SUPPORT_SENSOR_CLASS
 	sensors_classdev_unregister(&stk_wrapper->als_cdev);
 #endif
@@ -1361,10 +1326,10 @@ err_setup_init_reg:
 #endif
 	input_unregister_device(stk_wrapper->als_input_dev);
 err_setup_input_device:
+	stk_power_ctrl(alps_data, false);
 err_als_input_allocate:
 err_parse_dt:
-enable_vdd_1p8_failed:
-enable_vbus_1p8_failed:
+
 	if (alps_data->als_pinctrl) {
 		devm_pinctrl_put(alps_data->als_pinctrl);
 		alps_data->als_pinctrl = NULL;
@@ -1373,32 +1338,6 @@ enable_vbus_1p8_failed:
 		alps_data->pins_active = NULL;
 	if (alps_data->pins_sleep)
 		alps_data->pins_sleep = NULL;
-
-	if (alps_data->regulator_vbus_1p8) {
-		if (alps_data->vbus_1p8_enable) {
-			regulator_disable(alps_data->regulator_vbus_1p8);
-		}
-		alps_data->regulator_vbus_1p8 = NULL;
-	}
-
-	if (alps_data->regulator_vdd_1p8) {
-		if (alps_data->vdd_1p8_enable) {
-			regulator_disable(alps_data->regulator_vdd_1p8);
-		}
-		ALS_dbg("put vdd_1p8 regulator = %p done (en = %d)\n",
-			alps_data->regulator_vdd_1p8, alps_data->vdd_1p8_enable);
-		regulator_put(alps_data->regulator_vdd_1p8);
-		alps_data->regulator_vdd_1p8 = NULL;
-	}
-
-	if (alps_data->reg) {
-		if (alps_data->reg_enable) {
-			regulator_disable(alps_data->reg);
-		}
-		ALS_dbg("put gdscr regulator = %p done (en = %d)\n",
-			alps_data->reg, alps_data->reg_enable);
-		alps_data->reg = NULL;
-	}
 
 	if (alps_data->pclk)
 		alps_data->pclk = NULL;
@@ -1415,7 +1354,7 @@ err_free_mem:
 #endif
 	kfree(stk_wrapper);
 	probe_error = err;
-	return 0;
+	return err;
 }
 
 int stk6d2x_remove(struct i2c_client *client)
@@ -1464,7 +1403,7 @@ int stk6d2x_remove(struct i2c_client *client)
 	device_init_wakeup(&client->dev, false);
 	STK6D2X_GPIO_IRQ_REMOVE(alps_data, &alps_data->gpio_info);
 	STK6D2X_TIMER_REMOVE(alps_data, &alps_data->alps_timer_info);
-	sensors_unregister(stk_wrapper->dev, stk_sensor_attrs);
+	sensors_unregister(stk_wrapper->sensor_dev, stk_sensor_attrs);
 	sysfs_remove_group(&stk_wrapper->als_input_dev->dev.kobj, &stk_als_attribute_group);
 #if IS_ENABLED(CONFIG_ARCH_EXYNOS)
 	sensors_remove_symlink(stk_wrapper->als_input_dev);
@@ -1557,10 +1496,18 @@ static int __init stk6d2x_init(void)
 	ret = i2c_add_driver(&stk_als_driver);
 	ALS_dbg("Add driver ret = %d\n", ret);
 
-	if (ret) {
+	/**
+	 * i2c_add_driver doesn't return the return value of stk6d2x_probe.
+	 * it doesn't stop with a single probe error to keep trying to probe remaining i2c slave devices.
+	 *
+	 * so, check probe_error and call i2c_del_driver to remove i2c device explicitly.
+	 * without i2c_del_driver, the remaining pm operation cause kernel panic
+	 * __init return should be okay even if probe failure.
+	 *  @ref __driver_attach
+	 */
+
+	if (probe_error)
 		i2c_del_driver(&stk_als_driver);
-		return ret;
-	}
 
 	return ret;
 }

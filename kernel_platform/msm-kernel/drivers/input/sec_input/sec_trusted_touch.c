@@ -60,7 +60,11 @@ static struct gh_acl_desc *sec_trusted_vm_get_acl(enum gh_vm_names vm_name)
 	struct gh_acl_desc *acl_desc;
 	gh_vmid_t vmid;
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	ghd_rm_get_vmid(vm_name, &vmid);
+#else
 	gh_rm_get_vmid(vm_name, &vmid);
+#endif
 
 	acl_desc = kzalloc(offsetof(struct gh_acl_desc, acl_entries[1]),
 			GFP_KERNEL);
@@ -97,10 +101,11 @@ static struct gh_sgl_desc *sec_trusted_vm_get_sgl(
 
 static int sec_trusted_populate_vm_info(struct device *dev)
 {
-	int rc = 0;
+	int i, gpio, rc = 0;
 	struct trusted_touch_vm_info *vm_info;
 	struct device_node *np = dev->of_node;
-	int num_regs, num_sizes = 0;
+	int num_regs, num_sizes, num_gpios, list_size;
+	struct resource res;
 	struct sec_ts_plat_data *pdata;
 	
 	pdata = (struct sec_ts_plat_data *)dev_get_platdata(dev);
@@ -113,11 +118,13 @@ static int sec_trusted_populate_vm_info(struct device *dev)
 
 	pdata->pvm->vm_info = vm_info;
 	vm_info->vm_name = GH_TRUSTED_VM;
+
 	rc = of_property_read_u32(np, "trusted-touch-spi-irq", &vm_info->hw_irq);
 	if (rc) {
 		input_err(true, pdata->dev, "Failed to read trusted touch SPI irq:%d\n", rc);
 		goto vm_error;
 	}
+
 	num_regs = of_property_count_u32_elems(np, "trusted-touch-io-bases");
 	if (num_regs < 0) {
 		input_err(true, pdata->dev, "Invalid number of IO regions specified\n");
@@ -138,12 +145,55 @@ static int sec_trusted_populate_vm_info(struct device *dev)
 		goto vm_error;
 	}
 
-	vm_info->iomem_list_size = num_regs;
+	num_gpios = of_gpio_named_count(np, "trusted-touch-vm-gpio-list");
+	if (num_gpios < 0) {
+		input_err(true, pdata->dev, "Ignoring invalid trusted gpio list: %d\n", num_gpios);
+		num_gpios = 0;
+	}
 
-	vm_info->iomem_bases = kcalloc(num_regs, sizeof(*vm_info->iomem_bases), GFP_KERNEL);
+	list_size = num_regs + num_gpios;
+	vm_info->iomem_list_size = list_size;
+
+	vm_info->iomem_bases = devm_kcalloc(pdata->dev, list_size, sizeof(*vm_info->iomem_bases), GFP_KERNEL);
 	if (!vm_info->iomem_bases) {
 		rc = -ENOMEM;
 		goto vm_error;
+	}
+
+	vm_info->iomem_sizes = devm_kcalloc(pdata->dev, list_size, sizeof(*vm_info->iomem_sizes), GFP_KERNEL);
+	if (!vm_info->iomem_sizes) {
+		rc = -ENOMEM;
+		goto io_bases_error;
+	}
+
+	for (i = 0; i < num_gpios; ++i) {
+		gpio = of_get_named_gpio(np, "trusted-touch-vm-gpio-list", i);
+		if (gpio < 0 || !gpio_is_valid(gpio)) {
+			input_err(true, pdata->dev, "Invalid gpio %d at position %d\n", gpio, i);
+			return gpio;
+		}
+
+		if (!msm_gpio_get_pin_address(gpio, &res)) {
+			input_err(true, pdata->dev, "Failed to retrieve gpio-%d resource\n", gpio);
+			return -ENODATA;
+		}
+
+		vm_info->iomem_bases[i] = res.start;
+		vm_info->iomem_sizes[i] = resource_size(&res);
+	}
+
+	rc = of_property_read_u32_array(np, "trusted-touch-io-bases",
+			&vm_info->iomem_bases[i], list_size - i);
+	if (rc) {
+		input_err(true, pdata->dev, "Failed to read trusted touch io bases:%d\n", rc);
+		goto io_bases_error;
+	}
+
+	rc = of_property_read_u32_array(np, "trusted-touch-io-sizes",
+			&vm_info->iomem_sizes[i], list_size - i);
+	if (rc) {
+		input_err(true, pdata->dev, "Failed to read trusted touch io sizes:%d\n", rc);
+		goto io_sizes_error;
 	}
 
 	rc = of_property_read_string(np, "trusted-touch-type",
@@ -161,30 +211,6 @@ static int sec_trusted_populate_vm_info(struct device *dev)
 		vm_info->irq_label = GH_IRQ_LABEL_TRUSTED_TOUCH_SECONDARY;
 	}
 
-	rc = of_property_read_string(np, "trusted-touch-type",
-						&vm_info->trusted_touch_type);
-	if (rc)
-		input_err(true, pdata->dev, "%s: No trusted touch type selection made\n", __func__);
-
-	rc = of_property_read_u32_array(np, "trusted-touch-io-bases",vm_info->iomem_bases, vm_info->iomem_list_size);
-	if (rc) {
-		input_err(true, pdata->dev, "Failed to read trusted touch io bases:%d\n", rc);
-		goto io_bases_error;
-	}
-
-	vm_info->iomem_sizes = kzalloc(
-			sizeof(*vm_info->iomem_sizes) * num_sizes, GFP_KERNEL);
-	if (!vm_info->iomem_sizes) {
-		rc = -ENOMEM;
-		goto io_bases_error;
-	}
-
-	rc = of_property_read_u32_array(np, "trusted-touch-io-sizes",
-			vm_info->iomem_sizes, vm_info->iomem_list_size);
-	if (rc) {
-		input_err(true, pdata->dev, "Failed to read trusted touch io sizes:%d\n", rc);
-		goto io_sizes_error;
-	}
 	return rc;
 
 io_sizes_error:
@@ -224,32 +250,41 @@ static void sec_trusted_touch_abort_pvm(struct sec_ts_plat_data *pdata)
 	}
 
 	switch (vm_state) {
-	case PVM_IRQ_RELEASE_NOTIFIED:
-	case PVM_ALL_RESOURCES_RELEASE_NOTIFIED:
-	case PVM_IRQ_LENT:
-	case PVM_IRQ_LENT_NOTIFIED:
-		rc = gh_irq_reclaim(vm_info->irq_label);
-		if (rc)
-			input_err(true, pdata->dev, "failed to reclaim irq on pvm rc:%d\n", rc);
-	case PVM_IRQ_RECLAIMED:
-	case PVM_IOMEM_LENT:
-	case PVM_IOMEM_LENT_NOTIFIED:
-	case PVM_IOMEM_RELEASE_NOTIFIED:
-		rc = gh_rm_mem_reclaim(vm_info->vm_mem_handle, 0);
-		if (rc)
-			input_err(true, pdata->dev, "failed to reclaim iomem on pvm rc:%d\n", rc);
-		vm_info->vm_mem_handle = 0;
-	case PVM_IOMEM_RECLAIMED:
-	case PVM_INTERRUPT_DISABLED:
-		enable_irq(pdata->irq);
-	case PVM_I2C_RESOURCE_ACQUIRED:
-	case PVM_INTERRUPT_ENABLED:
-		sec_trusted_bus_put(pdata);
-	case TRUSTED_TOUCH_PVM_INIT:
-	case PVM_I2C_RESOURCE_RELEASED:
-		atomic_set(&pvm->trusted_touch_enabled, 0);
-		atomic_set(&pvm->trusted_touch_transition, 0);
-		complete_all(&pvm->trusted_touch_powerdown);
+		case PVM_IRQ_RELEASE_NOTIFIED:
+		case PVM_ALL_RESOURCES_RELEASE_NOTIFIED:
+		case PVM_IRQ_LENT:
+		case PVM_IRQ_LENT_NOTIFIED:
+			rc = gh_irq_reclaim(vm_info->irq_label);
+			if (rc)
+				input_err(true, pdata->dev, "failed to reclaim irq on pvm rc:%d\n", rc);
+			fallthrough;
+		case PVM_IRQ_RECLAIMED:
+		case PVM_IOMEM_LENT:
+		case PVM_IOMEM_LENT_NOTIFIED:
+		case PVM_IOMEM_RELEASE_NOTIFIED:
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+			rc = ghd_rm_mem_reclaim(vm_info->vm_mem_handle, 0);
+#else
+			rc = gh_rm_mem_reclaim(vm_info->vm_mem_handle, 0);
+#endif
+			if (rc)
+				input_err(true, pdata->dev, "failed to reclaim iomem on pvm rc:%d\n", rc);
+			vm_info->vm_mem_handle = 0;
+			fallthrough;
+		case PVM_IOMEM_RECLAIMED:
+		case PVM_INTERRUPT_DISABLED:
+			enable_irq(pdata->irq);
+			fallthrough;
+		case PVM_I2C_RESOURCE_ACQUIRED:
+		case PVM_INTERRUPT_ENABLED:
+			sec_trusted_bus_put(pdata);
+			fallthrough;
+		case TRUSTED_TOUCH_PVM_INIT:
+		case PVM_I2C_RESOURCE_RELEASED:
+			atomic_set(&pvm->trusted_touch_enabled, 0);
+			atomic_set(&pvm->trusted_touch_transition, 0);
+			complete_all(&pvm->trusted_touch_powerdown);
+			break;
 	}
 
 	atomic_set(&pvm->trusted_touch_abort_status, 0);
@@ -329,7 +364,11 @@ static void stm_trusted_touch_pvm_vm_mode_disable(struct sec_ts_plat_data *pdata
 					PVM_ALL_RESOURCES_RELEASE_NOTIFIED)
 		input_err(true, pdata->dev, "all release notifications are not received yet\n");
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	rc = ghd_rm_mem_reclaim(vm_info->vm_mem_handle, 0);
+#else
 	rc = gh_rm_mem_reclaim(vm_info->vm_mem_handle, 0);
+#endif
 	if (rc) {
 		input_err(true, pdata->dev, "Trusted touch VM mem reclaim failed rc:%d\n", rc);
 		goto error;
@@ -460,8 +499,13 @@ static int sec_trusted_vm_mem_lend(struct sec_ts_plat_data *pdata)
 		goto sgl_error;
 	}
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	rc = ghd_rm_mem_lend(GH_RM_MEM_TYPE_IO, 0, TRUSTED_TOUCH_MEM_LABEL,
+			acl_desc, sgl_desc, NULL, &mem_handle);
+#else
 	rc = gh_rm_mem_lend(GH_RM_MEM_TYPE_IO, 0, TRUSTED_TOUCH_MEM_LABEL,
 			acl_desc, sgl_desc, NULL, &mem_handle);
+#endif
 	if (rc) {
 		input_err(true, pdata->dev, "Failed to lend IO memories for Trusted touch rc:%d\n",
 							rc);
@@ -472,7 +516,11 @@ static int sec_trusted_vm_mem_lend(struct sec_ts_plat_data *pdata)
 
 	sec_trusted_touch_set_pvm_driver_state(vm_info, PVM_IOMEM_LENT);
 
+#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+	ghd_rm_get_vmid(GH_TRUSTED_VM, &trusted_vmid);
+#else
 	gh_rm_get_vmid(GH_TRUSTED_VM, &trusted_vmid);
+#endif
 
 	vmid_desc = sec_trusted_vm_get_vmid(trusted_vmid);
 

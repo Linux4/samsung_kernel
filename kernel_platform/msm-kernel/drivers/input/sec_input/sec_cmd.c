@@ -810,6 +810,9 @@ static ssize_t support_feature_show(struct device *dev,
 	if (plat_data->enable_sysinput_enabled)
 		feature |= INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED;
 
+	if (plat_data->prox_lp_scan_enabled)
+		feature |= INPUT_FEATURE_ENABLE_PROX_LP_SCAN_ENABLED;
+
 	if (plat_data->support_input_monitor)
 		feature |= INPUT_FEATURE_SUPPORT_INPUT_MONITOR;
 
@@ -819,7 +822,7 @@ static ssize_t support_feature_show(struct device *dev,
 	if (plat_data->support_rawdata_motion_palm)
 		feature |= INPUT_FEATURE_SUPPORT_MOTION_PALM;
 
-	input_info(true, sec->dev, "%s: %d%s%s%s%s%s%s%s%s%s%s\n",
+	input_info(true, sec->dev, "%s: %d%s%s%s%s%s%s%s%s%s%s%s\n",
 			__func__, feature,
 			feature & INPUT_FEATURE_ENABLE_SETTINGS_AOT ? " aot" : "",
 			feature & INPUT_FEATURE_ENABLE_PRESSURE ? " pressure" : "",
@@ -829,6 +832,7 @@ static ssize_t support_feature_show(struct device *dev,
 			feature & INPUT_FEATURE_SUPPORT_WIRELESS_TX ? " wirelesstx" : "",
 			feature & INPUT_FEATURE_SUPPORT_INPUT_MONITOR ? " inputmonitor" : "",
 			feature & INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED ? " SE" : "",
+			feature & INPUT_FEATURE_ENABLE_PROX_LP_SCAN_ENABLED ? " LPSCAN" : "",
 			feature & INPUT_FEATURE_SUPPORT_MOTION_AIVF ? " AIVF" : "",
 			feature & INPUT_FEATURE_SUPPORT_MOTION_PALM ? " PALM" : "");
 
@@ -877,35 +881,34 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 	}
 
 	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
+		input_info(true, sec->dev, "%s: DISPLAY_STATE_ON\n", __func__);
 		if (atomic_read(&plat_data->enabled)) {
 			input_err(true, sec->dev, "%s: device already enabled\n", __func__);
 			goto out;
 		}
-
 		ret = sec_input_enable_device(plat_data->dev);
 	} else if (buff[0] == DISPLAY_STATE_OFF && buff[1] == DISPLAY_EVENT_EARLY) {
+		input_info(true, sec->dev, "%s: DISPLAY_STATE_OFF\n", __func__);
 		if (!atomic_read(&plat_data->enabled)) {
 			input_err(true, sec->dev, "%s: device already disabled\n", __func__);
 			goto out;
 		}
-
 		ret = sec_input_disable_device(plat_data->dev);
 	} else if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+		input_info(true, sec->dev, "%s: DISPLAY_STATE_FORCE_ON\n", __func__);
 		if (atomic_read(&plat_data->enabled)) {
 			input_err(true, sec->dev, "%s: device already enabled\n", __func__);
 			goto out;
 		}
-
 		ret = sec_input_enable_device(plat_data->dev);
-		input_info(true, sec->dev, "%s: DISPLAY_STATE_FORCE_ON(%d)\n", __func__, ret);
 	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF || buff[0] == DISPLAY_STATE_LPM_OFF) {
+		input_info(true, sec->dev, "%s: %s\n", __func__, buff[0] == DISPLAY_STATE_FORCE_OFF ?
+				"DISPLAY_STATE_FORCE_OFF" : "DISPLAY_STATE_LPM_OFF");
 		if (!atomic_read(&plat_data->enabled)) {
 			input_err(true, sec->dev, "%s: device already disabled\n", __func__);
 			goto out;
 		}
-
 		ret = sec_input_disable_device(plat_data->dev);
-		input_info(true, sec->dev, "%s: DISPLAY_STATE_FORCE_OFF(%d)\n", __func__, ret);
 	}
 
 	if (ret)
@@ -1047,7 +1050,7 @@ int sec_cmd_init(struct sec_cmd_data *data, struct device *dev, struct sec_cmd *
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	data->fac_dev = sec_device_create(data, dev_name);
 #else
-	tsp_sec_class = class_create(THIS_MODULE, "tsp_sec");
+	tsp_sec_class = class_create(THIS_MODULE, dev_name);
 	if (IS_ERR(tsp_sec_class)) {
 		pr_err("%s %s: Failed to create class(sec) %ld\n", SECLOG, __func__, PTR_ERR(tsp_sec_class));
 		return PTR_ERR(tsp_sec_class);
@@ -1083,6 +1086,10 @@ int sec_cmd_init(struct sec_cmd_data *data, struct device *dev, struct sec_cmd *
 
 	if (!IS_ERR_OR_NULL(dev)) {
 		/* if you do not use sec_ts_plat_data, should invoke sec_cmd_init_without_platdata */
+		struct sec_ts_plat_data *plat_data = dev->platform_data;
+
+		plat_data->sec = data;
+
 		ret = sysfs_create_group(&data->fac_dev->kobj, &sec_fac_common_attr_group);
 		if (ret < 0) {
 			pr_err("%s %s: failed to create sec_fac_common_attr_group\n", SECLOG, __func__);
@@ -1145,7 +1152,8 @@ void sec_cmd_exit(struct sec_cmd_data *data, int devt)
 #endif
 
 	pr_info("%s: %s %s\n", dev_name(data->fac_dev), SECLOG, __func__);
-	if (!IS_ERR_OR_NULL(data->dev))
+
+	if (!IS_ERR_OR_NULL(data->fac_dev))
 		sysfs_remove_group(&data->fac_dev->kobj, &sec_fac_common_attr_group);
 	if (!IS_ERR_OR_NULL(data->vendor_attr_group))
 		sysfs_remove_group(&data->fac_dev->kobj, data->vendor_attr_group);
@@ -1172,6 +1180,11 @@ void sec_cmd_exit(struct sec_cmd_data *data, int devt)
 	cancel_delayed_work_sync(&data->cmd_work);
 	flush_delayed_work(&data->cmd_work);
 #endif
+	if (!IS_ERR_OR_NULL(data->dev)) {
+		struct sec_ts_plat_data *plat_data = data->dev->platform_data;
+
+		plat_data->sec = NULL;
+	}
 	data->fac_dev = NULL;
 	kfree(data->cmd_result);
 	mutex_destroy(&data->cmd_lock);
@@ -1256,6 +1269,26 @@ void sec_cmd_send_status_uevent(struct sec_cmd_data *data, enum sec_cmd_status_u
 	sec_cmd_send_event_to_user(data, test, result);
 }
 EXPORT_SYMBOL(sec_cmd_send_status_uevent);
+
+void sec_cmd_send_gesture_uevent(struct sec_cmd_data *data, int type, int x, int y)
+{
+	struct sec_ts_plat_data *plat_data;
+	char test[32] = { 0 };
+	char result[32] = { 0 };
+
+	if (!data->dev)
+		return;
+
+	plat_data = data->dev->platform_data;
+	if (IS_ERR_OR_NULL(plat_data))
+		return;
+
+	snprintf(test, sizeof(test), "GESTURE=%d", type);
+	snprintf(result, sizeof(result), "POS=%d,%d", x, y);
+
+	sec_cmd_send_event_to_user(data, test, result);
+}
+EXPORT_SYMBOL(sec_cmd_send_gesture_uevent);
 
 MODULE_DESCRIPTION("Samsung input command");
 MODULE_LICENSE("GPL");

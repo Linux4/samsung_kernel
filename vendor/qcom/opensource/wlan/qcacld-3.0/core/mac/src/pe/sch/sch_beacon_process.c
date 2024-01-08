@@ -468,8 +468,8 @@ sch_bcn_update_opmode_change(struct mac_context *mac_ctx, tpDphHashNode sta_ds,
 	      (vht_op && vht_op->present && vht_caps)))
 		return;
 
-	is_40 = bcn->HTCaps.present ?
-			bcn->HTCaps.supportedChannelWidthSet : false;
+	is_40 = bcn->HTInfo.present ?
+			bcn->HTInfo.recommendedTxWidthSet : false;
 
 	if (bcn->OperatingMode.present) {
 		pe_debug("OMN IE is present in the beacon, update NSS/Ch width");
@@ -614,7 +614,7 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 	QDF_STATUS status;
 	bool skip_tpe = false;
 	uint8_t programmed_country[REG_ALPHA2_LEN + 1];
-	enum reg_6g_ap_type pwr_type_6g = REG_INDOOR_AP;
+	enum reg_6g_ap_type pwr_type_6g;
 	bool ctry_code_match = false;
 	uint8_t bpcc;
 	bool cu_flag = true;
@@ -667,15 +667,34 @@ static void __sch_beacon_process_for_session(struct mac_context *mac_ctx,
 			pe_err("Channel is 6G but country IE not present");
 			return;
 		}
+
+		if (bcn->he_op.oper_info_6g_present) {
+			session->ap_power_type =
+					bcn->he_op.oper_info_6g.info.reg_info;
+			if (session->ap_power_type < REG_INDOOR_AP ||
+			    session->ap_power_type >
+			    REG_MAX_SUPP_AP_TYPE) {
+				session->ap_power_type =
+						REG_VERY_LOW_POWER_AP;
+				pe_debug("AP power type is invalid, defaulting to VLP");
+			}
+		} else {
+			pe_debug("AP power type is null, defaulting to VLP");
+			session->ap_power_type =
+						REG_VERY_LOW_POWER_AP;
+		}
+		pwr_type_6g = session->ap_power_type;
 		wlan_reg_read_current_country(mac_ctx->psoc,
 					      programmed_country);
 		status = wlan_reg_get_6g_power_type_for_ctry(
 				mac_ctx->psoc, mac_ctx->pdev,
 				bcn->countryInfoParam.countryString,
 				programmed_country, &pwr_type_6g,
-				&ctry_code_match, REG_MAX_AP_TYPE);
+				&ctry_code_match, session->ap_power_type);
 		if (QDF_IS_STATUS_ERROR(status))
 			return;
+
+		session->ap_power_type = pwr_type_6g;
 	}
 
 	/*

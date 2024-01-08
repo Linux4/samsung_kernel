@@ -429,6 +429,7 @@ static void synaptics_ts_v1_dispatch_report(struct synaptics_ts_data *ts)
 			switch (tcm_msg->command) {
 			case SYNAPTICS_TS_CMD_RESET:
 				input_err(true, ts->dev, "%s: Reset by CMD_RESET\n", __func__);
+				fallthrough;
 			case SYNAPTICS_TS_CMD_REBOOT_TO_ROM_BOOTLOADER:
 			case SYNAPTICS_TS_CMD_RUN_BOOTLOADER_FIRMWARE:
 			case SYNAPTICS_TS_CMD_RUN_APPLICATION_FIRMWARE:
@@ -584,6 +585,11 @@ static int synaptics_ts_v1_continued_read(struct synaptics_ts_data *ts,
 	/* continued read packet contains the header, payload, and a padding */
 	total_length = SYNAPTICS_TS_MESSAGE_HEADER_SIZE + length + 1;
 	remaining_length = total_length - SYNAPTICS_TS_MESSAGE_HEADER_SIZE;
+
+	if (total_length > PAGE_SIZE) {
+		input_fail_hist(true, ts->dev, "%s: Invalid length %d to read\n", __func__, total_length);
+		return -EINVAL;
+	}
 
 	synaptics_ts_buf_lock(&tcm_msg->in);
 
@@ -745,6 +751,16 @@ static int synaptics_ts_v1_read_message(struct synaptics_ts_data *ts, unsigned c
 retry:
 	synaptics_ts_buf_lock(&tcm_msg->in);
 
+	/* in case the current in.buf is smaller than header size */
+	retval = synaptics_ts_buf_realloc(&tcm_msg->in, SYNAPTICS_TS_MESSAGE_HEADER_SIZE);
+	if (retval < 0) {
+		input_err(true, ts->dev, "%s: Fail to allocate memory for internal buf_in\n", __func__);
+		synaptics_ts_buf_unlock(&tcm_msg->in);
+		tcm_msg->status_report_code = STATUS_INVALID;
+		tcm_msg->payload_length = 0;
+		goto exit;
+	}
+
 	/* read in the message header from device */
 	retval = ts->synaptics_ts_read_data_only(ts,
 			tcm_msg->in.buf,
@@ -802,6 +818,7 @@ retry:
 			break;
 		case STATUS_CONTINUED_READ:
 			input_err(true, ts->dev, "%s:Out-of-sync continued read\n", __func__);
+			fallthrough;
 		case STATUS_IDLE:
 			tcm_msg->payload_length = 0;
 			retval = 0;
@@ -825,10 +842,14 @@ retry:
 	synaptics_ts_pal_sleep_us(MSG_DELAY_US_MIN, MSG_DELAY_US_MAX);
 
 	/* retrieve the remaining data, if any */
-	retval = synaptics_ts_v1_continued_read(ts,
-			tcm_msg->payload_length);
-	if (retval < 0) {
-		input_err(true, ts->dev, "Fail to do continued read\n");
+	if ((ts->header->code != 0x00) && (ts->header->code != 0xFF)) {
+		retval = synaptics_ts_v1_continued_read(ts,
+				tcm_msg->payload_length);
+		if (retval < 0) {
+			input_err(true, ts->dev, "Fail to do continued read\n");
+			goto exit;
+		}
+	} else {
 		goto exit;
 	}
 

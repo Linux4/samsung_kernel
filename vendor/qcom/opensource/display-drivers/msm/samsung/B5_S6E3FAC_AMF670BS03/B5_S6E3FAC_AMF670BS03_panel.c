@@ -842,14 +842,6 @@ static bool ss_check_support_mode(struct samsung_display_driver_data *vdd, enum 
 		}
 
 		break;
-	case CHECK_SUPPORT_GCT:
-		if (!(cur_rr == 120 && !cur_phs)) {
-			is_support = false;
-			LCD_ERR(vdd, "GCT fail: supported on 120HS(cur: %d%s)\n",
-					cur_rr, cur_phs ? "PHS" : "HS");
-		}
-
-		break;
 	default:
 		break;
 	}

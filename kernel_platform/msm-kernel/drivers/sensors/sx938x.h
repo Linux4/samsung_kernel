@@ -496,7 +496,7 @@ extern void update_grip_error(u8 idx, u32 error_state);
 #if !IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 extern int sensors_create_symlink(struct input_dev *inputdev);
 extern void sensors_remove_symlink(struct input_dev *inputdev);
-extern int sensors_register(struct device *dev, void *drvdata,
+extern int sensors_register(struct device **dev, void *drvdata,
 			    struct device_attribute *attributes[], char *name);
 extern void sensors_unregister(struct device *dev,
 			       struct device_attribute *attributes[]);

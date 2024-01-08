@@ -52,6 +52,7 @@ struct usb_notify_dev {
 	struct otg_notify *o_notify;
 	int index;
 	unsigned int request_action;
+	unsigned int lpm_charging_type_done;
 	unsigned long usb_data_enabled;
 	unsigned long disable_state;
 	int (*set_disable)(struct usb_notify_dev *udev, int param);

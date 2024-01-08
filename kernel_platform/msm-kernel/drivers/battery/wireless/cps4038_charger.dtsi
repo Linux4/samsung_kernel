@@ -129,7 +129,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/suwon/wireless/cps4038/cps4038_charger.b5q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/q5b5/wireless/cps4038/cps4038_charger.b5q.dtsi */
 #include <dt-bindings/battery/sec-battery.h>
 
 &cps_pdrc_default {
@@ -167,6 +167,7 @@
 	battery,buds_fod_ta_thresh = <0x0898>; /* 2200mW */
 	battery,gear_op_freq = <0x0596>; /* 143kHZ */
 	battery,tx_gear_min_op_freq_delay = <4000>;
+	battery,gear_min_op_freq = <1300>;
 
 	battery,default_clamp_volt;
 
@@ -176,19 +177,21 @@
 	battery,wireless20_iec_fres_thresh_1 = <0x47>;
 	battery,wireless20_iec_fres_thresh_2 = <0x55>;
 	battery,wireless20_iec_power_limit_thresh = <0x190>;
-	battery,wireless20_iec_ploss_thresh_1 = <0x384>;
+	battery,wireless20_iec_ploss_thresh_1 = <0x0fa>;
 	battery,wireless20_iec_ploss_thresh_2 = <0x384>;
 	battery,wireless20_iec_ploss_freq_thresh_1 = <0xff>;
 	battery,wireless20_iec_ploss_freq_thresh_2 = <0xff>;
 	battery,wireless20_iec_ta_power_limit_thresh = <0x258>;
-	battery,wireless20_iec_ta_ploss_thresh_1 = <0x4b0>;
+	battery,wireless20_iec_ta_ploss_thresh_1 = <0x190>;
 	battery,wireless20_iec_ta_ploss_thresh_2 = <0x4b0>;
 	battery,wireless20_iec_ta_ploss_freq_thresh_1 = <0xff>;
 	battery,wireless20_iec_ta_ploss_freq_thresh_2 = <0xff>;
 	battery,wireless20_iec_ploss_fod_enable = <0x1>;
+	battery,wireless20_iec_pwm_duty_thresh = <0x23>;
+	battery,wireless20_iec_ta_pwm_duty_thresh = <0x1e>;
 
 	fod_list {
-		count = <1>;
+		count = <2>;
 
 		pad_0x00 { /* DEFAULT */
 			flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(USE_CC) | SET_FOD_FULL(ADD) | SET_FOD_HV(ADD))>;
@@ -198,6 +201,11 @@
 				0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F 0xFF 0x7F>;
 			hv = <0xB7 0x29 0xB7 0x29 0xB7 0x26 0xB7 0x26 0xB7 0x26
 				0xB7 0x26 0xB7 0x26 0xB7 0x29 0xB7 0x29 0xB7 0x29>;
+		};
+		pad_0x33 { /* N5100 landscape mode */
+			flag = <(SET_FOD_CC(ADD) | SET_FOD_CV(USE_CC) | SET_FOD_FULL(USE_DEFAULT) | SET_FOD_HV(USE_DEFAULT))>;
+			cc = <0x88 0x11 0x88 0x11 0x88 0x0F 0x88 0x0F 0x88 0x0F
+				0x88 0x0F 0x88 0x11 0x88 0x11 0x88 0x11 0x88 0x11>;
 		};
 	};
 };

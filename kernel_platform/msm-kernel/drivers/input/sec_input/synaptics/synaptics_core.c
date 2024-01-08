@@ -215,7 +215,9 @@ void synaptics_ts_reinit(void *data)
 	if (ts->raw_mode)
 		synaptics_ts_set_up_rawdata_report_type(ts);
 
+	disable_irq(ts->irq);
 	synaptics_ts_rezero(ts);
+	enable_irq(ts->irq);
 
 	input_info(true, ts->dev,
 		"%s: charger=0x%x, touch_functions=0x%x, Power mode=0x%x ic mode = %d\n",
@@ -240,7 +242,9 @@ void synaptics_ts_reinit(void *data)
 			/* reinit again*/
 			if (ts->raw_mode)
 				synaptics_ts_set_up_rawdata_report_type(ts);
+			disable_irq(ts->irq);
 			synaptics_ts_rezero(ts);
+			enable_irq(ts->irq);
 		} else {
 			break;
 		}

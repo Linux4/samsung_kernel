@@ -678,12 +678,10 @@ public:
     ssize_t isAndroidOutDevicesSize() {return mAndroidOutDevices.size();}
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
     int SetVideoCallEffectKvParams(int mode);
-#endif
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
     void CheckAndSwitchListenbackMode(bool on);
 #endif
-#ifdef SEC_AUDIO_COMMON
     void lock_output_stream() { stream_mutex_.lock(); }
     void unlock_output_stream() { stream_mutex_.unlock(); }
 #endif
@@ -799,6 +797,9 @@ public:
     audio_source_t GetInputSource() { return source_; }
     int ForceRouteStream(const std::set<audio_devices_t>& new_devices);
     int SetVideoCallEffectKvParams(int mode);
+#ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
+    int SetVideoCallEffectParams(int mode);
+#endif // } CONFIG_EFFECTS_VIDEOCALL
 #endif
 #ifdef SEC_AUDIO_SAMSUNGRECORD
     std::shared_ptr<AudioPreProcess> PreProcessInit();

@@ -112,9 +112,8 @@ static bool s2asl01_check_status(struct s2asl01_limiter_data *limiter)
 		s2asl01_init_regs(limiter);
 		ret = false;
 	}
-	pr_info("%s [%s]: enb = %d, det = %d\n", __func__,
-		current_limiter_type_str[limiter->pdata->bat_type],
-		gpio_get_value(limiter->pdata->bat_enb), gpio_get_value(limiter->pdata->bat_det));
+	pr_info("%s [%s]: enb = %d\n", __func__,
+		current_limiter_type_str[limiter->pdata->bat_type], gpio_get_value(limiter->pdata->bat_enb));
 
 	return ret;
 }
@@ -789,7 +788,6 @@ static int s2asl01_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_BAT_VOLTAGE:
 			val->intval = s2asl01_get_vbat(limiter, val->intval);
-			s2asl01_test_read(limiter->client);
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHG_CURRENT:
 			val->intval = s2asl01_get_ichg(limiter, val->intval);
@@ -820,6 +818,9 @@ static int s2asl01_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_POWER_MODE2:
 			val->intval = s2asl01_get_poweroff_mode2(limiter);
+			break;
+		case POWER_SUPPLY_EXT_PROP_MONITOR_WORK:
+			s2asl01_test_read(limiter->client);
 			break;
 		default:
 			return -EINVAL;

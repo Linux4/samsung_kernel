@@ -1215,6 +1215,10 @@
         <path name="spk-mono-right" />
     </path>
 
+    <path name="loopback-incallmusic-speaker-all">
+        <path name="spk" />
+    </path>
+
     <!-- TX part -->
     <path name="loopback-main-mic">
         <path name="main-mic" />

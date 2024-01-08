@@ -45,7 +45,7 @@
 #include <linux/usb/usbpd.h>		// Use Qualcomm USBPD PHY
 #endif
 
-#define DRV_MODULE_VERSION	"1.0.9S"
+#define DRV_MODULE_VERSION	"1.0.11S"
 
 #define BITS(_end, _start) ((BIT(_end) - BIT(_start)) + BIT(_end))
 #define MASK2SHIFT(_mask)	__ffs(_mask)
@@ -3507,10 +3507,29 @@ static int pca9482_adjust_ta_current(struct pca9482_charger *pca9482)
 			if (ret < 0)
 				goto error;
 
-			/* Clear req_new_iin */
-			mutex_lock(&pca9482->lock);
-			pca9482->req_new_iin = false;
-			mutex_unlock(&pca9482->lock);
+			/* Check req_new_iin clear condition */
+			/* Compare new_iin with iin_cc */
+			if (pca9482->new_iin != pca9482->iin_cc) {
+					/* new_iin is different from iin_cc */
+					/* Battery driver set new input current during input current change */
+					/* Keep req_new_iin to true */
+					pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+									__func__, pca9482->new_iin, pca9482->iin_cc);
+			} else {
+					/* new_iin is same as iin_cc */
+					/* Clear req_new_iin */
+					mutex_lock(&pca9482->lock);
+					pca9482->req_new_iin = false;
+					mutex_unlock(&pca9482->lock);
+					/* Compare new_iin with iin_cc again */
+					if (pca9482->new_iin != pca9482->iin_cc) {
+							/* new_iin is different from iin_cc */
+							/* Set req_new_iin again */
+							mutex_lock(&pca9482->lock);
+							pca9482->req_new_iin = true;
+							mutex_unlock(&pca9482->lock);
+					}
+			}
 
 			pr_info("%s: adj. End, ta_cur=%d, ta_vol=%d, iin_cc=%d, chg_mode=%d\n",
 					__func__, pca9482->ta_cur, pca9482->ta_vol, pca9482->iin_cc, pca9482->chg_mode);
@@ -3554,10 +3573,29 @@ static int pca9482_adjust_ta_current(struct pca9482_charger *pca9482)
 						if (ret < 0)
 							goto error;
 
-						/* Clear Request flag */
-						mutex_lock(&pca9482->lock);
-						pca9482->req_new_iin = false;
-						mutex_unlock(&pca9482->lock);
+						/* Check req_new_iin clear condition */
+						/* Compare new_iin with iin_cc */
+						if (pca9482->new_iin != pca9482->iin_cc) {
+							/* new_iin is different from iin_cc */
+							/* Battery driver set new input current during input current change */
+							/* Keep req_new_iin to true */
+							pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+								__func__, pca9482->new_iin, pca9482->iin_cc);
+						} else {
+							/* new_iin is same as iin_cc */
+							/* Clear req_new_iin */
+							mutex_lock(&pca9482->lock);
+							pca9482->req_new_iin = false;
+							mutex_unlock(&pca9482->lock);
+							/* Compare new_iin with iin_cc again */
+							if (pca9482->new_iin != pca9482->iin_cc) {
+								/* new_iin is different from iin_cc */
+								/* Set req_new_iin again */
+								mutex_lock(&pca9482->lock);
+								pca9482->req_new_iin = true;
+								mutex_unlock(&pca9482->lock);
+							}
+						}
 
 						/* Set new TA voltage and current */
 						/* Read VBAT ADC */
@@ -3639,10 +3677,29 @@ static int pca9482_adjust_ta_current(struct pca9482_charger *pca9482)
 							/* Update iin_cfg */
 							pca9482->iin_cfg = pca9482->iin_cc;
 
-							/* Clear req_new_iin */
-							mutex_lock(&pca9482->lock);
-							pca9482->req_new_iin = false;
-							mutex_unlock(&pca9482->lock);
+							/* Check req_new_iin clear condition */
+							/* Compare new_iin with iin_cc */
+							if (pca9482->new_iin != pca9482->iin_cc) {
+								/* new_iin is different from iin_cc */
+								/* Battery driver set new input current during input current change */
+								/* Keep req_new_iin to true */
+								pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+									__func__, pca9482->new_iin, pca9482->iin_cc);
+							} else {
+								/* new_iin is same as iin_cc */
+								/* Clear req_new_iin */
+								mutex_lock(&pca9482->lock);
+								pca9482->req_new_iin = false;
+								mutex_unlock(&pca9482->lock);
+								
+								if (pca9482->new_iin != pca9482->iin_cc) {
+									/* new_iin is different from iin_cc */
+									/* Set req_new_iin again */
+									mutex_lock(&pca9482->lock);
+									pca9482->req_new_iin = true;
+									mutex_unlock(&pca9482->lock);
+								}
+							}
 							pr_info("%s: New IIN(3), iin_cc=%d, go to DC_STATE_PRESET_DC\n", __func__, pca9482->iin_cc);
 
 							/* Go to DC_STATE_PRESET_DC */
@@ -3670,10 +3727,29 @@ static int pca9482_adjust_ta_current(struct pca9482_charger *pca9482)
 					if (ret < 0)
 						goto error;
 
-					/* Clear Request flag */
-					mutex_lock(&pca9482->lock);
-					pca9482->req_new_iin = false;
-					mutex_unlock(&pca9482->lock);
+					/* Check req_new_iin clear condition */
+					/* Compare new_iin with iin_cc */
+					if (pca9482->new_iin != pca9482->iin_cc) {
+						/* new_iin is different from iin_cc */
+						/* Battery driver set new input current during input current change */
+						/* Keep req_new_iin to true */
+						pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+							__func__, pca9482->new_iin, pca9482->iin_cc);
+					} else {
+						/* new_iin is same as iin_cc */
+						/* Clear req_new_iin */
+						mutex_lock(&pca9482->lock);
+						pca9482->req_new_iin = false;
+						mutex_unlock(&pca9482->lock);
+						/* Compare new_iin with iin_cc again */
+						if (pca9482->new_iin != pca9482->iin_cc) {
+							/* new_iin is different from iin_cc */
+							/* Set req_new_iin again */
+							mutex_lock(&pca9482->lock);
+							pca9482->req_new_iin = true;
+							mutex_unlock(&pca9482->lock);
+						}
+					}
 
 					/* Set new TA voltage and current */
 					/* Read VBAT ADC */
@@ -3880,10 +3956,29 @@ static int pca9482_adjust_ta_voltage(struct pca9482_charger *pca9482)
 			/* Compare TA max voltage */
 			if (pca9482->ta_vol == pca9482->ta_max_vol) {
 				/* TA current is already the maximum voltage */
-				/* Clear req_new_iin */
-				mutex_lock(&pca9482->lock);
-				pca9482->req_new_iin = false;
-				mutex_unlock(&pca9482->lock);
+				/* Check req_new_iin clear condition */
+				/* Compare new_iin with iin_cc */
+				if (pca9482->new_iin != pca9482->iin_cc) {
+					/* new_iin is different from iin_cc */
+					/* Battery driver set new input current during input current change */
+					/* Keep req_new_iin to true */
+					pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+					__func__, pca9482->new_iin, pca9482->iin_cc);
+				} else {
+					/* new_iin is same as iin_cc */
+					/* Clear req_new_iin */
+					mutex_lock(&pca9482->lock);
+					pca9482->req_new_iin = false;
+					mutex_unlock(&pca9482->lock);
+					/* Compare new_iin with iin_cc again */
+					if (pca9482->new_iin != pca9482->iin_cc) {
+						/* new_iin is different from iin_cc */
+						/* Set req_new_iin again */
+						mutex_lock(&pca9482->lock);
+						pca9482->req_new_iin = true;
+						mutex_unlock(&pca9482->lock);
+					}
+				}
 				/* Return charging state to the previous state */
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 				pca9482_set_charging_state(pca9482, pca9482->ret_state);
@@ -3916,10 +4011,29 @@ static int pca9482_adjust_ta_voltage(struct pca9482_charger *pca9482)
 			}
 		} else {
 			/* IIN ADC is in valid range */
-			/* Clear req_new_iin */
-			mutex_lock(&pca9482->lock);
-			pca9482->req_new_iin = false;
-			mutex_unlock(&pca9482->lock);
+			/* Check req_new_iin clear condition */
+			/* Compare new_iin with iin_cc */
+			if (pca9482->new_iin != pca9482->iin_cc) {
+				/* new_iin is different from iin_cc */
+				/* Battery driver set new input current during input current change */
+				/* Keep req_new_iin to true */
+				pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+					__func__, pca9482->new_iin, pca9482->iin_cc);
+			} else {
+				/* new_iin is same as iin_cc */
+				/* Clear req_new_iin */
+				mutex_lock(&pca9482->lock);
+				pca9482->req_new_iin = false;
+				mutex_unlock(&pca9482->lock);
+				/* Compare new_iin with iin_cc again */
+				if (pca9482->new_iin != pca9482->iin_cc) {
+					/* new_iin is different from iin_cc */
+					/* Set req_new_iin again */
+					mutex_lock(&pca9482->lock);
+					pca9482->req_new_iin = true;
+					mutex_unlock(&pca9482->lock);
+				}
+			}
 
 			/* IIN_CC - 50mA < IIN ADC < IIN_CC + 50mA  */
 			/* Return charging state to the previous state */
@@ -3982,10 +4096,29 @@ static int pca9482_adjust_rx_voltage(struct pca9482_charger *pca9482)
 			/* Compare RX max voltage */
 			if (pca9482->ta_vol == pca9482->ta_max_vol) {
 				/* RX current is already the maximum voltage */
-				/* Clear req_new_iin */
-				mutex_lock(&pca9482->lock);
-				pca9482->req_new_iin = false;
-				mutex_unlock(&pca9482->lock);
+				/* Check req_new_iin clear condition */
+				/* Compare new_iin with iin_cc */
+				if (pca9482->new_iin != pca9482->iin_cc) {
+					/* new_iin is different from iin_cc */
+					/* Battery driver set new input current during input current change */
+					/* Keep req_new_iin to true */
+					pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+						__func__, pca9482->new_iin, pca9482->iin_cc);
+				} else {
+					/* new_iin is same as iin_cc */
+					/* Clear req_new_iin */
+					mutex_lock(&pca9482->lock);
+					pca9482->req_new_iin = false;
+					mutex_unlock(&pca9482->lock);
+					/* Compare new_iin with iin_cc again */
+					if (pca9482->new_iin != pca9482->iin_cc) {
+						/* new_iin is different from iin_cc */
+						/* Set req_new_iin again */
+						mutex_lock(&pca9482->lock);
+						pca9482->req_new_iin = true;
+						mutex_unlock(&pca9482->lock);
+					}
+				}
 
 				pr_info("%s: adj. End1(max vol), rx_vol=%d, iin_cc=%d, chg_mode=%d\n",
 					__func__, pca9482->ta_vol, pca9482->iin_cc, pca9482->chg_mode);
@@ -4021,10 +4154,29 @@ static int pca9482_adjust_rx_voltage(struct pca9482_charger *pca9482)
 			}
 		} else {
 			/* IIN ADC is in valid range */
-			/* Clear req_new_iin */
-			mutex_lock(&pca9482->lock);
-			pca9482->req_new_iin = false;
-			mutex_unlock(&pca9482->lock);
+			/* Check req_new_iin clear condition */
+			/* Compare new_iin with iin_cc */
+			if (pca9482->new_iin != pca9482->iin_cc) {
+				/* new_iin is different from iin_cc */
+				/* Battery driver set new input current during input current change */
+				/* Keep req_new_iin to true */
+				pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+					__func__, pca9482->new_iin, pca9482->iin_cc);
+			} else {
+				/* new_iin is same as iin_cc */
+				/* Clear req_new_iin */
+				mutex_lock(&pca9482->lock);
+				pca9482->req_new_iin = false;
+				mutex_unlock(&pca9482->lock);
+				/* Compare new_iin with iin_cc again */
+				if (pca9482->new_iin != pca9482->iin_cc) {
+					/* new_iin is different from iin_cc */
+					/* Set req_new_iin again */
+					mutex_lock(&pca9482->lock);
+					pca9482->req_new_iin = true;
+					mutex_unlock(&pca9482->lock);
+				}
+			}
 
 			/* IIN_CC - 50mA < IIN ADC < IIN_CC + 50mA  */
 			pr_info("%s: adj. End2(valid), rx_vol=%d, iin_cc=%d, chg_mode=%d\n",
@@ -4103,10 +4255,29 @@ static int pca9482_set_bypass_ta_current(struct pca9482_charger *pca9482)
 	if (ret < 0)
 		goto error;
 
-	/* Clear Request flag */
-	mutex_lock(&pca9482->lock);
-	pca9482->req_new_iin = false;
-	mutex_unlock(&pca9482->lock);
+	/* Check req_new_iin clear condition */
+	/* Compare new_iin with iin_cc */
+	if (pca9482->new_iin != pca9482->iin_cc) {
+		/* new_iin is different from iin_cc */
+		/* Battery driver set new input current during input current change */
+		/* Keep req_new_iin to true */
+		pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+			__func__, pca9482->new_iin, pca9482->iin_cc);
+	} else {
+		/* new_iin is same as iin_cc */
+		/* Clear req_new_iin */
+		mutex_lock(&pca9482->lock);
+		pca9482->req_new_iin = false;
+		mutex_unlock(&pca9482->lock);
+		/* Compare new_iin with iin_cc again */
+		if (pca9482->new_iin != pca9482->iin_cc) {
+			/* new_iin is different from iin_cc */
+			/* Set req_new_iin again */
+			mutex_lock(&pca9482->lock);
+			pca9482->req_new_iin = true;
+			mutex_unlock(&pca9482->lock);
+		}
+	}
 
 	/* Adjust IIN_CC with APDO resolution(50mA) - It will recover to the original value after sending PD message */
 	val = pca9482->iin_cc/PD_MSG_TA_CUR_STEP;
@@ -5662,10 +5833,29 @@ static int pca9482_charge_fpdo_cvmode(struct pca9482_charger *pca9482)
 		if (ret < 0)
 			goto error;
 
-		/* Clear req_new_iin */
-		mutex_lock(&pca9482->lock);
-		pca9482->req_new_iin = false;
-		mutex_unlock(&pca9482->lock);
+		/* Check req_new_iin clear condition */
+		/* Compare new_iin with iin_cc */
+		if (pca9482->new_iin != pca9482->iin_cc) {
+			/* new_iin is different from iin_cc */
+			/* Battery driver set new input current during input current change */
+			/* Keep req_new_iin to true */
+			pr_info("%s: Keep req_new_iin to true, new_iin=%d, iin_cc=%d\n",
+				__func__, pca9482->new_iin, pca9482->iin_cc);
+		} else {
+			/* new_iin is same as iin_cc */
+			/* Clear req_new_iin */
+			mutex_lock(&pca9482->lock);
+			pca9482->req_new_iin = false;
+			mutex_unlock(&pca9482->lock);
+			/* Compare new_iin with iin_cc again */
+			if (pca9482->new_iin != pca9482->iin_cc) {
+				/* new_iin is different from iin_cc */
+				/* Set req_new_iin again */
+				mutex_lock(&pca9482->lock);
+				pca9482->req_new_iin = true;
+				mutex_unlock(&pca9482->lock);
+			}
+		}
 
 		/* Set timer - 1s */
 		mutex_lock(&pca9482->lock);

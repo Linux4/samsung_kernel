@@ -284,6 +284,13 @@ enum sec_battery_direct_charging_source_ctrl {
 	SEC_STORE_MODE = 0x4,
 };
 
+enum sec_battery_slate_mode {
+	SEC_SLATE_OFF = 0,
+	SEC_SLATE_MODE,
+	SEC_SMART_SWITCH_SLATE,
+	SEC_SMART_SWITCH_SRC,
+};
+
 extern const char *sb_rx_type_str(int type);
 extern const char *sb_vout_ctr_mode_str(int vout_mode);
 extern const char *sb_rx_vout_str(int vout);
@@ -385,7 +392,8 @@ enum d2d_mode {
 };
 
 enum mfc_phm_state {
-	EXIT_PHM = 0,
+	NONE_PHM = 0,
+	EXIT_PHM,
 	ENTER_PHM,
 	FAILED_PHM,
 	END_PHM,

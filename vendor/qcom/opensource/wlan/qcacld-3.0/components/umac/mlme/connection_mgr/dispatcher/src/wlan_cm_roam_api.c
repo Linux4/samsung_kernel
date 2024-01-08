@@ -1671,6 +1671,9 @@ wlan_cm_roam_invoke(struct wlan_objmgr_pdev *pdev, uint8_t vdev_id,
 		return QDF_STATUS_E_NULL_VALUE;
 	}
 
+	mlme_debug("vdev: %d source: %d freq: %d bssid: " QDF_MAC_ADDR_FMT,
+		   vdev_id, source, chan_freq, QDF_MAC_ADDR_REF(bssid->bytes));
+
 	status = cm_start_roam_invoke(psoc, vdev, bssid, chan_freq, source);
 	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_NB_ID);
 

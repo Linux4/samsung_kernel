@@ -2049,11 +2049,7 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 	disable_irq(data->irq);
 
-#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_register(&data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
-#else
-	ret = sensors_register(data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
-#endif
 	if (ret) {
 		GRIP_ERR("could not regi sensor %d\n", ret);
 		goto exit_register_failed;

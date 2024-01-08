@@ -1037,20 +1037,30 @@ static ssize_t ois_temperature_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	int rc = 0;
-
 	uint32_t result = 0;
-	int celsius_temperature = 0;
+	int temperature = 0;
+	static int prev_temperature = 250;
+	uint32_t retry = 10;
 
-	rc = get_ois_adc_value(g_o_ctrl, &result);
+	do {
+		rc = get_ois_adc_value(g_o_ctrl, &result);
+		if ((rc < 0) || result)
+			break;
+		CAM_INFO(CAM_OIS, "ois_adc = %d, retry = %d", result, retry);
+		usleep_range(2000, 2100);      
+	} while ((--retry > 0) && (rc >= 0) && (result == 0));
 
-	if (rc < 0)
+	if ((rc < 0) || (result == 0)) {
 		CAM_ERR(CAM_OIS, "get ois adc fail");
-	else
-		celsius_temperature = convert_adc_to_temperature(g_o_ctrl, result);
+		temperature = prev_temperature;
+	} else
+		temperature = convert_adc_to_temperature(g_o_ctrl, result);
 
-	CAM_INFO(CAM_OIS, "ois_adc = %d ois_temperature = %d", result, celsius_temperature);
+	prev_temperature = temperature;
 
-	rc = scnprintf(buf, PAGE_SIZE, "%d\n", celsius_temperature);
+	CAM_INFO(CAM_OIS, "ois_adc = %d ois_temperature = %d", result, temperature);
+
+	rc = scnprintf(buf, PAGE_SIZE, "%d\n", temperature);
 
 	if (rc)
 		return rc;

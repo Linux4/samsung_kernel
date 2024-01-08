@@ -2275,7 +2275,7 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case BATT_SLATE_MODE:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (x == 2) {
+			if (x == SEC_SMART_SWITCH_SLATE) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 				sec_bat_set_mfc_off(battery, WPC_EN_SLATE, false);
@@ -2284,18 +2284,23 @@ ssize_t sec_bat_store_attrs(
 #endif
 				dev_info(battery->dev,
 					"%s: enable smart switch slate mode : %d\n", __func__, x);
-			} else if (x == 1) {
+			} else if (x == SEC_SLATE_MODE) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
 				dev_info(battery->dev,
 					"%s: enable slate mode : %d\n", __func__, x);
-			} else if (x == 0) {
+			} else if (x == SEC_SLATE_OFF) {
 				sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, false, 0);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, false, 0);
 				sec_bat_set_mfc_on(battery, WPC_EN_SLATE);
+				/* recover smart switch src cap max current to 500mA */
+				sec_bat_smart_sw_src(battery, false, 500);
 				dev_info(battery->dev,
 					"%s: disable slate mode : %d\n", __func__, x);
+			} else if (x == SEC_SMART_SWITCH_SRC) {
+				/* reduce smart switch src cap max current */
+				sec_bat_smart_sw_src(battery, true, 0);
 			} else {
 				dev_info(battery->dev,
 					"%s: SLATE MODE unknown command\n", __func__);

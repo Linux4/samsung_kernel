@@ -238,6 +238,11 @@ static int set_fold_model_freq(struct max77705_vibrator_drvdata *ddata, int num)
 {
 	int freq = 0;
 
+	if (!ddata || !ddata->pdata) {
+		pr_info("[VIB] dev NULL error\n");
+		return -EINVAL;
+	}
+
 	switch (ddata->event_idx) {
 	case EVENT_CMD_FOLDER_OPEN:
 		freq = ddata->pdata->fold_open_freq_array[num];
@@ -280,6 +285,11 @@ static int max77705_vib_set_freq(struct max77705_vibrator_drvdata *ddata, int nu
 {
 	int freq;
 
+	if (!ddata || !ddata->pdata) {
+		pr_info("[VIB] dev NULL error\n");
+		return -EINVAL;
+	}
+
 #if defined(CONFIG_MAX77705_VIB_FOLD_MODEL)
 	freq = set_fold_model_freq(ddata, num);
 #else
@@ -294,6 +304,11 @@ static int max77705_vib_set_freq(struct max77705_vibrator_drvdata *ddata, int nu
 static int max77705_vib_set_frequency(struct device *dev, int num)
 {
 	struct max77705_vibrator_drvdata *ddata = dev_get_drvdata(dev);
+
+	if (!ddata || !ddata->pdata) {
+		pr_info("[VIB] dev NULL error\n");
+		return -EINVAL;
+	}
 
 	ddata->ratio = max77705_vib_set_ratio(ddata);
 

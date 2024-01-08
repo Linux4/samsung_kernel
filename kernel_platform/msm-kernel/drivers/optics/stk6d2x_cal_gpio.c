@@ -119,7 +119,6 @@ void stk6d2x_osc_cal(struct stk6d2x_data *alps_data)
 {
 	u16 ret;
 
-	stk_power_ctrl(alps_data, PWR_ON);
 	stk6d2x_setup_pwm(alps_data, OSC_CAL_FREQ);
 
 	ret = ams_pwm_gpio_period(alps_data);
@@ -129,7 +128,6 @@ void stk6d2x_osc_cal(struct stk6d2x_data *alps_data)
 	ALS_dbg("cal_period = %d", ret);
 
 	stk6d2x_setup_pwm(alps_data, 0);
-	stk_power_ctrl(alps_data, PWR_OFF);
 }
 
 u16 stk6d2x_get_pwm_calibration(void)

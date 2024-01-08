@@ -29,7 +29,7 @@
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
 #include <linux/power_supply.h>
-
+#include <linux/version.h>
 #include <linux/sensor/sensors_core.h>
 #include "sx9360_reg.h"
 
@@ -2042,7 +2042,11 @@ exit:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+void sx9360_remove(struct i2c_client *client)
+#else
 static int sx9360_remove(struct i2c_client *client)
+#endif
 {
 	struct sx9360_p *data = (struct sx9360_p *)i2c_get_clientdata(client);
 
@@ -2069,7 +2073,11 @@ static int sx9360_remove(struct i2c_client *client)
 
 	kfree(data);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	return;
+#else
 	return 0;
+#endif
 }
 
 static int sx9360_suspend(struct device *dev)

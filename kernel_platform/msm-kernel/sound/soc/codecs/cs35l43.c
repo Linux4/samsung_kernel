@@ -2093,7 +2093,7 @@ static const struct snd_soc_dapm_route cs35l43_audio_map[] = {
 static irqreturn_t cs35l43_irq(int irq, void *data)
 {
 	struct cs35l43_private *cs35l43 = data;
-	unsigned int status[3], masks[3];
+	unsigned int status[3], masks[3], pin_status;
 	int ret = IRQ_NONE, i;
 	bool is_pm_runtime_enabled = pm_runtime_enabled(cs35l43->dev);
 
@@ -2126,6 +2126,8 @@ static irqreturn_t cs35l43_irq(int irq, void *data)
 		for (i = 0; i < ARRAY_SIZE(status); i++)
 			dev_info_ratelimited(cs35l43->dev, "mask[%d]=0x%x status[%d]=0x%x\n",
 				i, masks[i], i, status[i]);
+		cs35l43_regmap_read(cs35l43, CS35L43_IRQ1_STATUS, &pin_status);
+		dev_info_ratelimited(cs35l43->dev, "pin_status: %d\n", pin_status);
 		goto done;
 	}
 
