@@ -17,7 +17,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/suwon/charger/pca9468/pca9468_charger.q5q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/q5b5/charger/pca9468/pca9468_charger.q5q.dtsi */
 &pca9468_charger {
 	pca9468,switching-frequency-low = <8>; /* 440KHz */
 	pca9468,iin-low-frequency = <1700000>; /* 1700000uA */

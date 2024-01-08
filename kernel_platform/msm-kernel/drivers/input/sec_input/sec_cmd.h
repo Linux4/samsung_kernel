@@ -159,5 +159,6 @@ int sec_cmd_init_without_platdata(struct sec_cmd_data *data, struct sec_cmd *cmd
 void sec_cmd_exit(struct sec_cmd_data *data, int devt);
 void sec_cmd_send_event_to_user(struct sec_cmd_data *data, char *test, char *result);
 void sec_cmd_send_status_uevent(struct sec_cmd_data *data, enum sec_cmd_status_uevent_type type, int value);
+void sec_cmd_send_gesture_uevent(struct sec_cmd_data *data, int type, int x, int y);
 
 #endif /* _SEC_CMD_H_ */

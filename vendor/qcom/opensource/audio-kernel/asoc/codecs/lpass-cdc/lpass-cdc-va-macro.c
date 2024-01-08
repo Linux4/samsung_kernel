@@ -1443,6 +1443,9 @@ static int lpass_cdc_va_macro_enable_micbias(struct snd_soc_dapm_widget *w,
 					 &va_priv, __func__))
 		return -EINVAL;
 
+	dev_info(va_dev, "%s: event = %d, micb_users = %d\n",
+		__func__, event, va_priv->micb_users);
+
 	if (!va_priv->micb_supply) {
 		dev_err_ratelimited(va_dev,
 			"%s:regulator not provided in dtsi\n", __func__);
@@ -1479,7 +1482,7 @@ static int lpass_cdc_va_macro_enable_micbias(struct snd_soc_dapm_widget *w,
 			return 0;
 		if (va_priv->micb_users < 0) {
 			va_priv->micb_users = 0;
-			dev_dbg(va_dev, "%s: regulator already disabled\n",
+			dev_info(va_dev, "%s: regulator already disabled\n",
 				__func__);
 			return 0;
 		}

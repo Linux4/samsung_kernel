@@ -1199,9 +1199,7 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
 
 #ifdef SEC_AUDIO_CALL
     if (adevice->factory_->factory.loopback_type == LOOPBACK_OFF) {
-        if (sec_voice_->ringbacktone) {
-            sec_voice_->SetRingbackGain();
-        }
+        sec_voice_->SetRingbackGain();
         sec_voice_->SetNBQuality(adevice->voice_->sec_voice_->nb_quality);
 #ifdef SEC_AUDIO_ADAPT_SOUND
         sec_voice_->SetDHAData(adevice, NULL, DHA_SET);

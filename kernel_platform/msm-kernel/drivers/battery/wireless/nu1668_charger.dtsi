@@ -129,7 +129,7 @@
 		};
 	};
 };
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/suwon/wireless/nu1668/nu1668_charger.q5q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/q5b5/wireless/nu1668/nu1668_charger.q5q.dtsi */
 #include <dt-bindings/battery/sec-battery.h>
 
 &nu_pdrc_default {

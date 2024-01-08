@@ -593,7 +593,7 @@ static int hdd_parse_reassoc_v1(struct hdd_adapter *adapter, const char *command
 	status = ucfg_wlan_cm_roam_invoke(hdd_ctx->pdev,
 					  adapter->vdev_id,
 					  &target_bssid, freq,
-					  CM_ROAMING_HOST);
+					  CM_ROAMING_USER);
 	return qdf_status_to_os_return(status);
 }
 
@@ -648,7 +648,7 @@ static int hdd_parse_reassoc_v2(struct hdd_adapter *adapter,
 		status = ucfg_wlan_cm_roam_invoke(hdd_ctx->pdev,
 						  adapter->vdev_id,
 						  &target_bssid, freq,
-						  CM_ROAMING_HOST);
+						  CM_ROAMING_USER);
 		ret = qdf_status_to_os_return(status);
 	}
 
@@ -4418,6 +4418,30 @@ exit:
 	return ret;
 }
 
+/**
+ * drv_cmd_fast_reassoc() - Handler for FASTREASSOC driver command
+ * @link_info: Carries link specific info, which contains adapter
+ * @hdd_ctx: pointer to hdd context
+ * @command: Buffer that carries actual command data, which can be parsed by
+ *           hdd_parse_reassoc_command_v1_data()
+ * @command_len: Command length
+ * @priv_data: to carry any priv data, FASTREASSOC doesn't have any priv
+ *             data for now.
+ *
+ * This function parses the reasoc command data passed in the format
+ * FASTREASSOC<space><bssid><space><channel/frequency>
+ *
+ * If MAC from user space is broadcast MAC as:
+ * "wpa_cli DRIVER FASTREASSOC ff:ff:ff:ff:ff:ff 0",
+ * user space invoked roaming candidate selection will base on firmware score
+ * algorithm, current connection will be kept if current AP has highest
+ * score. It is requirement from customer which can avoid ping-pong roaming.
+ *
+ * If firmware fails to roam to new AP due to any reason, host to disconnect
+ * from current AP as it's unable to roam.
+ *
+ * Return: 0 for success non-zero for failure
+ */
 static int drv_cmd_fast_reassoc(struct hdd_adapter *adapter,
 				struct hdd_context *hdd_ctx,
 				uint8_t *command,

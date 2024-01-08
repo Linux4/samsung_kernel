@@ -44,6 +44,7 @@
 #include <linux/power_supply.h>
 #include <linux/proc_fs.h>
 #include <linux/version.h>
+#include <linux/rtc.h>
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_TRUSTED_TOUCH)
 #include "sec_trusted_touch.h"
@@ -364,6 +365,16 @@ enum sponge_event_type {
 };
 
 enum proximity_event_type {
+	PROX_EVENT_TYPE_NP_FAR			= 0,
+	PROX_EVENT_TYPE_NP_SENSITIVE_CLOSE	= 1,
+	PROX_EVENT_TYPE_NP_ENOUGH_CLOSE		= 2,
+	PROX_EVENT_TYPE_NP_STRONG_CLOSE		= 3,
+	PROX_EVENT_TYPE_LP_CLOSE		= 4,
+	PROX_EVENT_TYPE_LP_FAR			= 5,
+
+	PROX_EVENT_TYPE_POCKET_RELEASE		= 10,
+	PROX_EVENT_TYPE_POCKET_PRESS		= 11,
+
 	PROX_EVENT_TYPE_LIGHTSENSOR_RELEASE	= 20,
 	PROX_EVENT_TYPE_LIGHTSENSOR_PRESS	= 21,
 };
@@ -454,12 +465,12 @@ enum power_mode {
 	SEC_INPUT_STATE_POWER_ON
 };
 
-#define CHECK_POWEROFF	(1 << SEC_INPUT_STATE_POWER_OFF)
+#define CHECK_POWEROFF		(1 << SEC_INPUT_STATE_POWER_OFF)
 #define CHECK_LPMODE		(1 << SEC_INPUT_STATE_LPM)
 #define CHECK_POWERON		(1 << SEC_INPUT_STATE_POWER_ON)
-#define CHECK_ON_LP (CHECK_POWERON | CHECK_LPMODE)
-#define CHECK_ALL (CHECK_POWERON | CHECK_LPMODE | CHECK_POWEROFF)
-#define MODE_TO_CHECK_BIT(x) (1 << x)
+#define CHECK_ON_LP		(CHECK_POWERON | CHECK_LPMODE)
+#define CHECK_ALL		(CHECK_POWERON | CHECK_LPMODE | CHECK_POWEROFF)
+#define MODE_TO_CHECK_BIT(x)	(1 << x)
 
 enum switch_system_mode {
 	TO_TOUCH_MODE			= 0,
@@ -679,6 +690,7 @@ struct sec_ts_plat_data {
 	struct input_dev *input_dev_proximity;
 
 	struct sec_input_multi_device *multi_dev;
+	struct sec_cmd_data *sec;
 
 	int max_x;
 	int max_y;
@@ -686,6 +698,7 @@ struct sec_ts_plat_data {
 	int y_node_num;
 
 	unsigned int irq_gpio;
+	u32 irq_flag;
 	int gpio_spi_cs;
 	int i2c_burstmax;
 	int bringup;
@@ -699,8 +712,11 @@ struct sec_ts_plat_data {
 
 	struct sec_ts_coordinate coord[SEC_TS_SUPPORT_TOUCH_COUNT];
 	struct sec_ts_coordinate prev_coord[SEC_TS_SUPPORT_TOUCH_COUNT];
+	bool fill_slot;
+
 	int touch_count;
 	unsigned int palm_flag;
+	bool blocking_palm;
 	atomic_t touch_noise_status;
 	atomic_t touch_pre_noise_status;
 	int gesture_id;
@@ -718,6 +734,7 @@ struct sec_ts_plat_data {
 	u8 core_version_of_bin[4];
 	u8 config_version_of_ic[4];
 	u8 config_version_of_bin[4];
+	char ic_vendor_name[2];
 	u8 img_version_of_ic[4];
 	u8 img_version_of_bin[4];
 
@@ -780,7 +797,13 @@ struct sec_ts_plat_data {
 #if IS_ENABLED(CONFIG_INPUT_SEC_TRUSTED_TOUCH)
 	struct sec_trusted_touch *pvm;
 #endif
+#define SEC_INPUT_IRQ_ENABLE			0
+#define SEC_INPUT_IRQ_DISABLE			1
+#define SEC_INPUT_IRQ_DISABLE_NOSYNC		2
 	int irq;
+	atomic_t irq_enabled;
+	struct mutex irq_lock;
+
 	struct device *bus_master;
 
 	bool support_fod;
@@ -807,6 +830,9 @@ struct sec_ts_plat_data {
 	bool sense_off_when_cover_closed;
 	bool not_support_temp_noti;
 	bool support_vbus_notifier;
+	bool support_gesture_uevent;
+	bool support_always_on;
+	bool prox_lp_scan_enabled;
 
 	struct work_struct irq_work;
 	struct workqueue_struct *irq_workqueue;
@@ -854,6 +880,7 @@ extern int get_lcd_info(char *arg);
 extern unsigned int lcdtype;
 #endif
 
+void sec_input_utc_marker(struct device *dev, const char *annotation);
 bool sec_input_cmp_ic_status(struct device *dev, int check_bit);
 bool sec_input_need_ic_off(struct sec_ts_plat_data *pdata);
 bool sec_check_secure_trusted_mode_status(struct sec_ts_plat_data *pdata);
@@ -876,7 +903,8 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata);
 
 void sec_input_proximity_report(struct device *dev, int data);
 void sec_input_gesture_report(struct device *dev, int id, int x, int y);
-void sec_input_coord_event(struct device *dev, int t_id);
+void sec_input_coord_event_fill_slot(struct device *dev, int t_id);
+void sec_input_coord_event_sync_slot(struct device *dev);
 void sec_input_release_all_finger(struct device *dev);
 int sec_input_device_register(struct device *dev, void *data);
 void sec_tclm_parse_dt(struct device *dev, struct sec_tclm_data *tdata);

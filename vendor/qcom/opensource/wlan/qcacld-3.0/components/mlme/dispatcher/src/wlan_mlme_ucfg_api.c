@@ -380,6 +380,19 @@ ucfg_mlme_is_chwidth_with_notify_supported(struct wlan_objmgr_psoc *psoc)
 				WLAN_VDEV_PARAM_CHWIDTH_WITH_NOTIFY_SUPPORT);
 }
 
+QDF_STATUS ucfg_mlme_update_bss_rate_flags(struct wlan_objmgr_psoc *psoc,
+					   uint8_t vdev_id,
+					   enum phy_ch_width ch_width,
+					   uint8_t eht_present,
+					   uint8_t he_present,
+					   uint8_t vht_present,
+					   uint8_t ht_present)
+{
+	return wlan_mlme_update_bss_rate_flags(psoc, vdev_id, ch_width,
+					       eht_present, he_present,
+					       vht_present, ht_present);
+}
+
 QDF_STATUS
 ucfg_mlme_send_ch_width_update_with_notify(struct wlan_objmgr_psoc *psoc,
 					   uint8_t vdev_id,

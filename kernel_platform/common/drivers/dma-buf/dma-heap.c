@@ -383,7 +383,7 @@ EXPORT_SYMBOL_GPL(dma_heap_get_name);
 
 struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 {
-	struct dma_heap *heap, *err_ret;
+	struct dma_heap *heap, *h, *err_ret;
 	unsigned int minor;
 	int ret;
 
@@ -394,15 +394,6 @@ struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 
 	if (!exp_info->ops || !exp_info->ops->allocate) {
 		pr_err("dma_heap: Cannot add heap with invalid ops struct\n");
-		return ERR_PTR(-EINVAL);
-	}
-
-	/* check the name is unique */
-	heap = dma_heap_find(exp_info->name);
-	if (heap) {
-		pr_err("dma_heap: Already registered heap named %s\n",
-		       exp_info->name);
-		dma_heap_put(heap);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -449,13 +440,27 @@ struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 	/* Make sure it doesn't disappear on us */
 	heap->heap_dev = get_device(heap->heap_dev);
 
-	/* Add heap to the list */
 	mutex_lock(&heap_list_lock);
+	/* check the name is unique */
+	list_for_each_entry(h, &heap_list, list) {
+		if (!strcmp(h->name, exp_info->name)) {
+			mutex_unlock(&heap_list_lock);
+			pr_err("dma_heap: Already registered heap named %s\n",
+			       exp_info->name);
+			err_ret = ERR_PTR(-EINVAL);
+			put_device(heap->heap_dev);
+			goto err3;
+		}
+	}
+
+	/* Add heap to the list */
 	list_add(&heap->list, &heap_list);
 	mutex_unlock(&heap_list_lock);
 
 	return heap;
 
+err3:
+	device_destroy(dma_heap_class, heap->heap_devt);
 err2:
 	cdev_del(&heap->heap_cdev);
 err1:
@@ -538,6 +543,8 @@ long try_get_dma_heap_pool_size_kb(void)
 	return (long)(total_pool_size / 1024);
 }
 
+extern void dma_heap_trace_init(void);
+
 static int dma_heap_init(void)
 {
 	int ret;
@@ -556,6 +563,8 @@ static int dma_heap_init(void)
 		goto err_class;
 	}
 	dma_heap_class->devnode = dma_heap_devnode;
+
+	dma_heap_trace_init();
 
 	return 0;
 

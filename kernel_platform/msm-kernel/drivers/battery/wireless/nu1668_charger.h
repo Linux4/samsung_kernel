@@ -27,7 +27,7 @@
 
 #define MFC_NU1668_DRIVER_VERSION			0x001C
 
-#define MFC_FW_BIN_VERSION					0x0226
+#define MFC_FW_BIN_VERSION					0x0229
 
 #define MFC_FLASH_FW_HEX_PATH               "mfc/mfc_fw_flash.bin"
 #define MFC_FW_SDCARD_BIN_PATH              "wpc_fw_sdcard.bin"
@@ -1059,7 +1059,6 @@ struct mfc_charger_data {
 
 	u8 det_state; /* ACTIVE HIGH */
 	u8 pdrc_state; /* ACTIVE LOW */
-	u8 pdetb_state; /* ACTIVE LOW */
 
 	struct power_supply *psy_chg;
 	struct wakeup_source *wpc_ws;
@@ -1077,6 +1076,9 @@ struct mfc_charger_data {
 	struct wakeup_source *align_check_ws;
 	struct wakeup_source *mode_change_ws;
 	struct wakeup_source *wpc_cs100_ws;
+	struct wakeup_source *wpc_pdet_b_ws;
+	struct wakeup_source *wpc_rx_phm_ws;
+	struct wakeup_source *wpc_check_rx_power_ws;
 	struct workqueue_struct *wqueue;
 	struct work_struct wcin_work;
 	struct delayed_work wpc_det_work;
@@ -1102,6 +1104,8 @@ struct mfc_charger_data {
 	struct delayed_work wpc_init_work;
 	struct delayed_work align_check_work;
 	struct delayed_work mode_change_work;
+	struct delayed_work wpc_rx_phm_work;
+	struct delayed_work wpc_check_rx_power_work;
 
 	struct alarm phm_alarm;
 
@@ -1127,8 +1131,8 @@ struct mfc_charger_data {
 	bool is_suspend;
 	int tx_id;
 	int tx_id_cnt;
-	bool initial_vrect;
 	bool rx_phm_status;
+	int rx_phm_state;
 
 	int flicker_delay;
 	int flicker_vout_threshold;
@@ -1164,6 +1168,7 @@ struct mfc_charger_data {
 	u32 mis_align_tx_try_cnt;
 	bool skip_phm_work_in_sleep;
 	bool reg_access_lock;
+	bool check_rx_power;
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;

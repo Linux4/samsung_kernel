@@ -115,6 +115,12 @@ int register_gpio_irq(stk_gpio_info *gpio_info)
 		}
 	}
 
+	if (gpio_idx >= MAX_LINUX_GPIO_MANAGER_NUM)
+	{
+		printk(KERN_ERR "%s: proper gpio not found", __func__);
+		return -1;
+	}
+
 	printk(KERN_INFO "%s: irq num = %d \n", __func__, gpio_info->int_pin);
 	err = gpio_request(gpio_info->int_pin, "stk-int");
 

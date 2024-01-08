@@ -1172,10 +1172,17 @@ static int akm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static void akm_remove(struct i2c_client *client)
+{
+
+}
+#else
 static int akm_remove(struct i2c_client *client)
 {
 	return 0;
 }
+#endif
 
 static void akm_shutdown(struct i2c_client *client)
 {
@@ -1259,5 +1266,5 @@ module_exit(akm_exit);
 MODULE_SOFTDEP("pre: s2mpb02-regulator");
 
 MODULE_AUTHOR("ym48.kim@samsung.com, soonkoo.park@samsung.com");
-MODULE_DESCRIPTION("wheel driver");
+MODULE_DESCRIPTION("dhall driver");
 MODULE_LICENSE("GPL");

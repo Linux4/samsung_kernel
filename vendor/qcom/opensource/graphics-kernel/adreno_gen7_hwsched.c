@@ -13,6 +13,7 @@
 #include "adreno_gen7.h"
 #include "adreno_gen7_hwsched.h"
 #include "adreno_snapshot.h"
+#include "kgsl_bus.h"
 #include "kgsl_device.h"
 #include "kgsl_trace.h"
 #include "kgsl_util.h"
@@ -369,7 +370,9 @@ static int gen7_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 
 	gen7_gmu_register_config(adreno_dev);
 
-	gen7_gmu_version_info(adreno_dev);
+	ret = gen7_gmu_version_info(adreno_dev);
+	if (ret)
+		goto clks_gdsc_off;
 
 	if (GMU_VER_MINOR(gmu->ver.hfi) < 2)
 		set_bit(ADRENO_HWSCHED_CTX_BAD_LEGACY, &adreno_dev->hwsched.flags);
@@ -702,6 +705,7 @@ static void gen7_hwsched_touch_wakeup(struct adreno_device *adreno_dev)
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
 	device->pwrctrl.last_stat_updated = ktime_get();
+
 	kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);
 
 done:
@@ -742,6 +746,7 @@ static int gen7_hwsched_boot(struct adreno_device *adreno_dev)
 	set_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
 	device->pwrctrl.last_stat_updated = ktime_get();
+
 	kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);
 
 	return ret;
@@ -816,9 +821,8 @@ static int gen7_hwsched_first_boot(struct adreno_device *adreno_dev)
 	device->pwrscale.devfreq_enabled = true;
 
 	device->pwrctrl.last_stat_updated = ktime_get();
-	device->state = KGSL_STATE_ACTIVE;
 
-	trace_kgsl_pwr_set_state(device, KGSL_STATE_ACTIVE);
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_ACTIVE);
 
 	return 0;
 }
@@ -919,7 +923,7 @@ no_gx_power:
 
 	clear_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
-	kgsl_pwrctrl_set_state(device, KGSL_STATE_NONE);
+	device->state = KGSL_STATE_NONE;
 
 	del_timer_sync(&device->idle_timer);
 
@@ -943,12 +947,12 @@ static void hwsched_idle_check(struct work_struct *work)
 	if (test_bit(GMU_DISABLE_SLUMBER, &device->gmu_core.flags))
 		goto done;
 
-	if (atomic_read(&device->active_cnt)) {
+	if (atomic_read(&device->active_cnt) || time_is_after_jiffies(device->idle_jiffies)) {
 		kgsl_pwrscale_update(device);
 		kgsl_start_idle_timer(device);
-		goto done;		
+		goto done;
 	}
-	
+
 	spin_lock(&device->submit_lock);
 	if (device->submit_now) {
 		spin_unlock(&device->submit_lock);
@@ -959,6 +963,11 @@ static void hwsched_idle_check(struct work_struct *work)
 
 	device->skip_inline_submit = true;
 	spin_unlock(&device->submit_lock);
+
+	if (!gen7_hw_isidle(adreno_dev)) {
+		dev_err(device->dev, "GPU isn't idle before SLUMBER\n");
+		gmu_core_fault_snapshot(device);
+	}
 
 	gen7_hwsched_power_off(adreno_dev);
 
@@ -1121,6 +1130,8 @@ static int gen7_hwsched_bus_set(struct adreno_device *adreno_dev, int buslevel,
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	int ret = 0;
+
+	kgsl_icc_set_tag(pwr, buslevel);
 
 	if (buslevel != pwr->cur_buslevel) {
 		ret = gen7_hwsched_dcvs_set(adreno_dev, INVALID_DCVS_IDX,

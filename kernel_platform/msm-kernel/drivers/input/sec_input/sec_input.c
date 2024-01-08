@@ -21,6 +21,18 @@ EXPORT_SYMBOL(ptsp);
 struct sec_ts_secure_data *psecuretsp;
 EXPORT_SYMBOL(psecuretsp);
 
+void sec_input_utc_marker(struct device *dev, const char *annotation)
+{
+	struct timespec64 ts;
+	struct rtc_time tm;
+
+	ktime_get_real_ts64(&ts);
+	rtc_time64_to_tm(ts.tv_sec, &tm);
+	input_info(true, dev, "%s %d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
+		annotation, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+		tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
+}
+
 bool sec_input_cmp_ic_status(struct device *dev, int check_bit)
 {
 	struct sec_ts_plat_data *plat_data = dev->platform_data;
@@ -34,7 +46,7 @@ EXPORT_SYMBOL(sec_input_cmp_ic_status);
 
 bool sec_input_need_ic_off(struct sec_ts_plat_data *pdata)
 {
-	bool lpm = pdata->lowpower_mode || pdata->ed_enable || pdata->pocket_mode || pdata->fod_lp_mode;
+	bool lpm = pdata->lowpower_mode || pdata->ed_enable || pdata->pocket_mode || pdata->fod_lp_mode || pdata->support_always_on;
 
 	return (sec_input_need_fold_off(pdata->multi_dev) || !lpm);
 }
@@ -174,7 +186,7 @@ static void sec_input_handler_wait_resume_work(struct work_struct *work)
 		desc->action->thread_fn(irq, desc->action->dev_id);
 	}
 out:
-	enable_irq(irq);
+	sec_input_forced_enable_irq(irq);
 }
 
 int sec_input_handler_start(struct device *dev)
@@ -588,16 +600,20 @@ ssize_t sec_input_get_common_hw_param(struct sec_ts_plat_data *pdata, char *buf)
 	strlcat(buff, tbuff, sizeof(buff));
 
 	memset(tbuff, 0x00, sizeof(tbuff));
-	snprintf(tbuff, sizeof(tbuff), "\"TCOM%s\":\"%d\"", mdev, pdata->hw_param.comm_err_count);
+	snprintf(tbuff, sizeof(tbuff), "\"TCOM%s\":\"%d\",", mdev, pdata->hw_param.comm_err_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TCHK%s\":\"%d\",", mdev, pdata->hw_param.checksum_result);
+	strlcat(buff, tbuff, sizeof(buff));
+
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"TRIC%s\":\"%d\"", mdev, pdata->hw_param.ic_reset_count);
 	strlcat(buff, tbuff, sizeof(buff));
 
 	if (GET_DEV_COUNT(pdata->multi_dev) != MULTI_DEV_SUB) {
 		memset(tbuff, 0x00, sizeof(tbuff));
 		snprintf(tbuff, sizeof(tbuff), ",\"TMUL\":\"%d\",", pdata->hw_param.multi_count);
-		strlcat(buff, tbuff, sizeof(buff));
-
-		memset(tbuff, 0x00, sizeof(tbuff));
-		snprintf(tbuff, sizeof(tbuff), "\"TCHK\":\"%d\",", pdata->hw_param.checksum_result);
 		strlcat(buff, tbuff, sizeof(buff));
 
 		memset(tbuff, 0x00, sizeof(tbuff));
@@ -607,11 +623,7 @@ ssize_t sec_input_get_common_hw_param(struct sec_ts_plat_data *pdata, char *buf)
 		strlcat(buff, tbuff, sizeof(buff));
 
 		memset(tbuff, 0x00, sizeof(tbuff));
-		snprintf(tbuff, sizeof(tbuff), "\"TMCF\":\"%d\",", pdata->hw_param.mode_change_failed_count);
-		strlcat(buff, tbuff, sizeof(buff));
-
-		memset(tbuff, 0x00, sizeof(tbuff));
-		snprintf(tbuff, sizeof(tbuff), "\"TRIC\":\"%d\"", pdata->hw_param.ic_reset_count);
+		snprintf(tbuff, sizeof(tbuff), "\"TMCF\":\"%d\"", pdata->hw_param.mode_change_failed_count);
 		strlcat(buff, tbuff, sizeof(buff));
 	}
 
@@ -640,6 +652,7 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata)
 	unsigned int irq = gpio_to_irq(pdata->irq_gpio);
 	struct irq_desc *desc = irq_to_desc(irq);
 	char tclm_buff[INPUT_TCLM_LOG_BUF_SIZE] = { 0 };
+	char fw_ver_prefix[7] = { 0 };
 
 	pdata->print_info_cnt_open++;
 
@@ -664,16 +677,20 @@ void sec_input_print_info(struct device *dev, struct sec_tclm_data *tdata)
 	snprintf(tclm_buff, sizeof(tclm_buff), "");
 #endif
 
+	if (pdata->ic_vendor_name[0] != 0)
+		snprintf(fw_ver_prefix, sizeof(fw_ver_prefix), "%c%c%02X%02X",
+				pdata->ic_vendor_name[0], pdata->ic_vendor_name[1], pdata->img_version_of_ic[0], pdata->img_version_of_ic[1]);
+
 	input_info(true, dev,
-			"mode:%04X tc:%d noise:%d/%d ext_n:%d wet:%d wc:%d(f:%d) lp:%x fn:%04X/%04X irqd:%d ED:%d PK:%d LS:%d// v:%02X%02X %s // tmp:%d // #%d %d\n",
+			"mode:%04X tc:%d noise:%d/%d ext_n:%d wet:%d wc:%d(f:%d) lp:%x fn:%04X/%04X irqd:%d ED:%d PK:%d LS:%d// v:%s%02X%02X %s chk:%d // tmp:%d // #%d %d\n",
 			pdata->print_info_currnet_mode, pdata->touch_count,
 			atomic_read(&pdata->touch_noise_status), atomic_read(&pdata->touch_pre_noise_status),
 			pdata->external_noise_mode, pdata->wet_mode,
 			pdata->wirelesscharger_mode, pdata->force_wirelesscharger_mode,
 			pdata->lowpower_mode, pdata->touch_functions, pdata->ic_status, desc->depth,
 			pdata->ed_enable, pdata->pocket_mode, pdata->low_sensitivity_mode,
-			pdata->img_version_of_ic[2], pdata->img_version_of_ic[3],
-			tclm_buff,
+			fw_ver_prefix, pdata->img_version_of_ic[2], pdata->img_version_of_ic[3],
+			tclm_buff, pdata->hw_param.checksum_result,
 			pdata->tsp_temperature_data,
 			pdata->print_info_cnt_open, pdata->print_info_cnt_release);
 }
@@ -710,6 +727,12 @@ void sec_input_gesture_report(struct device *dev, int id, int x, int y)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 	char buff[SEC_TS_GESTURE_REPORT_BUFF_SIZE] = { 0 };
+
+	if (pdata->support_gesture_uevent) {
+		if (!IS_ERR_OR_NULL(pdata->sec))
+			sec_cmd_send_gesture_uevent(pdata->sec, id, x, y);
+		return;
+	}
 
 	pdata->gesture_id = id;
 	pdata->gesture_x = x;
@@ -773,7 +796,10 @@ static void sec_input_coord_report(struct device *dev, u8 t_id)
 			pdata->print_info_cnt_release = 0;
 			pdata->palm_flag = 0;
 		}
-		input_report_key(pdata->input_dev, BTN_PALM, pdata->palm_flag);
+		if (pdata->blocking_palm)
+			input_report_key(pdata->input_dev, BTN_PALM, 0);
+		else
+			input_report_key(pdata->input_dev, BTN_PALM, pdata->palm_flag);
 	} else if (action == SEC_TS_COORDINATE_ACTION_PRESS || action == SEC_TS_COORDINATE_ACTION_MOVE) {
 		if (action == SEC_TS_COORDINATE_ACTION_PRESS) {
 			pdata->touch_count++;
@@ -794,7 +820,10 @@ static void sec_input_coord_report(struct device *dev, u8 t_id)
 		input_mt_report_slot_state(pdata->input_dev, MT_TOOL_FINGER, 1);
 		input_report_key(pdata->input_dev, BTN_TOUCH, 1);
 		input_report_key(pdata->input_dev, BTN_TOOL_FINGER, 1);
-		input_report_key(pdata->input_dev, BTN_PALM, pdata->palm_flag);
+		if (pdata->blocking_palm)
+			input_report_key(pdata->input_dev, BTN_PALM, 0);
+		else
+			input_report_key(pdata->input_dev, BTN_PALM, pdata->palm_flag);
 
 		input_report_abs(pdata->input_dev, ABS_MT_POSITION_X, pdata->coord[t_id].x);
 		input_report_abs(pdata->input_dev, ABS_MT_POSITION_Y, pdata->coord[t_id].y);
@@ -890,7 +919,7 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 	}
 }
 
-void sec_input_coord_event(struct device *dev, int t_id)
+void sec_input_coord_event_fill_slot(struct device *dev, int t_id)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 
@@ -946,9 +975,19 @@ void sec_input_coord_event(struct device *dev, int t_id)
 		}
 	}
 
-	input_sync(pdata->input_dev);
+	pdata->fill_slot = true;
 }
-EXPORT_SYMBOL(sec_input_coord_event);
+EXPORT_SYMBOL(sec_input_coord_event_fill_slot);
+
+void sec_input_coord_event_sync_slot(struct device *dev)
+{
+	struct sec_ts_plat_data *pdata = dev->platform_data;
+
+	if (pdata->fill_slot)
+		input_sync(pdata->input_dev);
+	pdata->fill_slot = false;
+}
+EXPORT_SYMBOL(sec_input_coord_event_sync_slot);
 
 void sec_input_release_all_finger(struct device *dev)
 {
@@ -1017,45 +1056,8 @@ static void sec_input_set_prop(struct device *dev, struct input_dev *input_dev, 
 	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
 	set_bit(BTN_PALM, input_dev->keybit);
 	set_bit(BTN_LARGE_PALM, input_dev->keybit);
-	set_bit(KEY_BLACK_UI_GESTURE, input_dev->keybit);
-	set_bit(KEY_INT_CANCEL, input_dev->keybit);
-
-	set_bit(propbit, input_dev->propbit);
-	set_bit(KEY_WAKEUP, input_dev->keybit);
-	set_bit(KEY_WATCH, input_dev->keybit);
-
-	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, pdata->max_x, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, pdata->max_y, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_TOUCH_MINOR, 0, 255, 0, 0);
-
-	if (propbit == INPUT_PROP_POINTER)
-		input_mt_init_slots(input_dev, SEC_TS_SUPPORT_TOUCH_COUNT, INPUT_MT_POINTER);
-	else
-		input_mt_init_slots(input_dev, SEC_TS_SUPPORT_TOUCH_COUNT, INPUT_MT_DIRECT);
-
-	input_set_drvdata(input_dev, data);
-}
-
-static void sec_input_set_prop_pad(struct device *dev, struct input_dev *input_dev, u8 propbit, void *data)
-{
-	struct sec_ts_plat_data *pdata = dev->platform_data;
-	static char sec_input_phys[64] = { 0 };
-
-	snprintf(sec_input_phys, sizeof(sec_input_phys), "%s", input_dev->name);
-	input_dev->phys = sec_input_phys;
-	input_dev->id.bustype = BUS_I2C;
-	input_dev->dev.parent = dev;
-
-	set_bit(EV_SYN, input_dev->evbit);
-	set_bit(EV_KEY, input_dev->evbit);
-	set_bit(EV_ABS, input_dev->evbit);
-	set_bit(EV_SW, input_dev->evbit);
-	set_bit(BTN_TOUCH, input_dev->keybit);
-	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
-	set_bit(BTN_PALM, input_dev->keybit);
-	set_bit(BTN_LARGE_PALM, input_dev->keybit);
-	set_bit(KEY_BLACK_UI_GESTURE, input_dev->keybit);
+	if (!pdata->support_gesture_uevent)
+		set_bit(KEY_BLACK_UI_GESTURE, input_dev->keybit);
 	set_bit(KEY_INT_CANCEL, input_dev->keybit);
 
 	set_bit(propbit, input_dev->propbit);
@@ -1077,10 +1079,7 @@ static void sec_input_set_prop_pad(struct device *dev, struct input_dev *input_d
 
 static void sec_input_set_prop_proximity(struct device *dev, struct input_dev *input_dev, void *data)
 {
-	static char sec_input_phys[64] = { 0 };
-
-	snprintf(sec_input_phys, sizeof(sec_input_phys), "%s/input1", input_dev->name);
-	input_dev->phys = sec_input_phys;
+	input_dev->phys = input_dev->name;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = dev;
 
@@ -1127,7 +1126,7 @@ int sec_input_device_register(struct device *dev, void *data)
 		}
 
 		pdata->input_dev_pad->name = "sec_touchpad";
-		sec_input_set_prop_pad(dev, pdata->input_dev_pad, INPUT_PROP_POINTER, data);
+		sec_input_set_prop(dev, pdata->input_dev_pad, INPUT_PROP_POINTER, data);
 		ret = input_register_device(pdata->input_dev_pad);
 		if (ret) {
 			input_err(true, dev, "%s: Unable to register %s input device\n",
@@ -1167,6 +1166,9 @@ int sec_input_pinctrl_configure(struct device *dev, bool on)
 	struct pinctrl_state *state;
 
 	input_info(true, dev, "%s: %s\n", __func__, on ? "ACTIVE" : "SUSPEND");
+
+	if (sec_check_secure_trusted_mode_status(pdata))
+		return 0;
 
 	if (on) {
 		state = pinctrl_lookup_state(pdata->pinctrl, "on_state");
@@ -1399,6 +1401,8 @@ void sec_input_support_feature_parse_dt(struct device *dev)
 	pdata->sense_off_when_cover_closed = of_property_read_bool(np, "sense_off_when_cover_closed");
 	pdata->not_support_temp_noti = of_property_read_bool(np, "not_support_temp_noti");
 	pdata->support_vbus_notifier = of_property_read_bool(np, "support_vbus_notifier");
+	pdata->support_gesture_uevent = of_property_read_bool(np, "support_gesture_uevent");
+	pdata->support_always_on = of_property_read_bool(np, "support_always_on");
 
 	if (of_property_read_u32(np, "support_rawdata_map_num", &pdata->support_rawdata_map_num) < 0)
 		pdata->support_rawdata_map_num = 0;
@@ -1406,6 +1410,10 @@ void sec_input_support_feature_parse_dt(struct device *dev)
 	if (of_property_read_u32(np, "sec,support_sensor_hall", &pdata->support_sensor_hall) < 0)
 		pdata->support_sensor_hall = 0;
 	pdata->support_lightsensor_detect = of_property_read_bool(np, "support_lightsensor_detect");
+
+	pdata->prox_lp_scan_enabled = of_property_read_bool(np, "sec,prox_lp_scan_enabled");
+	input_info(true, dev, "%s: Prox LP Scan enabled %s\n",
+				__func__, pdata->prox_lp_scan_enabled ? "ON" : "OFF");
 
 	pdata->enable_sysinput_enabled = of_property_read_bool(np, "sec,enable_sysinput_enabled");
 	input_info(true, dev, "%s: Sysinput enabled %s\n",
@@ -1427,8 +1435,8 @@ void sec_input_support_feature_parse_dt(struct device *dev)
 			pdata->support_ear_detect, pdata->support_fod_lp_mode);
 	input_info(true, dev, "COB:%d, disable_vsync_scan:%d,\n",
 			pdata->chip_on_board, pdata->disable_vsync_scan);
-	input_info(true, dev, "not_support_temp_noti:%d, support_vbus_notifier:%d\n",
-			pdata->not_support_temp_noti, pdata->support_vbus_notifier);
+	input_info(true, dev, "not_support_temp_noti:%d, support_vbus_notifier:%d support_always_on:%d\n",
+			pdata->not_support_temp_noti, pdata->support_vbus_notifier, pdata->support_always_on);
 }
 EXPORT_SYMBOL(sec_input_support_feature_parse_dt);
 
@@ -1484,7 +1492,9 @@ int sec_input_parse_dt(struct device *dev)
 		}
 	}
 
-	pdata->irq_gpio = of_get_named_gpio(np, "sec,irq_gpio", 0);
+	mutex_init(&pdata->irq_lock);
+
+	pdata->irq_gpio = of_get_named_gpio_flags(np, "sec,irq_gpio", 0, &pdata->irq_flag);
 	if (gpio_is_valid(pdata->irq_gpio)) {
 		char label[15] = { 0 };
 
@@ -1494,6 +1504,10 @@ int sec_input_parse_dt(struct device *dev)
 			input_err(true, dev, "%s: Unable to request %s [%d]\n", __func__, label, pdata->irq_gpio);
 			return -EINVAL;
 		}
+		input_info(true, dev, "%s: irq gpio requested. %s [%d]\n", __func__, label, pdata->irq_gpio);
+		if (pdata->irq_flag)
+			input_info(true, dev, "%s: irq flag 0x%02X\n", __func__, pdata->irq_flag);
+		pdata->irq = gpio_to_irq(pdata->irq_gpio);
 	} else {
 		input_err(true, dev, "%s: Failed to get irq gpio\n", __func__);
 		return -EINVAL;
@@ -1871,12 +1885,87 @@ int stui_tsp_type(void)
 }
 EXPORT_SYMBOL(stui_tsp_type);
 
+void sec_input_irq_enable(struct sec_ts_plat_data *pdata)
+{
+	struct irq_desc *desc;
+
+	if (!pdata->irq)
+		return;
+
+	desc = irq_to_desc(pdata->irq);
+	if (!desc) {
+		pr_info("%s: invalid irq number: %d\n", __func__, pdata->irq);
+		return;
+	}
+
+	mutex_lock(&pdata->irq_lock);
+
+	while (desc->depth > 0) {
+		enable_irq(pdata->irq);
+		pr_info("%s: depth: %d\n", __func__, desc->depth);
+	}
+	atomic_set(&pdata->irq_enabled, SEC_INPUT_IRQ_ENABLE);
+	mutex_unlock(&pdata->irq_lock);
+}
+EXPORT_SYMBOL(sec_input_irq_enable);
+
+void sec_input_irq_disable(struct sec_ts_plat_data *pdata)
+{
+	struct irq_desc *desc;
+
+	if (!pdata->irq)
+		return;
+
+	desc = irq_to_desc(pdata->irq);
+	if (!desc) {
+		pr_info("%s: invalid irq number: %d\n", __func__, pdata->irq);
+		return;
+	}
+
+	mutex_lock(&pdata->irq_lock);
+	if (atomic_read(&pdata->irq_enabled) == SEC_INPUT_IRQ_ENABLE)
+		disable_irq(pdata->irq);
+	pr_info("%s: depth: %d\n", __func__, desc->depth);
+
+	atomic_set(&pdata->irq_enabled, SEC_INPUT_IRQ_DISABLE);
+	mutex_unlock(&pdata->irq_lock);
+}
+EXPORT_SYMBOL(sec_input_irq_disable);
+
+void sec_input_irq_disable_nosync(struct sec_ts_plat_data *pdata)
+{
+	struct irq_desc *desc;
+
+	if (!pdata->irq)
+		return;
+
+	desc = irq_to_desc(pdata->irq);
+	if (!desc) {
+		pr_info("%s: invalid irq number: %d\n", __func__, pdata->irq);
+		return;
+	}
+
+	mutex_lock(&pdata->irq_lock);
+
+	if (atomic_read(&pdata->irq_enabled) == SEC_INPUT_IRQ_ENABLE)
+		disable_irq_nosync(pdata->irq);
+	pr_info("%s: depth: %d\n", __func__, desc->depth);
+
+	atomic_set(&pdata->irq_enabled, SEC_INPUT_IRQ_DISABLE_NOSYNC);
+	mutex_unlock(&pdata->irq_lock);
+}
+EXPORT_SYMBOL(sec_input_irq_disable_nosync);
+
 void sec_input_forced_enable_irq(int irq)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
+
+	if (!desc)
+		return;
+
 	while (desc->depth > 0) {
-		pr_info("%s: depth: %d\n", __func__, desc->depth);
 		enable_irq(irq);
+		pr_info("%s: depth: %d\n", __func__, desc->depth);
 	}
 }
 EXPORT_SYMBOL(sec_input_forced_enable_irq);
@@ -1885,6 +1974,8 @@ int sec_input_enable_device(struct device *dev)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 	int retval;
+
+	sec_input_utc_marker(dev, __func__);
 
 	retval = mutex_lock_interruptible(&pdata->enable_mutex);
 	if (retval)
@@ -1902,6 +1993,8 @@ int sec_input_disable_device(struct device *dev)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 	int retval;
+
+	sec_input_utc_marker(dev, __func__);
 
 	retval = mutex_lock_interruptible(&pdata->enable_mutex);
 	if (retval)
@@ -1935,7 +2028,7 @@ static int __init sec_input_init(void)
 #endif
 
 	pr_info("%s %s --\n", SECLOG, __func__);
-	return 0;
+	return ret;
 }
 
 static void __exit sec_input_exit(void)

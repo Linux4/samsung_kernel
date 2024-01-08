@@ -985,6 +985,16 @@ static void hdd_cm_save_bss_info(struct hdd_adapter *adapter,
 		hdd_sta_ctx->conn_info.conn_flag.vht_op_present = false;
 	}
 
+	if (assoc_resp->he_cap.present)
+		hdd_sta_ctx->conn_info.conn_flag.he_present = true;
+	else
+		hdd_sta_ctx->conn_info.conn_flag.he_present = false;
+
+	if (assoc_resp->eht_cap.present)
+		hdd_sta_ctx->conn_info.conn_flag.eht_present = true;
+	else
+		hdd_sta_ctx->conn_info.conn_flag.eht_present = false;
+
 	/*
 	 * Cache connection info only in case of station
 	 */
