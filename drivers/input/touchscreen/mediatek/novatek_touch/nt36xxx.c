@@ -1899,6 +1899,19 @@ void nvt_ts_proximity_report(uint8_t *data)
 }
 #endif
 
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+static int nvt_input_open(struct input_dev *dev)
+{
+	ts->tp_is_enabled = 1;
+	return 0;
+}
+
+static void nvt_input_close(struct input_dev *dev)
+{
+	ts->tp_is_enabled = 0;
+}
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
+
 /*******************************************************
 Description:
 	Novatek touchscreen work function.
@@ -2129,8 +2142,13 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, false);
 		}
 	}
-
-	input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+	if (ts->tp_is_enabled) {
+		input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
+	} else {
+		input_info(true, &ts->client->dev, "%s : tp_is_enabled:%d\n", __func__, ts->tp_is_enabled);
+	}
+/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 #else /* MT_PROTOCOL_B */
 	if (finger_cnt == 0) {
 		input_report_key(ts->input_dev, BTN_TOUCH, 0);
@@ -2690,6 +2708,10 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	ts->input_dev_proximity->phys = ts->phys;
 	ts->input_dev_proximity->id.bustype = BUS_SPI;
 #endif
+	/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+	ts->input_dev->open = nvt_input_open;
+	ts->input_dev->close = nvt_input_close;
+	/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 	/*TabA7 Lite code for OT8-5455 by suyurui at 20220402 start*/
 	//---register input device---
 	ret = input_register_device(ts->input_dev);
@@ -2851,7 +2873,13 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20201229 start*/
 	tp_is_used = Novatek;
 	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20201229 end*/
-
+	/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 start*/
+	ret = sysfs_create_link(&ts->sec.fac_dev->kobj,&ts->input_dev->dev.kobj, "input");
+	if (ret < 0)
+	{
+		NVT_ERR("create enable node fail\n");
+	}
+	/*Tab A7 lite_U code for SR-AX3565AU-21  by zhengkunbang at 20230810 end*/
 	return 0;
 
 
@@ -3490,6 +3518,12 @@ static struct tpd_driver_t nvt_device_driver = {
 static int32_t __init nvt_driver_init(void)
 {
 	int32_t ret = 0;
+	/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 start*/
+	if ((tp_get_boot_mode() != NORMAL_BOOT) && (tp_get_boot_mode() != ALARM_BOOT)) {
+		NVT_ERR("tp init fail because boot_mode = %d\n",tp_get_boot_mode());
+		return -EINVAL;
+	}
+	/*Tab A7 lite_U code for SR-AX3565U-01-4  by zhengkunbang at 20230807 end*/
 
 	NVT_LOG("start\n");
 	tpd_get_dts_info();

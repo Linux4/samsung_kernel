@@ -151,7 +151,9 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		    (new_state == TYPEC_ATTACHED_SNK ||
 		     new_state == TYPEC_ATTACHED_NORP_SRC ||
 		     new_state == TYPEC_ATTACHED_CUSTOM_SRC ||
-		     new_state == TYPEC_ATTACHED_DBGACC_SNK)) {
+		     new_state == TYPEC_ATTACHED_DBGACC_SNK ||
+		     new_state == TYPEC_ATTACHED_WD_SNK)) {
+
 			dev_info(rpmd->dev,
 				 "%s Charger plug in, polarity = %d\n",
 				 __func__, noti->typec_state.polarity);
@@ -170,7 +172,8 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		} else if ((old_state == TYPEC_ATTACHED_SNK ||
 			    old_state == TYPEC_ATTACHED_NORP_SRC ||
 			    old_state == TYPEC_ATTACHED_CUSTOM_SRC ||
-			    old_state == TYPEC_ATTACHED_DBGACC_SNK) &&
+			    old_state == TYPEC_ATTACHED_DBGACC_SNK ||
+			    old_state == TYPEC_ATTACHED_WD_SNK) &&
 			    new_state == TYPEC_UNATTACHED) {
 			dev_info(rpmd->dev, "%s Charger plug out\n", __func__);
 			usb_cc_flag = TYPEC_ORIENTATION_NONE;

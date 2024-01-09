@@ -1775,9 +1775,9 @@ static inline int mt6360_init_water_detection(struct tcpc_device *tcpc)
 	mt6360_i2c_set_bit(tcpc, MT6360_REG_WD_DET_CTRL4,
 			   MT6360_WD_DET_CC_RPSEL | MT6360_WD_DET_CC_ROLE_PRT);
 
-	/* sleep time, water protection check frequency */
+	/* sleep time = 204.8ms, water protection check frequency */
 	mt6360_i2c_write8(tcpc, MT6360_REG_WD_DET_CTRL5,
-			  MT6360_REG_WD_DET_CTRL5_SET(9));
+			  MT6360_REG_WD_DET_CTRL5_SET(1));
 
 	/* Enable Water Rust Detection Flow */
 	mt6360_i2c_set_bit(tcpc, MT6360_REG_WD_DET_CTRL1, MT6360_WD_DET_EN);
@@ -1933,11 +1933,15 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 	}
 	ub = tcpc->usbid_calib * 110 / 100;
 	if (tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
-	    tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT)
+	    tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT) {
 		lb = CONFIG_WD_SBU_PH_LBOUND_ATTACH;
+		ub = CONFIG_WD_SBU_PH_UBOUND_ATTACH;
+	}
 #ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
-	else if (ktime_get_boot_ns() < 20000000000ULL)
+	else if (ktime_get_boot_ns() < 20000000000ULL) {
 		lb = CONFIG_WD_SBU_PH_LBOUND_ATTACH;
+		ub = CONFIG_WD_SBU_PH_UBOUND_ATTACH;
+	}
 #endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
 	else
 		lb = CONFIG_WD_SBU_PH_LBOUND;
@@ -1992,6 +1996,17 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 		}
 	}
 
+	if ( usbid >= CONFIG_WD_SBU_PH_LBOUND2_SS &&
+		usbid <= CONFIG_WD_SBU_PH_UBOUND2_SS) {
+#ifdef CONFIG_PD_DBG_INFO
+		MT6360_INFO("%s ignore for SS accessory2\n", __func__);
+#else
+		pr_info("%s ignore for SS accessory2\n", __func__);
+#endif
+		ret = 0;
+		goto out;
+	}
+
 	if (cable_type == TCPC_CABLE_TYPE_C2C) {
 		if (((usbid >= CONFIG_WD_SBU_PH_LBOUND1_C2C) &&
 		    (usbid <= CONFIG_WD_SBU_PH_UBOUND1_C2C)) ||
@@ -2023,7 +2038,7 @@ out:
 #else
 	pr_info("%s %s water\n", __func__, ret ? "with" : "without");
 #endif
-	tcpc->water_state = !!ret;
+	tcpc->is_water_checked = !!ret;
 err:
 	charger_dev_enable_usbid_floating(chip->chgdev, true);
 	charger_dev_enable_usbid(chip->chgdev, false);

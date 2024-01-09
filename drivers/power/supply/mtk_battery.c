@@ -1225,6 +1225,12 @@ static void ss_get_prop_batt_status(struct mtk_battery *gm,
 			} else {
 				val->intval = chr_status.intval;
 			}
+			/* HS03s_T for AX3565TDEV-761 by lina at 20221220 start */
+			if (is_kernel_power_off_charging() &&
+				val->intval == POWER_SUPPLY_STATUS_NOT_CHARGING) {
+				val->intval = POWER_SUPPLY_STATUS_CHARGING;
+			}
+			/* HS03s_T for AX3565TDEV-761 by lina at 20221220 end*/
 		}
 		/*HS03s for P210610-03373 by wenyaqi at 20210610 end*/
 	} else {
@@ -1817,6 +1823,13 @@ static int battery_psy_get_property(struct power_supply *psy,
 	/*HS03s for SR-AL5625-01-276 by wenyaqi at 20210426 start*/
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+		if (!psys) {
+			return -EINVAL;
+		}
+		power_supply_get_property(psys, POWER_SUPPLY_PROP_BATT_SLATE_MODE, val);
+		break;
+	/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 	#endif
 	/*HS03s for SR-AL5625-01-276 by wenyaqi at 20210426 end*/
 	/*HS03s for SR-AL5625-01-35 by wenyaqi at 20210420 start*/
@@ -1983,6 +1996,14 @@ static int battery_psy_set_property(struct power_supply *psy,
 		/*HS03s for SR-AL5625-01-276 by wenyaqi at 20210426 start*/
 		#ifndef HQ_FACTORY_BUILD	//ss version
 		case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
+		/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+			if (!psys) {
+				return -EINVAL;
+			}
+			ret = power_supply_set_property(psys,
+					POWER_SUPPLY_PROP_BATT_SLATE_MODE, val);
+			break;
+		/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 		#endif
 		/*HS03s for SR-AL5625-01-276 by wenyaqi at 20210426 end*/
 		case POWER_SUPPLY_PROP_INPUT_SUSPEND:
@@ -2125,6 +2146,12 @@ static int battery_psy_get_property(struct power_supply *psy,
 		} else {
 			val->intval = chr_status.intval;
 		}
+		/* Tab A7 lite_T for AX3565TDEV-761 by lina at 20221220 start */
+		if (is_kernel_power_off_charging() &&
+			val->intval == POWER_SUPPLY_STATUS_NOT_CHARGING) {
+			val->intval = POWER_SUPPLY_STATUS_CHARGING;
+		}
+		 /* Tab A7 lite_T for AX3565TDEV-761 by lina at 20221220 end */
 		/*TabA7 Lite code for P210326-01687 by wenyaqi at 20210329 end*/
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
@@ -2451,7 +2478,11 @@ static int battery_psy_set_property(struct power_supply *psy,
 					POWER_SUPPLY_PROP_BATT_SLATE_MODE, val);
 			gm->battery_slate_mode = val->intval;
 			/*TabA7 Lite code for  SR-AX3565-01-13 add sysFS node named battery/input_suspend by wenyaqi at 20201203 start*/
-			gm->input_suspend = gm->battery_slate_mode;
+			/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 start */
+			if (gm->battery_slate_mode == SEC_SLATE_OFF || gm->battery_slate_mode == SEC_SLATE_MODE) {
+				gm->input_suspend = gm->battery_slate_mode;
+			}
+			/* HS04_U/HS14_U/TabA7 Lite U for P231128-06029 by liufurong at 20231204 end */
 			/*TabA7 Lite code for  SR-AX3565-01-13 add sysFS node named battery/input_suspend by wenyaqi at 20201203 end*/
 			break;
 		/*TabA7 Lite code for P210330-05709 by wenyaqi at 20210401 start*/

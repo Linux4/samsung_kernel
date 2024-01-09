@@ -786,6 +786,7 @@ void mt_usb_disconnect_v1(void)
 /* hs14 code for AL6528ADEU-3679|P221231-00979 by gaozhengwei at 2023/01/02 start */
 #if defined(CONFIG_HQ_PROJECT_O22)
 	if (tcpc_info == FUSB302) {
+		pr_info("%s: tcpc_info = %d\n", __func__, tcpc_info);
 		issue_connection_work(DUAL_PROP_DR_NONE);
 	}
 #endif

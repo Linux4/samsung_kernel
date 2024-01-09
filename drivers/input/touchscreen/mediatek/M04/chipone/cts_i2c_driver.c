@@ -644,21 +644,45 @@ static struct spi_driver cts_spi_driver = {
     .id_table = cts_device_id_table,
 };
 
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 start*/
+static int cts_detect_panel(void)
+{
+    if ((tp_get_boot_mode() != NORMAL_BOOT) && (tp_get_boot_mode() != ALARM_BOOT)) {
+        cts_err("tp init fail because boot_mode = %d\n",tp_get_boot_mode());
+        return -EINVAL;
+    }
+
+    if (saved_command_line == NULL) {
+        return -EFAULT;
+    }
+    if (strstr(saved_command_line, "lcd_nl9911c_hr_hr_mipi_hdp_video")) {
+        cts_info("%s:panel = lcd_nl9922c_jz_tm_mipi_fhd_video\n",__func__);
+        return 0;
+    }
+    if (strstr(saved_command_line, "lcd_nl9911c_hlt_hkc_mipi_hdp_video")) {
+        cts_info("%s:panel = lcd_nl9922c_jz_tm_mipi_fhd_video\n",__func__);
+        return 0;
+    }
+    return -EFAULT;
+}
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 end*/
 int cts_driver_init(void)
 {
-    int ret = 0;
-
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 start*/
     cts_info("Init");
 
 #ifdef CONFIG_CTS_I2C_HOST
-    ret = i2c_add_driver(&cts_i2c_driver);
+    return i2c_add_driver(&cts_i2c_driver);
 #else
-    ret = spi_register_driver(&cts_spi_driver);
+    pr_err("%s spi", __func__);
+    if (cts_detect_panel() == 0) {
+        return spi_register_driver(&cts_spi_driver);
+    } else {
+        cts_err("%s can not detect panel", __func__);
+        return -EFAULT;
+    }
 #endif
-
-    cts_info("Init return "CTS_ERR_FMT_STR, CTS_ERR_ARG(ret));
-
-    return ret;
+/*HS04_U code for SR-AL6398U-01-3  by zhengkunbang at 20230807 end*/
 }
 
 void cts_driver_exit(void)

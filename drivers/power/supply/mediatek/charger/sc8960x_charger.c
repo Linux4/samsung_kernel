@@ -297,29 +297,33 @@ static int sc8960x_set_dpdm_sink(struct sc8960x *sc)
 }
 /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
 
-/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
-static int sc8960x_enable_hvdcp(struct sc8960x *sc, bool enable)
+/* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 start */
+static int sc8960x_enable_hvdcp(struct sc8960x *sc)
 {
     int ret;
+    int dp_val, dm_val;
     u8 reg_val;
-    u8 val = (enable == true) ?
-        REG81_HVDCP_ENABLE : REG81_HVDCP_DISABLE;
 
     ret = sc8960x_read_byte(sc, SC8960X_REG_81, &reg_val);
     if (ret) {
         sc8960x_set_key(sc);
     }
 
-    sc8960x_update_bits(sc, SC8960X_REG_81, REG81_HVDCP_EN_MASK,
-            val << REG81_HVDCP_EN_SHIFT);
+    /*dp and dm connected,dp 0.6V dm Hiz*/
+    dp_val = REG81_DP_DRIVE_06V << REG81_DP_DRIVE_SHIFT;
+    ret = sc8960x_update_bits(sc, SC8960X_REG_81,
+                    REG81_DP_DRIVE_MASK, dp_val); //dp 0.6V
 
-    ret = sc8960x_read_byte(sc, SC8960X_REG_81, &val);
-    if (ret)
-        pr_err("----> reg 81 = 0x%02x\n", val);
+    dm_val = 0;
+    ret = sc8960x_update_bits(sc, SC8960X_REG_81,
+                    REG81_DM_DRIVE_MASK, dm_val); //dm Hiz
+
+    ret = sc8960x_read_byte(sc, SC8960X_REG_81, &reg_val);
+    pr_err("%s ----> reg 81 = 0x%02x\n", __func__, reg_val);
 
     return sc8960x_set_key(sc);
 }
-/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
+/* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 end */
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 
 static int sc8960x_enable_otg(struct sc8960x *sc)
@@ -449,12 +453,20 @@ int sc8960x_set_input_volt_limit(struct sc8960x *sc, int volt)
     if (volt < REG06_VINDPM_BASE)
         volt = REG06_VINDPM_BASE;
 
-	/* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 start */
-    if (volt >= REG06_VINDPM_HV_LOW && volt < REG06_VINDPM_HV_TOP) {
+    /* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 start */
+    // Set the gear below 5V to 4.6V, avoid entry sleep mode
+    if (volt <= REG06_MIN_VINDPM_THRES) {
+        val = REG06_MIN_VINDPM_VAL;
+        return sc8960x_update_bits(sc, SC8960X_REG_06, REG06_VINDPM_MASK,
+                    val << REG06_VINDPM_SHIFT);
+    } else if ((volt >= REG06_VINDPM_HV_LOW) && (volt < REG06_VINDPM_HV_TOP)) {
+    /* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 end */
+    /* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 start */
         val = REG06_VINDPM_HV_VAL;
         return sc8960x_update_bits(sc, SC8960X_REG_06, REG06_VINDPM_MASK,
                     val << REG06_VINDPM_SHIFT);
     }
+    /* hs14 code for AL6528A-1072 by zhangzhihao at 2023/1/18 end */
 
     val = (volt - REG06_VINDPM_BASE) / REG06_VINDPM_LSB;
     return sc8960x_update_bits(sc, SC8960X_REG_06, REG06_VINDPM_MASK,
@@ -996,15 +1008,15 @@ static int sc8960x_get_charger_type(struct sc8960x *sc, int *type)
     /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
         /* hs14 code for AL6528ADEU-28 by gaozhengwei at 2022/09/29 start */
         if (sc->first_force) {
-            ret = sc8960x_enable_hvdcp(sc, true);
-            if (ret)
-                pr_err("Failed to enable hvdcp\n");
             /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
             Charger_Detect_Init();
             /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
             sc->power_good = false;
             sc8960x_force_dpdm(sc);
             sc->first_force = false;
+            /* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 start */
+            return 0;
+            /* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 end */
         }
         /* hs14 code for AL6528ADEU-28 by gaozhengwei at 2022/09/29 end */
         chg_type = STANDARD_CHARGER;
@@ -1029,16 +1041,16 @@ static int sc8960x_get_charger_type(struct sc8960x *sc, int *type)
         break;
     }
 
-    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
-    /* hs14 code for SR-AL6528A-01-306|SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
-    if (chg_type == STANDARD_CHARGER || chg_type == NONSTANDARD_CHARGER || chg_type == CHARGER_UNKNOWN) {
-        pr_err("dcp or unknown,hold dpdm\n");
-    } else {
+    /* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 start */
+    if (chg_type != STANDARD_CHARGER) {
         Charger_Detect_Release();
+    } else {
+        ret = sc8960x_enable_hvdcp(sc);
+        if (ret) {
+            pr_err("Failed to en HVDCP, ret = %d\n", ret);
+        }
     }
-    /* hs14 code for SR-AL6528A-01-306|SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
-    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
-
+    /* hs14 code for AL6528A-1090 by shanxinkai at 2023/02/10 end */
     *type = chg_type;
 
     return 0;
@@ -1145,9 +1157,6 @@ static irqreturn_t sc8960x_irq_handler(int irq, void *data)
         sc8960x_enable_bc12(sc, true);
         Charger_Detect_Release();
         /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
-        ret = sc8960x_enable_hvdcp(sc, false);
-        if (ret)
-            pr_err("Failed to disable hvdcp\n");
         return IRQ_HANDLED;
     }
 
@@ -1248,9 +1257,6 @@ static int sc8960x_init_device(struct sc8960x *sc)
     /* hs14 code for SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 end*/
 
     /* hs14 code for SR-AL6528A-01-321|AL6528ADEU-28 by gaozhengwei at 2022/09/29 start */
-    ret = sc8960x_enable_hvdcp(sc, false);
-    if (ret)
-        pr_err("Failed to disable hvdcp\n");
 
     ret = sc8960x_set_wa(sc);
     if (ret)

@@ -400,6 +400,9 @@ struct mtkfb_device {
 	struct notifier_block usbplug_notify;
 	bool usb_connected;
 	struct input_dev *input;
+	/* hs14 code for AL6528A-1067 by gaozhengwei at 2023/01/10 start */
+	struct mutex lock;
+	/* hs14 code for AL6528A-1067 by gaozhengwei at 2023/01/10 end */
 #endif
 /* hs14 code for AL6528A-318 by gaozhengwei at 2022/10/18 start */
 };

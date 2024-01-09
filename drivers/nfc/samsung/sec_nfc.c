@@ -24,7 +24,7 @@
 #endif
 
 #define CONFIG_SEC_NFC_WAKE_LOCK
-#define CONFIG_NFC_SHUTDOWN_WORKAROUND
+/*#define CONFIG_NFC_SHUTDOWN_WORKAROUND*/
 #include <linux/wait.h>
 #include <linux/delay.h>
 
@@ -102,6 +102,14 @@ struct sec_nfc_info {
     void __iomem *clkctrl;
 #endif
 };
+
+/*hs14_U code for NFC customize by lijun at 2023/06/28 start */
+#ifdef CONFIG_HQ_PROJECT_O22
+static struct pinctrl *pinctrl = NULL;
+static struct pinctrl_state *pin_active = NULL;
+static struct pinctrl_state *pin_suspend = NULL;
+#endif
+/*hs14_U code for NFC customize by lijun at 2023/06/28 end */
 
 #ifdef CONFIG_SEC_ESE_COLDRESET
 struct mutex coldreset_mutex;
@@ -832,7 +840,7 @@ static int sec_nfc_suspend(struct device *dev)
     value = gpio_get_value(pdata->clk_req);
     if(value > 0){
         pr_info("%s: clk req is still active, block suspend.\n", __func__);
-        ret = -EPERM;
+	ret = -EPERM;
     }
 #endif
 
@@ -898,7 +906,7 @@ static int sec_nfc_parse_dt(struct device *dev,
 }
 #endif
 
-/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 start */
+/*hs14_U code for NFC customize by lijun at 2023/06/28 start */
 #define NFC_INFO_STR_LEN 7
 
 static char NFC_INFO_from_cmdline[NFC_INFO_STR_LEN + 1];
@@ -910,7 +918,7 @@ static int __init NFC_INFO_setup(char *str)
     return 1;
 }
 
-/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 end */
+/*hs14_U code for NFC customize by lijun at 2023/06/28 end */
 
 static int __sec_nfc_probe(struct device *dev)
 {
@@ -918,25 +926,44 @@ static int __sec_nfc_probe(struct device *dev)
     struct sec_nfc_platform_data *pdata = NULL;
     int ret = 0;
 
-/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 start */
+/*hs14_U code for NFC customize by lijun at 2023/06/28 start */
+
 #ifdef CONFIG_HQ_PROJECT_O22
+    pinctrl = devm_pinctrl_get(dev);
+    if (IS_ERR_OR_NULL(pinctrl)) {
+        pr_err("%s, No pinctrl config specified\n", __func__);
+        return -EINVAL;
+    }
+
+    pin_active = pinctrl_lookup_state(pinctrl, "active");
+    if (IS_ERR_OR_NULL(pin_active)) {
+        pr_err("%s, could not get pin_active\n", __func__);
+        return -EINVAL;
+    }
+
+    pin_suspend = pinctrl_lookup_state(pinctrl, "sleep");
+    if (IS_ERR_OR_NULL(pin_suspend)) {
+        pr_err("%s, could not get pin_suspend\n", __func__);
+        return -EINVAL;
+    }
+
+    __setup("androidboot.nfcinfo=", NFC_INFO_setup);
+    if (strncmp(NFC_INFO_from_cmdline, "NFC_SMD",
+                       strlen("NFC_SMD"))) {
+        pinctrl_select_state(pinctrl, pin_suspend);
+        pr_info("%s: NFCinfo this device do not support NFC ,we ignore it \n", __func__);
+        return -ENOMEM;
+                }
+#else
     __setup("androidboot.nfcinfo=", NFC_INFO_setup);
     if (strncmp(NFC_INFO_from_cmdline, "NFC_SMD",
                        strlen("NFC_SMD"))) {
         pr_info("%s: NFCinfo this device do not support NFC ,we ignore it \n", __func__);
         return -ENOMEM;
                 }
-
-#else
-
-    __setup("androidboot.pcbainfo=", NFC_INFO_setup);
-    if (strncmp(NFC_INFO_from_cmdline, "E_27AA_",
-                       strlen("E_27AA_"))) {
-        pr_info("%s: PCBAinfo this device do not support NFC ,we ignore it \n", __func__);
-        return -ENOMEM;
-                }
 #endif
-/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 end */
+
+/*hs14_U code for NFC customize by lijun at 2023/06/28 end */
 
     pr_info("%s : start\n", __func__);
     if (dev->of_node) {
