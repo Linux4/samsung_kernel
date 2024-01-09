@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/slab.h>
 #include <linux/kthread.h>
@@ -2868,6 +2868,13 @@ static int voice_send_cvs_register_cal_cmd(struct voice_data *v)
 		goto unlock;
 	}
 
+	if (col_data->cal_data.size >= MAX_COL_INFO_SIZE) {
+		pr_err("%s: Invalid cal data size %d!\n",
+			__func__, col_data->cal_data.size);
+		ret = -EINVAL;
+		goto unlock;
+	}
+
 	memcpy(&cvs_reg_cal_cmd.cvs_cal_data.column_info[0],
 	       (void *) &((struct audio_cal_info_voc_col *)
 	       col_data->cal_info)->data,
@@ -3866,7 +3873,6 @@ static int voice_map_cal_memory(struct cal_block_data *cal_block,
 		goto done;
 	}
 
-	mutex_lock(&common.common_lock);
 	v = &common.voice[voc_index];
 
 	result = voice_map_memory_physical_cmd(v,
@@ -3880,12 +3886,10 @@ static int voice_map_cal_memory(struct cal_block_data *cal_block,
 			&cal_block->cal_data.paddr,
 			cal_block->map_data.map_size);
 
-		goto done_unlock;
+		goto done;
 	}
 
 	cal_block->map_data.q6map_handle = common.cal_mem_handle;
-done_unlock:
-	mutex_unlock(&common.common_lock);
 done:
 	return result;
 }

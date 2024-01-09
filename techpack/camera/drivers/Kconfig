@@ -124,3 +124,17 @@ config SAMSUNG_CAMERA_OTP
 	default n
 	help
 	Enables support for SENSOR OTP
+	
+
+config CAMERA_HYPERLAPSE_300X
+    tristate "Camera HYPERLAPSE 300x support"
+    default n
+    help
+    Enables support for Camera HYPERLAPSE 300x
+	
+config CAMERA_CDR_TEST
+    tristate "Camera CDR Test support"
+    default n
+    help
+    Enables support for Camera CDR Test
+

@@ -364,6 +364,7 @@
   class_dev_iter_next
   class_find_device
   class_interface_unregister
+  class_remove_file_ns
   class_unregister
   cleanup_srcu_struct
   clear_inode
@@ -597,6 +598,7 @@
   devm_free_irq
   devm_fwnode_get_index_gpiod_from_child
   devm_gen_pool_create
+  devm_gpio_free
   devm_gpio_request
   devm_gpio_request_one
   devm_gpiochip_add_data

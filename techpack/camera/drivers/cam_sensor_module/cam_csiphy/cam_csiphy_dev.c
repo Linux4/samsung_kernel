@@ -10,6 +10,23 @@
 #include <media/cam_sensor.h>
 #include "camera_main.h"
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include <linux/ktime.h>
+extern char cdr_result[40];
+extern uint64_t cdr_start_ts;
+extern uint64_t cdr_end_ts;
+#endif
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static void cam_csiphy_cdr_store_result()
+{
+	cdr_end_ts	= ktime_get();
+	cdr_end_ts = cdr_end_ts / 1000 / 1000;
+	sprintf(cdr_result, "%d,%lld\n", 0, cdr_end_ts-cdr_start_ts);
+	CAM_INFO(CAM_CSIPHY, "[CDR_DBG] mipi_overflow, time(ms): %llu", cdr_end_ts-cdr_start_ts);
+}
+#endif
+
 static void cam_csiphy_subdev_handle_message(
 		struct v4l2_subdev *sd,
 		enum cam_subdev_message_type_t message_type,
@@ -23,6 +40,9 @@ static void cam_csiphy_subdev_handle_message(
 				csiphy_dev->soc_info.index, data);
 		if (data == csiphy_dev->soc_info.index)
 			cam_csiphy_status_dmp(csiphy_dev);
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_csiphy_cdr_store_result();
+#endif
 		break;
 	default:
 		break;

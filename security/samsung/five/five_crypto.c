@@ -32,8 +32,8 @@
 #include <linux/freezer.h>
 #include "five.h"
 #include "five_crypto_comp.h"
-#include "../../integrity/integrity.h"
 #include "five_porting.h"
+#include "../../integrity/integrity.h"
 #include "five_testing.h"
 
 struct ahash_completion {
@@ -235,7 +235,7 @@ static int ahash_wait(int err, struct ahash_completion *res)
 		wait_for_completion(&res->completion);
 		reinit_completion(&res->completion);
 		err = res->err;
-		/* fall through */
+		fallthrough;
 	default:
 		pr_crit_ratelimited("ahash calculation failed: err: %d\n", err);
 	}

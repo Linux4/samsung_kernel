@@ -1941,6 +1941,9 @@ static const int lahaina_reserved_gpios[] = {
 #if !defined(CONFIG_SEC_FACTORY)
 	52, 53, 54, 55,
 #endif
+#if IS_ENABLED(CONFIG_MST_LDO)
+	30, 31,
+#endif
 	-1
 };
 

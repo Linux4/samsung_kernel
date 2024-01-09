@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 /*
 * Add support for 24 and 32bit format for ASM loopback and playback session.
@@ -603,6 +603,8 @@ static int msm_pcm_playback_prepare(struct snd_pcm_substream *substream)
 	uint16_t format = 0;
 	uint16_t req_format = 0;
 	uint16_t input_file_format = 0;
+	int port_id = 0, copp_idx = -1;
+	bool found = false;
 
 	if (!component) {
 		pr_err("%s: component is NULL\n", __func__);
@@ -728,6 +730,15 @@ static int msm_pcm_playback_prepare(struct snd_pcm_substream *substream)
 	if (ret) {
 		pr_err("%s: stream reg failed ret:%d\n", __func__, ret);
 		return ret;
+	}
+
+	found = msm_pcm_routing_get_portid_copp_idx(soc_prtd->dai_link->id,
+				SESSION_TYPE_RX, &port_id, &copp_idx);
+	if (found) {
+		q6adm_update_rtd_info(soc_prtd, port_id, copp_idx,
+					soc_prtd->dai_link->id, 1);
+	} else {
+		pr_err("%s: copp_idx not found\n", __func__);
 	}
 
 	/*Format block is configure with input file bits_per_sample*/
@@ -1112,8 +1123,10 @@ static int msm_pcm_open(struct snd_pcm_substream *substream)
 	prtd->reset_event = false;
 	runtime->private_data = prtd;
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		msm_adsp_init_mixer_ctl_pp_event_queue(soc_prtd);
+		msm_adsp_init_mixer_ctl_adm_pp_event_queue(soc_prtd);
+	}
 
 	/* Vote to update the Rx thread priority to RT Thread for playback */
 	if ((substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
@@ -1231,6 +1244,8 @@ static int msm_pcm_playback_close(struct snd_pcm_substream *substream)
 	uint32_t timeout;
 	int dir = 0;
 	int ret = 0;
+	int port_id = 0, copp_idx = -1;
+	bool found = false;
 
 	pr_debug("%s: cmd_pending 0x%lx\n", __func__, prtd->cmd_pending);
 
@@ -1281,9 +1296,21 @@ static int msm_pcm_playback_close(struct snd_pcm_substream *substream)
 					prtd->audio_client);
 		q6asm_audio_client_free(prtd->audio_client);
 	}
+
+	found = msm_pcm_routing_get_portid_copp_idx(soc_prtd->dai_link->id,
+				SESSION_TYPE_RX, &port_id, &copp_idx);
+	if (found) {
+		q6adm_update_rtd_info(soc_prtd, port_id, copp_idx,
+					soc_prtd->dai_link->id, 0);
+		q6adm_clear_callback();
+	} else {
+		pr_err("%s: copp_idx not found\n", __func__);
+	}
+
 	msm_pcm_routing_dereg_phy_stream(soc_prtd->dai_link->id,
 						SNDRV_PCM_STREAM_PLAYBACK);
 	msm_adsp_clean_mixer_ctl_pp_event_queue(soc_prtd);
+	msm_adsp_clean_mixer_ctl_adm_pp_event_queue(soc_prtd);
 	kfree(prtd);
 	runtime->private_data = NULL;
 	mutex_unlock(&pdata->lock);
@@ -1343,6 +1370,7 @@ static int msm_pcm_capture_copy(struct snd_pcm_substream *substream,
 			xfer = size;
 		offset = prtd->in_frame_info[idx].offset;
 		pr_debug("Offset value = %d\n", offset);
+
 		if (offset >= size) {
 			pr_err("%s: Invalid dsp buf offset\n", __func__);
 			ret = -EFAULT;
@@ -1350,7 +1378,7 @@ static int msm_pcm_capture_copy(struct snd_pcm_substream *substream,
 			goto fail;
 		}
 
-		if (size == 0 || size < prtd->pcm_count) {
+		if ((size == 0 || size < prtd->pcm_count) && ((offset + size) < prtd->pcm_count)) {
 			memset(bufptr + offset + size, 0, prtd->pcm_count - size);
 			if (fbytes > prtd->pcm_count)
 				size = xfer = prtd->pcm_count;

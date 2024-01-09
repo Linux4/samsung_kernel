@@ -903,7 +903,7 @@ struct zt75xx_ts_info {
 	u32 print_info_cnt_release;
 
 	struct completion resume_done;
-//	struct wake_lock wakelock;
+	struct wakeup_source *wakelock;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;

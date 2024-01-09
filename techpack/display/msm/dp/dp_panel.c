@@ -2066,10 +2066,11 @@ skip_edid:
 			dp_panel->dsc_en, dp_panel->widebus_en);
 
 #if defined(CONFIG_SEC_DISPLAYPORT)
-	DP_INFO("dpcd_rev: 0x%02x\n", dp_panel->dpcd[DP_DPCD_REV]);
-	DP_INFO("vendor_id: <%s>\n", dp_panel->edid_ctrl->vendor_id);
 	drm_edid_get_monitor_name(dp_panel->edid_ctrl->edid, dp_panel->monitor_name, 14);
-	DP_INFO("monitor_name: <%s>\n", dp_panel->monitor_name);
+	DP_INFO("dpcd_rev:0x%02x, vendor:%s, monitor:%s\n",
+		dp_panel->dpcd[DP_DPCD_REV],
+		dp_panel->edid_ctrl->vendor_id,
+		dp_panel->monitor_name);
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 	secdp_bigdata_save_item(BD_SINK_NAME, dp_panel->monitor_name);
 	secdp_bigdata_save_item(BD_EDID, (char *)(dp_panel->edid_ctrl->edid));
@@ -2215,11 +2216,10 @@ static int dp_panel_get_modes(struct dp_panel *dp_panel,
 	}
 
 	panel = container_of(dp_panel, struct dp_panel_private, dp_panel);
-#if defined(CONFIG_SEC_DISPLAYPORT)
-	DP_INFO("video_test:%d\n", dp_panel->video_test);
-#endif
-
 	if (dp_panel->video_test) {
+#if defined(CONFIG_SEC_DISPLAYPORT)
+		DP_INFO("video_test!");
+#endif
 		dp_panel_set_test_mode(panel, mode);
 		return 1;
 	} else if (dp_panel->edid_ctrl->edid) {
@@ -2664,7 +2664,7 @@ bool secdp_panel_hdr_supported(void)
 
 	hdr = dp_panel_hdr_supported(dp_panel);
 
-	DP_DEBUG("dsp_type:%s, hdr_support: %d\n",
+	DP_INFO("dsp_type:%s, hdr:%d\n",
 		mdss_dp_dsp_type_to_string(dp_panel->dsp_type), hdr);
 
 	return ((dp_panel->dsp_type == DSP_TYPE_DP) && hdr);

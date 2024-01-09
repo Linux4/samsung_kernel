@@ -444,6 +444,9 @@ struct extcon_nb {
 #define PM_QOS_SAMPLE_SEC	2
 #define PM_QOS_THRESHOLD	400
 
+#undef dev_dbg
+#define dev_dbg dev_err
+
 struct dwc3_msm {
 	struct device *dev;
 	void __iomem *base;

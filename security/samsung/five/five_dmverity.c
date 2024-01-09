@@ -20,6 +20,7 @@
 #include "five_dmverity.h"
 #include "five.h"
 #include "five_testing.h"
+#include "five_porting.h"
 
 #include "../../../drivers/md/dm.h"
 #include "../../../drivers/block/loop.h"

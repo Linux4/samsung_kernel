@@ -93,8 +93,16 @@ static void end_report(unsigned long *flags)
 	pr_err("==================================================================\n");
 	add_taint(TAINT_BAD_PAGE, LOCKDEP_NOW_UNRELIABLE);
 	spin_unlock_irqrestore(&report_lock, *flags);
+>>>> ORIGINAL //IMPORT/Qualcomm/kernel/SM8350_LA1.1_R/msm-5.4/mm/kasan/report.c#1
+	if (panic_on_warn)
+		panic("panic_on_warn set ...\n");
+==== THEIRS //IMPORT/Qualcomm/kernel/SM8350_LA1.1_R/msm-5.4/mm/kasan/report.c#2
+	if (!test_bit(KASAN_BIT_MULTI_SHOT, &kasan_flags))
+		check_panic_on_warn("KASAN");
+==== YOURS //TEMPLATE_NOTEPC_WORK_ALL_PROJECT/PATCH/SOLO/SM8350/FOR_S_OS/RIO/KERNEL/LEGO/BSP/Combination/SM8350_R/msm-5.4/mm/kasan/report.c
 	if (kasan_panic)
 		panic("panic_on_warn set ...\n");
+<<<<
 	kasan_enable_current();
 }
 
