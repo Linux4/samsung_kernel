@@ -38,6 +38,7 @@
 struct madvise_walk_private {
 	struct mmu_gather *tlb;
 	bool pageout;
+	bool can_pageout_file;
 };
 
 /*
@@ -54,6 +55,9 @@ static int madvise_need_mmap_write(int behavior)
 	case MADV_COLD:
 	case MADV_PAGEOUT:
 	case MADV_FREE:
+#if IS_ENABLED(CONFIG_ZRAM)
+	case MADV_PREFETCH:
+#endif
 		return 0;
 	default:
 		/* be safe, default to 1. list exceptions explicitly */
@@ -313,6 +317,7 @@ static int madvise_cold_or_pageout_pte_range(pmd_t *pmd,
 	struct madvise_walk_private *private = walk->private;
 	struct mmu_gather *tlb = private->tlb;
 	bool pageout = private->pageout;
+	bool pageout_anon_only = pageout && !private->can_pageout_file;
 	struct mm_struct *mm = tlb->mm;
 	struct vm_area_struct *vma = walk->vma;
 	pte_t *orig_pte, *pte, ptent;
@@ -323,6 +328,11 @@ static int madvise_cold_or_pageout_pte_range(pmd_t *pmd,
 
 	if (fatal_signal_pending(current))
 		return -EINTR;
+
+#if IS_ENABLED(CONFIG_ZRAM)
+	if (pageout && rwsem_is_contended(&mm->mmap_lock))
+		return -EBUSY;
+#endif
 
 	trace_android_vh_madvise_cold_or_pageout(vma, &allow_shared);
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
@@ -349,6 +359,9 @@ static int madvise_cold_or_pageout_pte_range(pmd_t *pmd,
 
 		/* Do not interfere with other mappings of this page */
 		if (page_mapcount(page) != 1)
+			goto huge_unlock;
+
+		if (pageout_anon_only && !PageAnon(page))
 			goto huge_unlock;
 
 		if (next - addr != HPAGE_PMD_SIZE) {
@@ -419,6 +432,8 @@ regular_page:
 		if (PageTransCompound(page)) {
 			if (page_mapcount(page) != 1)
 				break;
+			if (pageout_anon_only && !PageAnon(page))
+				break;
 			get_page(page);
 			if (!trylock_page(page)) {
 				put_page(page);
@@ -439,8 +454,17 @@ regular_page:
 			continue;
 		}
 
-		/* Do not interfere with other mappings of this page */
-		if (!allow_shared && page_mapcount(page) != 1)
+		/*
+		 * Do not interfere with other mappings of this page and
+		 * non-LRU page.
+		 */
+		if (!allow_shared && (!PageLRU(page) || page_mapcount(page) != 1))
+			continue;
+
+		if (pageout_anon_only && !PageAnon(page))
+			continue;
+
+		if (pageout_anon_only && !PageAnon(page))
 			continue;
 
 		VM_BUG_ON_PAGE(PageTransCompound(page), page);
@@ -496,11 +520,9 @@ static void madvise_cold_page_range(struct mmu_gather *tlb,
 		.tlb = tlb,
 	};
 
-	vm_write_begin(vma);
 	tlb_start_vma(tlb, vma);
 	walk_page_range(vma->vm_mm, addr, end, &cold_walk_ops, &walk_private);
 	tlb_end_vma(tlb, vma);
-	vm_write_end(vma);
 }
 
 static long madvise_cold(struct vm_area_struct *vma,
@@ -522,26 +544,26 @@ static long madvise_cold(struct vm_area_struct *vma,
 	return 0;
 }
 
-static void madvise_pageout_page_range(struct mmu_gather *tlb,
+static int madvise_pageout_page_range(struct mmu_gather *tlb,
 			     struct vm_area_struct *vma,
-			     unsigned long addr, unsigned long end)
+			     unsigned long addr, unsigned long end,
+			     bool can_pageout_file)
 {
 	struct madvise_walk_private walk_private = {
 		.pageout = true,
 		.tlb = tlb,
+		.can_pageout_file = can_pageout_file,
 	};
+	int err;
 
-	vm_write_begin(vma);
 	tlb_start_vma(tlb, vma);
-	walk_page_range(vma->vm_mm, addr, end, &cold_walk_ops, &walk_private);
+	err = walk_page_range(vma->vm_mm, addr, end, &cold_walk_ops, &walk_private);
 	tlb_end_vma(tlb, vma);
-	vm_write_end(vma);
+	return err;
 }
 
-static inline bool can_do_pageout(struct vm_area_struct *vma)
+static inline bool can_do_file_pageout(struct vm_area_struct *vma)
 {
-	if (vma_is_anonymous(vma))
-		return true;
 	if (!vma->vm_file)
 		return false;
 	/*
@@ -560,6 +582,8 @@ static long madvise_pageout(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct mmu_gather tlb;
+	bool can_pageout_file;
+	int err;
 
 	*prev = vma;
 	if (!can_madv_lru_vma(vma))
@@ -569,8 +593,13 @@ static long madvise_pageout(struct vm_area_struct *vma,
 		return -EINVAL;
 #endif
 
-	if (!can_do_pageout(vma))
-		return 0;
+	/*
+	 * If the VMA belongs to a private file mapping, there can be private
+	 * dirty pages which can be paged out if even this process is neither
+	 * owner nor write capable of the file. Cache the file access check
+	 * here and use it later during page walk.
+	 */
+	can_pageout_file = can_do_file_pageout(vma);
 
 #if IS_ENABLED(CONFIG_ZRAM)
 	if (rwsem_is_contended(&mm->mmap_lock))
@@ -579,18 +608,24 @@ static long madvise_pageout(struct vm_area_struct *vma,
 
 	lru_add_drain();
 	tlb_gather_mmu(&tlb, mm, start_addr, end_addr);
-	madvise_pageout_page_range(&tlb, vma, start_addr, end_addr);
+	err = madvise_pageout_page_range(&tlb, vma, start_addr, end_addr, can_pageout_file);
 	tlb_finish_mmu(&tlb, start_addr, end_addr);
 
+	if (err == -EBUSY)
+		return -EBUSY;
 	return 0;
 }
 
 #if IS_ENABLED(CONFIG_ZRAM)
+static DEFINE_SPINLOCK(madvise_writeback_lock);
+static bool madvise_writeback_ongoing;
+
 static int madvise_writeback_pte_range(pmd_t *pmd, unsigned long addr,
 				       unsigned long end, struct mm_walk *walk)
 {
 	struct list_head *list = walk->private;
 	struct vm_area_struct *vma = walk->vma;
+	struct mm_struct *mm = vma->vm_mm;
 	pte_t *orig_pte, *pte, ptent;
 	spinlock_t *ptl;
 	swp_entry_t entry;
@@ -599,6 +634,9 @@ static int madvise_writeback_pte_range(pmd_t *pmd, unsigned long addr,
 		return -EINTR;
 	if (pmd_trans_unstable(pmd))
 		return 0;
+
+	if (rwsem_is_contended(&mm->mmap_lock))
+		return -EBUSY;
 
 	orig_pte = pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
 	for (; addr < end; pte++, addr += PAGE_SIZE) {
@@ -624,11 +662,12 @@ static const struct mm_walk_ops writeback_walk_ops = {
 
 static long madvise_writeback(struct vm_area_struct *vma,
 			      struct vm_area_struct **prev,
-			      struct list_head *list, void *buf,
+			      struct list_head *list,
 			      unsigned long addr, unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct mmu_gather tlb;
+	int err;
 
 	if (!zram_oem_fn)
 		return -EINVAL;
@@ -637,7 +676,7 @@ static long madvise_writeback(struct vm_area_struct *vma,
 	if (!can_madv_lru_vma(vma))
 		return 0;
 
-	if (!can_do_pageout(vma))
+	if (!vma_is_anonymous(vma))
 		return 0;
 
 	if (am_app_launch)
@@ -649,17 +688,67 @@ static long madvise_writeback(struct vm_area_struct *vma,
 	tlb_gather_mmu(&tlb, mm, addr, end);
 	vm_write_begin(vma);
 	tlb_start_vma(&tlb, vma);
-	walk_page_range(vma->vm_mm, addr, end, &writeback_walk_ops, list);
+	err = walk_page_range(vma->vm_mm, addr, end, &writeback_walk_ops, list);
 	tlb_end_vma(&tlb, vma);
 	vm_write_end(vma);
 	tlb_finish_mmu(&tlb, addr, addr);
 
-	zram_oem_fn(ZRAM_WRITEBACK_LIST, list, (unsigned long)buf);
+	if (err == -EBUSY)
+		return -EBUSY;
 	return 0;
 }
 
+static int madvise_prefetch_pte_range(pmd_t *pmd, unsigned long start,
+				      unsigned long end, struct mm_walk *walk)
+{
+	struct vm_area_struct *vma = walk->vma;
+	pte_t *orig_pte, pte;
+	spinlock_t *ptl;
+	swp_entry_t entry;
+	unsigned long index;
+
+	if (pmd_none_or_trans_huge_or_clear_bad(pmd))
+		return 0;
+
+	for (index = start; index != end; index += PAGE_SIZE) {
+		orig_pte = pte_offset_map_lock(vma->vm_mm, pmd, start, &ptl);
+		pte = *(orig_pte + ((index - start) / PAGE_SIZE));
+		pte_unmap_unlock(orig_pte, ptl);
+
+		if (pte_present(pte) || pte_none(pte))
+			continue;
+		entry = pte_to_swp_entry(pte);
+		if (unlikely(non_swap_entry(entry)))
+			continue;
+
+		zram_oem_fn(ZRAM_PREFETCH_ENTRY, NULL, swp_offset(entry));
+	}
+	return 0;
+}
+
+static const struct mm_walk_ops prefetch_walk_ops = {
+	.pmd_entry = madvise_prefetch_pte_range,
+};
+
+static long madvise_prefetch(struct vm_area_struct *vma,
+				   struct vm_area_struct **prev,
+				   unsigned long addr, unsigned long end)
+{
+	*prev = vma;
+	if (!vma_is_anonymous(vma))
+		return 0;
+
+	walk_page_range(vma->vm_mm, addr, end, &prefetch_walk_ops, NULL);
+	return 0;
+}
+
+static bool madvise_rw_behavior(int behavior)
+{
+	return behavior == MADV_WRITEBACK || behavior == MADV_PREFETCH;
+}
+
 int do_madvise_writeback(struct mm_struct *mm, struct list_head *list,
-			 void *buf, unsigned long start, size_t len_in)
+			 unsigned long start, size_t len_in)
 {
 	unsigned long end, tmp;
 	struct vm_area_struct *vma, *prev;
@@ -718,7 +807,7 @@ int do_madvise_writeback(struct mm_struct *mm, struct list_head *list,
 			tmp = end;
 
 		/* Here vma->vm_start <= start < tmp <= (end|vma->vm_end). */
-		error = madvise_writeback(vma, &prev, list, buf, start, tmp);
+		error = madvise_writeback(vma, &prev, list, start, tmp);
 		if (error)
 			goto out;
 		start = tmp;
@@ -902,12 +991,10 @@ static int madvise_free_single_vma(struct vm_area_struct *vma,
 	update_hiwater_rss(mm);
 
 	mmu_notifier_invalidate_range_start(&range);
-	vm_write_begin(vma);
 	tlb_start_vma(&tlb, vma);
 	walk_page_range(vma->vm_mm, range.start, range.end,
 			&madvise_free_walk_ops, &tlb);
 	tlb_end_vma(&tlb, vma);
-	vm_write_end(vma);
 	mmu_notifier_invalidate_range_end(&range);
 	tlb_finish_mmu(&tlb, range.start, range.end);
 
@@ -1113,6 +1200,10 @@ madvise_vma(struct vm_area_struct *vma, struct vm_area_struct **prev,
 		return madvise_cold(vma, prev, start, end);
 	case MADV_PAGEOUT:
 		return madvise_pageout(vma, prev, start, end);
+#if IS_ENABLED(CONFIG_ZRAM)
+	case MADV_PREFETCH:
+		return madvise_prefetch(vma, prev, start, end);
+#endif
 	case MADV_FREE:
 	case MADV_DONTNEED:
 		return madvise_dontneed_free(vma, prev, start, end, behavior);
@@ -1136,6 +1227,9 @@ madvise_behavior_valid(int behavior)
 	case MADV_FREE:
 	case MADV_COLD:
 	case MADV_PAGEOUT:
+#if IS_ENABLED(CONFIG_ZRAM)
+	case MADV_PREFETCH:
+#endif
 #ifdef CONFIG_KSM
 	case MADV_MERGEABLE:
 	case MADV_UNMERGEABLE:
@@ -1168,6 +1262,7 @@ process_madvise_behavior_valid(int behavior)
 	case MADV_WILLNEED:
 #if IS_ENABLED(CONFIG_ZRAM)
 	case MADV_WRITEBACK:
+	case MADV_PREFETCH:
 #endif
 		return true;
 	default:
@@ -1357,11 +1452,22 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 	size_t total_len;
 	unsigned int f_flags;
 #if IS_ENABLED(CONFIG_ZRAM)
+	struct blk_plug plug;
 	LIST_HEAD(list);
-	void *buf = NULL;
 
-	if (behavior == MADV_WRITEBACK && !zram_oem_fn)
+	if (!zram_oem_fn && madvise_rw_behavior(behavior))
 		return -EINVAL;
+
+	/* we only allow single MADV_WRITEBACK at a time */
+	if (behavior == MADV_WRITEBACK) {
+		spin_lock(&madvise_writeback_lock);
+		if (madvise_writeback_ongoing) {
+			spin_unlock(&madvise_writeback_lock);
+			return -EBUSY;
+		}
+		madvise_writeback_ongoing = true;
+		spin_unlock(&madvise_writeback_lock);
+	}
 #endif
 	if (flags != 0) {
 		ret = -EINVAL;
@@ -1407,18 +1513,11 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 
 	total_len = iov_iter_count(&iter);
 
-#if IS_ENABLED(CONFIG_ZRAM)
-	if (behavior == MADV_WRITEBACK) {
-		ret = zram_oem_fn(ZRAM_ALLOC_WRITEBACK_BUFFER, (void *)&buf, 0);
-		if (ret < 0)
-			goto release_mm;
-	}
-#endif
 	while (iov_iter_count(&iter)) {
 		iovec = iov_iter_iovec(&iter);
 #if IS_ENABLED(CONFIG_ZRAM)
 		if (behavior == MADV_WRITEBACK)
-			ret = do_madvise_writeback(mm, &list, buf,
+			ret = do_madvise_writeback(mm, &list,
 				(unsigned long)iovec.iov_base, iovec.iov_len);
 		else
 #endif
@@ -1430,13 +1529,21 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 	}
 
 #if IS_ENABLED(CONFIG_ZRAM)
-	if (behavior == MADV_WRITEBACK)
-		zram_oem_fn(ZRAM_FREE_WRITEBACK_BUFFER, buf, 0);
-	if (ret != -EBUSY)
-		ret = (total_len - iov_iter_count(&iter)) ? : ret;
-#else
-	ret = (total_len - iov_iter_count(&iter)) ? : ret;
+	if (behavior == MADV_WRITEBACK) {
+		if (ret == 0) {
+			blk_start_plug(&plug);
+			ret = zram_oem_fn(ZRAM_WRITEBACK_LIST, &list, 0);
+			blk_finish_plug(&plug);
+		}
+		zram_oem_fn(ZRAM_FLUSH_WRITEBACK_BUFFER, &list, 0);
+		if (ret < 0)
+			goto release_mm;
+	}
+	else if (behavior == MADV_PAGEOUT && ret == -EBUSY) {
+		goto release_mm;
+	}
 #endif
+	ret = (total_len - iov_iter_count(&iter)) ? : ret;
 
 release_mm:
 	mmput(mm);
@@ -1447,5 +1554,12 @@ put_pid:
 free_iov:
 	kfree(iov);
 out:
+#if IS_ENABLED(CONFIG_ZRAM)
+	if (behavior == MADV_WRITEBACK) {
+		spin_lock(&madvise_writeback_lock);
+		madvise_writeback_ongoing = false;
+		spin_unlock(&madvise_writeback_lock);
+	}
+#endif
 	return ret;
 }

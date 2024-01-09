@@ -46,7 +46,7 @@ void print_psc_properties(const char *str, struct msm_vidc_inst *inst,
 	if (!inst || !str)
 		return;
 
-	i_vpr_e(inst,
+	i_vpr_h(inst,
 		"%s: width %d, height %d, crop offsets[0] %#x, crop offsets[1] %#x, bit depth %#x, coded frames %d "
 		"fw min count %d, poc %d, color info %d, profile %d, level %d, tier %d\n",
 		str, (subsc_params.bitstream_resolution & HFI_BITMASK_BITSTREAM_WIDTH) >> 16,
@@ -314,7 +314,7 @@ static bool check_last_flag(struct msm_vidc_inst *inst,
 
 	buffer = (struct hfi_buffer *)((u8 *)pkt + sizeof(struct hfi_packet));
 	if (buffer->flags & HFI_BUF_FW_FLAG_LAST) {
-		i_vpr_e(inst, "%s: received last flag on FBD, index: %d\n",
+		i_vpr_h(inst, "%s: received last flag on FBD, index: %d\n",
 			__func__, buffer->index);
 		return true;
 	}
@@ -1241,14 +1241,14 @@ static int handle_port_settings_change(struct msm_vidc_inst *inst,
 {
 	int rc = 0;
 
-	i_vpr_e(inst, "%s: Received port settings change, type %d\n",
+	i_vpr_h(inst, "%s: Received port settings change, type %d\n",
 		__func__, pkt->port);
 
 	if (pkt->port == HFI_PORT_RAW) {
-		print_psc_properties("aft: OUTPUT_PSC", inst, inst->subcr_params[OUTPUT_PORT]);
+		print_psc_properties("OUTPUT_PSC", inst, inst->subcr_params[OUTPUT_PORT]);
 		rc = msm_vdec_output_port_settings_change(inst);
 	} else if (pkt->port == HFI_PORT_BITSTREAM) {
-		print_psc_properties("aft: INPUT_PSC", inst, inst->subcr_params[INPUT_PORT]);
+		print_psc_properties("INPUT_PSC", inst, inst->subcr_params[INPUT_PORT]);
 		rc = msm_vdec_input_port_settings_change(inst);
 	} else {
 		i_vpr_e(inst, "%s: invalid port type: %#x\n",
@@ -1666,11 +1666,8 @@ int handle_session_response_work(struct msm_vidc_inst *inst,
 		i_vpr_e(inst, "%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-
-	if (resp_work->type == RESP_WORK_INPUT_PSC) {
-		print_psc_properties("bef: INPUT_PSC", inst, inst->subcr_params[INPUT_PORT]);
+	if (resp_work->type == RESP_WORK_INPUT_PSC)
 		msm_vdec_init_input_subcr_params(inst);
-	}
 
 	rc = __handle_session_response(inst, hdr);
 	if (rc)
@@ -1701,11 +1698,9 @@ void handle_session_response_work_handler(struct work_struct *work)
 
 			allow = msm_vidc_allow_input_psc(inst);
 			if (allow == MSM_VIDC_DISALLOW) {
-				i_vpr_e(inst, "%s: handle ipsc not allowed\n", __func__);				
 				msm_vidc_change_inst_state(inst, MSM_VIDC_ERROR, __func__);
 				break;
 			} else if (allow == MSM_VIDC_DEFER) {
-				i_vpr_e(inst, "%s: handle ipsc deferred\n", __func__);
 				/* continue to next entry processing */
 				continue;
 			} else if (allow == MSM_VIDC_DISCARD) {
@@ -1714,11 +1709,9 @@ void handle_session_response_work_handler(struct work_struct *work)
 				inst->psc_or_last_flag_discarded = true;
 				i_vpr_e(inst, "%s: ipsc discarded. state %s\n",
 					__func__, state_name(inst->state));
-				print_psc_properties("discard: INPUT_PSC", inst, inst->subcr_params[INPUT_PORT]);					
 				/* discard current entry processing */
 				break;
 			} else if (allow == MSM_VIDC_ALLOW) {
-				i_vpr_e(inst, "%s: handle ipsc allowed\n", __func__);				
 				rc = handle_session_response_work(inst, resp_work);
 				if (!rc)
 					rc = msm_vidc_state_change_input_psc(inst);
@@ -1865,7 +1858,7 @@ static int handle_session_response(struct msm_vidc_core *core,
 	}
 
 	if (offload) {
-		i_vpr_e(inst, "%s: queue response work %#x, state %s\n", __func__, type, state_name(inst->state));
+		i_vpr_h(inst, "%s: queue response work %#x\n", __func__, type);
 		rc = queue_response_work(inst, type, (void *)hdr, hdr->size);
 		if (rc)
 			i_vpr_e(inst, "%s: Offload response work failed\n", __func__);

@@ -617,19 +617,25 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	 * distinguish instances ...
 	 */
 
+	pr_err("[USB] %s\n", __func__);
+
 	/* maybe allocate device-global string IDs, and patch descriptors */
 	us = usb_gstrings_attach(cdev, acm_strings,
 			ARRAY_SIZE(acm_string_defs));
-	if (IS_ERR(us))
+	if (IS_ERR(us)) {
+		pr_err("[USB] %s usb_gstrings_attach failed (ret = %d)\n", __func__, us);
 		return PTR_ERR(us);
+	}
 	acm_control_interface_desc.iInterface = us[ACM_CTRL_IDX].id;
 	acm_data_interface_desc.iInterface = us[ACM_DATA_IDX].id;
 	acm_iad_descriptor.iFunction = us[ACM_IAD_IDX].id;
 
 	/* allocate instance-specific interface IDs, and patch descriptors */
 	status = usb_interface_id(c, f);
-	if (status < 0)
+	if (status < 0) {
+		pr_err("[USB] %s: usb_interface_id 1 failed (ret = %d)\n", __func__, status);
 		goto fail;
+	}
 	acm->ctrl_id = status;
 	acm_iad_descriptor.bFirstInterface = status;
 
@@ -637,8 +643,10 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	acm_union_desc .bMasterInterface0 = status;
 
 	status = usb_interface_id(c, f);
-	if (status < 0)
+	if (status < 0) {
+		pr_err("[USB] %s: usb_interface_id 2 failed (ret = %d)\n", __func__, status);
 		goto fail;
+	}
 	acm->data_id = status;
 
 	acm_data_interface_desc.bInterfaceNumber = status;
@@ -649,26 +657,34 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 
 	/* allocate instance-specific endpoints */
 	ep = usb_ep_autoconfig(cdev->gadget, &acm_fs_in_desc);
-	if (!ep)
+	if (!ep) {
+		pr_err("[USB] %s: usb_ep_autoconfig failed - acm_fs_in_desc (status = %d)\n", __func__, status);
 		goto fail;
+	}
 	acm->port.in = ep;
 
 	ep = usb_ep_autoconfig(cdev->gadget, &acm_fs_out_desc);
-	if (!ep)
+	if (!ep) {
+		pr_err("[USB] %s: usb_ep_autoconfig failed - acm_fs_out_desc (status = %d)\n", __func__, status);
 		goto fail;
+	}
 	acm->port.out = ep;
 
 	ep = usb_ep_autoconfig(cdev->gadget, &acm_fs_notify_desc);
-	if (!ep)
+	if (!ep) {
+		pr_err("[USB] %s: usb_ep_autoconfig failed - acm_fs_notify_desc (status = %d)\n", __func__, status);
 		goto fail;
+	}
 	acm->notify = ep;
 
 	/* allocate notification */
 	acm->notify_req = gs_alloc_req(ep,
 			sizeof(struct usb_cdc_notification) + 2,
 			GFP_KERNEL);
-	if (!acm->notify_req)
+	if (!acm->notify_req) {
+		pr_err("[USB] %s: gs_alloc_req failed (status = %d)\n", __func__, status);
 		goto fail;
+	}
 
 	acm->notify_req->complete = acm_cdc_notify_complete;
 	acm->notify_req->context = acm;
@@ -694,6 +710,12 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	dev_dbg(&cdev->gadget->dev,
 		"acm ttyGS%d: %s speed IN/%s OUT/%s NOTIFY/%s\n",
 		acm->port_num,
+		gadget_is_superspeed(c->cdev->gadget) ? "super" :
+		gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
+		acm->port.in->name, acm->port.out->name,
+		acm->notify->name);
+	pr_err("[USB] %s acm ttyGS%d: %s speed IN/%s OUT/%s NOTIFY/%s\n",
+		__func__, acm->port_num,
 		gadget_is_superspeed(c->cdev->gadget) ? "super" :
 		gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 		acm->port.in->name, acm->port.out->name,

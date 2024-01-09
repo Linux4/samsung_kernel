@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_DEVICE_H
 #define __KGSL_DEVICE_H
@@ -170,6 +170,8 @@ struct kgsl_functable {
 		struct kgsl_context *context);
 	/** @create_hw_fence: Create a hardware fence */
 	void (*create_hw_fence)(struct kgsl_device *device, struct kgsl_sync_fence *kfence);
+	/** @register_gdsc_notifier: Target specific function to register gdsc notifier */
+	int (*register_gdsc_notifier)(struct kgsl_device *device);
 };
 
 struct kgsl_ioctl {
@@ -323,6 +325,21 @@ struct kgsl_device {
 	int freq_limiter_intr_num;
 	/** @bcl_data_kobj: Kobj for bcl_data sysfs node */
 	struct kobject bcl_data_kobj;
+	/** @idle_jiffies: Latest idle jiffies */
+	unsigned long idle_jiffies;
+
+	/** @work_period_timer: Timer to capture application GPU work stats */
+	struct timer_list work_period_timer;
+	/** work_period_lock: Lock to protect process application GPU work periods */
+	spinlock_t work_period_lock;
+	/** work_period_ws: Worker thread to emulate application GPU work event */
+	struct work_struct work_period_ws;
+	/** @flags: Flags for gpu_period stats */
+	unsigned long flags;
+	struct {
+		u64 begin;
+		u64 end;
+	} gpu_period;
 };
 
 #define KGSL_MMU_DEVICE(_mmu) \
@@ -500,6 +517,8 @@ struct kgsl_process_private {
 	 * @reclaim_lock: Mutex lock to protect KGSL_PROC_PINNED_STATE
 	 */
 	struct mutex reclaim_lock;
+	/** @period: Stats for GPU utilization */
+	struct gpu_work_period *period;
 	/**
 	 * @cmd_count: The number of cmds that are active for the process
 	 */
@@ -641,8 +660,8 @@ static inline bool kgsl_state_is_nap_or_minbw(struct kgsl_device *device)
  */
 static inline void kgsl_start_idle_timer(struct kgsl_device *device)
 {
-	mod_timer(&device->idle_timer,
-			jiffies + msecs_to_jiffies(device->pwrctrl.interval_timeout));
+	device->idle_jiffies = jiffies + msecs_to_jiffies(device->pwrctrl.interval_timeout);
+	mod_timer(&device->idle_timer, device->idle_jiffies);
 }
 
 int kgsl_readtimestamp(struct kgsl_device *device, void *priv,

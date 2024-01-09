@@ -70,5 +70,7 @@ int cnss_bus_get_iova_ipa(struct cnss_plat_data *plat_priv, u64 *addr,
 			  u64 *size);
 int cnss_bus_update_time_sync_period(struct cnss_plat_data *plat_priv,
 				     unsigned int time_sync_period);
-
+int cnss_bus_set_therm_cdev_state(struct cnss_plat_data *plat_priv,
+                   unsigned long thermal_state,
+                   int tcdev_id);
 #endif /* _CNSS_BUS_H */

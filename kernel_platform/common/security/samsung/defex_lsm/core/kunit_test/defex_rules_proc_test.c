@@ -337,7 +337,7 @@ static void lookup_dir_test(struct kunit *test)
 			if (!size)
 				KUNIT_FAIL(test, "Error in lookup: existing_directory_no_features");
 			policy_item = lookup_dir(policy_base, path, size, 0, packed_rules_primary);
-			KUNIT_ASSERT_PTR_NE(test, policy_item, NULL);
+			KUNIT_ASSERT_PTR_NE(test, policy_item, (struct rule_item_struct *)NULL);
 			KUNIT_EXPECT_EQ(test, 0, strncmp(policy_item->name, path, size));
 			policy_base = policy_item;
 			path += size;
@@ -442,7 +442,7 @@ static void defex_check_integrity_test(struct kunit *test)
 			if (!size)
 				KUNIT_FAIL(test, "Error in lookup: existing_directory_no_features");
 			policy_item = lookup_dir(policy_base, path, size, 0, packed_rules_primary);
-			KUNIT_ASSERT_PTR_NE(test, policy_item, NULL);
+			KUNIT_ASSERT_PTR_NE(test, policy_item, (struct rule_item_struct *)NULL);
 			KUNIT_ASSERT_EQ(test, 0, strncmp(policy_item->name, path, size));
 			policy_base = policy_item;
 			path += size;

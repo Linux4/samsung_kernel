@@ -5439,6 +5439,7 @@ int hdd_dynamic_mac_address_set(struct hdd_context *hdd_ctx,
 	int ret;
 	QDF_STATUS qdf_ret_status;
 	struct qdf_mac_addr mld_addr;
+	bool update_self_peer, update_mld_addr;
 
 	qdf_ret_status = ucfg_vdev_mgr_cdp_vdev_detach(adapter->vdev);
 	if (QDF_IS_STATUS_ERROR(qdf_ret_status)) {
@@ -5452,12 +5453,21 @@ int hdd_dynamic_mac_address_set(struct hdd_context *hdd_ctx,
 		goto status_ret;
 	}
 
+	if (hdd_adapter_is_link_adapter(adapter)) {
+		update_self_peer =
+			hdd_adapter_is_associated_with_ml_adapter(adapter);
+		update_mld_addr = true;
+	} else {
+		update_self_peer = true;
+		update_mld_addr = false;
+	}
+
 	cookie = osif_request_cookie(request);
 	hdd_update_set_mac_addr_req_ctx(adapter, cookie);
 
 	qdf_mem_copy(&mld_addr, adapter->mld_addr.bytes, sizeof(mld_addr));
 	qdf_ret_status = sme_send_set_mac_addr(mac_addr, mld_addr,
-					       adapter->vdev);
+					       adapter->vdev, update_mld_addr);
 	ret = qdf_status_to_os_return(qdf_ret_status);
 	if (QDF_STATUS_SUCCESS != qdf_ret_status) {
 		hdd_nofl_err("Failed to send set MAC address command. Status:%d",
@@ -5482,7 +5492,7 @@ int hdd_dynamic_mac_address_set(struct hdd_context *hdd_ctx,
 
 	qdf_ret_status = sme_update_vdev_mac_addr(
 			   hdd_ctx->psoc, mac_addr, adapter->vdev,
-			   hdd_adapter_is_associated_with_ml_adapter(adapter),
+			   update_self_peer, update_mld_addr,
 			   ret);
 
 	if (QDF_IS_STATUS_ERROR(qdf_ret_status))
@@ -6308,7 +6318,6 @@ hdd_alloc_station_adapter(struct hdd_context *hdd_ctx, tSirMacAddr mac_addr,
 
 	qdf_mem_copy(dev->dev_addr, mac_addr, sizeof(tSirMacAddr));
 	qdf_mem_copy(adapter->mac_addr.bytes, mac_addr, sizeof(tSirMacAddr));
-	qdf_mem_copy(adapter->mld_addr.bytes, mac_addr, sizeof(tSirMacAddr));
 	dev->watchdog_timeo = HDD_TX_TIMEOUT;
 
 	if (wlan_hdd_is_session_type_monitor(session_type)) {
@@ -7853,8 +7862,12 @@ struct hdd_adapter *hdd_open_adapter(struct hdd_context *hdd_ctx,
 		return NULL;
 	}
 
-	if (params->is_ml_adapter)
+	if (params->is_ml_adapter) {
 		hdd_adapter_set_ml_adapter(adapter);
+		qdf_mem_copy(adapter->mld_addr.bytes, adapter->mac_addr.bytes,
+			     QDF_MAC_ADDR_SIZE);
+	}
+
 	status = hdd_adapter_feature_update_work_init(adapter);
 	if (QDF_IS_STATUS_ERROR(status))
 		goto err_cleanup_adapter;
@@ -14956,6 +14969,7 @@ static int hdd_features_init(struct hdd_context *hdd_ctx)
 	mac_handle_t mac_handle;
 	bool b_cts2self, is_imps_enabled;
 	bool rf_test_mode;
+	bool std_6ghz_conn_policy;
 
 	hdd_enter();
 
@@ -15065,6 +15079,17 @@ static int hdd_features_init(struct hdd_context *hdd_ctx)
 		wlan_cm_set_6ghz_key_mgmt_mask(hdd_ctx->psoc,
 					       DEFAULT_KEYMGMT_6G_MASK);
 	}
+
+	status = ucfg_mlme_is_standard_6ghz_conn_policy_enabled(hdd_ctx->psoc,
+							&std_6ghz_conn_policy);
+
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		hdd_err("Get 6ghz standard connection policy failed");
+		return QDF_STATUS_E_FAILURE;
+	}
+	if (std_6ghz_conn_policy)
+		wlan_cm_set_standard_6ghz_conn_policy(hdd_ctx->psoc, true);
+
 	hdd_thermal_stats_cmd_init(hdd_ctx);
 	sme_set_cal_failure_event_cb(hdd_ctx->mac_handle,
 				     hdd_cal_fail_send_event);

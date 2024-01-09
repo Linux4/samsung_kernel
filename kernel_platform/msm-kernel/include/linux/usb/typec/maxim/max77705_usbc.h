@@ -269,6 +269,8 @@ struct max77705_usbc_platform_data {
 	bool rid_check;
 	int lapse_idx;
 	u64 time_lapse[MAX_NVCN_CNT];
+
+	int wait_entermode;
 };
 
 /* Function Status from s2mm005 definition */

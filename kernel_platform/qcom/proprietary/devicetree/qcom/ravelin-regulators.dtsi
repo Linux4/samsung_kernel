@@ -107,7 +107,7 @@
 			regulator-name = "pm6450_s9";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
 			regulator-min-microvolt = <1856000>;
-			regulator-max-microvolt = <1940000>;
+			regulator-max-microvolt = <2040000>;
 			qcom,init-voltage = <1872000>;
 		};
 	};
@@ -761,6 +761,56 @@
 				<RPMH_REGULATOR_LEVEL_TURBO
 				 RPMH_REGULATOR_LEVEL_MAX>;
 
+		};
+	};
+
+	rpmh-regulator-sf1-vreg-enable {
+		compatible = "qcom,rpmh-xob-regulator";
+		qcom,resource-name = "gpioi7";
+		status = "disabled";
+		sf1_vreg_enable: regulator-sf1-vreg-enable {
+			regulator-name = "sf1_vreg_enable";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+		};
+	};
+
+	rpmh-regulator-sf1-vreg-mode {
+		compatible = "qcom,rpmh-xob-regulator";
+		qcom,resource-name = "gpioi10";
+		status = "disabled";
+		sf1_vreg_mode: regulator-sf1-vreg-mode {
+			regulator-name = "sf1_vreg_mode";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+		};
+	};
+
+	rpmh-regulator-vrmsd {
+		compatible = "qcom,rpmh-pbs-regulator";
+		qcom,resource-name = "vrm.sd";
+
+		L24B_PBS:
+		pm6450_l24_pbs: regulator-pm6450-l24-pbs {
+			regulator-name = "pm6450_l24_pbs";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			/*
+			 * min/max voltages are voted on L24B and this regulator will
+			 * only be voted for enabling/disabling conditions.
+			 */
+		};
+	};
+
+	rpmh-regulator-vrmpx2 {
+		compatible = "qcom,rpmh-pbs-regulator";
+		qcom,resource-name = "vrm.px2";
+
+		L28B_PBS:
+		pm6450_l28_pbs: regulator-pm6450-l28-pbs {
+			regulator-name = "pm6450_l28_pbs";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			/*
+			 * min/max voltages are voted on L28B and this regulator will
+			 * only be voted for enabling/disabling conditions.
+			 */
 		};
 	};
 };

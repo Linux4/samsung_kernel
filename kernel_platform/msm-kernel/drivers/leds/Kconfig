@@ -989,6 +989,13 @@ config LEDS_S2MPB02
 	help
 	  This option enables support for the LEDs on the S2MPB02.
 
+config LEDS_AW36518_FLASH
+	tristate "FLASH LED support for the AW36518"
+	def_tristate m
+	depends on LEDS_CLASS && I2C
+	help
+	  This option enables support for the LEDs on the AW36518_FLASH.
+
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"
 

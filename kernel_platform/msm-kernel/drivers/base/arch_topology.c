@@ -105,14 +105,16 @@ static ssize_t proc_cpu_capacity_fixup_target_write(struct file *file,
 		const char __user *buf, size_t count, loff_t *offs)
 {
 	char temp[TASK_COMM_LEN];
-	const size_t maxlen = sizeof(temp) - 1;
+
+	if (!count || count > ARRAY_SIZE(temp) - 1)
+		return -EINVAL;
 
 	memset(temp, 0, sizeof(temp));
-	if (copy_from_user(temp, buf, count > maxlen ? maxlen : count))
+	if (copy_from_user(temp, buf, count))
 		return -EFAULT;
 
-	if (temp[strlen(temp) - 1] == '\n')
-		temp[strlen(temp) - 1] = '\0';
+	if (temp[count - 1] == '\n')
+		temp[count - 1] = '\0';
 
 	strlcpy(cpu_cap_fixup_target, temp, sizeof(cpu_cap_fixup_target));
 
@@ -674,5 +676,24 @@ void __init init_cpu_topology(void)
 		reset_cpu_topology();
 	else if (of_have_populated_dt() && parse_dt_topology())
 		reset_cpu_topology();
+}
+
+void store_cpu_topology(unsigned int cpuid)
+{
+	struct cpu_topology *cpuid_topo = &cpu_topology[cpuid];
+
+	if (cpuid_topo->package_id != -1)
+		goto topology_populated;
+
+	cpuid_topo->thread_id = -1;
+	cpuid_topo->core_id = cpuid;
+	cpuid_topo->package_id = cpu_to_node(cpuid);
+
+	pr_debug("CPU%u: package %d core %d thread %d\n",
+		 cpuid, cpuid_topo->package_id, cpuid_topo->core_id,
+		 cpuid_topo->thread_id);
+
+topology_populated:
+	update_siblings_masks(cpuid);
 }
 #endif
