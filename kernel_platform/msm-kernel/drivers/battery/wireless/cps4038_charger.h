@@ -25,7 +25,7 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION		0x2012
+#define MFC_FW_BIN_VERSION		0x2019
 #define MFC_FW_VER_BIN_CPS		0x00C4
 
 #define MFC_FLASH_FW_HEX_PATH		"mfc/mfc_fw_flash.bin"
@@ -158,6 +158,11 @@
 #define MFC_START_EPT_COUNTER_REG			0x6D
 #define MFC_CTRL_MODE_REG					0x6E
 #define MFC_RC_PHM_PING_PERIOD_REG			0x6F
+
+#define MFC_IEC_TA_PLOSS_THRESH1_L_REG		0x126
+#define MFC_IEC_TA_PLOSS_THRESH1_H_REG		0x127
+#define MFC_IEC_PLOSS_FOD_ENABLE_REG		0x12C
+#define IEC_PLOSS_FOD_ENABLE				0x01
 
 #define MFC_WPC_FOD_0A_REG					0x70
 #define MFC_WPC_FOD_0B_REG					0x71
@@ -937,6 +942,7 @@ struct mfc_charger_data {
 	struct wakeup_source *align_check_ws;
 	struct wakeup_source *mode_change_ws;
 	struct wakeup_source *wpc_cs100_ws;
+	struct wakeup_source *wpc_check_rx_power_ws;
 	struct workqueue_struct *wqueue;
 	struct work_struct wcin_work;
 	struct delayed_work wpc_det_work;
@@ -961,6 +967,7 @@ struct mfc_charger_data {
 	struct delayed_work wpc_init_work;
 	struct delayed_work align_check_work;
 	struct delayed_work mode_change_work;
+	struct delayed_work wpc_check_rx_power_work;
 
 	struct alarm phm_alarm;
 
@@ -1022,6 +1029,7 @@ struct mfc_charger_data {
 	u32 mis_align_tx_try_cnt;
 	bool skip_phm_work_in_sleep;
 	bool reg_access_lock;
+	bool check_rx_power;
 
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;

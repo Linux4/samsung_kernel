@@ -1,14 +1,8 @@
 #include <dt-bindings/interconnect/qcom,neo.h>
 #include "neo-qxr.dtsi"
 
-&icnss2 {
+&wpss_etm {
 	status = "disabled";
-	/delete-property/ qcom,wlan-msa-fixed-region;
-};
-
-&wpss_pas {
-	status = "disabled";
-	/delete-property/ memory-region;
 };
 
 &reserved_memory {
@@ -102,7 +96,6 @@ wlan_kiwi: qcom,cnss-kiwi@b0000000 {
 		qcom,wlan;
 		qcom,wlan-rc-num = <0>;
 		qcom,wlan-ramdump-dynamic = <0x780000>;
-		qcom,wlan-cbc-enabled;
 		use-pm-domain;
 		qcom,same-dt-multi-dev;
 		mboxes = <&qmp_aop 0>;
@@ -152,6 +145,10 @@ wlan_kiwi: qcom,cnss-kiwi@b0000000 {
 			<175000 4300537>,
 			/* ddr: 547.2 MHz */
 			<7500 1094362>;
+
+		cnss_cdev_apss: qcom,cnss_cdev1 {
+			#cooling-cells = <2>;
+		};
 	};
 
 	bluetooth_kiwi: bt_wcn6x5x {

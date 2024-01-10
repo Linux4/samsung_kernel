@@ -224,7 +224,7 @@ struct drm_connector *connector, struct sde_edid_ctrl *edid_ctrl)
 	SDE_EDID_DEBUG("%s -\n", __func__);
 }
 
-#if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 static struct sde_edid_ctrl *g_edid_ctrl;
 
 int secdp_get_audio_ch(void)
@@ -733,7 +733,7 @@ void sde_get_edid(struct drm_connector *connector,
 				"EDID:", EDID_LENGTH);
 		}
 	}
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	g_edid_ctrl = edid_ctrl;
 #endif
 #endif/*CONFIG_SECDP*/

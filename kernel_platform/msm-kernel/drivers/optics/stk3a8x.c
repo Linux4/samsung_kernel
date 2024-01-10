@@ -1486,7 +1486,7 @@ static int32_t stk_power_ctrl(struct stk3a8x_data *alps_data, bool en)
 		}
 
 		if (alps_data->vbus_regulator != NULL) {
-			if(!alps_data->vbus_1p8_enable) {
+			if (!alps_data->vbus_1p8_enable && !regulator_is_enabled(alps_data->vbus_regulator)) {
 				rc = regulator_enable(alps_data->vbus_regulator);
 				if (rc) {
 					err_flicker("%s - enable vbus_1p8 failed, rc=%d\n",	__func__, rc);
@@ -3010,7 +3010,7 @@ static int stk3a8x_set_input_devices(struct stk3a8x_data *alps_data)
 	}
 
 #endif
-	sensors_register(alps_data->dev, alps_data, stk_sensor_attrs, ALS_NAME);
+	sensors_register(&alps_data->sensor_dev, alps_data, stk_sensor_attrs, ALS_NAME);
 	info_flicker("done sensors_register");
 	return 0;
 #ifdef SUPPORT_SENSOR_CLASS
@@ -3036,14 +3036,12 @@ int stk3a8x_probe(struct i2c_client *client,
 	bool vbus_1p8_enable = false;
 
 	vdd_regulator = regulator_get(&client->dev, "vdd_1p8");
-#if !defined (CONFIG_ARCH_QCOM)
 	vbus_regulator = regulator_get(&client->dev, "vbus_1p8");
-#endif
 	if (!IS_ERR(vdd_regulator) && vdd_regulator != NULL) {
 		err = regulator_enable(vdd_regulator);
 		if (err < 0) {
 			dev_err(&client->dev, "Regulator vdd enable failed");
-			return err;
+			goto err_regulator_enable;
 		}
 
 		vdd_1p8_enable = true;
@@ -3053,12 +3051,11 @@ int stk3a8x_probe(struct i2c_client *client,
 		vdd_regulator = NULL;
 	}
 
-#if !defined (CONFIG_ARCH_QCOM)
 	if (!IS_ERR(vbus_regulator) && vbus_regulator != NULL) {
 		err = regulator_enable(vbus_regulator);
 		if (err < 0) {
 			dev_err(&client->dev, "Regulator vbus enable failed");
-			return err;
+			goto err_regulator_enable;
 		}
 
 		vbus_1p8_enable = true;
@@ -3066,10 +3063,6 @@ int stk3a8x_probe(struct i2c_client *client,
 	} else {
 		vbus_regulator = NULL;
 	}
-#else
-	vbus_regulator = NULL;
-	vbus_1p8_enable = false;
-#endif
 
 	info_flicker("driver version = %s\n", DRIVER_VERSION);
 	err = i2c_check_functionality(client->adapter, I2C_FUNC_I2C);
@@ -3174,14 +3167,7 @@ err_setup_init_reg:
 	if (alps_data->pins_sleep)
 		alps_data->pins_sleep = NULL;
 
-	if (vdd_regulator != NULL&& vdd_1p8_enable) {
-		regulator_disable(vdd_regulator);
-	}
-	if (vbus_regulator != NULL&& vbus_1p8_enable) {
-		regulator_disable(vbus_regulator);
-	}
-
-	sensors_unregister(alps_data->dev, stk_sensor_attrs);
+	sensors_unregister(alps_data->sensor_dev, stk_sensor_attrs);
 #ifdef SUPPORT_SENSOR_CLASS
 	sensors_classdev_unregister(&alps_data->als_cdev);
 #endif
@@ -3189,6 +3175,23 @@ err_setup_init_reg:
 	input_unregister_device(alps_data->als_input_dev);
 
 	kfree(alps_data);
+err_regulator_enable:
+	if (!IS_ERR(vdd_regulator) && vdd_regulator != NULL) {
+		if (vdd_1p8_enable)
+			regulator_disable(vdd_regulator);
+		regulator_put(vdd_regulator);
+		vdd_regulator = NULL;
+	}
+
+	if (!IS_ERR(vbus_regulator) && vbus_regulator != NULL) {
+		if (vbus_1p8_enable)
+			regulator_disable(vbus_regulator);
+#if IS_ENABLED(CONFIG_ARCH_EXYNOS)
+		regulator_put(vbus_regulator);
+#endif
+		vbus_regulator = NULL;
+	}
+
 err_out:
 	return err;
 }
@@ -3225,7 +3228,7 @@ int stk3a8x_remove(struct i2c_client *client)
 		cancel_work_sync(&alps_data->stk_fifo_release_work);
 		destroy_workqueue(alps_data->stk_fifo_release_wq);
 	}
-	sensors_unregister(alps_data->dev, stk_sensor_attrs);
+	sensors_unregister(alps_data->sensor_dev, stk_sensor_attrs);
 	sysfs_remove_group(&alps_data->als_input_dev->dev.kobj, &stk_als_attribute_group);
 	input_unregister_device(alps_data->als_input_dev);
 #ifdef SUPPORT_SENSOR_CLASS

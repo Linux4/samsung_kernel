@@ -25,6 +25,9 @@
 #include <linux/uaccess.h>
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #include <linux/regulator/consumer.h>
+#ifdef CONFIG_NFC_SN2XX_ESE_SUPPORT
+#include "p73.h"
+#endif
 #endif
 #include "common_ese.h"
 
@@ -110,7 +113,7 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 	/* some products like sn220 does not required fw dwl pin */
 	nfc_gpio->dwl_req = of_get_named_gpio(np, DTS_FWDN_GPIO_STR, 0);
 	if ((!gpio_is_valid(nfc_gpio->dwl_req)))
-		NFC_LOG_ERR("%s: dwl_req gpio invalid %d\n", __func__,
+		NFC_LOG_ERR("%s: dwl_req gpio is not supported(%d)\n", __func__,
 			nfc_gpio->dwl_req);
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
@@ -190,6 +193,8 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 }
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+static int nfc_ocp_notifier(struct notifier_block *nb, unsigned long event, void *data);
+
 int nfc_regulator_onoff(struct nfc_dev *nfc_dev, int onoff)
 {
 	int rc = 0;
@@ -216,9 +221,13 @@ int nfc_regulator_onoff(struct nfc_dev *nfc_dev, int onoff)
 		goto done;
 	}
 
-	g_is_nfc_pvdd_enabled = regulator_is_enabled(regulator_nfc_pvdd);
+	if (nfc_configs->ap_vendor == AP_VENDOR_QCT && !nfc_configs->ldo_ocp_nb.notifier_call) {
+		nfc_configs->ldo_ocp_nb.notifier_call = nfc_ocp_notifier;
+		devm_regulator_register_notifier(nfc_configs->nfc_pvdd, &nfc_configs->ldo_ocp_nb);
+		NFC_LOG_INFO("%s register nfc ocp notifier\n", __func__);
+	}
 
-	NFC_LOG_INFO("onoff = %d, is_nfc_pvdd_enabled = %d\n", onoff, g_is_nfc_pvdd_enabled);
+	NFC_LOG_INFO("onoff = %d, g_is_nfc_pvdd_enabled = %d\n", onoff, g_is_nfc_pvdd_enabled);
 
 	if (g_is_nfc_pvdd_enabled == onoff) {
 		NFC_LOG_INFO("%s already pvdd %s\n", __func__, onoff ? "enabled" : "disabled");
@@ -377,6 +386,14 @@ void nfc_power_control(struct nfc_dev *nfc_dev)
 	gpio_set_ven(nfc_dev, 1);
 }
 
+static int nfc_ocp_notifier(struct notifier_block *nb, unsigned long event, void *data)
+{
+	if (event == REGULATOR_EVENT_OVER_CURRENT)
+		NFC_LOG_ERR("NFC power OCP\n");
+
+	return NOTIFY_OK;
+}
+
 static ssize_t nfc_support_show(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
@@ -425,6 +442,11 @@ static ssize_t check_show(struct class *class,
 	int ret;
 	int cmd_length = 4;
 
+	if (!nfc_check_pvdd_status()) {
+		NFC_LOG_ERR("Turn on PVDD first\n");
+		size = snprintf(buf, SZ_64, "Turn on PVDD first\n");
+		goto end;
+	}
 	mutex_lock(&nfc_dev->write_mutex);
 	*cmd++ = 0x20;
 	*cmd++ = 0x00;
@@ -435,6 +457,8 @@ static ssize_t check_show(struct class *class,
 	if (ret != cmd_length) {
 		ret = -EIO;
 		NFC_LOG_ERR("%s: nfc_write returned %d\n", __func__, ret);
+		size = snprintf(buf, SZ_64, "nfc_write returned %d. count : %d\n",
+			ret, cmd_length);
 		mutex_unlock(&nfc_dev->write_mutex);
 		goto end;
 	}
@@ -446,15 +470,17 @@ static ssize_t check_show(struct class *class,
 	ret = nfc_dev->nfc_read(nfc_dev, rsp, cmd_length, timeout);
 
 	if (ret < 0 || ret > cmd_length) {
-		size = snprintf(buf, SZ_64, "i2c_master_recv returned %d. count : %d\n",
+		NFC_LOG_ERR("%s: nfc_read returned %d\n", __func__, ret);
+		size = snprintf(buf, SZ_64, "nfc_read returned %d. count : %d\n",
 			ret, cmd_length);
+		mutex_unlock(&nfc_dev->read_mutex);
 		goto end;
 	}
+	mutex_unlock(&nfc_dev->read_mutex);
 
 	size = snprintf(buf, SZ_64, "test completed!! size: %d, data: %X %X %X %X %X %X\n",
 		ret, rsp[0], rsp[1], rsp[2], rsp[3], rsp[4], rsp[5]);
 end:
-	mutex_unlock(&nfc_dev->read_mutex);
 	return size;
 }
 
@@ -605,6 +631,9 @@ void nfc_print_status(void)
 
 	NFC_LOG_INFO("en: %d, firm: %d, pvdd: %d, irq: %d, clk_req: %d\n",
 		en, firm, pvdd, irq, clk_req_irq);
+#ifdef CONFIG_NFC_SN2XX_ESE_SUPPORT
+	p61_print_status(__func__);
+#endif
 #ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
 	nfc_logger_acpm_log_print();
 #endif
@@ -649,7 +678,7 @@ static int nfc_gpio_info(struct nfc_dev *nfc_dev, unsigned long arg)
 	nfc_print_status();
 #endif
 	if (copy_to_user((uint32_t *) arg, &gpios_status, sizeof(value))) {
-		pr_err("%s : Unable to copy data from kernel space to user space");
+		pr_err("%s : Unable to copy data from kernel space to user space\n", __func__);
 		return -EFAULT;
 	}
 	return 0;

@@ -754,6 +754,9 @@ typedef struct sec_battery_platform_data {
 	unsigned int tx_minduty_5V;
 	unsigned int tx_minduty_default;
 
+	unsigned int tx_ping_duty_no_ta;
+	unsigned int tx_ping_duty_default;
+
 	unsigned int tx_uno_vout;
 	unsigned int tx_uno_iout;
 	unsigned int tx_buds_vout; // true wireless stereo type like buds
@@ -785,8 +788,9 @@ typedef struct sec_battery_platform_data {
 	bool support_vpdo;
 
 	bool sc_LRP_25W;
-	/* ADC type for each channel */
-	unsigned int adc_type[];
+
+	bool wpc_warm_fod;
+	unsigned int wpc_warm_fod_icc;
 } sec_battery_platform_data_t;
 
 struct sec_ttf_data;
@@ -856,13 +860,13 @@ struct sec_battery_info {
 	int charge_counter;		/* remaining capacity (uAh) */
 	int current_adc;
 
-#if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	int voltage_pack_main;		/* pack voltage main battery (mV) */
 	int voltage_pack_sub;		/* pack voltage sub battery (mV) */
-	int voltage_cell_main;		/* cell voltage main battery (mV) */
-	int voltage_cell_sub;		/* cell voltage sub battery (mV) */
 	int current_now_main;		/* current from main battery (mA) */
 	int current_now_sub;		/* current from sub battery (mA) */
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+	int voltage_cell_main;		/* cell voltage main battery (mV) */
+	int voltage_cell_sub;		/* cell voltage sub battery (mV) */
 	unsigned int limiter_check;
 #endif
 
@@ -1012,7 +1016,6 @@ struct sec_battery_info {
 	struct delayed_work parse_mode_dt_work;
 	struct wakeup_source *parse_mode_dt_ws;
 #endif
-	struct delayed_work otg_work;
 	struct delayed_work dev_init_work;
 	struct wakeup_source *dev_init_ws;
 	struct delayed_work afc_init_work;
@@ -1069,6 +1072,7 @@ struct sec_battery_info {
 	bool uno_en;
 	unsigned int wc_rx_type;
 	unsigned int tx_minduty;
+	unsigned int tx_ping_duty;
 	unsigned int tx_switch_mode;
 	unsigned int tx_switch_start_soc;
 
@@ -1123,9 +1127,7 @@ struct sec_battery_info {
 	struct wakeup_source *wc_ept_timeout_ws;
 #endif
 	struct delayed_work slowcharging_work;
-#if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int batt_cycle;
-#endif
 	int batt_asoc;
 #if IS_ENABLED(CONFIG_STEP_CHARGING)
 	bool step_charging_skip_lcd_on;
@@ -1217,6 +1219,8 @@ struct sec_battery_info {
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_LSI_IFPMIC)
 	struct notifier_block vbus_nb;
 #endif
+	bool is_otg_on;
+	bool smart_sw_src;
 };
 
 /* event check */
@@ -1375,5 +1379,6 @@ bool sec_bat_hv_wc_normal_mode_check(struct sec_battery_info *battery);
 int sec_bat_get_temperature(struct device *dev, struct sec_bat_thm_info *info, int old_val,
 		char *chg_name, char *fg_name);
 int sec_bat_get_inbat_vol_ocv(struct sec_battery_info *battery);
+void sec_bat_smart_sw_src(struct sec_battery_info *battery, bool enable, int curr);
 
 #endif /* __SEC_BATTERY_H */

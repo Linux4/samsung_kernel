@@ -466,6 +466,12 @@ static int config_usb_cfg_link(
 	 * from another gadget or a random directory.
 	 * Also a function instance can only be linked once.
 	 */
+
+	if (gi->composite.gadget_driver.udc_name) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	list_for_each_entry(a_fi, &gi->available_func, cfs_list) {
 		if (a_fi == fi)
 			break;
@@ -1331,13 +1337,18 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 	unsigned			i;
 	int				ret;
 
+	pr_err("[USB] %s\n", __func__);
+
 	/* the gi->lock is hold by the caller */
 	gi->unbind = 0;
 	cdev->gadget = gadget;
 	set_gadget_data(gadget, cdev);
 	ret = composite_dev_prepare(composite, cdev);
-	if (ret)
+	if (ret) {
+		pr_err("[USB] %s: composite_dev_prepare failed (ret = %d)\n", __func__, ret);
 		return ret;
+	}
+
 	/* and now the gadget bind */
 	ret = -EINVAL;
 
@@ -1380,6 +1391,7 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 				USB_GADGET_FIRST_AVAIL_IDX);
 		if (IS_ERR(s)) {
 			ret = PTR_ERR(s);
+			pr_err("[USB] %s -- usb_gstrings_attach ret = %d\n", __func__, ret);
 			goto err_comp_cleanup;
 		}
 
@@ -1400,6 +1412,7 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 		usb_desc = usb_otg_descriptor_alloc(gadget);
 		if (!usb_desc) {
 			ret = -ENOMEM;
+			pr_err("[USB] %s: usb_otg_descriptor_alloc failed (ret = %d)\n", __func__, ret);
 			goto err_comp_cleanup;
 		}
 		usb_otg_descriptor_init(gadget, usb_desc);
@@ -1430,6 +1443,7 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 			s = usb_gstrings_attach(&gi->cdev, cfg->gstrings, 1);
 			if (IS_ERR(s)) {
 				ret = PTR_ERR(s);
+				pr_err("[USB] %s: usb_gstrings_attach failed (ret = %d)\n", __func__, ret);
 				goto err_comp_cleanup;
 			}
 			c->iConfiguration = s[0].id;
@@ -1440,19 +1454,24 @@ static int configfs_composite_bind(struct usb_gadget *gadget,
 			ret = usb_add_function(c, f);
 			if (ret) {
 				list_add(&f->list, &cfg->func_list);
+				pr_err("[USB] %s: usb_add_function failed (ret = %d)\n", __func__, ret);
 				goto err_purge_funcs;
 			}
 		}
 		ret = usb_gadget_check_config(cdev->gadget);
-		if (ret)
+		if (ret) {
+			pr_err("[USB] %s: usb_gadget_check_config failed (ret = %d)\n", __func__, ret);
 			goto err_purge_funcs;
+		}
 
 		usb_ep_autoconfig_reset(cdev->gadget);
 	}
 	if (cdev->use_os_string) {
 		ret = composite_os_desc_req_prepare(cdev, gadget->ep0);
-		if (ret)
+		if (ret) {
+			pr_err("[USB] %s: composite_os_desc_req_prepare failed (ret = %d)\n", __func__, ret);
 			goto err_purge_funcs;
+		}
 	}
 
 	usb_ep_autoconfig_reset(cdev->gadget);

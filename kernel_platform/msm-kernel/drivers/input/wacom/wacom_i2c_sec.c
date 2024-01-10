@@ -985,6 +985,15 @@ static ssize_t hardware_param_show(struct device *dev,
 	snprintf(tbuff, sizeof(tbuff), "\"SECLVL\":\"%d\",", wac_i2c->error_cal);
 	strlcat(buff, tbuff, sizeof(buff));
 
+	/*ESD PACKET COUNT*/
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"ESDPCNT\":\"%d\",", wac_i2c->esd_packet_count);
+	strlcat(buff, tbuff, sizeof(buff));
+	/*ESD INTERRUPT COUNT*/
+	memset(tbuff, 0x00, sizeof(tbuff));
+	snprintf(tbuff, sizeof(tbuff), "\"ESDICNT\":\"%d\",", wac_i2c->esd_irq_count);
+	strlcat(buff, tbuff, sizeof(buff));
+
 	memset(tbuff, 0x00, sizeof(tbuff));
 	/* remove last comma (csv) */
 	snprintf(tbuff, sizeof(tbuff), "\"SCALLVL\":\"%d\"", wac_i2c->min_cal_val);
@@ -1005,6 +1014,8 @@ static ssize_t hardware_param_store(struct device *dev,
 	wac_i2c->abnormal_reset_count = 0;
 	wac_i2c->i2c_fail_count = 0;
 	wac_i2c->pen_out_count = 0;
+	wac_i2c->esd_packet_count = 0;
+	wac_i2c->esd_irq_count = 0;
 
 	input_info(true, &wac_i2c->client->dev, "%s: clear\n", __func__);
 

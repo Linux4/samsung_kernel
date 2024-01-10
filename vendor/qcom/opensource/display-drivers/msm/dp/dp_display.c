@@ -47,8 +47,8 @@
 #if defined(CONFIG_SEC_DISPLAYPORT_BIGDATA)
 #include <linux/secdp_bigdata.h>
 #endif
-/*#undef CONFIG_SWITCH*/
-#if IS_ENABLED(CONFIG_SWITCH)
+/*#undef CONFIG_SECDP_SWITCH*/
+#if defined(CONFIG_SECDP_SWITCH)
 #include <linux/switch.h>
 
 static struct switch_dev switch_secdp_msg = {
@@ -323,7 +323,7 @@ static void secdp_send_poor_connection_event(bool edid_fail)
 	if (!edid_fail)
 		dp->link->poor_connection = true;
 
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	switch_set_state(&switch_secdp_msg, 1);
 	switch_set_state(&switch_secdp_msg, 0);
 #else
@@ -1039,6 +1039,34 @@ bool secdp_check_hmd_dev(const char *name_to_search)
 	mutex_unlock(&hmd->lock);
 
 	return found;
+}
+
+#define PRN_MODE_COUNT	3
+
+static void secdp_mode_count_init(struct dp_display_private *dp)
+{
+	struct secdp_misc *sec = &dp->sec;
+
+	secdp_logger_set_mode_max_count(PRN_MODE_COUNT);
+
+	sec->mode_cnt = PRN_MODE_COUNT + 1;
+}
+
+static void secdp_mode_count_dec(struct dp_display_private *dp)
+{
+	struct secdp_misc *sec = &dp->sec;
+
+	secdp_logger_dec_mode_count();
+
+	if (sec->mode_cnt > 0)
+		sec->mode_cnt--;
+}
+
+static bool secdp_mode_count_check(struct dp_display_private *dp)
+{
+	struct secdp_misc *sec = &dp->sec;
+
+	return sec->mode_cnt ? true : false;
 }
 #endif
 
@@ -1821,6 +1849,7 @@ static bool dp_display_send_hpd_event(struct dp_display_private *dp)
 #if defined(CONFIG_SECDP)
 	msleep(100);
 	atomic_set(&dp->sec.noti_status, 1);
+	secdp_mode_count_init(dp);
 #endif
 	snprintf(name, HPD_STRING_SIZE, "name=%s", connector->name);
 	snprintf(status, HPD_STRING_SIZE, "status=%s",
@@ -2072,6 +2101,8 @@ static int dp_display_host_ready(struct dp_display_private *dp)
 {
 	int rc = 0;
 
+	DP_ENTER("\n");
+
 	if (!dp_display_state_is(DP_STATE_INITIALIZED)) {
 		rc = dp_display_host_init(dp);
 		if (rc) {
@@ -2084,8 +2115,6 @@ static int dp_display_host_ready(struct dp_display_private *dp)
 		dp_display_state_log("[already ready]");
 		return rc;
 	}
-
-	DP_ENTER("\n");
 
 	/*
 	 * Reset the aborted state for AUX and CTRL modules. This will
@@ -2246,12 +2275,20 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 	 * ETIMEDOUT --> cable may have been removed
 	 * ENOTCONN --> no downstream device connected
 	 */
+#if !defined(CONFIG_SECDP)
 	if (rc == -ETIMEDOUT || rc == -ENOTCONN) {
 		dp_display_state_remove(DP_STATE_CONNECTED);
 		goto end;
 	}
-
-#if defined(CONFIG_SECDP)
+#else
+	if (rc == -ENOTCONN) {
+		dp_display_state_remove(DP_STATE_CONNECTED);
+		goto end;
+	}
+	if (rc == -ETIMEDOUT) {
+		/* turn core clk off */
+		goto off;
+	}
 	if (rc == -EINVAL) {
 		/* read EDID is corrupted or invalid, failsafe case */
 		secdp_send_poor_connection_event(true);
@@ -3571,6 +3608,10 @@ static void secdp_pdic_handle_linkconf(struct dp_display_private *dp,
 
 	sec->link_conf = true;
 
+	/* see dp_display_usbpd_configure_cb() */
+	dp_display_state_remove(DP_STATE_ABORTED);
+	dp_display_state_add(DP_STATE_CONFIGURED);
+
 #ifdef SECDP_USB_CONCURRENCY
 	if (noti->sub1 == PDIC_NOTIFY_DP_PIN_B ||
 			noti->sub1 == PDIC_NOTIFY_DP_PIN_D ||
@@ -3832,11 +3873,11 @@ bool secdp_phy_reset_check(void)
 	struct dp_display_private *dp = g_secdp_priv;
 	bool ret = false;
 
-	if (!dp)
+	if (!dp || !dp->power)
 		goto end;
 
 	/* check if core clk is off */
-	if (!secdp_get_clk_status(DP_CORE_PM)) {
+	if (!dp->power->clk_status(dp->power, DP_CORE_PM)) {
 		ret = true;
 		goto end;
 	}
@@ -4111,7 +4152,7 @@ static int secdp_init(struct dp_display_private *dp)
 		goto end;
 	}
 #endif
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	rc = switch_dev_register(&switch_secdp_msg);
 	if (rc)
 		DP_INFO("Failed to register secdp_msg switch:%d\n", rc);
@@ -4139,6 +4180,7 @@ static void secdp_deinit(struct dp_display_private *dp)
 	sec = &dp->sec;
 
 	secdp_destroy_wakelock(dp);
+	secdp_logger_deinit();
 
 	mutex_destroy(&sec->notify_lock);
 	mutex_destroy(&sec->attention_lock);
@@ -4148,7 +4190,7 @@ static void secdp_deinit(struct dp_display_private *dp)
 	secdp_sysfs_deinit(sec->sysfs);
 	sec->sysfs = NULL;
 
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	switch_dev_unregister(&switch_secdp_msg);
 #endif
 #ifdef SECDP_EVENT_THREAD
@@ -4746,6 +4788,7 @@ end:
 	mutex_unlock(&dp->session_lock);
 
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, dp->state, rc);
+	DP_LEAVE("\n");
 	return rc;
 }
 
@@ -5259,6 +5302,8 @@ void secdp_reconnect(void)
 {
 	struct dp_display_private *dp = g_secdp_priv;
 
+	secdp_logger_set_max_count(300);
+
 	if (dp->link->poor_connection) {
 		DP_INFO("poor connection, return!\n");
 		return;
@@ -5568,6 +5613,7 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 
 	prefer_mode = secdp_check_prefer_resolution(dp, mode);
 	if (prefer_mode) {
+		secdp_mode_count_dec(dp);
 		secdp_show_max_timing(dp);
 
 		if ((mrr_timing->clock || prf_timing->clock) && !dex_timing->clock) {
@@ -5579,7 +5625,7 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 		prefer->vdisp = mode->vdisplay;
 		prefer->refresh = mode_refresh;
 		prefer->ratio = secdp_get_aspect_ratio(mode);
-		DP_INFO("prefer timing found! %dx%d@%dhz, %s\n",
+		DP_INFO_M("prefer timing found! %dx%d@%dhz, %s\n",
 			prefer->hdisp, prefer->vdisp, prefer->refresh,
 			secdp_aspect_ratio_to_string(prefer->ratio));
 
@@ -5590,22 +5636,8 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 	}
 
 	if (prefer->ratio == MON_RATIO_NA) {
-		DP_INFO("prefer timing is absent!\n");
-
-		if ((mrr_timing->clock || prf_timing->clock) && !dex_timing->clock) {
-			dex->ignore_prefer_ratio = true;
-			DP_INFO("[dex] ignore prefer ratio\n");
-		}
-
-		prefer->ratio = secdp_get_aspect_ratio(mode);
-		if (prefer->ratio != MON_RATIO_NA) {
-			DP_INFO("get prefer ratio from %dx%d@%dhz, %s\n",
-				mode->hdisplay, mode->vdisplay, mode_refresh,
-				secdp_aspect_ratio_to_string(prefer->ratio));
-		} else {
-			prefer->ratio = MON_RATIO_16_9;
-			DP_INFO("set default prefer ratio\n");
-		}
+		dex->ignore_prefer_ratio = true;
+		DP_INFO("prefer timing is absent, ignore!\n");
 	}
 
 	if (!supported || secdp_exceed_mst_max_pclk(mode)
@@ -5830,9 +5862,11 @@ end:
 	if (!secdp_check_resolution(dp, mode, mode_status == MODE_OK))
 		mode_status = MODE_BAD;
 
-	DP_INFO("%9s@%dhz | %s | max:%7d cur:%7d | vt:%d bpp:%u\n", mode->name,
-		drm_mode_vrefresh(mode), mode_status == MODE_BAD ? "NG" : "OK",
-		dp_display->max_pclk_khz, mode->clock, dp_panel->video_test, mode_bpp);
+	if (secdp_mode_count_check(dp)) {
+		DP_INFO_M("%9s@%dhz | %s | max:%7d cur:%7d | vt:%d bpp:%u\n", mode->name,
+			drm_mode_vrefresh(mode), mode_status == MODE_BAD ? "NG" : "OK",
+			dp_display->max_pclk_khz, mode->clock, dp_panel->video_test, mode_bpp);
+	}
 }
 #endif
 

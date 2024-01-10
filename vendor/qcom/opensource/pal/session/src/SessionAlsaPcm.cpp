@@ -1017,6 +1017,12 @@ int SessionAlsaPcm::start(Stream * s)
                     streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
                 streamData.numChannel = sAttr.in_media_config.ch_info.channels;
+#ifdef SEC_AUDIO_CALL_RECORD
+                if ((sAttr.type == PAL_STREAM_VOICE_CALL_RECORD) && (sAttr.in_media_config.ch_info.channels == 2)) {
+                    // To ensure the channel mapping rules in call recording (L-Rx/R-Tx).
+                    streamData.rotation_type = PAL_SPEAKER_ROTATION_RL;
+                } else
+#endif
                 streamData.rotation_type = PAL_SPEAKER_ROTATION_LR;
                 streamData.ch_info = nullptr;
                 builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);

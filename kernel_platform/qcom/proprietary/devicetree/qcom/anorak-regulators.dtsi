@@ -96,7 +96,7 @@
 		pmxr2230_s4_level: regulator-pmxr2230-s4-level {
 			regulator-name = "pmxr2230_s4_level";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			pm_v6e_s1_level-parent-supply =
+			pmxr2230_s4_level-parent-supply =
 				<&VDD_CX_MMCX_SUPPLY_LEVEL>;
 			regulator-min-microvolt =
 				<RPMH_REGULATOR_LEVEL_LOW_SVS>;
@@ -151,13 +151,12 @@
 			<RPMH_REGULATOR_MODE_LPM
 			RPMH_REGULATOR_MODE_HPM>;
 		qcom,mode-threshold-currents = <0 30000>;
-		qcom,disable-mode = <RPMH_REGULATOR_MODE_LPM>;
 		L3B:
 		pmxr2230_l3: regulator-pmxr2230-l3 {
 			regulator-name = "pmxr2230_l3";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <1080000>;
-			regulator-max-microvolt = <1320000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
 			qcom,init-voltage = <1200000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
@@ -1011,5 +1010,16 @@
 			regulator-max-microvolt = <3960000>;
 			qcom,init-voltage = <3296000>;
 		};
+	};
+};
+
+&qupv3_se2_i2c {
+	itof_level: ap72200-regulator@43 {
+		reg = <0x43>;
+		compatible = "diodes,ap72200";
+		regulator-name = "ap72200-vout";
+		regulator-min-microvolt = <3600000>;
+		regulator-max-microvolt = <3600000>;
+		status = "disabled";
 	};
 };

@@ -1414,6 +1414,8 @@ static void sec_bat_limiter_check(struct sec_battery_info *battery)
 	union power_supply_propval m_value = {0, }, s_value = {0, };
 	int main_enb, main_enb2, sub_enb, ret;
 
+	pr_info("%s: Start\n", __func__);
+
 	/* do not check limiter status when enb is not active status since it is certain test mode using enb pin */
 	main_enb = gpio_get_value(battery->pdata->main_bat_enb_gpio);
 	main_enb2 = gpio_get_value(battery->pdata->main_bat_enb2_gpio);
@@ -1460,7 +1462,7 @@ static void sec_bat_limiter_check(struct sec_battery_info *battery)
 #endif
 		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, true, SEC_BAT_CHG_MODE_CHARGING_OFF);
 
-		m_value.intval = 400;
+		m_value.intval = 1000;
 		psy_do_property(battery->pdata->main_limiter_name, set,
 				POWER_SUPPLY_EXT_PROP_DISCHG_LIMIT_CURRENT, m_value);
 
@@ -1470,15 +1472,16 @@ static void sec_bat_limiter_check(struct sec_battery_info *battery)
 
 		/* deactivate main limiter */
 		gpio_direction_output(battery->pdata->main_bat_enb2_gpio, 1);
-		msleep(100);
+		usleep_range(1000, 2000);
 		/* activate main limiter */
 		gpio_direction_output(battery->pdata->main_bat_enb2_gpio, 0);
-		msleep(100);
+		msleep(50);
 
 		/* needs to init limiter setting again */
 		m_value.intval = 1;
 		psy_do_property(battery->pdata->main_limiter_name, set,
 				POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE, m_value);
+		msleep(100);
 
 		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, true, SEC_BAT_CHG_MODE_CHARGING);
 		battery->limiter_check = true;
@@ -1506,7 +1509,7 @@ static void sec_bat_limiter_check(struct sec_battery_info *battery)
 #endif
 		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, true, SEC_BAT_CHG_MODE_CHARGING_OFF);
 
-		s_value.intval = 400;
+		s_value.intval = 1000;
 		psy_do_property(battery->pdata->sub_limiter_name, set,
 				POWER_SUPPLY_EXT_PROP_DISCHG_LIMIT_CURRENT, s_value);
 
@@ -1516,15 +1519,16 @@ static void sec_bat_limiter_check(struct sec_battery_info *battery)
 
 		/* deactivate sub limiter */
 		gpio_direction_output(battery->pdata->sub_bat_enb_gpio, 1);
-		msleep(100);
+		usleep_range(1000, 2000);
 		/* activate sub limiter */
 		gpio_direction_output(battery->pdata->sub_bat_enb_gpio, 0);
-		msleep(100);
+		msleep(50);
 
 		/* needs to init limiter setting again */
 		s_value.intval = 1;
 		psy_do_property(battery->pdata->sub_limiter_name, set,
 				POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE, s_value);
+		msleep(100);
 
 		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, true, SEC_BAT_CHG_MODE_CHARGING);
 
@@ -1817,6 +1821,8 @@ ovp_uvlo_check_error:
 
 static bool sec_bat_ovp_uvlo_result(struct sec_battery_info *battery, int health)
 {
+	union power_supply_propval value = {0, };
+
 	if (health == POWER_SUPPLY_EXT_HEALTH_DC_ERR) {
 		dev_info(battery->dev,
 			"%s: DC err (%d)\n",
@@ -1827,6 +1833,16 @@ static bool sec_bat_ovp_uvlo_result(struct sec_battery_info *battery, int health
 		/* Enable charging anyway to check actual DC's health */
 		sec_vote(battery->chgen_vote, VOTER_DC_ERR, true, SEC_BAT_CHG_MODE_CHARGING_OFF);
 		sec_vote(battery->chgen_vote, VOTER_DC_ERR, false, 0);
+	}
+
+	if (health == POWER_SUPPLY_EXT_HEALTH_UNDERVOLTAGE) {
+		psy_do_property(battery->pdata->wireless_charger_name, get,
+			POWER_SUPPLY_PROP_CHARGE_EMPTY, value);
+		if (value.intval == 0) {
+			dev_info(battery->dev, "%s: skip undervoltage for WL %d %d\n",
+				__func__, health, battery->health);
+			health = battery->health;
+		}
 	}
 
 	if (battery->health != health) {
@@ -4446,14 +4462,6 @@ __visible_for_testing void sec_bat_txpower_calc_work(struct work_struct *work)
 }
 EXPORT_SYMBOL_KUNIT(sec_bat_txpower_calc_work);
 
-__visible_for_testing void sec_bat_otg_work(struct work_struct *work)
-{
-	struct sec_battery_info *battery = container_of(work,
-				struct sec_battery_info, otg_work.work);
-	set_wireless_otg_input_current(battery);
-}
-EXPORT_SYMBOL_KUNIT(sec_bat_otg_work);
-
 static void sec_bat_wc20_current_work(struct work_struct *work)
 {
 	struct sec_battery_info *battery = container_of(work,
@@ -4685,6 +4693,21 @@ static void chg_start_time_check(struct sec_battery_info *battery)
 	pr_info("%s: start time = %lu\n", __func__, battery->charging_retention_time);
 }
 
+void sec_bat_smart_sw_src(struct sec_battery_info *battery, bool enable, int curr)
+{
+	if (enable)
+		battery->smart_sw_src = true;
+	else if (battery->smart_sw_src)
+		battery->smart_sw_src = false;
+	else
+		return;
+
+	sec_pd_change_src(curr);
+	dev_info(battery->dev,
+		"%s: smart switch src, %s src cap max current\n",
+		__func__, enable ? "reduce" : "recover");
+}
+
 static void cw_nocharge_type(struct sec_battery_info *battery)
 {
 	int i;
@@ -4763,6 +4786,7 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 					"%s: disable slate mode(smart switch) manually\n", __func__);
 		}
 	}
+	sec_bat_smart_sw_src(battery, false, 500);
 
 	chg_retention_time_check(battery);
 	battery->wc_cv_mode = false;
@@ -4799,6 +4823,9 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 	sec_vote(battery->input_vote, VOTER_USB_100MA, true, 100);
 #endif
 	battery->usb_slow_chg = false;
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+	battery->limiter_check = false;
+#endif
 }
 
 static void cw_slate_mode(struct sec_battery_info *battery)
@@ -5024,9 +5051,6 @@ __visible_for_testing void sec_bat_cable_work(struct work_struct *work)
 		battery->cable_type == SEC_BATTERY_CABLE_UNKNOWN)) {
 		pr_info("%s: prev_cable_type(%d)\n", __func__, prev_cable_type);
 		cw_nocharge_type(battery);
-#if IS_ENABLED(CONFIG_DUAL_BATTERY)
-		battery->limiter_check = false;
-#endif
 	} else if (is_slate_mode(battery)) {
 		pr_info("%s: slate mode on\n", __func__);
 		cw_slate_mode(battery);
@@ -6574,13 +6598,18 @@ static int sec_otg_set_property(struct power_supply *psy,
 	int ret = 0;
 
 	value.intval = val->intval;
+
+	if ((int)psp == POWER_SUPPLY_PROP_ONLINE) {
+		battery->is_otg_on = val->intval;
 #if defined(CONFIG_BATTERY_CISD)
-	if (value.intval && !battery->otg_check) {
-		battery->cisd.event_data[EVENT_OTG]++;
-		battery->otg_check = true;
-	} else if (!value.intval)
-		battery->otg_check = false;
+		if (value.intval && !battery->otg_check) {
+			battery->cisd.event_data[EVENT_OTG]++;
+			battery->otg_check = true;
+		} else if (!value.intval)
+			battery->otg_check = false;
 #endif
+	}
+
 	ret = psy_do_property(battery->pdata->otg_name, set, psp, value);
 	return ret;
 }
@@ -8206,7 +8235,6 @@ static int sec_battery_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&battery->wpc_tx_en_work, sec_bat_wpc_tx_en_work);
 	INIT_DELAYED_WORK(&battery->wpc_txpower_calc_work, sec_bat_txpower_calc_work);
 	INIT_DELAYED_WORK(&battery->ext_event_work, sec_bat_ext_event_work);
-	INIT_DELAYED_WORK(&battery->otg_work, sec_bat_otg_work);
 	INIT_DELAYED_WORK(&battery->wc20_current_work, sec_bat_wc20_current_work);
 	INIT_DELAYED_WORK(&battery->wc_ept_timeout_work, sec_bat_wc_ept_timeout_work);
 #endif
@@ -8391,6 +8419,7 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->hp_d2d = HP_D2D_NONE;
 	battery->dc_check_cnt = 0;
 	battery->srccap_transit_cnt = 0;
+	battery->smart_sw_src = false;
 
 	ttf_init(battery);
 #if defined(CONFIG_BATTERY_CISD)
@@ -8732,7 +8761,6 @@ static void sec_battery_shutdown(struct platform_device *pdev)
 	cancel_delayed_work(&battery->wpc_tx_en_work);
 	cancel_delayed_work(&battery->wpc_txpower_calc_work);
 	cancel_delayed_work(&battery->ext_event_work);
-	cancel_delayed_work(&battery->otg_work);
 	cancel_delayed_work(&battery->wc20_current_work);
 	cancel_delayed_work(&battery->wc_ept_timeout_work);
 #endif

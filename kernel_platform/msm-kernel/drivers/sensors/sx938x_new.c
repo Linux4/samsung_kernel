@@ -90,7 +90,7 @@
 #define MAX_I2C_FAIL_COUNT 3
 
 enum grip_error_state {
-	FAIL_UPDATE_PREV_STATE = 0,
+	FAIL_UPDATE_PREV_STATE = 1,
 	FAIL_SETUP_REGISTER,
 	FAIL_I2C_ENABLE,
 	FAIL_I2C_READ_3_TIMES,
@@ -189,6 +189,9 @@ static void enter_error_mode(struct sx938x_p *data, enum grip_error_state err_st
 	data->check_abnormal_working = true;
 	data->err_state |= 0x1 << err_state;
 	enter_unknown_mode(data, TYPE_FORCE);
+#if IS_ENABLED(CONFIG_SENSORS_GRIP_FAILURE_DEBUG)
+	update_grip_error(data->ic_num, data->err_state);
+#endif
 	GRIP_ERR("%d\n", data->err_state);
 }
 
@@ -317,7 +320,7 @@ static void sx938x_initialize_register(struct sx938x_p *data)
 
 		ret = sx938x_i2c_read(data, setup_reg[data->ic_num][idx].reg, &val);
 		if (ret < 0)
-			GRIP_INFO("Read Reg 0x%x fail\n");
+			GRIP_INFO("Read Reg fail\n");
 		else
 			GRIP_INFO("Read Reg 0x%x Val 0x%x\n",
 					setup_reg[data->ic_num][idx].reg, val);
@@ -489,8 +492,10 @@ static int sx938x_get_data(struct sx938x_p *data)
 		sx938x_i2c_read(data, SX938x_OFFSETMSB_PHR, &msb);
 		sx938x_i2c_read(data, SX938x_OFFSETLSB_PHR, &lsb);
 		offset_ref = (u16)((msb << 8) | lsb);
-		if (data->check_abnormal_working)
+		if (data->check_abnormal_working) {
+			mutex_unlock(&data->read_mutex);
 			goto exit_get_data;
+		}
 
 		//READ Main channel data
 		msb = lsb = 0;
@@ -502,8 +507,10 @@ static int sx938x_get_data(struct sx938x_p *data)
 		sx938x_i2c_read(data, SX938x_AVGMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_AVGLSB_PHM, &lsb);
 		data->avg = (s16)((msb << 8) | lsb);
-		if (data->check_abnormal_working)
+		if (data->check_abnormal_working) {
+			mutex_unlock(&data->read_mutex);
 			goto exit_get_data;
+		}
 #if 0
 		sx938x_i2c_read(data, SX938x_DIFFMSB_PHM, &msb);
 		sx938x_i2c_read(data, SX938x_DIFFLSB_PHM, &lsb);
@@ -527,8 +534,9 @@ static int sx938x_get_data(struct sx938x_p *data)
 			data->capMain = (int)(msb >> 7) * 2369640 + (int)(msb & 0x7F) * 30380 + (int)(lsb * 270) +
 							(int)(((int)data->useful * data->again_m) / (data->dgain_m * 32768));
 			data->offset = (u16)((msb << 8) | lsb);
-		} else
 			ret = 0;
+		}
+
 		mutex_unlock(&data->read_mutex);
 
 		GRIP_INFO("[MAIN] capMain %d Useful %d Average %d DIFF %d Offset %d [REF] Useful %d Offset %d\n",
@@ -1615,12 +1623,12 @@ static void sx938x_debug_work_func(struct work_struct *work)
 		ret = sx938x_get_data(data);
 		if (data->fail_status_code != 0 && !ret)
 			GRIP_ERR("ret %d err %d", ret, data->fail_status_code);
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
+			sx938x_check_first_working(data);
 		data->debug_count = 0;
-	} else
+	} else {
 		data->debug_count++;
-
-	if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
-		sx938x_check_first_working(data);
+	}
 
 	GRIP_ERR("ret %d en %d", !ret?1:0, (atomic_read(&data->enable) == ON)?1:0);
 
@@ -2246,11 +2254,7 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 	disable_irq(data->irq);
 	data->is_irq_active = false;
 
-#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_register(&data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
-#else
-	ret = sensors_register(data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
-#endif
 	if (ret) {
 		GRIP_ERR("could not regi sensor %d\n", ret);
 		goto exit_register_failed;

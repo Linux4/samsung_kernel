@@ -189,7 +189,7 @@
 		reg-names = "tpdm-base";
 
 		atid = <71>;
-		coresight-name = "coresight-tpdm-swao";
+		coresight-name = "coresight-tpdm-swao-1";
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
@@ -633,7 +633,7 @@
 		reg = <0x10ac0000 0x1000>;
 		reg-names = "tpdm-base";
 
-		atid = <78>;
+		atid = <79>;
 		coresight-name = "coresight-tpdm-dlct2-dsb";
 
 		clocks = <&aoss_qmp>;
@@ -655,7 +655,7 @@
 		reg = <0x10ac1000 0x1000>;
 		reg-names = "tpdm-base";
 
-		atid = <78>;
+		atid = <79>;
 		coresight-name = "coresight-tpdm-dlct2-cmb";
 
 		clocks = <&aoss_qmp>;
@@ -678,7 +678,7 @@
 		reg = <0x109c0000 0x1000>;
 		reg-names = "tpdm-base";
 
-		atid = <78>;
+		atid = <79>;
 		coresight-name = "coresight-tpdm-dl-south-dsb";
 
 		clocks = <&aoss_qmp>;
@@ -701,7 +701,7 @@
 		reg = <0x109c1000 0x1000>;
 		reg-names = "tpdm-base";
 
-		atid = <78>;
+		atid = <79>;
 		coresight-name = "coresight-tpdm-dl-south-cmb";
 
 		clocks = <&aoss_qmp>;
@@ -725,13 +725,14 @@
 		reg = <0x10c00000 0x1000>;
 		reg-names = "tpdm-base";
 
-		atid = <78>;
+		atid = <79>;
 		coresight-name = "coresight-tpdm-rdpm";
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
 		qcom,cmb-msr-skip;
 		status = "disabled";
+
 		out-ports {
 			port {
 				tpdm_rdpm_out_funnel_dl_center_1: endpoint {
@@ -748,13 +749,14 @@
 		reg = <0x10c01000 0x1000>;
 		reg-names = "tpdm-base";
 
-		atid = <78>;
+		atid = <79>;
 		coresight-name = "coresight-tpdm-rdpm-mx";
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
 		qcom,cmb-msr-skip;
 		status = "disabled";
+
 		out-ports {
 			port {
 				tpdm_rdpm_mx_out_funnel_dl_center_1: endpoint {
@@ -974,7 +976,7 @@
 		reg-names = "tpdm-base";
 
 		atid = <85>;
-		coresight-name = "coresight-tpdm-tmess-irq";
+		coresight-name = "coresight-tpdm-tmess-0";
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
@@ -997,7 +999,7 @@
 		reg-names = "tpdm-base";
 
 		atid = <85>;
-		coresight-name = "coresight-tpdm-tmess-dsb";
+		coresight-name = "coresight-tpdm-tmess-1";
 
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
@@ -1433,7 +1435,7 @@
 		reg = <0x10cc4000 0x1000>;
 		reg-names = "tpda-base";
 
-		qcom,cmb-elem-size = <0 32>,
+		qcom,cmb-elem-size = <0 64>,
 				     <1 64>,
 				     <2 32>;
 		qcom,dsb-elem-size = <1 32>;
@@ -1833,7 +1835,7 @@
 		qcom,cmb-elem-size = <6 32>,
 							 <11 32>,
 							 <12 64>,
-							 <19 32>,
+							 <19 64>,
 							 <22 32>,
 							 <24 64>,
 							 <25 64>,
@@ -2102,7 +2104,6 @@
 		qcom,tpda-atid = <79>;
 
 		qcom,dsb-elem-size = <7 32>,
-							 <9 32>,
 							 <17 32>,
 							 <26 32>;
 
@@ -3052,6 +3053,10 @@
 		qcom,extended_cti;
 		clocks = <&aoss_qmp>;
 		clock-names = "apb_pclk";
+
+		qcom,cti-gpio-trigout = <16>;
+		pinctrl-names = "cti-trigout-pctrl";
+		pinctrl-0 = <&trigout_a>;
 	};
 
 	cti0: cti@10c2a000 {
