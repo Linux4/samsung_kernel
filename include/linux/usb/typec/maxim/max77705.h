@@ -421,6 +421,8 @@ enum max77705_usbc_SYSMsg {
 	SYSMSG_56K_TO_22K = 0xB3,
 	SYSMSG_56K_TO_10K = 0xB4,
 	SYSMSG_22K_TO_10K = 0xB5,
+
+	SYSMSG_ABNORMAL_TA = 0xC1,
 };
 
 enum max77705_pdmsg {

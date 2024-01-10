@@ -637,7 +637,7 @@ void sde_core_perf_crtc_update_uidle(struct drm_crtc *crtc,
 	_sde_core_perf_enable_uidle(kms, crtc,
 		(enable && !disable_uidle) ? true : false);
 
-	kms->perf.catalog->uidle_cfg.dirty = !enable ? true: false;
+	kms->perf.catalog->uidle_cfg.dirty = !enable;
 
 	/* If perf counters enabled, set them up now */
 	if (kms->catalog->uidle_cfg.debugfs_perf)

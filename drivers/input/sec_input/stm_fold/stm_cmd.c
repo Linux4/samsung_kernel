@@ -3126,7 +3126,7 @@ static void run_prox_intensity_read_all(void *device_data)
 		return;
 	}
 
-	snprintf(buff, sizeof(buff), "SUM_X:%d THD_X:%d SUM_Y:%d THD_Y:%d",
+	snprintf(buff, sizeof(buff), "SUM_X:%d SUM_Y:%d THD_X:%d THD_Y:%d",
 			(sum_data[0] << 8) + sum_data[1], (sum_data[2] << 8) + sum_data[3],
 			(thd_data[0] << 8) + thd_data[1], (thd_data[2] << 8) + thd_data[3]);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
