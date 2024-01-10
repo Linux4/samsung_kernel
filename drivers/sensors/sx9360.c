@@ -2004,7 +2004,7 @@ static int sx9360_probe(struct i2c_client *client,
 		goto exit_input_init;
 	ret = sx9360_noti_input_init(data);
 	if (ret < 0)
-		goto exit_input_init;
+		goto exit_noti_input_init;
 
 	data->grip_ws = wakeup_source_register(&client->dev, "grip_wake_lock");
 	mutex_init(&data->mode_mutex);
@@ -2101,12 +2101,13 @@ exit_of_node:
 	mutex_destroy(&data->mode_mutex);
 	mutex_destroy(&data->read_mutex);
 	wakeup_source_unregister(data->grip_ws);
-	sysfs_remove_group(&data->input->dev.kobj, &sx9360_attribute_group);
-	sensors_remove_symlink(&data->input->dev.kobj, data->input->name);
-	input_unregister_device(data->input);
 	sysfs_remove_group(&data->noti_input_dev->dev.kobj, &sx9360_noti_attribute_group);
 	sensors_remove_symlink(&data->noti_input_dev->dev.kobj, data->noti_input_dev->name);
 	input_unregister_device(data->noti_input_dev);
+exit_noti_input_init:
+	sysfs_remove_group(&data->input->dev.kobj, &sx9360_attribute_group);
+	sensors_remove_symlink(&data->input->dev.kobj, data->input->name);
+	input_unregister_device(data->input);
 exit_input_init:
 	kfree(data);
 exit_kzalloc:

@@ -35,7 +35,7 @@
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 #include <linux/hall/hall_ic_notifier.h>
 #endif
-#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) || IS_ENABLED(CONFIG_SEC_INPUT_MULTI_DEVICE)
 #if IS_ENABLED(CONFIG_USB_HW_PARAM)
 #include <linux/usb_notify.h>
 #endif
@@ -196,6 +196,32 @@ static ssize_t flip_status_show(struct device *dev,
 	return strlen(buf);
 }
 
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+static ssize_t flip_status_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct hall_ic_data *hall;
+	int state;
+	int ret;
+
+	ret = kstrtoint(buf, 10, &state);
+	if (ret < 0)
+		return ret;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		if (hall->event != SW_FOLDER)
+			continue;
+
+		if (hall->input) {
+			input_report_switch(hall->input, hall->event, state);
+			input_sync(hall->input);
+			pr_info("[sec_input] %s: %s %d: %d\n", __func__, hall->name, hall->event, state);
+		}
+	}
+	return count;
+}
+#endif
+
 static ssize_t hall_number_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -235,7 +261,11 @@ static ssize_t hall_count_show(struct device *dev,
 static DEVICE_ATTR_RO(hall_detect);
 static DEVICE_ATTR_RO(certify_hall_detect);
 static DEVICE_ATTR_RO(hall_wacom_detect);
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 static DEVICE_ATTR_RO(flip_status);
+#else
+static DEVICE_ATTR_RW(flip_status);
+#endif
 static DEVICE_ATTR_RO(hall_number);
 static DEVICE_ATTR_RO(debounce);
 static DEVICE_ATTR_RO(hall_count);
@@ -368,7 +398,7 @@ static void hall_ic_work(struct work_struct *work)
 	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
 		stui_cancel_session();
 #endif
-#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) || IS_ENABLED(CONFIG_SEC_INPUT_MULTI_DEVICE)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
 #if IS_ENABLED(CONFIG_USB_HW_PARAM)
 	if (strncmp(hall->name, "flip", 4) == 0) {
@@ -417,7 +447,7 @@ static irqreturn_t hall_ic_detect(int irq, void *dev_id)
 	schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
 #else
 
-#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE) || IS_ENABLED(CONFIG_SEC_INPUT_MULTI_DEVICE)
 	__pm_wakeup_event(hall->ws, HALL_IC_WAKEUP_TIMEOUT);
 	schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
 #else

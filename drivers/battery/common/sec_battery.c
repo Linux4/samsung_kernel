@@ -691,7 +691,7 @@ __visible_for_testing bool sec_bat_change_vbus_pd(struct sec_battery_info *batte
 	if (battery->pdata->chg_temp_check_type == SEC_BATTERY_TEMP_CHECK_NONE)
 		return false;
 
-	if (battery->store_mode)
+	if (battery->store_mode || battery->siop_level == 80)
 		return false;
 
 	if (is_pd_wire_type(battery->cable_type)) {
@@ -817,7 +817,6 @@ EXPORT_SYMBOL_KUNIT(sec_bat_get_charging_current_in_power_list);
 int sec_bat_set_charging_current(struct sec_battery_info *battery)
 {
 	int ct = battery->cable_type;
-	int siop_lvl = battery->siop_level;
 #if defined(CONFIG_AFC_CHARGER_MODE)
 	static int afc_init = false;
 	union power_supply_propval value = {0, };
@@ -852,7 +851,7 @@ int sec_bat_set_charging_current(struct sec_battery_info *battery)
 
 		if (!is_wireless_fake_type(ct))
 			sec_bat_check_lrp_temp(battery,
-				ct, battery->wire_status, siop_lvl, battery->lcd_status);
+				ct, battery->wire_status, battery->siop_level, battery->lcd_status);
 #endif
 
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
@@ -3158,7 +3157,7 @@ static void sec_bat_siop_level_work(struct work_struct *work)
 
 	pr_info("%s : set current by siop level(%d), siop_step(%d)\n", __func__, battery->siop_level, siop_step);
 
-	if ((battery->siop_level >= 100) ||
+	if ((battery->siop_level >= 100) || is_slate_mode(battery) ||
 		((battery->siop_level == 80) && is_wired_type(battery->cable_type))) {
 #if defined(CONFIG_SUPPORT_HV_CTRL)
 		sec_vote(battery->iv_vote, VOTER_SIOP, false, 0);
@@ -4868,6 +4867,8 @@ static int sec_bat_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_USB_BOOTCOMPLETE:
 			battery->usb_bootcomplete = val->intval;
 			pr_info("%s: usb_bootcomplete (%d)\n", __func__, battery->usb_bootcomplete);
+			break;
+		case POWER_SUPPLY_EXT_PROP_ABNORMAL_SRCCAP:
 			break;
 		default:
 			return -EINVAL;

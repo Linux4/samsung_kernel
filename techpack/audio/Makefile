@@ -29,6 +29,8 @@ else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),r9q))
 include $(srctree)/techpack/audio/config/lahaina_r9.conf
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),v2q))
 include $(srctree)/techpack/audio/config/lahaina_v2.conf
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m44x))
+include $(srctree)/techpack/audio/config/lahaina_m44.conf
 else
 include $(srctree)/techpack/audio/config/lahainaauto.conf
 endif
@@ -41,6 +43,9 @@ include $(srctree)/techpack/audio/config/sa8155auto.conf
 endif
 ifeq ($(CONFIG_ARCH_SA6155), y)
 include $(srctree)/techpack/audio/config/sa6155auto.conf
+endif
+ifeq ($(CONFIG_ARCH_SM6150), y)
+include $(srctree)/techpack/audio/config/sm6150auto.conf
 endif
 endif
 # Use USERINCLUDE when you must reference the UAPI directories only.
@@ -91,6 +96,9 @@ LINUXINCLUDE	+= \
 else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),v2q))
 LINUXINCLUDE	+= \
                 -include $(srctree)/techpack/audio/config/lahaina_v2.h
+else ifeq ($(PROJECT_NAME),$(filter $(PROJECT_NAME),m44x))
+LINUXINCLUDE	+= \
+                -include $(srctree)/techpack/audio/config/lahaina_m44.h
 else
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/lahainaautoconf.h
@@ -108,7 +116,10 @@ ifeq ($(CONFIG_ARCH_SA6155), y)
 LINUXINCLUDE    += \
                 -include $(srctree)/techpack/audio/config/sa6155autoconf.h
 endif
-
+ifeq ($(CONFIG_ARCH_SM6150), y)
+LINUXINCLUDE    += \
+                -include $(srctree)/techpack/audio/config/sm6150autoconf.h
+endif
 obj-y += soc/
 obj-y += dsp/
 obj-y += ipc/

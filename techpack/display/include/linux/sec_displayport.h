@@ -15,6 +15,10 @@
 #ifndef __SEC_DISPLAYPORT_H
 #define __SEC_DISPLAYPORT_H
 
+#if IS_ENABLED(CONFIG_SWITCH) || IS_ENABLED(CONFIG_ANDROID_SWITCH)
+#define CONFIG_SECDP_SWITCH
+#endif
+
 /*
  * this function waits for completion of dp disconnection.
  * return : zero if dp resource is released completely.

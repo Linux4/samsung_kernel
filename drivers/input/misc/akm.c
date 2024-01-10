@@ -580,7 +580,7 @@ static ssize_t akm_selftest_show(struct device *dev,
 static DEVICE_ATTR(digital_hall_status, 0444, akm_status_show, NULL);
 static DEVICE_ATTR(digital_hall_info, 0444, akm_info_show, NULL);
 static DEVICE_ATTR(digital_hall_dbg, 0644, akm_dbg_show, NULL);
-static DEVICE_ATTR(digital_hall_thd, 0644, akm_thd_show, akm_thd_store);
+static DEVICE_ATTR(digital_hall_thd, 0664, akm_thd_show, akm_thd_store);
 static DEVICE_ATTR(digital_hall_dwork, 0644, akm_dwork_show, akm_dwork_store);
 static DEVICE_ATTR(selftest, 0444, akm_selftest_show, NULL);
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -1382,10 +1383,14 @@ int ipa3_setup_sys_pipe(struct ipa_sys_connect_params *sys_in, u32 *clnt_hdl)
 fail_gen3:
 	ipa3_disable_data_path(ipa_ep_idx);
 fail_repl:
-	ep->sys->repl_hdlr = ipa3_replenish_rx_cache;
-	ep->sys->repl->capacity = 0;
-	kfree(ep->sys->repl);
-	ep->sys->repl = NULL;
+	if (IPA_CLIENT_IS_CONS(ep->client))
+		ipa3_cleanup_rx(ep->sys);
+
+	if(ep->sys->repl) {
+		ep->sys->repl->capacity = 0;
+		kfree(ep->sys->repl);
+		ep->sys->repl = NULL;
+	}
 fail_page_recycle_repl:
 	if (ep->sys->page_recycle_repl) {
 		ep->sys->page_recycle_repl->capacity = 0;
@@ -1409,6 +1414,7 @@ fail_wq:
 fail_and_disable_clocks:
 	IPA_ACTIVE_CLIENTS_DEC_EP(sys_in->client);
 fail_gen:
+	IPA_STATS_INC_CNT(ipa3_ctx->stats.pipe_setup_fail_cnt);
 	return result;
 }
 
@@ -2043,25 +2049,26 @@ fail_kmem_cache_alloc:
 	}
 }
 
-static struct page *ipa3_alloc_page( 
+static struct page *ipa3_alloc_page(
 	gfp_t flag, u32 *page_order, bool try_lower)
-{ 
-	struct page *page = NULL; 
-	u32 p_order = *page_order; 
- 
-	page = __dev_alloc_pages(flag, p_order); 
-	/* We will only try 1 page order lower. */ 
-	if (unlikely(!page)) { 
-		if (try_lower && p_order > 0) { 
-			p_order = p_order - 1; 
-			page = __dev_alloc_pages(flag, p_order); 
-			if (likely(page)) 
-				ipa3_ctx->stats.lower_order++; 
-		} 
-	} 
-	*page_order = p_order; 
-	return page; 
-} 
+{
+	struct page *page = NULL;
+	u32 p_order = *page_order;
+
+	page = __dev_alloc_pages(flag, p_order);
+	/* We will only try 1 page order lower. */
+	if (unlikely(!page)) {
+		if (try_lower && p_order > 0) {
+			p_order = p_order - 1;
+			page = __dev_alloc_pages(flag, p_order);
+			if (likely(page))
+				ipa3_ctx->stats.lower_order++;
+		}
+	}
+	*page_order = p_order;
+	return page;
+}
+
 
 static struct ipa3_rx_pkt_wrapper *ipa3_alloc_rx_pkt_page(
 	gfp_t flag, bool is_tmp_alloc)
@@ -2074,11 +2081,11 @@ static struct ipa3_rx_pkt_wrapper *ipa3_alloc_rx_pkt_page(
 	if (unlikely(!rx_pkt))
 		return NULL;
 
-	rx_pkt->page_data.page_order = IPA_WAN_PAGE_ORDER; 
-	/* Try a lower order page for order 3 pages in case allocation fails. */ 
-	rx_pkt->page_data.page = ipa3_alloc_page(flag, 
-				&rx_pkt->page_data.page_order, 
-				(is_tmp_alloc && rx_pkt->page_data.page_order == 3)); 
+	rx_pkt->page_data.page_order = IPA_WAN_PAGE_ORDER;
+	/* Try a lower order page for order 3 pages in case allocation fails. */
+	rx_pkt->page_data.page = ipa3_alloc_page(flag,
+				&rx_pkt->page_data.page_order,
+				(is_tmp_alloc && rx_pkt->page_data.page_order == 3));
 
 	if (unlikely(!rx_pkt->page_data.page))
 		goto fail_page_alloc;
@@ -2147,7 +2154,7 @@ begin:
 		rx_pkt = ipa3_alloc_rx_pkt_page(GFP_KERNEL, true);
 		if (unlikely(!rx_pkt)) {
 			IPAERR_RL("ipa3_alloc_rx_pkt_page fails\n");
-			break;
+			goto fail_kmem_cache_alloc;
 		}
 		rx_pkt->sys = sys;
 		sys->repl->cache[curr] = rx_pkt;
@@ -2796,8 +2803,7 @@ static void free_rx_page(void *chan_user_data, void *xfer_user_data)
 	}
 	dma_unmap_page(ipa3_ctx->pdev, rx_pkt->page_data.dma_addr,
 		rx_pkt->len, DMA_FROM_DEVICE);
-	__free_pages(rx_pkt->page_data.page,
-		rx_pkt->page_data.page_order);
+	__free_pages(rx_pkt->page_data.page, rx_pkt->page_data.page_order);
 	kmem_cache_free(ipa3_ctx->rx_pkt_wrapper_cache, rx_pkt);
 }
 
@@ -2848,8 +2854,7 @@ static void ipa3_cleanup_rx(struct ipa3_sys_context *sys)
 					rx_pkt->page_data.dma_addr,
 					rx_pkt->len,
 					DMA_FROM_DEVICE);
-				__free_pages(rx_pkt->page_data.page,
-					rx_pkt->page_data.page_order);
+				__free_pages(rx_pkt->page_data.page, rx_pkt->page_data.page_order);
 			}
 			kmem_cache_free(ipa3_ctx->rx_pkt_wrapper_cache,
 				rx_pkt);
@@ -3669,8 +3674,7 @@ static struct sk_buff *handle_page_completion(struct gsi_chan_xfer_notify
 		} else {
 			dma_unmap_page(ipa3_ctx->pdev, rx_page.dma_addr,
 					rx_pkt->len, DMA_FROM_DEVICE);
-			__free_pages(rx_pkt->page_data.page,
-							rx_pkt->page_data.page_order);
+			__free_pages(rx_pkt->page_data.page, rx_pkt->page_data.page_order);
 		}
 		rx_pkt->sys->free_rx_wrapper(rx_pkt);
 		IPA_STATS_INC_CNT(ipa3_ctx->stats.rx_page_drop_cnt);
@@ -4766,6 +4770,13 @@ static void ipa_dma_gsi_irq_rx_notify_cb(struct gsi_chan_xfer_notify *notify)
 	default:
 		IPAERR("received unexpected event id %d\n", notify->evt_id);
 	}
+}
+
+void ipa3_dealloc_common_event_ring(void)
+{
+	IPA_ACTIVE_CLIENTS_INC_SIMPLE();
+	gsi_dealloc_evt_ring(ipa3_ctx->gsi_evt_comm_hdl);
+	IPA_ACTIVE_CLIENTS_DEC_SIMPLE();
 }
 
 int ipa3_alloc_common_event_ring(void)

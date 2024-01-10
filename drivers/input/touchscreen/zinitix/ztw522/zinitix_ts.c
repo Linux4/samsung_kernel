@@ -2481,7 +2481,7 @@ static irqreturn_t zt75xx_touch_work(int irq, void *data)
 
 	if (info->power_state == POWER_STATE_LPM) {
 		/* run lpm interrupt handler */
-//		wake_lock_timeout(&info->wakelock, msecs_to_jiffies(500));
+		__pm_wakeup_event(info->wakelock, SEC_TS_WAKE_LOCK_TIME);
 
 		/* waiting for blsp block resuming, if not occurs i2c error */
 		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
@@ -8351,6 +8351,87 @@ static void glove_mode(void *device_data)
 }
 #endif
 
+static void run_interrupt_gpio_test(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct zt75xx_ts_info *info = container_of(sec, struct zt75xx_ts_info, sec);
+	struct i2c_client *client = info->client;
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int drive_value = 1;
+	int irq_value = 0;
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+
+	if (info->power_state == POWER_STATE_OFF) {
+		input_err(true, &info->client->dev, "%s: IC is power off\n", __func__);
+		snprintf(buff, sizeof(buff), "NG");
+		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
+
+	disable_irq(info->irq);
+
+	write_reg(client, 0x0A, 0x0A);
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(info);
+	write_reg(client, ZT75XX_PERIODICAL_INTERRUPT_INTERVAL, 0);
+	write_cmd(client, ZT75XX_CLEAR_INT_STATUS_CMD);
+	usleep_range(1 * 1000, 1 * 1000);
+#endif
+
+	ret = ts_set_touchmode(TOUCH_NO_OPERATION_MODE);
+	if (ret < 0)
+		goto out;
+
+	write_reg(info->client, 0x0A, 0x0A);
+	write_cmd(client, ZT75XX_DRIVE_INT_STATUS_CMD);
+	usleep_range(20 * 1000, 21 * 1000);
+
+	drive_value = gpio_get_value(info->pdata->gpio_int);
+	input_info(true, &client->dev, "%s: ZT75XX_DRIVE_INT_STATUS_CMD: interrupt gpio: %d\n", __func__, drive_value);
+
+	write_reg(info->client, 0x0A, 0x0A);
+	write_cmd(client, ZT75XX_CLEAR_INT_STATUS_CMD);
+	usleep_range(20 * 1000, 21 * 1000);
+
+	irq_value = gpio_get_value(info->pdata->gpio_int);
+	input_info(true, &client->dev, "%s: ZT75XX_CLEAR_INT_STATUS_CMD: interrupt gpio : %d\n", __func__, irq_value);
+
+	write_cmd(info->client, 0x0B);
+	ret = ts_set_touchmode(TOUCH_POINT_MODE);
+	if (ret < 0)
+		goto out;
+out:
+	if (drive_value == 0 && irq_value == 1) {
+		snprintf(buff, sizeof(buff), "%s", "0");
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+	} else {
+		if (drive_value != 0)
+			snprintf(buff, sizeof(buff), "%s", "1:HIGH");
+		else if (irq_value != 1)
+			snprintf(buff, sizeof(buff), "%s", "1:LOW");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "INT_GPIO");
+
+	input_info(true, &client->dev, "%s: \"%s\"(%d)\n", __func__, sec->cmd_result,
+				(int)strlen(sec->cmd_result));
+
+	enable_irq(info->irq);
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, info);
+	write_reg(client, ZT75XX_PERIODICAL_INTERRUPT_INTERVAL,
+		SCAN_RATE_HZ * ESD_TIMER_INTERVAL);
+#endif
+}
+
 static void factory_cmd_result_all(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -8377,6 +8458,7 @@ static void factory_cmd_result_all(void *device_data)
 	get_fw_ver_bin(sec);
 	get_fw_ver_ic(sec);
 
+	run_interrupt_gpio_test(sec);
 	run_dnd_read(sec);
 	run_dnd_v_gap_read(sec);
 	run_dnd_h_gap_read(sec);
@@ -9072,6 +9154,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_reference_read", run_reference_read),},
 	{SEC_CMD("get_reference", get_reference),},
 	{SEC_CMD("run_pba_linecheck", run_pba_linecheck),},
+	{SEC_CMD("run_interrupt_gpio_test", run_interrupt_gpio_test),},
 #ifdef TCLM_CONCEPT
 	{SEC_CMD("run_mis_cal_read", run_mis_cal_read),},
 	{SEC_CMD("get_mis_cal", get_mis_cal),},
@@ -10362,8 +10445,7 @@ static int zt75xx_ts_probe(struct i2c_client *client,
 	}
 
 	info->work_state = NOTHING;
-
-//	wake_lock_init(&info->wakelock, WAKE_LOCK_SUSPEND, "tsp_wakelock");
+	info->wakelock = wakeup_source_register(&client->dev, "tsp_wakelock_sub");
 	init_completion(&info->resume_done);
 	complete_all(&info->resume_done);
 
@@ -10501,7 +10583,7 @@ err_misc_register:
 	free_irq(info->irq, info);
 err_request_irq:
 error_gpio_irq:
-//	wake_lock_destroy(&info->wakelock);
+	wakeup_source_unregister(info->wakelock);
 err_init_touch:
 	input_unregister_device(info->input_dev);
 err_input_register_device:
@@ -10575,7 +10657,7 @@ static int zt75xx_ts_remove(struct i2c_client *client)
 
 	if (info->irq)
 		free_irq(info->irq, info);
-//	wake_lock_destroy(&info->wakelock);
+	wakeup_source_unregister(info->wakelock);
 #ifdef USE_MISC_DEVICE
 	misc_deregister(&touch_misc_device);
 #endif

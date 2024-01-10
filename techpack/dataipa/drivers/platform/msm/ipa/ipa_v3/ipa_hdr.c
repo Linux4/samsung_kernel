@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "ipa_i.h"
@@ -94,8 +95,10 @@ static int ipa3_hdr_proc_ctx_to_hw_format(struct ipa_mem_buffer *mem,
 		if (unlikely(!entry->hdr || !entry->hdr->offset_entry ||
 				!entry->offset_entry ||
 				entry->hdr->hdr_len == 0 ||
-				entry->hdr->hdr_len > ipa_hdr_bin_sz[IPA_HDR_BIN_MAX - 1]))
+				entry->hdr->hdr_len > ipa_hdr_bin_sz[IPA_HDR_BIN_MAX - 1])) {
+			IPAERR_RL("Found invalid hdr entry\n");
 			return -EINVAL;
+		}
 
 		ret = ipahal_cp_proc_ctx_to_hw_buff(entry->type, mem->base,
 				entry->offset_entry->offset,
@@ -128,6 +131,7 @@ static int ipa3_generate_hdr_proc_ctx_hw_tbl(u64 hdr_sys_addr,
 {
 	u64 hdr_base_addr;
 	gfp_t flag = GFP_KERNEL;
+	int ret;
 
 	mem->size = (ipa3_ctx->hdr_proc_ctx_tbl.end) ? : 4;
 
@@ -156,7 +160,12 @@ alloc:
 	memset(aligned_mem->base, 0, aligned_mem->size);
 	hdr_base_addr = (ipa3_ctx->hdr_tbl_lcl) ? IPA_MEM_PART(apps_hdr_ofst) :
 		hdr_sys_addr;
-	return ipa3_hdr_proc_ctx_to_hw_format(aligned_mem, hdr_base_addr);
+	ret = ipa3_hdr_proc_ctx_to_hw_format(aligned_mem, hdr_base_addr);
+	if (ret) {
+		dma_free_coherent(ipa3_ctx->pdev, mem->size, mem->base, mem->phys_base);
+		return ret;
+	}
+	return ret;
 }
 
 /**
@@ -190,13 +199,13 @@ int __ipa_commit_hdr_v3_0(void)
 
 	if (ipa3_generate_hdr_hw_tbl(&hdr_mem)) {
 		IPAERR("fail to generate HDR HW TBL\n");
-		goto end;
+		goto failure_hdr;
 	}
 
 	if (ipa3_generate_hdr_proc_ctx_hw_tbl(hdr_mem.phys_base, &ctx_mem,
 	    &aligned_ctx_mem)) {
 		IPAERR("fail to generate HDR PROC CTX HW TBL\n");
-		goto end;
+		goto failure_hdr_proc;
 	}
 
 	/* IC to close the coal frame before HPS Clear if coal is enabled */
@@ -322,6 +331,7 @@ int __ipa_commit_hdr_v3_0(void)
 	else
 		rc = 0;
 
+end:
 	if (ipa3_ctx->hdr_tbl_lcl) {
 		dma_free_coherent(ipa3_ctx->pdev, hdr_mem.size, hdr_mem.base,
 			hdr_mem.phys_base);
@@ -333,6 +343,9 @@ int __ipa_commit_hdr_v3_0(void)
 				ipa3_ctx->hdr_mem.base,
 				ipa3_ctx->hdr_mem.phys_base);
 			ipa3_ctx->hdr_mem = hdr_mem;
+		} else {
+			dma_free_coherent(ipa3_ctx->pdev, hdr_mem.size,
+			hdr_mem.base,hdr_mem.phys_base);
 		}
 	}
 
@@ -347,10 +360,12 @@ int __ipa_commit_hdr_v3_0(void)
 					ipa3_ctx->hdr_proc_ctx_mem.base,
 					ipa3_ctx->hdr_proc_ctx_mem.phys_base);
 			ipa3_ctx->hdr_proc_ctx_mem = ctx_mem;
+		} else {
+			dma_free_coherent(ipa3_ctx->pdev, ctx_mem.size,
+			ctx_mem.base,ctx_mem.phys_base);
 		}
 	}
 
-end:
 	if (coal_cmd_pyld)
 		ipahal_destroy_imm_cmd(coal_cmd_pyld);
 
@@ -360,6 +375,12 @@ end:
 	if (hdr_cmd_pyld)
 		ipahal_destroy_imm_cmd(hdr_cmd_pyld);
 
+	return rc;
+
+failure_hdr_proc:
+	dma_free_coherent(ipa3_ctx->pdev, hdr_mem.size, hdr_mem.base,
+			hdr_mem.phys_base);
+failure_hdr:
 	return rc;
 }
 

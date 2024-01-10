@@ -516,17 +516,17 @@ int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 		switch (ctx.version) {
 		case FSCRYPT_CONTEXT_V1:
 			rc = __fscrypt_get_nonce(fek.raw, fek.size,
-								sdp_ctx.sdp_en_buf, FS_KEY_DERIVATION_NONCE_SIZE,
-								ctx.v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+								sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+								ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			if (!rc)
-				memcpy(ci->ci_nonce, ctx.v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+				memcpy(ci->ci_nonce, ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		case FSCRYPT_CONTEXT_V2:
 			rc = __fscrypt_get_nonce(fek.raw, fek.size,
-								sdp_ctx.sdp_en_buf, FS_KEY_DERIVATION_NONCE_SIZE,
-								ctx.v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+								sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+								ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			if (!rc)
-				memcpy(ci->ci_nonce, ctx.v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+				memcpy(ci->ci_nonce, ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		}
 		if (rc) {
@@ -536,10 +536,10 @@ int fscrypt_sdp_set_protected(struct inode *inode, int engine_id)
 #if DEK_DEBUG
 		switch (ctx.version) {
 		case FSCRYPT_CONTEXT_V1:
-			hex_key_dump("set_protected: nonce", ctx.v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+			hex_key_dump("set_protected: nonce", ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		case FSCRYPT_CONTEXT_V2:
-			hex_key_dump("set_protected: nonce", ctx.v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+			hex_key_dump("set_protected: nonce", ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		}
 #endif
@@ -1219,12 +1219,12 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 		switch (ctx->version) {
 		case FSCRYPT_CONTEXT_V1:
 			res = __fscrypt_set_nonce(fek.raw, fek.size,
-								ctx->v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE,
+								ctx->v1.nonce, FSCRYPT_FILE_NONCE_SIZE,
 								enonce, MAX_EN_BUF_LEN);
 			break;
 		case FSCRYPT_CONTEXT_V2:
 			res = __fscrypt_set_nonce(fek.raw, fek.size,
-								ctx->v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE,
+								ctx->v2.nonce, FSCRYPT_FILE_NONCE_SIZE,
 								enonce, MAX_EN_BUF_LEN);
 			break;
 		default:
@@ -1275,14 +1275,14 @@ inline int __fscrypt_sdp_finish_set_sensitive(struct inode *inode,
 			if (is_native) {
 				ctx->v1.knox_flags |= SDP_DEK_SDP_ENABLED;
 			}
-			memzero_explicit(ctx->v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+			memzero_explicit(ctx->v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		case FSCRYPT_CONTEXT_V2:
 			ctx->v2.knox_flags = (FSCRYPT_SDP_PARSE_FLAG_OUT_OF_SDP(ctx->v2.knox_flags) | SDP_DEK_IS_SENSITIVE);
 			if (is_native) {
 				ctx->v2.knox_flags |= SDP_DEK_SDP_ENABLED;
 			}
-			memzero_explicit(ctx->v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+			memzero_explicit(ctx->v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 			break;
 		}
 		inode_lock(inode);
@@ -1447,13 +1447,13 @@ inline int __fscrypt_sdp_thread_convert_sdp_key(void *arg)
 			switch (ctx.version) {
 			case FSCRYPT_CONTEXT_V1:
 				rc = __fscrypt_get_nonce(fek->raw, fek->size,
-									sdp_ctx.sdp_en_buf, FS_KEY_DERIVATION_NONCE_SIZE,
-									ctx.v1.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+									sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+									ctx.v1.nonce, FSCRYPT_FILE_NONCE_SIZE);
 				break;
 			case FSCRYPT_CONTEXT_V2:
 				rc = __fscrypt_get_nonce(fek->raw, fek->size,
-									sdp_ctx.sdp_en_buf, FS_KEY_DERIVATION_NONCE_SIZE,
-									ctx.v2.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+									sdp_ctx.sdp_en_buf, FSCRYPT_FILE_NONCE_SIZE,
+									ctx.v2.nonce, FSCRYPT_FILE_NONCE_SIZE);
 				break;
 			}
 			if (rc) {
