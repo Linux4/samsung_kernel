@@ -17,7 +17,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/charger/pca9468_charger_gki/pca9468_charger.o1q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1788/android/kernel/kmodule/battery/charger/pca9468_charger_gki/pca9468_charger.o1q.dtsi */
 
 &pca9468_charger {
 		pca9468,input-itopoff = <400000>; /* 400mA */
