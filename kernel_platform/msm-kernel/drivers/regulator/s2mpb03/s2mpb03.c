@@ -39,6 +39,7 @@
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 #include <linux/regulator/pmic_class.h>
 #endif
+#include <linux/version.h>
 
 struct s2mpb03_data {
 	struct s2mpb03_dev *iodev;
@@ -600,7 +601,7 @@ static struct of_device_id s2mpb03_i2c_dt_ids[] = {
 };
 #endif /* CONFIG_OF */
 
-static int s2mpb03_pmic_remove(struct i2c_client *i2c)
+static int __s2mpb03_pmic_remove(struct i2c_client *i2c)
 {
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 	struct s2mpb03_data *info = i2c_get_clientdata(i2c);
@@ -618,6 +619,18 @@ static int s2mpb03_pmic_remove(struct i2c_client *i2c)
 #endif
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+static void s2mpb03_pmic_remove(struct i2c_client *i2c)
+{
+	__s2mpb03_pmic_remove(i2c);
+}
+#else
+static int s2mpb03_pmic_remove(struct i2c_client *i2c)
+{
+	return __s2mpb03_pmic_remove(i2c);
+}
+#endif
 
 #if IS_ENABLED(CONFIG_OF)
 static const struct i2c_device_id s2mpb03_pmic_id[] = {

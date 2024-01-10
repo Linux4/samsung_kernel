@@ -492,7 +492,7 @@
 			<&gpi_dma1 1 1 3 64 0>;
 		dma-names = "tx", "rx";
 		qcom,wrapper-core = <&qupv3_1>;
-		status = "disabled";
+		status = "ok";
 	};
 
 	qupv3_se9_spi: spi@a84000 {

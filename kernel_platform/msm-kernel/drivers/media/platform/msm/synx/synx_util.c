@@ -941,6 +941,7 @@ struct synx_coredata *synx_util_import_object(struct synx_import_params *params)
 	if (synx_data->handle != params->h_synx) {
 		pr_err("[sess: %u] stale import handle %d\n",
 			ex_client->id, params->h_synx);
+		synx_obj = NULL;
 		goto fail;
 	}
 
@@ -1185,7 +1186,7 @@ static void synx_client_destroy(struct kref *kref)
 {
 	struct synx_client_metadata *client_metadata =
 		container_of(kref, struct synx_client_metadata, refcount);
-	u32 id = client_metadata->client->id;
+	u32 id;
 	struct synx_cleanup_cb *client_cb;
 
 	if (!client_metadata->client) {

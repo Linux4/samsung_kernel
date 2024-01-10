@@ -55,6 +55,7 @@ enum A2DP_STATE {
 
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
 #define BINAURAL_RECORDING_LATENCY 185
+#define BT_MIX_LATENCY 185
 #endif
 
 enum A2DP_ROLE {
@@ -128,6 +129,7 @@ typedef void (tbit_rate_cback)(uint32_t bitrate);
 typedef void (*audio_get_dynamic_bitrate_t)(tbit_rate_cback* p_cback);
 typedef void (tpeer_mtu_cback)(int mtu);
 typedef void (*audio_get_peer_mtu_t)(tpeer_mtu_cback* p_cback);
+typedef void (*audio_get_lc3_mono_mode_t)(void (*mono_mode_cback)(bool is_lc3_mono_mode)); // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
 #endif
 
 // Abstract base class
@@ -155,6 +157,7 @@ protected:
     int                        abrRefCnt;
     std::mutex                 mAbrMutex;
     int                        totalActiveSessionRequests;
+    bool                       isLc3MonoChanged; // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
 
 #if defined(SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD) && !defined(QCA_OFFLOAD)
     void set_a2dp_suspend(int a2dp_suspend);
@@ -173,6 +176,10 @@ protected:
 
 public:
     int getCodecConfig(struct pal_media_config *config) override;
+// SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
+    void setLc3MonoMode(bool mode);
+    void setLc3MonoUpdated(bool mode);
+// SS_BT_LEA - MB_021 : END
     virtual ~Bluetooth();
 };
 
@@ -259,6 +266,7 @@ private:
 
     static audio_get_dynamic_bitrate_t          ss_audio_get_dynamic_bitrate;
     static audio_get_peer_mtu_t                 ss_audio_get_peer_mtu;
+    static audio_get_lc3_mono_mode_t            audio_get_lc3_mono_mode; // SS_BT_LEA - MB_021 : Soft Reconfig monosum implementation
 #endif
 
     /* member variables */

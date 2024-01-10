@@ -5757,3 +5757,23 @@ void cnss_pci_deinit(struct cnss_plat_data *plat_priv)
 {
 	pci_unregister_driver(&cnss_pci_driver);
 }
+
+int cnss_pci_set_therm_cdev_state(struct cnss_pci_data *pci_priv,
+                 unsigned long thermal_state,
+                 int tcdev_id)
+{
+   if (!pci_priv) {
+       cnss_pr_err("pci_priv is NULL!\n");
+       return -ENODEV;
+   }
+
+   if (!pci_priv->driver_ops || !pci_priv->driver_ops->set_therm_cdev_state) {
+       cnss_pr_err("driver_ops or set_therm_cdev_state is NULL\n");
+       return -EINVAL;
+   }
+
+   return pci_priv->driver_ops->set_therm_cdev_state(pci_priv->pci_dev,
+                            thermal_state,
+                            tcdev_id);
+}
+

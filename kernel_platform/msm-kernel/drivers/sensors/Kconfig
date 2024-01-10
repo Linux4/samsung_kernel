@@ -53,3 +53,16 @@ config SENSORS_COMMON_VDD_SUB
 	  Say Y here if main and sub sx9380 use common VDD.
 	  This option enables function to control irq gpio of sub grip sensor
 	  in main grip sensor driver.
+
+
+config SENSORS_DUMP_DATA
+	tristate "Grip sensor dump log"
+	default n
+	help
+	  Enable grip dump log data
+	  This option activates log output of grip error data using sensordump_notifier.
+
+config SENSORS_GRIP_FAILURE_DEBUG
+	bool "Grip failure debug"
+	help
+	  Say Y here, Enable Grip failure debug flag.

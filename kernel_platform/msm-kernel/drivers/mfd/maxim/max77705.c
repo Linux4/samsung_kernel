@@ -918,20 +918,11 @@ retry:
 			vbyp = max77705_fuelgauge_read_vbyp(max77705);
 
 			if (vcell < 3600) {
-				pr_info("%s: vcell spec out - keep chg_mode(0x%x), vcell(%dmv), vbyp(%dmV)\n",
+				pr_info("%s: keep chg_mode(0x%x), vcell(%dmv), vbyp(%dmV)\n",
 					__func__, chg_cnfg_00 & 0x0F, vcell, vbyp);
 				error = -EAGAIN;
 				goto out;
 			}
-
-			if (vbyp < 4500 || vbyp > 5500) {
-				pr_info("%s: vbyp spec out - keep chg_mode(0x%x), vcell(%dmv), vbyp(%dmV)\n",
-					__func__, chg_cnfg_00 & 0x0F, vcell, vbyp);
-				error = -EAGAIN;
-				goto out;
-			}
-			
-			pr_info("%s: vcell(%dmv), vbyp(%dmV)\n", __func__, vcell, vbyp);
 		}
 
 		max77705_read_reg(max77705->charger, MAX77705_CHG_REG_DETAILS_00, &wcin_dtls);
@@ -947,6 +938,22 @@ retry:
 		pr_info("%s: chgin_dtls:0x%x, wcin_dtls:0x%x\n",
 			__func__, chgin_dtls, wcin_dtls);
 
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+		if (try_count == 0 && try_command == 0) {
+			if (chgin_dtls == 0x0 && wcin_dtls == 0x0) {
+				pr_info("%s: Battery only mode\n", __func__);
+			} else {
+				/* adb update case */
+				if (enforce_do == 2)	{
+					pr_info("%s: USB mode (ADB)\n", __func__);
+				} else {
+					error = -EAGAIN;
+					pr_info("%s: TA mode\n", __func__);
+					goto out;
+				}
+			}
+		}
+#endif
 		if ((chgin_dtls != 0x3) && (wcin_dtls != 0x3)) {
 			chg_mode_changed = true;
 					/* Switching Frequency : 3MHz */
