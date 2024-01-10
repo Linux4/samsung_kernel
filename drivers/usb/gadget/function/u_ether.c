@@ -1264,6 +1264,7 @@ static int get_ether_addr(const char *str, u8 *dev_addr)
 			return 0;
 	}
 
+
 /**SI-23405*/
 error:
 	eth_random_addr(dev_addr);

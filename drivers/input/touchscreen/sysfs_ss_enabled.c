@@ -63,7 +63,7 @@ static ssize_t tsp_enable_store(struct device *dev,
 static ssize_t tsp_enable_show(struct device *dev,
         struct device_attribute *attr, char *buf)
 {
-        return sprintf(buf, "%s\n", tsp_enabled?"true":"false");
+        return sprintf(buf, "%s\n", tsp_enabled?"1":"0");
 }
 
 static DEVICE_ATTR(enabled, S_IRUGO|S_IWUSR,tsp_enable_show,tsp_enable_store);

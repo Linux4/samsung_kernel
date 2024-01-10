@@ -1613,7 +1613,7 @@ static int shub_save_als_cali_data(struct shub_data *sensor,
 	}
 	snprintf(file_path, sizeof(file_path), "%s%s",
 		 CALIBRATION_NODE, calibration_filename[5]);
-	pfile = filp_open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0660);
+	pfile = filp_open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (IS_ERR(pfile)) {
 		err = PTR_ERR(pfile);
 		pr_err("open file %s error=%d\n", file_path, err);

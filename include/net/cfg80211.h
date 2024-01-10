@@ -1829,7 +1829,6 @@ struct cfg80211_bss_ies {
  * @priv: private area for driver use, has at least wiphy->bss_priv_size bytes
  */
 struct cfg80211_bss {
-	struct list_head nontrans_list;
 	struct ieee80211_channel *channel;
 	enum nl80211_bss_scan_width scan_width;
 
@@ -1838,16 +1837,14 @@ struct cfg80211_bss {
 	const struct cfg80211_bss_ies __rcu *proberesp_ies;
 
 	struct cfg80211_bss *hidden_beacon_bss;
-	struct cfg80211_bss *transmitted_bss;
-		
-	u8 max_bssid_indicator;
-	u8 bssid_index;
+
 	s32 signal;
+
 	u16 beacon_interval;
 	u16 capability;
-	u16 chains;
+
 	u8 bssid[ETH_ALEN];
-	
+
 	u8 priv[0] __aligned(sizeof(void *));
 };
 

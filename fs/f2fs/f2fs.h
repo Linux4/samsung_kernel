@@ -811,6 +811,7 @@ enum {
 	FI_VERITY_IN_PROGRESS,	/* building fs-verity Merkle tree */
 	FI_COMPRESSED_FILE,	/* indicate file's data can be compressed */
 	FI_MMAP_FILE,		/* indicate file was mmapped */
+	FI_COMPRESS_RELEASED,	/* compressed blocks were released */
 	FI_MAX,			/* max flag, never be used */
 };
 
@@ -866,7 +867,7 @@ struct f2fs_inode_info {
 	struct timespec i_disk_time[4];	/* inode disk times */
 
 	/* for file compress */
-	u64 i_compr_blocks;			/* # of compressed blocks */
+	atomic_t i_compr_blocks;		/* # of compressed blocks */
 	unsigned char i_compress_algorithm;	/* algorithm type */
 	unsigned char i_log_cluster_size;	/* log of cluster size */
 	unsigned int i_cluster_size;		/* cluster size */
@@ -2887,41 +2888,6 @@ static inline void f2fs_change_bit(unsigned int nr, char *addr)
 	*addr ^= mask;
 }
 
-/* @fs.sec -- 23c33f110b35408f8559496c6095c768 -- */
-enum F2FS_SEC_FUA_MODE {
-	F2FS_SEC_FUA_NONE = 0,
-	F2FS_SEC_FUA_ROOT,
-	F2FS_SEC_FUA_DIR,
-
-	NR_F2FS_SEC_FUA_MODE,
-};
-
-#define __f2fs_is_cold_node(page)			\
-	(le32_to_cpu(F2FS_NODE(page)->footer.flag) & (1 << COLD_BIT_SHIFT))
-
-static inline void f2fs_cond_set_fua(struct f2fs_io_info *fio)
-{
-	if (!fio->sbi->s_sec_cond_fua_mode)
-		return;
-
-	if (fio->type == META)
-		fio->op_flags |= REQ_PREFLUSH | REQ_FUA;
-	else if ((fio->page && IS_NOQUOTA(fio->page->mapping->host)) ||
-			(fio->ino == f2fs_qf_ino(fio->sbi->sb, USRQUOTA) ||
-			fio->ino == f2fs_qf_ino(fio->sbi->sb, GRPQUOTA) ||
-			fio->ino == f2fs_qf_ino(fio->sbi->sb, PRJQUOTA)))
-		fio->op_flags |= REQ_FUA;
-	else if (fio->sbi->s_sec_cond_fua_mode == F2FS_SEC_FUA_ROOT &&
-			fio->ino == F2FS_ROOT_INO(fio->sbi))
-		fio->op_flags |= REQ_FUA;
-	else if (fio->sbi->s_sec_cond_fua_mode == F2FS_SEC_FUA_DIR && fio->page &&
-		((fio->type == NODE && !__f2fs_is_cold_node(fio->page)) ||
-		(fio->type == DATA && S_ISDIR(fio->page->mapping->host->i_mode))))
-		fio->op_flags |= REQ_FUA;
-	// Directory Inode or Indirect Node -> COLD_BIT X
-	// ref. set_cold_node()
-}
-
 /*
  * On-disk inode flags (f2fs_inode::i_flags)
  */
@@ -2973,6 +2939,7 @@ static inline void __mark_inode_dirty_flag(struct inode *inode,
 	case FI_DATA_EXIST:
 	case FI_INLINE_DOTS:
 	case FI_PIN_FILE:
+	case FI_COMPRESS_RELEASED:
 		f2fs_mark_inode_dirty_sync(inode, true);
 	}
 }
@@ -3094,6 +3061,8 @@ static inline void get_inline_info(struct inode *inode, struct f2fs_inode *ri)
 		set_bit(FI_EXTRA_ATTR, fi->flags);
 	if (ri->i_inline & F2FS_PIN_FILE)
 		set_bit(FI_PIN_FILE, fi->flags);
+	if (ri->i_inline & F2FS_COMPRESS_RELEASED)
+		set_bit(FI_COMPRESS_RELEASED, fi->flags);
 }
 
 static inline void set_raw_inline(struct inode *inode, struct f2fs_inode *ri)
@@ -3114,6 +3083,8 @@ static inline void set_raw_inline(struct inode *inode, struct f2fs_inode *ri)
 		ri->i_inline |= F2FS_EXTRA_ATTR;
 	if (is_inode_flag_set(inode, FI_PIN_FILE))
 		ri->i_inline |= F2FS_PIN_FILE;
+	if (is_inode_flag_set(inode, FI_COMPRESS_RELEASED))
+		ri->i_inline |= F2FS_COMPRESS_RELEASED;
 }
 
 static inline int f2fs_has_extra_attr(struct inode *inode)
@@ -3467,6 +3438,56 @@ static inline void f2fs_clear_page_private(struct page *page)
 	set_page_private(page, 0);
 	ClearPagePrivate(page);
 	f2fs_put_page(page, 0);
+}
+
+/* @fs.sec -- 23c33f110b35408f8559496c6095c768 -- */
+enum F2FS_SEC_FUA_MODE {
+	F2FS_SEC_FUA_NONE = 0,
+	F2FS_SEC_FUA_ROOT,
+	F2FS_SEC_FUA_DIR,
+
+	NR_F2FS_SEC_FUA_MODE,
+};
+
+#define __f2fs_is_cold_node(page)			\
+	(le32_to_cpu(F2FS_NODE(page)->footer.flag) & (1 << COLD_BIT_SHIFT))
+
+static inline void f2fs_cond_set_fua(struct f2fs_io_info *fio)
+{
+	struct f2fs_sb_info *sbi = fio->sbi;
+	struct page *page = fio->page;
+	struct inode *inode = page->mapping->host;
+
+	if (!sbi->s_sec_cond_fua_mode)
+		return;
+
+	if (fio->type == META)
+		fio->op_flags |= REQ_PREFLUSH | REQ_FUA;
+	else if (IS_NOQUOTA(inode) ||
+			(fio->ino == f2fs_qf_ino(sbi->sb, USRQUOTA) ||
+			 fio->ino == f2fs_qf_ino(sbi->sb, GRPQUOTA) ||
+			 fio->ino == f2fs_qf_ino(sbi->sb, PRJQUOTA)))
+		fio->op_flags |= REQ_FUA;
+	else if (sbi->s_sec_cond_fua_mode == F2FS_SEC_FUA_ROOT &&
+			fio->ino == F2FS_ROOT_INO(sbi))
+		fio->op_flags |= REQ_FUA;
+	else if (sbi->s_sec_cond_fua_mode == F2FS_SEC_FUA_DIR &&
+			((fio->type == NODE && !__f2fs_is_cold_node(page)) ||
+			 (fio->type == DATA && S_ISDIR(inode->i_mode))))
+		fio->op_flags |= REQ_FUA;
+	// Directory Inode or Indirect Node -> COLD_BIT X
+	// ref. set_cold_node()
+
+	/*
+	 * P221011-01695
+	 * flush_group: Process group in which file's is very important.
+	 * e.g., system_server, keystore, etc.
+	 */
+	if (fio->type == DATA && !(fio->op_flags & REQ_FUA) &&
+			in_group_p(F2FS_OPTION(sbi).flush_group)) {
+		if (f2fs_is_atomic_file(inode) && f2fs_is_commit_atomic_write(inode))
+			fio->op_flags |= REQ_FUA;
+	}
 }
 
 /*
@@ -4248,9 +4269,8 @@ static inline int f2fs_init_compress_mempool(void) { return 0; }
 static inline void f2fs_destroy_compress_mempool(void) { }
 #endif
 
-static inline int set_compress_context(struct inode *inode)
+static inline void set_compress_context(struct inode *inode)
 {
-#ifdef CONFIG_F2FS_FS_COMPRESSION
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 
 	F2FS_I(inode)->i_compress_algorithm =
@@ -4263,23 +4283,21 @@ static inline int set_compress_context(struct inode *inode)
 	set_inode_flag(inode, FI_COMPRESSED_FILE);
 	stat_inc_compr_inode(inode);
 	f2fs_mark_inode_dirty_sync(inode, true);
-	return 0;
-#else
-	return -EOPNOTSUPP;
-#endif
 }
 
-static inline u64 f2fs_disable_compressed_file(struct inode *inode)
+static inline u32 f2fs_disable_compressed_file(struct inode *inode)
 {
 	struct f2fs_inode_info *fi = F2FS_I(inode);
+	u32 i_compr_blocks;
 
 	if (!f2fs_compressed_file(inode))
 		return 0;
 	if (S_ISREG(inode->i_mode)) {
 		if (get_dirty_pages(inode))
 			return 1;
-		if (fi->i_compr_blocks)
-			return fi->i_compr_blocks;
+		i_compr_blocks = atomic_read(&fi->i_compr_blocks);
+		if (i_compr_blocks)
+			return i_compr_blocks;
 	}
 
 	fi->i_flags &= ~F2FS_COMPR_FL;
@@ -4396,16 +4414,17 @@ static inline void f2fs_i_compr_blocks_update(struct inode *inode,
 						u64 blocks, bool add)
 {
 	int diff = F2FS_I(inode)->i_cluster_size - blocks;
+	struct f2fs_inode_info *fi = F2FS_I(inode);
 
 	/* don't update i_compr_blocks if saved blocks were released */
-	if (!add && !F2FS_I(inode)->i_compr_blocks)
+	if (!add && !atomic_read(&fi->i_compr_blocks))
 		return;
 
 	if (add) {
-		F2FS_I(inode)->i_compr_blocks += diff;
+		atomic_add(diff, &fi->i_compr_blocks);
 		stat_add_compr_blocks(inode, diff);
 	} else {
-		F2FS_I(inode)->i_compr_blocks -= diff;
+		atomic_sub(diff, &fi->i_compr_blocks);
 		stat_sub_compr_blocks(inode, diff);
 	}
 	f2fs_mark_inode_dirty_sync(inode, true);

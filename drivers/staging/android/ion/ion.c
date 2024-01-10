@@ -442,6 +442,11 @@ static const struct dma_buf_ops dma_buf_ops = {
 	.unmap = ion_dma_buf_kunmap,
 };
 
+static inline int is_ion_buffer_dma_buf(struct dma_buf *dmabuf)
+{
+	return dmabuf->ops == &dma_buf_ops;
+}
+
 int ion_alloc(size_t len, unsigned int heap_id_mask, unsigned int flags)
 {
 	struct ion_device *dev = internal_dev;
@@ -534,12 +539,16 @@ int ion_phys(int fd, unsigned long *phys_addr, size_t *size)
 
 	dmabuf = dma_buf_get(fd);
 	if (!IS_ERR_OR_NULL(dmabuf)) {
-		buffer = (struct ion_buffer *)(dmabuf->priv);
+		if (is_ion_buffer_dma_buf(dmabuf)) {
+			buffer = (struct ion_buffer *)(dmabuf->priv);
 
-		*phys_addr = sg_phys(buffer->sg_table->sgl);
-		*size = buffer->size;
+			*phys_addr = sg_phys(buffer->sg_table->sgl);
+			*size = buffer->size;
+		} else {
+			pr_err("%s: dambuf is not assocated with ion_buffer\n", __func__);
+		}
 	} else {
-		return -EPERM;
+		return -EINVAL;
 	}
 	dma_buf_put(dmabuf);
 
@@ -851,9 +860,17 @@ static ssize_t
 total_pools_kb_show(struct kobject *kobj, struct kobj_attribute *attr,
 		    char *buf)
 {
-	u64 size_in_bytes = ion_page_pool_nr_pages() * PAGE_SIZE;
+	struct ion_device *dev = internal_dev;
+	struct ion_heap *heap;
+	u64 total_pages = 0;
 
-	return sprintf(buf, "%llu\n", div_u64(size_in_bytes, 1024));
+	down_read(&dev->lock);
+	plist_for_each_entry(heap, &dev->heaps, node)
+		if (heap->ops->get_pool_size)
+			total_pages += heap->ops->get_pool_size(heap);
+	up_read(&dev->lock);
+
+	return sprintf(buf, "%llu\n", total_pages * (PAGE_SIZE / 1024));
 }
 
 static struct kobj_attribute total_heaps_kb_attr =

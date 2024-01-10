@@ -135,6 +135,7 @@ struct sprd_panel {
 	struct backlight_device *backlight;
 	struct backlight_device *oled_bdev;
 	struct regulator *supply;
+	struct notifier_block panic_nb;
 	struct delayed_work esd_work;
 	struct delayed_work esd_work_new;
 	bool esd_work_pending;

@@ -10,7 +10,7 @@
 #include "sharkl3.dtsi"
 
 / {
-	cpuinfo_hardware = "Unisoc SC9863A";
+	cpuinfo_hardware = "UNISOC SC9863A";
 
 	cpus {
 		#address-cells = <2>;

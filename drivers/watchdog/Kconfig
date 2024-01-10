@@ -810,7 +810,7 @@ config SPRD_WATCHDOG
 
 config SPRD_WATCHDOG_PMIC
 	tristate "SPRD PMIC WDT Watchdog timer"
-	depends on ARCH_SPRD && SPI_SPRD_ADI
+	depends on ARCH_SPRD && SPI_SPRD_ADI && SPRD_SIPC_SPIPE
 	help
 	  If you have a PMIC  watchdog board, say Y here, When PMIC watchdog
 	  is triggered, PMIC system, AP system and modem systemare both reset

@@ -107,6 +107,9 @@ struct selinux_state {
 	bool android_netlink_route;
 	bool android_netlink_getneigh;
 
+	struct page *status_page;
+	struct mutex status_lock;
+
 	struct selinux_avc *avc;
 	struct selinux_ss *ss;
 };
@@ -192,6 +195,13 @@ static inline bool selinux_android_nlroute_getneigh(void)
 
 	return state->android_netlink_getneigh;
 }
+
+struct selinux_policy_convert_data;
+
+struct selinux_load_state {
+	struct selinux_policy *policy;
+	struct selinux_policy_convert_data *convert_data;
+};
 
 int security_mls_enabled(struct selinux_state *state);
 int security_load_policy(struct selinux_state *state,

@@ -17,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/pm_runtime.h>
+#include <linux/reboot.h>
 #include <video/mipi_display.h>
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
@@ -1269,6 +1270,31 @@ static int sprd_panel_device_create(struct device *parent,
 	return device_register(&panel->dev);
 }
 
+static int sprd_panel_panic_event(struct notifier_block *self, unsigned long val, void *reason)
+{
+	struct sprd_panel *panel = container_of(self, struct sprd_panel, panic_nb);
+
+	if (!panel->is_enabled) {
+		DRM_INFO("%s() no need to write 28 10\n", __func__);
+		return 0;
+	}
+ 
+	mutex_lock(&panel_lock);
+	sprd_panel_send_cmds(panel->slave,
+			     panel->info.cmds[CMD_CODE_SLEEP_IN],
+			     panel->info.cmds_len[CMD_CODE_SLEEP_IN]);
+	mutex_unlock(&panel_lock);
+
+	DRM_ERROR("%s() disable panel because panic event\n", __func__);
+
+	return 0;
+}
+
+static struct notifier_block sprd_panel_panic_event_nb = {
+	.notifier_call = sprd_panel_panic_event,
+	.priority = 128,
+};
+
 static int sprd_panel_probe(struct mipi_dsi_device *slave)
 {
 	int ret;
@@ -1387,6 +1413,11 @@ static int sprd_panel_probe(struct mipi_dsi_device *slave)
 #ifdef CONFIG_TP_ENABLE_LCD_BTA
 	g_panel = panel;
 #endif
+	/*SPRDROIDR_TRUNK_SS_PHASE2_W22.32.1 add*/
+	panel->panic_nb = sprd_panel_panic_event_nb;
+	atomic_notifier_chain_register(&panic_notifier_list, &panel->panic_nb);
+
+
 	DRM_INFO("panel driver probe success\n");
 
 	return 0;

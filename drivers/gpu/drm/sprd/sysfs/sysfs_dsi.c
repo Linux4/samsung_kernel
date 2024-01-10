@@ -173,6 +173,7 @@ static ssize_t gen_read_show(struct device *dev,
 				"data[%d] = 0x%02x\n",
 				i, read_buf[i]);
 	}
+
 	return ret;
 }
 static DEVICE_ATTR_RW(gen_read);
@@ -265,7 +266,6 @@ static ssize_t dcs_read_store(struct device *dev,
 		pr_err("%s() read data is overwrite read buf, input_param = %d\n",
 					__func__, input_param[1]);
 	}
-	
 	return count;
 }
 
@@ -290,6 +290,7 @@ static ssize_t dcs_read_show(struct device *dev,
 				"data[%d] = 0x%02x\n",
 				i, read_buf[i]);
 	}
+
 	return ret;
 }
 static DEVICE_ATTR_RW(dcs_read);

@@ -27,6 +27,8 @@
 #include <linux/slab.h>
 #include <linux/sprd_iommu.h>
 #include <linux/types.h>
+#include <linux/trusty/smcall.h>
+#include <linux/trusty/trusty.h>
 #include <drm/gsp_r8p0_cfg.h>
 #include "../gsp_core.h"
 #include "../gsp_kcfg.h"
@@ -41,9 +43,14 @@
 #include "gsp_ipc_trusty.h"
 #include  "../../sprd_drm.h"
 
-static bool tipc_init;
 static int zorder_used[R8P0_IMGL_NUM + R8P0_OSDL_NUM] = {0};
 int gsp_enabled_layer_count;
+
+enum sprd_fw_attr {
+	FW_ATTR_NON_SECURE = 0,
+	FW_ATTR_SECURE,
+	FW_ATTR_PROTECTED,
+};
 
 static void print_image_layer_cfg(struct gsp_r8p0_img_layer *layer)
 {
@@ -1520,9 +1527,6 @@ int gsp_r8p0_core_trigger(struct gsp_core *c)
 	struct gsp_r8p0_cfg *cfg = NULL;
 	struct gsp_r8p0_core *core = (struct gsp_r8p0_core *)c;
 	struct R8P0_GSP_GLB_CFG_REG gsp_mod1_cfg_value;
-	unsigned char buf[32];
-	struct gsp_message in_buf;
-	struct gsp_message out_buf;
 
 	mutex_lock(&dpu_gsp_lock);
 
@@ -1551,16 +1555,6 @@ int gsp_r8p0_core_trigger(struct gsp_core *c)
 	base = c->base;
 	cfg = (struct gsp_r8p0_cfg *)kcfg->cfg;
 
-	if (!tipc_init && cfg->misc.secure_en == 1) {
-		ret = gsp_tipc_init();
-		if (!ret) {
-			tipc_init = true;
-			gsp_tipc_read(buf, sizeof(buf));
-			GSP_DEBUG("tipc init succsess\n");
-		} else
-			GSP_ERR("tipc init failed\n");
-	}
-
 	gsp_r8p0_coef_gen_and_cfg(core, cfg);
 
 	gsp_r8p0_core_misc_reg_set(c, cfg);
@@ -1578,19 +1572,15 @@ int gsp_r8p0_core_trigger(struct gsp_core *c)
 
 	if (cfg->misc.secure_en == 1) {
 		if (c->secure_init == false) {
-			in_buf.cmd = TA_SET_SECURE;
-			gsp_tipc_write(&in_buf, sizeof(in_buf));
-			gsp_tipc_read(&out_buf, sizeof(out_buf));
-			if ((out_buf.cmd == TA_SET_SECURE) && (out_buf.payload[0] == 1))
-				GSP_DEBUG("TA_SET_SECURE success\n");
+			ret = trusty_fast_call32(NULL, SMC_FC_GSP_FW_SET_SECURITY, FW_ATTR_SECURE, 0, 0);
+			if (ret)
+				GSP_ERR("Trusty gsp fastcall set firewall failed, ret = %d\n", ret);
 		}
 		c->secure_init = true;
 	} else if (c->secure_init == true) {
-		in_buf.cmd = TA_SET_UNSECURE;
-		gsp_tipc_write(&in_buf, sizeof(in_buf));
-		gsp_tipc_read(&out_buf, sizeof(out_buf));
-		if ((out_buf.cmd == TA_SET_UNSECURE) && (out_buf.payload[0] == 1))
-			GSP_DEBUG("TA_SET_UNSECURE success\n");
+		ret = trusty_fast_call32(NULL, SMC_FC_GSP_FW_SET_SECURITY, FW_ATTR_NON_SECURE, 0, 0);
+		if (ret)
+			GSP_ERR("Trusty gsp fastcall clear firewall failed, ret = %d\n", ret);
 		c->secure_init = false;
 	}
 

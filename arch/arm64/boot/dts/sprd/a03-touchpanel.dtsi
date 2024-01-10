@@ -92,21 +92,6 @@
 		cts,touch-earjack-poll-interval = <1000>;
 		/*icnl9911c ===========end===========*/
 
-		/*icnl9911c_txd ===========start===========*/
-		cts_txd,test-rawdata-frames = <1>;
-		cts_txd,rawdata-min = <1410>;
-		cts_txd,rawdata-max = <3280>;
-
-		cts_txd,test-noise-frames = <50>;
-		cts_txd,noise-max = <80>;
-
-		cts_txd,open-min = <3119>;
-		cts_txd,short-min = <300>;
-
-		cts_txd,compensate-cap-min = <1>;
-		cts_txd,compensate-cap-max = <126>;
-		/*icnl9911c_txd ===========end===========*/
-
 		/*nt36525B*/
 		/* 672A, 525B, 675, 526, 672C */
 		nvt,swrst-n8-addr = <0x03F0FE>;
@@ -120,6 +105,6 @@
 		/* MP */
 		nvt,mp-support-dt;
 
-		//#include "nvt_mp_pid7234.dtsi"
+		#include "nvt_mp_pid7234.dtsi"
 	};
 };

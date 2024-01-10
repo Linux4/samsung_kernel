@@ -130,13 +130,17 @@ static int ion_page_pool_total(struct ion_page_pool *pool, bool high)
 	return count << pool->order;
 }
 
-long ion_page_pool_nr_pages(void)
+int ion_page_pool_nr_pages(struct ion_page_pool *pool)
 {
-	/* Correct possible overflow caused by racing writes */
-	if (nr_total_pages < 0)
-		nr_total_pages = 0;
-	return nr_total_pages;
+	int ion_pool_total_pages;
+
+	mutex_lock(&pool->mutex);
+	ion_pool_total_pages = ion_page_pool_total(pool, true);
+	mutex_unlock(&pool->mutex);
+
+	return ion_pool_total_pages;
 }
+EXPORT_SYMBOL_GPL(ion_page_pool_nr_pages);
 
 int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
 			 int nr_to_scan)
