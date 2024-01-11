@@ -50,6 +50,9 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
 #ifdef SEC_AUDIO_COMMON
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
 #endif
+#ifdef SEC_AUDIO_CALL_VOIP
+    std::shared_ptr<AudioVoice> avoice = adevice->voice_;
+#endif
 
     AHAL_DBG("Enter: mode: %d", mode);
     if (mode_ != mode) {
@@ -123,6 +126,7 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
                         sec_voice_->SetCNGForEchoRefMute(true);
                     /* duo mt call : voicestream > mode 3, hac custom key setting error */
                     astream_out->ForceRouteStream({AUDIO_DEVICE_NONE});
+                    avoice->sec_voice_->SetVideoCallEffect();
                 }
             }
 #endif
@@ -158,7 +162,7 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
     if (!parms)
        return  -EINVAL;
 
-#ifdef SEC_AUDIO_DUMP 
+#ifdef SEC_AUDIO_DUMP
     AHAL_DBG("Enter params: %s", kvpairs);
 #else
     AHAL_DBG("Enter");
@@ -565,6 +569,14 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
         rx_devices.find(AUDIO_DEVICE_NONE) != rx_devices.end()) {
         AHAL_ERR("Invalid Tx/Rx device");
         ret = 0;
+#ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
+        if (adevice->sec_device_->aas_on && adevice->sec_device_->isAASActive()
+                && (rx_devices.find(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) != rx_devices.end())
+                && (adevice->sec_device_->pal_aas_out_device == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
+            AHAL_ERR("Invalid SCO device state");
+            adevice->sec_device_->SetAASMode(false);
+        }
+#endif
         goto exit;
     }
 
@@ -598,6 +610,8 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     pal_voice_rx_device_id_ = pal_rx_device;
     pal_voice_tx_device_id_ = pal_tx_device;
 
+    voice_mutex_.lock();
+
 #ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
     if (adevice->sec_device_->aas_on) {
         if (adevice->sec_device_->isAASActive() &&
@@ -609,7 +623,6 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     }
 #endif
 
-    voice_mutex_.lock();
     if (!IsAnyCallActive()) {
         if (mode_ == AUDIO_MODE_IN_CALL || mode_ == AUDIO_MODE_CALL_SCREEN) {
             voice_.in_call = true;
@@ -974,7 +987,6 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
 #ifdef SEC_AUDIO_DUAL_SPEAKER
     if (adevice->sec_device_->speaker_left_amp_off &&
         adevice->factory_->factory.state & (FACTORY_LOOPBACK_ACTIVE | FACTORY_ROUTE_ACTIVE)) {
-        adevice->sec_device_->speaker_status_change = true;
         pal_param_speaker_status_t param_speaker_status;
         param_speaker_status.mute_status = PAL_DEVICE_UPPER_SPEAKER_UNMUTE;
         pal_set_param(PAL_PARAM_ID_SPEAKER_STATUS,
@@ -1138,6 +1150,7 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
 
 #ifdef SEC_AUDIO_CALL
     if (adevice->factory_->factory.loopback_type == LOOPBACK_OFF) {
+        sec_voice_->SetRingbackGain();
         sec_voice_->SetNBQuality(adevice->voice_->sec_voice_->nb_quality);
 #ifdef SEC_AUDIO_ADAPT_SOUND
         sec_voice_->SetDHAData(adevice, NULL, DHA_SET);

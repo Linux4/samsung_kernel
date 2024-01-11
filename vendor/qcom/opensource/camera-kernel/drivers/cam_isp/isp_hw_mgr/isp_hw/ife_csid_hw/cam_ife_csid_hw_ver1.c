@@ -23,6 +23,12 @@
 #include "cam_tasklet_util.h"
 #include "cam_common_util.h"
 #include "cam_subdev.h"
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include <linux/ktime.h>
+extern char cdr_result[40];
+extern uint64_t cdr_start_ts;
+extern uint64_t cdr_end_ts;
+#endif
 
 #if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
 #include "cam_sensor_cmn_header.h"
@@ -3946,6 +3952,17 @@ static int cam_ife_csid_ver1_get_evt_payload(
 	return 0;
 }
 
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+static void cam_ife_csid_cdr_store_result()
+{
+	cdr_end_ts	= ktime_get();
+	cdr_end_ts = cdr_end_ts / 1000 / 1000;
+	sprintf(cdr_result, "%d,%lld\n", 0, cdr_end_ts-cdr_start_ts);
+	CAM_INFO(CAM_ISP, "[CDR_DBG] mipi_overflow, time(ms): %llu", cdr_end_ts-cdr_start_ts);
+}
+#endif
+
 static int cam_ife_csid_ver1_rx_bottom_half_handler(
 		struct cam_ife_csid_ver1_hw *csid_hw,
 		struct cam_ife_csid_ver1_evt_payload *evt_payload)
@@ -4097,6 +4114,10 @@ static int cam_ife_csid_ver1_rx_bottom_half_handler(
 		cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
 				CAM_SUBDEV_MESSAGE_IRQ_ERR,
 				&subdev_msg);
+
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		cam_ife_csid_cdr_store_result();
+#endif
 	}
 	if (event_type)
 		cam_ife_csid_ver1_handle_event_err(csid_hw,

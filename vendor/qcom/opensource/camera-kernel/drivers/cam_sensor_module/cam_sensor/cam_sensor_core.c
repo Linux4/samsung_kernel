@@ -11,6 +11,11 @@
 #include "cam_trace.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+#if defined(CONFIG_CAMERA_CDR_TEST)
+#include <linux/ktime.h>
+extern int cdr_value_exist;
+extern uint64_t cdr_start_ts;
+#endif
 
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
 #include "cam_sensor_mipi.h"
@@ -71,6 +76,7 @@ int32_t cam_check_stream_on(
 		case SENSOR_ID_S5K3K1:
 		case SENSOR_ID_S5KHM3:
 		case SENSOR_ID_S5KGN3:
+		case SENSOR_ID_S5K3J1:
 			ret = 1;
  			break;
 		default:
@@ -240,7 +246,7 @@ int cam_sensor_retention_calc_checksum(struct cam_sensor_ctrl_t *s_ctrl)
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] cam_sensor_retention_calc_checksum");
 	for (read_cnt = 0; read_cnt < SENSOR_RETENTION_READ_RETRY_CNT; read_cnt++) {
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 		usleep_range(15000, 15100);
 
 		// 2. Check result for retention mode - read addr: 0x010E
@@ -325,7 +331,7 @@ int cam_sensor_write_retention_setting(
 	return rc;
 }
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 void cam_sensor_write_prepare_retention(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
@@ -440,7 +446,7 @@ int cam_sensor_write_normal_init(struct cam_sensor_ctrl_t *s_ctrl)
 		cam_sensor_wait_stream_off(s_ctrl);
 #endif
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 		rc = cam_sensor_wait_retention_mode(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
@@ -474,7 +480,7 @@ void cam_sensor_write_enable_crc(struct cam_sensor_ctrl_t *s_ctrl)
 	if(sensor_id != RETENTION_SENSOR_ID)
 		return;
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 	CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on for seamless mode change");
 	cam_sensor_write_prepare_retention(s_ctrl);
 
@@ -503,7 +509,7 @@ int cam_sensor_apply_hyperlapse_settings(
 {
 	int rc = 0;
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
     struct cam_sensor_i2c_reg_array i2c_fll_reg_array[] = {
         {0x0104, 0x0101, 0, 0},
         {0x0702, 0x0000, 0, 0},
@@ -558,9 +564,9 @@ int cam_sensor_apply_hyperlapse_settings(
     }
 #endif
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT)
-	// SHOOTING_MODE_HYPER_MOTION = 16
-	if (s_ctrl->shooting_mode == 16)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
+	// SHOOTING_MODE_HYPER_MOTION = 16, SHOOTING_MODE_NIGHT = 8, SHOOTING_MODE_SUPER_NIGHT = 31
+	if ((s_ctrl->shooting_mode == 16) || (s_ctrl->shooting_mode == 8) || (s_ctrl->shooting_mode == 31))
 	{
 		struct cam_sensor_i2c_reg_setting reg_fllsetting;
 		struct cam_sensor_i2c_reg_setting reg_streamoffsetting;
@@ -662,7 +668,7 @@ int cam_sensor_pre_apply_settings(
 		}
 		case CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMON: {
 #if defined(CONFIG_SENSOR_RETENTION)
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 			cam_sensor_write_prepare_retention(s_ctrl);
 #endif
 #endif
@@ -692,7 +698,7 @@ int cam_sensor_post_apply_settings(
 			cam_sensor_wait_stream_off(s_ctrl);
 #endif
 #if defined(CONFIG_SENSOR_RETENTION)
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 			rc = cam_sensor_wait_retention_mode(s_ctrl);
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
@@ -1519,7 +1525,7 @@ void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)
 #endif
 		CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum end!");
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 		rc = cam_sensor_wait_retention_mode(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR,
@@ -2007,6 +2013,12 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 #endif
 
+#if defined(CONFIG_CAMERA_CDR_TEST)
+		if (cdr_value_exist) {
+			cdr_start_ts	= ktime_get();
+			cdr_start_ts = cdr_start_ts / 1000 / 1000;
+		}
+#endif
 		s_ctrl->sensor_state = CAM_SENSOR_ACQUIRE;
 		s_ctrl->last_flush_req = 0;
 		CAM_INFO(CAM_SENSOR,
@@ -2063,7 +2075,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #endif
 			CAM_INFO(CAM_SENSOR, "[RET_DBG] additional stream on/off for checksum end!");
 
-#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT)
 			rc = cam_sensor_wait_retention_mode(s_ctrl);
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,
@@ -2644,7 +2656,7 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		}
 	}
 
-#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT))
+#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT))
 	if (soc_info->index == SEC_WIDE_SENSOR)
 		cam_sensor_set_regulator_mode(soc_info, REGULATOR_MODE_FAST);
 #endif
@@ -2652,7 +2664,7 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 	rc = cam_sensor_core_power_up(power_info, soc_info);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "core power up failed:%d", rc);
-#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT))
+#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT))
 		if (soc_info->index == SEC_WIDE_SENSOR)
 			cam_sensor_set_regulator_mode(soc_info, REGULATOR_MODE_NORMAL);
 #endif
@@ -2831,7 +2843,7 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 
 	rc = cam_sensor_util_power_down(power_info, soc_info);
 
-#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT))
+#if IS_ENABLED(CONFIG_SEC_PM) && (defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R11Q_PROJECT))
 	if (soc_info->index == SEC_WIDE_SENSOR)
 		cam_sensor_set_regulator_mode(soc_info, REGULATOR_MODE_NORMAL);
 #endif

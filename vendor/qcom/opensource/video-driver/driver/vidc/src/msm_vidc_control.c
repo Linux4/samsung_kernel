@@ -2648,6 +2648,7 @@ int msm_vidc_set_min_qp(void *instance,
 	s32 i_frame_qp = 0, p_frame_qp = 0, b_frame_qp = 0, min_qp_enable = 0;
 	u32 i_qp_enable = 0, p_qp_enable = 0, b_qp_enable = 0;
 	u32 client_qp_enable = 0, hfi_value = 0, offset = 0;
+	int frame_rc;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2655,17 +2656,19 @@ int msm_vidc_set_min_qp(void *instance,
 	}
 	capability = inst->capabilities;
 
+	frame_rc = capability->cap[FRAME_RC_ENABLE].value;
+
 	if (capability->cap[MIN_FRAME_QP].flags & CAP_FLAG_CLIENT_SET)
 		min_qp_enable = 1;
 
 	if (min_qp_enable ||
-		(capability->cap[I_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[I_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		i_qp_enable = 1;
 	if (min_qp_enable ||
-		(capability->cap[P_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[P_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		p_qp_enable = 1;
 	if (min_qp_enable ||
-		(capability->cap[B_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[B_FRAME_MIN_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		b_qp_enable = 1;
 
 	client_qp_enable = i_qp_enable | p_qp_enable << 1 | b_qp_enable << 2;
@@ -2713,6 +2716,7 @@ int msm_vidc_set_max_qp(void *instance,
 	s32 i_frame_qp = 0, p_frame_qp = 0, b_frame_qp = 0, max_qp_enable = 0;
 	u32 i_qp_enable = 0, p_qp_enable = 0, b_qp_enable = 0;
 	u32 client_qp_enable = 0, hfi_value = 0, offset = 0;
+	int frame_rc;
 
 	if (!inst || !inst->capabilities) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2720,17 +2724,19 @@ int msm_vidc_set_max_qp(void *instance,
 	}
 	capability = inst->capabilities;
 
+	frame_rc = capability->cap[FRAME_RC_ENABLE].value;
+
 	if (capability->cap[MAX_FRAME_QP].flags & CAP_FLAG_CLIENT_SET)
 		max_qp_enable = 1;
 
 	if (max_qp_enable ||
-		(capability->cap[I_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[I_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		i_qp_enable = 1;
 	if (max_qp_enable ||
-		(capability->cap[P_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[P_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		p_qp_enable = 1;
 	if (max_qp_enable ||
-		(capability->cap[B_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET))
+		(capability->cap[B_FRAME_MAX_QP].flags & CAP_FLAG_CLIENT_SET && frame_rc))
 		b_qp_enable = 1;
 
 	client_qp_enable = i_qp_enable | p_qp_enable << 1 | b_qp_enable << 2;
@@ -3776,6 +3782,36 @@ int msm_vidc_set_pipe(void *instance,
 	pipe = inst->capabilities->cap[PIPE].value;
 	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_U32,
 			&pipe, sizeof(u32), __func__);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
+int msm_vidc_set_vui_timing_info(void *instance,
+	enum msm_vidc_inst_capability_type cap_id)
+{
+	int rc = 0;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
+	u32 hfi_value;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/*
+	 * hfi is HFI_PROP_DISABLE_VUI_TIMING_INFO and v4l2 cap is
+	 * V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO and hence reverse
+	 * the hfi_value from cap_id value.
+	 */
+	if (inst->capabilities->cap[cap_id].value == V4L2_MPEG_MSM_VIDC_ENABLE)
+		hfi_value = 0;
+	else
+		hfi_value = 1;
+
+	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_U32,
+		&hfi_value, sizeof(u32), __func__);
 	if (rc)
 		return rc;
 

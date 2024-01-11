@@ -477,6 +477,10 @@ static int __qseecom_scm_call2_locked(uint32_t smc_id, struct qseecom_scm_desc *
 	int ret = 0;
 	int retry_count = 0;
 
+	if (desc == NULL) {
+		return -EINVAL;
+	}
+
 	do {
 		ret = qcom_scm_qseecom_call(smc_id, desc, false);
 		if ((ret == -EBUSY) || (desc && (desc->ret[0] == -QSEE_RESULT_FAIL_APP_BUSY))) {
@@ -6651,7 +6655,7 @@ static int qseecom_wipe_key(struct qseecom_dev_handle *data,
 	struct qseecom_wipe_key_req wipe_key_req;
 	struct qseecom_key_delete_ireq delete_key_ireq;
 	struct qseecom_key_select_ireq clear_key_ireq;
-	uint32_t entries = 0;
+	int32_t entries = 0;
 
 	ret = copy_from_user(&wipe_key_req, argp, sizeof(wipe_key_req));
 	if (ret) {

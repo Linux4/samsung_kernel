@@ -37,7 +37,7 @@
 
 #define ROOT_PATH "/"
 
-static int kunit_mock_thread_function()
+static int kunit_mock_thread_function(void *ptr)
 {
 	while (!kthread_should_stop());
 	return 42;
@@ -87,14 +87,17 @@ static void init_defex_context_test(struct kunit *test)
 {
 	struct defex_context dc;
 	struct task_struct *mock_task;
+	int res;
 
 	mock_task = kthread_run(kunit_mock_thread_function, NULL, "defex_common_test_thread");
-	get_task_struct(mock_task);
-	ssleep(1);
+	res = init_defex_context(&dc, __DEFEX_execve, mock_task, NULL);
+	KUNIT_EXPECT_EQ(test, res, 0);
+	release_defex_context(&dc);
 
-	init_defex_context(&dc, __DEFEX_execve, mock_task, NULL);
+	res = init_defex_context(&dc, __DEFEX_execve, current, NULL);
+	KUNIT_EXPECT_EQ(test, res, 1);
 	KUNIT_EXPECT_EQ(test, dc.syscall_no, __DEFEX_execve);
-	KUNIT_EXPECT_PTR_EQ(test, dc.task, mock_task);
+	KUNIT_EXPECT_PTR_EQ(test, dc.task, current);
 	KUNIT_EXPECT_PTR_EQ(test, dc.process_file, (struct file *)NULL);
 	KUNIT_EXPECT_PTR_EQ(test, dc.process_dpath, (const struct path *)NULL);
 	KUNIT_EXPECT_PTR_EQ(test, dc.process_name, (char *)NULL);
@@ -103,19 +106,20 @@ static void init_defex_context_test(struct kunit *test)
 	KUNIT_EXPECT_PTR_EQ(test, dc.target_name, (char *)NULL);
 	KUNIT_EXPECT_PTR_EQ(test, dc.process_name_buff, (char *)NULL);
 	KUNIT_EXPECT_PTR_EQ(test, dc.target_name_buff, (char *)NULL);
-	KUNIT_EXPECT_EQ(test, dc.cred.uid.val, mock_task->cred->uid.val);
-	KUNIT_EXPECT_EQ(test, dc.cred.gid.val, mock_task->cred->gid.val);
-	KUNIT_EXPECT_EQ(test, dc.cred.suid.val, mock_task->cred->suid.val);
-	KUNIT_EXPECT_EQ(test, dc.cred.sgid.val, mock_task->cred->sgid.val);
-	KUNIT_EXPECT_EQ(test, dc.cred.euid.val, mock_task->cred->euid.val);
-	KUNIT_EXPECT_EQ(test, dc.cred.egid.val, mock_task->cred->egid.val);
-	KUNIT_EXPECT_EQ(test, dc.cred.fsuid.val, mock_task->cred->fsuid.val);
-	KUNIT_EXPECT_EQ(test, dc.cred.fsgid.val, mock_task->cred->fsgid.val);
 
-	/* Finalize */
+	if (res) {
+		KUNIT_EXPECT_EQ(test, dc.cred->uid.val, current->cred->uid.val);
+		KUNIT_EXPECT_EQ(test, dc.cred->gid.val, current->cred->gid.val);
+		KUNIT_EXPECT_EQ(test, dc.cred->suid.val, current->cred->suid.val);
+		KUNIT_EXPECT_EQ(test, dc.cred->sgid.val, current->cred->sgid.val);
+		KUNIT_EXPECT_EQ(test, dc.cred->euid.val, current->cred->euid.val);
+		KUNIT_EXPECT_EQ(test, dc.cred->egid.val, current->cred->egid.val);
+		KUNIT_EXPECT_EQ(test, dc.cred->fsuid.val, current->cred->fsuid.val);
+		KUNIT_EXPECT_EQ(test, dc.cred->fsgid.val, current->cred->fsgid.val);
+	}
+
 	release_defex_context(&dc);
 	kthread_stop(mock_task);
-	put_task_struct(mock_task);
 }
 
 

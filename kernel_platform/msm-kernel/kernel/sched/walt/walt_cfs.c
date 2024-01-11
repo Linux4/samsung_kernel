@@ -1181,6 +1181,10 @@ static inline unsigned int walt_cfs_mvp_task_limit(struct task_struct *p)
 	if (wts->mvp_prio == WALT_BINDER_MVP)
 		return WALT_MVP_SLICE;
 
+	if (walt_procfs_low_latency_task(p) ||
+			walt_pipeline_low_latency_task(p))
+		return WALT_MVP_LL_SLICE;
+
 	return WALT_MVP_LIMIT;
 }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  */
 
@@ -368,8 +368,8 @@ static struct qcom_icc_node qxm_lpass_dsp = {
 static struct qcom_icc_node llcc_mc = {
 	.name = "llcc_mc",
 	.id = MASTER_LLCC,
-	.channels = 2,
-	.buswidth = 2,
+	.channels = 1,
+	.buswidth = 4,
 	.noc_ops = &qcom_qnoc4_ops,
 	.num_links = 1,
 	.links = { SLAVE_EBI1 },
@@ -989,8 +989,8 @@ static struct qcom_icc_node qnm_pcie_disp = {
 static struct qcom_icc_node llcc_mc_disp = {
 	.name = "llcc_mc_disp",
 	.id = MASTER_LLCC_DISP,
-	.channels = 2,
-	.buswidth = 2,
+	.channels = 1,
+	.buswidth = 4,
 	.noc_ops = &qcom_qnoc4_ops,
 	.num_links = 1,
 	.links = { SLAVE_EBI1_DISP },
@@ -1530,8 +1530,8 @@ static struct qcom_icc_node srvc_niu_lpass_agnoc = {
 static struct qcom_icc_node ebi = {
 	.name = "ebi",
 	.id = SLAVE_EBI1,
-	.channels = 2,
-	.buswidth = 2,
+	.channels = 1,
+	.buswidth = 4,
 	.noc_ops = &qcom_qnoc4_ops,
 	.num_links = 0,
 };
@@ -1646,8 +1646,8 @@ static struct qcom_icc_node qns_llcc_disp = {
 static struct qcom_icc_node ebi_disp = {
 	.name = "ebi_disp",
 	.id = SLAVE_EBI1_DISP,
-	.channels = 2,
-	.buswidth = 2,
+	.channels = 1,
+	.buswidth = 4,
 	.noc_ops = &qcom_qnoc4_ops,
 	.num_links = 0,
 };
@@ -2290,12 +2290,6 @@ static int __init qnoc_driver_init(void)
 	return platform_driver_register(&qnoc_driver);
 }
 core_initcall(qnoc_driver_init);
-
-static void __exit qnoc_driver_exit(void)
-{
-	platform_driver_unregister(&qnoc_driver);
-}
-module_exit(qnoc_driver_exit);
 
 MODULE_DESCRIPTION("Neo NoC driver");
 MODULE_LICENSE("GPL v2");

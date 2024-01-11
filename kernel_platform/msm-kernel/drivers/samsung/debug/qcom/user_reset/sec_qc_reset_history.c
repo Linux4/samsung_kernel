@@ -196,6 +196,9 @@ static ssize_t sec_qc_reset_history_proc_read(struct file *file,
 	struct qc_user_reset_proc *reset_history = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
 
+	if (pos < 0 || pos > reset_history->len)
+		return 0;
+
 	nbytes = min_t(size_t, nbytes, reset_history->len - pos);
 	if (copy_to_user(buf, &reset_history->buf[pos], nbytes))
 		return -EFAULT;

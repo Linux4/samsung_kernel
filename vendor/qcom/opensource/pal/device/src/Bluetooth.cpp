@@ -2272,19 +2272,22 @@ int BtA2dp::startPlayback()
             } else {
                 param_bt_a2dp.latency = 0;
             }
-        } else
-#endif
-        if (audio_sink_get_a2dp_latency_api && (a2dpState != A2DP_STATE_DISCONNECTED)) {
-            slatency = audio_sink_get_a2dp_latency_api(get_session_type());
-        } else if (audio_sink_get_a2dp_latency && (a2dpState != A2DP_STATE_DISCONNECTED)) {
-            slatency = audio_sink_get_a2dp_latency();
-        }
-        if (pluginCodec) {
-            param_bt_a2dp.latency =
-                pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
         } else {
-            param_bt_a2dp.latency = 0;
+#endif
+            if (audio_sink_get_a2dp_latency_api && (a2dpState != A2DP_STATE_DISCONNECTED)) {
+                slatency = audio_sink_get_a2dp_latency_api(get_session_type());
+            } else if (audio_sink_get_a2dp_latency && (a2dpState != A2DP_STATE_DISCONNECTED)) {
+                slatency = audio_sink_get_a2dp_latency();
+            }
+            if (pluginCodec) {
+                param_bt_a2dp.latency =
+                    pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
+            } else {
+                param_bt_a2dp.latency = 0;
+            }
+#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
         }
+#endif
 
         a2dpState = A2DP_STATE_STARTED;
     } else {
@@ -2897,7 +2900,16 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             } else {
                 delay_report = 0;
             }
-            PAL_INFO(LOG_TAG, "delay_report = %d", delay_report);
+            if (pluginCodec) {
+                uint32_t slatency = 0;
+                slatency = delay_report;
+                param_bt_a2dp.latency =
+                        pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
+                if (slatency > 0) {
+                    param_bt_a2dp.latency = calculate_latency(param_bt_a2dp.latency, slatency);
+                }
+            }
+            PAL_INFO(LOG_TAG, "delay_report = %d, latency = %d", delay_report, param_bt_a2dp.latency);
         }
         break;
     }

@@ -1579,6 +1579,11 @@ EXPORT_SYMBOL_GPL(nf_conntrack_alloc);
 
 void nf_conntrack_free(struct nf_conn *ct)
 {
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#ifdef CONFIG_KNOX_NCM
+	unsigned long flags;
+#endif
+	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 	struct net *net = nf_ct_net(ct);
 
 	/* A freed object has refcnt == 0, that's
@@ -1591,7 +1596,6 @@ void nf_conntrack_free(struct nf_conn *ct)
 	smp_mb__before_atomic();
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #ifdef CONFIG_KNOX_NCM
-	unsigned long flags;
 	spin_lock_irqsave(&knox_nf_conntrack,flags);
 	if (NF_CONN_NPA_VENDOR_DATA_GET(ct)) {
 		kfree(NF_CONN_NPA_VENDOR_DATA_GET(ct));
@@ -1671,7 +1675,7 @@ init_conntrack(struct net *net, struct nf_conn *tmpl,
 			}
 
 #ifdef CONFIG_NF_CONNTRACK_MARK
-			ct->mark = exp->master->mark;
+			ct->mark = READ_ONCE(exp->master->mark);
 #endif
 #ifdef CONFIG_NF_CONNTRACK_SECMARK
 			ct->secmark = exp->master->secmark;

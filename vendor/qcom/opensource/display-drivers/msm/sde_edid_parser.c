@@ -224,7 +224,7 @@ struct drm_connector *connector, struct sde_edid_ctrl *edid_ctrl)
 	SDE_EDID_DEBUG("%s -\n", __func__);
 }
 
-#if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
+#if defined(CONFIG_SECDP_SWITCH)
 struct sde_edid_ctrl *g_edid_ctrl;
 
 int secdp_get_audio_ch(void)
@@ -717,17 +717,17 @@ void sde_get_edid(struct drm_connector *connector,
 		SDE_ERROR("EDID read failed\n");
 #if defined(CONFIG_SECDP)
 	else {
-		int i, num_extension = edid_ctrl->edid->extensions;
+		u8 i, num_extension = edid_ctrl->edid->extensions;
 
 		for (i = 0; i <= num_extension; i++) {
-			print_hex_dump(KERN_DEBUG, "secdp_EDID: ",
+			print_hex_dump(KERN_DEBUG, "EDID: ",
 				DUMP_PREFIX_NONE, 16, 1, edid_ctrl->edid + i,
 				EDID_LENGTH, false);
 			secdp_logger_hex_dump(edid_ctrl->edid + i,
 				"EDID:", EDID_LENGTH);
 		}
 	}
-#if IS_ENABLED(CONFIG_SWITCH)
+#if defined(CONFIG_SECDP_SWITCH)
 	g_edid_ctrl = edid_ctrl;
 #endif
 #endif/*CONFIG_SECDP*/

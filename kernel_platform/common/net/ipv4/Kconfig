@@ -403,6 +403,16 @@ config INET_IPCOMP
 
 	  If unsure, say Y.
 
+config INET_TABLE_PERTURB_ORDER
+	int "INET: Source port perturbation table size (as power of 2)" if EXPERT
+	default 16
+	help
+	  Source port perturbation table size (as power of 2) for
+	  RFC 6056 3.3.4.  Algorithm 4: Double-Hash Port Selection Algorithm.
+
+	  The default is almost always what you want.
+	  Only change this if you know what you are doing.
+
 config INET_XFRM_TUNNEL
 	tristate
 	select INET_TUNNEL
@@ -712,7 +722,7 @@ endchoice
 
 endif
 
-config TCP_CONG_BIC
+config TCP_CONG_CUBIC
 	tristate
 	depends on !TCP_CONG_ADVANCED
 	default y
@@ -730,7 +740,7 @@ config DEFAULT_TCP_CONG
 	default "dctcp" if DEFAULT_DCTCP
 	default "cdg" if DEFAULT_CDG
 	default "bbr" if DEFAULT_BBR
-	default "bic"
+	default "cubic"
 
 config TCP_MD5SIG
 	bool "TCP: MD5 Signature Option support (RFC2385)"
