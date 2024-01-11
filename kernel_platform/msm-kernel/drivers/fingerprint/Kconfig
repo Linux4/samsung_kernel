@@ -67,6 +67,13 @@ config SENSORS_QBT2000
 	  If you say yes here you get support for Qualcomm's
 	  fingerprint sensor QBT2000.
 
+config SENSORS_QFS4008
+	tristate "QFS4008 fingerprint sensor support"
+	default n
+	help
+	  If you say yes here you get support for Qualcomm's
+	  fingerprint sensor QFS4008.
+
 config SENSORS_ET5XX
 	tristate "ET5XX fingerprint sensor support"
 	default n

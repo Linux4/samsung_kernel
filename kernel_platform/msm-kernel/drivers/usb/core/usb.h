@@ -36,6 +36,9 @@ extern void usb_deauthorize_interface(struct usb_interface *);
 extern void usb_authorize_interface(struct usb_interface *);
 extern void usb_detect_quirks(struct usb_device *udev);
 extern void usb_detect_interface_quirks(struct usb_device *udev);
+#ifdef CONFIG_USB_INTERFACE_LPM_LIST
+extern int usb_detect_interface_lpm(struct usb_device *udev);
+#endif
 extern void usb_release_quirk_list(void);
 extern bool usb_endpoint_is_ignored(struct usb_device *udev,
 		struct usb_host_interface *intf,

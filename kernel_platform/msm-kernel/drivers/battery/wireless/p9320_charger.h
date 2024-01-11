@@ -1183,6 +1183,7 @@ struct mfc_charger_data {
 	struct wakeup_source *wpc_tx_ac_missing_ws;
 	struct wakeup_source *align_check_ws;
 	struct wakeup_source *mode_change_ws;
+	struct wakeup_source *wpc_check_rx_power_ws;
 	struct workqueue_struct *wqueue;
 	struct work_struct wcin_work;
 	struct delayed_work wpc_det_work;
@@ -1208,6 +1209,7 @@ struct mfc_charger_data {
 	struct delayed_work wpc_init_work;
 	struct delayed_work align_check_work;
 	struct delayed_work mode_change_work;
+	struct delayed_work wpc_check_rx_power_work;
 
 	struct alarm phm_alarm;
 
@@ -1270,6 +1272,7 @@ struct mfc_charger_data {
 	int vout_strength;
 	u32 mis_align_tx_try_cnt;
 	bool skip_phm_work_in_sleep;
+	bool check_rx_power;
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;
 	unsigned int wireless_fw_ver_param;

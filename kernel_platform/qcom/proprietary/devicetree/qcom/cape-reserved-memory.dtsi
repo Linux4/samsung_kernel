@@ -214,14 +214,4 @@
 		size = <0x0 0x1000000>;
 	};
 
-	trusted_apps_mem: trusted_apps_region@ea000000 {
-		no-map;
-		reg = <0x0 0xea000000 0x0 0x3900000>;
-	};
-
-	trusted_apps_ext_mem: trusted_apps_ext_region@ed900000 {
-		no-map;
-		reg = <0x0 0xed900000 0x0 0x3b00000>;
-	};
-
 };

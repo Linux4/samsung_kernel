@@ -102,6 +102,7 @@ int abc_parse_dt_type1(struct device *dev,
 
 	spec_type1->default_count = spec_type1->threshold_cnt;
 	spec_type1->buffer.size = spec_type1->threshold_cnt + 1;
+	spec_type1->default_enabled = abc_event_list[spec_type1->common_spec.idx].enabled;
 	sec_abc_reset_buffer_type1(spec_type1);
 
 	ABC_PRINT("type1-spec : module(%s) error(%s) threshold_cnt(%d) threshold_time(%d) enabled(%s)",
@@ -135,7 +136,7 @@ bool sec_abc_reached_spec_type1(struct abc_common_spec_data *common_spec, unsign
 
 	do_div(cur_time, MSEC_PER_SEC);
 
-	ABC_PRINT("MODULE(%s) WARN(%s) warn_cnt(%d) time(%d)",
+	ABC_DEBUG("MODULE(%s) WARN(%s) warn_cnt(%d) time(%d)",
 			  spec_type1->common_spec.module_name,
 			  spec_type1->common_spec.error_name,
 			  spec_type1->buffer.warn_cnt,
@@ -233,7 +234,7 @@ int sec_abc_get_diff_time_type1(struct abc_event_buffer *buffer)
 	front_time = buffer->abc_element[(buffer->front + 1) % buffer->size].cur_time;
 	rear_time = buffer->abc_element[buffer->rear].cur_time;
 
-	ABC_PRINT("front time : %d sec (%d) rear_time %d sec (%d) diff : %d",
+	ABC_DEBUG("front time : %d sec (%d) rear_time %d sec (%d) diff : %d",
 		  front_time,
 		  buffer->front + 1,
 		  rear_time,

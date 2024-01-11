@@ -23,6 +23,7 @@ Properties:
 		    - "qcom,diwali-pdc": For Diwali
 		    - "qcom,cape-pdc": For Cape
 		    - "qcom,neo-pdc": For Neo
+		    - "qcom,ravelin-pdc": For Ravelin
 
 - reg:
 	Usage: required

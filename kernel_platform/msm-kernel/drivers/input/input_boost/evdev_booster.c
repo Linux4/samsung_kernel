@@ -39,6 +39,160 @@ static struct notifier_block ib_event_notifier = {
 	 .priority = 1,
 };
 
+#if defined(CONFIG_SEC_INPUT_BOOSTER_HANDLER)
+struct workqueue_struct *ib_unbound_highwq;
+spinlock_t ib_idx_lock;
+struct ib_event_work *ib_evt_work;
+int ib_work_cnt;
+
+int ib_notifier_register(struct notifier_block *nb) {
+	/* nothing to do here */
+	return 0;
+}
+
+int ib_notifier_unregister(struct notifier_block *nb) {
+	/* nothing to do here */
+	return 0;
+}
+
+static void evdev_ib_trigger(struct work_struct* work)
+{
+	struct ib_event_work *ib_work = container_of(work, struct ib_event_work, evdev_work);
+	struct ib_event_data ib_data = {0, };
+
+	spin_lock(&ib_ev_lock);
+	ib_data.evt_cnt = ib_work->evt_cnt;
+	ib_data.vals = ib_work->vals;
+	input_booster(&ib_data);
+	spin_unlock(&ib_ev_lock);
+}
+
+static void sec_input_boost_events(struct input_handle *handle,
+			 const struct input_value *vals, unsigned int count) {
+	int cur_ib_idx;
+
+	spin_lock(&ib_idx_lock);
+	cur_ib_idx = ib_work_cnt++;
+	if (ib_work_cnt >= MAX_IB_COUNT) {
+		pr_info("[Input Booster] Ib_Work_Cnt(%d), Event_Cnt(%d)", ib_work_cnt, count);
+		ib_work_cnt = 0;
+	}
+
+	if (ib_evt_work != NULL) {
+		ib_evt_work[cur_ib_idx].evt_cnt = count;
+		memcpy(ib_evt_work[cur_ib_idx].vals, vals, sizeof(struct input_value) * count);
+		queue_work(ib_unbound_highwq, &(ib_evt_work[cur_ib_idx].evdev_work));
+	}
+	spin_unlock(&ib_idx_lock);
+}
+
+static void sec_input_boost_event(struct input_handle *handle,
+			unsigned int type, unsigned int code, int value)
+{
+	struct input_value vals[] = { { type, code, value } };
+
+	sec_input_boost_events(handle, vals, 1);
+}
+
+static int sec_input_boost_connect(struct input_handler *handler,
+		struct input_dev *dev, const struct input_device_id *id)
+{
+	struct input_handle *handle;
+	int error;
+
+	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
+	if (!handle)
+		return -ENOMEM;
+
+	/*
+		dev_name(&dev->dev) : eventX 
+		dev->name : input driver name (like touchsreen)
+	*/
+	handle->dev = input_get_device(dev);
+	handle->name = "sec_input_booster";
+	handle->handler = handler;
+
+	error = input_register_handle(handle);
+	if (error)
+		goto err2;
+
+	error = input_open_device(handle);
+	if (error)
+		goto err1;
+
+	return 0;
+err1:
+	input_unregister_handle(handle);
+err2:
+	kfree(handle);
+	return error;
+}
+
+static void sec_input_boost_disconnect(struct input_handle *handle)
+{
+	input_close_device(handle);
+	input_unregister_handle(handle);
+	kfree(handle);
+}
+
+static const struct input_device_id sec_input_boost_ids[] = {
+	/* multi-touch touchscreen */
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+			INPUT_DEVICE_ID_MATCH_ABSBIT,
+		.evbit = { BIT_MASK(EV_ABS) },
+		.absbit = { [BIT_WORD(ABS_MT_POSITION_X)] =
+			BIT_MASK(ABS_MT_POSITION_X) |
+			BIT_MASK(ABS_MT_POSITION_Y)
+		},
+	},
+	/* touchpad */
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_KEYBIT |
+			INPUT_DEVICE_ID_MATCH_ABSBIT,
+		.keybit = { [BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH) },
+		.absbit = { [BIT_WORD(ABS_X)] =
+			BIT_MASK(ABS_X) | BIT_MASK(ABS_Y)
+		},
+	},
+	/* Keypad */
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT,
+		.evbit = { BIT_MASK(EV_KEY) },
+	},
+	{ },
+};
+
+static struct input_handler ib_input_handler = {
+	.event		= sec_input_boost_event,
+	.events		= sec_input_boost_events,
+	.connect	= sec_input_boost_connect,
+	.disconnect	= sec_input_boost_disconnect,
+	.name		= "sec_input_booster",
+	.id_table	= sec_input_boost_ids,
+};
+
+static int init_input_handler(void)
+{
+	int i;
+
+	ib_work_cnt = 0;
+	spin_lock_init(&ib_idx_lock);
+
+	ib_evt_work = kmalloc(sizeof(struct ib_event_work) * MAX_IB_COUNT, GFP_KERNEL);
+	if (ib_evt_work != NULL)
+		for (i = 0; i < MAX_IB_COUNT; i++)
+			INIT_WORK(&(ib_evt_work[i].evdev_work), evdev_ib_trigger);
+
+	ib_unbound_highwq
+		= alloc_ordered_workqueue("ib_unbound_highwq", WQ_HIGHPRI);
+	if (!ib_unbound_highwq)
+		return -EPERM;
+
+	return input_register_handler(&ib_input_handler);
+}
+#endif
+
 int chk_next_data(const struct input_value *vals, int next_idx, int input_type)
 {
 	int ret_val = 0;
@@ -147,6 +301,9 @@ int get_device_type(int *device_type, unsigned int *keyId,
 			case KEY_VOLUMEUP:
 			case KEY_VOLUMEDOWN:
 			case KEY_POWER:
+#if IS_ENABLED(CONFIG_SOC_S5E5515) // watch - lower key(back key) Code : 0x244(580)
+			case KEY_APPSELECT:
+#endif
 				dev_type = KEY;
 				break;
 			default:
@@ -307,6 +464,12 @@ static int __init ev_boost_init(void)
 	err = device_register(evbst_dev);
 	if (err)
 		pr_err(ITAG" evdev device register failed");
+
+#if defined(CONFIG_SEC_INPUT_BOOSTER_HANDLER)
+	err = init_input_handler();
+	if (err) 
+		pr_err(ITAG" input handler fail");
+#endif
 
 	return 0;
 }

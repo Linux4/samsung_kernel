@@ -1114,13 +1114,13 @@
 			mdmss0_config0: mdmss0-config0 {
 				temperature = <102000>;
 				hysteresis = <3000>;
-				type = "passive";
+				type = "active";
 			};
 
 			mdmss0_config1: mdmss0-config1 {
 				temperature = <105000>;
 				hysteresis = <3000>;
-				type = "passive";
+				type = "active";
 			};
 
 			reset-mon-cfg {
@@ -1172,13 +1172,13 @@
 			mdmss1_config0: mdmss1-config0 {
 				temperature = <102000>;
 				hysteresis = <3000>;
-				type = "passive";
+				type = "active";
 			};
 
 			mdmss1_config1: mdmss1-config1 {
 				temperature = <105000>;
 				hysteresis = <3000>;
-				type = "passive";
+				type = "active";
 			};
 
 			reset-mon-cfg {
@@ -1230,13 +1230,13 @@
 			mdmss2_config0: mdmss2-config0 {
 				temperature = <102000>;
 				hysteresis = <3000>;
-				type = "passive";
+				type = "active";
 			};
 
 			mdmss2_config1: mdmss2-config1 {
 				temperature = <105000>;
 				hysteresis = <3000>;
-				type = "passive";
+				type = "active";
 			};
 
 			reset-mon-cfg {
@@ -1288,13 +1288,13 @@
 			mdmss3_config0: mdmss3-config0 {
 				temperature = <102000>;
 				hysteresis = <3000>;
-				type = "passive";
+				type = "active";
 			};
 
 			mdmss3_config1: mdmss3-config1 {
 				temperature = <105000>;
 				hysteresis = <3000>;
-				type = "passive";
+				type = "active";
 			};
 
 			reset-mon-cfg {

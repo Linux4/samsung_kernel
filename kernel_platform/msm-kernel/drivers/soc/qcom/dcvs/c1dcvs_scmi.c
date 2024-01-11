@@ -140,24 +140,32 @@ static ssize_t store_##name(struct kobject *kobj,			\
 				   size_t count)			\
 {									\
 	int ret, i = 0;							\
-	char *s = kstrdup(buf, GFP_KERNEL);				\
-	unsigned int msg[2];						\
+	char *s;						\
+	unsigned int msg[2] = {0};						\
 	char *str;							\
-									\
-	if (!ops)							\
-		return -ENODEV;						\
+										\
+	s = kstrdup(buf, GFP_KERNEL);					\
+	if (!s)		\
+		return -ENOMEM;		\
+	if (!ops) {						\
+		ret = -ENODEV;		\
+		goto out;						\
+	}		\
 									\
 	while (((str = strsep(&s, " ")) != NULL) && i < 2) {		\
 		ret = kstrtouint(str, 10, &msg[i]);			\
 		if (ret < 0) {						\
 			pr_err("Invalid value :%d\n", ret);		\
-			return -EINVAL;					\
+			ret =  -EINVAL;					\
+			goto out;		\
 		}							\
 		i++;							\
 	}								\
 									\
 	pr_info("Input threshold :%lu for cluster :%lu\n", msg[1], msg[0]);\
 	ret = ops->set_##name(ph, msg);				\
+out:		\
+	kfree(s);		\
 	return ((ret < 0) ? ret : count);				\
 }									\
 
@@ -250,9 +258,8 @@ static int scmi_c1dcvs_probe(struct scmi_device *sdev)
 		return -ENODEV;
 
 	ops = sdev->handle->devm_get_protocol(sdev, SCMI_C1DCVS_PROTOCOL, &ph);
-	if (!ops)
-		return -ENODEV;
-
+	if (IS_ERR(ops))
+		return PTR_ERR(ops);
 	ret = kobject_init_and_add(&c1dcvs_kobj, &c1dcvs_settings_ktype,
 				   &cpu_subsys.dev_root->kobj, "c1dcvs");
 	if (ret < 0) {

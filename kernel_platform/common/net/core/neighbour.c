@@ -280,11 +280,26 @@ static int neigh_del_timer(struct neighbour *n)
 	return 0;
 }
 
-static void pneigh_queue_purge(struct sk_buff_head *list)
+static void pneigh_queue_purge(struct sk_buff_head *list, struct net *net)
 {
+	struct sk_buff_head tmp;
+	unsigned long flags;
 	struct sk_buff *skb;
 
-	while ((skb = skb_dequeue(list)) != NULL) {
+	skb_queue_head_init(&tmp);
+	spin_lock_irqsave(&list->lock, flags);
+	skb = skb_peek(list);
+	while (skb != NULL) {
+		struct sk_buff *skb_next = skb_peek_next(skb, list);
+		if (net == NULL || net_eq(dev_net(skb->dev), net)) {
+			__skb_unlink(skb, list);
+			__skb_queue_tail(&tmp, skb);
+		}
+		skb = skb_next;
+	}
+	spin_unlock_irqrestore(&list->lock, flags);
+
+	while ((skb = __skb_dequeue(&tmp))) {
 		dev_put(skb->dev);
 		kfree_skb(skb);
 	}
@@ -358,9 +373,9 @@ static int __neigh_ifdown(struct neigh_table *tbl, struct net_device *dev,
 	write_lock_bh(&tbl->lock);
 	neigh_flush_dev(tbl, dev, skip_perm);
 	pneigh_ifdown_and_unlock(tbl, dev);
-
-	del_timer_sync(&tbl->proxy_timer);
-	pneigh_queue_purge(&tbl->proxy_queue);
+	pneigh_queue_purge(&tbl->proxy_queue, dev ? dev_net(dev) : NULL);
+	if (skb_queue_empty_lockless(&tbl->proxy_queue))
+		del_timer_sync(&tbl->proxy_timer);
 	return 0;
 }
 
@@ -734,11 +749,10 @@ struct pneigh_entry * pneigh_lookup(struct neigh_table *tbl,
 
 	ASSERT_RTNL();
 
-	n = kmalloc(sizeof(*n) + key_len, GFP_KERNEL);
+	n = kzalloc(sizeof(*n) + key_len, GFP_KERNEL);
 	if (!n)
 		goto out;
 
-	n->protocol = 0;
 	write_pnet(&n->net, net);
 	memcpy(n->key, pkey, key_len);
 	n->dev = dev;
@@ -974,6 +988,11 @@ out:
 static __inline__ int neigh_max_probes(struct neighbour *n)
 {
 	struct neigh_parms *p = n->parms;
+	if (n->dev != NULL && !strcmp(n->dev->name, "aware_data0")) {
+		return (NEIGH_VAR(p, UCAST_PROBES) * 2) + NEIGH_VAR(p, APP_PROBES) +
+		       (n->nud_state & NUD_PROBE ? NEIGH_VAR(p, MCAST_REPROBES) :
+		        NEIGH_VAR(p, MCAST_PROBES));
+	}
 	return NEIGH_VAR(p, UCAST_PROBES) + NEIGH_VAR(p, APP_PROBES) +
 	       (n->nud_state & NUD_PROBE ? NEIGH_VAR(p, MCAST_REPROBES) :
 	        NEIGH_VAR(p, MCAST_PROBES));
@@ -1077,6 +1096,10 @@ static void neigh_timer_handler(struct timer_list *t)
 		}
 	} else {
 		/* NUD_PROBE|NUD_INCOMPLETE */
+		if (neigh->dev != NULL && !strcmp(neigh->dev->name, "aware_data0")) {
+			next = now + max(NEIGH_VAR(neigh->parms, RETRANS_TIME)/5,
+					 HZ/100);
+		} else
 		next = now + max(NEIGH_VAR(neigh->parms, RETRANS_TIME), HZ/100);
 	}
 
@@ -1132,6 +1155,10 @@ int __neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 			neigh_del_timer(neigh);
 			neigh->nud_state     = NUD_INCOMPLETE;
 			neigh->updated = now;
+			if (neigh->dev != NULL && !strcmp(neigh->dev->name, "aware_data0")) {
+				next = now + max(NEIGH_VAR(neigh->parms, RETRANS_TIME)/25,
+						 HZ/100);
+			} else
 			next = now + max(NEIGH_VAR(neigh->parms, RETRANS_TIME),
 					 HZ/100);
 			neigh_add_timer(neigh, next);
@@ -1744,7 +1771,7 @@ int neigh_table_clear(int index, struct neigh_table *tbl)
 	/* It is not clean... Fix it to unload IPv6 module safely */
 	cancel_delayed_work_sync(&tbl->gc_work);
 	del_timer_sync(&tbl->proxy_timer);
-	pneigh_queue_purge(&tbl->proxy_queue);
+	pneigh_queue_purge(&tbl->proxy_queue, NULL);
 	neigh_ifdown(tbl, NULL);
 	if (atomic_read(&tbl->entries))
 		pr_crit("neighbour leakage\n");
