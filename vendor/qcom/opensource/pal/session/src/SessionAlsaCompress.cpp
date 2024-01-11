@@ -967,19 +967,53 @@ exit:
 int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
 {
     int status = 0;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    struct pal_stream_attributes sAttr;
+#endif
     uint32_t tagsent;
     struct agm_tag_config* tagConfig;
     const char *setParamTagControl = "setParamTag";
     const char *stream = "COMPRESS";
     const char *setCalibrationControl = "setCalibration";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    const char *setBEControl = "control";
+#endif
     struct mixer_ctl *ctl;
     struct agm_cal_config *calConfig;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    std::ostringstream beCntrlName;
+#endif
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
     int tkv_size = 0;
     int ckv_size = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    status = s->getStreamAttributes(&sAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
+        return -EINVAL;
+    }
+
+    if ((sAttr.direction == PAL_AUDIO_OUTPUT && rxAifBackEnds.empty()) ||
+        (sAttr.direction == PAL_AUDIO_INPUT && txAifBackEnds.empty())) {
+        PAL_ERR(LOG_TAG, "No backend connected to this stream\n");
+        return -EINVAL;
+    }
+
+    if (compressDevIds.size() > 0)
+        beCntrlName<<stream<<compressDevIds.at(0)<<" "<<setBEControl;
+
+    ctl = mixer_get_ctl_by_name(mixer, beCntrlName.str().data());
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+        return -ENOENT;
+    }
+    mixer_ctl_set_enum_by_string(ctl, (sAttr.direction == PAL_AUDIO_OUTPUT) ?
+                                 rxAifBackEnds[0].second.data() : txAifBackEnds[0].second.data());
+#endif
+
     switch (type) {
         case MODULE:
             tkv.clear();
@@ -1234,6 +1268,7 @@ int SessionAlsaCompress::start(Stream * s)
         default:
             break;
     }
+#ifndef SEC_AUDIO_OFFLOAD
     memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
     rm->getVolumeSetParamInfo(&vol_set_param_info);
     isStreamAvail = (find(vol_set_param_info.streams_.begin(),
@@ -1273,7 +1308,7 @@ int SessionAlsaCompress::start(Stream * s)
             PAL_ERR(LOG_TAG,"Setting volume failed");
         }
     }
-
+#endif
 exit:
     if (status != 0)
         rm->voteSleepMonitor(s, false);
@@ -1794,26 +1829,18 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, uint64_t cookie)
 int SessionAlsaCompress::flush()
 {
     int status = 0;
-    int doFlush = 1;
-    struct mixer_ctl *ctl = NULL;
-    std::string stream = "COMPRESS";
-    std::string flushControl = "flush";
-    std::ostringstream flushCntrlName;
-
-    if (playback_started) {
-        PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-        if (compressDevIds.size() > 0)
-            flushCntrlName << stream << compressDevIds.at(0) << " " << flushControl;
-
-        ctl = mixer_get_ctl_by_name(mixer, flushCntrlName.str().data());
-        if (!ctl) {
-            PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", flushCntrlName.str().data());
-            return -ENOENT;
+    PAL_VERBOSE(LOG_TAG, "Enter flush");
+ 
+     if (playback_started) {
+        if (compressDevIds.size() > 0) {
+            status = SessionAlsaUtils::flush(rm, compressDevIds.at(0));
+        } else {
+            PAL_ERR(LOG_TAG, "DevIds size is invalid");
+            return -EINVAL;
         }
-
-        mixer_ctl_set_value(ctl, 0, doFlush);
     }
-    PAL_VERBOSE(LOG_TAG, "status %d\n", status);
+
+    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 

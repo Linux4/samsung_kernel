@@ -43,6 +43,14 @@
 #include <linux/leds-s2mpb02.h>
 #elif IS_ENABLED(CONFIG_LEDS_KTD2692)
 #include <linux/leds-ktd2692.h>
+#elif IS_ENABLED(CONFIG_LEDS_AW36518_FLASH)
+#include <linux/leds-aw36518.h>
+#elif IS_ENABLED(CONFIG_LEDS_QTI_FLASH) && IS_ENABLED(CONFIG_SENSORS_STK6D2X)
+#include <linux/leds.h>
+#include <linux/leds-qti-flash.h>
+DEFINE_LED_TRIGGER(torch2_trigger);
+DEFINE_LED_TRIGGER(torch3_trigger);
+DEFINE_LED_TRIGGER(switch3_trigger);
 #endif
 
 #define LED_DT_NODE_NAME "flicker_test"
@@ -51,8 +59,13 @@
 #define DEFAULT_DUTY_60HZ		4166
 
 #define MAX_TEST_RESULT			256
+#if IS_ENABLED(CONFIG_SENSORS_STK6D2X)
+#define EOL_COUNT				4
+#define EOL_SKIP_COUNT			4
+#else
 #define EOL_COUNT				5
 #define EOL_SKIP_COUNT			5
+#endif
 #define EOL_FLICKER_SKIP_COUNT	2
 
 static int gpio_torch;

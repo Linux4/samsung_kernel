@@ -84,6 +84,8 @@ int wlfw_qdss_trace_start(struct cnss_plat_data *plat_priv);
 int wlfw_qdss_trace_stop(struct cnss_plat_data *plat_priv, unsigned long long option);
 int cnss_wlfw_cal_report_req_send_sync(struct cnss_plat_data *plat_priv,
 				       u32 cal_file_download_size);
+int cnss_wlfw_send_host_wfc_call_status(struct cnss_plat_data *plat_priv,
+                      struct cnss_wfc_cfg cfg);
 int cnss_wlfw_ini_file_send_sync(struct cnss_plat_data *plat_priv,
 				 enum wlfw_ini_file_type_v01 file_type);
 #else
@@ -300,6 +302,12 @@ int cnss_wlfw_cal_report_req_send_sync(struct cnss_plat_data *plat_priv,
 				       u32 cal_file_download_size)
 {
 	return 0;
+}
+
+int cnss_wlfw_send_host_wfc_call_status(struct cnss_plat_data *plat_priv,
+                     struct cnss_wfc_cfg cfg)
+{
+    return 0;
 }
 
 int cnss_wlfw_ini_file_send_sync(struct cnss_plat_data *plat_priv,

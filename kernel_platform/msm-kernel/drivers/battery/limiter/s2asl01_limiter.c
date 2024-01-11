@@ -103,11 +103,13 @@ static bool s2asl01_check_status(struct s2asl01_limiter_data *limiter)
 	bool ret = true;
 
 	s2asl01_read_reg(limiter->client, S2ASL01_LIMITER_PM_ENABLE, &data);
+	pr_info("%s [%s]: 0x%02x\n", __func__, current_limiter_type_str[limiter->pdata->bat_type], data);
 	data &= 0xF0;
 
 	if (!data) {
 		pr_info("%s [%s]: caution! powermeter disabled\n", __func__,
 		current_limiter_type_str[limiter->pdata->bat_type]);
+		s2asl01_init_regs(limiter);
 		ret = false;
 	}
 	pr_info("%s [%s]: enb = %d, det = %d\n", __func__,
@@ -365,7 +367,7 @@ static unsigned int s2asl01_check_health(struct s2asl01_limiter_data *limiter)
 
 	/* do not check limiter health when powermeter is abnormal or i2c fail  */
 	if (!pm_enable || ret < 0)
-		return POWER_SUPPLY_HEALTH_GOOD;
+		return POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
 
 	vchg = s2asl01_get_vchg(limiter, SEC_BATTERY_VOLTAGE_MV);
 	vbat = s2asl01_get_vbat(limiter, SEC_BATTERY_VOLTAGE_MV);
@@ -884,7 +886,6 @@ static int s2asl01_set_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE:
 			s2asl01_init_regs(limiter);
-			s2asl01_test_read(limiter->client);
 			break;
 		case POWER_SUPPLY_EXT_PROP_POWER_MODE2:
 			s2asl01_set_poweroff_mode2(limiter, val->intval);

@@ -78,7 +78,6 @@ static int get_current_soc( char *name)
 	return value.intval;
 }
 
-#define FULL_CAPACITY 850
 int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
@@ -91,8 +90,8 @@ int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 
 	total_time = get_cc_cv_time(battery, ttf_curr, get_current_soc(battery->pdata->fuelgauge_name), true);
 	if (battery->batt_full_capacity > 0 && battery->batt_full_capacity < 100) {
-		pr_info("%s: time to 85 percent\n", __func__);
-		total_time -= get_cc_cv_time(battery, ttf_curr, FULL_CAPACITY, false);
+		pr_info("%s: time to %d percent\n", __func__, battery->batt_full_capacity);
+		total_time -= get_cc_cv_time(battery, ttf_curr, (battery->batt_full_capacity * 10), false);
 	}
 
 	return total_time;

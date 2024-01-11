@@ -32,6 +32,10 @@
 #include <linux/regulator/consumer.h>
 #include <linux/ioctl.h>
 #include <linux/gpio.h>
+#include <linux/version.h>
+#if defined(CONFIG_SEC_SNVM_PLATFORM_DRV)
+#include <linux/platform_device.h>
+#endif
 
 #include "sec_star.h"
 
@@ -272,7 +276,11 @@ static int k250a_probe(struct i2c_client *client, const struct i2c_device_id *id
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 static int k250a_remove(struct i2c_client *client)
+#else
+static void k250a_remove(struct i2c_client *client)
+#endif
 {
 	INFO("Entry : %s\n", __func__);
 #if defined(USE_INTERNAL_PULLUP)
@@ -285,8 +293,83 @@ static int k250a_remove(struct i2c_client *client)
 	}
 	star_close(g_k250a.star);
 	INFO("Exit : %s\n", __func__);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+	return 0;
+#endif
+}
+
+#if defined(CONFIG_SEC_SNVM_PLATFORM_DRV)
+static int k250a_dev_open(struct inode *inode, struct file *filp)
+{
+	k250a_poweron();
 	return 0;
 }
+
+static int ese_dev_release(struct inode *inode, struct file *filp)
+{
+	k250a_poweroff();
+	return 0;
+}
+
+static const struct file_operations k250a_dev_fops = {
+	.owner = THIS_MODULE,
+	.open = k250a_dev_open,
+	.release = ese_dev_release,
+};
+
+static struct miscdevice k250a_misc_device = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "k250a",
+	.fops = &k250a_dev_fops,
+};
+
+void k250a_parse_dt_for_platform_device(struct device *dev)
+{
+	g_k250a.vdd = devm_regulator_get_optional(dev, "1p8_pvdd");
+	if (IS_ERR(g_k250a.vdd)) {
+		ERR("%s - 1p8_pvdd can not be used\n", __func__);
+		g_k250a.vdd = NULL;
+	} else {
+		INFO("%s: regulator_get success\n", __func__);
+	}
+}
+
+static int k250a_platform_probe(struct platform_device *pdev)
+{
+	int ret = -1;
+
+	k250a_parse_dt_for_platform_device(&pdev->dev);
+	ret = misc_register(&k250a_misc_device);
+	if (ret < 0)
+		ERR("misc_register failed! %d\n", ret);
+
+	INFO("%s: finished...\n", __func__);
+	return 0;
+}
+
+static int k250a_platform_remove(struct platform_device *pdev)
+{
+	INFO("Entry : %s\n", __func__);
+	return 0;
+}
+
+static const struct of_device_id k250a_secure_match_table[] = {
+	{ .compatible = "sec_k250a_platform",},
+	{},
+};
+
+static struct platform_driver k250a_platform_driver = {
+	.driver = {
+		.name = "k250a_platform",
+		.owner = THIS_MODULE,
+#ifdef CONFIG_OF
+		.of_match_table = k250a_secure_match_table,
+#endif
+	},
+	.probe =  k250a_platform_probe,
+	.remove = k250a_platform_remove,
+};
+#endif
 
 static const struct i2c_device_id k250a_id[] = {
 	{"k250a", 0},
@@ -311,7 +394,20 @@ static struct i2c_driver k250a_driver = {
 
 static int __init k250a_init(void)
 {
+#if defined(CONFIG_SEC_SNVM_PLATFORM_DRV)
+	int ret;
+
+	ret = platform_driver_register(&k250a_platform_driver);
+	if (!ret) {
+		INFO("platform_driver_register success : %s\n", __func__);
+		return ret;
+	} else {
+		ERR("platform_driver_register fail : %s\n", __func__);
+		return ret;
+	}
+#endif
 	INFO("Entry : %s\n", __func__);
+
 	return i2c_add_driver(&k250a_driver);
 }
 module_init(k250a_init);
@@ -319,6 +415,10 @@ module_init(k250a_init);
 static void __exit k250a_exit(void)
 {
 	INFO("Entry : %s\n", __func__);
+#if defined(CONFIG_SEC_SNVM_PLATFORM_DRV)
+	platform_driver_unregister(&k250a_platform_driver);
+	return;
+#endif
 	i2c_del_driver(&k250a_driver);
 }
 

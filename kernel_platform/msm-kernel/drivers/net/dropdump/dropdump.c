@@ -210,6 +210,8 @@ int chk_stack(char *pos, int net_pkt)
 		return FIN_TRACE;
 	if (!strncmp(pos, "gic", 3))	 // gic_xxx
 		return FIN_TRACE;
+	if (!strncmp(pos + 4, "f_nbu", 5))// __qdf_nbuf_free
+		return FIN_TRACE;
 
 	/* network pkt */
 	if (!net_pkt) {
@@ -320,7 +322,7 @@ int pr_stack(struct sk_buff *skb, char *dst)
 	return depth > 5 ? depth - 4 : depth; /* do not use root stacks */
 }
 
-struct sk_buff *get_dummy(struct sk_buff *skb, char *pos, int st_depth)
+struct sk_buff *get_dummy(struct sk_buff *skb, unsigned int reason, char *pos, int st_depth)
 {
 	struct sk_buff *dummy = NULL;
 	unsigned int stack_len = ST_SIZE * st_depth;
@@ -361,12 +363,14 @@ struct sk_buff *get_dummy(struct sk_buff *skb, char *pos, int st_depth)
 			
 			iph->protocol = 17; // UDP
 			iph->tot_len  = htons(data_len);
+			iph->ttl      = (__u8)(reason & 0xff);
 		} else {
 			struct ipv6hdr *ip6h = (struct ipv6hdr *)dummy->data;
 			memcpy(dummy->data, ipv6_hdr(skb), hdr_len);
 
 			ip6h->nexthdr     = 17; // UDP
 			ip6h->payload_len = htons(data_len - hdr_len);
+			ip6h->hop_limit   = (__u8)(reason & 0xff);
 		}
 
 		/* set udp_hdr info */
@@ -382,24 +386,28 @@ struct sk_buff *get_dummy(struct sk_buff *skb, char *pos, int st_depth)
 	return dummy;
 }
 
-static void drd_print_skb(struct sk_buff *skb, unsigned int len)
+#if 0
+// somtimes this log causes lock starvation when too many called (P230510-05174)
+// tempory disable until find smart solution
+static void drd_print_skb(struct sk_buff *skb, unsigned int len, unsigned int reason)
 {
 	struct iphdr *ip4hdr = (struct iphdr *)skb_network_header(skb);
 
 	if (ip4hdr->version == 4) {
-		drd_limit("<%pS><%pS> src:%pI4 | dst:%pI4 | %*ph\n",
+		drd_limit("<%pS><%pS> [%u] src:%pI4 | dst:%pI4 | %*ph\n",
 			__builtin_return_address(ST_START - 2), __builtin_return_address(ST_START-1),
-			&ip4hdr->saddr, &ip4hdr->daddr, len < 48 ? len : 48, ip4hdr);
+			reason, &ip4hdr->saddr, &ip4hdr->daddr, len < 48 ? len : 48, ip4hdr);
 	} else {
 		struct ipv6hdr *ip6hdr = (struct ipv6hdr *)ip4hdr;
-		drd_limit("<%pS><%pS> src:%pI6c | dst:%pI6c | %*ph\n",
+		drd_limit("<%pS><%pS> [%u] src:%pI6c | dst:%pI6c | %*ph\n",
 			__builtin_return_address(ST_START - 2), __builtin_return_address(ST_START-1),
-			&ip6hdr->saddr, &ip6hdr->daddr, len < 48 ? len : 48, ip4hdr);
+			reason, &ip6hdr->saddr, &ip6hdr->daddr, len < 48 ? len : 48, ip4hdr);
 	}
 }
+#endif
 
 extern struct list_head ptype_all;
-struct sk_buff *drd_queue_skb(struct sk_buff *skb, int mode)
+struct sk_buff *drd_queue_skb(struct sk_buff *skb, int mode, unsigned int reason)
 {
 	struct packet_type *ptype;
 	struct packet_type *pt_prev = NULL;
@@ -440,7 +448,16 @@ struct sk_buff *drd_queue_skb(struct sk_buff *skb, int mode)
 
 	if (mode) {
 		clen = min(0x80u, len);
-		tstamp_bck = skb->tstamp;
+
+		/* set timestamp for dummy packet */
+		if (skb->tstamp >> 48 < 5000) {
+			/* packet has kernel timestamp, not utc
+			   using a zero-value for updating to utc at tpacket_rcv() */
+			tstamp_bck = 0;
+		} else {
+			/* using utc of original packet */
+			tstamp_bck = skb->tstamp;
+		}
 	} else {
 		clen = len;
 	}
@@ -498,8 +515,8 @@ out_unlock:
 	rcu_read_unlock_bh();
 
 	if (mode && logged) {
-		drd_print_skb(skb, len);
-		return get_dummy(skb, pos, st_depth);
+		//drd_print_skb(skb, len, reason );
+		return get_dummy(skb, reason, pos, st_depth);
 	}
 
 	return NULL;
@@ -507,46 +524,53 @@ out_unlock:
 
 int skb_validate(struct sk_buff *skb)
 {
-	int err = -1;
-
 	if (virt_addr_valid(skb) && virt_addr_valid(skb->dev)) {
 		struct iphdr *ip4hdr = (struct iphdr *)skb_network_header(skb);
+
+		if (skb->protocol != htons(ETH_P_IPV6)
+		    && skb->protocol != htons(ETH_P_IP))
+			return -1;
 
 		switch (skb->dev->name[0]) {
 			case 'r' : // rmnet*
 			case 'w' : // wlan
 			case 'v' : // v4-rmnet*
 			case 'l' : // lo
-			case 's' : // swlan
+			//case 's' : // swlan /* swlan logging makes rcu lock starvation */
 			case 't' : // tun
 			case 'b' : // bt*
 				break;
 			default :
-				drd_dbg("invlide dev: %s\n", skb->dev->name);
-				return -8;
+				drd_dbg("invalid dev: %s\n", skb->dev->name);
+				return -2;
 		}
 
 		if (unlikely((ip4hdr->version != 4 && ip4hdr->version != 6)
 				|| ip4hdr->id == 0x6b6b))
-			err = -2;
-		else if (unlikely(!skb->len))
-			err = -3;
-		else if (unlikely(skb->len > skb->tail))
-			err = -4;
-		else if (unlikely(skb->data < skb->head))
-			err = -5;
-		else if (unlikely(skb->tail > skb->end))
-			err = -6;
-		else if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
-			err = -7;
-		else
-			err = 0;
+			return -3;
+
+		if (unlikely(!skb->len))
+			return -4;
+
+		if (unlikely(skb->len > skb->tail))
+			return -5;
+
+		if (unlikely(skb->data <= skb->head))
+			return -6;
+
+		if (unlikely(skb->tail > skb->end))
+			return -7;
+
+		if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
+			return -8;
+
+		return 0;
 	}
 
-	return err;
+	return -255;
 }
 
-void drd_kfree_skb(struct sk_buff *skb)
+void drd_kfree_skb(struct sk_buff *skb, unsigned int reason)
 {
 	struct sk_buff *dmy;
 
@@ -556,9 +580,9 @@ void drd_kfree_skb(struct sk_buff *skb)
 	if (unlikely(skb_validate(skb)))
 		return;
 
-	dmy = drd_queue_skb(skb, 1);
+	dmy = drd_queue_skb(skb, 1, reason);
 	if (unlikely(dmy)) {
-		drd_queue_skb(dmy, 0);
+		drd_queue_skb(dmy, 0, 0);
 		__kfree_skb(dmy);
 	}
 }
@@ -587,9 +611,16 @@ void trace_android_vh_ptype_head(const struct packet_type *pt, struct list_head 
 EXPORT_SYMBOL_GPL(trace_android_vh_ptype_head);
 #endif
 
+#if defined(TRACE_SKB_DROP_REASON) || defined(DEFINE_DROP_REASON)
+static void drd_kfree_skb_handler(void *data, struct sk_buff *skb,
+				  void *location, enum skb_drop_reason reason)
+{
+#else
 static void drd_kfree_skb_handler(void *data, struct sk_buff *skb, void *location)
 {
-	drd_kfree_skb(skb);
+	unsigned int reason = 0;
+#endif
+	drd_kfree_skb(skb, (unsigned int)reason);
 }
 
 static struct ctl_table drd_proc_table[] = {

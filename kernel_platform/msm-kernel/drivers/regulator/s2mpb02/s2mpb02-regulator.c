@@ -87,8 +87,9 @@ static int s2m_is_enabled_regmap(struct regulator_dev *rdev)
 	if (ret < 0)
 		return ret;
 
-    val &= rdev->desc->enable_mask;
-    return (val == rdev->desc->enable_mask);
+	val &= rdev->desc->enable_mask;
+
+	return (val == rdev->desc->enable_mask);
 }
 
 static int s2m_get_voltage_sel_regmap(struct regulator_dev *rdev)
@@ -193,7 +194,7 @@ static int s2m_set_buck_mode(struct regulator_dev *rdev, unsigned int mode)
 			S2MPB02_BUCK_MODE_MASK);
 }
 
-static unsigned s2m_get_buck_mode(struct regulator_dev *rdev)
+static unsigned int s2m_get_buck_mode(struct regulator_dev *rdev)
 {
 	struct s2mpb02_data *info = rdev_get_drvdata(rdev);
 	struct i2c_client *i2c = info->iodev->i2c;
@@ -245,7 +246,8 @@ static struct regulator_ops s2mpb02_buck_ops = {
 };
 
 #if IS_ENABLED(CONFIG_SEC_PM)
-static unsigned int s2mpb02_of_map_mode(unsigned int mode) {
+static unsigned int s2mpb02_of_map_mode(unsigned int mode)
+{
 	switch (mode) {
 	case 1 ... 2:		/* Forced PWM & Auto */
 		return mode;
@@ -254,7 +256,8 @@ static unsigned int s2mpb02_of_map_mode(unsigned int mode) {
 	}
 }
 #else
-static unsigned int s2mpb02_of_map_mode(unsigned int mode) {
+static unsigned int s2mpb02_of_map_mode(unsigned int mode)
+{
 	return REGULATOR_MODE_INVALID;
 }
 #endif /* CONFIG_SEC_PM */
@@ -354,7 +357,7 @@ static struct regulator_desc regulators[S2MPB02_REGULATOR_MAX] = {
 int s2mpb02_need_recovery(struct s2mpb02_data *s2mpb02)
 {
 	struct regulator_dev *rdev;
-	int i;
+	int i, ret = 0;
 
 	// Check whether S2MPB02 Recovery is needed
 	for (i = 0; i < s2mpb02->num_regulators; i++) {
@@ -366,13 +369,14 @@ int s2mpb02_need_recovery(struct s2mpb02_data *s2mpb02)
 				if(!s2m_is_enabled_regmap(rdev)) {
 					pr_info("%s: s2mpb02->rdev[%d]->desc->name(%s)\n",
 								__func__, i, rdev->desc->name);
-					return 1;
+					ret = 1;
+					continue;
 				}
 			}
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 int s2mpb02_recovery(struct s2mpb02_data *s2mpb02)
@@ -392,10 +396,11 @@ int s2mpb02_recovery(struct s2mpb02_data *s2mpb02)
 	// S2MPB02 Recovery
 	for (i = 0; i < s2mpb02->num_regulators; i++) {
 		if (s2mpb02->rdev[i]) {
-			pr_debug("%s: s2mpb02->rdev[%d]->desc->name(%s)\n",
-					__func__, i, s2mpb02->rdev[i]->desc->name);
-
 			rdev = s2mpb02->rdev[i];
+
+			pr_info("%s: s2mpb02->rdev[%d]->desc->name(%s): max_uV(%d), min_uV(%d), always_on(%d), use_count(%d)\n",
+					__func__, i, rdev->desc->name, rdev->constraints->max_uV, rdev->desc->min_uV,
+						rdev->constraints->always_on, rdev->use_count);
 
 			// Make sure enabled registers are cleared
 			s2m_disable_regmap(rdev);

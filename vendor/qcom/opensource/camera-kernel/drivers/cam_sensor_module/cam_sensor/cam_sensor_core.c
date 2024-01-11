@@ -575,8 +575,8 @@ int cam_sensor_apply_hyperlapse_settings(
 #endif
 
 #if defined(CONFIG_SEC_Q4Q_PROJECT) || defined(CONFIG_SEC_B4Q_PROJECT)
-	// SHOOTING_MODE_HYPER_MOTION = 16
-	if (s_ctrl->shooting_mode == 16)
+	// SHOOTING_MODE_HYPER_MOTION = 16, SHOOTING_MODE_NIGHT = 8, SHOOTING_MODE_SUPER_NIGHT = 31
+	if ((s_ctrl->shooting_mode == 16) || (s_ctrl->shooting_mode == 8) || (s_ctrl->shooting_mode == 31))
 	{
 		size = ARRAY_SIZE(i2c_fll_reg_array);
 		CAM_ERR(CAM_SENSOR, "[ASTRO_DBG] write register settings :: StreamOff -> FLL -> StreamOn");

@@ -6,9 +6,3 @@
   sg_nents
   skb_copy_datagram_from_iter
   sock_alloc_send_pskb
-
-
-unload_trusted_app
-load_trusted_app
-unregister_mz_tee_crypto_driver
-register_mz_tee_crypto_driver
