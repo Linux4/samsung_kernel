@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/clk/qcom.h>
 #include <linux/interconnect.h>
 #include <linux/of_device.h>
 #include <linux/pm_runtime.h>
@@ -25,7 +26,7 @@
 #define KGSL_MAX_BUSLEVELS	20
 
 /* Order deeply matters here because reasons. New entries go on the end */
-static const char * const clocks[] = {
+static const char * const clocks[KGSL_MAX_CLKS] = {
 	"src_clk",
 	"core_clk",
 	"iface_clk",
@@ -44,6 +45,7 @@ static const char * const clocks[] = {
 	"ahb_clk",
 	"smmu_vote",
 	"apb_pclk",
+	"hub_cx_int_clk",
 };
 
 static void kgsl_pwrctrl_clk(struct kgsl_device *device, bool state,
@@ -230,13 +232,13 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 	if (pwr->bus_mod < 0 || new_level < old_level) {
 		pwr->bus_mod = 0;
 		pwr->bus_percent_ab = 0;
-		pwr->ddr_stall_percent = 0;
 	}
 	/*
 	 * Update the bus before the GPU clock to prevent underrun during
 	 * frequency increases.
 	 */
-	kgsl_bus_update(device, KGSL_BUS_VOTE_ON);
+	if (new_level < old_level)
+		kgsl_bus_update(device, KGSL_BUS_VOTE_ON);
 
 	pwrlevel = &pwr->pwrlevels[pwr->active_pwrlevel];
 	/* Change register settings if any  BEFORE pwrlevel change*/
@@ -250,6 +252,10 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 			pwr->pwrlevels[old_level].gpu_freq);
 
 	trace_gpu_frequency(pwrlevel->gpu_freq/1000, 0);
+
+	/*  Update the bus after GPU clock decreases. */
+	if (new_level > old_level)
+		kgsl_bus_update(device, KGSL_BUS_VOTE_ON);
 
 	/*
 	 * Some targets do not support the bandwidth requirement of
@@ -406,8 +412,9 @@ static void kgsl_pwrctrl_min_pwrlevel_set(struct kgsl_device *device,
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 
 	mutex_lock(&device->mutex);
-	if (level >= pwr->num_pwrlevels)
-		level = pwr->num_pwrlevels - 1;
+
+	if (level > pwr->min_render_pwrlevel)
+		level = pwr->min_render_pwrlevel;
 
 	/* You can't set a minimum power level lower than the maximum */
 	if (level < pwr->max_pwrlevel)
@@ -1312,8 +1319,30 @@ int kgsl_pwrctrl_axi(struct kgsl_device *device, bool state)
 	return 0;
 }
 
-static int enable_regulator(struct device *dev, struct regulator *regulator,
-		const char *name)
+int kgsl_pwrctrl_enable_cx_gdsc(struct kgsl_device *device, struct regulator *regulator)
+{
+	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
+	int ret;
+
+	if (IS_ERR_OR_NULL(regulator))
+		return 0;
+
+	ret = wait_for_completion_timeout(&pwr->cx_gdsc_gate, msecs_to_jiffies(5000));
+	if (!ret) {
+		dev_err(device->dev, "GPU CX wait timeout. Dumping CX votes:\n");
+		/* Dump the cx regulator consumer list */
+		qcom_clk_dump(NULL, regulator, false);
+	}
+
+	ret = regulator_enable(regulator);
+	if (ret)
+		dev_err(device->dev, "Failed to enable CX regulator: %d\n", ret);
+
+	pwr->cx_gdsc_wait = false;
+	return ret;
+}
+
+static int kgsl_pwtctrl_enable_gx_gdsc(struct kgsl_device *device, struct regulator *regulator)
 {
 	int ret;
 
@@ -1322,8 +1351,27 @@ static int enable_regulator(struct device *dev, struct regulator *regulator,
 
 	ret = regulator_enable(regulator);
 	if (ret)
-		dev_err(dev, "Unable to enable regulator %s: %d\n", name, ret);
+		dev_err(device->dev, "Failed to enable GX regulator: %d\n", ret);
 	return ret;
+}
+
+void kgsl_pwrctrl_disable_cx_gdsc(struct kgsl_device *device, struct regulator *regulator)
+{
+	if (IS_ERR_OR_NULL(regulator))
+		return;
+
+	reinit_completion(&device->pwrctrl.cx_gdsc_gate);
+	device->pwrctrl.cx_gdsc_wait = true;
+	regulator_disable(regulator);
+}
+
+static void kgsl_pwrctrl_disable_gx_gdsc(struct kgsl_device *device, struct regulator *regulator)
+{
+	if (IS_ERR_OR_NULL(regulator))
+		return;
+
+	if (!kgsl_regulator_disable_wait(regulator, 200))
+		dev_err(device->dev, "Regulator vdd is stuck on\n");
 }
 
 static int enable_regulators(struct kgsl_device *device)
@@ -1334,15 +1382,14 @@ static int enable_regulators(struct kgsl_device *device)
 	if (test_and_set_bit(KGSL_PWRFLAGS_POWER_ON, &pwr->power_flags))
 		return 0;
 
-	ret = enable_regulator(&device->pdev->dev, pwr->cx_gdsc, "vddcx");
+	ret = kgsl_pwrctrl_enable_cx_gdsc(device, pwr->cx_gdsc);
 	if (!ret) {
 		/* Set parent in retention voltage to power up vdd supply */
 		ret = kgsl_regulator_set_voltage(device->dev,
 				pwr->gx_gdsc_parent,
 				pwr->gx_gdsc_parent_min_corner);
 		if (!ret)
-			ret = enable_regulator(&device->pdev->dev,
-					pwr->gx_gdsc, "vdd");
+			ret = kgsl_pwtctrl_enable_gx_gdsc(device, pwr->gx_gdsc);
 	}
 
 	if (ret) {
@@ -1373,10 +1420,8 @@ static int kgsl_pwrctrl_pwrrail(struct kgsl_device *device, bool state)
 		if (test_and_clear_bit(KGSL_PWRFLAGS_POWER_ON,
 			&pwr->power_flags)) {
 			trace_kgsl_rail(device, state);
-			if (!kgsl_regulator_disable_wait(pwr->gx_gdsc, 200))
-				dev_err(device->dev, "Regulator vdd is stuck on\n");
-			if (!kgsl_regulator_disable_wait(pwr->cx_gdsc, 200))
-				dev_err(device->dev, "Regulator vddcx is stuck on\n");
+			kgsl_pwrctrl_disable_gx_gdsc(device, pwr->gx_gdsc);
+			kgsl_pwrctrl_disable_cx_gdsc(device, pwr->cx_gdsc);
 		}
 	} else
 		status = enable_regulators(device);
@@ -1393,11 +1438,15 @@ void kgsl_pwrctrl_irq(struct kgsl_device *device, bool state)
 			&pwr->power_flags)) {
 			trace_kgsl_irq(device, state);
 			enable_irq(pwr->interrupt_num);
+			if (device->freq_limiter_intr_num > 0)
+				enable_irq(device->freq_limiter_intr_num);
 		}
 	} else {
 		if (test_and_clear_bit(KGSL_PWRFLAGS_IRQ_ON,
 			&pwr->power_flags)) {
 			trace_kgsl_irq(device, state);
+			if (device->freq_limiter_intr_num > 0)
+				disable_irq(device->freq_limiter_intr_num);
 			if (in_interrupt())
 				disable_irq_nosync(pwr->interrupt_num);
 			else
@@ -1561,8 +1610,6 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	pwr->thermal_pwrlevel = 0;
 	pwr->thermal_pwrlevel_floor = pwr->num_pwrlevels - 1;
 
-	pwr->wakeup_maxpwrlevel = 0;
-
 	result = dev_pm_qos_add_request(&pdev->dev, &pwr->sysfs_thermal_req,
 			DEV_PM_QOS_MAX_FREQUENCY,
 			PM_QOS_MAX_FREQUENCY_DEFAULT_VALUE);
@@ -1611,6 +1658,15 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 				"vdd-parent-min-corner not found\n");
 			return -ENODEV;
 		}
+	}
+
+	init_completion(&pwr->cx_gdsc_gate);
+	complete_all(&pwr->cx_gdsc_gate);
+
+	result = device->ftbl->register_gdsc_notifier(device);
+	if (result) {
+		dev_err(&pdev->dev, "Failed to register gdsc notifier: %d\n", result);
+		return result;
 	}
 
 	pwr->power_flags = 0;
@@ -1749,12 +1805,7 @@ static int kgsl_pwrctrl_enable(struct kgsl_device *device)
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	int level, status;
 
-	if (pwr->wakeup_maxpwrlevel) {
-		level = pwr->max_pwrlevel;
-		pwr->wakeup_maxpwrlevel = 0;
-	} else {
-		level = pwr->default_pwrlevel;
-	}
+	level = pwr->default_pwrlevel;
 
 	kgsl_pwrctrl_pwrlevel_change(device, level);
 

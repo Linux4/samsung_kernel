@@ -7,8 +7,8 @@ export PROJECT_NAME=${MODEL}
 export REGION=$(echo ${BUILD_TARGET} | cut -d'_' -f2)
 export CARRIER=$(echo ${BUILD_TARGET} | cut -d'_' -f3)
 export TARGET_BUILD_VARIANT= user
-                        
-#2. SM8450 common config
+
+#2. Chipset common config
 CHIPSET_NAME=waipio
 export ANDROID_BUILD_TOP=$(pwd)
 export TARGET_PRODUCT=gki
@@ -27,3 +27,4 @@ export KBUILD_EXT_MODULES="../vendor/qcom/opensource/datarmnet-ext/wlan         
 
 #3. build kernel
 RECOMPILE_KERNEL=1 ./kernel_platform/build/android/prepare_vendor.sh sec ${TARGET_PRODUCT}
+

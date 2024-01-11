@@ -1340,6 +1340,9 @@ enum mlme_cfg_frame_type {
  * @dual_sta_policy_cfg: Dual STA policies configuration
  * @tx_retry_multiplier: TX xretry extension parameter
  * @mgmt_hw_tx_retry_count: MGMT HW tx retry count for frames
+ * @std_6ghz_conn_policy: 6GHz standard connection policy
+ * @safe_mode_enable: safe mode to bypass some strict 6 GHz checks for
+ * connection, bypass strict power levels
  */
 struct wlan_mlme_generic {
 	uint32_t band_capability;
@@ -1387,6 +1390,10 @@ struct wlan_mlme_generic {
 	struct dual_sta_policy dual_sta_policy;
 	uint32_t tx_retry_multiplier;
 	uint8_t mgmt_hw_tx_retry_count[CFG_FRAME_TYPE_MAX];
+#ifdef CONFIG_BAND_6GHZ
+	bool std_6ghz_conn_policy;
+#endif
+	bool safe_mode_enable;
 };
 
 /*
@@ -2679,31 +2686,4 @@ struct wlan_change_bi {
 	uint8_t session_id;
 };
 
-/**
- * struct mgmt_frame_data  - Management frame related info
- * @mac_hdr: 802.11 Frame MAC header
- * @status_code: Frame status code values as defined in
- * IEEE 802.11 - 2020 standard Table 9-41
- * @vdev_id: Vdev id
- * @frame_subtype: Frame subtype as defined in IEEE 802.11 - 2020
- * standard section 9.2.4.1.3
- * @auth_algo: Authentication algorithm number field as defined in
- * IEEE 802.11 - 2020 standard section 9.4.1.1
- * @auth_type: indicates SAE authentication frame type. Possible values are:
- * 1 - SAE commit frame
- * 2 - SAE confirm frame
- * @auth_seq: Authentication frame transaction sequence number as defined in
- * IEEE 802.11 - 2020 standard section 9.4.1.2
- * @rssi: RSSI in dBm
- */
-struct mgmt_frame_data {
-	struct wlan_frame_hdr mac_hdr;
-	uint16_t status_code;
-	uint8_t vdev_id;
-	uint8_t frame_subtype;
-	uint8_t auth_algo;
-	uint8_t auth_type;
-	uint8_t auth_seq;
-	int16_t rssi;
-};
 #endif

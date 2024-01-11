@@ -136,6 +136,9 @@ static ssize_t sec_qc_reset_summary_proc_read(struct file *file,
 	struct qc_user_reset_proc *reset_summary = PDE_DATA(file_inode(file));
 	loff_t pos = *ppos;
 
+	if (pos < 0 || pos > reset_summary->len)
+		return 0;
+
 	nbytes = min_t(size_t, nbytes, reset_summary->len - pos);
 	if (copy_to_user(buf, &reset_summary->buf[pos], nbytes))
 		return -EFAULT;

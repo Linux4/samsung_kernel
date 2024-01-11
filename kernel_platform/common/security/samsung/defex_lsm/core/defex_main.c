@@ -7,6 +7,7 @@
  */
 
 #include <asm/barrier.h>
+#include <linux/binfmts.h>
 #include <linux/compiler.h>
 #include <linux/const.h>
 #ifdef DEFEX_DSMS_ENABLE
@@ -33,6 +34,7 @@
 #include "include/defex_caches.h"
 #include "include/defex_catch_list.h"
 #include "include/defex_config.h"
+#include "include/defex_debug.h"
 #include "include/defex_internal.h"
 #include "include/defex_rules.h"
 
@@ -69,17 +71,17 @@ __visible_for_testing struct task_struct *get_parent_task(const struct task_stru
 #	define MESSAGE_BUFFER_SIZE 200
 #	define STORED_CREDS_SIZE 100
 
-__visible_for_testing void defex_report_violation(const char *violation, uint64_t counter, struct defex_context *dc,
-	uid_t stored_uid, uid_t stored_fsuid, uid_t stored_egid, int case_num)
+__visible_for_testing void defex_report_violation(const char *violation, uint64_t counter,
+	struct defex_context *dc, uid_t stored_uid, uid_t stored_fsuid, uid_t stored_egid, int case_num)
 {
 	int usermode_result;
 	char message[MESSAGE_BUFFER_SIZE + 1];
 
 	struct task_struct *parent = NULL, *p = dc->task;
-	const uid_t uid = uid_get_value(dc->cred.uid);
-	const uid_t euid = uid_get_value(dc->cred.euid);
-	const uid_t fsuid = uid_get_value(dc->cred.fsuid);
-	const uid_t egid = uid_get_value(dc->cred.egid);
+	const uid_t uid = uid_get_value(dc->cred->uid);
+	const uid_t euid = uid_get_value(dc->cred->euid);
+	const uid_t fsuid = uid_get_value(dc->cred->fsuid);
+	const uid_t egid = uid_get_value(dc->cred->egid);
 	const char *process_name = p->comm;
 	const char *prt_process_name = NULL;
 	const char *program_path = get_dc_process_name(dc);
@@ -97,7 +99,8 @@ __visible_for_testing void defex_report_violation(const char *violation, uint64_
 	if (dc->target_file && !case_num) {
 		file_path = get_dc_target_name(dc);
 	} else {
-		snprintf(stored_creds, sizeof(stored_creds), "[%ld, %ld, %ld]", (long)stored_uid, (long)stored_fsuid, (long)stored_egid);
+		snprintf(stored_creds, sizeof(stored_creds),
+			"[%ld, %ld, %ld]", (long)stored_uid, (long)stored_fsuid, (long)stored_egid);
 		stored_creds[sizeof(stored_creds) - 1] = 0;
 	}
 	snprintf(message, sizeof(message), "%d, %d, sc=%d, tsk=%s(%s), %s(%s), [%ld %ld %ld %ld], %s%s, %d",
@@ -108,8 +111,8 @@ __visible_for_testing void defex_report_violation(const char *violation, uint64_
 
 	usermode_result = dsms_send_message(violation, message, counter);
 #ifdef DEFEX_DEBUG_ENABLE
-	printk(KERN_ERR "DEFEX Violation : feature=%s value=%ld, detail=[%s]", violation, (long)counter, message);
-	printk(KERN_ERR "DEFEX Result : %d\n", usermode_result);
+	defex_log_err("Violation : feature=%s value=%ld, detail=[%s]", violation, (long)counter, message);
+	defex_log_err("Result : %d", usermode_result);
 #endif /* DEFEX_DEBUG_ENABLE */
 
 	safe_str_free(prt_program_path);
@@ -117,7 +120,7 @@ __visible_for_testing void defex_report_violation(const char *violation, uint64_
 }
 #endif /* DEFEX_DSMS_ENABLE */
 
-#if defined(DEFEX_SAFEPLACE_ENABLE) || defined(DEFEX_TRUSTED_MAP_ENABLE)
+#if defined(DEFEX_SAFEPLACE_ENABLE) || defined(DEFEX_TRUSTED_MAP_ENABLE) || defined(DEFEX_INTEGRITY_ENABLE)
 __visible_for_testing long kill_process(struct task_struct *p)
 {
 	read_lock(&tasklist_lock);
@@ -125,7 +128,7 @@ __visible_for_testing long kill_process(struct task_struct *p)
 	read_unlock(&tasklist_lock);
 	return 0;
 }
-#endif /* DEFEX_SAFEPLACE_ENABLE || DEFEX_TRUSTED_MAP_ENABLE */
+#endif /* DEFEX_SAFEPLACE_ENABLE || DEFEX_TRUSTED_MAP_ENABLE || DEFEX_INTEGRITY_ENABLE */
 
 #ifdef DEFEX_PED_ENABLE
 __visible_for_testing long kill_process_group(struct task_struct *p, int tgid, int pid)
@@ -140,29 +143,32 @@ __visible_for_testing long kill_process_group(struct task_struct *p, int tgid, i
 	return 0;
 }
 
+__visible_for_testing int check_incfs(struct defex_context *dc)
+{
+	char *new_file;
+	struct file *f = dc->target_file;
+	static const char incfs_path[] = "/data/incremental/";
+
+	if (f) {
+		new_file = get_dc_target_name(dc);
+		if (!strncmp(new_file, incfs_path, sizeof(incfs_path) - 1)) {
+#ifdef DEFEX_DEBUG_ENABLE
+			defex_log_crit("Allow IncFS access");
+#endif /* DEFEX_DEBUG_ENABLE */
+			return 1;
+		}
+	}
+	return 0;
+}
+
 __visible_for_testing int task_defex_is_secured(struct defex_context *dc)
 {
 	struct file *exe_file = get_dc_process_file(dc);
-	struct task_struct *p = dc->task->group_leader;
-	struct task_struct *task = dc->task;
 	char *proc_name = get_dc_process_name(dc);
 	int is_secured = 0;
 
 	if (!get_dc_process_dpath(dc))
 		return is_secured;
-
-	if (!strncmp(p->comm, "system_server",  strlen(p->comm))) {
-		return DEFEX_ALLOW;
-	}
-
-	if (!strncmp(p->comm, "ding:background", strlen(p->comm))) {
-		return DEFEX_ALLOW;
-	}
-
-	if (!strncmp(task->comm, "FinalizerDaemon", strlen(task->comm))) {
-		return DEFEX_ALLOW;
-	}
-
 	is_secured = !rules_lookup(proc_name, feature_ped_exception, exe_file);
 	return is_secured;
 }
@@ -203,7 +209,7 @@ __visible_for_testing int lower_adb_permission(struct defex_context *dc, unsigne
 	struct task_struct *parent = NULL, *p = dc->task;
 #ifndef DEFEX_PERMISSIVE_LP
 	struct cred *shellcred;
-	static const char adbd_str[] = "/system/bin/adbd";
+	static const char adbd_str[] = "/apex/com.android.adbd/bin/adbd";
 #endif /* DEFEX_PERMISSIVE_LP */
 	int ret = 0;
 
@@ -216,9 +222,9 @@ __visible_for_testing int lower_adb_permission(struct defex_context *dc, unsigne
 #ifndef DEFEX_PERMISSIVE_LP
 	if (!strncmp(parent_file, adbd_str, sizeof(adbd_str))) {
 		shellcred = prepare_creds();
-		pr_crit("[DEFEX] adb with root");
+		defex_log_crit("ADB with root");
 		if (!shellcred) {
-			pr_crit("[DEFEX] prepare_creds fail");
+			defex_log_crit("Prepare_creds fail");
 			ret = 0;
 			goto out;
 		}
@@ -232,7 +238,7 @@ __visible_for_testing int lower_adb_permission(struct defex_context *dc, unsigne
 		uid_set_value(shellcred->egid, 2000);
 		uid_set_value(shellcred->fsgid, 2000);
 		commit_creds(shellcred);
-		memcpy(&dc->cred, shellcred, sizeof(struct cred));
+		dc->cred = (struct cred *)current_cred(); //shellcred;
 		set_task_creds(p, 2000, 2000, 2000, cred_flags);
 
 		ret = 1;
@@ -268,17 +274,17 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 
 	get_task_creds(p, &ref_uid, &ref_fsuid, &ref_egid, &cred_flags);
 
-	cur_uid = uid_get_value(dc->cred.uid);
-	cur_euid = uid_get_value(dc->cred.euid);
-	cur_fsuid = uid_get_value(dc->cred.fsuid);
-	cur_egid = uid_get_value(dc->cred.egid);
+	cur_uid = uid_get_value(dc->cred->uid);
+	cur_euid = uid_get_value(dc->cred->euid);
+	cur_fsuid = uid_get_value(dc->cred->fsuid);
+	cur_egid = uid_get_value(dc->cred->egid);
 
 	if (!ref_uid) {
 		if (p->tgid != p->pid && p->tgid != 1) {
 			path = get_dc_process_name(dc);
-			pr_crit("defex[6]: cred wasn't stored [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]\n",
+			defex_log_crit("[6]: cred wasn't stored [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]",
 				p->comm, path, cur_uid, p->tgid, p->pid, p->real_parent->pid);
-			pr_crit("defex[6]: stored [euid=%d fsuid=%d egid=%d] current [uid=%d euid=%d fsuid=%d egid=%d]\n",
+			defex_log_crit("[6]: stored [euid=%d fsuid=%d egid=%d] current [uid=%d euid=%d fsuid=%d egid=%d]",
 				ref_uid, ref_fsuid, ref_egid, cur_uid, cur_euid, cur_fsuid, cur_egid);
 			goto exit;
 		}
@@ -292,7 +298,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 			put_task_struct(parent);
 		}
 
-		if (CHECK_ROOT_CREDS(&dc->cred)) {
+		if (CHECK_ROOT_CREDS(dc->cred)) {
 #ifdef DEFEX_LP_ENABLE
 			if (!lower_adb_permission(dc, cred_flags))
 #endif /* DEFEX_LP_ENABLE */
@@ -303,13 +309,13 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 		else
 			set_task_creds(p, cur_euid, cur_fsuid, cur_egid, cred_flags);
 	} else if (ref_uid == 1) {
-		if (!CHECK_ROOT_CREDS(&dc->cred))
+		if (!CHECK_ROOT_CREDS(dc->cred))
 			set_task_creds(p, cur_euid, cur_fsuid, cur_egid, cred_flags);
 	} else if (ref_uid == dead_uid) {
 		path = get_dc_process_name(dc);
-		pr_crit("defex[5]: process wasn't killed [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]\n",
+		defex_log_crit("[5]: process wasn't killed [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]",
 			p->comm, path, cur_uid, p->tgid, p->pid, p->real_parent->pid);
-		pr_crit("defex[5]: stored [euid=%d fsuid=%d egid=%d] current [uid=%d euid=%d fsuid=%d egid=%d]\n",
+		defex_log_crit("[5]: stored [euid=%d fsuid=%d egid=%d] current [uid=%d euid=%d fsuid=%d egid=%d]",
 			ref_uid, ref_fsuid, ref_egid, cur_uid, cur_euid, cur_fsuid, cur_egid);
 		goto exit;
 	} else {
@@ -324,7 +330,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 	  			 (cur_fsuid%100000 == AID_MEDIA_RW) ||
 	  			 (cur_fsuid%100000 == AID_MEDIA_OBB)) ) {
 			check_deeper = 1;
-			if (CHECK_ROOT_CREDS(&dc->cred))
+			if (CHECK_ROOT_CREDS(dc->cred))
 				set_task_creds(p, 1, 1, 1, cred_flags);
 			else
 				set_task_creds(p, cur_euid, cur_fsuid, cur_egid, cred_flags);
@@ -340,7 +346,7 @@ __visible_for_testing int task_defex_check_creds(struct defex_context *dc)
 		}
 	}
 
-	if (CHECK_ROOT_CREDS(&dc->cred) && !(cred_flags & CRED_FLAGS_PROOT) && task_defex_is_secured(dc)) {
+	if (CHECK_ROOT_CREDS(dc->cred) && !(cred_flags & CRED_FLAGS_PROOT) && task_defex_is_secured(dc)) {
 		if (p->tgid != p->pid) {
 			case_num = 3;
 			goto trigger_violation;
@@ -353,11 +359,13 @@ out:
 	return DEFEX_ALLOW;
 
 trigger_violation:
+	if (check_incfs(dc))
+		return DEFEX_ALLOW;
 	set_task_creds(p, dead_uid, dead_uid, dead_uid, cred_flags);
 	path = get_dc_process_name(dc);
-	pr_crit("defex[%d]: credential violation [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]\n",
+	defex_log_crit("[%d]: credential violation [task=%s, filename=%s, uid=%d, tgid=%u, pid=%u, ppid=%u]",
 		case_num, p->comm, path, cur_uid, p->tgid, p->pid, p->real_parent->pid);
-	pr_crit("defex[%d]: stored [euid=%d fsuid=%d egid=%d] current [uid=%d euid=%d fsuid=%d egid=%d]\n",
+	defex_log_crit("[%d]: stored [euid=%d fsuid=%d egid=%d] current [uid=%d euid=%d fsuid=%d egid=%d]",
 		case_num, ref_uid, ref_fsuid, ref_egid, cur_uid, cur_euid, cur_fsuid, cur_egid);
 
 #ifdef DEFEX_DSMS_ENABLE
@@ -386,8 +394,8 @@ __visible_for_testing int task_defex_integrity(struct defex_context *dc)
 		ret = -DEFEX_DENY;
 		proc_file = get_dc_process_name(dc);
 
-		pr_crit("defex: integrity violation [task=%s (%s), child=%s, uid=%d]\n",
-				p->comm, proc_file, new_file, uid_get_value(dc->cred.uid));
+		defex_log_crit("Integrity violation [task=%s (%s), child=%s, uid=%d]",
+				p->comm, proc_file, new_file, uid_get_value(dc->cred->uid));
 #ifdef DEFEX_DSMS_ENABLE
 			defex_report_violation(INTEGRITY_VIOLATION, 0, dc, 0, 0, 0, 0);
 #endif /* DEFEX_DSMS_ENABLE */
@@ -405,7 +413,7 @@ __visible_for_testing int task_defex_safeplace(struct defex_context *dc)
 	char *proc_file, *new_file;
 	struct task_struct *p = dc->task;
 
-	if (!CHECK_ROOT_CREDS(&dc->cred))
+	if (!CHECK_ROOT_CREDS(dc->cred))
 		goto out;
 
 	if (!get_dc_target_dpath(dc))
@@ -418,8 +426,8 @@ __visible_for_testing int task_defex_safeplace(struct defex_context *dc)
 		ret = -DEFEX_DENY;
 		proc_file = get_dc_process_name(dc);
 
-		pr_crit("defex: safeplace violation [task=%s (%s), child=%s, uid=%d]\n",
-			p->comm, proc_file, new_file, uid_get_value(dc->cred.uid));
+		defex_log_crit("Safeplace violation [task=%s (%s), child=%s, uid=%d]",
+			p->comm, proc_file, new_file, uid_get_value(dc->cred->uid));
 #ifdef DEFEX_DSMS_ENABLE
 			defex_report_violation(SAFEPLACE_VIOLATION, 0, dc, 0, 0, 0, 0);
 #endif /* DEFEX_DSMS_ENABLE */
@@ -431,19 +439,43 @@ out:
 
 #ifdef DEFEX_TRUSTED_MAP_ENABLE
 /* Trusted map feature decision function */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
+__visible_for_testing int task_defex_trusted_map(struct defex_context *dc, va_list ap)
+{
+	int ret = DEFEX_ALLOW, argc;
+	struct linux_binprm *bprm;
+
+	if (!CHECK_ROOT_CREDS(&dc->cred))
+		goto out;
+
+	bprm = va_arg(ap, struct linux_binprm *);
+	argc = bprm->argc;
+#ifdef DEFEX_DEBUG_ENABLE
+	if (argc <= 0)
+		defex_log_crit("[DTM] Invalid trusted map arguments - check integration on fs/exec.c (argc %d)", argc);
+#endif
+
+	ret = defex_trusted_map_lookup(dc, argc, bprm);
+	if (defex_tm_mode_enabled(DEFEX_TM_PERMISSIVE_MODE))
+		ret = DEFEX_ALLOW;
+out:
+	return ret;
+}
+#else
 __visible_for_testing int task_defex_trusted_map(struct defex_context *dc, va_list ap)
 {
 	int ret = DEFEX_ALLOW, argc;
 	void *argv;
 
-	if (!CHECK_ROOT_CREDS(&dc->cred))
+	if (!CHECK_ROOT_CREDS(dc->cred))
 		goto out;
 
 	argc = va_arg(ap, int);
 	argv = va_arg(ap, void *);
 #ifdef DEFEX_DEBUG_ENABLE
 	if (argc <= 0)
-		pr_crit("[DEFEX][DTM] Invalid trusted map arguments - check integration on fs/exec.c (argc %d)", argc);
+		defex_log_crit(
+			"[DTM] Invalid trusted map arguments - check integration on fs/exec.c (argc %d)", argc);
 #endif
 
 	ret = defex_trusted_map_lookup(dc, argc, argv);
@@ -452,6 +484,7 @@ __visible_for_testing int task_defex_trusted_map(struct defex_context *dc, va_li
 out:
 	return ret;
 }
+#endif
 #endif /* DEFEX_TRUSTED_MAP_ENABLE */
 
 #ifdef DEFEX_IMMUTABLE_ENABLE
@@ -493,7 +526,7 @@ __visible_for_testing int task_defex_immutable(struct defex_context *dc, int att
 
 		ret = -DEFEX_DENY;
 		proc_file = get_dc_process_name(dc);
-		pr_crit("defex: immutable %s violation [task=%s (%s), access to:%s]\n",
+		defex_log_crit("Immutable %s violation [task=%s (%s), access to:%s]",
 			(attribute==feature_immutable_path_open)?"open":"write", p->comm, proc_file, new_file);
 #ifdef DEFEX_DSMS_ENABLE
  		defex_report_violation(IMMUTABLE_VIOLATION, 0, dc, 0, 0, 0, 0);
@@ -521,7 +554,11 @@ int task_defex_enforce(struct task_struct *p, struct file *f, int syscall, ...)
 	if (!p || p->pid == 1 || !p->mm || !is_task_used(p))
 		return ret;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0))
 	if ((p->state & (__TASK_STOPPED | TASK_DEAD)) || (p->exit_state & (EXIT_ZOMBIE | EXIT_DEAD)))
+#else
+	if ((p->__state & (__TASK_STOPPED | TASK_DEAD)) || (p->exit_state & (EXIT_ZOMBIE | EXIT_DEAD)))
+#endif
 		return ret;
 
 	if (syscall < 0) {
@@ -620,11 +657,12 @@ do_allow:
 	release_defex_context(&dc);
 	put_task_struct(p);
 	return DEFEX_ALLOW;
-
+#if defined(DEFEX_IMMUTABLE_ENABLE) || defined(DEFEX_TRUSTED_MAP_ENABLE)
 do_deny:
 	release_defex_context(&dc);
 	put_task_struct(p);
 	return -DEFEX_DENY;
+#endif /* DEFEX_IMMUTABLE_ENABLE || DEFEX_TRUSTED_MAP_ENABLE */
 }
 
 int task_defex_zero_creds(struct task_struct *tsk)
@@ -636,7 +674,11 @@ int task_defex_zero_creds(struct task_struct *tsk)
 	if (is_task_creds_ready()) {
 		is_fork = ((tsk->flags & PF_FORKNOEXEC) && (!tsk->on_rq));
 #ifdef TASK_NEW
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0))
 		if (!is_fork && (tsk->state & TASK_NEW))
+#else
+		if (!is_fork && (tsk->__state & TASK_NEW))
+#endif
 			is_fork = 1;
 #endif /* TASK_NEW */
 		set_task_creds_tcnt(tsk, is_fork?1:-1);
@@ -648,19 +690,19 @@ int task_defex_zero_creds(struct task_struct *tsk)
 	return 0;
 }
 
-static unsigned int rules_load_cnt = 0;
 int task_defex_user_exec(const char *new_file)
 {
 #ifdef DEFEX_UMH_RESTRICTION_ENABLE
-	int res = DEFEX_DENY, is_violation = DEFEX_DENY;
+	int res = DEFEX_ALLOW, is_violation;
 	struct file *fp = NULL;
+	static unsigned int rules_load_cnt;
 
 	if (boot_state_unlocked)
 		return DEFEX_ALLOW;
 
 	if (!check_rules_ready()) {
 		if (rules_load_cnt++%100 == 0)
-			printk("[DEFEX] Rules not ready\n");
+			defex_log_warn("Rules not ready");
 		goto umh_out;
 	}
 
@@ -670,6 +712,7 @@ int task_defex_user_exec(const char *new_file)
 
 	fp = local_fopen(new_file, O_RDONLY, 0);
 	if (IS_ERR(fp) || (fp == NULL)) {
+		res = DEFEX_DENY;
 		goto umh_out;
 	} else {
 		filp_close(fp, NULL);
@@ -677,11 +720,11 @@ int task_defex_user_exec(const char *new_file)
 
 	is_violation = !rules_lookup(new_file, feature_umhbin_path, NULL);
 	if (is_violation) {
-		printk("[DEFEX] UMH Exec Denied: %s\n", new_file);
+		defex_log_warn("UMH Exec Denied: %s", new_file);
+		res = DEFEX_DENY;
 		goto umh_out;
 	}
 
-	res = DEFEX_ALLOW;
 umh_out:
 	return res;
 #else

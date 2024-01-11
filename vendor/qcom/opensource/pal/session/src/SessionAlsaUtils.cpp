@@ -64,6 +64,7 @@ static const char *feCtrlNames[] = {
     " loopback",
     " event",
     " setcal",
+    " flush" ,
 };
 
 static const char *beCtrlNames[] = {
@@ -2339,5 +2340,37 @@ unsigned int SessionAlsaUtils::bytesToFrames(size_t bufSizeInBytes, unsigned int
     unsigned int ch = (channels == 0)? 1 : channels ;
 
     return (bufSizeInBytes * 8)/(ch*bits);
+}
+
+int SessionAlsaUtils::flush(std::shared_ptr<ResourceManager> rmHandle, uint32_t id)
+{
+    int status = 0;
+    int doFlush = 1;
+    struct mixer *mixerHandle = nullptr;
+    struct mixer_ctl *ctl = nullptr;
+    char *pcmDeviceName = nullptr;
+
+    pcmDeviceName = rmHandle->getDeviceNameFromID(id);
+
+    if(!pcmDeviceName) {
+        PAL_ERR(LOG_TAG, "Device name from id not found");
+        return -EINVAL;
+    }
+
+    status = rmHandle->getVirtualAudioMixer(&mixerHandle);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Error: Failed to get mixer handle\n");
+        return status;
+    }
+
+
+    ctl = getFeMixerControl(mixerHandle, std::string(pcmDeviceName), FE_FLUSH);
+    if (!ctl) {
+        return -ENOENT;
+    }
+
+    mixer_ctl_set_value(ctl, 0, doFlush);
+
+    return status;
 }
 

@@ -18,6 +18,7 @@
 #include <linux/sched.h>
 #include <linux/sched/task.h>
 #include <linux/uidgid.h>
+#include <linux/version.h>
 #include "include/defex_internal.h"
 #include "include/defex_test.h"
 #include "include/defex_rules.h"
@@ -30,9 +31,11 @@
 #define REBOOT_PATH "/system/bin/reboot"
 #define dead_uid 0xDEADBEAF
 
-static int kunit_mock_thread_function()
+static int kunit_mock_thread_function(void *ptr)
 {
-	while (!kthread_should_stop());
+	while (!kthread_should_stop()) {
+		msleep(100);
+	}
 	return 42;
 }
 
@@ -62,8 +65,12 @@ static void task_defex_zero_creds_test(struct kunit *test)
 	mock_task->flags &= ~PF_KTHREAD;
 	mock_task->flags &= ~PF_WQ_WORKER;
 #ifdef TASK_NEW
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
 	/* is_fork = 0 (mock_task->state & TASK_NEW) == true */
 	mock_task->state |= TASK_NEW;
+#else
+	mock_task->__state |= TASK_NEW;
+#endif
 #endif
 	KUNIT_EXPECT_EQ(test, task_defex_zero_creds(mock_task), 0);
 	mock_task->flags = backup_flags;
@@ -115,7 +122,6 @@ static void task_defex_safeplace_test(struct kunit *test)
 	struct task_struct *mock_task;
 	struct cred mock_creds;
 	struct file *test_file;
-	struct cred backup_creds;
 
 	mock_task = kthread_run(kunit_mock_thread_function, NULL, "task_defex_safeplace_test_thread");
 	get_task_struct(mock_task);
@@ -125,6 +131,10 @@ static void task_defex_safeplace_test(struct kunit *test)
 	KUNIT_ASSERT_FALSE(test, IS_ERR_OR_NULL(test_file));
 
 	init_defex_context(&dc, 0, mock_task, test_file);
+	dc.cred = (struct cred *)mock_task->cred;
+
+	/* "/" path is a violation, but only after first boot. */
+	KUNIT_EXPECT_EQ(test, task_defex_safeplace(&dc), -DEFEX_DENY);
 
 	/* Create fake, non-root creds */
 	mock_creds.uid.val = 1000;
@@ -136,22 +146,19 @@ static void task_defex_safeplace_test(struct kunit *test)
 	mock_creds.fsuid.val = 1000;
 	mock_creds.fsgid.val = 1000;
 
-	/* "/" path is a violation, but only after first boot. */
-	KUNIT_EXPECT_EQ(test, task_defex_safeplace(&dc), -DEFEX_DENY);
-
 	/* if dc->cred not root, allow */
-	memcpy(&backup_creds, &dc.cred, sizeof(struct cred));
-	memcpy(&dc.cred, &mock_creds, sizeof(struct cred));
+	dc.cred = &mock_creds;
 	KUNIT_EXPECT_EQ(test, task_defex_safeplace(&dc), DEFEX_ALLOW);
 	release_defex_context(&dc);
 	filp_close(test_file, NULL);
 
 	/* Another context with no file */
 	init_defex_context(&dc, 0, mock_task, NULL);
+	dc.cred = (struct cred *)mock_task->cred;
 	KUNIT_EXPECT_EQ(test, task_defex_safeplace(&dc), DEFEX_ALLOW);
 	release_defex_context(&dc);
 
-	/* Finalize */	
+	/* Finalize */
 	kthread_stop(mock_task);
 	put_task_struct(mock_task);
 #else
@@ -309,8 +316,7 @@ static void task_defex_check_creds_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLE
 	int i;
-	const struct cred *backup_cred_ptr;
-	struct cred mock_creds, backup_cred;
+	struct cred mock_creds;
 	struct defex_context dc;
 	struct task_struct *mock_task;
 	struct task_struct *backup_parent;
@@ -322,6 +328,7 @@ static void task_defex_check_creds_test(struct kunit *test)
 	KUNIT_ASSERT_FALSE(test, IS_ERR_OR_NULL(mock_task));
 	ssleep(1);
 	init_defex_context(&dc, 0, mock_task, NULL);
+	dc.cred = (struct cred *)mock_task->cred;
 
 	/* Create fake, non-root creds */
 	mock_creds.uid.val = 2000;
@@ -333,12 +340,6 @@ static void task_defex_check_creds_test(struct kunit *test)
 	mock_creds.fsuid.val = 500;
 	mock_creds.fsgid.val = 500;
 
-	/* dc->task->cred = NULL */
-	backup_cred_ptr = mock_task->cred;
-	mock_task->cred = NULL;
-	KUNIT_EXPECT_EQ(test, task_defex_check_creds(&dc), DEFEX_ALLOW);
-	mock_task->cred = backup_cred_ptr;
-
 	/* mock_task->uid == 0 && (mock_task->tgid != mock_task->pid && mock_task->tgid != 1) --> -DEFEX_DENY */
 	backup_pid = mock_task->pid;
 	mock_task->pid = mock_task->pid + 1000;
@@ -348,8 +349,7 @@ static void task_defex_check_creds_test(struct kunit *test)
 	/* Allow case: uid = 0, parent is root, dc.cred is root */
 	KUNIT_EXPECT_EQ(test, task_defex_check_creds(&dc), DEFEX_ALLOW);
 
-	memcpy(&backup_cred, &dc.cred, sizeof(struct cred));
-	memcpy(&dc.cred, &mock_creds, sizeof(struct cred));
+	dc.cred = &mock_creds;
 
 	/* Allow case: uid = 0, parent is root, dc.cred not root */
 	KUNIT_EXPECT_EQ(test, task_defex_check_creds(&dc), DEFEX_ALLOW);
@@ -388,7 +388,7 @@ static void task_defex_check_creds_test(struct kunit *test)
 	/* uid != 0, uid != 1, uid != dead_uid, check deeper, dc.cred is root*/
 	i = set_task_creds(mock_task, 2000, 20000, 2000, 0);
 	KUNIT_ASSERT_EQ(test, i, 0);
-	memcpy(&dc.cred, &backup_cred, sizeof(struct cred));
+	dc.cred = (struct cred *)mock_task->cred;
 	KUNIT_EXPECT_EQ(test, task_defex_check_creds(&dc), DEFEX_ALLOW);
 	mock_task->pid = backup_pid;
 

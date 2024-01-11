@@ -20,7 +20,7 @@ dtbo-y += b0q_kor_singlex_w00_r01.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUB
 b0q_kor_singlex_w00_r01.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 # SPDX-License-Identifier: GPL-2.0
 # SPU
-#SEC_SYSTEM_UPDATE_DTBO := ../../waipio-sec-system-update-overlay.dtbo
+SEC_SYSTEM_UPDATE_DTBO := ../../waipio-sec-system-update-overlay.dtbo
 
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 
