@@ -310,6 +310,7 @@ struct sm5714_muic_data {
 
 	struct work_struct	muic_event_work;
 	struct delayed_work	muic_debug_work;
+	struct delayed_work	muic_U200_work;
 #if defined(CONFIG_IF_CB_MANAGER)
 	struct muic_dev		*muic_d;
 	struct if_cb_manager	*man;

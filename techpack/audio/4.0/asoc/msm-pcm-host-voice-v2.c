@@ -611,6 +611,12 @@ static int hpcm_start_vocpcm(char *pcm_id, struct hpcm_drv *prtd,
 		}
 	}
 
+	if (*no_of_tp != no_of_tp_req && *no_of_tp > 2) {
+		pr_err("%s:: Invalid hpcm start request\n", __func__);
+		memset(&prtd->start_cmd, 0, sizeof(struct start_cmd));
+		return -EINVAL;
+	}
+
 	if (prtd->mixer_conf.tx.enable && (get_tappnt_value(pcm_id) == TX)) {
 		if (hpcm_all_dais_are_ready(prtd->mixer_conf.tx.direction,
 					    tp, HPCM_PREPARED)) {

@@ -54,7 +54,7 @@
 #define QWLAN_VERSIONSTR               "5.2.022.3Q-QCOM"
 #endif
 #else
-#define QWLAN_VERSIONSTR               "5.2.022.3Q-HL221101A"
+#define QWLAN_VERSIONSTR               "5.2.022.3Q-HL230707A"
 #endif
 
 #endif /* QWLAN_VERSION_H */

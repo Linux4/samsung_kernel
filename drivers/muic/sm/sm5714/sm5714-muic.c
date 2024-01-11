@@ -1577,14 +1577,23 @@ static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
 		new_dev = ATTACHED_DEV_UNOFFICIAL_TA_MUIC;
 		pr_info("[%s:%s] LO_TA\n", MUIC_DEV_NAME, __func__);
 	} else if (dev1 & DEV_TYPE1_U200) {
-		if (!vbvolt) {
-			pr_info("[%s:%s] DEV_TYPE1_U200 + NO VBUS\n",
-					MUIC_DEV_NAME, __func__);
+		if ((irq == SM5714_MUIC_IRQ_WORK) || (irq == SM5714_MUIC_IRQ_PROBE)) {
+			if (!vbvolt) {
+				pr_info("[%s:%s] DEV_TYPE1_U200 + NO VBUS\n",
+						MUIC_DEV_NAME, __func__);
+				return;
+			}
+			intr = MUIC_INTR_ATTACH;
+			new_dev = ATTACHED_DEV_UNOFFICIAL_TA_MUIC;
+			pr_info("[%s:%s] U200\n", MUIC_DEV_NAME, __func__);
+
+		} else {
+			schedule_delayed_work(&muic_data->muic_U200_work,
+				msecs_to_jiffies(100)); /* 100ms */
+			pr_info("[%s:%s] muic_U200_work start\n",
+				MUIC_DEV_NAME, __func__);
 			return;
 		}
-		intr = MUIC_INTR_ATTACH;
-		new_dev = ATTACHED_DEV_UNOFFICIAL_TA_MUIC;
-		pr_info("[%s:%s] U200\n", MUIC_DEV_NAME, __func__);
 	} else if (dev1 & DEV_TYPE1_CDP) {
 		if (!vbvolt) {
 			pr_info("[%s:%s] DEV_TYPE1_CDP + NO VBUS\n",
@@ -1756,6 +1765,7 @@ static irqreturn_t sm5714_muic_irq_thread(int irq, void *data)
 #if defined(CONFIG_MUIC_SUPPORT_PDIC)
 		cancel_delayed_work(&muic_data->pdic_afc_work);
 #endif
+		cancel_delayed_work(&muic_data->muic_U200_work);
 	}
 
 	if (irq_num == SM5714_MUIC_IRQ_INT2_AFC_ERROR) {
@@ -1805,6 +1815,19 @@ static void sm5714_muic_handle_event(struct work_struct *work)
 {
 	struct sm5714_muic_data *muic_data = container_of(work,
 			struct sm5714_muic_data, muic_event_work);
+
+	pr_info("[%s:%s]\n", MUIC_DEV_NAME, __func__);
+
+	mutex_lock(&muic_data->muic_mutex);
+	__pm_stay_awake(muic_data->wake_lock);
+	sm5714_muic_detect_dev(muic_data, SM5714_MUIC_IRQ_WORK);
+	__pm_relax(muic_data->wake_lock);
+	mutex_unlock(&muic_data->muic_mutex);
+}
+
+static void sm5714_muic_U200_delayed_noti(struct work_struct *work)
+{
+	struct sm5714_muic_data *muic_data = static_data;
 
 	pr_info("[%s:%s]\n", MUIC_DEV_NAME, __func__);
 
@@ -2250,6 +2273,16 @@ static int sm5714_muic_probe(struct platform_device *pdev)
 	if (muic_data->pdata->init_switch_dev_cb)
 		muic_data->pdata->init_switch_dev_cb();
 
+	/* init works */
+	INIT_WORK(&(muic_data->muic_event_work), sm5714_muic_handle_event);
+	INIT_DELAYED_WORK(&muic_data->muic_debug_work,
+						sm5714_muic_debug_reg_log);
+	schedule_delayed_work(&muic_data->muic_debug_work,
+						msecs_to_jiffies(10000));
+
+	INIT_DELAYED_WORK(&muic_data->muic_U200_work,
+						sm5714_muic_U200_delayed_noti);
+
 	/* initial cable detection */
 	sm5714_muic_irq_thread(SM5714_MUIC_IRQ_PROBE, muic_data);
 
@@ -2273,12 +2306,6 @@ static int sm5714_muic_probe(struct platform_device *pdev)
 		pr_info("[%s:%s] OPMODE_MUIC, PDIC NOTIFIER is not used.\n",
 				MUIC_DEV_NAME, __func__);
 #endif
-
-	INIT_WORK(&(muic_data->muic_event_work), sm5714_muic_handle_event);
-	INIT_DELAYED_WORK(&muic_data->muic_debug_work,
-						sm5714_muic_debug_reg_log);
-	schedule_delayed_work(&muic_data->muic_debug_work,
-						msecs_to_jiffies(10000));
 
 	return 0;
 
@@ -2311,6 +2338,7 @@ static int sm5714_muic_remove(struct platform_device *pdev)
 		pr_info("[%s:%s]\n", MUIC_DEV_NAME, __func__);
 
 		cancel_delayed_work_sync(&muic_data->muic_debug_work);
+		cancel_delayed_work_sync(&muic_data->muic_U200_work);
 		disable_irq_wake(muic_data->i2c->irq);
 		sm5714_muic_free_irqs(muic_data);
 #if defined(CONFIG_VBUS_NOTIFIER)
@@ -2334,6 +2362,7 @@ static void sm5714_muic_shutdown(struct platform_device *pdev)
 	int ret;
 
 	cancel_delayed_work_sync(&muic_data->muic_debug_work);
+	cancel_delayed_work_sync(&muic_data->muic_U200_work);
 
 	pr_info("[%s:%s]\n", MUIC_DEV_NAME, __func__);
 	if (!muic_data->i2c) {
