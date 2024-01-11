@@ -47,12 +47,14 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 
 	host->trigger_card_event = true;
 	mmc_detect_change(host, msecs_to_jiffies(200));
-#ifdef CONFIG_TARGET_UMS9230_4H10
+/* Tab A7 Lite T618 code for AX6189DEV-85 by zhangziyi at 2022/01/12 start */
+#if (defined(CONFIG_TARGET_UMS9230_4H10) || defined(CONFIG_TARGET_UMS512_25C10))
 	call_sar_notifiers(SDCARD_INSERT_EVENT, "no_use");
 #endif
+/* Tab A7 Lite T618 code for AX6189DEV-85 by zhangziyi at 2022/01/12 end */
 /*Tab A8 code for AX6300DEV-1840 by mayuhang at 2021/10/21 start*/
 #ifdef CONFIG_TARGET_UMS512_1H10
-        raw_notifier_call_chain(&sdcard_hx9031_notify, SDCARD_INSERT_EVENT, NULL);
+	raw_notifier_call_chain(&sdcard_hx9031_notify, SDCARD_INSERT_EVENT, NULL);
 #endif
 /*Tab A8 code for AX6300DEV-1840 by mayuhang at 2021/10/21 end*/
 	return IRQ_HANDLED;

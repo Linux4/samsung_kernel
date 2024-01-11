@@ -26,7 +26,17 @@
 #define AW_DATA_PROCESS_FACTOR			(1024)
 #define AW9610X_CPU_WORK_MASK			(1)
 #define AW9610X_CHIP_MIN_VOLTAGE		(1600000)
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 start*/
+#define AW9610_CHECK_CALI           0xF080
 
+#define AW9610_1                0x00E4
+#define AW9610_2                0x0120
+#define AW9610_3                0xF084
+
+#define AW9610__1                0x00040803
+#define AW9610__2                0x00040803
+#define AW9610__3                0x00000206
+/*HS03_T code for SL6215TDEV-637 by xiongxiaoliang at 2022/10/17 end*/
 //#define AW_PINCTRL_ON
 
 #define AWLOGD(dev, format, arg...) \

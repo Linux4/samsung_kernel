@@ -93,7 +93,6 @@ static void dma_buf_release(struct dentry *dentry)
 	kfree(dmabuf);
 }
 
-/* HS03 code for SL6215DEV-3272 by wuhongwen at 202111006 start */
 static int dma_buf_file_release(struct inode *inode, struct file *file)
 {
 	struct dma_buf *dmabuf;
@@ -109,7 +108,6 @@ static int dma_buf_file_release(struct inode *inode, struct file *file)
 
 	return 0;
 }
-/* HS03 code for SL6215DEV-3272 by wuhongwen at 202111006 end */
 
 static const struct dentry_operations dma_buf_dentry_ops = {
 	.d_dname = dmabuffs_dname,
@@ -425,9 +423,7 @@ static void dma_buf_show_fdinfo(struct seq_file *m, struct file *file)
 }
 
 static const struct file_operations dma_buf_fops = {
-	/* HS03 code for SL6215DEV-3272 by wuhongwen at 202111006 start */
 	.release	= dma_buf_file_release,
-	/* HS03 code for SL6215DEV-3272 by wuhongwen at 202111006 end */
 	.mmap		= dma_buf_mmap_internal,
 	.llseek		= dma_buf_llseek,
 	.poll		= dma_buf_poll,

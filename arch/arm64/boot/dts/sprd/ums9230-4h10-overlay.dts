@@ -268,9 +268,9 @@
 						700 999 4304000
 						1000 9999 4272000>;
 				/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end*/
-				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 start */
-				cm-num-power-supplys = <3>;    // numbers of Charger IC
-				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 end */
+				/* HS03 code for SL6215DEV-4004 by lina at 20220119 start */
+				cm-num-power-supplys = <4>;    // numbers of Charger IC
+				/* HS03 code for SL6215DEV-4004 by lina at 20220119 end */
 				cm-chargers = "bq2560x_charger";
 				/* HS03 code for SR-SL6215-01-711 by gaochao at 20210902 start */
 				// cm-charge-pumps = "bq2597x-standalone";
@@ -278,9 +278,9 @@
 				// cm-wireless-chargers = "nu1619_wireless_charger";
 				// cm-wireless-charge-pump-converters = "hl1506_cp_converter";
 				/* HS03 code for SR-SL6215-01-711 by gaochao at 20210902 end */
-				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 start */
-				cm-power-supplys = "bq2560x_charger", "sgm41511_charger", "rt9471_charger";
-				/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 end */
+				/* HS03 code for SL6215DEV-4004 by lina at 20220119 start */
+				cm-power-supplys = "bq2560x_charger", "sgm41511_charger", "rt9471_charger", "sgm41513_charger";
+				/* HS03 code for SL6215DEV-4004 by lina at 20220119 end */
 				cm-fuel-gauge = "sc27xx-fgu";
 
 				/* in deci centigrade */
@@ -392,7 +392,7 @@
 					cm-regulator-name = "vddgen0";
 					cable@0 {
 						cm-cable-name = "USB";
-						extcon = <&pmic_typec>;
+						extcon = <&extcon_gpio>;
 					};
 				};
 
@@ -783,6 +783,23 @@
 		/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 end */
 	};
 	/* HS03 code for SR-SL6215-01-178 by gaochao at 20210728 end */
+
+	/* HS03 code for SL6215DEV-4004 by lina at 20220119 start */
+	sgm41513_chg: sgm_charger@1A {
+		compatible = "sgm,sgm41513_chg";
+		reg = <0x1A>;
+		phys = <&hsphy>;
+		/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 start */
+		// monitored-battery = <&bat>;
+		monitored-battery = <&bat &bat1 &bat2>; // bat-SCUD_BYD bat1-ATL_NVT bat2-SCUD_SDI
+		/* HS03 code for SR-SL6215-01-181 by gaochao at 20210728 end */
+		extcon = <&extcon_gpio>;
+		irq-gpio = <&ap_gpio 115 GPIO_ACTIVE_LOW>;
+		sgm41513_otg_vbus: sgm41513_otg_vbus {
+			regulator-name = "sgm41513_otg_vbus";
+		};
+	};
+	/* HS03 code for SL6215DEV-4004 by lina at 20220119 end */
 
 	bq2597x_chg: charger@65 {
 		compatible = "ti,bq2597x-standalone";
@@ -1194,7 +1211,7 @@
 &adi_bus {
 	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
 			<17 0x1844>,<19 0x1844>, <21 0x1864>, <30 0x1820>,
-			<35 0x19b8>, <39 0x19ac>;
+			<35 0x19b8>, <39 0x19ac>, <32 0x197c>, <33 0x1988>;
 };
 
 /* HS03 code for SR-SL6215-01-233/SR-SL6215-01-208 by sunxunou at 2021/08/02 start */

@@ -238,11 +238,14 @@ static int jd9365t_Write_FW_RegMultiSpi(uint32_t addr, uint8_t *wdata, uint16_t 
 	return jadard_bus_write(addrBuf, sizeof(addrBuf), wdata, wlen, JADARD_BUS_RETRY_TIMES);
 }
 
+/* HS03 code for SL6215DEV-3655 by chenyihong at 20211207 start */
 static int jd9365t_ReadRegSingle(uint32_t addr, uint8_t *rdata)
 {
 	int ReCode;
 
-	jd9365t_EnterBackDoor(NULL);
+	if (!pjadard_ts_data->diag_thread_active) {
+		jd9365t_EnterBackDoor(NULL);
+	}
 
 	if (g_jd9365t_chip_info.back_door_mode) {
 		ReCode = jd9365t_Read_BackDoor_RegSingle(addr, rdata);
@@ -254,7 +257,9 @@ static int jd9365t_ReadRegSingle(uint32_t addr, uint8_t *rdata)
 		}
 	}
 
-	jd9365t_ExitBackDoor();
+	if (!pjadard_ts_data->diag_thread_active) {
+		jd9365t_ExitBackDoor();
+	}
 
 	return ReCode;
 }
@@ -263,7 +268,9 @@ static int jd9365t_WriteRegSingle(uint32_t addr, uint8_t wdata)
 {
 	int ReCode;
 
-	jd9365t_EnterBackDoor(NULL);
+	if (!pjadard_ts_data->diag_thread_active) {
+		jd9365t_EnterBackDoor(NULL);
+	}
 
 	if (g_jd9365t_chip_info.back_door_mode) {
 		ReCode = jd9365t_Write_BackDoor_RegSingle(addr, wdata);
@@ -275,7 +282,9 @@ static int jd9365t_WriteRegSingle(uint32_t addr, uint8_t wdata)
 		}
 	}
 
-	jd9365t_ExitBackDoor();
+	if (!pjadard_ts_data->diag_thread_active) {
+		jd9365t_ExitBackDoor();
+	}
 
 	return ReCode;
 }
@@ -284,7 +293,9 @@ static int jd9365t_ReadRegMulti(uint32_t addr, uint8_t *rdata, uint16_t rlen)
 {
 	int ReCode;
 
-	jd9365t_EnterBackDoor(NULL);
+	if (!pjadard_ts_data->diag_thread_active) {
+		jd9365t_EnterBackDoor(NULL);
+	}
 
 	if (g_jd9365t_chip_info.back_door_mode) {
 		ReCode = jd9365t_Read_BackDoor_RegMulti(addr, rdata, rlen);
@@ -296,7 +307,9 @@ static int jd9365t_ReadRegMulti(uint32_t addr, uint8_t *rdata, uint16_t rlen)
 		}
 	}
 
-	jd9365t_ExitBackDoor();
+	if (!pjadard_ts_data->diag_thread_active) {
+		jd9365t_ExitBackDoor();
+	}
 
 	return ReCode;
 }
@@ -305,7 +318,9 @@ static int jd9365t_WriteRegMulti(uint32_t addr, uint8_t *wdata, uint16_t wlen)
 {
 	int ReCode;
 
-	jd9365t_EnterBackDoor(NULL);
+	if (!pjadard_ts_data->diag_thread_active) {
+		jd9365t_EnterBackDoor(NULL);
+	}
 
 	if (g_jd9365t_chip_info.back_door_mode) {
 		ReCode = jd9365t_Write_BackDoor_RegMulti(addr, wdata, wlen);
@@ -317,10 +332,13 @@ static int jd9365t_WriteRegMulti(uint32_t addr, uint8_t *wdata, uint16_t wlen)
 		}
 	}
 
-	jd9365t_ExitBackDoor();
+	if (!pjadard_ts_data->diag_thread_active) {
+		jd9365t_ExitBackDoor();
+	}
 
 	return ReCode;
 }
+/* HS03 code for SL6215DEV-3655 by chenyihong at 20211207 end */
 
 static int jd9365t_GetID(uint16_t *pRomID)
 {
@@ -1116,6 +1134,10 @@ static void jd9365t_ReadSectionInfo(bool reinit_config)
 				dsram_info_content[JD9365T_DSRAM_HOST].info_content_addr + 56;
 			g_jd9365t_chip_info.dsram_host_addr.panel_version =
 				dsram_info_content[JD9365T_DSRAM_HOST].info_content_addr + 57;
+			/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+			g_jd9365t_chip_info.dsram_host_addr.earphone_en =
+				dsram_info_content[JD9365T_DSRAM_HOST].info_content_addr + 58;
+			/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 #ifdef CONFIG_TOUCHSCREEN_JADARD_SORTING
 			g_jd9365t_chip_info.dsram_host_addr.mpap_pw =
 				dsram_info_content[JD9365T_DSRAM_HOST].info_content_addr + 40;
@@ -1678,6 +1700,13 @@ static int jd9365t_CheckFlashContent(uint8_t *pFileData, uint32_t addr, uint32_t
 	uint32_t error_count = 0;
 	uint8_t *pData = kzalloc(len * sizeof(uint8_t), GFP_KERNEL);
 
+	/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
+	if (pData == NULL) {
+		JD_E("%s: Memory alloc fail\n", __func__);
+		return -1;
+	}
+	/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
+
 	ReCode = jd9365t_ReadFlash(addr, pData, len);
 	if (ReCode < 0) {
 		kfree(pData);
@@ -2051,8 +2080,10 @@ static int jd9365t_WritePram(uint32_t addr, uint8_t *pData, uint32_t len)
 	return ReCode;
 }
 
+/* HS03 code for SL6215DEV-3655 by chenyihong at 20211207 start */
 static int jd9365t_HostWritePram(uint32_t WriteAddr, uint8_t *pFileData, uint32_t FileSize)
 {
+	static int power_on = 0;
 	int ReCode, i;
 	uint16_t romid = 0;
 	uint16_t crc, softcrc;
@@ -2107,10 +2138,60 @@ static int jd9365t_HostWritePram(uint32_t WriteAddr, uint8_t *pFileData, uint32_
 
 	jd9365t_GetHeaderInfo(pFileData, MoveInfo, MoveInfoNumber);
 
+	/* START: Check need upgrade fw */
+	if (power_on != 0) {
+		/* Set CRC initial value */
+		ReCode = jd9365t_SetCRCInitialValue();
+		if (ReCode < 0) {
+			JD_E("%s: [Check ram]Set CRC initial value fail\n", __func__);
+			kfree(MoveInfo);
+			return ReCode;
+		}
+
+		/* Set CRC Initial */
+		ReCode = jd9365t_SetCRCInitial();
+		if (ReCode < 0) {
+			JD_E("%s: [Check ram]Set CRC initial fail\n", __func__);
+			kfree(MoveInfo);
+			return ReCode;
+		}
+
+		/* Set DMA Start & Pulling DMA busy = JD9365T_DMA_RELATED_SETTING_DMA_DONE */
+		ReCode = jd9365t_SetDMAStart(MoveInfo[0].to_mem_st_addr, MoveInfo[0].fl_len, MoveInfo[0].to_mem_st_addr,
+									(uint8_t)JD9365T_DMA_RELATED_SETTING_WRITE_TO_PRAM);
+		if (ReCode < 0) {
+			JD_E("%s: [Check ram]DMA start error\n", __func__);
+			kfree(MoveInfo);
+			return ReCode;
+		} else {
+			JD_D("%s: [Check ram]DMA start finish\n", __func__);
+		}
+
+
+		/* Get IC crc */
+		ReCode = jd9365t_GetCRCResult(&crc);
+		if (ReCode < 0) {
+			JD_E("%s: [Check ram]Read crc fail\n", __func__);
+			kfree(MoveInfo);
+			return ReCode;
+		}
+
+		/* Check IC crc */
+		if (crc != MoveInfo[0].to_mem_crc) {
+			JD_D("%s: [Check ram]Binary crc is %04x, but read IC crc is %04x\n", __func__, MoveInfo[0].to_mem_crc, crc);
+		} else {
+			JD_D("%s: [Check ram]HW CRC check pass, bypass upgrade flow\n", __func__);
+			goto SKIP_UPGRADE_FW;
+		}
+	}
+	/* END: Check need upgrade fw */
+
 	/* 7. Write data to PRAM/DRAM */
 	JD_D("%s: Write ram start\n", __func__);
 
 	for (i = 0; i < MoveInfoNumber; i++) {
+		power_on = 1;
+
 		if ((MoveInfo[i].fl_st_addr + MoveInfo[i].fl_len) > FileSize) {
 			JD_E("%s: Write ram overflow\n", __func__);
 			kfree(MoveInfo);
@@ -2155,6 +2236,7 @@ static int jd9365t_HostWritePram(uint32_t WriteAddr, uint8_t *pFileData, uint32_
 		}
 	}
 
+SKIP_UPGRADE_FW:
 	kfree(MoveInfo);
 	JD_D("%s: Write ram finish\n", __func__);
 
@@ -2188,6 +2270,7 @@ static int jd9365t_HostWritePram(uint32_t WriteAddr, uint8_t *pFileData, uint32_
 	return ReCode;
 }
 #endif
+/* HS03 code for SL6215DEV-3655 by chenyihong at 20211207 end */
 
 static int jd9365t_ReadPram(uint32_t addr, uint8_t *pData, uint32_t len)
 {
@@ -2403,12 +2486,20 @@ static int module_jd9365t_ram_read(uint32_t ReadAddr, uint8_t *ReadBuffer, uint3
 	return jd9365t_HostReadPram(ReadAddr, ReadBuffer, ReadLen);
 }
 
+/* HS03 code for SL6215DEV-3655 by chenyihong at 20211207 start */
 #ifdef JD_ZERO_FLASH
 static int module_jd9365t_ram_write(uint32_t WriteAddr, uint8_t *WriteBuffer, uint32_t WriteLen)
 {
-	return jd9365t_HostWritePram(WriteAddr ,WriteBuffer, WriteLen);
+	int ret;
+
+	g_module_fp.fp_OSCD_Off();
+	ret = jd9365t_HostWritePram(WriteAddr ,WriteBuffer, WriteLen);
+	g_module_fp.fp_OSCD_On();
+
+	return ret;
 }
 #endif
+/* HS03 code for SL6215DEV-3655 by chenyihong at 20211207 end */
 
 static int module_jd9365t_flash_read(uint32_t ReadAddr, uint8_t *ReadBuffer, uint32_t ReadLen)
 {
@@ -2579,6 +2670,19 @@ static void module_jd9365t_set_high_sensitivity(bool enable)
 	module_jd9365t_register_write(g_jd9365t_chip_info.dsram_host_addr.high_sensitivity_en, wdata, sizeof(wdata));
 }
 
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+static void module_jd9365t_set_earphone_enable(bool enable)
+{
+	uint8_t wdata;
+	if (enable) {
+		wdata = 1;
+	} else {
+		wdata = 0;
+	}
+	module_jd9365t_register_write(g_jd9365t_chip_info.dsram_host_addr.earphone_en, &wdata, 1);
+}
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
+
 /*HS03 code for SR-SL6215-01-82 by chenyihong at 20210809 start*/
 extern int tp_gesture;
 /*HS03 code for SR-SL6215-01-82 by chenyihong at 20210809 end*/
@@ -2705,6 +2809,9 @@ static void jd9365t_func_reinit(void)
 	g_module_fp.fp_get_mutual_data      = module_jd9365t_get_mutual_data;
 	g_module_fp.fp_get_touch_data       = module_jd9365t_get_touch_data;
 	g_module_fp.fp_set_high_sensitivity = module_jd9365t_set_high_sensitivity;
+	/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+	g_module_fp.fp_set_earphone_enable  = module_jd9365t_set_earphone_enable;
+	/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 	g_module_fp.fp_set_SMWP_enable      = module_jd9365t_set_SMWP_enable;
 	g_module_fp.fp_usb_detect_set       = module_jd9365t_usb_detect_set;
 	g_module_fp.fp_get_freq_band        = module_jd9365t_get_freq_band;

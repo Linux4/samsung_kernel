@@ -1,7 +1,6 @@
 /*
  * Overlay sprd source file. All DTSI files included by this file must not contain any SOC-specific bindings.
  */
-
 /* Tab A8 code for SR-SL6215-01-208 by sunxunou at 2021/08/03 start */
 #include "Tab_A8_sdcard.dtsi"
 /* Tab A8 code for SR-SL6215-01-208 by sunxunou at 2021/08/03 end */

@@ -30,7 +30,9 @@
 					sprd,esd-check-register = <0x0A>;
 					sprd,esd-check-len = <1>;
 					sprd,esd-check-value = <0x9C>;
-
+					/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+					sprd,dphy-taget-val = <5>; /*only nl9911c modify TA-GET value*/
+					/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 					sprd,reset-on-sequence = <1 5>, <0 5>, <1 20>;
 					sprd,reset-off-sequence = <0 5>;
 

@@ -50,6 +50,9 @@ struct jadard_module_fp {
 	void (*fp_resume_set_func)(bool suspended);
 
 	void (*fp_set_high_sensitivity)(bool enable);
+	/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+	void (*fp_set_earphone_enable)(bool enable);
+	/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 	void (*fp_set_SMWP_enable)(bool SMWP_enable);
 	int (*fp_sorting_test)(void);
 

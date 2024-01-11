@@ -368,17 +368,29 @@ void sdiohal_resume_check(void)
 		}
 		usleep_range(4000, 6000);
 		cnt++;
+		if (cnt == 10) {
+			pr_info("%s %s %u wakeup.\n", current->comm, __func__, cnt);
+			pm_wakeup_hard_event(p_data->dev);
+		}
 	}
 }
 
 void sdiohal_resume_wait(void)
 {
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
+	unsigned int cnt = 0;
+
 
 	while (!atomic_read(&p_data->flag_resume)) {
 		printk_ratelimited(KERN_ERR
-				   "WCN SDIO 5ms wait for sdio resume\n");
-		usleep_range(4000, 6000);
+		   "WCN SDIO 5ms wait %u for sdio resume in %s.\n",
+			cnt, current->comm);
+ 		usleep_range(4000, 6000);
+		cnt++;
+		if (cnt == 10) {
+			pr_info("%s %s %u wakeup.\n", current->comm, __func__, cnt);
+			pm_wakeup_hard_event(p_data->dev);
+		}
 	}
 }
 
@@ -387,12 +399,23 @@ void sdiohal_op_enter(void)
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
 
 	mutex_lock(&p_data->xmit_lock);
+	p_data->op_enter_ns = ktime_get_boot_fast_ns();
 }
 
 void sdiohal_op_leave(void)
 {
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
+	u64 expire_time_ns = NSEC_PER_SEC;
 
+	p_data->op_leave_ns = ktime_get_boot_fast_ns();
+	if (unlikely(p_data->op_leave_ns - p_data->op_enter_ns > expire_time_ns)) {
+		p_data->op_expire_cnt++;
+		pr_err_ratelimited("%s %ps->%ps->%ps->%ps expire_%llums_cnt %llu(%llu, %llu).\n",
+		current->comm, __builtin_return_address(3), __builtin_return_address(2),
+		__builtin_return_address(1), __builtin_return_address(0),
+		expire_time_ns/NSEC_PER_MSEC, p_data->op_expire_cnt,
+		p_data->op_enter_ns, p_data->op_leave_ns);
+	}
 	mutex_unlock(&p_data->xmit_lock);
 }
 

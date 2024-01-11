@@ -620,8 +620,8 @@
 					"MMU",
 					"GPU";
 
-				nvmem-cells = <&gpu_bin>;
-				nvmem-cell-names = "gpu_bin";
+				nvmem-cells = <&gpu_bin>, <&cpu_flag>;
+				nvmem-cell-names = "gpu_bin", "cpu_flag";
 
 				operating-points = <
 					/* kHz    uV */
@@ -870,7 +870,8 @@
 
 			dpu: dpu@20300000 {
 				compatible = "sprd,display-processor";
-				reg = <0x0 0x20300000 0x0 0x1000>;
+				reg = <0x0 0x20300000 0x0 0x1000>,
+				      <0x0 0x20301000 0x0 0x1000>;
 				syscons = <&ap_ahb_regs REG_AP_AHB_RF_AHB_RST
 					MASK_AP_AHB_RF_DISPC_SOFT_RST>,
 					<&ap_ahb_regs REG_AP_AHB_RF_AP_QOS2
@@ -2506,6 +2507,10 @@
 		gpu_bin: gpu-bin@1b{
 			reg = <0x1b 0x4>;
 			bits = <3 3>;
+		};
+
+		cpu_flag: cpu-flag@50{
+			reg = <0x50 0x4>;
 		};
 
 		dvfs_bin_dsu: dvfs-bin@13{

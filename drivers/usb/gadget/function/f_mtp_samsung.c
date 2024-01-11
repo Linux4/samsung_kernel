@@ -185,9 +185,9 @@ struct usb_interface_descriptor mtpg_interface_desc = {
 	.bDescriptorType        = USB_DT_INTERFACE,
 	.bInterfaceNumber       = 0,
 	.bNumEndpoints          = 3,
-	.bInterfaceClass        = USB_CLASS_VENDOR_SPEC,
-	.bInterfaceSubClass     = USB_SUBCLASS_VENDOR_SPEC,
-	.bInterfaceProtocol     = 0,
+	.bInterfaceClass        = USB_CLASS_STILL_IMAGE,
+	.bInterfaceSubClass     = 1,
+	.bInterfaceProtocol     = 1,
 };
 
 static struct usb_interface_descriptor ptp_interface_desc = {
@@ -587,23 +587,19 @@ static int mtp_send_signal(int value)
 	info.si_signo = SIG_SETUP;
 	info.si_code = SI_QUEUE;
 	info.si_int = value;
-	rcu_read_lock();
 
 	if  (!current->nsproxy) {
 		pr_info("process has gone\n");
-		rcu_read_unlock();
 		return -ENODEV;
 	}
 
-	t = pid_task(find_vpid(mtp_pid), PIDTYPE_PID);
+	t = get_pid_task(find_vpid(mtp_pid), PIDTYPE_PID);
 
 	if (t == NULL) {
 		pr_info("no such pid\n");
-		rcu_read_unlock();
 		return -ENODEV;
 	}
 
-	rcu_read_unlock();
 	/*send the signal*/
 	ret = send_sig_info(SIG_SETUP, &info, t);
 	if (ret < 0) {

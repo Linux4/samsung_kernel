@@ -269,15 +269,20 @@ static ssize_t jadard_attn_read(struct file *file, char *buf,
 
 	if (!pjadard_debug->proc_send_flag) {
 		buf_tmp = kzalloc(len * sizeof(char), GFP_KERNEL);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
+		if (buf_tmp != NULL) {
+			ret += snprintf(buf_tmp + ret, len - ret, "attn = %d\n",
+							gpio_get_value(pjadard_ts_data->pdata->gpio_irq));
 
-		ret += snprintf(buf_tmp + ret, len - ret, "attn = %d\n",
-						gpio_get_value(pjadard_ts_data->pdata->gpio_irq));
+			if (copy_to_user(buf, buf_tmp, len)) {
+				JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			}
 
-		if (copy_to_user(buf, buf_tmp, len)) {
-			JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			kfree(buf_tmp);
+		} else {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
 		}
-
-		kfree(buf_tmp);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 		pjadard_debug->proc_send_flag = true;
 	} else {
 		pjadard_debug->proc_send_flag = false;
@@ -300,13 +305,19 @@ static ssize_t jadard_int_en_read(struct file *file, char *buf,
 
 	if (!pjadard_debug->proc_send_flag) {
 		buf_tmp = kzalloc(len * sizeof(char), GFP_KERNEL);
-		ret += snprintf(buf_tmp + ret, len - ret, "irq = %d\n", ts->irq_enabled);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
+		if (buf_tmp != NULL) {
+			ret += snprintf(buf_tmp + ret, len - ret, "irq = %d\n", ts->irq_enabled);
 
-		if (copy_to_user(buf, buf_tmp, len)) {
-			JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			if (copy_to_user(buf, buf_tmp, len)) {
+				JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			}
+
+			kfree(buf_tmp);
+		} else {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
 		}
-
-		kfree(buf_tmp);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 		pjadard_debug->proc_send_flag = true;
 	} else {
 		pjadard_debug->proc_send_flag = false;
@@ -610,9 +621,14 @@ static bool jadard_ts_diag_func(void)
 
 	if ((KeepFrame > 0) && (KeepFrame > jd_diag_mutual_cnt)) {
 		struct jadard_diag_mutual_data dump;
-
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
 		dump.buf_len = x_num * y_num * 10;
 		dump.buf = kzalloc(dump.buf_len * sizeof(char), GFP_KERNEL);
+		if (dump.buf == NULL) {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
+			return false;
+		}
+
 		dump.write_len = 0;
 		jd_diag_mutual_cnt++;
 
@@ -637,6 +653,8 @@ static bool jadard_ts_diag_func(void)
 										&jd_diag_mutual_fn->f_pos);
 		}
 		kfree(dump.buf);
+		dump.buf = NULL;
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 	}
 	else {
 		jd_diag_mutual_cnt++;
@@ -733,9 +751,14 @@ static ssize_t jadard_diag_write(struct file *filp, const char __user *buf,
 			return -EINVAL;
 		}
 	}
-
-	memset(jd_diag_mutual, 0x00, pjadard_ic_data->JD_X_NUM * pjadard_ic_data->JD_Y_NUM * sizeof(int));
-
+	/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
+	if (jd_diag_mutual) {
+		memset(jd_diag_mutual, 0x00, pjadard_ic_data->JD_X_NUM * pjadard_ic_data->JD_Y_NUM * sizeof(int));
+	} else {
+		JD_E("%s, jd_diag_mutual memory allocate fail: %d\n", __func__, __LINE__);
+		return len;
+	}
+	/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 	if ((DataType > 0) && (KeepType > 0)) {
 		/* 1. Set mutual data type */
 		g_module_fp.fp_mutual_data_set((uint8_t)DataType);
@@ -854,13 +877,19 @@ static ssize_t jadard_diag_arrange_read(struct file *file, char *buf,
 
 	if (!pjadard_debug->proc_send_flag) {
 		buf_tmp = kzalloc(len * sizeof(char), GFP_KERNEL);
-		ret += snprintf(buf_tmp + ret, len - ret, "diag_arr_num = %d\n", diag_arr_num);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
+		if (buf_tmp != NULL) {
+			ret += snprintf(buf_tmp + ret, len - ret, "diag_arr_num = %d\n", diag_arr_num);
 
-		if (copy_to_user(buf, buf_tmp, len)) {
-			JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			if (copy_to_user(buf, buf_tmp, len)) {
+				JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			}
+
+			kfree(buf_tmp);
+		} else {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
 		}
-
-		kfree(buf_tmp);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 		pjadard_debug->proc_send_flag = true;
 	} else {
 		pjadard_debug->proc_send_flag = false;
@@ -916,19 +945,24 @@ static ssize_t jadard_proc_fw_dump_read(struct file *file, char *buf,
 
 	if (!pjadard_debug->proc_send_flag) {
 		buf_tmp = kzalloc(len * sizeof(char), GFP_KERNEL);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
+		if (buf_tmp != NULL) {
+			if (fw_dump_going && (!fw_dump_complete)) {
+				ret += snprintf(buf_tmp + ret, len - ret, "Please wait a moment\n");
+				ret += snprintf(buf_tmp + ret, len - ret, "FW dump is running\n");
+			} else if ((!fw_dump_going) && fw_dump_complete) {
+				ret += snprintf(buf_tmp + ret, len - ret, "FW dump finish\n");
+			}
 
-		if (fw_dump_going && (!fw_dump_complete)) {
-			ret += snprintf(buf_tmp + ret, len - ret, "Please wait a moment\n");
-			ret += snprintf(buf_tmp + ret, len - ret, "FW dump is running\n");
-		} else if ((!fw_dump_going) && fw_dump_complete) {
-			ret += snprintf(buf_tmp + ret, len - ret, "FW dump finish\n");
+			if (copy_to_user(buf, buf_tmp, len)) {
+				JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			}
+
+			kfree(buf_tmp);
+		} else {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
 		}
-
-		if (copy_to_user(buf, buf_tmp, len)) {
-			JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
-		}
-
-		kfree(buf_tmp);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 		pjadard_debug->proc_send_flag = true;
 	} else {
 		pjadard_debug->proc_send_flag = false;
@@ -1032,33 +1066,43 @@ static ssize_t jadard_proc_register_read(struct file *file, char *buf,
 			/* if reg_read_len = 0, default 1 */
 			reg_read_len = 1;
 		}
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
 		rdata = kzalloc(reg_read_len * sizeof(char), GFP_KERNEL);
+		if (rdata == NULL) {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
+			return ret;
+		}
 
 		buf_tmp = kzalloc(len * sizeof(char), GFP_KERNEL);
-		ReadAddr = (reg_cmd[3] << 24) + (reg_cmd[2] << 16) + (reg_cmd[1] << 8) + reg_cmd[0];
+		if (buf_tmp != NULL) {
+			ReadAddr = (reg_cmd[3] << 24) + (reg_cmd[2] << 16) + (reg_cmd[1] << 8) + reg_cmd[0];
 
-		if (g_module_fp.fp_register_read(ReadAddr, rdata, reg_read_len) == JD_READ_LEN_OVERFLOW) {
-			ret += snprintf(buf_tmp + ret, len - ret, "Read length was overflow\n");
-		} else {
-			/* Set output data */
-			ret += snprintf(buf_tmp + ret, len - ret, "Register: %02X,%02X,%02X,%02X\n",
-							reg_cmd[3], reg_cmd[2], reg_cmd[1], reg_cmd[0]);
+			if (g_module_fp.fp_register_read(ReadAddr, rdata, reg_read_len) == JD_READ_LEN_OVERFLOW) {
+				ret += snprintf(buf_tmp + ret, len - ret, "Read length was overflow\n");
+			} else {
+				/* Set output data */
+				ret += snprintf(buf_tmp + ret, len - ret, "Register: %02X,%02X,%02X,%02X\n",
+								reg_cmd[3], reg_cmd[2], reg_cmd[1], reg_cmd[0]);
 
-			for (i = 0; i < reg_read_len; i++) {
-				ret += snprintf(buf_tmp + ret, len - ret, "0x%2.2X ", rdata[i]);
+				for (i = 0; i < reg_read_len; i++) {
+					ret += snprintf(buf_tmp + ret, len - ret, "0x%2.2X ", rdata[i]);
 
-				if ((i % 16) == 15)
-					ret += snprintf(buf_tmp + ret, len - ret, "\n");
+					if ((i % 16) == 15)
+						ret += snprintf(buf_tmp + ret, len - ret, "\n");
+				}
+				ret += snprintf(buf_tmp + ret, len - ret, "\n");
 			}
-			ret += snprintf(buf_tmp + ret, len - ret, "\n");
-		}
 
-		if (copy_to_user(buf, buf_tmp, len)) {
-			JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
-		}
+			if (copy_to_user(buf, buf_tmp, len)) {
+				JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			}
 
+			kfree(buf_tmp);
+		} else {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
+		}
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 		kfree(rdata);
-		kfree(buf_tmp);
 		pjadard_debug->proc_send_flag = true;
 	} else {
 		pjadard_debug->proc_send_flag = false;
@@ -1190,31 +1234,39 @@ static ssize_t jadard_proc_display_read(struct file *file, char *buf,
 			/* if reg_read_len = 0, default 1 */
 			dd_reg_read_len = 1;
 		}
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
 		rdata = kzalloc(dd_reg_read_len * sizeof(char), GFP_KERNEL);
+		if (rdata == NULL) {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
+			return ret;
+		}
 
 		buf_tmp = kzalloc(len * sizeof(char), GFP_KERNEL);
+		if (buf_tmp != NULL) {
+			if (g_module_fp.fp_dd_register_read(dd_reg_cmd, rdata, dd_reg_read_len) == JD_DBIC_READ_WRITE_FAIL) {
+				ret += snprintf(buf_tmp + ret, len - ret, "Read display register fail!\n");
+			} else {
+				/* Set output data */
+				ret += snprintf(buf_tmp + ret, len - ret, "Display register: 0x%02X\n", dd_reg_cmd);
 
-		if (g_module_fp.fp_dd_register_read(dd_reg_cmd, rdata, dd_reg_read_len) == JD_DBIC_READ_WRITE_FAIL) {
-			ret += snprintf(buf_tmp + ret, len - ret, "Read display register fail!\n");
-		} else {
-			/* Set output data */
-			ret += snprintf(buf_tmp + ret, len - ret, "Display register: 0x%02X\n", dd_reg_cmd);
+				for (i = 0; i < dd_reg_read_len; i++) {
+					ret += snprintf(buf_tmp + ret, len - ret, "0x%2.2X ", rdata[i]);
 
-			for (i = 0; i < dd_reg_read_len; i++) {
-				ret += snprintf(buf_tmp + ret, len - ret, "0x%2.2X ", rdata[i]);
-
-				if ((i % 16) == 15)
-					ret += snprintf(buf_tmp + ret, len - ret, "\n");
+					if ((i % 16) == 15)
+						ret += snprintf(buf_tmp + ret, len - ret, "\n");
+				}
+				ret += snprintf(buf_tmp + ret, len - ret, "\n");
 			}
-			ret += snprintf(buf_tmp + ret, len - ret, "\n");
-		}
 
-		if (copy_to_user(buf, buf_tmp, len)) {
-			JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			if (copy_to_user(buf, buf_tmp, len)) {
+				JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			}
+			kfree(buf_tmp);
+		} else {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
 		}
-
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 		kfree(rdata);
-		kfree(buf_tmp);
 		pjadard_debug->proc_send_flag = true;
 	} else {
 		pjadard_debug->proc_send_flag = false;
@@ -1328,60 +1380,65 @@ static ssize_t jadard_debug_read(struct file *file, char *buf,
 
 	if (!pjadard_debug->proc_send_flag) {
 		buf_tmp = kzalloc(len * sizeof(char), GFP_KERNEL);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
+		if (buf_tmp != NULL) {
+			if (debug_cmd == 'v') {
+				ret += snprintf(buf_tmp + ret, len - ret, "IC ID: %s\n", pjadard_ic_data->chip_id);
+				ret += snprintf(buf_tmp + ret, len - ret, "FW_VER: %08x\n", pjadard_ic_data->fw_ver);
+				ret += snprintf(buf_tmp + ret, len - ret, "FW_CID_VER: %08x\n", pjadard_ic_data->fw_cid_ver);
+				ret += snprintf(buf_tmp + ret, len - ret, "PANEL_MAKER: %s\n", pjadard_ic_data->panel_maker);
+				ret += snprintf(buf_tmp + ret, len - ret, "PANEL_VER: %02x\n", pjadard_ic_data->panel_ver);
+				ret += snprintf(buf_tmp + ret, len - ret, "Driver_VER: %s\n", JADARD_DRIVER_VER);
+			} else if (debug_cmd == 'i') {
+				ret += snprintf(buf_tmp + ret, len - ret, "Jadard Touch IC Information: ");
+				ret += snprintf(buf_tmp + ret, len - ret, "%s\n", pjadard_ic_data->chip_id);
 
-		if (debug_cmd == 'v') {
-			ret += snprintf(buf_tmp + ret, len - ret, "IC ID: %s\n", pjadard_ic_data->chip_id);
-			ret += snprintf(buf_tmp + ret, len - ret, "FW_VER: %08x\n", pjadard_ic_data->fw_ver);
-			ret += snprintf(buf_tmp + ret, len - ret, "FW_CID_VER: %08x\n", pjadard_ic_data->fw_cid_ver);
-			ret += snprintf(buf_tmp + ret, len - ret, "PANEL_MAKER: %s\n", pjadard_ic_data->panel_maker);
-			ret += snprintf(buf_tmp + ret, len - ret, "PANEL_VER: %02x\n", pjadard_ic_data->panel_ver);
-			ret += snprintf(buf_tmp + ret, len - ret, "Driver_VER: %s\n", JADARD_DRIVER_VER);
-		} else if (debug_cmd == 'i') {
-			ret += snprintf(buf_tmp + ret, len - ret, "Jadard Touch IC Information: ");
-			ret += snprintf(buf_tmp + ret, len - ret, "%s\n", pjadard_ic_data->chip_id);
+				if (pjadard_ic_data->JD_INT_EDGE) {
+					ret += snprintf(buf_tmp + ret, len - ret, "Driver register Interrupt: EDGE TIRGGER\n");
+				} else {
+					ret += snprintf(buf_tmp + ret, len - ret, "Driver register Interrupt: LEVEL TRIGGER\n");
+				}
 
-			if (pjadard_ic_data->JD_INT_EDGE) {
-				ret += snprintf(buf_tmp + ret, len - ret, "Driver register Interrupt: EDGE TIRGGER\n");
-			} else {
-				ret += snprintf(buf_tmp + ret, len - ret, "Driver register Interrupt: LEVEL TRIGGER\n");
+				if (pjadard_ts_data->protocol_type == PROTOCOL_TYPE_A) {
+					ret += snprintf(buf_tmp + ret, len - ret, "Protocol: TYPE_A\n");
+				} else {
+					ret += snprintf(buf_tmp + ret, len - ret, "Protocol: TYPE_B\n");
+				}
+
+				if (g_module_fp.fp_get_freq_band == NULL) {
+					ret += snprintf(buf_tmp + ret, len - ret, "Freq_Band: Not support\n");
+				} else {
+					ret += snprintf(buf_tmp + ret, len - ret, "Freq_Band: %d\n", g_module_fp.fp_get_freq_band());
+				}
+
+				ret += snprintf(buf_tmp + ret, len - ret, "X_Num: %d\n", pjadard_ic_data->JD_X_NUM);
+				ret += snprintf(buf_tmp + ret, len - ret, "Y_Num: %d\n", pjadard_ic_data->JD_Y_NUM);
+				ret += snprintf(buf_tmp + ret, len - ret, "X_Resolution: %d\n", pjadard_ic_data->JD_X_RES);
+				ret += snprintf(buf_tmp + ret, len - ret, "Y_Resolution: %d\n", pjadard_ic_data->JD_Y_RES);
+				ret += snprintf(buf_tmp + ret, len - ret, "Max Points: %d\n", pjadard_ic_data->JD_MAX_PT);
+			} else if (debug_cmd == 't') {
+				if (fw_upgrade_complete) {
+					ret += snprintf(buf_tmp + ret, len - ret, "FW Upgrade Complete\n");
+				} else {
+					ret += snprintf(buf_tmp + ret, len - ret, "FW Upgrade Fail\n");
+				}
+			} else if (debug_cmd == 'd') {
+				if (jd_g_dbg_enable) {
+					ret += snprintf(buf_tmp + ret, len - ret, "Debug Enable\n");
+				} else {
+					ret += snprintf(buf_tmp + ret, len - ret, "Debug Disable\n");
+				}
 			}
 
-			if (pjadard_ts_data->protocol_type == PROTOCOL_TYPE_A) {
-				ret += snprintf(buf_tmp + ret, len - ret, "Protocol: TYPE_A\n");
-			} else {
-				ret += snprintf(buf_tmp + ret, len - ret, "Protocol: TYPE_B\n");
+			if (copy_to_user(buf, buf_tmp, len)) {
+				JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
 			}
 
-			if (g_module_fp.fp_get_freq_band == NULL) {
-				ret += snprintf(buf_tmp + ret, len - ret, "Freq_Band: Not support\n");
-			} else {
-				ret += snprintf(buf_tmp + ret, len - ret, "Freq_Band: %d\n", g_module_fp.fp_get_freq_band());
-			}
-
-			ret += snprintf(buf_tmp + ret, len - ret, "X_Num: %d\n", pjadard_ic_data->JD_X_NUM);
-			ret += snprintf(buf_tmp + ret, len - ret, "Y_Num: %d\n", pjadard_ic_data->JD_Y_NUM);
-			ret += snprintf(buf_tmp + ret, len - ret, "X_Resolution: %d\n", pjadard_ic_data->JD_X_RES);
-			ret += snprintf(buf_tmp + ret, len - ret, "Y_Resolution: %d\n", pjadard_ic_data->JD_Y_RES);
-			ret += snprintf(buf_tmp + ret, len - ret, "Max Points: %d\n", pjadard_ic_data->JD_MAX_PT);
-		} else if (debug_cmd == 't') {
-			if (fw_upgrade_complete) {
-				ret += snprintf(buf_tmp + ret, len - ret, "FW Upgrade Complete\n");
-			} else {
-				ret += snprintf(buf_tmp + ret, len - ret, "FW Upgrade Fail\n");
-			}
-		} else if (debug_cmd == 'd') {
-			if (jd_g_dbg_enable) {
-				ret += snprintf(buf_tmp + ret, len - ret, "Debug Enable\n");
-			} else {
-				ret += snprintf(buf_tmp + ret, len - ret, "Debug Disable\n");
-			}
+			kfree(buf_tmp);
+		} else {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
 		}
-
-		if (copy_to_user(buf, buf_tmp, len)) {
-			JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
-		}
-
-		kfree(buf_tmp);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 		pjadard_debug->proc_send_flag = true;
 	} else {
 		pjadard_debug->proc_send_flag = false;
@@ -1512,20 +1569,25 @@ static ssize_t jadard_tp_info_read(struct file *file, char *buf,
 
 	if (!pjadard_debug->proc_send_flag) {
 		buf_tmp = kzalloc(len * sizeof(char), GFP_KERNEL);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 start*/
+		if (buf_tmp != NULL) {
+			g_module_fp.fp_read_fw_ver();
+			/*HS03 code for SL6215DEV-2059 by chenyihong at 20210929 start*/
+			if (lcd_name) {
+				ret += snprintf(buf_tmp + ret, len - ret, "Module name: %s\n", pjadard_ts_data->jadard_module_name);
+				ret += snprintf(buf_tmp + ret, len - ret, "IC name: JD9365T\n");
+				ret += snprintf(buf_tmp + ret, len - ret, "FW_CID_VER: %08x\n", pjadard_ic_data->fw_cid_ver);
+			}
+			/*HS03 code for SL6215DEV-2059 by chenyihong at 20210929 end*/
+			if (copy_to_user(buf, buf_tmp, len)) {
+				JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
+			}
 
-		g_module_fp.fp_read_fw_ver();
-		/*HS03 code for SL6215DEV-2059 by chenyihong at 20210929 start*/
-		if (lcd_name) {
-			ret += snprintf(buf_tmp + ret, len - ret, "Module name: %s\n", pjadard_ts_data->jadard_module_name);
-			ret += snprintf(buf_tmp + ret, len - ret, "IC name: JD9365T\n");
-			ret += snprintf(buf_tmp + ret, len - ret, "FW_CID_VER: %08x\n", pjadard_ic_data->fw_cid_ver);
+			kfree(buf_tmp);
+		} else {
+			JD_E("%s, Memory allocate fail: %d\n", __func__, __LINE__);
 		}
-		/*HS03 code for SL6215DEV-2059 by chenyihong at 20210929 end*/
-		if (copy_to_user(buf, buf_tmp, len)) {
-			JD_E("%s, copy_to_user fail: %d\n", __func__, __LINE__);
-		}
-
-		kfree(buf_tmp);
+		/*HS03 code for SL6215DEV-3729 by chenyihong at 20211129 end*/
 		pjadard_debug->proc_send_flag = true;
 	} else {
 		pjadard_debug->proc_send_flag = false;

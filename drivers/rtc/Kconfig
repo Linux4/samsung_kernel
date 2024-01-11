@@ -1815,4 +1815,12 @@ config SPRD_RTC_DRV_SC27XX_GCOV
 	help
 	  Say Y here to enable gcov in rtc-sc27xx.
 
+# Tab A8 code for SR-AX6300-01-433 by wenyaqi at 20211108 start
+config RTC_PWRON_ALARM
+	bool "RTC Auto Power on PMICs"
+	default n
+	help
+	  Support for the auto power on alarm on the PMIC.
+	  Say Y if you want to enable this feature.
+# Tab A8 code for SR-AX6300-01-433 by wenyaqi at 20211108 end
 endif # RTC_CLASS

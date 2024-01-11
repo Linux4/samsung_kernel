@@ -175,7 +175,7 @@
 					cm-regulator-name = "vddgen0";
 					cable@0 {
 						cm-cable-name = "USB";
-						extcon = <&pmic_typec>;
+						extcon = <&extcon_gpio>;
 					};
 				};
 			};
@@ -194,7 +194,7 @@
 				key-volumeup {
 					label = "Volume Up Key";
 					linux,code = <KEY_VOLUMEUP>;
-					gpios = <&ap_gpio 124 GPIO_ACTIVE_LOW>;
+					gpios = <&eic_debounce 2 GPIO_ACTIVE_LOW>;
 					debounce-interval = <2>;
 					wakeup-source;
 				};
@@ -223,7 +223,7 @@
 };
 
 &chosen {
-	bootargs_ext = "androidboot.hardware=s9863a25c10_go androidboot.dtbo_idx=0";
+	bootargs_ext = "androidboot.hardware=s9863a25c10_go loop.max_part=7 androidboot.dtbo_idx=0";
 };
 
 &vbmeta {
@@ -493,8 +493,8 @@
 
 &ddr_dfs {
 	sprd-scene = "boost", "lcdon", "lcdoff", "camlow",
-			"camhigh", "camveryhigh", "gpson";
-	sprd-freq = <933 400 233 622 622 933 800>;
+			"camhigh", "camveryhigh";
+	sprd-freq = <933 400 233 622 622 933>;
 };
 
 &sprd_hwdvfs {
@@ -717,8 +717,8 @@
 		memory-region = <&fb_reserved>;
 	};
 
-	heap@4 {
-		reg = <4>;
+	heap@2 {
+		reg = <2>;
 		label = "carveout_fd";
 		type = <2>;
 		memory-region = <&fd_reserved>;

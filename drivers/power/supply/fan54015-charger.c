@@ -84,6 +84,8 @@ struct fan54015_charger_info {
 	struct device *dev;
 	struct usb_phy *usb_phy;
 	struct notifier_block usb_notify;
+	struct notifier_block pd_swap_notify;
+	struct notifier_block extcon_nb;
 	struct power_supply *psy_usb;
 	struct power_supply_charge_current cur;
 	struct work_struct work;
@@ -100,6 +102,8 @@ struct fan54015_charger_info {
 	struct extcon_dev *edev;
 	bool otg_enable;
 	struct alarm otg_timer;
+	bool is_sink;
+	bool use_typec_extcon;
 };
 
 static int
@@ -583,17 +587,30 @@ static void fan54015_charger_work(struct work_struct *data)
 	struct fan54015_charger_info *info =
 		container_of(data, struct fan54015_charger_info, work);
 	bool present = fan54015_charger_is_bat_present(info);
+	int retry_cnt = 12;
 
 	if (!info) {
 		pr_err("%s:line%d: NULL pointer!!!\n", __func__, __LINE__);
 		return;
 	}
 
+	if (info->use_typec_extcon && info->limit) {
+		/* if use typec extcon notify charger,
+		 * wait for BC1.2 detect charger type.
+		 */
+		while (retry_cnt > 0) {
+			if (info->usb_phy->chg_type != UNKNOWN_TYPE)
+				break;
+			retry_cnt--;
+			msleep(50);
+		}
+		dev_info(info->dev, "retry_cnt = %d\n", retry_cnt);
+	}
+
 	dev_info(info->dev, "battery present = %d, charger type = %d\n",
 		 present, info->usb_phy->chg_type);
 	cm_notify_event(info->psy_usb, CM_EVENT_CHG_START_STOP, NULL);
 }
-
 
 static int fan54015_charger_usb_change(struct notifier_block *nb,
 				       unsigned long limit, void *data)
@@ -609,6 +626,38 @@ static int fan54015_charger_usb_change(struct notifier_block *nb,
 	info->limit = limit;
 
 	pm_wakeup_event(info->dev, FAN54015_WAKE_UP_MS);
+	schedule_work(&info->work);
+	return NOTIFY_OK;
+}
+
+static int fan54015_charger_extcon_event(struct notifier_block *nb,
+				  unsigned long event, void *param)
+{
+	struct fan54015_charger_info *info =
+		container_of(nb, struct fan54015_charger_info, extcon_nb);
+	int state = 0;
+
+	if (!info) {
+		pr_err("%s:line%d: NULL pointer!!!\n", __func__, __LINE__);
+		return NOTIFY_OK;
+	}
+
+	state = extcon_get_state(info->edev, EXTCON_SINK);
+	if (state < 0)
+		return NOTIFY_OK;
+
+	if (info->is_sink == state)
+		return NOTIFY_OK;
+
+	info->is_sink = state;
+
+	if (info->is_sink)
+		info->limit = 500;
+	else
+		info->limit = 0;
+
+	pm_wakeup_event(info->dev, FAN54015_WAKE_UP_MS);
+
 	schedule_work(&info->work);
 	return NOTIFY_OK;
 }
@@ -818,19 +867,37 @@ static const struct power_supply_desc fan54015_charger_desc = {
 
 static void fan54015_charger_detect_status(struct fan54015_charger_info *info)
 {
-	int min, max;
+	int state = 0;
 
-	/*
-	 * If the USB charger status has been USB_CHARGER_PRESENT before
-	 * registering the notifier, we should start to charge with getting
-	 * the charge current.
-	 */
-	if (info->usb_phy->chg_state != USB_CHARGER_PRESENT)
-		return;
+	if (info->use_typec_extcon) {
+		state = extcon_get_state(info->edev, EXTCON_SINK);
+		if (state < 0)
+			return;
 
-	usb_phy_get_charger_current(info->usb_phy, &min, &max);
-	info->limit = min;
-	schedule_work(&info->work);
+		if (state == 0)
+			return;
+
+		info->is_sink = state;
+
+		if (info->is_sink)
+			info->limit = 500;
+
+		schedule_work(&info->work);
+	} else {
+		int min, max;
+
+		/*
+		 * If the USB charger status has been USB_CHARGER_PRESENT before
+		 * registering the notifier, we should start to charge with getting
+		 * the charge current.
+		 */
+		if (info->usb_phy->chg_state != USB_CHARGER_PRESENT)
+			return;
+
+		usb_phy_get_charger_current(info->usb_phy, &min, &max);
+		info->limit = min;
+		schedule_work(&info->work);
+	}
 }
 
 static void
@@ -888,11 +955,13 @@ static int fan54015_charger_enable_otg(struct regulator_dev *dev)
 	 * Disable charger detection function in case
 	 * affecting the OTG timing sequence.
 	 */
-	ret = regmap_update_bits(info->pmic, info->charger_detect,
-				 BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
-	if (ret) {
-		dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
-		goto out;
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					 BIT_DP_DM_BC_ENB, BIT_DP_DM_BC_ENB);
+		if (ret) {
+			dev_err(info->dev, "failed to disable bc1.2 detect function.\n");
+			goto out;
+		}
 	}
 
 	ret = fan54015_update_bits(info, FAN54015_REG_1,
@@ -943,10 +1012,12 @@ static int fan54015_charger_disable_otg(struct regulator_dev *dev)
 	}
 
 	/* Enable charger detection function to identify the charger type */
-	ret = regmap_update_bits(info->pmic, info->charger_detect,
-				 BIT_DP_DM_BC_ENB, 0);
-	if (ret)
-		dev_err(info->dev, "enable BC1.2 failed\n");
+	if (!info->use_typec_extcon) {
+		ret = regmap_update_bits(info->pmic, info->charger_detect,
+					 BIT_DP_DM_BC_ENB, 0);
+		if (ret)
+			dev_err(info->dev, "enable BC1.2 failed\n");
+	}
 
 out:
 	mutex_unlock(&info->lock);
@@ -1054,6 +1125,9 @@ static int fan54015_charger_probe(struct i2c_client *client,
 	info->client = client;
 	info->dev = dev;
 
+	info->use_typec_extcon =
+		device_property_read_bool(dev, "use-typec-extcon");
+
 	i2c_set_clientdata(client, info);
 
 	info->usb_phy = devm_usb_get_phy_by_phandle(dev, "phys", 0);
@@ -1066,6 +1140,17 @@ static int fan54015_charger_probe(struct i2c_client *client,
 	if (IS_ERR(info->edev)) {
 		dev_err(dev, "failed to find vbus extcon device.\n");
 		return -EPROBE_DEFER;
+	}
+
+	if (info->use_typec_extcon) {
+		info->extcon_nb.notifier_call = fan54015_charger_extcon_event;
+		ret = devm_extcon_register_notifier_all(dev,
+							info->edev,
+							&info->extcon_nb);
+		if (ret) {
+			dev_err(dev, "Can't register extcon\n");
+			return ret;
+		}
 	}
 
 	regmap_np = of_find_compatible_node(NULL, NULL, "sprd,sc27xx-syscon");
@@ -1149,11 +1234,13 @@ static int fan54015_charger_probe(struct i2c_client *client,
 
 	INIT_WORK(&info->work, fan54015_charger_work);
 
-	info->usb_notify.notifier_call = fan54015_charger_usb_change;
-	ret = usb_register_notifier(info->usb_phy, &info->usb_notify);
-	if (ret) {
-		dev_err(dev, "failed to register notifier:%d\n", ret);
-		goto err_regmap_exit;
+	if (!info->use_typec_extcon) {
+		info->usb_notify.notifier_call = fan54015_charger_usb_change;
+		ret = usb_register_notifier(info->usb_phy, &info->usb_notify);
+		if (ret) {
+			dev_err(dev, "failed to register notifier:%d\n", ret);
+			goto err_regmap_exit;
+		}
 	}
 
 	mutex_unlock(&info->lock);
@@ -1162,7 +1249,6 @@ static int fan54015_charger_probe(struct i2c_client *client,
 	return 0;
 
 err_regmap_exit:
-	regmap_exit(info->pmic);
 	mutex_unlock(&info->lock);
 	mutex_destroy(&info->lock);
 	return ret;

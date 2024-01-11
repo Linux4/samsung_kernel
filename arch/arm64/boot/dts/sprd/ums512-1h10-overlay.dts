@@ -345,7 +345,9 @@
 				/* Tab code for SR-AX6300-01-193 by qiaodan at 20210809 start */
 				rfcustom-supply = <&vddkpled>;
 				/* Tab code for SR-AX6300-01-193 by qiaodan at 20210809 end */
-
+				/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 start */
+				sdio-func-def = <3>;
+				/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 end */
 				clock-names = "clk_32k","source","enable";
 				clocks = <&aon_clk CLK_AUX0>,
 					 <&ext_32k>,
@@ -964,6 +966,11 @@
 	use_pdhub_c2c;
 	use_second_charger_detct;
 };
+
+&pmic_typec {
+	use_pdhub_c2c;
+};
+
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 &vddldo0 {
 	regulator-always-on;
@@ -972,7 +979,7 @@
 &adi_bus {
 	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
 			 <17 0x1844>,<19 0x1844>, <21 0x1864>, <30 0x1820>,
-			 <35 0x19b8>, <39 0x19ac>;
+			 <35 0x19b8>, <39 0x19ac>, <32 0x197c>, <33 0x1988>;
 };
 
 &dvfs_dcdc_cpu0_supply {

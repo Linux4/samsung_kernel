@@ -192,7 +192,9 @@ static ssize_t nvt_proc_getinfo_read(struct file *filp, char __user *buff, size_
 {
 	char buf[150] = {0};
 	int rc = 0;
-	snprintf(buf, 150, "TP_module=NT36523B_INX_INX fw_ver=%x\n",ts->fw_ver);
+	/*Tab A8 code for AX6300DEV-3888 by suyurui at 2021/12/28 start*/
+	snprintf(buf, 150, "IC_module:%s; Touch_FW_ver: 0x%X\n",ts->platdata->md_name,ts->fw_ver);
+	/*Tab A8 code for AX6300DEV-3888 by suyurui at 2021/12/28 end*/
 	rc = simple_read_from_buffer(buff, size, pPos, buf, strlen(buf));
 	return rc;
 }
@@ -1204,21 +1206,6 @@ static int nvt_parse_dt(struct device *dev)
 #else
 	platdata->lcd_id = 0;
 #endif
-	of_property_read_string_index(np, "novatek,fw_name", platdata->lcd_id, &platdata->firmware_name);
-	if (platdata->firmware_name == NULL || strlen(platdata->firmware_name) == 0) {
-		input_err(true, dev, "%s: Failed to get fw name\n", __func__);
-		return -EINVAL;
-	} else {
-		input_info(true, dev, "%s: fw name(%s)\n", __func__, platdata->firmware_name);
-	}
-
-	of_property_read_string_index(np, "novatek,fw_name_mp", platdata->lcd_id, &platdata->firmware_name_mp);
-	if (platdata->firmware_name_mp == NULL || strlen(platdata->firmware_name_mp) == 0) {
-		input_err(true, dev, "%s: Failed to get mp fw name\n", __func__);
-		return -EINVAL;
-	} else {
-		input_info(true, dev, "%s: fw name(%s)\n", __func__, platdata->firmware_name_mp);
-	}
 
 #if LCD_SETTING
 	if (of_property_read_string(np, "novatek,regulator_lcd_vdd", &platdata->regulator_lcd_vdd)) {
@@ -1514,13 +1501,24 @@ void nvt_esd_check_enable(uint8_t enable)
 static void nvt_esd_check_func(struct work_struct *work)
 {
 	unsigned int timer = jiffies_to_msecs(jiffies - irq_timer);
+	/*Tab A8 code for AX6300DEV-3858 by yuli at 2022/1/6 start*/
+	uint8_t buf[8] = {0};
+	/*Tab A8 code for AX6300DEV-3858 by yuli at 2022/1/6 end*/
 
 	//input_info(true, &ts->client->dev, "esd_check = %d (retry %d)\n", esd_check, esd_retry);	//DEBUG
 
 	if ((timer > NVT_TOUCH_ESD_CHECK_PERIOD) && esd_check) {
 		mutex_lock(&ts->lock);
+		/*Tab A8 code for AX6300DEV-3858 by yuli at 2022/1/6 start*/
+		//Solve ESD non-contact
+		CTP_SPI_READ(ts->client, buf, 2);
 		input_err(true, &ts->client->dev, "%s: do ESD recovery, timer = %d, retry = %d\n",
 					__func__, timer, esd_retry);
+
+		if (buf[1] == 0xFC) {
+			nvt_stop_crc_reboot();
+		}
+		/*Tab A8 code for AX6300DEV-3858 by yuli at 2022/1/6 end*/
 		//read fw history
 		nvt_read_fw_history(ts->mmap->MMAP_HISTORY_EVENT0);
 		nvt_read_fw_history(ts->mmap->MMAP_HISTORY_EVENT1);
@@ -1544,6 +1542,84 @@ static void nvt_esd_check_func(struct work_struct *work)
 	queue_delayed_work(nvt_esd_check_wq, &nvt_esd_check_work,
 			msecs_to_jiffies(NVT_TOUCH_ESD_CHECK_PERIOD));
 }
+
+/*Tab A8 code for AX6300DEV-3858 by yuli at 2022/1/6 start*/
+/*******************************************************
+Description:
+	Novatek touchscreen check and stop crc reboot loop.
+return:
+	n.a.
+*******************************************************/
+void nvt_esd_reverse_phase(void)
+{
+	uint8_t buf[8] = {0};
+
+	nvt_set_page(0x3F035);
+
+	buf[0] = 0x35;
+	buf[1] = 0x00;
+	CTP_SPI_READ(ts->client, buf, 2);
+
+	if (buf[1] == 0xA5) {
+		input_err(true, &ts->client->dev, "IC is in phase III.\n");
+
+		buf[0] = 0x35;
+		buf[1] = 0x00;
+		CTP_SPI_WRITE(ts->client, buf, 2);
+
+		buf[0] = 0x35;
+		buf[1] = 0xFF;
+		CTP_SPI_READ(ts->client, buf, 2);
+
+		if (buf[1] == 0x00) {
+			input_err(true, &ts->client->dev, "Force IC to switch back to phase II OK.\n");
+		} else {
+			input_err(true, &ts->client->dev, "Failed to switch back to phase II, buf[1]=0x%02X\n", buf[1]);
+		}
+	}
+}
+
+void nvt_stop_crc_reboot(void)
+{
+	uint8_t buf[8] = {0};
+	int32_t retry = 0;
+
+	//IC is in CRC fail reboot loop, needs to be stopped!
+	for (retry = 5; retry > 0; retry--) {
+
+		//---reset idle : 1st---
+		nvt_write_addr(SWRST_N8_ADDR, 0xAA);
+
+		//---reset idle : 2rd---
+		nvt_write_addr(SWRST_N8_ADDR, 0xAA);
+		msleep(1);
+
+		//---clear CRC_ERR_FLAG---
+		nvt_set_page(0x3F135);
+
+		buf[0] = 0x35;
+		buf[1] = 0xA5;
+		CTP_SPI_WRITE(ts->client, buf, 2);
+
+		//---check CRC_ERR_FLAG---
+		nvt_set_page(0x3F135);
+
+		buf[0] = 0x35;
+		buf[1] = 0x00;
+		CTP_SPI_READ(ts->client, buf, 2);
+
+		if (buf[1] == 0xA5) {
+			nvt_esd_reverse_phase();
+			break;
+		}
+	}
+
+	if (retry == 0) {
+		input_err(true, &ts->client->dev, "CRC auto reboot is not able to be stopped! buf[1]=0x%02X\n", buf[1]);
+	}
+}
+/*Tab A8 code for AX6300DEV-3858 by yuli at 2022/1/6 end*/
+
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 /*Tab A8 code for AX6300DEV-1956 by huangzhongjie at 2021/11/04 end*/
 void nvt_print_info(void)
@@ -1886,6 +1962,19 @@ void nvt_ts_proximity_report(uint8_t *data)
 }
 #endif
 
+/*#Tab A8 code for SR-AX6300-01-128 by luxinjun at 2021/11/18 start*/
+static int nvt_input_open(struct input_dev *dev)
+{
+	ts->tp_is_enabled = 1;
+	return 0;
+}
+
+static void nvt_input_close(struct input_dev *dev)
+{
+	ts->tp_is_enabled = 0;
+}
+/*#Tab A8 code for SR-AX6300-01-128 by luxinjun at 2021/11/18 end*/
+
 /*******************************************************
 Description:
 	Novatek touchscreen work function.
@@ -2123,7 +2212,14 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 		}
 	}
 
-	input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
+	/*#Tab A8 code for AX6300DEV-3901 by yuli at 2022/1/26 start*/
+	if (ts->tp_is_enabled) {
+		input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
+	} else {
+		input_info(true, &ts->client->dev, "%s : tp_is_enabled:%d\n", __func__, ts->tp_is_enabled);
+	}
+	/*#Tab A8 code for AX6300DEV-3901 by yuli at 2022/1/26 end*/
+
 #else /* MT_PROTOCOL_B */
 	if (finger_cnt == 0) {
 /*Tab A8 code for AX6300DEV-1956 by huangzhongjie at 2021/11/04 start*/
@@ -2466,6 +2562,77 @@ void nvt_charger_init(void)
 }
 /*Tab A8 code for SR-AX6300-01-376 by luxinjun at 2021/09/10 end*/
 
+/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 start*/
+nvt_upgrade_module nvt_module_list[] = {
+	{
+		.lcd_name = "lcd_nt36523b_qc_inx_mipi_hdp",
+		.fw_num = MODEL_QC_INX,
+	},
+	{
+		.lcd_name = "lcd_nt36523b_qc_inx_swid45_mipi_hdp",
+		.fw_num = MODEL_QC_INX_SWID45,
+	},
+};
+
+static int nvt_get_tp_module(void)
+{
+	int i;
+	char *command_line = saved_command_line;
+
+	for (i = 0; i < ARRAY_SIZE(nvt_module_list); i++) {
+		if (NULL != strstr(command_line, nvt_module_list[i].lcd_name)) {
+			return nvt_module_list[i].fw_num;
+		}
+	}
+
+	NVT_LOG("%s: Not find tp module !!\n", __func__);
+
+	return MODEL_DEFAULT;
+}
+
+static void nvt_update_module_info(void)
+{
+	int module = 0;
+	int ret = 0;
+
+	ts->platdata->md_name = (char *)kzalloc(NVT_XBUF_LEN, GFP_KERNEL);
+	if (ts->platdata->md_name == NULL) {
+		NVT_LOG("failed to allocated memory for md_name\n");
+		ret = -ENOMEM;
+	}
+	ts->platdata->firmware_name = (char *)kzalloc(NVT_XBUF_LEN, GFP_KERNEL);
+	if (ts->platdata->firmware_name == NULL) {
+		NVT_LOG("failed to allocated memory for firmware_name\n");
+		ret = -ENOMEM;
+	}
+	ts->platdata->firmware_name_mp = (char *)kzalloc(NVT_XBUF_LEN, GFP_KERNEL);
+	if (ts->platdata->firmware_name_mp == NULL) {
+		NVT_LOG("failed to allocated memory for firmware_name_mp\n");
+		ret = -ENOMEM;
+	}
+
+	module = nvt_get_tp_module();
+	switch (module)
+	{
+	case MODEL_QC_INX:
+		strcpy(ts->platdata->md_name,"nt36523b_qc_inx");
+		strcpy(ts->platdata->firmware_name, "nt36523b_qc_inx_fw.bin");
+		strcpy(ts->platdata->firmware_name_mp, "nt36523b_qc_inx_mp.bin");
+		break;
+	case MODEL_QC_INX_SWID45:
+		strcpy(ts->platdata->md_name,"nt36523b_qc_inx_swid45");
+		strcpy(ts->platdata->firmware_name, "nt36523b_qc_inx_swid45_fw.bin");
+		strcpy(ts->platdata->firmware_name_mp, "nt36523b_qc_inx_swid45_mpfw.bin");
+		break;
+	default:
+		strcpy(ts->platdata->md_name,"UNKNOWN");
+		strcpy(ts->platdata->firmware_name, "UNKNOWN");
+		strcpy(ts->platdata->firmware_name_mp, "UNKNOWN");
+		break;
+	}
+}
+/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 end*/
+
 /*******************************************************
 Description:
 	Novatek touchscreen driver probe function.
@@ -2701,6 +2868,10 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	ts->input_dev_proximity->phys = ts->phys;
 	ts->input_dev_proximity->id.bustype = BUS_SPI;
 #endif
+	/*#Tab A8 code for SR-AX6300-01-128 by luxinjun at 2021/11/18 start*/
+	ts->input_dev->open = nvt_input_open;
+	ts->input_dev->close = nvt_input_close;
+	/*#Tab A8 code for SR-AX6300-01-128 by luxinjun at 2021/11/18 end*/
 
 	//---register input device---
 	ret = input_register_device(ts->input_dev);
@@ -2739,7 +2910,9 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 //	if (ts->platdata->support_ear_detect)
 #endif
 		device_init_wakeup(&ts->input_dev->dev, 1);
-
+	/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 start*/
+	nvt_update_module_info();
+	/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 end*/
 	/*Tab A8 code for SR-AX6300-01-376 by luxinjun at 2021/09/10 start*/
 	nvt_charger_init();
 	/*Tab A8 code for SR-AX6300-01-376 by luxinjun at 2021/09/10 end*/
@@ -3676,7 +3849,17 @@ static int32_t __init nvt_driver_init(void)
 		return -ENODEV;
 	}
 	//---add spi driver---
-	ret = spi_register_driver(&nvt_spi_driver);
+	/* Tab A8 code for AX6300TDEV-594 by suyurui at 20230630 start */
+	if (saved_command_line && (strstr(saved_command_line, "androidboot.mode=normal") ||
+		strstr(saved_command_line, "androidboot.mode=autotest") ||
+		strstr(saved_command_line, "androidboot.mode=alarm"))) {
+		pr_err("it is normal mode\n");
+		ret = spi_register_driver(&nvt_spi_driver);
+	} else {
+		pr_err("it is not normal mode\n");
+		return -ENODEV;
+	}
+	/* Tab A8 code for AX6300TDEV-594 by suyurui at 20230630 end */
 	if (ret) {
 		pr_err("[sec_input] failed to add spi driver");
 		goto err_driver;

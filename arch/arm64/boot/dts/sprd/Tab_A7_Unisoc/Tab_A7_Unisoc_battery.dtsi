@@ -1,0 +1,465 @@
+/* Tab A7 T618 code for SR-AX6189A-01-101 by shixuanxuan at 20211221 start */
+/* battery device */
+#include <dt-bindings/usb/pd.h>
+
+/ {
+    fragment {
+        target-path = "/";
+        __overlay__ {
+            bat_id_via_adc: bat_id_via_adc {
+                compatible = "bat_id_via_adc";
+                io-channels = <&pmic_adc 3>;
+                io-channel-names = "customer_bat_id";
+            };
+            afc: afc {
+                status = "ok";
+                compatible = "gpio_afc";
+
+                afc_switch_gpio = <&ap_gpio 136 0>;
+                afc_data_gpio = <&ap_gpio 116 0>;
+            };
+
+            /* Tab A7 Lite T618 code for SR-AX6189A-01-78 by lina at 20211230 start */
+            /* SCUD */
+            bat: battery {
+                compatible = "simple-battery";
+                charge-full-design-microamp-hours = <4861000>;
+                charge-term-current-microamp = <64000>;
+                constant_charge_voltage_max_microvolt = <4400000>;
+                factory-internal-resistance-micro-ohms = <130000>;
+                voltage-min-design-microvolt = <3456000>;
+                ocv-capacity-celsius = <20>;
+                ocv-capacity-table-0 = <4349000 100>, <4292000 95>, <4237000 90>,
+                            <4182000 85>, <4129000 80>, <4079000 75>,
+                            <4031000 70>, <3985000 65>, <3945000 60>,
+                            <3890000 55>, <3858000 50>, <3834000 45>,
+                            <3814000 40>, <3798000 35>, <3784000 30>,
+                            <3764000 25>, <3745000 20>, <3721000 15>,
+                            <3693000 10>, <3681000 5>, <3400000 0>;
+                voltage-temp-table = <1118967 800>, <980639 850>, <844565 900>,
+                              <715494 950>, <597744 1000>, <493695 1050>,
+                              <404687 1100>, <330285 1150>, <267902 1200>,
+                              <217647 1250>, <176297 1300>, <143358 1350>,
+                              <117790 1400>, <95891 1450>, <77969 1500>,
+                              <64286 1550>, <52720 1600>, <43359 1650>,
+                              <36274 1700>, <31520 1750>, <26741 1800>,
+                              <21937 1850>;
+                capacity-temp-table = <45 100>, <25 100>, <10 100>, <0 95>, <(-10) 87>, <(-20) 56>;
+                resistance-temp-table = <45 77>, <25 100>, <10 156>, <0 897>, <(-10) 982>, <(-20) 1154>;
+                charge-sdp-current-microamp = <540000 500000>;
+                charge-dcp-current-microamp = <2000000 1550000>;
+                charge-cdp-current-microamp = <1150000 1150000>;
+                charge-fchg-current-microamp = <2900000 1650000>;
+                charge-unknown-current-microamp = <500000 500000>;
+                charge-afc-current-microamp = <2900000 1650000>;
+            };
+
+            /* ATL */
+            bat1: battery1 {
+                compatible = "simple-battery";
+                charge-full-design-microamp-hours = <4918000>;
+                charge-term-current-microamp = <64000>;
+                constant_charge_voltage_max_microvolt = <4400000>;
+                factory-internal-resistance-micro-ohms = <119000>;
+                voltage-min-design-microvolt = <3456000>;
+                ocv-capacity-celsius = <20>;
+                ocv-capacity-table-0 = <4349000 100>, <4291000 95>, <4235000 90>,
+                            <4179000 85>, <4125000 80>, <4075000 75>,
+                            <4026000 70>, <3981000 65>, <3940000 60>,
+                            <3887000 55>, <3854000 50>, <3830000 45>,
+                            <3811000 40>, <3796000 35>, <3782000 30>,
+                            <3764000 25>, <3746000 20>, <3722000 15>,
+                            <3693000 10>, <3680000 5>, <3400000 0>;
+                voltage-temp-table = <1113926 800>, <976259 850>, <840175 900>,
+                              <711772 950>, <595479 1000>, <492367 1050>,
+                              <403180 1100>, <330284 1150>, <267902 1200>,
+                              <217647 1250>, <176297 1300>, <143358 1350>,
+                              <117790 1400>, <95891 1450>, <77969 1500>,
+                              <64286 1550>, <52720 1600>, <43359 1650>,
+                              <36274 1700>, <31520 1750>, <26741 1800>,
+                              <21937 1850>;
+                capacity-temp-table = <45 100>, <25 100>, <10 100>, <0 96>, <(-10) 88>, <(-20) 62>;
+                resistance-temp-table = <45 82>, <25 100>, <10 156>, <0 917>, <(-10) 1063>, <(-20) 1211>;
+                charge-sdp-current-microamp = <540000 500000>;
+                charge-dcp-current-microamp = <2000000 1550000>;
+                charge-cdp-current-microamp = <1150000 1150000>;
+                charge-fchg-current-microamp = <2900000 1650000>;
+                charge-unknown-current-microamp = <500000 500000>;
+                charge-afc-current-microamp = <2900000 1650000>;
+            };
+            /* Tab A7 Lite T618 code for SR-AX6189A-01-78 by lina at 20211230 end */
+
+            bat2: battery {
+                compatible = "simple-battery";
+                charge-full-design-microamp-hours = <4900000>;
+                charge-term-current-microamp = <64000>;
+                constant_charge_voltage_max_microvolt = <4400000>;
+                factory-internal-resistance-micro-ohms = <116000>;
+                voltage-min-design-microvolt = <3456000>;
+                ocv-capacity-celsius = <20>;
+                ocv-capacity-table-0 = <4357000 100>, <4297000 95>, <4239000 90>,
+                            <4182000 85>, <4128000 80>, <4076000 75>,
+                            <4028000 70>, <3985000 65>, <3944000 60>,
+                            <3885000 55>, <3854000 50>, <3830000 45>,
+                            <3811000 40>, <3796000 35>, <3783000 30>,
+                            <3765000 25>, <3746000 20>, <3722000 15>,
+                            <3693000 10>, <3680000 5>, <3400000 0>;
+                voltage-temp-table = <1113926 800>, <976259 850>, <840175 900>,
+                              <711772 950>, <595479 1000>, <492367 1050>,
+                              <403180 1100>, <330284 1150>, <267902 1200>,
+                              <217647 1250>, <176297 1300>, <143358 1350>,
+                              <117790 1400>, <95891 1450>, <77969 1500>,
+                              <64286 1550>, <52720 1600>, <43359 1650>,
+                              <36274 1700>, <31520 1750>, <26741 1800>,
+                              <21937 1850>;
+                capacity-temp-table = <45 99>, <25 100>, <10 100>, <0 98>, <(-10) 90>, <(-20) 73>;
+                resistance-temp-table = <45 67>, <25 100>, <10 371>, <0 609>, <(-10) 718>, <(-20) 794>;
+                charge-sdp-current-microamp = <540000 500000>;
+                charge-dcp-current-microamp = <2000000 1550000>;
+                charge-cdp-current-microamp = <1150000 1150000>;
+                charge-fchg-current-microamp = <2900000 1650000>;
+                charge-unknown-current-microamp = <500000 500000>;
+                charge-afc-current-microamp = <2900000 1650000>;
+            };
+
+            charger-manager {
+                compatible = "charger-manager";
+                cm-name = "battery";
+                cm-poll-mode = <2>;
+                cm-poll-interval = <15000>;
+                cm-battery-stat = <2>;
+
+                /* usb connector thermal */
+                draw-vbus-gpio = <&ap_gpio 137 GPIO_ACTIVE_LOW>;
+                io-channels = <&pmic_adc 6>;
+                io-channel-names = "customer_usb_ntc";
+                /* Tab A7 T618 code for AX6189DEV-83 by shixuanxuan at 20211229 start */
+                /delete-property/ cm-thermal-zone;
+                /* Tab A7 T618 code for AX6189DEV-83 by shixuanxuan at 20211229 end */
+
+                cm-fast-chargers = "sc2730_fast_charger";
+                cm-fast-charge-voltage-max = <10500000>;
+                cm-fast-charge-voltage-drop = <700000>;
+                cm-fullbatt-vchkdrop-ms = <30000>;
+                cm-fullbatt-vchkdrop-volt = <55000>;
+                cm-fullbatt-voltage = <4375000>;
+                cm-first-fullbatt-current = <350000>;
+                cm-fullbatt-current = <250000>;
+                cm-fullbatt-capacity = <100>;
+                cm-num-power-supplys = <3>;    // numbers of Charger IC
+                cm-chargers = "fan54015_charger";
+                /* Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220107 start */
+                cm-power-supplys = "bq25890_charger", "sgm4154x_charger", "sc89890h_charger";
+                /* Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220107 end */
+                cm-fuel-gauge = "sc27xx-fgu";
+
+                /* in deci centigrade */
+                cm-battery-cold = <0>;
+                cm-battery-cold-in-minus;
+                cm-battery-hot = <500>;
+                cm-battery-temp-diff = <30>;
+
+                /* Allow charging for 6hr */
+                cm-charging-max = <21600000>;
+                /* recovery charging after stop charging 45min */
+                cm-discharging-max = <2700000>;
+
+                /* the interval to feed charger watchdog */
+                cm-wdt-interval = <60>;
+
+                /* drop voltage in microVolts to allow shutdown */
+                cm-shutdown-voltage = <3100000>;
+
+                /* when 99% of the time is exceeded, it will be forced to 100% */
+                cm-tickle-time-out = <1500>;
+
+                /* how much time to allow capacity change */
+                cm-one-cap-time = <30>;
+
+                /* when the safe charging voltage is exceeded, stop charging */
+                cm-charge-voltage-max = <6500000>;
+
+                /* drop voltage in microVolts to restart charging */
+                cm-charge-voltage-drop = <700000>;
+
+                cm-afc-charge-voltage-max = <10000000>;
+                cm-afc-charge-voltage-drop = <700000>;
+
+                /* DCP jeita */
+                cm-dcp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+                cm-dcp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+                cm-dcp-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+
+                /* SDP jeita */
+                cm-sdp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4208000>;
+                cm-sdp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4208000>;
+                cm-sdp-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4208000>;
+
+                /* CDP jeita */
+                cm-cdp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4208000>;
+                cm-cdp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4208000>;
+                cm-cdp-jeita-temp-table-2= <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 1500000 4400000>, <1500 1470 1500000 4208000>;
+
+                /* unknown charge type jeita */
+                cm-unknown-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4208000>;
+                cm-unknown-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4208000>;
+                cm-unknown-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 540000 4400000>, <1450 1420 540000 4400000>, <1500 1470 540000 4208000>;
+
+                /* fast charge jeita */
+                cm-fchg-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4208000>;
+                cm-fchg-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4208000>;
+                cm-fchg-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4208000>;
+
+                /* flash jeita */
+                cm-flash-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+                cm-flash-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+                cm-flash-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+
+                /* wl-bpp jeita */
+                cm-wl-bpp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4208000>;
+                cm-wl-bpp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4208000>;
+                cm-wl-bpp-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1000000 4400000>, <1450 1420 1000000 4400000>, <1500 1470 1000000 4208000>;
+
+                /* wl-epp jeita */
+                cm-wl-epp-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+                cm-wl-epp-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+                cm-wl-epp-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2000000 4400000>, <1500 1470 2000000 4208000>;
+
+                /* afc jeita */
+                cm-afc-jeita-temp-table = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4208000>;
+                cm-afc-jeita-temp-table-1 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4208000>;
+                cm-afc-jeita-temp-table-2 = <1000 1030 0 4200000>, <1050 1080 540000 4208000>,
+                    <1120 1150 1500000 4400000>, <1450 1420 2900000 4400000>, <1500 1470 2900000 4208000>;
+
+                monitored-battery = <&bat &bat1 &bat2>; // bat-SCUD bat1-ATL
+
+                ss-batt-aging-enable;
+                ss-cv-ranges = <0 299 4400000
+                        300 399 4368000
+                        400 699 4352000
+                        700 999 4304000
+                        1000 9999 4272000>;
+
+                cm-cap-remap-table = <1 2 3>, <2 3 2>, <98 99 2>, <99 100 3>;
+
+                regulator@0 {
+                    cm-regulator-name = "vddgen0";
+                    cable@0 {
+                        cm-cable-name = "USB";
+                        extcon = <&pmic_typec>;
+                    };
+                };
+
+                vddvbus: cm_otg_vbus {
+                    regulator-name = "vddvbus";
+                };
+            };
+
+            tboard_thermistor:thermal-sensor {
+                compatible = "generic-adc-thermal";
+                #thermal-sensor-cells = <0>;
+                io-channels = <&pmic_adc 1>;
+                io-channel-names = "sensor-channel";
+                temperature-lookup-table = <    (-39742) 1131
+                                (-29777) 1110
+                                (-19480) 1074
+                                (-4679) 983
+                                10110 838
+                                24805 654
+                                44922 413
+                                54903 316
+                                64895 238
+                                74884 178
+                                84883 133
+                                94883 100
+                                104880 75
+                                114889 57
+                                124872 43 >;
+            };
+
+            pa_thermistor:pa-sensor {
+                compatible = "generic-adc-thermal";
+                #thermal-sensor-cells = <0>;
+                io-channels = <&pmic_adc 2>;
+                io-channel-names = "sensor-channel";
+                temperature-lookup-table = <    (-39742) 1131
+                                (-29777) 1110
+                                (-19480) 1074
+                                (-4679) 983
+                                10110 838
+                                24805 654
+                                44922 413
+                                54903 316
+                                64895 238
+                                74884 178
+                                84883 133
+                                94883 100
+                                104880 75
+                                114889 57
+                                124872 43 >;
+            };
+
+            chg_thermistor:chg-sensor {
+                compatible = "generic-adc-thermal";
+                #thermal-sensor-cells = <0>;
+                io-channels = <&pmic_adc 4>;
+                io-channel-names = "sensor-channel";
+                temperature-lookup-table = <    (-39742) 1131
+                                (-29777) 1110
+                                (-19480) 1074
+                                (-4679) 983
+                                10110 838
+                                24805 654
+                                44922 413
+                                54903 316
+                                64895 238
+                                74884 178
+                                84883 133
+                                94883 100
+                                104880 75
+                                114889 57
+                                124872 43 >;
+            };
+
+            usb_thermistor:usb-sensor {
+                compatible = "generic-adc-thermal";
+                #thermal-sensor-cells = <0>;
+                io-channels = <&pmic_adc 6>;
+                io-channel-names = "sensor-channel";
+                temperature-lookup-table = <    (-39742) 1131
+                                (-29777) 1110
+                                (-19480) 1074
+                                (-4679) 983
+                                10110 838
+                                24805 654
+                                44922 413
+                                54903 316
+                                64895 238
+                                74884 178
+                                84883 133
+                                94883 100
+                                104880 75
+                                114889 57
+                                124872 43 >;
+            };
+        };
+    };
+};
+
+
+&thm_zone {
+    pa_thmzone: pa-thmzone {
+        polling-delay-passive = <0>;
+        polling-delay = <0>;
+        thermal-sensors = <&pa_thermistor>;
+    };
+
+    chg_thmzone: chg-thmzone {
+        polling-delay-passive = <0>;
+        polling-delay = <0>;
+        thermal-sensors = <&chg_thermistor>;
+    };
+
+    usb_thmzone: usb-thmzone {
+        polling-delay-passive = <0>;
+        polling-delay = <0>;
+        thermal-sensors = <&usb_thermistor>;
+    };
+};
+
+&bq25890_chg {
+        compatible = "ti,bq25890_chg";
+        reg = <0x6a>;
+        phys = <&hsphy>;
+        monitored-battery = <&bat &bat1 &bat2>;
+        extcon = <&pmic_typec>, <&pmic_pd>;
+        pd-extcon-enable;
+        use-typec-extcon;
+        irq-gpio = <&ap_gpio 156 GPIO_ACTIVE_LOW>;
+        bq25890_otg_vbus: bq25890_otg_vbus {
+            regulator-name = "bq25890_otg_vbus";
+        };
+};
+
+&i2c4 {
+    clock-frequency = <400000>;
+
+    sgm4154x_chg: sgm_charger@3b {
+        compatible = "sgm,sgm4154x_chg";
+        reg = <0x3b>;
+        phys = <&hsphy>;
+        monitored-battery = <&bat &bat1 &bat2>;
+        extcon = <&pmic_typec>, <&pmic_pd>;
+        pd-extcon-enable;
+        use-typec-extcon;
+        irq-gpio = <&ap_gpio 156 GPIO_ACTIVE_LOW>;
+        sgm4154x_otg_vbus: sgm4154x_otg_vbus {
+            regulator-name = "sgm4154x_otg_vbus";
+        };
+    };
+
+    /* Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 start */
+    sc89890h_chg: sc89890h_charger@68 {
+        compatible = "sc,sc89890h_chg";
+        reg = <0x68>;
+        phys = <&hsphy>;
+        monitored-battery = <&bat &bat1 &bat2>; // bat-ATL bat1-SCUD
+        extcon = <&pmic_typec>, <&pmic_pd>;
+        pd-extcon-enable;
+        use-typec-extcon;
+        irq-gpio = <&ap_gpio 156 GPIO_ACTIVE_LOW>;
+        sc89890h_otg_vbus: sc89890h_otg_vbus {
+            regulator-name = "sc89890h_otg_vbus";
+        };
+    };
+    /* Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 end */
+};
+
+&hsphy {
+    /* Tab A7 Lite T618 code for AX6189DEV-69 by shixuanxuan at 20220128 start */
+    sprd,tfregres-tune-value = <0x06b60d00>;
+    /* Tab A7 Lite T618 code for AX6189DEV-69 by shixuanxuan at 20220128 end */
+    status = "okay";
+};
+
+&pmic_fchg {
+    sprd,input-voltage-microvolt = <5000000>;
+    phys = <&hsphy>;
+    status =  "okay";
+};
+
+&pmic_fgu {
+    monitored-battery = <&bat &bat1 &bat2>;
+    first-calib-voltage = <3568000>;
+    sprd,comp-resistance-mohm = <10>;
+    sprd,comp-resistance-mohm1 = <11>;
+    sprd,comp-resistance-mohm2 = <16>;
+};
+
+/* Tab A7 T618 code for SR-AX6189A-01-101 by shixuanxuan at 20211221 end */

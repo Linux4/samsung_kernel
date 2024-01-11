@@ -346,7 +346,14 @@
 				regulator-max-microvolt = <3750000>;
 				regulator-ramp-delay = <25000>;
 			};
-
+			/*Tab A7 Lite T618 code for SR-AX6300-01-23 by huangzhongjie at 2022/01/01 start*/
+			vddsim1: LDO_VDDSIM1 {
+				regulator-name = "vddsim1";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <3750000>;
+				regulator-ramp-delay = <25000>;
+			};
+			/*Tab A7 Lite T618 code for SR-AX6300-01-23 by huangzhongjie at 2022/01/01 end*/
 			vddsim2: LDO_VDDSIM2 {
 				regulator-name = "vddsim2";
 				regulator-min-microvolt = <1200000>;

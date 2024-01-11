@@ -1411,7 +1411,17 @@ static int __init himax_common_init(void)
 		I("Himax driver has been loaded! ignoring....\n");
 		return 0;
 	}
-	spi_register_driver(&himax_common_driver);
+	/* Tab A8 code for AX6300TDEV-594 by suyurui at 20230630 start */
+	if (saved_command_line && (strstr(saved_command_line, "androidboot.mode=normal") ||
+		strstr(saved_command_line, "androidboot.mode=autotest") ||
+		strstr(saved_command_line, "androidboot.mode=alarm"))) {
+		E("it is normal mode\n");
+		spi_register_driver(&himax_common_driver);
+	} else {
+		E("it is not normal mode\n");
+		return -ENODEV;
+	}
+	/* Tab A8 code for AX6300TDEV-594 by suyurui at 20230630 end */
 
 	return 0;
 }

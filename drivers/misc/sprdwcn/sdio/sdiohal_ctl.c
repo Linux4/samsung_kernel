@@ -7,6 +7,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
+#include <linux/mutex.h>
 #include <misc/wcn_bus.h>
 
 #include "sdiohal.h"
@@ -104,6 +105,9 @@ static int tp_tx_buf_cnt = TP_TX_BUF_CNT;
 static int tp_tx_buf_len = TP_TX_BUF_LEN;
 long int sdiohal_log_level;
 
+struct mutex test_buf_mux;
+struct mutex tp_tx_buf_mux;
+
 #if TCP_TEST_RX
 struct completion tp_rx_completed;
 int rx_pop_cnt;
@@ -165,6 +169,7 @@ static int sdiohal_simple_test_tx(size_t count)
 	int tx_debug_num = 4;
 	int i;
 
+	mutex_lock(&test_buf_mux);
 	test_buf = kzalloc(1024, GFP_KERNEL);
 	if (!test_buf)
 		return -ENOMEM;
@@ -192,8 +197,8 @@ static int sdiohal_simple_test_tx(size_t count)
 			pr_info("%s tx_debug_num=%d < 5\n",
 				__func__, tx_debug_num);
 	}
-	kfree(test_buf);
-
+	//kfree(test_buf);
+	mutex_unlock(&test_buf_mux);
 	return 0;
 }
 
@@ -948,6 +953,7 @@ static ssize_t at_cmd_write(struct file *filp,
 
 	/* sdio throughput test */
 	if (strstr((buf + PUB_HEAD_RSV), "tp")) {
+		mutex_lock(&tp_tx_buf_mux);
 		sdiohal_find_num(buf + PUB_HEAD_RSV,
 			&tp_tx_buf_cnt, &tp_tx_buf_len);
 		pr_info("%s buf_cnt=%d buf_len=%d\n",
@@ -957,9 +963,9 @@ static ssize_t at_cmd_write(struct file *filp,
 		do_gettimeofday(&tp_tx_start_time);
 		if ((tp_tx_buf_cnt <= TP_TX_BUF_CNT) &&
 			(tp_tx_buf_len <= TP_TX_BUF_LEN)) {
-			sprdwcn_bus_chn_deinit(&at_tx_ops);
+			//sprdwcn_bus_chn_deinit(&at_tx_ops);
 			at_tx_ops.pool_size = TP_TX_POOL_SIZE;
-			sprdwcn_bus_chn_init(&at_tx_ops);
+			//sprdwcn_bus_chn_init(&at_tx_ops);
 #if TCP_TEST_RX
 			sdiohal_launch_tp_tx_thread();
 #endif
@@ -968,6 +974,7 @@ static ssize_t at_cmd_write(struct file *filp,
 		} else
 			pr_info("%s buf_cnt or buf_len false!!\n",
 				 __func__);
+		mutex_unlock(&tp_tx_buf_mux);
 		return count;
 	} else if (strstr((buf + PUB_HEAD_RSV), "tp_test_rx")) {
 		sdiohal_throughput_rx();
@@ -1061,6 +1068,8 @@ void sdiohal_debug_init(void)
 	}
 
 	at_cmd_init();
+	mutex_init(&test_buf_mux);
+	mutex_init(&tp_tx_buf_mux);
 }
 
 void sdiohal_debug_deinit(void)

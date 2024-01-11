@@ -435,7 +435,10 @@ static int __orderly_poweroff(bool force)
 
 	ret = run_cmd(poweroff_cmd);
 
+	/* HS03 code for P211112-03304 by gaochao at 20211116 start */
+	// if (ret && force) {
 	if (force) {
+	/* HS03 code for P211112-03304 by gaochao at 20211116 end */
 		pr_warn("Failed to start orderly shutdown: forcing the issue\n");
 
 		/*

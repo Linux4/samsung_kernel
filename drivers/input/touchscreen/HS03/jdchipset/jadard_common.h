@@ -48,6 +48,9 @@
 
 #define JADARD_DRIVER_VER        "01.08" /* MAJOR_VER.MINOR_VER */
 #define JADARD_PROC_TOUCH_FOLDER "jadard_touch"
+/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 start */
+#define TOUCH_DATA_LEN           (60)
+/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 end */
 #ifdef WAKE_LOCK
 #define JD_TS_WAKE_LOCK_TIMEOUT  (2 * HZ)
 #endif
@@ -105,6 +108,9 @@
 #define JD_RST_PIN_FUNC
 #define JD_SMART_WAKEUP
 #define JD_HIGH_SENSITIVITY
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+#define JD_EARPHONE_DETECT
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 /* #define CONFIG_CHIP_DTCFG */
 
 /*
@@ -248,6 +254,12 @@ struct jadard_ts_data {
 	bool high_sensitivity_enable;
 #endif
 
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+#ifdef JD_EARPHONE_DETECT
+	bool earphone_enable;
+#endif
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
+
 	/*HS03 code for SL6215DEV-521 by chenyihong at 20210826 start*/
 	struct sec_cmd_data sec;
 	/*HS03 code for SL6215DEV-521 by chenyihong at 20210826 end*/
@@ -255,6 +267,10 @@ struct jadard_ts_data {
 	/*HS03 code for SL6215DEV-292 by chenyihong at 20210901 start*/
 	struct notifier_block charger_notif;
 	/*HS03 code for SL6215DEV-292 by chenyihong at 20210901 end*/
+
+	/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+	struct notifier_block earphone_notif;
+	/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 
 	/*HS03 code for SL6215DEV-1019 by chenyihong at 20210909 start*/
 	struct notifier_block drm_notify;

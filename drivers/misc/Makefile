@@ -102,6 +102,9 @@ obj-y += sensors_class/
 # HS03 code for P211007-03235 by zhangziyi at 2021/10/12 start
 obj-$(CONFIG_LED_SC27XX_VIBRA) += vibrator/
 # HS03 code for P211007-03235 by zhangziyi at 2021/10/12 end
+# Tab A7 T618 code for SR-AX6189A-01-178 by zhangziyi at 2021/12/19 start
+obj-$(CONFIG_AW96103A_SAR) += aw96103A_sar/
+# Tab A7 T618 code for SR-AX6189A-01-178 by zhangziyi at 2021/12/19 end
 KCOV_INSTRUMENT_lkdtm_rodata.o	:= n
 CFLAGS_lkdtm_rodata.o		+= $(DISABLE_LTO)
 

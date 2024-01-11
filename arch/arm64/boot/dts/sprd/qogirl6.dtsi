@@ -30,7 +30,6 @@
 		spi2 = &spi2;
 		spi3 = &spi3;
 		spi4 = &adi_bus;
-		spi5 = &adi_bus1;
 		thm-sensor15 = &cluster0_sensor;
 		thm-sensor16 = &cluster1_sensor;
 		thm-sensor17 = &soc_sensor;
@@ -349,7 +348,8 @@
 
 				syscon-names = "force_shutdown",
 						"shutdown_en",
-						"power_state";
+						"power_state",
+						"aon_apb_mm_eb";
 				syscons = <&pmu_apb_regs
 					REG_PMU_APB_PD_MM_CFG_0
 					MASK_PMU_APB_PD_MM_FORCE_SHUTDOWN>,
@@ -358,7 +358,10 @@
 					MASK_PMU_APB_PD_MM_AUTO_SHUTDOWN_EN>,
 					<&pmu_apb_regs
 					REG_PMU_APB_PWR_STATUS_DBG_6
-					MASK_PMU_APB_PD_MM_STATE>;
+					MASK_PMU_APB_PD_MM_STATE>,
+					<&aon_apb_regs
+					REG_AON_APB_APB_EB0
+					MASK_AON_APB_MM_EB>;
 
 				clock-names = "clk_mm_eb",
 					"clk_mm_ahb_eb",
@@ -750,9 +753,21 @@
 				sprd,gpu-dvfs-apb-syscon = <&gpu_dvfs_apb_regs>;
 				syscons = <&pmu_apb_regs
 					REG_PMU_APB_PD_GPU_TOP_CFG_0
-					MASK_PMU_APB_PD_GPU_TOP_FORCE_SHUTDOWN>;
+					MASK_PMU_APB_PD_GPU_TOP_FORCE_SHUTDOWN>,
+				<&pmu_apb_regs
+					REG_PMU_APB_PWR_STATUS_DBG_4
+					MASK_PMU_APB_PD_GPU_C0_STATE>,
+				<&gpu_apb_regs
+					REG_GPU_APB_GONDUL_PDC_CONTROL_STACK0
+					MASK_GPU_APB_CUR_ST_ST0>,
+				<&aon_apb_regs
+					REG_AON_APB_RF_BOND_OPT0
+					MASK_AON_APB_RF_BOND_OPTION0>;
 
-				syscon-names = "top-force-shutdown";
+				syscon-names = "top-force-shutdown",
+						"gpu_core0_state",
+						"cur_st_st0",
+						"mem_repaired_flag";
 
 				interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
@@ -811,7 +826,8 @@
 
 			dpu: dpu@31000000 {
 				compatible = "sprd,display-processor";
-				reg = <0x0 0x31000000 0x0 0x1000>;
+				reg = <0x0 0x31000000 0x0 0x1000>,
+				      <0x0 0x31001000 0x0 0x1000>;
 				syscons = <&ap_ahb_regs 0x0004 0x2>,
 					<&ap_ahb_regs 0x0004 0x4000>;
 				syscon-names = "disp_reset", "iommu_reset";
@@ -1771,13 +1787,6 @@
 				       <&aonapb_gate CLK_AC_WDG_RTC_EB>;
 			};
 
-			adi_bus1: spi@64600000 {
-				compatible = "sprd,qogirl6-adi-r5p1";
-				reg = <0 0x64600000 0 0x100000>;
-				#address-cells = <1>;
-				#size-cells = <0>;
-			};
-
 			pin_controller: pinctrl@64710000 {
 				compatible = "sprd,qogirl6-pinctrl";
 				reg = <0 0x64710000 0 0x10000>;
@@ -2257,6 +2266,7 @@
 
 	audiocp_boot {
 		compatible = "sprd,audcp-boot";
+		dsp-reboot-mode = <1>;
 		syscons = <&pmu_apb_regs REG_PMU_APB_PD_AUDCP_CFG_0 0x3000000>,
 			<&pmu_apb_regs REG_PMU_APB_PD_AUDCP_AUDDSP_CFG_0 0x3000000>,
 			<&pmu_apb_regs REG_PMU_APB_FORCE_DEEP_SLEEP_CFG_0 MASK_PMU_APB_AUDCP_FORCE_DEEP_SLEEP_REG>,

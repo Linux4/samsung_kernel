@@ -35,7 +35,11 @@
 #include "aw_pid_1852_reg.h"
 #include "aw_pid_2013_reg.h"
 #include "aw_pid_2032_reg.h"
-#include "aw_pid_2055_reg.h"
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+#include "aw_pid_2055a_reg.h"
+#include "aw_pid_2055b_reg.h"
+#include "aw_pid_2113_reg.h"
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 #include "aw_pid_2071_reg.h"
 #include "aw_log.h"
 /*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
@@ -190,29 +194,6 @@ static int aw_pid_1852_get_volume(struct aw_device *aw_dev, unsigned int *value)
 	return 0;
 }
 
-static void aw_pid_1852_i2s_enable(struct aw_device *aw_dev, bool flag)
-{
-	struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
-	struct aw_cali_desc *desc = &aw_dev->cali_desc;
-
-	aw_dev_dbg(aw882xx->dev, "enter");
-
-	if (!desc->mode) {
-		aw_dev_dbg(aw_dev->dev, "cali mode is none, needn't set i2s status");
-		return;
-	}
-
-	if (flag) {
-		aw882xx_i2c_write_bits(aw882xx, AW_PID_1852_I2SCFG1_REG,
-				AW_PID_1852_I2STXEN_MASK,
-				AW_PID_1852_I2STXEN_ENABLE_VALUE);
-	} else {
-		aw882xx_i2c_write_bits(aw882xx, AW_PID_1852_I2SCFG1_REG,
-				AW_PID_1852_I2STXEN_MASK,
-				AW_PID_1852_I2STXEN_DISABLE_VALUE);
-	}
-}
-
 static bool aw_pid_1852_check_rd_access(int reg)
 {
 	if (reg >= AW_PID_1852_REG_MAX)
@@ -293,6 +274,9 @@ static int aw_pid_1852_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->prof_info.prof_desc = NULL;
 	aw_pa->prof_info.count = 0;
 	aw_pa->channel = 0;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_pa->bop_en = AW_BOP_DISABLE;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->vol_step = AW_PID_1852_VOL_STEP;
 
 	aw_pa->index = index;
@@ -309,7 +293,6 @@ static int aw_pid_1852_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->ops.aw_get_volume = aw_pid_1852_get_volume;
 	aw_pa->ops.aw_set_volume = aw_pid_1852_set_volume;
 	aw_pa->ops.aw_reg_val_to_db = aw_pid_1852_reg_val_to_db;
-	aw_pa->ops.aw_i2s_enable = aw_pid_1852_i2s_enable;
 	aw_pa->ops.aw_check_rd_access = aw_pid_1852_check_rd_access;
 	aw_pa->ops.aw_check_wr_access = aw_pid_1852_check_wr_access;
 	aw_pa->ops.aw_get_reg_num = aw_pid_1852_get_reg_num;
@@ -335,18 +318,28 @@ static int aw_pid_1852_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->mute_desc.enable = AW_PID_1852_HMUTE_ENABLE_VALUE;
 	aw_pa->mute_desc.disable = AW_PID_1852_HMUTE_DISABLE_VALUE;
 
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_pa->uls_hmute_desc.reg = AW_REG_NONE;
+
+        aw_pa->txen_desc.reg = AW_PID_1852_I2SCFG1_REG;
+        aw_pa->txen_desc.mask = AW_PID_1852_I2STXEN_MASK;
+        aw_pa->txen_desc.enable = AW_PID_1852_I2STXEN_ENABLE_VALUE;
+        aw_pa->txen_desc.disable = AW_PID_1852_I2STXEN_DISABLE_VALUE;
+
 	aw_pa->vcalb_desc.vcalb_reg = AW_PID_1852_VTMCTRL3_REG;
 	aw_pa->vcalb_desc.vcal_factor = AW_PID_1852_VCAL_FACTOR;
 	aw_pa->vcalb_desc.cabl_base_value = AW_PID_1852_CABL_BASE_VALUE;
 
 	aw_pa->vcalb_desc.icalk_value_factor = AW_PID_1852_ICABLK_FACTOR;
 	aw_pa->vcalb_desc.icalk_reg = AW_PID_1852_EFRM1_REG;
+        aw_pa->vcalb_desc.icalkl_reg = AW_REG_NONE;
 	aw_pa->vcalb_desc.icalk_reg_mask = AW_PID_1852_EF_ISN_GESLP_MASK;
 	aw_pa->vcalb_desc.icalk_sign_mask = AW_PID_1852_EF_ISN_GESLP_SIGN_MASK;
 	aw_pa->vcalb_desc.icalk_neg_mask = AW_PID_1852_EF_ISN_GESLP_NEG;
 
 	aw_pa->vcalb_desc.vcalk_reg = AW_PID_1852_EFRH_REG;
 	aw_pa->vcalb_desc.vcalk_reg_mask = AW_PID_1852_EF_VSN_GESLP_MASK;
+        aw_pa->vcalb_desc.vcalkl_reg = AW_REG_NONE;
 	aw_pa->vcalb_desc.vcalk_sign_mask = AW_PID_1852_EF_VSN_GESLP_SIGN_MASK;
 	aw_pa->vcalb_desc.vcalk_neg_mask = AW_PID_1852_EF_VSN_GESLP_NEG;
 	aw_pa->vcalb_desc.vcalk_value_factor = AW_PID_1852_VCABLK_FACTOR;
@@ -354,7 +347,17 @@ static int aw_pid_1852_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->sysst_desc.reg = AW_PID_1852_SYSST_REG;
 	aw_pa->sysst_desc.mask = AW_PID_1852_SYSST_CHECK_MASK;
 	aw_pa->sysst_desc.st_check = AW_PID_1852_SYSST_CHECK;
-	aw_pa->sysst_desc.pll_check = AW_PID_1852_PLLS_LOCKED_VALUE;
+	aw_pa->sysst_desc.pll_check = AW_PID_1852_IIS_CHECK;
+
+        aw_pa->spin_desc.rx_desc.reg = AW_PID_1852_I2SCTRL_REG;
+        aw_pa->spin_desc.rx_desc.mask = AW_PID_1852_CHSEL_MASK;
+        aw_pa->spin_desc.rx_desc.left_val = AW_PID_1852_CHSEL_LEFT_VALUE;
+        aw_pa->spin_desc.rx_desc.right_val = AW_PID_1852_CHSEL_RIGHT_VALUE;
+
+        aw_pa->spin_desc.tx_desc.reg = AW_PID_1852_I2SCFG1_REG;
+        aw_pa->spin_desc.tx_desc.mask = AW_PID_1852_I2SCHS_MASK;
+        aw_pa->spin_desc.tx_desc.left_val = AW_PID_1852_I2SCHS_LEFT_CHANNEL_VALUE;
+        aw_pa->spin_desc.tx_desc.right_val = AW_PID_1852_I2SCHS_RIGHT_CHANNEL_VALUE;
 
 	aw_pa->cco_mux_desc.reg = AW_PID_1852_PLLCTRL1_REG;
 	aw_pa->cco_mux_desc.mask = AW_PID_1852_I2S_CCO_MUX_MASK;
@@ -377,7 +380,10 @@ static int aw_pid_1852_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->volume_desc.shift = AW_PID_1852_VOL_START_BIT;
 	aw_pa->volume_desc.mute_volume = AW_PID_1852_MUTE_VOL;
 
-	aw_pa->soft_rst.reg = AW_PID_1852_ID_REG;
+        aw_pa->bop_desc.reg = AW_REG_NONE;
+
+        aw_pa->soft_rst.reg = AW882XX_SOFT_RESET_REG;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->soft_rst.reg_value = AW882XX_SOFT_RESET_VALUE;
 
 	ret = aw_device_probe(aw_pa);
@@ -402,7 +408,6 @@ static unsigned int aw_pid_2013_db_val_to_reg(unsigned int value)
 {
 	return (((value / AW_PID_2013_VOL_STEP_DB) << 6) + (value % AW_PID_2013_VOL_STEP_DB));
 }
-
 
 static int aw_pid_2013_set_volume(struct aw_device *aw_dev, unsigned int value)
 {
@@ -439,21 +444,6 @@ static int aw_pid_2013_get_volume(struct aw_device *aw_dev, unsigned int* value)
 	*value = real_value;
 
 	return 0;
-}
-
-static void aw_pid_2013_i2s_enable(struct aw_device *aw_dev, bool flag)
-{
-	struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
-	aw_dev_dbg(aw882xx->dev, "enter");
-
-	if (flag)
-		aw882xx_i2c_write_bits(aw882xx, AW_PID_2013_I2SCTRL1_REG,
-				AW_PID_2013_I2STXEN_MASK,
-				AW_PID_2013_I2STXEN_ENABLE_VALUE);
-	else
-		aw882xx_i2c_write_bits(aw882xx, AW_PID_2013_I2SCFG1_REG,
-				AW_PID_2013_I2STXEN_MASK,
-				AW_PID_2013_I2STXEN_DISABLE_VALUE);
 }
 
 static bool aw_pid_2013_check_rd_access(int reg)
@@ -565,6 +555,9 @@ static int aw_pid_2013_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->prof_info.prof_desc = NULL;
 	aw_pa->prof_info.count = 0;
 	aw_pa->channel = 0;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_pa->bop_en = AW_BOP_DISABLE;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->vol_step = AW_PID_2013_VOL_STEP;
 
 	aw_pa->index = index;
@@ -580,7 +573,6 @@ static int aw_pid_2013_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->ops.aw_get_volume = aw_pid_2013_get_volume;
 	aw_pa->ops.aw_set_volume = aw_pid_2013_set_volume;
 	aw_pa->ops.aw_reg_val_to_db = aw_pid_2013_reg_val_to_db;
-	aw_pa->ops.aw_i2s_enable = aw_pid_2013_i2s_enable;
 	aw_pa->ops.aw_check_rd_access = aw_pid_2013_check_rd_access;
 	aw_pa->ops.aw_check_wr_access = aw_pid_2013_check_wr_access;
 	aw_pa->ops.aw_get_reg_num = aw_pid_2013_get_reg_num;
@@ -606,18 +598,28 @@ static int aw_pid_2013_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->mute_desc.enable = AW_PID_2013_HMUTE_ENABLE_VALUE;
 	aw_pa->mute_desc.disable = AW_PID_2013_HMUTE_DISABLE_VALUE;
 
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_pa->uls_hmute_desc.reg = AW_REG_NONE;
+
+        aw_pa->txen_desc.reg = AW_PID_2013_I2SCTRL1_REG;
+        aw_pa->txen_desc.mask = AW_PID_2013_I2STXEN_MASK;
+        aw_pa->txen_desc.enable = AW_PID_2013_I2STXEN_ENABLE_VALUE;
+        aw_pa->txen_desc.disable = AW_PID_2013_I2STXEN_DISABLE_VALUE;
+
 	aw_pa->vcalb_desc.vcalb_reg = AW_PID_2013_VSNTM1_REG;
 	aw_pa->vcalb_desc.vcal_factor = AW_PID_2013_VCAL_FACTOR;
 	aw_pa->vcalb_desc.cabl_base_value = AW_PID_2013_CABL_BASE_VALUE;
 
 	aw_pa->vcalb_desc.icalk_value_factor = AW_PID_2013_ICABLK_FACTOR;
 	aw_pa->vcalb_desc.icalk_reg = AW_PID_2013_EFRH_REG;
+        aw_pa->vcalb_desc.icalkl_reg = AW_REG_NONE;
 	aw_pa->vcalb_desc.icalk_reg_mask = AW_PID_2013_EF_ISN_GESLP_MASK;
 	aw_pa->vcalb_desc.icalk_sign_mask = AW_PID_2013_EF_ISN_GESLP_SIGN_MASK;
 	aw_pa->vcalb_desc.icalk_neg_mask = AW_PID_2013_EF_ISN_GESLP_NEG;
 
 	aw_pa->vcalb_desc.vcalk_reg = AW_PID_2013_EFRM2_REG;
 	aw_pa->vcalb_desc.vcalk_reg_mask = AW_PID_2013_EF_VSN_GESLP_MASK;
+        aw_pa->vcalb_desc.vcalkl_reg = AW_REG_NONE;
 	aw_pa->vcalb_desc.vcalk_sign_mask = AW_PID_2013_EF_ISN_GESLP2_SIGN_MASK;
 	aw_pa->vcalb_desc.vcalk_neg_mask = AW_PID_2013_EF_ISN_GESLP2_NEG;
 	aw_pa->vcalb_desc.vcalk_value_factor = AW_PID_2013_VCABLK_FACTOR;
@@ -625,7 +627,7 @@ static int aw_pid_2013_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->sysst_desc.reg = AW_PID_2013_SYSST_REG;
 	aw_pa->sysst_desc.mask = AW_PID_2013_SYSST_CHECK_MASK;
 	aw_pa->sysst_desc.st_check = AW_PID_2013_SYSST_CHECK;
-	aw_pa->sysst_desc.pll_check = AW_PID_2013_PLLS_LOCKED_VALUE;
+	aw_pa->sysst_desc.pll_check = AW_PID_2013_IIS_CHECK;
 
 	aw_pa->profctrl_desc.reg = AW_PID_2013_SYSCTRL_REG;
 	aw_pa->profctrl_desc.mask = AW_PID_2013_EN_TRAN_MASK;
@@ -635,6 +637,16 @@ static int aw_pid_2013_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->bstctrl_desc.mask = AW_PID_2013_BST_MODE_MASK;
 	aw_pa->bstctrl_desc.frc_bst = AW_PID_2013_BST_MODE_FORCE_BOOST_VALUE;
 	aw_pa->bstctrl_desc.tsp_type = AW_PID_2013_BST_MODE_TRANSPARENT_VALUE;
+
+        aw_pa->spin_desc.rx_desc.reg = AW_PID_2013_I2SCTRL1_REG;
+        aw_pa->spin_desc.rx_desc.mask = AW_PID_2013_CHSEL_MASK;
+        aw_pa->spin_desc.rx_desc.left_val = AW_PID_2013_CHSEL_LEFT_VALUE;
+        aw_pa->spin_desc.rx_desc.right_val = AW_PID_2013_CHSEL_RIGHT_VALUE;
+
+        aw_pa->spin_desc.tx_desc.reg = AW_PID_2013_SYSCTRL2_REG;
+        aw_pa->spin_desc.tx_desc.mask = AW_PID_2013_I2SCHS_MASK;
+        aw_pa->spin_desc.tx_desc.left_val = AW_PID_2013_I2SCHS_LEFT_VALUE;
+        aw_pa->spin_desc.tx_desc.right_val = AW_PID_2013_I2SCHS_RIGHT_VALUE;
 
 	aw_pa->voltage_desc.reg = AW_PID_2013_VBAT_REG;
 	aw_pa->voltage_desc.int_bit = AW_PID_2013_MONITOR_INT_10BIT;
@@ -657,7 +669,10 @@ static int aw_pid_2013_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->volume_desc.shift = AW_PID_2013_VOL_START_BIT;
 	aw_pa->volume_desc.mute_volume = AW_PID_2013_MUTE_VOL;
 
-	aw_pa->soft_rst.reg = AW_PID_2013_ID_REG;
+        aw_pa->bop_desc.reg = AW_REG_NONE;
+
+        aw_pa->soft_rst.reg = AW882XX_SOFT_RESET_REG;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->soft_rst.reg_value = AW882XX_SOFT_RESET_VALUE;
 
 	aw_pid_2013_efver_check(aw_pa);
@@ -720,28 +735,6 @@ static int aw_pid_2032_get_volume(struct aw_device *aw_dev, unsigned int *value)
 	*value = real_value;
 
 	return 0;
-}
-
-static void aw_pid_2032_i2s_enable(struct aw_device *aw_dev, bool flag)
-{
-	struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
-	struct aw_cali_desc *desc = &aw_dev->cali_desc;
-	aw_dev_dbg(aw882xx->dev, "enter");
-
-	if (!desc->mode) {
-		aw_dev_dbg(aw_dev->dev, "cali mode is none, needn't set i2s status");
-		return;
-	}
-
-	if (flag) {
-		aw882xx_i2c_write_bits(aw882xx, AW_PID_2032_I2SCFG1_REG,
-				AW_PID_2032_I2STXEN_MASK,
-				AW_PID_2032_I2STXEN_ENABLE_VALUE);
-	} else {
-		aw882xx_i2c_write_bits(aw882xx, AW_PID_2032_I2SCFG1_REG,
-				AW_PID_2032_I2STXEN_MASK,
-				AW_PID_2032_I2STXEN_DISABLE_VALUE);
-	}
 }
 
 static bool aw_pid_2032_check_rd_access(int reg)
@@ -824,6 +817,9 @@ static int aw_pid_2032_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->prof_info.prof_desc = NULL;
 	aw_pa->prof_info.count = 0;
 	aw_pa->channel = 0;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_pa->bop_en = AW_BOP_DISABLE;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->vol_step = AW_PID_2032_VOL_STEP;
 
 	aw_pa->index = index;
@@ -840,7 +836,6 @@ static int aw_pid_2032_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->ops.aw_get_volume = aw_pid_2032_get_volume;
 	aw_pa->ops.aw_set_volume = aw_pid_2032_set_volume;
 	aw_pa->ops.aw_reg_val_to_db = aw_pid_2032_reg_val_to_db;
-	aw_pa->ops.aw_i2s_enable = aw_pid_2032_i2s_enable;
 	aw_pa->ops.aw_check_rd_access = aw_pid_2032_check_rd_access;
 	aw_pa->ops.aw_check_wr_access = aw_pid_2032_check_wr_access;
 	aw_pa->ops.aw_get_reg_num = aw_pid_2032_get_reg_num;
@@ -866,26 +861,46 @@ static int aw_pid_2032_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->mute_desc.enable = AW_PID_2032_HMUTE_ENABLE_VALUE;
 	aw_pa->mute_desc.disable = AW_PID_2032_HMUTE_DISABLE_VALUE;
 
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_pa->uls_hmute_desc.reg = AW_REG_NONE;
+
+        aw_pa->txen_desc.reg = AW_PID_2032_I2SCFG1_REG;
+        aw_pa->txen_desc.mask = AW_PID_2032_I2STXEN_MASK;
+        aw_pa->txen_desc.enable = AW_PID_2032_I2STXEN_ENABLE_VALUE;
+        aw_pa->txen_desc.disable = AW_PID_2032_I2STXEN_DISABLE_VALUE;
+
 	aw_pa->vcalb_desc.vcalb_reg = AW_PID_2032_VTMCTRL3_REG;
 	aw_pa->vcalb_desc.vcal_factor = AW_PID_2032_VCAL_FACTOR;
 	aw_pa->vcalb_desc.cabl_base_value = AW_PID_2032_CABL_BASE_VALUE;
 
 	aw_pa->vcalb_desc.icalk_value_factor = AW_PID_2032_ICABLK_FACTOR;
 	aw_pa->vcalb_desc.icalk_reg = AW_PID_2032_EFRM1_REG;
+        aw_pa->vcalb_desc.icalkl_reg = AW_REG_NONE;
 	aw_pa->vcalb_desc.icalk_reg_mask = AW_PID_2032_EF_ISN_GESLP_MASK;
 	aw_pa->vcalb_desc.icalk_sign_mask = AW_PID_2032_EF_ISN_GESLP_SIGN_MASK;
 	aw_pa->vcalb_desc.icalk_neg_mask = AW_PID_2032_EF_ISN_GESLP_NEG;
 
 	aw_pa->vcalb_desc.vcalk_reg = AW_PID_2032_EFRH_REG;
 	aw_pa->vcalb_desc.vcalk_reg_mask = AW_PID_2032_EF_VSN_GESLP_MASK;
+        aw_pa->vcalb_desc.vcalkl_reg = AW_REG_NONE;
 	aw_pa->vcalb_desc.vcalk_sign_mask = AW_PID_2032_EF_VSN_GESLP_SIGN_MASK;
 	aw_pa->vcalb_desc.vcalk_neg_mask = AW_PID_2032_EF_VSN_GESLP_NEG;
 	aw_pa->vcalb_desc.vcalk_value_factor = AW_PID_2032_VCABLK_FACTOR;
 
+        aw_pa->spin_desc.rx_desc.reg = AW_PID_2032_I2SCTRL_REG;
+        aw_pa->spin_desc.rx_desc.mask = AW_PID_2032_CHSEL_MASK;
+        aw_pa->spin_desc.rx_desc.left_val = AW_PID_2032_CHSEL_LEFT_VALUE;
+        aw_pa->spin_desc.rx_desc.right_val = AW_PID_2032_CHSEL_RIGHT_VALUE;
+
+        aw_pa->spin_desc.tx_desc.reg = AW_PID_2032_I2SCFG1_REG;
+        aw_pa->spin_desc.tx_desc.mask = AW_PID_2032_I2SCHS_MASK;
+        aw_pa->spin_desc.tx_desc.left_val = AW_PID_2032_I2SCHS_LEFT_VALUE;
+        aw_pa->spin_desc.tx_desc.right_val = AW_PID_2032_I2SCHS_RIGHT_VALUE;
+
 	aw_pa->sysst_desc.reg = AW_PID_2032_SYSST_REG;
 	aw_pa->sysst_desc.mask = AW_PID_2032_SYSST_CHECK_MASK;
 	aw_pa->sysst_desc.st_check = AW_PID_2032_SYSST_CHECK;
-	aw_pa->sysst_desc.pll_check = AW_PID_2032_PLLS_LOCKED_VALUE;
+        aw_pa->sysst_desc.pll_check = AW_PID_2032_IIS_CHECK;
 
 	aw_pa->cco_mux_desc.reg = AW_PID_2032_PLLCTRL1_REG;
 	aw_pa->cco_mux_desc.mask = AW_PID_2032_CCO_MUX_MASK;
@@ -908,7 +923,10 @@ static int aw_pid_2032_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->volume_desc.shift = AW_PID_2032_VOL_START_BIT;
 	aw_pa->volume_desc.mute_volume = AW_PID_2032_MUTE_VOL;
 
-	aw_pa->soft_rst.reg = AW_PID_2032_ID_REG;
+        aw_pa->bop_desc.reg = AW_REG_NONE;
+
+        aw_pa->soft_rst.reg = AW882XX_SOFT_RESET_REG;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->soft_rst.reg_value = AW882XX_SOFT_RESET_VALUE;
 
 	ret = aw_device_probe(aw_pa);
@@ -918,25 +936,26 @@ static int aw_pid_2032_dev_init(struct aw882xx *aw882xx, int index)
 }
 
 /* [9 : 6]: -6DB ; [5 : 0]: 0.125DB  real_value = value * 8 : 0.125db --> 1 */
-static unsigned int aw_pid_2055_reg_val_to_db(unsigned int value)
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static unsigned int aw_pid_2055a_reg_val_to_db(unsigned int value)
 {
-	return ((value >> 6) * AW_PID_2055_VOL_STEP_DB + (value & 0x3f));
+	return ((value >> 6) * AW_PID_2055A_VOL_STEP_DB + (value & 0x3f));
 }
 
 /* [9 : 6]: -6DB ; [5 : 0]: 0.125DB reg_value = value / step << 6 + value % step ; step = 6 * 8 */
-static unsigned int aw_pid_2055_db_val_to_reg(unsigned int value)
+static unsigned int aw_pid_2055a_db_val_to_reg(unsigned int value)
 {
-	return (((value / AW_PID_2055_VOL_STEP_DB) << 6) + (value % AW_PID_2055_VOL_STEP_DB));
+        return (((value / AW_PID_2055A_VOL_STEP_DB) << 6) + (value % AW_PID_2055A_VOL_STEP_DB));
 }
 
-static int aw_pid_2055_set_volume(struct aw_device *aw_dev, unsigned int value)
+static int aw_pid_2055a_set_volume(struct aw_device *aw_dev, unsigned int value)
 {
 	struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
 	unsigned int reg_value = 0;
-	unsigned int real_value = aw_pid_2055_db_val_to_reg(value);
+	unsigned int real_value = aw_pid_2055a_db_val_to_reg(value);
 
 	/* cal real value */
-	aw882xx_i2c_read(aw882xx, AW_PID_2055_SYSCTRL2_REG, &reg_value);
+	aw882xx_i2c_read(aw882xx, AW_PID_2055A_SYSCTRL2_REG, &reg_value);
 
 	aw_dev_dbg(aw882xx->dev, "value %d , 0x%x", value, real_value);
 
@@ -944,83 +963,85 @@ static int aw_pid_2055_set_volume(struct aw_device *aw_dev, unsigned int value)
 	real_value = (real_value | (reg_value & 0xfc00));
 
 	/* write value */
-	aw882xx_i2c_write(aw882xx, AW_PID_2055_SYSCTRL2_REG, real_value);
+	aw882xx_i2c_write(aw882xx, AW_PID_2055A_SYSCTRL2_REG, real_value);
 	return 0;
 }
 
-static int aw_pid_2055_get_volume(struct aw_device *aw_dev, unsigned int *value)
+static int aw_pid_2055a_get_volume(struct aw_device *aw_dev, unsigned int *value)
 {
 	unsigned int reg_value = 0;
 	unsigned int real_value = 0;
 	struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
 
 	/* read value */
-	aw882xx_i2c_read(aw882xx, AW_PID_2055_SYSCTRL2_REG, &reg_value);
+	aw882xx_i2c_read(aw882xx, AW_PID_2055A_SYSCTRL2_REG, &reg_value);
 
 	/* [9 : 0] volume */
 	real_value = (reg_value & 0x03ff);
 
-	real_value = aw_pid_2055_reg_val_to_db(real_value);
+	real_value = aw_pid_2055a_reg_val_to_db(real_value);
 	*value = real_value;
 
 	return 0;
 }
 
-static bool aw_pid_2055_check_rd_access(int reg)
+static bool aw_pid_2055a_check_rd_access(int reg)
 {
-	if (reg >= AW_PID_2055_REG_MAX) {
+	if (reg >= AW_PID_2055A_REG_MAX) {
 		return false;
 	}
 
-	if (aw_pid_2055_reg_access[reg] & AW_PID_2055_REG_RD_ACCESS) {
+	if (aw_pid_2055a_reg_access[reg] & AW_PID_2055A_REG_RD_ACCESS) {
 		return true;
 	} else {
 		return false;
 	}
 }
 
-static bool aw_pid_2055_check_wr_access(int reg)
+static bool aw_pid_2055a_check_wr_access(int reg)
 {
-	if (reg >= AW_PID_2055_REG_MAX)
+	if (reg >= AW_PID_2055A_REG_MAX) {
 		return false;
+	}
 
-	if (aw_pid_2055_reg_access[reg] &
-			AW_PID_2055_REG_WR_ACCESS)
+	if (aw_pid_2055a_reg_access[reg] &
+			AW_PID_2055A_REG_WR_ACCESS) {
 		return true;
-	else
+	} else {
 		return false;
+	}
 }
 
-static int aw_pid_2055_get_reg_num(void)
+static int aw_pid_2055a_get_reg_num(void)
 {
-	return AW_PID_2055_REG_MAX;
+	return AW_PID_2055A_REG_MAX;
 }
 
-static unsigned int aw_pid_2055_get_irq_type(struct aw_device *aw_dev,
+static unsigned int aw_pid_2055a_get_irq_type(struct aw_device *aw_dev,
 					unsigned int value)
 {
 	unsigned int ret = INT_TYPE_NONE;
 
 	/* UVL0 */
-	if (value & (~AW_PID_2055_UVLI_MASK)) {
+	if (value & (~AW_PID_2055A_UVLI_MASK)) {
 		aw_dev_info(aw_dev->dev, "UVLO: occur");
 		ret |= INT_TYPE_UVLO;
 	}
 
 	/* BSTOCM */
-	if (value & (~AW_PID_2055_BSTOCI_MASK)) {
+	if (value & (~AW_PID_2055A_BSTOCI_MASK)) {
 		aw_dev_info(aw_dev->dev, "BSTOCI: occur");
 		ret |= INT_TYPE_BSTOC;
 	}
 
 	/* OCDI */
-	if (value & (~AW_PID_2055_OCDI_MASK)) {
+	if (value & (~AW_PID_2055A_OCDI_MASK)) {
 		aw_dev_info(aw_dev->dev, "OCDI: occur");
 		ret |= INT_TYPE_OCDI;
 	}
 
 	/* OTHI */
-	if (value & (~AW_PID_2055_OTHI_MASK)) {
+	if (value & (~AW_PID_2055A_OTHI_MASK)) {
 		aw_dev_info(aw_dev->dev, "OTHI: occur");
 		ret |= INT_TYPE_OTHI;
 	}
@@ -1028,7 +1049,7 @@ static unsigned int aw_pid_2055_get_irq_type(struct aw_device *aw_dev,
 	return ret;
 }
 
-static int aw_pid_2055_dev_init(struct aw882xx *aw882xx, int index)
+static int aw_pid_2055a_dev_init(struct aw882xx *aw882xx, int index)
 {
 	int ret;
 	struct aw_device *aw_pa = NULL;
@@ -1040,80 +1061,104 @@ static int aw_pid_2055_dev_init(struct aw882xx *aw882xx, int index)
 
 	/*call aw device init func*/
 	memset(aw_pa->acf_name, 0, AW_NAME_MAX);
-	memcpy(aw_pa->acf_name, AW_PID_2055_ACF_FILE, strlen(AW_PID_2055_ACF_FILE));
+	memcpy(aw_pa->acf_name, AW_PID_2055A_ACF_FILE, strlen(AW_PID_2055A_ACF_FILE));
 	memset(aw_pa->monitor_name, 0, AW_NAME_MAX);
-	memcpy(aw_pa->monitor_name, AW_PID_2055_MONITOR_FILE, strlen(AW_PID_2055_MONITOR_FILE));
+	memcpy(aw_pa->monitor_name, AW_PID_2055A_MONITOR_FILE, strlen(AW_PID_2055A_MONITOR_FILE));
 
 	aw_pa->prof_info.prof_desc = NULL;
 	aw_pa->prof_info.count = 0;
 	aw_pa->channel = 0;
-	aw_pa->vol_step = AW_PID_2055_VOL_STEP;
+        aw_pa->bstcfg_enable = AW_BSTCFG_DISABLE;
+        aw_pa->bop_en = AW_BOP_DISABLE;
+	aw_pa->vol_step = AW_PID_2055A_VOL_STEP;
 
 	aw_pa->index = index;
 	aw_pa->private_data = (void *)aw882xx;
 	aw_pa->dev = aw882xx->dev;
 	aw_pa->i2c = aw882xx->i2c;
-	aw_pa->bstcfg_enable = AW_BSTCFG_DISABLE;
 	aw_pa->ops.aw_get_version = aw882xx_get_version;
 	aw_pa->ops.aw_get_dev_num = aw882xx_get_dev_num;
 	aw_pa->ops.aw_set_algo = aw882xx_dev_set_algo_en;
 	aw_pa->ops.aw_i2c_read = aw882xx_dev_i2c_read;
 	aw_pa->ops.aw_i2c_write = aw882xx_dev_i2c_write;
 	aw_pa->ops.aw_i2c_write_bits = aw882xx_dev_i2c_write_bits;
-	aw_pa->ops.aw_get_volume = aw_pid_2055_get_volume;
-	aw_pa->ops.aw_set_volume = aw_pid_2055_set_volume;
-	aw_pa->ops.aw_reg_val_to_db = aw_pid_2055_reg_val_to_db;
-	aw_pa->ops.aw_check_rd_access = aw_pid_2055_check_rd_access;
-	aw_pa->ops.aw_check_wr_access = aw_pid_2055_check_wr_access;
-	aw_pa->ops.aw_get_reg_num = aw_pid_2055_get_reg_num;
-	aw_pa->ops.aw_get_irq_type =aw_pid_2055_get_irq_type;
+        aw_pa->ops.aw_get_volume = aw_pid_2055a_get_volume;
+        aw_pa->ops.aw_set_volume = aw_pid_2055a_set_volume;
+        aw_pa->ops.aw_reg_val_to_db = aw_pid_2055a_reg_val_to_db;
+        aw_pa->ops.aw_check_rd_access = aw_pid_2055a_check_rd_access;
+        aw_pa->ops.aw_check_wr_access = aw_pid_2055a_check_wr_access;
+        aw_pa->ops.aw_get_reg_num = aw_pid_2055a_get_reg_num;
+        aw_pa->ops.aw_get_irq_type =aw_pid_2055a_get_irq_type;
 
-	aw_pa->int_desc.mask_reg = AW_PID_2055_SYSINTM_REG;
-	aw_pa->int_desc.mask_default = AW_PID_2055_SYSINTM_DEFAULT;
-	aw_pa->int_desc.int_mask = AW_PID_2055_SYSINTM_DEFAULT;
-	aw_pa->int_desc.st_reg = AW_PID_2055_SYSINT_REG;
+        aw_pa->int_desc.mask_reg = AW_PID_2055A_SYSINTM_REG;
+        aw_pa->int_desc.mask_default = AW_PID_2055A_SYSINTM_DEFAULT;
+        aw_pa->int_desc.int_mask = AW_PID_2055A_SYSINTM_DEFAULT;
+        aw_pa->int_desc.st_reg = AW_PID_2055A_SYSINT_REG;
 
-	aw_pa->pwd_desc.reg = AW_PID_2055_SYSCTRL_REG;
-	aw_pa->pwd_desc.mask = AW_PID_2055_PWDN_MASK;
-	aw_pa->pwd_desc.enable = AW_PID_2055_PWDN_POWER_DOWN_VALUE;
-	aw_pa->pwd_desc.disable = AW_PID_2055_PWDN_WORKING_VALUE;
+        aw_pa->pwd_desc.reg = AW_PID_2055A_SYSCTRL_REG;
+        aw_pa->pwd_desc.mask = AW_PID_2055A_PWDN_MASK;
+        aw_pa->pwd_desc.enable = AW_PID_2055A_PWDN_POWER_DOWN_VALUE;
+        aw_pa->pwd_desc.disable = AW_PID_2055A_PWDN_WORKING_VALUE;
 
-	aw_pa->amppd_desc.reg = AW_PID_2055_SYSCTRL_REG;
-	aw_pa->amppd_desc.mask = AW_PID_2055_AMPPD_MASK;
-	aw_pa->amppd_desc.enable = AW_PID_2055_AMPPD_POWER_DOWN_VALUE;
-	aw_pa->amppd_desc.disable = AW_PID_2055_AMPPD_WORKING_VALUE;
+        aw_pa->amppd_desc.reg = AW_PID_2055A_SYSCTRL_REG;
+        aw_pa->amppd_desc.mask = AW_PID_2055A_AMPPD_MASK;
+        aw_pa->amppd_desc.enable = AW_PID_2055A_AMPPD_POWER_DOWN_VALUE;
+        aw_pa->amppd_desc.disable = AW_PID_2055A_AMPPD_WORKING_VALUE;
 
-	aw_pa->mute_desc.reg = AW_PID_2055_SYSCTRL_REG;
-	aw_pa->mute_desc.mask = AW_PID_2055_HMUTE_MASK;
-	aw_pa->mute_desc.enable = AW_PID_2055_HMUTE_ENABLE_VALUE;
-	aw_pa->mute_desc.disable = AW_PID_2055_HMUTE_DISABLE_VALUE;
+        aw_pa->mute_desc.reg = AW_PID_2055A_SYSCTRL_REG;
+        aw_pa->mute_desc.mask = AW_PID_2055A_HMUTE_MASK;
+        aw_pa->mute_desc.enable = AW_PID_2055A_HMUTE_ENABLE_VALUE;
+        aw_pa->mute_desc.disable = AW_PID_2055A_HMUTE_DISABLE_VALUE;
 
-	aw_pa->vcalb_desc.vcalb_reg = AW_REG_NONE;
-	aw_pa->vcalb_desc.vcalk_reg = AW_REG_NONE;
-	aw_pa->vcalb_desc.icalk_reg = AW_REG_NONE;
+        aw_pa->uls_hmute_desc.reg = AW_REG_NONE;
 
-	aw_pa->sysst_desc.reg = AW_PID_2055_SYSST_REG;
-	aw_pa->sysst_desc.mask = AW_PID_2055_SYSST_CHECK_MASK;
-	aw_pa->sysst_desc.st_check = AW_PID_2055_SYSST_CHECK;
-	aw_pa->sysst_desc.pll_check = AW_PID_2055_PLLS_LOCKED_VALUE;
+        aw_pa->txen_desc.reg = AW_PID_2055A_I2SCTRL1_REG;
+        aw_pa->txen_desc.mask = AW_PID_2055A_I2STXEN_MASK;
+        aw_pa->txen_desc.enable = AW_PID_2055A_I2STXEN_ENABLE_VALUE;
+        aw_pa->txen_desc.disable = AW_PID_2055A_I2STXEN_DISABLE_VALUE;
 
-	aw_pa->voltage_desc.reg = AW_REG_NONE;
-	aw_pa->temp_desc.reg = AW_REG_NONE;
+        aw_pa->vcalb_desc.vcalb_reg = AW_REG_NONE;
+        aw_pa->vcalb_desc.vcalk_reg = AW_REG_NONE;
+        aw_pa->vcalb_desc.icalk_reg = AW_REG_NONE;
 
-	aw_pa->ipeak_desc.reg = AW_PID_2055_BSTCTRL2_REG;
-	aw_pa->ipeak_desc.mask = AW_PID_2055_BST_IPEAK_MASK;
+        aw_pa->sysst_desc.reg = AW_PID_2055A_SYSST_REG;
+        aw_pa->sysst_desc.mask = AW_PID_2055A_SYSST_CHECK_MASK;
+        aw_pa->sysst_desc.st_check = AW_PID_2055A_SYSST_CHECK;
+        aw_pa->sysst_desc.pll_check = AW_PID_2055A_IIS_CHECK;
 
-	aw_pa->volume_desc.reg = AW_PID_2055_SYSCTRL2_REG;
-	aw_pa->volume_desc.mask = AW_PID_2055_VOL_MASK;
-	aw_pa->volume_desc.shift = AW_PID_2055_VOL_START_BIT;
-	aw_pa->volume_desc.mute_volume = AW_PID_2055_MUTE_VOL;
+        aw_pa->spin_desc.rx_desc.reg = AW_PID_2055A_I2SCTRL1_REG;
+        aw_pa->spin_desc.rx_desc.mask = AW_PID_2055A_CHSEL_MASK;
+        aw_pa->spin_desc.rx_desc.left_val = AW_PID_2055A_CHSEL_LEFT_VALUE;
+        aw_pa->spin_desc.rx_desc.right_val = AW_PID_2055A_CHSEL_RIGHT_VALUE;
 
-	aw_pa->cco_mux_desc.reg = AW_PID_2055_PLLCTRL3_REG;
-	aw_pa->cco_mux_desc.mask = AW_PID_2055_CCO_MUX_MASK;
-	aw_pa->cco_mux_desc.divided_val = AW_PID_2055_CCO_MUX_DIVIDED_VALUE;
-	aw_pa->cco_mux_desc.bypass_val = AW_PID_2055_CCO_MUX_BYPASS_VALUE;
+        aw_pa->spin_desc.tx_desc.reg = AW_PID_2055A_SYSCTRL2_REG;
+        aw_pa->spin_desc.tx_desc.mask = AW_PID_2055A_I2SCHS_MASK;
+        aw_pa->spin_desc.tx_desc.left_val = AW_PID_2055A_I2SCHS_LEFT_VALUE;
+        aw_pa->spin_desc.tx_desc.right_val = AW_PID_2055A_I2SCHS_RIGHT_VALUE;
 
-	aw_pa->soft_rst.reg = AW_PID_2055_ID_REG;
+        aw_pa->voltage_desc.reg = AW_REG_NONE;
+        aw_pa->temp_desc.reg = AW_REG_NONE;
+
+        aw_pa->txen_desc.reg = AW_PID_2055A_I2SCTRL1_REG;
+        aw_pa->txen_desc.mask = AW_PID_2055A_I2STXEN_MASK;
+
+        aw_pa->ipeak_desc.reg = AW_PID_2055A_BSTCTRL2_REG;
+        aw_pa->ipeak_desc.mask = AW_PID_2055A_BST_IPEAK_MASK;
+
+        aw_pa->volume_desc.reg = AW_PID_2055A_SYSCTRL2_REG;
+        aw_pa->volume_desc.mask = AW_PID_2055A_VOL_MASK;
+        aw_pa->volume_desc.shift = AW_PID_2055A_VOL_START_BIT;
+        aw_pa->volume_desc.mute_volume = AW_PID_2055A_MUTE_VOL;
+
+        aw_pa->cco_mux_desc.reg = AW_PID_2055A_PLLCTRL3_REG;
+        aw_pa->cco_mux_desc.mask = AW_PID_2055A_CCO_MUX_MASK;
+        aw_pa->cco_mux_desc.divided_val = AW_PID_2055A_CCO_MUX_DIVIDED_VALUE;
+        aw_pa->cco_mux_desc.bypass_val = AW_PID_2055A_CCO_MUX_BYPASS_VALUE;
+
+        aw_pa->bop_desc.reg = AW_REG_NONE;
+
+        aw_pa->soft_rst.reg = AW882XX_SOFT_RESET_REG;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->soft_rst.reg_value = AW882XX_SOFT_RESET_VALUE;
 
 	ret = aw_device_probe(aw_pa);
@@ -1123,6 +1168,262 @@ static int aw_pid_2055_dev_init(struct aw882xx *aw882xx, int index)
 }
 
 /* [9 : 6]: -6DB ; [5 : 0]: 0.125DB  real_value = value * 8 : 0.125db --> 1 */
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static unsigned int aw_pid_2055b_reg_val_to_db(unsigned int value)
+{
+        return ((value >> 6) * AW_PID_2055B_VOL_STEP_DB + (value & 0x3f));
+}
+
+/* [9 : 6]: -6DB ; [5 : 0]: 0.125DB reg_value = value / step << 6 + value % step ; step = 6 * 8 */
+static unsigned int aw_pid_2055b_db_val_to_reg(unsigned int value)
+{
+        return (((value / AW_PID_2055B_VOL_STEP_DB) << 6) + (value % AW_PID_2055B_VOL_STEP_DB));
+}
+
+static int aw_pid_2055b_set_volume(struct aw_device *aw_dev, unsigned int value)
+{
+        struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
+        unsigned int reg_value = 0;
+        unsigned int real_value = aw_pid_2055b_db_val_to_reg(value);
+
+        /* cal real value */
+        aw882xx_i2c_read(aw882xx, AW_PID_2055B_SYSCTRL2_REG, &reg_value);
+
+        aw_dev_dbg(aw882xx->dev, "value %d , 0x%x", value, real_value);
+
+        /*[9 : 0] volume*/
+        real_value = (real_value | (reg_value & 0xfc00));
+
+        /* write value */
+        aw882xx_i2c_write(aw882xx, AW_PID_2055B_SYSCTRL2_REG, real_value);
+        return 0;
+}
+
+static int aw_pid_2055b_get_volume(struct aw_device *aw_dev, unsigned int *value)
+{
+        unsigned int reg_value = 0;
+        unsigned int real_value = 0;
+        struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
+
+        /* read value */
+        aw882xx_i2c_read(aw882xx, AW_PID_2055B_SYSCTRL2_REG, &reg_value);
+
+        /* [9 : 0] volume */
+        real_value = (reg_value & 0x03ff);
+
+        real_value = aw_pid_2055b_reg_val_to_db(real_value);
+        *value = real_value;
+
+        return 0;
+}
+
+static bool aw_pid_2055b_check_rd_access(int reg)
+{
+        if (reg >= AW_PID_2055B_REG_MAX) {
+                return false;
+        }
+
+        if (aw_pid_2055b_reg_access[reg] & AW_PID_2055B_REG_RD_ACCESS) {
+                return true;
+        } else {
+                return false;
+        }
+}
+
+static bool aw_pid_2055b_check_wr_access(int reg)
+{
+        if (reg >= AW_PID_2055B_REG_MAX) {
+                return false;
+        }
+
+        if (aw_pid_2055b_reg_access[reg] &
+                        AW_PID_2055B_REG_WR_ACCESS) {
+                return true;
+        } else {
+                return false;
+        }
+}
+
+static int aw_pid_2055b_get_reg_num(void)
+{
+        return AW_PID_2055B_REG_MAX;
+}
+
+static unsigned int aw_pid_2055b_get_irq_type(struct aw_device *aw_dev,
+                                        unsigned int value)
+{
+        unsigned int ret = INT_TYPE_NONE;
+
+        /* UVL0 */
+        if (value & (~AW_PID_2055B_UVLI_MASK)) {
+                aw_dev_info(aw_dev->dev, "UVLO: occur");
+                ret |= INT_TYPE_UVLO;
+        }
+
+        /* BSTOCM */
+        if (value & (~AW_PID_2055B_BSTOCI_MASK)) {
+                aw_dev_info(aw_dev->dev, "BSTOCI: occur");
+                ret |= INT_TYPE_BSTOC;
+        }
+
+        /* OCDI */
+        if (value & (~AW_PID_2055B_OCDI_MASK)) {
+                aw_dev_info(aw_dev->dev, "OCDI: occur");
+                ret |= INT_TYPE_OCDI;
+        }
+
+        /* OTHI */
+        if (value & (~AW_PID_2055B_OTHI_MASK)) {
+                aw_dev_info(aw_dev->dev, "OTHI: occur");
+                ret |= INT_TYPE_OTHI;
+        }
+
+        return ret;
+}
+
+static int aw_pid_2055b_dev_init(struct aw882xx *aw882xx, int index)
+{
+        int ret;
+        struct aw_device *aw_pa = NULL;
+        aw_pa = devm_kzalloc(aw882xx->dev, sizeof(struct aw_device), GFP_KERNEL);
+        if (aw_pa == NULL) {
+                aw_dev_err(aw882xx->dev, "dev kalloc failed");
+                return -ENOMEM;
+        }
+
+        /*call aw device init func*/
+        memset(aw_pa->acf_name, 0, AW_NAME_MAX);
+        memcpy(aw_pa->acf_name, AW_PID_2055B_ACF_FILE, strlen(AW_PID_2055B_ACF_FILE));
+        memset(aw_pa->monitor_name, 0, AW_NAME_MAX);
+        memcpy(aw_pa->monitor_name, AW_PID_2055B_MONITOR_FILE, strlen(AW_PID_2055B_MONITOR_FILE));
+
+        aw_pa->prof_info.prof_desc = NULL;
+        aw_pa->prof_info.count = 0;
+        aw_pa->channel = 0;
+        aw_pa->bstcfg_enable = AW_BSTCFG_DISABLE;
+        aw_pa->bop_en = AW_BOP_DISABLE;
+        aw_pa->vol_step = AW_PID_2055B_VOL_STEP;
+
+        aw_pa->index = index;
+        aw_pa->private_data = (void *)aw882xx;
+        aw_pa->dev = aw882xx->dev;
+        aw_pa->i2c = aw882xx->i2c;
+        aw_pa->ops.aw_get_version = aw882xx_get_version;
+        aw_pa->ops.aw_get_dev_num = aw882xx_get_dev_num;
+        aw_pa->ops.aw_set_algo = aw882xx_dev_set_algo_en;
+        aw_pa->ops.aw_i2c_read = aw882xx_dev_i2c_read;
+        aw_pa->ops.aw_i2c_write = aw882xx_dev_i2c_write;
+        aw_pa->ops.aw_i2c_write_bits = aw882xx_dev_i2c_write_bits;
+        aw_pa->ops.aw_get_volume = aw_pid_2055b_get_volume;
+        aw_pa->ops.aw_set_volume = aw_pid_2055b_set_volume;
+        aw_pa->ops.aw_reg_val_to_db = aw_pid_2055b_reg_val_to_db;
+        aw_pa->ops.aw_check_rd_access = aw_pid_2055b_check_rd_access;
+        aw_pa->ops.aw_check_wr_access = aw_pid_2055b_check_wr_access;
+        aw_pa->ops.aw_get_reg_num = aw_pid_2055b_get_reg_num;
+        aw_pa->ops.aw_get_irq_type =aw_pid_2055b_get_irq_type;
+
+        aw_pa->int_desc.mask_reg = AW_PID_2055B_SYSINTM_REG;
+        aw_pa->int_desc.mask_default = AW_PID_2055B_SYSINTM_DEFAULT;
+        aw_pa->int_desc.int_mask = AW_PID_2055B_SYSINTM_DEFAULT;
+        aw_pa->int_desc.st_reg = AW_PID_2055B_SYSINT_REG;
+
+        aw_pa->pwd_desc.reg = AW_PID_2055B_SYSCTRL_REG;
+        aw_pa->pwd_desc.mask = AW_PID_2055B_PWDN_MASK;
+        aw_pa->pwd_desc.enable = AW_PID_2055B_PWDN_POWER_DOWN_VALUE;
+        aw_pa->pwd_desc.disable = AW_PID_2055B_PWDN_WORKING_VALUE;
+
+        aw_pa->amppd_desc.reg = AW_PID_2055B_SYSCTRL_REG;
+        aw_pa->amppd_desc.mask = AW_PID_2055B_AMPPD_MASK;
+        aw_pa->amppd_desc.enable = AW_PID_2055B_AMPPD_POWER_DOWN_VALUE;
+        aw_pa->amppd_desc.disable = AW_PID_2055B_AMPPD_WORKING_VALUE;
+
+        aw_pa->mute_desc.reg = AW_PID_2055B_SYSCTRL_REG;
+        aw_pa->mute_desc.mask = AW_PID_2055B_HMUTE_MASK;
+        aw_pa->mute_desc.enable = AW_PID_2055B_HMUTE_ENABLE_VALUE;
+        aw_pa->mute_desc.disable = AW_PID_2055B_HMUTE_DISABLE_VALUE;
+
+        aw_pa->uls_hmute_desc.reg = AW_REG_NONE;
+
+        aw_pa->vcalb_desc.vcalb_reg = AW_REG_NONE;
+        aw_pa->vcalb_desc.vcalk_reg = AW_REG_NONE;
+        aw_pa->vcalb_desc.icalk_reg = AW_REG_NONE;
+
+        aw_pa->txen_desc.reg = AW_PID_2055B_I2SCTRL1_REG;
+        aw_pa->txen_desc.mask = AW_PID_2055B_I2STXEN_MASK;
+        aw_pa->txen_desc.enable = AW_PID_2055B_I2STXEN_ENABLE_VALUE;
+        aw_pa->txen_desc.disable = AW_PID_2055B_I2STXEN_DISABLE_VALUE;
+
+        aw_pa->sysst_desc.reg = AW_PID_2055B_SYSST_REG;
+        aw_pa->sysst_desc.mask = AW_PID_2055B_SYSST_CHECK_MASK;
+        aw_pa->sysst_desc.st_check = AW_PID_2055B_SYSST_CHECK;
+        aw_pa->sysst_desc.pll_check = AW_PID_2055B_IIS_CHECK;
+
+        aw_pa->spin_desc.rx_desc.reg = AW_PID_2055B_I2SCTRL1_REG;
+        aw_pa->spin_desc.rx_desc.mask = AW_PID_2055B_CHSEL_MASK;
+        aw_pa->spin_desc.rx_desc.left_val = AW_PID_2055B_CHSEL_LEFT_VALUE;
+        aw_pa->spin_desc.rx_desc.right_val = AW_PID_2055B_CHSEL_RIGHT_VALUE;
+
+        aw_pa->spin_desc.tx_desc.reg = AW_PID_2055B_SYSCTRL2_REG;
+        aw_pa->spin_desc.tx_desc.mask = AW_PID_2055B_I2SCHS_MASK;
+        aw_pa->spin_desc.tx_desc.left_val = AW_PID_2055B_I2SCHS_LEFT_VALUE;
+        aw_pa->spin_desc.tx_desc.right_val = AW_PID_2055B_I2SCHS_RIGHT_VALUE;
+
+        aw_pa->voltage_desc.reg = AW_PID_2055B_VBAT_REG;
+        aw_pa->voltage_desc.int_bit = AW_PID_2055B_MONITOR_INT_10BIT;
+        aw_pa->voltage_desc.vbat_range = AW_PID_2055B_MONITOR_VBAT_RANGE;
+
+        aw_pa->temp_desc.reg = AW_PID_2055B_TEMP_REG;
+        aw_pa->temp_desc.neg_mask = AW_PID_2055B_MONITOR_TEMP_NEG_MASK;
+        aw_pa->temp_desc.sign_mask = AW_PID_2055B_MONITOR_TEMP_SIGN_MASK;
+
+        aw_pa->ipeak_desc.reg = AW_PID_2055B_BSTCTRL2_REG;
+        aw_pa->ipeak_desc.mask = AW_PID_2055B_BST_IPEAK_MASK;
+
+        aw_pa->volume_desc.reg = AW_PID_2055B_SYSCTRL2_REG;
+        aw_pa->volume_desc.mask = AW_PID_2055B_VOL_MASK;
+        aw_pa->volume_desc.shift = AW_PID_2055B_VOL_START_BIT;
+        aw_pa->volume_desc.mute_volume = AW_PID_2055B_MUTE_VOL;
+
+        aw_pa->cco_mux_desc.reg = AW_PID_2055B_PLLCTRL3_REG;
+        aw_pa->cco_mux_desc.mask = AW_PID_2055B_CCO_MUX_MASK;
+        aw_pa->cco_mux_desc.divided_val = AW_PID_2055B_CCO_MUX_DIVIDED_VALUE;
+        aw_pa->cco_mux_desc.bypass_val = AW_PID_2055B_CCO_MUX_BYPASS_VALUE;
+
+        aw_pa->bop_desc.reg = AW_PID_2055B_SADCCTRL3_REG;
+        aw_pa->bop_desc.mask = AW_PID_2055B_BOP_EN_MASK;
+        aw_pa->bop_desc.enable = AW_PID_2055B_BOP_EN_ENABLE_VALUE;
+        aw_pa->bop_desc.disbale = AW_PID_2055B_BOP_EN_DISABLE_VALUE;
+
+        aw_pa->soft_rst.reg = AW882XX_SOFT_RESET_REG;
+        aw_pa->soft_rst.reg_value = AW882XX_SOFT_RESET_VALUE;
+
+        ret = aw_device_probe(aw_pa);
+
+        aw882xx->aw_pa = aw_pa;
+        return ret;
+}
+
+static int aw_pid_2055_dev_init(struct aw882xx *aw882xx, int index)
+{
+        unsigned int reg_data = 0;
+
+        aw882xx_i2c_write(aw882xx, AW882XX_SOFT_RESET_REG, AW882XX_SOFT_RESET_VALUE);
+        usleep_range(AW_1000_US, AW_1000_US + 100);
+
+        aw882xx_i2c_read(aw882xx, AW_PID_2055_VERSION_DIFF_REG, &reg_data);
+        if (reg_data == AW_PID_2055A_VERSION_VALUE) {
+                return aw_pid_2055a_dev_init(aw882xx, index);
+        } else if (reg_data == AW_PID_2055B_VERSION_VALUE) {
+                return aw_pid_2055b_dev_init(aw882xx, index);
+        } else {
+                aw_dev_err(aw882xx->dev, "unsupported 2055 verison, 0x%04x", reg_data);
+        }
+        return -EINVAL;
+}
+
+/* [9 : 6]: -6DB ; [5 : 0]: 0.125DB  real_value = value * 8 : 0.125db --> 1 */
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
+
 static unsigned int aw_pid_2071_reg_val_to_db(unsigned int value)
 {
 	return ((value >> 6) * AW_PID_2071_VOL_STEP_DB + (value & 0x3f));
@@ -1170,28 +1471,6 @@ static int aw_pid_2071_get_volume(struct aw_device *aw_dev, unsigned int *value)
 	*value = real_value;
 
 	return 0;
-}
-
-static void aw_pid_2071_i2s_enable(struct aw_device *aw_dev, bool flag)
-{
-	struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
-	struct aw_cali_desc *desc = &aw_dev->cali_desc;
-	aw_dev_dbg(aw882xx->dev, "enter");
-
-	if (!desc->mode) {
-		aw_dev_dbg(aw_dev->dev, "cali mode is none, needn't set i2s status");
-		return;
-	}
-
-	if (flag) {
-		aw882xx_i2c_write_bits(aw882xx, AW_PID_2071_I2SCFG1_REG,
-				AW_PID_2071_I2STXEN_MASK,
-				AW_PID_2071_I2STXEN_ENABLE_VALUE);
-	} else {
-		aw882xx_i2c_write_bits(aw882xx, AW_PID_2071_I2SCFG1_REG,
-				AW_PID_2071_I2STXEN_MASK,
-				AW_PID_2071_I2STXEN_DISABLE_VALUE);
-	}
 }
 
 static bool aw_pid_2071_check_rd_access(int reg)
@@ -1254,39 +1533,6 @@ static unsigned int aw_pid_2071_get_irq_type(struct aw_device *aw_dev,
 	return ret;
 }
 
-static int aw_pid_2071_get_icalk_splice(struct aw_device *aw_dev, int16_t *icalk)
-{
-	int ret = -1;
-	unsigned int reg_high_val = 0;
-	unsigned int reg_low_val = 0;
-	uint16_t reg_icalk = 0;
-	struct aw_vcalb_desc *desc = &aw_dev->vcalb_desc;
-
-	ret = aw_dev->ops.aw_i2c_read(aw_dev, AW_PID_2071_EFRH_REG, &reg_high_val);
-	if (ret < 0)
-		return ret;
-
-	ret = aw_dev->ops.aw_i2c_read(aw_dev, AW_PID_2071_EFRM1_REG, &reg_low_val);
-	if (ret < 0)
-		return ret;
-
-	aw_dev_info(aw_dev->dev, "high:0x%x=0x%04x,low:0x%x=0x%04x,",
-		AW_PID_2071_EFRH_REG, reg_high_val, AW_PID_2071_EFRM1_REG, reg_low_val);
-
-	reg_high_val = (reg_high_val >> AW_PID_2071_HIGH_SHIFT) & AW_PID_2071_HIGH_MASK;
-	reg_low_val = (reg_low_val >> AW_PID_2071_LOW_SHIFT) & AW_PID_2071_LOW_MASK;
-
-	reg_icalk = reg_high_val | reg_low_val;
-	aw_dev_info(aw_dev->dev, "reg_icalk=0x%04x", reg_icalk);
-
-	if (reg_icalk & (~desc->icalk_sign_mask))
-		reg_icalk = reg_icalk | (~desc->icalk_neg_mask);
-
-	*icalk = (int16_t)reg_icalk;
-
-	return ret;
-}
-
 static int aw_pid_2071_dev_init(struct aw882xx *aw882xx, int index)
 {
 	int ret;
@@ -1306,6 +1552,9 @@ static int aw_pid_2071_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->prof_info.prof_desc = NULL;
 	aw_pa->prof_info.count = 0;
 	aw_pa->channel = 0;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_pa->bop_en = AW_BOP_DISABLE;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->vol_step = AW_PID_2071_VOL_STEP;
 
 	aw_pa->index = index;
@@ -1322,12 +1571,10 @@ static int aw_pid_2071_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->ops.aw_get_volume = aw_pid_2071_get_volume;
 	aw_pa->ops.aw_set_volume = aw_pid_2071_set_volume;
 	aw_pa->ops.aw_reg_val_to_db = aw_pid_2071_reg_val_to_db;
-	aw_pa->ops.aw_i2s_enable = aw_pid_2071_i2s_enable;
 	aw_pa->ops.aw_check_rd_access = aw_pid_2071_check_rd_access;
 	aw_pa->ops.aw_check_wr_access = aw_pid_2071_check_wr_access;
 	aw_pa->ops.aw_get_reg_num = aw_pid_2071_get_reg_num;
 	aw_pa->ops.aw_get_irq_type = aw_pid_2071_get_irq_type;
-	aw_pa->ops.aw_get_icalk_splice = aw_pid_2071_get_icalk_splice;
 
 	aw_pa->int_desc.mask_reg = AW_PID_2071_SYSINTM_REG;
 	aw_pa->int_desc.mask_default = AW_PID_2071_SYSINTM_DEFAULT;
@@ -1349,26 +1596,49 @@ static int aw_pid_2071_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->mute_desc.enable = AW_PID_2071_HMUTE_ENABLE_VALUE;
 	aw_pa->mute_desc.disable = AW_PID_2071_HMUTE_DISABLE_VALUE;
 
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_pa->uls_hmute_desc.reg = AW_REG_NONE;
+
+        aw_pa->txen_desc.reg = AW_PID_2071_I2SCFG1_REG;
+        aw_pa->txen_desc.mask = AW_PID_2071_I2STXEN_MASK;
+        aw_pa->txen_desc.enable = AW_PID_2071_I2STXEN_ENABLE_VALUE;
+        aw_pa->txen_desc.disable = AW_PID_2071_I2STXEN_DISABLE_VALUE;
+
 	aw_pa->vcalb_desc.vcalb_reg = AW_PID_2071_VTMCTRL3_REG;
 	aw_pa->vcalb_desc.vcal_factor = AW_PID_2071_VCAL_FACTOR;
 	aw_pa->vcalb_desc.cabl_base_value = AW_PID_2071_CABL_BASE_VALUE;
 
 	aw_pa->vcalb_desc.icalk_value_factor = AW_PID_2071_ICABLK_FACTOR;
-	aw_pa->vcalb_desc.icalk_reg = AW_PID_2071_EFRM1_REG;
-	aw_pa->vcalb_desc.icalk_reg_mask = AW_PID_2071_EF_ISN_GESLP_MASK;
+        aw_pa->vcalb_desc.icalk_reg = AW_PID_2071_EFRH_REG;
+        aw_pa->vcalb_desc.icalk_reg_mask = AW_PID_2071_EF_VSN_OFFSET_MASK;
+        aw_pa->vcalb_desc.icalk_shift = AW_PID_2071_ICALK_SHIFT;
+        aw_pa->vcalb_desc.icalkl_reg = AW_PID_2071_EFRM1_REG;
+        aw_pa->vcalb_desc.icalkl_reg_mask = AW_PID_2071_EF_ISN_OFFSET_MASK;
+        aw_pa->vcalb_desc.icalkl_shift = AW_PID_2071_ICALKL_SHIFT;
 	aw_pa->vcalb_desc.icalk_sign_mask = AW_PID_2071_EF_ISN_GESLP_SIGN_MASK;
 	aw_pa->vcalb_desc.icalk_neg_mask = AW_PID_2071_EF_ISN_GESLP_NEG;
 
 	aw_pa->vcalb_desc.vcalk_reg = AW_PID_2071_EFRH_REG;
 	aw_pa->vcalb_desc.vcalk_reg_mask = AW_PID_2071_EF_VSN_GESLP_MASK;
+        aw_pa->vcalb_desc.vcalkl_reg = AW_REG_NONE;
 	aw_pa->vcalb_desc.vcalk_sign_mask = AW_PID_2071_EF_VSN_GESLP_SIGN_MASK;
 	aw_pa->vcalb_desc.vcalk_neg_mask = AW_PID_2071_EF_VSN_GESLP_NEG;
 	aw_pa->vcalb_desc.vcalk_value_factor = AW_PID_2071_VCABLK_FACTOR;
 
+        aw_pa->spin_desc.rx_desc.reg = AW_PID_2071_I2SCTRL_REG;
+        aw_pa->spin_desc.rx_desc.mask = AW_PID_2071_CHSEL_MASK;
+        aw_pa->spin_desc.rx_desc.left_val = AW_PID_2071_CHSEL_LEFT_VALUE;
+        aw_pa->spin_desc.rx_desc.right_val = AW_PID_2071_CHSEL_RIGHT_VALUE;
+
+        aw_pa->spin_desc.tx_desc.reg = AW_PID_2071_I2SCFG1_REG;
+        aw_pa->spin_desc.tx_desc.mask = AW_PID_2071_I2SCHS_MASK;
+        aw_pa->spin_desc.tx_desc.left_val = AW_PID_2071_I2SCHS_LEFT_VALUE;
+        aw_pa->spin_desc.tx_desc.right_val = AW_PID_2071_I2SCHS_RIGHT_VALUE;
+
 	aw_pa->sysst_desc.reg = AW_PID_2071_SYSST_REG;
 	aw_pa->sysst_desc.mask = AW_PID_2071_SYSST_CHECK_MASK;
 	aw_pa->sysst_desc.st_check = AW_PID_2071_SYSST_CHECK;
-	aw_pa->sysst_desc.pll_check = AW_PID_2071_PLLS_LOCKED_VALUE;
+        aw_pa->sysst_desc.pll_check = AW_PID_2071_IIS_CHECK;
 
 	aw_pa->cco_mux_desc.reg = AW_PID_2071_PLLCTRL1_REG;
 	aw_pa->cco_mux_desc.mask = AW_PID_2071_CCO_MUX_MASK;
@@ -1391,7 +1661,10 @@ static int aw_pid_2071_dev_init(struct aw882xx *aw882xx, int index)
 	aw_pa->volume_desc.shift = AW_PID_2071_VOL_START_BIT;
 	aw_pa->volume_desc.mute_volume = AW_PID_2071_MUTE_VOL;
 
-	aw_pa->soft_rst.reg = AW_PID_2071_ID_REG;
+        aw_pa->bop_desc.reg = AW_REG_NONE;
+
+        aw_pa->soft_rst.reg = AW882XX_SOFT_RESET_REG;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_pa->soft_rst.reg_value = AW882XX_SOFT_RESET_VALUE;
 
 	ret = aw_device_probe(aw_pa);
@@ -1400,20 +1673,340 @@ static int aw_pid_2071_dev_init(struct aw882xx *aw882xx, int index)
 	return ret;
 }
 
-int aw882xx_init(struct aw882xx *aw882xx, int index)
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+/* [9 : 6]: -6DB ; [5 : 0]: 0.125DB  real_value = value * 8 : 0.125db --> 1 */
+static unsigned int aw_pid_2113_reg_val_to_db(unsigned int value)
 {
-	if (aw882xx->chip_id == PID_1852_ID)
-		return aw_pid_1852_dev_init(aw882xx, index);
-	else if (aw882xx->chip_id == PID_2013_ID)
-		return aw_pid_2013_dev_init(aw882xx, index);
-	else if (aw882xx->chip_id == PID_2032_ID)
-		return aw_pid_2032_dev_init(aw882xx, index);
-	else if (aw882xx->chip_id == PID_2055_ID)
-		return aw_pid_2055_dev_init(aw882xx, index);
-	else if (aw882xx->chip_id == PID_2071_ID)
-		return aw_pid_2071_dev_init(aw882xx, index);
-
-	aw_dev_err(aw882xx->dev, "unsupported chip id %d", aw882xx->chip_id);
-	return -EINVAL;
+        return ((value >> 6) * AW_PID_2113_VOL_STEP_DB + (value & 0x3f));
 }
 
+/* [9 : 6]: -6DB ; [5 : 0]: 0.125DB reg_value = value / step << 6 + value % step ; step = 6 * 8 */
+static unsigned int aw_pid_2113_db_val_to_reg(unsigned int value)
+{
+        return (((value / AW_PID_2113_VOL_STEP_DB) << 6) + (value % AW_PID_2113_VOL_STEP_DB));
+}
+
+static int aw_pid_2113_set_volume(struct aw_device *aw_dev, unsigned int value)
+{
+        struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
+        unsigned int reg_value = 0;
+        unsigned int real_value = aw_pid_2113_db_val_to_reg(value);
+
+        /* cal real value */
+        aw882xx_i2c_read(aw882xx, AW_PID_2113_SYSCTRL2_REG, &reg_value);
+
+        aw_dev_dbg(aw882xx->dev, "value %d , 0x%x", value, real_value);
+
+        /*[9 : 0] volume*/
+        real_value = (real_value | (reg_value & 0xfc00));
+
+        /* write value */
+        aw882xx_i2c_write(aw882xx, AW_PID_2113_SYSCTRL2_REG, real_value);
+        return 0;
+}
+
+static int aw_pid_2113_get_volume(struct aw_device *aw_dev, unsigned int *value)
+{
+        unsigned int reg_value = 0;
+        unsigned int real_value = 0;
+        struct aw882xx *aw882xx = (struct aw882xx *)aw_dev->private_data;
+
+        /* read value */
+        aw882xx_i2c_read(aw882xx, AW_PID_2113_SYSCTRL2_REG, &reg_value);
+
+        /* [9 : 0] volume */
+        real_value = (reg_value & 0x03ff);
+
+        real_value = aw_pid_2113_reg_val_to_db(real_value);
+        *value = real_value;
+
+        return 0;
+}
+
+static bool aw_pid_2113_check_rd_access(int reg)
+{
+        if (reg >= AW_PID_2113_REG_MAX) {
+                return false;
+        }
+        if (aw_pid_2113_reg_access[reg] & AW_PID_2113_REG_RD_ACCESS) {
+                return true;
+        } else {
+                return false;
+        }
+}
+
+static bool aw_pid_2113_check_wr_access(int reg)
+{
+        if (reg >= AW_PID_2113_REG_MAX) {
+                return false;
+        }
+        if (aw_pid_2113_reg_access[reg] &
+                        AW_PID_2113_REG_WR_ACCESS) {
+                return true;
+        } else {
+                return false;
+        }
+}
+
+static int aw_pid_2113_get_reg_num(void)
+{
+        return AW_PID_2113_REG_MAX;
+}
+
+static unsigned int aw_pid_2113_get_irq_type(struct aw_device *aw_dev,
+                                        unsigned int value)
+{
+        unsigned int ret = INT_TYPE_NONE;
+
+        /* UVL0 */
+        if (value & (~AW_PID_2113_UVLI_MASK)) {
+                aw_dev_info(aw_dev->dev, "UVLO: occur");
+                ret |= INT_TYPE_UVLO;
+        }
+
+        /* BSTOCM */
+        if (value & (~AW_PID_2113_BSTOCI_MASK)) {
+                aw_dev_info(aw_dev->dev, "BSTOCI: occur");
+                ret |= INT_TYPE_BSTOC;
+        }
+
+        /* OCDI */
+        if (value & (~AW_PID_2113_OCDI_MASK)) {
+                aw_dev_info(aw_dev->dev, "OCDI: occur");
+                ret |= INT_TYPE_OCDI;
+        }
+
+        /* OTHI */
+        if (value & (~AW_PID_2113_OTHI_MASK)) {
+                aw_dev_info(aw_dev->dev, "OTHI: occur");
+                ret |= INT_TYPE_OTHI;
+        }
+
+        return ret;
+}
+
+static void aw_pid_2113_efver_check(struct aw_device *aw_dev)
+{
+        unsigned int reg_val = 0;
+        uint16_t temh = 0;
+        uint16_t teml = 0;
+
+        aw_dev->ops.aw_i2c_read(aw_dev,
+                        AW_PID_2113_EFRH3_REG, &reg_val);
+        temh = ((uint16_t)reg_val & (~AW_PID_2113_TEMH_MASK));
+
+        aw_dev->ops.aw_i2c_read(aw_dev,
+                        AW_PID_2113_EFRL3_REG, &reg_val);
+        teml = ((uint16_t)reg_val & (~AW_PID_2113_TEML_MASK));
+
+        if ((temh | teml) == AW_PID_2113_DEFAULT_CFG) {
+                aw_dev->frcset_en = AW_FRCSET_ENABLE;
+        } else {
+                aw_dev->frcset_en = AW_FRCSET_DISABLE;
+        }
+
+        aw_dev_info(aw_dev->dev, "tem is 0x%04x, frcset_en is %d",
+                        (temh | teml), aw_dev->frcset_en);
+}
+
+static void aw_pid_2113_reg_force_set(struct aw_device *aw_dev)
+{
+        aw_dev_dbg(aw_dev->dev, "enter");
+
+        if (aw_dev->frcset_en == AW_FRCSET_ENABLE) {
+                /*set FORCE_PWM*/
+                aw_dev->ops.aw_i2c_write_bits(aw_dev, AW_PID_2113_BSTCTRL3_REG,
+                                AW_PID_2113_FORCE_PWM_MASK, AW_PID_2113_FORCE_PWM_FORCEMINUS_PWM_VALUE);
+                /*set BOOST_OS_WIDTH*/
+                aw_dev->ops.aw_i2c_write_bits(aw_dev, AW_PID_2113_BSTCTRL5_REG,
+                                AW_PID_2113_BST_OS_WIDTH_MASK, AW_PID_2113_BST_OS_WIDTH_50NS_VALUE);
+                /*set BURST_LOOPR*/
+                aw_dev->ops.aw_i2c_write_bits(aw_dev, AW_PID_2113_BSTCTRL6_REG,
+                                AW_PID_2113_BST_LOOPR_MASK, AW_PID_2113_BST_LOOPR_340K_VALUE);
+                /*set RSQN_DLY*/
+                aw_dev->ops.aw_i2c_write_bits(aw_dev, AW_PID_2113_BSTCTRL7_REG,
+                                AW_PID_2113_RSQN_DLY_MASK, AW_PID_2113_RSQN_DLY_35NS_VALUE);
+                /*set BURST_SSMODE*/
+                aw_dev->ops.aw_i2c_write_bits(aw_dev, AW_PID_2113_BSTCTRL8_REG,
+                                AW_PID_2113_BURST_SSMODE_MASK, AW_PID_2113_BURST_SSMODE_FAST_VALUE);
+                /*set BST_BURST*/
+                aw_dev->ops.aw_i2c_write_bits(aw_dev, AW_PID_2113_BSTCTRL9_REG,
+                                AW_PID_2113_BST_BURST_MASK, AW_PID_2113_BST_BURST_30MA_VALUE);
+                aw_dev_dbg(aw_dev->dev, "force set reg done!");
+        } else {
+                aw_dev_info(aw_dev->dev, "needn't set reg value");
+        }
+}
+
+static int aw_pid_2113_dev_init(struct aw882xx *aw882xx, int index)
+{
+        int ret;
+        struct aw_device *aw_pa = NULL;
+        aw_pa = devm_kzalloc(aw882xx->dev, sizeof(struct aw_device), GFP_KERNEL);
+        if (aw_pa == NULL) {
+                aw_dev_err(aw882xx->dev, "dev kalloc failed");
+                return -ENOMEM;
+        }
+
+        /*call aw device init func*/
+        memset(aw_pa->acf_name, 0, AW_NAME_MAX);
+        memcpy(aw_pa->acf_name, AW_PID_2113_ACF_FILE, strlen(AW_PID_2113_ACF_FILE));
+        memset(aw_pa->monitor_name, 0, AW_NAME_MAX);
+        memcpy(aw_pa->monitor_name, AW_PID_2113_MONITOR_FILE, strlen(AW_PID_2113_MONITOR_FILE));
+
+        aw_pa->prof_info.prof_desc = NULL;
+        aw_pa->prof_info.count = 0;
+        aw_pa->channel = 0;
+        aw_pa->bstcfg_enable = AW_BSTCFG_DISABLE;
+        aw_pa->bop_en = AW_BOP_DISABLE;
+        aw_pa->vol_step = AW_PID_2113_VOL_STEP;
+
+        aw_pa->index = index;
+        aw_pa->private_data = (void *)aw882xx;
+        aw_pa->dev = aw882xx->dev;
+        aw_pa->i2c = aw882xx->i2c;
+        aw_pa->ops.aw_get_version = aw882xx_get_version;
+        aw_pa->ops.aw_get_dev_num = aw882xx_get_dev_num;
+        aw_pa->ops.aw_set_algo = aw882xx_dev_set_algo_en;
+        aw_pa->ops.aw_i2c_read = aw882xx_dev_i2c_read;
+        aw_pa->ops.aw_i2c_write = aw882xx_dev_i2c_write;
+        aw_pa->ops.aw_i2c_write_bits = aw882xx_dev_i2c_write_bits;
+        aw_pa->ops.aw_get_volume = aw_pid_2113_get_volume;
+        aw_pa->ops.aw_set_volume = aw_pid_2113_set_volume;
+        aw_pa->ops.aw_reg_val_to_db = aw_pid_2113_reg_val_to_db;
+        aw_pa->ops.aw_check_rd_access = aw_pid_2113_check_rd_access;
+        aw_pa->ops.aw_check_wr_access = aw_pid_2113_check_wr_access;
+        aw_pa->ops.aw_get_reg_num = aw_pid_2113_get_reg_num;
+        aw_pa->ops.aw_get_irq_type = aw_pid_2113_get_irq_type;
+        aw_pa->ops.aw_reg_force_set = aw_pid_2113_reg_force_set;
+
+        aw_pa->int_desc.mask_reg = AW_PID_2113_SYSINTM_REG;
+        aw_pa->int_desc.mask_default = AW_PID_2113_SYSINTM_DEFAULT;
+        aw_pa->int_desc.int_mask = AW_PID_2113_SYSINTM_DEFAULT;
+        aw_pa->int_desc.st_reg = AW_PID_2113_SYSINT_REG;
+
+        aw_pa->pwd_desc.reg = AW_PID_2113_SYSCTRL_REG;
+        aw_pa->pwd_desc.mask = AW_PID_2113_PWDN_MASK;
+        aw_pa->pwd_desc.enable = AW_PID_2113_PWDN_POWER_DOWN_VALUE;
+        aw_pa->pwd_desc.disable = AW_PID_2113_PWDN_WORKING_VALUE;
+
+        aw_pa->amppd_desc.reg = AW_PID_2113_SYSCTRL_REG;
+        aw_pa->amppd_desc.mask = AW_PID_2113_AMPPD_MASK;
+        aw_pa->amppd_desc.enable = AW_PID_2113_AMPPD_POWER_DOWN_VALUE;
+        aw_pa->amppd_desc.disable = AW_PID_2113_AMPPD_WORKING_VALUE;
+
+        aw_pa->mute_desc.reg = AW_PID_2113_SYSCTRL_REG;
+        aw_pa->mute_desc.mask = AW_PID_2113_HMUTE_MASK;
+        aw_pa->mute_desc.enable = AW_PID_2113_HMUTE_ENABLE_VALUE;
+        aw_pa->mute_desc.disable = AW_PID_2113_HMUTE_DISABLE_VALUE;
+
+        aw_pa->uls_hmute_desc.reg = AW_PID_2113_SYSCTRL_REG;
+        aw_pa->uls_hmute_desc.mask = AW_PID_2113_ULS_HMUTE_MASK;
+        aw_pa->uls_hmute_desc.enable = AW_PID_2113_ULS_HMUTE_ENABLE_VALUE;
+        aw_pa->uls_hmute_desc.disable = AW_PID_2113_ULS_HMUTE_DISABLE_VALUE;
+
+        aw_pa->vcalb_desc.vcalb_reg = AW_PID_2113_VSNTM1_REG;
+        aw_pa->vcalb_desc.vcal_factor = AW_PID_2113_VCAL_FACTOR;
+        aw_pa->vcalb_desc.cabl_base_value = AW_PID_2113_CABL_BASE_VALUE;
+
+        aw_pa->txen_desc.reg = AW_PID_2113_I2SCTRL3_REG;
+        aw_pa->txen_desc.mask = AW_PID_2113_I2STXEN_MASK;
+        aw_pa->txen_desc.enable = AW_PID_2113_I2STXEN_ENABLE_VALUE;
+        aw_pa->txen_desc.disable = AW_PID_2113_I2STXEN_DISABLE_VALUE;
+
+        aw_pa->vcalb_desc.icalk_reg = AW_PID_2113_EFRH4_REG;
+        aw_pa->vcalb_desc.icalk_reg_mask = AW_PID_2113_EF_ISN_GESLP_H_MASK;
+        aw_pa->vcalb_desc.icalk_shift = AW_PID_2113_ICALK_SHIFT;
+        aw_pa->vcalb_desc.icalkl_reg = AW_PID_2113_EFRL4_REG;
+        aw_pa->vcalb_desc.icalkl_reg_mask = AW_PID_2113_EF_ISN_GESLP_L_MASK;
+        aw_pa->vcalb_desc.icalkl_shift = AW_PID_2113_ICALKL_SHIFT;
+        aw_pa->vcalb_desc.icalk_sign_mask = AW_PID_2113_EF_ISN_GESLP_SIGN_MASK;
+        aw_pa->vcalb_desc.icalk_neg_mask = AW_PID_2113_EF_ISN_GESLP_NEG;
+        aw_pa->vcalb_desc.icalk_value_factor = AW_PID_2113_ICABLK_FACTOR;
+
+        aw_pa->vcalb_desc.vcalk_reg = AW_PID_2113_EFRH3_REG;
+        aw_pa->vcalb_desc.vcalk_reg_mask = AW_PID_2113_EF_VSN_GESLP_H_MASK;
+        aw_pa->vcalb_desc.vcalk_shift = AW_PID_2113_VCALK_SHIFT;
+        aw_pa->vcalb_desc.vcalkl_reg = AW_PID_2113_EFRL3_REG;
+        aw_pa->vcalb_desc.vcalkl_reg_mask = AW_PID_2113_EF_VSN_GESLP_L_MASK;
+        aw_pa->vcalb_desc.vcalkl_shift = AW_PID_2113_VCALKL_SHIFT;
+        aw_pa->vcalb_desc.vcalk_sign_mask = AW_PID_2113_EF_VSN_GESLP_SIGN_MASK;
+        aw_pa->vcalb_desc.vcalk_neg_mask = AW_PID_2113_EF_VSN_GESLP_NEG;
+        aw_pa->vcalb_desc.vcalk_value_factor = AW_PID_2113_VCABLK_FACTOR;
+
+        aw_pa->spin_desc.rx_desc.reg = AW_PID_2113_I2SCTRL1_REG;
+        aw_pa->spin_desc.rx_desc.mask = AW_PID_2113_CHSEL_MASK;
+        aw_pa->spin_desc.rx_desc.left_val = AW_PID_2113_CHSEL_LEFT_VALUE;
+        aw_pa->spin_desc.rx_desc.right_val = AW_PID_2113_CHSEL_RIGHT_VALUE;
+
+        aw_pa->spin_desc.tx_desc.reg = AW_PID_2113_I2SCTRL3_REG;
+        aw_pa->spin_desc.tx_desc.mask = AW_PID_2113_I2SCHS_MASK;
+        aw_pa->spin_desc.tx_desc.left_val = AW_PID_2113_I2SCHS_LEFT_VALUE;
+        aw_pa->spin_desc.tx_desc.right_val = AW_PID_2113_I2SCHS_RIGHT_VALUE;
+
+        aw_pa->sysst_desc.reg = AW_PID_2113_SYSST_REG;
+        aw_pa->sysst_desc.mask = AW_PID_2113_SYSST_CHECK_MASK;
+        aw_pa->sysst_desc.st_check = AW_PID_2113_SYSST_CHECK;
+        aw_pa->sysst_desc.pll_check = AW_PID_2113_IIS_CHECK;
+
+        aw_pa->cco_mux_desc.reg = AW_PID_2113_PLLCTRL1_REG;
+        aw_pa->cco_mux_desc.mask = AW_PID_2113_CCO_MUX_MASK;
+        aw_pa->cco_mux_desc.divided_val = AW_PID_2113_CCO_MUX_DIVIDED_VALUE;
+        aw_pa->cco_mux_desc.bypass_val = AW_PID_2113_CCO_MUX_BYPASS_VALUE;
+
+        aw_pa->voltage_desc.reg = AW_PID_2113_VBAT_REG;
+        aw_pa->voltage_desc.int_bit = AW_PID_2113_MONITOR_INT_10BIT;
+        aw_pa->voltage_desc.vbat_range = AW_PID_2113_MONITOR_VBAT_RANGE;
+
+        aw_pa->temp_desc.reg = AW_PID_2113_TEMP_REG;
+        aw_pa->temp_desc.neg_mask = AW_PID_2113_MONITOR_TEMP_NEG_MASK;
+        aw_pa->temp_desc.sign_mask = AW_PID_2113_MONITOR_TEMP_SIGN_MASK;
+
+        aw_pa->ipeak_desc.reg = AW_PID_2113_BSTCTRL2_REG;
+        aw_pa->ipeak_desc.mask = AW_PID_2113_BST_IPEAK_MASK;
+
+        aw_pa->volume_desc.reg = AW_PID_2113_SYSCTRL2_REG;
+        aw_pa->volume_desc.mask = AW_PID_2113_VOL_MASK;
+        aw_pa->volume_desc.shift = AW_PID_2113_VOL_START_BIT;
+        aw_pa->volume_desc.mute_volume = AW_PID_2113_MUTE_VOL;
+
+        aw_pa->bop_desc.reg = AW_PID_2113_SADCCTRL3_REG;
+        aw_pa->bop_desc.mask = AW_PID_2113_BOP_EN_MASK;
+        aw_pa->bop_desc.enable = AW_PID_2113_BOP_EN_ENABLE_VALUE;
+        aw_pa->bop_desc.disbale = AW_PID_2113_BOP_EN_DISABLE_VALUE;
+
+        aw_pa->soft_rst.reg = AW882XX_SOFT_RESET_REG;
+        aw_pa->soft_rst.reg_value = AW882XX_SOFT_RESET_VALUE;
+        aw_pid_2113_efver_check(aw_pa);
+
+        ret = aw_device_probe(aw_pa);
+
+        aw882xx->aw_pa = aw_pa;
+        return ret;
+}
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
+
+/*  Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+int aw882xx_init(struct aw882xx *aw882xx, int index)
+{
+        switch(aw882xx->chip_id) {
+        case PID_1852_ID:
+                return aw_pid_1852_dev_init(aw882xx, index);
+        case PID_2013_ID:
+                return aw_pid_2013_dev_init(aw882xx, index);
+        case PID_2032_ID:
+                return aw_pid_2032_dev_init(aw882xx, index);
+        case PID_2055_ID:
+                return aw_pid_2055_dev_init(aw882xx, index);
+        case PID_2071_ID:
+                return aw_pid_2071_dev_init(aw882xx, index);
+        case PID_2113_ID:
+                return aw_pid_2113_dev_init(aw882xx, index);
+        default:
+                aw_dev_err(aw882xx->dev, "unsupported chip id 0x%04x", aw882xx->chip_id);
+                break;
+        }
+
+        return -EINVAL;
+}
+/*  Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */

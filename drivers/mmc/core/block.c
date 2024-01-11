@@ -1641,6 +1641,14 @@ static int mmc_blk_reset(struct mmc_blk_data *md, struct mmc_host *host,
 	if (md->reset_done & type)
 		return -EEXIST;
 
+	/* TAB A8 code for P211105-04643 by zhaoxiangxiang at 2021/11/16 start */
+	if (mmc_card_sd(host->card)) {
+		if (host->card->sd_bus_speed == UHS_SDR104_BUS_SPEED) {
+			host->card->sw_caps.sd3_bus_mode &= ~(SD_MODE_UHS_SDR104 | SD_MODE_UHS_DDR50);
+		}
+	}
+	/* TAB A8 code for P211105-04643 by zhaoxiangxiang at 2021/11/16 end */
+
 #ifdef CONFIG_EMMC_SOFTWARE_CQ_SUPPORT
 	/*hanging if not set*/
 	emmc_resetting_when_cmdq = 1;
@@ -2008,6 +2016,7 @@ static enum mmc_blk_status mmc_blk_err_check(struct mmc_card *card,
 	if (brq->cmd.resp[0] & CMD_ERRORS) {
 		pr_err("%s: r/w command failed, status = %#x\n",
 		       req->rq_disk->disk_name, brq->cmd.resp[0]);
+		mmc_card_error_logging(card, brq, brq->cmd.resp[0]);
 		return MMC_BLK_ABORT;
 	}
 

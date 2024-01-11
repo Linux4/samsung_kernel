@@ -337,6 +337,11 @@ static int sc27xx_vibra_probe(struct platform_device *pdev)
     dev_set_drvdata(&pdev->dev, info);
     g_vibra_info = info;
 
+/* Tab A7 T618 code for SR-AX6189A-01-130|SR-AX6189A-01-131 by zhangziyi at 20211221 start */
+#ifdef CONFIG_UMS_25C10_VIB
+    sc27xx_vibra_set(g_vibra_info, false);
+#endif
+/* Tab A7 T618 code for SR-AX6189A-01-130|SR-AX6189A-01-131 by zhangziyi at 20211221 end */
     dev_err(&pdev->dev,"probe done\n");
 
     return 0;

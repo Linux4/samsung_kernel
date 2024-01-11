@@ -47,6 +47,9 @@ struct JD9365T_DSRAM_HOST_ADDR {
 	uint32_t gesture_en;
 	uint32_t high_sensitivity_en;
 	uint32_t border_en;
+	/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+	uint32_t earphone_en;
+	/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 	uint32_t panel_maker;
 	uint32_t panel_version;
 #ifdef CONFIG_TOUCHSCREEN_JADARD_SORTING

@@ -495,6 +495,28 @@ void aw_monitor_work_func(struct work_struct *work)
 	}
 }
 
+void aw_check_bop_status(struct aw_device *aw_dev)
+{
+        struct aw_bop_desc *bop_desc = &aw_dev->bop_desc;
+        unsigned int reg_val = 0;
+
+        aw_dev_dbg(aw_dev->dev, "enter");
+
+        if (aw_dev->bop_desc.reg == AW_REG_NONE) {
+            return;
+        }
+
+        aw_dev->ops.aw_i2c_read(aw_dev, bop_desc->reg, &reg_val);
+        reg_val = (uint16_t)reg_val & (~bop_desc->mask);
+        if (reg_val == bop_desc->enable) {
+            aw_dev->bop_en = AW_BOP_ENABLE;
+        } else {
+            aw_dev->bop_en = AW_BOP_DISABLE;
+        }
+
+        aw_dev_dbg(aw_dev->dev, "check done! bop status is %d", aw_dev->bop_en);
+}
+
 void aw_monitor_start(struct aw_monitor_desc *monitor_desc)
 {
 	struct aw_device *aw_dev = container_of(monitor_desc,
@@ -507,6 +529,13 @@ void aw_monitor_start(struct aw_monitor_desc *monitor_desc)
 	monitor_desc->samp_count = 0;
 	monitor_desc->vol_trace.sum_val = 0;
 	monitor_desc->temp_trace.sum_val = 0;
+
+        aw_check_bop_status(aw_dev);
+
+        if (aw_dev->bop_en == AW_BOP_ENABLE) {
+            aw_dev_info(aw_dev->dev, "bop status is enable, monitor can't start");
+            return;
+        }
 
 	queue_delayed_work(aw882xx->work_queue,
 				&monitor_desc->delay_work, 0);

@@ -1428,6 +1428,9 @@ static int dpu_init(struct dpu_context *ctx)
 
 	frame_no = 0;
 
+	ctx->base_offset[0] = 0x0;
+	ctx->base_offset[1] = sizeof(struct dpu_reg) / 4;
+
 	/* Allocate memory for trusty */
 	if(!tos_msg_alloc){
 		ctx->tos_msg = kmalloc(sizeof(struct disp_message) +

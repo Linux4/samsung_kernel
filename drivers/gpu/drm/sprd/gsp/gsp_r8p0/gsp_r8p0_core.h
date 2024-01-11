@@ -61,5 +61,9 @@ int gsp_r8p0_core_release(struct gsp_core *core);
 int __user *gsp_r8p0_core_intercept(void __user *arg, int index);
 void gsp_r8p0_core_reset(struct gsp_core *core);
 void gsp_r8p0_core_dump(struct gsp_core *core);
+/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 start*/
+int gsp_r8p0_core_resume(struct gsp_core *core);
 
+int gsp_r8p0_core_suspend(struct gsp_core *core);
+/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 end*/
 #endif

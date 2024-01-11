@@ -33,8 +33,8 @@ struct ops_list {
 	struct ops_entry *entry;
 };
 
-int str_to_u32_array(const char *p, u32 base, u32 array[]);
-int str_to_u8_array(const char *p, u32 base, u8 array[]);
+int str_to_u32_array(const char *p, u32 base, u32 array[], u8 size);
+int str_to_u8_array(const char *p, u32 base, u8 array[], u8 size);
 int dump_bmp32(const char *p, u32 width, u32 height,
 		bool bgra, const char *filename);
 int load_dtb_to_mem(const char *name, void **blob);

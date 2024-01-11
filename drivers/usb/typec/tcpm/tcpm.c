@@ -27,6 +27,9 @@
 #include <linux/power_supply.h>
 #include <linux/proc_fs.h>
 #include <linux/property.h>
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+#include <linux/power/charger-manager.h>
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 #include <linux/sched/clock.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
@@ -261,6 +264,7 @@ struct tcpm_port {
 	struct work_struct event_work;
 	struct delayed_work state_machine;
 	struct delayed_work vdm_state_machine;
+	struct delayed_work role_swap_work;
 	bool state_machine_running;
 
 	struct completion tx_complete;
@@ -276,6 +280,7 @@ struct tcpm_port {
 	unsigned int message_id;
 	unsigned int caps_count;
 	unsigned int hard_reset_count;
+	unsigned int power_role_send_psrdy_count;
 	bool pd_capable;
 	bool explicit_contract;
 	unsigned int rx_msgid;
@@ -338,10 +343,17 @@ struct tcpm_port {
 	/* port belongs to a self powered device */
 	bool self_powered;
 	bool role_swap_flag;
+
 	bool disable_typec_int;
+	bool swap_notify_typec;
+	bool power_role_swap;
+	bool power_role_swap_hard_reset;
+
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dentry;
 	struct mutex logbuffer_lock;	/* log buffer access lock */
+	struct delayed_work  log2printk;
+	struct mutex logprintk_lock;	/* log buffer printk lock */
 	int logbuffer_head;
 	int logbuffer_tail;
 	int logbuffer_last;
@@ -476,8 +488,11 @@ static void _tcpm_log(struct tcpm_port *port, const char *fmt, va_list args)
 		  LOG_BUFFER_ENTRY_SIZE, "[%5lu.%06lu] %s",
 		  (unsigned long)ts_nsec, rem_nsec / 1000,
 		  tmpbuffer);
+
 	if (tcpm_log_full(port)) {
 		port->logbuffer_full = true;
+		cancel_delayed_work(&port->log2printk);
+		schedule_delayed_work(&port->log2printk, 0);
 	}
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	port->logbuffer_head = (port->logbuffer_head + 1) % LOG_BUFFER_ENTRIES;
@@ -578,7 +593,9 @@ static int tcpm_debug_show(struct seq_file *s, void *v)
 	struct tcpm_port *port = (struct tcpm_port *)s->private;
 	int tail, head;
 
-	mutex_lock(&port->logbuffer_lock);
+	cancel_delayed_work_sync(&port->log2printk);
+
+	mutex_lock(&port->logprintk_lock);
 	if (!port->logbuffer_full) {
 		tail = port->logbuffer_last;
 		head = port->logbuffer_head;
@@ -613,20 +630,57 @@ static int tcpm_debug_show(struct seq_file *s, void *v)
 		port->logbuffer_full = false;
 		port->logbuffer_last = tail;
 		dev_emerg(port->dev, "[%s]line%d [tail:%d / head:%d] \n", __func__, __LINE__, tail, head);
- 	}
+	}
 
-	mutex_unlock(&port->logbuffer_lock);
+	mutex_unlock(&port->logprintk_lock);
+
+	schedule_delayed_work(&port->log2printk, msecs_to_jiffies(10000));
 
 	return 0;
 }
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 DEFINE_SHOW_ATTRIBUTE(tcpm_debug);
 
+static void log_printk_work(struct work_struct *work)
+{
+	struct tcpm_port *port = container_of(work, struct tcpm_port,
+					      log2printk.work);
+	int tail, head;
+
+	mutex_lock(&port->logprintk_lock);
+	if (port->logbuffer_full) {
+		tail = port->logbuffer_last;
+		head = LOG_BUFFER_ENTRIES;
+		while (tail < head) {
+			if (port->logbuffer[tail])
+				dev_info(port->dev, "[tcpm][full][%d / %d] %s\n", tail, head, port->logbuffer[tail]);
+			tail = tail + 1;
+		}
+		port->logbuffer_last = 0;
+		port->logbuffer_full = false;
+	} else {
+		tail = port->logbuffer_last;
+		head = port->logbuffer_head;
+		while (tail < head) {
+			if (port->logbuffer[tail])
+				dev_info(port->dev, "[tcpm][%d / %d] %s\n", tail, head, port->logbuffer[tail]);
+			tail = tail + 1;
+		}
+		if (port->logbuffer_last != head)
+			port->logbuffer_last = head;
+	}
+
+	mutex_unlock(&port->logprintk_lock);
+	schedule_delayed_work(&port->log2printk, msecs_to_jiffies(10000));
+}
+
 static struct dentry *rootdir;
 
 static void tcpm_debugfs_init(struct tcpm_port *port)
 {
 	mutex_init(&port->logbuffer_lock);
+	mutex_init(&port->logprintk_lock);
+	INIT_DELAYED_WORK(&port->log2printk, log_printk_work);
 	/* /sys/kernel/debug/tcpm/usbcX */
 	if (!rootdir)
 		rootdir = debugfs_create_dir("tcpm", NULL);
@@ -664,6 +718,7 @@ static int tcpm_enable_typec_interrupt(struct tcpm_port *port, bool enable)
 		/* disable typec interrupt  */
 		port->disable_typec_int = true;
 		sc27xx_set_typec_int_disable();
+		schedule_delayed_work(&port->role_swap_work, msecs_to_jiffies(6000));
 		tcpm_log(port, "disable typec interrupt");
 	}
 
@@ -691,8 +746,10 @@ static int tcpm_pd_transmit(struct tcpm_port *port,
 	timeout = wait_for_completion_timeout(&port->tx_complete,
 				msecs_to_jiffies(PD_T_TCPC_TX_TIMEOUT));
 	mutex_lock(&port->lock);
-	if (!timeout)
+	if (!timeout) {
+		tcpm_log(port, "PD TX time out");
 		return -ETIMEDOUT;
+	}
 
 	switch (port->tx_status) {
 	case TCPC_TX_SUCCESS:
@@ -854,6 +911,9 @@ static int tcpm_set_roles(struct tcpm_port *port, bool attached,
 	enum usb_role usb_role;
 	int ret;
 
+	tcpm_log(port, "%s:line%d set roles [%s:%s]", __func__, __LINE__,
+		 role ? "source" : "sink", data ? "host" : "device");
+
 	if (port->polarity == TYPEC_POLARITY_CC1)
 		orientation = TYPEC_ORIENTATION_NORMAL;
 	else
@@ -1011,14 +1071,23 @@ static void tcpm_queue_vdm(struct tcpm_port *port, const u32 header,
 	port->vdm_retries = 0;
 	port->vdm_state = VDM_STATE_READY;
 }
-
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
 static void svdm_consume_identity(struct tcpm_port *port, const __le32 *payload,
 				  int cnt)
 {
 	u32 vdo = le32_to_cpu(payload[VDO_INDEX_IDH]);
 	u32 product = le32_to_cpu(payload[VDO_INDEX_PRODUCT]);
+	u32 product_type = 0;
 
 	memset(&port->mode_data, 0, sizeof(port->mode_data));
+
+	product_type = PD_IDH_PTYPE(vdo);
+	tcpm_log(port, "product_type %d", product_type);
+	if (product_type == IDH_PTYPE_HUB || product_type == IDH_PTYPE_AMA) {
+		tcpm_log(port, "product_type IDH_PTYPE_HUB or IDH_PTYPE_AMA");
+		cm_check_pd_port_partner(true);
+		tcpm_log(port, "product_type IDH_PTYPE_HUB or IDH_PTYPE_AMA done");
+	}
 
 	port->partner_ident.id_header = vdo;
 	port->partner_ident.cert_stat = le32_to_cpu(payload[VDO_INDEX_CSTAT]);
@@ -1030,7 +1099,7 @@ static void svdm_consume_identity(struct tcpm_port *port, const __le32 *payload,
 		 PD_IDH_VID(vdo),
 		 PD_PRODUCT_PID(product), product & 0xffff);
 }
-
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 static bool svdm_consume_svids(struct tcpm_port *port, const __le32 *payload,
 			       int cnt)
 {
@@ -1994,6 +2063,8 @@ static void tcpm_pd_ext_msg_request(struct tcpm_port *port,
 	}
 }
 
+static inline enum tcpm_state hard_reset_state(struct tcpm_port *port);
+
 static void tcpm_pd_rx_handler(struct work_struct *work)
 {
 	struct pd_rx_event *event = container_of(work,
@@ -2004,8 +2075,8 @@ static void tcpm_pd_rx_handler(struct work_struct *work)
 
 	mutex_lock(&port->lock);
 
-	tcpm_log(port, "PD RX, header: %#x [%d]", le16_to_cpu(msg->header),
-		 port->attached);
+	tcpm_log(port, "PD RX, header: %#x [%d][%s]", le16_to_cpu(msg->header),
+		 port->attached, port->data_role ? "host" : "device");
 
 	if (port->attached) {
 		enum pd_ctrl_msg_type type = pd_header_type_le(msg->header);
@@ -2020,8 +2091,10 @@ static void tcpm_pd_rx_handler(struct work_struct *work)
 		 * Message). Note: this shall not apply to the Soft_Reset
 		 * Message which always has a MessageID value of zero."
 		 */
-		if (msgid == port->rx_msgid && type != PD_CTRL_SOFT_RESET)
+		if (msgid == port->rx_msgid && type != PD_CTRL_SOFT_RESET) {
+			tcpm_log(port, "%s:line%d msgid same", __func__, __LINE__);
 			goto done;
+		}
 		port->rx_msgid = msgid;
 
 		/*
@@ -2032,7 +2105,7 @@ static void tcpm_pd_rx_handler(struct work_struct *work)
 		    (port->data_role == TYPEC_HOST)) {
 			tcpm_log(port,
 				 "Data role mismatch, initiating error recovery");
-			tcpm_set_state(port, ERROR_RECOVERY, 0);
+			tcpm_set_state(port, hard_reset_state(port), 0);
 		} else {
 			if (msg->header & PD_HEADER_EXT_HDR)
 				tcpm_pd_ext_msg_request(port, msg);
@@ -2587,6 +2660,7 @@ static int tcpm_set_vbus(struct tcpm_port *port, bool enable)
 	ret = port->tcpc->set_vbus(port->tcpc, enable, port->vbus_charge);
 	if (ret < 0)
 		return ret;
+	tcpm_log(port, "[%s:line%d] set vbus done", __func__, __LINE__);
 
 	port->vbus_source = enable;
 	return 0;
@@ -2794,6 +2868,12 @@ static void tcpm_reset_port(struct tcpm_port *port)
 
 static void tcpm_detach(struct tcpm_port *port)
 {
+#ifdef CONFIG_DEBUG_FS
+	tcpm_log_force(port, "tcpm detach start call log printk");
+	cancel_delayed_work(&port->log2printk);
+	schedule_delayed_work(&port->log2printk, 0);
+	tcpm_log_force(port, "tcpm detach call log printk end");
+#endif
 	if (!port->attached)
 		return;
 
@@ -2946,7 +3026,12 @@ static void run_state_machine(struct tcpm_port *port)
 			sc27xx_set_typec_int_clear();
 
 			port->disable_typec_int = false;
+			cancel_delayed_work(&port->role_swap_work);
+		}
+		if (port->power_role_swap) {
+			port->power_role_swap = false;
 			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
+			tcpm_log(port, "SRC_UNATTACHED clear power role swap flag");
 		}
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 		if (!port->non_pd_role_swap)
@@ -3098,6 +3183,30 @@ static void run_state_machine(struct tcpm_port *port)
 		port->hard_reset_count = 0;
 #endif
 		port->try_src_count = 0;
+		if (port->disable_typec_int) {
+			tcpm_log(port, "SRC_READY clear typec interrupt");
+			sc27xx_set_typec_int_clear();
+
+			/* enable typec interrupt  */
+			port->disable_typec_int = false;
+			tcpm_log(port, "enable typec interrupt");
+			cancel_delayed_work(&port->role_swap_work);
+		}
+
+		if (port->swap_notify_typec) {
+			port->swap_notify_typec = false;
+			tcpm_log(port, "SRC_READY swap_notify_typec");
+			sc27xx_typec_set_pr_swap_flag(TYPEC_SINK_TO_SOURCE);
+			tcpm_log(port, "notify TYPEC_SINK_TO_SOURCE %s %d", __func__, __LINE__);
+			sc27xx_typec_set_pd_swap_event(TYPEC_SINK_TO_SOURCE);
+			tcpm_log(port, "notify TYPEC_SINK_TO_SOURCE %s %d", __func__, __LINE__);
+		}
+		if (port->power_role_swap) {
+			port->power_role_swap = false;
+			port->power_role_swap_hard_reset = false;
+			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
+			tcpm_log(port, "SRC_READY clear power role swap flag");
+		}
 
 		tcpm_swap_complete(port, 0);
 		tcpm_typec_connect(port);
@@ -3129,7 +3238,12 @@ static void run_state_machine(struct tcpm_port *port)
 			sc27xx_set_typec_int_clear();
 
 			port->disable_typec_int = false;
+			cancel_delayed_work(&port->role_swap_work);
+		}
+		if (port->power_role_swap) {
+			port->power_role_swap = false;
 			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
+			tcpm_log(port, "SNK_UNATTACHED clear power role swap flag");
 		}
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 		if (!port->non_pd_role_swap)
@@ -3327,6 +3441,32 @@ static void run_state_machine(struct tcpm_port *port)
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 		break;
 	case SNK_READY:
+		if (port->disable_typec_int) {
+			tcpm_log(port, "SNK_READY clear typec interrupt");
+			sc27xx_set_typec_int_clear();
+
+			/* enable typec interrupt  */
+			port->disable_typec_int = false;
+			tcpm_log(port, "enable typec interrupt");
+			sc27xx_typec_set_pr_swap_flag(TYPEC_SOURCE_TO_SINK);
+			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
+			sc27xx_typec_set_pd_swap_event(TYPEC_SOURCE_TO_SINK);
+			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
+			cancel_delayed_work(&port->role_swap_work);
+		} else if (port->swap_notify_typec) {
+			port->swap_notify_typec = false;
+			tcpm_log(port, "SNK_READY swap_notify_typec");
+			sc27xx_typec_set_pr_swap_flag(TYPEC_SOURCE_TO_SINK);
+			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
+			sc27xx_typec_set_pd_swap_event(TYPEC_SOURCE_TO_SINK);
+			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
+		}
+		if (port->power_role_swap) {
+			port->power_role_swap = false;
+			port->power_role_swap_hard_reset = false;
+			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
+			tcpm_log(port, "SNK_READY clear power role swap flag");
+		}
 		port->try_snk_count = 0;
 		port->update_sink_caps = false;
 		if (port->explicit_contract) {
@@ -3365,15 +3505,8 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_state(port, HARD_RESET_START, 0);
 		break;
 	case HARD_RESET_START:
-		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-		if (port->disable_typec_int) {
-			tcpm_log(port, "HARD_RESET_START clear typec interrupt");
-			sc27xx_set_typec_int_clear();
-
-			port->disable_typec_int = false;
-			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
-		}
-		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+		if (port->power_role_swap)
+			port->power_role_swap_hard_reset = true;
 		port->hard_reset_count++;
 		port->tcpc->set_pd_rx(port->tcpc, false);
 		tcpm_unregister_altmodes(port);
@@ -3387,8 +3520,15 @@ static void run_state_machine(struct tcpm_port *port)
 	case SRC_HARD_RESET_VBUS_OFF:
 		tcpm_set_vconn(port, true);
 		tcpm_set_vbus(port, false);
-		tcpm_set_roles(port, port->self_powered, TYPEC_SOURCE,
-			       TYPEC_HOST);
+		if (!port->power_role_swap_hard_reset) {
+			tcpm_set_roles(port, port->self_powered, TYPEC_SOURCE,
+				       port->data_role);
+		} else {
+			port->pwr_role = TYPEC_SOURCE;
+			port->tcpc->set_roles(port->tcpc, port->self_powered,
+					      TYPEC_SOURCE, port->data_role);
+		}
+
 		tcpm_set_state(port, SRC_HARD_RESET_VBUS_ON, PD_T_SRC_RECOVER);
 		break;
 	case SRC_HARD_RESET_VBUS_ON:
@@ -3402,8 +3542,14 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_vconn(port, false);
 		if (port->pd_capable)
 			tcpm_set_charge(port, false);
-		tcpm_set_roles(port, port->self_powered, TYPEC_SINK,
-			       TYPEC_DEVICE);
+		if (!port->power_role_swap_hard_reset) {
+			tcpm_set_roles(port, port->self_powered, TYPEC_SINK,
+				       port->data_role);
+		} else {
+			port->pwr_role = TYPEC_SINK;
+			port->tcpc->set_roles(port->tcpc, port->self_powered,
+					      TYPEC_SINK, port->data_role);
+		}
 		/*
 		 * VBUS may or may not toggle, depending on the adapter.
 		 * If it doesn't toggle, transition to SNK_HARD_RESET_SINK_ON
@@ -3479,6 +3625,8 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_state(port, ready_state(port), 0);
 		break;
 	case DR_SWAP_CHANGE_DR:
+		tcpm_log(port, "%s:line%d current roles [%s]", __func__,
+			 __LINE__, port->data_role ? "host" : "device");
 		if (port->data_role == TYPEC_HOST) {
 			tcpm_unregister_altmodes(port);
 			tcpm_set_roles(port, true, port->pwr_role,
@@ -3524,6 +3672,7 @@ static void run_state_machine(struct tcpm_port *port)
 		if (port->pwr_role == TYPEC_SOURCE) {
 			tcpm_log(port, "source swap sink role start");
 			tcpm_enable_typec_interrupt(port, false);
+			port->power_role_swap = true;
 			tcpm_set_typec_roles(port, TYPEC_PORT_SNK, TYPEC_DEVICE);
 			tcpm_set_swap(port, true, false);
 			tcpm_set_state(port, PR_SWAP_SRC_SNK_TRANSITION_OFF,
@@ -3531,6 +3680,7 @@ static void run_state_machine(struct tcpm_port *port)
 		} else {
 			tcpm_log(port, "sink swap source role start");
 			tcpm_enable_typec_interrupt(port, false);
+			port->power_role_swap = true;
 			tcpm_set_typec_roles(port, TYPEC_PORT_SRC, TYPEC_HOST);
 			tcpm_set_swap(port, true, false);
 			tcpm_set_state(port, PR_SWAP_SNK_SRC_SINK_OFF, 0);
@@ -3565,11 +3715,13 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_pwr_role(port, TYPEC_SINK);
 		if (tcpm_pd_send_control(port, PD_CTRL_PS_RDY)) {
 			/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
+			tcpm_log(port, "OFF_CC_DEBOUNCED send ps rdy failed, ret = %d", ret);
 			tcpm_set_swap(port, false, false);
-			tcpm_set_state(port, ERROR_RECOVERY, 0);
+			tcpm_set_pwr_role(port, TYPEC_SOURCE);
+			tcpm_set_state(port, hard_reset_state(port), 0);
 			break;
 		}
-		tcpm_set_state_cond(port, SNK_UNATTACHED, PD_T_PS_SOURCE_ON_SWAP);
+		tcpm_set_state_cond(port, hard_reset_state(port), PD_T_PS_SOURCE_ON_SWAP);
 		break;
 	case PR_SWAP_SRC_SNK_SINK_ON:
 		if (port->disable_typec_int) {
@@ -3578,13 +3730,10 @@ static void run_state_machine(struct tcpm_port *port)
 
 			/* enable typec interrupt  */
 			port->disable_typec_int = false;
+			port->swap_notify_typec = true;
+
 			tcpm_log(port, "enable typec interrupt");
-			sc27xx_typec_set_pr_swap_flag(TYPEC_SOURCE_TO_SINK);
-			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
-			sc27xx_typec_set_pd_swap_event(TYPEC_SOURCE_TO_SINK);
-			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
-			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
-			tcpm_log(port, "notify TYPEC_SOURCE_TO_SINK %s %d", __func__, __LINE__);
+			cancel_delayed_work(&port->role_swap_work);
 		}
 
 		tcpm_set_swap(port, false, false);
@@ -3596,7 +3745,9 @@ static void run_state_machine(struct tcpm_port *port)
 			       PD_T_PS_SOURCE_OFF);
 		break;
 	case PR_SWAP_SNK_SRC_SOURCE_ON:
+		tcpm_log(port, "[%s:line%d] mslssp start", __func__, __LINE__);
 		msleep(50);
+		tcpm_log(port, "[%s:line%d] msleep 50 end", __func__, __LINE__);
 		tcpm_set_cc(port, tcpm_rp_cc(port));
 		if (port->role_swap_flag)
 			tcpm_set_swap(port, true, true);
@@ -3606,6 +3757,7 @@ static void run_state_machine(struct tcpm_port *port)
 		 * Also, this window overlaps with CC debounce as well.
 		 * So, Wait for the max of two which is PD_T_NEWSRC
 		 */
+		tcpm_log(port, "[%s:line%d] PR_SWAP_SNK_SRC_SOURCE_ON", __func__, __LINE__);
 		tcpm_set_state(port, PR_SWAP_SNK_SRC_SOURCE_ON_VBUS_RAMPED_UP,
 			       PD_T_NEWSRC_SWAP);
 		break;
@@ -3618,24 +3770,28 @@ static void run_state_machine(struct tcpm_port *port)
 		 * Source."
 		 */
 		tcpm_set_pwr_role(port, TYPEC_SOURCE);
-		tcpm_pd_send_control(port, PD_CTRL_PS_RDY);
+source_pr_send_psrdy_retry:
+		ret = tcpm_pd_send_control(port, PD_CTRL_PS_RDY);
+		if (ret < 0 && port->power_role_send_psrdy_count < 10) {
+			tcpm_log(port, "VBUS_RAMPED_UP retry to send ps ready, ret = %d", ret);
+			port->power_role_send_psrdy_count++;
+			goto source_pr_send_psrdy_retry;
+		}
+		port->power_role_send_psrdy_count = 0;
 		if (port->disable_typec_int) {
 			tcpm_log(port, "SRC_READY clear typec interrupt");
 			sc27xx_set_typec_int_clear();
 
 			/* enable typec interrupt  */
 			port->disable_typec_int = false;
+			port->swap_notify_typec = true;
+
 			tcpm_log(port, "enable typec interrupt");
-			sc27xx_typec_set_pr_swap_flag(TYPEC_SINK_TO_SOURCE);
-			tcpm_log(port, "notify TYPEC_SINK_TO_SOURCE %s %d", __func__, __LINE__);
-			sc27xx_typec_set_pd_swap_event(TYPEC_SINK_TO_SOURCE);
-			tcpm_log(port, "notify TYPEC_SINK_TO_SOURCE %s %d", __func__, __LINE__);
-			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
-			tcpm_log(port, "notify TYPEC_SINK_TO_SOURCE %s %d", __func__, __LINE__);
+			cancel_delayed_work(&port->role_swap_work);
 		}
 		tcpm_set_swap(port, true, false);
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
-		tcpm_set_state(port, SRC_STARTUP, 0);
+		tcpm_set_state(port, SRC_STARTUP, 50);
 		break;
 
 	case VCONN_SWAP_ACCEPT:
@@ -3715,7 +3871,12 @@ static void run_state_machine(struct tcpm_port *port)
 			sc27xx_set_typec_int_clear();
 
 			port->disable_typec_int = false;
+			cancel_delayed_work(&port->role_swap_work);
+		}
+		if (port->power_role_swap) {
+			port->power_role_swap = false;
 			tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
+			tcpm_log(port, "ERROR_RECOVERY clear power role swap flag");
 		}
 		/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 		tcpm_swap_complete(port, -EPROTO);
@@ -3774,6 +3935,35 @@ static void tcpm_state_machine_work(struct work_struct *work)
 
 done:
 	port->state_machine_running = false;
+	mutex_unlock(&port->lock);
+}
+
+static void tcpm_role_swap_work(struct work_struct *work)
+{
+	struct tcpm_port *port = container_of(work, struct tcpm_port,
+					      role_swap_work.work);
+
+	if (!port) {
+		pr_err("%s:line%d: NULL pointer!!!\n", __func__, __LINE__);
+		return;
+	}
+
+	tcpm_log_force(port, "%s enter", __func__);
+
+	mutex_lock(&port->lock);
+
+	if (port->disable_typec_int) {
+		tcpm_log_force(port, "%s clear typec interrupt", __func__);
+		sc27xx_set_typec_int_clear();
+
+		port->disable_typec_int = false;
+	}
+	if (port->power_role_swap) {
+		port->power_role_swap = false;
+		tcpm_set_typec_roles(port, TYPEC_PORT_DRP, TYPEC_DEVICE);
+		tcpm_log_force(port, "%s clear power role swap flag", __func__);
+	}
+
 	mutex_unlock(&port->lock);
 }
 
@@ -4146,22 +4336,35 @@ static int tcpm_dr_set(const struct typec_capability *cap,
 	struct tcpm_port *port = typec_cap_to_tcpm(cap);
 	int ret;
 
+	tcpm_log_force(port, "[%s:line%d] wait lock [%s] ",
+		       __func__, __LINE__, data ? "host" : "device");
+
 	mutex_lock(&port->swap_lock);
 	mutex_lock(&port->lock);
+
+	tcpm_log_force(port, "[%s:line%d] get lock  ", __func__, __LINE__);
 
 	if (port->port_type != TYPEC_PORT_DRP) {
 		ret = -EINVAL;
 		goto port_unlock;
 	}
+	tcpm_log_force(port, "[%s:line%d] current state  %s ",
+		       __func__, __LINE__, tcpm_states[port->state]);
+
 	if (port->state != SRC_READY && port->state != SNK_READY) {
 		ret = -EAGAIN;
 		goto port_unlock;
 	}
 
+	tcpm_log_force(port, "[%s:line%d] state ready [%s]", __func__, __LINE__,
+		       port->data_role ? "host" : "device");
+
 	if (port->data_role == data) {
 		ret = 0;
 		goto port_unlock;
 	}
+
+	tcpm_log_force(port, "[%s:line%d] data role different ", __func__, __LINE__);
 
 	/*
 	 * XXX
@@ -4184,6 +4387,7 @@ static int tcpm_dr_set(const struct typec_capability *cap,
 		port->non_pd_role_swap = true;
 		tcpm_set_state(port, PORT_RESET, 0);
 	} else {
+		tcpm_log_force(port, "[%s:line%d] DR_SWAP_SEND ", __func__, __LINE__);
 		tcpm_set_state(port, DR_SWAP_SEND, 0);
 	}
 
@@ -4214,23 +4418,32 @@ static int tcpm_pr_set(const struct typec_capability *cap,
 	struct tcpm_port *port = typec_cap_to_tcpm(cap);
 	int ret;
 
+	tcpm_log_force(port, "[%s:line%d] wait lock  ", __func__, __LINE__);
+
 	mutex_lock(&port->swap_lock);
 	mutex_lock(&port->lock);
+
+	tcpm_log_force(port, "[%s:line%d] get lock  ", __func__, __LINE__);
 
 	if (port->port_type != TYPEC_PORT_DRP) {
 		ret = -EINVAL;
 		goto port_unlock;
 	}
+	tcpm_log_force(port, "[%s:line%d] current state  %s ", __func__, __LINE__,
+			 tcpm_states[port->state]);
 	if (port->state != SRC_READY && port->state != SNK_READY) {
 		ret = -EAGAIN;
 		goto port_unlock;
 	}
+
+	tcpm_log_force(port, "[%s:line%d] state ready ", __func__, __LINE__);
 
 	if (role == port->pwr_role) {
 		ret = 0;
 		goto port_unlock;
 	}
 
+	tcpm_log_force(port, "[%s:line%d] role different  ", __func__, __LINE__);
 	port->swap_status = 0;
 	port->swap_pending = true;
 	reinit_completion(&port->swap_complete);
@@ -4695,10 +4908,12 @@ int tcpm_update_sink_capabilities(struct tcpm_port *port, const u32 *pdo,
 	case SNK_READY:
 	case SNK_TRANSITION_SINK:
 	case SNK_TRANSITION_SINK_VBUS:
-		if (port->pps_data.active)
+		if (port->pps_data.active) {
 			tcpm_set_state(port, SNK_NEGOTIATE_PPS_CAPABILITIES, 0);
-		else
+		} else {
+			tcpm_log(port, "%s SNK_NEGOTIATE_CAPABILITIES", __func__);
 			tcpm_set_state(port, SNK_NEGOTIATE_CAPABILITIES, 0);
+		}
 		break;
 	default:
 		break;
@@ -4980,7 +5195,10 @@ static int devm_tcpm_psy_register(struct tcpm_port *port)
 	snprintf(psy_name, psy_name_len, "%s%s", tcpm_psy_name_prefix,
 		 port_dev_name);
 	port->psy_desc.name = psy_name;
-	port->psy_desc.type = POWER_SUPPLY_TYPE_USB,
+	/* Tab A8 code for P211115-05893 by wenyaqi at 20211116 start */
+	// port->psy_desc.type = POWER_SUPPLY_TYPE_USB,
+	port->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN,
+	/* Tab A8 code for P211115-05893 by wenyaqi at 20211116 end */
 	port->psy_desc.usb_types = tcpm_psy_usb_types;
 	port->psy_desc.num_usb_types = ARRAY_SIZE(tcpm_psy_usb_types);
 	port->psy_desc.properties = tcpm_psy_props,
@@ -5066,6 +5284,7 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 		return ERR_PTR(-ENOMEM);
 	INIT_DELAYED_WORK(&port->state_machine, tcpm_state_machine_work);
 	INIT_DELAYED_WORK(&port->vdm_state_machine, vdm_state_machine_work);
+	INIT_DELAYED_WORK(&port->role_swap_work, tcpm_role_swap_work);
 	INIT_WORK(&port->event_work, tcpm_pd_event_handler);
 
 	spin_lock_init(&port->pd_event_lock);
@@ -5142,7 +5361,9 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 	mutex_lock(&port->lock);
 	tcpm_init(port);
 	mutex_unlock(&port->lock);
-
+#ifdef CONFIG_DEBUG_FS
+	schedule_delayed_work(&port->log2printk, msecs_to_jiffies(15000));
+#endif
 	tcpm_log(port, "%s: registered", dev_name(dev));
 	return port;
 

@@ -34,10 +34,13 @@
 
 static bool is_single_cali = false; /*if mutli_dev cali false, single dev true*/
 
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
 static const char *cali_str[CALI_STR_MAX] = {"none", "start_cali", "cali_re",
 	"cali_f0", "store_re", "show_re", "show_r0", "show_cali_f0", "show_f0",
-	"show_te", "show_st", "dev_sel", "get_ver", "get_dev_num"
+        "show_te", "show_st", "dev_sel", "get_ver", "get_dev_num",
+        "cali_q_f0", "show_q_f0"
 };
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 static char *ch_name[AW_DEV_CH_MAX] = {"pri_l", "pri_r", "sec_l", "sec_r"};
 static unsigned int g_cali_re_time = AW_CALI_RE_DEFAULT_TIMER;
@@ -47,11 +50,30 @@ static unsigned int g_cali_status = false;
 static struct miscdevice *g_misc_dev = NULL;
 static DEFINE_MUTEX(g_cali_lock);
 
-
 #ifdef AW_CALI_STORE_EXAMPLE
  /*write cali to persist file example*/
 #define AWINIC_CALI_FILE  "/mnt/vendor/persist/factory/audio/aw_cali.bin"
 #define AW_INT_DEC_DIGIT 10
+
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static void aw_fs_read(struct file *file, char *buf, size_t count, loff_t *pos)
+{
+#ifdef AW_KERNEL_VER_OVER_5_4_0
+        kernel_read(file, buf, count, pos);
+#else
+        vfs_read(file, buf, count, pos);
+#endif
+}
+
+static void aw_fs_write(struct file *file, char *buf, size_t count, loff_t *pos)
+{
+#ifdef AW_KERNEL_VER_OVER_5_4_0
+        kernel_write(file, buf, count, pos);
+#else
+        vfs_write(file, buf, count, pos);
+#endif
+}
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 static int aw_cali_write_cali_re_to_file(int32_t cali_re, int channel)
 {
@@ -74,7 +96,7 @@ static int aw_cali_write_cali_re_to_file(int32_t cali_re, int channel)
 	fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	vfs_write(fp, buf, strlen(buf), &pos);
+	aw_fs_write(fp, buf, strlen(buf), &pos);
 
 	set_fs(fs);
 
@@ -119,7 +141,7 @@ static int aw_cali_get_read_cali_re(int32_t *cali_re, int channel)
 	fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	vfs_read(fp, buf, f_size, &pos);
+	aw_fs_read(fp, buf, f_size, &pos);
 
 	set_fs(fs);
 
@@ -271,6 +293,8 @@ static int aw_cali_svc_dev_get_f0_q(struct aw_device *aw_dev)
 	q[0] = sum_q / AW_CALI_READ_TIMES;
 	aw_dev->cali_desc.cali_f0 = f0[0];
 	aw_dev->cali_desc.cali_q = q[0];
+        aw_dev_dbg(aw_dev->dev, "cali f0 is %d, q is %d",
+                        aw_dev->cali_desc.cali_f0, aw_dev->cali_desc.cali_q);
 	return 0;
 }
 
@@ -836,7 +860,10 @@ static int aw_cali_svc_set_devs_re_str(struct aw_device *aw_dev, const char *re_
 	list_for_each (pos, dev_list) {
 		local_dev = container_of(pos, struct aw_device, list_node);
 		if (local_dev->channel < AW_DEV_CH_MAX) {
-			aw_cali_store_cali_re(local_dev, re_data[local_dev->channel]);
+                        ret = aw_cali_store_cali_re(local_dev, re_data[local_dev->channel]);
+                        if (ret < 0) {
+                                return ret;
+                        }
 			cnt++;
 		}
 	}
@@ -952,7 +979,11 @@ static ssize_t aw_cali_attr_re_store(struct device *dev,
 			aw_dev_err(aw882xx->dev, " read buf %s failed", buf);
 			return ret;
 		}
-		aw_cali_store_cali_re(aw_dev, data);
+                ret = aw_cali_store_cali_re(aw_dev, data);
+                if (ret < 0) {
+                        aw_dev_err(aw_dev->dev, "set re %d failed", data);
+                        return -EPERM;
+                }
 	} else {
 		ret = aw_cali_svc_set_devs_re_str(aw_dev, buf);
 		if (ret <= 0) {
@@ -1445,15 +1476,20 @@ static int aw_cali_misc_open(struct inode *inode, struct file *file)
 		}
 	}
 
+        if (local_dev == NULL) {
+                pr_err("[Awinic] %s: can't find dev num %d\n", __func__, g_dev_select);
+                return -EINVAL;
+        }
+
 	/* cannot find sel dev, use list first dev */
 	if (local_dev->channel != g_dev_select) {
 		local_dev = list_first_entry(dev_list, struct aw_device, list_node);
-		aw_dev_dbg(local_dev->dev, "can not find [%s], use default", ch_name[g_dev_select]);
+		aw_dev_dbg(local_dev->dev, "can not find dev num %d, use default", g_dev_select);
 	}
 
 	file->private_data = (void *)local_dev;
 
-	aw_dev_dbg(local_dev->dev, "misc open success\n");
+        aw_dev_dbg(local_dev->dev, "misc open success");
 	return 0;
 }
 
@@ -1514,11 +1550,6 @@ static int aw_cali_misc_ops_write(struct aw_device *aw_dev,
 	int32_t data = 0;
 	int ret = 0;
 
-	if (aw_dev->cali_desc.mode == AW_CALI_MODE_NONE) {
-		aw_dev_info(aw_dev->dev, "cali mode is none, can't support misc ops write");
-		return -EINVAL;
-	}
-
 	data_ptr = kzalloc(data_len, GFP_KERNEL);
 	if (!data_ptr) {
 		aw_dev_err(aw_dev->dev, "malloc failed !");
@@ -1551,7 +1582,7 @@ static int aw_cali_misc_ops_write(struct aw_device *aw_dev,
 			ret = aw_cali_misc_params_ptr(aw_dev, (struct ptr_params_data *)data_ptr);
 		} break;
 		case AW_IOCTL_SET_CALI_RE: {
-			aw_cali_store_cali_re(aw_dev, *((int32_t *)data_ptr));
+                        ret = aw_cali_store_cali_re(aw_dev, *((int32_t *)data_ptr));
 			/*ret = aw_dsp_write_cali_re(aw_dev, *(int32_t *)data_ptr);*/
 		} break;
 		case AW_IOCTL_SET_DSP_HMUTE: {
@@ -1581,11 +1612,6 @@ static int aw_cali_misc_ops_read(struct aw_device *aw_dev,
 	char *data_ptr = NULL;
 	int32_t *data_32_ptr = NULL;
 	int ret = 0;
-
-	if (aw_dev->cali_desc.mode == AW_CALI_MODE_NONE) {
-		aw_dev_info(aw_dev->dev, "cali mode is none, can't support misc ops read");
-		return -EINVAL;
-	}
 
 	data_ptr = kzalloc(data_len, GFP_KERNEL);
 	if (!data_ptr) {
@@ -1797,13 +1823,9 @@ static ssize_t aw_cali_misc_read(struct file *filp, char __user *buf, size_t siz
 	char local_buf[128] = { 0 };
 	unsigned int dev_num;
 	int32_t temp_data[AW_DEV_CH_MAX << 1] = {0};
+        int32_t temp_data1[AW_DEV_CH_MAX << 1] = {0};
 
 	aw_dev_info(aw_dev->dev, "enter");
-
-	if (aw_dev->cali_desc.mode == AW_CALI_MODE_NONE) {
-		aw_dev_info(aw_dev->dev, "cali mode is none, can't support misc read");
-		return -EINVAL;
-	}
 
 	if (*pos) {
 		*pos = 0;
@@ -1911,6 +1933,20 @@ static ssize_t aw_cali_misc_read(struct file *filp, char __user *buf, size_t siz
 		}
 		break;
 	}
+        case CALI_STR_SHOW_F0_Q: {
+                ret = aw_cali_svc_get_devs_cali_f0_q(aw_dev,
+                                temp_data, temp_data1, AW_DEV_CH_MAX);
+                if (ret <= 0) {
+                        aw_dev_err(aw_dev->dev, "get q f0 failed");
+                        return ret;
+                } else {
+                        for (i = 0; i < ret; i++) {
+                                len += snprintf(local_buf+len, sizeof(local_buf)-len,
+                                                "%s:f0:%d q:%d", ch_name[i], temp_data[i], temp_data1[i]);
+                        }
+                        len += snprintf(local_buf+len, sizeof(local_buf) - len, "\n");
+                }
+        } break;
 	default: {
 		if (g_msic_wr_flag == CALI_STR_NONE) {
 			aw_dev_info(aw_dev->dev, "please write cmd first");
@@ -1985,11 +2021,6 @@ static ssize_t aw_cali_misc_write(struct file *filp, const char __user *buf, siz
 
 	aw_dev_info(aw_dev->dev, "enter, write size:%d", (int)size);
 
-	if (aw_dev->cali_desc.mode == AW_CALI_MODE_NONE) {
-		aw_dev_info(aw_dev->dev, "cali mode is none, can't support misc write");
-		return -EINVAL;
-	}
-
 	kernel_buf = kzalloc(size + 1, GFP_KERNEL);
 	if (kernel_buf == NULL) {
 		aw_dev_err(aw_dev->dev, "kzalloc failed !");
@@ -2031,6 +2062,10 @@ static ssize_t aw_cali_misc_write(struct file *filp, const char __user *buf, siz
 	case CALI_STR_DEV_SEL: {
 		ret = aw_cali_misc_switch_dev(filp, aw_dev, kernel_buf);
 	} break;
+        case CALI_STR_CALI_F0_Q: {
+                ret = aw_cali_svc_cali_cmd(aw_dev, AW_CALI_CMD_F0_Q,
+                                        is_single_cali, CALI_OPS_HMUTE|CALI_OPS_NOISE);
+        } break;
 	case CALI_STR_SHOW_RE:			/*show cali_re*/
 	case CALI_STR_SHOW_R0:			/*show real r0*/
 	case CALI_STR_SHOW_CALI_F0:		/*GET DEV CALI_F0*/
@@ -2038,7 +2073,8 @@ static ssize_t aw_cali_misc_write(struct file *filp, const char __user *buf, siz
 	case CALI_STR_SHOW_TE:
 	case CALI_STR_SHOW_ST:
 	case CALI_STR_VER:
-	case CALI_STR_DEV_NUM: {
+        case CALI_STR_DEV_NUM:
+        case CALI_STR_SHOW_F0_Q: {
 		g_msic_wr_flag = ret;
 		ret = 0;
 	} break;
@@ -2127,14 +2163,17 @@ static void aw_cali_parse_dt(struct aw_device *aw_dev)
 		return;
 	}
 
-	if (!strcmp(cali_mode_str, "none"))
-		desc->mode = AW_CALI_MODE_NONE;
-	else if (!strcmp(cali_mode_str, "aw_class"))
-		desc->mode = AW_CALI_MODE_CLASS;
-	else if (!strcmp(cali_mode_str, "aw_attr"))
-		desc->mode = AW_CALI_MODE_ATTR;
-	else
-		desc->mode = AW_CALI_MODE_MISC; /*default misc*/
+        if (!strcmp(cali_mode_str, "none")) {
+                desc->mode = AW_CALI_MODE_NONE;
+        } else if (!strcmp(cali_mode_str, "aw_class")) {
+                desc->mode = AW_CALI_MODE_CLASS;
+        } else if (!strcmp(cali_mode_str, "aw_attr")) {
+                desc->mode = AW_CALI_MODE_ATTR;
+        } else if (!strcmp(cali_mode_str, "aw_cali_all")) {
+                desc->mode = AW_CALI_MODE_ALL;
+        } else {
+                desc->mode = AW_CALI_MODE_MISC; /*default misc*/
+        }
 
 	aw_dev_info(aw_dev->dev, "cali mode str:%s num:%d",
 			cali_mode_str, desc->mode);
@@ -2180,10 +2219,14 @@ int aw_cali_init(struct aw_cali_desc *cali_desc)
 
 	aw_cali_parse_dt(aw_dev);
 
-	if (cali_desc->mode == AW_CALI_MODE_ATTR)
-		aw_cali_attr_init(aw_dev);
-	else if (cali_desc->mode == AW_CALI_MODE_CLASS)
-		aw_cali_class_attr_init(aw_dev);
+        if (cali_desc->mode == AW_CALI_MODE_ATTR) {
+                aw_cali_attr_init(aw_dev);
+        } else if (cali_desc->mode == AW_CALI_MODE_CLASS) {
+                aw_cali_class_attr_init(aw_dev);
+        } else if (cali_desc->mode == AW_CALI_MODE_ALL) {
+                aw_cali_attr_init(aw_dev);
+                aw_cali_class_attr_init(aw_dev);
+        }
 
 	aw_cali_misc_init(aw_dev);
 
@@ -2197,10 +2240,14 @@ void aw_cali_deinit(struct aw_cali_desc *cali_desc)
 	struct aw_device *aw_dev =
 		container_of(cali_desc, struct aw_device, cali_desc);
 
-	if (cali_desc->mode == AW_CALI_MODE_ATTR)
-		aw_cali_attr_deinit(aw_dev);
-	else if (cali_desc->mode == AW_CALI_MODE_CLASS)
-		aw_cali_class_attr_deinit(aw_dev);
+        if (cali_desc->mode == AW_CALI_MODE_ATTR) {
+                aw_cali_attr_deinit(aw_dev);
+        } else if (cali_desc->mode == AW_CALI_MODE_CLASS) {
+                aw_cali_class_attr_deinit(aw_dev);
+        } else if (cali_desc->mode == AW_CALI_MODE_ALL) {
+                aw_cali_attr_deinit(aw_dev);
+                aw_cali_class_attr_deinit(aw_dev);
+        }
 
 	aw_cali_misc_deinit(aw_dev);
 }

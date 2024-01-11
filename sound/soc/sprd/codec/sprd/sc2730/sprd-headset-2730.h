@@ -219,6 +219,11 @@ struct sprd_headset {
 	struct delayed_work btn_work;
 	enum headset_hw_status hdst_hw_status;
 	enum snd_jack_types hdst_type_status;
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 start */
+#ifdef CONFIG_TARGET_UMS512_25C10
+	struct wakeup_source hdst_plug_wakelock;
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 end */
 	struct wakeup_source hdst_detect_wakelock;
 	enum headset_eic_type eic_type;
 	bool audio_on;
@@ -296,13 +301,15 @@ struct sprd_headset {
 	/* Tab A8 code for AX6300DEV-1843 by guoweihai at 20211022 start */
 	unsigned long time_after_hmicbias_on;
 	/* Tab A8 code for AX6300DEV-1843 by guoweihai at 20211022 end */
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
+#ifdef CONFIG_TARGET_UMS9230_4H10
 	struct delayed_work det_disbutton_work;
 	struct workqueue_struct *det_disbutton_work_q;
 	bool disable_button;
 	bool stop_button_work;
 	u32 button_ignore;
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+#endif
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 
 };
 

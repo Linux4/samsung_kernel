@@ -6,10 +6,12 @@
 /*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
 #include "aw_dsp.h"
 /*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
-
 #define AW_VOLUME_STEP_DB	(6 * 2)
 #define AW_REG_NONE		(0xFF)
 #define AW_NAME_MAX		(50)
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+#define ALGO_VERSION_MAX        (80)
+
 
 enum {
 	AW_1000_US = 1000,
@@ -18,6 +20,7 @@ enum {
 	AW_4000_US = 4000,
 	AW_5000_US = 5000,
 	AW_10000_US = 10000,
+        AW_100000_US = 100000,
 };
 
 struct aw_device;
@@ -51,6 +54,11 @@ enum AW_DEV_FW_STATUS {
 	AW_DEV_FW_OK,
 };
 
+enum AW_SPIN_KCONTROL_STATUS {
+        AW_SPIN_KCONTROL_DISABLE = 0,
+        AW_SPIN_KCONTROL_ENABLE,
+};
+
 struct aw_device_ops {
 	int (*aw_i2c_write)(struct aw_device *aw_dev, unsigned char reg_addr, unsigned int reg_data);
 	int (*aw_i2c_read)(struct aw_device *aw_dev, unsigned char reg_addr, unsigned int *reg_data);
@@ -58,7 +66,6 @@ struct aw_device_ops {
 	int (*aw_set_volume)(struct aw_device *aw_dev, unsigned int value);
 	int (*aw_get_volume)(struct aw_device *aw_dev, unsigned int *value);
 	unsigned int (*aw_reg_val_to_db)(unsigned int value);
-	void (*aw_i2s_enable)(struct aw_device *aw_dev, bool flag);
 	bool (*aw_check_wr_access)(int reg);
 	bool (*aw_check_rd_access)(int reg);
 	int (*aw_get_reg_num)(void);
@@ -66,7 +73,7 @@ struct aw_device_ops {
 	int (*aw_get_dev_num)(void);
 	void (*aw_set_algo)(struct aw_device *aw_dev);
 	unsigned int (*aw_get_irq_type)(struct aw_device *aw_dev, unsigned int value);
-	int (*aw_get_icalk_splice)(struct aw_device *aw_dev, int16_t *icalk);
+        void (*aw_reg_force_set)(struct aw_device *aw_dev);
 };
 
 struct aw_int_desc {
@@ -95,16 +102,30 @@ struct aw_amppd_desc {
 	unsigned int disable;
 };
 
+struct aw_bop_desc {
+        unsigned int reg;
+        unsigned int mask;
+        unsigned int enable;
+        unsigned int disbale;
+};
 
 struct aw_vcalb_desc {
 	unsigned int icalk_reg;
 	unsigned int icalk_reg_mask;
+        unsigned int icalk_shift;
+        unsigned int icalkl_reg;
+        unsigned int icalkl_reg_mask;
+        unsigned int icalkl_shift;
 	unsigned int icalk_sign_mask;
 	unsigned int icalk_neg_mask;
 	int icalk_value_factor;
 
 	unsigned int vcalk_reg;
 	unsigned int vcalk_reg_mask;
+        unsigned int vcalk_shift;
+        unsigned int vcalkl_reg;
+        unsigned int vcalkl_reg_mask;
+        unsigned int vcalkl_shift;
 	unsigned int vcalk_sign_mask;
 	unsigned int vcalk_neg_mask;
 	int vcalk_value_factor;
@@ -119,6 +140,21 @@ struct aw_mute_desc {
 	unsigned int mask;
 	unsigned int enable;
 	unsigned int disable;
+};
+
+struct aw_uls_hmute_desc {
+        unsigned int reg;
+        unsigned int mask;
+        unsigned int enable;
+        unsigned int disable;
+};
+
+struct aw_txen_desc {
+        unsigned int reg;
+        unsigned int mask;
+        unsigned int enable;
+        unsigned int disable;
+        unsigned int reserve_val;
 };
 
 struct aw_sysst_desc {
@@ -185,10 +221,27 @@ struct aw_spin_ch {
         uint16_t tx_val;
 };
 /*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
+
+struct aw_reg_ch {
+        unsigned int reg;
+        unsigned int mask;
+        unsigned int left_val;
+        unsigned int right_val;
+};
+
+struct aw_spin_desc {
+        int aw_spin_kcontrol_st;
+        struct aw_spin_ch spin_table[AW_SPIN_MAX];
+        struct aw_reg_ch rx_desc;
+        struct aw_reg_ch tx_desc;
+};
+
 struct aw_device {
 	int index;
 	int status;
 	int bstcfg_enable;
+        int frcset_en;
+        int bop_en;
 	unsigned int mute_st;
 	unsigned int amppd_st;
 
@@ -211,6 +264,8 @@ struct aw_device {
 	struct aw_pwd_desc pwd_desc;
 	struct aw_amppd_desc amppd_desc;
 	struct aw_mute_desc mute_desc;
+        struct aw_uls_hmute_desc uls_hmute_desc;
+        struct aw_txen_desc txen_desc;
 	struct aw_vcalb_desc vcalb_desc;
 	struct aw_sysst_desc sysst_desc;
 	struct aw_profctrl_desc profctrl_desc;
@@ -224,9 +279,12 @@ struct aw_device {
 	struct aw_cali_desc cali_desc;
 	struct aw_monitor_desc monitor_desc;
 	struct aw_soft_rst soft_rst;
+        struct aw_spin_desc spin_desc;
+        struct aw_bop_desc bop_desc;
 	struct aw_device_ops ops;
 	struct list_head list_node;
 };
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 
 int aw_dev_load_acf_check(struct aw_container *aw_cfg);
@@ -266,8 +324,6 @@ void aw_dev_set_fade_time(unsigned int time, bool fade_in);
 int aw_dev_set_afe_module_en(int type, int enable);
 int aw_dev_get_afe_module_en(int type, int *status);
 int aw_dev_set_copp_module_en(bool enable);
-int aw_dev_set_spin(int spin_mode);
-int aw_dev_get_spin(int *spin_mode);
 
 int aw_device_probe(struct aw_device *aw_dev);
 int aw_device_remove(struct aw_device *aw_dev);

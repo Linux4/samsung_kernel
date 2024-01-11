@@ -28,6 +28,8 @@
 typedef int (*marlin_reset_callback) (void *para);
 extern marlin_reset_callback marlin_reset_func;
 extern void *marlin_callback_para;
+extern unsigned int marlin_get_wcn_xpe_efuse_data(void);
+#define WCN_XPE_EFUSE_DATA 1
 
 /* sync with wcn_get_chip_type() and wcn_chip_name */
 enum wcn_chip_id_type {

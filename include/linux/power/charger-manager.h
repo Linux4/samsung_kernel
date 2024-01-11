@@ -199,6 +199,26 @@ enum cm_charger_fault_status_shift {
 	CM_CHARGER_BUS_ERR_HI_SHIFT = 25,
 };
 
+/**
+ * uvlo_shutdown_mode -
+ * CM_SHUTDOWN_MODE_ORDERLY - if the file "/sbin/poweroff" exit, it will
+ * shutdown from user layer to kernel layer depend on /sbin/poweroff.
+ * you can use this mode if your system have the file /sbin/poweroff.
+ *
+ * CM_SHUTDOWN_MODE_KERNEL - emergency shutdown, data may not save.
+ * system use this mode as default mode.
+ *
+ * CM_SHUTDOWN_MODE_ANDROID - set the UI cap to 0 and let android layer
+ * to shutdown from android layer to kernel layer.
+ * you can use this mode if you want to save data before shutdown.
+ *
+ */
+enum uvlo_shutdown_modes {
+	CM_SHUTDOWN_MODE_ORDERLY = 0,
+	CM_SHUTDOWN_MODE_KERNEL,
+	CM_SHUTDOWN_MODE_ANDROID,
+};
+
 #define CM_IBAT_BUFF_CNT 7
 
 struct wireless_data {
@@ -578,6 +598,8 @@ struct range_data {
  *	less than under voltage lock out
  * @low_temp_trigger_cnt: The number of times the battery temperature
  *	is less than 10 degree.
+ * @uvlo_shutdown_mode:
+ *	Determine which polling mode will be used
  * @cap_one_time: The percentage of electricity is not
  *	allowed to change by 1% in cm->desc->cap_one_time
  * @trickle_time_out: If 99% lasts longer than it , will force set full statu
@@ -683,6 +705,7 @@ struct charger_desc {
 
 	int charger_status;
 	u32 charger_type;
+	u32 charger_type_cnt;
 	/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
 	#ifdef CONFIG_AFC
 	int afc_sts;
@@ -694,6 +717,7 @@ struct charger_desc {
 	int trigger_cnt;
 	int first_trigger_cnt;
 	int uvlo_trigger_cnt;
+	enum uvlo_shutdown_modes uvlo_shutdown_mode;
 	int low_temp_trigger_cnt;
 
 	u32 cap_one_time;
@@ -758,6 +782,9 @@ struct charger_desc {
 	struct cm_thermal_info thm_info;
 
 	struct mutex charger_type_mtx;
+	/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+	u32 pd_port_partner;
+	/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 	/* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 start */
 	#ifdef HQ_FACTORY_BUILD
 	bool batt_cap_control;
@@ -780,6 +807,11 @@ struct charger_desc {
 	bool batt_store_mode;
 	#endif
 	/* HS03 code for SR-SL6215-01-552 by qiaodan at 20210831 end */
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	int batt_full_cap;
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 };
 
 #define PSY_NAME_MAX	30
@@ -872,6 +904,11 @@ struct charger_manager {
 	bool en_batt_protect;
 	#endif
 	/* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 end */
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	bool batt_full_flag;
+#endif
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 end */
 /* HS03 code for SL6216DEV-97 by shixuanxuan at 20211001 start */
 #if !defined(HQ_FACTORY_BUILD)
 	bool en_constant_soc_val;
@@ -893,14 +930,34 @@ enum cool_warm_health {
 };
 /* HS03 code for SL6215DEV-729 by lina at 20210903 start */
 enum battery_full_recharge_voltage {
+	/* Tab A8 code for AX6300DEV-2798 by zhaichao at 2021/11/11 start */
+	#ifdef  CONFIG_TARGET_UMS9230_4H10
 	CM_FULL_VOLTAGE_HEALTH_WARM = 4175000,
+	#elif  CONFIG_TARGET_UMS512_1H10
+	/* Tab A8 code for AX6300DEV-3563 by zhaichao at 20211206 start */
+	CM_FULL_VOLTAGE_HEALTH_WARM = 4160000,
+	/* Tab A8 code for AX6300DEV-3563 by zhaichao at 20211206 start */
+	#endif
+	/* Tab A8 code for AX6300DEV-2798 by zhaichao at 2021/11/11 end */
 	/* Tab A8 code for SR-AX6300-01-3 by qiaodan at 20210906 start */
 	#ifdef CONFIG_TARGET_UMS512_1H10
-	CM_FULL_VOLTAGE_HEALTH_COOLL = 4130000,
+	/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211209 start */
+	CM_FULL_VOLTAGE_HEALTH_COOLL = 4100000,
+	/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211209 end */
 	#endif
 	/* Tab A8 code for SR-AX6300-01-3 by qiaodan at 20210906 end */
-	CM_FULL_VOLTAGE_HEALTH_COOL = 4330000,
-	CM_FULL_VOLTAGE_HEALTH_GOOD = 4375000,
+/* HS03 code for SL6215DEV-3535 by lina at 20211116 start */
+#ifdef  CONFIG_TARGET_UMS9230_4H10
+	CM_FULL_VOLTAGE_HEALTH_COOL = 4160000,
+#elif  CONFIG_TARGET_UMS512_1H10
+	/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211217 start */
+	CM_FULL_VOLTAGE_HEALTH_COOL = 4300000,
+	/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211217 end */
+#endif
+/* HS03 code for SL6215DEV-3535 by lina at 20211116 end */
+	/* Tab A8 code for AX6300DEV-3562 by zhaichao at 20211206 start */
+	CM_FULL_VOLTAGE_HEALTH_GOOD = 4360000,
+	/* Tab A8 code for AX6300DEV-3562 by zhaichao at 20211206 end */
 };
 /* HS03 code for SL6215DEV-729 by lina at 20210903 end */
 /* HS03 code for SR-SL6215-01-607 by gaochao at 20210825 end */
@@ -936,6 +993,9 @@ struct sc2730_fchg_info {
 	/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
 	bool pps_active;
 	bool support_pd_pps;
+	/* Tab A8 code for AX6300DEV-2595 by wenyaqi at 20211109 start */
+	bool support_sfcp;
+	/* Tab A8 code for AX6300DEV-2595 by wenyaqi at 20211109 end */
 	const struct sc27xx_fast_chg_data *pdata;
 };
 #endif
@@ -944,8 +1004,14 @@ struct sc2730_fchg_info {
 #ifdef CONFIG_CHARGER_MANAGER
 extern void cm_notify_event(struct power_supply *psy,
 				enum cm_event_types type, char *msg);
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+extern void cm_check_pd_port_partner(bool is_pd_hub);
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 #else
 static inline void cm_notify_event(struct power_supply *psy,
 				enum cm_event_types type, char *msg) { }
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+void cm_check_pd_port_partner(bool is_pd_hub) { }
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 #endif
 #endif /* _CHARGER_MANAGER_H */

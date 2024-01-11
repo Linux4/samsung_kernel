@@ -470,6 +470,9 @@ static int dpu_init(struct dpu_context *ctx)
 	reg->cursor_en = 0;
 	//dpu_write_back_config(ctx);
 
+	ctx->base_offset[0] = 0x0;
+	ctx->base_offset[1] = sizeof(struct dpu_reg) / 4;
+
 	return 0;
 }
 

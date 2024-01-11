@@ -39,6 +39,8 @@
 
 static bool cali_mode;
 
+struct mutex dpu_gsp_lock;
+
 static int boot_mode_check(char *str)
 {
 	if (str != NULL && !strncmp(str, "cali", strlen("cali")))
@@ -345,6 +347,96 @@ err:
 	return ret;
 }
 
+void sprd_atomic_state_clear(struct drm_atomic_state *state)
+{
+	struct drm_device *dev = state->dev;
+	struct drm_mode_config *config = &dev->mode_config;
+	int i;
+
+	for (i = 0; i < state->num_connector; i++) {
+		struct drm_connector *connector = state->connectors[i].ptr;
+
+		if (!connector)
+			continue;
+
+		if(connector->funcs->atomic_destroy_state) {
+			connector->funcs->atomic_destroy_state(connector,
+								   state->connectors[i].state);
+			state->connectors[i].ptr = NULL;
+			state->connectors[i].state = NULL;
+			state->connectors[i].old_state = NULL;
+			state->connectors[i].new_state = NULL;
+			drm_connector_put(connector);
+		} else {
+			DRM_ERROR("connector destroy function should be defined\n");
+		}
+	}
+
+	for (i = 0; i < config->num_crtc; i++) {
+		struct drm_crtc *crtc = state->crtcs[i].ptr;
+
+		if (!crtc)
+			continue;
+
+		if (crtc->funcs->atomic_destroy_state) {
+			crtc->funcs->atomic_destroy_state(crtc,
+							  state->crtcs[i].state);
+
+			if (state->crtcs[i].commit) {
+				kfree(state->crtcs[i].commit->event);
+				state->crtcs[i].commit->event = NULL;
+				drm_crtc_commit_put(state->crtcs[i].commit);
+			}
+
+			state->crtcs[i].commit = NULL;
+			state->crtcs[i].ptr = NULL;
+			state->crtcs[i].state = NULL;
+			state->crtcs[i].old_state = NULL;
+			state->crtcs[i].new_state = NULL;
+		} else {
+			DRM_ERROR("crtc destroy function should be defined\n");
+		}
+	}
+
+	for (i = 0; i < config->num_total_plane; i++) {
+		struct drm_plane *plane = state->planes[i].ptr;
+
+		if (!plane)
+			continue;
+
+		if (plane->funcs->atomic_destroy_state) {
+			plane->funcs->atomic_destroy_state(plane,
+							   state->planes[i].state);
+			state->planes[i].ptr = NULL;
+			state->planes[i].state = NULL;
+			state->planes[i].old_state = NULL;
+			state->planes[i].new_state = NULL;
+		} else {
+			DRM_ERROR("plane destroy function should be defined\n");
+		}
+	}
+
+	for (i = 0; i < state->num_private_objs; i++) {
+		struct drm_private_obj *obj = state->private_objs[i].ptr;
+
+		if (!obj)
+			continue;
+
+		if (obj->funcs->atomic_destroy_state) {
+			obj->funcs->atomic_destroy_state(obj,
+							 state->private_objs[i].state);
+			state->private_objs[i].ptr = NULL;
+			state->private_objs[i].state = NULL;
+			state->private_objs[i].old_state = NULL;
+			state->private_objs[i].new_state = NULL;
+		} else {
+			DRM_ERROR("obj destroy function should be defined\n");
+		}
+	}
+	state->num_private_objs = 0;
+
+}
+
 static void sprd_atomic_commit_tail(struct drm_atomic_state *old_state)
 {
 	struct drm_device *dev = old_state->dev;
@@ -369,6 +461,7 @@ static const struct drm_mode_config_funcs sprd_drm_mode_config_funcs = {
 	.fb_create = drm_gem_fb_create,
 	.atomic_check = drm_atomic_helper_check,
 	.atomic_commit = sprd_atomic_commit,
+	.atomic_state_clear = sprd_atomic_state_clear,
 };
 
 static void sprd_drm_mode_config_init(struct drm_device *drm)
@@ -632,6 +725,8 @@ static int sprd_drm_probe(struct platform_device *pdev)
 		DRM_WARN("Calibration Mode! Don't register sprd drm driver");
 		//return 0;
 	}
+
+	mutex_init(&dpu_gsp_lock);
 
 	ret = dma_set_mask_and_coherent(&pdev->dev, ~0);
 	if (ret)

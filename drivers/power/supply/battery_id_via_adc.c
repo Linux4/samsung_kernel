@@ -107,6 +107,23 @@ int battery_get_bat_id(void)
 
 	if (!detect_cnt) {
 		id_voltage = battery_get_bat_id_voltage();
+		/* Tab A7 T618 code for SR-AX6189A-01-108 by shixuanxuan at 20211223 start */
+#ifdef CONFIG_UMS512_25C10_CHARGER
+		if (id_voltage >= BATTERY_SCUD_BYD_ID_VOLTAGE_LOW && id_voltage <= BATTERY_SCUD_BYD_ID_VOLTAGE_UP) {
+			id = BATTERY_SCUD_BYD;
+		} else if (id_voltage >= BATTERY_ATL_NVT_ID_VOLTAGE_LOW && id_voltage <= BATTERY_ATL_NVT_ID_VOLTAGE_UP) {
+			id = BATTERY_ATL_NVT;
+		} else {
+			id = BATTERY_SCUD_BYD;
+		}
+
+		pr_info("[%s]Tab A7 bat_id_adc_ch=%d, id_voltage=%d, bat_id=%d\n",
+			__FUNCTION__, bat_id_get_adc_num(), id_voltage, id);
+
+		return id;
+#endif
+		/* Tab A7 T618 code for SR-AX6189A-01-108 by shixuanxuan at 20211223 end */
+
 		if (id_voltage >= BATTERY_SCUD_BYD_ID_VOLTAGE_LOW && id_voltage <= BATTERY_SCUD_BYD_ID_VOLTAGE_UP) {
 			id = BATTERY_SCUD_BYD;
 		} else if (id_voltage >= BATTERY_ATL_NVT_ID_VOLTAGE_LOW && id_voltage <= BATTERY_ATL_NVT_ID_VOLTAGE_UP) {

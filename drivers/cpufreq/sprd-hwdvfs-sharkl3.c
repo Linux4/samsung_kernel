@@ -339,6 +339,7 @@ static const struct sprd_hwdvfs_l3_info sprd_hwdvfs_l3_info_3h10 = {
 struct sprd_hwdvfs_l3 {
 	struct regmap *aon_apb_base;
 	struct regmap *anlg_phy_g4_ctrl;
+	struct regmap *pmu_apb_base;
 	void __iomem *base;
 	const struct sprd_hwdvfs_l3_info *info;
 	struct i2c_client *i2c_client;
@@ -1297,12 +1298,15 @@ static int sprd_hwdvfs_set_scu(unsigned int scalecode02, bool sync, bool force)
 	return 0;
 }
 
+static int lpll_gate_value = 1;
 static int sprd_hwdvfs_set_clst1_scu(unsigned int scalecode01, bool sync,
 				     bool force)
 {
 	unsigned int regval1, regval2, i = 0;
 	const unsigned int RETRY_MAX = 100;
 	unsigned int scalecodeing;
+	unsigned int reg_val = 0;
+	int ret = 0;
 
 	if (scalecode01 >= SCALE_TAB_EACH_NUM)
 		return -EINVAL;
@@ -1385,6 +1389,20 @@ static int sprd_hwdvfs_set_clst1_scu(unsigned int scalecode01, bool sync,
 	hwdvfs_l3->triggered[HWDVFS_CHNL02] = true;
 
 	sprd_hwdvfs_l3_completing(HWDVFS_CHNL01);
+
+	if (lpll_gate_value & REG_LTEPLL_AP_SEL_MSK) {
+		regmap_read(hwdvfs_l3->pmu_apb_base, REG_LTEPLL_REL_CFG,
+			    &reg_val);
+		pr_debug("[debug]0x402b009c before 0x%x\n", reg_val);
+		ret = regmap_write(hwdvfs_l3->pmu_apb_base,
+				   REG_LTEPLL_REL_CFG_CLR, REG_LTEPLL_AP_SEL);
+		regmap_read(hwdvfs_l3->pmu_apb_base, REG_LTEPLL_REL_CFG,
+			    &reg_val);
+		pr_debug("[debug]0x402b009c after 0x%x\n", reg_val);
+		if (!ret)
+			lpll_gate_value = reg_val;
+		pr_debug("lpll gate count %d\n", lpll_gate_value);
+	}
 
 	if (!sync)
 		return 0;
@@ -1772,10 +1790,6 @@ static bool sprd_hwdvfs_l3_enable(void *drvdata, int cluster, bool en)
 			dvfs_wr(VAL2REG(0x1, BIT_DVFS_CTRL_HW_DVFS_SEL),
 				REG_DVFS_CTRL_HW_DVFS_SEL);
 			hwdvfs_l3->enabled = true;
-			sprd_hwdvfs_set_clst0(hwdvfs_l3->info->def_freq0,
-					      true, true);
-			sprd_hwdvfs_set_clst1_scu(hwdvfs_l3->info->def_freq1,
-						  true, true);
 			pr_info("ENABLE HWDVFS!\n");
 		}
 	} else if (atomic_read(&hwdvfs_l3_suspend) != 1) {
@@ -1897,6 +1911,7 @@ static int sprd_hwdvfs_l3_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct regmap *aon_apb_base;
 	struct regmap *anlg_phy_g4_ctrl_base;
+	struct regmap *pmu_apb_base;
 	const struct sprd_hwdvfs_l3_info *pdata;
 	void __iomem *base;
 	int ret, i;
@@ -1925,6 +1940,12 @@ static int sprd_hwdvfs_l3_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "get anlg-phy-g4 failed!\n");
 		return PTR_ERR(anlg_phy_g4_ctrl_base);
 	}
+	pmu_apb_base =
+		syscon_regmap_lookup_by_phandle(np, "sprd,syscon-pmu-apb");
+	if (IS_ERR(pmu_apb_base)) {
+		dev_err(&pdev->dev, "get pmu_apb_base failed!\n");
+		return PTR_ERR(pmu_apb_base);
+	}
 
 	hwdvfs_l3 =
 		devm_kzalloc(&pdev->dev,
@@ -1936,6 +1957,7 @@ static int sprd_hwdvfs_l3_probe(struct platform_device *pdev)
 	hwdvfs_l3->probed = false;
 	hwdvfs_l3->aon_apb_base = aon_apb_base;
 	hwdvfs_l3->anlg_phy_g4_ctrl = anlg_phy_g4_ctrl_base;
+	hwdvfs_l3->pmu_apb_base = pmu_apb_base;
 	hwdvfs_l3->info = pdata;
 
 	for (i = HWDVFS_CHNL00; i < HWDVFS_CHNL_MAX; i++)

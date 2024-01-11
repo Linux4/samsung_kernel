@@ -478,6 +478,7 @@ int sprd_asoc_card_parse_smartamp_boost(struct device *dev,
 	return 0;
 }
 
+#ifndef CONFIG_SND_SOC_AW87XXX
 /* HS03 code for SL6215DEV-560 by LiangWenye at 20210826 start */
 extern int sprd_audio_sense_put(
 	struct snd_kcontrol* kcontrol,
@@ -486,6 +487,7 @@ extern int sprd_audio_sense_get(
 	struct snd_kcontrol* kcontrol,
 	struct snd_ctl_elem_value* ucontrol);
 /* HS03 code for SL6215DEV-560 by LiangWenye at 20210826 end */
+#endif
 
 #define BOARD_CODEC_FUNC(xname, xreg) \
 	SOC_SINGLE_EXT(xname, FUN_REG(xreg), \
@@ -517,10 +519,13 @@ static const struct snd_kcontrol_new _sprd_asoc_card_controls[] = {
 	/*smart amp boost function select*/
 	SOC_ENUM_EXT("SmartAmp Boost", smartamp_boost_enum, smartamp_boost_get,
 				smartamp_boost_set),
+
+#ifndef CONFIG_SND_SOC_AW87XXX
 	/* HS03 code for SL6215DEV-560 by LiangWenye at 20210826 start */
 	SOC_SINGLE_EXT("Audio Sense", 0, 0, INT_MAX, 0,
 				sprd_audio_sense_get, sprd_audio_sense_put),
 	/* HS03 code for SL6215DEV-560 by LiangWenye at 20210826 end */
+#endif
 };
 
 struct sprd_array_size sprd_asoc_card_controls = {

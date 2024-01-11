@@ -127,6 +127,29 @@ hctosys_show(struct device *dev, struct device_attribute *attr, char *buf)
 }
 static DEVICE_ATTR_RO(hctosys);
 
+/* Tab A8 code for SR-AX6300-01-434 by wenyaqi at 20211108 start */
+#ifdef CONFIG_RTC_PWRON_ALARM
+extern int alarm_get_alarm(struct rtc_wkalrm *alarm);
+static ssize_t
+alarm_boot_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	ssize_t retval;
+	struct rtc_wkalrm alm;
+
+	retval = alarm_get_alarm(&alm);
+	if (retval) {
+		retval = sprintf(buf, "%d", alm.enabled);
+		pr_info("sapa_%s:%d\n",__func__, alm.enabled);
+		return retval;
+	}
+
+	return retval;
+}
+static DEVICE_ATTR_RO(alarm_boot);
+#endif
+/* Tab A8 code for SR-AX6300-01-433 by wenyaqi at 20211108 end */
+
 static ssize_t
 power_on_alarm_store(struct device *dev, struct device_attribute *attr,
 	     const char *buf, size_t n)
@@ -303,6 +326,11 @@ static struct attribute *rtc_attrs[] = {
 	&dev_attr_wakealarm.attr,
 	&dev_attr_offset.attr,
 	&dev_attr_range.attr,
+/* Tab A8 code for SR-AX6300-01-434 by wenyaqi at 20211108 start */
+#ifdef CONFIG_RTC_PWRON_ALARM
+	&dev_attr_alarm_boot.attr,
+#endif
+/* Tab A8 code for SR-AX6300-01-434 by wenyaqi at 20211108 end */
 	NULL,
 };
 

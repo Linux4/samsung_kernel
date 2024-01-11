@@ -400,8 +400,9 @@ FAIL:
 
 	return -1;
 }
-
-static int dphy_set_timing_regs(struct regmap *regmap, int type, u8 val[])
+/* hs03 code for SL6215DEV-3924  by wenghailong at 2021/12/29 start */
+static int dphy_set_timing_regs(struct dphy_context *ctx, struct regmap *regmap, int type, u8 val[])
+/* hs03 code for SL6215DEV-3924  by wenghailong at 2021/12/29 end */
 {
 	switch (type) {
 	case REQUEST_TIME:
@@ -476,7 +477,13 @@ static int dphy_set_timing_regs(struct regmap *regmap, int type, u8 val[])
 
 	/* the following just use default value */
 	case SETTLE_TIME:
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
 	case TA_GET:
+		if (ctx->dphy_ta_get_val) {
+			regmap_write(regmap, 0x21, val[CLK]);
+			break;
+		}
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 	case TA_GO:
 	case TA_SURE:
 		break;
@@ -511,8 +518,9 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	range[H] = INFINITY;
 	val[CLK] = ROUND_UP(range[L] * (factor << 1), t_byteck) - 2;
 	val[DATA] = val[CLK];
-	dphy_set_timing_regs(regmap, REQUEST_TIME, val);
-
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+	dphy_set_timing_regs(ctx, regmap, REQUEST_TIME, val);
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 	/* PREPARE_TIME: HS sequence: LP-00 */
 	range[L] = 38 * scale;
 	range[H] = 95 * scale;
@@ -524,8 +532,9 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	tmp |= AVERAGE(range[L], range[H]) << 16;
 	val[DATA] = ROUND_UP(AVERAGE(range[L], range[H]),
 			t_half_byteck) - 1;
-	dphy_set_timing_regs(regmap, PREPARE_TIME, val);
-
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+	dphy_set_timing_regs(ctx, regmap, PREPARE_TIME, val);
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 	/* ZERO_TIME: HS-ZERO */
 	range[L] = 300 * scale;
 	range[H] = INFINITY;
@@ -535,29 +544,34 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	val[DATA] = ROUND_UP(range[L] * factor
 			+ ((tmp >> 16) & 0xffff) - 525 * t_byteck / 100,
 			t_byteck) - 2;
-	dphy_set_timing_regs(regmap, ZERO_TIME, val);
-
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+	dphy_set_timing_regs(ctx, regmap, ZERO_TIME, val);
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 	/* TRAIL_TIME: HS-TRAIL */
 	range[L] = 60 * scale;
 	range[H] = INFINITY;
 	val[CLK] = ROUND_UP(range[L] * factor - constant, t_half_byteck);
 	range[L] = MAX(8 * t_ui, 60 * scale + 4 * t_ui);
 	val[DATA] = ROUND_UP(range[L] * 3 / 2 - constant, t_half_byteck) - 2;
-	dphy_set_timing_regs(regmap, TRAIL_TIME, val);
-
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+	dphy_set_timing_regs(ctx, regmap, TRAIL_TIME, val);
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 	/* EXIT_TIME: */
 	range[L] = 100 * scale;
 	range[H] = INFINITY;
 	val[CLK] = ROUND_UP(range[L] * factor, t_byteck) - 2;
 	val[DATA] = val[CLK];
-	dphy_set_timing_regs(regmap, EXIT_TIME, val);
-
+	/* hs03 code for SL6215DEV-3924  by wenghailong at 2021/12/29 start */
+	dphy_set_timing_regs(ctx, regmap, EXIT_TIME, val);
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 	/* CLKPOST_TIME: */
 	range[L] = 60 * scale + 52 * t_ui;
 	range[H] = INFINITY;
 	val[CLK] = ROUND_UP(range[L] * factor, t_byteck) - 2;
 	val[DATA] = val[CLK];
-	dphy_set_timing_regs(regmap, CLKPOST_TIME, val);
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+	dphy_set_timing_regs(ctx, regmap, CLKPOST_TIME, val);
+	/* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
 
 	/* SETTLE_TIME:
 	* This time is used for receiver. So for transmitter,
@@ -578,7 +592,15 @@ static int dphy_timing_config(struct dphy_context *ctx)
 	* receiver drives Bridge state(LP-00) before releasing control
 	* reg 0x21 default value: 0x03, which is good.
 	*/
-
+	/* hs03 code for SL6215DEV-3924  by wenghailong at 2021/12/29 start */
+	if (ctx->dphy_ta_get_val) {
+		range[L] = INFINITY;
+		range[H] = INFINITY;
+		val[CLK] = ctx->dphy_ta_get_val;
+		val[DATA] = val[CLK];
+		dphy_set_timing_regs(ctx, regmap, TA_GET, val);
+	}
+	/* hs03 code for SL6215DEV-3924  by wenghailong at 2021/12/29 end */
 	return 0;
 }
 

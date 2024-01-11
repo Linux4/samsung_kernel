@@ -22,9 +22,13 @@ static DEFINE_MUTEX(g_aw_dsp_lock);
 
 #define AW_MSG_ID_ENABLE_CALI		(0x00000001)
 #define AW_MSG_ID_ENABLE_HMUTE		(0x00000002)
-#define AW_MSG_ID_F0_Q			(0x00000003)
+#define AW_MSG_ID_F0_Q	                (0x00000003)
 #define AW_MSG_ID_DIRECT_CUR_FLAG	(0x00000006)
 #define AW_MSG_ID_SPK_STATUS		(0x00000007)
+#define AW_MSG_ID_VERSION               (0x00000008)
+#define AW_MSG_ID_AUDIO_MIX             (0x0000000B)
+#define AW_MSG_ID_VERSION_NEW           (0x00000012)
+
 
 /*dsp params id*/
 #define AW_MSG_ID_RX_SET_ENABLE		(0x10013D11)
@@ -72,7 +76,6 @@ static uint32_t afe_param_msg_id[MSG_PARAM_ID_MAX] = {
 #include <dsp/q6afe-v2.h>
 #include <dsp/q6audio-v2.h>
 #include <dsp/q6adm-v2.h>
-#include <dsp/adsp_err.h>
 #else
 #include <linux/msm_audio_ion.h>
 #include <sound/q6afe-v2.h>
@@ -495,7 +498,7 @@ static int aw_dsp_set_afe_tx_module_enable(void *buf, int size)
 static int aw_dsp_get_afe_rx_module_enable(void *buf, int size)
 {
 #ifdef AW_MTK_PLATFORM_WITH_DSP
-	return aw_mtk_write_data_to_dsp(AW_MSG_ID_RX_SET_ENABLE, buf, size);
+	return aw_mtk_read_data_from_dsp(AW_MSG_ID_RX_SET_ENABLE, buf, size);
 #else
 	return aw_qcom_read_data_from_dsp(AW_MSG_ID_RX_SET_ENABLE, buf, size);
 #endif
@@ -504,7 +507,7 @@ static int aw_dsp_get_afe_rx_module_enable(void *buf, int size)
 static int aw_dsp_get_afe_tx_module_enable(void *buf, int size)
 {
 #ifdef AW_MTK_PLATFORM_WITH_DSP
-	return aw_mtk_write_data_to_dsp(AW_MSG_ID_TX_SET_ENABLE, buf, size);
+	return aw_mtk_read_data_from_dsp(AW_MSG_ID_TX_SET_ENABLE, buf, size);
 #else
 	return aw_qcom_read_data_from_dsp(AW_MSG_ID_TX_SET_ENABLE, buf, size);
 #endif
@@ -799,7 +802,7 @@ int aw_dsp_read_f0_q(struct aw_device *aw_dev, int32_t *f0, int32_t *q)
 		*f0 = data[2];
 		*q  = data[3];
 	}
-	aw_dev_dbg(aw_dev->dev, "read f0 & q");
+	aw_dev_dbg(aw_dev->dev, "read f0 is %d, q is %d", *f0, *q);
 	return ret;
 }
 
@@ -1173,6 +1176,59 @@ int aw_dsp_set_copp_module_en(bool enable)
 
 	aw_pr_info("set skt %s", enable == 1 ? "enable" : "disable");
 	return 0;
+}
+
+
+int aw_dsp_set_mixer_en(struct aw_device *aw_dev, uint32_t mixer_en)
+{
+        int ret;
+        int msg_num;
+
+        ret = aw_get_msg_num(aw_dev->channel, &msg_num);
+        if (ret < 0) {
+                aw_dev_err(aw_dev->dev, "get msg_num failed");
+                return ret;
+        }
+
+        ret = aw_write_msg_to_dsp(msg_num, AW_MSG_ID_AUDIO_MIX, (char *)&mixer_en, sizeof(uint32_t));
+        if (ret) {
+                aw_dev_err(aw_dev->dev, "write mixer_en failed");
+                return ret;
+        }
+        aw_dev_dbg(aw_dev->dev, "write mixer_en[%d]", mixer_en);
+        return 0;
+
+}
+
+int aw_get_algo_version(struct aw_device *aw_dev, char *algo_ver_buf)
+{
+        int ret;
+        unsigned int algo_ver = 0;
+        char *algo_data = NULL;
+        int msg_num;
+
+        ret = aw_get_msg_num(aw_dev->channel, &msg_num);
+        if (ret < 0) {
+                aw_dev_err(aw_dev->dev, "get msg_num failed");
+                return ret;
+        }
+
+        ret = aw_read_msg_from_dsp(msg_num, AW_MSG_ID_VERSION,
+                                (char *)&algo_ver, sizeof(uint32_t));
+        if ((ret < 0) || (algo_ver == 0)) {
+                ret = aw_read_msg_from_dsp(msg_num, AW_MSG_ID_VERSION_NEW,
+                                        algo_ver_buf, ALGO_VERSION_MAX);
+                if (ret < 0) {
+                        return ret;
+                }
+        } else {
+                algo_data = (char *)&algo_ver;
+                snprintf(algo_ver_buf, ALGO_VERSION_MAX, "aw_algo_v%d.%d.%d.%d",
+                                algo_data[3], algo_data[2], algo_data[1], algo_data[0]);
+        }
+
+        aw_dev_dbg(aw_dev->dev, "%s", algo_ver_buf);
+        return 0;
 }
 
 void aw_device_parse_topo_id_dt(struct aw_device *aw_dev)

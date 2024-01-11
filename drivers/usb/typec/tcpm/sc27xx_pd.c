@@ -143,6 +143,10 @@
 
 /* Bits definitions for SC27XX_TYPEC_SW_CFG register */
 #define SC27XX_TYPEC_SW_SWITCH(x)	(((x) << 10) & GENMASK(11, 10))
+#define SC27XX_TYPEC_CC1_SW_SWITCH(x)	(((x) << 12) & GENMASK(13, 12))
+#define SC27XX_TYPEC_CC1_SW_SWITCH_MASK	GENMASK(13, 12)
+#define SC27XX_TYPEC_CC2_SW_SWITCH(x)	(((x) << 14) & GENMASK(15, 14))
+#define SC27XX_TYPEC_CC2_SW_SWITCH_MASK	GENMASK(15, 14)
 
 /* Bits definitions for SC27XX_INT_FLG register */
 #define SC27XX_PD_HARD_RST_FLAG		BIT(0)
@@ -254,6 +258,11 @@
 #define SPRD_PD_LOG_BUFFER_ENTRY_SIZE	128
 #define SPRD_PD_LOG_PRINTK_NUM	15
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+#define SC27XX_PD_RX_ERROR_CNT_THRESHOLD	100
+#define SC27XX_PD_RX_ERROR_TIME_THRESHOLD	120
+#define SC27XX_PD_HARD_RESET_TIME_THRESHOLD	4
+#define SC27XX_PD_RX_ERROR_INT_STATUS		0x100
+
 enum sc27xx_state {
 	SC27XX_DETACHED_SNK,
 	SC27XX_ATTACHWAIT_SNK,
@@ -321,6 +330,7 @@ struct sc27xx_pd {
 	struct tcpm_port *tcpm_port;
 	struct delayed_work typec_detect_work;
 	struct delayed_work  read_msg_work;
+	struct delayed_work  power_role_swap_work;
 	struct workqueue_struct *pd_wq;
 	struct regmap *regmap;
 	struct regmap *aon_apb;
@@ -365,16 +375,22 @@ struct sc27xx_pd {
 	bool pr_swap;
 	bool is_sink;
 	bool is_source;
+	int rx_error_cnt;
+	int hard_reset_cnt;
+	bool ignore_hard_reset;
+	bool can_communication;
+	struct timespec64 start_time;
+	struct timespec64 hard_start_time;
+	bool sw_switch_cc;
 #ifdef CONFIG_DEBUG_FS
-	struct dentry *dentry;
 	struct mutex logbuffer_lock;	/* log buffer access lock */
 	struct mutex logprintk_lock;	/* log buffer printk lock */
+	struct delayed_work  log2printk;
 	int logbuffer_head;
 	int logbuffer_tail;
 	int logbuffer_last;
 	int logbuffer_full;
 	u8 *logbuffer[SPRD_PD_LOG_BUFFER_ENTRIES];
-	bool log_enable;
 	bool log_output_done;
 #endif
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
@@ -433,6 +449,8 @@ static void _sprd_pd_log(struct sc27xx_pd *port, const char *fmt, va_list args)
 
 	if (sprd_pd_log_full(port)) {
 		port->logbuffer_full = true;
+		cancel_delayed_work(&port->log2printk);
+		schedule_delayed_work(&port->log2printk, 0);
 	}
 
 	port->logbuffer_head = (port->logbuffer_head + 1) % SPRD_PD_LOG_BUFFER_ENTRIES;
@@ -454,6 +472,8 @@ static void sprd_pd_log(struct sc27xx_pd *port, const char *fmt, ...)
 static int sprd_pd_log_output_all(struct sc27xx_pd *port)
 {
 	int tail, head;
+
+	cancel_delayed_work_sync(&port->log2printk);
 
 	mutex_lock(&port->logprintk_lock);
 	port->log_output_done = false;
@@ -500,6 +520,8 @@ static int sprd_pd_log_output_all(struct sc27xx_pd *port)
 
 	port->log_output_done = true;
 	mutex_unlock(&port->logprintk_lock);
+
+	schedule_delayed_work(&port->log2printk, msecs_to_jiffies(20000));
 
 	return 0;
 }
@@ -554,6 +576,9 @@ static ssize_t sprd_pd_log_output_store(struct device *dev,
 	return count;
 }
 
+/*
+ * /sys/bus/platform/devices/sc27xx-pd/sprd_pd_debug/log_output_all
+ */
 static int sc27xx_pd_register_sysfs(struct sc27xx_pd *pd)
 {
 	struct sc27xx_pd_sysfs *pd_sysfs;
@@ -585,6 +610,51 @@ static int sc27xx_pd_register_sysfs(struct sc27xx_pd *pd)
 	return ret;
 }
 
+static void log_printk_work(struct work_struct *work)
+{
+	struct sc27xx_pd *port = container_of(work, struct sc27xx_pd,
+					      log2printk.work);
+	int tail, head;
+
+	mutex_lock(&port->logprintk_lock);
+	if (port->logbuffer_full) {
+		tail = port->logbuffer_last;
+		head = SPRD_PD_LOG_BUFFER_ENTRIES;
+		while (tail < head) {
+			if (port->logbuffer[tail])
+				dev_info(port->dev, "[full][%d / %d] %s\n", tail, head, port->logbuffer[tail]);
+			tail = tail + 1;
+		}
+		port->logbuffer_last = 0;
+		port->logbuffer_full = false;
+	} else {
+		tail = port->logbuffer_last;
+		head = port->logbuffer_head;
+		while (tail < head) {
+			if (port->logbuffer[tail])
+				dev_info(port->dev, "[%d / %d] %s\n", tail, head, port->logbuffer[tail]);
+			tail = tail + 1;
+		}
+		if (port->logbuffer_last != head)
+			port->logbuffer_last = head;
+	}
+
+	mutex_unlock(&port->logprintk_lock);
+	schedule_delayed_work(&port->log2printk, msecs_to_jiffies(20000));
+}
+
+static void sc27xx_pd_debug_init_lock(struct sc27xx_pd *pd)
+{
+	mutex_init(&pd->logbuffer_lock);
+	mutex_init(&pd->logprintk_lock);
+}
+
+static void sc27xx_pd_debug_init_work(struct sc27xx_pd *pd)
+{
+	INIT_DELAYED_WORK(&pd->log2printk, log_printk_work);
+	schedule_delayed_work(&pd->log2printk, msecs_to_jiffies(50000));
+}
+
 #else
 
 static void sprd_pd_log(struct sc27xx_pd *port, const char *fmt, ...) { }
@@ -594,8 +664,14 @@ static int sc27xx_pd_register_sysfs(struct sc27xx_pd *pd)
 	return 0;
 }
 
+static void sc27xx_pd_debug_init_lock(struct sc27xx_pd *pd) { }
+static void sc27xx_pd_debug_init_work(struct sc27xx_pd *pd) { }
+
 #endif
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+
+static int sc27xx_set_cc_default(struct sc27xx_pd *pd);
+
 static inline struct sc27xx_pd *tcpc_to_sc27xx_pd(struct tcpc_dev *tcpc)
 {
 	return container_of(tcpc, struct sc27xx_pd, tcpc);
@@ -691,6 +767,9 @@ static int sc27xx_pd_set_typec_roles(struct tcpc_dev *tcpc,
 			goto done;
 		}
 		pd->role_swap = true;
+		queue_delayed_work(pd->pd_wq,
+				   &pd->power_role_swap_work,
+				   msecs_to_jiffies(5000));
 
 		sprd_pd_log(pd, "try sink en");
 		dev_info(pd->dev, "try sink en\n");
@@ -712,6 +791,9 @@ static int sc27xx_pd_set_typec_roles(struct tcpc_dev *tcpc,
 		}
 
 		pd->role_swap = true;
+		queue_delayed_work(pd->pd_wq,
+				   &pd->power_role_swap_work,
+				   msecs_to_jiffies(5000));
 
 		sprd_pd_log(pd, "try source en");
 		dev_info(pd->dev,  "try source en\n");
@@ -728,8 +810,9 @@ static int sc27xx_pd_set_typec_roles(struct tcpc_dev *tcpc,
 					 pd->typec_base + SC27XX_TYPEC_EN,
 					 mask0,
 					 ~mask0);
+		sc27xx_set_cc_default(pd);
 		pd->role_swap = false;
-
+		cancel_delayed_work(&pd->power_role_swap_work);
 		sprd_pd_log(pd, "clear try source and sink en");
 		dev_info(pd->dev,  "clear try source and sink en\n");
 	}
@@ -758,6 +841,118 @@ static int sc27xx_pd_set_swap(struct tcpc_dev *tcpc, bool en, bool role)
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 static int sc27xx_pd_set_cc(struct tcpc_dev *tcpc, enum typec_cc_status cc)
 {
+	struct sc27xx_pd *pd = tcpc_to_sc27xx_pd(tcpc);
+	int ret;
+
+	sprd_pd_log(pd, "cc:=%d", cc);
+	if (!pd->role_swap) {
+		sprd_pd_log(pd, "current state is not in power role swap");
+		return 0;
+	}
+
+	switch (cc) {
+	case TYPEC_CC_RA:
+		sprd_pd_log(pd, "TYPEC_CC_RA");
+		break;
+	case TYPEC_CC_RD:
+		sprd_pd_log(pd, "TYPEC_CC_RD");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(2));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(2));
+			if (ret < 0)
+				return ret;
+		}
+		pd->sw_switch_cc = true;
+		break;
+	case TYPEC_CC_RP_DEF:
+		sprd_pd_log(pd, "TYPEC_CC_RP_DEF");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		}
+		pd->sw_switch_cc = true;
+		break;
+	case TYPEC_CC_RP_1_5:
+		sprd_pd_log(pd, "TYPEC_CC_RP_1_5");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		}
+		pd->sw_switch_cc = true;
+		break;
+	case TYPEC_CC_RP_3_0:
+		sprd_pd_log(pd, "TYPEC_CC_RP_3_0");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(3));
+			if (ret < 0)
+				return ret;
+		}
+		pd->sw_switch_cc = true;
+		break;
+	case TYPEC_CC_OPEN:
+	default:
+		sprd_pd_log(pd, "TYPEC_CC_OPEN");
+		if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC1_SW_SWITCH(0));
+			if (ret < 0)
+				return ret;
+		} else {
+			ret = regmap_update_bits(pd->regmap,
+					 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+					 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+					 SC27XX_TYPEC_CC2_SW_SWITCH(0));
+			if (ret < 0)
+				return ret;
+		}
+		break;
+	}
+
+	sprd_pd_log(pd, "set cc done");
+
 	return 0;
 }
 
@@ -934,9 +1129,24 @@ static int sc27xx_pd_rx_flush(struct sc27xx_pd *pd)
 				  SC27XX_PD_RX_FLASH);
 }
 
-static int sc27xx_pd_reset(struct sc27xx_pd *pd)
+static int sc27xx_pd_clear_rx_id(struct sc27xx_pd *pd)
+{
+	return regmap_update_bits(pd->regmap,
+				 pd->base + SC27XX_PD_CTRL, SC27XX_PD_RX_ID_CLR,
+				 SC27XX_PD_RX_ID_CLR);
+}
+
+static int sc27xx_pd_clear_tx_id(struct sc27xx_pd *pd)
+{
+	return regmap_update_bits(pd->regmap, pd->base + SC27XX_PD_MESG_ID_CFG,
+				  SC27XX_PD_MESS_ID_MASK, 0x0);
+}
+
+static int sc27xx_pd_reset(struct sc27xx_pd *pd, bool clear_tx_id)
 {
 	int ret;
+
+	sprd_pd_log(pd, "%s:line%d: clear_tx_id = %d", __func__, __LINE__, clear_tx_id);
 
 	ret = sc27xx_pd_rx_flush(pd);
 	if (ret < 0)
@@ -946,14 +1156,18 @@ static int sc27xx_pd_reset(struct sc27xx_pd *pd)
 	if (ret < 0)
 		return ret;
 
-	ret = regmap_update_bits(pd->regmap,
-				 pd->base + SC27XX_PD_CTRL, SC27XX_PD_RX_ID_CLR,
-				 SC27XX_PD_RX_ID_CLR);
+	ret = sc27xx_pd_clear_rx_id(pd);
 	if (ret < 0)
 		return ret;
 
-	return regmap_update_bits(pd->regmap, pd->base + SC27XX_PD_MESG_ID_CFG,
-				  SC27XX_PD_MESS_ID_MASK, 0x0);
+	if (clear_tx_id) {
+		sprd_pd_log(pd, "%s:line%d: clear tx id", __func__, __LINE__);
+		ret = sc27xx_pd_clear_tx_id(pd);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
 }
 
 static int sc27xx_pd_send_hardreset(struct sc27xx_pd *pd)
@@ -961,8 +1175,14 @@ static int sc27xx_pd_send_hardreset(struct sc27xx_pd *pd)
 	int ret, state;
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
 	sprd_pd_log(pd, "%s:line%d: send hard reset", __func__, __LINE__);
+	if (pd->need_retry) {
+		sprd_pd_log(pd, "start cancle retry read msg");
+		pd->need_retry = false;
+		cancel_delayed_work(&pd->read_msg_work);
+		sprd_pd_log(pd, "cancle retry read msg done");
+	}
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
-	ret = sc27xx_pd_reset(pd);
+	ret = sc27xx_pd_reset(pd, true);
 	if (ret < 0) {
 		dev_err(pd->dev, "cannot PD reset, ret=%d\n", ret);
 		return ret;
@@ -1001,7 +1221,7 @@ static int sc27xx_pd_set_rx(struct tcpc_dev *tcpc, bool on)
 		return 0;
 
 	mutex_lock(&pd->lock);
-	ret = sc27xx_pd_reset(pd);
+	ret = sc27xx_pd_reset(pd, false);
 	if (ret < 0)
 		goto done;
 
@@ -1055,7 +1275,7 @@ done:
 static int sc27xx_pd_tx_msg(struct sc27xx_pd *pd, const struct pd_message *msg)
 {
 	u16 header;
-	u32 data_obj_num, data[PD_MAX_PAYLOAD * 2] = {0};
+	u32 data_obj_num, data[PD_MAX_PAYLOAD * 2] = {0}, head = 0;
 	int i, ret;
 	u32 type;
 
@@ -1077,8 +1297,18 @@ static int sc27xx_pd_tx_msg(struct sc27xx_pd *pd, const struct pd_message *msg)
 	header = msg ? le16_to_cpu(msg->header) : 0;
 	sprd_pd_log(pd, "tx msg: header = 0x%x, pr_swap = %d", header, pd->pr_swap);
 	ret = regmap_write(pd->regmap, pd->base + SC27XX_PD_HEAD_CFG, header);
-	if (ret < 0)
+	if (ret < 0) {
+		sprd_pd_log(pd, "write head cfg fail, ret = %d", ret);
 		return ret;
+	}
+
+	ret = regmap_read(pd->regmap, pd->base + SC27XX_PD_HEAD_CFG,
+			  &head);
+	if (ret < 0) {
+		sprd_pd_log(pd, "read header failed, ret = %d", ret);
+		return ret;
+	}
+	sprd_pd_log(pd, "tx msg: header cfg = 0x%x", head);
 
 	if (msg) {
 		for (i = 0; i < data_obj_num; i++) {
@@ -1093,8 +1323,10 @@ static int sc27xx_pd_tx_msg(struct sc27xx_pd *pd, const struct pd_message *msg)
 		sprd_pd_log(pd, "tx msg: data[%d] = 0x%x", i, data[i]);
 		ret = regmap_write(pd->regmap, pd->base + SC27XX_PD_TX_BUF,
 				   data[i]);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "write tx buf fail, ret = %d", ret);
 			return ret;
+		}
 	}
 
 	return regmap_update_bits(pd->regmap,
@@ -1141,16 +1373,24 @@ static int sc27xx_pd_read_message(struct sc27xx_pd *pd, struct pd_message *msg)
 
 	ret = regmap_read(pd->regmap, pd->base + SC27XX_PD_RX_BUF,
 			  &header);
-	if (ret < 0)
+	if (ret < 0) {
+		sprd_pd_log(pd, "read header failed, ret = %d", ret);
 		return ret;
+	}
 
 	ret = regmap_read(pd->regmap, pd->base + SC27XX_PD_STS1, &reg_val);
-	if (ret < 0)
+	if (ret < 0) {
+		sprd_pd_log(pd, "read sts1 failed, ret = %d", ret);
 		return ret;
+	}
+
+	sprd_pd_log(pd, "sts1 = 0x%x, header = 0x%x", reg_val, header);
 
 	if (pd->need_retry) {
+		sprd_pd_log(pd, " start cancle retry read msg");
 		pd->need_retry = false;
-		cancel_delayed_work_sync(&pd->read_msg_work);
+		cancel_delayed_work(&pd->read_msg_work);
+		sprd_pd_log(pd, "cancle retry read msg done");
 	}
 	reg_val &= SC27XX_PD_RX_DATA_NUM_MASK;
 
@@ -1169,8 +1409,12 @@ static int sc27xx_pd_read_message(struct sc27xx_pd *pd, struct pd_message *msg)
 	else if (data_obj_num && (type == PD_DATA_REQUEST))
 		data_request = true;
 
-	if ((data_obj_num * 2 + 1) < reg_val && !vendor_define &&
+	sprd_pd_log(pd, "rx fifo data num = %d, msg header = 0x%x, type = %d, spec = %d",
+	reg_val, msg->header, type, spec);
+
+	if ((data_obj_num * 4 + 1) < reg_val && !vendor_define &&
 		!source_capabilities && !data_request) {
+		sprd_pd_log(pd, "retry read msg");
 		pd->need_retry = true;
 		queue_delayed_work(pd->pd_wq,
 				   &pd->read_msg_work,
@@ -1198,7 +1442,8 @@ static int sc27xx_pd_read_message(struct sc27xx_pd *pd, struct pd_message *msg)
 		pd->msg_flag = 0;
 
 	if (data_obj_num > PD_MAX_PAYLOAD) {
-		dev_err(pd->dev, "pd rmesg too long, num=%d\n", data_obj_num);
+		sprd_pd_log(pd, "pd msg too long, num=%d\n", data_obj_num);
+		dev_err(pd->dev, "pd msg too long, num=%d\n", data_obj_num);
 		return -EINVAL;
 	}
 
@@ -1226,6 +1471,7 @@ static int sc27xx_pd_read_message(struct sc27xx_pd *pd, struct pd_message *msg)
 	if (!data_obj_num &&
 	    pd_header_type_le(msg->header) == PD_CTRL_GOOD_CRC) {
 		if (!pd->constructed) {
+			sprd_pd_log(pd, "pd->constructed");
 			ret = regmap_update_bits(pd->regmap, pd->typec_base +
 						 SC27XX_TYPC_PD_CFG,
 						 SC27XX_TYPEC_PD_CONSTRACT,
@@ -1236,6 +1482,7 @@ static int sc27xx_pd_read_message(struct sc27xx_pd *pd, struct pd_message *msg)
 		}
 		tcpm_pd_transmit_complete(pd->tcpm_port, TCPC_TX_SUCCESS);
 	} else {
+		sprd_pd_log(pd, "report msg to tcpm");
 		tcpm_pd_receive(pd->tcpm_port, msg);
 	}
 
@@ -1508,11 +1755,38 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 	struct pd_message pd_msg;
 	u32 int_sts = 0, pd_sts1 = 0;
 	int ret, state;
+	struct timespec64 cur_time;
+	u32 rx_error_mask = SC27XX_PD_PKG_RV_ERROR_EN;
+
+	sprd_pd_log(pd, "pd irq: start handle irq, irq = %d", irq);
 
 	mutex_lock(&pd->lock);
 	ret = regmap_read(pd->regmap, pd->base + SC27XX_INT_FLG, &int_sts);
-	if (ret < 0)
+	if (ret < 0) {
+		sprd_pd_log(pd, "pd irq: read int sts fail, ret = %d", ret);
 		goto done;
+	}
+
+	if (int_sts == SC27XX_PD_RX_ERROR_INT_STATUS) {
+		if (!pd->rx_error_cnt)
+			pd->start_time = ktime_to_timespec64(ktime_get_boottime());
+		pd->rx_error_cnt++;
+	} else {
+		pd->rx_error_cnt = 0;
+	}
+
+	if (pd->rx_error_cnt > SC27XX_PD_RX_ERROR_CNT_THRESHOLD) {
+		sprd_pd_log(pd, "pd irq: pd->rx_error_cnt = %d", pd->rx_error_cnt);
+		cur_time = ktime_to_timespec64(ktime_get_boottime());
+		sprd_pd_log(pd, "pd irq: cur_time.tv_sec = %d", cur_time.tv_sec);
+		sprd_pd_log(pd, "pd irq: start_time.tv_sec = %d", pd->start_time.tv_sec);
+		if ((cur_time.tv_sec - pd->start_time.tv_sec) <= SC27XX_PD_RX_ERROR_TIME_THRESHOLD) {
+			sprd_pd_log(pd, "pd irq: disable rx error int and ignore hard reset");
+			pd->ignore_hard_reset = true;
+			regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_EN,
+					   rx_error_mask, ~rx_error_mask);
+		}
+	}
 
 	sprd_pd_log(pd, "pd irq: int sts = 0x%x", int_sts);
 
@@ -1525,10 +1799,12 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 	}
 
 	if (int_sts & SC27XX_PD_PS_RDY_FLAG) {
+		sprd_pd_log(pd, "pd irq: ps rdy flag");
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_PS_RDY_CLR,
 					 SC27XX_PD_PS_RDY_CLR);
 		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr ps rdy int fail, ret = %d", ret);
 			goto done;
 		}
 	}
@@ -1536,7 +1812,44 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 	if (int_sts & SC27XX_PD_HARD_RST_FLAG) {
 		dev_warn(pd->dev, "IRQ: PD received hardreset");
 		sprd_pd_log(pd, "pd irq: receive hard reset");
-		ret = sc27xx_pd_reset(pd);
+
+		if (pd->ignore_hard_reset) {
+			sprd_pd_log(pd, "pd irq: ignore hard reset, hard_reset_cnt = %d", pd->hard_reset_cnt);
+			ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
+						 SC27XX_PD_HARD_RST_RV_CLR,
+						 SC27XX_PD_HARD_RST_RV_CLR);
+			if (ret < 0) {
+				sprd_pd_log(pd, "pd irq: clr hard reset int fail, ret = %d", ret);
+				goto done;
+			}
+
+			if (pd->hard_reset_cnt) {
+				cur_time = ktime_to_timespec64(ktime_get_boottime());
+				sprd_pd_log(pd, "pd irq: hard reset cur_time.tv_sec = %d", cur_time.tv_sec);
+				if ((cur_time.tv_sec - pd->hard_start_time.tv_sec) <= SC27XX_PD_HARD_RESET_TIME_THRESHOLD) {
+					pd->hard_reset_cnt = 0;
+					sprd_pd_log(pd, "pd irq: handle hard reset");
+					goto irq_hard_reset;
+				} else {
+					pd->hard_reset_cnt = 0;
+				}
+			}
+
+			if (pd->can_communication) {
+				pd->hard_start_time = ktime_to_timespec64(ktime_get_boottime());
+				sprd_pd_log(pd, "pd irq: hard_start_time.tv_sec = %d", pd->hard_start_time.tv_sec);
+				pd->hard_reset_cnt++;
+			}
+			goto done;
+		}
+irq_hard_reset:
+		if (pd->need_retry) {
+			sprd_pd_log(pd, "start cancle retry read msg");
+			pd->need_retry = false;
+			cancel_delayed_work(&pd->read_msg_work);
+			sprd_pd_log(pd, "cancle retry read msg done");
+		}
+		ret = sc27xx_pd_reset(pd, true);
 		if (ret < 0) {
 			dev_err(pd->dev, "cannot PD reset, ret=%d\n", ret);
 			goto done;
@@ -1545,8 +1858,10 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_HARD_RST_RV_CLR,
 					 SC27XX_PD_HARD_RST_RV_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr hard reset int fail, ret = %d", ret);
 			goto done;
+		}
 
 		state = extcon_get_state(pd->edev, EXTCON_CHG_USB_PD);
 		if (state == true)
@@ -1559,15 +1874,19 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 
 	if (int_sts & SC27XX_PD_CABLE_RST_FLAG) {
 		dev_warn(pd->dev, "IRQ: PD cable rst flag\n");
+		sprd_pd_log(pd, "pd irq: cable reset flag");
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_CABLE_RST_RV_CLR,
 					 SC27XX_PD_CABLE_RST_RV_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr cable reset int fail, ret = %d", ret);
 			goto done;
+		}
 	}
 
 	if (int_sts & SC27XX_PD_SOFT_RST_FLAG) {
-		ret = sc27xx_pd_reset(pd);
+		sprd_pd_log(pd, "pd irq: soft reset flag");
+		ret = sc27xx_pd_reset(pd, true);
 		if (ret < 0) {
 			dev_err(pd->dev, "cannot PD reset, ret=%d\n", ret);
 			goto done;
@@ -1576,16 +1895,21 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_SOFT_RST_RV_CLR,
 					 SC27XX_PD_SOFT_RST_RV_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr soft reset int fail, ret = %d", ret);
 			goto done;
+		}
 	}
 
 	if ((int_sts & SC27XX_PD_PKG_RV_FLAG)) {
+		pd->can_communication = true;
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_PKG_RV_CLR,
 					 SC27XX_PD_PKG_RV_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr pkt rv int fail, ret = %d", ret);
 			goto done;
+		}
 
 	       /*
 		* According to the requirements of ASIC spec, after receiving
@@ -1611,66 +1935,86 @@ static irqreturn_t sc27xx_pd_irq(int irq, void *dev_id)
 	}
 
 	if (int_sts & SC27XX_PD_TX_OK_FLAG) {
+		pd->can_communication = true;
+		sprd_pd_log(pd, "pd irq: tx ok flag");
 		tcpm_pd_transmit_complete(pd->tcpm_port, TCPC_TX_SUCCESS);
 		ret = regmap_update_bits(pd->regmap,
 					 pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_TX_OK_CLR,
 					 SC27XX_PD_TX_OK_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr tx ok int fail, ret = %d", ret);
 			goto done;
+		}
 	}
 
 	if (int_sts & SC27XX_PD_TX_ERROR_FLAG) {
 		dev_err(pd->dev, "IRQ: tx error failed\n");
+		sprd_pd_log(pd, "pd irq: tx error failed");
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_TX_ERROR_CLR,
 					 SC27XX_PD_TX_ERROR_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr tx error int fail, ret = %d", ret);
 			goto done;
+		}
 		sprd_pd_log(pd, "pd irq: set rx = %d", pd->set_rx);
 		tcpm_pd_transmit_complete(pd->tcpm_port, TCPC_TX_FAILED);
 	}
 
 	if (int_sts & SC27XX_PD_TX_COLLSION_FLAG) {
 		dev_err(pd->dev, "IRQ: PD collision\n");
+		sprd_pd_log(pd, "pd irq: PD collision");
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_TX_COLLSION_CLR,
 					 SC27XX_PD_TX_COLLSION_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr tx collsion int fail, ret = %d", ret);
 			goto done;
+		}
 
 		tcpm_pd_transmit_complete(pd->tcpm_port, TCPC_TX_FAILED);
 	}
 
 	if (int_sts & SC27XX_PD_PKG_RV_ERROR_FLAG) {
 		dev_err(pd->dev, "IRQ: PD rx error flag");
+		sprd_pd_log(pd, "pd irq: PD rx error flag");
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_PKG_RV_ERROR_CLR,
 					 SC27XX_PD_PKG_RV_ERROR_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr rv error int fail, ret = %d", ret);
 			goto done;
+		}
 	}
 
 	if (int_sts & SC27XX_PD_FRS_RV_FLAG) {
+		sprd_pd_log(pd, "pd irq: SC27XX_PD_FRS_RV_FLAG");
 		ret = regmap_update_bits(pd->regmap,
 					 pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_FRS_RV_CLR,
 					 SC27XX_PD_FRS_RV_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr frs rv int fail, ret = %d", ret);
 			goto done;
+		}
 	}
 
 	if (int_sts & SC27XX_PD_RX_FIFO_OVERFLOW_FLAG) {
 		dev_err(pd->dev, "IRQ: PD rx fifo overflow flag\n");
+		sprd_pd_log(pd, "pd irq: PD rx fifo overflow flag");
 		ret = regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_CLR,
 					 SC27XX_PD_RX_FIFO_OVERFLOW_CLR,
 					 SC27XX_PD_RX_FIFO_OVERFLOW_CLR);
-		if (ret < 0)
+		if (ret < 0) {
+			sprd_pd_log(pd, "pd irq: clr rx fifo overflow int fail, ret = %d", ret);
 			goto done;
+		}
 	}
 
 done:
 	mutex_unlock(&pd->lock);
+	sprd_pd_log(pd, "pd irq: IRQ_HANDLED");
 
 	return IRQ_HANDLED;
 }
@@ -1767,10 +2111,68 @@ static void sc27xx_cc_status(struct sc27xx_pd *pd, u32 status)
 	tcpm_cc_change(pd->tcpm_port);
 }
 
+static int sc27xx_set_cc_default(struct sc27xx_pd *pd)
+{
+	int ret;
+
+	if (!pd->sw_switch_cc) {
+		sprd_pd_log(pd, "don't set cc to default");
+		return 0;
+	}
+
+	if (pd->cc_polarity == TYPEC_POLARITY_CC1) {
+		sprd_pd_log(pd, "cc1 set default");
+		ret = regmap_update_bits(pd->regmap,
+				 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+				 SC27XX_TYPEC_CC1_SW_SWITCH_MASK,
+				 SC27XX_TYPEC_CC1_SW_SWITCH(0));
+		if (ret < 0)
+			return ret;
+	} else {
+		sprd_pd_log(pd, "cc2 set default");
+		ret = regmap_update_bits(pd->regmap,
+				 pd->typec_base + SC27XX_TYPEC_SW_CFG,
+				 SC27XX_TYPEC_CC2_SW_SWITCH_MASK,
+				 SC27XX_TYPEC_CC2_SW_SWITCH(0));
+		if (ret < 0)
+			return ret;
+	}
+	pd->sw_switch_cc = false;
+
+	return 0;
+}
+
+static int sc27xx_pd_update_header(struct sc27xx_pd *pd)
+{
+	int ret;
+
+	if (pd->state == SC27XX_ATTACHED_SNK) {
+		sprd_pd_log(pd, "update head cfg");
+		ret = regmap_update_bits(pd->regmap,
+					 pd->base + SC27XX_PD_HEAD_CFG,
+					 SC27XX_PD_POWER_ROLE, 0);
+		if (ret < 0) {
+			sprd_pd_log(pd, "write head cfg power role fail, ret = %d", ret);
+			return ret;
+		}
+
+		ret = regmap_update_bits(pd->regmap,
+					 pd->base + SC27XX_PD_HEAD_CFG,
+					 SC27XX_PD_DATA_ROLE, 0);
+		if (ret < 0) {
+			sprd_pd_log(pd, "write head cfg data role fail, ret = %d", ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 {
 	u32 val = 0;
 	int ret;
+	u32 rx_error_mask = SC27XX_PD_PKG_RV_ERROR_EN;
 
 	ret = regmap_read(pd->regmap, pd->typec_base + SC27XX_TYPEC_STATUS,
 			  &val);
@@ -1786,11 +2188,32 @@ static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 		return ret;
 
 	pd->state = val & SC27XX_STATE_MASK;
-	if (pd->state == SC27XX_ATTACHED_SNK || pd->state == SC27XX_ATTACHED_SRC)
+	if (pd->state == SC27XX_ATTACHED_SNK || pd->state == SC27XX_ATTACHED_SRC) {
+		sprd_pd_log(pd, "typec plug in");
 		pd->typec_online = true;
-	else
+	} else {
+		sprd_pd_log(pd, "typec plug out");
 		pd->typec_online = false;
+		pd->can_communication = false;
+		if (pd->ignore_hard_reset) {
+			sprd_pd_log(pd, "rx error handle clear");
+			pd->ignore_hard_reset = false;
+			pd->rx_error_cnt = 0;
+			pd->hard_reset_cnt = 0;
+			regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_EN,
+					   rx_error_mask, rx_error_mask);
+		}
+#ifdef CONFIG_DEBUG_FS
+		if (pd->pd_attached) {
+			cancel_delayed_work(&pd->log2printk);
+			schedule_delayed_work(&pd->log2printk, 0);
+		}
+#endif
+	}
 
+	sc27xx_pd_update_header(pd);
+	sc27xx_set_cc_default(pd);
+	sc27xx_pd_reset(pd, true);
 	sc27xx_cc_polarity_status(pd, val);
 	sc27xx_cc_status(pd, val);
 	sc27xx_get_vbus_status(pd);
@@ -1832,6 +2255,7 @@ static int sc27xx_pd_extcon_event(struct notifier_block *nb,
 
 	/* if power role swap, ignore some event */
 	if (pd->role_swap) {
+		sprd_pd_log(pd, "sc27xx pd power role swap true");
 		dev_info(pd->dev, "sc27xx pd power role swap true\n");
 		if (extcon_get_state(pd->extcon, EXTCON_SINK) == true ||
 		    extcon_get_state(pd->extcon, EXTCON_SOURCE) == true) {
@@ -1839,6 +2263,7 @@ static int sc27xx_pd_extcon_event(struct notifier_block *nb,
 //			schedule_work(&pd->pd_work);
 		}
 	} else {
+		sprd_pd_log(pd, "sc27xx pd power role swap false");
 		dev_info(pd->dev, "sc27xx pd power role swap false\n");
 		schedule_work(&pd->pd_work);
 	}
@@ -1955,6 +2380,21 @@ static int sc27xx_pd_cal(struct sc27xx_pd *pd)
 	return 0;
 }
 
+static void sc27xx_pd_power_role_swap_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct sc27xx_pd *pd = container_of(dwork, struct sc27xx_pd,
+					   power_role_swap_work);
+
+	mutex_lock(&pd->lock);
+
+	sprd_pd_log(pd, "work role swap flag = %d", pd->role_swap);
+	if (pd->role_swap)
+		pd->role_swap = false;
+
+	mutex_unlock(&pd->lock);
+}
+
 static void sc27xx_pd_read_msg_work(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -1982,13 +2422,17 @@ static void sc27xx_pd_detect_typec_work(struct work_struct *work)
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct sc27xx_pd *pd = container_of(dwork, struct sc27xx_pd,
 					   typec_detect_work);
-
+	/* Tab A8 code for P211119-00268 by qiaodan at 20211119 start */
 	dev_info(pd->dev, "pd try to detect typec extcon\n");
 	if (extcon_get_state(pd->extcon, EXTCON_SINK) == true) {
 		pd->is_sink = true;
 		sc27xx_pd_check_vbus_cc_status(pd);
+	} else if (extcon_get_state(pd->extcon, EXTCON_SOURCE) == true) {
+		pd->is_source = true;
+		sc27xx_pd_check_vbus_cc_status(pd);
 	}
 	pd->pd_attached = true;
+	/* Tab A8 code for P211119-00268 by qiaodan at 20211119 end */
 }
 
 static const u32 sc27xx_pd_hardreset[] = {
@@ -2015,6 +2459,7 @@ static int sc27xx_pd_probe(struct platform_device *pdev)
 	}
 
 	pd->dev = &pdev->dev;
+	sc27xx_pd_debug_init_lock(pd);
 	pd->regmap = dev_get_regmap(pdev->dev.parent, NULL);
 	if (!pd->regmap) {
 		dev_err(&pdev->dev, "failed to get pd regmap\n");
@@ -2071,12 +2516,6 @@ static int sc27xx_pd_probe(struct platform_device *pdev)
 	}
 
 	mutex_init(&pd->lock);
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-#ifdef CONFIG_DEBUG_FS
-	mutex_init(&pd->logbuffer_lock);
-	mutex_init(&pd->logprintk_lock);
-#endif
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	pd->var_data = pdata;
 	pd->vbus_present = false;
 	pd->constructed = false;
@@ -2145,10 +2584,12 @@ static int sc27xx_pd_probe(struct platform_device *pdev)
 		return PTR_ERR(pd->tcpm_port);
 	}
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
+	sc27xx_pd_debug_init_work(pd);
 	sc27xx_pd_register_sysfs(pd);
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	INIT_DELAYED_WORK(&pd->typec_detect_work, sc27xx_pd_detect_typec_work);
 	INIT_DELAYED_WORK(&pd->read_msg_work, sc27xx_pd_read_msg_work);
+	INIT_DELAYED_WORK(&pd->power_role_swap_work, sc27xx_pd_power_role_swap_work);
 	INIT_WORK(&pd->pd_work, sc27xx_pd_work);
 
 	platform_set_drvdata(pdev, pd);

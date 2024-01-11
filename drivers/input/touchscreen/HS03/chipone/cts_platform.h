@@ -72,7 +72,7 @@
 extern bool cts_show_debug_log;
 
 #ifdef CONFIG_CTS_GESTURE_CALLBACK
-// include longcheer header
+
 #include "../lct_tp_info.h"
 #include "../lct_tp_selftest.h"
 #include "../lct_tp_gesture.h"

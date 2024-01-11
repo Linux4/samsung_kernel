@@ -3251,15 +3251,16 @@ static unsigned int mmc_do_calc_max_discard(struct mmc_card *card,
 	return max_discard;
 }
 
-/* hs03 code for P211013-06035 by litianyi at 2021/10/27 start */
-#define MMC_CALC_MAX_DISCARD	0x40000
-#define INC_MMC_CALC_MAX_DISCARD	0xEA000 // fix temporary as other project level.
-/* hs03 code for P211013-06035 by litianyi at 2021/10/27 end */
 
 unsigned int mmc_calc_max_discard(struct mmc_card *card)
 {
 	struct mmc_host *host = card->host;
 	unsigned int max_discard, max_trim;
+
+	if (!host->max_busy_timeout ||
+				((host->caps2 & MMC_CAP2_MAX_DISCARD_SIZE) &&
+				!(mmc_card_sd(card) && mmc_card_hs(card))))
+			return UINT_MAX;
 
 	/*
 	 * Without erase_group_def set, MMC erase timeout depends on clock
@@ -3280,19 +3281,6 @@ unsigned int mmc_calc_max_discard(struct mmc_card *card)
 	pr_debug("%s: calculated max. discard sectors %u for timeout %u ms\n",
 		mmc_hostname(host), max_discard, host->max_busy_timeout ?
 		host->max_busy_timeout : MMC_ERASE_TIMEOUT_MS);
-	/* hs03 code for P211013-06035 by litianyi at 2021/10/27 start */
-	/*
-	 * Some SD cards calculate the maximum discard size is too small,
-	 * which makes it very time-consuming when format SD cards. If the set fixed value
-	 * exceeds the host max busy timeout, the erase operation will be polling, so it's ok.
-	 */
-	if (mmc_card_sd(card) && mmc_card_uhs(card)) {
-		if (max_discard < INC_MMC_CALC_MAX_DISCARD) {       /* unit sectors 512B*/
-			max_discard = INC_MMC_CALC_MAX_DISCARD;
-		}
-	}
-	/* hs03 code for P211013-06035 by litianyi at 2021/10/27 end */
-
 	return max_discard;
 }
 EXPORT_SYMBOL(mmc_calc_max_discard);

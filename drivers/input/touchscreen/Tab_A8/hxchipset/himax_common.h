@@ -215,6 +215,10 @@ int drm_notifier_callback(struct notifier_block *self,
 			unsigned long event, void *data);
 #endif
 
+/*Tab A8 code for AX6300DEV-3065 by chenpengbo at 2021/11/16 start*/
+#define HX_FAC_TEST            1
+/*Tab A8 code for AX6300DEV-3065 by chenpengbo at 2021/11/16 end*/
+
 /* notice the size of isram */
 #define HX_MAX_WRITE_SZ    (128 * 1024)
 #define HX_MAX_READ_SZ		(1024)

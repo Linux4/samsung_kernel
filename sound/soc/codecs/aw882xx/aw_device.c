@@ -25,6 +25,9 @@
 #include "aw_dsp.h"
 /*#include "aw_afe.h"*/
 #include "aw_bin_parse.h"
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+#include "aw_spin.h"
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 #define AW_DEV_SYSST_CHECK_MAX   (10)
 
@@ -38,9 +41,6 @@ static char *profile_name[AW_PROFILE_MAX] = {
 		"Lowpower", "Bypass", "Mmi", "Fm", "Notification", "Receiver"
 	};
 
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-extern unsigned int g_spin_angle;
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
 static char ext_dsp_prof_write = AW_EXT_DSP_WRITE_NONE;
 static DEFINE_MUTEX(g_ext_dsp_prof_wr_lock); /*lock ext wr flag*/
 static unsigned int g_fade_in_time = AW_1000_US / 10;
@@ -198,16 +198,16 @@ static int aw_dev_parse_raw_reg(struct aw_device *aw_dev,
 	return 0;
 }
 
-static int aw_dev_parse_raw_dsp(struct aw_device *aw_dev,
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static void aw_dev_parse_raw_dsp(struct aw_device *aw_dev,
 			uint8_t *data, uint32_t data_len, struct aw_prof_desc *prof_desc)
 {
 	aw_dev_info(aw_dev->dev, "data_size:%d enter", data_len);
 
 	prof_desc->sec_desc[AW_PROFILE_DATA_TYPE_DSP].data = data;
 	prof_desc->sec_desc[AW_PROFILE_DATA_TYPE_DSP].len = data_len;
-
-	return 0;
 }
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 static int aw_dev_parse_reg_bin_with_hdr(struct aw_device *aw_dev,
 			uint8_t *data, uint32_t data_len, struct aw_prof_desc *prof_desc)
@@ -301,14 +301,23 @@ static int aw_dev_parse_dev_type(struct aw_device *aw_dev,
 		if ((aw_dev->i2c->adapter->nr == cfg_dde[i].dev_bus) &&
 			(aw_dev->i2c->addr == cfg_dde[i].dev_addr) &&
 			(cfg_dde[i].type == AW_DEV_TYPE_ID)) {
-
-			ret = aw_dev_parse_data_by_sec_type(aw_dev, prof_hdr, &cfg_dde[i],
-					&all_prof_info->prof_desc[cfg_dde[i].dev_profile]);
-			if (ret < 0) {
-				aw_dev_err(aw_dev->dev, "parse dev driver bin or monitor bindata failed");
-				return ret;
-			}
-			sec_num++;
+                        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+                        if (cfg_dde[i].data_type != ACF_SEC_TYPE_MONITOR) {
+                                ret = aw_dev_parse_data_by_sec_type(aw_dev, prof_hdr, &cfg_dde[i],
+                                                &all_prof_info->prof_desc[cfg_dde[i].dev_profile]);
+                                if (ret < 0) {
+                                        aw_dev_err(aw_dev->dev, "parse dev driver bin data failed");
+                                        return ret;
+                                }
+                                sec_num++;
+                        } else {
+                                ret = aw_dev_parse_data_by_sec_type(aw_dev, prof_hdr, &cfg_dde[i], NULL);
+                                if (ret < 0) {
+                                        aw_dev_err(aw_dev->dev, "parse monitor bin data failed");
+                                        return ret;
+                                }
+                        }
+                        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 		}
 	}
 
@@ -334,13 +343,23 @@ static int aw_dev_parse_dev_default_type(struct aw_device *aw_dev,
 	for (i = 0; i < prof_hdr->a_ddt_num; i++) {
 		if ((aw_dev->index == cfg_dde[i].dev_index) &&
 			(cfg_dde[i].type == AW_DEV_DEFAULT_TYPE_ID)) {
-			ret = aw_dev_parse_data_by_sec_type(aw_dev, prof_hdr, &cfg_dde[i],
-					&all_prof_info->prof_desc[cfg_dde[i].dev_profile]);
-			if (ret < 0) {
-				aw_dev_err(aw_dev->dev, "parse dev driver default bin data failed");
-				return ret;
-			}
-			sec_num++;
+                        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+                        if (cfg_dde[i].data_type != ACF_SEC_TYPE_MONITOR) {
+                                ret = aw_dev_parse_data_by_sec_type(aw_dev, prof_hdr, &cfg_dde[i],
+                                                &all_prof_info->prof_desc[cfg_dde[i].dev_profile]);
+                                if (ret < 0) {
+                                        aw_dev_err(aw_dev->dev, "parse dev driver bin data failed");
+                                        return ret;
+                                }
+                                sec_num++;
+                        } else {
+                                ret = aw_dev_parse_data_by_sec_type(aw_dev, prof_hdr, &cfg_dde[i], NULL);
+                                if (ret < 0) {
+                                        aw_dev_err(aw_dev->dev, "parse monitor bin data failed");
+                                        return ret;
+                                }
+                        }
+                        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 		}
 	}
 
@@ -352,11 +371,11 @@ static int aw_dev_parse_dev_default_type(struct aw_device *aw_dev,
 	return 0;
 }
 
-static int aw_dev_parse_skt_type(struct aw_device *aw_dev,
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static void aw_dev_parse_skt_type(struct aw_device *aw_dev,
 		struct aw_cfg_hdr *prof_hdr, struct aw_all_prof_info *all_prof_info)
 {
 	int i = 0;
-	int ret;
 	int sec_num = 0;
 	struct aw_cfg_dde *cfg_dde =
 		(struct aw_cfg_dde *)((char *)prof_hdr + prof_hdr->a_hdr_offset);
@@ -367,22 +386,18 @@ static int aw_dev_parse_skt_type(struct aw_device *aw_dev,
 		if ((aw_dev->index == cfg_dde[i].dev_index) &&
 			(cfg_dde[i].type == AW_SKT_TYPE_ID)) {
 			if (cfg_dde[i].data_type == ACF_SEC_TYPE_DSP) {
-				ret = aw_dev_parse_raw_dsp(aw_dev,
+                                aw_dev_parse_raw_dsp(aw_dev,
 					(uint8_t *)prof_hdr + cfg_dde[i].data_offset,
 					cfg_dde[i].data_size,
 					&all_prof_info->prof_desc[cfg_dde[i].dev_profile]);
-				if (ret < 0) {
-					aw_dev_err(aw_dev->dev, "parse dsp bin data failed");
-					return ret;
-				}
 				sec_num++;
 			}
 		}
 	}
 
 	aw_dev_info(aw_dev->dev, "get dsp data prof cnt is %d ", sec_num);
-	return 0;
 }
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 static int aw_dev_acf_load_by_hdr(struct aw_device *aw_dev,
 		struct aw_cfg_hdr *prof_hdr, struct aw_all_prof_info *all_prof_info)
@@ -398,10 +413,9 @@ static int aw_dev_acf_load_by_hdr(struct aw_device *aw_dev,
 		if (ret < 0)
 			return ret;
 	}
-
-	ret = aw_dev_parse_skt_type(aw_dev, prof_hdr, all_prof_info);
-	if (ret < 0)
-		return ret;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_dev_parse_skt_type(aw_dev, prof_hdr, all_prof_info);
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 	return 0;
 }
@@ -579,6 +593,9 @@ static int aw_dev_reg_fw_update(struct aw_device *aw_dev)
 	struct aw_int_desc *int_desc = &aw_dev->int_desc;
 	struct aw_profctrl_desc *profctrl_desc = &aw_dev->profctrl_desc;
 	struct aw_bstctrl_desc *bstctrl_desc = &aw_dev->bstctrl_desc;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        struct aw_cali_desc *cali_desc = &aw_dev->cali_desc;
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	struct aw_sec_data_desc *reg_data;
 	int16_t *data;
 	int data_len;
@@ -653,34 +670,28 @@ static int aw_dev_reg_fw_update(struct aw_device *aw_dev)
 			reg_val &= aw_dev->mute_desc.mask;
 			reg_val |= read_val;
 		}
-
+                /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+                if ((cali_desc->mode == AW_CALI_MODE_NONE) &&
+                                (reg_addr == aw_dev->txen_desc.reg)) {
+                        aw_dev->txen_desc.reserve_val = reg_val & (~aw_dev->txen_desc.mask);
+                        aw_dev_info(aw_dev->dev, "reserve_val = 0x%04x",
+                                                aw_dev->txen_desc.reserve_val);
+                }
+                /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 		if (reg_addr == aw_dev->vcalb_desc.vcalb_reg)
 			continue;
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-#ifdef AW_AP_SPIN_ENABLE
-		if (reg_addr == AW_PID_2013_I2SCTRL1_REG) {
-			reg_val &= AW_PID_2013_CHSEL_MASK;
-			reg_val |= aw_dev->spin_table[g_spin_angle].rx_val;
-		}
 
-		if (reg_addr == AW_PID_2013_SYSCTRL2_REG) {
-			/*colse tx*/
-			//reg_val &= AW881XX_BIT_I2SCFG1_TXEN_MASK;
-			//reg_val |= AW881XX_BIT_I2SCFG1_TXEN_DISABLE;
-			reg_val &= AW_PID_2013_I2SCHS_MASK;
-			reg_val |= aw_dev->spin_table[g_spin_angle].tx_val;
-		}
-#endif
-		aw_dev_info(aw_dev->dev, "reg=0x%04x, val = 0x%04x",
+                aw_dev_dbg(aw_dev->dev, "reg=0x%04x, val = 0x%04x",
 			(uint16_t)reg_addr, (uint16_t)reg_val);
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
 		ret = aw_dev->ops.aw_i2c_write(aw_dev,
 			(unsigned char)reg_addr,
 			(unsigned int)reg_val);
 		if (ret < 0)
 			break;
 	}
-
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        aw_spin_set_record_val(aw_dev);
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	aw_dev->ops.aw_get_volume(aw_dev, &init_volume);
 	aw_dev->volume_desc.init_volume = init_volume;
 
@@ -704,8 +715,6 @@ static void aw_dev_fade_in(struct aw_device *aw_dev)
 	}
 	/*volume up*/
 	for (i = desc->mute_volume; i >= desc->init_volume; i -= fade_step) {
-		if (i < desc->init_volume)
-			i = desc->init_volume;
 		aw_dev->ops.aw_set_volume(aw_dev, i);
 		usleep_range(g_fade_in_time, g_fade_in_time + 10);
 	}
@@ -728,8 +737,6 @@ static void aw_dev_fade_out(struct aw_device *aw_dev)
 	aw_dev->ops.aw_get_volume(aw_dev, &start_volume);
 	i = start_volume;
 	for (i = start_volume; i <= desc->mute_volume; i += fade_step) {
-		if (i > desc->mute_volume)
-			i = desc->mute_volume;
 		aw_dev->ops.aw_set_volume(aw_dev, i);
 		usleep_range(g_fade_out_time, g_fade_out_time + 10);
 	}
@@ -795,15 +802,46 @@ static void aw_dev_mute(struct aw_device *aw_dev, bool mute)
 	aw_dev_info(aw_dev->dev, "done");
 }
 
+static void aw_dev_uls_hmute(struct aw_device *aw_dev, bool uls_hmute)
+{
+        struct aw_uls_hmute_desc *uls_hmute_desc = &aw_dev->uls_hmute_desc;
+
+        aw_dev_dbg(aw_dev->dev, "enter");
+
+        if (uls_hmute_desc->reg == AW_REG_NONE) {
+                return;
+        }
+
+        if (uls_hmute) {
+                aw_dev->ops.aw_i2c_write_bits(aw_dev, uls_hmute_desc->reg,
+                                uls_hmute_desc->mask,
+                                uls_hmute_desc->enable);
+        } else {
+                aw_dev->ops.aw_i2c_write_bits(aw_dev, uls_hmute_desc->reg,
+                                uls_hmute_desc->mask,
+                                uls_hmute_desc->disable);
+        }
+        aw_dev_info(aw_dev->dev, "done");
+}
+
 static int aw_dev_get_icalk(struct aw_device *aw_dev, int16_t *icalk)
 {
 	int ret = -1;
 	unsigned int reg_val = 0;
 	uint16_t reg_icalk = 0;
+        uint16_t reg_icalkl = 0;
 	struct aw_vcalb_desc *desc = &aw_dev->vcalb_desc;
 
-	ret = aw_dev->ops.aw_i2c_read(aw_dev, desc->icalk_reg, &reg_val);
-	reg_icalk = (uint16_t)reg_val & (~desc->icalk_reg_mask);
+        if (desc->icalkl_reg == AW_REG_NONE) {
+                ret = aw_dev->ops.aw_i2c_read(aw_dev, desc->icalk_reg, &reg_val);
+                reg_icalk = (uint16_t)reg_val & (~desc->icalk_reg_mask);
+        } else {
+                ret = aw_dev->ops.aw_i2c_read(aw_dev, desc->icalk_reg, &reg_val);
+                reg_icalk = (uint16_t)reg_val & (~desc->icalk_reg_mask);
+                ret = aw_dev->ops.aw_i2c_read(aw_dev, desc->icalkl_reg, &reg_val);
+                reg_icalkl = (uint16_t)reg_val & (~desc->icalkl_reg_mask);
+                reg_icalk = (reg_icalk >> desc->icalk_shift) | (reg_icalkl >> desc->icalkl_shift);
+        }
 
 	if (reg_icalk & (~desc->icalk_sign_mask))
 		reg_icalk = reg_icalk | (~desc->icalk_neg_mask);
@@ -818,10 +856,19 @@ static int aw_dev_get_vcalk(struct aw_device *aw_dev, int16_t *vcalk)
 	int ret = -1;
 	unsigned int reg_val = 0;
 	uint16_t reg_vcalk = 0;
+        uint16_t reg_vcalkl = 0;
 	struct aw_vcalb_desc *desc = &aw_dev->vcalb_desc;
 
-	ret = aw_dev->ops.aw_i2c_read(aw_dev, desc->vcalk_reg, &reg_val);
-	reg_vcalk = (uint16_t)reg_val & (~desc->vcalk_reg_mask);
+        if (desc->vcalkl_reg == AW_REG_NONE) {
+                ret = aw_dev->ops.aw_i2c_read(aw_dev, desc->vcalk_reg, &reg_val);
+                reg_vcalk = (uint16_t)reg_val & (~desc->vcalk_reg_mask);
+        } else {
+                ret = aw_dev->ops.aw_i2c_read(aw_dev, desc->vcalk_reg, &reg_val);
+                reg_vcalk = (uint16_t)reg_val & (~desc->vcalk_reg_mask);
+                ret = aw_dev->ops.aw_i2c_read(aw_dev, desc->vcalkl_reg, &reg_val);
+                reg_vcalkl = (uint16_t)reg_val & (~desc->vcalkl_reg_mask);
+                reg_vcalk = (reg_vcalk >> desc->vcalk_shift) | (reg_vcalkl >> desc->vcalkl_shift);
+        }
 
 	if (reg_vcalk & (~desc->vcalk_sign_mask))
 		reg_vcalk = reg_vcalk | (~desc->vcalk_neg_mask);
@@ -844,18 +891,13 @@ static int aw_dev_set_vcalb(struct aw_device *aw_dev)
 	struct aw_vcalb_desc *desc = &aw_dev->vcalb_desc;
 
 	if (desc->icalk_reg == AW_REG_NONE || desc->vcalb_reg == AW_REG_NONE) {
-		aw_dev_info(aw_dev->dev, "REG None !");
+		aw_dev_info(aw_dev->dev, "REG None!");
 		return 0;
 	}
 
-	if (aw_dev->ops.aw_get_icalk_splice) {
-		ret = aw_dev->ops.aw_get_icalk_splice(aw_dev, &icalk_val);
-		if (ret < 0)
-			return ret;
-	} else {
-		ret = aw_dev_get_icalk(aw_dev, &icalk_val);
-		if (ret < 0)
-			return ret;
+	ret = aw_dev_get_icalk(aw_dev, &icalk_val);
+	if (ret < 0) {
+		return ret;
 	}
 
 	ret = aw_dev_get_vcalk(aw_dev, &vcalk_val);
@@ -872,7 +914,7 @@ static int aw_dev_set_vcalb(struct aw_device *aw_dev)
 	vcalb = desc->vcal_factor * icalk / vcalk;
 
 	reg_val = (unsigned int)vcalb;
-	aw_dev_dbg(aw_dev->dev, "icalk=%d, vcalk=%d, vcalb=%d, reg_val=%d",
+        aw_dev_info(aw_dev->dev, "icalk=%d, vcalk=%d, vcalb=%d, reg_val=0x%04x",
 			icalk, vcalk, vcalb, reg_val);
 
 	ret =  aw_dev->ops.aw_i2c_write(aw_dev, desc->vcalb_reg, reg_val);
@@ -1025,7 +1067,7 @@ static int aw_dev_sysst_check(struct aw_device *aw_dev)
 int aw_dev_get_profile_count(struct aw_device *aw_dev)
 {
 	if (aw_dev == NULL) {
-		aw_dev_err(aw_dev->dev, "aw_dev is NULL");
+		aw_pr_err("aw_dev is NULL");
 		return -ENOMEM;
 	}
 
@@ -1149,13 +1191,19 @@ int aw_dev_init_cali_re(struct aw_device *aw_dev)
 {
 	int ret = 0;
 
-	if ((aw_dev->cali_desc.cali_re == AW_ERRO_CALI_VALUE) && (!aw_dev->cali_desc.mode)) {
-		ret = aw_cali_read_re_from_nvram(&aw_dev->cali_desc.cali_re, aw_dev->channel);
-		if (ret) {
-			aw_dev_info(aw_dev->dev, "read nvram cali failed, use default Re");
-			aw_dev->cali_desc.cali_re = AW_ERRO_CALI_VALUE;
-		}
-	}
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        if (aw_dev->cali_desc.mode) {
+                if (aw_dev->cali_desc.cali_re == AW_ERRO_CALI_VALUE) {
+                        ret = aw_cali_read_re_from_nvram(&aw_dev->cali_desc.cali_re, aw_dev->channel);
+                        if (ret) {
+                                aw_dev_info(aw_dev->dev, "read nvram cali failed, use default Re");
+                                aw_dev->cali_desc.cali_re = AW_ERRO_CALI_VALUE;
+                        }
+                }
+        } else {
+                aw_dev_info(aw_dev->dev, "no cali, needn't init cali re");
+        }
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	return ret;
 }
 
@@ -1327,6 +1375,33 @@ static void aw_dev_boost_type_recover(struct aw_device *aw_dev)
 		aw_dev_dbg(aw_dev->dev, "boost type recover done");
 	}
 }
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+void aw_dev_i2s_enable(struct aw_device *aw_dev, bool flag)
+{
+        struct aw_txen_desc *txen_desc = &aw_dev->txen_desc;
+        struct aw_cali_desc *cali_desc = &aw_dev->cali_desc;
+
+        aw_dev_dbg(aw_dev->dev, "enter");
+
+        if (txen_desc->reg == AW_REG_NONE) {
+                aw_dev_info(aw_dev->dev, "needn't set i2s status");
+                return;
+        }
+
+        if (flag) {
+                if (cali_desc->mode == AW_CALI_MODE_NONE) {
+                        aw_dev->ops.aw_i2c_write_bits(aw_dev,
+                                txen_desc->reg, txen_desc->mask, txen_desc->reserve_val);
+                } else {
+                        aw_dev->ops.aw_i2c_write_bits(aw_dev,
+                        txen_desc->reg, txen_desc->mask, txen_desc->enable);
+                }
+        } else {
+                aw_dev->ops.aw_i2c_write_bits(aw_dev,
+                                txen_desc->reg, txen_desc->mask, txen_desc->disable);
+        }
+}
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 int aw_device_start(struct aw_device *aw_dev)
 {
@@ -1363,8 +1438,7 @@ int aw_device_start(struct aw_device *aw_dev)
 	if (ret < 0) {
 		aw_dev_reg_dump(aw_dev);
 		/*close tx feedback*/
-		if (aw_dev->ops.aw_i2s_enable)
-			aw_dev->ops.aw_i2s_enable(aw_dev, false);
+        aw_dev_i2s_enable(aw_dev, false);
 		/*clear interrupt*/
 		aw_dev_clear_int_status(aw_dev);
 		/*close amppd*/
@@ -1376,10 +1450,17 @@ int aw_device_start(struct aw_device *aw_dev)
 
 	/*boost type recover*/
 	aw_dev_boost_type_recover(aw_dev);
+
 	if (aw_dev->amppd_st) {
 		aw_dev_amppd(aw_dev, true);
 	}
-
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        if (aw_dev->ops.aw_reg_force_set) {
+                aw_dev->ops.aw_reg_force_set(aw_dev);
+        }
+        /*close uls hmute*/
+        aw_dev_uls_hmute(aw_dev, false);
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 	if (!aw_dev->mute_st) {
 		/*close mute*/
 		aw_dev_mute(aw_dev, false);
@@ -1416,8 +1497,14 @@ int aw_device_stop(struct aw_device *aw_dev)
 	/*set defaut int mask*/
 	aw_dev_set_intmask(aw_dev, false);
 
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        /*set uls hmute*/
+        aw_dev_uls_hmute(aw_dev, true);
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
+
 	/*set mute*/
 	aw_dev_mute(aw_dev, true);
+
 	usleep_range(AW_1000_US, AW_1000_US + 100);
 
 	/*enable amppd*/
@@ -1444,16 +1531,6 @@ int aw_dev_get_afe_module_en(int type, int *status)
 int aw_dev_set_copp_module_en(bool enable)
 {
 	return aw_dsp_set_copp_module_en(enable);
-}
-
-int aw_dev_set_spin(int spin_mode)
-{
-	return aw_dsp_write_spin(spin_mode);
-}
-
-int aw_dev_get_spin(int *spin_mode)
-{
-	return aw_dsp_read_spin(spin_mode);
 }
 
 static void aw_device_parse_sound_channel_dt(struct aw_device *aw_dev)
@@ -1504,6 +1581,13 @@ int aw_device_probe(struct aw_device *aw_dev)
 
 	aw_monitor_init(&aw_dev->monitor_desc);
 	/*aw_afe_init();*/
+
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        ret = aw_spin_init(&aw_dev->spin_desc);
+        if (ret) {
+                return ret;
+        }
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 	mutex_lock(&g_dev_lock);
 	list_add(&aw_dev->list_node, &g_dev_list);

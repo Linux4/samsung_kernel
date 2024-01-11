@@ -1395,7 +1395,9 @@ static void nvt_esd_check_func(struct work_struct *work)
 		input_err(true, &ts->client->dev, "%s: do ESD recovery, timer = %d, retry = %d\n",
 					__func__, timer, esd_retry);
 		/* do esd recovery, reload fw */
-		nvt_update_firmware(ts->platdata->firmware_name);
+		/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+		nvt_update_firmware(ts->platdata->firmware_name, 1);
+		/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 #if SEC_TOUCH_CMD
 		if (nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN))
 			input_err(true, &ts->client->dev, "%s: Check FW state failed after ESD recovery\n", __func__);
@@ -1821,12 +1823,6 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 
 	mutex_lock(&ts->lock);
 
-	/* HS03 code for SL6215DEV-1398 by zhoulingyun at 20210918 start */
-	if (!ts->nvt_tp_on_off) {
-		goto XFER_ERROR;
-	}
-	/* HS03 code for SL6215DEV-1398 by zhoulingyun at 20210918 end */
-
 	ret = CTP_SPI_READ(ts->client, point_data, POINT_DATA_LEN + 1);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s:  CTP_SPI_READ failed.(%d)\n", __func__, ret);
@@ -1848,7 +1844,9 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 	/* ESD protect by WDT */
 	if (nvt_wdt_fw_recovery(point_data)) {
 		input_err(true, &ts->client->dev, "Recover for fw reset, %02X\n", point_data[1]);
-		nvt_update_firmware(ts->platdata->firmware_name);
+		/* HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start */
+		nvt_update_firmware(ts->platdata->firmware_name, 1);
+		/* HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end */
 #if SEC_TOUCH_CMD
 		if (nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN))
 			input_err(true, &ts->client->dev, "%s: Check FW state failed after FW reset recovery\n", __func__);
@@ -1999,7 +1997,13 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 		}
 	}
 
-	input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
+	/*HS03 code for SL6215DEV-4032 by wenghailong at 2022/1/28 start*/
+	if (ts->nvt_tp_on_off) {
+		input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
+	} else {
+		input_info(true, &ts->client->dev, "%s : nvt_tp_on_off:%d\n", __func__, ts->nvt_tp_on_off);
+	}
+	/*HS03 code for SL6215DEV-4032 by wenghailong at 2022/1/28 end*/
 #else /* MT_PROTOCOL_B */
 	if (finger_cnt == 0) {
 		input_report_key(ts->input_dev, BTN_TOUCH, 0);
@@ -2243,7 +2247,6 @@ static int nvt_charger_notifier_callback(struct notifier_block *nb,
 	if (!strcmp(psy->desc->name, "usb")) {
 		if (psy && ts && val == POWER_SUPPLY_PROP_STATUS) {
 			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
-			NVT_LOG("nvt_charger_notifier_callback, prop.intval=%d,usb_plug_status=%d!\n",prop.intval,ts->usb_plug_status);
 			if (ret < 0) {
 				NVT_ERR("Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", ret);
 				return ret;
@@ -2697,14 +2700,14 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #endif
 /*HS03 code for SR-SL6215-01-105 by zhoulingyun at 20210809 end*/
 
-	/* HS03 code for P210924-02812 by zhoulingyun at 20211009 start */
+	/* HS03 code for P210924-02812|SL6215DEV-3850 by zhoulingyun at 20211216 start */
 	ts->nvt_resume_wq = create_singlethread_workqueue("nvt_resume_wq");
 	if (!ts->nvt_resume_wq) {
 		input_err(true, &ts->client->dev, "allocate nvt_resume_wq failed.\n");
 		goto err_resume_wp;
 	}
-	INIT_WORK(&ts->nvt_resume_work_struct, nvt_resume_work_work);
-	/* HS03 code for P210924-02812 by zhoulingyun at 20211009 end */
+	INIT_DELAYED_WORK(&ts->nvt_resume_work_struct, nvt_resume_work_work);
+	/* HS03 code for P210924-02812|SL6215DEV-3850 by zhoulingyun at 20211216 end */
 
 	/* HS03 code for SL6215DEV-1398 by zhoulingyun at 20210918 start */
 	ts->nvt_tp_on_off = 1;
@@ -3216,11 +3219,13 @@ static int32_t nvt_ts_resume(struct device *dev)
 	gpio_set_value(ts->reset_gpio, 1);
 #endif
 
-	if (nvt_update_firmware(ts->platdata->firmware_name)) {
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+	if (nvt_update_firmware(ts->platdata->firmware_name, 0)) {
 		input_err(true, &ts->client->dev, "download firmware failed, ignore check fw state\n");
 	} else {
 		nvt_check_fw_reset_state(RESET_STATE_NORMAL_RUN);
 	}
+	/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 
 #if PROXIMITY_FUNCTION
 /* comment this cmd, due to use nvt_ts_mode_restore() later
@@ -3269,7 +3274,23 @@ static int32_t nvt_ts_resume(struct device *dev)
 	return 0;
 }
 
-/*HS03 code for SL6215DEV-872 by zhoulingyun at 20210909 start*/
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
+/**
+*nvt_resume_for_earlier
+*Author：zhoulingyun
+*Date：2021/12/16
+*Param：void
+*Return：void
+*Purpose：Call wake-up function
+*/
+void nvt_resume_for_earlier(void)
+{
+	input_info(true, &ts->client->dev, "resume by %s\n", __func__);
+	queue_delayed_work(ts->nvt_resume_wq, &ts->nvt_resume_work_struct, msecs_to_jiffies(0));
+}
+/*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
+
+/*HS03 code for SL6215DEV-872|SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 #if defined(CONFIG_FB)
 static int nvt_drm_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
 {
@@ -3283,11 +3304,11 @@ static int nvt_drm_notifier_callback(struct notifier_block *self, unsigned long 
                 nvt_ts_suspend(&ts->client->dev);
         } else if (event == DISPC_POWER_ON) {
 		input_info(true, &ts->client->dev, "event=%lu\n", event);
-		queue_work(ts->nvt_resume_wq, &ts->nvt_resume_work_struct);
+		queue_delayed_work(ts->nvt_resume_wq, &ts->nvt_resume_work_struct, msecs_to_jiffies(0));
 	}
 	return 0;
 }
-/*HS03 code for SL6215DEV-872 by zhoulingyun at 20210909 end*/
+/*HS03 code for SL6215DEV-872|SL6215DEV-3850 by zhoulingyun at 20211216 end*/
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 /*******************************************************
 Description:

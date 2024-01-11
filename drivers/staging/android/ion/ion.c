@@ -85,6 +85,7 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	int i, ret;
 	struct scatterlist *sg;
 	struct timeval time;
+	long nr_alloc_cur, nr_alloc_peak;
 
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
 	if (!buffer)
@@ -132,8 +133,13 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	do_gettimeofday(&time);
 	time.tv_sec -= sys_tz.tz_minuteswest * 60;
 	buffer->alloc_time = time;
+	if (heap->type == ION_HEAP_TYPE_SYSTEM)
 
-	atomic_long_add(len, &total_heap_bytes);
+		atomic_long_add(len, &total_heap_bytes);
+	nr_alloc_cur = atomic_long_add_return(len, &heap->total_allocated);
+	nr_alloc_peak = atomic_long_read(&heap->total_allocated_peak);
+	if (nr_alloc_cur > nr_alloc_peak)
+		atomic_long_set(&heap->total_allocated_peak, nr_alloc_cur);
 	return buffer;
 
 err1:
@@ -150,6 +156,7 @@ void ion_buffer_destroy(struct ion_buffer *buffer)
 			     __func__);
 		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
 	}
+	atomic_long_sub(buffer->size, &buffer->heap->total_allocated);
 	buffer->heap->ops->free(buffer);
 	sprd_iommu_notifier_call_chain((void *)buffer);
 	kfree(buffer);
@@ -163,7 +170,8 @@ static void _ion_buffer_destroy(struct ion_buffer *buffer)
 	mutex_lock(&dev->buffer_lock);
 	rb_erase(&buffer->node, &dev->buffers);
 	mutex_unlock(&dev->buffer_lock);
-	atomic_long_sub(buffer->size, &total_heap_bytes);
+	if (heap->type == ION_HEAP_TYPE_SYSTEM)
+		atomic_long_sub(buffer->size, &total_heap_bytes);
 
 	if (heap->flags & ION_HEAP_FLAG_DEFER_FREE)
 		ion_heap_freelist_add(heap, buffer);
@@ -851,9 +859,17 @@ static ssize_t
 total_pools_kb_show(struct kobject *kobj, struct kobj_attribute *attr,
 		    char *buf)
 {
-	u64 size_in_bytes = ion_page_pool_nr_pages() * PAGE_SIZE;
+	struct ion_device *dev = internal_dev;
+	struct ion_heap *heap;
+	u64 total_pages = 0;
 
-	return sprintf(buf, "%llu\n", div_u64(size_in_bytes, 1024));
+	down_read(&dev->lock);
+	plist_for_each_entry(heap, &dev->heaps, node)
+		if (heap->ops->get_pool_size)
+			total_pages += heap->ops->get_pool_size(heap);
+	up_read(&dev->lock);
+
+	return sprintf(buf, "%llu\n", total_pages * (PAGE_SIZE / 1024));
 }
 
 static struct kobj_attribute total_heaps_kb_attr =

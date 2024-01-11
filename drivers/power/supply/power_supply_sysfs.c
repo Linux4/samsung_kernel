@@ -54,6 +54,11 @@ static const char * const power_supply_battery_type_text[] = {
 "1: Model:HQ-50SD-SCUD", "2: Model:HQ-50N-ATL", "3: Model:HQ-50S-SCUD", "battery-UNKNOWN"
 };
 /* HS03 code for SR-SL6215-01-194 by shixuanxuan at 20210809 end */
+/* Tab A7 T618 code for SR-AX6189A-01-79 by lina at 20211227 start */
+#elif defined(CONFIG_UMS512_25C10_CHARGER)
+static const char * const power_supply_battery_type_text[] = {
+"1: Model:HQ-3565S-SCUD", "2: Model:HQ-3565N-ATL", "battery-UNKNOWN" };
+/* Tab A7 T618 code for SR-AX6189A-01-79 by lina at 20211227 end */
 #elif  CONFIG_TARGET_UMS512_1H10
 static const char * const power_supply_battery_type_text[] = {
 "1: Model:HQ-6300NA-ATL", "2: Model:HQ-6300SD-SCUD-BYD","3: Model:HQ-6300SA-SCUD-ATL", "battery-UNKNOWN"
@@ -149,29 +154,9 @@ static ssize_t power_supply_show_property(struct device *dev,
 	struct power_supply *psy = dev_get_drvdata(dev);
 	const ptrdiff_t off = attr - power_supply_attrs;
 	union power_supply_propval value;
-/* Tab A8 code for P210928-01951 by wenyaqi at 20211021 start */
-#ifdef CONFIG_TARGET_UMS512_1H10
-	struct power_supply *ss_psy = NULL;
-	union power_supply_propval usb_type;
-#endif
 
 	if (off == POWER_SUPPLY_PROP_TYPE) {
 		value.intval = psy->desc->type;
-#ifdef CONFIG_TARGET_UMS512_1H10
-		ss_psy = power_supply_get_by_name("sc2730_fast_charger");
-		if (!ss_psy) {
-			pr_err("%s:sc2730_fast_charger not exist\n", __func__);
-		} else {
-			ret = power_supply_get_property(ss_psy,
-				POWER_SUPPLY_PROP_USB_TYPE, &usb_type);
-			if (ret >= 0 && psy->desc->type == POWER_SUPPLY_TYPE_USB &&
-				(usb_type.intval == POWER_SUPPLY_USB_TYPE_DCP ||
-				usb_type.intval == POWER_SUPPLY_USB_TYPE_PD)) {
-					value.intval = POWER_SUPPLY_TYPE_MAINS;
-			}
-		}
-#endif
-/* Tab A8 code for P210928-01951 by wenyaqi at 20211021 end */
 	} else {
 		ret = power_supply_get_property(psy, off, &value);
 
@@ -196,6 +181,10 @@ static ssize_t power_supply_show_property(struct device *dev,
 	else if (off == POWER_SUPPLY_PROP_HEALTH)
 		return sprintf(buf, "%s\n",
 			       power_supply_health_text[value.intval]);
+	/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 start */
+	else if (off == POWER_SUPPLY_PROP_CHG_INFO)
+		return sprintf(buf, "%s\n",value.strval);
+	/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 end */
 	else if (off == POWER_SUPPLY_PROP_TECHNOLOGY)
 		return sprintf(buf, "%s\n",
 			       power_supply_technology_text[value.intval]);
@@ -328,6 +317,11 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(battery_cycle),
 	#endif
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end */
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	POWER_SUPPLY_ATTR(batt_full_capacity),
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	#ifdef HQ_FACTORY_BUILD
 	POWER_SUPPLY_ATTR(batt_cap_control),
 	#endif
@@ -346,6 +340,9 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(typec_cc_orientation),
 #endif
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 end */
+/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 start */
+	POWER_SUPPLY_ATTR(chg_info),
+/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 end */
 	POWER_SUPPLY_ATTR(authentic),
 	POWER_SUPPLY_ATTR(technology),
 	POWER_SUPPLY_ATTR(cycle_count),

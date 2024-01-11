@@ -17,6 +17,11 @@
 #define AW882XX_LOAD_FW_DELAY_TIME	(0)
 #define AW_START_RETRIES	(5)
 
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122start */
+#define AW_PID_2055_VERSION_DIFF_REG    (0x23)
+#define AW_RELIABILITY_ENHANCE_REG      (0x73)
+#define AW_RELIABILITY_ENHANCE_VALUE    (0x1D40)
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 end */
 
 #define AW_I2C_RETRIES			5	/* 5 times */
 #define AW_I2C_RETRY_DELAY		5	/* 5 ms */
@@ -32,14 +37,18 @@ enum {
 	AW882XX_STREAM_OPEN,
 };
 
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
 enum aw882xx_chipid {
-	PID_1852_ID = 0x1852,
-	PID_2013_ID = 0x2013,
-	PID_2032_ID = 0x2032,
-	PID_2055_ID = 0x2055,
-	PID_2071_ID = 0x2071,
+        PID_1852_ID = 0x1852,
+        PID_2013_ID = 0x2013,
+        PID_2032_ID = 0x2032,
+        PID_2055_ID = 0x2055,
+        PID_2071_ID = 0x2071,
+        PID_2113_ID = 0x2113,
 };
 
+#define AW882XX_SOFT_RESET_REG          (0x00)
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 #define AW882XX_SOFT_RESET_VALUE	(0x55aa)
 
 enum aw882xx_int_type {
@@ -50,10 +59,26 @@ enum aw882xx_int_type {
 	INT_TYPE_OTHI = 0x8,
 };
 
+/* Tab A8 code for AX6300DEV-3890 by maoruiqian at 2021229 start */
+enum aw882xx_device_index {
+        DEVICE_INDEX_34,
+        DEVICE_INDEX_35,
+        DEVICE_INDEX_36,
+        DEVICE_INDEX_37,
+        DEVICE_MAX,
+};
+/* Tab A8 code for AX6300DEV-3890 by maoruiqian at 2021229 end */
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 1)
 #define AW_KERNEL_VER_OVER_4_19_1
 #endif
 
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+#define AW_KERNEL_VER_OVER_5_4_0
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+#endif
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 #ifdef AW_KERNEL_VER_OVER_4_19_1
 typedef struct snd_soc_component aw_snd_soc_codec_t;
@@ -94,6 +119,17 @@ enum {
 	AW_BSTCFG_DISABLE = 0,
 	AW_BSTCFG_ENABLE,
 };
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+enum {
+        AW_FRCSET_DISABLE = 0,
+        AW_FRCSET_ENABLE,
+};
+
+enum {
+        AW_BOP_DISABLE = 0,
+        AW_BOP_ENABLE,
+};
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 enum {
 	AWRW_HDR_WR_FLAG = 0,

@@ -91,6 +91,7 @@ struct gsp_core {
 	char name[32];
 	int id;
 	int kcfg_num;
+	bool secure_init;
 
 	struct gsp_capability *capa;
 
@@ -176,6 +177,10 @@ struct gsp_core_ops {
 	int __user *(*intercept)(void __user *arg, int index);
 	void (*dump)(struct gsp_core *core);
 	void (*reset)(struct gsp_core *core);
+	/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 start*/
+	int (*resume)(struct gsp_core *core);
+	int (*suspend)(struct gsp_core *core);
+	/*Tab A8_T code for P230607-04686 by piaocanxi at 2023/06/23 end*/
 };
 
 #define CORE_MAX_KCFG_NUM(core) \

@@ -23,9 +23,10 @@
                     sprd,dsi-lane-number = <3>;
                     sprd,dsi-color-format = "rgb888";
 
-                    sprd,phy-bit-clock = <900000>; /* kbps */
+                    sprd,phy-bit-clock = <914000>; /* kbps */
                     //sprd,phy-escape-clock = <20000>;/* kHz */
                     //sprd,dpi-clk-div = <1>;
+                    sprd,power-vsp-out = <1>;
                     sprd,power-gpio-delay = <20>;/* ms */
                     sprd,power-vsp-on-delay = <1>;
                     sprd,power-vsn-on-delay = <12>;
@@ -38,9 +39,12 @@
                     sprd,esd-check-enable = <1>;
                     sprd,esd-check-mode = <1>;
                     sprd,esd-check-period = <2000>;
-
+                    /* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 start */
+                    sprd,dphy-taget-val = <5>; /*only nl9911c modify TA-GET value*/
+                    /* hs03 code for SL6215DEV-3924 by wenghailong at 2021/12/29 end */
                     sprd,reset-on-sequence = <1 5>, <0 5>, <1 15>;
                     sprd,reset-off-sequence = <1 5>;
+                    sprd,deep-sleep-in = <1>;
 
                     sprd,use-dcs-write;
                     sprd,initial-command = [
@@ -57,18 +61,18 @@
                         //BB Power on sequence
                         39 00 00 0E BB 01 05 09 11 0D 19 1D 55 25 69 00 21 25
                         39 00 00 0F BC 00 00 00 00 02 20 FF 00 03 33 01 73 33 00
-                        39 00 00 0B BD E9 02 4F CF 72 A4 08 44 AE 15
-                        39 00 00 0B BE 82 82 32 5A 0C 77 43 07 0E 0E
+                        39 00 00 0B BD E9 02 4E CF 72 A4 08 44 AE 15
+                        39 00 00 0B BE 68 7C 32 5A 0C 77 43 07 0E 0E
                         39 00 00 09 BF 07 25 07 25 7F 00 11 04
                         39 00 00 0A C0 10 FF FF FF FF FF 00 FF 00
-                        39 00 00 14 C1 C0 0C 20 96 04 30 30 04 2A 40 36 00 07 CF FF FF C0 00 C0
+                        39 00 00 14 C1 C0 20 20 96 04 54 54 04 2A 40 36 00 07 C0 10 FF 95 01 C0
                         39 00 00 07 C2 CC 01 10 00 01 30
                         39 00 00 0A C3 06 00 FF 00 FF 00 00 81 01
                         39 00 00 0B C4 84 01 2B 41 00 3C 00 03 03 2E
                         39 00 00 0C C5 03 1C C0 A0 80 10 42 44 08 0D 14
                         39 00 00 0B C6 87 A2 24 22 22 31 7F 04 08 00
-                        39 00 00 17 C7 CA AD 97 84 62 46 1A 6F 38 0A DD A8 FD CF B0 84 6B 45 1A 7F E0 00
-                        39 00 00 17 C8 CA AD 97 84 62 46 1A 6F 38 0A DD A8 FD CF B0 84 6B 45 1A 7F E0 00
+                        39 00 00 17 C7 CA AF 9B 89 68 4D 22 77 40 12 E4 AF 03 D3 B5 88 6E 48 1A 7F E4 00
+                        39 00 00 17 C8 CA AF 9B 89 68 4D 22 77 40 12 E4 AF 03 D3 B5 88 6E 48 1A 7F E4 00
                         39 00 00 02 CB 00
                         39 00 00 06 D0 80 0D FF 0F 61
                         39 00 00 02 D2 42
@@ -76,6 +80,8 @@
                         39 00 00 05 FE FF FF FF 40
                         39 00 00 1B E0 30 00 00 08 11 3F 22 62 DF A0 04 CC 01 FF F6 FF F0 FD FF FD F8 F5 FC FC FD FF
                         39 00 00 18 E1 EF FE FE FE FE EE F0 20 33 FF 00 00 6A 90 C0 0D 6A F0 3E FF 00 06 40
+                        39 00 00 02 F6 3F
+                        39 00 00 04 FA 45 93 01
                         39 00 00 03 F1 5A 59
                         39 00 00 03 F0 A5 A6
                         39 00 00 02 35 00
@@ -98,7 +104,17 @@
                     sprd,sleep-out-command = [
                         39 78 00 01 11
                         39 32 00 01 29
+                        39 00 00 02 26 01
                         ];
+
+                    sprd,deep-sleep-in-command = [
+                        39 00 00 03 F0 5A 59
+                        39 00 00 03 F1 A5 A6
+                        39 01 00 02 26 08
+                        39 14 00 01 28
+                        39 6E 00 01 10
+                        39 00 00 02 CC 01
+                    ];
 
                     display-timings {
                         native-mode = <&nl9911c_genrpro_timing0>;
@@ -107,9 +123,9 @@
                             clock-frequency = <96000000>;
                             hactive = <720>;
                             vactive = <1600>;
-                            hback-porch = <48>;
-                            hfront-porch = <48>;
-                            vback-porch = <12>;
+                            hback-porch = <84>;
+                            hfront-porch = <84>;
+                            vback-porch = <32>;
                             vfront-porch = <150>;
                             hsync-len = <4>;
                             vsync-len = <4>;

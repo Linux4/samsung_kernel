@@ -104,11 +104,17 @@ obj-$(CONFIG_CHARGER_BQ2560X)	+= bq2560x-charger.o
 # HS03 code for SR-SL6215-01-178 by gaochao at 20210724 start
 obj-$(CONFIG_CHARGER_SGM41511)	+= sgm41511-charger.o
 # HS03 code for SR-SL6215-01-178 by gaochao at 20210724 end
+# HS03 code for SL6215DEV-4004 by lina at 20220119 start
+obj-$(CONFIG_CHARGER_SGM41513)	+= sgm41513-charger.o
+# HS03 code for SL6215DEV-4004 by lina at 20220119 end
 obj-$(CONFIG_CHARGER_BQ25890)	+= bq25890_charger.o
 # Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 start
 obj-$(CONFIG_CHARGER_SGM4154X)	+= sgm4154x_charger.o
 obj-$(CONFIG_CHARGER_SY6970)	+= sy6970_charger.o
 # Tab A8 code for AX6300DEV-11 by wenyaqi at 20210730 end
+# Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 start
+obj-$(CONFIG_CHARGER_SC89890H) += sc89890h_charger.o
+# Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 end
 obj-$(CONFIG_CHARGER_BQ2597X)	+= bq2597x-charger.o
 obj-$(CONFIG_CHARGER_SC2720)	+= sc2720_charger.o
 obj-$(CONFIG_CHARGER_SC2721)	+= sc2721_charger.o

@@ -11,6 +11,9 @@ struct jadard_common_variable g_common_variable;
 extern char *jd_i_CTPM_firmware_name;
 #if defined(JD_ZERO_FLASH)
 bool jd_g_f_0f_update = false;
+/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 start */
+bool jadard_fw_ready = false;
+/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 end */
 #endif
 #endif
 
@@ -100,7 +103,8 @@ static void jadard_mcu_log_touch_state(void)
 	jadard_log_touch_state();
 }
 
-#if defined(JD_SMART_WAKEUP) || defined(JD_USB_DETECT_GLOBAL)|| defined(JD_HIGH_SENSITIVITY)
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+#if defined(JD_SMART_WAKEUP) || defined(JD_USB_DETECT_GLOBAL)|| defined(JD_HIGH_SENSITIVITY) || defined(JD_EARPHONE_DETECT)
 static void jadard_mcu_resume_set_func(bool suspended)
 {
 #ifdef JD_SMART_WAKEUP
@@ -112,8 +116,12 @@ static void jadard_mcu_resume_set_func(bool suspended)
 #ifdef JD_HIGH_SENSITIVITY
 	g_module_fp.fp_set_high_sensitivity(pjadard_ts_data->high_sensitivity_enable);
 #endif
+#ifdef JD_EARPHONE_DETECT
+	g_module_fp.fp_set_earphone_enable(pjadard_ts_data->earphone_enable);
+#endif
 }
 #endif
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 
 /*HS03 code for SL6215DEV-2059 by chenyihong at 20210929 start*/
 #ifdef JD_ZERO_FLASH
@@ -142,6 +150,11 @@ int jadard_mcu_0f_upgrade_fw(const char *file_name)
 		err = g_module_fp.fp_ram_write(0, (uint8_t *)fw->data, fw->size);
 		release_firmware(fw);
 		jd_g_f_0f_update = false;
+		/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 start */
+		if (err >= 0) {
+			jadard_fw_ready = true;
+		}
+		/* HS03 code for SL6215DEV-4194 by duanyaoming at 20220411 end */
 	}
 
 	return err;
@@ -176,7 +189,9 @@ static void jadard_mcu_fp_init(void)
 	g_module_fp.fp_distribute_touch_data = jadard_mcu_distribute_touch_data;
 	g_module_fp.fp_get_freq_band         = NULL;
 	g_module_fp.fp_log_touch_state       = jadard_mcu_log_touch_state;
-#if defined(JD_SMART_WAKEUP) || defined(JD_USB_DETECT_GLOBAL)|| defined(JD_HIGH_SENSITIVITY)
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+#if defined(JD_SMART_WAKEUP) || defined(JD_USB_DETECT_GLOBAL)|| defined(JD_HIGH_SENSITIVITY) || defined(JD_EARPHONE_DETECT)
+/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 	g_module_fp.fp_resume_set_func       = jadard_mcu_resume_set_func;
 #endif
 #ifdef JD_ZERO_FLASH

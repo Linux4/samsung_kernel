@@ -75,6 +75,14 @@
 #define HEADSET_PLUGIN_STATE        1
 /* HS03 code for P211026-03673 by ditong at 20211105 end */
 
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 start */
+#ifdef CONFIG_TARGET_UMS512_25C10
+	#define TRY_WAITING_4POLE_TIMES 10
+#else
+	#define TRY_WAITING_4POLE_TIMES 5
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 end */
+
 #define CHIP_ID_2720 0x2720
 #define CHIP_ID_2730 0x2730
 
@@ -599,12 +607,15 @@ static void sprd_hmicbias_hw_control_enable(bool enable,
 	struct sprd_headset_platform_data *pdata)
 {
 	/* disable PLGPD, it pull down headmicbias when support typec */
-	/* Tab A8 code for AX6300DEV-1843 by guoweihai at 20211022 start */
+	/* HS03 code for AX6300DEV-1843|SL6215DEV-3754 by LiangWenye at 20211126 start */
 	if (enable && !pdata->support_typec_hdst) {
-		//headset_reg_set_bits(ANA_HDT1, HEDET_PLGPD_EN);
+#ifdef CONFIG_TARGET_UMS9230_4H10
+		headset_reg_set_bits(ANA_HDT1, HEDET_PLGPD_EN);
+#else
 		headset_reg_clr_bits(ANA_HDT1, HEDET_PLGPD_EN);
+#endif
 	}
-	/* Tab A8 code for AX6300DEV-1843 by guoweihai at 20211022 end */
+	/* HS03 code for AX6300DEV-1843|SL6215DEV-3754 by LiangWenye at 20211126 end */
 	else
 		headset_reg_clr_bits(ANA_HDT1, HEDET_PLGPD_EN);
 }
@@ -869,12 +880,12 @@ static void sprd_headset_eic_init(void)
 	headset_reg_set_bits(ANA_HDT0, HEDET_GDET_EN);
 
 	headset_reg_set_bits(ANA_HDT2, HEDET_MDET_EN);
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	headset_reg_write(ANA_HDT2, HEDET_MDET_REF_SEL(0x4),
 		HEDET_MDET_REF_SEL(0x7));
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 	headset_reg_set_bits(ANA_PMU2, BIT(12));/* BIAS_RSV1 */
 
 	/* EIC_DBNC_DATA register can be read if EIC_DBNC_DMSK set 1 */
@@ -1325,8 +1336,14 @@ static enum sprd_headset_type sprd_headset_type_plugged(void)
 		(adc_left_average >= 4095 || adc_value_err) ? "outrange!" : "",
 		adc_left_ideal * 1250 / 4095);
 
-	/* after audio_on, adc_left_ideal is fluctuant and unfaithful */
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 start */
+/* after audio_on, adc_left_ideal is fluctuant and unfaithful */
+#ifdef CONFIG_TARGET_UMS512_25C10
+	if (hdst->mdet_tried && hdst->audio_on && hdst->hdst_type_status & SND_JACK_HEADPHONE) {
+#else
 	if (hdst->audio_on && hdst->hdst_type_status & SND_JACK_HEADPHONE) {
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 end */
 		pr_info("%s when audio_on and 3pole was reported, report 3pole instead\n",
 			__func__);
 		sprd_headset_ldetl_ref_sel(LDETL_REF_SEL_100mV);
@@ -1383,7 +1400,9 @@ static enum sprd_headset_type sprd_headset_type_plugged(void)
 			 * 4 pole normal for selfie stick which is not
 			 * totally inserted or it is 4 pole floating.
 			 */
-			headset_type = sprd_detect_type_through_mdet(hdst);
+			/* Tab A8 code for P211120-01042 by dongtianbao at 20211126 start */
+			headset_type = HEADSET_4POLE_NORMAL;
+			/* Tab A8 code for P211120-01042 by dongtianbao at 20211126 end */
 			sprd_headset_ldetl_ref_sel(LDETL_REF_SEL_100mV);
 			return headset_type;
 		} else if (val == 0 &&
@@ -1531,7 +1550,7 @@ static void sprd_headset_button_release_verify(void)
 	struct sprd_headset *hdst = sprd_hdst;
 
 	if (hdst->btn_state_last == 1) {
-		/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+		/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 		if (!hdst->button_ignore) {
 			sprd_headset_jack_report(hdst, &hdst->btn_jack,
@@ -1544,7 +1563,7 @@ static void sprd_headset_button_release_verify(void)
 		sprd_headset_jack_report(hdst, &hdst->btn_jack,
 			0, hdst->btns_pressed);
 #endif
-		/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+		/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 
 		hdst->btn_state_last = 0;
 		pr_info("%s headset button released by force! current button: %#x\n",
@@ -1566,11 +1585,11 @@ static void sprd_headset_removed_verify(struct sprd_headset *hdst)
 			0, SPRD_HEADSET_JACK_MASK);
 	}
 	hdst->btn_detecting = false;
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	hdst->disable_button = false;
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 }
 
 static void sprd_headset_sw_reset(struct sprd_headset *hdst)
@@ -1588,13 +1607,13 @@ static void sprd_headset_sw_reset(struct sprd_headset *hdst)
 	/* Tab A8 code for AX6300DEV-1843 by guoweihai at 20211022 start */
 	hdst->time_after_hmicbias_on = 0;
 	/* Tab A8 code for AX6300DEV-1843 by guoweihai at 20211022 end */
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	hdst->disable_button = false;
 	pr_info("%s reset button_ignore %d\n", __func__, hdst->button_ignore);
 	hdst->button_ignore = 0;
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 }
 
 static void sprd_headset_disable_power(struct sprd_headset *hdst)
@@ -1734,11 +1753,11 @@ static void sprd_headset_button_press(struct sprd_headset *hdst)
 {
 	struct sprd_headset_platform_data *pdata;
 	int adc_mic_average = 0;
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	bool insert_status = true;
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 
 	if (!hdst)
 		return;
@@ -1749,7 +1768,7 @@ static void sprd_headset_button_press(struct sprd_headset *hdst)
 		hdst->btns_pressed |= sprd_adc_to_button(adc_mic_average);
 	}
 
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	insert_status =
 		sprd_headset_part_is_inserted(HDST_INSERT_ALL);
@@ -1767,7 +1786,7 @@ static void sprd_headset_button_press(struct sprd_headset *hdst)
 		sprd_headset_jack_report(hdst, &hdst->btn_jack,
 			hdst->btns_pressed, hdst->btns_pressed);
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 
 		hdst->btn_state_last = 1;
 		pr_info("Reporting headset button press. button: 0x%x\n",
@@ -1781,7 +1800,7 @@ static void sprd_headset_button_press(struct sprd_headset *hdst)
 static void sprd_headset_button_release(struct sprd_headset *hdst)
 {
 	if (hdst->btn_state_last == 1) {
-		/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+		/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 		if (!hdst->disable_button) {
 			sprd_headset_jack_report(hdst, &hdst->btn_jack,
@@ -1794,7 +1813,7 @@ static void sprd_headset_button_release(struct sprd_headset *hdst)
 		sprd_headset_jack_report(hdst, &hdst->btn_jack,
 			0, hdst->btns_pressed);
 #endif
-		/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+		/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 		hdst->btn_state_last = 0;
 		pr_info("Reporting headset button release. button: %#x\n",
 			hdst->btns_pressed);
@@ -1806,7 +1825,7 @@ static void sprd_headset_button_release(struct sprd_headset *hdst)
 	hdst->btns_pressed &= ~SPRD_BUTTON_JACK_MASK;
 }
 
-/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 static void headset_det_disbutton_work_func(struct work_struct *work)
 {
@@ -1820,13 +1839,13 @@ disbutton_retry:
         hdst->disable_button = true;
 }
 #endif
-/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
 
 static void headset_button_work_func(struct work_struct *work)
 {
 	struct sprd_headset *hdst = sprd_hdst;
 	struct sprd_headset_platform_data *pdata = (hdst ? &hdst->pdata : NULL);
 	int btn_irq_trig_level;
+	int insert_status;
 	struct iio_channel *chan;
 
 	if (!hdst || !pdata) {
@@ -1835,11 +1854,26 @@ static void headset_button_work_func(struct work_struct *work)
 		return;
 	}
 
-	if (hdst->plug_state_last == 0) {
-		pr_err("button work, no headset insert!\n");
+	/* HS03 code for SL6215DEV-3643 by LiangWenye at 20211127 start */
+	insert_status =
+		sprd_headset_part_is_inserted(HDST_INSERT_ALL);
+	if ((hdst->plug_state_last == 0) || (!insert_status)) {
+		pr_err("button work, no headset insert! %d-%d \n",
+			hdst->plug_state_last, insert_status);
 		sprd_headset_button_release_verify();
+		if (hdst->plug_state_last == 1) {
+			bool ret;
+			__pm_wakeup_event(&hdst->hdst_detect_wakelock,
+				msecs_to_jiffies(500));
+			ret = cancel_delayed_work(&hdst->det_all_work);
+			queue_delayed_work(hdst->det_all_work_q,
+				&hdst->det_all_work, msecs_to_jiffies(0));
+			pr_info("%s insert_all irq active, exit, ret %d\n",
+				__func__, ret);
+		}
 		return;
 	}
+	/* HS03 code for SL6215DEV-3643 by LiangWenye at 20211127 end */
 
 	if (hdst->time_after_4pole_report > 0 &&
 		time_before(jiffies, hdst->time_after_4pole_report)) {
@@ -1885,7 +1919,7 @@ static void headset_button_work_func(struct work_struct *work)
 	/* wake_unlock(&hdst->btn_wakelock); */
 	up(&hdst->sem);
 }
-
+/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 static void sprd_process_4pole_type(struct sprd_headset *hdst,
 	enum sprd_headset_type headset_type)
 {
@@ -1899,8 +1933,12 @@ static void sprd_process_4pole_type(struct sprd_headset *hdst,
 	if (hdst->hdst_type_status == SND_JACK_HEADPHONE) {
 		pr_err("%s report for 4p re_detect\n", __func__);
 		hdst->hdst_type_status = SND_JACK_HEADSET;
+/* Tab A7 Lite T618 code for AX6189DEV-1181 by hujincan at 20220128 start */
+#ifndef CONFIG_TARGET_UMS512_25C10
 		sprd_headset_jack_report(hdst, &hdst->hdst_jack,
 			0, SPRD_HEADSET_JACK_MASK);
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-1181 by hujincan at 20220128 start */
 
 		sprd_headset_jack_report(hdst, &hdst->hdst_jack,
 			hdst->hdst_type_status, SND_JACK_HEADSET);
@@ -1918,13 +1956,13 @@ static void sprd_process_4pole_type(struct sprd_headset *hdst,
 	sprd_set_eic_trig_level(HDST_BDET_EIC, true);
 	sprd_headset_eic_enable(HDST_BDET_EIC, true);
 	sprd_headset_eic_trig(HDST_BDET_EIC);
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	hdst->stop_button_work = false;
 	queue_delayed_work(hdst->det_disbutton_work_q, &hdst->det_disbutton_work,
 			msecs_to_jiffies(0));
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 }
 
 static enum headset_retrun_val
@@ -2114,7 +2152,8 @@ static void sprd_headset_type_report(struct sprd_headset *hdst)
 			gpio_direction_output(pdata->eu_us_switch, 1);
 		/* Repeated detection 5 times when 3P is detected */
 	case HEADSET_NO_MIC:
-		if (hdst->det_3pole_cnt < 5 && !hdst->mdet_tried) {
+		/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 start */
+		if (hdst->det_3pole_cnt < TRY_WAITING_4POLE_TIMES && !hdst->mdet_tried) {
 			pr_err("type_report det_3pole_cnt %d\n",
 				hdst->det_3pole_cnt);
 			hdst->det_3pole_cnt++;
@@ -2123,6 +2162,7 @@ static void sprd_headset_type_report(struct sprd_headset *hdst)
 				&hdst->det_all_work,
 				msecs_to_jiffies(1000));
 		}
+		/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 end */
 
 		if (pdata->eu_us_switch != 0)
 			gpio_direction_output(pdata->eu_us_switch, 0);
@@ -2222,11 +2262,11 @@ static void sprd_headset_insert_all_plugout(struct sprd_headset *hdst)
 	hdst->det_err_cnt = 0;
 	hdst->det_3pole_cnt = 0;
 	hdst->mdet_tried = false;
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	hdst->stop_button_work = true;
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 
 	/*
 	 * Close the fm in advance because of the noise when playing fm
@@ -2257,13 +2297,13 @@ static void sprd_headset_detect_plugout(struct sprd_headset *hdst)
 	/* Tab A8 code for AX6300DEV-1843 by guoweihai at 20211022 start */
 	hdst->time_after_hmicbias_on = 0;
 	/* Tab A8 code for AX6300DEV-1843 by guoweihai at 20211022 end */
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	hdst->disable_button = false;
 	pr_err("%s button_ignore %d\n", __func__, hdst->button_ignore);
 	hdst->button_ignore = 0;
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 }
 
 static void headset_detect_all_work_func(struct work_struct *work)
@@ -2291,6 +2331,7 @@ static void headset_detect_all_work_func(struct work_struct *work)
 			ret = sprd_headset_valid_insert_all(hdst, 20);
 		}
 		/*HS03 code for SL6215DEV-3519|SL6215DEV-576 by yuyongxiang at 20211108 end*/
+
 		if (ret) {
 			pr_err("%s insert all invalid %d\n", __func__, ret);
 			sprd_headset_reset(hdst);
@@ -2331,6 +2372,9 @@ static void headset_detect_all_work_func(struct work_struct *work)
 			plug_state_current = 0;
 		} else {
 			sprd_headset_reset(hdst);
+			/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 start */
+			headset_notifier_call_chain(HEADSET_PLUGOUT_STATE, NULL);
+			/* HS03 code for SL6215DEV-3658 by chenyihong at 20211117 end */
 			goto out;
 		}
 	}
@@ -2383,6 +2427,17 @@ out:
 
 	pr_info("%s type_detecting %d out\n", __func__, hdst->type_detecting);
 	up(&hdst->sem);
+
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 start */
+#ifdef CONFIG_TARGET_UMS512_25C10
+	if (hdst->re_detect && (hdst->headphone == HEADSET_NO_MIC || hdst->headphone == HEADSET_TYPE_ERR)) {
+		pr_info("%s hdst_plug_wakelock keep awake\n", __func__);
+	} else {
+		__pm_relax(&hdst->hdst_plug_wakelock);
+		pr_info("%s hdst_plug_wakelock release awake\n", __func__);
+	}
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 end */
 }
 
 static void headset_ldetl_work_func(struct work_struct *work)
@@ -2541,6 +2596,7 @@ static void sprd_dump_reg_work(struct work_struct *work)
 			&hdst->reg_dump_work, msecs_to_jiffies(500));
 }
 
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 start */
 static irqreturn_t sprd_headset_top_eic_handler(int irq, void *dev)
 {
 	struct sprd_headset *hdst = dev;
@@ -2593,8 +2649,10 @@ static irqreturn_t sprd_headset_top_eic_handler(int irq, void *dev)
 			return IRQ_HANDLED;
 		}
 
+#ifndef CONFIG_TARGET_UMS512_25C10
 		__pm_wakeup_event(&hdst->hdst_detect_wakelock,
 				  msecs_to_jiffies(2000));
+#endif
 
 		if (eic_mis & BIT(HDST_INSERT_ALL_EIC)) {/* insert_all */
 			eic_type = sprd_insert_all_plug_inout_check();
@@ -2603,6 +2661,10 @@ static irqreturn_t sprd_headset_top_eic_handler(int irq, void *dev)
 				complete(&hdst->wait_insert_all);
 			}
 
+#ifdef CONFIG_TARGET_UMS512_25C10
+			__pm_stay_awake(&hdst->hdst_plug_wakelock);
+			pr_info("%s hdst_plug_wakelock set awake\n", __func__);
+#endif
 			ret = cancel_delayed_work(&hdst->det_all_work);
 			queue_delayed_work(hdst->det_all_work_q,
 				&hdst->det_all_work, msecs_to_jiffies(0));
@@ -2610,6 +2672,10 @@ static irqreturn_t sprd_headset_top_eic_handler(int irq, void *dev)
 				__func__, ret);
 		}
 		if (eic_mis & BIT(HDST_MDET_EIC)) {/* mdet */
+#ifdef CONFIG_TARGET_UMS512_25C10
+			__pm_wakeup_event(&hdst->hdst_detect_wakelock,
+				msecs_to_jiffies(2000));
+#endif
 			ret = cancel_delayed_work(&hdst->det_mic_work);
 			queue_delayed_work(hdst->det_mic_work_q,
 				&hdst->det_mic_work, msecs_to_jiffies(5));
@@ -2624,6 +2690,10 @@ static irqreturn_t sprd_headset_top_eic_handler(int irq, void *dev)
 			if (sprd_headset_ldetl_inout_check() & LDETL_PLUGOUT)
 				complete(&hdst->wait_ldetl);
 
+#ifdef CONFIG_TARGET_UMS512_25C10
+			__pm_wakeup_event(&hdst->hdst_detect_wakelock,
+				msecs_to_jiffies(2000));
+#endif
 			ret = cancel_delayed_work(&hdst->ldetl_work);
 			queue_delayed_work(hdst->ldetl_work_q,
 				&hdst->ldetl_work, msecs_to_jiffies(0));
@@ -2631,6 +2701,10 @@ static irqreturn_t sprd_headset_top_eic_handler(int irq, void *dev)
 				__func__, hdst->plug_state_last);
 		}
 		if (eic_mis & BIT(HDST_BDET_EIC)) {/* bdet */
+#ifdef CONFIG_TARGET_UMS512_25C10
+			__pm_wakeup_event(&hdst->hdst_detect_wakelock,
+				msecs_to_jiffies(2000));
+#endif
 			ret = cancel_delayed_work(&hdst->btn_work);
 			queue_delayed_work(hdst->btn_work_q,
 				&hdst->btn_work, msecs_to_jiffies(0));
@@ -3059,7 +3133,7 @@ int sprd_headset_soc_probe(struct snd_soc_codec *codec)
 	hdst->det_err_cnt = 0;
 	hdst->hdst_hw_status = HW_LDETL_PLUG_OUT;
 	hdst->lineout_status = false;
-	/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 	hdst->disable_button = false;
 	hdst->button_ignore = 0;
@@ -3071,7 +3145,7 @@ int sprd_headset_soc_probe(struct snd_soc_codec *codec)
 		goto failed_to_headset_det_disbutton;
 	}
 #endif
-	/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+	/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 
 	INIT_DELAYED_WORK(&hdst->det_all_work, headset_detect_all_work_func);
 	hdst->det_all_work_q =
@@ -3100,6 +3174,12 @@ int sprd_headset_soc_probe(struct snd_soc_codec *codec)
 		queue_delayed_work(hdst->reg_dump_work_q,
 			&hdst->reg_dump_work, msecs_to_jiffies(500));
 
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 start */
+#ifdef CONFIG_TARGET_UMS512_25C10
+	wakeup_source_init(&hdst->hdst_plug_wakelock,
+		"headset_plug_wakelock");
+#endif
+/* Tab A7 Lite T618 code for AX6189DEV-1065 by hujincan at 20220127 end */
 	wakeup_source_init(&hdst->hdst_detect_wakelock,
 		"headset_detect_wakelock");
 
@@ -3179,12 +3259,12 @@ failed_to_headset_ldetl:
 	destroy_workqueue(hdst->ldetl_work_q);
 failed_to_headset_detect_all:
 	destroy_workqueue(hdst->det_all_work_q);
-/*HS03 code for P211025-07241 by gaopan at 20211104 start*/
+/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 failed_to_headset_det_disbutton:
 	destroy_workqueue(hdst->det_disbutton_work_q);
 #endif
-/*HS03 code for P211025-07241 by gaopan at 20211104 end*/
+/*Tab A8 code for P211025-07241|P211108-05317 by dongtianbao at 20211110 end*/
 failed_to_headset_button:
 	destroy_workqueue(hdst->btn_work_q);
 failed_to_headset_mic:

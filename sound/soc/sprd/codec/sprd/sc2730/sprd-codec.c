@@ -879,10 +879,10 @@ static int dacs_switch_event(struct snd_soc_dapm_widget *w,
 {
 	int ret = 0;
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
-
-	sp_asoc_pr_dbg("%s Event is %s\n", __func__,
+	/*HS03 code for P211007-01246 by gaopan at 20211116 start*/
+	sp_asoc_pr_info("%s enter, Event is %s\n", __func__,
 		get_event_name(event));
-	sp_asoc_pr_info("%s enter %s\n",__func__, get_event_name(event));
+	/*HS03 code for P211007-01246 by gaopan at 20211116 end*/
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		snd_soc_update_bits(codec, SOC_REG(ANA_CDC17),
@@ -896,7 +896,13 @@ static int dacs_switch_event(struct snd_soc_dapm_widget *w,
 		usleep_range(10, 15);
 		snd_soc_update_bits(codec, SOC_REG(ANA_CDC17),
 			PA_RSV(0xFFFF), PA_RSV(8));
+		/*HS03 code for P211007-01246 by gaopan at 20211116 start*/
+#ifdef CONFIG_TARGET_UMS9230_4H10
 		mdelay(10);
+#else
+		sprd_codec_wait(20);
+#endif
+		/*HS03 code for P211007-01246 by gaopan at 20211116 end*/
 		snd_soc_update_bits(codec, SOC_REG(ANA_CDC19),
 			PA_DPOP_RC_L(0xFFFF), PA_DPOP_RC_L(0));
 		usleep_range(100, 110);
@@ -922,7 +928,9 @@ static int dacs_switch_event(struct snd_soc_dapm_widget *w,
 	default:
 		break;
 	}
-	sp_asoc_pr_info("%s exit\n",__func__);
+	/*HS03 code for P211007-01246 by gaopan at 20211116 start*/
+	sp_asoc_pr_info("%s exit\n", __func__);
+	/*HS03 code for P211007-01246 by gaopan at 20211116 end*/
 	return ret;
 }
 
@@ -1150,7 +1158,9 @@ static int spk_pa_event(struct snd_soc_dapm_widget *w,
 	struct inter_pa setting;
 	u32 state;
 	int i = 0;
-	sp_asoc_pr_info("%s enter %s\n",__func__, get_event_name(event));
+	/*HS03 code for P211007-01246 by gaopan at 20211116 start*/
+	sp_asoc_pr_info("%s Event is %s\n", __func__, get_event_name(event));
+
 	setting = sprd_codec->inter_pa.setting;
 	if (on) {
 		snd_soc_update_bits(codec, SOC_REG(ANA_CDC19),
@@ -1163,22 +1173,37 @@ static int spk_pa_event(struct snd_soc_dapm_widget *w,
 		sprd_codec_pa_en(codec, 1);
 
 		/* wait time is about 60 ~ 195 */
+#ifdef CONFIG_TARGET_UMS9230_4H10
 		mdelay(53);
 		while (i++ < 135) {
 			state = snd_soc_read(codec, SOC_REG(ANA_STS11)) &
 					     PA_AB_DPOP_DVLD;
-			if (state)
+			if (state) {
 				break;
+			}
+
 			udelay(40);
 		}
+		sp_asoc_pr_info("%s wait time 53ms + %d * 40us \n", __func__, i);
+#else
+		while (i++ < 135) {
+			state = snd_soc_read(codec, SOC_REG(ANA_STS11)) &
+					     PA_AB_DPOP_DVLD;
+			if (state) {
+				break;
+			}
+
+			sprd_codec_wait(1);
+		}
 		sp_asoc_pr_info("%s wait time %d\n", __func__, 60 + i);
+#endif
 	} else {
 		sprd_codec_pa_d_en(codec, 0, 0);
 		sprd_codec_pa_en(codec, 0);
 		/* PA close need take some time, 2ms is advice from ASIC */
 		sprd_codec_wait(2);
 	}
-	sp_asoc_pr_info("%s exit\n",__func__);
+	/*HS03 code for P211007-01246 by gaopan at 20211116 end*/
 	return 0;
 }
 

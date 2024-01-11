@@ -305,6 +305,9 @@ static const char * const sc27xx_charger_supply_name[] = {
 	/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 start */
 	"rt9471_charger",
 	/* HS03 code for SR-SL6215-01-177 by jiahao at 20210810 end */
+	/* HS03 code for SL6215DEV-4004 by lina at 20220119 start */
+	"sgm41513_charger",
+	/* HS03 code for SL6215DEV-4004 by lina at 20220119 end */
 	#endif
 	/* HS03 code for SR-SL6215-01-178 by gaochao at 20210724 end */
 	"bq25890_charger",
@@ -312,6 +315,9 @@ static const char * const sc27xx_charger_supply_name[] = {
 	#ifndef CONFIG_CHARGER_BQ2560X
 	"sgm4154x_charger",
 	"sy6970_charger",
+	/* Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 start */
+	"sc89890h_charger",
+	/* Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 end */
 	#endif
 	/* Tab A8 code for AX6300DEV-11 by wenyaqi at 20210731 end */
 	"bq25910_charger",
@@ -322,6 +328,7 @@ static const char * const sc27xx_charger_supply_name[] = {
 	"eta6937_charger",
 	"sc2723_charger",
 	"aw32257",
+	"rt9471_charger",
 };
 
 static int sc27xx_fgu_adc_to_current(struct sc27xx_fgu_data *data, int adc)
@@ -2134,10 +2141,6 @@ static void sc27xx_fgu_monitor(struct work_struct *work)
 
 static void sc27xx_fgu_track_capacity_init(struct sc27xx_fgu_data *data)
 {
-	INIT_DELAYED_WORK(&data->track.track_capacity_work,
-			  sc27xx_fgu_track_capacity_work);
-	INIT_DELAYED_WORK(&data->track.fgu_update_work, sc27xx_fgu_monitor);
-	INIT_DELAYED_WORK(&data->track.track_check_work, sc27xx_fgu_track_check_work);
 
 	if (!data->track.end_vol || !data->track.end_cur)
 		return;
@@ -2636,6 +2639,11 @@ static int sc27xx_fgu_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to register notifier:%d\n", ret);
 			goto err;
 		}
+
+		INIT_DELAYED_WORK(&data->track.track_capacity_work,
+			sc27xx_fgu_track_capacity_work);
+		INIT_DELAYED_WORK(&data->track.fgu_update_work, sc27xx_fgu_monitor);
+		INIT_DELAYED_WORK(&data->track.track_check_work, sc27xx_fgu_track_check_work);
 		sc27xx_fgu_track_capacity_init(data);
 	}
 

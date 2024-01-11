@@ -1,0 +1,15 @@
+/* HS03 code for SL6215SDEV-358 by lina at 20220509 start */
+/ {
+	thm_zone: thermal-zones {
+		soc_thmzone: soc-thmzone{
+			trips {
+				soc_crit: soc_crit {
+					temperature = <120000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+	};
+};
+/* HS03 code for SL6215SDEV-358 by lina at 20220509 end */

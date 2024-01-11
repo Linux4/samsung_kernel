@@ -7,7 +7,9 @@
 #include "cts_config.h"
 #include "cts_platform.h"
 #include "cts_core.h"
+#ifdef CONFIG_CTS_SYSFS
 #include "cts_sysfs.h"
+#endif /* CONFIG_CTS_SYSFS */
 #include "cts_charger_detect.h"
 #include "cts_earjack_detect.h"
 #include <linux/power_supply.h>
@@ -334,10 +336,12 @@ static int cts_driver_probe(struct spi_device *client)
         cts_warn("Init tool node failed %d", ret);
     }
 
+#ifdef CONFIG_CTS_SYSFS
     ret = cts_sysfs_add_device(&client->dev);
     if (ret < 0) {
         cts_warn("Add sysfs entry for device failed %d", ret);
     }
+#endif /* CONFIG_CTS_SYSFS */
 
     ret = cts_init_pm_fb_notifier(cts_data);
     if (ret) {
@@ -430,7 +434,9 @@ err_register_fb:
     cts_deinit_pm_fb_notifier(cts_data);
 err_deinit_sysfs:
 #endif /* CONFIG_CTS_PM_FB_NOTIFIER */
+#ifdef CONFIG_CTS_SYSFS
     cts_sysfs_remove_device(&client->dev);
+#endif /* CONFIG_CTS_SYSFS */
 #ifdef CONFIG_CTS_LEGACY_TOOL
     cts_tool_deinit(cts_data);
 #endif /* CONFIG_CTS_LEGACY_TOOL */
@@ -504,7 +510,9 @@ static int cts_driver_remove(struct spi_device *client)
 
         cts_tool_deinit(cts_data);
 
+#ifdef CONFIG_CTS_SYSFS
         cts_sysfs_remove_device(&client->dev);
+#endif /* CONFIG_CTS_SYSFS */
 
         cts_deinit_esd_protection(cts_data);
 
@@ -834,21 +842,25 @@ static struct spi_driver cts_spi_driver = {
 /*HS03 code for SL6215DEV-10 by yuanliding at 20210803 start*/
 static int __init cts_driver_init(void)
 {
-    cts_info("Init");
-    /* HS03 code for SL6215DEV-100 by yuanliding at 20210813 start */
-    if(tp_is_used != UNKNOWN_TP) {
-        cts_info("it is not chipone tp\n");
+     /*HS03 code for SR-SL6215-01-1213 by duanyaoming at 20220503 start*/
+    if (lcd_name) {
+        if (NULL == strstr(lcd_name,"nl9911c")) {
+            cts_err("it is not nl9911c tp probe");
+            return -ENODEV;
+        } else {
+#ifdef CONFIG_CTS_I2C_HOST
+            cts_info(" start cts_i2c_driver");
+            return i2c_add_driver(&cts_i2c_driver);
+#else
+            cts_info(" start cts_spi_driver");
+            return spi_register_driver(&cts_spi_driver);
+#endif
+        }
+    } else {
+        cts_err("lcd_name is null");
         return -ENODEV;
     }
-    /* HS03 code for SL6215DEV-100 by yuanliding at 20210813 end */
-
-#ifdef CONFIG_CTS_I2C_HOST
-    cts_info(" start cts_i2c_driver");
-    return i2c_add_driver(&cts_i2c_driver);
-#else
-    cts_info(" start cts_spi_driver");
-    return spi_register_driver(&cts_spi_driver);
-#endif
+    /*HS03 code for SR-SL6215-01-1213 by duanyaoming at 20220503 end*/
 }
 
 static void __exit cts_driver_exit(void)

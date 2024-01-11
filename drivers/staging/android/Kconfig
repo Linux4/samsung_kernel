@@ -80,16 +80,6 @@ config ANDROID_VSOC
 	  a 'cuttlefish' Android image inside QEmu. The driver interacts with
 	  a QEmu ivshmem device. If built as a module, it will be called vsoc.
 
-# HS03 code for SR-SL6215-01-558 by shixuanxuan at 20210814 start
-config PWR_ON_ALARM
-	tristate "Build /dev/power_on_alarm function"
-	default y
-	depends on RTC_CLASS
-	help
-	  This option is for add /dev/power_on_alarm node, to set RTC. Format is
-	  "CYYYYMMDDhhmm", 'C' is command flag, 0:clear clock,1:set clock.
-# HS03 code for SR-SL6215-01-558 by shixuanxuan at 20210814 end
-
 source "drivers/staging/android/ion/Kconfig"
 
 endif # if ANDROID

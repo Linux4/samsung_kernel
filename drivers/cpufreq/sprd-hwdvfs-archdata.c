@@ -43,9 +43,45 @@ static int default_dcdc_volt_update(struct regmap *map, struct reg_info *regs,
 		u_volt += pm->per_step;
 
 	val = (u_volt - pm->volt_base) / pm->per_step;
+/* Tab A8 code for AX6300DEV-3211 by caoyu at 20211213 start */
+	if((val >> 6) == 0)
+		val = val | (0x1 << 6);
+/* Tab A8 code for AX6300DEV-3211 by caoyu at 20211213 end */
+	return regmap_update_bits(map, reg, msk << off, val << off);
+}
+
+/* HS03, Tab A8 and Tab A7 T618 code for SL6215DEV-3988 by yubaiwen at 20210113 start */
+static int ext_dcdc_volt_update(struct regmap *map, struct reg_info *regs,
+				    void *data, unsigned long u_volt, int index,
+				    int count)
+{
+	u32 reg, off, msk, val;
+	struct pmic_data *pm = (struct pmic_data *)data;
+
+	if (index < 0 || index > count) {
+		pr_err("Incorrcet voltage gear table index\n");
+		return -EINVAL;
+	}
+
+	if (!pm) {
+		pr_err("The pmic needed to update volt gear value is NULL\n");
+		return -ENODEV;
+	}
+
+	reg = regs[index].reg;
+	off = regs[index].off;
+	msk = regs[index].msk;
+
+	if ((u_volt - pm->volt_base) % pm->per_step)
+		u_volt += pm->per_step;
+
+	val = (u_volt - pm->volt_base) / pm->per_step;
+	if ((val >> 6) == 0)
+		val = val | (0x1 << 6);
 
 	return regmap_update_bits(map, reg, msk << off, val << off);
 }
+/* HS03, Tab A8 and Tab A7 T618 code for SL6215DEV-3988 by yubaiwen at 20210113 end */
 
 static u32 default_cycle_calculate(u32 max_val_uV, u32 slew_rate,
 				   u32 module_clk_hz, u32 margin_us)
@@ -77,7 +113,9 @@ static struct pmic_data pmic_array[MAX_PMIC_TYPE_NUM] = {
 		.volt_base = 600000,
 		.per_step = 10000,
 		.margin_us = 20,
-		.update = default_dcdc_volt_update,
+		/* HS03, Tab A8 and Tab A7 T618 code for SL6215DEV-3988 by yubaiwen at 20210113 start */
+		.update = ext_dcdc_volt_update,
+		/* HS03, Tab A8 and Tab A7 T618 code for SL6215DEV-3988 by yubaiwen at 20210113 end */
 		.up_cycle_calculate = default_cycle_calculate,
 		.down_cycle_calculate = default_cycle_calculate,
 	},

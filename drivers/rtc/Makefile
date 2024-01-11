@@ -175,3 +175,6 @@ obj-$(CONFIG_RTC_DRV_X1205)	+= rtc-x1205.o
 obj-$(CONFIG_RTC_DRV_XGENE)	+= rtc-xgene.o
 obj-$(CONFIG_RTC_DRV_ZYNQMP)	+= rtc-zynqmp.o
 obj-$(CONFIG_RTC_DRV_GOLDFISH)	+= rtc-goldfish.o
+# Tab A8 code for SR-AX6300-01-433 by wenyaqi at 20211108 start
+obj-$(CONFIG_RTC_PWRON_ALARM)	+= power-on-alarm.o
+# Tab A8 code for SR-AX6300-01-433 by wenyaqi at 20211108 end

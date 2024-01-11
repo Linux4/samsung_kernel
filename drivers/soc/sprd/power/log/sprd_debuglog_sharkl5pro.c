@@ -263,135 +263,8 @@ static struct reg_bit ap_sys_force_sleep_cfg[] = {
 	REG_BIT_INIT("AXI_LP_CTRL_DISABLE", 0x01, 3, 0),
 };
 
-static struct reg_bit ap_m0_lpc[] = {
-	REG_BIT_INIT("MAIN_M0_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_m1_lpc[] = {
-	REG_BIT_INIT("MAIN_M1_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_m2_lpc[] = {
-	REG_BIT_INIT("MAIN_M2_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_m3_lpc[] = {
-	REG_BIT_INIT("MAIN_M3_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_m4_lpc[] = {
-	REG_BIT_INIT("MAIN_M4_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_m5_lpc[] = {
-	REG_BIT_INIT("MAIN_M5_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_m6_lpc[] = {
-	REG_BIT_INIT("MAIN_M6_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_m7_lpc[] = {
-	REG_BIT_INIT("MAIN_M7_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_s0_lpc[] = {
-	REG_BIT_INIT("MAIN_S0_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MTX_S0_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_s1_lpc[] = {
-	REG_BIT_INIT("MAIN_S1_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MTX_S1_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_s2_lpc[] = {
-	REG_BIT_INIT("MAIN_S2_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MTX_S2_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_s3_lpc[] = {
-	REG_BIT_INIT("MAIN_S3_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MTX_S3_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_s4_lpc[] = {
-	REG_BIT_INIT("MAIN_S4_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MTX_S4_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_s5_lpc[] = {
-	REG_BIT_INIT("MAIN_S5_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MTX_S5_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_s6_lpc[] = {
-	REG_BIT_INIT("MAIN_S6_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MTX_S6_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_s7_lpc[] = {
-	REG_BIT_INIT("MAIN_S7_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MTX_S7_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_main_lpc[] = {
-	REG_BIT_INIT("MAIN_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MATRIX_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit ap_merge_m1_lpc[] = {
-	REG_BIT_INIT("MERGE_M1_LP_EB", 0x01, 16, 1),
-};
-
-static struct reg_bit ap_merge_s0_lpc[] = {
-	REG_BIT_INIT("MERGE_S0_LP_EB", 0x01, 16, 1),
-	REG_BIT_INIT("CGM_MERGE_S0_AUTO_GATE_EN", 0x01, 17, 1),
-};
-
-static struct reg_bit disp_async_brg[] = {
-	REG_BIT_INIT("DISP_ASYNC_BRG_LP_EB", 0x01, 0, 1),
-};
-
-static struct reg_bit ap_async_brg[] = {
-	REG_BIT_INIT("AP_ASYNC_BRG_LP_EB", 0x01, 0, 1),
-};
-
-static struct reg_bit vdsp_lp_ctrl[] = {
-	REG_BIT_INIT("VDSPO_STOP_EN", 0x01, 2, 1),
-};
-
 static struct reg_info ap_ahb[] = {
 	REG_INFO_INIT("AHB_EB", 0x0000, ahb_eb),
-
-	REG_INFO_INIT("M0_LPC", 0x0060, ap_m0_lpc),
-	REG_INFO_INIT("M1_LPC", 0x0064, ap_m1_lpc),
-	REG_INFO_INIT("M2_LPC", 0x0068, ap_m2_lpc),
-	REG_INFO_INIT("M3_LPC", 0x006C, ap_m3_lpc),
-	REG_INFO_INIT("M4_LPC", 0x0070, ap_m4_lpc),
-	REG_INFO_INIT("M5_LPC", 0x0074, ap_m5_lpc),
-	REG_INFO_INIT("M6_LPC", 0x0078, ap_m6_lpc),
-	REG_INFO_INIT("M7_LPC", 0x007C, ap_m7_lpc),
-
-	REG_INFO_INIT("MAIN_LPC", 0x0088, ap_main_lpc),
-
-	REG_INFO_INIT("S0_LPC", 0x008C, ap_s0_lpc),
-	REG_INFO_INIT("S1_LPC", 0x0090, ap_s1_lpc),
-	REG_INFO_INIT("S2_LPC", 0x0094, ap_s2_lpc),
-	REG_INFO_INIT("S3_LPC", 0x0098, ap_s3_lpc),
-	REG_INFO_INIT("S4_LPC", 0x009C, ap_s4_lpc),
-	REG_INFO_INIT("S5_LPC", 0x0058, ap_s5_lpc),
-	REG_INFO_INIT("S6_LPC", 0x0054, ap_s6_lpc),
-	REG_INFO_INIT("S7_LPC", 0x00A8, ap_s7_lpc),
-
-	REG_INFO_INIT("MERGE_M1_LPC",   0x00A4, ap_merge_m1_lpc),
-	REG_INFO_INIT("MERGE_S0_LPC",   0x00AC, ap_merge_s0_lpc),
-
-	REG_INFO_INIT("DISP_ASYNC_BRG", 0x0050,  disp_async_brg),
-	REG_INFO_INIT("AP_ASYNC_BRG",   0x005C,    ap_async_brg),
-
-	REG_INFO_INIT("VDSP_LP_CTRL",   0x3090,    vdsp_lp_ctrl),
-
 	REG_INFO_INIT("AP_SYS_FORCE_SLEEP_CFG", 0x000C, ap_sys_force_sleep_cfg),
 };
 
@@ -421,21 +294,8 @@ static struct reg_bit apb_eb[] = {
 	REG_BIT_INIT("CE_PUB_EB", 0x01, 31, 0),
 };
 
-static struct reg_bit apb_misc_ctrl[] = {
-	REG_BIT_INIT("SPI0_SEC_EB", 0x01,  6, 0),
-	REG_BIT_INIT("SPI1_SEC_EB", 0x01,  7, 0),
-	REG_BIT_INIT("SPI2_SEC_EB", 0x01,  8, 0),
-	REG_BIT_INIT("SPI3_SEC_EB", 0x01,  9, 0),
-	REG_BIT_INIT("I2C0_SEC_EB", 0x01, 10, 0),
-	REG_BIT_INIT("I2C1_SEC_EB", 0x01, 11, 0),
-	REG_BIT_INIT("I2C2_SEC_EB", 0x01, 12, 0),
-	REG_BIT_INIT("I2C3_SEC_EB", 0x01, 13, 0),
-	REG_BIT_INIT("I2C4_SEC_EB", 0x01, 14, 0),
-};
-
 static struct reg_info ap_apb[] = {
 	REG_INFO_INIT("APB_EB",        0x0000,        apb_eb),
-	REG_INFO_INIT("APB_MISC_CTRL", 0x0008, apb_misc_ctrl),
 };
 
 /* AON APB */
@@ -443,56 +303,8 @@ static struct reg_bit sp_cfg_bus[] = {
 	REG_BIT_INIT("SP_CFG_BUS_SLEEP", 0x01, 0, 1),
 };
 
-static struct reg_bit apcpu_top_mtx_lpc_ctrl[] = {
-	REG_BIT_INIT("APCPU_TOP_MTX_M0_LP_EB",   0x01, 0, 1),
-	REG_BIT_INIT("APCPU_TOP_MTX_M1_LP_EB",   0x01, 1, 1),
-	REG_BIT_INIT("APCPU_TOP_MTX_M2_LP_EB",   0x01, 2, 1),
-	REG_BIT_INIT("APCPU_TOP_MTX_M3_LP_EB",   0x01, 3, 1),
-	REG_BIT_INIT("APCPU_TOP_MTX_S0_LP_EB",   0x01, 4, 1),
-	REG_BIT_INIT("APCPU_TOP_MTX_S1_LP_EB",   0x01, 5, 1),
-	REG_BIT_INIT("APCPU_TOP_MTX_S2_LP_EB",   0x01, 6, 1),
-	REG_BIT_INIT("APCPU_TOP_MTX_S3_LP_EB",   0x01, 7, 1),
-	REG_BIT_INIT("APCPU_TOP_MTX_MAIN_LP_EB", 0x01, 8, 1),
-};
-
-static struct reg_bit apcpu_ddr_ab_lpc_ctrl[] = {
-	REG_BIT_INIT("APCPU_DDR_AB_LP_EB",       0x01, 0, 1),
-};
-
-static struct reg_bit apcpu_dbg_blk_lpc_ctrl[] = {
-	REG_BIT_INIT("APCPU_DBG_BLK_LP_EB",      0x01, 0, 0),
-};
-
-static struct reg_bit apcpu_gic600_gic_lpc_ctrl[] = {
-	REG_BIT_INIT("APCPU_GIC600_GIC_LP_EB",   0x01, 0, 1),
-};
-
-static struct reg_bit apcpu_cluster_scu_lpc_ctrl[] = {
-	REG_BIT_INIT("APCPU_CLUSTER_SCU_LP_EB",  0x01, 0, 1),
-};
-
-static struct reg_bit apcpu_cluster_gic_lpc_ctrl[] = {
-	REG_BIT_INIT("APCPU_CLUSTER_GIC_LP_EB",  0x01, 0, 1),
-};
-
-static struct reg_bit apcpu_cluster_apb_lpc_ctrl[] = {
-	REG_BIT_INIT("APCPU_CLUSTER_APB_LP_EB",  0x01, 0, 1),
-};
-
-static struct reg_bit apcpu_cluster_atb_lpc_ctrl[] = {
-	REG_BIT_INIT("APCPU_CLUSTER_ATB_LP_EB",  0x01, 0, 1),
-};
-
 static struct reg_info aon_apb[] = {
 	REG_INFO_INIT("SP_CFG_BUS",                 0x0124,                 sp_cfg_bus),
-	REG_INFO_INIT("APCPU_TOP_MTX_M0_LPC_CTRL",  0x0300,     apcpu_top_mtx_lpc_ctrl),
-	REG_INFO_INIT("APCPU_DDR_AB_LPC_CTRL",      0x0324,      apcpu_ddr_ab_lpc_ctrl),
-	REG_INFO_INIT("APCPU_DBG_BLK_LPC_CTRL",     0x029C,     apcpu_dbg_blk_lpc_ctrl),
-	REG_INFO_INIT("APCPU_GIC600_GIC_LPC_CTRL",  0x0298,  apcpu_gic600_gic_lpc_ctrl),
-	REG_INFO_INIT("APCPU_CLUSTER_SCU_LPC_CTRL", 0x0320, apcpu_cluster_scu_lpc_ctrl),
-	REG_INFO_INIT("APCPU_CLUSTER_GIC_LPC_CTRL", 0x0294, apcpu_cluster_gic_lpc_ctrl),
-	REG_INFO_INIT("APCPU_CLUSTER_APB_LPC_CTRL", 0x0290, apcpu_cluster_apb_lpc_ctrl),
-	REG_INFO_INIT("APCPU_CLUSTER_ATB_LPC_CTRL", 0x028C, apcpu_cluster_atb_lpc_ctrl),
 };
 
 /* PMU APB */
@@ -605,6 +417,7 @@ static struct reg_table reg_table_check[] = {
 	REG_TABLE_INIT("AP_AHB",  "sprd,sys-ap-ahb",   ap_ahb),
 	REG_TABLE_INIT("AP_APB",  "sprd,sys-ap-apb",   ap_apb),
 	REG_TABLE_INIT("AON_APB", "sprd,sys-aon-apb", aon_apb),
+	REG_TABLE_INIT("PMU_APB", "sprd,sys-pmu-apb", pmu_apb),
 };
 
 static struct reg_table reg_table_monitor[] = {
@@ -710,7 +523,7 @@ struct int_handle_set {
 };
 
 /**
- * GPIO int anlyise
+ * GPIO int analyse
  */
 static int gpio_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 {
@@ -752,7 +565,7 @@ static int gpio_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 }
 
 /**
- * AP EIC int anlyise
+ * AP EIC int analyse
  */
 static int eic_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 {
@@ -761,12 +574,14 @@ static int eic_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 	#define EIC_TYPE_NUM			4
 	#define EIC_NUM				8
 
-	static const char *eic_index[] = {
+	static const char *eic_index[EIC_EXT_NUM] = {
 		"AON_EIC_EXT0", "AON_EIC_EXT1", "AON_EIC_EXT2",
 		"AON_EIC_EXT3", "AON_EIC_EXT4", "AON_EIC_EXT5",
 	};
 
-	static const char *eic_type[] = {"DBNC", "LATCH", "ASYNC", "SYNC"};
+	static const char *eic_type[EIC_TYPE_NUM] = {
+		"DBNC", "LATCH", "ASYNC", "SYNC"
+	};
 
 	struct wakeup_node *node;
 	int inum, ibit, gnum;
@@ -808,13 +623,13 @@ static int eic_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 }
 
 /**
- * Mailbox int anlyise
+ * Mailbox int analyse
  */
 static int mbox_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 {
-	#define MBOX_SRC_NUM		6
+	#define MBOX_SRC_NUM		7
 
-	static const char *mbox_src[] = {
+	static const char *mbox_src[MBOX_SRC_NUM] = {
 		"AP", "CM4", "CR5", "TGDSP", "LDSP", "ADSP", "AP",
 	};
 
@@ -856,7 +671,7 @@ static int mbox_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 }
 
 /**
- * PMIC int anlyise
+ * PMIC int analyse
  */
 static int ana_int_handler(char **o1, char **o2, u32 m, u32 s, u32 t)
 {
@@ -995,7 +810,7 @@ static int plat_match(u32 major, u32 second, u32 thrid, void *data, int num)
 
 struct plat_data sprd_sharkl5pro_debug_data = {
 	.sleep_condition_table = reg_table_check,
-	.sleep_condition_table_num = 3,
+	.sleep_condition_table_num = 4,
 	.subsys_state_table = reg_table_monitor,
 	.subsys_state_table_num = 1,
 	.wakeup_source_info = wakeup_source,

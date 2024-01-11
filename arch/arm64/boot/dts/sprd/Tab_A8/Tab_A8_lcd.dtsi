@@ -13,9 +13,15 @@
 /*Tab A8 code for SR-AX6300-01-394 by hehaoran at 2021/09/03 start*/
 #include "../lcd/Tab_A8/lcd_nt36523b_qc_inx_mipi_hdp.dtsi"
 /*Tab A8 code for SR-AX6300-01-394 by hehaoran at 2021/09/03 end*/
+/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 start*/
+#include "../lcd/Tab_A8/lcd_nt36523b_qc_inx_swid45_mipi_hdp.dtsi"
+/*#Tab A8 code for AX6300DEV-3657 by fengzhigang at 2021/12/09 end*/
 /*Tab A8 code for SR-AX6300-01-377 by fengzhigang at 2021/09/15 start*/
 #include "../lcd/Tab_A8/lcd_hx83102e_xy_inx_mipi_hdp.dtsi"
 /*Tab A8 code for SR-AX6300-01-377 by fengzhigang at 2021/09/15 end*/
+/*Tab A8 code for SR-AX6300-01-438 by huangzhongjie at 2021/11/17 start*/
+#include "../lcd/Tab_A8/lcd_ft8201ab_boe_boe_mipi_hdp.dtsi"
+/*Tab A8 code for SR-AX6300-01-438 by huangzhongjie at 2021/11/17 end*/
 
 /*Tab A8 code for SR-AX6300-01-23 by fengzhigang at 2021/08/12 start*/
 &vddvib {

@@ -36,16 +36,18 @@ static const uint8_t CTPM_FW_INX[] = {
     #include "INX_10.36_TESTING_ONLY_CID2F04_D00_C00_0728-015327.i"
 };
 
+/*Tab A8_T code for AX6300TDEV-233 by gaoxue at 20220928 start*/
 static const uint8_t CTPM_FW_XY_HSD[] = {
-    #include "A8_HQ_SEC_LV_XingYuan_CID420A_D00_C0B_20211105.i"
+    #include "A8_HQ_SEC_LV_XingYuan_CID4211_D00_C13_20220908.i"
 };
+/*Tab A8_T code for AX6300TDEV-233 by gaoxue at 20220928 end*/
 
 static const uint8_t CTPM_FW_LS_HSD[] = {
-    #include "A8_HQ_SEC_LV_LCE_CID4305_D01_C06_20211103.i"
+    #include "A8_HQ_SEC_LV_LCE_CID430A_D01_C0B_20211216.i"
 };
 
 static const uint8_t CTPM_FW_XY_INX[] = {
-    #include "A8_HQ_SEC_LV_XingY_INX_CID4501_D02_C04_20211108.i"
+    #include "A8_HQ_SEC_LV_XingY_INX_CID4506_D02_C0B_20211217.i"
 };
 
 #endif

@@ -217,6 +217,10 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM8998 if MFD_WM8998
 	select SND_SOC_WM9081 if I2C
 	select SND_SOC_WM9090 if I2C
+	# Tab A7 T618 code for SR-AX6189A-01-187|SR-AX6189A-01-189 by yuyongxiang at 20220113 start
+	select SND_SOC_AW87XXX if I2C
+	select SND_SOC_FS15XX
+	# Tab A7 T618 code for SR-AX6189A-01-187|SR-AX6189A-01-189 by yuyongxiang at 20220113 end
 	select SND_SOC_WM9705 if SND_SOC_AC97_BUS
 	select SND_SOC_WM9712 if SND_SOC_AC97_BUS
 	select SND_SOC_WM9713 if SND_SOC_AC97_BUS
@@ -467,6 +471,18 @@ config SND_SOC_CS4265
 config SND_SOC_CS4270
 	tristate "Cirrus Logic CS4270 CODEC"
 	depends on I2C
+# Tab A7 T618 code for SR-AX6189A-01-187|SR-AX6189A-01-189 by yuyongxiang at 20220113 start
+config SND_SOC_AW87XXX
+	tristate "SoC Audio for awinic AW87XXX Smart K PA"
+	depends on I2C
+	help
+	  This option enables support for AW87XXX Smart K PA.
+
+config SND_SOC_FS15XX
+	tristate "SoC Audio for FS15XX Smart K PA"
+	help
+	  This option enables support for FS15XX Smart K PA.
+# Tab A7 T618 code for SR-AX6189A-01-187|SR-AX6189A-01-189 by yuyongxiang at 20220113 end
 
 # Cirrus Logic CS4270 Codec VD = 3.3V Errata
 # Select if you are affected by the errata where the part will not function

@@ -379,6 +379,13 @@
 #define BIT_DVFS_CTRL_DEBUG_CNT_CORE01(x)        (((x) & 0xFFFF) << 16)
 #define BIT_DVFS_CTRL_DEBUG_CNT_CORE00(x)        (((x) & 0xFFFF))
 
+/* REG_LTEPLL_REL_CFG */
+
+#define REG_LTEPLL_REL_CFG                       0x009C
+#define REG_LTEPLL_REL_CFG_CLR                   0x209C
+#define REG_LTEPLL_AP_SEL                        BIT(0)
+#define REG_LTEPLL_AP_SEL_MSK                    BIT(0)
+
 /* REG_DVFS_CTRL_CHNL00_SCALE00 */
 
 #define BIT_DVFS_CTRL_CHNL00_SCALE00(x)          (((x) & 0x1FFFF))

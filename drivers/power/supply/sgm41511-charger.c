@@ -164,6 +164,9 @@ struct sgm41511_charger_info {
 	u32 current_input_limit_cur;
 	u32 last_limit_cur;
 	u32 actual_limit_cur;
+	/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 start */
+	u32 actual_limit_voltage;
+	/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 end */
 	u32 role;
 	bool charging;
 	bool need_disable_Q1;
@@ -357,10 +360,12 @@ sgm41511_charger_set_ovp(struct sgm41511_charger_info *info, u32 vol)
 				   reg_val << SGM41511_REG_OVP_SHIFT);
 }
 
+/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 start */
 static int
 sgm41511_charger_set_termina_vol(struct sgm41511_charger_info *info, u32 vol)
 {
 	u8 reg_val;
+	int ret;
 
 	if (vol < 3500)
 		reg_val = 0x0;
@@ -369,10 +374,20 @@ sgm41511_charger_set_termina_vol(struct sgm41511_charger_info *info, u32 vol)
 	else
 		reg_val = (vol - 3856) / 32;
 
-	return sgm41511_update_bits(info, SGM41511_REG_4,
+	ret = sgm41511_update_bits(info, SGM41511_REG_4,
 				   SGM41511_REG_TERMINAL_VOLTAGE_MASK,
 				   reg_val << SGM41511_REG_TERMINAL_VOLTAGE_SHIFT);
+
+	if (ret != 0) {
+		dev_err(info->dev, "sgm41511 set terminal voltage failed\n");
+	} else {
+		info->actual_limit_voltage = (reg_val * 32) + 3856;
+		dev_err(info->dev, "sgm41511 set terminal voltage success, the value is %d\n" ,info->actual_limit_voltage);
+	}
+
+	return ret;
 }
+/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 end */
 
 static int
 sgm41511_charger_set_termina_cur(struct sgm41511_charger_info *info, u32 cur)
@@ -774,6 +789,33 @@ sgm41511_charger_set_limit_current(struct sgm41511_charger_info *info,
 	return ret;
 }
 
+/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 start */
+static u32 sgm41511_charger_get_limit_voltage(struct sgm41511_charger_info *info,
+					     u32 *limit_vol)
+{
+	u8 reg_val;
+	int ret;
+
+	ret = sgm41511_read(info, SGM41511_REG_4, &reg_val);
+	if (ret < 0) {
+		return ret;
+	}
+
+	reg_val &= SGM41511_REG_TERMINAL_VOLTAGE_MASK;
+	*limit_vol = ((reg_val >> SGM41511_REG_TERMINAL_VOLTAGE_SHIFT) * 32) + 3856;
+
+	if (*limit_vol < 3500) {
+		*limit_vol = 3500;
+	} else if (*limit_vol >= 4440) {
+		*limit_vol = 4440;
+	}
+
+	dev_err(info->dev, "limit voltage is %d, actual_limt is %d\n", *limit_vol, info->actual_limit_voltage);
+
+	return 0;
+}
+/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 end */
+
 static u32
 sgm41511_charger_get_limit_current(struct sgm41511_charger_info *info,
 				  u32 *limit_cur)
@@ -833,11 +875,13 @@ static void sgm41511_dump_register(struct sgm41511_charger_info *info)
 	dev_err(info->dev, "%s: %s", __func__, buf);
 }
 
+/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 start */
 static int sgm41511_charger_feed_watchdog(struct sgm41511_charger_info *info,
 					 u32 val)
 {
 	int ret;
 	u32 limit_cur = 0;
+	u32 limit_voltage = 4208;
 
 	ret = sgm41511_update_bits(info, SGM41511_REG_1,
 				  SGM41511_REG_RESET_MASK,
@@ -845,6 +889,26 @@ static int sgm41511_charger_feed_watchdog(struct sgm41511_charger_info *info,
 	if (ret) {
 		dev_err(info->dev, "reset sgm41511 failed\n");
 		return ret;
+	}
+
+	ret = sgm41511_charger_get_limit_voltage(info, &limit_voltage);
+	if (ret) {
+		dev_err(info->dev, "get limit voltage failed\n");
+		return ret;
+	}
+
+	if (info->actual_limit_voltage != limit_voltage) {
+		ret = sgm41511_charger_set_termina_vol(info, info->actual_limit_voltage);
+		if (ret) {
+			dev_err(info->dev, "set terminal voltage failed\n");
+			return ret;
+		}
+
+		ret = sgm41511_charger_set_recharge(info);
+		if (ret) {
+			dev_err(info->dev, "set sgm41511 recharge failed\n");
+			return ret;
+		}
 	}
 
 	ret = sgm41511_charger_get_limit_current(info, &limit_cur);
@@ -864,6 +928,7 @@ static int sgm41511_charger_feed_watchdog(struct sgm41511_charger_info *info,
 
 	return 0;
 }
+/* HS03 code for SL6215DEV-3879 by Ditong at 20211221 end*/
 
 /* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
 /*

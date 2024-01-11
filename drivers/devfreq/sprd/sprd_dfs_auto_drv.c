@@ -61,6 +61,7 @@ enum dfs_master_cmd {
 	DFS_CMD_PARA_END	= 0x07FF,
 	DFS_CMD_SET_AXI_WLTC    = 0x0810,
 	DFS_CMD_SET_AXI_RLTC    = 0x0820,
+	DFS_CMD_SAVE_DUMP_DATA  = 0x0910,
 	DFS_CMD_DEBUG		= 0x0FFF
 };
 
@@ -122,6 +123,7 @@ struct dfs_data {
 	unsigned int backdoor_count;
 	struct mutex backdoor_mutex;
 	unsigned int init_done;
+	unsigned int socdump_flag;
 };
 
 static struct dfs_data *g_dfs_data;
@@ -303,6 +305,20 @@ int dfs_auto_disable(void)
 
 	return err;
 }
+
+void dfs_register_save(void)
+{
+	int err;
+	struct smsg msg;
+
+	if (g_dfs_data->socdump_flag) {
+		err = dfs_msg_send(&msg, DFS_CMD_SAVE_DUMP_DATA,
+				   msecs_to_jiffies(100), 0);
+		mdelay(1000);
+		dev_info(g_dfs_data->dev, "info cm4 to save soc_dump data");
+	}
+}
+EXPORT_SYMBOL(dfs_register_save);
 
 static struct scene_freq *find_scene(char *scenario)
 {
@@ -826,6 +842,12 @@ static int dfs_auto_freq_probe(struct platform_device *pdev)
 					data->underflow, freq_num);
 	if (err != 0)
 		memset(data->underflow, 0, sizeof(unsigned int)*freq_num);
+
+	err = of_property_read_u32(dev->of_node, "info-socdump-enable-flag",
+				   &data->socdump_flag);
+
+	if (err != 0)
+		data->socdump_flag = 0;
 
 	for (i = 0; i < scene_num; i++) {
 		err = of_property_read_string_index(dev->of_node, "sprd-scene",

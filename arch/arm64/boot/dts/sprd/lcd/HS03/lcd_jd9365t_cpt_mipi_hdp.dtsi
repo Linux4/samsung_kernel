@@ -32,12 +32,13 @@
 					sprd,esd-check-mode = <1>;
 					sprd,esd-check-period = <2000>;
 
-					sprd,power-off-sequence = <1>;
 					sprd,ddi-need-tp-reset = <1>;
 					sprd,ddi-tp-reset-gpio = <209>;
 
 					sprd,reset-on-sequence = <1 5>, <0 5>, <1 20>;
 					sprd,reset-off-sequence = <0 5>;
+
+					sprd,deep-sleep-in = <1>;
 
 					sprd,use-dcs-write;
 					sprd,initial-command = [
@@ -129,7 +130,7 @@
 						//SLP OUT
 						39 00 00 03 51 00 00
 						15 00 00 02 55 00
-						15 03 00 02 53 24
+						15 03 00 02 53 2C
 						FF 00 00 01 00
 						05 78 00 01 11
 						//Display On
@@ -141,6 +142,12 @@
 						05 38 00 01 28
 						05 80 00 01 10
 						];
+
+					sprd,deep-sleep-in-command = [
+						05 02 00 01 00
+						39 38 00 01 28
+						39 80 00 01 10
+					];
 
 					sprd,sleep-out-command = [
 						05 78 00 01 11

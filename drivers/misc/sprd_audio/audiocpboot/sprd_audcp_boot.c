@@ -112,14 +112,20 @@ struct audcp_boot_data {
 	loff_t ppos;
 	struct mem_area_to_clean reset_mem[MEM_AREA_RESET_MAX];
 	u32 boot_vector;
+	u32 dsp_reboot_mode;
 };
 
 static void sprd_audcp_memset_communication_area(struct audcp_boot_data *pdata)
 {
 	int i;
 
-	for (i = 0; i < MEM_AREA_RESET_MAX; i++)
-		memset_io((void __iomem *)pdata->reset_mem[i].vir, 0, pdata->reset_mem[i].size);
+	if (pdata->dsp_reboot_mode) {
+		for (i = MEM_AREA_COMMU_SMSG; i < MEM_AREA_RESET_MAX; i++)
+			memset_io((void __iomem *)pdata->reset_mem[i].vir, 0, pdata->reset_mem[i].size);
+	} else {
+		for (i = 0; i < MEM_AREA_RESET_MAX; i++)
+			memset_io((void __iomem *)pdata->reset_mem[i].vir, 0, pdata->reset_mem[i].size);
+	}
 }
 
 static ssize_t ldinfo_show(struct device *dev, struct device_attribute *attr,
@@ -179,10 +185,12 @@ static ssize_t start_store(struct device *dev, struct device_attribute *attr,
 	index = AUDCPBOOT_CTRL_BOOTPROTECT;
 	val = 0x9620 << (ffs(mask[index]) - 1);
 	regmap_update_bits(map[index], reg[index], mask[index], val);
-	/* set boot vector */
-	index = AUDCPBOOT_CTRL_BOOTVECTOR;
-	val = pdata->boot_vector << (ffs(mask[index]) - 1);
-	regmap_update_bits(map[index], reg[index], mask[index], val);
+	if (!pdata->dsp_reboot_mode) {
+		/* set boot vector */
+		index = AUDCPBOOT_CTRL_BOOTVECTOR;
+		val = pdata->boot_vector << (ffs(mask[index]) - 1);
+		regmap_update_bits(map[index], reg[index], mask[index], val);
+	}
 	/* set boot address select mode */
 	index = AUDCPBOOT_CTRL_BOOTADDRESSSEL;
 	val = mask[index];
@@ -352,13 +360,24 @@ static int sprd_audcp_boot_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	int ret, cr_num = 0;
-	u32 syscon_args[2], size;
+	u32 syscon_args[2], size, dsp_reboot_mode = 0;
 	struct audcp_boot_data *data;
 	unsigned long addr_phy, addr_vir;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+
+	/* dsp reboot mode sel */
+	ret = of_property_read_u32(np, "dsp-reboot-mode", &dsp_reboot_mode);
+	if (ret) {
+		dev_info(&pdev->dev,"dsp reboot by DDR!\n");
+		data->dsp_reboot_mode = 0x0;
+	} else {
+		dev_info(&pdev->dev,"dsp_reboot_mode = %d!\n",
+							dsp_reboot_mode);
+		data->dsp_reboot_mode = dsp_reboot_mode;
+	}
 
 	do {
 		data->ctrl_rmaps[cr_num] =

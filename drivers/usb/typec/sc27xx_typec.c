@@ -205,6 +205,7 @@ struct sc27xx_typec {
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
 	u8 dr_mode;
 	u8 pr_mode;
+	u8 pd_swap_evt;
 
 	enum sc27xx_typec_connection_state state;
 	enum sc27xx_typec_connection_state pre_state;
@@ -212,7 +213,12 @@ struct sc27xx_typec {
 	struct typec_partner *partner;
 	struct typec_capability typec_cap;
 	const struct sprd_typec_variant_data *var_data;
-	struct work_struct work;
+	/* delayed work for handling dr swap */
+	struct delayed_work swap_work;
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158 by wenyaqi at 20220406 start */
+	struct delayed_work  typec_work;
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158 by wenyaqi at 20220406 end */
+	bool use_pdhub_c2c;
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 start */
 #ifdef CONFIG_TARGET_UMS512_1H10
@@ -236,6 +242,61 @@ bool sc27xx_get_dr_swap_flag(void)
 	return pd_dr_swap_flag;
 }
 EXPORT_SYMBOL_GPL(sc27xx_get_dr_swap_flag);
+
+static void sc27xx_connect_set_status_use_pdhubc2c(struct sc27xx_typec *sc)
+{
+	sc27xx_set_dr_swap_flag(false);
+	switch (sc->state) {
+	case SC27XX_ATTACHED_SNK:
+	case SC27XX_DEBUG_CABLE:
+		sc->pre_state = SC27XX_ATTACHED_SNK;
+		sc->pr_mode = EXTCON_SINK;
+		sc->dr_mode = EXTCON_USB;
+		extcon_set_state_sync(sc->edev, EXTCON_SINK, true);
+		extcon_set_state_sync(sc->edev, EXTCON_USB, true);
+		dev_info(sc->dev, "%s sink connect!\n", __func__);
+		break;
+	case SC27XX_ATTACHED_SRC:
+		sc->pre_state = SC27XX_ATTACHED_SRC;
+		sc->pr_mode = EXTCON_SOURCE;
+		sc->dr_mode = EXTCON_USB_HOST;
+		extcon_set_state_sync(sc->edev, EXTCON_SOURCE, true);
+		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, true);
+		dev_info(sc->dev, "%s source connect!\n", __func__);
+		break;
+	case SC27XX_AUDIO_CABLE:
+		sc->pre_state = SC27XX_AUDIO_CABLE;
+		extcon_set_state_sync(sc->edev, EXTCON_JACK_HEADPHONE, true);
+		break;
+	default:
+		break;
+	}
+
+	return;
+}
+
+static void sc27xx_connect_set_status_no_pdhubc2c(struct sc27xx_typec *sc)
+{
+	switch (sc->state) {
+	case SC27XX_ATTACHED_SNK:
+	case SC27XX_DEBUG_CABLE:
+		sc->pre_state = SC27XX_ATTACHED_SNK;
+		extcon_set_state_sync(sc->edev, EXTCON_USB, true);
+		break;
+	case SC27XX_ATTACHED_SRC:
+		sc->pre_state = SC27XX_ATTACHED_SRC;
+		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, true);
+		break;
+	case SC27XX_AUDIO_CABLE:
+		sc->pre_state = SC27XX_AUDIO_CABLE;
+		extcon_set_state_sync(sc->edev, EXTCON_JACK_HEADPHONE, true);
+		break;
+	default:
+		break;
+	}
+
+	return;
+}
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 start */
 #ifdef CONFIG_TARGET_UMS512_1H10
@@ -300,7 +361,12 @@ static int sc27xx_typec_connect(struct sc27xx_typec *sc, u32 status)
 	}
 
 	desc.usb_pd = 0;
-	desc.accessory = TYPEC_ACCESSORY_NONE;
+	/* Tab A8 code for P221116-05713  by  xuliqin at 20221123 start */
+	if(sc->state == SC27XX_AUDIO_CABLE)
+		desc.accessory = TYPEC_ACCESSORY_AUDIO;
+	else
+		desc.accessory = TYPEC_ACCESSORY_NONE;
+	/* Tab A8 code for  P221116-05713   by  xuliqin at 20221123 end */
 	desc.identity = NULL;
 
 	sc->partner = typec_register_partner(sc->port, &desc);
@@ -312,34 +378,11 @@ static int sc27xx_typec_connect(struct sc27xx_typec *sc, u32 status)
 	typec_set_data_role(sc->port, data_role);
 	typec_set_vconn_role(sc->port, vconn_role);
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-	switch (sc->state) {
-	case SC27XX_ATTACHED_SNK:
-	case SC27XX_DEBUG_CABLE:
-		sc->pre_state = SC27XX_ATTACHED_SNK;
-		sc->pr_mode = EXTCON_SINK;
-		sc->dr_mode = EXTCON_USB;
-		sc27xx_set_dr_swap_flag(false);
-		extcon_set_state_sync(sc->edev, EXTCON_SINK, true);
-		extcon_set_state_sync(sc->edev, EXTCON_USB, true);
-		dev_info(sc->dev, "%s sink connect!\n", __func__);
-		break;
-	case SC27XX_ATTACHED_SRC:
-		sc->pre_state = SC27XX_ATTACHED_SRC;
-		sc->pr_mode = EXTCON_SOURCE;
-		sc->dr_mode = EXTCON_USB_HOST;
-		sc27xx_set_dr_swap_flag(false);
-		extcon_set_state_sync(sc->edev, EXTCON_SOURCE, true);
-		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, true);
-		dev_info(sc->dev, "%s source connect!\n", __func__);
-		break;
-	case SC27XX_AUDIO_CABLE:
-		sc->pre_state = SC27XX_AUDIO_CABLE;
-		extcon_set_state_sync(sc->edev, EXTCON_JACK_HEADPHONE, true);
-		break;
-	default:
-		break;
-	}
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+	if (sc->use_pdhub_c2c)
+		sc27xx_connect_set_status_use_pdhubc2c(sc);
+	else
+		sc27xx_connect_set_status_no_pdhubc2c(sc);
+
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 start */
 #ifdef CONFIG_TARGET_UMS512_1H10
 	ret = regmap_read(sc->regmap, sc->base + SC27XX_DBG1, &val);
@@ -373,18 +416,11 @@ static int sc27xx_typec_connect(struct sc27xx_typec *sc, u32 status)
 	dev_err(sc->dev, "sc->cc_state =%d\n",sc->cc_state);
 #endif
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 end */
-
 	return 0;
 }
-/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-static void sc27xx_typec_disconnect(struct sc27xx_typec *sc, u32 status)
+
+static void sc27xx_disconnect_set_status_use_pdhubc2c(struct sc27xx_typec *sc)
 {
-	typec_unregister_partner(sc->partner);
-	sc->partner = NULL;
-	typec_set_pwr_opmode(sc->port, TYPEC_PWR_MODE_USB);
-	typec_set_pwr_role(sc->port, TYPEC_SINK);
-	typec_set_data_role(sc->port, TYPEC_DEVICE);
-	typec_set_vconn_role(sc->port, TYPEC_SINK);
 	sc27xx_set_dr_swap_flag(false);
 
 	switch (sc->pre_state) {
@@ -392,19 +428,19 @@ static void sc27xx_typec_disconnect(struct sc27xx_typec *sc, u32 status)
 	case SC27XX_DEBUG_CABLE:
 	case SC27XX_ATTACHED_SRC:
 		dev_emerg(sc->dev, "%s sc->dr_mode:%d  sc->pr_mode:%d!\n",
-					__func__, sc->dr_mode, sc->pr_mode);
-		if (sc->dr_mode == EXTCON_USB_HOST) {
+				__func__, sc->dr_mode, sc->pr_mode);
+		if (sc->dr_mode == EXTCON_USB_HOST)
 			extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, false);
-		} else if (sc->dr_mode == EXTCON_USB) {
+		else if (sc->dr_mode == EXTCON_USB)
 			extcon_set_state_sync(sc->edev, EXTCON_USB, false);
-		}
+
 		sc->dr_mode = EXTCON_NONE;
 
-		if (sc->pr_mode == EXTCON_SOURCE) {
+		if (sc->pr_mode == EXTCON_SOURCE)
 			extcon_set_state_sync(sc->edev, EXTCON_SOURCE, false);
-		} else if (sc->pr_mode == EXTCON_SINK) {
+		else if (sc->pr_mode == EXTCON_SINK)
 			extcon_set_state_sync(sc->edev, EXTCON_SINK, false);
-		}
+
 		sc->pr_mode = EXTCON_NONE;
 		break;
 	case SC27XX_AUDIO_CABLE:
@@ -414,11 +450,50 @@ static void sc27xx_typec_disconnect(struct sc27xx_typec *sc, u32 status)
 		break;
 	}
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+
+	return;
+}
+/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
+static void sc27xx_disconnect_set_status_no_pdhubc2c(struct sc27xx_typec *sc)
+{
+	switch (sc->pre_state) {
+	case SC27XX_ATTACHED_SNK:
+	case SC27XX_DEBUG_CABLE:
+		extcon_set_state_sync(sc->edev, EXTCON_USB, false);
+		break;
+	case SC27XX_ATTACHED_SRC:
+		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, false);
+		break;
+	case SC27XX_AUDIO_CABLE:
+		extcon_set_state_sync(sc->edev, EXTCON_JACK_HEADPHONE, false);
+		break;
+	default:
+		break;
+	}
+	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+	return;
+}
+
+static void sc27xx_typec_disconnect(struct sc27xx_typec *sc, u32 status)
+{
+	typec_unregister_partner(sc->partner);
+	sc->partner = NULL;
+	typec_set_pwr_opmode(sc->port, TYPEC_PWR_MODE_USB);
+	typec_set_pwr_role(sc->port, TYPEC_SINK);
+	typec_set_data_role(sc->port, TYPEC_DEVICE);
+	typec_set_vconn_role(sc->port, TYPEC_SINK);
+	sc->pd_swap_evt = TYPEC_NO_SWAP;
+
+	if (sc->use_pdhub_c2c)
+		sc27xx_disconnect_set_status_use_pdhubc2c(sc);
+	else
+		sc27xx_disconnect_set_status_no_pdhubc2c(sc);
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 start */
 #ifdef CONFIG_TARGET_UMS512_1H10
 	sc->cc_state = TYPEC_STATUS_UNKNOWN;
 #endif
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 end */
+	return;
 }
 
 static int sc27xx_typec_dr_set(const struct typec_capability *cap,
@@ -629,7 +704,9 @@ static void sc27xx_typec_work(struct work_struct *work)
 	int ret;
 
 	/* pd swap,cc need debounce to report interrupt */
-	msleep(200);
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158 by wenyaqi at 20220406 start */
+	// msleep(200);
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158 by wenyaqi at 20220406 end */
 
 	ret = regmap_read(sc->regmap, sc->base + SC27XX_INT_RAW, &event);
 	if (ret) {
@@ -638,7 +715,7 @@ static void sc27xx_typec_work(struct work_struct *work)
 
 	event &= sc->var_data->event_mask;
 
-	dev_info(sc->dev, "%s event_mask:0x%x!\n", __func__, event);
+	dev_info(sc->dev, "%s SC27XX_INT_RAW:0x%x!\n", __func__, event);
 
 	regmap_write(sc->regmap, sc->base + sc->var_data->int_clr, event);
 
@@ -648,10 +725,36 @@ static void sc27xx_typec_work(struct work_struct *work)
 	}
 
 	event &= sc->var_data->event_mask;
-	dev_info(sc->dev, "%s event_mask:0x%x!\n", __func__, event);
+	dev_info(sc->dev, "%s SC27XX_INT_RAW:0x%x!\n", __func__, event);
 	sc27xx_set_typec_int_enable();
  }
  /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+
+static void sc27xx_typec_swap_work(struct work_struct *work)
+{
+	struct sc27xx_typec *sc = typec_sc;
+
+	dev_info(sc->dev, "%s pd_swap_evt:%d!\n", __func__, sc->pd_swap_evt);
+
+	switch (sc->pd_swap_evt) {
+	case TYPEC_HOST_TO_DEVICE:
+		sc27xx_set_dr_swap_flag(true);
+		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, false);
+		extcon_set_state_sync(sc->edev, EXTCON_USB, true);
+		typec_set_data_role(sc->port, TYPEC_DEVICE);
+		break;
+	case TYPEC_DEVICE_TO_HOST:
+		sc27xx_set_dr_swap_flag(true);
+		extcon_set_state_sync(sc->edev, EXTCON_USB, false);
+		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, true);
+		typec_set_data_role(sc->port, TYPEC_HOST);
+		break;
+	default:
+		return;
+	}
+}
+
+
 static int sc27xx_typec_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -707,6 +810,8 @@ static int sc27xx_typec_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	sc->use_pdhub_c2c = of_property_read_bool(node, "use_pdhub_c2c");
+
 	if (mode < TYPEC_PORT_DFP || mode > TYPEC_PORT_DRP
 	    || mode == TYPEC_PORT_UFP) {
 		mode = TYPEC_PORT_UFP;
@@ -746,6 +851,7 @@ static int sc27xx_typec_probe(struct platform_device *pdev)
 /* Tab A8 code for SR-AX6300-01-254 by wangjian at 20210810 end */
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
 	typec_sc = sc;
+	pd_dr_swap_flag = false;
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	ret = typec_set_rtrim(sc);
 	if (ret < 0) {
@@ -765,9 +871,13 @@ static int sc27xx_typec_probe(struct platform_device *pdev)
 	ret = sc27xx_typec_enable(sc);
 	if (ret)
 		goto error;
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 start */
-	INIT_WORK(&sc->work, sc27xx_typec_work);
-	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
+
+	sc->pd_swap_evt = TYPEC_NO_SWAP;
+	INIT_DELAYED_WORK(&sc->swap_work, sc27xx_typec_swap_work);
+
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158|AX6300DEV-2368 by wenyaqi at 20220406 start */
+	INIT_DELAYED_WORK(&sc->typec_work, sc27xx_typec_work);
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158|AX6300DEV-2368 by wenyaqi at 20220406 end */
 	platform_set_drvdata(pdev, sc);
 	return 0;
 
@@ -799,11 +909,14 @@ int sc27xx_set_typec_int_clear(void)
 
 	event &= sc->var_data->event_mask;
 
-	dev_info(sc->dev, "%s event_mask:0x%x!\n", __func__, event);
+	dev_info(sc->dev, "%s SC27XX_INT_RAW:0x%x!\n", __func__, event);
 
 	regmap_write(sc->regmap, sc->base + sc->var_data->int_clr, event);
 
-	queue_work(system_unbound_wq, &sc->work);
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158 by wenyaqi at 20220406 start */
+	/* pd swap,cc need debounce to report interrupt */
+	queue_delayed_work(system_unbound_wq, &sc->typec_work, msecs_to_jiffies(200));
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158 by wenyaqi at 20220406 end */
 
 	return 0;
 }
@@ -816,6 +929,18 @@ int sc27xx_set_typec_int_disable(void)
 	u32 val;
 
 	dev_info(sc->dev, "%s entered!\n", __func__);
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158 by wenyaqi at 20220406 start */
+	if (!cancel_delayed_work_sync(&sc->typec_work)) {
+		ret = regmap_read(sc->regmap,
+				sc->base + sc->var_data->int_en, &val);
+		if (ret)
+			return ret;
+
+		ret = val & (sc->var_data->attach_en | sc->var_data->detach_en);
+		if (!ret)
+			msleep(20);
+	}
+	/* Tab A8_s code(Unisoc Patch 1816562) for AX6300SDEV-158 by wenyaqi at 20220406 end */
 
 	/* disable typec interrupt for attach/detach */
 	ret = regmap_read(sc->regmap, sc->base + sc->var_data->int_en, &val);
@@ -913,16 +1038,16 @@ int sc27xx_typec_set_pd_swap_event(u8 pd_swap_flag)
 		typec_set_pwr_role(sc->port, TYPEC_SOURCE);
 		break;
 	case TYPEC_HOST_TO_DEVICE:
-		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, false);
-		extcon_set_state_sync(sc->edev, EXTCON_USB, true);
-		typec_set_data_role(sc->port, TYPEC_DEVICE);
-		sc27xx_set_dr_swap_flag(true);
-		break;
 	case TYPEC_DEVICE_TO_HOST:
-		extcon_set_state_sync(sc->edev, EXTCON_USB, false);
-		extcon_set_state_sync(sc->edev, EXTCON_USB_HOST, true);
-		typec_set_data_role(sc->port, TYPEC_HOST);
-		sc27xx_set_dr_swap_flag(true);
+		if (pd_swap_flag != sc->pd_swap_evt) {
+			sc->pd_swap_evt = pd_swap_flag;
+			/* delay one jiffies for scheduling purpose */
+			schedule_delayed_work(&sc->swap_work,
+						msecs_to_jiffies(5));
+		} else {
+			dev_err(sc->dev, "%s igore pd_swap_flag:%d!\n",
+						__func__, pd_swap_flag);
+		}
 		break;
 	default:
 		return -EINVAL;

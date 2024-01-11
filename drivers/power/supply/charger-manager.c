@@ -34,6 +34,10 @@
 #include <linux/sysfs.h>
 #include <linux/thermal.h>
 #include <linux/workqueue.h>
+/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 start */
+#include <linux/usb/tcpm.h>
+#include <linux/usb/pd.h>
+/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 end */
 /* HS03 code for SR-SL6215-01-192 by shixuanxuan at 20210818 start */
 #include <linux/iio/consumer.h>
 #include <linux/iio/iio.h>
@@ -42,6 +46,9 @@
 /* HS03 code for SR-SL6215-01-181 by gaochao at 20210724 start */
 #include "battery_id_via_adc.h"
 /* HS03 code for SR-SL6215-01-181 by gaochao at 20210724 end */
+/* Tab A8 code for AX6300_DEV-3228 by wangjian at 20211116 start */
+#include <linux/delay.h>
+/* Tab A8 code for AX6300_DEV-3228 by wangjian at 20211116 end */
 
 /*
  * Default termperature threshold for charging.
@@ -61,14 +68,26 @@
 #define CM_HCAP_DECREASE_STEP			8
 #define CM_HCAP_THRESHOLD			995
 #define CM_CAP_FULL_PERCENT			1000
+/* Tab A8 code for AX6300DEV-3206 by zhaichao at 20211118 start */
+#define CM_CAP_FULL_PERCENT_WARM		800
+/* Tab A8 code for AX6300DEV-3206 by zhaichao at 20211118 end */
+/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211206 start */
+#define CM_CAP_FULL_PERCENT_COOLL		650
+/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211206 end */
 #define CM_MAGIC_NUM				0x5A5AA5A5
 #define CM_CAPACITY_LEVEL_CRITICAL		0
 #define CM_CAPACITY_LEVEL_LOW			15
 #define CM_CAPACITY_LEVEL_NORMAL		85
 #define CM_CAPACITY_LEVEL_FULL			100
+/* Tab A8 code for P211202-05349 by zhangyanlong at 20211207 start */
+#ifdef HQ_FACTORY_BUILD
 /* Tab A8 code for AX6300DEV-923 by wenyaqi at 20211001 start */
 #define CM_CAPACITY_LEVEL_CRITICAL_VOLTAGE	3100000
 /* Tab A8 code for AX6300DEV-923 by wenyaqi at 20211001 end */
+#else
+#define CM_CAPACITY_LEVEL_CRITICAL_VOLTAGE	3300000
+#endif
+/* Tab A8 code for P211202-05349 by zhangyanlong at 20211207 end */
 #define CM_FAST_CHARGE_ENABLE_BATTERY_VOLTAGE	3400000
 #define CM_FAST_CHARGE_ENABLE_CURRENT		1200000
 #define CM_FAST_CHARGE_ENABLE_THERMAL_CURRENT	1000000
@@ -128,6 +147,9 @@ static int hq_enable_charging(struct charger_manager *cm, bool val);
 #define VBUS_ERROR_HIGH 1000000
 #define VBUS_ERROR_LOW 50000
 /* Tab A8 code for AX6300DEV-2187 by lina at 20211028 end */
+/* Tab A8 code for AX6300_DEV-3228 by wangjian at 20211116 start */
+#define OTG_ENABLED_RETRY_TIMES 10
+/* Tab A8 code for AX6300_DEV-3228 by wangjian at 20211116 end */
 static const char * const jeita_type_names[] = {
 	[CM_JEITA_UNKNOWN] = "cm-unknown-jeita-temp-table",
 	[CM_JEITA_SDP] = "cm-sdp-jeita-temp-table",
@@ -217,12 +239,18 @@ static struct charger_otg_match psy_otg_table[10] = {
 	{"bq2560x_charger", "bq2560x_otg_vbus"},
 	{"sgm41511_charger", "sgm41511_otg_vbus"},
 	{"rt9471_charger", "rt9471_otg_vbus"},
+	/* HS03 code for SL6215DEV-4004 by lina at 20220119 start */
+	{"sgm41513_charger", "sgm41513_otg_vbus"},
+	/* HS03 code for SL6215DEV-4004 by lina at 20220119 end */
 	/* Tab A8 code for SR-AX6300-01-102 by wenyaqi at 20210808 start */
 	#else
 	{"bq25890_charger", "bq25890_otg_vbus"},
 	// {"fan54015_charger", "fan54015_otg_vbus"},
 	{"sgm4154x_charger", "sgm4154x_otg_vbus"},
 	{"sy6970_charger", "sy6970_otg_vbus"},
+	/* Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 start */
+	{"sc89890h_charger", "sc89890h_otg_vbus"},
+	/* Tab A7 Lite T618 code for SR-AX6189A-01-103 by shixuanxuan at 20220105 end */
 	#endif
 	/* Tab A8 code for SR-AX6300-01-102 by wenyaqi at 20210808 end */
 	{NULL, NULL},
@@ -240,7 +268,9 @@ static bool cm_timer_set;
 static unsigned long cm_suspend_duration_ms;
 static enum cm_event_types cm_event_type;
 static char *cm_event_msg;
-
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+static struct charger_manager *global_cm;
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 /* About normal (not suspended) monitoring */
 static unsigned long polling_jiffy = ULONG_MAX; /* ULONG_MAX: no polling */
 static unsigned long next_polling; /* Next appointed polling time */
@@ -386,6 +416,12 @@ static int __init boot_calibration_mode(char *str)
 		allow_charger_enable = true;
 	else if (!strncmp(str, "charger", strlen("charger")))
 		is_charger_mode =  true;
+
+/* HS03 code for SL6215DEV-3568 by gaochao at 20211117 start */
+#if !defined(HQ_FACTORY_BUILD)	// ss binary
+	pr_err("[%s]l=%d: bootmode=%d\n", __FUNCTION__, __LINE__, is_charger_mode);
+#endif
+/* HS03 code for SL6215DEV-3568 by gaochao at 20211117 end */
 
 	return 0;
 }
@@ -700,6 +736,9 @@ static int get_cp_ibat_uA(struct charger_manager *cm, int *uA)
 	struct power_supply *cp_psy;
 	int i, ret = -ENODEV;
 
+	if (!cm || !cm->desc || !cm->desc->psy_cp_stat)
+		return ret;
+
 	for (i = 0; cm->desc->psy_cp_stat[i]; i++) {
 		cp_psy = power_supply_get_by_name(cm->desc->psy_cp_stat[i]);
 		if (!cp_psy) {
@@ -730,6 +769,9 @@ static int get_cp_vbat_uV(struct charger_manager *cm, int *uV)
 	union power_supply_propval val;
 	struct power_supply *cp_psy;
 	int i, ret = -ENODEV;
+
+	if (!cm || !cm->desc || !cm->desc->psy_cp_stat)
+		return ret;
 
 	/* If at least one of them has one, it's yes. */
 	for (i = 0; cm->desc->psy_cp_stat[i]; i++) {
@@ -764,6 +806,9 @@ static int get_cp_vbus_uV(struct charger_manager *cm, int *uV)
 	union power_supply_propval val;
 	struct power_supply *cp_psy;
 	int i, ret = -ENODEV;
+
+	if (!cm || !cm->desc || !cm->desc->psy_cp_stat)
+		return ret;
 
 	/* If at least one of them has one, it's yes. */
 	for (i = 0; cm->desc->psy_cp_stat[i]; i++) {
@@ -1485,6 +1530,9 @@ static bool is_full_charged(struct charger_manager *cm)
 	/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
 	int charge_done = 0;
 	int batt_ocv = 0;
+	/* Tab A8 code for AX6300DEV-3206 by zhaichao at 20211118 start */
+	int cap_full = 0;
+	/* Tab A8 code for AX6300DEV-3206 by zhaichao at 20211118 end */
 
 	ret = power_supply_get_property(cm->charger_psy, POWER_SUPPLY_PROP_CHARGE_DONE, &val);
 	if (ret) {
@@ -1509,7 +1557,13 @@ static bool is_full_charged(struct charger_manager *cm)
 		/* Tab A8 code for SR-AX6300-01-3 by qiaodan at 20210906 start */
 		#ifdef CONFIG_TARGET_UMS512_1H10
 		if (cm->cool_warm_health == CM_JEITA_COOL_BETWEEN_0_5_HEALTH) {
-			cm->desc->fullbatt_uV = CM_FULL_VOLTAGE_HEALTH_COOLL;
+			/* Tab A8 code for  AX6300DEV-3566 by qiaodan at 20211201 start */
+			if (strcmp(desc->psy_charger_stat[0] ,"sy6970_charger") == 0) {
+				cm->desc->fullbatt_uV = CM_FULL_VOLTAGE_HEALTH_COOL;
+			} else {
+				cm->desc->fullbatt_uV = CM_FULL_VOLTAGE_HEALTH_COOLL;
+			}
+			/* Tab A8 code for  AX6300DEV-3566 by qiaodan at 20211201 end */
 		} else {
 			cm->desc->fullbatt_uV = CM_FULL_VOLTAGE_HEALTH_COOL;
 		}
@@ -1545,7 +1599,15 @@ static bool is_full_charged(struct charger_manager *cm)
 			goto out;
 		}
 	}
-
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
+#if !defined(HQ_FACTORY_BUILD)
+	if (cm->batt_full_flag == true) {
+		cm->desc->force_set_full = false;
+		dev_info(cm->dev,"%s:disable force set full due to battery protection,return is_full = false", __func__);
+		goto out;
+	}
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* Full, if it's over the fullbatt voltage */
 	if (desc->fullbatt_uV > 0 && desc->fullbatt_uA > 0) {
 		ret = get_vbat_now_uV(cm, &uV);
@@ -1565,7 +1627,15 @@ static bool is_full_charged(struct charger_manager *cm)
 			ret = get_batt_ocv(cm, &batt_ocv);
 			if (ret)
 				goto out;
-
+/* HS03 code for SL6215DEV-3535 by lina at 20211116 start */
+#ifdef CONFIG_TARGET_UMS9230_4H10
+			if (battery_health == POWER_SUPPLY_HEALTH_COOL) {
+				cm->desc->fullbatt_vchkdrop_uV = 55000;
+			} else {
+				cm->desc->fullbatt_vchkdrop_uV = 35000;
+			}
+#endif
+/* HS03 code for SL6215DEV-3535 by lina at 20211116 end */
 			if (batt_ocv > (cm->desc->fullbatt_uV - cm->desc->fullbatt_vchkdrop_uV))
 				is_full = true;
 			goto out;
@@ -1583,12 +1653,40 @@ static bool is_full_charged(struct charger_manager *cm)
 			desc->first_trigger_cnt = 0;
 		}
 
+/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211206 start */
+#ifdef  CONFIG_TARGET_UMS9230_4H10
+			/* HS03_s code for SL6215SDEV-101 by zhaichao at 20220323 start */
+			if (battery_health == POWER_SUPPLY_HEALTH_WARM) {
+				cap_full = CM_CAP_FULL_PERCENT_WARM;
+			} else {
+				cap_full = CM_CAP_FULL_PERCENT;
+			}
+			/* HS03_s code for SL6215SDEV-101 by zhaichao at 20220323 end */
+#elif  CONFIG_TARGET_UMS512_1H10
+			/* Tab A8 code for AX6300DEV-3206 by zhaichao at 20211118 start */
+			if (battery_health == POWER_SUPPLY_HEALTH_WARM) {
+				cap_full = CM_CAP_FULL_PERCENT_WARM;
+			/* Tab A8 code for AX6300DEV-3206 by zhaichao at 20211118 end */
+			} else if (battery_health == POWER_SUPPLY_HEALTH_COOL) {
+				if (cm->cool_warm_health == CM_JEITA_COOL_BETWEEN_0_5_HEALTH) {
+					cap_full = CM_CAP_FULL_PERCENT_COOLL;
+				} else {
+					cap_full = CM_CAP_FULL_PERCENT;
+				}
+			} else {
+				cap_full = CM_CAP_FULL_PERCENT;
+			}
+#endif
+/* Tab A8 code for AX6300DEV-3574 by zhaichao at 20211206 end */
 		/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
 		if (uV >= desc->fullbatt_uV && uA <= desc->fullbatt_uA && uA >= 0) {
 		// if (desc->fullbatt_uV > 0 && charge_done) {
 		/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 end */
 			if (++desc->trigger_cnt > 1) {
-				if (cm->desc->cap >= CM_CAP_FULL_PERCENT) {
+				//if (cm->desc->cap >= CM_CAP_FULL_PERCENT) {
+				/* Tab A8 code for AX6300DEV-3206 by zhaichao at 20211118 start */
+				if (cm->desc->cap >= cap_full) {
+				/* Tab A8 code for AX6300DEV-3206 by zhaichao at 20211118 end */
 					if (desc->trigger_cnt == 2)
 						adjust_fuel_cap(cm, CM_FORCE_SET_FUEL_CAP_FULL);
 					is_full = true;
@@ -1675,7 +1773,9 @@ static void ss_basic_retail_app(struct charger_manager *cm)
 	int soc_temp = 0;
 	int retail_app_dischg_threshold = 0;
 	int retail_app_chg_threshold = 0;
-	bool input_suspend_buf = false;
+	/* Tab A8 code for P211103-05531 by qiaodan at 20211116 start */
+	static bool input_suspend_buf = false;
+	/* Tab A8 code for P211103-05531 by qiaodan at 20211116 end */
 	/*
 		VZW & VPP
 				re_chg:30%, dis_chg:35%
@@ -2022,11 +2122,9 @@ static void cm_vote_property(struct charger_manager *cm, int target_val,
 		val.intval = target_val;
 		ret = power_supply_set_property(psy, psp, &val);
 		power_supply_put(psy);
-		if (ret) {
+		if (ret)
 			dev_err(cm->dev, "failed to %s set power_supply_property[%d], ret = %d\n",
-				name[i], ret, psp);
-			continue;
-		}
+				name[i], psp, ret);
 	}
 }
 
@@ -2338,6 +2436,20 @@ static int cm_fast_charge_enable_check(struct charger_manager *cm)
 
 	if (!cm_is_reach_fchg_threshold(cm))
 		return 0;
+
+	/* Tab A8 code for AX6300DEV-4101 by qiaodan at 20220509 start */
+	ret = cm_get_adapter_max_voltage(cm, &adapter_max_vbus);
+	if (ret) {
+		dev_err(cm->dev, "failed to obtain the adapter max voltage\n");
+		return ret;
+	}
+
+	if (adapter_max_vbus <= CM_FAST_CHARGE_VOLTAGE_5V) {
+		dev_info(cm->dev, "the adapter max voltage:%d\n", adapter_max_vbus);
+		return 0;
+	}
+	/* Tab A8 code for AX6300DEV-4101 by qiaodan at 20220509 end */
+
 /* Tab A8 code for SR-AX6300-762 by qiaodan at 20210924 start */
 #ifdef UNISOC_CHARGER_EXTRA
 	ret = cm_set_main_charger_current(cm, CM_FAST_CHARGE_ENABLE_CMD);
@@ -2363,12 +2475,6 @@ static int cm_fast_charge_enable_check(struct charger_manager *cm)
 	/*
 	 * adjust fast charger output voltage from 5V to 9V
 	 */
-	ret = cm_get_adapter_max_voltage(cm, &adapter_max_vbus);
-	if (ret) {
-		dev_err(cm->dev, "failed to obtain the adapter max voltage\n");
-		return ret;
-	}
-
 	if (adapter_max_vbus > CM_FAST_CHARGE_VOLTAGE_9V)
 		adapter_max_vbus = CM_FAST_CHARGE_VOLTAGE_9V;
 
@@ -2693,6 +2799,9 @@ static void cm_init_cp(struct charger_manager *cm)
 	union power_supply_propval val;
 	struct power_supply *cp_psy;
 	int i, ret = -ENODEV;
+
+	if (!cm->desc->psy_cp_stat)
+		return;
 
 	for (i = 0; cm->desc->psy_cp_stat[i]; i++) {
 		cp_psy = power_supply_get_by_name(cm->desc->psy_cp_stat[i]);
@@ -4009,9 +4118,9 @@ static void cm_check_charge_voltage(struct charger_manager *cm)
 
 	charge_vol = val.intval;
 
-	/* Tab A8 code for AX6300DEV-2187 by lina at 20211028 start */
-	if ((cm->charger_enabled && charge_vol > desc->charge_voltage_max) ||
-            (charge_vol > VBUS_ERROR_LOW && charge_vol < VBUS_ERROR_HIGH)) {
+	/* Tab A8 code for AX6300DEV-2187|AX6300SDEV-220 by lina at 20220506 start */
+	if (cm->charger_enabled && (charge_vol > desc->charge_voltage_max ||
+            (charge_vol > VBUS_ERROR_LOW && charge_vol < VBUS_ERROR_HIGH))) {
 		dev_info(cm->dev, "Charging voltage is larger than %d\n",
 			 desc->charge_voltage_max);
 		cm->charging_status |= CM_CHARGE_VOLTAGE_ABNORMAL;
@@ -4025,7 +4134,7 @@ static void cm_check_charge_voltage(struct charger_manager *cm)
 			 desc->charge_voltage_max - desc->charge_voltage_drop);
 		cm->charging_status &= ~CM_CHARGE_VOLTAGE_ABNORMAL;
 	}
-	/* Tab A8 code for AX6300DEV-2187 by lina at 20211028 end */
+	/* Tab A8 code for AX6300DEV-2187|AX6300SDEV-220 by lina at 20220506 end */
 }
 
 static void cm_check_charge_health(struct charger_manager *cm)
@@ -4141,6 +4250,13 @@ static bool cm_manager_adjust_current(struct charger_manager *cm, int jeita_stat
 		}
 		return false;
 	}
+	/* Tab A8 code for  AX6300DEV-3566 by qiaodan at 20211201 start */
+	if (strcmp(desc->psy_charger_stat[0] ,"sy6970_charger") == 0) {
+		desc->jeita_tab[0].term_volt = 4400000;
+		desc->jeita_tab[1].term_volt = 4400000;
+		dev_err(cm->dev, "sy6970 find,set terminal voltage to 4400000 during cold\n");
+	}
+	/* Tab A8 code for  AX6300DEV-3566 by qiaodan at 20211201 end */
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 start */
 	#ifndef HQ_FACTORY_BUILD
 	term_volt = min(desc->jeita_tab[jeita_status].term_volt,desc->ss_vbatfloat);
@@ -4149,23 +4265,6 @@ static bool cm_manager_adjust_current(struct charger_manager *cm, int jeita_stat
 	#endif
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end */
 	target_cur = desc->jeita_tab[jeita_status].current_ua;
-
-	/* Tab A8 code for AX6300DEV-1359 by qiaodan at 20211014 start */
-	/**
-	* Shorten charging time
-	* when temp between 12 and 45 ℃,rise CV to 4.45V when capacity reach 20%,
-	* and restore CV to 4.4V when capacity reach 90%
-	*/
-#ifdef CONFIG_TARGET_UMS512_1H10
-#ifndef HQ_FACTORY_BUILD
-	if (jeita_status == 3) {
-		if ((cm->desc->cap >= 200) && (cm->desc->cap <= 205)) {
-			term_volt += 50000;
-		}
-	}
-#endif
-#endif
-	/* Tab A8 code for AX6300DEV-1359 by qiaodan at 20211014 end */
 
 	cm->desc->ir_comp.us = term_volt;
 	cm->desc->ir_comp.us_lower_limit = term_volt;
@@ -4211,7 +4310,7 @@ static void cm_jeita_temp_goes_down(struct charger_desc *desc, int status,
 		return;
 	}
 
-	if (desc->jeita_tab[status].temp < desc->jeita_tab[status].recovery_temp)
+	if (*jeita_status >= status)
 		*jeita_status = status;
 }
 
@@ -4219,7 +4318,8 @@ static void cm_jeita_temp_goes_up(struct charger_desc *desc, int status,
 				  int recovery_status, int *jeita_status)
 {
 	if (recovery_status == desc->jeita_tab_size) {
-		*jeita_status = status;
+		if (*jeita_status <= status)
+			*jeita_status = status;
 		return;
 	}
 
@@ -4229,14 +4329,14 @@ static void cm_jeita_temp_goes_up(struct charger_desc *desc, int status,
 		return;
 	}
 
-	if (desc->jeita_tab[status].temp > desc->jeita_tab[status].recovery_temp)
+	if (*jeita_status <= status)
 		*jeita_status = status;
 }
 
 static int cm_manager_get_jeita_status(struct charger_manager *cm, int cur_temp)
 {
 	struct charger_desc *desc = cm->desc;
-	static int jeita_status, last_temp;
+	static int jeita_status, last_temp = -200;
 	int i, temp_status, recovery_temp_status = -1;
 
 	for (i = desc->jeita_tab_size - 1; i >= 0; i--) {
@@ -4250,9 +4350,11 @@ static int cm_manager_get_jeita_status(struct charger_manager *cm, int cur_temp)
 
 	if (temp_status == desc->jeita_tab_size) {
 		jeita_status = desc->jeita_tab_size;
+		recovery_temp_status = desc->jeita_tab_size;
 		goto out;
 	} else if (temp_status == 0) {
 		jeita_status = 0;
+		recovery_temp_status = 0;
 		goto out;
 	}
 
@@ -4266,7 +4368,7 @@ static int cm_manager_get_jeita_status(struct charger_manager *cm, int cur_temp)
 	recovery_temp_status = i + 1;
 
 	/* temperature goes down */
-	if (last_temp >= cur_temp)
+	if (last_temp > cur_temp)
 		cm_jeita_temp_goes_down(desc, temp_status, recovery_temp_status, &jeita_status);
 	/* temperature goes up */
 	else
@@ -4356,13 +4458,48 @@ out:
 }
 
 /**
+ * cm_use_typec_charger_type_polling - Polling charger type if use typec extcon.
+ * @cm: the Charger Manager representing the battery.
+ */
+static int cm_use_typec_charger_type_polling(struct charger_manager *cm)
+{
+	int ret;
+	u32 type;
+
+	if (cm->desc->is_fast_charge)
+		return 0;
+
+	if (cm->desc->charger_type != POWER_SUPPLY_USB_TYPE_UNKNOWN)
+		return 0;
+
+	ret = get_usb_charger_type(cm, &type);
+	if (!ret && type != POWER_SUPPLY_USB_TYPE_UNKNOWN)
+		cm->desc->charger_type_cnt++;
+
+	if (cm->desc->charger_type_cnt > 1) {
+		dev_info(cm->dev, "%s: update charger type:%d\n", __func__, type);
+		cm->desc->charger_type = type;
+		cm_update_charge_info(cm, (CM_CHARGE_INFO_CHARGE_LIMIT |
+					   CM_CHARGE_INFO_INPUT_LIMIT |
+					   CM_CHARGE_INFO_JEITA_LIMIT));
+	}
+
+	return ret;
+}
+
+/**
  * cm_get_target_status - Check current status and get next target status.
  * @cm: the Charger Manager representing the battery.
  */
 static int cm_get_target_status(struct charger_manager *cm)
 {
 	int ret;
-
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	union power_supply_propval pval = {0, };
+	int soc_temp = 0;
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/*
 	 * Adjust the charging current according to current battery
 	 * temperature jeita table.
@@ -4370,10 +4507,17 @@ static int cm_get_target_status(struct charger_manager *cm)
 	ret = cm_manager_jeita_current_monitor(cm);
 	if (ret)
 		dev_warn(cm->dev, "Errors orrurs when adjusting charging current\n");
-
-	if (!is_ext_pwr_online(cm) || (!is_batt_present(cm) && !allow_charger_enable))
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+	if (!is_ext_pwr_online(cm) || (!is_batt_present(cm) && !allow_charger_enable)) {
+#if !defined(HQ_FACTORY_BUILD)
+		if (cm->batt_full_flag == true) {
+			cm->batt_full_flag = false;
+			dev_info(cm->dev,"%s:The charger is out, reset the batt_full_flag!", __func__);
+		}
+#endif
 		return POWER_SUPPLY_STATUS_DISCHARGING;
-
+	}
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	if (cm_check_thermal_status(cm))
 		return POWER_SUPPLY_STATUS_NOT_CHARGING;
 
@@ -4416,6 +4560,34 @@ static int cm_get_target_status(struct charger_manager *cm)
 		return POWER_SUPPLY_STATUS_NOT_CHARGING;
 	}
 /* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 end */
+/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	/*get capacity */
+	ret = ss_get_prop_from_battery(cm, POWER_SUPPLY_PROP_CAPACITY ,&pval);
+	if (ret < 0) {
+		dev_err(cm->dev,"%s: get capacity failed\n", __func__);
+		return ret;
+	}
+	soc_temp = pval.intval;
+
+	if (cm->batt_full_flag == false) {
+		if (cm->desc->batt_full_cap != 100 && soc_temp >= cm->desc->batt_full_cap) {
+			cm->batt_full_flag = true;
+			cm->power_path_enabled = true;
+			dev_info (cm->dev, "%s:The battery protection is in effect !", __func__);
+			return POWER_SUPPLY_STATUS_NOT_CHARGING;
+		}
+	} else {
+		if (soc_temp >= cm->desc->batt_full_cap - 1) {
+			cm->power_path_enabled = true;
+			return POWER_SUPPLY_STATUS_NOT_CHARGING;
+		} else {
+			cm->batt_full_flag = false;
+			dev_info (cm->dev, "%s:The battery starts to be recharged !", __func__);
+		}
+	}
+#endif
+/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 start */
 	if (is_full_charged(cm)) {
 		cm->power_path_enabled = true;
@@ -4535,7 +4707,9 @@ int cm_get_val(struct range_data *range, int threshold, int *val)
 
 #define CUSTOM_BAT_HIGH_TEMP_DOWM_THRESHOLD		450
 #define CUSTOM_BAT_HIGH_TEMP_RECHARGE_THRESHOLD	        4130
-#define CUSTOM_BAT_HIGH_TEMP_VBATT_FLOAT_THRESHOLD	4200000
+/* HS03_s code for SL6215SDEV-101 by zhaichao at 20220323 start */
+#define CUSTOM_BAT_HIGH_TEMP_VBATT_FLOAT_THRESHOLD	4208000
+/* HS03_s code for SL6215SDEV-101 by zhaichao at 20220323 end */
 static int ss_battery_aging_update(struct charger_manager *cm)
 {
 	int ret, cycle_count = 0, vbat_float = 0;
@@ -4556,9 +4730,9 @@ static int ss_battery_aging_update(struct charger_manager *cm)
 	} else {
 		cm->desc->ss_vbatfloat = vbat_float;
 	}
-	/* HS03 code for SL6215DEV-729 by lina at 20210903 start */
-	cm->desc->ss_vbatfloat_buf = cm->desc->ss_vbatfloat - 25000; //delta voltage for platform
-	/* HS03 code for SL6215DEV-729 by lina at 20210903 end */
+	/* Tab A8_s code for AX6300SDEV-36 by zhaichao at 20220309 start */
+	cm->desc->ss_vbatfloat_buf = cm->desc->ss_vbatfloat - 40000; //delta voltage for platform
+	/* Tab A8_s code for AX6300SDEV-36 by zhaichao at 20220309 end */
 	if(cm->desc->fullbatt_uV != cm->desc->ss_vbatfloat_buf) {
 		dev_info(cm->dev, "ss_battery_aging: ss_vbatfloat = %d,battery_temp = %d,cycle_count=%d fullbatt_uV=%d\n",vbat_float,battery_temp,cycle_count,cm->desc->fullbatt_uV);
 		cm->desc->fullbatt_uV = min(cm->desc->fullbatt_uV, (unsigned int)(cm->desc->ss_vbatfloat_buf));
@@ -4608,6 +4782,7 @@ static bool _cm_monitor(struct charger_manager *cm)
 		cm->emergency_stop = 0;
 		cm->charging_status = 0;
 		try_charger_enable(cm, true);
+		cm_use_typec_charger_type_polling(cm);
 
 		if (!cm->desc->cp.cp_running && !cm_check_primary_charger_enabled(cm)
 		    && !cm->desc->force_set_full) {
@@ -4641,7 +4816,7 @@ static bool _cm_monitor(struct charger_manager *cm)
 static bool cm_monitor(void)
 {
 	bool stop = false;
-	struct charger_manager *cm;
+	struct charger_manager *cm = NULL;
 
 	mutex_lock(&cm_list_mtx);
 
@@ -4662,7 +4837,7 @@ static bool cm_monitor(void)
 static void _setup_polling(struct work_struct *work)
 {
 	unsigned long min = ULONG_MAX;
-	struct charger_manager *cm;
+	struct charger_manager *cm = NULL;
 	bool keep_polling = false;
 	unsigned long _next_polling;
 
@@ -4805,7 +4980,17 @@ static bool cm_charger_is_support_fchg(struct charger_manager *cm)
 				#endif
 				/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
 				mutex_lock(&cm->desc->charger_type_mtx);
+/* Tab A7 T618 code for SR-AX6189A-01-229 by shixuanxuan at 20211227 start */
+#ifdef CONFIG_AFC
+				if (cm->desc->hv_disable ==1) {
+					desc->is_fast_charge = false;
+				} else {
+					desc->is_fast_charge = true;
+				}
+#else
 				desc->is_fast_charge = true;
+#endif
+/* Tab A7 T618 code for SR-AX6189A-01-229 by shixuanxuan at 20211227 end */
 				if (!desc->psy_cp_stat &&
 				    val.intval == POWER_SUPPLY_USB_TYPE_PD_PPS)
 					val.intval = POWER_SUPPLY_USB_TYPE_PD;
@@ -4868,13 +5053,15 @@ static void fast_charge_handler(struct charger_manager *cm)
 		schedule_delayed_work(&cm_monitor_work, 0);
 	}
 
-	/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
+	/* Tab A8_S code for SR-AX6300-01-5|AX6300SDEV-324 by wenyaqi at 20220613 start */
 	#ifdef CONFIG_AFC
-	if (cm->desc->afc_sts >= AFC_5V)
+	if (cm->desc->afc_sts >= AFC_5V && cm->charger_enabled) {
 		cm_update_charge_info(cm, (CM_CHARGE_INFO_CHARGE_LIMIT |
 					   CM_CHARGE_INFO_INPUT_LIMIT));
+		_cm_monitor(cm);
+	}
 	#endif
-	/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
+	/* Tab A8_S code for SR-AX6300-01-5|AX6300SDEV-324 by wenyaqi at 20220613 start */
 }
 
 /**
@@ -4956,6 +5143,10 @@ static void misc_event_handler(struct charger_manager *cm, enum cm_event_types t
 		cm->desc->thm_info.adapter_default_charge_vol = 5;
 		cm->desc->wl_charge_en = 0;
 		cm->desc->usb_charge_en = 0;
+		/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+		cm->desc->pd_port_partner = 0;
+		cm->desc->charger_type_cnt = 0;
+		/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 		cm->cm_charge_vote->vote(cm->cm_charge_vote, false,
 					 SPRD_VOTE_TYPE_ALL, 0, 0, 0, cm);
 	}
@@ -5226,9 +5417,15 @@ void smblib_get_prop_batt_batt_misc_event_samsung(struct charger_manager *cm,
 
 	val->intval = 0;
 	if (cm) {
-		/* BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE */
-		if (cm->desc->charger_type == POWER_SUPPLY_USB_TYPE_FLOAT)
+		/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+		if (cm->desc->charger_type == POWER_SUPPLY_USB_TYPE_FLOAT && cm->batt_full_flag == false) {
 			val->intval = BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE;
+		} else if (cm->desc->charger_type != POWER_SUPPLY_USB_TYPE_FLOAT && cm->batt_full_flag == true) {
+			val->intval = BATT_MISC_EVENT_FULL_CAPACITY;
+		} else if (cm->desc->charger_type == POWER_SUPPLY_USB_TYPE_FLOAT && cm->batt_full_flag == true) {
+			val->intval = BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE | BATT_MISC_EVENT_FULL_CAPACITY;
+		}
+		/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 		dev_err(cm->dev, "[ss]val->intval=%d, charge_type = %d\n",
 				val->intval, cm->desc->charger_type);
 	} else
@@ -5322,6 +5519,21 @@ void ss_get_prop_chg_type(struct charger_manager *cm, union power_supply_propval
 #endif
 /* HS03 code for SR-AX6300-01-143 by wenyaqi at 20210830 end */
 
+static bool cm_add_battery_psy_property(struct charger_manager *cm, enum power_supply_property psp)
+{
+	u32 i;
+
+	for (i = 0; i < cm->charger_psy_desc.num_properties; i++)
+		if (cm->charger_psy_desc.properties[i] == psp)
+			break;
+
+	if (i == cm->charger_psy_desc.num_properties) {
+		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties++] = psp;
+		return true;
+	}
+	return false;
+}
+
 static int charger_get_property(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
@@ -5358,7 +5570,14 @@ static int charger_get_property(struct power_supply *psy,
 		break;
 #endif
 /* HS03 code for SL6216DEV-97 by shixuanxuan at 20211001 end */
+/* Tab A8 code for SR-AX6301A-01-111and  SR-SL6217T-01-119 by  xuliqin at 20220914 start */
+	case POWER_SUPPLY_PROP_CHG_INFO:
+		val->strval = cm->desc->psy_charger_stat[0] ;
+		break;
+/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 end */
 	case POWER_SUPPLY_PROP_STATUS:
+/* HS03 code for SL6215DEV-3568 by gaochao at 20211117 start */
+/* Tab A8 code for AX6300DEV-3576 by wenyaqi at 20211202 start */
 		if (is_charging(cm)) {
 			cm->battery_status = POWER_SUPPLY_STATUS_CHARGING;
 		} else if (is_ext_pwr_online(cm)) {
@@ -5370,7 +5589,21 @@ static int charger_get_property(struct power_supply *psy,
 			cm->battery_status = POWER_SUPPLY_STATUS_DISCHARGING;
 		}
 
+#if !defined(HQ_FACTORY_BUILD)	// ss binary
+		if (is_charger_mode) {	// KPOC
+			if (is_charging(cm) || is_ext_pwr_online(cm)) {
+				val->intval = POWER_SUPPLY_STATUS_CHARGING;
+			} else {
+				val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			}
+		} else {
+			val->intval = cm->battery_status;
+		}
+#else
 		val->intval = cm->battery_status;
+#endif
+/* Tab A8 code for AX6300DEV-3576 by wenyaqi at 20211202 end */
+/* HS03 code for SL6215DEV-3568 by gaochao at 20211117 end */
 		break;
 	/* HS03 code for SR-SL6215-01-606 by gaochao at 20210813 start */
 	case POWER_SUPPLY_PROP_CHARGE_DONE:
@@ -5445,6 +5678,13 @@ static int charger_get_property(struct power_supply *psy,
 		break;
 	#endif
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210818 end*/
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163  by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		val->intval = cm->desc->batt_full_cap;
+		break;
+#endif
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 start */
 	#if !defined(HQ_FACTORY_BUILD)
 	case POWER_SUPPLY_PROP_BATT_PROTECT_FLAG:
@@ -5798,6 +6038,23 @@ charger_set_property(struct power_supply *psy,
 		break;
 	#endif
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end */
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		cm->desc->batt_full_cap = val->intval;
+		cm->batt_full_flag = false;
+		/* HS03_T code for P221019-04435 by  daijie at 20221027 start */
+		_cm_monitor(cm);
+		dev_info(cm->dev," set batt_full_cap = %d\n", cm->desc->batt_full_cap);
+		if (cm->charger_psy == NULL) {
+			dev_info(cm->dev,"%s cm->charger_psy is error!", __func__);
+		} else {
+  			power_supply_changed(cm->charger_psy);
+		}
+		/* HS03_T code for P221019-04435 by  daijie at 20221027 end */
+		break;
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 start */
 	#if !defined(HQ_FACTORY_BUILD)
 	case POWER_SUPPLY_PROP_EN_BATT_PROTECT:
@@ -5907,6 +6164,11 @@ static int charger_property_is_writeable(struct power_supply *psy, enum power_su
 	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
 	#endif
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end */
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163  by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+#endif
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* HS03 code for SR-SL6215-01-552 by qiaodan at 20210831 start */
 	#ifndef HQ_FACTORY_BUILD
 	case POWER_SUPPLY_PROP_STORE_MODE:
@@ -6022,6 +6284,11 @@ static enum power_supply_property default_charger_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	#endif
 	/* HS03 code for SR-SL6215-01-540 by qiaodan at 20210829 end */
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* HS03 code for SR-SL6215-01-552 by qiaodan at 20210831 start */
 	#ifndef HQ_FACTORY_BUILD
 	POWER_SUPPLY_PROP_STORE_MODE,
@@ -6045,6 +6312,9 @@ static enum power_supply_property default_charger_props[] = {
 	 * POWER_SUPPLY_PROP_TEMP, and
 	 * POWER_SUPPLY_PROP_TEMP_AMBIENT,
 	 */
+	/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 start */
+	POWER_SUPPLY_PROP_CHG_INFO,
+	/* Tab A8 code for SR-AX6301A-01-111 and SR-SL6217T-01-119 by  xuliqin at 20220914 end */
 };
 
 /* wireless_data initialization */
@@ -6224,6 +6494,9 @@ static int cm_charger_vbus_is_enabled(struct regulator_dev *dev)
 	int ret = -EINVAL;
 	const char *otg_name = NULL;
 	struct regulator *charger_otg;
+	/* Tab A8 code for AX6300_DEV-3228 by wangjian at 20211116 start */
+	int retry_count = 0;
+	/* Tab A8 code for AX6300_DEV-3228 by wangjian at 20211116 end */
 
 	if (!cm) {
 		pr_err("%s:line%d: NULL pointer!!!\n", __func__, __LINE__);
@@ -6241,11 +6514,64 @@ static int cm_charger_vbus_is_enabled(struct regulator_dev *dev)
 			return ret;
 		}
 
-		ret = regulator_is_enabled(charger_otg);
+		/* Tab A8 code for AX6300_DEV-3228 by wangjian at 20211116 start */
+		do {
+			ret = regulator_is_enabled(charger_otg);
+			if (ret < 0) {
+				dev_info(cm->dev, "%s:regulator_is_enabled faile %d\n",__func__, retry_count);
+			}
+			retry_count++;
+			msleep(5);
+		} while((ret < 0) && (retry_count < OTG_ENABLED_RETRY_TIMES));
+		/* Tab A8 code for AX6300_DEV-3228 by wangjian at 20211116 end */
 	}
 
 	return ret;
 }
+
+/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 start */
+#ifdef CONFIG_TYPEC_TCPM
+static bool cm_pd_is_ac_online(struct charger_manager *cm)
+{
+       struct adapter_power_cap pd_source_cap;
+       struct tcpm_port *port;
+       struct power_supply *psy;
+       int i, index = 0;
+
+       psy = power_supply_get_by_name("tcpm-source-psy-sc27xx-pd");
+       if (!psy) {
+               dev_err(cm->dev, "failed to get tcpm psy!\n");
+               return true;
+       }
+
+       port = power_supply_get_drvdata(psy);
+       if (!port) {
+               dev_err(cm->dev, "failed to get tcpm port!\n");
+               return true;
+       }
+
+       tcpm_get_source_capabilities(port, &pd_source_cap);
+
+       for (i = 0; i < pd_source_cap.nr_source_caps; i++) {
+       if ((pd_source_cap.max_mv[i] <= 5000) &&
+           (pd_source_cap.type[i] == PDO_TYPE_FIXED))
+               index++;
+       }
+
+       if (pd_source_cap.nr_source_caps == index) {
+               dev_info(cm->dev, "pd type ac online is false\n");
+               return false;
+       }
+
+       return true;
+}
+#else
+static bool cm_pd_is_ac_online(struct charger_manager *cm)
+{
+       return true;
+}
+#endif
+/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 end */
 
 static const struct regulator_ops cm_charger_vbus_ops = {
 	.enable = cm_charger_enable_otg,
@@ -6297,9 +6623,28 @@ static void cm_update_charger_type_status(struct charger_manager *cm)
 		case POWER_SUPPLY_USB_CHARGER_TYPE_AFC:
 		#endif
 		/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 end */
-			wireless_main.WIRELESS_ONLINE = 0;
-			usb_main.USB_ONLINE = 0;
-			ac_main.AC_ONLINE = 1;
+			/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+			/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 start */
+			if (cm->desc->charger_type == POWER_SUPPLY_USB_CHARGER_TYPE_PD &&
+				!cm_pd_is_ac_online(cm) && !cm->desc->pd_port_partner) {
+				wireless_main.WIRELESS_ONLINE = 0;
+				ac_main.AC_ONLINE = 0;
+				usb_main.USB_ONLINE = 1;
+				dev_info(cm->dev, "usb online--pd type 5V\n");
+			} else if (cm->desc->pd_port_partner) {
+				wireless_main.WIRELESS_ONLINE = 0;
+				usb_main.USB_ONLINE = 0;
+				ac_main.AC_ONLINE = 1;
+				cm->desc->pd_port_partner = 0;
+				dev_info(cm->dev, "pd_port_partner ac online\n");
+			} else {
+				wireless_main.WIRELESS_ONLINE = 0;
+				usb_main.USB_ONLINE = 0;
+				ac_main.AC_ONLINE = 1;
+				dev_info(cm->dev, "ac online\n");
+			}
+			/* Tab A8 code for AX6300DEV-3976 by zhaichao at 20220118 end */
+			/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 			break;
 		default:
 			wireless_main.WIRELESS_ONLINE = 0;
@@ -6323,7 +6668,36 @@ static void cm_update_charger_type_status(struct charger_manager *cm)
 		/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210827 end */
 	}
 }
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+void cm_check_pd_port_partner(bool is_pd_hub)
+{
+       struct charger_manager *cm = global_cm;
 
+       if (!cm) {
+               pr_err("%s:line%d NULL pointer!!!\n", __func__, __LINE__);
+               return;
+       }
+
+       dev_info(cm->dev, "%s is_pd_hub = %d\n", __func__, is_pd_hub);
+
+	if (!is_ext_usb_pwr_online(cm)) {
+		dev_info(cm->dev, "%s offline = %d\n", __func__);
+	}
+
+	dev_info(cm->dev, "%s is_pd_hub = %d\n", __func__, is_pd_hub);
+
+       cm->desc->pd_port_partner = is_pd_hub;
+
+       if (usb_main.USB_ONLINE && cm->desc->pd_port_partner) {
+               wireless_main.WIRELESS_ONLINE = 0;
+               usb_main.USB_ONLINE = 0;
+               ac_main.AC_ONLINE = 1;
+               cm->desc->pd_port_partner = 0;
+               power_supply_changed(cm->charger_psy);
+               dev_info(cm->dev, "%s ac online\n", __func__);
+       }
+}
+/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 end */
 /**
  * cm_setup_timer - For in-suspend monitoring setup wakeup alarm
  *		    for suspend_again.
@@ -6336,7 +6710,7 @@ static void cm_update_charger_type_status(struct charger_manager *cm)
  */
 static bool cm_setup_timer(void)
 {
-	struct charger_manager *cm;
+	struct charger_manager *cm = NULL;
 	unsigned int wakeup_ms = UINT_MAX;
 	int timer_req = 0;
 
@@ -6606,7 +6980,9 @@ void hq_update_charge_state(struct charger_manager *cm)
 	int cap, ret;
 
 	hq_update_charing_count(cm);
-	if (cm->charging_dur_time > TSUSPEND) {
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+	if (cm->charging_dur_time > TSUSPEND && cm->desc->batt_full_cap == 100) {
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 		if (cm->en_batt_protect == ENABLE_BATT_PROTECT) {
 			/* HS03 code for SL6215DEV-734 by shixuanxuan at 20210906 start */
 			if (cm->desc->batt_store_mode == true)
@@ -6793,6 +7169,9 @@ static ssize_t charge_pump_present_store(struct device *dev,
 			     attr_charge_pump_present);
 	struct charger_manager *cm = charger->cm;
 	bool enabled;
+
+	if (!cm || !cm->desc || !cm->desc->psy_cp_stat)
+		return count;
 
 	ret =  kstrtobool(buf, &enabled);
 	if (ret)
@@ -7118,9 +7497,8 @@ static int cm_init_thermal_data(struct charger_manager *cm, struct power_supply 
 	ret = power_supply_get_property(fuel_gauge, POWER_SUPPLY_PROP_TEMP, &val);
 
 	if (!ret) {
-		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties] =
-				POWER_SUPPLY_PROP_TEMP;
-		cm->charger_psy_desc.num_properties++;
+		if (!cm_add_battery_psy_property(cm, POWER_SUPPLY_PROP_TEMP))
+			dev_warn(cm->dev, "POWER_SUPPLY_PROP_TEMP is present\n");
 		cm->desc->measure_battery_temp = true;
 	}
 #ifdef CONFIG_THERMAL
@@ -7131,9 +7509,8 @@ static int cm_init_thermal_data(struct charger_manager *cm, struct power_supply 
 			return PTR_ERR(cm->tzd_batt);
 
 		/* Use external thermometer */
-		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties] =
-				POWER_SUPPLY_PROP_TEMP_AMBIENT;
-		cm->charger_psy_desc.num_properties++;
+		if (!cm_add_battery_psy_property(cm, POWER_SUPPLY_PROP_TEMP_AMBIENT))
+			dev_warn(cm->dev, "POWER_SUPPLY_PROP_TEMP_AMBIENT is present\n");
 		cm->desc->measure_battery_temp = true;
 		ret = 0;
 	}
@@ -7287,6 +7664,9 @@ static struct charger_desc *of_cm_parse_desc(struct device *dev)
 
 	of_property_read_u32(np, "cm-poll-mode", &poll_mode);
 	desc->polling_mode = poll_mode;
+
+	desc->uvlo_shutdown_mode = CM_SHUTDOWN_MODE_ANDROID;
+	of_property_read_u32(np, "cm-uvlo-shutdown-mode", &desc->uvlo_shutdown_mode);
 
 	of_property_read_u32(np, "cm-poll-interval",
 				&desc->polling_interval_ms);
@@ -7511,7 +7891,7 @@ static struct charger_desc *of_cm_parse_desc(struct device *dev)
 	/* HS03 code for SR-SL6215-01-193 by shixuanxuan at 20210811 end */
 	if (desc->num_charger_regulators) {
 		struct charger_regulator *chg_regs;
-		struct device_node *child;
+		struct device_node *child = NULL;
 
 		chg_regs = devm_kzalloc(dev, sizeof(*chg_regs)
 					* desc->num_charger_regulators,
@@ -7523,7 +7903,7 @@ static struct charger_desc *of_cm_parse_desc(struct device *dev)
 
 		for_each_child_of_node(np, child) {
 			struct charger_cable *cables;
-			struct device_node *_child;
+			struct device_node *_child = NULL;
 
 			/* HS03 code for SR-SL6215-01-178 by gaochao at 20210724 start */
 			of_property_read_string(child, "regulator-name",
@@ -7677,7 +8057,25 @@ static void cm_uvlo_check_work(struct work_struct *work)
 	if (cm->desc->uvlo_trigger_cnt >= CM_UVLO_CALIBRATION_CNT_THRESHOLD) {
 		dev_err(cm->dev, "WARN: batt_uV less than uvlo, will shutdown\n");
 		set_batt_cap(cm, 0);
-		orderly_poweroff(true);
+		switch (cm->desc->uvlo_shutdown_mode) {
+		case CM_SHUTDOWN_MODE_ORDERLY:
+			orderly_poweroff(true);
+			break;
+
+		case CM_SHUTDOWN_MODE_KERNEL:
+			kernel_power_off();
+			break;
+
+		case CM_SHUTDOWN_MODE_ANDROID:
+			cancel_delayed_work_sync(&cm->cap_update_work);
+			cm->desc->cap = 0;
+			power_supply_changed(cm->charger_psy);
+			break;
+
+		default:
+			dev_warn(cm->dev, "Incorrect uvlo_shutdown_mode (%d)\n",
+				 cm->desc->uvlo_shutdown_mode);
+		}
 	}
 
 	if (batt_uV < CM_UVLO_CALIBRATION_VOLTAGE_THRESHOLD)
@@ -7695,13 +8093,7 @@ static void cm_batt_works(struct work_struct *work)
 	int chg_cur = 0, chg_limit_cur = 0, input_cur = 0;
 	int chg_vol = 0, vbat_avg = 0, ibat_avg = 0, recharge_uv = 0;
 	static int last_fuel_cap = CM_MAGIC_NUM;
-/* Tab A8 code for AX6300DEV-1359 by qiaodan at 20211014 start */
-#ifdef CONFIG_TARGET_UMS512_1H10
-#ifndef HQ_FACTORY_BUILD
-	int temp_jeita_status = 3;
-#endif
-#endif
-/* Tab A8 code for AX6300DEV-1359 by qiaodan at 20211014 end */
+
 	ret = get_vbat_now_uV(cm, &batt_uV);
 	if (ret) {
 		dev_err(cm->dev, "get_vbat_now_uV error.\n");
@@ -7821,26 +8213,6 @@ static void cm_batt_works(struct work_struct *work)
 		cm->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 	else
 		cm->battery_status = POWER_SUPPLY_STATUS_DISCHARGING;
-
-	/* Tab A8 code for AX6300DEV-1359 by qiaodan at 20211014 start */
-	/**
-	* Shorten charging time
-	* when temp between 12 and 45 ℃,rise CV to 4.45V when capacity reach 20%,
-	* and restore CV to 4.4V when capacity reach 90%
-	*/
-#ifdef CONFIG_TARGET_UMS512_1H10
-#ifndef HQ_FACTORY_BUILD
-	if ((cur_temp >= 120) && (cur_temp <= 450)
-		&& (cm->battery_status == POWER_SUPPLY_STATUS_CHARGING)) {
-		if (((cm->desc->cap >= 200) && (cm->desc->cap <= 205))
-			|| ((cm->desc->cap >= 900) && (cm->desc->cap <= 905))) {
-			temp_jeita_status = cm_manager_get_jeita_status(cm, cm->desc->temperature);
-			cm_manager_adjust_current(cm, temp_jeita_status);
-		}
-	}
-#endif
-#endif
-	/* Tab A8 code for AX6300DEV-1359 by qiaodan at 20211014 end */
 
 	/*
 	 * Record the charging time when battery
@@ -8216,15 +8588,13 @@ static int charger_manager_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	if (!power_supply_get_property(fuel_gauge, POWER_SUPPLY_PROP_CHARGE_NOW, &val)) {
-		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties] =
-				POWER_SUPPLY_PROP_CHARGE_NOW;
-		cm->charger_psy_desc.num_properties++;
+		if (!cm_add_battery_psy_property(cm, POWER_SUPPLY_PROP_CHARGE_NOW))
+			dev_warn(&pdev->dev, "POWER_SUPPLY_PROP_CHARGE_NOW is present\n");
 	}
 
 	if (!power_supply_get_property(fuel_gauge, POWER_SUPPLY_PROP_CURRENT_NOW, &val)) {
-		cm->charger_psy_desc.properties[cm->charger_psy_desc.num_properties] =
-				POWER_SUPPLY_PROP_CURRENT_NOW;
-		cm->charger_psy_desc.num_properties++;
+		if (!cm_add_battery_psy_property(cm, POWER_SUPPLY_PROP_CURRENT_NOW))
+			dev_warn(&pdev->dev, "POWER_SUPPLY_PROP_CURRENT_NOW is present\n");
 	}
 
 	ret = get_boot_cap(cm, &cm->desc->cap);
@@ -8243,6 +8613,12 @@ static int charger_manager_probe(struct platform_device *pdev)
 	/* HS03 code for SL6215DEV-610 by jiahao at 20210907 end */
 #endif
 	/* HS03 code for SR-SL6215-01-238 by qiaodan at 20210802 end */
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	cm->desc->batt_full_cap = 100;
+	cm->batt_full_flag = false;
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 	/* HS03 code for SR-SL6215-01-193 by shixuanxuan at 20210811 start */
 	#ifdef HQ_D85_BUILD
 	cm->desc->cap = 500;
@@ -8414,7 +8790,9 @@ static int charger_manager_probe(struct platform_device *pdev)
 		goto err_reg_sysfs;
 	}
 	/* HS03 code for SR-SL6215-01-178 by gaochao at 20210724 end */
-
+	/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
+	global_cm = cm;
+	/* Tab A7 Lite T618 code for AX6189DEV-731 by qiaodan at 20220126 start */
 	if (cm_event_type)
 		cm_notify_type_handle(cm, cm_event_type, cm_event_msg);
 
@@ -8712,7 +9090,7 @@ static void cm_notify_type_handle(struct charger_manager *cm, enum cm_event_type
 void cm_notify_event(struct power_supply *psy, enum cm_event_types type,
 		     char *msg)
 {
-	struct charger_manager *cm;
+	struct charger_manager *cm = NULL;
 	bool found_power_supply = false;
 
 	/* HS03 code for SL6215DEV-722 by gaochao at 20210901 start */

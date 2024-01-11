@@ -894,4 +894,12 @@ config PAGE_BOOST_RECORDING
 	  As Android executes an app one by one, only allow 1 recording
 	  at a time.
 
+config HIGHATOMIC_PAGEBLOCKS
+	int "limit max number of highatomic pageblocks"
+	default 1
+	help
+	  By default, "1 percent of managed pages + 1 pageblock" is reserved as
+	  highatomic pageblocks.
+	  This value limits max number of highatomic pageblocks.
+
 source "mm/sec_mm/Kconfig"

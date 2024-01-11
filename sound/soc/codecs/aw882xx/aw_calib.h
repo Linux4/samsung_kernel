@@ -80,12 +80,14 @@ typedef struct {
 #define AW_IOCTL_SET_CALI_CFG_FLAG		_IOWR(AW_IOCTL_MAGIC, 15, int32_t)
 #define AW_IOCTL_MSG				_IOWR(AW_IOCTL_MAGIC, 16, aw_ioctl_msg_t)
 
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
 enum{
 	AW_CALI_MODE_NONE = 0,
 	AW_CALI_MODE_ATTR,
 	AW_CALI_MODE_CLASS,
 	AW_CALI_MODE_MISC,
-	AW_CALI_MODE_MAX
+        AW_CALI_MODE_ALL,
+        AW_CALI_MODE_MAX,
 };
 
 enum {
@@ -95,6 +97,7 @@ enum {
 	AW_CALI_CMD_F0_Q,
 	AW_CALI_CMD_RE_F0_Q,
 };
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 enum {
 	CALI_OPS_HMUTE = 0X0001,
@@ -121,6 +124,8 @@ enum {
 	CALI_STR_DEV_SEL,		/*switch device*/
 	CALI_STR_VER,
 	CALI_STR_DEV_NUM,
+        CALI_STR_CALI_F0_Q,
+        CALI_STR_SHOW_F0_Q,
 	CALI_STR_MAX,
 };
 

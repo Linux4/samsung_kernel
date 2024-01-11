@@ -2,7 +2,7 @@
 /*Tab A8 code for SR-AX6300-01-373 by luxinjun at 2021/09/17 start*/
 &spi2 {
 	status = "okay";
-	cs-gpios = <0>, <0>;
+	cs-gpios = <0>, <0>, <0>;
 
 	himax_touch@0 {
 		compatible = "himax,hxcommon";
@@ -1022,6 +1022,21 @@
 				(-180) (-180)>;
 		};
 	};
+
+	/*Tab A8 code for SR-AX6300-01-448 by yuli at 2021/11/19 start*/
+	focaltech@2 {
+		compatible = "focaltech,fts-ot10";
+		reg = <2>;
+		status = "okay";
+		spi-max-frequency = <6000000>;
+		interrupt-parent = <&ap_gpio>;
+		focaltech,reset-gpio = <&ap_gpio 145 0x01>;
+		focaltech,irq-gpio = <&eic_async 0 0x02>;
+		focaltech,max-touch-number = <10>;
+		focaltech,display-coords =  <0 0 1199 1919>;
+	};
+	/*Tab A8 code for SR-AX6300-01-448 by yuli at 2021/11/19 end*/
+
 };
 /*Tab A8 code for SR-AX6300-01-373 by luxinjun at 2021/09/17 end*/
 /*Tab A8 code for SR-AX6300-01-23 by fengzhigang at 2021/08/04 end*/

@@ -20,6 +20,7 @@
 #include <linux/mm_inline.h>
 #include <linux/uaccess.h>
 #include <linux/mm_inline.h>
+#include <linux/freezer.h>
 #include <linux/ctype.h>
 
 #include <asm/elf.h>
@@ -27,6 +28,10 @@
 #include <asm/tlbflush.h>
 #include "internal.h"
 
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+#include <linux/delay.h>
+#include "../../drivers/block/zram/zram_drv.h"
+#endif
 
 void task_mem(struct seq_file *m, struct mm_struct *mm)
 {
@@ -523,6 +528,13 @@ struct mem_size_stats {
 	unsigned long anonymous_thp;
 	unsigned long shmem_thp;
 	unsigned long swap;
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	unsigned long writeback;
+	unsigned long writeback_huge;
+	unsigned long same;
+	unsigned long huge;
+	unsigned long swap_shared;
+#endif
 	unsigned long shared_hugetlb;
 	unsigned long private_hugetlb;
 	unsigned long first_vma_start;
@@ -703,6 +715,9 @@ static void smaps_pte_entry(pte_t *pte, unsigned long addr,
 
 		if (!non_swap_entry(swpent)) {
 			int mapcount;
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+			int type;
+#endif
 
 			mss->swap += PAGE_SIZE;
 			mapcount = swp_swapcount(swpent);
@@ -717,6 +732,21 @@ static void smaps_pte_entry(pte_t *pte, unsigned long addr,
 				mss->swap_uss += (u64)PAGE_SIZE << PSS_SHIFT;
 #endif
 			}
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+			type = zram_get_entry_type(swp_offset(swpent));
+			if (type == ZRAM_WB_TYPE || type == ZRAM_WB_HUGE_TYPE)
+				mss->writeback += PAGE_SIZE;
+			if (type == ZRAM_WB_HUGE_TYPE)
+				mss->writeback_huge += PAGE_SIZE;
+			if (mapcount >= 2) {
+				mss->swap_shared += PAGE_SIZE;
+			} else {
+				if (type == ZRAM_SAME_TYPE)
+					mss->same += PAGE_SIZE;
+				if (type == ZRAM_HUGE_TYPE)
+					mss->huge += PAGE_SIZE;
+			}
+#endif
 		} else if (is_migration_entry(swpent))
 			page = migration_entry_to_page(swpent);
 		else if (is_device_private_entry(swpent))
@@ -1024,6 +1054,13 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 #ifdef CONFIG_ENHANCE_SMAPS_INFO
 			   "USwap:          %8lu kB\n"
 #endif
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+			   "Writeback:      %8lu kB\n"
+			   "WritebackHuge:  %8lu kB\n"
+			   "Same:           %8lu kB\n"
+			   "Huge:           %8lu kB\n"
+			   "SwapShared:     %8lu kB\n"
+#endif
 			   "Locked:         %8lu kB\n",
 			   mss->resident >> 10,
 			   (unsigned long)(mss->pss >> (10 + PSS_SHIFT)),
@@ -1053,6 +1090,13 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 			   (unsigned long)(mss->swap_pss >> (10 + PSS_SHIFT)),
 #ifdef CONFIG_ENHANCE_SMAPS_INFO
 			    (unsigned long)(mss->swap_uss >> (10 + PSS_SHIFT)),
+#endif
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+			    mss->writeback >> 10,
+			    mss->writeback_huge >> 10,
+			    mss->same >> 10,
+			    mss->huge >> 10,
+			    mss->swap_shared >> 10,
 #endif
 			   (unsigned long)(mss->pss_locked >> (10 + PSS_SHIFT)));
 
@@ -1825,12 +1869,24 @@ const struct file_operations proc_pagemap_operations = {
 };
 #endif /* CONFIG_PROC_PAGE_MONITOR */
 
+#ifdef CONFIG_FREEZING
+static inline bool is_pm_freezing(void)
+{
+	return pm_freezing;
+}
+#else
+static inline bool is_pm_freezing(void)
+{
+	return false;
+}
+#endif /* CONFIG_FREEZING */
+
 #ifdef CONFIG_PROCESS_RECLAIM
 static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 				unsigned long end, struct mm_walk *walk)
 {
 	struct reclaim_param *rp = walk->private;
-	struct vm_area_struct *vma = rp->vma;
+	struct vm_area_struct *vma = rp->private;
 	pte_t *pte, ptent;
 	spinlock_t *ptl;
 	struct page *page;
@@ -1838,11 +1894,23 @@ static int reclaim_pte_range(pmd_t *pmd, unsigned long addr,
 	int isolated;
 	int reclaimed = 0;
 
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	bool is_lru_wb = false;
+
+	if (!strcmp("PerProcessNands", current->comm))
+		is_lru_wb = true;
+#endif
+
 	split_huge_pmd(vma, pmd, addr);
 	if (pmd_trans_unstable(pmd) || (rp->is_task_anon && !rp->nr_to_reclaim))
 		return 0;
 
 cont:
+	if (rwsem_is_contended(&walk->mm->mmap_sem))
+		return -1;
+	if (is_pm_freezing())
+		return -1;
+
 	isolated = 0;
 	pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
 	for (; addr != end; pte++, addr += PAGE_SIZE) {
@@ -1855,6 +1923,16 @@ cont:
 			continue;
 
 		if (PageProtect(page))
+			continue;
+
+		if (PageUnevictable(page))
+			continue;
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+		if (is_lru_wb && ptep_test_and_clear_young(vma, addr, pte))
+			continue;
+#endif
+
+		if (!PageLRU(page))
 			continue;
 
 		if (isolate_lru_page(page))
@@ -1906,11 +1984,83 @@ cont:
 	return 0;
 }
 
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+static DEFINE_SPINLOCK(writeback_lock);
+static bool writeback_ongoing;
+
+static int writeback_pte_range(pmd_t *pmd, unsigned long addr,
+		unsigned long end, struct mm_walk *walk)
+{
+	struct mm_struct *mm = walk->mm;
+	struct list_head *list = walk->private;
+	pte_t *pte, ptent;
+	spinlock_t *ptl;
+
+	if (pmd_trans_unstable(pmd))
+		return 0;
+	if (rwsem_is_contended(&mm->mmap_sem))
+		return -1;
+	if (is_pm_freezing())
+		return -1;
+	if (zram_is_app_launch())
+		return -EBUSY;
+
+	pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+	for (; addr != end; pte++, addr += PAGE_SIZE) {
+		ptent = *pte;
+		if (is_swap_pte(ptent)) {
+			swp_entry_t entry = pte_to_swp_entry(ptent);
+			if (unlikely(non_swap_entry(entry)))
+				continue;
+			if (swp_swapcount(entry) > 1)
+				continue;
+			zram_add_to_writeback_list(list, swp_offset(entry));
+		}
+	}
+	pte_unmap_unlock(pte - 1, ptl);
+
+	cond_resched();
+	return 0;
+}
+
+static int prefetch_pte_range(pmd_t *pmd, unsigned long start,
+		unsigned long end, struct mm_walk *walk)
+{
+	struct mm_struct *mm = walk->mm;
+	pte_t *orig_pte, pte;
+	spinlock_t *ptl;
+	swp_entry_t entry;
+	unsigned long index;
+
+	if (pmd_trans_unstable(pmd))
+		return 0;
+
+	for (index = start; index != end; index += PAGE_SIZE) {
+		orig_pte = pte_offset_map_lock(mm, pmd, start, &ptl);
+		pte = *(orig_pte + ((index - start) / PAGE_SIZE));
+		pte_unmap_unlock(orig_pte, ptl);
+
+		if (pte_present(pte) || pte_none(pte))
+			continue;
+		entry = pte_to_swp_entry(pte);
+		if (unlikely(non_swap_entry(entry)))
+			continue;
+
+		zram_prefetch_entry(swp_offset(entry));
+	}
+	return 0;
+}
+#endif
+
 enum reclaim_type {
 	RECLAIM_FILE,
 	RECLAIM_ANON,
 	RECLAIM_ALL,
 	RECLAIM_RANGE,
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	RECLAIM_WRITEBACK,
+	PREFETCH_PROCESS,
+#endif
 };
 
 struct reclaim_param reclaim_task_anon(struct task_struct *task,
@@ -1947,7 +2097,7 @@ struct reclaim_param reclaim_task_anon(struct task_struct *task,
 		if (!rp.nr_to_reclaim)
 			break;
 
-		rp.vma = vma;
+		rp.private = vma;
 		walk_page_range(vma->vm_start, vma->vm_end,
 			&reclaim_walk);
 	}
@@ -1969,10 +2119,16 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	struct vm_area_struct *vma;
 	enum reclaim_type type;
 	char *type_buf;
-	struct mm_walk reclaim_walk = {};
+	struct mm_walk reclaim_walk = {
+		.pmd_entry = reclaim_pte_range,
+	};
 	unsigned long start = 0;
 	unsigned long end = 0;
 	struct reclaim_param rp;
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	LIST_HEAD(list);
+#endif
+	int err = 0;
 
 	rp.is_task_anon = false;
 
@@ -1990,6 +2146,12 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		type = RECLAIM_ANON;
 	else if (!strcmp(type_buf, "all"))
 		type = RECLAIM_ALL;
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	else if (!strcmp(type_buf, "writeback"))
+		type = RECLAIM_WRITEBACK;
+	else if (!strcmp(type_buf, "prefetch"))
+		type = PREFETCH_PROCESS;
+#endif
 	else if (isdigit(*type_buf))
 		type = RECLAIM_RANGE;
 	else
@@ -2025,6 +2187,20 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			goto out_err;
 	}
 
+
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	/* we only allow single MADV_WRITEBACK at a time */
+	if (type == RECLAIM_WRITEBACK) {
+		spin_lock(&writeback_lock);
+		if (writeback_ongoing) {
+			spin_unlock(&writeback_lock);
+			return -EBUSY;
+		}
+		writeback_ongoing = true;
+		spin_unlock(&writeback_lock);
+	}
+#endif
+
 	task = get_proc_task(file->f_path.dentry->d_inode);
 	if (!task)
 		return -ESRCH;
@@ -2034,7 +2210,6 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		goto out;
 
 	reclaim_walk.mm = mm;
-	reclaim_walk.pmd_entry = reclaim_pte_range;
 
 	rp.nr_to_reclaim = INT_MAX;
 	rp.nr_reclaimed = 0;
@@ -2052,7 +2227,7 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 				continue;
 			}
 
-			rp.vma = vma;
+			rp.private = vma;
 			walk_page_range(max(vma->vm_start, start),
 					min(vma->vm_end, end),
 					&reclaim_walk);
@@ -2060,6 +2235,8 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 		}
 	} else {
 		for (vma = mm->mmap; vma; vma = vma->vm_next) {
+			rp.private = vma;
+
 			if (is_vm_hugetlb_page(vma) ||
 			   (vma->vm_flags & VM_MIXEDMAP))
 				continue;
@@ -2070,9 +2247,24 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 			if (type == RECLAIM_FILE && !vma->vm_file)
 				continue;
 
-			rp.vma = vma;
-			walk_page_range(vma->vm_start, vma->vm_end,
-				&reclaim_walk);
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+			if ((type == RECLAIM_WRITEBACK ||
+			     type == PREFETCH_PROCESS) && vma->vm_file)
+				continue;
+			if (type == RECLAIM_WRITEBACK) {
+				reclaim_walk.private = (void *)&list;
+				reclaim_walk.pmd_entry = writeback_pte_range;
+			} else if (type == PREFETCH_PROCESS) {
+				reclaim_walk.pmd_entry = prefetch_pte_range;
+			}
+#endif
+
+			err = walk_page_range(vma->vm_start, vma->vm_end,
+					&reclaim_walk);
+			if (err) {
+				count = err;
+				break;
+			}
 		}
 	}
 
@@ -2081,6 +2273,16 @@ static ssize_t reclaim_write(struct file *file, const char __user *buf,
 	mmput(mm);
 out:
 	put_task_struct(task);
+#ifdef CONFIG_ZRAM_LRU_WRITEBACK
+	if (type == RECLAIM_WRITEBACK) {
+		zram_writeback_list(&list);
+		flush_writeback_buffer(&list);
+
+		spin_lock(&writeback_lock);
+		writeback_ongoing = false;
+		spin_unlock(&writeback_lock);
+	}
+#endif
 	return count;
 
 out_err:

@@ -37,7 +37,11 @@
 /*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
 #include "aw_pid_2013_reg.h"
 /*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
-#define AW882XX_DRIVER_VERSION "v1.3.0"
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+#include "aw_spin.h"
+
+#define AW882XX_DRIVER_VERSION "v1.8.0"
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 #define AW882XX_I2C_NAME "aw882xx_smartpa"
 
 #define AW_READ_CHIPID_RETRIES		5	/* 5 times */
@@ -48,25 +52,13 @@ static unsigned int g_print_dbg = 0;
 static unsigned int g_algo_rx_en = true;
 static unsigned int g_algo_tx_en = true;
 static unsigned int g_algo_copp_en = true;
-#ifdef AW_SPIN_ENABLE
-static unsigned int g_spin_value = 0;
-#endif
 
 static DEFINE_MUTEX(g_aw882xx_lock);
 struct aw_container *g_awinic_cfg = NULL;
 
 static const char *const aw882xx_switch[] = {"Disable", "Enable"};
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-#ifdef AW_AP_SPIN_ENABLE
-static unsigned int g_spin_value = 0;
 static const char *const aw882xx_spin[] = {"spin_0", "spin_90",
 					"spin_180", "spin_270"};
-
-static LIST_HEAD(g_spin_dev_list);
-unsigned int g_spin_angle = AW_SPIN_0;
-EXPORT_SYMBOL(g_spin_angle);
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
-#endif
 
 /******************************************************
  *
@@ -124,7 +116,7 @@ static int aw882xx_i2c_writes(struct aw882xx *aw882xx,
 	unsigned char reg_addr, unsigned char *buf, unsigned int len)
 {
 	int ret = -1;
-	unsigned char *data;
+	unsigned char *data = NULL;
 
 	data = kmalloc(len+1, GFP_KERNEL);
 	if (data == NULL) {
@@ -406,8 +398,12 @@ static void aw882xx_start_pa(struct aw882xx *aw882xx)
 
 		for (i = 0; i < AW_START_RETRIES; i++) {
 			/*if PA already power ,stop PA then start*/
-			if (aw882xx->aw_pa->status)
-				aw_device_stop(aw882xx->aw_pa);
+                        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+                        if (aw882xx->aw_pa->status) {
+                                aw_dev_info(aw882xx->dev, "already start");
+                                 return;
+                        }
+                        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 			ret = aw_dev_reg_update(aw882xx->aw_pa, aw882xx->phase_sync);
 			if (ret) {
@@ -425,13 +421,7 @@ static void aw882xx_start_pa(struct aw882xx *aw882xx)
 						&aw882xx->dc_work,
 						msecs_to_jiffies(AW882XX_DC_DELAY_TIME));
 				aw_dev_info(aw882xx->dev, "start success");
-#ifdef AW_SPIN_ENABLE
-				if (aw882xx->index == 0) {
-					ret = aw_dev_set_spin(g_spin_value);
-					if (ret)
-						aw_dev_err(aw882xx->dev, "set spin error, ret=%d", ret);
-				}
-#endif
+
 				break;
 			}
 		}
@@ -443,6 +433,8 @@ static void aw882xx_start_pa(struct aw882xx *aw882xx)
 
 static int aw882xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 {
+	/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+        int ret = 0;
 	aw_snd_soc_codec_t *codec = aw_get_codec(dai);
 	struct aw882xx *aw882xx =
 		aw_componet_codec_ops.codec_get_drvdata(codec);
@@ -482,11 +474,18 @@ static int aw882xx_mute(struct snd_soc_dai *dai, int mute, int stream)
 		/*aw882xx_start_pa(aw882xx);*/
 		queue_delayed_work(aw882xx->work_queue,
 				&aw882xx->start_work, 0);
+                if (aw882xx->index == 0) {
+                        ret = aw_spin_set_record_val(aw882xx->aw_pa);
+                        if (ret) {
+                                aw_dev_err(aw882xx->dev, "set spin error, ret=%d", ret);
+                        }
+                }
 		mutex_unlock(&aw882xx->lock);
 	}
 	/*Tab A8 code for P211014-04859  by dongtianbao at 20211027 end*/
 
-	return 0;
+	return ret;
+	/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 }
 
 static const struct snd_soc_dai_ops aw882xx_dai_ops = {
@@ -525,7 +524,7 @@ static int aw882xx_profile_info(struct snd_kcontrol *kcontrol,
 
 	uinfo->value.enumerated.items = count;
 
-	if (uinfo->value.enumerated.item > count)
+	if (uinfo->value.enumerated.item >= count)
 		uinfo->value.enumerated.item = count - 1;
 
 	name = uinfo->value.enumerated.name;
@@ -604,7 +603,7 @@ static int aw882xx_switch_info(struct snd_kcontrol *kcontrol,
 
 	uinfo->value.enumerated.items = count;
 
-	if (uinfo->value.enumerated.item > count)
+	if (uinfo->value.enumerated.item >= count)
 		uinfo->value.enumerated.item = count - 1;
 
 	strlcpy(uinfo->value.enumerated.name,
@@ -997,7 +996,7 @@ static int aw882xx_get_tx_en(struct snd_kcontrol *kcontrol,
 		ucontrol->value.integer.value[0] = ctrl_value;
 	} else {
 		ucontrol->value.integer.value[0] = g_algo_tx_en;
-		aw_dev_info(aw882xx->dev, "no streamm, use record value");
+		aw_dev_info(aw882xx->dev, "no stream, use record value");
 	}
 
 	aw_dev_dbg(aw882xx->dev, "aw882xx_tx_enable %ld",
@@ -1062,68 +1061,13 @@ void aw882xx_kcontorl_set(struct aw882xx *aw882xx)
 	if (ret)
 		aw_dev_err(aw882xx->dev, "copp set error, ret=%d", ret);
 }
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-#ifdef AW_AP_SPIN_ENABLE
-static int aw882xx_set_channal_mode(struct aw882xx *aw882xx,
-					struct aw_spin_ch spin_ch)
-{
-	int ret;
-	ret = aw882xx_i2c_write_bits(aw882xx, AW_PID_2013_I2SCTRL1_REG,
-				AW_PID_2013_CHSEL_MASK, spin_ch.rx_val);
-	if (ret < 0) {
-		aw_dev_err(aw882xx->dev, "%s: set rx failed\n", __func__);
-		return ret;
-	}
-	ret = aw882xx_i2c_write_bits(aw882xx, AW_PID_2013_SYSCTRL2_REG,
-                                AW_PID_2013_I2SCHS_MASK, spin_ch.tx_val);
-	if (ret < 0) {
-		aw_dev_err(aw882xx->dev, "%s: set tx failed\n", __func__);
-		return ret;
-	}
 
-	return 0;
-}
-
-static int aw882xx_set_spin_angle(uint32_t spin_angle)
-{
-	struct aw882xx *local_dev = NULL;
-	struct list_head *pos = NULL;
-	int ret;
-	if (spin_angle >= ARRAY_SIZE(aw882xx_spin)) {
-		pr_err("%s: spin_angle:%d not support\n", __func__, spin_angle);
-		return -EINVAL;
-	}
-	if (g_spin_angle == spin_angle) {
-		pr_info("%s: spin_angle[%s] no change\n",
-			__func__, aw882xx_spin[spin_angle]);
-		return 0;
-	}
-
-	list_for_each(pos, &g_spin_dev_list) {
-		local_dev = container_of(pos, struct aw882xx, list_node);
-		ret = aw882xx_set_channal_mode(local_dev, local_dev->aw_pa->spin_table[spin_angle]);
-		if (ret < 0) {
-			aw_dev_err(local_dev->dev, "%s: set channal mode failed\n", __func__);
-			return ret;
-		}
-	}
-
-	g_spin_angle = spin_angle;
-
-	return 0;
-}
-
-static void aw882xx_get_spin_angle(uint32_t *spin_value)
-{
-	*spin_value = g_spin_angle;
-}
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
 static int aw882xx_set_spin(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
 	int ret = -EINVAL;
 	uint32_t ctrl_value = 0;
-	struct aw_device *aw_dev;
+	struct aw_device *aw_dev = NULL;
 	aw_snd_soc_codec_t *codec =
 		aw_componet_codec_ops.kcontrol_codec(kcontrol);
 	struct aw882xx *aw882xx =
@@ -1134,40 +1078,42 @@ static int aw882xx_set_spin(struct snd_kcontrol *kcontrol,
 
 	aw_dev = aw882xx->aw_pa;
 	ctrl_value = ucontrol->value.integer.value[0];
-	if (aw882xx->pstream) {
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-		ret = aw882xx_set_spin_angle(ctrl_value);
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
-		if (ret)
-			aw_dev_err(aw882xx->dev, "set spin error, ret=%d", ret);
-	} else {
-		aw_dev_info(aw882xx->dev, "stream no start only record");
-	}
+        if (ctrl_value >= ARRAY_SIZE(aw882xx_spin)) {
+                aw_dev_err(aw_dev->dev, "spin value %d is unsupport", ctrl_value);
+                return -EINVAL;
+        }
 
-	g_spin_value = ctrl_value;
-	return 0;
+        ret = aw_spin_value_set(aw_dev, ctrl_value, aw882xx->pstream);
+        if (ret) {
+                aw_dev_err(aw882xx->dev, "set spin error, ret = %d", ret);
+        }
+        return ret;
 }
 
 static int aw882xx_get_spin(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
+	/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
 	struct aw_device *aw_dev;
 	aw_snd_soc_codec_t *codec =
 		aw_componet_codec_ops.kcontrol_codec(kcontrol);
 	struct aw882xx *aw882xx =
 		aw_componet_codec_ops.codec_get_drvdata(codec);
-	int ctrl_value;
+        uint32_t ctrl_value = 0;
+        int ret = -EINVAL;
 
 	aw_dev = aw882xx->aw_pa;
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-	aw882xx_get_spin_angle(&ctrl_value);
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
+        ret = aw_spin_value_get(aw_dev, &ctrl_value, aw882xx->pstream);
+        if (ret) {
+                aw_dev_err(aw882xx->dev, "get spin failed!, ret = %d", ret);
+                ctrl_value = 0;
+        }
 	ucontrol->value.integer.value[0] = ctrl_value;
 
-	aw_dev_dbg(aw882xx->dev, "done nothing");
+        aw_dev_dbg(aw882xx->dev, "spin value is %s", aw882xx_spin[ctrl_value]);
 	return 0;
+	/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 }
-#endif
 
 static int aw882xx_get_fade_in_time(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
@@ -1233,11 +1179,7 @@ static int aw882xx_set_fade_out_time(struct snd_kcontrol *kcontrol,
 
 static const struct soc_enum aw882xx_snd_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(aw882xx_switch), aw882xx_switch),
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-#ifdef AW_AP_SPIN_ENABLE
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(aw882xx_spin), aw882xx_spin),
-#endif
 };
 
 static struct snd_kcontrol_new aw882xx_controls[] = {
@@ -1247,25 +1189,31 @@ static struct snd_kcontrol_new aw882xx_controls[] = {
 		aw882xx_get_tx_en, aw882xx_set_tx_en),
 	SOC_ENUM_EXT("aw882xx_copp_switch", aw882xx_snd_enum[0],
 		aw882xx_get_copp_en, aw882xx_set_copp_en),
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-#ifdef AW_AP_SPIN_ENABLE
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
-	SOC_ENUM_EXT("aw882xx_spin_switch", aw882xx_snd_enum[1],
-		aw882xx_get_spin, aw882xx_set_spin),
-#endif
 	SOC_SINGLE_EXT("aw882xx_fadein_us", 0, 0, 1000000, 0,
 		aw882xx_get_fade_in_time, aw882xx_set_fade_in_time),
 	SOC_SINGLE_EXT("aw882xx_fadeout_us", 0, 0, 1000000, 0,
 		aw882xx_get_fade_out_time, aw882xx_set_fade_out_time),
 };
 
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static struct snd_kcontrol_new aw882xx_spin_control[] = {
+        SOC_ENUM_EXT("aw882xx_spin_switch", aw882xx_snd_enum[1],
+                aw882xx_get_spin, aw882xx_set_spin),
+};
+
 static void aw882xx_add_codec_controls(struct aw882xx *aw882xx)
 {
-	aw_dev_info(aw882xx->dev, "enter");
+        aw_dev_info(aw882xx->dev, "enter");
 
-	aw_componet_codec_ops.add_codec_controls(aw882xx->codec,
-				&aw882xx_controls[0], ARRAY_SIZE(aw882xx_controls));
+        aw_componet_codec_ops.add_codec_controls(aw882xx->codec,
+                                &aw882xx_controls[0], ARRAY_SIZE(aw882xx_controls));
+
+        if (aw882xx->aw_pa->spin_desc.aw_spin_kcontrol_st == AW_SPIN_KCONTROL_ENABLE) {
+                aw_componet_codec_ops.add_codec_controls(aw882xx->codec,
+                                aw882xx_spin_control, ARRAY_SIZE(aw882xx_spin_control));
+        }
 }
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 #ifdef AW_MTK_PLATFORM_WITH_DSP
 static int aw882xx_name_append_suffix(struct aw882xx *aw882xx, const char **name)
@@ -1554,8 +1502,7 @@ int aw_componet_codec_register(struct aw882xx *aw882xx)
 static int aw882xx_parse_gpio_dt(struct aw882xx *aw882xx,
 	struct device_node *np)
 {
-	int ret = 0;;
-
+        int ret = 0;
 	if (!np) {
 		aw882xx->reset_gpio = -1;
 		aw882xx->irq_gpio = -1;
@@ -1574,57 +1521,14 @@ static int aw882xx_parse_gpio_dt(struct aw882xx *aw882xx,
 	}
 	aw882xx->irq_gpio = of_get_named_gpio(np, "irq-gpio", 0);
 	if (aw882xx->irq_gpio < 0) {
-		aw_dev_err(aw882xx->dev, "no irq gpio provided.");
-		/* Tab A8 code for SR-AX6300-01-92 by maoruiqian at 20210808 start */
-		aw882xx->irq_gpio = -1;
-		/* Tab A8 code for SR-AX6300-01-92 by maoruiqian at 20210808 end */
+                aw_dev_info(aw882xx->dev, "no irq gpio provided.");
 	} else {
 		aw_dev_info(aw882xx->dev, "irq gpio provided ok.");
 	}
 
 	return ret;
 }
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-#ifdef AW_AP_SPIN_ENABLE
-static int aw882xx_parse_spin_table_dt(struct device *dev, struct aw882xx *aw882xx,
-	struct device_node *np)
-{
-	int ret = -1;
-	const char *str_data = NULL;
-	char spin_table_str[AW_SPIN_MAX] = { 0 };
-	int i;
-	ret = of_property_read_string(np, "spin-data", &str_data);
-	if (ret < 0) {
-		aw_dev_err(aw882xx->dev, "%s:get spin-data failed, close spin function\n",
-				__func__);
-		return ret;
-	}
 
-	ret = sscanf(str_data, "%c %c %c %c",
-				&spin_table_str[AW_SPIN_0], &spin_table_str[AW_SPIN_90],
-				&spin_table_str[AW_SPIN_180], &spin_table_str[AW_SPIN_270]);
-	if(ret != AW_SPIN_MAX) {
-		aw_dev_err(aw882xx->dev, "%s: unsupported str:%s, close spin function\n",
-				__func__, str_data);
-		return ret;
-	}
-	for (i = 0; i < AW_SPIN_MAX; i++) {
-		if (spin_table_str[i] == 'l' || spin_table_str[i] == 'L') {
-			aw882xx->aw_pa->spin_table[i].rx_val = AW_PID_2013_CHSEL_LEFT_VALUE;
-			aw882xx->aw_pa->spin_table[i].tx_val = AW_PID_2013_I2SCHS_LEFT_VALUE;
-		} else if (spin_table_str[i] == 'r' || spin_table_str[i] == 'R') {
-			aw882xx->aw_pa->spin_table[i].rx_val = AW_PID_2013_CHSEL_RIGHT_VALUE;
-			aw882xx->aw_pa->spin_table[i].tx_val = AW_PID_2013_I2SCHS_RIGHT_VALUE;
-		} else {
-			aw_dev_err(aw882xx->dev, "%s: unsupported str:%s, close spin function\n",
-				__func__, str_data);
-			return ret;
-		}
-	}
-	return ret;
-}
-#endif
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
 static struct aw882xx *aw882xx_malloc_init(struct i2c_client *i2c)
 {
 	struct aw882xx *aw882xx = devm_kzalloc(&i2c->dev, sizeof(struct aw882xx), GFP_KERNEL);
@@ -1652,7 +1556,6 @@ static struct aw882xx *aw882xx_malloc_init(struct i2c_client *i2c)
 static int aw882xx_gpio_request(struct aw882xx *aw882xx)
 {
 	int ret;
-
 	if (gpio_is_valid(aw882xx->reset_gpio)) {
 		ret = devm_gpio_request_one(aw882xx->dev, aw882xx->reset_gpio,
 			GPIOF_OUT_INIT_LOW, "aw882xx_rst");
@@ -1693,17 +1596,19 @@ static int aw882xx_parse_dt(struct device *dev, struct aw882xx *aw882xx,
 	ret = of_property_read_u32(np, "dc-flag", &dc_enable);
 	if (ret) {
 		dc_enable = false;
-		aw_dev_info(aw882xx->dev, "close dc protect!\n");
-	} else {
-		aw_dev_info(aw882xx->dev, "dc-flag = %d\n", dc_enable);
-	}
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+                aw_dev_info(aw882xx->dev, "close dc protect!");
+        } else {
+                aw_dev_info(aw882xx->dev, "dc-flag = %d", dc_enable);
+        /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
+        }
 
 	aw882xx->dc_flag = dc_enable;
 
 	ret = of_property_read_u32(np, "sync-flag", &sync_enable);
 	if (ret < 0) {
 		aw_dev_info(aw882xx->dev,
-			"read sync flag failed,default phase sync off\n");
+			"read sync flag failed,default phase sync off");
 		sync_enable = false;
 	} else {
 		aw_dev_info(aw882xx->dev,
@@ -1719,7 +1624,7 @@ int aw882xx_hw_reset(struct aw882xx *aw882xx)
 {
 	aw_dev_info(aw882xx->dev, "enter");
 
-	if (aw882xx && gpio_is_valid(aw882xx->reset_gpio)) {
+	if (gpio_is_valid(aw882xx->reset_gpio)) {
 		gpio_set_value_cansleep(aw882xx->reset_gpio, 0);
 		mdelay(1);
 		gpio_set_value_cansleep(aw882xx->reset_gpio, 1);
@@ -1727,9 +1632,27 @@ int aw882xx_hw_reset(struct aw882xx *aw882xx)
 	} else {
 		aw_dev_info(aw882xx->dev, "has no reset gpio");
 	}
-
 	return 0;
 }
+
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 start */
+/**
+*Name：<aw882xx_relibility_enhance>
+*Author：<wanghao>
+*Date：<20211122>
+*Param：<struct aw882xx>
+*Return：<void>
+*Purpose：<Optimize the stability of PA in low battery state>
+*/
+static void aw882xx_relibility_enhance(struct aw882xx *aw882xx)
+{
+	aw_dev_dbg(aw882xx->dev, "enter");
+	usleep_range(AW_2000_US, AW_2000_US + 10);
+	aw882xx_i2c_write(aw882xx, AW_RELIABILITY_ENHANCE_REG, AW_RELIABILITY_ENHANCE_VALUE);
+	usleep_range(AW_3000_US, AW_3000_US + 10);
+	aw_dev_dbg(aw882xx->dev, "done");
+}
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 end */
 
 static int aw882xx_read_chipid(struct aw882xx *aw882xx)
 {
@@ -1759,9 +1682,11 @@ static int aw882xx_read_chipid(struct aw882xx *aw882xx)
 			aw882xx->chip_id = reg_value;
 			return 0;
 		}
+                /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 start */
 		case PID_2055_ID: {
 			aw_dev_info(aw882xx->dev, "aw882xx 2055 detected");
 			aw882xx->chip_id = reg_value;
+			aw882xx_relibility_enhance(aw882xx);
 			return 0;
 		}
 		case PID_2071_ID: {
@@ -1769,6 +1694,13 @@ static int aw882xx_read_chipid(struct aw882xx *aw882xx)
 			aw882xx->chip_id = reg_value;
 			return 0;
 		}
+                case PID_2113_ID: {
+                        aw_dev_info(aw882xx->dev, "aw882xx 2113 detected");
+                        aw882xx->chip_id = reg_value;
+                        aw882xx_relibility_enhance(aw882xx);
+                        return 0;
+                }
+                /* Tab A8 code for AX6300DEV-2526 by wanghao at 20211122 end */
 		default:
 			aw_dev_info(aw882xx->dev, "unsupported device revision (0x%x)",
 							reg_value);
@@ -1785,12 +1717,10 @@ static int aw882xx_read_chipid(struct aw882xx *aw882xx)
 static irqreturn_t aw882xx_irq(int irq, void *data)
 {
 	struct aw882xx *aw882xx = (struct aw882xx *)data;
-
 	if (!aw882xx) {
 		aw_pr_err("pointer is NULL");
 		return -EINVAL;
 	}
-
 	aw_dev_info(aw882xx->dev, "enter");
 
 	/* mask all irq */
@@ -2212,7 +2142,7 @@ static ssize_t aw882xx_print_dbg_store(struct device *dev,
 
 	g_print_dbg = ((g_print_dbg == false) ? false : true);
 
-	aw_dev_info(aw882xx->dev, "set g_print_dbg  : [%d]", g_print_dbg);
+	aw_dev_info(aw882xx->dev, "set g_print_dbg : [%d]", g_print_dbg);
 
 	return count;
 }
@@ -2227,6 +2157,27 @@ static ssize_t aw882xx_print_dbg_show(struct device *dev,
 
 	return len;
 }
+
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static ssize_t aw882xx_algo_ver_show(struct device *dev,
+                                struct device_attribute *attr, char *buf)
+{
+        ssize_t len = 0;
+        int ret;
+        char algo_ver_buf[ALGO_VERSION_MAX] = { 0 };
+        struct aw882xx *aw882xx = dev_get_drvdata(dev);
+
+        ret = aw_get_algo_version(aw882xx->aw_pa, algo_ver_buf);
+        if (ret < 0) {
+                len += snprintf(buf + len, PAGE_SIZE - len,
+                                "read algo version failed!\n");
+                return len;
+        }
+        len += snprintf(buf + len, PAGE_SIZE - len, "%s\n", algo_ver_buf);
+
+        return len;
+}
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 static DEVICE_ATTR(reg, S_IWUSR | S_IRUGO,
 	aw882xx_reg_show, aw882xx_reg_store);
@@ -2246,6 +2197,11 @@ static DEVICE_ATTR(phase_sync, S_IWUSR | S_IRUGO,
 	aw882xx_sync_flag_show, aw882xx_sync_flag_store);
 static DEVICE_ATTR(print_dbg, S_IWUSR | S_IRUGO,
 	aw882xx_print_dbg_show, aw882xx_print_dbg_store);
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static DEVICE_ATTR(algo_ver, S_IRUGO,
+        aw882xx_algo_ver_show, NULL);
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
+
 
 static struct attribute *aw882xx_attributes[] = {
 	&dev_attr_reg.attr,
@@ -2257,6 +2213,7 @@ static struct attribute *aw882xx_attributes[] = {
 	&dev_attr_dsp_re.attr,
 	&dev_attr_phase_sync.attr,
 	&dev_attr_print_dbg.attr,
+	&dev_attr_algo_ver.attr,
 	NULL
 };
 
@@ -2311,21 +2268,31 @@ static int aw882xx_i2c_probe(struct i2c_client *i2c,
 		return ret;
 	}
 
+	/* Tab A8 code for AX6300DEV-3890 by maoruiqian at 2021229 start */
+	switch(i2c->addr) {
+	case 0x34:
+		aw882xx->index = DEVICE_INDEX_34;
+		break;
+	case 0x35:
+		aw882xx->index = DEVICE_INDEX_35;
+		break;
+	case 0x36:
+		aw882xx->index = DEVICE_INDEX_36;
+		break;
+	case 0x37:
+		aw882xx->index = DEVICE_INDEX_37;
+		break;
+	default:
+		aw_dev_err(&i2c->dev, "no dev attached");
+		break;
+	}
+	aw_dev_info(&i2c->dev, "dev index %d", aw882xx->index);
+
 	/*aw pa init*/
-	ret = aw882xx_init(aw882xx, g_aw882xx_dev_cnt);
+	ret = aw882xx_init(aw882xx, aw882xx->index);
 	if (ret)
 		return ret;
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 start*/
-#ifdef AW_AP_SPIN_ENABLE
-	/* parse spin table */
-	ret = aw882xx_parse_spin_table_dt(&i2c->dev, aw882xx, np);
-	if(ret < 0){
-		aw_dev_err(&i2c->dev, "aw882xx_get_spin_table failed ret=%d", ret);
-		return ret;
-	}
-	list_add(&aw882xx->list_node, &g_spin_dev_list);
-#endif
-/*Tab A8 code for SR-AX6300-01-101 by wangxiaohui at 20210824 end*/
+	/* Tab A8 code for AX6300DEV-3890 by maoruiqian at 2021229 end */
 
 	/*aw882xx irq*/
 	aw882xx_interrupt_init(aw882xx);
@@ -2353,12 +2320,11 @@ static int aw882xx_i2c_probe(struct i2c_client *i2c,
 	aw882xx->i2c_packet.reg_addr = 0xff;
 	aw882xx->i2c_packet.reg_data = NULL;
 
-	aw882xx->index = g_aw882xx_dev_cnt;
 	/*add device to total list*/
 	mutex_lock(&g_aw882xx_lock);
 	g_aw882xx_dev_cnt++;
 	mutex_unlock(&g_aw882xx_lock);
-	aw_dev_info(&i2c->dev, "%s: dev_cnt %d \n", __func__, g_aw882xx_dev_cnt);
+	aw_dev_info(&i2c->dev, "dev_cnt %d", g_aw882xx_dev_cnt);
 	return ret;
 err_sysfs:
 	aw_componet_codec_ops.unregister_codec(&i2c->dev);
@@ -2408,6 +2374,17 @@ static int aw882xx_i2c_remove(struct i2c_client *i2c)
 
 }
 
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 start */
+static void aw882xx_i2c_shutdown(struct i2c_client *i2c)
+{
+        struct aw882xx *aw882xx = i2c_get_clientdata(i2c);
+
+        aw_dev_info(aw882xx->dev, "enter");
+        mutex_lock(&aw882xx->lock);
+        aw_device_stop(aw882xx->aw_pa);
+        mutex_unlock(&aw882xx->lock);
+}
+/* Tab A8 code for AX6300DEV-2526 by wanghao at 20211104 end */
 
 static const struct i2c_device_id aw882xx_i2c_id[] = {
 	{ AW882XX_I2C_NAME, 0 },
@@ -2429,6 +2406,7 @@ static struct i2c_driver aw882xx_i2c_driver = {
 	},
 	.probe = aw882xx_i2c_probe,
 	.remove = aw882xx_i2c_remove,
+	.shutdown = aw882xx_i2c_shutdown,
 	.id_table = aw882xx_i2c_id,
 };
 

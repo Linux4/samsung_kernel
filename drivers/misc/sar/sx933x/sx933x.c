@@ -51,7 +51,13 @@
 char *sar_name = NULL;
 module_param(sar_name, charp, 0644);
 /*Tab A8 code for SR-AX6300-01-257 by xiongxiaoliang at 2021/08/11 end*/
-
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 start*/
+#ifndef HQ_FACTORY_BUILD
+static int g_irq_count = 0;
+static int g_anfr_cali = 0;
+static int g_anfr_sign = 1;
+#endif
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 end*/
 /*! \struct sx933x
  * Specialized struct containing input event data, platform data, and
  * last cap state read if needed.
@@ -63,11 +69,6 @@ typedef struct sx933x
 } sx933x_t, *psx933x_t;
 
 static int irq_gpio_num;
-
-static struct workqueue_struct* sar_work;
-static struct work_struct sx_sar_enable_work;
-static struct notifier_block sx_sar_notify;
-static bool haved_calibrator = false;
 static psx93XX_t sar_this = NULL;
 
 /*! \fn static int sx933x_i2c_write_16bit(psx93XX_t this, u8 address, u8 value)
@@ -388,64 +389,98 @@ static ssize_t sx933x_enable_store(struct device *dev,
 
     return count;
 }
+
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 start*/
 static ssize_t sx933x_enable_class_store(struct class *class, struct class_attribute *attr, const char *buf, size_t count)
 {
     static u32 enable_save1;
     static u32 enable_save2;
     static u32 enable_save3;
-    u32 reg_data;
+    psx933x_t pDevice = NULL;
+    u32 report_val;
     u32 enable[2]; //for compatible hal, abandon enable[0]
+    struct input_dev *capsense_right_up = NULL;
+    struct input_dev *capsense_right_mid = NULL;
+    struct input_dev *capsense_right_down = NULL;
     psx93XX_t this = sar_this;
     if (sscanf(buf, "%d %d", &enable[0], &enable[1]) != 2)
     {
         pr_err("[SX933x]: %s get_enable fail\n", __func__);
         return -EINVAL;
     }
+
+    if (this && (pDevice = this->pDevice)) {
+        capsense_right_up = pDevice->pbuttonInformation->capsense_right_up;
+        capsense_right_mid = pDevice->pbuttonInformation->capsense_right_mid;
+        capsense_right_down = pDevice->pbuttonInformation->capsense_right_down;
+
+        sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &report_val);
+        pr_err("sx933 lc_report_val 0x8000 = %2x\n",report_val);
+
     pr_info("[SX933x]: %s enbale[0] = %d, enable[1] = %d", __func__, enable[0], enable[1]);
     if (((enable[1] != enable_save1) || (enable[1] != enable_save2) || (enable[1] != enable_save3)) && enable[1] == 1){
-        sx933x_i2c_read_16bit(this, SX933X_GNRLCTRL2_REG, &reg_data);
-        if((enable[1] != enable_save1) && (enable[0] == 176))
-        {
-            reg_data = reg_data | 0x4;
-            enable_save1 = enable[1];
-        }else if((enable[1] != enable_save2) && (enable[0] == 177))
-        {
-            reg_data = reg_data | 0x8;
-            enable_save2 = enable[1];
-        }else if((enable[1] != enable_save3) && (enable[0] == 178))
-        {
-            reg_data = reg_data | 0x2;
-            enable_save3 = enable[1];
-        }
-        sx933x_i2c_write_16bit(this, SX933X_GNRLCTRL2_REG, reg_data);
-        msleep(100);
-        sx933x_i2c_write_16bit(this, SX933X_CMD_REG, I2C_REGCMD_PHEN);
-        pr_info("[SX933x]: %s enable success", __func__);
-    }
-    else if (((enable[1] != enable_save1) || (enable[1] != enable_save2) || (enable[1] != enable_save3)) && (enable[1] == 0)){
-        sx933x_i2c_read_16bit(this, SX933X_GNRLCTRL2_REG, &reg_data);
-        if((enable[1] != enable_save1) && (enable[0] == 176))
-        {
-            reg_data = reg_data & 0xfffffffb;//close phen0-4
-            enable_save1 = enable[1];
-        }else if((enable[1] != enable_save2) && (enable[0] == 177))
-        {
-            reg_data = reg_data & 0xfffffff7;//close phen0-4
-            enable_save2 = enable[1];
-        }else if((enable[1] != enable_save3) && (enable[0] == 178))
-        {
-            reg_data = reg_data & 0xfffffffd;//close phen0-4
-            enable_save3 = enable[1];
-        }
-        sx933x_i2c_write_16bit(this, SX933X_GNRLCTRL2_REG, reg_data);
-        pr_info("[SX933x]: %s disable success", __func__);
-    }
-    else{
-        pr_info("[SX933x]: %s already enable/disable %d", __func__, enable[1]);
-    }
+        
+        if((enable[1] != enable_save1) && (enable[0] == 176)) {
 
-    return count;
+           enable_save1 = enable[1];
+#ifndef HQ_FACTORY_BUILD
+                if (g_anfr_sign == 1) {
+                    pr_err("sx933x lc_sar_mid_enable anfr\n");
+                    input_report_rel(capsense_right_mid, REL_MISC, 1);
+                    input_sync(capsense_right_mid);
+                } else {
+                    pr_err("sx933x lc_sar_mid_enable\n");
+                    input_report_rel(capsense_right_mid, REL_MISC,  ((report_val >> 26) & 0x01) == 0 ? 5 : 1);
+                    input_sync(capsense_right_mid);
+                }
+#endif
+            } else if ((enable[1] != enable_save2) && (enable[0] == 177)) {
+                enable_save2 = enable[1];
+#ifndef HQ_FACTORY_BUILD
+                if (g_anfr_sign == 1) {
+                    pr_err("sx933x lc_sar_up_enable anfr\n");
+                    input_report_rel(capsense_right_up, REL_MISC, 1);
+                    input_sync(capsense_right_up);
+                } else {
+                    pr_err("sx933x lc_sar_up_enable\n");
+                    input_report_rel(capsense_right_up, REL_MISC, ((report_val >> 27) & 0x01) == 0 ? 5 : 1);
+                    input_sync(capsense_right_up);
+                }
+#endif
+            } else if ((enable[1] != enable_save3) && (enable[0] == 178)) {
+                enable_save3 = enable[1];
+#ifndef HQ_FACTORY_BUILD
+                if (g_anfr_sign == 1) {
+                    pr_err("sx933x lc_sar_down_enable anfr\n");
+                    input_report_rel(capsense_right_down, REL_MISC, 1);
+                    input_sync(capsense_right_down);
+                } else {
+                    pr_err("sx933x lc_sar_down_enable\n");
+                    input_report_rel(capsense_right_down, REL_MISC, ((report_val >> 25) & 0x01) == 0 ? 5 : 1);
+                    input_sync(capsense_right_down);
+                }
+#endif
+            }
+            pr_info("[SX933x]: %s enable success", __func__);
+        } else if (((enable[1] != enable_save1) || (enable[1] != enable_save2) || (enable[1] != enable_save3)) && (enable[1] == 0)) {
+            if ((enable[1] != enable_save1) && (enable[0] == 176)) {
+                enable_save1 = enable[1];
+            } else if ((enable[1] != enable_save2) && (enable[0] == 177)) {
+                enable_save2 = enable[1];
+            } else if ((enable[1] != enable_save3) && (enable[0] == 178)) {
+                enable_save3 = enable[1];
+            }
+            pr_info("[SX933x]: %s disable success", __func__);
+        } else {
+            pr_info("[SX933x]: %s already enable/disable %d", __func__, enable[1]);
+        }
+        return count;
+    } else {
+        pr_err(" %s sx933  is NULL!!\n",__func__);
+        return -EINVAL;
+    }
 }
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 end*/
 /*
 static int change_sampling_peroid_to_reg_value(int peroid_ns)
 {
@@ -896,6 +931,7 @@ static int initialize(psx93XX_t this)
  */
 /* Tab A8 code for SR-AX6300-01-66 by mayuhang at 2021/9/8 start */
 /*Tab A8 code for SR-AX6300-01-133 by xiongxiaoliang at 2021/08/10 start*/
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 start*/
 static void touchProcess(psx93XX_t this)
 {
     int counter = 0;
@@ -931,7 +967,19 @@ static void touchProcess(psx93XX_t this)
             dev_err(this->pdev, "[SX933x]:ERROR!! buttons or input NULL!!!\n");
             return;
         }
-
+#ifndef HQ_FACTORY_BUILD
+        if (g_anfr_cali <= 2 && g_irq_count < 14) {
+            input_report_rel(capsense_right_down, REL_MISC, 1);
+            input_report_rel(capsense_right_mid, REL_MISC, 1);
+            input_report_rel(capsense_right_up, REL_MISC, 1);
+            input_sync(capsense_right_down);
+            input_sync(capsense_right_mid);
+            input_sync(capsense_right_up);
+            pr_err( "[sx933x]:lc_anfr_near!!  g_irq_count = %d g_anfr_cali = %d\n",g_irq_count,g_anfr_cali);
+        } else {
+            pr_err("sx933x_anfr_end!!\n");
+            g_anfr_sign = 0;
+#endif
         for (counter = 0; counter < numberOfButtons; counter++)
         {
             pCurrentButton = &buttons[counter];
@@ -948,10 +996,10 @@ static void touchProcess(psx93XX_t this)
                     dev_info(this->pdev, "[SX933x]:Button %d touched\n", counter);
                     if(0 == counter){
                         #ifdef HQ_FACTORY_BUILD
-                        input_report_key(capsense_right_down, KEY_SAR3_CLOSE, 1);
-                        input_report_key(capsense_right_down, KEY_SAR3_CLOSE, 0);
+                        input_report_key(capsense_right_down, KEY_SAR1_CLOSE, 1);
+                        input_report_key(capsense_right_down, KEY_SAR1_CLOSE, 0);
                         #else
-                        input_report_abs(capsense_right_down, ABS_DISTANCE, 0);
+                        input_report_rel(capsense_right_down, REL_MISC, 1);
                         #endif
                         input_sync(capsense_right_down);
 
@@ -960,15 +1008,15 @@ static void touchProcess(psx93XX_t this)
                         input_report_key(capsense_right_mid, KEY_SAR2_CLOSE, 1);
                         input_report_key(capsense_right_mid, KEY_SAR2_CLOSE, 0);
                         #else
-                        input_report_abs(capsense_right_mid, ABS_DISTANCE, 0);
+                        input_report_rel(capsense_right_mid, REL_MISC, 1);
                         #endif
                         input_sync(capsense_right_mid);
                     }else if(2 == counter){
                         #ifdef HQ_FACTORY_BUILD
-                        input_report_key(capsense_right_up, KEY_SAR1_CLOSE, 1);
-                        input_report_key(capsense_right_up, KEY_SAR1_CLOSE, 0);
+                        input_report_key(capsense_right_up, KEY_SAR3_CLOSE, 1);
+                        input_report_key(capsense_right_up, KEY_SAR3_CLOSE, 0);
                         #else
-                        input_report_abs(capsense_right_up, ABS_DISTANCE, 0);
+                        input_report_rel(capsense_right_up, REL_MISC, 1);
                         #endif
                         input_sync(capsense_right_up);
                     }
@@ -984,10 +1032,10 @@ static void touchProcess(psx93XX_t this)
                     dev_info(this->pdev, "[SX933x]:Button %d released\n",counter);
                    if(0 == counter){
                         #ifdef HQ_FACTORY_BUILD
-                        input_report_key(capsense_right_down, KEY_SAR3_FAR, 1);
-                        input_report_key(capsense_right_down, KEY_SAR3_FAR, 0);
+                        input_report_key(capsense_right_down, KEY_SAR1_FAR, 1);
+                        input_report_key(capsense_right_down, KEY_SAR1_FAR, 0);
                         #else
-                        input_report_abs(capsense_right_down, ABS_DISTANCE, 5);
+                        input_report_rel(capsense_right_down, REL_MISC, 5);
                         #endif
                         input_sync(capsense_right_down);
 
@@ -996,15 +1044,15 @@ static void touchProcess(psx93XX_t this)
                         input_report_key(capsense_right_mid, KEY_SAR2_FAR, 1);
                         input_report_key(capsense_right_mid, KEY_SAR2_FAR, 0);
                         #else
-                        input_report_abs(capsense_right_mid, ABS_DISTANCE, 5);
+                        input_report_rel(capsense_right_mid, REL_MISC, 5);
                         #endif
                         input_sync(capsense_right_mid);
                     }else if(2 == counter){
                         #ifdef HQ_FACTORY_BUILD
-                        input_report_key(capsense_right_up, KEY_SAR1_FAR, 1);
-                        input_report_key(capsense_right_up, KEY_SAR1_FAR, 0);
+                        input_report_key(capsense_right_up, KEY_SAR3_FAR, 1);
+                        input_report_key(capsense_right_up, KEY_SAR3_FAR, 0);
                         #else
-                        input_report_abs(capsense_right_up, ABS_DISTANCE, 5);
+                        input_report_rel(capsense_right_up, REL_MISC, 5);
                         #endif
                         input_sync(capsense_right_up);
                     }
@@ -1018,10 +1066,13 @@ static void touchProcess(psx93XX_t this)
                 break;
             };
         }
-
+#ifndef HQ_FACTORY_BUILD
+        }
+#endif
         dev_info(this->pdev, "Leaving touchProcess()\n");
     }
 }
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 end*/
 /*Tab A8 code for SR-AX6300-01-133 by xiongxiaoliang at 2021/08/10 end*/
 /* Tab A8 code for SR-AX6300-01-66 by mayuhang at 2021/9/8 end */
 static int sx933x_parse_dt(struct sx933x_platform_data *pdata, struct device *dev)
@@ -1150,60 +1201,6 @@ static int sx933x_get_nirq_state(void)
 {
     return  !gpio_get_value(irq_gpio_num);
 }
-/*Tab A8 code for SR-AX6300-01-80 by mayuhang at 2021/8/21 start*/
-static void calibration_func_callback(struct work_struct *work)
-{
-    printk(KERN_ERR"[SX933x]:calibration_func_callback_entry\n");
-    manual_offset_calibration(sar_this);
-}
-
-static int sx933x_sar_calibration_notifier_callback(struct notifier_block *nb,unsigned long val, void *v)
-{
-    struct power_supply *psy = NULL;
-    union power_supply_propval prop;
-    int ret = 0;
-    psy = power_supply_get_by_name("usb");
-    if(psy != NULL)
-    {
-        if (!strcmp(psy->desc->name, "usb")) {
-            if(psy)
-            {
-                ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
-                if(prop.intval == 1 && !haved_calibrator)
-                {
-                    if(sar_work != NULL)
-                        queue_work(sar_work,&sx_sar_enable_work);
-                    haved_calibrator = true;
-                }
-                else if(prop.intval == 0){
-                    haved_calibrator = false;
-                }
-            }
-        }
-    }else{
-        printk(KERN_ERR"[SX933x]:psy is NULL\n");
-    }
-    return 0;
-}
-
-void sx933x_sar_usb_callback_init(psx93XX_t this)
-{
-    int ret = 0;
-    sar_work = create_singlethread_workqueue("sx_sar_calibration_wq");
-    if (!sar_work) {
-        printk(KERN_ERR"[SX933x]:create_singlethread_workqueue failed\n");
-        return;
-    }
-    sar_this = this;
-    INIT_WORK(&sx_sar_enable_work, calibration_func_callback);
-
-    sx_sar_notify.notifier_call = sx933x_sar_calibration_notifier_callback;
-    ret = power_supply_reg_notifier(&sx_sar_notify);
-
-    if (ret < 0)
-        printk(KERN_ERR"[SX933x]:power_supply_reg_notifier:error:%d",ret);
-}
-/*Tab A8 code for SR-AX6300-01-80 by mayuhang at 2021/8/21 end*/
 /*! \fn static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *id)
  * \brief Probe function
  * \param client pointer to i2c_client
@@ -1314,6 +1311,7 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
             return err;
         }
 /*Tab A8 code for SR-AX6300-01-81 by mayuhang at 2021/8/12 end*/
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 start*/
         if (pDevice)
         {
             /* for accessing items in user data (e.g. calibrate) */
@@ -1338,11 +1336,11 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
             /* Set all the keycodes */
             #ifdef HQ_FACTORY_BUILD
             __set_bit(EV_KEY, capsense_right_up->evbit);
-            __set_bit(KEY_SAR1_FAR, capsense_right_up->keybit);
-            __set_bit(KEY_SAR1_CLOSE, capsense_right_up->keybit);
+            __set_bit(KEY_SAR3_FAR, capsense_right_up->keybit);
+            __set_bit(KEY_SAR3_CLOSE, capsense_right_up->keybit);
             #else
-            __set_bit(EV_ABS, capsense_right_up->evbit);
-            input_set_abs_params(capsense_right_up, ABS_DISTANCE, -1, 100, 0, 0);
+            __set_bit(EV_REL, capsense_right_up->evbit);
+            __set_bit(REL_MISC, capsense_right_up->relbit);
             #endif
 
             /* Create the input device */
@@ -1358,8 +1356,8 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
             __set_bit(KEY_SAR2_FAR, capsense_right_mid->keybit);
             __set_bit(KEY_SAR2_CLOSE, capsense_right_mid->keybit);
             #else
-            __set_bit(EV_ABS, capsense_right_mid->evbit);
-            input_set_abs_params(capsense_right_mid, ABS_DISTANCE, -1, 100, 0, 0);
+             __set_bit(EV_REL, capsense_right_mid->evbit);
+            __set_bit(REL_MISC, capsense_right_mid->relbit);
             #endif
 
             /* Create the input device */
@@ -1372,20 +1370,13 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
             /* Set all the keycodes */
             #ifdef HQ_FACTORY_BUILD
             __set_bit(EV_KEY, capsense_right_down->evbit);
-            __set_bit(KEY_SAR3_FAR, capsense_right_down->keybit);
-            __set_bit(KEY_SAR3_CLOSE, capsense_right_down->keybit);
+            __set_bit(KEY_SAR1_FAR, capsense_right_down->keybit);
+            __set_bit(KEY_SAR1_CLOSE, capsense_right_down->keybit);
             #else
-            __set_bit(EV_ABS, capsense_right_down->evbit);
-            input_set_abs_params(capsense_right_down, ABS_DISTANCE, -1, 100, 0, 0);
+            __set_bit(EV_REL, capsense_right_down->evbit);
+            __set_bit(REL_MISC, capsense_right_down->relbit);
             #endif
 
-#if 0
-            for (i = 0; i < pButtonInformationData->buttonSize; i++)
-            {
-                __set_bit(pButtonInformationData->buttons[i].keycode,input->keybit);
-                pButtonInformationData->buttons[i].state = IDLE;
-            }
-#endif
             /* Tab A8 code for SR-AX6300-01-66 by mayuhang at 2021/9/8 start */
             /* save the input pointer and finish initialization */
             pButtonInformationData->capsense_right_up = capsense_right_up;
@@ -1412,7 +1403,8 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
                 return -ENOMEM;
             }
         }
-            /* Tab A8 code for SR-AX6300-01-66 by mayuhang at 2021/9/8 end */
+        /*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 end*/
+        /* Tab A8 code for SR-AX6300-01-66 by mayuhang at 2021/9/8 end */
         sx93XX_IRQ_init(this);
         /* call init function pointer (this should initialize all registers */
         if (this->init)
@@ -1430,7 +1422,9 @@ static int sx933x_probe(struct i2c_client *client, const struct i2c_device_id *i
         return -1;
     }
 /*Tab A8 code for SR-AX6300-01-80 by mayuhang at 2021/8/21 start*/
-    sx933x_sar_usb_callback_init(this);
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 start*/
+    sar_this = this;
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 end*/
 /*Tab A8 code for SR-AX6300-01-80 by mayuhang at 2021/8/21 end*/
     /*Tab A8 code for SR-AX6300-01-257 by xiongxiaoliang at 2021/08/11 start*/
     err = sx933x_Hardware_Check(this);
@@ -1584,6 +1578,14 @@ static void sx93XX_schedule_work(psx93XX_t this, unsigned long delay)
 static irqreturn_t sx93XX_irq(int irq, void *pvoid)
 {
     psx93XX_t this = 0;
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 start*/
+#ifndef HQ_FACTORY_BUILD
+    if (g_irq_count < 14 && g_anfr_cali <= 2) {
+        g_irq_count++;
+        pr_err("lc_sx933x_irq - g_irq_count = %d\n",g_irq_count);
+    }
+#endif
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 end*/
     if (pvoid)
     {
         this = (psx93XX_t)pvoid;
@@ -1628,6 +1630,14 @@ static void sx93XX_worker_func(struct work_struct *work)
         /* since we are not in an interrupt don't need to disable irq. */
         status = this->refreshStatus(this);
         counter = -1;
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 start*/
+#ifndef HQ_FACTORY_BUILD
+        if (g_anfr_sign == 1 && (status >> 4) & 0x01) {
+            g_anfr_cali++;
+            pr_err("lc_sx933x_irq - g_anfr_cali = %d\n",g_anfr_cali);
+        }
+#endif
+/*Tab A8_T code for AX6300DEV-4155 by lichang at 2022/12/5 end*/
         dev_dbg(this->pdev, "Worker - Refresh Status %d\n",status);
 
         while((++counter) < MAX_NUM_STATUS_BITS)   /* counter start from MSB */

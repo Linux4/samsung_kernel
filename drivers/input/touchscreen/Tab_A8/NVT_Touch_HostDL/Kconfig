@@ -1,8 +1,8 @@
 #
 # Novatek NT36xxx touchscreen driver configuration
 #
-config TOUCHSCREEN_NT36xxx_HOSTDL_SPI_A8
-	bool "Novatek NT36xxx host download SPI driver"
+config TOUCHSCREEN_NT36XXX_HOSTDL_SPI_A8
+	bool "Novatek NT36XXX host download SPI driver"
 	default n
 	help
 	  Say Y here if you have a Novatek NT36xxx no flash touchscreen connected

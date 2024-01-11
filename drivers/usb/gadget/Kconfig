@@ -233,6 +233,12 @@ config USB_F_VSERIAL
 config USB_F_MBIM
         tristate
 
+config USB_F_SS_MON_GADGET
+	tristate
+
+config USB_F_CONN_GADGET
+	tristate
+
 # this first set of drivers all depend on bulk-capable hardware.
 
 config USB_CONFIGFS
@@ -557,6 +563,21 @@ config USB_CONFIGFS_F_MBIM
 	select USB_F_MBIM
 	help
 	  USB gadget mbim function support
+
+config USB_CONFIGFS_F_SS_MON_GADGET
+	bool "F_SAMSUNG gadget"
+	depends on USB_CONFIGFS
+	select USB_F_SS_MON_GADGET
+	help
+	 Driver for control to Samsung Usb device layer
+	 For Samung working scenario and saving debug log, etc
+
+config USB_CONFIGFS_F_CONN_GADGET
+	bool "Samsung Sidesync function"
+	depends on USB_CONFIGFS
+	select USB_F_CONN_GADGET
+	help
+	  USB Sidesync function support
 
 source "drivers/usb/gadget/legacy/Kconfig"
 

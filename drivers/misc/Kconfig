@@ -577,4 +577,7 @@ source "drivers/misc/sar/hx9031/Kconfig"
 # HS03 code for P211007-03235 by zhangziyi at 2021/10/11 start
 source "drivers/misc/vibrator/Kconfig"
 # HS03 code for P211007-03235 by zhangziyi at 2021/10/11 end
+# Tab A7 T618 code for SR-AX6189A-01-178 by zhangziyi at 2021/12/19 start
+source "drivers/misc/aw96103A_sar/Kconfig"
+# Tab A7 T618 code for SR-AX6189A-01-178 by zhangziyi at 2021/12/19 end
 endmenu

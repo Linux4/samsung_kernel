@@ -10,11 +10,12 @@
 #include <dt-bindings/wdv/wdv.h>
 
 / {
-
-	model = "Unisoc UMS512 1H10 board";
-	compatible = "sprd,ums512-1h10";
+	/* Tab A8_S code for P220616-05168 by gaochao at 20220621 start */
+	model = "Unisoc UMS512 25c10 board";
+	compatible = "sprd,ums512-25c10";
 	sprd,sc-id = "ums512 wifionly 1000";
 	sprd,board_id = <0x1100>; //XX00:base board,XX00~XXFF:customize board
+	/* Tab A8_S code for P220616-05168 by gaochao at 20220621 end */
 
 	fragment {
 		target-path = "/";
@@ -345,7 +346,9 @@
 				/* Tab code for SR-AX6300-01-193 by qiaodan at 20210809 start */
 				rfcustom-supply = <&vddkpled>;
 				/* Tab code for SR-AX6300-01-193 by qiaodan at 20210809 end */
-
+				/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 start */
+				sdio-func-def = <3>;
+				/* Tab A8 code for P211110-02599 by wangyanjie at 20211213 end */
 				clock-names = "clk_32k","source","enable";
 				clocks = <&aon_clk CLK_AUX0>,
 					 <&ext_32k>,
@@ -458,9 +461,11 @@
 	};
 };
 
+/* Tab A8_S code for P220616-05168 by gaochao at 20220621 start */
 &chosen {
-	bootargs_ext = "androidboot.hardware=ums512_wifionly androidboot.dtbo_idx=0";
+	bootargs_ext = "androidboot.hardware=ums512_25c10 androidboot.dtbo_idx=0";
 };
+/* Tab A8_S code for P220616-05168 by gaochao at 20220621 end */
 
 &vbmeta {
 	parts = "vbmeta,socko,odmko,boot,recovery,dtbo,pm_sys,l_agdsp";
@@ -951,6 +956,10 @@
 	vbus-supply = <&vddvbus>;
 	use_pdhub_c2c;
 	use_second_charger_detct;
+};
+
+&pmic_typec {
+	use_pdhub_c2c;
 };
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211104 end */
 &vddldo0 {

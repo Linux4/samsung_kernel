@@ -1456,7 +1456,7 @@ int cts_set_dev_esd_protection(struct cts_device *cts_dev, bool enable)
         enable ? CTS_DEV_FW_ESD_PROTECTION_ON : CTS_DEV_FW_ESD_PROTECTION_OFF);
 }
 
-#ifdef CONFIG_CTS_LEGACY_TOOL
+//#ifdef CONFIG_CTS_LEGACY_TOOL
 int cts_enable_get_rawdata(const struct cts_device *cts_dev)
 {
     cts_info("Enable get raw/diff data");
@@ -1607,7 +1607,7 @@ get_diff_free_buf:
 get_diff_exit:
     return ret;
 }
-#endif /* CONFIG_CTS_LEGACY_TOOL */
+//#endif /* CONFIG_CTS_LEGACY_TOOL */
 
 int cts_get_baseline(const struct cts_device *cts_dev, void *baseline,
     enum cts_work_mode work_mode, u32 flags, u16 addr, u8 data_width)

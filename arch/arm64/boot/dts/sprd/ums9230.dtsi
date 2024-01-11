@@ -1070,6 +1070,7 @@
 		compatible = "sprd,dfs";
 		freq-num = <8>;
 		backdoor = <1866>;
+		info-socdump-enable-flag = <1>;
 	};
 };
 
