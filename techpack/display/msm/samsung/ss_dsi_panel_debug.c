@@ -556,6 +556,8 @@ int ss_check_rddpm(struct samsung_display_driver_data *vdd, u8 *rddpm)
 	for (bit = RDDPM_POC_LOAD; bit < MAX_RDDPM_BIT; bit++) {
 		if (bit == RDDPM_PTLON || bit == RDDPM_IDMON) /* don't care partial/idle mode */
 			continue;
+		if (vdd->dtsi_data.ddi_no_flash && bit == RDDPM_POC_LOAD)
+			continue;
 
 		if (!(*rddpm & (1 << bit))) {
 			LCD_ERR(vdd, "%x : rddpm err(bit%d): %s\n", rddpm, bit, rddpm_bit[bit]);
@@ -718,15 +720,15 @@ int ss_check_dsierr(struct samsung_display_driver_data *vdd, u8 *dsierr_cnt)
 #if IS_ENABLED(CONFIG_SEC_ABC)
 		if (vdd->ndx == PRIMARY_DISPLAY_NDX)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-			sec_abc_send_event("MODULE=display@INFO=act_section_panel_main_dsi_error");
+			sec_abc_send_event("MODULE=display@INFO=act_section_dsierr0");
 #else
-			sec_abc_send_event("MODULE=display@WARN=act_section_panel_main_dsi_error");
+			sec_abc_send_event("MODULE=display@WARN=act_section_dsierr0");
 #endif
 		else
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-			sec_abc_send_event("MODULE=display@INFO=act_section_panel_sub_dsi_error");
+			sec_abc_send_event("MODULE=display@INFO=act_section_dsierr1");
 #else
-			sec_abc_send_event("MODULE=display@WARN=act_section_panel_sub_dsi_error");
+			sec_abc_send_event("MODULE=display@WARN=act_section_dsierr1");
 #endif
 #endif
 	}
@@ -896,11 +898,11 @@ int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd)
 
 	ss_read_pps_data(vdd);
 
-	SS_XLOG(rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_load);
-
-	if (ret)
+	if (ret) {
 		LCD_INFO(vdd, "error: panel dbg: %x %x %x %x %x %x %x\n",
 				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_load);
+		SS_XLOG(vdd->ndx, rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_load);
+	}
 	else
 		LCD_INFO(vdd, "pass: panel dbg: %x %x %x %x %x %x %x\n",
 				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_load);
@@ -1557,4 +1559,10 @@ void ss_xlog_vrr_change_in_drm_ioctl(int vrefresh, int sot_hs_mode, int phs_mode
 				vdd->vrr.adjusted_phs_mode,
 				vrefresh, sot_hs_mode, phs_mode);
 	}
+}
+
+bool ss_is_panel_dead(int ndx)
+{
+	struct samsung_display_driver_data *vdd = ss_get_vdd(ndx);
+	return vdd ? vdd->panel_dead : false;
 }

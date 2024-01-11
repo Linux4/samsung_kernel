@@ -1552,6 +1552,8 @@ int do_prlimit(struct task_struct *tsk, unsigned int resource,
 
 	if (resource >= RLIM_NLIMITS)
 		return -EINVAL;
+	resource = array_index_nospec(resource, RLIM_NLIMITS);
+
 	if (new_rlim) {
 		if (new_rlim->rlim_cur > new_rlim->rlim_max)
 			return -EINVAL;
@@ -1944,13 +1946,6 @@ static int validate_prctl_map_addr(struct prctl_mm_map *prctl_map)
 #undef __prctl_check_order
 
 	error = -EINVAL;
-
-	/*
-	 * @brk should be after @end_data in traditional maps.
-	 */
-	if (prctl_map->start_brk <= prctl_map->end_data ||
-	    prctl_map->brk <= prctl_map->end_data)
-		goto out;
 
 	/*
 	 * Neither we should allow to override limits if they set.

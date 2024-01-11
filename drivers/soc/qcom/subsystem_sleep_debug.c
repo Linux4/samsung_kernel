@@ -23,7 +23,9 @@
 enum subsystem_clients {
 	ADSP = 0,
 	CDSP,
+#ifdef CONFIG_SUPPORT_SLPI_SLEEP_DEBUG
 	SLPI,
+#endif
 	CLIENT_MAX
 };
 
@@ -42,7 +44,9 @@ struct subsystem_client_config {
 struct subsystem_client_config subsystem_conf[] = {
 	{"adsp", ERROR_MAX, FATAL_MAX, SSR_DISABLE},
 	{"cdsp", ERROR_MAX, FATAL_MAX, SSR_DISABLE},
+#ifdef CONFIG_SUPPORT_SLPI_SLEEP_DEBUG
 	{"slpi", ERROR_MAX, FATAL_MAX, SSR_DISABLE},
+#endif
 };
 
 static struct subsystem_debug_info {
@@ -136,9 +140,6 @@ void subsystem_monitor_sleep_issue(void)
 			subsystem_conf[i].max_error_count ||
 		    debug_info->fatal_count >
 			subsystem_conf[i].max_fatal_count) {
-			pr_info("%s: restart %s by intention\n", __func__,
-				debug_info->name);
-
 			subsys_dev = find_subsys_device(debug_info->name);
 
 			if (!subsys_dev) {
@@ -148,16 +149,19 @@ void subsystem_monitor_sleep_issue(void)
 			}
 
 			if (subsystem_conf[i].enable_ssr) {
+				pr_info("%s: restart %s by intention\n", __func__,
+					debug_info->name);
 				subsys_set_fssr(subsys_dev,
 					subsystem_conf[i].enable_ssr);
 				debug_info->ssr_count++;
-			}
-			/* subsystem_restart_dev has worker queue to handle */
-			rc = subsystem_restart_dev(subsys_dev);
-			if (rc) {
-				pr_err("%s : subsystem_restart_dev failed\n",
-					debug_info->name);
-				return;
+
+				/* subsystem_restart_dev has worker queue to handle */
+				rc = subsystem_restart_dev(subsys_dev);
+				if (rc) {
+					pr_err("%s : subsystem_restart_dev failed\n",
+						debug_info->name);
+					return;
+				}
 			}
 			debug_info->error_count = debug_info->fatal_count = 0;
 		}

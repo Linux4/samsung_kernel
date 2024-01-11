@@ -28,7 +28,7 @@
 #include <linux/usb/typec/common/pdic_sysfs.h>
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
-#include <linux/muic/muic.h>
+#include <linux/muic/common/muic.h>
 #include <linux/usb/typec/maxim/max77705-muic.h>
 #include <linux/usb/typec/maxim/max77705_usbc.h>
 #include <linux/usb/typec/maxim/max77705_alternate.h>
@@ -697,7 +697,7 @@ static int max77705_firmware_update_misc(struct max77705_usbc_platform_data *dat
 		};
 
 		if (fw_enable)
-			ret = max77705_usbc_fw_update(usbc_data->max77705, fw_bin, (int)fw_bin_len, 1);
+			ret = max77705_usbc_fw_update(usbc_data->max77705, fw_bin, (int)fw_bin_len, 2);
 		else
 			msg_maxim("FAILED F/W MISMATCH pmic_rev : 0x%x, fw_header->major : 0x%x",
 					pmic_rev, fw_header->major);
@@ -906,6 +906,25 @@ static void max77705_cc_open_work_func(
 			max77705_set_lockerroren(usbc_data, usbc_data->control3_reg, 0);
 		}
 	}
+}
+
+static void max77705_dp_configure_work_func(
+		struct work_struct *work)
+{
+	struct max77705_usbc_platform_data *usbpd_data;
+#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
+	int timeleft = 0;
+#endif
+
+	usbpd_data = container_of(work, struct max77705_usbc_platform_data, dp_configure_work);
+#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
+	timeleft = wait_event_interruptible_timeout(usbpd_data->device_add_wait_q,
+			usbpd_data->device_add || usbpd_data->pd_data->cc_status == CC_NO_CONN, HZ/2);
+	msg_maxim("%s timeleft = %d\n", __func__, timeleft);
+#endif
+	if (usbpd_data->pd_data->cc_status != CC_NO_CONN)
+		max77705_ccic_event_work(usbpd_data, PDIC_NOTIFY_DEV_DP,
+			PDIC_NOTIFY_ID_DP_LINK_CONF, usbpd_data->dp_selected_pin, 0, 0);
 }
 
 void max77705_response_selftest_read(struct max77705_usbc_platform_data *usbpd_data, unsigned char *data)
@@ -1483,7 +1502,9 @@ static ssize_t max77705_sysfs_set_prop(struct _pdic_data_t *ppdic_data,
 			tok = strsep(&p, ",");
 			if (tok) {
 				sz = strlen(tok);
-				kstrtouint(tok, 10, &num_hmd);
+				ret = kstrtouint(tok, 10, &num_hmd);
+				if (ret)
+				msg_maxim("fail to convert %s! ret:%d", tok, ret);
 			}
 
 			msg_maxim("HMD num: %d, sz:%d", num_hmd, sz);
@@ -1636,8 +1657,10 @@ static void max77705_init_opcode
 	max77705_usbc_disable_auto_vbus(usbc_data);
 	if (pdata && pdata->support_audio)
 		max77705_usbc_enable_audio(usbc_data);
-	if (reset)
+	if (reset) {
 		max77705_set_enable_alternate_mode(ALTERNATE_MODE_START);
+		max77705_muic_enable_detecting_short(usbc_data->muic_data);
+	}
 }
 
 static bool max77705_check_recover_opcode(u8 opcode)
@@ -1648,6 +1671,7 @@ static bool max77705_check_recover_opcode(u8 opcode)
 	case OPCODE_CCCTRL1_W:
 	case OPCODE_SAMSUNG_FACTORY_TEST:
 	case OPCODE_SET_ALTERNATEMODE:
+	case OPCODE_ENABLE_DETECTING_SHORT:
 		ret = true;
 		break;
 	default:
@@ -1679,6 +1703,10 @@ static void max77705_recover_opcode
 			case OPCODE_SET_ALTERNATEMODE:
 				max77705_set_enable_alternate_mode
 					(usbc_data->set_altmode);
+				break;
+			case OPCODE_ENABLE_DETECTING_SHORT:
+				max77705_muic_enable_detecting_short
+					(usbc_data->muic_data);
 				break;
 			default:
 				break;
@@ -3104,6 +3132,16 @@ void max77705_usbc_check_sysmsg(struct max77705_usbc_platform_data *usbc_data, u
 		usbc_data->pd_data->cc_sbu_short = false;
 		max77705_check_pdo(usbc_data);
 		break;
+	case SYSMSG_ABNORMAL_TA:
+		{
+			union power_supply_propval value = {0,};
+
+			msg_maxim("ABNORMAL TA detected");
+			value.intval = true;
+			psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_ABNORMAL_TA, value);
+		}
+		break;
 	default:
 		break;
 	}
@@ -3600,8 +3638,25 @@ static void max77705_usbpd_set_host_on(void *data, int mode)
 	}
 }
 
+static void max77705_usbpd_wait_entermode(void *data, int on)
+{
+	struct max77705_usbc_platform_data *usbpd_data = data;
+
+	if (!usbpd_data)
+		return;
+
+	pr_info("%s : %d!\n", __func__, on);
+	if (on) {
+		usbpd_data->wait_entermode = 1;
+	} else {
+		usbpd_data->wait_entermode = 0;
+		wake_up_interruptible(&usbpd_data->host_turn_on_wait_q);
+	}
+}
+
 struct usbpd_ops ops_usbpd = {
 	.usbpd_set_host_on = max77705_usbpd_set_host_on,
+	.usbpd_wait_entermode = max77705_usbpd_wait_entermode,
 };
 #endif
 
@@ -3755,6 +3810,7 @@ static int max77705_usbc_probe(struct platform_device *pdev)
 
 	INIT_WORK(&usbc_data->op_send_work, max77705_uic_op_send_work_func);
 	INIT_WORK(&usbc_data->cc_open_req_work, max77705_cc_open_work_func);
+	INIT_WORK(&usbc_data->dp_configure_work, max77705_dp_configure_work_func);
 #if defined(MAX77705_SYS_FW_UPDATE)
 	INIT_WORK(&usbc_data->fw_update_work,
 			max77705_firmware_update_sysfs_work);
@@ -3844,7 +3900,11 @@ static int max77705_usbc_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 	max77705_usbpd_set_host_on(usbc_data, 0);
 #endif
+#if IS_ENABLED(CONFIG_USB_DWC3_MSM)
+	usbc_data->host_turn_on_wait_time = 15;
+#else
 	usbc_data->host_turn_on_wait_time = 3;
+#endif
 
 	usbc_data->cc_open_req = 1;
 	pdic_manual_ccopen_request(0);

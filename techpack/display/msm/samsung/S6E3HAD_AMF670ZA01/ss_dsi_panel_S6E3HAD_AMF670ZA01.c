@@ -602,7 +602,7 @@ static struct dsi_panel_cmd_set *__ss_vrr(struct samsung_display_driver_data *vd
 			&cmd_hw_te_mod[vrr_id],
 			vrr_cmds->cmds[VRR_CMDID_TE_MOD].msg.tx_len - 1);
 
-	LCD_INFO(vdd, "JSJEONG VRR: (cur: %d%s, adj: %d%s, LFD: %uhz(%u)~%uhz(%u)\n",
+	LCD_INFO(vdd, "VRR: (cur: %d%s, adj: %d%s, LFD: %uhz(%u)~%uhz(%u)\n",
 			cur_rr,
 			cur_hs ? "HS" : "NM",
 			vrr->adjusted_refresh_rate,

@@ -25,6 +25,7 @@
 #define __SEC_PD_H__
 #define MAX_PDO_NUM 8
 #define AVAILABLE_VOLTAGE 9000
+#define DEFAULT_VOLTAGE 5000
 #define UNIT_FOR_VOLTAGE 50
 #define UNIT_FOR_CURRENT 10
 #define UNIT_FOR_APDO_VOLTAGE 100
@@ -94,6 +95,7 @@ typedef struct sec_pd_sink_status
 	void (*fp_sec_pd_vpdo_auth)(int auth, int d2d_type);
 	void (*fp_sec_pd_ext_cb)(unsigned short v_id, unsigned short p_id);
 	void (*fp_sec_pd_manual_ccopen_req)(int is_on);
+	void (*fp_sec_pd_change_src)(int max_cur);
 } SEC_PD_SINK_STATUS;
 
 struct pdic_notifier_struct {
@@ -114,6 +116,7 @@ int sec_pd_register_chg_info_cb(void *cb);
 int sec_pd_get_chg_info(void);
 void sec_pd_get_vid_pid(unsigned short *vid, unsigned short *pid, unsigned int *xid);
 void sec_pd_manual_ccopen_req(int is_on);
+int sec_pd_change_src(int max_cur);
 #else
 static inline char* sec_pd_pdo_type_str(int pdo_type) { return "\0"; }
 static inline int sec_pd_select_pdo(int num) { return -ENODEV; }
@@ -125,5 +128,6 @@ static inline void sec_pd_init_data(SEC_PD_SINK_STATUS* psink_status) { }
 static inline int sec_pd_register_chg_info_cb(void *cb) { return 0; }
 static inline void sec_pd_get_vid_pid(unsigned short *vid, unsigned short *pid, unsigned int *xid) { }
 static inline void sec_pd_manual_ccopen_req(int is_on) { }
+static inline int sec_pd_change_src(int max_cur) { return 0; }
 #endif
 #endif /* __SEC_PD_H__ */

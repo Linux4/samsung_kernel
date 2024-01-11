@@ -161,6 +161,7 @@ config QCOM_RIMPS
 config QCOM_LLCC
 	tristate "Qualcomm Technologies, Inc. LLCC driver"
 	depends on ARCH_QCOM || COMPILE_TEST
+	select REGMAP_MMIO
 	help
 	  Qualcomm Technologies, Inc. platform specific
 	  Last Level Cache Controller(LLCC) driver. This provides interfaces
@@ -1369,6 +1370,12 @@ config SUPPORT_SSC_SPU
 	bool "Support SSC(SLPI) SPU(System Parameter update)"
 	help
 	  Add support for SSC SPU.
+
+config SUPPORT_SLPI_SLEEP_DEBUG
+	bool "Support SSC(SLPI) Sleep debug"
+	default n
+	help
+	  Say 'Y' here to change sleep issue detect condition for SLPI
 
 source "drivers/soc/qcom/icnss2/Kconfig"
 

@@ -597,6 +597,7 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 	}
 
 	mmc_wait_for_req(card->host, &mrq);
+	memcpy(&idata->ic.response, cmd.resp, sizeof(cmd.resp));
 
 	if (cmd.error) {
 		dev_err(mmc_dev(card->host), "%s: cmd error %d\n",
@@ -645,8 +646,6 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 	 */
 	if (idata->ic.postsleep_min_us)
 		usleep_range(idata->ic.postsleep_min_us, idata->ic.postsleep_max_us);
-
-	memcpy(&(idata->ic.response), cmd.resp, sizeof(cmd.resp));
 
 	if (idata->rpmb || (cmd.flags & MMC_RSP_R1B) == MMC_RSP_R1B) {
 		/*
@@ -1031,6 +1030,9 @@ static int mmc_blk_reset(struct mmc_blk_data *md, struct mmc_host *host,
 			return -ENODEV;
 		}
 	}
+#if IS_ENABLED(CONFIG_SEC_STORAGE_MMC)
+	host->failed_init = err ? true : false;
+#endif
 	return err;
 }
 
@@ -1135,7 +1137,7 @@ static void mmc_blk_issue_discard_rq(struct mmc_queue *mq, struct request *req)
 					 card->erase_arg == MMC_TRIM_ARG ?
 					 INAND_CMD38_ARG_TRIM :
 					 INAND_CMD38_ARG_ERASE,
-					 0);
+					 card->ext_csd.generic_cmd6_time);
 		}
 		if (!err)
 			err = mmc_erase(card, from, nr, card->erase_arg);
@@ -1177,7 +1179,7 @@ retry:
 				 arg == MMC_SECURE_TRIM1_ARG ?
 				 INAND_CMD38_ARG_SECTRIM1 :
 				 INAND_CMD38_ARG_SECERASE,
-				 0);
+				 card->ext_csd.generic_cmd6_time);
 		if (err)
 			goto out_retry;
 	}
@@ -1195,7 +1197,7 @@ retry:
 			err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 					 INAND_CMD38_ARG_EXT_CSD,
 					 INAND_CMD38_ARG_SECTRIM2,
-					 0);
+					 card->ext_csd.generic_cmd6_time);
 			if (err)
 				goto out_retry;
 		}
@@ -1747,7 +1749,7 @@ static void mmc_blk_read_single(struct mmc_queue *mq, struct request *req)
 				goto error_exit;
 
 			if (!mmc_host_is_spi(host) &&
-					!mmc_blk_in_tran_state(status)) {
+			    !mmc_blk_in_tran_state(status)) {
 				err = mmc_blk_fix_state(card, req);
 				if (err)
 					goto error_exit;
@@ -1923,7 +1925,8 @@ static void mmc_blk_mq_rw_recovery(struct mmc_queue *mq, struct request *req)
 
 	/* FIXME: Missing single sector read for large sector size */
 	if (!mmc_large_sector(card) && rq_data_dir(req) == READ &&
-	    brq->data.blocks > 1) {
+	    brq->data.blocks > 1 &&
+	    !mmc_card_sd(card)) {	// no retry for SD read data error
 		/* Read one sector at a time */
 		mmc_blk_read_single(mq, req);
 		return;
@@ -2472,7 +2475,8 @@ static struct mmc_blk_data *mmc_blk_alloc_req(struct mmc_card *card,
 		if ((mmc_card_mmc(card) &&
 		     card->csd.mmca_vsn >= CSD_SPEC_VER_3) ||
 		    (mmc_card_sd(card) &&
-		     card->scr.cmds & SD_SCR_CMD23_SUPPORT))
+		     card->scr.cmds & SD_SCR_CMD23_SUPPORT &&
+		     mmc_card_uhs(card)))
 			md->flags |= MMC_BLK_CMD23;
 	}
 
@@ -3021,6 +3025,9 @@ static int mmc_blk_probe(struct mmc_card *card)
 	pr_info("%s: %s %s %s %s\n",
 		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
 		cap_str, md->read_only ? "(ro)" : "");
+	ST_LOG("%s: %s %s %s %s\n",
+		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
+		cap_str, md->read_only ? "(ro)" : "");
 
 	if (mmc_blk_alloc_parts(card, md))
 		goto out;
@@ -3094,7 +3101,16 @@ static int _mmc_blk_suspend(struct mmc_card *card)
 
 static void mmc_blk_shutdown(struct mmc_card *card)
 {
+	struct mmc_blk_data *md = dev_get_drvdata(&card->dev);
+	struct mmc_blk_data *part_md;
+
 	_mmc_blk_suspend(card);
+
+	if (md) {
+		list_for_each_entry(part_md, &md->part, part)
+			mmc_cleanup_queue(&part_md->queue);
+		mmc_cleanup_queue(&md->queue);
+	}
 }
 
 #ifdef CONFIG_PM_SLEEP

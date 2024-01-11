@@ -12,6 +12,7 @@
 #include <linux/debugfs.h>
 #include <linux/ratelimit.h>
 #include <linux/slab.h>
+#include <linux/fs.h>
 #include <linux/btpower.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -21,9 +22,20 @@
 #include "btfm_slim.h"
 #include "btfm_slim_slave.h"
 
+#define BT_CMD_SLIM_TEST	0xbfac
 #define DELAY_FOR_PORT_OPEN_MS (200)
 
+struct class *btfm_slim_class;
+static int btfm_slim_major;
+struct btfmslim *btfm_slim_drv_data;
+
 static bool btfm_is_port_opening_delayed = true;
+
+#define SS_SLIMBUS_INIT_DBG 1
+#ifdef SS_SLIMBUS_INIT_DBG
+#define BT_CMD_SS_SLIM_DBG	0xbffa
+static int slimbus_init_err_cnt = 0;
+#endif
 
 int btfm_slim_write(struct btfmslim *btfmslim,
 		uint16_t reg, int bytes, void *src, uint8_t pgd)
@@ -537,6 +549,11 @@ int btfm_slim_hw_init(struct btfmslim *btfmslim)
 	 */
 	btfmslim->enabled = 1;
 error:
+#ifdef SS_SLIMBUS_INIT_DBG
+	if (ret) {
+		if(++slimbus_init_err_cnt > 5000) slimbus_init_err_cnt = 5000;
+	}
+#endif
 	mutex_unlock(&btfmslim->io_lock);
 	return ret;
 }
@@ -612,6 +629,33 @@ static int btfm_slim_get_dt_info(struct btfmslim *btfmslim)
 	return ret;
 }
 
+static long btfm_slim_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+
+	BTFMSLIM_INFO("");
+	switch (cmd) {
+	case BT_CMD_SLIM_TEST:
+		//BTFMSLIM_INFO("cmd BT_CMD_SLIM_TEST, call btfm_slim_hw_init");
+		//ret = btfm_slim_hw_init(btfm_slim_drv_data);
+
+		BTFMSLIM_INFO("cmd BT_CMD_SLIM_TEST, ignore btfm_slim_hw_init");
+		break;
+#ifdef SS_SLIMBUS_INIT_DBG
+	case BT_CMD_SS_SLIM_DBG:
+		BTFMSLIM_INFO("cmd BT_CMD_SS_SLIM_DBG err_cnt[%d]", slimbus_init_err_cnt);
+		ret = slimbus_init_err_cnt;
+		break;
+#endif
+	}
+	return ret;
+}
+
+static const struct file_operations bt_dev_fops = {
+	.unlocked_ioctl = btfm_slim_ioctl,
+	.compat_ioctl = btfm_slim_ioctl,
+};
+
 static int btfm_slim_probe(struct slim_device *slim)
 {
 	int ret = 0;
@@ -668,7 +712,36 @@ static int btfm_slim_probe(struct slim_device *slim)
 		btfm_slim_unregister_codec(&slim->dev);
 		goto free;
 	}
+
+	btfm_slim_drv_data = btfm_slim;
+	btfm_slim_major = register_chrdev(0, "btfm_slim", &bt_dev_fops);
+	if (btfm_slim_major < 0) {
+		BTFMSLIM_ERR("%s: failed to allocate char dev\n", __func__);
+		ret = -1;
+		goto register_err;
+	}
+
+	btfm_slim_class = class_create(THIS_MODULE, "btfmslim-dev");
+	if (IS_ERR(btfm_slim_class)) {
+		BTFMSLIM_ERR("%s: coudn't create class\n", __func__);
+		ret = -1;
+		goto class_err;
+	}
+
+	if (device_create(btfm_slim_class, NULL, MKDEV(btfm_slim_major, 0),
+		NULL, "btfmslim") == NULL) {
+		BTFMSLIM_ERR("%s: failed to allocate char dev\n", __func__);
+		ret = -1;
+		goto device_err;
+	}
 	return ret;
+
+device_err:
+	class_destroy(btfm_slim_class);
+class_err:
+	unregister_chrdev(btfm_slim_major, "btfm_slim");
+register_err:
+	btfm_slim_unregister_codec(&slim->dev);
 free:
 	slim_remove_device(&btfm_slim->slim_ifd);
 dealloc:

@@ -70,7 +70,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/wireless/mfc_charger_gki/mfc_charger.b2q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1788/android/kernel/kmodule/battery/wireless/mfc_charger_gki/mfc_charger.b2q.dtsi */
 &mfc_charger {
 	battery,wireless20_vout_list = <WIRELESS_VOUT_10V WIRELESS_VOUT_10V WIRELESS_VOUT_10V>;
 	battery,wireless20_vrect_list = <MFC_AFC_CONF_12V_TX MFC_AFC_CONF_12_5V_TX MFC_AFC_CONF_12_5V_TX>;
@@ -83,5 +83,11 @@
 			cc = <150 62 142 55 150 46 150 49 170 3 156 66>;
 			cv = <150 92 142 85 150 76 150 79 170 33 156 96>;
 		};
+	};
+	iec_data {
+		fod_enable = <1>;
+		fod_thres1 = <0x2bc>; /* 700mW */
+		fod_thres2 = <0x640>; /* 1600mW */
+		fod_counter = <3>;
 	};
 };

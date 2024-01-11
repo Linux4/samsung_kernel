@@ -601,9 +601,14 @@ void stm_ts_reinit(void *data)
 		stm_ts_ear_detect_enable(ts, ts->plat_data->ed_enable);
 	if (ts->plat_data->pocket_mode)
 		stm_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);
+	if (ts->sip_mode)
+		stm_ts_sip_mode_enable(ts);
+	if (ts->note_mode)
+		stm_ts_note_mode_enable(ts);
+	if (ts->game_mode)
+		stm_ts_game_mode_enable(ts);
 out:
 	stm_ts_set_scanmode(ts, ts->scan_mode);
-	
 }
 /*
  * don't need it in interrupt handler in reality, but, need it in vendor IC for requesting vendor IC.
@@ -759,7 +764,7 @@ static void stm_ts_coordinate_event(struct stm_ts_data *ts, u8 *event_buff)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_PALM)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_WET)
 				|| (ts->plat_data->coord[t_id].ttype == STM_TS_TOUCHTYPE_GLOVE)) {
-			sec_input_coord_event(&ts->client->dev, t_id);
+			sec_input_coord_event_fill_slot(&ts->client->dev, t_id);
 		} else {
 			input_err(true, &ts->client->dev,
 					"%s: do not support coordinate type(%d)\n",
@@ -962,6 +967,8 @@ irqreturn_t stm_ts_irq_thread(int irq, void *ptr)
 		curr_pos++;
 		remain_event_count--;
 	} while (remain_event_count >= 0);
+
+	sec_input_coord_event_sync_slot(&ts->client->dev);
 
 	stm_ts_external_func(ts);
 

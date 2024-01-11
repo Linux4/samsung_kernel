@@ -53,7 +53,7 @@ static int get_cirrus_amp_temperature_max(enum amp_id id)
 		return -EINVAL;
 	}
 
-	value = amp->bd.max_temp >> CS35L41_BD_TEMP_RADIX;
+	value = amp->bd.max_temp >> CIRRUS_BD_TEMP_RADIX;
 	amp->bd.max_temp = 0;
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
@@ -84,7 +84,7 @@ static int get_cirrus_amp_temperature_keep_max(enum amp_id id)
 		return -EINVAL;
 	}
 
-	value = amp->bd.max_temp_keep >> CS35L41_BD_TEMP_RADIX;
+	value = amp->bd.max_temp_keep >> CIRRUS_BD_TEMP_RADIX;
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
 
@@ -146,8 +146,8 @@ static int get_cirrus_amp_excursion_max(enum amp_id id)
 	}
 
 	value = (amp->bd.max_exc &
-				(((1 << CS35L41_BD_EXC_RADIX) - 1))) *
-				10000 / (1 << CS35L41_BD_EXC_RADIX);
+				(((1 << CIRRUS_BD_EXC_RADIX) - 1))) *
+				10000 / (1 << CIRRUS_BD_EXC_RADIX);
 	amp->bd.max_exc = 0;
 
 	dev_info(component->dev, "%s: id %d value %d\n", __func__, id, value);
@@ -231,7 +231,7 @@ static int set_cirrus_amp_surface_temperature(enum amp_id id, int temperature)
 		return -EINVAL;
 	}
 
-	value = cs35l41_set_surface_temp(cirrus_amp_suffix[id], temperature);
+	value = cirrus_cal_set_surface_temp(cirrus_amp_suffix[id], temperature);
 	if (value < 0) {
 		dev_err(component->dev, "%s: Amp%d is not enabled\n",
 				__func__, id);

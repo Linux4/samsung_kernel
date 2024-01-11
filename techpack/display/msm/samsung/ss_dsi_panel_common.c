@@ -261,6 +261,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,self_mask_on_revA",
 	"samsung,self_mask_on_factory_revA",
 	"samsung,self_mask_off_revA",
+	"samsung,self_mask_udc_on_revA",
+	"samsung,self_mask_udc_off_revA",
 	"samsung,self_mask_green_circle_on_revA",
 	"samsung,self_mask_green_circle_off_revA",
 	"samsung,self_mask_green_circle_on_factory_revA",
@@ -413,6 +415,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,timing_switch_pre_revA",
 	"samsung,timing_switch_post_revA",
 
+	"samsung,ddi_vcom_mark_pre_cmds_revA",
+
 	"TX_CMD_END not parsed from DTSI",
 
 	/* RX */
@@ -468,6 +472,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,vaint_mtp_rx_cmds_revA",
 	"samsung,ddi_fw_id_rx_cmds_revA",
 	"samsung,alpm_rx_cmds_revA",
+
+	"samsung,ddi_vcom_mark_rx_cmds_revA",
 	"RX_CMD_END not parsed from DTSI",
 };
 
@@ -790,6 +796,12 @@ void ss_event_frame_update_post(struct samsung_display_driver_data *vdd)
 			goto skip_display_on;
 		}
 		frame_count = 1;
+
+		/* set self_mask_udc before display on */
+		if (vdd->self_disp.self_mask_udc_on)
+			vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
+		else
+			LCD_DEBUG(vdd, "Self Mask UDC Function is NULL\n");
 
 		/* delay between sleep_out and display_on cmd */
 		ss_delay(vdd->dtsi_data.sleep_out_to_on_delay, vdd->sleep_out_time);
@@ -3206,6 +3218,9 @@ int ss_panel_on_post(struct samsung_display_driver_data *vdd)
 	vdd->display_status_dsi.wait_actual_disp_on = true;
 	vdd->panel_lpm.need_self_grid = true;
 
+	/* in case the code that display_enabled is set to true in bridge_enable function is not ported */
+	vdd->display_enabled = true;
+
 	if (vdd->dyn_mipi_clk.is_support) {
 		LCD_INFO(vdd, "FFC Setting for Dynamic MIPI Clock\n");
 		ss_send_cmd(vdd, TX_FFC);
@@ -3323,6 +3338,20 @@ int ss_panel_off_post(struct samsung_display_driver_data *vdd)
 	return ret;
 }
 
+int ss_panel_power_on_pre(struct samsung_display_driver_data *vdd)
+{
+	int ret = 0;
+
+	LCD_INFO(vdd, "+\n");
+
+	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_power_on_pre))
+		vdd->panel_func.samsung_panel_power_on_pre(vdd);
+
+	LCD_INFO(vdd, "-\n");
+
+	return ret;
+}
+
 int ss_panel_power_off_post(struct samsung_display_driver_data *vdd)
 {
 	int ret = 0;
@@ -3332,7 +3361,7 @@ int ss_panel_power_off_post(struct samsung_display_driver_data *vdd)
 	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_power_off_post))
 		vdd->panel_func.samsung_panel_power_off_post(vdd);
 
-	LCD_INFO(vdd, "-\n", vdd->cnt_mdp_clk_underflow);
+	LCD_INFO(vdd, "-\n");
 
 	return ret;
 }
@@ -3631,7 +3660,7 @@ __visible_for_testing irqreturn_t esd_irq_handler(int irq, void *handle)
 	schedule_work(&conn->status_work.work);
 
 	LCD_INFO(vdd, "Panel Recovery(ESD, irq%d), Trial Count = %d\n", irq, vdd->panel_recovery_cnt++);
-	SS_XLOG(vdd->panel_recovery_cnt);
+	SS_XLOG(vdd->ndx, vdd->panel_recovery_cnt);
 	inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
 	if (vdd->is_factory_mode) {
@@ -4848,6 +4877,7 @@ static int ss_dsi_panel_parse_cmd_sets(struct samsung_display_driver_data *vdd)
 				return rc;
 			}
 		} else {
+			//TODO LOG HERE
 			rc = __ss_dsi_panel_parse_cmd_sets(qc_set, i, utils, ss_cmd_set_prop_map);
 			if (rc && rc != -ENOTSUPP)
 				pr_err("failed to parse set %d, rc=%d\n", i, rc);
@@ -4909,6 +4939,12 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 		of_property_read_bool(np, "samsung,tcon-clk-on-support");
 	LCD_INFO(vdd, "tcon clk on support: %s\n",
 			vdd->dtsi_data.samsung_tcon_clk_on_support ?
+			"enabled" : "disabled");
+
+	/* DDI Uses Flash memory */
+	vdd->dtsi_data.ddi_no_flash =
+		of_property_read_bool(np, "samsung,ddi_no_flash");
+	LCD_INFO(vdd, "ddi_no_flash: %s\n", vdd->dtsi_data.ddi_no_flash ?
 			"enabled" : "disabled");
 
 	vdd->dtsi_data.samsung_tcon_rdy_gpio =
@@ -5412,8 +5448,8 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 
 
 	/*
-		AOT support : tddi video panel
-		To keep high status panel power & reset
+	 *	AOT support : tddi video panel
+	 *	To keep high status panel power & reset
 	*/
 	vdd->aot_enable = of_property_read_bool(np, "samsung,aot_enable");
 	LCD_INFO(vdd, "aot_enable : %s\n",
@@ -5425,6 +5461,10 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	vdd->aot_reset_regulator_late = of_property_read_bool(np, "samsung,aot_reset_regulator_late");
 	LCD_INFO(vdd, "aot_reset_regulator_late : %s\n",
 		vdd->aot_reset_regulator_late ? "aot_reset_regulator LATE enabled" : "Not aot_reset_regulator LATE");
+
+	vdd->aot_reset_early_off = of_property_read_bool(np, "samsung,aot_reset_early_off");
+	LCD_INFO(vdd, "aot_reset_early_off : %s\n",
+		vdd->aot_reset_early_off ? "enabled" : "disabled");
 
 	/* TDDI, touch notify esd when no esd gpio from ddi */
 	vdd->esd_touch_notify = of_property_read_bool(np, "samsung,esd_touch_notify");
@@ -7982,8 +8022,9 @@ void ss_panel_init(struct dsi_panel *panel)
 	if (vdd->vrr.lfd.support_lfd) {
 		vdd->vrr.lfd.nb_lfd_touch.priority = 3;
 		vdd->vrr.lfd.nb_lfd_touch.notifier_call = ss_lfd_touch_notify_cb;
+#if !defined(CONFIG_PANEL_BUILTIN_BACKLIGHT) //TODO replace with !defined(CONFIG_QGKI)
 		sec_input_register_notify(&vdd->vrr.lfd.nb_lfd_touch, ss_lfd_touch_notify_cb, 3);
-
+#endif
 		vdd->vrr.lfd.lfd_touch_wq = create_singlethread_workqueue("lfd_touch_wq");
 		if (!vdd->vrr.lfd.lfd_touch_wq) {
 			LCD_ERR(vdd, "failed to create touch_lfd workqueue..\n");
@@ -7995,7 +8036,9 @@ void ss_panel_init(struct dsi_panel *panel)
 	if (vdd->esd_touch_notify) {
 		vdd->nb_esd_touch.priority = 3;
 		vdd->nb_esd_touch.notifier_call = ss_esd_touch_notifier_cb;
+#if !defined(CONFIG_PANEL_BUILTIN_BACKLIGHT) //TODO replace with !defined(CONFIG_QGKI)
 		sec_input_register_notify(&vdd->nb_esd_touch, ss_esd_touch_notifier_cb, 3);
+#endif
 	}
 #endif
 
@@ -8192,6 +8235,15 @@ int samsung_panel_initialize(char *panel_string, unsigned int ndx)
 	else if (!strncmp(panel_string, "TAP2_HX8279_TV101WUM", strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = TAP2_HX8279_TV101WUM_WUXGA_init;
 #endif
+#if IS_ENABLED(CONFIG_PANEL_GTACT4PRO_HX8279_TV101WUM_WUXGA)
+	else if (!strncmp(panel_string, "GTACT4PRO_HX8279_TV101WUM", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = GTACT4PRO_HX8279_TV101WUM_WUXGA_init;
+#endif
+#if IS_ENABLED(CONFIG_PANEL_M44X_ILI7807S_BS066FBM_FHD)
+	else if (!strncmp(panel_string, "M44X_ILI7807S_BS066FBM", strlen(panel_string)))
+		vdd->panel_func.samsung_panel_init = M44X_ILI7807S_BS066FBM_FHD_init;
+#endif
+
 	else {
 		LCD_ERR(vdd, "%s not found\n", panel_string);
 		return -1;
