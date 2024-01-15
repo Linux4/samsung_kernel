@@ -13,11 +13,14 @@
 #include "stm_reg.h"
 
 #include <linux/miscdevice.h>
+#include <linux/mutex.h>
 
 struct tsp_ioctl {
 	int num;
 	u8 data[PAGE_SIZE];
 };
+
+static struct mutex lock;
 
 #define IOCTL_TSP_MAP_READ	_IOR(0, 0, struct tsp_ioctl)
 
@@ -26,8 +29,11 @@ static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *
 	static struct tsp_ioctl t;
 	int num;
 
+	mutex_lock(&lock);
+
 	if (copy_from_user(&t, p, sizeof(struct tsp_ioctl))) {
 		input_err(true, &g_ts->client->dev, "%s: failed to copyt_from_user\n", __func__);
+		mutex_unlock(&lock);
 		return -EFAULT;
 	}
 
@@ -39,35 +45,41 @@ static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *
 			memcpy(&t.data, g_ts->raw_v0, g_ts->raw_len);
 			if (copy_to_user(p, (void *)&t, sizeof(struct tsp_ioctl))) {
 				input_err(true, &g_ts->client->dev, "%s: failed to copyt_to_user\n", __func__);
+				mutex_unlock(&lock);
 				return -EFAULT;
 			}
 		} else if (num == 1) {
 			memcpy(&t.data, g_ts->raw_v1, g_ts->raw_len);
 			if (copy_to_user(p, (void *)&t, sizeof(struct tsp_ioctl))) {
 				input_err(true, &g_ts->client->dev, "%s: failed to copyt_to_user\n", __func__);
+				mutex_unlock(&lock);
 				return -EFAULT;
 			}
 		} else if (num == 2) {
 			memcpy(&t.data, g_ts->raw_v2, g_ts->raw_len);
 			if (copy_to_user(p, (void *)&t, sizeof(struct tsp_ioctl))) {
 				input_err(true, &g_ts->client->dev, "%s: failed to copyt_to_user\n", __func__);
+				mutex_unlock(&lock);
 				return -EFAULT;
 			}
 		} else if (num == 3) {
 			memcpy(&t.data, g_ts->raw_v3, g_ts->raw_len);
 			if (copy_to_user(p, (void *)&t, sizeof(struct tsp_ioctl))) {
 				input_err(true, &g_ts->client->dev, "%s: failed to copyt_to_user\n", __func__);
+				mutex_unlock(&lock);
 				return -EFAULT;
 			}
 		} else if (num == 4) {
 			memcpy(&t.data, g_ts->raw_v4, g_ts->raw_len);
 			if (copy_to_user(p, (void *)&t, sizeof(struct tsp_ioctl))) {
 				input_err(true, &g_ts->client->dev, "%s: failed to copyt_to_user\n", __func__);
+				mutex_unlock(&lock);
 				return -EFAULT;
 			}
 		}
 	}
 
+	mutex_unlock(&lock);
 	return 0;
 }
 
@@ -497,6 +509,8 @@ int stm_ts_rawdata_map_init(struct stm_ts_data *ts)
 	unsigned int mmapdev_major4;
 
 	input_info(true, &ts->client->dev, "%s: num: %d\n", __func__, ts->plat_data->support_rawdata_map_num);
+
+	mutex_init(&lock);
 
 	ts->raw_len = PAGE_SIZE;
 

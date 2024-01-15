@@ -258,15 +258,15 @@ struct dsi_panel_cmd_set *ss_mafpc_brightness_scale_HAD(struct samsung_display_d
 
 	idx = brightness_scale_idx[bl_level];
 
-	scale_cmds->cmds[2].ss_txbuf[1] = brightness_scale_table[idx][0];
-	scale_cmds->cmds[2].ss_txbuf[2] = brightness_scale_table[idx][1];
-	scale_cmds->cmds[2].ss_txbuf[3] = brightness_scale_table[idx][2];
+	scale_cmds->cmds[1].ss_txbuf[1] = brightness_scale_table[idx][0];
+	scale_cmds->cmds[1].ss_txbuf[2] = brightness_scale_table[idx][1];
+	scale_cmds->cmds[1].ss_txbuf[3] = brightness_scale_table[idx][2];
 
 	LCD_INFO(vdd, "Brightness idx(%d), candela(%d), cmd(0x%x 0x%x 0x%x)\n",
 			idx, vdd->br_info.common_br.cd_level,
-			scale_cmds->cmds[2].ss_txbuf[1],
-			scale_cmds->cmds[2].ss_txbuf[2],
-			scale_cmds->cmds[2].ss_txbuf[3]);
+			scale_cmds->cmds[1].ss_txbuf[1],
+			scale_cmds->cmds[1].ss_txbuf[2],
+			scale_cmds->cmds[1].ss_txbuf[3]);
 
 	return scale_cmds;
 }

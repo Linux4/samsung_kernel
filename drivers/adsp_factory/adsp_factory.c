@@ -518,7 +518,9 @@ static int process_received_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 #ifdef CONFIG_FLIP_COVER_DETECTOR_FACTORY
 		flip_cover_detector_init_work(data);
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 		pressure_factory_init_work(data);
+#endif
 		return 0;
 	}
 
@@ -620,8 +622,9 @@ static int __init factory_adsp_init(void)
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
 	INIT_DELAYED_WORK(&data->light_seamless_work, light_seamless_work_func);
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 	INIT_DELAYED_WORK(&data->pressure_cal_work, pressure_cal_work_func);
-
+#endif
 	pr_info("[FACTORY] %s: Timer Init\n", __func__);
 	return 0;
 }
@@ -665,8 +668,9 @@ static void __exit factory_adsp_exit(void)
 #ifdef CONFIG_SUPPORT_LIGHT_SEAMLESS
 	cancel_delayed_work_sync(&data->light_seamless_work);
 #endif
+#ifdef CONFIG_LPS22HH_FACTORY
 	cancel_delayed_work_sync(&data->pressure_cal_work);
-
+#endif
 	for (i = 0; i < MSG_SENSOR_MAX; i++)
 		kfree(data->msg_buf[i]);
 	pr_info("[FACTORY] %s\n", __func__);

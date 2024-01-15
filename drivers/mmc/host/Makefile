@@ -91,7 +91,12 @@ obj-$(CONFIG_MMC_SDHCI_OF_HLWD)		+= sdhci-of-hlwd.o
 obj-$(CONFIG_MMC_SDHCI_OF_DWCMSHC)	+= sdhci-of-dwcmshc.o
 obj-$(CONFIG_MMC_SDHCI_BCM_KONA)	+= sdhci-bcm-kona.o
 obj-$(CONFIG_MMC_SDHCI_IPROC)		+= sdhci-iproc.o
+ifeq ($(CONFIG_SEC_STORAGE_MMC),y)
+obj-$(CONFIG_MMC_SDHCI_MSM)		+= sdhci-msm-sec.o
+sdhci-msm-sec-y				+= sdhci-msm.o mmc-sec-feature.o
+else
 obj-$(CONFIG_MMC_SDHCI_MSM)		+= sdhci-msm.o
+endif
 obj-$(CONFIG_MMC_SDHCI_ST)		+= sdhci-st.o
 obj-$(CONFIG_MMC_SDHCI_MICROCHIP_PIC32)	+= sdhci-pic32.o
 obj-$(CONFIG_MMC_SDHCI_BRCMSTB)		+= sdhci-brcmstb.o
