@@ -56,7 +56,6 @@
 #include <linux/string.h>
 #include <linux/ctype.h>
 
-#include <linux/netlink.h>
 #include <linux/skbuff.h>
 #include <linux/socket.h>
 #include <net/sock.h>
@@ -1002,7 +1001,6 @@ struct ilitek_ts_data {
 	bool wq_esd_ctrl;
 	bool wq_bat_ctrl;
 
-	bool netlink;
 	bool report;
 	bool gesture;
 	bool mp_retry;
@@ -1348,7 +1346,6 @@ extern int ili_irq_register(int type);
 extern void ili_node_init(void);
 extern void ili_dump_data(void *data, int type, int len, int row_len, const char *name);
 extern u8 ili_calc_packet_checksum(u8 *packet, int len);
-extern void ili_netlink_reply_msg(void *raw, int size);
 extern int ili_katoi(char *str);
 extern int ili_str2hex(char *str);
 int dev_mkdir(char *name, umode_t mode);

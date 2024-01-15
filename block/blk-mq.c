@@ -615,10 +615,12 @@ static void __blk_mq_complete_request(struct request *rq)
 		rq->csd.func = __blk_mq_complete_request_remote;
 		rq->csd.info = rq;
 		rq->csd.flags = 0;
-		smp_call_function_single_async(ctx->cpu, &rq->csd);
-	} else {
-		rq->q->softirq_done_fn(rq);
+		if (!smp_call_function_single_async(ctx->cpu, &rq->csd))
+			goto out;
 	}
+	rq->q->softirq_done_fn(rq);
+
+out:
 	put_cpu();
 }
 

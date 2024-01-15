@@ -443,6 +443,7 @@ struct abox_data {
 	enum abox_call_event call_event;
 	enum sound_type sound_type;
 	struct wakeup_source ws;
+	bool is_dbg_dram_alloc;
 };
 
 /**

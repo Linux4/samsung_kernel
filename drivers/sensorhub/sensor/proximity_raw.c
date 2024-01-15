@@ -55,53 +55,27 @@ void report_event_proximity_raw(void)
 	}
 }
 
+static struct proximity_raw_data proximity_raw_data;
+static struct sensor_funcs proximity_raw_sensor_funcs = {
+	.report_event = report_event_proximity_raw,
+};
+
 int init_proximity_raw(bool en)
 {
+	int ret = 0;
 	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PROXIMITY_RAW);
 
 	if (!sensor)
 		return 0;
 
 	if (en) {
-		strcpy(sensor->name, "proximity_raw");
+		ret = init_default_func(sensor, "proximity_raw", 2, 0, sizeof(struct prox_raw_event));
 		sensor->hal_sensor = false;
-
-		sensor->receive_event_size = 2;
-		sensor->report_event_size = 0;
-		sensor->event_buffer.value = kzalloc(sizeof(struct prox_raw_event), GFP_KERNEL);
-		if (!sensor->event_buffer.value)
-			goto err_no_mem;
-
-		sensor->data = kzalloc(sizeof(struct proximity_raw_data), GFP_KERNEL);
-		if (!sensor->data)
-			goto err_no_mem;
-
-		sensor->funcs = kzalloc(sizeof(struct sensor_funcs), GFP_KERNEL);
-		if (!sensor->funcs)
-			goto err_no_mem;
-
-		sensor->funcs->report_event = report_event_proximity_raw;
+		sensor->data = (void *)&proximity_raw_data;
+		sensor->funcs = &proximity_raw_sensor_funcs;
 	} else {
-		kfree(sensor->event_buffer.value);
-		sensor->event_buffer.value = NULL;
-
-		kfree(sensor->data);
-		sensor->data = NULL;
-
-		kfree(sensor->funcs);
-		sensor->funcs = NULL;
+		destroy_default_func(sensor);
 	}
-	return 0;
 
-err_no_mem:
-	kfree(sensor->event_buffer.value);
-	sensor->event_buffer.value = NULL;
-
-	kfree(sensor->data);
-	sensor->data = NULL;
-
-	kfree(sensor->funcs);
-	sensor->funcs = NULL;
-
-	return -ENOMEM;
+	return ret;
 }
