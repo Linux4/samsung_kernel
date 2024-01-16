@@ -237,6 +237,11 @@ p_err:
 	return ret;
 }
 
+static bool sensor_ak737x_actuator_perform_soft_landing_on_exit(struct v4l2_subdev *subdev)
+{
+	return false;
+}
+
 static int sensor_ak737x_soft_landing_on_recording(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -738,6 +743,7 @@ static struct is_actuator_ops actuator_ops = {
 	.set_active = sensor_ak737x_actuator_set_active,
 #endif
 	.soft_landing_on_recording = sensor_ak737x_soft_landing_on_recording,
+	.perform_soft_landing_on_exit = sensor_ak737x_actuator_perform_soft_landing_on_exit,
 };
 
 static ssize_t focus_position_show(struct device *dev,

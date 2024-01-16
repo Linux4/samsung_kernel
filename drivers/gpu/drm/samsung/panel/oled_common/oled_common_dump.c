@@ -80,6 +80,7 @@ __visible_for_testing int snprintf_dump_expect_memeq(char *buf, size_t size, str
 	u32 res_size;
 	u32 offset, offset_end = 0;
 	u8 *masks, *expected_values, *values;
+	int result;
 
 	res_size = get_resource_size(dump->res);
 	if (res_size == 0)
@@ -97,16 +98,20 @@ __visible_for_testing int snprintf_dump_expect_memeq(char *buf, size_t size, str
 		offset_end = max(offset, offset_end);
 	}
 	offset_end = min((u32)get_resource_size(dump->res), offset_end + 1);
+	
+	result = (!memcmp(values, expected_values, offset_end)) ?
+		DUMP_STATUS_SUCCESS : DUMP_STATUS_FAILURE;
+	dump->result = result;
 
 	l += snprintf(buf + l, size - l, "SHOW PANEL REG[%s:%s:(",
 			get_resource_name(dump->res),
-			!memcmp(values, expected_values, offset_end) ? "GD" : "NG");
+			(result == DUMP_STATUS_SUCCESS) ? "GD" : "NG");
 
 	for (i = 0; i < offset_end; i++)
 		l += snprintf(buf + l, size - l, "%02X", values[i]);
 
 	l += snprintf(buf + l, size - l, " %s ",
-			!memcmp(values, expected_values, offset_end) ? "==" : "!=");
+			(result == DUMP_STATUS_SUCCESS) ? "==" : "!=");
 
 	for (i = 0; i < offset_end; i++)
 		l += snprintf(buf + l, size - l, "%02X", expected_values[i]);

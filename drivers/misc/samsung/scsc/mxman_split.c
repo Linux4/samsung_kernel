@@ -2420,6 +2420,11 @@ static int __mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data
 	SCSC_TAG_INFO(MXMAN, "Number of wlan_users=%d wpan_users=%d Maxwell state=%d\n", mxman->users, mxman->users_wpan, mxman->mxman_state);
 	if (mxman->users == 0 && mxman->users_wpan == 0 && mxman->mxman_state == MXMAN_STATE_STARTING)
 	{
+#if defined(CONFIG_WLBT_DCXO_TUNE)
+		if (set_dcxo_state == DCXO_CONFIG_NONE) {
+			mxman_set_default_dcxo_caldata(mxman);
+		}
+#endif
 		/*
 		 * If chip is off, memory will be allocated and FW will be loaded to shared dram.
 		 * PMU which is a shared resource will also be initialized.
@@ -2436,12 +2441,6 @@ static int __mxman_open(struct mxman *mxman, enum scsc_subsystem sub, void *data
 			SCSC_TAG_ERR(MXMAN, "Error mxman_res_init_common\n");
 			goto error;
 		}
-
-#if defined(CONFIG_WLBT_DCXO_TUNE)
-		if (set_dcxo_state == DCXO_CONFIG_NONE) {
-			mxman_set_default_dcxo_caldata(mxman);
-		}
-#endif
 	}
 
 	/* Print information about any active services on any subsystem */

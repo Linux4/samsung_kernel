@@ -1045,7 +1045,6 @@ void mfc_core_instance_csd_parsing(struct mfc_core *core, struct mfc_ctx *ctx)
 	}
 
 	dec->consumed = 0;
-	dec->remained_size = 0;
 	core_ctx->check_dump = 0;
 	ctx->curr_src_index = -1;
 

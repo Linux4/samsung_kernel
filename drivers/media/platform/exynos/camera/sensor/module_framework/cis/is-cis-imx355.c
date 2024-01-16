@@ -478,7 +478,7 @@ int sensor_imx355_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), target long(%d), short(%d)\n", cis->id, __func__,
 			cis_data->sen_vsync_count, target_exposure->long_val, target_exposure->short_val);
 
-	target_exp = target_exposure->val;
+	target_exp = target_exposure->short_val;
 	vt_pic_clk_freq_khz = cis_data->pclk / (1000);
 	line_length_pck = cis_data->line_length_pck;
 	min_fine_int = cis_data->min_fine_integration_time;
@@ -525,7 +525,7 @@ int sensor_imx355_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	}
 
 	long_coarse_int = ((target_exposure->long_val * vt_pic_clk_freq_khz) / 1000 - min_fine_int) / line_length_pck;
-	short_coarse_int = ((target_exposure->short_val * vt_pic_clk_freq_khz) / 1000 - min_fine_int) / line_length_pck;
+	short_coarse_int = ((target_exp * vt_pic_clk_freq_khz) / 1000 - min_fine_int) / line_length_pck;
 
 	if (long_coarse_int > cis_data->max_coarse_integration_time) {
 		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), long coarse(%d) max(%d)\n", cis->id, __func__,
@@ -734,68 +734,6 @@ int sensor_imx355_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 #endif
 
 p_err:
-	return ret;
-}
-
-int sensor_imx355_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
-{
-	int ret = 0;
-	struct is_cis *cis;
-	cis_shared_data *cis_data;
-
-	u32 frame_duration = 0;
-
-#ifdef DEBUG_SENSOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
-#endif
-
-	WARN_ON(!subdev);
-
-	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
-
-	WARN_ON(!cis);
-	WARN_ON(!cis->cis_data);
-
-	cis_data = cis->cis_data;
-
-	if (min_fps > cis_data->max_fps) {
-		err("[MOD:D:%d] %s, request FPS is too high(%d), set to max(%d)\n",
-			cis->id, __func__, min_fps, cis_data->max_fps);
-		min_fps = cis_data->max_fps;
-	}
-
-	if (min_fps == 0) {
-		err("[MOD:D:%d] %s, request FPS is 0, set to min FPS(1)\n",
-			cis->id, __func__);
-		min_fps = 1;
-	}
-
-	frame_duration = (1 * 1000 * 1000) / min_fps;
-
-	dbg_sensor(1, "[MOD:D:%d] %s, set FPS(%d), frame duration(%d)\n",
-			cis->id, __func__, min_fps, frame_duration);
-
-	ret = sensor_imx355_cis_set_frame_duration(subdev, frame_duration);
-	if (ret < 0) {
-		err("[MOD:D:%d] %s, set frame duration is fail(%d)\n",
-			cis->id, __func__, ret);
-		goto p_err;
-	}
-
-#ifdef CAMERA_REAR2
-	cis_data->min_frame_us_time = MAX(frame_duration, cis_data->min_sync_frame_us_time);
-#else
-	cis_data->min_frame_us_time = frame_duration;
-#endif
-
-#ifdef DEBUG_SENSOR_TIME
-	do_gettimeofday(&end);
-	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
-#endif
-
-p_err:
-
 	return ret;
 }
 
@@ -1159,7 +1097,7 @@ static struct is_cis_ops cis_ops = {
 	.cis_get_max_exposure_time = sensor_cis_get_max_exposure_time,
 	.cis_adjust_frame_duration = sensor_imx355_cis_adjust_frame_duration,
 	.cis_set_frame_duration = sensor_imx355_cis_set_frame_duration,
-	.cis_set_frame_rate = sensor_imx355_cis_set_frame_rate,
+	.cis_set_frame_rate = sensor_cis_set_frame_rate,
 	.cis_adjust_analog_gain = sensor_cis_adjust_analog_gain,
 	.cis_set_analog_gain = NULL,
 	.cis_get_analog_gain = sensor_imx355_cis_get_analog_gain,

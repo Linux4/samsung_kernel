@@ -1184,6 +1184,40 @@ static struct snd_soc_dai_link exynos_dai[100] = {
 	},
 };
 
+static int left_speaker(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMD:
+		break;
+	}
+
+	return 0;
+}
+
+static int right_speaker(struct snd_soc_dapm_widget *w,
+			struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_card *card = w->dapm->card;
+
+	dev_info(card->dev, "%s ev: %d\n", __func__, event);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMD:
+#if IS_ENABLED(CONFIG_SND_SOC_CS35L45)
+		cirrus_bd_store_values("_0");
+		cirrus_bd_store_values("_1");
+#endif
+		break;
+	}
+
+	return 0;
+}
+
 static int get_sound_wakelock(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_value *ucontrol)
 {
@@ -1240,8 +1274,8 @@ static const struct snd_soc_dapm_widget exynos_widgets[] = {
 	SND_SOC_DAPM_MIC("DMIC1", NULL),
 	SND_SOC_DAPM_MIC("DMIC2", NULL),
 	SND_SOC_DAPM_MIC("DMIC3", NULL),
-	SND_SOC_DAPM_SPK("RECEIVER", NULL),
-	SND_SOC_DAPM_SPK("SPEAKER", NULL),
+	SND_SOC_DAPM_SPK("RECEIVER", left_speaker),
+	SND_SOC_DAPM_SPK("SPEAKER", right_speaker),
 	SND_SOC_DAPM_MIC("BLUETOOTH MIC", NULL),
 	SND_SOC_DAPM_SPK("BLUETOOTH SPK", NULL),
 	SND_SOC_DAPM_MIC("USB MIC", NULL),

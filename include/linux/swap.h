@@ -385,7 +385,6 @@ extern void lru_cache_add_inactive_or_unevictable(struct page *page,
 extern unsigned long zone_reclaimable_pages(struct zone *zone);
 extern unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 					gfp_t gfp_mask, nodemask_t *mask);
-extern bool __isolate_lru_page_prepare(struct page *page, isolate_mode_t mode);
 extern unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *memcg,
 						  unsigned long nr_pages,
 						  gfp_t gfp_mask,
@@ -794,8 +793,7 @@ enum zram_oem_func_cmds {
 	ZRAM_APP_LAUNCH_NOTIFY,
 	ZRAM_ADD_TO_WRITEBACK_LIST,
 	ZRAM_WRITEBACK_LIST,
-	ZRAM_ALLOC_WRITEBACK_BUFFER,
-	ZRAM_FREE_WRITEBACK_BUFFER,
+	ZRAM_FLUSH_WRITEBACK_BUFFER,
 	ZRAM_GET_ENTRY_TYPE,
 	ZRAM_MARK_ENTRY_NON_LRU,
 	ZRAM_PREFETCH_ENTRY,

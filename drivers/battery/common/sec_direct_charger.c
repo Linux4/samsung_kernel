@@ -207,12 +207,19 @@ static bool sec_direct_chg_check_event(
 				POWER_SUPPLY_PROP_STATUS, value);
 			dc_status = value.intval;
 			if ((batt_volt >= charger->pdata->swelling_high_rechg_voltage) &&
-				(dc_status != POWER_SUPPLY_STATUS_CHARGING)) {
+				(dc_status != POWER_SUPPLY_STATUS_CHARGING) &&
+				!charger->pdata->chgen_over_swell_rechg_vol) {
 				pr_info("%s : volt(%d) rechg_voltage(%d) dc_status(%d)\n", __func__,
 					batt_volt, charger->pdata->swelling_high_rechg_voltage, dc_status);
 				return true;
 			}
-		}
+			if (charger->dc_rcp) {
+				pr_info("%s : swelling and rcp(%d)\n", __func__,
+					charger->dc_rcp);
+				return true;
+			}
+		} else
+			charger->dc_rcp = false;
 		if (current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP_MODE)
 			return true;
 	} else {
@@ -294,7 +301,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	int has_apdo = 0, cable_type = 0, voltage_avg = 0;
 	unsigned int current_event = 0, lrp_chg_src = SEC_CHARGING_SOURCE_DIRECT, tx_retry_case = 0;
 	int flash_state = 0, mst_en = 0, abnormal_ta = 0;
-#if defined(CONFIG_MTK_CHARGER)
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 	int mtk_fg_init = 0;
 #endif
 
@@ -390,7 +397,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_ABNORMAL_TA, value);
 	abnormal_ta = value.intval;
 
-#if defined(CONFIG_MTK_CHARGER)
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 	psy_do_property("battery", get, POWER_SUPPLY_EXT_PROP_MTK_FG_INIT, value);
 	mtk_fg_init = value.intval; /* check only for MTK */
 #endif
@@ -399,7 +406,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 	charger->capacity = value.intval;
 	if (charger->direct_chg_done || (charger->capacity >= charger->pdata->dchg_end_soc)
 		|| !has_apdo || charger->store_mode || flash_state || mst_en || abnormal_ta
-#if defined(CONFIG_MTK_CHARGER)
+#if IS_ENABLED(CONFIG_MTK_CHARGER)
 		|| !mtk_fg_init
 #endif
 		) {
@@ -577,6 +584,7 @@ static void sec_direct_chg_set_initial_status(struct sec_direct_charger_info *ch
 	charger->dc_input_current = charger->dc_charging_current / 2;
 	charger->dc_err = false;
 	charger->dc_retry_cnt = 0;
+	charger->dc_rcp = false;
 	charger->test_mode_source = SEC_CHARGING_SOURCE_DIRECT;
 	charger->vbat_min_src = LOW_VBAT_NONE;
 }
@@ -926,6 +934,9 @@ static int sec_direct_chg_set_property(struct power_supply *psy,
 					POWER_SUPPLY_EXT_PROP_DC_REVERSE_MODE, value);
 			}
 			break;
+		case POWER_SUPPLY_EXT_PROP_DC_RCP:
+			charger->dc_rcp = val->intval;
+			break;
  		default:
 			ret = psy_do_property(charger->pdata->main_charger_name, set, ext_psp, value);
 			return ret;
@@ -976,6 +987,8 @@ static int sec_direct_charger_parse_dt(struct device *dev,
 					charger->pdata, dchg_temp_low_threshold, 180);
 	sb_of_parse_u32_dt(np, "battery,swelling_high_rechg_voltage",
 					charger->pdata, swelling_high_rechg_voltage, 4050);
+	sb_of_parse_bool_dt(np, "battery,chgen_over_swell_rechg_vol", charger->pdata, chgen_over_swell_rechg_vol);
+
 	return 0;
 }
 #else
@@ -1059,6 +1072,13 @@ static int sec_direct_charger_probe(struct platform_device *pdev)
 
 	mutex_init(&charger->charger_mutex);
 
+	charger->pt = sb_pt_init(charger->dev);
+	if (IS_ERR(charger->pt)) {
+		ret = PTR_ERR(charger->pt);
+		dev_info(charger->dev, "%s: unused pass through (ret = %d)\n", __func__, ret);
+		charger->pt = NULL;
+	}
+
 	charger->psy_chg = power_supply_register(&pdev->dev,
 			&sec_direct_charger_power_supply_desc, &direct_charger_cfg);
 	if (IS_ERR(charger->psy_chg)) {
@@ -1068,13 +1088,6 @@ static int sec_direct_charger_probe(struct platform_device *pdev)
 		goto err_power_supply_register;
 	}
 	sec_chg_set_dev_init(SC_DEV_SEC_DIR_CHG);
-
-	charger->pt = sb_pt_init(charger->dev);
-	if (IS_ERR(charger->pt)) {
-		ret = PTR_ERR(charger->pt);
-		dev_info(charger->dev, "%s: unused pass through (ret = %d)\n", __func__, ret);
-		charger->pt = NULL;
-	}
 
 	pr_info("%s: SEC Direct-Charger Driver Loaded(%s, %s)\n",
 		__func__, charger->pdata->main_charger_name, charger->pdata->direct_charger_name);

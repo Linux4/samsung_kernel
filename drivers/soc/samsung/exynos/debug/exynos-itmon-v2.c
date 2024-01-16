@@ -947,7 +947,12 @@ static void itmon_post_handler(struct itmon_dev *itmon, bool err)
 	unsigned long cur_time = local_clock();
 	unsigned long delta;
 
-	delta = pdata->last_time == 0 ? 0 : cur_time - pdata->last_time;
+	if (!pdata->errcnt_window_start_time) {
+		delta = 0;
+		pdata->errcnt_window_start_time = cur_time;
+	} else {
+		delta = cur_time - pdata->errcnt_window_start_time;
+	}
 
 	dev_err(itmon->dev, "Before ITMON: [%5lu.%06lu], delta: %lu, last_errcnt: %d\n",
 		(unsigned long)ts, rem_nsec / 1000, delta, pdata->last_errcnt);
@@ -955,15 +960,19 @@ static void itmon_post_handler(struct itmon_dev *itmon, bool err)
 	if (err)
 		itmon_do_dpm_policy(itmon, true);
 
-	/* delta < 1s */
-	if (delta > 0 && delta < 1000000000UL) {
+	/* delta < 1.2s */
+	if (delta > 0 && delta < 1200000000UL) {
 		pdata->last_errcnt++;
-		if (pdata->last_errcnt > ERR_THRESHOLD) {
+
+		/* Errors less than 1 second are tolerated no matter how many times they occur */
+		if (delta >= 1000000000UL && pdata->last_errcnt > ERR_THRESHOLD) {
 			itmon_print_history();
 			dbg_snapshot_do_dpm_policy(GO_S2D_ID);
 		}
-	} else
+	} else {
 		pdata->last_errcnt = 0;
+		pdata->errcnt_window_start_time = cur_time;
+	}
 
 	pdata->last_time = cur_time;
 }
@@ -1990,6 +1999,7 @@ static int itmon_probe(struct platform_device *pdev)
 	itmon_init(itmon, true);
 
 	pdata->last_time = 0;
+	pdata->errcnt_window_start_time = 0;
 	pdata->last_errcnt = 0;
 
 	g_itmon = itmon;

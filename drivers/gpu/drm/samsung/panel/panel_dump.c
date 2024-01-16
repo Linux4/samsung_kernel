@@ -72,8 +72,8 @@ void destroy_dumpinfo(struct dumpinfo *dump)
 
 	if (!dump)
 		return;
-
-	free_pnobj_name(&dump->base);
+	
+	pnobj_deinit(&dump->base);
 	for (i = 0; i < dump->nr_expects; i++)
 		kfree(dump->expects[i].msg);
 	kfree(dump->abd_print);

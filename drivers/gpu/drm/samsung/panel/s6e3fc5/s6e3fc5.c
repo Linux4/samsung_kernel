@@ -118,27 +118,6 @@ int init_aod_dimming_table(struct maptbl *tbl)
 #endif
 #endif
 
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-int s6e3fc5_maptbl_getidx_vgh(struct maptbl *tbl)
-{
-	struct panel_device *panel = (struct panel_device *)tbl->pdata;
-	struct panel_info *panel_data;
-	int row = 0;
-
-	if (panel == NULL) {
-		panel_err("panel is null\n");
-		return -EINVAL;
-	}
-
-	panel_data = &panel->panel_data;
-
-	row = ((panel_data->props.xtalk_mode) ? 1 : 0);
-	panel_info("xtalk_mode %d\n", row);
-
-	return maptbl_index(tbl, 0, row, 0);
-}
-#endif
-
 int s6e3fc5_maptbl_getidx_hbm_transition(struct maptbl *tbl)
 {
 	int layer, row;
@@ -794,9 +773,6 @@ struct pnobj_func s6e3fc5_function_table[MAX_S6E3FC5_FUNCTION] = {
 	[S6E3FC5_MAPTBL_GETIDX_ACL_OPR] = __PNOBJ_FUNC_INITIALIZER(S6E3FC5_MAPTBL_GETIDX_ACL_OPR, s6e3fc5_maptbl_getidx_acl_opr),
 	[S6E3FC5_MAPTBL_INIT_LPM_BRT] = __PNOBJ_FUNC_INITIALIZER(S6E3FC5_MAPTBL_INIT_LPM_BRT, s6e3fc5_maptbl_init_lpm_brt),
 	[S6E3FC5_MAPTBL_GETIDX_LPM_BRT] = __PNOBJ_FUNC_INITIALIZER(S6E3FC5_MAPTBL_GETIDX_LPM_BRT, s6e3fc5_maptbl_getidx_lpm_brt),
-#ifdef CONFIG_SUPPORT_XTALK_MODE
-	[S6E3FC5_MAPTBL_GETIDX_VGH] = __PNOBJ_FUNC_INITIALIZER(S6E3FC5_MAPTBL_GETIDX_VGH, s6e3fc5_maptbl_getidx_vgh),
-#endif
 #if defined(CONFIG_USDM_FACTORY) && defined(CONFIG_USDM_FACTORY_FAST_DISCHARGE)
 	[S6E3FC5_MAPTBL_GETIDX_FAST_DISCHARGE] = __PNOBJ_FUNC_INITIALIZER(S6E3FC5_MAPTBL_GETIDX_FAST_DISCHARGE, s6e3fc5_maptbl_getidx_fast_discharge),
 #endif

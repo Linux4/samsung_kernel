@@ -30,7 +30,8 @@
 
 static struct panel_event_bl_data panel_event_data;
 static struct panel_event_dms_data panel_event_dms_data;
-static int ub_status;
+static u8 copr_state;
+static u8 ub_state;
 #endif
 
 #define LCD_PANEL_LCD_TYPE "/sys/class/lcd/panel/lcd_type"
@@ -148,7 +149,7 @@ u8 get_lcd_status(void)
 	struct shub_data_t *shub_data = get_shub_data();
 	u8 ret = 0;
 
-	if (ub_status == PANEL_EVENT_UB_CON_STATE_CONNECTED
+	if (ub_state == PANEL_EVENT_UB_CON_STATE_CONNECTED
 		&& shub_data->lcd_status == LCD_ON)
 		ret = LCD_ON;
 	else
@@ -157,13 +158,40 @@ u8 get_lcd_status(void)
 	return ret;
 }
 
-int send_ub_status(char *evtdata)
+int send_ub_state(void)
 {
-	int ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT,
-					LIGHT_SUBCMD_UB_DISCONNECTED, evtdata, sizeof(*evtdata));
+	int ret = 0;
+	char enable = 0;
 
-	if (*evtdata == PANEL_EVENT_UB_CON_STATE_DISCONNECTED)
+	if (ub_state == PANEL_EVENT_UB_CON_STATE_CONNECTED)
+		enable = 1;
+	else if (ub_state == PANEL_EVENT_UB_CON_STATE_DISCONNECTED)
+		enable = 0;
+	else
+		return -EINVAL;
+
+	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT,
+					LIGHT_SUBCMD_UB_CONNECTED, &enable, sizeof(enable));
+
+	if (ub_state == PANEL_EVENT_UB_CON_STATE_DISCONNECTED)
 		ret = shub_send_status(get_lcd_status());
+
+	return ret;
+}
+
+int send_copr_state(void)
+{
+	int ret = 0;
+	char enable = 0;
+
+	if (copr_state == PANEL_EVENT_COPR_STATE_ENABLED)
+		enable = 1;
+	else if (copr_state == PANEL_EVENT_COPR_STATE_DISABLED)
+		enable = 0;
+	else
+		return -EINVAL;
+
+	ret = shub_send_command(CMD_SETVALUE, TYPE_HUB, COPR_STATUS, &enable, sizeof(enable));
 
 	return ret;
 }
@@ -196,20 +224,35 @@ static int panel_notifier_callback(struct notifier_block *nb, unsigned long even
 			&& evtdata->state != PANEL_EVENT_UB_CON_STATE_DISCONNECTED)	{
 			shub_infof("PANEL_EVENT_UB_CON_CHANGED, event errno(%d)\n", evtdata->state);
 		} else {
-			ub_status = evtdata->state;
-			shub_infof("PANEL_EVENT_UB_CON_CHANGED, state(%d)\n", ub_status);
-			send_ub_status((char *)&evtdata->state);
+			ub_state = evtdata->state;
+			shub_infof("PANEL_EVENT_UB_CON_CHANGED, state(%d)\n", ub_state);
+			send_ub_state();
+		}
+	} else if (event == PANEL_EVENT_PANEL_STATE_CHANGED) {
+		if (evtdata->state >= PANEL_EVENT_PANEL_STATE_OFF
+			&& evtdata->state <= PANEL_EVENT_PANEL_STATE_LPM) {
+			struct shub_data_t *shub_data = get_shub_data();
+
+			if (evtdata->state == PANEL_EVENT_PANEL_STATE_OFF)
+				shub_data->lcd_status = LCD_OFF;
+			else if (evtdata->state == PANEL_EVENT_PANEL_STATE_ON)
+				shub_data->lcd_status = LCD_ON;
+			else if (evtdata->state == PANEL_EVENT_PANEL_STATE_LPM)
+				shub_data->lcd_status = LCD_LPM;
+
+			shub_infof("PANEL_EVENT_PANEL_STATE_CHANGED, event(%d) lcd_status(%d)\n",
+							evtdata->state, shub_data->lcd_status);
+
+			//shub_send_status(get_lcd_status());
 		}
 	} else if (event == PANEL_EVENT_COPR_STATE_CHANGED) {
 		if (evtdata->state == PANEL_EVENT_COPR_STATE_ENABLED
 			|| evtdata->state == PANEL_EVENT_COPR_STATE_DISABLED) {
 			struct shub_data_t *shub_data = get_shub_data();
-
-			shub_data->lcd_status = evtdata->state == PANEL_EVENT_COPR_STATE_DISABLED ? LCD_OFF : LCD_ON;
-			shub_infof("PANEL_EVENT_COPR_STATE_CHANGED, event(%d) lcd_status(%d)\n",
+			copr_state = evtdata->state;
+			shub_infof("PANEL_EVENT_COPR_STATE_CHANGED, event(%d) lcd_status(%d)\n", 
 							evtdata->state, shub_data->lcd_status);
-
-			shub_send_status(get_lcd_status());
+			send_copr_state();
 		}
 	} else if (evtdata->state == PANEL_EVENT_SCREEN_MODE_STATE_CHANGED) {
 		memcpy(&panel_event_dms_data, &evtdata->d.dms, sizeof(struct panel_event_dms_data));
@@ -229,6 +272,9 @@ void init_shub_panel_callback(void)
 {
 	int ret = 0;
 
+	copr_state = PANEL_EVENT_COPR_STATE_ENABLED;
+	ub_state = PANEL_EVENT_UB_CON_STATE_CONNECTED;
+
 	ret = panel_notifier_register(&panel_notify);
 	if (ret < 0)
 		shub_infof("panel_notifier_register failed(%d)", ret);
@@ -240,7 +286,14 @@ void remove_shub_panel_callback(void)
 {
 	panel_notifier_unregister(&panel_notify);
 }
+
+void sync_panel_state(void)
+{
+	send_ub_state();
+	send_copr_state();
+}
 #else
 void init_shub_panel_callback(void) {}
 void remove_shub_panel_callback(void) {}
+void sync_panel_state(void) {}
 #endif

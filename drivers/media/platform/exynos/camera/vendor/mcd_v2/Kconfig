@@ -64,6 +64,12 @@ config CAMERA_AAW_A54X
         default n
         help
          This camera is aaw_v54x
+config CAMERA_AAX_A35X
+        bool "This camera is aax_v35x"
+        depends on CAMERA_VENDER_MCD_V2
+        default n
+        help
+         This camera is aax_v35x
 config CAMERA_MMW_M54X
         bool "This camera is mmw_v54x"
         depends on CAMERA_VENDER_MCD_V2
@@ -82,3 +88,9 @@ config CAMERA_STW_V50
         default n
         help
          This camera is stw_v50
+config CAMERA_ATW_V05
+        bool "This camera is atw_v05"
+        depends on CAMERA_VENDER_MCD_V2
+        default n
+        help
+         This camera is atw_v05

@@ -530,7 +530,7 @@
 
 		is_vendor_sensor_count = <3>;
 		max_supported_camera = <3>;
-		supported_cameraId = <0 1 58>;
+		supported_cameraId = <0 3 58>;
 
 		/*
 		* Wide(0)

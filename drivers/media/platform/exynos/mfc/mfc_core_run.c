@@ -360,6 +360,7 @@ int mfc_core_run_dec_init(struct mfc_core *core, struct mfc_ctx *ctx)
 	struct mfc_core_ctx *core_ctx = core->core_ctx[ctx->num];
 	struct mfc_dec *dec = ctx->dec_priv;
 	struct mfc_buf *src_mb;
+	unsigned int strm_size;
 
 	/* Initializing decoding - parsing header */
 
@@ -370,16 +371,15 @@ int mfc_core_run_dec_init(struct mfc_core *core, struct mfc_ctx *ctx)
 		return -EAGAIN;
 	}
 
+	strm_size = mfc_dec_get_strm_size(ctx, src_mb);
 	mfc_debug(2, "Preparing to init decoding\n");
-	mfc_debug(2, "[STREAM] Header size: %d, (offset: %lu)\n",
-		src_mb->vb.vb2_buf.planes[0].bytesused, dec->consumed);
+	mfc_debug(2, "[STREAM] Header size: %d, (offset: %u, consumed: %u)\n",
+			strm_size,
+			src_mb->vb.vb2_buf.planes[0].data_offset,
+			dec->consumed);
 
-	if (dec->consumed)
-		mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-				dec->consumed, dec->remained_size);
-	else
-		mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-				0, src_mb->vb.vb2_buf.planes[0].bytesused);
+	mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
+			mfc_dec_get_strm_offset(ctx, src_mb), strm_size);
 
 	mfc_debug(2, "[BUFINFO] Header addr: 0x%08llx\n", src_mb->addr[0][0]);
 	mfc_clean_core_ctx_int_flags(core->core_ctx[ctx->num]);
@@ -442,12 +442,9 @@ int mfc_core_run_dec_frame(struct mfc_core *core, struct mfc_ctx *ctx)
 	if (mfc_check_mb_flag(src_mb, MFC_FLAG_EMPTY_DATA))
 		src_mb->vb.vb2_buf.planes[0].bytesused = 0;
 
-	if (dec->consumed)
-		mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-				dec->consumed, dec->remained_size);
-	else
-		mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-				0, src_mb->vb.vb2_buf.planes[0].bytesused);
+	mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
+			mfc_dec_get_strm_offset(ctx, src_mb),
+			mfc_dec_get_strm_size(ctx, src_mb));
 
 	if (call_bop(ctx, core_set_buf_ctrls, core, ctx, &ctx->src_ctrls[index]) < 0)
 		mfc_err("failed in core_set_buf_ctrls\n");
@@ -464,7 +461,6 @@ int mfc_core_run_dec_frame(struct mfc_core *core, struct mfc_ctx *ctx)
 	if (dec->consumed && IS_TWO_MODE2(ctx)) {
 		mfc_debug(2, "[STREAM][2CORE] clear consumed for next core\n");
 		dec->consumed = 0;
-		dec->remained_size = 0;
 	}
 	return ret;
 }
@@ -501,7 +497,8 @@ int mfc_core_run_dec_last_frames(struct mfc_core *core, struct mfc_ctx *ctx)
 	} else {
 		if (dec->consumed)
 			mfc_core_set_dec_stream_buffer(core, ctx, src_mb,
-					dec->consumed, dec->remained_size);
+					mfc_dec_get_strm_offset(ctx, src_mb),
+					mfc_dec_get_strm_size(ctx, src_mb));
 		else
 			mfc_core_set_dec_stream_buffer(core, ctx, src_mb, 0, 0);
 		src_index = src_mb->src_index;
@@ -671,8 +668,11 @@ int mfc_core_run_enc_frame(struct mfc_core *core, struct mfc_ctx *ctx)
 
 int mfc_core_run_enc_last_frames(struct mfc_core *core, struct mfc_ctx *ctx)
 {
+	struct mfc_dev *dev = ctx->dev;
+	struct mfc_enc *enc = ctx->enc_priv;
 	struct mfc_buf *dst_mb = NULL;
 	struct mfc_raw_info *raw;
+	unsigned int index;
 
 	raw = &ctx->raw_buf;
 
@@ -687,6 +687,22 @@ int mfc_core_run_enc_last_frames(struct mfc_core *core, struct mfc_ctx *ctx)
 	mfc_ctx_debug(2, "Set address zero for all planes\n");
 	mfc_core_set_enc_frame_buffer(core, ctx, 0, raw->num_planes);
 	mfc_core_set_enc_stream_buffer(core, ctx, dst_mb);
+
+	if (mfc_is_enc_bframe(ctx)) {
+		/* HDR10+ statistic info */
+		if (MFC_FEATURE_SUPPORT(dev, dev->pdata->hdr10_plus_stat_info)) {
+			if (enc->sh_handle_hdr10_plus_stat.fd == -1) {
+				mfc_ctx_debug(3, "[HDR+] there is no handle for stat info\n");
+			} else {
+				if (dst_mb) {
+					index = dst_mb->vb.vb2_buf.index;
+					mfc_core_set_hdr10_plus_stat_info(core, ctx, index);
+				} else {
+					mfc_ctx_info("[HDR+] there is no dst buffer in last + B frame\n");
+				}
+			}
+		}
+	}
 
 	mfc_clean_core_ctx_int_flags(core->core_ctx[ctx->num]);
 	mfc_core_cmd_enc_one_frame(core, ctx, 1);

@@ -137,6 +137,7 @@ struct ufs_perf {
 	struct ufs_hba *hba;
 
 	u8 exynos_gear_scale;
+	u8 exynos_cap_gear_scale;
 };
 
 /* EXTERNAL FUNCTIONS */

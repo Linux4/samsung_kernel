@@ -345,12 +345,108 @@ out_free:
 	return err;
 }
 
+__visible_for_testing int jsonr_u8_rle(json_reader_t *r, u8 **out)
+{
+	jsmntok_t *it_tok;
+	unsigned int *rle_data = NULL;
+	unsigned int *rle_len = NULL;
+	u8 *arr = NULL;
+	int i, j, c = 0, err, num_unique_data;
+	int total_size = 0;
+
+	/* unique data */
+	it_tok = current_token(r); inc_token(r);
+	num_unique_data = it_tok->size;
+	if (num_unique_data == 0) {
+		panel_warn("rle_data is empty\n");
+		goto out_free;
+	}
+
+	rle_data = kvmalloc(sizeof(unsigned int) * it_tok->size, GFP_KERNEL);
+	err = jsonr_uint_array(r, rle_data, num_unique_data);
+	if (err < 0)
+		goto out_free;
+
+	/* length of data */
+	it_tok = current_token(r); inc_token(r);
+	if (num_unique_data != it_tok->size) {
+		panel_err("size mismatch(rle_data:%d != rle_len:%d)\n",
+				num_unique_data, it_tok->size);
+		goto out_free;
+	}
+
+	rle_len = kvmalloc(sizeof(unsigned int) * it_tok->size, GFP_KERNEL);
+	err = jsonr_uint_array(r, rle_len, num_unique_data);
+	if (err < 0)
+		goto out_free;
+
+	/* rle decoding */
+	for (i = 0; i < num_unique_data; i++)
+		total_size += rle_len[i];
+
+	arr = kvmalloc(sizeof(u8) * total_size, GFP_KERNEL);
+	for (i = 0; i < num_unique_data; i++) {
+		for (j = 0; j < rle_len[i]; j++, c++)
+			arr[c] = rle_data[i];
+	}
+
+	kvfree(rle_data);
+	kvfree(rle_len);
+	*out = arr;
+
+	return total_size;
+
+out_free:
+	kvfree(rle_data);
+	kvfree(rle_len);
+	kvfree(arr);
+
+	return 0;
+}
+
+__visible_for_testing int jsonr_byte_array_field(json_reader_t *r,
+		const char *prop, u8 **out)
+{
+	jsmntok_t *it_tok;
+	u8 *arr = NULL;
+	int err, size;
+
+	JEXPECT_STREQ(r, current_token(r), prop); inc_token(r);
+	JEXPECT_ARRAY(r, current_token(r));
+	it_tok = current_token(r); inc_token(r);
+	if (it_tok->size == 0)
+		return 0;
+
+	/* RLE */
+	if (JSMN_IS_ARRAY(current_token(r)) && it_tok->size == 2) {
+		err = jsonr_u8_rle(r, &arr);
+		if (err < 0)
+			goto out_free;
+		size = err;
+	} else {
+		arr = kvmalloc(sizeof(u8) * it_tok->size, GFP_KERNEL);
+		err = jsonr_u8_array(r, arr, it_tok->size);
+		if (err < 0)
+			goto out_free;
+		size = it_tok->size;
+	}
+	*out = arr;
+
+	return size;
+
+out_free:
+	kvfree(arr);
+
+	return err;
+}
+
 int jsonr_maptbl(json_reader_t *r, struct maptbl *m)
 {
 	jsmntok_t *it_tok;
 	char buf[SZ_128];
+	struct pnobj *pnobj;
 	u8 *arr = NULL;
-	int err;
+	int i, err;
 
 	if (!m) {
 		panel_err("invalid arg\n");
@@ -391,15 +487,9 @@ int jsonr_maptbl(json_reader_t *r, struct maptbl *m)
 	}
 
 	/* parsing maptbl array */
-	JEXPECT_STREQ(r, current_token(r), "arr"); inc_token(r);
-	JEXPECT_ARRAY(r, current_token(r));
-	it_tok = current_token(r); inc_token(r);
-	if (it_tok->size > 0) {
-		arr = kvmalloc(sizeof(u8) * it_tok->size, GFP_KERNEL);
-		err = jsonr_u8_array(r, arr, it_tok->size);
-		if (err < 0)
-			goto out_free;
-	}
+	err = jsonr_byte_array_field(r, "arr", &arr);
+	if (err < 0)
+		goto out_free;
 
 	/* parsing maptbl_ops */
 	JEXPECT_STREQ(r, current_token(r), "ops"); inc_token(r);
@@ -417,6 +507,22 @@ int jsonr_maptbl(json_reader_t *r, struct maptbl *m)
 		err = jsonr_ref_function_field(r, "copy", &m->ops.copy);
 		if (err < 0)
 			goto out_free;
+	}
+
+	/* parsing dimension property */
+	JEXPECT_STREQ(r, current_token(r), "props"); inc_token(r);
+	JEXPECT_ARRAY(r, current_token(r));
+	it_tok = current_token(r); inc_token(r);
+	for (i = 0; i < it_tok->size; i++) {
+		err = jsonr_ref_pnobj_object(r, &pnobj);
+		if (err < 0)
+			goto out_free;
+
+		if (!pnobj) {
+			panel_err("failed to get pnobj\n");
+			goto out_free;
+		}
+		m->props.name[i] = get_pnobj_name(pnobj);
 	}
 
 	m->arr = arr;
@@ -514,16 +620,10 @@ int jsonr_tx_packet(json_reader_t *r, struct pktinfo *pkt)
 	pkt->type = pkt_type;
 
 	/* parsing packet data */
-	JEXPECT_STREQ(r, current_token(r), "data"); inc_token(r);
-	JEXPECT_ARRAY(r, current_token(r));
-	it_tok = current_token(r); inc_token(r);
-	if (it_tok->size > 0) {
-		initdata = kvmalloc(sizeof(u8) * it_tok->size, GFP_KERNEL);
-		err = jsonr_u8_array(r, initdata, it_tok->size);
-		if (err < 0)
-			goto out_free;
-	}
-	pkt->dlen = it_tok->size;
+	err = jsonr_byte_array_field(r, "data", &initdata);
+	if (err < 0)
+		goto out_free;
+	pkt->dlen = err;
 
 	/* offset */
 	err = jsonr_uint_field(r, buf, &pkt->offset);
@@ -659,14 +759,14 @@ int jsonr_panel_expr_data(json_reader_t *r, struct panel_expr_data *data)
 			panel_err("failed to parse string\n");
 			return err;
 		}
-		data->op.str = kstrndup(str, sizeof(str), GFP_KERNEL);
+		data->op.str = kstrndup(str, sizeof(str)-1, GFP_KERNEL);
 	} else if (data->type == PANEL_EXPR_TYPE_OPERAND_PROP) {
 		err = jsonr_string_field(r, buf, str);
 		if (err < 0) {
 			panel_err("failed to parse string\n");
 			return err;
 		}
-		data->op.str = kstrndup(str, sizeof(str), GFP_KERNEL);
+		data->op.str = kstrndup(str, sizeof(str)-1, GFP_KERNEL);
 	} else if (data->type == PANEL_EXPR_TYPE_OPERAND_FUNC) {
 		err = jsonr_ref_function_field(r, "op", &data->op.func);
 		if (err < 0) {
@@ -860,16 +960,10 @@ int jsonr_resource(json_reader_t *r, struct resinfo *res)
 	}
 
 	/* parsing packet data */
-	JEXPECT_STREQ(r, current_token(r), "data"); inc_token(r);
-	JEXPECT_ARRAY(r, current_token(r));
-	it_tok = current_token(r); inc_token(r);
-	if (it_tok->size > 0) {
-		data = kvmalloc(sizeof(u8) * it_tok->size, GFP_KERNEL);
-		err = jsonr_u8_array(r, data, it_tok->size);
-		if (err < 0)
-			goto out_free;
-	}
-	res->dlen = it_tok->size;
+	err = jsonr_byte_array_field(r, "data", &data);
+	if (err < 0)
+		goto out_free;
+	res->dlen = err;
 
 	/* parsing resource update info */
 	JEXPECT_STREQ(r, current_token(r), "resui"); inc_token(r);
@@ -935,7 +1029,7 @@ int jsonr_dump_expect(json_reader_t *r, struct dump_expect *expect)
 		panel_err("failed to parse uint\n");
 		return err;
 	}
-	expect->msg = kstrndup(str, sizeof(str), GFP_KERNEL);
+	expect->msg = kstrndup(str, sizeof(str)-1, GFP_KERNEL);
 
 	return 0;
 
@@ -1155,8 +1249,7 @@ int jsonr_power_ctrl(json_reader_t *r, struct pwrctrl *pwrctrl)
 		panel_err("failed to parse string\n");
 		goto out_free;
 	}
-	pwrctrl->key = kzalloc(strlen(str) + 1, GFP_KERNEL);
-	strncpy(pwrctrl->key, str, SZ_128);
+	pwrctrl->key = kstrndup(str, PNOBJ_NAME_LEN-1, GFP_KERNEL);
 
 	return 0;
 
@@ -1164,6 +1257,47 @@ out_free:
 	free_pnobj_name(&pwrctrl->base);
 	kfree(pwrctrl->key);
 
+	return err;
+}
+
+/*
+ * parsing enum list
+ *
+ * example: "enums":{\"VRR_NORMAL_MODE\":0,\"VRR_HS_MODE\":1}
+ *
+ */
+int jsonr_enum_field(json_reader_t *r, const char *key,
+		struct panel_property *prop)
+{
+	char str[SZ_128];
+	unsigned int value;
+	int i, err;
+	jsmntok_t *it_tok = NULL;
+
+	JEXPECT_STREQ(r, current_token(r), key); inc_token(r);
+	JEXPECT_OBJECT(r, current_token(r));
+	it_tok = current_token(r); inc_token(r);
+	if (it_tok->size <= 0)
+		return -EINVAL;
+
+	for (i = 0; i < it_tok->size / 2; i++) {
+		err = jsonr_uint_field(r, str, &value);
+		if (err < 0) {
+			panel_err("failed to parse uint\n");
+			goto out_free;
+		}
+
+		err = panel_property_add_enum_value(prop, value, str);
+		if (err < 0) {
+			panel_err("failed to add enum value(%d:%s)\n", value, str);
+			goto out_free;
+		}
+	}
+
+	return 0;
+
+out_free:
+	panel_property_enum_free(prop);
 	return err;
 }
 
@@ -1209,7 +1343,9 @@ int jsonr_property(json_reader_t *r, struct panel_property *prop)
 		panel_err("unknown prop type(%s)\n", str);
 		goto out_free;
 	}
+	prop->type = type;
 
+	INIT_LIST_HEAD(&prop->enum_list);
 	if (type == PANEL_PROP_TYPE_RANGE) {
 		/* min */
 		err = jsonr_uint_field(r, buf, &prop->min);
@@ -1222,6 +1358,12 @@ int jsonr_property(json_reader_t *r, struct panel_property *prop)
 		err = jsonr_uint_field(r, buf, &prop->max);
 		if (err < 0) {
 			panel_err("failed to parse uint\n");
+			goto out_free;
+		}
+	} else if (type == PANEL_PROP_TYPE_ENUM) {
+		err = jsonr_enum_field(r, "enums", prop);
+		if (err < 0) {
+			panel_err("failed to parse enum field\n");
 			goto out_free;
 		}
 	}
@@ -1237,9 +1379,8 @@ out_free:
 int jsonr_config(json_reader_t *r, struct pnobj_config *config)
 {
 	char buf[SZ_128];
-	char str[SZ_128];
-	char *prop_name = NULL;
 	int err;
+	struct pnobj *pnobj;
 
 	if (!config) {
 		panel_err("invalid arg\n");
@@ -1260,38 +1401,26 @@ int jsonr_config(json_reader_t *r, struct pnobj_config *config)
 		goto out_free;
 	}
 
-	/* prop_name */
-	err = jsonr_string_field(r, buf, str);
+	/* prop */
+	err = jsonr_ref_pnobj_field(r, "prop", &pnobj);
 	if (err < 0) {
-		panel_err("failed to parse string\n");
+		panel_err("failed to parse property\n");
 		goto out_free;
 	}
-	prop_name = kzalloc(strlen(str) + 1, GFP_KERNEL);
-	strncpy(prop_name, str, SZ_128);
+	strncpy(config->prop_name, get_pnobj_name(pnobj), PANEL_PROP_NAME_LEN);
+	config->prop_name[PANEL_PROP_NAME_LEN-1] = '\0';
 
-	/* prop_type */
-	err = jsonr_uint_field(r, buf, &config->prop_type);
+	err = jsonr_uint_field(r, buf, &config->value);
 	if (err < 0) {
 		panel_err("failed to parse uint\n");
 		goto out_free;
 	}
 
-	if (config->prop_type == PANEL_PROP_TYPE_RANGE) {
-		/* prop_type */
-		err = jsonr_uint_field(r, buf, &config->value);
-		if (err < 0) {
-			panel_err("failed to parse uint\n");
-			goto out_free;
-		}
-	}
-
-	config->prop_name = prop_name;
 
 	return 0;
 
 out_free:
 	free_pnobj_name(&config->base);
-	kfree(prop_name);
 
 	return err;
 }
@@ -1577,10 +1706,8 @@ int jsonr_all(json_reader_t *r)
 	return 0;
 
 out_free:
-	list_for_each_entry_safe(pos, next, get_jsonr_pnobj_list(r), list) {
-		list_del(&pos->list);
+	list_for_each_entry_safe(pos, next, get_jsonr_pnobj_list(r), list)
 		destroy_panel_object(pos);
-	}
 
 	return err;
 }
@@ -1685,6 +1812,71 @@ static void jsonw_ref_pnobj_field(json_writer_t *w,
 				get_pnobj_cmd_type(pnobj)), pnobj->name);
 }
 
+bool need_rle(u8 *arr, size_t size)
+{
+	int i;
+
+	if (size < 128)
+		return false;
+
+	for (i = 1; i < size; i++) {
+		if (arr[0] != arr[i])
+			return false;
+	}
+
+	return true;
+}
+
+__visible_for_testing void jsonw_u8_rle(json_writer_t *w,
+		u8 *arr, size_t size)
+{
+	int i, j = 0, rlen;
+	unsigned int *rle_data = kvmalloc(size, GFP_KERNEL);
+	unsigned int *rle_len = kvmalloc(size, GFP_KERNEL);
+
+	for (i = 0; i < size; i++) {
+		rle_data[j] = arr[i];
+
+		rlen = 1;
+		while (i + 1 < size && arr[i] == arr[i + 1]) {
+			rlen++;
+			i++;
+		}
+
+		rle_len[j++] = rlen;
+	}
+
+	/* unique data */
+	jsonw_start_array(w);
+	for (i = 0; i < j; i++)
+		jsonw_int(w, rle_data[i]);
+	jsonw_end_array(w);
+	kvfree(rle_data);
+
+	/* length of data */
+	jsonw_start_array(w);
+	for (i = 0; i < j; i++)
+		jsonw_int(w, rle_len[i]);
+	jsonw_end_array(w);
+	kvfree(rle_len);
+}
+
+__visible_for_testing void jsonw_byte_array_field(json_writer_t *w,
+		const char *prop, u8 *arr, size_t size)
+{
+	size_t i;
+
+	jsonw_name(w, prop);
+	jsonw_start_array(w);
+	if (need_rle(arr, size)) {
+		jsonw_u8_rle(w, arr, size);
+	} else {
+		for (i = 0; i < size; i++)
+			jsonw_int(w, arr ? arr[i] : 0);
+	}
+	jsonw_end_array(w);
+}
+
 static void jsonw_maptbl_shape(json_writer_t *w, struct maptbl *m)
 {
 	size_t i;
@@ -1704,13 +1896,8 @@ static void jsonw_maptbl_shape(json_writer_t *w, struct maptbl *m)
 
 static void jsonw_maptbl_array(json_writer_t *w, struct maptbl *m)
 {
-	size_t i;
-
-	jsonw_name(w, "arr");
-	jsonw_start_array(w);
-	maptbl_for_each(m, i)
-		jsonw_int(w, m->arr[i]);
-	jsonw_end_array(w);
+	jsonw_byte_array_field(w, "arr",
+			m->arr, maptbl_get_sizeof_maptbl(m));
 }
 
 static void jsonw_maptbl_ops(json_writer_t *w, struct maptbl *m)
@@ -1725,6 +1912,20 @@ static void jsonw_maptbl_ops(json_writer_t *w, struct maptbl *m)
 	jsonw_end_object(w);
 }
 
+static void jsonw_maptbl_props(json_writer_t *w, struct maptbl *m)
+{
+	size_t i;
+
+	jsonw_name(w, "props");
+	jsonw_start_array(w);
+	maptbl_for_each_dimen(m, i) {
+		if (!m->props.name[i])
+			continue;
+		jsonw_ref(w, "PROPERTY", m->props.name[i]);
+	}
+	jsonw_end_array(w);
+}
+
 int jsonw_maptbl(json_writer_t *w, struct maptbl *m)
 {
 	jsonw_name(w, maptbl_get_name(m));
@@ -1734,6 +1935,7 @@ int jsonw_maptbl(json_writer_t *w, struct maptbl *m)
 		jsonw_maptbl_shape(w, m);
 		jsonw_maptbl_array(w, m);
 		jsonw_maptbl_ops(w, m);
+		jsonw_maptbl_props(w, m);
 	}
 	jsonw_end_object(w);
 
@@ -1767,19 +1969,14 @@ static int jsonw_packet_update_info_array(json_writer_t *w, struct pkt_update_in
 
 int jsonw_tx_packet(json_writer_t *w, struct pktinfo *pkt)
 {
-	size_t i;
-
 	jsonw_name(w, get_pktinfo_name(pkt));
 	jsonw_start_object(w);
 	{
 		jsonw_pnobj(w, (struct pnobj *)pkt);
 		jsonw_string_field(w, "type",
 				packet_type_to_string(get_pktinfo_type(pkt)));
-		jsonw_name(w, "data");
-		jsonw_start_array(w);
-		for (i = 0; i < pkt->dlen; i++)
-			jsonw_int(w, pkt->initdata[i]);
-		jsonw_end_array(w);
+		jsonw_byte_array_field(w, "data",
+				pkt->initdata, pkt->dlen);
 		jsonw_uint_field(w, "offset", pkt->offset);
 		jsonw_packet_update_info_array(w, pkt->pktui, pkt->nr_pktui);
 		jsonw_uint_field(w, "option", pkt->option);
@@ -1899,22 +2096,14 @@ static int jsonw_resource_update_info_array(json_writer_t *w, struct res_update_
 
 int jsonw_resource(json_writer_t *w, struct resinfo *res)
 {
-	size_t i;
+	/* fill 0 if mutable resource */
+	u8 *arr = is_resource_mutable(res) ? NULL : res->data;
 
 	jsonw_name(w, get_resource_name(res));
 	jsonw_start_object(w);
 	{
 		jsonw_pnobj(w, (struct pnobj *)res);
-		jsonw_name(w, "data");
-		jsonw_start_array(w);
-		if (is_resource_mutable(res)) {
-			for (i = 0; i < res->dlen; i++)
-				jsonw_int(w, 0);
-		} else {
-			for (i = 0; i < res->dlen; i++)
-				jsonw_int(w, res->data[i]);
-		}
-		jsonw_end_array(w);
+		jsonw_byte_array_field(w, "data", arr, res->dlen);
 		jsonw_resource_update_info_array(w, res->resui, res->nr_resui);
 	}
 	jsonw_end_object(w);
@@ -1996,6 +2185,20 @@ int jsonw_power_ctrl(json_writer_t *w, struct pwrctrl *pi)
 	return 0;
 }
 
+int jsonw_enum_field(json_writer_t *w, char *key, struct panel_property *prop)
+{
+	struct panel_property_enum *prop_enum;
+
+	jsonw_name(w, key);
+	jsonw_start_object(w);
+	list_for_each_entry(prop_enum, &prop->enum_list, head) {
+		jsonw_uint_field(w, prop_enum->name, prop_enum->value);
+	}
+	jsonw_end_object(w);
+
+	return 0;
+}
+
 int jsonw_property(json_writer_t *w, struct panel_property *prop)
 {
 	jsonw_name(w, get_panel_property_name(prop));
@@ -2003,13 +2206,16 @@ int jsonw_property(json_writer_t *w, struct panel_property *prop)
 	{
 		jsonw_pnobj(w, (struct pnobj *)&prop->base);
 		jsonw_string_field(w, "type", prop_type_to_string(prop->type));
-		if (prop->type == PANEL_PROP_TYPE_RANGE) {
+
+		if (panel_property_type_is(prop, PANEL_PROP_TYPE_RANGE)) {
 			jsonw_uint_field(w, "min", prop->min);
 			jsonw_uint_field(w, "max", prop->max);
+		} else if (panel_property_type_is(prop, PANEL_PROP_TYPE_ENUM)) {
+			jsonw_enum_field(w, "enums", prop);
 		}
 	}
 	jsonw_end_object(w);
-	
+
 	return 0;
 }
 
@@ -2019,10 +2225,8 @@ int jsonw_config(json_writer_t *w, struct pnobj_config *config)
 	jsonw_start_object(w);
 	{
 		jsonw_pnobj(w, (struct pnobj *)config);
-		jsonw_string_field(w, "prop_name", config->prop_name);
-		jsonw_uint_field(w, "prop_type", config->prop_type);
-		if (config->prop_type == PANEL_PROP_TYPE_RANGE)
-			jsonw_uint_field(w, "value", config->value);
+		jsonw_ref_field(w, "prop", "PROPERTY", config->prop_name);
+		jsonw_uint_field(w, "value", config->value);
 	}
 	jsonw_end_object(w);
 

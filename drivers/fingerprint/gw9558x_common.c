@@ -867,6 +867,21 @@ static int gw9558_remove(struct platform_device *pdev)
 	return 0;
 }
 #else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(6, 1, 0)
+static void gw9558_remove(struct spi_device *spi)
+{
+	struct gf_device *gf_dev = spi_get_drvdata(spi);
+
+	gw9558_free_buffer(gf_dev);
+	gw9558_remove_common(&spi->dev);
+
+	mutex_destroy(&gf_dev->buf_lock);
+	spin_lock_irq(&gf_dev->spi_lock);
+	gf_dev->spi = NULL;
+	spin_unlock_irq(&gf_dev->spi_lock);
+	gf_dev = NULL;
+}
+#else
 static int gw9558_remove(struct spi_device *spi)
 {
 	struct gf_device *gf_dev = spi_get_drvdata(spi);
@@ -881,6 +896,7 @@ static int gw9558_remove(struct spi_device *spi)
 	gf_dev = NULL;
 	return 0;
 }
+#endif
 #endif
 
 static int gw9558_pm_suspend(struct device *dev)

@@ -29,10 +29,14 @@
 #include "aaw_v54x/is-vendor-config_aaw_v54x.h"
 #elif defined(CONFIG_CAMERA_MMW_M54X)
 #include "mmw_v54x/is-vendor-config_mmw_v54x.h"
+#elif defined(CONFIG_CAMERA_ATW_V05)
+#include "atw_v05/is-vendor-config_atw_v05.h"
 #elif defined(CONFIG_CAMERA_STW_V60)
 #include "stw_v60/is-vendor-config_stw_v60.h"
 #elif defined(CONFIG_CAMERA_STW_V50)
 #include "stw_v50/is-vendor-config_stw_v50.h"
+#elif defined(CONFIG_CAMERA_AAX_A35X)
+#include "aax_v35x/is-vendor-config_aax_v35x.h"
 #else
 #include "aaw_v54x/is-vendor-config_aaw_v54x.h"
 #endif

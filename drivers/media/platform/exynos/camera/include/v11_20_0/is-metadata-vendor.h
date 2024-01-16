@@ -1330,7 +1330,9 @@ struct camera2_aa_dm {
 	uint32_t			vendor_touchBvChange;
 	float				vendor_objectDistanceCm;
 	int32_t				vendor_colorTempKelvin;
-	int32_t				vendor_dynamicShotValue[3];
+	int32_t				vendor_dynamicShotValue;        // DS Value
+	int32_t				vendor_dynamicShotDeviceLSB;    // DS Device Info LSB 32bit
+	int32_t				vendor_dynamicShotDeviceMSB;    // DS Device Info MSB 32bit
 	int32_t				vendor_lightConditionValue;
 	int32_t				vendor_dynamicShotExtraInfo;
 	struct aa_apexInfo		vendor_apexInfo;

@@ -191,6 +191,7 @@ static int __init blk_sec_wb_init(void)
 		return retval;
 	}
 
+	mutex_init(&wb.lock);
 	wb.state = WB_OFF;
 	INIT_WORK(&wb.ctrl_work, wb_ctrl_work);
 	timer_setup(&wb.user_wb_off_timer, user_wb_off_handler, 0);

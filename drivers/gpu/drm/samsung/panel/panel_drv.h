@@ -66,15 +66,13 @@
 #include "panel_blic.h"
 #endif
 
-#if defined(CONFIG_TDMB_NOTIFIER)
-#include <linux/tdmb_notifier.h>
-#endif
-
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
 #include "panel_freq_hop.h"
 #endif
 
-#if defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
+#include "sdp_adaptive_mipi.h"
+#elif defined(CONFIG_USDM_ADAPTIVE_MIPI)
 #include "adaptive_mipi.h"
 #endif
 
@@ -159,10 +157,18 @@ enum panel_irq_lists {
 #define PANEL_PROPERTY_PREV_PANEL_REFRESH_RATE ("prev_panel_refresh_rate")
 #define PANEL_PROPERTY_PREV_PANEL_REFRESH_MODE ("prev_panel_refresh_mode")
 #define PANEL_PROPERTY_RESOLUTION_CHANGED ("resolution_changed")
+#define PANEL_PROPERTY_LFD_FIX ("lfd_fix")
+#define PANEL_PROPERTY_HMD_LFD_FIX ("hmd_lfd_fix")
+#define PANEL_PROPERTY_LPM_LFD_FIX ("lpm_lfd_fix")
 #define PANEL_PROPERTY_DSI_FREQ ("dsi_freq")
 #define PANEL_PROPERTY_OSC_FREQ ("osc_freq")
 #define PANEL_PROPERTY_IS_FACTORY_MODE ("is_factory_mode")
 #define PANEL_PROPERTY_BRIGHTDOT_TEST_ENABLE ("brightdot_test_enable")
+#define PANEL_PROPERTY_VGLHIGHDOT ("vglhighdot")
+#define PANEL_PROPERTY_XTALK_MODE ("xtalk_mode")
+#define PANEL_PROPERTY_IRC_MODE ("irc_mode")
+#define PANEL_PROPERTY_DIA_MODE ("dia_mode")
+#define PANEL_PROPERTY_FD_ENABLED ("fd_enabled")
 
 enum {
 	SEPARATE_TX_OFF,    /* TX CMD by using panel drv cmdq */
@@ -204,9 +210,7 @@ enum ctrl_interface_state {
 };
 
 #define WAKE_TIMEOUT_MSEC (100)
-#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
 #define EVASION_DISP_DET_DELAY_MSEC (600)
-#endif
 
 struct panel_adapter_funcs {
 	int (*read)(void *ctx, u8 addr, u32 ofs, u8 *buf, int size, u32 option);
@@ -227,9 +231,13 @@ struct panel_adapter_funcs {
 	int (*dpu_register_dump)(void *ctx);
 	int (*dpu_event_log_print)(void *ctx);
 	int (*emergency_off)(void *ctx);
-#if defined(CONFIG_PANEL_FREQ_HOP) || defined(CONFIG_USDM_PANEL_FREQ_HOP) || defined(CONFIG_USDM_ADAPTIVE_MIPI)
+#if defined(CONFIG_PANEL_FREQ_HOP) ||\
+	defined(CONFIG_USDM_PANEL_FREQ_HOP) ||\
+	defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 	int (*set_freq_hop)(void *ctx, struct freq_hop_param *param);
 #endif
+	int (*trigger_recovery)(void *ctx);
 };
 
 #define call_panel_adapter_func(_p, _func, args...) \
@@ -263,8 +271,6 @@ struct panel_drv_funcs {
 	int (*debug_dump)(struct panel_device *);
 	int (*doze)(struct panel_device *);
 	int (*doze_suspend)(struct panel_device *);
-	int (*set_mres)(struct panel_device *, void *);
-	int (*get_mres)(struct panel_device *, void *);
 	int (*set_display_mode)(struct panel_device *, void *);
 	int (*get_display_mode)(struct panel_device *, void *);
 #if IS_ENABLED(CONFIG_USDM_PANEL_BIG_LOCK)
@@ -297,8 +303,6 @@ int panel_drv_evt_frame_done_ioctl(struct panel_device *panel, void *arg);
 int panel_drv_evt_vsync_ioctl(struct panel_device *panel, void *arg);
 int panel_drv_doze_ioctl(struct panel_device *panel, void *arg);
 int panel_drv_doze_suspend_ioctl(struct panel_device *panel, void *arg);
-int panel_drv_set_mres_ioctl(struct panel_device *panel, void *arg);
-int panel_drv_get_mres_ioctl(struct panel_device *panel, void *arg);
 #if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 int panel_drv_get_display_mode_ioctl(struct panel_device *panel, void *arg);
 int panel_drv_set_display_mode_ioctl(struct panel_device *panel, void *arg);
@@ -351,6 +355,11 @@ enum {
 	PANEL_PCD_BYPASS_ON = 1,
 };
 
+enum {
+	PANEL_FSYNC_EVENT_OFF = 0,
+	PANEL_FSYNC_EVENT_ON = 1,
+};
+
 #define ALPM_MODE	0
 #define HLPM_MODE	1
 
@@ -390,9 +399,7 @@ enum {
 	PANEL_WORK_DIM_FLASH,
 	PANEL_WORK_CHECK_CONDITION,
 	PANEL_WORK_UPDATE,
-#ifdef CONFIG_USDM_PANEL_EVASION_DISP_DET
 	PANEL_WORK_EVASION_DISP_DET,
-#endif
 	PANEL_WORK_MAX,
 };
 
@@ -427,6 +434,7 @@ struct panel_state {
 #endif
 	int lpm_brightness;
 	int pcd_bypass;
+	int fsync_event_on;
 };
 
 struct copr_spi_gpios {
@@ -510,36 +518,45 @@ struct panel_thread {
 };
 
 enum {
-	PANEL_DEBUGFS_LOG,
-	PANEL_DEBUGFS_CMD_LOG,
-	PANEL_DEBUGFS_SEQUENCE,
-	PANEL_DEBUGFS_RESOURCE,
+	PANEL_DEBUGFS_FILE_LOG,
+	PANEL_DEBUGFS_FILE_CMD_LOG,
 #if defined(CONFIG_USDM_PANEL_FREQ_HOP)
-	PANEL_DEBUGFS_FREQ_HOP,
+	PANEL_DEBUGFS_FILE_FREQ_HOP,
 #endif
 #if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER_V2)
-	PANEL_DEBUGFS_PANEL_EVENT,
+	PANEL_DEBUGFS_FILE_PANEL_EVENT,
 #endif
 #if defined(CONFIG_USDM_PANEL_JSON)
-	PANEL_DEBUGFS_EZOP,
-	PANEL_DEBUGFS_FIRMWARE,
+	PANEL_DEBUGFS_FILE_EZOP,
+	PANEL_DEBUGFS_FILE_FIRMWARE,
 #endif
 #if defined(CONFIG_USDM_ADAPTIVE_MIPI)
-	PANEL_DEBUGFS_ADAPTIVE_MIPI,
+	PANEL_DEBUGFS_FILE_ADAPTIVE_MIPI,
 #endif
-	MAX_PANEL_DEBUGFS,
+	MAX_PANEL_DEBUGFS_FILE,
 };
 
+enum {
+	PANEL_DEBUGFS_DIR_SEQUENCE,
+	PANEL_DEBUGFS_DIR_RESOURCE,
+	PANEL_DEBUGFS_DIR_PROPERTY,
+	MAX_PANEL_DEBUGFS_DIR,
+};
+
+#define MAX_PANEL_DEBUGFS_NAME_SIZE (32)
+
 struct panel_debugfs {
-	int id;
+	char name[MAX_PANEL_DEBUGFS_NAME_SIZE];
 	struct dentry *dir;
 	struct dentry *file;
+	struct panel_debugfs *parent;
 	void *private;
+	struct list_head dirs;
+	struct list_head list;
 };
 
 struct panel_debug {
-	struct dentry *dir;
-	struct panel_debugfs *debugfs[MAX_PANEL_DEBUGFS];
+	struct panel_debugfs *root;
 };
 
 #ifdef CONFIG_USDM_PANEL_TESTMODE
@@ -645,8 +662,7 @@ struct panel_device {
 #endif
 
 #ifdef CONFIG_USDM_PANEL_MAFPC
-	struct mafpc_device mafpc;
-	struct v4l2_subdev *mafpc_sd;
+	struct mafpc_device *mafpc;
 	s64 mafpc_write_time;
 #endif
 
@@ -664,9 +680,6 @@ struct panel_device {
 #ifdef CONFIG_USDM_PANEL_BLIC
 	struct panel_blic_dev blic_dev[PANEL_BLIC_MAX];
 	int nr_blic_dev;
-#endif
-#ifdef CONFIG_USDM_MDNIE_TDMB
-	struct notifier_block tdmb_notif;
 #endif
 #if defined(CONFIG_INPUT_TOUCHSCREEN)
 	struct notifier_block input_notif;
@@ -690,7 +703,11 @@ struct panel_device {
 	struct device_node *freq_hop_node;
 #endif
 
-#ifdef CONFIG_USDM_ADAPTIVE_MIPI
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI)
+	struct adaptive_mipi_v2_info sdp_adap_mipi;
+#endif
+#if defined(CONFIG_USDM_SDP_ADAPTIVE_MIPI) ||\
+	defined(CONFIG_USDM_ADAPTIVE_MIPI)
 	struct panel_adaptive_mipi adap_mipi;
 	struct device_node *adap_mipi_node;
 #endif
@@ -729,7 +746,6 @@ int panel_ssr_test(struct panel_device *panel);
 int panel_ecc_test(struct panel_device *panel);
 #endif
 int panel_decoder_test(struct panel_device *panel, u8 *buf, int len);
-bool check_panel_decoder_test_exists(struct panel_device *panel);
 #if defined(CONFIG_USDM_PANEL_VCOM_TRIM_TEST)
 int panel_vcom_trim_test(struct panel_device *panel, u8 *buf, int len);
 #endif
@@ -771,7 +787,7 @@ static inline int panel_set_bypass(struct panel_device *panel,
 
 int panel_display_on(struct panel_device *panel);
 int __set_panel_power(struct panel_device *panel, int power);
-
+bool panel_is_factory_mode(struct panel_device *panel);
 #ifdef CONFIG_USDM_PANEL_SELF_DISPLAY
 
 #define INIT_WITHOUT_LOCK	0
@@ -829,6 +845,7 @@ static inline int panel_self_move_pattern_update(struct panel_device *panel)
 #endif
 #endif
 
+int panel_find_max_brightness_from_cpi(struct common_panel_info *info);
 char *get_panel_state_names(enum panel_active_state);
 void panel_set_cur_state(struct panel_device *panel,
 		enum panel_active_state state);
@@ -853,7 +870,9 @@ void panel_send_ubconn_uevent(struct panel_device *panel);
 
 int panel_create_debugfs(struct panel_device *panel);
 void panel_destroy_debugfs(struct panel_device *panel);
-#if defined(CONFIG_USDM_PANEL_LPM) && defined(CONFIG_USDM_FACTORY)
+int panel_create_panel_object_debugfs(struct panel_device *panel);
+void panel_destroy_panel_object_debugfs(struct panel_device *panel);
+#if defined(CONFIG_USDM_PANEL_LPM)
 int panel_seq_exit_alpm(struct panel_device *panel);
 int panel_seq_set_alpm(struct panel_device *panel);
 #endif
@@ -908,10 +927,14 @@ int panel_add_command_from_initdata_seqtbl(struct seqinfo *arr,
 
 #define PRINT_PANEL_STATE_END(_old_state_, _new_state_, _start_) \
 	do { \
-		panel_info("panel_state: %s -> %s: took %lld ms\n", \
+		char rtc_buf[SZ_128] = { 0, }; \
+		\
+		usdm_snprintf_current_rtc_time(rtc_buf, sizeof(rtc_buf)); \
+		panel_info("panel_state: %s -> %s: took %lld ms [%s]\n", \
 				get_panel_state_names(_old_state_), \
 				get_panel_state_names(_new_state_), \
-				ktime_to_ms(ktime_sub(ktime_get(), _start_))); \
+				ktime_to_ms(ktime_sub(ktime_get(), _start_)),\
+				rtc_buf); \
 	} while (0)
 
 #define PANEL_DRV_NAME "panel-drv"
@@ -939,8 +962,6 @@ int panel_add_command_from_initdata_seqtbl(struct seqinfo *arr,
 #define PANEL_IOC_DOZE_SUSPEND			_IO(PANEL_IOC_BASE, 32)
 #endif
 
-#define PANEL_IOC_SET_MRES				_IOW(PANEL_IOC_BASE, 41, int *)
-#define PANEL_IOC_GET_MRES				_IOR(PANEL_IOC_BASE, 42, struct panel_mres *)
 #if defined(CONFIG_USDM_PANEL_DISPLAY_MODE)
 #define PANEL_IOC_GET_DISPLAY_MODE		_IOR(PANEL_IOC_BASE, 48, void *)
 #define PANEL_IOC_SET_DISPLAY_MODE		_IOW(PANEL_IOC_BASE, 49, void *)

@@ -28,7 +28,10 @@ struct ufs_vendor_dev_info {
 	struct ufs_hba *hba;
 	char unique_number[UFS_UN_MAX_DIGITS];
 	u8 lt;
-	unsigned int lc;
+	u8 eli;
+	unsigned int ic;
+	char s_info[512];
+	char shi[256];
 
 	bool device_stuck;
 };

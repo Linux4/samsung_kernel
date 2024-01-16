@@ -438,7 +438,7 @@ static void exynos_ufs_config_host(struct exynos_ufs *ufs)
 	hci_writel(handle, PRDT_SET_SIZE(12), HCI_RXPRDT_ENTRY_SIZE);
 
 	/* I_T_L_Q isn't used at the beginning */
-	ufs->nexus = 0;
+	ufs->nexus = 0xFFFFFFFF;
 	hci_writel(handle, ufs->nexus, HCI_UTRL_NEXUS_TYPE);
 	hci_writel(handle, 0xFFFFFFFF, HCI_UTMRL_NEXUS_TYPE);
 
@@ -1129,6 +1129,8 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 	struct ufshcd_lrb *lrbp;
 	struct ufs_vs_handle *handle = &ufs->handle;
 	ufs_perf_op op = UFS_PERF_OP_NONE;
+	int timeout_cnt = 50000 / 10;
+	int wait_ns = 10;
 
 	if (!IS_C_STATE_ON(ufs) ||
 			(ufs->h_state != H_LINK_UP &&
@@ -1167,10 +1169,10 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 		exynos_ufs_cmd_log_start(handle, hba, scmd);
 	}
 
-	/*
-	 * check if an update is needed. not require protection
-	 * because this functions is wrapped with spin lock outside
-	 */
+	/* check if an update is needed */
+	while (test_and_set_bit(EXYNOS_UFS_BIT_CHK_NEXUS, &ufs->flag)
+	       && timeout_cnt--)
+		ndelay(wait_ns);
 
 	if (cmd) {
 		if (test_and_set_bit(tag, &ufs->nexus))
@@ -1181,6 +1183,7 @@ static void exynos_ufs_set_nexus_t_xfer_req(struct ufs_hba *hba,
 	}
 	hci_writel(handle, (u32)ufs->nexus, HCI_UTRL_NEXUS_TYPE);
 out:
+	clear_bit(EXYNOS_UFS_BIT_CHK_NEXUS, &ufs->flag);
 	ufs->h_state = H_REQ_BUSY;
 }
 
@@ -2319,12 +2322,15 @@ static ssize_t ufs_exynos_gear_scale_show(struct exynos_ufs *ufs, char *buf,
 	struct ufs_perf *perf = ufs->perf;
 	struct uic_pwr_mode *pmd = &ufs->device_pmd_parm;
 
-	if (perf)
-		return snprintf(buf, PAGE_SIZE, "%s[%d]\n",
-			perf->exynos_gear_scale ? "enabled" : "disabled",
-			pmd->gear);
+	if (perf == NULL)
+		return -EINVAL;
 
-	return snprintf(buf, PAGE_SIZE, "%d\n", -EINVAL);
+	if (!perf->exynos_cap_gear_scale)
+		return snprintf(buf, PAGE_SIZE, "%s\n", "not supported");
+
+	return snprintf(buf, PAGE_SIZE, "%s[%d]\n",
+		perf->exynos_gear_scale? "enabled" : "disabled",
+		pmd->gear);
 }
 
 static int ufs_exynos_gear_scale_store(struct exynos_ufs *ufs, const char *buf,
@@ -2336,6 +2342,9 @@ static int ufs_exynos_gear_scale_store(struct exynos_ufs *ufs, const char *buf,
 
 	if (perf == NULL)
 		return -EINVAL;
+
+	if (!perf->exynos_cap_gear_scale)
+		return -ENOTSUPP;
 
 	ret = sscanf(buf, "%d", &value);
 	if (!ret)

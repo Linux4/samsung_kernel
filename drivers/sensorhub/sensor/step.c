@@ -83,3 +83,20 @@ int init_step_detector(bool en)
 
 	return ret;
 }
+
+int init_sequential_step(bool en)
+{
+	int ret = 0;
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_SEQUENTIAL_STEP);
+
+	if (!sensor)
+		return 0;
+
+	if (en) {
+		ret = init_default_func(sensor, "sequential_step", 4, 4, 4);
+	} else {
+		destroy_default_func(sensor);
+	}
+
+	return ret;
+}

@@ -87,3 +87,25 @@ unsigned int ipc_hw_read_int_gen_reg(void *base, enum ipc_mb_id which_mb)
 
 	return CIPC_RAW_READL((char *)(base + offset));
 }
+
+void ipc_hw_mask_set_int_reg(void *base, enum ipc_mb_id which_mb, int irq)
+{
+	unsigned int offset =
+		(which_mb == IPC_SRC_MB0) ? REG_MAILBOX_INTMR0 : REG_MAILBOX_INTMR1;
+
+	unsigned int val = CIPC_RAW_READL((char *)base + offset);
+	irq += (which_mb == IPC_SRC_MB0) ? MB0_BIT_OFFSET : 0;
+
+	CIPC_RAW_WRITEL((val | (1 << irq)), (char *)(base + offset));
+}
+
+void ipc_hw_mask_clear_int_reg(void *base, enum ipc_mb_id which_mb, int irq)
+{
+	unsigned int offset =
+		(which_mb == IPC_SRC_MB0) ? REG_MAILBOX_INTMR0 : REG_MAILBOX_INTMR1;
+
+	unsigned int val = CIPC_RAW_READL((char *)base + offset);
+	irq += (which_mb == IPC_SRC_MB0) ? MB0_BIT_OFFSET : 0;
+
+	CIPC_RAW_WRITEL((val & ~(1 << irq)), (char *)(base + offset));
+}

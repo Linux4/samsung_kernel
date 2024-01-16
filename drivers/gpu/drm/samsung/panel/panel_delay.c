@@ -115,7 +115,10 @@ EXPORT_SYMBOL(create_delay);
  */
 void destroy_delay(struct delayinfo *delay)
 {
-	free_pnobj_name(&delay->base);
+	if (!delay)
+		return;
+
+	pnobj_deinit(&delay->base);
 	kfree(delay);
 }
 EXPORT_SYMBOL(destroy_delay);
@@ -162,7 +165,7 @@ EXPORT_SYMBOL(create_timer_delay_begin);
  */
 void destroy_timer_delay_begin(struct timer_delay_begin_info *begin)
 {
-	free_pnobj_name(&begin->base);
+	pnobj_deinit(&begin->base);
 	kfree(begin);
 }
 EXPORT_SYMBOL(destroy_timer_delay_begin);

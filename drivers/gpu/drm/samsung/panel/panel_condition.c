@@ -56,7 +56,7 @@ struct condinfo *create_condition(char *name,
 			memcpy(&item[i], &rule->item[i], sizeof(*item));
 			if (rule->item[i].type == PANEL_EXPR_TYPE_OPERAND_PROP)
 				item[i].op.str = kstrndup(rule->item[i].op.str,
-						PANEL_PROP_NAME_LEN + 1, GFP_KERNEL);
+						PANEL_PROP_NAME_LEN-1, GFP_KERNEL);
 		}
 	}
 
@@ -86,11 +86,11 @@ void destroy_condition(struct condinfo *cond)
 	if (!cond)
 		return;
 
+	pnobj_deinit(&cond->base);
 	for (i = 0; i < cond->rule.num_item; i++)
 		if (cond->rule.item[i].type == PANEL_EXPR_TYPE_OPERAND_PROP)
 			kfree(cond->rule.item[i].op.str);
 	kfree(cond->rule.item);
-	free_pnobj_name(&cond->base);
 	kfree(cond);
 }
 

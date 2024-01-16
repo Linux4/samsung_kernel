@@ -2336,9 +2336,7 @@ u32 request_frame_length_line(struct is_sensor_interface *itf, u32 framelengthli
 	cis_data = sensor_peri->cis.cis_data;
 	FIMC_BUG(!cis_data);
 	frameDuration = is_sensor_convert_ns_to_us(sensor_peri->cis.cur_sensor_uctrl.frameDuration);
-#ifdef CAMERA_REAR2
 	cis_data->min_frame_us_time = MAX(frameDuration, cis_data->min_sync_frame_us_time + framelengthline);
-#endif
 
 	dbg_sensor(1, "[%s] frameDuration(%d), framelengthline(%d), min_frame_us_time(%d)\n",
 		__func__, frameDuration, framelengthline, cis_data->min_frame_us_time);

@@ -3756,8 +3756,11 @@ int is_sensor_front_start(struct is_device_sensor *device,
 
 	/* Actuator Init because actuator init use cal data */
 	ret = v4l2_subdev_call(device->subdev_module, core, ioctl, V4L2_CID_SENSOR_NOTIFY_ACTUATOR_INIT, 0);
-	if (ret)
-		mwarn("Actuator init fail after first init done\n", device);
+	if (ret) {
+		merr("Actuator init fail **after first init done**\n", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
 
 	ret = is_sensor_wait_asyncshot(device);
 	if (ret) {

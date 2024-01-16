@@ -1315,6 +1315,12 @@ static int parse_power_seq_data(struct exynos_platform_is_module *pdata, struct 
 						return -ENOMEM;
 					}
 
+					regulator = regulator_get_optional(dev, pin->name);
+					if (IS_ERR_OR_NULL(regulator)) {
+						err("SKDBG failed to get regulator : %s", (pin->name ? pin->name : "null"));
+						return -EPROBE_DEFER;
+					}
+
 					is_module_regulator->name = pin->name;
 					list_add_tail(&is_module_regulator->list, &core->resourcemgr.regulator_list);
 					dbg("%s is registered in regulator_list", is_module_regulator->name);
@@ -1322,11 +1328,6 @@ static int parse_power_seq_data(struct exynos_platform_is_module *pdata, struct 
 					/* If sensor voltage source is already enabled due to specific reason.
 					 * Set regulator_force_disable, then maintain initial state
 					 */
-					regulator = regulator_get_optional(dev, pin->name);
-					if (IS_ERR_OR_NULL(regulator)) {
-						err("%s: failed to get regulator", __func__);
-						return PTR_ERR(regulator);
-					}
 
 					if (regulator_is_enabled(regulator)) {
 						warn("regulator(%s) is already enabled, forcely disable\n", pin->name);

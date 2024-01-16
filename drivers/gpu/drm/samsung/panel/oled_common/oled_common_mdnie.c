@@ -27,7 +27,7 @@ int oled_maptbl_getidx_mdnie_scenario_mode(struct maptbl *tbl)
 	panel = tbl->pdata;
 	mdnie = &panel->mdnie;
 
-	return maptbl_index(tbl, mdnie->props.scenario, mdnie->props.mode, 0);
+	return maptbl_index(tbl, mdnie->props.scenario, mdnie->props.scenario_mode, 0);
 }
 
 #ifdef CONFIG_USDM_PANEL_HMD
@@ -87,7 +87,7 @@ int oled_maptbl_getidx_mdnie_night_mode(struct maptbl *tbl)
 	panel = tbl->pdata;
 	mdnie = &panel->mdnie;
 
-	if (mdnie->props.mode != AUTO)
+	if (mdnie->props.scenario_mode != AUTO)
 		mode = NIGHT_MODE_ON;
 
 	return maptbl_index(tbl, mode, mdnie->props.night_level, 0);
@@ -137,11 +137,11 @@ void oled_maptbl_copy_scr_white(struct maptbl *tbl, u8 *dst)
 	panel = tbl->pdata;
 	mdnie = &panel->mdnie;
 
-	if (mdnie->props.mode >= MODE_MAX) {
-		panel_err("invalid mode(%d)\n", mdnie->props.mode);
+	if (mdnie->props.scenario_mode >= MODE_MAX) {
+		panel_err("invalid mode(%d)\n", mdnie->props.scenario_mode);
 		return;
 	}
-	type = wcrd_type[mdnie->props.mode];
+	type = wcrd_type[mdnie->props.scenario_mode];
 
 	if (mdnie->props.scr_white_mode ==
 			SCR_WHITE_MODE_COLOR_COORDINATE) {

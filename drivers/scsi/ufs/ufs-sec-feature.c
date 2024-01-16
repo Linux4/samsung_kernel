@@ -106,8 +106,12 @@ void ufs_sec_get_health_desc(struct ufs_hba *hba)
 
 	/* getting Life Time at Device Health DESC*/
 	vdi->lt = desc_buf[HEALTH_DESC_PARAM_LIFE_TIME_EST_A];
+	vdi->eli = desc_buf[HEALTH_DESC_PARAM_EOL_INFO];
 
-	dev_info(hba->dev, "LT: 0x%02x\n", (desc_buf[3] << 4) | desc_buf[4]);
+	dev_info(hba->dev, "LT: 0x%02x, ELI: 0x%01x\n",
+			(desc_buf[HEALTH_DESC_PARAM_LIFE_TIME_EST_A] << 4) |
+			desc_buf[HEALTH_DESC_PARAM_LIFE_TIME_EST_B],
+			desc_buf[HEALTH_DESC_PARAM_EOL_INFO]);
 out:
 	kfree(desc_buf);
 }

@@ -614,6 +614,16 @@ int sensor_4ha_cis_get_otprom_data(struct v4l2_subdev *subdev, char *buf, bool c
 exit:
 	sensor_4ha_cis_clear_and_initialize(cis);
 
+	/* streaming off */
+	ret = cis->ixc_ops->write8(cis->client, S5K4HA_STREAM_ON_ADDR, 0x00);
+	if (ret < 0) {
+		err("failed to turn off streaming");
+		return ret;
+	}
+
+	sensor_4ha_cis_wait_streamoff(subdev);
+	usleep_range(1000, 1100);
+
 	return ret;
 }
 

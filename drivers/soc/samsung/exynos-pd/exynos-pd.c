@@ -279,6 +279,10 @@ static bool exynos_pd_power_down_ok_vts(void)
 #if defined(CONFIG_SND_SOC_SAMSUNG_VTS) || defined(CONFIG_SND_SOC_SAMSUNG_VTS_MODULE)
 
 	return !vts_is_on();
+#elif IS_ENABLED(CONFIG_EXYNOS_VTS_ALWAYS_ON)
+	pr_info("%s VTS power down skipped\n", __func__);
+
+	return false;
 #else
 	return true;
 #endif

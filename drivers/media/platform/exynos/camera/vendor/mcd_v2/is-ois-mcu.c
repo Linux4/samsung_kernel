@@ -3628,8 +3628,9 @@ bool ois_mcu_check_fw(struct is_core *core)
 	}
 
 	specific = core->vender.private_data;
+#ifdef CONFIG_OIS_USE
 	specific->ois_ver_read = true;
-
+#endif
 	return true;
 }
 
@@ -4033,8 +4034,9 @@ static int ois_mcu_probe(struct platform_device *pdev)
 	mutex_init(&mcu->power_mutex);
 
 	specific = core->vender.private_data;
+#ifdef CONFIG_OIS_USE
 	specific->ois_ver_read = false;
-
+#endif
 	ois_device->ois_ops = &ois_ops_mcu;
 
 	for (i = 0; i < sensor_id_len; i++) {

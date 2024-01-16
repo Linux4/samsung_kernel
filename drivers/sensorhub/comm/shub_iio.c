@@ -82,6 +82,9 @@ static struct iio_probe_device iio_probe_list[] = {
 	{SENSOR_TYPE_SAR_BACKOFF_MOTION, "sar_backoff_motion", 1 },
 	{SENSOR_TYPE_LIGHT_SEAMLESS, "light_seamless_sensor", 4 },
 	{SENSOR_TYPE_LED_COVER_EVENT, "led_cover_event_sensor", 1 },
+	{SENSOR_TYPE_LIGHT_IR, "light_ir_sensor", 24 },
+	{SENSOR_TYPE_DROP_CLASSIFIER, "drop_classifier", 25 },
+	{SENSOR_TYPE_SEQUENTIAL_STEP, "sequential_step", 4 },
 };
 
 struct shub_iio_device {

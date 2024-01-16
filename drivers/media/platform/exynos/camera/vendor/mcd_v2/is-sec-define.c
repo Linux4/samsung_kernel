@@ -1754,7 +1754,7 @@ int is_sec_readcal_eeprom(int rom_id)
 	rom_type = module->pdata->rom_type;
 
 /* to do check : Do not use a specific sensor id in common code. */
-	if (!(sensor_id == SENSOR_NAME_IMX616))	//put all dualized sensor names here
+	if (!(sensor_id == SENSOR_NAME_IMX616 || sensor_id == SENSOR_NAME_IMX882))	//put all dualized sensor names here
 		finfo->is_read_dualized_values = true;
 	if (!(finfo->is_read_dualized_values)){
 		is_sec_readcal_eeprom_dualized(rom_id); // call this function only once for EEPROM dualized sensors

@@ -47,26 +47,6 @@ static ssize_t ufs_sec_lt_show(struct device *dev,
 }
 static DEVICE_ATTR(lt, 0444, ufs_sec_lt_show, NULL);
 
-static ssize_t ufs_sec_lc_info_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%u\n", get_vdi_member(lc));
-}
-
-static ssize_t ufs_sec_lc_info_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	unsigned int value;
-
-	if (kstrtou32(buf, 0, &value))
-		return -EINVAL;
-
-	get_vdi_member(lc) = value;
-
-	return count;
-}
-static DEVICE_ATTR(lc, 0664, ufs_sec_lc_info_show, ufs_sec_lc_info_store);
-
 static ssize_t ufs_sec_man_id_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -82,11 +62,80 @@ static ssize_t ufs_sec_man_id_show(struct device *dev,
 }
 static DEVICE_ATTR(man_id, 0444, ufs_sec_man_id_show, NULL);
 
+static ssize_t ufs_sec_eli_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ufs_hba *hba;
+
+	hba = get_vdi_member(hba);
+
+	if (!hba) {
+		dev_err(dev, "skipping ufs eli read\n");
+		get_vdi_member(eli) = 0;
+	} else if (hba->ufshcd_state == UFSHCD_STATE_OPERATIONAL) {
+		pm_runtime_get_sync(&hba->sdev_ufs_device->sdev_gendev);
+		ufs_sec_get_health_desc(hba);
+		pm_runtime_put(&hba->sdev_ufs_device->sdev_gendev);
+	} else {
+		/* return previous ELI value if not operational */
+		dev_info(hba->dev, "ufshcd_state: %d, old eli: %01x\n",
+				hba->ufshcd_state, get_vdi_member(eli));
+	}
+
+	return sprintf(buf, "%u\n", get_vdi_member(eli));
+}
+static DEVICE_ATTR(eli, 0444, ufs_sec_eli_show, NULL);
+
+static ssize_t ufs_sec_ic_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", get_vdi_member(ic));
+}
+
+static ssize_t ufs_sec_ic_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int value;
+
+	if (kstrtou32(buf, 0, &value))
+		return -EINVAL;
+
+	get_vdi_member(ic) = value;
+
+	return count;
+}
+static DEVICE_ATTR(ic, 0664, ufs_sec_ic_show, ufs_sec_ic_store);
+
+static ssize_t ufs_sec_shi_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n", get_vdi_member(shi));
+}
+
+static ssize_t ufs_sec_shi_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	char shi_buf[256] = {0, };
+
+	ret = sscanf(buf, "%255[^\n]%*c", shi_buf);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	snprintf(get_vdi_member(shi), 256, "%s", shi_buf);
+
+	return count;
+}
+static DEVICE_ATTR(shi, 0664, ufs_sec_shi_show, ufs_sec_shi_store);
+
 static struct attribute *sec_ufs_info_attributes[] = {
 	&dev_attr_un.attr,
 	&dev_attr_lt.attr,
-	&dev_attr_lc.attr,
 	&dev_attr_man_id.attr,
+	&dev_attr_eli.attr,
+	&dev_attr_ic.attr,
+	&dev_attr_shi.attr,
 	NULL
 };
 
@@ -133,6 +182,26 @@ static ssize_t ufs_sec_wb_info_show(struct device *dev, struct device_attribute 
 }
 static DEVICE_ATTR(SEC_UFS_TW_info, 0444, ufs_sec_wb_info_show, NULL);
 /* SEC next WB : end */
+
+/* SEC s_info : begin */
+static ssize_t SEC_UFS_s_info_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	char s_buf[512] = {0, };
+
+	ret = sscanf(buf, "%511s", s_buf);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	snprintf(get_vdi_member(s_info), 512, "%s", s_buf);
+
+	return count;
+}
+
+SEC_UFS_DATA_ATTR_RW(SEC_UFS_s_info, "%s\n", get_vdi_member(s_info));
+/* SEC s_info : end */
 
 /* SEC error info : begin */
 static ssize_t SEC_UFS_op_cnt_store(struct device *dev,
@@ -399,6 +468,7 @@ static struct attribute *sec_ufs_error_attributes[] = {
 	&dev_attr_sense_err_logging.attr,
 	&dev_attr_SEC_UFS_err_summary.attr,
 	&dev_attr_SEC_UFS_TW_info.attr,
+	&dev_attr_SEC_UFS_s_info.attr,
 	NULL
 };
 

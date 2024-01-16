@@ -111,36 +111,77 @@ static int proximity_get_setting_mode(void)
 static ssize_t proximity_cal_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
 	int ret = 0;
+	bool init, update = false;
 	struct proximity_data *data = (struct proximity_data *)get_sensor(SENSOR_TYPE_PROXIMITY)->data;
 
-	save_panel_lcd_type();
+	if (!get_sensor_probe_state(SENSOR_TYPE_PROXIMITY))
+		return -ENOENT;
+	if (!buf)
+		return -EINVAL;
 
-	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROX_SUBCMD_CALIBRATION_START, NULL, 0);
+	init = sysfs_streq(buf, "0");
+	update = sysfs_streq(buf, "1");
+
+	if (init) {
+		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_PROXIMITY, PROX_SUBCMD_CALIBRATION_START, NULL, 0);
+		if (ret < 0) {
+			shub_errf("CMD fail %d", ret);
+			return ret;
+		}
+		memset(&data->setting_mode, 0, sizeof(data->setting_mode));
+		memset(data->cal_data, 0, data->cal_data_len);
+
+	} else if (update) {
+		ret = proximity_get_setting_mode();
+		if (ret < 0) {
+			shub_errf("proximity_get_setting_mode fail %d", ret);
+			return ret;
+		}
+		msleep(500);
+		ret = proximity_get_calibration_data();
+		if (ret < 0) {
+			shub_errf("proximity_get_calibration_data fail %d", ret);
+			return ret;
+		}
+		shub_infof("ADC : %u, mode : %u", *((u16 *)(data->cal_data)), data->setting_mode);
+	} else {
+		shub_errf("buf data is wrong %s", buf);
+	}
+	return size;
+}
+
+static ssize_t debug_info_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+	char *buffer = NULL;
+	int buffer_length = 0;
+	int32_t debug[10];
+
+	ret = shub_send_command_wait(CMD_GETVALUE, SENSOR_TYPE_PROXIMITY, PROX_SUBCMD_DEBUG_DATA, 1000, NULL,
+					0, &buffer, &buffer_length, true);
 	if (ret < 0) {
-		shub_errf("shub_send_command_wait fail %d", ret);
+		shub_errf("CMD fail %d", ret);
 		return ret;
 	}
+	if (buffer_length == sizeof(debug))
+		memcpy(debug, buffer, sizeof(debug));
 
-	msleep(500);
-
-	proximity_get_setting_mode();
-	proximity_get_calibration_data();
-
-	shub_infof("ADC : %u, mode : %u", *((u16 *)(data->cal_data)), data->setting_mode);
-
-	return size;
+	return sprintf(buf, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", debug[0], debug[1], debug[2],
+				debug[3], debug[4], debug[5], debug[6], debug[7], debug[8], debug[9]);
 }
 
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(prox_trim);
 static DEVICE_ATTR(prox_cal, 0220, NULL, proximity_cal_store);
+static DEVICE_ATTR_RO(debug_info);
 
 static struct device_attribute *proximity_stk3afx_attrs[] = {
 	&dev_attr_name,
 	&dev_attr_vendor,
 	&dev_attr_prox_trim,
 	&dev_attr_prox_cal,
+	&dev_attr_debug_info,
 	NULL,
 };
 

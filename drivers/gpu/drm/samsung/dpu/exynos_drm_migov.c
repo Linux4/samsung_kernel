@@ -14,6 +14,7 @@
 #include <soc/samsung/exynos-migov.h>
 #include <soc/samsung/xperf.h>
 #include <exynos_drm_crtc.h>
+#include <linux/ems.h>
 
 #define PROFILER_PERIOD_NSEC	100000000UL
 #define FPS_UNIT_NSEC		1000000000UL	/* 1sec */
@@ -105,17 +106,20 @@ struct exynos_migov *exynos_migov_register(struct exynos_drm_crtc *exynos_crtc)
 	struct drm_crtc *crtc = &exynos_crtc->base;
 
 	/* migov support only lcd crtc(index == 0) */
-	if (!IS_ENABLED(CONFIG_EXYNOS_PROFILER) ||	crtc->index)
+	if (crtc->index)
 		return NULL;
 
 	migov = kzalloc(sizeof(struct exynos_migov), GFP_KERNEL);
-
 	primary_exynos_crtc = exynos_crtc;
 
-	exynos_migov_register_vsync_cnt(get_frame_vsync_cnt);
-	exynos_migov_register_frame_cnt(get_ems_frame_cnt);
-	exynos_migov_register_fence_cnt(get_ems_fence_cnt);
+	if (IS_ENABLED(CONFIG_EXYNOS_PROFILER)) {
+			exynos_migov_register_vsync_cnt(get_frame_vsync_cnt);
+			exynos_migov_register_frame_cnt(get_ems_frame_cnt);
+			exynos_migov_register_fence_cnt(get_ems_fence_cnt);
+	}
+
 	exynos_gmc_register_frame_cnt(get_ems_frame_cnt);
+	ems_register_fence_cnt(get_ems_fence_cnt);
 
 	pr_info("%s[%d]: migov supported\n", crtc->name, crtc->index);
 

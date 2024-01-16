@@ -288,12 +288,20 @@ void __init fdt_init_reserved_mem(void)
 				else
 					memblock_free(rmem->base, rmem->size);
 			} else {
+				phys_addr_t end = rmem->base + rmem->size - 1;
+
 #ifdef CONFIG_RBIN
 				if (!strcmp(rmem->name, "rbin")) {
 					rbin_total = rmem->size >> PAGE_SHIFT;
 					reusable = true;
 				}
 #endif
+				pr_info("%pa..%pa (%lu KiB) %s %s %s\n",
+					&rmem->base, &end, (unsigned long)(rmem->size / SZ_1K),
+					nomap ? "nomap" : "map",
+					reusable ? "reusable" : "non-reusable",
+					rmem->name ? rmem->name : "unknown");
+
 				memblock_memsize_record(rmem->name, rmem->base,
 							rmem->size, nomap,
 							reusable);

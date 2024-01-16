@@ -102,4 +102,24 @@ extern struct pnobj_func oled_function_table[MAX_OLED_FUNCTION];
 
 #define OLED_FUNC(_index) (oled_function_table[_index])
 
+#define __OLED_MAPTBL_OVERRIDE_INIT_INITIALIZER(_name, _init_func, ...) \
+	__SIMPLE_MAPTBL_INITIALIZER(_name, \
+			_init_func, \
+			&OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), \
+			&OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT), \
+			##__VA_ARGS__, PANEL_PROPERTY_NUMBER_0)
+
+#define __OLED_MAPTBL_COPY_ONLY_INITIALIZER(_name, _copy_func) \
+	DEFINE_0D_MAPTBL(_name, \
+			&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), \
+			&OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), \
+			_copy_func)
+
+#define __OLED_MAPTBL_DEFAULT_INITIALIZER(_name, ...) \
+	__SIMPLE_MAPTBL_INITIALIZER(_name, \
+			&OLED_FUNC(OLED_MAPTBL_INIT_DEFAULT), \
+			&OLED_FUNC(OLED_MAPTBL_GETIDX_DEFAULT), \
+			&OLED_FUNC(OLED_MAPTBL_COPY_DEFAULT), \
+			##__VA_ARGS__, PANEL_PROPERTY_NUMBER_0)
+
 #endif /* __OLED_FUNCTION_H__ */

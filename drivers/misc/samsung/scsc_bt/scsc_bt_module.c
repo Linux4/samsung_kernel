@@ -169,6 +169,7 @@ static u8 bt_failure_notification(struct scsc_service_client *client, struct mx_
 
 static bool bt_stop_on_failure(struct scsc_service_client *client, struct mx_syserr_decode *err)
 {
+	unsigned char *p = NULL;
 	UNUSED(client);
 
 	SCSC_TAG_ERR(BT_COMMON, "Error level %d\n", err->level);
@@ -177,17 +178,19 @@ static bool bt_stop_on_failure(struct scsc_service_client *client, struct mx_sys
 	bt_service.recovery_level = err->level;
 
 	/* Allocate system_error_info and build hci_vse_system_error_info */
+	p = kmalloc(HCI_VSE_SYSTEM_ERROR_INFO_LEN, GFP_KERNEL);
+	if (p != NULL) {
+		*p++ = HCI_EVENT_PKT;
+		*p++ = HCI_EVENT_VENDOR_SPECIFIC_EVENT;
+		*p++ = HCI_EVENT_VSE_SUB_CODE_LEN + sizeof(struct mx_syserr_decode);
+		*p++ = HCI_VSE_SYSTEM_ERROR_INFO_SUB_CODE;
+		memcpy(p, err, sizeof(struct mx_syserr_decode));
+	} else
+		SCSC_TAG_ERR(BT_COMMON, "Failed to alloc system_error_info memory\n");
+
 	if (bt_service.system_error_info != NULL)
 		kfree(bt_service.system_error_info);
-	bt_service.system_error_info = kmalloc(HCI_VSE_SYSTEM_ERROR_INFO_LEN, GFP_KERNEL);
-	if (bt_service.system_error_info == NULL)
-		SCSC_TAG_ERR(BT_COMMON, "Failed to alloc system_error_info memory\n");
-	bt_service.system_error_info[0] = HCI_EVENT_PKT;
-	bt_service.system_error_info[1] = HCI_EVENT_VENDOR_SPECIFIC_EVENT;
-	bt_service.system_error_info[2] = HCI_EVENT_VSE_SUB_CODE_LEN + sizeof(struct mx_syserr_decode);
-	bt_service.system_error_info[3] = HCI_VSE_SYSTEM_ERROR_INFO_SUB_CODE;
-	memcpy(bt_service.system_error_info + H4DMUX_HEADER_EVT + HCI_EVENT_VSE_SUB_CODE_LEN, err,
-		sizeof(struct mx_syserr_decode));
+	bt_service.system_error_info = p;
 
 	atomic_inc(&bt_service.error_count);
 

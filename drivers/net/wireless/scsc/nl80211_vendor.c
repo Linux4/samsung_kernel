@@ -2633,6 +2633,7 @@ static int slsi_get_feature_set(struct wiphy *wiphy,
 #ifdef CONFIG_SCSC_WLAN_ENABLE_MAC_RANDOMISATION
 	feature_set |= SLSI_WIFI_HAL_FEATURE_SCAN_RAND;
 #endif
+        feature_set |= SLSI_WIFI_HAL_FEATURE_DYNAMIC_SET_MAC;
 	feature_set |= SLSI_WIFI_HAL_FEATURE_LOW_LATENCY;
 	feature_set |= SLSI_WIFI_HAL_FEATURE_P2P_RAND_MAC;
 
@@ -3600,30 +3601,30 @@ exit:
 	return ret;
 }
 
-char *slsi_get_roam_reason_str(int roam_reason)
+char *slsi_get_roam_reason_str(int roam_reason, u32 reason_code)
 {
 	switch (roam_reason) {
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_RESERVED:
-		return "WIFI_ROAMING_SEARCH_REASON_RESERVED";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_LOW_RSSI:
+	case 1:
 		return "WIFI_ROAMING_SEARCH_REASON_LOW_RSSI";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_LINK_LOSS:
+	case 3:
+		if (reason_code == FAPI_REASONCODE_CHANNEL_SWITCH_FAILURE)
+			return "WIFI_ROAMING_SEARCH_REASON_CHANNEL_SWITCH_FAILURE";
 		return "WIFI_ROAMING_SEARCH_REASON_LINK_LOSS";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_BTM_REQ:
+	case 5:
 		return "WIFI_ROAMING_SEARCH_REASON_BTM_REQ";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_CU_TRIGGER:
+	case 2:
 		return "WIFI_ROAMING_SEARCH_REASON_CU_TRIGGER";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_EMERGENCY:
+	case 4:
 		return "WIFI_ROAMING_SEARCH_REASON_EMERGENCY";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_IDLE:
+	case 6:
 		return "WIFI_ROAMING_SEARCH_REASON_IDLE";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_WTC:
+	case 7:
 		return "WIFI_ROAMING_SEARCH_REASON_WTC";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER:
+	case 8:
 		return "WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER:
+	case 9:
 		return "WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER";
-	case SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX:
+	case 10:
 		return "WIFI_ROAMING_SEARCH_REASON_BT_COEX";
 	default:
 		return "UNKNOWN_REASON";
@@ -4337,11 +4338,50 @@ static int slsi_rx_event_log_parse(struct slsi_dev *sdev, struct net_device *dev
 	return 0;
 }
 
+static int slsi_get_roam_reason_for_fw_reason(int roam_reason)
+{
+	switch (roam_reason) {
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_LOW_RSSI:
+		return 1;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_LINK_LOSS:
+		return 3;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_BTM_REQ:
+		return 5;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_CU_TRIGGER:
+		return 2;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_EMERGENCY:
+		return 4;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_IDLE:
+		return 6;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_WTC:
+		return 7;
+	case SLSI_WIFI_ROAMING_SEARCH_REASON_BT_COEX:
+		return 10;
+	default:
+		return 0;
+	}
+}
+
+/* if the Expired_Timer_Value is not set to 0,1,2,3, the Roam_Reason is set to UNKNOWN. */
+static int slsi_get_roam_reason_from_expired_tv(int roam_reason, int expired_timer_value)
+{
+	if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_DEFAULT)
+		return slsi_get_roam_reason_for_fw_reason(roam_reason);
+	else if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_INACTIVITY_TIMER)
+		return SLSI_WIFI_ROAMING_SEARCH_REASON_INACTIVITY_TIMER;
+	else if (expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_RESCAN_TIMER ||
+		 expired_timer_value == SLSI_SOFT_ROAMING_TRIGGER_EVENT_BACKGROUND_RESCAN_TIMER)
+		return SLSI_WIFI_ROAMING_SEARCH_REASON_SCAN_TIMER;
+	else
+		return 0;
+}
+
 static void slsi_rx_event_log_print(struct slsi_dev *sdev, struct net_device *dev, u16 event_id, u64 timestamp,
 				    struct slsi_rx_evt_info *evt_info)
 {
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	char *string = NULL;
+	int roam_reason = 0;
 
 	switch (event_id) {
 	case FAPI_EVENT_WIFI_EVENT_FW_EAPOL_FRAME_TRANSMIT_START:
@@ -4400,14 +4440,16 @@ static void slsi_rx_event_log_print(struct slsi_dev *sdev, struct net_device *de
 		slsi_conn_log2us_btm_query(sdev, dev, evt_info->vd.dialog_token, evt_info->reason_code);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_ROAM_SEARCH_STARTED:
-		slsi_conn_log2us_roam_scan_start(sdev, dev, evt_info->vd.roam_reason, evt_info->roam_rssi_val,
-						 evt_info->vd.chan_utilisation, evt_info->vd.expired_timer_value,
-						 evt_info->vd.rssi_thresh, timestamp);
+		roam_reason = slsi_get_roam_reason_from_expired_tv(evt_info->vd.roam_reason,
+								   evt_info->vd.expired_timer_value);
+		slsi_conn_log2us_roam_scan_start(sdev, dev, roam_reason, evt_info->roam_rssi_val,
+						 evt_info->vd.chan_utilisation, evt_info->vd.rssi_thresh, timestamp);
 		SLSI_INFO(sdev, "WIFI_EVENT_ROAM_SEARCH_STARTED, Roaming Type : %s, RSSI:%d, Deauth Reason:0x%04x, "
 			  "RSSI Threshold:%d,Channel Utilisation:%d, Roam Reason: %s, Expired Timer Value: %d\n",
 			  (evt_info->vd.roaming_type == 0 ? "Legacy" : "NCHO"), evt_info->roam_rssi_val,
 			  evt_info->reason_code, evt_info->vd.rssi_thresh, evt_info->vd.chan_utilisation,
-			  slsi_get_roam_reason_str(evt_info->vd.roam_reason), evt_info->vd.expired_timer_value);
+			  slsi_get_roam_reason_str(roam_reason, evt_info->reason_code),
+			  evt_info->vd.expired_timer_value);
 		break;
 	case FAPI_EVENT_WIFI_EVENT_FW_AUTH_SENT:
 		if (evt_info->vd.is_roaming)

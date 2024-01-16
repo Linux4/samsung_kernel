@@ -16,6 +16,11 @@
 #include <linux/mount.h>
 #include "fscrypt_private.h"
 
+#ifdef CONFIG_DDAR
+extern int fscrypt_set_ddar_context(struct inode *inode, struct fscrypt_info *ci,
+		union fscrypt_context *ctx, int ctxsize, void *fs_data);
+#endif
+
 /**
  * fscrypt_policies_equal() - check whether two encryption policies are the same
  * @policy1: the first policy
@@ -286,7 +291,15 @@ static int fscrypt_new_context(union fscrypt_context *ctx_u,
 		       policy->master_key_descriptor,
 		       sizeof(ctx->master_key_descriptor));
 		memcpy(ctx->nonce, nonce, FSCRYPT_FILE_NONCE_SIZE);
+
+#ifdef CONFIG_DDAR
+		BUILD_BUG_ON((sizeof(*ctx) - sizeof(ctx->knox_flags))
+				!= offsetof(struct fscrypt_context_v1, knox_flags));
+		ctx->knox_flags = 0;
+		return offsetof(struct fscrypt_context_v1, knox_flags);
+#else
 		return sizeof(*ctx);
+#endif
 	}
 	case FSCRYPT_POLICY_V2: {
 		const struct fscrypt_policy_v2 *policy = &policy_u->v2;
@@ -302,7 +315,15 @@ static int fscrypt_new_context(union fscrypt_context *ctx_u,
 		       policy->master_key_identifier,
 		       sizeof(ctx->master_key_identifier));
 		memcpy(ctx->nonce, nonce, FSCRYPT_FILE_NONCE_SIZE);
+
+#ifdef CONFIG_DDAR
+		BUILD_BUG_ON((sizeof(*ctx) - sizeof(ctx->knox_flags))
+				!= offsetof(struct fscrypt_context_v2, knox_flags));
+		ctx->knox_flags = 0;
+		return offsetof(struct fscrypt_context_v2, knox_flags);
+#else
 		return sizeof(*ctx);
+#endif
 	}
 	}
 	BUG();
@@ -390,6 +411,25 @@ static int fscrypt_get_policy(struct inode *inode, union fscrypt_policy *policy)
 	ret = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (ret < 0)
 		return (ret == -ERANGE) ? -EINVAL : ret;
+
+#ifdef CONFIG_DDAR
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			ret = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (ret == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			ret = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
 
 	return fscrypt_policy_from_context(policy, &ctx, ret);
 }
@@ -567,6 +607,26 @@ int fscrypt_ioctl_get_nonce(struct file *filp, void __user *arg)
 	ret = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
 	if (ret < 0)
 		return ret;
+
+#ifdef CONFIG_DDAR
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (ret == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			ret = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (ret == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			ret = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
+
 	if (!fscrypt_context_is_valid(&ctx, ret))
 		return -EINVAL;
 	if (copy_to_user(arg, fscrypt_context_nonce(&ctx),
@@ -687,6 +747,9 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 	struct fscrypt_info *ci = inode->i_crypt_info;
 	union fscrypt_context ctx;
 	int ctxsize;
+#ifdef CONFIG_DDAR
+	int res;
+#endif
 
 	/* fscrypt_prepare_new_inode() should have set up the key already. */
 	if (WARN_ON_ONCE(!ci))
@@ -703,6 +766,11 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 	    (ci->ci_policy.v2.flags & FSCRYPT_POLICY_FLAG_IV_INO_LBLK_32))
 		fscrypt_hash_inode_number(ci, ci->ci_master_key);
 
+#ifdef CONFIG_DDAR
+	res = fscrypt_set_ddar_context(inode, ci, &ctx, ctxsize, fs_data);
+	if (res != -EAGAIN)
+		return res;
+#endif
 	return inode->i_sb->s_cop->set_context(inode, &ctx, ctxsize, fs_data);
 }
 EXPORT_SYMBOL_GPL(fscrypt_set_context);

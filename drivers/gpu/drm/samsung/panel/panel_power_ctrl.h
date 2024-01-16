@@ -83,5 +83,7 @@ bool panel_power_ctrl_exists(struct panel_device *panel,
 	const char *dev_name, const char *name);
 int panel_power_ctrl_execute(struct panel_device *panel,
 	const char *dev_name, const char *name);
-
+struct pwrctrl *create_pwrctrl(char *name, char *key);
+struct pwrctrl *duplicate_pwrctrl(struct pwrctrl *pwrctrl);
+void destroy_pwrctrl(struct pwrctrl *pwrctrl);
 #endif

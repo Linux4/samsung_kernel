@@ -5,6 +5,7 @@
 
 usdm-panel-oled-common-y := \
 	oled_function.o \
+	oled_property.o \
 	oled_common.o \
 	oled_common_dump.o \
 	oled_common_cond.o

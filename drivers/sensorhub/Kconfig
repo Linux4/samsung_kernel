@@ -24,6 +24,7 @@ config SHUB_AOIS
 	  use CONFIG_SHUB_AOIS
 
 config SHUB_PANEL_NOTIFY
+	tristate "SHUB_PANEL_NOTI"
 	default n
 	help
 	  This is panel notify for chub

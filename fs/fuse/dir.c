@@ -421,13 +421,18 @@ static void fuse_dentry_canonical_path(const struct path *path,
 			       fuse_canonical_path_backing,
 			       fuse_canonical_path_finalize, path,
 			       canonical_path);
-	if (fer.ret)
+	if (fer.ret) {
+		if (IS_ERR(fer.result))
+			canonical_path->dentry = fer.result;
 		return;
+	}
 #endif
 
 	path_name = (char *)get_zeroed_page(GFP_KERNEL);
-	if (!path_name)
-		goto default_path;
+	if (!path_name) {
+		canonical_path->dentry = ERR_PTR(-ENOMEM);
+		return;
+	}
 
 	args.opcode = FUSE_CANONICAL_PATH;
 	args.nodeid = get_node_id(inode);
@@ -442,10 +447,15 @@ static void fuse_dentry_canonical_path(const struct path *path,
 	free_page((unsigned long)path_name);
 	if (err > 0)
 		return;
-default_path:
+	if (err < 0) {
+		canonical_path->dentry = ERR_PTR(err);
+		return;
+	}
+
 	canonical_path->dentry = path->dentry;
 	canonical_path->mnt = path->mnt;
 	path_get(canonical_path);
+	return;
 }
 
 const struct dentry_operations fuse_dentry_operations = {
@@ -1771,17 +1781,6 @@ static int fuse_dir_open(struct inode *inode, struct file *file)
 
 static int fuse_dir_release(struct inode *inode, struct file *file)
 {
-#ifdef CONFIG_FUSE_BPF
-	struct fuse_err_ret fer;
-
-	fer = fuse_bpf_backing(inode, struct fuse_release_in,
-		       fuse_releasedir_initialize, fuse_release_backing,
-		       fuse_release_finalize,
-		       inode, file);
-	if (fer.ret)
-		return PTR_ERR(fer.result);
-#endif
-
 	fuse_release_common(file, true);
 	return 0;
 }

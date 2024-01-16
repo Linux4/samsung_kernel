@@ -118,12 +118,11 @@ struct mfc_buf *mfc_get_del_buf(struct mfc_ctx *ctx, struct mfc_buf_queue *queue
 }
 
 struct mfc_buf *mfc_get_del_if_consumed(struct mfc_ctx *ctx, struct mfc_buf_queue *queue,
-		unsigned long consumed, unsigned int min_bytes, int error, int *deleted)
+		unsigned int consumed, unsigned int min_bytes, int error, int *deleted)
 {
 	unsigned long flags;
 	struct mfc_buf *mfc_buf = NULL;
-	struct mfc_dec *dec = ctx->dec_priv;
-	unsigned long remained;
+	unsigned int remained, strm_size;
 	bool exceed = false;
 
 	spin_lock_irqsave(&ctx->buf_queue_lock, flags);
@@ -138,18 +137,15 @@ struct mfc_buf *mfc_get_del_if_consumed(struct mfc_ctx *ctx, struct mfc_buf_queu
 
 	mfc_ctx_debug(2, "addr[0]: 0x%08llx\n", mfc_buf->addr[0][0]);
 
-	if (dec->remained_size) {
-		remained = dec->remained_size - consumed;
-		if (consumed > dec->remained_size)
-			exceed = true;
+	strm_size = mfc_dec_get_strm_size(ctx, mfc_buf);
+	if (strm_size >= consumed) {
+		remained = strm_size - consumed;
 	} else {
-		remained = mfc_buf->vb.vb2_buf.planes[0].bytesused - consumed;
-		if (consumed > mfc_buf->vb.vb2_buf.planes[0].bytesused)
-			exceed = true;
+		remained = 0;
+		exceed = true;
+		mfc_ctx_err("[MULTIFRAME] consumed (%d) exceeded the strm_size (%d)\n",
+				consumed, strm_size);
 	}
-
-	if (exceed == true)
-		mfc_ctx_err("[MULTIFRAME] consumed size exceeded the total remained size\n");
 
 	if (remained && IS_MULTI_MODE(ctx)) {
 		mfc_ctx_info("[2CORE][MULTIFRAME] multicore mode couldn't handle multiframe\n");
@@ -167,9 +163,9 @@ struct mfc_buf *mfc_get_del_if_consumed(struct mfc_ctx *ctx, struct mfc_buf_queu
 		*deleted = 1;
 	}
 
-	mfc_ctx_debug(2, "[MULTIFRAME] size %d, consumed %ld, remained %ld, deleted %d, error %d, exceed %d\n",
-			mfc_buf->vb.vb2_buf.planes[0].bytesused,
-			consumed, remained, *deleted, error, exceed);
+	mfc_ctx_debug(2, "[MULTIFRAME] strm %d, consumed %d, remained %d, deleted %d, error %d, exceed %d\n",
+			strm_size, consumed, remained, *deleted, error, exceed);
+
 	spin_unlock_irqrestore(&ctx->buf_queue_lock, flags);
 	return mfc_buf;
 }

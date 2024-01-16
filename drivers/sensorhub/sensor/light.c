@@ -25,7 +25,7 @@
 #include <linux/slab.h>
 
 get_init_chipset_funcs_ptr get_light_funcs_ary[] = {
-	get_light_stk33512_function_pointer,
+	get_light_stk_common_function_pointer,
 };
 
 static get_init_chipset_funcs_ptr *get_light_init_chipset_funcs(int *len)
@@ -144,6 +144,12 @@ int set_light_region(struct light_data *data)
 
 void set_light_ddi_support(uint32_t ddi_support)
 {
+	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_LIGHT);
+	struct light_data *data = sensor->data;
+
+	if (ddi_support == DDI_SUPPORT)
+		data->ddi_support = true;
+
 	shub_infof("%d", ddi_support);
 }
 
@@ -159,7 +165,7 @@ int light_open_calibration(void)
 		return -EIO;
 	}
 
-	shub_infof("%d %d %d", data->cal_data.cal, data->cal_data.max, data->cal_data.lux);
+	shub_infof("%d %d %d", data->cal_data.result, data->cal_data.max, data->cal_data.lux);
 
 	return ret;
 }
@@ -171,7 +177,7 @@ static int set_light_cal(struct light_data *data)
 	if (!data->use_cal_data)
 		return 0;
 
-	shub_infof("%d %d %d", data->cal_data.cal, data->cal_data.max, data->cal_data.lux);
+	shub_infof("%d %d %d", data->cal_data.result, data->cal_data.max, data->cal_data.lux);
 
 	ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, CAL_DATA, (u8 *)(&data->cal_data),
 							sizeof(data->cal_data));
@@ -320,7 +326,7 @@ int inject_light_additional_data(char *buf, int count)
 		memcpy(data, buf, sizeof(data));
 		shub_infof("target br %d threshold_dark %d lux %d threshold_bright %d", data[0], data[1], data[2], data[3]);
 		ret = shub_send_command(CMD_SETVALUE, SENSOR_TYPE_LIGHT, LIGHT_SUBCMD_BRIGHTNESS_HYSTERESIS, (char *)data, sizeof(data));
-		
+
 		if (ret < 0) {
 			shub_errf("CMD fail %d\n", ret);
 			return ret;
