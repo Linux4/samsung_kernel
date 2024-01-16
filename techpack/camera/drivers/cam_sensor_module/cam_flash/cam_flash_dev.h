@@ -126,6 +126,7 @@ struct cam_flash_frame_setting {
 	int8_t                       opcode;
 	uint32_t                     led_current_ma[CAM_FLASH_MAX_LED_TRIGGERS];
 	uint64_t                     flash_active_time_ms;
+	uint32_t                     ispreflashoff;
 };
 
 /**

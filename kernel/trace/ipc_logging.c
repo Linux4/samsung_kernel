@@ -12,6 +12,7 @@
 #include <linux/errno.h>
 #include <linux/jiffies.h>
 #include <linux/debugfs.h>
+#include <linux/proc_fs.h>
 #include <linux/io.h>
 #include <linux/idr.h>
 #include <linux/string.h>
@@ -30,6 +31,7 @@
 #define MAX_MINIDUMP_BUFFERS CONFIG_IPC_LOG_MINIDUMP_BUFFERS
 /*16th bit is used for minidump feature*/
 #define FEATURE_MASK 0x10000
+#define FEATURE_PROC 0x01000
 
 static int minidump_buf_cnt;
 static LIST_HEAD(ipc_log_context_list);
@@ -897,7 +899,10 @@ void *ipc_log_context_create(int max_num_pages,
 	ctxt->header_size = sizeof(struct ipc_log_page_header);
 	kref_init(&ctxt->refcount);
 	ctxt->destroyed = false;
-	create_ctx_debugfs(ctxt, mod_name);
+	if (feature_version & FEATURE_PROC)
+		create_ctx_procfs(ctxt, mod_name);
+	else
+		create_ctx_debugfs(ctxt, mod_name);
 
 	/* set magic last to signal context init is complete */
 	ctxt->magic = IPC_LOG_CONTEXT_MAGIC_NUM;
@@ -937,6 +942,7 @@ void ipc_log_context_free(struct kref *kref)
 
 	kfree(ilctxt);
 }
+EXPORT_SYMBOL(ipc_log_context_free);
 
 /*
  * Destroy debug log context
@@ -951,6 +957,11 @@ int ipc_log_context_destroy(void *ctxt)
 
 	if (!ilctxt)
 		return 0;
+
+	if (ilctxt->proc_dent) {
+		proc_remove(ilctxt->proc_dent);
+		ilctxt->proc_dent = NULL;
+	}
 
 	debugfs_remove_recursive(ilctxt->dent);
 
@@ -973,9 +984,52 @@ int ipc_log_context_destroy(void *ctxt)
 }
 EXPORT_SYMBOL(ipc_log_context_destroy);
 
+#define LOG_CTX_PAGE_CNT 150
+static void *log_ctx;
+#define MAX_LINE_SIZE 512
+static char *buf;
+
+void net_log(const char *fmt, ...)
+{
+	va_list arg_list;
+
+	va_start(arg_list, fmt);
+	if (log_ctx && buf) {
+		vscnprintf(buf, MAX_LINE_SIZE, fmt, arg_list);
+		ipc_log_string(log_ctx, "%s", buf);
+	}
+	va_end(arg_list);
+}
+EXPORT_SYMBOL_GPL(net_log);
+
+static int __init net_ipc_log_init(void)
+{
+
+	if (!log_ctx)
+		log_ctx = ipc_log_context_create(LOG_CTX_PAGE_CNT,
+							"net_log", FEATURE_PROC);
+	if (!buf)
+		buf = kmalloc(MAX_LINE_SIZE, GFP_KERNEL);
+
+	// error ????
+	//
+	return 0;
+}
+
+static void __exit net_ipc_log_exit(void)
+{
+	if (log_ctx)
+		ipc_log_context_destroy(log_ctx);
+	if (buf)
+		kfree(buf);
+}
+
+
 static int __init ipc_logging_init(void)
 {
 	check_and_create_debugfs();
+
+	net_ipc_log_init();
 
 	register_minidump((u64)&ipc_log_context_list, sizeof(struct list_head),
 			  "ipc_log_ctxt_list", minidump_buf_cnt);
@@ -983,7 +1037,13 @@ static int __init ipc_logging_init(void)
 	return 0;
 }
 
+static void __exit ipc_logging_exit(void)
+{
+	net_ipc_log_exit();
+}
+
 module_init(ipc_logging_init);
+module_exit(ipc_logging_exit);
 
 MODULE_DESCRIPTION("ipc logging");
 MODULE_LICENSE("GPL v2");

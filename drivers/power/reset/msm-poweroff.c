@@ -628,10 +628,16 @@ static int do_msm_restart_pre(struct notifier_block *unused, unsigned long actio
 			   void *arg)
 {
 	const char *cmd = arg;
+	const char *cmd_filtered;
 
 	pr_notice("Going down for restart now\n");
 
-	msm_restart_prepare(cmd);
+	if (!strncmp(cmd, "edl", 3))
+		cmd_filtered = "";
+	else
+		cmd_filtered = cmd;
+
+	msm_restart_prepare(cmd_filtered);
 
 	return NOTIFY_OK;
 }

@@ -473,6 +473,7 @@ struct cam_flash_set_on_off {
 	__u16    reserved;
 	__u32    led_current_ma[CAM_FLASH_MAX_LED_TRIGGERS];
 	__u64    time_on_duration_ns;
+	__u32    ispreflashoff;
 } __attribute__((packed));
 
 /**

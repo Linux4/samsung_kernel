@@ -501,6 +501,9 @@ static struct afe_param_id_tdm_lane_cfg tdm_lane_cfg = {
 	0x0,
 };
 
+#define LIMITER_PARM_MAX 3
+static u16 limiter_param[LIMITER_PARM_MAX];
+
 /* cache of group cfg per parent node */
 static struct afe_param_id_group_device_tdm_cfg tdm_group_cfg = {
 	AFE_API_VERSION_GROUP_DEVICE_TDM_CONFIG,
@@ -551,6 +554,7 @@ struct afe_param_id_clock_set_v2_t global_dyn_mclk_cfg = {
 };
 
 static int afe_dyn_clk_root_enum[] = {
+	Q6AFE_LPASS_CLK_ROOT_DEFAULT,
 	Q6AFE_LPASS_MCLK_IN0,
 	Q6AFE_LPASS_MCLK_IN1,
 };
@@ -559,6 +563,7 @@ static int afe_dyn_clk_attri_enum[] = {
 	Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_NO,
 	Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_DIVIDEND,
 	Q6AFE_LPASS_CLK_ATTRIBUTE_COUPLE_DIVISOR,
+	Q6AFE_LPASS_CLK_ATTRIBUTE_INVERT_COUPLE_NO,
 };
 
 static int afe_dyn_clk_id_enum[] = {
@@ -1664,7 +1669,6 @@ static int msm_dai_q6_power_mode_put(struct snd_kcontrol *kcontrol,
 	u16 port_id = (u16)kcontrol->private_value;
 
 	pr_debug("%s: power mode = %d\n", __func__, value);
-	trace_printk("%s: power mode = %d\n", __func__, value);
 
 	afe_set_power_mode_cfg(port_id, value);
 	return 0;
@@ -1741,7 +1745,6 @@ static int msm_dai_q6_island_mode_put(struct snd_kcontrol *kcontrol,
 	u16 port_id = (u16)kcontrol->private_value;
 
 	pr_debug("%s: island mode = %d\n", __func__, value);
-	trace_printk("%s: island mode = %d\n", __func__, value);
 
 	afe_set_island_mode_cfg(port_id, value);
 	return 0;
@@ -2871,7 +2874,7 @@ static int msm_dai_q6_cdc_hw_params(struct snd_pcm_hw_params *params,
 	return 0;
 }
 
-static u16 num_of_bits_set(u16 sd_line_mask)
+u16 num_of_bits_set(u16 sd_line_mask)
 {
 	u8 num_bits_set = 0;
 
@@ -2881,6 +2884,7 @@ static u16 num_of_bits_set(u16 sd_line_mask)
 	}
 	return num_bits_set;
 }
+EXPORT_SYMBOL(num_of_bits_set);
 
 static int msm_dai_q6_i2s_hw_params(struct snd_pcm_hw_params *params,
 				    struct snd_soc_dai *dai, int stream)
@@ -10667,7 +10671,7 @@ static int msm_pcm_afe_limiter_param_ctl_info(struct snd_kcontrol *kcontrol,
 {
 	ucontrol->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 	/* two int values: port_id and enable/disable */
-	ucontrol->count = 2;
+	ucontrol->count = LIMITER_PARM_MAX;
 	/* Valid range is all positive values to support above controls */
 	ucontrol->value.integer.min = 0;
 	ucontrol->value.integer.max = INT_MAX;
@@ -10677,6 +10681,9 @@ static int msm_pcm_afe_limiter_param_ctl_info(struct snd_kcontrol *kcontrol,
 static int msm_pcm_afe_limiter_param_ctl_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
+	ucontrol->value.integer.value[0] = limiter_param[0];
+	ucontrol->value.integer.value[1] = limiter_param[1];
+	ucontrol->value.integer.value[2] = limiter_param[2];
 	return 0;
 }
 
@@ -10688,16 +10695,29 @@ static int msm_pcm_afe_limiter_param_ctl_put(struct snd_kcontrol *kcontrol,
 	struct param_hdr_v3 param_hdr;
 	int ret = -EINVAL;
 
+	limiter_param[0] = ucontrol->value.integer.value[0];
+	limiter_param[1] = ucontrol->value.integer.value[1];
+	limiter_param[2] = ucontrol->value.integer.value[2];
+
+
+	if(limiter_param[2] != LIMITER_PARM_MAX - 1)
+	{
+		return 0;
+	}
+
 	pr_debug("%s: enter\n", __func__);
 	memset(&param_hdr, 0, sizeof(param_hdr));
 
-	port_id = ucontrol->value.integer.value[0];
-	afe_limiter_disable.disable_afe_limiter = ucontrol->value.integer.value[1];
+	port_id = limiter_param[0];
+	afe_limiter_disable.disable_afe_limiter = limiter_param[1];
 
 	ret = afe_port_send_afe_limiter_param(port_id, &afe_limiter_disable);
 	if (ret)
 		pr_err("%s: AFE port logging setting for port 0x%x failed %d\n",
 			__func__, port_id, ret);
+
+	//resetting number of parameters to zero
+	limiter_param[2] = 0;
 
 	return ret;
 }
@@ -11734,6 +11754,7 @@ static int msm_dai_q6_tdm_prepare(struct snd_pcm_substream *substream,
 	u16 group_id = dai_data->group_cfg.tdm_cfg.group_id;
 	int group_idx = 0;
 	atomic_t *group_ref = NULL;
+	int intf_idx =  PORT_ID_TO_INTF_IDX(dai->id);
 
 	dev_dbg(dai->dev, "%s: dev_name: %s dev_id: 0x%x group_id: 0x%x\n",
 		 __func__, dev_name(dai->dev), dai->dev->id, group_id);
@@ -11754,7 +11775,6 @@ static int msm_dai_q6_tdm_prepare(struct snd_pcm_substream *substream,
 	group_ref = &tdm_group_ref[group_idx];
 
 	if (!test_bit(STATUS_PORT_STARTED, dai_data->status_mask)) {
-
 		if (msm_dai_q6_get_tdm_clk_ref(group_idx) == 0) {
 			/* TX and RX share the same clk. So enable the clk
 			 * per TDM interface. */
@@ -11766,7 +11786,18 @@ static int msm_dai_q6_tdm_prepare(struct snd_pcm_substream *substream,
 				goto rtn;
 			}
 		}
-
+		/* Paired Rx Port Start */
+		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+			rc = afe_paired_rx_tdm_port_ops(intf_idx, true, tdm_group_ref);
+			if (rc < 0) {
+				pr_debug("%s:Paired Rx Port failed to start\n",__func__);
+				if (msm_dai_q6_get_tdm_clk_ref(group_idx) == 0) {
+					msm_dai_q6_tdm_set_clk(dai_data,
+						dai->id, false);
+				}
+				goto rtn;
+			}
+		}
 		/* PORT START should be set if prepare called
 		 * in active state.
 		 */
@@ -11791,6 +11822,9 @@ static int msm_dai_q6_tdm_prepare(struct snd_pcm_substream *substream,
 		rc = afe_tdm_port_start(dai->id, &dai_data->port_cfg,
 			dai_data->rate, dai_data->num_group_ports);
 		if (rc < 0) {
+			rc = afe_paired_rx_tdm_port_ops(intf_idx, false, tdm_group_ref);
+			if (rc < 0)
+				pr_err("%s:Unable to close Paired Rx due to tx usecase start failure", __func__);
 			if (atomic_read(group_ref) == 0) {
 				afe_port_group_enable(group_id,
 					NULL, false, NULL);
@@ -11805,6 +11839,7 @@ static int msm_dai_q6_tdm_prepare(struct snd_pcm_substream *substream,
 			set_bit(STATUS_PORT_STARTED,
 				dai_data->status_mask);
 			atomic_inc(group_ref);
+			pr_debug("%s: Group ref count: group_ref : %d", __func__, group_ref->counter);
 		}
 
 		/* TODO: need to monitor PCM/MI2S/TDM HW status */
@@ -11826,6 +11861,7 @@ static void msm_dai_q6_tdm_shutdown(struct snd_pcm_substream *substream,
 	u16 group_id = dai_data->group_cfg.tdm_cfg.group_id;
 	int group_idx = 0;
 	atomic_t *group_ref = NULL;
+	int intf_idx =  PORT_ID_TO_INTF_IDX(dai->id);
 
 	group_idx = msm_dai_q6_get_group_idx(dai->id);
 	if (group_idx < 0) {
@@ -11845,6 +11881,7 @@ static void msm_dai_q6_tdm_shutdown(struct snd_pcm_substream *substream,
 				__func__, dai->id);
 		}
 		atomic_dec(group_ref);
+		pr_debug("%s: group_ref : %d \n",__func__, group_ref->counter);
 		clear_bit(STATUS_PORT_STARTED,
 			dai_data->status_mask);
 
@@ -11856,7 +11893,17 @@ static void msm_dai_q6_tdm_shutdown(struct snd_pcm_substream *substream,
 					__func__, group_id);
 			}
 		}
-
+		/* Paired Rx Stop */
+		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+			rc = afe_paired_rx_tdm_port_ops(intf_idx, false, tdm_group_ref);
+			if (rc < 0){
+				if (msm_dai_q6_get_tdm_clk_ref(group_idx) == 0) {
+					msm_dai_q6_tdm_set_clk(dai_data,
+						dai->id, false);
+				}
+				pr_err("%s:AFE Paired Rx Port Not disabled");
+			}
+		}
 		if (msm_dai_q6_get_tdm_clk_ref(group_idx) == 0) {
 			rc = msm_dai_q6_tdm_set_clk(dai_data,
 				dai->id, false);

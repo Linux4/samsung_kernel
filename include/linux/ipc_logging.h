@@ -221,7 +221,14 @@ int add_deserialization_func(void *ctxt, int type,
  */
 int ipc_log_context_destroy(void *ctxt);
 
+/*
+ * netlog
+ */
+void net_log(const char *fmt, ...);
+
 #else
+
+static inline void net_log(const char *fmt, ...) { }
 
 static inline void *ipc_log_context_create(int max_num_pages,
 	const char *modname, uint32_t feature_version)

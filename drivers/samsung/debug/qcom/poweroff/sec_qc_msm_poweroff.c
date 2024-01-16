@@ -197,10 +197,15 @@ static int __msm_poweroff_register_pon_rr_writer(struct builder *bd)
 {
 	struct qc_msm_poweroff_drvdata *drvdata =
 			container_of(bd, struct qc_msm_poweroff_drvdata, bd);
+	int err;
 
 	drvdata->nb_pon_rr.notifier_call = sec_qc_msm_poweroff_write_pon_rr;
 
-	return sec_qc_rbcmd_register_pon_rr_writer(&drvdata->nb_pon_rr);
+	err = sec_qc_rbcmd_register_pon_rr_writer(&drvdata->nb_pon_rr);
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
+	return err;
 }
 
 static void __msm_poweroff_unregister_pon_rr_writer(struct builder *bd)
@@ -229,10 +234,15 @@ static int __msm_poweroff_register_sec_rr_writer(struct builder *bd)
 {
 	struct qc_msm_poweroff_drvdata *drvdata =
 			container_of(bd, struct qc_msm_poweroff_drvdata, bd);
+	int err;
 
 	drvdata->nb_sec_rr.notifier_call = sec_qc_msm_poweroff_write_sec_rr;
 
-	return sec_qc_rbcmd_register_sec_rr_writer(&drvdata->nb_sec_rr);
+	err = sec_qc_rbcmd_register_sec_rr_writer(&drvdata->nb_sec_rr);
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
+	return err;
 }
 
 static void __msm_poweroff_unregister_sec_rr_writer(struct builder *bd)

@@ -335,6 +335,7 @@ static void _s2mu106_hv_muic_reset(struct s2mu106_muic_data *muic_data)
 static bool _s2mu106_hv_muic_check_afc_enabled(struct s2mu106_muic_data *muic_data)
 {
 	char *str = NULL;
+	int afc_request_cause = 0;
 	int afc_disable = 0;
 	struct muic_share_data *sdata = muic_data->sdata;
 
@@ -355,6 +356,10 @@ static bool _s2mu106_hv_muic_check_afc_enabled(struct s2mu106_muic_data *muic_da
 	} else if (muic_data->is_requested_step_down == true) {
 		str = "requested step down";
 #endif
+	} else if (muic_is_enable_afc_request() == false) {
+		str = "HV REQUEST DISABLED";
+		afc_request_cause = muic_afc_get_request_cause();
+		pr_info("%s high voltage is not enabled! cause(%d)\n", __func__, afc_request_cause);
 	}
 
 	if (str) {

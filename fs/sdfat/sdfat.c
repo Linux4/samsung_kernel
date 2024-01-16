@@ -3182,6 +3182,9 @@ static const struct file_operations sdfat_file_operations = {
 	.unlocked_ioctl  = sdfat_generic_ioctl,
 	.fsync       = sdfat_file_fsync,
 	.splice_read = generic_file_splice_read,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+	.splice_write   = iter_file_splice_write,
+#endif
 };
 
 static const struct address_space_operations sdfat_da_aops;
@@ -4325,7 +4328,8 @@ static void sdfat_put_super(struct super_block *sb)
 	struct sdfat_sb_info *sbi = SDFAT_SB(sb);
 	int err;
 
-	sdfat_log_msg(sb, KERN_INFO, "trying to unmount...");
+	sdfat_log_msg(sb, KERN_INFO, "trying to unmount(r%c)...",
+			sb_rdonly(sb) ? 'o' : 'w');
 
 	__cancel_delayed_work_sync(sbi);
 
@@ -5069,7 +5073,8 @@ static int sdfat_fill_super(struct super_block *sb, void *data, int silent)
 	struct block_device *bdev = sb->s_bdev;
 	dev_t bd_dev = bdev ? bdev->bd_dev : 0;
 
-	sdfat_log_msg(sb, KERN_INFO, "trying to mount...");
+	sdfat_log_msg(sb, KERN_INFO, "trying to mount(r%c)...",
+			sb_rdonly(sb) ? 'o' : 'w');
 
 	/*
 	 * GFP_KERNEL is ok here, because while we do hold the

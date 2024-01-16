@@ -142,8 +142,13 @@ int ufshcd_dump_regs(struct ufs_hba *hba, size_t offset, size_t len,
 	if (!regs)
 		return -ENOMEM;
 
-	for (pos = 0; pos < len; pos += 4)
+	for (pos = 0; pos < len; pos += 4) {
+		if (offset == 0 &&
+		    pos >= REG_UIC_ERROR_CODE_PHY_ADAPTER_LAYER &&
+		    pos <= REG_UIC_ERROR_CODE_DME)
+			continue;
 		regs[pos / 4] = ufshcd_readl(hba, offset + pos);
+	}
 
 	ufshcd_hex_dump(prefix, regs, len);
 	kfree(regs);
@@ -6047,7 +6052,12 @@ static inline void ufshcd_schedule_eh_work(struct ufs_hba *hba)
 
 static void ufshcd_err_handling_prepare(struct ufs_hba *hba)
 {
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+	if (!hba->abort_triggered_wlun)
+		pm_runtime_get_sync(hba->dev);
+#else
 	pm_runtime_get_sync(hba->dev);
+#endif
 	if (pm_runtime_suspended(hba->dev)) {
 		/*
 		 * Don't assume anything of pm_runtime_get_sync(), if
@@ -6079,7 +6089,13 @@ static void ufshcd_err_handling_unprepare(struct ufs_hba *hba)
 	ufshcd_release(hba);
 	if (hba->clk_scaling.is_allowed)
 		ufshcd_resume_clkscaling(hba);
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+	if (!hba->abort_triggered_wlun)
+		pm_runtime_put(hba->dev);
+	hba->abort_triggered_wlun = false;
+#else
 	pm_runtime_put(hba->dev);
+#endif
 }
 
 static inline bool ufshcd_err_handling_should_stop(struct ufs_hba *hba)
@@ -6978,8 +6994,15 @@ static int ufshcd_abort(struct scsi_cmnd *cmd)
 	 * To avoid these unnecessary/illegal step we skip to the last error
 	 * handling stage: reset and restore.
 	 */
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+	if (lrbp->lun == UFS_UPIU_UFS_DEVICE_WLUN) {
+		hba->abort_triggered_wlun = true;
+		return ufshcd_eh_host_reset_handler(cmd);
+	}
+#else
 	if (lrbp->lun == UFS_UPIU_UFS_DEVICE_WLUN)
 		return ufshcd_eh_host_reset_handler(cmd);
+#endif
 
 	SEC_ufs_utp_error_check(cmd, 0);
 
@@ -9204,6 +9227,22 @@ static int ufshcd_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 
 	if (!ufshcd_is_ufs_dev_active(hba)) {
 		ret = ufshcd_set_dev_pwr_mode(hba, UFS_ACTIVE_PWR_MODE);
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+		if (ret) {
+			if (ufshcd_is_ufs_dev_active(hba) &&
+					ufshcd_is_link_active(hba)) {
+				ret = 0;
+				dev_err(hba->dev, "UFS device and link are Active\n");
+			} else if ((work_pending(&hba->eh_work)) ||
+					ufshcd_eh_in_progress(hba)) {
+				flush_work(&hba->eh_work);
+				ret = 0;
+				dev_err(hba->dev, "dev pwr mode=%d, UIC link state=%d\n",
+						hba->curr_dev_pwr_mode,
+						hba->uic_link_state);
+			}
+		}
+#endif
 		if (ret)
 			goto set_old_link_state;
 	}

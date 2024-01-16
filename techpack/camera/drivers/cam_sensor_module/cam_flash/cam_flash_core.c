@@ -1010,6 +1010,31 @@ int cam_flash_pmic_apply_setting(struct cam_flash_ctrl *fctrl,
 			(flash_data->cmn_attr.is_settings_valid) &&
 			(flash_data->cmn_attr.request_id == req_id)) {
 			rc = cam_flash_off(fctrl);
+			CAM_DBG(CAM_FLASH,
+				"flash_data->ispreflashoff :%d, req:%u",
+				flash_data->ispreflashoff, req_id);
+#if IS_REACHABLE(CONFIG_LEDS_SM5714) 
+			if ((NULL != fctrl->soc_info.label_name) &&
+				(NULL  != strstr(fctrl->soc_info.label_name, "sm5714"))) {
+				if (flash_data->ispreflashoff == FALSE) {
+					sm5714_fled_mode_ctrl(SM5714_FLED_MODE_CLOSE_FLASH, 0);
+					CAM_DBG(CAM_FLASH, "SM5714 close flash");
+				}
+			}
+#endif
+#if IS_REACHABLE(CONFIG_LEDS_S2MU106_FLASH)
+			if ((NULL != fctrl->soc_info.label_name) &&
+				(NULL  != strstr(fctrl->soc_info.label_name, "s2mu106"))) {
+				if (flash_data->ispreflashoff == FALSE) {
+					if (is_fastcharger_disabled) {
+						pdo_ctrl_by_flash(0);
+						muic_afc_request_voltage(FLED, 9);
+						is_fastcharger_disabled = false;
+						CAM_DBG(CAM_FLASH, "s2mu106 Enable fast charger");
+					}
+				}
+			}
+#endif
 			if (rc) {
 				CAM_ERR(CAM_FLASH,
 					"Flash off failed %d", rc);
@@ -1718,6 +1743,7 @@ int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg)
 			}
 
 			flash_data->opcode = flash_operation_info->opcode;
+			flash_data->ispreflashoff = flash_operation_info->ispreflashoff;
 			flash_data->cmn_attr.count =
 				flash_operation_info->count;
 			for (i = 0; i < flash_operation_info->count; i++)
@@ -2017,7 +2043,7 @@ int cam_flash_release_dev(struct cam_flash_ctrl *fctrl)
 	if ((NULL != fctrl->soc_info.label_name) &&
 		(NULL  != strstr(fctrl->soc_info.label_name, "sm5714"))) {
 		sm5714_fled_mode_ctrl(SM5714_FLED_MODE_CLOSE_FLASH, 0);
-		CAM_DBG(CAM_SENSOR, "SM5714 close flash");
+		CAM_DBG(CAM_FLASH, "SM5714 close flash");
 	}
 #endif
 #if IS_REACHABLE(CONFIG_LEDS_S2MU106_FLASH)
@@ -2027,7 +2053,7 @@ int cam_flash_release_dev(struct cam_flash_ctrl *fctrl)
 			pdo_ctrl_by_flash(0);
 			muic_afc_request_voltage(FLED, 9);
 			is_fastcharger_disabled = false;
-			CAM_DBG(CAM_SENSOR, "s2mu106 Enable fast charger");
+			CAM_DBG(CAM_FLASH, "s2mu106 Enable fast charger");
 		}
 	}
 #endif

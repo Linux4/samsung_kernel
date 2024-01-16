@@ -732,6 +732,21 @@ got:
 	return level;
 }
 
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+/* It should grab and release a write lock by self when it needs */
+static void __lock_dnode(struct dnode_of_data *dn, bool lock)
+{
+	if (!dn->for_dnode_relocation) {
+		if (lock)
+			down_read(&F2FS_I(dn->inode)->i_dnode_sem);
+		else
+			up_read(&F2FS_I(dn->inode)->i_dnode_sem);
+	}
+}
+#else
+static void __lock_dnode(struct dnode_of_data *dn, bool lock) {}
+#endif
+
 /*
  * Caller should call f2fs_put_dnode(dn).
  * Also, it should grab and release a rwsem by calling f2fs_lock_op() and
@@ -748,17 +763,22 @@ int f2fs_get_dnode_of_data(struct dnode_of_data *dn, pgoff_t index, int mode)
 	int level, i = 0;
 	int err = 0;
 
+	__lock_dnode(dn, true);
 	level = get_node_path(dn->inode, index, offset, noffset);
-	if (level < 0)
+	if (level < 0) {
+		__lock_dnode(dn, false);
 		return level;
+	}
 
 	nids[0] = dn->inode->i_ino;
 	npage[0] = dn->inode_page;
 
 	if (!npage[0]) {
 		npage[0] = f2fs_get_node_page(sbi, nids[0]);
-		if (IS_ERR(npage[0]))
+		if (IS_ERR(npage[0])) {
+			__lock_dnode(dn, false);
 			return PTR_ERR(npage[0]);
+		}
 	}
 
 	/* if inline_data is set, should not report any block indices */
@@ -828,6 +848,7 @@ int f2fs_get_dnode_of_data(struct dnode_of_data *dn, pgoff_t index, int mode)
 	dn->ofs_in_node = offset[level];
 	dn->node_page = npage[level];
 	dn->data_blkaddr = f2fs_data_blkaddr(dn);
+	__lock_dnode(dn, false);
 	return 0;
 
 release_pages:
@@ -842,6 +863,7 @@ release_out:
 		dn->max_level = level;
 		dn->ofs_in_node = offset[level];
 	}
+	__lock_dnode(dn, false);
 	return err;
 }
 
@@ -1254,7 +1276,11 @@ struct page *f2fs_new_node_page(struct dnode_of_data *dn, unsigned int ofs)
 		dec_valid_node_count(sbi, dn->inode, !ofs);
 		goto fail;
 	}
-	f2fs_bug_on(sbi, new_ni.blk_addr != NULL_ADDR);
+	if (unlikely(new_ni.blk_addr != NULL_ADDR)) {
+		err = -EFSCORRUPTED;
+		set_sbi_flag(sbi, SBI_NEED_FSCK);
+		goto fail;
+	}
 #endif
 	new_ni.nid = dn->nid;
 	new_ni.ino = dn->inode->i_ino;
@@ -2119,8 +2145,12 @@ static int f2fs_write_node_pages(struct address_space *mapping,
 
 	if (wbc->sync_mode == WB_SYNC_ALL)
 		atomic_inc(&sbi->wb_sync_req[NODE]);
-	else if (atomic_read(&sbi->wb_sync_req[NODE]))
+	else if (atomic_read(&sbi->wb_sync_req[NODE])) {
+		/* to avoid potential deadlock */
+		if (current->plug)
+			blk_finish_plug(current->plug);
 		goto skip_write;
+	}
 
 	trace_f2fs_writepages(mapping->host, wbc, NODE);
 

@@ -686,6 +686,15 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 			__sec_bigdata_init_value(sbi, a->attr.name);
 
 		return len;
+	} else if (!strcmp(a->attr.name, "sec_heimdallfs_stat")) {
+		return snprintf(buf, PAGE_SIZE,
+		"\"%s\":\"%u\",\"%s\":\"%llu\",\"%s\":\"%u\",\"%s\":\"%llu\","
+		"\"%s\":\"%llu\"\n",
+			"NR_PKGS", sbi->sec_heimdallfs_stat.nr_pkgs,
+			"NR_PKG_BLKS", sbi->sec_heimdallfs_stat.nr_pkg_blks,
+			"NR_COMP_PKGS", sbi->sec_heimdallfs_stat.nr_comp_pkgs,
+			"NR_COMP_PKG_BLKS", sbi->sec_heimdallfs_stat.nr_comp_pkg_blks,
+			"NR_COMP_PKG_SAVED_BLKS", sbi->sec_heimdallfs_stat.nr_comp_saved_blks);
 	} else if (!strcmp(a->attr.name, "sec_defrag_stat")) {
 		int len = 0;
 
@@ -972,6 +981,9 @@ enum feat_id {
 	FEAT_RO,
 	FEAT_TEST_DUMMY_ENCRYPTION_V2,
 	FEAT_ENCRYPTED_CASEFOLD,
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	FEAT_SEC_DNODE_RELOCATION,
+#endif
 };
 
 static ssize_t f2fs_feature_show(struct f2fs_attr *a,
@@ -995,6 +1007,9 @@ static ssize_t f2fs_feature_show(struct f2fs_attr *a,
 	case FEAT_RO:
 	case FEAT_TEST_DUMMY_ENCRYPTION_V2:
 	case FEAT_ENCRYPTED_CASEFOLD:
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	case FEAT_SEC_DNODE_RELOCATION:
+#endif
 		return sprintf(buf, "supported\n");
 	}
 	return 0;
@@ -1090,6 +1105,7 @@ F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_io_stat, sec_stat);
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_stats, stat_info);
 #endif
 F2FS_RW_ATTR_640(F2FS_SBI, f2fs_sb_info, sec_fsck_stat, sec_fsck_stat);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_heimdallfs_stat, sec_heimdallfs_stat);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_best_extents, s_sec_part_best_extents);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_current_extents, s_sec_part_current_extents);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, sec_part_score, s_sec_part_score);
@@ -1147,6 +1163,9 @@ F2FS_FEATURE_RO_ATTR(readonly, FEAT_RO);
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 F2FS_FEATURE_RO_ATTR(compression, FEAT_COMPRESSION);
 #endif
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+F2FS_FEATURE_RO_ATTR(sec_dnode_relocation, FEAT_SEC_DNODE_RELOCATION);
+#endif
 
 #define ATTR_LIST(name) (&f2fs_attr_##name.attr)
 static struct attribute *f2fs_attrs[] = {
@@ -1199,6 +1218,7 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(sec_stats),
 #endif
 	ATTR_LIST(sec_fsck_stat),
+	ATTR_LIST(sec_heimdallfs_stat),
 	ATTR_LIST(sec_part_best_extents),
 	ATTR_LIST(sec_part_current_extents),
 	ATTR_LIST(sec_part_score),
@@ -1260,6 +1280,9 @@ static struct attribute *f2fs_feat_attrs[] = {
 	ATTR_LIST(readonly),
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 	ATTR_LIST(compression),
+#endif
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	ATTR_LIST(sec_dnode_relocation),
 #endif
 	NULL,
 };

@@ -295,7 +295,6 @@ ssize_t s2mu106_chg_store_attrs(struct device *dev,
 
 #define REDUCE_CURRENT_STEP         25
 #define MINIMUM_INPUT_CURRENT           300
-#define SLOW_CHARGING_CURRENT_STANDARD      400
 
 #define FAKE_BAT_LEVEL          50
 
@@ -385,6 +384,7 @@ struct s2mu106_charger_platform_data {
 	bool reduce_async_debounce_time;
 	bool lx_freq_recover;
 	bool change_3_level_osc;
+	bool boosting_voltage_aicl;
 };
 
 
@@ -441,7 +441,6 @@ struct s2mu106_charger_data {
 	int irq_bat;
 	int irq_ivr;
 
-	int irq_ivr_enabled;
 	int ivr_on;
 	bool slow_charging;
 	int wc_current;

@@ -33,6 +33,10 @@
 #include <asm/current.h>
 #include <linux/timer.h>
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+#include <linux/sec_debug.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/trace_msm_ssr_event.h>
 
@@ -1092,6 +1096,13 @@ int subsystem_restart_dev(struct subsys_device *dev)
 	name = dev->desc->name;
 
 	subsys_send_early_notifications(dev->early_notify);
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+	if (!sec_debug_is_enabled())
+		dev->restart_level = RESET_SUBSYS_COUPLED;
+	else
+		dev->restart_level = RESET_SOC;
+#endif
 
 	/* force modem silent ssr */
 	if (!strncmp(name, "modem", 5)) {

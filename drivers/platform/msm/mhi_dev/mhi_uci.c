@@ -173,7 +173,7 @@ static const struct chan_attr mhi_chan_attr_table[] = {
 	},
 	{
 		MHI_CLIENT_DIAG_OUT,
-		TRB_MAX_DATA_SIZE,
+		TRB_MAX_DATA_SIZE_16K,
 		MAX_NR_TRBS_PER_CHAN,
 		MHI_DIR_OUT,
 		NULL,
@@ -184,7 +184,7 @@ static const struct chan_attr mhi_chan_attr_table[] = {
 	},
 	{
 		MHI_CLIENT_DIAG_IN,
-		TRB_MAX_DATA_SIZE,
+		TRB_MAX_DATA_SIZE_16K,
 		MAX_NR_TRBS_PER_CHAN,
 		MHI_DIR_IN,
 		NULL,
@@ -629,9 +629,16 @@ static int mhi_uci_send_sync(struct uci_client *uci_handle,
 	struct mhi_req ureq;
 	int ret_val;
 
-	uci_log(UCI_DBG_VERBOSE,
+	uci_log(UCI_DBG_DBG,
 		"Sync write for ch_id:%d size %d\n",
 		uci_handle->out_chan, size);
+
+	if (size > TRB_MAX_DATA_SIZE) {
+		uci_log(UCI_DBG_ERROR,
+				"Too big write size: %lu, max supported size is %d\n",
+				size, TRB_MAX_DATA_SIZE);
+			return -EFBIG;
+	}
 
 	ureq.client = uci_handle->out_handle;
 	ureq.buf = data_loc;
@@ -945,7 +952,7 @@ static int mhi_uci_read_sync(struct uci_client *uci_handle, int *bytes_avail)
 	struct mhi_req ureq;
 	struct mhi_dev_client *client_handle;
 
-	uci_log(UCI_DBG_INFO,
+	uci_log(UCI_DBG_DBG,
 		"Sync read for ch_id:%d\n", uci_handle->in_chan);
 
 	client_handle = uci_handle->in_handle;
@@ -1081,17 +1088,16 @@ static int mhi_uci_client_open(struct inode *mhi_inode,
 		return -EINVAL;
 	}
 
+	if (!uci_handle) {
+		uci_log(UCI_DBG_DBG, "No memory, returning failure\n");
+		return -ENOMEM;
+	}
+
 	mutex_lock(&uci_handle->client_lock);
 	uci_log(UCI_DBG_DBG,
 		"Client opened struct device node 0x%x, ref count 0x%x\n",
 		iminor(mhi_inode), atomic_read(&uci_handle->ref_count));
 	if (atomic_add_return(1, &uci_handle->ref_count) == 1) {
-		if (!uci_handle) {
-			atomic_dec(&uci_handle->ref_count);
-			uci_log(UCI_DBG_DBG, "No memory, returning failure\n");
-			mutex_unlock(&uci_handle->client_lock);
-			return -ENOMEM;
-		}
 		uci_handle->uci_ctxt = &uci_ctxt;
 		uci_handle->f_flags = file_handle->f_flags;
 		if (!atomic_read(&uci_handle->mhi_chans_open)) {
@@ -1328,7 +1334,7 @@ static int __mhi_uci_client_read(struct uci_client *uci_handle,
 {
 	int ret_val = 0;
 
-	do {
+	while (!uci_handle->pkt_loc) {
 		if (!mhi_uci_are_channels_connected(uci_handle)) {
 			uci_log(UCI_DBG_ERROR, "Channels are not connected\n");
 			return -ENODEV;
@@ -1372,7 +1378,7 @@ static int __mhi_uci_client_read(struct uci_client *uci_handle,
 				uci_handle->in_chan);
 			break;
 		}
-	} while (!uci_handle->pkt_loc);
+	}
 
 	return ret_val;
 }
@@ -1485,11 +1491,10 @@ static ssize_t mhi_uci_client_write(struct file *file,
 		return -ENODEV;
 	}
 
-	if (count > TRB_MAX_DATA_SIZE) {
-		uci_log(UCI_DBG_ERROR,
-			"Too big write size: %lu, max supported size is %d\n",
-			count, TRB_MAX_DATA_SIZE);
-		return -EFBIG;
+	if (count > uci_handle->out_chan_attr->max_packet_size) {
+		uci_log(UCI_DBG_DBG,
+			"Warning: big write size: %lu, max supported size is %d\n",
+			count, uci_handle->out_chan_attr->max_packet_size);
 	}
 
 	data_loc = kmalloc(count, GFP_KERNEL);
@@ -1544,11 +1549,10 @@ static ssize_t mhi_uci_client_write_iter(struct kiocb *iocb,
 		return -ENODEV;
 	}
 
-	if (count > TRB_MAX_DATA_SIZE) {
-		uci_log(UCI_DBG_ERROR,
-			"Too big write size: %lu, max supported size is %d\n",
-			count, TRB_MAX_DATA_SIZE);
-		return -EFBIG;
+	if (count > uci_handle->out_chan_attr->max_packet_size) {
+		uci_log(UCI_DBG_DBG,
+			"Warning: big write size: %lu, max supported size is %d\n",
+			count, uci_handle->out_chan_attr->max_packet_size);
 	}
 
 	data_loc = kmalloc(count, GFP_KERNEL);
@@ -1749,8 +1753,12 @@ static int mhi_uci_ctrl_set_tiocm(struct uci_client *client,
 
 	reinit_completion(ctrl_client->write_done);
 	ret_val = mhi_uci_send_packet(ctrl_client, ctrl_msg, sizeof(*ctrl_msg));
-	if (ret_val != sizeof(*ctrl_msg))
+	if (ret_val != sizeof(*ctrl_msg)) {
+		uci_log(UCI_DBG_ERROR, "Failed to send ctrl msg\n");
+		kfree(ctrl_msg);
+		ctrl_msg = NULL;
 		goto tiocm_error;
+	}
 	compl_ret = wait_for_completion_interruptible_timeout(
 			ctrl_client->write_done,
 			MHI_UCI_ASYNC_WRITE_TIMEOUT);
@@ -1769,7 +1777,6 @@ static int mhi_uci_ctrl_set_tiocm(struct uci_client *client,
 	return 0;
 
 tiocm_error:
-	kfree(ctrl_msg);
 	return ret_val;
 }
 

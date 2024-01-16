@@ -108,6 +108,7 @@ struct ipc_log_context {
 
 	uint32_t write_avail;
 	struct dentry *dent;
+	struct proc_dir_entry *proc_dent;
 	struct list_head dfunc_info_list;
 	spinlock_t context_lock_lhb1;
 	struct completion read_avail;
@@ -154,13 +155,17 @@ void check_and_create_debugfs(void);
 void create_ctx_debugfs(struct ipc_log_context *ctxt,
 			const char *mod_name);
 #else
-void check_and_create_debugfs(void)
+static inline void check_and_create_debugfs(void)
 {
 }
 
-void create_ctx_debugfs(struct ipc_log_context *ctxt, const char *mod_name)
+static inline void create_ctx_debugfs(struct ipc_log_context *ctxt, const char *mod_name)
 {
 }
 #endif
 
+void check_and_create_procfs(void);
+
+void create_ctx_procfs(struct ipc_log_context *ctxt,
+			const char *mod_name);
 #endif

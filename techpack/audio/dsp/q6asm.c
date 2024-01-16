@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -2442,6 +2443,15 @@ static int32_t q6asm_callback(struct apr_client_data *data, void *priv)
 
 		config_debug_fs_read_cb();
 
+		if (data->payload_size != (READDONE_IDX_SEQ_ID + 1) * sizeof(uint32_t)) {
+			pr_err("%s:  payload size of %d is less than expected %d.\n",
+					__func__, data->payload_size,
+					((READDONE_IDX_SEQ_ID + 1) * sizeof(uint32_t)));
+			spin_unlock_irqrestore(
+				&(session[session_id].session_lock),
+				flags);
+			return -EINVAL;
+		}
 		dev_vdbg(ac->dev, "%s: ReadDone: status=%d buff_add=0x%x act_size=%d offset=%d\n",
 				__func__, payload[READDONE_IDX_STATUS],
 				payload[READDONE_IDX_BUFADD_LSW],
@@ -11370,11 +11380,12 @@ static int q6asm_get_asm_topology_apptype(struct q6asm_cal_info *cal_info, struc
 			goto unlock;
 		}
 	} else {
-		cal_block = q6asm_find_cal_by_buf_number(ASM_TOPOLOGY_CAL, 0, 0, ac->fedai_id);
+		pr_info("%s call q6asm_find_cal_by_buf_number path: %d", __func__, path);
+		cal_block = cal_utils_get_only_cal_block(cal_data[ASM_TOPOLOGY_CAL]);
 		if (cal_block == NULL) {
-			pr_debug("%s: Couldn't find cal_block with buf_number, re-routing "
-				"search using CAL type only\n", __func__);
-			cal_block = cal_utils_get_only_cal_block(cal_data[ASM_TOPOLOGY_CAL]);
+			pr_debug("%s: Couldn't find cal_block with CAL type, re-routing "
+					"search using buf_number\n", __func__);
+			cal_block = q6asm_find_cal_by_buf_number(ASM_TOPOLOGY_CAL, 0, 0, path);
 		}
 		if (cal_block == NULL || cal_utils_is_cal_stale(cal_block))
 			goto unlock;

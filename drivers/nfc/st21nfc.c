@@ -1559,10 +1559,10 @@ static int st21nfc_probe(struct i2c_client *client,
 #endif // WITH_PING_DURING_PROBE
 
 	NFC_LOG_INFO("%s ok, rst: %d, irq: %d, clkreq: %d, AP: %d\n", __func__,
-				desc_to_gpio(st21nfc_dev->gpiod_reset),
-				desc_to_gpio(st21nfc_dev->gpiod_irq),
-				desc_to_gpio(st21nfc_dev->gpiod_clkreq),
-				st21nfc_dev->ap_vendor);
+		desc_to_gpio(st21nfc_dev->gpiod_reset),
+		desc_to_gpio(st21nfc_dev->gpiod_irq),
+		IS_ERR_OR_NULL(st21nfc_dev->gpiod_clkreq) ? 0 : desc_to_gpio(st21nfc_dev->gpiod_clkreq),
+		st21nfc_dev->ap_vendor);
 	return 0;
 
 err_sysfs_create_group_failed:
@@ -1620,7 +1620,7 @@ static int st21nfc_suspend(struct device *device)
 	struct i2c_client *client = to_i2c_client(device);
 	struct st21nfc_device *st21nfc_dev = i2c_get_clientdata(client);
 
-	NFC_LOG_INFO("suspend\n");
+	NFC_LOG_INFO_WITH_DATE("suspend\n");
 
 	if (st21nfc_dev->irq_enabled) {
 		if (!enable_irq_wake(client->irq))
@@ -1640,7 +1640,7 @@ static int st21nfc_resume(struct device *device)
 	struct st21nfc_device *st21nfc_dev = i2c_get_clientdata(client);
 	int pidle;
 
-	NFC_LOG_INFO("resume\n");
+	NFC_LOG_INFO_WITH_DATE("resume\n");
 
 	if (st21nfc_dev->irq_wake_up) {
 		if (!disable_irq_wake(client->irq))

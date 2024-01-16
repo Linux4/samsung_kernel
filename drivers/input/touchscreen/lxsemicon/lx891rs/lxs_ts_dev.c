@@ -3106,6 +3106,9 @@ static void lxs_ts_free(struct spi_device *client)
 
 	ts->probe_done = false;
 
+	if(ts->sec.fac_dev != NULL)
+		lxs_ts_cmd_free(ts);
+
 	lxs_ts_gpio_reset(ts, false);
 
 	lxs_ts_bus_free(ts);
@@ -3277,8 +3280,6 @@ static void __lxs_ts_remove(struct spi_device *client)
 #endif
 
 	lxs_ts_irq_activate(ts, false);
-
-	lxs_ts_cmd_free(ts);
 
 	lxs_ts_input_free(ts);
 

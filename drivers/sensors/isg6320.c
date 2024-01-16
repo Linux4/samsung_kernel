@@ -3323,6 +3323,7 @@ static int isg6320_probe(struct i2c_client *client,
 	noti_input_dev = input_allocate_device();
 	if (!noti_input_dev) {
 		pr_err("[GRIP_%d] input_allocate_device failed\n", data->ic_num);
+		input_free_device(input_dev);
 		goto err_noti_input_alloc;
 	}
 
@@ -3338,6 +3339,8 @@ static int isg6320_probe(struct i2c_client *client,
 	ret = isg6320_reset(data);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] reset fail\n", data->ic_num);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_soft_reset;
 	}
 
@@ -3372,6 +3375,8 @@ static int isg6320_probe(struct i2c_client *client,
 
 	if (ret < 0) {
 		pr_err("[GRIP_%d] fail to reg client->irq %d err %d\n", client->irq, data->ic_num, ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_irq;
 	}
 	disable_irq(client->irq);
@@ -3380,6 +3385,7 @@ static int isg6320_probe(struct i2c_client *client,
 	ret = input_register_device(input_dev);
 	if (ret) {
 		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		pr_err("[GRIP_%d] fail to reg input dev %d\n", data->ic_num, ret);
 		goto err_register_input_dev;
 	}
@@ -3388,12 +3394,14 @@ static int isg6320_probe(struct i2c_client *client,
 					 input_dev->name);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] fail to create symlink %d\n", data->ic_num, ret);
+		input_free_device(noti_input_dev);
 		goto err_create_symlink;
 	}
 
 	ret = sysfs_create_group(&data->input_dev->dev.kobj, &isg6320_attribute_group);
 	if (ret < 0) {
 		pr_err("[GRIP_%d] fail to create sysfs group (%d)\n", data->ic_num, ret);
+		input_free_device(noti_input_dev);
 		goto err_sysfs_create_group;
 	}
 
@@ -3418,6 +3426,7 @@ static int isg6320_probe(struct i2c_client *client,
 
 	if (ret) {
 		pr_err("[GRIP_%d] fail to reg sensor(%d)\n", data->ic_num, ret);
+		input_free_device(noti_input_dev);
 		goto err_sensor_register;
 	}
 	ret = input_register_device(noti_input_dev);

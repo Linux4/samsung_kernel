@@ -171,6 +171,8 @@ enum registers {
 #define ISG6320_CAL_RTN_A_MASK		0x02
 #define ISG6320_CAL_RTN_B_MASK		0x01
 
+#define TARGET_DEFAULT_VALUE		0x7D0
+
 #define UNKNOWN_ON  1
 #define UNKNOWN_OFF 2
 

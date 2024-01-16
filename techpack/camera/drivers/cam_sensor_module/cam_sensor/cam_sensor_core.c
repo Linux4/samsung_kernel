@@ -1605,6 +1605,9 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		return -EINVAL;
 	}
 	rc = cam_sensor_util_power_down(power_info, soc_info);
+#if defined(CONFIG_SEC_A23XQ_PROJECT)
+     usleep_range(25, 30);
+#endif
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR, "power down the core is failed:%d", rc);
 		return rc;
