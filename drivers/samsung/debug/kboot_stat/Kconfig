@@ -1,0 +1,4 @@
+config SEC_KBOOT_STAT
+	tristate "SEC Kernel-Boot-stat driver"
+	help
+	  TODO: help is not ready.

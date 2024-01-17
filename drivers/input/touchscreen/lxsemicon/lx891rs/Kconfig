@@ -1,0 +1,11 @@
+#
+# LXS LX891RS touchscreen driver configuration
+#
+config TOUCHSCREEN_LXS_LX891RS
+	tristate "LXS LX891RS ROM-less SPI driver"
+	depends on SPI
+	help
+	  Say Y here if you have a LXS LX891RS ROM-less touchscreen connected
+	  to your system by SPI bus.
+
+	  If unsure, say N.
