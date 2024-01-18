@@ -595,6 +595,7 @@ struct fts_ts_info {
 	int ForceChannelLength;
 	short *pFrame;
 	u8 *cx_data;
+	s8 *vp_cap_data;
 	u8 *ito_result;
 	struct fts_ts_test_result test_result;
 	u8 disassemble_count;
@@ -635,6 +636,8 @@ struct fts_ts_info {
 	int wakeful_edge_side;
 	struct completion resume_done;
 	struct wakeup_source *wakelock;
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 
 	unsigned int noise_count;		/* noise mode count */
 

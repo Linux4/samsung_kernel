@@ -172,7 +172,7 @@ int msm_vidc_start_streaming(struct vb2_queue *q, unsigned int count)
 			__func__, inst->domain);
 		return -EINVAL;
 	}
-	i_vpr_e(inst, "Streamon: %s\n", v4l2_type_name(q->type));
+	i_vpr_h(inst, "Streamon: %s\n", v4l2_type_name(q->type));
 
 	if (!inst->once_per_session_set) {
 		inst->once_per_session_set = true;
@@ -256,13 +256,13 @@ int msm_vidc_start_streaming(struct vb2_queue *q, unsigned int count)
 			goto error;
 	}
 
-	i_vpr_e(inst, "Streamon: %s successful\n", v4l2_type_name(q->type));
+	i_vpr_h(inst, "Streamon: %s successful\n", v4l2_type_name(q->type));
 
 	return rc;
 
 error:
 	i_vpr_e(inst, "Streamon: %s failed\n", v4l2_type_name(q->type));
-	return -EINVAL;
+	return rc;
 }
 
 void msm_vidc_stop_streaming(struct vb2_queue *q)
@@ -289,7 +289,7 @@ void msm_vidc_stop_streaming(struct vb2_queue *q)
 			__func__, inst->domain);
 		return;
 	}
-	i_vpr_e(inst, "Streamoff: %s\n", v4l2_type_name(q->type));
+	i_vpr_h(inst, "Streamoff: %s\n", v4l2_type_name(q->type));
 
 	if (q->type == INPUT_MPLANE) {
 		if (is_decode_session(inst))
@@ -312,7 +312,7 @@ void msm_vidc_stop_streaming(struct vb2_queue *q)
 	if (q->type == INPUT_MPLANE)
 		msm_vidc_flush_ts(inst);
 
-	i_vpr_e(inst, "Streamoff: %s successful\n", v4l2_type_name(q->type));
+	i_vpr_h(inst, "Streamoff: %s successful\n", v4l2_type_name(q->type));
 	return;
 
 error:

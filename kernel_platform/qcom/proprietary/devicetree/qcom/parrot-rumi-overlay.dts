@@ -1,6 +1,7 @@
 /dts-v1/;
 /plugin/;
 
+#include "parrot-wcn3990.dtsi"
 #include "parrot-rumi.dtsi"
 
 / {

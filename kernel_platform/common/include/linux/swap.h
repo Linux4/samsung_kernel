@@ -750,9 +750,17 @@ enum zram_oem_func_cmds {
 	ZRAM_APP_LAUNCH_NOTIFY,
 	ZRAM_ADD_TO_WRITEBACK_LIST,
 	ZRAM_WRITEBACK_LIST,
-	ZRAM_ALLOC_WRITEBACK_BUFFER,
-	ZRAM_FREE_WRITEBACK_BUFFER,
-	ZRAM_IS_WRITEBACK_ENTRY,
+	ZRAM_FLUSH_WRITEBACK_BUFFER,
+	ZRAM_GET_ENTRY_TYPE,
+	ZRAM_MARK_ENTRY_NON_LRU,
+	ZRAM_PREFETCH_ENTRY,
+};
+
+enum zram_entry_type {
+	ZRAM_WB_TYPE = 1,
+	ZRAM_WB_HUGE_TYPE,
+	ZRAM_SAME_TYPE,
+	ZRAM_HUGE_TYPE,
 };
 typedef unsigned long (*zram_oem_func)(int, void *, unsigned long);
 extern zram_oem_func zram_oem_fn;

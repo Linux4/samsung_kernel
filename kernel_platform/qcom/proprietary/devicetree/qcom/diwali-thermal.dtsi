@@ -615,13 +615,13 @@
 			gpu0_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			gpu0_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
@@ -633,7 +633,7 @@
 
 			gpu0_fs1_cdev0 {
 				trip = <&gpu0_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			gpu0_fs1_cdev1 {
@@ -690,13 +690,13 @@
 			gpu1_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			gpu1_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
@@ -708,7 +708,7 @@
 
 			gpu1_fs1_cdev0 {
 				trip = <&gpu1_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			gpu1_fs1_cdev1 {
@@ -753,20 +753,20 @@
 			camera0_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			camera0_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
 		cooling-maps {
 			camera0_fs1_cdev0 {
 				trip = <&camera0_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			camera0_fs1_cdev1 {
@@ -811,20 +811,20 @@
 			camera1_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			camera1_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
 		cooling-maps {
 			camera1_fs1_cdev0 {
 				trip = <&camera1_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			camera1_fs1_cdev1 {
@@ -1052,13 +1052,13 @@
 			nspss0_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			nspss0_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
@@ -1071,7 +1071,7 @@
 
 			nspss0_fs1_cdev0 {
 				trip = <&nspss0_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			nspss0_fs1_cdev1 {
@@ -1128,13 +1128,13 @@
 			nspss1_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			nspss1_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
@@ -1147,7 +1147,7 @@
 
 			nspss1_fs1_cdev0 {
 				trip = <&nspss1_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			nspss1_fs1_cdev1 {
@@ -1204,13 +1204,13 @@
 			nspss2_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			nspss2_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
@@ -1223,7 +1223,7 @@
 
 			nspss2_fs1_cdev0 {
 				trip = <&nspss2_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			nspss2_fs1_cdev1 {
@@ -1268,20 +1268,20 @@
 			video_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			video_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
 		cooling-maps {
 			video_fs1_cdev0 {
 				trip = <&video_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			video_fs1_cdev1 {
@@ -1370,20 +1370,20 @@
 			mdmss0_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			mdmss0_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
 		cooling-maps {
 			mdmss0_fs1_cdev0 {
 				trip = <&mdmss0_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			mdmss0_fs1_cdev1 {
@@ -1428,20 +1428,20 @@
 			mdmss1_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			mdmss1_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
 		cooling-maps {
 			mdmss1_fs1_cdev0 {
 				trip = <&mdmss1_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			mdmss1_fs1_cdev1 {
@@ -1486,20 +1486,20 @@
 			mdmss2_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			mdmss2_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
 		cooling-maps {
 			mdmss2_fs1_cdev0 {
 				trip = <&mdmss2_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			mdmss2_fs1_cdev1 {
@@ -1544,20 +1544,20 @@
 			mdmss3_fail_safe1: fail_safe1 {
 				temperature = <100000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 
 			mdmss3_fail_safe2: fail_safe2 {
 				temperature = <105000>;
 				hysteresis = <5000>;
-				type = "passive";
+				type = "active";
 			};
 		};
 
 		cooling-maps {
 			mdmss3_fs1_cdev0 {
 				trip = <&mdmss3_fail_safe1>;
-				cooling-device = <&msm_gpu 5 5>;
+				cooling-device = <&msm_gpu 2 THERMAL_NO_LIMIT>;
 			};
 
 			mdmss3_fs1_cdev1 {

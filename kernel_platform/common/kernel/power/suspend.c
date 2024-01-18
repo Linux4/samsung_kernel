@@ -32,6 +32,7 @@
 #include <linux/compiler.h>
 #include <linux/moduleparam.h>
 #include <linux/wakeup_reason.h>
+#include <linux/regulator/machine.h>
 
 #include "power.h"
 
@@ -140,9 +141,7 @@ static void s2idle_loop(void)
 			break;
 		}
 
-		pm_wakeup_clear(false);
 		clear_wakeup_reasons();
-
 		s2idle_enter();
 	}
 
@@ -407,6 +406,9 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 					 suspend_stats.failed_devs[last_dev]);
 		goto Platform_finish;
 	}
+
+	regulator_show_enabled();
+
 	error = platform_suspend_prepare_late(state);
 	if (error)
 		goto Devices_early_resume;

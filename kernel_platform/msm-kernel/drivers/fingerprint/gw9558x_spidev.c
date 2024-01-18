@@ -182,8 +182,7 @@ int gw9558_ioctl_transfer_raw_cmd(struct gf_device *gf_dev,
 
 	do {
 		if (copy_from_user(&ioc_xraw, (void __user *)arg,
-				sizeof(struct gf_ioc_transfer_raw)))
-		{
+				sizeof(struct gf_ioc_transfer_raw))) {
 			pr_err("Failed to copy gf_ioc_transfer_raw from user to kernel\n");
 			retval = -EFAULT;
 			break;
@@ -232,21 +231,21 @@ int gw9558_init_buffer(struct gf_device *gf_dev)
 	int len = TANSFER_MAX_LEN;
 
 	gf_dev->spi_buffer = kzalloc(len, GFP_KERNEL);
-	if (NULL == gf_dev->spi_buffer) {
+	if (!gf_dev->spi_buffer) {
 		pr_err("failed to allocate spi buffer\n");
 		retval = -ENOMEM;
 		goto alloc_failed;
 	}
 
 	gf_dev->tx_buf = kzalloc(len, GFP_KERNEL);
-	if (NULL == gf_dev->tx_buf) {
+	if (!gf_dev->tx_buf) {
 		pr_err("failed to allocate raw tx buffer\n");
 		retval = -ENOMEM;
 		goto alloc_failed;
 	}
 
 	gf_dev->rx_buf = kzalloc(len, GFP_KERNEL);
-	if (NULL == gf_dev->rx_buf) {
+	if (!gf_dev->rx_buf) {
 		kfree(gf_dev->tx_buf);
 		pr_err("failed to allocate raw rx buffer\n");
 		retval = -ENOMEM;

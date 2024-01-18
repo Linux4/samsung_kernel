@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/sysfs.h>
@@ -77,6 +78,25 @@ static unsigned int _ft_pagefault_policy_show(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
 	return device->mmu.pfpolicy;
+}
+
+static int _rt_bus_hint_store(struct adreno_device *adreno_dev, u32 val)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct kgsl_pwrctrl *pwrctrl = &device->pwrctrl;
+
+	if (val > pwrctrl->pwrlevels[0].bus_max)
+		return -EINVAL;
+
+	adreno_power_cycle_u32(adreno_dev, &pwrctrl->rt_bus_hint, val);
+	return 0;
+}
+
+static u32 _rt_bus_hint_show(struct adreno_device *adreno_dev)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+
+	return device->pwrctrl.rt_bus_hint;
 }
 
 static int _gpu_llc_slice_enable_store(struct adreno_device *adreno_dev,
@@ -223,6 +243,20 @@ static int _bcl_store(struct adreno_device *adreno_dev, bool val)
 					val);
 }
 
+static bool _dms_show(struct adreno_device *adreno_dev)
+{
+	return adreno_dev->dms_enabled;
+}
+
+static int _dms_store(struct adreno_device *adreno_dev, bool val)
+{
+	if (!test_bit(ADRENO_DEVICE_DMS, &adreno_dev->priv) ||
+		adreno_dev->dms_enabled == val)
+		return 0;
+
+	return adreno_power_cycle_bool(adreno_dev, &adreno_dev->dms_enabled, val);
+}
+
 static bool _perfcounter_show(struct adreno_device *adreno_dev)
 {
 	return adreno_dev->perfcounter;
@@ -234,6 +268,21 @@ static int _perfcounter_store(struct adreno_device *adreno_dev, bool val)
 		return 0;
 
 	return adreno_power_cycle_bool(adreno_dev, &adreno_dev->perfcounter, val);
+}
+
+static bool _lpac_show(struct adreno_device *adreno_dev)
+{
+	return adreno_dev->lpac_enabled;
+}
+
+static int _lpac_store(struct adreno_device *adreno_dev, bool val)
+{
+	if (!ADRENO_FEATURE(adreno_dev, ADRENO_LPAC) ||
+				adreno_dev->lpac_enabled == val)
+		return 0;
+
+
+	return adreno_power_cycle_bool(adreno_dev, &adreno_dev->lpac_enabled, val);
 }
 
 ssize_t adreno_sysfs_store_u32(struct device *dev,
@@ -298,6 +347,7 @@ ssize_t adreno_sysfs_show_bool(struct device *dev,
 
 static ADRENO_SYSFS_U32(ft_policy);
 static ADRENO_SYSFS_U32(ft_pagefault_policy);
+static ADRENO_SYSFS_U32(rt_bus_hint);
 static ADRENO_SYSFS_RO_BOOL(ft_hang_intr_status);
 static ADRENO_SYSFS_BOOL(gpu_llc_slice_enable);
 static ADRENO_SYSFS_BOOL(gpuhtw_llc_slice_enable);
@@ -316,12 +366,15 @@ static ADRENO_SYSFS_BOOL(acd);
 static ADRENO_SYSFS_BOOL(bcl);
 static ADRENO_SYSFS_BOOL(l3_vote);
 static ADRENO_SYSFS_BOOL(perfcounter);
+static ADRENO_SYSFS_BOOL(lpac);
+static ADRENO_SYSFS_BOOL(dms);
 
 static DEVICE_ATTR_RO(gpu_model);
 
 static const struct attribute *_attr_list[] = {
 	&adreno_attr_ft_policy.attr.attr,
 	&adreno_attr_ft_pagefault_policy.attr.attr,
+	&adreno_attr_rt_bus_hint.attr.attr,
 	&adreno_attr_ft_hang_intr_status.attr.attr,
 	&dev_attr_wake_nice.attr.attr,
 	&dev_attr_wake_timeout.attr.attr,
@@ -339,6 +392,8 @@ static const struct attribute *_attr_list[] = {
 	&dev_attr_gpu_model.attr,
 	&adreno_attr_l3_vote.attr.attr,
 	&adreno_attr_perfcounter.attr.attr,
+	&adreno_attr_lpac.attr.attr,
+	&adreno_attr_dms.attr.attr,
 	NULL,
 };
 

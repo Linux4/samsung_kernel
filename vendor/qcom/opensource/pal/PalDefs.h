@@ -419,10 +419,11 @@ typedef enum {
     PAL_DEVICE_IN_EXT_EC_REF = PAL_DEVICE_IN_MIN + 20,
 #ifdef SEC_AUDIO_BLE_OFFLOAD
     PAL_DEVICE_IN_BLUETOOTH_BLE = PAL_DEVICE_IN_MIN + 21,
+    PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 22, // temporary fix build err (refer 8550)
 #endif
     // Add new IN devices here, increment MAX and MIN below when you do so
 #ifdef SEC_AUDIO_BLE_OFFLOAD
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 22,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 23,
 #else
     PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 21,
 #endif
@@ -945,6 +946,9 @@ typedef enum {
 #ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
     PAL_PARAM_ID_BT_A2DP_SUSPENDED_FOR_BLE = 2004,
 #endif
+#ifdef SEC_AUDIO_BLUETOOTH
+    PAL_PARAM_ID_BT_SCO_CODEC_TYPE = 2005,
+#endif
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1127,6 +1131,14 @@ typedef struct btsco_lc3_cfg {
     char     vendor[PAL_LC3_MAX_STRING_LEN];
 } btsco_lc3_cfg_t;
 
+
+#ifdef SEC_AUDIO_BLUETOOTH
+typedef enum {
+    PAL_BT_SCO_CODEC_TYPE_NONE,
+    PAL_BT_SCO_CODEC_TYPE_RVP,
+} pal_bt_sco_codec_t;
+#endif
+
 typedef struct pal_param_btsco {
     bool   bt_sco_on;
     bool   bt_wb_speech_enabled;
@@ -1134,6 +1146,9 @@ typedef struct pal_param_btsco {
     int    bt_swb_speech_mode;
     bool   bt_lc3_speech_enabled;
     btsco_lc3_cfg_t lc3_cfg;
+#ifdef SEC_AUDIO_BLUETOOTH
+    pal_bt_sco_codec_t bt_sco_codec_type;
+#endif	
 } pal_param_btsco_t;
 
 /* Payload For ID: PAL_PARAM_ID_BT_A2DP*
@@ -1153,6 +1168,7 @@ typedef struct pal_param_bta2dp {
 #endif
 #ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
     bool     a2dp_suspended_for_ble;
+    uint32_t bt_mix_latency;
 #endif
 } pal_param_bta2dp_t;
 
